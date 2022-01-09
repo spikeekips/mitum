@@ -1,0 +1,49 @@
+name: unit-test
+on: [push, pull_request]
+
+jobs:
+  pkgs:
+    runs-on: ubuntu-latest
+    name: Retrieve package list
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+      - name: go list
+        id: golist
+        run: |
+            echo "::set-output name=out::$(go list ./... | sed -e 's@github.com/spikeekips/mitum@.@g' -e 's/.*/\"&\",/g') )"
+      - name: package lists
+        id: pkgs
+        run: |
+            echo "::set-output name=out::$(echo ${{ steps.golist.outputs.out }} | sed -e 's/,$//g' -e 's/^/[/g' -e 's/$/]/g'"
+    outputs:
+      pkgs: ${{ steps.pkgs.outputs.out }}
+
+  unit:
+    needs: pkgs
+    strategy:
+      fail-fast: false
+      matrix:
+        go: [ "1.17.x", "1.18.x" ]
+        pkg: ${{ fromJSON(needs.pkgs.outputs.pkgs) }}
+    runs-on: ubuntu-latest
+    name: Unit tests Go ${{ matrix.go }})
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          stable: '!contains(${{ matrix.go }}, "beta") && !contains(${{ matrix.go }}, "rc")'
+          go-version: ${{ matrix.go }}
+      - run: go version
+      - name: package lists
+        id: pkgs
+      - name: run go test
+        run: |
+            go test -race -tags "test" -v -coverprofile=/tmp/cov.out -timeout 20m ${{ matrix.pkg }} -run .
+            cat /tmp/cov.out >> /tmp/allcov.out
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v1
+        with:
+          file: /tmp/allcov.out
+          env_vars: GO=${{ matrix.go }}

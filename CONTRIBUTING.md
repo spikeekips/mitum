@@ -4,7 +4,6 @@
 
 ## Types of contributions
 
-* Discussions
 * Issues
 * Pull requests
 
