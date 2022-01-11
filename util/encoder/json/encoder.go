@@ -134,13 +134,13 @@ func (enc *Encoder) findDecoder(ht hint.Hint) (encoder.DecodeDetail, error) {
 }
 
 func (*Encoder) guessHint(b []byte) (hint.Hint, error) {
-	var head HintedHead
+	var head hint.HintedJSONHead
 	if err := util.UnmarshalJSON(b, &head); err != nil {
 		return head.H, err
 	}
 
 	if err := head.H.IsValid(nil); err != nil {
-		return head.H, err // nolint:nilerr
+		return head.H, err
 	}
 
 	return head.H, nil

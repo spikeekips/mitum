@@ -2,24 +2,11 @@ package jsonenc
 
 import (
 	"bytes"
-
-	"github.com/spikeekips/mitum/util/hint"
 )
 
-const (
-	NULL      = "null"
-	HintedTag = "_hint"
-)
+const NULL = "null"
 
 var nullbytes = []byte("null")
-
-type HintedHead struct {
-	H hint.Hint `json:"_hint"`
-}
-
-func NewHintedHead(h hint.Hint) HintedHead {
-	return HintedHead{H: h}
-}
 
 type Decodable interface {
 	DecodeJSON([]byte, *Encoder) error

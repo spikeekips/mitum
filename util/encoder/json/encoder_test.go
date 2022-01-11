@@ -18,13 +18,9 @@ type sample struct {
 }
 
 type sampleNative struct {
-	HintedHead
+	hint.BaseHinter
 	A string
 	B int
-}
-
-func (s sampleNative) Hint() hint.Hint {
-	return s.H
 }
 
 type sampleJSONUnmarshaler struct {
@@ -33,12 +29,9 @@ type sampleJSONUnmarshaler struct {
 	B int
 }
 
-func (s sampleJSONUnmarshaler) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(struct {
-		HintedHead
-		A string
-		B int
-	}{HintedHead: NewHintedHead(s.Hint()), A: s.A, B: s.B})
+type innerSampleJSONUnmarshaler struct {
+	A string
+	B int
 }
 
 func (s *sampleJSONUnmarshaler) UnmarshalJSON(b []byte) error {
@@ -63,14 +56,6 @@ type sampleTextUnmarshaler struct {
 	B int
 }
 
-func (s sampleTextUnmarshaler) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(struct {
-		HintedHead
-		A string
-		B int
-	}{HintedHead: NewHintedHead(s.Hint()), A: s.A, B: s.B})
-}
-
 func (s *sampleTextUnmarshaler) UnmarshalText(b []byte) error {
 	var v struct {
 		A string
@@ -91,14 +76,6 @@ type sampleDecodable struct {
 	hint.BaseHinter
 	A string
 	B int
-}
-
-func (s sampleDecodable) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(struct {
-		HintedHead
-		A string
-		B int
-	}{HintedHead: NewHintedHead(s.Hint()), A: s.A, B: s.B})
 }
 
 func (s *sampleDecodable) DecodeJSON(b []byte, _ hint.Hint) error {
@@ -230,7 +207,7 @@ func (t *testJSONEncoder) TestDecodeMultipleVersions() {
 	t.NoError(err)
 
 	{ // v0
-		nb := fmt.Sprintf(`{"%s": %q, "d": %s}`, HintedTag, dv0.Hint, string(b))
+		nb := fmt.Sprintf(`{"%s": %q, "d": %s}`, hint.HintedJSONTag, dv0.Hint, string(b))
 
 		uv, err := t.enc.Decode([]byte(nb))
 		t.NoError(err)
@@ -239,7 +216,7 @@ func (t *testJSONEncoder) TestDecodeMultipleVersions() {
 	}
 
 	{ // v1
-		nb := fmt.Sprintf(`{"%s": %q, "d": %s}`, HintedTag, dv1.Hint, string(b))
+		nb := fmt.Sprintf(`{"%s": %q, "d": %s}`, hint.HintedJSONTag, dv1.Hint, string(b))
 
 		i, err := t.enc.Decode([]byte(nb))
 		t.NoError(err)
@@ -304,7 +281,7 @@ func (t *testJSONEncoder) TestDecodeNative() {
 	ht := hint.MustNewHint("findme-v1.2.3")
 
 	v := sampleNative{
-		HintedHead: NewHintedHead(ht),
+		BaseHinter: hint.NewBaseHinter(ht),
 		A:          "A",
 		B:          33,
 	}
@@ -350,7 +327,7 @@ func (t *testJSONEncoder) TestDecodeCustomDecodeFunc() {
 	b, err := t.enc.Marshal(v)
 	t.NoError(err)
 
-	nb := fmt.Sprintf(`{"%s": %q, "d": %s}`, HintedTag, ht, string(b))
+	nb := fmt.Sprintf(`{"%s": %q, "d": %s}`, hint.HintedJSONTag, ht, string(b))
 
 	uv, err := t.enc.Decode([]byte(nb))
 	t.NoError(err)

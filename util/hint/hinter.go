@@ -5,23 +5,19 @@ type SetHinter interface {
 }
 
 type BaseHinter struct {
-	ht Hint
+	HT Hint `json:"_hint"`
 }
 
 func NewBaseHinter(ht Hint) BaseHinter {
-	return BaseHinter{ht: ht}
+	return BaseHinter{HT: ht}
 }
 
 func (ht BaseHinter) Hint() Hint {
-	return ht.ht
+	return ht.HT
 }
 
 func (ht BaseHinter) SetHint(n Hint) Hinter {
-	ht.ht = n
+	ht.HT = n
 
 	return ht
-}
-
-func (ht BaseHinter) IsValid([]byte) error {
-	return ht.ht.IsValid(nil)
 }

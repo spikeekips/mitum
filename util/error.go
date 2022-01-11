@@ -138,7 +138,7 @@ func (er Error) Call() Error {
 
 func (er Error) checkStack() {
 	if er.stack == nil {
-		panic(fmt.Errorf("Error should not be used as error directly without Call()"))
+		panic(fmt.Errorf("Error, %q should not be used as error directly without Call()", er.msg))
 	}
 }
 
