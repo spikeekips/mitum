@@ -1,5 +1,9 @@
 package hint
 
+type SetHinter interface {
+	SetHint(Hint) Hinter
+}
+
 type BaseHinter struct {
 	ht Hint
 }

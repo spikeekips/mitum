@@ -70,7 +70,7 @@ func (t *testCompatibleSet) TestAlreadyAdded() {
 	hr := newHinter("showme", "v2019.10")
 	t.NoError(hs.AddHinter(hr))
 	err := hs.AddHinter(hr)
-	t.True(errors.Is(err, util.FoundError))
+	t.True(errors.Is(err, util.DuplicatedError))
 }
 
 func (t *testCompatibleSet) TestFind() {
@@ -130,39 +130,4 @@ func (t *testCompatibleSet) TestFindCompatible() {
 
 func TestCompatibleSet(t *testing.T) {
 	suite.Run(t, new(testCompatibleSet))
-}
-
-type testSafeTypeCompatibleSet struct {
-	suite.Suite
-}
-
-func (t *testSafeTypeCompatibleSet) TestAddType() {
-	hs := NewSafeTypeCompatibleSet()
-
-	hr := newHinter("showme", "v2019.10")
-	err := hs.AddHinter(hr)
-	t.True(errors.Is(err, util.NotFoundError))
-
-	t.NoError(hs.AddType(hr.Hint().Type()))
-	t.NoError(hs.AddHinter(hr))
-}
-
-func (t *testSafeTypeCompatibleSet) TestIsValid() {
-	hs := NewSafeTypeCompatibleSet()
-
-	hr := newHinter("showme", "v2019.10")
-	err := hs.AddHinter(hr)
-	t.True(errors.Is(err, util.NotFoundError))
-
-	t.NoError(hs.AddType(hr.Hint().Type()))
-
-	err = hs.IsValid(nil)
-	t.Contains(err.Error(), "is empty")
-
-	t.NoError(hs.AddHinter(hr))
-	t.NoError(hs.IsValid(nil))
-}
-
-func TestSafeTypeCompatibleSet(t *testing.T) {
-	suite.Run(t, new(testSafeTypeCompatibleSet))
 }

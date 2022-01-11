@@ -17,10 +17,6 @@ type Hinter interface {
 	Hint() Hint
 }
 
-type SetHinter interface {
-	SetHint(Hint) Hinter
-}
-
 type Hint struct {
 	t Type
 	v util.Version
@@ -53,6 +49,15 @@ func ParseHint(s string) (Hint, error) {
 	}
 
 	return ht, nil
+}
+
+func MustNewHint(s string) Hint {
+	ht, err := ParseHint(s)
+	if err != nil {
+		panic(err)
+	}
+
+	return ht
 }
 
 func (ht Hint) IsValid([]byte) error {
@@ -99,6 +104,10 @@ func (ht Hint) IsCompatible(b Hint) bool {
 	}
 
 	return ht.v.IsCompatible(b.v)
+}
+
+func (ht Hint) IsEmpty() bool {
+	return len(ht.t) < 1 || ht.v.IsEmpty()
 }
 
 func (ht Hint) MarshalText() ([]byte, error) {

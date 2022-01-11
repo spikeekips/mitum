@@ -49,6 +49,15 @@ func ParseVersion(s string) (Version, error) {
 	return p, nil
 }
 
+func MustNewVersion(s string) Version {
+	v, err := ParseVersion(s)
+	if err != nil {
+		panic(err)
+	}
+
+	return v
+}
+
 func newVersion(v *semver.Version) Version {
 	return Version{
 		s:          "v" + v.String(),
@@ -110,6 +119,10 @@ func (v Version) Compare(b Version) int {
 // compatible conditions are major matches.
 func (v Version) IsCompatible(b Version) bool {
 	return v.major == b.major
+}
+
+func (v Version) IsEmpty() bool {
+	return len(v.s) < 1
 }
 
 func (v Version) MarshalText() ([]byte, error) {

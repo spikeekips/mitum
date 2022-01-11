@@ -50,7 +50,7 @@ func (st *CompatibleSet) add(ht Hint, v interface{}) error {
 
 	switch {
 	case eht.Equal(ht):
-		return util.FoundError.Errorf("hint, %q already added", ht)
+		return util.DuplicatedError.Errorf("hint, %q already added", ht)
 	case !eht.Version().IsCompatible(ht.Version()):
 		st.set[ht.Type()][ht.Version().Major()] = v
 		st.hints[ht.Type()][ht.Version().Major()] = ht
@@ -81,6 +81,16 @@ func (st *CompatibleSet) Find(ht Hint) interface{} {
 	return hr
 }
 
+func (st *CompatibleSet) Traverse(f func(Hint, interface{}) bool) {
+	for i := range st.set {
+		for j := range st.set[i] {
+			if !f(st.hints[i][j], st.set[i][j]) {
+				return
+			}
+		}
+	}
+}
+
 func (st *CompatibleSet) find(ht Hint) interface{} {
 	vs, found := st.set[ht.Type()]
 	if !found {
@@ -93,60 +103,4 @@ func (st *CompatibleSet) find(ht Hint) interface{} {
 	}
 
 	return v
-}
-
-type SafeTypeCompatibleSet struct {
-	*CompatibleSet
-}
-
-func NewSafeTypeCompatibleSet() *SafeTypeCompatibleSet {
-	return &SafeTypeCompatibleSet{
-		CompatibleSet: NewCompatibleSet(),
-	}
-}
-
-func (st *SafeTypeCompatibleSet) IsValid([]byte) error {
-	for i := range st.set {
-		if len(st.set[i]) < 1 {
-			return errors.Errorf("some type,  %q is empty", i)
-		}
-	}
-
-	return nil
-}
-
-func (st *SafeTypeCompatibleSet) AddType(t Type) error {
-	if _, found := st.set[t]; found {
-		return util.FoundError.Errorf("type already added to SafeTypeCompatibleSet, %q", t)
-	}
-
-	st.set[t] = map[uint64]interface{}{}
-	st.hints[t] = map[uint64]Hint{}
-
-	return nil
-}
-
-func (st *SafeTypeCompatibleSet) Add(ht Hint, v interface{}) error {
-	if err := st.check(ht); err != nil {
-		return err
-	}
-
-	return st.CompatibleSet.Add(ht, v)
-}
-
-func (st *SafeTypeCompatibleSet) AddHinter(hr Hinter) error {
-	ht := hr.Hint()
-	if err := st.check(ht); err != nil {
-		return err
-	}
-
-	return st.CompatibleSet.AddHinter(hr)
-}
-
-func (st *SafeTypeCompatibleSet) check(ht Hint) error {
-	if _, found := st.set[ht.Type()]; !found {
-		return util.NotFoundError.Errorf("unknown type in SafeTypeCompatibleSet, %q", ht.Type())
-	}
-
-	return nil
 }
