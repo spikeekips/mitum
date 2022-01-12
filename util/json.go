@@ -1,15 +1,23 @@
 package util
 
 import (
+	"bytes"
+
 	"github.com/bytedance/sonic"
 	sonicencoder "github.com/bytedance/sonic/encoder"
 )
+
+var nullJSONBytes = []byte("null")
 
 func MarshalJSON(v interface{}) ([]byte, error) {
 	return sonic.Marshal(v)
 }
 
 func UnmarshalJSON(b []byte, v interface{}) error {
+	if IsNilJSON(b) {
+		return nil
+	}
+
 	return sonic.Unmarshal(b, v)
 }
 
@@ -33,4 +41,10 @@ func MustMarshalJSONIndent(i interface{}) []byte {
 	}
 
 	return b
+}
+
+func IsNilJSON(b []byte) bool {
+	i := bytes.TrimSpace(b)
+
+	return len(i) < 1 || bytes.Equal(i, nullJSONBytes)
 }

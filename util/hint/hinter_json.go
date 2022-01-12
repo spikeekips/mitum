@@ -10,6 +10,6 @@ type HintedJSONHead struct {
 	H Hint `json:"_hint"`
 }
 
-func NewHintedHead(h Hint) HintedJSONHead {
+func NewHintedJSONHead(h Hint) HintedJSONHead {
 	return HintedJSONHead{H: h}
 }

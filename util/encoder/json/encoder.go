@@ -11,7 +11,7 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 )
 
-var JSONEncoderHint = hint.MustNewHint("json-encoder-v0.0.1")
+var JSONEncoderHint = hint.MustNewHint("json-encoder-v2")
 
 type Encoder struct {
 	decoders *hint.CompatibleSet
@@ -32,6 +32,10 @@ func (enc *Encoder) Add(d encoder.DecodeDetail) error {
 		return util.InvalidError.Wrapf(err, "failed to add in json encoder")
 	}
 
+	if d.Decode == nil {
+		d = enc.analyze(d, d.Instance)
+	}
+
 	return enc.addDecodeDetail(d)
 }
 
@@ -40,7 +44,7 @@ func (enc *Encoder) AddHinter(hr hint.Hinter) error {
 		return util.InvalidError.Wrapf(err, "failed to add in json encoder")
 	}
 
-	return enc.addDecodeDetail(enc.analyzeHinter(hr))
+	return enc.addDecodeDetail(enc.analyze(encoder.DecodeDetail{Hint: hr.Hint()}, hr))
 }
 
 func (*Encoder) Marshal(v interface{}) ([]byte, error) {
@@ -52,7 +56,7 @@ func (*Encoder) Unmarshal(b []byte, v interface{}) error {
 }
 
 func (enc *Encoder) Decode(b []byte) (interface{}, error) {
-	if isNil(b) {
+	if util.IsNilJSON(b) {
 		return nil, nil
 	}
 
@@ -61,19 +65,44 @@ func (enc *Encoder) Decode(b []byte) (interface{}, error) {
 		return nil, errors.Wrapf(err, "failed to guess hint in json decoders")
 	}
 
-	return enc.decode(b, ht)
+	return enc.decodeWithHint(b, ht)
 }
 
 func (enc *Encoder) DecodeWithHint(b []byte, ht hint.Hint) (interface{}, error) {
-	if isNil(b) {
+	if util.IsNilJSON(b) {
 		return nil, nil
 	}
 
-	return enc.decode(b, ht)
+	return enc.decodeWithHint(b, ht)
+}
+
+func (enc *Encoder) DecodeWithHintType(b []byte, t hint.Type) (interface{}, error) {
+	if util.IsNilJSON(b) {
+		return nil, nil
+	}
+
+	ht, v := enc.decoders.FindBytType(t)
+	if v == nil {
+		return encoder.DecodeDetail{},
+			errors.Errorf("failed to find decoder by type in json decoders, %q", t)
+	}
+
+	d, ok := v.(encoder.DecodeDetail)
+	if !ok {
+		return encoder.DecodeDetail{},
+			errors.Errorf("failed to find decoder by type in json decoders, %q; not DecodeDetail, %T", ht, v)
+	}
+
+	i, err := d.Decode(b, ht)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to decode, %q in json decoders", ht)
+	}
+
+	return i, nil
 }
 
 func (enc *Encoder) DecodeSlice(b []byte) ([]interface{}, error) {
-	if isNil(b) {
+	if util.IsNilJSON(b) {
 		return nil, nil
 	}
 
@@ -103,10 +132,17 @@ func (enc *Encoder) addDecodeDetail(d encoder.DecodeDetail) error {
 	return nil
 }
 
-func (enc *Encoder) decode(b []byte, ht hint.Hint) (interface{}, error) {
-	d, err := enc.findDecoder(ht)
-	if err != nil {
-		return nil, err
+func (enc *Encoder) decodeWithHint(b []byte, ht hint.Hint) (interface{}, error) {
+	v := enc.decoders.Find(ht)
+	if v == nil {
+		return nil,
+			util.NotFoundError.Errorf("failed to find decoder by hint, %q in json decoders", ht)
+	}
+
+	d, ok := v.(encoder.DecodeDetail)
+	if !ok {
+		return nil,
+			errors.Errorf("failed to find decoder by hint in json decoders, %q; not DecodeDetail, %T", ht, v)
 	}
 
 	i, err := d.Decode(b, ht)
@@ -146,10 +182,8 @@ func (*Encoder) guessHint(b []byte) (hint.Hint, error) {
 	return head.H, nil
 }
 
-func (enc *Encoder) analyzeHinter(hr hint.Hinter) encoder.DecodeDetail {
-	d := encoder.DecodeDetail{Hint: hr.Hint()}
-
-	ptr, elem := encoder.Ptr(hr)
+func (enc *Encoder) analyze(d encoder.DecodeDetail, v interface{}) encoder.DecodeDetail {
+	ptr, elem := encoder.Ptr(v)
 	switch ptr.Interface().(type) {
 	case Decodable:
 		d.Desc = "JSONDecodable"
@@ -197,5 +231,5 @@ func (enc *Encoder) analyzeHinter(hr hint.Hinter) encoder.DecodeDetail {
 		}
 	}
 
-	return encoder.AnalyzeSetHinter(elem.Interface(), d)
+	return encoder.AnalyzeSetHinter(d, elem.Interface())
 }

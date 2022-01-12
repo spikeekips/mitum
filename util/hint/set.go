@@ -7,16 +7,20 @@ import (
 )
 
 type CompatibleSet struct {
-	set   map[Type]map[uint64]interface{}
-	hints map[Type]map[uint64]Hint
-	cache gcache.Cache
+	set           map[Type]map[uint64]interface{}
+	hints         map[Type]map[uint64]Hint
+	typeheads     map[Type]interface{}
+	typeheadhints map[Type]Hint
+	cache         gcache.Cache
 }
 
 func NewCompatibleSet() *CompatibleSet {
 	return &CompatibleSet{
-		set:   map[Type]map[uint64]interface{}{},
-		hints: map[Type]map[uint64]Hint{},
-		cache: gcache.New(100 * 100).LRU().Build(),
+		set:           map[Type]map[uint64]interface{}{},
+		hints:         map[Type]map[uint64]Hint{},
+		typeheads:     map[Type]interface{}{},
+		typeheadhints: map[Type]Hint{},
+		cache:         gcache.New(100 * 100).LRU().Build(),
 	}
 }
 
@@ -29,8 +33,25 @@ func (st *CompatibleSet) AddHinter(hr Hinter) error {
 }
 
 func (st *CompatibleSet) add(ht Hint, v interface{}) error {
-	if err := ht.IsValid(nil); err != nil {
+	if err := st.addWithHint(ht, v); err != nil {
 		return errors.Wrapf(err, "failed to add to CompatibleSet")
+	}
+
+	switch eht, found := st.typeheadhints[ht.Type()]; {
+	case !found:
+		st.typeheads[ht.Type()] = v
+		st.typeheadhints[ht.Type()] = ht
+	case ht.Version().Compare(eht.Version()) > 0:
+		st.typeheads[ht.Type()] = v
+		st.typeheadhints[ht.Type()] = ht
+	}
+
+	return nil
+}
+
+func (st *CompatibleSet) addWithHint(ht Hint, v interface{}) error {
+	if err := ht.IsValid(nil); err != nil {
+		return err
 	}
 
 	if _, found := st.set[ht.Type()]; !found {
@@ -48,22 +69,20 @@ func (st *CompatibleSet) add(ht Hint, v interface{}) error {
 		return nil
 	}
 
-	switch {
-	case eht.Equal(ht):
+	if eht.Equal(ht) {
 		return util.DuplicatedError.Errorf("hint, %q already added", ht)
+	}
+
+	switch {
 	case !eht.Version().IsCompatible(ht.Version()):
 		st.set[ht.Type()][ht.Version().Major()] = v
 		st.hints[ht.Type()][ht.Version().Major()] = ht
-
-		return nil
-	case eht.Version().Compare(ht.Version()) > 0:
+	case ht.Version().Compare(eht.Version()) > 0:
 		st.set[ht.Type()][ht.Version().Major()] = v
 		st.hints[ht.Type()][ht.Version().Major()] = ht
-
-		return nil
-	default:
-		return nil
 	}
+
+	return nil
 }
 
 func (st *CompatibleSet) Find(ht Hint) interface{} {
@@ -79,6 +98,15 @@ func (st *CompatibleSet) Find(ht Hint) interface{} {
 	_ = st.cache.Set(ht.String(), hr)
 
 	return hr
+}
+
+func (st *CompatibleSet) FindBytType(t Type) (Hint, interface{}) {
+	vs, found := st.typeheads[t]
+	if !found {
+		return Hint{}, nil
+	}
+
+	return st.typeheadhints[t], vs
 }
 
 func (st *CompatibleSet) Traverse(f func(Hint, interface{}) bool) {

@@ -87,6 +87,108 @@ func (t *testCompatibleSet) TestFind() {
 	t.True(hr.Hint().Equal(uhr.Hint()))
 }
 
+func (t *testCompatibleSet) TestFindHead() {
+	hs := NewCompatibleSet()
+
+	hr0 := newHinter("showme", "v2019.10")
+	t.NoError(hs.AddHinter(hr0))
+
+	hr1 := newHinter("showme", "v2019.11")
+	t.NoError(hs.AddHinter(hr1))
+
+	v0 := hs.Find(hr0.Hint())
+	t.NotNil(v0)
+
+	uhr, ok := v0.(Hinter)
+	t.True(ok)
+	t.True(hr1.Hint().Equal(uhr.Hint()))
+
+	v1 := hs.Find(hr1.Hint())
+	t.NotNil(v1)
+
+	uhr, ok = v1.(Hinter)
+	t.True(ok)
+	t.True(hr1.Hint().Equal(uhr.Hint()))
+}
+
+func (t *testCompatibleSet) TestFindByType() {
+	hs := NewCompatibleSet()
+
+	hr0 := newHinter("showme", "v2019.10")
+	t.NoError(hs.AddHinter(hr0))
+
+	uht, v := hs.FindBytType(hr0.Hint().Type())
+
+	uhr, ok := v.(Hinter)
+	t.True(ok)
+	t.True(hr0.Hint().Equal(uht))
+	t.True(hr0.Hint().Equal(uhr.Hint()))
+}
+
+func (t *testCompatibleSet) TestFindByTypeSameMajor() {
+	hs := NewCompatibleSet()
+
+	hr0 := newHinter("showme", "v2019.10")
+	t.NoError(hs.AddHinter(hr0))
+	hr1 := newHinter("showme", "v2019.11")
+	t.NoError(hs.AddHinter(hr1))
+
+	uht, v := hs.FindBytType(hr0.Hint().Type())
+
+	uhr, ok := v.(Hinter)
+	t.True(ok)
+	t.True(hr1.Hint().Equal(uht))
+	t.True(hr1.Hint().Equal(uhr.Hint()))
+}
+
+func (t *testCompatibleSet) TestFindByTypeLowerMinor() {
+	hs := NewCompatibleSet()
+
+	hr0 := newHinter("showme", "v2019.10")
+	t.NoError(hs.AddHinter(hr0))
+	hr1 := newHinter("showme", "v2019.9")
+	t.NoError(hs.AddHinter(hr1))
+
+	uht, v := hs.FindBytType(hr0.Hint().Type())
+
+	uhr, ok := v.(Hinter)
+	t.True(ok)
+	t.True(hr0.Hint().Equal(uht))
+	t.True(hr0.Hint().Equal(uhr.Hint()))
+}
+
+func (t *testCompatibleSet) TestFindByTypeHigerMajor() {
+	hs := NewCompatibleSet()
+
+	hr0 := newHinter("showme", "v2019.10")
+	t.NoError(hs.AddHinter(hr0))
+	hr1 := newHinter("showme", "v2020.01")
+	t.NoError(hs.AddHinter(hr1))
+
+	uht, v := hs.FindBytType(hr0.Hint().Type())
+
+	uhr, ok := v.(Hinter)
+	t.True(ok)
+	t.True(hr1.Hint().Equal(uht))
+	t.True(hr1.Hint().Equal(uhr.Hint()))
+}
+
+func (t *testCompatibleSet) TestFindByTypeLowerMajor() {
+	hs := NewCompatibleSet()
+
+	hr0 := newHinter("showme", "v2019.10")
+	t.NoError(hs.AddHinter(hr0))
+	hr1 := newHinter("showme", "v2018.11")
+	t.NoError(hs.AddHinter(hr1))
+
+	uht, v := hs.FindBytType(hr0.Hint().Type())
+
+	uhr, ok := v.(Hinter)
+	t.True(ok)
+	t.True(hr0.Hint().Equal(uht))
+	t.True(hr0.Hint().Equal(uhr.Hint()))
+}
+
 func (t *testCompatibleSet) TestFindCompatible() {
 	hs := NewCompatibleSet()
 
@@ -102,6 +204,8 @@ func (t *testCompatibleSet) TestFindCompatible() {
 	}{
 		{name: "equal", s: hr.Hint().String(), found: true},
 		{name: "different type", s: "findme-" + vs, found: false},
+		{name: "higher major", s: ts + "-v2020.01", found: false},
+		{name: "lower major", s: ts + "-v2018.12", found: false},
 		{name: "higher minor", s: ts + "-v2019.12", found: true},
 		{name: "lower minor", s: ts + "-v2019.9", found: true},
 		{name: "higher patch", s: ts + "-v2019.10.12", found: true},

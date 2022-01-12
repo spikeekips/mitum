@@ -10,19 +10,21 @@ import (
 type Encoder interface {
 	Add(DecodeDetail) error
 	AddHinter(hint.Hinter) error
-	Marshal(interface{}) ([]byte, error)                   // NOTE native marshaler func
-	Unmarshal([]byte, interface{}) error                   // NOTE native unmarshaler func
-	Decode([]byte) (interface{}, error)                    // NOTE decode by hint inside []byte
-	DecodeWithHint([]byte, hint.Hint) (interface{}, error) // NOTE decode []byte by given hint
-	DecodeSlice([]byte) ([]interface{}, error)             // NOTE decode sliced data
+	Marshal(interface{}) ([]byte, error)                       // NOTE native marshaler func
+	Unmarshal([]byte, interface{}) error                       // NOTE native unmarshaler func
+	Decode([]byte) (interface{}, error)                        // NOTE decode by hint inside []byte
+	DecodeWithHint([]byte, hint.Hint) (interface{}, error)     // NOTE decode []byte by given hint
+	DecodeWithHintType([]byte, hint.Type) (interface{}, error) // NOTE decode []byte by given type
+	DecodeSlice([]byte) ([]interface{}, error)                 // NOTE decode sliced data
 }
 
 type DecodeFunc func([]byte, hint.Hint) (interface{}, error)
 
 type DecodeDetail struct {
-	Hint   hint.Hint
-	Decode DecodeFunc
-	Desc   string
+	Hint     hint.Hint
+	Decode   DecodeFunc
+	Desc     string
+	Instance interface{}
 }
 
 func (d DecodeDetail) IsValid([]byte) error {
@@ -30,23 +32,23 @@ func (d DecodeDetail) IsValid([]byte) error {
 		return util.InvalidError.Wrapf(err, "invalid hint in DecodeDetail")
 	}
 
-	if d.Decode == nil {
-		return util.InvalidError.Errorf("empty decode func in DecodeDetail")
+	if d.Decode == nil && d.Instance == nil {
+		return util.InvalidError.Errorf("instance and decode func are empty in DecodeDetail")
 	}
 
 	return nil
 }
 
-func AnalyzeSetHinter(elem interface{}, d DecodeDetail) DecodeDetail {
-	if _, ok := elem.(hint.SetHinter); !ok {
+func AnalyzeSetHinter(d DecodeDetail, v interface{}) DecodeDetail {
+	if _, ok := v.(hint.SetHinter); !ok {
 		return d
 	}
 
-	oht := elem.(hint.Hinter).Hint()
+	oht := v.(hint.Hinter).Hint()
 
 	// NOTE hint.BaseHinter
 	var found bool
-	if i, j := reflect.TypeOf(elem).FieldByName("BaseHinter"); j && i.Type == reflect.TypeOf(hint.BaseHinter{}) {
+	if i, j := reflect.TypeOf(v).FieldByName("BaseHinter"); j && i.Type == reflect.TypeOf(hint.BaseHinter{}) {
 		found = true
 	}
 

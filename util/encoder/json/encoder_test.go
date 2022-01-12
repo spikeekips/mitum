@@ -124,6 +124,16 @@ func (t *testJSONEncoder) TestAddAgain() {
 	t.Contains(err.Error(), "already added")
 }
 
+func (t *testJSONEncoder) TestAddEmptyDecodeFuncAndInstance() {
+	d := encoder.DecodeDetail{
+		Hint: hint.MustNewHint("findme-v1.2.3"),
+	}
+
+	err := t.enc.Add(d)
+	t.True(errors.Is(err, util.InvalidError))
+	t.Contains(err.Error(), "instance and decode func are empty")
+}
+
 func (t *testJSONEncoder) TestAddHinterAgain() {
 	hr := sampleJSONUnmarshaler{
 		BaseHinter: hint.NewBaseHinter(hint.MustNewHint("findme-v1.2.3")),
@@ -135,6 +145,54 @@ func (t *testJSONEncoder) TestAddHinterAgain() {
 	err := t.enc.AddHinter(hr)
 	t.True(errors.Is(err, util.DuplicatedError))
 	t.Contains(err.Error(), "already added")
+}
+
+func (t *testJSONEncoder) TestDecodeNoneHinter() {
+	ht := hint.MustNewHint("findme-v1.2.3")
+
+	v := sample{A: "A", B: 33}
+
+	b, err := t.enc.Marshal(struct {
+		hint.HintedJSONHead
+		sample
+	}{
+		HintedJSONHead: hint.NewHintedJSONHead(ht),
+		sample:         v,
+	})
+	t.NoError(err)
+
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ht, Instance: v}))
+	i, err := t.enc.Decode(b)
+	t.NoError(err)
+
+	uv, ok := i.(sample)
+	t.True(ok)
+
+	t.Equal(v, uv)
+}
+
+func (t *testJSONEncoder) TestDecodeWithHintType() {
+	ht := hint.MustNewHint("findme-v1.2.3")
+
+	v := sample{A: "A", B: 33}
+
+	b, err := t.enc.Marshal(struct {
+		hint.HintedJSONHead
+		sample
+	}{
+		HintedJSONHead: hint.NewHintedJSONHead(ht),
+		sample:         v,
+	})
+	t.NoError(err)
+
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ht, Instance: v}))
+	i, err := t.enc.DecodeWithHintType(b, ht.Type())
+	t.NoError(err)
+
+	uv, ok := i.(sample)
+	t.True(ok)
+
+	t.Equal(v, uv)
 }
 
 func (t *testJSONEncoder) TestDecodeJSONUnmarshaler() {
