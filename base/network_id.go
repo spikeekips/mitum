@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -39,7 +40,7 @@ func (ni NetworkID) MarshalText() ([]byte, error) {
 func (ni *NetworkID) UnmarshalText(b []byte) error {
 	s, err := base64.StdEncoding.DecodeString(string(b))
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to unmarshal NetworkID")
 	}
 
 	*ni = NetworkID(s)

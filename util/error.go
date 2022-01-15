@@ -199,3 +199,13 @@ func (s stack) StackTrace() errors.StackTrace {
 type stackTracer interface {
 	StackTrace() errors.StackTrace
 }
+
+func StringErrorFunc(m string) func(error, string) error {
+	return func(err error, s string) error {
+		if len(s) > 0 {
+			s = "; " + s
+		}
+
+		return errors.Wrapf(err, fmt.Sprintf("%s%%s", m), s)
+	}
+}

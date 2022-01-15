@@ -1,6 +1,10 @@
 package localtime
 
-import "time"
+import (
+	"time"
+
+	"github.com/pkg/errors"
+)
 
 // ParseRFC3339 parses RFC3339 string.
 func ParseRFC3339(s string) (time.Time, error) {
@@ -65,4 +69,19 @@ func (t Time) Normalize() Time {
 
 func (t Time) Equal(n Time) bool {
 	return t.Time.Equal(n.Time)
+}
+
+func (t Time) MarshalText() ([]byte, error) {
+	return []byte(t.Normalize().RFC3339()), nil
+}
+
+func (t *Time) UnmarshalText(b []byte) error {
+	s, err := ParseRFC3339(string(b))
+	if err != nil {
+		return errors.Wrap(err, "failed to unmarshal Time")
+	}
+
+	t.Time = Normalize(s)
+
+	return nil
 }

@@ -111,10 +111,9 @@ func (ts *Timers) SetTimer(timer Timer) error {
 		}
 	}
 
-	existing := ts.timers[timer.ID()]
-	if existing != nil && existing.IsStarted() {
+	if existing := ts.timers[timer.ID()]; existing != nil && existing.IsStarted() {
 		if err := existing.Stop(); err != nil {
-			return err
+			return errors.Wrapf(err, "failed to stop timer, %q", timer.ID())
 		}
 	}
 
@@ -151,7 +150,7 @@ func (ts *Timers) StartTimers(ids []TimerID, stopOthers bool) error {
 
 		if len(stopIDs) > 0 {
 			if err := ts.stopTimers(stopIDs); err != nil {
-				return err
+				return errors.Wrap(err, "failed to start timers")
 			}
 		}
 	}
@@ -236,7 +235,7 @@ func (ts *Timers) stopTimers(ids []TimerID) error {
 	}
 
 	if err := ts.traverse(callback, ids); err != nil {
-		return err
+		return errors.Wrap(err, "failed to stop timers")
 	}
 
 	for _, id := range ids {

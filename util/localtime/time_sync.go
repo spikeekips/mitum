@@ -42,7 +42,7 @@ func NewTimeSyncer(server string, checkInterval time.Duration) (*TimeSyncer, err
 
 		return nil
 	}); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to create TimeSyncer")
 	}
 
 	ts := &TimeSyncer{

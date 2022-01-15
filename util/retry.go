@@ -23,7 +23,7 @@ func Retry(max uint, interval time.Duration, callback func(int) error) error {
 		if err = callback(tried); err == nil {
 			return nil
 		} else if errors.Is(err, StopRetryingError) {
-			return err
+			return errors.Wrap(err, "stop retrying")
 		}
 
 		tried++
@@ -33,5 +33,5 @@ func Retry(max uint, interval time.Duration, callback func(int) error) error {
 		}
 	}
 
-	return err
+	return errors.Wrap(err, "retry stopped")
 }

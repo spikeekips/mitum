@@ -3,6 +3,7 @@ package encoder
 import (
 	"reflect"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
 )
@@ -57,7 +58,7 @@ func AnalyzeSetHinter(d DecodeDetail, v interface{}) DecodeDetail {
 		d.Decode = func(b []byte, ht hint.Hint) (interface{}, error) {
 			i, err := p(b, ht)
 			if err != nil {
-				return i, err
+				return i, errors.Wrap(err, "failed to decode")
 			}
 
 			if ht.IsEmpty() {
@@ -74,7 +75,7 @@ func AnalyzeSetHinter(d DecodeDetail, v interface{}) DecodeDetail {
 	d.Decode = func(b []byte, ht hint.Hint) (interface{}, error) {
 		i, err := p(b, ht)
 		if err != nil {
-			return i, err
+			return i, errors.Wrap(err, "failed to decode")
 		}
 
 		n := reflect.New(reflect.TypeOf(i))

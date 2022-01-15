@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	semver "github.com/Masterminds/semver/v3"
+	"github.com/pkg/errors"
 	stdsemver "golang.org/x/mod/semver"
 )
 
@@ -132,7 +133,7 @@ func (v Version) MarshalText() ([]byte, error) {
 func (v *Version) UnmarshalText(b []byte) error {
 	u, err := ParseVersion(string(b))
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to unmarshal version")
 	}
 
 	*v = u

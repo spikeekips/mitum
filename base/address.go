@@ -11,10 +11,10 @@ const AddressTypeSize = 3
 
 // Address represents the address of account.
 type Address interface {
-	hint.Hinter
-	util.IsValider
 	fmt.Stringer // NOTE String() should be typed string
+	hint.Hinter
 	util.Byter
+	util.IsValider
 	Equal(Address) bool
 }
 

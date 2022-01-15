@@ -29,11 +29,6 @@ type sampleJSONUnmarshaler struct {
 	B int
 }
 
-type innerSampleJSONUnmarshaler struct {
-	A string
-	B int
-}
-
 func (s *sampleJSONUnmarshaler) UnmarshalJSON(b []byte) error {
 	var v struct {
 		A string

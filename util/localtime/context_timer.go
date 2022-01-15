@@ -99,7 +99,7 @@ func (ct *ContextTimer) Stop() error {
 
 	select {
 	case err := <-errch:
-		return err
+		return errors.Wrap(err, "failed to stop ContextTimer")
 	case <-time.After(time.Millisecond * 300):
 		break
 	}
@@ -121,7 +121,7 @@ func (ct *ContextTimer) count() int {
 
 func (ct *ContextTimer) start(ctx context.Context) error {
 	if err := ct.Reset(); err != nil {
-		return err
+		return errors.Wrap(err, "failed to start ContextTimer")
 	}
 
 end:
@@ -187,7 +187,7 @@ func (ct *ContextTimer) waitAndRun(
 	}
 
 	if keep, err := callback(count); err != nil {
-		return err
+		return errors.Wrap(err, "failed to callback in ContextTimer")
 	} else if !keep {
 		return StopTimerError.Call()
 	}

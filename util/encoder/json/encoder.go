@@ -62,7 +62,7 @@ func (enc *Encoder) Decode(b []byte) (interface{}, error) {
 
 	ht, err := enc.guessHint(b)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to guess hint in json decoders")
+		return nil, errors.Wrap(err, "failed to guess hint in json decoders")
 	}
 
 	return enc.decodeWithHint(b, ht)
@@ -153,36 +153,24 @@ func (enc *Encoder) decodeWithHint(b []byte, ht hint.Hint) (interface{}, error) 
 	return i, nil
 }
 
-func (enc *Encoder) findDecoder(ht hint.Hint) (encoder.DecodeDetail, error) {
-	v := enc.decoders.Find(ht)
-	if v == nil {
-		return encoder.DecodeDetail{},
-			util.NotFoundError.Errorf("failed to find decoder by hint, %q in json decoders", ht)
-	}
-
-	d, ok := v.(encoder.DecodeDetail)
-	if !ok {
-		return encoder.DecodeDetail{},
-			errors.Errorf("failed to find decoder by hint in json decoders, %q; not DecodeDetail, %T", ht, v)
-	}
-
-	return d, nil
-}
-
 func (*Encoder) guessHint(b []byte) (hint.Hint, error) {
+	e := util.StringErrorFunc("failed to guess hint")
+
 	var head hint.HintedJSONHead
 	if err := util.UnmarshalJSON(b, &head); err != nil {
-		return head.H, err
+		return head.H, e(err, "hint not found in head")
 	}
 
 	if err := head.H.IsValid(nil); err != nil {
-		return head.H, err
+		return head.H, e(err, "invalid hint")
 	}
 
 	return head.H, nil
 }
 
 func (enc *Encoder) analyze(d encoder.DecodeDetail, v interface{}) encoder.DecodeDetail {
+	e := util.StringErrorFunc("failed to analyze in json encoder")
+
 	ptr, elem := encoder.Ptr(v)
 	switch ptr.Interface().(type) {
 	case Decodable:
@@ -191,7 +179,7 @@ func (enc *Encoder) analyze(d encoder.DecodeDetail, v interface{}) encoder.Decod
 			i := reflect.New(elem.Type()).Interface()
 
 			if err := i.(Decodable).DecodeJSON(b, enc); err != nil {
-				return nil, err
+				return nil, e(err, "failed to DecodeJSON")
 			}
 
 			return reflect.ValueOf(i).Elem().Interface(), nil
@@ -202,7 +190,7 @@ func (enc *Encoder) analyze(d encoder.DecodeDetail, v interface{}) encoder.Decod
 			i := reflect.New(elem.Type()).Interface()
 
 			if err := i.(json.Unmarshaler).UnmarshalJSON(b); err != nil {
-				return nil, err
+				return nil, e(err, "failed to UnmarshalJSON")
 			}
 
 			return reflect.ValueOf(i).Elem().Interface(), nil
@@ -213,7 +201,7 @@ func (enc *Encoder) analyze(d encoder.DecodeDetail, v interface{}) encoder.Decod
 			i := reflect.New(elem.Type()).Interface()
 
 			if err := i.(encoding.TextUnmarshaler).UnmarshalText(b); err != nil {
-				return nil, err
+				return nil, e(err, "failed to UnmarshalText")
 			}
 
 			return reflect.ValueOf(i).Elem().Interface(), nil
@@ -224,7 +212,7 @@ func (enc *Encoder) analyze(d encoder.DecodeDetail, v interface{}) encoder.Decod
 			i := reflect.New(elem.Type()).Interface()
 
 			if err := util.UnmarshalJSON(b, i); err != nil {
-				return nil, err
+				return nil, e(err, "failed to native UnmarshalJSON")
 			}
 
 			return reflect.ValueOf(i).Elem().Interface(), nil

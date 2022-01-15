@@ -4,6 +4,19 @@ type Byter interface {
 	Bytes() []byte
 }
 
+func ConcatByters(bs ...Byter) []byte {
+	b := make([][]byte, len(bs))
+	for i := range bs {
+		j := bs[i]
+		if j == nil {
+			continue
+		}
+		b[i] = j.Bytes()
+	}
+
+	return ConcatBytesSlice(b...)
+}
+
 func ConcatBytesSlice(sl ...[]byte) []byte {
 	var t int
 	for _, s := range sl {
