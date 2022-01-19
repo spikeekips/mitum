@@ -35,7 +35,7 @@ func (t *testBytes) TestEqual() {
 
 func (t *testBytes) TestNew() {
 	hs := NewBytes(nil)
-	t.Implements((*Hash)(nil), hs)
+	t.Implements((*util.Hash)(nil), hs)
 
 	initial := hs.Bytes()
 

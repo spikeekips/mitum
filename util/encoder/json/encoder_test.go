@@ -73,7 +73,7 @@ type sampleDecodable struct {
 	B int
 }
 
-func (s *sampleDecodable) DecodeJSON(b []byte, _ hint.Hint) error {
+func (s *sampleDecodable) DecodeJSON(b []byte, _ *Encoder) error {
 	var v struct {
 		A string
 		B int
@@ -83,8 +83,27 @@ func (s *sampleDecodable) DecodeJSON(b []byte, _ hint.Hint) error {
 		return err
 	}
 
-	s.A = v.A
-	s.B = v.B
+	s.A = v.A + v.A
+	s.B = v.B + v.B
+
+	return nil
+}
+
+type sampleFixedType struct {
+	hint.BaseHinter
+	s string
+}
+
+func (s sampleFixedType) String() string {
+	return s.s + s.Hint().Type().String()
+}
+
+func (s sampleFixedType) MarshalText() ([]byte, error) {
+	return []byte(s.String()), nil
+}
+
+func (s *sampleFixedType) UnmarshalText(b []byte) error {
+	s.s = string(b)
 
 	return nil
 }
@@ -188,6 +207,88 @@ func (t *testJSONEncoder) TestDecodeWithHintType() {
 	t.True(ok)
 
 	t.Equal(v, uv)
+}
+
+func (t *testJSONEncoder) TestDecodeWithFixedHintType() {
+	ht := hint.MustNewHint("findme-v1.2.3")
+
+	v := sampleFixedType{BaseHinter: hint.NewBaseHinter(ht), s: util.UUID().String()}
+
+	b, err := t.enc.Marshal(v)
+	t.NoError(err)
+
+	var s string
+	t.NoError(t.enc.Unmarshal(b, &s))
+
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ht, Instance: v}))
+	i, err := t.enc.DecodeWithFixedHintType(s, len(ht.Type()))
+	t.NoError(err)
+
+	uv, ok := i.(sampleFixedType)
+	t.True(ok)
+
+	t.Equal(v, uv)
+}
+
+func (t *testJSONEncoder) TestDecodeWithFixedHintTypePool() {
+	pool := util.NewGCacheObjectPool(10)
+	_ = t.enc.SetPool(pool)
+
+	ht := hint.MustNewHint("findme-v1.2.3")
+
+	v := sampleFixedType{BaseHinter: hint.NewBaseHinter(ht), s: util.UUID().String()}
+
+	b, err := t.enc.Marshal(v)
+	t.NoError(err)
+
+	var s string
+	t.NoError(t.enc.Unmarshal(b, &s))
+
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ht, Instance: v}))
+	i, err := t.enc.DecodeWithFixedHintType(s, len(ht.Type()))
+	t.NoError(err)
+
+	uv, ok := i.(sampleFixedType)
+	t.True(ok)
+
+	t.Equal(v, uv)
+
+	pv, found := pool.Get(v.String())
+	t.True(found)
+	t.Equal(v, pv)
+}
+
+func (t *testJSONEncoder) TestDecodeWithFixedHintTypePoolError() {
+	pool := util.NewGCacheObjectPool(10)
+	_ = t.enc.SetPool(pool)
+
+	ht := hint.MustNewHint("findme-v1.2.3")
+
+	v := sampleFixedType{BaseHinter: hint.NewBaseHinter(ht), s: util.UUID().String()}
+
+	b, err := t.enc.Marshal(v)
+	t.NoError(err)
+
+	var s string
+	t.NoError(t.enc.Unmarshal(b, &s))
+
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ht, Instance: v}))
+	i, derr := t.enc.DecodeWithFixedHintType(s, len(ht.Type())-1)
+	t.Error(derr)
+	t.Nil(i)
+	t.Contains(derr.Error(), "failed to find decoder by type")
+
+	perr0, found := pool.Get(v.String())
+	t.True(found)
+	t.NotNil(perr0)
+	t.Equal(derr, perr0)
+
+	i, perr1 := t.enc.DecodeWithFixedHintType(s, len(ht.Type())-1)
+	t.Error(perr1)
+	t.Nil(i)
+	t.True(found)
+	t.NotNil(perr1)
+	t.Equal(derr, perr1)
 }
 
 func (t *testJSONEncoder) TestDecodeJSONUnmarshaler() {
@@ -327,7 +428,8 @@ func (t *testJSONEncoder) TestDecodeDecodable() {
 	t.True(ok)
 
 	t.True(ht.Equal(uv.Hint()))
-	t.Equal(v, uv)
+	t.Equal(v.A+v.A, uv.A)
+	t.Equal(v.B+v.B, uv.B)
 }
 
 func (t *testJSONEncoder) TestDecodeNative() {

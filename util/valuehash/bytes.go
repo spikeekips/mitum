@@ -39,7 +39,7 @@ func (hs Bytes) Bytes() []byte {
 	return []byte(hs)
 }
 
-func (hs Bytes) Equal(h Hash) bool {
+func (hs Bytes) Equal(h util.Hash) bool {
 	return bytes.Equal(hs, h.Bytes())
 }
 

@@ -12,23 +12,23 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type testSign struct {
+type testSigned struct {
 	suite.Suite
 }
 
-func (t *testSign) TestNew() {
-	s := NewBaseSign(
+func (t *testSigned) TestNew() {
+	s := NewBaseSigned(
 		NewMPrivatekey().Publickey(),
 		Signature([]byte("showme")),
 		localtime.Now(),
 	)
 	t.NoError(s.IsValid(nil))
 
-	_ = (interface{})(s).(Sign)
+	_ = (interface{})(s).(Signed)
 }
 
-func (t *testSign) TestEmptySigner() {
-	s := NewBaseSign(
+func (t *testSigned) TestEmptySigner() {
+	s := NewBaseSigned(
 		nil,
 		Signature([]byte("showme")),
 		localtime.Now(),
@@ -40,8 +40,8 @@ func (t *testSign) TestEmptySigner() {
 	t.Contains(err.Error(), "invalid BaseSign")
 }
 
-func (t *testSign) TestEmptySignature() {
-	s := NewBaseSign(
+func (t *testSigned) TestEmptySignature() {
+	s := NewBaseSigned(
 		NewMPrivatekey().Publickey(),
 		nil,
 		localtime.Now(),
@@ -53,8 +53,8 @@ func (t *testSign) TestEmptySignature() {
 	t.Contains(err.Error(), "empty signature")
 }
 
-func (t *testSign) TestZeroSignedAt() {
-	s := NewBaseSign(
+func (t *testSigned) TestZeroSignedAt() {
+	s := NewBaseSigned(
 		NewMPrivatekey().Publickey(),
 		Signature([]byte("showme")),
 		time.Time{},
@@ -66,7 +66,7 @@ func (t *testSign) TestZeroSignedAt() {
 	t.Contains(err.Error(), "empty signedAt")
 }
 
-func (t *testSign) TestSignAndVerify() {
+func (t *testSigned) TestSignedAndVerify() {
 	priv := NewMPrivatekey()
 	input := util.UUID().Bytes()
 
@@ -75,46 +75,44 @@ func (t *testSign) TestSignAndVerify() {
 
 	t.NoError(priv.Publickey().Verify(input, sig))
 
-	s := NewBaseSign(
+	s := NewBaseSigned(
 		priv.Publickey(),
 		sig,
 		localtime.Now(),
 	)
 	t.NoError(s.IsValid(nil))
 
-	t.NoError(s.Verify(input))
-	err = s.Verify(util.UUID().Bytes())
+	t.NoError(s.Verify(nil, input))
+	err = s.Verify(nil, util.UUID().Bytes())
 	t.Error(err)
 	t.True(errors.Is(err, SignatureVerificationError))
 }
 
-func TestSign(t *testing.T) {
-	suite.Run(t, new(testSign))
+func TestSigned(t *testing.T) {
+	suite.Run(t, new(testSigned))
 }
 
-func testBaseSign() *encoder.BaseTestEncode {
+func testBaseSigned() *encoder.BaseTestEncode {
 	t := new(encoder.BaseTestEncode)
 	t.Compare = func(a, b interface{}) {
-		as, ok := a.(BaseSign)
+		as, ok := a.(BaseSigned)
 		t.True(ok)
-		bs, ok := b.(BaseSign)
+		bs, ok := b.(BaseSigned)
 		t.True(ok)
 
 		t.NoError(bs.IsValid(nil))
 
-		t.True(as.signer.Equal(bs.signer))
-		t.True(as.signature.Equal(bs.signature))
-		t.True(as.signedAt.Equal(bs.signedAt))
+		CompareSigned(t.Assert(), as, bs)
 	}
 
 	return t
 }
 
-func TestBaseSignJSON(tt *testing.T) {
+func TestBaseSignedJSON(tt *testing.T) {
 	priv := NewMPrivatekey()
 	input := util.UUID().Bytes()
 
-	t := testBaseSign()
+	t := testBaseSigned()
 	enc := jsonenc.NewEncoder()
 
 	t.Encode = func() (interface{}, []byte) {
@@ -122,7 +120,7 @@ func TestBaseSignJSON(tt *testing.T) {
 		sig, err := priv.Sign(input)
 		t.NoError(err)
 
-		s := NewBaseSign(
+		s := NewBaseSigned(
 			priv.Publickey(),
 			sig,
 			localtime.Now(),
@@ -134,10 +132,10 @@ func TestBaseSignJSON(tt *testing.T) {
 		return s, b
 	}
 	t.Decode = func(b []byte) interface{} {
-		var u BaseSign
+		var u BaseSigned
 		t.NoError(u.DecodeJSON(b, enc))
 
-		t.NoError(u.Verify(input))
+		t.NoError(u.Verify(nil, input))
 
 		return u
 	}

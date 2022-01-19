@@ -21,9 +21,10 @@ type BaseStringAddress struct {
 }
 
 func NewBaseStringAddressWithHint(ht hint.Hint, s string) BaseStringAddress {
-	n := s + ht.Type().String()
+	ad := BaseStringAddress{BaseHinter: hint.NewBaseHinter(ht)}
+	ad.s = ad.string(s)
 
-	return BaseStringAddress{BaseHinter: hint.NewBaseHinter(ht), s: n}
+	return ad
 }
 
 func (ad BaseStringAddress) IsValid([]byte) error {
@@ -78,8 +79,6 @@ func (ad BaseStringAddress) MarshalText() ([]byte, error) {
 	return []byte(ad.s), nil
 }
 
-func (ad *BaseStringAddress) UnmarshalText(b []byte) error {
-	ad.s = string(b)
-
-	return nil
+func (ad BaseStringAddress) string(s string) string {
+	return s + ad.Hint().Type().String()
 }

@@ -3,6 +3,7 @@ package valuehash
 import (
 	"testing"
 
+	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -12,7 +13,7 @@ type testKeccak512 struct {
 
 func (t *testKeccak512) TestNew() {
 	h := NewSHA512(nil)
-	t.Implements((*Hash)(nil), h)
+	t.Implements((*util.Hash)(nil), h)
 
 	initial := h.Bytes()
 
@@ -39,7 +40,7 @@ type testKeccak256 struct {
 
 func (t *testKeccak256) TestNew() {
 	h := NewSHA256(nil)
-	t.Implements((*Hash)(nil), h)
+	t.Implements((*util.Hash)(nil), h)
 
 	initial := h.Bytes()
 

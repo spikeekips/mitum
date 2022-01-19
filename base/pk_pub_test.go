@@ -150,7 +150,7 @@ func testMPublickeyEncode() *basetestMPublickeyEncode {
 	return t
 }
 
-func TestMPublickeyDecoderJSON(tt *testing.T) {
+func TestMPublickeyJSON(tt *testing.T) {
 	t := testMPublickeyEncode()
 	t.enc = jsonenc.NewEncoder()
 	t.Encode = func() (interface{}, []byte) {
@@ -161,9 +161,10 @@ func TestMPublickeyDecoderJSON(tt *testing.T) {
 		return k, b
 	}
 	t.Decode = func(b []byte) interface{} {
-		var d PublickeyDecoder
-		t.NoError(t.enc.Unmarshal(b, &d))
-		uk, err := d.Decode(t.enc)
+		var s string
+		t.NoError(t.enc.Unmarshal(b, &s))
+
+		uk, err := DecodePublickeyFromString(s, t.enc)
 		t.NoError(err)
 
 		return uk
@@ -172,7 +173,7 @@ func TestMPublickeyDecoderJSON(tt *testing.T) {
 	suite.Run(tt, t)
 }
 
-func TestNilMPublickeyDecoderJSON(tt *testing.T) {
+func TestNilMPublickeyJSON(tt *testing.T) {
 	t := testMPublickeyEncode()
 	t.enc = jsonenc.NewEncoder()
 	t.Encode = func() (interface{}, []byte) {
@@ -182,9 +183,10 @@ func TestNilMPublickeyDecoderJSON(tt *testing.T) {
 		return nil, b
 	}
 	t.Decode = func(b []byte) interface{} {
-		var d PublickeyDecoder
-		t.NoError(t.enc.Unmarshal(b, &d))
-		uk, err := d.Decode(t.enc)
+		var s string
+		t.NoError(t.enc.Unmarshal(b, &s))
+
+		uk, err := DecodePublickeyFromString(s, t.enc)
 		t.NoError(err)
 
 		return uk

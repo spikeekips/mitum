@@ -7,14 +7,14 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
-func RandomSHA256() Hash {
+func RandomSHA256() util.Hash {
 	b := make([]byte, 100)
 	_, _ = rand.Read(b)
 
 	return NewSHA256(b)
 }
 
-func RandomSHA512() Hash {
+func RandomSHA512() util.Hash {
 	b := make([]byte, 100)
 	_, _ = rand.Read(b)
 
@@ -26,7 +26,7 @@ func RandomSHA512() Hash {
 // - <8: length of bytes prefix><8: length of random hash><32: random hash><bytes prefix>
 //
 // * 52 is max valid length of prefix
-func RandomSHA256WithPrefix(prefix []byte) Hash {
+func RandomSHA256WithPrefix(prefix []byte) util.Hash {
 	lh := util.Int64ToBytes(int64(sha256Size))
 	lp := util.Int64ToBytes(int64(len(prefix)))
 
@@ -38,7 +38,7 @@ func RandomSHA256WithPrefix(prefix []byte) Hash {
 // - <8: length of bytes prefix><8: length of random hash><64: random hash><bytes prefix>
 //
 // * 20 is max valid length of prefix
-func RandomSHA512WithPrefix(prefix []byte) Hash {
+func RandomSHA512WithPrefix(prefix []byte) util.Hash {
 	lh := util.Int64ToBytes(int64(sha512Size))
 	lp := util.Int64ToBytes(int64(len(prefix)))
 

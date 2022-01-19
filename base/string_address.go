@@ -41,3 +41,9 @@ func (ad StringAddress) IsValid([]byte) error {
 
 	return nil
 }
+
+func (ad *StringAddress) UnmarshalText(b []byte) error {
+	ad.s = string(b) + StringAddressHint.Type().String()
+
+	return nil
+}

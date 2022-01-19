@@ -192,17 +192,23 @@ func (t *baseTestStringAddressEncode) Compare(a, b interface{}) {
 	t.True(ad.Equal(uad))
 }
 
-func TestStringAddressParseAddressFromString(tt *testing.T) {
+func TestStringAddressDecodeAddressFromString(tt *testing.T) {
 	t := new(baseTestStringAddressEncode)
 
 	t.enc = jsonenc.NewEncoder()
 	t.Encode = func() (interface{}, []byte) {
 		ad := NewStringAddress(util.UUID().String())
 
-		return ad, []byte(ad.String())
+		b, err := t.enc.Marshal(ad)
+		t.NoError(err)
+
+		return ad, b
 	}
 	t.Decode = func(b []byte) interface{} {
-		i, err := ParseAddressFromString(string(b), t.enc)
+		var s string
+		t.NoError(t.enc.Unmarshal(b, &s))
+
+		i, err := DecodeAddressFromString(s, t.enc)
 		t.NoError(err)
 
 		uad, ok := i.(StringAddress)
@@ -214,7 +220,7 @@ func TestStringAddressParseAddressFromString(tt *testing.T) {
 	suite.Run(tt, t)
 }
 
-func TestStringAddressJSONDecoder(tt *testing.T) {
+func TestStringAddressJSON(tt *testing.T) {
 	t := new(baseTestStringAddressEncode)
 	t.enc = jsonenc.NewEncoder()
 	t.Encode = func() (interface{}, []byte) {
@@ -228,73 +234,14 @@ func TestStringAddressJSONDecoder(tt *testing.T) {
 	}
 	t.Decode = func(b []byte) interface{} {
 		var u struct {
-			A AddressDecoder
+			A string
 		}
 		t.NoError(t.enc.Unmarshal(b, &u))
 
-		i, err := u.A.Decode(t.enc)
+		i, err := DecodeAddressFromString(u.A, t.enc)
 		t.NoError(err)
 
 		uad, ok := i.(StringAddress)
-		t.True(ok)
-
-		return uad
-	}
-
-	suite.Run(tt, t)
-}
-
-func TestBaseStringAddressParseAddressFromStringHinted(tt *testing.T) {
-	ht := hint.MustNewHint("abc-v0.0.1")
-
-	t := new(baseTestStringAddressEncode)
-	t.enc = jsonenc.NewEncoder()
-	t.Encode = func() (interface{}, []byte) {
-		t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ht, Instance: BaseStringAddress{}}))
-
-		ad := NewBaseStringAddressWithHint(ht, util.UUID().String())
-
-		return ad, []byte(ad.String())
-	}
-	t.Decode = func(b []byte) interface{} {
-		i, err := ParseAddressFromString(string(b), t.enc)
-		t.NoError(err)
-
-		uad, ok := i.(BaseStringAddress)
-		t.True(ok)
-
-		return uad
-	}
-
-	suite.Run(tt, t)
-}
-
-func TestBaseStringAddressJSONHinted(tt *testing.T) {
-	ht := hint.MustNewHint("abc-v0.0.1")
-
-	t := new(baseTestStringAddressEncode)
-	t.enc = jsonenc.NewEncoder()
-	t.Encode = func() (interface{}, []byte) {
-		t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ht, Instance: BaseStringAddress{}}))
-
-		ad := NewBaseStringAddressWithHint(ht, util.UUID().String())
-		b, err := t.enc.Marshal(struct {
-			A BaseStringAddress
-		}{A: ad})
-		t.NoError(err)
-
-		return ad, b
-	}
-	t.Decode = func(b []byte) interface{} {
-		var u struct {
-			A AddressDecoder
-		}
-		t.NoError(t.enc.Unmarshal(b, &u))
-
-		i, err := u.A.Decode(t.enc)
-		t.NoError(err)
-
-		uad, ok := i.(BaseStringAddress)
 		t.True(ok)
 
 		return uad
@@ -311,11 +258,11 @@ func TestNilStringAddressJSONHinted(tt *testing.T) {
 	}
 	t.Decode = func(b []byte) interface{} {
 		var u struct {
-			A AddressDecoder
+			A string
 		}
 		t.NoError(t.enc.Unmarshal(b, &u))
 
-		i, err := u.A.Decode(t.enc)
+		i, err := DecodeAddressFromString(u.A, t.enc)
 		t.NoError(err)
 
 		return i

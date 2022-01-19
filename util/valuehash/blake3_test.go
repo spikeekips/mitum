@@ -3,6 +3,7 @@ package valuehash
 import (
 	"testing"
 
+	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -12,7 +13,7 @@ type testBlake3256 struct {
 
 func (t *testBlake3256) TestNew() {
 	h := NewBlake3256(nil)
-	t.Implements((*Hash)(nil), h)
+	t.Implements((*util.Hash)(nil), h)
 
 	initial := h.Bytes()
 

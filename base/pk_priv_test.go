@@ -167,8 +167,9 @@ func TestMPrivatekey(t *testing.T) {
 
 type baseTestMPKKeyEncode struct {
 	encoder.BaseTestEncode
-	enc     encoder.Encoder
-	compare func(PKKey, PKKey)
+	setupsuite func()
+	enc        encoder.Encoder
+	compare    func(PKKey, PKKey)
 }
 
 func (t *baseTestMPKKeyEncode) Compare(a, b interface{}) {
@@ -187,6 +188,12 @@ func (t *baseTestMPKKeyEncode) Compare(a, b interface{}) {
 }
 
 func (t *baseTestMPKKeyEncode) SetupSuite() {
+	if t.setupsuite != nil {
+		t.setupsuite()
+
+		return
+	}
+
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: MPrivatekeyHint, Instance: MPrivatekey{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: MPublickeyHint, Instance: MPublickey{}}))
 }
@@ -203,7 +210,7 @@ func testMPrivatekeyEncode() *baseTestMPKKeyEncode {
 	return t
 }
 
-func TestMPrivatekeyDecoderJSON(tt *testing.T) {
+func TestMPrivatekeyJSON(tt *testing.T) {
 	t := testMPrivatekeyEncode()
 	t.enc = jsonenc.NewEncoder()
 	t.Encode = func() (interface{}, []byte) {
@@ -214,9 +221,10 @@ func TestMPrivatekeyDecoderJSON(tt *testing.T) {
 		return k, b
 	}
 	t.Decode = func(b []byte) interface{} {
-		var d PrivatekeyDecoder
-		t.NoError(t.enc.Unmarshal(b, &d))
-		uk, err := d.Decode(t.enc)
+		var s string
+		t.NoError(t.enc.Unmarshal(b, &s))
+
+		uk, err := DecodePrivatekeyFromString(s, t.enc)
 		t.NoError(err)
 
 		return uk
@@ -225,7 +233,7 @@ func TestMPrivatekeyDecoderJSON(tt *testing.T) {
 	suite.Run(tt, t)
 }
 
-func TestNilMPrivatekeyDecoderJSON(tt *testing.T) {
+func TestNilMPrivatekeyJSON(tt *testing.T) {
 	t := testMPrivatekeyEncode()
 	t.enc = jsonenc.NewEncoder()
 	t.Encode = func() (interface{}, []byte) {
@@ -235,9 +243,11 @@ func TestNilMPrivatekeyDecoderJSON(tt *testing.T) {
 		return nil, b
 	}
 	t.Decode = func(b []byte) interface{} {
-		var d PrivatekeyDecoder
-		t.NoError(t.enc.Unmarshal(b, &d))
-		uk, err := d.Decode(t.enc)
+		var s string
+		t.NoError(t.enc.Unmarshal(b, &s))
+
+		uk, err := DecodePrivatekeyFromString(s, t.enc)
+
 		t.NoError(err)
 
 		return uk

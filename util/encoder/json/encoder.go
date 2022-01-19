@@ -15,6 +15,7 @@ var JSONEncoderHint = hint.MustNewHint("json-encoder-v2")
 
 type Encoder struct {
 	decoders *hint.CompatibleSet
+	pool     util.ObjectPool
 }
 
 func NewEncoder() *Encoder {
@@ -25,6 +26,12 @@ func NewEncoder() *Encoder {
 
 func (*Encoder) Hint() hint.Hint {
 	return JSONEncoderHint
+}
+
+func (enc *Encoder) SetPool(pool util.ObjectPool) *Encoder {
+	enc.pool = pool
+
+	return nil
 }
 
 func (enc *Encoder) Add(d encoder.DecodeDetail) error {
@@ -96,6 +103,56 @@ func (enc *Encoder) DecodeWithHintType(b []byte, t hint.Type) (interface{}, erro
 	i, err := d.Decode(b, ht)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to decode, %q in json decoders", ht)
+	}
+
+	return i, nil
+}
+
+func (enc *Encoder) DecodeWithFixedHintType(s string, size int) (interface{}, error) {
+	if len(s) < 1 {
+		return nil, nil
+	}
+
+	e := util.StringErrorFunc("failed to decode with fixed hint type")
+	if size < 1 {
+		return nil, e(nil, "size < 1")
+	}
+
+	i, found := enc.poolGet(s)
+	if found {
+		if i != nil {
+			err, ok := i.(error)
+			if ok {
+				return nil, err
+			}
+		}
+
+		return i, nil
+	}
+
+	i, err := enc.decodeWithFixedHintType(s, size)
+	if err != nil {
+		enc.poolSet(s, err)
+
+		return nil, err
+	}
+
+	enc.poolSet(s, i)
+
+	return i, nil
+}
+
+func (enc *Encoder) decodeWithFixedHintType(s string, size int) (interface{}, error) {
+	e := util.StringErrorFunc("failed to decode with fixed hint type")
+
+	body, t, err := hint.ParseFixedTypedString(s, size)
+	if err != nil {
+		return nil, e(err, "failed to parse fixed typed string")
+	}
+
+	i, err := enc.DecodeWithHintType([]byte(body), t)
+	if err != nil {
+		return nil, e(err, "failed to decode with hint type")
 	}
 
 	return i, nil
@@ -220,4 +277,20 @@ func (enc *Encoder) analyze(d encoder.DecodeDetail, v interface{}) encoder.Decod
 	}
 
 	return encoder.AnalyzeSetHinter(d, elem.Interface())
+}
+
+func (enc *Encoder) poolGet(s string) (interface{}, bool) {
+	if enc.pool == nil {
+		return nil, false
+	}
+
+	return enc.pool.Get(s)
+}
+
+func (enc *Encoder) poolSet(s string, v interface{}) {
+	if enc.pool == nil {
+		return
+	}
+
+	enc.pool.Set(s, v)
 }

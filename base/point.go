@@ -74,12 +74,28 @@ func NewPoint(h Height, r Round) Point {
 	return Point{h: h, r: r}
 }
 
+func (p Point) Bytes() []byte {
+	return util.ConcatByters(p.Height(), p.Round())
+}
+
 func (p Point) Height() Height {
 	return p.h
 }
 
 func (p Point) Round() Round {
 	return p.r
+}
+
+func (p Point) String() string {
+	return fmt.Sprintf("<Point height=%d round=%d>", p.h, p.r)
+}
+
+func (p Point) IsValid([]byte) error {
+	if err := p.h.IsValid(nil); err != nil {
+		return errors.Wrapf(err, "invalid Point")
+	}
+
+	return nil
 }
 
 func (p Point) MarshalJSON() ([]byte, error) {

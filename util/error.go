@@ -200,12 +200,17 @@ type stackTracer interface {
 	StackTrace() errors.StackTrace
 }
 
-func StringErrorFunc(m string) func(error, string) error {
-	return func(err error, s string) error {
+func StringErrorFunc(m string, a ...interface{}) func(error, string, ...interface{}) error {
+	f := fmt.Sprintf(m, a...)
+	return func(err error, s string, a ...interface{}) error {
 		if len(s) > 0 {
 			s = "; " + s
 		}
 
-		return errors.Wrapf(err, fmt.Sprintf("%s%%s", m), s)
+		if err == nil {
+			return errors.Errorf(f+s, a...)
+		}
+
+		return errors.Wrapf(err, f+s, a...)
 	}
 }

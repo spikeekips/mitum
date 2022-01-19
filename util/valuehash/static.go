@@ -32,12 +32,12 @@ func (h L32) String() string {
 	return toString(h[:])
 }
 
-func (h L32) Equal(b Hash) bool {
+func (h L32) Equal(b util.Hash) bool {
 	return bytes.Equal(h[:], b.Bytes())
 }
 
 func (h L32) MarshalText() ([]byte, error) {
-	return h.Bytes(), nil
+	return []byte(h.String()), nil
 }
 
 func (h L64) IsValid([]byte) error {
@@ -56,10 +56,10 @@ func (h L64) String() string {
 	return toString(h[:])
 }
 
-func (h L64) Equal(b Hash) bool {
+func (h L64) Equal(b util.Hash) bool {
 	return bytes.Equal(h[:], b.Bytes())
 }
 
 func (h L64) MarshalText() ([]byte, error) {
-	return h.Bytes(), nil
+	return []byte(h.String()), nil
 }

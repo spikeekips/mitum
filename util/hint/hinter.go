@@ -40,3 +40,7 @@ func (ht BaseHinter) IsValid(expectedType []byte) error {
 
 	return nil
 }
+
+func (ht BaseHinter) Bytes() []byte {
+	return ht.HT.Bytes()
+}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
 )
 
@@ -30,4 +31,24 @@ func (as Addresses) Less(i, j int) bool {
 
 func (as Addresses) Swap(i, j int) {
 	as[i], as[j] = as[j], as[i]
+}
+
+// DecodeAddressFromString decodes Address from string.
+func DecodeAddressFromString(s string, enc encoder.Encoder) (Address, error) {
+	e := util.StringErrorFunc("failed to parse address")
+
+	i, err := enc.DecodeWithFixedHintType(s, AddressTypeSize)
+	switch {
+	case err != nil:
+		return nil, e(err, "failed to decode address")
+	case i == nil:
+		return nil, nil
+	}
+
+	ad, ok := i.(Address)
+	if !ok {
+		return nil, e(nil, "failed to decode address; not Address, %T", i)
+	}
+
+	return ad, nil
 }

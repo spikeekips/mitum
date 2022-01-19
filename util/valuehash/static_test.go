@@ -41,7 +41,7 @@ func (t *testStatic) TestNew32() {
 	h, err := newL32(b)
 	t.NoError(err)
 
-	_, ok := (interface{})(h).(Hash)
+	_, ok := (interface{})(h).(util.Hash)
 	t.True(ok)
 
 	t.NoError(h.IsValid(nil))
@@ -53,7 +53,7 @@ func (t *testStatic) TestNew64() {
 	h, err := newL64(b)
 	t.NoError(err)
 
-	_, ok := (interface{})(h).(Hash)
+	_, ok := (interface{})(h).(util.Hash)
 	t.True(ok)
 
 	t.NoError(h.IsValid(nil))
