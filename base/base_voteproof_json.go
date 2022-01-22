@@ -66,7 +66,16 @@ func (vp *BaseVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		vp.majority = j
 	}
 
-	// BLOCK decode SuffrageInfo
+	switch i, err := enc.Decode(u.Suffrage); {
+	case err != nil:
+	case i == nil:
+	default:
+		j, ok := i.(SuffrageInfo)
+		if !ok {
+			return e(util.InvalidError.Errorf("expected SuffrageInfo, not %T", i), "")
+		}
+		vp.suffrage = j
+	}
 
 	vp.sfs = make([]BallotSignedFact, len(u.SignedFacts))
 	for i := range u.SignedFacts {

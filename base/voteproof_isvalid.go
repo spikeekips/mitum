@@ -1,6 +1,8 @@
 package base
 
-import "github.com/spikeekips/mitum/util"
+import (
+	"github.com/spikeekips/mitum/util"
+)
 
 func isValidVoteproof(vp Voteproof, networkID NetworkID) error {
 	e := util.StringErrorFunc("invalid Voteproof")
@@ -23,8 +25,7 @@ func isValidVoteproof(vp Voteproof, networkID NetworkID) error {
 		vp.Point(),
 		vp.Result(),
 		vp.Stage(),
-		// BLOCK uncomment checking SuffrageInfo
-		// vp.Suffrage(),
+		vp.Suffrage(),
 	); err != nil {
 		return e(err, "")
 	}
@@ -50,6 +51,10 @@ func isValidVoteproof(vp Voteproof, networkID NetworkID) error {
 	for i := range vs {
 		i := i
 		bs[i] = util.DummyIsValider(func([]byte) error {
+			if vs[i] == nil {
+				return e(util.InvalidError.Errorf("nil signed fact found"), "")
+			}
+
 			if err := vs[i].IsValid(networkID); err != nil {
 				return e(err, "")
 			}
@@ -126,7 +131,19 @@ func isValidFactInVoteproof(vp Voteproof, fact BallotFact) error {
 func isValidSignedFactInVoteproof(vp Voteproof, sf BallotSignedFact) error {
 	e := util.StringErrorFunc("invalid signed fact in voteproof")
 
-	// BLOCK check node is in suffrage
+	var foundInSuffrage bool
+	nodes := vp.Suffrage().Nodes()
+	for i := range nodes {
+		if sf.Node().Equal(nodes[i]) {
+			foundInSuffrage = true
+
+			break
+		}
+	}
+
+	if !foundInSuffrage {
+		return e(util.InvalidError.Errorf("unknown signed fact found; signed by none suffrage node,  %q", sf.Node()), "")
+	}
 
 	if err := isValidFactInVoteproof(vp, sf.Fact().(BallotFact)); err != nil {
 		return e(err, "")
@@ -135,16 +152,20 @@ func isValidSignedFactInVoteproof(vp Voteproof, sf BallotSignedFact) error {
 	return nil
 }
 
-func isValidSignedFactsInVoteproof(Voteproof, []BallotSignedFact) error {
-	// BLOCK SuffrageInfo.Threshold
-	/*
-		e := util.StringErrorFunc("invalid signed facts in voteproof")
+func isValidSignedFactsInVoteproof(vp Voteproof, sfs []BallotSignedFact) error {
+	suf := vp.Suffrage()
 
-		facts := make([]string, len(sfs))
-		for i := range sfs {
-			facts[i] = string(sfs[i].Fact().(BallotFact).Hash().Bytes())
-		}
-	*/
+	set := make([]string, len(sfs))
+	for i := range sfs {
+		set[i] = sfs[i].Fact().Hash().String()
+	}
+
+	switch result, m := suf.Threshold().VoteResult(set); {
+	case vp.Result() != result:
+		return util.InvalidError.Errorf("wrong vote result, voteproof(%q) != expected(%q)", vp.Result(), result)
+	case m != vp.Majority().Hash().String():
+		return util.InvalidError.Errorf("wrong majority, voteproof(%q) != expected(%q)", vp.Majority().Hash(), m)
+	}
 
 	return nil
 }

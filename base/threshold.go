@@ -8,21 +8,21 @@ import (
 )
 
 type Threshold struct {
-	total     uint
+	quorum    uint
 	threshold uint
 	ratio     float64
 }
 
-func NewThreshold(total uint, ratio float64) Threshold {
+func NewThreshold(quorum uint, ratio float64) Threshold {
 	return Threshold{
-		total:     total,
-		threshold: uint(math.Ceil(float64(total) * (ratio / 100))),
+		quorum:    quorum,
+		threshold: uint(math.Ceil(float64(quorum) * (ratio / 100))),
 		ratio:     ratio,
 	}
 }
 
-func (tr Threshold) Total() uint {
-	return tr.total
+func (tr Threshold) Quorum() uint {
+	return tr.quorum
 }
 
 func (tr Threshold) Threshold() uint {
@@ -35,7 +35,7 @@ func (tr Threshold) Ratio() float64 {
 
 func (tr Threshold) Bytes() []byte {
 	return util.ConcatBytesSlice(
-		util.UintToBytes(tr.total),
+		util.UintToBytes(tr.quorum),
 		util.Float64ToBytes(tr.ratio),
 	)
 }
@@ -46,7 +46,7 @@ func (tr Threshold) String() string {
 }
 
 func (tr Threshold) Equal(b Threshold) bool {
-	return tr.total == b.total && tr.ratio == b.ratio && tr.threshold == b.threshold
+	return tr.quorum == b.quorum && tr.ratio == b.ratio && tr.threshold == b.threshold
 }
 
 func (tr Threshold) IsValid([]byte) error {
@@ -55,27 +55,33 @@ func (tr Threshold) IsValid([]byte) error {
 		return util.InvalidError.Errorf("under zero ratio, %v", tr.ratio)
 	case tr.ratio > 100:
 		return util.InvalidError.Errorf("over 100 ratio, %v", tr.ratio)
+	case tr.ratio < 67:
+		return util.InvalidError.Errorf("dangerous ratio, %v < 67", tr.ratio)
 	}
 
 	switch {
-	case tr.total < 1:
-		return util.InvalidError.Errorf("zero total in threshold")
-	case tr.threshold > tr.total:
-		return util.InvalidError.Errorf("threshold over total: threshold=%v total=%v", tr.threshold, tr.total)
+	case tr.quorum < 1:
+		return util.InvalidError.Errorf("zero quorum in threshold")
+	case tr.threshold > tr.quorum:
+		return util.InvalidError.Errorf("threshold over quorum: threshold=%v quorum=%v", tr.threshold, tr.quorum)
 	}
 
 	return nil
 }
 
+func (tr Threshold) VoteResult(set []string) (VoteResult, string) {
+	return FindVoteResult(tr.quorum, tr.threshold, set)
+}
+
 type thresholdJSONMarshaler struct {
-	Total     uint
+	Quorum    uint
 	Threshold uint
 	Ratio     float64
 }
 
 func (tr Threshold) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(thresholdJSONMarshaler{
-		Total:     tr.total,
+		Quorum:    tr.quorum,
 		Threshold: tr.threshold,
 		Ratio:     tr.ratio,
 	})
@@ -87,7 +93,7 @@ func (tr *Threshold) UnmarshalJSON(b []byte) error {
 		return errors.Wrap(err, "failed to unmarshal Threshold")
 	}
 
-	tr.total = u.Total
+	tr.quorum = u.Quorum
 	tr.threshold = u.Threshold
 	tr.ratio = u.Ratio
 

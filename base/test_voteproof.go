@@ -57,5 +57,5 @@ func CompareVoteproof(t *assert.Assertions, a, b Voteproof) {
 		CompareBallotSignedFact(t, as[i], bs[i])
 	}
 
-	// BLOCK compare SuffrageInfo
+	CompareSuffrageInfo(t, a.Suffrage(), b.Suffrage())
 }

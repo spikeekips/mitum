@@ -16,6 +16,24 @@ func IsValidBallot(bl Ballot, networkID []byte) error {
 		return e(err, "")
 	}
 
+	// NOTE if init voteproof and accept voteproof have same Suffrage().Hash(),
+	// it's nodes should be same.
+	ivp := bl.INITVoteproof()
+	avp := bl.ACCEPTVoteproof()
+	if ivp != nil && ivp.Suffrage() != nil && ivp.Suffrage().Hash().Equal(avp.Suffrage().Hash()) {
+		in := ivp.Suffrage().Nodes()
+		an := avp.Suffrage().Nodes()
+		if len(in) != len(an) {
+			return e(util.InvalidError.Errorf("init and accept voteproof have same suffrage hash, but different nodes"), "")
+		}
+
+		for i := range in {
+			if !in[i].Equal(an[i]) {
+				return e(util.InvalidError.Errorf("init and accept voteproof have same suffrage hash, but different nodes"), "")
+			}
+		}
+	}
+
 	return nil
 }
 
