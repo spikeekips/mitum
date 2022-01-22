@@ -35,6 +35,11 @@ func NewDummyACCEPTVoteproof(p Point) DummyACCEPTVoteproof {
 }
 
 func CompareVoteproof(t *assert.Assertions, a, b Voteproof) {
+	if a == nil {
+		t.Equal(a, b)
+		return
+	}
+
 	t.True(a.Hint().Equal(b.Hint()))
 	t.Equal(a.HashBytes(), b.HashBytes())
 	t.True(localtime.NewTime(a.FinishedAt()).Equal(localtime.NewTime(b.FinishedAt())))

@@ -71,6 +71,10 @@ func (fact BaseINITBallotFact) PreviousBlock() util.Hash {
 func (fact BaseINITBallotFact) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid BaseINITBallotFact")
 
+	if fact.stage != StageINIT {
+		return e(util.InvalidError.Errorf("invalid stage, %q", fact.stage), "")
+	}
+
 	if err := IsValidINITBallotFact(fact); err != nil {
 		return e(err, "")
 	}
@@ -122,6 +126,10 @@ func (fact BaseProposalFact) ProposedAt() time.Time {
 func (fact BaseProposalFact) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid BaseProposalFact")
 
+	if fact.stage != StageProposal {
+		return e(util.InvalidError.Errorf("invalid stage, %q", fact.stage), "")
+	}
+
 	if err := IsValidProposalFact(fact); err != nil {
 		return e(err, "")
 	}
@@ -172,6 +180,10 @@ func (fact BaseACCEPTBallotFact) NewBlock() util.Hash {
 
 func (fact BaseACCEPTBallotFact) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid BaseACCEPTBallotFact")
+
+	if fact.stage != StageACCEPT {
+		return e(util.InvalidError.Errorf("invalid stage, %q", fact.stage), "")
+	}
 
 	if err := IsValidACCEPTBallotFact(fact); err != nil {
 		return e(err, "")

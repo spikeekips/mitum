@@ -6,10 +6,13 @@ func IsValidBallot(bl Ballot, networkID []byte) error {
 	e := util.StringErrorFunc("invalid Ballot")
 
 	if err := util.CheckIsValid(networkID, false,
-		bl.INITVoteproof(),
 		bl.ACCEPTVoteproof(),
 		bl.SignedFact(),
 	); err != nil {
+		return e(err, "")
+	}
+
+	if err := checkACCEPTVoteproofInBallot(bl, bl.ACCEPTVoteproof()); err != nil {
 		return e(err, "")
 	}
 
@@ -23,7 +26,94 @@ func IsValidINITBallot(bl INITBallot, networkID []byte) error {
 	}
 
 	if _, ok := bl.SignedFact().(INITBallotSignedFact); !ok {
-		return util.InvalidError.Errorf("INITBallotSignedFact expected, not %T", bl.SignedFact())
+		return e(util.InvalidError.Errorf("INITBallotSignedFact expected, not %T", bl.SignedFact()), "")
+	}
+
+	if err := checkINITVoteproofInINITBallot(bl, bl.INITVoteproof()); err != nil {
+		return e(err, "")
+	}
+
+	if err := checkACCEPTVoteproofInINITBallot(bl, bl.ACCEPTVoteproof()); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
+func checkINITVoteproofInINITBallot(bl INITBallot, vp INITVoteproof) error {
+	e := util.StringErrorFunc("invalid init voteproof in init ballot")
+	switch {
+	case bl.Point().Round() == 0:
+		if vp != nil {
+			return e(util.InvalidError.Errorf("init voteproof should be nil in 0 round init ballot"), "")
+		}
+
+		return nil
+	case vp == nil:
+		return e(util.InvalidError.Errorf("init voteproof should be not nil in none 0 round init ballot"), "")
+	}
+
+	blp := bl.Point()
+	vpp := vp.Point()
+	switch {
+	case blp.Height() != vpp.Height():
+		return e(util.InvalidError.Errorf(
+			"wrong height of init voteproof; ballot(%d) == voteproof(%d)", blp.Height(), vpp.Height()), "")
+	case blp.Round() != vpp.Round()+1:
+		return e(util.InvalidError.Errorf(
+			"wrong round of init voteproof; ballot(%d) == voteproof(%d) + 1", blp.Round(), vpp.Round()), "")
+	}
+
+	return nil
+}
+
+func checkINITVoteproofInNotINITBallot(bl Ballot, vp INITVoteproof) error {
+	e := util.StringErrorFunc("invalid init voteproof in not init ballot")
+	if vp == nil {
+		return e(util.InvalidError.Errorf("empty init voteproof"), "")
+	}
+
+	blp := bl.Point()
+	vpp := vp.Point()
+	switch {
+	case blp.Height() != vpp.Height():
+		return e(util.InvalidError.Errorf(
+			"wrong height of init voteproof; ballot(%d) == voteproof(%d)", blp.Height(), vpp.Height()), "")
+	case blp.Round() != vpp.Round():
+		return e(util.InvalidError.Errorf(
+			"wrong round of init voteproof; ballot(%d) == voteproof(%d)", blp.Round(), vpp.Round()), "")
+	}
+
+	return nil
+}
+
+func checkACCEPTVoteproofInBallot(bl Ballot, vp ACCEPTVoteproof) error {
+	e := util.StringErrorFunc("invalid init voteproof in ballot")
+
+	if vp.Result() != VoteResultMajority {
+		return e(util.InvalidError.Errorf("accept voteproof not majority result, %q", vp.Result()), "")
+	}
+
+	blp := bl.Point()
+	vpp := vp.Point()
+	switch {
+	case blp.Height() != vpp.Height()+1:
+		return e(util.InvalidError.Errorf(
+			"wrong height of accept voteproof; ballot(%d) == voteproof(%d) + 1", blp.Height(), vpp.Height()), "")
+	}
+
+	return nil
+}
+
+func checkACCEPTVoteproofInINITBallot(bl INITBallot, vp ACCEPTVoteproof) error {
+	e := util.StringErrorFunc("invalid init voteproof in init ballot")
+
+	fact := bl.BallotSignedFact().BallotFact()
+	if !fact.PreviousBlock().Equal(vp.BallotMajority().NewBlock()) {
+		return e(util.InvalidError.Errorf("block does not match, ballot(%q) != voteproof(%q)",
+			fact.PreviousBlock(),
+			vp.BallotMajority().NewBlock(),
+		), "")
 	}
 
 	return nil
@@ -39,6 +129,10 @@ func IsValidProposal(bl Proposal, networkID []byte) error {
 		return util.InvalidError.Errorf("ProposalSignedFact expected, not %T", bl.SignedFact())
 	}
 
+	if err := checkINITVoteproofInNotINITBallot(bl, bl.INITVoteproof()); err != nil {
+		return e(err, "")
+	}
+
 	return nil
 }
 
@@ -50,6 +144,10 @@ func IsValidACCEPTBallot(bl ACCEPTBallot, networkID []byte) error {
 
 	if _, ok := bl.SignedFact().(ACCEPTBallotSignedFact); !ok {
 		return util.InvalidError.Errorf("ACCEPTBallotSignedFact expected, not %T", bl.SignedFact())
+	}
+
+	if err := checkINITVoteproofInNotINITBallot(bl, bl.INITVoteproof()); err != nil {
+		return e(err, "")
 	}
 
 	return nil
@@ -77,10 +175,6 @@ func IsValidINITBallotFact(fact INITBallotFact) error {
 		return e(err, "")
 	}
 
-	if fact.Stage() != StageINIT {
-		return e(util.InvalidError.Errorf("invalid stage, %q", fact.Stage()), "")
-	}
-
 	if err := util.CheckIsValid(nil, false, fact.PreviousBlock()); err != nil {
 		return e(err, "")
 	}
@@ -92,10 +186,6 @@ func IsValidProposalFact(fact ProposalFact) error {
 	e := util.StringErrorFunc("invalid ProposalFact")
 	if err := IsValidBallotFact(fact); err != nil {
 		return e(err, "")
-	}
-
-	if fact.Stage() != StageProposal {
-		return e(util.InvalidError.Errorf("invalid stage, %q", fact.Stage()), "")
 	}
 
 	ops := fact.Operations()
@@ -123,10 +213,6 @@ func IsValidACCEPTBallotFact(fact ACCEPTBallotFact) error {
 	e := util.StringErrorFunc("invalid ACCEPTBallotFact")
 	if err := IsValidBallotFact(fact); err != nil {
 		return e(err, "")
-	}
-
-	if fact.Stage() != StageACCEPT {
-		return e(util.InvalidError.Errorf("invalid stage, %q", fact.Stage()), "")
 	}
 
 	if err := util.CheckIsValid(nil, false,

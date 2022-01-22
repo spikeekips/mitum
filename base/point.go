@@ -92,7 +92,7 @@ func (p Point) String() string {
 
 func (p Point) IsValid([]byte) error {
 	if err := p.h.IsValid(nil); err != nil {
-		return errors.Wrapf(err, "invalid Point")
+		return errors.Wrapf(err, "invalid point")
 	}
 
 	return nil

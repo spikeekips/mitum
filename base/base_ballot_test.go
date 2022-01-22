@@ -93,6 +93,15 @@ func (t *testBaseBallot) TestEmptyINITVoteproof() {
 	bl := t.ballot()
 	t.NoError(bl.IsValid(t.networkID))
 
+	if bl.Stage() == StageINIT {
+		fact := bl.(INITBallot).BallotSignedFact().BallotFact()
+		if fact.Point().Round() == 0 {
+			t.T().Skip("0 round init ballot")
+
+			return
+		}
+	}
+
 	switch bt := bl.(type) {
 	case dummyINITBallot:
 		bt.ivp = nil
@@ -152,29 +161,10 @@ func (t *testBaseBallot) TestEmptySignedFact() {
 func TestBaseINITBallot(tt *testing.T) {
 	t := new(testBaseBallot)
 	t.ballot = func() Ballot {
-		ifact := newDummyINITBallotFact(NewPoint(Height(32), Round(44)),
+		block := valuehash.RandomSHA256()
+		afact := newDummyACCEPTBallotFact(NewPoint(Height(33), Round(44)),
 			valuehash.RandomSHA256(),
-			util.UUID().String())
-
-		isignedFact := dummyINITBallotSignedFact{
-			BaseINITBallotSignedFact: NewBaseINITBallotSignedFact(
-				dummyINITBallotSignedFactHint,
-				RandomAddress(""),
-				ifact,
-			),
-		}
-		t.NoError(isignedFact.Sign(t.priv, t.networkID))
-
-		ivp := NewDummyINITVoteproof(ifact.Point())
-		ivp.Finish()
-		ivp.SetResult(VoteResultMajority)
-		ivp.SetMajority(ifact)
-		ivp.SetSignedFacts([]BallotSignedFact{isignedFact})
-		ivp.SetSuffrage(DummySuffrageInfo{})
-
-		afact := newDummyACCEPTBallotFact(ifact.Point(),
-			valuehash.RandomSHA256(),
-			valuehash.RandomSHA256(),
+			block,
 			util.UUID().String())
 
 		asignedFact := dummyACCEPTBallotSignedFact{
@@ -193,8 +183,8 @@ func TestBaseINITBallot(tt *testing.T) {
 		avp.SetSignedFacts([]BallotSignedFact{asignedFact})
 		avp.SetSuffrage(DummySuffrageInfo{})
 
-		fact := newDummyINITBallotFact(NewPoint(ifact.Point().Height()+1, Round(44)),
-			valuehash.RandomSHA256(),
+		fact := newDummyINITBallotFact(NewPoint(afact.Point().Height()+1, Round(0)),
+			block,
 			util.UUID().String())
 
 		signedFact := dummyINITBallotSignedFact{
@@ -209,7 +199,7 @@ func TestBaseINITBallot(tt *testing.T) {
 		return dummyINITBallot{
 			BaseINITBallot: NewBaseINITBallot(
 				dummyINITBallotHint,
-				ivp, avp,
+				nil, avp,
 				signedFact,
 			),
 		}
@@ -360,6 +350,228 @@ func TestBaseACCEPTBallot(tt *testing.T) {
 	suite.Run(tt, t)
 }
 
+type testBaseINITBallotWithVoteproof struct {
+	suite.Suite
+	priv      Privatekey
+	networkID NetworkID
+}
+
+func (t *testBaseINITBallotWithVoteproof) SetupTest() {
+	t.priv = NewMPrivatekey()
+	t.networkID = NetworkID(util.UUID().Bytes())
+}
+
+func (t *testBaseINITBallotWithVoteproof) TestNoneNilINITVoteproof0Round() {
+	block := valuehash.RandomSHA256()
+	afact := newDummyACCEPTBallotFact(NewPoint(Height(33), Round(44)),
+		valuehash.RandomSHA256(),
+		block,
+		util.UUID().String())
+
+	asignedFact := dummyACCEPTBallotSignedFact{
+		BaseACCEPTBallotSignedFact: NewBaseACCEPTBallotSignedFact(
+			dummyACCEPTBallotSignedFactHint,
+			RandomAddress(""),
+			afact,
+		),
+	}
+	t.NoError(asignedFact.Sign(t.priv, t.networkID))
+
+	avp := NewDummyACCEPTVoteproof(afact.Point())
+	avp.Finish()
+	avp.SetResult(VoteResultMajority)
+	avp.SetMajority(afact)
+	avp.SetSignedFacts([]BallotSignedFact{asignedFact})
+	avp.SetSuffrage(DummySuffrageInfo{})
+
+	ifact := newDummyINITBallotFact(NewPoint(avp.Point().Height(), Round(55)), // same height with previous accept voteproof
+		valuehash.RandomSHA256(),
+		util.UUID().String())
+
+	isignedFact := dummyINITBallotSignedFact{
+		BaseINITBallotSignedFact: NewBaseINITBallotSignedFact(
+			dummyINITBallotSignedFactHint,
+			RandomAddress(""),
+			ifact,
+		),
+	}
+	t.NoError(isignedFact.Sign(t.priv, t.networkID))
+
+	ivp := NewDummyINITVoteproof(ifact.Point())
+	ivp.Finish()
+	ivp.SetResult(VoteResultMajority)
+	ivp.SetMajority(ifact)
+	ivp.SetSignedFacts([]BallotSignedFact{isignedFact})
+	ivp.SetSuffrage(DummySuffrageInfo{})
+
+	fact := newDummyINITBallotFact(NewPoint(afact.Point().Height()+1, Round(0)),
+		block,
+		util.UUID().String())
+
+	signedFact := dummyINITBallotSignedFact{
+		BaseINITBallotSignedFact: NewBaseINITBallotSignedFact(
+			dummyINITBallotSignedFactHint,
+			RandomAddress(""),
+			fact,
+		),
+	}
+	t.NoError(signedFact.Sign(t.priv, t.networkID))
+
+	bl := dummyINITBallot{
+		BaseINITBallot: NewBaseINITBallot(
+			dummyINITBallotHint,
+			ivp, avp,
+			signedFact,
+		),
+	}
+
+	err := bl.IsValid(t.networkID)
+	t.Error(err)
+	t.True(errors.Is(err, util.InvalidError))
+	t.Contains(err.Error(), "nit voteproof should be nil in 0 round init ballot")
+}
+
+func (t *testBaseINITBallotWithVoteproof) TestValidINITVoteproofNone0Round() {
+	block := valuehash.RandomSHA256()
+	afact := newDummyACCEPTBallotFact(NewPoint(Height(33), Round(44)),
+		valuehash.RandomSHA256(),
+		block,
+		util.UUID().String())
+
+	asignedFact := dummyACCEPTBallotSignedFact{
+		BaseACCEPTBallotSignedFact: NewBaseACCEPTBallotSignedFact(
+			dummyACCEPTBallotSignedFactHint,
+			RandomAddress(""),
+			afact,
+		),
+	}
+	t.NoError(asignedFact.Sign(t.priv, t.networkID))
+
+	avp := NewDummyACCEPTVoteproof(afact.Point())
+	avp.Finish()
+	avp.SetResult(VoteResultMajority)
+	avp.SetMajority(afact)
+	avp.SetSignedFacts([]BallotSignedFact{asignedFact})
+	avp.SetSuffrage(DummySuffrageInfo{})
+
+	ifact := newDummyINITBallotFact(NewPoint(avp.Point().Height()+1, Round(55)),
+		valuehash.RandomSHA256(),
+		util.UUID().String())
+
+	isignedFact := dummyINITBallotSignedFact{
+		BaseINITBallotSignedFact: NewBaseINITBallotSignedFact(
+			dummyINITBallotSignedFactHint,
+			RandomAddress(""),
+			ifact,
+		),
+	}
+	t.NoError(isignedFact.Sign(t.priv, t.networkID))
+
+	ivp := NewDummyINITVoteproof(ifact.Point())
+	ivp.Finish()
+	ivp.SetResult(VoteResultMajority)
+	ivp.SetMajority(ifact)
+	ivp.SetSignedFacts([]BallotSignedFact{isignedFact})
+	ivp.SetSuffrage(DummySuffrageInfo{})
+
+	fact := newDummyINITBallotFact(NewPoint(ifact.Point().Height(), ifact.Point().Round()+1),
+		block,
+		util.UUID().String())
+
+	signedFact := dummyINITBallotSignedFact{
+		BaseINITBallotSignedFact: NewBaseINITBallotSignedFact(
+			dummyINITBallotSignedFactHint,
+			RandomAddress(""),
+			fact,
+		),
+	}
+	t.NoError(signedFact.Sign(t.priv, t.networkID))
+
+	bl := dummyINITBallot{
+		BaseINITBallot: NewBaseINITBallot(
+			dummyINITBallotHint,
+			ivp, avp,
+			signedFact,
+		),
+	}
+
+	t.NoError(bl.IsValid(t.networkID))
+}
+
+func (t *testBaseINITBallotWithVoteproof) TestWrongHeightINITVoteproofNone0Round() {
+	block := valuehash.RandomSHA256()
+	afact := newDummyACCEPTBallotFact(NewPoint(Height(33), Round(44)),
+		valuehash.RandomSHA256(),
+		block,
+		util.UUID().String())
+
+	asignedFact := dummyACCEPTBallotSignedFact{
+		BaseACCEPTBallotSignedFact: NewBaseACCEPTBallotSignedFact(
+			dummyACCEPTBallotSignedFactHint,
+			RandomAddress(""),
+			afact,
+		),
+	}
+	t.NoError(asignedFact.Sign(t.priv, t.networkID))
+
+	avp := NewDummyACCEPTVoteproof(afact.Point())
+	avp.Finish()
+	avp.SetResult(VoteResultMajority)
+	avp.SetMajority(afact)
+	avp.SetSignedFacts([]BallotSignedFact{asignedFact})
+	avp.SetSuffrage(DummySuffrageInfo{})
+
+	ifact := newDummyINITBallotFact(NewPoint(avp.Point().Height()+2, Round(55)),
+		valuehash.RandomSHA256(),
+		util.UUID().String())
+
+	isignedFact := dummyINITBallotSignedFact{
+		BaseINITBallotSignedFact: NewBaseINITBallotSignedFact(
+			dummyINITBallotSignedFactHint,
+			RandomAddress(""),
+			ifact,
+		),
+	}
+	t.NoError(isignedFact.Sign(t.priv, t.networkID))
+
+	ivp := NewDummyINITVoteproof(ifact.Point())
+	ivp.Finish()
+	ivp.SetResult(VoteResultMajority)
+	ivp.SetMajority(ifact)
+	ivp.SetSignedFacts([]BallotSignedFact{isignedFact})
+	ivp.SetSuffrage(DummySuffrageInfo{})
+
+	fact := newDummyINITBallotFact(NewPoint(afact.Point().Height()+1, ifact.Point().Round()+1),
+		block,
+		util.UUID().String())
+
+	signedFact := dummyINITBallotSignedFact{
+		BaseINITBallotSignedFact: NewBaseINITBallotSignedFact(
+			dummyINITBallotSignedFactHint,
+			RandomAddress(""),
+			fact,
+		),
+	}
+	t.NoError(signedFact.Sign(t.priv, t.networkID))
+
+	bl := dummyINITBallot{
+		BaseINITBallot: NewBaseINITBallot(
+			dummyINITBallotHint,
+			ivp, avp,
+			signedFact,
+		),
+	}
+
+	err := bl.IsValid(t.networkID)
+	t.Error(err)
+	t.True(errors.Is(err, util.InvalidError))
+	t.Contains(err.Error(), "wrong height of init voteproof")
+}
+
+func TestBaseINITBallotWithVoteproof(t *testing.T) {
+	suite.Run(t, new(testBaseINITBallotWithVoteproof))
+}
+
 type baseTestDummyBallotEncode struct {
 	*encoder.BaseTestEncode
 	enc       encoder.Encoder
@@ -410,30 +622,12 @@ func TestDummyINITBallotJSON(tt *testing.T) {
 	t := testDummyBallotEncode()
 
 	t.Encode = func() (interface{}, []byte) {
-		ifact := newDummyINITBallotFact(NewPoint(Height(32), Round(44)),
+		block := valuehash.RandomSHA256()
+		afact := newDummyACCEPTBallotFact(NewPoint(Height(33), Round(44)),
 			valuehash.RandomSHA256(),
+			block,
 			util.UUID().String())
 
-		isignedFact := dummyINITBallotSignedFact{
-			BaseINITBallotSignedFact: NewBaseINITBallotSignedFact(
-				dummyINITBallotSignedFactHint,
-				RandomAddress(""),
-				ifact,
-			),
-		}
-		t.NoError(isignedFact.Sign(t.priv, t.networkID))
-
-		ivp := NewDummyINITVoteproof(ifact.Point())
-		ivp.Finish()
-		ivp.SetResult(VoteResultMajority)
-		ivp.SetMajority(ifact)
-		ivp.SetSignedFacts([]BallotSignedFact{isignedFact})
-		ivp.SetSuffrage(DummySuffrageInfo{})
-
-		afact := newDummyACCEPTBallotFact(ifact.Point(),
-			valuehash.RandomSHA256(),
-			valuehash.RandomSHA256(),
-			util.UUID().String())
 		asignedFact := dummyACCEPTBallotSignedFact{
 			BaseACCEPTBallotSignedFact: NewBaseACCEPTBallotSignedFact(
 				dummyACCEPTBallotSignedFactHint,
@@ -450,8 +644,8 @@ func TestDummyINITBallotJSON(tt *testing.T) {
 		avp.SetSignedFacts([]BallotSignedFact{asignedFact})
 		avp.SetSuffrage(DummySuffrageInfo{})
 
-		fact := newDummyINITBallotFact(NewPoint(ifact.Point().Height()+1, Round(44)),
-			valuehash.RandomSHA256(),
+		fact := newDummyINITBallotFact(NewPoint(afact.Point().Height()+1, Round(0)),
+			block,
 			util.UUID().String())
 
 		signedFact := dummyINITBallotSignedFact{
@@ -466,7 +660,7 @@ func TestDummyINITBallotJSON(tt *testing.T) {
 		bl := dummyINITBallot{
 			BaseINITBallot: NewBaseINITBallot(
 				dummyINITBallotHint,
-				ivp, avp,
+				nil, avp,
 				signedFact,
 			),
 		}
@@ -531,8 +725,8 @@ func TestDummyProposalBallotJSON(tt *testing.T) {
 		ivp.Finish()
 		ivp.SetResult(VoteResultMajority)
 		ivp.SetMajority(ifact)
-		ivp.SetSuffrage(DummySuffrageInfo{})
 		ivp.SetSignedFacts([]BallotSignedFact{isignedFact})
+		ivp.SetSuffrage(DummySuffrageInfo{})
 
 		fact := newDummyProposalFact(ifact.Point(),
 			[]util.Hash{
@@ -557,6 +751,7 @@ func TestDummyProposalBallotJSON(tt *testing.T) {
 				signedFact,
 			),
 		}
+
 		b, err := t.enc.Marshal(bl)
 		t.NoError(err)
 

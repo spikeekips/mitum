@@ -12,39 +12,39 @@ import (
 
 type baseVoteproofJSONMarshaler struct {
 	hint.BaseHinter
-	FinishedAt time.Time          `json:"finished_at"`
-	Majority   BallotFact         `json:"majority"`
-	Point      Point              `json:"point"`
-	Result     VoteResult         `json:"result"`
-	Stage      Stage              `json:"stage"`
-	Suffrage   SuffrageInfo       `json:"suffrage"`
-	Votes      []BallotSignedFact `json:"votes"`
-	ID         string             `json:"id"`
+	FinishedAt  time.Time          `json:"finished_at"`
+	Majority    BallotFact         `json:"majority"`
+	Point       Point              `json:"point"`
+	Result      VoteResult         `json:"result"`
+	Stage       Stage              `json:"stage"`
+	Suffrage    SuffrageInfo       `json:"suffrage"`
+	SignedFacts []BallotSignedFact `json:"signed_facts"`
+	ID          string             `json:"id"`
 }
 
 func (vp BaseVoteproof) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(baseVoteproofJSONMarshaler{
-		BaseHinter: vp.BaseHinter,
-		FinishedAt: vp.finishedAt,
-		Majority:   vp.majority,
-		Point:      vp.point,
-		Result:     vp.result,
-		Stage:      vp.stage,
-		Suffrage:   vp.suffrage,
-		Votes:      vp.sfs,
-		ID:         vp.id,
+		BaseHinter:  vp.BaseHinter,
+		FinishedAt:  vp.finishedAt,
+		Majority:    vp.majority,
+		Point:       vp.point,
+		Result:      vp.result,
+		Stage:       vp.stage,
+		Suffrage:    vp.suffrage,
+		SignedFacts: vp.sfs,
+		ID:          vp.id,
 	})
 }
 
 type baseVoteproofJSONUnmarshaler struct {
-	FinishedAt localtime.Time    `json:"finished_at"`
-	Majority   json.RawMessage   `json:"majority"`
-	Point      Point             `json:"point"`
-	Result     VoteResult        `json:"result"`
-	Stage      Stage             `json:"stage"`
-	Suffrage   json.RawMessage   `json:"suffrage"`
-	Votes      []json.RawMessage `json:"votes"`
-	ID         string            `json:"id"`
+	FinishedAt  localtime.Time    `json:"finished_at"`
+	Majority    json.RawMessage   `json:"majority"`
+	Point       Point             `json:"point"`
+	Result      VoteResult        `json:"result"`
+	Stage       Stage             `json:"stage"`
+	Suffrage    json.RawMessage   `json:"suffrage"`
+	SignedFacts []json.RawMessage `json:"signed_facts"`
+	ID          string            `json:"id"`
 }
 
 func (vp *BaseVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
@@ -68,9 +68,9 @@ func (vp *BaseVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 
 	// BLOCK decode SuffrageInfo
 
-	vp.sfs = make([]BallotSignedFact, len(u.Votes))
-	for i := range u.Votes {
-		switch j, err := enc.Decode(u.Votes[i]); {
+	vp.sfs = make([]BallotSignedFact, len(u.SignedFacts))
+	for i := range u.SignedFacts {
+		switch j, err := enc.Decode(u.SignedFacts[i]); {
 		case err != nil:
 		case j == nil:
 		default:

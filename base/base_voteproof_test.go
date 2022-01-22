@@ -2,7 +2,9 @@ package base
 
 import (
 	"testing"
+	"time"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
@@ -21,7 +23,7 @@ func (t *testBaseVoteproof) SetupTest() {
 	t.networkID = NetworkID(util.UUID().Bytes())
 }
 
-func (t *testBaseVoteproof) TestNewINIT() {
+func (t *testBaseVoteproof) validVoteproof() DummyINITVoteproof {
 	ifact := newDummyINITBallotFact(NewPoint(Height(33), Round(55)),
 		valuehash.RandomSHA256(),
 		util.UUID().String())
@@ -43,6 +45,191 @@ func (t *testBaseVoteproof) TestNewINIT() {
 	ivp.SetSuffrage(DummySuffrageInfo{})
 
 	t.NoError(ivp.IsValid(t.networkID))
+
+	return ivp
+}
+
+func (t *testBaseVoteproof) TestNewINIT() {
+	ivp := t.validVoteproof()
+
+	t.NoError(ivp.IsValid(t.networkID))
+}
+
+func (t *testBaseVoteproof) TestEmptyID() {
+	ivp := t.validVoteproof()
+	ivp.id = ""
+
+	err := ivp.IsValid(t.networkID)
+	t.Error(err)
+	t.True(errors.Is(err, util.InvalidError))
+	t.Contains(err.Error(), "empty id")
+}
+
+func (t *testBaseVoteproof) TestInvalidStage() {
+	ivp := t.validVoteproof()
+	ivp.stage = StageProposal
+
+	err := ivp.IsValid(t.networkID)
+	t.Error(err)
+	t.True(errors.Is(err, util.InvalidError))
+	t.Contains(err.Error(), "wrong stage")
+}
+
+func (t *testBaseVoteproof) TestInvalidVoteResult() {
+	ivp := t.validVoteproof()
+	ivp.SetResult(VoteResultNotYet)
+
+	err := ivp.IsValid(t.networkID)
+	t.Error(err)
+	t.True(errors.Is(err, util.InvalidError))
+	t.Contains(err.Error(), "not yet finished")
+}
+
+func (t *testBaseVoteproof) TestZeroFinishedAt() {
+	ivp := t.validVoteproof()
+	ivp.finishedAt = time.Time{}
+
+	err := ivp.IsValid(t.networkID)
+	t.Error(err)
+	t.True(errors.Is(err, util.InvalidError))
+	t.Contains(err.Error(), "zero finished time")
+}
+
+func (t *testBaseVoteproof) TestEmptySignedFacts() {
+	ivp := t.validVoteproof()
+	ivp.SetSignedFacts(nil)
+
+	err := ivp.IsValid(t.networkID)
+	t.Error(err)
+	t.True(errors.Is(err, util.InvalidError))
+	t.Contains(err.Error(), "empty signed facts")
+}
+
+func (t *testBaseVoteproof) TestNilMajority() {
+	ivp := t.validVoteproof()
+	ivp.SetMajority(nil)
+
+	err := ivp.IsValid(t.networkID)
+	t.Error(err)
+	t.True(errors.Is(err, util.InvalidError))
+	t.Contains(err.Error(), "nil found")
+}
+
+func (t *testBaseVoteproof) TestInvalidPoint() {
+	ivp := t.validVoteproof()
+	ivp.point = NewPoint(NilHeight, Round(0))
+
+	err := ivp.IsValid(t.networkID)
+	t.Error(err)
+	t.True(errors.Is(err, util.InvalidError))
+	t.Contains(err.Error(), "invalid point")
+}
+
+func (t *testBaseVoteproof) TestInvalidSignedFact() {
+	ivp := t.validVoteproof()
+
+	ifact := newDummyINITBallotFact(NewPoint(Height(33), Round(55)),
+		valuehash.RandomSHA256(),
+		util.UUID().String())
+
+	isignedFact := dummyINITBallotSignedFact{
+		BaseINITBallotSignedFact: NewBaseINITBallotSignedFact(
+			dummyINITBallotSignedFactHint,
+			RandomAddress(""),
+			ifact,
+		),
+	}
+	t.NoError(isignedFact.Sign(t.priv, util.UUID().Bytes())) // wrong network id
+
+	ivp.SetMajority(ifact)
+	ivp.SetSignedFacts([]BallotSignedFact{isignedFact})
+
+	err := ivp.IsValid(t.networkID)
+	t.Error(err)
+	t.True(errors.Is(err, util.InvalidError))
+	t.Contains(err.Error(), "failed to verify signed")
+}
+
+func (t *testBaseVoteproof) TestWrongPointOfSignedFact() {
+	ivp := t.validVoteproof()
+
+	ifact := newDummyINITBallotFact(NewPoint(Height(33), Round(55)),
+		valuehash.RandomSHA256(),
+		util.UUID().String())
+
+	wfact := newDummyINITBallotFact(NewPoint(Height(34), Round(55)),
+		valuehash.RandomSHA256(),
+		util.UUID().String())
+
+	isignedFact := dummyINITBallotSignedFact{
+		BaseINITBallotSignedFact: NewBaseINITBallotSignedFact(
+			dummyINITBallotSignedFactHint,
+			RandomAddress(""),
+			ifact,
+		),
+	}
+	t.NoError(isignedFact.Sign(t.priv, t.networkID))
+
+	wsignedFact := dummyINITBallotSignedFact{
+		BaseINITBallotSignedFact: NewBaseINITBallotSignedFact(
+			dummyINITBallotSignedFactHint,
+			RandomAddress(""),
+			wfact,
+		),
+	}
+	t.NoError(wsignedFact.Sign(t.priv, t.networkID))
+
+	ivp.Finish()
+	ivp.SetMajority(ifact)
+	ivp.SetSignedFacts([]BallotSignedFact{isignedFact, wsignedFact})
+
+	err := ivp.IsValid(t.networkID)
+	t.Error(err)
+	t.True(errors.Is(err, util.InvalidError))
+	t.Contains(err.Error(), "point does not match")
+	t.Contains(err.Error(), "invalid signed fact")
+}
+
+func (t *testBaseVoteproof) TestWrongPointOfMajority() {
+	ivp := t.validVoteproof()
+
+	ifact := newDummyINITBallotFact(NewPoint(ivp.Point().Height()+1, ivp.Point().Round()),
+		valuehash.RandomSHA256(),
+		util.UUID().String())
+
+	isignedFact := dummyINITBallotSignedFact{
+		BaseINITBallotSignedFact: NewBaseINITBallotSignedFact(
+			dummyINITBallotSignedFactHint,
+			RandomAddress(""),
+			ifact,
+		),
+	}
+	t.NoError(isignedFact.Sign(t.priv, t.networkID))
+
+	ivp.SetMajority(ifact)
+	ivp.SetSignedFacts([]BallotSignedFact{isignedFact})
+
+	err := ivp.IsValid(t.networkID)
+	t.Error(err)
+	t.True(errors.Is(err, util.InvalidError))
+	t.Contains(err.Error(), "point does not match")
+	t.Contains(err.Error(), "invalid majority")
+}
+
+func (t *testBaseVoteproof) TestMajorityNotFoundInSignedFacts() {
+	ivp := t.validVoteproof()
+
+	fact := newDummyINITBallotFact(NewPoint(Height(33), Round(55)),
+		valuehash.RandomSHA256(),
+		util.UUID().String())
+
+	ivp.SetMajority(fact)
+	ivp.SetSuffrage(DummySuffrageInfo{})
+
+	err := ivp.IsValid(t.networkID)
+	t.Error(err)
+	t.True(errors.Is(err, util.InvalidError))
+	t.Contains(err.Error(), "majoirty not found in signed facts")
 }
 
 func (t *testBaseVoteproof) TestNewACCEPT() {

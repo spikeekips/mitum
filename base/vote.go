@@ -2,9 +2,6 @@ package base
 
 import (
 	"sort"
-
-	"github.com/pkg/errors"
-	"github.com/spikeekips/mitum/util"
 )
 
 type VoteResult string
@@ -24,21 +21,16 @@ func (v VoteResult) String() string {
 	case VoteResultNotYet, VoteResultDraw, VoteResultMajority:
 		return string(v)
 	default:
-		return "unknown vote result"
+		return "NOT YET"
 	}
 }
 
-func (v VoteResult) IsValid([]byte) error {
-	switch v {
-	case VoteResultNotYet, VoteResultDraw, VoteResultMajority:
-		return nil
-	}
-
-	return util.InvalidError.Errorf("unknown vote result, %q", v)
+func (VoteResult) IsValid([]byte) error {
+	return nil
 }
 
 func (v VoteResult) MarshalText() ([]byte, error) {
-	return []byte(v), nil
+	return []byte(v.String()), nil
 }
 
 func (v *VoteResult) UnmarshalText(b []byte) error {
@@ -46,7 +38,7 @@ func (v *VoteResult) UnmarshalText(b []byte) error {
 	switch i {
 	case VoteResultNotYet, VoteResultDraw, VoteResultMajority:
 	default:
-		return errors.Errorf("unknown vote result, %q", i)
+		i = VoteResultNotYet
 	}
 
 	*v = i
