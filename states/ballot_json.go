@@ -1,8 +1,9 @@
-package base
+package states
 
 import (
 	"encoding/json"
 
+	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
@@ -10,12 +11,12 @@ import (
 
 type baseBallotJSONMarshaler struct {
 	hint.BaseHinter
-	IVP INITVoteproof    `json:"init_voteproof"`
-	AVP ACCEPTVoteproof  `json:"accept_voteproof"`
-	SF  BallotSignedFact `json:"signed_fact"`
+	IVP base.INITVoteproof    `json:"init_voteproof"`
+	AVP base.ACCEPTVoteproof  `json:"accept_voteproof"`
+	SF  base.BallotSignedFact `json:"signed_fact"`
 }
 
-func (bl BaseBallot) MarshalJSON() ([]byte, error) {
+func (bl baseBallot) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(baseBallotJSONMarshaler{
 		BaseHinter: bl.BaseHinter,
 		IVP:        bl.ivp,
@@ -30,8 +31,8 @@ type baseBallotJSONUnmarshaler struct {
 	SF  json.RawMessage `json:"signed_fact"`
 }
 
-func (bl *BaseBallot) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode BaseBallot")
+func (bl *baseBallot) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+	e := util.StringErrorFunc("failed to decode baseBallot")
 
 	var u baseBallotJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
@@ -43,7 +44,7 @@ func (bl *BaseBallot) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "")
 	case i == nil:
 	default:
-		vp, ok := i.(INITVoteproof)
+		vp, ok := i.(base.INITVoteproof)
 		if !ok {
 			return e(err, "decoded not INITVoteproof, %T", i)
 		}
@@ -56,7 +57,7 @@ func (bl *BaseBallot) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "")
 	case i == nil:
 	default:
-		vp, ok := i.(ACCEPTVoteproof)
+		vp, ok := i.(base.ACCEPTVoteproof)
 		if !ok {
 			return e(err, "decoded not ACCEPTVoteproof, %T", i)
 		}
@@ -69,7 +70,7 @@ func (bl *BaseBallot) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "")
 	case i == nil:
 	default:
-		sf, ok := i.(BallotSignedFact)
+		sf, ok := i.(base.BallotSignedFact)
 		if !ok {
 			return e(err, "decoded not BallotSignedFact, %T", i)
 		}

@@ -1,6 +1,7 @@
-package base
+package states
 
 import (
+	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
 )
@@ -8,10 +9,10 @@ import (
 type BaseOperationFact struct {
 	hint.BaseHinter
 	h util.Hash
-	t Token
+	t base.Token
 }
 
-func NewBaseOperationFact(ht hint.Hint, t Token) BaseOperationFact {
+func NewBaseOperationFact(ht hint.Hint, t base.Token) BaseOperationFact {
 	return BaseOperationFact{
 		BaseHinter: hint.NewBaseHinter(ht),
 		t:          t,

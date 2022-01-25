@@ -4,35 +4,9 @@
 package base
 
 import (
-	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/localtime"
 	"github.com/stretchr/testify/assert"
 )
-
-var (
-	dummyINITVoteproofHint   = hint.MustNewHint("dummy-init-voteproof-v3.3.3")
-	dummyACCEPTVoteproofHint = hint.MustNewHint("dummy-accept-voteproof-v3.3.3")
-)
-
-type DummyINITVoteproof struct {
-	BaseINITVoteproof
-}
-
-func NewDummyINITVoteproof(p Point) DummyINITVoteproof {
-	return DummyINITVoteproof{
-		BaseINITVoteproof: NewBaseINITVoteproof(dummyINITVoteproofHint, p),
-	}
-}
-
-type DummyACCEPTVoteproof struct {
-	BaseACCEPTVoteproof
-}
-
-func NewDummyACCEPTVoteproof(p Point) DummyACCEPTVoteproof {
-	return DummyACCEPTVoteproof{
-		BaseACCEPTVoteproof: NewBaseACCEPTVoteproof(dummyACCEPTVoteproofHint, p),
-	}
-}
 
 func CompareVoteproof(t *assert.Assertions, a, b Voteproof) {
 	if a == nil {
