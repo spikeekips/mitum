@@ -4,6 +4,7 @@
 package base
 
 import (
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
@@ -65,15 +66,8 @@ func (suf *DummySuffrageInfo) SetNodes(n []Address) *DummySuffrageInfo {
 }
 
 func (suf DummySuffrageInfo) IsValid([]byte) error {
-	bs := make([]util.IsValider, len(suf.n)+2)
-	bs[0] = suf.h
-	bs[1] = suf.t
-	for i := range suf.n {
-		bs[i+2] = suf.n[i]
-	}
-
-	if err := util.CheckIsValid(nil, false, bs...); err != nil {
-		return util.InvalidError.Wrapf(err, "invalid DummySuffrageInfo")
+	if err := IsValidSuffrageInfo(suf); err != nil {
+		return errors.Wrap(err, "")
 	}
 
 	return nil

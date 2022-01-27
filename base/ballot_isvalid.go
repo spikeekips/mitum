@@ -1,6 +1,8 @@
 package base
 
-import "github.com/spikeekips/mitum/util"
+import (
+	"github.com/spikeekips/mitum/util"
+)
 
 func IsValidBallot(bl Ballot, networkID []byte) error {
 	e := util.StringErrorFunc("invalid Ballot")
@@ -207,6 +209,17 @@ func IsValidProposalFact(fact ProposalFact) error {
 	}
 
 	ops := fact.Operations()
+	if util.CheckSliceDuplicated(ops, func(i interface{}) string {
+		j, ok := i.(util.Hash)
+		if !ok {
+			return ""
+		}
+
+		return j.String()
+	}) {
+		return util.InvalidError.Errorf("duplicated operation found")
+	}
+
 	vs := make([]util.IsValider, len(ops)+1)
 	vs[0] = util.DummyIsValider(func([]byte) error {
 		if fact.ProposedAt().IsZero() {

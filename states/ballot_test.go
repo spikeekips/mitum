@@ -98,7 +98,7 @@ func (t *testBaseBallot) TestEmptySignedFact() {
 	t.True(errors.Is(err, util.InvalidError))
 }
 
-func TestBaseINITBallot(tt *testing.T) {
+func TestINITBallot(tt *testing.T) {
 	t := new(testBaseBallot)
 	t.ballot = func() base.Ballot {
 		block := valuehash.RandomSHA256()
@@ -131,7 +131,7 @@ func TestBaseINITBallot(tt *testing.T) {
 	suite.Run(tt, t)
 }
 
-func TestBaseProposalBallot(tt *testing.T) {
+func TestProposalBallot(tt *testing.T) {
 	t := new(testBaseBallot)
 	t.ballot = func() base.Ballot {
 		node := base.RandomAddress("")
@@ -187,7 +187,7 @@ func TestBaseProposalBallot(tt *testing.T) {
 	suite.Run(tt, t)
 }
 
-func TestBaseACCEPTBallot(tt *testing.T) {
+func TestACCEPTBallot(tt *testing.T) {
 	t := new(testBaseBallot)
 	t.ballot = func() base.Ballot {
 		node := base.RandomAddress("")

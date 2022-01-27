@@ -17,11 +17,11 @@ var IgnoreSwithingStateError = util.NewError("failed to switch state, but ignore
 type States struct {
 	*logging.Logging
 	*util.ContextDaemon
-	currentHandlerLock sync.RWMutex
-	statech            chan stateSwitchContext
-	voteproofch        chan voteproofWithState
-	handlers           map[StateType]handler
-	cs                 handler
+	stateLock   sync.RWMutex
+	statech     chan stateSwitchContext
+	voteproofch chan voteproofWithState
+	handlers    map[StateType]stateHandler
+	cs          stateHandler
 }
 
 func NewStates() *States {
@@ -31,7 +31,7 @@ func NewStates() *States {
 		}),
 		statech:     make(chan stateSwitchContext),
 		voteproofch: make(chan voteproofWithState),
-		handlers:    map[StateType]handler{},
+		handlers:    map[StateType]stateHandler{},
 		cs:          nil,
 	}
 
@@ -40,7 +40,7 @@ func NewStates() *States {
 	return st
 }
 
-func (st *States) SetHandler(h handler) *States {
+func (st *States) SetHandler(h stateHandler) *States {
 	if st.ContextDaemon.IsStarted() {
 		panic("can not set state handler; already started")
 	}
@@ -62,19 +62,11 @@ func (st *States) start(ctx context.Context) error {
 	}
 
 	// NOTE entering to booting at starting
-	if err := st.switchStates(stateSwitchContext{next: StateBooting}); err != nil {
+	if err := st.ensureSwitchState(stateSwitchContext{next: StateBooting}); err != nil {
 		return errors.Wrap(err, "failed to enter booting state")
 	}
 
-	var stopch <-chan error
-	go func() {
-		stopch = st.startVoteproofCH(ctx)
-	}()
-
 	err := st.startStatesCH(ctx)
-	if err == nil {
-		err = <-stopch
-	}
 
 	// NOTE exit current
 	current := st.current()
@@ -98,65 +90,40 @@ func (st *States) start(ctx context.Context) error {
 }
 
 func (st *States) startStatesCH(ctx context.Context) error {
-	var err error
-end:
 	for {
+		var sctx stateSwitchContext
 		select {
 		case <-ctx.Done():
-			err = errors.Wrap(ctx.Err(), "states stopped by parent context")
-
-			break end
-		case sctx := <-st.statech:
-			e := st.switchStates(sctx)
-			if e == nil {
-				continue
-			}
-
-			st.Log().Error().Err(e).Msg("failed to switch state; stop states")
-
-			err = errors.Wrap(e, "failed to switch state")
-
-			break end
-		}
-	}
-
-	return err
-}
-
-func (st *States) startVoteproofCH(ctx context.Context) <-chan error {
-	errch := make(chan error, 1)
-
-end:
-	for {
-		select {
-		case <-ctx.Done():
-			errch <- errors.Wrap(ctx.Err(), "states stopped by parent context")
-
-			break end
+			return errors.Wrap(ctx.Err(), "states stopped by parent context")
+		case sctx = <-st.statech:
 		case vp := <-st.voteproofch:
-			if err := st.voteproofToCurrent(vp, st.current()); err != nil {
-				st.Log().Error().Err(err).Stringer("voteproof", util.Stringer(func() string {
-					if vp.Voteproof == nil {
-						return ""
-					}
+			err := st.voteproofToCurrent(vp, st.current())
+			if err == nil {
+				return nil
+			}
 
-					return vp.Voteproof.ID()
-				})).Msg("failed to handle voteproof")
+			if !errors.As(err, &sctx) {
+				st.Log().Error().Err(err).
+					Stringer("voteproof", base.VoteproofLog(vp.Voteproof)).Msg("failed to handle voteproof")
+
+				return errors.Wrap(err, "")
 			}
 		}
-	}
 
-	return errch
+		if err := st.ensureSwitchState(sctx); err != nil {
+			return errors.Wrap(err, "")
+		}
+	}
 }
 
-func (st *States) current() handler {
-	st.currentHandlerLock.RLock()
-	defer st.currentHandlerLock.RUnlock()
+func (st *States) current() stateHandler {
+	st.stateLock.RLock()
+	defer st.stateLock.RUnlock()
 
 	return st.cs
 }
 
-func (st *States) switchStates(sctx stateSwitchContext) error {
+func (st *States) ensureSwitchState(sctx stateSwitchContext) error {
 	var n int
 
 	current := st.cs
@@ -219,8 +186,14 @@ func (st *States) switchState(sctx stateSwitchContext) error {
 	current := st.current()
 	l := st.stateSwitchContextLog(sctx, current)
 
-	cdefer, ndefer, err := st.switchcurrentHandlerLocked(sctx, current)
+	cdefer, ndefer, err := st.exitAndEnter(sctx, current)
 	if err != nil {
+		if errors.Is(err, IgnoreSwithingStateError) {
+			l.Debug().Msg("switching state ignored")
+
+			return nil
+		}
+
 		l.Error().Err(err).Msg("failed to switch(locked)")
 
 		return e(err, "")
@@ -237,9 +210,9 @@ func (st *States) switchState(sctx stateSwitchContext) error {
 	return nil
 }
 
-func (st *States) switchcurrentHandlerLocked(sctx stateSwitchContext, current handler) (func() error, func() error, error) {
-	st.currentHandlerLock.Lock()
-	defer st.currentHandlerLock.Unlock()
+func (st *States) exitAndEnter(sctx stateSwitchContext, current stateHandler) (func() error, func() error, error) {
+	st.stateLock.Lock()
+	defer st.stateLock.Unlock()
 
 	e := util.StringErrorFunc("failed to switch state")
 	l := st.stateSwitchContextLog(sctx, current)
@@ -259,6 +232,12 @@ func (st *States) switchcurrentHandlerLocked(sctx stateSwitchContext, current ha
 		case sctx.next == StateBroken:
 			l.Error().Err(err).Msg("failed to exit current state, but next is broken state; error will be ignored")
 		default:
+			if errors.Is(err, IgnoreSwithingStateError) {
+				l.Debug().Err(err).Msg("current state ignores switching state")
+
+				return nil, nil, errors.Wrap(err, "")
+			}
+
 			st.cs = nil
 
 			return nil, nil, e(err, "failed to exit current state")
@@ -294,27 +273,27 @@ func (st *States) newState(sctx stateSwitchContext) error {
 }
 
 func (st *States) newVoteproof(vp base.Voteproof) error {
-	return st.newVoteproofWithCurrent(vp, st.current())
-}
-
-func (st *States) newVoteproofWithCurrent(vp base.Voteproof, current handler) error {
+	current := st.current()
 	if current == nil {
+		st.Log().Debug().Msg("voteproof ignored; nil current")
+
 		return nil
 	}
 
-	if _, err := st.checkVoteproofWithCurrent(vp, current); err != nil {
-		return errors.Wrap(err, "failed to newVoteproof")
-	}
+	// BLOCK compare last init and accept voteproof
 
 	go func() {
-		st.voteproofch <- vp.(voteproofWithState)
+		st.voteproofch <- newVoteproofWithState(vp, current.state())
 	}()
 
 	return nil
 }
 
-func (st *States) voteproofToCurrent(vp base.Voteproof, current handler) error {
+func (st *States) voteproofToCurrent(vp base.Voteproof, current stateHandler) error {
+	// BLOCK compare last init and accept voteproof
+
 	e := util.StringErrorFunc("failed to send voteproof to current")
+
 	nvp, err := st.checkVoteproofWithCurrent(vp, current)
 	if err != nil {
 		return e(err, "")
@@ -327,7 +306,7 @@ func (st *States) voteproofToCurrent(vp base.Voteproof, current handler) error {
 	return nil
 }
 
-func (st *States) checkVoteproofWithCurrent(vp base.Voteproof, current handler) (base.Voteproof, error) {
+func (st *States) checkVoteproofWithCurrent(vp base.Voteproof, current stateHandler) (base.Voteproof, error) {
 	vps, ok := vp.(voteproofWithState)
 	switch {
 	case !ok:
@@ -340,8 +319,8 @@ func (st *States) checkVoteproofWithCurrent(vp base.Voteproof, current handler) 
 }
 
 func (st *States) callDeferStates(c, n func() error) error {
-	st.currentHandlerLock.Lock()
-	defer st.currentHandlerLock.Unlock()
+	st.stateLock.Lock()
+	defer st.stateLock.Unlock()
 
 	err := func() error {
 		if c != nil {
@@ -366,7 +345,7 @@ func (st *States) callDeferStates(c, n func() error) error {
 	return nil
 }
 
-func (st *States) checkStateSwitchContext(sctx stateSwitchContext, current handler) error {
+func (st *States) checkStateSwitchContext(sctx stateSwitchContext, current stateHandler) error {
 	if current == nil {
 		return nil
 	}
@@ -402,14 +381,8 @@ func (st *States) checkStateSwitchContext(sctx stateSwitchContext, current handl
 	return nil
 }
 
-func (st *States) stateSwitchContextLog(sctx stateSwitchContext, current handler) zerolog.Logger {
+func (st *States) stateSwitchContextLog(sctx stateSwitchContext, current stateHandler) zerolog.Logger {
 	return st.Log().With().
 		Object("next_state", sctx).
-		Stringer("current_state", util.Stringer(func() string {
-			if current == nil {
-				return ""
-			}
-
-			return current.state().String()
-		})).Logger()
+		Stringer("current_state", stateHandlerLog(current)).Logger()
 }

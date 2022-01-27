@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-func (st *States) setHandler(h handler) *States {
+func (st *States) setHandler(h stateHandler) *States {
 	st.handlers[h.state()] = h
 
 	return st
@@ -56,7 +56,7 @@ func (t *testStates) TestExit() {
 
 	_ = st.setHandler(newBaseState(StateJoining))
 
-	booting := st.handlers[StateBooting].(*baseState)
+	booting := st.handlers[StateBooting].(*dummyStateHandler)
 
 	exitch := make(chan bool, 1)
 	_ = booting.setExit(func() error {
@@ -359,7 +359,7 @@ func (t *testStates) TestSameCurrentWithNext() {
 	st, _ := t.booted()
 	defer st.Stop()
 
-	booting := st.handlers[StateBooting].(*baseState)
+	booting := st.handlers[StateBooting].(*dummyStateHandler)
 
 	reenterch := make(chan bool, 1)
 	voteproofch := make(chan base.Voteproof, 1)
@@ -400,7 +400,7 @@ func (t *testStates) TestSameCurrentWithNextWithoutVoteproof() {
 	st, _ := t.booted()
 	defer st.Stop()
 
-	booting := st.handlers[StateBooting].(*baseState)
+	booting := st.handlers[StateBooting].(*dummyStateHandler)
 
 	reenterch := make(chan bool, 1)
 	voteproofch := make(chan base.Voteproof, 1)
@@ -447,7 +447,7 @@ func (t *testStates) TestNewVoteproof() {
 	st, _ := t.booted()
 	defer st.Stop()
 
-	booting := st.handlers[StateBooting].(*baseState)
+	booting := st.handlers[StateBooting].(*dummyStateHandler)
 
 	voteproofch := make(chan base.Voteproof, 1)
 	_ = booting.setNewVoteproof(func(vp base.Voteproof) error {
@@ -459,11 +459,7 @@ func (t *testStates) TestNewVoteproof() {
 	vp := INITVoteproof{}
 	vp.id = util.UUID().String()
 
-	err := st.newVoteproof(vp)
-	t.Error(err)
-	t.Contains(err.Error(), "not voteproofWithState")
-
-	t.NoError(st.newVoteproof(newVoteproofWithState(vp, st.current().state())))
+	t.NoError(st.newVoteproof(vp))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -480,7 +476,7 @@ func (t *testStates) TestNewVoteproofWithWrongState() {
 	st, _ := t.booted()
 	defer st.Stop()
 
-	booting := st.handlers[StateBooting].(*baseState)
+	booting := st.handlers[StateBooting].(*dummyStateHandler)
 
 	voteproofch := make(chan base.Voteproof, 1)
 	_ = booting.setNewVoteproof(func(vp base.Voteproof) error {
@@ -499,6 +495,92 @@ func (t *testStates) TestNewVoteproofWithWrongState() {
 	case <-voteproofch:
 		t.NoError(errors.Errorf("unexpected voteproof"))
 	}
+}
+
+func (t *testStates) TestNewVoteproofSwitchState() {
+	st, _ := t.booted()
+	defer st.Stop()
+
+	joiningch := make(chan base.Voteproof, 1)
+	joining := newBaseState(StateJoining).setEnter(func(vp base.Voteproof) error {
+		joiningch <- vp
+
+		return nil
+	}, nil)
+	_ = st.setHandler(joining)
+
+	booting := st.handlers[StateBooting].(*dummyStateHandler)
+
+	voteproofch := make(chan base.Voteproof, 1)
+	_ = booting.setNewVoteproof(func(vp base.Voteproof) error {
+		voteproofch <- vp
+
+		return newStateSwitchContext(st.current().state(), StateJoining, vp)
+	})
+
+	vp := INITVoteproof{}
+	vp.id = util.UUID().String()
+
+	t.NoError(st.newVoteproof(vp))
+
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("failed to newVoteproof"))
+	case rvp := <-voteproofch:
+		t.Equal(vp.ID(), rvp.ID())
+	}
+
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("failed to enter joining"))
+	case rvp := <-joiningch:
+		t.Equal(vp.ID(), rvp.ID())
+		t.Equal(StateJoining, st.current().state())
+	}
+}
+
+func (t *testStates) TestCurrentIgnoresSwitchingState() {
+	st, _ := t.booted()
+	defer st.Stop()
+
+	exitch := make(chan struct{}, 1)
+	booting := st.handlers[StateBooting].(*dummyStateHandler)
+	_ = booting.setExit(func() error {
+		exitch <- struct{}{}
+
+		return IgnoreSwithingStateError.Call()
+	}, nil)
+
+	joining := newBaseState(StateJoining)
+
+	enterch := make(chan bool, 1)
+	_ = joining.setEnter(func(base.Voteproof) error {
+		enterch <- true
+
+		return nil
+	}, nil)
+	_ = st.setHandler(joining)
+
+	t.Equal(StateBooting, st.current().state())
+
+	sctx := newStateSwitchContext(st.current().state(), StateJoining, nil)
+	err := st.newState(sctx)
+	t.NoError(err)
+
+	select {
+	case <-time.After(time.Second * 3):
+		t.NoError(errors.Errorf("failed to call exiting from booting"))
+	case <-exitch:
+	}
+
+	select {
+	case <-time.After(time.Second * 3):
+	case <-enterch:
+		t.NoError(errors.Errorf("failed to prevent to enter to joining"))
+	}
+
+	t.NotNil(st.current())
+	t.Equal(st.current().state(), StateBooting)
 }
 
 func TestStates(t *testing.T) {

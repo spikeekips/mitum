@@ -124,6 +124,25 @@ func (t *testBaseVoteproof) TestInvalidPoint() {
 	t.Contains(err.Error(), "invalid point")
 }
 
+func (t *testBaseVoteproof) TestDuplicatedNodeInSignedFact() {
+	ivp := t.validVoteproof()
+
+	sfs := ivp.SignedFacts()
+	isf := sfs[0].(INITBallotSignedFact)
+
+	isignedFact := NewINITBallotSignedFact(isf.Node(), isf.Fact().(INITBallotFact))
+	t.NoError(isignedFact.Sign(t.priv, t.networkID))
+
+	sfs = append(sfs, isignedFact)
+
+	ivp.SetSignedFacts(sfs)
+
+	err := ivp.IsValid(t.networkID)
+	t.Error(err)
+	t.True(errors.Is(err, util.InvalidError))
+	t.Contains(err.Error(), "duplicated node found")
+}
+
 func (t *testBaseVoteproof) TestInvalidSignedFact() {
 	ivp := t.validVoteproof()
 

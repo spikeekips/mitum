@@ -1,8 +1,11 @@
 package states
 
 import (
+	"fmt"
+
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/util"
 )
 
 type StateType string
@@ -68,11 +71,21 @@ func (sctx stateSwitchContext) MarshalZerologObject(e *zerolog.Event) {
 	}
 }
 
-type handler interface {
+type stateHandler interface {
 	state() StateType
 	enter(base.Voteproof) (func() error, error)
 	exit() (func() error, error)
 	newVoteproof(base.Voteproof) error
+}
+
+func stateHandlerLog(st stateHandler) fmt.Stringer {
+	return util.Stringer(func() string {
+		if st == nil {
+			return ""
+		}
+
+		return st.state().String()
+	})
 }
 
 type voteproofWithState struct {

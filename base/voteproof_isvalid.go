@@ -20,6 +20,22 @@ func isValidVoteproof(vp Voteproof, networkID NetworkID) error {
 		return e(util.InvalidError.Errorf("empty signed facts"), "")
 	}
 
+	// NOTE check duplicated signed node in SignedFacts
+	if util.CheckSliceDuplicated(vp.SignedFacts(), func(i interface{}) string {
+		if i == nil {
+			return ""
+		}
+
+		j, ok := i.(BallotSignedFact)
+		if !ok || j.Node() == nil {
+			return ""
+		}
+
+		return j.Node().String()
+	}) {
+		return e(util.InvalidError.Errorf("duplicated node found in signedfacts of voteproof"), "")
+	}
+
 	if err := util.CheckIsValid(networkID, false,
 		vp.Majority(),
 		vp.Point(),

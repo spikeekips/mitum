@@ -83,7 +83,7 @@ func (t *testBaseBallotFact) TestWrongStage() {
 	t.True(errors.Is(err, util.InvalidError))
 }
 
-func TestBaseINITBallotFact(tt *testing.T) {
+func TestBasicINITBallotFact(tt *testing.T) {
 	t := new(testBaseBallotFact)
 	t.ballot = func() base.BallotFact {
 		bl := NewINITBallotFact(base.NewPoint(base.Height(33), base.Round(44)), valuehash.RandomSHA256())
@@ -95,7 +95,7 @@ func TestBaseINITBallotFact(tt *testing.T) {
 	suite.Run(tt, t)
 }
 
-func TestBaseProposalBallotFact(tt *testing.T) {
+func TestBasicProposalBallotFact(tt *testing.T) {
 	t := new(testBaseBallotFact)
 	t.ballot = func() base.BallotFact {
 		bl := NewProposalFact(base.NewPoint(base.Height(33), base.Round(44)),
@@ -108,7 +108,7 @@ func TestBaseProposalBallotFact(tt *testing.T) {
 	suite.Run(tt, t)
 }
 
-func TestBaseACCEPTBallotFact(tt *testing.T) {
+func TestBasicACCEPTBallotFact(tt *testing.T) {
 	t := new(testBaseBallotFact)
 	t.ballot = func() base.BallotFact {
 		bl := NewACCEPTBallotFact(base.NewPoint(base.Height(33), base.Round(44)),
@@ -121,6 +121,30 @@ func TestBaseACCEPTBallotFact(tt *testing.T) {
 	}
 
 	suite.Run(tt, t)
+}
+
+type testProposalBallotFact struct {
+	suite.Suite
+}
+
+func (t *testProposalBallotFact) TestDuplicatedOperations() {
+	op := valuehash.RandomSHA256()
+	bl := NewProposalFact(base.NewPoint(base.Height(33), base.Round(44)),
+		[]util.Hash{
+			valuehash.RandomSHA256(),
+			op,
+			valuehash.RandomSHA256(),
+			op,
+		})
+
+	err := bl.IsValid(nil)
+	t.Error(err)
+	t.True(errors.Is(err, util.InvalidError))
+	t.Contains(err.Error(), "duplicated operation found")
+}
+
+func TestProposalBallotFact(t *testing.T) {
+	suite.Run(t, new(testProposalBallotFact))
 }
 
 type baseTestBallotFactEncode struct {
