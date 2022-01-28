@@ -41,7 +41,7 @@ func isValidVoteproof(vp Voteproof, networkID NetworkID) error {
 		vp.Point(),
 		vp.Result(),
 		vp.Stage(),
-		vp.Suffrage(),
+		vp.Threshold(),
 	); err != nil {
 		return e(err, "")
 	}
@@ -147,20 +147,6 @@ func isValidFactInVoteproof(vp Voteproof, fact BallotFact) error {
 func isValidSignedFactInVoteproof(vp Voteproof, sf BallotSignedFact) error {
 	e := util.StringErrorFunc("invalid signed fact in voteproof")
 
-	var foundInSuffrage bool
-	nodes := vp.Suffrage().Nodes()
-	for i := range nodes {
-		if sf.Node().Equal(nodes[i]) {
-			foundInSuffrage = true
-
-			break
-		}
-	}
-
-	if !foundInSuffrage {
-		return e(util.InvalidError.Errorf("unknown signed fact found; signed by none suffrage node,  %q", sf.Node()), "")
-	}
-
 	if err := isValidFactInVoteproof(vp, sf.Fact().(BallotFact)); err != nil {
 		return e(err, "")
 	}
@@ -169,19 +155,19 @@ func isValidSignedFactInVoteproof(vp Voteproof, sf BallotSignedFact) error {
 }
 
 func isValidSignedFactsInVoteproof(vp Voteproof, sfs []BallotSignedFact) error {
-	suf := vp.Suffrage()
-
 	set := make([]string, len(sfs))
 	for i := range sfs {
 		set[i] = sfs[i].Fact().Hash().String()
 	}
 
-	switch result, m := suf.Threshold().VoteResult(set); {
+	switch result, m := vp.Threshold().VoteResult(set); {
 	case vp.Result() != result:
 		return util.InvalidError.Errorf("wrong vote result, voteproof(%q) != expected(%q)", vp.Result(), result)
 	case m != vp.Majority().Hash().String():
 		return util.InvalidError.Errorf("wrong majority, voteproof(%q) != expected(%q)", vp.Majority().Hash(), m)
 	}
+
+	// BLOCK compare signed nodes are valid node with SuffrageBlock
 
 	return nil
 }

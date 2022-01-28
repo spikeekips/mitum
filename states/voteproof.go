@@ -22,7 +22,7 @@ type baseVoteproof struct {
 	point      base.Point
 	result     base.VoteResult
 	stage      base.Stage
-	suffrage   base.SuffrageInfo
+	threshold  base.Threshold
 	sfs        []base.BallotSignedFact
 	id         string
 }
@@ -58,12 +58,7 @@ func (vp baseVoteproof) HashBytes() []byte {
 	bs[1] = vp.point
 	bs[2] = vp.result
 	bs[3] = vp.stage
-	bs[4] = util.DummyByter(func() []byte {
-		if vp.suffrage == nil {
-			return nil
-		}
-		return vp.suffrage.HashBytes()
-	})
+	bs[4] = vp.threshold
 	bs[5] = localtime.NewTime(vp.finishedAt)
 
 	for i := range vp.sfs {
@@ -114,12 +109,12 @@ func (vp baseVoteproof) Stage() base.Stage {
 	return vp.stage
 }
 
-func (vp baseVoteproof) Suffrage() base.SuffrageInfo {
-	return vp.suffrage
+func (vp baseVoteproof) Threshold() base.Threshold {
+	return vp.threshold
 }
 
-func (vp *baseVoteproof) SetSuffrage(s base.SuffrageInfo) baseVoteproof {
-	vp.suffrage = s
+func (vp *baseVoteproof) SetThreshold(s base.Threshold) baseVoteproof {
+	vp.threshold = s
 
 	return *vp
 }

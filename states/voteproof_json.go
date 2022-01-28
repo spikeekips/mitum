@@ -18,7 +18,7 @@ type baseVoteproofJSONMarshaler struct {
 	Point       base.Point              `json:"point"`
 	Result      base.VoteResult         `json:"result"`
 	Stage       base.Stage              `json:"stage"`
-	Suffrage    base.SuffrageInfo       `json:"suffrage"`
+	Threshold   base.Threshold          `json:"threshold"`
 	SignedFacts []base.BallotSignedFact `json:"signed_facts"`
 	ID          string                  `json:"id"`
 }
@@ -31,7 +31,7 @@ func (vp baseVoteproof) MarshalJSON() ([]byte, error) {
 		Point:       vp.point,
 		Result:      vp.result,
 		Stage:       vp.stage,
-		Suffrage:    vp.suffrage,
+		Threshold:   vp.threshold,
 		SignedFacts: vp.sfs,
 		ID:          vp.id,
 	})
@@ -43,7 +43,7 @@ type baseVoteproofJSONUnmarshaler struct {
 	Point       base.Point        `json:"point"`
 	Result      base.VoteResult   `json:"result"`
 	Stage       base.Stage        `json:"stage"`
-	Suffrage    json.RawMessage   `json:"suffrage"`
+	Threshold   base.Threshold    `json:"threshold"`
 	SignedFacts []json.RawMessage `json:"signed_facts"`
 	ID          string            `json:"id"`
 }
@@ -67,16 +67,7 @@ func (vp *baseVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		vp.majority = j
 	}
 
-	switch i, err := enc.Decode(u.Suffrage); {
-	case err != nil:
-	case i == nil:
-	default:
-		j, ok := i.(base.SuffrageInfo)
-		if !ok {
-			return e(util.InvalidError.Errorf("expected SuffrageInfo, not %T", i), "")
-		}
-		vp.suffrage = j
-	}
+	vp.threshold = u.Threshold
 
 	vp.sfs = make([]base.BallotSignedFact, len(u.SignedFacts))
 	for i := range u.SignedFacts {
