@@ -76,6 +76,7 @@ type stateHandler interface {
 	enter(base.Voteproof) (func() error, error)
 	exit() (func() error, error)
 	newVoteproof(base.Voteproof) error
+	newProposal(base.ProposalFact) error
 }
 
 func stateHandlerLog(st stateHandler) fmt.Stringer {

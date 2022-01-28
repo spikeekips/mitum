@@ -84,7 +84,7 @@ func (st *States) start(ctx context.Context) error {
 		return e(err, "")
 	}
 
-	st.cs = nil
+	st.setCurrent(nil)
 
 	return nil
 }
@@ -123,6 +123,13 @@ func (st *States) current() stateHandler {
 	return st.cs
 }
 
+func (st *States) setCurrent(cs stateHandler) {
+	st.stateLock.Lock()
+	defer st.stateLock.Unlock()
+
+	st.cs = cs
+}
+
 func (st *States) ensureSwitchState(sctx stateSwitchContext) error {
 	var n int
 
@@ -157,6 +164,9 @@ end:
 		var nsctx stateSwitchContext
 		switch err := st.switchState(sctx); {
 		case err == nil:
+			if sctx.next == StateStopped {
+				return errors.Errorf("states stopped")
+			}
 			return nil
 		case errors.Is(err, IgnoreSwithingStateError):
 			return nil

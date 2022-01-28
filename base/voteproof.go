@@ -15,7 +15,7 @@ type Voteproof interface {
 	Point() Point
 	Result() VoteResult
 	Stage() Stage
-	Suffrage() SuffrageInfo
+	Suffrage() SuffrageInfo // BLOCK compare with SuffrageBlock
 	Majority() BallotFact
 	SignedFacts() []BallotSignedFact
 	ID() string // NOTE ID is only unique in local machine

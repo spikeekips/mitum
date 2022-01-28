@@ -29,7 +29,9 @@ type Block interface {
 	Point() Point
 	Manifest() Manifest
 	Proposal() ProposalSignedFact
+	Operations() []Operation
 	OperationsTree() tree.FixedTree
+	States() []State
 	StatesTree() tree.FixedTree
 	INITVoteproof() INITVoteproof
 	ACCEPTVoteproof() ACCEPTVoteproof

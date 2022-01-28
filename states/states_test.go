@@ -26,8 +26,8 @@ func (t *testStates) TestWait() {
 	st := NewStates()
 	_ = st.SetLogging(logging.TestNilLogging)
 
-	_ = st.setHandler(newBaseState(StateStopped))
-	booting := newBaseState(StateBooting)
+	_ = st.setHandler(newDummyStateHandler(StateStopped))
+	booting := newDummyStateHandler(StateBooting)
 
 	enterch := make(chan bool, 1)
 	_ = booting.setEnter(func(base.Voteproof) error {
@@ -54,7 +54,7 @@ func (t *testStates) TestExit() {
 	st, _ := t.booted()
 	defer st.Stop()
 
-	_ = st.setHandler(newBaseState(StateJoining))
+	_ = st.setHandler(newDummyStateHandler(StateJoining))
 
 	booting := st.handlers[StateBooting].(*dummyStateHandler)
 
@@ -79,9 +79,9 @@ func (t *testStates) TestBootingAtStarting() {
 	st := NewStates()
 	_ = st.SetLogging(logging.TestNilLogging)
 
-	_ = st.setHandler(newBaseState(StateStopped))
+	_ = st.setHandler(newDummyStateHandler(StateStopped))
 
-	booting := newBaseState(StateBooting)
+	booting := newDummyStateHandler(StateBooting)
 
 	enterch := make(chan bool, 1)
 	_ = booting.setEnter(func(base.Voteproof) error {
@@ -106,9 +106,9 @@ func (t *testStates) TestFailedToEnterIntoBootingAtStarting() {
 	st := NewStates()
 	_ = st.SetLogging(logging.TestNilLogging)
 
-	_ = st.setHandler(newBaseState(StateStopped))
+	_ = st.setHandler(newDummyStateHandler(StateStopped))
 
-	booting := newBaseState(StateBooting)
+	booting := newDummyStateHandler(StateBooting)
 
 	bootingenterch := make(chan bool, 1)
 	_ = booting.setEnter(func(base.Voteproof) error {
@@ -118,7 +118,7 @@ func (t *testStates) TestFailedToEnterIntoBootingAtStarting() {
 	}, nil)
 	_ = st.setHandler(booting)
 
-	broken := newBaseState(StateBroken)
+	broken := newDummyStateHandler(StateBroken)
 	brokenenterch := make(chan bool, 1)
 	_ = broken.setEnter(nil, func() error {
 		brokenenterch <- true
@@ -148,9 +148,9 @@ func (t *testStates) booted() (*States, <-chan error) {
 	st := NewStates()
 	_ = st.SetLogging(logging.TestNilLogging)
 
-	_ = st.setHandler(newBaseState(StateStopped))
+	_ = st.setHandler(newDummyStateHandler(StateStopped))
 
-	booting := newBaseState(StateBooting)
+	booting := newDummyStateHandler(StateBooting)
 
 	enterch := make(chan bool, 1)
 	_ = booting.setEnter(func(base.Voteproof) error {
@@ -176,9 +176,9 @@ func (t *testStates) TestFailedToEnterIntoBrokenAtStarting() {
 	st := NewStates()
 	_ = st.SetLogging(logging.TestNilLogging)
 
-	_ = st.setHandler(newBaseState(StateStopped))
+	_ = st.setHandler(newDummyStateHandler(StateStopped))
 
-	booting := newBaseState(StateBooting)
+	booting := newDummyStateHandler(StateBooting)
 
 	bootingenterch := make(chan bool, 1)
 	_ = booting.setEnter(func(base.Voteproof) error {
@@ -188,7 +188,7 @@ func (t *testStates) TestFailedToEnterIntoBrokenAtStarting() {
 	}, nil)
 	_ = st.setHandler(booting)
 
-	broken := newBaseState(StateBroken)
+	broken := newDummyStateHandler(StateBroken)
 	brokenenterch := make(chan bool, 1)
 	_ = broken.setEnter(func(base.Voteproof) error {
 		brokenenterch <- true
@@ -227,7 +227,7 @@ func (t *testStates) TestNewStateWithWrongFrom() {
 	st, _ := t.booted()
 	defer st.Stop()
 
-	joining := newBaseState(StateJoining)
+	joining := newDummyStateHandler(StateJoining)
 
 	enterch := make(chan bool, 1)
 	_ = joining.setEnter(func(base.Voteproof) error {
@@ -263,7 +263,7 @@ func (t *testStates) TestNewState() {
 	st, _ := t.booted()
 	defer st.Stop()
 
-	joining := newBaseState(StateJoining)
+	joining := newDummyStateHandler(StateJoining)
 
 	enterch := make(chan bool, 1)
 	_ = joining.setEnter(func(base.Voteproof) error {
@@ -290,7 +290,7 @@ func (t *testStates) TestNewState() {
 func (t *testStates) TestExitCurrentWhenStopped() {
 	st, _ := t.booted()
 
-	joining := newBaseState(StateJoining)
+	joining := newDummyStateHandler(StateJoining)
 
 	enterch := make(chan bool, 1)
 	exitch := make(chan bool, 1)
@@ -332,7 +332,7 @@ func (t *testStates) TestEnterWithVoteproof() {
 	st, _ := t.booted()
 	defer st.Stop()
 
-	joining := newBaseState(StateJoining)
+	joining := newDummyStateHandler(StateJoining)
 
 	enterch := make(chan base.Voteproof, 1)
 	_ = joining.setEnter(func(vp base.Voteproof) error {
@@ -502,7 +502,7 @@ func (t *testStates) TestNewVoteproofSwitchState() {
 	defer st.Stop()
 
 	joiningch := make(chan base.Voteproof, 1)
-	joining := newBaseState(StateJoining).setEnter(func(vp base.Voteproof) error {
+	joining := newDummyStateHandler(StateJoining).setEnter(func(vp base.Voteproof) error {
 		joiningch <- vp
 
 		return nil
@@ -551,7 +551,7 @@ func (t *testStates) TestCurrentIgnoresSwitchingState() {
 		return IgnoreSwithingStateError.Call()
 	}, nil)
 
-	joining := newBaseState(StateJoining)
+	joining := newDummyStateHandler(StateJoining)
 
 	enterch := make(chan bool, 1)
 	_ = joining.setEnter(func(base.Voteproof) error {
@@ -581,6 +581,36 @@ func (t *testStates) TestCurrentIgnoresSwitchingState() {
 
 	t.NotNil(st.current())
 	t.Equal(st.current().state(), StateBooting)
+}
+
+func (t *testStates) TestStoppedByStateStopped() {
+	st, _ := t.booted()
+	defer st.Stop()
+
+	exitch := make(chan struct{}, 1)
+	booting := st.handlers[StateBooting].(*dummyStateHandler)
+	_ = booting.setExit(func() error {
+		exitch <- struct{}{}
+
+		return nil
+	}, nil)
+
+	_ = st.setHandler(newDummyStateHandler(StateStopped))
+
+	t.Equal(StateBooting, st.current().state())
+
+	sctx := newStateSwitchContext(st.current().state(), StateStopped, nil)
+	err := st.newState(sctx)
+	t.NoError(err)
+
+	select {
+	case <-time.After(time.Second * 3):
+		t.NoError(errors.Errorf("failed to call exiting from booting"))
+	case <-exitch:
+	}
+
+	t.Nil(st.current())
+	t.False(st.IsStarted())
 }
 
 func TestStates(t *testing.T) {

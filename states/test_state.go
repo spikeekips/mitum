@@ -16,7 +16,7 @@ type dummyStateHandler struct {
 	newVoteprooff func(base.Voteproof) error
 }
 
-func newBaseState(state StateType) *dummyStateHandler {
+func newDummyStateHandler(state StateType) *dummyStateHandler {
 	return &dummyStateHandler{
 		s: state,
 	}
@@ -76,4 +76,8 @@ func (st *dummyStateHandler) setNewVoteproof(f func(base.Voteproof) error) *dumm
 	st.newVoteprooff = f
 
 	return st
+}
+
+func (st *dummyStateHandler) newProposal(base.ProposalFact) error {
+	return nil
 }
