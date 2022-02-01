@@ -92,10 +92,6 @@ func (vp baseVoteproof) Point() base.StagePoint {
 	return vp.point
 }
 
-func (vp baseVoteproof) Stage() base.Stage {
-	return vp.point.Stage()
-}
-
 func (vp baseVoteproof) Result() base.VoteResult {
 	return vp.result
 }

@@ -10,8 +10,8 @@ func isValidVoteproof(vp Voteproof, networkID NetworkID) error {
 	switch {
 	case len(vp.ID()) < 1:
 		return e(util.InvalidError.Errorf("empty id"), "")
-	case !vp.Stage().CanVote():
-		return e(util.InvalidError.Errorf("wrong stage, %q for Voteproof", vp.Stage()), "")
+	case !vp.Point().Stage().CanVote():
+		return e(util.InvalidError.Errorf("wrong stage, %q for Voteproof", vp.Point().Stage()), "")
 	case vp.Result() == VoteResultNotYet:
 		return e(util.InvalidError.Errorf("not yet finished"), "")
 	case vp.FinishedAt().IsZero():
@@ -39,7 +39,6 @@ func isValidVoteproof(vp Voteproof, networkID NetworkID) error {
 	if err := util.CheckIsValid(networkID, false,
 		vp.Point(),
 		vp.Result(),
-		vp.Stage(),
 		vp.Threshold(),
 	); err != nil {
 		return e(err, "")
@@ -107,8 +106,8 @@ func IsValidINITVoteproof(vp INITVoteproof, networkID NetworkID) error {
 		return e(err, "")
 	}
 
-	if vp.Stage() != StageINIT {
-		return e(util.InvalidError.Errorf("wrong stage for INITVoteproof, %q", vp.Stage()), "")
+	if vp.Point().Stage() != StageINIT {
+		return e(util.InvalidError.Errorf("wrong stage for INITVoteproof, %q", vp.Point().Stage()), "")
 	}
 
 	return nil
@@ -121,8 +120,8 @@ func IsValidACCEPTVoteproof(vp ACCEPTVoteproof, networkID NetworkID) error {
 		return e(err, "")
 	}
 
-	if vp.Stage() != StageACCEPT {
-		return e(util.InvalidError.Errorf("wrong stage for ACCEPTVoteproof, %q", vp.Stage()), "")
+	if vp.Point().Stage() != StageACCEPT {
+		return e(util.InvalidError.Errorf("wrong stage for ACCEPTVoteproof, %q", vp.Point().Stage()), "")
 	}
 
 	return nil

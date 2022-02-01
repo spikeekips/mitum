@@ -81,7 +81,6 @@ func (t *testBallotbox) TestVoteINITBallotSignedFact() {
 		t.NoError(vp.IsValid(t.networkID))
 
 		t.Equal(point, vp.Point().Point)
-		t.Equal(base.StageINIT, vp.Stage())
 		t.Equal(th, vp.Threshold())
 
 		base.CompareBallotFact(t.Assert(), sf.BallotFact(), vp.Majority())
@@ -123,7 +122,7 @@ func (t *testBallotbox) TestVoteACCEPTBallotSignedFact() {
 		t.NoError(vp.IsValid(t.networkID))
 
 		t.Equal(point, vp.Point().Point)
-		t.Equal(base.StageACCEPT, vp.Stage())
+		t.Equal(base.StageACCEPT, vp.Point().Stage())
 		t.Equal(th, vp.Threshold())
 
 		base.CompareBallotFact(t.Assert(), sf.BallotFact(), vp.Majority())
@@ -300,7 +299,7 @@ func (t *testBallotbox) TestNilSuffrageCount() {
 		t.NoError(vp.IsValid(t.networkID))
 
 		t.Equal(point, vp.Point().Point)
-		t.Equal(base.StageINIT, vp.Stage())
+		t.Equal(base.StageINIT, vp.Point().Stage())
 		t.Equal(th, vp.Threshold())
 
 		base.CompareBallotFact(t.Assert(), sf.BallotFact(), vp.Majority())

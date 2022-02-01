@@ -37,15 +37,6 @@ func (bl baseBallot) Point() base.StagePoint {
 	return bf.Point()
 }
 
-func (bl baseBallot) Stage() base.Stage {
-	bf := bl.ballotFact()
-	if bf == nil {
-		return base.StageUnknown
-	}
-
-	return bf.Point().Stage()
-}
-
 func (bl baseBallot) SignedFact() base.BallotSignedFact {
 	return bl.signedFact
 }

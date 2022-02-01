@@ -343,6 +343,7 @@ func (vr *voterecords) count(suf base.Suffrage, threshold base.Threshold) base.V
 	if len(set) < 1 {
 		return nil
 	}
+
 	for i := range m {
 		vr.m[i] = m[i]
 	}

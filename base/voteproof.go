@@ -13,7 +13,6 @@ type Voteproof interface {
 	util.HashByter
 	FinishedAt() time.Time // NOTE if zero, not yet finished
 	Point() StagePoint
-	Stage() Stage // BLOCK remove
 	Result() VoteResult
 	Threshold() Threshold
 	Majority() BallotFact

@@ -18,7 +18,6 @@ func CompareVoteproof(t *assert.Assertions, a, b Voteproof) {
 	t.Equal(a.HashBytes(), b.HashBytes())
 	t.True(localtime.NewTime(a.FinishedAt()).Equal(localtime.NewTime(b.FinishedAt())))
 	t.Equal(a.Point(), b.Point())
-	t.Equal(a.Stage(), b.Stage())
 	t.Equal(a.Result(), b.Result())
 
 	CompareBallotFact(t, a.Majority(), b.Majority())
