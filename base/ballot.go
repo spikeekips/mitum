@@ -9,8 +9,7 @@ import (
 
 type BallotFact interface {
 	Fact
-	Point() Point
-	Stage() Stage
+	Point() StagePoint
 }
 
 type BallotSignedFact interface {
@@ -23,8 +22,7 @@ type BallotSignedFact interface {
 
 type Ballot interface {
 	SealBody
-	Point() Point
-	Stage() Stage
+	Point() StagePoint
 	SignedFact() BallotSignedFact
 	INITVoteproof() INITVoteproof
 	ACCEPTVoteproof() ACCEPTVoteproof

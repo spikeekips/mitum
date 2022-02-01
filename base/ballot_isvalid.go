@@ -167,10 +167,7 @@ func IsValidBallotFact(fact BallotFact) error {
 		return e(err, "")
 	}
 
-	if err := util.CheckIsValid(nil, false,
-		fact.Stage(),
-		fact.Point(),
-	); err != nil {
+	if err := fact.Point().IsValid(nil); err != nil {
 		return e(err, "")
 	}
 

@@ -19,9 +19,8 @@ type baseVoteproof struct {
 	hint.BaseHinter
 	finishedAt time.Time
 	majority   base.BallotFact
-	point      base.Point
+	point      base.StagePoint
 	result     base.VoteResult
-	stage      base.Stage
 	threshold  base.Threshold
 	sfs        []base.BallotSignedFact
 	id         string
@@ -34,8 +33,7 @@ func newBaseVoteproof(
 ) baseVoteproof {
 	return baseVoteproof{
 		BaseHinter: hint.NewBaseHinter(ht),
-		point:      point,
-		stage:      stage,
+		point:      base.NewStagePoint(point, stage),
 		id:         fmt.Sprintf("%d-%d-%s-%s", point.Height(), point.Round(), stage, util.UUID().String()),
 	}
 }
@@ -57,7 +55,6 @@ func (vp baseVoteproof) HashBytes() []byte {
 	})
 	bs[1] = vp.point
 	bs[2] = vp.result
-	bs[3] = vp.stage
 	bs[4] = vp.threshold
 	bs[5] = localtime.NewTime(vp.finishedAt)
 
@@ -91,8 +88,12 @@ func (vp *baseVoteproof) SetMajority(fact base.BallotFact) baseVoteproof {
 	return *vp
 }
 
-func (vp baseVoteproof) Point() base.Point {
+func (vp baseVoteproof) Point() base.StagePoint {
 	return vp.point
+}
+
+func (vp baseVoteproof) Stage() base.Stage {
+	return vp.point.Stage()
 }
 
 func (vp baseVoteproof) Result() base.VoteResult {
@@ -103,10 +104,6 @@ func (vp *baseVoteproof) SetResult(r base.VoteResult) baseVoteproof {
 	vp.result = r
 
 	return *vp
-}
-
-func (vp baseVoteproof) Stage() base.Stage {
-	return vp.stage
 }
 
 func (vp baseVoteproof) Threshold() base.Threshold {

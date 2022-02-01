@@ -34,7 +34,6 @@ func CompareBallotSignedFact(t *assert.Assertions, a, b BallotSignedFact) {
 
 func CompareBallotFact(t *assert.Assertions, a, b BallotFact) {
 	CompareFact(t, a, b)
-	t.Equal(a.Stage(), b.Stage())
 	t.Equal(a.Point(), b.Point())
 
 	switch at := a.(type) {
@@ -70,7 +69,6 @@ func compareACCEPTBallotFact(t *assert.Assertions, a, b ACCEPTBallotFact) {
 func CompareBallot(t *assert.Assertions, a, b Ballot) {
 	t.Equal(a.HashBytes(), b.HashBytes())
 	t.Equal(a.Point(), b.Point())
-	t.Equal(a.Stage(), b.Stage())
 
 	CompareBallotSignedFact(t, a.SignedFact(), b.SignedFact())
 	CompareVoteproof(t, a.INITVoteproof(), b.INITVoteproof())

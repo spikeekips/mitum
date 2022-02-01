@@ -28,10 +28,10 @@ func newBaseBallot(ht hint.Hint, ivp base.INITVoteproof, avp base.ACCEPTVoteproo
 	}
 }
 
-func (bl baseBallot) Point() base.Point {
+func (bl baseBallot) Point() base.StagePoint {
 	bf := bl.ballotFact()
 	if bf == nil {
-		return base.Point{}
+		return base.ZeroStagePoint
 	}
 
 	return bf.Point()
@@ -43,7 +43,7 @@ func (bl baseBallot) Stage() base.Stage {
 		return base.StageUnknown
 	}
 
-	return bf.Stage()
+	return bf.Point().Stage()
 }
 
 func (bl baseBallot) SignedFact() base.BallotSignedFact {

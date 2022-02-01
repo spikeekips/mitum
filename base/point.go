@@ -9,8 +9,10 @@ import (
 )
 
 var (
-	NilHeight     = Height(-1)
-	GenesisHeight = Height(0)
+	NilHeight      = Height(-1)
+	GenesisHeight  = Height(0)
+	ZeroStagePoint = StagePoint{Point: ZeroPoint, stage: StageUnknown}
+	ZeroPoint      = Point{h: NilHeight, r: Round(0)}
 )
 
 // Height stands for height of Block
@@ -72,10 +74,6 @@ func (r Round) Bytes() []byte {
 type Point struct {
 	h Height
 	r Round
-}
-
-func ZeroPoint() Point {
-	return Point{h: NilHeight, r: Round(0)}
 }
 
 func NewPoint(h Height, r Round) Point {
@@ -171,10 +169,6 @@ func NewStagePoint(point Point, stage Stage) StagePoint {
 	return StagePoint{Point: point, stage: stage}
 }
 
-func ZeroStagePoint() StagePoint {
-	return StagePoint{Point: ZeroPoint(), stage: StageUnknown}
-}
-
 func (p StagePoint) Stage() Stage {
 	return p.stage
 }
@@ -187,6 +181,23 @@ func (p StagePoint) IsZero() bool {
 	err := p.stage.IsValid(nil)
 
 	return err != nil
+}
+
+func (p StagePoint) IsValid([]byte) error {
+	e := util.StringErrorFunc("invalid stage point")
+	if err := p.Point.IsValid(nil); err != nil {
+		return e(err, "")
+	}
+
+	if err := p.stage.IsValid(nil); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
+func (p StagePoint) Bytes() []byte {
+	return util.ConcatByters(p.Point, p.stage)
 }
 
 func (p StagePoint) String() string {

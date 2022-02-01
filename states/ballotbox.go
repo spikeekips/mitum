@@ -29,7 +29,7 @@ func NewBallotbox(
 		threshold: threshold,
 		vrs:       map[base.StagePoint]*voterecords{},
 		vpch:      make(chan base.Voteproof),
-		lsp:       util.NewLocked(base.ZeroStagePoint()),
+		lsp:       util.NewLocked(base.ZeroStagePoint),
 	}
 }
 
@@ -37,8 +37,8 @@ func (box *Ballotbox) Vote(sf base.BallotSignedFact) error {
 	e := util.StringErrorFunc("failed to vote")
 
 	fact := sf.Fact().(base.BallotFact)
-	if !fact.Stage().CanVote() {
-		return e(nil, "unvotable ballot, %q", fact.Stage())
+	if !fact.Point().Stage().CanVote() {
+		return e(nil, "unvotable ballot, %q", fact.Point().Stage())
 	}
 
 	if !box.filterNewBallot(sf) {
@@ -61,7 +61,7 @@ func (box *Ballotbox) vote(sf base.BallotSignedFact) {
 
 	fact := sf.Fact().(base.BallotFact)
 
-	stagepoint := base.NewStagePoint(fact.Point(), fact.Stage())
+	stagepoint := fact.Point()
 	vr, found := box.vrs[stagepoint]
 	if !found {
 		vr = newVoterecords(stagepoint)
@@ -85,7 +85,7 @@ func (box *Ballotbox) filterNewBallot(sf base.BallotSignedFact) bool {
 	}
 
 	fact := sf.Fact().(base.BallotFact)
-	return base.NewStagePoint(fact.Point(), fact.Stage()).Compare(lsp) > 0
+	return fact.Point().Compare(lsp) > 0
 }
 
 func (box *Ballotbox) Voteproof() <-chan base.Voteproof {
@@ -252,7 +252,7 @@ func (box *Ballotbox) setLastStagePoint(vp base.Voteproof) bool {
 	err := box.lsp.Set(func(i interface{}) (interface{}, error) {
 		lsp := i.(base.StagePoint)
 
-		b := base.NewStagePoint(vp.Point(), vp.Stage())
+		b := vp.Point()
 		if lsp.Compare(b) >= 0 {
 			return nil, errors.Errorf("not higher")
 		}
@@ -410,7 +410,7 @@ var voterecordsPoolPut = func(vr *voterecords) {
 	vr.Lock()
 	defer vr.Unlock()
 
-	vr.sp = base.ZeroStagePoint()
+	vr.sp = base.ZeroStagePoint
 	vr.voted = nil
 	vr.set = nil
 	vr.m = nil

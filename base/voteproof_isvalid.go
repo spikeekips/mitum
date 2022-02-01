@@ -137,11 +137,6 @@ func isValidFactInVoteproof(vp Voteproof, fact BallotFact) error {
 			"point does not match, voteproof(%q) != fact(%q)", vp.Point(), fact.Point()), "")
 	}
 
-	if vp.Stage() != fact.Stage() {
-		return e(util.InvalidError.Errorf(
-			"stage does not match, voteproof(%q) != fact(%q)", vp.Stage(), fact.Stage()), "")
-	}
-
 	return nil
 }
 

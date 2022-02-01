@@ -19,15 +19,13 @@ var (
 type baseBallotFact struct {
 	hint.BaseHinter
 	h     util.Hash
-	stage base.Stage
-	point base.Point
+	point base.StagePoint
 }
 
 func newBaseBallotFact(ht hint.Hint, stage base.Stage, point base.Point) baseBallotFact {
 	return baseBallotFact{
 		BaseHinter: hint.NewBaseHinter(ht),
-		stage:      stage,
-		point:      point,
+		point:      base.NewStagePoint(point, stage),
 	}
 }
 
@@ -44,15 +42,15 @@ func (fact baseBallotFact) Hash() util.Hash {
 }
 
 func (fact baseBallotFact) Stage() base.Stage {
-	return fact.stage
+	return fact.point.Stage()
 }
 
-func (fact baseBallotFact) Point() base.Point {
+func (fact baseBallotFact) Point() base.StagePoint {
 	return fact.point
 }
 
 func (fact baseBallotFact) hashBytes() []byte {
-	return util.ConcatByters(fact.stage, fact.point)
+	return fact.point.Bytes()
 }
 
 type INITBallotFact struct {
@@ -78,8 +76,8 @@ func (fact INITBallotFact) PreviousBlock() util.Hash {
 func (fact INITBallotFact) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid INITBallotFact")
 
-	if fact.stage != base.StageINIT {
-		return e(util.InvalidError.Errorf("invalid stage, %q", fact.stage), "")
+	if fact.point.Stage() != base.StageINIT {
+		return e(util.InvalidError.Errorf("invalid stage, %q", fact.point.Stage()), "")
 	}
 
 	if err := base.IsValidINITBallotFact(fact); err != nil {
@@ -129,8 +127,8 @@ func (fact ProposalFact) ProposedAt() time.Time {
 func (fact ProposalFact) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid ProposalFact")
 
-	if fact.stage != base.StageProposal {
-		return e(util.InvalidError.Errorf("invalid stage, %q", fact.stage), "")
+	if fact.point.Stage() != base.StageProposal {
+		return e(util.InvalidError.Errorf("invalid stage, %q", fact.point.Stage()), "")
 	}
 
 	if err := base.IsValidProposalFact(fact); err != nil {
@@ -184,8 +182,8 @@ func (fact ACCEPTBallotFact) NewBlock() util.Hash {
 func (fact ACCEPTBallotFact) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid ACCEPTBallotFact")
 
-	if fact.stage != base.StageACCEPT {
-		return e(util.InvalidError.Errorf("invalid stage, %q", fact.stage), "")
+	if fact.point.Stage() != base.StageACCEPT {
+		return e(util.InvalidError.Errorf("invalid stage, %q", fact.point.Stage()), "")
 	}
 
 	if err := base.IsValidACCEPTBallotFact(fact); err != nil {

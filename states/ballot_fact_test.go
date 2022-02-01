@@ -34,16 +34,16 @@ func (t *testBaseBallotFact) setHash(bl base.BallotFact, h util.Hash) base.Ballo
 }
 
 func (t *testBaseBallotFact) setWrongStage(bl base.BallotFact) base.BallotFact {
-	switch t := bl.(type) {
+	switch y := bl.(type) {
 	case INITBallotFact:
-		t.stage = base.StageProposal
-		return t
+		y.point = base.NewStagePoint(y.point.Point, base.StageProposal)
+		return y
 	case ProposalFact:
-		t.stage = base.StageINIT
-		return t
+		y.point = base.NewStagePoint(y.point.Point, base.StageINIT)
+		return y
 	case ACCEPTBallotFact:
-		t.stage = base.StageProposal
-		return t
+		y.point = base.NewStagePoint(y.point.Point, base.StageProposal)
+		return y
 	default:
 		panic("unknown BallotFact")
 	}

@@ -11,16 +11,16 @@ import (
 
 type baseBallotFactJSONMarshaler struct {
 	hint.BaseHinter
-	H     util.Hash  `json:"hash"`
-	Stage base.Stage `json:"stage"`
-	Point base.Point `json:"point"`
+	H     util.Hash       `json:"hash"`
+	Stage base.Stage      `json:"stage"`
+	Point base.StagePoint `json:"point"`
 }
 
 type baseBallotFactJSONUnmarshaler struct {
 	hint.BaseHinter
 	H     valuehash.Bytes `json:"hash"`
 	Stage base.Stage      `json:"stage"`
-	Point base.Point      `json:"point"`
+	Point base.StagePoint `json:"point"`
 }
 
 type INITBallotFactJSONMarshaler struct {
@@ -61,7 +61,6 @@ func (fact baseBallotFact) jsonMarshaler() baseBallotFactJSONMarshaler {
 	return baseBallotFactJSONMarshaler{
 		BaseHinter: fact.BaseHinter,
 		H:          fact.h,
-		Stage:      fact.stage,
 		Point:      fact.point,
 	}
 }
@@ -75,7 +74,6 @@ func (fact *baseBallotFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	}
 
 	fact.h = u.H
-	fact.stage = u.Stage
 	fact.point = u.Point
 
 	return nil

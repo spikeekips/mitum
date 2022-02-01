@@ -12,9 +12,9 @@ type Voteproof interface {
 	util.IsValider
 	util.HashByter
 	FinishedAt() time.Time // NOTE if zero, not yet finished
-	Point() Point
+	Point() StagePoint
+	Stage() Stage // BLOCK remove
 	Result() VoteResult
-	Stage() Stage
 	Threshold() Threshold
 	Majority() BallotFact
 	SignedFacts() []BallotSignedFact

@@ -46,7 +46,7 @@ func (t *testBallotbox) compareStagePoint(a base.StagePoint, i interface{}) {
 	var b base.StagePoint
 	switch t := i.(type) {
 	case base.Voteproof:
-		b = base.NewStagePoint(t.Point(), t.Stage())
+		b = t.Point()
 	case base.StagePoint:
 		b = t
 	}
@@ -80,7 +80,7 @@ func (t *testBallotbox) TestVoteINITBallotSignedFact() {
 	case vp := <-box.Voteproof():
 		t.NoError(vp.IsValid(t.networkID))
 
-		t.Equal(point, vp.Point())
+		t.Equal(point, vp.Point().Point)
 		t.Equal(base.StageINIT, vp.Stage())
 		t.Equal(th, vp.Threshold())
 
@@ -122,7 +122,7 @@ func (t *testBallotbox) TestVoteACCEPTBallotSignedFact() {
 	case vp := <-box.Voteproof():
 		t.NoError(vp.IsValid(t.networkID))
 
-		t.Equal(point, vp.Point())
+		t.Equal(point, vp.Point().Point)
 		t.Equal(base.StageACCEPT, vp.Stage())
 		t.Equal(th, vp.Threshold())
 
@@ -299,7 +299,7 @@ func (t *testBallotbox) TestNilSuffrageCount() {
 	case vp := <-box.Voteproof():
 		t.NoError(vp.IsValid(t.networkID))
 
-		t.Equal(point, vp.Point())
+		t.Equal(point, vp.Point().Point)
 		t.Equal(base.StageINIT, vp.Stage())
 		t.Equal(th, vp.Threshold())
 
