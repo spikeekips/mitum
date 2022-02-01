@@ -37,7 +37,7 @@ func (t *testBaseVoteproof) validVoteproof() INITVoteproof {
 	ivp.SetMajority(ifact)
 	ivp.SetSignedFacts([]base.BallotSignedFact{isignedFact})
 
-	ivp.SetThreshold(base.NewThreshold(1, 100))
+	ivp.SetThreshold(base.Threshold(100))
 
 	return ivp
 }
@@ -105,7 +105,17 @@ func (t *testBaseVoteproof) TestNilMajority() {
 	err := ivp.IsValid(t.networkID)
 	t.Error(err)
 	t.True(errors.Is(err, util.InvalidError))
-	t.Contains(err.Error(), "nil found")
+	t.Contains(err.Error(), "empty majority")
+}
+
+func (t *testBaseVoteproof) TestNotNilMajorityOfDraw() {
+	ivp := t.validVoteproof()
+	ivp.SetResult(base.VoteResultDraw)
+
+	err := ivp.IsValid(t.networkID)
+	t.Error(err)
+	t.True(errors.Is(err, util.InvalidError))
+	t.Contains(err.Error(), "empty majority")
 }
 
 func (t *testBaseVoteproof) TestInvalidPoint() {
@@ -210,22 +220,12 @@ func (t *testBaseVoteproof) TestMajorityNotFoundInSignedFacts() {
 	t.Contains(err.Error(), "majoirty not found in signed facts")
 }
 
-func (t *testBaseVoteproof) TestWrongResult() {
-	ivp := t.validVoteproof()
-
-	ivp.SetThreshold(base.NewThreshold(2, 100))
-
-	err := ivp.IsValid(t.networkID)
-	t.Error(err)
-	t.True(errors.Is(err, util.InvalidError))
-	t.Contains(err.Error(), "wrong vote result")
-}
-
 func (t *testBaseVoteproof) TestWrongMajorityWithSuffrage() {
 	ivp := t.validVoteproof()
 
 	n0 := base.RandomAddress("n0-")
 	n1 := base.RandomAddress("n1-")
+	n2 := base.RandomAddress("n2-")
 
 	fact := NewINITBallotFact(base.NewPoint(base.Height(33), base.Round(55)), valuehash.RandomSHA256())
 
@@ -238,15 +238,42 @@ func (t *testBaseVoteproof) TestWrongMajorityWithSuffrage() {
 	}
 
 	sfs := ivp.SignedFacts()
-	sfs = append(sfs, newsignedfact(n0), newsignedfact(n1))
+	sfs = append(sfs, newsignedfact(n0), newsignedfact(n1), newsignedfact(n2))
 	ivp.SetSignedFacts(sfs)
 
-	ivp.SetThreshold(base.NewThreshold(2, 100))
+	ivp.SetThreshold(base.Threshold(67))
 
-	err := ivp.IsValid(t.networkID)
+	t.NoError(ivp.IsValid(t.networkID))
+
+	nodes := make([]base.Address, len(ivp.SignedFacts()))
+	oldsfs := ivp.SignedFacts()
+	for i := range oldsfs {
+		nodes[i] = oldsfs[i].Node()
+	}
+
+	suf, err := newSuffrage(nodes)
+	t.NoError(err)
+
+	err = base.IsValidSignedFactsInVoteproof(ivp, suf)
 	t.Error(err)
 	t.True(errors.Is(err, util.InvalidError))
 	t.Contains(err.Error(), "wrong majority")
+}
+
+func (t *testBaseVoteproof) TestUnknownNode() {
+	ivp := t.validVoteproof()
+
+	ivp.SetThreshold(base.Threshold(100))
+
+	t.NoError(ivp.IsValid(t.networkID))
+
+	suf, err := newSuffrage([]base.Address{base.RandomAddress("n0-")})
+	t.NoError(err)
+
+	err = base.IsValidSignedFactsInVoteproof(ivp, suf)
+	t.Error(err)
+	t.True(errors.Is(err, util.InvalidError))
+	t.Contains(err.Error(), "unknown node found")
 }
 
 func (t *testBaseVoteproof) TestNewACCEPT() {
@@ -262,7 +289,7 @@ func (t *testBaseVoteproof) TestNewACCEPT() {
 	avp.SetResult(base.VoteResultMajority)
 	avp.SetMajority(afact)
 	avp.SetSignedFacts([]base.BallotSignedFact{asignedFact})
-	avp.SetThreshold(base.NewThreshold(1, 100))
+	avp.SetThreshold(base.Threshold(100))
 
 	t.NoError(avp.IsValid(t.networkID))
 }
@@ -291,7 +318,7 @@ func (t *baseTestBaseVoteproofEncode) SetupTest() {
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ACCEPTBallotSignedFactHint, Instance: ACCEPTBallotSignedFact{}}))
 }
 
-func testTestBaseVoteproof() *baseTestBaseVoteproofEncode {
+func testBaseVoteproofEncode() *baseTestBaseVoteproofEncode {
 	t := new(baseTestBaseVoteproofEncode)
 	t.BaseTestEncode = new(encoder.BaseTestEncode)
 
@@ -313,7 +340,7 @@ func testTestBaseVoteproof() *baseTestBaseVoteproofEncode {
 }
 
 func TestINITVoteproofJSON(tt *testing.T) {
-	t := testTestBaseVoteproof()
+	t := testBaseVoteproofEncode()
 
 	t.Encode = func() (interface{}, []byte) {
 		node := base.RandomAddress("")
@@ -329,7 +356,7 @@ func TestINITVoteproofJSON(tt *testing.T) {
 		ivp.SetResult(base.VoteResultMajority)
 		ivp.SetMajority(ifact)
 		ivp.SetSignedFacts([]base.BallotSignedFact{isignedFact})
-		ivp.SetThreshold(base.NewThreshold(1, 100))
+		ivp.SetThreshold(base.Threshold(100))
 
 		b, err := t.enc.Marshal(ivp)
 		t.NoError(err)
@@ -350,7 +377,7 @@ func TestINITVoteproofJSON(tt *testing.T) {
 }
 
 func TestACCEPTVoteproofJSON(tt *testing.T) {
-	t := testTestBaseVoteproof()
+	t := testBaseVoteproofEncode()
 
 	t.Encode = func() (interface{}, []byte) {
 		node := base.RandomAddress("")
@@ -366,7 +393,7 @@ func TestACCEPTVoteproofJSON(tt *testing.T) {
 		avp.SetResult(base.VoteResultMajority)
 		avp.SetMajority(afact)
 		avp.SetSignedFacts([]base.BallotSignedFact{asignedFact})
-		avp.SetThreshold(base.NewThreshold(1, 100))
+		avp.SetThreshold(base.Threshold(100))
 
 		b, err := t.enc.Marshal(avp)
 		t.NoError(err)

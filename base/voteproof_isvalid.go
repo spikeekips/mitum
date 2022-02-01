@@ -37,7 +37,6 @@ func isValidVoteproof(vp Voteproof, networkID NetworkID) error {
 	}
 
 	if err := util.CheckIsValid(networkID, false,
-		vp.Majority(),
 		vp.Point(),
 		vp.Result(),
 		vp.Stage(),
@@ -46,7 +45,14 @@ func isValidVoteproof(vp Voteproof, networkID NetworkID) error {
 		return e(err, "")
 	}
 
-	if vp.Result() != VoteResultDraw {
+	switch {
+	case vp.Result() == VoteResultDraw:
+		if vp.Majority() != nil {
+			return e(util.InvalidError.Errorf("not empty majority for draw"), "")
+		}
+	case vp.Majority() == nil:
+		return e(util.InvalidError.Errorf("empty majority for majority"), "")
+	default:
 		if err := vp.Majority().IsValid(networkID); err != nil {
 			return e(err, "invalid majority")
 		}
@@ -89,11 +95,6 @@ func isValidVoteproof(vp Voteproof, networkID NetworkID) error {
 
 	if err := util.CheckIsValid(networkID, false, bs...); err != nil {
 		return e(err, "invalid signed facts")
-	}
-
-	// NOTE check majority with SignedFacts
-	if err := isValidSignedFactsInVoteproof(vp, vs); err != nil {
-		return e(err, "")
 	}
 
 	return nil
@@ -154,20 +155,38 @@ func isValidSignedFactInVoteproof(vp Voteproof, sf BallotSignedFact) error {
 	return nil
 }
 
-func isValidSignedFactsInVoteproof(vp Voteproof, sfs []BallotSignedFact) error {
-	set := make([]string, len(sfs))
+// BLOCK validate with suffrage
+
+func IsValidSignedFactsInVoteproof(vp Voteproof, suf Suffrage) error {
+	e := util.StringErrorFunc("invalid signed facts in voteproof with suffrage")
+
+	sfs := vp.SignedFacts()
 	for i := range sfs {
-		set[i] = sfs[i].Fact().Hash().String()
+		n := sfs[i].Node()
+		if !suf.Exists(n) {
+			return e(util.InvalidError.Errorf("unknown node found, %q", n), "")
+		}
 	}
 
-	switch result, m := vp.Threshold().VoteResult(set); {
-	case vp.Result() != result:
-		return util.InvalidError.Errorf("wrong vote result, voteproof(%q) != expected(%q)", vp.Result(), result)
-	case m != vp.Majority().Hash().String():
-		return util.InvalidError.Errorf("wrong majority, voteproof(%q) != expected(%q)", vp.Majority().Hash(), m)
-	}
+	set, _, m := CountBallotSignedFacts(sfs)
+	result, majoritykey := vp.Threshold().VoteResult(uint(suf.Len()), set)
 
-	// BLOCK compare signed nodes are valid node with SuffrageBlock
+	switch {
+	case result != vp.Result():
+		return e(util.InvalidError.Errorf("wrong result; voteproof(%q) != %q", vp.Result(), result), "")
+	case result == VoteResultDraw:
+		if vp.Majority() != nil {
+			return e(util.InvalidError.Errorf("not empty majority for draw"), "")
+		}
+	case result == VoteResultMajority:
+		if vp.Majority() == nil {
+			return e(util.InvalidError.Errorf("empty majority for majority"), "")
+		}
+
+		if !vp.Majority().Hash().Equal(m[majoritykey].Hash()) {
+			return e(util.InvalidError.Errorf("wrong majority for majority"), "")
+		}
+	}
 
 	return nil
 }

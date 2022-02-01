@@ -10,62 +10,68 @@ import (
 func TestThreshold(t *testing.T) {
 	cases := []struct {
 		name     string
-		total    uint
+		quorum   uint
 		ratio    float64
 		expected uint // expected Threshold.Threshold
 		err      string
 	}{
 		{
-			name:  "0 total",
-			total: 10,
-			ratio: 67,
-			err:   "0 total",
+			name:   "0 quorum",
+			quorum: 10,
+			ratio:  67,
+			err:    "0 quorum",
 		},
 		{
-			name:  "under zero ratio: 0",
-			total: 10,
-			ratio: 0,
-			err:   "under zero ratio",
+			name:   "under zero ratio: 0",
+			quorum: 10,
+			ratio:  0,
+			err:    "under zero ratio",
 		},
 		{
-			name:  "0 ratio: under 1",
-			total: 10,
-			ratio: 0.5,
-			err:   "under zero ratio",
+			name:   "0 ratio: under 1",
+			quorum: 10,
+			ratio:  0.5,
+			err:    "dangerous ratio",
 		},
 		{
-			name:  "over ratio",
-			total: 10,
-			ratio: 100.5,
-			err:   "over 100 ratio",
+			name:   "0 ratio: under 67",
+			quorum: 10,
+			ratio:  66,
+			err:    "dangerous ratio",
+		},
+		{
+			name:   "over ratio",
+			quorum: 10,
+			ratio:  100.5,
+			err:    "over 100 ratio",
 		},
 		{
 			name:     "threshold #0",
-			total:    10,
+			quorum:   10,
 			ratio:    50,
 			expected: 5,
 		},
 		{
 			name:     "ceiled #0",
-			total:    10,
+			quorum:   10,
 			ratio:    55,
 			expected: 6,
 		},
 		{
 			name:     "ceiled #1",
-			total:    10,
+			quorum:   10,
 			ratio:    51,
 			expected: 6,
 		},
 		{
 			name:     "ceiled #1",
-			total:    10,
+			quorum:   10,
 			ratio:    99,
 			expected: 10,
 		},
 		{
 			name:     "ceiled #1",
-			total:    10,
+			quorum:   10,
 			ratio:    67,
 			expected: 7,
 		},
@@ -77,7 +83,7 @@ func TestThreshold(t *testing.T) {
 		t.Run(
 			c.name,
 			func(*testing.T) {
-				tr := NewThreshold(c.total, c.ratio)
+				tr := Threshold(c.ratio)
 				err := tr.IsValid(nil)
 				if len(c.err) > 0 {
 					if err == nil {
@@ -89,7 +95,8 @@ func TestThreshold(t *testing.T) {
 					return
 				}
 
-				assert.Equal(t, c.expected, tr.Threshold(), "%d: %v; %v != %v", i, c.name, c.expected, tr.Threshold())
+				th := tr.Threshold(c.quorum)
+				assert.Equal(t, c.expected, th, "%d: %v; %v != %v", i, c.name, c.expected, th)
 			},
 		)
 	}

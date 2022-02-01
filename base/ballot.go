@@ -77,3 +77,31 @@ type ACCEPTBallot interface {
 	Ballot
 	BallotSignedFact() ACCEPTBallotSignedFact
 }
+
+func CountBallotSignedFacts(allsfs []BallotSignedFact) (
+	[]string,
+	[]BallotSignedFact,
+	map[string]BallotFact,
+) {
+	if len(allsfs) < 1 {
+		return nil, nil, nil
+	}
+
+	var set []string
+	var sfs []BallotSignedFact
+	m := map[string]BallotFact{}
+
+	for i := range allsfs {
+		sf := allsfs[i]
+
+		k := sf.Fact().Hash().String()
+		if _, found := m[k]; !found {
+			m[k] = sf.Fact().(BallotFact)
+		}
+
+		set = append(set, k)
+		sfs = append(sfs, sf)
+	}
+
+	return set, sfs, m
+}

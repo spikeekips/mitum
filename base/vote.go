@@ -68,7 +68,6 @@ func FindMajority(quorum, threshold uint, set ...uint) int {
 			return i
 		}
 
-		// check majority
 		if n >= threshold {
 			return i
 		}
@@ -81,13 +80,24 @@ func FindMajority(quorum, threshold uint, set ...uint) int {
 	})
 
 	if quorum-sum+set[0] < threshold {
-		return -2 // draw
+		return -2
 	}
 
-	return -1 // not yet
+	return -1
 }
 
 func FindVoteResult(quorum, threshold uint, s []string) (VoteResult, string) {
+	if threshold > quorum {
+		threshold = quorum
+	}
+
+	switch {
+	case len(s) < 1:
+		return VoteResultNotYet, ""
+	case uint(len(s)) < threshold:
+		return VoteResultNotYet, ""
+	}
+
 	keys := map[uint]string{}
 	count := map[string]uint{}
 	for i := range s {

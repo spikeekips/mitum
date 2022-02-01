@@ -1,7 +1,6 @@
 package base
 
 import (
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -13,6 +12,13 @@ const (
 	StageProposal = Stage("PROPOSAL")
 	StageACCEPT   = Stage("ACCEPT")
 )
+
+var statesmap = map[Stage]int{
+	StageUnknown:  0,
+	StageINIT:     1,
+	StageProposal: 2,
+	StageACCEPT:   3,
+}
 
 func (st Stage) Bytes() []byte {
 	return []byte(st)
@@ -27,26 +33,25 @@ func (st Stage) IsValid([]byte) error {
 	return util.InvalidError.Errorf("unknown stage, %q", st)
 }
 
-func (st Stage) MarshalText() ([]byte, error) {
-	return []byte(st), nil
-}
-
-func (st *Stage) UnmarshalText(b []byte) error {
-	var t Stage
-	switch s := string(b); s {
-	case "INIT":
-		t = StageINIT
-	case "PROPOSAL":
-		t = StageProposal
-	case "ACCEPT":
-		t = StageACCEPT
-	default:
-		return errors.Errorf("unknown stage, %q", s)
+func (st Stage) Compare(b Stage) int {
+	as, found := statesmap[st]
+	if !found {
+		return 1
 	}
 
-	*st = t
+	bs, found := statesmap[b]
+	if !found {
+		return 1
+	}
 
-	return nil
+	switch c := as - bs; {
+	case c > 0:
+		return 1
+	case c < 0:
+		return -1
+	default:
+		return 0
+	}
 }
 
 func (st Stage) CanVote() bool {
@@ -56,4 +61,14 @@ func (st Stage) CanVote() bool {
 	default:
 		return false
 	}
+}
+
+func (st Stage) MarshalText() ([]byte, error) {
+	return []byte(st), nil
+}
+
+func (st *Stage) UnmarshalText(b []byte) error {
+	*st = Stage(string(b))
+
+	return nil
 }

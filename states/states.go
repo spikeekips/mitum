@@ -94,7 +94,7 @@ func (st *States) startStatesCH(ctx context.Context) error {
 		var sctx stateSwitchContext
 		select {
 		case <-ctx.Done():
-			return errors.Wrap(ctx.Err(), "states stopped by parent context")
+			return errors.Wrap(ctx.Err(), "states stopped by context")
 		case sctx = <-st.statech:
 		case vp := <-st.voteproofch:
 			err := st.voteproofToCurrent(vp, st.current())

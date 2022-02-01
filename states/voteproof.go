@@ -75,7 +75,7 @@ func (vp baseVoteproof) FinishedAt() time.Time {
 	return vp.finishedAt
 }
 
-func (vp *baseVoteproof) Finish() baseVoteproof {
+func (vp *baseVoteproof) Finish() baseVoteproof { // BLOCK lowercase
 	vp.finishedAt = localtime.Now()
 
 	return *vp

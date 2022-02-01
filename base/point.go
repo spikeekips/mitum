@@ -42,6 +42,10 @@ func (h Height) IsValid([]byte) error {
 	return nil
 }
 
+func (h Height) IsZero() bool {
+	return h <= NilHeight
+}
+
 // Int64 returns int64 of height.
 func (h Height) Int64() int64 {
 	return int64(h)
@@ -68,6 +72,10 @@ func (r Round) Bytes() []byte {
 type Point struct {
 	h Height
 	r Round
+}
+
+func ZeroPoint() Point {
+	return Point{h: NilHeight, r: Round(0)}
 }
 
 func NewPoint(h Height, r Round) Point {
@@ -98,10 +106,42 @@ func (p Point) IsValid([]byte) error {
 	return nil
 }
 
+func (p Point) Compare(b Point) int {
+	switch {
+	case p.Height() > b.Height():
+		return 1
+	case p.Height() < b.Height():
+		return -1
+	case p.Round() > b.Round():
+		return 1
+	case p.Round() < b.Round():
+		return -1
+	default:
+		return 0
+	}
+}
+
+func (p Point) IsZero() bool {
+	return p.h.IsZero()
+}
+
+func (p Point) Decrease() Point {
+	if p.h <= GenesisHeight {
+		return p
+	}
+
+	return NewPoint(p.h-1, Round(0))
+}
+
+type pointJSONMarshaler struct {
+	H Height `json:"height"`
+	R Round  `json:"round"`
+}
+
 func (p Point) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(map[string]interface{}{
-		"height": p.h,
-		"round":  p.r,
+	return util.MarshalJSON(pointJSONMarshaler{
+		H: p.h,
+		R: p.r,
 	})
 }
 
@@ -118,6 +158,84 @@ func (p *Point) UnmarshalJSON(b []byte) error {
 
 	p.h = u.H
 	p.r = u.R
+
+	return nil
+}
+
+type StagePoint struct { // BLOCK apply StagePoint into Voteproof, Ballot, etc.
+	Point
+	stage Stage
+}
+
+func NewStagePoint(point Point, stage Stage) StagePoint {
+	return StagePoint{Point: point, stage: stage}
+}
+
+func ZeroStagePoint() StagePoint {
+	return StagePoint{Point: ZeroPoint(), stage: StageUnknown}
+}
+
+func (p StagePoint) Stage() Stage {
+	return p.stage
+}
+
+func (p StagePoint) IsZero() bool {
+	if p.Point.IsZero() {
+		return true
+	}
+
+	err := p.stage.IsValid(nil)
+
+	return err != nil
+}
+
+func (p StagePoint) String() string {
+	return fmt.Sprintf("<StagePoint height=%d round=%d stage=%q>", p.h, p.r, p.stage)
+}
+
+func (p StagePoint) Compare(b StagePoint) int {
+	if i := p.stage.Compare(b.stage); i != 0 {
+		return i
+	}
+
+	return p.Point.Compare(b.Point)
+}
+
+func (p StagePoint) Decrease() StagePoint {
+	p.Point = p.Point.Decrease()
+
+	return p
+}
+
+type stagePointJSONMarshaler struct {
+	pointJSONMarshaler
+	S Stage `json:"stage"`
+}
+
+func (p StagePoint) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(stagePointJSONMarshaler{
+		pointJSONMarshaler: pointJSONMarshaler{
+			p.h,
+			p.r,
+		},
+		S: p.stage,
+	})
+}
+
+type stagePointJSONUnmarshaler struct {
+	pointJSONUnmarshaler
+	S Stage `json:"stage"`
+}
+
+func (p *StagePoint) UnmarshalJSON(b []byte) error {
+	var u stagePointJSONUnmarshaler
+	if err := util.UnmarshalJSON(b, &u); err != nil {
+		return errors.Wrap(err, "failed to unmarshal stage point")
+	}
+
+	p.h = u.H
+	p.r = u.R
+	p.stage = u.S
 
 	return nil
 }
