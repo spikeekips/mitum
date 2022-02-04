@@ -32,7 +32,7 @@ func (t *testBaseVoteproof) validVoteproof() INITVoteproof {
 	t.NoError(isignedFact.Sign(t.priv, t.networkID))
 
 	ivp := NewINITVoteproof(ifact.Point().Point)
-	ivp.Finish()
+	ivp.finish()
 	ivp.SetResult(base.VoteResultMajority)
 	ivp.SetMajority(ifact)
 	ivp.SetSignedFacts([]base.BallotSignedFact{isignedFact})
@@ -177,7 +177,7 @@ func (t *testBaseVoteproof) TestWrongPointOfSignedFact() {
 	wsignedFact := NewINITBallotSignedFact(base.RandomAddress(""), wfact)
 	t.NoError(wsignedFact.Sign(t.priv, t.networkID))
 
-	ivp.Finish()
+	ivp.finish()
 	ivp.SetMajority(ifact)
 	ivp.SetSignedFacts([]base.BallotSignedFact{isignedFact, wsignedFact})
 
@@ -254,7 +254,7 @@ func (t *testBaseVoteproof) TestWrongMajorityWithSuffrage() {
 	suf, err := newSuffrage(nodes)
 	t.NoError(err)
 
-	err = base.IsValidSignedFactsInVoteproof(ivp, suf)
+	err = base.IsValidVoteproofWithSuffrage(ivp, suf)
 	t.Error(err)
 	t.True(errors.Is(err, util.InvalidError))
 	t.Contains(err.Error(), "wrong majority")
@@ -270,7 +270,7 @@ func (t *testBaseVoteproof) TestUnknownNode() {
 	suf, err := newSuffrage([]base.Address{base.RandomAddress("n0-")})
 	t.NoError(err)
 
-	err = base.IsValidSignedFactsInVoteproof(ivp, suf)
+	err = base.IsValidVoteproofWithSuffrage(ivp, suf)
 	t.Error(err)
 	t.True(errors.Is(err, util.InvalidError))
 	t.Contains(err.Error(), "unknown node found")
@@ -285,7 +285,7 @@ func (t *testBaseVoteproof) TestNewACCEPT() {
 	t.NoError(asignedFact.Sign(t.priv, t.networkID))
 
 	avp := NewACCEPTVoteproof(afact.Point().Point)
-	avp.Finish()
+	avp.finish()
 	avp.SetResult(base.VoteResultMajority)
 	avp.SetMajority(afact)
 	avp.SetSignedFacts([]base.BallotSignedFact{asignedFact})
@@ -352,7 +352,7 @@ func TestINITVoteproofJSON(tt *testing.T) {
 		t.NoError(isignedFact.Sign(t.priv, t.networkID))
 
 		ivp := NewINITVoteproof(ifact.Point().Point)
-		ivp.Finish()
+		ivp.finish()
 		ivp.SetResult(base.VoteResultMajority)
 		ivp.SetMajority(ifact)
 		ivp.SetSignedFacts([]base.BallotSignedFact{isignedFact})
@@ -389,7 +389,7 @@ func TestACCEPTVoteproofJSON(tt *testing.T) {
 		t.NoError(asignedFact.Sign(t.priv, t.networkID))
 
 		avp := NewACCEPTVoteproof(afact.Point().Point)
-		avp.Finish()
+		avp.finish()
 		avp.SetResult(base.VoteResultMajority)
 		avp.SetMajority(afact)
 		avp.SetSignedFacts([]base.BallotSignedFact{asignedFact})

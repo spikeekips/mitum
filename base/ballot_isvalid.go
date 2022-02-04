@@ -297,3 +297,19 @@ func IsValidACCEPTBallotSignedFact(sf BallotSignedFact, networkID []byte) error 
 
 	return nil
 }
+
+func IsValidBallotWithSuffrage(bl Ballot, suf Suffrage) error {
+	e := util.StringErrorFunc("invalid signed facts in ballot with suffrage")
+
+	if vp := bl.INITVoteproof(); vp != nil {
+		if err := IsValidVoteproofWithSuffrage(vp, suf); err != nil {
+			return e(err, "invalid init voteproof")
+		}
+	}
+
+	if err := IsValidVoteproofWithSuffrage(bl.ACCEPTVoteproof(), suf); err != nil {
+		return e(err, "invalid accept voteproof")
+	}
+
+	return nil
+}

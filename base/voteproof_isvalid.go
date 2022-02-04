@@ -149,9 +149,7 @@ func isValidSignedFactInVoteproof(vp Voteproof, sf BallotSignedFact) error {
 	return nil
 }
 
-// BLOCK validate with suffrage
-
-func IsValidSignedFactsInVoteproof(vp Voteproof, suf Suffrage) error {
+func IsValidVoteproofWithSuffrage(vp Voteproof, suf Suffrage) error {
 	e := util.StringErrorFunc("invalid signed facts in voteproof with suffrage")
 
 	sfs := vp.SignedFacts()

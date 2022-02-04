@@ -160,7 +160,7 @@ func (p *Point) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-type StagePoint struct { // BLOCK apply StagePoint into Voteproof, Ballot, etc.
+type StagePoint struct {
 	Point
 	stage Stage
 }
@@ -171,6 +171,12 @@ func NewStagePoint(point Point, stage Stage) StagePoint {
 
 func (p StagePoint) Stage() Stage {
 	return p.stage
+}
+
+func (p StagePoint) SetStage(s Stage) StagePoint {
+	p.stage = s
+
+	return p
 }
 
 func (p StagePoint) IsZero() bool {
@@ -205,11 +211,12 @@ func (p StagePoint) String() string {
 }
 
 func (p StagePoint) Compare(b StagePoint) int {
-	if i := p.stage.Compare(b.stage); i != 0 {
-		return i
+	c := p.Point.Compare(b.Point)
+	if c == 0 {
+		return p.stage.Compare(b.stage)
 	}
 
-	return p.Point.Compare(b.Point)
+	return c
 }
 
 func (p StagePoint) Decrease() StagePoint {

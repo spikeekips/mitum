@@ -19,7 +19,7 @@ type States struct {
 	*util.ContextDaemon
 	stateLock   sync.RWMutex
 	statech     chan stateSwitchContext
-	voteproofch chan voteproofWithState
+	voteproofch chan voteproofWithState // BLOCK remove voteproofWithState
 	handlers    map[StateType]stateHandler
 	cs          stateHandler
 }
@@ -71,7 +71,7 @@ func (st *States) start(ctx context.Context) error {
 	// NOTE exit current
 	current := st.current()
 	if current == nil {
-		return errors.Wrap(err, "")
+		return errors.WithStack(err)
 	}
 
 	e := util.StringErrorFunc("failed to exit current state")
@@ -106,12 +106,12 @@ func (st *States) startStatesCH(ctx context.Context) error {
 				st.Log().Error().Err(err).
 					Stringer("voteproof", base.VoteproofLog(vp.Voteproof)).Msg("failed to handle voteproof")
 
-				return errors.Wrap(err, "")
+				return errors.WithStack(err)
 			}
 		}
 
 		if err := st.ensureSwitchState(sctx); err != nil {
-			return errors.Wrap(err, "")
+			return errors.WithStack(err)
 		}
 	}
 }
@@ -245,7 +245,7 @@ func (st *States) exitAndEnter(sctx stateSwitchContext, current stateHandler) (f
 			if errors.Is(err, IgnoreSwithingStateError) {
 				l.Debug().Err(err).Msg("current state ignores switching state")
 
-				return nil, nil, errors.Wrap(err, "")
+				return nil, nil, errors.WithStack(err)
 			}
 
 			st.cs = nil
@@ -382,7 +382,7 @@ func (st *States) checkStateSwitchContext(sctx stateSwitchContext, current state
 		}
 
 		if err := st.voteproofToCurrent(sctx.voteproof(), current); err != nil {
-			return errors.Wrap(err, "")
+			return errors.WithStack(err)
 		}
 
 		return IgnoreSwithingStateError.Errorf("same next state with voteproof")

@@ -54,7 +54,7 @@ func (t Threshold) MarshalText() ([]byte, error) {
 func (t *Threshold) UnmarshalText(b []byte) error {
 	f, err := strconv.ParseFloat(string(b), 64)
 	if err != nil {
-		return errors.Wrap(err, "")
+		return errors.WithStack(err)
 	}
 
 	*t = Threshold(f)
