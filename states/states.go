@@ -19,7 +19,7 @@ type States struct {
 	*util.ContextDaemon
 	stateLock   sync.RWMutex
 	statech     chan stateSwitchContext
-	voteproofch chan voteproofWithState // BLOCK remove voteproofWithState
+	voteproofch chan base.Voteproof
 	handlers    map[StateType]stateHandler
 	cs          stateHandler
 }
@@ -30,7 +30,7 @@ func NewStates() *States {
 			return lctx.Str("module", "states")
 		}),
 		statech:     make(chan stateSwitchContext),
-		voteproofch: make(chan voteproofWithState),
+		voteproofch: make(chan base.Voteproof),
 		handlers:    map[StateType]stateHandler{},
 		cs:          nil,
 	}
@@ -66,7 +66,7 @@ func (st *States) start(ctx context.Context) error {
 		return errors.Wrap(err, "failed to enter booting state")
 	}
 
-	err := st.startStatesCH(ctx)
+	err := st.startStatesSwitch(ctx)
 
 	// NOTE exit current
 	current := st.current()
@@ -89,7 +89,7 @@ func (st *States) start(ctx context.Context) error {
 	return nil
 }
 
-func (st *States) startStatesCH(ctx context.Context) error {
+func (st *States) startStatesSwitch(ctx context.Context) error {
 	for {
 		var sctx stateSwitchContext
 		select {
@@ -104,7 +104,7 @@ func (st *States) startStatesCH(ctx context.Context) error {
 
 			if !errors.As(err, &sctx) {
 				st.Log().Error().Err(err).
-					Stringer("voteproof", base.VoteproofLog(vp.Voteproof)).Msg("failed to handle voteproof")
+					Stringer("voteproof", base.VoteproofLog(vp)).Msg("failed to handle voteproof")
 
 				return errors.WithStack(err)
 			}
@@ -293,7 +293,7 @@ func (st *States) newVoteproof(vp base.Voteproof) error {
 	// BLOCK compare last init and accept voteproof
 
 	go func() {
-		st.voteproofch <- newVoteproofWithState(vp, current.state())
+		st.voteproofch <- vp
 	}()
 
 	return nil
@@ -304,28 +304,11 @@ func (st *States) voteproofToCurrent(vp base.Voteproof, current stateHandler) er
 
 	e := util.StringErrorFunc("failed to send voteproof to current")
 
-	nvp, err := st.checkVoteproofWithCurrent(vp, current)
-	if err != nil {
-		return e(err, "")
-	}
-
-	if err := current.newVoteproof(nvp); err != nil {
+	if err := current.newVoteproof(vp); err != nil {
 		return e(err, "")
 	}
 
 	return nil
-}
-
-func (st *States) checkVoteproofWithCurrent(vp base.Voteproof, current stateHandler) (base.Voteproof, error) {
-	vps, ok := vp.(voteproofWithState)
-	switch {
-	case !ok:
-		return nil, errors.Errorf("not voteproofWithState")
-	case vps.state() != current.state():
-		return nil, errors.Errorf("not for current state, %q", current.state())
-	}
-
-	return vps.Voteproof, nil
 }
 
 func (st *States) callDeferStates(c, n func() error) error {

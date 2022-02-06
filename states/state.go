@@ -42,10 +42,6 @@ type stateSwitchContext struct {
 }
 
 func newStateSwitchContext(from, next StateType, vp base.Voteproof) stateSwitchContext {
-	if vp != nil {
-		vp = newVoteproofWithState(vp, next)
-	}
-
 	return stateSwitchContext{
 		from: from,
 		next: next,
@@ -87,24 +83,4 @@ func stateHandlerLog(st stateHandler) fmt.Stringer {
 
 		return st.state().String()
 	})
-}
-
-type voteproofWithState struct {
-	base.Voteproof
-	s StateType
-}
-
-func newVoteproofWithState(vp base.Voteproof, state StateType) voteproofWithState {
-	i, ok := vp.(voteproofWithState)
-	if ok {
-		i.s = state
-
-		return i
-	}
-
-	return voteproofWithState{Voteproof: vp, s: state}
-}
-
-func (vp voteproofWithState) state() StateType {
-	return vp.s
 }

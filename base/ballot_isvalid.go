@@ -298,18 +298,35 @@ func IsValidACCEPTBallotSignedFact(sf BallotSignedFact, networkID []byte) error 
 	return nil
 }
 
-func IsValidBallotWithSuffrage(bl Ballot, suf Suffrage) error {
+func IsValidBallotWithSuffrage(bl Ballot, suff func(Height) Suffrage) (bool, error) {
 	e := util.StringErrorFunc("invalid signed facts in ballot with suffrage")
 
+	switch suf := suff(bl.Point().Height()); {
+	case suf == nil:
+		return false, nil
+	case !suf.Exists(bl.SignedFact().Node()):
+		return false, e(util.InvalidError.Errorf("ballot not in suffrage"), "")
+	}
+
 	if vp := bl.INITVoteproof(); vp != nil {
+		suf := suff(vp.Point().Height())
+		if suf == nil {
+			return false, nil
+		}
+
 		if err := IsValidVoteproofWithSuffrage(vp, suf); err != nil {
-			return e(err, "invalid init voteproof")
+			return false, e(err, "invalid init voteproof")
 		}
 	}
 
-	if err := IsValidVoteproofWithSuffrage(bl.ACCEPTVoteproof(), suf); err != nil {
-		return e(err, "invalid accept voteproof")
+	suf := suff(bl.ACCEPTVoteproof().Point().Height())
+	if suf == nil {
+		return false, nil
 	}
 
-	return nil
+	if err := IsValidVoteproofWithSuffrage(bl.ACCEPTVoteproof(), suf); err != nil {
+		return false, e(err, "invalid accept voteproof")
+	}
+
+	return true, nil
 }

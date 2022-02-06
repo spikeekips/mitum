@@ -427,22 +427,6 @@ func (t *testStates) TestSameCurrentWithNextWithoutVoteproof() {
 	}
 }
 
-func (t *testStates) TestSameCurrentWithNextWithWrongStateVoteproof() {
-	st, _ := t.booted()
-	defer st.Stop()
-
-	vp := INITVoteproof{}
-	vp.id = util.UUID().String()
-	nvp := newVoteproofWithState(vp, StateJoining)
-
-	sctx := newStateSwitchContext(st.current().state(), StateBooting, nil)
-	sctx.vp = nvp
-
-	err := st.newState(sctx)
-	t.Error(err)
-	t.Contains(err.Error(), "not for current state")
-}
-
 func (t *testStates) TestNewVoteproof() {
 	st, _ := t.booted()
 	defer st.Stop()
@@ -465,35 +449,7 @@ func (t *testStates) TestNewVoteproof() {
 	case <-time.After(time.Second * 2):
 		t.NoError(errors.Errorf("failed to newVoteproof"))
 	case rvp := <-voteproofch:
-		_, ok := rvp.(voteproofWithState)
-		t.False(ok)
-
 		t.Equal(vp.ID(), rvp.ID())
-	}
-}
-
-func (t *testStates) TestNewVoteproofWithWrongState() {
-	st, _ := t.booted()
-	defer st.Stop()
-
-	booting := st.handlers[StateBooting].(*dummyStateHandler)
-
-	voteproofch := make(chan base.Voteproof, 1)
-	_ = booting.setNewVoteproof(func(vp base.Voteproof) error {
-		voteproofch <- vp
-
-		return nil
-	})
-
-	vp := INITVoteproof{}
-	vp.id = util.UUID().String()
-
-	st.voteproofch <- newVoteproofWithState(vp, StateJoining) // NOTE not current state
-
-	select {
-	case <-time.After(time.Second * 2):
-	case <-voteproofch:
-		t.NoError(errors.Errorf("unexpected voteproof"))
 	}
 }
 
