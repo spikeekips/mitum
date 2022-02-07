@@ -15,10 +15,16 @@ import (
 )
 
 func (box *Ballotbox) voteAndWait(bl base.Ballot) (base.Voteproof, error) {
-	wait := make(chan base.Voteproof)
-	err := box.vote(bl, wait)
+	callback, err := box.vote(bl)
+	if err != nil {
+		return nil, err
+	}
 
-	return <-wait, err
+	if callback == nil {
+		return nil, nil
+	}
+
+	return callback(), nil
 }
 
 type testBallotbox struct {
@@ -359,12 +365,13 @@ func (t *testBallotbox) TestNilSuffrageCount() {
 	bl := t.initBallot(n0, suf.Nodes(), point, prev)
 	box.setLastStagePoint(bl.ACCEPTVoteproof().Point())
 
-	t.NoError(box.Vote(bl))
+	_, err := box.voteAndWait(bl)
+	t.NoError(err)
 
 	go box.Count()
 
 	select {
-	case <-time.After(time.Second):
+	case <-time.After(time.Second * 2):
 		t.NoError(errors.Errorf("failed to wait voteproof"))
 	case vp := <-box.Voteproof():
 		t.NoError(vp.IsValid(t.networkID))
@@ -448,6 +455,7 @@ func (t *testBallotbox) TestVoteproofOrder() {
 	}
 
 	atomic.StoreInt64(&enablesuf, 1)
+	box.setLastStagePoint(base.NewStagePoint(point, base.StageINIT))
 
 	go box.Count()
 
@@ -478,41 +486,6 @@ end:
 	t.Equal(nextpoint, rvps[1].Point().Point)
 	t.Equal(base.StageACCEPT, rvps[0].Point().Stage())
 	t.Equal(base.StageINIT, rvps[1].Point().Stage())
-}
-
-func (t *testBallotbox) TestCleanUnknownNodes() {
-	n0 := base.RandomAddress("")
-	n1 := base.RandomAddress("")
-
-	suf, _ := newSuffrage([]base.Address{n0})
-
-	var i int64
-	box := NewBallotbox(
-		func(base.Height) base.Suffrage {
-			if atomic.LoadInt64(&i) < 1 {
-				atomic.StoreInt64(&i, 1)
-				return nil
-			}
-
-			return suf
-		},
-		base.Threshold(100),
-	)
-
-	point := base.NewPoint(base.Height(33), base.Round(0))
-	prev := valuehash.RandomSHA256()
-
-	bl := t.initBallot(n1, suf.Nodes(), point, prev)
-	_, err := box.voteAndWait(bl)
-	t.NoError(err)
-
-	t.Equal(1, len(box.vrs))
-
-	stagepoint := base.NewStagePoint(point, base.StageINIT)
-	vr := box.voterecords(stagepoint)
-
-	// NOTE unknown suffrage node removed from voterecords
-	t.Equal(0, len(vr.voted))
 }
 
 func (t *testBallotbox) TestVoteproofFromBallotACCEPTVoteproof() {
@@ -650,6 +623,80 @@ end:
 	base.CompareVoteproof(t.Assert(), bl.INITVoteproof(), rvps[0])
 }
 
+func (t *testBallotbox) TestVoteproofFromBallotWhenCount() {
+	n0 := base.RandomAddress("")
+	n1 := base.RandomAddress("")
+
+	suf, err := newSuffrage([]base.Address{n0, n1})
+	t.NoError(err)
+	th := base.Threshold(100)
+
+	var i int64
+	box := NewBallotbox(
+		func(base.Height) base.Suffrage {
+			if atomic.LoadInt64(&i) < 1 {
+				return nil
+			}
+
+			return suf
+		},
+		th,
+	)
+
+	point := base.NewPoint(base.Height(33), base.Round(0))
+	pr := valuehash.RandomSHA256()
+	block := valuehash.RandomSHA256()
+
+	bl := t.acceptBallot(n0, suf.Nodes(), point, pr, block)
+
+	vp, err := box.voteAndWait(bl)
+	t.NoError(err)
+	t.Nil(vp)
+
+	var rvps []base.Voteproof
+end0:
+	for {
+		select {
+		case <-time.After(time.Second * 2):
+			break end0
+		case vp := <-box.Voteproof():
+			t.NoError(vp.IsValid(t.networkID))
+
+			rvps = append(rvps, vp)
+		}
+	}
+
+	t.Empty(rvps)
+
+	atomic.StoreInt64(&i, 1)
+	go box.Count()
+
+end1:
+	for {
+		select {
+		case <-time.After(time.Second * 2):
+			break end1
+		case vp := <-box.Voteproof():
+			t.NoError(vp.IsValid(t.networkID))
+
+			rvps = append(rvps, vp)
+		}
+	}
+
+	t.T().Logf("ballot: %q", bl.Point())
+	for i := range rvps {
+		t.T().Logf("%d voteproof: %q", i, rvps[i].Point())
+	}
+
+	t.Equal(2, len(rvps))
+
+	t.Equal(bl.ACCEPTVoteproof().Point(), rvps[0].Point())
+	t.Equal(bl.INITVoteproof().Point(), rvps[1].Point())
+
+	base.CompareVoteproof(t.Assert(), bl.ACCEPTVoteproof(), rvps[0])
+	base.CompareVoteproof(t.Assert(), bl.INITVoteproof(), rvps[1])
+}
+
 func (t *testBallotbox) TestAsyncVoterecords() {
 	var max int64 = 500
 	nodes := make([]base.Address, max+2)
@@ -674,11 +721,10 @@ func (t *testBallotbox) TestAsyncVoterecords() {
 			defer sem.Release(1)
 
 			bl := t.initBallot(nodes[i], nil, stagepoint.Point, valuehash.RandomSHA256())
-			vr.vote(bl, false)
+			vr.vote(bl, false, false)
 
 			if i%3 == 0 {
-				vp := vr.count(func(base.Height) base.Suffrage { return suf }, th)
-				t.Nil(vp)
+				_ = vr.count(func(base.Height) base.Suffrage { return suf }, th, base.ZeroStagePoint)
 			}
 		}(i)
 	}
@@ -702,7 +748,7 @@ func (t *testBallotbox) TestAsyncVoteAndClean() {
 	box := NewBallotbox(func(base.Height) base.Suffrage {
 		return suf
 	}, th)
-	box.isvalidVoteproofWithSuffrage = func(base.Voteproof, base.Suffrage) error {
+	box.isValidVoteproofWithSuffrage = func(base.Voteproof, base.Suffrage) error {
 		return nil
 	}
 
