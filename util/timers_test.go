@@ -1,10 +1,9 @@
-package localtime
+package util
 
 import (
 	"testing"
 	"time"
 
-	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -183,8 +182,8 @@ func (t *testTimers) TestStopTimer() {
 		started[i] = st[i].String()
 	}
 
-	t.True(util.InStringSlice("showme", started))
-	t.True(util.InStringSlice("findme", started))
+	t.True(InStringSlice("showme", started))
+	t.True(InStringSlice("findme", started))
 }
 
 func (t *testTimers) TestStopTimersAll() {

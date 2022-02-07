@@ -1,12 +1,10 @@
-package localtime
+package util
 
 import (
 	"time"
-
-	"github.com/spikeekips/mitum/util"
 )
 
-var StopTimerError = util.NewError("stop timer")
+var StopTimerError = NewError("stop timer")
 
 type TimerID string
 
@@ -15,7 +13,7 @@ func (ti TimerID) String() string {
 }
 
 type Timer interface {
-	util.Daemon
+	Daemon
 	IsStarted() bool
 	ID() TimerID
 	SetInterval(func(int) time.Duration) Timer

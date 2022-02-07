@@ -1,4 +1,4 @@
-package localtime
+package util
 
 import (
 	"context"
@@ -7,11 +7,10 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
-	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 )
 
-var ignoreError = util.NewError("ignore context timer error")
+var ignoreError = NewError("ignore context timer error")
 
 var contextTimerPool = sync.Pool{
 	New: func() interface{} {
@@ -40,7 +39,7 @@ var (
 type ContextTimer struct {
 	sync.RWMutex
 	*logging.Logging
-	*util.ContextDaemon
+	*ContextDaemon
 	id       TimerID
 	interval func(int) time.Duration
 	callback func(int) (bool, error)
@@ -58,7 +57,7 @@ func NewContextTimer(id TimerID, interval time.Duration, callback func(int) (boo
 		return interval
 	}
 	ct.callback = callback
-	ct.ContextDaemon = util.NewContextDaemon("timer-"+string(id), ct.start)
+	ct.ContextDaemon = NewContextDaemon("timer-"+string(id), ct.start)
 
 	return ct
 }

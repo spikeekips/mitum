@@ -1,11 +1,10 @@
-package localtime
+package util
 
 import (
 	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
-	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 )
 
@@ -142,7 +141,7 @@ func (ts *Timers) StartTimers(ids []TimerID, stopOthers bool) error {
 	if stopOthers {
 		var stopIDs []TimerID
 		for id := range ts.timers {
-			if util.InStringSlice(id.String(), sids) {
+			if InStringSlice(id.String(), sids) {
 				continue
 			}
 			stopIDs = append(stopIDs, id)
