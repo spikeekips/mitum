@@ -147,6 +147,7 @@ func (t *testStates) TestFailedToEnterIntoBootingAtStarting() {
 func (t *testStates) booted() (*States, <-chan error) {
 	st := NewStates()
 	_ = st.SetLogging(logging.TestNilLogging)
+	_ = st.SetLogging(logging.TestLogging)
 
 	_ = st.setHandler(newDummyStateHandler(StateStopped))
 
@@ -540,7 +541,7 @@ func (t *testStates) TestCurrentIgnoresSwitchingState() {
 }
 
 func (t *testStates) TestStoppedByStateStopped() {
-	st, _ := t.booted()
+	st, errch := t.booted()
 	defer st.Stop()
 
 	exitch := make(chan struct{}, 1)
@@ -556,6 +557,7 @@ func (t *testStates) TestStoppedByStateStopped() {
 	t.Equal(StateBooting, st.current().state())
 
 	sctx := newStateSwitchContext(st.current().state(), StateStopped, nil)
+	sctx = sctx.SetError(errors.Errorf("something wrong"))
 	err := st.newState(sctx)
 	t.NoError(err)
 
@@ -564,6 +566,11 @@ func (t *testStates) TestStoppedByStateStopped() {
 		t.NoError(errors.Errorf("failed to call exiting from booting"))
 	case <-exitch:
 	}
+
+	<-time.After(time.Second)
+	err = <-errch
+	t.Error(err)
+	t.Contains(err.Error(), "something wrong")
 
 	t.Nil(st.current())
 	t.False(st.IsStarted())

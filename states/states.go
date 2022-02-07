@@ -69,24 +69,24 @@ func (st *States) start(ctx context.Context) error {
 	err := st.startStatesSwitch(ctx)
 
 	// NOTE exit current
-	current := st.current()
-	if current == nil {
+	switch current := st.current(); {
+	case current == nil:
 		return errors.WithStack(err)
+	default:
+		e := util.StringErrorFunc("failed to exit current state")
+		deferred, err := current.exit()
+		if err != nil {
+			return e(err, "failed to exit current")
+		}
+
+		if err := st.callDeferStates(deferred, nil); err != nil {
+			return e(err, "")
+		}
+
+		st.setCurrent(nil)
 	}
 
-	e := util.StringErrorFunc("failed to exit current state")
-	deferred, err := current.exit()
-	if err != nil {
-		return e(err, "failed to exit current")
-	}
-
-	if err := st.callDeferStates(deferred, nil); err != nil {
-		return e(err, "")
-	}
-
-	st.setCurrent(nil)
-
-	return nil
+	return err
 }
 
 func (st *States) startStatesSwitch(ctx context.Context) error {
@@ -165,8 +165,9 @@ end:
 		switch err := st.switchState(sctx); {
 		case err == nil:
 			if sctx.next == StateStopped {
-				return errors.Errorf("states stopped")
+				return errors.Wrap(sctx, "states stopped")
 			}
+
 			return nil
 		case errors.Is(err, IgnoreSwithingStateError):
 			return nil

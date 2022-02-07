@@ -39,6 +39,7 @@ type stateSwitchContext struct {
 	from StateType
 	next StateType
 	vp   base.Voteproof
+	err  error
 }
 
 func newStateSwitchContext(from, next StateType, vp base.Voteproof) stateSwitchContext {
@@ -54,7 +55,21 @@ func (sctx stateSwitchContext) voteproof() base.Voteproof {
 }
 
 func (sctx stateSwitchContext) Error() string {
+	if sctx.err != nil {
+		return sctx.err.Error()
+	}
+
 	return ""
+}
+
+func (sctx stateSwitchContext) SetError(err error) stateSwitchContext {
+	sctx.err = err
+
+	return sctx
+}
+
+func (sctx stateSwitchContext) Unwrap() error {
+	return sctx.err
 }
 
 func (sctx stateSwitchContext) MarshalZerologObject(e *zerolog.Event) {
@@ -64,6 +79,9 @@ func (sctx stateSwitchContext) MarshalZerologObject(e *zerolog.Event) {
 
 	if sctx.vp != nil {
 		e.Str("voteproof", sctx.vp.ID())
+	}
+	if sctx.err != nil {
+		e.Err(sctx.err)
 	}
 }
 
