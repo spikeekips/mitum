@@ -12,11 +12,11 @@ import (
 type Timers struct {
 	*logging.Logging
 	sync.RWMutex
-	timers   map[ /* timer id */ TimerID]Timer
-	allowNew bool // if allowNew is true, new timer can be added.
+	timers       map[ /* timer id */ TimerID]Timer
+	allowUnknown bool // if allowUnknown is true, new timer can be added and unknown timer is ignored.
 }
 
-func NewTimers(ids []TimerID, allowNew bool) *Timers {
+func NewTimers(ids []TimerID, allowUnknown bool) *Timers {
 	timers := map[TimerID]Timer{}
 	for _, id := range ids {
 		timers[id] = nil
@@ -26,8 +26,8 @@ func NewTimers(ids []TimerID, allowNew bool) *Timers {
 		Logging: logging.NewLogging(func(c zerolog.Context) zerolog.Context {
 			return c.Str("module", "timers")
 		}),
-		timers:   timers,
-		allowNew: allowNew,
+		timers:       timers,
+		allowUnknown: allowUnknown,
 	}
 }
 
@@ -105,7 +105,7 @@ func (ts *Timers) SetTimer(timer Timer) error {
 	defer ts.Unlock()
 
 	if _, found := ts.timers[timer.ID()]; !found {
-		if !ts.allowNew {
+		if !ts.allowUnknown {
 			return errors.Errorf("not allowed to add new timer: %s", timer.ID())
 		}
 	}
@@ -255,8 +255,10 @@ func (ts *Timers) checkExists(ids []TimerID) error {
 }
 
 func (ts *Timers) traverse(callback func(Timer), ids []TimerID) error {
-	if err := ts.checkExists(ids); err != nil {
-		return err
+	if !ts.allowUnknown {
+		if err := ts.checkExists(ids); err != nil {
+			return err
+		}
 	}
 
 	var wg sync.WaitGroup
