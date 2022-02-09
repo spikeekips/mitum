@@ -31,6 +31,7 @@ type Ballot interface {
 type INITBallotFact interface {
 	BallotFact
 	PreviousBlock() util.Hash
+	Proposal() util.Hash
 }
 
 type ProposalFact interface {

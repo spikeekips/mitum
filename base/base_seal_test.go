@@ -188,7 +188,7 @@ func TestDummySeal(t *testing.T) {
 }
 
 type baseTestDummySealEncode struct {
-	*encoder.BaseTestEncode
+	encoder.BaseTestEncode
 	enc       encoder.Encoder
 	priv      Privatekey
 	networkID NetworkID
@@ -204,7 +204,6 @@ func (t *baseTestDummySealEncode) SetupTest() {
 
 func testDummySealEncode() *baseTestDummySealEncode {
 	t := new(baseTestDummySealEncode)
-	t.BaseTestEncode = new(encoder.BaseTestEncode)
 
 	t.priv = NewMPrivatekey()
 	t.networkID = NetworkID(util.UUID().Bytes())

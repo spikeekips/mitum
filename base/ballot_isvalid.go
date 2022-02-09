@@ -180,7 +180,7 @@ func IsValidINITBallotFact(fact INITBallotFact) error {
 		return e(err, "")
 	}
 
-	if err := util.CheckIsValid(nil, false, fact.PreviousBlock()); err != nil {
+	if err := util.CheckIsValid(nil, false, fact.PreviousBlock(), fact.Proposal()); err != nil {
 		return e(err, "")
 	}
 
