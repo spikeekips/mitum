@@ -1,9 +1,12 @@
 package states
 
 import (
+	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
@@ -13,6 +16,29 @@ import (
 
 type testConsensusHandler struct {
 	baseTestStateHandler
+}
+
+func (t *testConsensusHandler) newState() (*ConsensusHandler, func()) {
+	st := NewConsensusHandler(
+		t.local,
+		t.policy,
+		t.proposalMaker(t.local, t.policy),
+		func(base.Height) base.Suffrage {
+			return nil
+		},
+		newProposalProcessors(nil, nil),
+	)
+	_ = st.SetLogging(logging.TestNilLogging)
+	_ = st.setTimers(util.NewTimers([]util.TimerID{
+		timerIDBroadcastINITBallot,
+		timerIDPrepareProposal,
+	}, false))
+
+	return st, func() {
+		deferred, err := st.exit()
+		t.NoError(err)
+		t.NoError(deferred())
+	}
 }
 
 func (t *testConsensusHandler) voteproofsPair(point base.Point, pr, nextpr util.Hash, nodes []*LocalNode) (ACCEPTVoteproof, INITVoteproof) {
@@ -46,7 +72,7 @@ func (t *testConsensusHandler) TestNew() {
 		func(base.Height) base.Suffrage {
 			return nil
 		},
-		newProposalProcessors(nil, func(util.Hash) (base.ProposalFact, error) {
+		newProposalProcessors(nil, func(context.Context, util.Hash) (base.ProposalFact, error) {
 			return nil, util.NotFoundError.Call()
 		}),
 	)
@@ -214,30 +240,17 @@ func (t *testConsensusHandler) TestProcessingProposalAfterEntered() {
 	manifest := base.NewDummyManifest(fact.Point().Height(), valuehash.RandomSHA256())
 	pp := NewDummyProposalProcessor(manifest, nil)
 
-	st := NewConsensusHandler(
-		t.local,
-		t.policy,
-		t.proposalMaker(t.local, t.policy),
-		func(base.Height) base.Suffrage {
-			return nil
-		},
-		newProposalProcessors(
-			pp.make,
-			func(facthash util.Hash) (base.ProposalFact, error) {
-				if facthash.Equal(fact.Hash()) {
-					return fact, nil
-				}
+	st, closefunc := t.newState()
+	defer closefunc()
 
-				return nil, util.NotFoundError.Errorf("fact not found")
-			}),
-	)
-	_ = st.SetLogging(logging.TestLogging)
+	st.pps.makenew = pp.make
+	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
+		if facthash.Equal(fact.Hash()) {
+			return fact, nil
+		}
 
-	defer func() {
-		deferred, err := st.exit()
-		t.NoError(err)
-		t.NoError(deferred())
-	}()
+		return nil, util.NotFoundError.Errorf("fact not found")
+	}
 
 	ballotch := make(chan base.Ballot, 1)
 	st.broadcastBallotFunc = func(bl base.Ballot, tolocal bool) error {
@@ -245,11 +258,6 @@ func (t *testConsensusHandler) TestProcessingProposalAfterEntered() {
 
 		return nil
 	}
-
-	_ = st.setTimers(util.NewTimers([]util.TimerID{
-		timerIDBroadcastINITBallot,
-		timerIDPrepareProposal,
-	}, false))
 
 	avp, ivp := t.voteproofsPair(point, nil, fact.Hash(), nodes)
 	sctx := newConsensusSwitchContext(StateJoining, avp, ivp)
@@ -260,6 +268,9 @@ func (t *testConsensusHandler) TestProcessingProposalAfterEntered() {
 
 	select {
 	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("timeout to wait accept ballot"))
+
+		return
 	case bl := <-ballotch:
 		t.NoError(bl.IsValid(t.policy.NetworkID()))
 
@@ -271,7 +282,154 @@ func (t *testConsensusHandler) TestProcessingProposalAfterEntered() {
 	}
 }
 
-func (t *testConsensusHandler) TestFailedProcessingProposal() {
+func (t *testConsensusHandler) TestFailedProcessingProposalFetchFactFailed() {
+	nodes := t.nodes(2)
+
+	point := base.NewPoint(base.Height(33), base.Round(44))
+	fact := t.newProposalFact(point, nil)
+
+	manifest := base.NewDummyManifest(fact.Point().Height(), valuehash.RandomSHA256())
+	pp := NewDummyProposalProcessor(manifest, nil)
+
+	st, closefunc := t.newState()
+	defer closefunc()
+
+	st.pps.makenew = pp.make
+	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
+		return nil, util.NotFoundError.Errorf("fact not found")
+	}
+
+	sctxch := make(chan stateSwitchContext, 1)
+	st.switchStateFunc = func(sctx stateSwitchContext) {
+		sctxch <- sctx
+	}
+
+	avp, ivp := t.voteproofsPair(point, nil, fact.Hash(), nodes)
+	sctx := newConsensusSwitchContext(StateJoining, avp, ivp)
+
+	deferred, err := st.enter(sctx)
+	t.NoError(err)
+	t.NoError(deferred())
+
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("timeout to wait switch context"))
+
+		return
+	case sctx := <-sctxch:
+		t.Equal(StateConsensus, sctx.from())
+		t.Equal(StateBroken, sctx.next())
+		t.Contains(sctx.Error(), "failed to get proposal fact")
+	}
+}
+
+func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailed() {
+	nodes := t.nodes(2)
+
+	point := base.NewPoint(base.Height(33), base.Round(44))
+	fact := t.newProposalFact(point, nil)
+
+	manifest := base.NewDummyManifest(fact.Point().Height(), valuehash.RandomSHA256())
+	pp := NewDummyProposalProcessor(manifest, func() error {
+		return errors.Errorf("hahaha")
+	})
+
+	st, closefunc := t.newState()
+	defer closefunc()
+
+	st.pps.makenew = pp.make
+
+	var i int
+	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
+		if i < 1 {
+			i++
+			return nil, RetryProposalProcessorError.Errorf("findme")
+		}
+
+		return fact, nil
+	}
+
+	sctxch := make(chan stateSwitchContext, 1)
+	st.switchStateFunc = func(sctx stateSwitchContext) {
+		sctxch <- sctx
+	}
+
+	avp, ivp := t.voteproofsPair(point, nil, fact.Hash(), nodes)
+	sctx := newConsensusSwitchContext(StateJoining, avp, ivp)
+
+	deferred, err := st.enter(sctx)
+	t.NoError(err)
+	t.NoError(deferred())
+
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("timeout to wait switch context"))
+
+		return
+	case sctx := <-sctxch:
+		t.Equal(StateConsensus, sctx.from())
+		t.Equal(StateBroken, sctx.next())
+		t.Contains(sctx.Error(), "hahaha")
+	}
+}
+
+func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailedRetry() {
+	nodes := t.nodes(2)
+
+	point := base.NewPoint(base.Height(33), base.Round(44))
+	fact := t.newProposalFact(point, nil)
+
+	manifest := base.NewDummyManifest(fact.Point().Height(), valuehash.RandomSHA256())
+
+	var c int64
+	pp := NewDummyProposalProcessor(manifest, func() error {
+		if i := atomic.LoadInt64(&c); i < 1 {
+			atomic.AddInt64(&c, 1)
+
+			return RetryProposalProcessorError.Errorf("findme")
+		}
+
+		return errors.Errorf("hahaha")
+	})
+
+	st, closefunc := t.newState()
+	defer closefunc()
+
+	st.pps.makenew = pp.make
+
+	var g int64
+	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
+		if i := atomic.LoadInt64(&g); i < 1 {
+			atomic.AddInt64(&g, 1)
+
+			return nil, RetryProposalProcessorError.Errorf("findme")
+		}
+
+		return fact, nil
+	}
+
+	sctxch := make(chan stateSwitchContext, 1)
+	st.switchStateFunc = func(sctx stateSwitchContext) {
+		sctxch <- sctx
+	}
+
+	avp, ivp := t.voteproofsPair(point, nil, fact.Hash(), nodes)
+	sctx := newConsensusSwitchContext(StateJoining, avp, ivp)
+
+	deferred, err := st.enter(sctx)
+	t.NoError(err)
+	t.NoError(deferred())
+
+	select {
+	case <-time.After(time.Second * 5):
+		t.NoError(errors.Errorf("timeout to wait switch context"))
+
+		return
+	case sctx := <-sctxch:
+		t.Equal(StateConsensus, sctx.from())
+		t.Equal(StateBroken, sctx.next())
+		t.Contains(sctx.Error(), "hahaha")
+	}
 }
 
 func TestConsensusHandler(t *testing.T) {

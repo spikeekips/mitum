@@ -35,7 +35,7 @@ func NewProposalMaker(local *LocalNode, policy base.Policy) *ProposalMaker {
 func (p *ProposalMaker) New(point base.Point) (Proposal, error) {
 	e := util.StringErrorFunc("failed to make proposal, %q", point)
 
-	fact := NewProposalFact(point, nil) // BLOCK operations will be retrived from database
+	fact := NewProposalFact(point, nil) // BLOCK operations will be retrieved from database
 
 	signedFact := NewProposalSignedFact(p.local.Address(), fact)
 	if err := signedFact.Sign(p.local.Privatekey(), p.policy.NetworkID()); err != nil {
@@ -56,13 +56,13 @@ type proposalProcessors struct {
 	sync.RWMutex
 	*logging.Logging
 	makenew func(base.ProposalFact) proposalProcessor
-	getfact func(util.Hash) (base.ProposalFact, error)
+	getfact func(context.Context, util.Hash) (base.ProposalFact, error)
 	p       proposalProcessor
 }
 
 func newProposalProcessors(
 	makenew func(base.ProposalFact) proposalProcessor,
-	getfact func(util.Hash) (base.ProposalFact, error),
+	getfact func(context.Context, util.Hash) (base.ProposalFact, error),
 ) *proposalProcessors {
 	return &proposalProcessors{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
@@ -86,27 +86,29 @@ func (pps *proposalProcessors) process(
 	e := util.StringErrorFunc("failed to process proposal, %q", facthash)
 
 	if pps.p != nil {
-		if pps.p.proposal().Hash().Equal(facthash) {
+		p := pps.p
+		if p.proposal().Hash().Equal(facthash) {
 			l.Debug().Msg("propsal already processed")
+
+			return nil
+		}
+
+		if err := p.cancel(); err != nil {
+			l.Debug().
+				Stringer("previous_processor", p.proposal().Hash()).
+				Msg("failed to cancel previous running processor")
 
 			return nil
 		}
 	}
 
 	// NOTE fetchs proposal fact
-	fact, err := pps.getfact(facthash)
-	if err != nil {
+	fact, err := pps.fetchFact(ctx, facthash)
+	switch {
+	case err != nil:
 		return e(err, "failed to get proposal fact")
-	}
-
-	if pps.p != nil {
-		if err := pps.p.cancel(); err != nil {
-			l.Debug().
-				Stringer("previous_processor", pps.p.proposal().Hash()).
-				Msg("failed to cancel previous running processor")
-
-			return nil
-		}
+	case fact == nil:
+		return nil
 	}
 
 	p := pps.makenew(fact)
@@ -118,35 +120,79 @@ func (pps *proposalProcessors) process(
 	return nil
 }
 
+func (pps *proposalProcessors) fetchFact(ctx context.Context, facthash util.Hash) (base.ProposalFact, error) {
+	var fact base.ProposalFact
+
+	limit := 15 // NOTE endure failure for almost 9 seconds, it is almost 3 consensus cycle.
+	err := runLoopP(
+		ctx,
+		func(i int) (bool, error) {
+			if i >= limit {
+				return false, errors.Errorf("too many retry; stop")
+			}
+
+			j, err := pps.getfact(ctx, facthash)
+			switch {
+			case err == nil:
+				fact = j
+
+				return false, nil
+			case errors.Is(err, context.Canceled):
+				return false, nil
+			case errors.Is(err, RetryProposalProcessorError):
+				pps.Log().Debug().Msg("failed to fetch fact; will retry")
+
+				return true, nil
+			default:
+				return false, errors.Errorf("failed to get proposal fact")
+			}
+		},
+		time.Millisecond*600,
+	)
+
+	return fact, err
+}
+
 func (pps *proposalProcessors) runProcessor(
 	ctx context.Context,
 	p proposalProcessor,
 	ch chan<- proposalProcessResult,
 ) {
-	t := time.NewTicker(time.Second)
-	defer t.Stop()
-
 	var r proposalProcessResult
 
-end:
-	for ; true; <-t.C {
-		r = p.process(ctx)
+	limit := 15 // NOTE endure failure for almost 9 seconds, it is almost 3 consensus cycle.
+	_ = runLoopP(
+		ctx,
+		func(i int) (bool, error) {
+			if i >= limit {
+				return false, errors.Errorf("too many retry; stop")
+			}
 
-		switch {
-		case r.err == nil:
-			break end
-		case errors.Is(r.err, RetryProposalProcessorError):
-			continue end
-		case errors.Is(r.err, IgnoreErrorProposalProcessorError):
-			r = proposalProcessResult{}
+			r = p.process(ctx)
 
-			break end
-		default:
-			break end
-		}
-	}
+			switch {
+			case r.err == nil:
+				return false, nil
+			case errors.Is(r.err, RetryProposalProcessorError):
+				return true, nil
+			case errors.Is(r.err, IgnoreErrorProposalProcessorError):
+				r = proposalProcessResult{}
+
+				return false, nil
+			case errors.Is(r.err, context.Canceled):
+				r = proposalProcessResult{}
+
+				return false, nil
+			default:
+				return false, nil
+			}
+		},
+		time.Millisecond*600,
+	)
 
 	ch <- r
+
+	return
 }
 
 func (pps *proposalProcessors) cancel(facthash util.Hash) error {
@@ -175,4 +221,29 @@ type proposalProcessResult struct {
 	fact     base.ProposalFact
 	manifest base.Manifest
 	err      error
+}
+
+func runLoopP(ctx context.Context, f func(int) (bool, error), d time.Duration) error {
+	var i int
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			switch keep, err := f(i); {
+			case err != nil:
+				return err
+			case !keep:
+				return nil
+			}
+
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(d):
+				i++
+			}
+		}
+	}
 }

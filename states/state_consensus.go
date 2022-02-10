@@ -122,7 +122,8 @@ func (st *ConsensusHandler) processProposal(avp base.ACCEPTVoteproof, ivp base.I
 	l.Debug().Msg("tyring to process proposal")
 
 	err := st.processProposalInternal(avp, ivp)
-	if err == nil {
+	switch {
+	case err == nil:
 		l.Debug().Msg("proposal processed")
 
 		return
@@ -139,11 +140,9 @@ func (st *ConsensusHandler) processProposalInternal(avp base.ACCEPTVoteproof, iv
 	facthash := ivp.BallotMajority().Proposal()
 
 	ch := make(chan proposalProcessResult)
-	if err := st.pps.process(
-		context.Background(),
-		facthash,
-		ch,
-	); err != nil {
+	defer close(ch)
+
+	if err := st.pps.process(context.Background(), facthash, ch); err != nil {
 		return e(err, "")
 	}
 

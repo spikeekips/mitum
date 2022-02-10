@@ -600,7 +600,7 @@ var voterecordsPoolPut = func(vr *voterecords) {
 	voterecordsPool.Put(vr)
 }
 
-func digVoteproofFromBallot( // BLOCK rename to digVoteproofFromBallot
+func digVoteproofFromBallot(
 	vp base.Voteproof,
 	lastStagePoint base.StagePoint,
 	threshold base.Threshold,
