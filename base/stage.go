@@ -24,6 +24,10 @@ func (st Stage) Bytes() []byte {
 	return []byte(st)
 }
 
+func (st Stage) String() string {
+	return string(st)
+}
+
 func (st Stage) IsValid([]byte) error {
 	switch st {
 	case StageINIT, StageACCEPT, StageProposal:

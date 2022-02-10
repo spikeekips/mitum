@@ -129,16 +129,18 @@ func checkACCEPTVoteproofInINITBallot(bl INITBallot, vp ACCEPTVoteproof) error {
 
 func IsValidProposal(bl Proposal, networkID []byte) error {
 	e := util.StringErrorFunc("invalid Proposal")
-	if err := IsValidBallot(bl, networkID); err != nil {
+	if bl.INITVoteproof() != nil || bl.ACCEPTVoteproof() != nil {
+		return e(util.InvalidError.Errorf("init and accept voteproof should be empty"), "")
+	}
+
+	if err := util.CheckIsValid(networkID, false,
+		bl.SignedFact(),
+	); err != nil {
 		return e(err, "")
 	}
 
 	if _, ok := bl.SignedFact().(ProposalSignedFact); !ok {
 		return util.InvalidError.Errorf("ProposalSignedFact expected, not %T", bl.SignedFact())
-	}
-
-	if err := checkINITVoteproofInNotINITBallot(bl, bl.INITVoteproof()); err != nil {
-		return e(err, "")
 	}
 
 	return nil

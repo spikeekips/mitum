@@ -43,6 +43,15 @@ func MustMarshalJSONIndent(i interface{}) []byte {
 	return b
 }
 
+func MustMarshalJSONIndentString(i interface{}) string {
+	b, err := MarshalJSONIndent(i)
+	if err != nil {
+		panic(err)
+	}
+
+	return string(b)
+}
+
 func IsNilJSON(b []byte) bool {
 	i := bytes.TrimSpace(b)
 

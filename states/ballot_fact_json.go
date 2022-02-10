@@ -26,11 +26,13 @@ type baseBallotFactJSONUnmarshaler struct {
 type INITBallotFactJSONMarshaler struct {
 	baseBallotFactJSONMarshaler
 	PreviousBlock util.Hash `json:"previous_block"`
+	Proposal      util.Hash `json:"proposal"`
 }
 
 type INITBallotFactJSONUnmarshaler struct {
 	baseBallotFactJSONUnmarshaler
 	PreviousBlock valuehash.Bytes `json:"previous_block"`
+	Proposal      valuehash.Bytes `json:"proposal"`
 }
 
 type ProposalFactJSONMarshaler struct {
@@ -83,6 +85,7 @@ func (fact INITBallotFact) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(INITBallotFactJSONMarshaler{
 		baseBallotFactJSONMarshaler: fact.jsonMarshaler(),
 		PreviousBlock:               fact.previousBlock,
+		Proposal:                    fact.proposal,
 	})
 }
 
@@ -101,6 +104,7 @@ func (fact *INITBallotFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	}
 
 	fact.previousBlock = u.PreviousBlock
+	fact.proposal = u.Proposal
 
 	return nil
 }

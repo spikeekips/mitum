@@ -22,6 +22,7 @@ type States struct {
 	voteproofch chan base.Voteproof
 	handlers    map[StateType]stateHandler
 	cs          stateHandler
+	timers      *util.Timers
 }
 
 func NewStates() *States {
@@ -33,6 +34,9 @@ func NewStates() *States {
 		voteproofch: make(chan base.Voteproof),
 		handlers:    map[StateType]stateHandler{},
 		cs:          nil,
+		timers: util.NewTimers([]util.TimerID{
+			timerIDBroadcastINITBallot,
+		}, false),
 	}
 
 	st.ContextDaemon = util.NewContextDaemon("states", st.start)
@@ -62,7 +66,7 @@ func (st *States) start(ctx context.Context) error {
 	}
 
 	// NOTE entering to booting at starting
-	if err := st.ensureSwitchState(stateSwitchContext{next: StateBooting}); err != nil {
+	if err := st.ensureSwitchState(newBootingSwitchContext()); err != nil {
 		return errors.Wrap(err, "failed to enter booting state")
 	}
 
@@ -146,7 +150,7 @@ func (st *States) ensureSwitchState(sctx stateSwitchContext) error {
 			from = current.state()
 		}
 
-		return stateSwitchContext{from: from, next: StateBroken}
+		return newBrokenSwitchContext(from, nsctx)
 	}
 
 end:
@@ -164,7 +168,7 @@ end:
 		var nsctx stateSwitchContext
 		switch err := st.switchState(sctx); {
 		case err == nil:
-			if sctx.next == StateStopped {
+			if sctx.next() == StateStopped {
 				return errors.Wrap(sctx, "states stopped")
 			}
 
@@ -172,13 +176,13 @@ end:
 		case errors.Is(err, IgnoreSwithingStateError):
 			return nil
 		case !errors.As(err, &nsctx):
-			if sctx.next == StateBroken {
+			if sctx.next() == StateBroken {
 				st.Log().Error().Err(err).Msg("failed to switch to broken; will stop switching")
 
 				return errors.Wrap(err, "failed to switch to broken")
 			}
 
-			if sctx.from == StateBroken {
+			if sctx.from() == StateBroken {
 				<-time.After(time.Second) // NOTE prevents too fast switching
 			}
 
@@ -240,7 +244,7 @@ func (st *States) exitAndEnter(sctx stateSwitchContext, current stateHandler) (f
 		switch i, err := current.exit(); {
 		case err == nil:
 			cdefer = i
-		case sctx.next == StateBroken:
+		case sctx.next() == StateBroken:
 			l.Error().Err(err).Msg("failed to exit current state, but next is broken state; error will be ignored")
 		default:
 			if errors.Is(err, IgnoreSwithingStateError) {
@@ -255,9 +259,9 @@ func (st *States) exitAndEnter(sctx stateSwitchContext, current stateHandler) (f
 		}
 	}
 
-	next := st.handlers[sctx.next]
+	next := st.handlers[sctx.next()]
 
-	ndefer, err := next.enter(sctx.voteproof())
+	ndefer, err := next.enter(sctx)
 	if err != nil {
 		return nil, nil, e(err, "failed to enter next state")
 	}
@@ -344,39 +348,48 @@ func (st *States) checkStateSwitchContext(sctx stateSwitchContext, current state
 		return nil
 	}
 
+	from := sctx.from()
 	switch {
-	case sctx.from == StateEmpty:
-		sctx.from = current.state()
+	case from == StateEmpty:
+		from = current.state()
 	default:
-		if _, found := st.handlers[sctx.from]; !found {
-			return IgnoreSwithingStateError.Errorf("unknown from state, %q", sctx.from)
+		if _, found := st.handlers[from]; !found {
+			return IgnoreSwithingStateError.Errorf("unknown from state, %q", from)
 		}
 	}
 
-	if _, found := st.handlers[sctx.next]; !found {
-		return IgnoreSwithingStateError.Errorf("unknown next state, %q", sctx.next)
+	if _, found := st.handlers[sctx.next()]; !found {
+		return IgnoreSwithingStateError.Errorf("unknown next state, %q", sctx.next())
 	}
 
 	switch {
-	case sctx.from != current.state():
+	case from != current.state():
 		return IgnoreSwithingStateError.Errorf("from not matched")
-	case sctx.next == current.state():
-		if sctx.voteproof() == nil {
-			return IgnoreSwithingStateError.Errorf("same next state, but empty voteproof")
-		}
-
-		if err := st.voteproofToCurrent(sctx.voteproof(), current); err != nil {
-			return errors.WithStack(err)
-		}
-
-		return IgnoreSwithingStateError.Errorf("same next state with voteproof")
+	case sctx.next() == current.state():
+		// BLOCK remove voteproof handover from test
+		return IgnoreSwithingStateError.Errorf("same next state")
 	}
 
 	return nil
 }
 
 func (st *States) stateSwitchContextLog(sctx stateSwitchContext, current stateHandler) zerolog.Logger {
-	return st.Log().With().
-		Object("next_state", sctx).
-		Stringer("current_state", stateHandlerLog(current)).Logger()
+	l := st.Log().With().
+		Stringer("current_state", stateHandlerLog(current))
+
+	o, ok := sctx.(zerolog.LogObjectMarshaler)
+	switch {
+	case ok:
+		l = l.Object("next_state", o)
+	default:
+		l = l.Stringer("from", sctx.from()).Stringer("next", sctx.next())
+	}
+
+	return l.Logger()
+}
+
+func (st *States) broadcastBallot(bl base.Ballot, tolocal bool) error {
+	// BLOCK implement
+
+	return nil
 }

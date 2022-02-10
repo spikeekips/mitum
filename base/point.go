@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -123,12 +124,45 @@ func (p Point) IsZero() bool {
 	return p.h.IsZero()
 }
 
+func (p Point) Prev() Point {
+	switch {
+	case p.r > 0:
+		p.r--
+
+		return p
+	case p.h <= GenesisHeight:
+		return p
+	default:
+		p.h--
+		p.r = Round(0)
+
+		return p
+	}
+}
+
+func (p Point) Next() Point {
+	p.h++
+	p.r = Round(0)
+
+	return p
+}
+
+func (p Point) NextRound() Point {
+	p.r++
+
+	return p
+}
+
 func (p Point) Decrease() Point {
 	if p.h <= GenesisHeight {
 		return p
 	}
 
 	return NewPoint(p.h-1, Round(0))
+}
+
+func (p Point) MarshalZerologObject(e *zerolog.Event) {
+	e.Int64("height", p.h.Int64()).Uint64("round", p.r.Uint64())
 }
 
 type pointJSONMarshaler struct {
@@ -223,6 +257,10 @@ func (p StagePoint) Decrease() StagePoint {
 	p.Point = p.Point.Decrease()
 
 	return p
+}
+
+func (p StagePoint) MarshalZerologObject(e *zerolog.Event) {
+	e.Int64("height", p.h.Int64()).Uint64("round", p.r.Uint64()).Stringer("stage", p.stage)
 }
 
 type stagePointJSONMarshaler struct {

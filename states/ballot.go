@@ -97,6 +97,23 @@ func (bl baseBallot) ballotFact() base.BallotFact {
 	return bf
 }
 
+func (bl *baseBallot) Sign(priv base.Privatekey, networkID base.NetworkID) error {
+	e := util.StringErrorFunc("failed to sign ballot")
+
+	signer, ok := bl.signedFact.(base.Signer)
+	if !ok {
+		return e(nil, "invalid signed fact; missing Sign()")
+	}
+
+	if err := signer.Sign(priv, networkID); err != nil {
+		return e(err, "")
+	}
+
+	bl.signedFact = signer.(base.BallotSignedFact)
+
+	return nil
+}
+
 type INITBallot struct {
 	baseBallot
 }
@@ -104,7 +121,7 @@ type INITBallot struct {
 func NewINITBallot(
 	ivp base.INITVoteproof,
 	avp base.ACCEPTVoteproof,
-	signedFact base.BallotSignedFact,
+	signedFact INITBallotSignedFact,
 ) INITBallot {
 	return INITBallot{
 		baseBallot: newBaseBallot(INITBallotHint, ivp, avp, signedFact),
@@ -135,9 +152,9 @@ type Proposal struct {
 	baseBallot
 }
 
-func NewProposal(ivp base.INITVoteproof, avp base.ACCEPTVoteproof, signedFact base.BallotSignedFact) Proposal {
+func NewProposal(signedFact ProposalSignedFact) Proposal {
 	return Proposal{
-		baseBallot: newBaseBallot(ProposalHint, ivp, avp, signedFact),
+		baseBallot: newBaseBallot(ProposalHint, nil, nil, signedFact),
 	}
 }
 
@@ -168,7 +185,7 @@ type ACCEPTBallot struct {
 func NewACCEPTBallot(
 	ivp base.INITVoteproof,
 	avp base.ACCEPTVoteproof,
-	signedFact base.BallotSignedFact,
+	signedFact ACCEPTBallotSignedFact,
 ) ACCEPTBallot {
 	return ACCEPTBallot{
 		baseBallot: newBaseBallot(ACCEPTBallotHint, ivp, avp, signedFact),

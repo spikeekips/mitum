@@ -10,9 +10,9 @@ import (
 
 type Manifest interface {
 	hint.Hinter
-	util.Hash
+	util.Hasher
 	util.IsValider
-	Point() Point
+	Height() Height
 	Previous() util.Hash
 	Proposal() util.Hash       // NOTE proposal fact hash
 	OperationsTree() util.Hash // NOTE operations tree root hash
@@ -26,7 +26,7 @@ type Block interface {
 	hint.Hinter
 	util.Hash
 	util.IsValider
-	Point() Point
+	Height() Height
 	Manifest() Manifest
 	Proposal() ProposalSignedFact
 	Operations() []Operation

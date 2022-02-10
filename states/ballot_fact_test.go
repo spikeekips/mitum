@@ -86,7 +86,7 @@ func (t *testBaseBallotFact) TestWrongStage() {
 func TestBasicINITBallotFact(tt *testing.T) {
 	t := new(testBaseBallotFact)
 	t.ballot = func() base.BallotFact {
-		bl := NewINITBallotFact(base.NewPoint(base.Height(33), base.Round(44)), valuehash.RandomSHA256())
+		bl := NewINITBallotFact(base.NewPoint(base.Height(33), base.Round(44)), valuehash.RandomSHA256(), valuehash.RandomSHA256())
 		_ = (interface{})(bl).(base.INITBallotFact)
 
 		return bl
@@ -148,7 +148,7 @@ func TestProposalBallotFact(t *testing.T) {
 }
 
 type baseTestBallotFactEncode struct {
-	*encoder.BaseTestEncode
+	encoder.BaseTestEncode
 	enc     encoder.Encoder
 	priv    base.Privatekey
 	compare func(a, b base.BallotFact)
@@ -165,7 +165,6 @@ func (t *baseTestBallotFactEncode) SetupTest() {
 
 func testBallotFactEncode() *baseTestBallotFactEncode {
 	t := new(baseTestBallotFactEncode)
-	t.BaseTestEncode = new(encoder.BaseTestEncode)
 
 	t.priv = base.NewMPrivatekey()
 	t.Compare = func(a, b interface{}) {
@@ -190,7 +189,7 @@ func TestINITBallotFactJSON(tt *testing.T) {
 	t := testBallotFactEncode()
 
 	t.Encode = func() (interface{}, []byte) {
-		bl := NewINITBallotFact(base.NewPoint(base.Height(33), base.Round(44)), valuehash.RandomSHA256())
+		bl := NewINITBallotFact(base.NewPoint(base.Height(33), base.Round(44)), valuehash.RandomSHA256(), valuehash.RandomSHA256())
 
 		b, err := t.enc.Marshal(bl)
 		t.NoError(err)

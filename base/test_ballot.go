@@ -47,7 +47,9 @@ func CompareBallotFact(t *assert.Assertions, a, b BallotFact) {
 }
 
 func compareINITBallotFact(t *assert.Assertions, a, b INITBallotFact) {
+	t.True(a.Hash().Equal(b.Hash()))
 	t.True(a.PreviousBlock().Equal(b.PreviousBlock()))
+	t.True(a.Proposal().Equal(b.Proposal()))
 }
 
 func compareProposalFact(t *assert.Assertions, a, b ProposalFact) {

@@ -26,7 +26,7 @@ func (t *testBaseVoteproof) SetupTest() {
 
 func (t *testBaseVoteproof) validVoteproof() INITVoteproof {
 	node := base.RandomAddress("")
-	ifact := NewINITBallotFact(base.NewPoint(base.Height(33), base.Round(55)), valuehash.RandomSHA256())
+	ifact := NewINITBallotFact(base.NewPoint(base.Height(33), base.Round(55)), valuehash.RandomSHA256(), valuehash.RandomSHA256())
 
 	isignedFact := NewINITBallotSignedFact(node, ifact)
 	t.NoError(isignedFact.Sign(t.priv, t.networkID))
@@ -150,7 +150,7 @@ func (t *testBaseVoteproof) TestDuplicatedNodeInSignedFact() {
 func (t *testBaseVoteproof) TestInvalidSignedFact() {
 	ivp := t.validVoteproof()
 
-	ifact := NewINITBallotFact(base.NewPoint(base.Height(33), base.Round(55)), valuehash.RandomSHA256())
+	ifact := NewINITBallotFact(base.NewPoint(base.Height(33), base.Round(55)), valuehash.RandomSHA256(), valuehash.RandomSHA256())
 
 	isignedFact := NewINITBallotSignedFact(base.RandomAddress(""), ifact)
 	t.NoError(isignedFact.Sign(t.priv, util.UUID().Bytes())) // wrong network id
@@ -167,9 +167,9 @@ func (t *testBaseVoteproof) TestInvalidSignedFact() {
 func (t *testBaseVoteproof) TestWrongPointOfSignedFact() {
 	ivp := t.validVoteproof()
 
-	ifact := NewINITBallotFact(base.NewPoint(base.Height(33), base.Round(55)), valuehash.RandomSHA256())
+	ifact := NewINITBallotFact(base.NewPoint(base.Height(33), base.Round(55)), valuehash.RandomSHA256(), valuehash.RandomSHA256())
 
-	wfact := NewINITBallotFact(base.NewPoint(base.Height(34), base.Round(55)), valuehash.RandomSHA256())
+	wfact := NewINITBallotFact(base.NewPoint(base.Height(34), base.Round(55)), valuehash.RandomSHA256(), valuehash.RandomSHA256())
 
 	isignedFact := NewINITBallotSignedFact(base.RandomAddress(""), ifact)
 	t.NoError(isignedFact.Sign(t.priv, t.networkID))
@@ -191,7 +191,7 @@ func (t *testBaseVoteproof) TestWrongPointOfSignedFact() {
 func (t *testBaseVoteproof) TestWrongPointOfMajority() {
 	ivp := t.validVoteproof()
 
-	ifact := NewINITBallotFact(base.NewPoint(ivp.Point().Height()+1, ivp.Point().Round()), valuehash.RandomSHA256())
+	ifact := NewINITBallotFact(base.NewPoint(ivp.Point().Height()+1, ivp.Point().Round()), valuehash.RandomSHA256(), valuehash.RandomSHA256())
 
 	isignedFact := NewINITBallotSignedFact(base.RandomAddress(""), ifact)
 
@@ -210,7 +210,7 @@ func (t *testBaseVoteproof) TestWrongPointOfMajority() {
 func (t *testBaseVoteproof) TestMajorityNotFoundInSignedFacts() {
 	ivp := t.validVoteproof()
 
-	fact := NewINITBallotFact(base.NewPoint(base.Height(33), base.Round(55)), valuehash.RandomSHA256())
+	fact := NewINITBallotFact(base.NewPoint(base.Height(33), base.Round(55)), valuehash.RandomSHA256(), valuehash.RandomSHA256())
 
 	ivp.SetMajority(fact)
 
@@ -227,7 +227,7 @@ func (t *testBaseVoteproof) TestWrongMajorityWithSuffrage() {
 	n1 := base.RandomAddress("n1-")
 	n2 := base.RandomAddress("n2-")
 
-	fact := NewINITBallotFact(base.NewPoint(base.Height(33), base.Round(55)), valuehash.RandomSHA256())
+	fact := NewINITBallotFact(base.NewPoint(base.Height(33), base.Round(55)), valuehash.RandomSHA256(), valuehash.RandomSHA256())
 
 	newsignedfact := func(node base.Address) INITBallotSignedFact {
 		signedFact := NewINITBallotSignedFact(node, fact)
@@ -299,7 +299,7 @@ func TestBaseVoteproof(t *testing.T) {
 }
 
 type baseTestBaseVoteproofEncode struct {
-	*encoder.BaseTestEncode
+	encoder.BaseTestEncode
 	enc       encoder.Encoder
 	priv      base.Privatekey
 	networkID base.NetworkID
@@ -320,7 +320,6 @@ func (t *baseTestBaseVoteproofEncode) SetupTest() {
 
 func testBaseVoteproofEncode() *baseTestBaseVoteproofEncode {
 	t := new(baseTestBaseVoteproofEncode)
-	t.BaseTestEncode = new(encoder.BaseTestEncode)
 
 	t.priv = base.NewMPrivatekey()
 	t.networkID = base.NetworkID(util.UUID().Bytes())
@@ -345,7 +344,7 @@ func TestINITVoteproofJSON(tt *testing.T) {
 	t.Encode = func() (interface{}, []byte) {
 		node := base.RandomAddress("")
 
-		ifact := NewINITBallotFact(base.NewPoint(base.Height(32), base.Round(44)), valuehash.RandomSHA256())
+		ifact := NewINITBallotFact(base.NewPoint(base.Height(32), base.Round(44)), valuehash.RandomSHA256(), valuehash.RandomSHA256())
 
 		isignedFact := NewINITBallotSignedFact(node, ifact)
 

@@ -18,6 +18,15 @@ func (l *Locked) Value() interface{} {
 	return l.value
 }
 
+func (l *Locked) SetValue(i interface{}) *Locked {
+	l.Lock()
+	defer l.Unlock()
+
+	l.value = i
+
+	return l
+}
+
 func (l *Locked) Set(f func(interface{}) (interface{}, error)) error {
 	l.Lock()
 	defer l.Unlock()

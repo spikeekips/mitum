@@ -12,22 +12,20 @@ type StateType string
 
 const (
 	StateEmpty = StateType("")
-	// StateStopped indicates node is in state, all processes is finished.
+	// StateStopped indicates all processes is finished.
 	StateStopped = StateType("STOPPED")
-	// StateBooting indicates node is in state, node checks it's state.
+	// StateBooting indicates node checks it's state.
 	StateBooting = StateType("BOOTING")
-	// StateJoining indicates node is in state, node is trying to join
-	// consensus.
+	// StateJoining indicates node is trying to join consensus.
 	StateJoining = StateType("JOINING")
-	// StateConsensus indicates node is in state, node participates consensus
-	// with the other nodes.
+	// StateConsensus indicates node participates consensus with the other
+	// nodes.
 	StateConsensus = StateType("CONSENSUS")
-	// StateSyncing indicates node is in state, node is syncing block.
+	// StateSyncing indicates node is syncing block.
 	StateSyncing = StateType("SYNCING")
-	// StateHandover indicates that node tries to replace the existing same
-	// node.
+	// StateHandover indicates node tries to replace the existing same node.
 	StateHandover = StateType("HANDOVER")
-	// StateBroken is used whne something wrong in states.
+	// StateBroken is used when something wrong in states.
 	StateBroken = StateType("BROKEN")
 )
 
@@ -35,59 +33,9 @@ func (s StateType) String() string {
 	return string(s)
 }
 
-type stateSwitchContext struct {
-	from StateType
-	next StateType
-	vp   base.Voteproof
-	err  error
-}
-
-func newStateSwitchContext(from, next StateType, vp base.Voteproof) stateSwitchContext {
-	return stateSwitchContext{
-		from: from,
-		next: next,
-		vp:   vp,
-	}
-}
-
-func (sctx stateSwitchContext) voteproof() base.Voteproof {
-	return sctx.vp
-}
-
-func (sctx stateSwitchContext) Error() string {
-	if sctx.err != nil {
-		return sctx.err.Error()
-	}
-
-	return ""
-}
-
-func (sctx stateSwitchContext) SetError(err error) stateSwitchContext {
-	sctx.err = err
-
-	return sctx
-}
-
-func (sctx stateSwitchContext) Unwrap() error {
-	return sctx.err
-}
-
-func (sctx stateSwitchContext) MarshalZerologObject(e *zerolog.Event) {
-	e.
-		Stringer("from", sctx.from).
-		Stringer("next", sctx.next)
-
-	if sctx.vp != nil {
-		e.Str("voteproof", sctx.vp.ID())
-	}
-	if sctx.err != nil {
-		e.Err(sctx.err)
-	}
-}
-
 type stateHandler interface {
 	state() StateType
-	enter(base.Voteproof) (func() error, error)
+	enter(stateSwitchContext) (func() error, error)
 	exit() (func() error, error)
 	newVoteproof(base.Voteproof) error
 	newProposal(base.ProposalFact) error
@@ -101,4 +49,38 @@ func stateHandlerLog(st stateHandler) fmt.Stringer {
 
 		return st.state().String()
 	})
+}
+
+type stateSwitchContext interface {
+	from() StateType
+	next() StateType
+	Error() string
+}
+
+type baseStateSwitchContext struct {
+	f StateType
+	n StateType
+}
+
+func newBaseStateSwitchContext(from, next StateType) baseStateSwitchContext {
+	return baseStateSwitchContext{
+		f: from,
+		n: next,
+	}
+}
+
+func (s baseStateSwitchContext) from() StateType {
+	return s.f
+}
+
+func (s baseStateSwitchContext) next() StateType {
+	return s.n
+}
+
+func (s baseStateSwitchContext) Error() string {
+	return ""
+}
+
+func (s baseStateSwitchContext) MarshalZerologObject(e *zerolog.Event) {
+	e.Stringer("from", s.f).Stringer("next", s.n)
 }

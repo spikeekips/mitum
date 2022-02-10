@@ -56,12 +56,14 @@ func (fact baseBallotFact) hashBytes() []byte {
 type INITBallotFact struct {
 	baseBallotFact
 	previousBlock util.Hash
+	proposal      util.Hash
 }
 
-func NewINITBallotFact(point base.Point, previousBlock util.Hash) INITBallotFact {
+func NewINITBallotFact(point base.Point, previousBlock, proposal util.Hash) INITBallotFact {
 	fact := INITBallotFact{
 		baseBallotFact: newBaseBallotFact(INITBallotFactHint, base.StageINIT, point),
 		previousBlock:  previousBlock,
+		proposal:       proposal,
 	}
 
 	fact.h = fact.hash()
@@ -71,6 +73,10 @@ func NewINITBallotFact(point base.Point, previousBlock util.Hash) INITBallotFact
 
 func (fact INITBallotFact) PreviousBlock() util.Hash {
 	return fact.previousBlock
+}
+
+func (fact INITBallotFact) Proposal() util.Hash {
+	return fact.proposal
 }
 
 func (fact INITBallotFact) IsValid([]byte) error {
@@ -95,6 +101,7 @@ func (fact INITBallotFact) hash() util.Hash {
 	return valuehash.NewSHA256(util.ConcatByters(
 		util.DummyByter(fact.baseBallotFact.hashBytes),
 		fact.previousBlock,
+		fact.proposal,
 	))
 }
 

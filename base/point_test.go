@@ -72,6 +72,93 @@ func (t *testPoint) TestCompare() {
 	}
 }
 
+func (t *testPoint) TestPrev() {
+	cases := []struct {
+		name      string
+		h         int64
+		r         uint64
+		expectedh int64
+		expectedr uint64
+	}{
+		{name: "0 round", h: 33, r: 0, expectedh: 32, expectedr: 0},
+		{name: "1 round", h: 33, r: 1, expectedh: 33, expectedr: 0},
+		{name: "3 round", h: 33, r: 3, expectedh: 33, expectedr: 2},
+		{name: "genesis height and over 0 round", h: GenesisHeight.Int64(), r: 3, expectedh: GenesisHeight.Int64(), expectedr: 2},
+		{name: "genesis height and 0 round", h: GenesisHeight.Int64(), r: 0, expectedh: GenesisHeight.Int64(), expectedr: 0},
+	}
+
+	for i, c := range cases {
+		i := i
+		c := c
+		t.Run(
+			c.name,
+			func() {
+				p := NewPoint(Height(c.h), Round(c.r))
+				expected := NewPoint(Height(c.expectedh), Round(c.expectedr))
+				r := p.Prev()
+
+				t.Equal(expected, r, "%d: %v; %q, %q", i, c.name, expected, r)
+			},
+		)
+	}
+}
+
+func (t *testPoint) TestNext() {
+	cases := []struct {
+		name      string
+		h         int64
+		r         uint64
+		expectedh int64
+		expectedr uint64
+	}{
+		{name: "0 round", h: 33, r: 0, expectedh: 34, expectedr: 0},
+		{name: "over 0 round", h: 33, r: 4, expectedh: 34, expectedr: 0},
+	}
+
+	for i, c := range cases {
+		i := i
+		c := c
+		t.Run(
+			c.name,
+			func() {
+				p := NewPoint(Height(c.h), Round(c.r))
+				expected := NewPoint(Height(c.expectedh), Round(c.expectedr))
+				r := p.Next()
+
+				t.Equal(expected, r, "%d: %v; %q, %q", i, c.name, expected, r)
+			},
+		)
+	}
+}
+
+func (t *testPoint) TestNextRound() {
+	cases := []struct {
+		name      string
+		h         int64
+		r         uint64
+		expectedh int64
+		expectedr uint64
+	}{
+		{name: "0 round", h: 33, r: 0, expectedh: 33, expectedr: 1},
+		{name: "over 0 round", h: 33, r: 4, expectedh: 33, expectedr: 5},
+	}
+
+	for i, c := range cases {
+		i := i
+		c := c
+		t.Run(
+			c.name,
+			func() {
+				p := NewPoint(Height(c.h), Round(c.r))
+				expected := NewPoint(Height(c.expectedh), Round(c.expectedr))
+				r := p.NextRound()
+
+				t.Equal(expected, r, "%d: %v; %q, %q", i, c.name, expected, r)
+			},
+		)
+	}
+}
+
 func TestPoint(t *testing.T) {
 	suite.Run(t, new(testPoint))
 }
@@ -122,12 +209,11 @@ func TestStagePoint(t *testing.T) {
 }
 
 type testPointEncode struct {
-	*encoder.BaseTestEncode
+	encoder.BaseTestEncode
 }
 
 func TestPointEncode(tt *testing.T) {
 	t := new(testPointEncode)
-	t.BaseTestEncode = new(encoder.BaseTestEncode)
 
 	t.Encode = func() (interface{}, []byte) {
 		p := NewPoint(Height(33), Round(44))
@@ -149,12 +235,11 @@ func TestPointEncode(tt *testing.T) {
 }
 
 type testStagePointEncode struct {
-	*encoder.BaseTestEncode
+	encoder.BaseTestEncode
 }
 
 func TestStagePointEncode(tt *testing.T) {
 	t := new(testStagePointEncode)
-	t.BaseTestEncode = new(encoder.BaseTestEncode)
 
 	t.Encode = func() (interface{}, []byte) {
 		p := NewStagePoint(NewPoint(Height(33), Round(44)), StageINIT)

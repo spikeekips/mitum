@@ -38,7 +38,7 @@ func (t *testBallotbox) SetupSuite() {
 	t.networkID = base.NetworkID(util.UUID().Bytes())
 }
 
-func (t *testBallotbox) initBallot(node base.Address, nodes []base.Address, point base.Point, prev util.Hash) INITBallot {
+func (t *testBallotbox) initBallot(node base.Address, nodes []base.Address, point base.Point, prev, proposal util.Hash) INITBallot {
 	afact := NewACCEPTBallotFact(point.Decrease(), valuehash.RandomSHA256(), prev)
 
 	asfs := make([]base.BallotSignedFact, len(nodes))
@@ -56,7 +56,7 @@ func (t *testBallotbox) initBallot(node base.Address, nodes []base.Address, poin
 
 	avp.SetThreshold(base.Threshold(100))
 
-	fact := NewINITBallotFact(point, prev)
+	fact := NewINITBallotFact(point, prev, proposal)
 
 	signedFact := NewINITBallotSignedFact(node, fact)
 	t.NoError(signedFact.Sign(t.priv, t.networkID))
@@ -82,7 +82,7 @@ func (t *testBallotbox) acceptBallot(node base.Address, nodes []base.Address, po
 	avp.SetSignedFacts(asfs)
 	avp.SetThreshold(base.Threshold(100))
 
-	ifact := NewINITBallotFact(point, prev)
+	ifact := NewINITBallotFact(point, prev, pr)
 
 	isfs := make([]base.BallotSignedFact, len(nodes))
 	for i := range nodes {
@@ -136,7 +136,7 @@ func (t *testBallotbox) TestVoteINITBallotSignedFact() {
 	point := base.NewPoint(base.Height(33), base.Round(0))
 	prev := valuehash.RandomSHA256()
 
-	bl := t.initBallot(n0, suf.Nodes(), point, prev)
+	bl := t.initBallot(n0, suf.Nodes(), point, prev, valuehash.RandomSHA256())
 	box.setLastStagePoint(bl.ACCEPTVoteproof().Point())
 
 	t.NoError(box.Vote(bl))
@@ -285,7 +285,7 @@ func (t *testBallotbox) TestOldBallotSignedFact() {
 		t.compareStagePoint(box.lastStagePoint(), vp)
 	}
 
-	bl01 := t.initBallot(n0, suf.Nodes(), point, valuehash.RandomSHA256())
+	bl01 := t.initBallot(n0, suf.Nodes(), point, valuehash.RandomSHA256(), pr)
 	err = box.Vote(bl01)
 	t.Error(err)
 	t.Contains(err.Error(), "old ballot")
@@ -309,7 +309,7 @@ func (t *testBallotbox) TestUnknownSuffrageNode() {
 	point := base.NewPoint(base.Height(33), base.Round(1))
 	prev := valuehash.RandomSHA256()
 
-	bl := t.initBallot(n1, suf.Nodes(), point, prev)
+	bl := t.initBallot(n1, suf.Nodes(), point, prev, valuehash.RandomSHA256())
 	err = box.Vote(bl)
 	t.Error(err)
 	t.Contains(err.Error(), "ballot not in suffrage")
@@ -328,7 +328,7 @@ func (t *testBallotbox) TestNilSuffrage() {
 	point := base.NewPoint(base.Height(33), base.Round(1))
 	prev := valuehash.RandomSHA256()
 
-	bl := t.initBallot(n0, []base.Address{n0}, point, prev)
+	bl := t.initBallot(n0, []base.Address{n0}, point, prev, valuehash.RandomSHA256())
 	t.NoError(box.Vote(bl))
 
 	stagepoint := base.NewStagePoint(point, base.StageINIT)
@@ -362,7 +362,7 @@ func (t *testBallotbox) TestNilSuffrageCount() {
 	point := base.NewPoint(base.Height(33), base.Round(0))
 	prev := valuehash.RandomSHA256()
 
-	bl := t.initBallot(n0, suf.Nodes(), point, prev)
+	bl := t.initBallot(n0, suf.Nodes(), point, prev, valuehash.RandomSHA256())
 	box.setLastStagePoint(bl.ACCEPTVoteproof().Point())
 
 	_, err := box.voteAndWait(bl)
@@ -426,9 +426,10 @@ func (t *testBallotbox) TestVoteproofOrder() {
 
 	// prev INIT vote
 	prev := valuehash.RandomSHA256()
+	pr := valuehash.RandomSHA256()
 
 	for i := range nodes {
-		bl := t.initBallot(nodes[i], suf.Nodes(), point, prev)
+		bl := t.initBallot(nodes[i], suf.Nodes(), point, prev, pr)
 		vp, err := box.voteAndWait(bl)
 		t.NoError(err)
 		t.Nil(vp)
@@ -436,7 +437,6 @@ func (t *testBallotbox) TestVoteproofOrder() {
 
 	// prev ACCEPT vote
 	block := valuehash.RandomSHA256()
-	pr := valuehash.RandomSHA256()
 
 	for i := range nodes {
 		bl := t.acceptBallot(nodes[i], suf.Nodes(), point, pr, block)
@@ -446,9 +446,10 @@ func (t *testBallotbox) TestVoteproofOrder() {
 	}
 
 	// next INIT vote
+	nextpr := valuehash.RandomSHA256()
 	nextpoint := base.NewPoint(point.Height()+1, base.Round(0))
 	for i := range nodes {
-		bl := t.initBallot(nodes[i], suf.Nodes(), nextpoint, block)
+		bl := t.initBallot(nodes[i], suf.Nodes(), nextpoint, block, nextpr)
 		vp, err := box.voteAndWait(bl)
 		t.NoError(err)
 		t.Nil(vp)
@@ -506,8 +507,9 @@ func (t *testBallotbox) TestVoteproofFromBallotACCEPTVoteproof() {
 	point := base.NewPoint(base.Height(33), base.Round(0))
 	prevpoint := point.Decrease()
 	prev := valuehash.RandomSHA256()
+	pr := valuehash.RandomSHA256()
 
-	bl := t.initBallot(n0, suf.Nodes(), point, prev)
+	bl := t.initBallot(n0, suf.Nodes(), point, prev, pr)
 	box.setLastStagePoint(bl.ACCEPTVoteproof().Point().Decrease())
 
 	t.NoError(box.Vote(bl))
@@ -720,7 +722,7 @@ func (t *testBallotbox) TestAsyncVoterecords() {
 		go func(i int) {
 			defer sem.Release(1)
 
-			bl := t.initBallot(nodes[i], nil, stagepoint.Point, valuehash.RandomSHA256())
+			bl := t.initBallot(nodes[i], nil, stagepoint.Point, valuehash.RandomSHA256(), valuehash.RandomSHA256())
 			vr.vote(bl, false, false)
 
 			if i%3 == 0 {
@@ -756,6 +758,7 @@ func (t *testBallotbox) TestAsyncVoteAndClean() {
 	sem := semaphore.NewWeighted(300)
 
 	prev := valuehash.RandomSHA256()
+	pr := valuehash.RandomSHA256()
 
 	for i := range make([]int, max) {
 		if err := sem.Acquire(ctx, 1); err != nil {
@@ -767,7 +770,7 @@ func (t *testBallotbox) TestAsyncVoteAndClean() {
 
 			point := base.NewPoint(base.Height(int64(i)%4), base.Round(0))
 
-			bl := t.initBallot(nodes[i], nil, point, prev)
+			bl := t.initBallot(nodes[i], nil, point, prev, pr)
 			box.Vote(bl)
 
 			if i%2 == 0 {

@@ -119,7 +119,7 @@ func TestMPublickey(t *testing.T) {
 }
 
 type basetestMPublickeyEncode struct {
-	*baseTestMPKKeyEncode
+	baseTestMPKKeyEncode
 	priv  Privatekey
 	input []byte
 	sig   Signature
@@ -137,7 +137,6 @@ func (t *basetestMPublickeyEncode) SetupTest() {
 
 func testMPublickeyEncode() *basetestMPublickeyEncode {
 	t := new(basetestMPublickeyEncode)
-	t.baseTestMPKKeyEncode = new(baseTestMPKKeyEncode)
 	t.compare = func(a, b PKKey) {
 		_, ok := a.(Publickey)
 		t.True(ok)

@@ -393,16 +393,16 @@ func (vr *voterecords) finished() bool {
 }
 
 func (vr *voterecords) count(
-	suff func(base.Height) base.Suffrage,
+	getSuffrage func(base.Height) base.Suffrage,
 	threshold base.Threshold,
 	lastStagePoint base.StagePoint,
 ) []base.Voteproof {
 	vr.Lock()
 	defer vr.Unlock()
 
-	vps := vr.digVoteproofsFromBallots(suff, threshold, lastStagePoint)
+	vps := vr.digVoteproofsFromBallots(getSuffrage, threshold, lastStagePoint)
 
-	vp := vr.countFromBallots(suff, threshold, lastStagePoint)
+	vp := vr.countFromBallots(getSuffrage, threshold, lastStagePoint)
 	if vp != nil {
 		vps = append(vps, vp)
 	}
@@ -442,7 +442,7 @@ func (vr *voterecords) newVoteproof(
 
 // digVoteproofsFromBallots voteproofs from collected ballots
 func (vr *voterecords) digVoteproofsFromBallots(
-	suff func(base.Height) base.Suffrage,
+	getSuffrage func(base.Height) base.Suffrage,
 	threshold base.Threshold,
 	lastStagePoint base.StagePoint,
 ) []base.Voteproof {
@@ -450,7 +450,7 @@ func (vr *voterecords) digVoteproofsFromBallots(
 		return nil
 	}
 
-	if suf := suff(vr.sp.Height() - 1); suf == nil {
+	if suf := getSuffrage(vr.sp.Height() - 1); suf == nil {
 		return nil
 	}
 
@@ -467,7 +467,7 @@ end:
 		var err error
 		switch {
 		case !av:
-			av, iv, err = isValidBallotWithSuffrage(bl, suff, vr.isValidVoteproofWithSuffrage)
+			av, iv, err = isValidBallotWithSuffrage(bl, getSuffrage, vr.isValidVoteproofWithSuffrage)
 			switch {
 			case err != nil:
 				delete(vr.voted, node)
@@ -480,7 +480,7 @@ end:
 				return nil
 			}
 		case !iv:
-			iv, err = isValidVoteproofWithSuffrage(bl.INITVoteproof(), suff, vr.isValidVoteproofWithSuffrage)
+			iv, err = isValidVoteproofWithSuffrage(bl.INITVoteproof(), getSuffrage, vr.isValidVoteproofWithSuffrage)
 			if err != nil {
 				delete(vr.voted, node)
 
@@ -501,7 +501,7 @@ end:
 }
 
 func (vr *voterecords) countFromBallots(
-	suff func(base.Height) base.Suffrage,
+	getSuffrage func(base.Height) base.Suffrage,
 	threshold base.Threshold,
 	lastStagePoint base.StagePoint,
 ) base.Voteproof {
@@ -513,7 +513,7 @@ func (vr *voterecords) countFromBallots(
 		return nil
 	}
 
-	suf := suff(vr.sp.Height())
+	suf := getSuffrage(vr.sp.Height())
 	if suf == nil {
 		return nil
 	}
@@ -530,7 +530,7 @@ end:
 		}
 
 		if v, found := vr.validated[sf.Node().String()]; !found || !v[1] {
-			switch av, iv, err := isValidBallotWithSuffrage(bl, suff, vr.isValidVoteproofWithSuffrage); {
+			switch av, iv, err := isValidBallotWithSuffrage(bl, getSuffrage, vr.isValidVoteproofWithSuffrage); {
 			case err != nil:
 				continue end
 			default:
@@ -643,7 +643,7 @@ func digVoteproofsFromBallot(
 
 func isValidBallotWithSuffrage(
 	bl base.Ballot,
-	suff func(base.Height) base.Suffrage,
+	getSuffrage func(base.Height) base.Suffrage,
 	checkValid func(base.Voteproof, base.Suffrage) error,
 ) (
 	bool, /* accept voteproof passed */
@@ -652,21 +652,21 @@ func isValidBallotWithSuffrage(
 ) {
 	e := util.StringErrorFunc("invalid signed facts in ballot with suffrage")
 
-	switch suf := suff(bl.Point().Height()); {
+	switch suf := getSuffrage(bl.Point().Height()); {
 	case suf == nil:
 		return false, false, nil
 	case !suf.Exists(bl.SignedFact().Node()):
 		return false, false, e(util.InvalidError.Errorf("ballot not in suffrage"), "")
 	}
 
-	switch v, err := isValidVoteproofWithSuffrage(bl.ACCEPTVoteproof(), suff, checkValid); {
+	switch v, err := isValidVoteproofWithSuffrage(bl.ACCEPTVoteproof(), getSuffrage, checkValid); {
 	case err != nil:
 		return false, false, e(err, "")
 	case !v:
 		return false, false, nil
 	}
 
-	switch v, err := isValidVoteproofWithSuffrage(bl.INITVoteproof(), suff, checkValid); {
+	switch v, err := isValidVoteproofWithSuffrage(bl.INITVoteproof(), getSuffrage, checkValid); {
 	case err != nil:
 		return true, false, e(err, "")
 	case !v:
@@ -678,7 +678,7 @@ func isValidBallotWithSuffrage(
 
 func isValidVoteproofWithSuffrage(
 	vp base.Voteproof,
-	suff func(base.Height) base.Suffrage,
+	getSuffrage func(base.Height) base.Suffrage,
 	checkValid func(base.Voteproof, base.Suffrage) error,
 ) (bool, error) {
 	if vp == nil {
@@ -687,7 +687,7 @@ func isValidVoteproofWithSuffrage(
 
 	e := util.StringErrorFunc("invalid signed facts in voteproof with suffrage")
 
-	suf := suff(vp.Point().Height())
+	suf := getSuffrage(vp.Point().Height())
 	if suf == nil {
 		return false, nil
 	}
