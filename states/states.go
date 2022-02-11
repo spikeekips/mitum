@@ -108,7 +108,7 @@ func (st *States) startStatesSwitch(ctx context.Context) error {
 
 			if !errors.As(err, &sctx) {
 				st.Log().Error().Err(err).
-					Stringer("voteproof", base.VoteproofLog(vp)).Msg("failed to handle voteproof")
+					Dict("voteproof", base.VoteproofLog(vp)).Msg("failed to handle voteproof")
 
 				return errors.WithStack(err)
 			}

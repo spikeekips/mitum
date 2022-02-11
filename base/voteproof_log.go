@@ -1,17 +1,13 @@
 package base
 
-import (
-	"fmt"
+import "github.com/rs/zerolog"
 
-	"github.com/spikeekips/mitum/util"
-)
+func VoteproofLog(vp Voteproof) *zerolog.Event {
+	if vp == nil {
+		return nil
+	}
 
-func VoteproofLog(vp Voteproof) fmt.Stringer {
-	return util.Stringer(func() string {
-		if vp == nil {
-			return ""
-		}
-
-		return vp.ID()
-	})
+	return zerolog.Dict().
+		Str("id", vp.ID()).
+		Object("point", vp.Point())
 }

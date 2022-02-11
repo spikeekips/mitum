@@ -7,27 +7,28 @@ import (
 )
 
 type DummyProposalProcessor struct {
-	fact     base.ProposalFact
-	manifest base.Manifest
-	errf     func() error
+	fact       base.ProposalFact
+	manifest   base.Manifest
+	processerr func() error
+	saveerr    func(base.ACCEPTVoteproof) error
 }
 
-func NewDummyProposalProcessor(manifest base.Manifest, errf func() error) *DummyProposalProcessor {
+func NewDummyProposalProcessor(manifest base.Manifest) *DummyProposalProcessor {
 	return &DummyProposalProcessor{
 		manifest: manifest,
-		errf:     errf,
 	}
 }
 
 func (p *DummyProposalProcessor) make(fact base.ProposalFact) proposalProcessor {
 	p.fact = fact
+
 	return p
 }
 
 func (p *DummyProposalProcessor) process(ctx context.Context) proposalProcessResult {
 	var err error
-	if p.errf != nil {
-		err = p.errf()
+	if p.processerr != nil {
+		err = p.processerr()
 	}
 
 	return proposalProcessResult{
@@ -37,7 +38,11 @@ func (p *DummyProposalProcessor) process(ctx context.Context) proposalProcessRes
 	}
 }
 
-func (p *DummyProposalProcessor) save(ctx context.Context) error {
+func (p *DummyProposalProcessor) save(_ context.Context, avp base.ACCEPTVoteproof) error {
+	if p.saveerr != nil {
+		return p.saveerr(avp)
+	}
+
 	return nil
 }
 

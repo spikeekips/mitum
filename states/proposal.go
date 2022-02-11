@@ -16,8 +16,9 @@ import (
 // none IgnoreErrorProposalProcessorError from proposalProcessor will break
 // consensus.
 var (
-	IgnoreErrorProposalProcessorError = util.NewError("proposal processor somthing wrong; ignore")
-	RetryProposalProcessorError       = util.NewError("proposal processor somthing wrong; but retry")
+	IgnoreErrorProposalProcessorError  = util.NewError("proposal processor somthing wrong; ignore")
+	RetryProposalProcessorError        = util.NewError("proposal processor somthing wrong; but retry")
+	NotProposalProcessorProcessedError = util.NewError("proposal processor not processed")
 )
 
 type ProposalMaker struct {
@@ -47,7 +48,7 @@ func (p *ProposalMaker) New(point base.Point) (Proposal, error) {
 
 type proposalProcessor interface {
 	process(context.Context) proposalProcessResult
-	save(context.Context) error
+	save(context.Context, base.ACCEPTVoteproof) error
 	cancel() error
 	proposal() base.ProposalFact
 }
@@ -120,7 +121,56 @@ func (pps *proposalProcessors) process(
 	return nil
 }
 
+func (pps *proposalProcessors) save(ctx context.Context, facthash util.Hash, avp base.ACCEPTVoteproof) error {
+	pps.Lock()
+	defer pps.Unlock()
+
+	l := pps.Log().With().Stringer("fact", facthash).Logger()
+
+	e := util.StringErrorFunc("failed to save proposal, %q", facthash)
+
+	switch {
+	case pps.p == nil:
+		l.Debug().Msg("proposal processor not found")
+
+		return NotProposalProcessorProcessedError.Call()
+	case !pps.p.proposal().Hash().Equal(facthash):
+		l.Debug().Msg("proposal processor not found")
+
+		return NotProposalProcessorProcessedError.Call()
+	}
+
+	limit := 15
+	err := runLoopP(
+		ctx,
+		func(i int) (bool, error) {
+			if i >= limit {
+				return false, e(nil, "too many retry; stop")
+			}
+
+			err := pps.p.save(ctx, avp)
+			switch {
+			case err == nil:
+				return false, nil
+			case errors.Is(err, context.Canceled):
+				return false, nil
+			case errors.Is(err, RetryProposalProcessorError):
+				pps.Log().Debug().Msg("failed to save proposal; will retry")
+
+				return true, nil
+			default:
+				return false, e(err, "")
+			}
+		},
+		time.Millisecond*600,
+	)
+
+	return err
+}
+
 func (pps *proposalProcessors) fetchFact(ctx context.Context, facthash util.Hash) (base.ProposalFact, error) {
+	e := util.StringErrorFunc("failed to fetch fact")
+
 	var fact base.ProposalFact
 
 	limit := 15 // NOTE endure failure for almost 9 seconds, it is almost 3 consensus cycle.
@@ -128,7 +178,7 @@ func (pps *proposalProcessors) fetchFact(ctx context.Context, facthash util.Hash
 		ctx,
 		func(i int) (bool, error) {
 			if i >= limit {
-				return false, errors.Errorf("too many retry; stop")
+				return false, e(nil, "too many retry; stop")
 			}
 
 			j, err := pps.getfact(ctx, facthash)
@@ -144,7 +194,7 @@ func (pps *proposalProcessors) fetchFact(ctx context.Context, facthash util.Hash
 
 				return true, nil
 			default:
-				return false, errors.Errorf("failed to get proposal fact")
+				return false, e(err, "failed to get proposal fact")
 			}
 		},
 		time.Millisecond*600,
