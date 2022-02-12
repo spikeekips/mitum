@@ -12,7 +12,7 @@ func NewBootingHandler() *BootingHandler {
 	}
 }
 
-func (st *BootingHandler) enter(stateSwitchContext) error {
+func (*BootingHandler) enter(stateSwitchContext) error {
 	// NOTE find last manifest
 	// NOTE find last init and accept voteproof
 	// NOTE if ok, moves to joining
@@ -20,12 +20,12 @@ func (st *BootingHandler) enter(stateSwitchContext) error {
 	return nil
 }
 
-func (st *BootingHandler) newVoteproof(base.Voteproof) error {
+func (*BootingHandler) newVoteproof(base.Voteproof) error {
 	// NOTE in booting, do nothing
 	return nil
 }
 
-func (st *BootingHandler) newProposal(base.ProposalFact) error {
+func (*BootingHandler) newProposal(base.ProposalFact) error {
 	// NOTE in booting, do nothing
 	return nil
 }

@@ -70,12 +70,12 @@ func (st *States) start(ctx context.Context) error {
 		return errors.Wrap(err, "failed to enter booting state")
 	}
 
-	err := st.startStatesSwitch(ctx)
+	serr := st.startStatesSwitch(ctx)
 
 	// NOTE exit current
 	switch current := st.current(); {
 	case current == nil:
-		return errors.WithStack(err)
+		return errors.WithStack(serr)
 	default:
 		e := util.StringErrorFunc("failed to exit current state")
 		deferred, err := current.exit()
@@ -90,7 +90,7 @@ func (st *States) start(ctx context.Context) error {
 		st.setCurrent(nil)
 	}
 
-	return err
+	return serr
 }
 
 func (st *States) startStatesSwitch(ctx context.Context) error {
@@ -156,7 +156,7 @@ func (st *States) ensureSwitchState(sctx stateSwitchContext) error {
 end:
 	for {
 		if n > 3 {
-			st.Log().Warn().Msg("suspicious infinit loop in switch states; > 3; will move to broken")
+			st.Log().Warn().Msg("suspicious infinite loop in switch states; > 3; will move to broken")
 
 			sctx = movetobroken(sctx)
 
@@ -274,7 +274,11 @@ func (st *States) exitAndEnter(sctx stateSwitchContext, current stateHandler) (f
 func (st *States) newState(sctx stateSwitchContext) error {
 	l := st.stateSwitchContextLog(sctx, st.current())
 
-	if err := st.checkStateSwitchContext(sctx, st.current()); err != nil {
+	switch err := st.checkStateSwitchContext(sctx, st.current()); {
+	case err == nil:
+	case errors.Is(err, IgnoreSwithingStateError):
+		return nil
+	default:
 		l.Error().Err(err).Msg("failed to switch state")
 
 		return errors.Wrap(err, "failed to switch state")
@@ -304,7 +308,7 @@ func (st *States) newVoteproof(vp base.Voteproof) error {
 	return nil
 }
 
-func (st *States) voteproofToCurrent(vp base.Voteproof, current stateHandler) error {
+func (*States) voteproofToCurrent(vp base.Voteproof, current stateHandler) error {
 	// BLOCK compare last init and accept voteproof
 
 	e := util.StringErrorFunc("failed to send voteproof to current")
@@ -338,6 +342,8 @@ func (st *States) callDeferStates(c, n func() error) error {
 
 	if err != nil && !errors.Is(err, IgnoreSwithingStateError) {
 		st.cs = nil
+
+		return err
 	}
 
 	return nil
@@ -354,19 +360,18 @@ func (st *States) checkStateSwitchContext(sctx stateSwitchContext, current state
 		from = current.state()
 	default:
 		if _, found := st.handlers[from]; !found {
-			return IgnoreSwithingStateError.Errorf("unknown from state, %q", from)
+			return errors.Errorf("unknown from state, %q", from)
 		}
 	}
 
 	if _, found := st.handlers[sctx.next()]; !found {
-		return IgnoreSwithingStateError.Errorf("unknown next state, %q", sctx.next())
+		return errors.Errorf("unknown next state, %q", sctx.next())
 	}
 
 	switch {
 	case from != current.state():
 		return IgnoreSwithingStateError.Errorf("from not matched")
 	case sctx.next() == current.state():
-		// BLOCK remove voteproof handover from test
 		return IgnoreSwithingStateError.Errorf("same next state")
 	}
 

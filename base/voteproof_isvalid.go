@@ -21,6 +21,30 @@ func isValidVoteproof(vp Voteproof, networkID NetworkID) error {
 	}
 
 	// NOTE check duplicated signed node in SignedFacts
+	if err := isValidVoteproofDuplicatedSignedNode(vp); err != nil {
+		return e(err, "")
+	}
+
+	if err := util.CheckIsValid(networkID, false,
+		vp.Point(),
+		vp.Result(),
+		vp.Threshold(),
+	); err != nil {
+		return e(err, "")
+	}
+
+	if err := isValidVoteproofVoteResult(vp, networkID); err != nil {
+		return e(err, "")
+	}
+
+	if err := isValidVoteproofSignedFacts(vp, networkID); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
+func isValidVoteproofDuplicatedSignedNode(vp Voteproof) error {
 	if util.CheckSliceDuplicated(vp.SignedFacts(), func(i interface{}) string {
 		if i == nil {
 			return ""
@@ -33,34 +57,34 @@ func isValidVoteproof(vp Voteproof, networkID NetworkID) error {
 
 		return j.Node().String()
 	}) {
-		return e(util.InvalidError.Errorf("duplicated node found in signedfacts of voteproof"), "")
+		return util.InvalidError.Errorf("duplicated node found in signedfacts of voteproof")
 	}
 
-	if err := util.CheckIsValid(networkID, false,
-		vp.Point(),
-		vp.Result(),
-		vp.Threshold(),
-	); err != nil {
-		return e(err, "")
-	}
+	return nil
+}
 
+func isValidVoteproofVoteResult(vp Voteproof, networkID NetworkID) error {
 	switch {
 	case vp.Result() == VoteResultDraw:
 		if vp.Majority() != nil {
-			return e(util.InvalidError.Errorf("not empty majority for draw"), "")
+			return util.InvalidError.Errorf("not empty majority for draw")
 		}
 	case vp.Majority() == nil:
-		return e(util.InvalidError.Errorf("empty majority for majority"), "")
+		return util.InvalidError.Errorf("empty majority for majority")
 	default:
 		if err := vp.Majority().IsValid(networkID); err != nil {
-			return e(err, "invalid majority")
+			return util.InvalidError.Wrapf(err, "invalid majority")
 		}
 
 		if err := isValidFactInVoteproof(vp, vp.Majority()); err != nil {
-			return e(err, "invalid majority")
+			return util.InvalidError.Wrapf(err, "invalid majority")
 		}
 	}
 
+	return nil
+}
+
+func isValidVoteproofSignedFacts(vp Voteproof, networkID NetworkID) error {
 	var majority util.Hash
 	if vp.Majority() != nil {
 		majority = vp.Majority().Hash()
@@ -73,11 +97,11 @@ func isValidVoteproof(vp Voteproof, networkID NetworkID) error {
 		i := i
 		bs[i] = util.DummyIsValider(func([]byte) error {
 			if vs[i] == nil {
-				return e(util.InvalidError.Errorf("nil signed fact found"), "")
+				return util.InvalidError.Errorf("nil signed fact found")
 			}
 
 			if err := vs[i].IsValid(networkID); err != nil {
-				return e(err, "")
+				return err
 			}
 
 			return isValidSignedFactInVoteproof(vp, vs[i])
@@ -89,11 +113,11 @@ func isValidVoteproof(vp Voteproof, networkID NetworkID) error {
 	}
 
 	if majority != nil && !foundMajority {
-		return e(util.InvalidError.Errorf("majoirty not found in signed facts"), "")
+		return util.InvalidError.Errorf("majoirty not found in signed facts")
 	}
 
 	if err := util.CheckIsValid(networkID, false, bs...); err != nil {
-		return e(err, "invalid signed facts")
+		return util.InvalidError.Wrapf(err, "invalid signed facts")
 	}
 
 	return nil

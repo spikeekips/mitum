@@ -40,7 +40,7 @@ func (sf baseBallotSignedFact) Fact() base.Fact {
 	return sf.fact
 }
 
-func (sf baseBallotSignedFact) IsValid(networkID []byte) error {
+func (baseBallotSignedFact) IsValid(networkID []byte) error {
 	return nil
 }
 
@@ -67,7 +67,8 @@ type INITBallotSignedFact struct {
 	baseBallotSignedFact
 }
 
-func NewINITBallotSignedFact(node base.Address, fact base.INITBallotFact) INITBallotSignedFact { // BLOCK use INITBallotFact instead of base.INITBallotFact
+func NewINITBallotSignedFact(node base.Address, fact base.INITBallotFact) INITBallotSignedFact {
+	// BLOCK use INITBallotFact instead of base.INITBallotFact
 	return INITBallotSignedFact{
 		baseBallotSignedFact: newBaseBallotSignedFact(INITBallotSignedFactHint, node, fact),
 	}

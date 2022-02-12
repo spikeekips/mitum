@@ -122,7 +122,7 @@ func (box *Ballotbox) vote(bl base.Ballot) (func() base.Voteproof, error) {
 	case err != nil:
 		return nil, e(err, "")
 	case validated:
-		if ok, found := digVoteproofFromBallot(bl.Voteproof(), box.lastStagePoint(), box.threshold); ok && found {
+		if ok, found := isNewVoteproof(bl.Voteproof(), box.lastStagePoint(), box.threshold); ok && found {
 			vp = bl.Voteproof()
 		}
 	}
@@ -411,7 +411,7 @@ func (vr *voterecords) count(lastStagePoint base.StagePoint) []base.Voteproof {
 			vr.voted[bl.SignedFact().Node().String()] = bl
 
 			if !vpchecked {
-				ok, found := digVoteproofFromBallot(bl.Voteproof(), lastStagePoint, vr.threshold)
+				ok, found := isNewVoteproof(bl.Voteproof(), lastStagePoint, vr.threshold)
 				if ok && found {
 					digged = bl.Voteproof()
 				}
@@ -428,14 +428,14 @@ func (vr *voterecords) count(lastStagePoint base.StagePoint) []base.Voteproof {
 		vps = append(vps, digged)
 	}
 
-	if vp := vr.countFromBallots(lastStagePoint); vp != nil {
+	if vp := vr.countFromBallots(); vp != nil {
 		vps = append(vps, vp)
 	}
 
 	return vps
 }
 
-func (vr *voterecords) countFromBallots(lastStagePoint base.StagePoint) base.Voteproof {
+func (vr *voterecords) countFromBallots() base.Voteproof {
 	// NOTE if finished, return nil
 	switch {
 	case vr.f:
@@ -487,24 +487,28 @@ func (vr *voterecords) countFromBallots(lastStagePoint base.StagePoint) base.Vot
 	return vr.newVoteproof(result, vr.sfs, majority)
 }
 
-func (vr *voterecords) newVoteproof(result base.VoteResult, sfs []base.BallotSignedFact, majority base.BallotFact) base.Voteproof {
+func (vr *voterecords) newVoteproof(
+	result base.VoteResult,
+	sfs []base.BallotSignedFact,
+	majority base.BallotFact,
+) base.Voteproof {
 	switch vr.stagepoint.Stage() {
 	case base.StageINIT:
 		vp := NewINITVoteproof(vr.stagepoint.Point)
-		vp.SetResult(result)
-		vp.SetSignedFacts(sfs)
-		vp.SetMajority(majority)
-		vp.SetThreshold(vr.threshold)
-		vp.finish()
+		_ = vp.SetResult(result)
+		_ = vp.SetSignedFacts(sfs)
+		_ = vp.SetMajority(majority)
+		_ = vp.SetThreshold(vr.threshold)
+		_ = vp.finish()
 
 		return vp
 	case base.StageACCEPT:
 		vp := NewACCEPTVoteproof(vr.stagepoint.Point)
-		vp.SetResult(result)
-		vp.SetSignedFacts(sfs)
-		vp.SetMajority(majority)
-		vp.SetThreshold(vr.threshold)
-		vp.finish()
+		_ = vp.SetResult(result)
+		_ = vp.SetSignedFacts(sfs)
+		_ = vp.SetMajority(majority)
+		_ = vp.SetThreshold(vr.threshold)
+		_ = vp.finish()
 
 		return vp
 	default:
@@ -537,11 +541,11 @@ var voterecordsPoolPut = func(vr *voterecords) {
 	voterecordsPool.Put(vr)
 }
 
-func digVoteproofFromBallot(
+func isNewVoteproof(
 	vp base.Voteproof,
 	lastStagePoint base.StagePoint,
 	threshold base.Threshold,
-) (bool, bool) {
+) (ok bool, found bool) {
 	return vp.Point().Compare(lastStagePoint) > 0, vp.Threshold() >= threshold
 }
 

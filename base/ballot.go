@@ -85,8 +85,8 @@ func CountBallotSignedFacts(allsfs []BallotSignedFact) (
 		return nil, nil, nil
 	}
 
-	var set []string
-	var sfs []BallotSignedFact
+	set := make([]string, len(allsfs))
+	sfs := make([]BallotSignedFact, len(allsfs))
 	m := map[string]BallotFact{}
 
 	for i := range allsfs {
@@ -97,8 +97,8 @@ func CountBallotSignedFacts(allsfs []BallotSignedFact) (
 			m[k] = sf.Fact().(BallotFact)
 		}
 
-		set = append(set, k)
-		sfs = append(sfs, sf)
+		set[i] = k
+		sfs[i] = sf
 	}
 
 	return set, sfs, m

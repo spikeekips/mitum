@@ -77,7 +77,7 @@ func (s baseStateSwitchContext) next() StateType {
 	return s.n
 }
 
-func (s baseStateSwitchContext) Error() string {
+func (baseStateSwitchContext) Error() string {
 	return ""
 }
 

@@ -3,6 +3,7 @@ package isaac
 import (
 	"reflect"
 
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
@@ -14,7 +15,7 @@ type baseStateHandler struct {
 	stt                 StateType
 	sts                 *States
 	ts                  *util.Timers // NOTE only for testing
-	switchStateFunc     func(stateSwitchContext)
+	switchStateFunc     func(stateSwitchContext) error
 	broadcastBallotFunc func(base.Ballot, bool /* tolocal */) error
 }
 
@@ -27,19 +28,19 @@ func newBaseStateHandler(state StateType) *baseStateHandler {
 	}
 }
 
-func (st *baseStateHandler) enter(stateSwitchContext) (func() error, error) {
+func (*baseStateHandler) enter(stateSwitchContext) (func() error, error) {
 	return func() error { return nil }, nil
 }
 
-func (st *baseStateHandler) exit() (func() error, error) {
+func (*baseStateHandler) exit() (func() error, error) {
 	return func() error { return nil }, nil
 }
 
-func (st *baseStateHandler) newVoteproof(base.Voteproof) error {
+func (*baseStateHandler) newVoteproof(base.Voteproof) error {
 	return nil
 }
 
-func (st *baseStateHandler) newProposal(base.ProposalFact) error {
+func (*baseStateHandler) newProposal(base.ProposalFact) error {
 	return nil
 }
 
@@ -66,19 +67,29 @@ func (st *baseStateHandler) switchState(sctx stateSwitchContext) {
 
 	nsctx := p.Elem().Interface().(stateSwitchContext)
 
-	if st.sts != nil {
-		go func() {
-			st.sts.statech <- nsctx
-		}()
+	var err error
+	if st.switchStateFunc != nil {
+		err = st.switchStateFunc(nsctx)
+	} else {
+		err = st.sts.newState(nsctx)
 	}
 
-	st.switchStateFunc(nsctx)
+	switch {
+	case err == nil:
+	case errors.Is(err, IgnoreSwithingStateError):
+	case nsctx.next() == StateBroken:
+		panic(err)
+	default:
+		go func() {
+			_ = st.sts.newState(newBrokenSwitchContext(st.stt, err))
+		}()
+	}
 }
 
 func (st *baseStateHandler) broadcastBallot(bl base.Ballot, tolocal bool) error {
-	if st.sts != nil {
-		return st.sts.broadcastBallot(bl, tolocal)
+	if st.broadcastBallotFunc != nil {
+		return st.broadcastBallotFunc(bl, tolocal)
 	}
 
-	return st.broadcastBallotFunc(bl, tolocal)
+	return st.sts.broadcastBallot(bl, tolocal)
 }

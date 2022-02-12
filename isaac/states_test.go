@@ -228,23 +228,29 @@ func (t *testStates) TestNewStateWithWrongFrom() {
 	st, _ := t.booted()
 	defer st.Stop()
 
-	joining := newDummyStateHandler(StateJoining)
+	stopped := st.handlers[StateStopped].(*dummyStateHandler)
 
 	enterch := make(chan bool, 1)
-	_ = joining.setEnter(func(stateSwitchContext) error {
+	_ = stopped.setEnter(func(stateSwitchContext) error {
 		enterch <- true
 
 		return errors.Errorf("something wrong in joining")
 	}, nil)
-	_ = st.setHandler(joining)
 
 	t.Equal(StateBooting, st.current().state())
 
+	joining := newDummyStateHandler(StateJoining)
+	_ = st.setHandler(joining)
+
 	sctx := newDummySwitchContext(StateJoining, StateStopped, nil)
 	err := st.newState(sctx)
-	t.Error(err)
-	t.True(errors.Is(err, IgnoreSwithingStateError))
-	t.Contains(err.Error(), "from not matched")
+	t.NoError(err)
+
+	select {
+	case <-time.After(time.Second):
+	case <-enterch:
+		t.NoError(errors.Errorf("stopped should not be entered"))
+	}
 }
 
 func (t *testStates) TestNewStateWithWrongNext() {
@@ -256,7 +262,6 @@ func (t *testStates) TestNewStateWithWrongNext() {
 	sctx := newDummySwitchContext(st.current().state(), StateType(util.UUID().String()), nil)
 	err := st.newState(sctx)
 	t.Error(err)
-	t.True(errors.Is(err, IgnoreSwithingStateError))
 	t.Contains(err.Error(), "unknown next state")
 }
 
@@ -377,9 +382,7 @@ func (t *testStates) TestSameCurrentWithNext() {
 
 	sctx := newDummySwitchContext(st.current().state(), StateBooting, vp)
 	err := st.newState(sctx)
-	t.Error(err)
-	t.True(errors.Is(err, IgnoreSwithingStateError))
-	t.Contains(err.Error(), "same next state")
+	t.NoError(err)
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -395,22 +398,14 @@ func (t *testStates) TestSameCurrentWithNextWithoutVoteproof() {
 	booting := st.handlers[StateBooting].(*dummyStateHandler)
 
 	reenterch := make(chan bool, 1)
-	voteproofch := make(chan base.Voteproof, 1)
 	_ = booting.setEnter(func(stateSwitchContext) error {
 		reenterch <- true
 
 		return nil
-	}, nil).setNewVoteproof(func(vp base.Voteproof) error {
-		voteproofch <- vp
-
-		return nil
-	})
+	}, nil)
 
 	sctx := newDummySwitchContext(st.current().state(), StateBooting, nil)
-	err := st.newState(sctx)
-	t.Error(err)
-	t.True(errors.Is(err, IgnoreSwithingStateError))
-	t.Contains(err.Error(), "same next state")
+	t.NoError(st.newState(sctx))
 
 	select {
 	case <-time.After(time.Second * 2):

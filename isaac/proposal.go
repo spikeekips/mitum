@@ -101,6 +101,7 @@ func (pps *proposalProcessors) process(
 
 		if err := p.cancel(); err != nil {
 			l.Debug().
+				Err(err).
 				Stringer("previous_processor", p.proposal().Hash()).
 				Msg("failed to cancel previous running processor")
 
@@ -108,7 +109,7 @@ func (pps *proposalProcessors) process(
 		}
 	}
 
-	// NOTE fetchs proposal fact
+	// NOTE fetch proposal fact
 	fact, err := pps.fetchFact(ctx, facthash)
 	switch {
 	case err != nil:
@@ -208,7 +209,7 @@ func (pps *proposalProcessors) fetchFact(ctx context.Context, facthash util.Hash
 	return fact, err
 }
 
-func (pps *proposalProcessors) runProcessor(
+func (*proposalProcessors) runProcessor(
 	ctx context.Context,
 	p proposalProcessor,
 	ch chan<- proposalProcessResult,

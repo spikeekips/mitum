@@ -17,7 +17,7 @@ func newSyncingSwitchContext(from StateType, height base.Height) syncingSwitchCo
 	}
 }
 
-func (s syncingSwitchContext) Error() string {
+func (syncingSwitchContext) Error() string {
 	return ""
 }
 
