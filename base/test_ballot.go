@@ -73,6 +73,5 @@ func CompareBallot(t *assert.Assertions, a, b Ballot) {
 	t.Equal(a.Point(), b.Point())
 
 	CompareBallotSignedFact(t, a.SignedFact(), b.SignedFact())
-	CompareVoteproof(t, a.INITVoteproof(), b.INITVoteproof())
-	CompareVoteproof(t, a.ACCEPTVoteproof(), b.ACCEPTVoteproof())
+	CompareVoteproof(t, a.Voteproof(), b.Voteproof())
 }

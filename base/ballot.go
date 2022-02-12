@@ -24,8 +24,7 @@ type Ballot interface {
 	SealBody
 	Point() StagePoint
 	SignedFact() BallotSignedFact
-	INITVoteproof() INITVoteproof
-	ACCEPTVoteproof() ACCEPTVoteproof
+	Voteproof() Voteproof
 }
 
 type INITBallotFact interface {

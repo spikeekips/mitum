@@ -153,7 +153,7 @@ func (pps *proposalProcessors) save(ctx context.Context, facthash util.Hash, avp
 			case err == nil:
 				return false, nil
 			case errors.Is(err, context.Canceled):
-				return false, nil
+				return false, NotProposalProcessorProcessedError.Call()
 			case errors.Is(err, RetryProposalProcessorError):
 				pps.Log().Debug().Msg("failed to save proposal; will retry")
 
@@ -241,8 +241,6 @@ func (pps *proposalProcessors) runProcessor(
 	)
 
 	ch <- r
-
-	return
 }
 
 func (pps *proposalProcessors) cancel(facthash util.Hash) error {
@@ -258,6 +256,24 @@ func (pps *proposalProcessors) cancel(facthash util.Hash) error {
 		return e(nil, "processor not found")
 	}
 
+	if err := pps.p.cancel(); err != nil {
+		return e(err, "")
+	}
+
+	pps.p = nil
+
+	return nil
+}
+
+func (pps *proposalProcessors) close() error {
+	pps.Lock()
+	defer pps.Unlock()
+
+	if pps.p == nil {
+		return nil
+	}
+
+	e := util.StringErrorFunc("failed to close proposal processors")
 	if err := pps.p.cancel(); err != nil {
 		return e(err, "")
 	}

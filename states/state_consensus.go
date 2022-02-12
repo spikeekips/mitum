@@ -70,30 +70,27 @@ func (st *ConsensusHandler) enter(i stateSwitchContext) (func() error, error) {
 	switch j, ok := i.(consensusSwitchContext); {
 	case !ok:
 		return nil, e(nil, "invalid stateSwitchContext, not for consensus state; %T", i)
-	case j.avp == nil:
-		return nil, e(nil, "invalid stateSwitchContext, empty accept voteproof in stateSwitchContext")
 	case j.ivp == nil:
 		return nil, e(nil, "invalid stateSwitchContext, empty init voteproof in stateSwitchContext")
 	default:
-		if err := isValidPairedACCEPTAndINITVoteproof(j.avp, j.ivp); err != nil {
-			return nil, e(err, "")
-		}
-
-		// NOTE check avp and ivp
-		_ = st.avp.SetValue(j.avp)
 		_ = st.ivp.SetValue(j.ivp)
 
 		sctx = j
 	}
 
 	return func() error {
-		go st.processProposal(sctx.avp, sctx.ivp)
+		go st.processProposal(sctx.ivp)
 
 		return nil
 	}, nil
 }
 
 func (st *ConsensusHandler) exit() (func() error, error) {
+	e := util.StringErrorFunc("failed to exit from consensus state")
+	if err := st.pps.close(); err != nil {
+		return nil, e(err, "failed to close proposal processors")
+	}
+
 	// NOTE stop timers
 	return func() error {
 		e := util.StringErrorFunc("failed to exit from consensus handler")
@@ -142,12 +139,12 @@ func (st *ConsensusHandler) newProposal(base.ProposalFact) error {
 	return nil
 }
 
-func (st *ConsensusHandler) processProposal(avp base.ACCEPTVoteproof, ivp base.INITVoteproof) {
+func (st *ConsensusHandler) processProposal(ivp base.INITVoteproof) {
 	facthash := ivp.BallotMajority().Proposal()
 	l := st.Log().With().Stringer("fact", facthash).Logger()
 	l.Debug().Msg("tyring to process proposal")
 
-	if err := st.processProposalInternal(avp, ivp); err != nil {
+	if err := st.processProposalInternal(ivp); err != nil {
 		l.Error().Err(err).Msg("failed to process proposal; moves to broken state")
 
 		go st.switchState(newBrokenSwitchContext(StateConsensus, err))
@@ -157,8 +154,11 @@ func (st *ConsensusHandler) processProposal(avp base.ACCEPTVoteproof, ivp base.I
 
 	l.Debug().Msg("proposal processed")
 
-	eavp := st.lastACCEPTVoteproof() // NOTE check last accept voteproof is the execpted
-	if eavp.Point().Point != ivp.Point().Point {
+	eavp := st.lastACCEPTVoteproof()
+	switch { // NOTE check last accept voteproof is the execpted
+	case eavp == nil:
+		return
+	case eavp.Point().Point != ivp.Point().Point:
 		return
 	}
 
@@ -175,7 +175,7 @@ func (st *ConsensusHandler) processProposal(avp base.ACCEPTVoteproof, ivp base.I
 	}
 }
 
-func (st *ConsensusHandler) processProposalInternal(avp base.ACCEPTVoteproof, ivp base.INITVoteproof) error {
+func (st *ConsensusHandler) processProposalInternal(ivp base.INITVoteproof) error {
 	e := util.StringErrorFunc("failed to process proposal")
 
 	facthash := ivp.BallotMajority().Proposal()
@@ -207,7 +207,7 @@ func (st *ConsensusHandler) processProposalInternal(avp base.ACCEPTVoteproof, iv
 			return e(err, "")
 		}
 
-		bl := NewACCEPTBallot(ivp, avp, signedFact)
+		bl := NewACCEPTBallot(ivp, signedFact)
 		if err := st.broadcastBallot(bl, true); err != nil {
 			return e(err, "failed to broadcast accept ballot")
 		}
@@ -237,9 +237,13 @@ func (st *ConsensusHandler) newACCEPTVoteproof(avp base.ACCEPTVoteproof) error {
 	case c > 0:
 		l.Debug().Dict("init_voteproof", base.VoteproofLog(ivp)).Msg("higher voteproof received; moves to sync")
 
+		st.avp.SetValue(avp)
+
 		return newSyncingSwitchContext(StateConsensus, avp.Point().Height())
 	default:
 		l.Debug().Dict("init_voteproof", base.VoteproofLog(ivp)).Msg("expected new accept voteproof received")
+
+		st.avp.SetValue(avp)
 	}
 
 	if avp.Result() == base.VoteResultDraw { // NOTE draw, starts next round
@@ -283,43 +287,12 @@ func (st *ConsensusHandler) nextBlock(avp base.ACCEPTVoteproof, ivp base.INITVot
 
 type consensusSwitchContext struct {
 	baseStateSwitchContext
-	avp base.ACCEPTVoteproof
 	ivp base.INITVoteproof
 }
 
-func newConsensusSwitchContext(from StateType, avp base.ACCEPTVoteproof, ivp base.INITVoteproof) consensusSwitchContext {
+func newConsensusSwitchContext(from StateType, ivp base.INITVoteproof) consensusSwitchContext {
 	return consensusSwitchContext{
 		baseStateSwitchContext: newBaseStateSwitchContext(from, StateConsensus),
-		avp:                    avp,
 		ivp:                    ivp,
 	}
-}
-
-func isValidPairedACCEPTAndINITVoteproof(avp base.ACCEPTVoteproof, ivp base.INITVoteproof) error {
-	e := util.StringErrorFunc("invalid paired accept and init voteproof")
-
-	ap := avp.Point().Point
-	ip := ivp.Point().Point
-
-	switch {
-	case avp.Result() != base.VoteResultMajority:
-		return e(nil, "wrong result of accept voteproof, %q", avp.Result())
-	case ivp.Result() != base.VoteResultMajority:
-		return e(nil, "wrong result of init voteproof, %q", ivp.Result())
-	case avp.Majority() == nil:
-		return e(nil, "wrong majority of accept voteproof")
-	case ivp.Majority() == nil:
-		return e(nil, "wrong majority of init voteproof")
-	case ip.Height() != ap.Height()+1:
-		return e(nil, "wrong heights, init=%d == accept=%d + 1", ip.Height(), ap.Height())
-	}
-
-	newblock := avp.Majority().(base.ACCEPTBallotFact).NewBlock()
-	prevblock := ivp.Majority().(base.INITBallotFact).PreviousBlock()
-
-	if !prevblock.Equal(newblock) {
-		return e(nil, "wrong previous block hash, init=%q == accept=%q", prevblock, newblock)
-	}
-
-	return nil
 }

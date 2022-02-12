@@ -14,16 +14,14 @@ var (
 
 type baseBallot struct {
 	hint.BaseHinter
-	ivp        base.INITVoteproof
-	avp        base.ACCEPTVoteproof
+	vp         base.Voteproof
 	signedFact base.BallotSignedFact
 }
 
-func newBaseBallot(ht hint.Hint, ivp base.INITVoteproof, avp base.ACCEPTVoteproof, signedFact base.BallotSignedFact) baseBallot {
+func newBaseBallot(ht hint.Hint, vp base.Voteproof, signedFact base.BallotSignedFact) baseBallot {
 	return baseBallot{
 		BaseHinter: hint.NewBaseHinter(ht),
-		ivp:        ivp,
-		avp:        avp,
+		vp:         vp,
 		signedFact: signedFact,
 	}
 }
@@ -41,12 +39,8 @@ func (bl baseBallot) SignedFact() base.BallotSignedFact {
 	return bl.signedFact
 }
 
-func (bl baseBallot) INITVoteproof() base.INITVoteproof {
-	return bl.ivp
-}
-
-func (bl baseBallot) ACCEPTVoteproof() base.ACCEPTVoteproof {
-	return bl.avp
+func (bl baseBallot) Voteproof() base.Voteproof {
+	return bl.vp
 }
 
 func (bl baseBallot) IsValid(networkID []byte) error {
@@ -61,18 +55,11 @@ func (bl baseBallot) HashBytes() []byte {
 	return util.ConcatByters(
 		bl.Hint(),
 		util.DummyByter(func() []byte {
-			if bl.ivp == nil {
+			if bl.vp == nil {
 				return nil
 			}
 
-			return bl.ivp.HashBytes()
-		}),
-		util.DummyByter(func() []byte {
-			if bl.avp == nil {
-				return nil
-			}
-
-			return bl.avp.HashBytes()
+			return bl.vp.HashBytes()
 		}),
 		util.DummyByter(func() []byte {
 			if bl.signedFact == nil {
@@ -119,12 +106,11 @@ type INITBallot struct {
 }
 
 func NewINITBallot(
-	ivp base.INITVoteproof,
-	avp base.ACCEPTVoteproof,
+	vp base.Voteproof,
 	signedFact INITBallotSignedFact,
 ) INITBallot {
 	return INITBallot{
-		baseBallot: newBaseBallot(INITBallotHint, ivp, avp, signedFact),
+		baseBallot: newBaseBallot(INITBallotHint, vp, signedFact),
 	}
 }
 
@@ -154,7 +140,7 @@ type Proposal struct {
 
 func NewProposal(signedFact ProposalSignedFact) Proposal {
 	return Proposal{
-		baseBallot: newBaseBallot(ProposalHint, nil, nil, signedFact),
+		baseBallot: newBaseBallot(ProposalHint, nil, signedFact),
 	}
 }
 
@@ -184,11 +170,10 @@ type ACCEPTBallot struct {
 
 func NewACCEPTBallot(
 	ivp base.INITVoteproof,
-	avp base.ACCEPTVoteproof,
 	signedFact ACCEPTBallotSignedFact,
 ) ACCEPTBallot {
 	return ACCEPTBallot{
-		baseBallot: newBaseBallot(ACCEPTBallotHint, ivp, avp, signedFact),
+		baseBallot: newBaseBallot(ACCEPTBallotHint, ivp, signedFact),
 	}
 }
 

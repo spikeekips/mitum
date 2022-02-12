@@ -8,19 +8,9 @@ func IsValidBallot(bl Ballot, networkID []byte) error {
 	e := util.StringErrorFunc("invalid Ballot")
 
 	if err := util.CheckIsValid(networkID, false,
-		bl.ACCEPTVoteproof(),
+		bl.Voteproof(),
 		bl.SignedFact(),
 	); err != nil {
-		return e(err, "")
-	}
-
-	if bl.INITVoteproof() != nil {
-		if err := bl.INITVoteproof().IsValid(networkID); err != nil {
-			return e(err, "invalid init voteproof")
-		}
-	}
-
-	if err := checkACCEPTVoteproofInBallot(bl, bl.ACCEPTVoteproof()); err != nil {
 		return e(err, "")
 	}
 
@@ -37,12 +27,15 @@ func IsValidINITBallot(bl INITBallot, networkID []byte) error {
 		return e(util.InvalidError.Errorf("INITBallotSignedFact expected, not %T", bl.SignedFact()), "")
 	}
 
-	if err := checkINITVoteproofInINITBallot(bl, bl.INITVoteproof()); err != nil {
-		return e(err, "")
-	}
-
-	if err := checkACCEPTVoteproofInINITBallot(bl, bl.ACCEPTVoteproof()); err != nil {
-		return e(err, "")
+	switch bl.Voteproof().Point().Stage() {
+	case StageINIT:
+		if err := checkINITVoteproofInINITBallot(bl, bl.Voteproof().(INITVoteproof)); err != nil {
+			return e(err, "")
+		}
+	case StageACCEPT:
+		if err := checkACCEPTVoteproofInINITBallot(bl, bl.Voteproof().(ACCEPTVoteproof)); err != nil {
+			return e(err, "")
+		}
 	}
 
 	return nil
@@ -50,64 +43,15 @@ func IsValidINITBallot(bl INITBallot, networkID []byte) error {
 
 func checkINITVoteproofInINITBallot(bl INITBallot, vp INITVoteproof) error {
 	e := util.StringErrorFunc("invalid init voteproof in init ballot")
+
 	switch {
 	case bl.Point().Round() == 0:
-		if vp != nil {
-			return e(util.InvalidError.Errorf("init voteproof should be nil in 0 round init ballot"), "")
-		}
-
-		return nil
-	case vp == nil:
-		return e(util.InvalidError.Errorf("init voteproof should be not nil in none 0 round init ballot"), "")
-	}
-
-	blp := bl.Point()
-	vpp := vp.Point()
-	switch {
-	case blp.Height() != vpp.Height():
+		return e(util.InvalidError.Errorf("init voteproof should not be in 0 round init ballot"), "")
+	case vp.Point().Point.NextRound() != bl.Point().Point:
 		return e(util.InvalidError.Errorf(
-			"wrong height of init voteproof; ballot(%d) == voteproof(%d)", blp.Height(), vpp.Height()), "")
-	case blp.Round() != vpp.Round()+1:
-		return e(util.InvalidError.Errorf(
-			"wrong round of init voteproof; ballot(%d) == voteproof(%d) + 1", blp.Round(), vpp.Round()), "")
-	}
-
-	return nil
-}
-
-func checkINITVoteproofInNotINITBallot(bl Ballot, vp INITVoteproof) error {
-	e := util.StringErrorFunc("invalid init voteproof in not init ballot")
-	if vp == nil {
-		return e(util.InvalidError.Errorf("empty init voteproof"), "")
-	}
-
-	blp := bl.Point()
-	vpp := vp.Point()
-	switch {
-	case blp.Height() != vpp.Height():
-		return e(util.InvalidError.Errorf(
-			"wrong height of init voteproof; ballot(%d) == voteproof(%d)", blp.Height(), vpp.Height()), "")
-	case blp.Round() != vpp.Round():
-		return e(util.InvalidError.Errorf(
-			"wrong round of init voteproof; ballot(%d) == voteproof(%d)", blp.Round(), vpp.Round()), "")
-	}
-
-	return nil
-}
-
-func checkACCEPTVoteproofInBallot(bl Ballot, vp ACCEPTVoteproof) error {
-	e := util.StringErrorFunc("invalid init voteproof in ballot")
-
-	if vp.Result() != VoteResultMajority {
-		return e(util.InvalidError.Errorf("accept voteproof not majority result, %q", vp.Result()), "")
-	}
-
-	blp := bl.Point()
-	vpp := vp.Point()
-	switch {
-	case blp.Height() != vpp.Height()+1:
-		return e(util.InvalidError.Errorf(
-			"wrong height of accept voteproof; ballot(%d) == voteproof(%d) + 1", blp.Height(), vpp.Height()), "")
+			"wrong point of init voteproof; ballot(%q) == voteproof(%q)", bl.Point(), vp.Point()), "")
+	case vp.Result() != VoteResultDraw:
+		return e(util.InvalidError.Errorf("wrong vote result of init voteproof; %q", vp.Result()), "")
 	}
 
 	return nil
@@ -116,12 +60,37 @@ func checkACCEPTVoteproofInBallot(bl Ballot, vp ACCEPTVoteproof) error {
 func checkACCEPTVoteproofInINITBallot(bl INITBallot, vp ACCEPTVoteproof) error {
 	e := util.StringErrorFunc("invalid init voteproof in init ballot")
 
-	fact := bl.BallotSignedFact().BallotFact()
-	if !fact.PreviousBlock().Equal(vp.BallotMajority().NewBlock()) {
-		return e(util.InvalidError.Errorf("block does not match, ballot(%q) != voteproof(%q)",
-			fact.PreviousBlock(),
-			vp.BallotMajority().NewBlock(),
-		), "")
+	switch {
+	case vp.Result() == VoteResultMajority:
+		fact := bl.BallotSignedFact().BallotFact()
+		if !fact.PreviousBlock().Equal(vp.BallotMajority().NewBlock()) {
+			return e(util.InvalidError.Errorf("block does not match, ballot(%q) != voteproof(%q)",
+				fact.PreviousBlock(),
+				vp.BallotMajority().NewBlock(),
+			), "")
+		}
+	default:
+		if vp.Point().Point.NextRound() != bl.Point().Point {
+			return e(util.InvalidError.Errorf(
+				"wrong point of accept voteproof; ballot(%q) == voteproof(%q)", bl.Point(), vp.Point()), "")
+		}
+	}
+
+	return nil
+}
+
+func checkVoteproofInACCEPTBallot(bl Ballot, vp INITVoteproof) error {
+	e := util.StringErrorFunc("invalid init voteproof in accept ballot")
+	if vp == nil {
+		return e(util.InvalidError.Errorf("empty voteproof"), "")
+	}
+
+	switch {
+	case bl.Point().Point != vp.Point().Point:
+		return e(util.InvalidError.Errorf(
+			"wrong point of init voteproof; ballot(%q) == voteproof(%q)", bl.Point(), vp.Point()), "")
+	case vp.Result() != VoteResultMajority:
+		return e(util.InvalidError.Errorf("init voteproof not majority result, %q", vp.Result()), "")
 	}
 
 	return nil
@@ -129,9 +98,6 @@ func checkACCEPTVoteproofInINITBallot(bl INITBallot, vp ACCEPTVoteproof) error {
 
 func IsValidProposal(bl Proposal, networkID []byte) error {
 	e := util.StringErrorFunc("invalid Proposal")
-	if bl.INITVoteproof() != nil || bl.ACCEPTVoteproof() != nil {
-		return e(util.InvalidError.Errorf("init and accept voteproof should be empty"), "")
-	}
 
 	if err := util.CheckIsValid(networkID, false,
 		bl.SignedFact(),
@@ -156,7 +122,12 @@ func IsValidACCEPTBallot(bl ACCEPTBallot, networkID []byte) error {
 		return util.InvalidError.Errorf("ACCEPTBallotSignedFact expected, not %T", bl.SignedFact())
 	}
 
-	if err := checkINITVoteproofInNotINITBallot(bl, bl.INITVoteproof()); err != nil {
+	ivp, ok := bl.Voteproof().(INITVoteproof)
+	if !ok {
+		return e(util.InvalidError.Errorf("not init voteproof in accept ballot, %T", bl.Voteproof()), "")
+	}
+
+	if err := checkVoteproofInACCEPTBallot(bl, ivp); err != nil {
 		return e(err, "")
 	}
 

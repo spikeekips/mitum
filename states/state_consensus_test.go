@@ -92,9 +92,9 @@ func (t *testConsensusHandler) TestNew() {
 	}, false))
 
 	point := base.NewPoint(base.Height(33), base.Round(0))
-	avp, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, nodes)
+	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, nodes)
 
-	sctx := newConsensusSwitchContext(StateJoining, avp, ivp)
+	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
@@ -121,23 +121,8 @@ func (t *testConsensusHandler) TestInvalidVoteproofs() {
 		t.NoError(deferred())
 	}()
 
-	t.Run("empty accept voteproof", func() {
-		point := base.NewPoint(base.Height(33), base.Round(0))
-		_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, nodes)
-
-		sctx := newConsensusSwitchContext(StateJoining, nil, ivp)
-
-		deferred, err := st.enter(sctx)
-		t.Nil(deferred)
-		t.Error(err)
-		t.Contains(err.Error(), "empty accept voteproof")
-	})
-
 	t.Run("empty init voteproof", func() {
-		point := base.NewPoint(base.Height(33), base.Round(0))
-		avp, _ := t.voteproofsPair(point.Decrease(), point, nil, nil, nodes)
-
-		sctx := newConsensusSwitchContext(StateJoining, avp, nil)
+		sctx := newConsensusSwitchContext(StateJoining, nil)
 
 		deferred, err := st.enter(sctx)
 		t.Nil(deferred)
@@ -145,97 +130,88 @@ func (t *testConsensusHandler) TestInvalidVoteproofs() {
 		t.Contains(err.Error(), "empty init voteproof")
 	})
 
-	t.Run("wrong prev block hash", func() {
-		pr := valuehash.RandomSHA256()
-		newblock := valuehash.RandomSHA256()
-
-		afact := t.newACCEPTBallotFact(base.NewPoint(base.Height(33), base.Round(0)), pr, newblock)
-		avp, err := t.newACCEPTVoteproof(afact, t.local, nodes)
-		t.NoError(err)
-
-		ifact := t.newINITBallotFact(afact.Point().Point.Next(), valuehash.RandomSHA256(), valuehash.RandomSHA256())
-		ivp, err := t.newINITVoteproof(ifact, t.local, nodes)
-		t.NoError(err)
-
-		sctx := newConsensusSwitchContext(StateJoining, avp, ivp)
-
-		deferred, err := st.enter(sctx)
-		t.Nil(deferred)
-		t.Error(err)
-		t.Contains(err.Error(), "wrong previous block hash")
-	})
-
-	t.Run("wrong result of accept voteproof", func() {
+	t.Run("draw result of init voteproof", func() {
 		point := base.NewPoint(base.Height(33), base.Round(0))
-		avp, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, nodes)
-		avp.SetResult(base.VoteResultDraw)
-
-		sctx := newConsensusSwitchContext(StateJoining, avp, ivp)
-
-		deferred, err := st.enter(sctx)
-		t.Nil(deferred)
-		t.Error(err)
-		t.Contains(err.Error(), "wrong result of accept voteproof")
-	})
-
-	t.Run("wrong result of init voteproof", func() {
-		point := base.NewPoint(base.Height(33), base.Round(0))
-		avp, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, nodes)
+		_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, nodes)
 		ivp.SetResult(base.VoteResultDraw)
 
-		sctx := newConsensusSwitchContext(StateJoining, avp, ivp)
+		sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 		deferred, err := st.enter(sctx)
-		t.Nil(deferred)
-		t.Error(err)
-		t.Contains(err.Error(), "wrong result of init voteproof")
+		t.NotNil(deferred)
+		t.NoError(err)
 	})
 
-	t.Run("empty majority of accept voteproof", func() {
+	t.Run("empty majority of init voteproof", func() {
 		point := base.NewPoint(base.Height(33), base.Round(0))
-		avp, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, nodes)
-		avp.SetMajority(nil)
-
-		sctx := newConsensusSwitchContext(StateJoining, avp, ivp)
-
-		deferred, err := st.enter(sctx)
-		t.Nil(deferred)
-		t.Error(err)
-		t.Contains(err.Error(), "wrong majority of accept voteproof")
-	})
-
-	t.Run("wrong result of init voteproof", func() {
-		point := base.NewPoint(base.Height(33), base.Round(0))
-		avp, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, nodes)
+		_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, nodes)
 		ivp.SetMajority(nil)
 
-		sctx := newConsensusSwitchContext(StateJoining, avp, ivp)
+		sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 		deferred, err := st.enter(sctx)
-		t.Nil(deferred)
-		t.Error(err)
-		t.Contains(err.Error(), "wrong majority of init voteproof")
-	})
-
-	t.Run("heights mismatch", func() {
-		pr := valuehash.RandomSHA256()
-		newblock := valuehash.RandomSHA256()
-
-		afact := t.newACCEPTBallotFact(base.NewPoint(base.Height(33), base.Round(0)), pr, newblock)
-		avp, err := t.newACCEPTVoteproof(afact, t.local, nodes)
+		t.NotNil(deferred)
 		t.NoError(err)
-
-		ifact := t.newINITBallotFact(afact.Point().Point, valuehash.RandomSHA256(), valuehash.RandomSHA256())
-		ivp, err := t.newINITVoteproof(ifact, t.local, nodes)
-		t.NoError(err)
-
-		sctx := newConsensusSwitchContext(StateJoining, avp, ivp)
-
-		deferred, err := st.enter(sctx)
-		t.Nil(deferred)
-		t.Error(err)
-		t.Contains(err.Error(), "wrong heights")
 	})
+}
+
+func (t *testConsensusHandler) TestExit() {
+	nodes := t.nodes(3)
+
+	point := base.NewPoint(base.Height(33), base.Round(44))
+	fact := t.newProposalFact(point, nil)
+
+	manifest := base.NewDummyManifest(fact.Point().Height(), valuehash.RandomSHA256())
+	pp := NewDummyProposalProcessor(manifest)
+
+	st, closefunc := t.newState()
+	defer closefunc()
+
+	st.pps.makenew = pp.make
+	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
+		if facthash.Equal(fact.Hash()) {
+			return fact, nil
+		}
+
+		return nil, util.NotFoundError.Errorf("fact not found")
+	}
+
+	ballotch := make(chan base.Ballot, 1)
+	st.broadcastBallotFunc = func(bl base.Ballot, tolocal bool) error {
+		ballotch <- bl
+
+		return nil
+	}
+
+	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, fact.Hash(), nodes)
+	sctx := newConsensusSwitchContext(StateJoining, ivp)
+
+	deferredenter, err := st.enter(sctx)
+	t.NoError(err)
+	t.NoError(deferredenter())
+
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("timeout to wait accept ballot"))
+
+		return
+	case bl := <-ballotch:
+		t.NoError(bl.IsValid(t.policy.NetworkID()))
+
+		abl, ok := bl.(base.ACCEPTBallot)
+		t.True(ok)
+
+		t.Equal(ivp.Point().Point, abl.Point().Point)
+		t.True(ivp.BallotMajority().Proposal().Equal(abl.BallotSignedFact().BallotFact().Proposal()))
+	}
+
+	t.NotNil(st.pps.p)
+
+	deferredexit, err := st.exit()
+	t.NoError(err)
+	t.NotNil(deferredexit)
+
+	t.Nil(st.pps.p)
 }
 
 func (t *testConsensusHandler) TestProcessingProposalAfterEntered() {
@@ -266,8 +242,8 @@ func (t *testConsensusHandler) TestProcessingProposalAfterEntered() {
 		return nil
 	}
 
-	avp, ivp := t.voteproofsPair(point.Decrease(), point, nil, fact.Hash(), nodes)
-	sctx := newConsensusSwitchContext(StateJoining, avp, ivp)
+	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, fact.Hash(), nodes)
+	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
@@ -311,8 +287,8 @@ func (t *testConsensusHandler) TestFailedProcessingProposalFetchFactFailed() {
 		sctxch <- sctx
 	}
 
-	avp, ivp := t.voteproofsPair(point.Decrease(), point, nil, fact.Hash(), nodes)
-	sctx := newConsensusSwitchContext(StateJoining, avp, ivp)
+	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, fact.Hash(), nodes)
+	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
@@ -362,8 +338,8 @@ func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailed() {
 		sctxch <- sctx
 	}
 
-	avp, ivp := t.voteproofsPair(point.Decrease(), point, nil, fact.Hash(), nodes)
-	sctx := newConsensusSwitchContext(StateJoining, avp, ivp)
+	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, fact.Hash(), nodes)
+	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
@@ -422,8 +398,8 @@ func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailedRetry
 		sctxch <- sctx
 	}
 
-	avp, ivp := t.voteproofsPair(point.Decrease(), point, nil, fact.Hash(), nodes)
-	sctx := newConsensusSwitchContext(StateJoining, avp, ivp)
+	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, fact.Hash(), nodes)
+	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
@@ -458,7 +434,6 @@ func (t *testConsensusHandler) TestExpectedACCEPTVoteproof() {
 
 	st, closefunc := t.newState()
 	defer closefunc()
-	_ = st.SetLogging(logging.TestLogging)
 
 	st.pps.makenew = pp.make
 	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
@@ -475,8 +450,8 @@ func (t *testConsensusHandler) TestExpectedACCEPTVoteproof() {
 		return nil
 	}
 
-	avp, ivp := t.voteproofsPair(point.Decrease(), point, nil, fact.Hash(), nodes)
-	sctx := newConsensusSwitchContext(StateJoining, avp, ivp)
+	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, fact.Hash(), nodes)
+	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
@@ -507,6 +482,7 @@ func (t *testConsensusHandler) TestExpectedACCEPTVoteproof() {
 		return
 	case avp := <-savedch:
 		base.CompareVoteproof(t.Assert(), nextavp, avp)
+		base.CompareVoteproof(t.Assert(), avp, st.lastACCEPTVoteproof())
 	}
 }
 
