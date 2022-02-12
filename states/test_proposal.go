@@ -53,3 +53,9 @@ func (p *DummyProposalProcessor) cancel() error {
 func (p *DummyProposalProcessor) proposal() base.ProposalFact {
 	return p.fact
 }
+
+type DummyProposalSelector func(base.Point) (base.Proposal, error)
+
+func (ps DummyProposalSelector) Select(point base.Point) (base.Proposal, error) {
+	return ps(point)
+}

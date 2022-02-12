@@ -5,8 +5,3 @@ type Suffrage interface {
 	Nodes() []Address
 	Len() int
 }
-
-// ProposalSelector fetchs proposal from selected proposer
-type ProposalSelector interface {
-	Select(Point) Proposal
-}

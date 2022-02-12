@@ -27,16 +27,12 @@ func newBaseStateHandler(state StateType) *baseStateHandler {
 	}
 }
 
-func (st *baseStateHandler) state() StateType {
-	return st.stt
+func (st *baseStateHandler) enter(stateSwitchContext) (func() error, error) {
+	return func() error { return nil }, nil
 }
 
-func (st *baseStateHandler) enter(stateSwitchContext) error {
-	return nil
-}
-
-func (st *baseStateHandler) exit() error {
-	return nil
+func (st *baseStateHandler) exit() (func() error, error) {
+	return func() error { return nil }, nil
 }
 
 func (st *baseStateHandler) newVoteproof(base.Voteproof) error {
@@ -47,8 +43,8 @@ func (st *baseStateHandler) newProposal(base.ProposalFact) error {
 	return nil
 }
 
-func (st *baseStateHandler) states() *States {
-	return st.sts
+func (st *baseStateHandler) state() StateType {
+	return st.stt
 }
 
 func (st *baseStateHandler) timers() *util.Timers {
@@ -68,7 +64,7 @@ func (st *baseStateHandler) switchState(sctx stateSwitchContext) {
 		i.setFrom(st.stt)
 	}
 
-	nsctx := p.Interface().(stateSwitchContext)
+	nsctx := p.Elem().Interface().(stateSwitchContext)
 
 	if st.sts != nil {
 		go func() {

@@ -33,6 +33,10 @@ func CompareBallotSignedFact(t *assert.Assertions, a, b BallotSignedFact) {
 }
 
 func CompareBallotFact(t *assert.Assertions, a, b BallotFact) {
+	if a == nil && b == nil {
+		return
+	}
+
 	CompareFact(t, a, b)
 	t.Equal(a.Point(), b.Point())
 

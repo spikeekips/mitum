@@ -46,6 +46,11 @@ func (p *ProposalMaker) New(point base.Point) (Proposal, error) {
 	return NewProposal(signedFact), nil
 }
 
+// ProposalSelector fetchs proposal from selected proposer
+type ProposalSelector interface {
+	Select(base.Point) (base.Proposal, error)
+}
+
 type proposalProcessor interface {
 	process(context.Context) proposalProcessResult
 	save(context.Context, base.ACCEPTVoteproof) error
@@ -241,28 +246,6 @@ func (pps *proposalProcessors) runProcessor(
 	)
 
 	ch <- r
-}
-
-func (pps *proposalProcessors) cancel(facthash util.Hash) error {
-	pps.Lock()
-	defer pps.Unlock()
-
-	e := util.StringErrorFunc("failed to cancel proposal processor, %q", facthash)
-	if pps.p == nil {
-		return e(nil, "no active processor")
-	}
-
-	if !pps.p.proposal().Hash().Equal(facthash) {
-		return e(nil, "processor not found")
-	}
-
-	if err := pps.p.cancel(); err != nil {
-		return e(err, "")
-	}
-
-	pps.p = nil
-
-	return nil
 }
 
 func (pps *proposalProcessors) close() error {

@@ -19,13 +19,6 @@ func (t *baseTestStateHandler) SetupTest() {
 	t.policy.SetThreshold(base.Threshold(100))
 }
 
-func (t *baseTestStateHandler) proposalMaker(
-	local *LocalNode,
-	policy base.Policy,
-) *ProposalMaker {
-	return NewProposalMaker(local, policy)
-}
-
 func (t *baseTestStateHandler) newINITBallotFact(point base.Point, prev, pr util.Hash) INITBallotFact {
 	return NewINITBallotFact(point, prev, pr)
 }

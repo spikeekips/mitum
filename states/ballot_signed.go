@@ -67,7 +67,7 @@ type INITBallotSignedFact struct {
 	baseBallotSignedFact
 }
 
-func NewINITBallotSignedFact(node base.Address, fact base.INITBallotFact) INITBallotSignedFact {
+func NewINITBallotSignedFact(node base.Address, fact base.INITBallotFact) INITBallotSignedFact { // BLOCK use INITBallotFact instead of base.INITBallotFact
 	return INITBallotSignedFact{
 		baseBallotSignedFact: newBaseBallotSignedFact(INITBallotSignedFactHint, node, fact),
 	}
