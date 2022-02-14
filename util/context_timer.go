@@ -10,8 +10,6 @@ import (
 	"github.com/spikeekips/mitum/util/logging"
 )
 
-var ignoreError = NewError("ignore context timer error")
-
 var contextTimerPool = sync.Pool{
 	New: func() interface{} {
 		return new(ContextTimer)
@@ -129,10 +127,19 @@ end:
 		case <-ctx.Done():
 			break end
 		default:
+			c := func() bool {
+				ct.RLock()
+				defer ct.RUnlock()
+
+				return ct.interval == nil || ct.callback == nil
+			}
+			if c() {
+				break end
+			}
+
 			if err := ct.prepareCallback(ctx); err != nil {
 				switch {
 				case errors.Is(err, StopTimerError):
-				case errors.Is(err, ignoreError):
 				default:
 					ct.Log().Debug().Err(err).Msg("timer got error; timer will be stopped")
 				}
@@ -159,10 +166,6 @@ func (ct *ContextTimer) prepareCallback(ctx context.Context) error {
 	intervalfunc := ct.interval
 	callback := ct.callback
 	ct.RUnlock()
-
-	if intervalfunc == nil || callback == nil {
-		return ignoreError.Errorf("empty interval or callback")
-	}
 
 	count := ct.count()
 	interval := intervalfunc(count)

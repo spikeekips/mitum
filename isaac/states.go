@@ -36,6 +36,8 @@ func NewStates() *States {
 		cs:          nil,
 		timers: util.NewTimers([]util.TimerID{
 			timerIDBroadcastINITBallot,
+			timerIDBroadcastACCEPTBallot,
+			timerIDPrepareProposal,
 		}, false),
 	}
 
