@@ -78,12 +78,11 @@ func TestINITBallot(tt *testing.T) {
 		t.NoError(asignedFact.Sign(t.priv, t.networkID))
 
 		avp := NewACCEPTVoteproof(afact.Point().Point)
-		avp.finish()
 		avp.SetResult(base.VoteResultMajority)
 		avp.SetMajority(afact)
 		avp.SetSignedFacts([]base.BallotSignedFact{asignedFact})
-
 		avp.SetThreshold(base.Threshold(100))
+		avp.finish()
 
 		fact := NewINITBallotFact(base.NewPoint(afact.Point().Height()+1, base.Round(0)), block, valuehash.RandomSHA256())
 
@@ -131,11 +130,11 @@ func TestACCEPTBallot(tt *testing.T) {
 		t.NoError(isignedFact.Sign(t.priv, t.networkID))
 
 		ivp := NewINITVoteproof(ifact.Point().Point)
-		ivp.finish()
 		ivp.SetResult(base.VoteResultMajority)
 		ivp.SetMajority(ifact)
 		ivp.SetSignedFacts([]base.BallotSignedFact{isignedFact})
 		ivp.SetThreshold(base.Threshold(100))
+		ivp.finish()
 
 		fact := NewACCEPTBallotFact(ifact.Point().Point, valuehash.RandomSHA256(), valuehash.RandomSHA256())
 
@@ -170,10 +169,10 @@ func (t *testBaseINITBallotWithVoteproof) TestValidINITVoteproofNone0Round() {
 	t.NoError(isignedFact.Sign(t.priv, t.networkID))
 
 	ivp := NewINITVoteproof(ifact.Point().Point)
-	ivp.finish()
 	ivp.SetResult(base.VoteResultDraw)
 	ivp.SetSignedFacts([]base.BallotSignedFact{isignedFact})
 	ivp.SetThreshold(base.Threshold(100))
+	ivp.finish()
 
 	fact := NewINITBallotFact(base.NewPoint(ifact.Point().Height(), ifact.Point().Round()+1), valuehash.RandomSHA256(), valuehash.RandomSHA256())
 
@@ -196,11 +195,11 @@ func (t *testBaseINITBallotWithVoteproof) TestWrongResultINITVoteproofNone0Round
 	t.NoError(isignedFact.Sign(t.priv, t.networkID))
 
 	ivp := NewINITVoteproof(ifact.Point().Point)
-	ivp.finish()
 	ivp.SetResult(base.VoteResultMajority)
 	ivp.SetMajority(ifact)
 	ivp.SetSignedFacts([]base.BallotSignedFact{isignedFact})
 	ivp.SetThreshold(base.Threshold(100))
+	ivp.finish()
 
 	fact := NewINITBallotFact(base.NewPoint(ifact.Point().Height(), ifact.Point().Round()+1), valuehash.RandomSHA256(), valuehash.RandomSHA256())
 
@@ -225,11 +224,11 @@ func (t *testBaseINITBallotWithVoteproof) TestWrongHeightINITVoteproofNone0Round
 	t.NoError(isignedFact.Sign(t.priv, t.networkID))
 
 	ivp := NewINITVoteproof(ifact.Point().Point)
-	ivp.finish()
 	ivp.SetResult(base.VoteResultMajority)
 	ivp.SetMajority(ifact)
 	ivp.SetSignedFacts([]base.BallotSignedFact{isignedFact})
 	ivp.SetThreshold(base.Threshold(100))
+	ivp.finish()
 
 	fact := NewINITBallotFact(base.NewPoint(point.Height()+1, ifact.Point().Round()+1), valuehash.RandomSHA256(), valuehash.RandomSHA256())
 
@@ -308,11 +307,11 @@ func TestINITBallotJSON(tt *testing.T) {
 		t.NoError(asignedFact.Sign(t.priv, t.networkID))
 
 		avp := NewACCEPTVoteproof(afact.Point().Point)
-		avp.finish()
 		avp.SetResult(base.VoteResultMajority)
 		avp.SetMajority(afact)
 		avp.SetSignedFacts([]base.BallotSignedFact{asignedFact})
 		avp.SetThreshold(base.Threshold(100))
+		avp.finish()
 
 		fact := NewINITBallotFact(base.NewPoint(afact.Point().Height()+1, base.Round(0)), block, valuehash.RandomSHA256())
 
@@ -390,11 +389,11 @@ func TestACCEPTBallotJSON(tt *testing.T) {
 		t.NoError(isignedFact.Sign(t.priv, t.networkID))
 
 		ivp := NewINITVoteproof(ifact.Point().Point)
-		ivp.finish()
 		ivp.SetResult(base.VoteResultMajority)
 		ivp.SetMajority(ifact)
 		ivp.SetSignedFacts([]base.BallotSignedFact{isignedFact})
 		ivp.SetThreshold(base.Threshold(100))
+		ivp.finish()
 
 		fact := NewACCEPTBallotFact(ifact.Point().Point, valuehash.RandomSHA256(), valuehash.RandomSHA256())
 

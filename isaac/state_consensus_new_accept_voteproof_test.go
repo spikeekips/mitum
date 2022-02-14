@@ -238,6 +238,7 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestDraw() {
 	nextavp, _ := t.voteproofsPair(point, point.Next(), nil, fact.Hash(), nil, nodes)
 	nextavp.SetMajority(nil)
 	nextavp.SetResult(base.VoteResultDraw)
+	nextavp.finish()
 
 	t.NoError(st.newVoteproof(nextavp))
 	t.NotNil(st.lastACCEPTVoteproof())
@@ -307,6 +308,7 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestDrawFailedPr
 	nextavp, _ := t.voteproofsPair(point, point.Next(), nil, fact.Hash(), nil, nodes)
 	nextavp.SetMajority(nil)
 	nextavp.SetResult(base.VoteResultDraw)
+	nextavp.finish()
 
 	t.NoError(st.newVoteproof(nextavp))
 	t.NotNil(st.lastACCEPTVoteproof())
@@ -493,6 +495,7 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestHigherAndDra
 	nextavp, _ := t.voteproofsPair(point.Next(), point.Next().Next(), nil, fact.Hash(), nil, nodes)
 	nextavp.SetMajority(nil)
 	nextavp.SetResult(base.VoteResultDraw)
+	nextavp.finish()
 
 	err = st.newVoteproof(nextavp)
 	t.NotNil(st.lastACCEPTVoteproof())
@@ -558,6 +561,7 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestHigherRoundD
 	nextavp, _ := t.voteproofsPair(point.NextRound().NextRound(), point.Next(), nil, fact.Hash(), nil, nodes)
 	nextavp.SetMajority(nil)
 	nextavp.SetResult(base.VoteResultDraw)
+	nextavp.finish()
 
 	t.NoError(st.newVoteproof(nextavp))
 	t.NotNil(st.lastACCEPTVoteproof())
@@ -698,6 +702,8 @@ func (t *testNewACCEPTVoteproofOnACCEPTVoteproofConsensusHandler) TestDrawAndHig
 	avp, _ := t.voteproofsPair(point, point.Next(), nil, fact.Hash(), nil, nodes)
 	avp.SetMajority(nil)
 	avp.SetResult(base.VoteResultDraw)
+	avp.finish()
+
 	t.NoError(st.newVoteproof(avp))
 
 	t.T().Log("wait new block saved")
@@ -762,6 +768,8 @@ func (t *testNewACCEPTVoteproofOnACCEPTVoteproofConsensusHandler) TestDrawAndHig
 	avp, _ := t.voteproofsPair(point, point.Next(), nil, fact.Hash(), nil, nodes)
 	avp.SetMajority(nil)
 	avp.SetResult(base.VoteResultDraw)
+	avp.finish()
+
 	t.NoError(st.newVoteproof(avp))
 
 	t.T().Log("wait new block saved")
@@ -842,6 +850,8 @@ func (t *testNewACCEPTVoteproofOnACCEPTVoteproofConsensusHandler) TestDrawAndDra
 	avp, _ := t.voteproofsPair(point, point.Next(), nil, fact.Hash(), nil, nodes)
 	avp.SetMajority(nil)
 	avp.SetResult(base.VoteResultDraw)
+	avp.finish()
+
 	t.NoError(st.newVoteproof(avp))
 
 	t.T().Log("wait new block saved")
@@ -859,6 +869,7 @@ func (t *testNewACCEPTVoteproofOnACCEPTVoteproofConsensusHandler) TestDrawAndDra
 	newavp, _ := t.voteproofsPair(point.NextRound(), point.Next(), nil, nil, nil, nodes)
 	newavp.SetMajority(nil)
 	newavp.SetResult(base.VoteResultDraw)
+	newavp.finish()
 
 	t.NoError(st.newVoteproof(newavp))
 

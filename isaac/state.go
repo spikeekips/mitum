@@ -84,3 +84,17 @@ func (baseStateSwitchContext) Error() string {
 func (s baseStateSwitchContext) MarshalZerologObject(e *zerolog.Event) {
 	e.Stringer("from", s.f).Stringer("next", s.n)
 }
+
+func stateSwitchContextLog(sctx stateSwitchContext) *zerolog.Event {
+	e := zerolog.Dict()
+
+	o, ok := sctx.(zerolog.LogObjectMarshaler)
+	switch {
+	case ok:
+		e = e.Object("next_state", o)
+	default:
+		e = e.Stringer("from", sctx.from()).Stringer("next", sctx.next())
+	}
+
+	return e
+}

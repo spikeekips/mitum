@@ -2,6 +2,7 @@ package isaac
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -16,6 +17,15 @@ import (
 
 type baseTestConsensusHandler struct {
 	baseTestStateHandler
+	prpool *proposalPool
+}
+
+func (t *baseTestConsensusHandler) SetupTest() {
+	t.baseTestStateHandler.SetupTest()
+
+	t.prpool = newProposalPool(func(p base.Point) base.Proposal {
+		return t.newProposal(t.local, t.newProposalFact(p, []util.Hash{valuehash.RandomSHA256()}))
+	})
 }
 
 func (t *baseTestConsensusHandler) newState() (*ConsensusHandler, func()) {
@@ -141,6 +151,7 @@ func (t *testConsensusHandler) TestInvalidVoteproofs() {
 		point := base.NewPoint(base.Height(33), base.Round(0))
 		_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, nil, nodes)
 		ivp.SetResult(base.VoteResultDraw)
+		ivp.finish()
 
 		sctx := newConsensusSwitchContext(StateJoining, ivp)
 
@@ -154,6 +165,7 @@ func (t *testConsensusHandler) TestInvalidVoteproofs() {
 		point := base.NewPoint(base.Height(33), base.Round(0))
 		_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, nil, nodes)
 		ivp.SetMajority(nil)
+		ivp.finish()
 
 		sctx := newConsensusSwitchContext(StateJoining, ivp)
 
@@ -507,6 +519,7 @@ func (t *testConsensusHandler) TestProcessingProposalWithDrawACCEPTVoteproof() {
 	avp, _ := t.voteproofsPair(point, point.Next(), manifest.Hash(), nil, nil, nodes)
 	avp.SetMajority(nil)
 	avp.SetResult(base.VoteResultDraw)
+	avp.finish()
 
 	pp.processerr = func() error {
 		st.lavp.SetValue(avp)
@@ -592,4 +605,55 @@ func (t *testConsensusHandler) TestProcessingProposalWithWrongNewBlockACCEPTVote
 
 func TestConsensusHandler(t *testing.T) {
 	suite.Run(t, new(testConsensusHandler))
+}
+
+type proposalPool struct { // BLOCK apply
+	sync.RWMutex
+	p           map[base.Point]base.Proposal
+	newproposal func(base.Point) base.Proposal
+}
+
+func newProposalPool(
+	newproposal func(base.Point) base.Proposal,
+) *proposalPool {
+	return &proposalPool{
+		p:           map[base.Point]base.Proposal{},
+		newproposal: newproposal,
+	}
+}
+
+func (p *proposalPool) hash(point base.Point) util.Hash {
+	pr := p.get(point)
+
+	return pr.SignedFact().Fact().Hash()
+}
+
+func (p *proposalPool) get(point base.Point) base.Proposal {
+	p.Lock()
+	defer p.Unlock()
+
+	if pr, found := p.p[point]; found {
+		return pr
+	}
+
+	pr := p.newproposal(point)
+
+	p.p[point] = pr
+
+	return pr
+}
+
+func (p *proposalPool) byHash(h util.Hash) base.Proposal {
+	p.RLock()
+	defer p.RUnlock()
+
+	for i := range p.p {
+		pr := p.p[i]
+		if pr.SignedFact().Fact().Hash().Equal(h) {
+			return pr
+		}
+
+	}
+
+	return nil
 }

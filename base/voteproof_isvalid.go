@@ -131,7 +131,7 @@ func IsValidINITVoteproof(vp INITVoteproof, networkID NetworkID) error {
 	}
 
 	if vp.Point().Stage() != StageINIT {
-		return e(util.InvalidError.Errorf("wrong stage for INITVoteproof, %q", vp.Point().Stage()), "")
+		return e(util.InvalidError.Errorf("wrong stage in INITVoteproof, %q", vp.Point().Stage()), "")
 	}
 
 	return nil

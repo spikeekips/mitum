@@ -74,15 +74,21 @@ func (st *baseStateHandler) switchState(sctx stateSwitchContext) {
 		err = st.sts.newState(nsctx)
 	}
 
+	l := st.Log().With().Dict("next_state", stateSwitchContextLog(sctx)).Logger()
+
 	switch {
 	case err == nil:
+		l.Debug().Msg("state switched")
 	case errors.Is(err, IgnoreSwithingStateError):
+		l.Error().Err(err).Msg("failed to switch state; ignore")
 	case nsctx.next() == StateBroken:
+		l.Error().Err(err).Msg("failed to switch state; panic")
+
 		panic(err)
 	default:
-		go func() {
-			_ = st.sts.newState(newBrokenSwitchContext(st.stt, err))
-		}()
+		l.Error().Err(err).Msg("failed to switch state; moves to broken")
+
+		go st.switchState(newBrokenSwitchContext(st.stt, err))
 	}
 }
 

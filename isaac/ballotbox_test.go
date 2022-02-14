@@ -49,12 +49,11 @@ func (t *testBallotbox) initBallot(node base.Address, nodes []base.Address, poin
 	}
 
 	avp := NewACCEPTVoteproof(afact.Point().Point)
-	avp.finish()
 	avp.SetResult(base.VoteResultMajority)
 	avp.SetMajority(afact)
 	avp.SetSignedFacts(asfs)
-
 	avp.SetThreshold(base.Threshold(100))
+	avp.finish()
 
 	fact := NewINITBallotFact(point, prev, proposal)
 
@@ -77,11 +76,11 @@ func (t *testBallotbox) acceptBallot(node base.Address, nodes []base.Address, po
 	}
 
 	ivp := NewINITVoteproof(ifact.Point().Point)
-	ivp.finish()
 	ivp.SetResult(base.VoteResultMajority)
 	ivp.SetMajority(ifact)
 	ivp.SetSignedFacts(isfs)
 	ivp.SetThreshold(base.Threshold(100))
+	ivp.finish()
 
 	fact := NewACCEPTBallotFact(point, pr, block)
 

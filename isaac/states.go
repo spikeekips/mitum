@@ -53,7 +53,21 @@ func (st *States) SetHandler(h stateHandler) *States {
 
 	st.handlers[h.state()] = h
 
+	if l, ok := h.(logging.SetLogging); ok {
+		_ = l.SetLogging(st.Logging)
+	}
+
 	return st
+}
+
+func (st *States) SetLogging(l *logging.Logging) *logging.Logging {
+	for i := range st.handlers {
+		if j, ok := st.handlers[i].(logging.SetLogging); ok {
+			_ = j.SetLogging(l)
+		}
+	}
+
+	return st.Logging.SetLogging(l)
 }
 
 func (st *States) start(ctx context.Context) error {
@@ -381,18 +395,9 @@ func (st *States) checkStateSwitchContext(sctx stateSwitchContext, current state
 }
 
 func (st *States) stateSwitchContextLog(sctx stateSwitchContext, current stateHandler) zerolog.Logger {
-	l := st.Log().With().
-		Stringer("current_state", stateHandlerLog(current))
-
-	o, ok := sctx.(zerolog.LogObjectMarshaler)
-	switch {
-	case ok:
-		l = l.Object("next_state", o)
-	default:
-		l = l.Stringer("from", sctx.from()).Stringer("next", sctx.next())
-	}
-
-	return l.Logger()
+	return st.Log().With().
+		Stringer("current_state", stateHandlerLog(current)).
+		Dict("next_state", stateSwitchContextLog(sctx)).Logger()
 }
 
 func (st *States) broadcastBallot(bl base.Ballot, tolocal bool) error {

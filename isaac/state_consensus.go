@@ -6,6 +6,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/logging"
 )
 
 var (
@@ -41,7 +42,7 @@ type ConsensusHandler struct {
 	proposalSelector ProposalSelector
 	livp             *util.Locked // BLOCK use native rwmutex
 	lavp             *util.Locked
-	lmivp            *util.Locked
+	lmivp            *util.Locked // BLOCK remove
 	getSuffrage      func(base.Height) base.Suffrage
 	pps              *proposalProcessors
 }
@@ -64,6 +65,12 @@ func NewConsensusHandler(
 		getSuffrage:      getSuffrage,
 		pps:              pps,
 	}
+}
+
+func (st *ConsensusHandler) SetLogging(l *logging.Logging) *logging.Logging {
+	_ = st.baseStateHandler.SetLogging(l)
+
+	return st.Logging.SetLogging(l)
 }
 
 func (st *ConsensusHandler) enter(i stateSwitchContext) (func() error, error) {
@@ -330,6 +337,9 @@ func (st *ConsensusHandler) newINITVoteproof(ivp base.INITVoteproof) error {
 		Logger()
 
 	_ = st.livp.SetValue(ivp)
+	if ivp.Result() == base.VoteResultMajority {
+		_ = st.lmivp.SetValue(ivp)
+	}
 
 	l.Debug().Msg("new init voteproof received")
 
@@ -448,26 +458,54 @@ func (st *ConsensusHandler) nextBlock(avp base.ACCEPTVoteproof) {
 }
 
 func (st *ConsensusHandler) newINITVoteproofWithLastINITVoteproof(ivp, livp base.INITVoteproof) error {
-	if ivp.Point().Height() > livp.Point().Height() { // NOTE higher height; moves to syncing state
-		return newSyncingSwitchContext(StateConsensus, ivp.Point().Height())
-	}
+	switch {
+	case ivp.Point().Height() > livp.Point().Height(): // NOTE higher height; moves to syncing state
+		return newSyncingSwitchContext(StateConsensus, ivp.Point().Height()-1)
+	case livp.Result() == base.VoteResultMajority:
+		return nil
+	case ivp.Result() == base.VoteResultMajority: // NOTE new init voteproof has same height, but higher round
+		lavp := st.lastACCEPTVoteproof()
 
-	// NOTE new init voteproof has same height, but higher round
-	if ivp.Result() == base.VoteResultMajority {
+		l := st.Log().With().
+			Dict("init_voteproof", base.VoteproofLog(ivp)).
+			Dict("last_init_voteproof", base.VoteproofLog(livp)).
+			Dict("last_accept_voteproof", base.VoteproofLog(lavp)).
+			Logger()
+
+		if lavp == nil {
+			return newBrokenSwitchContext(StateConsensus, errors.Errorf("empty last accept voteproof"))
+		}
+
+		if m := lavp.BallotMajority(); m == nil || !ivp.BallotMajority().PreviousBlock().Equal(m.NewBlock()) {
+			// NOTE local stored block is different with other nodes
+			l.Debug().
+				Stringer("previous_block", ivp.BallotMajority().PreviousBlock()).
+				Stringer("new_block", m.NewBlock()).
+				Msg("previous block does not match with last accept voteproof; moves to syncing")
+
+			return newSyncingSwitchContext(StateConsensus, ivp.Point().Height()-1)
+		}
+
+		// BLOCK compare previous block with local block
 		go st.processProposal(ivp)
 
 		return nil
+	default:
+		// NOTE new init voteproof draw; next round
+		go st.nextRound(ivp)
+
+		return nil
 	}
-
-	// NOTE new init voteproof draw; next round
-	go st.nextRound(ivp)
-
-	return nil
 }
 
 func (st *ConsensusHandler) newINITVoteproofWithLastACCEPTVoteproof(
 	ivp base.INITVoteproof, lavp base.ACCEPTVoteproof,
 ) error {
+	l := st.Log().With().
+		Dict("init_voteproof", base.VoteproofLog(ivp)).
+		Dict("last_accept_voteproof", base.VoteproofLog(lavp)).
+		Logger()
+
 	switch expectedheight := lavp.Point().Height() + 1; {
 	case ivp.Point().Height() < expectedheight:
 		return nil // NOTE ignore
@@ -478,9 +516,16 @@ func (st *ConsensusHandler) newINITVoteproofWithLastACCEPTVoteproof(
 		go st.nextRound(ivp)
 
 		return nil
-	case !ivp.BallotMajority().PreviousBlock().Equal(lavp.BallotMajority().NewBlock()):
-		// NOTE local stored block is different with other nodes
-		return newSyncingSwitchContext(StateConsensus, ivp.Point().Height())
+	default:
+		if m := lavp.BallotMajority(); m == nil || !ivp.BallotMajority().PreviousBlock().Equal(m.NewBlock()) {
+			// NOTE local stored block is different with other nodes
+			l.Debug().
+				Stringer("previous_block", ivp.BallotMajority().PreviousBlock()).
+				Stringer("new_block", m.NewBlock()).
+				Msg("previous block does not match with last accept voteproof; moves to syncing")
+
+			return newSyncingSwitchContext(StateConsensus, ivp.Point().Height())
+		}
 	}
 
 	go st.processProposal(ivp)
