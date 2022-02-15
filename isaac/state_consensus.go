@@ -180,35 +180,6 @@ func (st *ConsensusHandler) lastMajorityINITVoteproof() base.INITVoteproof {
 	return i.(base.INITVoteproof)
 }
 
-func (st *ConsensusHandler) newVoteproof(vp base.Voteproof) error {
-	e := util.StringErrorFunc("failed to handle new voteproof")
-
-	if err := st.baseStateHandler.newVoteproof(vp); err != nil {
-		return e(err, "")
-	}
-
-	lvp := st.lastVoteproof()
-	l := st.Log().With().
-		Dict("voteproof", base.VoteproofLog(vp)).
-		Dict("last_voteproof", base.VoteproofLog(lvp)).
-		Logger()
-
-	if vp.Point().Compare(lvp.Point()) < 1 {
-		l.Debug().Msg("new voteproof received, but old; ignore")
-
-		return nil
-	}
-
-	switch vp.Point().Stage() {
-	case base.StageINIT:
-		return st.newINITVoteproof(vp.(base.INITVoteproof))
-	case base.StageACCEPT:
-		return st.newACCEPTVoteproof(vp.(base.ACCEPTVoteproof))
-	default:
-		return e(nil, "invalid voteproof received, %T", vp)
-	}
-}
-
 func (st *ConsensusHandler) newProposal(pr base.ProposalFact) error {
 	e := util.StringErrorFunc("failed to handle new proposal")
 
@@ -267,7 +238,7 @@ func (st *ConsensusHandler) processProposal(ivp base.INITVoteproof) {
 
 		ll.Debug().Msg("expected accept voteproof has different new block; moves to syncing")
 
-		go st.switchState(newSyncingSwitchContext(StateConsensus, ivp.Point().Height()))
+		go st.switchState(newSyncingSwitchContext(StateConsensus, ivp.Point().Height()-1))
 
 		return
 	default:
@@ -328,6 +299,35 @@ func (st *ConsensusHandler) processProposalInternal(ivp base.INITVoteproof) (bas
 	return r.manifest, nil
 }
 
+func (st *ConsensusHandler) newVoteproof(vp base.Voteproof) error {
+	e := util.StringErrorFunc("failed to handle new voteproof")
+
+	if err := st.baseStateHandler.newVoteproof(vp); err != nil {
+		return e(err, "")
+	}
+
+	lvp := st.lastVoteproof()
+	l := st.Log().With().
+		Dict("voteproof", base.VoteproofLog(vp)).
+		Dict("last_voteproof", base.VoteproofLog(lvp)).
+		Logger()
+
+	if vp.Point().Compare(lvp.Point()) < 1 {
+		l.Debug().Msg("new voteproof received, but old; ignore")
+
+		return nil
+	}
+
+	switch vp.Point().Stage() {
+	case base.StageINIT:
+		return st.newINITVoteproof(vp.(base.INITVoteproof))
+	case base.StageACCEPT:
+		return st.newACCEPTVoteproof(vp.(base.ACCEPTVoteproof))
+	default:
+		return e(nil, "invalid voteproof received, %T", vp)
+	}
+}
+
 func (st *ConsensusHandler) newINITVoteproof(ivp base.INITVoteproof) error {
 	lvp := st.lastVoteproof()
 
@@ -373,6 +373,120 @@ func (st *ConsensusHandler) newACCEPTVoteproof(avp base.ACCEPTVoteproof) error {
 	}
 
 	return nil
+}
+
+func (st *ConsensusHandler) newINITVoteproofWithLastINITVoteproof(ivp, livp base.INITVoteproof) error {
+	switch {
+	case ivp.Point().Height() > livp.Point().Height(): // NOTE higher height; moves to syncing state
+		return newSyncingSwitchContext(StateConsensus, ivp.Point().Height()-1)
+	case livp.Result() == base.VoteResultMajority:
+		return nil
+	case ivp.Result() == base.VoteResultMajority: // NOTE new init voteproof has same height, but higher round
+		lavp := st.lastACCEPTVoteproof()
+
+		l := st.Log().With().
+			Dict("init_voteproof", base.VoteproofLog(ivp)).
+			Dict("last_init_voteproof", base.VoteproofLog(livp)).
+			Dict("last_accept_voteproof", base.VoteproofLog(lavp)).
+			Logger()
+
+		if lavp == nil {
+			return newBrokenSwitchContext(StateConsensus, errors.Errorf("empty last accept voteproof"))
+		}
+
+		if m := lavp.BallotMajority(); m == nil || !ivp.BallotMajority().PreviousBlock().Equal(m.NewBlock()) {
+			// NOTE local stored block is different with other nodes
+			l.Debug().
+				Stringer("previous_block", ivp.BallotMajority().PreviousBlock()).
+				Stringer("new_block", m.NewBlock()).
+				Msg("previous block does not match with last accept voteproof; moves to syncing")
+
+			return newSyncingSwitchContext(StateConsensus, ivp.Point().Height()-1)
+		}
+
+		go st.processProposal(ivp)
+
+		return nil
+	default:
+		// NOTE new init voteproof draw; next round
+		go st.nextRound(ivp)
+
+		return nil
+	}
+}
+
+func (st *ConsensusHandler) newINITVoteproofWithLastACCEPTVoteproof(
+	ivp base.INITVoteproof, lavp base.ACCEPTVoteproof,
+) error {
+	l := st.Log().With().
+		Dict("init_voteproof", base.VoteproofLog(ivp)).
+		Dict("last_accept_voteproof", base.VoteproofLog(lavp)).
+		Logger()
+
+	switch expectedheight := lavp.Point().Height() + 1; {
+	case ivp.Point().Height() > expectedheight:
+		return newSyncingSwitchContext(StateConsensus, ivp.Point().Height()-1)
+	case ivp.Result() == base.VoteResultDraw:
+		// NOTE new init voteproof draw; next round
+		go st.nextRound(ivp)
+
+		return nil
+	default:
+		if m := lavp.BallotMajority(); m == nil || !ivp.BallotMajority().PreviousBlock().Equal(m.NewBlock()) {
+			// NOTE local stored block is different with other nodes
+			l.Debug().
+				Stringer("previous_block", ivp.BallotMajority().PreviousBlock()).
+				Stringer("new_block", m.NewBlock()).
+				Msg("previous block does not match with last accept voteproof; moves to syncing")
+
+			return newSyncingSwitchContext(StateConsensus, ivp.Point().Height()-1)
+		}
+	}
+
+	go st.processProposal(ivp)
+
+	return nil
+}
+
+func (st *ConsensusHandler) newACCEPTVoteproofWithLastINITVoteproof(
+	avp base.ACCEPTVoteproof, livp base.INITVoteproof,
+) error {
+	switch {
+	case avp.Point().Point == livp.Point().Point: // NOTE expected accept voteproof
+		if avp.Result() == base.VoteResultMajority {
+			go st.saveBlock(avp)
+
+			return nil
+		}
+
+		go st.nextRound(avp)
+
+		return nil
+	case avp.Point().Height() > livp.Point().Height():
+	case avp.Result() == base.VoteResultDraw:
+		go st.nextRound(avp)
+
+		return nil
+	}
+
+	return newSyncingSwitchContext(StateConsensus, avp.Point().Height())
+}
+
+func (st *ConsensusHandler) newACCEPTVoteproofWithLastACCEPTVoteproof(
+	avp base.ACCEPTVoteproof, lavp base.ACCEPTVoteproof,
+) error {
+	switch {
+	case avp.Point().Height() > lavp.Point().Height():
+		return newSyncingSwitchContext(StateConsensus, avp.Point().Height())
+	case lavp.Result() == base.VoteResultMajority:
+		return nil
+	case avp.Result() == base.VoteResultDraw:
+		go st.nextRound(avp)
+
+		return nil
+	default:
+		return newSyncingSwitchContext(StateConsensus, avp.Point().Height())
+	}
 }
 
 func (st *ConsensusHandler) nextRound(vp base.Voteproof) {
@@ -455,123 +569,6 @@ func (st *ConsensusHandler) nextBlock(avp base.ACCEPTVoteproof) {
 	}
 
 	l.Debug().Interface("ballot", bl).Msg("next init ballot broadcasted")
-}
-
-func (st *ConsensusHandler) newINITVoteproofWithLastINITVoteproof(ivp, livp base.INITVoteproof) error {
-	switch {
-	case ivp.Point().Height() > livp.Point().Height(): // NOTE higher height; moves to syncing state
-		return newSyncingSwitchContext(StateConsensus, ivp.Point().Height()-1)
-	case livp.Result() == base.VoteResultMajority:
-		return nil
-	case ivp.Result() == base.VoteResultMajority: // NOTE new init voteproof has same height, but higher round
-		lavp := st.lastACCEPTVoteproof()
-
-		l := st.Log().With().
-			Dict("init_voteproof", base.VoteproofLog(ivp)).
-			Dict("last_init_voteproof", base.VoteproofLog(livp)).
-			Dict("last_accept_voteproof", base.VoteproofLog(lavp)).
-			Logger()
-
-		if lavp == nil {
-			return newBrokenSwitchContext(StateConsensus, errors.Errorf("empty last accept voteproof"))
-		}
-
-		if m := lavp.BallotMajority(); m == nil || !ivp.BallotMajority().PreviousBlock().Equal(m.NewBlock()) {
-			// NOTE local stored block is different with other nodes
-			l.Debug().
-				Stringer("previous_block", ivp.BallotMajority().PreviousBlock()).
-				Stringer("new_block", m.NewBlock()).
-				Msg("previous block does not match with last accept voteproof; moves to syncing")
-
-			return newSyncingSwitchContext(StateConsensus, ivp.Point().Height()-1)
-		}
-
-		// BLOCK compare previous block with local block
-		go st.processProposal(ivp)
-
-		return nil
-	default:
-		// NOTE new init voteproof draw; next round
-		go st.nextRound(ivp)
-
-		return nil
-	}
-}
-
-func (st *ConsensusHandler) newINITVoteproofWithLastACCEPTVoteproof(
-	ivp base.INITVoteproof, lavp base.ACCEPTVoteproof,
-) error {
-	l := st.Log().With().
-		Dict("init_voteproof", base.VoteproofLog(ivp)).
-		Dict("last_accept_voteproof", base.VoteproofLog(lavp)).
-		Logger()
-
-	switch expectedheight := lavp.Point().Height() + 1; {
-	case ivp.Point().Height() < expectedheight:
-		return nil // NOTE ignore
-	case ivp.Point().Height() > expectedheight:
-		return newSyncingSwitchContext(StateConsensus, ivp.Point().Height())
-	case ivp.Result() == base.VoteResultDraw:
-		// NOTE new init voteproof draw; next round
-		go st.nextRound(ivp)
-
-		return nil
-	default:
-		if m := lavp.BallotMajority(); m == nil || !ivp.BallotMajority().PreviousBlock().Equal(m.NewBlock()) {
-			// NOTE local stored block is different with other nodes
-			l.Debug().
-				Stringer("previous_block", ivp.BallotMajority().PreviousBlock()).
-				Stringer("new_block", m.NewBlock()).
-				Msg("previous block does not match with last accept voteproof; moves to syncing")
-
-			return newSyncingSwitchContext(StateConsensus, ivp.Point().Height())
-		}
-	}
-
-	go st.processProposal(ivp)
-
-	return nil
-}
-
-func (st *ConsensusHandler) newACCEPTVoteproofWithLastINITVoteproof(
-	avp base.ACCEPTVoteproof, livp base.INITVoteproof,
-) error {
-	switch {
-	case avp.Point().Point == livp.Point().Point: // NOTE expected accept voteproof
-		if avp.Result() == base.VoteResultMajority {
-			go st.saveBlock(avp)
-
-			return nil
-		}
-
-		go st.nextRound(avp)
-
-		return nil
-	case avp.Point().Height() > livp.Point().Height():
-	case avp.Result() == base.VoteResultDraw:
-		go st.nextRound(avp)
-
-		return nil
-	}
-
-	return newSyncingSwitchContext(StateConsensus, avp.Point().Height())
-}
-
-func (st *ConsensusHandler) newACCEPTVoteproofWithLastACCEPTVoteproof(
-	avp base.ACCEPTVoteproof, lavp base.ACCEPTVoteproof,
-) error {
-	switch {
-	case avp.Point().Height() > lavp.Point().Height():
-		return newSyncingSwitchContext(StateConsensus, avp.Point().Height())
-	case lavp.Result() == base.VoteResultMajority:
-		return nil
-	case avp.Result() == base.VoteResultDraw:
-		go st.nextRound(avp)
-
-		return nil
-	default:
-		return newSyncingSwitchContext(StateConsensus, avp.Point().Height())
-	}
 }
 
 func (st *ConsensusHandler) saveBlock(avp base.ACCEPTVoteproof) {

@@ -23,8 +23,14 @@ type baseTestConsensusHandler struct {
 func (t *baseTestConsensusHandler) SetupTest() {
 	t.baseTestStateHandler.SetupTest()
 
-	t.prpool = newProposalPool(func(p base.Point) base.Proposal {
-		return t.newProposal(t.local, t.newProposalFact(p, []util.Hash{valuehash.RandomSHA256()}))
+	local := t.local
+	networkID := t.policy.NetworkID()
+
+	t.prpool = newProposalPool(func(point base.Point) base.Proposal {
+		fs := NewProposalSignedFact(local.Address(), NewProposalFact(point, []util.Hash{valuehash.RandomSHA256()}))
+		_ = fs.Sign(local.Privatekey(), networkID)
+
+		return NewProposal(fs)
 	})
 }
 

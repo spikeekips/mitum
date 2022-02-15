@@ -92,6 +92,12 @@ func (vp baseVoteproof) Point() base.StagePoint {
 	return vp.point
 }
 
+func (vp *baseVoteproof) SetPoint(p base.StagePoint) baseVoteproof {
+	vp.point = p
+
+	return *vp
+}
+
 func (vp baseVoteproof) Result() base.VoteResult {
 	return vp.result
 }
