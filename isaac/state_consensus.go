@@ -12,7 +12,7 @@ import (
 var (
 	timerIDBroadcastINITBallot   = util.TimerID("broadcast-init-ballot")
 	timerIDBroadcastACCEPTBallot = util.TimerID("broadcast-accept-ballot")
-	timerIDPrepareProposal       = util.TimerID("preppare-proposal")
+	timerIDPrepareProposal       = util.TimerID("prepare-proposal")
 )
 
 /*
@@ -40,9 +40,6 @@ type ConsensusHandler struct {
 	local            base.LocalNode
 	policy           base.Policy
 	proposalSelector ProposalSelector
-	livp             *util.Locked // BLOCK use native rwmutex
-	lavp             *util.Locked
-	lmivp            *util.Locked // BLOCK remove
 	getSuffrage      func(base.Height) base.Suffrage
 	pps              *proposalProcessors
 }
@@ -59,9 +56,6 @@ func NewConsensusHandler(
 		local:            local,
 		policy:           policy,
 		proposalSelector: proposalSelector,
-		livp:             util.NewLocked(nil),
-		lavp:             util.NewLocked(nil),
-		lmivp:            util.NewLocked(nil),
 		getSuffrage:      getSuffrage,
 		pps:              pps,
 	}
@@ -90,8 +84,7 @@ func (st *ConsensusHandler) enter(i stateSwitchContext) (func() error, error) {
 	case j.ivp.Result() != base.VoteResultMajority:
 		return nil, e(nil, "invalid stateSwitchContext, wrong vote result of init voteproof, %q", j.ivp.Result())
 	default:
-		_ = st.livp.SetValue(j.ivp)
-		_ = st.lmivp.SetValue(j.ivp)
+		_ = st.setLastVoteproof(j.ivp)
 
 		sctx = j
 	}
@@ -135,49 +128,6 @@ func (st *ConsensusHandler) exit() (func() error, error) {
 
 		return nil
 	}, nil
-}
-
-// BLOCK set last voteproof
-func (st *ConsensusHandler) lastVoteproof() base.Voteproof {
-	avp := st.lastACCEPTVoteproof()
-	ivp := st.lastINITVoteproof()
-	if avp == nil {
-		return ivp
-	}
-
-	switch c := avp.Point().Point.Compare(ivp.Point().Point); {
-	case c < 0:
-		return ivp
-	default:
-		return avp
-	}
-}
-
-func (st *ConsensusHandler) lastINITVoteproof() base.INITVoteproof {
-	i := st.livp.Value()
-	if i == nil {
-		return nil
-	}
-
-	return i.(base.INITVoteproof)
-}
-
-func (st *ConsensusHandler) lastACCEPTVoteproof() base.ACCEPTVoteproof {
-	i := st.lavp.Value()
-	if i == nil {
-		return nil
-	}
-
-	return i.(base.ACCEPTVoteproof)
-}
-
-func (st *ConsensusHandler) lastMajorityINITVoteproof() base.INITVoteproof {
-	i := st.lmivp.Value()
-	if i == nil {
-		return nil
-	}
-
-	return i.(base.INITVoteproof)
 }
 
 func (st *ConsensusHandler) newProposal(pr base.ProposalFact) error {
@@ -238,7 +188,7 @@ func (st *ConsensusHandler) processProposal(ivp base.INITVoteproof) {
 
 		ll.Debug().Msg("expected accept voteproof has different new block; moves to syncing")
 
-		go st.switchState(newSyncingSwitchContext(StateConsensus, ivp.Point().Height()-1))
+		go st.switchState(newSyncingSwitchContext(StateConsensus, eavp.Point().Height()))
 
 		return
 	default:
@@ -336,10 +286,7 @@ func (st *ConsensusHandler) newINITVoteproof(ivp base.INITVoteproof) error {
 		Dict("last_voteproof", base.VoteproofLog(lvp)).
 		Logger()
 
-	_ = st.livp.SetValue(ivp)
-	if ivp.Result() == base.VoteResultMajority {
-		_ = st.lmivp.SetValue(ivp)
-	}
+	_ = st.setLastVoteproof(ivp)
 
 	l.Debug().Msg("new init voteproof received")
 
@@ -363,7 +310,7 @@ func (st *ConsensusHandler) newACCEPTVoteproof(avp base.ACCEPTVoteproof) error {
 
 	l.Debug().Msg("new accept voteproof received")
 
-	_ = st.lavp.SetValue(avp)
+	_ = st.setLastVoteproof(avp)
 
 	switch lvp.Point().Stage() {
 	case base.StageINIT:
@@ -512,7 +459,7 @@ func (st *ConsensusHandler) nextRound(vp base.Voteproof) {
 
 	fact := NewINITBallotFact(
 		point,
-		st.lastMajorityINITVoteproof().BallotMajority().PreviousBlock(),
+		st.lastINITMajorityVoteproof().BallotMajority().PreviousBlock(),
 		pr.SignedFact().Fact().Hash(),
 	)
 	sf := NewINITBallotSignedFact(st.local.Address(), fact)

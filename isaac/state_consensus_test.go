@@ -473,7 +473,7 @@ func (t *testConsensusHandler) TestProcessingProposalWithACCEPTVoteproof() {
 
 	avp, _ := t.voteproofsPair(point, point.Next(), manifest.Hash(), nil, nil, nodes)
 	pp.processerr = func() error {
-		st.lavp.SetValue(avp)
+		st.setLastVoteproof(avp)
 
 		return nil
 	}
@@ -528,7 +528,7 @@ func (t *testConsensusHandler) TestProcessingProposalWithDrawACCEPTVoteproof() {
 	avp.finish()
 
 	pp.processerr = func() error {
-		st.lavp.SetValue(avp)
+		st.setLastVoteproof(avp)
 
 		return nil
 	}
@@ -578,7 +578,7 @@ func (t *testConsensusHandler) TestProcessingProposalWithWrongNewBlockACCEPTVote
 
 	avp, _ := t.voteproofsPair(point, point.Next(), nil, nil, nil, nodes) // random new block hash
 	pp.processerr = func() error {
-		st.lavp.SetValue(avp)
+		st.setLastVoteproof(avp)
 
 		return nil
 	}

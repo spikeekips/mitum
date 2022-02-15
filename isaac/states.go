@@ -23,6 +23,7 @@ type States struct {
 	handlers    map[StateType]stateHandler
 	cs          stateHandler
 	timers      *util.Timers
+	lvps        *lastVoteproofs
 }
 
 func NewStates() *States {
@@ -39,6 +40,7 @@ func NewStates() *States {
 			timerIDBroadcastACCEPTBallot,
 			timerIDPrepareProposal,
 		}, false),
+		lvps: newLastVoteproofs(),
 	}
 
 	st.ContextDaemon = util.NewContextDaemon("states", st.start)
@@ -404,4 +406,24 @@ func (st *States) broadcastBallot(bl base.Ballot, tolocal bool) error {
 	// BLOCK implement
 
 	return nil
+}
+
+func (st *States) lastVoteproof() base.Voteproof {
+	return st.lvps.last()
+}
+
+func (st *States) lastINITVoteproof() base.INITVoteproof {
+	return st.lvps.init()
+}
+
+func (st *States) lastINITMajorityVoteproof() base.INITVoteproof {
+	return st.lvps.initMajority()
+}
+
+func (st *States) lastACCEPTVoteproof() base.ACCEPTVoteproof {
+	return st.lvps.accept()
+}
+
+func (st *States) setLastVoteproof(vp base.Voteproof) bool {
+	return st.lvps.set(vp)
 }

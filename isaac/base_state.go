@@ -2,6 +2,7 @@ package isaac
 
 import (
 	"reflect"
+	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -15,6 +16,7 @@ type baseStateHandler struct {
 	stt                 StateType
 	sts                 *States
 	ts                  *util.Timers // NOTE only for testing
+	lvps                *lastVoteproofs
 	switchStateFunc     func(stateSwitchContext) error
 	broadcastBallotFunc func(base.Ballot, bool /* tolocal */) error
 }
@@ -24,7 +26,8 @@ func newBaseStateHandler(state StateType) *baseStateHandler {
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Stringer("module", state)
 		}),
-		stt: state,
+		stt:  state,
+		lvps: newLastVoteproofs(),
 	}
 }
 
@@ -56,6 +59,46 @@ func (st *baseStateHandler) timers() *util.Timers {
 	return st.sts.timers
 }
 
+func (st *baseStateHandler) lastVoteproof() base.Voteproof {
+	if st.sts != nil {
+		return st.sts.lastVoteproof()
+	}
+
+	return st.lvps.last()
+}
+
+func (st *baseStateHandler) lastINITVoteproof() base.INITVoteproof {
+	if st.sts != nil {
+		return st.sts.lastINITVoteproof()
+	}
+
+	return st.lvps.init()
+}
+
+func (st *baseStateHandler) lastINITMajorityVoteproof() base.INITVoteproof {
+	if st.sts != nil {
+		return st.sts.lastINITMajorityVoteproof()
+	}
+
+	return st.lvps.initMajority()
+}
+
+func (st *baseStateHandler) lastACCEPTVoteproof() base.ACCEPTVoteproof {
+	if st.sts != nil {
+		return st.sts.lastACCEPTVoteproof()
+	}
+
+	return st.lvps.accept()
+}
+
+func (st *baseStateHandler) setLastVoteproof(vp base.Voteproof) bool {
+	if st.sts != nil {
+		return st.sts.setLastVoteproof(vp)
+	}
+
+	return st.lvps.set(vp)
+}
+
 func (st *baseStateHandler) switchState(sctx stateSwitchContext) {
 	elem := reflect.ValueOf(sctx)
 	p := reflect.New(elem.Type())
@@ -67,14 +110,14 @@ func (st *baseStateHandler) switchState(sctx stateSwitchContext) {
 
 	nsctx := p.Elem().Interface().(stateSwitchContext)
 
+	l := st.Log().With().Dict("next_state", stateSwitchContextLog(nsctx)).Logger()
+
 	var err error
 	if st.switchStateFunc != nil {
 		err = st.switchStateFunc(nsctx)
 	} else {
 		err = st.sts.newState(nsctx)
 	}
-
-	l := st.Log().With().Dict("next_state", stateSwitchContextLog(sctx)).Logger()
 
 	switch {
 	case err == nil:
@@ -98,4 +141,81 @@ func (st *baseStateHandler) broadcastBallot(bl base.Ballot, tolocal bool) error 
 	}
 
 	return st.sts.broadcastBallot(bl, tolocal)
+}
+
+type lastVoteproofs struct {
+	sync.RWMutex
+	ivp  base.INITVoteproof
+	avp  base.ACCEPTVoteproof
+	mivp base.INITVoteproof
+}
+
+func newLastVoteproofs() *lastVoteproofs {
+	return &lastVoteproofs{}
+}
+
+func (l *lastVoteproofs) last() base.Voteproof {
+	l.RLock()
+	defer l.RUnlock()
+
+	return l.getLast()
+}
+
+func (l *lastVoteproofs) init() base.INITVoteproof {
+	l.RLock()
+	defer l.RUnlock()
+
+	return l.ivp
+}
+
+func (l *lastVoteproofs) initMajority() base.INITVoteproof {
+	l.RLock()
+	defer l.RUnlock()
+
+	return l.mivp
+}
+
+func (l *lastVoteproofs) accept() base.ACCEPTVoteproof {
+	l.RLock()
+	defer l.RUnlock()
+
+	return l.avp
+}
+
+func (l *lastVoteproofs) getLast() base.Voteproof {
+	switch {
+	case l.ivp == nil:
+		return l.avp
+	case l.avp == nil:
+		return l.ivp
+	}
+
+	switch c := l.avp.Point().Point.Compare(l.ivp.Point().Point); {
+	case c < 0:
+		return l.ivp
+	default:
+		return l.avp
+	}
+}
+
+func (l *lastVoteproofs) set(vp base.Voteproof) bool {
+	l.Lock()
+	defer l.Unlock()
+
+	if lvp := l.getLast(); lvp != nil && vp.Point().Compare(lvp.Point()) < 1 {
+		return false
+	}
+
+	switch vp.Point().Stage() {
+	case base.StageINIT:
+		l.ivp = vp.(base.INITVoteproof)
+
+		if vp.Result() == base.VoteResultMajority {
+			l.mivp = l.ivp
+		}
+	case base.StageACCEPT:
+		l.avp = vp.(base.ACCEPTVoteproof)
+	}
+
+	return true
 }
