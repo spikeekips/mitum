@@ -20,8 +20,7 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestExpected() {
 	nodes := t.nodes(3)
 
 	point := base.NewPoint(base.Height(33), base.Round(44))
-	fact := t.newProposalFact(point, []util.Hash{valuehash.RandomSHA256()})
-	pr := t.newProposal(t.local, fact)
+	fact := t.prpool.getfact(point)
 
 	manifest := base.NewDummyManifest(fact.Point().Height(), valuehash.RandomSHA256())
 	pp := NewDummyProposalProcessor(manifest)
@@ -37,11 +36,7 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestExpected() {
 
 	st.pps.makenew = pp.make
 	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
-		if facthash.Equal(fact.Hash()) {
-			return fact, nil
-		}
-
-		return nil, util.NotFoundError.Errorf("fact not found")
+		return t.prpool.factByHash(facthash)
 	}
 
 	ballotch := make(chan base.Ballot, 1)
@@ -53,16 +48,13 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestExpected() {
 		return nil
 	}
 
-	nextpr := t.newProposal(t.local, t.newProposalFact(point, []util.Hash{valuehash.RandomSHA256()}))
+	nextpr := t.prpool.get(point.Next())
 	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.Proposal, error) {
-		switch {
-		case p == point:
+		pr := t.prpool.byPoint(p)
+		if pr != nil {
 			return pr, nil
-		case p == point.Next():
-			return nextpr, nil
-		default:
-			return nil, errors.Errorf("hahaah")
 		}
+		return nil, util.NotFoundError.Call()
 	})
 
 	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, fact.Hash(), nodes)
@@ -109,7 +101,7 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestOld() {
 	nodes := t.nodes(3)
 
 	point := base.NewPoint(base.Height(33), base.Round(44))
-	fact := t.newProposalFact(point, []util.Hash{valuehash.RandomSHA256()})
+	fact := t.prpool.getfact(point)
 
 	manifest := base.NewDummyManifest(fact.Point().Height(), valuehash.RandomSHA256())
 	pp := NewDummyProposalProcessor(manifest)
@@ -119,11 +111,7 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestOld() {
 
 	st.pps.makenew = pp.make
 	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
-		if facthash.Equal(fact.Hash()) {
-			return fact, nil
-		}
-
-		return nil, util.NotFoundError.Errorf("fact not found")
+		return t.prpool.factByHash(facthash)
 	}
 
 	st.broadcastBallotFunc = func(bl base.Ballot, tolocal bool) error {
@@ -146,7 +134,7 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestHiger() {
 	nodes := t.nodes(3)
 
 	point := base.NewPoint(base.Height(33), base.Round(44))
-	fact := t.newProposalFact(point, []util.Hash{valuehash.RandomSHA256()})
+	fact := t.prpool.getfact(point)
 
 	manifest := base.NewDummyManifest(fact.Point().Height(), valuehash.RandomSHA256())
 	pp := NewDummyProposalProcessor(manifest)
@@ -156,11 +144,7 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestHiger() {
 
 	st.pps.makenew = pp.make
 	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
-		if facthash.Equal(fact.Hash()) {
-			return fact, nil
-		}
-
-		return nil, util.NotFoundError.Errorf("fact not found")
+		return t.prpool.factByHash(facthash)
 	}
 
 	st.broadcastBallotFunc = func(bl base.Ballot, tolocal bool) error {
@@ -187,8 +171,7 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestDraw() {
 	nodes := t.nodes(3)
 
 	point := base.NewPoint(base.Height(33), base.Round(44))
-	fact := t.newProposalFact(point, []util.Hash{valuehash.RandomSHA256()})
-	pr := t.newProposal(t.local, fact)
+	fact := t.prpool.getfact(point)
 
 	manifest := base.NewDummyManifest(fact.Point().Height(), valuehash.RandomSHA256())
 	pp := NewDummyProposalProcessor(manifest)
@@ -198,23 +181,16 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestDraw() {
 
 	st.pps.makenew = pp.make
 	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
-		if facthash.Equal(fact.Hash()) {
-			return fact, nil
-		}
-
-		return nil, util.NotFoundError.Errorf("fact not found")
+		return t.prpool.factByHash(facthash)
 	}
 
-	nextpr := t.newProposal(t.local, t.newProposalFact(point.NextRound(), []util.Hash{valuehash.RandomSHA256()}))
+	nextpr := t.prpool.get(point.NextRound())
 	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.Proposal, error) {
-		switch {
-		case p == point:
+		pr := t.prpool.byPoint(p)
+		if pr != nil {
 			return pr, nil
-		case p == point.NextRound():
-			return nextpr, nil
-		default:
-			return nil, errors.Errorf("hahaah")
 		}
+		return nil, util.NotFoundError.Call()
 	})
 
 	ballotch := make(chan base.Ballot, 1)
@@ -266,7 +242,7 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestDrawFailedPr
 	nodes := t.nodes(3)
 
 	point := base.NewPoint(base.Height(33), base.Round(44))
-	fact := t.newProposalFact(point, []util.Hash{valuehash.RandomSHA256()})
+	fact := t.prpool.getfact(point)
 
 	manifest := base.NewDummyManifest(fact.Point().Height(), valuehash.RandomSHA256())
 	pp := NewDummyProposalProcessor(manifest)
@@ -276,11 +252,7 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestDrawFailedPr
 
 	st.pps.makenew = pp.make
 	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
-		if facthash.Equal(fact.Hash()) {
-			return fact, nil
-		}
-
-		return nil, util.NotFoundError.Errorf("fact not found")
+		return t.prpool.factByHash(facthash)
 	}
 
 	st.proposalSelector = DummyProposalSelector(func(point base.Point) (base.Proposal, error) {
@@ -329,8 +301,7 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestNotProposalP
 	nodes := t.nodes(3)
 
 	point := base.NewPoint(base.Height(33), base.Round(44))
-	fact := t.newProposalFact(point, []util.Hash{valuehash.RandomSHA256()})
-	pr := t.newProposal(t.local, fact)
+	fact := t.prpool.getfact(point)
 
 	manifest := base.NewDummyManifest(fact.Point().Height(), valuehash.RandomSHA256())
 	pp := NewDummyProposalProcessor(manifest)
@@ -348,15 +319,15 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestNotProposalP
 
 	st.pps.makenew = pp.make
 	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
-		if facthash.Equal(fact.Hash()) {
-			return fact, nil
-		}
-
-		return nil, util.NotFoundError.Errorf("fact not found")
+		return t.prpool.factByHash(facthash)
 	}
 
 	st.proposalSelector = DummyProposalSelector(func(point base.Point) (base.Proposal, error) {
-		return pr, nil
+		pr := t.prpool.byPoint(point)
+		if pr != nil {
+			return pr, nil
+		}
+		return nil, util.NotFoundError.Call()
 	})
 
 	sctxch := make(chan stateSwitchContext, 1)
@@ -394,8 +365,7 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestSaveBlockErr
 	nodes := t.nodes(3)
 
 	point := base.NewPoint(base.Height(33), base.Round(44))
-	fact := t.newProposalFact(point, []util.Hash{valuehash.RandomSHA256()})
-	pr := t.newProposal(t.local, fact)
+	fact := t.prpool.getfact(point)
 
 	manifest := base.NewDummyManifest(fact.Point().Height(), valuehash.RandomSHA256())
 	pp := NewDummyProposalProcessor(manifest)
@@ -413,15 +383,15 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestSaveBlockErr
 
 	st.pps.makenew = pp.make
 	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
-		if facthash.Equal(fact.Hash()) {
-			return fact, nil
-		}
-
-		return nil, util.NotFoundError.Errorf("fact not found")
+		return t.prpool.factByHash(facthash)
 	}
 
 	st.proposalSelector = DummyProposalSelector(func(point base.Point) (base.Proposal, error) {
-		return pr, nil
+		pr := t.prpool.byPoint(point)
+		if pr != nil {
+			return pr, nil
+		}
+		return nil, util.NotFoundError.Call()
 	})
 
 	sctxch := make(chan stateSwitchContext, 1)
@@ -459,8 +429,7 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestHigherAndDra
 	nodes := t.nodes(3)
 
 	point := base.NewPoint(base.Height(33), base.Round(44))
-	fact := t.newProposalFact(point, []util.Hash{valuehash.RandomSHA256()})
-	pr := t.newProposal(t.local, fact)
+	fact := t.prpool.getfact(point)
 
 	manifest := base.NewDummyManifest(fact.Point().Height(), valuehash.RandomSHA256())
 	pp := NewDummyProposalProcessor(manifest)
@@ -470,19 +439,15 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestHigherAndDra
 
 	st.pps.makenew = pp.make
 	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
-		if facthash.Equal(fact.Hash()) {
-			return fact, nil
-		}
-
-		return nil, util.NotFoundError.Errorf("fact not found")
+		return t.prpool.factByHash(facthash)
 	}
 
 	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.Proposal, error) {
-		if p == point {
+		pr := t.prpool.byPoint(p)
+		if pr != nil {
 			return pr, nil
 		}
-
-		return nil, errors.Errorf("hahaah")
+		return nil, util.NotFoundError.Call()
 	})
 
 	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, fact.Hash(), nodes)
@@ -510,8 +475,7 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestHigherRoundD
 	nodes := t.nodes(3)
 
 	point := base.NewPoint(base.Height(33), base.Round(44))
-	fact := t.newProposalFact(point, []util.Hash{valuehash.RandomSHA256()})
-	pr := t.newProposal(t.local, fact)
+	fact := t.prpool.getfact(point)
 
 	manifest := base.NewDummyManifest(fact.Point().Height(), valuehash.RandomSHA256())
 	pp := NewDummyProposalProcessor(manifest)
@@ -521,23 +485,16 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestHigherRoundD
 
 	st.pps.makenew = pp.make
 	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
-		if facthash.Equal(fact.Hash()) {
-			return fact, nil
-		}
-
-		return nil, util.NotFoundError.Errorf("fact not found")
+		return t.prpool.factByHash(facthash)
 	}
 
-	nextpr := t.newProposal(t.local, t.newProposalFact(point.NextRound().NextRound().NextRound(), []util.Hash{valuehash.RandomSHA256()}))
+	nextpr := t.prpool.get(point.NextRound().NextRound().NextRound())
 	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.Proposal, error) {
-		switch {
-		case p == point:
+		pr := t.prpool.byPoint(p)
+		if pr != nil {
 			return pr, nil
-		case p == nextpr.Point().Point:
-			return nextpr, nil
-		default:
-			return nil, errors.Errorf("hahaah")
 		}
+		return nil, util.NotFoundError.Call()
 	})
 
 	ballotch := make(chan base.Ballot, 1)
@@ -597,7 +554,7 @@ func (t *testNewACCEPTVoteproofOnACCEPTVoteproofConsensusHandler) TestHigerHeigh
 	nodes := t.nodes(3)
 
 	point := base.NewPoint(base.Height(33), base.Round(44))
-	fact := t.newProposalFact(point, []util.Hash{valuehash.RandomSHA256()})
+	fact := t.prpool.getfact(point)
 
 	manifest := base.NewDummyManifest(fact.Point().Height(), valuehash.RandomSHA256())
 	pp := NewDummyProposalProcessor(manifest)
@@ -613,20 +570,16 @@ func (t *testNewACCEPTVoteproofOnACCEPTVoteproofConsensusHandler) TestHigerHeigh
 
 	st.pps.makenew = pp.make
 	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
-		if facthash.Equal(fact.Hash()) {
-			return fact, nil
-		}
-
-		return nil, util.NotFoundError.Errorf("fact not found")
+		return t.prpool.factByHash(facthash)
 	}
 
-	nextpr := t.newProposal(t.local, t.newProposalFact(point.Next(), []util.Hash{valuehash.RandomSHA256()}))
+	_ = t.prpool.get(point.Next())
 	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.Proposal, error) {
-		if p == nextpr.Point().Point {
-			return nextpr, nil
+		pr := t.prpool.byPoint(p)
+		if pr != nil {
+			return pr, nil
 		}
-
-		return nil, errors.Errorf("hahaah")
+		return nil, util.NotFoundError.Call()
 	})
 
 	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, fact.Hash(), nodes)
@@ -664,7 +617,7 @@ func (t *testNewACCEPTVoteproofOnACCEPTVoteproofConsensusHandler) TestDrawAndHig
 	nodes := t.nodes(3)
 
 	point := base.NewPoint(base.Height(33), base.Round(44))
-	fact := t.newProposalFact(point, []util.Hash{valuehash.RandomSHA256()})
+	fact := t.prpool.getfact(point)
 
 	manifest := base.NewDummyManifest(fact.Point().Height(), valuehash.RandomSHA256())
 	pp := NewDummyProposalProcessor(manifest)
@@ -674,22 +627,21 @@ func (t *testNewACCEPTVoteproofOnACCEPTVoteproofConsensusHandler) TestDrawAndHig
 
 	st.pps.makenew = pp.make
 	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
-		if facthash.Equal(fact.Hash()) {
-			return fact, nil
-		}
-
-		return nil, util.NotFoundError.Errorf("fact not found")
+		return t.prpool.factByHash(facthash)
 	}
 
 	nextprch := make(chan base.Point, 1)
-	nextpr := t.newProposal(t.local, t.newProposalFact(point.NextRound(), []util.Hash{valuehash.RandomSHA256()}))
+	_ = t.prpool.get(point.NextRound())
 	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.Proposal, error) {
-		if p == nextpr.Point().Point {
-			nextprch <- p
-			return nextpr, nil
-		}
+		pr := t.prpool.byPoint(p)
+		if pr != nil {
+			if p == point.NextRound() {
+				nextprch <- p
+			}
 
-		return nil, errors.Errorf("hahaah")
+			return pr, nil
+		}
+		return nil, util.NotFoundError.Call()
 	})
 
 	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, fact.Hash(), nodes)
@@ -730,7 +682,7 @@ func (t *testNewACCEPTVoteproofOnACCEPTVoteproofConsensusHandler) TestDrawAndHig
 	nodes := t.nodes(3)
 
 	point := base.NewPoint(base.Height(33), base.Round(44))
-	fact := t.newProposalFact(point, []util.Hash{valuehash.RandomSHA256()})
+	fact := t.prpool.getfact(point)
 
 	manifest := base.NewDummyManifest(fact.Point().Height(), valuehash.RandomSHA256())
 	pp := NewDummyProposalProcessor(manifest)
@@ -740,22 +692,21 @@ func (t *testNewACCEPTVoteproofOnACCEPTVoteproofConsensusHandler) TestDrawAndHig
 
 	st.pps.makenew = pp.make
 	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
-		if facthash.Equal(fact.Hash()) {
-			return fact, nil
-		}
-
-		return nil, util.NotFoundError.Errorf("fact not found")
+		return t.prpool.factByHash(facthash)
 	}
 
 	nextprch := make(chan base.Point, 1)
-	nextpr := t.newProposal(t.local, t.newProposalFact(point.NextRound(), []util.Hash{valuehash.RandomSHA256()}))
+	_ = t.prpool.get(point.NextRound())
 	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.Proposal, error) {
-		if p == nextpr.Point().Point {
-			nextprch <- p
-			return nextpr, nil
-		}
+		pr := t.prpool.byPoint(p)
+		if pr != nil {
+			if p == point.NextRound() {
+				nextprch <- p
+			}
 
-		return nil, errors.Errorf("hahaah")
+			return pr, nil
+		}
+		return nil, util.NotFoundError.Call()
 	})
 
 	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, fact.Hash(), nodes)
@@ -796,8 +747,7 @@ func (t *testNewACCEPTVoteproofOnACCEPTVoteproofConsensusHandler) TestDrawAndDra
 	nodes := t.nodes(3)
 
 	point := base.NewPoint(base.Height(33), base.Round(44))
-	fact := t.newProposalFact(point, []util.Hash{valuehash.RandomSHA256()})
-	pr := t.newProposal(t.local, fact)
+	fact := t.prpool.getfact(point)
 
 	manifest := base.NewDummyManifest(fact.Point().Height(), valuehash.RandomSHA256())
 	pp := NewDummyProposalProcessor(manifest)
@@ -807,28 +757,22 @@ func (t *testNewACCEPTVoteproofOnACCEPTVoteproofConsensusHandler) TestDrawAndDra
 
 	st.pps.makenew = pp.make
 	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
-		if facthash.Equal(fact.Hash()) {
-			return fact, nil
-		}
-
-		return nil, util.NotFoundError.Errorf("fact not found")
+		return t.prpool.factByHash(facthash)
 	}
 
 	newprch := make(chan base.Point, 1)
-	newpr := t.newProposal(t.local, t.newProposalFact(point.NextRound(), []util.Hash{valuehash.RandomSHA256()}))
-	nextpr := t.newProposal(t.local, t.newProposalFact(point.NextRound().NextRound(), []util.Hash{valuehash.RandomSHA256()}))
+	_ = t.prpool.get(point.NextRound())
+	nextpr := t.prpool.get(point.NextRound().NextRound())
 	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.Proposal, error) {
-		switch p {
-		case pr.Point().Point:
-			return pr, nil
-		case nextpr.Point().Point:
-			return nextpr, nil
-		case newpr.Point().Point:
-			newprch <- p
-			return newpr, nil
-		}
+		pr := t.prpool.byPoint(p)
+		if pr != nil {
+			if p == point.NextRound() {
+				newprch <- p
+			}
 
-		return nil, errors.Errorf("hahaah")
+			return pr, nil
+		}
+		return nil, util.NotFoundError.Call()
 	})
 
 	ballotch := make(chan base.Ballot, 1)

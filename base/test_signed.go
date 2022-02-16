@@ -22,9 +22,5 @@ func CompareSigned(t *assert.Assertions, a, b Signed) {
 	t.True(bytes.Equal(a.Bytes(), b.Bytes()))
 	t.True(a.Signer().Equal(b.Signer()))
 	t.True(a.Signature().Equal(b.Signature()))
-	t.True(
-		localtime.NewTime(a.SignedAt()).Normalize().Equal(
-			localtime.NewTime(b.SignedAt()).Normalize(),
-		),
-	)
+	t.True(localtime.Equal(a.SignedAt(), b.SignedAt()))
 }

@@ -21,7 +21,7 @@ func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestHigherHeight()
 	nodes := t.nodes(3)
 
 	point := base.NewPoint(base.Height(33), base.Round(44))
-	fact := t.newProposalFact(point, []util.Hash{valuehash.RandomSHA256()})
+	fact := t.prpool.getfact(point)
 
 	manifest := base.NewDummyManifest(fact.Point().Height(), valuehash.RandomSHA256())
 	pp := NewDummyProposalProcessor(manifest)
@@ -32,12 +32,16 @@ func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestHigherHeight()
 	prch := make(chan util.Hash, 1)
 	st.pps.makenew = pp.make
 	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
-		if facthash.Equal(fact.Hash()) {
-			prch <- facthash
-			return fact, nil
+		pr, err := t.prpool.factByHash(facthash)
+		if err != nil {
+			return nil, err
 		}
 
-		return nil, util.NotFoundError.Errorf("fact not found")
+		if fact.Hash().Equal(facthash) {
+			prch <- facthash
+		}
+
+		return pr, nil
 	}
 
 	st.broadcastBallotFunc = func(bl base.Ballot, tolocal bool) error {
@@ -60,8 +64,7 @@ func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestHigherHeight()
 		t.NoError(errors.Errorf("timeout to wait"))
 
 		return
-	case h := <-prch:
-		t.True(fact.Hash().Equal(h))
+	case <-prch:
 	}
 
 	t.T().Log("new higher init voteproof")
@@ -80,7 +83,7 @@ func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestNextRoundButAl
 	nodes := t.nodes(3)
 
 	point := base.NewPoint(base.Height(33), base.Round(44))
-	fact := t.newProposalFact(point, []util.Hash{valuehash.RandomSHA256()})
+	fact := t.prpool.getfact(point)
 
 	manifest := base.NewDummyManifest(fact.Point().Height(), valuehash.RandomSHA256())
 	pp := NewDummyProposalProcessor(manifest)
@@ -91,12 +94,16 @@ func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestNextRoundButAl
 	prch := make(chan util.Hash, 1)
 	st.pps.makenew = pp.make
 	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
-		if facthash.Equal(fact.Hash()) {
-			prch <- facthash
-			return fact, nil
+		pr, err := t.prpool.factByHash(facthash)
+		if err != nil {
+			return nil, err
 		}
 
-		return nil, util.NotFoundError.Errorf("fact not found")
+		if fact.Hash().Equal(facthash) {
+			prch <- facthash
+		}
+
+		return pr, nil
 	}
 
 	st.broadcastBallotFunc = func(bl base.Ballot, tolocal bool) error {
@@ -119,8 +126,7 @@ func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestNextRoundButAl
 		t.NoError(errors.Errorf("timeout to wait"))
 
 		return
-	case h := <-prch:
-		t.True(fact.Hash().Equal(h))
+	case <-prch:
 	}
 
 	t.T().Log("next round init voteproof")
@@ -149,12 +155,7 @@ func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestDrawBeforePrev
 
 	st.pps.makenew = pp.make
 	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
-		pr := t.prpool.byHash(facthash)
-		if pr != nil {
-			return pr.BallotSignedFact().BallotFact(), nil
-		}
-
-		return nil, util.NotFoundError.Errorf("fact not found")
+		return t.prpool.factByHash(facthash)
 	}
 
 	ballotch := make(chan base.Ballot, 1)
@@ -245,12 +246,7 @@ func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestDrawBefore() {
 
 	st.pps.makenew = pp.make
 	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
-		pr := t.prpool.byHash(facthash)
-		if pr != nil {
-			return pr.BallotSignedFact().BallotFact(), nil
-		}
-
-		return nil, util.NotFoundError.Errorf("fact not found")
+		return t.prpool.factByHash(facthash)
 	}
 
 	ballotch := make(chan base.Ballot, 1)
@@ -347,12 +343,7 @@ func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestDrawAndDrawAga
 
 	st.pps.makenew = pp.make
 	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
-		pr := t.prpool.byHash(facthash)
-		if pr != nil {
-			return pr.BallotSignedFact().BallotFact(), nil
-		}
-
-		return nil, util.NotFoundError.Errorf("fact not found")
+		return t.prpool.factByHash(facthash)
 	}
 
 	ballotch := make(chan base.Ballot, 1)
@@ -464,12 +455,7 @@ func (t *testNewINITVoteproofOnACCEPTVoteproofConsensusHandler) TestExpected() {
 
 	st.pps.makenew = pp.make
 	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
-		pr := t.prpool.byHash(facthash)
-		if pr != nil {
-			return pr.BallotSignedFact().BallotFact(), nil
-		}
-
-		return nil, util.NotFoundError.Errorf("fact not found")
+		return t.prpool.factByHash(facthash)
 	}
 
 	ballotch := make(chan base.Ballot, 1)
@@ -538,12 +524,7 @@ func (t *testNewINITVoteproofOnACCEPTVoteproofConsensusHandler) TestHigherHeight
 
 	st.pps.makenew = pp.make
 	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
-		pr := t.prpool.byHash(facthash)
-		if pr != nil {
-			return pr.BallotSignedFact().BallotFact(), nil
-		}
-
-		return nil, util.NotFoundError.Errorf("fact not found")
+		return t.prpool.factByHash(facthash)
 	}
 
 	ballotch := make(chan base.Ballot, 1)
@@ -608,12 +589,7 @@ func (t *testNewINITVoteproofOnACCEPTVoteproofConsensusHandler) TestPreviousBloc
 
 	st.pps.makenew = pp.make
 	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
-		pr := t.prpool.byHash(facthash)
-		if pr != nil {
-			return pr.BallotSignedFact().BallotFact(), nil
-		}
-
-		return nil, util.NotFoundError.Errorf("fact not found")
+		return t.prpool.factByHash(facthash)
 	}
 
 	ballotch := make(chan base.Ballot, 1)

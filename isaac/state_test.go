@@ -3,6 +3,7 @@ package isaac
 import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -10,13 +11,26 @@ type baseTestStateHandler struct {
 	suite.Suite
 	local  *LocalNode
 	policy base.BasePolicy
+	prpool *proposalPool
 }
 
 func (t *baseTestStateHandler) SetupTest() {
-	t.local = RandomLocalNode()
-	t.policy = base.NewBasePolicy()
-	t.policy.SetNetworkID(base.RandomNetworkID())
-	t.policy.SetThreshold(base.Threshold(100))
+	local := RandomLocalNode()
+	policy := base.NewBasePolicy()
+	policy.SetNetworkID(base.RandomNetworkID())
+	policy.SetThreshold(base.Threshold(100))
+
+	networkID := t.policy.NetworkID()
+
+	t.local = local
+	t.policy = policy
+
+	t.prpool = newProposalPool(func(point base.Point) base.Proposal {
+		fs := NewProposalSignedFact(local.Address(), NewProposalFact(point, []util.Hash{valuehash.RandomSHA256()}))
+		_ = fs.Sign(local.Privatekey(), networkID)
+
+		return NewProposal(fs)
+	})
 }
 
 func (t *baseTestStateHandler) newINITBallotFact(point base.Point, prev, pr util.Hash) INITBallotFact {
@@ -113,4 +127,26 @@ func (t *baseTestStateHandler) nodes(n int) []*LocalNode {
 	}
 
 	return suf
+}
+
+func (t *baseTestStateHandler) voteproofsPair(prevpoint, point base.Point, prev, pr, nextpr util.Hash, nodes []*LocalNode) (ACCEPTVoteproof, INITVoteproof) {
+	if prev == nil {
+		prev = valuehash.RandomSHA256()
+	}
+	if pr == nil {
+		pr = valuehash.RandomSHA256()
+	}
+	if nextpr == nil {
+		nextpr = valuehash.RandomSHA256()
+	}
+
+	afact := t.newACCEPTBallotFact(prevpoint, pr, prev)
+	avp, err := t.newACCEPTVoteproof(afact, t.local, nodes)
+	t.NoError(err)
+
+	ifact := t.newINITBallotFact(point, prev, nextpr)
+	ivp, err := t.newINITVoteproof(ifact, t.local, nodes)
+	t.NoError(err)
+
+	return avp, ivp
 }

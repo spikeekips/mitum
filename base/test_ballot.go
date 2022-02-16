@@ -64,7 +64,7 @@ func compareProposalFact(t *assert.Assertions, a, b ProposalFact) {
 	for i := range aop {
 		t.True(aop[i].Equal(bop[i]))
 	}
-	t.Equal(localtime.NewTime(a.ProposedAt()).Normalize(), localtime.NewTime(b.ProposedAt()).Normalize())
+	t.True(localtime.Equal(a.ProposedAt(), b.ProposedAt()))
 }
 
 func compareACCEPTBallotFact(t *assert.Assertions, a, b ACCEPTBallotFact) {

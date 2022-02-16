@@ -9,6 +9,7 @@ import (
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/localtime"
+	"github.com/stretchr/testify/assert"
 )
 
 var DummyManifestHint = hint.MustNewHint("dummy-manifest-v0.0.1")
@@ -121,4 +122,43 @@ func (m *DummyManifest) SetCreatedAt(i time.Time) *DummyManifest {
 func (m *DummyManifest) SetNodeCreatedAt(i time.Time) *DummyManifest {
 	m.nodeCreatedAt = i
 	return m
+}
+
+func CompareManifest(t *assert.Assertions, a, b Manifest) {
+	isnil := func(name string, a, b interface{}) bool {
+		if a != nil && b != nil {
+			return false
+		}
+
+		if a != nil || b != nil {
+			t.True(false, name)
+		}
+
+		return true
+	}
+
+	if isnil("manifest", a, b) {
+		return
+	}
+
+	t.True(a.Hint().Equal(b.Hint()))
+	t.True(a.Hash().Equal(b.Hash()))
+	t.Equal(a.Height(), b.Height())
+	if !isnil("previous", a.Previous(), b.Previous()) {
+		t.True(a.Previous().Equal(b.Previous()))
+	}
+	if !isnil("proposal", a.Proposal(), b.Proposal()) {
+		t.True(a.Proposal().Equal(b.Proposal()))
+	}
+	if !isnil("OperationsTree", a.OperationsTree(), b.OperationsTree()) {
+		t.True(a.OperationsTree().Equal(b.OperationsTree()))
+	}
+	if !isnil("StatesTree", a.StatesTree(), b.StatesTree()) {
+		t.True(a.StatesTree().Equal(b.StatesTree()))
+	}
+	if !isnil("SuffrageBlock", a.SuffrageBlock(), b.SuffrageBlock()) {
+		t.True(a.SuffrageBlock().Equal(b.SuffrageBlock()))
+	}
+	t.True(localtime.Equal(a.CreatedAt(), b.CreatedAt()))
+	t.True(localtime.Equal(a.NodeCreatedAt(), b.NodeCreatedAt()))
 }

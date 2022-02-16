@@ -67,8 +67,7 @@ type INITBallotSignedFact struct {
 	baseBallotSignedFact
 }
 
-func NewINITBallotSignedFact(node base.Address, fact base.INITBallotFact) INITBallotSignedFact {
-	// BLOCK use INITBallotFact instead of base.INITBallotFact
+func NewINITBallotSignedFact(node base.Address, fact INITBallotFact) INITBallotSignedFact {
 	return INITBallotSignedFact{
 		baseBallotSignedFact: newBaseBallotSignedFact(INITBallotSignedFactHint, node, fact),
 	}
@@ -94,7 +93,7 @@ type ProposalSignedFact struct {
 	baseBallotSignedFact
 }
 
-func NewProposalSignedFact(node base.Address, fact base.ProposalFact) ProposalSignedFact {
+func NewProposalSignedFact(node base.Address, fact ProposalFact) ProposalSignedFact {
 	return ProposalSignedFact{
 		baseBallotSignedFact: newBaseBallotSignedFact(ProposalSignedFactHint, node, fact),
 	}
@@ -124,7 +123,7 @@ type ACCEPTBallotSignedFact struct {
 	baseBallotSignedFact
 }
 
-func NewACCEPTBallotSignedFact(node base.Address, fact base.ACCEPTBallotFact) ACCEPTBallotSignedFact {
+func NewACCEPTBallotSignedFact(node base.Address, fact ACCEPTBallotFact) ACCEPTBallotSignedFact {
 	return ACCEPTBallotSignedFact{
 		baseBallotSignedFact: newBaseBallotSignedFact(ACCEPTBallotSignedFactHint, node, fact),
 	}

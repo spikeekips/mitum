@@ -84,7 +84,7 @@ func (st *ConsensusHandler) enter(i stateSwitchContext) (func() error, error) {
 	case j.ivp.Result() != base.VoteResultMajority:
 		return nil, e(nil, "invalid stateSwitchContext, wrong vote result of init voteproof, %q", j.ivp.Result())
 	default:
-		_ = st.setLastVoteproof(j.ivp)
+		_ = st.setLastVoteproof(j.ivp) // BLOCK states also do setLastVoteproof
 
 		sctx = j
 	}
@@ -213,28 +213,20 @@ func (st *ConsensusHandler) processProposalInternal(ivp base.INITVoteproof) (bas
 
 	facthash := ivp.BallotMajority().Proposal()
 
-	ch := make(chan proposalProcessResult)
-	defer close(ch)
+	switch manifest, err := st.pps.process(context.Background(), facthash); {
+	case err != nil:
+		st.Log().Error().Err(err).Msg("failed to process proposal")
 
-	if err := st.pps.process(context.Background(), facthash, ch); err != nil {
-		return nil, e(err, "")
-	}
+		return nil, err
+	case manifest == nil:
+		st.Log().Debug().Dict("manifest", base.ManifestLog(manifest)).
+			Msg("processing proposal ignored; empty manifest")
 
-	r := <-ch
-
-	st.Log().Trace().
-		Stringer("fact", facthash).
-		AnErr("result_error", r.err).
-		Dict("manifest", base.ManifestLog(r.manifest)).
-		Msg("proposal processed")
-
-	switch {
-	case r.err != nil:
-		return nil, r.err
-	case r.manifest == nil:
 		return nil, nil
 	default:
-		afact := NewACCEPTBallotFact(r.fact.Point().Point, facthash, r.manifest.Hash())
+		st.Log().Debug().Msg("proposal processed")
+
+		afact := NewACCEPTBallotFact(ivp.Point().Point, facthash, manifest.Hash())
 		signedFact := NewACCEPTBallotSignedFact(st.local.Address(), afact)
 		if err := signedFact.Sign(st.local.Privatekey(), st.policy.NetworkID()); err != nil {
 			return nil, e(err, "")
@@ -244,9 +236,9 @@ func (st *ConsensusHandler) processProposalInternal(ivp base.INITVoteproof) (bas
 		if err := st.broadcastBallot(bl, true); err != nil {
 			return nil, e(err, "failed to broadcast accept ballot")
 		}
-	}
 
-	return r.manifest, nil
+		return manifest, nil
+	}
 }
 
 func (st *ConsensusHandler) newVoteproof(vp base.Voteproof) error {
