@@ -495,20 +495,20 @@ func (vr *voterecords) newVoteproof(
 	switch vr.stagepoint.Stage() {
 	case base.StageINIT:
 		vp := NewINITVoteproof(vr.stagepoint.Point)
-		_ = vp.SetResult(result)
-		_ = vp.SetSignedFacts(sfs)
-		_ = vp.SetMajority(majority)
-		_ = vp.SetThreshold(vr.threshold)
-		_ = vp.finish()
+		_ = vp.SetResult(result).
+			SetSignedFacts(sfs).
+			SetMajority(majority).
+			SetThreshold(vr.threshold).
+			finish()
 
 		return vp
 	case base.StageACCEPT:
 		vp := NewACCEPTVoteproof(vr.stagepoint.Point)
-		_ = vp.SetResult(result)
-		_ = vp.SetSignedFacts(sfs)
-		_ = vp.SetMajority(majority)
-		_ = vp.SetThreshold(vr.threshold)
-		_ = vp.finish()
+		_ = vp.SetResult(result).
+			SetSignedFacts(sfs).
+			SetMajority(majority).
+			SetThreshold(vr.threshold).
+			finish()
 
 		return vp
 	default:

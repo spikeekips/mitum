@@ -79,11 +79,11 @@ func (t *baseTestStateHandler) newINITVoteproof(
 	}
 
 	vp := NewINITVoteproof(fact.Point().Point)
-	vp.SetResult(base.VoteResultMajority)
-	vp.SetMajority(fact)
-	vp.SetSignedFacts(sfs)
-	vp.SetThreshold(t.policy.Threshold())
-	vp.finish()
+	vp.SetResult(base.VoteResultMajority).
+		SetMajority(fact).
+		SetSignedFacts(sfs).
+		SetThreshold(t.policy.Threshold()).
+		finish()
 
 	return vp, nil
 }
@@ -113,11 +113,11 @@ func (t *baseTestStateHandler) newACCEPTVoteproof(
 	}
 
 	vp := NewACCEPTVoteproof(fact.Point().Point)
-	vp.SetResult(base.VoteResultMajority)
-	vp.SetMajority(fact)
-	vp.SetSignedFacts(sfs)
-	vp.SetThreshold(t.policy.Threshold())
-	vp.finish()
+	vp.SetResult(base.VoteResultMajority).
+		SetMajority(fact).
+		SetSignedFacts(sfs).
+		SetThreshold(t.policy.Threshold()).
+		finish()
 
 	return vp, nil
 }

@@ -86,7 +86,7 @@ func (t *testBaseBallotFact) TestWrongStage() {
 func TestBasicINITBallotFact(tt *testing.T) {
 	t := new(testBaseBallotFact)
 	t.ballot = func() base.BallotFact {
-		bl := NewINITBallotFact(base.NewPoint(base.Height(33), base.Round(44)), valuehash.RandomSHA256(), valuehash.RandomSHA256())
+		bl := NewINITBallotFact(base.RawPoint(33, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256())
 		_ = (interface{})(bl).(base.INITBallotFact)
 
 		return bl
@@ -98,7 +98,7 @@ func TestBasicINITBallotFact(tt *testing.T) {
 func TestBasicProposalBallotFact(tt *testing.T) {
 	t := new(testBaseBallotFact)
 	t.ballot = func() base.BallotFact {
-		bl := NewProposalFact(base.NewPoint(base.Height(33), base.Round(44)),
+		bl := NewProposalFact(base.RawPoint(33, 44),
 			[]util.Hash{valuehash.RandomSHA256()})
 		_ = (interface{})(bl).(base.ProposalFact)
 
@@ -111,7 +111,7 @@ func TestBasicProposalBallotFact(tt *testing.T) {
 func TestBasicACCEPTBallotFact(tt *testing.T) {
 	t := new(testBaseBallotFact)
 	t.ballot = func() base.BallotFact {
-		bl := NewACCEPTBallotFact(base.NewPoint(base.Height(33), base.Round(44)),
+		bl := NewACCEPTBallotFact(base.RawPoint(33, 44),
 			valuehash.RandomSHA256(),
 			valuehash.RandomSHA256(),
 		)
@@ -129,7 +129,7 @@ type testProposalBallotFact struct {
 
 func (t *testProposalBallotFact) TestDuplicatedOperations() {
 	op := valuehash.RandomSHA256()
-	bl := NewProposalFact(base.NewPoint(base.Height(33), base.Round(44)),
+	bl := NewProposalFact(base.RawPoint(33, 44),
 		[]util.Hash{
 			valuehash.RandomSHA256(),
 			op,
@@ -189,7 +189,7 @@ func TestINITBallotFactJSON(tt *testing.T) {
 	t := testBallotFactEncode()
 
 	t.Encode = func() (interface{}, []byte) {
-		bl := NewINITBallotFact(base.NewPoint(base.Height(33), base.Round(44)), valuehash.RandomSHA256(), valuehash.RandomSHA256())
+		bl := NewINITBallotFact(base.RawPoint(33, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256())
 
 		b, err := t.enc.Marshal(bl)
 		t.NoError(err)
@@ -213,7 +213,7 @@ func TestProposalBallotFactJSON(tt *testing.T) {
 	t := testBallotFactEncode()
 
 	t.Encode = func() (interface{}, []byte) {
-		bl := NewProposalFact(base.NewPoint(base.Height(33), base.Round(44)),
+		bl := NewProposalFact(base.RawPoint(33, 44),
 			[]util.Hash{valuehash.RandomSHA256()})
 
 		b, err := t.enc.Marshal(bl)
@@ -238,7 +238,7 @@ func TestACCEPTBallotFactJSON(tt *testing.T) {
 	t := testBallotFactEncode()
 
 	t.Encode = func() (interface{}, []byte) {
-		bl := NewACCEPTBallotFact(base.NewPoint(base.Height(33), base.Round(44)),
+		bl := NewACCEPTBallotFact(base.RawPoint(33, 44),
 			valuehash.RandomSHA256(),
 			valuehash.RandomSHA256(),
 		)

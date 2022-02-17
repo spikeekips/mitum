@@ -19,7 +19,7 @@ type testProposalProcessors struct {
 }
 
 func (t *testProposalProcessors) TestProcess() {
-	point := base.NewPoint(base.Height(33), base.Round(44))
+	point := base.RawPoint(33, 44)
 
 	pr := t.prpool.get(point)
 
@@ -72,7 +72,7 @@ func (t *testProposalProcessors) TestProcess() {
 }
 
 func (t *testProposalProcessors) TestAlreadyProcessing() {
-	point := base.NewPoint(base.Height(33), base.Round(44))
+	point := base.RawPoint(33, 44)
 
 	pr := t.prpool.get(point)
 
@@ -118,7 +118,7 @@ func (t *testProposalProcessors) TestAlreadyProcessing() {
 }
 
 func (t *testProposalProcessors) TestCancelPrevious() {
-	point := base.NewPoint(base.Height(33), base.Round(44))
+	point := base.RawPoint(33, 44)
 
 	pr := t.prpool.get(point)
 	nextpr := t.prpool.get(point.NextRound())
@@ -185,7 +185,7 @@ func (t *testProposalProcessors) TestCancelPrevious() {
 }
 
 func (t *testProposalProcessors) TestFailedToFetchFact() {
-	point := base.NewPoint(base.Height(33), base.Round(44))
+	point := base.RawPoint(33, 44)
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 
@@ -206,7 +206,7 @@ func (t *testProposalProcessors) TestFailedToFetchFact() {
 }
 
 func (t *testProposalProcessors) TestFailedToFetchFactCanceled() {
-	point := base.NewPoint(base.Height(33), base.Round(44))
+	point := base.RawPoint(33, 44)
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 
@@ -227,7 +227,7 @@ func (t *testProposalProcessors) TestFailedToFetchFactCanceled() {
 }
 
 func (t *testProposalProcessors) TestRetryFetchFact() {
-	point := base.NewPoint(base.Height(33), base.Round(44))
+	point := base.RawPoint(33, 44)
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 
@@ -259,7 +259,7 @@ func (t *testProposalProcessors) TestRetryFetchFact() {
 }
 
 func (t *testProposalProcessors) TestRetryFetchFactOverLimit() {
-	point := base.NewPoint(base.Height(33), base.Round(44))
+	point := base.RawPoint(33, 44)
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 
@@ -286,7 +286,7 @@ func (t *testProposalProcessors) TestRetryFetchFactOverLimit() {
 }
 
 func (t *testProposalProcessors) TestProcessError() {
-	point := base.NewPoint(base.Height(33), base.Round(44))
+	point := base.RawPoint(33, 44)
 
 	pr := t.prpool.get(point)
 
@@ -315,7 +315,7 @@ func (t *testProposalProcessors) TestProcessError() {
 }
 
 func (t *testProposalProcessors) TestProcessIgnoreError() {
-	point := base.NewPoint(base.Height(33), base.Round(44))
+	point := base.RawPoint(33, 44)
 
 	pr := t.prpool.get(point)
 
@@ -343,7 +343,7 @@ func (t *testProposalProcessors) TestProcessIgnoreError() {
 }
 
 func (t *testProposalProcessors) TestProcessContextCanceled() {
-	point := base.NewPoint(base.Height(33), base.Round(44))
+	point := base.RawPoint(33, 44)
 
 	pr := t.prpool.get(point)
 
@@ -372,7 +372,7 @@ func (t *testProposalProcessors) TestProcessContextCanceled() {
 }
 
 func (t *testProposalProcessors) TestProcessRetry() {
-	point := base.NewPoint(base.Height(33), base.Round(44))
+	point := base.RawPoint(33, 44)
 
 	pr := t.prpool.get(point)
 
@@ -407,7 +407,7 @@ func (t *testProposalProcessors) TestProcessRetry() {
 }
 
 func (t *testProposalProcessors) TestSaveError() {
-	point := base.NewPoint(base.Height(33), base.Round(44))
+	point := base.RawPoint(33, 44)
 
 	pr := t.prpool.get(point)
 

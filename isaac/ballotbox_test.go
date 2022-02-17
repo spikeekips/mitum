@@ -49,11 +49,11 @@ func (t *testBallotbox) initBallot(node base.Address, nodes []base.Address, poin
 	}
 
 	avp := NewACCEPTVoteproof(afact.Point().Point)
-	avp.SetResult(base.VoteResultMajority)
-	avp.SetMajority(afact)
-	avp.SetSignedFacts(asfs)
-	avp.SetThreshold(base.Threshold(100))
-	avp.finish()
+	avp.SetResult(base.VoteResultMajority).
+		SetMajority(afact).
+		SetSignedFacts(asfs).
+		SetThreshold(base.Threshold(100)).
+		finish()
 
 	fact := NewINITBallotFact(point, prev, proposal)
 
@@ -76,11 +76,11 @@ func (t *testBallotbox) acceptBallot(node base.Address, nodes []base.Address, po
 	}
 
 	ivp := NewINITVoteproof(ifact.Point().Point)
-	ivp.SetResult(base.VoteResultMajority)
-	ivp.SetMajority(ifact)
-	ivp.SetSignedFacts(isfs)
-	ivp.SetThreshold(base.Threshold(100))
-	ivp.finish()
+	ivp.SetResult(base.VoteResultMajority).
+		SetMajority(ifact).
+		SetSignedFacts(isfs).
+		SetThreshold(base.Threshold(100)).
+		finish()
 
 	fact := NewACCEPTBallotFact(point, pr, block)
 
@@ -117,7 +117,7 @@ func (t *testBallotbox) TestVoteINITBallotSignedFact() {
 		th,
 	)
 
-	point := base.NewPoint(base.Height(33), base.Round(0))
+	point := base.RawPoint(33, 0)
 	prev := valuehash.RandomSHA256()
 
 	bl := t.initBallot(n0, suf.Nodes(), point, prev, valuehash.RandomSHA256())
@@ -159,7 +159,7 @@ func (t *testBallotbox) TestVoteACCEPTBallotSignedFact() {
 		th,
 	)
 
-	point := base.NewPoint(base.Height(33), base.Round(1))
+	point := base.RawPoint(33, 1)
 	pr := valuehash.RandomSHA256()
 	block := valuehash.RandomSHA256()
 
@@ -205,7 +205,7 @@ func (t *testBallotbox) TestVoteSamePointAndStageWithLastVoteproof() {
 		th,
 	)
 
-	point := base.NewPoint(base.Height(33), base.Round(1))
+	point := base.RawPoint(33, 1)
 	pr := valuehash.RandomSHA256()
 	block := valuehash.RandomSHA256()
 
@@ -248,7 +248,7 @@ func (t *testBallotbox) TestOldBallotSignedFact() {
 		th,
 	)
 
-	point := base.NewPoint(base.Height(33), base.Round(1))
+	point := base.RawPoint(33, 1)
 
 	pr := valuehash.RandomSHA256()
 	block := valuehash.RandomSHA256()
@@ -290,7 +290,7 @@ func (t *testBallotbox) TestUnknownSuffrageNode() {
 		th,
 	)
 
-	point := base.NewPoint(base.Height(33), base.Round(1))
+	point := base.RawPoint(33, 1)
 	prev := valuehash.RandomSHA256()
 
 	bl := t.initBallot(n1, suf.Nodes(), point, prev, valuehash.RandomSHA256())
@@ -309,7 +309,7 @@ func (t *testBallotbox) TestNilSuffrage() {
 		base.Threshold(100),
 	)
 
-	point := base.NewPoint(base.Height(33), base.Round(1))
+	point := base.RawPoint(33, 1)
 	prev := valuehash.RandomSHA256()
 
 	bl := t.initBallot(n0, []base.Address{n0}, point, prev, valuehash.RandomSHA256())
@@ -343,7 +343,7 @@ func (t *testBallotbox) TestNilSuffrageCount() {
 		th,
 	)
 
-	point := base.NewPoint(base.Height(33), base.Round(0))
+	point := base.RawPoint(33, 0)
 	prev := valuehash.RandomSHA256()
 
 	bl := t.initBallot(n0, suf.Nodes(), point, prev, valuehash.RandomSHA256())
@@ -394,7 +394,7 @@ func (t *testBallotbox) TestVoteproofOrder() {
 		th,
 	)
 
-	point := base.NewPoint(base.Height(33), base.Round(22))
+	point := base.RawPoint(33, 22)
 	nodes := suf.Nodes()
 
 	// prev prev ACCEPT vote
@@ -488,7 +488,7 @@ func (t *testBallotbox) TestVoteproofFromBallotACCEPTVoteproof() {
 		th,
 	)
 
-	point := base.NewPoint(base.Height(33), base.Round(0))
+	point := base.RawPoint(33, 0)
 	prevpoint := point.Decrease()
 	prev := valuehash.RandomSHA256()
 	pr := valuehash.RandomSHA256()
@@ -525,7 +525,7 @@ func (t *testBallotbox) TestVoteproofFromBallotINITVoteproof() {
 		th,
 	)
 
-	point := base.NewPoint(base.Height(33), base.Round(0))
+	point := base.RawPoint(33, 0)
 	pr := valuehash.RandomSHA256()
 	block := valuehash.RandomSHA256()
 
@@ -578,7 +578,7 @@ func (t *testBallotbox) TestVoteproofFromBallotWhenCount() {
 		th,
 	)
 
-	point := base.NewPoint(base.Height(33), base.Round(0))
+	point := base.RawPoint(33, 0)
 	pr := valuehash.RandomSHA256()
 	block := valuehash.RandomSHA256()
 
@@ -639,7 +639,7 @@ func (t *testBallotbox) TestAsyncVoterecords() {
 
 	suf, _ := newSuffrage(nodes)
 	th := base.Threshold(100)
-	stagepoint := base.NewStagePoint(base.NewPoint(base.Height(33), base.Round(44)), base.StageINIT)
+	stagepoint := base.NewStagePoint(base.RawPoint(33, 44), base.StageINIT)
 	vr := newVoterecords(stagepoint, nil, func(base.Height) base.Suffrage { return suf }, th)
 
 	ctx := context.TODO()

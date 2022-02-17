@@ -82,50 +82,54 @@ func (vp baseVoteproof) Majority() base.BallotFact {
 	return vp.majority
 }
 
-func (vp *baseVoteproof) SetMajority(fact base.BallotFact) baseVoteproof {
+func (vp *baseVoteproof) SetMajority(fact base.BallotFact) *baseVoteproof {
 	vp.majority = fact
 
-	return *vp
+	return vp
 }
 
 func (vp baseVoteproof) Point() base.StagePoint {
 	return vp.point
 }
 
-func (vp *baseVoteproof) SetPoint(p base.StagePoint) baseVoteproof {
+func (vp *baseVoteproof) SetPoint(p base.StagePoint) *baseVoteproof {
 	vp.point = p
 
-	return *vp
+	return vp
 }
 
 func (vp baseVoteproof) Result() base.VoteResult {
 	return vp.result
 }
 
-func (vp *baseVoteproof) SetResult(r base.VoteResult) baseVoteproof {
+func (vp *baseVoteproof) SetResult(r base.VoteResult) *baseVoteproof {
 	vp.result = r
 
-	return *vp
+	if r == base.VoteResultDraw {
+		vp.majority = nil
+	}
+
+	return vp
 }
 
 func (vp baseVoteproof) Threshold() base.Threshold {
 	return vp.threshold
 }
 
-func (vp *baseVoteproof) SetThreshold(s base.Threshold) baseVoteproof {
+func (vp *baseVoteproof) SetThreshold(s base.Threshold) *baseVoteproof {
 	vp.threshold = s
 
-	return *vp
+	return vp
 }
 
 func (vp baseVoteproof) SignedFacts() []base.BallotSignedFact {
 	return vp.sfs
 }
 
-func (vp *baseVoteproof) SetSignedFacts(sfs []base.BallotSignedFact) baseVoteproof {
+func (vp *baseVoteproof) SetSignedFacts(sfs []base.BallotSignedFact) *baseVoteproof {
 	vp.sfs = sfs
 
-	return *vp
+	return vp
 }
 
 func (vp baseVoteproof) ID() string {

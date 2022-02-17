@@ -44,6 +44,7 @@ func (t *baseTestConsensusHandler) newState() (*ConsensusHandler, func()) {
 
 func (t *baseTestConsensusHandler) newStateWithINITVoteproof(point base.Point, nodes []*LocalNode) (*ConsensusHandler, func(), *DummyProposalProcessor, base.INITVoteproof) {
 	st, closef := t.newState()
+	defer closef()
 
 	fact := t.prpool.getfact(point)
 
@@ -112,7 +113,7 @@ func (t *testConsensusHandler) TestNew() {
 		timerIDPrepareProposal,
 	}, false))
 
-	point := base.NewPoint(base.Height(33), base.Round(0))
+	point := base.RawPoint(33, 0)
 	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, nil, nodes)
 	t.True(st.setLastVoteproof(ivp))
 
@@ -124,7 +125,7 @@ func (t *testConsensusHandler) TestNew() {
 }
 
 func (t *testConsensusHandler) TestInvalidVoteproofs() {
-	point := base.NewPoint(base.Height(22), base.Round(0))
+	point := base.RawPoint(22, 0)
 	nodes := t.nodes(3)
 
 	t.Run("empty init voteproof", func() {
@@ -143,10 +144,9 @@ func (t *testConsensusHandler) TestInvalidVoteproofs() {
 		st, closef, _, _ := t.newStateWithINITVoteproof(point, nodes)
 		defer closef()
 
-		point := base.NewPoint(base.Height(33), base.Round(0))
+		point := base.RawPoint(33, 0)
 		_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, nil, nodes)
-		ivp.SetResult(base.VoteResultDraw)
-		ivp.finish()
+		ivp.SetResult(base.VoteResultDraw).finish()
 
 		sctx := newConsensusSwitchContext(StateJoining, ivp)
 
@@ -160,10 +160,9 @@ func (t *testConsensusHandler) TestInvalidVoteproofs() {
 		st, closef, _, _ := t.newStateWithINITVoteproof(point, nodes)
 		defer closef()
 
-		point := base.NewPoint(base.Height(33), base.Round(0))
+		point := base.RawPoint(33, 0)
 		_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, nil, nodes)
-		ivp.SetMajority(nil)
-		ivp.finish()
+		ivp.SetMajority(nil).finish()
 
 		sctx := newConsensusSwitchContext(StateJoining, ivp)
 
@@ -176,7 +175,7 @@ func (t *testConsensusHandler) TestInvalidVoteproofs() {
 func (t *testConsensusHandler) TestExit() {
 	nodes := t.nodes(3)
 
-	point := base.NewPoint(base.Height(33), base.Round(44))
+	point := base.RawPoint(33, 44)
 
 	st, closefunc, _, ivp := t.newStateWithINITVoteproof(point, nodes)
 	defer closefunc()
@@ -219,7 +218,7 @@ func (t *testConsensusHandler) TestExit() {
 }
 
 func (t *testConsensusHandler) TestProcessingProposalAfterEntered() {
-	point := base.NewPoint(base.Height(33), base.Round(44))
+	point := base.RawPoint(33, 44)
 	nodes := t.nodes(3)
 
 	st, closefunc, _, ivp := t.newStateWithINITVoteproof(point, nodes)
@@ -255,7 +254,7 @@ func (t *testConsensusHandler) TestProcessingProposalAfterEntered() {
 }
 
 func (t *testConsensusHandler) TestFailedProcessingProposalFetchFactFailed() {
-	point := base.NewPoint(base.Height(33), base.Round(44))
+	point := base.RawPoint(33, 44)
 	nodes := t.nodes(2)
 
 	st, closefunc, _, ivp := t.newStateWithINITVoteproof(point, nodes)
@@ -291,7 +290,7 @@ func (t *testConsensusHandler) TestFailedProcessingProposalFetchFactFailed() {
 }
 
 func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailed() {
-	point := base.NewPoint(base.Height(33), base.Round(44))
+	point := base.RawPoint(33, 44)
 	nodes := t.nodes(2)
 
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, nodes)
@@ -337,7 +336,7 @@ func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailed() {
 }
 
 func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailedRetry() {
-	point := base.NewPoint(base.Height(33), base.Round(44))
+	point := base.RawPoint(33, 44)
 	nodes := t.nodes(2)
 
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, nodes)
@@ -391,7 +390,7 @@ func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailedRetry
 }
 
 func (t *testConsensusHandler) TestProcessingProposalWithACCEPTVoteproof() {
-	point := base.NewPoint(base.Height(33), base.Round(44))
+	point := base.RawPoint(33, 44)
 	nodes := t.nodes(3)
 
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, nodes)
@@ -427,16 +426,14 @@ func (t *testConsensusHandler) TestProcessingProposalWithACCEPTVoteproof() {
 }
 
 func (t *testConsensusHandler) TestProcessingProposalWithDrawACCEPTVoteproof() {
-	point := base.NewPoint(base.Height(33), base.Round(44))
+	point := base.RawPoint(33, 44)
 	nodes := t.nodes(3)
 
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, nodes)
 	defer closefunc()
 
 	avp, _ := t.voteproofsPair(point, point.Next(), pp.manifest.Hash(), nil, nil, nodes)
-	avp.SetMajority(nil)
-	avp.SetResult(base.VoteResultDraw)
-	avp.finish()
+	avp.SetResult(base.VoteResultDraw).finish()
 
 	pp.processerr = func() error {
 		st.setLastVoteproof(avp)
@@ -466,7 +463,7 @@ func (t *testConsensusHandler) TestProcessingProposalWithDrawACCEPTVoteproof() {
 }
 
 func (t *testConsensusHandler) TestProcessingProposalWithWrongNewBlockACCEPTVoteproof() {
-	point := base.NewPoint(base.Height(33), base.Round(44))
+	point := base.RawPoint(33, 44)
 	nodes := t.nodes(3)
 
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, nodes)

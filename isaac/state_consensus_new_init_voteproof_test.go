@@ -18,7 +18,7 @@ type testNewINITVoteproofOnINITVoteproofConsensusHandler struct {
 }
 
 func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestHigherHeight() {
-	point := base.NewPoint(base.Height(33), base.Round(44))
+	point := base.RawPoint(33, 44)
 	nodes := t.nodes(3)
 
 	st, closefunc, _, ivp := t.newStateWithINITVoteproof(point, nodes)
@@ -70,7 +70,7 @@ func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestHigherHeight()
 }
 
 func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestNextRoundButAlreadyFinished() {
-	point := base.NewPoint(base.Height(33), base.Round(44))
+	point := base.RawPoint(33, 44)
 	nodes := t.nodes(3)
 
 	st, closefunc, _, ivp := t.newStateWithINITVoteproof(point, nodes)
@@ -117,7 +117,7 @@ func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestNextRoundButAl
 }
 
 func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestDrawBeforePreviousBlockNotMatched() {
-	point := base.NewPoint(base.Height(33), base.Round(44))
+	point := base.RawPoint(33, 44)
 	nodes := t.nodes(3)
 
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, nodes)
@@ -173,9 +173,7 @@ func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestDrawBeforePrev
 		t.Equal(point.Next(), bl.Point().Point)
 	}
 
-	drawivp.SetMajority(nil)
-	drawivp.SetResult(base.VoteResultDraw)
-	drawivp.finish()
+	drawivp.SetResult(base.VoteResultDraw).finish()
 
 	t.NoError(st.newVoteproof(drawivp))
 
@@ -198,7 +196,7 @@ func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestDrawBeforePrev
 }
 
 func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestDrawBefore() {
-	point := base.NewPoint(base.Height(33), base.Round(44))
+	point := base.RawPoint(33, 44)
 	nodes := t.nodes(3)
 
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, nodes)
@@ -254,9 +252,7 @@ func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestDrawBefore() {
 		t.Equal(point.Next(), bl.Point().Point)
 	}
 
-	drawivp.SetMajority(nil)
-	drawivp.SetResult(base.VoteResultDraw)
-	drawivp.finish()
+	drawivp.SetResult(base.VoteResultDraw).finish()
 
 	t.NoError(st.newVoteproof(drawivp))
 
@@ -285,7 +281,7 @@ func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestDrawBefore() {
 }
 
 func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestDrawAndDrawAgain() {
-	point := base.NewPoint(base.Height(33), base.Round(44))
+	point := base.RawPoint(33, 44)
 	nodes := t.nodes(3)
 
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, nodes)
@@ -343,9 +339,7 @@ func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestDrawAndDrawAga
 		t.Equal(point.Next(), bl.Point().Point)
 	}
 
-	drawivp.SetMajority(nil)
-	drawivp.SetResult(base.VoteResultDraw)
-	drawivp.finish()
+	drawivp.SetResult(base.VoteResultDraw).finish()
 
 	t.NoError(st.newVoteproof(drawivp))
 
@@ -360,9 +354,7 @@ func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestDrawAndDrawAga
 	}
 
 	_, newivp := t.voteproofsPair(point, drawivp.Point().Point.NextRound(), nil, nil, t.prpool.hash(drawivp.Point().Point.NextRound()), nodes)
-	newivp.SetMajority(nil)
-	newivp.SetResult(base.VoteResultDraw)
-	newivp.finish()
+	newivp.SetResult(base.VoteResultDraw).finish()
 
 	t.NoError(st.newVoteproof(newivp))
 
@@ -386,7 +378,7 @@ type testNewINITVoteproofOnACCEPTVoteproofConsensusHandler struct {
 }
 
 func (t *testNewINITVoteproofOnACCEPTVoteproofConsensusHandler) TestExpected() {
-	point := base.NewPoint(base.Height(33), base.Round(44))
+	point := base.RawPoint(33, 44)
 	nodes := t.nodes(3)
 
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, nodes)
@@ -446,7 +438,7 @@ func (t *testNewINITVoteproofOnACCEPTVoteproofConsensusHandler) TestExpected() {
 }
 
 func (t *testNewINITVoteproofOnACCEPTVoteproofConsensusHandler) TestHigherHeight() {
-	point := base.NewPoint(base.Height(33), base.Round(44))
+	point := base.RawPoint(33, 44)
 	nodes := t.nodes(3)
 
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, nodes)
@@ -501,7 +493,7 @@ func (t *testNewINITVoteproofOnACCEPTVoteproofConsensusHandler) TestHigherHeight
 }
 
 func (t *testNewINITVoteproofOnACCEPTVoteproofConsensusHandler) TestPreviousBlockNotMatch() {
-	point := base.NewPoint(base.Height(33), base.Round(44))
+	point := base.RawPoint(33, 44)
 	nodes := t.nodes(3)
 
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, nodes)
