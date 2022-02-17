@@ -53,6 +53,7 @@ func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestHigherHeight()
 	})
 
 	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, fact.Hash(), nodes)
+	t.True(st.setLastVoteproof(ivp))
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(sctx)
@@ -115,6 +116,7 @@ func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestNextRoundButAl
 	})
 
 	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, fact.Hash(), nodes)
+	t.True(st.setLastVoteproof(ivp))
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(sctx)
@@ -175,6 +177,7 @@ func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestDrawBeforePrev
 	})
 
 	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, t.prpool.hash(point), nodes)
+	t.True(st.setLastVoteproof(ivp))
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(sctx)
@@ -266,6 +269,7 @@ func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestDrawBefore() {
 	})
 
 	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, t.prpool.hash(point), nodes)
+	t.True(st.setLastVoteproof(ivp))
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(sctx)
@@ -365,6 +369,7 @@ func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestDrawAndDrawAga
 	})
 
 	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, t.prpool.hash(point), nodes)
+	t.True(st.setLastVoteproof(ivp))
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(sctx)
@@ -472,6 +477,7 @@ func (t *testNewINITVoteproofOnACCEPTVoteproofConsensusHandler) TestExpected() {
 	})
 
 	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, t.prpool.hash(point), nodes)
+	t.True(st.setLastVoteproof(ivp))
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(sctx)
@@ -544,6 +550,7 @@ func (t *testNewINITVoteproofOnACCEPTVoteproofConsensusHandler) TestHigherHeight
 	})
 
 	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, t.prpool.hash(point), nodes)
+	t.True(st.setLastVoteproof(ivp))
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(sctx)
@@ -609,6 +616,7 @@ func (t *testNewINITVoteproofOnACCEPTVoteproofConsensusHandler) TestPreviousBloc
 	})
 
 	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, t.prpool.hash(point), nodes)
+	t.True(st.setLastVoteproof(ivp))
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(sctx)

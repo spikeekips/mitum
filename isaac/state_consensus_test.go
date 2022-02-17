@@ -79,6 +79,7 @@ func (t *testConsensusHandler) TestNew() {
 
 	point := base.NewPoint(base.Height(33), base.Round(0))
 	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, nil, nodes)
+	t.True(st.setLastVoteproof(ivp))
 
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
@@ -90,24 +91,29 @@ func (t *testConsensusHandler) TestNew() {
 func (t *testConsensusHandler) TestInvalidVoteproofs() {
 	nodes := t.nodes(3)
 
-	st := NewConsensusHandler(
-		t.local,
-		t.policy,
-		nil,
-		func(base.Height) base.Suffrage {
-			return nil
-		},
-		newProposalProcessors(nil, nil),
-	)
-	_ = st.setTimers(util.NewTimers(nil, true))
+	newst := func() (*ConsensusHandler, func()) {
+		st := NewConsensusHandler(
+			t.local,
+			t.policy,
+			nil,
+			func(base.Height) base.Suffrage {
+				return nil
+			},
+			newProposalProcessors(nil, nil),
+		)
+		_ = st.setTimers(util.NewTimers(nil, true))
 
-	defer func() {
-		deferred, err := st.exit()
-		t.NoError(err)
-		t.NoError(deferred())
-	}()
+		return st, func() {
+			deferred, err := st.exit()
+			t.NoError(err)
+			t.NoError(deferred())
+		}
+	}
 
 	t.Run("empty init voteproof", func() {
+		st, closef := newst()
+		defer closef()
+
 		sctx := newConsensusSwitchContext(StateJoining, nil)
 
 		deferred, err := st.enter(sctx)
@@ -117,6 +123,9 @@ func (t *testConsensusHandler) TestInvalidVoteproofs() {
 	})
 
 	t.Run("draw result of init voteproof", func() {
+		st, closef := newst()
+		defer closef()
+
 		point := base.NewPoint(base.Height(33), base.Round(0))
 		_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, nil, nodes)
 		ivp.SetResult(base.VoteResultDraw)
@@ -131,6 +140,9 @@ func (t *testConsensusHandler) TestInvalidVoteproofs() {
 	})
 
 	t.Run("empty majority of init voteproof", func() {
+		st, closef := newst()
+		defer closef()
+
 		point := base.NewPoint(base.Height(33), base.Round(0))
 		_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, nil, nodes)
 		ivp.SetMajority(nil)
@@ -169,6 +181,7 @@ func (t *testConsensusHandler) TestExit() {
 	}
 
 	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, fact.Hash(), nodes)
+	t.True(st.setLastVoteproof(ivp))
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferredenter, err := st.enter(sctx)
@@ -224,6 +237,7 @@ func (t *testConsensusHandler) TestProcessingProposalAfterEntered() {
 	}
 
 	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, fact.Hash(), nodes)
+	t.True(st.setLastVoteproof(ivp))
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(sctx)
@@ -270,6 +284,7 @@ func (t *testConsensusHandler) TestFailedProcessingProposalFetchFactFailed() {
 	}
 
 	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, valuehash.RandomSHA256(), nodes)
+	t.True(st.setLastVoteproof(ivp))
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(sctx)
@@ -323,6 +338,7 @@ func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailed() {
 	}
 
 	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, fact.Hash(), nodes)
+	t.True(st.setLastVoteproof(ivp))
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(sctx)
@@ -385,6 +401,7 @@ func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailedRetry
 	}
 
 	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, fact.Hash(), nodes)
+	t.True(st.setLastVoteproof(ivp))
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(sctx)
@@ -434,6 +451,7 @@ func (t *testConsensusHandler) TestProcessingProposalWithACCEPTVoteproof() {
 		return nil
 	}
 
+	t.True(st.setLastVoteproof(ivp))
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(sctx)
@@ -485,6 +503,7 @@ func (t *testConsensusHandler) TestProcessingProposalWithDrawACCEPTVoteproof() {
 		return nil
 	}
 
+	t.True(st.setLastVoteproof(ivp))
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(sctx)
@@ -532,6 +551,7 @@ func (t *testConsensusHandler) TestProcessingProposalWithWrongNewBlockACCEPTVote
 		return nil
 	}
 
+	t.True(st.setLastVoteproof(ivp))
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(sctx)

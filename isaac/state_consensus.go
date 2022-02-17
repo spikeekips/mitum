@@ -84,8 +84,6 @@ func (st *ConsensusHandler) enter(i stateSwitchContext) (func() error, error) {
 	case j.ivp.Result() != base.VoteResultMajority:
 		return nil, e(nil, "invalid stateSwitchContext, wrong vote result of init voteproof, %q", j.ivp.Result())
 	default:
-		_ = st.setLastVoteproof(j.ivp) // BLOCK states also do setLastVoteproof
-
 		sctx = j
 	}
 

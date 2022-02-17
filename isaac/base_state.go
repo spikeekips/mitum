@@ -54,18 +54,8 @@ func (*baseStateHandler) exit() (func() error, error) {
 func (st *baseStateHandler) newVoteproof(vp base.Voteproof) (lastVoteproofs, base.Voteproof, error) {
 	lvps := st.lastVoteproof()
 
-	if st.sts == nil {
-		c := lvps.cap()
-		l := st.Log().With().
-			Dict("voteproof", base.VoteproofLog(vp)).
-			Dict("last_voteproof", base.VoteproofLog(c)).
-			Logger()
-
-		if vp.Point().Compare(c.Point()) < 1 {
-			l.Debug().Msg("new voteproof received, but old; ignore")
-
-			return lastVoteproofs{}, nil, nil
-		}
+	if st.sts == nil && !lvps.isNew(vp) {
+		return lastVoteproofs{}, nil, nil
 	}
 
 	_ = st.setLastVoteproof(vp)
@@ -169,6 +159,17 @@ func (l *lastVoteproofsHandler) last() lastVoteproofs {
 	}
 }
 
+func (l *lastVoteproofsHandler) isNew(vp base.Voteproof) bool {
+	l.RLock()
+	defer l.RUnlock()
+
+	if lvp := findLastVoteproofs(l.ivp, l.avp); lvp != nil && vp.Point().Compare(lvp.Point()) < 1 {
+		return false
+	}
+
+	return true
+}
+
 func (l *lastVoteproofsHandler) set(vp base.Voteproof) bool {
 	l.Lock()
 	defer l.Unlock()
@@ -191,7 +192,7 @@ func (l *lastVoteproofsHandler) set(vp base.Voteproof) bool {
 	return true
 }
 
-type lastVoteproofs struct { // BLOCK apply
+type lastVoteproofs struct {
 	ivp base.INITVoteproof
 	avp base.ACCEPTVoteproof
 	mvp base.Voteproof
@@ -247,6 +248,14 @@ func (l lastVoteproofs) previousBlockForNextRound(vp base.Voteproof) util.Hash {
 
 func (l lastVoteproofs) accept() base.ACCEPTVoteproof {
 	return l.avp
+}
+
+func (l lastVoteproofs) isNew(vp base.Voteproof) bool {
+	if lvp := l.cap(); lvp != nil && vp.Point().Compare(lvp.Point()) < 1 {
+		return false
+	}
+
+	return true
 }
 
 func findLastVoteproofs(ivp, avp base.Voteproof) base.Voteproof {

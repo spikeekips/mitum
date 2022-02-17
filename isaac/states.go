@@ -119,6 +119,10 @@ func (st *States) startStatesSwitch(ctx context.Context) error {
 			return errors.Wrap(ctx.Err(), "states stopped by context")
 		case sctx = <-st.statech:
 		case vp := <-st.voteproofch:
+			if !st.lvps.isNew(vp) {
+				continue
+			}
+
 			err := st.voteproofToCurrent(vp, st.current())
 			if err == nil {
 				return nil
@@ -317,7 +321,9 @@ func (st *States) newVoteproof(vp base.Voteproof) error {
 		return nil
 	}
 
-	// BLOCK compare last init and accept voteproof
+	if !st.lvps.isNew(vp) {
+		return nil
+	}
 
 	go func() {
 		st.voteproofch <- vp
@@ -327,8 +333,6 @@ func (st *States) newVoteproof(vp base.Voteproof) error {
 }
 
 func (*States) voteproofToCurrent(vp base.Voteproof, current stateHandler) error {
-	// BLOCK compare last init and accept voteproof
-
 	e := util.StringErrorFunc("failed to send voteproof to current")
 
 	if err := current.newVoteproof(vp); err != nil {
