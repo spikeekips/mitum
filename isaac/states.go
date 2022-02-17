@@ -23,7 +23,7 @@ type States struct {
 	handlers    map[StateType]stateHandler
 	cs          stateHandler
 	timers      *util.Timers
-	lvps        *lastVoteproofs
+	lvps        *lastVoteproofsHandler
 }
 
 func NewStates() *States {
@@ -408,20 +408,8 @@ func (st *States) broadcastBallot(bl base.Ballot, tolocal bool) error {
 	return nil
 }
 
-func (st *States) lastVoteproof() base.Voteproof {
+func (st *States) lastVoteproof() lastVoteproofs {
 	return st.lvps.last()
-}
-
-func (st *States) lastINITVoteproof() base.INITVoteproof {
-	return st.lvps.init()
-}
-
-func (st *States) lastINITMajorityVoteproof() base.INITVoteproof {
-	return st.lvps.initMajority()
-}
-
-func (st *States) lastACCEPTVoteproof() base.ACCEPTVoteproof {
-	return st.lvps.accept()
 }
 
 func (st *States) setLastVoteproof(vp base.Voteproof) bool {

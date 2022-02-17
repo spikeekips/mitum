@@ -76,7 +76,7 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestExpected() {
 		return
 	case avp = <-savedch:
 		base.CompareVoteproof(t.Assert(), nextavp, avp)
-		base.CompareVoteproof(t.Assert(), avp, st.lastACCEPTVoteproof())
+		base.CompareVoteproof(t.Assert(), avp, st.lastVoteproof().accept())
 	}
 
 	t.T().Log("wait next init ballot")
@@ -114,10 +114,6 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestOld() {
 		return t.prpool.factByHash(facthash)
 	}
 
-	st.broadcastBallotFunc = func(bl base.Ballot, tolocal bool) error {
-		return nil
-	}
-
 	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, fact.Hash(), nodes)
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
@@ -127,7 +123,7 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestOld() {
 
 	nextavp, _ := t.voteproofsPair(point.Decrease(), point.Next(), nil, fact.Hash(), nil, nodes)
 	t.NoError(st.newVoteproof(nextavp))
-	t.Nil(st.lastACCEPTVoteproof())
+	t.Nil(st.lastVoteproof().accept())
 }
 
 func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestHiger() {
@@ -147,10 +143,6 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestHiger() {
 		return t.prpool.factByHash(facthash)
 	}
 
-	st.broadcastBallotFunc = func(bl base.Ballot, tolocal bool) error {
-		return nil
-	}
-
 	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, fact.Hash(), nodes)
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
@@ -161,7 +153,7 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestHiger() {
 	nextavp, _ := t.voteproofsPair(point.Next(), point.Next(), nil, fact.Hash(), nil, nodes)
 	err = st.newVoteproof(nextavp)
 	t.Error(err)
-	t.NotNil(st.lastACCEPTVoteproof())
+	t.NotNil(st.lastVoteproof().accept())
 
 	var nsctx syncingSwitchContext
 	t.True(errors.As(err, &nsctx))
@@ -217,7 +209,7 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestDraw() {
 	nextavp.finish()
 
 	t.NoError(st.newVoteproof(nextavp))
-	t.NotNil(st.lastACCEPTVoteproof())
+	t.NotNil(st.lastVoteproof().accept())
 
 	t.T().Log("will wait init ballot of next round")
 
@@ -259,10 +251,6 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestDrawFailedPr
 		return nil, errors.Errorf("hahaha")
 	})
 
-	st.broadcastBallotFunc = func(bl base.Ballot, tolocal bool) error {
-		return nil
-	}
-
 	sctxch := make(chan stateSwitchContext, 1)
 	st.switchStateFunc = func(sctx stateSwitchContext) error {
 		sctxch <- sctx
@@ -283,7 +271,7 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestDrawFailedPr
 	nextavp.finish()
 
 	t.NoError(st.newVoteproof(nextavp))
-	t.NotNil(st.lastACCEPTVoteproof())
+	t.NotNil(st.lastVoteproof().accept())
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -463,7 +451,7 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestHigherAndDra
 	nextavp.finish()
 
 	err = st.newVoteproof(nextavp)
-	t.NotNil(st.lastACCEPTVoteproof())
+	t.NotNil(st.lastVoteproof().accept())
 
 	var ssctx syncingSwitchContext
 	t.True(errors.As(err, &ssctx))
@@ -521,7 +509,7 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestHigherRoundD
 	nextavp.finish()
 
 	t.NoError(st.newVoteproof(nextavp))
-	t.NotNil(st.lastACCEPTVoteproof())
+	t.NotNil(st.lastVoteproof().accept())
 
 	t.T().Log("will wait init ballot of next round")
 
@@ -600,7 +588,7 @@ func (t *testNewACCEPTVoteproofOnACCEPTVoteproofConsensusHandler) TestHigerHeigh
 		return
 	case ravp := <-savedch:
 		base.CompareVoteproof(t.Assert(), avp, ravp)
-		base.CompareVoteproof(t.Assert(), ravp, st.lastACCEPTVoteproof())
+		base.CompareVoteproof(t.Assert(), ravp, st.lastVoteproof().accept())
 	}
 
 	t.T().Log("new accept voteproof; higher height")
@@ -613,7 +601,7 @@ func (t *testNewACCEPTVoteproofOnACCEPTVoteproofConsensusHandler) TestHigerHeigh
 	t.Equal(ssctx.height, newavp.Point().Height())
 }
 
-func (t *testNewACCEPTVoteproofOnACCEPTVoteproofConsensusHandler) TestDrawAndHigerHeight() {
+func (t *testNewACCEPTVoteproofOnACCEPTVoteproofConsensusHandler) TestDrawAndHigherHeight() {
 	nodes := t.nodes(3)
 
 	point := base.NewPoint(base.Height(33), base.Round(44))
@@ -678,7 +666,7 @@ func (t *testNewACCEPTVoteproofOnACCEPTVoteproofConsensusHandler) TestDrawAndHig
 	t.Equal(ssctx.height, newavp.Point().Height())
 }
 
-func (t *testNewACCEPTVoteproofOnACCEPTVoteproofConsensusHandler) TestDrawAndHigerRound() {
+func (t *testNewACCEPTVoteproofOnACCEPTVoteproofConsensusHandler) TestDrawAndHigherRound() {
 	nodes := t.nodes(3)
 
 	point := base.NewPoint(base.Height(33), base.Round(44))
