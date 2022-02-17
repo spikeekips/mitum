@@ -2,7 +2,6 @@ package isaac
 
 import (
 	"context"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -41,6 +40,42 @@ func (t *baseTestConsensusHandler) newState() (*ConsensusHandler, func()) {
 		t.NoError(err)
 		t.NoError(deferred())
 	}
+}
+
+func (t *baseTestConsensusHandler) newStateWithINITVoteproof(point base.Point, nodes []*LocalNode) (*ConsensusHandler, func(), *DummyProposalProcessor, base.INITVoteproof) {
+	st, closef := t.newState()
+
+	fact := t.prpool.getfact(point)
+
+	manifest := base.NewDummyManifest(fact.Point().Height(), valuehash.RandomSHA256())
+	pp := NewDummyProposalProcessor(manifest)
+
+	st.pps.makenew = pp.make
+	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
+		return t.prpool.factByHash(facthash)
+	}
+
+	ballotch := make(chan base.Ballot, 1)
+	st.broadcastBallotFunc = func(bl base.Ballot, tolocal bool) error {
+		ballotch <- bl
+
+		return nil
+	}
+	st.switchStateFunc = func(stateSwitchContext) error {
+		return nil
+	}
+	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.Proposal, error) {
+		pr := t.prpool.byPoint(p)
+		if pr != nil {
+			return pr, nil
+		}
+		return nil, util.NotFoundError.Call()
+	})
+
+	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, fact.Hash(), nodes)
+	t.True(st.setLastVoteproof(ivp))
+
+	return st, closef, pp, ivp
 }
 
 type testConsensusHandler struct {
@@ -89,29 +124,11 @@ func (t *testConsensusHandler) TestNew() {
 }
 
 func (t *testConsensusHandler) TestInvalidVoteproofs() {
+	point := base.NewPoint(base.Height(22), base.Round(0))
 	nodes := t.nodes(3)
 
-	newst := func() (*ConsensusHandler, func()) {
-		st := NewConsensusHandler(
-			t.local,
-			t.policy,
-			nil,
-			func(base.Height) base.Suffrage {
-				return nil
-			},
-			newProposalProcessors(nil, nil),
-		)
-		_ = st.setTimers(util.NewTimers(nil, true))
-
-		return st, func() {
-			deferred, err := st.exit()
-			t.NoError(err)
-			t.NoError(deferred())
-		}
-	}
-
 	t.Run("empty init voteproof", func() {
-		st, closef := newst()
+		st, closef, _, _ := t.newStateWithINITVoteproof(point, nodes)
 		defer closef()
 
 		sctx := newConsensusSwitchContext(StateJoining, nil)
@@ -123,7 +140,7 @@ func (t *testConsensusHandler) TestInvalidVoteproofs() {
 	})
 
 	t.Run("draw result of init voteproof", func() {
-		st, closef := newst()
+		st, closef, _, _ := t.newStateWithINITVoteproof(point, nodes)
 		defer closef()
 
 		point := base.NewPoint(base.Height(33), base.Round(0))
@@ -140,7 +157,7 @@ func (t *testConsensusHandler) TestInvalidVoteproofs() {
 	})
 
 	t.Run("empty majority of init voteproof", func() {
-		st, closef := newst()
+		st, closef, _, _ := t.newStateWithINITVoteproof(point, nodes)
 		defer closef()
 
 		point := base.NewPoint(base.Height(33), base.Round(0))
@@ -160,18 +177,9 @@ func (t *testConsensusHandler) TestExit() {
 	nodes := t.nodes(3)
 
 	point := base.NewPoint(base.Height(33), base.Round(44))
-	fact := t.prpool.getfact(point)
 
-	manifest := base.NewDummyManifest(fact.Point().Height(), valuehash.RandomSHA256())
-	pp := NewDummyProposalProcessor(manifest)
-
-	st, closefunc := t.newState()
+	st, closefunc, _, ivp := t.newStateWithINITVoteproof(point, nodes)
 	defer closefunc()
-
-	st.pps.makenew = pp.make
-	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
-		return t.prpool.factByHash(facthash)
-	}
 
 	ballotch := make(chan base.Ballot, 1)
 	st.broadcastBallotFunc = func(bl base.Ballot, tolocal bool) error {
@@ -180,8 +188,6 @@ func (t *testConsensusHandler) TestExit() {
 		return nil
 	}
 
-	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, fact.Hash(), nodes)
-	t.True(st.setLastVoteproof(ivp))
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferredenter, err := st.enter(sctx)
@@ -213,21 +219,11 @@ func (t *testConsensusHandler) TestExit() {
 }
 
 func (t *testConsensusHandler) TestProcessingProposalAfterEntered() {
+	point := base.NewPoint(base.Height(33), base.Round(44))
 	nodes := t.nodes(3)
 
-	point := base.NewPoint(base.Height(33), base.Round(44))
-	fact := t.prpool.getfact(point)
-
-	manifest := base.NewDummyManifest(fact.Point().Height(), valuehash.RandomSHA256())
-	pp := NewDummyProposalProcessor(manifest)
-
-	st, closefunc := t.newState()
+	st, closefunc, _, ivp := t.newStateWithINITVoteproof(point, nodes)
 	defer closefunc()
-
-	st.pps.makenew = pp.make
-	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
-		return t.prpool.factByHash(facthash)
-	}
 
 	ballotch := make(chan base.Ballot, 1)
 	st.broadcastBallotFunc = func(bl base.Ballot, tolocal bool) error {
@@ -236,8 +232,6 @@ func (t *testConsensusHandler) TestProcessingProposalAfterEntered() {
 		return nil
 	}
 
-	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, fact.Hash(), nodes)
-	t.True(st.setLastVoteproof(ivp))
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(sctx)
@@ -261,17 +255,12 @@ func (t *testConsensusHandler) TestProcessingProposalAfterEntered() {
 }
 
 func (t *testConsensusHandler) TestFailedProcessingProposalFetchFactFailed() {
+	point := base.NewPoint(base.Height(33), base.Round(44))
 	nodes := t.nodes(2)
 
-	point := base.NewPoint(base.Height(33), base.Round(44))
-
-	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	pp := NewDummyProposalProcessor(manifest)
-
-	st, closefunc := t.newState()
+	st, closefunc, _, ivp := t.newStateWithINITVoteproof(point, nodes)
 	defer closefunc()
 
-	st.pps.makenew = pp.make
 	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
 		return nil, util.NotFoundError.Errorf("fact not found")
 	}
@@ -283,8 +272,6 @@ func (t *testConsensusHandler) TestFailedProcessingProposalFetchFactFailed() {
 		return nil
 	}
 
-	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, valuehash.RandomSHA256(), nodes)
-	t.True(st.setLastVoteproof(ivp))
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(sctx)
@@ -304,21 +291,15 @@ func (t *testConsensusHandler) TestFailedProcessingProposalFetchFactFailed() {
 }
 
 func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailed() {
+	point := base.NewPoint(base.Height(33), base.Round(44))
 	nodes := t.nodes(2)
 
-	point := base.NewPoint(base.Height(33), base.Round(44))
-	fact := t.prpool.getfact(point)
+	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, nodes)
+	defer closefunc()
 
-	manifest := base.NewDummyManifest(fact.Point().Height(), valuehash.RandomSHA256())
-	pp := NewDummyProposalProcessor(manifest)
 	pp.processerr = func() error {
 		return errors.Errorf("hahaha")
 	}
-
-	st, closefunc := t.newState()
-	defer closefunc()
-
-	st.pps.makenew = pp.make
 
 	var i int
 	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
@@ -337,8 +318,6 @@ func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailed() {
 		return nil
 	}
 
-	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, fact.Hash(), nodes)
-	t.True(st.setLastVoteproof(ivp))
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(sctx)
@@ -358,15 +337,13 @@ func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailed() {
 }
 
 func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailedRetry() {
+	point := base.NewPoint(base.Height(33), base.Round(44))
 	nodes := t.nodes(2)
 
-	point := base.NewPoint(base.Height(33), base.Round(44))
-	fact := t.prpool.getfact(point)
-
-	manifest := base.NewDummyManifest(fact.Point().Height(), valuehash.RandomSHA256())
+	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, nodes)
+	defer closefunc()
 
 	var c int64
-	pp := NewDummyProposalProcessor(manifest)
 	pp.processerr = func() error {
 		if i := atomic.LoadInt64(&c); i < 1 {
 			atomic.AddInt64(&c, 1)
@@ -376,11 +353,6 @@ func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailedRetry
 
 		return errors.Errorf("hahaha")
 	}
-
-	st, closefunc := t.newState()
-	defer closefunc()
-
-	st.pps.makenew = pp.make
 
 	var g int64
 	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
@@ -400,8 +372,6 @@ func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailedRetry
 		return nil
 	}
 
-	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, fact.Hash(), nodes)
-	t.True(st.setLastVoteproof(ivp))
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(sctx)
@@ -421,24 +391,13 @@ func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailedRetry
 }
 
 func (t *testConsensusHandler) TestProcessingProposalWithACCEPTVoteproof() {
+	point := base.NewPoint(base.Height(33), base.Round(44))
 	nodes := t.nodes(3)
 
-	point := base.NewPoint(base.Height(33), base.Round(44))
-	fact := t.prpool.getfact(point)
-
-	manifest := base.NewDummyManifest(fact.Point().Height(), valuehash.RandomSHA256())
-
-	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, fact.Hash(), nodes)
-	st, closefunc := t.newState()
+	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, nodes)
 	defer closefunc()
 
-	pp := NewDummyProposalProcessor(manifest)
-	st.pps.makenew = pp.make
-	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
-		return t.prpool.factByHash(facthash)
-	}
-
-	avp, _ := t.voteproofsPair(point, point.Next(), manifest.Hash(), nil, nil, nodes)
+	avp, _ := t.voteproofsPair(point, point.Next(), pp.manifest.Hash(), nil, nil, nodes)
 	pp.processerr = func() error {
 		st.setLastVoteproof(avp)
 
@@ -451,7 +410,6 @@ func (t *testConsensusHandler) TestProcessingProposalWithACCEPTVoteproof() {
 		return nil
 	}
 
-	t.True(st.setLastVoteproof(ivp))
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(sctx)
@@ -469,24 +427,13 @@ func (t *testConsensusHandler) TestProcessingProposalWithACCEPTVoteproof() {
 }
 
 func (t *testConsensusHandler) TestProcessingProposalWithDrawACCEPTVoteproof() {
+	point := base.NewPoint(base.Height(33), base.Round(44))
 	nodes := t.nodes(3)
 
-	point := base.NewPoint(base.Height(33), base.Round(44))
-	fact := t.prpool.getfact(point)
-
-	manifest := base.NewDummyManifest(fact.Point().Height(), valuehash.RandomSHA256())
-
-	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, fact.Hash(), nodes)
-	st, closefunc := t.newState()
+	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, nodes)
 	defer closefunc()
 
-	pp := NewDummyProposalProcessor(manifest)
-	st.pps.makenew = pp.make
-	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
-		return t.prpool.factByHash(facthash)
-	}
-
-	avp, _ := t.voteproofsPair(point, point.Next(), manifest.Hash(), nil, nil, nodes)
+	avp, _ := t.voteproofsPair(point, point.Next(), pp.manifest.Hash(), nil, nil, nodes)
 	avp.SetMajority(nil)
 	avp.SetResult(base.VoteResultDraw)
 	avp.finish()
@@ -503,7 +450,6 @@ func (t *testConsensusHandler) TestProcessingProposalWithDrawACCEPTVoteproof() {
 		return nil
 	}
 
-	t.True(st.setLastVoteproof(ivp))
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(sctx)
@@ -520,22 +466,11 @@ func (t *testConsensusHandler) TestProcessingProposalWithDrawACCEPTVoteproof() {
 }
 
 func (t *testConsensusHandler) TestProcessingProposalWithWrongNewBlockACCEPTVoteproof() {
+	point := base.NewPoint(base.Height(33), base.Round(44))
 	nodes := t.nodes(3)
 
-	point := base.NewPoint(base.Height(33), base.Round(44))
-	fact := t.prpool.getfact(point)
-
-	manifest := base.NewDummyManifest(fact.Point().Height(), valuehash.RandomSHA256())
-
-	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, fact.Hash(), nodes)
-	st, closefunc := t.newState()
+	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, nodes)
 	defer closefunc()
-
-	pp := NewDummyProposalProcessor(manifest)
-	st.pps.makenew = pp.make
-	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
-		return t.prpool.factByHash(facthash)
-	}
 
 	avp, _ := t.voteproofsPair(point, point.Next(), nil, nil, nil, nodes) // random new block hash
 	pp.processerr = func() error {
@@ -551,7 +486,6 @@ func (t *testConsensusHandler) TestProcessingProposalWithWrongNewBlockACCEPTVote
 		return nil
 	}
 
-	t.True(st.setLastVoteproof(ivp))
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(sctx)
@@ -573,81 +507,4 @@ func (t *testConsensusHandler) TestProcessingProposalWithWrongNewBlockACCEPTVote
 
 func TestConsensusHandler(t *testing.T) {
 	suite.Run(t, new(testConsensusHandler))
-}
-
-type proposalPool struct {
-	sync.RWMutex
-	p           map[base.Point]base.Proposal
-	newproposal func(base.Point) base.Proposal
-}
-
-func newProposalPool(
-	newproposal func(base.Point) base.Proposal,
-) *proposalPool {
-	return &proposalPool{
-		p:           map[base.Point]base.Proposal{},
-		newproposal: newproposal,
-	}
-}
-
-func (p *proposalPool) hash(point base.Point) util.Hash {
-	pr := p.get(point)
-
-	return pr.SignedFact().Fact().Hash()
-}
-
-func (p *proposalPool) get(point base.Point) base.Proposal {
-	p.Lock()
-	defer p.Unlock()
-
-	if pr, found := p.p[point]; found {
-		return pr
-	}
-
-	pr := p.newproposal(point)
-
-	p.p[point] = pr
-
-	return pr
-}
-
-func (p *proposalPool) getfact(point base.Point) base.ProposalFact {
-	pr := p.get(point)
-
-	return pr.BallotSignedFact().BallotFact()
-}
-
-func (p *proposalPool) byPoint(point base.Point) base.Proposal {
-	p.RLock()
-	defer p.RUnlock()
-
-	if pr, found := p.p[point]; found {
-		return pr
-	}
-
-	return nil
-}
-
-func (p *proposalPool) byHash(h util.Hash) base.Proposal {
-	p.RLock()
-	defer p.RUnlock()
-
-	for i := range p.p {
-		pr := p.p[i]
-		if pr.SignedFact().Fact().Hash().Equal(h) {
-			return pr
-		}
-
-	}
-
-	return nil
-}
-
-func (p *proposalPool) factByHash(h util.Hash) (base.ProposalFact, error) {
-	pr := p.byHash(h)
-	if pr == nil {
-		return nil, util.NotFoundError.Call()
-	}
-
-	return pr.BallotSignedFact().BallotFact(), nil
 }

@@ -1,6 +1,8 @@
 package isaac
 
 import (
+	"sync"
+
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/valuehash"
@@ -149,4 +151,81 @@ func (t *baseTestStateHandler) voteproofsPair(prevpoint, point base.Point, prev,
 	t.NoError(err)
 
 	return avp, ivp
+}
+
+type proposalPool struct {
+	sync.RWMutex
+	p           map[base.Point]base.Proposal
+	newproposal func(base.Point) base.Proposal
+}
+
+func newProposalPool(
+	newproposal func(base.Point) base.Proposal,
+) *proposalPool {
+	return &proposalPool{
+		p:           map[base.Point]base.Proposal{},
+		newproposal: newproposal,
+	}
+}
+
+func (p *proposalPool) hash(point base.Point) util.Hash {
+	pr := p.get(point)
+
+	return pr.SignedFact().Fact().Hash()
+}
+
+func (p *proposalPool) get(point base.Point) base.Proposal {
+	p.Lock()
+	defer p.Unlock()
+
+	if pr, found := p.p[point]; found {
+		return pr
+	}
+
+	pr := p.newproposal(point)
+
+	p.p[point] = pr
+
+	return pr
+}
+
+func (p *proposalPool) getfact(point base.Point) base.ProposalFact {
+	pr := p.get(point)
+
+	return pr.BallotSignedFact().BallotFact()
+}
+
+func (p *proposalPool) byPoint(point base.Point) base.Proposal {
+	p.RLock()
+	defer p.RUnlock()
+
+	if pr, found := p.p[point]; found {
+		return pr
+	}
+
+	return nil
+}
+
+func (p *proposalPool) byHash(h util.Hash) base.Proposal {
+	p.RLock()
+	defer p.RUnlock()
+
+	for i := range p.p {
+		pr := p.p[i]
+		if pr.SignedFact().Fact().Hash().Equal(h) {
+			return pr
+		}
+
+	}
+
+	return nil
+}
+
+func (p *proposalPool) factByHash(h util.Hash) (base.ProposalFact, error) {
+	pr := p.byHash(h)
+	if pr == nil {
+		return nil, util.NotFoundError.Call()
+	}
+
+	return pr.BallotSignedFact().BallotFact(), nil
 }

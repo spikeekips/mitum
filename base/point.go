@@ -81,6 +81,10 @@ func NewPoint(h Height, r Round) Point {
 	return Point{h: h, r: r}
 }
 
+func RawPoint(h int64, r uint64) Point {
+	return Point{h: Height(h), r: Round(r)}
+}
+
 func (p Point) Bytes() []byte {
 	return util.ConcatByters(p.Height(), p.Round())
 }
