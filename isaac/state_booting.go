@@ -6,9 +6,12 @@ type BootingHandler struct {
 	*baseStateHandler
 }
 
-func NewBootingHandler() *BootingHandler {
+func NewBootingHandler(
+	local *LocalNode,
+	policy Policy,
+) *BootingHandler {
 	return &BootingHandler{
-		baseStateHandler: newBaseStateHandler(StateBooting),
+		baseStateHandler: newBaseStateHandler(StateBooting, local, policy),
 	}
 }
 

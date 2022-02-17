@@ -16,6 +16,6 @@ type Timer interface {
 	Daemon
 	IsStarted() bool
 	ID() TimerID
-	SetInterval(func(int) time.Duration) Timer
+	SetInterval(func(int, time.Duration) time.Duration) Timer
 	Reset() error
 }

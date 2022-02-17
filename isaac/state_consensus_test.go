@@ -32,7 +32,6 @@ func (t *baseTestConsensusHandler) newState() (*ConsensusHandler, func()) {
 	_ = st.setTimers(util.NewTimers([]util.TimerID{
 		timerIDBroadcastINITBallot,
 		timerIDBroadcastACCEPTBallot,
-		timerIDPrepareProposal,
 	}, false))
 
 	return st, func() {
@@ -57,7 +56,7 @@ func (t *baseTestConsensusHandler) newStateWithINITVoteproof(point base.Point, n
 	}
 
 	ballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot, tolocal bool) error {
+	st.broadcastBallotFunc = func(bl base.Ballot) error {
 		ballotch <- bl
 
 		return nil
@@ -110,7 +109,6 @@ func (t *testConsensusHandler) TestNew() {
 	_ = st.setTimers(util.NewTimers([]util.TimerID{
 		timerIDBroadcastINITBallot,
 		timerIDBroadcastACCEPTBallot,
-		timerIDPrepareProposal,
 	}, false))
 
 	point := base.RawPoint(33, 0)
@@ -181,7 +179,7 @@ func (t *testConsensusHandler) TestExit() {
 	defer closefunc()
 
 	ballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot, tolocal bool) error {
+	st.broadcastBallotFunc = func(bl base.Ballot) error {
 		ballotch <- bl
 
 		return nil
@@ -225,7 +223,7 @@ func (t *testConsensusHandler) TestProcessingProposalAfterEntered() {
 	defer closefunc()
 
 	ballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot, tolocal bool) error {
+	st.broadcastBallotFunc = func(bl base.Ballot) error {
 		ballotch <- bl
 
 		return nil

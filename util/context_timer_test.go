@@ -89,7 +89,7 @@ func (t *testContextTimer) TestStoppedByCallback() {
 			return true, nil
 		},
 	)
-	_ = ct.SetInterval(func(int) time.Duration {
+	_ = ct.SetInterval(func(int, time.Duration) time.Duration {
 		return time.Millisecond * 10
 	})
 
@@ -112,7 +112,7 @@ func (t *testContextTimer) TestIntervalFunc() {
 		},
 	)
 
-	_ = ct.SetInterval(func(int) time.Duration {
+	_ = ct.SetInterval(func(int, time.Duration) time.Duration {
 		return time.Millisecond * 10
 	})
 
@@ -137,7 +137,7 @@ func (t *testContextTimer) TestIntervalFuncNarrowInterval() {
 			return true, nil
 		},
 	)
-	_ = ct.SetInterval(func(int) time.Duration {
+	_ = ct.SetInterval(func(int, time.Duration) time.Duration {
 		if atomic.LoadInt64(&ticked) > 0 { // return 0 after calling 2 times
 			return 0
 		}
@@ -229,12 +229,12 @@ func (t *testContextTimer) TestRestartAfterStop() {
 			return true, nil
 		},
 	)
-	_ = ct.SetInterval(func(i int) time.Duration {
+	_ = ct.SetInterval(func(i int, d time.Duration) time.Duration {
 		if i > 2 { // stop after calling 2 times
 			return 0
 		}
 
-		return time.Millisecond * 10
+		return d
 	})
 
 	t.NoError(ct.Start())
@@ -262,7 +262,7 @@ func (t *testContextTimer) TestReset() {
 			return true, nil
 		},
 	)
-	_ = ct.SetInterval(func(i int) time.Duration {
+	_ = ct.SetInterval(func(int, time.Duration) time.Duration {
 		return time.Millisecond * 30
 	})
 

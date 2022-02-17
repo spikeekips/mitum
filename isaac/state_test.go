@@ -12,13 +12,13 @@ import (
 type baseTestStateHandler struct {
 	suite.Suite
 	local  *LocalNode
-	policy base.BasePolicy
+	policy Policy
 	prpool *proposalPool
 }
 
 func (t *baseTestStateHandler) SetupTest() {
 	local := RandomLocalNode()
-	policy := base.NewBasePolicy()
+	policy := NewPolicy()
 	policy.SetNetworkID(base.RandomNetworkID())
 	policy.SetThreshold(base.Threshold(100))
 

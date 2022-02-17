@@ -17,13 +17,13 @@ var IgnoreSwithingStateError = util.NewError("failed to switch state, but ignore
 type States struct {
 	*logging.Logging
 	*util.ContextDaemon
-	stateLock   sync.RWMutex
-	statech     chan stateSwitchContext
-	voteproofch chan base.Voteproof
-	handlers    map[StateType]stateHandler
-	cs          stateHandler
-	timers      *util.Timers
-	lvps        *lastVoteproofsHandler
+	stateLock sync.RWMutex
+	statech   chan stateSwitchContext
+	vpch      chan base.Voteproof
+	handlers  map[StateType]stateHandler
+	cs        stateHandler
+	timers    *util.Timers
+	lvps      *lastVoteproofsHandler
 }
 
 func NewStates() *States {
@@ -31,14 +31,13 @@ func NewStates() *States {
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", "states")
 		}),
-		statech:     make(chan stateSwitchContext),
-		voteproofch: make(chan base.Voteproof),
-		handlers:    map[StateType]stateHandler{},
-		cs:          nil,
+		statech:  make(chan stateSwitchContext),
+		vpch:     make(chan base.Voteproof),
+		handlers: map[StateType]stateHandler{},
+		cs:       nil,
 		timers: util.NewTimers([]util.TimerID{
 			timerIDBroadcastINITBallot,
 			timerIDBroadcastACCEPTBallot,
-			timerIDPrepareProposal,
 		}, false),
 		lvps: newLastVoteproofs(),
 	}
@@ -118,7 +117,7 @@ func (st *States) startStatesSwitch(ctx context.Context) error {
 		case <-ctx.Done():
 			return errors.Wrap(ctx.Err(), "states stopped by context")
 		case sctx = <-st.statech:
-		case vp := <-st.voteproofch:
+		case vp := <-st.vpch:
 			if !st.lvps.isNew(vp) {
 				continue
 			}
@@ -326,7 +325,7 @@ func (st *States) newVoteproof(vp base.Voteproof) error {
 	}
 
 	go func() {
-		st.voteproofch <- vp
+		st.vpch <- vp
 	}()
 
 	return nil
@@ -406,7 +405,7 @@ func (st *States) stateSwitchContextLog(sctx stateSwitchContext, current stateHa
 		Dict("next_state", stateSwitchContextLog(sctx)).Logger()
 }
 
-func (st *States) broadcastBallot(bl base.Ballot, tolocal bool) error {
+func (st *States) broadcastBallot(bl base.Ballot) error {
 	// BLOCK implement
 
 	return nil

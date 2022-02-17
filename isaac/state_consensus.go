@@ -12,7 +12,6 @@ import (
 var (
 	timerIDBroadcastINITBallot   = util.TimerID("broadcast-init-ballot")
 	timerIDBroadcastACCEPTBallot = util.TimerID("broadcast-accept-ballot")
-	timerIDPrepareProposal       = util.TimerID("prepare-proposal")
 )
 
 /*
@@ -37,24 +36,20 @@ To prepare init ballot,
 */
 type ConsensusHandler struct {
 	*baseStateHandler
-	local            base.LocalNode
-	policy           base.Policy
 	proposalSelector ProposalSelector
 	getSuffrage      func(base.Height) base.Suffrage
 	pps              *proposalProcessors
 }
 
 func NewConsensusHandler(
-	local base.LocalNode,
-	policy base.Policy,
+	local *LocalNode,
+	policy Policy,
 	proposalSelector ProposalSelector,
 	getSuffrage func(base.Height) base.Suffrage,
 	pps *proposalProcessors,
 ) *ConsensusHandler {
 	return &ConsensusHandler{
-		baseStateHandler: newBaseStateHandler(StateConsensus),
-		local:            local,
-		policy:           policy,
+		baseStateHandler: newBaseStateHandler(StateConsensus, local, policy),
 		proposalSelector: proposalSelector,
 		getSuffrage:      getSuffrage,
 		pps:              pps,
@@ -116,10 +111,9 @@ func (st *ConsensusHandler) exit() (func() error, error) {
 			return e(err, "")
 		}
 
-		if err := st.timers().StopTimers([]util.TimerID{
+		if err := st.timers.StopTimers([]util.TimerID{
 			timerIDBroadcastINITBallot,
 			timerIDBroadcastACCEPTBallot,
-			timerIDPrepareProposal,
 		}); err != nil {
 			return e(err, "")
 		}
@@ -231,8 +225,15 @@ func (st *ConsensusHandler) processProposalInternal(ivp base.INITVoteproof) (bas
 		}
 
 		bl := NewACCEPTBallot(ivp, signedFact)
-		if err := st.broadcastBallot(bl, true); err != nil {
+		if err := st.broadcastACCEPTBallot(bl, true); err != nil {
 			return nil, e(err, "failed to broadcast accept ballot")
+		}
+
+		if err := st.timers.StartTimers([]util.TimerID{
+			timerIDBroadcastINITBallot,
+			timerIDBroadcastACCEPTBallot,
+		}, true); err != nil {
+			return nil, e(err, "failed to start timers for broadcasting accept ballot")
 		}
 
 		return manifest, nil
@@ -464,8 +465,14 @@ func (st *ConsensusHandler) nextRound(vp base.Voteproof, lvps lastVoteproofs) {
 	}
 
 	bl := NewINITBallot(vp, sf)
-	if err := st.broadcastBallot(bl, true); err != nil {
+	if err := st.broadcastINITBallot(bl, true); err != nil {
 		go st.switchState(newBrokenSwitchContext(StateConsensus, e(err, "failed to broadcast next round init ballot")))
+	}
+
+	if err := st.timers.StartTimers([]util.TimerID{timerIDBroadcastINITBallot}, true); err != nil {
+		l.Error().Err(e(err, "")).Msg("failed to start timers for broadcasting next round init ballot")
+
+		return
 	}
 
 	l.Debug().Interface("ballot", bl).Msg("next round init ballot broadcasted")
@@ -504,8 +511,17 @@ func (st *ConsensusHandler) nextBlock(avp base.ACCEPTVoteproof) {
 	}
 
 	bl := NewINITBallot(avp, sf)
-	if err := st.broadcastBallot(bl, true); err != nil {
+	if err := st.broadcastINITBallot(bl, true); err != nil {
 		go st.switchState(newBrokenSwitchContext(StateConsensus, e(err, "failed to broadcast next init ballot")))
+	}
+
+	if err := st.timers.StartTimers([]util.TimerID{
+		timerIDBroadcastINITBallot,
+		timerIDBroadcastACCEPTBallot,
+	}, true); err != nil {
+		l.Error().Err(e(err, "")).Msg("failed to start timers for broadcasting next init ballot")
+
+		return
 	}
 
 	l.Debug().Interface("ballot", bl).Msg("next init ballot broadcasted")

@@ -8,9 +8,12 @@ type StoppedHandler struct {
 	*baseStateHandler
 }
 
-func NewStoppedHandler() *StoppedHandler {
+func NewStoppedHandler(
+	local *LocalNode,
+	policy Policy,
+) *StoppedHandler {
 	return &StoppedHandler{
-		baseStateHandler: newBaseStateHandler(StateStopped),
+		baseStateHandler: newBaseStateHandler(StateStopped, local, policy),
 	}
 }
 

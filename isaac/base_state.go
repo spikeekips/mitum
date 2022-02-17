@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -14,24 +15,32 @@ import (
 
 type baseStateHandler struct {
 	*logging.Logging
+	local                *LocalNode
+	policy               Policy
 	stt                  StateType
 	sts                  *States
-	ts                   *util.Timers // NOTE only for testing
+	timers               *util.Timers // NOTE only for testing
 	switchStateFunc      func(stateSwitchContext) error
-	broadcastBallotFunc  func(base.Ballot, bool /* tolocal */) error
+	broadcastBallotFunc  func(base.Ballot) error
 	lastVoteproofFunc    func() lastVoteproofs
 	setLastVoteproofFunc func(base.Voteproof) bool
 }
 
-func newBaseStateHandler(state StateType) *baseStateHandler {
+func newBaseStateHandler(
+	state StateType,
+	local *LocalNode,
+	policy Policy,
+) *baseStateHandler {
 	lvps := newLastVoteproofs()
 
 	return &baseStateHandler{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", fmt.Sprintf("state-handler-%s", state))
 		}),
-		stt: state,
-		broadcastBallotFunc: func(base.Ballot, bool) error {
+		stt:    state,
+		local:  local,
+		policy: policy,
+		broadcastBallotFunc: func(base.Ballot) error {
 			return nil
 		},
 		lastVoteproofFunc: func() lastVoteproofs {
@@ -71,10 +80,6 @@ func (st *baseStateHandler) state() StateType {
 	return st.stt
 }
 
-func (st *baseStateHandler) timers() *util.Timers {
-	return st.ts
-}
-
 func (st *baseStateHandler) lastVoteproof() lastVoteproofs {
 	return st.lastVoteproofFunc()
 }
@@ -112,10 +117,6 @@ func (st *baseStateHandler) switchState(sctx stateSwitchContext) {
 	}
 }
 
-func (st *baseStateHandler) broadcastBallot(bl base.Ballot, tolocal bool) error {
-	return st.broadcastBallotFunc(bl, tolocal)
-}
-
 func (st *baseStateHandler) setStates(sts *States) {
 	st.sts = sts
 
@@ -123,11 +124,11 @@ func (st *baseStateHandler) setStates(sts *States) {
 		return st.sts.newState(sctx)
 	}
 
-	st.broadcastBallotFunc = func(bl base.Ballot, tolocal bool) error {
-		return st.sts.broadcastBallot(bl, tolocal)
+	st.broadcastBallotFunc = func(bl base.Ballot) error {
+		return st.sts.broadcastBallot(bl)
 	}
 
-	st.ts = st.sts.timers
+	st.timers = st.sts.timers
 
 	st.lastVoteproofFunc = func() lastVoteproofs {
 		return st.sts.lastVoteproof()
@@ -135,6 +136,50 @@ func (st *baseStateHandler) setStates(sts *States) {
 	st.setLastVoteproofFunc = func(vp base.Voteproof) bool {
 		return st.sts.setLastVoteproof(vp)
 	}
+}
+
+func (st *baseStateHandler) broadcastBallot(bl base.Ballot, tolocal bool, timerid util.TimerID) error {
+	// BLOCK vote ballot to local if tolocal is true
+
+	l := st.Log().With().
+		Stringer("ballot_hash", bl.SignedFact().Fact().Hash()).Logger()
+	l.Debug().Interface("ballot", bl).Stringer("point", bl.Point()).Msg("trying to broadcast ballot")
+
+	e := util.StringErrorFunc("failed to broadcast ballot")
+
+	ct := util.NewContextTimer(
+		timerid,
+		st.policy.IntervalBroadcastBallot(),
+		func(int) (bool, error) {
+			if err := st.broadcastBallotFunc(bl); err != nil {
+				l.Error().Err(err).Msg("failed to broadcast ballot; timer will be stopped")
+
+				return false, e(err, "")
+			}
+
+			return true, nil
+		},
+	).SetInterval(func(i int, d time.Duration) time.Duration {
+		if i < 1 {
+			return time.Nanosecond
+		}
+
+		return d
+	})
+
+	if err := st.timers.SetTimer(ct); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
+func (st *baseStateHandler) broadcastINITBallot(bl base.Ballot, tolocal bool) error {
+	return st.broadcastBallot(bl, tolocal, timerIDBroadcastINITBallot)
+}
+
+func (st *baseStateHandler) broadcastACCEPTBallot(bl base.Ballot, tolocal bool) error {
+	return st.broadcastBallot(bl, tolocal, timerIDBroadcastACCEPTBallot)
 }
 
 type lastVoteproofsHandler struct {

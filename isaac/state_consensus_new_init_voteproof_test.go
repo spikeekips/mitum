@@ -130,7 +130,7 @@ func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestDrawBeforePrev
 	}
 
 	ballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot, tolocal bool) error {
+	st.broadcastBallotFunc = func(bl base.Ballot) error {
 		switch {
 		case bl.Point().Point == point.Next():
 			ballotch <- bl
@@ -209,7 +209,7 @@ func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestDrawBefore() {
 	}
 
 	ballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot, tolocal bool) error {
+	st.broadcastBallotFunc = func(bl base.Ballot) error {
 		switch {
 		case bl.Point().Point == point.Next():
 			ballotch <- bl
@@ -294,7 +294,7 @@ func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestDrawAndDrawAga
 	}
 
 	ballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot, tolocal bool) error {
+	st.broadcastBallotFunc = func(bl base.Ballot) error {
 		switch {
 		case bl.Point().Point == point.Next():
 			ballotch <- bl
@@ -392,7 +392,7 @@ func (t *testNewINITVoteproofOnACCEPTVoteproofConsensusHandler) TestExpected() {
 	}
 
 	ballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot, tolocal bool) error {
+	st.broadcastBallotFunc = func(bl base.Ballot) error {
 		if p := bl.Point(); p.Point == point.Next() && p.Stage() == base.StageACCEPT {
 			ballotch <- bl
 		}
@@ -451,7 +451,7 @@ func (t *testNewINITVoteproofOnACCEPTVoteproofConsensusHandler) TestHigherHeight
 	}
 
 	ballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot, tolocal bool) error {
+	st.broadcastBallotFunc = func(bl base.Ballot) error {
 		switch {
 		case bl.Point().Point == point.Next():
 			ballotch <- bl
@@ -506,7 +506,7 @@ func (t *testNewINITVoteproofOnACCEPTVoteproofConsensusHandler) TestPreviousBloc
 	}
 
 	ballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot, tolocal bool) error {
+	st.broadcastBallotFunc = func(bl base.Ballot) error {
 		switch {
 		case bl.Point().Point == point.Next():
 			ballotch <- bl

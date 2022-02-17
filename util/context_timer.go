@@ -38,10 +38,11 @@ type ContextTimer struct {
 	sync.RWMutex
 	*logging.Logging
 	*ContextDaemon
-	id       TimerID
-	interval func(int) time.Duration
-	callback func(int) (bool, error)
-	c        int
+	id              TimerID
+	interval        func(int, time.Duration) time.Duration
+	defaultInterval time.Duration
+	callback        func(int) (bool, error)
+	c               int
 }
 
 func NewContextTimer(id TimerID, interval time.Duration, callback func(int) (bool, error)) *ContextTimer {
@@ -51,9 +52,10 @@ func NewContextTimer(id TimerID, interval time.Duration, callback func(int) (boo
 		return c.Str("module", "context-timer").Stringer("id", id)
 	})
 	ct.id = id
-	ct.interval = func(int) time.Duration {
+	ct.interval = func(int, time.Duration) time.Duration {
 		return interval
 	}
+	ct.defaultInterval = interval
 	ct.callback = callback
 	ct.ContextDaemon = NewContextDaemon("timer-"+string(id), ct.start)
 
@@ -64,7 +66,7 @@ func (ct *ContextTimer) ID() TimerID {
 	return ct.id
 }
 
-func (ct *ContextTimer) SetInterval(f func(int) time.Duration) Timer {
+func (ct *ContextTimer) SetInterval(f func(int, time.Duration /* default */) time.Duration) Timer {
 	ct.Lock()
 	defer ct.Unlock()
 
@@ -168,7 +170,7 @@ func (ct *ContextTimer) prepareCallback(ctx context.Context) error {
 	ct.RUnlock()
 
 	count := ct.count()
-	interval := intervalfunc(count)
+	interval := intervalfunc(count, ct.defaultInterval)
 	if interval < time.Nanosecond {
 		return errors.Errorf("invalid interval; too narrow, %v", interval)
 	}

@@ -2,8 +2,6 @@ package base
 
 import "github.com/spikeekips/mitum/util/hint"
 
-var BasePolicyHint = hint.MustNewHint("base-policy-v0.0.1")
-
 type Policy interface {
 	hint.Hinter
 	NetworkID() NetworkID
@@ -16,9 +14,9 @@ type BasePolicy struct {
 	threshold Threshold
 }
 
-func NewBasePolicy() BasePolicy {
+func NewBasePolicy(ht hint.Hint) BasePolicy {
 	return BasePolicy{
-		BaseHinter: hint.NewBaseHinter(BasePolicyHint),
+		BaseHinter: hint.NewBaseHinter(ht),
 	}
 }
 

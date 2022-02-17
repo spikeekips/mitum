@@ -28,7 +28,7 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestExpected() {
 	}
 
 	ballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot, tolocal bool) error {
+	st.broadcastBallotFunc = func(bl base.Ballot) error {
 		if bl.Point().Point == point.Next() {
 			ballotch <- bl
 		}
@@ -130,7 +130,7 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestDraw() {
 	nextpr := t.prpool.get(point.NextRound())
 
 	ballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot, tolocal bool) error {
+	st.broadcastBallotFunc = func(bl base.Ballot) error {
 		if bl.Point().Point.Compare(point) < 1 {
 			return nil
 		}
@@ -343,7 +343,7 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestHigherRoundD
 	nextpr := t.prpool.get(point.NextRound().NextRound().NextRound())
 
 	ballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot, tolocal bool) error {
+	st.broadcastBallotFunc = func(bl base.Ballot) error {
 		if bl.Point().Point.Compare(point) < 1 {
 			return nil
 		}
@@ -571,7 +571,7 @@ func (t *testNewACCEPTVoteproofOnACCEPTVoteproofConsensusHandler) TestDrawAndDra
 	})
 
 	ballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot, tolocal bool) error {
+	st.broadcastBallotFunc = func(bl base.Ballot) error {
 		if bl.Point().Point.Compare(point.NextRound().NextRound()) == 0 {
 			ballotch <- bl
 		}
