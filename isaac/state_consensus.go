@@ -122,16 +122,6 @@ func (st *ConsensusHandler) exit() (func() error, error) {
 	}, nil
 }
 
-func (st *ConsensusHandler) newProposal(pr base.ProposalFact) error {
-	e := util.StringErrorFunc("failed to handle new proposal")
-
-	if err := st.baseStateHandler.newProposal(pr); err != nil {
-		return e(err, "")
-	}
-
-	return nil
-}
-
 func (st *ConsensusHandler) processProposal(ivp base.INITVoteproof) {
 	facthash := ivp.BallotMajority().Proposal()
 	l := st.Log().With().Stringer("fact", facthash).Logger()
@@ -454,7 +444,7 @@ func (st *ConsensusHandler) nextRound(vp base.Voteproof, lvps lastVoteproofs) {
 	fact := NewINITBallotFact(
 		point,
 		prevBlock,
-		pr.SignedFact().Fact().Hash(),
+		pr.Fact().Hash(),
 	)
 	sf := NewINITBallotSignedFact(st.local.Address(), fact)
 
@@ -500,7 +490,7 @@ func (st *ConsensusHandler) nextBlock(avp base.ACCEPTVoteproof) {
 	fact := NewINITBallotFact(
 		point,
 		avp.BallotMajority().NewBlock(),
-		pr.SignedFact().Fact().Hash(),
+		pr.Fact().Hash(),
 	)
 	sf := NewINITBallotSignedFact(st.local.Address(), fact)
 

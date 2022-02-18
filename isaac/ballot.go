@@ -8,7 +8,6 @@ import (
 
 var (
 	INITBallotHint   = hint.MustNewHint("init-ballot-v0.0.1")
-	ProposalHint     = hint.MustNewHint("proposalt-v0.0.1")
 	ACCEPTBallotHint = hint.MustNewHint("accept-ballot-v0.0.1")
 )
 
@@ -132,36 +131,6 @@ func (bl INITBallot) BallotSignedFact() base.INITBallotSignedFact {
 	}
 
 	return bl.signedFact.(base.INITBallotSignedFact)
-}
-
-type Proposal struct {
-	baseBallot
-}
-
-func NewProposal(signedFact ProposalSignedFact) Proposal {
-	return Proposal{
-		baseBallot: newBaseBallot(ProposalHint, nil, signedFact),
-	}
-}
-
-func (bl Proposal) IsValid(networkID []byte) error {
-	if err := bl.BaseHinter.IsValid(ProposalHint.Type().Bytes()); err != nil {
-		return util.InvalidError.Wrapf(err, "invalid Proposal")
-	}
-
-	if err := base.IsValidProposal(bl, networkID); err != nil {
-		return util.InvalidError.Wrapf(err, "invalid Proposal")
-	}
-
-	return nil
-}
-
-func (bl Proposal) BallotSignedFact() base.ProposalSignedFact {
-	if bl.signedFact == nil {
-		return nil
-	}
-
-	return bl.signedFact.(base.ProposalSignedFact)
 }
 
 type ACCEPTBallot struct {

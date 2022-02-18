@@ -178,9 +178,12 @@ func IsValidVoteproofWithSuffrage(vp Voteproof, suf Suffrage) error {
 
 	sfs := vp.SignedFacts()
 	for i := range sfs {
-		n := sfs[i].Node()
-		if !suf.Exists(n) {
+		n := sfs[i]
+		switch {
+		case !suf.Exists(n.Node()):
 			return e(util.InvalidError.Errorf("unknown node found, %q", n), "")
+		case !suf.ExistsPublickey(n.Node(), n.Signer()):
+			return e(util.InvalidError.Errorf("wrong publickey"), "")
 		}
 	}
 

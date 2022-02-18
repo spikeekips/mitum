@@ -37,8 +37,6 @@ func (t *testBaseBallot) TestEmptyVoteproof() {
 	case INITBallot:
 		bt.vp = nil
 		bl = bt
-	case Proposal:
-		return
 	case ACCEPTBallot:
 		bt.vp = nil
 		bl = bt
@@ -54,9 +52,6 @@ func (t *testBaseBallot) TestEmptySignedFact() {
 
 	switch bt := bl.(type) {
 	case INITBallot:
-		bt.signedFact = nil
-		bl = bt
-	case Proposal:
 		bt.signedFact = nil
 		bl = bt
 	case ACCEPTBallot:
@@ -90,28 +85,6 @@ func TestINITBallot(tt *testing.T) {
 		t.NoError(signedFact.Sign(t.priv, t.networkID))
 
 		return NewINITBallot(avp, signedFact)
-	}
-
-	suite.Run(tt, t)
-}
-
-func TestProposalBallot(tt *testing.T) {
-	t := new(testBaseBallot)
-	t.ballot = func() base.Ballot {
-		fact := NewProposalFact(base.RawPoint(32, 44),
-			[]util.Hash{
-				valuehash.RandomSHA256(),
-				valuehash.RandomSHA256(),
-			},
-		)
-
-		signedFact := NewProposalSignedFact(
-			base.RandomAddress(""),
-			fact,
-		)
-		t.NoError(signedFact.Sign(t.priv, t.networkID))
-
-		return NewProposal(signedFact)
 	}
 
 	suite.Run(tt, t)
@@ -261,15 +234,12 @@ func (t *baseTestBallotEncode) SetupTest() {
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: INITBallotFactHint, Instance: INITBallotFact{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ProposalFactHint, Instance: ProposalFact{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ACCEPTBallotFactHint, Instance: ACCEPTBallotFact{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: INITVoteproofHint, Instance: INITVoteproof{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ACCEPTVoteproofHint, Instance: ACCEPTVoteproof{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: INITBallotSignedFactHint, Instance: INITBallotSignedFact{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ProposalSignedFactHint, Instance: ProposalSignedFact{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ACCEPTBallotSignedFactHint, Instance: ACCEPTBallotSignedFact{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: INITBallotHint, Instance: INITBallot{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ProposalHint, Instance: Proposal{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ACCEPTBallotHint, Instance: ACCEPTBallot{}}))
 }
 
@@ -331,43 +301,6 @@ func TestINITBallotJSON(tt *testing.T) {
 		t.NoError(err)
 
 		_, ok := i.(INITBallot)
-		t.True(ok)
-
-		return i
-	}
-
-	suite.Run(tt, t)
-}
-
-func TestProposalBallotJSON(tt *testing.T) {
-	t := testBallotEncode()
-
-	t.Encode = func() (interface{}, []byte) {
-		fact := NewProposalFact(base.RawPoint(32, 44),
-			[]util.Hash{
-				valuehash.RandomSHA256(),
-				valuehash.RandomSHA256(),
-			},
-		)
-
-		signedFact := NewProposalSignedFact(
-			base.RandomAddress(""),
-			fact,
-		)
-		t.NoError(signedFact.Sign(t.priv, t.networkID))
-
-		bl := NewProposal(signedFact)
-
-		b, err := t.enc.Marshal(bl)
-		t.NoError(err)
-
-		return bl, b
-	}
-	t.Decode = func(b []byte) interface{} {
-		i, err := t.enc.Decode(b)
-		t.NoError(err)
-
-		_, ok := i.(Proposal)
 		t.True(ok)
 
 		return i

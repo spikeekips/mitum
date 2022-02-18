@@ -9,7 +9,6 @@ import (
 
 var (
 	INITBallotSignedFactHint   = hint.MustNewHint("init-ballot-signed-fact-v0.0.1")
-	ProposalSignedFactHint     = hint.MustNewHint("proposalt-signed-fact-v0.0.1")
 	ACCEPTBallotSignedFactHint = hint.MustNewHint("accept-ballot-signed-fact-v0.0.1")
 )
 
@@ -30,6 +29,10 @@ func newBaseBallotSignedFact(ht hint.Hint, node base.Address, fact base.BallotFa
 
 func (sf baseBallotSignedFact) Node() base.Address {
 	return sf.node
+}
+
+func (sf baseBallotSignedFact) Signer() base.Publickey {
+	return sf.signed.Signer()
 }
 
 func (sf baseBallotSignedFact) Signed() []base.Signed {
@@ -84,36 +87,6 @@ func (sf INITBallotSignedFact) BallotFact() base.INITBallotFact {
 func (sf INITBallotSignedFact) IsValid(networkID []byte) error {
 	if err := base.IsValidINITBallotSignedFact(sf, networkID); err != nil {
 		return util.InvalidError.Wrapf(err, "invalid INITBallotSignedFact")
-	}
-
-	return nil
-}
-
-type ProposalSignedFact struct {
-	baseBallotSignedFact
-}
-
-func NewProposalSignedFact(node base.Address, fact ProposalFact) ProposalSignedFact {
-	return ProposalSignedFact{
-		baseBallotSignedFact: newBaseBallotSignedFact(ProposalSignedFactHint, node, fact),
-	}
-}
-
-func (sf ProposalSignedFact) BallotFact() base.ProposalFact {
-	if sf.fact == nil {
-		return nil
-	}
-
-	return sf.fact.(base.ProposalFact)
-}
-
-func (sf ProposalSignedFact) Proposer() base.Address {
-	return sf.node
-}
-
-func (sf ProposalSignedFact) IsValid(networkID []byte) error {
-	if err := base.IsValidProposalSignedFact(sf, networkID); err != nil {
-		return util.InvalidError.Wrapf(err, "invalid ProposalSignedFact")
 	}
 
 	return nil

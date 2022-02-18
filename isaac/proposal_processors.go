@@ -236,3 +236,28 @@ func (pps *proposalProcessors) close() error {
 
 	return nil
 }
+
+func runLoopP(ctx context.Context, f func(int) (bool, error), d time.Duration) error {
+	var i int
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			switch keep, err := f(i); {
+			case err != nil:
+				return err
+			case !keep:
+				return nil
+			}
+
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(d):
+				i++
+			}
+		}
+	}
+}

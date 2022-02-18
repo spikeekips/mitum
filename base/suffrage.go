@@ -2,6 +2,7 @@ package base
 
 type Suffrage interface {
 	Exists(Address) bool
-	Nodes() []Address
+	ExistsPublickey(Address, Publickey) bool
+	Nodes() []Node
 	Len() int
 }

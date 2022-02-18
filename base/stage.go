@@ -7,17 +7,15 @@ import (
 type Stage string
 
 const (
-	StageUnknown  = Stage("UNKNOWN")
-	StageINIT     = Stage("INIT")
-	StageProposal = Stage("PROPOSAL")
-	StageACCEPT   = Stage("ACCEPT")
+	StageUnknown = Stage("UNKNOWN")
+	StageINIT    = Stage("INIT")
+	StageACCEPT  = Stage("ACCEPT")
 )
 
 var statesmap = map[Stage]int{
-	StageUnknown:  0,
-	StageINIT:     1,
-	StageProposal: 2,
-	StageACCEPT:   3,
+	StageUnknown: 0,
+	StageINIT:    1,
+	StageACCEPT:  3,
 }
 
 func (st Stage) Bytes() []byte {
@@ -30,7 +28,7 @@ func (st Stage) String() string {
 
 func (st Stage) IsValid([]byte) error {
 	switch st {
-	case StageINIT, StageACCEPT, StageProposal:
+	case StageINIT, StageACCEPT:
 		return nil
 	}
 

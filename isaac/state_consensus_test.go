@@ -64,7 +64,7 @@ func (t *baseTestConsensusHandler) newStateWithINITVoteproof(point base.Point, n
 	st.switchStateFunc = func(stateSwitchContext) error {
 		return nil
 	}
-	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.Proposal, error) {
+	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.ProposalSignedFact, error) {
 		pr := t.prpool.byPoint(p)
 		if pr != nil {
 			return pr, nil

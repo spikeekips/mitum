@@ -31,14 +31,14 @@ func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestHigherHeight()
 			return nil, err
 		}
 
-		if pr.Point().Point == point {
+		if pr.Point() == point {
 			prch <- facthash
 		}
 
 		return pr, nil
 	}
 
-	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.Proposal, error) {
+	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.ProposalSignedFact, error) {
 		return nil, errors.Errorf("hahaah")
 	})
 
@@ -83,14 +83,14 @@ func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestNextRoundButAl
 			return nil, err
 		}
 
-		if pr.Point().Point == point {
+		if pr.Point() == point {
 			prch <- facthash
 		}
 
 		return pr, nil
 	}
 
-	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.Proposal, error) {
+	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.ProposalSignedFact, error) {
 		return nil, errors.Errorf("hahaah")
 	})
 
@@ -141,7 +141,7 @@ func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestDrawBeforePrev
 		return nil
 	}
 
-	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.Proposal, error) {
+	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.ProposalSignedFact, error) {
 		return t.prpool.get(p), nil
 	})
 
@@ -220,7 +220,7 @@ func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestDrawBefore() {
 		return nil
 	}
 
-	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.Proposal, error) {
+	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.ProposalSignedFact, error) {
 		return t.prpool.get(p), nil
 	})
 
@@ -307,7 +307,7 @@ func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestDrawAndDrawAga
 		return nil
 	}
 
-	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.Proposal, error) {
+	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.ProposalSignedFact, error) {
 		return t.prpool.get(p), nil
 	})
 
@@ -400,7 +400,7 @@ func (t *testNewINITVoteproofOnACCEPTVoteproofConsensusHandler) TestExpected() {
 		return nil
 	}
 
-	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.Proposal, error) {
+	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.ProposalSignedFact, error) {
 		return t.prpool.get(p), nil
 	})
 
@@ -462,7 +462,7 @@ func (t *testNewINITVoteproofOnACCEPTVoteproofConsensusHandler) TestHigherHeight
 		return nil
 	}
 
-	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.Proposal, error) {
+	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.ProposalSignedFact, error) {
 		return t.prpool.get(p), nil
 	})
 
@@ -517,7 +517,7 @@ func (t *testNewINITVoteproofOnACCEPTVoteproofConsensusHandler) TestPreviousBloc
 		return nil
 	}
 
-	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.Proposal, error) {
+	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.ProposalSignedFact, error) {
 		return t.prpool.get(p), nil
 	})
 

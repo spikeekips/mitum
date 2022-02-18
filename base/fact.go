@@ -53,12 +53,16 @@ func IsValidSignedFact(sf SignedFact, networkID []byte) error {
 	bs[0] = sf.Fact()
 
 	sfs := sf.Signed()
+	if len(sfs) < 1 {
+		return e(util.InvalidError.Errorf("empty SignedFact"), "")
+	}
+
 	for i := range sfs {
 		bs[i+1] = sfs[i]
 	}
 
 	if err := util.CheckIsValid(networkID, false, bs...); err != nil {
-		return util.InvalidError.Wrapf(err, "invalid SignedFact")
+		return e(util.InvalidError.Wrapf(err, "invalid SignedFact"), "")
 	}
 
 	for i := range sfs {

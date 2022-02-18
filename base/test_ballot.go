@@ -4,11 +4,20 @@
 package base
 
 import (
-	"github.com/spikeekips/mitum/util/localtime"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 )
 
 func CompareBallotSignedFact(t *assert.Assertions, a, b BallotSignedFact) {
+	switch {
+	case a == nil && b == nil:
+		return
+	case a == nil || b == nil:
+		t.NoError(errors.Errorf("empty"))
+
+		return
+	}
+
 	CompareSignedFact(t, a, b)
 
 	t.True(a.Hint().Equal(b.Hint()))
@@ -19,11 +28,6 @@ func CompareBallotSignedFact(t *assert.Assertions, a, b BallotSignedFact) {
 	case INITBallotSignedFact:
 		af = at.BallotFact()
 		bf = b.(INITBallotSignedFact).BallotFact()
-	case ProposalSignedFact:
-		t.True(at.Proposer().Equal(b.(ProposalSignedFact).Proposer()))
-
-		af = at.BallotFact()
-		bf = b.(ProposalSignedFact).BallotFact()
 	case ACCEPTBallotSignedFact:
 		af = at.BallotFact()
 		bf = b.(ACCEPTBallotSignedFact).BallotFact()
@@ -33,7 +37,12 @@ func CompareBallotSignedFact(t *assert.Assertions, a, b BallotSignedFact) {
 }
 
 func CompareBallotFact(t *assert.Assertions, a, b BallotFact) {
-	if a == nil && b == nil {
+	switch {
+	case a == nil && b == nil:
+		return
+	case a == nil || b == nil:
+		t.NoError(errors.Errorf("empty"))
+
 		return
 	}
 
@@ -43,8 +52,6 @@ func CompareBallotFact(t *assert.Assertions, a, b BallotFact) {
 	switch at := a.(type) {
 	case INITBallotFact:
 		compareINITBallotFact(t, at, b.(INITBallotFact))
-	case ProposalFact:
-		compareProposalFact(t, at, b.(ProposalFact))
 	case ACCEPTBallotFact:
 		compareACCEPTBallotFact(t, at, b.(ACCEPTBallotFact))
 	}
@@ -54,17 +61,6 @@ func compareINITBallotFact(t *assert.Assertions, a, b INITBallotFact) {
 	t.True(a.Hash().Equal(b.Hash()))
 	t.True(a.PreviousBlock().Equal(b.PreviousBlock()))
 	t.True(a.Proposal().Equal(b.Proposal()))
-}
-
-func compareProposalFact(t *assert.Assertions, a, b ProposalFact) {
-	t.Equal(len(a.Operations()), len(b.Operations()))
-
-	aop := a.Operations()
-	bop := b.Operations()
-	for i := range aop {
-		t.True(aop[i].Equal(bop[i]))
-	}
-	t.True(localtime.Equal(a.ProposedAt(), b.ProposedAt()))
 }
 
 func compareACCEPTBallotFact(t *assert.Assertions, a, b ACCEPTBallotFact) {

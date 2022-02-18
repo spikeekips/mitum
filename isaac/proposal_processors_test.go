@@ -41,7 +41,7 @@ func (t *testProposalProcessors) TestProcess() {
 		},
 	)
 
-	facthash := pr.SignedFact().Fact().Hash()
+	facthash := pr.Fact().Hash()
 
 	t.T().Log("process")
 	rmanifest, err := pps.process(context.Background(), facthash)
@@ -95,7 +95,7 @@ func (t *testProposalProcessors) TestAlreadyProcessing() {
 	)
 	pps.SetLogging(logging.TestNilLogging)
 
-	facthash := pr.SignedFact().Fact().Hash()
+	facthash := pr.Fact().Hash()
 
 	t.T().Log("process")
 	go func() {
@@ -114,7 +114,7 @@ func (t *testProposalProcessors) TestAlreadyProcessing() {
 	t.NoError(err)
 
 	t.NotNil(pps.processor())
-	t.True(pr.SignedFact().Fact().Hash().Equal(pps.processor().proposal().Hash()))
+	t.True(pr.Fact().Hash().Equal(pps.processor().proposal().Hash()))
 }
 
 func (t *testProposalProcessors) TestCancelPrevious() {
@@ -144,7 +144,7 @@ func (t *testProposalProcessors) TestCancelPrevious() {
 
 	pps := newProposalProcessors(
 		func(fact base.ProposalFact) proposalProcessor {
-			switch fact.Point().Point {
+			switch fact.Point() {
 			case point:
 				pp.fact = fact
 				return pp
@@ -162,7 +162,7 @@ func (t *testProposalProcessors) TestCancelPrevious() {
 
 	t.T().Log("process")
 	go func() {
-		_, err := pps.process(context.Background(), pr.SignedFact().Fact().Hash())
+		_, err := pps.process(context.Background(), pr.Fact().Hash())
 		t.NoError(err)
 	}()
 
@@ -173,7 +173,7 @@ func (t *testProposalProcessors) TestCancelPrevious() {
 	}
 
 	t.T().Log("process another")
-	_, err := pps.process(context.Background(), nextpr.SignedFact().Fact().Hash())
+	_, err := pps.process(context.Background(), nextpr.Fact().Hash())
 	t.NoError(err)
 	t.NotNil(pps.processor())
 
@@ -305,7 +305,7 @@ func (t *testProposalProcessors) TestProcessError() {
 		},
 	)
 
-	facthash := pr.SignedFact().Fact().Hash()
+	facthash := pr.Fact().Hash()
 
 	t.T().Log("process")
 	_, err := pps.process(context.Background(), facthash)
@@ -334,7 +334,7 @@ func (t *testProposalProcessors) TestProcessIgnoreError() {
 		},
 	)
 
-	facthash := pr.SignedFact().Fact().Hash()
+	facthash := pr.Fact().Hash()
 
 	t.T().Log("process")
 	rmanifest, err := pps.process(context.Background(), facthash)
@@ -362,7 +362,7 @@ func (t *testProposalProcessors) TestProcessContextCanceled() {
 		},
 	)
 
-	facthash := pr.SignedFact().Fact().Hash()
+	facthash := pr.Fact().Hash()
 
 	t.T().Log("process")
 	rmanifest, err := pps.process(context.Background(), facthash)
@@ -395,7 +395,7 @@ func (t *testProposalProcessors) TestProcessRetry() {
 	pps.limit = 3
 	pps.retryinterval = time.Millisecond * 10
 
-	facthash := pr.SignedFact().Fact().Hash()
+	facthash := pr.Fact().Hash()
 
 	t.T().Log("process")
 	rmanifest, err := pps.process(context.Background(), facthash)
@@ -431,7 +431,7 @@ func (t *testProposalProcessors) TestSaveError() {
 	pps.limit = 3
 	pps.retryinterval = time.Millisecond * 10
 
-	facthash := pr.SignedFact().Fact().Hash()
+	facthash := pr.Fact().Hash()
 
 	t.T().Log("process")
 	rmanifest, err := pps.process(context.Background(), facthash)

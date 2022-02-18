@@ -11,7 +11,7 @@ import (
 
 type baseBallotJSONMarshaler struct {
 	hint.BaseHinter
-	VP base.Voteproof        `json:"voteproof"`
+	VP base.Voteproof        `json:"voteproof,omitempty"`
 	SF base.BallotSignedFact `json:"signed_fact"`
 }
 

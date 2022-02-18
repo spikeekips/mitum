@@ -27,11 +27,11 @@ func (t *baseTestStateHandler) SetupTest() {
 	t.local = local
 	t.policy = policy
 
-	t.prpool = newProposalPool(func(point base.Point) base.Proposal {
-		fs := NewProposalSignedFact(local.Address(), NewProposalFact(point, []util.Hash{valuehash.RandomSHA256()}))
+	t.prpool = newProposalPool(func(point base.Point) base.ProposalSignedFact {
+		fs := NewProposalSignedFact(NewProposalFact(point, t.local.Address(), []util.Hash{valuehash.RandomSHA256()}))
 		_ = fs.Sign(local.Privatekey(), networkID)
 
-		return NewProposal(fs)
+		return fs
 	})
 }
 
@@ -43,15 +43,15 @@ func (t *baseTestStateHandler) newACCEPTBallotFact(point base.Point, pr, block u
 	return NewACCEPTBallotFact(point, pr, block)
 }
 
-func (t *baseTestStateHandler) newProposalFact(point base.Point, ops []util.Hash) ProposalFact {
-	return NewProposalFact(point, ops)
+func (t *baseTestStateHandler) newProposalFact(point base.Point, local *LocalNode, ops []util.Hash) ProposalFact {
+	return NewProposalFact(point, local.Address(), ops)
 }
 
-func (t *baseTestStateHandler) newProposal(local *LocalNode, fact ProposalFact) Proposal {
-	fs := NewProposalSignedFact(local.Address(), fact)
+func (t *baseTestStateHandler) newProposal(local *LocalNode, fact ProposalFact) ProposalSignedFact {
+	fs := NewProposalSignedFact(fact)
 	t.NoError(fs.Sign(local.Privatekey(), t.policy.NetworkID()))
 
-	return NewProposal(fs)
+	return fs
 }
 
 func (t *baseTestStateHandler) newINITVoteproof(
@@ -155,15 +155,15 @@ func (t *baseTestStateHandler) voteproofsPair(prevpoint, point base.Point, prev,
 
 type proposalPool struct {
 	sync.RWMutex
-	p           map[base.Point]base.Proposal
-	newproposal func(base.Point) base.Proposal
+	p           map[base.Point]base.ProposalSignedFact
+	newproposal func(base.Point) base.ProposalSignedFact
 }
 
 func newProposalPool(
-	newproposal func(base.Point) base.Proposal,
+	newproposal func(base.Point) base.ProposalSignedFact,
 ) *proposalPool {
 	return &proposalPool{
-		p:           map[base.Point]base.Proposal{},
+		p:           map[base.Point]base.ProposalSignedFact{},
 		newproposal: newproposal,
 	}
 }
@@ -171,10 +171,10 @@ func newProposalPool(
 func (p *proposalPool) hash(point base.Point) util.Hash {
 	pr := p.get(point)
 
-	return pr.SignedFact().Fact().Hash()
+	return pr.Fact().Hash()
 }
 
-func (p *proposalPool) get(point base.Point) base.Proposal {
+func (p *proposalPool) get(point base.Point) base.ProposalSignedFact {
 	p.Lock()
 	defer p.Unlock()
 
@@ -192,10 +192,10 @@ func (p *proposalPool) get(point base.Point) base.Proposal {
 func (p *proposalPool) getfact(point base.Point) base.ProposalFact {
 	pr := p.get(point)
 
-	return pr.BallotSignedFact().BallotFact()
+	return pr.ProposalFact()
 }
 
-func (p *proposalPool) byPoint(point base.Point) base.Proposal {
+func (p *proposalPool) byPoint(point base.Point) base.ProposalSignedFact {
 	p.RLock()
 	defer p.RUnlock()
 
@@ -206,13 +206,13 @@ func (p *proposalPool) byPoint(point base.Point) base.Proposal {
 	return nil
 }
 
-func (p *proposalPool) byHash(h util.Hash) base.Proposal {
+func (p *proposalPool) byHash(h util.Hash) base.ProposalSignedFact {
 	p.RLock()
 	defer p.RUnlock()
 
 	for i := range p.p {
 		pr := p.p[i]
-		if pr.SignedFact().Fact().Hash().Equal(h) {
+		if pr.Fact().Hash().Equal(h) {
 			return pr
 		}
 
@@ -227,5 +227,5 @@ func (p *proposalPool) factByHash(h util.Hash) (base.ProposalFact, error) {
 		return nil, util.NotFoundError.Call()
 	}
 
-	return pr.BallotSignedFact().BallotFact(), nil
+	return pr.ProposalFact(), nil
 }

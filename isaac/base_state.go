@@ -72,10 +72,6 @@ func (st *baseStateHandler) newVoteproof(vp base.Voteproof) (lastVoteproofs, bas
 	return lvps, vp, nil
 }
 
-func (*baseStateHandler) newProposal(base.ProposalFact) error {
-	return nil
-}
-
 func (st *baseStateHandler) state() StateType {
 	return st.stt
 }

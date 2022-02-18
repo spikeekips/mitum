@@ -96,22 +96,6 @@ func checkVoteproofInACCEPTBallot(bl Ballot, vp INITVoteproof) error {
 	return nil
 }
 
-func IsValidProposal(bl Proposal, networkID []byte) error {
-	e := util.StringErrorFunc("invalid Proposal")
-
-	if err := util.CheckIsValid(networkID, false,
-		bl.SignedFact(),
-	); err != nil {
-		return e(err, "")
-	}
-
-	if _, ok := bl.SignedFact().(ProposalSignedFact); !ok {
-		return util.InvalidError.Errorf("ProposalSignedFact expected, not %T", bl.SignedFact())
-	}
-
-	return nil
-}
-
 func IsValidACCEPTBallot(bl ACCEPTBallot, networkID []byte) error {
 	e := util.StringErrorFunc("invalid ACCEPTBallot")
 	if err := IsValidBallot(bl, networkID); err != nil {
@@ -160,44 +144,6 @@ func IsValidINITBallotFact(fact INITBallotFact) error {
 	return nil
 }
 
-func IsValidProposalFact(fact ProposalFact) error {
-	e := util.StringErrorFunc("invalid ProposalFact")
-	if err := IsValidBallotFact(fact); err != nil {
-		return e(err, "")
-	}
-
-	ops := fact.Operations()
-	if util.CheckSliceDuplicated(ops, func(i interface{}) string {
-		j, ok := i.(util.Hash)
-		if !ok {
-			return ""
-		}
-
-		return j.String()
-	}) {
-		return util.InvalidError.Errorf("duplicated operation found")
-	}
-
-	vs := make([]util.IsValider, len(ops)+1)
-	vs[0] = util.DummyIsValider(func([]byte) error {
-		if fact.ProposedAt().IsZero() {
-			return util.InvalidError.Errorf("empty ProposedAt")
-		}
-
-		return nil
-	})
-
-	for i := range ops {
-		vs[i+1] = ops[i]
-	}
-
-	if err := util.CheckIsValid(nil, false, vs...); err != nil {
-		return e(err, "")
-	}
-
-	return nil
-}
-
 func IsValidACCEPTBallotFact(fact ACCEPTBallotFact) error {
 	e := util.StringErrorFunc("invalid ACCEPTBallotFact")
 	if err := IsValidBallotFact(fact); err != nil {
@@ -238,20 +184,6 @@ func IsValidINITBallotSignedFact(sf BallotSignedFact, networkID []byte) error {
 
 	if _, ok := sf.Fact().(INITBallotFact); !ok {
 		return e(util.InvalidError.Errorf("not INITBallotFact, %T", sf.Fact()), "")
-	}
-
-	return nil
-}
-
-func IsValidProposalSignedFact(sf BallotSignedFact, networkID []byte) error {
-	e := util.StringErrorFunc("invalid ProposalSignedFact")
-
-	if err := IsValidBallotSignedFact(sf, networkID); err != nil {
-		return e(err, "")
-	}
-
-	if _, ok := sf.Fact().(ProposalFact); !ok {
-		return e(util.InvalidError.Errorf("not ProposalFact, %T", sf.Fact()), "")
 	}
 
 	return nil

@@ -74,7 +74,7 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestExpected() {
 
 		rfact := rbl.BallotSignedFact().BallotFact()
 		t.Equal(avp.BallotMajority().NewBlock(), rfact.PreviousBlock())
-		t.True(nextpr.SignedFact().Fact().Hash().Equal(rfact.Proposal()))
+		t.True(nextpr.Fact().Hash().Equal(rfact.Proposal()))
 	}
 }
 
@@ -168,7 +168,7 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestDraw() {
 
 		rfact := rbl.BallotSignedFact().BallotFact()
 		t.Equal(ivp.BallotMajority().PreviousBlock(), rfact.PreviousBlock())
-		t.True(nextpr.SignedFact().Fact().Hash().Equal(rfact.Proposal()))
+		t.True(nextpr.Fact().Hash().Equal(rfact.Proposal()))
 	}
 }
 
@@ -179,7 +179,7 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestDrawFailedPr
 	st, closefunc, _, ivp := t.newStateWithINITVoteproof(point, nodes)
 	defer closefunc()
 
-	st.proposalSelector = DummyProposalSelector(func(point base.Point) (base.Proposal, error) {
+	st.proposalSelector = DummyProposalSelector(func(point base.Point) (base.ProposalSignedFact, error) {
 		return nil, errors.Errorf("hahaha")
 	})
 
@@ -374,14 +374,14 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestHigherRoundD
 
 		return
 	case bl := <-ballotch:
-		t.Equal(nextpr.Point().Point, bl.Point().Point)
+		t.Equal(nextpr.Point(), bl.Point().Point)
 
 		rbl, ok := bl.(base.INITBallot)
 		t.True(ok)
 
 		rfact := rbl.BallotSignedFact().BallotFact()
 		t.Equal(ivp.BallotMajority().PreviousBlock(), rfact.PreviousBlock())
-		t.True(nextpr.SignedFact().Fact().Hash().Equal(rfact.Proposal()))
+		t.True(nextpr.Fact().Hash().Equal(rfact.Proposal()))
 	}
 }
 
@@ -449,7 +449,7 @@ func (t *testNewACCEPTVoteproofOnACCEPTVoteproofConsensusHandler) TestDrawAndHig
 	_ = t.prpool.get(point.NextRound())
 
 	nextprch := make(chan base.Point, 1)
-	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.Proposal, error) {
+	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.ProposalSignedFact, error) {
 		pr := t.prpool.byPoint(p)
 		if pr != nil {
 			if p == point.NextRound() {
@@ -503,7 +503,7 @@ func (t *testNewACCEPTVoteproofOnACCEPTVoteproofConsensusHandler) TestDrawAndHig
 	_ = t.prpool.get(point.NextRound())
 
 	nextprch := make(chan base.Point, 1)
-	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.Proposal, error) {
+	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.ProposalSignedFact, error) {
 		pr := t.prpool.byPoint(p)
 		if pr != nil {
 			if p == point.NextRound() {
@@ -558,7 +558,7 @@ func (t *testNewACCEPTVoteproofOnACCEPTVoteproofConsensusHandler) TestDrawAndDra
 	nextpr := t.prpool.get(point.NextRound().NextRound())
 
 	newprch := make(chan base.Point, 1)
-	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.Proposal, error) {
+	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.ProposalSignedFact, error) {
 		pr := t.prpool.byPoint(p)
 		if pr != nil {
 			if p == point.NextRound() {
@@ -619,10 +619,10 @@ func (t *testNewACCEPTVoteproofOnACCEPTVoteproofConsensusHandler) TestDrawAndDra
 		rbl, ok := bl.(base.INITBallot)
 		t.True(ok)
 
-		t.Equal(nextpr.Point().Point, bl.Point().Point)
+		t.Equal(nextpr.Point(), bl.Point().Point)
 
 		rfact := rbl.BallotSignedFact().BallotFact()
-		t.True(nextpr.SignedFact().Fact().Hash().Equal(rfact.Proposal()))
+		t.True(nextpr.Fact().Hash().Equal(rfact.Proposal()))
 	}
 }
 

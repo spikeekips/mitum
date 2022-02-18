@@ -40,9 +40,6 @@ func (t *testBaseBallotSignedFact) TestEmptySigned() {
 	case INITBallotSignedFact:
 		u.signed = base.BaseSigned{}
 		sb = u
-	case ProposalSignedFact:
-		u.signed = base.BaseSigned{}
-		sb = u
 	case ACCEPTBallotSignedFact:
 		u.signed = base.BaseSigned{}
 		sb = u
@@ -57,10 +54,6 @@ func (t *testBaseBallotSignedFact) TestWrongFact() {
 	sb := t.signedfact()
 	switch u := sb.(type) {
 	case INITBallotSignedFact:
-		u.fact = t.wrongfact()
-		t.NoError(u.Sign(t.priv, t.networkID))
-		sb = u
-	case ProposalSignedFact:
 		u.fact = t.wrongfact()
 		t.NoError(u.Sign(t.priv, t.networkID))
 		sb = u
@@ -89,29 +82,6 @@ func TestINITBallotSignedFact(tt *testing.T) {
 	}
 	t.wrongfact = func() base.BallotFact {
 		return NewACCEPTBallotFact(base.RawPoint(33, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256())
-	}
-
-	suite.Run(tt, t)
-}
-
-func TestProposalBallotSignedFact(tt *testing.T) {
-	t := new(testBaseBallotSignedFact)
-	t.signedfact = func() base.BallotSignedFact {
-		fact := NewProposalFact(base.RawPoint(33, 44),
-			[]util.Hash{valuehash.RandomSHA256()},
-		)
-
-		sb := NewProposalSignedFact(
-			base.RandomAddress(""),
-			fact,
-		)
-		t.NoError(sb.Sign(t.priv, t.networkID))
-
-		_ = (interface{})(sb).(base.ProposalSignedFact)
-		return sb
-	}
-	t.wrongfact = func() base.BallotFact {
-		return NewINITBallotFact(base.RawPoint(33, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256())
 	}
 
 	suite.Run(tt, t)
@@ -172,56 +142,6 @@ func TestINITBallotSignedFactEncode(tt *testing.T) {
 		as, ok := a.(INITBallotSignedFact)
 		t.True(ok)
 		bs, ok := b.(INITBallotSignedFact)
-		t.True(ok)
-
-		base.CompareBallotSignedFact(t.Assert(), as, bs)
-	}
-
-	suite.Run(tt, t)
-}
-
-func TestProposalBallotSignedFactEncode(tt *testing.T) {
-	t := new(encoder.BaseTestEncode)
-
-	enc := jsonenc.NewEncoder()
-	priv := base.NewMPrivatekey()
-	networkID := base.NetworkID(util.UUID().Bytes())
-
-	t.Encode = func() (interface{}, []byte) {
-		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
-		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
-		t.NoError(enc.Add(encoder.DecodeDetail{Hint: ProposalFactHint, Instance: ProposalFact{}}))
-		t.NoError(enc.Add(encoder.DecodeDetail{Hint: ProposalSignedFactHint, Instance: ProposalSignedFact{}}))
-
-		fact := NewProposalFact(base.RawPoint(33, 44),
-			[]util.Hash{valuehash.RandomSHA256()},
-		)
-		sb := NewProposalSignedFact(
-			base.RandomAddress(""),
-			fact,
-		)
-		t.NoError(sb.Sign(priv, networkID))
-		t.NoError(sb.IsValid(networkID))
-
-		b, err := enc.Marshal(sb)
-		t.NoError(err)
-
-		return sb, b
-	}
-	t.Decode = func(b []byte) interface{} {
-		i, err := enc.Decode(b)
-		t.NoError(err)
-
-		sb, ok := i.(ProposalSignedFact)
-		t.True(ok)
-		t.NoError(sb.IsValid(networkID))
-
-		return i
-	}
-	t.Compare = func(a, b interface{}) {
-		as, ok := a.(ProposalSignedFact)
-		t.True(ok)
-		bs, ok := b.(ProposalSignedFact)
 		t.True(ok)
 
 		base.CompareBallotSignedFact(t.Assert(), as, bs)

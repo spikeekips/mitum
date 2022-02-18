@@ -22,9 +22,6 @@ func (t *testBaseBallotFact) setHash(bl base.BallotFact, h util.Hash) base.Ballo
 	case INITBallotFact:
 		t.h = h
 		return t
-	case ProposalFact:
-		t.h = h
-		return t
 	case ACCEPTBallotFact:
 		t.h = h
 		return t
@@ -36,13 +33,10 @@ func (t *testBaseBallotFact) setHash(bl base.BallotFact, h util.Hash) base.Ballo
 func (t *testBaseBallotFact) setWrongStage(bl base.BallotFact) base.BallotFact {
 	switch y := bl.(type) {
 	case INITBallotFact:
-		y.point = base.NewStagePoint(y.point.Point, base.StageProposal)
-		return y
-	case ProposalFact:
-		y.point = base.NewStagePoint(y.point.Point, base.StageINIT)
+		y.point = base.NewStagePoint(y.point.Point, base.StageACCEPT)
 		return y
 	case ACCEPTBallotFact:
-		y.point = base.NewStagePoint(y.point.Point, base.StageProposal)
+		y.point = base.NewStagePoint(y.point.Point, base.StageINIT)
 		return y
 	default:
 		panic("unknown BallotFact")
@@ -95,19 +89,6 @@ func TestBasicINITBallotFact(tt *testing.T) {
 	suite.Run(tt, t)
 }
 
-func TestBasicProposalBallotFact(tt *testing.T) {
-	t := new(testBaseBallotFact)
-	t.ballot = func() base.BallotFact {
-		bl := NewProposalFact(base.RawPoint(33, 44),
-			[]util.Hash{valuehash.RandomSHA256()})
-		_ = (interface{})(bl).(base.ProposalFact)
-
-		return bl
-	}
-
-	suite.Run(tt, t)
-}
-
 func TestBasicACCEPTBallotFact(tt *testing.T) {
 	t := new(testBaseBallotFact)
 	t.ballot = func() base.BallotFact {
@@ -123,30 +104,6 @@ func TestBasicACCEPTBallotFact(tt *testing.T) {
 	suite.Run(tt, t)
 }
 
-type testProposalBallotFact struct {
-	suite.Suite
-}
-
-func (t *testProposalBallotFact) TestDuplicatedOperations() {
-	op := valuehash.RandomSHA256()
-	bl := NewProposalFact(base.RawPoint(33, 44),
-		[]util.Hash{
-			valuehash.RandomSHA256(),
-			op,
-			valuehash.RandomSHA256(),
-			op,
-		})
-
-	err := bl.IsValid(nil)
-	t.Error(err)
-	t.True(errors.Is(err, util.InvalidError))
-	t.Contains(err.Error(), "duplicated operation found")
-}
-
-func TestProposalBallotFact(t *testing.T) {
-	suite.Run(t, new(testProposalBallotFact))
-}
-
 type baseTestBallotFactEncode struct {
 	encoder.BaseTestEncode
 	enc     encoder.Encoder
@@ -159,7 +116,6 @@ func (t *baseTestBallotFactEncode) SetupTest() {
 
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: INITBallotFactHint, Instance: INITBallotFact{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ProposalFactHint, Instance: ProposalFact{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ACCEPTBallotFactHint, Instance: ACCEPTBallotFact{}}))
 }
 
@@ -201,31 +157,6 @@ func TestINITBallotFactJSON(tt *testing.T) {
 		t.NoError(err)
 
 		_, ok := i.(INITBallotFact)
-		t.True(ok)
-
-		return i
-	}
-
-	suite.Run(tt, t)
-}
-
-func TestProposalBallotFactJSON(tt *testing.T) {
-	t := testBallotFactEncode()
-
-	t.Encode = func() (interface{}, []byte) {
-		bl := NewProposalFact(base.RawPoint(33, 44),
-			[]util.Hash{valuehash.RandomSHA256()})
-
-		b, err := t.enc.Marshal(bl)
-		t.NoError(err)
-
-		return bl, b
-	}
-	t.Decode = func(b []byte) interface{} {
-		i, err := t.enc.Decode(b)
-		t.NoError(err)
-
-		_, ok := i.(ProposalFact)
 		t.True(ok)
 
 		return i

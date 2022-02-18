@@ -1,8 +1,6 @@
 package base
 
 import (
-	"time"
-
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
 )
@@ -18,6 +16,7 @@ type BallotSignedFact interface {
 	util.IsValider
 	SignedFact
 	Node() Address
+	Signer() Publickey
 }
 
 type Ballot interface {
@@ -33,12 +32,6 @@ type INITBallotFact interface {
 	Proposal() util.Hash
 }
 
-type ProposalFact interface {
-	BallotFact
-	Operations() []util.Hash
-	ProposedAt() time.Time
-}
-
 type ACCEPTBallotFact interface {
 	BallotFact
 	Proposal() util.Hash // NOTE proposal fact hash
@@ -50,12 +43,6 @@ type INITBallotSignedFact interface {
 	BallotFact() INITBallotFact
 }
 
-type ProposalSignedFact interface {
-	BallotSignedFact
-	BallotFact() ProposalFact
-	Proposer() Address
-}
-
 type ACCEPTBallotSignedFact interface {
 	BallotSignedFact
 	BallotFact() ACCEPTBallotFact
@@ -64,11 +51,6 @@ type ACCEPTBallotSignedFact interface {
 type INITBallot interface {
 	Ballot
 	BallotSignedFact() INITBallotSignedFact
-}
-
-type Proposal interface {
-	Ballot
-	BallotSignedFact() ProposalSignedFact
 }
 
 type ACCEPTBallot interface {

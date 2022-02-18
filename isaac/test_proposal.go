@@ -58,8 +58,8 @@ func (p *DummyProposalProcessor) proposal() base.ProposalFact {
 	return p.fact
 }
 
-type DummyProposalSelector func(base.Point) (base.Proposal, error)
+type DummyProposalSelector func(base.Point) (base.ProposalSignedFact, error)
 
-func (ps DummyProposalSelector) Select(point base.Point) (base.Proposal, error) {
+func (ps DummyProposalSelector) Select(point base.Point) (base.ProposalSignedFact, error) {
 	return ps(point)
 }

@@ -15,21 +15,20 @@ import (
 
 type testBaseVoteproof struct {
 	suite.Suite
-	priv      base.Privatekey
+	local     *LocalNode
 	networkID base.NetworkID
 }
 
 func (t *testBaseVoteproof) SetupTest() {
-	t.priv = base.NewMPrivatekey()
+	t.local = RandomLocalNode()
 	t.networkID = base.NetworkID(util.UUID().Bytes())
 }
 
 func (t *testBaseVoteproof) validVoteproof() INITVoteproof {
-	node := base.RandomAddress("")
 	ifact := NewINITBallotFact(base.RawPoint(33, 55), valuehash.RandomSHA256(), valuehash.RandomSHA256())
 
-	isignedFact := NewINITBallotSignedFact(node, ifact)
-	t.NoError(isignedFact.Sign(t.priv, t.networkID))
+	isignedFact := NewINITBallotSignedFact(t.local.Address(), ifact)
+	t.NoError(isignedFact.Sign(t.local.Privatekey(), t.networkID))
 
 	ivp := NewINITVoteproof(ifact.Point().Point)
 	ivp.SetResult(base.VoteResultMajority).
@@ -59,7 +58,7 @@ func (t *testBaseVoteproof) TestEmptyID() {
 
 func (t *testBaseVoteproof) TestInvalidStage() {
 	ivp := t.validVoteproof()
-	ivp.point = base.NewStagePoint(ivp.point.Point, base.StageProposal)
+	ivp.point = base.NewStagePoint(ivp.point.Point, base.StageUnknown)
 
 	err := ivp.IsValid(t.networkID)
 	t.Error(err)
@@ -135,7 +134,7 @@ func (t *testBaseVoteproof) TestDuplicatedNodeInSignedFact() {
 	isf := sfs[0].(INITBallotSignedFact)
 
 	isignedFact := NewINITBallotSignedFact(isf.Node(), isf.Fact().(INITBallotFact))
-	t.NoError(isignedFact.Sign(t.priv, t.networkID))
+	t.NoError(isignedFact.Sign(t.local.Privatekey(), t.networkID))
 
 	sfs = append(sfs, isignedFact)
 
@@ -153,7 +152,7 @@ func (t *testBaseVoteproof) TestInvalidSignedFact() {
 	ifact := NewINITBallotFact(base.RawPoint(33, 55), valuehash.RandomSHA256(), valuehash.RandomSHA256())
 
 	isignedFact := NewINITBallotSignedFact(base.RandomAddress(""), ifact)
-	t.NoError(isignedFact.Sign(t.priv, util.UUID().Bytes())) // wrong network id
+	t.NoError(isignedFact.Sign(t.local.Privatekey(), util.UUID().Bytes())) // wrong network id
 
 	ivp.SetMajority(ifact).SetSignedFacts([]base.BallotSignedFact{isignedFact}).finish()
 
@@ -171,10 +170,10 @@ func (t *testBaseVoteproof) TestWrongPointOfSignedFact() {
 	wfact := NewINITBallotFact(base.RawPoint(34, 55), valuehash.RandomSHA256(), valuehash.RandomSHA256())
 
 	isignedFact := NewINITBallotSignedFact(base.RandomAddress(""), ifact)
-	t.NoError(isignedFact.Sign(t.priv, t.networkID))
+	t.NoError(isignedFact.Sign(t.local.Privatekey(), t.networkID))
 
 	wsignedFact := NewINITBallotSignedFact(base.RandomAddress(""), wfact)
-	t.NoError(wsignedFact.Sign(t.priv, t.networkID))
+	t.NoError(wsignedFact.Sign(t.local.Privatekey(), t.networkID))
 
 	ivp.SetMajority(ifact).SetSignedFacts([]base.BallotSignedFact{isignedFact, wsignedFact}).finish()
 
@@ -192,7 +191,7 @@ func (t *testBaseVoteproof) TestWrongPointOfMajority() {
 
 	isignedFact := NewINITBallotSignedFact(base.RandomAddress(""), ifact)
 
-	t.NoError(isignedFact.Sign(t.priv, t.networkID))
+	t.NoError(isignedFact.Sign(t.local.Privatekey(), t.networkID))
 
 	ivp.SetMajority(ifact).SetSignedFacts([]base.BallotSignedFact{isignedFact}).finish()
 
@@ -217,38 +216,28 @@ func (t *testBaseVoteproof) TestMajorityNotFoundInSignedFacts() {
 }
 
 func (t *testBaseVoteproof) TestWrongMajorityWithSuffrage() {
-	ivp := t.validVoteproof()
+	suf, nodes := newTestSuffrage(4)
+	t.local = nodes[0]
 
-	n0 := base.RandomAddress("n0-")
-	n1 := base.RandomAddress("n1-")
-	n2 := base.RandomAddress("n2-")
+	ivp := t.validVoteproof()
 
 	fact := NewINITBallotFact(base.RawPoint(33, 55), valuehash.RandomSHA256(), valuehash.RandomSHA256())
 
-	newsignedfact := func(node base.Address) INITBallotSignedFact {
-		signedFact := NewINITBallotSignedFact(node, fact)
+	newsignedfact := func(node *LocalNode) INITBallotSignedFact {
+		signedFact := NewINITBallotSignedFact(node.Address(), fact)
 
-		t.NoError(signedFact.Sign(t.priv, t.networkID))
+		t.NoError(signedFact.Sign(node.Privatekey(), t.networkID))
 
 		return signedFact
 	}
 
 	sfs := ivp.SignedFacts()
-	sfs = append(sfs, newsignedfact(n0), newsignedfact(n1), newsignedfact(n2))
+	sfs = append(sfs, newsignedfact(nodes[1]), newsignedfact(nodes[2]), newsignedfact(nodes[3]))
 	ivp.SetSignedFacts(sfs).SetThreshold(base.Threshold(67)).finish()
 
 	t.NoError(ivp.IsValid(t.networkID))
 
-	nodes := make([]base.Address, len(ivp.SignedFacts()))
-	oldsfs := ivp.SignedFacts()
-	for i := range oldsfs {
-		nodes[i] = oldsfs[i].Node()
-	}
-
-	suf, err := newSuffrage(nodes)
-	t.NoError(err)
-
-	err = base.IsValidVoteproofWithSuffrage(ivp, suf)
+	err := base.IsValidVoteproofWithSuffrage(ivp, suf)
 	t.Error(err)
 	t.True(errors.Is(err, util.InvalidError))
 	t.Contains(err.Error(), "wrong majority")
@@ -261,10 +250,9 @@ func (t *testBaseVoteproof) TestUnknownNode() {
 
 	t.NoError(ivp.IsValid(t.networkID))
 
-	suf, err := newSuffrage([]base.Address{base.RandomAddress("n0-")})
-	t.NoError(err)
+	suf, _ := newTestSuffrage(1)
 
-	err = base.IsValidVoteproofWithSuffrage(ivp, suf)
+	err := base.IsValidVoteproofWithSuffrage(ivp, suf)
 	t.Error(err)
 	t.True(errors.Is(err, util.InvalidError))
 	t.Contains(err.Error(), "unknown node found")
@@ -276,7 +264,7 @@ func (t *testBaseVoteproof) TestNewACCEPT() {
 	node := base.RandomAddress("")
 	asignedFact := NewACCEPTBallotSignedFact(node, afact)
 
-	t.NoError(asignedFact.Sign(t.priv, t.networkID))
+	t.NoError(asignedFact.Sign(t.local.Privatekey(), t.networkID))
 
 	avp := NewACCEPTVoteproof(afact.Point().Point)
 	avp.SetResult(base.VoteResultMajority).

@@ -97,10 +97,6 @@ func (box *Ballotbox) countWithVoterecords(vr *voterecords, stagepoint base.Stag
 func (box *Ballotbox) filterNewBallot(bl base.Ballot) error {
 	e := util.StringErrorFunc("failed to vote")
 
-	if !bl.Point().Stage().CanVote() {
-		return e(nil, "unvotable ballot, %q", bl.Point().Stage())
-	}
-
 	if lsp := box.lastStagePoint(); !lsp.IsZero() && bl.Point().Compare(lsp) < 1 {
 		return e(nil, "old ballot; ignore")
 	}
@@ -561,6 +557,8 @@ func isValidBallotWithSuffrage(
 		return e(util.InvalidError.Errorf("empty suffrage"), "")
 	case !suf.Exists(bl.SignedFact().Node()):
 		return e(util.InvalidError.Errorf("ballot not in suffrage"), "")
+	case !suf.ExistsPublickey(bl.SignedFact().Node(), bl.SignedFact().Signer()):
+		return e(util.InvalidError.Errorf("wrong publickey"), "")
 	}
 
 	if err := isValidVoteproofWithSuffrage(bl.Voteproof(), getSuffrage, checkValid); err != nil {

@@ -5,7 +5,6 @@ import (
 	"github.com/spikeekips/mitum/util"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
-	"github.com/spikeekips/mitum/util/localtime"
 	"github.com/spikeekips/mitum/util/valuehash"
 )
 
@@ -33,18 +32,6 @@ type INITBallotFactJSONUnmarshaler struct {
 	baseBallotFactJSONUnmarshaler
 	PreviousBlock valuehash.Bytes `json:"previous_block"`
 	Proposal      valuehash.Bytes `json:"proposal"`
-}
-
-type ProposalFactJSONMarshaler struct {
-	baseBallotFactJSONMarshaler
-	Operations []util.Hash    `json:"operations"`
-	ProposedAt localtime.Time `json:"proposed_at"`
-}
-
-type ProposalFactJSONUnmarshaler struct {
-	baseBallotFactJSONUnmarshaler
-	Operations []valuehash.Bytes `json:"operations"`
-	ProposedAt localtime.Time    `json:"proposed_at"`
 }
 
 type ACCEPTBallotFactJSONMarshaler struct {
@@ -105,39 +92,6 @@ func (fact *INITBallotFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 
 	fact.previousBlock = u.PreviousBlock
 	fact.proposal = u.Proposal
-
-	return nil
-}
-
-func (fact ProposalFact) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(ProposalFactJSONMarshaler{
-		baseBallotFactJSONMarshaler: fact.jsonMarshaler(),
-		Operations:                  fact.operations,
-		ProposedAt:                  localtime.NewTime(fact.proposedAt),
-	})
-}
-
-func (fact *ProposalFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode ProposalFact")
-
-	var ub baseBallotFact
-	if err := ub.DecodeJSON(b, enc); err != nil {
-		return e(err, "")
-	}
-	fact.baseBallotFact = ub
-
-	var u ProposalFactJSONUnmarshaler
-	if err := enc.Unmarshal(b, &u); err != nil {
-		return e(err, "")
-	}
-
-	hs := make([]util.Hash, len(u.Operations))
-	for i := range u.Operations {
-		hs[i] = u.Operations[i]
-	}
-
-	fact.operations = hs
-	fact.proposedAt = u.ProposedAt.Time
 
 	return nil
 }

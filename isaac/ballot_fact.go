@@ -1,18 +1,14 @@
 package isaac
 
 import (
-	"time"
-
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
-	"github.com/spikeekips/mitum/util/localtime"
 	"github.com/spikeekips/mitum/util/valuehash"
 )
 
 var (
 	INITBallotFactHint   = hint.MustNewHint("init-ballot-fact-v0.0.1")
-	ProposalFactHint     = hint.MustNewHint("proposalt-fact-v0.0.1")
 	ACCEPTBallotFactHint = hint.MustNewHint("accept-ballot-fact-v0.0.1")
 )
 
@@ -103,61 +99,6 @@ func (fact INITBallotFact) hash() util.Hash {
 		fact.previousBlock,
 		fact.proposal,
 	))
-}
-
-type ProposalFact struct {
-	baseBallotFact
-	operations []util.Hash
-	proposedAt time.Time
-}
-
-func NewProposalFact(point base.Point, operations []util.Hash) ProposalFact {
-	fact := ProposalFact{
-		baseBallotFact: newBaseBallotFact(ProposalFactHint, base.StageProposal, point),
-		operations:     operations,
-		proposedAt:     localtime.Now(),
-	}
-
-	fact.h = fact.hash()
-
-	return fact
-}
-
-func (fact ProposalFact) Operations() []util.Hash {
-	return fact.operations
-}
-
-func (fact ProposalFact) ProposedAt() time.Time {
-	return fact.proposedAt
-}
-
-func (fact ProposalFact) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid ProposalFact")
-
-	if fact.point.Stage() != base.StageProposal {
-		return e(util.InvalidError.Errorf("invalid stage, %q", fact.point.Stage()), "")
-	}
-
-	if err := base.IsValidProposalFact(fact); err != nil {
-		return e(err, "")
-	}
-
-	if !fact.h.Equal(fact.hash()) {
-		return util.InvalidError.Errorf("wrong hash of ProposalFact")
-	}
-
-	return nil
-}
-
-func (fact ProposalFact) hash() util.Hash {
-	bs := make([]util.Byter, len(fact.operations)+3)
-	bs[0] = util.DummyByter(fact.baseBallotFact.hashBytes)
-	bs[1] = localtime.NewTime(fact.proposedAt)
-	for i := range fact.operations {
-		bs[i+2] = fact.operations[i]
-	}
-
-	return valuehash.NewSHA256(util.ConcatByters(bs...))
 }
 
 type ACCEPTBallotFact struct {
