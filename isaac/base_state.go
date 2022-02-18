@@ -1,6 +1,7 @@
 package isaac
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"sync"
@@ -15,6 +16,8 @@ import (
 
 type baseStateHandler struct {
 	*logging.Logging
+	ctx                  context.Context
+	cancel               func()
 	local                *LocalNode
 	policy               Policy
 	stt                  StateType
@@ -52,11 +55,15 @@ func newBaseStateHandler(
 	}
 }
 
-func (*baseStateHandler) enter(stateSwitchContext) (func() error, error) {
+func (st *baseStateHandler) enter(stateSwitchContext) (func() error, error) {
+	st.ctx, st.cancel = context.WithCancel(context.Background())
+
 	return func() error { return nil }, nil
 }
 
-func (*baseStateHandler) exit() (func() error, error) {
+func (st *baseStateHandler) exit() (func() error, error) {
+	st.cancel()
+
 	return func() error { return nil }, nil
 }
 
@@ -134,11 +141,21 @@ func (st *baseStateHandler) setStates(sts *States) {
 	}
 }
 
-func (st *baseStateHandler) broadcastBallot(bl base.Ballot, tolocal bool, timerid util.TimerID) error {
+func (st *baseStateHandler) broadcastBallot(
+	bl base.Ballot,
+	tolocal bool,
+	timerid util.TimerID,
+	initialWait time.Duration,
+) error {
 	// BLOCK vote ballot to local if tolocal is true
 
+	if initialWait < 1 {
+		initialWait = time.Nanosecond
+	}
 	l := st.Log().With().
-		Stringer("ballot_hash", bl.SignedFact().Fact().Hash()).Logger()
+		Stringer("ballot_hash", bl.SignedFact().Fact().Hash()).
+		Dur("initial_wait", initialWait).
+		Logger()
 	l.Debug().Interface("ballot", bl).Stringer("point", bl.Point()).Msg("trying to broadcast ballot")
 
 	e := util.StringErrorFunc("failed to broadcast ballot")
@@ -157,7 +174,7 @@ func (st *baseStateHandler) broadcastBallot(bl base.Ballot, tolocal bool, timeri
 		},
 	).SetInterval(func(i int, d time.Duration) time.Duration {
 		if i < 1 {
-			return time.Nanosecond
+			return initialWait
 		}
 
 		return d
@@ -171,11 +188,11 @@ func (st *baseStateHandler) broadcastBallot(bl base.Ballot, tolocal bool, timeri
 }
 
 func (st *baseStateHandler) broadcastINITBallot(bl base.Ballot, tolocal bool) error {
-	return st.broadcastBallot(bl, tolocal, timerIDBroadcastINITBallot)
+	return st.broadcastBallot(bl, tolocal, timerIDBroadcastINITBallot, 0)
 }
 
-func (st *baseStateHandler) broadcastACCEPTBallot(bl base.Ballot, tolocal bool) error {
-	return st.broadcastBallot(bl, tolocal, timerIDBroadcastACCEPTBallot)
+func (st *baseStateHandler) broadcastACCEPTBallot(bl base.Ballot, tolocal bool, initialWait time.Duration) error {
+	return st.broadcastBallot(bl, tolocal, timerIDBroadcastACCEPTBallot, initialWait)
 }
 
 type lastVoteproofsHandler struct {

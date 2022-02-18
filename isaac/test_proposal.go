@@ -6,47 +6,47 @@ package isaac
 import (
 	"context"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 )
 
 type DummyProposalProcessor struct {
 	fact       base.ProposalFact
-	manifest   base.Manifest
-	processerr func() error
-	saveerr    func(base.ACCEPTVoteproof) error
+	processerr func(context.Context) (base.Manifest, error)
+	saveerr    func(context.Context, base.ACCEPTVoteproof) error
 	cancelerr  func() error
 }
 
-func NewDummyProposalProcessor(manifest base.Manifest) *DummyProposalProcessor {
-	return &DummyProposalProcessor{
-		manifest: manifest,
-	}
+func NewDummyProposalProcessor() *DummyProposalProcessor {
+	return &DummyProposalProcessor{}
 }
 
 func (p *DummyProposalProcessor) make(fact base.ProposalFact) proposalProcessor {
-	p.fact = fact
-
-	return p
+	return DummyProposalProcessor{
+		fact:       fact,
+		processerr: p.processerr,
+		saveerr:    p.saveerr,
+		cancelerr:  p.cancelerr,
+	}
 }
 
-func (p *DummyProposalProcessor) process(ctx context.Context) (base.Manifest, error) {
-	var err error
+func (p DummyProposalProcessor) process(ctx context.Context) (base.Manifest, error) {
 	if p.processerr != nil {
-		err = p.processerr()
+		return p.processerr(ctx)
 	}
 
-	return p.manifest, err
+	return nil, errors.Errorf("wrong processing")
 }
 
-func (p *DummyProposalProcessor) save(_ context.Context, avp base.ACCEPTVoteproof) error {
+func (p DummyProposalProcessor) save(ctx context.Context, avp base.ACCEPTVoteproof) error {
 	if p.saveerr != nil {
-		return p.saveerr(avp)
+		return p.saveerr(ctx, avp)
 	}
 
 	return nil
 }
 
-func (p *DummyProposalProcessor) cancel() error {
+func (p DummyProposalProcessor) cancel() error {
 	if p.cancelerr != nil {
 		return p.cancelerr()
 	}
@@ -54,12 +54,12 @@ func (p *DummyProposalProcessor) cancel() error {
 	return nil
 }
 
-func (p *DummyProposalProcessor) proposal() base.ProposalFact {
+func (p DummyProposalProcessor) proposal() base.ProposalFact {
 	return p.fact
 }
 
-type DummyProposalSelector func(base.Point) (base.ProposalSignedFact, error)
+type DummyProposalSelector func(context.Context, base.Point) (base.ProposalSignedFact, error)
 
-func (ps DummyProposalSelector) Select(point base.Point) (base.ProposalSignedFact, error) {
-	return ps(point)
+func (ps DummyProposalSelector) Select(ctx context.Context, point base.Point) (base.ProposalSignedFact, error) {
+	return ps(ctx, point)
 }

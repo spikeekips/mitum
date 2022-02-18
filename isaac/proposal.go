@@ -1,6 +1,7 @@
 package isaac
 
 import (
+	"context"
 	"time"
 
 	"github.com/pkg/errors"
@@ -180,6 +181,6 @@ func (p *ProposalMaker) New(point base.Point) (ProposalSignedFact, error) {
 
 // ProposalSelector fetchs proposal from selected proposer
 type ProposalSelector interface {
-	Select(base.Point) (base.ProposalSignedFact, error)
+	Select(context.Context, base.Point) (base.ProposalSignedFact, error)
 	// BLOCK operations will be retrieved from database
 }

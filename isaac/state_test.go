@@ -2,6 +2,7 @@ package isaac
 
 import (
 	"sync"
+	"time"
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
@@ -21,6 +22,7 @@ func (t *baseTestStateHandler) SetupTest() {
 	policy := NewPolicy()
 	policy.SetNetworkID(base.RandomNetworkID())
 	policy.SetThreshold(base.Threshold(100))
+	policy.SetWaitProcessingProposal(time.Nanosecond)
 
 	networkID := t.policy.NetworkID()
 

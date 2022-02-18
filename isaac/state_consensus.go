@@ -2,6 +2,7 @@ package isaac
 
 import (
 	"context"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -37,7 +38,6 @@ To prepare init ballot,
 type ConsensusHandler struct {
 	*baseStateHandler
 	proposalSelector ProposalSelector
-	getSuffrage      func(base.Height) base.Suffrage
 	pps              *proposalProcessors
 }
 
@@ -45,13 +45,11 @@ func NewConsensusHandler(
 	local *LocalNode,
 	policy Policy,
 	proposalSelector ProposalSelector,
-	getSuffrage func(base.Height) base.Suffrage,
 	pps *proposalProcessors,
 ) *ConsensusHandler {
 	return &ConsensusHandler{
 		baseStateHandler: newBaseStateHandler(StateConsensus, local, policy),
 		proposalSelector: proposalSelector,
-		getSuffrage:      getSuffrage,
 		pps:              pps,
 	}
 }
@@ -130,11 +128,16 @@ func (st *ConsensusHandler) processProposal(ivp base.INITVoteproof) {
 	e := util.StringErrorFunc("failed to process proposal")
 
 	manifest, err := st.processProposalInternal(ivp)
-	if err != nil {
+	switch {
+	case err != nil:
 		err = e(err, "")
 		l.Error().Err(err).Msg("failed to process proposal; moves to broken state")
 
 		go st.switchState(newBrokenSwitchContext(StateConsensus, err))
+
+		return
+	case manifest == nil:
+		l.Debug().Msg("failed to process proposal; empty manifest; ignore")
 
 		return
 	}
@@ -177,17 +180,7 @@ func (st *ConsensusHandler) processProposal(ivp base.INITVoteproof) {
 		ll.Debug().Msg("proposal processed and expected voteproof found")
 	}
 
-	l.Debug().Msg("expected accept voteproof found")
-	switch err := st.pps.save(context.Background(), facthash, eavp); {
-	case err == nil:
-		l.Debug().Msg("processed proposal saved")
-	case errors.Is(err, NotProposalProcessorProcessedError):
-		l.Debug().Msg("no processed proposal; ignore")
-	default:
-		l.Error().Err(err).Msg("failed to save proposal; moves to broken state")
-
-		go st.switchState(newBrokenSwitchContext(StateConsensus, err))
-	}
+	st.saveBlock(eavp)
 }
 
 func (st *ConsensusHandler) processProposalInternal(ivp base.INITVoteproof) (base.Manifest, error) {
@@ -195,9 +188,15 @@ func (st *ConsensusHandler) processProposalInternal(ivp base.INITVoteproof) (bas
 
 	facthash := ivp.BallotMajority().Proposal()
 
-	switch manifest, err := st.pps.process(context.Background(), facthash); {
+	started := time.Now()
+
+	switch manifest, err := st.pps.process(st.ctx, facthash); {
 	case err != nil:
 		st.Log().Error().Err(err).Msg("failed to process proposal")
+
+		if errors.Is(err, context.Canceled) {
+			return nil, nil
+		}
 
 		return nil, err
 	case manifest == nil:
@@ -208,6 +207,11 @@ func (st *ConsensusHandler) processProposalInternal(ivp base.INITVoteproof) (bas
 	default:
 		st.Log().Debug().Msg("proposal processed")
 
+		initialWait := time.Nanosecond
+		if d := time.Since(started); d < st.policy.WaitProcessingProposal() {
+			initialWait = st.policy.WaitProcessingProposal() - d
+		}
+
 		afact := NewACCEPTBallotFact(ivp.Point().Point, facthash, manifest.Hash())
 		signedFact := NewACCEPTBallotSignedFact(st.local.Address(), afact)
 		if err := signedFact.Sign(st.local.Privatekey(), st.policy.NetworkID()); err != nil {
@@ -215,7 +219,7 @@ func (st *ConsensusHandler) processProposalInternal(ivp base.INITVoteproof) (bas
 		}
 
 		bl := NewACCEPTBallot(ivp, signedFact)
-		if err := st.broadcastACCEPTBallot(bl, true); err != nil {
+		if err := st.broadcastACCEPTBallot(bl, true, initialWait); err != nil {
 			return nil, e(err, "failed to broadcast accept ballot")
 		}
 
@@ -428,7 +432,7 @@ func (st *ConsensusHandler) nextRound(vp base.Voteproof, lvps lastVoteproofs) {
 	l.Debug().Object("point", point).Msg("preparing next round")
 
 	// NOTE find next proposal
-	pr, err := st.proposalSelector.Select(point) // BLOCK save selected proposal
+	pr, err := st.proposalSelector.Select(st.ctx, point) // BLOCK save selected proposal
 	if err != nil {
 		l.Error().Err(err).Msg("failed to select proposal")
 
@@ -474,7 +478,7 @@ func (st *ConsensusHandler) nextBlock(avp base.ACCEPTVoteproof) {
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(avp)).Object("point", point).Logger()
 
 	// NOTE find next proposal
-	pr, err := st.proposalSelector.Select(point) // BLOCK save selected proposal
+	pr, err := st.proposalSelector.Select(st.ctx, point) // BLOCK save selected proposal
 	if err != nil {
 		l.Error().Err(err).Msg("failed to select proposal")
 

@@ -25,10 +25,13 @@ func (t *testProposalProcessors) TestProcess() {
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 
-	pp := NewDummyProposalProcessor(manifest)
+	pp := NewDummyProposalProcessor()
 
 	savech := make(chan base.ACCEPTVoteproof, 1)
-	pp.saveerr = func(avp base.ACCEPTVoteproof) error {
+	pp.processerr = func(_ context.Context) (base.Manifest, error) {
+		return manifest, nil
+	}
+	pp.saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) error {
 		savech <- avp
 
 		return nil
@@ -78,13 +81,13 @@ func (t *testProposalProcessors) TestAlreadyProcessing() {
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 
-	pp := NewDummyProposalProcessor(manifest)
+	pp := NewDummyProposalProcessor()
 
 	processch := make(chan bool, 1)
-	pp.processerr = func() error {
+	pp.processerr = func(context.Context) (base.Manifest, error) {
 		processch <- true
 
-		return nil
+		return manifest, nil
 	}
 
 	pps := newProposalProcessors(
@@ -123,15 +126,15 @@ func (t *testProposalProcessors) TestCancelPrevious() {
 	pr := t.prpool.get(point)
 	nextpr := t.prpool.get(point.NextRound())
 
+	pp := NewDummyProposalProcessor()
+
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 
-	pp := NewDummyProposalProcessor(manifest)
-
 	processch := make(chan bool, 1)
-	pp.processerr = func() error {
+	pp.processerr = func(context.Context) (base.Manifest, error) {
 		processch <- true
 
-		return nil
+		return manifest, nil
 	}
 	cancelch := make(chan bool, 1)
 	pp.cancelerr = func() error {
@@ -140,21 +143,8 @@ func (t *testProposalProcessors) TestCancelPrevious() {
 		return nil
 	}
 
-	nextpp := NewDummyProposalProcessor(nil)
-
 	pps := newProposalProcessors(
-		func(fact base.ProposalFact) proposalProcessor {
-			switch fact.Point() {
-			case point:
-				pp.fact = fact
-				return pp
-			case point.NextRound():
-				nextpp.fact = fact
-				return nextpp
-			default:
-				return nil
-			}
-		},
+		pp.make,
 		func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
 			return t.prpool.factByHash(facthash)
 		},
@@ -185,14 +175,8 @@ func (t *testProposalProcessors) TestCancelPrevious() {
 }
 
 func (t *testProposalProcessors) TestFailedToFetchFact() {
-	point := base.RawPoint(33, 44)
-
-	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-
-	pp := NewDummyProposalProcessor(manifest)
-
 	pps := newProposalProcessors(
-		pp.make,
+		NewDummyProposalProcessor().make,
 		func(context.Context, util.Hash) (base.ProposalFact, error) {
 			return nil, util.NotFoundError.Errorf("hehehe")
 		},
@@ -206,14 +190,8 @@ func (t *testProposalProcessors) TestFailedToFetchFact() {
 }
 
 func (t *testProposalProcessors) TestFailedToFetchFactCanceled() {
-	point := base.RawPoint(33, 44)
-
-	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-
-	pp := NewDummyProposalProcessor(manifest)
-
 	pps := newProposalProcessors(
-		pp.make,
+		NewDummyProposalProcessor().make,
 		func(context.Context, util.Hash) (base.ProposalFact, error) {
 			return nil, context.Canceled
 		},
@@ -227,15 +205,9 @@ func (t *testProposalProcessors) TestFailedToFetchFactCanceled() {
 }
 
 func (t *testProposalProcessors) TestRetryFetchFact() {
-	point := base.RawPoint(33, 44)
-
-	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-
-	pp := NewDummyProposalProcessor(manifest)
-
 	var try int64
 	pps := newProposalProcessors(
-		pp.make,
+		NewDummyProposalProcessor().make,
 		func(context.Context, util.Hash) (base.ProposalFact, error) {
 			if atomic.LoadInt64(&try) > 2 {
 				return nil, context.Canceled
@@ -259,15 +231,9 @@ func (t *testProposalProcessors) TestRetryFetchFact() {
 }
 
 func (t *testProposalProcessors) TestRetryFetchFactOverLimit() {
-	point := base.RawPoint(33, 44)
-
-	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-
-	pp := NewDummyProposalProcessor(manifest)
-
 	var try int64
 	pps := newProposalProcessors(
-		pp.make,
+		NewDummyProposalProcessor().make,
 		func(context.Context, util.Hash) (base.ProposalFact, error) {
 			atomic.AddInt64(&try, 1)
 
@@ -287,15 +253,11 @@ func (t *testProposalProcessors) TestRetryFetchFactOverLimit() {
 
 func (t *testProposalProcessors) TestProcessError() {
 	point := base.RawPoint(33, 44)
-
 	pr := t.prpool.get(point)
 
-	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-
-	pp := NewDummyProposalProcessor(manifest)
-
-	pp.processerr = func() error {
-		return errors.New("hihihi")
+	pp := NewDummyProposalProcessor()
+	pp.processerr = func(context.Context) (base.Manifest, error) {
+		return nil, errors.New("hihihi")
 	}
 
 	pps := newProposalProcessors(
@@ -319,12 +281,10 @@ func (t *testProposalProcessors) TestProcessIgnoreError() {
 
 	pr := t.prpool.get(point)
 
-	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+	pp := NewDummyProposalProcessor()
 
-	pp := NewDummyProposalProcessor(manifest)
-
-	pp.processerr = func() error {
-		return IgnoreErrorProposalProcessorError.Call()
+	pp.processerr = func(context.Context) (base.Manifest, error) {
+		return nil, IgnoreErrorProposalProcessorError.Call()
 	}
 
 	pps := newProposalProcessors(
@@ -347,12 +307,10 @@ func (t *testProposalProcessors) TestProcessContextCanceled() {
 
 	pr := t.prpool.get(point)
 
-	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+	pp := NewDummyProposalProcessor()
 
-	pp := NewDummyProposalProcessor(manifest)
-
-	pp.processerr = func() error {
-		return context.Canceled
+	pp.processerr = func(context.Context) (base.Manifest, error) {
+		return nil, context.Canceled
 	}
 
 	pps := newProposalProcessors(
@@ -376,14 +334,12 @@ func (t *testProposalProcessors) TestProcessRetry() {
 
 	pr := t.prpool.get(point)
 
-	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-
-	pp := NewDummyProposalProcessor(manifest)
+	pp := NewDummyProposalProcessor()
 
 	var try int64
-	pp.processerr = func() error {
+	pp.processerr = func(context.Context) (base.Manifest, error) {
 		atomic.AddInt64(&try, 1)
-		return RetryProposalProcessorError.Call()
+		return nil, RetryProposalProcessorError.Call()
 	}
 
 	pps := newProposalProcessors(
@@ -413,10 +369,14 @@ func (t *testProposalProcessors) TestSaveError() {
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 
-	pp := NewDummyProposalProcessor(manifest)
+	pp := NewDummyProposalProcessor()
 
 	var try int64
-	pp.saveerr = func(base.ACCEPTVoteproof) error {
+	pp.processerr = func(context.Context) (base.Manifest, error) {
+		return manifest, nil
+	}
+
+	pp.saveerr = func(context.Context, base.ACCEPTVoteproof) error {
 		atomic.AddInt64(&try, 1)
 
 		return RetryProposalProcessorError.Call()

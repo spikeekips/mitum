@@ -1,12 +1,14 @@
 package isaac
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -22,7 +24,7 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestExpected() {
 	defer closefunc()
 
 	savedch := make(chan base.ACCEPTVoteproof, 1)
-	pp.saveerr = func(avp base.ACCEPTVoteproof) error {
+	pp.saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) error {
 		savedch <- avp
 		return nil
 	}
@@ -176,10 +178,15 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestDrawFailedPr
 	point := base.RawPoint(33, 44)
 	nodes := t.nodes(3)
 
-	st, closefunc, _, ivp := t.newStateWithINITVoteproof(point, nodes)
+	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, nodes)
 	defer closefunc()
 
-	st.proposalSelector = DummyProposalSelector(func(point base.Point) (base.ProposalSignedFact, error) {
+	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+	pp.processerr = func(ctx context.Context) (base.Manifest, error) {
+		return manifest, nil
+	}
+
+	st.proposalSelector = DummyProposalSelector(func(ctx context.Context, point base.Point) (base.ProposalSignedFact, error) {
 		return nil, errors.Errorf("hahaha")
 	})
 
@@ -222,7 +229,12 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestNotProposalP
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, nodes)
 	defer closefunc()
 
-	pp.saveerr = func(avp base.ACCEPTVoteproof) error {
+	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+	pp.processerr = func(ctx context.Context) (base.Manifest, error) {
+		return manifest, nil
+	}
+
+	pp.saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) error {
 		if avp.Point().Point == point {
 			return NotProposalProcessorProcessedError.Errorf("hehehe")
 		}
@@ -268,7 +280,12 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestSaveBlockErr
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, nodes)
 	defer closefunc()
 
-	pp.saveerr = func(avp base.ACCEPTVoteproof) error {
+	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+	pp.processerr = func(ctx context.Context) (base.Manifest, error) {
+		return manifest, nil
+	}
+
+	pp.saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) error {
 		if avp.Point().Point == point {
 			return errors.Errorf("hehehe")
 		}
@@ -401,7 +418,7 @@ func (t *testNewACCEPTVoteproofOnACCEPTVoteproofConsensusHandler) TestHigerHeigh
 	defer closefunc()
 
 	savedch := make(chan base.ACCEPTVoteproof, 1)
-	pp.saveerr = func(avp base.ACCEPTVoteproof) error {
+	pp.saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) error {
 		savedch <- avp
 		return nil
 	}
@@ -449,16 +466,21 @@ func (t *testNewACCEPTVoteproofOnACCEPTVoteproofConsensusHandler) TestDrawAndHig
 	_ = t.prpool.get(point.NextRound())
 
 	nextprch := make(chan base.Point, 1)
-	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.ProposalSignedFact, error) {
-		pr := t.prpool.byPoint(p)
-		if pr != nil {
-			if p == point.NextRound() {
-				nextprch <- p
-			}
+	st.proposalSelector = DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			pr := t.prpool.byPoint(p)
+			if pr != nil {
+				if p == point.NextRound() {
+					nextprch <- p
+				}
 
-			return pr, nil
+				return pr, nil
+			}
+			return nil, util.NotFoundError.Call()
 		}
-		return nil, util.NotFoundError.Call()
 	})
 
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
@@ -503,16 +525,21 @@ func (t *testNewACCEPTVoteproofOnACCEPTVoteproofConsensusHandler) TestDrawAndHig
 	_ = t.prpool.get(point.NextRound())
 
 	nextprch := make(chan base.Point, 1)
-	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.ProposalSignedFact, error) {
-		pr := t.prpool.byPoint(p)
-		if pr != nil {
-			if p == point.NextRound() {
-				nextprch <- p
-			}
+	st.proposalSelector = DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			pr := t.prpool.byPoint(p)
+			if pr != nil {
+				if p == point.NextRound() {
+					nextprch <- p
+				}
 
-			return pr, nil
+				return pr, nil
+			}
+			return nil, util.NotFoundError.Call()
 		}
-		return nil, util.NotFoundError.Call()
 	})
 
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
@@ -558,16 +585,21 @@ func (t *testNewACCEPTVoteproofOnACCEPTVoteproofConsensusHandler) TestDrawAndDra
 	nextpr := t.prpool.get(point.NextRound().NextRound())
 
 	newprch := make(chan base.Point, 1)
-	st.proposalSelector = DummyProposalSelector(func(p base.Point) (base.ProposalSignedFact, error) {
-		pr := t.prpool.byPoint(p)
-		if pr != nil {
-			if p == point.NextRound() {
-				newprch <- p
-			}
+	st.proposalSelector = DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			pr := t.prpool.byPoint(p)
+			if pr != nil {
+				if p == point.NextRound() {
+					newprch <- p
+				}
 
-			return pr, nil
+				return pr, nil
+			}
+			return nil, util.NotFoundError.Call()
 		}
-		return nil, util.NotFoundError.Call()
 	})
 
 	ballotch := make(chan base.Ballot, 1)
