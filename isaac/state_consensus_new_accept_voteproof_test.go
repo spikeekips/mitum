@@ -182,7 +182,7 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestDrawFailedPr
 	defer closefunc()
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	pp.processerr = func(ctx context.Context) (base.Manifest, error) {
+	pp.processerr = func(context.Context, base.ProposalFact) (base.Manifest, error) {
 		return manifest, nil
 	}
 
@@ -230,7 +230,7 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestNotProposalP
 	defer closefunc()
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	pp.processerr = func(ctx context.Context) (base.Manifest, error) {
+	pp.processerr = func(context.Context, base.ProposalFact) (base.Manifest, error) {
 		return manifest, nil
 	}
 
@@ -281,7 +281,7 @@ func (t *testNewACCEPTVoteproofOnINITVoteproofConsensusHandler) TestSaveBlockErr
 	defer closefunc()
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	pp.processerr = func(ctx context.Context) (base.Manifest, error) {
+	pp.processerr = func(context.Context, base.ProposalFact) (base.Manifest, error) {
 		return manifest, nil
 	}
 

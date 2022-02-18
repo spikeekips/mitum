@@ -208,7 +208,7 @@ func (t *testNewINITVoteproofOnINITVoteproofConsensusHandler) TestDrawBefore() {
 	defer closefunc()
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	pp.processerr = func(ctx context.Context) (base.Manifest, error) {
+	pp.processerr = func(context.Context, base.ProposalFact) (base.Manifest, error) {
 		return manifest, nil
 	}
 
@@ -406,7 +406,7 @@ func (t *testNewINITVoteproofOnACCEPTVoteproofConsensusHandler) TestExpected() {
 	st.SetLogging(logging.TestNilLogging)
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	pp.processerr = func(ctx context.Context) (base.Manifest, error) {
+	pp.processerr = func(context.Context, base.ProposalFact) (base.Manifest, error) {
 		return manifest, nil
 	}
 
@@ -440,7 +440,7 @@ func (t *testNewINITVoteproofOnACCEPTVoteproofConsensusHandler) TestExpected() {
 	t.NoError(err)
 	t.NoError(deferred())
 
-	nextavp, nextivp := t.voteproofsPair(point, point.Next(), nil, t.prpool.hash(point), t.prpool.hash(point.Next()), nodes)
+	nextavp, nextivp := t.voteproofsPair(point, point.Next(), manifest.Hash(), t.prpool.hash(point), t.prpool.hash(point.Next()), nodes)
 	t.NoError(st.newVoteproof(nextavp))
 
 	t.T().Log("wait new block saved")

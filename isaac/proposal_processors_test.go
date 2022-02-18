@@ -28,7 +28,7 @@ func (t *testProposalProcessors) TestProcess() {
 	pp := NewDummyProposalProcessor()
 
 	savech := make(chan base.ACCEPTVoteproof, 1)
-	pp.processerr = func(_ context.Context) (base.Manifest, error) {
+	pp.processerr = func(_ context.Context, _ base.ProposalFact) (base.Manifest, error) {
 		return manifest, nil
 	}
 	pp.saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) error {
@@ -84,7 +84,7 @@ func (t *testProposalProcessors) TestAlreadyProcessing() {
 	pp := NewDummyProposalProcessor()
 
 	processch := make(chan bool, 1)
-	pp.processerr = func(context.Context) (base.Manifest, error) {
+	pp.processerr = func(context.Context, base.ProposalFact) (base.Manifest, error) {
 		processch <- true
 
 		return manifest, nil
@@ -131,7 +131,7 @@ func (t *testProposalProcessors) TestCancelPrevious() {
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 
 	processch := make(chan bool, 1)
-	pp.processerr = func(context.Context) (base.Manifest, error) {
+	pp.processerr = func(context.Context, base.ProposalFact) (base.Manifest, error) {
 		processch <- true
 
 		return manifest, nil
@@ -256,7 +256,7 @@ func (t *testProposalProcessors) TestProcessError() {
 	pr := t.prpool.get(point)
 
 	pp := NewDummyProposalProcessor()
-	pp.processerr = func(context.Context) (base.Manifest, error) {
+	pp.processerr = func(context.Context, base.ProposalFact) (base.Manifest, error) {
 		return nil, errors.New("hihihi")
 	}
 
@@ -283,7 +283,7 @@ func (t *testProposalProcessors) TestProcessIgnoreError() {
 
 	pp := NewDummyProposalProcessor()
 
-	pp.processerr = func(context.Context) (base.Manifest, error) {
+	pp.processerr = func(context.Context, base.ProposalFact) (base.Manifest, error) {
 		return nil, IgnoreErrorProposalProcessorError.Call()
 	}
 
@@ -309,7 +309,7 @@ func (t *testProposalProcessors) TestProcessContextCanceled() {
 
 	pp := NewDummyProposalProcessor()
 
-	pp.processerr = func(context.Context) (base.Manifest, error) {
+	pp.processerr = func(context.Context, base.ProposalFact) (base.Manifest, error) {
 		return nil, context.Canceled
 	}
 
@@ -337,7 +337,7 @@ func (t *testProposalProcessors) TestProcessRetry() {
 	pp := NewDummyProposalProcessor()
 
 	var try int64
-	pp.processerr = func(context.Context) (base.Manifest, error) {
+	pp.processerr = func(context.Context, base.ProposalFact) (base.Manifest, error) {
 		atomic.AddInt64(&try, 1)
 		return nil, RetryProposalProcessorError.Call()
 	}
@@ -372,7 +372,7 @@ func (t *testProposalProcessors) TestSaveError() {
 	pp := NewDummyProposalProcessor()
 
 	var try int64
-	pp.processerr = func(context.Context) (base.Manifest, error) {
+	pp.processerr = func(context.Context, base.ProposalFact) (base.Manifest, error) {
 		return manifest, nil
 	}
 

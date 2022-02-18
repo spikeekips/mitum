@@ -4,7 +4,7 @@ import "github.com/rs/zerolog"
 
 func ManifestLog(m Manifest) *zerolog.Event {
 	if m == nil {
-		return nil
+		return zerolog.Dict()
 	}
 
 	return zerolog.Dict().

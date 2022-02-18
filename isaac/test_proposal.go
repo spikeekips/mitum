@@ -12,7 +12,7 @@ import (
 
 type DummyProposalProcessor struct {
 	fact       base.ProposalFact
-	processerr func(context.Context) (base.Manifest, error)
+	processerr func(context.Context, base.ProposalFact) (base.Manifest, error)
 	saveerr    func(context.Context, base.ACCEPTVoteproof) error
 	cancelerr  func() error
 }
@@ -32,7 +32,7 @@ func (p *DummyProposalProcessor) make(fact base.ProposalFact) proposalProcessor 
 
 func (p DummyProposalProcessor) process(ctx context.Context) (base.Manifest, error) {
 	if p.processerr != nil {
-		return p.processerr(ctx)
+		return p.processerr(ctx, p.fact)
 	}
 
 	return nil, errors.Errorf("wrong processing")

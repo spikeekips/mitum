@@ -156,7 +156,7 @@ func (st *baseStateHandler) broadcastBallot(
 		Stringer("ballot_hash", bl.SignedFact().Fact().Hash()).
 		Dur("initial_wait", initialWait).
 		Logger()
-	l.Debug().Interface("ballot", bl).Stringer("point", bl.Point()).Msg("trying to broadcast ballot")
+	l.Debug().Interface("ballot", bl).Object("point", bl.Point()).Msg("trying to broadcast ballot")
 
 	e := util.StringErrorFunc("failed to broadcast ballot")
 

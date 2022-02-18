@@ -1,7 +1,6 @@
 package isaac
 
 import (
-	"sync"
 	"time"
 
 	"github.com/spikeekips/mitum/base"
@@ -156,8 +155,7 @@ func (t *baseTestStateHandler) voteproofsPair(prevpoint, point base.Point, prev,
 }
 
 type proposalPool struct {
-	sync.RWMutex
-	p           map[base.Point]base.ProposalSignedFact
+	*util.LockedMap
 	newproposal func(base.Point) base.ProposalSignedFact
 }
 
@@ -165,62 +163,49 @@ func newProposalPool(
 	newproposal func(base.Point) base.ProposalSignedFact,
 ) *proposalPool {
 	return &proposalPool{
-		p:           map[base.Point]base.ProposalSignedFact{},
+		LockedMap:   util.NewLockedMap(),
 		newproposal: newproposal,
 	}
 }
 
 func (p *proposalPool) hash(point base.Point) util.Hash {
-	pr := p.get(point)
-
-	return pr.Fact().Hash()
+	return p.get(point).Fact().Hash()
 }
 
 func (p *proposalPool) get(point base.Point) base.ProposalSignedFact {
-	p.Lock()
-	defer p.Unlock()
+	i, _, _ := p.Get(point, func() (interface{}, error) {
+		return p.newproposal(point), nil
+	})
 
-	if pr, found := p.p[point]; found {
-		return pr
-	}
-
-	pr := p.newproposal(point)
-
-	p.p[point] = pr
-
-	return pr
+	return i.(base.ProposalSignedFact)
 }
 
 func (p *proposalPool) getfact(point base.Point) base.ProposalFact {
-	pr := p.get(point)
-
-	return pr.ProposalFact()
+	return p.get(point).ProposalFact()
 }
 
 func (p *proposalPool) byPoint(point base.Point) base.ProposalSignedFact {
-	p.RLock()
-	defer p.RUnlock()
-
-	if pr, found := p.p[point]; found {
-		return pr
+	i, found := p.Value(point)
+	if !found {
+		return nil
 	}
 
-	return nil
+	return i.(base.ProposalSignedFact)
 }
 
 func (p *proposalPool) byHash(h util.Hash) base.ProposalSignedFact {
-	p.RLock()
-	defer p.RUnlock()
+	var pr base.ProposalSignedFact
+	p.Traverse(func(_, v interface{}) bool {
+		if i := v.(base.ProposalSignedFact); i.Fact().Hash().Equal(h) {
+			pr = i
 
-	for i := range p.p {
-		pr := p.p[i]
-		if pr.Fact().Hash().Equal(h) {
-			return pr
+			return false
 		}
 
-	}
+		return true
+	})
 
-	return nil
+	return pr
 }
 
 func (p *proposalPool) factByHash(h util.Hash) (base.ProposalFact, error) {

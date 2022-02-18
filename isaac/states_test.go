@@ -639,10 +639,6 @@ func (st *dummyStateHandler) setNewVoteproof(f func(base.Voteproof) error) *dumm
 	return st
 }
 
-func (st *dummyStateHandler) newProposal(base.ProposalFact) error {
-	return nil
-}
-
 type dummySwitchContext struct {
 	baseStateSwitchContext
 	vp base.Voteproof

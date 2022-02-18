@@ -53,7 +53,7 @@ func (t *baseTestConsensusHandler) newStateWithINITVoteproof(point base.Point, n
 	fact := prpool.getfact(point)
 
 	pp := NewDummyProposalProcessor()
-	pp.processerr = func(context.Context) (base.Manifest, error) {
+	pp.processerr = func(context.Context, base.ProposalFact) (base.Manifest, error) {
 		return nil, errors.Errorf("process error")
 	}
 
@@ -187,7 +187,7 @@ func (t *testConsensusHandler) TestExit() {
 	defer closefunc()
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	pp.processerr = func(ctx context.Context) (base.Manifest, error) {
+	pp.processerr = func(context.Context, base.ProposalFact) (base.Manifest, error) {
 		return manifest, nil
 	}
 
@@ -236,7 +236,7 @@ func (t *testConsensusHandler) TestProcessingProposalAfterEntered() {
 	defer closefunc()
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	pp.processerr = func(ctx context.Context) (base.Manifest, error) {
+	pp.processerr = func(context.Context, base.ProposalFact) (base.Manifest, error) {
 		return manifest, nil
 	}
 
@@ -312,7 +312,7 @@ func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailed() {
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, nodes)
 	defer closefunc()
 
-	pp.processerr = func(context.Context) (base.Manifest, error) {
+	pp.processerr = func(context.Context, base.ProposalFact) (base.Manifest, error) {
 		return nil, errors.Errorf("hahaha")
 	}
 
@@ -359,7 +359,7 @@ func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailedRetry
 	defer closefunc()
 
 	var c int64
-	pp.processerr = func(context.Context) (base.Manifest, error) {
+	pp.processerr = func(context.Context, base.ProposalFact) (base.Manifest, error) {
 		if i := atomic.LoadInt64(&c); i < 1 {
 			atomic.AddInt64(&c, 1)
 
@@ -415,7 +415,7 @@ func (t *testConsensusHandler) TestProcessingProposalWithACCEPTVoteproof() {
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 	avp, _ := t.voteproofsPair(point, point.Next(), manifest.Hash(), t.prpool.hash(point), nil, nodes)
 
-	pp.processerr = func(ctx context.Context) (base.Manifest, error) {
+	pp.processerr = func(context.Context, base.ProposalFact) (base.Manifest, error) {
 		st.setLastVoteproof(avp)
 
 		return manifest, nil
@@ -454,7 +454,7 @@ func (t *testConsensusHandler) TestProcessingProposalWithDrawACCEPTVoteproof() {
 	avp, _ := t.voteproofsPair(point, point.Next(), manifest.Hash(), nil, nil, nodes)
 	avp.SetResult(base.VoteResultDraw).finish()
 
-	pp.processerr = func(ctx context.Context) (base.Manifest, error) {
+	pp.processerr = func(context.Context, base.ProposalFact) (base.Manifest, error) {
 		st.setLastVoteproof(avp)
 
 		return manifest, nil
@@ -491,7 +491,7 @@ func (t *testConsensusHandler) TestProcessingProposalWithWrongNewBlockACCEPTVote
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 	avp, _ := t.voteproofsPair(point, point.Next(), nil, nil, nil, nodes) // random new block hash
 
-	pp.processerr = func(ctx context.Context) (base.Manifest, error) {
+	pp.processerr = func(context.Context, base.ProposalFact) (base.Manifest, error) {
 		st.setLastVoteproof(avp)
 
 		return manifest, nil
@@ -523,21 +523,136 @@ func (t *testConsensusHandler) TestProcessingProposalWithWrongNewBlockACCEPTVote
 	t.Nil(st.pps.processor())
 }
 
-/*
 func (t *testConsensusHandler) TestWithBallotbox() {
+	suf, nodes := newTestSuffrage(0, t.local)
 	point := base.RawPoint(33, 44)
-	nodes := t.nodes(3)
 
-	st, closef, _, ivp := t.newStateWithINITVoteproof()
-	defer closef()
+	box := NewBallotbox(
+		func(base.Height) base.Suffrage {
+			return suf
+		},
+		base.Threshold(100),
+	)
+
+	testctx, testdone := context.WithCancel(context.Background())
+
+	st, closef, pp, ivp := t.newStateWithINITVoteproof(point, nodes)
+	defer func() {
+		testdone()
+		st.timers.Stop()
+
+		closef()
+	}()
+
+	st.policy.SetWaitProcessingProposal(time.Millisecond * 100)
+
+	manifests := util.NewLockedMap()
+	getmanifest := func(height base.Height) base.Manifest {
+		i, _, _ := manifests.Get(height, func() (interface{}, error) {
+			manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
+
+			t.T().Logf("new manifest processed: height=%d hash=%q proposal=%q", height, manifest.Hash(), manifest.Proposal())
+
+			return manifest, nil
+		})
+
+		return i.(base.Manifest)
+	}
+
+	processdelay := time.Millisecond * 100
+	pp.processerr = func(_ context.Context, fact base.ProposalFact) (base.Manifest, error) {
+		<-time.After(processdelay)
+
+		return getmanifest(fact.Point().Height()), nil
+	}
+
+	savedch := make(chan base.ACCEPTVoteproof, 1)
+	pp.saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) error {
+		savedch <- avp
+
+		return nil
+	}
+
+	st.broadcastBallotFunc = func(bl base.Ballot) error {
+		_, err := box.Vote(bl)
+		// t.T().Logf("voted: point=%q, node=%q, voted=%v", bl.Point(), bl.SignedFact().Node(), voted)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+	prpool := t.prpool
+	st.proposalSelector = DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
+		var pr base.ProposalSignedFact
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-testctx.Done():
+			return nil, testctx.Err()
+		default:
+			pr = prpool.get(p)
+
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-testctx.Done():
+			return nil, testctx.Err()
+		default:
+			t.T().Logf("new proposal created: point=%q fact hash=%q", pr.Point(), pr.Fact().Hash())
+
+			return pr, nil
+		}
+	})
+
+	go func() {
+	end:
+		for {
+			select {
+			case <-testctx.Done():
+				break end
+			case vp := <-box.Voteproof():
+				if err := st.newVoteproof(vp); err != nil {
+					t.T().Logf("error: failed to new voteproof: %+v", err)
+				}
+			}
+		}
+	}()
+
+	target := point
+	for range make([]struct{}, 33) {
+		target = target.Next()
+	}
+
+	wait := processdelay * time.Duration((target.Height()-point.Height()).Int64()*10)
+	after := time.After(wait)
+	t.T().Logf("> trying to create blocks up to %q; will wait %q", target, wait)
 
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
 	t.NoError(deferred())
+
+end:
+	for {
+		select {
+		case <-after:
+			t.NoError(errors.Errorf("failed to wait new blocks"))
+		case avp := <-savedch:
+			t.T().Logf("new block saved: %q", avp.Point())
+
+			if avp.Point().Point == target {
+				t.T().Logf("< all new blocks saved, %q", target)
+
+				break end
+			}
+		}
+	}
 }
-*/
 
 func TestConsensusHandler(t *testing.T) {
 	suite.Run(t, new(testConsensusHandler))

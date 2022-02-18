@@ -200,9 +200,6 @@ func (st *ConsensusHandler) processProposalInternal(ivp base.INITVoteproof) (bas
 
 		return nil, err
 	case manifest == nil:
-		st.Log().Debug().Dict("manifest", base.ManifestLog(manifest)).
-			Msg("processing proposal ignored; empty manifest")
-
 		return nil, nil
 	default:
 		st.Log().Debug().Msg("proposal processed")
@@ -479,7 +476,13 @@ func (st *ConsensusHandler) nextBlock(avp base.ACCEPTVoteproof) {
 
 	// NOTE find next proposal
 	pr, err := st.proposalSelector.Select(st.ctx, point) // BLOCK save selected proposal
-	if err != nil {
+	switch {
+	case err == nil:
+	case errors.Is(err, context.Canceled):
+		l.Debug().Err(err).Msg("canceled to select proposal; ignore")
+
+		return
+	default:
 		l.Error().Err(err).Msg("failed to select proposal")
 
 		go st.switchState(newBrokenSwitchContext(StateConsensus, err))

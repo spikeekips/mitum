@@ -98,7 +98,7 @@ func (p Point) Round() Round {
 }
 
 func (p Point) String() string {
-	return fmt.Sprintf("<Point height=%d round=%d>", p.h, p.r)
+	return fmt.Sprintf("{Point height=%d round=%d}", p.h, p.r)
 }
 
 func (p Point) IsValid([]byte) error {
@@ -245,7 +245,7 @@ func (p StagePoint) Bytes() []byte {
 }
 
 func (p StagePoint) String() string {
-	return fmt.Sprintf("<StagePoint height=%d round=%d stage=%q>", p.h, p.r, p.stage)
+	return fmt.Sprintf("{StagePoint height=%d round=%d stage=%s}", p.h, p.r, p.stage)
 }
 
 func (p StagePoint) Compare(b StagePoint) int {

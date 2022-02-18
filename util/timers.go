@@ -50,7 +50,14 @@ func (ts *Timers) SetLogging(l *logging.Logging) *logging.Logging {
 }
 
 // Start of Timers does nothing
-func (*Timers) Start() error {
+func (ts *Timers) Start() error {
+	ts.Lock()
+	defer ts.Unlock()
+
+	if ts.timers == nil {
+		ts.timers = map[TimerID]Timer{}
+	}
+
 	return nil
 }
 
@@ -58,6 +65,10 @@ func (*Timers) Start() error {
 func (ts *Timers) Stop() error {
 	ts.Lock()
 	defer ts.Unlock()
+
+	if ts.timers == nil { // NOTE already stopped
+		return nil
+	}
 
 	var wg sync.WaitGroup
 	wg.Add(len(ts.timers))
@@ -80,7 +91,7 @@ func (ts *Timers) Stop() error {
 
 	wg.Wait()
 
-	ts.timers = map[TimerID]Timer{}
+	ts.timers = nil
 
 	return nil
 }
@@ -88,6 +99,10 @@ func (ts *Timers) Stop() error {
 func (ts *Timers) ResetTimer(id TimerID) error {
 	ts.RLock()
 	defer ts.RUnlock()
+
+	if ts.timers == nil {
+		return nil
+	}
 
 	switch t, found := ts.timers[id]; {
 	case !found:
@@ -103,6 +118,10 @@ func (ts *Timers) ResetTimer(id TimerID) error {
 func (ts *Timers) SetTimer(timer Timer) error {
 	ts.Lock()
 	defer ts.Unlock()
+
+	if ts.timers == nil {
+		return nil
+	}
 
 	if _, found := ts.timers[timer.ID()]; !found {
 		if !ts.allowUnknown {
@@ -132,6 +151,10 @@ func (ts *Timers) SetTimer(timer Timer) error {
 func (ts *Timers) StartTimers(ids []TimerID, stopOthers bool) error {
 	ts.Lock()
 	defer ts.Unlock()
+
+	if ts.timers == nil {
+		return nil
+	}
 
 	sids := make([]string, len(ids))
 	for i := range ids {
@@ -171,12 +194,20 @@ func (ts *Timers) StopTimers(ids []TimerID) error {
 	ts.Lock()
 	defer ts.Unlock()
 
+	if ts.timers == nil {
+		return nil
+	}
+
 	return ts.stopTimers(ids)
 }
 
 func (ts *Timers) StopTimersAll() error {
 	ts.Lock()
 	defer ts.Unlock()
+
+	if ts.timers == nil {
+		return nil
+	}
 
 	ids := make([]TimerID, len(ts.timers))
 
@@ -197,6 +228,10 @@ func (ts *Timers) Started() []TimerID {
 	ts.RLock()
 	defer ts.RUnlock()
 
+	if ts.timers == nil {
+		return nil
+	}
+
 	var started []TimerID
 	for id := range ts.timers {
 		timer := ts.timers[id]
@@ -211,6 +246,10 @@ func (ts *Timers) Started() []TimerID {
 func (ts *Timers) IsTimerStarted(id TimerID) bool {
 	ts.RLock()
 	defer ts.RUnlock()
+
+	if ts.timers == nil {
+		return false
+	}
 
 	switch timer, found := ts.timers[id]; {
 	case !found:

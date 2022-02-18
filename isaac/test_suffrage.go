@@ -3,7 +3,11 @@
 
 package isaac
 
-import "github.com/spikeekips/mitum/base"
+import (
+	"fmt"
+
+	"github.com/spikeekips/mitum/base"
+)
 
 func (suf suffrage) Locals() []*LocalNode {
 	locals := make([]*LocalNode, suf.Len())
@@ -14,13 +18,21 @@ func (suf suffrage) Locals() []*LocalNode {
 	return locals
 }
 
-func newTestSuffrage(n int) (suffrage, []*LocalNode) {
-	locals := make([]*LocalNode, n)
-	nodes := make([]base.Node, n)
-	for i := range nodes {
-		n := RandomLocalNode()
-		nodes[i] = n
-		locals[i] = n
+func newTestSuffrage(n int, extras ...*LocalNode) (suffrage, []*LocalNode) {
+	locals := make([]*LocalNode, n+len(extras))
+	nodes := make([]base.Node, n+len(extras))
+	for i := range make([]int, n) {
+		l := RandomLocalNode()
+		l.addr = base.NewStringAddress(fmt.Sprintf("no%02d", i))
+
+		nodes[i] = l
+		locals[i] = l
+	}
+
+	for i := range extras {
+		l := extras[i]
+		locals[i+n] = l
+		nodes[i+n] = l
 	}
 
 	suf, _ := newSuffrage(nodes)
