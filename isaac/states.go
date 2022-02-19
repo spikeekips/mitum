@@ -12,7 +12,7 @@ import (
 	"github.com/spikeekips/mitum/util/logging"
 )
 
-var IgnoreSwithingStateError = util.NewError("failed to switch state, but ignored")
+var ignoreSwithingStateError = util.NewError("failed to switch state, but ignored")
 
 type States struct {
 	*logging.Logging
@@ -194,7 +194,7 @@ end:
 			}
 
 			return nil
-		case errors.Is(err, IgnoreSwithingStateError):
+		case errors.Is(err, ignoreSwithingStateError):
 			return nil
 		case !errors.As(err, &nsctx):
 			if sctx.next() == StateBroken {
@@ -224,7 +224,7 @@ func (st *States) switchState(sctx stateSwitchContext) error {
 
 	cdefer, ndefer, err := st.exitAndEnter(sctx, current)
 	if err != nil {
-		if errors.Is(err, IgnoreSwithingStateError) {
+		if errors.Is(err, ignoreSwithingStateError) {
 			l.Debug().Msg("switching state ignored")
 
 			return nil
@@ -268,7 +268,7 @@ func (st *States) exitAndEnter(sctx stateSwitchContext, current stateHandler) (f
 		case sctx.next() == StateBroken:
 			l.Error().Err(err).Msg("failed to exit current state, but next is broken state; error will be ignored")
 		default:
-			if errors.Is(err, IgnoreSwithingStateError) {
+			if errors.Is(err, ignoreSwithingStateError) {
 				l.Debug().Err(err).Msg("current state ignores switching state")
 
 				return nil, nil, errors.WithStack(err)
@@ -297,7 +297,7 @@ func (st *States) newState(sctx stateSwitchContext) error {
 
 	switch err := st.checkStateSwitchContext(sctx, st.current()); {
 	case err == nil:
-	case errors.Is(err, IgnoreSwithingStateError):
+	case errors.Is(err, ignoreSwithingStateError):
 		return nil
 	default:
 		l.Error().Err(err).Msg("failed to switch state")
@@ -361,7 +361,7 @@ func (st *States) callDeferStates(c, n func() error) error {
 		return nil
 	}()
 
-	if err != nil && !errors.Is(err, IgnoreSwithingStateError) {
+	if err != nil && !errors.Is(err, ignoreSwithingStateError) {
 		st.cs = nil
 
 		return err
@@ -391,9 +391,9 @@ func (st *States) checkStateSwitchContext(sctx stateSwitchContext, current state
 
 	switch {
 	case from != current.state():
-		return IgnoreSwithingStateError.Errorf("from not matched")
+		return ignoreSwithingStateError.Errorf("from not matched")
 	case sctx.next() == current.state():
-		return IgnoreSwithingStateError.Errorf("same next state")
+		return ignoreSwithingStateError.Errorf("same next state")
 	}
 
 	return nil

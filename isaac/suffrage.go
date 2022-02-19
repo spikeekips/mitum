@@ -13,6 +13,10 @@ type suffrage struct {
 func newSuffrage(nodes []base.Node) (suffrage, error) {
 	e := util.StringErrorFunc("failed to newsuffrage")
 
+	if len(nodes) < 1 {
+		return suffrage{}, e(nil, "empty suffrage nodes")
+	}
+
 	m := map[string]base.Node{}
 	for i := range nodes {
 		n := nodes[i]

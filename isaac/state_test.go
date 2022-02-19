@@ -9,53 +9,43 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type baseTestStateHandler struct {
+type baseTestHandler struct {
 	suite.Suite
 	local  *LocalNode
 	policy Policy
-	prpool *proposalPool
 }
 
-func (t *baseTestStateHandler) SetupTest() {
+func (t *baseTestHandler) SetupTest() {
 	local := RandomLocalNode()
 	policy := NewPolicy()
 	policy.SetNetworkID(base.RandomNetworkID())
 	policy.SetThreshold(base.Threshold(100))
 	policy.SetWaitProcessingProposal(time.Nanosecond)
 
-	networkID := t.policy.NetworkID()
-
 	t.local = local
 	t.policy = policy
-
-	t.prpool = newProposalPool(func(point base.Point) base.ProposalSignedFact {
-		fs := NewProposalSignedFact(NewProposalFact(point, t.local.Address(), []util.Hash{valuehash.RandomSHA256()}))
-		_ = fs.Sign(local.Privatekey(), networkID)
-
-		return fs
-	})
 }
 
-func (t *baseTestStateHandler) newINITBallotFact(point base.Point, prev, pr util.Hash) INITBallotFact {
+func (t *baseTestHandler) newINITBallotFact(point base.Point, prev, pr util.Hash) INITBallotFact {
 	return NewINITBallotFact(point, prev, pr)
 }
 
-func (t *baseTestStateHandler) newACCEPTBallotFact(point base.Point, pr, block util.Hash) ACCEPTBallotFact {
+func (t *baseTestHandler) newACCEPTBallotFact(point base.Point, pr, block util.Hash) ACCEPTBallotFact {
 	return NewACCEPTBallotFact(point, pr, block)
 }
 
-func (t *baseTestStateHandler) newProposalFact(point base.Point, local *LocalNode, ops []util.Hash) ProposalFact {
+func (t *baseTestHandler) newProposalFact(point base.Point, local *LocalNode, ops []util.Hash) ProposalFact {
 	return NewProposalFact(point, local.Address(), ops)
 }
 
-func (t *baseTestStateHandler) newProposal(local *LocalNode, fact ProposalFact) ProposalSignedFact {
+func (t *baseTestHandler) newProposal(local *LocalNode, fact ProposalFact) ProposalSignedFact {
 	fs := NewProposalSignedFact(fact)
 	t.NoError(fs.Sign(local.Privatekey(), t.policy.NetworkID()))
 
 	return fs
 }
 
-func (t *baseTestStateHandler) newINITVoteproof(
+func (t *baseTestHandler) newINITVoteproof(
 	fact INITBallotFact,
 	local *LocalNode,
 	nodes []*LocalNode,
@@ -89,7 +79,7 @@ func (t *baseTestStateHandler) newINITVoteproof(
 	return vp, nil
 }
 
-func (t *baseTestStateHandler) newACCEPTVoteproof(
+func (t *baseTestHandler) newACCEPTVoteproof(
 	fact ACCEPTBallotFact,
 	local *LocalNode,
 	nodes []*LocalNode,
@@ -123,7 +113,7 @@ func (t *baseTestStateHandler) newACCEPTVoteproof(
 	return vp, nil
 }
 
-func (t *baseTestStateHandler) nodes(n int) []*LocalNode {
+func (t *baseTestHandler) nodes(n int) []*LocalNode {
 	suf := make([]*LocalNode, n)
 	for i := range suf {
 		suf[i] = RandomLocalNode()
@@ -132,7 +122,7 @@ func (t *baseTestStateHandler) nodes(n int) []*LocalNode {
 	return suf
 }
 
-func (t *baseTestStateHandler) voteproofsPair(prevpoint, point base.Point, prev, pr, nextpr util.Hash, nodes []*LocalNode) (ACCEPTVoteproof, INITVoteproof) {
+func (t *baseTestHandler) voteproofsPair(prevpoint, point base.Point, prev, pr, nextpr util.Hash, nodes []*LocalNode) (ACCEPTVoteproof, INITVoteproof) {
 	if prev == nil {
 		prev = valuehash.RandomSHA256()
 	}
@@ -152,6 +142,25 @@ func (t *baseTestStateHandler) voteproofsPair(prevpoint, point base.Point, prev,
 	t.NoError(err)
 
 	return avp, ivp
+}
+
+type bsaeStateTestHandler struct {
+	baseTestHandler
+	prpool *proposalPool
+}
+
+func (t *bsaeStateTestHandler) SetupTest() {
+	t.baseTestHandler.SetupTest()
+
+	local := t.local
+	policy := t.policy
+
+	t.prpool = newProposalPool(func(point base.Point) base.ProposalSignedFact {
+		fs := NewProposalSignedFact(NewProposalFact(point, local.Address(), []util.Hash{valuehash.RandomSHA256()}))
+		_ = fs.Sign(local.Privatekey(), policy.NetworkID())
+
+		return fs
+	})
 }
 
 type proposalPool struct {

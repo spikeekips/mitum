@@ -15,6 +15,7 @@ type Policy struct {
 	base.BasePolicy
 	intervalBroadcastBallot time.Duration
 	waitProcessingProposal  time.Duration
+	timeoutRequestProposal  time.Duration
 }
 
 func NewPolicy() Policy {
@@ -22,6 +23,7 @@ func NewPolicy() Policy {
 		BasePolicy:              base.NewBasePolicy(PolicyHint),
 		intervalBroadcastBallot: time.Second * 3,
 		waitProcessingProposal:  time.Second * 3,
+		timeoutRequestProposal:  time.Second * 3,
 	}
 }
 
@@ -45,10 +47,21 @@ func (p *Policy) SetWaitProcessingProposal(d time.Duration) *Policy {
 	return p
 }
 
+func (p Policy) TimeoutRequestProposal() time.Duration {
+	return p.timeoutRequestProposal
+}
+
+func (p *Policy) SetTimeoutRequestProposal(d time.Duration) *Policy {
+	p.timeoutRequestProposal = d
+
+	return p
+}
+
 type policyJSONMarshaler struct {
 	base.BasePolicyJSONMarshaler
 	IB time.Duration `json:"interval_broadcast_ballot"`
 	WP time.Duration `json:"wait_processing_proposal"`
+	TP time.Duration `json:"timeout_request_proposal"`
 }
 
 func (p Policy) MarshalJSON() ([]byte, error) {
@@ -60,12 +73,14 @@ func (p Policy) MarshalJSON() ([]byte, error) {
 		},
 		IB: p.intervalBroadcastBallot,
 		WP: p.waitProcessingProposal,
+		TP: p.timeoutRequestProposal,
 	})
 }
 
 type policyJSONUnmarshaler struct {
 	IB time.Duration `json:"interval_broadcast_ballot"`
 	WP time.Duration `json:"wait_processing_proposal"`
+	TP time.Duration `json:"timeout_request_proposal"`
 }
 
 func (p *Policy) UnmarshalJSON(b []byte) error {
@@ -82,6 +97,7 @@ func (p *Policy) UnmarshalJSON(b []byte) error {
 	p.BasePolicy = ub
 	p.intervalBroadcastBallot = u.IB
 	p.waitProcessingProposal = u.WP
+	p.timeoutRequestProposal = u.TP
 
 	return nil
 }

@@ -5,6 +5,7 @@ package isaac
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/spikeekips/mitum/base"
 )
@@ -36,6 +37,10 @@ func newTestSuffrage(n int, extras ...*LocalNode) (suffrage, []*LocalNode) {
 	}
 
 	suf, _ := newSuffrage(nodes)
+
+	sort.Slice(locals, func(i, j int) bool {
+		return locals[i].Address().String() < locals[j].Address().String()
+	})
 
 	return suf, locals
 }

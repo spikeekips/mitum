@@ -12,13 +12,13 @@ import (
 	"github.com/spikeekips/mitum/util/logging"
 )
 
-// IgnoreErrorProposalProcessorError ignores error from proposalProcessor, it means
-// none IgnoreErrorProposalProcessorError from proposalProcessor will break
+// ignoreErrorProposalProcessorError ignores error from proposalProcessor, it means
+// none ignoreErrorProposalProcessorError from proposalProcessor will break
 // consensus.
 var (
-	IgnoreErrorProposalProcessorError  = util.NewError("proposal processor somthing wrong; ignore")
-	RetryProposalProcessorError        = util.NewError("proposal processor somthing wrong; but retry")
-	NotProposalProcessorProcessedError = util.NewError("proposal processor not processed")
+	ignoreErrorProposalProcessorError  = util.NewError("proposal processor somthing wrong; ignore")
+	retryProposalProcessorError        = util.NewError("proposal processor somthing wrong; but retry")
+	notProposalProcessorProcessedError = util.NewError("proposal processor not processed")
 )
 
 type proposalProcessor interface {
@@ -89,11 +89,11 @@ func (pps *proposalProcessors) save(ctx context.Context, facthash util.Hash, avp
 	case pps.p == nil:
 		l.Debug().Msg("proposal processor not found")
 
-		return NotProposalProcessorProcessedError.Call()
+		return notProposalProcessorProcessedError.Call()
 	case !pps.p.proposal().Hash().Equal(facthash):
 		l.Debug().Msg("proposal processor not found")
 
-		return NotProposalProcessorProcessedError.Call()
+		return notProposalProcessorProcessedError.Call()
 	}
 
 	err := runLoopP(
@@ -108,8 +108,8 @@ func (pps *proposalProcessors) save(ctx context.Context, facthash util.Hash, avp
 			case err == nil:
 				return false, nil
 			case errors.Is(err, context.Canceled):
-				return false, NotProposalProcessorProcessedError.Call()
-			case errors.Is(err, RetryProposalProcessorError):
+				return false, notProposalProcessorProcessedError.Call()
+			case errors.Is(err, retryProposalProcessorError):
 				pps.Log().Debug().Msg("failed to save proposal; will retry")
 
 				return true, nil
@@ -141,7 +141,7 @@ func (pps *proposalProcessors) fetchFact(ctx context.Context, facthash util.Hash
 				fact = j
 
 				return false, nil
-			case errors.Is(err, RetryProposalProcessorError):
+			case errors.Is(err, retryProposalProcessorError):
 				pps.Log().Debug().Msg("failed to fetch fact; will retry")
 
 				return true, nil
@@ -205,9 +205,9 @@ func (pps *proposalProcessors) runProcessor(ctx context.Context, p proposalProce
 				manifest = m
 
 				return false, nil
-			case errors.Is(err, RetryProposalProcessorError):
+			case errors.Is(err, retryProposalProcessorError):
 				return true, nil
-			case errors.Is(err, IgnoreErrorProposalProcessorError):
+			case errors.Is(err, ignoreErrorProposalProcessorError):
 				return false, nil
 			default:
 				return false, err

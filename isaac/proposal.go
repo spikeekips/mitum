@@ -1,7 +1,6 @@
 package isaac
 
 import (
-	"context"
 	"time"
 
 	"github.com/pkg/errors"
@@ -152,35 +151,4 @@ func (sf *ProposalSignedFact) Sign(priv base.Privatekey, networkID base.NetworkI
 	sf.signed = signed
 
 	return nil
-}
-
-type ProposalMaker struct {
-	local  *LocalNode
-	policy base.Policy
-}
-
-func NewProposalMaker(local *LocalNode, policy base.Policy) *ProposalMaker {
-	return &ProposalMaker{
-		local:  local,
-		policy: policy,
-	}
-}
-
-func (p *ProposalMaker) New(point base.Point) (ProposalSignedFact, error) {
-	e := util.StringErrorFunc("failed to make proposal, %q", point)
-
-	fact := NewProposalFact(point, p.local.Address(), nil)
-
-	signedFact := NewProposalSignedFact(fact)
-	if err := signedFact.Sign(p.local.Privatekey(), p.policy.NetworkID()); err != nil {
-		return ProposalSignedFact{}, e(err, "")
-	}
-
-	return signedFact, nil
-}
-
-// ProposalSelector fetchs proposal from selected proposer
-type ProposalSelector interface {
-	Select(context.Context, base.Point) (base.ProposalSignedFact, error)
-	// BLOCK operations will be retrieved from database
 }

@@ -14,8 +14,8 @@ import (
 var FixedTreeHint = hint.MustNewHint("fixedtree-v0.0.1")
 
 var (
-	NoParentError     = util.NewError("node has no parent")
-	NoChildrenError   = util.NewError("node has no children")
+	noParentError     = util.NewError("node has no parent")
+	noChildrenError   = util.NewError("node has no children")
 	InvalidProofError = util.NewError("invalid proof")
 )
 
@@ -226,7 +226,7 @@ func (tr FixedTree) Proof(index uint64) ([]FixedTreeNode, error) {
 	for {
 		j, err := tr.parent(l)
 		if err != nil {
-			if errors.Is(err, NoParentError) {
+			if errors.Is(err, noParentError) {
 				break
 			}
 
@@ -241,7 +241,7 @@ func (tr FixedTree) Proof(index uint64) ([]FixedTreeNode, error) {
 	for i := range parents {
 		n := parents[i]
 		if cs, err := tr.children(n.Index()); err != nil {
-			if !errors.Is(err, NoChildrenError) {
+			if !errors.Is(err, noChildrenError) {
 				return nil, e(err, "")
 			}
 		} else {
@@ -288,7 +288,7 @@ func (tr FixedTree) generateNodeHash(n FixedTreeNode) ([]byte, error) {
 
 	var left, right FixedTreeNode
 	if i, err := tr.children(n.Index()); err != nil {
-		if !errors.Is(err, NoChildrenError) {
+		if !errors.Is(err, noChildrenError) {
 			return nil, e(err, "")
 		}
 	} else {
@@ -471,7 +471,7 @@ func parentFixedTree(size int, index uint64) (uint64, error) {
 	case err != nil:
 		return 0, err
 	case i == 0:
-		return 0, NoParentError.Call()
+		return 0, noParentError.Call()
 	default:
 		height = i
 	}
@@ -500,7 +500,7 @@ func childrenFixedTree(size int, index uint64) ([]uint64, error) {
 	children := make([]uint64, 2)
 	i := nextFirst + pos*2
 	if i >= uint64(size) {
-		return nil, NoChildrenError.Call()
+		return nil, noChildrenError.Call()
 	}
 	children[0] = i
 
