@@ -10,31 +10,6 @@ import (
 	"github.com/spikeekips/mitum/util/logging"
 )
 
-var (
-	timerIDBroadcastINITBallot   = util.TimerID("broadcast-init-ballot")
-	timerIDBroadcastACCEPTBallot = util.TimerID("broadcast-accept-ballot")
-)
-
-/*
-
-ConsensusHandler handles the consensus state mainly. Consensus state does,
-
-- to join suffrage network; the suffrage network consists of multiple nodes and they make blocks by consensus process.
-- to store block by voting within suffrage network.
-
-* ConsensusHandler starts with voteproofs, init and accept voteproof.
-* When starts, it prepares proposal.
-* During entering consensus state, if local is removed from suffrage, moves to
- syncing state.
-* If failed to prepare proposal, moves to broken state
-
-To prepare init ballot,
-
-* When preparing accept ballot, proposal also be generated and saved.
-* Node selects proposer and tries to fetch proposal from proposer
-  - if failed, tries from another proposer
-
-*/
 type ConsensusHandler struct {
 	*baseStateHandler
 	proposalSelector ProposalSelector
@@ -44,11 +19,12 @@ type ConsensusHandler struct {
 func NewConsensusHandler(
 	local *LocalNode,
 	policy Policy,
+	getSuffrage func(base.Height) base.Suffrage,
 	proposalSelector ProposalSelector,
 	pps *proposalProcessors,
 ) *ConsensusHandler {
 	return &ConsensusHandler{
-		baseStateHandler: newBaseStateHandler(StateConsensus, local, policy),
+		baseStateHandler: newBaseStateHandler(StateConsensus, local, policy, getSuffrage),
 		proposalSelector: proposalSelector,
 		pps:              pps,
 	}
@@ -78,6 +54,18 @@ func (st *ConsensusHandler) enter(i stateSwitchContext) (func() error, error) {
 		return nil, e(nil, "invalid stateSwitchContext, wrong vote result of init voteproof, %q", j.ivp.Result())
 	default:
 		sctx = j
+	}
+
+	switch ok, err := st.isLocalInSuffrage(sctx.ivp.Point().Height()); {
+	case err != nil:
+		return nil, newBrokenSwitchContext(StateEmpty, e(err, "local not in suffrage for next block"))
+	case !ok:
+		st.Log().Debug().
+			Dict("state_context", stateSwitchContextLog(sctx)).
+			Int64("height", sctx.ivp.Point().Height().Int64()).
+			Msg("local is not in suffrage at entering consensus state; moves to syncing state")
+
+		return nil, newSyncingSwitchContext(StateEmpty, sctx.ivp.Point().Height())
 	}
 
 	return func() error {
@@ -196,6 +184,10 @@ func (st *ConsensusHandler) processProposalInternal(ivp base.INITVoteproof) (bas
 
 		if errors.Is(err, context.Canceled) {
 			return nil, nil
+		}
+
+		if err := st.pps.close(); err != nil {
+			return nil, e(err, "failed to close proposal processors")
 		}
 
 		return nil, err
@@ -474,8 +466,23 @@ func (st *ConsensusHandler) nextBlock(avp base.ACCEPTVoteproof) {
 
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(avp)).Object("point", point).Logger()
 
+	switch ok, err := st.isLocalInSuffrage(point.Height()); {
+	case err != nil:
+		l.Debug().Int64("height", point.Height().Int64()).Msg("empty suffrage of next block; moves to broken state")
+
+		go st.switchState(newBrokenSwitchContext(StateConsensus, errors.Wrap(err, "local not in suffrage for next block")))
+
+		return
+	case !ok:
+		l.Debug().Int64("height", point.Height().Int64()).Msg("local is not in suffrage at next block; moves to syncing state")
+
+		go st.switchState(newSyncingSwitchContext(StateConsensus, point.Height()))
+
+		return
+	}
+
 	// NOTE find next proposal
-	pr, err := st.proposalSelector.Select(st.ctx, point) // BLOCK save selected proposal
+	pr, err := st.proposalSelector.Select(st.ctx, point)
 	switch {
 	case err == nil:
 	case errors.Is(err, context.Canceled):

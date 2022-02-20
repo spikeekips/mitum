@@ -14,6 +14,11 @@ import (
 
 var ignoreSwithingStateError = util.NewError("failed to switch state, but ignored")
 
+var (
+	timerIDBroadcastINITBallot   = util.TimerID("broadcast-init-ballot")
+	timerIDBroadcastACCEPTBallot = util.TimerID("broadcast-accept-ballot")
+)
+
 type States struct {
 	*logging.Logging
 	*util.ContextDaemon

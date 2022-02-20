@@ -20,6 +20,7 @@ type baseStateHandler struct {
 	cancel               func()
 	local                *LocalNode
 	policy               Policy
+	getSuffrage          func(base.Height) base.Suffrage
 	stt                  StateType
 	sts                  *States
 	timers               *util.Timers // NOTE only for testing
@@ -33,6 +34,7 @@ func newBaseStateHandler(
 	state StateType,
 	local *LocalNode,
 	policy Policy,
+	getSuffrage func(base.Height) base.Suffrage,
 ) *baseStateHandler {
 	lvps := newLastVoteproofs()
 
@@ -40,9 +42,10 @@ func newBaseStateHandler(
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", fmt.Sprintf("state-handler-%s", state))
 		}),
-		stt:    state,
-		local:  local,
-		policy: policy,
+		stt:         state,
+		local:       local,
+		policy:      policy,
+		getSuffrage: getSuffrage,
 		broadcastBallotFunc: func(base.Ballot) error {
 			return nil
 		},
@@ -193,6 +196,18 @@ func (st *baseStateHandler) broadcastINITBallot(bl base.Ballot, tolocal bool) er
 
 func (st *baseStateHandler) broadcastACCEPTBallot(bl base.Ballot, tolocal bool, initialWait time.Duration) error {
 	return st.broadcastBallot(bl, tolocal, timerIDBroadcastACCEPTBallot, initialWait)
+}
+
+func (st *baseStateHandler) isLocalInSuffrage(height base.Height) (bool /* in suffrage */, error) {
+	suf := st.getSuffrage(height)
+	switch {
+	case suf == nil:
+		return false, errors.Errorf("empty suffrage")
+	case !suf.Exists(st.local.Address()):
+		return false, nil
+	default:
+		return true, nil
+	}
 }
 
 type lastVoteproofsHandler struct {

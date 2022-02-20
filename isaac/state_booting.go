@@ -9,9 +9,10 @@ type BootingHandler struct {
 func NewBootingHandler(
 	local *LocalNode,
 	policy Policy,
+	getSuffrage func(base.Height) base.Suffrage,
 ) *BootingHandler {
 	return &BootingHandler{
-		baseStateHandler: newBaseStateHandler(StateBooting, local, policy),
+		baseStateHandler: newBaseStateHandler(StateBooting, local, policy, getSuffrage),
 	}
 }
 

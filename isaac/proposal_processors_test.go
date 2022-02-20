@@ -15,7 +15,7 @@ import (
 )
 
 type testProposalProcessors struct {
-	bsaeStateTestHandler
+	baseStateTestHandler
 }
 
 func (t *testProposalProcessors) TestProcess() {

@@ -144,12 +144,12 @@ func (t *baseTestHandler) voteproofsPair(prevpoint, point base.Point, prev, pr, 
 	return avp, ivp
 }
 
-type bsaeStateTestHandler struct {
+type baseStateTestHandler struct {
 	baseTestHandler
 	prpool *proposalPool
 }
 
-func (t *bsaeStateTestHandler) SetupTest() {
+func (t *baseStateTestHandler) SetupTest() {
 	t.baseTestHandler.SetupTest()
 
 	local := t.local

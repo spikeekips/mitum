@@ -2,6 +2,7 @@ package isaac
 
 import (
 	"github.com/rs/zerolog"
+	"github.com/spikeekips/mitum/base"
 )
 
 type StoppedHandler struct {
@@ -11,9 +12,10 @@ type StoppedHandler struct {
 func NewStoppedHandler(
 	local *LocalNode,
 	policy Policy,
+	getSuffrage func(base.Height) base.Suffrage,
 ) *StoppedHandler {
 	return &StoppedHandler{
-		baseStateHandler: newBaseStateHandler(StateStopped, local, policy),
+		baseStateHandler: newBaseStateHandler(StateStopped, local, policy, getSuffrage),
 	}
 }
 
