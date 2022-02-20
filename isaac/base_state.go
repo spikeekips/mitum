@@ -20,6 +20,7 @@ type baseStateHandler struct {
 	cancel               func()
 	local                *LocalNode
 	policy               Policy
+	proposalSelector     ProposalSelector
 	getSuffrage          func(base.Height) base.Suffrage
 	stt                  StateType
 	sts                  *States
@@ -34,6 +35,7 @@ func newBaseStateHandler(
 	state StateType,
 	local *LocalNode,
 	policy Policy,
+	proposalSelector ProposalSelector,
 	getSuffrage func(base.Height) base.Suffrage,
 ) *baseStateHandler {
 	lvps := newLastVoteproofs()
@@ -42,10 +44,11 @@ func newBaseStateHandler(
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", fmt.Sprintf("state-handler-%s", state))
 		}),
-		stt:         state,
-		local:       local,
-		policy:      policy,
-		getSuffrage: getSuffrage,
+		stt:              state,
+		local:            local,
+		policy:           policy,
+		proposalSelector: proposalSelector,
+		getSuffrage:      getSuffrage,
 		broadcastBallotFunc: func(base.Ballot) error {
 			return nil
 		},
@@ -208,6 +211,54 @@ func (st *baseStateHandler) isLocalInSuffrage(height base.Height) (bool /* in su
 	default:
 		return true, nil
 	}
+}
+
+func (st *baseStateHandler) nextRound(vp base.Voteproof, prevBlock util.Hash) {
+	l := st.Log().With().Dict("voteproof", base.VoteproofLog(vp)).Logger()
+
+	point := vp.Point().Point.NextRound()
+
+	l.Debug().Object("point", point).Msg("preparing next round")
+
+	// NOTE find next proposal
+	pr, err := st.proposalSelector.Select(st.ctx, point) // BLOCK save selected proposal
+	if err != nil {
+		l.Error().Err(err).Msg("failed to select proposal")
+
+		go st.switchState(newBrokenSwitchContext(StateConsensus, err))
+
+		return
+	}
+
+	l.Debug().Interface("proposal", pr).Msg("proposal selected")
+
+	e := util.StringErrorFunc("failed to move to next round")
+
+	fact := NewINITBallotFact(
+		point,
+		prevBlock,
+		pr.Fact().Hash(),
+	)
+	sf := NewINITBallotSignedFact(st.local.Address(), fact)
+
+	if err := sf.Sign(st.local.Privatekey(), st.policy.NetworkID()); err != nil {
+		go st.switchState(newBrokenSwitchContext(StateConsensus, e(err, "failed to make next round init ballot")))
+
+		return
+	}
+
+	bl := NewINITBallot(vp, sf)
+	if err := st.broadcastINITBallot(bl, true); err != nil {
+		go st.switchState(newBrokenSwitchContext(StateConsensus, e(err, "failed to broadcast next round init ballot")))
+	}
+
+	if err := st.timers.StartTimers([]util.TimerID{timerIDBroadcastINITBallot}, true); err != nil {
+		l.Error().Err(e(err, "")).Msg("failed to start timers for broadcasting next round init ballot")
+
+		return
+	}
+
+	l.Debug().Interface("ballot", bl).Msg("next round init ballot broadcasted")
 }
 
 type lastVoteproofsHandler struct {

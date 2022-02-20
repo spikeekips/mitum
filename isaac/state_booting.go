@@ -12,7 +12,7 @@ func NewBootingHandler(
 	getSuffrage func(base.Height) base.Suffrage,
 ) *BootingHandler {
 	return &BootingHandler{
-		baseStateHandler: newBaseStateHandler(StateBooting, local, policy, getSuffrage),
+		baseStateHandler: newBaseStateHandler(StateBooting, local, policy, nil, getSuffrage),
 	}
 }
 

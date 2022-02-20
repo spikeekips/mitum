@@ -43,7 +43,7 @@ func (sf baseBallotSignedFact) Fact() base.Fact {
 	return sf.fact
 }
 
-func (baseBallotSignedFact) IsValid(networkID []byte) error {
+func (baseBallotSignedFact) IsValid([]byte) error {
 	return nil
 }
 

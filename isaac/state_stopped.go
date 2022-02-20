@@ -15,7 +15,7 @@ func NewStoppedHandler(
 	getSuffrage func(base.Height) base.Suffrage,
 ) *StoppedHandler {
 	return &StoppedHandler{
-		baseStateHandler: newBaseStateHandler(StateStopped, local, policy, getSuffrage),
+		baseStateHandler: newBaseStateHandler(StateStopped, local, policy, nil, getSuffrage),
 	}
 }
 

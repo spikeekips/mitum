@@ -7,33 +7,24 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/logging"
 )
 
 type ConsensusHandler struct {
 	*baseStateHandler
-	proposalSelector ProposalSelector
-	pps              *proposalProcessors
+	pps *proposalProcessors
 }
 
 func NewConsensusHandler(
 	local *LocalNode,
 	policy Policy,
-	getSuffrage func(base.Height) base.Suffrage,
 	proposalSelector ProposalSelector,
+	getSuffrage func(base.Height) base.Suffrage,
 	pps *proposalProcessors,
 ) *ConsensusHandler {
 	return &ConsensusHandler{
-		baseStateHandler: newBaseStateHandler(StateConsensus, local, policy, getSuffrage),
-		proposalSelector: proposalSelector,
+		baseStateHandler: newBaseStateHandler(StateConsensus, local, policy, proposalSelector, getSuffrage),
 		pps:              pps,
 	}
-}
-
-func (st *ConsensusHandler) SetLogging(l *logging.Logging) *logging.Logging {
-	_ = st.baseStateHandler.SetLogging(l)
-
-	return st.Logging.SetLogging(l)
 }
 
 func (st *ConsensusHandler) enter(i stateSwitchContext) (func() error, error) {
@@ -91,12 +82,12 @@ func (st *ConsensusHandler) exit() (func() error, error) {
 		return nil, e(err, "failed to close proposal processors")
 	}
 
-	// NOTE stop timers
 	return func() error {
 		if err := deferred(); err != nil {
 			return e(err, "")
 		}
 
+		// NOTE stop timers
 		if err := st.timers.StopTimers([]util.TimerID{
 			timerIDBroadcastINITBallot,
 			timerIDBroadcastACCEPTBallot,
@@ -186,8 +177,8 @@ func (st *ConsensusHandler) processProposalInternal(ivp base.INITVoteproof) (bas
 			return nil, nil
 		}
 
-		if err := st.pps.close(); err != nil {
-			return nil, e(err, "failed to close proposal processors")
+		if err0 := st.pps.close(); err0 != nil {
+			return nil, e(err0, "failed to close proposal processors")
 		}
 
 		return nil, err
@@ -416,49 +407,7 @@ func (st *ConsensusHandler) nextRound(vp base.Voteproof, lvps lastVoteproofs) {
 		return
 	}
 
-	point := vp.Point().Point.NextRound()
-
-	l.Debug().Object("point", point).Msg("preparing next round")
-
-	// NOTE find next proposal
-	pr, err := st.proposalSelector.Select(st.ctx, point) // BLOCK save selected proposal
-	if err != nil {
-		l.Error().Err(err).Msg("failed to select proposal")
-
-		go st.switchState(newBrokenSwitchContext(StateConsensus, err))
-
-		return
-	}
-
-	l.Debug().Interface("proposal", pr).Msg("proposal selected")
-
-	e := util.StringErrorFunc("failed to move to next round")
-
-	fact := NewINITBallotFact(
-		point,
-		prevBlock,
-		pr.Fact().Hash(),
-	)
-	sf := NewINITBallotSignedFact(st.local.Address(), fact)
-
-	if err := sf.Sign(st.local.Privatekey(), st.policy.NetworkID()); err != nil {
-		go st.switchState(newBrokenSwitchContext(StateConsensus, e(err, "failed to make next round init ballot")))
-
-		return
-	}
-
-	bl := NewINITBallot(vp, sf)
-	if err := st.broadcastINITBallot(bl, true); err != nil {
-		go st.switchState(newBrokenSwitchContext(StateConsensus, e(err, "failed to broadcast next round init ballot")))
-	}
-
-	if err := st.timers.StartTimers([]util.TimerID{timerIDBroadcastINITBallot}, true); err != nil {
-		l.Error().Err(e(err, "")).Msg("failed to start timers for broadcasting next round init ballot")
-
-		return
-	}
-
-	l.Debug().Interface("ballot", bl).Msg("next round init ballot broadcasted")
+	st.baseStateHandler.nextRound(vp, prevBlock)
 }
 
 func (st *ConsensusHandler) nextBlock(avp base.ACCEPTVoteproof) {
@@ -470,11 +419,14 @@ func (st *ConsensusHandler) nextBlock(avp base.ACCEPTVoteproof) {
 	case err != nil:
 		l.Debug().Int64("height", point.Height().Int64()).Msg("empty suffrage of next block; moves to broken state")
 
-		go st.switchState(newBrokenSwitchContext(StateConsensus, errors.Wrap(err, "local not in suffrage for next block")))
+		go st.switchState(newBrokenSwitchContext(
+			StateConsensus, errors.Wrap(err, "local not in suffrage for next block")))
 
 		return
 	case !ok:
-		l.Debug().Int64("height", point.Height().Int64()).Msg("local is not in suffrage at next block; moves to syncing state")
+		l.Debug().
+			Int64("height", point.Height().Int64()).
+			Msg("local is not in suffrage at next block; moves to syncing state")
 
 		go st.switchState(newSyncingSwitchContext(StateConsensus, point.Height()))
 

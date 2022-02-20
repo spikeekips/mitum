@@ -25,8 +25,8 @@ func (t *baseTestConsensusHandler) newState(suf suffrage) (*ConsensusHandler, fu
 	st := NewConsensusHandler(
 		local,
 		policy,
-		func(base.Height) base.Suffrage { return suf },
 		nil,
+		func(base.Height) base.Suffrage { return suf },
 		newProposalProcessors(nil, nil),
 	)
 	_ = st.SetLogging(logging.TestNilLogging)
@@ -63,10 +63,7 @@ func (t *baseTestConsensusHandler) newStateWithINITVoteproof(point base.Point, s
 		return prpool.factByHash(facthash)
 	}
 
-	ballotch := make(chan base.Ballot, 1)
 	st.broadcastBallotFunc = func(bl base.Ballot) error {
-		ballotch <- bl
-
 		return nil
 	}
 	st.switchStateFunc = func(stateSwitchContext) error {
@@ -107,8 +104,8 @@ func (t *testConsensusHandler) TestNew() {
 	st := NewConsensusHandler(
 		t.local,
 		t.policy,
-		func(base.Height) base.Suffrage { return suf },
 		nil,
+		func(base.Height) base.Suffrage { return suf },
 		newProposalProcessors(nil, func(context.Context, util.Hash) (base.ProposalFact, error) {
 			return nil, util.NotFoundError.Call()
 		}),

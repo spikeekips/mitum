@@ -202,7 +202,7 @@ func NewBlockBasedProposerSelector(
 	}
 }
 
-func (p BlockBasedProposerSelector) Select(ctx context.Context, point base.Point, nodes []base.Address) (base.Address, error) {
+func (p BlockBasedProposerSelector) Select(_ context.Context, point base.Point, nodes []base.Address) (base.Address, error) {
 	var manifest util.Hash
 	switch h, err := p.getManifestHash(point.Height() - 1); {
 	case err != nil:
