@@ -23,6 +23,9 @@ func NewJoiningHandler(
 	}
 }
 
+// BLOCK when stuck at init
+// BLOCK when stuck at accept
+
 func (st *JoiningHandler) enter(i stateSwitchContext) (func() error, error) {
 	e := util.StringErrorFunc("failed to enter joining state")
 
@@ -156,7 +159,6 @@ func (st *JoiningHandler) newACCEPTVoteproof(avp base.ACCEPTVoteproof, manifest 
 
 type joiningSwitchContext struct {
 	baseStateSwitchContext
-	ivp base.INITVoteproof
 }
 
 func newJoiningSwitchContext(from StateType) joiningSwitchContext {

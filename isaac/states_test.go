@@ -24,7 +24,7 @@ type testStates struct {
 }
 
 func (t *testStates) TestWait() {
-	st := NewStates()
+	st := NewStates(nil)
 	_ = st.SetLogging(logging.TestNilLogging)
 
 	_ = st.setHandler(newDummyStateHandler(StateStopped))
@@ -77,7 +77,7 @@ func (t *testStates) TestExit() {
 }
 
 func (t *testStates) TestBootingAtStarting() {
-	st := NewStates()
+	st := NewStates(nil)
 	_ = st.SetLogging(logging.TestNilLogging)
 
 	_ = st.setHandler(newDummyStateHandler(StateStopped))
@@ -104,7 +104,7 @@ func (t *testStates) TestBootingAtStarting() {
 }
 
 func (t *testStates) TestFailedToEnterIntoBootingAtStarting() {
-	st := NewStates()
+	st := NewStates(nil)
 	_ = st.SetLogging(logging.TestNilLogging)
 
 	_ = st.setHandler(newDummyStateHandler(StateStopped))
@@ -146,7 +146,7 @@ func (t *testStates) TestFailedToEnterIntoBootingAtStarting() {
 }
 
 func (t *testStates) booted() (*States, <-chan error) {
-	st := NewStates()
+	st := NewStates(nil)
 	_ = st.SetLogging(logging.TestNilLogging)
 
 	_ = st.setHandler(newDummyStateHandler(StateStopped))
@@ -174,7 +174,7 @@ func (t *testStates) booted() (*States, <-chan error) {
 }
 
 func (t *testStates) TestFailedToEnterIntoBrokenAtStarting() {
-	st := NewStates()
+	st := NewStates(nil)
 	_ = st.SetLogging(logging.TestNilLogging)
 
 	_ = st.setHandler(newDummyStateHandler(StateStopped))

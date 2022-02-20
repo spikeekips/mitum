@@ -55,6 +55,10 @@ func (box *Ballotbox) Vote(bl base.Ballot) (bool, error) {
 }
 
 func (box *Ballotbox) Voteproof() <-chan base.Voteproof {
+	if box == nil {
+		return nil
+	}
+
 	return box.vpch
 }
 

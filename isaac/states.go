@@ -22,6 +22,7 @@ var (
 type States struct {
 	*logging.Logging
 	*util.ContextDaemon
+	box       *Ballotbox
 	stateLock sync.RWMutex
 	statech   chan stateSwitchContext
 	vpch      chan base.Voteproof
@@ -31,11 +32,12 @@ type States struct {
 	lvps      *lastVoteproofsHandler
 }
 
-func NewStates() *States {
+func NewStates(box *Ballotbox) *States {
 	st := &States{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", "states")
 		}),
+		box:      box,
 		statech:  make(chan stateSwitchContext),
 		vpch:     make(chan base.Voteproof),
 		handlers: map[StateType]stateHandler{},
@@ -118,21 +120,25 @@ func (st *States) start(ctx context.Context) error {
 func (st *States) startStatesSwitch(ctx context.Context) error {
 	for {
 		var sctx stateSwitchContext
+		var vp base.Voteproof
+
 		select {
 		case <-ctx.Done():
 			return errors.Wrap(ctx.Err(), "states stopped by context")
 		case sctx = <-st.statech:
-		case vp := <-st.vpch:
+		case vp = <-st.box.Voteproof():
+		case vp = <-st.vpch:
+		}
+
+		if vp != nil {
 			if !st.lvps.isNew(vp) {
 				continue
 			}
 
-			err := st.voteproofToCurrent(vp, st.current())
-			if err == nil {
-				return nil
-			}
-
-			if !errors.As(err, &sctx) {
+			switch err := st.voteproofToCurrent(vp, st.current()); {
+			case err == nil:
+				continue
+			case !errors.As(err, &sctx):
 				st.Log().Error().Err(err).
 					Dict("voteproof", base.VoteproofLog(vp)).Msg("failed to handle voteproof")
 
@@ -140,10 +146,16 @@ func (st *States) startStatesSwitch(ctx context.Context) error {
 			}
 		}
 
-		if err := st.ensureSwitchState(sctx); err != nil {
-			return errors.WithStack(err)
+		if sctx != nil {
+			if err := st.ensureSwitchState(sctx); err != nil {
+				return errors.WithStack(err)
+			}
 		}
 	}
+}
+
+func (st *States) Current() StateType {
+	return st.current().state()
 }
 
 func (st *States) current() stateHandler {
