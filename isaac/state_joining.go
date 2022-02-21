@@ -1,13 +1,19 @@
 package isaac
 
 import (
+	"sync"
+	"time"
+
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 )
 
 type JoiningHandler struct {
 	*baseStateHandler
-	getLastManifest func() (base.Manifest, bool, error)
+	getLastManifest    func() (base.Manifest, bool, error)
+	newvoteproofLock   sync.Mutex
+	waitFirstVoteproof time.Duration
 }
 
 func NewJoiningHandler(
@@ -18,16 +24,13 @@ func NewJoiningHandler(
 	getLastManifest func() (base.Manifest, bool, error),
 ) *JoiningHandler {
 	return &JoiningHandler{
-		baseStateHandler: newBaseStateHandler(StateJoining, local, policy, proposalSelector, getSuffrage),
-		getLastManifest:  getLastManifest,
+		baseStateHandler:   newBaseStateHandler(StateJoining, local, policy, proposalSelector, getSuffrage),
+		getLastManifest:    getLastManifest,
+		waitFirstVoteproof: policy.IntervalBroadcastBallot()*2 + policy.WaitProcessingProposal(),
 	}
 }
 
-// BLOCK when stuck at init
-// BLOCK when stuck at accept
-
 func (st *JoiningHandler) enter(i stateSwitchContext) (func(), error) {
-	// BLOCK stateSwitchContext has last voteproof and if not nil, process it.
 	e := util.StringErrorFunc("failed to enter joining state")
 
 	deferred, err := st.baseStateHandler.enter(i)
@@ -43,8 +46,12 @@ func (st *JoiningHandler) enter(i stateSwitchContext) (func(), error) {
 		return nil, e(err, "")
 	}
 
+	lvp := st.lastVoteproof().cap()
+
 	return func() {
 		deferred()
+
+		go st.firstVoteproof(lvp)
 	}, nil
 }
 
@@ -80,6 +87,9 @@ func (st *JoiningHandler) exit(sctx stateSwitchContext) (func(), error) {
 }
 
 func (st *JoiningHandler) newVoteproof(vp base.Voteproof) error {
+	st.newvoteproofLock.Lock()
+	defer st.newvoteproofLock.Unlock()
+
 	e := util.StringErrorFunc("failed to handle new voteproof")
 
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(vp)).Logger()
@@ -161,6 +171,38 @@ func (st *JoiningHandler) newACCEPTVoteproof(avp base.ACCEPTVoteproof, manifest 
 		go st.nextRound(avp, manifest.Hash())
 
 		return nil
+	}
+}
+
+// firstVoteproof handles the voteproof, which is received before joining
+// handler. It will help to prevent voting stuck. firstVoteproof waits for given
+// time, if no incoming voteproof, process last voteproof.
+func (st *JoiningHandler) firstVoteproof(lvp base.Voteproof) {
+	if lvp == nil {
+		return
+	}
+
+	select {
+	case <-st.ctx.Done():
+		return
+	case <-time.After(st.waitFirstVoteproof):
+	}
+
+	nlvp := st.lastVoteproof().cap()
+	if nlvp != nil && nlvp.Point().Compare(lvp.Point()) != 0 {
+		return
+	}
+
+	st.Log().Debug().Msg("last voteproof found for firstVoteproof")
+
+	var dsctx stateSwitchContext
+	switch err := st.newVoteproof(lvp); {
+	case err == nil:
+	case !errors.As(err, &dsctx):
+		st.Log().Error().Err(err).Dict("voteproof", base.VoteproofLog(lvp)).
+			Msg("failed last voteproof after enter; ignore")
+	default:
+		go st.switchState(dsctx)
 	}
 }
 

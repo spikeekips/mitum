@@ -388,6 +388,124 @@ func (t *testJoiningHandler) TestACCEPTVoteproofNextRound() {
 	}
 }
 
+func (t *testJoiningHandler) TestLastINITVoteproofNextRound() {
+	suf, nodes := newTestSuffrage(2, t.local)
+
+	st, closef := t.newState(suf)
+	defer closef()
+
+	st.waitFirstVoteproof = time.Nanosecond
+
+	point := base.RawPoint(33, 0)
+	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+
+	st.getLastManifest = func() (base.Manifest, bool, error) {
+		return manifest, true, nil
+	}
+
+	ballotch := make(chan base.Ballot, 1)
+	st.broadcastBallotFunc = func(bl base.Ballot) error {
+		if bl.Point().Point == point.Next().NextRound() {
+			ballotch <- bl
+		}
+
+		return nil
+	}
+
+	st.proposalSelector = DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			return t.prpool.get(p), nil
+		}
+	})
+
+	sctx := newJoiningSwitchContext(StateBooting)
+
+	_, ivp := t.voteproofsPair(point, point.Next(), manifest.Hash(), nil, nil, nodes)
+	ivp.SetResult(base.VoteResultDraw)
+	t.True(st.setLastVoteproof(ivp))
+
+	deferred, err := st.enter(sctx)
+	t.NoError(err)
+	deferred()
+
+	t.T().Log("wait next round init ballot")
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("timeout to wait next round init ballot"))
+
+		return
+	case bl := <-ballotch:
+		t.Equal(point.Next().NextRound(), bl.Point().Point)
+
+		rbl, ok := bl.(base.INITBallot)
+		t.True(ok)
+
+		t.True(manifest.Hash().Equal(rbl.BallotSignedFact().BallotFact().PreviousBlock()))
+	}
+}
+
+func (t *testJoiningHandler) TestLastACCEPTVoteproofNextRound() {
+	suf, nodes := newTestSuffrage(2, t.local)
+
+	st, closef := t.newState(suf)
+	defer closef()
+
+	st.waitFirstVoteproof = time.Nanosecond
+
+	point := base.RawPoint(33, 0)
+	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+
+	st.getLastManifest = func() (base.Manifest, bool, error) {
+		return manifest, true, nil
+	}
+
+	ballotch := make(chan base.Ballot, 1)
+	st.broadcastBallotFunc = func(bl base.Ballot) error {
+		if bl.Point().Point == point.Next().NextRound() {
+			ballotch <- bl
+		}
+
+		return nil
+	}
+
+	st.proposalSelector = DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			return t.prpool.get(p), nil
+		}
+	})
+
+	sctx := newJoiningSwitchContext(StateBooting)
+
+	avp, _ := t.voteproofsPair(point.Next(), point.Next().Next(), manifest.Hash(), nil, nil, nodes)
+	avp.SetResult(base.VoteResultDraw)
+	st.setLastVoteproof(avp)
+
+	deferred, err := st.enter(sctx)
+	t.NoError(err)
+	deferred()
+
+	t.T().Log("wait next round init ballot")
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("timeout to wait next round init ballot"))
+
+		return
+	case bl := <-ballotch:
+		t.Equal(point.Next().NextRound(), bl.Point().Point)
+
+		rbl, ok := bl.(base.INITBallot)
+		t.True(ok)
+
+		t.True(manifest.Hash().Equal(rbl.BallotSignedFact().BallotFact().PreviousBlock()))
+	}
+}
+
 func TestJoiningHandler(t *testing.T) {
 	suite.Run(t, new(testJoiningHandler))
 }
