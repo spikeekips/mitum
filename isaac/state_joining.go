@@ -26,7 +26,8 @@ func NewJoiningHandler(
 // BLOCK when stuck at init
 // BLOCK when stuck at accept
 
-func (st *JoiningHandler) enter(i stateSwitchContext) (func() error, error) {
+func (st *JoiningHandler) enter(i stateSwitchContext) (func(), error) {
+	// BLOCK stateSwitchContext has last voteproof and if not nil, process it.
 	e := util.StringErrorFunc("failed to enter joining state")
 
 	deferred, err := st.baseStateHandler.enter(i)
@@ -42,33 +43,39 @@ func (st *JoiningHandler) enter(i stateSwitchContext) (func() error, error) {
 		return nil, e(err, "")
 	}
 
-	return func() error {
-		if err := deferred(); err != nil {
-			return e(err, "")
-		}
-
-		return nil
+	return func() {
+		deferred()
 	}, nil
 }
 
-func (st *JoiningHandler) exit() (func() error, error) {
+func (st *JoiningHandler) exit(sctx stateSwitchContext) (func(), error) {
 	e := util.StringErrorFunc("failed to exit from joining state")
 
-	deferred, err := st.baseStateHandler.exit()
+	deferred, err := st.baseStateHandler.exit(sctx)
 	if err != nil {
 		return nil, e(err, "")
 	}
 
-	return func() error {
-		if err := deferred(); err != nil {
-			return e(err, "")
+	return func() {
+		deferred()
+
+		var timers []util.TimerID
+		if sctx != nil {
+			switch sctx.next() {
+			case StateConsensus, StateHandover:
+				timers = []util.TimerID{timerIDBroadcastINITBallot}
+			}
 		}
 
-		_ = st.timers.StartTimers([]util.TimerID{
+		if len(timers) < 1 {
+			if err := st.timers.StopTimersAll(); err != nil {
+				st.Log().Error().Err(err).Msg("failed to stop timers; ignore")
+			}
+		} else if err := st.timers.StartTimers([]util.TimerID{
 			timerIDBroadcastINITBallot, // NOTE keep broadcasting init ballot and stops others
-		}, true)
-
-		return nil
+		}, true); err != nil {
+			st.Log().Error().Err(err).Msg("failed to start timers; ignore")
+		}
 	}, nil
 }
 

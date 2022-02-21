@@ -102,14 +102,12 @@ func (st *States) start(ctx context.Context) error {
 		return errors.WithStack(serr)
 	default:
 		e := util.StringErrorFunc("failed to exit current state")
-		deferred, err := current.exit()
+		deferred, err := current.exit(nil)
 		if err != nil {
 			return e(err, "failed to exit current")
 		}
 
-		if err := st.callDeferStates(deferred, nil); err != nil {
-			return e(err, "")
-		}
+		st.callDeferStates(deferred, nil)
 
 		st.setCurrent(nil)
 	}
@@ -252,18 +250,14 @@ func (st *States) switchState(sctx stateSwitchContext) error {
 		return e(err, "")
 	}
 
-	if err := st.callDeferStates(cdefer, ndefer); err != nil {
-		l.Error().Err(err).Msg("failed deferred")
-
-		return e(err, "failed to deferred")
-	}
+	st.callDeferStates(cdefer, ndefer)
 
 	l.Debug().Msg("state switched")
 
 	return nil
 }
 
-func (st *States) exitAndEnter(sctx stateSwitchContext, current stateHandler) (func() error, func() error, error) {
+func (st *States) exitAndEnter(sctx stateSwitchContext, current stateHandler) (func(), func(), error) {
 	st.stateLock.Lock()
 	defer st.stateLock.Unlock()
 
@@ -274,12 +268,12 @@ func (st *States) exitAndEnter(sctx stateSwitchContext, current stateHandler) (f
 		return nil, nil, e(err, "")
 	}
 
-	var cdefer, ndefer func() error
+	var cdefer, ndefer func()
 
 	// NOTE if switching to broken, error during exiting from current handler
 	// will not be ignored
 	if current != nil {
-		switch i, err := current.exit(); {
+		switch i, err := current.exit(sctx); {
 		case err == nil:
 			cdefer = i
 		case sctx.next() == StateBroken:
@@ -358,33 +352,16 @@ func (*States) voteproofToCurrent(vp base.Voteproof, current stateHandler) error
 	return nil
 }
 
-func (st *States) callDeferStates(c, n func() error) error {
-	st.stateLock.Lock()
-	defer st.stateLock.Unlock()
-
-	err := func() error {
+func (st *States) callDeferStates(c, n func()) {
+	go func() {
 		if c != nil {
-			if err := c(); err != nil {
-				return errors.Wrap(err, "failed deferred of current state")
-			}
+			c()
 		}
 
 		if n != nil {
-			if err := n(); err != nil {
-				return errors.Wrap(err, "failed deferred of next state")
-			}
+			n()
 		}
-
-		return nil
 	}()
-
-	if err != nil && !errors.Is(err, ignoreSwithingStateError) {
-		st.cs = nil
-
-		return err
-	}
-
-	return nil
 }
 
 func (st *States) checkStateSwitchContext(sctx stateSwitchContext, current stateHandler) error {

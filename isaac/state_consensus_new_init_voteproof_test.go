@@ -46,7 +46,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestHigherHeight() {
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferred())
+	deferred()
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -98,7 +98,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestNextRoundButAlreadyFini
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferred())
+	deferred()
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -158,7 +158,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBeforePreviousBlock
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferred())
+	deferred()
 
 	nextavp, drawivp := t.voteproofsPair(point, point.Next(), manifest.Hash(), t.prpool.hash(point), nil, nodes)
 	t.NoError(st.newVoteproof(nextavp))
@@ -247,7 +247,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBefore() {
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferred())
+	deferred()
 
 	nextavp, drawivp := t.voteproofsPair(point, point.Next(), nil, t.prpool.hash(point), nil, nodes)
 	t.NoError(st.newVoteproof(nextavp))
@@ -343,7 +343,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawAndDrawAgain() {
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferred())
+	deferred()
 
 	nextavp, drawivp := t.voteproofsPair(point, point.Next(), manifest.Hash(), t.prpool.hash(point), nil, nodes)
 	t.NoError(st.newVoteproof(nextavp))
@@ -446,7 +446,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestExpected() {
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferred())
+	deferred()
 
 	nextavp, nextivp := t.voteproofsPair(point, point.Next(), manifest.Hash(), t.prpool.hash(point), t.prpool.hash(point.Next()), nodes)
 	t.NoError(st.newVoteproof(nextavp))
@@ -518,7 +518,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestHigherHeight() {
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferred())
+	deferred()
 
 	nextavp, _ := t.voteproofsPair(point, point.Next(), manifest.Hash(), t.prpool.hash(point), nil, nodes)
 	t.NoError(st.newVoteproof(nextavp))
@@ -583,7 +583,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestPreviousBlockNotMatch
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferred())
+	deferred()
 
 	nextavp, _ := t.voteproofsPair(point, point.Next(), manifest.Hash(), t.prpool.hash(point), nil, nodes)
 	t.NoError(st.newVoteproof(nextavp))

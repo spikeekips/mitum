@@ -60,7 +60,7 @@ func (t *testStates) TestExit() {
 	booting := st.handlers[StateBooting].(*dummyStateHandler)
 
 	exitch := make(chan bool, 1)
-	_ = booting.setExit(func() error {
+	_ = booting.setExit(func(stateSwitchContext) error {
 		exitch <- true
 
 		return nil
@@ -121,10 +121,8 @@ func (t *testStates) TestFailedToEnterIntoBootingAtStarting() {
 
 	broken := newDummyStateHandler(StateBroken)
 	brokenenterch := make(chan bool, 1)
-	_ = broken.setEnter(nil, func() error {
+	_ = broken.setEnter(nil, func() {
 		brokenenterch <- true
-
-		return nil
 	})
 	_ = st.setHandler(broken)
 
@@ -304,7 +302,7 @@ func (t *testStates) TestExitCurrentWhenStopped() {
 		enterch <- true
 
 		return nil
-	}, nil).setExit(func() error {
+	}, nil).setExit(func(stateSwitchContext) error {
 		exitch <- true
 
 		return nil
@@ -491,7 +489,7 @@ func (t *testStates) TestCurrentIgnoresSwitchingState() {
 
 	exitch := make(chan struct{}, 1)
 	booting := st.handlers[StateBooting].(*dummyStateHandler)
-	_ = booting.setExit(func() error {
+	_ = booting.setExit(func(stateSwitchContext) error {
 		exitch <- struct{}{}
 
 		return ignoreSwithingStateError.Call()
@@ -535,7 +533,7 @@ func (t *testStates) TestStoppedByStateStopped() {
 
 	exitch := make(chan struct{}, 1)
 	booting := st.handlers[StateBooting].(*dummyStateHandler)
-	_ = booting.setExit(func() error {
+	_ = booting.setExit(func(stateSwitchContext) error {
 		exitch <- struct{}{}
 
 		return nil
@@ -571,9 +569,9 @@ func TestStates(t *testing.T) {
 type dummyStateHandler struct {
 	s             StateType
 	enterf        func(stateSwitchContext) error
-	enterdefer    func() error
-	exitf         func() error
-	exitdefer     func() error
+	enterdefer    func()
+	exitf         func(stateSwitchContext) error
+	exitdefer     func()
 	newVoteprooff func(base.Voteproof) error
 }
 
@@ -587,7 +585,7 @@ func (st *dummyStateHandler) state() StateType {
 	return st.s
 }
 
-func (st *dummyStateHandler) enter(sctx stateSwitchContext) (func() error, error) {
+func (st *dummyStateHandler) enter(sctx stateSwitchContext) (func(), error) {
 	if st.enterf == nil {
 		return st.enterdefer, nil
 	}
@@ -599,12 +597,12 @@ func (st *dummyStateHandler) enter(sctx stateSwitchContext) (func() error, error
 	return st.enterdefer, nil
 }
 
-func (st *dummyStateHandler) exit() (func() error, error) {
+func (st *dummyStateHandler) exit(sctx stateSwitchContext) (func(), error) {
 	if st.exitf == nil {
 		return st.exitdefer, nil
 	}
 
-	if err := st.exitf(); err != nil {
+	if err := st.exitf(sctx); err != nil {
 		return nil, err
 	}
 
@@ -619,14 +617,14 @@ func (st *dummyStateHandler) newVoteproof(vp base.Voteproof) error {
 	return st.newVoteprooff(vp)
 }
 
-func (st *dummyStateHandler) setEnter(f func(stateSwitchContext) error, d func() error) *dummyStateHandler {
+func (st *dummyStateHandler) setEnter(f func(stateSwitchContext) error, d func()) *dummyStateHandler {
 	st.enterf = f
 	st.enterdefer = d
 
 	return st
 }
 
-func (st *dummyStateHandler) setExit(f func() error, d func() error) *dummyStateHandler {
+func (st *dummyStateHandler) setExit(f func(stateSwitchContext) error, d func()) *dummyStateHandler {
 	st.exitf = f
 	st.exitdefer = d
 

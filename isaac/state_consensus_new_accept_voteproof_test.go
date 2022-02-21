@@ -50,7 +50,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestExpected() {
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferred())
+	deferred()
 
 	fact := t.prpool.getfact(point)
 	nextavp, _ := t.voteproofsPair(point, point.Next(), manifest.Hash(), fact.Hash(), nil, nodes)
@@ -97,7 +97,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestOld() {
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferred())
+	deferred()
 
 	fact := t.prpool.getfact(point)
 	nextavp, _ := t.voteproofsPair(point.Decrease(), point.Next(), nil, fact.Hash(), nil, nodes)
@@ -116,7 +116,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestHiger() {
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferred())
+	deferred()
 
 	fact := t.prpool.getfact(point)
 	nextavp, _ := t.voteproofsPair(point.Next(), point.Next(), nil, fact.Hash(), nil, nodes)
@@ -152,7 +152,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestDraw() {
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferred())
+	deferred()
 
 	fact := t.prpool.getfact(point)
 	nextavp, _ := t.voteproofsPair(point, point.Next(), nil, fact.Hash(), nil, nodes)
@@ -207,7 +207,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestDrawFailedProposalSel
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferred())
+	deferred()
 
 	fact := t.prpool.getfact(point)
 	nextavp, _ := t.voteproofsPair(point, point.Next(), nil, fact.Hash(), nil, nodes)
@@ -259,7 +259,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestNotProposalProcessorP
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferred())
+	deferred()
 
 	fact := t.prpool.getfact(point)
 	nextavp, _ := t.voteproofsPair(point, point.Next(), nil, fact.Hash(), nil, nodes)
@@ -310,7 +310,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestSaveBlockError() {
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferred())
+	deferred()
 
 	fact := t.prpool.getfact(point)
 	nextavp, _ := t.voteproofsPair(point, point.Next(), nil, fact.Hash(), nil, nodes)
@@ -341,7 +341,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestHigherAndDraw() {
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferred())
+	deferred()
 
 	fact := t.prpool.getfact(point)
 	nextavp, _ := t.voteproofsPair(point.Next(), point.Next().Next(), nil, fact.Hash(), nil, nodes)
@@ -380,7 +380,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestHigherRoundDraw() {
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferred())
+	deferred()
 
 	fact := t.prpool.getfact(point)
 	nextavp, _ := t.voteproofsPair(point.NextRound().NextRound(), point.Next(), nil, fact.Hash(), nil, nodes)
@@ -440,7 +440,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestHigerHeight() {
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferred())
+	deferred()
 
 	avp, _ := t.voteproofsPair(point, point.Next(), manifest.Hash(), fact.Hash(), nil, nodes)
 	t.NoError(st.newVoteproof(avp))
@@ -497,7 +497,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndHigherHeight
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferred())
+	deferred()
 
 	fact := t.prpool.getfact(point)
 	avp, _ := t.voteproofsPair(point, point.Next(), nil, fact.Hash(), nil, nodes)
@@ -556,7 +556,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndHigherRound(
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferred())
+	deferred()
 
 	fact := t.prpool.getfact(point)
 	avp, _ := t.voteproofsPair(point, point.Next(), nil, fact.Hash(), nil, nodes)
@@ -625,7 +625,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndDrawAgain() 
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferred())
+	deferred()
 
 	fact := t.prpool.getfact(point)
 	avp, _ := t.voteproofsPair(point, point.Next(), nil, fact.Hash(), nil, nodes)

@@ -27,7 +27,7 @@ func NewConsensusHandler(
 	}
 }
 
-func (st *ConsensusHandler) enter(i stateSwitchContext) (func() error, error) {
+func (st *ConsensusHandler) enter(i stateSwitchContext) (func(), error) {
 	e := util.StringErrorFunc("failed to enter consensus state")
 
 	deferred, err := st.baseStateHandler.enter(i)
@@ -59,21 +59,17 @@ func (st *ConsensusHandler) enter(i stateSwitchContext) (func() error, error) {
 		return nil, newSyncingSwitchContext(StateEmpty, sctx.ivp.Point().Height())
 	}
 
-	return func() error {
-		if err := deferred(); err != nil {
-			return e(err, "")
-		}
+	return func() {
+		deferred()
 
 		go st.processProposal(sctx.ivp)
-
-		return nil
 	}, nil
 }
 
-func (st *ConsensusHandler) exit() (func() error, error) {
+func (st *ConsensusHandler) exit(sctx stateSwitchContext) (func(), error) {
 	e := util.StringErrorFunc("failed to exit from consensus state")
 
-	deferred, err := st.baseStateHandler.exit()
+	deferred, err := st.baseStateHandler.exit(sctx)
 	if err != nil {
 		return nil, e(err, "")
 	}
@@ -82,20 +78,27 @@ func (st *ConsensusHandler) exit() (func() error, error) {
 		return nil, e(err, "failed to close proposal processors")
 	}
 
-	return func() error {
-		if err := deferred(); err != nil {
-			return e(err, "")
+	return func() {
+		deferred()
+
+		var timers []util.TimerID
+		if sctx != nil {
+			switch sctx.next() {
+			case StateJoining, StateHandover:
+				timers = []util.TimerID{timerIDBroadcastINITBallot, timerIDBroadcastACCEPTBallot}
+			}
 		}
 
-		// NOTE stop timers
-		if err := st.timers.StopTimers([]util.TimerID{
+		if len(timers) < 1 {
+			if err := st.timers.StopTimersAll(); err != nil {
+				st.Log().Error().Err(err).Msg("failed to stop timers; ignore")
+			}
+		} else if err := st.timers.StartTimers([]util.TimerID{
 			timerIDBroadcastINITBallot,
 			timerIDBroadcastACCEPTBallot,
-		}); err != nil {
-			return e(err, "")
+		}, true); err != nil {
+			st.Log().Error().Err(err).Msg("failed to start timers; ignore")
 		}
-
-		return nil
 	}, nil
 }
 

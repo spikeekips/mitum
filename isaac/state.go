@@ -35,8 +35,8 @@ func (s StateType) String() string {
 
 type stateHandler interface {
 	state() StateType
-	enter(stateSwitchContext) (func() error, error)
-	exit() (func() error, error)
+	enter(stateSwitchContext) (func(), error)
+	exit(stateSwitchContext) (func(), error)
 	newVoteproof(base.Voteproof) error
 }
 

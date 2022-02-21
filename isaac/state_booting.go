@@ -16,12 +16,12 @@ func NewBootingHandler(
 	}
 }
 
-func (*BootingHandler) enter(stateSwitchContext) error {
+func (*BootingHandler) enter(stateSwitchContext) (func(), error) {
 	// NOTE find last manifest
 	// NOTE find last init and accept voteproof
 	// NOTE if ok, moves to joining
 
-	return nil
+	return nil, nil
 }
 
 func (*BootingHandler) newVoteproof(base.Voteproof) error {

@@ -36,9 +36,9 @@ func (t *baseTestConsensusHandler) newState(suf suffrage) (*ConsensusHandler, fu
 	}, false))
 
 	return st, func() {
-		deferred, err := st.exit()
+		deferred, err := st.exit(nil)
 		t.NoError(err)
-		t.NoError(deferred())
+		deferred()
 	}
 }
 
@@ -112,10 +112,13 @@ func (t *testConsensusHandler) TestNew() {
 	)
 	_ = st.SetLogging(logging.TestNilLogging)
 
+	_, ok := (interface{})(st).(stateHandler)
+	t.True(ok)
+
 	defer func() {
-		deferred, err := st.exit()
+		deferred, err := st.exit(nil)
 		t.NoError(err)
-		t.NoError(deferred())
+		deferred()
 	}()
 
 	st.switchStateFunc = func(stateSwitchContext) error { return nil }
@@ -133,7 +136,7 @@ func (t *testConsensusHandler) TestNew() {
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferred())
+	deferred()
 }
 
 func (t *testConsensusHandler) TestInvalidVoteproofs() {
@@ -207,7 +210,7 @@ func (t *testConsensusHandler) TestExit() {
 
 	deferredenter, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferredenter())
+	deferredenter()
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -226,7 +229,7 @@ func (t *testConsensusHandler) TestExit() {
 
 	t.NotNil(st.pps.p)
 
-	deferredexit, err := st.exit()
+	deferredexit, err := st.exit(nil)
 	t.NoError(err)
 	t.NotNil(deferredexit)
 
@@ -256,7 +259,7 @@ func (t *testConsensusHandler) TestProcessingProposalAfterEntered() {
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferred())
+	deferred()
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -296,7 +299,7 @@ func (t *testConsensusHandler) TestFailedProcessingProposalFetchFactFailed() {
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferred())
+	deferred()
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -342,7 +345,7 @@ func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailed() {
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferred())
+	deferred()
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -396,7 +399,7 @@ func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailedRetry
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferred())
+	deferred()
 
 	select {
 	case <-time.After(time.Second * 5):
@@ -436,7 +439,7 @@ func (t *testConsensusHandler) TestProcessingProposalWithACCEPTVoteproof() {
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferred())
+	deferred()
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -475,7 +478,7 @@ func (t *testConsensusHandler) TestProcessingProposalWithDrawACCEPTVoteproof() {
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferred())
+	deferred()
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -513,7 +516,7 @@ func (t *testConsensusHandler) TestProcessingProposalWithWrongNewBlockACCEPTVote
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferred())
+	deferred()
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -640,7 +643,7 @@ func (t *testConsensusHandler) TestWithBallotbox() {
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferred())
+	deferred()
 
 end:
 	for {
@@ -705,7 +708,7 @@ func (t *testConsensusHandler) TestEmptySuffrageNextBlock() {
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferred())
+	deferred()
 
 	avp, _ := t.voteproofsPair(point, point.Next(), manifest.Hash(), t.prpool.hash(point), t.prpool.hash(point.Next()), nodes)
 	t.NoError(st.newVoteproof(avp))
@@ -778,7 +781,7 @@ func (t *testConsensusHandler) TestOutOfSuffrage() {
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferred())
+	deferred()
 
 	avp, _ := t.voteproofsPair(point, point.Next(), manifest.Hash(), t.prpool.hash(point), t.prpool.hash(point.Next()), nodes)
 	t.NoError(st.newVoteproof(avp))

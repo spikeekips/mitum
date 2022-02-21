@@ -61,16 +61,16 @@ func newBaseStateHandler(
 	}
 }
 
-func (st *baseStateHandler) enter(stateSwitchContext) (func() error, error) {
+func (st *baseStateHandler) enter(stateSwitchContext) (func(), error) {
 	st.ctx, st.cancel = context.WithCancel(context.Background())
 
-	return func() error { return nil }, nil
+	return func() {}, nil
 }
 
-func (st *baseStateHandler) exit() (func() error, error) {
+func (st *baseStateHandler) exit(stateSwitchContext) (func(), error) {
 	st.cancel()
 
-	return func() error { return nil }, nil
+	return func() {}, nil
 }
 
 func (st *baseStateHandler) newVoteproof(vp base.Voteproof) (lastVoteproofs, base.Voteproof, error) {

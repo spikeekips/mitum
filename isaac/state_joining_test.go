@@ -44,9 +44,9 @@ func (t *testJoiningHandler) newState(suf suffrage) (*JoiningHandler, func()) {
 	}
 
 	return st, func() {
-		deferred, err := st.exit()
+		deferred, err := st.exit(nil)
 		t.NoError(err)
-		t.NoError(deferred())
+		deferred()
 	}
 }
 
@@ -55,6 +55,9 @@ func (t *testJoiningHandler) TestNew() {
 
 	st, closef := t.newState(suf)
 	defer closef()
+
+	_, ok := (interface{})(st).(stateHandler)
+	t.True(ok)
 
 	point := base.RawPoint(33, 0)
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
@@ -67,7 +70,7 @@ func (t *testJoiningHandler) TestNew() {
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferred())
+	deferred()
 
 	_, ivp := t.voteproofsPair(point, point.Next(), manifest.Hash(), nil, nil, nodes)
 	err = st.newVoteproof(ivp)
@@ -88,7 +91,7 @@ func (t *testJoiningHandler) TestFailedLastManifest() {
 
 		deferred, err := st.enter(sctx)
 		t.NoError(err)
-		t.NoError(deferred())
+		deferred()
 
 		point := base.RawPoint(33, 0)
 		_, ivp := t.voteproofsPair(point, point.Next(), nil, nil, nil, nodes)
@@ -111,7 +114,7 @@ func (t *testJoiningHandler) TestFailedLastManifest() {
 
 		deferred, err := st.enter(sctx)
 		t.NoError(err)
-		t.NoError(deferred())
+		deferred()
 
 		point := base.RawPoint(33, 0)
 		_, ivp := t.voteproofsPair(point, point.Next(), nil, nil, nil, nodes)
@@ -140,7 +143,7 @@ func (t *testJoiningHandler) TestInvalidINITVoteproof() {
 
 		deferred, err := st.enter(sctx)
 		t.NoError(err)
-		t.NoError(deferred())
+		deferred()
 
 		_, ivp := t.voteproofsPair(point.Decrease().Decrease(), point.Decrease(), nil, nil, nil, nodes)
 		t.NoError(st.newVoteproof(ivp))
@@ -160,7 +163,7 @@ func (t *testJoiningHandler) TestInvalidINITVoteproof() {
 
 		deferred, err := st.enter(sctx)
 		t.NoError(err)
-		t.NoError(deferred())
+		deferred()
 
 		_, ivp := t.voteproofsPair(point.Next(), point.Next().Next(), nil, nil, nil, nodes)
 		err = st.newVoteproof(ivp)
@@ -185,7 +188,7 @@ func (t *testJoiningHandler) TestInvalidINITVoteproof() {
 
 		deferred, err := st.enter(sctx)
 		t.NoError(err)
-		t.NoError(deferred())
+		deferred()
 
 		_, ivp := t.voteproofsPair(point, point.Next(), nil, nil, nil, nodes)
 		err = st.newVoteproof(ivp)
@@ -213,7 +216,7 @@ func (t *testJoiningHandler) TestInvalidACCEPTVoteproof() {
 
 		deferred, err := st.enter(sctx)
 		t.NoError(err)
-		t.NoError(deferred())
+		deferred()
 
 		avp, _ := t.voteproofsPair(point, point.Next(), nil, nil, nil, nodes)
 		t.NoError(st.newVoteproof(avp))
@@ -233,7 +236,7 @@ func (t *testJoiningHandler) TestInvalidACCEPTVoteproof() {
 
 		deferred, err := st.enter(sctx)
 		t.NoError(err)
-		t.NoError(deferred())
+		deferred()
 
 		avp, _ := t.voteproofsPair(point.Next().Next(), point.Next().Next().Next(), nil, nil, nil, nodes)
 		err = st.newVoteproof(avp)
@@ -257,7 +260,7 @@ func (t *testJoiningHandler) TestInvalidACCEPTVoteproof() {
 
 		deferred, err := st.enter(sctx)
 		t.NoError(err)
-		t.NoError(deferred())
+		deferred()
 
 		avp, _ := t.voteproofsPair(point.Next().Next(), point.Next().Next().Next(), nil, nil, nil, nodes)
 		avp.SetResult(base.VoteResultDraw)
@@ -304,7 +307,7 @@ func (t *testJoiningHandler) TestINITVoteproofNextRound() {
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferred())
+	deferred()
 
 	_, ivp := t.voteproofsPair(point, point.Next(), manifest.Hash(), nil, nil, nodes)
 	ivp.SetResult(base.VoteResultDraw)
@@ -362,7 +365,7 @@ func (t *testJoiningHandler) TestACCEPTVoteproofNextRound() {
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
-	t.NoError(deferred())
+	deferred()
 
 	avp, _ := t.voteproofsPair(point.Next(), point.Next().Next(), manifest.Hash(), nil, nil, nodes)
 	avp.SetResult(base.VoteResultDraw)
