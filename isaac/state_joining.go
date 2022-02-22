@@ -208,10 +208,12 @@ func (st *JoiningHandler) firstVoteproof(lvp base.Voteproof) {
 
 type joiningSwitchContext struct {
 	baseStateSwitchContext
+	vp base.Voteproof
 }
 
-func newJoiningSwitchContext(from StateType) joiningSwitchContext {
+func newJoiningSwitchContext(from StateType, vp base.Voteproof) joiningSwitchContext {
 	return joiningSwitchContext{
 		baseStateSwitchContext: newBaseStateSwitchContext(from, StateJoining),
+		vp:                     vp,
 	}
 }

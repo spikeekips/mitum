@@ -15,7 +15,7 @@ var failedToRequestProposalToNodeError = util.NewError("failed to request propos
 
 // ProposerSelector selects proposer between suffrage nodes
 type ProposerSelector interface {
-	Select(context.Context, base.Point, []base.Address) (base.Address, error)
+	Select(context.Context, base.Point, []base.Node) (base.Node, error)
 }
 
 // ProposalSelector fetchs proposal from selected proposer
@@ -71,7 +71,7 @@ func (p *BaseProposalSelector) Select(ctx context.Context, point base.Point) (ba
 	case n < 1:
 		return nil, errors.Errorf("empty suffrage nodes")
 	case n < 2:
-		pr, err := p.findProposal(ctx, point, suf.Nodes()[0].Address())
+		pr, err := p.findProposal(ctx, point, suf.Nodes()[0])
 		if err != nil {
 			return nil, e(err, "")
 		}
@@ -80,14 +80,14 @@ func (p *BaseProposalSelector) Select(ctx context.Context, point base.Point) (ba
 	}
 
 	sufnodes := suf.Nodes()
-	nodes := make([]base.Address, len(sufnodes))
+	nodes := make([]base.Node, len(sufnodes))
 	for i := range nodes {
-		nodes[i] = sufnodes[i].Address()
+		nodes[i] = sufnodes[i]
 	}
 
 	nodes = filterDeadNodes(nodes, p.getLongDeadNodes())
 	sort.Slice(nodes, func(i, j int) bool {
-		return nodes[i].String() < nodes[j].String()
+		return nodes[i].Address().String() < nodes[j].Address().String()
 	})
 
 	for {
@@ -102,7 +102,7 @@ func (p *BaseProposalSelector) Select(ctx context.Context, point base.Point) (ba
 		case errors.Is(err, failedToRequestProposalToNodeError):
 			// NOTE if failed to request to remote node, remove the node from
 			// candidates.
-			nodes = filterDeadNodes(nodes, []base.Address{proposer})
+			nodes = filterDeadNodes(nodes, []base.Address{proposer.Address()})
 			if len(nodes) < 1 {
 				return nil, e(err, "no valid nodes left")
 			}
@@ -115,15 +115,19 @@ func (p *BaseProposalSelector) Select(ctx context.Context, point base.Point) (ba
 func (p *BaseProposalSelector) findProposal(
 	ctx context.Context,
 	point base.Point,
-	proposer base.Address,
+	proposer base.Node,
 ) (base.ProposalSignedFact, error) {
-	if pr, found := p.cached(point, proposer); found {
+	if pr, found := p.cached(point, proposer.Address()); found {
 		return pr, nil
 	}
 
-	pr, err := p.findProposalFromProposer(ctx, point, proposer)
+	pr, err := p.findProposalFromProposer(ctx, point, proposer.Address())
 	if err != nil {
 		return nil, err
+	}
+
+	if !pr.Signed()[0].Signer().Equal(proposer.Publickey()) {
+		return nil, errors.Errorf("proposal not signed by proposer")
 	}
 
 	p.setCached(pr)
@@ -205,8 +209,8 @@ func NewBlockBasedProposerSelector(
 func (p BlockBasedProposerSelector) Select(
 	_ context.Context,
 	point base.Point,
-	nodes []base.Address,
-) (base.Address, error) {
+	nodes []base.Node,
+) (base.Node, error) {
 	var manifest util.Hash
 	switch h, err := p.getManifestHash(point.Height() - 1); {
 	case err != nil:
@@ -270,17 +274,17 @@ func (p *ProposalMaker) New(ctx context.Context, point base.Point) (ProposalSign
 	return signedFact, nil
 }
 
-func filterDeadNodes(n []base.Address, b []base.Address) []base.Address {
+func filterDeadNodes(n []base.Node, b []base.Address) []base.Node {
 	l := util.FilterSlice( // NOTE filter long dead nodes
 		n, b,
 		func(a, b interface{}) bool {
-			return a.(base.Address).Equal(b.(base.Address))
+			return a.(base.Node).Address().Equal(b.(base.Address))
 		},
 	)
 
-	m := make([]base.Address, len(l))
+	m := make([]base.Node, len(l))
 	for i := range l {
-		m[i] = l[i].(base.Address)
+		m[i] = l[i].(base.Node)
 	}
 
 	return m

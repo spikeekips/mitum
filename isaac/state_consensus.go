@@ -53,7 +53,7 @@ func (st *ConsensusHandler) enter(i stateSwitchContext) (func(), error) {
 	case !ok:
 		st.Log().Debug().
 			Dict("state_context", stateSwitchContextLog(sctx)).
-			Int64("height", sctx.ivp.Point().Height().Int64()).
+			Object("height", sctx.ivp.Point().Height()).
 			Msg("local is not in suffrage at entering consensus state; moves to syncing state")
 
 		return nil, newSyncingSwitchContext(StateEmpty, sctx.ivp.Point().Height())
@@ -420,7 +420,7 @@ func (st *ConsensusHandler) nextBlock(avp base.ACCEPTVoteproof) {
 
 	switch ok, err := st.isLocalInSuffrage(point.Height()); {
 	case err != nil:
-		l.Debug().Int64("height", point.Height().Int64()).Msg("empty suffrage of next block; moves to broken state")
+		l.Debug().Object("height", point.Height()).Msg("empty suffrage of next block; moves to broken state")
 
 		go st.switchState(newBrokenSwitchContext(
 			StateConsensus, errors.Wrap(err, "local not in suffrage for next block")))
@@ -428,7 +428,7 @@ func (st *ConsensusHandler) nextBlock(avp base.ACCEPTVoteproof) {
 		return
 	case !ok:
 		l.Debug().
-			Int64("height", point.Height().Int64()).
+			Object("height", point.Height()).
 			Msg("local is not in suffrage at next block; moves to syncing state")
 
 		go st.switchState(newSyncingSwitchContext(StateConsensus, point.Height()))

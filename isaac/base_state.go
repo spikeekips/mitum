@@ -225,7 +225,7 @@ func (st *baseStateHandler) nextRound(vp base.Voteproof, prevBlock util.Hash) {
 	if err != nil {
 		l.Error().Err(err).Msg("failed to select proposal")
 
-		go st.switchState(newBrokenSwitchContext(StateConsensus, err))
+		go st.switchState(newBrokenSwitchContext(st.stt, err))
 
 		return
 	}
@@ -242,14 +242,14 @@ func (st *baseStateHandler) nextRound(vp base.Voteproof, prevBlock util.Hash) {
 	sf := NewINITBallotSignedFact(st.local.Address(), fact)
 
 	if err := sf.Sign(st.local.Privatekey(), st.policy.NetworkID()); err != nil {
-		go st.switchState(newBrokenSwitchContext(StateConsensus, e(err, "failed to make next round init ballot")))
+		go st.switchState(newBrokenSwitchContext(st.stt, e(err, "failed to make next round init ballot")))
 
 		return
 	}
 
 	bl := NewINITBallot(vp, sf)
 	if err := st.broadcastINITBallot(bl, true); err != nil {
-		go st.switchState(newBrokenSwitchContext(StateConsensus, e(err, "failed to broadcast next round init ballot")))
+		go st.switchState(newBrokenSwitchContext(st.stt, e(err, "failed to broadcast next round init ballot")))
 	}
 
 	if err := st.timers.StartTimers([]util.TimerID{timerIDBroadcastINITBallot}, true); err != nil {

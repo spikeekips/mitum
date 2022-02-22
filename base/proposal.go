@@ -76,7 +76,6 @@ func IsValidProposalSignedFact(sf ProposalSignedFact, networkID []byte) error {
 		return e(err, "")
 	}
 
-	// BLOCK check signed publickey is real proposer publickey
 	if _, ok := sf.Fact().(ProposalFact); !ok {
 		return e(util.InvalidError.Errorf("not ProposalFact, %T", sf.Fact()), "")
 	}

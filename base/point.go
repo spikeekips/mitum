@@ -62,6 +62,10 @@ func (h Height) String() string {
 	return fmt.Sprintf("%d", h)
 }
 
+func (h Height) MarshalZerologObject(e *zerolog.Event) {
+	e.Int64("height", h.Int64())
+}
+
 type Round uint64
 
 func (r Round) Uint64() uint64 {
@@ -70,6 +74,10 @@ func (r Round) Uint64() uint64 {
 
 func (r Round) Bytes() []byte {
 	return util.Uint64ToBytes(uint64(r))
+}
+
+func (r Round) MarshalZerologObject(e *zerolog.Event) {
+	e.Uint64("round", r.Uint64())
 }
 
 type Point struct {
@@ -166,7 +174,7 @@ func (p Point) Decrease() Point {
 }
 
 func (p Point) MarshalZerologObject(e *zerolog.Event) {
-	e.Int64("height", p.h.Int64()).Uint64("round", p.r.Uint64())
+	e.Object("height", p.h).Object("round", p.r)
 }
 
 type pointJSONMarshaler struct {
@@ -264,7 +272,7 @@ func (p StagePoint) Decrease() StagePoint {
 }
 
 func (p StagePoint) MarshalZerologObject(e *zerolog.Event) {
-	e.Int64("height", p.h.Int64()).Uint64("round", p.r.Uint64()).Stringer("stage", p.stage)
+	e.Object("height", p.h).Object("round", p.r).Stringer("stage", p.stage)
 }
 
 type stagePointJSONMarshaler struct {

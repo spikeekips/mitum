@@ -27,10 +27,22 @@ func (t *baseTestHandler) SetupTest() {
 }
 
 func (t *baseTestHandler) newINITBallotFact(point base.Point, prev, pr util.Hash) INITBallotFact {
+	if prev == nil {
+		prev = valuehash.RandomSHA256()
+	}
+	if pr == nil {
+		pr = valuehash.RandomSHA256()
+	}
 	return NewINITBallotFact(point, prev, pr)
 }
 
 func (t *baseTestHandler) newACCEPTBallotFact(point base.Point, pr, block util.Hash) ACCEPTBallotFact {
+	if pr == nil {
+		pr = valuehash.RandomSHA256()
+	}
+	if block == nil {
+		block = valuehash.RandomSHA256()
+	}
 	return NewACCEPTBallotFact(point, pr, block)
 }
 

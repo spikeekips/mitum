@@ -66,7 +66,7 @@ func (t *testJoiningHandler) TestNew() {
 		return manifest, true, nil
 	}
 
-	sctx := newJoiningSwitchContext(StateBooting)
+	sctx := newJoiningSwitchContext(StateBooting, nil)
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
@@ -87,7 +87,7 @@ func (t *testJoiningHandler) TestFailedLastManifest() {
 		st, closef := t.newState(suf)
 		defer closef()
 
-		sctx := newJoiningSwitchContext(StateBooting)
+		sctx := newJoiningSwitchContext(StateBooting, nil)
 
 		deferred, err := st.enter(sctx)
 		t.NoError(err)
@@ -110,7 +110,7 @@ func (t *testJoiningHandler) TestFailedLastManifest() {
 			return nil, false, nil
 		}
 
-		sctx := newJoiningSwitchContext(StateBooting)
+		sctx := newJoiningSwitchContext(StateBooting, nil)
 
 		deferred, err := st.enter(sctx)
 		t.NoError(err)
@@ -139,7 +139,7 @@ func (t *testJoiningHandler) TestInvalidINITVoteproof() {
 			return manifest, true, nil
 		}
 
-		sctx := newJoiningSwitchContext(StateBooting)
+		sctx := newJoiningSwitchContext(StateBooting, nil)
 
 		deferred, err := st.enter(sctx)
 		t.NoError(err)
@@ -159,7 +159,7 @@ func (t *testJoiningHandler) TestInvalidINITVoteproof() {
 			return manifest, true, nil
 		}
 
-		sctx := newJoiningSwitchContext(StateBooting)
+		sctx := newJoiningSwitchContext(StateBooting, nil)
 
 		deferred, err := st.enter(sctx)
 		t.NoError(err)
@@ -184,7 +184,7 @@ func (t *testJoiningHandler) TestInvalidINITVoteproof() {
 			return manifest, true, nil
 		}
 
-		sctx := newJoiningSwitchContext(StateBooting)
+		sctx := newJoiningSwitchContext(StateBooting, nil)
 
 		deferred, err := st.enter(sctx)
 		t.NoError(err)
@@ -212,7 +212,7 @@ func (t *testJoiningHandler) TestInvalidACCEPTVoteproof() {
 			return manifest, true, nil
 		}
 
-		sctx := newJoiningSwitchContext(StateBooting)
+		sctx := newJoiningSwitchContext(StateBooting, nil)
 
 		deferred, err := st.enter(sctx)
 		t.NoError(err)
@@ -232,7 +232,7 @@ func (t *testJoiningHandler) TestInvalidACCEPTVoteproof() {
 			return manifest, true, nil
 		}
 
-		sctx := newJoiningSwitchContext(StateBooting)
+		sctx := newJoiningSwitchContext(StateBooting, nil)
 
 		deferred, err := st.enter(sctx)
 		t.NoError(err)
@@ -256,7 +256,7 @@ func (t *testJoiningHandler) TestInvalidACCEPTVoteproof() {
 			return manifest, true, nil
 		}
 
-		sctx := newJoiningSwitchContext(StateBooting)
+		sctx := newJoiningSwitchContext(StateBooting, nil)
 
 		deferred, err := st.enter(sctx)
 		t.NoError(err)
@@ -303,7 +303,7 @@ func (t *testJoiningHandler) TestINITVoteproofNextRound() {
 		}
 	})
 
-	sctx := newJoiningSwitchContext(StateBooting)
+	sctx := newJoiningSwitchContext(StateBooting, nil)
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
@@ -361,7 +361,7 @@ func (t *testJoiningHandler) TestACCEPTVoteproofNextRound() {
 		}
 	})
 
-	sctx := newJoiningSwitchContext(StateBooting)
+	sctx := newJoiningSwitchContext(StateBooting, nil)
 
 	deferred, err := st.enter(sctx)
 	t.NoError(err)
@@ -421,7 +421,7 @@ func (t *testJoiningHandler) TestLastINITVoteproofNextRound() {
 		}
 	})
 
-	sctx := newJoiningSwitchContext(StateBooting)
+	sctx := newJoiningSwitchContext(StateBooting, nil)
 
 	_, ivp := t.voteproofsPair(point, point.Next(), manifest.Hash(), nil, nil, nodes)
 	ivp.SetResult(base.VoteResultDraw)
@@ -480,7 +480,7 @@ func (t *testJoiningHandler) TestLastACCEPTVoteproofNextRound() {
 		}
 	})
 
-	sctx := newJoiningSwitchContext(StateBooting)
+	sctx := newJoiningSwitchContext(StateBooting, nil)
 
 	avp, _ := t.voteproofsPair(point.Next(), point.Next().Next(), manifest.Hash(), nil, nil, nodes)
 	avp.SetResult(base.VoteResultDraw)
