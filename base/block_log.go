@@ -13,7 +13,7 @@ func ManifestLog(m Manifest) *zerolog.Event {
 		Interface("height", m.Height()).
 		Stringer("operations_tree", m.OperationsTree()).
 		Stringer("states_tree", m.StatesTree()).
-		Stringer("suffrage_block", m.SuffrageBlock()).
+		Stringer("suffrage", m.Suffrage()).
 		Time("created_at", m.CreatedAt()).
 		Time("node_created_at", m.NodeCreatedAt())
 }

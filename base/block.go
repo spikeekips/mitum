@@ -17,7 +17,7 @@ type Manifest interface {
 	Proposal() util.Hash       // NOTE proposal fact hash
 	OperationsTree() util.Hash // NOTE operations tree root hash
 	StatesTree() util.Hash     // NOTE states tree root hash
-	SuffrageBlock() util.Hash  // NOTE suffrage block hash
+	Suffrage() util.Hash       // NOTE state hash of SuffrageStateValue
 	CreatedAt() time.Time      // NOTE Proposal proposed time
 	NodeCreatedAt() time.Time  // NOTE created time in local node
 }
@@ -37,11 +37,9 @@ type Block interface {
 	ACCEPTVoteproof() ACCEPTVoteproof
 }
 
-type SuffrageBlock interface {
-	hint.Hinter
-	util.Hash
-	util.IsValider
-	Height() Height
-	Previous() util.Hash
-	SuffrageTree() tree.FixedTree
+type SuffrageStateValue interface {
+	StateValue
+	Height() Height      // NOTE not manifest height
+	Previous() util.Hash // NOTE previous state hash of SuffrageStateValue
+	Nodes() []Node
 }

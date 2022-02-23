@@ -7,10 +7,11 @@ import (
 
 type State interface {
 	hint.Hinter
-	util.Hasher
+	util.Hasher // NOTE <key> + <value HashByte> + <height>
 	util.IsValider
 	Key() string
 	Value() StateValue
+	Height() Height // NOTE manifest height
 }
 
 type StateValue interface {

@@ -63,7 +63,7 @@ func (m DummyManifest) StatesTree() util.Hash {
 	return m.statestree
 }
 
-func (m DummyManifest) SuffrageBlock() util.Hash {
+func (m DummyManifest) Suffrage() util.Hash {
 	return m.suf
 }
 
@@ -109,7 +109,7 @@ func (m *DummyManifest) SetStatesTree(i util.Hash) *DummyManifest {
 	return m
 }
 
-func (m *DummyManifest) SetSuffrageBlock(i util.Hash) *DummyManifest {
+func (m *DummyManifest) SetSuffrage(i util.Hash) *DummyManifest {
 	m.suf = i
 	return m
 }
@@ -156,8 +156,8 @@ func CompareManifest(t *assert.Assertions, a, b Manifest) {
 	if !isnil("StatesTree", a.StatesTree(), b.StatesTree()) {
 		t.True(a.StatesTree().Equal(b.StatesTree()))
 	}
-	if !isnil("SuffrageBlock", a.SuffrageBlock(), b.SuffrageBlock()) {
-		t.True(a.SuffrageBlock().Equal(b.SuffrageBlock()))
+	if !isnil("Suffrage", a.Suffrage(), b.Suffrage()) {
+		t.True(a.Suffrage().Equal(b.Suffrage()))
 	}
 	t.True(localtime.Equal(a.CreatedAt(), b.CreatedAt()))
 	t.True(localtime.Equal(a.NodeCreatedAt(), b.NodeCreatedAt()))
