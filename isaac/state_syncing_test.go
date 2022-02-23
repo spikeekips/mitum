@@ -464,7 +464,6 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 
 	t.Run("finished and expected last accept voteproof, but add new height", func() {
 		st, _ := t.newState(nil)
-		st.SetLogging(logging.TestLogging)
 
 		sctxch := make(chan stateSwitchContext, 1)
 		st.switchStateFunc = func(sctx stateSwitchContext) error {
@@ -500,7 +499,6 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 
 	t.Run("finished and expected last accept voteproof, with new voteproof", func() {
 		st, _ := t.newState(nil)
-		st.SetLogging(logging.TestLogging)
 
 		sctxch := make(chan stateSwitchContext, 1)
 		st.switchStateFunc = func(sctx stateSwitchContext) error {

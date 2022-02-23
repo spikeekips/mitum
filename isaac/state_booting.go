@@ -29,11 +29,6 @@ func (*BootingHandler) newVoteproof(base.Voteproof) error {
 	return nil
 }
 
-func (*BootingHandler) newProposal(base.ProposalFact) error {
-	// NOTE in booting, do nothing
-	return nil
-}
-
 type bootingSwitchContext struct {
 	baseStateSwitchContext
 }

@@ -50,6 +50,7 @@ func (t *testBaseProposalSelector) TestNew() {
 
 			return nil, errors.Errorf("proposer not found in suffrage")
 		},
+		nil,
 	)
 
 	t.T().Logf("suffrage len: %d", suf.Len())
@@ -91,6 +92,7 @@ func (t *testBaseProposalSelector) TestOneNode() {
 		func(_ context.Context, point base.Point, proposer base.Address) (base.ProposalSignedFact, error) {
 			return nil, errors.Errorf("proposer not found in suffrage")
 		},
+		nil,
 	)
 
 	t.T().Logf("suffrage len: %d", suf.Len())
@@ -129,6 +131,7 @@ func (t *testBaseProposalSelector) TestUnknownSuffrage() {
 		func(_ context.Context, point base.Point, proposer base.Address) (base.ProposalSignedFact, error) {
 			return nil, errors.Errorf("proposer not found in suffrage")
 		},
+		nil,
 	)
 
 	t.T().Logf("suffrage len: %d", suf.Len())
@@ -161,6 +164,7 @@ func (t *testBaseProposalSelector) TestUnknownManifestHash() {
 		func(_ context.Context, point base.Point, proposer base.Address) (base.ProposalSignedFact, error) {
 			return nil, errors.Errorf("proposer not found in suffrage")
 		},
+		nil,
 	)
 
 	t.T().Logf("suffrage len: %d", suf.Len())
@@ -203,6 +207,7 @@ func (t *testBaseProposalSelector) TestDeadNode() {
 
 			return nil, errors.Errorf("proposer not found in suffrage")
 		},
+		nil,
 	)
 
 	t.T().Logf("suffrage len: %d", suf.Len())
@@ -262,6 +267,7 @@ func (t *testBaseProposalSelector) TestFailedToReqeustByContext() {
 
 			return nil, errors.Errorf("proposer not found in suffrage")
 		},
+		nil,
 	)
 
 	t.T().Logf("suffrage len: %d", suf.Len())
@@ -304,6 +310,7 @@ func (t *testBaseProposalSelector) TestAllFailedToReqeust() {
 		func(_ context.Context, point base.Point, proposer base.Address) (base.ProposalSignedFact, error) {
 			return nil, errors.Errorf("proposer not found in suffrage")
 		},
+		nil,
 	)
 
 	t.T().Logf("suffrage len: %d", suf.Len())
@@ -376,6 +383,7 @@ func (t *testBaseProposalSelector) TestContextCanceled() {
 				}
 			}
 		},
+		nil,
 	)
 
 	t.T().Logf("suffrage len: %d", suf.Len())
@@ -448,6 +456,7 @@ func (t *testBaseProposalSelector) TestMainContextCanceled() {
 				}
 			}
 		},
+		nil,
 	)
 
 	t.T().Logf("suffrage len: %d", suf.Len())

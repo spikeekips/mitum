@@ -221,7 +221,7 @@ func (st *baseStateHandler) nextRound(vp base.Voteproof, prevBlock util.Hash) {
 	l.Debug().Object("point", point).Msg("preparing next round")
 
 	// NOTE find next proposal
-	pr, err := st.proposalSelector.Select(st.ctx, point) // BLOCK save selected proposal
+	pr, err := st.proposalSelector.Select(st.ctx, point)
 	if err != nil {
 		l.Error().Err(err).Msg("failed to select proposal")
 

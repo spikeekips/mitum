@@ -32,7 +32,7 @@ type proposalProcessors struct {
 	sync.RWMutex
 	*logging.Logging
 	makenew       func(base.ProposalFact) proposalProcessor
-	getfact       func(context.Context, util.Hash) (base.ProposalFact, error)
+	getfact       func(context.Context, util.Hash) (base.ProposalFact, error) // BLOCK use NewProposalPool
 	p             proposalProcessor
 	limit         int
 	retryinterval time.Duration

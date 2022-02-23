@@ -6,6 +6,7 @@ import (
 )
 
 type ObjectPool interface {
+	Exists(string) bool
 	Get(string) (interface{}, bool /* if found, true */)
 	Set(string, interface{})
 }
@@ -18,6 +19,10 @@ func NewGCacheObjectPool(size int) *GCacheObjectPool {
 	return &GCacheObjectPool{
 		cache: gcache.New(size).LRU().Build(),
 	}
+}
+
+func (po *GCacheObjectPool) Exists(key string) bool {
+	return po.cache.Has(key)
 }
 
 func (po *GCacheObjectPool) Get(key string) (interface{}, bool) {
