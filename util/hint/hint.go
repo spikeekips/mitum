@@ -10,6 +10,7 @@ import (
 
 var (
 	MaxVersionLength = 20
+	MaxHintLength    = MaxTypeLength + MaxVersionLength + 1
 	regVersion       = regexp.MustCompile(`\-v\d+`)
 )
 
