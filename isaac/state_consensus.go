@@ -162,7 +162,17 @@ func (st *ConsensusHandler) processProposal(ivp base.INITVoteproof) {
 		ll.Debug().Msg("proposal processed and expected voteproof found")
 	}
 
-	st.saveBlock(eavp)
+	var sctx stateSwitchContext
+	switch err := st.saveBlock(eavp); {
+	case err == nil:
+	case errors.As(err, &sctx):
+	default:
+		sctx = newBrokenSwitchContext(StateConsensus, errors.Wrap(err, "failed to save proposal"))
+	}
+
+	if sctx != nil {
+		go st.switchState(sctx)
+	}
 }
 
 func (st *ConsensusHandler) processProposalInternal(ivp base.INITVoteproof) (base.Manifest, error) {
@@ -364,9 +374,7 @@ func (st *ConsensusHandler) newACCEPTVoteproofWithLastINITVoteproof(
 	switch {
 	case avp.Point().Point == livp.Point().Point: // NOTE expected accept voteproof
 		if avp.Result() == base.VoteResultMajority {
-			go st.saveBlock(avp)
-
-			return nil
+			return st.saveBlock(avp)
 		}
 
 		go st.nextRound(avp, lvps)
@@ -486,7 +494,7 @@ func (st *ConsensusHandler) nextBlock(avp base.ACCEPTVoteproof) {
 	l.Debug().Interface("ballot", bl).Msg("next init ballot broadcasted")
 }
 
-func (st *ConsensusHandler) saveBlock(avp base.ACCEPTVoteproof) {
+func (st *ConsensusHandler) saveBlock(avp base.ACCEPTVoteproof) error {
 	facthash := avp.BallotMajority().Proposal()
 
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(avp)).Logger()
@@ -499,14 +507,16 @@ func (st *ConsensusHandler) saveBlock(avp base.ACCEPTVoteproof) {
 		ll.Debug().Msg("processed proposal saved; moves to next block")
 
 		go st.nextBlock(avp)
+
+		return nil
 	case errors.Is(err, notProposalProcessorProcessedError):
 		l.Debug().Msg("no processed proposal; moves to syncing state")
 
-		go st.switchState(newSyncingSwitchContext(StateConsensus, avp.Point().Height()))
+		return newSyncingSwitchContext(StateConsensus, avp.Point().Height())
 	default:
 		ll.Error().Err(err).Msg("failed to save proposal; moves to broken state")
 
-		go st.switchState(newBrokenSwitchContext(StateConsensus, err))
+		return newBrokenSwitchContext(StateConsensus, err)
 	}
 }
 

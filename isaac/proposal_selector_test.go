@@ -353,7 +353,11 @@ func (t *testBaseProposalSelector) TestContextCanceled() {
 			var pr base.ProposalSignedFact
 			var err error
 			go func() {
-				<-time.After(requestdelay)
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(requestdelay):
+				}
 
 				for i := range nodes {
 					n := nodes[i]

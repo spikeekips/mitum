@@ -248,13 +248,6 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestNotProposalProcessorP
 		return nil
 	}
 
-	sctxch := make(chan stateSwitchContext, 1)
-	st.switchStateFunc = func(sctx stateSwitchContext) error {
-		sctxch <- sctx
-
-		return nil
-	}
-
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(sctx)
@@ -263,20 +256,14 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestNotProposalProcessorP
 
 	fact := t.prpool.getfact(point)
 	nextavp, _ := t.voteproofsPair(point, point.Next(), nil, fact.Hash(), nil, nodes)
-	t.NoError(st.newVoteproof(nextavp))
 
 	t.T().Log("wait new block saved, but it will be failed; wait to move syncing")
 
-	select {
-	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait switch context"))
+	err = st.newVoteproof(nextavp)
 
-		return
-	case nsctx := <-sctxch:
-		var ssctx syncingSwitchContext
-		t.True(errors.As(nsctx, &ssctx))
-		t.Equal(ssctx.height, point.Height())
-	}
+	var ssctx syncingSwitchContext
+	t.True(errors.As(err, &ssctx))
+	t.Equal(ssctx.height, point.Height())
 }
 
 func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestSaveBlockError() {
@@ -299,13 +286,6 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestSaveBlockError() {
 		return nil
 	}
 
-	sctxch := make(chan stateSwitchContext, 1)
-	st.switchStateFunc = func(sctx stateSwitchContext) error {
-		sctxch <- sctx
-
-		return nil
-	}
-
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(sctx)
@@ -314,20 +294,14 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestSaveBlockError() {
 
 	fact := t.prpool.getfact(point)
 	nextavp, _ := t.voteproofsPair(point, point.Next(), nil, fact.Hash(), nil, nodes)
-	t.NoError(st.newVoteproof(nextavp))
+
+	err = st.newVoteproof(nextavp)
 
 	t.T().Log("wait new block saved, but it will be failed; wait to move syncing")
 
-	select {
-	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait switch context"))
-
-		return
-	case nsctx := <-sctxch:
-		var bsctx brokenSwitchContext
-		t.True(errors.As(nsctx, &bsctx))
-		t.Contains(bsctx.Error(), "hehehe")
-	}
+	var bsctx brokenSwitchContext
+	t.True(errors.As(err, &bsctx))
+	t.Contains(bsctx.Error(), "hehehe")
 }
 
 func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestHigherAndDraw() {

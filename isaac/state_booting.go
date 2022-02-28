@@ -18,7 +18,7 @@ func NewBootingHandler(
 
 func (*BootingHandler) enter(stateSwitchContext) (func(), error) {
 	// NOTE find last manifest
-	// NOTE find last init and accept voteproof
+	// NOTE load last init, accept voteproof and last majority voteproof
 	// NOTE if ok, moves to joining
 
 	return nil, nil
