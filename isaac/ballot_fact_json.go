@@ -17,9 +17,9 @@ type baseBallotFactJSONMarshaler struct {
 
 type baseBallotFactJSONUnmarshaler struct {
 	hint.BaseHinter
-	H     valuehash.Bytes `json:"hash"`
-	Stage base.Stage      `json:"stage"`
-	Point base.StagePoint `json:"point"`
+	H     valuehash.HashDecoder `json:"hash"`
+	Stage base.Stage            `json:"stage"`
+	Point base.StagePoint       `json:"point"`
 }
 
 type INITBallotFactJSONMarshaler struct {
@@ -30,8 +30,8 @@ type INITBallotFactJSONMarshaler struct {
 
 type INITBallotFactJSONUnmarshaler struct {
 	baseBallotFactJSONUnmarshaler
-	PreviousBlock valuehash.Bytes `json:"previous_block"`
-	Proposal      valuehash.Bytes `json:"proposal"`
+	PreviousBlock valuehash.HashDecoder `json:"previous_block"`
+	Proposal      valuehash.HashDecoder `json:"proposal"`
 }
 
 type ACCEPTBallotFactJSONMarshaler struct {
@@ -42,8 +42,8 @@ type ACCEPTBallotFactJSONMarshaler struct {
 
 type ACCEPTBallotFactJSONUnmarshaler struct {
 	baseBallotFactJSONUnmarshaler
-	Proposal valuehash.Bytes `json:"proposal"`
-	NewBlock valuehash.Bytes `json:"new_block"`
+	Proposal valuehash.HashDecoder `json:"proposal"`
+	NewBlock valuehash.HashDecoder `json:"new_block"`
 }
 
 func (fact baseBallotFact) jsonMarshaler() baseBallotFactJSONMarshaler {
@@ -62,7 +62,7 @@ func (fact *baseBallotFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "")
 	}
 
-	fact.h = u.H
+	fact.h = u.H.Hash()
 	fact.point = u.Point
 
 	return nil
@@ -90,8 +90,8 @@ func (fact *INITBallotFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "")
 	}
 
-	fact.previousBlock = u.PreviousBlock
-	fact.proposal = u.Proposal
+	fact.previousBlock = u.PreviousBlock.Hash()
+	fact.proposal = u.Proposal.Hash()
 
 	return nil
 }
@@ -118,8 +118,8 @@ func (fact *ACCEPTBallotFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "")
 	}
 
-	fact.proposal = u.Proposal
-	fact.newBlock = u.NewBlock
+	fact.proposal = u.Proposal.Hash()
+	fact.newBlock = u.NewBlock.Hash()
 
 	return nil
 }

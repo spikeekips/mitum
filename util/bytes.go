@@ -17,6 +17,12 @@ func ConcatByters(bs ...Byter) []byte {
 	return ConcatBytesSlice(b...)
 }
 
+type BytesToByter []byte
+
+func (b BytesToByter) Bytes() []byte {
+	return b
+}
+
 type DummyByter func() []byte
 
 func (d DummyByter) Bytes() []byte {

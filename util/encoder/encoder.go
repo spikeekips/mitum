@@ -6,6 +6,7 @@ import (
 )
 
 type Encoder interface {
+	hint.Hinter
 	Add(DecodeDetail) error
 	AddHinter(hint.Hinter) error
 	Marshal(interface{}) ([]byte, error)                       // NOTE native marshaler func

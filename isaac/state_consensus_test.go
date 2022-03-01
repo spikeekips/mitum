@@ -82,10 +82,10 @@ func (t *baseTestConsensusHandler) newStateWithINITVoteproof(point base.Point, s
 		}
 	})
 
-	nodes := make([]*LocalNode, suf.Len())
+	nodes := make([]LocalNode, suf.Len())
 	sn := suf.Nodes()
 	for i := range sn {
-		nodes[i] = sn[i].(*LocalNode)
+		nodes[i] = sn[i].(LocalNode)
 	}
 
 	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, fact.Hash(), nodes)

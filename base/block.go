@@ -36,10 +36,3 @@ type Block interface {
 	INITVoteproof() INITVoteproof
 	ACCEPTVoteproof() ACCEPTVoteproof
 }
-
-type SuffrageStateValue interface {
-	StateValue
-	Height() Height      // NOTE not manifest height
-	Previous() util.Hash // NOTE previous state hash of SuffrageStateValue
-	Nodes() []Node
-}

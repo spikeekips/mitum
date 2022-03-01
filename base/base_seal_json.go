@@ -27,9 +27,9 @@ func (sl BaseSeal) MarshalJSON() ([]byte, error) {
 }
 
 type baseSealJSONUnmarshaler struct {
-	H      valuehash.Bytes   `json:"hash"`
-	Signed json.RawMessage   `json:"signed"`
-	Body   []json.RawMessage `json:"body"`
+	H      valuehash.HashDecoder `json:"hash"`
+	Signed json.RawMessage       `json:"signed"`
+	Body   []json.RawMessage     `json:"body"`
 }
 
 func (sl *BaseSeal) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
@@ -59,7 +59,7 @@ func (sl *BaseSeal) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		bs[i] = j
 	}
 
-	sl.h = u.H
+	sl.h = u.H.Hash()
 	sl.signed = us
 	sl.body = bs
 

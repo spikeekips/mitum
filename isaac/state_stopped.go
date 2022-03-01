@@ -10,7 +10,7 @@ type StoppedHandler struct {
 }
 
 func NewStoppedHandler(
-	local *LocalNode,
+	local LocalNode,
 	policy Policy,
 	getSuffrage func(base.Height) base.Suffrage,
 ) *StoppedHandler {

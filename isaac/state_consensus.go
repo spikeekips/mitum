@@ -15,7 +15,7 @@ type ConsensusHandler struct {
 }
 
 func NewConsensusHandler(
-	local *LocalNode,
+	local LocalNode,
 	policy Policy,
 	proposalSelector ProposalSelector,
 	getSuffrage func(base.Height) base.Suffrage,

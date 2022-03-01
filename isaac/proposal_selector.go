@@ -26,7 +26,7 @@ type ProposalSelector interface {
 
 type BaseProposalSelector struct {
 	sync.Mutex
-	local            *LocalNode
+	local            LocalNode
 	policy           Policy
 	proposerSelector ProposerSelector
 	maker            *ProposalMaker
@@ -37,7 +37,7 @@ type BaseProposalSelector struct {
 }
 
 func NewBaseProposalSelector(
-	local *LocalNode,
+	local LocalNode,
 	policy Policy,
 	proposerSelector ProposerSelector,
 	maker *ProposalMaker,
@@ -224,13 +224,13 @@ func (p BlockBasedProposerSelector) Select(
 }
 
 type ProposalMaker struct {
-	local         *LocalNode
+	local         LocalNode
 	policy        base.Policy
 	getOperations func(context.Context) ([]util.Hash, error)
 }
 
 func NewProposalMaker(
-	local *LocalNode,
+	local LocalNode,
 	policy base.Policy,
 	getOperations func(context.Context) ([]util.Hash, error),
 ) *ProposalMaker {

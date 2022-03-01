@@ -56,7 +56,7 @@ func (vp baseVoteproof) HashBytes() []byte {
 	bs[1] = vp.point
 	bs[2] = vp.result
 	bs[4] = vp.threshold
-	bs[5] = localtime.NewTime(vp.finishedAt)
+	bs[5] = localtime.New(vp.finishedAt)
 
 	for i := range vp.sfs {
 		v := vp.sfs[i]

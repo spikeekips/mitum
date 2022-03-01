@@ -22,7 +22,7 @@ type SyncingHandler struct {
 }
 
 func NewSyncingHandler(
-	local *LocalNode,
+	local LocalNode,
 	policy Policy,
 	proposalSelector ProposalSelector,
 	getSuffrage func(base.Height) base.Suffrage,

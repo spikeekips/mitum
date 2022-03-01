@@ -16,7 +16,7 @@ func (si BaseSigned) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(baseSignedJSONMarshaler{
 		Signer:    si.signer,
 		Signature: si.signature,
-		SignedAt:  localtime.NewTime(si.signedAt),
+		SignedAt:  localtime.New(si.signedAt),
 	})
 }
 

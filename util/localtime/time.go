@@ -49,7 +49,7 @@ type Time struct {
 	time.Time
 }
 
-func NewTime(t time.Time) Time {
+func New(t time.Time) Time {
 	return Time{Time: t}
 }
 

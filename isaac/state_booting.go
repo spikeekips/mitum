@@ -7,7 +7,7 @@ type BootingHandler struct {
 }
 
 func NewBootingHandler(
-	local *LocalNode,
+	local LocalNode,
 	policy Policy,
 	getSuffrage func(base.Height) base.Suffrage,
 ) *BootingHandler {

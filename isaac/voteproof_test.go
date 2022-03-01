@@ -15,7 +15,7 @@ import (
 
 type testBaseVoteproof struct {
 	suite.Suite
-	local     *LocalNode
+	local     LocalNode
 	networkID base.NetworkID
 }
 
@@ -223,7 +223,7 @@ func (t *testBaseVoteproof) TestWrongMajorityWithSuffrage() {
 
 	fact := NewINITBallotFact(base.RawPoint(33, 55), valuehash.RandomSHA256(), valuehash.RandomSHA256())
 
-	newsignedfact := func(node *LocalNode) INITBallotSignedFact {
+	newsignedfact := func(node LocalNode) INITBallotSignedFact {
 		signedFact := NewINITBallotSignedFact(node.Address(), fact)
 
 		t.NoError(signedFact.Sign(node.Privatekey(), t.networkID))

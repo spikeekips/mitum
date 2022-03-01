@@ -4,6 +4,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/pkg/errors"
+	"github.com/spikeekips/mitum/storage"
 	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
 )
@@ -51,7 +53,8 @@ func (t *testWriteStorage) TestRemove() {
 	_, err = os.Stat(d)
 	t.True(os.IsNotExist(err))
 
-	t.NoError(wst.Remove())
+	err = wst.Remove()
+	t.True(errors.Is(err, storage.ConnectionError))
 }
 
 func (t *testWriteStorage) TestPut() {
@@ -63,10 +66,10 @@ func (t *testWriteStorage) TestPut() {
 		b := util.UUID()
 		bs[b.String()] = b.Bytes()
 
-		wst.Put([]byte(b.String()), b.Bytes())
+		wst.BatchPut([]byte(b.String()), b.Bytes())
 	}
 
-	t.NoError(wst.Write())
+	t.NoError(wst.BatchWrite())
 
 	for k := range bs {
 		v, found, err := wst.Get([]byte(k))
@@ -86,10 +89,10 @@ func (t *testWriteStorage) TestDelete() {
 		b := util.UUID()
 		bs[b.String()] = b.Bytes()
 
-		wst.Put([]byte(b.String()), b.Bytes())
+		wst.BatchPut([]byte(b.String()), b.Bytes())
 	}
 
-	t.NoError(wst.Write())
+	t.NoError(wst.BatchWrite())
 
 	deleted := map[string]struct{}{}
 
@@ -99,13 +102,13 @@ func (t *testWriteStorage) TestDelete() {
 			break
 		}
 
-		wst.Delete([]byte(k))
+		wst.BatchDelete([]byte(k))
 		deleted[k] = struct{}{}
 
 		i++
 	}
 
-	t.NoError(wst.Write())
+	t.NoError(wst.BatchWrite())
 
 	for k := range bs {
 		v, found, err := wst.Get([]byte(k))
@@ -130,12 +133,12 @@ func (t *testWriteStorage) TestReset() {
 		b := util.UUID()
 		bs[b.String()] = b.Bytes()
 
-		wst.Put([]byte(b.String()), b.Bytes())
+		wst.BatchPut([]byte(b.String()), b.Bytes())
 	}
 
 	t.True(wst.batch.Len() > 0)
 
-	wst.Reset()
+	wst.BatchReset()
 
 	t.True(wst.batch.Len() < 1)
 }
@@ -149,15 +152,15 @@ func (t *testWriteStorage) TestCompaction() {
 		b := util.UUID()
 		bs[b.String()] = b.Bytes()
 
-		wst.Put([]byte(b.String()), b.Bytes())
+		wst.BatchPut([]byte(b.String()), b.Bytes())
 	}
 
-	t.NoError(wst.Write())
+	t.NoError(wst.BatchWrite())
 
 	for k := range bs {
-		wst.Put([]byte(k), bs[k])
+		wst.BatchPut([]byte(k), bs[k])
 	}
-	t.NoError(wst.Write())
+	t.NoError(wst.BatchWrite())
 
 	for k := range bs {
 		v, found, err := wst.Get([]byte(k))

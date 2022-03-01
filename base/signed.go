@@ -65,7 +65,7 @@ func (si BaseSigned) SignedAt() time.Time {
 }
 
 func (si BaseSigned) Bytes() []byte {
-	return util.ConcatByters(si.signer, si.signature, localtime.NewTime(si.signedAt))
+	return util.ConcatByters(si.signer, si.signature, localtime.New(si.signedAt))
 }
 
 func (si BaseSigned) IsValid([]byte) error {

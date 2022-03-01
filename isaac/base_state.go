@@ -18,7 +18,7 @@ type baseStateHandler struct {
 	*logging.Logging
 	ctx                  context.Context
 	cancel               func()
-	local                *LocalNode
+	local                LocalNode
 	policy               Policy
 	proposalSelector     ProposalSelector
 	getSuffrage          func(base.Height) base.Suffrage
@@ -33,7 +33,7 @@ type baseStateHandler struct {
 
 func newBaseStateHandler(
 	state StateType,
-	local *LocalNode,
+	local LocalNode,
 	policy Policy,
 	proposalSelector ProposalSelector,
 	getSuffrage func(base.Height) base.Suffrage,

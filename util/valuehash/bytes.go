@@ -4,6 +4,7 @@ import (
 	"bytes"
 
 	"github.com/btcsuite/btcutil/base58"
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -51,4 +52,27 @@ func (hs *Bytes) UnmarshalText(b []byte) error {
 	*hs = NewBytesFromString(string(b))
 
 	return nil
+}
+
+type HashDecoder struct {
+	h util.Hash
+}
+
+func (d *HashDecoder) UnmarshalText(b []byte) error {
+	if len(b) < 1 {
+		return nil
+	}
+
+	var u Bytes
+	if err := u.UnmarshalText(b); err != nil {
+		return errors.Wrap(err, "failed to decode hash by Bytes")
+	}
+
+	d.h = u
+
+	return nil
+}
+
+func (d HashDecoder) Hash() util.Hash {
+	return d.h
 }

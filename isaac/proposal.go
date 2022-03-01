@@ -85,7 +85,7 @@ func (fact ProposalFact) hash() util.Hash {
 	bs := make([]util.Byter, len(fact.operations)+3)
 	bs[0] = fact.point
 	bs[1] = fact.proposer
-	bs[2] = localtime.NewTime(fact.proposedAt)
+	bs[2] = localtime.New(fact.proposedAt)
 	for i := range fact.operations {
 		bs[i+3] = fact.operations[i]
 	}

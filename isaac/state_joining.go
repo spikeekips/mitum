@@ -17,7 +17,7 @@ type JoiningHandler struct {
 }
 
 func NewJoiningHandler(
-	local *LocalNode,
+	local LocalNode,
 	policy Policy,
 	proposalSelector ProposalSelector,
 	getSuffrage func(base.Height) base.Suffrage,

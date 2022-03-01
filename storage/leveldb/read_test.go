@@ -20,10 +20,10 @@ func (t *testReadonlyStorage) TestNew() {
 		b := util.UUID()
 		bs[b.String()] = b.Bytes()
 
-		wst.Put([]byte(b.String()), b.Bytes())
+		wst.BatchPut([]byte(b.String()), b.Bytes())
 	}
 
-	t.NoError(wst.Write())
+	t.NoError(wst.BatchWrite())
 
 	rst := NewReadonlyStorageFromWrite(wst)
 	defer rst.Close()

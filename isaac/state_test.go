@@ -11,7 +11,7 @@ import (
 
 type baseTestHandler struct {
 	suite.Suite
-	local  *LocalNode
+	local  LocalNode
 	policy Policy
 }
 
@@ -46,11 +46,11 @@ func (t *baseTestHandler) newACCEPTBallotFact(point base.Point, pr, block util.H
 	return NewACCEPTBallotFact(point, pr, block)
 }
 
-func (t *baseTestHandler) newProposalFact(point base.Point, local *LocalNode, ops []util.Hash) ProposalFact {
+func (t *baseTestHandler) newProposalFact(point base.Point, local LocalNode, ops []util.Hash) ProposalFact {
 	return NewProposalFact(point, local.Address(), ops)
 }
 
-func (t *baseTestHandler) newProposal(local *LocalNode, fact ProposalFact) ProposalSignedFact {
+func (t *baseTestHandler) newProposal(local LocalNode, fact ProposalFact) ProposalSignedFact {
 	fs := NewProposalSignedFact(fact)
 	t.NoError(fs.Sign(local.Privatekey(), t.policy.NetworkID()))
 
@@ -59,10 +59,10 @@ func (t *baseTestHandler) newProposal(local *LocalNode, fact ProposalFact) Propo
 
 func (t *baseTestHandler) newINITVoteproof(
 	fact INITBallotFact,
-	local *LocalNode,
-	nodes []*LocalNode,
+	local LocalNode,
+	nodes []LocalNode,
 ) (INITVoteproof, error) {
-	suffrage := []*LocalNode{local}
+	suffrage := []LocalNode{local}
 	for i := range nodes {
 		n := nodes[i]
 		if !n.Address().Equal(local.Address()) {
@@ -93,10 +93,10 @@ func (t *baseTestHandler) newINITVoteproof(
 
 func (t *baseTestHandler) newACCEPTVoteproof(
 	fact ACCEPTBallotFact,
-	local *LocalNode,
-	nodes []*LocalNode,
+	local LocalNode,
+	nodes []LocalNode,
 ) (ACCEPTVoteproof, error) {
-	suffrage := []*LocalNode{local}
+	suffrage := []LocalNode{local}
 	for i := range nodes {
 		n := nodes[i]
 		if !n.Address().Equal(local.Address()) {
@@ -125,8 +125,8 @@ func (t *baseTestHandler) newACCEPTVoteproof(
 	return vp, nil
 }
 
-func (t *baseTestHandler) nodes(n int) []*LocalNode {
-	suf := make([]*LocalNode, n)
+func (t *baseTestHandler) nodes(n int) []LocalNode {
+	suf := make([]LocalNode, n)
 	for i := range suf {
 		suf[i] = RandomLocalNode()
 	}
@@ -134,7 +134,7 @@ func (t *baseTestHandler) nodes(n int) []*LocalNode {
 	return suf
 }
 
-func (t *baseTestHandler) voteproofsPair(prevpoint, point base.Point, prev, pr, nextpr util.Hash, nodes []*LocalNode) (ACCEPTVoteproof, INITVoteproof) {
+func (t *baseTestHandler) voteproofsPair(prevpoint, point base.Point, prev, pr, nextpr util.Hash, nodes []LocalNode) (ACCEPTVoteproof, INITVoteproof) {
 	if prev == nil {
 		prev = valuehash.RandomSHA256()
 	}

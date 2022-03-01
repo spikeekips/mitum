@@ -16,12 +16,12 @@ func (t *testTime) loadTime(s string) Time {
 	a, err := ParseRFC3339(s)
 	t.NoError(err)
 
-	return NewTime(a)
+	return New(a)
 }
 
 func (t *testTime) TestNew() {
 	now := Now()
-	tm := NewTime(now)
+	tm := New(now)
 
 	t.True(now.Equal(tm.Time))
 }

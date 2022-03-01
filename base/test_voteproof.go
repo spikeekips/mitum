@@ -16,7 +16,7 @@ func CompareVoteproof(t *assert.Assertions, a, b Voteproof) {
 
 	t.True(a.Hint().Equal(b.Hint()))
 	t.Equal(a.HashBytes(), b.HashBytes())
-	t.True(localtime.NewTime(a.FinishedAt()).Equal(localtime.NewTime(b.FinishedAt())))
+	t.True(localtime.New(a.FinishedAt()).Equal(localtime.New(b.FinishedAt())))
 	t.Equal(a.Point(), b.Point())
 	t.Equal(a.Result(), b.Result())
 

@@ -52,19 +52,40 @@ func newWriteStorage(st leveldbStorage.Storage, f string) (*WriteStorage, error)
 	}, nil
 }
 
-func (st *WriteStorage) Reset() {
+func (st *WriteStorage) Close() error {
+	st.Lock()
+	defer st.Unlock()
+
+	st.batch.Reset()
+
+	return st.BaseStorage.close()
+}
+
+func (st *WriteStorage) BatchReset() {
+	st.Lock()
+	defer st.Unlock()
+
 	st.batch.Reset()
 }
 
-func (st *WriteStorage) Put(k, b []byte) {
+func (st *WriteStorage) BatchPut(k, b []byte) {
+	st.Lock()
+	defer st.Unlock()
+
 	st.batch.Put(k, b)
 }
 
-func (st *WriteStorage) Delete(k []byte) {
+func (st *WriteStorage) BatchDelete(k []byte) {
+	st.Lock()
+	defer st.Unlock()
+
 	st.batch.Delete(k)
 }
 
-func (st *WriteStorage) Write() error {
+func (st *WriteStorage) BatchWrite() error {
+	st.Lock()
+	defer st.Unlock()
+
 	if st.batch.Len() < 1 {
 		return nil
 	}
@@ -72,6 +93,8 @@ func (st *WriteStorage) Write() error {
 	if err := st.db.Write(st.batch, &leveldbOpt.WriteOptions{Sync: true}); err != nil {
 		return storage.ExecError.Errorf("failed to write in write stroage")
 	}
+
+	st.batch.Reset()
 
 	return nil
 }

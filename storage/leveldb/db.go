@@ -16,17 +16,22 @@ import (
 
 type BaseStorage struct {
 	sync.Mutex
-	f  string
-	db *leveldb.DB
+	f   string
+	db  *leveldb.DB
+	str leveldbStorage.Storage
 }
 
-func newBaseStorage(f string, st leveldbStorage.Storage, opt *leveldbOpt.Options) (*BaseStorage, error) {
-	db, err := leveldb.Open(st, wrtieDBOOptions)
+func newBaseStorage(f string, str leveldbStorage.Storage, opt *leveldbOpt.Options) (*BaseStorage, error) {
+	db, err := leveldb.Open(str, opt)
 	if err != nil {
 		return nil, storage.ConnectionError.Wrapf(err, "failed to open leveldb")
 	}
 
-	return &BaseStorage{f: f, db: db}, nil
+	return &BaseStorage{f: f, db: db, str: str}, nil
+}
+
+func (st *BaseStorage) Root() string {
+	return st.f
 }
 
 func (st *BaseStorage) Close() error {
@@ -51,6 +56,7 @@ func (st *BaseStorage) Remove() error {
 		case err == nil && !fi.IsDir():
 			return e(storage.ConnectionError.Errorf("not directory"), "")
 		case os.IsNotExist(err):
+			return e(storage.ConnectionError.Wrap(err), "")
 		case err != nil:
 			return e(storage.ConnectionError.Wrap(err), "")
 		default:
@@ -64,13 +70,23 @@ func (st *BaseStorage) Remove() error {
 }
 
 func (st *BaseStorage) close() error {
+	e := util.StringErrorFunc("failed to close leveldb")
+	switch err := st.str.Close(); {
+	case err == nil:
+		return nil
+	case errors.Is(err, leveldbStorage.ErrClosed):
+		return nil
+	default:
+		return e(storage.ConnectionError.Wrapf(err, ""), "failed to close storage")
+	}
+
 	switch err := st.db.Close(); {
 	case err == nil:
 		return nil
 	case errors.Is(err, leveldb.ErrClosed):
 		return nil
 	default:
-		return storage.ConnectionError.Wrapf(err, "failed to close leveldb")
+		return e(storage.ConnectionError.Wrapf(err, ""), "")
 	}
 }
 
@@ -82,6 +98,15 @@ func (st *BaseStorage) Get(key []byte) ([]byte, bool, error) {
 		return nil, false, nil
 	default:
 		return b, false, storage.ExecError.Errorf("failed to get")
+	}
+}
+
+func (st *BaseStorage) Exists(key []byte) (bool, error) {
+	switch b, err := st.db.Has(key, nil); {
+	case err == nil:
+		return b, nil
+	default:
+		return false, storage.ExecError.Errorf("failed to check exists")
 	}
 }
 

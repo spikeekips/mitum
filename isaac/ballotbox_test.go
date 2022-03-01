@@ -38,7 +38,7 @@ func (t *testBallotbox) SetupSuite() {
 	t.networkID = base.NetworkID(util.UUID().Bytes())
 }
 
-func (t *testBallotbox) initBallot(node *LocalNode, nodes []*LocalNode, point base.Point, prev, proposal util.Hash) INITBallot {
+func (t *testBallotbox) initBallot(node LocalNode, nodes []LocalNode, point base.Point, prev, proposal util.Hash) INITBallot {
 	afact := NewACCEPTBallotFact(point.Decrease(), valuehash.RandomSHA256(), prev)
 
 	asfs := make([]base.BallotSignedFact, len(nodes))
@@ -64,7 +64,7 @@ func (t *testBallotbox) initBallot(node *LocalNode, nodes []*LocalNode, point ba
 	return NewINITBallot(avp, signedFact)
 }
 
-func (t *testBallotbox) acceptBallot(node *LocalNode, nodes []*LocalNode, point base.Point, pr, block util.Hash) ACCEPTBallot {
+func (t *testBallotbox) acceptBallot(node LocalNode, nodes []LocalNode, point base.Point, pr, block util.Hash) ACCEPTBallot {
 	prev := valuehash.RandomSHA256()
 
 	ifact := NewINITBallotFact(point, prev, pr)
@@ -311,7 +311,7 @@ func (t *testBallotbox) TestNilSuffrage() {
 	point := base.RawPoint(33, 1)
 	prev := valuehash.RandomSHA256()
 
-	bl := t.initBallot(n0, []*LocalNode{n0}, point, prev, valuehash.RandomSHA256())
+	bl := t.initBallot(n0, []LocalNode{n0}, point, prev, valuehash.RandomSHA256())
 	voted, err := box.Vote(bl)
 	t.NoError(err)
 	t.True(voted)
