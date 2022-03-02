@@ -12,7 +12,7 @@ type testReadonlyStorage struct {
 }
 
 func (t *testReadonlyStorage) TestNew() {
-	wst := NewMemWriteStorage()
+	wst := NewMemBatchStorage()
 	defer wst.Close()
 
 	bs := map[string][]byte{}
@@ -20,12 +20,14 @@ func (t *testReadonlyStorage) TestNew() {
 		b := util.UUID()
 		bs[b.String()] = b.Bytes()
 
-		wst.BatchPut([]byte(b.String()), b.Bytes())
+		wst.Put([]byte(b.String()), b.Bytes())
 	}
 
-	t.NoError(wst.BatchWrite())
+	t.NoError(wst.Write())
 
-	rst := NewReadonlyStorageFromWrite(wst)
+	rst, err := NewReadonlyStorageFromWrite(wst)
+	t.NoError(err)
+
 	defer rst.Close()
 
 	for k := range bs {

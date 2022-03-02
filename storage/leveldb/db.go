@@ -14,6 +14,18 @@ import (
 	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
 
+type ReadStorage interface {
+	Close() error
+	Remove() error
+	Get(key []byte) ([]byte, bool, error)
+	Exists(key []byte) (bool, error)
+	Iter(
+		prefix []byte,
+		callback func(key []byte, raw []byte) (bool, error),
+		sort bool,
+	) error
+}
+
 type BaseStorage struct {
 	sync.Mutex
 	f   string

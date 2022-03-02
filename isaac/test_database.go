@@ -8,10 +8,25 @@ import (
 	"path/filepath"
 
 	"github.com/spikeekips/mitum/base"
+	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 )
+
+func newMemTempWODatabase(
+	height base.Height,
+	encs *encoder.Encoders,
+	enc encoder.Encoder,
+) (*TempWODatabase, error) {
+	st := leveldbstorage.NewMemBatchStorage()
+
+	return &TempWODatabase{
+		baseDatabase: newBaseDatabase(st, encs, enc),
+		height:       height,
+		st:           st,
+	}, nil
+}
 
 type baseTestDatabase struct {
 	root string
@@ -39,6 +54,8 @@ func (t *baseTestDatabase) SetupTest() {
 	t.noerror(t.enc.Add(encoder.DecodeDetail{Hint: base.DummyStateValueHint, Instance: base.DummyStateValue{}}))
 	t.noerror(t.enc.Add(encoder.DecodeDetail{Hint: base.BaseStateHint, Instance: base.BaseState{}}))
 	t.noerror(t.enc.Add(encoder.DecodeDetail{Hint: SuffrageStateValueHint, Instance: SuffrageStateValue{}}))
+	t.noerror(t.enc.Add(encoder.DecodeDetail{Hint: ProposalFactHint, Instance: ProposalFact{}}))
+	t.noerror(t.enc.Add(encoder.DecodeDetail{Hint: ProposalSignedFactHint, Instance: ProposalSignedFact{}}))
 }
 
 func (t *baseTestDatabase) TearDownTest() {
@@ -46,10 +63,29 @@ func (t *baseTestDatabase) TearDownTest() {
 }
 
 func (t *baseTestDatabase) newWO(height base.Height) *TempWODatabase {
-	wst, err := newTempWODatabase(height, t.root, t.encs, t.enc)
+	st, err := NewTempWODatabase(height, t.root, t.encs, t.enc)
 	t.noerror(err)
 
-	return wst
+	return st
+}
+
+func (t *baseTestDatabase) newMemWO(height base.Height) *TempWODatabase {
+	st := leveldbstorage.NewMemBatchStorage()
+
+	return &TempWODatabase{
+		baseDatabase: newBaseDatabase(st, t.encs, t.enc),
+		height:       height,
+		st:           st,
+	}
+}
+
+func (t *baseTestDatabase) newPool() *TempPoolDatabase {
+	st := leveldbstorage.NewMemRWStorage()
+
+	return &TempPoolDatabase{
+		baseDatabase: newBaseDatabase(st, t.encs, t.enc),
+		st:           st,
+	}
 }
 
 func (t *baseTestDatabase) states(height base.Height, n int) []base.State {

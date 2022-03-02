@@ -4,6 +4,7 @@ import (
 	"math"
 	"path/filepath"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/storage"
 	"github.com/spikeekips/mitum/util"
 	leveldbOpt "github.com/syndtr/goleveldb/leveldb/opt"
@@ -34,9 +35,18 @@ func NewReadonlyStorage(f string) (*ReadonlyStorage, error) {
 		return nil, e(storage.ConnectionError.Wrapf(err, "failed to open leveldb"), "")
 	}
 
-	bst, err := newBaseStorage(f, lst, readonlyDBOOptions)
+	st, err := newReadonlyStorage(lst, f)
 	if err != nil {
-		return nil, e(err, "failed to open")
+		return nil, e(err, "")
+	}
+
+	return st, nil
+}
+
+func newReadonlyStorage(st leveldbStorage.Storage, f string) (*ReadonlyStorage, error) {
+	bst, err := newBaseStorage(f, st, readonlyDBOOptions)
+	if err != nil {
+		return nil, storage.ConnectionError.Wrapf(err, "failed to open leveldb")
 	}
 
 	return &ReadonlyStorage{
@@ -44,8 +54,12 @@ func NewReadonlyStorage(f string) (*ReadonlyStorage, error) {
 	}, nil
 }
 
-func NewReadonlyStorageFromWrite(wst *WriteStorage) *ReadonlyStorage {
+func NewReadonlyStorageFromWrite(wst *BatchStorage) (*ReadonlyStorage, error) {
+	if err := wst.db.SetReadOnly(); err != nil {
+		return nil, errors.Wrap(err, "failed to set readonly to BatchStorage")
+	}
+
 	return &ReadonlyStorage{
 		BaseStorage: wst.BaseStorage,
-	}
+	}, nil
 }

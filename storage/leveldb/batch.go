@@ -11,7 +11,7 @@ import (
 	leveldbStorage "github.com/syndtr/goleveldb/leveldb/storage"
 )
 
-var wrtieDBOOptions = &leveldbOpt.Options{
+var batchOOptions = &leveldbOpt.Options{
 	Compression:            leveldbOpt.NoCompression,
 	CompactionL0Trigger:    math.MaxInt32, // NOTE virtually disable compaction
 	WriteL0PauseTrigger:    math.MaxInt32,
@@ -23,36 +23,41 @@ var wrtieDBOOptions = &leveldbOpt.Options{
 	WriteBuffer:            math.MaxInt32,
 }
 
-type WriteStorage struct {
+type BatchStorage struct {
 	*BaseStorage
 	batch *leveldb.Batch
 }
 
-// NewWriteStorage creates new leveldb storage.
-func NewWriteStorage(f string) (*WriteStorage, error) {
-	e := util.StringErrorFunc("failed write leveldb storage")
+// NewBatchStorage creates new leveldb storage.
+func NewBatchStorage(f string) (*BatchStorage, error) {
+	e := util.StringErrorFunc("failed batch leveldb storage")
 
-	st, err := leveldbStorage.OpenFile(filepath.Clean(f), false)
+	lst, err := leveldbStorage.OpenFile(filepath.Clean(f), false)
 	if err != nil {
 		return nil, e(storage.ConnectionError.Wrapf(err, "failed to open leveldb"), "")
 	}
 
-	return newWriteStorage(st, f)
-}
-
-func newWriteStorage(st leveldbStorage.Storage, f string) (*WriteStorage, error) {
-	bst, err := newBaseStorage(f, st, wrtieDBOOptions)
+	st, err := newBatchStorage(lst, f)
 	if err != nil {
-		return nil, err
+		return nil, e(err, "")
 	}
 
-	return &WriteStorage{
+	return st, nil
+}
+
+func newBatchStorage(st leveldbStorage.Storage, f string) (*BatchStorage, error) {
+	bst, err := newBaseStorage(f, st, batchOOptions)
+	if err != nil {
+		return nil, storage.ConnectionError.Wrapf(err, "failed to open leveldb")
+	}
+
+	return &BatchStorage{
 		BaseStorage: bst,
 		batch:       &leveldb.Batch{},
 	}, nil
 }
 
-func (st *WriteStorage) Close() error {
+func (st *BatchStorage) Close() error {
 	st.Lock()
 	defer st.Unlock()
 
@@ -61,28 +66,28 @@ func (st *WriteStorage) Close() error {
 	return st.BaseStorage.close()
 }
 
-func (st *WriteStorage) BatchReset() {
+func (st *BatchStorage) Reset() {
 	st.Lock()
 	defer st.Unlock()
 
 	st.batch.Reset()
 }
 
-func (st *WriteStorage) BatchPut(k, b []byte) {
+func (st *BatchStorage) Put(k, b []byte) {
 	st.Lock()
 	defer st.Unlock()
 
 	st.batch.Put(k, b)
 }
 
-func (st *WriteStorage) BatchDelete(k []byte) {
+func (st *BatchStorage) Delete(k []byte) {
 	st.Lock()
 	defer st.Unlock()
 
 	st.batch.Delete(k)
 }
 
-func (st *WriteStorage) BatchWrite() error {
+func (st *BatchStorage) Write() error {
 	st.Lock()
 	defer st.Unlock()
 
@@ -91,7 +96,7 @@ func (st *WriteStorage) BatchWrite() error {
 	}
 
 	if err := st.db.Write(st.batch, &leveldbOpt.WriteOptions{Sync: true}); err != nil {
-		return storage.ExecError.Errorf("failed to write in write stroage")
+		return storage.ExecError.Errorf("failed to write in batch stroage")
 	}
 
 	st.batch.Reset()

@@ -2,11 +2,9 @@ package isaac
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"sync"
 
-	"github.com/bluele/gcache"
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
@@ -24,6 +22,12 @@ type ProposalSelector interface {
 	Select(context.Context, base.Point) (base.ProposalSignedFact, error)
 }
 
+type ProposalPool interface {
+	Proposal(facthash util.Hash) (base.ProposalSignedFact, bool, error)
+	ProposalByPoint(point base.Point, proposer base.Address) (base.ProposalSignedFact, bool, error)
+	SetProposal(pr base.ProposalSignedFact) (bool, error)
+}
+
 type BaseProposalSelector struct {
 	sync.Mutex
 	local            LocalNode
@@ -33,7 +37,7 @@ type BaseProposalSelector struct {
 	getSuffrage      func(base.Height) base.Suffrage
 	getLongDeadNodes func() []base.Address
 	request          func(context.Context, base.Point, base.Address) (base.ProposalSignedFact, error)
-	cache            *ProposalPool
+	pool             ProposalPool
 }
 
 func NewBaseProposalSelector(
@@ -44,12 +48,8 @@ func NewBaseProposalSelector(
 	getSuffrage func(base.Height) base.Suffrage,
 	getLongDeadNodes func() []base.Address,
 	request func(context.Context, base.Point, base.Address) (base.ProposalSignedFact, error),
-	cache *ProposalPool,
+	pool ProposalPool,
 ) *BaseProposalSelector {
-	if cache == nil {
-		cache = NewProposalPool(333) // NOTE big enough :)
-	}
-
 	return &BaseProposalSelector{
 		local:            local,
 		policy:           policy,
@@ -58,7 +58,7 @@ func NewBaseProposalSelector(
 		getSuffrage:      getSuffrage,
 		getLongDeadNodes: getLongDeadNodes,
 		request:          request,
-		cache:            cache,
+		pool:             pool,
 	}
 }
 
@@ -123,20 +123,24 @@ func (p *BaseProposalSelector) findProposal(
 	point base.Point,
 	proposer base.Node,
 ) (base.ProposalSignedFact, error) {
-	if pr := p.cache.ByPoint(point, proposer.Address()); pr != nil {
+	e := util.StringErrorFunc("failed to find proposal")
+	switch pr, found, err := p.pool.ProposalByPoint(point, proposer.Address()); {
+	case err != nil:
+		return nil, e(err, "")
+	case found:
 		return pr, nil
 	}
 
 	pr, err := p.findProposalFromProposer(ctx, point, proposer.Address())
 	if err != nil {
-		return nil, err
+		return nil, e(err, "")
 	}
 
 	if !pr.Signed()[0].Signer().Equal(proposer.Publickey()) {
-		return nil, errors.Errorf("proposal not signed by proposer")
+		return nil, e(nil, "proposal not signed by proposer")
 	}
 
-	_ = p.cache.Set(pr)
+	_, _ = p.pool.SetProposal(pr)
 
 	return pr, nil
 }
@@ -273,76 +277,4 @@ func filterDeadNodes(n []base.Node, b []base.Address) []base.Node {
 	}
 
 	return m
-}
-
-type ProposalPool struct {
-	sync.RWMutex
-	facthashs gcache.Cache
-	points    gcache.Cache
-}
-
-func NewProposalPool(size int) *ProposalPool {
-	return &ProposalPool{
-		facthashs: gcache.New(size).LRU().Build(),
-		points:    gcache.New(size).LRU().Build(),
-	}
-}
-
-func (p *ProposalPool) ByFactHash(facthash util.Hash) base.ProposalSignedFact {
-	p.RLock()
-	defer p.RUnlock()
-
-	return p.get(facthash.String())
-}
-
-func (p *ProposalPool) ByPoint(point base.Point, proposer base.Address) base.ProposalSignedFact {
-	p.RLock()
-	defer p.RUnlock()
-
-	switch i, err := p.points.Get(p.pointkey(point, proposer)); {
-	case errors.Is(err, gcache.KeyNotFoundError):
-		return nil
-	case err != nil:
-		return nil
-	case i == nil:
-		return nil
-	default:
-		return p.get(i.(string))
-	}
-}
-
-func (p *ProposalPool) Set(pr base.ProposalSignedFact) bool {
-	p.Lock()
-	defer p.Unlock()
-
-	facthash := pr.Fact().Hash().String()
-	if p.facthashs.Has(facthash) {
-		return false
-	}
-
-	_ = p.facthashs.Set(facthash, pr)
-	_ = p.points.Set(p.pointkey(pr.Point(), pr.ProposalFact().Proposer()), facthash)
-
-	return true
-}
-
-func (p *ProposalPool) get(facthash string) base.ProposalSignedFact {
-	switch i, err := p.facthashs.Get(facthash); {
-	case errors.Is(err, gcache.KeyNotFoundError):
-		return nil
-	case err != nil:
-		return nil
-	case i == nil:
-		return nil
-	default:
-		return i.(base.ProposalSignedFact)
-	}
-}
-
-func (p *ProposalPool) pointkey(point base.Point, proposer base.Address) string {
-	return fmt.Sprintf("%d-%d-%s",
-		point.Height(),
-		point.Round(),
-		proposer.String(),
-	)
 }

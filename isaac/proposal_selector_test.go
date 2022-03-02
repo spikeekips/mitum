@@ -2,15 +2,90 @@ package isaac
 
 import (
 	"context"
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/bluele/gcache"
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 )
+
+type dummyProposalPool struct {
+	sync.RWMutex
+	facthashs gcache.Cache
+	points    gcache.Cache
+}
+
+func newDummyProposalPool(size int) *dummyProposalPool {
+	return &dummyProposalPool{
+		facthashs: gcache.New(size).LRU().Build(),
+		points:    gcache.New(size).LRU().Build(),
+	}
+}
+
+func (p *dummyProposalPool) Proposal(facthash util.Hash) (base.ProposalSignedFact, bool, error) {
+	p.RLock()
+	defer p.RUnlock()
+
+	return p.get(facthash.String())
+}
+
+func (p *dummyProposalPool) ProposalByPoint(point base.Point, proposer base.Address) (base.ProposalSignedFact, bool, error) {
+	p.RLock()
+	defer p.RUnlock()
+
+	switch i, err := p.points.Get(p.pointkey(point, proposer)); {
+	case errors.Is(err, gcache.KeyNotFoundError):
+		return nil, false, nil
+	case err != nil:
+		return nil, false, nil
+	case i == nil:
+		return nil, false, nil
+	default:
+		return p.get(i.(string))
+	}
+}
+
+func (p *dummyProposalPool) SetProposal(pr base.ProposalSignedFact) (bool, error) {
+	p.Lock()
+	defer p.Unlock()
+
+	facthash := pr.Fact().Hash().String()
+	if p.facthashs.Has(facthash) {
+		return false, nil
+	}
+
+	_ = p.facthashs.Set(facthash, pr)
+	_ = p.points.Set(p.pointkey(pr.Point(), pr.ProposalFact().Proposer()), facthash)
+
+	return true, nil
+}
+
+func (p *dummyProposalPool) get(facthash string) (base.ProposalSignedFact, bool, error) {
+	switch i, err := p.facthashs.Get(facthash); {
+	case errors.Is(err, gcache.KeyNotFoundError):
+		return nil, false, nil
+	case err != nil:
+		return nil, false, nil
+	case i == nil:
+		return nil, false, nil
+	default:
+		return i.(base.ProposalSignedFact), true, nil
+	}
+}
+
+func (p *dummyProposalPool) pointkey(point base.Point, proposer base.Address) string {
+	return fmt.Sprintf("%d-%d-%s",
+		point.Height(),
+		point.Round(),
+		proposer.String(),
+	)
+}
 
 type testBaseProposalSelector struct {
 	baseTestHandler
@@ -50,7 +125,7 @@ func (t *testBaseProposalSelector) TestNew() {
 
 			return nil, errors.Errorf("proposer not found in suffrage")
 		},
-		nil,
+		newDummyProposalPool(10),
 	)
 
 	t.T().Logf("suffrage len: %d", suf.Len())
@@ -92,7 +167,7 @@ func (t *testBaseProposalSelector) TestOneNode() {
 		func(_ context.Context, point base.Point, proposer base.Address) (base.ProposalSignedFact, error) {
 			return nil, errors.Errorf("proposer not found in suffrage")
 		},
-		nil,
+		newDummyProposalPool(10),
 	)
 
 	t.T().Logf("suffrage len: %d", suf.Len())
@@ -131,7 +206,7 @@ func (t *testBaseProposalSelector) TestUnknownSuffrage() {
 		func(_ context.Context, point base.Point, proposer base.Address) (base.ProposalSignedFact, error) {
 			return nil, errors.Errorf("proposer not found in suffrage")
 		},
-		nil,
+		newDummyProposalPool(10),
 	)
 
 	t.T().Logf("suffrage len: %d", suf.Len())
@@ -164,7 +239,7 @@ func (t *testBaseProposalSelector) TestUnknownManifestHash() {
 		func(_ context.Context, point base.Point, proposer base.Address) (base.ProposalSignedFact, error) {
 			return nil, errors.Errorf("proposer not found in suffrage")
 		},
-		nil,
+		newDummyProposalPool(10),
 	)
 
 	t.T().Logf("suffrage len: %d", suf.Len())
@@ -207,7 +282,7 @@ func (t *testBaseProposalSelector) TestDeadNode() {
 
 			return nil, errors.Errorf("proposer not found in suffrage")
 		},
-		nil,
+		newDummyProposalPool(10),
 	)
 
 	t.T().Logf("suffrage len: %d", suf.Len())
@@ -267,7 +342,7 @@ func (t *testBaseProposalSelector) TestFailedToReqeustByContext() {
 
 			return nil, errors.Errorf("proposer not found in suffrage")
 		},
-		nil,
+		newDummyProposalPool(10),
 	)
 
 	t.T().Logf("suffrage len: %d", suf.Len())
@@ -310,7 +385,7 @@ func (t *testBaseProposalSelector) TestAllFailedToReqeust() {
 		func(_ context.Context, point base.Point, proposer base.Address) (base.ProposalSignedFact, error) {
 			return nil, errors.Errorf("proposer not found in suffrage")
 		},
-		nil,
+		newDummyProposalPool(10),
 	)
 
 	t.T().Logf("suffrage len: %d", suf.Len())
@@ -387,7 +462,7 @@ func (t *testBaseProposalSelector) TestContextCanceled() {
 				}
 			}
 		},
-		nil,
+		newDummyProposalPool(10),
 	)
 
 	t.T().Logf("suffrage len: %d", suf.Len())
@@ -460,7 +535,7 @@ func (t *testBaseProposalSelector) TestMainContextCanceled() {
 				}
 			}
 		},
-		nil,
+		newDummyProposalPool(10),
 	)
 
 	t.T().Logf("suffrage len: %d", suf.Len())

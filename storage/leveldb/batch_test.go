@@ -10,16 +10,16 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type testWriteStorage struct {
+type testBatchStorage struct {
 	suite.Suite
 }
 
-func (t *testWriteStorage) TestNew() {
+func (t *testBatchStorage) TestNew() {
 	d, err := os.MkdirTemp("", "leveldb")
 	t.NoError(err)
 	defer os.RemoveAll(d)
 
-	wst, err := NewWriteStorage(d)
+	wst, err := NewBatchStorage(d)
 	t.NoError(err)
 	defer wst.Close()
 
@@ -29,23 +29,23 @@ func (t *testWriteStorage) TestNew() {
 	t.NoError(err)
 }
 
-func (t *testWriteStorage) TestCloseAgain() {
+func (t *testBatchStorage) TestCloseAgain() {
 	d, err := os.MkdirTemp("", "leveldb")
 	t.NoError(err)
 	defer os.RemoveAll(d)
 
-	wst, err := NewWriteStorage(d)
+	wst, err := NewBatchStorage(d)
 	t.NoError(err)
 
 	t.NoError(wst.Close())
 	t.NoError(wst.Close())
 }
 
-func (t *testWriteStorage) TestRemove() {
+func (t *testBatchStorage) TestRemove() {
 	d, err := os.MkdirTemp("", "leveldb")
 	t.NoError(err)
 
-	wst, err := NewWriteStorage(d)
+	wst, err := NewBatchStorage(d)
 	t.NoError(err)
 
 	t.NoError(wst.Remove())
@@ -57,8 +57,8 @@ func (t *testWriteStorage) TestRemove() {
 	t.True(errors.Is(err, storage.ConnectionError))
 }
 
-func (t *testWriteStorage) TestPut() {
-	wst := NewMemWriteStorage()
+func (t *testBatchStorage) TestPut() {
+	wst := NewMemBatchStorage()
 	defer wst.Close()
 
 	bs := map[string][]byte{}
@@ -66,10 +66,10 @@ func (t *testWriteStorage) TestPut() {
 		b := util.UUID()
 		bs[b.String()] = b.Bytes()
 
-		wst.BatchPut([]byte(b.String()), b.Bytes())
+		wst.Put([]byte(b.String()), b.Bytes())
 	}
 
-	t.NoError(wst.BatchWrite())
+	t.NoError(wst.Write())
 
 	for k := range bs {
 		v, found, err := wst.Get([]byte(k))
@@ -80,8 +80,8 @@ func (t *testWriteStorage) TestPut() {
 	}
 }
 
-func (t *testWriteStorage) TestDelete() {
-	wst := NewMemWriteStorage()
+func (t *testBatchStorage) TestDelete() {
+	wst := NewMemBatchStorage()
 	defer wst.Close()
 
 	bs := map[string][]byte{}
@@ -89,10 +89,10 @@ func (t *testWriteStorage) TestDelete() {
 		b := util.UUID()
 		bs[b.String()] = b.Bytes()
 
-		wst.BatchPut([]byte(b.String()), b.Bytes())
+		wst.Put([]byte(b.String()), b.Bytes())
 	}
 
-	t.NoError(wst.BatchWrite())
+	t.NoError(wst.Write())
 
 	deleted := map[string]struct{}{}
 
@@ -102,13 +102,13 @@ func (t *testWriteStorage) TestDelete() {
 			break
 		}
 
-		wst.BatchDelete([]byte(k))
+		wst.Delete([]byte(k))
 		deleted[k] = struct{}{}
 
 		i++
 	}
 
-	t.NoError(wst.BatchWrite())
+	t.NoError(wst.Write())
 
 	for k := range bs {
 		v, found, err := wst.Get([]byte(k))
@@ -124,8 +124,8 @@ func (t *testWriteStorage) TestDelete() {
 	}
 }
 
-func (t *testWriteStorage) TestReset() {
-	wst := NewMemWriteStorage()
+func (t *testBatchStorage) TestReset() {
+	wst := NewMemBatchStorage()
 	defer wst.Close()
 
 	bs := map[string][]byte{}
@@ -133,18 +133,18 @@ func (t *testWriteStorage) TestReset() {
 		b := util.UUID()
 		bs[b.String()] = b.Bytes()
 
-		wst.BatchPut([]byte(b.String()), b.Bytes())
+		wst.Put([]byte(b.String()), b.Bytes())
 	}
 
 	t.True(wst.batch.Len() > 0)
 
-	wst.BatchReset()
+	wst.Reset()
 
 	t.True(wst.batch.Len() < 1)
 }
 
-func (t *testWriteStorage) TestCompaction() {
-	wst := NewMemWriteStorage()
+func (t *testBatchStorage) TestCompaction() {
+	wst := NewMemBatchStorage()
 	defer wst.Close()
 
 	bs := map[string][]byte{}
@@ -152,15 +152,15 @@ func (t *testWriteStorage) TestCompaction() {
 		b := util.UUID()
 		bs[b.String()] = b.Bytes()
 
-		wst.BatchPut([]byte(b.String()), b.Bytes())
+		wst.Put([]byte(b.String()), b.Bytes())
 	}
 
-	t.NoError(wst.BatchWrite())
+	t.NoError(wst.Write())
 
 	for k := range bs {
-		wst.BatchPut([]byte(k), bs[k])
+		wst.Put([]byte(k), bs[k])
 	}
-	t.NoError(wst.BatchWrite())
+	t.NoError(wst.Write())
 
 	for k := range bs {
 		v, found, err := wst.Get([]byte(k))
@@ -180,6 +180,6 @@ func (t *testWriteStorage) TestCompaction() {
 	t.Equal(33, count)
 }
 
-func TestWriteStorage(t *testing.T) {
-	suite.Run(t, new(testWriteStorage))
+func TestBatchStorage(t *testing.T) {
+	suite.Run(t, new(testBatchStorage))
 }

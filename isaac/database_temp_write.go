@@ -3,64 +3,47 @@ package isaac
 import (
 	"context"
 	"math"
-	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	"github.com/spikeekips/mitum/util/hint"
 )
 
 type TempWODatabase struct {
-	sync.Mutex
+	*baseDatabase
+	st     *leveldbstorage.BatchStorage
 	height base.Height
-	st     *leveldbstorage.WriteStorage
-	encs   *encoder.Encoders
-	enc    encoder.Encoder
 	m      base.Manifest // NOTE manifest
 	sufstt base.State    // NOTE suffrage state
 }
 
-func newTempWODatabase(
+func NewTempWODatabase(
 	height base.Height,
 	f string,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
 ) (*TempWODatabase, error) {
-	st, err := leveldbstorage.NewWriteStorage(f)
+	st, err := leveldbstorage.NewBatchStorage(f)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed new TempWODatabase")
 	}
 
-	return &TempWODatabase{height: height, st: st, encs: encs, enc: enc}, nil
+	return newTempWODatabase(st, height, encs, enc), nil
 }
 
-func (db *TempWODatabase) Close() error {
-	db.Lock()
-	defer db.Unlock()
-
-	if err := db.st.Close(); err != nil {
-		return errors.Wrap(err, "failed to close TempWODatabase")
+func newTempWODatabase(
+	st *leveldbstorage.BatchStorage,
+	height base.Height,
+	encs *encoder.Encoders,
+	enc encoder.Encoder,
+) *TempWODatabase {
+	return &TempWODatabase{
+		baseDatabase: newBaseDatabase(st, encs, enc),
+		st:           st,
+		height:       height,
 	}
-
-	return nil
-}
-
-func (db *TempWODatabase) Remove() error {
-	db.Lock()
-	defer db.Unlock()
-
-	if err := db.st.Close(); err != nil {
-		return errors.Wrap(err, "failed to close TempWODatabase")
-	}
-
-	if err := db.st.Remove(); err != nil {
-		return errors.Wrap(err, "failed to remove TempWODatabase")
-	}
-
-	return nil
 }
 
 func (db *TempWODatabase) SetManifest(m base.Manifest) error {
@@ -89,7 +72,7 @@ func (db *TempWODatabase) setManifest(m base.Manifest) error {
 		return e(err, "failed to marshal manifest")
 	}
 
-	db.st.BatchPut(manifestKey(), b)
+	db.st.Put(manifestDBKey(), b)
 
 	return nil
 }
@@ -126,7 +109,7 @@ func (db *TempWODatabase) SetStates(sts []base.State) error {
 					return errors.Wrap(err, "failed to set state")
 				}
 
-				db.st.BatchPut(stateKey(st.Hash()), b)
+				db.st.Put(stateDBKey(st.Hash()), b)
 
 				return nil
 			})
@@ -142,7 +125,7 @@ func (db *TempWODatabase) SetStates(sts []base.State) error {
 		return e(err, "")
 	}
 
-	db.st.BatchPut(suffrageKey(), suffragestate.Hash().Bytes())
+	db.st.Put(suffrageDBKey(), suffragestate.Hash().Bytes())
 	db.sufstt = suffragestate
 
 	return nil
@@ -154,7 +137,7 @@ func (db *TempWODatabase) SetOperations(ops []util.Hash) error {
 	}
 
 	for i := range ops {
-		db.st.BatchPut(operationKey(ops[i]), nil)
+		db.st.Put(operationDBKey(ops[i]), nil)
 	}
 
 	return nil
@@ -164,7 +147,7 @@ func (db *TempWODatabase) Write() error {
 	db.Lock()
 	defer db.Unlock()
 
-	if err := db.st.BatchWrite(); err != nil {
+	if err := db.st.Write(); err != nil {
 		return errors.Wrap(err, "failed to write to TempWODatabase")
 	}
 
@@ -176,20 +159,4 @@ func (db *TempWODatabase) ToRO() (*TempRODatabase, error) {
 	defer db.Unlock()
 
 	return newTempRODatabaseFromWOStorage(db)
-}
-
-func (db *TempWODatabase) marshal(i interface{}) ([]byte, error) {
-	b, err := db.enc.Marshal(i)
-	if err != nil {
-		return nil, err
-	}
-
-	return db.encodeWithEncoder(b), nil
-}
-
-func (db *TempWODatabase) encodeWithEncoder(b []byte) []byte {
-	h := make([]byte, hint.MaxHintLength)
-	copy(h, db.enc.Hint().Bytes())
-
-	return util.ConcatBytesSlice(h, b)
 }

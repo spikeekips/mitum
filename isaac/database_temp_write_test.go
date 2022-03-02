@@ -24,21 +24,21 @@ func (t *testWODatabase) SetupTest() {
 
 func (t *testWODatabase) TestNew() {
 	t.Run("valid", func() {
-		_, err := newTempWODatabase(base.Height(33), t.root, t.encs, t.enc)
+		_, err := NewTempWODatabase(base.Height(33), t.root, t.encs, t.enc)
 		t.NoError(err)
 	})
 
 	t.Run("root exists", func() {
-		_, err := newTempWODatabase(base.Height(33), t.root, t.encs, t.enc)
+		_, err := NewTempWODatabase(base.Height(33), t.root, t.encs, t.enc)
 		t.Error(err)
-		t.Contains(err.Error(), "failed write leveldb storage")
+		t.Contains(err.Error(), "failed batch leveldb storage")
 	})
 }
 
 func (t *testWODatabase) TestSetManifest() {
 	height := base.Height(33)
 
-	wst := t.newWO(height)
+	wst := t.newMemWO(height)
 	defer wst.Close()
 
 	m := base.NewDummyManifest(height, valuehash.RandomSHA256())
@@ -101,7 +101,7 @@ func (t *testWODatabase) TestSetStates() {
 
 	m := base.NewDummyManifest(height, valuehash.RandomSHA256())
 
-	wst := t.newWO(height)
+	wst := t.newMemWO(height)
 	defer wst.Close()
 
 	t.NoError(wst.SetManifest(m))
@@ -158,7 +158,7 @@ func (t *testWODatabase) TestSetStates() {
 }
 
 func (t *testWODatabase) TestSetOperations() {
-	wst := t.newWO(base.Height(33))
+	wst := t.newMemWO(base.Height(33))
 	defer wst.Close()
 
 	ops := make([]util.Hash, 33)

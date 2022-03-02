@@ -64,7 +64,7 @@ func (t *testRODatabase) TestLoad() {
 
 	t.NoError(wst.Close())
 
-	rst, err := newTempRODatabase(t.root, t.encs, t.enc)
+	rst, err := NewTempRODatabase(t.root, t.encs, t.enc)
 	t.NoError(err)
 	defer rst.Remove()
 

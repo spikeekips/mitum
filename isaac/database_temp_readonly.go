@@ -1,87 +1,76 @@
 package isaac
 
 import (
-	"sync"
-
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/storage"
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
 )
 
 type TempRODatabase struct {
-	sync.Mutex
+	*baseDatabase
 	st     *leveldbstorage.ReadonlyStorage
-	encs   *encoder.Encoders
-	enc    encoder.Encoder
 	m      base.Manifest // NOTE last manifest
 	sufstt base.State    // NOTE last suffrage state
 }
 
-func newTempRODatabase(f string, encs *encoder.Encoders, enc encoder.Encoder) (*TempRODatabase, error) {
+func NewTempRODatabase(f string, encs *encoder.Encoders, enc encoder.Encoder) (*TempRODatabase, error) {
+	e := util.StringErrorFunc("failed to open TempRODatabase")
+
 	st, err := leveldbstorage.NewReadonlyStorage(f)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed new TempRODatabase")
+		return nil, e(err, "")
 	}
 
-	db := &TempRODatabase{st: st, encs: encs, enc: enc}
+	db, err := newTempRODatabase(st, encs, enc)
+	if err != nil {
+		return nil, e(err, "")
+	}
+
+	return db, nil
+}
+
+func newTempRODatabase(
+	st *leveldbstorage.ReadonlyStorage,
+	encs *encoder.Encoders,
+	enc encoder.Encoder,
+) (*TempRODatabase, error) {
+	db := &TempRODatabase{
+		baseDatabase: newBaseDatabase(st, encs, enc),
+		st:           st,
+	}
 
 	if err := db.loadManifests(); err != nil {
-		return nil, errors.Wrap(err, "")
+		return nil, err
 	}
 
 	if err := db.loadSuffrages(); err != nil {
-		return nil, errors.Wrap(err, "")
+		return nil, err
 	}
 
 	return db, nil
 }
 
 func newTempRODatabaseFromWOStorage(wst *TempWODatabase) (*TempRODatabase, error) {
-	st := leveldbstorage.NewReadonlyStorageFromWrite(wst.st)
-
 	e := util.StringErrorFunc("failed new TempRODatabase from TempWODatabase")
+	st, err := leveldbstorage.NewReadonlyStorageFromWrite(wst.st)
+	if err != nil {
+		return nil, e(err, "")
+	}
+
 	if wst.m == nil {
 		return nil, e(nil, "empty manifest in TempWODatabase")
 	}
 
 	return &TempRODatabase{
-		st:     st,
-		encs:   wst.encs,
-		enc:    wst.enc,
-		m:      wst.m,
-		sufstt: wst.sufstt,
+		baseDatabase: newBaseDatabase(st, wst.encs, wst.enc),
+		st:           st,
+		m:            wst.m,
+		sufstt:       wst.sufstt,
 	}, nil
-}
-
-func (db *TempRODatabase) Close() error {
-	db.Lock()
-	defer db.Unlock()
-
-	if err := db.st.Close(); err != nil {
-		return errors.Wrap(err, "failed to close TempRODatabase")
-	}
-
-	return nil
-}
-
-func (db *TempRODatabase) Remove() error {
-	db.Lock()
-	defer db.Unlock()
-
-	if err := db.st.Close(); err != nil {
-		return errors.Wrap(err, "failed to close TempWODatabase")
-	}
-
-	if err := db.st.Remove(); err != nil {
-		return errors.Wrap(err, "failed to remove TempRODatabase")
-	}
-
-	return nil
 }
 
 func (db *TempRODatabase) LastManifest() (base.Manifest, bool, error) {
@@ -122,7 +111,7 @@ func (db *TempRODatabase) Suffrage(suffrageHeight base.Height) (base.State, bool
 func (db *TempRODatabase) State(h util.Hash) (base.State, bool, error) {
 	e := util.StringErrorFunc("failed to get state")
 
-	switch b, found, err := db.st.Get(stateKey(h)); {
+	switch b, found, err := db.st.Get(stateDBKey(h)); {
 	case err != nil:
 		return nil, false, e(err, "")
 	case !found:
@@ -138,7 +127,7 @@ func (db *TempRODatabase) State(h util.Hash) (base.State, bool, error) {
 }
 
 func (db *TempRODatabase) ExistsOperation(h util.Hash) (bool, error) {
-	switch found, err := db.st.Exists(operationKey(h)); {
+	switch found, err := db.st.Exists(operationDBKey(h)); {
 	case err == nil:
 		return found, nil
 	default:
@@ -149,7 +138,7 @@ func (db *TempRODatabase) ExistsOperation(h util.Hash) (bool, error) {
 func (db *TempRODatabase) loadManifests() error {
 	e := util.StringErrorFunc("failed to load manifest")
 
-	switch b, found, err := db.st.Get(manifestKey()); {
+	switch b, found, err := db.st.Get(manifestDBKey()); {
 	case err != nil:
 		return e(err, "")
 	case !found:
@@ -170,7 +159,7 @@ func (db *TempRODatabase) loadSuffrages() error {
 	e := util.StringErrorFunc("failed to load suffrage state")
 
 	var h util.Hash
-	switch b, found, err := db.st.Get(suffrageKey()); {
+	switch b, found, err := db.st.Get(suffrageDBKey()); {
 	case err != nil:
 		return e(err, "")
 	case !found:
@@ -179,7 +168,7 @@ func (db *TempRODatabase) loadSuffrages() error {
 		h = valuehash.NewBytes(b)
 	}
 
-	switch b, found, err := db.st.Get(stateKey(h)); {
+	switch b, found, err := db.st.Get(stateDBKey(h)); {
 	case err != nil:
 		return e(err, "")
 	case !found:
@@ -256,24 +245,5 @@ func (db *TempRODatabase) loadState(b []byte) (base.State, error) {
 		return nil, e(nil, "not suffrage state: %T", hinter)
 	default:
 		return i, nil
-	}
-}
-
-func (db *TempRODatabase) loadHinter(b []byte) (interface{}, error) {
-	if b == nil {
-		return nil, nil
-	}
-
-	var ht hint.Hint
-	ht, raw, err := loadHint(b)
-	if err != nil {
-		return nil, err
-	}
-
-	switch i := db.encs.Find(ht); {
-	case i == nil:
-		return nil, util.NotFoundError.Errorf("encoder not found for %q", ht)
-	default:
-		return i.(encoder.Encoder).Decode(raw)
 	}
 }
