@@ -287,7 +287,7 @@ func (t *testJoiningHandler) TestINITVoteproofNextRound() {
 
 	ballotch := make(chan base.Ballot, 1)
 	st.broadcastBallotFunc = func(bl base.Ballot) error {
-		if bl.Point().Point == point.Next().NextRound() {
+		if bl.Point().Point.Equal(point.Next().NextRound()) {
 			ballotch <- bl
 		}
 
@@ -345,7 +345,7 @@ func (t *testJoiningHandler) TestACCEPTVoteproofNextRound() {
 
 	ballotch := make(chan base.Ballot, 1)
 	st.broadcastBallotFunc = func(bl base.Ballot) error {
-		if bl.Point().Point == point.Next().NextRound() {
+		if bl.Point().Point.Equal(point.Next().NextRound()) {
 			ballotch <- bl
 		}
 
@@ -405,7 +405,7 @@ func (t *testJoiningHandler) TestLastINITVoteproofNextRound() {
 
 	ballotch := make(chan base.Ballot, 1)
 	st.broadcastBallotFunc = func(bl base.Ballot) error {
-		if bl.Point().Point == point.Next().NextRound() {
+		if bl.Point().Point.Equal(point.Next().NextRound()) {
 			ballotch <- bl
 		}
 
@@ -464,7 +464,7 @@ func (t *testJoiningHandler) TestLastACCEPTVoteproofNextRound() {
 
 	ballotch := make(chan base.Ballot, 1)
 	st.broadcastBallotFunc = func(bl base.Ballot) error {
-		if bl.Point().Point == point.Next().NextRound() {
+		if bl.Point().Point.Equal(point.Next().NextRound()) {
 			ballotch <- bl
 		}
 

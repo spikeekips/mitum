@@ -9,35 +9,40 @@ import (
 
 var nullJSONBytes = []byte("null")
 
-type Marshaled interface {
+type JSONMarshaled interface {
 	Marshaled() ([]byte, bool)
+}
+
+type JSONSetMarshaled interface {
 	SetMarshaled([]byte)
 }
 
-type JSONMarshaled struct {
+type DefaultJSONMarshaled struct {
 	ismarshaled bool
 	marshaled   []byte
 }
 
-func (m JSONMarshaled) Marshaled() ([]byte, bool) {
+func (m DefaultJSONMarshaled) Marshaled() ([]byte, bool) {
 	return m.marshaled, m.ismarshaled
 }
 
-func (m *JSONMarshaled) SetMarshaled(b []byte) {
+func (m *DefaultJSONMarshaled) SetMarshaled(b []byte) {
 	m.ismarshaled = true
 	m.marshaled = b
 }
 
-func MarshalJSONWithMarshaled(v interface{}) ([]byte, error) {
-	var marshaled Marshaled
-	switch j, ok := v.(Marshaled); {
+func MarshalJSON(v interface{}) ([]byte, error) {
+	var marshaled JSONSetMarshaled
+	switch j, ok := v.(JSONMarshaled); {
 	case !ok:
 	default:
 		if b, ok := j.Marshaled(); ok {
 			return b, nil
 		}
 
-		marshaled = j
+		if k, ok := v.(JSONSetMarshaled); ok {
+			marshaled = k
+		}
 	}
 
 	b, err := sonic.Marshal(v)
@@ -47,10 +52,6 @@ func MarshalJSONWithMarshaled(v interface{}) ([]byte, error) {
 	}
 
 	return b, err
-}
-
-func MarshalJSON(v interface{}) ([]byte, error) {
-	return sonic.Marshal(v)
 }
 
 func UnmarshalJSON(b []byte, v interface{}) error {

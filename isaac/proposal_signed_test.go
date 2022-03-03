@@ -74,7 +74,7 @@ func TestProposalSignedFact(tt *testing.T) {
 	suite.Run(tt, new(testProposalSignedFact))
 }
 
-func TestProposalSignedFactEncode(tt *testing.T) {
+func TestProposalSignedFactJSON(tt *testing.T) {
 	t := new(encoder.BaseTestEncode)
 
 	enc := jsonenc.NewEncoder()
@@ -97,7 +97,7 @@ func TestProposalSignedFactEncode(tt *testing.T) {
 		t.NoError(sf.Sign(priv, networkID))
 		t.NoError(sf.IsValid(networkID))
 
-		b, err := enc.Marshal(sf)
+		b, err := enc.Marshal(&sf)
 		t.NoError(err)
 
 		return sf, b

@@ -17,14 +17,14 @@ type noneMarshaledStruct struct {
 }
 
 type marshaledStruct struct {
-	JSONMarshaled
+	DefaultJSONMarshaled
 	A string `json:"a"`
 	B int    `json:"b"`
 }
 
 func (t *testJSONMarshaled) TestNoneMarshaled() {
 	i := noneMarshaledStruct{A: UUID().String(), B: 33}
-	b, err := MarshalJSONWithMarshaled(i)
+	b, err := MarshalJSON(i)
 	t.NoError(err)
 
 	var j noneMarshaledStruct
@@ -35,8 +35,11 @@ func (t *testJSONMarshaled) TestNoneMarshaled() {
 
 func (t *testJSONMarshaled) TestMarshaled() {
 	i := marshaledStruct{A: UUID().String(), B: 33}
-	b, err := MarshalJSONWithMarshaled(&i)
+	b, err := MarshalJSON(&i)
 	t.NoError(err)
+
+	_ = (interface{})(i).(JSONMarshaled)
+	_ = (interface{})(&i).(JSONSetMarshaled)
 
 	var j marshaledStruct
 	t.NoError(UnmarshalJSON(b, &j))
@@ -44,16 +47,16 @@ func (t *testJSONMarshaled) TestMarshaled() {
 	t.Equal(i.A, j.A)
 	t.Equal(i.B, j.B)
 
-	mb, ok := i.JSONMarshaled.Marshaled()
+	mb, ok := i.DefaultJSONMarshaled.Marshaled()
 	t.True(ok)
 	t.Equal(b, mb)
 
-	b1, err := MarshalJSONWithMarshaled(&i)
+	b1, err := MarshalJSON(&i)
 	t.NoError(err)
 	t.Equal(b, b1)
 
 	func(k marshaledStruct) {
-		mb, ok := k.JSONMarshaled.Marshaled()
+		mb, ok := k.DefaultJSONMarshaled.Marshaled()
 		t.True(ok)
 		t.Equal(b, mb)
 	}(i)
@@ -61,7 +64,7 @@ func (t *testJSONMarshaled) TestMarshaled() {
 
 func (t *testJSONMarshaled) TestMarshaledNotPointer() {
 	i := marshaledStruct{A: UUID().String(), B: 33}
-	b, err := MarshalJSONWithMarshaled(i)
+	b, err := MarshalJSON(i)
 	t.NoError(err)
 
 	var j marshaledStruct
@@ -70,11 +73,11 @@ func (t *testJSONMarshaled) TestMarshaledNotPointer() {
 	t.Equal(i.A, j.A)
 	t.Equal(i.B, j.B)
 
-	mb, ok := i.JSONMarshaled.Marshaled()
+	mb, ok := i.DefaultJSONMarshaled.Marshaled()
 	t.False(ok)
 	t.NotEqual(b, mb)
 
-	b1, err := MarshalJSONWithMarshaled(&i)
+	b1, err := MarshalJSON(&i)
 	t.NoError(err)
 	t.Equal(b, b1)
 }

@@ -13,6 +13,7 @@ var (
 )
 
 type baseBallotFact struct {
+	util.DefaultJSONMarshaled
 	hint.BaseHinter
 	h     util.Hash
 	point base.StagePoint

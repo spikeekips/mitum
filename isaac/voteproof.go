@@ -16,6 +16,7 @@ var (
 )
 
 type baseVoteproof struct {
+	util.DefaultJSONMarshaled
 	hint.BaseHinter
 	finishedAt time.Time
 	majority   base.BallotFact

@@ -94,6 +94,7 @@ func (fact ProposalFact) hash() util.Hash {
 }
 
 type ProposalSignedFact struct {
+	util.DefaultJSONMarshaled
 	hint.BaseHinter
 	fact   base.ProposalFact
 	signed base.BaseSigned

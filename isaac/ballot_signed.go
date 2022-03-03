@@ -13,6 +13,7 @@ var (
 )
 
 type baseBallotSignedFact struct {
+	util.DefaultJSONMarshaled
 	hint.BaseHinter
 	fact   base.BallotFact
 	node   base.Address

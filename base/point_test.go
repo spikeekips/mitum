@@ -212,13 +212,13 @@ type testPointEncode struct {
 	encoder.BaseTestEncode
 }
 
-func TestPointEncode(tt *testing.T) {
+func TestPointJSON(tt *testing.T) {
 	t := new(testPointEncode)
 
 	t.Encode = func() (interface{}, []byte) {
 		p := NewPoint(Height(33), Round(44))
 
-		b, err := util.MarshalJSON(p)
+		b, err := util.MarshalJSON(&p)
 		t.NoError(err)
 
 		return p, b
@@ -238,13 +238,13 @@ type testStagePointEncode struct {
 	encoder.BaseTestEncode
 }
 
-func TestStagePointEncode(tt *testing.T) {
+func TestStagePointJSON(tt *testing.T) {
 	t := new(testStagePointEncode)
 
 	t.Encode = func() (interface{}, []byte) {
 		p := NewStagePoint(NewPoint(Height(33), Round(44)), StageINIT)
 
-		b, err := util.MarshalJSON(p)
+		b, err := util.MarshalJSON(&p)
 		t.NoError(err)
 
 		return p, b

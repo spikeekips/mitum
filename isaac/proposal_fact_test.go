@@ -99,7 +99,7 @@ func TestProposalFactJSON(tt *testing.T) {
 			base.RandomAddress("pr"),
 			[]util.Hash{valuehash.RandomSHA256()})
 
-		b, err := t.enc.Marshal(pr)
+		b, err := t.enc.Marshal(&pr)
 		t.NoError(err)
 
 		return pr, b

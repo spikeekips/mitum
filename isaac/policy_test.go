@@ -15,7 +15,7 @@ type testPolicyEncode struct {
 	encoder.BaseTestEncode
 }
 
-func TestPolicyEncode(tt *testing.T) {
+func TestPolicyJSON(tt *testing.T) {
 	t := new(testPolicyEncode)
 
 	enc := jsonenc.NewEncoder()
@@ -28,7 +28,7 @@ func TestPolicyEncode(tt *testing.T) {
 		p.SetThreshold(base.Threshold(77.7))
 		p.SetIntervalBroadcastBallot(time.Second * 33)
 
-		b, err := util.MarshalJSON(p)
+		b, err := util.MarshalJSON(&p)
 		t.NoError(err)
 
 		return p, b
@@ -44,7 +44,12 @@ func TestPolicyEncode(tt *testing.T) {
 		return u
 	}
 	t.Compare = func(a, b interface{}) {
-		t.Equal(a, b)
+		ap := a.(Policy)
+		bp := b.(Policy)
+		t.Equal(ap.BasePolicy, bp.BasePolicy)
+		t.Equal(ap.intervalBroadcastBallot, bp.intervalBroadcastBallot)
+		t.Equal(ap.waitProcessingProposal, bp.waitProcessingProposal)
+		t.Equal(ap.timeoutRequestProposal, bp.timeoutRequestProposal)
 	}
 
 	suite.Run(tt, t)

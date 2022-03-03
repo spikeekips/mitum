@@ -14,7 +14,7 @@ type Ballotbox struct {
 	getSuffrage                  func(base.Height) base.Suffrage
 	threshold                    base.Threshold
 	vrsLock                      sync.RWMutex
-	vrs                          map[base.StagePoint]*voterecords
+	vrs                          map[string]*voterecords
 	vpch                         chan base.Voteproof
 	lsp                          *util.Locked // stagepoint of last voteproof
 	countLock                    sync.Mutex
@@ -29,7 +29,7 @@ func NewBallotbox(
 	return &Ballotbox{
 		getSuffrage:                  getSuffrage,
 		threshold:                    threshold,
-		vrs:                          map[base.StagePoint]*voterecords{},
+		vrs:                          map[string]*voterecords{},
 		vpch:                         make(chan base.Voteproof, math.MaxUint16),
 		lsp:                          util.NewLocked(base.ZeroStagePoint),
 		isValidVoteproofWithSuffrage: base.IsValidVoteproofWithSuffrage,
@@ -139,7 +139,7 @@ func (box *Ballotbox) voterecords(stagepoint base.StagePoint) *voterecords {
 	box.vrsLock.RLock()
 	defer box.vrsLock.RUnlock()
 
-	vr, found := box.vrs[stagepoint]
+	vr, found := box.vrs[stagepoint.String()]
 	if !found {
 		return nil
 	}
@@ -149,12 +149,12 @@ func (box *Ballotbox) voterecords(stagepoint base.StagePoint) *voterecords {
 
 func (box *Ballotbox) newVoterecords(bl base.Ballot) *voterecords {
 	stagepoint := bl.Point()
-	if vr, found := box.vrs[stagepoint]; found {
+	if vr, found := box.vrs[stagepoint.String()]; found {
 		return vr
 	}
 
 	vr := newVoterecords(stagepoint, box.isValidVoteproofWithSuffrage, box.getSuffrage, box.threshold)
-	box.vrs[stagepoint] = vr
+	box.vrs[stagepoint.String()] = vr
 
 	return vr
 }
@@ -236,7 +236,7 @@ func (box *Ballotbox) clean() {
 	for i := range vrs {
 		vr := vrs[i]
 
-		delete(box.vrs, vr.stagepoint)
+		delete(box.vrs, vr.stagepoint.String())
 		box.removed[i] = vr
 	}
 }

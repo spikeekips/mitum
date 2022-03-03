@@ -291,7 +291,7 @@ func TestINITBallotJSON(tt *testing.T) {
 
 		bl := NewINITBallot(avp, signedFact)
 
-		b, err := t.enc.Marshal(bl)
+		b, err := t.enc.Marshal(&bl)
 		t.NoError(err)
 
 		return bl, b
@@ -336,7 +336,7 @@ func TestACCEPTBallotJSON(tt *testing.T) {
 
 		bl := NewACCEPTBallot(ivp, signedFact)
 
-		b, err := t.enc.Marshal(bl)
+		b, err := t.enc.Marshal(&bl)
 		t.NoError(err)
 
 		return bl, b

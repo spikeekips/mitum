@@ -339,7 +339,7 @@ func TestINITVoteproofJSON(tt *testing.T) {
 			SetThreshold(base.Threshold(100)).
 			finish()
 
-		b, err := t.enc.Marshal(ivp)
+		b, err := t.enc.Marshal(&ivp)
 		t.NoError(err)
 
 		return ivp, b
@@ -376,7 +376,7 @@ func TestACCEPTVoteproofJSON(tt *testing.T) {
 			SetThreshold(base.Threshold(100)).
 			finish()
 
-		b, err := t.enc.Marshal(avp)
+		b, err := t.enc.Marshal(&avp)
 		t.NoError(err)
 
 		return avp, b

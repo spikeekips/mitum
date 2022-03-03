@@ -37,7 +37,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestExpected() {
 
 	ballotch := make(chan base.Ballot, 1)
 	st.broadcastBallotFunc = func(bl base.Ballot) error {
-		if bl.Point().Point == point.Next() {
+		if bl.Point().Point.Equal(point.Next()) {
 			ballotch <- bl
 		}
 
@@ -241,7 +241,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestNotProposalProcessorP
 	}
 
 	pp.saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) error {
-		if avp.Point().Point == point {
+		if avp.Point().Point.Equal(point) {
 			return notProposalProcessorProcessedError.Errorf("hehehe")
 		}
 
@@ -279,7 +279,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestSaveBlockError() {
 	}
 
 	pp.saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) error {
-		if avp.Point().Point == point {
+		if avp.Point().Point.Equal(point) {
 			return errors.Errorf("hehehe")
 		}
 
@@ -457,7 +457,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndHigherHeight
 		default:
 			pr := t.prpool.byPoint(p)
 			if pr != nil {
-				if p == point.NextRound() {
+				if p.Equal(point.NextRound()) {
 					nextprch <- p
 				}
 
@@ -516,7 +516,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndHigherRound(
 		default:
 			pr := t.prpool.byPoint(p)
 			if pr != nil {
-				if p == point.NextRound() {
+				if p.Equal(point.NextRound()) {
 					nextprch <- p
 				}
 
@@ -576,7 +576,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndDrawAgain() 
 		default:
 			pr := t.prpool.byPoint(p)
 			if pr != nil {
-				if p == point.NextRound() {
+				if p.Equal(point.NextRound()) {
 					newprch <- p
 				}
 

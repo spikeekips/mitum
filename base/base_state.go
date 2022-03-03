@@ -13,6 +13,7 @@ import (
 var BaseStateHint = hint.MustNewHint("base-state-v0.0.1")
 
 type BaseState struct {
+	util.DefaultJSONMarshaled
 	hint.BaseHinter
 	h      util.Hash
 	height Height

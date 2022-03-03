@@ -17,6 +17,7 @@ var (
 )
 
 type dummySeal struct {
+	util.DefaultJSONMarshaled
 	BaseSeal
 }
 
@@ -248,7 +249,7 @@ func TestDummySealJSON(tt *testing.T) {
 		t.NoError(sl.Sign(t.priv, t.networkID))
 		t.NoError(sl.IsValid(t.networkID))
 
-		b, err := t.enc.Marshal(sl)
+		b, err := t.enc.Marshal(&sl)
 		t.NoError(err)
 
 		return sl, b

@@ -127,7 +127,7 @@ func (st *ConsensusHandler) processProposal(ivp base.INITVoteproof) {
 	l.Debug().Msg("proposal processed")
 
 	eavp := st.lastVoteproof().accept()
-	if eavp == nil || eavp.Point().Point != ivp.Point().Point {
+	if eavp == nil || !eavp.Point().Point.Equal(ivp.Point().Point) {
 		return
 	}
 
@@ -372,7 +372,7 @@ func (st *ConsensusHandler) newACCEPTVoteproofWithLastINITVoteproof(
 ) error {
 	livp := lvps.cap().(base.INITVoteproof)
 	switch {
-	case avp.Point().Point == livp.Point().Point: // NOTE expected accept voteproof
+	case avp.Point().Point.Equal(livp.Point().Point): // NOTE expected accept voteproof
 		if avp.Result() == base.VoteResultMajority {
 			return st.saveBlock(avp)
 		}

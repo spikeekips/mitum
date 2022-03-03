@@ -12,6 +12,7 @@ import (
 var PolicyHint = hint.MustNewHint("isaac-policy-v0.0.1")
 
 type Policy struct {
+	util.DefaultJSONMarshaled
 	base.BasePolicy
 	intervalBroadcastBallot time.Duration
 	waitProcessingProposal  time.Duration

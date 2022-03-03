@@ -30,6 +30,7 @@ type FixedTreeNode interface {
 }
 
 type BaseFixedTreeNode struct {
+	util.DefaultJSONMarshaled
 	hint.BaseHinter
 	index uint64
 	key   []byte
@@ -99,6 +100,7 @@ func (no BaseFixedTreeNode) SetHash(h []byte) FixedTreeNode {
 }
 
 type FixedTree struct {
+	util.DefaultJSONMarshaled
 	hint.BaseHinter
 	nodes []FixedTreeNode
 }

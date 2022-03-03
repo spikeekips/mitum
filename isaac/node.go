@@ -11,6 +11,7 @@ import (
 var NodeHint = hint.MustNewHint("node-v0.0.1")
 
 type LocalNode struct {
+	util.DefaultJSONMarshaled
 	addr base.Address
 	priv base.Privatekey
 }
@@ -60,6 +61,7 @@ func (n LocalNode) MarshalJSON() ([]byte, error) {
 }
 
 type RemoteNode struct {
+	util.DefaultJSONMarshaled
 	hint.BaseHinter
 	addr base.Address
 	pub  base.Publickey

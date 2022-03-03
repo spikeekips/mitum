@@ -12,6 +12,7 @@ var (
 )
 
 type baseBallot struct {
+	util.DefaultJSONMarshaled
 	hint.BaseHinter
 	vp         base.Voteproof
 	signedFact base.BallotSignedFact

@@ -47,7 +47,7 @@ func checkINITVoteproofInINITBallot(bl INITBallot, vp INITVoteproof) error {
 	switch {
 	case bl.Point().Round() == 0:
 		return e(util.InvalidError.Errorf("init voteproof should not be in 0 round init ballot"), "")
-	case vp.Point().Point.NextRound() != bl.Point().Point:
+	case !vp.Point().Point.NextRound().Equal(bl.Point().Point):
 		return e(util.InvalidError.Errorf(
 			"wrong point of init voteproof; ballot(%q) == voteproof(%q)", bl.Point(), vp.Point()), "")
 	case vp.Result() != VoteResultDraw:
@@ -70,7 +70,7 @@ func checkACCEPTVoteproofInINITBallot(bl INITBallot, vp ACCEPTVoteproof) error {
 			), "")
 		}
 	default:
-		if vp.Point().Point.NextRound() != bl.Point().Point {
+		if !vp.Point().Point.NextRound().Equal(bl.Point().Point) {
 			return e(util.InvalidError.Errorf(
 				"wrong point of accept voteproof; ballot(%q) == voteproof(%q)", bl.Point(), vp.Point()), "")
 		}
@@ -86,7 +86,7 @@ func checkVoteproofInACCEPTBallot(bl Ballot, vp INITVoteproof) error {
 	}
 
 	switch {
-	case bl.Point().Point != vp.Point().Point:
+	case !bl.Point().Point.Equal(vp.Point().Point):
 		return e(util.InvalidError.Errorf(
 			"wrong point of init voteproof; ballot(%q) == voteproof(%q)", bl.Point(), vp.Point()), "")
 	case vp.Result() != VoteResultMajority:

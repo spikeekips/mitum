@@ -147,7 +147,7 @@ func TestINITBallotFactJSON(tt *testing.T) {
 	t.Encode = func() (interface{}, []byte) {
 		bl := NewINITBallotFact(base.RawPoint(33, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256())
 
-		b, err := t.enc.Marshal(bl)
+		b, err := t.enc.Marshal(&bl)
 		t.NoError(err)
 
 		return bl, b
@@ -174,7 +174,7 @@ func TestACCEPTBallotFactJSON(tt *testing.T) {
 			valuehash.RandomSHA256(),
 		)
 
-		b, err := t.enc.Marshal(bl)
+		b, err := t.enc.Marshal(&bl)
 		t.NoError(err)
 
 		return bl, b

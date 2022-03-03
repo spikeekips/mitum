@@ -81,6 +81,7 @@ func (r Round) MarshalZerologObject(e *zerolog.Event) {
 }
 
 type Point struct {
+	util.DefaultJSONMarshaled
 	h Height
 	r Round
 }
@@ -115,6 +116,10 @@ func (p Point) IsValid([]byte) error {
 	}
 
 	return nil
+}
+
+func (p Point) Equal(b Point) bool {
+	return p.h == b.h && p.r == b.r
 }
 
 func (p Point) Compare(b Point) int {
@@ -207,6 +212,7 @@ func (p *Point) UnmarshalJSON(b []byte) error {
 }
 
 type StagePoint struct {
+	util.DefaultJSONMarshaled
 	Point
 	stage Stage
 }
@@ -254,6 +260,10 @@ func (p StagePoint) Bytes() []byte {
 
 func (p StagePoint) String() string {
 	return fmt.Sprintf("{StagePoint height=%d round=%d stage=%s}", p.h, p.r, p.stage)
+}
+
+func (p StagePoint) Equal(b StagePoint) bool {
+	return p.Point.Equal(b.Point) && p.stage == b.stage
 }
 
 func (p StagePoint) Compare(b StagePoint) int {

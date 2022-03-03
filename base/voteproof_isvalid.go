@@ -155,7 +155,7 @@ func isValidFactInVoteproof(vp Voteproof, fact BallotFact) error {
 	e := util.StringErrorFunc("invalid fact in voteproof")
 
 	// NOTE check point
-	if vp.Point() != fact.Point() {
+	if !vp.Point().Equal(fact.Point()) {
 		return e(util.InvalidError.Errorf(
 			"point does not match, voteproof(%q) != fact(%q)", vp.Point(), fact.Point()), "")
 	}

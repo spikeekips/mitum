@@ -52,7 +52,7 @@ func (t *testFixedTreeNode) TestEmptyHash() {
 func (t *testFixedTreeNode) TestEncodeJSON() {
 	no := newDummyNodeWithHash(20, util.UUID().Bytes(), util.UUID().Bytes())
 
-	b, err := util.MarshalJSON(no)
+	b, err := util.MarshalJSON(&no)
 	t.NoError(err)
 	t.NotNil(b)
 
@@ -224,7 +224,7 @@ func (t *testFixedTree) TestEncodeJSON() {
 	t.NoError(err)
 	t.NoError(tr.IsValid(nil))
 
-	b, err := util.MarshalJSON(tr)
+	b, err := util.MarshalJSON(&tr)
 	t.NoError(err)
 
 	enc := jsonenc.NewEncoder()

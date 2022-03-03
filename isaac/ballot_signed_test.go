@@ -105,7 +105,7 @@ func TestACCEPTBallotSignedFact(tt *testing.T) {
 	suite.Run(tt, t)
 }
 
-func TestINITBallotSignedFactEncode(tt *testing.T) {
+func TestINITBallotSignedFactJSON(tt *testing.T) {
 	t := new(encoder.BaseTestEncode)
 
 	enc := jsonenc.NewEncoder()
@@ -123,7 +123,7 @@ func TestINITBallotSignedFactEncode(tt *testing.T) {
 		t.NoError(sb.Sign(priv, networkID))
 		t.NoError(sb.IsValid(networkID))
 
-		b, err := enc.Marshal(sb)
+		b, err := enc.Marshal(&sb)
 		t.NoError(err)
 
 		return sb, b
@@ -150,7 +150,7 @@ func TestINITBallotSignedFactEncode(tt *testing.T) {
 	suite.Run(tt, t)
 }
 
-func TestACCEPTBallotSignedFactEncode(tt *testing.T) {
+func TestACCEPTBallotSignedFactJSON(tt *testing.T) {
 	t := new(encoder.BaseTestEncode)
 
 	enc := jsonenc.NewEncoder()
@@ -168,7 +168,7 @@ func TestACCEPTBallotSignedFactEncode(tt *testing.T) {
 		t.NoError(sb.Sign(priv, networkID))
 		t.NoError(sb.IsValid(networkID))
 
-		b, err := enc.Marshal(sb)
+		b, err := enc.Marshal(&sb)
 		t.NoError(err)
 
 		return sb, b

@@ -31,7 +31,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestHigherHeight() {
 			return nil, err
 		}
 
-		if pr.Point() == point {
+		if pr.Point().Equal(point) {
 			prch <- facthash
 		}
 
@@ -83,7 +83,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestNextRoundButAlreadyFini
 			return nil, err
 		}
 
-		if pr.Point() == point {
+		if pr.Point().Equal(point) {
 			prch <- facthash
 		}
 
@@ -136,9 +136,9 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBeforePreviousBlock
 	ballotch := make(chan base.Ballot, 1)
 	st.broadcastBallotFunc = func(bl base.Ballot) error {
 		switch {
-		case bl.Point().Point == point.Next():
+		case bl.Point().Point.Equal(point.Next()):
 			ballotch <- bl
-		case bl.Point().Point == point.Next().NextRound():
+		case bl.Point().Point.Equal(point.Next().NextRound()):
 			ballotch <- bl
 		}
 
@@ -225,9 +225,9 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBefore() {
 	ballotch := make(chan base.Ballot, 1)
 	st.broadcastBallotFunc = func(bl base.Ballot) error {
 		switch {
-		case bl.Point().Point == point.Next():
+		case bl.Point().Point.Equal(point.Next()):
 			ballotch <- bl
-		case bl.Point().Point == point.Next().NextRound():
+		case bl.Point().Point.Equal(point.Next().NextRound()):
 			ballotch <- bl
 		}
 
@@ -319,11 +319,11 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawAndDrawAgain() {
 	ballotch := make(chan base.Ballot, 1)
 	st.broadcastBallotFunc = func(bl base.Ballot) error {
 		switch {
-		case bl.Point().Point == point.Next():
+		case bl.Point().Point.Equal(point.Next()):
 			ballotch <- bl
-		case bl.Point().Point == point.Next().NextRound():
+		case bl.Point().Point.Equal(point.Next().NextRound()):
 			ballotch <- bl
-		case bl.Point().Point == point.Next().NextRound().NextRound():
+		case bl.Point().Point.Equal(point.Next().NextRound().NextRound()):
 			ballotch <- bl
 		}
 
@@ -426,7 +426,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestExpected() {
 
 	ballotch := make(chan base.Ballot, 1)
 	st.broadcastBallotFunc = func(bl base.Ballot) error {
-		if p := bl.Point(); p.Point == point.Next() && p.Stage() == base.StageACCEPT {
+		if p := bl.Point(); p.Point.Equal(point.Next()) && p.Stage() == base.StageACCEPT {
 			ballotch <- bl
 		}
 
@@ -496,9 +496,9 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestHigherHeight() {
 	ballotch := make(chan base.Ballot, 1)
 	st.broadcastBallotFunc = func(bl base.Ballot) error {
 		switch {
-		case bl.Point().Point == point.Next():
+		case bl.Point().Point.Equal(point.Next()):
 			ballotch <- bl
-		case bl.Point().Point == point.Next().NextRound():
+		case bl.Point().Point.Equal(point.Next().NextRound()):
 			ballotch <- bl
 		}
 
@@ -561,9 +561,9 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestPreviousBlockNotMatch
 	ballotch := make(chan base.Ballot, 1)
 	st.broadcastBallotFunc = func(bl base.Ballot) error {
 		switch {
-		case bl.Point().Point == point.Next():
+		case bl.Point().Point.Equal(point.Next()):
 			ballotch <- bl
-		case bl.Point().Point == point.Next().NextRound():
+		case bl.Point().Point.Equal(point.Next().NextRound()):
 			ballotch <- bl
 		}
 

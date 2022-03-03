@@ -653,7 +653,7 @@ end:
 		case avp := <-savedch:
 			t.T().Logf("new block saved: %q", avp.Point())
 
-			if avp.Point().Point == target {
+			if avp.Point().Point.Equal(target) {
 				t.T().Logf("< all new blocks saved, %q", target)
 
 				break end
