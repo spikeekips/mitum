@@ -208,7 +208,7 @@ func TestStringAddressDecodeAddressFromString(tt *testing.T) {
 		var s string
 		t.NoError(t.enc.Unmarshal(b, &s))
 
-		i, err := DecodeAddressFromString(s, t.enc)
+		i, err := DecodeAddress(s, t.enc)
 		t.NoError(err)
 
 		uad, ok := i.(StringAddress)
@@ -238,7 +238,7 @@ func TestStringAddressJSON(tt *testing.T) {
 		}
 		t.NoError(t.enc.Unmarshal(b, &u))
 
-		i, err := DecodeAddressFromString(u.A, t.enc)
+		i, err := DecodeAddress(u.A, t.enc)
 		t.NoError(err)
 
 		uad, ok := i.(StringAddress)
@@ -262,7 +262,7 @@ func TestNilStringAddressJSONHinted(tt *testing.T) {
 		}
 		t.NoError(t.enc.Unmarshal(b, &u))
 
-		i, err := DecodeAddressFromString(u.A, t.enc)
+		i, err := DecodeAddress(u.A, t.enc)
 		t.NoError(err)
 
 		return i

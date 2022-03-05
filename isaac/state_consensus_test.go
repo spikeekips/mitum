@@ -328,7 +328,7 @@ func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailed() {
 	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
 		if i < 1 {
 			i++
-			return nil, retryProposalProcessorError.Errorf("findme")
+			return nil, RetryProposalProcessorError.Errorf("findme")
 		}
 
 		return t.prpool.factByHash(facthash)
@@ -371,7 +371,7 @@ func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailedRetry
 		if i := atomic.LoadInt64(&c); i < 1 {
 			atomic.AddInt64(&c, 1)
 
-			return nil, retryProposalProcessorError.Errorf("findme")
+			return nil, RetryProposalProcessorError.Errorf("findme")
 		}
 
 		return nil, errors.Errorf("hahaha")
@@ -382,7 +382,7 @@ func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailedRetry
 		if i := atomic.LoadInt64(&g); i < 1 {
 			atomic.AddInt64(&g, 1)
 
-			return nil, retryProposalProcessorError.Errorf("findme")
+			return nil, RetryProposalProcessorError.Errorf("findme")
 		}
 
 		return t.prpool.factByHash(facthash)

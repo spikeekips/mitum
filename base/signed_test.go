@@ -20,7 +20,7 @@ func (t *testSigned) TestNew() {
 	s := NewBaseSigned(
 		NewMPrivatekey().Publickey(),
 		Signature([]byte("showme")),
-		localtime.Now(),
+		localtime.UTCNow(),
 	)
 	t.NoError(s.IsValid(nil))
 
@@ -31,7 +31,7 @@ func (t *testSigned) TestEmptySigner() {
 	s := NewBaseSigned(
 		nil,
 		Signature([]byte("showme")),
-		localtime.Now(),
+		localtime.UTCNow(),
 	)
 
 	err := s.IsValid(nil)
@@ -44,7 +44,7 @@ func (t *testSigned) TestEmptySignature() {
 	s := NewBaseSigned(
 		NewMPrivatekey().Publickey(),
 		nil,
-		localtime.Now(),
+		localtime.UTCNow(),
 	)
 
 	err := s.IsValid(nil)
@@ -70,19 +70,12 @@ func (t *testSigned) TestSignedAndVerify() {
 	priv := NewMPrivatekey()
 	input := util.UUID().Bytes()
 
-	sig, err := priv.Sign(input)
+	s, err := BaseSignedFromBytes(priv, nil, input)
 	t.NoError(err)
-
-	t.NoError(priv.Publickey().Verify(input, sig))
-
-	s := NewBaseSigned(
-		priv.Publickey(),
-		sig,
-		localtime.Now(),
-	)
 	t.NoError(s.IsValid(nil))
 
 	t.NoError(s.Verify(nil, input))
+
 	err = s.Verify(nil, util.UUID().Bytes())
 	t.Error(err)
 	t.True(errors.Is(err, SignatureVerificationError))
@@ -117,14 +110,9 @@ func TestBaseSignedJSON(tt *testing.T) {
 
 	t.Encode = func() (interface{}, []byte) {
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: MPublickeyHint, Instance: MPublickey{}}))
-		sig, err := priv.Sign(input)
-		t.NoError(err)
 
-		s := NewBaseSigned(
-			priv.Publickey(),
-			sig,
-			localtime.Now(),
-		)
+		s, err := BaseSignedFromBytes(priv, nil, input)
+		t.NoError(err)
 
 		b, err := enc.Marshal(s)
 		t.NoError(err)

@@ -121,7 +121,7 @@ func (n *RemoteNode) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "")
 	}
 
-	switch i, err := base.DecodeAddressFromString(u.Addr, enc); {
+	switch i, err := base.DecodeAddress(u.Addr, enc); {
 	case err != nil:
 		return e(err, "failed to decode node address")
 	default:

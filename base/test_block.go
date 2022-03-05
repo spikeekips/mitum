@@ -32,8 +32,8 @@ func NewDummyManifest(height Height, h util.Hash) DummyManifest {
 	return DummyManifest{
 		h:             h,
 		height:        height,
-		createdAt:     localtime.Now(),
-		nodeCreatedAt: localtime.Now(),
+		createdAt:     localtime.UTCNow(),
+		nodeCreatedAt: localtime.UTCNow(),
 	}
 }
 

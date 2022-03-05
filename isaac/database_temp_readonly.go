@@ -43,11 +43,11 @@ func newTempRODatabase(
 		st:           st,
 	}
 
-	if err := db.loadManifests(); err != nil {
+	if err := db.loadManifest(); err != nil {
 		return nil, err
 	}
 
-	if err := db.loadSuffrages(); err != nil {
+	if err := db.loadSuffrage(); err != nil {
 		return nil, err
 	}
 
@@ -73,39 +73,33 @@ func newTempRODatabaseFromWOStorage(wst *TempWODatabase) (*TempRODatabase, error
 	}, nil
 }
 
-func (db *TempRODatabase) LastManifest() (base.Manifest, bool, error) {
+func (db *TempRODatabase) Height() (manifestHeight base.Height, suffrageHeight base.Height) {
+	sh := base.NilHeight
 	if db.m == nil {
-		return nil, false, nil
+		return base.NilHeight, sh
 	}
 
-	return db.m, true, nil
-}
-
-func (db *TempRODatabase) Manifest(height base.Height) (base.Manifest, bool, error) {
-	if db.m.Height() == height {
-		return db.m, true, nil
+	if db.sufstt != nil {
+		sh = db.sufstt.Value().(base.SuffrageStateValue).Height()
 	}
 
-	return nil, false, nil
+	return db.m.Height(), sh
 }
 
-func (db *TempRODatabase) LastSuffrage() (base.State, bool, error) {
+func (db *TempRODatabase) Manifest() (base.Manifest, error) {
+	if db.m == nil {
+		return nil, storage.NotFoundError.Errorf("manifest not found")
+	}
+
+	return db.m, nil
+}
+
+func (db *TempRODatabase) Suffrage() (base.State, bool, error) {
 	if db.sufstt == nil {
 		return nil, false, nil
 	}
 
 	return db.sufstt, true, nil
-}
-
-func (db *TempRODatabase) Suffrage(suffrageHeight base.Height) (base.State, bool, error) {
-	switch {
-	case db.sufstt == nil:
-		return nil, false, nil
-	case db.sufstt.Height() != suffrageHeight:
-		return nil, false, nil
-	default:
-		return db.sufstt, true, nil
-	}
 }
 
 func (db *TempRODatabase) State(h util.Hash) (base.State, bool, error) {
@@ -135,7 +129,7 @@ func (db *TempRODatabase) ExistsOperation(h util.Hash) (bool, error) {
 	}
 }
 
-func (db *TempRODatabase) loadManifests() error {
+func (db *TempRODatabase) loadManifest() error {
 	e := util.StringErrorFunc("failed to load manifest")
 
 	switch b, found, err := db.st.Get(manifestDBKey()); {
@@ -144,7 +138,7 @@ func (db *TempRODatabase) loadManifests() error {
 	case !found:
 		return e(err, "manifest not found")
 	default:
-		m, err := db.loadManifest(b)
+		m, err := db.decodeManifest(b)
 		if err != nil {
 			return e(err, "")
 		}
@@ -155,7 +149,7 @@ func (db *TempRODatabase) loadManifests() error {
 	}
 }
 
-func (db *TempRODatabase) loadSuffrages() error {
+func (db *TempRODatabase) loadSuffrage() error {
 	e := util.StringErrorFunc("failed to load suffrage state")
 
 	var h util.Hash
@@ -174,7 +168,7 @@ func (db *TempRODatabase) loadSuffrages() error {
 	case !found:
 		return e(nil, "suffrage state not found")
 	default:
-		st, err := db.loadSuffrage(b)
+		st, err := db.decodeSuffrage(b)
 		if err != nil {
 			return e(err, "")
 		}
@@ -185,7 +179,7 @@ func (db *TempRODatabase) loadSuffrages() error {
 	}
 }
 
-func (db *TempRODatabase) loadManifest(b []byte) (base.Manifest, error) {
+func (db *TempRODatabase) decodeManifest(b []byte) (base.Manifest, error) {
 	if b == nil {
 		return nil, nil
 	}
@@ -208,7 +202,7 @@ func (db *TempRODatabase) loadManifest(b []byte) (base.Manifest, error) {
 	}
 }
 
-func (db *TempRODatabase) loadSuffrage(b []byte) (base.State, error) {
+func (db *TempRODatabase) decodeSuffrage(b []byte) (base.State, error) {
 	e := util.StringErrorFunc("failed to load suffrage")
 
 	switch i, err := db.loadState(b); {

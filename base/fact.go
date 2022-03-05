@@ -1,11 +1,13 @@
 package base
 
 import (
+	"math"
+
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
 )
 
-const MaxTokenSize = 100
+const MaxTokenSize = math.MaxUint16
 
 type Fact interface {
 	hint.Hinter

@@ -509,7 +509,7 @@ func (st *ConsensusHandler) saveBlock(avp base.ACCEPTVoteproof) error {
 		go st.nextBlock(avp)
 
 		return nil
-	case errors.Is(err, notProposalProcessorProcessedError):
+	case errors.Is(err, NotProposalProcessorProcessedError):
 		l.Debug().Msg("no processed proposal; moves to syncing state")
 
 		return newSyncingSwitchContext(StateConsensus, avp.Point().Height())

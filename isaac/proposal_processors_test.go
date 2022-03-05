@@ -117,7 +117,7 @@ func (t *testProposalProcessors) TestAlreadyProcessing() {
 	t.NoError(err)
 
 	t.NotNil(pps.processor())
-	t.True(pr.Fact().Hash().Equal(pps.processor().proposal().Hash()))
+	t.True(pr.Fact().Hash().Equal(pps.processor().Proposal().Hash()))
 }
 
 func (t *testProposalProcessors) TestCancelPrevious() {
@@ -215,7 +215,7 @@ func (t *testProposalProcessors) TestRetryFetchFact() {
 
 			atomic.AddInt64(&try, 1)
 
-			return nil, retryProposalProcessorError.Call()
+			return nil, RetryProposalProcessorError.Call()
 		},
 	)
 	pps.limit = 4
@@ -237,7 +237,7 @@ func (t *testProposalProcessors) TestRetryFetchFactOverLimit() {
 		func(context.Context, util.Hash) (base.ProposalFact, error) {
 			atomic.AddInt64(&try, 1)
 
-			return nil, retryProposalProcessorError.Call()
+			return nil, RetryProposalProcessorError.Call()
 		},
 	)
 	pps.limit = 3
@@ -284,7 +284,7 @@ func (t *testProposalProcessors) TestProcessIgnoreError() {
 	pp := NewDummyProposalProcessor()
 
 	pp.processerr = func(context.Context, base.ProposalFact) (base.Manifest, error) {
-		return nil, ignoreErrorProposalProcessorError.Call()
+		return nil, IgnoreErrorProposalProcessorError.Call()
 	}
 
 	pps := newProposalProcessors(
@@ -339,7 +339,7 @@ func (t *testProposalProcessors) TestProcessRetry() {
 	var try int64
 	pp.processerr = func(context.Context, base.ProposalFact) (base.Manifest, error) {
 		atomic.AddInt64(&try, 1)
-		return nil, retryProposalProcessorError.Call()
+		return nil, RetryProposalProcessorError.Call()
 	}
 
 	pps := newProposalProcessors(
@@ -379,7 +379,7 @@ func (t *testProposalProcessors) TestSaveError() {
 	pp.saveerr = func(context.Context, base.ACCEPTVoteproof) error {
 		atomic.AddInt64(&try, 1)
 
-		return retryProposalProcessorError.Call()
+		return RetryProposalProcessorError.Call()
 	}
 
 	pps := newProposalProcessors(

@@ -12,8 +12,7 @@ import (
 )
 
 type proposalFactJSONMarshaler struct {
-	hint.BaseHinter
-	H          util.Hash      `json:"hash"`
+	base.BaseFactJSONMarshaler
 	Point      base.Point     `json:"point"`
 	Proposer   base.Address   `json:"proposer"`
 	Operations []util.Hash    `json:"operations"`
@@ -21,7 +20,7 @@ type proposalFactJSONMarshaler struct {
 }
 
 type proposalFactJSONUnmarshaler struct {
-	H          valuehash.HashDecoder   `json:"hash"`
+	base.BaseFactJSONUnmarshaler
 	Point      base.Point              `json:"point"`
 	Proposer   string                  `json:"proposer"`
 	Operations []valuehash.HashDecoder `json:"operations"`
@@ -30,12 +29,11 @@ type proposalFactJSONUnmarshaler struct {
 
 func (fact ProposalFact) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(proposalFactJSONMarshaler{
-		BaseHinter: fact.BaseHinter,
-		H:          fact.h,
-		Point:      fact.point,
-		Proposer:   fact.proposer,
-		Operations: fact.operations,
-		ProposedAt: localtime.New(fact.proposedAt),
+		BaseFactJSONMarshaler: fact.BaseFact.JSONMarshaler(),
+		Point:                 fact.point,
+		Proposer:              fact.proposer,
+		Operations:            fact.operations,
+		ProposedAt:            localtime.New(fact.proposedAt),
 	})
 }
 
@@ -47,10 +45,10 @@ func (fact *ProposalFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "")
 	}
 
-	fact.h = u.H.Hash()
+	fact.BaseFact.SetJSONUnmarshaler(u.BaseFactJSONUnmarshaler)
 	fact.point = u.Point
 
-	switch i, err := base.DecodeAddressFromString(u.Proposer, enc); {
+	switch i, err := base.DecodeAddress(u.Proposer, enc); {
 	case err != nil:
 		return e(err, "failed to decode proposer address")
 	default:

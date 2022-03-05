@@ -6,6 +6,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/storage"
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -44,6 +45,22 @@ func newTempWODatabase(
 		st:           st,
 		height:       height,
 	}
+}
+
+func (db *TempWODatabase) Cancel() error {
+	if err := db.Remove(); err != nil {
+		return errors.Wrap(err, "failed to cancel TempWODatabase")
+	}
+
+	return nil
+}
+
+func (db *TempWODatabase) Manifest() (base.Manifest, error) {
+	if db.m == nil {
+		return nil, storage.NotFoundError.Errorf("empty manifest")
+	}
+
+	return db.m, nil
 }
 
 func (db *TempWODatabase) SetManifest(m base.Manifest) error {

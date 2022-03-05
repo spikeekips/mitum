@@ -12,21 +12,14 @@ import (
 	"github.com/spikeekips/mitum/util/logging"
 )
 
-// ignoreErrorProposalProcessorError ignores error from proposalProcessor, it means
-// none ignoreErrorProposalProcessorError from proposalProcessor will break
+// IgnoreErrorProposalProcessorError ignores error from proposalProcessor, it means
+// none IgnoreErrorProposalProcessorError from proposalProcessor will break
 // consensus.
 var (
-	ignoreErrorProposalProcessorError  = util.NewError("proposal processor somthing wrong; ignore")
-	retryProposalProcessorError        = util.NewError("proposal processor somthing wrong; but retry")
-	notProposalProcessorProcessedError = util.NewError("proposal processor not processed")
+	IgnoreErrorProposalProcessorError  = util.NewError("proposal processor somthing wrong; ignore")
+	RetryProposalProcessorError        = util.NewError("proposal processor somthing wrong; but retry")
+	NotProposalProcessorProcessedError = util.NewError("proposal processor not processed")
 )
-
-type proposalProcessor interface {
-	process(context.Context) (base.Manifest, error)
-	save(context.Context, base.ACCEPTVoteproof) error
-	cancel() error
-	proposal() base.ProposalFact
-}
 
 type proposalProcessors struct {
 	sync.RWMutex
@@ -89,11 +82,11 @@ func (pps *proposalProcessors) save(ctx context.Context, facthash util.Hash, avp
 	case pps.p == nil:
 		l.Debug().Msg("proposal processor not found")
 
-		return notProposalProcessorProcessedError.Call()
-	case !pps.p.proposal().Hash().Equal(facthash):
+		return NotProposalProcessorProcessedError.Call()
+	case !pps.p.Proposal().Hash().Equal(facthash):
 		l.Debug().Msg("proposal processor not found")
 
-		return notProposalProcessorProcessedError.Call()
+		return NotProposalProcessorProcessedError.Call()
 	}
 
 	err := runLoopP(
@@ -103,13 +96,13 @@ func (pps *proposalProcessors) save(ctx context.Context, facthash util.Hash, avp
 				return false, e(nil, "too many retry; stop")
 			}
 
-			err := pps.p.save(ctx, avp)
+			err := pps.p.Save(ctx, avp)
 			switch {
 			case err == nil:
 				return false, nil
 			case errors.Is(err, context.Canceled):
-				return false, notProposalProcessorProcessedError.Call()
-			case errors.Is(err, retryProposalProcessorError):
+				return false, NotProposalProcessorProcessedError.Call()
+			case errors.Is(err, RetryProposalProcessorError):
 				pps.Log().Debug().Msg("failed to save proposal; will retry")
 
 				return true, nil
@@ -141,7 +134,7 @@ func (pps *proposalProcessors) fetchFact(ctx context.Context, facthash util.Hash
 				fact = j
 
 				return false, nil
-			case errors.Is(err, retryProposalProcessorError):
+			case errors.Is(err, RetryProposalProcessorError):
 				pps.Log().Debug().Msg("failed to fetch fact; will retry")
 
 				return true, nil
@@ -164,16 +157,16 @@ func (pps *proposalProcessors) newProcessor(ctx context.Context, facthash util.H
 	l := pps.Log().With().Stringer("fact", facthash).Logger()
 	if pps.p != nil {
 		p := pps.p
-		if p.proposal().Hash().Equal(facthash) {
+		if p.Proposal().Hash().Equal(facthash) {
 			l.Debug().Msg("propsal already processed")
 
 			return nil, nil
 		}
 
-		if err := p.cancel(); err != nil {
+		if err := p.Cancel(); err != nil {
 			l.Debug().
 				Err(err).
-				Stringer("previous_processor", p.proposal().Hash()).
+				Stringer("previous_processor", p.Proposal().Hash()).
 				Msg("failed to cancel previous running processor")
 
 			return nil, e(err, "")
@@ -200,14 +193,14 @@ func (pps *proposalProcessors) runProcessor(ctx context.Context, p proposalProce
 				return false, errors.Errorf("too many retry; stop")
 			}
 
-			switch m, err := p.process(ctx); {
+			switch m, err := p.Process(ctx); {
 			case err == nil:
 				manifest = m
 
 				return false, nil
-			case errors.Is(err, retryProposalProcessorError):
+			case errors.Is(err, RetryProposalProcessorError):
 				return true, nil
-			case errors.Is(err, ignoreErrorProposalProcessorError):
+			case errors.Is(err, IgnoreErrorProposalProcessorError):
 				return false, nil
 			default:
 				return false, err
@@ -228,7 +221,7 @@ func (pps *proposalProcessors) close() error {
 	}
 
 	e := util.StringErrorFunc("failed to close proposal processors")
-	if err := pps.p.cancel(); err != nil {
+	if err := pps.p.Cancel(); err != nil {
 		return e(err, "")
 	}
 

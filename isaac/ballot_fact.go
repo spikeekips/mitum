@@ -14,28 +14,16 @@ var (
 
 type baseBallotFact struct {
 	util.DefaultJSONMarshaled
-	hint.BaseHinter
-	h     util.Hash
+	base.BaseFact
 	point base.StagePoint
 }
 
 func newBaseBallotFact(ht hint.Hint, stage base.Stage, point base.Point) baseBallotFact {
+	sp := base.NewStagePoint(point, stage)
 	return baseBallotFact{
-		BaseHinter: hint.NewBaseHinter(ht),
-		point:      base.NewStagePoint(point, stage),
+		BaseFact: base.NewBaseFact(ht, base.Token(util.ConcatByters(ht, sp))),
+		point:    sp,
 	}
-}
-
-func (fact baseBallotFact) Token() base.Token {
-	if fact.h == nil {
-		return nil
-	}
-
-	return base.Token(fact.h.Bytes())
-}
-
-func (fact baseBallotFact) Hash() util.Hash {
-	return fact.h
 }
 
 func (fact baseBallotFact) Stage() base.Stage {
@@ -47,7 +35,7 @@ func (fact baseBallotFact) Point() base.StagePoint {
 }
 
 func (fact baseBallotFact) hashBytes() []byte {
-	return fact.point.Bytes()
+	return fact.Token()
 }
 
 type INITBallotFact struct {
@@ -63,7 +51,7 @@ func NewINITBallotFact(point base.Point, previousBlock, proposal util.Hash) INIT
 		proposal:       proposal,
 	}
 
-	fact.h = fact.hash()
+	fact.SetHash(fact.hash())
 
 	return fact
 }
@@ -87,7 +75,7 @@ func (fact INITBallotFact) IsValid([]byte) error {
 		return e(err, "")
 	}
 
-	if !fact.h.Equal(fact.hash()) {
+	if !fact.Hash().Equal(fact.hash()) {
 		return util.InvalidError.Errorf("wrong hash of INITBallotFact")
 	}
 
@@ -115,7 +103,7 @@ func NewACCEPTBallotFact(point base.Point, proposal, newBlock util.Hash) ACCEPTB
 		newBlock:       newBlock,
 	}
 
-	fact.h = fact.hash()
+	fact.SetHash(fact.hash())
 
 	return fact
 }
@@ -139,7 +127,7 @@ func (fact ACCEPTBallotFact) IsValid([]byte) error {
 		return e(err, "")
 	}
 
-	if !fact.h.Equal(fact.hash()) {
+	if !fact.Hash().Equal(fact.hash()) {
 		return util.InvalidError.Errorf("wrong hash of ACCEPTBallotFact")
 	}
 

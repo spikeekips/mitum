@@ -5,8 +5,17 @@ import (
 )
 
 type Operation interface {
-	SealBody
 	hint.Hinter
-	Process() ([]State, error)
-	SignedFact() SignedFact
+	SealBody
+	SignedFact
+}
+
+type OperationProcessor interface {
+	PreProcess(StatePool) (bool, error)
+	Process(StatePool) ([]State, error)
+}
+
+type StatePool interface {
+	GetState(key string) (State, bool, error)
+	SetStates([]State) error
 }

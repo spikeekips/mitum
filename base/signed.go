@@ -40,7 +40,8 @@ func BaseSignedFromFact(priv Privatekey, networkID NetworkID, fact Fact) (BaseSi
 }
 
 func BaseSignedFromBytes(priv Privatekey, networkID NetworkID, b []byte) (BaseSigned, error) {
-	sig, err := priv.Sign(util.ConcatBytesSlice(networkID, b))
+	now := localtime.New(localtime.Now())
+	sig, err := priv.Sign(util.ConcatBytesSlice(networkID, b, now.Bytes()))
 	if err != nil {
 		return BaseSigned{}, errors.Wrap(err, "failed to generate BaseSign")
 	}
@@ -48,7 +49,7 @@ func BaseSignedFromBytes(priv Privatekey, networkID NetworkID, b []byte) (BaseSi
 	return BaseSigned{
 		signer:    priv.Publickey(),
 		signature: sig,
-		signedAt:  localtime.Now(),
+		signedAt:  now.Time,
 	}, nil
 }
 
@@ -86,8 +87,12 @@ func (si BaseSigned) IsValid([]byte) error {
 	return nil
 }
 
-func (si BaseSigned) Verify(networkID NetworkID, input []byte) error {
-	if err := si.signer.Verify(util.ConcatBytesSlice(networkID, input), si.signature); err != nil {
+func (si BaseSigned) Verify(networkID NetworkID, b []byte) error {
+	if err := si.signer.Verify(util.ConcatBytesSlice(
+		networkID,
+		b,
+		localtime.New(si.signedAt).Bytes(),
+	), si.signature); err != nil {
 		return errors.Wrap(err, "failed to verfiy sign")
 	}
 

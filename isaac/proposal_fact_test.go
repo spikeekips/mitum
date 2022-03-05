@@ -36,7 +36,7 @@ func (t *testProposalFact) TestNew() {
 
 func (t *testProposalFact) TestEmptyHash() {
 	pr := t.proposal()
-	pr.h = nil
+	pr.SetHash(nil)
 
 	err := pr.IsValid(nil)
 	t.Error(err)
@@ -45,7 +45,7 @@ func (t *testProposalFact) TestEmptyHash() {
 
 func (t *testProposalFact) TestWrongHash() {
 	pr := t.proposal()
-	pr.h = valuehash.RandomSHA256()
+	pr.SetHash(valuehash.RandomSHA256())
 
 	err := pr.IsValid(nil)
 	t.Error(err)

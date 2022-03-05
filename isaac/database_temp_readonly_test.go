@@ -68,51 +68,22 @@ func (t *testRODatabase) TestLoad() {
 	t.NoError(err)
 	defer rst.Remove()
 
-	t.Run("LastManifest", func() {
-		rm, found, err := rst.LastManifest()
+	_ = (interface{})(rst).(TempDatabase)
+
+	t.Run("Manifest", func() {
+		rm, err := rst.Manifest()
 		t.NoError(err)
-		t.True(found)
 
 		base.CompareManifest(t.Assert(), m, rm)
-	})
-
-	t.Run("Manifest by height", func() {
-		rm, found, err := rst.Manifest(m.Height())
-		t.NoError(err)
-		t.True(found)
-		base.CompareManifest(t.Assert(), m, rm)
-	})
-
-	t.Run("Manifest by unknown height", func() {
-		rm, found, err := rst.Manifest(m.Height() + 1)
-		t.NoError(err)
-		t.False(found)
-		t.Nil(rm)
 	})
 
 	t.Run("check last suffrage", func() {
-		rstt, found, err := rst.LastSuffrage()
+		rstt, found, err := rst.Suffrage()
 		t.NotNil(rstt)
 		t.True(found)
 		t.NoError(err)
 
 		t.True(base.IsEqualState(sufstt, rstt))
-	})
-
-	t.Run("check suffrage by height", func() {
-		rstt, found, err := rst.Suffrage(sv.Height())
-		t.NotNil(rstt)
-		t.True(found)
-		t.NoError(err)
-
-		t.True(base.IsEqualState(sufstt, rstt))
-	})
-
-	t.Run("check unknonwn suffrage", func() {
-		rstt, found, err := rst.Suffrage(sv.Height() + 1)
-		t.Nil(rstt)
-		t.NoError(err)
-		t.False(found)
 	})
 
 	t.Run("check states", func() {

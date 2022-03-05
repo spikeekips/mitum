@@ -52,7 +52,7 @@ func (sf *baseBallotSignedFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error
 		sf.fact = j
 	}
 
-	switch i, err := base.DecodeAddressFromString(u.Node, enc); {
+	switch i, err := base.DecodeAddress(u.Node, enc); {
 	case err != nil:
 		return e(err, "failed to decode address")
 	default:

@@ -17,8 +17,7 @@ var (
 )
 
 type ProposalFact struct {
-	hint.BaseHinter
-	h          util.Hash
+	base.BaseFact
 	point      base.Point
 	proposer   base.Address
 	operations []util.Hash
@@ -27,20 +26,16 @@ type ProposalFact struct {
 
 func NewProposalFact(point base.Point, proposer base.Address, operations []util.Hash) ProposalFact {
 	fact := ProposalFact{
-		BaseHinter: hint.NewBaseHinter(ProposalFactHint),
+		BaseFact:   base.NewBaseFact(ProposalFactHint, base.Token(util.ConcatByters(ProposalFactHint, point))),
 		point:      point,
 		proposer:   proposer,
 		operations: operations,
-		proposedAt: localtime.Now(),
+		proposedAt: localtime.UTCNow(),
 	}
 
-	fact.h = fact.hash()
+	fact.SetHash(fact.hash())
 
 	return fact
-}
-
-func (fact ProposalFact) Hash() util.Hash {
-	return fact.h
 }
 
 func (fact ProposalFact) Point() base.Point {
@@ -59,14 +54,6 @@ func (fact ProposalFact) ProposedAt() time.Time {
 	return fact.proposedAt
 }
 
-func (fact ProposalFact) Token() base.Token {
-	if fact.h == nil {
-		return nil
-	}
-
-	return base.Token(fact.h.Bytes())
-}
-
 func (fact ProposalFact) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid ProposalFact")
 
@@ -74,7 +61,7 @@ func (fact ProposalFact) IsValid([]byte) error {
 		return e(err, "")
 	}
 
-	if !fact.h.Equal(fact.hash()) {
+	if !fact.Hash().Equal(fact.hash()) {
 		return util.InvalidError.Errorf("wrong hash of ProposalFact")
 	}
 

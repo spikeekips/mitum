@@ -30,7 +30,7 @@ func (p *DummyProposalProcessor) make(fact base.ProposalFact) proposalProcessor 
 	}
 }
 
-func (p DummyProposalProcessor) process(ctx context.Context) (base.Manifest, error) {
+func (p DummyProposalProcessor) Process(ctx context.Context) (base.Manifest, error) {
 	if p.processerr != nil {
 		return p.processerr(ctx, p.fact)
 	}
@@ -38,7 +38,7 @@ func (p DummyProposalProcessor) process(ctx context.Context) (base.Manifest, err
 	return nil, errors.Errorf("wrong processing")
 }
 
-func (p DummyProposalProcessor) save(ctx context.Context, avp base.ACCEPTVoteproof) error {
+func (p DummyProposalProcessor) Save(ctx context.Context, avp base.ACCEPTVoteproof) error {
 	if p.saveerr != nil {
 		return p.saveerr(ctx, avp)
 	}
@@ -46,7 +46,7 @@ func (p DummyProposalProcessor) save(ctx context.Context, avp base.ACCEPTVotepro
 	return nil
 }
 
-func (p DummyProposalProcessor) cancel() error {
+func (p DummyProposalProcessor) Cancel() error {
 	if p.cancelerr != nil {
 		return p.cancelerr()
 	}
@@ -54,7 +54,7 @@ func (p DummyProposalProcessor) cancel() error {
 	return nil
 }
 
-func (p DummyProposalProcessor) proposal() base.ProposalFact {
+func (p DummyProposalProcessor) Proposal() base.ProposalFact {
 	return p.fact
 }
 

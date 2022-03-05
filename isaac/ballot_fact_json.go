@@ -4,22 +4,17 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
-	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
 )
 
 type baseBallotFactJSONMarshaler struct {
-	hint.BaseHinter
-	H     util.Hash       `json:"hash"`
-	Stage base.Stage      `json:"stage"`
+	base.BaseFactJSONMarshaler
 	Point base.StagePoint `json:"point"`
 }
 
 type baseBallotFactJSONUnmarshaler struct {
-	hint.BaseHinter
-	H     valuehash.HashDecoder `json:"hash"`
-	Stage base.Stage            `json:"stage"`
-	Point base.StagePoint       `json:"point"`
+	base.BaseFactJSONUnmarshaler
+	Point base.StagePoint `json:"point"`
 }
 
 type INITBallotFactJSONMarshaler struct {
@@ -48,9 +43,8 @@ type ACCEPTBallotFactJSONUnmarshaler struct {
 
 func (fact baseBallotFact) jsonMarshaler() baseBallotFactJSONMarshaler {
 	return baseBallotFactJSONMarshaler{
-		BaseHinter: fact.BaseHinter,
-		H:          fact.h,
-		Point:      fact.point,
+		BaseFactJSONMarshaler: fact.BaseFact.JSONMarshaler(),
+		Point:                 fact.point,
 	}
 }
 
@@ -62,7 +56,7 @@ func (fact *baseBallotFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "")
 	}
 
-	fact.h = u.H.Hash()
+	fact.BaseFact.SetJSONUnmarshaler(u.BaseFactJSONUnmarshaler)
 	fact.point = u.Point
 
 	return nil

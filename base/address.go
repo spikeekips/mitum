@@ -33,8 +33,12 @@ func (as Addresses) Swap(i, j int) {
 	as[i], as[j] = as[j], as[i]
 }
 
-// DecodeAddressFromString decodes Address from string.
-func DecodeAddressFromString(s string, enc encoder.Encoder) (Address, error) {
+// DecodeAddress decodes Address from string.
+func DecodeAddress(s string, enc encoder.Encoder) (Address, error) {
+	if len(s) < 1 {
+		return nil, nil
+	}
+
 	e := util.StringErrorFunc("failed to parse address")
 
 	i, err := enc.DecodeWithFixedHintType(s, AddressTypeSize)

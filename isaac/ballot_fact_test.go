@@ -20,10 +20,10 @@ type testBaseBallotFact struct {
 func (t *testBaseBallotFact) setHash(bl base.BallotFact, h util.Hash) base.BallotFact {
 	switch t := bl.(type) {
 	case INITBallotFact:
-		t.h = h
+		t.SetHash(h)
 		return t
 	case ACCEPTBallotFact:
-		t.h = h
+		t.SetHash(h)
 		return t
 	default:
 		panic("unknown BallotFact")
