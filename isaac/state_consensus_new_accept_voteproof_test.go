@@ -64,8 +64,8 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestExpected() {
 
 		return
 	case avp = <-savedch:
-		base.CompareVoteproof(t.Assert(), nextavp, avp)
-		base.CompareVoteproof(t.Assert(), avp, st.lastVoteproof().accept())
+		base.EqualVoteproof(t.Assert(), nextavp, avp)
+		base.EqualVoteproof(t.Assert(), avp, st.lastVoteproof().accept())
 	}
 
 	t.T().Log("wait next init ballot")
@@ -426,8 +426,8 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestHigerHeight() {
 
 		return
 	case ravp := <-savedch:
-		base.CompareVoteproof(t.Assert(), avp, ravp)
-		base.CompareVoteproof(t.Assert(), ravp, st.lastVoteproof().accept())
+		base.EqualVoteproof(t.Assert(), avp, ravp)
+		base.EqualVoteproof(t.Assert(), ravp, st.lastVoteproof().accept())
 	}
 
 	t.T().Log("new accept voteproof; higher height")

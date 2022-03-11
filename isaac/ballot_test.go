@@ -257,7 +257,7 @@ func testBallotEncode() *baseTestBallotEncode {
 
 		t.NoError(bs.IsValid(t.networkID))
 
-		base.CompareBallot(t.Assert(), as, bs)
+		base.EqualBallot(t.Assert(), as, bs)
 	}
 
 	return t

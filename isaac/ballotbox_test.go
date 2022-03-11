@@ -135,12 +135,12 @@ func (t *testBallotbox) TestVoteINITBallotSignedFact() {
 		t.Equal(point, vp.Point().Point)
 		t.Equal(th, vp.Threshold())
 
-		base.CompareBallotFact(t.Assert(), bl.SignedFact().Fact().(base.BallotFact), vp.Majority())
+		base.EqualBallotFact(t.Assert(), bl.SignedFact().Fact().(base.BallotFact), vp.Majority())
 		t.Equal(base.VoteResultMajority, vp.Result())
 
 		t.True(time.Since(vp.FinishedAt()) < time.Millisecond*800)
 		t.Equal(1, len(vp.SignedFacts()))
-		base.CompareBallotSignedFact(t.Assert(), bl.SignedFact(), vp.SignedFacts()[0])
+		base.EqualBallotSignedFact(t.Assert(), bl.SignedFact(), vp.SignedFacts()[0])
 
 		t.compareStagePoint(box.lastStagePoint(), vp)
 	}
@@ -178,12 +178,12 @@ func (t *testBallotbox) TestVoteACCEPTBallotSignedFact() {
 		t.Equal(base.StageACCEPT, vp.Point().Stage())
 		t.Equal(th, vp.Threshold())
 
-		base.CompareBallotFact(t.Assert(), bl.SignedFact().Fact().(base.BallotFact), vp.Majority())
+		base.EqualBallotFact(t.Assert(), bl.SignedFact().Fact().(base.BallotFact), vp.Majority())
 		t.Equal(base.VoteResultMajority, vp.Result())
 
 		t.True(time.Since(vp.FinishedAt()) < time.Millisecond*800)
 		t.Equal(1, len(vp.SignedFacts()))
-		base.CompareBallotSignedFact(t.Assert(), bl.SignedFact(), vp.SignedFacts()[0])
+		base.EqualBallotSignedFact(t.Assert(), bl.SignedFact(), vp.SignedFacts()[0])
 
 		t.compareStagePoint(box.lastStagePoint(), vp)
 	}
@@ -322,7 +322,7 @@ func (t *testBallotbox) TestNilSuffrage() {
 	t.Equal(stagepoint, vr.stagepoint)
 
 	vbl := vr.ballots[n0.Address().String()]
-	base.CompareBallot(t.Assert(), bl, vbl)
+	base.EqualBallot(t.Assert(), bl, vbl)
 }
 
 func (t *testBallotbox) TestNilSuffrageCount() {
@@ -363,12 +363,12 @@ func (t *testBallotbox) TestNilSuffrageCount() {
 		t.Equal(base.StageINIT, vp.Point().Stage())
 		t.Equal(th, vp.Threshold())
 
-		base.CompareBallotFact(t.Assert(), bl.SignedFact().Fact().(base.BallotFact), vp.Majority())
+		base.EqualBallotFact(t.Assert(), bl.SignedFact().Fact().(base.BallotFact), vp.Majority())
 		t.Equal(base.VoteResultMajority, vp.Result())
 
 		t.True(time.Since(vp.FinishedAt()) < time.Millisecond*800)
 		t.Equal(1, len(vp.SignedFacts()))
-		base.CompareBallotSignedFact(t.Assert(), bl.SignedFact(), vp.SignedFacts()[0])
+		base.EqualBallotSignedFact(t.Assert(), bl.SignedFact(), vp.SignedFacts()[0])
 
 		t.compareStagePoint(box.lastStagePoint(), vp)
 	}
@@ -499,7 +499,7 @@ func (t *testBallotbox) TestVoteproofFromBallotACCEPTVoteproof() {
 
 		t.Equal(prevpoint, vp.Point().Point)
 
-		base.CompareVoteproof(t.Assert(), bl.Voteproof(), vp)
+		base.EqualVoteproof(t.Assert(), bl.Voteproof(), vp)
 	}
 }
 
@@ -546,7 +546,7 @@ end:
 	t.Equal(1, len(rvps))
 	t.Equal(point, rvps[0].Point().Point)
 
-	base.CompareVoteproof(t.Assert(), bl.Voteproof(), rvps[0])
+	base.EqualVoteproof(t.Assert(), bl.Voteproof(), rvps[0])
 }
 
 func (t *testBallotbox) TestVoteproofFromBallotWhenCount() {
@@ -614,7 +614,7 @@ end1:
 
 	t.Equal(bl.Voteproof().Point(), rvps[0].Point())
 
-	base.CompareVoteproof(t.Assert(), bl.Voteproof(), rvps[0])
+	base.EqualVoteproof(t.Assert(), bl.Voteproof(), rvps[0])
 }
 
 func (t *testBallotbox) TestAsyncVoterecords() {

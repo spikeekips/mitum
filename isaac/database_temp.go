@@ -115,8 +115,8 @@ func suffrageDBKey() []byte {
 	return keyPrefixSuffrage
 }
 
-func stateDBKey(h util.Hash) []byte {
-	return util.ConcatBytesSlice(keyPrefixState, h.Bytes())
+func stateDBKey(key string) []byte {
+	return util.ConcatBytesSlice(keyPrefixState, []byte(key))
 }
 
 func operationDBKey(h util.Hash) []byte {

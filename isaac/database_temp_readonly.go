@@ -7,7 +7,6 @@ import (
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	"github.com/spikeekips/mitum/util/valuehash"
 )
 
 type TempRODatabase struct {
@@ -73,17 +72,20 @@ func newTempRODatabaseFromWOStorage(wst *TempWODatabase) (*TempRODatabase, error
 	}, nil
 }
 
-func (db *TempRODatabase) Height() (manifestHeight base.Height, suffrageHeight base.Height) {
-	sh := base.NilHeight
+func (db *TempRODatabase) Height() base.Height {
 	if db.m == nil {
-		return base.NilHeight, sh
+		return base.NilHeight
 	}
 
-	if db.sufstt != nil {
-		sh = db.sufstt.Value().(base.SuffrageStateValue).Height()
+	return db.m.Height()
+}
+
+func (db *TempRODatabase) SuffrageHeight() base.Height {
+	if db.sufstt == nil {
+		return base.NilHeight
 	}
 
-	return db.m.Height(), sh
+	return db.sufstt.Value().(base.SuffrageStateValue).Height()
 }
 
 func (db *TempRODatabase) Manifest() (base.Manifest, error) {
@@ -102,10 +104,10 @@ func (db *TempRODatabase) Suffrage() (base.State, bool, error) {
 	return db.sufstt, true, nil
 }
 
-func (db *TempRODatabase) State(h util.Hash) (base.State, bool, error) {
+func (db *TempRODatabase) State(key string) (base.State, bool, error) {
 	e := util.StringErrorFunc("failed to get state")
 
-	switch b, found, err := db.st.Get(stateDBKey(h)); {
+	switch b, found, err := db.st.Get(stateDBKey(key)); {
 	case err != nil:
 		return nil, false, e(err, "")
 	case !found:
@@ -118,6 +120,25 @@ func (db *TempRODatabase) State(h util.Hash) (base.State, bool, error) {
 
 		return i, true, nil
 	}
+}
+
+func (db *TempRODatabase) States(f func(base.State) (bool, error)) error {
+	if err := db.st.Iter(
+		keyPrefixState,
+		func(key []byte, raw []byte) (bool, error) {
+			i, err := db.loadState(raw)
+			if err != nil {
+				return false, errors.Wrap(err, "")
+			}
+
+			return f(i)
+		},
+		true,
+	); err != nil {
+		return errors.Wrap(err, "failed to iter states")
+	}
+
+	return nil
 }
 
 func (db *TempRODatabase) ExistsOperation(h util.Hash) (bool, error) {
@@ -152,17 +173,17 @@ func (db *TempRODatabase) loadManifest() error {
 func (db *TempRODatabase) loadSuffrage() error {
 	e := util.StringErrorFunc("failed to load suffrage state")
 
-	var h util.Hash
+	var key string
 	switch b, found, err := db.st.Get(suffrageDBKey()); {
 	case err != nil:
 		return e(err, "")
 	case !found:
 		return nil
 	default:
-		h = valuehash.NewBytes(b)
+		key = string(b)
 	}
 
-	switch b, found, err := db.st.Get(stateDBKey(h)); {
+	switch b, found, err := db.st.Get(stateDBKey(key)); {
 	case err != nil:
 		return e(err, "")
 	case !found:

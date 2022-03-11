@@ -247,7 +247,7 @@ func (t *testSyncingHandler) TestNewExpectedINITVoteproof() {
 
 		var csctx consensusSwitchContext
 		t.True(errors.As(err, &csctx))
-		base.CompareVoteproof(t.Assert(), ivp, csctx.ivp)
+		base.EqualVoteproof(t.Assert(), ivp, csctx.ivp)
 	})
 }
 
@@ -418,7 +418,7 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 		case sctx := <-sctxch:
 			var csctx consensusSwitchContext
 			t.True(errors.As(sctx, &csctx))
-			base.CompareVoteproof(t.Assert(), ivp, csctx.ivp)
+			base.EqualVoteproof(t.Assert(), ivp, csctx.ivp)
 		}
 	})
 }
@@ -458,7 +458,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 		case sctx := <-sctxch:
 			var jsctx joiningSwitchContext
 			t.True(errors.As(sctx, &jsctx))
-			base.CompareVoteproof(t.Assert(), avp, jsctx.vp)
+			base.EqualVoteproof(t.Assert(), avp, jsctx.vp)
 		}
 	})
 
@@ -539,7 +539,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 		case sctx := <-sctxch:
 			var jsctx joiningSwitchContext
 			t.True(errors.As(sctx, &jsctx))
-			base.CompareVoteproof(t.Assert(), newavp, jsctx.vp)
+			base.EqualVoteproof(t.Assert(), newavp, jsctx.vp)
 		}
 	})
 }

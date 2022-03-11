@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func CompareProposalSignedFact(t *assert.Assertions, a, b ProposalSignedFact) {
+func EqualProposalSignedFact(t *assert.Assertions, a, b ProposalSignedFact) {
 	switch {
 	case a == nil && b == nil:
 		return
@@ -19,14 +19,14 @@ func CompareProposalSignedFact(t *assert.Assertions, a, b ProposalSignedFact) {
 		return
 	}
 
-	CompareSignedFact(t, a, b)
+	EqualSignedFact(t, a, b)
 
 	t.True(a.Hint().Equal(b.Hint()))
 
-	CompareProposalFact(t, a.ProposalFact(), b.ProposalFact())
+	EqualProposalFact(t, a.ProposalFact(), b.ProposalFact())
 }
 
-func CompareProposalFact(t *assert.Assertions, a, b ProposalFact) {
+func EqualProposalFact(t *assert.Assertions, a, b ProposalFact) {
 	switch {
 	case a == nil && b == nil:
 		return
@@ -36,7 +36,7 @@ func CompareProposalFact(t *assert.Assertions, a, b ProposalFact) {
 		return
 	}
 
-	CompareFact(t, a, b)
+	EqualFact(t, a, b)
 	t.Equal(a.Point(), b.Point())
 	t.True(a.Proposer().Equal(b.Proposer()))
 

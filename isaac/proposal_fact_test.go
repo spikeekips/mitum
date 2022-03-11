@@ -121,7 +121,7 @@ func TestProposalFactJSON(tt *testing.T) {
 
 		t.NoError(bf.IsValid(nil))
 
-		base.CompareProposalFact(t.Assert(), af, bf)
+		base.EqualProposalFact(t.Assert(), af, bf)
 	}
 
 	suite.Run(tt, t)

@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func CompareVoteproof(t *assert.Assertions, a, b Voteproof) {
+func EqualVoteproof(t *assert.Assertions, a, b Voteproof) {
 	if a == nil {
 		t.Equal(a, b)
 		return
@@ -20,14 +20,14 @@ func CompareVoteproof(t *assert.Assertions, a, b Voteproof) {
 	t.Equal(a.Point(), b.Point())
 	t.Equal(a.Result(), b.Result())
 
-	CompareBallotFact(t, a.Majority(), b.Majority())
+	EqualBallotFact(t, a.Majority(), b.Majority())
 
 	t.Equal(len(a.SignedFacts()), len(b.SignedFacts()))
 
 	as := a.SignedFacts()
 	bs := b.SignedFacts()
 	for i := range as {
-		CompareBallotSignedFact(t, as[i], bs[i])
+		EqualBallotSignedFact(t, as[i], bs[i])
 	}
 
 	t.Equal(a.Threshold(), b.Threshold())

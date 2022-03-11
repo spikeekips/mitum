@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func CompareBallotSignedFact(t *assert.Assertions, a, b BallotSignedFact) {
+func EqualBallotSignedFact(t *assert.Assertions, a, b BallotSignedFact) {
 	switch {
 	case a == nil && b == nil:
 		return
@@ -18,7 +18,7 @@ func CompareBallotSignedFact(t *assert.Assertions, a, b BallotSignedFact) {
 		return
 	}
 
-	CompareSignedFact(t, a, b)
+	EqualSignedFact(t, a, b)
 
 	t.True(a.Hint().Equal(b.Hint()))
 	t.True(a.Node().Equal(b.Node()))
@@ -33,10 +33,10 @@ func CompareBallotSignedFact(t *assert.Assertions, a, b BallotSignedFact) {
 		bf = b.(ACCEPTBallotSignedFact).BallotFact()
 	}
 
-	CompareBallotFact(t, af, bf)
+	EqualBallotFact(t, af, bf)
 }
 
-func CompareBallotFact(t *assert.Assertions, a, b BallotFact) {
+func EqualBallotFact(t *assert.Assertions, a, b BallotFact) {
 	switch {
 	case a == nil && b == nil:
 		return
@@ -46,32 +46,32 @@ func CompareBallotFact(t *assert.Assertions, a, b BallotFact) {
 		return
 	}
 
-	CompareFact(t, a, b)
+	EqualFact(t, a, b)
 	t.Equal(a.Point(), b.Point())
 
 	switch at := a.(type) {
 	case INITBallotFact:
-		compareINITBallotFact(t, at, b.(INITBallotFact))
+		equalINITBallotFact(t, at, b.(INITBallotFact))
 	case ACCEPTBallotFact:
-		compareACCEPTBallotFact(t, at, b.(ACCEPTBallotFact))
+		equalACCEPTBallotFact(t, at, b.(ACCEPTBallotFact))
 	}
 }
 
-func compareINITBallotFact(t *assert.Assertions, a, b INITBallotFact) {
+func equalINITBallotFact(t *assert.Assertions, a, b INITBallotFact) {
 	t.True(a.Hash().Equal(b.Hash()))
 	t.True(a.PreviousBlock().Equal(b.PreviousBlock()))
 	t.True(a.Proposal().Equal(b.Proposal()))
 }
 
-func compareACCEPTBallotFact(t *assert.Assertions, a, b ACCEPTBallotFact) {
+func equalACCEPTBallotFact(t *assert.Assertions, a, b ACCEPTBallotFact) {
 	t.True(a.Proposal().Equal(b.Proposal()))
 	t.True(a.NewBlock().Equal(b.NewBlock()))
 }
 
-func CompareBallot(t *assert.Assertions, a, b Ballot) {
+func EqualBallot(t *assert.Assertions, a, b Ballot) {
 	t.Equal(a.HashBytes(), b.HashBytes())
 	t.Equal(a.Point(), b.Point())
 
-	CompareBallotSignedFact(t, a.SignedFact(), b.SignedFact())
-	CompareVoteproof(t, a.Voteproof(), b.Voteproof())
+	EqualBallotSignedFact(t, a.SignedFact(), b.SignedFact())
+	EqualVoteproof(t, a.Voteproof(), b.Voteproof())
 }

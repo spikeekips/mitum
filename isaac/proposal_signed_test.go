@@ -118,7 +118,7 @@ func TestProposalSignedFactJSON(tt *testing.T) {
 		bs, ok := b.(ProposalSignedFact)
 		t.True(ok)
 
-		base.CompareProposalSignedFact(t.Assert(), as, bs)
+		base.EqualProposalSignedFact(t.Assert(), as, bs)
 	}
 
 	suite.Run(tt, t)

@@ -35,7 +35,7 @@ func (t *testPoolDatabase) TestProposal() {
 		t.NoError(err)
 		t.True(found)
 
-		base.CompareProposalSignedFact(t.Assert(), pr, upr)
+		base.EqualProposalSignedFact(t.Assert(), pr, upr)
 	})
 
 	t.Run("unknown hash", func() {
@@ -50,7 +50,7 @@ func (t *testPoolDatabase) TestProposal() {
 		t.NoError(err)
 		t.True(found)
 
-		base.CompareProposalSignedFact(t.Assert(), pr, upr)
+		base.EqualProposalSignedFact(t.Assert(), pr, upr)
 	})
 
 	t.Run("unknown point", func() {
@@ -85,7 +85,7 @@ func (t *testPoolDatabase) TestCleanOldProposals() {
 		t.NoError(err)
 		t.True(found)
 
-		base.CompareProposalSignedFact(t.Assert(), oldpr, upr)
+		base.EqualProposalSignedFact(t.Assert(), oldpr, upr)
 	})
 
 	sameheightpr := t.newProposal(t.local, t.newProposalFact(point.Prev(), t.local, []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}))
@@ -105,7 +105,7 @@ func (t *testPoolDatabase) TestCleanOldProposals() {
 		t.NoError(err)
 		t.True(found)
 
-		base.CompareProposalSignedFact(t.Assert(), newpr, upr)
+		base.EqualProposalSignedFact(t.Assert(), newpr, upr)
 	})
 
 	t.Run("same height pr not cleaned", func() {
@@ -113,7 +113,7 @@ func (t *testPoolDatabase) TestCleanOldProposals() {
 		t.NoError(err)
 		t.True(found)
 
-		base.CompareProposalSignedFact(t.Assert(), sameheightpr, upr)
+		base.EqualProposalSignedFact(t.Assert(), sameheightpr, upr)
 	})
 
 	t.Run("old pr cleaned", func() {

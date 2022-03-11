@@ -185,7 +185,7 @@ func (m *DummyManifest) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func CompareManifest(t *assert.Assertions, a, b Manifest) {
+func EqualManifest(t *assert.Assertions, a, b Manifest) {
 	isnil := func(name string, a, b interface{}) bool {
 		if a != nil && b != nil {
 			return false

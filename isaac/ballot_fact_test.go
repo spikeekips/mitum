@@ -131,7 +131,7 @@ func testBallotFactEncode() *baseTestBallotFactEncode {
 
 		t.NoError(bf.IsValid(nil))
 
-		base.CompareBallotFact(t.Assert(), af, bf)
+		base.EqualBallotFact(t.Assert(), af, bf)
 
 		if t.compare != nil {
 			t.compare(af, bf)

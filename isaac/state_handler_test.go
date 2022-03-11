@@ -125,13 +125,16 @@ func (t *baseTestHandler) newACCEPTVoteproof(
 	return vp, nil
 }
 
-func (t *baseTestHandler) nodes(n int) []LocalNode {
+func (t *baseTestHandler) locals(n int) ([]LocalNode, []base.Node) {
 	suf := make([]LocalNode, n)
+	nodes := make([]base.Node, n)
 	for i := range suf {
-		suf[i] = RandomLocalNode()
+		j := RandomLocalNode()
+		suf[i] = j
+		nodes[i] = j
 	}
 
-	return suf
+	return suf, nodes
 }
 
 func (t *baseTestHandler) voteproofsPair(prevpoint, point base.Point, prev, pr, nextpr util.Hash, nodes []LocalNode) (ACCEPTVoteproof, INITVoteproof) {
@@ -154,6 +157,25 @@ func (t *baseTestHandler) voteproofsPair(prevpoint, point base.Point, prev, pr, 
 	t.NoError(err)
 
 	return avp, ivp
+}
+
+func (t *baseTestHandler) suffrageState(height, sufheight base.Height, nodes []base.Node) (base.State, base.SuffrageStateValue) {
+	sv := NewSuffrageStateValue(
+		sufheight,
+		valuehash.RandomSHA256(),
+		nodes,
+	)
+
+	_ = (interface{})(sv).(base.SuffrageStateValue)
+
+	sufstt := base.NewBaseState(
+		height,
+		base.SuffrageStateKey,
+		sv,
+	)
+	sufstt.SetOperations([]util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256(), valuehash.RandomSHA256()})
+
+	return sufstt, sv
 }
 
 type baseStateTestHandler struct {

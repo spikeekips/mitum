@@ -77,7 +77,7 @@ func (t *testJoiningHandler) TestNew() {
 
 	var ssctx consensusSwitchContext
 	t.True(errors.As(err, &ssctx))
-	base.CompareVoteproof(t.Assert(), ivp, ssctx.ivp)
+	base.EqualVoteproof(t.Assert(), ivp, ssctx.ivp)
 }
 
 func (t *testJoiningHandler) TestFailedLastManifest() {

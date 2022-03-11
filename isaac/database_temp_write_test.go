@@ -48,25 +48,20 @@ func (t *testWODatabase) TestSetManifest() {
 	t.NoError(wst.SetManifest(m))
 	t.NoError(wst.Write())
 
-	rst, err := wst.ToRO()
+	rst, err := wst.TempDatabase()
 	t.NoError(err)
 
 	t.Run("Manifest", func() {
 		rm, err := rst.Manifest()
 		t.NoError(err)
 
-		base.CompareManifest(t.Assert(), m, rm)
+		base.EqualManifest(t.Assert(), m, rm)
 	})
 }
 
 func (t *testWODatabase) TestSetStates() {
 	height := base.Height(33)
-	locals := t.nodes(3)
-
-	nodes := make([]base.Node, len(locals))
-	for i := range locals {
-		nodes[i] = locals[i]
-	}
+	_, nodes := t.locals(3)
 
 	sv := NewSuffrageStateValue(
 		base.Height(33),
@@ -95,7 +90,7 @@ func (t *testWODatabase) TestSetStates() {
 	t.NoError(wst.SetStates(stts))
 	t.NoError(wst.Write())
 
-	rst, err := wst.ToRO()
+	rst, err := wst.TempDatabase()
 	t.NoError(err)
 
 	t.Run("check suffrage", func() {
@@ -111,7 +106,7 @@ func (t *testWODatabase) TestSetStates() {
 		for i := range stts {
 			stt := stts[i]
 
-			rstt, found, err := rst.State(stt.Hash())
+			rstt, found, err := rst.State(stt.Key())
 			t.NotNil(rstt)
 			t.True(found)
 			t.NoError(err)
@@ -121,7 +116,7 @@ func (t *testWODatabase) TestSetStates() {
 	})
 
 	t.Run("check unknown states", func() {
-		rstt, found, err := rst.State(valuehash.RandomSHA256())
+		rstt, found, err := rst.State(util.UUID().String())
 		t.Nil(rstt)
 		t.False(found)
 		t.NoError(err)
@@ -143,7 +138,7 @@ func (t *testWODatabase) TestSetOperations() {
 	t.NoError(wst.SetManifest(m))
 	t.NoError(wst.Write())
 
-	rst, err := wst.ToRO()
+	rst, err := wst.TempDatabase()
 	t.NoError(err)
 
 	t.Run("check operation exists", func() {

@@ -144,7 +144,7 @@ func TestINITBallotSignedFactJSON(tt *testing.T) {
 		bs, ok := b.(INITBallotSignedFact)
 		t.True(ok)
 
-		base.CompareBallotSignedFact(t.Assert(), as, bs)
+		base.EqualBallotSignedFact(t.Assert(), as, bs)
 	}
 
 	suite.Run(tt, t)
@@ -189,7 +189,7 @@ func TestACCEPTBallotSignedFactJSON(tt *testing.T) {
 		bs, ok := b.(ACCEPTBallotSignedFact)
 		t.True(ok)
 
-		base.CompareBallotSignedFact(t.Assert(), as, bs)
+		base.EqualBallotSignedFact(t.Assert(), as, bs)
 	}
 
 	suite.Run(tt, t)

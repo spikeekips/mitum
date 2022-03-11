@@ -95,7 +95,7 @@ func testBaseSigned() *encoder.BaseTestEncode {
 
 		t.NoError(bs.IsValid(nil))
 
-		CompareSigned(t.Assert(), as, bs)
+		EqualSigned(t.Assert(), as, bs)
 	}
 
 	return t

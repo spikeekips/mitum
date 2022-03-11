@@ -447,7 +447,7 @@ func (t *testConsensusHandler) TestProcessingProposalWithACCEPTVoteproof() {
 
 		return
 	case ravp := <-savedch:
-		base.CompareVoteproof(t.Assert(), avp, ravp)
+		base.EqualVoteproof(t.Assert(), avp, ravp)
 	}
 }
 

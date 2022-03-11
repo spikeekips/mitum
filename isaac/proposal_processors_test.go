@@ -50,7 +50,7 @@ func (t *testProposalProcessors) TestProcess() {
 	rmanifest, err := pps.process(context.Background(), facthash)
 	t.NoError(err)
 
-	base.CompareManifest(t.Assert(), manifest, rmanifest)
+	base.EqualManifest(t.Assert(), manifest, rmanifest)
 
 	t.T().Log("save")
 	avp, _ := t.voteproofsPair(
@@ -67,7 +67,7 @@ func (t *testProposalProcessors) TestProcess() {
 	case <-time.After(time.Second * 2):
 		t.NoError(errors.Errorf("timeout to wait save"))
 	case ravp := <-savech:
-		base.CompareVoteproof(t.Assert(), avp, ravp)
+		base.EqualVoteproof(t.Assert(), avp, ravp)
 	}
 
 	t.NoError(pps.close())
@@ -397,7 +397,7 @@ func (t *testProposalProcessors) TestSaveError() {
 	rmanifest, err := pps.process(context.Background(), facthash)
 	t.NoError(err)
 
-	base.CompareManifest(t.Assert(), manifest, rmanifest)
+	base.EqualManifest(t.Assert(), manifest, rmanifest)
 
 	t.T().Log("save")
 	avp, _ := t.voteproofsPair(

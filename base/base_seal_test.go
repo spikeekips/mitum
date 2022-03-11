@@ -218,7 +218,7 @@ func testDummySealEncode() *baseTestDummySealEncode {
 		t.NoError(bs.IsValid(t.networkID))
 		t.True(bs.Signed().Signer().Equal(t.priv.Publickey()))
 
-		CompareSeal(t.Assert(), as, bs)
+		EqualSeal(t.Assert(), as, bs)
 
 		abs := as.Body()
 		bbs := bs.Body()

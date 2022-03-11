@@ -314,7 +314,7 @@ func testBaseVoteproofEncode() *baseTestBaseVoteproofEncode {
 
 		t.NoError(bvp.IsValid(t.networkID))
 
-		base.CompareVoteproof(t.Assert(), avp, bvp)
+		base.EqualVoteproof(t.Assert(), avp, bvp)
 	}
 
 	return t

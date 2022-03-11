@@ -24,27 +24,9 @@ func (t *testRODatabase) SetupTest() {
 
 func (t *testRODatabase) TestLoad() {
 	height := base.Height(33)
-	locals := t.nodes(3)
+	_, nodes := t.locals(3)
 
-	nodes := make([]base.Node, len(locals))
-	for i := range locals {
-		nodes[i] = locals[i]
-	}
-
-	sv := NewSuffrageStateValue(
-		base.Height(33),
-		valuehash.RandomSHA256(),
-		nodes,
-	)
-
-	_ = (interface{})(sv).(base.SuffrageStateValue)
-
-	sufstt := base.NewBaseState(
-		height,
-		util.UUID().String(),
-		sv,
-	)
-	sufstt.SetOperations([]util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256(), valuehash.RandomSHA256()})
+	sufstt, _ := t.suffrageState(height, base.Height(66), nodes)
 
 	stts := t.states(height, 3)
 	stts = append(stts, sufstt)
@@ -74,7 +56,7 @@ func (t *testRODatabase) TestLoad() {
 		rm, err := rst.Manifest()
 		t.NoError(err)
 
-		base.CompareManifest(t.Assert(), m, rm)
+		base.EqualManifest(t.Assert(), m, rm)
 	})
 
 	t.Run("check last suffrage", func() {
@@ -90,7 +72,7 @@ func (t *testRODatabase) TestLoad() {
 		for i := range stts {
 			stt := stts[i]
 
-			rstt, found, err := rst.State(stt.Hash())
+			rstt, found, err := rst.State(stt.Key())
 			t.NotNil(rstt)
 			t.True(found)
 			t.NoError(err)
@@ -100,7 +82,7 @@ func (t *testRODatabase) TestLoad() {
 	})
 
 	t.Run("check unknown states", func() {
-		rstt, found, err := rst.State(valuehash.RandomSHA256())
+		rstt, found, err := rst.State(util.UUID().String())
 		t.Nil(rstt)
 		t.False(found)
 		t.NoError(err)
