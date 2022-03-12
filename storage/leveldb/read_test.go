@@ -7,11 +7,11 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type testReadonlyStorage struct {
+type testLeveldbReadonlyStorage struct {
 	suite.Suite
 }
 
-func (t *testReadonlyStorage) TestNew() {
+func (t *testLeveldbReadonlyStorage) TestNew() {
 	wst := NewMemWriteStorage()
 	defer wst.Close()
 
@@ -39,6 +39,6 @@ func (t *testReadonlyStorage) TestNew() {
 	}
 }
 
-func TestReadonlyStorage(t *testing.T) {
-	suite.Run(t, new(testReadonlyStorage))
+func TestLeveldbReadonlyStorage(t *testing.T) {
+	suite.Run(t, new(testLeveldbReadonlyStorage))
 }

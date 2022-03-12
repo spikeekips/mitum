@@ -14,7 +14,7 @@ import (
 
 type TempWODatabase struct {
 	*baseDatabase
-	st     *leveldbstorage.WriteStorage // BLOCK just use write storage, not BatchStorage
+	st     *leveldbstorage.WriteStorage
 	height base.Height
 	m      *util.Locked // NOTE manifest
 	sufstt *util.Locked // NOTE suffrage state

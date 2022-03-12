@@ -60,17 +60,17 @@ func (st *BaseStorage) Remove() error {
 	e := util.StringErrorFunc("failed to remove leveldb")
 
 	if err := st.close(); err != nil {
-		return e(storage.ConnectionError.Wrap(err), "")
+		return e(storage.InternalError.Wrap(err), "")
 	}
 
 	if len(st.f) > 0 {
 		switch fi, err := os.Stat(st.f); {
 		case err == nil && !fi.IsDir():
-			return e(storage.ConnectionError.Errorf("not directory"), "")
+			return e(storage.InternalError.Errorf("not directory"), "")
 		case os.IsNotExist(err):
-			return e(storage.ConnectionError.Wrap(err), "")
+			return e(storage.InternalError.Wrap(err), "")
 		case err != nil:
-			return e(storage.ConnectionError.Wrap(err), "")
+			return e(storage.InternalError.Wrap(err), "")
 		default:
 			if err := os.RemoveAll(filepath.Clean(st.f)); err != nil {
 				return e(err, "failed to remove files of leveldb")
@@ -89,7 +89,7 @@ func (st *BaseStorage) close() error {
 	case errors.Is(err, leveldbStorage.ErrClosed):
 		return nil
 	default:
-		return e(storage.ConnectionError.Wrapf(err, ""), "failed to close storage")
+		return e(storage.InternalError.Wrapf(err, ""), "failed to close storage")
 	}
 
 	switch err := st.db.Close(); {
@@ -98,7 +98,7 @@ func (st *BaseStorage) close() error {
 	case errors.Is(err, leveldb.ErrClosed):
 		return nil
 	default:
-		return e(storage.ConnectionError.Wrapf(err, ""), "")
+		return e(storage.InternalError.Wrapf(err, ""), "")
 	}
 }
 

@@ -10,11 +10,11 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type testWriteStorage struct {
+type testLeveldbWriteStorage struct {
 	suite.Suite
 }
 
-func (t *testWriteStorage) TestNew() {
+func (t *testLeveldbWriteStorage) TestNew() {
 	d, err := os.MkdirTemp("", "leveldb")
 	t.NoError(err)
 	defer os.RemoveAll(d)
@@ -29,7 +29,7 @@ func (t *testWriteStorage) TestNew() {
 	t.NoError(err)
 }
 
-func (t *testWriteStorage) TestCloseAgain() {
+func (t *testLeveldbWriteStorage) TestCloseAgain() {
 	d, err := os.MkdirTemp("", "leveldb")
 	t.NoError(err)
 	defer os.RemoveAll(d)
@@ -41,7 +41,7 @@ func (t *testWriteStorage) TestCloseAgain() {
 	t.NoError(wst.Close())
 }
 
-func (t *testWriteStorage) TestRemove() {
+func (t *testLeveldbWriteStorage) TestRemove() {
 	d, err := os.MkdirTemp("", "leveldb")
 	t.NoError(err)
 
@@ -54,10 +54,10 @@ func (t *testWriteStorage) TestRemove() {
 	t.True(os.IsNotExist(err))
 
 	err = wst.Remove()
-	t.True(errors.Is(err, storage.ConnectionError))
+	t.True(errors.Is(err, storage.InternalError))
 }
 
-func (t *testWriteStorage) TestPut() {
+func (t *testLeveldbWriteStorage) TestPut() {
 	wst := NewMemWriteStorage()
 	defer wst.Close()
 
@@ -78,7 +78,7 @@ func (t *testWriteStorage) TestPut() {
 	}
 }
 
-func (t *testWriteStorage) TestDelete() {
+func (t *testLeveldbWriteStorage) TestDelete() {
 	wst := NewMemWriteStorage()
 	defer wst.Close()
 
@@ -120,7 +120,7 @@ func (t *testWriteStorage) TestDelete() {
 	}
 }
 
-func (t *testWriteStorage) TestPutBatch() {
+func (t *testLeveldbWriteStorage) TestPutBatch() {
 	wst := NewMemWriteStorage()
 	defer wst.Close()
 
@@ -143,7 +143,7 @@ func (t *testWriteStorage) TestPutBatch() {
 	}
 }
 
-func (t *testWriteStorage) TestDeleteBatch() {
+func (t *testLeveldbWriteStorage) TestDeleteBatch() {
 	wst := NewMemWriteStorage()
 	defer wst.Close()
 
@@ -187,7 +187,7 @@ func (t *testWriteStorage) TestDeleteBatch() {
 	}
 }
 
-func (t *testWriteStorage) TestResetBatch() {
+func (t *testLeveldbWriteStorage) TestResetBatch() {
 	wst := NewMemWriteStorage()
 	defer wst.Close()
 
@@ -206,7 +206,7 @@ func (t *testWriteStorage) TestResetBatch() {
 	t.True(wst.batch.Len() < 1)
 }
 
-func (t *testWriteStorage) TestCompaction() {
+func (t *testLeveldbWriteStorage) TestCompaction() {
 	wst := NewMemWriteStorage()
 	defer wst.Close()
 
@@ -243,6 +243,6 @@ func (t *testWriteStorage) TestCompaction() {
 	t.Equal(33, count)
 }
 
-func TestWriteStorage(t *testing.T) {
-	suite.Run(t, new(testWriteStorage))
+func TestLeveldbWriteStorage(t *testing.T) {
+	suite.Run(t, new(testLeveldbWriteStorage))
 }
