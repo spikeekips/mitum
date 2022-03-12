@@ -34,6 +34,10 @@ func (db *DummyPermanentDatabase) Manifest(height base.Height) (base.Manifest, b
 }
 
 func (db *DummyPermanentDatabase) LastManifest() (base.Manifest, bool, error) {
+	if db.lastManifestf == nil {
+		return nil, false, nil
+	}
+
 	return db.lastManifestf()
 }
 
@@ -621,7 +625,7 @@ func (t *testDefaultDatabaseBlockWrite) TestInvalidMerge() {
 		err = db.MergeBlockWriteDatabase(wst)
 		t.Error(err)
 		t.Contains(err.Error(), "failed to merge new TempDatabase")
-		t.Contains(err.Error(), "not yet done")
+		t.Contains(err.Error(), "empty manifest")
 	})
 }
 

@@ -14,11 +14,10 @@ import (
 
 type TempWODatabase struct {
 	*baseDatabase
-	st     *leveldbstorage.BatchStorage // BLOCK just use write storage, not BatchStorage
+	st     *leveldbstorage.WriteStorage // BLOCK just use write storage, not BatchStorage
 	height base.Height
-	m      base.Manifest // NOTE manifest
-	sufstt base.State    // NOTE suffrage state
-	done   bool
+	m      *util.Locked // NOTE manifest
+	sufstt *util.Locked // NOTE suffrage state
 }
 
 func NewTempWODatabase(
@@ -27,7 +26,7 @@ func NewTempWODatabase(
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
 ) (*TempWODatabase, error) {
-	st, err := leveldbstorage.NewBatchStorage(f)
+	st, err := leveldbstorage.NewWriteStorage(f)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed new TempWODatabase")
 	}
@@ -36,7 +35,7 @@ func NewTempWODatabase(
 }
 
 func newTempWODatabase(
-	st *leveldbstorage.BatchStorage,
+	st *leveldbstorage.WriteStorage,
 	height base.Height,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
@@ -45,6 +44,8 @@ func newTempWODatabase(
 		baseDatabase: newBaseDatabase(st, encs, enc),
 		st:           st,
 		height:       height,
+		m:            util.NewLocked(nil),
+		sufstt:       util.NewLocked(nil),
 	}
 }
 
@@ -57,49 +58,34 @@ func (db *TempWODatabase) Cancel() error {
 }
 
 func (db *TempWODatabase) Manifest() (base.Manifest, error) {
-	if db.m == nil {
+	switch i := db.m.Value(); {
+	case i == nil:
 		return nil, storage.NotFoundError.Errorf("empty manifest")
+	default:
+		return i.(base.Manifest), nil
 	}
-
-	return db.m, nil
 }
 
 func (db *TempWODatabase) SetManifest(m base.Manifest) error {
-	db.Lock()
-	defer db.Unlock()
+	if err := db.m.Set(func(i interface{}) (interface{}, error) {
+		if m.Height() != db.height {
+			return nil, errors.Errorf("wrong manifest height")
+		}
 
-	if err := db.setManifest(m); err != nil {
-		db.m = nil
+		b, err := db.marshal(m)
+		if err != nil {
+			return nil, errors.Errorf("failed to marshal manifest")
+		}
 
-		return err
+		return m, db.st.Put(manifestDBKey(), b, nil)
+	}); err != nil {
+		return errors.Wrap(err, "failed to set manifest")
 	}
-
-	db.m = m
-
-	return nil
-}
-
-func (db *TempWODatabase) setManifest(m base.Manifest) error {
-	e := util.StringErrorFunc("failed to set manifest")
-	if m.Height() != db.height {
-		return e(nil, "wrong manifest height")
-	}
-
-	b, err := db.marshal(m)
-	if err != nil {
-		return e(err, "failed to marshal manifest")
-	}
-
-	db.st.Put(manifestDBKey(), b)
-	db.done = false
 
 	return nil
 }
 
 func (db *TempWODatabase) SetStates(sts []base.State) error {
-	db.Lock()
-	defer db.Unlock()
-
 	if len(sts) < 1 {
 		return nil
 	}
@@ -111,6 +97,8 @@ func (db *TempWODatabase) SetStates(sts []base.State) error {
 
 	var suffragestate base.State
 	go func() {
+		defer worker.Done()
+
 		for i := range sts {
 			st := sts[i]
 
@@ -136,7 +124,9 @@ func (db *TempWODatabase) SetStates(sts []base.State) error {
 					return errors.Wrap(err, "failed to set state")
 				}
 
-				db.st.Put(stateDBKey(st.Key()), b)
+				if err := db.st.Put(stateDBKey(st.Key()), b, nil); err != nil {
+					return e(err, "failed to put state")
+				}
 
 				return nil
 			})
@@ -144,8 +134,6 @@ func (db *TempWODatabase) SetStates(sts []base.State) error {
 				break
 			}
 		}
-
-		worker.Done()
 	}()
 
 	if err := worker.Wait(); err != nil {
@@ -153,11 +141,16 @@ func (db *TempWODatabase) SetStates(sts []base.State) error {
 	}
 
 	if suffragestate != nil {
-		db.st.Put(suffrageDBKey(), []byte(suffragestate.Key()))
-		db.sufstt = suffragestate
-	}
+		if err := db.sufstt.Set(func(i interface{}) (interface{}, error) {
+			if err := db.st.Put(suffrageDBKey(), []byte(suffragestate.Key()), nil); err != nil {
+				return nil, errors.Wrap(err, "failed to put suffrage state")
+			}
 
-	db.done = false
+			return suffragestate, nil
+		}); err != nil {
+			return e(err, "failed to put suffrage state")
+		}
+	}
 
 	return nil
 }
@@ -167,11 +160,31 @@ func (db *TempWODatabase) SetOperations(ops []util.Hash) error {
 		return nil
 	}
 
-	for i := range ops {
-		db.st.Put(operationDBKey(ops[i]), nil)
-	}
+	worker := util.NewErrgroupWorker(context.Background(), math.MaxInt16)
+	defer worker.Close()
 
-	db.done = false
+	e := util.StringErrorFunc("failed to set operation")
+	go func() {
+		defer worker.Done()
+
+		for i := range ops {
+			op := ops[i]
+			err := worker.NewJob(func(context.Context, uint64) error {
+				if err := db.st.Put(operationDBKey(op), nil, nil); err != nil {
+					return e(err, "")
+				}
+
+				return nil
+			})
+			if err != nil {
+				break
+			}
+		}
+	}()
+
+	if err := worker.Wait(); err != nil {
+		return e(err, "")
+	}
 
 	return nil
 }
@@ -184,8 +197,6 @@ func (db *TempWODatabase) Write() error {
 		return errors.Wrap(err, "failed to write to TempWODatabase")
 	}
 
-	db.done = true
-
 	return nil
 }
 
@@ -193,13 +204,13 @@ func (db *TempWODatabase) TempDatabase() (TempDatabase, error) {
 	db.Lock()
 	defer db.Unlock()
 
-	switch {
-	case !db.done:
-		return nil, errors.Errorf("failed to make TempDatabase from BlockWriteDatabase; not yet done")
-	case db.m == nil:
-		return nil, errors.Errorf("failed to make TempDatabase from BlockWriteDatabase; empty manifest")
-	case db.m.Height() != db.height:
-		return nil, errors.Errorf("failed to make TempDatabase from BlockWriteDatabase; wrong manifest")
+	e := util.StringErrorFunc("failed to make TempDatabase from BlockWriteDatabase")
+
+	switch m, err := db.Manifest(); {
+	case err != nil:
+		return nil, e(err, "")
+	case m.Height() != db.height:
+		return nil, e(nil, "wrong manifest")
 	}
 
 	return newTempRODatabaseFromWOStorage(db)

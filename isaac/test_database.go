@@ -19,7 +19,7 @@ func newMemTempWODatabase(
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
 ) (*TempWODatabase, error) {
-	st := leveldbstorage.NewMemBatchStorage()
+	st := leveldbstorage.NewMemWriteStorage()
 
 	return &TempWODatabase{
 		baseDatabase: newBaseDatabase(st, encs, enc),
@@ -70,13 +70,8 @@ func (t *baseTestDatabase) newWO(height base.Height) *TempWODatabase {
 }
 
 func (t *baseTestDatabase) newMemWO(height base.Height) *TempWODatabase {
-	st := leveldbstorage.NewMemBatchStorage()
-
-	return &TempWODatabase{
-		baseDatabase: newBaseDatabase(st, t.encs, t.enc),
-		height:       height,
-		st:           st,
-	}
+	st := leveldbstorage.NewMemWriteStorage()
+	return newTempWODatabase(st, height, t.encs, t.enc)
 }
 
 func (t *baseTestDatabase) newPool() *TempPoolDatabase {

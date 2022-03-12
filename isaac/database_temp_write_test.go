@@ -63,20 +63,7 @@ func (t *testWODatabase) TestSetStates() {
 	height := base.Height(33)
 	_, nodes := t.locals(3)
 
-	sv := NewSuffrageStateValue(
-		base.Height(33),
-		valuehash.RandomSHA256(),
-		nodes,
-	)
-
-	_ = (interface{})(sv).(base.SuffrageStateValue)
-
-	sufstt := base.NewBaseState(
-		height,
-		util.UUID().String(),
-		sv,
-	)
-	sufstt.SetOperations([]util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256(), valuehash.RandomSHA256()})
+	sufstt, _ := t.suffrageState(height, base.Height(33), nodes)
 
 	stts := t.states(height, 3)
 	stts = append(stts, sufstt)

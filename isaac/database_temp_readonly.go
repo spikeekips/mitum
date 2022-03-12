@@ -65,15 +65,24 @@ func newTempRODatabaseFromWOStorage(wst *TempWODatabase) (*TempRODatabase, error
 		return nil, e(err, "")
 	}
 
-	if wst.m == nil {
-		return nil, e(nil, "empty manifest in TempWODatabase")
+	var m base.Manifest
+	switch i, err := wst.Manifest(); {
+	case err != nil:
+		return nil, e(err, "")
+	default:
+		m = i
+	}
+
+	var sufstt base.State
+	if i := wst.sufstt.Value(); i != nil {
+		sufstt = i.(base.State)
 	}
 
 	return &TempRODatabase{
 		baseDatabase: newBaseDatabase(st, wst.encs, wst.enc),
 		st:           st,
-		m:            wst.m,
-		sufstt:       wst.sufstt,
+		m:            m,
+		sufstt:       sufstt,
 	}, nil
 }
 

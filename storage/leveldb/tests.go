@@ -7,8 +7,8 @@ import (
 	leveldbStorage "github.com/syndtr/goleveldb/leveldb/storage"
 )
 
-func NewMemBatchStorage() *BatchStorage {
-	st, _ := newBatchStorage(leveldbStorage.NewMemStorage(), "")
+func NewMemWriteStorage() *WriteStorage {
+	st, _ := newWriteStorage(leveldbStorage.NewMemStorage(), "")
 
 	return st
 }

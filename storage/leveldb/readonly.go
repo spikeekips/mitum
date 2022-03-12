@@ -55,7 +55,7 @@ func newReadonlyStorage(st leveldbStorage.Storage, f string) (*ReadonlyStorage, 
 	}, nil
 }
 
-func NewReadonlyStorageFromWrite(wst *BatchStorage) (*ReadonlyStorage, error) {
+func NewReadonlyStorageFromWrite(wst *WriteStorage) (*ReadonlyStorage, error) {
 	if err := wst.db.SetReadOnly(); err != nil {
 		if !errors.Is(err, leveldb.ErrReadOnly) {
 			return nil, errors.Wrap(err, "failed to set readonly to BatchStorage")
