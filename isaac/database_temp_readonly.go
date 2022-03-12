@@ -2,6 +2,7 @@ package isaac
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 
@@ -275,8 +276,8 @@ func newTempDatabaseDirectoryPrefixWithHeight(root string, height base.Height) s
 	return filepath.Join(filepath.Clean(root), "temp"+height.String())
 }
 
-func newTempDatabaseDirectoryName(root string, height base.Height) string {
-	return newTempDatabaseDirectoryPrefixWithHeight(root, height) + "-0"
+func newTempDatabaseDirectoryName(root string, height base.Height, suffix int64) string {
+	return newTempDatabaseDirectoryPrefixWithHeight(root, height) + fmt.Sprintf("-%d", suffix)
 }
 
 func tempDatabaseDirectoryNameFormat() string {
@@ -303,9 +304,9 @@ func sortTempDatabaseDirectoryNames(matches []string) {
 		case hi < 0 || hj < 0 || si < 0 || sj < 0:
 			return true
 		case hi > hj:
-			return true
-		case hi < hj:
 			return false
+		case hi < hj:
+			return true
 		default:
 			return si > sj
 		}
@@ -315,8 +316,8 @@ func sortTempDatabaseDirectoryNames(matches []string) {
 func newTempDatabaseDirectory(root string, height base.Height) (string, error) {
 	e := util.StringErrorFunc("failed to get new TempDatabase directory")
 
-	prefix, matches, err := loadTempDatabaseDirectoriesByHeight(root, height)
-	zero := prefix + "-0"
+	matches, err := loadTempDatabaseDirectoriesByHeight(root, height)
+	zero := newTempDatabaseDirectoryName(root, height, 0)
 
 	switch {
 	case err != nil:
@@ -351,18 +352,18 @@ end:
 		return zero, nil
 	}
 
-	return fmt.Sprintf("%s-%d", prefix, suffix+1), nil
+	return newTempDatabaseDirectoryName(root, height, suffix+1), nil
 }
 
-func loadTempDatabaseDirectoriesByHeight(root string, height base.Height) (string, []string, error) {
+func loadTempDatabaseDirectoriesByHeight(root string, height base.Height) ([]string, error) {
 	e := util.StringErrorFunc("failed to load TempDatabase directories of height")
 
 	prefix := newTempDatabaseDirectoryPrefixWithHeight(root, height)
 	switch matches, err := loadTempDatabaseDirectories(prefix + "*"); {
 	case err != nil:
-		return "", nil, e(err, "")
+		return nil, e(err, "")
 	default:
-		return prefix, matches, nil
+		return matches, nil
 	}
 }
 
@@ -399,8 +400,9 @@ func loadTempDatabase(f string, encs *encoder.Encoders, enc encoder.Encoder) (Te
 	return temp, nil
 }
 
-func loadTempDatabases(root string, minHeight base.Height, encs *encoder.Encoders, enc encoder.Encoder) ([]TempDatabase, error) {
-	// BLOCK load last height from permanent database
+// loadTempDatabases loads all the TempDatabases from the given root directory.
+// If clean is true, the useless directories will be removed.
+func loadTempDatabases(root string, minHeight base.Height, encs *encoder.Encoders, enc encoder.Encoder, clean bool) ([]TempDatabase, error) {
 	e := util.StringErrorFunc("failed to load TempDatabase")
 
 	matches, err := loadAllTempDatabaseDirectories(root)
@@ -408,9 +410,9 @@ func loadTempDatabases(root string, minHeight base.Height, encs *encoder.Encoder
 		return nil, e(err, "")
 	}
 
-	var temps []TempDatabase
-
 	var height int64 = minHeight.Int64()
+	var temps []TempDatabase
+	var removes []string
 
 end:
 	for i := range matches {
@@ -421,13 +423,16 @@ end:
 		)
 		switch {
 		case h < 0 || suffix < 0:
+			removes = append(removes, f)
 			continue end
-		case h <= height:
+		case h != height+1:
+			removes = append(removes, f)
 			continue end
 		}
 
 		switch temp, err := loadTempDatabase(f, encs, enc); {
 		case err != nil:
+			removes = append(removes, f)
 			continue end
 		default:
 			temps = append(temps, temp)
@@ -435,6 +440,19 @@ end:
 			height = h
 		}
 	}
+
+	if clean {
+		for i := range removes {
+			f := removes[i]
+			if err := os.RemoveAll(f); err != nil {
+				return nil, e(err, "failed to remove useless directory, %q", f)
+			}
+		}
+	}
+
+	sort.Slice(temps, func(i, j int) bool {
+		return temps[i].Height() < temps[j].Height()
+	})
 
 	return temps, nil
 }

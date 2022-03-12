@@ -806,7 +806,7 @@ func (t *testDefaultDatabaseLoad) TestNewDirectoryWithoutExistingDirectories() {
 	d, err := newTempDatabaseDirectory(t.root, height)
 	t.NoError(err)
 	t.NotEmpty(d)
-	t.Equal(d, newTempDatabaseDirectoryName(t.root, height))
+	t.Equal(d, newTempDatabaseDirectoryName(t.root, height, 0))
 }
 
 func (t *testDefaultDatabaseLoad) TestNewDirectoryWithUnknownDirectories() {
@@ -820,7 +820,7 @@ func (t *testDefaultDatabaseLoad) TestNewDirectoryWithUnknownDirectories() {
 	d, err := newTempDatabaseDirectory(t.root, height)
 	t.NoError(err)
 	t.NotEmpty(d)
-	t.Equal(newTempDatabaseDirectoryName(t.root, height), d)
+	t.Equal(newTempDatabaseDirectoryName(t.root, height, 0), d)
 
 	_, err = os.Stat(d)
 	t.Error(err)
@@ -830,10 +830,10 @@ func (t *testDefaultDatabaseLoad) TestNewDirectoryWithUnknownDirectories() {
 func (t *testDefaultDatabaseLoad) TestLoadTempDatabases() {
 	baseheight := base.Height(33)
 
-	m := base.NewDummyManifest(baseheight, valuehash.RandomSHA256())
+	basemanifest := base.NewDummyManifest(baseheight, valuehash.RandomSHA256())
 	perm := &DummyPermanentDatabase{
 		lastManifestf: func() (base.Manifest, bool, error) {
-			return m, true, nil
+			return basemanifest, true, nil
 		},
 	}
 
@@ -843,7 +843,7 @@ func (t *testDefaultDatabaseLoad) TestLoadTempDatabases() {
 	})
 	t.NoError(err)
 
-	created := make([]TempDatabase, 4)
+	created := make([]base.Manifest, 4)
 	for i := range created {
 		height := baseheight + base.Height(i+1)
 		wst, err := db.NewBlockWriteDatabase(height)
@@ -868,10 +868,9 @@ func (t *testDefaultDatabaseLoad) TestLoadTempDatabases() {
 
 		t.NoError(db.MergeBlockWriteDatabase(wst))
 
-		temp, err := wst.TempDatabase()
-		t.NoError(err)
+		t.NoError(wst.Close())
 
-		created[i] = temp
+		created[i] = m
 	}
 
 	// NOTE create wrong leveldb directory
@@ -882,30 +881,31 @@ func (t *testDefaultDatabaseLoad) TestLoadTempDatabases() {
 		t.NoError(err)
 	}
 
-	temps, err := loadTempDatabases(t.root, base.NilHeight, t.encs, t.enc)
+	temps, err := loadTempDatabases(t.root, basemanifest.Height(), t.encs, t.enc, false)
 	t.NoError(err)
+	t.Equal(len(created), len(temps))
 
 	for i := range temps {
 		temp := temps[i]
-		expected := created[len(created)-i-1]
+		expected := created[i]
 
 		t.Equal(expected.Height(), temp.Height())
 
-		em, err := expected.Manifest()
-		t.NoError(err)
 		tm, err := temp.Manifest()
 		t.NoError(err)
 
-		t.True(em.Hash().Equal(tm.Hash()))
+		base.EqualManifest(t.Assert(), expected, tm)
 	}
 
 	newdb, err := NewDefaultDatabase(t.root, t.encs, t.enc, perm, nil)
 	t.NoError(err)
 
 	actives := newdb.activeTemps()
+	t.Equal(len(temps), len(actives))
+
 	for i := range temps {
 		temp := temps[i]
-		expected := actives[len(actives)-i-1]
+		expected := actives[i]
 
 		t.Equal(expected.Height(), temp.Height())
 
@@ -914,7 +914,7 @@ func (t *testDefaultDatabaseLoad) TestLoadTempDatabases() {
 		tm, err := temp.Manifest()
 		t.NoError(err)
 
-		t.True(em.Hash().Equal(tm.Hash()))
+		base.EqualManifest(t.Assert(), em, tm)
 	}
 }
 

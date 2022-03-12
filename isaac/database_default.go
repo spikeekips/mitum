@@ -88,7 +88,7 @@ func (db *DefaultDatabase) load(root string) error {
 	}
 
 	// NOTE find leveldb directory
-	temps, err := loadTempDatabases(root, last, db.encs, db.enc)
+	temps, err := loadTempDatabases(root, last, db.encs, db.enc, true)
 	if err != nil {
 		return e(err, "")
 	}
