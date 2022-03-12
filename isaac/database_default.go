@@ -191,12 +191,10 @@ func (db *DefaultDatabase) State(key string) (base.State, bool, error) {
 		return nil, false, errors.Wrap(err, "failed to find State")
 	}
 
-	switch {
-	case l.Value() == nil:
-		return nil, false, nil
-	default:
-		return l.Value().(base.State), true, nil
-	}
+	var st base.State
+	_ = l.Value(&st)
+
+	return st, st != nil, nil
 }
 
 func (db *DefaultDatabase) ExistsOperation(h util.Hash) (bool, error) {
@@ -216,11 +214,10 @@ func (db *DefaultDatabase) ExistsOperation(h util.Hash) (bool, error) {
 		return false, errors.Wrap(err, "failed to check ExistsOperation")
 	}
 
-	if l.Value().(bool) {
-		return true, nil
-	}
+	var found bool
+	_ = l.Value(&found)
 
-	return false, nil
+	return found, nil
 }
 
 func (db *DefaultDatabase) NewBlockWriteDatabase(height base.Height) (BlockWriteDatabase, error) {

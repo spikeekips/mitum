@@ -13,11 +13,11 @@ func NewLocked(defaultValue interface{}) *Locked {
 	return &Locked{value: defaultValue}
 }
 
-func (l *Locked) Value() interface{} {
+func (l *Locked) Value(target interface{}) error {
 	l.RLock()
 	defer l.RUnlock()
 
-	return l.value
+	return InterfaceSetValue(l.value, target)
 }
 
 func (l *Locked) SetValue(i interface{}) *Locked {
@@ -29,10 +29,19 @@ func (l *Locked) SetValue(i interface{}) *Locked {
 	return l
 }
 
-func (l *Locked) Get(f func() (interface{}, error)) (interface{}, bool, error) {
+func (l *Locked) Get(target interface{}, f func() (interface{}, error)) (bool, error) {
 	l.Lock()
 	defer l.Unlock()
 
+	switch j, found, err := l.get(f); {
+	case err != nil:
+		return false, err
+	default:
+		return found, InterfaceSetValue(j, target)
+	}
+}
+
+func (l *Locked) get(f func() (interface{}, error)) (interface{}, bool, error) {
 	if l.value != nil {
 		return l.value, true, nil
 	}
@@ -72,13 +81,16 @@ func NewLockedMap() *LockedMap {
 	}
 }
 
-func (l *LockedMap) Value(k interface{}) (interface{}, bool) {
+func (l *LockedMap) Value(k, target interface{}) (bool, error) {
 	l.RLock()
 	defer l.RUnlock()
 
 	i, found := l.m[k]
+	if !found {
+		return false, nil
+	}
 
-	return i, found
+	return found, InterfaceSetValue(i, target)
 }
 
 func (l *LockedMap) SetValue(k interface{}, v interface{}) bool {
@@ -92,22 +104,22 @@ func (l *LockedMap) SetValue(k interface{}, v interface{}) bool {
 	return found
 }
 
-func (l *LockedMap) Get(k interface{}, f func() (interface{}, error)) (interface{}, bool, error) {
+func (l *LockedMap) Get(k, target interface{}, f func() (interface{}, error)) (bool, error) {
 	l.Lock()
 	defer l.Unlock()
 
 	if i, found := l.m[k]; found {
-		return i, true, nil
+		return true, InterfaceSetValue(i, target)
 	}
 
 	j, err := f()
 	if err != nil {
-		return nil, false, err
+		return false, err
 	}
 
 	l.m[k] = j
 
-	return j, false, nil
+	return false, InterfaceSetValue(j, target)
 }
 
 func (l *LockedMap) Set(k interface{}, f func() (interface{}, error)) error {

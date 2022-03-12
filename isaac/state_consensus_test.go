@@ -556,7 +556,8 @@ func (t *testConsensusHandler) TestWithBallotbox() {
 
 	manifests := util.NewLockedMap()
 	getmanifest := func(height base.Height) base.Manifest {
-		i, _, _ := manifests.Get(height, func() (interface{}, error) {
+		var m base.Manifest
+		_, _ = manifests.Get(height, &m, func() (interface{}, error) {
 			manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
 
 			t.T().Logf("new manifest processed: height=%d hash=%q proposal=%q", height, manifest.Hash(), manifest.Proposal())
@@ -564,7 +565,7 @@ func (t *testConsensusHandler) TestWithBallotbox() {
 			return manifest, nil
 		})
 
-		return i.(base.Manifest)
+		return m
 	}
 
 	processdelay := time.Millisecond * 100

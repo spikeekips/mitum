@@ -74,9 +74,7 @@ func newTempRODatabaseFromWOStorage(wst *TempWODatabase) (*TempRODatabase, error
 	}
 
 	var sufstt base.State
-	if i := wst.sufstt.Value(); i != nil {
-		sufstt = i.(base.State)
-	}
+	_ = wst.sufstt.Value(&sufstt)
 
 	return &TempRODatabase{
 		baseDatabase: newBaseDatabase(st, wst.encs, wst.enc),

@@ -160,7 +160,10 @@ func (box *Ballotbox) newVoterecords(bl base.Ballot) *voterecords {
 }
 
 func (box *Ballotbox) lastStagePoint() base.StagePoint {
-	return box.lsp.Value().(base.StagePoint)
+	var sp base.StagePoint
+
+	_ = box.lsp.Value(&sp)
+	return sp
 }
 
 func (box *Ballotbox) setLastStagePoint(p base.StagePoint) bool {

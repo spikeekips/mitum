@@ -58,11 +58,12 @@ func (db *TempWODatabase) Cancel() error {
 }
 
 func (db *TempWODatabase) Manifest() (base.Manifest, error) {
-	switch i := db.m.Value(); {
-	case i == nil:
+	var m base.Manifest
+	switch _ = db.m.Value(&m); {
+	case m == nil:
 		return nil, storage.NotFoundError.Errorf("empty manifest")
 	default:
-		return i.(base.Manifest), nil
+		return m, nil
 	}
 }
 
