@@ -18,6 +18,7 @@ type TempPoolDatabase struct {
 }
 
 // BLOCK used for ProposalPool
+// BLOCK clean old proposals
 
 func NewTempPoolDatabase(f string, encs *encoder.Encoders, enc encoder.Encoder) (*TempPoolDatabase, error) {
 	st, err := leveldbstorage.NewRWStorage(f)

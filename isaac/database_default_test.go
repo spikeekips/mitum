@@ -1,8 +1,10 @@
 package isaac
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/pkg/errors"
@@ -81,7 +83,8 @@ func (t *testDefaultDatabaseWithPermanent) TestManifest() {
 		},
 	}
 
-	db := NewDefaultDatabase(perm, nil)
+	db, err := NewDefaultDatabase(t.root, t.encs, t.enc, perm, nil)
+	t.NoError(err)
 
 	t.Run("found", func() {
 		rm, found, err := db.Manifest(m.Height())
@@ -111,7 +114,8 @@ func (t *testDefaultDatabaseWithPermanent) TestLastManifest() {
 
 	perm := &DummyPermanentDatabase{}
 
-	db := NewDefaultDatabase(perm, nil)
+	db, err := NewDefaultDatabase(t.root, t.encs, t.enc, perm, nil)
+	t.NoError(err)
 
 	t.Run("found", func() {
 		perm.lastManifestf = func() (base.Manifest, bool, error) {
@@ -165,7 +169,8 @@ func (t *testDefaultDatabaseWithPermanent) TestSuffrage() {
 		},
 	}
 
-	db := NewDefaultDatabase(perm, nil)
+	db, err := NewDefaultDatabase(t.root, t.encs, t.enc, perm, nil)
+	t.NoError(err)
 
 	t.Run("found", func() {
 		rst, found, err := db.Suffrage(st.Height())
@@ -196,7 +201,8 @@ func (t *testDefaultDatabaseWithPermanent) TestLastSuffrage() {
 
 	perm := &DummyPermanentDatabase{}
 
-	db := NewDefaultDatabase(perm, nil)
+	db, err := NewDefaultDatabase(t.root, t.encs, t.enc, perm, nil)
+	t.NoError(err)
 
 	t.Run("found", func() {
 		perm.lastSuffragef = func() (base.State, bool, error) {
@@ -250,7 +256,8 @@ func (t *testDefaultDatabaseWithPermanent) TestState() {
 		},
 	}
 
-	db := NewDefaultDatabase(perm, nil)
+	db, err := NewDefaultDatabase(t.root, t.encs, t.enc, perm, nil)
+	t.NoError(err)
 
 	t.Run("found", func() {
 		rst, found, err := db.State(st.Key())
@@ -292,7 +299,8 @@ func (t *testDefaultDatabaseWithPermanent) TestExistsOperation() {
 		},
 	}
 
-	db := NewDefaultDatabase(perm, nil)
+	db, err := NewDefaultDatabase(t.root, t.encs, t.enc, perm, nil)
+	t.NoError(err)
 
 	t.Run("found", func() {
 		found, err := db.ExistsOperation(op)
@@ -379,9 +387,10 @@ func (t *testDefaultDatabaseBlockWrite) TestMerge() {
 		},
 	}
 
-	db := NewDefaultDatabase(perm, func(h base.Height) (BlockWriteDatabase, error) {
+	db, err := NewDefaultDatabase(t.root, t.encs, t.enc, perm, func(h base.Height) (BlockWriteDatabase, error) {
 		return NewTempWODatabase(h, filepath.Join(t.root, h.String()), t.encs, t.enc)
 	})
+	t.NoError(err)
 
 	wst, err := db.NewBlockWriteDatabase(height)
 	t.NoError(err)
@@ -527,9 +536,10 @@ func (t *testDefaultDatabaseBlockWrite) TestFindState() {
 		},
 	}
 
-	db := NewDefaultDatabase(perm, func(height base.Height) (BlockWriteDatabase, error) {
+	db, err := NewDefaultDatabase(t.root, t.encs, t.enc, perm, func(height base.Height) (BlockWriteDatabase, error) {
 		return NewTempWODatabase(height, filepath.Join(t.root, height.String()), t.encs, t.enc)
 	})
+	t.NoError(err)
 
 	stts := t.states(baseheight, 10)
 
@@ -580,9 +590,10 @@ func (t *testDefaultDatabaseBlockWrite) TestInvalidMerge() {
 		},
 	}
 
-	db := NewDefaultDatabase(perm, func(h base.Height) (BlockWriteDatabase, error) {
+	db, err := NewDefaultDatabase(t.root, t.encs, t.enc, perm, func(h base.Height) (BlockWriteDatabase, error) {
 		return NewTempWODatabase(h, filepath.Join(t.root, h.String()), t.encs, t.enc)
 	})
+	t.NoError(err)
 
 	t.Run("wrong height", func() {
 		m := base.NewDummyManifest(height+1, valuehash.RandomSHA256())
@@ -646,9 +657,10 @@ func (t *testDefaultDatabaseBlockWrite) TestMergePermanent() {
 		},
 	}
 
-	db := NewDefaultDatabase(perm, func(h base.Height) (BlockWriteDatabase, error) {
+	db, err := NewDefaultDatabase(t.root, t.encs, t.enc, perm, func(h base.Height) (BlockWriteDatabase, error) {
 		return NewTempWODatabase(h, filepath.Join(t.root, h.String()), t.encs, t.enc)
 	})
+	t.NoError(err)
 
 	var removedstts []base.State
 	var removeds []TempDatabase
@@ -723,7 +735,7 @@ func (t *testDefaultDatabaseBlockWrite) TestMergePermanent() {
 	})
 
 	removed := removeds[0]
-	err := removed.Remove()
+	err = removed.Remove()
 	t.Error(err)
 	t.True(errors.Is(err, os.ErrNotExist))
 	t.Contains(err.Error(), "failed to remove")
@@ -736,4 +748,176 @@ func (t *testDefaultDatabaseBlockWrite) TestMergePermanent() {
 
 func TestDefaultDatabaseBlockWrite(t *testing.T) {
 	suite.Run(t, new(testDefaultDatabaseBlockWrite))
+}
+
+type testDefaultDatabaseLoad struct {
+	baseTestHandler
+	baseTestDatabase
+}
+
+func (t *testDefaultDatabaseLoad) SetupTest() {
+	t.baseTestHandler.SetupTest()
+	t.baseTestDatabase.SetupTest()
+
+	t.NoError(os.Mkdir(t.root, 0o755))
+}
+
+func (t *testDefaultDatabaseLoad) TestNewDirectory() {
+	d, err := newTempDatabaseDirectory(t.root, base.Height(33))
+	t.NoError(err)
+	t.True(strings.HasPrefix(d, t.root))
+}
+
+func (t *testDefaultDatabaseLoad) TestNewDirectoryWithExistings() {
+	height := base.Height(33)
+	for i := range make([]int, 33) {
+		h := height
+		switch {
+		case i%2 == 0:
+			h--
+		default:
+			h++
+		}
+
+		d, err := newTempDatabaseDirectory(t.root, h)
+		t.NoError(err)
+		t.NoError(os.Mkdir(d, 0o755))
+	}
+
+	for range make([]int, 33) {
+		d, err := newTempDatabaseDirectory(t.root, height)
+		t.NoError(err)
+		t.NoError(os.Mkdir(d, 0o755))
+	}
+
+	d, err := newTempDatabaseDirectory(t.root, height)
+	t.NoError(err)
+	t.NotEmpty(d)
+	t.True(strings.HasSuffix(d, fmt.Sprintf("-%d", 33)))
+
+	_, err = os.Stat(d)
+	t.Error(err)
+	t.True(errors.Is(err, os.ErrNotExist))
+}
+
+func (t *testDefaultDatabaseLoad) TestNewDirectoryWithoutExistingDirectories() {
+	height := base.Height(33)
+
+	d, err := newTempDatabaseDirectory(t.root, height)
+	t.NoError(err)
+	t.NotEmpty(d)
+	t.Equal(d, newTempDatabaseDirectoryName(t.root, height))
+}
+
+func (t *testDefaultDatabaseLoad) TestNewDirectoryWithUnknownDirectories() {
+	height := base.Height(33)
+	for range make([]int, 33) {
+		prefix := newTempDatabaseDirectoryPrefixWithHeight(t.root, height)
+		d := prefix + util.UUID().String()
+		t.NoError(os.Mkdir(d, 0o755))
+	}
+
+	d, err := newTempDatabaseDirectory(t.root, height)
+	t.NoError(err)
+	t.NotEmpty(d)
+	t.Equal(newTempDatabaseDirectoryName(t.root, height), d)
+
+	_, err = os.Stat(d)
+	t.Error(err)
+	t.True(errors.Is(err, os.ErrNotExist))
+}
+
+func (t *testDefaultDatabaseLoad) TestLoadTempDatabases() {
+	baseheight := base.Height(33)
+
+	m := base.NewDummyManifest(baseheight, valuehash.RandomSHA256())
+	perm := &DummyPermanentDatabase{
+		lastManifestf: func() (base.Manifest, bool, error) {
+			return m, true, nil
+		},
+	}
+
+	db, err := NewDefaultDatabase(t.root, t.encs, t.enc, perm, func(height base.Height) (BlockWriteDatabase, error) {
+		f, _ := newTempDatabaseDirectory(t.root, height)
+		return NewTempWODatabase(height, f, t.encs, t.enc)
+	})
+	t.NoError(err)
+
+	created := make([]TempDatabase, 4)
+	for i := range created {
+		height := baseheight + base.Height(i+1)
+		wst, err := db.NewBlockWriteDatabase(height)
+		t.NoError(err)
+
+		m := base.NewDummyManifest(height, valuehash.RandomSHA256())
+
+		t.NoError(wst.SetManifest(m))
+		t.NoError(wst.Write())
+	}
+
+	// NOTE create again
+	for i := range created {
+		height := baseheight + base.Height(i+1)
+		wst, err := db.NewBlockWriteDatabase(height)
+		t.NoError(err)
+
+		m := base.NewDummyManifest(height, valuehash.RandomSHA256())
+
+		t.NoError(wst.SetManifest(m))
+		t.NoError(wst.Write())
+
+		t.NoError(db.MergeBlockWriteDatabase(wst))
+
+		temp, err := wst.TempDatabase()
+		t.NoError(err)
+
+		created[i] = temp
+	}
+
+	// NOTE create wrong leveldb directory
+	for i := range created {
+		f, _ := newTempDatabaseDirectory(t.root, baseheight+base.Height(i+1))
+		t.NoError(os.Mkdir(f, 0o755))
+		_, err := os.Create(filepath.Join(f, util.UUID().String()))
+		t.NoError(err)
+	}
+
+	temps, err := loadTempDatabases(t.root, base.NilHeight, t.encs, t.enc)
+	t.NoError(err)
+
+	for i := range temps {
+		temp := temps[i]
+		expected := created[len(created)-i-1]
+
+		t.Equal(expected.Height(), temp.Height())
+
+		em, err := expected.Manifest()
+		t.NoError(err)
+		tm, err := temp.Manifest()
+		t.NoError(err)
+
+		t.True(em.Hash().Equal(tm.Hash()))
+	}
+
+	newdb, err := NewDefaultDatabase(t.root, t.encs, t.enc, perm, nil)
+	t.NoError(err)
+
+	actives := newdb.activeTemps()
+	for i := range temps {
+		temp := temps[i]
+		expected := actives[len(actives)-i-1]
+
+		t.Equal(expected.Height(), temp.Height())
+
+		em, err := expected.Manifest()
+		t.NoError(err)
+		tm, err := temp.Manifest()
+		t.NoError(err)
+
+		t.True(em.Hash().Equal(tm.Hash()))
+	}
+}
+
+func TestDefaultDatabaseLoad(t *testing.T) {
+	suite.Run(t, new(testDefaultDatabaseLoad))
 }

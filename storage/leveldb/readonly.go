@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/storage"
 	"github.com/spikeekips/mitum/util"
+	"github.com/syndtr/goleveldb/leveldb"
 	leveldbOpt "github.com/syndtr/goleveldb/leveldb/opt"
 	leveldbStorage "github.com/syndtr/goleveldb/leveldb/storage"
 )
@@ -56,7 +57,9 @@ func newReadonlyStorage(st leveldbStorage.Storage, f string) (*ReadonlyStorage, 
 
 func NewReadonlyStorageFromWrite(wst *BatchStorage) (*ReadonlyStorage, error) {
 	if err := wst.db.SetReadOnly(); err != nil {
-		return nil, errors.Wrap(err, "failed to set readonly to BatchStorage")
+		if !errors.Is(err, leveldb.ErrReadOnly) {
+			return nil, errors.Wrap(err, "failed to set readonly to BatchStorage")
+		}
 	}
 
 	return &ReadonlyStorage{

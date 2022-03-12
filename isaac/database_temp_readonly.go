@@ -1,6 +1,10 @@
 package isaac
 
 import (
+	"fmt"
+	"path/filepath"
+	"sort"
+
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/storage"
@@ -261,4 +265,176 @@ func (db *TempRODatabase) loadState(b []byte) (base.State, error) {
 	default:
 		return i, nil
 	}
+}
+
+func newTempDatabaseDirectoryPrefix(root string) string {
+	return filepath.Join(filepath.Clean(root), "temp")
+}
+
+func newTempDatabaseDirectoryPrefixWithHeight(root string, height base.Height) string {
+	return filepath.Join(filepath.Clean(root), "temp"+height.String())
+}
+
+func newTempDatabaseDirectoryName(root string, height base.Height) string {
+	return newTempDatabaseDirectoryPrefixWithHeight(root, height) + "-0"
+}
+
+func tempDatabaseDirectoryNameFormat() string {
+	return "temp%d-%d"
+}
+
+func findSuffixFromTempDatabaseDirectoryName(d, f string) (int64, int64) {
+	var h, s int64
+	_, err := fmt.Sscanf(filepath.Base(d), f, &h, &s)
+	if err != nil {
+		return -1, -1
+	}
+
+	return h, s
+}
+
+func sortTempDatabaseDirectoryNames(matches []string) {
+	f := tempDatabaseDirectoryNameFormat()
+	sort.Slice(matches, func(i, j int) bool {
+		hi, si := findSuffixFromTempDatabaseDirectoryName(matches[i], f)
+		hj, sj := findSuffixFromTempDatabaseDirectoryName(matches[j], f)
+
+		switch {
+		case hi < 0 || hj < 0 || si < 0 || sj < 0:
+			return true
+		case hi > hj:
+			return true
+		case hi < hj:
+			return false
+		default:
+			return si > sj
+		}
+	})
+}
+
+func newTempDatabaseDirectory(root string, height base.Height) (string, error) {
+	e := util.StringErrorFunc("failed to get new TempDatabase directory")
+
+	prefix, matches, err := loadTempDatabaseDirectoriesByHeight(root, height)
+	zero := prefix + "-0"
+
+	switch {
+	case err != nil:
+		return "", e(err, "")
+	case len(matches) < 1:
+		return zero, nil
+	}
+
+	sortTempDatabaseDirectoryNames(matches)
+
+	var suffix int64 = -1
+
+end:
+	for i := range matches {
+		h, s := findSuffixFromTempDatabaseDirectoryName(
+			matches[i],
+			tempDatabaseDirectoryNameFormat(),
+		)
+		switch {
+		case h < 0 || s < 0:
+			continue end
+		case h != height.Int64():
+			continue end
+		}
+
+		suffix = s
+
+		break
+	}
+
+	if suffix < 0 {
+		return zero, nil
+	}
+
+	return fmt.Sprintf("%s-%d", prefix, suffix+1), nil
+}
+
+func loadTempDatabaseDirectoriesByHeight(root string, height base.Height) (string, []string, error) {
+	e := util.StringErrorFunc("failed to load TempDatabase directories of height")
+
+	prefix := newTempDatabaseDirectoryPrefixWithHeight(root, height)
+	switch matches, err := loadTempDatabaseDirectories(prefix + "*"); {
+	case err != nil:
+		return "", nil, e(err, "")
+	default:
+		return prefix, matches, nil
+	}
+}
+
+func loadAllTempDatabaseDirectories(root string) ([]string, error) {
+	prefix := newTempDatabaseDirectoryPrefix(root)
+	switch matches, err := loadTempDatabaseDirectories(prefix + "*"); {
+	case err != nil:
+		return nil, errors.Wrap(err, "failed to load all TempDatabase directories")
+	default:
+		return matches, nil
+	}
+}
+
+func loadTempDatabaseDirectories(prefix string) ([]string, error) {
+	e := util.StringErrorFunc("failed to load TempDatabase directories")
+
+	matches, err := filepath.Glob(prefix + "*")
+	switch {
+	case err != nil:
+		return nil, e(err, "")
+	default:
+		sortTempDatabaseDirectoryNames(matches)
+
+		return matches, nil
+	}
+}
+
+func loadTempDatabase(f string, encs *encoder.Encoders, enc encoder.Encoder) (TempDatabase, error) {
+	temp, err := NewTempRODatabase(f, encs, enc)
+	if err != nil {
+		return nil, errors.Wrap(err, "")
+	}
+
+	return temp, nil
+}
+
+func loadTempDatabases(root string, minHeight base.Height, encs *encoder.Encoders, enc encoder.Encoder) ([]TempDatabase, error) {
+	// BLOCK load last height from permanent database
+	e := util.StringErrorFunc("failed to load TempDatabase")
+
+	matches, err := loadAllTempDatabaseDirectories(root)
+	if err != nil {
+		return nil, e(err, "")
+	}
+
+	var temps []TempDatabase
+
+	var height int64 = minHeight.Int64()
+
+end:
+	for i := range matches {
+		f := matches[i]
+		h, suffix := findSuffixFromTempDatabaseDirectoryName(
+			f,
+			tempDatabaseDirectoryNameFormat(),
+		)
+		switch {
+		case h < 0 || suffix < 0:
+			continue end
+		case h <= height:
+			continue end
+		}
+
+		switch temp, err := loadTempDatabase(f, encs, enc); {
+		case err != nil:
+			continue end
+		default:
+			temps = append(temps, temp)
+
+			height = h
+		}
+	}
+
+	return temps, nil
 }
