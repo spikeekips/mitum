@@ -10,10 +10,11 @@ import (
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/syndtr/goleveldb/leveldb"
+	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
 
 type TempPoolDatabase struct {
-	*baseDatabase
+	*baseLeveldbDatabase
 	st *leveldbstorage.RWStorage
 }
 
@@ -31,8 +32,8 @@ func NewTempPoolDatabase(f string, encs *encoder.Encoders, enc encoder.Encoder) 
 
 func newTempPoolDatabase(st *leveldbstorage.RWStorage, encs *encoder.Encoders, enc encoder.Encoder) *TempPoolDatabase {
 	return &TempPoolDatabase{
-		baseDatabase: newBaseDatabase(st, encs, enc),
-		st:           st,
+		baseLeveldbDatabase: newBaseLeveldbDatabase(st, encs, enc),
+		st:                  st,
 	}
 }
 
@@ -87,7 +88,7 @@ func (db *TempPoolDatabase) SetProposal(pr base.ProposalSignedFact) (bool, error
 
 	// NOTE remove old proposals
 	top := proposalPointDBKey(pr.ProposalFact().Point().Decrease(), nil)
-	if err := db.st.Iter(keyPrefixProposalByPoint, func(key, b []byte) (bool, error) {
+	if err := db.st.Iter(leveldbutil.BytesPrefix(keyPrefixProposalByPoint), func(key, b []byte) (bool, error) {
 		if bytes.Compare(key[:len(top)], top) > 0 {
 			return false, nil
 		}

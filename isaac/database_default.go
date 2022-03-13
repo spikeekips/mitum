@@ -99,13 +99,20 @@ func (db *DefaultDatabase) load(root string) error {
 }
 
 func (db *DefaultDatabase) Manifest(height base.Height) (base.Manifest, bool, error) {
-	if temp := db.findTemp(height); temp != nil {
-		m, err := temp.Manifest()
-		if err != nil {
-			return nil, false, err
+	switch temps := db.activeTemps(); {
+	case len(temps) < 1:
+	case temps[0].Height() > height:
+		return nil, false, nil
+	default:
+		if temp := db.findTemp(height); temp != nil {
+			m, err := temp.Manifest()
+			if err != nil {
+				return nil, false, err
+			}
+
+			return m, true, nil
 		}
 
-		return m, true, nil
 	}
 
 	return db.perm.Manifest(height)
@@ -124,32 +131,74 @@ func (db *DefaultDatabase) LastManifest() (base.Manifest, bool, error) {
 	return db.perm.LastManifest()
 }
 
-func (db *DefaultDatabase) Suffrage(suffrageHeight base.Height) (base.State, bool, error) {
+func (db *DefaultDatabase) SuffrageByHeight(suffrageHeight base.Height) (base.State, bool, error) {
+	e := util.StringErrorFunc("failed to find suffrage by suffrage height")
+
 	temps := db.activeTemps()
 
 end:
 	for i := range temps {
-		var st base.State
-		var v base.SuffrageStateValue
-		switch j, found, err := temps[i].Suffrage(); {
-		case err != nil:
-			return nil, false, err
-		case found:
-			st = j
-			v = j.Value().(base.SuffrageStateValue)
+		temp := temps[i]
+		switch sh := temp.SuffrageHeight(); {
+		case sh == base.NilHeight:
+			continue end
+		case sh > suffrageHeight:
+			continue end
 		}
 
-		switch {
-		case v == nil:
-			continue end
-		case v.Height() == suffrageHeight:
-			return st, true, nil
-		case v.Height() < suffrageHeight:
-			return nil, false, nil
+		switch j, found, err := temp.Suffrage(); {
+		case err != nil:
+			return nil, false, e(err, "")
+		case found:
+			return j, true, nil
 		}
 	}
 
-	return db.perm.Suffrage(suffrageHeight)
+	st, found, err := db.perm.SuffrageByHeight(suffrageHeight)
+	if err != nil {
+		return nil, false, e(err, "")
+	}
+
+	return st, found, nil
+}
+
+func (db *DefaultDatabase) Suffrage(height base.Height) (base.State, bool, error) {
+	e := util.StringErrorFunc("failed to find suffrage by block height")
+
+	temph := db.findTemp(height)
+	if temph != nil {
+		switch i, found, err := temph.Suffrage(); {
+		case err != nil:
+			return nil, false, e(err, "")
+		case found:
+			return i, true, nil
+		}
+	}
+
+	temps := db.activeTemps()
+
+	if temph != nil {
+		for i := range temps {
+			temp := temps[i]
+			if temp.Height() > height {
+				continue
+			}
+
+			switch j, found, err := temp.Suffrage(); {
+			case err != nil:
+				return nil, false, err
+			case found:
+				return j, true, nil
+			}
+		}
+	}
+
+	st, found, err := db.perm.Suffrage(height)
+	if err != nil {
+		return nil, false, e(err, "")
+	}
+
+	return st, found, nil
 }
 
 func (db *DefaultDatabase) LastSuffrage() (base.State, bool, error) {

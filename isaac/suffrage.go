@@ -11,6 +11,8 @@ import (
 	"github.com/spikeekips/mitum/util/valuehash"
 )
 
+var SuffrageStateKey = "suffrage"
+
 type suffrage struct {
 	m  map[string]base.Node
 	ns []base.Node

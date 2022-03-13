@@ -12,52 +12,52 @@ import (
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
-type TempWODatabase struct {
-	*baseDatabase
+type LeveldbBlockWriteDatabase struct {
+	*baseLeveldbDatabase
 	st     *leveldbstorage.WriteStorage
 	height base.Height
 	m      *util.Locked // NOTE manifest
 	sufstt *util.Locked // NOTE suffrage state
 }
 
-func NewTempWODatabase(
+func NewLeveldbBlockWriteDatabase(
 	height base.Height,
 	f string,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
-) (*TempWODatabase, error) {
+) (*LeveldbBlockWriteDatabase, error) {
 	st, err := leveldbstorage.NewWriteStorage(f)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed new TempWODatabase")
+		return nil, errors.Wrap(err, "failed new TempLeveldbDatabase")
 	}
 
-	return newTempWODatabase(st, height, encs, enc), nil
+	return newLeveldbBlockWriteDatabase(st, height, encs, enc), nil
 }
 
-func newTempWODatabase(
+func newLeveldbBlockWriteDatabase(
 	st *leveldbstorage.WriteStorage,
 	height base.Height,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
-) *TempWODatabase {
-	return &TempWODatabase{
-		baseDatabase: newBaseDatabase(st, encs, enc),
-		st:           st,
-		height:       height,
-		m:            util.NewLocked(nil),
-		sufstt:       util.NewLocked(nil),
+) *LeveldbBlockWriteDatabase {
+	return &LeveldbBlockWriteDatabase{
+		baseLeveldbDatabase: newBaseLeveldbDatabase(st, encs, enc),
+		st:                  st,
+		height:              height,
+		m:                   util.NewLocked(nil),
+		sufstt:              util.NewLocked(nil),
 	}
 }
 
-func (db *TempWODatabase) Cancel() error {
+func (db *LeveldbBlockWriteDatabase) Cancel() error {
 	if err := db.Remove(); err != nil {
-		return errors.Wrap(err, "failed to cancel TempWODatabase")
+		return errors.Wrap(err, "failed to cancel TempLeveldbDatabase")
 	}
 
 	return nil
 }
 
-func (db *TempWODatabase) Manifest() (base.Manifest, error) {
+func (db *LeveldbBlockWriteDatabase) Manifest() (base.Manifest, error) {
 	var m base.Manifest
 	switch _ = db.m.Value(&m); {
 	case m == nil:
@@ -67,7 +67,7 @@ func (db *TempWODatabase) Manifest() (base.Manifest, error) {
 	}
 }
 
-func (db *TempWODatabase) SetManifest(m base.Manifest) error {
+func (db *LeveldbBlockWriteDatabase) SetManifest(m base.Manifest) error {
 	if err := db.m.Set(func(i interface{}) (interface{}, error) {
 		if m.Height() != db.height {
 			return nil, errors.Errorf("wrong manifest height")
@@ -78,7 +78,7 @@ func (db *TempWODatabase) SetManifest(m base.Manifest) error {
 			return nil, errors.Errorf("failed to marshal manifest")
 		}
 
-		return m, db.st.Put(manifestDBKey(), b, nil)
+		return m, db.st.Put(keyPrefixManifest, b, nil)
 	}); err != nil {
 		return errors.Wrap(err, "failed to set manifest")
 	}
@@ -86,12 +86,12 @@ func (db *TempWODatabase) SetManifest(m base.Manifest) error {
 	return nil
 }
 
-func (db *TempWODatabase) SetStates(sts []base.State) error {
+func (db *LeveldbBlockWriteDatabase) SetStates(sts []base.State) error {
 	if len(sts) < 1 {
 		return nil
 	}
 
-	e := util.StringErrorFunc("failed to set states in TempWODatabase")
+	e := util.StringErrorFunc("failed to set states in TempLeveldbDatabase")
 
 	worker := util.NewErrgroupWorker(context.Background(), math.MaxInt16)
 	defer worker.Close()
@@ -104,7 +104,7 @@ func (db *TempWODatabase) SetStates(sts []base.State) error {
 			st := sts[i]
 
 			_, issuffragestatevalue := st.Value().(base.SuffrageStateValue)
-			if st.Key() == base.SuffrageStateKey && issuffragestatevalue {
+			if st.Key() == SuffrageStateKey && issuffragestatevalue {
 				suffragestate = st
 			}
 
@@ -114,9 +114,9 @@ func (db *TempWODatabase) SetStates(sts []base.State) error {
 				}
 
 				switch {
-				case st.Key() == base.SuffrageStateKey && !issuffragestatevalue:
+				case st.Key() == SuffrageStateKey && !issuffragestatevalue:
 					return e(nil, "invalid suffrage state; not SuffrageStateValue, %T", st.Value())
-				case st.Key() != base.SuffrageStateKey && issuffragestatevalue:
+				case st.Key() != SuffrageStateKey && issuffragestatevalue:
 					return e(nil, "invalid state value; value is SuffrageStateValue, but state key is not suffrage state")
 				}
 
@@ -143,7 +143,7 @@ func (db *TempWODatabase) SetStates(sts []base.State) error {
 
 	if suffragestate != nil {
 		if err := db.sufstt.Set(func(i interface{}) (interface{}, error) {
-			if err := db.st.Put(suffrageDBKey(), []byte(suffragestate.Key()), nil); err != nil {
+			if err := db.st.Put(keyPrefixSuffrage, []byte(suffragestate.Key()), nil); err != nil {
 				return nil, errors.Wrap(err, "failed to put suffrage state")
 			}
 
@@ -156,7 +156,7 @@ func (db *TempWODatabase) SetStates(sts []base.State) error {
 	return nil
 }
 
-func (db *TempWODatabase) SetOperations(ops []util.Hash) error {
+func (db *LeveldbBlockWriteDatabase) SetOperations(ops []util.Hash) error {
 	if len(ops) < 1 {
 		return nil
 	}
@@ -190,18 +190,18 @@ func (db *TempWODatabase) SetOperations(ops []util.Hash) error {
 	return nil
 }
 
-func (db *TempWODatabase) Write() error {
+func (db *LeveldbBlockWriteDatabase) Write() error {
 	db.Lock()
 	defer db.Unlock()
 
 	if err := db.st.Write(); err != nil {
-		return errors.Wrap(err, "failed to write to TempWODatabase")
+		return errors.Wrap(err, "failed to write to TempLeveldbDatabase")
 	}
 
 	return nil
 }
 
-func (db *TempWODatabase) TempDatabase() (TempDatabase, error) {
+func (db *LeveldbBlockWriteDatabase) TempDatabase() (TempDatabase, error) {
 	db.Lock()
 	defer db.Unlock()
 
@@ -214,5 +214,5 @@ func (db *TempWODatabase) TempDatabase() (TempDatabase, error) {
 		return nil, e(nil, "wrong manifest")
 	}
 
-	return newTempRODatabaseFromWOStorage(db)
+	return newTempLeveldbDatabaseFromWOStorage(db)
 }

@@ -18,7 +18,8 @@ type DummyPermanentDatabase struct {
 	closef             func() error
 	manifestf          func(height base.Height) (base.Manifest, bool, error)
 	lastManifestf      func() (base.Manifest, bool, error)
-	suffragef          func(suffrageHeight base.Height) (base.State, bool, error)
+	suffragef          func(height base.Height) (base.State, bool, error)
+	suffrageByHeightf  func(suffrageHeight base.Height) (base.State, bool, error)
 	lastSuffragef      func() (base.State, bool, error)
 	statef             func(key string) (base.State, bool, error)
 	existsOperationf   func(operationFactHash util.Hash) (bool, error)
@@ -41,8 +42,12 @@ func (db *DummyPermanentDatabase) LastManifest() (base.Manifest, bool, error) {
 	return db.lastManifestf()
 }
 
-func (db *DummyPermanentDatabase) Suffrage(suffrageHeight base.Height) (base.State, bool, error) {
-	return db.suffragef(suffrageHeight)
+func (db *DummyPermanentDatabase) SuffrageByHeight(suffrageHeight base.Height) (base.State, bool, error) {
+	return db.suffrageByHeightf(suffrageHeight)
+}
+
+func (db *DummyPermanentDatabase) Suffrage(height base.Height) (base.State, bool, error) {
+	return db.suffragef(height)
 }
 
 func (db *DummyPermanentDatabase) LastSuffrage() (base.State, bool, error) {
@@ -158,14 +163,26 @@ func (t *testDefaultDatabaseWithPermanent) TestLastManifest() {
 
 func (t *testDefaultDatabaseWithPermanent) TestSuffrage() {
 	_, nodes := t.locals(3)
-	st, _ := t.suffrageState(base.Height(33), base.Height(66), nodes)
+	height := base.Height(33)
+	suffrageheight := base.Height(66)
+	st, sv := t.suffrageState(height, suffrageheight, nodes)
 
 	perm := &DummyPermanentDatabase{
-		suffragef: func(suffrageHeight base.Height) (base.State, bool, error) {
+		suffragef: func(height base.Height) (base.State, bool, error) {
 			switch {
-			case suffrageHeight == st.Height():
+			case height == st.Height():
 				return st, true, nil
-			case suffrageHeight == st.Height()+2:
+			case height == st.Height()+2:
+				return nil, false, errors.Errorf("hihihi")
+			default:
+				return nil, false, nil
+			}
+		},
+		suffrageByHeightf: func(suffrageHeight base.Height) (base.State, bool, error) {
+			switch {
+			case suffrageHeight == sv.Height():
+				return st, true, nil
+			case suffrageHeight == sv.Height()+2:
 				return nil, false, errors.Errorf("hihihi")
 			default:
 				return nil, false, nil
@@ -176,22 +193,44 @@ func (t *testDefaultDatabaseWithPermanent) TestSuffrage() {
 	db, err := NewDefaultDatabase(t.root, t.encs, t.enc, perm, nil)
 	t.NoError(err)
 
-	t.Run("found", func() {
-		rst, found, err := db.Suffrage(st.Height())
+	t.Run("found SuffrageByHeight", func() {
+		rst, found, err := db.SuffrageByHeight(suffrageheight)
 		t.NoError(err)
 		t.True(found)
 		t.True(base.IsEqualState(st, rst))
 	})
 
-	t.Run("not found", func() {
-		rst, found, err := db.Suffrage(st.Height() + 1)
+	t.Run("not found SuffrageByHeight", func() {
+		rst, found, err := db.SuffrageByHeight(suffrageheight + 1)
 		t.NoError(err)
 		t.False(found)
 		t.Nil(rst)
 	})
 
-	t.Run("error", func() {
-		rst, found, err := db.Suffrage(st.Height() + 2)
+	t.Run("error SuffrageByHeight", func() {
+		rst, found, err := db.SuffrageByHeight(suffrageheight + 2)
+		t.Error(err)
+		t.False(found)
+		t.Nil(rst)
+		t.Contains(err.Error(), "hihihi")
+	})
+
+	t.Run("found Suffrage", func() {
+		rst, found, err := db.Suffrage(height)
+		t.NoError(err)
+		t.True(found)
+		t.True(base.IsEqualState(st, rst))
+	})
+
+	t.Run("not found Suffrage", func() {
+		rst, found, err := db.Suffrage(height + 1)
+		t.NoError(err)
+		t.False(found)
+		t.Nil(rst)
+	})
+
+	t.Run("error Suffrage", func() {
+		rst, found, err := db.Suffrage(height + 2)
 		t.Error(err)
 		t.False(found)
 		t.Nil(rst)
@@ -365,7 +404,15 @@ func (t *testDefaultDatabaseBlockWrite) TestMerge() {
 		lastManifestf: func() (base.Manifest, bool, error) {
 			return lm, true, nil
 		},
-		suffragef: func(suffrageHeight base.Height) (base.State, bool, error) {
+		suffragef: func(height base.Height) (base.State, bool, error) {
+			switch {
+			case height-1 == lsufstt.Height():
+				return lsufstt, true, nil
+			default:
+				return nil, false, nil
+			}
+		},
+		suffrageByHeightf: func(suffrageHeight base.Height) (base.State, bool, error) {
 			switch {
 			case suffrageHeight == lsufsv.Height():
 				return lsufstt, true, nil
@@ -392,7 +439,7 @@ func (t *testDefaultDatabaseBlockWrite) TestMerge() {
 	}
 
 	db, err := NewDefaultDatabase(t.root, t.encs, t.enc, perm, func(h base.Height) (BlockWriteDatabase, error) {
-		return NewTempWODatabase(h, filepath.Join(t.root, h.String()), t.encs, t.enc)
+		return NewLeveldbBlockWriteDatabase(h, filepath.Join(t.root, h.String()), t.encs, t.enc)
 	})
 	t.NoError(err)
 
@@ -430,13 +477,26 @@ func (t *testDefaultDatabaseBlockWrite) TestMerge() {
 		base.EqualManifest(t.Assert(), lm, rm)
 	})
 
-	t.Run("check suffrage before merging", func() {
-		rst, found, err := db.Suffrage(sufsv.Height())
+	t.Run("check SuffrageByHeight before merging", func() {
+		rst, found, err := db.SuffrageByHeight(sufsv.Height())
 		t.NoError(err)
 		t.False(found)
 		t.Nil(rst)
 
-		rst, found, err = db.Suffrage(lsufsv.Height())
+		rst, found, err = db.SuffrageByHeight(lsufsv.Height())
+		t.NoError(err)
+		t.True(found)
+
+		t.True(base.IsEqualState(lsufstt, rst))
+	})
+
+	t.Run("check Suffrage before merging", func() {
+		rst, found, err := db.Suffrage(sufstt.Height())
+		t.NoError(err)
+		t.False(found)
+		t.Nil(rst)
+
+		rst, found, err = db.Suffrage(lsufstt.Height())
 		t.NoError(err)
 		t.True(found)
 
@@ -491,8 +551,15 @@ func (t *testDefaultDatabaseBlockWrite) TestMerge() {
 		base.EqualManifest(t.Assert(), m, rm)
 	})
 
-	t.Run("check suffrage", func() {
-		rst, found, err := db.Suffrage(sufsv.Height())
+	t.Run("check SuffrageByHeight", func() {
+		rst, found, err := db.SuffrageByHeight(sufsv.Height())
+		t.NoError(err)
+		t.True(found)
+
+		t.True(base.IsEqualState(sufstt, rst))
+	})
+	t.Run("check Suffrage", func() {
+		rst, found, err := db.Suffrage(sufstt.Height())
 		t.NoError(err)
 		t.True(found)
 
@@ -541,7 +608,7 @@ func (t *testDefaultDatabaseBlockWrite) TestFindState() {
 	}
 
 	db, err := NewDefaultDatabase(t.root, t.encs, t.enc, perm, func(height base.Height) (BlockWriteDatabase, error) {
-		return NewTempWODatabase(height, filepath.Join(t.root, height.String()), t.encs, t.enc)
+		return NewLeveldbBlockWriteDatabase(height, filepath.Join(t.root, height.String()), t.encs, t.enc)
 	})
 	t.NoError(err)
 
@@ -595,7 +662,7 @@ func (t *testDefaultDatabaseBlockWrite) TestInvalidMerge() {
 	}
 
 	db, err := NewDefaultDatabase(t.root, t.encs, t.enc, perm, func(h base.Height) (BlockWriteDatabase, error) {
-		return NewTempWODatabase(h, filepath.Join(t.root, h.String()), t.encs, t.enc)
+		return NewLeveldbBlockWriteDatabase(h, filepath.Join(t.root, h.String()), t.encs, t.enc)
 	})
 	t.NoError(err)
 
@@ -662,7 +729,7 @@ func (t *testDefaultDatabaseBlockWrite) TestMergePermanent() {
 	}
 
 	db, err := NewDefaultDatabase(t.root, t.encs, t.enc, perm, func(h base.Height) (BlockWriteDatabase, error) {
-		return NewTempWODatabase(h, filepath.Join(t.root, h.String()), t.encs, t.enc)
+		return NewLeveldbBlockWriteDatabase(h, filepath.Join(t.root, h.String()), t.encs, t.enc)
 	})
 	t.NoError(err)
 
@@ -843,7 +910,7 @@ func (t *testDefaultDatabaseLoad) TestLoadTempDatabases() {
 
 	db, err := NewDefaultDatabase(t.root, t.encs, t.enc, perm, func(height base.Height) (BlockWriteDatabase, error) {
 		f, _ := newTempDatabaseDirectory(t.root, height)
-		return NewTempWODatabase(height, f, t.encs, t.enc)
+		return NewLeveldbBlockWriteDatabase(height, f, t.encs, t.enc)
 	})
 	t.NoError(err)
 

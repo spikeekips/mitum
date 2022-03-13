@@ -12,35 +12,35 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type testWODatabase struct {
+type testLeveldbBlockWriteDatabase struct {
 	baseTestHandler
 	baseTestDatabase
 }
 
-func (t *testWODatabase) SetupTest() {
+func (t *testLeveldbBlockWriteDatabase) SetupTest() {
 	t.baseTestHandler.SetupTest()
 	t.baseTestDatabase.SetupTest()
 }
 
-func (t *testWODatabase) TestNew() {
+func (t *testLeveldbBlockWriteDatabase) TestNew() {
 	t.Run("valid", func() {
-		wst, err := NewTempWODatabase(base.Height(33), t.root, t.encs, t.enc)
+		wst, err := NewLeveldbBlockWriteDatabase(base.Height(33), t.root, t.encs, t.enc)
 		t.NoError(err)
 
 		_ = (interface{})(wst).(BlockWriteDatabase)
 	})
 
 	t.Run("root exists", func() {
-		_, err := NewTempWODatabase(base.Height(33), t.root, t.encs, t.enc)
+		_, err := NewLeveldbBlockWriteDatabase(base.Height(33), t.root, t.encs, t.enc)
 		t.Error(err)
 		t.Contains(err.Error(), "failed batch leveldb storage")
 	})
 }
 
-func (t *testWODatabase) TestSetManifest() {
+func (t *testLeveldbBlockWriteDatabase) TestSetManifest() {
 	height := base.Height(33)
 
-	wst := t.newMemWO(height)
+	wst := t.newMemLeveldbBlockWriteDatabase(height)
 	defer wst.Close()
 
 	m := base.NewDummyManifest(height, valuehash.RandomSHA256())
@@ -59,7 +59,7 @@ func (t *testWODatabase) TestSetManifest() {
 	})
 }
 
-func (t *testWODatabase) TestSetStates() {
+func (t *testLeveldbBlockWriteDatabase) TestSetStates() {
 	height := base.Height(33)
 	_, nodes := t.locals(3)
 
@@ -70,7 +70,7 @@ func (t *testWODatabase) TestSetStates() {
 
 	m := base.NewDummyManifest(height, valuehash.RandomSHA256())
 
-	wst := t.newMemWO(height)
+	wst := t.newMemLeveldbBlockWriteDatabase(height)
 	defer wst.Close()
 
 	t.NoError(wst.SetManifest(m))
@@ -110,8 +110,8 @@ func (t *testWODatabase) TestSetStates() {
 	})
 }
 
-func (t *testWODatabase) TestSetOperations() {
-	wst := t.newMemWO(base.Height(33))
+func (t *testLeveldbBlockWriteDatabase) TestSetOperations() {
+	wst := t.newMemLeveldbBlockWriteDatabase(base.Height(33))
 	defer wst.Close()
 
 	ops := make([]util.Hash, 33)
@@ -143,10 +143,10 @@ func (t *testWODatabase) TestSetOperations() {
 	})
 }
 
-func (t *testWODatabase) TestRemove() {
+func (t *testLeveldbBlockWriteDatabase) TestRemove() {
 	height := base.Height(33)
 
-	wst := t.newWO(height)
+	wst := t.newLeveldbBlockWriteDatabase(height)
 	defer wst.Close()
 
 	t.T().Log("check root directory created")
@@ -167,9 +167,9 @@ func (t *testWODatabase) TestRemove() {
 
 	t.T().Log("remove again")
 	err = wst.Remove()
-	t.True(errors.Is(err, storage.ConnectionError))
+	t.True(errors.Is(err, storage.InternalError))
 }
 
-func TestWODatabase(t *testing.T) {
-	suite.Run(t, new(testWODatabase))
+func TestLeveldbBlockWriteDatabase(t *testing.T) {
+	suite.Run(t, new(testLeveldbBlockWriteDatabase))
 }

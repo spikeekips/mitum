@@ -12,17 +12,17 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type testRODatabase struct {
+type testTempLeveldbDatabase struct {
 	baseTestHandler
 	baseTestDatabase
 }
 
-func (t *testRODatabase) SetupTest() {
+func (t *testTempLeveldbDatabase) SetupTest() {
 	t.baseTestHandler.SetupTest()
 	t.baseTestDatabase.SetupTest()
 }
 
-func (t *testRODatabase) TestLoad() {
+func (t *testTempLeveldbDatabase) TestLoad() {
 	height := base.Height(33)
 	_, nodes := t.locals(3)
 
@@ -38,7 +38,7 @@ func (t *testRODatabase) TestLoad() {
 		ops[i] = valuehash.RandomSHA256()
 	}
 
-	wst := t.newWO(height)
+	wst := t.newLeveldbBlockWriteDatabase(height)
 	t.NoError(wst.SetManifest(m))
 	t.NoError(wst.SetStates(stts))
 	t.NoError(wst.SetOperations(ops))
@@ -46,7 +46,7 @@ func (t *testRODatabase) TestLoad() {
 
 	t.NoError(wst.Close())
 
-	rst, err := NewTempRODatabase(t.root, t.encs, t.enc)
+	rst, err := NewTempLeveldbDatabase(t.root, t.encs, t.enc)
 	t.NoError(err)
 	defer rst.Remove()
 
@@ -111,10 +111,10 @@ func (t *testRODatabase) TestLoad() {
 
 	t.Run("remove again", func() {
 		err := rst.Remove()
-		t.True(errors.Is(err, storage.ConnectionError))
+		t.True(errors.Is(err, storage.InternalError))
 	})
 }
 
-func TestRODatabase(t *testing.T) {
-	suite.Run(t, new(testRODatabase))
+func TestTempLeveldbDatabase(t *testing.T) {
+	suite.Run(t, new(testTempLeveldbDatabase))
 }

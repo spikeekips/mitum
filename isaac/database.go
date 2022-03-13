@@ -15,7 +15,8 @@ type Database interface {
 	Close() error
 	Manifest(height base.Height) (base.Manifest, bool, error)
 	LastManifest() (base.Manifest, bool, error)
-	Suffrage(suffrageHeight base.Height) (base.State, bool, error)
+	Suffrage(blockheight base.Height) (base.State, bool, error)
+	SuffrageByHeight(suffrageHeight base.Height) (base.State, bool, error)
 	LastSuffrage() (base.State, bool, error)
 	State(key string) (base.State, bool, error)
 	ExistsOperation(operationFactHash util.Hash) (bool, error)
@@ -59,6 +60,7 @@ type PermanentDatabase interface {
 	LastManifest() (base.Manifest, bool, error)
 	Manifest(base.Height) (base.Manifest, bool, error)
 	LastSuffrage() (base.State, bool, error)
-	Suffrage(suffrageHeight base.Height) (base.State, bool, error)
+	Suffrage(blockheight base.Height) (base.State, bool, error)
+	SuffrageByHeight(suffrageHeight base.Height) (base.State, bool, error)
 	MergeTempDatabase(TempDatabase) error
 }

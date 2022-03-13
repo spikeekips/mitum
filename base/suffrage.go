@@ -2,8 +2,6 @@ package base
 
 import "github.com/spikeekips/mitum/util"
 
-var SuffrageStateKey = "suffrage"
-
 type Suffrage interface {
 	Exists(Address) bool
 	ExistsPublickey(Address, Publickey) bool

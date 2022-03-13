@@ -20,7 +20,7 @@ type ReadStorage interface {
 	Get(key []byte) ([]byte, bool, error)
 	Exists(key []byte) (bool, error)
 	Iter(
-		prefix []byte,
+		r *leveldbutil.Range,
 		callback func(key []byte, raw []byte) (bool, error),
 		sort bool,
 	) error
@@ -123,11 +123,11 @@ func (st *BaseStorage) Exists(key []byte) (bool, error) {
 }
 
 func (st *BaseStorage) Iter(
-	prefix []byte,
+	r *leveldbutil.Range,
 	callback func(key []byte, raw []byte) (bool, error),
 	sort bool,
 ) error {
-	iter := st.db.NewIterator(leveldbutil.BytesPrefix(prefix), nil)
+	iter := st.db.NewIterator(r, nil)
 	defer iter.Release()
 
 	var seek func() bool
