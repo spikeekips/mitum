@@ -71,13 +71,13 @@ func (db *baseLeveldbDatabase) Remove() error {
 	return nil
 }
 
-func (db *baseLeveldbDatabase) loadHinter(b []byte) (interface{}, error) {
+func (db *baseLeveldbDatabase) readHinter(b []byte) (interface{}, error) {
 	if b == nil {
 		return nil, nil
 	}
 
 	var ht hint.Hint
-	ht, raw, err := db.loadHint(b)
+	ht, raw, err := db.readHint(b)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +90,7 @@ func (db *baseLeveldbDatabase) loadHinter(b []byte) (interface{}, error) {
 	}
 }
 
-func (db *baseLeveldbDatabase) loadHint(b []byte) (hint.Hint, []byte, error) {
+func (db *baseLeveldbDatabase) readHint(b []byte) (hint.Hint, []byte, error) {
 	if len(b) < hint.MaxHintLength {
 		return hint.Hint{}, nil, errors.Errorf("none hinted string; too short")
 	}
@@ -128,7 +128,7 @@ func (db *baseLeveldbDatabase) state(key string) (base.State, bool, error) {
 	case !found:
 		return nil, false, nil
 	default:
-		i, err := db.loadState(b)
+		i, err := db.decodeState(b)
 		if err != nil {
 			return nil, false, e(err, "")
 		}
@@ -146,14 +146,14 @@ func (db *baseLeveldbDatabase) existsOperation(h util.Hash) (bool, error) {
 	}
 }
 
-func (db *baseLeveldbDatabase) loadState(b []byte) (base.State, error) {
+func (db *baseLeveldbDatabase) decodeState(b []byte) (base.State, error) {
 	if b == nil {
 		return nil, nil
 	}
 
 	e := util.StringErrorFunc("failed to load state")
 
-	hinter, err := db.loadHinter(b)
+	hinter, err := db.readHinter(b)
 	switch {
 	case err != nil:
 		return nil, e(err, "")
@@ -176,7 +176,7 @@ func (db *baseLeveldbDatabase) decodeManifest(b []byte) (base.Manifest, error) {
 
 	e := util.StringErrorFunc("failed to load manifest")
 
-	hinter, err := db.loadHinter(b)
+	hinter, err := db.readHinter(b)
 	switch {
 	case err != nil:
 		return nil, e(err, "")
@@ -195,7 +195,7 @@ func (db *baseLeveldbDatabase) decodeManifest(b []byte) (base.Manifest, error) {
 func (db *baseLeveldbDatabase) decodeSuffrage(b []byte) (base.State, error) {
 	e := util.StringErrorFunc("failed to load suffrage")
 
-	switch i, err := db.loadState(b); {
+	switch i, err := db.decodeState(b); {
 	case err != nil:
 		return nil, e(err, "failed to load suffrage state")
 	case i.Value() == nil:

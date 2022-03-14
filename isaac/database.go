@@ -39,7 +39,6 @@ type TempDatabase interface {
 	SuffrageHeight() base.Height
 	Manifest() (base.Manifest, error)
 	Suffrage() (base.State, bool, error)
-	States(func(base.State) (bool, error)) error
 }
 
 type BlockWriteDatabase interface {

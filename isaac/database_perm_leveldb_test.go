@@ -48,7 +48,10 @@ func (t *testLeveldbPermanentDatabase) SetupTest() {
 
 func (t *testLeveldbPermanentDatabase) newDB() *LeveldbPermanentDatabase {
 	st := leveldbstorage.NewMemWriteStorage()
-	return newLeveldbPermanentDatabase(st, t.encs, t.enc)
+	db, err := newLeveldbPermanentDatabase(st, t.encs, t.enc)
+	t.NoError(err)
+
+	return db
 }
 
 func (t *testLeveldbPermanentDatabase) TestNew() {
@@ -176,7 +179,7 @@ func (t *testLeveldbPermanentDatabase) TestSuffrage() {
 		t.True(found)
 		t.NotNil(rsufstt)
 
-		t.True(base.IsEqualState(stm[35], rsufstt))
+		t.True(base.IsEqualState(st, rsufstt))
 	})
 
 	t.Run("unknown suffrage by height", func() {
@@ -208,15 +211,6 @@ func (t *testLeveldbPermanentDatabase) TestSuffrage() {
 			t.True(base.IsEqualState(sthm[height], rsufstt))
 			height++
 		}
-	})
-
-	t.Run("known suffrage; last height", func() {
-		rsufstt, found, err := db.Suffrage(st.Height())
-		t.NoError(err)
-		t.True(found)
-		t.NotNil(rsufstt)
-
-		t.True(base.IsEqualState(sthm[68], rsufstt))
 	})
 }
 

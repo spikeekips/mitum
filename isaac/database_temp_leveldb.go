@@ -12,7 +12,6 @@ import (
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
 
 type TempLeveldbDatabase struct {
@@ -48,11 +47,11 @@ func newTempLeveldbDatabase(
 		st:                  st,
 	}
 
-	if err := db.loadManifest(); err != nil {
+	if err := db.loadLastManifest(); err != nil {
 		return nil, err
 	}
 
-	if err := db.loadSuffrage(); err != nil {
+	if err := db.loadLastSuffrage(); err != nil {
 		return nil, err
 	}
 
@@ -125,26 +124,7 @@ func (db *TempLeveldbDatabase) ExistsOperation(h util.Hash) (bool, error) {
 	return db.existsOperation(h)
 }
 
-func (db *TempLeveldbDatabase) States(f func(base.State) (bool, error)) error {
-	if err := db.st.Iter(
-		leveldbutil.BytesPrefix(keyPrefixState),
-		func(key []byte, raw []byte) (bool, error) {
-			i, err := db.loadState(raw)
-			if err != nil {
-				return false, errors.Wrap(err, "")
-			}
-
-			return f(i)
-		},
-		true,
-	); err != nil {
-		return errors.Wrap(err, "failed to iter states")
-	}
-
-	return nil
-}
-
-func (db *TempLeveldbDatabase) loadManifest() error {
+func (db *TempLeveldbDatabase) loadLastManifest() error {
 	e := util.StringErrorFunc("failed to load manifest")
 
 	switch b, found, err := db.st.Get(keyPrefixManifest); {
@@ -164,7 +144,7 @@ func (db *TempLeveldbDatabase) loadManifest() error {
 	}
 }
 
-func (db *TempLeveldbDatabase) loadSuffrage() error {
+func (db *TempLeveldbDatabase) loadLastSuffrage() error {
 	e := util.StringErrorFunc("failed to load suffrage state")
 
 	var key string

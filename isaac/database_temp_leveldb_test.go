@@ -10,7 +10,27 @@ import (
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
+	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
+
+func (db *TempLeveldbDatabase) States(f func(base.State) (bool, error)) error {
+	if err := db.st.Iter(
+		leveldbutil.BytesPrefix(keyPrefixState),
+		func(key []byte, raw []byte) (bool, error) {
+			i, err := db.decodeState(raw)
+			if err != nil {
+				return false, errors.Wrap(err, "")
+			}
+
+			return f(i)
+		},
+		true,
+	); err != nil {
+		return errors.Wrap(err, "failed to iter states")
+	}
+
+	return nil
+}
 
 type testTempLeveldbDatabase struct {
 	baseTestHandler

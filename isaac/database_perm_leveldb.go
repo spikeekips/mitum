@@ -26,25 +26,22 @@ func NewLeveldbPermanentDatabase(
 		return nil, errors.Wrap(err, "failed new LeveldbPermanentDatabase")
 	}
 
-	return newLeveldbPermanentDatabase(st, encs, enc), nil
+	return newLeveldbPermanentDatabase(st, encs, enc)
 }
 
 func newLeveldbPermanentDatabase(
 	st *leveldbstorage.WriteStorage,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
-) *LeveldbPermanentDatabase {
-	return &LeveldbPermanentDatabase{
+) (*LeveldbPermanentDatabase, error) {
+	db := &LeveldbPermanentDatabase{
 		baseLeveldbDatabase: newBaseLeveldbDatabase(st, encs, enc),
 		st:                  st,
 		m:                   util.NewLocked(nil),
 		sufstt:              util.NewLocked(nil),
 	}
-}
 
-func (db *LeveldbPermanentDatabase) load() error {
-	// BLOCK load last manifest and suffrage state
-	return nil
+	return db, nil
 }
 
 func (db *LeveldbPermanentDatabase) LastManifest() (base.Manifest, bool, error) {
@@ -102,13 +99,15 @@ func (db *LeveldbPermanentDatabase) Suffrage(height base.Height) (base.State, bo
 		return nil, false, nil
 	case height > m.Height():
 		return nil, false, nil
-	default:
-		switch _, found, err := db.LastSuffrage(); {
-		case err != nil:
-			return nil, false, e(err, "")
-		case !found:
-			return nil, false, nil
-		}
+	}
+
+	switch st, found, err := db.LastSuffrage(); {
+	case err != nil:
+		return nil, false, e(err, "")
+	case !found:
+		return nil, false, nil
+	case height == st.Height():
+		return st, true, nil
 	}
 
 	var st base.State
@@ -142,27 +141,22 @@ func (db *LeveldbPermanentDatabase) SuffrageByHeight(suffrageHeight base.Height)
 		return nil, false, nil
 	case suffrageHeight > st.Value().(base.SuffrageStateValue).Height():
 		return nil, false, nil
+	case suffrageHeight == st.Value().(base.SuffrageStateValue).Height():
+		return st, true, nil
 	}
 
-	var st base.State
-	if err := db.st.Iter(
-		&leveldbutil.Range{Start: beginSuffrageHeightDBKey, Limit: suffrageHeightDBKey(suffrageHeight + 1)},
-		func(_, b []byte) (bool, error) {
-			i, err := db.decodeSuffrage(b)
-			if err != nil {
-				return false, errors.Wrap(err, "")
-			}
-
-			st = i
-
-			return false, nil
-		},
-		false,
-	); err != nil {
-		return nil, false, errors.Wrap(err, "failed to get suffrage by height")
+	switch b, found, err := db.st.Get(suffrageHeightDBKey(suffrageHeight)); {
+	case err != nil:
+		return nil, false, e(err, "")
+	case !found:
+		return nil, false, nil
+	default:
+		st, err := db.decodeSuffrage(b)
+		if err != nil {
+			return nil, false, e(err, "")
+		}
+		return st, true, nil
 	}
-
-	return st, st != nil, nil
 }
 
 func (db *LeveldbPermanentDatabase) State(key string) (base.State, bool, error) {
@@ -173,6 +167,24 @@ func (db *LeveldbPermanentDatabase) ExistsOperation(h util.Hash) (bool, error) {
 	return db.existsOperation(h)
 }
 
-func (db *LeveldbPermanentDatabase) MergeTempDatabase(TempDatabase) error {
+func (db *LeveldbPermanentDatabase) MergeTempDatabase(temp TempDatabase) error {
+	e := util.StringErrorFunc("failed to merge TempDatabase")
+	switch t := temp.(type) {
+	case *TempLeveldbDatabase:
+		if err := db.mergeTempDatabaseFromLeveldb(t); err != nil {
+			return e(err, "")
+		}
+
+		return nil
+	default:
+		return e(nil, "unknown temp database, %T", temp)
+	}
+}
+
+func (db *LeveldbPermanentDatabase) mergeTempDatabaseFromLeveldb(temp *TempLeveldbDatabase) error {
+	// NOTE merge operations
+	// NOTE merge states
+	// NOTE merge suffrage
+	// NOTE merge manifest
 	return nil
 }

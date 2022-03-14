@@ -6,6 +6,8 @@ package redisstorage
 import (
 	"context"
 	"errors"
+	"fmt"
+	"sort"
 	"testing"
 
 	"github.com/go-redis/redis/v8"
@@ -23,6 +25,9 @@ func (t *testRedisStorage) TestNew() {
 		st, err := NewStorage(context.Background(), &redis.Options{}, "")
 		t.NoError(err)
 		t.NotNil(st)
+
+		defer st.Close()
+		defer st.Clean(context.Background())
 	})
 
 	t.Run("unknown redis server", func() {
@@ -38,6 +43,9 @@ func (t *testRedisStorage) TestClose() {
 	st, err := NewStorage(context.Background(), &redis.Options{}, "test")
 	t.NoError(err)
 	t.NotNil(st)
+
+	defer st.Close()
+	defer st.Clean(context.Background())
 
 	t.Run("close", func() {
 		t.NoError(st.Close())
@@ -79,6 +87,9 @@ func (t *testRedisStorage) TestGetSet() {
 	t.NoError(err)
 	t.NotNil(st)
 
+	defer st.Close()
+	defer st.Clean(context.Background())
+
 	key := util.UUID().String()
 	value := util.UUID().Bytes()
 
@@ -103,6 +114,212 @@ func (t *testRedisStorage) TestGetSet() {
 		found, err := st.Exists(context.Background(), util.UUID().String())
 		t.NoError(err)
 		t.False(found)
+	})
+}
+
+func (t *testRedisStorage) TestZAddArgs() {
+	st, err := NewStorage(context.Background(), &redis.Options{}, "test")
+	t.NoError(err)
+	t.NotNil(st)
+
+	defer st.Close()
+	defer st.Clean(context.Background())
+
+	t.Run("integer score", func() {
+		key := util.UUID().String()
+
+		members := make([]string, 6)
+		args := redis.ZAddArgs{NX: true, Members: make([]redis.Z, 6)}
+		for i := range members {
+			member := fmt.Sprintf("%s-%d", key, i)
+			args.Members[i] = redis.Z{
+				Score:  float64(i),
+				Member: member,
+			}
+
+			members[i] = member
+		}
+
+		t.NoError(st.ZAddArgs(context.Background(), key, args))
+
+		r, err := st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
+			Key:     key,
+			Start:   "0",
+			Stop:    "5",
+			ByScore: true,
+			Rev:     false,
+		})
+		t.NoError(err)
+		t.Equal(members, r)
+
+		// reverse
+		r, err = st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
+			Key:     key,
+			Start:   "0",
+			Stop:    "5",
+			ByScore: true,
+			Rev:     true,
+		})
+		t.NoError(err)
+
+		sort.Sort(sort.Reverse(sort.StringSlice(members)))
+		t.Equal(members, r)
+	})
+
+	t.Run("filter by score", func() {
+		key := util.UUID().String()
+
+		members := make([]string, 6)
+		args := redis.ZAddArgs{NX: true, Members: make([]redis.Z, 6)}
+		for i := range members {
+			member := fmt.Sprintf("%s-%d", key, i)
+			args.Members[i] = redis.Z{
+				Score:  float64(i),
+				Member: member,
+			}
+
+			members[i] = member
+		}
+
+		t.NoError(st.ZAddArgs(context.Background(), key, args))
+
+		r, err := st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
+			Key:     key,
+			Start:   "3",
+			Stop:    "5",
+			ByScore: true,
+			Rev:     false,
+		})
+		t.NoError(err)
+		t.Equal(members[3:], r)
+
+		// reverse
+		r, err = st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
+			Key:     key,
+			Start:   "3",
+			Stop:    "5",
+			ByScore: true,
+			Rev:     true,
+		})
+		t.NoError(err)
+
+		sort.Sort(sort.Reverse(sort.StringSlice(members)))
+		t.Equal(members[:3], r)
+	})
+
+	t.Run("count", func() {
+		key := util.UUID().String()
+
+		members := make([]string, 6)
+		args := redis.ZAddArgs{NX: true, Members: make([]redis.Z, 6)}
+		for i := range members {
+			member := fmt.Sprintf("%s-%d", key, i)
+			args.Members[i] = redis.Z{
+				Score:  float64(i),
+				Member: member,
+			}
+
+			members[i] = member
+		}
+
+		t.NoError(st.ZAddArgs(context.Background(), key, args))
+
+		r, err := st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
+			Key:     key,
+			Start:   "0",
+			Stop:    "5",
+			ByScore: true,
+			Rev:     false,
+			Count:   1,
+		})
+		t.NoError(err)
+		t.Equal(members[:1], r)
+
+		r, err = st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
+			Key:     key,
+			Start:   "0",
+			Stop:    "5",
+			ByScore: true,
+			Rev:     false,
+			Count:   2,
+		})
+		t.NoError(err)
+		t.Equal(members[:2], r)
+
+		r, err = st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
+			Key:     key,
+			Start:   "0",
+			Stop:    "5",
+			ByScore: true,
+			Rev:     false,
+			Count:   int64(len(members)) + 100,
+		})
+		t.NoError(err)
+		t.Equal(members, r)
+	})
+
+	t.Run("by lexical sort", func() {
+		key := util.UUID().String()
+
+		members := make([]string, 6)
+		args := redis.ZAddArgs{NX: true, Members: make([]redis.Z, 6)}
+		for i := range members {
+			member := fmt.Sprintf("%s-%020d", key, i)
+			args.Members[i] = redis.Z{
+				Score:  0, // must be same score
+				Member: member,
+			}
+
+			members[i] = member
+		}
+
+		t.NoError(st.ZAddArgs(context.Background(), key, args))
+
+		r, err := st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
+			Key:   key,
+			Start: fmt.Sprintf("[%s-%020d", key, 0),
+			Stop:  fmt.Sprintf("[%s-%020d", key, 5),
+			ByLex: true,
+			Rev:   false,
+		})
+		t.NoError(err)
+		t.Equal(members, r)
+
+		// set Start
+		r, err = st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
+			Key:   key,
+			Start: fmt.Sprintf("(%s-%020d", key, 3),
+			Stop:  fmt.Sprintf("[%s-%020d", key, 5),
+			ByLex: true,
+			Rev:   false,
+		})
+		t.NoError(err)
+		t.Equal(members[4:], r)
+
+		// count over items
+		r, err = st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
+			Key:   key,
+			Start: fmt.Sprintf("[%s-%020d", key, 0),
+			Stop:  fmt.Sprintf("[%s-%020d", key, 5),
+			ByLex: true,
+			Rev:   false,
+			Count: int64(len(members)) + 100,
+		})
+		t.NoError(err)
+		t.Equal(members, r)
+
+		// reverse
+		r, err = st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
+			Key:   key,
+			Start: fmt.Sprintf("[%s-%020d", key, 0),
+			Stop:  fmt.Sprintf("[%s-%020d", key, 5),
+			ByLex: true,
+			Rev:   true,
+		})
+		t.NoError(err)
+
+		sort.Sort(sort.Reverse(sort.StringSlice(members)))
+		t.Equal(members, r)
 	})
 }
 

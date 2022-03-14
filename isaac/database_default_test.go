@@ -406,7 +406,7 @@ func (t *testDefaultDatabaseBlockWrite) TestMerge() {
 		},
 		suffragef: func(height base.Height) (base.State, bool, error) {
 			switch {
-			case height-1 == lsufstt.Height():
+			case height-1 <= lsufstt.Height():
 				return lsufstt, true, nil
 			default:
 				return nil, false, nil
@@ -491,14 +491,10 @@ func (t *testDefaultDatabaseBlockWrite) TestMerge() {
 	})
 
 	t.Run("check Suffrage before merging", func() {
-		rst, found, err := db.Suffrage(sufstt.Height())
-		t.NoError(err)
-		t.False(found)
-		t.Nil(rst)
-
-		rst, found, err = db.Suffrage(lsufstt.Height())
+		rst, found, err := db.Suffrage(lsufstt.Height())
 		t.NoError(err)
 		t.True(found)
+		t.NotNil(rst)
 
 		t.True(base.IsEqualState(lsufstt, rst))
 	})
@@ -708,7 +704,8 @@ func (t *testDefaultDatabaseBlockWrite) TestMergePermanent() {
 		},
 
 		mergeTempDatabasef: func(temp TempDatabase) error {
-			t.NoError(temp.States(func(st base.State) (bool, error) {
+			ltemp := temp.(*TempLeveldbDatabase)
+			t.NoError(ltemp.States(func(st base.State) (bool, error) {
 				mergedstt = append(mergedstt, st)
 
 				return true, nil

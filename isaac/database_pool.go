@@ -126,7 +126,7 @@ func (db *TempPoolDatabase) loadProposal(b []byte) (base.ProposalSignedFact, err
 
 	e := util.StringErrorFunc("failed to load proposal")
 
-	hinter, err := db.loadHinter(b)
+	hinter, err := db.readHinter(b)
 	switch {
 	case err != nil:
 		return nil, e(err, "")

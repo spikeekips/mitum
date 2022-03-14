@@ -165,6 +165,11 @@ end:
 func (db *DefaultDatabase) Suffrage(height base.Height) (base.State, bool, error) {
 	e := util.StringErrorFunc("failed to find suffrage by block height")
 
+	temps := db.activeTemps()
+	if len(temps) > 0 && height > temps[0].Height() {
+		return nil, false, nil
+	}
+
 	temph := db.findTemp(height)
 	if temph != nil {
 		switch i, found, err := temph.Suffrage(); {
@@ -174,8 +179,6 @@ func (db *DefaultDatabase) Suffrage(height base.Height) (base.State, bool, error
 			return i, true, nil
 		}
 	}
-
-	temps := db.activeTemps()
 
 	if temph != nil {
 		for i := range temps {

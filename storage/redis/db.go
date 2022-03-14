@@ -61,9 +61,6 @@ func (st *Storage) key(key string) string {
 }
 
 func (st *Storage) Get(ctx context.Context, key string) ([]byte, bool, error) {
-	st.RLock()
-	defer st.RUnlock()
-
 	r := st.client.Get(ctx, st.key(key))
 	switch {
 	case r.Err() == redis.Nil:
@@ -76,9 +73,6 @@ func (st *Storage) Get(ctx context.Context, key string) ([]byte, bool, error) {
 }
 
 func (st *Storage) Set(ctx context.Context, key string, b []byte) error {
-	st.RLock()
-	defer st.RUnlock()
-
 	r := st.client.Set(ctx, st.key(key), b, 0)
 	switch {
 	case r.Err() != nil:
@@ -89,9 +83,6 @@ func (st *Storage) Set(ctx context.Context, key string, b []byte) error {
 }
 
 func (st *Storage) Exists(ctx context.Context, key string) (bool, error) {
-	st.RLock()
-	defer st.RUnlock()
-
 	r := st.client.Exists(ctx, st.key(key))
 	switch {
 	case r.Err() != nil:
@@ -102,12 +93,26 @@ func (st *Storage) Exists(ctx context.Context, key string) (bool, error) {
 }
 
 func (st *Storage) Clean(ctx context.Context) error {
-	st.RLock()
-	defer st.RUnlock()
-
 	if err := st.client.FlushAll(ctx).Err(); err != nil {
 		return storage.ExecError.Wrapf(err, "failed to clean redis server")
 	}
 
 	return nil
+}
+
+func (st *Storage) ZAddArgs(ctx context.Context, key string, args redis.ZAddArgs) error {
+	if err := st.client.ZAddArgs(ctx, key, args).Err(); err != nil {
+		return storage.ExecError.Wrapf(err, "failed to ZAddArgs")
+	}
+
+	return nil
+}
+
+func (st *Storage) ZRangeArgs(ctx context.Context, z redis.ZRangeArgs) ([]string, error) {
+	s, err := st.client.ZRangeArgs(ctx, z).Result()
+	if err != nil {
+		return nil, storage.ExecError.Wrapf(err, "failed to ZRangeArgs")
+	}
+
+	return s, nil
 }

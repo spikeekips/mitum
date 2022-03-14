@@ -171,7 +171,7 @@ func (db *LeveldbBlockWriteDatabase) SetOperations(ops []util.Hash) error {
 		for i := range ops {
 			op := ops[i]
 			err := worker.NewJob(func(context.Context, uint64) error {
-				if err := db.st.Put(operationDBKey(op), nil, nil); err != nil {
+				if err := db.st.Put(operationDBKey(op), op.Bytes(), nil); err != nil {
 					return e(err, "")
 				}
 
