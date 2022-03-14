@@ -40,7 +40,7 @@ func newTempPoolDatabase(st *leveldbstorage.RWStorage, encs *encoder.Encoders, e
 func (db *TempPoolDatabase) Proposal(h util.Hash) (base.ProposalSignedFact, bool, error) {
 	e := util.StringErrorFunc("failed to find proposal by hash")
 
-	switch b, found, err := db.st.Get(proposalDBKey(h)); {
+	switch b, found, err := db.st.Get(leveldbProposalKey(h)); {
 	case err != nil:
 		return nil, false, e(err, "")
 	case !found:
@@ -58,7 +58,7 @@ func (db *TempPoolDatabase) Proposal(h util.Hash) (base.ProposalSignedFact, bool
 func (db *TempPoolDatabase) ProposalByPoint(point base.Point, proposer base.Address) (base.ProposalSignedFact, bool, error) {
 	e := util.StringErrorFunc("failed to find proposal by point")
 
-	switch b, found, err := db.st.Get(proposalPointDBKey(point, proposer)); {
+	switch b, found, err := db.st.Get(leveldbProposalPointKey(point, proposer)); {
 	case err != nil:
 		return nil, false, e(err, "")
 	case !found:
@@ -76,7 +76,7 @@ func (db *TempPoolDatabase) ProposalByPoint(point base.Point, proposer base.Addr
 func (db *TempPoolDatabase) SetProposal(pr base.ProposalSignedFact) (bool, error) {
 	e := util.StringErrorFunc("failed to put proposal")
 
-	key := proposalDBKey(pr.Fact().Hash())
+	key := leveldbProposalKey(pr.Fact().Hash())
 	switch found, err := db.st.Exists(key); {
 	case err != nil:
 		return false, e(err, "")
@@ -87,14 +87,14 @@ func (db *TempPoolDatabase) SetProposal(pr base.ProposalSignedFact) (bool, error
 	batch := new(leveldb.Batch)
 
 	// NOTE remove old proposals
-	top := proposalPointDBKey(pr.ProposalFact().Point().Decrease(), nil)
-	if err := db.st.Iter(leveldbutil.BytesPrefix(keyPrefixProposalByPoint), func(key, b []byte) (bool, error) {
+	top := leveldbProposalPointKey(pr.ProposalFact().Point().Decrease(), nil)
+	if err := db.st.Iter(leveldbutil.BytesPrefix(leveldbKeyPrefixProposalByPoint), func(key, b []byte) (bool, error) {
 		if bytes.Compare(key[:len(top)], top) > 0 {
 			return false, nil
 		}
 
 		batch.Delete(key)
-		batch.Delete(proposalDBKey(valuehash.Bytes(b)))
+		batch.Delete(leveldbProposalKey(valuehash.Bytes(b)))
 
 		return true, nil
 	}, true); err != nil {
@@ -106,9 +106,9 @@ func (db *TempPoolDatabase) SetProposal(pr base.ProposalSignedFact) (bool, error
 		return false, e(err, "failed to marshal proposal")
 	}
 
-	batch.Put(proposalDBKey(pr.Fact().Hash()), b)
+	batch.Put(leveldbProposalKey(pr.Fact().Hash()), b)
 	batch.Put(
-		proposalPointDBKey(pr.ProposalFact().Point(), pr.ProposalFact().Proposer()),
+		leveldbProposalPointKey(pr.ProposalFact().Point(), pr.ProposalFact().Proposer()),
 		pr.Fact().Hash().Bytes(),
 	)
 

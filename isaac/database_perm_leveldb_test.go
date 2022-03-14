@@ -18,17 +18,17 @@ func (db *LeveldbPermanentDatabase) setState(st base.State) error {
 		return e(err, "")
 	}
 
-	if err := db.st.Put(stateDBKey(st.Key()), b, nil); err != nil {
+	if err := db.st.Put(leveldbStateKey(st.Key()), b, nil); err != nil {
 		return e(err, "failed to put state")
 	}
 
 	if st.Key() == SuffrageStateKey {
-		if err := db.st.Put(suffrageDBKey(st.Height()), b, nil); err != nil {
+		if err := db.st.Put(leveldbSuffrageKey(st.Height()), b, nil); err != nil {
 			return e(err, "failed to put suffrage by block height")
 		}
 
 		sv := st.Value().(base.SuffrageStateValue)
-		if err := db.st.Put(suffrageHeightDBKey(sv.Height()), b, nil); err != nil {
+		if err := db.st.Put(leveldbSuffrageHeightKey(sv.Height()), b, nil); err != nil {
 			return e(err, "failed to put suffrage by height")
 		}
 	}
@@ -211,6 +211,177 @@ func (t *testLeveldbPermanentDatabase) TestSuffrage() {
 			t.True(base.IsEqualState(sthm[height], rsufstt))
 			height++
 		}
+	})
+}
+
+func (t *testLeveldbPermanentDatabase) TestLoadEmptyDB() {
+	st := leveldbstorage.NewMemWriteStorage()
+	db, err := newLeveldbPermanentDatabase(st, t.encs, t.enc)
+	t.NoError(err)
+
+	defer db.Close()
+}
+
+func (t *testLeveldbPermanentDatabase) TestLoad() {
+	height := base.Height(33)
+	_, nodes := t.locals(3)
+
+	sufstt, _ := t.suffrageState(height, base.Height(66), nodes)
+
+	stts := t.states(height, 3)
+	stts = append(stts, sufstt)
+
+	m := base.NewDummyManifest(height, valuehash.RandomSHA256())
+
+	ops := make([]util.Hash, 3)
+	for i := range ops {
+		ops[i] = valuehash.RandomSHA256()
+	}
+
+	wst := t.newMemLeveldbBlockWriteDatabase(height)
+	t.NoError(wst.SetManifest(m))
+	t.NoError(wst.SetStates(stts))
+	t.NoError(wst.SetOperations(ops))
+	t.NoError(wst.Write())
+
+	temp, err := wst.TempDatabase()
+	t.NoError(err)
+
+	perm := t.newDB()
+	t.NoError(perm.MergeTempDatabase(temp))
+
+	t.Run("check manifest in perm", func() {
+		nm, found, err := perm.LastManifest()
+		t.NoError(err)
+		t.True(found)
+		base.EqualManifest(t.Assert(), m, nm)
+	})
+
+	t.Run("check suffrage state in perm", func() {
+		nst, found, err := perm.LastSuffrage()
+		t.NoError(err)
+		t.True(found)
+		t.True(base.IsEqualState(sufstt, nst))
+	})
+
+	newperm, err := newLeveldbPermanentDatabase(perm.st, t.encs, t.enc)
+	t.NoError(err)
+
+	t.Run("check manifest in new perm", func() {
+		nm, found, err := newperm.LastManifest()
+		t.NoError(err)
+		t.True(found)
+		base.EqualManifest(t.Assert(), m, nm)
+	})
+
+	t.Run("check suffrage state in new perm", func() {
+		nst, found, err := newperm.LastSuffrage()
+		t.NoError(err)
+		t.True(found)
+		t.True(base.IsEqualState(sufstt, nst))
+	})
+}
+
+func (t *testLeveldbPermanentDatabase) TestMergeTempDatabase() {
+	height := base.Height(33)
+	_, nodes := t.locals(3)
+
+	sufstt, _ := t.suffrageState(height, base.Height(66), nodes)
+
+	stts := t.states(height, 3)
+	stts = append(stts, sufstt)
+
+	m := base.NewDummyManifest(height, valuehash.RandomSHA256())
+
+	ops := make([]util.Hash, 3)
+	for i := range ops {
+		ops[i] = valuehash.RandomSHA256()
+	}
+
+	wst := t.newMemLeveldbBlockWriteDatabase(height)
+	t.NoError(wst.SetManifest(m))
+	t.NoError(wst.SetStates(stts))
+	t.NoError(wst.SetOperations(ops))
+	t.NoError(wst.Write())
+
+	temp, err := wst.TempDatabase()
+	t.NoError(err)
+
+	t.Run("check opertions", func() {
+		perm := t.newDB()
+
+		for i := range ops {
+			found, err := perm.ExistsOperation(ops[i])
+			t.NoError(err)
+			t.False(found)
+		}
+
+		t.NoError(perm.MergeTempDatabase(temp))
+
+		for i := range ops {
+			found, err := perm.ExistsOperation(ops[i])
+			t.NoError(err)
+			t.True(found)
+		}
+	})
+
+	t.Run("check states", func() {
+		perm := t.newDB()
+
+		for i := range stts {
+			st := stts[i]
+			rst, found, err := perm.State(st.Key())
+			t.NoError(err)
+			t.False(found)
+			t.Nil(rst)
+		}
+
+		t.NoError(perm.MergeTempDatabase(temp))
+
+		for i := range ops {
+			st := stts[i]
+
+			rst, found, err := perm.State(st.Key())
+			t.NoError(err)
+			t.True(found)
+			t.True(base.IsEqualState(st, rst))
+		}
+	})
+
+	t.Run("check suffrage state", func() {
+		perm := t.newDB()
+
+		rst, found, err := perm.Suffrage(height)
+		t.NoError(err)
+		t.False(found)
+		t.Nil(rst)
+
+		t.NoError(perm.MergeTempDatabase(temp))
+
+		rst, found, err = perm.Suffrage(height)
+		t.NoError(err)
+		t.True(found)
+		t.NotNil(rst)
+
+		t.True(base.IsEqualState(sufstt, rst))
+	})
+
+	t.Run("check manifest", func() {
+		perm := t.newDB()
+
+		rm, found, err := perm.Manifest(height)
+		t.NoError(err)
+		t.False(found)
+		t.Nil(rm)
+
+		t.NoError(perm.MergeTempDatabase(temp))
+
+		rm, found, err = perm.Manifest(height)
+		t.NoError(err)
+		t.True(found)
+		t.NotNil(rm)
+
+		base.EqualManifest(t.Assert(), m, rm)
 	})
 }
 

@@ -78,7 +78,7 @@ func (db *LeveldbBlockWriteDatabase) SetManifest(m base.Manifest) error {
 			return nil, errors.Errorf("failed to marshal manifest")
 		}
 
-		return m, db.st.Put(keyPrefixManifest, b, nil)
+		return m, db.st.Put(leveldbKeyPrefixManifest, b, nil)
 	}); err != nil {
 		return errors.Wrap(err, "failed to set manifest")
 	}
@@ -125,7 +125,7 @@ func (db *LeveldbBlockWriteDatabase) SetStates(sts []base.State) error {
 					return errors.Wrap(err, "failed to set state")
 				}
 
-				if err := db.st.Put(stateDBKey(st.Key()), b, nil); err != nil {
+				if err := db.st.Put(leveldbStateKey(st.Key()), b, nil); err != nil {
 					return e(err, "failed to put state")
 				}
 
@@ -143,7 +143,7 @@ func (db *LeveldbBlockWriteDatabase) SetStates(sts []base.State) error {
 
 	if suffragestate != nil {
 		if err := db.sufstt.Set(func(i interface{}) (interface{}, error) {
-			if err := db.st.Put(keyPrefixSuffrage, []byte(suffragestate.Key()), nil); err != nil {
+			if err := db.st.Put(leveldbKeyPrefixSuffrage, []byte(suffragestate.Key()), nil); err != nil {
 				return nil, errors.Wrap(err, "failed to put suffrage state")
 			}
 
@@ -171,7 +171,7 @@ func (db *LeveldbBlockWriteDatabase) SetOperations(ops []util.Hash) error {
 		for i := range ops {
 			op := ops[i]
 			err := worker.NewJob(func(context.Context, uint64) error {
-				if err := db.st.Put(operationDBKey(op), op.Bytes(), nil); err != nil {
+				if err := db.st.Put(leveldbOperationKey(op), op.Bytes(), nil); err != nil {
 					return e(err, "")
 				}
 

@@ -1,6 +1,8 @@
 package isaac
 
 import (
+	"bytes"
+
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
@@ -10,10 +12,9 @@ import (
 )
 
 type LeveldbPermanentDatabase struct {
+	*basePermanentDatabase
 	*baseLeveldbDatabase
-	st     *leveldbstorage.WriteStorage
-	m      *util.Locked // NOTE last manifest
-	sufstt *util.Locked // NOTE last suffrage state
+	st *leveldbstorage.WriteStorage
 }
 
 func NewLeveldbPermanentDatabase(
@@ -35,23 +36,20 @@ func newLeveldbPermanentDatabase(
 	enc encoder.Encoder,
 ) (*LeveldbPermanentDatabase, error) {
 	db := &LeveldbPermanentDatabase{
-		baseLeveldbDatabase: newBaseLeveldbDatabase(st, encs, enc),
-		st:                  st,
-		m:                   util.NewLocked(nil),
-		sufstt:              util.NewLocked(nil),
+		basePermanentDatabase: newBasePermanentDatabase(),
+		baseLeveldbDatabase:   newBaseLeveldbDatabase(st, encs, enc),
+		st:                    st,
+	}
+
+	if err := db.loadLastManifest(); err != nil {
+		return nil, err
+	}
+
+	if err := db.loadLastSuffrage(); err != nil {
+		return nil, err
 	}
 
 	return db, nil
-}
-
-func (db *LeveldbPermanentDatabase) LastManifest() (base.Manifest, bool, error) {
-	var m base.Manifest
-	switch _ = db.m.Value(&m); {
-	case m == nil:
-		return nil, false, nil
-	default:
-		return m, true, nil
-	}
 }
 
 func (db *LeveldbPermanentDatabase) Manifest(height base.Height) (base.Manifest, bool, error) {
@@ -64,27 +62,17 @@ func (db *LeveldbPermanentDatabase) Manifest(height base.Height) (base.Manifest,
 		return m, true, nil
 	}
 
-	switch b, found, err := db.st.Get(manifestDBKey(height)); {
+	switch b, found, err := db.st.Get(leveldbManifestKey(height)); {
 	case err != nil:
 		return nil, false, e(err, "")
 	case !found:
-		return nil, false, e(err, "manifest not found")
+		return nil, false, nil
 	default:
 		m, err := db.decodeManifest(b)
 		if err != nil {
 			return nil, false, e(err, "")
 		}
 
-		return m, true, nil
-	}
-}
-
-func (db *LeveldbPermanentDatabase) LastSuffrage() (base.State, bool, error) {
-	var m base.State
-	switch _ = db.sufstt.Value(&m); {
-	case m == nil:
-		return nil, false, nil
-	default:
 		return m, true, nil
 	}
 }
@@ -112,7 +100,7 @@ func (db *LeveldbPermanentDatabase) Suffrage(height base.Height) (base.State, bo
 
 	var st base.State
 	if err := db.st.Iter(
-		&leveldbutil.Range{Start: beginSuffrageDBKey, Limit: suffrageDBKey(height + 1)},
+		&leveldbutil.Range{Start: leveldbBeginSuffrageKey, Limit: leveldbSuffrageKey(height + 1)},
 		func(_, b []byte) (bool, error) {
 			i, err := db.decodeSuffrage(b)
 			if err != nil {
@@ -145,7 +133,7 @@ func (db *LeveldbPermanentDatabase) SuffrageByHeight(suffrageHeight base.Height)
 		return st, true, nil
 	}
 
-	switch b, found, err := db.st.Get(suffrageHeightDBKey(suffrageHeight)); {
+	switch b, found, err := db.st.Get(leveldbSuffrageHeightKey(suffrageHeight)); {
 	case err != nil:
 		return nil, false, e(err, "")
 	case !found:
@@ -168,12 +156,24 @@ func (db *LeveldbPermanentDatabase) ExistsOperation(h util.Hash) (bool, error) {
 }
 
 func (db *LeveldbPermanentDatabase) MergeTempDatabase(temp TempDatabase) error {
+	db.Lock()
+	defer db.Unlock()
+
+	if !db.canMergeTempDatabase(temp) {
+		return nil
+	}
+
 	e := util.StringErrorFunc("failed to merge TempDatabase")
+
 	switch t := temp.(type) {
 	case *TempLeveldbDatabase:
-		if err := db.mergeTempDatabaseFromLeveldb(t); err != nil {
+		m, sufstt, err := db.mergeTempDatabaseFromLeveldb(t)
+		if err != nil {
 			return e(err, "")
 		}
+
+		_ = db.m.SetValue(m)
+		_ = db.sufstt.SetValue(sufstt)
 
 		return nil
 	default:
@@ -181,10 +181,140 @@ func (db *LeveldbPermanentDatabase) MergeTempDatabase(temp TempDatabase) error {
 	}
 }
 
-func (db *LeveldbPermanentDatabase) mergeTempDatabaseFromLeveldb(temp *TempLeveldbDatabase) error {
+func (db *LeveldbPermanentDatabase) mergeTempDatabaseFromLeveldb(temp *TempLeveldbDatabase) (
+	base.Manifest, base.State, error,
+) {
+	e := util.StringErrorFunc("failed to merge LeveldbTempDatabase")
+
+	var m base.Manifest
+	switch i, err := temp.Manifest(); {
+	case err != nil:
+		return nil, nil, e(err, "")
+	default:
+		m = i
+	}
+
+	var sufstt base.State
+	var sufsv base.SuffrageStateValue
+	switch st, found, err := temp.Suffrage(); {
+	case err != nil:
+		return nil, nil, e(err, "")
+	case found:
+		sufstt = st
+		sufsv = st.Value().(base.SuffrageStateValue)
+	}
+
 	// NOTE merge operations
+	if err := temp.st.Iter(
+		leveldbutil.BytesPrefix(leveldbKeyPrefixOperation),
+		func(key, b []byte) (bool, error) {
+			if err := db.st.Put(key, b, nil); err != nil {
+				return false, err
+			}
+
+			return true, nil
+		}, true); err != nil {
+		return nil, nil, e(err, "failed to merge operations")
+	}
+
 	// NOTE merge states
-	// NOTE merge suffrage
+	var bsufst []byte
+	if err := temp.st.Iter(
+		leveldbutil.BytesPrefix(leveldbKeyPrefixState),
+		func(key, b []byte) (bool, error) {
+			if err := db.st.Put(key, b, nil); err != nil {
+				return false, err
+			}
+
+			if bytes.Equal(key, leveldbSuffrageStateKey) {
+				bsufst = b
+			}
+
+			return true, nil
+		}, true); err != nil {
+		return nil, nil, e(err, "failed to merge states")
+	}
+
+	// NOTE merge suffrage state
+	if sufsv != nil && len(bsufst) > 0 {
+		if err := db.st.Put(leveldbSuffrageKey(temp.Height()), bsufst, nil); err != nil {
+			return nil, nil, e(err, "failed to put suffrage by block height")
+		}
+
+		if err := db.st.Put(leveldbSuffrageHeightKey(sufsv.Height()), bsufst, nil); err != nil {
+			return nil, nil, e(err, "failed to put suffrage by height")
+		}
+	}
+
 	// NOTE merge manifest
+	switch b, found, err := temp.st.Get(leveldbKeyPrefixManifest); {
+	case err != nil || !found:
+		return nil, nil, e(err, "failed to get manifest from TempDatabase")
+	default:
+		if err := db.st.Put(leveldbManifestKey(temp.Height()), b, nil); err != nil {
+			return nil, nil, e(err, "failed to put manifest")
+		}
+	}
+
+	return m, sufstt, nil
+}
+
+func (db *LeveldbPermanentDatabase) loadLastManifest() error {
+	e := util.StringErrorFunc("failed to load last manifest")
+
+	var m base.Manifest
+	if err := db.st.Iter(
+		leveldbutil.BytesPrefix(leveldbKeyPrefixManifest),
+		func(_, b []byte) (bool, error) {
+			i, err := db.decodeManifest(b)
+			if err != nil {
+				return false, err
+			}
+
+			m = i
+
+			return false, nil
+		},
+		false,
+	); err != nil {
+		return e(err, "")
+	}
+
+	if m == nil {
+		return nil
+	}
+
+	_ = db.m.SetValue(m)
+
+	return nil
+}
+
+func (db *LeveldbPermanentDatabase) loadLastSuffrage() error {
+	e := util.StringErrorFunc("failed to load last suffrage state")
+
+	var sufstt base.State
+	if err := db.st.Iter(
+		leveldbutil.BytesPrefix(leveldbKeyPrefixSuffrageHeight),
+		func(_, b []byte) (bool, error) {
+			i, err := db.decodeSuffrage(b)
+			if err != nil {
+				return false, err
+			}
+
+			sufstt = i
+
+			return false, nil
+		},
+		false,
+	); err != nil {
+		return e(err, "")
+	}
+
+	if sufstt == nil {
+		return nil
+	}
+
+	_ = db.sufstt.SetValue(sufstt)
+
 	return nil
 }

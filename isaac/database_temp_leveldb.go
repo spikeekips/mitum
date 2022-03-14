@@ -127,7 +127,7 @@ func (db *TempLeveldbDatabase) ExistsOperation(h util.Hash) (bool, error) {
 func (db *TempLeveldbDatabase) loadLastManifest() error {
 	e := util.StringErrorFunc("failed to load manifest")
 
-	switch b, found, err := db.st.Get(keyPrefixManifest); {
+	switch b, found, err := db.st.Get(leveldbKeyPrefixManifest); {
 	case err != nil:
 		return e(err, "")
 	case !found:
@@ -148,7 +148,7 @@ func (db *TempLeveldbDatabase) loadLastSuffrage() error {
 	e := util.StringErrorFunc("failed to load suffrage state")
 
 	var key string
-	switch b, found, err := db.st.Get(keyPrefixSuffrage); {
+	switch b, found, err := db.st.Get(leveldbKeyPrefixSuffrage); {
 	case err != nil:
 		return e(err, "")
 	case !found:
@@ -157,7 +157,7 @@ func (db *TempLeveldbDatabase) loadLastSuffrage() error {
 		key = string(b)
 	}
 
-	switch b, found, err := db.st.Get(stateDBKey(key)); {
+	switch b, found, err := db.st.Get(leveldbStateKey(key)); {
 	case err != nil:
 		return e(err, "")
 	case !found:
