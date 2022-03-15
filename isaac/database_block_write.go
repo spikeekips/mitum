@@ -109,24 +109,8 @@ func (db *LeveldbBlockWriteDatabase) SetStates(sts []base.State) error {
 			}
 
 			err := worker.NewJob(func(context.Context, uint64) error {
-				if st.Height() != db.height {
-					return e(nil, "wrong state height")
-				}
-
-				switch {
-				case st.Key() == SuffrageStateKey && !issuffragestatevalue:
-					return e(nil, "invalid suffrage state; not SuffrageStateValue, %T", st.Value())
-				case st.Key() != SuffrageStateKey && issuffragestatevalue:
-					return e(nil, "invalid state value; value is SuffrageStateValue, but state key is not suffrage state")
-				}
-
-				b, err := db.marshal(st)
-				if err != nil {
-					return errors.Wrap(err, "failed to set state")
-				}
-
-				if err := db.st.Put(leveldbStateKey(st.Key()), b, nil); err != nil {
-					return e(err, "failed to put state")
+				if err := db.setState(st, issuffragestatevalue); err != nil {
+					return e(err, "")
 				}
 
 				return nil
@@ -215,4 +199,28 @@ func (db *LeveldbBlockWriteDatabase) TempDatabase() (TempDatabase, error) {
 	}
 
 	return newTempLeveldbDatabaseFromWOStorage(db)
+}
+
+func (db *LeveldbBlockWriteDatabase) setState(st base.State, issuffragestatevalue bool) error {
+	if st.Height() != db.height {
+		return errors.Errorf("wrong state height")
+	}
+
+	switch {
+	case st.Key() == SuffrageStateKey && !issuffragestatevalue:
+		return errors.Errorf("invalid suffrage state; not SuffrageStateValue, %T", st.Value())
+	case st.Key() != SuffrageStateKey && issuffragestatevalue:
+		return errors.Errorf("invalid state value; value is SuffrageStateValue, but state key is not suffrage state")
+	}
+
+	b, err := db.marshal(st)
+	if err != nil {
+		return errors.Wrap(err, "failed to set state")
+	}
+
+	if err := db.st.Put(leveldbStateKey(st.Key()), b, nil); err != nil {
+		return errors.Errorf("failed to put state")
+	}
+
+	return nil
 }

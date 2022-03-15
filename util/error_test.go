@@ -20,7 +20,7 @@ type testError struct {
 
 func (t *testError) TestErrorWithoutCall() {
 	e := NewError("showme")
-	t.PanicsWithError("Error, \"showme\" should not be used as error directly without Call()", func() { _ = e.Error() })
+	t.PanicsWithError("error, \"showme\" should not be used as error directly without Call()", func() { _ = e.Error() })
 
 	t.NotPanics(func() { _ = e.Call().Error() })
 }

@@ -52,8 +52,9 @@ func (v *VoteResult) UnmarshalText(b []byte) error {
 // -1: not yet majority
 // -2: draw
 func FindMajority(quorum, threshold uint, set ...uint) int {
-	if threshold > quorum {
-		threshold = quorum
+	th := threshold
+	if th > quorum {
+		th = quorum
 	}
 
 	if len(set) < 1 {
@@ -68,7 +69,7 @@ func FindMajority(quorum, threshold uint, set ...uint) int {
 			return i
 		}
 
-		if n >= threshold {
+		if n >= th {
 			return i
 		}
 
@@ -79,7 +80,7 @@ func FindMajority(quorum, threshold uint, set ...uint) int {
 		return set[i] > set[j]
 	})
 
-	if quorum-sum+set[0] < threshold {
+	if quorum-sum+set[0] < th {
 		return -2
 	}
 
@@ -87,14 +88,15 @@ func FindMajority(quorum, threshold uint, set ...uint) int {
 }
 
 func FindVoteResult(quorum, threshold uint, s []string) (VoteResult, string) {
-	if threshold > quorum {
-		threshold = quorum
+	th := threshold
+	if th > quorum {
+		th = quorum
 	}
 
 	switch {
 	case len(s) < 1:
 		return VoteResultNotYet, ""
-	case uint(len(s)) < threshold:
+	case uint(len(s)) < th:
 		return VoteResultNotYet, ""
 	}
 
@@ -114,7 +116,7 @@ func FindVoteResult(quorum, threshold uint, s []string) (VoteResult, string) {
 	}
 
 	sort.Slice(set, func(i, j int) bool { return set[i] > set[j] })
-	switch index := FindMajority(quorum, threshold, set...); index {
+	switch index := FindMajority(quorum, th, set...); index {
 	case -1:
 		return VoteResultNotYet, ""
 	case -2:

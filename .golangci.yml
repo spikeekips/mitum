@@ -193,7 +193,7 @@ linters-settings:
         arguments: [122]
       - name: modifies-parameter
       #- name: modifies-value-receiver
-      - name: package-comments
+      #- name: package-comments
       - name: range
       - name: range-val-address
       - name: range-val-in-closure

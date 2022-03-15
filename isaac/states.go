@@ -189,44 +189,45 @@ func (st *States) ensureSwitchState(sctx stateSwitchContext) error {
 		return newBrokenSwitchContext(from, nsctx)
 	}
 
+	nsctx := sctx
 end:
 	for {
 		if n > 3 {
 			st.Log().Warn().Msg("suspicious infinite loop in switch states; > 3; will move to broken")
 
-			sctx = movetobroken(sctx)
+			nsctx = movetobroken(nsctx)
 
 			continue
 		}
 
 		n++
 
-		var nsctx stateSwitchContext
-		switch err := st.switchState(sctx); {
+		var rsctx stateSwitchContext
+		switch err := st.switchState(nsctx); {
 		case err == nil:
-			if sctx.next() == StateStopped {
-				return errors.Wrap(sctx, "states stopped")
+			if nsctx.next() == StateStopped {
+				return errors.Wrap(nsctx, "states stopped")
 			}
 
 			return nil
 		case errors.Is(err, ignoreSwithingStateError):
 			return nil
-		case !errors.As(err, &nsctx):
-			if sctx.next() == StateBroken {
+		case !errors.As(err, &rsctx):
+			if nsctx.next() == StateBroken {
 				st.Log().Error().Err(err).Msg("failed to switch to broken; will stop switching")
 
 				return errors.Wrap(err, "failed to switch to broken")
 			}
 
-			if sctx.from() == StateBroken {
+			if nsctx.from() == StateBroken {
 				<-time.After(time.Second) // NOTE prevents too fast switching
 			}
 
-			sctx = movetobroken(sctx)
+			nsctx = movetobroken(nsctx)
 
 			continue end
 		default:
-			sctx = nsctx
+			nsctx = rsctx
 		}
 	}
 }
@@ -352,7 +353,7 @@ func (*States) voteproofToCurrent(vp base.Voteproof, current stateHandler) error
 	return nil
 }
 
-func (st *States) callDeferStates(c, n func()) {
+func (*States) callDeferStates(c, n func()) {
 	go func() {
 		if c != nil {
 			c()

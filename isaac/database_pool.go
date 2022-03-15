@@ -55,7 +55,10 @@ func (db *TempPoolDatabase) Proposal(h util.Hash) (base.ProposalSignedFact, bool
 	}
 }
 
-func (db *TempPoolDatabase) ProposalByPoint(point base.Point, proposer base.Address) (base.ProposalSignedFact, bool, error) {
+func (db *TempPoolDatabase) ProposalByPoint(
+	point base.Point,
+	proposer base.Address,
+) (base.ProposalSignedFact, bool, error) {
 	e := util.StringErrorFunc("failed to find proposal by point")
 
 	switch b, found, err := db.st.Get(leveldbProposalPointKey(point, proposer)); {

@@ -63,12 +63,12 @@ func (st *Storage) key(key string) string {
 func (st *Storage) Get(ctx context.Context, key string) ([]byte, bool, error) {
 	r := st.client.Get(ctx, st.key(key))
 	switch {
-	case r.Err() == redis.Nil:
-		return nil, false, nil
-	case r.Err() != nil:
-		return nil, false, storage.ExecError.Wrapf(r.Err(), "failed to get from redis storage")
-	default:
+	case r.Err() == nil:
 		return []byte(r.Val()), true, nil
+	case errors.Is(r.Err(), redis.Nil):
+		return nil, false, nil
+	default:
+		return nil, false, storage.ExecError.Wrapf(r.Err(), "failed to get from redis storage")
 	}
 }
 

@@ -731,7 +731,6 @@ func (t *testDefaultDatabaseBlockWrite) TestMergePermanent() {
 	})
 	t.NoError(err)
 
-	var removedstts []base.State
 	var removeds []TempDatabase
 
 	for i := range make([]int, 10) {
@@ -751,7 +750,6 @@ func (t *testDefaultDatabaseBlockWrite) TestMergePermanent() {
 		t.NoError(db.MergeBlockWriteDatabase(wst))
 
 		if i < 3 { // 0, 1, 2
-			removedstts = append(removedstts, sttss...)
 			actives := db.activeTemps()
 
 			removeds = append(removeds, actives[0])

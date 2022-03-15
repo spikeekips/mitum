@@ -19,6 +19,7 @@ func Setup(
 	format string,
 	forceColor bool,
 ) *Logging {
+	o := output
 	if format == "terminal" {
 		var useColor bool
 		if forceColor {
@@ -27,14 +28,14 @@ func Setup(
 			useColor = true
 		}
 
-		output = zerolog.ConsoleWriter{
-			Out:        output,
+		o = zerolog.ConsoleWriter{
+			Out:        o,
 			TimeFormat: time.RFC3339Nano,
 			NoColor:    !useColor,
 		}
 	}
 
-	z := zerolog.New(output).With().Timestamp()
+	z := zerolog.New(o).With().Timestamp()
 
 	if level <= zerolog.DebugLevel {
 		z = z.Caller().Stack()

@@ -586,11 +586,12 @@ func isValidVoteproofWithSuffrage(
 		return e(util.InvalidError.Errorf("empty suffrage"), "")
 	}
 
-	if checkValid == nil {
-		checkValid = func(base.Voteproof, base.Suffrage) error { return nil }
+	cf := checkValid
+	if cf == nil {
+		cf = func(base.Voteproof, base.Suffrage) error { return nil }
 	}
 
-	if err := checkValid(vp, suf); err != nil {
+	if err := cf(vp, suf); err != nil {
 		return e(err, "invalid voteproof")
 	}
 

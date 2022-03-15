@@ -23,9 +23,8 @@ var (
 )
 
 var (
-	leveldbBeginSuffrageKey       = util.ConcatBytesSlice(leveldbKeyPrefixSuffrage, []byte(strings.Repeat("0", 20)))
-	leveldbBeginSuffrageHeightKey = util.ConcatBytesSlice(leveldbKeyPrefixSuffrageHeight, []byte(strings.Repeat("0", 20)))
-	leveldbSuffrageStateKey       = leveldbStateKey(SuffrageStateKey)
+	leveldbBeginSuffrageKey = util.ConcatBytesSlice(leveldbKeyPrefixSuffrage, []byte(strings.Repeat("0", 20)))
+	leveldbSuffrageStateKey = leveldbStateKey(SuffrageStateKey)
 )
 
 type baseLeveldbDatabase struct {

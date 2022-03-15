@@ -39,11 +39,12 @@ func (enc *Encoder) Add(d encoder.DecodeDetail) error {
 		return util.InvalidError.Wrapf(err, "failed to add in json encoder")
 	}
 
-	if d.Decode == nil {
-		d = enc.analyze(d, d.Instance)
+	x := d
+	if x.Decode == nil {
+		x = enc.analyze(d, d.Instance)
 	}
 
-	return enc.addDecodeDetail(d)
+	return enc.addDecodeDetail(x)
 }
 
 func (enc *Encoder) AddHinter(hr hint.Hinter) error {

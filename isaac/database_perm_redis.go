@@ -257,20 +257,48 @@ func (db *RedisPermanentDatabase) mergeTempDatabaseFromLeveldb(ctx context.Conte
 	}
 
 	// NOTE merge operations
-	if err := temp.st.Iter(
-		leveldbutil.BytesPrefix(leveldbKeyPrefixOperation),
-		func(_, b []byte) (bool, error) {
-			h := valuehash.Bytes(b)
-			if err := db.st.Set(ctx, redisOperationKey(h), b); err != nil {
-				return false, err
-			}
-
-			return true, nil
-		}, true); err != nil {
+	if err := db.mergeOperationsTempDatabaseFromLeveldb(ctx, temp); err != nil {
 		return nil, nil, e(err, "failed to merge operations")
 	}
 
 	// NOTE merge states
+	bsufst, err := db.mergeStatesTempDatabaseFromLeveldb(ctx, temp)
+	if err != nil {
+		return nil, nil, e(err, "failed to merge states")
+	}
+
+	// NOTE merge suffrage state
+	if sufsv != nil && len(bsufst) > 0 {
+		if err := db.mergeSuffrageStateTempDatabaseFromLeveldb(ctx, temp, sufsv, bsufst); err != nil {
+			return nil, nil, e(err, "failed to merge suffrage state")
+		}
+	}
+
+	// NOTE merge manifest
+	if err := db.mergeManifestTempDatabaseFromLeveldb(ctx, temp); err != nil {
+		return nil, nil, e(err, "failed to merge manifest")
+	}
+
+	return m, sufstt, nil
+}
+
+func (db *RedisPermanentDatabase) mergeOperationsTempDatabaseFromLeveldb(
+	ctx context.Context, temp *TempLeveldbDatabase,
+) error {
+	return temp.st.Iter(
+		leveldbutil.BytesPrefix(leveldbKeyPrefixOperation),
+		func(_, b []byte) (bool, error) {
+			if err := db.st.Set(ctx, redisOperationKey(valuehash.Bytes(b)), b); err != nil {
+				return false, err
+			}
+
+			return true, nil
+		}, true)
+}
+
+func (db *RedisPermanentDatabase) mergeStatesTempDatabaseFromLeveldb(
+	ctx context.Context, temp *TempLeveldbDatabase,
+) ([]byte, error) {
 	var bsufst []byte
 	if err := temp.st.Iter(
 		leveldbutil.BytesPrefix(leveldbKeyPrefixState),
@@ -285,48 +313,59 @@ func (db *RedisPermanentDatabase) mergeTempDatabaseFromLeveldb(ctx context.Conte
 
 			return true, nil
 		}, true); err != nil {
-		return nil, nil, e(err, "failed to merge states")
+		return nil, err
 	}
 
-	// NOTE merge suffrage state
-	if sufsv != nil && len(bsufst) > 0 {
-		z := redis.ZAddArgs{
-			NX:      true,
-			Members: []redis.Z{{Score: 0, Member: redisSuffrageKey(temp.Height())}},
-		}
-		if err := db.st.ZAddArgs(context.TODO(), redisZKeySuffragesByHeight, z); err != nil {
-			return nil, nil, e(err, "failed to put suffrage by block height")
-		}
+	return bsufst, nil
+}
 
-		if err := db.st.Set(context.TODO(), redisSuffrageKey(temp.Height()), bsufst); err != nil {
-			return nil, nil, e(err, "failed to put suffrage")
-		}
-
-		if err := db.st.Set(context.TODO(), redisSuffrageByHeightKey(sufsv.Height()), bsufst); err != nil {
-			return nil, nil, e(err, "failed to put suffrage by height")
-		}
+func (db *RedisPermanentDatabase) mergeSuffrageStateTempDatabaseFromLeveldb(
+	ctx context.Context,
+	temp *TempLeveldbDatabase,
+	sufsv base.SuffrageStateValue,
+	bsufst []byte,
+) error {
+	z := redis.ZAddArgs{
+		NX:      true,
+		Members: []redis.Z{{Score: 0, Member: redisSuffrageKey(temp.Height())}},
+	}
+	if err := db.st.ZAddArgs(ctx, redisZKeySuffragesByHeight, z); err != nil {
+		return errors.Wrap(err, "failed to zadd suffrage by block height")
 	}
 
-	// NOTE merge manifest
+	if err := db.st.Set(ctx, redisSuffrageKey(temp.Height()), bsufst); err != nil {
+		return errors.Wrap(err, "failed to set suffrage")
+	}
+
+	if err := db.st.Set(ctx, redisSuffrageByHeightKey(sufsv.Height()), bsufst); err != nil {
+		return errors.Wrap(err, "failed to set suffrage by height")
+	}
+
+	return nil
+}
+
+func (db *RedisPermanentDatabase) mergeManifestTempDatabaseFromLeveldb(
+	ctx context.Context, temp *TempLeveldbDatabase,
+) error {
 	switch b, found, err := temp.st.Get(leveldbKeyPrefixManifest); {
 	case err != nil || !found:
-		return nil, nil, e(err, "failed to get manifest from TempDatabase")
+		return errors.Wrap(err, "failed to get manifest from TempDatabase")
 	default:
 		key := redisManifestKey(temp.Height())
 		z := redis.ZAddArgs{
 			NX:      true,
 			Members: []redis.Z{{Score: 0, Member: key}},
 		}
-		if err := db.st.ZAddArgs(context.TODO(), redisZKeyManifests, z); err != nil {
-			return nil, nil, e(err, "failed to put suffrage by block height")
+		if err := db.st.ZAddArgs(ctx, redisZKeyManifests, z); err != nil {
+			return errors.Wrap(err, "failed to zadd suffrage by block height")
 		}
 
 		if err := db.st.Set(ctx, key, b); err != nil {
-			return nil, nil, e(err, "failed to put manifest")
+			return errors.Wrap(err, "failed to set manifest")
 		}
-	}
 
-	return m, sufstt, nil
+		return nil
+	}
 }
 
 func (db *RedisPermanentDatabase) loadLastManifest() error {
@@ -416,10 +455,6 @@ func redisStateKey(key string) string {
 
 func redisOperationKey(h util.Hash) string {
 	return fmt.Sprintf("%s-%s", redisOperationKeyPrerfix, h.String())
-}
-
-func redisManifestKeyFromLeveldb(b []byte) string {
-	return fmt.Sprintf("%s-%s", redisManifestKeyPrefix, string(b[2:]))
 }
 
 func redisStateKeyFromLeveldb(b []byte) string {

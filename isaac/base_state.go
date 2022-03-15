@@ -155,12 +155,13 @@ func (st *baseStateHandler) broadcastBallot(
 ) error {
 	// BLOCK vote ballot to local if tolocal is true
 
-	if initialWait < 1 {
-		initialWait = time.Nanosecond
+	iw := initialWait
+	if iw < 1 {
+		iw = time.Nanosecond
 	}
 	l := st.Log().With().
 		Stringer("ballot_hash", bl.SignedFact().Fact().Hash()).
-		Dur("initial_wait", initialWait).
+		Dur("initial_wait", iw).
 		Logger()
 	l.Debug().Interface("ballot", bl).Object("point", bl.Point()).Msg("trying to broadcast ballot")
 
@@ -180,7 +181,7 @@ func (st *baseStateHandler) broadcastBallot(
 		},
 	).SetInterval(func(i int, d time.Duration) time.Duration {
 		if i < 1 {
-			return initialWait
+			return iw
 		}
 
 		return d

@@ -190,7 +190,7 @@ func tempDatabaseDirectoryNameFormat() string {
 	return "temp%d-%d"
 }
 
-func findSuffixFromTempDatabaseDirectoryName(d, f string) (int64, int64) {
+func findSuffixFromTempDatabaseDirectoryName(d, f string) (height int64, suffix int64) {
 	var h, s int64
 	_, err := fmt.Sscanf(filepath.Base(d), f, &h, &s)
 	if err != nil {
@@ -308,7 +308,13 @@ func loadTempDatabase(f string, encs *encoder.Encoders, enc encoder.Encoder) (Te
 
 // loadTempDatabases loads all the TempDatabases from the given root directory.
 // If clean is true, the useless directories will be removed.
-func loadTempDatabases(root string, minHeight base.Height, encs *encoder.Encoders, enc encoder.Encoder, clean bool) ([]TempDatabase, error) {
+func loadTempDatabases(
+	root string,
+	minHeight base.Height,
+	encs *encoder.Encoders,
+	enc encoder.Encoder,
+	clean bool,
+) ([]TempDatabase, error) {
 	e := util.StringErrorFunc("failed to load TempDatabase")
 
 	matches, err := loadAllTempDatabaseDirectories(root)
@@ -316,7 +322,7 @@ func loadTempDatabases(root string, minHeight base.Height, encs *encoder.Encoder
 		return nil, e(err, "")
 	}
 
-	var height int64 = minHeight.Int64()
+	height := minHeight.Int64()
 	var temps []TempDatabase
 	var removes []string
 

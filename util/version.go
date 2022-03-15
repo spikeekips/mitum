@@ -164,13 +164,15 @@ func compareVersionPrerelease(a, b string) int {
 		return -1
 	}
 
-	for a != "" && b != "" {
-		a = a[1:] // skip - or .
-		b = b[1:] // skip - or .
+	x := a
+	y := b
+	for x != "" && y != "" {
+		x = x[1:] // skip - or .
+		y = y[1:] // skip - or .
 
 		var dx, dy string
-		dx, a = versionNextIdent(a)
-		dy, b = versionNextIdent(b)
+		dx, x = versionNextIdent(x)
+		dy, y = versionNextIdent(y)
 		if dx == dy {
 			continue
 		}
@@ -202,7 +204,7 @@ func compareVersionPrerelease(a, b string) int {
 		return 1
 	}
 
-	if a == "" {
+	if x == "" {
 		return -1
 	}
 

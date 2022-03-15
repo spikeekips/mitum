@@ -112,7 +112,6 @@ func (db *DefaultDatabase) Manifest(height base.Height) (base.Manifest, bool, er
 
 			return m, true, nil
 		}
-
 	}
 
 	return db.perm.Manifest(height)

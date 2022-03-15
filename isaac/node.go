@@ -28,7 +28,7 @@ func (n LocalNode) IsValid([]byte) error {
 	return nil
 }
 
-func (n LocalNode) Hint() hint.Hint {
+func (LocalNode) Hint() hint.Hint {
 	return NodeHint
 }
 

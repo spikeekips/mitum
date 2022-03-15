@@ -54,7 +54,7 @@ func (db *baseDatabase) readHinter(b []byte) (interface{}, error) {
 	}
 }
 
-func (db *baseDatabase) readHint(b []byte) (hint.Hint, []byte, error) {
+func (*baseDatabase) readHint(b []byte) (hint.Hint, []byte, error) {
 	if len(b) < hint.MaxHintLength {
 		return hint.Hint{}, nil, errors.Errorf("none hinted string; too short")
 	}

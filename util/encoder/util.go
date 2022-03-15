@@ -64,8 +64,8 @@ func AnalyzeSetHinter(d DecodeDetail, v interface{}) DecodeDetail {
 		n := reflect.New(reflect.TypeOf(i))
 		n.Elem().Set(reflect.ValueOf(i))
 
-		v := n.Elem().FieldByName("BaseHinter")
-		if !v.IsValid() || !v.CanAddr() {
+		x := n.Elem().FieldByName("BaseHinter")
+		if !x.IsValid() || !x.CanAddr() {
 			return i, nil
 		}
 
@@ -73,7 +73,7 @@ func AnalyzeSetHinter(d DecodeDetail, v interface{}) DecodeDetail {
 			ht = oht
 		}
 
-		v.Set(reflect.ValueOf(hint.NewBaseHinter(ht)))
+		x.Set(reflect.ValueOf(hint.NewBaseHinter(ht)))
 
 		return n.Elem().Interface(), nil
 	}
