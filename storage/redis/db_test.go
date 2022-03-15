@@ -1,5 +1,5 @@
-//go:build redis
-// +build redis
+//go:build test
+// +build test
 
 package redisstorage
 
@@ -22,7 +22,7 @@ type testRedisStorage struct {
 
 func (t *testRedisStorage) TestNew() {
 	t.Run("default", func() {
-		st, err := NewStorage(context.Background(), &redis.Options{}, "")
+		st, err := NewStorage(context.Background(), &redis.Options{}, "test")
 		t.NoError(err)
 		t.NotNil(st)
 
@@ -31,7 +31,7 @@ func (t *testRedisStorage) TestNew() {
 	})
 
 	t.Run("unknown redis server", func() {
-		st, err := NewStorage(context.Background(), &redis.Options{Addr: util.UUID().String()}, "")
+		st, err := NewStorage(context.Background(), &redis.Options{Addr: util.UUID().String()}, "test")
 		t.Error(err)
 		t.Nil(st)
 		t.True(errors.Is(err, storage.ConnectionError))

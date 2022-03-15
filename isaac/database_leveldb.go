@@ -40,8 +40,11 @@ func newBaseLeveldbDatabase(
 	enc encoder.Encoder,
 ) *baseLeveldbDatabase {
 	return &baseLeveldbDatabase{
-		baseDatabase: newBaseDatabase(encs, enc),
-		st:           st,
+		baseDatabase: newBaseDatabase(
+			encs,
+			enc,
+		),
+		st: st,
 	}
 }
 

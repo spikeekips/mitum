@@ -1,6 +1,7 @@
 package isaac
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -62,7 +63,7 @@ func (db *DummyPermanentDatabase) ExistsOperation(operationFactHash util.Hash) (
 	return db.existsOperationf(operationFactHash)
 }
 
-func (db *DummyPermanentDatabase) MergeTempDatabase(temp TempDatabase) error {
+func (db *DummyPermanentDatabase) MergeTempDatabase(_ context.Context, temp TempDatabase) error {
 	return db.mergeTempDatabasef(temp)
 }
 
@@ -759,7 +760,7 @@ func (t *testDefaultDatabaseBlockWrite) TestMergePermanent() {
 
 	t.Equal(10, len(db.activeTemps()))
 	for range make([]int, 3) { // 0, 1, 2
-		t.NoError(db.mergePermanent())
+		t.NoError(db.mergePermanent(context.TODO()))
 		t.NoError(db.cleanRemoved())
 	}
 

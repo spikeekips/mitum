@@ -101,7 +101,7 @@ func (st *Storage) Clean(ctx context.Context) error {
 }
 
 func (st *Storage) ZAddArgs(ctx context.Context, key string, args redis.ZAddArgs) error {
-	if err := st.client.ZAddArgs(ctx, key, args).Err(); err != nil {
+	if err := st.client.ZAddArgs(ctx, st.key(key), args).Err(); err != nil {
 		return storage.ExecError.Wrapf(err, "failed to ZAddArgs")
 	}
 
@@ -109,6 +109,8 @@ func (st *Storage) ZAddArgs(ctx context.Context, key string, args redis.ZAddArgs
 }
 
 func (st *Storage) ZRangeArgs(ctx context.Context, z redis.ZRangeArgs) ([]string, error) {
+	z.Key = st.key(z.Key)
+
 	s, err := st.client.ZRangeArgs(ctx, z).Result()
 	if err != nil {
 		return nil, storage.ExecError.Wrapf(err, "failed to ZRangeArgs")

@@ -1,6 +1,8 @@
 package isaac
 
 import (
+	"context"
+
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 )
@@ -61,5 +63,5 @@ type PermanentDatabase interface {
 	LastSuffrage() (base.State, bool, error)
 	Suffrage(blockheight base.Height) (base.State, bool, error)
 	SuffrageByHeight(suffrageHeight base.Height) (base.State, bool, error)
-	MergeTempDatabase(TempDatabase) error
+	MergeTempDatabase(context.Context, TempDatabase) error
 }

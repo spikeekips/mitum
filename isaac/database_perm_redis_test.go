@@ -4,14 +4,16 @@ import (
 	"context"
 	"testing"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/spikeekips/mitum/base"
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
+	redisstorage "github.com/spikeekips/mitum/storage/redis"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 )
 
-func (db *LeveldbPermanentDatabase) setState(st base.State) error {
+func (db *RedisPermanentDatabase) setState(st base.State) error {
 	e := util.StringErrorFunc("failed to set state")
 
 	b, err := db.marshal(st)
@@ -19,17 +21,25 @@ func (db *LeveldbPermanentDatabase) setState(st base.State) error {
 		return e(err, "")
 	}
 
-	if err := db.st.Put(leveldbStateKey(st.Key()), b, nil); err != nil {
+	if err := db.st.Set(context.TODO(), redisStateKey(st.Key()), b); err != nil {
 		return e(err, "failed to put state")
 	}
 
 	if st.Key() == SuffrageStateKey {
-		if err := db.st.Put(leveldbSuffrageKey(st.Height()), b, nil); err != nil {
+		z := redis.ZAddArgs{
+			NX:      true,
+			Members: []redis.Z{{Score: 0, Member: redisSuffrageKey(st.Height())}},
+		}
+		if err := db.st.ZAddArgs(context.TODO(), redisZKeySuffragesByHeight, z); err != nil {
 			return e(err, "failed to put suffrage by block height")
 		}
 
+		if err := db.st.Set(context.TODO(), redisSuffrageKey(st.Height()), b); err != nil {
+			return e(err, "failed to put suffrage")
+		}
+
 		sv := st.Value().(base.SuffrageStateValue)
-		if err := db.st.Put(leveldbSuffrageHeightKey(sv.Height()), b, nil); err != nil {
+		if err := db.st.Set(context.TODO(), redisSuffrageByHeightKey(sv.Height()), b); err != nil {
 			return e(err, "failed to put suffrage by height")
 		}
 	}
@@ -37,37 +47,40 @@ func (db *LeveldbPermanentDatabase) setState(st base.State) error {
 	return nil
 }
 
-type testLeveldbPermanentDatabase struct {
+type testRedisPermanentDatabase struct {
 	baseTestHandler
 	baseTestDatabase
 }
 
-func (t *testLeveldbPermanentDatabase) SetupTest() {
+func (t *testRedisPermanentDatabase) SetupTest() {
 	t.baseTestHandler.SetupTest()
 	t.baseTestDatabase.SetupTest()
 }
 
-func (t *testLeveldbPermanentDatabase) newDB() *LeveldbPermanentDatabase {
-	st := leveldbstorage.NewMemWriteStorage()
-	db, err := newLeveldbPermanentDatabase(st, t.encs, t.enc)
+func (t *testRedisPermanentDatabase) newDB() *RedisPermanentDatabase {
+	st, err := redisstorage.NewStorage(context.Background(), &redis.Options{}, util.UUID().String())
+
+	db, err := NewRedisPermanentDatabase(st, t.encs, t.enc)
 	t.NoError(err)
 
 	return db
 }
 
-func (t *testLeveldbPermanentDatabase) TestNew() {
+func (t *testRedisPermanentDatabase) TestNew() {
 	db := t.newDB()
 	defer db.Close()
+	defer db.st.Clean(context.Background())
 
 	_ = (interface{})(db).(PermanentDatabase)
 }
 
-func (t *testLeveldbPermanentDatabase) TestLastManifest() {
+func (t *testRedisPermanentDatabase) TestLastManifest() {
 	height := base.Height(33)
 	m := base.NewDummyManifest(height, valuehash.RandomSHA256())
 
 	db := t.newDB()
 	defer db.Close()
+	defer db.st.Clean(context.Background())
 
 	t.Run("empty manifest", func() {
 		rm, found, err := db.LastManifest()
@@ -87,7 +100,7 @@ func (t *testLeveldbPermanentDatabase) TestLastManifest() {
 	})
 }
 
-func (t *testLeveldbPermanentDatabase) TestLastSuffrage() {
+func (t *testRedisPermanentDatabase) TestLastSuffrage() {
 	height := base.Height(33)
 	_, nodes := t.locals(3)
 
@@ -95,6 +108,7 @@ func (t *testLeveldbPermanentDatabase) TestLastSuffrage() {
 
 	db := t.newDB()
 	defer db.Close()
+	defer db.st.Clean(context.Background())
 
 	t.Run("empty suffrage", func() {
 		rsufstt, found, err := db.LastSuffrage()
@@ -114,12 +128,13 @@ func (t *testLeveldbPermanentDatabase) TestLastSuffrage() {
 	})
 }
 
-func (t *testLeveldbPermanentDatabase) TestSuffrage() {
+func (t *testRedisPermanentDatabase) TestSuffrage() {
 	baseheight := base.Height(33)
 	_, nodes := t.locals(3)
 
 	db := t.newDB()
 	defer db.Close()
+	defer db.st.Clean(context.Background())
 
 	height := baseheight
 	basesuffrageheight := base.Height(66)
@@ -215,7 +230,7 @@ func (t *testLeveldbPermanentDatabase) TestSuffrage() {
 	})
 }
 
-func (t *testLeveldbPermanentDatabase) TestLoadEmptyDB() {
+func (t *testRedisPermanentDatabase) TestLoadEmptyDB() {
 	st := leveldbstorage.NewMemWriteStorage()
 	db, err := newLeveldbPermanentDatabase(st, t.encs, t.enc)
 	t.NoError(err)
@@ -223,7 +238,7 @@ func (t *testLeveldbPermanentDatabase) TestLoadEmptyDB() {
 	defer db.Close()
 }
 
-func (t *testLeveldbPermanentDatabase) TestLoad() {
+func (t *testRedisPermanentDatabase) TestLoad() {
 	height := base.Height(33)
 	_, nodes := t.locals(3)
 
@@ -265,7 +280,7 @@ func (t *testLeveldbPermanentDatabase) TestLoad() {
 		t.True(base.IsEqualState(sufstt, nst))
 	})
 
-	newperm, err := newLeveldbPermanentDatabase(perm.st, t.encs, t.enc)
+	newperm, err := NewRedisPermanentDatabase(perm.st, t.encs, t.enc)
 	t.NoError(err)
 
 	t.Run("check manifest in new perm", func() {
@@ -283,7 +298,7 @@ func (t *testLeveldbPermanentDatabase) TestLoad() {
 	})
 }
 
-func (t *testLeveldbPermanentDatabase) TestMergeTempDatabase() {
+func (t *testRedisPermanentDatabase) TestMergeTempDatabase() {
 	height := base.Height(33)
 	_, nodes := t.locals(3)
 
@@ -310,6 +325,8 @@ func (t *testLeveldbPermanentDatabase) TestMergeTempDatabase() {
 
 	t.Run("check opertions", func() {
 		perm := t.newDB()
+		defer perm.Close()
+		defer perm.st.Clean(context.Background())
 
 		for i := range ops {
 			found, err := perm.ExistsOperation(ops[i])
@@ -328,6 +345,8 @@ func (t *testLeveldbPermanentDatabase) TestMergeTempDatabase() {
 
 	t.Run("check states", func() {
 		perm := t.newDB()
+		defer perm.Close()
+		defer perm.st.Clean(context.Background())
 
 		for i := range stts {
 			st := stts[i]
@@ -351,6 +370,8 @@ func (t *testLeveldbPermanentDatabase) TestMergeTempDatabase() {
 
 	t.Run("check suffrage state", func() {
 		perm := t.newDB()
+		defer perm.Close()
+		defer perm.st.Clean(context.Background())
 
 		rst, found, err := perm.Suffrage(height)
 		t.NoError(err)
@@ -369,6 +390,8 @@ func (t *testLeveldbPermanentDatabase) TestMergeTempDatabase() {
 
 	t.Run("check manifest", func() {
 		perm := t.newDB()
+		defer perm.Close()
+		defer perm.st.Clean(context.Background())
 
 		rm, found, err := perm.Manifest(height)
 		t.NoError(err)
@@ -386,6 +409,6 @@ func (t *testLeveldbPermanentDatabase) TestMergeTempDatabase() {
 	})
 }
 
-func TestLeveldbPermanentDatabase(t *testing.T) {
-	suite.Run(t, new(testLeveldbPermanentDatabase))
+func TestRedisPermanentDatabase(t *testing.T) {
+	suite.Run(t, new(testRedisPermanentDatabase))
 }

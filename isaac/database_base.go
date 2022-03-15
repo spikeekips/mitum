@@ -16,8 +16,23 @@ type baseDatabase struct {
 	enc  encoder.Encoder
 }
 
-func newBaseDatabase(encs *encoder.Encoders, enc encoder.Encoder) *baseDatabase {
-	return &baseDatabase{encs: encs, enc: enc}
+func newBaseDatabase(
+	encs *encoder.Encoders,
+	enc encoder.Encoder,
+) *baseDatabase {
+	return &baseDatabase{
+		encs: encs,
+		enc:  enc,
+	}
+}
+
+func (db *baseDatabase) marshal(i interface{}) ([]byte, error) {
+	b, err := db.enc.Marshal(i)
+	if err != nil {
+		return nil, err
+	}
+
+	return db.marshalWithEncoder(b), nil
 }
 
 func (db *baseDatabase) readHinter(b []byte) (interface{}, error) {
@@ -52,16 +67,7 @@ func (db *baseDatabase) readHint(b []byte) (hint.Hint, []byte, error) {
 	return ht, b[hint.MaxHintLength:], nil
 }
 
-func (db *baseDatabase) marshal(i interface{}) ([]byte, error) {
-	b, err := db.enc.Marshal(i)
-	if err != nil {
-		return nil, err
-	}
-
-	return db.encodeWithEncoder(b), nil
-}
-
-func (db *baseDatabase) encodeWithEncoder(b []byte) []byte {
+func (db *baseDatabase) marshalWithEncoder(b []byte) []byte {
 	h := make([]byte, hint.MaxHintLength)
 	copy(h, db.enc.Hint().Bytes())
 

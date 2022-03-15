@@ -2,6 +2,7 @@ package isaac
 
 import (
 	"bytes"
+	"context"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -155,7 +156,7 @@ func (db *LeveldbPermanentDatabase) ExistsOperation(h util.Hash) (bool, error) {
 	return db.existsOperation(h)
 }
 
-func (db *LeveldbPermanentDatabase) MergeTempDatabase(temp TempDatabase) error {
+func (db *LeveldbPermanentDatabase) MergeTempDatabase(_ context.Context, temp TempDatabase) error {
 	db.Lock()
 	defer db.Unlock()
 

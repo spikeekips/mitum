@@ -432,7 +432,7 @@ func (db *DefaultDatabase) start(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			switch err := db.mergePermanent(); {
+			switch err := db.mergePermanent(ctx); {
 			case err == nil:
 			case errors.Is(err, RetryMergeToPermanentDatabaseError):
 				db.Log().Debug().Err(err).Msg("failed to merge to permanent database; retry")
@@ -447,7 +447,7 @@ func (db *DefaultDatabase) start(ctx context.Context) error {
 	}
 }
 
-func (db *DefaultDatabase) mergePermanent() error {
+func (db *DefaultDatabase) mergePermanent(ctx context.Context) error {
 	e := util.StringErrorFunc("failed to merge to permanent database")
 
 	temps := db.activeTemps()
@@ -456,7 +456,7 @@ func (db *DefaultDatabase) mergePermanent() error {
 	}
 
 	temp := temps[len(temps)-1]
-	if err := db.perm.MergeTempDatabase(temp); err != nil {
+	if err := db.perm.MergeTempDatabase(ctx, temp); err != nil {
 		return e(err, "")
 	}
 
