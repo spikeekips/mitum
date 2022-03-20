@@ -160,14 +160,13 @@ func (box *Ballotbox) newVoterecords(bl base.Ballot) *voterecords {
 }
 
 func (box *Ballotbox) lastStagePoint() base.StagePoint {
-	var sp base.StagePoint
+	i, _ := box.lsp.Value()
 
-	_ = box.lsp.Value(&sp)
-	return sp
+	return i.(base.StagePoint)
 }
 
 func (box *Ballotbox) setLastStagePoint(p base.StagePoint) bool {
-	err := box.lsp.Set(func(i interface{}) (interface{}, error) {
+	_, err := box.lsp.Set(func(i interface{}) (interface{}, error) {
 		lsp := i.(base.StagePoint)
 
 		if lsp.Compare(p) >= 0 {

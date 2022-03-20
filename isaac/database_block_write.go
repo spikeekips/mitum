@@ -44,8 +44,8 @@ func newLeveldbBlockWriteDatabase(
 		baseLeveldbDatabase: newBaseLeveldbDatabase(st, encs, enc),
 		st:                  st,
 		height:              height,
-		m:                   util.NewLocked(nil),
-		sufstt:              util.NewLocked(nil),
+		m:                   util.EmptyLocked(),
+		sufstt:              util.EmptyLocked(),
 	}
 }
 
@@ -58,17 +58,16 @@ func (db *LeveldbBlockWriteDatabase) Cancel() error {
 }
 
 func (db *LeveldbBlockWriteDatabase) Manifest() (base.Manifest, error) {
-	var m base.Manifest
-	switch _ = db.m.Value(&m); {
-	case m == nil:
+	switch i, isnil := db.m.Value(); {
+	case isnil || i == nil:
 		return nil, storage.NotFoundError.Errorf("empty manifest")
 	default:
-		return m, nil
+		return i.(base.Manifest), nil
 	}
 }
 
 func (db *LeveldbBlockWriteDatabase) SetManifest(m base.Manifest) error {
-	if err := db.m.Set(func(i interface{}) (interface{}, error) {
+	if _, err := db.m.Set(func(i interface{}) (interface{}, error) {
 		if m.Height() != db.height {
 			return nil, errors.Errorf("wrong manifest height")
 		}
@@ -126,7 +125,7 @@ func (db *LeveldbBlockWriteDatabase) SetStates(sts []base.State) error {
 	}
 
 	if suffragestate != nil {
-		if err := db.sufstt.Set(func(i interface{}) (interface{}, error) {
+		if _, err := db.sufstt.Set(func(i interface{}) (interface{}, error) {
 			if err := db.st.Put(leveldbKeyPrefixSuffrage, []byte(suffragestate.Key()), nil); err != nil {
 				return nil, errors.Wrap(err, "failed to put suffrage state")
 			}

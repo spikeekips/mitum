@@ -4,20 +4,30 @@ import (
 	"sync"
 )
 
+type NilLockedValue struct{}
+
 type Locked struct {
 	sync.RWMutex
 	value interface{}
 }
 
-func NewLocked(defaultValue interface{}) *Locked {
-	return &Locked{value: defaultValue}
+func EmptyLocked() *Locked {
+	return &Locked{value: NilLockedValue{}}
 }
 
-func (l *Locked) Value(target interface{}) error {
+func NewLocked(i interface{}) *Locked {
+	return &Locked{value: i}
+}
+
+func (l *Locked) Value() (interface{}, bool) {
 	l.RLock()
 	defer l.RUnlock()
 
-	return InterfaceSetValue(l.value, target)
+	if IsNilLockedValue(l.value) {
+		return nil, true
+	}
+
+	return l.value, false
 }
 
 func (l *Locked) SetValue(i interface{}) *Locked {
@@ -29,45 +39,50 @@ func (l *Locked) SetValue(i interface{}) *Locked {
 	return l
 }
 
-func (l *Locked) Get(target interface{}, f func() (interface{}, error)) (bool, error) {
+func (l *Locked) Get(f func() (interface{}, error)) (interface{}, error) {
 	l.Lock()
 	defer l.Unlock()
 
-	switch j, found, err := l.get(f); {
+	if !IsNilLockedValue(l.value) {
+		return l.value, nil
+	}
+
+	switch i, err := f(); {
 	case err != nil:
-		return false, err
+		return nil, err
 	default:
-		return found, InterfaceSetValue(j, target)
+		l.value = i
+
+		return i, nil
 	}
 }
 
-func (l *Locked) get(f func() (interface{}, error)) (interface{}, bool, error) {
-	if l.value != nil {
-		return l.value, true, nil
-	}
-
-	i, err := f()
-	if err != nil {
-		return nil, false, err
-	}
-
-	l.value = i
-
-	return i, false, nil
-}
-
-func (l *Locked) Set(f func(interface{}) (interface{}, error)) error {
+func (l *Locked) Empty() *Locked {
 	l.Lock()
 	defer l.Unlock()
 
-	value, err := f(l.value)
-	if err != nil {
-		return err
+	l.value = NilLockedValue{}
+
+	return l
+}
+
+func (l *Locked) Set(f func(interface{}) (interface{}, error)) (interface{}, error) {
+	l.Lock()
+	defer l.Unlock()
+
+	i := l.value
+	if IsNilLockedValue(l.value) {
+		i = nil
 	}
 
-	l.value = value
+	switch j, err := f(i); {
+	case err != nil:
+		return nil, err
+	default:
+		l.value = j
 
-	return nil
+		return j, nil
+	}
 }
 
 type LockedMap struct {
@@ -81,19 +96,28 @@ func NewLockedMap() *LockedMap {
 	}
 }
 
-func (l *LockedMap) Value(k, target interface{}) (bool, error) {
+func (l *LockedMap) Exists(k interface{}) bool {
 	l.RLock()
 	defer l.RUnlock()
 
-	i, found := l.m[k]
-	if !found {
-		return false, nil
-	}
+	_, found := l.m[k]
 
-	return found, InterfaceSetValue(i, target)
+	return found
 }
 
-func (l *LockedMap) SetValue(k interface{}, v interface{}) bool {
+func (l *LockedMap) Value(k interface{}) (interface{}, bool) {
+	l.RLock()
+	defer l.RUnlock()
+
+	switch i, found := l.m[k]; {
+	case !found:
+		return nil, false
+	default:
+		return i, true
+	}
+}
+
+func (l *LockedMap) SetValue(k, v interface{}) bool {
 	l.Lock()
 	defer l.Unlock()
 
@@ -104,34 +128,57 @@ func (l *LockedMap) SetValue(k interface{}, v interface{}) bool {
 	return found
 }
 
-func (l *LockedMap) Get(k, target interface{}, f func() (interface{}, error)) (bool, error) {
+func (l *LockedMap) Get(k interface{}, f func() (interface{}, error)) (interface{}, bool, error) {
 	l.Lock()
 	defer l.Unlock()
 
 	if i, found := l.m[k]; found {
-		return true, InterfaceSetValue(i, target)
+		return i, true, nil
 	}
 
-	j, err := f()
-	if err != nil {
-		return false, err
+	switch i, err := f(); {
+	case err != nil:
+		return nil, false, err
+	default:
+		l.m[k] = i
+		return i, false, nil
 	}
-
-	l.m[k] = j
-
-	return false, InterfaceSetValue(j, target)
 }
 
-func (l *LockedMap) Set(k interface{}, f func() (interface{}, error)) error {
+func (l *LockedMap) Set(k interface{}, f func(interface{}) (interface{}, error)) (interface{}, error) {
 	l.Lock()
 	defer l.Unlock()
 
-	j, err := f()
-	if err != nil {
-		return err
+	var i interface{} = NilLockedValue{}
+	if j, found := l.m[k]; found {
+		i = j
 	}
 
-	l.m[k] = j
+	switch j, err := f(i); {
+	case err != nil:
+		return nil, err
+	default:
+		l.m[k] = j
+
+		return j, nil
+	}
+}
+
+func (l *LockedMap) Remove(k interface{}, f func(interface{}) error) error {
+	l.Lock()
+	defer l.Unlock()
+
+	if f != nil {
+		var i interface{} = NilLockedValue{}
+		if j, found := l.m[k]; found {
+			i = j
+		}
+		if err := f(i); err != nil {
+			return err
+		}
+	}
+
+	delete(l.m, k)
 
 	return nil
 }
@@ -145,4 +192,17 @@ func (l *LockedMap) Traverse(f func(interface{}, interface{}) bool) {
 			break
 		}
 	}
+}
+
+func (l *LockedMap) Len() int {
+	l.RLock()
+	defer l.RUnlock()
+
+	return len(l.m)
+}
+
+func IsNilLockedValue(i interface{}) bool {
+	_, ok := i.(NilLockedValue)
+
+	return ok
 }

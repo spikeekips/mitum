@@ -12,34 +12,31 @@ type basePermanentDatabase struct {
 
 func newBasePermanentDatabase() *basePermanentDatabase {
 	return &basePermanentDatabase{
-		m:      util.NewLocked(nil),
-		sufstt: util.NewLocked(nil),
+		m:      util.EmptyLocked(),
+		sufstt: util.EmptyLocked(),
 	}
 }
 
 func (db *basePermanentDatabase) LastManifest() (base.Manifest, bool, error) {
-	var m base.Manifest
-	switch _ = db.m.Value(&m); {
-	case m == nil:
+	switch i, isnil := db.m.Value(); {
+	case isnil || i == nil:
 		return nil, false, nil
 	default:
-		return m, true, nil
+		return i.(base.Manifest), true, nil
 	}
 }
 
 func (db *basePermanentDatabase) LastSuffrage() (base.State, bool, error) {
-	var m base.State
-	switch _ = db.sufstt.Value(&m); {
-	case m == nil:
+	switch i, isnil := db.sufstt.Value(); {
+	case isnil || i == nil:
 		return nil, false, nil
 	default:
-		return m, true, nil
+		return i.(base.State), true, nil
 	}
 }
 
 func (db *LeveldbPermanentDatabase) canMergeTempDatabase(temp TempDatabase) bool {
-	var m base.Manifest
-	if _ = db.m.Value(&m); m != nil && m.Height() >= temp.Height() {
+	if i, _ := db.m.Value(); i != nil && i.(base.Manifest).Height() >= temp.Height() {
 		return false
 	}
 

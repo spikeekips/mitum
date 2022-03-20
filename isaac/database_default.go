@@ -225,7 +225,7 @@ func (db *DefaultDatabase) State(key string) (base.State, bool, error) {
 		case err != nil:
 			return false, err
 		case found:
-			_ = l.Set(func(old interface{}) (interface{}, error) {
+			_, _ = l.Set(func(old interface{}) (interface{}, error) {
 				switch {
 				case old == nil:
 					return st, nil
@@ -242,10 +242,12 @@ func (db *DefaultDatabase) State(key string) (base.State, bool, error) {
 		return nil, false, errors.Wrap(err, "failed to find State")
 	}
 
-	var st base.State
-	_ = l.Value(&st)
-
-	return st, st != nil, nil
+	switch i, _ := l.Value(); {
+	case i == nil:
+		return nil, false, nil
+	default:
+		return i.(base.State), true, nil
+	}
 }
 
 func (db *DefaultDatabase) ExistsOperation(h util.Hash) (bool, error) {
@@ -255,7 +257,7 @@ func (db *DefaultDatabase) ExistsOperation(h util.Hash) (bool, error) {
 		case err != nil:
 			return false, err
 		case found:
-			l.SetValue(true)
+			_ = l.SetValue(true)
 
 			return false, nil
 		default:
@@ -265,10 +267,8 @@ func (db *DefaultDatabase) ExistsOperation(h util.Hash) (bool, error) {
 		return false, errors.Wrap(err, "failed to check ExistsOperation")
 	}
 
-	var found bool
-	_ = l.Value(&found)
-
-	return found, nil
+	i, _ := l.Value()
+	return i.(bool), nil
 }
 
 func (db *DefaultDatabase) NewBlockWriteDatabase(height base.Height) (BlockWriteDatabase, error) {

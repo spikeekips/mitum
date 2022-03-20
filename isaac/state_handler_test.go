@@ -216,12 +216,11 @@ func (p *proposalPool) hash(point base.Point) util.Hash {
 }
 
 func (p *proposalPool) get(point base.Point) base.ProposalSignedFact {
-	var fact base.ProposalSignedFact
-	_, _ = p.Get(point.String(), &fact, func() (interface{}, error) {
+	i, _, _ := p.Get(point.String(), func() (interface{}, error) {
 		return p.newproposal(point), nil
 	})
 
-	return fact
+	return i.(base.ProposalSignedFact)
 }
 
 func (p *proposalPool) getfact(point base.Point) base.ProposalFact {
@@ -229,12 +228,12 @@ func (p *proposalPool) getfact(point base.Point) base.ProposalFact {
 }
 
 func (p *proposalPool) byPoint(point base.Point) base.ProposalSignedFact {
-	var fact base.ProposalSignedFact
-	if found, _ := p.Value(point.String(), &fact); !found {
+	switch i, found := p.Value(point.String()); {
+	case !found:
 		return nil
+	default:
+		return i.(base.ProposalSignedFact)
 	}
-
-	return fact
 }
 
 func (p *proposalPool) byHash(h util.Hash) base.ProposalSignedFact {

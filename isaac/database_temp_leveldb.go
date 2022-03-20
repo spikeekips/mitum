@@ -74,7 +74,9 @@ func newTempLeveldbDatabaseFromWOStorage(wst *LeveldbBlockWriteDatabase) (*TempL
 	}
 
 	var sufstt base.State
-	_ = wst.sufstt.Value(&sufstt)
+	if i, _ := wst.sufstt.Value(); i != nil {
+		sufstt = i.(base.State)
+	}
 
 	return &TempLeveldbDatabase{
 		baseLeveldbDatabase: newBaseLeveldbDatabase(st, wst.encs, wst.enc),

@@ -210,8 +210,7 @@ func (db *RedisPermanentDatabase) MergeTempDatabase(ctx context.Context, temp Te
 	db.Lock()
 	defer db.Unlock()
 
-	var m base.Manifest
-	if _ = db.m.Value(&m); m != nil && m.Height() >= temp.Height() {
+	if i, _ := db.m.Value(); i != nil && i.(base.Manifest).Height() >= temp.Height() {
 		return nil
 	}
 
