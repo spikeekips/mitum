@@ -86,3 +86,9 @@ func (w ZerologSTDLoggingWriter) Write(b []byte) (int, error) {
 
 	return len(b), nil
 }
+
+type ZerologObjectMarshaler func(*zerolog.Event)
+
+func (z ZerologObjectMarshaler) MarshalZerologObject(e *zerolog.Event) {
+	z(e)
+}

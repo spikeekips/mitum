@@ -6,7 +6,7 @@ func AwareContext(
 	ctx context.Context,
 	f func() error,
 ) error {
-	errch := make(chan error)
+	errch := make(chan error, 1)
 	go func() {
 		errch <- f()
 	}()
