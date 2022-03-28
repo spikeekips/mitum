@@ -1,6 +1,10 @@
 package base
 
-import "github.com/spikeekips/mitum/util"
+import (
+	"github.com/pkg/errors"
+	"github.com/spikeekips/mitum/storage"
+	"github.com/spikeekips/mitum/util"
+)
 
 type Suffrage interface {
 	Exists(Address) bool
@@ -15,4 +19,26 @@ type SuffrageStateValue interface {
 	Previous() util.Hash // NOTE previous state hash of SuffrageStateValue
 	Nodes() []Node
 	Suffrage() (Suffrage, error)
+}
+
+func InterfaceIsSuffrageState(i interface{}) (State, error) {
+	switch st, ok := i.(State); {
+	case !ok:
+		return nil, errors.Errorf("not suffrage state: %T", i)
+	default:
+		return st, IsSuffrageState(st)
+	}
+}
+
+func IsSuffrageState(st State) error {
+	switch {
+	case st.Value() == nil:
+		return storage.NotFoundError.Errorf("state value not found")
+	default:
+		if _, ok := st.Value().(SuffrageStateValue); !ok {
+			return errors.Errorf("not suffrage state value: %T", st.Value())
+		}
+
+		return nil
+	}
 }

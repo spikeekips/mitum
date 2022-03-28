@@ -102,13 +102,14 @@ func (db *LeveldbBlockWriteDatabase) SetStates(sts []base.State) error {
 		for i := range sts {
 			st := sts[i]
 
-			_, issuffragestatevalue := st.Value().(base.SuffrageStateValue)
-			if st.Key() == SuffrageStateKey && issuffragestatevalue {
+			var issuffragestate bool
+			if err := base.IsSuffrageState(st); err == nil && st.Key() == SuffrageStateKey {
 				suffragestate = st
+				issuffragestate = true
 			}
 
 			err := worker.NewJob(func(context.Context, uint64) error {
-				if err := db.setState(st, issuffragestatevalue); err != nil {
+				if err := db.setState(st, issuffragestate); err != nil {
 					return e(err, "")
 				}
 

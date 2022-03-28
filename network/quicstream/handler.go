@@ -11,7 +11,7 @@ import (
 
 const handlerPrefixSize = 32
 
-type Handler func(net.Addr, io.ReadCloser, io.WriteCloser) error
+type Handler func(net.Addr, io.Reader, io.Writer) error
 
 type PrefixHandler struct {
 	handlers     map[string]Handler
@@ -21,7 +21,7 @@ type PrefixHandler struct {
 func NewPrefixHandler(errorHandler Handler) *PrefixHandler {
 	nerrorHandler := errorHandler
 	if nerrorHandler == nil {
-		nerrorHandler = func(net.Addr, io.ReadCloser, io.WriteCloser) error {
+		nerrorHandler = func(net.Addr, io.Reader, io.Writer) error {
 			return errors.Errorf("handler not found")
 		}
 	}
@@ -32,7 +32,7 @@ func NewPrefixHandler(errorHandler Handler) *PrefixHandler {
 	}
 }
 
-func (h *PrefixHandler) Handler(addr net.Addr, r io.ReadCloser, w io.WriteCloser) error {
+func (h *PrefixHandler) Handler(addr net.Addr, r io.Reader, w io.Writer) error {
 	handler, err := h.loadHandler(r)
 	if err != nil {
 		return h.doErrorHandler(addr, r, w)
@@ -47,11 +47,11 @@ func (h *PrefixHandler) Add(prefix string, handler Handler) *PrefixHandler {
 	return h
 }
 
-func (h *PrefixHandler) doErrorHandler(addr net.Addr, r io.ReadCloser, w io.WriteCloser) error {
+func (h *PrefixHandler) doErrorHandler(addr net.Addr, r io.Reader, w io.Writer) error {
 	return h.errorHandler(addr, r, w)
 }
 
-func (h *PrefixHandler) loadHandler(r io.ReadCloser) (Handler, error) {
+func (h *PrefixHandler) loadHandler(r io.Reader) (Handler, error) {
 	e := util.StringErrorFunc("failed to load handler")
 
 	p := make([]byte, handlerPrefixSize)

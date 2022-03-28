@@ -54,12 +54,7 @@ func (t *BaseTest) NewTLSConfig(proto string) *tls.Config {
 }
 
 func (t *BaseTest) NewServer(bind *net.UDPAddr, tlsconfig *tls.Config) *Server {
-	srv := NewServer(bind, tlsconfig, &quic.Config{}, func(_ net.Addr, r io.ReadCloser, w io.WriteCloser) error {
-		defer func() {
-			_ = r.Close()
-			_ = w.Close()
-		}()
-
+	srv := NewServer(bind, tlsconfig, &quic.Config{}, func(_ net.Addr, r io.Reader, w io.Writer) error {
 		b, err := io.ReadAll(r)
 		if err != nil {
 			return err

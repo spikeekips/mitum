@@ -88,7 +88,7 @@ func (t *testMemberlist) newServersForJoining(
 		},
 	)
 
-	handler := func(addr net.Addr, r io.ReadCloser, w io.WriteCloser) error {
+	handler := func(addr net.Addr, r io.Reader, w io.Writer) error {
 		b, err := io.ReadAll(r)
 		if err != nil {
 			return err

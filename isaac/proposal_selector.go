@@ -140,7 +140,9 @@ func (p *BaseProposalSelector) findProposal(
 		return nil, e(nil, "proposal not signed by proposer")
 	}
 
-	_, _ = p.pool.SetProposal(pr)
+	if _, err := p.pool.SetProposal(pr); err != nil {
+		return nil, e(err, "")
+	}
 
 	return pr, nil
 }
@@ -228,24 +230,31 @@ func (p BlockBasedProposerSelector) Select(
 }
 
 type ProposalMaker struct {
+	sync.Mutex
 	local         LocalNode
 	policy        base.Policy
 	getOperations func(context.Context) ([]util.Hash, error)
+	pool          ProposalPool
 }
 
 func NewProposalMaker(
 	local LocalNode,
 	policy base.Policy,
 	getOperations func(context.Context) ([]util.Hash, error),
+	pool ProposalPool,
 ) *ProposalMaker {
 	return &ProposalMaker{
 		local:         local,
 		policy:        policy,
 		getOperations: getOperations,
+		pool:          pool,
 	}
 }
 
 func (p *ProposalMaker) New(ctx context.Context, point base.Point) (ProposalSignedFact, error) {
+	p.Lock()
+	defer p.Unlock()
+
 	e := util.StringErrorFunc("failed to make proposal, %q", point)
 
 	ops, err := p.getOperations(ctx)
@@ -257,6 +266,10 @@ func (p *ProposalMaker) New(ctx context.Context, point base.Point) (ProposalSign
 
 	signedFact := NewProposalSignedFact(fact)
 	if err := signedFact.Sign(p.local.Privatekey(), p.policy.NetworkID()); err != nil {
+		return ProposalSignedFact{}, e(err, "")
+	}
+
+	if _, err := p.pool.SetProposal(signedFact); err != nil {
 		return ProposalSignedFact{}, e(err, "")
 	}
 

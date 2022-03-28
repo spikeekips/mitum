@@ -21,7 +21,7 @@ type testServer struct {
 }
 
 func (t *testServer) TestNew() {
-	srv := NewServer(t.Bind, t.TLSConfig, nil, func(net.Addr, io.ReadCloser, io.WriteCloser) error {
+	srv := NewServer(t.Bind, t.TLSConfig, nil, func(net.Addr, io.Reader, io.Writer) error {
 		return nil
 	})
 	srv.SetLogging(logging.TestNilLogging)
@@ -42,7 +42,11 @@ func (t *testServer) TestEcho() {
 	defer cancel()
 
 	b := util.UUID().Bytes()
-	rb, err := client.Send(ctx, b)
+	r, err := client.Send(ctx, b)
+	t.NoError(err)
+	defer r.Close()
+
+	rb, err := ReadAll(context.Background(), r)
 	t.NoError(err)
 	t.Equal(b, rb)
 }
@@ -62,7 +66,11 @@ func (t *testServer) TestEchos() {
 		for range make([]struct{}, 100) {
 			_ = wk.NewJob(func(ctx context.Context, jobid uint64) error {
 				b := util.UUID().Bytes()
-				rb, err := client.Send(ctx, b)
+				r, err := client.Send(ctx, b)
+				t.NoError(err)
+				defer r.Close()
+
+				rb, err := ReadAll(context.Background(), r)
 				t.NoError(err)
 				t.Equal(b, rb)
 
@@ -96,7 +104,11 @@ func (t *testServer) TestSendTimeout() {
 		return stream.Write(b)
 	}
 
-	_, err := client.Send(context.Background(), util.UUID().Bytes())
+	r, err := client.Send(context.Background(), util.UUID().Bytes())
+	t.NoError(err)
+	defer r.Close()
+
+	_, err = ReadAll(context.Background(), r)
 	t.Error(err)
 
 	var idleerr *quic.IdleTimeoutError
@@ -108,10 +120,7 @@ func (t *testServer) TestResponseIdleTimeout() {
 	defer cancel()
 
 	srv := t.NewDefaultServer()
-	srv.handler = func(_ net.Addr, r io.ReadCloser, w io.WriteCloser) error {
-		defer r.Close()
-		defer w.Close()
-
+	srv.handler = func(_ net.Addr, r io.Reader, w io.Writer) error {
 		select {
 		case <-ctx.Done():
 			return nil
@@ -132,7 +141,11 @@ func (t *testServer) TestResponseIdleTimeout() {
 		MaxIdleTimeout: time.Millisecond * 100,
 	}
 
-	_, err := client.Send(context.Background(), util.UUID().Bytes())
+	r, err := client.Send(context.Background(), util.UUID().Bytes())
+	t.NoError(err)
+	defer r.Close()
+
+	_, err = ReadAll(context.Background(), r)
 	t.Error(err)
 
 	var idleerr *quic.IdleTimeoutError
@@ -144,10 +157,7 @@ func (t *testServer) TestResponseContextTimeout() {
 	defer cancel()
 
 	srv := t.NewDefaultServer()
-	srv.handler = func(_ net.Addr, r io.ReadCloser, w io.WriteCloser) error {
-		defer r.Close()
-		defer w.Close()
-
+	srv.handler = func(_ net.Addr, r io.Reader, w io.Writer) error {
 		select {
 		case <-ctx.Done():
 			return nil
@@ -168,7 +178,11 @@ func (t *testServer) TestResponseContextTimeout() {
 	tctx, tcancel := context.WithTimeout(ctx, time.Millisecond*100)
 	defer tcancel()
 
-	_, err := client.Send(tctx, util.UUID().Bytes())
+	r, err := client.Send(tctx, util.UUID().Bytes())
+	t.NoError(err)
+	defer r.Close()
+
+	_, err = ReadAll(tctx, r)
 	t.Error(err)
 	t.True(errors.Is(err, context.DeadlineExceeded))
 }
@@ -178,10 +192,7 @@ func (t *testServer) TestServerGone() {
 
 	donectx, done := context.WithCancel(context.Background())
 	sentch := make(chan struct{}, 1)
-	srv.handler = func(_ net.Addr, r io.ReadCloser, w io.WriteCloser) error {
-		defer r.Close()
-		defer w.Close()
-
+	srv.handler = func(_ net.Addr, r io.Reader, w io.Writer) error {
 		sentch <- struct{}{}
 		select {
 		case <-time.After(time.Second * 2):
@@ -229,19 +240,19 @@ func (t *testServer) TestServerGone() {
 func (t *testServer) TestPrefixHandler() {
 	srv := t.NewDefaultServer()
 
-	handler := NewPrefixHandler(func(_ net.Addr, r io.ReadCloser, w io.WriteCloser) error {
+	handler := NewPrefixHandler(func(_ net.Addr, r io.Reader, w io.Writer) error {
 		_, _ = w.Write([]byte("hehehe"))
 
 		return nil
 	})
-	handler.Add("findme", func(_ net.Addr, r io.ReadCloser, w io.WriteCloser) error {
+	handler.Add("findme", func(_ net.Addr, r io.Reader, w io.Writer) error {
 		b, _ := io.ReadAll(r)
 		_, _ = w.Write(b)
 
 		return nil
 	})
 
-	handler.Add("showme", func(_ net.Addr, r io.ReadCloser, w io.WriteCloser) error {
+	handler.Add("showme", func(_ net.Addr, r io.Reader, w io.Writer) error {
 		b, _ := io.ReadAll(r)
 		_, _ = w.Write(b)
 
@@ -260,7 +271,11 @@ func (t *testServer) TestPrefixHandler() {
 		defer cancel()
 
 		b := util.UUID().Bytes()
-		rb, err := client.Send(ctx, BodyWithPrefix("findme", b))
+		r, err := client.Send(ctx, BodyWithPrefix("findme", b))
+		t.NoError(err)
+		defer r.Close()
+
+		rb, err := ReadAll(context.Background(), r)
 		t.NoError(err)
 		t.Equal(b, rb)
 	})
@@ -270,7 +285,11 @@ func (t *testServer) TestPrefixHandler() {
 		defer cancel()
 
 		b := util.UUID().Bytes()
-		rb, err := client.Send(ctx, BodyWithPrefix("showme", b))
+		r, err := client.Send(ctx, BodyWithPrefix("showme", b))
+		t.NoError(err)
+		defer r.Close()
+
+		rb, err := ReadAll(context.Background(), r)
 		t.NoError(err)
 		t.Equal(b, rb)
 	})
@@ -280,7 +299,11 @@ func (t *testServer) TestPrefixHandler() {
 		defer cancel()
 
 		b := util.UUID().Bytes()
-		rb, err := client.Send(ctx, BodyWithPrefix("unknown", b))
+		r, err := client.Send(ctx, BodyWithPrefix("unknown", b))
+		t.NoError(err)
+		defer r.Close()
+
+		rb, err := ReadAll(context.Background(), r)
 		t.NoError(err)
 		t.Equal([]byte("hehehe"), rb)
 	})

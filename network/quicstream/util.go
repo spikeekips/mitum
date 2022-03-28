@@ -8,7 +8,21 @@ import (
 	"github.com/pkg/errors"
 )
 
-func readStream(ctx context.Context, stream quic.Stream) ([]byte, error) {
+type StreamResponse struct {
+	quic.Stream
+}
+
+func (r StreamResponse) Close() error {
+	r.Stream.CancelRead(0)
+
+	return nil
+}
+
+func ReadAll(ctx context.Context, r io.ReadCloser) ([]byte, error) {
+	defer func() {
+		_ = r.Close()
+	}()
+
 	var b []byte
 
 	readdonech := make(chan error, 1)
@@ -18,7 +32,7 @@ func readStream(ctx context.Context, stream quic.Stream) ([]byte, error) {
 	end:
 		for {
 			p := make([]byte, 1024)
-			n, e := stream.Read(p)
+			n, e := r.Read(p)
 
 			var eof bool
 			switch {
@@ -43,8 +57,6 @@ func readStream(ctx context.Context, stream quic.Stream) ([]byte, error) {
 
 	select {
 	case <-ctx.Done():
-		stream.CancelRead(0)
-
 		return nil, errors.Wrap(ctx.Err(), "failed to read")
 	case err := <-readdonech:
 		if err != nil {

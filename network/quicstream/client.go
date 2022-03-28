@@ -84,7 +84,7 @@ func (c *Client) Dial(ctx context.Context) (quic.EarlySession, error) {
 	return session, nil
 }
 
-func (c *Client) Send(ctx context.Context, b []byte) ([]byte, error) {
+func (c *Client) Send(ctx context.Context, b []byte) (quic.Stream, error) {
 	e := util.StringErrorFunc("failed to send")
 
 	session, err := c.dial(ctx)
@@ -92,9 +92,9 @@ func (c *Client) Send(ctx context.Context, b []byte) ([]byte, error) {
 		return nil, e(err, "")
 	}
 
-	rb, err := c.send(ctx, session, b)
+	r, err := c.send(ctx, session, b)
 	if err == nil {
-		return rb, nil
+		return r, nil
 	}
 
 	if isNetworkError(err) {
@@ -104,7 +104,7 @@ func (c *Client) Send(ctx context.Context, b []byte) ([]byte, error) {
 	return nil, e(err, "")
 }
 
-func (c *Client) send(ctx context.Context, session quic.EarlySession, b []byte) ([]byte, error) {
+func (c *Client) send(ctx context.Context, session quic.EarlySession, b []byte) (quic.Stream, error) {
 	e := util.StringErrorFunc("failed to send")
 
 	stream, err := session.OpenStreamSync(ctx)
@@ -121,12 +121,7 @@ func (c *Client) send(ctx context.Context, session quic.EarlySession, b []byte) 
 
 	_ = stream.Close()
 
-	r, err := readStream(ctx, stream)
-	if err != nil {
-		return nil, e(err, "")
-	}
-
-	return r, nil
+	return StreamResponse{stream}, nil
 }
 
 func (c *Client) dial(ctx context.Context) (quic.EarlySession, error) {
@@ -164,11 +159,15 @@ func isNetworkError(err error) bool {
 		return false
 	}
 
-	if serr := (&quic.StreamError{}); errors.As(err, &serr) {
+	if e := (&quic.StreamError{}); errors.As(err, &e) {
 		return true
 	}
 
-	if aerr := (&quic.ApplicationError{}); errors.As(err, &aerr) {
+	if e := (&quic.TransportError{}); errors.As(err, &e) {
+		return true
+	}
+
+	if e := (&quic.ApplicationError{}); errors.As(err, &e) {
 		return true
 	}
 

@@ -41,9 +41,7 @@ func (t *testClient) TestSessionRemove() {
 		_, err = client.Send(context.Background(), util.UUID().Bytes())
 		t.Error(err)
 
-		var aerr *quic.ApplicationError
-		t.True(errors.As(err, &aerr))
-		t.Contains(err.Error(), "context canceled")
+		t.True(isNetworkError(err))
 
 		i, isnil := client.session.Value()
 		t.True(isnil)

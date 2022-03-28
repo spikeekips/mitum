@@ -26,7 +26,7 @@ func (t *testPool) TestSend() {
 	p := NewPoolClient()
 
 	b := util.UUID().Bytes()
-	rb, err := p.Send(
+	r, err := p.Send(
 		context.Background(),
 		t.Bind,
 		b,
@@ -39,6 +39,9 @@ func (t *testPool) TestSend() {
 			return client
 		},
 	)
+	t.NoError(err)
+
+	rb, err := ReadAll(context.Background(), r)
 	t.NoError(err)
 	t.Equal(b, rb)
 	t.Equal(1, p.clients.Len())

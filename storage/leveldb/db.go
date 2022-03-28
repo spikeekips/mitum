@@ -108,7 +108,7 @@ func (st *BaseStorage) Get(key []byte) ([]byte, bool, error) {
 	case errors.Is(err, leveldb.ErrNotFound):
 		return nil, false, nil
 	default:
-		return b, false, storage.ExecError.Errorf("failed to get")
+		return b, false, storage.ExecError.Wrapf(err, "failed to get")
 	}
 }
 

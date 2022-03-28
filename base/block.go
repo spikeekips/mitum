@@ -1,11 +1,12 @@
 package base
 
 import (
+	"io"
+	"net/url"
 	"time"
 
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
-	"github.com/spikeekips/mitum/util/tree"
 )
 
 type Manifest interface {
@@ -22,17 +23,61 @@ type Manifest interface {
 	NodeCreatedAt() time.Time  // NOTE created time in local node
 }
 
-type Block interface {
+type BlockDataMap interface {
 	hint.Hinter
-	util.Hash
 	util.IsValider
 	Height() Height
-	Manifest() Manifest
-	Proposal() ProposalSignedFact
-	Operations() []Operation
-	OperationsTree() tree.FixedTree
-	States() []State
-	StatesTree() tree.FixedTree
-	INITVoteproof() INITVoteproof
-	ACCEPTVoteproof() ACCEPTVoteproof
+	Manifest() BlockDataMapItem
+	Proposal() BlockDataMapItem
+	Operations() BlockDataMapItem
+	OperationsTree() BlockDataMapItem
+	States() BlockDataMapItem
+	StatesTree() BlockDataMapItem
+	INITVoteproof() BlockDataMapItem
+	ACCEPTVoteproof() BlockDataMapItem
+}
+
+type BlockDataMapItem interface {
+	hint.Hinter
+	util.IsValider
+	Type() BlockDataType
+	URL() *url.URL
+	Checksum() string
+}
+
+type BlockDataType string
+
+var (
+	BlockDataTypeManifest        BlockDataType = "block_data_manifest"
+	BlockDataTypeProposal        BlockDataType = "block_data_proposal"
+	BlockDataTypeOperations      BlockDataType = "block_data_operations"
+	BlockDataTypeOperationsTree  BlockDataType = "block_data_operations_tree"
+	BlockDataTypeStates          BlockDataType = "block_data_states"
+	BlockDataTypeStatesTree      BlockDataType = "block_data_states_tree"
+	BlockDataTypeINITVoteproof   BlockDataType = "block_data_init_voteproof"
+	BlockDataTypeACCEPTVoteproof BlockDataType = "block_data_accept_voteproof"
+)
+
+func (t BlockDataType) IsValid([]byte) error {
+	switch t {
+	case BlockDataTypeManifest,
+		BlockDataTypeProposal,
+		BlockDataTypeOperations,
+		BlockDataTypeOperationsTree,
+		BlockDataTypeStates,
+		BlockDataTypeStatesTree,
+		BlockDataTypeINITVoteproof,
+		BlockDataTypeACCEPTVoteproof:
+		return nil
+	default:
+		return util.InvalidError.Errorf("unknown block data type, %q", t)
+	}
+}
+
+type BlockData interface {
+	hint.Hinter
+	util.IsValider
+	Height() Height
+	Type() BlockDataType
+	io.ReadCloser
 }

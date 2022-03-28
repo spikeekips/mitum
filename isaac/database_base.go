@@ -5,7 +5,6 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
-	"github.com/spikeekips/mitum/storage"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
@@ -126,13 +125,12 @@ func (db *baseDatabase) decodeSuffrage(b []byte) (base.State, error) {
 	switch i, err := db.decodeState(b); {
 	case err != nil:
 		return nil, e(err, "failed to load suffrage state")
-	case i.Value() == nil:
-		return nil, storage.NotFoundError.Errorf("state value not found")
 	default:
-		if _, ok := i.Value().(base.SuffrageStateValue); !ok {
-			return nil, e(nil, "not suffrage state value: %T", i.Value())
+		st, err := base.InterfaceIsSuffrageState(i)
+		if err != nil {
+			return nil, e(err, "")
 		}
 
-		return i, nil
+		return st, nil
 	}
 }

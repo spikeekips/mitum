@@ -26,9 +26,7 @@ func (t *baseTestDatabase) noerror(err error) {
 	}
 }
 
-func (t *baseTestDatabase) SetupTest() {
-	t.root = filepath.Join(os.TempDir(), "test-mitum-wo-database-"+util.UUID().String())
-
+func (t *baseTestDatabase) SetupSuite() {
 	t.encs = encoder.NewEncoders()
 	t.enc = jsonenc.NewEncoder()
 	t.noerror(t.encs.AddHinter(t.enc))
@@ -42,6 +40,10 @@ func (t *baseTestDatabase) SetupTest() {
 	t.noerror(t.enc.Add(encoder.DecodeDetail{Hint: SuffrageStateValueHint, Instance: SuffrageStateValue{}}))
 	t.noerror(t.enc.Add(encoder.DecodeDetail{Hint: ProposalFactHint, Instance: ProposalFact{}}))
 	t.noerror(t.enc.Add(encoder.DecodeDetail{Hint: ProposalSignedFactHint, Instance: ProposalSignedFact{}}))
+}
+
+func (t *baseTestDatabase) SetupTest() {
+	t.root = filepath.Join(os.TempDir(), "test-mitum-wo-database-"+util.UUID().String())
 }
 
 func (t *baseTestDatabase) TearDownTest() {

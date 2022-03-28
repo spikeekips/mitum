@@ -27,32 +27,33 @@ func (p *PoolClient) Dial(
 	newClient func(*net.UDPAddr) *Client,
 ) (quic.EarlySession, error) {
 	var found bool
-	var item *poolClientItem
+	var client *Client
 	_, _ = p.clients.Set(addr.String(), func(i interface{}) (interface{}, error) {
 		if !util.IsNilLockedValue(i) {
-			item = i.(*poolClientItem)
+			item := i.(*poolClientItem)
 			item.accessed = time.Now()
+
+			client = item.client
 
 			found = true
 
 			return nil, errors.Errorf("ignore")
 		}
 
-		item = &poolClientItem{
-			client:   newClient(addr),
+		client = newClient(addr)
+		return &poolClientItem{
+			client:   client,
 			accessed: time.Now(),
-		}
-
-		return item, nil
+		}, nil
 	})
 
 	if found {
-		return item.client.Session(), nil
+		return client.Session(), nil
 	}
 
-	session, err := item.client.Dial(ctx)
+	session, err := client.Dial(ctx)
 	if err != nil {
-		go p.onerror(addr, item.client, err)
+		go p.onerror(addr, client, err)
 
 		return nil, errors.Wrap(err, "")
 	}
@@ -65,32 +66,33 @@ func (p *PoolClient) Send(
 	addr *net.UDPAddr,
 	b []byte,
 	newClient func(*net.UDPAddr) *Client,
-) ([]byte, error) {
-	var item *poolClientItem
+) (quic.Stream, error) {
+	var client *Client
 	_, _ = p.clients.Set(addr.String(), func(i interface{}) (interface{}, error) {
 		if !util.IsNilLockedValue(i) {
-			item = i.(*poolClientItem)
+			item := i.(*poolClientItem)
 			item.accessed = time.Now()
+
+			client = item.client
 
 			return nil, errors.Errorf("ignore")
 		}
 
-		item = &poolClientItem{
-			client:   newClient(addr),
+		client = newClient(addr)
+		return &poolClientItem{
+			client:   client,
 			accessed: time.Now(),
-		}
-
-		return item, nil
+		}, nil
 	})
 
-	rb, err := item.client.Send(ctx, b)
+	r, err := client.Send(ctx, b)
 	if err != nil {
-		go p.onerror(addr, item.client, err)
+		go p.onerror(addr, client, err)
 
-		return rb, errors.Wrap(err, "")
+		return nil, errors.Wrap(err, "")
 	}
 
-	return rb, nil
+	return r, nil
 }
 
 func (p *PoolClient) onerror(addr *net.UDPAddr, c *Client, err error) {
@@ -98,15 +100,15 @@ func (p *PoolClient) onerror(addr *net.UDPAddr, c *Client, err error) {
 		return
 	}
 
-	var item *poolClientItem
+	var client *Client
 	switch i, found := p.clients.Value(addr.String()); {
 	case !found:
 		return
 	default:
-		item = i.(*poolClientItem)
+		client = i.(*poolClientItem).client
 	}
 
-	if item.client.id != c.id {
+	if client.id != c.id {
 		return
 	}
 
