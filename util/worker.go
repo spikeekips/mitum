@@ -190,6 +190,7 @@ type BaseSemWorker struct {
 	NewJobFunc func(context.Context, uint64, ContextWorkerCallback)
 	runonce    sync.Once
 	donech     chan time.Duration
+	closeonece sync.Once
 }
 
 func NewBaseSemWorker(ctx context.Context, semsize int64) *BaseSemWorker {
@@ -217,6 +218,8 @@ func (wk *BaseSemWorker) NewJob(callback ContextWorkerCallback) error {
 	jobs := wk.JobCount
 
 	if err := wk.Sem.Acquire(wk.Ctx, 1); err != nil {
+		wk.Cancel()
+
 		return err
 	}
 
@@ -303,11 +306,13 @@ func (wk *BaseSemWorker) Done() {
 }
 
 func (wk *BaseSemWorker) Close() {
-	defer baseSemWorkerPoolPut(wk)
+	wk.closeonece.Do(func() {
+		defer baseSemWorkerPoolPut(wk)
 
-	wk.donech <- 0
+		wk.donech <- 0
 
-	wk.Cancel()
+		wk.Cancel()
+	})
 }
 
 func (wk *BaseSemWorker) LazyCancel(timeout time.Duration) {
@@ -353,8 +358,9 @@ func (wk *DistributeWorker) Close() {
 
 type ErrgroupWorker struct {
 	*BaseSemWorker
-	eg        *errgroup.Group
-	doneonece sync.Once
+	eg         *errgroup.Group
+	doneonce   sync.Once
+	closeonece sync.Once
 }
 
 func NewErrgroupWorker(ctx context.Context, semsize int64) *ErrgroupWorker {
@@ -372,7 +378,13 @@ func NewErrgroupWorker(ctx context.Context, semsize int64) *ErrgroupWorker {
 				donech <- struct{}{}
 			}()
 
-			return callback(ctx, jobs)
+			if err := callback(ctx, jobs); err != nil {
+				wk.Cancel()
+
+				return err
+			}
+
+			return nil
 		})
 
 		<-donech
@@ -380,7 +392,7 @@ func NewErrgroupWorker(ctx context.Context, semsize int64) *ErrgroupWorker {
 
 	wk.BaseSemWorker = base
 	wk.eg = eg
-	wk.doneonece = sync.Once{}
+	wk.doneonce = sync.Once{}
 
 	return wk
 }
@@ -397,7 +409,7 @@ func (wk *ErrgroupWorker) Wait() error {
 	}
 
 	errch := make(chan error, 1)
-	wk.doneonece.Do(func() {
+	wk.doneonce.Do(func() {
 		errch <- wk.eg.Wait()
 	})
 
@@ -405,9 +417,11 @@ func (wk *ErrgroupWorker) Wait() error {
 }
 
 func (wk *ErrgroupWorker) Close() {
-	defer errgroupWorkerPoolPut(wk)
+	wk.closeonece.Do(func() {
+		defer errgroupWorkerPoolPut(wk)
 
-	wk.BaseSemWorker.Close()
+		wk.BaseSemWorker.Close()
+	})
 }
 
 func (wk *ErrgroupWorker) RunChan() chan error {
