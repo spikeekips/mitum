@@ -657,7 +657,9 @@ func (t *testErrgroupWorker) TestCancel() {
 		wk.Done()
 	}()
 
-	t.NoError(wk.Wait())
+	err := wk.Wait()
+	t.Error(err)
+	t.True(errors.Is(err, context.Canceled))
 }
 
 func (t *testErrgroupWorker) TestCancelBeforeRun() {
@@ -665,9 +667,13 @@ func (t *testErrgroupWorker) TestCancelBeforeRun() {
 
 	var called uint64
 	callback := func(j interface{}) ContextWorkerCallback {
-		return func(context.Context, uint64) error {
+		return func(ctx context.Context, _ uint64) error {
 			atomic.AddUint64(&called, 1)
-			<-time.After(time.Millisecond * 900)
+
+			select {
+			case <-time.After(time.Millisecond * 900):
+			case <-ctx.Done():
+			}
 
 			return nil
 		}
@@ -686,7 +692,9 @@ func (t *testErrgroupWorker) TestCancelBeforeRun() {
 
 	wk.Cancel()
 
-	t.NoError(wk.Wait())
+	err := wk.Wait()
+	t.Error(err)
+	t.True(errors.Is(err, context.Canceled))
 
 	c := atomic.LoadUint64(&called)
 	t.True(c < l, "called=%d, total=%d", c, l)

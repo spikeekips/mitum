@@ -386,12 +386,10 @@ func NewErrgroupWorker(ctx context.Context, semsize int64) *ErrgroupWorker {
 			var err error
 			select {
 			case <-ctx.Done():
-				err = ctx.Err()
 			case err = <-errch:
-			}
-
-			if err != nil {
-				wk.Cancel()
+				if err != nil {
+					defer wk.Cancel()
+				}
 			}
 
 			return err
@@ -408,12 +406,14 @@ func NewErrgroupWorker(ctx context.Context, semsize int64) *ErrgroupWorker {
 }
 
 func (wk *ErrgroupWorker) Wait() error {
+	var berr error
 	if err := wk.BaseSemWorker.wait(); err != nil {
-		if !errors.Is(err, context.Canceled) {
-			if errors.Is(err, contextCanceled{}) {
-				return context.Canceled
-			}
-
+		switch {
+		case errors.Is(err, context.Canceled):
+			berr = err
+		case errors.Is(err, contextCanceled{}):
+			return context.Canceled
+		default:
 			return err
 		}
 	}
@@ -423,7 +423,12 @@ func (wk *ErrgroupWorker) Wait() error {
 		errch <- wk.eg.Wait()
 	})
 
-	return <-errch
+	switch err := <-errch; {
+	case err == nil:
+		return berr
+	default:
+		return err
+	}
 }
 
 func (wk *ErrgroupWorker) Close() {
