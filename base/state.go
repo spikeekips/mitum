@@ -14,8 +14,10 @@ type State interface {
 	util.IsValider
 	Key() string
 	Value() StateValue
-	Height() Height // NOTE manifest height
+	Height() Height      // NOTE manifest height
+	Previous() util.Hash // NOTE previous state hash
 	Operations() []util.Hash
+	Merger(Height) StateValueMerger
 }
 
 type StateValue interface {
@@ -23,6 +25,16 @@ type StateValue interface {
 	util.HashByter
 	util.IsValider
 	Equal(StateValue) bool
+}
+
+type StateValueMerger interface {
+	State
+	Merge(value StateValue, operations []util.Hash) error
+}
+
+type StatePool interface {
+	GetState(key string) (State, bool, error)
+	SetStates([]State) error
 }
 
 func IsEqualState(a, b State) bool {

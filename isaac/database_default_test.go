@@ -392,6 +392,7 @@ func (t *testDefaultDatabaseBlockWrite) TestMerge() {
 			newstts[i].Height()-1,
 			newstts[i].Key(),
 			base.NewDummyStateValue(util.UUID().String()),
+			valuehash.RandomSHA256(),
 		)
 	}
 
@@ -626,6 +627,7 @@ func (t *testDefaultDatabaseBlockWrite) TestFindState() {
 				height,
 				stts[i].Key(),
 				base.NewDummyStateValue(util.UUID().String()),
+				valuehash.RandomSHA256(),
 			)
 		}
 

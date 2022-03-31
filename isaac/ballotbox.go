@@ -244,12 +244,15 @@ func (box *Ballotbox) clean() {
 }
 
 func (box *Ballotbox) filterVoterecords(filter func(*voterecords) (bool, bool)) []*voterecords {
-	var vrs []*voterecords
+	vrs := make([]*voterecords, len(box.vrs))
+
+	var n int
 	for stagepoint := range box.vrs {
 		vr := box.vrs[stagepoint]
 		keep, ok := filter(vr)
 		if ok {
-			vrs = append(vrs, vr)
+			vrs[n] = vr
+			n++
 		}
 
 		if !keep {
@@ -257,7 +260,7 @@ func (box *Ballotbox) filterVoterecords(filter func(*voterecords) (bool, bool)) 
 		}
 	}
 
-	return vrs
+	return vrs[:n]
 }
 
 // notFinishedVoterecords sorts higher point will be counted first

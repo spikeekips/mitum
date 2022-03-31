@@ -162,15 +162,19 @@ func (ts *Timers) StartTimers(ids []TimerID, stopOthers bool) error {
 	}
 
 	if stopOthers {
-		var stopIDs []TimerID
+		stopIDs := make([]TimerID, len(ts.timers))
+
+		var n int
 		for id := range ts.timers {
 			if InStringSlice(id.String(), sids) {
 				continue
 			}
-			stopIDs = append(stopIDs, id)
+			stopIDs[n] = id
+			n++
 		}
 
-		if len(stopIDs) > 0 {
+		if n > 0 {
+			stopIDs = stopIDs[:n]
 			if err := ts.stopTimers(stopIDs); err != nil {
 				return errors.Wrap(err, "failed to start timers")
 			}
@@ -232,15 +236,18 @@ func (ts *Timers) Started() []TimerID {
 		return nil
 	}
 
-	var started []TimerID
+	started := make([]TimerID, len(ts.timers))
+
+	var n int
 	for id := range ts.timers {
 		timer := ts.timers[id]
 		if timer != nil && ts.timers[id].IsStarted() {
-			started = append(started, id)
+			started[n] = id
+			n++
 		}
 	}
 
-	return started
+	return started[:n]
 }
 
 func (ts *Timers) IsTimerStarted(id TimerID) bool {

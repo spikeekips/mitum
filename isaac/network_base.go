@@ -165,7 +165,7 @@ func (body ProposalBody) IsValid([]byte) error {
 }
 
 type proposalBodyJSONUnmarshaler struct {
-	Proposal valuehash.Bytes
+	Proposal valuehash.HashDecoder
 }
 
 func (body *ProposalBody) UnmarshalJSON(b []byte) error {
@@ -174,7 +174,7 @@ func (body *ProposalBody) UnmarshalJSON(b []byte) error {
 		return errors.Wrap(err, "failed to unmarshal proposalBody")
 	}
 
-	body.Proposal = u.Proposal
+	body.Proposal = u.Proposal.Hash()
 
 	return nil
 }

@@ -172,6 +172,7 @@ func (t *baseTestHandler) suffrageState(height, sufheight base.Height, nodes []b
 		height,
 		SuffrageStateKey,
 		sv,
+		valuehash.RandomSHA256(),
 	)
 	sufstt.SetOperations([]util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256(), valuehash.RandomSHA256()})
 

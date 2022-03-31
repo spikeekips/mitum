@@ -12,6 +12,7 @@ import (
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
+	"github.com/spikeekips/mitum/util/valuehash"
 )
 
 type baseTestDatabase struct {
@@ -79,6 +80,7 @@ func (t *baseTestDatabase) states(height base.Height, n int) []base.State {
 			height,
 			util.UUID().String(),
 			v,
+			valuehash.RandomSHA256(),
 		)
 	}
 

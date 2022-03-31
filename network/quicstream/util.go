@@ -1,6 +1,7 @@
 package quicstream
 
 import (
+	"bytes"
 	"context"
 	"io"
 
@@ -23,7 +24,7 @@ func ReadAll(ctx context.Context, r io.ReadCloser) ([]byte, error) {
 		_ = r.Close()
 	}()
 
-	var b []byte
+	var b bytes.Buffer
 
 	readdonech := make(chan error, 1)
 	go func() {
@@ -45,7 +46,7 @@ func ReadAll(ctx context.Context, r io.ReadCloser) ([]byte, error) {
 				}
 			}
 
-			b = append(b, p[:n]...)
+			_, _ = b.Write(p[:n])
 
 			if eof {
 				break end
@@ -63,6 +64,6 @@ func ReadAll(ctx context.Context, r io.ReadCloser) ([]byte, error) {
 			return nil, errors.Wrap(err, "failed to read")
 		}
 
-		return b, nil
+		return b.Bytes(), nil
 	}
 }

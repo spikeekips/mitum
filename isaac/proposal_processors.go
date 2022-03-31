@@ -158,7 +158,7 @@ func (pps *proposalProcessors) newProcessor(ctx context.Context, facthash util.H
 	if pps.p != nil {
 		p := pps.p
 		if p.Proposal().Hash().Equal(facthash) {
-			l.Debug().Msg("propsal already processed")
+			l.Debug().Msg("proposal already processed")
 
 			return nil, nil
 		}
@@ -208,6 +208,11 @@ func (pps *proposalProcessors) runProcessor(ctx context.Context, p proposalProce
 		},
 		pps.retryinterval,
 	)
+	if err != nil {
+		if err := p.Cancel(); err != nil {
+			return nil, errors.Wrap(err, "failed to run processor")
+		}
+	}
 
 	return manifest, err
 }

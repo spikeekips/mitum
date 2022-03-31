@@ -378,13 +378,23 @@ func NewErrgroupWorker(ctx context.Context, semsize int64) *ErrgroupWorker {
 				donech <- struct{}{}
 			}()
 
-			if err := callback(ctx, jobs); err != nil {
-				wk.Cancel()
+			errch := make(chan error, 1)
+			go func() {
+				errch <- callback(ctx, jobs)
+			}()
 
-				return err
+			var err error
+			select {
+			case <-ctx.Done():
+				err = ctx.Err()
+			case err = <-errch:
 			}
 
-			return nil
+			if err != nil {
+				wk.Cancel()
+			}
+
+			return err
 		})
 
 		<-donech

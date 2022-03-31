@@ -53,7 +53,9 @@ func FilterSlice(a, b interface{}, f func(interface{}, interface{}) bool) []inte
 		return nil
 	}
 
-	var n []interface{} // nolint:prealloc
+	nb := make([]interface{}, len(as))
+
+	var n int
 	for i := range as {
 		var found bool
 		for j := range bs {
@@ -68,10 +70,11 @@ func FilterSlice(a, b interface{}, f func(interface{}, interface{}) bool) []inte
 			continue
 		}
 
-		n = append(n, as[i])
+		nb[n] = as[i]
+		n++
 	}
 
-	return n
+	return nb[:n]
 }
 
 func makeInterfaceSlice(s interface{}) []interface{} {

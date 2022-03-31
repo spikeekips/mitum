@@ -407,7 +407,7 @@ func (db *DefaultDatabase) dig(f func(PartialDatabase) (bool, error)) error {
 
 			return nil
 		}); err != nil {
-			return err
+			break
 		}
 	}
 	worker.Done()

@@ -120,21 +120,28 @@ func (p *PoolClient) onerror(addr *net.UDPAddr, c *Client, err error) {
 }
 
 func (p *PoolClient) Clean(cleanDuration time.Duration) int {
-	var removeds []string
+	removeds := make([]string, p.clients.Len())
+
+	var n int
 	p.clients.Traverse(func(k interface{}, v interface{}) bool {
 		item := v.(*poolClientItem)
 		if time.Since(item.accessed) > cleanDuration {
-			removeds = append(removeds, k.(string))
+			removeds[n] = k.(string)
+			n++
 		}
 
 		return true
 	})
 
-	for i := range removeds {
+	if n < 1 {
+		return 0
+	}
+
+	for i := range removeds[:n] {
 		_ = p.clients.Remove(removeds[i], nil)
 	}
 
-	return len(removeds)
+	return n
 }
 
 type poolClientItem struct {
