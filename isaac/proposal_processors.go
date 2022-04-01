@@ -209,7 +209,7 @@ func (pps *proposalProcessors) runProcessor(ctx context.Context, p proposalProce
 		pps.retryinterval,
 	)
 	if err != nil {
-		if err := p.Cancel(); err != nil {
+		if err = p.Cancel(); err != nil {
 			return nil, errors.Wrap(err, "failed to run processor")
 		}
 	}

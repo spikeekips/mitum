@@ -32,7 +32,7 @@ type proposalProcessor interface {
 type BlockDataWriter interface {
 	SetProposalOperations([]util.Hash) error
 	SetOperation(index int, operation base.Operation) error
-	SetStates(states []base.State, operation util.Hash) error
+	SetStates(states []base.State, index int, operation util.Hash) error
 	SetManifest(base.Manifest) error
 	Manifest(context.Context) (base.Manifest, error)
 	Save(context.Context, base.ACCEPTVoteproof) error
@@ -113,11 +113,16 @@ func (p *DefaultProposalProcessor) Save(ctx context.Context, acceptVoteproof bas
 	p.Lock()
 	defer p.Unlock()
 
+	e := util.StringErrorFunc("failed to save")
 	if p.proposal == nil {
-		return errors.Wrap(context.Canceled, "failed to save")
+		return e(context.Canceled, "")
 	}
 
-	return p.writer.Save(ctx, acceptVoteproof)
+	if err := p.writer.Save(ctx, acceptVoteproof); err != nil {
+		return e(err, "")
+	}
+
+	return nil
 }
 
 func (p *DefaultProposalProcessor) Cancel() error {
@@ -319,7 +324,7 @@ func (p *DefaultProposalProcessor) processOperation(ctx context.Context, index i
 		return e(err, "")
 	}
 
-	if err := p.writer.SetStates(sts, op.Fact().Hash()); err != nil {
+	if err := p.writer.SetStates(sts, index, op.Fact().Hash()); err != nil {
 		return e(err, "")
 	}
 
