@@ -262,6 +262,7 @@ func (t *testDefaultProposalProcessor) newStates(height base.Height, keys ...str
 			keys[i],
 			v,
 			valuehash.RandomSHA256(),
+			nil,
 		)
 	}
 

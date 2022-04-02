@@ -393,6 +393,7 @@ func (t *testDefaultDatabaseBlockWrite) TestMerge() {
 			newstts[i].Key(),
 			base.NewDummyStateValue(util.UUID().String()),
 			valuehash.RandomSHA256(),
+			nil,
 		)
 	}
 
@@ -628,6 +629,7 @@ func (t *testDefaultDatabaseBlockWrite) TestFindState() {
 				stts[i].Key(),
 				base.NewDummyStateValue(util.UUID().String()),
 				valuehash.RandomSHA256(),
+				nil,
 			)
 		}
 

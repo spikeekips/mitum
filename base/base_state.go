@@ -2,6 +2,8 @@ package base
 
 import (
 	"encoding/json"
+	"sort"
+	"strings"
 	"sync"
 
 	"github.com/spikeekips/mitum/util"
@@ -24,13 +26,20 @@ type BaseState struct {
 	ops      []util.Hash
 }
 
-func NewBaseState(height Height, k string, v StateValue, previous util.Hash) BaseState {
+func NewBaseState(
+	height Height,
+	k string,
+	v StateValue,
+	previous util.Hash,
+	ops []util.Hash,
+) BaseState {
 	s := BaseState{
 		BaseHinter: hint.NewBaseHinter(BaseStateHint),
 		height:     height,
 		k:          k,
 		v:          v,
 		previous:   previous,
+		ops:        ops,
 	}
 
 	s.h = s.hash()
@@ -128,6 +137,10 @@ func (s BaseState) hash() util.Hash {
 
 			bs := make([][]byte, len(s.ops))
 			for i := range s.ops {
+				if s.ops[i] == nil {
+					continue
+				}
+
 				bs[i] = s.ops[i].Bytes()
 			}
 
@@ -198,10 +211,10 @@ func (s *BaseState) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 type BaseStateValueMerger struct {
 	sync.RWMutex
 	State
-	h      util.Hash
 	height Height
 	value  StateValue
 	ops    []util.Hash
+	nst    State
 }
 
 func NewBaseStateValueMerger(height Height, st State) *BaseStateValueMerger {
@@ -213,7 +226,14 @@ func NewBaseStateValueMerger(height Height, st State) *BaseStateValueMerger {
 }
 
 func (s *BaseStateValueMerger) Hash() util.Hash {
-	return s.h
+	s.RLock()
+	defer s.RUnlock()
+
+	if s.nst == nil {
+		return nil
+	}
+
+	return s.nst.Hash()
 }
 
 func (s *BaseStateValueMerger) Height() Height {
@@ -221,25 +241,39 @@ func (s *BaseStateValueMerger) Height() Height {
 }
 
 func (s *BaseStateValueMerger) Previous() util.Hash {
-	return s.State.Hash()
+	s.RLock()
+	defer s.RUnlock()
+
+	if s.nst == nil {
+		return nil
+	}
+
+	return s.nst.Previous()
 }
 
 func (s *BaseStateValueMerger) Value() StateValue {
 	s.RLock()
 	defer s.RUnlock()
 
-	if s.value == nil {
-		return s.State.Value()
+	if s.nst == nil {
+		return nil
 	}
 
-	return s.value
+	return s.nst.Value()
+}
+
+func (s *BaseStateValueMerger) SetValue(value StateValue) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.value = value
 }
 
 func (s *BaseStateValueMerger) Operations() []util.Hash {
 	s.RLock()
 	defer s.RUnlock()
 
-	return s.ops
+	return s.nst.Operations()
 }
 
 func (s *BaseStateValueMerger) Merge(value StateValue, ops []util.Hash) error {
@@ -248,13 +282,40 @@ func (s *BaseStateValueMerger) Merge(value StateValue, ops []util.Hash) error {
 
 	s.value = value
 
+	s.AddOperations(ops)
+
+	return nil
+}
+
+func (s *BaseStateValueMerger) Close() error {
+	s.Lock()
+	defer s.Unlock()
+
+	e := util.StringErrorFunc("failed to close")
+
+	if s.value == nil {
+		return e(nil, "empty hash")
+	}
+
+	sort.Slice(s.ops, func(i, j int) bool {
+		return strings.Compare(s.ops[i].String(), s.ops[j].String()) < 0
+	})
+
+	s.nst = NewBaseState(s.height, s.Key(), s.value, s.State.Hash(), s.ops)
+
+	return nil
+}
+
+func (s *BaseStateValueMerger) AddOperations(ops []util.Hash) {
 	nops := make([]util.Hash, len(s.ops)+len(ops))
 	copy(nops[:len(s.ops)], s.ops)
 	copy(nops[len(s.ops):], ops)
 
 	s.ops = nops
+}
 
-	return nil
+func (s *BaseStateValueMerger) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(s.nst)
 }
 
 func DecodeStateValue(b []byte, enc encoder.Encoder) (StateValue, error) {

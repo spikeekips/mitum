@@ -1,9 +1,6 @@
 package base
 
 import (
-	"bytes"
-	"sort"
-
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
 )
@@ -30,6 +27,7 @@ type StateValue interface {
 type StateValueMerger interface {
 	State
 	Merge(value StateValue, operations []util.Hash) error
+	Close() error
 }
 
 type StatePool interface {
@@ -56,20 +54,6 @@ func IsEqualState(a, b State) bool {
 	default:
 		ao := a.Operations()
 		bo := b.Operations()
-
-		sort.Slice(ao, func(i, j int) bool {
-			return bytes.Compare(
-				ao[i].Bytes(),
-				ao[j].Bytes(),
-			) < 0
-		})
-
-		sort.Slice(bo, func(i, j int) bool {
-			return bytes.Compare(
-				bo[i].Bytes(),
-				bo[j].Bytes(),
-			) < 0
-		})
 
 		for i := range ao {
 			if !ao[i].Equal(bo[i]) {
