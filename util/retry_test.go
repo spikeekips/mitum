@@ -1,7 +1,10 @@
 package util
 
 import (
+	"context"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/suite"
@@ -14,51 +17,57 @@ type testRetry struct {
 
 func (t *testRetry) TestNoError() {
 	var called int
-	err := Retry(3, 0, func(int) error {
+	err := Retry(context.Background(), func() (bool, error) {
 		called++
 
-		return nil
-	})
+		return false, nil
+	}, 3, 0)
 	t.NoError(err)
 	t.Equal(1, called)
-}
-
-func (t *testRetry) TestErrorAndSuccess() {
-	var called int
-	err := Retry(3, 0, func(i int) error {
-		called = i
-		if i == 1 {
-			return errors.Errorf("error")
-		}
-
-		return nil
-	})
-	t.NoError(err)
-	t.Equal(0, called)
 }
 
 func (t *testRetry) TestError() {
 	var called int
-	err := Retry(3, 0, func(i int) error {
-		called = i
+	err := Retry(context.Background(), func() (bool, error) {
+		called++
 
-		return errors.Errorf("error: %d", called+1)
-	})
-	t.Contains(err.Error(), "3")
+		if called < 2 {
+			return true, errors.Errorf("findme")
+		}
+
+		return false, errors.Errorf("showme")
+	}, 3, 0)
+	t.Contains(err.Error(), "showme")
 	t.Equal(2, called)
 }
 
-func (t *testRetry) TestStopRetrying() {
-	var called int
-	_ = Retry(3, 0, func(i int) error {
-		called = i
-		if called == 1 {
-			return StopRetryingError.Call()
-		}
+func (t *testRetry) TestCancel() {
+	calledch := make(chan struct{}, 1)
+	var calledonce sync.Once
 
-		return errors.Errorf("error: %d", called+1)
-	})
-	t.Equal(1, called)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	donech := make(chan error)
+	go func() {
+		donech <- Retry(ctx, func() (bool, error) {
+			calledonce.Do(func() {
+				calledch <- struct{}{}
+			})
+
+			return true, errors.Errorf("showme")
+		}, 100, time.Millisecond*600)
+	}()
+
+	<-calledch
+	cancel()
+
+	select {
+	case <-time.After(time.Second * 3):
+		t.NoError(errors.Errorf("failed to cancel"))
+	case err := <-donech:
+		t.True(errors.Is(err, context.Canceled))
+	}
 }
 
 func TestRetry(t *testing.T) {

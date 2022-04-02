@@ -181,6 +181,8 @@ func (t *testProposalProcessors) TestFailedToFetchFact() {
 			return nil, util.NotFoundError.Errorf("hehehe")
 		},
 	)
+	pps.retrylimit = 1
+	pps.retryinterval = 1
 
 	t.T().Log("process")
 	_, err := pps.process(context.Background(), valuehash.RandomSHA256())
@@ -196,6 +198,8 @@ func (t *testProposalProcessors) TestFailedToFetchFactCanceled() {
 			return nil, context.Canceled
 		},
 	)
+	pps.retrylimit = 1
+	pps.retryinterval = 1
 
 	t.T().Log("process")
 	_, err := pps.process(context.Background(), valuehash.RandomSHA256())
@@ -215,10 +219,10 @@ func (t *testProposalProcessors) TestRetryFetchFact() {
 
 			atomic.AddInt64(&try, 1)
 
-			return nil, RetryProposalProcessorError.Call()
+			return nil, errors.Errorf("findme")
 		},
 	)
-	pps.limit = 4
+	pps.retrylimit = 4
 	pps.retryinterval = time.Millisecond * 10
 
 	t.T().Log("process")
@@ -237,16 +241,16 @@ func (t *testProposalProcessors) TestRetryFetchFactOverLimit() {
 		func(context.Context, util.Hash) (base.ProposalFact, error) {
 			atomic.AddInt64(&try, 1)
 
-			return nil, RetryProposalProcessorError.Call()
+			return nil, errors.Errorf("findme")
 		},
 	)
-	pps.limit = 3
+	pps.retrylimit = 3
 	pps.retryinterval = time.Millisecond * 10
 
 	t.T().Log("process")
 	_, err := pps.process(context.Background(), valuehash.RandomSHA256())
 	t.Error(err)
-	t.Contains(err.Error(), "too many retry")
+	t.Contains(err.Error(), "findme")
 
 	t.True(atomic.LoadInt64(&try) > 2)
 }
@@ -329,39 +333,6 @@ func (t *testProposalProcessors) TestProcessContextCanceled() {
 	t.Nil(rmanifest)
 }
 
-func (t *testProposalProcessors) TestProcessRetry() {
-	point := base.RawPoint(33, 44)
-
-	pr := t.prpool.get(point)
-
-	pp := NewDummyProposalProcessor()
-
-	var try int64
-	pp.processerr = func(context.Context, base.ProposalFact) (base.Manifest, error) {
-		atomic.AddInt64(&try, 1)
-		return nil, RetryProposalProcessorError.Call()
-	}
-
-	pps := newProposalProcessors(
-		pp.make,
-		func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
-			return t.prpool.factByHash(facthash)
-		},
-	)
-	pps.limit = 3
-	pps.retryinterval = time.Millisecond * 10
-
-	facthash := pr.Fact().Hash()
-
-	t.T().Log("process")
-	rmanifest, err := pps.process(context.Background(), facthash)
-
-	t.Nil(rmanifest)
-	t.Contains(err.Error(), "too many retry")
-
-	t.True(atomic.LoadInt64(&try) > 2)
-}
-
 func (t *testProposalProcessors) TestSaveError() {
 	point := base.RawPoint(33, 44)
 
@@ -371,15 +342,12 @@ func (t *testProposalProcessors) TestSaveError() {
 
 	pp := NewDummyProposalProcessor()
 
-	var try int64
 	pp.processerr = func(context.Context, base.ProposalFact) (base.Manifest, error) {
 		return manifest, nil
 	}
 
 	pp.saveerr = func(context.Context, base.ACCEPTVoteproof) error {
-		atomic.AddInt64(&try, 1)
-
-		return RetryProposalProcessorError.Call()
+		return errors.Errorf("findme")
 	}
 
 	pps := newProposalProcessors(
@@ -388,8 +356,6 @@ func (t *testProposalProcessors) TestSaveError() {
 			return t.prpool.factByHash(facthash)
 		},
 	)
-	pps.limit = 3
-	pps.retryinterval = time.Millisecond * 10
 
 	facthash := pr.Fact().Hash()
 
@@ -410,12 +376,10 @@ func (t *testProposalProcessors) TestSaveError() {
 	)
 	err = pps.save(context.Background(), facthash, avp)
 	t.Error(err)
-	t.Contains(err.Error(), "too many retry")
+	t.Contains(err.Error(), "findme")
 
 	t.NoError(pps.close())
 	t.Nil(pps.processor())
-
-	t.True(atomic.LoadInt64(&try) > 2)
 }
 
 func TestProposalProcessors(t *testing.T) {

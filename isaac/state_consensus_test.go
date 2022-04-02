@@ -2,7 +2,6 @@ package isaac
 
 import (
 	"context"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -287,6 +286,8 @@ func (t *testConsensusHandler) TestFailedProcessingProposalFetchFactFailed() {
 	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
 		return nil, util.NotFoundError.Errorf("fact not found")
 	}
+	st.pps.retrylimit = 1
+	st.pps.retryinterval = 1
 
 	sctxch := make(chan stateSwitchContext, 1)
 	st.switchStateFunc = func(sctx stateSwitchContext) error {
@@ -328,7 +329,7 @@ func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailed() {
 	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
 		if i < 1 {
 			i++
-			return nil, RetryProposalProcessorError.Errorf("findme")
+			return nil, errors.Errorf("findme")
 		}
 
 		return t.prpool.factByHash(facthash)
@@ -349,60 +350,6 @@ func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailed() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait switch context"))
-
-		return
-	case sctx := <-sctxch:
-		t.Equal(StateConsensus, sctx.from())
-		t.Equal(StateBroken, sctx.next())
-		t.Contains(sctx.Error(), "hahaha")
-	}
-}
-
-func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailedRetry() {
-	point := base.RawPoint(33, 44)
-	suf, _ := newTestSuffrage(1, t.local)
-
-	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
-	defer closefunc()
-
-	var c int64
-	pp.processerr = func(context.Context, base.ProposalFact) (base.Manifest, error) {
-		if i := atomic.LoadInt64(&c); i < 1 {
-			atomic.AddInt64(&c, 1)
-
-			return nil, RetryProposalProcessorError.Errorf("findme")
-		}
-
-		return nil, errors.Errorf("hahaha")
-	}
-
-	var g int64
-	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
-		if i := atomic.LoadInt64(&g); i < 1 {
-			atomic.AddInt64(&g, 1)
-
-			return nil, RetryProposalProcessorError.Errorf("findme")
-		}
-
-		return t.prpool.factByHash(facthash)
-	}
-
-	sctxch := make(chan stateSwitchContext, 1)
-	st.switchStateFunc = func(sctx stateSwitchContext) error {
-		sctxch <- sctx
-
-		return nil
-	}
-
-	sctx := newConsensusSwitchContext(StateJoining, ivp)
-
-	deferred, err := st.enter(sctx)
-	t.NoError(err)
-	deferred()
-
-	select {
-	case <-time.After(time.Second * 5):
 		t.NoError(errors.Errorf("timeout to wait switch context"))
 
 		return

@@ -1,37 +1,44 @@
 package util
 
 import (
+	"context"
 	"time"
 
 	"github.com/pkg/errors"
 )
 
-type Callbacker interface {
-	Callback() error
-}
+func Retry(ctx context.Context, f func() (bool, error), limit int, interval time.Duration) error {
+	var i int
 
-var StopRetryingError = NewError("stop retrying")
-
-func Retry(max uint, interval time.Duration, callback func(int) error) error {
-	var err error
-	var tried int
+	var lerr error
 	for {
-		if max > 0 && uint(tried) == max { // if max == 0,  do forever
-			break
+		if i == limit {
+			if lerr != nil {
+				return lerr
+			}
+
+			return errors.Errorf("stop retrying; over limit")
 		}
 
-		if err = callback(tried); err == nil {
-			return nil
-		} else if errors.Is(err, StopRetryingError) {
-			return errors.Wrap(err, "stop retrying")
-		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			keep, err := f()
+			if err != nil {
+				lerr = err
+			}
 
-		tried++
+			if !keep {
+				return err
+			}
 
-		if interval > 0 {
-			<-time.After(interval)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(interval):
+				i++
+			}
 		}
 	}
-
-	return errors.Wrap(err, "retry stopped")
 }

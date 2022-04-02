@@ -148,6 +148,7 @@ type DummyBlockDataWriter struct {
 	ophs        []util.Hash
 	ops         []base.Operation
 	sts         *util.LockedMap
+	setstatesf  func([]base.State, int, util.Hash) error
 	savef       func(context.Context, base.ACCEPTVoteproof) error
 }
 
@@ -181,6 +182,14 @@ func (w *DummyBlockDataWriter) SetOperation(i int, op base.Operation) error {
 }
 
 func (w *DummyBlockDataWriter) SetStates(states []base.State, index int, operation util.Hash) error {
+	if w.setstatesf != nil {
+		return w.setstatesf(states, index, operation)
+	}
+
+	return w.setStates(states, index, operation)
+}
+
+func (w *DummyBlockDataWriter) setStates(states []base.State, index int, operation util.Hash) error {
 	e := util.StringErrorFunc("failed to set states")
 
 	for i := range states {
@@ -377,6 +386,8 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsFailed() {
 
 		return op, nil
 	}, nil)
+	opp.retrylimit = 1
+	opp.retryinterval = 1
 
 	m, err := opp.Process(context.Background())
 	t.Error(err)
@@ -617,12 +628,59 @@ func (t *testDefaultProposalProcessor) TestPreProcessButError() {
 	},
 		func(hint.Hint) (base.OperationProcessor, bool) { return nil, false },
 	)
+	opp.retrylimit = 1
+	opp.retryinterval = 1
 
 	m, err := opp.Process(context.Background())
 	t.Error(err)
 	t.Nil(m)
 
 	t.Contains(err.Error(), fmt.Sprintf("findme: %q", ophs[1]))
+}
+
+func (t *testDefaultProposalProcessor) TestPreProcessButErrorRetry() {
+	point := base.RawPoint(33, 44)
+
+	ophs, ops, _ := t.prepareOperations(point.Height(), 4, nil)
+
+	var called int
+	for i := range ops {
+		op := ops[i].(DummyOperationProcessable)
+		if op.Fact().Hash().Equal(ophs[1]) {
+			op.preprocess = func(ctx context.Context, _ base.StatePool) (bool, error) {
+				called++
+				return true, errors.Errorf("findme: %q", op.Fact().Hash())
+			}
+		}
+
+		ops[i] = op
+	}
+
+	fact := NewProposalFact(point, t.local.Address(), ophs)
+
+	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+	writer := NewDummyBlockDataWriter(point.Height() + 1)
+	writer.manifest = manifest
+
+	opp := NewDefaultProposalProcessor(fact, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
+		op, found := ops[facthash.String()]
+		if !found {
+			return nil, IgnoreOperationInProcessorError.Errorf("operation not found")
+		}
+
+		return op, nil
+	},
+		func(hint.Hint) (base.OperationProcessor, bool) { return nil, false },
+	)
+	opp.retrylimit = 3
+	opp.retryinterval = 1
+
+	m, err := opp.Process(context.Background())
+	t.Error(err)
+	t.Nil(m)
+
+	t.Contains(err.Error(), fmt.Sprintf("findme: %q", ophs[1]))
+	t.Equal(opp.retrylimit, called)
 }
 
 func (t *testDefaultProposalProcessor) TestPreProcessContextCancel() {
@@ -676,6 +734,8 @@ func (t *testDefaultProposalProcessor) TestPreProcessContextCancel() {
 	},
 		func(hint.Hint) (base.OperationProcessor, bool) { return nil, false },
 	)
+	opp.retrylimit = 1
+	opp.retryinterval = 1
 
 	donech := make(chan error)
 	go func() {
@@ -945,12 +1005,101 @@ func (t *testDefaultProposalProcessor) TestProcessButError() {
 	},
 		func(hint.Hint) (base.OperationProcessor, bool) { return nil, false },
 	)
+	opp.retrylimit = 1
+	opp.retryinterval = 1
 
 	m, err := opp.Process(context.Background())
 	t.Error(err)
 	t.Nil(m)
 
 	t.Contains(err.Error(), fmt.Sprintf("findme: %q", ophs[1]))
+}
+
+func (t *testDefaultProposalProcessor) TestProcessButErrorRetry() {
+	point := base.RawPoint(33, 44)
+
+	var called int
+	ophs, ops, _ := t.prepareOperations(point.Height(), 4, nil)
+	for i := range ops {
+		op := ops[i].(DummyOperationProcessable)
+
+		if op.Fact().Hash().Equal(ophs[1]) {
+			op.process = func(ctx context.Context, sp base.StatePool) ([]base.State, error) {
+				called++
+				return nil, errors.Errorf("findme: %q", op.Fact().Hash())
+			}
+		}
+
+		ops[i] = op
+	}
+
+	fact := NewProposalFact(point, t.local.Address(), ophs)
+
+	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+	writer := NewDummyBlockDataWriter(point.Height() + 1)
+	writer.manifest = manifest
+
+	opp := NewDefaultProposalProcessor(fact, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
+		op, found := ops[facthash.String()]
+		if !found {
+			return nil, IgnoreOperationInProcessorError.Errorf("operation not found")
+		}
+
+		return op, nil
+	},
+		func(hint.Hint) (base.OperationProcessor, bool) { return nil, false },
+	)
+	opp.retrylimit = 3
+	opp.retryinterval = 1
+
+	m, err := opp.Process(context.Background())
+	t.Error(err)
+	t.Nil(m)
+
+	t.Contains(err.Error(), fmt.Sprintf("findme: %q", ophs[1]))
+	t.Equal(opp.retrylimit, called)
+}
+
+func (t *testDefaultProposalProcessor) TestProcessButSetStatesErrorRetry() {
+	point := base.RawPoint(33, 44)
+
+	ophs, ops, _ := t.prepareOperations(point.Height(), 4, nil)
+
+	fact := NewProposalFact(point, t.local.Address(), ophs)
+
+	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+	writer := NewDummyBlockDataWriter(point.Height() + 1)
+	writer.manifest = manifest
+
+	var called int
+	writer.setstatesf = func(sts []base.State, index int, h util.Hash) error {
+		if index == 2 {
+			called++
+			return errors.Errorf("findme: %q", h)
+		}
+
+		return writer.setStates(sts, index, h)
+	}
+
+	opp := NewDefaultProposalProcessor(fact, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
+		op, found := ops[facthash.String()]
+		if !found {
+			return nil, IgnoreOperationInProcessorError.Errorf("operation not found")
+		}
+
+		return op, nil
+	},
+		func(hint.Hint) (base.OperationProcessor, bool) { return nil, false },
+	)
+	opp.retrylimit = 2
+	opp.retryinterval = 1
+
+	m, err := opp.Process(context.Background())
+	t.Error(err)
+	t.Nil(m)
+
+	t.Contains(err.Error(), fmt.Sprintf("findme: %q", ophs[2]))
+	t.Equal(opp.retrylimit, called)
 }
 
 func (t *testDefaultProposalProcessor) TestProcessContextCancel() {
@@ -1004,6 +1153,8 @@ func (t *testDefaultProposalProcessor) TestProcessContextCancel() {
 	},
 		func(hint.Hint) (base.OperationProcessor, bool) { return nil, false },
 	)
+	opp.retrylimit = 1
+	opp.retryinterval = 1
 
 	donech := make(chan error)
 	go func() {
@@ -1074,6 +1225,8 @@ func (t *testDefaultProposalProcessor) TestProcessCancel() {
 	},
 		func(hint.Hint) (base.OperationProcessor, bool) { return nil, false },
 	)
+	opp.retrylimit = 1
+	opp.retryinterval = 1
 
 	donech := make(chan error)
 	go func() {
@@ -1148,7 +1301,7 @@ func (t *testDefaultProposalProcessor) TestSaveFailed() {
 	writer.manifest = manifest
 
 	writer.savef = func(_ context.Context, avp base.ACCEPTVoteproof) error {
-		return RetryProposalProcessorError.Errorf("killme")
+		return errors.Errorf("killme")
 	}
 
 	opp := NewDefaultProposalProcessor(fact, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
@@ -1169,7 +1322,6 @@ func (t *testDefaultProposalProcessor) TestSaveFailed() {
 
 	err = opp.Save(context.Background(), avp)
 	t.Error(err)
-	t.True(errors.Is(err, RetryProposalProcessorError))
 	t.Contains(err.Error(), "killme")
 }
 

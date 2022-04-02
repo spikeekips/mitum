@@ -35,13 +35,13 @@ func NewTimeSyncer(server string, checkInterval time.Duration) (*TimeSyncer, err
 		return nil, errors.Errorf("too narrow checking interval; should be over %v", timeServerQueryingTimeout)
 	}
 
-	if err := util.Retry(3, time.Second*2, func(int) error {
+	if err := util.Retry(context.Background(), func() (bool, error) {
 		if _, err := ntp.Query(server); err != nil {
-			return errors.Wrapf(err, "failed to query ntp server, %q", server)
+			return true, errors.Wrapf(err, "failed to query ntp server, %q", server)
 		}
 
-		return nil
-	}); err != nil {
+		return false, nil
+	}, 3, time.Second*2); err != nil {
 		return nil, errors.Wrap(err, "failed to create TimeSyncer")
 	}
 

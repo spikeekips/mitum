@@ -13,11 +13,10 @@ import (
 )
 
 // IgnoreErrorProposalProcessorError ignores error from proposalProcessor, it means
-// none IgnoreErrorProposalProcessorError from proposalProcessor will break
+// not IgnoreErrorProposalProcessorError from proposalProcessor will break
 // consensus.
 var (
 	IgnoreErrorProposalProcessorError  = util.NewError("proposal processor somthing wrong; ignore")
-	RetryProposalProcessorError        = util.NewError("proposal processor somthing wrong; but retry")
 	NotProposalProcessorProcessedError = util.NewError("proposal processor not processed")
 )
 
@@ -27,7 +26,7 @@ type proposalProcessors struct {
 	makenew       func(base.ProposalFact) proposalProcessor
 	getfact       func(context.Context, util.Hash) (base.ProposalFact, error) // BLOCK use NewProposalPool
 	p             proposalProcessor
-	limit         int
+	retrylimit    int
 	retryinterval time.Duration
 }
 
@@ -41,7 +40,7 @@ func newProposalProcessors(
 		}),
 		makenew:       makenew,
 		getfact:       getfact,
-		limit:         15, // NOTE endure failure for almost 9 seconds, it is almost 3 consensus cycle.
+		retrylimit:    15, // NOTE endure failure for almost 9 seconds, it is almost 3 consensus cycle.
 		retryinterval: time.Millisecond * 600,
 	}
 }
@@ -89,31 +88,14 @@ func (pps *proposalProcessors) save(ctx context.Context, facthash util.Hash, avp
 		return NotProposalProcessorProcessedError.Call()
 	}
 
-	err := runLoopP(
-		ctx,
-		func(i int) (bool, error) {
-			if i >= pps.limit {
-				return false, e(nil, "too many retry; stop")
-			}
-
-			err := pps.p.Save(ctx, avp)
-			switch {
-			case err == nil:
-				return false, nil
-			case errors.Is(err, context.Canceled):
-				return false, NotProposalProcessorProcessedError.Call()
-			case errors.Is(err, RetryProposalProcessorError):
-				pps.Log().Debug().Msg("failed to save proposal; will retry")
-
-				return true, nil
-			default:
-				return false, e(err, "")
-			}
-		},
-		pps.retryinterval,
-	)
-
-	return err
+	switch err := pps.p.Save(ctx, avp); {
+	case err == nil:
+		return nil
+	case errors.Is(err, context.Canceled):
+		return NotProposalProcessorProcessedError.Call()
+	default:
+		return e(err, "")
+	}
 }
 
 func (pps *proposalProcessors) fetchFact(ctx context.Context, facthash util.Hash) (base.ProposalFact, error) {
@@ -121,27 +103,20 @@ func (pps *proposalProcessors) fetchFact(ctx context.Context, facthash util.Hash
 
 	var fact base.ProposalFact
 
-	err := runLoopP(
+	err := util.Retry(
 		ctx,
-		func(i int) (bool, error) {
-			if i >= pps.limit {
-				return false, e(nil, "too many retry; stop")
-			}
-
+		func() (bool, error) {
 			j, err := pps.getfact(ctx, facthash)
 			switch {
 			case err == nil:
 				fact = j
 
 				return false, nil
-			case errors.Is(err, RetryProposalProcessorError):
-				pps.Log().Debug().Msg("failed to fetch fact; will retry")
-
-				return true, nil
 			default:
-				return false, e(err, "failed to get proposal fact")
+				return true, e(err, "failed to get proposal fact")
 			}
 		},
+		pps.retrylimit,
 		pps.retryinterval,
 	)
 
@@ -180,41 +155,27 @@ func (pps *proposalProcessors) newProcessor(ctx context.Context, facthash util.H
 	}
 
 	pps.p = pps.makenew(fact)
+	if l, ok := pps.p.(logging.SetLogging); ok {
+		_ = l.SetLogging(pps.Logging)
+	}
 
 	return pps.p, nil
 }
 
 func (pps *proposalProcessors) runProcessor(ctx context.Context, p proposalProcessor) (base.Manifest, error) {
-	var manifest base.Manifest
-	err := runLoopP(
-		ctx,
-		func(i int) (bool, error) {
-			if i >= pps.limit {
-				return false, errors.Errorf("too many retry; stop")
-			}
-
-			switch m, err := p.Process(ctx); {
-			case err == nil:
-				manifest = m
-
-				return false, nil
-			case errors.Is(err, RetryProposalProcessorError):
-				return true, nil
-			case errors.Is(err, IgnoreErrorProposalProcessorError):
-				return false, nil
-			default:
-				return false, err
-			}
-		},
-		pps.retryinterval,
-	)
-	if err != nil {
-		if err = p.Cancel(); err != nil {
-			return nil, errors.Wrap(err, "failed to run processor")
+	manifest, err := p.Process(ctx)
+	switch {
+	case err == nil:
+		return manifest, nil
+	case errors.Is(err, IgnoreErrorProposalProcessorError):
+		return nil, nil
+	default:
+		if e := p.Cancel(); e != nil {
+			return nil, errors.Wrap(e, "failed to run processor")
 		}
-	}
 
-	return manifest, err
+		return nil, err
+	}
 }
 
 func (pps *proposalProcessors) close() error {
@@ -233,29 +194,4 @@ func (pps *proposalProcessors) close() error {
 	pps.p = nil
 
 	return nil
-}
-
-func runLoopP(ctx context.Context, f func(int) (bool, error), d time.Duration) error {
-	var i int
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			switch keep, err := f(i); {
-			case err != nil:
-				return err
-			case !keep:
-				return nil
-			}
-
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(d):
-				i++
-			}
-		}
-	}
 }

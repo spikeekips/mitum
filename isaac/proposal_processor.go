@@ -4,11 +4,14 @@ import (
 	"context"
 	"math"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
+	"github.com/spikeekips/mitum/util/logging"
 )
 
 var IgnoreOperationInProcessorError = util.NewError("ignore operation in processor")
@@ -41,6 +44,7 @@ type BlockDataWriter interface {
 
 type DefaultProposalProcessor struct {
 	sync.RWMutex
+	*logging.Logging
 	proposal              base.ProposalFact
 	writer                BlockDataWriter
 	sp                    base.StatePool
@@ -50,6 +54,8 @@ type DefaultProposalProcessor struct {
 	ophs                  []util.Hash
 	cancel                func()
 	oprs                  *util.LockedMap
+	retrylimit            int
+	retryinterval         time.Duration
 }
 
 func NewDefaultProposalProcessor(
@@ -60,6 +66,9 @@ func NewDefaultProposalProcessor(
 	newOperationProcessor NewOperationProcessorFunction,
 ) *DefaultProposalProcessor {
 	return &DefaultProposalProcessor{
+		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
+			return lctx.Str("module", "default-proposal-processor")
+		}),
 		proposal:              proposal,
 		writer:                writer,
 		sp:                    sp,
@@ -68,6 +77,8 @@ func NewDefaultProposalProcessor(
 		ophs:                  proposal.Operations(),
 		cancel:                func() {},
 		oprs:                  util.NewLockedMap(),
+		retrylimit:            15,
+		retryinterval:         time.Millisecond * 600,
 	}
 }
 
@@ -204,20 +215,13 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) error 
 			i := i
 			h := ophs[i]
 			if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-				switch op, err := p.getOperation(ctx, h); {
-				case err == nil:
-					if err = p.writer.SetOperation(i, op); err != nil {
-						return errors.Wrapf(err, "failed to write operations, %q", h)
-					}
-
-					ops[i] = op
-
-					return nil
-				case errors.Is(err, IgnoreOperationInProcessorError):
-					return nil
-				default:
+				op, err := p.collectOperation(ctx, i, h)
+				if err != nil {
 					return errors.Wrapf(err, "bad operation found, %q", h)
 				}
+				ops[i] = op
+
+				return nil
 			}); err != nil {
 				break
 			}
@@ -233,6 +237,39 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) error 
 	p.ops = ops
 
 	return nil
+}
+
+func (p *DefaultProposalProcessor) collectOperation(ctx context.Context, index int, h util.Hash) (base.Operation, error) {
+	e := util.StringErrorFunc("failed to collect operation, %q", h)
+
+	var op base.Operation
+
+	if err := util.Retry(ctx, func() (bool, error) {
+		if op == nil {
+			switch j, err := p.getOperation(ctx, h); {
+			case err == nil:
+				op = j
+			case errors.Is(err, IgnoreOperationInProcessorError):
+				return false, nil
+			default:
+				return true, err
+			}
+		}
+
+		if op == nil {
+			return false, nil
+		}
+
+		if err := p.writer.SetOperation(index, op); err != nil {
+			return true, e(err, "failed to write operations")
+		}
+
+		return false, nil
+	}, p.retrylimit, p.retryinterval); err != nil {
+		return nil, e(err, "")
+	}
+
+	return op, nil
 }
 
 func (p *DefaultProposalProcessor) processOperations(ctx context.Context) error {
@@ -296,36 +333,64 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context) error 
 }
 
 func (p *DefaultProposalProcessor) preProcessOperation(ctx context.Context, op base.Operation) (bool, error) {
-	switch f := p.getPreProcessor(op); {
-	case f == nil:
-		return false, nil
-	default:
-		return f(ctx)
+	var passed bool
+	if err := util.Retry(ctx, func() (bool, error) {
+		f := p.getPreProcessor(op)
+		if f == nil {
+			return false, nil
+		}
+
+		switch i, err := f(ctx); {
+		case err == nil:
+			passed = i
+
+			return false, nil
+		case errors.Is(err, IgnoreOperationInProcessorError):
+			return false, nil
+		default:
+			return true, err
+		}
+	}, p.retrylimit, p.retryinterval); err != nil {
+		return false, errors.Wrapf(err, "failed to pre process operation, %q", op.Fact().Hash())
 	}
+
+	return passed, nil
 }
 
 func (p *DefaultProposalProcessor) processOperation(ctx context.Context, index int, op base.Operation) error {
-	e := util.StringErrorFunc("failed to process operation")
+	var sts []base.State
+	if err := util.Retry(ctx, func() (bool, error) {
+		if sts == nil {
+			f := p.getProcessor(op)
+			if f == nil {
+				return false, nil
+			}
 
-	f := p.getProcessor(op)
-	if f == nil {
-		return nil
-	}
-
-	sts, err := f(ctx)
-	switch {
-	case err == nil:
-		if len(sts) < 1 {
-			return nil
+			i, err := f(ctx)
+			switch {
+			case err == nil:
+				sts = i
+				if len(sts) < 1 {
+					return false, nil
+				}
+			case errors.Is(err, IgnoreOperationInProcessorError):
+				return false, nil
+			default:
+				return true, err
+			}
 		}
-	case errors.Is(err, IgnoreOperationInProcessorError):
-		return nil
-	default:
-		return e(err, "")
-	}
 
-	if err := p.writer.SetStates(sts, index, op.Fact().Hash()); err != nil {
-		return e(err, "")
+		if sts == nil {
+			return false, nil
+		}
+
+		if err := p.writer.SetStates(sts, index, op.Fact().Hash()); err != nil {
+			return true, err
+		}
+
+		return false, nil
+	}, p.retrylimit, p.retryinterval); err != nil {
+		return errors.Wrapf(err, "failed to process operation, %q", op.Fact().Hash())
 	}
 
 	return nil
