@@ -26,18 +26,8 @@ type (
 )
 
 type proposalProcessor interface {
-	Proposal() base.ProposalFact
+	Proposal() base.ProposalSignedFact
 	Process(context.Context) (base.Manifest, error)
-	Save(context.Context, base.ACCEPTVoteproof) error
-	Cancel() error
-}
-
-type BlockDataWriter interface {
-	SetProposalOperations([]util.Hash) error
-	SetOperation(index int, operation base.Operation) error
-	SetStates(states []base.State, index int, operation util.Hash) error
-	SetManifest(base.Manifest) error
-	Manifest(context.Context) (base.Manifest, error)
 	Save(context.Context, base.ACCEPTVoteproof) error
 	Cancel() error
 }
@@ -45,13 +35,13 @@ type BlockDataWriter interface {
 type DefaultProposalProcessor struct {
 	sync.RWMutex
 	*logging.Logging
-	proposal              base.ProposalFact
+	proposal              base.ProposalSignedFact
+	proposalfact          base.ProposalFact
 	writer                BlockDataWriter
 	sp                    base.StatePool
 	getOperation          OperationProcessorGetOperationFunction
 	newOperationProcessor NewOperationProcessorFunction
 	ops                   []base.Operation
-	ophs                  []util.Hash
 	cancel                func()
 	oprs                  *util.LockedMap
 	retrylimit            int
@@ -59,7 +49,7 @@ type DefaultProposalProcessor struct {
 }
 
 func NewDefaultProposalProcessor(
-	proposal base.ProposalFact,
+	proposal base.ProposalSignedFact,
 	writer BlockDataWriter,
 	sp base.StatePool,
 	getOperation OperationProcessorGetOperationFunction,
@@ -70,11 +60,11 @@ func NewDefaultProposalProcessor(
 			return lctx.Str("module", "default-proposal-processor")
 		}),
 		proposal:              proposal,
+		proposalfact:          proposal.ProposalFact(),
 		writer:                writer,
 		sp:                    sp,
 		getOperation:          getOperation,
 		newOperationProcessor: newOperationProcessor,
-		ophs:                  proposal.Operations(),
 		cancel:                func() {},
 		oprs:                  util.NewLockedMap(),
 		retrylimit:            15,
@@ -82,7 +72,7 @@ func NewDefaultProposalProcessor(
 	}
 }
 
-func (p *DefaultProposalProcessor) Proposal() base.ProposalFact {
+func (p *DefaultProposalProcessor) Proposal() base.ProposalSignedFact {
 	p.RLock()
 	defer p.RUnlock()
 
@@ -93,7 +83,7 @@ func (p *DefaultProposalProcessor) proposalOperations() []util.Hash {
 	p.RLock()
 	defer p.RUnlock()
 
-	return p.ophs
+	return p.proposalfact.Operations()
 }
 
 func (p *DefaultProposalProcessor) operations() []base.Operation {
@@ -125,7 +115,7 @@ func (p *DefaultProposalProcessor) Save(ctx context.Context, acceptVoteproof bas
 	defer p.Unlock()
 
 	e := util.StringErrorFunc("failed to save")
-	if p.proposal == nil {
+	if p.proposalfact == nil {
 		return e(context.Canceled, "")
 	}
 
@@ -140,15 +130,14 @@ func (p *DefaultProposalProcessor) Cancel() error {
 	p.Lock()
 	defer p.Unlock()
 
-	if p.proposal == nil {
+	if p.proposalfact == nil {
 		return nil
 	}
 
 	p.cancel()
 
-	p.proposal = nil
+	p.proposalfact = nil
 	p.ops = nil
-	p.ophs = nil
 	p.oprs = nil
 
 	if err := p.writer.Cancel(); err != nil {
@@ -162,7 +151,7 @@ func (p *DefaultProposalProcessor) isCanceled() bool {
 	p.RLock()
 	defer p.RUnlock()
 
-	return p.proposal == nil
+	return p.proposalfact == nil
 }
 
 func (p *DefaultProposalProcessor) process(ctx context.Context) error {
@@ -172,8 +161,8 @@ func (p *DefaultProposalProcessor) process(ctx context.Context) error {
 		return e(context.Canceled, "")
 	}
 
-	if err := p.writer.SetProposalOperations(p.proposalOperations()); err != nil {
-		return e(err, "failed to set operations")
+	if err := p.writer.SetProposal(p.proposal); err != nil {
+		return e(err, "failed to set proposal")
 	}
 
 	if err := p.collectOperations(ctx); err != nil {
@@ -460,7 +449,7 @@ func (p *DefaultProposalProcessor) wait(ctx context.Context) (
 	p.Lock()
 	defer p.Unlock()
 
-	if p.proposal == nil {
+	if p.proposalfact == nil {
 		return context.TODO(), nil, context.Canceled
 	}
 

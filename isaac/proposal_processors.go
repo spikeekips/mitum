@@ -23,23 +23,23 @@ var (
 type proposalProcessors struct {
 	sync.RWMutex
 	*logging.Logging
-	makenew       func(base.ProposalFact) proposalProcessor
-	getfact       func(context.Context, util.Hash) (base.ProposalFact, error) // BLOCK use NewProposalPool
+	makenew       func(base.ProposalSignedFact) proposalProcessor
+	getproposal   func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error) // BLOCK use NewProposalPool
 	p             proposalProcessor
 	retrylimit    int
 	retryinterval time.Duration
 }
 
 func newProposalProcessors(
-	makenew func(base.ProposalFact) proposalProcessor,
-	getfact func(context.Context, util.Hash) (base.ProposalFact, error),
+	makenew func(base.ProposalSignedFact) proposalProcessor,
+	getproposal func(context.Context, util.Hash) (base.ProposalSignedFact, error),
 ) *proposalProcessors {
 	return &proposalProcessors{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", "proposal-processors")
 		}),
 		makenew:       makenew,
-		getfact:       getfact,
+		getproposal:   getproposal,
 		retrylimit:    15, // NOTE endure failure for almost 9 seconds, it is almost 3 consensus cycle.
 		retryinterval: time.Millisecond * 600,
 	}
@@ -82,7 +82,7 @@ func (pps *proposalProcessors) save(ctx context.Context, facthash util.Hash, avp
 		l.Debug().Msg("proposal processor not found")
 
 		return NotProposalProcessorProcessedError.Call()
-	case !pps.p.Proposal().Hash().Equal(facthash):
+	case !pps.p.Proposal().Fact().Hash().Equal(facthash):
 		l.Debug().Msg("proposal processor not found")
 
 		return NotProposalProcessorProcessedError.Call()
@@ -98,18 +98,18 @@ func (pps *proposalProcessors) save(ctx context.Context, facthash util.Hash, avp
 	}
 }
 
-func (pps *proposalProcessors) fetchFact(ctx context.Context, facthash util.Hash) (base.ProposalFact, error) {
+func (pps *proposalProcessors) fetchFact(ctx context.Context, facthash util.Hash) (base.ProposalSignedFact, error) {
 	e := util.StringErrorFunc("failed to fetch fact")
 
-	var fact base.ProposalFact
+	var pr base.ProposalSignedFact
 
 	err := util.Retry(
 		ctx,
 		func() (bool, error) {
-			j, err := pps.getfact(ctx, facthash)
+			j, err := pps.getproposal(ctx, facthash)
 			switch {
 			case err == nil:
-				fact = j
+				pr = j
 
 				return false, nil
 			default:
@@ -120,7 +120,7 @@ func (pps *proposalProcessors) fetchFact(ctx context.Context, facthash util.Hash
 		pps.retryinterval,
 	)
 
-	return fact, err
+	return pr, err
 }
 
 func (pps *proposalProcessors) newProcessor(ctx context.Context, facthash util.Hash) (proposalProcessor, error) {
@@ -132,7 +132,7 @@ func (pps *proposalProcessors) newProcessor(ctx context.Context, facthash util.H
 	l := pps.Log().With().Stringer("fact", facthash).Logger()
 	if pps.p != nil {
 		p := pps.p
-		if p.Proposal().Hash().Equal(facthash) {
+		if p.Proposal().Fact().Hash().Equal(facthash) {
 			l.Debug().Msg("proposal already processed")
 
 			return nil, nil
@@ -141,7 +141,7 @@ func (pps *proposalProcessors) newProcessor(ctx context.Context, facthash util.H
 		if err := p.Cancel(); err != nil {
 			l.Debug().
 				Err(err).
-				Stringer("previous_processor", p.Proposal().Hash()).
+				Stringer("previous_processor", p.Proposal().Fact().Hash()).
 				Msg("failed to cancel previous running processor")
 
 			return nil, e(err, "")

@@ -11,7 +11,7 @@ import (
 )
 
 type DummyProposalProcessor struct {
-	fact       base.ProposalFact
+	proposal   base.ProposalSignedFact
 	processerr func(context.Context, base.ProposalFact) (base.Manifest, error)
 	saveerr    func(context.Context, base.ACCEPTVoteproof) error
 	cancelerr  func() error
@@ -21,9 +21,9 @@ func NewDummyProposalProcessor() *DummyProposalProcessor {
 	return &DummyProposalProcessor{}
 }
 
-func (p *DummyProposalProcessor) make(fact base.ProposalFact) proposalProcessor {
+func (p *DummyProposalProcessor) make(proposal base.ProposalSignedFact) proposalProcessor {
 	return DummyProposalProcessor{
-		fact:       fact,
+		proposal:   proposal,
 		processerr: p.processerr,
 		saveerr:    p.saveerr,
 		cancelerr:  p.cancelerr,
@@ -32,7 +32,7 @@ func (p *DummyProposalProcessor) make(fact base.ProposalFact) proposalProcessor 
 
 func (p DummyProposalProcessor) Process(ctx context.Context) (base.Manifest, error) {
 	if p.processerr != nil {
-		return p.processerr(ctx, p.fact)
+		return p.processerr(ctx, p.proposal.ProposalFact())
 	}
 
 	return nil, errors.Errorf("wrong processing")
@@ -54,8 +54,8 @@ func (p DummyProposalProcessor) Cancel() error {
 	return nil
 }
 
-func (p DummyProposalProcessor) Proposal() base.ProposalFact {
-	return p.fact
+func (p DummyProposalProcessor) Proposal() base.ProposalSignedFact {
+	return p.proposal
 }
 
 type DummyProposalSelector func(context.Context, base.Point) (base.ProposalSignedFact, error)

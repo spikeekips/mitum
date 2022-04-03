@@ -238,7 +238,7 @@ func (p *proposalPool) byPoint(point base.Point) base.ProposalSignedFact {
 	}
 }
 
-func (p *proposalPool) byHash(h util.Hash) base.ProposalSignedFact {
+func (p *proposalPool) byHash(h util.Hash) (base.ProposalSignedFact, error) {
 	var pr base.ProposalSignedFact
 	p.Traverse(func(_, v interface{}) bool {
 		if i := v.(base.ProposalSignedFact); i.Fact().Hash().Equal(h) {
@@ -250,12 +250,16 @@ func (p *proposalPool) byHash(h util.Hash) base.ProposalSignedFact {
 		return true
 	})
 
-	return pr
+	if pr == nil {
+		return nil, util.NotFoundError.Call()
+	}
+
+	return pr, nil
 }
 
 func (p *proposalPool) factByHash(h util.Hash) (base.ProposalFact, error) {
-	pr := p.byHash(h)
-	if pr == nil {
+	pr, err := p.byHash(h)
+	if err != nil {
 		return nil, util.NotFoundError.Call()
 	}
 

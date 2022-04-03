@@ -58,8 +58,8 @@ func (t *baseTestConsensusHandler) newStateWithINITVoteproof(point base.Point, s
 	}
 
 	st.pps.makenew = pp.make
-	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
-		return prpool.factByHash(facthash)
+	st.pps.getproposal = func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error) {
+		return prpool.byHash(facthash)
 	}
 
 	st.broadcastBallotFunc = func(bl base.Ballot) error {
@@ -105,7 +105,7 @@ func (t *testConsensusHandler) TestNew() {
 		t.policy,
 		nil,
 		func(base.Height) base.Suffrage { return suf },
-		newProposalProcessors(nil, func(context.Context, util.Hash) (base.ProposalFact, error) {
+		newProposalProcessors(nil, func(context.Context, util.Hash) (base.ProposalSignedFact, error) {
 			return nil, util.NotFoundError.Call()
 		}),
 	)
@@ -283,7 +283,7 @@ func (t *testConsensusHandler) TestFailedProcessingProposalFetchFactFailed() {
 	st, closefunc, _, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
 
-	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
+	st.pps.getproposal = func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error) {
 		return nil, util.NotFoundError.Errorf("fact not found")
 	}
 	st.pps.retrylimit = 1
@@ -326,13 +326,13 @@ func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailed() {
 	}
 
 	var i int
-	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
+	st.pps.getproposal = func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error) {
 		if i < 1 {
 			i++
 			return nil, errors.Errorf("findme")
 		}
 
-		return t.prpool.factByHash(facthash)
+		return t.prpool.byHash(facthash)
 	}
 
 	sctxch := make(chan stateSwitchContext, 1)

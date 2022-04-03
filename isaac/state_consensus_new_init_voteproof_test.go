@@ -25,8 +25,8 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestHigherHeight() {
 	defer closefunc()
 
 	prch := make(chan util.Hash, 1)
-	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
-		pr, err := t.prpool.factByHash(facthash)
+	st.pps.getproposal = func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error) {
+		pr, err := t.prpool.byHash(facthash)
 		if err != nil {
 			return nil, err
 		}
@@ -77,8 +77,8 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestNextRoundButAlreadyFini
 	defer closefunc()
 
 	prch := make(chan util.Hash, 1)
-	st.pps.getfact = func(_ context.Context, facthash util.Hash) (base.ProposalFact, error) {
-		pr, err := t.prpool.factByHash(facthash)
+	st.pps.getproposal = func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error) {
+		pr, err := t.prpool.byHash(facthash)
 		if err != nil {
 			return nil, err
 		}
