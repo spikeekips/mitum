@@ -23,8 +23,9 @@ var (
 type proposalProcessors struct {
 	sync.RWMutex
 	*logging.Logging
-	makenew       func(proposal base.ProposalSignedFact, previous base.Manifest) proposalProcessor
-	getproposal   func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error) // BLOCK use NewProposalPool
+	makenew     func(proposal base.ProposalSignedFact, previous base.Manifest) proposalProcessor
+	getproposal func(_ context.Context, facthash util.Hash) (
+		base.ProposalSignedFact, error) // BLOCK use NewProposalPool
 	p             proposalProcessor
 	retrylimit    int
 	retryinterval time.Duration
@@ -52,7 +53,12 @@ func (pps *proposalProcessors) processor() proposalProcessor {
 	return pps.p
 }
 
-func (pps *proposalProcessors) process(ctx context.Context, facthash util.Hash, previous base.Manifest, ivp base.INITVoteproof) (base.Manifest, error) {
+func (pps *proposalProcessors) process(
+	ctx context.Context,
+	facthash util.Hash,
+	previous base.Manifest,
+	ivp base.INITVoteproof,
+) (base.Manifest, error) {
 	l := pps.Log().With().Stringer("fact", facthash).Logger()
 
 	e := util.StringErrorFunc("failed to process proposal, %q", facthash)
@@ -123,7 +129,9 @@ func (pps *proposalProcessors) fetchFact(ctx context.Context, facthash util.Hash
 	return pr, err
 }
 
-func (pps *proposalProcessors) newProcessor(ctx context.Context, facthash util.Hash, previous base.Manifest) (proposalProcessor, error) {
+func (pps *proposalProcessors) newProcessor(
+	ctx context.Context, facthash util.Hash, previous base.Manifest,
+) (proposalProcessor, error) {
 	pps.Lock()
 	defer pps.Unlock()
 
@@ -162,7 +170,9 @@ func (pps *proposalProcessors) newProcessor(ctx context.Context, facthash util.H
 	return pps.p, nil
 }
 
-func (pps *proposalProcessors) runProcessor(ctx context.Context, p proposalProcessor, ivp base.INITVoteproof) (base.Manifest, error) {
+func (*proposalProcessors) runProcessor(
+	ctx context.Context, p proposalProcessor, ivp base.INITVoteproof,
+) (base.Manifest, error) {
 	manifest, err := p.Process(ctx, ivp)
 	switch {
 	case err == nil:

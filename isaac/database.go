@@ -53,6 +53,7 @@ type BlockWriteDatabase interface {
 	SetStates(sts []base.State) error
 	SetOperations(ops []util.Hash) error
 	SetMap(base.BlockDataMap) error
+	SuffrageState() base.State
 	Write() error
 	TempDatabase() (TempDatabase, error)
 }

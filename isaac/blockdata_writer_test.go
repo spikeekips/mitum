@@ -208,11 +208,11 @@ func (t *testDefaultBlockDataWriter) TestSetOperations() {
 		go func() {
 			defer sem.Release(1)
 
-			var reason base.OperationProcessReasonError
+			var errorreason base.OperationProcessReasonError
 			if index%3 == 0 {
-				reason = base.NewBaseOperationProcessReasonError("%d", index)
+				errorreason = base.NewBaseOperationProcessReasonError("%d", index)
 			}
-			writer.SetOperation(ctx, index, ops[index], reason == nil, reason)
+			writer.SetOperation(ctx, index, ops[index], errorreason == nil, errorreason)
 		}()
 	}
 
@@ -315,6 +315,15 @@ func (t *testDefaultBlockDataWriter) TestSetStatesAndClose() {
 
 	fswriter := &DummyBlockDataFSWriter{}
 
+	var sufststored base.State
+	fswriter.setStatef = func(_ context.Context, _ int, st base.State) error {
+		if string(st.Key()) == SuffrageStateKey {
+			sufststored = st
+		}
+
+		return nil
+	}
+
 	writer := NewDefaultBlockDataWriter(db, func(BlockWriteDatabase) error { return nil }, fswriter)
 
 	ophs := make([]util.Hash, 33)
@@ -328,8 +337,13 @@ func (t *testDefaultBlockDataWriter) TestSetStatesAndClose() {
 		ophs[i] = op.Fact().Hash()
 	}
 	states := make([][]base.State, len(ops))
-	for i := range ops {
+	for i := range ops[:len(ops)-1] {
 		states[i] = t.states(point.Height(), i%5+1)
+	}
+
+	{
+		sufst, _ := t.suffrageState(point.Height(), base.Height(22), nil)
+		states[len(ops)-1] = []base.State{sufst}
 	}
 
 	pr := NewProposalSignedFact(NewProposalFact(point, t.local.Address(), ophs))
@@ -363,6 +377,23 @@ func (t *testDefaultBlockDataWriter) TestSetStatesAndClose() {
 
 	t.NotNil(writer.opstree.Root())
 	t.NotNil(writer.ststree.Root())
+
+	var sufnodefound bool
+	writer.ststree.Traverse(func(i tree.FixedTreeNode) (bool, error) {
+		node := i.(base.StateFixedTreeNode)
+		if string(node.Key()) == SuffrageStateKey {
+			sufnodefound = true
+
+			return false, nil
+		}
+		return true, nil
+	})
+	t.NoError(err)
+	t.True(sufnodefound)
+
+	t.NotNil(sufststored)
+
+	t.True(manifest.Suffrage().Equal(sufststored.Hash())) // NOTE suffrage hash
 }
 
 func (t *testDefaultBlockDataWriter) TestManifest() {

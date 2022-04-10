@@ -18,7 +18,13 @@ import (
 type BlockDataWriter interface {
 	SetProposal(context.Context, base.ProposalSignedFact) error
 	SetOperationsSize(collected uint64, valids uint64)
-	SetOperation(_ context.Context, index int, facthash util.Hash, instate bool, errorreason base.OperationProcessReasonError) error
+	SetOperation(
+		_ context.Context,
+		index int,
+		facthash util.Hash,
+		instate bool,
+		errorreason base.OperationProcessReasonError,
+	) error
 	SetStates(_ context.Context, index int, states []base.State, operation base.Operation) error
 	Manifest(_ context.Context, previous base.Manifest) (base.Manifest, error)
 	SetINITVoteproof(context.Context, base.INITVoteproof) error
@@ -51,6 +57,7 @@ type DefaultBlockDataWriter struct {
 	opstree       tree.FixedTree
 	ststree       tree.FixedTree
 	states        *util.LockedMap
+	suffrage      base.SuffrageStateValue
 }
 
 func NewDefaultBlockDataWriter(
@@ -89,7 +96,9 @@ func (w *DefaultBlockDataWriter) SetOperationsSize(_, valids uint64) {
 	w.opstreeg = tree.NewFixedTreeGenerator(valids)
 }
 
-func (w *DefaultBlockDataWriter) SetOperation(_ context.Context, index int, facthash util.Hash, instate bool, errorreason base.OperationProcessReasonError) error {
+func (w *DefaultBlockDataWriter) SetOperation(
+	_ context.Context, index int, facthash util.Hash, instate bool, errorreason base.OperationProcessReasonError,
+) error {
 	e := util.StringErrorFunc("failed to set operation")
 	if err := w.db.SetOperations([]util.Hash{facthash}); err != nil {
 		return e(err, "")
@@ -113,7 +122,9 @@ func (w *DefaultBlockDataWriter) SetOperation(_ context.Context, index int, fact
 	return nil
 }
 
-func (w *DefaultBlockDataWriter) SetStates(ctx context.Context, index int, states []base.State, operation base.Operation) error {
+func (w *DefaultBlockDataWriter) SetStates(
+	ctx context.Context, index int, states []base.State, operation base.Operation,
+) error {
 	e := util.StringErrorFunc("failed to set states")
 
 	if w.proposal == nil {
@@ -224,7 +235,7 @@ func (w *DefaultBlockDataWriter) closeStateValues(ctx context.Context) error {
 		return e(err, "")
 	}
 
-	if err := w.saveStatesTree(ctx, tg, states); err != nil {
+	if err := w.saveStates(ctx, tg, states); err != nil {
 		return e(err, "")
 	}
 
@@ -235,31 +246,31 @@ func (w *DefaultBlockDataWriter) closeStateValues(ctx context.Context) error {
 	return nil
 }
 
-func (w *DefaultBlockDataWriter) closeStateValue(tg *tree.FixedTreeGenerator, st base.State, index int) (base.State, error) {
+func (*DefaultBlockDataWriter) closeStateValue(
+	tg *tree.FixedTreeGenerator, st base.State, index int,
+) (base.State, error) {
 	stm, ok := st.(base.StateValueMerger)
 	if !ok {
-		return st, tg.Add(base.NewStateFixedTreeNode(uint64(index), st.Hash().Bytes()))
+		return st, tg.Add(base.NewStateFixedTreeNode(uint64(index), []byte(st.Key())))
 	}
 
 	if err := stm.Close(); err != nil {
 		return nil, err
 	}
 
-	return stm, tg.Add(base.NewStateFixedTreeNode(uint64(index), stm.Hash().Bytes()))
+	return stm, tg.Add(base.NewStateFixedTreeNode(uint64(index), []byte(stm.Key())))
 }
 
-func (w *DefaultBlockDataWriter) saveStatesTree(ctx context.Context, tg *tree.FixedTreeGenerator, states []base.State) error {
+func (w *DefaultBlockDataWriter) saveStates(
+	ctx context.Context, tg *tree.FixedTreeGenerator, states []base.State,
+) error {
 	e := util.StringErrorFunc("failed to set states tree")
 
 	worker := util.NewErrgroupWorker(ctx, math.MaxInt32)
 	defer worker.Close()
 
 	if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-		if err := w.db.SetStates(states); err != nil {
-			return err
-		}
-
-		return nil
+		return w.db.SetStates(states)
 	}); err != nil {
 		return e(err, "")
 	}
@@ -304,8 +315,12 @@ func (w *DefaultBlockDataWriter) Manifest(ctx context.Context, previous base.Man
 		return nil, e(err, "")
 	}
 
+	suffrage := previous.Suffrage()
+	if i := w.db.SuffrageState(); i != nil {
+		suffrage = i.Hash()
+	}
+
 	if w.manifest == nil {
-		suffrage := previous.Suffrage()
 
 		w.manifest = NewManifest(
 			w.proposal.Point().Height(),
@@ -313,7 +328,7 @@ func (w *DefaultBlockDataWriter) Manifest(ctx context.Context, previous base.Man
 			w.proposal.Fact().Hash(),
 			valuehash.NewBytes(w.opstree.Root()),
 			valuehash.NewBytes(w.ststree.Root()),
-			suffrage, // BLOCK set suffrage state value hash
+			suffrage,
 			localtime.UTCNow(),
 		)
 

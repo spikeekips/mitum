@@ -212,7 +212,9 @@ func (p *DefaultProposalProcessor) setProposal(ctx context.Context) error {
 	return nil
 }
 
-func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) (uint64, uint64, error) {
+func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) (
+	countcollected, countvalids uint64, err error,
+) {
 	e := util.StringErrorFunc("failed to collect operations")
 
 	if len(p.proposal.ProposalFact().Operations()) < 1 {
@@ -229,11 +231,7 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) (uint6
 	defer worker.Close()
 
 	if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-		if err := p.writer.SetProposal(ctx, p.proposal); err != nil {
-			return err
-		}
-
-		return nil
+		return p.writer.SetProposal(ctx, p.proposal)
 	}); err != nil {
 		return 0, 0, e(err, "")
 	}
@@ -245,7 +243,7 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) (uint6
 			i := i
 			h := ophs[i]
 			if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-				op, err := p.collectOperation(ctx, i, h)
+				op, err := p.collectOperation(ctx, h)
 				switch {
 				case err == nil:
 					atomic.AddUint64(&valids, 1)
@@ -278,7 +276,7 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) (uint6
 	return atomic.LoadUint64(&collected), atomic.LoadUint64(&valids), nil
 }
 
-func (p *DefaultProposalProcessor) collectOperation(ctx context.Context, index int, h util.Hash) (base.Operation, error) {
+func (p *DefaultProposalProcessor) collectOperation(ctx context.Context, h util.Hash) (base.Operation, error) {
 	e := util.StringErrorFunc("failed to collect operation, %q", h)
 
 	var op base.Operation
@@ -324,8 +322,8 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context) error 
 
 		ops := p.operations()
 
-		var gopsindex int = -1
-		var gvalidindex int = -1
+		gopsindex := -1
+		gvalidindex := -1
 		for i := range ops {
 			op := ops[i]
 			if op == nil {
@@ -337,11 +335,7 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context) error 
 
 			if i, ok := op.(ReasonProcessedOperation); ok {
 				if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-					if err := p.writer.SetOperation(ctx, opsindex, i.FactHash(), false, i.Reason()); err != nil {
-						return err
-					}
-
-					return nil
+					return p.writer.SetOperation(ctx, opsindex, i.FactHash(), false, i.Reason())
 				}); err != nil {
 					errch <- errors.Wrapf(err, "failed to process operation, %d", opsindex)
 				}
@@ -395,10 +389,12 @@ func (p *DefaultProposalProcessor) workOperation(
 	return nil
 }
 
-func (p *DefaultProposalProcessor) doPreProcessOperation(ctx context.Context, opsindex int, op base.Operation) (bool, error) {
+func (p *DefaultProposalProcessor) doPreProcessOperation(
+	ctx context.Context, opsindex int, op base.Operation,
+) (bool, error) {
 	e := util.StringErrorFunc("failed to pre process operation, %q", op.Fact().Hash())
 
-	var reason base.OperationProcessReasonError
+	var errorreason base.OperationProcessReasonError
 	if err := util.Retry(ctx, func() (bool, error) {
 		f := p.getPreProcessor(op)
 		if f == nil {
@@ -407,7 +403,7 @@ func (p *DefaultProposalProcessor) doPreProcessOperation(ctx context.Context, op
 
 		switch i, err := f(ctx); {
 		case err == nil:
-			reason = i
+			errorreason = i
 
 			return false, nil
 		default:
@@ -417,19 +413,21 @@ func (p *DefaultProposalProcessor) doPreProcessOperation(ctx context.Context, op
 		return false, e(err, "")
 	}
 
-	if reason != nil {
-		if err := p.writer.SetOperation(ctx, opsindex, op.Fact().Hash(), false, reason); err != nil {
+	if errorreason != nil {
+		if err := p.writer.SetOperation(ctx, opsindex, op.Fact().Hash(), false, errorreason); err != nil {
 			return false, e(err, "")
 		}
 	}
 
-	return reason == nil, nil
+	return errorreason == nil, nil
 }
 
-func (p *DefaultProposalProcessor) doProcessOperation(ctx context.Context, opsindex, validindex int, op base.Operation) error {
+func (p *DefaultProposalProcessor) doProcessOperation(
+	ctx context.Context, opsindex, validindex int, op base.Operation,
+) error {
 	e := util.StringErrorFunc("failed to process operation, %q", op.Fact().Hash())
 
-	var reason base.OperationProcessReasonError
+	var errorreason base.OperationProcessReasonError
 	var sts []base.State
 	if err := util.Retry(ctx, func() (bool, error) {
 		if sts == nil {
@@ -442,7 +440,7 @@ func (p *DefaultProposalProcessor) doProcessOperation(ctx context.Context, opsin
 			switch {
 			case err == nil:
 				sts = i
-				reason = j
+				errorreason = j
 			default:
 				return true, err
 			}
@@ -450,10 +448,10 @@ func (p *DefaultProposalProcessor) doProcessOperation(ctx context.Context, opsin
 
 		switch ee := util.StringErrorFunc("invalid processor"); {
 		case len(sts) < 1:
-			if reason == nil {
+			if errorreason == nil {
 				return false, ee(nil, "empty state must have reason")
 			}
-		case reason != nil:
+		case errorreason != nil:
 			return false, ee(nil, "not empty state must have empty reason")
 		}
 
@@ -469,14 +467,15 @@ func (p *DefaultProposalProcessor) doProcessOperation(ctx context.Context, opsin
 		}
 	}
 
-	if err := p.writer.SetOperation(ctx, opsindex, op.Fact().Hash(), instate, reason); err != nil {
+	if err := p.writer.SetOperation(ctx, opsindex, op.Fact().Hash(), instate, errorreason); err != nil {
 		return e(err, "")
 	}
 
 	return nil
 }
 
-func (p *DefaultProposalProcessor) getPreProcessor(op base.Operation) func(context.Context) (base.OperationProcessReasonError, error) {
+func (p *DefaultProposalProcessor) getPreProcessor(op base.Operation) func(context.Context) (
+	base.OperationProcessReasonError, error) {
 	p.RLock()
 	defer p.RUnlock()
 
@@ -496,7 +495,8 @@ func (p *DefaultProposalProcessor) getPreProcessor(op base.Operation) func(conte
 	}
 }
 
-func (p *DefaultProposalProcessor) getProcessor(op base.Operation) func(context.Context) ([]base.State, base.OperationProcessReasonError, error) {
+func (p *DefaultProposalProcessor) getProcessor(op base.Operation) func(context.Context) (
+	[]base.State, base.OperationProcessReasonError, error) {
 	p.RLock()
 	defer p.RUnlock()
 

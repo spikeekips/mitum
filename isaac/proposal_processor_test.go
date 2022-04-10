@@ -176,10 +176,10 @@ func (w *DummyBlockDataWriter) SetOperationsSize(collected, valids uint64) {
 	w.opstree = tree.NewFixedTreeGenerator(collected)
 }
 
-func (w *DummyBlockDataWriter) SetOperation(ctx context.Context, index int, facthash util.Hash, instate bool, reason /* BLOCK rename to errorreason */ base.OperationProcessReasonError) error {
+func (w *DummyBlockDataWriter) SetOperation(ctx context.Context, index int, facthash util.Hash, instate bool, errorreason base.OperationProcessReasonError) error {
 	var msg string
-	if reason != nil {
-		msg = reason.Msg()
+	if errorreason != nil {
+		msg = errorreason.Msg()
 	}
 
 	node := base.NewOperationFixedTreeNode(

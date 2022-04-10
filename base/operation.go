@@ -40,8 +40,13 @@ type OperationFixedTreeNode struct {
 	reason  OperationProcessReasonError
 }
 
-func NewOperationFixedTreeNode(index uint64, facthash util.Hash, inState bool, reason string) OperationFixedTreeNode {
-	return NewOperationFixedTreeNodeWithHash(index, facthash, nil, inState, reason)
+func NewOperationFixedTreeNode(
+	index uint64,
+	facthash util.Hash,
+	inState bool,
+	errorreason string,
+) OperationFixedTreeNode {
+	return NewOperationFixedTreeNodeWithHash(index, facthash, nil, inState, errorreason)
 }
 
 func NewOperationFixedTreeNodeWithHash(
@@ -167,7 +172,7 @@ func NewBaseOperationProcessReasonError(s string, a ...interface{}) BaseOperatio
 
 	return BaseOperationProcessReasonError{
 		BaseHinter: hint.NewBaseHinter(BaseOperationProcessReasonErrorHint),
-		id:         fmt.Sprintf("%+v", f, f),
+		id:         fmt.Sprintf("%+v", f),
 		msg:        fmt.Errorf(s, a...).Error(),
 	}
 }

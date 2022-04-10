@@ -77,3 +77,9 @@ func NewStateFixedTreeNode(index uint64, key []byte) StateFixedTreeNode {
 		BaseFixedTreeNode: tree.NewBaseFixedTreeNodeWithHash(StateFixedTreeNodeHint, index, key, nil),
 	}
 }
+
+func (no StateFixedTreeNode) SetHash(h []byte) tree.FixedTreeNode {
+	no.BaseFixedTreeNode = no.BaseFixedTreeNode.SetHash(h).(tree.BaseFixedTreeNode)
+
+	return no
+}

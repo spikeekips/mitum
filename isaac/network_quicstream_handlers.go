@@ -66,6 +66,8 @@ func (c *QuicstreamNodeNetworkHandlers) RequestProposal(_ net.Addr, r io.Reader,
 		}
 	}
 
+	// BLOCK if point is too old, returns error
+
 	pr, err := c.getOrCreateProposal(body.Point, body.Proposer)
 	switch {
 	case err != nil:
@@ -73,8 +75,6 @@ func (c *QuicstreamNodeNetworkHandlers) RequestProposal(_ net.Addr, r io.Reader,
 	case pr == nil:
 		return nil
 	}
-
-	// BLOCK if point is too old, returns error
 
 	if err := c.response(w, pr); err != nil {
 		return e(err, "")
