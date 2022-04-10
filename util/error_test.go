@@ -30,7 +30,7 @@ func (t *testError) TestFuncCaller() {
 	t.Equal("(*testError).TestFuncCaller:29", fmt.Sprintf("%n:%d", f, f))
 
 	e := NewError("showme")
-	t.Equal("(*testError).TestFuncCaller:32", e.id)
+	t.Contains(e.id, "(*testError).TestFuncCaller")
 }
 
 func (t *testError) TestIs() {
