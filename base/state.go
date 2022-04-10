@@ -3,6 +3,7 @@ package base
 import (
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
+	"github.com/spikeekips/mitum/util/tree"
 )
 
 type State interface {
@@ -62,5 +63,17 @@ func IsEqualState(a, b State) bool {
 		}
 
 		return true
+	}
+}
+
+var StateFixedTreeNodeHint = hint.MustNewHint("state-fixedtree-node-v0.0.1")
+
+type StateFixedTreeNode struct {
+	tree.BaseFixedTreeNode
+}
+
+func NewStateFixedTreeNode(index uint64, key []byte) StateFixedTreeNode {
+	return StateFixedTreeNode{
+		BaseFixedTreeNode: tree.NewBaseFixedTreeNodeWithHash(StateFixedTreeNodeHint, index, key, nil),
 	}
 }

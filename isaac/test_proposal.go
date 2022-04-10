@@ -12,7 +12,8 @@ import (
 
 type DummyProposalProcessor struct {
 	proposal   base.ProposalSignedFact
-	processerr func(context.Context, base.ProposalFact) (base.Manifest, error)
+	previous   base.Manifest
+	processerr func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error)
 	saveerr    func(context.Context, base.ACCEPTVoteproof) error
 	cancelerr  func() error
 }
@@ -21,18 +22,19 @@ func NewDummyProposalProcessor() *DummyProposalProcessor {
 	return &DummyProposalProcessor{}
 }
 
-func (p *DummyProposalProcessor) make(proposal base.ProposalSignedFact) proposalProcessor {
+func (p *DummyProposalProcessor) make(proposal base.ProposalSignedFact, previous base.Manifest) proposalProcessor {
 	return DummyProposalProcessor{
 		proposal:   proposal,
+		previous:   previous,
 		processerr: p.processerr,
 		saveerr:    p.saveerr,
 		cancelerr:  p.cancelerr,
 	}
 }
 
-func (p DummyProposalProcessor) Process(ctx context.Context) (base.Manifest, error) {
+func (p DummyProposalProcessor) Process(ctx context.Context, ivp base.INITVoteproof) (base.Manifest, error) {
 	if p.processerr != nil {
-		return p.processerr(ctx, p.proposal.ProposalFact())
+		return p.processerr(ctx, p.proposal.ProposalFact(), ivp)
 	}
 
 	return nil, errors.Errorf("wrong processing")

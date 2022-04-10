@@ -26,7 +26,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestExpected() {
 	st.SetLogging(logging.TestNilLogging)
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	pp.processerr = func(context.Context, base.ProposalFact) (base.Manifest, error) {
+	pp.processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
 		return manifest, nil
 	}
 	savedch := make(chan base.ACCEPTVoteproof, 1)
@@ -188,7 +188,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestDrawFailedProposalSel
 	defer closefunc()
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	pp.processerr = func(context.Context, base.ProposalFact) (base.Manifest, error) {
+	pp.processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
 		return manifest, nil
 	}
 
@@ -236,7 +236,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestNotProposalProcessorP
 	defer closefunc()
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	pp.processerr = func(context.Context, base.ProposalFact) (base.Manifest, error) {
+	pp.processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
 		return manifest, nil
 	}
 
@@ -274,7 +274,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestSaveBlockError() {
 	defer closefunc()
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	pp.processerr = func(context.Context, base.ProposalFact) (base.Manifest, error) {
+	pp.processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
 		return manifest, nil
 	}
 
@@ -398,7 +398,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestHigerHeight() {
 	defer closefunc()
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	pp.processerr = func(context.Context, base.ProposalFact) (base.Manifest, error) {
+	pp.processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
 		return manifest, nil
 	}
 	savedch := make(chan base.ACCEPTVoteproof, 1)

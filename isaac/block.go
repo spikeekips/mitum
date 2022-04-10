@@ -89,6 +89,10 @@ func (m Manifest) Hash() util.Hash {
 	return m.h
 }
 
+func (m Manifest) Height() base.Height {
+	return m.height
+}
+
 func (m Manifest) Previous() util.Hash {
 	return m.previous
 }

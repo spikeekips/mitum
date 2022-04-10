@@ -18,12 +18,10 @@ type Error struct {
 }
 
 func NewError(s string, a ...interface{}) Error {
-	var pcs [1]uintptr
-	_ = runtime.Callers(2, pcs[:])
-	f := errors.Frame(pcs[0])
+	f := FuncCaller(3)
 
 	return Error{
-		id:  fmt.Sprintf("%n:%d", f, f),
+		id:  fmt.Sprintf("%+v", f),
 		msg: strings.TrimSpace(fmt.Sprintf(s, a...)),
 	}
 }
@@ -213,4 +211,11 @@ func StringErrorFunc(m string, a ...interface{}) func(error, string, ...interfac
 
 		return errors.Wrapf(err, f+s, a...)
 	}
+}
+
+func FuncCaller(skip int) errors.Frame {
+	var pcs [1]uintptr
+	_ = runtime.Callers(skip, pcs[:])
+
+	return errors.Frame(pcs[0])
 }

@@ -11,18 +11,21 @@ import (
 
 type ConsensusHandler struct {
 	*baseStateHandler
-	pps *proposalProcessors
+	getManifest func(base.Height) (base.Manifest, error)
+	pps         *proposalProcessors
 }
 
 func NewConsensusHandler(
 	local LocalNode,
 	policy Policy,
 	proposalSelector ProposalSelector,
+	getManifest func(base.Height) (base.Manifest, error),
 	getSuffrage func(base.Height) base.Suffrage,
 	pps *proposalProcessors,
 ) *ConsensusHandler {
 	return &ConsensusHandler{
 		baseStateHandler: newBaseStateHandler(StateConsensus, local, policy, proposalSelector, getSuffrage),
+		getManifest:      getManifest,
 		pps:              pps,
 	}
 }
@@ -182,7 +185,15 @@ func (st *ConsensusHandler) processProposalInternal(ivp base.INITVoteproof) (bas
 
 	started := time.Now()
 
-	switch manifest, err := st.pps.process(st.ctx, facthash); {
+	var previous base.Manifest
+	switch m, err := st.getManifest(ivp.Point().Height() - 1); {
+	case err != nil:
+		return nil, e(err, "")
+	default:
+		previous = m
+	}
+
+	switch manifest, err := st.pps.process(st.ctx, facthash, previous, ivp); {
 	case err != nil:
 		st.Log().Error().Err(err).Msg("failed to process proposal")
 

@@ -25,6 +25,14 @@ func (t *testError) TestErrorWithoutCall() {
 	t.NotPanics(func() { _ = e.Call().Error() })
 }
 
+func (t *testError) TestFuncCaller() {
+	f := FuncCaller(2)
+	t.Equal("(*testError).TestFuncCaller:29", fmt.Sprintf("%n:%d", f, f))
+
+	e := NewError("showme")
+	t.Equal("(*testError).TestFuncCaller:32", e.id)
+}
+
 func (t *testError) TestIs() {
 	e := NewError("showme")
 

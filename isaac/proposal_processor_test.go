@@ -12,6 +12,7 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
+	"github.com/spikeekips/mitum/util/tree"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
@@ -110,8 +111,8 @@ func (op DummyOperation) IsValid([]byte) error {
 
 type DummyOperationProcessable struct {
 	DummyOperation
-	preprocess func(context.Context, base.StatePool) (bool, error)
-	process    func(context.Context, base.StatePool) ([]base.State, error)
+	preprocess func(context.Context, base.StatePool) (base.OperationProcessReasonError, error)
+	process    func(context.Context, base.StatePool) ([]base.State, base.OperationProcessReasonError, error)
 }
 
 func NewDummyOperationProcessable(fact DummyOperationFact, priv base.Privatekey, networkID base.NetworkID) (DummyOperationProcessable, error) {
@@ -125,17 +126,17 @@ func NewDummyOperationProcessable(fact DummyOperationFact, priv base.Privatekey,
 	}, nil
 }
 
-func (op DummyOperationProcessable) PreProcess(ctx context.Context, sp base.StatePool) (bool, error) {
+func (op DummyOperationProcessable) PreProcess(ctx context.Context, sp base.StatePool) (base.OperationProcessReasonError, error) {
 	if op.preprocess == nil {
-		return true, nil
+		return base.NewBaseOperationProcessReasonError("nil preprocess"), nil
 	}
 
 	return op.preprocess(ctx, sp)
 }
 
-func (op DummyOperationProcessable) Process(ctx context.Context, sp base.StatePool) ([]base.State, error) {
+func (op DummyOperationProcessable) Process(ctx context.Context, sp base.StatePool) ([]base.State, base.OperationProcessReasonError, error) {
 	if op.process == nil {
-		return nil, nil
+		return nil, base.NewBaseOperationProcessReasonError("empty process"), nil
 	}
 
 	return op.process(ctx, sp)
@@ -144,13 +145,14 @@ func (op DummyOperationProcessable) Process(ctx context.Context, sp base.StatePo
 type DummyBlockDataWriter struct {
 	sync.RWMutex
 	height      base.Height
+	proposal    base.ProposalSignedFact
 	manifest    base.Manifest
 	manifesterr error
-	ophs        []util.Hash
+	opstree     *tree.FixedTreeGenerator
 	ops         []base.Operation
 	sts         *util.LockedMap
-	setstatesf  func([]base.State, int, util.Hash) error
-	savef       func(context.Context, base.ACCEPTVoteproof) error
+	setstatesf  func(context.Context, int, []base.State, base.Operation) error
+	savef       func(context.Context) error
 }
 
 func NewDummyBlockDataWriter(height base.Height) *DummyBlockDataWriter {
@@ -160,69 +162,89 @@ func NewDummyBlockDataWriter(height base.Height) *DummyBlockDataWriter {
 	}
 }
 
-func (w *DummyBlockDataWriter) SetProposal(proposal base.ProposalSignedFact) error {
+func (w *DummyBlockDataWriter) SetProposal(_ context.Context, proposal base.ProposalSignedFact) error {
 	w.Lock()
 	defer w.Unlock()
 
-	w.ophs = proposal.ProposalFact().Operations()
+	w.proposal = proposal
 
 	return nil
 }
 
-func (w *DummyBlockDataWriter) SetOperation(i int, op base.Operation) error {
-	w.Lock()
-	defer w.Unlock()
+func (w *DummyBlockDataWriter) SetOperationsSize(collected, valids uint64) {
+	w.ops = make([]base.Operation, valids)
+	w.opstree = tree.NewFixedTreeGenerator(collected)
+}
 
-	if len(w.ops) < 1 {
-		w.ops = make([]base.Operation, len(w.ophs))
+func (w *DummyBlockDataWriter) SetOperation(ctx context.Context, index int, facthash util.Hash, instate bool, reason /* BLOCK rename to errorreason */ base.OperationProcessReasonError) error {
+	var msg string
+	if reason != nil {
+		msg = reason.Msg()
 	}
 
-	w.ops[i] = op
+	node := base.NewOperationFixedTreeNode(
+		uint64(index),
+		facthash,
+		instate,
+		msg,
+	)
+	if err := w.opstree.Add(node); err != nil {
+		return errors.Wrap(err, "failed to set operation")
+	}
 
 	return nil
 }
 
-func (w *DummyBlockDataWriter) SetStates(states []base.State, index int, operation util.Hash) error {
+func (w *DummyBlockDataWriter) SetStates(ctx context.Context, index int, states []base.State, operation base.Operation) error {
 	if w.setstatesf != nil {
-		return w.setstatesf(states, index, operation)
+		return w.setstatesf(ctx, index, states, operation)
 	}
 
-	return w.setStates(states, index, operation)
+	return w.setStates(ctx, index, states, operation)
 }
 
-func (w *DummyBlockDataWriter) setStates(states []base.State, index int, operation util.Hash) error {
+func (w *DummyBlockDataWriter) setStates(ctx context.Context, index int, states []base.State, op base.Operation) error {
 	e := util.StringErrorFunc("failed to set states")
 
 	for i := range states {
 		st := states[i]
 
-		j, _, _ := w.sts.Get(st.Key(), func() (interface{}, error) {
+		j, found, _ := w.sts.Get(st.Key(), func() (interface{}, error) {
 			return st.Merger(w.height), nil
 		})
-		merger := j.(base.StateValueMerger)
 
-		if err := merger.Merge(st.Value(), []util.Hash{operation}); err != nil {
-			return e(err, "failed to merge")
+		if found {
+			merger := j.(base.StateValueMerger)
+
+			if err := merger.Merge(st.Value(), []util.Hash{op.Fact().Hash()}); err != nil {
+				return e(err, "failed to merge")
+			}
 		}
 	}
 
+	w.ops[index] = op
+
 	return nil
 }
 
-func (w *DummyBlockDataWriter) SetManifest(base.Manifest) error {
+func (w *DummyBlockDataWriter) SetINITVoteproof(ctx context.Context, vp base.INITVoteproof) error {
 	return nil
 }
 
-func (w *DummyBlockDataWriter) Manifest(context.Context) (base.Manifest, error) {
+func (w *DummyBlockDataWriter) SetACCEPTVoteproof(ctx context.Context, vp base.ACCEPTVoteproof) error {
+	return nil
+}
+
+func (w *DummyBlockDataWriter) Manifest(context.Context, base.Manifest) (base.Manifest, error) {
 	return w.manifest, w.manifesterr
 }
 
-func (w *DummyBlockDataWriter) Save(ctx context.Context, avp base.ACCEPTVoteproof) error {
+func (w *DummyBlockDataWriter) Save(ctx context.Context) error {
 	if w.savef == nil {
 		return nil
 	}
 
-	return w.savef(ctx, avp)
+	return w.savef(ctx)
 }
 
 func (w *DummyBlockDataWriter) Cancel() error {
@@ -230,21 +252,21 @@ func (w *DummyBlockDataWriter) Cancel() error {
 }
 
 type DummyOperationProcessor struct {
-	preprocess func(context.Context, base.Operation, base.StatePool) (bool, error)
-	process    func(context.Context, base.Operation, base.StatePool) ([]base.State, error)
+	preprocess func(context.Context, base.Operation, base.StatePool) (base.OperationProcessReasonError, error)
+	process    func(context.Context, base.Operation, base.StatePool) ([]base.State, base.OperationProcessReasonError, error)
 }
 
-func (p *DummyOperationProcessor) PreProcess(ctx context.Context, op base.Operation, sp base.StatePool) (bool, error) {
+func (p *DummyOperationProcessor) PreProcess(ctx context.Context, op base.Operation, sp base.StatePool) (base.OperationProcessReasonError, error) {
 	if p.preprocess == nil {
-		return false, nil
+		return base.NewBaseOperationProcessReasonError("nil preprocess"), nil
 	}
 
 	return p.preprocess(ctx, op, sp)
 }
 
-func (p *DummyOperationProcessor) Process(ctx context.Context, op base.Operation, sp base.StatePool) ([]base.State, error) {
+func (p *DummyOperationProcessor) Process(ctx context.Context, op base.Operation, sp base.StatePool) ([]base.State, base.OperationProcessReasonError, error) {
 	if p.process == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	return p.process(ctx, op, sp)
@@ -305,11 +327,11 @@ func (t *testDefaultProposalProcessor) prepareOperations(
 		st := t.newStates(height, fact.Hash().String())[0]
 
 		if p, ok := op.(DummyOperationProcessable); ok {
-			p.preprocess = func(context.Context, base.StatePool) (bool, error) {
-				return true, nil
+			p.preprocess = func(context.Context, base.StatePool) (base.OperationProcessReasonError, error) {
+				return nil, nil
 			}
-			p.process = func(context.Context, base.StatePool) ([]base.State, error) {
-				return []base.State{st}, nil
+			p.process = func(context.Context, base.StatePool) ([]base.State, base.OperationProcessReasonError, error) {
+				return []base.State{st}, nil, nil
 			}
 
 			op = p
@@ -327,7 +349,8 @@ func (t *testDefaultProposalProcessor) TestNew() {
 
 	pr := t.newproposal(NewProposalFact(point, t.local.Address(), []util.Hash{valuehash.RandomSHA256()}))
 
-	opp := NewDefaultProposalProcessor(pr, nil, nil, nil, nil)
+	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
+	opp := NewDefaultProposalProcessor(pr, previous, nil, nil, nil, nil)
 	_ = (interface{})(opp).(proposalProcessor)
 
 	base.EqualProposalSignedFact(t.Assert(), pr, opp.Proposal())
@@ -336,18 +359,19 @@ func (t *testDefaultProposalProcessor) TestNew() {
 func (t *testDefaultProposalProcessor) TestCollectOperations() {
 	point := base.RawPoint(33, 44)
 
-	ophs, ops, _ := t.prepareOperations(point.Height(), 4, nil)
+	ophs, ops, _ := t.prepareOperations(point.Height()-1, 4, nil)
 
 	pr := t.newproposal(NewProposalFact(point, t.local.Address(), ophs))
 
+	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer := NewDummyBlockDataWriter(point.Height() + 1)
+	writer := NewDummyBlockDataWriter(point.Height())
 	writer.manifest = manifest
 
-	opp := NewDefaultProposalProcessor(pr, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
+	opp := NewDefaultProposalProcessor(pr, previous, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
 		if !found {
-			return nil, util.NotFoundError.Errorf("operation not found")
+			return nil, OperationNotFoundInProcessorError.Errorf("operation not found")
 		}
 
 		return op, nil
@@ -355,13 +379,13 @@ func (t *testDefaultProposalProcessor) TestCollectOperations() {
 		func(hint.Hint) (base.OperationProcessor, bool) { return nil, false },
 	)
 
-	m, err := opp.Process(context.Background())
+	m, err := opp.Process(context.Background(), nil)
 	t.NoError(err)
 	t.NotNil(m)
 
 	for i := range ophs {
 		a := ops[ophs[i].String()]
-		b := writer.ops[i]
+		b := opp.ops[i]
 
 		t.NotNil(a)
 		t.NotNil(b)
@@ -373,24 +397,25 @@ func (t *testDefaultProposalProcessor) TestCollectOperations() {
 func (t *testDefaultProposalProcessor) TestCollectOperationsFailed() {
 	point := base.RawPoint(33, 44)
 
-	ophs, ops, _ := t.prepareOperations(point.Height(), 4, nil)
+	ophs, ops, _ := t.prepareOperations(point.Height()-1, 4, nil)
 
 	pr := t.newproposal(NewProposalFact(point, t.local.Address(), ophs))
 
+	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer := NewDummyBlockDataWriter(point.Height() + 1)
+	writer := NewDummyBlockDataWriter(point.Height())
 	writer.manifest = manifest
 
-	opp := NewDefaultProposalProcessor(pr, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
+	opp := NewDefaultProposalProcessor(pr, previous, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
 		if !found {
-			return nil, util.NotFoundError.Errorf("operation not found")
+			return nil, OperationNotFoundInProcessorError.Errorf("operation not found")
 		}
 
 		switch {
 		case facthash.Equal(ophs[1]), facthash.Equal(ophs[3]):
 		default:
-			return nil, util.NotFoundError.Errorf("operation not found")
+			return nil, util.WrongTypeError.Errorf("operation not found")
 		}
 
 		return op, nil
@@ -398,33 +423,37 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsFailed() {
 	opp.retrylimit = 1
 	opp.retryinterval = 1
 
-	m, err := opp.Process(context.Background())
+	m, err := opp.Process(context.Background(), nil)
 	t.Error(err)
 	t.Nil(m)
 
-	t.True(errors.Is(err, util.NotFoundError))
+	t.True(errors.Is(err, util.WrongTypeError))
 	t.Contains(err.Error(), "failed to collect operations")
 }
 
 func (t *testDefaultProposalProcessor) TestCollectOperationsFailedButIgnored() {
 	point := base.RawPoint(33, 44)
 
-	ophs, ops, _ := t.prepareOperations(point.Height(), 4, nil)
+	ophs, ops, _ := t.prepareOperations(point.Height()-1, 4, nil)
 
 	pr := t.newproposal(NewProposalFact(point, t.local.Address(), ophs))
 
+	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer := NewDummyBlockDataWriter(point.Height() + 1)
+	writer := NewDummyBlockDataWriter(point.Height())
 	writer.manifest = manifest
 
-	opp := NewDefaultProposalProcessor(pr, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
+	opp := NewDefaultProposalProcessor(pr, previous, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
 		if !found {
-			return nil, IgnoreOperationInProcessorError.Errorf("operation not found")
+			return nil, nil
 		}
 
-		if facthash.Equal(ophs[1]) || facthash.Equal(ophs[3]) {
-			return nil, IgnoreOperationInProcessorError.Errorf("operation not found")
+		switch {
+		case facthash.Equal(ophs[1]):
+			return nil, InvalidOperationInProcessorError.Call()
+		case facthash.Equal(ophs[3]):
+			return nil, OperationNotFoundInProcessorError.Call()
 		}
 
 		return op, nil
@@ -432,14 +461,84 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsFailedButIgnored() {
 		func(hint.Hint) (base.OperationProcessor, bool) { return nil, false },
 	)
 
-	m, err := opp.Process(context.Background())
+	m, err := opp.Process(context.Background(), nil)
 	t.NoError(err)
 	t.NotNil(m)
 
 	for i := range ophs {
-		b := writer.ops[i]
-		if i == 1 || i == 3 {
+		b := opp.ops[i]
+		if i == 1 {
+			j, ok := b.(ReasonProcessedOperation)
+			t.True(ok)
+
+			t.Contains("invalid operation", j.Reason().Msg())
+
+			continue
+		}
+
+		if i == 3 {
 			t.Nil(b)
+
+			continue
+		}
+
+		a := ops[ophs[i].String()]
+		t.NotNil(a)
+		t.NotNil(b)
+
+		base.EqualSignedFact(t.Assert(), a, b)
+	}
+}
+
+func (t *testDefaultProposalProcessor) TestCollectOperationsInvalidError() {
+	point := base.RawPoint(33, 44)
+
+	ophs, ops, _ := t.prepareOperations(point.Height()-1, 4, nil)
+
+	pr := t.newproposal(NewProposalFact(point, t.local.Address(), ophs))
+
+	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
+	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+	writer := NewDummyBlockDataWriter(point.Height())
+	writer.manifest = manifest
+
+	opp := NewDefaultProposalProcessor(pr, previous, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
+		op, found := ops[facthash.String()]
+		if !found {
+			return nil, nil
+		}
+
+		switch {
+		case facthash.Equal(ophs[1]):
+			return nil, OperationAlreadyProcessedInProcessorError.Errorf("already processed in previous")
+		case facthash.Equal(ophs[3]):
+			return nil, InvalidOperationInProcessorError.Errorf("hehehe")
+		}
+
+		return op, nil
+	},
+		func(hint.Hint) (base.OperationProcessor, bool) { return nil, false },
+	)
+
+	m, err := opp.Process(context.Background(), nil)
+	t.NoError(err)
+	t.NotNil(m)
+
+	t.Equal(4, len(opp.ops))
+
+	for i := range ophs {
+		b := opp.ops[i]
+		if i == 1 {
+			t.Nil(b)
+
+			continue
+		}
+
+		if i == 3 {
+			j, ok := b.(ReasonProcessedOperation)
+			t.True(ok)
+
+			t.Contains("invalid operation", j.Reason().Msg())
 
 			continue
 		}
@@ -455,7 +554,7 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsFailedButIgnored() {
 func (t *testDefaultProposalProcessor) TestPreProcessWithOperationProcessor() {
 	point := base.RawPoint(33, 44)
 
-	ophs, ops, sts := t.prepareOperations(point.Height(), 4, func(fact DummyOperationFact) base.Operation {
+	ophs, ops, sts := t.prepareOperations(point.Height()-1, 4, func(fact DummyOperationFact) base.Operation {
 		op, _ := NewDummyOperation(fact, t.local.Privatekey(), t.policy.NetworkID()) // NOTE not processable
 
 		return op
@@ -463,14 +562,15 @@ func (t *testDefaultProposalProcessor) TestPreProcessWithOperationProcessor() {
 
 	pr := t.newproposal(NewProposalFact(point, t.local.Address(), ophs))
 
+	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer := NewDummyBlockDataWriter(point.Height() + 1)
+	writer := NewDummyBlockDataWriter(point.Height())
 	writer.manifest = manifest
 
-	opp := NewDefaultProposalProcessor(pr, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
+	opp := NewDefaultProposalProcessor(pr, previous, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
 		if !found {
-			return nil, IgnoreOperationInProcessorError.Errorf("operation not found")
+			return nil, OperationNotFoundInProcessorError.Call()
 		}
 
 		return op, nil
@@ -481,23 +581,23 @@ func (t *testDefaultProposalProcessor) TestPreProcessWithOperationProcessor() {
 			}
 
 			return &DummyOperationProcessor{
-				preprocess: func(_ context.Context, op base.Operation, _ base.StatePool) (bool, error) {
+				preprocess: func(_ context.Context, op base.Operation, _ base.StatePool) (base.OperationProcessReasonError, error) {
 					switch h := op.Fact().Hash(); {
 					case h.Equal(ophs[1]),
 						h.Equal(ophs[3]): // NOTE only will process, index 1 and 3 operation
-						return true, nil
+						return nil, nil
 					default:
-						return false, nil
+						return base.NewBaseOperationProcessReasonError("bad"), nil
 					}
 				},
-				process: func(_ context.Context, op base.Operation, _ base.StatePool) ([]base.State, error) {
-					return []base.State{sts[op.Fact().Hash().String()]}, nil
+				process: func(_ context.Context, op base.Operation, _ base.StatePool) ([]base.State, base.OperationProcessReasonError, error) {
+					return []base.State{sts[op.Fact().Hash().String()]}, nil, nil
 				},
 			}, true
 		},
 	)
 
-	m, err := opp.Process(context.Background())
+	m, err := opp.Process(context.Background(), nil)
 	t.NoError(err)
 	t.NotNil(m)
 
@@ -537,16 +637,16 @@ func (t *testDefaultProposalProcessor) TestPreProcessWithOperationProcessor() {
 func (t *testDefaultProposalProcessor) TestPreProcess() {
 	point := base.RawPoint(33, 44)
 
-	ophs, ops, sts := t.prepareOperations(point.Height(), 4, nil)
+	ophs, ops, sts := t.prepareOperations(point.Height()-1, 4, nil)
 	for i := range ops {
 		op := ops[i].(DummyOperationProcessable)
-		op.preprocess = func(context.Context, base.StatePool) (bool, error) {
+		op.preprocess = func(context.Context, base.StatePool) (base.OperationProcessReasonError, error) {
 			switch {
 			case op.Fact().Hash().Equal(ophs[1]),
 				op.Fact().Hash().Equal(ophs[3]): // NOTE only will process, index 1 and 3 operation
-				return true, nil
+				return nil, nil
 			default:
-				return false, nil
+				return base.NewBaseOperationProcessReasonError("bad"), nil
 			}
 		}
 
@@ -555,14 +655,19 @@ func (t *testDefaultProposalProcessor) TestPreProcess() {
 
 	pr := t.newproposal(NewProposalFact(point, t.local.Address(), ophs))
 
+	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer := NewDummyBlockDataWriter(point.Height() + 1)
+	writer := NewDummyBlockDataWriter(point.Height())
 	writer.manifest = manifest
 
-	opp := NewDefaultProposalProcessor(pr, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
+	opp := NewDefaultProposalProcessor(pr, previous, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
 		if !found {
-			return nil, util.NotFoundError.Errorf("operation not found")
+			return nil, OperationNotFoundInProcessorError.Errorf("operation not found")
+		}
+
+		if facthash.Equal(ophs[3]) {
+			return nil, InvalidOperationInProcessorError.Call()
 		}
 
 		return op, nil
@@ -570,11 +675,11 @@ func (t *testDefaultProposalProcessor) TestPreProcess() {
 		func(hint.Hint) (base.OperationProcessor, bool) { return nil, false },
 	)
 
-	m, err := opp.Process(context.Background())
+	m, err := opp.Process(context.Background(), nil)
 	t.NoError(err)
 	t.NotNil(m)
 
-	t.Equal(2, writer.sts.Len())
+	t.Equal(1, writer.sts.Len())
 
 	for i := range ophs {
 		h := ophs[i]
@@ -592,7 +697,7 @@ func (t *testDefaultProposalProcessor) TestPreProcess() {
 			return true
 		})
 
-		if i != 1 && i != 3 {
+		if i != 1 {
 			t.Nil(bst)
 
 			continue
@@ -611,13 +716,14 @@ func (t *testDefaultProposalProcessor) TestPreProcess() {
 func (t *testDefaultProposalProcessor) TestPreProcessButError() {
 	point := base.RawPoint(33, 44)
 
-	ophs, ops, _ := t.prepareOperations(point.Height(), 4, nil)
+	ophs, ops, _ := t.prepareOperations(point.Height()-1, 4, nil)
 
 	for i := range ops {
+		i := i
 		op := ops[i].(DummyOperationProcessable)
 		if op.Fact().Hash().Equal(ophs[1]) {
-			op.preprocess = func(ctx context.Context, _ base.StatePool) (bool, error) {
-				return true, errors.Errorf("findme: %q", op.Fact().Hash())
+			op.preprocess = func(ctx context.Context, _ base.StatePool) (base.OperationProcessReasonError, error) {
+				return nil, errors.Errorf("findme: %q", op.Fact().Hash())
 			}
 		}
 
@@ -626,14 +732,15 @@ func (t *testDefaultProposalProcessor) TestPreProcessButError() {
 
 	pr := t.newproposal(NewProposalFact(point, t.local.Address(), ophs))
 
+	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer := NewDummyBlockDataWriter(point.Height() + 1)
+	writer := NewDummyBlockDataWriter(point.Height())
 	writer.manifest = manifest
 
-	opp := NewDefaultProposalProcessor(pr, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
+	opp := NewDefaultProposalProcessor(pr, previous, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
 		if !found {
-			return nil, IgnoreOperationInProcessorError.Errorf("operation not found")
+			return nil, OperationNotFoundInProcessorError.Call()
 		}
 
 		return op, nil
@@ -643,25 +750,28 @@ func (t *testDefaultProposalProcessor) TestPreProcessButError() {
 	opp.retrylimit = 1
 	opp.retryinterval = 1
 
-	m, err := opp.Process(context.Background())
+	m, err := opp.Process(context.Background(), nil)
 	t.Error(err)
 	t.Nil(m)
 
 	t.Contains(err.Error(), fmt.Sprintf("findme: %q", ophs[1]))
 }
 
-func (t *testDefaultProposalProcessor) TestPreProcessButErrorRetry() {
+func (t *testDefaultProposalProcessor) TestPreProcessButWithOperationReasonError() {
 	point := base.RawPoint(33, 44)
 
-	ophs, ops, _ := t.prepareOperations(point.Height(), 4, nil)
+	ophs, ops, _ := t.prepareOperations(point.Height()-1, 4, nil)
 
-	var called int
 	for i := range ops {
+		i := i
 		op := ops[i].(DummyOperationProcessable)
-		if op.Fact().Hash().Equal(ophs[1]) {
-			op.preprocess = func(ctx context.Context, _ base.StatePool) (bool, error) {
-				called++
-				return true, errors.Errorf("findme: %q", op.Fact().Hash())
+		op.preprocess = func(ctx context.Context, _ base.StatePool) (base.OperationProcessReasonError, error) {
+			switch {
+			case op.Fact().Hash().Equal(ophs[1]),
+				op.Fact().Hash().Equal(ophs[3]):
+				return base.NewBaseOperationProcessReasonError("showme, %q", op.Fact().Hash()), nil
+			default:
+				return nil, nil
 			}
 		}
 
@@ -670,14 +780,78 @@ func (t *testDefaultProposalProcessor) TestPreProcessButErrorRetry() {
 
 	pr := t.newproposal(NewProposalFact(point, t.local.Address(), ophs))
 
+	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer := NewDummyBlockDataWriter(point.Height() + 1)
+	writer := NewDummyBlockDataWriter(point.Height())
 	writer.manifest = manifest
 
-	opp := NewDefaultProposalProcessor(pr, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
+	opp := NewDefaultProposalProcessor(pr, previous, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
 		if !found {
-			return nil, IgnoreOperationInProcessorError.Errorf("operation not found")
+			return nil, OperationNotFoundInProcessorError.Call()
+		}
+
+		return op, nil
+	},
+		func(hint.Hint) (base.OperationProcessor, bool) { return nil, false },
+	)
+	opp.retrylimit = 1
+	opp.retryinterval = 1
+
+	m, err := opp.Process(context.Background(), nil)
+	t.NoError(err)
+	t.NotNil(m)
+
+	opstree, err := writer.opstree.Tree()
+	t.NoError(err)
+
+	opstree.Traverse(func(n tree.FixedTreeNode) (bool, error) {
+		node := n.(base.OperationFixedTreeNode)
+
+		i := node.Index()
+		switch {
+		case i == 1 || i == 3:
+			t.False(node.InState())
+			t.NotNil(node.Reason())
+			t.Contains(node.Reason().Msg(), "showme")
+		default:
+			t.True(node.InState())
+			t.Nil(node.Reason())
+		}
+
+		return true, nil
+	})
+}
+
+func (t *testDefaultProposalProcessor) TestPreProcessButErrorRetry() {
+	point := base.RawPoint(33, 44)
+
+	ophs, ops, _ := t.prepareOperations(point.Height()-1, 4, nil)
+
+	var called int
+	for i := range ops {
+		op := ops[i].(DummyOperationProcessable)
+		if op.Fact().Hash().Equal(ophs[1]) {
+			op.preprocess = func(ctx context.Context, _ base.StatePool) (base.OperationProcessReasonError, error) {
+				called++
+				return nil, errors.Errorf("findme: %q", op.Fact().Hash())
+			}
+		}
+
+		ops[i] = op
+	}
+
+	pr := t.newproposal(NewProposalFact(point, t.local.Address(), ophs))
+
+	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
+	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+	writer := NewDummyBlockDataWriter(point.Height())
+	writer.manifest = manifest
+
+	opp := NewDefaultProposalProcessor(pr, previous, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
+		op, found := ops[facthash.String()]
+		if !found {
+			return nil, OperationNotFoundInProcessorError.Call()
 		}
 
 		return op, nil
@@ -687,7 +861,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessButErrorRetry() {
 	opp.retrylimit = 3
 	opp.retryinterval = 1
 
-	m, err := opp.Process(context.Background())
+	m, err := opp.Process(context.Background(), nil)
 	t.Error(err)
 	t.Nil(m)
 
@@ -698,7 +872,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessButErrorRetry() {
 func (t *testDefaultProposalProcessor) TestPreProcessContextCancel() {
 	point := base.RawPoint(33, 44)
 
-	ophs, ops, _ := t.prepareOperations(point.Height(), 4, nil)
+	ophs, ops, _ := t.prepareOperations(point.Height()-1, 4, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -708,22 +882,22 @@ func (t *testDefaultProposalProcessor) TestPreProcessContextCancel() {
 	for i := range ops {
 		op := ops[i].(DummyOperationProcessable)
 		if op.Fact().Hash().Equal(ophs[1]) {
-			op.preprocess = func(ctx context.Context, _ base.StatePool) (bool, error) {
+			op.preprocess = func(ctx context.Context, _ base.StatePool) (base.OperationProcessReasonError, error) {
 				select {
 				case <-time.After(time.Minute):
 				case <-ctx.Done():
-					return false, ctx.Err()
+					return nil, ctx.Err()
 				}
 
-				return true, nil
+				return nil, nil
 			}
 		} else {
-			op.preprocess = func(ctx context.Context, _ base.StatePool) (bool, error) {
+			op.preprocess = func(ctx context.Context, _ base.StatePool) (base.OperationProcessReasonError, error) {
 				defer startprocessedonece.Do(func() {
 					startprocessedch <- struct{}{}
 				})
 
-				return true, nil
+				return nil, nil
 			}
 		}
 
@@ -732,14 +906,15 @@ func (t *testDefaultProposalProcessor) TestPreProcessContextCancel() {
 
 	pr := t.newproposal(NewProposalFact(point, t.local.Address(), ophs))
 
+	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer := NewDummyBlockDataWriter(point.Height() + 1)
+	writer := NewDummyBlockDataWriter(point.Height())
 	writer.manifest = manifest
 
-	opp := NewDefaultProposalProcessor(pr, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
+	opp := NewDefaultProposalProcessor(pr, previous, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
 		if !found {
-			return nil, util.NotFoundError.Errorf("operation not found")
+			return nil, OperationNotFoundInProcessorError.Errorf("operation not found")
 		}
 
 		return op, nil
@@ -751,7 +926,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessContextCancel() {
 
 	donech := make(chan error)
 	go func() {
-		m, err := opp.Process(ctx)
+		m, err := opp.Process(ctx, nil)
 		t.Error(err)
 		t.Nil(m)
 
@@ -772,7 +947,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessContextCancel() {
 func (t *testDefaultProposalProcessor) TestPreProcessIgnoreNotProcessableOperation() {
 	point := base.RawPoint(33, 44)
 
-	ophs, ops, sts := t.prepareOperations(point.Height(), 4, nil)
+	ophs, ops, sts := t.prepareOperations(point.Height()-1, 4, nil)
 	for i := range ops {
 		op := ops[i]
 		switch {
@@ -785,14 +960,15 @@ func (t *testDefaultProposalProcessor) TestPreProcessIgnoreNotProcessableOperati
 
 	pr := t.newproposal(NewProposalFact(point, t.local.Address(), ophs))
 
+	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer := NewDummyBlockDataWriter(point.Height() + 1)
+	writer := NewDummyBlockDataWriter(point.Height())
 	writer.manifest = manifest
 
-	opp := NewDefaultProposalProcessor(pr, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
+	opp := NewDefaultProposalProcessor(pr, previous, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
 		if !found {
-			return nil, IgnoreOperationInProcessorError.Errorf("operation not found")
+			return nil, OperationNotFoundInProcessorError.Call()
 		}
 
 		return op, nil
@@ -800,7 +976,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessIgnoreNotProcessableOperati
 		func(hint.Hint) (base.OperationProcessor, bool) { return nil, false },
 	)
 
-	m, err := opp.Process(context.Background())
+	m, err := opp.Process(context.Background(), nil)
 	t.NoError(err)
 	t.NotNil(m)
 
@@ -839,13 +1015,13 @@ func (t *testDefaultProposalProcessor) TestPreProcessIgnoreNotProcessableOperati
 func (t *testDefaultProposalProcessor) TestProcess() {
 	point := base.RawPoint(33, 44)
 
-	ophs, ops, sts := t.prepareOperations(point.Height(), 4, nil)
+	ophs, ops, sts := t.prepareOperations(point.Height()-1, 4, nil)
 	for i := range ops {
 		op := ops[i].(DummyOperationProcessable)
 		if !op.Fact().Hash().Equal(ophs[1]) && !op.Fact().Hash().Equal(ophs[3]) {
 			// NOTE only will process, index 1 and 3 operation
-			op.process = func(ctx context.Context, sp base.StatePool) ([]base.State, error) {
-				return nil, nil
+			op.process = func(ctx context.Context, sp base.StatePool) ([]base.State, base.OperationProcessReasonError, error) {
+				return nil, base.NotChangedOperationProcessReasonError, nil
 			}
 		}
 
@@ -854,14 +1030,15 @@ func (t *testDefaultProposalProcessor) TestProcess() {
 
 	pr := t.newproposal(NewProposalFact(point, t.local.Address(), ophs))
 
+	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer := NewDummyBlockDataWriter(point.Height() + 1)
+	writer := NewDummyBlockDataWriter(point.Height())
 	writer.manifest = manifest
 
-	opp := NewDefaultProposalProcessor(pr, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
+	opp := NewDefaultProposalProcessor(pr, previous, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
 		if !found {
-			return nil, IgnoreOperationInProcessorError.Errorf("operation not found")
+			return nil, OperationNotFoundInProcessorError.Call()
 		}
 
 		return op, nil
@@ -869,7 +1046,7 @@ func (t *testDefaultProposalProcessor) TestProcess() {
 		func(hint.Hint) (base.OperationProcessor, bool) { return nil, false },
 	)
 
-	m, err := opp.Process(context.Background())
+	m, err := opp.Process(context.Background(), nil)
 	t.NoError(err)
 	t.NotNil(m)
 
@@ -904,12 +1081,28 @@ func (t *testDefaultProposalProcessor) TestProcess() {
 		t.Equal(1, len(bops))
 		t.True(h.Equal(bops[0]))
 	}
+
+	opstree, err := writer.opstree.Tree()
+	t.NoError(err)
+	t.Equal(4, opstree.Len())
+
+	opstree.Traverse(func(n tree.FixedTreeNode) (bool, error) {
+		node := n.(base.OperationFixedTreeNode)
+		switch {
+		case node.Index() == 1, node.Index() == 3:
+			t.True(node.InState())
+		default:
+			t.Contains(base.NotChangedOperationProcessReasonError.Msg(), node.Reason().Msg())
+		}
+
+		return true, nil
+	})
 }
 
 func (t *testDefaultProposalProcessor) TestProcessWithOperationProcessor() {
 	point := base.RawPoint(33, 44)
 
-	ophs, ops, sts := t.prepareOperations(point.Height(), 4, func(fact DummyOperationFact) base.Operation {
+	ophs, ops, sts := t.prepareOperations(point.Height()-1, 4, func(fact DummyOperationFact) base.Operation {
 		op, _ := NewDummyOperation(fact, t.local.Privatekey(), t.policy.NetworkID()) // NOTE not processable
 
 		return op
@@ -917,14 +1110,15 @@ func (t *testDefaultProposalProcessor) TestProcessWithOperationProcessor() {
 
 	pr := t.newproposal(NewProposalFact(point, t.local.Address(), ophs))
 
+	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer := NewDummyBlockDataWriter(point.Height() + 1)
+	writer := NewDummyBlockDataWriter(point.Height())
 	writer.manifest = manifest
 
-	opp := NewDefaultProposalProcessor(pr, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
+	opp := NewDefaultProposalProcessor(pr, previous, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
 		if !found {
-			return nil, IgnoreOperationInProcessorError.Errorf("operation not found")
+			return nil, OperationNotFoundInProcessorError.Call()
 		}
 
 		return op, nil
@@ -935,23 +1129,23 @@ func (t *testDefaultProposalProcessor) TestProcessWithOperationProcessor() {
 			}
 
 			return &DummyOperationProcessor{
-				preprocess: func(_ context.Context, op base.Operation, _ base.StatePool) (bool, error) {
-					return true, nil
+				preprocess: func(_ context.Context, op base.Operation, _ base.StatePool) (base.OperationProcessReasonError, error) {
+					return nil, nil
 				},
-				process: func(_ context.Context, op base.Operation, _ base.StatePool) ([]base.State, error) {
+				process: func(_ context.Context, op base.Operation, _ base.StatePool) ([]base.State, base.OperationProcessReasonError, error) {
 					switch h := op.Fact().Hash(); {
 					case h.Equal(ophs[1]),
 						h.Equal(ophs[3]): // NOTE only will process, index 1 and 3 operation
-						return []base.State{sts[op.Fact().Hash().String()]}, nil
+						return []base.State{sts[op.Fact().Hash().String()]}, nil, nil
 					default:
-						return nil, nil
+						return nil, base.NotChangedOperationProcessReasonError, nil
 					}
 				},
 			}, true
 		},
 	)
 
-	m, err := opp.Process(context.Background())
+	m, err := opp.Process(context.Background(), nil)
 	t.NoError(err)
 	t.NotNil(m)
 
@@ -991,13 +1185,13 @@ func (t *testDefaultProposalProcessor) TestProcessWithOperationProcessor() {
 func (t *testDefaultProposalProcessor) TestProcessButError() {
 	point := base.RawPoint(33, 44)
 
-	ophs, ops, _ := t.prepareOperations(point.Height(), 4, nil)
+	ophs, ops, _ := t.prepareOperations(point.Height()-1, 4, nil)
 	for i := range ops {
 		op := ops[i].(DummyOperationProcessable)
 
 		if op.Fact().Hash().Equal(ophs[1]) {
-			op.process = func(ctx context.Context, sp base.StatePool) ([]base.State, error) {
-				return nil, errors.Errorf("findme: %q", op.Fact().Hash())
+			op.process = func(ctx context.Context, sp base.StatePool) ([]base.State, base.OperationProcessReasonError, error) {
+				return nil, nil, errors.Errorf("findme: %q", op.Fact().Hash())
 			}
 		}
 
@@ -1006,14 +1200,15 @@ func (t *testDefaultProposalProcessor) TestProcessButError() {
 
 	pr := t.newproposal(NewProposalFact(point, t.local.Address(), ophs))
 
+	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer := NewDummyBlockDataWriter(point.Height() + 1)
+	writer := NewDummyBlockDataWriter(point.Height())
 	writer.manifest = manifest
 
-	opp := NewDefaultProposalProcessor(pr, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
+	opp := NewDefaultProposalProcessor(pr, previous, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
 		if !found {
-			return nil, IgnoreOperationInProcessorError.Errorf("operation not found")
+			return nil, nil
 		}
 
 		return op, nil
@@ -1023,7 +1218,7 @@ func (t *testDefaultProposalProcessor) TestProcessButError() {
 	opp.retrylimit = 1
 	opp.retryinterval = 1
 
-	m, err := opp.Process(context.Background())
+	m, err := opp.Process(context.Background(), nil)
 	t.Error(err)
 	t.Nil(m)
 
@@ -1034,14 +1229,14 @@ func (t *testDefaultProposalProcessor) TestProcessButErrorRetry() {
 	point := base.RawPoint(33, 44)
 
 	var called int
-	ophs, ops, _ := t.prepareOperations(point.Height(), 4, nil)
+	ophs, ops, _ := t.prepareOperations(point.Height()-1, 4, nil)
 	for i := range ops {
 		op := ops[i].(DummyOperationProcessable)
 
 		if op.Fact().Hash().Equal(ophs[1]) {
-			op.process = func(ctx context.Context, sp base.StatePool) ([]base.State, error) {
+			op.process = func(ctx context.Context, sp base.StatePool) ([]base.State, base.OperationProcessReasonError, error) {
 				called++
-				return nil, errors.Errorf("findme: %q", op.Fact().Hash())
+				return nil, nil, errors.Errorf("findme: %q", op.Fact().Hash())
 			}
 		}
 
@@ -1050,14 +1245,15 @@ func (t *testDefaultProposalProcessor) TestProcessButErrorRetry() {
 
 	pr := t.newproposal(NewProposalFact(point, t.local.Address(), ophs))
 
+	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer := NewDummyBlockDataWriter(point.Height() + 1)
+	writer := NewDummyBlockDataWriter(point.Height())
 	writer.manifest = manifest
 
-	opp := NewDefaultProposalProcessor(pr, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
+	opp := NewDefaultProposalProcessor(pr, previous, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
 		if !found {
-			return nil, IgnoreOperationInProcessorError.Errorf("operation not found")
+			return nil, OperationNotFoundInProcessorError.Call()
 		}
 
 		return op, nil
@@ -1067,7 +1263,7 @@ func (t *testDefaultProposalProcessor) TestProcessButErrorRetry() {
 	opp.retrylimit = 3
 	opp.retryinterval = 1
 
-	m, err := opp.Process(context.Background())
+	m, err := opp.Process(context.Background(), nil)
 	t.Error(err)
 	t.Nil(m)
 
@@ -1078,28 +1274,29 @@ func (t *testDefaultProposalProcessor) TestProcessButErrorRetry() {
 func (t *testDefaultProposalProcessor) TestProcessButSetStatesErrorRetry() {
 	point := base.RawPoint(33, 44)
 
-	ophs, ops, _ := t.prepareOperations(point.Height(), 4, nil)
+	ophs, ops, _ := t.prepareOperations(point.Height()-1, 4, nil)
 
 	pr := t.newproposal(NewProposalFact(point, t.local.Address(), ophs))
 
+	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer := NewDummyBlockDataWriter(point.Height() + 1)
+	writer := NewDummyBlockDataWriter(point.Height())
 	writer.manifest = manifest
 
 	var called int
-	writer.setstatesf = func(sts []base.State, index int, h util.Hash) error {
+	writer.setstatesf = func(ctx context.Context, index int, sts []base.State, op base.Operation) error {
 		if index == 2 {
 			called++
-			return errors.Errorf("findme: %q", h)
+			return errors.Errorf("findme: %q", op.Fact().Hash())
 		}
 
-		return writer.setStates(sts, index, h)
+		return writer.setStates(ctx, index, sts, op)
 	}
 
-	opp := NewDefaultProposalProcessor(pr, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
+	opp := NewDefaultProposalProcessor(pr, previous, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
 		if !found {
-			return nil, IgnoreOperationInProcessorError.Errorf("operation not found")
+			return nil, OperationNotFoundInProcessorError.Call()
 		}
 
 		return op, nil
@@ -1109,7 +1306,7 @@ func (t *testDefaultProposalProcessor) TestProcessButSetStatesErrorRetry() {
 	opp.retrylimit = 2
 	opp.retryinterval = 1
 
-	m, err := opp.Process(context.Background())
+	m, err := opp.Process(context.Background(), nil)
 	t.Error(err)
 	t.Nil(m)
 
@@ -1120,7 +1317,7 @@ func (t *testDefaultProposalProcessor) TestProcessButSetStatesErrorRetry() {
 func (t *testDefaultProposalProcessor) TestProcessContextCancel() {
 	point := base.RawPoint(33, 44)
 
-	ophs, ops, _ := t.prepareOperations(point.Height(), 4, nil)
+	ophs, ops, _ := t.prepareOperations(point.Height()-1, 4, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1131,16 +1328,16 @@ func (t *testDefaultProposalProcessor) TestProcessContextCancel() {
 		op := ops[i].(DummyOperationProcessable)
 		orig := op.process
 		if op.Fact().Hash().Equal(ophs[1]) { // NOTE only will process, index 1 and 3 operation
-			op.process = func(ctx context.Context, sp base.StatePool) ([]base.State, error) {
+			op.process = func(ctx context.Context, sp base.StatePool) ([]base.State, base.OperationProcessReasonError, error) {
 				select {
 				case <-time.After(time.Minute):
 					return orig(ctx, sp)
 				case <-ctx.Done():
-					return nil, ctx.Err()
+					return nil, nil, ctx.Err()
 				}
 			}
 		} else {
-			op.process = func(ctx context.Context, sp base.StatePool) ([]base.State, error) {
+			op.process = func(ctx context.Context, sp base.StatePool) ([]base.State, base.OperationProcessReasonError, error) {
 				defer startprocessedonece.Do(func() {
 					startprocessedch <- struct{}{}
 				})
@@ -1154,14 +1351,15 @@ func (t *testDefaultProposalProcessor) TestProcessContextCancel() {
 
 	pr := t.newproposal(NewProposalFact(point, t.local.Address(), ophs))
 
+	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer := NewDummyBlockDataWriter(point.Height() + 1)
+	writer := NewDummyBlockDataWriter(point.Height())
 	writer.manifest = manifest
 
-	opp := NewDefaultProposalProcessor(pr, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
+	opp := NewDefaultProposalProcessor(pr, previous, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
 		if !found {
-			return nil, IgnoreOperationInProcessorError.Errorf("operation not found")
+			return nil, OperationNotFoundInProcessorError.Call()
 		}
 
 		return op, nil
@@ -1173,7 +1371,7 @@ func (t *testDefaultProposalProcessor) TestProcessContextCancel() {
 
 	donech := make(chan error)
 	go func() {
-		m, err := opp.Process(ctx)
+		m, err := opp.Process(ctx, nil)
 		t.Error(err)
 		t.Nil(m)
 
@@ -1194,7 +1392,7 @@ func (t *testDefaultProposalProcessor) TestProcessContextCancel() {
 func (t *testDefaultProposalProcessor) TestProcessCancel() {
 	point := base.RawPoint(33, 44)
 
-	ophs, ops, _ := t.prepareOperations(point.Height(), 4, nil)
+	ophs, ops, _ := t.prepareOperations(point.Height()-1, 4, nil)
 
 	startprocessedch := make(chan struct{}, 1)
 	var startprocessedonece sync.Once
@@ -1203,16 +1401,16 @@ func (t *testDefaultProposalProcessor) TestProcessCancel() {
 		op := ops[i].(DummyOperationProcessable)
 		orig := op.process
 		if op.Fact().Hash().Equal(ophs[1]) { // NOTE only will process, index 1 and 3 operation
-			op.process = func(ctx context.Context, sp base.StatePool) ([]base.State, error) {
+			op.process = func(ctx context.Context, sp base.StatePool) ([]base.State, base.OperationProcessReasonError, error) {
 				select {
 				case <-time.After(time.Minute):
 					return orig(ctx, sp)
 				case <-ctx.Done():
-					return nil, ctx.Err()
+					return nil, nil, ctx.Err()
 				}
 			}
 		} else {
-			op.process = func(ctx context.Context, sp base.StatePool) ([]base.State, error) {
+			op.process = func(ctx context.Context, sp base.StatePool) ([]base.State, base.OperationProcessReasonError, error) {
 				defer startprocessedonece.Do(func() {
 					startprocessedch <- struct{}{}
 				})
@@ -1226,14 +1424,15 @@ func (t *testDefaultProposalProcessor) TestProcessCancel() {
 
 	pr := t.newproposal(NewProposalFact(point, t.local.Address(), ophs))
 
+	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer := NewDummyBlockDataWriter(point.Height() + 1)
+	writer := NewDummyBlockDataWriter(point.Height())
 	writer.manifest = manifest
 
-	opp := NewDefaultProposalProcessor(pr, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
+	opp := NewDefaultProposalProcessor(pr, previous, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
 		if !found {
-			return nil, IgnoreOperationInProcessorError.Errorf("operation not found")
+			return nil, OperationNotFoundInProcessorError.Call()
 		}
 
 		return op, nil
@@ -1245,7 +1444,7 @@ func (t *testDefaultProposalProcessor) TestProcessCancel() {
 
 	donech := make(chan error)
 	go func() {
-		m, err := opp.Process(context.Background())
+		m, err := opp.Process(context.Background(), nil)
 		t.Error(err)
 		t.Nil(m)
 
@@ -1266,28 +1465,29 @@ func (t *testDefaultProposalProcessor) TestProcessCancel() {
 func (t *testDefaultProposalProcessor) TestSave() {
 	point := base.RawPoint(33, 44)
 
-	ophs, ops, _ := t.prepareOperations(point.Height(), 4, nil)
+	ophs, ops, _ := t.prepareOperations(point.Height()-1, 4, nil)
 
 	pr := t.newproposal(NewProposalFact(point, t.local.Address(), ophs))
 
+	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer := NewDummyBlockDataWriter(point.Height() + 1)
+	writer := NewDummyBlockDataWriter(point.Height())
 	writer.manifest = manifest
 
-	savech := make(chan base.ACCEPTVoteproof, 1)
-	writer.savef = func(_ context.Context, avp base.ACCEPTVoteproof) error {
-		savech <- avp
+	savech := make(chan struct{}, 1)
+	writer.savef = func(_ context.Context) error {
+		savech <- struct{}{}
 
 		return nil
 	}
 
-	opp := NewDefaultProposalProcessor(pr, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
+	opp := NewDefaultProposalProcessor(pr, previous, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		return ops[facthash.String()], nil
 	},
 		func(hint.Hint) (base.OperationProcessor, bool) { return nil, false },
 	)
 
-	m, err := opp.Process(context.Background())
+	m, err := opp.Process(context.Background(), nil)
 	t.NoError(err)
 	t.NotNil(m)
 
@@ -1299,33 +1499,36 @@ func (t *testDefaultProposalProcessor) TestSave() {
 
 	t.NoError(opp.Save(context.Background(), avp))
 
-	ravp := <-savech
-
-	base.EqualVoteproof(t.Assert(), avp, ravp)
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("failed to wait to save"))
+	case <-savech:
+	}
 }
 
 func (t *testDefaultProposalProcessor) TestSaveFailed() {
 	point := base.RawPoint(33, 44)
 
-	ophs, ops, _ := t.prepareOperations(point.Height(), 4, nil)
+	ophs, ops, _ := t.prepareOperations(point.Height()-1, 4, nil)
 
 	pr := t.newproposal(NewProposalFact(point, t.local.Address(), ophs))
 
+	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer := NewDummyBlockDataWriter(point.Height() + 1)
+	writer := NewDummyBlockDataWriter(point.Height())
 	writer.manifest = manifest
 
-	writer.savef = func(_ context.Context, avp base.ACCEPTVoteproof) error {
+	writer.savef = func(_ context.Context) error {
 		return errors.Errorf("killme")
 	}
 
-	opp := NewDefaultProposalProcessor(pr, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
+	opp := NewDefaultProposalProcessor(pr, previous, writer, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		return ops[facthash.String()], nil
 	},
 		func(hint.Hint) (base.OperationProcessor, bool) { return nil, false },
 	)
 
-	m, err := opp.Process(context.Background())
+	m, err := opp.Process(context.Background(), nil)
 	t.NoError(err)
 	t.NotNil(m)
 

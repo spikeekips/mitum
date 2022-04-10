@@ -20,6 +20,7 @@ var (
 	leveldbKeyPrefixOperation       = []byte{0x00, 0x04}
 	leveldbKeyPrefixProposal        = []byte{0x00, 0x05}
 	leveldbKeyPrefixProposalByPoint = []byte{0x00, 0x06}
+	leveldbKeyPrefixBlockDataMap    = []byte{0x00, 0x07}
 )
 
 var (
@@ -135,5 +136,12 @@ func leveldbProposalPointKey(point base.Point, proposer base.Address) []byte {
 		[]byte(fmt.Sprintf("%020d-%020d", point.Height(), point.Round())),
 		[]byte("-"),
 		b,
+	)
+}
+
+func leveldbBlockDataMapKey(height base.Height) []byte {
+	return util.ConcatBytesSlice(
+		leveldbKeyPrefixBlockDataMap,
+		[]byte(fmt.Sprintf("%020d", height)),
 	)
 }

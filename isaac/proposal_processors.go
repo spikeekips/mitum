@@ -23,7 +23,7 @@ var (
 type proposalProcessors struct {
 	sync.RWMutex
 	*logging.Logging
-	makenew       func(base.ProposalSignedFact) proposalProcessor
+	makenew       func(proposal base.ProposalSignedFact, previous base.Manifest) proposalProcessor
 	getproposal   func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error) // BLOCK use NewProposalPool
 	p             proposalProcessor
 	retrylimit    int
@@ -31,7 +31,7 @@ type proposalProcessors struct {
 }
 
 func newProposalProcessors(
-	makenew func(base.ProposalSignedFact) proposalProcessor,
+	makenew func(base.ProposalSignedFact, base.Manifest) proposalProcessor,
 	getproposal func(context.Context, util.Hash) (base.ProposalSignedFact, error),
 ) *proposalProcessors {
 	return &proposalProcessors{
@@ -52,12 +52,12 @@ func (pps *proposalProcessors) processor() proposalProcessor {
 	return pps.p
 }
 
-func (pps *proposalProcessors) process(ctx context.Context, facthash util.Hash) (base.Manifest, error) {
+func (pps *proposalProcessors) process(ctx context.Context, facthash util.Hash, previous base.Manifest, ivp base.INITVoteproof) (base.Manifest, error) {
 	l := pps.Log().With().Stringer("fact", facthash).Logger()
 
 	e := util.StringErrorFunc("failed to process proposal, %q", facthash)
 
-	switch p, err := pps.newProcessor(ctx, facthash); {
+	switch p, err := pps.newProcessor(ctx, facthash, previous); {
 	case err != nil:
 		l.Error().Err(err).Msg("fialed to process proposal")
 
@@ -65,7 +65,7 @@ func (pps *proposalProcessors) process(ctx context.Context, facthash util.Hash) 
 	case p == nil:
 		return nil, nil
 	default:
-		return pps.runProcessor(ctx, p)
+		return pps.runProcessor(ctx, p, ivp)
 	}
 }
 
@@ -123,7 +123,7 @@ func (pps *proposalProcessors) fetchFact(ctx context.Context, facthash util.Hash
 	return pr, err
 }
 
-func (pps *proposalProcessors) newProcessor(ctx context.Context, facthash util.Hash) (proposalProcessor, error) {
+func (pps *proposalProcessors) newProcessor(ctx context.Context, facthash util.Hash, previous base.Manifest) (proposalProcessor, error) {
 	pps.Lock()
 	defer pps.Unlock()
 
@@ -154,7 +154,7 @@ func (pps *proposalProcessors) newProcessor(ctx context.Context, facthash util.H
 		return nil, e(err, "failed to get proposal fact")
 	}
 
-	pps.p = pps.makenew(fact)
+	pps.p = pps.makenew(fact, previous)
 	if l, ok := pps.p.(logging.SetLogging); ok {
 		_ = l.SetLogging(pps.Logging)
 	}
@@ -162,8 +162,8 @@ func (pps *proposalProcessors) newProcessor(ctx context.Context, facthash util.H
 	return pps.p, nil
 }
 
-func (pps *proposalProcessors) runProcessor(ctx context.Context, p proposalProcessor) (base.Manifest, error) {
-	manifest, err := p.Process(ctx)
+func (pps *proposalProcessors) runProcessor(ctx context.Context, p proposalProcessor, ivp base.INITVoteproof) (base.Manifest, error) {
+	manifest, err := p.Process(ctx, ivp)
 	switch {
 	case err == nil:
 		return manifest, nil

@@ -92,7 +92,7 @@ func (db *LeveldbBlockWriteDatabase) SetStates(sts []base.State) error {
 
 	e := util.StringErrorFunc("failed to set states in TempLeveldbDatabase")
 
-	worker := util.NewErrgroupWorker(context.Background(), math.MaxInt16)
+	worker := util.NewErrgroupWorker(context.Background(), math.MaxInt32)
 	defer worker.Close()
 
 	var suffragestate base.State
@@ -145,7 +145,7 @@ func (db *LeveldbBlockWriteDatabase) SetOperations(ops []util.Hash) error {
 		return nil
 	}
 
-	worker := util.NewErrgroupWorker(context.Background(), math.MaxInt16)
+	worker := util.NewErrgroupWorker(context.Background(), math.MaxInt32)
 	defer worker.Close()
 
 	e := util.StringErrorFunc("failed to set operation")
@@ -168,6 +168,20 @@ func (db *LeveldbBlockWriteDatabase) SetOperations(ops []util.Hash) error {
 	}()
 
 	if err := worker.Wait(); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
+func (db *LeveldbBlockWriteDatabase) SetMap(m base.BlockDataMap) error {
+	e := util.StringErrorFunc("failed to set blockdatamap")
+	b, err := db.marshal(m)
+	if err != nil {
+		return e(err, "")
+	}
+
+	if err := db.st.Put(leveldbBlockDataMapKey(m.Height()), b, nil); err != nil {
 		return e(err, "")
 	}
 

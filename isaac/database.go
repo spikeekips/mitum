@@ -24,6 +24,8 @@ type Database interface {
 	ExistsOperation(operationFactHash util.Hash) (bool, error)
 	NewBlockWriteDatabase(height base.Height) (BlockWriteDatabase, error)
 	MergeBlockWriteDatabase(BlockWriteDatabase) error
+	// BLOCK blockdatamap
+	// BLOCK get latest init and accept voteproof
 }
 
 type PartialDatabase interface {
@@ -50,6 +52,7 @@ type BlockWriteDatabase interface {
 	SetManifest(m base.Manifest) error
 	SetStates(sts []base.State) error
 	SetOperations(ops []util.Hash) error
+	SetMap(base.BlockDataMap) error
 	Write() error
 	TempDatabase() (TempDatabase, error)
 }
