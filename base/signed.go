@@ -17,6 +17,11 @@ type Signed interface {
 	Verify(NetworkID, []byte) error
 }
 
+type NodeSigned interface {
+	Signed
+	Node() Address
+}
+
 type BaseSigned struct {
 	signer    Publickey
 	signature Signature
@@ -97,4 +102,54 @@ func (si BaseSigned) Verify(networkID NetworkID, b []byte) error {
 	}
 
 	return nil
+}
+
+type BaseNodeSigned struct {
+	BaseSigned
+	node Address
+}
+
+func NewBaseNodeSigned(node Address, signer Publickey, signature Signature, signedAt time.Time) BaseNodeSigned {
+	return BaseNodeSigned{
+		BaseSigned: NewBaseSigned(signer, signature, signedAt),
+		node:       node,
+	}
+}
+
+func BaseNodeSignedFromBytes(node Address, priv Privatekey, networkID NetworkID, b []byte) (BaseNodeSigned, error) {
+	si, err := BaseSignedFromBytes(priv, networkID, util.ConcatByters(node, util.BytesToByter(b)))
+	if err != nil {
+		return BaseNodeSigned{}, errors.Wrap(err, "failed to create BaseNodeSigned from bytes")
+	}
+
+	return BaseNodeSigned{
+		BaseSigned: si,
+		node:       node,
+	}, nil
+}
+
+func (si BaseNodeSigned) Node() Address {
+	return si.node
+}
+
+func (si BaseNodeSigned) Bytes() []byte {
+	return util.ConcatByters(si.node, si.BaseSigned)
+}
+
+func (si BaseNodeSigned) IsValid([]byte) error {
+	e := util.StringErrorFunc("invalid BaseNodeSigned")
+
+	if err := util.CheckIsValid(nil, false, si.node); err != nil {
+		return e(err, "invalid node")
+	}
+
+	if err := si.BaseSigned.IsValid(nil); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
+func (si BaseNodeSigned) Verify(networkID NetworkID, b []byte) error {
+	return si.BaseSigned.Verify(networkID, util.ConcatByters(si.node, util.BytesToByter(b)))
 }

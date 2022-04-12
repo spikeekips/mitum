@@ -455,19 +455,19 @@ func (p *DefaultProposalProcessor) doProcessOperation(
 			return false, ee(nil, "not empty state must have empty reason")
 		}
 
+		instate := len(sts) > 0
+		if instate {
+			if err := p.writer.SetStates(ctx, validindex, sts, op); err != nil {
+				return true, e(err, "")
+			}
+		}
+
+		if err := p.writer.SetOperation(ctx, opsindex, op.Fact().Hash(), instate, errorreason); err != nil {
+			return true, e(err, "")
+		}
+
 		return false, nil
 	}, p.retrylimit, p.retryinterval); err != nil {
-		return e(err, "")
-	}
-
-	instate := len(sts) > 0
-	if instate {
-		if err := p.writer.SetStates(ctx, validindex, sts, op); err != nil {
-			return e(err, "")
-		}
-	}
-
-	if err := p.writer.SetOperation(ctx, opsindex, op.Fact().Hash(), instate, errorreason); err != nil {
 		return e(err, "")
 	}
 

@@ -264,7 +264,7 @@ func (t *testRedisStorage) TestZAddArgs() {
 		members := make([]string, 6)
 		args := redis.ZAddArgs{NX: true, Members: make([]redis.Z, 6)}
 		for i := range members {
-			member := fmt.Sprintf("%s-%020d", key, i)
+			member := fmt.Sprintf("%s-%021d", key, i)
 			args.Members[i] = redis.Z{
 				Score:  0, // must be same score
 				Member: member,
@@ -277,8 +277,8 @@ func (t *testRedisStorage) TestZAddArgs() {
 
 		r, err := st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
 			Key:   key,
-			Start: fmt.Sprintf("[%s-%020d", key, 0),
-			Stop:  fmt.Sprintf("[%s-%020d", key, 5),
+			Start: fmt.Sprintf("[%s-%021d", key, 0),
+			Stop:  fmt.Sprintf("[%s-%021d", key, 5),
 			ByLex: true,
 			Rev:   false,
 		})
@@ -288,8 +288,8 @@ func (t *testRedisStorage) TestZAddArgs() {
 		// set Start
 		r, err = st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
 			Key:   key,
-			Start: fmt.Sprintf("(%s-%020d", key, 3),
-			Stop:  fmt.Sprintf("[%s-%020d", key, 5),
+			Start: fmt.Sprintf("(%s-%021d", key, 3),
+			Stop:  fmt.Sprintf("[%s-%021d", key, 5),
 			ByLex: true,
 			Rev:   false,
 		})
@@ -299,8 +299,8 @@ func (t *testRedisStorage) TestZAddArgs() {
 		// count over items
 		r, err = st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
 			Key:   key,
-			Start: fmt.Sprintf("[%s-%020d", key, 0),
-			Stop:  fmt.Sprintf("[%s-%020d", key, 5),
+			Start: fmt.Sprintf("[%s-%021d", key, 0),
+			Stop:  fmt.Sprintf("[%s-%021d", key, 5),
 			ByLex: true,
 			Rev:   false,
 			Count: int64(len(members)) + 100,
@@ -311,8 +311,8 @@ func (t *testRedisStorage) TestZAddArgs() {
 		// reverse
 		r, err = st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
 			Key:   key,
-			Start: fmt.Sprintf("[%s-%020d", key, 0),
-			Stop:  fmt.Sprintf("[%s-%020d", key, 5),
+			Start: fmt.Sprintf("[%s-%021d", key, 0),
+			Stop:  fmt.Sprintf("[%s-%021d", key, 5),
 			ByLex: true,
 			Rev:   true,
 		})

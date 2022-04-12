@@ -41,14 +41,23 @@ func EqualBlockDataMapItem(t *assert.Assertions, a, b base.BlockDataMapItem) {
 
 type testBlockDataMap struct {
 	suite.Suite
+	local     base.Address
+	priv      base.Privatekey
+	networkID base.NetworkID
+}
+
+func (t *testBlockDataMap) SetupSuite() {
+	t.local = base.RandomAddress("")
+	t.priv = base.NewMPrivatekey()
+	t.networkID = util.UUID().Bytes()
 }
 
 func (t *testBlockDataMap) newitem(ty base.BlockDataType) BlockDataMapItem {
-	return NewLocalBlockDataMapItem(ty, util.UUID().String())
+	return NewLocalBlockDataMapItem(ty, util.UUID().String(), util.UUID().String())
 }
 
 func (t *testBlockDataMap) newmap() BlockDataMap {
-	m := NewBlockDataMap()
+	m := NewBlockDataMap(LocalBlockDataFSWriterHint, jsonenc.JSONEncoderHint)
 
 	for _, i := range []base.BlockDataType{
 		base.BlockDataTypeProposal,
@@ -63,6 +72,7 @@ func (t *testBlockDataMap) newmap() BlockDataMap {
 
 	manifest := base.NewDummyManifest(base.Height(33), valuehash.RandomSHA256())
 	m.SetManifest(manifest)
+	t.NoError(m.Sign(t.local, t.priv, t.networkID))
 
 	return m
 }
@@ -71,7 +81,7 @@ func (t *testBlockDataMap) TestNew() {
 	m := t.newmap()
 	_ = (interface{})(m).(base.BlockDataMap)
 
-	t.NoError(m.IsValid(nil))
+	t.NoError(m.IsValid(t.networkID))
 
 	t.NotNil(m.Manifest())
 
@@ -80,13 +90,19 @@ func (t *testBlockDataMap) TestNew() {
 		t.NotNil(all[k])
 		t.Equal(k, all[k].Type())
 	}
+
+	t.True(LocalBlockDataFSWriterHint.Equal(m.writer))
+	t.True(jsonenc.JSONEncoderHint.Equal(m.encoder))
 }
 
 func (t *testBlockDataMap) TestInvalid() {
+	m := t.newmap()
+	t.NoError(m.IsValid(t.networkID))
+
 	t.Run("invalid hinter", func() {
 		m := t.newmap()
 		m.BaseHinter = hint.NewBaseHinter(BlockDataMapItemHint)
-		err := m.IsValid(nil)
+		err := m.IsValid(t.networkID)
 		t.True(errors.Is(err, util.InvalidError))
 		t.Contains(err.Error(), "type does not match")
 	})
@@ -101,28 +117,63 @@ func (t *testBlockDataMap) TestInvalid() {
 
 		m.manifest = manifest
 
-		err := m.IsValid(nil)
+		err := m.IsValid(t.networkID)
 		t.True(errors.Is(err, util.InvalidError))
 		t.Contains(err.Error(), "kikiki")
 	})
 
-	t.Run("empty items", func() {
+	t.Run("proposal not set", func() {
 		m := t.newmap()
-		m.m = nil
+		delete(m.m, base.BlockDataTypeProposal)
 
-		err := m.IsValid(nil)
+		err := m.IsValid(t.networkID)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "empty items")
+		t.Contains(err.Error(), "empty proposal")
+	})
+
+	t.Run("empty proposal", func() {
+		m := t.newmap()
+		m.m[base.BlockDataTypeProposal] = nil
+
+		err := m.IsValid(t.networkID)
+		t.True(errors.Is(err, util.InvalidError))
+		t.Contains(err.Error(), "empty proposal")
+	})
+
+	t.Run("voteproofs not set", func() {
+		m := t.newmap()
+		delete(m.m, base.BlockDataTypeVoteproofs)
+
+		err := m.IsValid(t.networkID)
+		t.True(errors.Is(err, util.InvalidError))
+		t.Contains(err.Error(), "empty voteproofs")
+	})
+
+	t.Run("empty voteproofs", func() {
+		m := t.newmap()
+		m.m[base.BlockDataTypeVoteproofs] = nil
+
+		err := m.IsValid(t.networkID)
+		t.True(errors.Is(err, util.InvalidError))
+		t.Contains(err.Error(), "empty voteproofs")
 	})
 
 	t.Run("invalid item", func() {
 		m := t.newmap()
 		m.m[base.BlockDataTypeVoteproofs] = t.newitem(base.BlockDataType("hehe"))
 
-		err := m.IsValid(nil)
+		err := m.IsValid(t.networkID)
 		t.True(errors.Is(err, util.InvalidError))
 		t.Contains(err.Error(), "invalid item found")
 		t.Contains(err.Error(), "hehe")
+	})
+
+	t.Run("invalid signature", func() {
+		m := t.newmap()
+
+		err := m.IsValid(util.UUID().Bytes())
+		t.True(errors.Is(err, util.InvalidError))
+		t.True(errors.Is(err, base.SignatureVerificationError))
 	})
 }
 
@@ -165,6 +216,8 @@ func (t *testBlockDataMap) TestEncode() {
 
 	tt.Encode = func() (interface{}, []byte) {
 		tt.enc = jsonenc.NewEncoder()
+		t.NoError(tt.enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
+		t.NoError(tt.enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
 		tt.NoError(tt.enc.Add(encoder.DecodeDetail{Hint: base.DummyManifestHint, Instance: base.DummyManifest{}}))
 		tt.NoError(tt.enc.Add(encoder.DecodeDetail{Hint: BlockDataMapItemHint, Instance: BlockDataMapItem{}}))
 		tt.NoError(tt.enc.Add(encoder.DecodeDetail{Hint: BlockDataMapHint, Instance: BlockDataMap{}}))
@@ -191,7 +244,7 @@ func (t *testBlockDataMap) TestEncode() {
 		bf, ok := b.(BlockDataMap)
 		tt.True(ok)
 
-		tt.NoError(bf.IsValid(nil))
+		tt.NoError(bf.IsValid(t.networkID))
 
 		EqualBlockDataMap(tt.Assert(), af, bf)
 	}
@@ -221,6 +274,16 @@ func (t *testBlockDataMapItem) TestNew() {
 	t.Equal(base.BlockDataTypeProposal, item.Type())
 	t.Equal(u.String(), item.URL().String())
 	t.Equal(checksum, item.Checksum())
+}
+
+func (t *testBlockDataMapItem) TestLocal() {
+	ty := base.BlockDataTypeProposal
+	m0 := NewLocalBlockDataMapItem(ty, util.UUID().String(), util.UUID().String())
+	m1 := NewLocalBlockDataMapItem(ty, util.UUID().String(), util.UUID().String())
+
+	t.T().Log("fileBlockDataURL:", fileBlockDataURL.String())
+	t.T().Log("m0.url:", m0.URL())
+	t.T().Log("m1.url:", m1.URL())
 }
 
 func (t *testBlockDataMapItem) TestInvalid() {

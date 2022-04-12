@@ -437,15 +437,15 @@ func (db *RedisPermanentDatabase) loadLastSuffrage() error {
 }
 
 func redisManifestKey(height base.Height) string {
-	return fmt.Sprintf("%s-%020d", redisManifestKeyPrefix, height)
+	return fmt.Sprintf("%s-%021d", redisManifestKeyPrefix, height)
 }
 
 func redisSuffrageKey(height base.Height) string {
-	return fmt.Sprintf("%s-%020d", redisSuffrageKeyPrerfix, height)
+	return fmt.Sprintf("%s-%021d", redisSuffrageKeyPrerfix, height)
 }
 
 func redisSuffrageByHeightKey(suffrageheight base.Height) string {
-	return fmt.Sprintf("%s-%020d", redisSuffrageByHeightKeyPrerfix, suffrageheight)
+	return fmt.Sprintf("%s-%021d", redisSuffrageByHeightKeyPrerfix, suffrageheight)
 }
 
 func redisStateKey(key string) string {

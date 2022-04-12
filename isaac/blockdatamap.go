@@ -1,14 +1,15 @@
 package isaac
 
 import (
-	"encoding/json"
+	"bytes"
+	"fmt"
 	"net/url"
+	"sort"
 	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
 )
 
@@ -22,6 +23,8 @@ var (
 	fileBlockDataURL                    url.URL
 )
 
+var BlockDirectoryHeightFormat = "%021s"
+
 func init() {
 	u, err := url.Parse("file+blockdata://")
 	if err != nil {
@@ -32,46 +35,54 @@ func init() {
 
 type BlockDataMap struct {
 	hint.BaseHinter
+	base.BaseNodeSigned
+	writer   hint.Hint
+	encoder  hint.Hint
 	manifest base.Manifest
 	m        map[base.BlockDataType]base.BlockDataMapItem
 }
 
-func NewBlockDataMap() BlockDataMap {
+func NewBlockDataMap(writer, encoder hint.Hint) BlockDataMap {
 	return BlockDataMap{
 		BaseHinter: hint.NewBaseHinter(BlockDataMapHint),
+		writer:     writer,
+		encoder:    encoder,
 		m:          map[base.BlockDataType]base.BlockDataMapItem{},
 	}
 }
 
-func (m BlockDataMap) IsValid([]byte) error {
+func (m BlockDataMap) IsValid(b []byte) error {
 	e := util.StringErrorFunc("invalid BlockDataMap")
 	if err := m.BaseHinter.IsValid(BlockDataMapHint.Type().Bytes()); err != nil {
 		return e(err, "")
 	}
 
-	if err := util.CheckIsValid(nil, false, m.manifest); err != nil {
+	if err := util.CheckIsValid(nil, false, m.writer, m.encoder, m.manifest, m.BaseNodeSigned); err != nil {
 		return e(err, "")
+	}
+
+	// NOTE proposal and voteproofs must exist
+	if i, found := m.m[base.BlockDataTypeProposal]; !found || i == nil {
+		return e(util.InvalidError.Errorf("empty proposal"), "")
+	}
+	if i, found := m.m[base.BlockDataTypeVoteproofs]; !found || i == nil {
+		return e(util.InvalidError.Errorf("empty voteproofs"), "")
 	}
 
 	vs := make([]util.IsValider, len(m.m))
 
-	var notemptyfound bool
 	var i int
 	for k := range m.m {
-		if !notemptyfound && m.m[k] != nil {
-			notemptyfound = true
-		}
-
 		vs[i] = m.m[k]
 		i++
 	}
 
-	if !notemptyfound {
-		return e(util.InvalidError.Errorf("empty items"), "")
-	}
-
 	if err := util.CheckIsValid(nil, true, vs...); err != nil {
 		return e(err, "invalid item found")
+	}
+
+	if err := m.BaseNodeSigned.Verify(b, m.signedBytes()); err != nil {
+		return e(util.InvalidError.Wrap(err), "")
 	}
 
 	return nil
@@ -106,63 +117,40 @@ func (m BlockDataMap) All() map[base.BlockDataType]base.BlockDataMapItem {
 	return m.m
 }
 
-type blockDataMapJSONMarshaler struct {
-	hint.BaseHinter
-	Manifest base.Manifest                                `json:"manifest"`
-	M        map[base.BlockDataType]base.BlockDataMapItem `json:"items"`
-}
-
-func (m BlockDataMap) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(blockDataMapJSONMarshaler{
-		BaseHinter: m.BaseHinter,
-		Manifest:   m.manifest,
-		M:          m.m,
-	})
-}
-
-type blockDataMapJSONUnmarshaler struct {
-	Manifest json.RawMessage                        `json:"manifest"`
-	M        map[base.BlockDataType]json.RawMessage `json:"items"`
-}
-
-func (m *BlockDataMap) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode BlockDataMap")
-
-	var u blockDataMapJSONUnmarshaler
-	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return e(err, "")
+func (m *BlockDataMap) Sign(node base.Address, priv base.Privatekey, networkID base.NetworkID) error {
+	sign, err := base.BaseNodeSignedFromBytes(node, priv, networkID, m.signedBytes())
+	if err != nil {
+		return errors.Wrap(err, "failed to sign BlockDataMap")
 	}
 
-	switch hinter, err := enc.Decode(u.Manifest); {
-	case err != nil:
-		return e(err, "failed to decode manifest")
-	default:
-		i, ok := hinter.(base.Manifest)
-		if !ok {
-			return e(err, "decoded not Manifest, %T", hinter)
-		}
-
-		m.manifest = i
-	}
-
-	um := map[base.BlockDataType]base.BlockDataMapItem{}
-	for k := range u.M {
-		switch hinter, err := enc.Decode(u.M[k]); {
-		case err != nil:
-			return e(err, "failed to decode BlockDataMapItem")
-		default:
-			i, ok := hinter.(base.BlockDataMapItem)
-			if !ok {
-				return e(err, "decoded not BlockDataMapItem, %T", hinter)
-			}
-
-			um[k] = i
-		}
-	}
-
-	m.m = um
+	m.BaseNodeSigned = sign
 
 	return nil
+}
+
+func (m BlockDataMap) Bytes() []byte {
+	return nil
+}
+
+func (m *BlockDataMap) signedBytes() []byte {
+	var ts [][]byte
+	for k := range m.m {
+		i := m.m[k]
+		if i == nil {
+			continue
+		}
+
+		ts = append(ts, []byte(i.Checksum()))
+	}
+
+	sort.Slice(ts, func(i, j int) bool {
+		return bytes.Compare(ts[i], ts[j]) < 0
+	})
+
+	return util.ConcatByters(
+		m.manifest.Hash(),
+		util.BytesToByter(util.ConcatBytesSlice(ts...)),
+	)
 }
 
 type BlockDataMapItem struct {
@@ -179,8 +167,11 @@ func NewBlockDataMapItem(t base.BlockDataType, u url.URL, checksum string) Block
 	}
 }
 
-func NewLocalBlockDataMapItem(t base.BlockDataType, checksum string) BlockDataMapItem {
-	return NewBlockDataMapItem(t, fileBlockDataURL, checksum)
+func NewLocalBlockDataMapItem(t base.BlockDataType, path string, checksum string) BlockDataMapItem {
+	u := fileBlockDataURL
+	u.Path = path
+
+	return NewBlockDataMapItem(t, u, checksum)
 }
 
 func (m BlockDataMapItem) IsValid([]byte) error {
@@ -225,44 +216,35 @@ func (item BlockDataMapItem) Checksum() string {
 	return item.checksum
 }
 
-type blockDataMapItemJSONMarshaler struct {
-	hint.BaseHinter
-	T        base.BlockDataType `json:"type"`
-	URL      string             `json:"url"`
-	Checksum string             `json:"checksum"`
-}
-
-func (item BlockDataMapItem) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(blockDataMapItemJSONMarshaler{
-		BaseHinter: item.BaseHinter,
-		T:          item.t,
-		URL:        item.url.String(),
-		Checksum:   item.checksum,
-	})
-}
-
-type blockDataMapItemJSONUnmarshaler struct {
-	T        base.BlockDataType `json:"type"`
-	URL      string             `json:"url"`
-	Checksum string             `json:"checksum"`
-}
-
-func (item *BlockDataMapItem) UnmarshalJSON(b []byte) error {
-	e := util.StringErrorFunc("failed to unmarshal blockDataMapItem")
-	var u blockDataMapItemJSONUnmarshaler
-	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return e(err, "")
+func HeightDirectory(height base.Height) string {
+	h := height.String()
+	if height < 0 {
+		h = strings.ReplaceAll(h, "-", "_")
 	}
 
-	switch i, err := url.Parse(u.URL); {
-	case err != nil:
-		return e(err, "failed to parse url")
-	default:
-		item.url = *i
+	p := fmt.Sprintf(BlockDirectoryHeightFormat, h)
+
+	sl := make([]string, 7)
+	var i int
+	for {
+		e := (i * 3) + 3
+		if e > len(p) {
+			e = len(p)
+		}
+
+		s := p[i*3 : e]
+		if len(s) < 1 {
+			break
+		}
+
+		sl[i] = s
+
+		if len(s) < 3 {
+			break
+		}
+
+		i++
 	}
 
-	item.t = u.T
-	item.checksum = u.Checksum
-
-	return nil
+	return "/" + strings.Join(sl, "/")
 }

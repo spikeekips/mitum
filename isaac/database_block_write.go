@@ -179,7 +179,7 @@ func (db *LeveldbBlockWriteDatabase) SetMap(m base.BlockDataMap) error {
 		return e(err, "")
 	}
 
-	if err := db.st.Put(leveldbBlockDataMapKey(m.Height()), b, nil); err != nil {
+	if err := db.st.Put(leveldbBlockDataMapKey(m.Manifest().Height()), b, nil); err != nil {
 		return e(err, "")
 	}
 

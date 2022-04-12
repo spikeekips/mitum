@@ -1,7 +1,6 @@
 package base
 
 import (
-	"io"
 	"net/url"
 	"time"
 
@@ -25,16 +24,10 @@ type Manifest interface {
 
 type BlockDataMap interface {
 	hint.Hinter
-	util.IsValider
-	Height() Height
-	Manifest() BlockDataMapItem
-	Proposal() BlockDataMapItem
-	Operations() BlockDataMapItem
-	OperationsTree() BlockDataMapItem
-	States() BlockDataMapItem
-	StatesTree() BlockDataMapItem
-	INITVoteproof() BlockDataMapItem
-	ACCEPTVoteproof() BlockDataMapItem
+	NodeSigned
+	Manifest() Manifest
+	Item(BlockDataType) (BlockDataMapItem, bool)
+	All() map[BlockDataType]BlockDataMapItem
 }
 
 type BlockDataMapItem interface {
@@ -48,36 +41,28 @@ type BlockDataMapItem interface {
 type BlockDataType string
 
 var (
-	BlockDataTypeManifest        BlockDataType = "block_data_manifest"
-	BlockDataTypeProposal        BlockDataType = "block_data_proposal"
-	BlockDataTypeOperations      BlockDataType = "block_data_operations"
-	BlockDataTypeOperationsTree  BlockDataType = "block_data_operations_tree"
-	BlockDataTypeStates          BlockDataType = "block_data_states"
-	BlockDataTypeStatesTree      BlockDataType = "block_data_states_tree"
-	BlockDataTypeINITVoteproof   BlockDataType = "block_data_init_voteproof"
-	BlockDataTypeACCEPTVoteproof BlockDataType = "block_data_accept_voteproof"
+	BlockDataTypeProposal       BlockDataType = "block_data_proposal"
+	BlockDataTypeOperations     BlockDataType = "block_data_operations"
+	BlockDataTypeOperationsTree BlockDataType = "block_data_operations_tree"
+	BlockDataTypeStates         BlockDataType = "block_data_states"
+	BlockDataTypeStatesTree     BlockDataType = "block_data_states_tree"
+	BlockDataTypeVoteproofs     BlockDataType = "block_data_voteproofs"
 )
 
 func (t BlockDataType) IsValid([]byte) error {
 	switch t {
-	case BlockDataTypeManifest,
-		BlockDataTypeProposal,
+	case BlockDataTypeProposal,
 		BlockDataTypeOperations,
 		BlockDataTypeOperationsTree,
 		BlockDataTypeStates,
 		BlockDataTypeStatesTree,
-		BlockDataTypeINITVoteproof,
-		BlockDataTypeACCEPTVoteproof:
+		BlockDataTypeVoteproofs:
 		return nil
 	default:
 		return util.InvalidError.Errorf("unknown block data type, %q", t)
 	}
 }
 
-type BlockData interface {
-	hint.Hinter
-	util.IsValider
-	Height() Height
-	Type() BlockDataType
-	io.ReadCloser
+func (t BlockDataType) String() string {
+	return string(t)
 }

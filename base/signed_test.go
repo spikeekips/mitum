@@ -85,27 +85,11 @@ func TestSigned(t *testing.T) {
 	suite.Run(t, new(testSigned))
 }
 
-func testBaseSigned() *encoder.BaseTestEncode {
-	t := new(encoder.BaseTestEncode)
-	t.Compare = func(a, b interface{}) {
-		as, ok := a.(BaseSigned)
-		t.True(ok)
-		bs, ok := b.(BaseSigned)
-		t.True(ok)
-
-		t.NoError(bs.IsValid(nil))
-
-		EqualSigned(t.Assert(), as, bs)
-	}
-
-	return t
-}
-
 func TestBaseSignedJSON(tt *testing.T) {
 	priv := NewMPrivatekey()
 	input := util.UUID().Bytes()
 
-	t := testBaseSigned()
+	t := new(encoder.BaseTestEncode)
 	enc := jsonenc.NewEncoder()
 
 	t.Encode = func() (interface{}, []byte) {
@@ -126,6 +110,97 @@ func TestBaseSignedJSON(tt *testing.T) {
 		t.NoError(u.Verify(nil, input))
 
 		return u
+	}
+	t.Compare = func(a, b interface{}) {
+		as, ok := a.(BaseSigned)
+		t.True(ok)
+		bs, ok := b.(BaseSigned)
+		t.True(ok)
+
+		t.NoError(bs.IsValid(nil))
+
+		EqualSigned(t.Assert(), as, bs)
+	}
+
+	suite.Run(tt, t)
+}
+
+type testNodeSigned struct {
+	suite.Suite
+}
+
+func (t *testNodeSigned) TestNew() {
+	s := NewBaseNodeSigned(
+		RandomAddress(""),
+		NewMPrivatekey().Publickey(),
+		Signature([]byte("showme")),
+		localtime.UTCNow(),
+	)
+	t.NoError(s.IsValid(nil))
+
+	_ = (interface{})(s).(NodeSigned)
+}
+
+func (t *testNodeSigned) TestSignedAndVerify() {
+	priv := NewMPrivatekey()
+	input := util.UUID().Bytes()
+	node := RandomAddress("")
+
+	s, err := BaseNodeSignedFromBytes(node, priv, nil, input)
+	t.NoError(err)
+	t.NoError(s.IsValid(nil))
+
+	t.NoError(s.Verify(nil, input))
+
+	err = s.BaseSigned.Verify(nil, input)
+	t.Error(err)
+	t.True(errors.Is(err, SignatureVerificationError))
+
+	err = s.Verify(nil, util.UUID().Bytes())
+	t.Error(err)
+	t.True(errors.Is(err, SignatureVerificationError))
+}
+
+func TestNodeSigned(t *testing.T) {
+	suite.Run(t, new(testNodeSigned))
+}
+
+func TestBaseNodeSignedJSON(tt *testing.T) {
+	priv := NewMPrivatekey()
+	input := util.UUID().Bytes()
+
+	t := new(encoder.BaseTestEncode)
+	enc := jsonenc.NewEncoder()
+
+	t.Encode = func() (interface{}, []byte) {
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: MPublickeyHint, Instance: MPublickey{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: StringAddressHint, Instance: StringAddress{}}))
+
+		s, err := BaseNodeSignedFromBytes(RandomAddress(""), priv, nil, input)
+		t.NoError(err)
+
+		b, err := enc.Marshal(s)
+		t.NoError(err)
+
+		return s, b
+	}
+	t.Decode = func(b []byte) interface{} {
+		var u BaseNodeSigned
+		t.NoError(u.DecodeJSON(b, enc))
+
+		t.NoError(u.Verify(nil, input))
+
+		return u
+	}
+	t.Compare = func(a, b interface{}) {
+		as, ok := a.(BaseNodeSigned)
+		t.True(ok)
+		bs, ok := b.(BaseNodeSigned)
+		t.True(ok)
+
+		t.NoError(bs.IsValid(nil))
+
+		EqualSigned(t.Assert(), as, bs)
 	}
 
 	suite.Run(tt, t)

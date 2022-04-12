@@ -2,6 +2,7 @@ package isaac
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"sync"
@@ -11,6 +12,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
+	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/tree"
 	"github.com/spikeekips/mitum/util/valuehash"
@@ -67,6 +69,38 @@ func (fact DummyOperationFact) hash() util.Hash {
 	return valuehash.NewSHA256(util.ConcatByters(fact.v, util.BytesToByter(fact.token)))
 }
 
+func (fact DummyOperationFact) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(struct {
+		hint.HintedJSONHead
+		H     util.Hash
+		Token base.Token
+		V     []byte
+	}{
+		HintedJSONHead: hint.NewHintedJSONHead(fact.Hint()),
+		H:              fact.h,
+		Token:          fact.token,
+		V:              fact.v.Bytes(),
+	})
+}
+
+func (fact *DummyOperationFact) UnmarshalJSON(b []byte) error {
+	var u struct {
+		H     valuehash.HashDecoder
+		Token base.Token
+		V     []byte
+	}
+
+	if err := util.UnmarshalJSON(b, &u); err != nil {
+		return err
+	}
+
+	fact.h = u.H.Hash()
+	fact.token = u.Token
+	fact.v = util.BytesToByter(u.V)
+
+	return nil
+}
+
 type DummyOperation struct {
 	fact   DummyOperationFact
 	signed base.BaseSigned
@@ -104,6 +138,44 @@ func (op DummyOperation) HashBytes() []byte {
 func (op DummyOperation) IsValid([]byte) error {
 	if err := op.fact.IsValid(nil); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (op DummyOperation) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(struct {
+		hint.HintedJSONHead
+		Fact   DummyOperationFact
+		Signed base.BaseSigned
+	}{
+		HintedJSONHead: hint.NewHintedJSONHead(op.Hint()),
+		Fact:           op.fact,
+		Signed:         op.signed,
+	})
+}
+
+func (op DummyOperation) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+	var u struct {
+		Fact   DummyOperationFact
+		Signed json.RawMessage
+	}
+	if err := enc.Unmarshal(b, &u); err != nil {
+		return err
+	}
+
+	op.fact = u.Fact
+
+	switch hinter, err := enc.Decode(u.Signed); {
+	case err != nil:
+		return err
+	default:
+		i, ok := hinter.(base.BaseSigned)
+		if !ok {
+			return errors.Errorf("not BaseSigned, %T", hinter)
+		}
+
+		op.signed = i
 	}
 
 	return nil
@@ -209,16 +281,14 @@ func (w *DummyBlockDataWriter) setStates(ctx context.Context, index int, states 
 	for i := range states {
 		st := states[i]
 
-		j, found, _ := w.sts.Get(st.Key(), func() (interface{}, error) {
+		j, _, _ := w.sts.Get(st.Key(), func() (interface{}, error) {
 			return st.Merger(w.height), nil
 		})
 
-		if found {
-			merger := j.(base.StateValueMerger)
+		merger := j.(base.StateValueMerger)
 
-			if err := merger.Merge(st.Value(), []util.Hash{op.Fact().Hash()}); err != nil {
-				return e(err, "failed to merge")
-			}
+		if err := merger.Merge(st.Value(), []util.Hash{op.Fact().Hash()}); err != nil {
+			return e(err, "failed to merge")
 		}
 	}
 

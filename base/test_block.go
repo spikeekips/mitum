@@ -26,6 +26,7 @@ type DummyManifest struct {
 	suf           util.Hash
 	createdAt     time.Time
 	nodeCreatedAt time.Time
+	Invalidf      func([]byte) error
 }
 
 func NewDummyManifest(height Height, h util.Hash) DummyManifest {
@@ -77,7 +78,11 @@ func (m DummyManifest) NodeCreatedAt() time.Time {
 	return m.nodeCreatedAt
 }
 
-func (m DummyManifest) IsValid([]byte) error {
+func (m DummyManifest) IsValid(b []byte) error {
+	if m.Invalidf != nil {
+		return m.Invalidf(b)
+	}
+
 	return nil
 }
 

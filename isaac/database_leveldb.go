@@ -102,15 +102,15 @@ func (db *baseLeveldbDatabase) state(key string) (base.State, bool, error) {
 }
 
 func leveldbManifestKey(height base.Height) []byte {
-	return util.ConcatBytesSlice(leveldbKeyPrefixManifest, []byte(fmt.Sprintf("%020d", height)))
+	return util.ConcatBytesSlice(leveldbKeyPrefixManifest, []byte(fmt.Sprintf("%021d", height)))
 }
 
 func leveldbSuffrageKey(height base.Height) []byte {
-	return util.ConcatBytesSlice(leveldbKeyPrefixSuffrage, []byte(fmt.Sprintf("%020d", height)))
+	return util.ConcatBytesSlice(leveldbKeyPrefixSuffrage, []byte(fmt.Sprintf("%021d", height)))
 }
 
 func leveldbSuffrageHeightKey(suffrageheight base.Height) []byte {
-	return util.ConcatBytesSlice(leveldbKeyPrefixSuffrageHeight, []byte(fmt.Sprintf("%020d", suffrageheight)))
+	return util.ConcatBytesSlice(leveldbKeyPrefixSuffrageHeight, []byte(fmt.Sprintf("%021d", suffrageheight)))
 }
 
 func leveldbStateKey(key string) []byte {
@@ -133,7 +133,7 @@ func leveldbProposalPointKey(point base.Point, proposer base.Address) []byte {
 
 	return util.ConcatBytesSlice(
 		leveldbKeyPrefixProposalByPoint,
-		[]byte(fmt.Sprintf("%020d-%020d", point.Height(), point.Round())),
+		[]byte(fmt.Sprintf("%021d-%021d", point.Height(), point.Round())),
 		[]byte("-"),
 		b,
 	)
@@ -142,6 +142,6 @@ func leveldbProposalPointKey(point base.Point, proposer base.Address) []byte {
 func leveldbBlockDataMapKey(height base.Height) []byte {
 	return util.ConcatBytesSlice(
 		leveldbKeyPrefixBlockDataMap,
-		[]byte(fmt.Sprintf("%020d", height)),
+		[]byte(fmt.Sprintf("%021d", height)),
 	)
 }
