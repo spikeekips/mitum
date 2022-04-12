@@ -10,8 +10,8 @@ import (
 
 type BlockDataWriter interface {
 	SetProposal(context.Context, base.ProposalSignedFact) error
-	SetOperationsSize(collected uint64, valids uint64)
-	SetOperation(
+	SetOperationsSize(uint64)
+	SetProcessResult(
 		_ context.Context,
 		index int,
 		facthash util.Hash,

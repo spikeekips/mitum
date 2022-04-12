@@ -31,14 +31,23 @@ func (d DummyByter) Bytes() []byte {
 
 func ConcatBytesSlice(sl ...[]byte) []byte {
 	var t int
-	for _, s := range sl {
-		t += len(s)
+	for i := range sl {
+		j := sl[i]
+		if j == nil {
+			continue
+		}
+		t += len(j)
 	}
 
 	n := make([]byte, t)
-	var i int
-	for _, s := range sl {
-		i += copy(n[i:], s)
+	var j int
+	for i := range sl {
+		k := sl[i]
+		if k == nil {
+			continue
+		}
+
+		j += copy(n[j:], k)
 	}
 
 	return n

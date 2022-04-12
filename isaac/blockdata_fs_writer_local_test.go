@@ -2,6 +2,7 @@ package isaac
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/tree"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
@@ -103,6 +105,13 @@ type testLocalBlockDataFSWriter struct {
 	baseStateTestHandler
 	baseTestDatabase
 	root string
+}
+
+func (t *testLocalBlockDataFSWriter) SetupSuite() {
+	t.baseTestDatabase.SetupSuite()
+
+	t.noerror(t.enc.Add(encoder.DecodeDetail{Hint: BlockDataMapHint, Instance: BlockDataMap{}}))
+	t.noerror(t.enc.Add(encoder.DecodeDetail{Hint: BlockDataMapItemHint, Instance: BlockDataMapItem{}}))
 }
 
 func (t *testLocalBlockDataFSWriter) SetupTest() {
@@ -221,6 +230,49 @@ func (t *testLocalBlockDataFSWriter) TestSave() {
 		checkfile(base.BlockDataTypeProposal)
 		checkfile(base.BlockDataTypeVoteproofs)
 	})
+
+	t.Run("check map file", func() {
+		fname := fmt.Sprintf("%s%s", blockDataMapFilename, FileExtFromEncoder(t.enc, false))
+		fpath := filepath.Join(newroot, fname)
+		f, err := os.Open(fpath)
+		t.NoError(err)
+
+		b, err := io.ReadAll(f)
+		t.NoError(err)
+
+		hinter, err := t.enc.Decode(b)
+		t.NoError(err)
+
+		um, ok := hinter.(base.BlockDataMap)
+		t.True(ok)
+
+		EqualBlockDataMap(t.Assert(), fs.m, um)
+	})
+}
+
+func (t *testLocalBlockDataFSWriter) TestCancel() {
+	point := base.RawPoint(33, 44)
+	pr := NewProposalSignedFact(NewProposalFact(point, t.local.Address(), []util.Hash{valuehash.RandomSHA256()}))
+	_ = pr.Sign(t.local.Privatekey(), t.policy.NetworkID())
+
+	fs, err := NewLocalBlockDataFSWriter(t.root, point.Height(), t.enc, t.local, t.policy.NetworkID())
+	t.NoError(err)
+
+	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+	t.NoError(fs.SetManifest(context.Background(), manifest))
+
+	t.NoError(fs.SetProposal(context.Background(), pr))
+	ivp, avp := t.voteproofs(point)
+	t.NoError(fs.SetINITVoteproof(context.Background(), ivp))
+	t.NoError(fs.SetACCEPTVoteproof(context.Background(), avp))
+
+	t.NoError(fs.Cancel())
+
+	t.Run("check temp directory", func() {
+		fi, err := os.Stat(fs.temp)
+		t.True(os.IsNotExist(err))
+		t.Nil(fi)
+	})
 }
 
 func (t *testLocalBlockDataFSWriter) voteproofs(point base.Point) (base.INITVoteproof, base.ACCEPTVoteproof) {
@@ -291,7 +343,7 @@ func (t *testLocalBlockDataFSWriter) TestSetACCEPTVoteproof() {
 	})
 }
 
-func (t *testLocalBlockDataFSWriter) TestSetOperation() {
+func (t *testLocalBlockDataFSWriter) TestSetOperations() {
 	point := base.RawPoint(33, 44)
 
 	fs, err := NewLocalBlockDataFSWriter(t.root, point.Height(), t.enc, t.local, t.policy.NetworkID())

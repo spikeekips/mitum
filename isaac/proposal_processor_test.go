@@ -243,12 +243,12 @@ func (w *DummyBlockDataWriter) SetProposal(_ context.Context, proposal base.Prop
 	return nil
 }
 
-func (w *DummyBlockDataWriter) SetOperationsSize(collected, valids uint64) {
-	w.ops = make([]base.Operation, valids)
-	w.opstree = tree.NewFixedTreeGenerator(collected)
+func (w *DummyBlockDataWriter) SetOperationsSize(n uint64) {
+	w.ops = nil
+	w.opstree = tree.NewFixedTreeGenerator(n)
 }
 
-func (w *DummyBlockDataWriter) SetOperation(ctx context.Context, index int, facthash util.Hash, instate bool, errorreason base.OperationProcessReasonError) error {
+func (w *DummyBlockDataWriter) SetProcessResult(ctx context.Context, index int, facthash util.Hash, instate bool, errorreason base.OperationProcessReasonError) error {
 	var msg string
 	if errorreason != nil {
 		msg = errorreason.Msg()
@@ -276,6 +276,9 @@ func (w *DummyBlockDataWriter) SetStates(ctx context.Context, index int, states 
 }
 
 func (w *DummyBlockDataWriter) setStates(ctx context.Context, index int, states []base.State, op base.Operation) error {
+	w.Lock()
+	defer w.Unlock()
+
 	e := util.StringErrorFunc("failed to set states")
 
 	for i := range states {
@@ -292,7 +295,7 @@ func (w *DummyBlockDataWriter) setStates(ctx context.Context, index int, states 
 		}
 	}
 
-	w.ops[index] = op
+	w.ops = append(w.ops, op)
 
 	return nil
 }
@@ -1337,7 +1340,7 @@ func (t *testDefaultProposalProcessor) TestProcessButErrorRetry() {
 	t.Error(err)
 	t.Nil(m)
 
-	t.Contains(err.Error(), fmt.Sprintf("findme: %q", ophs[1]))
+	t.Contains(err.Error(), "failed to process operation")
 	t.Equal(opp.retrylimit, called)
 }
 
@@ -1380,7 +1383,7 @@ func (t *testDefaultProposalProcessor) TestProcessButSetStatesErrorRetry() {
 	t.Error(err)
 	t.Nil(m)
 
-	t.Contains(err.Error(), fmt.Sprintf("findme: %q", ophs[2]))
+	t.Contains(err.Error(), "failed to process operation")
 	t.Equal(opp.retrylimit, called)
 }
 

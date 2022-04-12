@@ -2,7 +2,6 @@ package isaac
 
 import (
 	"bytes"
-	"fmt"
 	"net/url"
 	"sort"
 	"strings"
@@ -128,19 +127,22 @@ func (m *BlockDataMap) Sign(node base.Address, priv base.Privatekey, networkID b
 	return nil
 }
 
-func (m BlockDataMap) Bytes() []byte {
+func (BlockDataMap) Bytes() []byte {
 	return nil
 }
 
 func (m *BlockDataMap) signedBytes() []byte {
-	var ts [][]byte
+	ts := make([][]byte, len(m.m))
+
+	i := -1
 	for k := range m.m {
-		i := m.m[k]
-		if i == nil {
+		i++
+		j := m.m[k]
+		if j == nil {
 			continue
 		}
 
-		ts = append(ts, []byte(i.Checksum()))
+		ts[i] = []byte(j.Checksum())
 	}
 
 	sort.Slice(ts, func(i, j int) bool {
@@ -158,45 +160,49 @@ type BlockDataMapItem struct {
 	t        base.BlockDataType
 	url      url.URL
 	checksum string
+	num      int64
 }
 
-func NewBlockDataMapItem(t base.BlockDataType, u url.URL, checksum string) BlockDataMapItem {
+func NewBlockDataMapItem(t base.BlockDataType, u url.URL, checksum string, num int64) BlockDataMapItem {
 	return BlockDataMapItem{
 		BaseHinter: hint.NewBaseHinter(BlockDataMapItemHint),
-		t:          t, url: u, checksum: checksum,
+		t:          t,
+		url:        u,
+		checksum:   checksum,
+		num:        num,
 	}
 }
 
-func NewLocalBlockDataMapItem(t base.BlockDataType, path string, checksum string) BlockDataMapItem {
+func NewLocalBlockDataMapItem(t base.BlockDataType, path string, checksum string, num int64) BlockDataMapItem {
 	u := fileBlockDataURL
 	u.Path = path
 
-	return NewBlockDataMapItem(t, u, checksum)
+	return NewBlockDataMapItem(t, u, checksum, num)
 }
 
-func (m BlockDataMapItem) IsValid([]byte) error {
+func (item BlockDataMapItem) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid BlockDataMapItem")
-	if err := m.BaseHinter.IsValid(BlockDataMapItemHint.Type().Bytes()); err != nil {
+	if err := item.BaseHinter.IsValid(BlockDataMapItemHint.Type().Bytes()); err != nil {
 		return e(err, "")
 	}
 
-	if err := m.t.IsValid(nil); err != nil {
+	if err := item.t.IsValid(nil); err != nil {
 		return e(err, "")
 	}
 
-	if n := len(m.checksum); n < 1 {
+	if n := len(item.checksum); n < 1 {
 		return e(util.InvalidError.Errorf("empty checksum"), "")
 	}
 
 	switch {
-	case len(m.url.String()) < 1:
+	case len(item.url.String()) < 1:
 		return e(util.InvalidError.Errorf("empty url"), "")
-	case len(m.url.Scheme) < 1:
+	case len(item.url.Scheme) < 1:
 		return e(util.InvalidError.Errorf("empty url scheme"), "")
 	default:
-		scheme := strings.ToLower(m.url.Scheme)
+		scheme := strings.ToLower(item.url.Scheme)
 
-		if !util.InStringSlice(strings.ToLower(m.url.Scheme), supportedBlockDataMapItemURLSchemes) {
+		if !util.InStringSlice(strings.ToLower(item.url.Scheme), supportedBlockDataMapItemURLSchemes) {
 			return e(util.InvalidError.Errorf("unsupported url scheme found, %q", scheme), "")
 		}
 	}
@@ -216,35 +222,6 @@ func (item BlockDataMapItem) Checksum() string {
 	return item.checksum
 }
 
-func HeightDirectory(height base.Height) string {
-	h := height.String()
-	if height < 0 {
-		h = strings.ReplaceAll(h, "-", "_")
-	}
-
-	p := fmt.Sprintf(BlockDirectoryHeightFormat, h)
-
-	sl := make([]string, 7)
-	var i int
-	for {
-		e := (i * 3) + 3
-		if e > len(p) {
-			e = len(p)
-		}
-
-		s := p[i*3 : e]
-		if len(s) < 1 {
-			break
-		}
-
-		sl[i] = s
-
-		if len(s) < 3 {
-			break
-		}
-
-		i++
-	}
-
-	return "/" + strings.Join(sl, "/")
+func (item BlockDataMapItem) Num() int64 {
+	return item.num
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"math"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
@@ -181,13 +180,13 @@ func (p *DefaultProposalProcessor) process(ctx context.Context, vp base.INITVote
 		return e(err, "failed to set init voteproof")
 	}
 
-	switch collected, valids, err := p.collectOperations(ctx); {
+	switch err := p.collectOperations(ctx); {
 	case err != nil:
 		return e(err, "failed to collect operations")
-	case collected < 1:
+	case len(p.operations()) < 1:
 		return nil
 	default:
-		p.writer.SetOperationsSize(collected, valids)
+		p.writer.SetOperationsSize(uint64(len(p.operations())))
 	}
 
 	if err := p.processOperations(ctx); err != nil {
@@ -212,18 +211,16 @@ func (p *DefaultProposalProcessor) setProposal(ctx context.Context) error {
 	return nil
 }
 
-func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) (
-	countcollected, countvalids uint64, err error,
-) {
+func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) (err error) {
 	e := util.StringErrorFunc("failed to collect operations")
 
 	if len(p.proposal.ProposalFact().Operations()) < 1 {
-		return 0, 0, nil
+		return nil
 	}
 
 	wctx, done, err := p.wait(ctx)
 	if err != nil {
-		return 0, 0, e(err, "")
+		return e(err, "")
 	}
 	defer done()
 
@@ -233,10 +230,9 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) (
 	if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
 		return p.writer.SetProposal(ctx, p.proposal)
 	}); err != nil {
-		return 0, 0, e(err, "")
+		return e(err, "")
 	}
 
-	var collected, valids uint64
 	go func() {
 		ophs := p.proposal.ProposalFact().Operations()
 		for i := range ophs {
@@ -246,7 +242,6 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) (
 				op, err := p.collectOperation(ctx, h)
 				switch {
 				case err == nil:
-					atomic.AddUint64(&valids, 1)
 				case errors.Is(err, InvalidOperationInProcessorError):
 					op = NewReasonProcessedOperation(h, base.NewBaseOperationProcessReasonError("invalid operation"))
 				case errors.Is(err, OperationNotFoundInProcessorError),
@@ -258,8 +253,6 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) (
 
 				p.setOperation(i, op)
 
-				atomic.AddUint64(&collected, 1)
-
 				return nil
 			}); err != nil {
 				break
@@ -270,10 +263,10 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) (
 	}()
 
 	if err := worker.Wait(); err != nil {
-		return 0, 0, e(err, "")
+		return e(err, "")
 	}
 
-	return atomic.LoadUint64(&collected), atomic.LoadUint64(&valids), nil
+	return nil
 }
 
 func (p *DefaultProposalProcessor) collectOperation(ctx context.Context, h util.Hash) (base.Operation, error) {
@@ -335,7 +328,7 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context) error 
 
 			if i, ok := op.(ReasonProcessedOperation); ok {
 				if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-					return p.writer.SetOperation(ctx, opsindex, i.FactHash(), false, i.Reason())
+					return p.writer.SetProcessResult(ctx, opsindex, i.FactHash(), false, i.Reason())
 				}); err != nil {
 					errch <- errors.Wrapf(err, "failed to process operation, %d", opsindex)
 				}
@@ -414,7 +407,7 @@ func (p *DefaultProposalProcessor) doPreProcessOperation(
 	}
 
 	if errorreason != nil {
-		if err := p.writer.SetOperation(ctx, opsindex, op.Fact().Hash(), false, errorreason); err != nil {
+		if err := p.writer.SetProcessResult(ctx, opsindex, op.Fact().Hash(), false, errorreason); err != nil {
 			return false, e(err, "")
 		}
 	}
@@ -462,7 +455,7 @@ func (p *DefaultProposalProcessor) doProcessOperation(
 			}
 		}
 
-		if err := p.writer.SetOperation(ctx, opsindex, op.Fact().Hash(), instate, errorreason); err != nil {
+		if err := p.writer.SetProcessResult(ctx, opsindex, op.Fact().Hash(), instate, errorreason); err != nil {
 			return true, e(err, "")
 		}
 

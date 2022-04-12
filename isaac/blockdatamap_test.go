@@ -37,6 +37,7 @@ func EqualBlockDataMapItem(t *assert.Assertions, a, b base.BlockDataMapItem) {
 	t.Equal(a.Type(), b.Type())
 	t.Equal(a.URL().String(), b.URL().String())
 	t.Equal(a.Checksum(), b.Checksum())
+	t.Equal(a.Num(), b.Num())
 }
 
 type testBlockDataMap struct {
@@ -53,7 +54,7 @@ func (t *testBlockDataMap) SetupSuite() {
 }
 
 func (t *testBlockDataMap) newitem(ty base.BlockDataType) BlockDataMapItem {
-	return NewLocalBlockDataMapItem(ty, util.UUID().String(), util.UUID().String())
+	return NewLocalBlockDataMapItem(ty, util.UUID().String(), util.UUID().String(), 1)
 }
 
 func (t *testBlockDataMap) newmap() BlockDataMap {
@@ -265,7 +266,7 @@ func (t *testBlockDataMapItem) TestNew() {
 	t.NoError(err)
 	checksum := util.UUID().String()
 
-	item := NewBlockDataMapItem(base.BlockDataTypeProposal, *u, checksum)
+	item := NewBlockDataMapItem(base.BlockDataTypeProposal, *u, checksum, 1)
 	_ = (interface{})(item).(base.BlockDataMapItem)
 
 	t.NoError(item.IsValid(nil))
@@ -278,8 +279,8 @@ func (t *testBlockDataMapItem) TestNew() {
 
 func (t *testBlockDataMapItem) TestLocal() {
 	ty := base.BlockDataTypeProposal
-	m0 := NewLocalBlockDataMapItem(ty, util.UUID().String(), util.UUID().String())
-	m1 := NewLocalBlockDataMapItem(ty, util.UUID().String(), util.UUID().String())
+	m0 := NewLocalBlockDataMapItem(ty, util.UUID().String(), util.UUID().String(), 1)
+	m1 := NewLocalBlockDataMapItem(ty, util.UUID().String(), util.UUID().String(), 1)
 
 	t.T().Log("fileBlockDataURL:", fileBlockDataURL.String())
 	t.T().Log("m0.url:", m0.URL())
@@ -289,7 +290,7 @@ func (t *testBlockDataMapItem) TestLocal() {
 func (t *testBlockDataMapItem) TestInvalid() {
 	t.Run("invalid hint", func() {
 		u, _ := url.Parse("file://showme")
-		item := NewBlockDataMapItem(base.BlockDataTypeProposal, *u, util.UUID().String())
+		item := NewBlockDataMapItem(base.BlockDataTypeProposal, *u, util.UUID().String(), 1)
 
 		item.BaseHinter = hint.NewBaseHinter(BlockDataMapHint)
 		err := item.IsValid(nil)
@@ -299,7 +300,7 @@ func (t *testBlockDataMapItem) TestInvalid() {
 
 	t.Run("invalid data type", func() {
 		u, _ := url.Parse("file://showme")
-		item := NewBlockDataMapItem(base.BlockDataType("findme"), *u, util.UUID().String())
+		item := NewBlockDataMapItem(base.BlockDataType("findme"), *u, util.UUID().String(), 1)
 
 		err := item.IsValid(nil)
 		t.True(errors.Is(err, util.InvalidError))
@@ -308,7 +309,7 @@ func (t *testBlockDataMapItem) TestInvalid() {
 
 	t.Run("empty checksum", func() {
 		u, _ := url.Parse("file://showme")
-		item := NewBlockDataMapItem(base.BlockDataTypeProposal, *u, "")
+		item := NewBlockDataMapItem(base.BlockDataTypeProposal, *u, "", 1)
 
 		err := item.IsValid(nil)
 		t.True(errors.Is(err, util.InvalidError))
@@ -316,7 +317,7 @@ func (t *testBlockDataMapItem) TestInvalid() {
 	})
 
 	t.Run("empty url", func() {
-		item := NewBlockDataMapItem(base.BlockDataTypeProposal, url.URL{}, util.UUID().String())
+		item := NewBlockDataMapItem(base.BlockDataTypeProposal, url.URL{}, util.UUID().String(), 1)
 
 		err := item.IsValid(nil)
 		t.True(errors.Is(err, util.InvalidError))
@@ -325,7 +326,7 @@ func (t *testBlockDataMapItem) TestInvalid() {
 
 	t.Run("empty url scheme", func() {
 		u, _ := url.Parse("showme")
-		item := NewBlockDataMapItem(base.BlockDataTypeProposal, *u, util.UUID().String())
+		item := NewBlockDataMapItem(base.BlockDataTypeProposal, *u, util.UUID().String(), 1)
 
 		err := item.IsValid(nil)
 		t.True(errors.Is(err, util.InvalidError))
@@ -334,7 +335,7 @@ func (t *testBlockDataMapItem) TestInvalid() {
 
 	t.Run("unsupported url scheme", func() {
 		u, _ := url.Parse("showme://findme")
-		item := NewBlockDataMapItem(base.BlockDataTypeProposal, *u, util.UUID().String())
+		item := NewBlockDataMapItem(base.BlockDataTypeProposal, *u, util.UUID().String(), 1)
 
 		err := item.IsValid(nil)
 		t.True(errors.Is(err, util.InvalidError))
@@ -362,7 +363,7 @@ func TestBlockDataMapItemEncode(tt *testing.T) {
 
 	t.Encode = func() (interface{}, []byte) {
 		u, _ := url.Parse("file://showme")
-		item := NewBlockDataMapItem(base.BlockDataTypeProposal, *u, util.UUID().String())
+		item := NewBlockDataMapItem(base.BlockDataTypeProposal, *u, util.UUID().String(), 1)
 
 		b, err := t.enc.Marshal(item)
 		t.NoError(err)

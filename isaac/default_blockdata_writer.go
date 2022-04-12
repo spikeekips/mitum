@@ -26,7 +26,6 @@ type DefaultBlockDataWriter struct {
 	opstree       tree.FixedTree
 	ststree       tree.FixedTree
 	states        *util.LockedMap
-	suffrage      base.SuffrageStateValue
 }
 
 func NewDefaultBlockDataWriter(
@@ -54,18 +53,18 @@ func (w *DefaultBlockDataWriter) SetProposal(ctx context.Context, proposal base.
 	return nil
 }
 
-func (w *DefaultBlockDataWriter) SetOperationsSize(_, valids uint64) {
+func (w *DefaultBlockDataWriter) SetOperationsSize(n uint64) {
 	w.Lock()
 	defer w.Unlock()
 
-	if valids < 1 {
+	if n < 1 {
 		return
 	}
 
-	w.opstreeg = tree.NewFixedTreeGenerator(valids)
+	w.opstreeg = tree.NewFixedTreeGenerator(n)
 }
 
-func (w *DefaultBlockDataWriter) SetOperation(
+func (w *DefaultBlockDataWriter) SetProcessResult(
 	_ context.Context, index int, facthash util.Hash, instate bool, errorreason base.OperationProcessReasonError,
 ) error {
 	e := util.StringErrorFunc("failed to set operation")

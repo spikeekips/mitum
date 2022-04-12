@@ -112,7 +112,7 @@ func (t *testDefaultBlockDataWriter) TestSetOperations() {
 		ops[i] = valuehash.RandomSHA256()
 	}
 
-	writer.SetOperationsSize(0, uint64(len(ops)))
+	writer.SetOperationsSize(uint64(len(ops)))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -129,7 +129,7 @@ func (t *testDefaultBlockDataWriter) TestSetOperations() {
 			if index%3 == 0 {
 				errorreason = base.NewBaseOperationProcessReasonError("%d", index)
 			}
-			writer.SetOperation(ctx, index, ops[index], errorreason == nil, errorreason)
+			writer.SetProcessResult(ctx, index, ops[index], errorreason == nil, errorreason)
 		}()
 	}
 
@@ -267,7 +267,7 @@ func (t *testDefaultBlockDataWriter) TestSetStatesAndClose() {
 	_ = pr.Sign(t.local.Privatekey(), t.policy.NetworkID())
 
 	t.NoError(writer.SetProposal(context.Background(), pr))
-	writer.SetOperationsSize(0, uint64(len(ops)))
+	writer.SetOperationsSize(uint64(len(ops)))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -280,7 +280,7 @@ func (t *testDefaultBlockDataWriter) TestSetStatesAndClose() {
 		go func() {
 			defer sem.Release(1)
 
-			t.NoError(writer.SetOperation(ctx, index, ophs[index], true, nil))
+			t.NoError(writer.SetProcessResult(ctx, index, ophs[index], true, nil))
 			t.NoError(writer.SetStates(ctx, index, states[index], ops[index]))
 		}()
 	}
