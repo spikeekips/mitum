@@ -28,8 +28,8 @@ func (t *testType) TestIsValid() {
 		{name: "hyphen", s: "sh-wme"},
 		{name: "underscore", s: "sh-w_me"},
 		{name: "plus", s: "sh-w_m+e"},
-		{name: "empty", s: "", err: "empty Type"},
-		{name: "too long", s: strings.Repeat("a", MaxTypeLength+1), err: "Type too long"},
+		{name: "empty", s: "", err: "too short Type"},
+		{name: "too long", s: strings.Repeat("a", MaxTypeLength+1), err: "too long Type"},
 		{name: "2 chars", s: "sa"},
 	}
 

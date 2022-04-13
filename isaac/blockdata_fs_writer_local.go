@@ -51,7 +51,6 @@ type LocalBlockDataFSWriter struct {
 	lenops     int64
 	opsf       *util.ChecksumWriter
 	stsf       *util.ChecksumWriter
-	lensts     int64
 }
 
 func NewLocalBlockDataFSWriter(
@@ -80,11 +79,6 @@ func NewLocalBlockDataFSWriter(
 		return nil, e(err, "failed to create temp directory")
 	}
 
-	heightbase := HeightDirectory(height)
-	if err := os.MkdirAll(filepath.Join(abs, heightbase), 0o700); err != nil {
-		return nil, e(err, "failed to create temp directory")
-	}
-
 	w := &LocalBlockDataFSWriter{
 		BaseHinter: hint.NewBaseHinter(LocalBlockDataFSWriterHint),
 		id:         id,
@@ -93,7 +87,7 @@ func NewLocalBlockDataFSWriter(
 		enc:        enc,
 		local:      local,
 		networkID:  networkID,
-		heightbase: heightbase,
+		heightbase: HeightDirectory(height),
 		temp:       temp,
 		m:          NewBlockDataMap(LocalBlockDataFSWriterHint, enc.Hint()),
 	}
@@ -164,8 +158,6 @@ func (w *LocalBlockDataFSWriter) SetState(_ context.Context, _ int, st base.Stat
 		return errors.Wrap(err, "failed to set state")
 	}
 
-	atomic.AddInt64(&w.lensts, 1)
-
 	return nil
 }
 
@@ -181,7 +173,7 @@ func (w *LocalBlockDataFSWriter) SetStatesTree(ctx context.Context, tr tree.Fixe
 				base.BlockDataTypeStates,
 				filepath.Join(w.savedir(), w.stsf.Name()),
 				w.stsf.Checksum(),
-				atomic.LoadInt64(&w.lensts),
+				int64(tr.Len()),
 			)); err != nil {
 				return errors.Wrap(err, "failed to set states")
 			}
@@ -207,7 +199,7 @@ func (w *LocalBlockDataFSWriter) SetINITVoteproof(_ context.Context, vp base.INI
 		return nil
 	}
 
-	if err := w.writeItem(base.BlockDataTypeVoteproofs, w.vps); err != nil {
+	if err := w.saveVoteproofs(); err != nil {
 		return errors.Wrap(err, "failed to set voteproofs in fs writer")
 	}
 
@@ -220,8 +212,37 @@ func (w *LocalBlockDataFSWriter) SetACCEPTVoteproof(_ context.Context, vp base.A
 		return nil
 	}
 
-	if err := w.writeItem(base.BlockDataTypeVoteproofs, w.vps); err != nil {
+	if err := w.saveVoteproofs(); err != nil {
 		return errors.Wrap(err, "failed to set voteproofs in fs writer")
+	}
+
+	return nil
+}
+
+func (w *LocalBlockDataFSWriter) saveVoteproofs() error {
+	e := util.StringErrorFunc("failed to save voteproofs ")
+
+	f, err := w.newListChecksumWriter(base.BlockDataTypeVoteproofs)
+	if err != nil {
+		return e(err, "")
+	}
+	defer func() {
+		_ = f.Close()
+	}()
+
+	for i := range w.vps {
+		if err := w.appendfile(f, w.vps[i]); err != nil {
+			return e(err, "")
+		}
+	}
+
+	if err := w.m.SetItem(NewLocalBlockDataMapItem(
+		base.BlockDataTypeVoteproofs,
+		filepath.Join(w.savedir(), f.Name()),
+		f.Checksum(),
+		1,
+	)); err != nil {
+		return e(err, "")
 	}
 
 	return nil
@@ -248,6 +269,13 @@ func (w *LocalBlockDataFSWriter) Save(_ context.Context) (base.BlockDataMap, err
 		return nil, e(err, "")
 	}
 
+	switch err := os.MkdirAll(filepath.Join(w.root, w.heightbase), 0o700); {
+	case err == nil:
+	case os.IsExist(err):
+	case err != nil:
+		return nil, e(err, "failed to create height directory")
+	}
+
 	if err := os.Rename(w.temp, filepath.Join(w.root, w.savedir())); err != nil {
 		return nil, e(err, "")
 	}
@@ -270,7 +298,6 @@ func (w *LocalBlockDataFSWriter) Cancel() error {
 	}
 
 	w.lenops = 0
-	w.lensts = 0
 
 	e := util.StringErrorFunc("failed to cancel fs writer")
 	if err := os.RemoveAll(w.temp); err != nil {
@@ -332,7 +359,7 @@ func (w *LocalBlockDataFSWriter) setTree(
 
 	if err := w.m.SetItem(NewLocalBlockDataMapItem(
 		treetype,
-		filepath.Join(w.savedir(), tf.Name()), tf.Checksum(), 1),
+		filepath.Join(w.savedir(), tf.Name()), tf.Checksum(), int64(tr.Len())),
 	); err != nil {
 		return e(err, "")
 	}
@@ -349,9 +376,7 @@ func (w *LocalBlockDataFSWriter) saveMap() error {
 	}
 
 	// NOTE save BlockDataMap
-	fname := fmt.Sprintf("%s%s", blockDataMapFilename, FileExtFromEncoder(w.enc, false))
-
-	f, err := os.OpenFile(filepath.Join(w.temp, fname), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644) // nolint:gosec
+	f, err := os.OpenFile(filepath.Join(w.temp, blockDataFSMapFilename(w.enc)), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644) // nolint:gosec
 	if err != nil {
 		return e(err, "failed to create map file")
 	}
@@ -370,7 +395,7 @@ func (w *LocalBlockDataFSWriter) savedir() string {
 func (w *LocalBlockDataFSWriter) filename(t base.BlockDataType, islist bool) (
 	filename string, temppath string, err error,
 ) {
-	f, err := BlockDataFileName(t, FileExtFromEncoder(w.enc, islist))
+	f, err := BlockDataFileName(t, w.enc)
 	if err != nil {
 		return "", "", errors.Wrap(err, "")
 	}
@@ -434,6 +459,7 @@ func (*LocalBlockDataFSWriter) writefile(f io.Writer, b []byte) error {
 }
 
 func (w *LocalBlockDataFSWriter) newListChecksumWriter(t base.BlockDataType) (*util.ChecksumWriter, error) {
+	// BLOCK comparess
 	fname, temppath, _ := w.filename(t, true)
 	switch f, err := os.OpenFile(temppath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644); { // nolint:gosec
 	case err != nil:
@@ -443,12 +469,13 @@ func (w *LocalBlockDataFSWriter) newListChecksumWriter(t base.BlockDataType) (*u
 	}
 }
 
-func BlockDataFileName(t base.BlockDataType, ext string) (string, error) {
+func BlockDataFileName(t base.BlockDataType, enc encoder.Encoder) (string, error) {
 	name, found := blockDataFilenames[t]
 	if !found {
 		return "", errors.Errorf("unknown block data type, %q", t)
 	}
 
+	ext := fileExtFromEncoder(enc, isListBlockDataType(t))
 	if len(ext) < 1 {
 		return name, nil
 	}
@@ -456,7 +483,7 @@ func BlockDataFileName(t base.BlockDataType, ext string) (string, error) {
 	return fmt.Sprintf("%s%s", name, ext), nil
 }
 
-func FileExtFromEncoder(enc encoder.Encoder, islist bool) string {
+func fileExtFromEncoder(enc encoder.Encoder, islist bool) string {
 	switch {
 	case strings.Contains(strings.ToLower(enc.Hint().Type().String()), "json"):
 		if islist {
@@ -504,4 +531,18 @@ func HeightDirectory(height base.Height) string {
 	}
 
 	return "/" + strings.Join(sl, "/")
+}
+
+func isListBlockDataType(t base.BlockDataType) bool {
+	switch t {
+	case base.BlockDataTypeOperations,
+		base.BlockDataTypeOperationsTree,
+		base.BlockDataTypeStates,
+		base.BlockDataTypeStatesTree,
+		base.BlockDataTypeVoteproofs:
+		return true
+	default:
+		return false
+
+	}
 }

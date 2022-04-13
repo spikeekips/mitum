@@ -2,7 +2,6 @@ package isaac
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -10,7 +9,6 @@ import (
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/tree"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
@@ -102,27 +100,7 @@ func (w *DummyBlockDataFSWriter) Cancel() error {
 }
 
 type testLocalBlockDataFSWriter struct {
-	baseStateTestHandler
-	baseTestDatabase
-	root string
-}
-
-func (t *testLocalBlockDataFSWriter) SetupSuite() {
-	t.baseTestDatabase.SetupSuite()
-
-	t.noerror(t.enc.Add(encoder.DecodeDetail{Hint: BlockDataMapHint, Instance: BlockDataMap{}}))
-	t.noerror(t.enc.Add(encoder.DecodeDetail{Hint: BlockDataMapItemHint, Instance: BlockDataMapItem{}}))
-}
-
-func (t *testLocalBlockDataFSWriter) SetupTest() {
-	t.baseStateTestHandler.SetupTest()
-	t.baseTestDatabase.SetupTest()
-
-	t.root, _ = os.MkdirTemp("", "mitum-test")
-}
-
-func (t *testLocalBlockDataFSWriter) TearDownTest() {
-	os.RemoveAll(t.root)
+	testBaseLocalBlockDataFS
 }
 
 func (t *testLocalBlockDataFSWriter) TestNew() {
@@ -137,7 +115,7 @@ func (t *testLocalBlockDataFSWriter) TestNew() {
 }
 
 func (t *testLocalBlockDataFSWriter) findTempFile(temp string, d base.BlockDataType, islist bool) (string, io.Reader, error) {
-	fname, err := BlockDataFileName(d, FileExtFromEncoder(t.enc, islist))
+	fname, err := BlockDataFileName(d, t.enc)
 	t.NoError(err)
 
 	fpath := filepath.Join(temp, fname)
@@ -216,7 +194,7 @@ func (t *testLocalBlockDataFSWriter) TestSave() {
 
 	newroot := filepath.Join(fs.root, fs.savedir())
 	checkfile := func(d base.BlockDataType) {
-		fname, err := BlockDataFileName(d, FileExtFromEncoder(t.enc, false))
+		fname, err := BlockDataFileName(d, t.enc)
 		fi, err := os.Stat(filepath.Join(newroot, fname))
 		t.NoError(err)
 		t.False(fi.IsDir())
@@ -232,7 +210,7 @@ func (t *testLocalBlockDataFSWriter) TestSave() {
 	})
 
 	t.Run("check map file", func() {
-		fname := fmt.Sprintf("%s%s", blockDataMapFilename, FileExtFromEncoder(t.enc, false))
+		fname := blockDataFSMapFilename(t.enc)
 		fpath := filepath.Join(newroot, fname)
 		f, err := os.Open(fpath)
 		t.NoError(err)
@@ -273,20 +251,6 @@ func (t *testLocalBlockDataFSWriter) TestCancel() {
 		t.True(os.IsNotExist(err))
 		t.Nil(fi)
 	})
-}
-
-func (t *testLocalBlockDataFSWriter) voteproofs(point base.Point) (base.INITVoteproof, base.ACCEPTVoteproof) {
-	_, nodes := newTestSuffrage(1, t.local)
-
-	ifact := t.newINITBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256())
-	ivp, err := t.newINITVoteproof(ifact, t.local, nodes)
-	t.NoError(err)
-
-	afact := t.newACCEPTBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256())
-	avp, err := t.newACCEPTVoteproof(afact, t.local, nodes)
-	t.NoError(err)
-
-	return ivp, avp
 }
 
 func (t *testLocalBlockDataFSWriter) TestSetACCEPTVoteproof() {

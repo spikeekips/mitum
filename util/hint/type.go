@@ -16,9 +16,9 @@ type Type string // revive:disable-line:redefines-builtin-id
 func (t Type) IsValid([]byte) error {
 	switch n := len(t); {
 	case n < minTypeLength:
-		return util.InvalidError.Errorf("empty Type")
+		return util.InvalidError.Errorf("too short Type; %q >= %d", t, minTypeLength)
 	case n > MaxTypeLength:
-		return util.InvalidError.Errorf("Type too long")
+		return util.InvalidError.Errorf("too long Type; %q < %d", t, MaxTypeLength)
 	}
 
 	if !reTypeAllowedChars.Match([]byte(t)) {

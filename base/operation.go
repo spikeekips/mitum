@@ -139,6 +139,7 @@ func (no *OperationFixedTreeNode) DecodeJSON(b []byte, enc *jsonenc.Encoder) err
 	switch hinter, err := enc.Decode(u.Reason); {
 	case err != nil:
 		return e(err, "")
+	case hinter == nil:
 	default:
 		i, ok := hinter.(OperationProcessReasonError)
 		if !ok {

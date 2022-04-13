@@ -45,11 +45,11 @@ func (db *baseDatabase) readHinter(b []byte) (interface{}, error) {
 		return nil, err
 	}
 
-	switch i := db.encs.Find(ht); {
-	case i == nil:
+	switch enc := db.encs.Find(ht); {
+	case enc == nil:
 		return nil, util.NotFoundError.Errorf("encoder not found for %q", ht)
 	default:
-		return i.(encoder.Encoder).Decode(raw)
+		return enc.Decode(raw)
 	}
 }
 

@@ -155,7 +155,7 @@ func (op DummyOperation) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (op DummyOperation) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (op *DummyOperation) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	var u struct {
 		Fact   DummyOperationFact
 		Signed json.RawMessage
@@ -166,16 +166,12 @@ func (op DummyOperation) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 
 	op.fact = u.Fact
 
-	switch hinter, err := enc.Decode(u.Signed); {
+	var bs base.BaseSigned
+	switch err := bs.DecodeJSON(u.Signed, enc); {
 	case err != nil:
 		return err
 	default:
-		i, ok := hinter.(base.BaseSigned)
-		if !ok {
-			return errors.Errorf("not BaseSigned, %T", hinter)
-		}
-
-		op.signed = i
+		op.signed = bs
 	}
 
 	return nil

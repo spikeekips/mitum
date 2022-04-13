@@ -70,6 +70,7 @@ func (vp *baseVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	for i := range u.SignedFacts {
 		switch j, err := enc.Decode(u.SignedFacts[i]); {
 		case err != nil:
+			return e(err, "")
 		case j == nil:
 		default:
 			k, ok := j.(base.BallotSignedFact)

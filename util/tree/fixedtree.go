@@ -330,7 +330,7 @@ func (tr *FixedTreeGenerator) Add(n FixedTreeNode) error {
 	}
 
 	if n.Index() >= tr.size {
-		return e(nil, "out of range; %d >= %d", n.Index(), tr.size)
+		return e(nil, "out of range; index=%d, size=%d", n.Index(), tr.size)
 	}
 
 	tr.nodes[n.Index()] = n.SetHash(nil)
