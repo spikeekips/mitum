@@ -35,6 +35,10 @@ func ReadAll(ctx context.Context, r io.ReadCloser) ([]byte, error) {
 			p := make([]byte, 1024)
 			n, e := r.Read(p)
 
+			if n > 0 {
+				_, _ = b.Write(p[:n])
+			}
+
 			var eof bool
 			switch {
 			case e == nil:
@@ -45,8 +49,6 @@ func ReadAll(ctx context.Context, r io.ReadCloser) ([]byte, error) {
 					break end
 				}
 			}
-
-			_, _ = b.Write(p[:n])
 
 			if eof {
 				break end
