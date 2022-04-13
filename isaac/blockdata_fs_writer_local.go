@@ -260,6 +260,14 @@ func (w *LocalBlockDataFSWriter) Save(_ context.Context) (base.BlockDataMap, err
 		}
 	}
 
+	if w.stsf != nil {
+		_ = w.stsf.Close()
+
+		if item, found := w.m.Item(base.BlockDataTypeStates); !found || item == nil {
+			_ = os.Remove(filepath.Join(w.temp, w.stsf.Name())) // NOTE remove empty states file
+		}
+	}
+
 	e := util.StringErrorFunc("failed to save fs writer")
 	if item, found := w.m.Item(base.BlockDataTypeVoteproofs); !found || item == nil {
 		return nil, e(nil, "empty voteproofs")

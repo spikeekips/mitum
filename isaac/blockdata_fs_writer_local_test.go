@@ -103,17 +103,6 @@ type testLocalBlockDataFSWriter struct {
 	testBaseLocalBlockDataFS
 }
 
-func (t *testLocalBlockDataFSWriter) TestNew() {
-	fs, err := NewLocalBlockDataFSWriter(t.root, base.Height(33), t.enc, t.local, t.policy.NetworkID())
-	t.NoError(err)
-
-	_ = (interface{})(fs).(BlockDataFSWriter)
-
-	t.T().Logf("root directory: %q", fs.root)
-	t.T().Logf("root base directory: %q", fs.heightbase)
-	t.T().Logf("temp directory: %q", fs.temp)
-}
-
 func (t *testLocalBlockDataFSWriter) findTempFile(temp string, d base.BlockDataType, islist bool) (string, io.Reader, error) {
 	fname, err := BlockDataFileName(d, t.enc)
 	t.NoError(err)
@@ -125,6 +114,17 @@ func (t *testLocalBlockDataFSWriter) findTempFile(temp string, d base.BlockDataT
 	}
 
 	return fpath, f, nil
+}
+
+func (t *testLocalBlockDataFSWriter) TestNew() {
+	fs, err := NewLocalBlockDataFSWriter(t.root, base.Height(33), t.enc, t.local, t.policy.NetworkID())
+	t.NoError(err)
+
+	_ = (interface{})(fs).(BlockDataFSWriter)
+
+	t.T().Logf("root directory: %q", fs.root)
+	t.T().Logf("root base directory: %q", fs.heightbase)
+	t.T().Logf("temp directory: %q", fs.temp)
 }
 
 func (t *testLocalBlockDataFSWriter) TestSetManifest() {
@@ -193,6 +193,36 @@ func (t *testLocalBlockDataFSWriter) TestSave() {
 	t.NotNil(m)
 
 	newroot := filepath.Join(fs.root, fs.savedir())
+
+	{
+		filepath.Walk(newroot, func(path string, info os.FileInfo, err error) error {
+			if info.IsDir() {
+				return nil
+			}
+
+			t.T().Log("file:", path)
+
+			return nil
+		})
+
+		b, _ := util.MarshalJSONIndent(m)
+		t.T().Log("blockdatamap:", string(b))
+	}
+
+	t.Run("operations(tree) should be empty in map", func() {
+		_, found := m.Item(base.BlockDataTypeOperations)
+		t.False(found)
+		_, found = m.Item(base.BlockDataTypeOperationsTree)
+		t.False(found)
+	})
+
+	t.Run("states(tree) should be empty in map", func() {
+		_, found := m.Item(base.BlockDataTypeStates)
+		t.False(found)
+		_, found = m.Item(base.BlockDataTypeStatesTree)
+		t.False(found)
+	})
+
 	checkfile := func(d base.BlockDataType) {
 		fname, err := BlockDataFileName(d, t.enc)
 		fi, err := os.Stat(filepath.Join(newroot, fname))

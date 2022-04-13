@@ -60,16 +60,11 @@ func (m BlockDataMap) IsValid(b []byte) error {
 		return e(err, "")
 	}
 
-	// NOTE proposal and voteproofs must exist
-	if i, found := m.m[base.BlockDataTypeProposal]; !found || i == nil {
-		return e(util.InvalidError.Errorf("empty proposal"), "")
-	}
-	if i, found := m.m[base.BlockDataTypeVoteproofs]; !found || i == nil {
-		return e(util.InvalidError.Errorf("empty voteproofs"), "")
+	if err := m.checkItems(); err != nil {
+		return e(err, "")
 	}
 
 	vs := make([]util.IsValider, len(m.m))
-
 	var i int
 	for k := range m.m {
 		vs[i] = m.m[k]
@@ -123,6 +118,36 @@ func (m *BlockDataMap) Sign(node base.Address, priv base.Privatekey, networkID b
 	}
 
 	m.BaseNodeSigned = sign
+
+	return nil
+}
+
+func (m BlockDataMap) checkItems() error {
+	check := func(t base.BlockDataType) bool {
+		i, found := m.m[base.BlockDataTypeProposal]
+
+		return found && i != nil
+	}
+
+	if !check(base.BlockDataTypeProposal) {
+		return util.InvalidError.Errorf("empty proposal")
+	}
+
+	if !check(base.BlockDataTypeVoteproofs) {
+		return util.InvalidError.Errorf("empty voteproofs")
+	}
+
+	if m.manifest.OperationsTree() != nil {
+		if !check(base.BlockDataTypeOperationsTree) {
+			return util.InvalidError.Errorf("empty operations tree")
+		}
+	}
+
+	if m.manifest.StatesTree() != nil {
+		if !check(base.BlockDataTypeStatesTree) {
+			return util.InvalidError.Errorf("empty states tree")
+		}
+	}
 
 	return nil
 }
