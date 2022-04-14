@@ -21,12 +21,12 @@ func (t *testCommonPermanentDatabase) SetupTest() {
 	t.baseTestDatabase.SetupTest()
 }
 
-func (t *testCommonPermanentDatabase) setManifest(db PermanentDatabase, m base.Manifest) {
+func (t *testCommonPermanentDatabase) setMap(db PermanentDatabase, mp base.BlockDataMap) {
 	switch t := db.(type) {
 	case *LeveldbPermanentDatabase:
-		_ = t.m.SetValue(m)
+		_ = t.mp.SetValue(mp)
 	case *RedisPermanentDatabase:
-		_ = t.m.SetValue(m)
+		_ = t.mp.SetValue(mp)
 	default:
 		panic("unknown PermanentDatabase")
 	}
@@ -50,28 +50,29 @@ func (t *testCommonPermanentDatabase) TestNew() {
 	_ = (interface{})(db).(PermanentDatabase)
 }
 
-func (t *testCommonPermanentDatabase) TestLastManifest() {
+func (t *testCommonPermanentDatabase) TestLastMap() {
 	height := base.Height(33)
-	m := base.NewDummyManifest(height, valuehash.RandomSHA256())
+	manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
+	mp := base.NewDummyBlockDataMap(manifest)
 
 	db := t.newDB()
 	defer db.Close()
 
-	t.Run("empty manifest", func() {
-		rm, found, err := db.LastManifest()
+	t.Run("empty blockdatamap", func() {
+		rm, found, err := db.LastMap()
 		t.NoError(err)
 		t.False(found)
 		t.Nil(rm)
 	})
 
-	t.setManifest(db, m)
+	t.setMap(db, mp)
 
-	t.Run("none-empty manifest", func() {
-		rm, found, err := db.LastManifest()
+	t.Run("none-empty blockdatamap", func() {
+		rm, found, err := db.LastMap()
 		t.NoError(err)
 		t.True(found)
 
-		base.EqualManifest(t.Assert(), m, rm)
+		EqualBlockDataMap(t.Assert(), mp, rm)
 	})
 }
 
@@ -126,8 +127,9 @@ func (t *testCommonPermanentDatabase) TestSuffrage() {
 		suffrageheight++
 	}
 
-	m := base.NewDummyManifest(height+10, valuehash.RandomSHA256())
-	t.setManifest(db, m)
+	manifest := base.NewDummyManifest(height+10, valuehash.RandomSHA256())
+	mp := base.NewDummyBlockDataMap(manifest)
+	t.setMap(db, mp)
 	st, _ := t.suffrageState(height+10, suffrageheight, nodes)
 	t.setSuffrageState(db, st)
 
@@ -163,7 +165,7 @@ func (t *testCommonPermanentDatabase) TestSuffrage() {
 	})
 
 	t.Run("known suffrage; last height", func() {
-		rsufstt, found, err := db.Suffrage(m.Height())
+		rsufstt, found, err := db.Suffrage(manifest.Height())
 		t.NoError(err)
 		t.True(found)
 		t.NotNil(rsufstt)
@@ -218,7 +220,7 @@ func (t *testCommonPermanentDatabase) TestLoad() {
 	stts = append(stts, sufstt)
 
 	manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
-	m := base.NewDummyBlockDataMap(manifest)
+	mp := base.NewDummyBlockDataMap(manifest)
 
 	ops := make([]util.Hash, 3)
 	for i := range ops {
@@ -226,8 +228,7 @@ func (t *testCommonPermanentDatabase) TestLoad() {
 	}
 
 	wst := t.newMemLeveldbBlockWriteDatabase(height)
-	t.NoError(wst.SetManifest(manifest))
-	t.NoError(wst.SetMap(m))
+	t.NoError(wst.SetMap(mp))
 	t.NoError(wst.SetStates(stts))
 	t.NoError(wst.SetOperations(ops))
 	t.NoError(wst.Write())
@@ -238,11 +239,11 @@ func (t *testCommonPermanentDatabase) TestLoad() {
 	perm := t.newDB()
 	t.NoError(perm.MergeTempDatabase(context.TODO(), temp))
 
-	t.Run("check manifest in perm", func() {
-		nm, found, err := perm.LastManifest()
+	t.Run("check blockdatamap in perm", func() {
+		nm, found, err := perm.LastMap()
 		t.NoError(err)
 		t.True(found)
-		base.EqualManifest(t.Assert(), manifest, nm)
+		EqualBlockDataMap(t.Assert(), mp, nm)
 	})
 
 	t.Run("check suffrage state in perm", func() {
@@ -255,11 +256,11 @@ func (t *testCommonPermanentDatabase) TestLoad() {
 	newperm, err := t.newFromDB(perm)
 	t.NoError(err)
 
-	t.Run("check manifest in new perm", func() {
-		nm, found, err := newperm.LastManifest()
+	t.Run("check blockdatamap in new perm", func() {
+		nm, found, err := newperm.LastMap()
 		t.NoError(err)
 		t.True(found)
-		base.EqualManifest(t.Assert(), manifest, nm)
+		EqualBlockDataMap(t.Assert(), mp, nm)
 	})
 
 	t.Run("check suffrage state in new perm", func() {
@@ -280,7 +281,7 @@ func (t *testCommonPermanentDatabase) TestMergeTempDatabase() {
 	stts = append(stts, sufstt)
 
 	manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
-	m := base.NewDummyBlockDataMap(manifest)
+	mp := base.NewDummyBlockDataMap(manifest)
 
 	ops := make([]util.Hash, 3)
 	for i := range ops {
@@ -288,8 +289,7 @@ func (t *testCommonPermanentDatabase) TestMergeTempDatabase() {
 	}
 
 	wst := t.newMemLeveldbBlockWriteDatabase(height)
-	t.NoError(wst.SetManifest(manifest))
-	t.NoError(wst.SetMap(m))
+	t.NoError(wst.SetMap(mp))
 	t.NoError(wst.SetStates(stts))
 	t.NoError(wst.SetOperations(ops))
 	t.NoError(wst.Write())
@@ -356,21 +356,21 @@ func (t *testCommonPermanentDatabase) TestMergeTempDatabase() {
 		t.True(base.IsEqualState(sufstt, rst))
 	})
 
-	t.Run("check manifest", func() {
+	t.Run("check blockdatamap", func() {
 		perm := t.newDB()
 
-		rm, found, err := perm.Manifest(height)
+		rm, found, err := perm.Map(height)
 		t.NoError(err)
 		t.False(found)
 		t.Nil(rm)
 
 		t.NoError(perm.MergeTempDatabase(context.TODO(), temp))
 
-		rm, found, err = perm.Manifest(height)
+		rm, found, err = perm.Map(height)
 		t.NoError(err)
 		t.True(found)
 		t.NotNil(rm)
 
-		base.EqualManifest(t.Assert(), manifest, rm)
+		EqualBlockDataMap(t.Assert(), mp, rm)
 	})
 }

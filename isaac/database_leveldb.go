@@ -13,7 +13,6 @@ import (
 )
 
 var (
-	leveldbKeyPrefixManifest        = []byte{0x00, 0x00} // BLOCK remove
 	leveldbKeyPrefixSuffrage        = []byte{0x00, 0x01}
 	leveldbKeyPrefixSuffrageHeight  = []byte{0x00, 0x02}
 	leveldbKeyPrefixState           = []byte{0x00, 0x03}
@@ -99,10 +98,6 @@ func (db *baseLeveldbDatabase) state(key string) (base.State, bool, error) {
 
 		return i, true, nil
 	}
-}
-
-func leveldbManifestKey(height base.Height) []byte {
-	return util.ConcatBytesSlice(leveldbKeyPrefixManifest, []byte(fmt.Sprintf("%021d", height)))
 }
 
 func leveldbSuffrageKey(height base.Height) []byte {

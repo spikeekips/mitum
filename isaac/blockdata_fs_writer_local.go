@@ -379,13 +379,17 @@ func (w *LocalBlockDataFSWriter) setTree(
 func (w *LocalBlockDataFSWriter) saveMap() error {
 	e := util.StringErrorFunc("filed to save map")
 
-	// NOTE sign BlockDataMap by local node
+	// NOTE sign blockdatamap by local node
 	if err := w.m.Sign(w.local.Address(), w.local.Privatekey(), w.networkID); err != nil {
 		return e(err, "")
 	}
 
-	// NOTE save BlockDataMap
-	f, err := os.OpenFile(filepath.Join(w.temp, blockDataFSMapFilename(w.enc)), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644) // nolint:gosec
+	// NOTE save blockdatamap
+	f, err := os.OpenFile(
+		filepath.Join(w.temp, blockDataFSMapFilename(w.enc)),
+		os.O_WRONLY|os.O_CREATE|os.O_TRUNC,
+		0o600,
+	)
 	if err != nil {
 		return e(err, "failed to create map file")
 	}
@@ -426,7 +430,12 @@ func (w *LocalBlockDataFSWriter) writeItem(t base.BlockDataType, i interface{}) 
 
 	_ = cw.Close()
 
-	if err := w.m.SetItem(NewLocalBlockDataMapItem(t, filepath.Join(w.savedir(), cw.Name()), cw.Checksum(), 1)); err != nil {
+	if err := w.m.SetItem(NewLocalBlockDataMapItem(
+		t,
+		filepath.Join(w.savedir(), cw.Name()),
+		cw.Checksum(),
+		1,
+	)); err != nil {
 		return errors.Wrap(err, "")
 	}
 
@@ -461,7 +470,7 @@ func (*LocalBlockDataFSWriter) writefile(f io.Writer, b []byte) error {
 
 func (w *LocalBlockDataFSWriter) newChecksumWriter(t base.BlockDataType) (util.ChecksumWriter, error) {
 	fname, temppath, _ := w.filename(t)
-	switch f, err := os.OpenFile(temppath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644); { // nolint:gosec
+	switch f, err := os.OpenFile(temppath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600); { // nolint:gosec
 	case err != nil:
 		return nil, errors.Wrap(err, "")
 	default:

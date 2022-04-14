@@ -302,10 +302,6 @@ func (w *DefaultBlockDataWriter) Manifest(ctx context.Context, previous base.Man
 		if err := w.fswriter.SetManifest(ctx, w.manifest); err != nil {
 			return nil, e(err, "")
 		}
-
-		if err := w.db.SetManifest(w.manifest); err != nil {
-			return nil, e(err, "")
-		}
 	}
 
 	return w.manifest, nil

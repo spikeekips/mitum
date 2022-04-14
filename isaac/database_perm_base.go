@@ -6,29 +6,29 @@ import (
 )
 
 type basePermanentDatabase struct {
-	m      *util.Locked // NOTE last manifest
+	mp     *util.Locked // NOTE last blockdatamap
 	sufstt *util.Locked // NOTE last suffrage state
 }
 
 func newBasePermanentDatabase() *basePermanentDatabase {
 	return &basePermanentDatabase{
-		m:      util.EmptyLocked(),
+		mp:     util.EmptyLocked(),
 		sufstt: util.EmptyLocked(),
 	}
 }
 
-func (db *basePermanentDatabase) LastManifest() (base.Manifest, bool, error) {
-	switch i, isnil := db.m.Value(); {
+func (db *basePermanentDatabase) LastMap() (base.BlockDataMap, bool, error) {
+	switch i, isnil := db.mp.Value(); {
 	case isnil || i == nil:
 		return nil, false, nil
 	default:
-		return i.(base.Manifest), true, nil
+		return i.(base.BlockDataMap), true, nil
 	}
 }
 
 func (db *basePermanentDatabase) LastSuffrage() (base.State, bool, error) {
-	switch i, isnil := db.sufstt.Value(); {
-	case isnil || i == nil:
+	switch i, _ := db.sufstt.Value(); {
+	case i == nil:
 		return nil, false, nil
 	default:
 		return i.(base.State), true, nil
@@ -36,9 +36,14 @@ func (db *basePermanentDatabase) LastSuffrage() (base.State, bool, error) {
 }
 
 func (db *LeveldbPermanentDatabase) canMergeTempDatabase(temp TempDatabase) bool {
-	if i, _ := db.m.Value(); i != nil && i.(base.Manifest).Height() >= temp.Height() {
+	i, _ := db.mp.Value()
+
+	switch {
+	case i == nil:
+		return true
+	case i.(base.BlockDataMap).Manifest().Height() < temp.Height():
+		return true
+	default:
 		return false
 	}
-
-	return true
 }

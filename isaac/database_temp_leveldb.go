@@ -17,8 +17,7 @@ import (
 type TempLeveldbDatabase struct {
 	*baseLeveldbDatabase
 	st     *leveldbstorage.ReadonlyStorage
-	m      base.Manifest     // NOTE last manifest
-	mp     base.BlockDataMap // NOTE last BlockDataMap
+	mp     base.BlockDataMap // NOTE last blockdatamap
 	sufstt base.State        // NOTE last suffrage state
 }
 
@@ -48,10 +47,6 @@ func newTempLeveldbDatabase(
 		st:                  st,
 	}
 
-	if err := db.loadLastManifest(); err != nil {
-		return nil, err
-	}
-
 	if err := db.loadLastBlockDataMap(); err != nil {
 		return nil, err
 	}
@@ -70,14 +65,6 @@ func newTempLeveldbDatabaseFromBlockWriteStorage(wst *LeveldbBlockWriteDatabase)
 		return nil, e(err, "")
 	}
 
-	var m base.Manifest
-	switch i, err := wst.Manifest(); {
-	case err != nil:
-		return nil, e(err, "")
-	default:
-		m = i
-	}
-
 	var mp base.BlockDataMap
 	switch i, err := wst.Map(); {
 	case err != nil:
@@ -94,18 +81,17 @@ func newTempLeveldbDatabaseFromBlockWriteStorage(wst *LeveldbBlockWriteDatabase)
 	return &TempLeveldbDatabase{
 		baseLeveldbDatabase: newBaseLeveldbDatabase(st, wst.encs, wst.enc),
 		st:                  st,
-		m:                   m,
 		mp:                  mp,
 		sufstt:              sufstt,
 	}, nil
 }
 
 func (db *TempLeveldbDatabase) Height() base.Height {
-	if db.m == nil {
+	if db.mp == nil {
 		return base.NilHeight
 	}
 
-	return db.m.Height()
+	return db.mp.Manifest().Height()
 }
 
 func (db *TempLeveldbDatabase) SuffrageHeight() base.Height {
@@ -116,17 +102,9 @@ func (db *TempLeveldbDatabase) SuffrageHeight() base.Height {
 	return db.sufstt.Value().(base.SuffrageStateValue).Height()
 }
 
-func (db *TempLeveldbDatabase) Manifest() (base.Manifest, error) {
-	if db.m == nil {
-		return nil, storage.NotFoundError.Errorf("manifest not found")
-	}
-
-	return db.m, nil
-}
-
 func (db *TempLeveldbDatabase) Map() (base.BlockDataMap, error) {
 	if db.mp == nil {
-		return nil, storage.NotFoundError.Errorf("BlockDataMap not found")
+		return nil, storage.NotFoundError.Errorf("blockdatamap not found")
 	}
 
 	return db.mp, nil
@@ -148,34 +126,14 @@ func (db *TempLeveldbDatabase) ExistsOperation(h util.Hash) (bool, error) {
 	return db.existsOperation(h)
 }
 
-func (db *TempLeveldbDatabase) loadLastManifest() error {
-	e := util.StringErrorFunc("failed to load manifest")
-
-	switch b, found, err := db.st.Get(leveldbKeyPrefixManifest); {
-	case err != nil:
-		return e(err, "")
-	case !found:
-		return e(err, "manifest not found")
-	default:
-		m, err := db.decodeManifest(b)
-		if err != nil {
-			return e(err, "")
-		}
-
-		db.m = m
-
-		return nil
-	}
-}
-
 func (db *TempLeveldbDatabase) loadLastBlockDataMap() error {
-	e := util.StringErrorFunc("failed to load BlockDataMap")
+	e := util.StringErrorFunc("failed to load blockdatamap")
 
 	switch b, found, err := db.st.Get(leveldbKeyPrefixBlockDataMap); {
 	case err != nil:
 		return e(err, "")
 	case !found:
-		return e(err, "BlockDataMap not found")
+		return e(err, "blockdatamap not found")
 	default:
 		m, err := db.decodeBlockDataMap(b)
 		if err != nil {

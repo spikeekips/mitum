@@ -96,29 +96,6 @@ func (db *baseDatabase) decodeState(b []byte) (base.State, error) {
 	}
 }
 
-func (db *baseDatabase) decodeManifest(b []byte) (base.Manifest, error) {
-	if b == nil {
-		return nil, nil
-	}
-
-	e := util.StringErrorFunc("failed to load manifest")
-
-	hinter, err := db.readHinter(b)
-	switch {
-	case err != nil:
-		return nil, e(err, "")
-	case hinter == nil:
-		return nil, e(nil, "empty manifest")
-	}
-
-	switch i, ok := hinter.(base.Manifest); {
-	case !ok:
-		return nil, e(nil, "not manifest: %T", hinter)
-	default:
-		return i, nil
-	}
-}
-
 func (db *baseDatabase) decodeSuffrage(b []byte) (base.State, error) {
 	e := util.StringErrorFunc("failed to load suffrage")
 
@@ -140,19 +117,19 @@ func (db *baseDatabase) decodeBlockDataMap(b []byte) (base.BlockDataMap, error) 
 		return nil, nil
 	}
 
-	e := util.StringErrorFunc("failed to load BlockDataMap")
+	e := util.StringErrorFunc("failed to load blockdatamap")
 
 	hinter, err := db.readHinter(b)
 	switch {
 	case err != nil:
 		return nil, e(err, "")
 	case hinter == nil:
-		return nil, e(nil, "empty manifest")
+		return nil, e(nil, "empty blockdatamap")
 	}
 
 	switch i, ok := hinter.(base.BlockDataMap); {
 	case !ok:
-		return nil, e(nil, "not BlockDataMap: %T", hinter)
+		return nil, e(nil, "not blockdatamap: %T", hinter)
 	default:
 		return i, nil
 	}

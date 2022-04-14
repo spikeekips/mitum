@@ -80,11 +80,11 @@ func (db *DefaultDatabase) load(root string) error {
 	e := util.StringErrorFunc("failed to load temps to DefaultDatabase")
 
 	var last base.Height
-	switch m, found, err := db.perm.LastManifest(); {
+	switch m, found, err := db.perm.LastMap(); {
 	case err != nil:
 		return e(err, "")
 	case found:
-		last = m.Height()
+		last = m.Manifest().Height()
 	}
 
 	// NOTE find leveldb directory
@@ -96,38 +96,6 @@ func (db *DefaultDatabase) load(root string) error {
 	db.temps = temps
 
 	return nil
-}
-
-func (db *DefaultDatabase) Manifest(height base.Height) (base.Manifest, bool, error) {
-	switch temps := db.activeTemps(); {
-	case len(temps) < 1:
-	case temps[0].Height() > height:
-		return nil, false, nil
-	default:
-		if temp := db.findTemp(height); temp != nil {
-			m, err := temp.Manifest()
-			if err != nil {
-				return nil, false, err
-			}
-
-			return m, true, nil
-		}
-	}
-
-	return db.perm.Manifest(height)
-}
-
-func (db *DefaultDatabase) LastManifest() (base.Manifest, bool, error) {
-	if temps := db.activeTemps(); len(temps) > 0 {
-		m, err := temps[0].Manifest()
-		if err != nil {
-			return nil, false, err
-		}
-
-		return m, true, nil
-	}
-
-	return db.perm.LastManifest()
 }
 
 func (db *DefaultDatabase) SuffrageByHeight(suffrageHeight base.Height) (base.State, bool, error) {
@@ -286,6 +254,38 @@ func (db *DefaultDatabase) ExistsOperation(h util.Hash) (bool, error) {
 	return found, nil
 }
 
+func (db *DefaultDatabase) Map(height base.Height) (base.BlockDataMap, bool, error) {
+	switch temps := db.activeTemps(); {
+	case len(temps) < 1:
+	case temps[0].Height() > height:
+		return nil, false, nil
+	default:
+		if temp := db.findTemp(height); temp != nil {
+			m, err := temp.Map()
+			if err != nil {
+				return nil, false, err
+			}
+
+			return m, true, nil
+		}
+	}
+
+	return db.perm.Map(height)
+}
+
+func (db *DefaultDatabase) LastMap() (base.BlockDataMap, bool, error) {
+	if temps := db.activeTemps(); len(temps) > 0 {
+		m, err := temps[0].Map()
+		if err != nil {
+			return nil, false, err
+		}
+
+		return m, true, nil
+	}
+
+	return db.perm.LastMap()
+}
+
 func (db *DefaultDatabase) NewBlockWriteDatabase(height base.Height) (BlockWriteDatabase, error) {
 	return db.newBlockWriteDatabase(height)
 }
@@ -305,11 +305,11 @@ func (db *DefaultDatabase) MergeBlockWriteDatabase(w BlockWriteDatabase) error {
 	case len(db.temps) > 0:
 		preheight = db.temps[0].Height()
 	default:
-		switch m, found, err := db.perm.LastManifest(); {
+		switch m, found, err := db.perm.LastMap(); {
 		case err != nil:
 			return e(err, "")
 		case found:
-			preheight = m.Height()
+			preheight = m.Manifest().Height()
 		}
 	}
 

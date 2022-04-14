@@ -45,7 +45,7 @@ func Setup(
 }
 
 func Output(f string) (io.Writer, error) {
-	out, err := os.OpenFile(filepath.Clean(f), os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o644) // nolint:gosec
+	out, err := os.OpenFile(filepath.Clean(f), os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o600)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to open file, %q", f)
 	}

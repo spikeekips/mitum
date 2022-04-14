@@ -38,7 +38,7 @@ type blockDataMapJSONUnmarshaler struct {
 }
 
 func (m *BlockDataMap) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode BlockDataMap")
+	e := util.StringErrorFunc("failed to decode blockdatamap")
 
 	var u blockDataMapJSONUnmarshaler
 	if err := util.UnmarshalJSON(b, &u); err != nil {
@@ -65,7 +65,7 @@ func (m *BlockDataMap) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	for k := range u.M {
 		var ui BlockDataMapItem
 		if err := enc.Unmarshal(u.M[k], &ui); err != nil {
-			return e(err, "failed to unmarshal BlockDataMapItem, %q", k)
+			return e(err, "failed to unmarshal blockdatamap item, %q", k)
 		}
 
 		um[k] = ui

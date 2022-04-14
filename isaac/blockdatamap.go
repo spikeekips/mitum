@@ -48,7 +48,7 @@ func NewBlockDataMap(writer, encoder hint.Hint) BlockDataMap {
 }
 
 func (m BlockDataMap) IsValid(b []byte) error {
-	e := util.StringErrorFunc("invalid BlockDataMap")
+	e := util.StringErrorFunc("invalid blockdatamap")
 	if err := m.BaseHinter.IsValid(BlockDataMapHint.Type().Bytes()); err != nil {
 		return e(err, "")
 	}
@@ -111,7 +111,7 @@ func (m BlockDataMap) All() map[base.BlockDataType]base.BlockDataMapItem {
 func (m *BlockDataMap) Sign(node base.Address, priv base.Privatekey, networkID base.NetworkID) error {
 	sign, err := base.BaseNodeSignedFromBytes(node, priv, networkID, m.signedBytes())
 	if err != nil {
-		return errors.Wrap(err, "failed to sign BlockDataMap")
+		return errors.Wrap(err, "failed to sign blockdatamap")
 	}
 
 	m.BaseNodeSigned = sign
@@ -201,7 +201,7 @@ func NewLocalBlockDataMapItem(t base.BlockDataType, path string, checksum string
 }
 
 func (item BlockDataMapItem) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid BlockDataMapItem")
+	e := util.StringErrorFunc("invalid blockdatamapItem")
 
 	if err := item.t.IsValid(nil); err != nil {
 		return e(err, "")

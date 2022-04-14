@@ -16,8 +16,7 @@ type LeveldbBlockWriteDatabase struct {
 	*baseLeveldbDatabase
 	st     *leveldbstorage.WriteStorage
 	height base.Height
-	m      *util.Locked // NOTE manifest
-	mp     *util.Locked // NOTE BlockDataMap
+	mp     *util.Locked // NOTE blockdatamap
 	sufstt *util.Locked // NOTE suffrage state
 }
 
@@ -45,7 +44,6 @@ func newLeveldbBlockWriteDatabase(
 		baseLeveldbDatabase: newBaseLeveldbDatabase(st, encs, enc),
 		st:                  st,
 		height:              height,
-		m:                   util.EmptyLocked(),
 		mp:                  util.EmptyLocked(),
 		sufstt:              util.EmptyLocked(),
 	}
@@ -54,34 +52,6 @@ func newLeveldbBlockWriteDatabase(
 func (db *LeveldbBlockWriteDatabase) Cancel() error {
 	if err := db.Remove(); err != nil {
 		return errors.Wrap(err, "failed to cancel TempLeveldbDatabase")
-	}
-
-	return nil
-}
-
-func (db *LeveldbBlockWriteDatabase) Manifest() (base.Manifest, error) {
-	switch i, isnil := db.m.Value(); {
-	case isnil || i == nil:
-		return nil, storage.NotFoundError.Errorf("empty manifest")
-	default:
-		return i.(base.Manifest), nil
-	}
-}
-
-func (db *LeveldbBlockWriteDatabase) SetManifest(m base.Manifest) error {
-	if _, err := db.m.Set(func(i interface{}) (interface{}, error) {
-		if m.Height() != db.height {
-			return nil, errors.Errorf("wrong manifest height")
-		}
-
-		b, err := db.marshal(m)
-		if err != nil {
-			return nil, errors.Errorf("failed to marshal manifest")
-		}
-
-		return m, db.st.Put(leveldbKeyPrefixManifest, b, nil)
-	}); err != nil {
-		return errors.Wrap(err, "failed to set manifest")
 	}
 
 	return nil
@@ -177,7 +147,7 @@ func (db *LeveldbBlockWriteDatabase) SetOperations(ops []util.Hash) error {
 func (db *LeveldbBlockWriteDatabase) Map() (base.BlockDataMap, error) {
 	switch i, isnil := db.mp.Value(); {
 	case isnil || i == nil:
-		return nil, storage.NotFoundError.Errorf("empty base.BlockDataMap")
+		return nil, storage.NotFoundError.Errorf("empty blockdatamap")
 	default:
 		return i.(base.BlockDataMap), nil
 	}
@@ -224,11 +194,11 @@ func (db *LeveldbBlockWriteDatabase) TempDatabase() (TempDatabase, error) {
 
 	e := util.StringErrorFunc("failed to make TempDatabase from BlockWriteDatabase")
 
-	switch m, err := db.Manifest(); {
+	switch m, err := db.Map(); {
 	case err != nil:
 		return nil, e(err, "")
-	case m.Height() != db.height:
-		return nil, e(nil, "wrong manifest")
+	case m.Manifest().Height() != db.height:
+		return nil, e(nil, "wrong blockdatamap")
 	}
 
 	return newTempLeveldbDatabaseFromBlockWriteStorage(db)

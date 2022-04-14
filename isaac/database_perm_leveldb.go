@@ -42,7 +42,7 @@ func newLeveldbPermanentDatabase(
 		st:                    st,
 	}
 
-	if err := db.loadLastManifest(); err != nil {
+	if err := db.loadLastBlockDataMap(); err != nil {
 		return nil, err
 	}
 
@@ -53,40 +53,15 @@ func newLeveldbPermanentDatabase(
 	return db, nil
 }
 
-func (db *LeveldbPermanentDatabase) Manifest(height base.Height) (base.Manifest, bool, error) {
-	e := util.StringErrorFunc("failed to load manifest")
-
-	switch m, found, err := db.LastManifest(); {
-	case err != nil:
-		return nil, false, e(err, "")
-	case found:
-		return m, true, nil
-	}
-
-	switch b, found, err := db.st.Get(leveldbManifestKey(height)); {
-	case err != nil:
-		return nil, false, e(err, "")
-	case !found:
-		return nil, false, nil
-	default:
-		m, err := db.decodeManifest(b)
-		if err != nil {
-			return nil, false, e(err, "")
-		}
-
-		return m, true, nil
-	}
-}
-
 func (db *LeveldbPermanentDatabase) Suffrage(height base.Height) (base.State, bool, error) {
 	e := util.StringErrorFunc("failed to get suffrage by block height")
 
-	switch m, found, err := db.LastManifest(); {
+	switch m, found, err := db.LastMap(); {
 	case err != nil:
 		return nil, false, e(err, "")
 	case !found:
 		return nil, false, nil
-	case height > m.Height():
+	case height > m.Manifest().Height():
 		return nil, false, nil
 	}
 
@@ -156,6 +131,31 @@ func (db *LeveldbPermanentDatabase) ExistsOperation(h util.Hash) (bool, error) {
 	return db.existsOperation(h)
 }
 
+func (db *LeveldbPermanentDatabase) Map(height base.Height) (base.BlockDataMap, bool, error) {
+	e := util.StringErrorFunc("failed to load blockdatamap")
+
+	switch m, found, err := db.LastMap(); {
+	case err != nil:
+		return nil, false, e(err, "")
+	case found:
+		return m, true, nil
+	}
+
+	switch b, found, err := db.st.Get(leveldbBlockDataMapKey(height)); {
+	case err != nil:
+		return nil, false, e(err, "")
+	case !found:
+		return nil, false, nil
+	default:
+		m, err := db.decodeBlockDataMap(b)
+		if err != nil {
+			return nil, false, e(err, "")
+		}
+
+		return m, true, nil
+	}
+}
+
 func (db *LeveldbPermanentDatabase) MergeTempDatabase(_ context.Context, temp TempDatabase) error {
 	db.Lock()
 	defer db.Unlock()
@@ -168,12 +168,12 @@ func (db *LeveldbPermanentDatabase) MergeTempDatabase(_ context.Context, temp Te
 
 	switch t := temp.(type) {
 	case *TempLeveldbDatabase:
-		m, sufstt, err := db.mergeTempDatabaseFromLeveldb(t)
+		mp, sufstt, err := db.mergeTempDatabaseFromLeveldb(t)
 		if err != nil {
 			return e(err, "")
 		}
 
-		_ = db.m.SetValue(m)
+		_ = db.mp.SetValue(mp)
 		_ = db.sufstt.SetValue(sufstt)
 
 		return nil
@@ -183,16 +183,16 @@ func (db *LeveldbPermanentDatabase) MergeTempDatabase(_ context.Context, temp Te
 }
 
 func (db *LeveldbPermanentDatabase) mergeTempDatabaseFromLeveldb(temp *TempLeveldbDatabase) (
-	base.Manifest, base.State, error,
+	base.BlockDataMap, base.State, error,
 ) {
 	e := util.StringErrorFunc("failed to merge LeveldbTempDatabase")
 
-	var m base.Manifest
-	switch i, err := temp.Manifest(); {
+	var mp base.BlockDataMap
+	switch i, err := temp.Map(); {
 	case err != nil:
 		return nil, nil, e(err, "")
 	default:
-		m = i
+		mp = i
 	}
 
 	var sufstt base.State
@@ -247,27 +247,27 @@ func (db *LeveldbPermanentDatabase) mergeTempDatabaseFromLeveldb(temp *TempLevel
 		}
 	}
 
-	// NOTE merge manifest
-	switch b, found, err := temp.st.Get(leveldbKeyPrefixManifest); {
+	// NOTE merge blockdatamap
+	switch b, found, err := temp.st.Get(leveldbKeyPrefixBlockDataMap); {
 	case err != nil || !found:
-		return nil, nil, e(err, "failed to get manifest from TempDatabase")
+		return nil, nil, e(err, "failed to get blockdatamap from TempDatabase")
 	default:
-		if err := db.st.Put(leveldbManifestKey(temp.Height()), b, nil); err != nil {
-			return nil, nil, e(err, "failed to put manifest")
+		if err := db.st.Put(leveldbBlockDataMapKey(temp.Height()), b, nil); err != nil {
+			return nil, nil, e(err, "failed to put blockdatamap")
 		}
 	}
 
-	return m, sufstt, nil
+	return mp, sufstt, nil
 }
 
-func (db *LeveldbPermanentDatabase) loadLastManifest() error {
-	e := util.StringErrorFunc("failed to load last manifest")
+func (db *LeveldbPermanentDatabase) loadLastBlockDataMap() error {
+	e := util.StringErrorFunc("failed to load last blockdatamap")
 
-	var m base.Manifest
+	var m base.BlockDataMap
 	if err := db.st.Iter(
-		leveldbutil.BytesPrefix(leveldbKeyPrefixManifest),
+		leveldbutil.BytesPrefix(leveldbKeyPrefixBlockDataMap),
 		func(_, b []byte) (bool, error) {
-			i, err := db.decodeManifest(b)
+			i, err := db.decodeBlockDataMap(b)
 			if err != nil {
 				return false, err
 			}
@@ -285,7 +285,7 @@ func (db *LeveldbPermanentDatabase) loadLastManifest() error {
 		return nil
 	}
 
-	_ = db.m.SetValue(m)
+	_ = db.mp.SetValue(m)
 
 	return nil
 }

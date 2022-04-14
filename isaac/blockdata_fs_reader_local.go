@@ -54,7 +54,9 @@ func (r *LocalBlockDataFSReader) Map() (base.BlockDataMap, bool, error) {
 		case err != nil:
 			return nil, err
 		default:
-			defer f.Close()
+			defer func() {
+				_ = f.Close()
+			}()
 
 			i, err := io.ReadAll(f)
 			if err != nil {
@@ -71,13 +73,13 @@ func (r *LocalBlockDataFSReader) Map() (base.BlockDataMap, bool, error) {
 
 		um, ok := hinter.(base.BlockDataMap)
 		if !ok {
-			return nil, errors.Errorf("not BlockDataMap, %T", hinter)
+			return nil, errors.Errorf("not blockdatamap, %T", hinter)
 		}
 
 		return um, nil
 	})
 
-	e := util.StringErrorFunc("failed to load BlockDataMap")
+	e := util.StringErrorFunc("failed to load blockdatamap")
 	switch {
 	case err == nil:
 		return i.(base.BlockDataMap), true, nil
@@ -102,7 +104,7 @@ func (r *LocalBlockDataFSReader) Reader(t base.BlockDataType) (io.ReadCloser, bo
 	i, _, _ := r.readersl.Get(t, func() (interface{}, error) {
 		switch fi, err := os.Stat(fpath); {
 		case err != nil:
-			return err, nil
+			return err, nil // nolint:nilerr
 		case fi.IsDir():
 			return errors.Errorf("not normal file; directory"), nil
 		default:
@@ -123,7 +125,7 @@ func (r *LocalBlockDataFSReader) Reader(t base.BlockDataType) (io.ReadCloser, bo
 
 	var f io.ReadCloser
 
-	rawf, err := os.Open(fpath)
+	rawf, err := os.Open(filepath.Clean(fpath))
 	if err == nil {
 		switch {
 		case isCompressedBlockDataType(t):
@@ -193,12 +195,12 @@ func (r *LocalBlockDataFSReader) item(t base.BlockDataType) (interface{}, bool, 
 	}
 
 	if !isListBlockDataType(t) {
-		i, err := r.loadItem(f)
-		return i, true, err
+		i, eerr := r.loadItem(f)
+		return i, true, eerr
 	}
 
-	i, err := r.loadItems(item, f)
-	return i, true, err
+	i, eerr := r.loadItems(item, f)
+	return i, true, eerr
 }
 
 func (r *LocalBlockDataFSReader) loadItem(f io.Reader) (interface{}, error) {
@@ -223,9 +225,9 @@ end:
 	for {
 		b, err := br.ReadBytes('\n')
 		if len(b) > 0 {
-			hinter, err := r.enc.Decode(b)
+			hinter, eerr := r.enc.Decode(b)
 			if err != nil {
-				return errors.Wrap(err, "")
+				return errors.Wrap(eerr, "")
 			}
 
 			switch keep, eerr := callback(hinter); {

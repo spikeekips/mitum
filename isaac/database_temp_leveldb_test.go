@@ -52,7 +52,7 @@ func (t *testTempLeveldbDatabase) TestLoad() {
 	stts = append(stts, sufstt)
 
 	manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
-	m := base.NewDummyBlockDataMap(manifest)
+	mp := base.NewDummyBlockDataMap(manifest)
 
 	ops := make([]util.Hash, 33)
 	for i := range ops {
@@ -60,8 +60,7 @@ func (t *testTempLeveldbDatabase) TestLoad() {
 	}
 
 	wst := t.newLeveldbBlockWriteDatabase(height)
-	t.NoError(wst.SetManifest(manifest))
-	t.NoError(wst.SetMap(m))
+	t.NoError(wst.SetMap(mp))
 	t.NoError(wst.SetStates(stts))
 	t.NoError(wst.SetOperations(ops))
 	t.NoError(wst.Write())
@@ -74,11 +73,11 @@ func (t *testTempLeveldbDatabase) TestLoad() {
 
 	_ = (interface{})(rst).(TempDatabase)
 
-	t.Run("Manifest", func() {
-		rm, err := rst.Manifest()
+	t.Run("blockdatamap", func() {
+		rm, err := rst.Map()
 		t.NoError(err)
 
-		base.EqualManifest(t.Assert(), manifest, rm)
+		EqualBlockDataMap(t.Assert(), mp, rm)
 	})
 
 	t.Run("check last suffrage", func() {
