@@ -580,7 +580,9 @@ func (t *testErrgroupWorker) TestError() {
 
 	err := wk.Wait()
 	t.NotNil(err)
-	t.Contains(err.Error(), "error:3")
+	if !errors.Is(err, context.Canceled) {
+		t.Contains(err.Error(), "error:3")
+	}
 
 	c := atomic.LoadUint64(&called)
 	t.True(c < 1, "called=%d", c)
