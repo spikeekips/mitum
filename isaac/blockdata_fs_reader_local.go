@@ -121,14 +121,28 @@ func (r *LocalBlockDataFSReader) Reader(t base.BlockDataType) (io.ReadCloser, bo
 		}
 	}
 
-	f, err := os.Open(fpath)
+	var f io.ReadCloser
+
+	rawf, err := os.Open(fpath)
 	if err == nil {
-		return f, true, nil
+		switch {
+		case isCompressedBlockDataType(t):
+			i, eerr := util.NewGzipReader(rawf)
+			if eerr != nil {
+				err = eerr
+			}
+
+			f = i
+		default:
+			f = rawf
+		}
 	}
 
 	_ = r.readersl.SetValue(t, err)
 
 	switch {
+	case err == nil:
+		return f, true, nil
 	case os.IsNotExist(err):
 		return nil, false, nil
 	default:
@@ -461,5 +475,5 @@ func checkValidBlockDataFSDirectory(s string, enc encoder.Encoder) bool {
 }
 
 func blockDataFSMapFilename(enc encoder.Encoder) string {
-	return fmt.Sprintf("%s%s", blockDataMapFilename, fileExtFromEncoder(enc, false))
+	return fmt.Sprintf("%s%s", blockDataMapFilename, fileExtFromEncoder(enc))
 }

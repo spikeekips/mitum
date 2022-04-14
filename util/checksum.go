@@ -15,42 +15,46 @@ func SHA256Checksum(b []byte) string {
 	return fmt.Sprintf("%x", sha.Sum(nil))
 }
 
-type ChecksumWriter struct {
+type ChecksumWriter interface {
+	io.WriteCloser
+	Name() string
+	Checksum() string
+}
+
+type HashChecksumWriter struct {
 	sync.Mutex
-	m        io.Writer
-	w        io.WriteCloser
 	fname    string
-	sha      hash.Hash
+	w        io.WriteCloser
+	h        hash.Hash
+	m        io.Writer
 	checksum string
 }
 
-func NewChecksumWriter(fname string, w io.WriteCloser) *ChecksumWriter {
-	sha := sha256.New()
-
-	return &ChecksumWriter{
-		m:     io.MultiWriter(sha, w),
+func NewHashChecksumWriter(fname string, w io.WriteCloser, h hash.Hash) *HashChecksumWriter {
+	return &HashChecksumWriter{
+		m:     io.MultiWriter(h, w),
 		w:     w,
 		fname: fname,
-		sha:   sha,
+		h:     h,
 	}
 }
 
-func (w *ChecksumWriter) Close() error {
+func (w *HashChecksumWriter) Close() error {
 	return w.w.Close()
 }
 
-func (w *ChecksumWriter) Write(b []byte) (int, error) {
+func (w *HashChecksumWriter) Write(b []byte) (int, error) {
 	w.Lock()
 	defer w.Unlock()
 
 	return w.m.Write(b)
 }
 
-func (w *ChecksumWriter) Name() string {
+func (w *HashChecksumWriter) Name() string {
 	return w.fname
 }
 
-func (w *ChecksumWriter) Checksum() string {
+func (w *HashChecksumWriter) Checksum() string {
 	w.Lock()
 	defer w.Unlock()
 
@@ -58,8 +62,28 @@ func (w *ChecksumWriter) Checksum() string {
 		return w.checksum
 	}
 
-	w.checksum = fmt.Sprintf("%x", w.sha.Sum(nil))
-	w.sha.Reset()
+	w.checksum = fmt.Sprintf("%x", w.h.Sum(nil))
+	w.h.Reset()
 
 	return w.checksum
+}
+
+type DummyChecksumWriter struct {
+	io.WriteCloser
+	cw ChecksumWriter
+}
+
+func NewDummyChecksumWriter(f io.WriteCloser, cw ChecksumWriter) *DummyChecksumWriter {
+	return &DummyChecksumWriter{
+		WriteCloser: f,
+		cw:          cw,
+	}
+}
+
+func (w *DummyChecksumWriter) Name() string {
+	return w.cw.Name()
+}
+
+func (w *DummyChecksumWriter) Checksum() string {
+	return w.cw.Checksum()
 }

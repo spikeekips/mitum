@@ -195,19 +195,14 @@ func (t *testLocalBlockDataFSWriter) TestSave() {
 	newroot := filepath.Join(fs.root, fs.savedir())
 
 	{
-		filepath.Walk(newroot, func(path string, info os.FileInfo, err error) error {
-			if info.IsDir() {
-				return nil
-			}
-
-			t.T().Log("file:", path)
-
-			return nil
-		})
+		t.walkDirectory(newroot)
 
 		b, _ := util.MarshalJSONIndent(m)
 		t.T().Log("blockdatamap:", string(b))
 	}
+
+	b, _ := util.MarshalJSONIndent(m)
+	t.T().Log("blockdatamap:", string(b))
 
 	t.Run("operations(tree) should be empty in map", func() {
 		_, found := m.Item(base.BlockDataTypeOperations)

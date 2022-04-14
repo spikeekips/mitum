@@ -69,6 +69,18 @@ func (t *testBaseLocalBlockDataFS) voteproofs(point base.Point) (base.INITVotepr
 	return ivp, avp
 }
 
+func (t *testBaseLocalBlockDataFS) walkDirectory(root string) {
+	filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if info.IsDir() {
+			return nil
+		}
+
+		t.T().Log("file:", path)
+
+		return nil
+	})
+}
+
 type testLocalBlockDataFSReader struct {
 	testBaseLocalBlockDataFS
 }
@@ -191,8 +203,15 @@ func (t *testLocalBlockDataFSReader) TestMap() {
 func (t *testLocalBlockDataFSReader) TestReader() {
 	point := base.RawPoint(33, 44)
 	fs, _, _, _, _, _, _ := t.preparefs(point)
-	_, err := fs.Save(context.Background())
+	m, err := fs.Save(context.Background())
 	t.NoError(err)
+
+	{
+		t.walkDirectory(fs.root)
+
+		b, _ := util.MarshalJSONIndent(m)
+		t.T().Log("blockdatamap:", string(b))
+	}
 
 	r, err := NewLocalBlockDataFSReader(t.root, point.Height(), t.enc)
 	t.NoError(err)

@@ -2,6 +2,7 @@ package isaac
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"math"
@@ -49,8 +50,8 @@ type LocalBlockDataFSWriter struct {
 	m          BlockDataMap
 	vps        [2]base.Voteproof
 	lenops     int64
-	opsf       *util.ChecksumWriter
-	stsf       *util.ChecksumWriter
+	opsf       util.ChecksumWriter
+	stsf       util.ChecksumWriter
 }
 
 func NewLocalBlockDataFSWriter(
@@ -92,14 +93,14 @@ func NewLocalBlockDataFSWriter(
 		m:          NewBlockDataMap(LocalBlockDataFSWriterHint, enc.Hint()),
 	}
 
-	switch f, err := w.newListChecksumWriter(base.BlockDataTypeOperations); {
+	switch f, err := w.newChecksumWriter(base.BlockDataTypeOperations); {
 	case err != nil:
 		return nil, e(err, "failed to create operations file")
 	default:
 		w.opsf = f
 	}
 
-	switch f, err := w.newListChecksumWriter(base.BlockDataTypeStates); {
+	switch f, err := w.newChecksumWriter(base.BlockDataTypeStates); {
 	case err != nil:
 		return nil, e(err, "failed to create states file")
 	default:
@@ -222,7 +223,7 @@ func (w *LocalBlockDataFSWriter) SetACCEPTVoteproof(_ context.Context, vp base.A
 func (w *LocalBlockDataFSWriter) saveVoteproofs() error {
 	e := util.StringErrorFunc("failed to save voteproofs ")
 
-	f, err := w.newListChecksumWriter(base.BlockDataTypeVoteproofs)
+	f, err := w.newChecksumWriter(base.BlockDataTypeVoteproofs)
 	if err != nil {
 		return e(err, "")
 	}
@@ -326,7 +327,7 @@ func (w *LocalBlockDataFSWriter) setTree(
 
 	e := util.StringErrorFunc("failed to set tree, %q", treetype)
 
-	tf, err := w.newListChecksumWriter(treetype)
+	tf, err := w.newChecksumWriter(treetype)
 	if err != nil {
 		return e(err, "failed to create tree file, %q", treetype)
 	}
@@ -400,9 +401,7 @@ func (w *LocalBlockDataFSWriter) savedir() string {
 	return filepath.Join(w.heightbase, w.id)
 }
 
-func (w *LocalBlockDataFSWriter) filename(t base.BlockDataType, islist bool) (
-	filename string, temppath string, err error,
-) {
+func (w *LocalBlockDataFSWriter) filename(t base.BlockDataType) (filename string, temppath string, err error) {
 	f, err := BlockDataFileName(t, w.enc)
 	if err != nil {
 		return "", "", errors.Wrap(err, "")
@@ -412,17 +411,11 @@ func (w *LocalBlockDataFSWriter) filename(t base.BlockDataType, islist bool) (
 }
 
 func (w *LocalBlockDataFSWriter) writeItem(t base.BlockDataType, i interface{}) error {
-	fname, temppath, err := w.filename(t, false)
+	cw, err := w.newChecksumWriter(t)
 	if err != nil {
 		return errors.Wrap(err, "")
 	}
 
-	f, err := os.OpenFile(temppath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644) // nolint:gosec
-	if err != nil {
-		return errors.Wrap(err, "")
-	}
-
-	cw := util.NewChecksumWriter(fname, f)
 	defer func() {
 		_ = cw.Close()
 	}()
@@ -433,7 +426,7 @@ func (w *LocalBlockDataFSWriter) writeItem(t base.BlockDataType, i interface{}) 
 
 	_ = cw.Close()
 
-	if err := w.m.SetItem(NewLocalBlockDataMapItem(t, filepath.Join(w.savedir(), fname), cw.Checksum(), 1)); err != nil {
+	if err := w.m.SetItem(NewLocalBlockDataMapItem(t, filepath.Join(w.savedir(), cw.Name()), cw.Checksum(), 1)); err != nil {
 		return errors.Wrap(err, "")
 	}
 
@@ -466,45 +459,19 @@ func (*LocalBlockDataFSWriter) writefile(f io.Writer, b []byte) error {
 	return nil
 }
 
-func (w *LocalBlockDataFSWriter) newListChecksumWriter(t base.BlockDataType) (*util.ChecksumWriter, error) {
-	// BLOCK comparess
-	fname, temppath, _ := w.filename(t, true)
+func (w *LocalBlockDataFSWriter) newChecksumWriter(t base.BlockDataType) (util.ChecksumWriter, error) {
+	fname, temppath, _ := w.filename(t)
 	switch f, err := os.OpenFile(temppath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644); { // nolint:gosec
 	case err != nil:
 		return nil, errors.Wrap(err, "")
 	default:
-		return util.NewChecksumWriter(fname, f), nil
-	}
-}
-
-func BlockDataFileName(t base.BlockDataType, enc encoder.Encoder) (string, error) {
-	name, found := blockDataFilenames[t]
-	if !found {
-		return "", errors.Errorf("unknown block data type, %q", t)
-	}
-
-	ext := fileExtFromEncoder(enc, isListBlockDataType(t))
-	if len(ext) < 1 {
-		return name, nil
-	}
-
-	return fmt.Sprintf("%s%s", name, ext), nil
-}
-
-func fileExtFromEncoder(enc encoder.Encoder, islist bool) string {
-	switch {
-	case strings.Contains(strings.ToLower(enc.Hint().Type().String()), "json"):
-		if islist {
-			return ".ndjson"
+		var cw util.ChecksumWriter
+		cw = util.NewHashChecksumWriter(fname, f, sha256.New())
+		if isCompressedBlockDataType(t) {
+			cw = util.NewDummyChecksumWriter(util.NewGzipWriter(cw), cw)
 		}
 
-		return ".json"
-	default:
-		if islist {
-			return ".blist"
-		}
-
-		return ".b" // NOTE means b(lock)
+		return cw, nil
 	}
 }
 
@@ -541,6 +508,42 @@ func HeightDirectory(height base.Height) string {
 	return "/" + strings.Join(sl, "/")
 }
 
+func BlockDataFileName(t base.BlockDataType, enc encoder.Encoder) (string, error) {
+	name, found := blockDataFilenames[t]
+	if !found {
+		return "", errors.Errorf("unknown block data type, %q", t)
+	}
+
+	ext := fileExtFromEncoder(enc)
+	if isListBlockDataType(t) {
+		ext = listFileExtFromEncoder(enc)
+	}
+
+	if isCompressedBlockDataType(t) {
+		ext += ".gz"
+	}
+
+	return fmt.Sprintf("%s%s", name, ext), nil
+}
+
+func fileExtFromEncoder(enc encoder.Encoder) string {
+	switch {
+	case strings.Contains(strings.ToLower(enc.Hint().Type().String()), "json"):
+		return ".json"
+	default:
+		return ".b" // NOTE means b(ytes)
+	}
+}
+
+func listFileExtFromEncoder(enc encoder.Encoder) string {
+	switch {
+	case strings.Contains(strings.ToLower(enc.Hint().Type().String()), "json"):
+		return ".ndjson"
+	default:
+		return ".blist"
+	}
+}
+
 func isListBlockDataType(t base.BlockDataType) bool {
 	switch t {
 	case base.BlockDataTypeOperations,
@@ -551,6 +554,17 @@ func isListBlockDataType(t base.BlockDataType) bool {
 		return true
 	default:
 		return false
+	}
+}
 
+func isCompressedBlockDataType(t base.BlockDataType) bool {
+	switch t {
+	case base.BlockDataTypeOperations,
+		base.BlockDataTypeOperationsTree,
+		base.BlockDataTypeStates,
+		base.BlockDataTypeStatesTree:
+		return true
+	default:
+		return false
 	}
 }
