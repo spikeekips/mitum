@@ -70,6 +70,12 @@ func (t *testBaseLocalBlockDataFS) voteproofs(point base.Point) (base.INITVotepr
 
 func (t *testBaseLocalBlockDataFS) walkDirectory(root string) {
 	filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			t.T().Logf("error: %+v", err)
+
+			return err
+		}
+
 		if info.IsDir() {
 			return nil
 		}
@@ -166,12 +172,8 @@ func (t *testLocalBlockDataFSReader) TestNew() {
 	ctx := context.Background()
 
 	point := base.RawPoint(33, 44)
-	fs0, _, _, _, _, _, _ := t.preparefs(point)
-	_, err := fs0.Save(ctx)
-	t.NoError(err)
-
-	fs1, _, _, _, _, _, _ := t.preparefs(point)
-	_, err = fs1.Save(ctx)
+	fs, _, _, _, _, _, _ := t.preparefs(point)
+	_, err := fs.Save(ctx)
 	t.NoError(err)
 
 	r, err := NewLocalBlockDataFSReader(t.root, point.Height(), t.enc)
@@ -180,7 +182,7 @@ func (t *testLocalBlockDataFSReader) TestNew() {
 
 	_ = (interface{})(r).(BlockDataReader)
 
-	t.Equal(filepath.Join(fs1.root, fs1.savedir()), r.root)
+	t.Equal(filepath.Join(fs.root, fs.heightbase), r.root)
 }
 
 func (t *testLocalBlockDataFSReader) TestMap() {

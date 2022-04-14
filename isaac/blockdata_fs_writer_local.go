@@ -138,7 +138,7 @@ func (w *LocalBlockDataFSWriter) SetOperationsTree(ctx context.Context, tr tree.
 
 			if err := w.m.SetItem(NewLocalBlockDataMapItem(
 				base.BlockDataTypeOperations,
-				filepath.Join(w.savedir(), w.opsf.Name()),
+				filepath.Join(w.heightbase, w.opsf.Name()),
 				w.opsf.Checksum(),
 				atomic.LoadInt64(&w.lenops),
 			)); err != nil {
@@ -172,7 +172,7 @@ func (w *LocalBlockDataFSWriter) SetStatesTree(ctx context.Context, tr tree.Fixe
 
 			if err := w.m.SetItem(NewLocalBlockDataMapItem(
 				base.BlockDataTypeStates,
-				filepath.Join(w.savedir(), w.stsf.Name()),
+				filepath.Join(w.heightbase, w.stsf.Name()),
 				w.stsf.Checksum(),
 				int64(tr.Len()),
 			)); err != nil {
@@ -239,7 +239,7 @@ func (w *LocalBlockDataFSWriter) saveVoteproofs() error {
 
 	if err := w.m.SetItem(NewLocalBlockDataMapItem(
 		base.BlockDataTypeVoteproofs,
-		filepath.Join(w.savedir(), f.Name()),
+		filepath.Join(w.heightbase, f.Name()),
 		f.Checksum(),
 		1,
 	)); err != nil {
@@ -252,6 +252,19 @@ func (w *LocalBlockDataFSWriter) saveVoteproofs() error {
 func (w *LocalBlockDataFSWriter) Save(_ context.Context) (base.BlockDataMap, error) {
 	w.Lock()
 	defer w.Unlock()
+
+	e := util.StringErrorFunc("failed to save fs writer")
+
+	heightdirectory := filepath.Join(w.root, w.heightbase)
+
+	// NOTE check height directory
+	switch _, err := os.Stat(heightdirectory); {
+	case err == nil:
+		return nil, e(nil, "height directory already exists")
+	case os.IsNotExist(err):
+	default:
+		return nil, e(err, "failed to check height directory")
+	}
 
 	if w.opsf != nil {
 		_ = w.opsf.Close()
@@ -269,7 +282,6 @@ func (w *LocalBlockDataFSWriter) Save(_ context.Context) (base.BlockDataMap, err
 		}
 	}
 
-	e := util.StringErrorFunc("failed to save fs writer")
 	if item, found := w.m.Item(base.BlockDataTypeVoteproofs); !found || item == nil {
 		return nil, e(nil, "empty voteproofs")
 	}
@@ -278,14 +290,14 @@ func (w *LocalBlockDataFSWriter) Save(_ context.Context) (base.BlockDataMap, err
 		return nil, e(err, "")
 	}
 
-	switch err := os.MkdirAll(filepath.Join(w.root, w.heightbase), 0o700); {
+	switch err := os.MkdirAll(filepath.Dir(heightdirectory), 0o700); {
 	case err == nil:
 	case os.IsExist(err):
 	case err != nil:
-		return nil, e(err, "failed to create height directory")
+		return nil, e(err, "failed to create height parent directory")
 	}
 
-	if err := os.Rename(w.temp, filepath.Join(w.root, w.savedir())); err != nil {
+	if err := os.Rename(w.temp, heightdirectory); err != nil {
 		return nil, e(err, "")
 	}
 
@@ -368,7 +380,7 @@ func (w *LocalBlockDataFSWriter) setTree(
 
 	if err := w.m.SetItem(NewLocalBlockDataMapItem(
 		treetype,
-		filepath.Join(w.savedir(), tf.Name()), tf.Checksum(), int64(tr.Len())),
+		filepath.Join(w.heightbase, tf.Name()), tf.Checksum(), int64(tr.Len())),
 	); err != nil {
 		return e(err, "")
 	}
@@ -401,10 +413,6 @@ func (w *LocalBlockDataFSWriter) saveMap() error {
 	return nil
 }
 
-func (w *LocalBlockDataFSWriter) savedir() string {
-	return filepath.Join(w.heightbase, w.id)
-}
-
 func (w *LocalBlockDataFSWriter) filename(t base.BlockDataType) (filename string, temppath string, err error) {
 	f, err := BlockDataFileName(t, w.enc)
 	if err != nil {
@@ -432,7 +440,7 @@ func (w *LocalBlockDataFSWriter) writeItem(t base.BlockDataType, i interface{}) 
 
 	if err := w.m.SetItem(NewLocalBlockDataMapItem(
 		t,
-		filepath.Join(w.savedir(), cw.Name()),
+		filepath.Join(w.heightbase, cw.Name()),
 		cw.Checksum(),
 		1,
 	)); err != nil {
@@ -576,4 +584,8 @@ func isCompressedBlockDataType(t base.BlockDataType) bool {
 	default:
 		return false
 	}
+}
+
+func blockDataFSMapFilename(enc encoder.Encoder) string {
+	return fmt.Sprintf("%s%s", blockDataMapFilename, fileExtFromEncoder(enc))
 }

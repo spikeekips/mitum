@@ -4,13 +4,10 @@ import (
 	"bufio"
 	"context"
 	"crypto/sha256"
-	"fmt"
 	"io"
 	"math"
 	"os"
 	"path/filepath"
-	"sort"
-	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -28,19 +25,22 @@ type LocalBlockDataFSReader struct {
 }
 
 func NewLocalBlockDataFSReader(
-	root string,
+	baseroot string,
 	height base.Height,
 	enc encoder.Encoder,
 ) (*LocalBlockDataFSReader, error) {
 	e := util.StringErrorFunc("failed to NewLocalBlockDataFSReader")
 
-	newroot, err := findValidBlockDataFSDirectory(root, height, enc)
-	if err != nil {
-		return nil, e(err, "")
+	heightroot := filepath.Join(baseroot, HeightDirectory(height))
+	switch fi, err := os.Stat(filepath.Join(heightroot, blockDataFSMapFilename(enc))); {
+	case err != nil:
+		return nil, e(err, "invalid root directory")
+	case fi.IsDir():
+		return nil, e(nil, "map file is directory")
 	}
 
 	return &LocalBlockDataFSReader{
-		root:     newroot,
+		root:     heightroot,
 		enc:      enc,
 		mapl:     util.EmptyLocked(),
 		readersl: util.NewLockedMap(),
@@ -445,51 +445,4 @@ func (r *LocalBlockDataFSReader) loadTree(
 	default:
 		return tr, nil
 	}
-}
-
-func findValidBlockDataFSDirectory(root string, height base.Height, enc encoder.Encoder) (string, error) {
-	e := util.StringErrorFunc("valid block data fs directory not found")
-
-	matches, err := filepath.Glob(filepath.Join(root, HeightDirectory(height)) + "/*")
-	switch {
-	case err != nil:
-		return "", e(err, "")
-	case len(matches) < 1:
-		return "", e(nil, "no matches")
-	}
-
-	sort.Slice(matches, func(i, j int) bool {
-		return strings.Compare(matches[i], matches[j]) > 0
-	})
-
-	var found string
-	for i := range matches {
-		s := matches[i]
-		if checkValidBlockDataFSDirectory(s, enc) {
-			found = s
-
-			break
-		}
-	}
-
-	if len(found) < 1 {
-		return "", e(nil, "not found")
-	}
-
-	return found, nil
-}
-
-func checkValidBlockDataFSDirectory(s string, enc encoder.Encoder) bool {
-	switch fi, err := os.Stat(filepath.Join(s, blockDataFSMapFilename(enc))); {
-	case err != nil:
-		return false
-	case fi.IsDir():
-		return false
-	default:
-		return true
-	}
-}
-
-func blockDataFSMapFilename(enc encoder.Encoder) string {
-	return fmt.Sprintf("%s%s", blockDataMapFilename, fileExtFromEncoder(enc))
 }

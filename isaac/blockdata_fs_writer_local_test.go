@@ -192,7 +192,7 @@ func (t *testLocalBlockDataFSWriter) TestSave() {
 	t.NoError(err)
 	t.NotNil(m)
 
-	newroot := filepath.Join(fs.root, fs.savedir())
+	newroot := filepath.Join(fs.root, fs.heightbase)
 
 	{
 		t.walkDirectory(newroot)
@@ -250,6 +250,45 @@ func (t *testLocalBlockDataFSWriter) TestSave() {
 		t.True(ok)
 
 		EqualBlockDataMap(t.Assert(), fs.m, um)
+	})
+}
+
+func (t *testLocalBlockDataFSWriter) TestSaveAgain() {
+	point := base.RawPoint(33, 44)
+	pr := NewProposalSignedFact(NewProposalFact(point, t.local.Address(), []util.Hash{valuehash.RandomSHA256()}))
+	_ = pr.Sign(t.local.Privatekey(), t.policy.NetworkID())
+
+	fs, err := NewLocalBlockDataFSWriter(t.root, point.Height(), t.enc, t.local, t.policy.NetworkID())
+	t.NoError(err)
+
+	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+	t.NoError(fs.SetManifest(context.Background(), manifest))
+
+	t.NoError(fs.SetProposal(context.Background(), pr))
+	ivp, avp := t.voteproofs(point)
+	t.NoError(fs.SetINITVoteproof(context.Background(), ivp))
+	t.NoError(fs.SetACCEPTVoteproof(context.Background(), avp))
+
+	m, err := fs.Save(context.Background())
+	t.NoError(err)
+	t.NotNil(m)
+
+	t.Run("save again", func() {
+		fs, err := NewLocalBlockDataFSWriter(t.root, point.Height(), t.enc, t.local, t.policy.NetworkID())
+		t.NoError(err)
+
+		manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+		t.NoError(fs.SetManifest(context.Background(), manifest))
+
+		t.NoError(fs.SetProposal(context.Background(), pr))
+		ivp, avp := t.voteproofs(point)
+		t.NoError(fs.SetINITVoteproof(context.Background(), ivp))
+		t.NoError(fs.SetACCEPTVoteproof(context.Background(), avp))
+
+		m, err := fs.Save(context.Background())
+		t.Error(err)
+		t.Nil(m)
+		t.Contains(err.Error(), "height directory already exists")
 	})
 }
 
