@@ -31,7 +31,6 @@ func (t *testBaseLocalBlockDataFS) SetupSuite() {
 	t.baseTestDatabase.SetupSuite()
 
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: BlockDataMapHint, Instance: BlockDataMap{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: BlockDataMapItemHint, Instance: BlockDataMapItem{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: INITVoteproofHint, Instance: INITVoteproof{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ACCEPTVoteproofHint, Instance: ACCEPTVoteproof{}}))
 

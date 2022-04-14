@@ -63,17 +63,12 @@ func (m *BlockDataMap) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 
 	um := map[base.BlockDataType]base.BlockDataMapItem{}
 	for k := range u.M {
-		switch hinter, err := enc.Decode(u.M[k]); {
-		case err != nil:
-			return e(err, "failed to decode BlockDataMapItem")
-		default:
-			i, ok := hinter.(base.BlockDataMapItem)
-			if !ok {
-				return e(err, "decoded not BlockDataMapItem, %T", hinter)
-			}
-
-			um[k] = i
+		var ui BlockDataMapItem
+		if err := enc.Unmarshal(u.M[k], &ui); err != nil {
+			return e(err, "failed to unmarshal BlockDataMapItem, %q", k)
 		}
+
+		um[k] = ui
 	}
 
 	m.writer = u.W
@@ -84,7 +79,6 @@ func (m *BlockDataMap) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 }
 
 type blockDataMapItemJSONMarshaler struct {
-	hint.BaseHinter
 	T        base.BlockDataType `json:"type"`
 	URL      string             `json:"url"`
 	Checksum string             `json:"checksum"`
@@ -93,11 +87,10 @@ type blockDataMapItemJSONMarshaler struct {
 
 func (item BlockDataMapItem) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(blockDataMapItemJSONMarshaler{
-		BaseHinter: item.BaseHinter,
-		T:          item.t,
-		URL:        item.url.String(),
-		Checksum:   item.checksum,
-		Num:        item.num,
+		T:        item.t,
+		URL:      item.url.String(),
+		Checksum: item.checksum,
+		Num:      item.num,
 	})
 }
 

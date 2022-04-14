@@ -31,7 +31,6 @@ type BlockDataMap interface {
 }
 
 type BlockDataMapItem interface {
-	hint.Hinter
 	util.IsValider
 	Type() BlockDataType
 	URL() *url.URL

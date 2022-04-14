@@ -12,10 +12,7 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 )
 
-var (
-	BlockDataMapHint     = hint.MustNewHint("blockdatamap-v0.0.1")
-	BlockDataMapItemHint = hint.MustNewHint("blockdatamap-item-v0.0.1")
-)
+var BlockDataMapHint = hint.MustNewHint("blockdatamap-v0.0.1")
 
 var (
 	supportedBlockDataMapItemURLSchemes = []string{"file+blockdata", "file", "http", "https"}
@@ -124,7 +121,7 @@ func (m *BlockDataMap) Sign(node base.Address, priv base.Privatekey, networkID b
 
 func (m BlockDataMap) checkItems() error {
 	check := func(t base.BlockDataType) bool {
-		i, found := m.m[base.BlockDataTypeProposal]
+		i, found := m.m[t]
 
 		return found && i != nil
 	}
@@ -181,7 +178,6 @@ func (m *BlockDataMap) signedBytes() []byte {
 }
 
 type BlockDataMapItem struct {
-	hint.BaseHinter
 	t        base.BlockDataType
 	url      url.URL
 	checksum string
@@ -190,11 +186,10 @@ type BlockDataMapItem struct {
 
 func NewBlockDataMapItem(t base.BlockDataType, u url.URL, checksum string, num int64) BlockDataMapItem {
 	return BlockDataMapItem{
-		BaseHinter: hint.NewBaseHinter(BlockDataMapItemHint),
-		t:          t,
-		url:        u,
-		checksum:   checksum,
-		num:        num,
+		t:        t,
+		url:      u,
+		checksum: checksum,
+		num:      num,
 	}
 }
 
@@ -207,9 +202,6 @@ func NewLocalBlockDataMapItem(t base.BlockDataType, path string, checksum string
 
 func (item BlockDataMapItem) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid BlockDataMapItem")
-	if err := item.BaseHinter.IsValid(BlockDataMapItemHint.Type().Bytes()); err != nil {
-		return e(err, "")
-	}
 
 	if err := item.t.IsValid(nil); err != nil {
 		return e(err, "")
