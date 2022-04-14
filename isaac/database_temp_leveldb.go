@@ -17,8 +17,9 @@ import (
 type TempLeveldbDatabase struct {
 	*baseLeveldbDatabase
 	st     *leveldbstorage.ReadonlyStorage
-	m      base.Manifest // NOTE last manifest
-	sufstt base.State    // NOTE last suffrage state
+	m      base.Manifest     // NOTE last manifest
+	mp     base.BlockDataMap // NOTE last BlockDataMap
+	sufstt base.State        // NOTE last suffrage state
 }
 
 func NewTempLeveldbDatabase(f string, encs *encoder.Encoders, enc encoder.Encoder) (*TempLeveldbDatabase, error) {
@@ -51,6 +52,10 @@ func newTempLeveldbDatabase(
 		return nil, err
 	}
 
+	if err := db.loadLastBlockDataMap(); err != nil {
+		return nil, err
+	}
+
 	if err := db.loadLastSuffrage(); err != nil {
 		return nil, err
 	}
@@ -73,6 +78,14 @@ func newTempLeveldbDatabaseFromBlockWriteStorage(wst *LeveldbBlockWriteDatabase)
 		m = i
 	}
 
+	var mp base.BlockDataMap
+	switch i, err := wst.Map(); {
+	case err != nil:
+		return nil, e(err, "")
+	default:
+		mp = i
+	}
+
 	var sufstt base.State
 	if i, _ := wst.sufstt.Value(); i != nil {
 		sufstt = i.(base.State)
@@ -82,6 +95,7 @@ func newTempLeveldbDatabaseFromBlockWriteStorage(wst *LeveldbBlockWriteDatabase)
 		baseLeveldbDatabase: newBaseLeveldbDatabase(st, wst.encs, wst.enc),
 		st:                  st,
 		m:                   m,
+		mp:                  mp,
 		sufstt:              sufstt,
 	}, nil
 }
@@ -108,6 +122,14 @@ func (db *TempLeveldbDatabase) Manifest() (base.Manifest, error) {
 	}
 
 	return db.m, nil
+}
+
+func (db *TempLeveldbDatabase) Map() (base.BlockDataMap, error) {
+	if db.mp == nil {
+		return nil, storage.NotFoundError.Errorf("BlockDataMap not found")
+	}
+
+	return db.mp, nil
 }
 
 func (db *TempLeveldbDatabase) Suffrage() (base.State, bool, error) {
@@ -141,6 +163,26 @@ func (db *TempLeveldbDatabase) loadLastManifest() error {
 		}
 
 		db.m = m
+
+		return nil
+	}
+}
+
+func (db *TempLeveldbDatabase) loadLastBlockDataMap() error {
+	e := util.StringErrorFunc("failed to load BlockDataMap")
+
+	switch b, found, err := db.st.Get(leveldbKeyPrefixBlockDataMap); {
+	case err != nil:
+		return e(err, "")
+	case !found:
+		return e(err, "BlockDataMap not found")
+	default:
+		m, err := db.decodeBlockDataMap(b)
+		if err != nil {
+			return e(err, "")
+		}
+
+		db.mp = m
 
 		return nil
 	}

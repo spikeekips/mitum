@@ -22,10 +22,10 @@ type Database interface {
 	LastSuffrage() (base.State, bool, error)
 	State(key string) (base.State, bool, error)
 	ExistsOperation(operationFactHash util.Hash) (bool, error)
+	// Map(height base.Height) (base.BlockDataMap, bool, error)
 	NewBlockWriteDatabase(height base.Height) (BlockWriteDatabase, error)
 	MergeBlockWriteDatabase(BlockWriteDatabase) error
-	// BLOCK blockdatamap
-	// BLOCK get latest init and accept voteproof
+	// BLOCK get last init and accept voteproof
 }
 
 type PartialDatabase interface {
@@ -43,12 +43,14 @@ type TempDatabase interface {
 	SuffrageHeight() base.Height
 	Manifest() (base.Manifest, error)
 	Suffrage() (base.State, bool, error)
+	Map() (base.BlockDataMap, error)
 }
 
 type BlockWriteDatabase interface {
 	Close() error
 	Cancel() error
 	Manifest() (base.Manifest, error)
+	Map() (base.BlockDataMap, error)
 	SetManifest(m base.Manifest) error
 	SetStates(sts []base.State) error
 	SetOperations(ops []util.Hash) error
@@ -62,10 +64,13 @@ type BlockWriteDatabase interface {
 type PermanentDatabase interface {
 	PartialDatabase
 	Close() error
-	LastManifest() (base.Manifest, bool, error)
 	Manifest(base.Height) (base.Manifest, bool, error)
+	LastManifest() (base.Manifest, bool, error)
 	LastSuffrage() (base.State, bool, error)
 	Suffrage(blockheight base.Height) (base.State, bool, error)
 	SuffrageByHeight(suffrageHeight base.Height) (base.State, bool, error)
+	State(key string) (base.State, bool, error)
+	ExistsOperation(operationFactHash util.Hash) (bool, error)
+	// Map(base.Height) (base.BlockDataMap, bool, error)
 	MergeTempDatabase(context.Context, TempDatabase) error
 }

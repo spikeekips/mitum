@@ -453,14 +453,17 @@ func (t *testDefaultDatabaseBlockWrite) TestMerge() {
 	sufstt, sufsv := t.suffrageState(height, lsufsv.Height()+1, nodes)
 	newstts = append(newstts, sufstt)
 
-	m := base.NewDummyManifest(height, valuehash.RandomSHA256())
+	manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
 
 	ops := make([]util.Hash, 3)
 	for i := range ops {
 		ops[i] = valuehash.RandomSHA256()
 	}
 
-	t.NoError(wst.SetManifest(m))
+	m := base.NewDummyBlockDataMap(manifest)
+
+	t.NoError(wst.SetManifest(manifest))
+	t.NoError(wst.SetMap(m))
 	t.NoError(wst.SetStates(newstts))
 	t.NoError(wst.SetOperations(ops))
 	t.NoError(wst.Write())
@@ -539,7 +542,7 @@ func (t *testDefaultDatabaseBlockWrite) TestMerge() {
 		t.NoError(err)
 		t.True(found)
 
-		base.EqualManifest(t.Assert(), m, rm)
+		base.EqualManifest(t.Assert(), manifest, rm)
 	})
 
 	t.Run("check last manifest", func() {
@@ -547,7 +550,7 @@ func (t *testDefaultDatabaseBlockWrite) TestMerge() {
 		t.NoError(err)
 		t.True(found)
 
-		base.EqualManifest(t.Assert(), m, rm)
+		base.EqualManifest(t.Assert(), manifest, rm)
 	})
 
 	t.Run("check SuffrageByHeight", func() {
@@ -620,7 +623,7 @@ func (t *testDefaultDatabaseBlockWrite) TestFindState() {
 		t.NoError(err)
 		defer wst.Close()
 
-		m := base.NewDummyManifest(height, valuehash.RandomSHA256())
+		manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
 
 		laststts = make([]base.State, len(stts))
 		for i := range stts {
@@ -633,7 +636,10 @@ func (t *testDefaultDatabaseBlockWrite) TestFindState() {
 			)
 		}
 
-		t.NoError(wst.SetManifest(m))
+		m := base.NewDummyBlockDataMap(manifest)
+
+		t.NoError(wst.SetManifest(manifest))
+		t.NoError(wst.SetMap(m))
 		t.NoError(wst.SetStates(laststts))
 		t.NoError(wst.Write())
 
@@ -668,13 +674,15 @@ func (t *testDefaultDatabaseBlockWrite) TestInvalidMerge() {
 	t.NoError(err)
 
 	t.Run("wrong height", func() {
-		m := base.NewDummyManifest(height+1, valuehash.RandomSHA256())
+		manifest := base.NewDummyManifest(height+1, valuehash.RandomSHA256())
 
-		wst, err := db.NewBlockWriteDatabase(m.Height())
+		wst, err := db.NewBlockWriteDatabase(manifest.Height())
 		t.NoError(err)
 		defer wst.Close()
 
-		t.NoError(wst.SetManifest(m))
+		m := base.NewDummyBlockDataMap(manifest)
+		t.NoError(wst.SetManifest(manifest))
+		t.NoError(wst.SetMap(m))
 		t.NoError(wst.Write())
 
 		err = db.MergeBlockWriteDatabase(wst)
@@ -739,7 +747,8 @@ func (t *testDefaultDatabaseBlockWrite) TestMergePermanent() {
 
 	for i := range make([]int, 10) {
 		height := baseheight + base.Height(i+1)
-		m := base.NewDummyManifest(height, valuehash.RandomSHA256())
+		manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
+		m := base.NewDummyBlockDataMap(manifest)
 
 		sttss := t.states(height, 2)
 
@@ -747,7 +756,8 @@ func (t *testDefaultDatabaseBlockWrite) TestMergePermanent() {
 		t.NoError(err)
 		defer wst.Close()
 
-		t.NoError(wst.SetManifest(m))
+		t.NoError(wst.SetManifest(manifest))
+		t.NoError(wst.SetMap(m))
 		t.NoError(wst.SetStates(sttss))
 		t.NoError(wst.Write())
 
@@ -920,9 +930,12 @@ func (t *testDefaultDatabaseLoad) TestLoadTempDatabases() {
 		wst, err := db.NewBlockWriteDatabase(height)
 		t.NoError(err)
 
-		m := base.NewDummyManifest(height, valuehash.RandomSHA256())
+		manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
+		t.NoError(wst.SetManifest(manifest))
 
-		t.NoError(wst.SetManifest(m))
+		mp := base.NewDummyBlockDataMap(manifest)
+		t.NoError(wst.SetMap(mp))
+
 		t.NoError(wst.Write())
 	}
 
@@ -932,16 +945,18 @@ func (t *testDefaultDatabaseLoad) TestLoadTempDatabases() {
 		wst, err := db.NewBlockWriteDatabase(height)
 		t.NoError(err)
 
-		m := base.NewDummyManifest(height, valuehash.RandomSHA256())
+		manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
+		t.NoError(wst.SetManifest(manifest))
+		mp := base.NewDummyBlockDataMap(manifest)
+		t.NoError(wst.SetMap(mp))
 
-		t.NoError(wst.SetManifest(m))
 		t.NoError(wst.Write())
 
 		t.NoError(db.MergeBlockWriteDatabase(wst))
 
 		t.NoError(wst.Close())
 
-		created[i] = m
+		created[i] = manifest
 	}
 
 	// NOTE create wrong leveldb directory

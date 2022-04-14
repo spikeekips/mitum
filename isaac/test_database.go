@@ -33,6 +33,7 @@ func (t *baseTestDatabase) SetupSuite() {
 	t.noerror(t.encs.AddHinter(t.enc))
 
 	t.noerror(t.enc.AddHinter(base.DummyManifest{}))
+	t.noerror(t.enc.AddHinter(base.DummyBlockDataMap{}))
 	t.noerror(t.enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
 	t.noerror(t.enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
 	t.noerror(t.enc.Add(encoder.DecodeDetail{Hint: NodeHint, Instance: RemoteNode{}}))

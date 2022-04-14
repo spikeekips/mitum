@@ -219,6 +219,7 @@ func (db *DefaultDatabase) LastSuffrage() (base.State, bool, error) {
 }
 
 func (db *DefaultDatabase) State(key string) (base.State, bool, error) {
+	e := util.StringErrorFunc("failed to find State")
 	l := util.NewLocked(nil)
 	if err := db.dig(func(p PartialDatabase) (bool, error) {
 		switch st, found, err := p.State(key); {
@@ -239,18 +240,24 @@ func (db *DefaultDatabase) State(key string) (base.State, bool, error) {
 
 		return true, nil
 	}); err != nil {
-		return nil, false, errors.Wrap(err, "failed to find State")
+		return nil, false, e(err, "")
 	}
 
-	switch i, _ := l.Value(); {
-	case i == nil:
-		return nil, false, nil
-	default:
+	if i, _ := l.Value(); i != nil {
 		return i.(base.State), true, nil
 	}
+
+	st, found, err := db.perm.State(key)
+	if err != nil {
+		return nil, false, e(err, "")
+	}
+
+	return st, found, nil
 }
 
 func (db *DefaultDatabase) ExistsOperation(h util.Hash) (bool, error) {
+	e := util.StringErrorFunc("failed to check operation")
+
 	l := util.NewLocked(false)
 	if err := db.dig(func(p PartialDatabase) (bool, error) {
 		switch found, err := p.ExistsOperation(h); {
@@ -264,11 +271,19 @@ func (db *DefaultDatabase) ExistsOperation(h util.Hash) (bool, error) {
 			return true, nil
 		}
 	}); err != nil {
-		return false, errors.Wrap(err, "failed to check ExistsOperation")
+		return false, e(err, "")
 	}
 
-	i, _ := l.Value()
-	return i.(bool), nil
+	if i, _ := l.Value(); i != nil {
+		return i.(bool), nil
+	}
+
+	found, err := db.perm.ExistsOperation(h)
+	if err != nil {
+		return false, e(err, "")
+	}
+
+	return found, nil
 }
 
 func (db *DefaultDatabase) NewBlockWriteDatabase(height base.Height) (BlockWriteDatabase, error) {

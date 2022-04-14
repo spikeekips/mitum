@@ -17,6 +17,7 @@ type LeveldbBlockWriteDatabase struct {
 	st     *leveldbstorage.WriteStorage
 	height base.Height
 	m      *util.Locked // NOTE manifest
+	mp     *util.Locked // NOTE BlockDataMap
 	sufstt *util.Locked // NOTE suffrage state
 }
 
@@ -45,6 +46,7 @@ func newLeveldbBlockWriteDatabase(
 		st:                  st,
 		height:              height,
 		m:                   util.EmptyLocked(),
+		mp:                  util.EmptyLocked(),
 		sufstt:              util.EmptyLocked(),
 	}
 }
@@ -172,15 +174,25 @@ func (db *LeveldbBlockWriteDatabase) SetOperations(ops []util.Hash) error {
 	return nil
 }
 
-func (db *LeveldbBlockWriteDatabase) SetMap(m base.BlockDataMap) error {
-	e := util.StringErrorFunc("failed to set blockdatamap")
-	b, err := db.marshal(m)
-	if err != nil {
-		return e(err, "")
+func (db *LeveldbBlockWriteDatabase) Map() (base.BlockDataMap, error) {
+	switch i, isnil := db.mp.Value(); {
+	case isnil || i == nil:
+		return nil, storage.NotFoundError.Errorf("empty base.BlockDataMap")
+	default:
+		return i.(base.BlockDataMap), nil
 	}
+}
 
-	if err := db.st.Put(leveldbBlockDataMapKey(m.Manifest().Height()), b, nil); err != nil {
-		return e(err, "")
+func (db *LeveldbBlockWriteDatabase) SetMap(m base.BlockDataMap) error {
+	if _, err := db.mp.Set(func(interface{}) (interface{}, error) {
+		b, err := db.marshal(m)
+		if err != nil {
+			return nil, err
+		}
+
+		return m, db.st.Put(leveldbKeyPrefixBlockDataMap, b, nil)
+	}); err != nil {
+		return errors.Wrap(err, "failed to set blockdatamap")
 	}
 
 	return nil

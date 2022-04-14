@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	leveldbKeyPrefixManifest        = []byte{0x00, 0x00}
+	leveldbKeyPrefixManifest        = []byte{0x00, 0x00} // BLOCK remove
 	leveldbKeyPrefixSuffrage        = []byte{0x00, 0x01}
 	leveldbKeyPrefixSuffrageHeight  = []byte{0x00, 0x02}
 	leveldbKeyPrefixState           = []byte{0x00, 0x03}

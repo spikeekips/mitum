@@ -4,10 +4,12 @@
 package base
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
+	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/localtime"
 	"github.com/spikeekips/mitum/util/valuehash"
@@ -227,4 +229,89 @@ func EqualManifest(t *assert.Assertions, a, b Manifest) {
 	}
 	t.True(localtime.Equal(a.CreatedAt(), b.CreatedAt()), "CreatedAt does not match")
 	t.True(localtime.Equal(a.NodeCreatedAt(), b.NodeCreatedAt()), "NodeCreatedAt does not match")
+}
+
+var DummyBlockDataMapHint = hint.MustNewHint("dummy-blockdatamap-v0.0.1")
+
+type DummyBlockDataMap struct {
+	BaseNodeSigned
+	M Manifest
+}
+
+func NewDummyBlockDataMap(manifest Manifest) DummyBlockDataMap {
+	signed, _ := BaseNodeSignedFromBytes(
+		RandomAddress(""),
+		NewMPrivatekey(),
+		util.UUID().Bytes(),
+		nil,
+	)
+	return DummyBlockDataMap{
+		BaseNodeSigned: signed,
+		M:              manifest,
+	}
+}
+
+func (m DummyBlockDataMap) Hint() hint.Hint {
+	return DummyBlockDataMapHint
+}
+
+func (m DummyBlockDataMap) Manifest() Manifest {
+	return m.M
+}
+
+func (m DummyBlockDataMap) Item(BlockDataType) (BlockDataMapItem, bool) {
+	return nil, false
+}
+
+func (m DummyBlockDataMap) All() map[BlockDataType]BlockDataMapItem {
+	return nil
+}
+
+func (m DummyBlockDataMap) Bytes() []byte {
+	return nil
+}
+
+func (m DummyBlockDataMap) IsValid([]byte) error {
+	return nil
+}
+
+func (m DummyBlockDataMap) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(struct {
+		hint.HintedJSONHead
+		B BaseNodeSigned
+		M Manifest
+	}{
+		HintedJSONHead: hint.NewHintedJSONHead(m.Hint()),
+		B:              m.BaseNodeSigned,
+		M:              m.M,
+	})
+}
+
+func (m *DummyBlockDataMap) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+	var u struct {
+		B json.RawMessage
+		M json.RawMessage
+	}
+
+	if err := util.UnmarshalJSON(b, &u); err != nil {
+		return err
+	}
+
+	if err := m.BaseSigned.DecodeJSON(u.B, enc); err != nil {
+		return err
+	}
+
+	switch hinter, err := enc.Decode(u.M); {
+	case err != nil:
+		return err
+	default:
+		i, ok := hinter.(Manifest)
+		if !ok {
+			return errors.Errorf("not Manifest, %T", hinter)
+		}
+
+		m.M = i
+	}
+
+	return nil
 }

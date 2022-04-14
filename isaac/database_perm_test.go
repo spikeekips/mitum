@@ -217,7 +217,8 @@ func (t *testCommonPermanentDatabase) TestLoad() {
 	stts := t.states(height, 3)
 	stts = append(stts, sufstt)
 
-	m := base.NewDummyManifest(height, valuehash.RandomSHA256())
+	manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
+	m := base.NewDummyBlockDataMap(manifest)
 
 	ops := make([]util.Hash, 3)
 	for i := range ops {
@@ -225,7 +226,8 @@ func (t *testCommonPermanentDatabase) TestLoad() {
 	}
 
 	wst := t.newMemLeveldbBlockWriteDatabase(height)
-	t.NoError(wst.SetManifest(m))
+	t.NoError(wst.SetManifest(manifest))
+	t.NoError(wst.SetMap(m))
 	t.NoError(wst.SetStates(stts))
 	t.NoError(wst.SetOperations(ops))
 	t.NoError(wst.Write())
@@ -240,7 +242,7 @@ func (t *testCommonPermanentDatabase) TestLoad() {
 		nm, found, err := perm.LastManifest()
 		t.NoError(err)
 		t.True(found)
-		base.EqualManifest(t.Assert(), m, nm)
+		base.EqualManifest(t.Assert(), manifest, nm)
 	})
 
 	t.Run("check suffrage state in perm", func() {
@@ -257,7 +259,7 @@ func (t *testCommonPermanentDatabase) TestLoad() {
 		nm, found, err := newperm.LastManifest()
 		t.NoError(err)
 		t.True(found)
-		base.EqualManifest(t.Assert(), m, nm)
+		base.EqualManifest(t.Assert(), manifest, nm)
 	})
 
 	t.Run("check suffrage state in new perm", func() {
@@ -277,7 +279,8 @@ func (t *testCommonPermanentDatabase) TestMergeTempDatabase() {
 	stts := t.states(height, 3)
 	stts = append(stts, sufstt)
 
-	m := base.NewDummyManifest(height, valuehash.RandomSHA256())
+	manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
+	m := base.NewDummyBlockDataMap(manifest)
 
 	ops := make([]util.Hash, 3)
 	for i := range ops {
@@ -285,7 +288,8 @@ func (t *testCommonPermanentDatabase) TestMergeTempDatabase() {
 	}
 
 	wst := t.newMemLeveldbBlockWriteDatabase(height)
-	t.NoError(wst.SetManifest(m))
+	t.NoError(wst.SetManifest(manifest))
+	t.NoError(wst.SetMap(m))
 	t.NoError(wst.SetStates(stts))
 	t.NoError(wst.SetOperations(ops))
 	t.NoError(wst.Write())
@@ -367,6 +371,6 @@ func (t *testCommonPermanentDatabase) TestMergeTempDatabase() {
 		t.True(found)
 		t.NotNil(rm)
 
-		base.EqualManifest(t.Assert(), m, rm)
+		base.EqualManifest(t.Assert(), manifest, rm)
 	})
 }
