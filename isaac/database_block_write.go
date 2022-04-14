@@ -219,7 +219,7 @@ func (db *LeveldbBlockWriteDatabase) TempDatabase() (TempDatabase, error) {
 		return nil, e(nil, "wrong manifest")
 	}
 
-	return newTempLeveldbDatabaseFromWOStorage(db)
+	return newTempLeveldbDatabaseFromBlockWriteStorage(db)
 }
 
 func (db *LeveldbBlockWriteDatabase) setState(st base.State) error {

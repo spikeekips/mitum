@@ -58,7 +58,7 @@ func newTempLeveldbDatabase(
 	return db, nil
 }
 
-func newTempLeveldbDatabaseFromWOStorage(wst *LeveldbBlockWriteDatabase) (*TempLeveldbDatabase, error) {
+func newTempLeveldbDatabaseFromBlockWriteStorage(wst *LeveldbBlockWriteDatabase) (*TempLeveldbDatabase, error) {
 	e := util.StringErrorFunc("failed new TempLeveldbDatabase from TempLeveldbDatabase")
 	st, err := leveldbstorage.NewReadonlyStorageFromWrite(wst.st)
 	if err != nil {
