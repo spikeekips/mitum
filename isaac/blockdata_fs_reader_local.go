@@ -3,6 +3,7 @@ package isaac
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"math"
@@ -90,7 +91,7 @@ func (r *LocalBlockDataFSReader) Map() (base.BlockDataMap, bool, error) {
 	}
 }
 
-func (r *LocalBlockDataFSReader) Reader(t base.BlockDataType) (io.ReadCloser, bool, error) {
+func (r *LocalBlockDataFSReader) Reader(t base.BlockDataType) (util.ChecksumReader, bool, error) {
 	e := util.StringErrorFunc("failed to make reader, %q", t)
 
 	var fpath string
@@ -123,20 +124,21 @@ func (r *LocalBlockDataFSReader) Reader(t base.BlockDataType) (io.ReadCloser, bo
 		}
 	}
 
-	var f io.ReadCloser
+	var f util.ChecksumReader
 
 	rawf, err := os.Open(filepath.Clean(fpath))
 	if err == nil {
+		cr := util.NewHashChecksumReader(rawf, sha256.New())
 		switch {
 		case isCompressedBlockDataType(t):
-			i, eerr := util.NewGzipReader(rawf)
+			gr, eerr := util.NewGzipReader(cr)
 			if eerr != nil {
 				err = eerr
 			}
 
-			f = i
+			f = util.NewDummyChecksumReader(gr, cr)
 		default:
-			f = rawf
+			f = cr
 		}
 	}
 
@@ -182,8 +184,8 @@ func (r *LocalBlockDataFSReader) item(t base.BlockDataType) (interface{}, bool, 
 		}
 	}
 
-	f, found, err := r.Reader(t)
-	switch {
+	var f util.ChecksumReader
+	switch i, found, err := r.Reader(t); {
 	case err != nil:
 		return nil, false, e(err, "")
 	case !found:
@@ -192,15 +194,27 @@ func (r *LocalBlockDataFSReader) item(t base.BlockDataType) (interface{}, bool, 
 		defer func() {
 			_ = f.Close()
 		}()
+
+		f = i
 	}
 
-	if !isListBlockDataType(t) {
-		i, eerr := r.loadItem(f)
-		return i, true, eerr
+	var i interface{}
+	var err error
+	switch {
+	case !isListBlockDataType(t):
+		i, err = r.loadItem(f)
+	default:
+		i, err = r.loadItems(item, f)
 	}
 
-	i, eerr := r.loadItems(item, f)
-	return i, true, eerr
+	switch {
+	case err != nil:
+		return i, true, e(err, "")
+	case item.Checksum() != f.Checksum():
+		return i, true, e(nil, "checksum mismatch; item=%q != file=%q", item.Checksum(), f.Checksum())
+	default:
+		return i, true, err
+	}
 }
 
 func (r *LocalBlockDataFSReader) loadItem(f io.Reader) (interface{}, error) {

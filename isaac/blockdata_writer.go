@@ -2,7 +2,6 @@ package isaac
 
 import (
 	"context"
-	"io"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -45,7 +44,7 @@ type BlockDataFSWriter interface {
 
 type BlockDataReader interface {
 	Map() (base.BlockDataMap, bool, error)
-	Reader(base.BlockDataType) (io.ReadCloser, bool, error)
+	Reader(base.BlockDataType) (util.ChecksumReader, bool, error)
 	Item(base.BlockDataType) (interface{}, bool, error)
 }
 

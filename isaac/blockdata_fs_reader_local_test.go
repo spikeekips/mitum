@@ -3,7 +3,6 @@ package isaac
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -273,7 +272,6 @@ func (t *testLocalBlockDataFSReader) TestItem() {
 	point := base.RawPoint(33, 44)
 	fs, pr, ops, opstree, stts, sttstree, vps := t.preparefs(point)
 
-	fmt.Fprintln(io.Discard, ">", pr, ops, opstree, stts, sttstree, vps)
 	_, err := fs.Save(context.Background())
 	t.NoError(err)
 
@@ -421,6 +419,60 @@ func (t *testLocalBlockDataFSReader) TestItem() {
 
 		base.EqualVoteproof(t.Assert(), vps[0], uvps[0])
 		base.EqualVoteproof(t.Assert(), vps[1], uvps[1])
+	})
+}
+
+func (t *testLocalBlockDataFSReader) TestWrongChecksum() {
+	point := base.RawPoint(33, 44)
+	fs, pr, _, _, _, _, _ := t.preparefs(point)
+
+	_, err := fs.Save(context.Background())
+	t.NoError(err)
+
+	t.walkDirectory(t.root)
+
+	var root string
+	t.Run("load proposal before modifying", func() {
+		r, err := NewLocalBlockDataFSReader(t.root, point.Height(), t.enc)
+		t.NoError(err)
+
+		root = r.root
+
+		v, found, err := r.Item(base.BlockDataTypeProposal)
+		t.NoError(err)
+		t.True(found)
+		t.NotNil(v)
+
+		upr, ok := v.(base.ProposalSignedFact)
+		t.True(ok)
+
+		base.EqualProposalSignedFact(t.Assert(), pr, upr)
+	})
+
+	// NOTE modify proposal.json
+	i, _ := BlockDataFileName(base.BlockDataTypeProposal, t.enc)
+	path := filepath.Join(root, i)
+	f, err := os.Open(path)
+	t.NoError(err)
+
+	b, err := io.ReadAll(f)
+	t.NoError(err)
+
+	b = append(b, '\n')
+	nf, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	t.NoError(err)
+	_, err = nf.Write(b)
+	nf.Close()
+
+	t.Run("load proposal after modifying", func() {
+		r, err := NewLocalBlockDataFSReader(t.root, point.Height(), t.enc)
+		t.NoError(err)
+
+		v, found, err := r.Item(base.BlockDataTypeProposal)
+		t.Error(err)
+		t.Contains(err.Error(), "checksum mismatch")
+		t.True(found)
+		t.NotNil(v)
 	})
 }
 
