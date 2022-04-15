@@ -19,7 +19,7 @@ func (suf suffrage) Locals() []LocalNode {
 	return locals
 }
 
-func newTestSuffrage(n int, extras ...LocalNode) (suffrage, []LocalNode) {
+func NewTestSuffrage(n int, extras ...LocalNode) (suffrage, []LocalNode) {
 	locals := make([]LocalNode, n+len(extras))
 	nodes := make([]base.Node, n+len(extras))
 	for i := range make([]int, n) {

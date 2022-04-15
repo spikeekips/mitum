@@ -20,14 +20,14 @@ func TestRedisPermanentDatabase(tt *testing.T) {
 	t.newDB = func() PermanentDatabase {
 		st, err := redisstorage.NewStorage(context.Background(), &redis.Options{}, util.UUID().String())
 
-		db, err := NewRedisPermanentDatabase(st, t.encs, t.enc)
+		db, err := NewRedisPermanentDatabase(st, t.Encs, t.Enc)
 		t.NoError(err)
 
 		return db
 	}
 
 	t.newFromDB = func(db PermanentDatabase) (PermanentDatabase, error) {
-		return NewRedisPermanentDatabase(db.(*RedisPermanentDatabase).st, t.encs, t.enc)
+		return NewRedisPermanentDatabase(db.(*RedisPermanentDatabase).st, t.Encs, t.Enc)
 	}
 
 	t.setState = func(perm PermanentDatabase, st base.State) error {

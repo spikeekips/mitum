@@ -1,10 +1,11 @@
-package isaac
+package blockdata
 
 import (
 	"context"
 	"testing"
 
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/tree"
 	"github.com/spikeekips/mitum/util/valuehash"
@@ -14,7 +15,7 @@ import (
 )
 
 type dummyBlockWriteDatabase struct {
-	*LeveldbBlockWriteDatabase
+	*isaac.LeveldbBlockWriteDatabase
 	setOperationsf func([]util.Hash) error
 }
 
@@ -26,27 +27,27 @@ func (db *dummyBlockWriteDatabase) SetOperations(ops []util.Hash) error {
 	return db.LeveldbBlockWriteDatabase.SetOperations(ops)
 }
 
-type testDefaultBlockDataWriter struct {
-	baseStateTestHandler
-	baseTestDatabase
+type testWriter struct {
+	isaac.BaseTestBallots
+	isaac.BaseTestDatabase
 }
 
-func (t *testDefaultBlockDataWriter) SetupTest() {
-	t.baseStateTestHandler.SetupTest()
-	t.baseTestDatabase.SetupTest()
+func (t *testWriter) SetupTest() {
+	t.BaseTestBallots.SetupTest()
+	t.BaseTestDatabase.SetupTest()
 }
 
-func (t *testDefaultBlockDataWriter) TestNew() {
+func (t *testWriter) TestNew() {
 	height := base.Height(33)
-	db := t.newMemLeveldbBlockWriteDatabase(height)
+	db := t.NewMemLeveldbBlockWriteDatabase(height)
 	defer db.Close()
 
 	fswriter := &DummyBlockDataFSWriter{}
-	writer := NewDefaultBlockDataWriter(db, func(BlockWriteDatabase) error {
+	writer := NewWriter(db, func(isaac.BlockWriteDatabase) error {
 		return nil
 	}, fswriter)
 
-	_ = (interface{})(writer).(BlockDataWriter)
+	_ = (interface{})(writer).(isaac.BlockDataWriter)
 
 	t.Run("empty previous", func() {
 		m, err := writer.Manifest(context.Background(), nil)
@@ -62,10 +63,10 @@ func (t *testDefaultBlockDataWriter) TestNew() {
 	})
 }
 
-func (t *testDefaultBlockDataWriter) TestSetProposal() {
+func (t *testWriter) TestSetProposal() {
 	point := base.RawPoint(33, 44)
 
-	db := t.newMemLeveldbBlockWriteDatabase(point.Height())
+	db := t.NewMemLeveldbBlockWriteDatabase(point.Height())
 	defer db.Close()
 
 	fswriter := &DummyBlockDataFSWriter{}
@@ -77,7 +78,7 @@ func (t *testDefaultBlockDataWriter) TestSetProposal() {
 		return nil
 	}
 
-	writer := NewDefaultBlockDataWriter(db, func(BlockWriteDatabase) error {
+	writer := NewWriter(db, func(isaac.BlockWriteDatabase) error {
 		return nil
 	}, fswriter)
 
@@ -86,8 +87,8 @@ func (t *testDefaultBlockDataWriter) TestSetProposal() {
 		ops[i] = valuehash.RandomSHA256()
 	}
 
-	pr := NewProposalSignedFact(NewProposalFact(point, t.local.Address(), ops))
-	_ = pr.Sign(t.local.Privatekey(), t.policy.NetworkID())
+	pr := isaac.NewProposalSignedFact(isaac.NewProposalFact(point, t.Local.Address(), ops))
+	_ = pr.Sign(t.Local.Privatekey(), t.Policy.NetworkID())
 
 	t.NoError(writer.SetProposal(context.Background(), pr))
 
@@ -97,15 +98,15 @@ func (t *testDefaultBlockDataWriter) TestSetProposal() {
 	base.EqualProposalSignedFact(t.Assert(), pr, upr)
 }
 
-func (t *testDefaultBlockDataWriter) TestSetOperations() {
+func (t *testWriter) TestSetOperations() {
 	point := base.RawPoint(33, 44)
 
-	db := t.newMemLeveldbBlockWriteDatabase(point.Height())
+	db := t.NewMemLeveldbBlockWriteDatabase(point.Height())
 	defer db.Close()
 
 	fswriter := &DummyBlockDataFSWriter{}
 
-	writer := NewDefaultBlockDataWriter(db, func(BlockWriteDatabase) error { return nil }, fswriter)
+	writer := NewWriter(db, func(isaac.BlockWriteDatabase) error { return nil }, fswriter)
 
 	ops := make([]util.Hash, 33)
 	for i := range ops {
@@ -158,21 +159,21 @@ func (t *testDefaultBlockDataWriter) TestSetOperations() {
 	}
 }
 
-func (t *testDefaultBlockDataWriter) TestSetStates() {
+func (t *testWriter) TestSetStates() {
 	point := base.RawPoint(33, 44)
 
-	db := t.newMemLeveldbBlockWriteDatabase(point.Height())
+	db := t.NewMemLeveldbBlockWriteDatabase(point.Height())
 	defer db.Close()
 
 	fswriter := &DummyBlockDataFSWriter{}
 
-	writer := NewDefaultBlockDataWriter(db, func(BlockWriteDatabase) error { return nil }, fswriter)
+	writer := NewWriter(db, func(isaac.BlockWriteDatabase) error { return nil }, fswriter)
 
 	ophs := make([]util.Hash, 33)
 	ops := make([]base.Operation, 33)
 	for i := range ops {
-		fact := NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
-		op, err := NewDummyOperationProcessable(fact, t.local.Privatekey(), t.policy.NetworkID())
+		fact := isaac.NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
+		op, err := isaac.NewDummyOperationProcessable(fact, t.Local.Privatekey(), t.Policy.NetworkID())
 		t.NoError(err)
 
 		ops[i] = op
@@ -180,11 +181,11 @@ func (t *testDefaultBlockDataWriter) TestSetStates() {
 	}
 	states := make([][]base.State, len(ops))
 	for i := range ops {
-		states[i] = t.states(point.Height(), i%5+1)
+		states[i] = t.States(point.Height(), i%5+1)
 	}
 
-	pr := NewProposalSignedFact(NewProposalFact(point, t.local.Address(), ophs))
-	_ = pr.Sign(t.local.Privatekey(), t.policy.NetworkID())
+	pr := isaac.NewProposalSignedFact(isaac.NewProposalFact(point, t.Local.Address(), ophs))
+	_ = pr.Sign(t.Local.Privatekey(), t.Policy.NetworkID())
 
 	t.NoError(writer.SetProposal(context.Background(), pr))
 
@@ -224,30 +225,30 @@ func (t *testDefaultBlockDataWriter) TestSetStates() {
 	}
 }
 
-func (t *testDefaultBlockDataWriter) TestSetStatesAndClose() {
+func (t *testWriter) TestSetStatesAndClose() {
 	point := base.RawPoint(33, 44)
 
-	db := t.newMemLeveldbBlockWriteDatabase(point.Height())
+	db := t.NewMemLeveldbBlockWriteDatabase(point.Height())
 	defer db.Close()
 
 	fswriter := &DummyBlockDataFSWriter{}
 
 	var sufststored base.State
 	fswriter.setStatef = func(_ context.Context, _ int, st base.State) error {
-		if string(st.Key()) == SuffrageStateKey {
+		if string(st.Key()) == isaac.SuffrageStateKey {
 			sufststored = st
 		}
 
 		return nil
 	}
 
-	writer := NewDefaultBlockDataWriter(db, func(BlockWriteDatabase) error { return nil }, fswriter)
+	writer := NewWriter(db, func(isaac.BlockWriteDatabase) error { return nil }, fswriter)
 
 	ophs := make([]util.Hash, 33)
 	ops := make([]base.Operation, len(ophs))
 	for i := range ops {
-		fact := NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
-		op, err := NewDummyOperationProcessable(fact, t.local.Privatekey(), t.policy.NetworkID())
+		fact := isaac.NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
+		op, err := isaac.NewDummyOperationProcessable(fact, t.Local.Privatekey(), t.Policy.NetworkID())
 		t.NoError(err)
 
 		ops[i] = op
@@ -255,16 +256,16 @@ func (t *testDefaultBlockDataWriter) TestSetStatesAndClose() {
 	}
 	states := make([][]base.State, len(ops))
 	for i := range ops[:len(ops)-1] {
-		states[i] = t.states(point.Height(), i%5+1)
+		states[i] = t.States(point.Height(), i%5+1)
 	}
 
 	{
-		sufst, _ := t.suffrageState(point.Height(), base.Height(22), nil)
+		sufst, _ := t.SuffrageState(point.Height(), base.Height(22), nil)
 		states[len(ops)-1] = []base.State{sufst}
 	}
 
-	pr := NewProposalSignedFact(NewProposalFact(point, t.local.Address(), ophs))
-	_ = pr.Sign(t.local.Privatekey(), t.policy.NetworkID())
+	pr := isaac.NewProposalSignedFact(isaac.NewProposalFact(point, t.Local.Address(), ophs))
+	_ = pr.Sign(t.Local.Privatekey(), t.Policy.NetworkID())
 
 	t.NoError(writer.SetProposal(context.Background(), pr))
 	writer.SetOperationsSize(uint64(len(ops)))
@@ -298,7 +299,7 @@ func (t *testDefaultBlockDataWriter) TestSetStatesAndClose() {
 	var sufnodefound bool
 	writer.ststree.Traverse(func(i tree.FixedTreeNode) (bool, error) {
 		node := i.(base.StateFixedTreeNode)
-		if string(node.Key()) == SuffrageStateKey {
+		if string(node.Key()) == isaac.SuffrageStateKey {
 			sufnodefound = true
 
 			return false, nil
@@ -313,10 +314,10 @@ func (t *testDefaultBlockDataWriter) TestSetStatesAndClose() {
 	t.True(manifest.Suffrage().Equal(sufststored.Hash())) // NOTE suffrage hash
 }
 
-func (t *testDefaultBlockDataWriter) TestManifest() {
+func (t *testWriter) TestManifest() {
 	point := base.RawPoint(33, 44)
 
-	db := t.newMemLeveldbBlockWriteDatabase(point.Height())
+	db := t.NewMemLeveldbBlockWriteDatabase(point.Height())
 	defer db.Close()
 
 	fswriter := &DummyBlockDataFSWriter{}
@@ -328,7 +329,7 @@ func (t *testDefaultBlockDataWriter) TestManifest() {
 		return nil
 	}
 
-	writer := NewDefaultBlockDataWriter(db, func(BlockWriteDatabase) error {
+	writer := NewWriter(db, func(isaac.BlockWriteDatabase) error {
 		return nil
 	}, fswriter)
 
@@ -337,8 +338,8 @@ func (t *testDefaultBlockDataWriter) TestManifest() {
 		ops[i] = valuehash.RandomSHA256()
 	}
 
-	pr := NewProposalSignedFact(NewProposalFact(point, t.local.Address(), ops))
-	_ = pr.Sign(t.local.Privatekey(), t.policy.NetworkID())
+	pr := isaac.NewProposalSignedFact(isaac.NewProposalFact(point, t.Local.Address(), ops))
+	_ = pr.Sign(t.Local.Privatekey(), t.Policy.NetworkID())
 
 	t.NoError(writer.SetProposal(context.Background(), pr))
 
@@ -356,10 +357,10 @@ func (t *testDefaultBlockDataWriter) TestManifest() {
 	base.EqualManifest(t.Assert(), manifest, um)
 }
 
-func TestDefaultBlockDataWriter(t *testing.T) {
+func TestWriter(t *testing.T) {
 	defer goleak.VerifyNone(t,
 		goleak.IgnoreTopFunction("github.com/syndtr/goleveldb/leveldb.(*DB).mpoolDrain"),
 	)
 
-	suite.Run(t, new(testDefaultBlockDataWriter))
+	suite.Run(t, new(testWriter))
 }

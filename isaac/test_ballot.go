@@ -1,3 +1,6 @@
+//go:build test
+// +build test
+
 package isaac
 
 import (
@@ -9,24 +12,32 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type baseTestHandler struct {
+type BaseTestBallots struct {
 	suite.Suite
-	local  LocalNode
-	policy Policy
+	Local  LocalNode
+	Policy Policy
+	prpool *proposalPool
 }
 
-func (t *baseTestHandler) SetupTest() {
+func (t *BaseTestBallots) SetupTest() {
 	local := RandomLocalNode()
 	policy := NewPolicy()
 	policy.SetNetworkID(base.RandomNetworkID())
 	policy.SetThreshold(base.Threshold(100))
 	policy.SetWaitProcessingProposal(time.Nanosecond)
 
-	t.local = local
-	t.policy = policy
+	t.Local = local
+	t.Policy = policy
+
+	t.prpool = newProposalPool(func(point base.Point) base.ProposalSignedFact {
+		fs := NewProposalSignedFact(NewProposalFact(point, local.Address(), []util.Hash{valuehash.RandomSHA256()}))
+		_ = fs.Sign(local.Privatekey(), policy.NetworkID())
+
+		return fs
+	})
 }
 
-func (t *baseTestHandler) newINITBallotFact(point base.Point, prev, pr util.Hash) INITBallotFact {
+func (t *BaseTestBallots) NewINITBallotFact(point base.Point, prev, pr util.Hash) INITBallotFact {
 	if prev == nil {
 		prev = valuehash.RandomSHA256()
 	}
@@ -36,7 +47,7 @@ func (t *baseTestHandler) newINITBallotFact(point base.Point, prev, pr util.Hash
 	return NewINITBallotFact(point, prev, pr)
 }
 
-func (t *baseTestHandler) newACCEPTBallotFact(point base.Point, pr, block util.Hash) ACCEPTBallotFact {
+func (t *BaseTestBallots) NewACCEPTBallotFact(point base.Point, pr, block util.Hash) ACCEPTBallotFact {
 	if pr == nil {
 		pr = valuehash.RandomSHA256()
 	}
@@ -46,18 +57,18 @@ func (t *baseTestHandler) newACCEPTBallotFact(point base.Point, pr, block util.H
 	return NewACCEPTBallotFact(point, pr, block)
 }
 
-func (t *baseTestHandler) newProposalFact(point base.Point, local LocalNode, ops []util.Hash) ProposalFact {
+func (t *BaseTestBallots) NewProposalFact(point base.Point, local LocalNode, ops []util.Hash) ProposalFact {
 	return NewProposalFact(point, local.Address(), ops)
 }
 
-func (t *baseTestHandler) newProposal(local LocalNode, fact ProposalFact) ProposalSignedFact {
+func (t *BaseTestBallots) NewProposal(local LocalNode, fact ProposalFact) ProposalSignedFact {
 	fs := NewProposalSignedFact(fact)
-	t.NoError(fs.Sign(local.Privatekey(), t.policy.NetworkID()))
+	t.NoError(fs.Sign(local.Privatekey(), t.Policy.NetworkID()))
 
 	return fs
 }
 
-func (t *baseTestHandler) newINITVoteproof(
+func (t *BaseTestBallots) NewINITVoteproof(
 	fact INITBallotFact,
 	local LocalNode,
 	nodes []LocalNode,
@@ -74,7 +85,7 @@ func (t *baseTestHandler) newINITVoteproof(
 	for i := range suffrage {
 		n := suffrage[i]
 		fs := NewINITBallotSignedFact(n.Address(), fact)
-		if err := fs.Sign(n.Privatekey(), t.policy.NetworkID()); err != nil {
+		if err := fs.Sign(n.Privatekey(), t.Policy.NetworkID()); err != nil {
 			return INITVoteproof{}, err
 		}
 
@@ -85,13 +96,13 @@ func (t *baseTestHandler) newINITVoteproof(
 	vp.SetResult(base.VoteResultMajority).
 		SetMajority(fact).
 		SetSignedFacts(sfs).
-		SetThreshold(t.policy.Threshold()).
+		SetThreshold(t.Policy.Threshold()).
 		finish()
 
 	return vp, nil
 }
 
-func (t *baseTestHandler) newACCEPTVoteproof(
+func (t *BaseTestBallots) NewACCEPTVoteproof(
 	fact ACCEPTBallotFact,
 	local LocalNode,
 	nodes []LocalNode,
@@ -108,7 +119,7 @@ func (t *baseTestHandler) newACCEPTVoteproof(
 	for i := range suffrage {
 		n := suffrage[i]
 		fs := NewACCEPTBallotSignedFact(n.Address(), fact)
-		if err := fs.Sign(n.Privatekey(), t.policy.NetworkID()); err != nil {
+		if err := fs.Sign(n.Privatekey(), t.Policy.NetworkID()); err != nil {
 			return ACCEPTVoteproof{}, err
 		}
 
@@ -119,13 +130,13 @@ func (t *baseTestHandler) newACCEPTVoteproof(
 	vp.SetResult(base.VoteResultMajority).
 		SetMajority(fact).
 		SetSignedFacts(sfs).
-		SetThreshold(t.policy.Threshold()).
+		SetThreshold(t.Policy.Threshold()).
 		finish()
 
 	return vp, nil
 }
 
-func (t *baseTestHandler) locals(n int) ([]LocalNode, []base.Node) {
+func (t *BaseTestBallots) Locals(n int) ([]LocalNode, []base.Node) {
 	suf := make([]LocalNode, n)
 	nodes := make([]base.Node, n)
 	for i := range suf {
@@ -137,7 +148,7 @@ func (t *baseTestHandler) locals(n int) ([]LocalNode, []base.Node) {
 	return suf, nodes
 }
 
-func (t *baseTestHandler) voteproofsPair(prevpoint, point base.Point, prev, pr, nextpr util.Hash, nodes []LocalNode) (ACCEPTVoteproof, INITVoteproof) {
+func (t *BaseTestBallots) VoteproofsPair(prevpoint, point base.Point, prev, pr, nextpr util.Hash, nodes []LocalNode) (ACCEPTVoteproof, INITVoteproof) {
 	if prev == nil {
 		prev = valuehash.RandomSHA256()
 	}
@@ -148,18 +159,18 @@ func (t *baseTestHandler) voteproofsPair(prevpoint, point base.Point, prev, pr, 
 		nextpr = valuehash.RandomSHA256()
 	}
 
-	afact := t.newACCEPTBallotFact(prevpoint, pr, prev)
-	avp, err := t.newACCEPTVoteproof(afact, t.local, nodes)
+	afact := t.NewACCEPTBallotFact(prevpoint, pr, prev)
+	avp, err := t.NewACCEPTVoteproof(afact, t.Local, nodes)
 	t.NoError(err)
 
-	ifact := t.newINITBallotFact(point, prev, nextpr)
-	ivp, err := t.newINITVoteproof(ifact, t.local, nodes)
+	ifact := t.NewINITBallotFact(point, prev, nextpr)
+	ivp, err := t.NewINITVoteproof(ifact, t.Local, nodes)
 	t.NoError(err)
 
 	return avp, ivp
 }
 
-func (t *baseTestHandler) suffrageState(height, sufheight base.Height, nodes []base.Node) (base.State, base.SuffrageStateValue) {
+func (t *BaseTestBallots) SuffrageState(height, sufheight base.Height, nodes []base.Node) (base.State, base.SuffrageStateValue) {
 	sv := NewSuffrageStateValue(
 		sufheight,
 		valuehash.RandomSHA256(),
@@ -178,25 +189,6 @@ func (t *baseTestHandler) suffrageState(height, sufheight base.Height, nodes []b
 	sufstt.SetOperations([]util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256(), valuehash.RandomSHA256()})
 
 	return sufstt, sv
-}
-
-type baseStateTestHandler struct {
-	baseTestHandler
-	prpool *proposalPool
-}
-
-func (t *baseStateTestHandler) SetupTest() {
-	t.baseTestHandler.SetupTest()
-
-	local := t.local
-	policy := t.policy
-
-	t.prpool = newProposalPool(func(point base.Point) base.ProposalSignedFact {
-		fs := NewProposalSignedFact(NewProposalFact(point, local.Address(), []util.Hash{valuehash.RandomSHA256()}))
-		_ = fs.Sign(local.Privatekey(), policy.NetworkID())
-
-		return fs
-	})
 }
 
 type proposalPool struct {

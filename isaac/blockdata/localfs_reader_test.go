@@ -1,4 +1,4 @@
-package isaac
+package blockdata
 
 import (
 	"bytes"
@@ -12,6 +12,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/tree"
@@ -21,31 +22,31 @@ import (
 )
 
 type testBaseLocalBlockDataFS struct {
-	baseStateTestHandler
-	baseTestDatabase
+	isaac.BaseTestBallots
+	isaac.BaseTestDatabase
 	root string
 }
 
 func (t *testBaseLocalBlockDataFS) SetupSuite() {
-	t.baseTestDatabase.SetupSuite()
+	t.BaseTestDatabase.SetupSuite()
 
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: BlockDataMapHint, Instance: BlockDataMap{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: INITVoteproofHint, Instance: INITVoteproof{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ACCEPTVoteproofHint, Instance: ACCEPTVoteproof{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: BlockDataMapHint, Instance: BlockDataMap{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.INITVoteproofHint, Instance: isaac.INITVoteproof{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.ACCEPTVoteproofHint, Instance: isaac.ACCEPTVoteproof{}}))
 
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: DummyOperationFactHint, Instance: DummyOperationFact{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: DummyOperationHint, Instance: DummyOperation{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.StateFixedTreeNodeHint, Instance: base.StateFixedTreeNode{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.OperationFixedTreeNodeHint, Instance: base.OperationFixedTreeNode{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: INITBallotFactHint, Instance: INITBallotFact{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ACCEPTBallotFactHint, Instance: ACCEPTBallotFact{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: INITBallotSignedFactHint, Instance: INITBallotSignedFact{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ACCEPTBallotSignedFactHint, Instance: ACCEPTBallotSignedFact{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.DummyOperationFactHint, Instance: isaac.DummyOperationFact{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.DummyOperationHint, Instance: isaac.DummyOperation{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: base.StateFixedTreeNodeHint, Instance: base.StateFixedTreeNode{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: base.OperationFixedTreeNodeHint, Instance: base.OperationFixedTreeNode{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.INITBallotFactHint, Instance: isaac.INITBallotFact{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.ACCEPTBallotFactHint, Instance: isaac.ACCEPTBallotFact{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.INITBallotSignedFactHint, Instance: isaac.INITBallotSignedFact{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.ACCEPTBallotSignedFactHint, Instance: isaac.ACCEPTBallotSignedFact{}}))
 }
 
 func (t *testBaseLocalBlockDataFS) SetupTest() {
-	t.baseStateTestHandler.SetupTest()
-	t.baseTestDatabase.SetupTest()
+	t.BaseTestBallots.SetupTest()
+	t.BaseTestDatabase.SetupTest()
 
 	t.root, _ = os.MkdirTemp("", "mitum-test")
 }
@@ -55,14 +56,14 @@ func (t *testBaseLocalBlockDataFS) TearDownTest() {
 }
 
 func (t *testBaseLocalBlockDataFS) voteproofs(point base.Point) (base.INITVoteproof, base.ACCEPTVoteproof) {
-	_, nodes := newTestSuffrage(1, t.local)
+	_, nodes := isaac.NewTestSuffrage(1, t.Local)
 
-	ifact := t.newINITBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256())
-	ivp, err := t.newINITVoteproof(ifact, t.local, nodes)
+	ifact := t.NewINITBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256())
+	ivp, err := t.NewINITVoteproof(ifact, t.Local, nodes)
 	t.NoError(err)
 
-	afact := t.newACCEPTBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256())
-	avp, err := t.newACCEPTVoteproof(afact, t.local, nodes)
+	afact := t.NewACCEPTBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256())
+	avp, err := t.NewACCEPTVoteproof(afact, t.Local, nodes)
 	t.NoError(err)
 
 	return ivp, avp
@@ -86,12 +87,12 @@ func (t *testBaseLocalBlockDataFS) walkDirectory(root string) {
 	})
 }
 
-type testLocalBlockDataFSReader struct {
+type testLocalFSReader struct {
 	testBaseLocalBlockDataFS
 }
 
-func (t *testLocalBlockDataFSReader) preparefs(point base.Point) (
-	*LocalBlockDataFSWriter,
+func (t *testLocalFSReader) preparefs(point base.Point) (
+	*LocalFSWriter,
 	base.ProposalSignedFact,
 	[]base.Operation,
 	tree.FixedTree,
@@ -101,7 +102,7 @@ func (t *testLocalBlockDataFSReader) preparefs(point base.Point) (
 ) {
 	ctx := context.Background()
 
-	fs, err := NewLocalBlockDataFSWriter(t.root, point.Height(), t.enc, t.local, t.policy.NetworkID())
+	fs, err := NewLocalFSWriter(t.root, point.Height(), t.Enc, t.Local, t.Policy.NetworkID())
 	t.NoError(err)
 
 	// NOTE set manifest
@@ -109,16 +110,16 @@ func (t *testLocalBlockDataFSReader) preparefs(point base.Point) (
 	t.NoError(fs.SetManifest(ctx, manifest))
 
 	// NOTE set proposal
-	pr := NewProposalSignedFact(NewProposalFact(point, t.local.Address(), []util.Hash{valuehash.RandomSHA256()}))
-	_ = pr.Sign(t.local.Privatekey(), t.policy.NetworkID())
+	pr := isaac.NewProposalSignedFact(isaac.NewProposalFact(point, t.Local.Address(), []util.Hash{valuehash.RandomSHA256()}))
+	_ = pr.Sign(t.Local.Privatekey(), t.Policy.NetworkID())
 	t.NoError(fs.SetProposal(ctx, pr))
 
 	// NOTE set operations
 	ops := make([]base.Operation, 3)
 	opstreeg := tree.NewFixedTreeGenerator(uint64(len(ops)))
 	for i := range ops {
-		fact := NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
-		op, _ := NewDummyOperationProcessable(fact, t.local.Privatekey(), t.policy.NetworkID())
+		fact := isaac.NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
+		op, _ := isaac.NewDummyOperationProcessable(fact, t.Local.Privatekey(), t.Policy.NetworkID())
 		ops[i] = op
 
 		node := base.NewOperationFixedTreeNode(uint64(i), op.Fact().Hash(), true, "")
@@ -168,7 +169,7 @@ func (t *testLocalBlockDataFSReader) preparefs(point base.Point) (
 	return fs, pr, ops, opstree, stts, sttstree, []base.Voteproof{ivp, avp}
 }
 
-func (t *testLocalBlockDataFSReader) TestNew() {
+func (t *testLocalFSReader) TestNew() {
 	ctx := context.Background()
 
 	point := base.RawPoint(33, 44)
@@ -176,32 +177,32 @@ func (t *testLocalBlockDataFSReader) TestNew() {
 	_, err := fs.Save(ctx)
 	t.NoError(err)
 
-	r, err := NewLocalBlockDataFSReader(t.root, point.Height(), t.enc)
+	r, err := NewLocalFSReader(t.root, point.Height(), t.Enc)
 	t.NoError(err)
 	t.NotNil(r)
 
-	_ = (interface{})(r).(BlockDataReader)
+	_ = (interface{})(r).(isaac.BlockDataReader)
 
 	t.Equal(filepath.Join(fs.root, fs.heightbase), r.root)
 }
 
-func (t *testLocalBlockDataFSReader) TestMap() {
+func (t *testLocalFSReader) TestMap() {
 	point := base.RawPoint(33, 44)
 	fs, _, _, _, _, _, _ := t.preparefs(point)
 	_, err := fs.Save(context.Background())
 	t.NoError(err)
 
-	r, err := NewLocalBlockDataFSReader(t.root, point.Height(), t.enc)
+	r, err := NewLocalFSReader(t.root, point.Height(), t.Enc)
 	t.NoError(err)
 
 	m, found, err := r.Map()
 	t.NoError(err)
 	t.True(found)
 
-	t.NoError(m.IsValid(t.policy.NetworkID()))
+	t.NoError(m.IsValid(t.Policy.NetworkID()))
 }
 
-func (t *testLocalBlockDataFSReader) TestReader() {
+func (t *testLocalFSReader) TestReader() {
 	point := base.RawPoint(33, 44)
 	fs, _, _, _, _, _, _ := t.preparefs(point)
 	m, err := fs.Save(context.Background())
@@ -214,7 +215,7 @@ func (t *testLocalBlockDataFSReader) TestReader() {
 		t.T().Log("blockdatamap:", string(b))
 	}
 
-	r, err := NewLocalBlockDataFSReader(t.root, point.Height(), t.enc)
+	r, err := NewLocalFSReader(t.root, point.Height(), t.Enc)
 	t.NoError(err)
 
 	t.Run("unknown", func() {
@@ -252,7 +253,7 @@ func (t *testLocalBlockDataFSReader) TestReader() {
 
 		b, err := io.ReadAll(f)
 		t.NoError(err)
-		hinter, err := t.enc.Decode(b)
+		hinter, err := t.Enc.Decode(b)
 		t.NoError(err)
 
 		_ = hinter.(base.ProposalSignedFact)
@@ -260,7 +261,7 @@ func (t *testLocalBlockDataFSReader) TestReader() {
 
 	t.Run("known, but not found", func() {
 		// NOTE remove
-		fname, _ := BlockDataFileName(base.BlockDataTypeOperations, t.enc)
+		fname, _ := BlockDataFileName(base.BlockDataTypeOperations, t.Enc)
 		t.NoError(os.Remove(filepath.Join(r.root, fname)))
 
 		f, found, err := r.Reader(base.BlockDataTypeOperations)
@@ -270,14 +271,14 @@ func (t *testLocalBlockDataFSReader) TestReader() {
 	})
 }
 
-func (t *testLocalBlockDataFSReader) TestItem() {
+func (t *testLocalFSReader) TestItem() {
 	point := base.RawPoint(33, 44)
 	fs, pr, ops, opstree, stts, sttstree, vps := t.preparefs(point)
 
 	_, err := fs.Save(context.Background())
 	t.NoError(err)
 
-	r, err := NewLocalBlockDataFSReader(t.root, point.Height(), t.enc)
+	r, err := NewLocalFSReader(t.root, point.Height(), t.Enc)
 	t.NoError(err)
 
 	t.Run("unknown", func() {
@@ -424,7 +425,7 @@ func (t *testLocalBlockDataFSReader) TestItem() {
 	})
 }
 
-func (t *testLocalBlockDataFSReader) TestWrongChecksum() {
+func (t *testLocalFSReader) TestWrongChecksum() {
 	point := base.RawPoint(33, 44)
 	fs, pr, _, _, _, _, _ := t.preparefs(point)
 
@@ -435,7 +436,7 @@ func (t *testLocalBlockDataFSReader) TestWrongChecksum() {
 
 	var root string
 	t.Run("load proposal before modifying", func() {
-		r, err := NewLocalBlockDataFSReader(t.root, point.Height(), t.enc)
+		r, err := NewLocalFSReader(t.root, point.Height(), t.Enc)
 		t.NoError(err)
 
 		root = r.root
@@ -452,7 +453,7 @@ func (t *testLocalBlockDataFSReader) TestWrongChecksum() {
 	})
 
 	// NOTE modify proposal.json
-	i, _ := BlockDataFileName(base.BlockDataTypeProposal, t.enc)
+	i, _ := BlockDataFileName(base.BlockDataTypeProposal, t.Enc)
 	path := filepath.Join(root, i)
 	f, err := os.Open(path)
 	t.NoError(err)
@@ -467,7 +468,7 @@ func (t *testLocalBlockDataFSReader) TestWrongChecksum() {
 	nf.Close()
 
 	t.Run("load proposal after modifying", func() {
-		r, err := NewLocalBlockDataFSReader(t.root, point.Height(), t.enc)
+		r, err := NewLocalFSReader(t.root, point.Height(), t.Enc)
 		t.NoError(err)
 
 		v, found, err := r.Item(base.BlockDataTypeProposal)
@@ -478,8 +479,8 @@ func (t *testLocalBlockDataFSReader) TestWrongChecksum() {
 	})
 }
 
-func TestLocalBlockDataFSReader(t *testing.T) {
+func TestLocalFSReader(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	suite.Run(t, new(testLocalBlockDataFSReader))
+	suite.Run(t, new(testLocalFSReader))
 }

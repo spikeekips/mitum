@@ -216,7 +216,7 @@ func (t *testBaseVoteproof) TestMajorityNotFoundInSignedFacts() {
 }
 
 func (t *testBaseVoteproof) TestWrongMajorityWithSuffrage() {
-	suf, nodes := newTestSuffrage(4)
+	suf, nodes := NewTestSuffrage(4)
 	t.local = nodes[0]
 
 	ivp := t.validVoteproof()
@@ -250,7 +250,7 @@ func (t *testBaseVoteproof) TestUnknownNode() {
 
 	t.NoError(ivp.IsValid(t.networkID))
 
-	suf, _ := newTestSuffrage(1)
+	suf, _ := NewTestSuffrage(1)
 
 	err := base.IsValidVoteproofWithSuffrage(ivp, suf)
 	t.Error(err)

@@ -17,43 +17,43 @@ import (
 )
 
 type testQuicstreamNodeNetworkHandlers struct {
-	baseTestDatabase
-	baseTestHandler
+	BaseTestDatabase
+	BaseTestBallots
 	ci quictransport.ConnInfo
 }
 
 func (t *testQuicstreamNodeNetworkHandlers) SetupTest() {
-	t.baseTestDatabase.SetupTest()
-	t.baseTestHandler.SetupTest()
+	t.BaseTestDatabase.SetupTest()
+	t.BaseTestBallots.SetupTest()
 }
 
 func (t *testQuicstreamNodeNetworkHandlers) SetupSuite() {
-	t.baseTestDatabase.SetupSuite()
+	t.BaseTestDatabase.SetupSuite()
 
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: RequestProposalBodyHint, Instance: RequestProposalBody{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ProposalBodyHint, Instance: ProposalBody{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: RequestProposalBodyHint, Instance: RequestProposalBody{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ProposalBodyHint, Instance: ProposalBody{}}))
 }
 
 func (t *testQuicstreamNodeNetworkHandlers) TestClient() {
-	c := newBaseNodeNetworkClient(t.encs, t.enc, nil)
+	c := newBaseNodeNetworkClient(t.Encs, t.Enc, nil)
 
 	_ = (interface{})(c).(NodeNetworkClient)
 }
 
 func (t *testQuicstreamNodeNetworkHandlers) TestRequestProposal() {
-	pool := t.newPool()
+	pool := t.NewPool()
 	defer pool.Close()
 
 	proposalMaker := NewProposalMaker(
-		t.local,
-		t.policy,
+		t.Local,
+		t.Policy,
 		func(context.Context) ([]util.Hash, error) {
 			return []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}, nil
 		},
 		pool,
 	)
 
-	handlers := NewQuicstreamNodeNetworkHandlers(t.local, t.encs, t.enc, pool, proposalMaker, nil)
+	handlers := NewQuicstreamNodeNetworkHandlers(t.Local, t.Encs, t.Enc, pool, proposalMaker, nil)
 	send := func(ctx context.Context, ci quictransport.ConnInfo, prefix string, b []byte) (io.ReadCloser, error) {
 		if prefix != HandlerPrefixRequestProposal {
 			return nil, errors.Errorf("unknown request, %q", prefix)
@@ -70,17 +70,17 @@ func (t *testQuicstreamNodeNetworkHandlers) TestRequestProposal() {
 	}
 
 	ci := quictransport.NewBaseConnInfo(nil, true)
-	c := newBaseNodeNetworkClient(t.encs, t.enc, send)
+	c := newBaseNodeNetworkClient(t.Encs, t.Enc, send)
 
 	t.Run("local is proposer", func() {
 		point := base.RawPoint(33, 1)
-		pr, found, err := c.RequestProposal(context.Background(), ci, point, t.local.Address())
+		pr, found, err := c.RequestProposal(context.Background(), ci, point, t.Local.Address())
 		t.NoError(err)
 		t.True(found)
 
 		t.Equal(point, pr.Point())
-		t.True(t.local.Address().Equal(pr.ProposalFact().Proposer()))
-		t.NoError(base.IsValidProposalSignedFact(pr, t.policy.NetworkID()))
+		t.True(t.Local.Address().Equal(pr.ProposalFact().Proposer()))
+		t.NoError(base.IsValidProposalSignedFact(pr, t.Policy.NetworkID()))
 	})
 
 	t.Run("local is not proposer", func() {
@@ -94,12 +94,12 @@ func (t *testQuicstreamNodeNetworkHandlers) TestRequestProposal() {
 }
 
 func (t *testQuicstreamNodeNetworkHandlers) TestProposal() {
-	pool := t.newPool()
+	pool := t.NewPool()
 	defer pool.Close()
 
 	proposalMaker := NewProposalMaker(
-		t.local,
-		t.policy,
+		t.Local,
+		t.Policy,
 		func(context.Context) ([]util.Hash, error) {
 			return []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}, nil
 		},
@@ -112,7 +112,7 @@ func (t *testQuicstreamNodeNetworkHandlers) TestProposal() {
 	_, err = pool.SetProposal(pr)
 	t.NoError(err)
 
-	handlers := NewQuicstreamNodeNetworkHandlers(t.local, t.encs, t.enc, pool, proposalMaker, nil)
+	handlers := NewQuicstreamNodeNetworkHandlers(t.Local, t.Encs, t.Enc, pool, proposalMaker, nil)
 	send := func(ctx context.Context, ci quictransport.ConnInfo, prefix string, b []byte) (io.ReadCloser, error) {
 		if prefix != HandlerPrefixProposal {
 			return nil, errors.Errorf("unknown request, %q", prefix)
@@ -129,7 +129,7 @@ func (t *testQuicstreamNodeNetworkHandlers) TestProposal() {
 	}
 
 	ci := quictransport.NewBaseConnInfo(nil, true)
-	c := newBaseNodeNetworkClient(t.encs, t.enc, send)
+	c := newBaseNodeNetworkClient(t.Encs, t.Enc, send)
 
 	t.Run("found", func() {
 		pr, found, err := c.Proposal(context.Background(), ci, pr.Fact().Hash())
@@ -137,8 +137,8 @@ func (t *testQuicstreamNodeNetworkHandlers) TestProposal() {
 		t.True(found)
 
 		t.Equal(point, pr.Point())
-		t.True(t.local.Address().Equal(pr.ProposalFact().Proposer()))
-		t.NoError(base.IsValidProposalSignedFact(pr, t.policy.NetworkID()))
+		t.True(t.Local.Address().Equal(pr.ProposalFact().Proposer()))
+		t.NoError(base.IsValidProposalSignedFact(pr, t.Policy.NetworkID()))
 	})
 
 	t.Run("unknown", func() {
@@ -159,16 +159,16 @@ func (t *testQuicstreamNodeNetworkHandlers) TestProposal() {
 }
 
 func (t *testQuicstreamNodeNetworkHandlers) TestLastSuffrageState() {
-	_, nodes := t.locals(3)
+	_, nodes := t.Locals(3)
 	height := base.Height(33)
 
-	_, stv := t.suffrageState(height, base.Height(22), nodes)
+	_, stv := t.SuffrageState(height, base.Height(22), nodes)
 	manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
 
-	pool := t.newPool()
+	pool := t.NewPool()
 	defer pool.Close()
 
-	handlers := NewQuicstreamNodeNetworkHandlers(t.local, t.encs, t.enc, pool, nil, nil)
+	handlers := NewQuicstreamNodeNetworkHandlers(t.Local, t.Encs, t.Enc, pool, nil, nil)
 	send := func(ctx context.Context, ci quictransport.ConnInfo, prefix string, b []byte) (io.ReadCloser, error) {
 		if prefix != HandlerPrefixLastSuffrage {
 			return nil, errors.Errorf("unknown request, %q", prefix)
@@ -185,7 +185,7 @@ func (t *testQuicstreamNodeNetworkHandlers) TestLastSuffrageState() {
 	}
 
 	ci := quictransport.NewBaseConnInfo(nil, true)
-	c := newBaseNodeNetworkClient(t.encs, t.enc, send)
+	c := newBaseNodeNetworkClient(t.Encs, t.Enc, send)
 
 	t.Run("found", func() {
 		handlers.lastSuffragef = func() (base.Manifest, base.SuffrageStateValue, bool, error) {

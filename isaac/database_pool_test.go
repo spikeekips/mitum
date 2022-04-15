@@ -10,21 +10,21 @@ import (
 )
 
 type testPoolDatabase struct {
-	baseTestHandler
-	baseTestDatabase
+	BaseTestBallots
+	BaseTestDatabase
 }
 
 func (t *testPoolDatabase) SetupTest() {
-	t.baseTestHandler.SetupTest()
-	t.baseTestDatabase.SetupTest()
+	t.BaseTestBallots.SetupTest()
+	t.BaseTestDatabase.SetupTest()
 }
 
 func (t *testPoolDatabase) TestProposal() {
-	pst := t.newPool()
+	pst := t.NewPool()
 	defer pst.Close()
 
-	prfact := t.newProposalFact(base.RawPoint(33, 44), t.local, []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()})
-	pr := t.newProposal(t.local, prfact)
+	prfact := t.NewProposalFact(base.RawPoint(33, 44), t.Local, []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()})
+	pr := t.NewProposal(t.Local, prfact)
 
 	issaved, err := pst.SetProposal(pr)
 	t.NoError(err)
@@ -69,12 +69,12 @@ func (t *testPoolDatabase) TestProposal() {
 }
 
 func (t *testPoolDatabase) TestCleanOldProposals() {
-	pst := t.newPool()
+	pst := t.NewPool()
 	defer pst.Close()
 
 	point := base.RawPoint(33, 44)
 
-	oldpr := t.newProposal(t.local, t.newProposalFact(point.Decrease(), t.local, []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}))
+	oldpr := t.NewProposal(t.Local, t.NewProposalFact(point.Decrease(), t.Local, []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}))
 
 	issaved, err := pst.SetProposal(oldpr)
 	t.NoError(err)
@@ -88,13 +88,13 @@ func (t *testPoolDatabase) TestCleanOldProposals() {
 		base.EqualProposalSignedFact(t.Assert(), oldpr, upr)
 	})
 
-	sameheightpr := t.newProposal(t.local, t.newProposalFact(point.Prev(), t.local, []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}))
+	sameheightpr := t.NewProposal(t.Local, t.NewProposalFact(point.Prev(), t.Local, []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}))
 
 	issaved, err = pst.SetProposal(sameheightpr)
 	t.NoError(err)
 	t.True(issaved)
 
-	newpr := t.newProposal(t.local, t.newProposalFact(point, t.local, []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}))
+	newpr := t.NewProposal(t.Local, t.NewProposalFact(point, t.Local, []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}))
 
 	issaved, err = pst.SetProposal(newpr)
 	t.NoError(err)

@@ -315,3 +315,27 @@ func (m *DummyBlockDataMap) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 
 	return nil
 }
+
+func EqualBlockDataMap(t *assert.Assertions, a, b BlockDataMap) {
+	t.True(a.Hint().Equal(b.Hint()))
+	EqualManifest(t, a.Manifest(), b.Manifest())
+
+	am := a.All()
+	bm := b.All()
+
+	t.Equal(len(am), len(bm))
+
+	for k := range am {
+		ai := am[k]
+		bi := bm[k]
+
+		EqualBlockDataMapItem(t, ai, bi)
+	}
+}
+
+func EqualBlockDataMapItem(t *assert.Assertions, a, b BlockDataMapItem) {
+	t.Equal(a.Type(), b.Type())
+	t.Equal(a.URL().String(), b.URL().String())
+	t.Equal(a.Checksum(), b.Checksum())
+	t.Equal(a.Num(), b.Num())
+}

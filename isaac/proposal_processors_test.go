@@ -15,7 +15,7 @@ import (
 )
 
 type testProposalProcessors struct {
-	baseStateTestHandler
+	BaseTestBallots
 }
 
 func (t *testProposalProcessors) TestProcess() {
@@ -54,13 +54,13 @@ func (t *testProposalProcessors) TestProcess() {
 	base.EqualManifest(t.Assert(), manifest, rmanifest)
 
 	t.T().Log("save")
-	avp, _ := t.voteproofsPair(
+	avp, _ := t.VoteproofsPair(
 		point.Decrease(),
 		point,
 		nil,
 		facthash,
 		nil,
-		[]LocalNode{t.local},
+		[]LocalNode{t.Local},
 	)
 	t.NoError(pps.save(context.Background(), facthash, avp))
 
@@ -373,13 +373,13 @@ func (t *testProposalProcessors) TestSaveError() {
 	base.EqualManifest(t.Assert(), manifest, rmanifest)
 
 	t.T().Log("save")
-	avp, _ := t.voteproofsPair(
+	avp, _ := t.VoteproofsPair(
 		point.Decrease(),
 		point,
 		nil,
 		facthash,
 		nil,
-		[]LocalNode{t.local},
+		[]LocalNode{t.Local},
 	)
 	err = pps.save(context.Background(), facthash, avp)
 	t.Error(err)

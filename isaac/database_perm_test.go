@@ -9,16 +9,16 @@ import (
 )
 
 type testCommonPermanentDatabase struct {
-	baseTestHandler
-	baseTestDatabase
+	BaseTestBallots
+	BaseTestDatabase
 	newDB     func() PermanentDatabase
 	newFromDB func(PermanentDatabase) (PermanentDatabase, error)
 	setState  func(PermanentDatabase, base.State) error
 }
 
 func (t *testCommonPermanentDatabase) SetupTest() {
-	t.baseTestHandler.SetupTest()
-	t.baseTestDatabase.SetupTest()
+	t.BaseTestBallots.SetupTest()
+	t.BaseTestDatabase.SetupTest()
 }
 
 func (t *testCommonPermanentDatabase) setMap(db PermanentDatabase, mp base.BlockDataMap) {
@@ -72,15 +72,15 @@ func (t *testCommonPermanentDatabase) TestLastMap() {
 		t.NoError(err)
 		t.True(found)
 
-		EqualBlockDataMap(t.Assert(), mp, rm)
+		base.EqualBlockDataMap(t.Assert(), mp, rm)
 	})
 }
 
 func (t *testCommonPermanentDatabase) TestLastSuffrage() {
 	height := base.Height(33)
-	_, nodes := t.locals(3)
+	_, nodes := t.Locals(3)
 
-	sufstt, _ := t.suffrageState(height, base.Height(66), nodes)
+	sufstt, _ := t.SuffrageState(height, base.Height(66), nodes)
 
 	db := t.newDB()
 	defer db.Close()
@@ -105,7 +105,7 @@ func (t *testCommonPermanentDatabase) TestLastSuffrage() {
 
 func (t *testCommonPermanentDatabase) TestSuffrage() {
 	baseheight := base.Height(33)
-	_, nodes := t.locals(3)
+	_, nodes := t.Locals(3)
 
 	db := t.newDB()
 	defer db.Close()
@@ -117,7 +117,7 @@ func (t *testCommonPermanentDatabase) TestSuffrage() {
 	stm := map[base.Height]base.State{}
 	sthm := map[base.Height]base.State{}
 	for range make([]int, 3) {
-		st, _ := t.suffrageState(height, suffrageheight, nodes)
+		st, _ := t.SuffrageState(height, suffrageheight, nodes)
 		t.NoError(t.setState(db, st))
 
 		stm[height] = st
@@ -130,7 +130,7 @@ func (t *testCommonPermanentDatabase) TestSuffrage() {
 	manifest := base.NewDummyManifest(height+10, valuehash.RandomSHA256())
 	mp := base.NewDummyBlockDataMap(manifest)
 	t.setMap(db, mp)
-	st, _ := t.suffrageState(height+10, suffrageheight, nodes)
+	st, _ := t.SuffrageState(height+10, suffrageheight, nodes)
 	t.setSuffrageState(db, st)
 
 	t.Run("unknown suffrage", func() {
@@ -212,11 +212,11 @@ func (t *testCommonPermanentDatabase) TestLoadEmptyDB() {
 
 func (t *testCommonPermanentDatabase) TestLoad() {
 	height := base.Height(33)
-	_, nodes := t.locals(3)
+	_, nodes := t.Locals(3)
 
-	sufstt, _ := t.suffrageState(height, base.Height(66), nodes)
+	sufstt, _ := t.SuffrageState(height, base.Height(66), nodes)
 
-	stts := t.states(height, 3)
+	stts := t.States(height, 3)
 	stts = append(stts, sufstt)
 
 	manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
@@ -227,7 +227,7 @@ func (t *testCommonPermanentDatabase) TestLoad() {
 		ops[i] = valuehash.RandomSHA256()
 	}
 
-	wst := t.newMemLeveldbBlockWriteDatabase(height)
+	wst := t.NewMemLeveldbBlockWriteDatabase(height)
 	t.NoError(wst.SetMap(mp))
 	t.NoError(wst.SetStates(stts))
 	t.NoError(wst.SetOperations(ops))
@@ -243,7 +243,7 @@ func (t *testCommonPermanentDatabase) TestLoad() {
 		nm, found, err := perm.LastMap()
 		t.NoError(err)
 		t.True(found)
-		EqualBlockDataMap(t.Assert(), mp, nm)
+		base.EqualBlockDataMap(t.Assert(), mp, nm)
 	})
 
 	t.Run("check suffrage state in perm", func() {
@@ -260,7 +260,7 @@ func (t *testCommonPermanentDatabase) TestLoad() {
 		nm, found, err := newperm.LastMap()
 		t.NoError(err)
 		t.True(found)
-		EqualBlockDataMap(t.Assert(), mp, nm)
+		base.EqualBlockDataMap(t.Assert(), mp, nm)
 	})
 
 	t.Run("check suffrage state in new perm", func() {
@@ -273,11 +273,11 @@ func (t *testCommonPermanentDatabase) TestLoad() {
 
 func (t *testCommonPermanentDatabase) TestMergeTempDatabase() {
 	height := base.Height(33)
-	_, nodes := t.locals(3)
+	_, nodes := t.Locals(3)
 
-	sufstt, _ := t.suffrageState(height, base.Height(66), nodes)
+	sufstt, _ := t.SuffrageState(height, base.Height(66), nodes)
 
-	stts := t.states(height, 3)
+	stts := t.States(height, 3)
 	stts = append(stts, sufstt)
 
 	manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
@@ -288,7 +288,7 @@ func (t *testCommonPermanentDatabase) TestMergeTempDatabase() {
 		ops[i] = valuehash.RandomSHA256()
 	}
 
-	wst := t.newMemLeveldbBlockWriteDatabase(height)
+	wst := t.NewMemLeveldbBlockWriteDatabase(height)
 	t.NoError(wst.SetMap(mp))
 	t.NoError(wst.SetStates(stts))
 	t.NoError(wst.SetOperations(ops))
@@ -371,6 +371,6 @@ func (t *testCommonPermanentDatabase) TestMergeTempDatabase() {
 		t.True(found)
 		t.NotNil(rm)
 
-		EqualBlockDataMap(t.Assert(), mp, rm)
+		base.EqualBlockDataMap(t.Assert(), mp, rm)
 	})
 }

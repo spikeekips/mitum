@@ -13,25 +13,25 @@ import (
 )
 
 type testLeveldbBlockWriteDatabase struct {
-	baseTestHandler
-	baseTestDatabase
+	BaseTestBallots
+	BaseTestDatabase
 }
 
 func (t *testLeveldbBlockWriteDatabase) SetupTest() {
-	t.baseTestHandler.SetupTest()
-	t.baseTestDatabase.SetupTest()
+	t.BaseTestBallots.SetupTest()
+	t.BaseTestDatabase.SetupTest()
 }
 
 func (t *testLeveldbBlockWriteDatabase) TestNew() {
 	t.Run("valid", func() {
-		wst, err := NewLeveldbBlockWriteDatabase(base.Height(33), t.root, t.encs, t.enc)
+		wst, err := NewLeveldbBlockWriteDatabase(base.Height(33), t.Root, t.Encs, t.Enc)
 		t.NoError(err)
 
 		_ = (interface{})(wst).(BlockWriteDatabase)
 	})
 
 	t.Run("root exists", func() {
-		_, err := NewLeveldbBlockWriteDatabase(base.Height(33), t.root, t.encs, t.enc)
+		_, err := NewLeveldbBlockWriteDatabase(base.Height(33), t.Root, t.Encs, t.Enc)
 		t.Error(err)
 		t.Contains(err.Error(), "failed batch leveldb storage")
 	})
@@ -40,7 +40,7 @@ func (t *testLeveldbBlockWriteDatabase) TestNew() {
 func (t *testLeveldbBlockWriteDatabase) TestSetMap() {
 	height := base.Height(33)
 
-	wst := t.newMemLeveldbBlockWriteDatabase(height)
+	wst := t.NewMemLeveldbBlockWriteDatabase(height)
 	defer wst.Close()
 
 	manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
@@ -56,22 +56,22 @@ func (t *testLeveldbBlockWriteDatabase) TestSetMap() {
 		rm, err := rst.Map()
 		t.NoError(err)
 
-		EqualBlockDataMap(t.Assert(), mp, rm)
+		base.EqualBlockDataMap(t.Assert(), mp, rm)
 	})
 }
 
 func (t *testLeveldbBlockWriteDatabase) TestSetStates() {
 	height := base.Height(33)
-	_, nodes := t.locals(3)
+	_, nodes := t.Locals(3)
 
-	sufstt, _ := t.suffrageState(height, base.Height(33), nodes)
+	sufstt, _ := t.SuffrageState(height, base.Height(33), nodes)
 
-	stts := t.states(height, 3)
+	stts := t.States(height, 3)
 	stts = append(stts, sufstt)
 
 	manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
 
-	wst := t.newMemLeveldbBlockWriteDatabase(height)
+	wst := t.NewMemLeveldbBlockWriteDatabase(height)
 	defer wst.Close()
 
 	mp := base.NewDummyBlockDataMap(manifest)
@@ -113,7 +113,7 @@ func (t *testLeveldbBlockWriteDatabase) TestSetStates() {
 }
 
 func (t *testLeveldbBlockWriteDatabase) TestSetOperations() {
-	wst := t.newMemLeveldbBlockWriteDatabase(base.Height(33))
+	wst := t.NewMemLeveldbBlockWriteDatabase(base.Height(33))
 	defer wst.Close()
 
 	ops := make([]util.Hash, 33)
@@ -149,11 +149,11 @@ func (t *testLeveldbBlockWriteDatabase) TestSetOperations() {
 func (t *testLeveldbBlockWriteDatabase) TestRemove() {
 	height := base.Height(33)
 
-	wst := t.newLeveldbBlockWriteDatabase(height)
+	wst := t.NewLeveldbBlockWriteDatabase(height)
 	defer wst.Close()
 
 	t.T().Log("check root directory created")
-	fi, err := os.Stat(t.root)
+	fi, err := os.Stat(t.Root)
 	t.NoError(err)
 	t.True(fi.IsDir())
 
@@ -162,7 +162,7 @@ func (t *testLeveldbBlockWriteDatabase) TestRemove() {
 	t.NoError(wst.Remove())
 
 	t.T().Log("check root directory removed")
-	_, err = os.Stat(t.root)
+	_, err = os.Stat(t.Root)
 	t.True(os.IsNotExist(err))
 
 	t.T().Log("remove again")

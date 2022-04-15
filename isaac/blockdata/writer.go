@@ -1,4 +1,4 @@
-package isaac
+package blockdata
 
 import (
 	"context"
@@ -9,17 +9,18 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/localtime"
 	"github.com/spikeekips/mitum/util/tree"
 	"github.com/spikeekips/mitum/util/valuehash"
 )
 
-type DefaultBlockDataWriter struct {
+type Writer struct {
 	sync.RWMutex
-	mergeDatabase func(BlockWriteDatabase) error
-	db            BlockWriteDatabase
-	fswriter      BlockDataFSWriter
+	mergeDatabase func(isaac.BlockWriteDatabase) error
+	db            isaac.BlockWriteDatabase
+	fswriter      isaac.BlockDataFSWriter
 	proposal      base.ProposalSignedFact
 	manifest      base.Manifest
 	opstreeg      *tree.FixedTreeGenerator
@@ -28,12 +29,12 @@ type DefaultBlockDataWriter struct {
 	states        *util.LockedMap
 }
 
-func NewDefaultBlockDataWriter(
-	db BlockWriteDatabase,
-	mergeDatabase func(BlockWriteDatabase) error,
-	fswriter BlockDataFSWriter,
-) *DefaultBlockDataWriter {
-	return &DefaultBlockDataWriter{
+func NewWriter(
+	db isaac.BlockWriteDatabase,
+	mergeDatabase func(isaac.BlockWriteDatabase) error,
+	fswriter isaac.BlockDataFSWriter,
+) *Writer {
+	return &Writer{
 		db:            db,
 		mergeDatabase: mergeDatabase,
 		fswriter:      fswriter,
@@ -43,7 +44,7 @@ func NewDefaultBlockDataWriter(
 	}
 }
 
-func (w *DefaultBlockDataWriter) SetProposal(ctx context.Context, proposal base.ProposalSignedFact) error {
+func (w *Writer) SetProposal(ctx context.Context, proposal base.ProposalSignedFact) error {
 	if err := w.fswriter.SetProposal(ctx, proposal); err != nil {
 		return errors.Wrap(err, "failed to set proposal")
 	}
@@ -53,7 +54,7 @@ func (w *DefaultBlockDataWriter) SetProposal(ctx context.Context, proposal base.
 	return nil
 }
 
-func (w *DefaultBlockDataWriter) SetOperationsSize(n uint64) {
+func (w *Writer) SetOperationsSize(n uint64) {
 	w.Lock()
 	defer w.Unlock()
 
@@ -64,7 +65,7 @@ func (w *DefaultBlockDataWriter) SetOperationsSize(n uint64) {
 	w.opstreeg = tree.NewFixedTreeGenerator(n)
 }
 
-func (w *DefaultBlockDataWriter) SetProcessResult(
+func (w *Writer) SetProcessResult(
 	_ context.Context, index int, facthash util.Hash, instate bool, errorreason base.OperationProcessReasonError,
 ) error {
 	e := util.StringErrorFunc("failed to set operation")
@@ -90,7 +91,7 @@ func (w *DefaultBlockDataWriter) SetProcessResult(
 	return nil
 }
 
-func (w *DefaultBlockDataWriter) SetStates(
+func (w *Writer) SetStates(
 	ctx context.Context, index int, states []base.State, operation base.Operation,
 ) error {
 	e := util.StringErrorFunc("failed to set states")
@@ -121,7 +122,7 @@ func (w *DefaultBlockDataWriter) SetStates(
 	return nil
 }
 
-func (w *DefaultBlockDataWriter) closeStateValues(ctx context.Context) error {
+func (w *Writer) closeStateValues(ctx context.Context) error {
 	if w.states.Len() < 1 {
 		return nil
 	}
@@ -214,7 +215,7 @@ func (w *DefaultBlockDataWriter) closeStateValues(ctx context.Context) error {
 	return nil
 }
 
-func (*DefaultBlockDataWriter) closeStateValue(
+func (*Writer) closeStateValue(
 	tg *tree.FixedTreeGenerator, st base.State, index int,
 ) (base.State, error) {
 	stm, ok := st.(base.StateValueMerger)
@@ -229,7 +230,7 @@ func (*DefaultBlockDataWriter) closeStateValue(
 	return stm, tg.Add(base.NewStateFixedTreeNode(uint64(index), []byte(stm.Key())))
 }
 
-func (w *DefaultBlockDataWriter) saveStates(
+func (w *Writer) saveStates(
 	ctx context.Context, tg *tree.FixedTreeGenerator, states []base.State,
 ) error {
 	e := util.StringErrorFunc("failed to set states tree")
@@ -269,7 +270,7 @@ func (w *DefaultBlockDataWriter) saveStates(
 	return nil
 }
 
-func (w *DefaultBlockDataWriter) Manifest(ctx context.Context, previous base.Manifest) (base.Manifest, error) {
+func (w *Writer) Manifest(ctx context.Context, previous base.Manifest) (base.Manifest, error) {
 	w.Lock()
 	defer w.Unlock()
 
@@ -289,7 +290,7 @@ func (w *DefaultBlockDataWriter) Manifest(ctx context.Context, previous base.Man
 	}
 
 	if w.manifest == nil {
-		w.manifest = NewManifest(
+		w.manifest = isaac.NewManifest(
 			w.proposal.Point().Height(),
 			previous.Hash(),
 			w.proposal.Fact().Hash(),
@@ -307,7 +308,7 @@ func (w *DefaultBlockDataWriter) Manifest(ctx context.Context, previous base.Man
 	return w.manifest, nil
 }
 
-func (w *DefaultBlockDataWriter) SetINITVoteproof(ctx context.Context, vp base.INITVoteproof) error {
+func (w *Writer) SetINITVoteproof(ctx context.Context, vp base.INITVoteproof) error {
 	if err := w.fswriter.SetINITVoteproof(ctx, vp); err != nil {
 		return errors.Wrap(err, "failed to set init voteproof")
 	}
@@ -315,7 +316,7 @@ func (w *DefaultBlockDataWriter) SetINITVoteproof(ctx context.Context, vp base.I
 	return nil
 }
 
-func (w *DefaultBlockDataWriter) SetACCEPTVoteproof(ctx context.Context, vp base.ACCEPTVoteproof) error {
+func (w *Writer) SetACCEPTVoteproof(ctx context.Context, vp base.ACCEPTVoteproof) error {
 	if err := w.fswriter.SetACCEPTVoteproof(ctx, vp); err != nil {
 		return errors.Wrap(err, "failed to set accept voteproof")
 	}
@@ -323,7 +324,7 @@ func (w *DefaultBlockDataWriter) SetACCEPTVoteproof(ctx context.Context, vp base
 	return nil
 }
 
-func (w *DefaultBlockDataWriter) Save(ctx context.Context) error {
+func (w *Writer) Save(ctx context.Context) error {
 	w.Lock()
 	defer w.Unlock()
 
@@ -345,11 +346,11 @@ func (w *DefaultBlockDataWriter) Save(ctx context.Context) error {
 	return nil
 }
 
-func (w *DefaultBlockDataWriter) Cancel() error {
+func (w *Writer) Cancel() error {
 	w.Lock()
 	defer w.Unlock()
 
-	e := util.StringErrorFunc("failed to cancel DefaultBlockDataWriter")
+	e := util.StringErrorFunc("failed to cancel Writer")
 	if err := w.fswriter.Cancel(); err != nil {
 		return e(err, "")
 	}

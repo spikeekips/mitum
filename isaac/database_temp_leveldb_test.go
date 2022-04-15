@@ -33,22 +33,22 @@ func (db *TempLeveldbDatabase) States(f func(base.State) (bool, error)) error {
 }
 
 type testTempLeveldbDatabase struct {
-	baseTestHandler
-	baseTestDatabase
+	BaseTestBallots
+	BaseTestDatabase
 }
 
 func (t *testTempLeveldbDatabase) SetupTest() {
-	t.baseTestHandler.SetupTest()
-	t.baseTestDatabase.SetupTest()
+	t.BaseTestBallots.SetupTest()
+	t.BaseTestDatabase.SetupTest()
 }
 
 func (t *testTempLeveldbDatabase) TestLoad() {
 	height := base.Height(33)
-	_, nodes := t.locals(3)
+	_, nodes := t.Locals(3)
 
-	sufstt, _ := t.suffrageState(height, base.Height(66), nodes)
+	sufstt, _ := t.SuffrageState(height, base.Height(66), nodes)
 
-	stts := t.states(height, 3)
+	stts := t.States(height, 3)
 	stts = append(stts, sufstt)
 
 	manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
@@ -59,7 +59,7 @@ func (t *testTempLeveldbDatabase) TestLoad() {
 		ops[i] = valuehash.RandomSHA256()
 	}
 
-	wst := t.newLeveldbBlockWriteDatabase(height)
+	wst := t.NewLeveldbBlockWriteDatabase(height)
 	t.NoError(wst.SetMap(mp))
 	t.NoError(wst.SetStates(stts))
 	t.NoError(wst.SetOperations(ops))
@@ -67,7 +67,7 @@ func (t *testTempLeveldbDatabase) TestLoad() {
 
 	t.NoError(wst.Close())
 
-	rst, err := NewTempLeveldbDatabase(t.root, t.encs, t.enc)
+	rst, err := NewTempLeveldbDatabase(t.Root, t.Encs, t.Enc)
 	t.NoError(err)
 	defer rst.Remove()
 
@@ -77,7 +77,7 @@ func (t *testTempLeveldbDatabase) TestLoad() {
 		rm, err := rst.Map()
 		t.NoError(err)
 
-		EqualBlockDataMap(t.Assert(), mp, rm)
+		base.EqualBlockDataMap(t.Assert(), mp, rm)
 	})
 
 	t.Run("check last suffrage", func() {
@@ -126,7 +126,7 @@ func (t *testTempLeveldbDatabase) TestLoad() {
 	t.Run("remove", func() {
 		t.NoError(rst.Remove())
 
-		_, err = os.Stat(t.root)
+		_, err = os.Stat(t.Root)
 		t.True(os.IsNotExist(err))
 	})
 

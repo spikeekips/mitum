@@ -1,4 +1,4 @@
-package isaac
+package blockdata
 
 import (
 	"context"
@@ -20,7 +20,7 @@ import (
 	"github.com/spikeekips/mitum/util/tree"
 )
 
-var LocalBlockDataFSWriterHint = hint.MustNewHint("local-blockdata-fs-writer-v0.0.1")
+var LocalFSWriterHint = hint.MustNewHint("local-blockdata-fs-writer-v0.0.1")
 
 var (
 	blockDataMapFilename = "map"
@@ -36,7 +36,7 @@ var (
 
 var ulid = util.NewULID()
 
-type LocalBlockDataFSWriter struct {
+type LocalFSWriter struct {
 	sync.Mutex
 	hint.BaseHinter
 	id         string
@@ -54,14 +54,14 @@ type LocalBlockDataFSWriter struct {
 	stsf       util.ChecksumWriter
 }
 
-func NewLocalBlockDataFSWriter(
+func NewLocalFSWriter(
 	root string,
 	height base.Height,
 	enc encoder.Encoder,
 	local base.LocalNode,
 	networkID base.NetworkID,
-) (*LocalBlockDataFSWriter, error) {
-	e := util.StringErrorFunc("failed to create LocalBlockDataFSWriter")
+) (*LocalFSWriter, error) {
+	e := util.StringErrorFunc("failed to create LocalFSWriter")
 	abs, err := filepath.Abs(filepath.Clean(root))
 	if err != nil {
 		return nil, e(err, "")
@@ -80,8 +80,8 @@ func NewLocalBlockDataFSWriter(
 		return nil, e(err, "failed to create temp directory")
 	}
 
-	w := &LocalBlockDataFSWriter{
-		BaseHinter: hint.NewBaseHinter(LocalBlockDataFSWriterHint),
+	w := &LocalFSWriter{
+		BaseHinter: hint.NewBaseHinter(LocalFSWriterHint),
 		id:         id,
 		root:       abs,
 		height:     height,
@@ -90,7 +90,7 @@ func NewLocalBlockDataFSWriter(
 		networkID:  networkID,
 		heightbase: HeightDirectory(height),
 		temp:       temp,
-		m:          NewBlockDataMap(LocalBlockDataFSWriterHint, enc.Hint()),
+		m:          NewBlockDataMap(LocalFSWriterHint, enc.Hint()),
 	}
 
 	switch f, err := w.newChecksumWriter(base.BlockDataTypeOperations); {
@@ -110,7 +110,7 @@ func NewLocalBlockDataFSWriter(
 	return w, nil
 }
 
-func (w *LocalBlockDataFSWriter) SetProposal(_ context.Context, pr base.ProposalSignedFact) error {
+func (w *LocalFSWriter) SetProposal(_ context.Context, pr base.ProposalSignedFact) error {
 	if err := w.writeItem(base.BlockDataTypeProposal, pr); err != nil {
 		return errors.Wrap(err, "failed to set proposal in fs writer")
 	}
@@ -118,7 +118,7 @@ func (w *LocalBlockDataFSWriter) SetProposal(_ context.Context, pr base.Proposal
 	return nil
 }
 
-func (w *LocalBlockDataFSWriter) SetOperation(_ context.Context, _ int, op base.Operation) error {
+func (w *LocalFSWriter) SetOperation(_ context.Context, _ int, op base.Operation) error {
 	if err := w.appendfile(w.opsf, op); err != nil {
 		return errors.Wrap(err, "failed to set operation")
 	}
@@ -128,7 +128,7 @@ func (w *LocalBlockDataFSWriter) SetOperation(_ context.Context, _ int, op base.
 	return nil
 }
 
-func (w *LocalBlockDataFSWriter) SetOperationsTree(ctx context.Context, tr tree.FixedTree) error {
+func (w *LocalFSWriter) SetOperationsTree(ctx context.Context, tr tree.FixedTree) error {
 	if err := w.setTree(
 		ctx,
 		tr,
@@ -154,7 +154,7 @@ func (w *LocalBlockDataFSWriter) SetOperationsTree(ctx context.Context, tr tree.
 	return nil
 }
 
-func (w *LocalBlockDataFSWriter) SetState(_ context.Context, _ int, st base.State) error {
+func (w *LocalFSWriter) SetState(_ context.Context, _ int, st base.State) error {
 	if err := w.appendfile(w.stsf, st); err != nil {
 		return errors.Wrap(err, "failed to set state")
 	}
@@ -162,7 +162,7 @@ func (w *LocalBlockDataFSWriter) SetState(_ context.Context, _ int, st base.Stat
 	return nil
 }
 
-func (w *LocalBlockDataFSWriter) SetStatesTree(ctx context.Context, tr tree.FixedTree) error {
+func (w *LocalFSWriter) SetStatesTree(ctx context.Context, tr tree.FixedTree) error {
 	if err := w.setTree(
 		ctx,
 		tr,
@@ -188,13 +188,13 @@ func (w *LocalBlockDataFSWriter) SetStatesTree(ctx context.Context, tr tree.Fixe
 	return nil
 }
 
-func (w *LocalBlockDataFSWriter) SetManifest(_ context.Context, m base.Manifest) error {
+func (w *LocalFSWriter) SetManifest(_ context.Context, m base.Manifest) error {
 	w.m.SetManifest(m)
 
 	return nil
 }
 
-func (w *LocalBlockDataFSWriter) SetINITVoteproof(_ context.Context, vp base.INITVoteproof) error {
+func (w *LocalFSWriter) SetINITVoteproof(_ context.Context, vp base.INITVoteproof) error {
 	w.vps[0] = vp
 	if w.vps[1] == nil {
 		return nil
@@ -207,7 +207,7 @@ func (w *LocalBlockDataFSWriter) SetINITVoteproof(_ context.Context, vp base.INI
 	return nil
 }
 
-func (w *LocalBlockDataFSWriter) SetACCEPTVoteproof(_ context.Context, vp base.ACCEPTVoteproof) error {
+func (w *LocalFSWriter) SetACCEPTVoteproof(_ context.Context, vp base.ACCEPTVoteproof) error {
 	w.vps[1] = vp
 	if w.vps[0] == nil {
 		return nil
@@ -220,7 +220,7 @@ func (w *LocalBlockDataFSWriter) SetACCEPTVoteproof(_ context.Context, vp base.A
 	return nil
 }
 
-func (w *LocalBlockDataFSWriter) saveVoteproofs() error {
+func (w *LocalFSWriter) saveVoteproofs() error {
 	e := util.StringErrorFunc("failed to save voteproofs ")
 
 	f, err := w.newChecksumWriter(base.BlockDataTypeVoteproofs)
@@ -249,7 +249,7 @@ func (w *LocalBlockDataFSWriter) saveVoteproofs() error {
 	return nil
 }
 
-func (w *LocalBlockDataFSWriter) Save(_ context.Context) (base.BlockDataMap, error) {
+func (w *LocalFSWriter) Save(_ context.Context) (base.BlockDataMap, error) {
 	w.Lock()
 	defer w.Unlock()
 
@@ -304,7 +304,7 @@ func (w *LocalBlockDataFSWriter) Save(_ context.Context) (base.BlockDataMap, err
 	return w.m, nil
 }
 
-func (w *LocalBlockDataFSWriter) Cancel() error {
+func (w *LocalFSWriter) Cancel() error {
 	w.Lock()
 	defer w.Unlock()
 
@@ -328,7 +328,7 @@ func (w *LocalBlockDataFSWriter) Cancel() error {
 	return nil
 }
 
-func (w *LocalBlockDataFSWriter) setTree(
+func (w *LocalFSWriter) setTree(
 	ctx context.Context,
 	tr tree.FixedTree,
 	treetype base.BlockDataType,
@@ -388,7 +388,7 @@ func (w *LocalBlockDataFSWriter) setTree(
 	return nil
 }
 
-func (w *LocalBlockDataFSWriter) saveMap() error {
+func (w *LocalFSWriter) saveMap() error {
 	e := util.StringErrorFunc("filed to save map")
 
 	// NOTE sign blockdatamap by local node
@@ -413,7 +413,7 @@ func (w *LocalBlockDataFSWriter) saveMap() error {
 	return nil
 }
 
-func (w *LocalBlockDataFSWriter) filename(t base.BlockDataType) (filename string, temppath string, err error) {
+func (w *LocalFSWriter) filename(t base.BlockDataType) (filename string, temppath string, err error) {
 	f, err := BlockDataFileName(t, w.enc)
 	if err != nil {
 		return "", "", errors.Wrap(err, "")
@@ -422,7 +422,7 @@ func (w *LocalBlockDataFSWriter) filename(t base.BlockDataType) (filename string
 	return f, filepath.Join(w.temp, f), nil
 }
 
-func (w *LocalBlockDataFSWriter) writeItem(t base.BlockDataType, i interface{}) error {
+func (w *LocalFSWriter) writeItem(t base.BlockDataType, i interface{}) error {
 	cw, err := w.newChecksumWriter(t)
 	if err != nil {
 		return errors.Wrap(err, "")
@@ -450,7 +450,7 @@ func (w *LocalBlockDataFSWriter) writeItem(t base.BlockDataType, i interface{}) 
 	return nil
 }
 
-func (w *LocalBlockDataFSWriter) writefileonce(f io.Writer, i interface{}) error {
+func (w *LocalFSWriter) writefileonce(f io.Writer, i interface{}) error {
 	b, err := w.enc.Marshal(i)
 	if err != nil {
 		return errors.Wrap(err, "")
@@ -459,7 +459,7 @@ func (w *LocalBlockDataFSWriter) writefileonce(f io.Writer, i interface{}) error
 	return w.writefile(f, b)
 }
 
-func (w *LocalBlockDataFSWriter) appendfile(f io.Writer, i interface{}) error {
+func (w *LocalFSWriter) appendfile(f io.Writer, i interface{}) error {
 	b, err := w.enc.Marshal(i)
 	if err != nil {
 		return errors.Wrap(err, "")
@@ -468,7 +468,7 @@ func (w *LocalBlockDataFSWriter) appendfile(f io.Writer, i interface{}) error {
 	return w.writefile(f, append(b, '\n'))
 }
 
-func (*LocalBlockDataFSWriter) writefile(f io.Writer, b []byte) error {
+func (*LocalFSWriter) writefile(f io.Writer, b []byte) error {
 	if _, err := f.Write(b); err != nil {
 		return errors.Wrap(err, "")
 	}
@@ -476,7 +476,7 @@ func (*LocalBlockDataFSWriter) writefile(f io.Writer, b []byte) error {
 	return nil
 }
 
-func (w *LocalBlockDataFSWriter) newChecksumWriter(t base.BlockDataType) (util.ChecksumWriter, error) {
+func (w *LocalFSWriter) newChecksumWriter(t base.BlockDataType) (util.ChecksumWriter, error) {
 	fname, temppath, _ := w.filename(t)
 	switch f, err := os.OpenFile(temppath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600); { // nolint:gosec
 	case err != nil:

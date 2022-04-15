@@ -1,4 +1,4 @@
-package isaac
+package blockdata
 
 import (
 	"bytes"

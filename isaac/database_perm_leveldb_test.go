@@ -17,14 +17,14 @@ func TestLeveldbPermanentDatabase(tt *testing.T) {
 	t := new(testLeveldbPermanentDatabase)
 	t.newDB = func() PermanentDatabase {
 		st := leveldbstorage.NewMemWriteStorage()
-		db, err := newLeveldbPermanentDatabase(st, t.encs, t.enc)
+		db, err := newLeveldbPermanentDatabase(st, t.Encs, t.Enc)
 		t.NoError(err)
 
 		return db
 	}
 
 	t.newFromDB = func(db PermanentDatabase) (PermanentDatabase, error) {
-		return newLeveldbPermanentDatabase(db.(*LeveldbPermanentDatabase).st, t.encs, t.enc)
+		return newLeveldbPermanentDatabase(db.(*LeveldbPermanentDatabase).st, t.Encs, t.Enc)
 	}
 
 	t.setState = func(perm PermanentDatabase, st base.State) error {

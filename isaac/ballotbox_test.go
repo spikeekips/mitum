@@ -106,7 +106,7 @@ func (t *testBallotbox) compareStagePoint(a base.StagePoint, i interface{}) {
 }
 
 func (t *testBallotbox) TestVoteINITBallotSignedFact() {
-	suf, nodes := newTestSuffrage(1)
+	suf, nodes := NewTestSuffrage(1)
 	th := base.Threshold(100)
 
 	box := NewBallotbox(
@@ -147,7 +147,7 @@ func (t *testBallotbox) TestVoteINITBallotSignedFact() {
 }
 
 func (t *testBallotbox) TestVoteACCEPTBallotSignedFact() {
-	suf, nodes := newTestSuffrage(1)
+	suf, nodes := NewTestSuffrage(1)
 	th := base.Threshold(100)
 
 	box := NewBallotbox(
@@ -190,7 +190,7 @@ func (t *testBallotbox) TestVoteACCEPTBallotSignedFact() {
 }
 
 func (t *testBallotbox) TestVoteSamePointAndStageWithLastVoteproof() {
-	suf, nodes := newTestSuffrage(3)
+	suf, nodes := NewTestSuffrage(3)
 	th := base.Threshold(60)
 
 	box := NewBallotbox(
@@ -233,7 +233,7 @@ func (t *testBallotbox) TestVoteSamePointAndStageWithLastVoteproof() {
 }
 
 func (t *testBallotbox) TestOldBallotSignedFact() {
-	suf, nodes := newTestSuffrage(2)
+	suf, nodes := NewTestSuffrage(2)
 	th := base.Threshold(100)
 
 	box := NewBallotbox(
@@ -276,7 +276,7 @@ func (t *testBallotbox) TestOldBallotSignedFact() {
 }
 
 func (t *testBallotbox) TestUnknownSuffrageNode() {
-	suf, _ := newTestSuffrage(1)
+	suf, _ := NewTestSuffrage(1)
 	th := base.Threshold(100)
 
 	box := NewBallotbox(
@@ -326,7 +326,7 @@ func (t *testBallotbox) TestNilSuffrage() {
 }
 
 func (t *testBallotbox) TestNilSuffrageCount() {
-	suf, nodes := newTestSuffrage(1)
+	suf, nodes := NewTestSuffrage(1)
 	th := base.Threshold(100)
 
 	var i int64
@@ -375,7 +375,7 @@ func (t *testBallotbox) TestNilSuffrageCount() {
 }
 
 func (t *testBallotbox) TestVoteproofOrder() {
-	suf, nodes := newTestSuffrage(2)
+	suf, nodes := NewTestSuffrage(2)
 	th := base.Threshold(100)
 
 	var enablesuf int64
@@ -469,7 +469,7 @@ end:
 }
 
 func (t *testBallotbox) TestVoteproofFromBallotACCEPTVoteproof() {
-	suf, nodes := newTestSuffrage(2)
+	suf, nodes := NewTestSuffrage(2)
 	th := base.Threshold(100)
 
 	box := NewBallotbox(
@@ -504,7 +504,7 @@ func (t *testBallotbox) TestVoteproofFromBallotACCEPTVoteproof() {
 }
 
 func (t *testBallotbox) TestVoteproofFromBallotINITVoteproof() {
-	suf, nodes := newTestSuffrage(2)
+	suf, nodes := NewTestSuffrage(2)
 	th := base.Threshold(100)
 
 	box := NewBallotbox(
@@ -550,7 +550,7 @@ end:
 }
 
 func (t *testBallotbox) TestVoteproofFromBallotWhenCount() {
-	suf, nodes := newTestSuffrage(2)
+	suf, nodes := NewTestSuffrage(2)
 	th := base.Threshold(100)
 
 	var i int64
@@ -620,7 +620,7 @@ end1:
 func (t *testBallotbox) TestAsyncVoterecords() {
 	max := 500
 
-	suf, nodes := newTestSuffrage(max + 2)
+	suf, nodes := NewTestSuffrage(max + 2)
 	th := base.Threshold(100)
 	stagepoint := base.NewStagePoint(base.RawPoint(33, 44), base.StageINIT)
 	vr := newVoterecords(stagepoint, nil, func(base.Height) base.Suffrage { return suf }, th)
@@ -654,7 +654,7 @@ func (t *testBallotbox) TestAsyncVoteAndClean() {
 	max := 500
 	th := base.Threshold(10)
 
-	suf, nodes := newTestSuffrage(max)
+	suf, nodes := NewTestSuffrage(max)
 
 	box := NewBallotbox(func(base.Height) base.Suffrage {
 		return suf

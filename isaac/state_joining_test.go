@@ -14,12 +14,12 @@ import (
 )
 
 type testJoiningHandler struct {
-	baseStateTestHandler
+	BaseTestBallots
 }
 
 func (t *testJoiningHandler) newState(suf suffrage) (*JoiningHandler, func()) {
-	local := t.local
-	policy := t.policy
+	local := t.Local
+	policy := t.Policy
 
 	st := NewJoiningHandler(
 		local,
@@ -51,7 +51,7 @@ func (t *testJoiningHandler) newState(suf suffrage) (*JoiningHandler, func()) {
 }
 
 func (t *testJoiningHandler) TestNew() {
-	suf, nodes := newTestSuffrage(2, t.local)
+	suf, nodes := NewTestSuffrage(2, t.Local)
 
 	st, closef := t.newState(suf)
 	defer closef()
@@ -72,7 +72,7 @@ func (t *testJoiningHandler) TestNew() {
 	t.NoError(err)
 	deferred()
 
-	_, ivp := t.voteproofsPair(point, point.Next(), manifest.Hash(), nil, nil, nodes)
+	_, ivp := t.VoteproofsPair(point, point.Next(), manifest.Hash(), nil, nil, nodes)
 	err = st.newVoteproof(ivp)
 
 	var ssctx consensusSwitchContext
@@ -81,7 +81,7 @@ func (t *testJoiningHandler) TestNew() {
 }
 
 func (t *testJoiningHandler) TestFailedLastManifest() {
-	suf, nodes := newTestSuffrage(2, t.local)
+	suf, nodes := NewTestSuffrage(2, t.Local)
 
 	t.Run("with error", func() {
 		st, closef := t.newState(suf)
@@ -94,7 +94,7 @@ func (t *testJoiningHandler) TestFailedLastManifest() {
 		deferred()
 
 		point := base.RawPoint(33, 0)
-		_, ivp := t.voteproofsPair(point, point.Next(), nil, nil, nil, nodes)
+		_, ivp := t.VoteproofsPair(point, point.Next(), nil, nil, nil, nodes)
 		err = st.newVoteproof(ivp)
 
 		var ssctx brokenSwitchContext
@@ -117,7 +117,7 @@ func (t *testJoiningHandler) TestFailedLastManifest() {
 		deferred()
 
 		point := base.RawPoint(33, 0)
-		_, ivp := t.voteproofsPair(point, point.Next(), nil, nil, nil, nodes)
+		_, ivp := t.VoteproofsPair(point, point.Next(), nil, nil, nil, nodes)
 		err = st.newVoteproof(ivp)
 
 		var ssctx syncingSwitchContext
@@ -127,7 +127,7 @@ func (t *testJoiningHandler) TestFailedLastManifest() {
 }
 
 func (t *testJoiningHandler) TestInvalidINITVoteproof() {
-	suf, nodes := newTestSuffrage(2, t.local)
+	suf, nodes := NewTestSuffrage(2, t.Local)
 
 	t.Run("lower height", func() {
 		st, closef := t.newState(suf)
@@ -145,7 +145,7 @@ func (t *testJoiningHandler) TestInvalidINITVoteproof() {
 		t.NoError(err)
 		deferred()
 
-		_, ivp := t.voteproofsPair(point.Decrease().Decrease(), point.Decrease(), nil, nil, nil, nodes)
+		_, ivp := t.VoteproofsPair(point.Decrease().Decrease(), point.Decrease(), nil, nil, nil, nodes)
 		t.NoError(st.newVoteproof(ivp))
 	})
 
@@ -165,7 +165,7 @@ func (t *testJoiningHandler) TestInvalidINITVoteproof() {
 		t.NoError(err)
 		deferred()
 
-		_, ivp := t.voteproofsPair(point.Next(), point.Next().Next(), nil, nil, nil, nodes)
+		_, ivp := t.VoteproofsPair(point.Next(), point.Next().Next(), nil, nil, nil, nodes)
 		err = st.newVoteproof(ivp)
 
 		var ssctx syncingSwitchContext
@@ -190,7 +190,7 @@ func (t *testJoiningHandler) TestInvalidINITVoteproof() {
 		t.NoError(err)
 		deferred()
 
-		_, ivp := t.voteproofsPair(point, point.Next(), nil, nil, nil, nodes)
+		_, ivp := t.VoteproofsPair(point, point.Next(), nil, nil, nil, nodes)
 		err = st.newVoteproof(ivp)
 
 		var ssctx syncingSwitchContext
@@ -200,7 +200,7 @@ func (t *testJoiningHandler) TestInvalidINITVoteproof() {
 }
 
 func (t *testJoiningHandler) TestInvalidACCEPTVoteproof() {
-	suf, nodes := newTestSuffrage(2, t.local)
+	suf, nodes := NewTestSuffrage(2, t.Local)
 
 	t.Run("lower height", func() {
 		st, closef := t.newState(suf)
@@ -218,7 +218,7 @@ func (t *testJoiningHandler) TestInvalidACCEPTVoteproof() {
 		t.NoError(err)
 		deferred()
 
-		avp, _ := t.voteproofsPair(point, point.Next(), nil, nil, nil, nodes)
+		avp, _ := t.VoteproofsPair(point, point.Next(), nil, nil, nil, nodes)
 		t.NoError(st.newVoteproof(avp))
 	})
 
@@ -238,7 +238,7 @@ func (t *testJoiningHandler) TestInvalidACCEPTVoteproof() {
 		t.NoError(err)
 		deferred()
 
-		avp, _ := t.voteproofsPair(point.Next().Next(), point.Next().Next().Next(), nil, nil, nil, nodes)
+		avp, _ := t.VoteproofsPair(point.Next().Next(), point.Next().Next().Next(), nil, nil, nil, nodes)
 		err = st.newVoteproof(avp)
 
 		var ssctx syncingSwitchContext
@@ -262,7 +262,7 @@ func (t *testJoiningHandler) TestInvalidACCEPTVoteproof() {
 		t.NoError(err)
 		deferred()
 
-		avp, _ := t.voteproofsPair(point.Next().Next(), point.Next().Next().Next(), nil, nil, nil, nodes)
+		avp, _ := t.VoteproofsPair(point.Next().Next(), point.Next().Next().Next(), nil, nil, nil, nodes)
 		avp.SetResult(base.VoteResultDraw)
 		err = st.newVoteproof(avp)
 
@@ -273,7 +273,7 @@ func (t *testJoiningHandler) TestInvalidACCEPTVoteproof() {
 }
 
 func (t *testJoiningHandler) TestINITVoteproofNextRound() {
-	suf, nodes := newTestSuffrage(2, t.local)
+	suf, nodes := NewTestSuffrage(2, t.Local)
 
 	st, closef := t.newState(suf)
 	defer closef()
@@ -309,7 +309,7 @@ func (t *testJoiningHandler) TestINITVoteproofNextRound() {
 	t.NoError(err)
 	deferred()
 
-	_, ivp := t.voteproofsPair(point, point.Next(), manifest.Hash(), nil, nil, nodes)
+	_, ivp := t.VoteproofsPair(point, point.Next(), manifest.Hash(), nil, nil, nodes)
 	ivp.SetResult(base.VoteResultDraw)
 
 	t.NoError(st.newVoteproof(ivp))
@@ -331,7 +331,7 @@ func (t *testJoiningHandler) TestINITVoteproofNextRound() {
 }
 
 func (t *testJoiningHandler) TestACCEPTVoteproofNextRound() {
-	suf, nodes := newTestSuffrage(2, t.local)
+	suf, nodes := NewTestSuffrage(2, t.Local)
 
 	st, closef := t.newState(suf)
 	defer closef()
@@ -367,7 +367,7 @@ func (t *testJoiningHandler) TestACCEPTVoteproofNextRound() {
 	t.NoError(err)
 	deferred()
 
-	avp, _ := t.voteproofsPair(point.Next(), point.Next().Next(), manifest.Hash(), nil, nil, nodes)
+	avp, _ := t.VoteproofsPair(point.Next(), point.Next().Next(), manifest.Hash(), nil, nil, nodes)
 	avp.SetResult(base.VoteResultDraw)
 
 	t.NoError(st.newVoteproof(avp))
@@ -389,7 +389,7 @@ func (t *testJoiningHandler) TestACCEPTVoteproofNextRound() {
 }
 
 func (t *testJoiningHandler) TestLastINITVoteproofNextRound() {
-	suf, nodes := newTestSuffrage(2, t.local)
+	suf, nodes := NewTestSuffrage(2, t.Local)
 
 	st, closef := t.newState(suf)
 	defer closef()
@@ -423,7 +423,7 @@ func (t *testJoiningHandler) TestLastINITVoteproofNextRound() {
 
 	sctx := newJoiningSwitchContext(StateBooting, nil)
 
-	_, ivp := t.voteproofsPair(point, point.Next(), manifest.Hash(), nil, nil, nodes)
+	_, ivp := t.VoteproofsPair(point, point.Next(), manifest.Hash(), nil, nil, nodes)
 	ivp.SetResult(base.VoteResultDraw)
 	t.True(st.setLastVoteproof(ivp))
 
@@ -448,7 +448,7 @@ func (t *testJoiningHandler) TestLastINITVoteproofNextRound() {
 }
 
 func (t *testJoiningHandler) TestLastACCEPTVoteproofNextRound() {
-	suf, nodes := newTestSuffrage(2, t.local)
+	suf, nodes := NewTestSuffrage(2, t.Local)
 
 	st, closef := t.newState(suf)
 	defer closef()
@@ -482,7 +482,7 @@ func (t *testJoiningHandler) TestLastACCEPTVoteproofNextRound() {
 
 	sctx := newJoiningSwitchContext(StateBooting, nil)
 
-	avp, _ := t.voteproofsPair(point.Next(), point.Next().Next(), manifest.Hash(), nil, nil, nodes)
+	avp, _ := t.VoteproofsPair(point.Next(), point.Next().Next(), manifest.Hash(), nil, nil, nodes)
 	avp.SetResult(base.VoteResultDraw)
 	st.setLastVoteproof(avp)
 

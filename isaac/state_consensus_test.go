@@ -14,12 +14,12 @@ import (
 )
 
 type baseTestConsensusHandler struct {
-	baseStateTestHandler
+	BaseTestBallots
 }
 
 func (t *baseTestConsensusHandler) newState(previous base.Manifest, suf suffrage) (*ConsensusHandler, func()) {
-	local := t.local
-	policy := t.policy
+	local := t.Local
+	policy := t.Policy
 
 	st := NewConsensusHandler(
 		local,
@@ -89,7 +89,7 @@ func (t *baseTestConsensusHandler) newStateWithINITVoteproof(point base.Point, s
 		nodes[i] = sn[i].(LocalNode)
 	}
 
-	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, fact.Hash(), nodes)
+	_, ivp := t.VoteproofsPair(point.Decrease(), point, nil, nil, fact.Hash(), nodes)
 	t.True(st.setLastVoteproof(ivp))
 
 	return st, closef, pp, ivp
@@ -103,11 +103,11 @@ func (t *testConsensusHandler) TestNew() {
 	point := base.RawPoint(33, 0)
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
-	suf, nodes := newTestSuffrage(2, t.local)
+	suf, nodes := NewTestSuffrage(2, t.Local)
 
 	st := NewConsensusHandler(
-		t.local,
-		t.policy,
+		t.Local,
+		t.Policy,
 		nil,
 		func(base.Height) (base.Manifest, error) { return previous, nil },
 		func(base.Height) base.Suffrage { return suf },
@@ -133,7 +133,7 @@ func (t *testConsensusHandler) TestNew() {
 		timerIDBroadcastACCEPTBallot,
 	}, false))
 
-	_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, nil, nodes)
+	_, ivp := t.VoteproofsPair(point.Decrease(), point, nil, nil, nil, nodes)
 	t.True(st.setLastVoteproof(ivp))
 
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
@@ -145,7 +145,7 @@ func (t *testConsensusHandler) TestNew() {
 
 func (t *testConsensusHandler) TestInvalidVoteproofs() {
 	point := base.RawPoint(22, 0)
-	suf, nodes := newTestSuffrage(2, t.local)
+	suf, nodes := NewTestSuffrage(2, t.Local)
 
 	t.Run("empty init voteproof", func() {
 		st, closef, _, _ := t.newStateWithINITVoteproof(point, suf)
@@ -164,7 +164,7 @@ func (t *testConsensusHandler) TestInvalidVoteproofs() {
 		defer closef()
 
 		point := base.RawPoint(33, 0)
-		_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, nil, nodes)
+		_, ivp := t.VoteproofsPair(point.Decrease(), point, nil, nil, nil, nodes)
 		ivp.SetResult(base.VoteResultDraw).finish()
 
 		sctx := newConsensusSwitchContext(StateJoining, ivp)
@@ -180,7 +180,7 @@ func (t *testConsensusHandler) TestInvalidVoteproofs() {
 		defer closef()
 
 		point := base.RawPoint(33, 0)
-		_, ivp := t.voteproofsPair(point.Decrease(), point, nil, nil, nil, nodes)
+		_, ivp := t.VoteproofsPair(point.Decrease(), point, nil, nil, nil, nodes)
 		ivp.SetMajority(nil).finish()
 
 		sctx := newConsensusSwitchContext(StateJoining, ivp)
@@ -193,7 +193,7 @@ func (t *testConsensusHandler) TestInvalidVoteproofs() {
 
 func (t *testConsensusHandler) TestExit() {
 	point := base.RawPoint(33, 44)
-	suf, _ := newTestSuffrage(2, t.local)
+	suf, _ := NewTestSuffrage(2, t.Local)
 
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
@@ -222,7 +222,7 @@ func (t *testConsensusHandler) TestExit() {
 
 		return
 	case bl := <-ballotch:
-		t.NoError(bl.IsValid(t.policy.NetworkID()))
+		t.NoError(bl.IsValid(t.Policy.NetworkID()))
 
 		abl, ok := bl.(base.ACCEPTBallot)
 		t.True(ok)
@@ -242,7 +242,7 @@ func (t *testConsensusHandler) TestExit() {
 
 func (t *testConsensusHandler) TestProcessingProposalAfterEntered() {
 	point := base.RawPoint(33, 44)
-	suf, _ := newTestSuffrage(2, t.local)
+	suf, _ := NewTestSuffrage(2, t.Local)
 
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
@@ -271,7 +271,7 @@ func (t *testConsensusHandler) TestProcessingProposalAfterEntered() {
 
 		return
 	case bl := <-ballotch:
-		t.NoError(bl.IsValid(t.policy.NetworkID()))
+		t.NoError(bl.IsValid(t.Policy.NetworkID()))
 
 		abl, ok := bl.(base.ACCEPTBallot)
 		t.True(ok)
@@ -283,7 +283,7 @@ func (t *testConsensusHandler) TestProcessingProposalAfterEntered() {
 
 func (t *testConsensusHandler) TestFailedProcessingProposalFetchFactFailed() {
 	point := base.RawPoint(33, 44)
-	suf, _ := newTestSuffrage(1, t.local)
+	suf, _ := NewTestSuffrage(1, t.Local)
 
 	st, closefunc, _, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
@@ -321,7 +321,7 @@ func (t *testConsensusHandler) TestFailedProcessingProposalFetchFactFailed() {
 
 func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailed() {
 	point := base.RawPoint(33, 44)
-	suf, _ := newTestSuffrage(1, t.local)
+	suf, _ := NewTestSuffrage(1, t.Local)
 
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
@@ -367,13 +367,13 @@ func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailed() {
 
 func (t *testConsensusHandler) TestProcessingProposalWithACCEPTVoteproof() {
 	point := base.RawPoint(33, 44)
-	suf, nodes := newTestSuffrage(2, t.local)
+	suf, nodes := NewTestSuffrage(2, t.Local)
 
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	avp, _ := t.voteproofsPair(point, point.Next(), manifest.Hash(), t.prpool.hash(point), nil, nodes)
+	avp, _ := t.VoteproofsPair(point, point.Next(), manifest.Hash(), t.prpool.hash(point), nil, nodes)
 
 	pp.processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
 		st.setLastVoteproof(avp)
@@ -405,13 +405,13 @@ func (t *testConsensusHandler) TestProcessingProposalWithACCEPTVoteproof() {
 
 func (t *testConsensusHandler) TestProcessingProposalWithDrawACCEPTVoteproof() {
 	point := base.RawPoint(33, 44)
-	suf, nodes := newTestSuffrage(2, t.local)
+	suf, nodes := NewTestSuffrage(2, t.Local)
 
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	avp, _ := t.voteproofsPair(point, point.Next(), manifest.Hash(), nil, nil, nodes)
+	avp, _ := t.VoteproofsPair(point, point.Next(), manifest.Hash(), nil, nil, nodes)
 	avp.SetResult(base.VoteResultDraw).finish()
 
 	pp.processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
@@ -443,13 +443,13 @@ func (t *testConsensusHandler) TestProcessingProposalWithDrawACCEPTVoteproof() {
 
 func (t *testConsensusHandler) TestProcessingProposalWithWrongNewBlockACCEPTVoteproof() {
 	point := base.RawPoint(33, 44)
-	suf, nodes := newTestSuffrage(2, t.local)
+	suf, nodes := NewTestSuffrage(2, t.Local)
 
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	avp, _ := t.voteproofsPair(point, point.Next(), nil, nil, nil, nodes) // random new block hash
+	avp, _ := t.VoteproofsPair(point, point.Next(), nil, nil, nil, nodes) // random new block hash
 
 	pp.processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
 		st.setLastVoteproof(avp)
@@ -485,7 +485,7 @@ func (t *testConsensusHandler) TestProcessingProposalWithWrongNewBlockACCEPTVote
 
 func (t *testConsensusHandler) TestWithBallotbox() {
 	point := base.RawPoint(33, 44)
-	suf, _ := newTestSuffrage(0, t.local)
+	suf, _ := NewTestSuffrage(0, t.Local)
 
 	box := NewBallotbox(
 		func(base.Height) base.Suffrage {
@@ -616,7 +616,7 @@ end:
 
 func (t *testConsensusHandler) TestEmptySuffrageNextBlock() {
 	point := base.RawPoint(33, 44)
-	suf, nodes := newTestSuffrage(2, t.local)
+	suf, nodes := NewTestSuffrage(2, t.Local)
 
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
@@ -662,7 +662,7 @@ func (t *testConsensusHandler) TestEmptySuffrageNextBlock() {
 	t.NoError(err)
 	deferred()
 
-	avp, _ := t.voteproofsPair(point, point.Next(), manifest.Hash(), t.prpool.hash(point), t.prpool.hash(point.Next()), nodes)
+	avp, _ := t.VoteproofsPair(point, point.Next(), manifest.Hash(), t.prpool.hash(point), t.prpool.hash(point.Next()), nodes)
 	t.NoError(st.newVoteproof(avp))
 
 	t.T().Log("wait new block saved")
@@ -689,8 +689,8 @@ func (t *testConsensusHandler) TestEmptySuffrageNextBlock() {
 
 func (t *testConsensusHandler) TestOutOfSuffrage() {
 	point := base.RawPoint(33, 44)
-	suf, nodes := newTestSuffrage(2, t.local)
-	newsuf, _ := newTestSuffrage(2)
+	suf, nodes := NewTestSuffrage(2, t.Local)
+	newsuf, _ := NewTestSuffrage(2)
 
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
@@ -735,7 +735,7 @@ func (t *testConsensusHandler) TestOutOfSuffrage() {
 	t.NoError(err)
 	deferred()
 
-	avp, _ := t.voteproofsPair(point, point.Next(), manifest.Hash(), t.prpool.hash(point), t.prpool.hash(point.Next()), nodes)
+	avp, _ := t.VoteproofsPair(point, point.Next(), manifest.Hash(), t.prpool.hash(point), t.prpool.hash(point.Next()), nodes)
 	t.NoError(st.newVoteproof(avp))
 
 	t.T().Log("wait new block saved")
@@ -762,7 +762,7 @@ func (t *testConsensusHandler) TestOutOfSuffrage() {
 
 func (t *testConsensusHandler) TestEnterButEmptySuffrage() {
 	point := base.RawPoint(33, 44)
-	suf, _ := newTestSuffrage(2)
+	suf, _ := NewTestSuffrage(2)
 
 	st, closefunc, _, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
@@ -788,7 +788,7 @@ func (t *testConsensusHandler) TestEnterButEmptySuffrage() {
 
 func (t *testConsensusHandler) TestEnterButNotInSuffrage() {
 	point := base.RawPoint(33, 44)
-	suf, _ := newTestSuffrage(2)
+	suf, _ := NewTestSuffrage(2)
 
 	st, closefunc, _, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()

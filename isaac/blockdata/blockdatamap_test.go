@@ -1,4 +1,4 @@
-package isaac
+package blockdata
 
 import (
 	"net/url"
@@ -11,33 +11,8 @@ import (
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
-
-func EqualBlockDataMap(t *assert.Assertions, a, b base.BlockDataMap) {
-	t.True(a.Hint().Equal(b.Hint()))
-	base.EqualManifest(t, a.Manifest(), b.Manifest())
-
-	am := a.All()
-	bm := b.All()
-
-	t.Equal(len(am), len(bm))
-
-	for k := range am {
-		ai := am[k]
-		bi := bm[k]
-
-		EqualBlockDataMapItem(t, ai, bi)
-	}
-}
-
-func EqualBlockDataMapItem(t *assert.Assertions, a, b base.BlockDataMapItem) {
-	t.Equal(a.Type(), b.Type())
-	t.Equal(a.URL().String(), b.URL().String())
-	t.Equal(a.Checksum(), b.Checksum())
-	t.Equal(a.Num(), b.Num())
-}
 
 type testBlockDataMap struct {
 	suite.Suite
@@ -57,7 +32,7 @@ func (t *testBlockDataMap) newitem(ty base.BlockDataType) BlockDataMapItem {
 }
 
 func (t *testBlockDataMap) newmap() BlockDataMap {
-	m := NewBlockDataMap(LocalBlockDataFSWriterHint, jsonenc.JSONEncoderHint)
+	m := NewBlockDataMap(LocalFSWriterHint, jsonenc.JSONEncoderHint)
 
 	for _, i := range []base.BlockDataType{
 		base.BlockDataTypeProposal,
@@ -91,7 +66,7 @@ func (t *testBlockDataMap) TestNew() {
 		t.Equal(k, all[k].Type())
 	}
 
-	t.True(LocalBlockDataFSWriterHint.Equal(m.writer))
+	t.True(LocalFSWriterHint.Equal(m.writer))
 	t.True(jsonenc.JSONEncoderHint.Equal(m.encoder))
 }
 
@@ -194,7 +169,7 @@ func (t *testBlockDataMap) TestSetItem() {
 		t.True(found)
 		t.NotNil(ritem)
 
-		EqualBlockDataMapItem(t.Assert(), newitem, ritem)
+		base.EqualBlockDataMapItem(t.Assert(), newitem, ritem)
 	})
 
 	t.Run("unknown data type", func() {
@@ -245,7 +220,7 @@ func (t *testBlockDataMap) TestEncode() {
 
 		tt.NoError(bf.IsValid(t.networkID))
 
-		EqualBlockDataMap(tt.Assert(), af, bf)
+		base.EqualBlockDataMap(tt.Assert(), af, bf)
 	}
 
 	suite.Run(t.T(), tt)
@@ -369,7 +344,7 @@ func TestBlockDataMapItemEncode(tt *testing.T) {
 
 		t.NoError(bf.IsValid(nil))
 
-		EqualBlockDataMapItem(t.Assert(), af, bf)
+		base.EqualBlockDataMapItem(t.Assert(), af, bf)
 	}
 
 	suite.Run(tt, t)
