@@ -67,3 +67,9 @@ type PermanentDatabase interface {
 	Map(base.Height) (base.BlockDataMap, bool, error)
 	MergeTempDatabase(context.Context, TempDatabase) error
 }
+
+type TempPoolDatabase interface {
+	Proposal(util.Hash) (base.ProposalSignedFact, bool, error)
+	ProposalByPoint(base.Point, base.Address) (base.ProposalSignedFact, bool, error)
+	SetProposal(pr base.ProposalSignedFact) (bool, error)
+}

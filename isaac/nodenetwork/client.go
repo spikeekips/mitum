@@ -1,4 +1,4 @@
-package isaac
+package nodenetwork
 
 import (
 	"context"

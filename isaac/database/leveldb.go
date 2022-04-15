@@ -1,4 +1,4 @@
-package isaac
+package database
 
 import (
 	"fmt"
@@ -7,6 +7,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -24,21 +25,21 @@ var (
 
 var (
 	leveldbBeginSuffrageKey = util.ConcatBytesSlice(leveldbKeyPrefixSuffrage, []byte(strings.Repeat("0", 20)))
-	leveldbSuffrageStateKey = leveldbStateKey(SuffrageStateKey)
+	leveldbSuffrageStateKey = leveldbStateKey(isaac.SuffrageStateKey)
 )
 
-type baseLeveldbDatabase struct {
+type baseLeveldb struct {
 	sync.Mutex
 	*baseDatabase
 	st leveldbstorage.ReadStorage
 }
 
-func newBaseLeveldbDatabase(
+func newBaseLeveldb(
 	st leveldbstorage.ReadStorage,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
-) *baseLeveldbDatabase {
-	return &baseLeveldbDatabase{
+) *baseLeveldb {
+	return &baseLeveldb{
 		baseDatabase: newBaseDatabase(
 			encs,
 			enc,
@@ -47,7 +48,7 @@ func newBaseLeveldbDatabase(
 	}
 }
 
-func (db *baseLeveldbDatabase) Close() error {
+func (db *baseLeveldb) Close() error {
 	db.Lock()
 	defer db.Unlock()
 
@@ -58,7 +59,7 @@ func (db *baseLeveldbDatabase) Close() error {
 	return nil
 }
 
-func (db *baseLeveldbDatabase) Remove() error {
+func (db *baseLeveldb) Remove() error {
 	db.Lock()
 	defer db.Unlock()
 
@@ -73,7 +74,7 @@ func (db *baseLeveldbDatabase) Remove() error {
 	return nil
 }
 
-func (db *baseLeveldbDatabase) existsOperation(h util.Hash) (bool, error) {
+func (db *baseLeveldb) existsOperation(h util.Hash) (bool, error) {
 	switch found, err := db.st.Exists(leveldbOperationKey(h)); {
 	case err == nil:
 		return found, nil
@@ -82,7 +83,7 @@ func (db *baseLeveldbDatabase) existsOperation(h util.Hash) (bool, error) {
 	}
 }
 
-func (db *baseLeveldbDatabase) state(key string) (base.State, bool, error) {
+func (db *baseLeveldb) state(key string) (base.State, bool, error) {
 	e := util.StringErrorFunc("failed to get state")
 
 	switch b, found, err := db.st.Get(leveldbStateKey(key)); {

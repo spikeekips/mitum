@@ -1,4 +1,4 @@
-package isaac
+package database
 
 import (
 	"context"
@@ -6,50 +6,51 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/storage"
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
-type LeveldbBlockWriteDatabase struct {
-	*baseLeveldbDatabase
+type LeveldbBlockWrite struct {
+	*baseLeveldb
 	st     *leveldbstorage.WriteStorage
 	height base.Height
 	mp     *util.Locked // NOTE blockdatamap
 	sufstt *util.Locked // NOTE suffrage state
 }
 
-func NewLeveldbBlockWriteDatabase(
+func NewLeveldbBlockWrite(
 	height base.Height,
 	f string,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
-) (*LeveldbBlockWriteDatabase, error) {
+) (*LeveldbBlockWrite, error) {
 	st, err := leveldbstorage.NewWriteStorage(f)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed new TempLeveldbDatabase")
 	}
 
-	return newLeveldbBlockWriteDatabase(st, height, encs, enc), nil
+	return newLeveldbBlockWrite(st, height, encs, enc), nil
 }
 
-func newLeveldbBlockWriteDatabase(
+func newLeveldbBlockWrite(
 	st *leveldbstorage.WriteStorage,
 	height base.Height,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
-) *LeveldbBlockWriteDatabase {
-	return &LeveldbBlockWriteDatabase{
-		baseLeveldbDatabase: newBaseLeveldbDatabase(st, encs, enc),
-		st:                  st,
-		height:              height,
-		mp:                  util.EmptyLocked(),
-		sufstt:              util.EmptyLocked(),
+) *LeveldbBlockWrite {
+	return &LeveldbBlockWrite{
+		baseLeveldb: newBaseLeveldb(st, encs, enc),
+		st:          st,
+		height:      height,
+		mp:          util.EmptyLocked(),
+		sufstt:      util.EmptyLocked(),
 	}
 }
 
-func (db *LeveldbBlockWriteDatabase) Cancel() error {
+func (db *LeveldbBlockWrite) Cancel() error {
 	if err := db.Remove(); err != nil {
 		return errors.Wrap(err, "failed to cancel TempLeveldbDatabase")
 	}
@@ -57,7 +58,7 @@ func (db *LeveldbBlockWriteDatabase) Cancel() error {
 	return nil
 }
 
-func (db *LeveldbBlockWriteDatabase) SetStates(sts []base.State) error {
+func (db *LeveldbBlockWrite) SetStates(sts []base.State) error {
 	if len(sts) < 1 {
 		return nil
 	}
@@ -74,7 +75,7 @@ func (db *LeveldbBlockWriteDatabase) SetStates(sts []base.State) error {
 		for i := range sts {
 			st := sts[i]
 
-			if err := base.IsSuffrageState(st); err == nil && st.Key() == SuffrageStateKey {
+			if err := base.IsSuffrageState(st); err == nil && st.Key() == isaac.SuffrageStateKey {
 				suffragestate = st
 			}
 
@@ -110,7 +111,7 @@ func (db *LeveldbBlockWriteDatabase) SetStates(sts []base.State) error {
 	return nil
 }
 
-func (db *LeveldbBlockWriteDatabase) SetOperations(ops []util.Hash) error {
+func (db *LeveldbBlockWrite) SetOperations(ops []util.Hash) error {
 	if len(ops) < 1 {
 		return nil
 	}
@@ -144,7 +145,7 @@ func (db *LeveldbBlockWriteDatabase) SetOperations(ops []util.Hash) error {
 	return nil
 }
 
-func (db *LeveldbBlockWriteDatabase) Map() (base.BlockDataMap, error) {
+func (db *LeveldbBlockWrite) Map() (base.BlockDataMap, error) {
 	switch i, isnil := db.mp.Value(); {
 	case isnil || i == nil:
 		return nil, storage.NotFoundError.Errorf("empty blockdatamap")
@@ -153,7 +154,7 @@ func (db *LeveldbBlockWriteDatabase) Map() (base.BlockDataMap, error) {
 	}
 }
 
-func (db *LeveldbBlockWriteDatabase) SetMap(m base.BlockDataMap) error {
+func (db *LeveldbBlockWrite) SetMap(m base.BlockDataMap) error {
 	if _, err := db.mp.Set(func(interface{}) (interface{}, error) {
 		b, err := db.marshal(m)
 		if err != nil {
@@ -168,7 +169,7 @@ func (db *LeveldbBlockWriteDatabase) SetMap(m base.BlockDataMap) error {
 	return nil
 }
 
-func (db *LeveldbBlockWriteDatabase) SuffrageState() base.State {
+func (db *LeveldbBlockWrite) SuffrageState() base.State {
 	i, isnil := db.sufstt.Value()
 	if isnil {
 		return nil
@@ -177,7 +178,7 @@ func (db *LeveldbBlockWriteDatabase) SuffrageState() base.State {
 	return i.(base.State)
 }
 
-func (db *LeveldbBlockWriteDatabase) Write() error {
+func (db *LeveldbBlockWrite) Write() error {
 	db.Lock()
 	defer db.Unlock()
 
@@ -188,7 +189,7 @@ func (db *LeveldbBlockWriteDatabase) Write() error {
 	return nil
 }
 
-func (db *LeveldbBlockWriteDatabase) TempDatabase() (TempDatabase, error) {
+func (db *LeveldbBlockWrite) TempDatabase() (isaac.TempDatabase, error) {
 	db.Lock()
 	defer db.Unlock()
 
@@ -201,10 +202,10 @@ func (db *LeveldbBlockWriteDatabase) TempDatabase() (TempDatabase, error) {
 		return nil, e(nil, "wrong blockdatamap")
 	}
 
-	return newTempLeveldbDatabaseFromBlockWriteStorage(db)
+	return newTempLeveldbFromBlockWriteStorage(db)
 }
 
-func (db *LeveldbBlockWriteDatabase) setState(st base.State) error {
+func (db *LeveldbBlockWrite) setState(st base.State) error {
 	if st.Height() != db.height {
 		return errors.Errorf("wrong state height")
 	}

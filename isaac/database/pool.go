@@ -1,4 +1,4 @@
-package isaac
+package database
 
 import (
 	"bytes"
@@ -13,31 +13,31 @@ import (
 	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
 
-type TempPoolDatabase struct {
-	*baseLeveldbDatabase
+type TempPool struct {
+	*baseLeveldb
 	st *leveldbstorage.RWStorage
 }
 
 // BLOCK used for ProposalPool
 // BLOCK clean old proposals
 
-func NewTempPoolDatabase(f string, encs *encoder.Encoders, enc encoder.Encoder) (*TempPoolDatabase, error) {
+func NewTempPool(f string, encs *encoder.Encoders, enc encoder.Encoder) (*TempPool, error) {
 	st, err := leveldbstorage.NewRWStorage(f)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed new TempPoolDatabase")
 	}
 
-	return newTempPoolDatabase(st, encs, enc), nil
+	return newTempPool(st, encs, enc), nil
 }
 
-func newTempPoolDatabase(st *leveldbstorage.RWStorage, encs *encoder.Encoders, enc encoder.Encoder) *TempPoolDatabase {
-	return &TempPoolDatabase{
-		baseLeveldbDatabase: newBaseLeveldbDatabase(st, encs, enc),
-		st:                  st,
+func newTempPool(st *leveldbstorage.RWStorage, encs *encoder.Encoders, enc encoder.Encoder) *TempPool {
+	return &TempPool{
+		baseLeveldb: newBaseLeveldb(st, encs, enc),
+		st:          st,
 	}
 }
 
-func (db *TempPoolDatabase) Proposal(h util.Hash) (base.ProposalSignedFact, bool, error) {
+func (db *TempPool) Proposal(h util.Hash) (base.ProposalSignedFact, bool, error) {
 	e := util.StringErrorFunc("failed to find proposal by hash")
 
 	switch b, found, err := db.st.Get(leveldbProposalKey(h)); {
@@ -55,7 +55,7 @@ func (db *TempPoolDatabase) Proposal(h util.Hash) (base.ProposalSignedFact, bool
 	}
 }
 
-func (db *TempPoolDatabase) ProposalByPoint(
+func (db *TempPool) ProposalByPoint(
 	point base.Point,
 	proposer base.Address,
 ) (base.ProposalSignedFact, bool, error) {
@@ -76,7 +76,7 @@ func (db *TempPoolDatabase) ProposalByPoint(
 	}
 }
 
-func (db *TempPoolDatabase) SetProposal(pr base.ProposalSignedFact) (bool, error) {
+func (db *TempPool) SetProposal(pr base.ProposalSignedFact) (bool, error) {
 	e := util.StringErrorFunc("failed to put proposal")
 
 	key := leveldbProposalKey(pr.Fact().Hash())
@@ -122,7 +122,7 @@ func (db *TempPoolDatabase) SetProposal(pr base.ProposalSignedFact) (bool, error
 	return true, nil
 }
 
-func (db *TempPoolDatabase) loadProposal(b []byte) (base.ProposalSignedFact, error) {
+func (db *TempPool) loadProposal(b []byte) (base.ProposalSignedFact, error) {
 	if b == nil {
 		return nil, nil
 	}

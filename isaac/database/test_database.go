@@ -1,13 +1,14 @@
 //go:build test
 // +build test
 
-package isaac
+package database
 
 import (
 	"os"
 	"path/filepath"
 
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -36,12 +37,12 @@ func (t *BaseTestDatabase) SetupSuite() {
 	t.noerror(t.Enc.AddHinter(base.DummyBlockDataMap{}))
 	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
 	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
-	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: NodeHint, Instance: RemoteNode{}}))
+	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.NodeHint, Instance: isaac.RemoteNode{}}))
 	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: base.DummyStateValueHint, Instance: base.DummyStateValue{}}))
 	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: base.BaseStateHint, Instance: base.BaseState{}}))
-	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: SuffrageStateValueHint, Instance: SuffrageStateValue{}}))
-	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: ProposalFactHint, Instance: ProposalFact{}}))
-	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: ProposalSignedFactHint, Instance: ProposalSignedFact{}}))
+	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageStateValueHint, Instance: isaac.SuffrageStateValue{}}))
+	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.ProposalFactHint, Instance: isaac.ProposalFact{}}))
+	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.ProposalSignedFactHint, Instance: isaac.ProposalSignedFact{}}))
 }
 
 func (t *BaseTestDatabase) SetupTest() {
@@ -52,24 +53,24 @@ func (t *BaseTestDatabase) TearDownTest() {
 	_ = os.RemoveAll(t.Root)
 }
 
-func (t *BaseTestDatabase) NewLeveldbBlockWriteDatabase(height base.Height) *LeveldbBlockWriteDatabase {
-	st, err := NewLeveldbBlockWriteDatabase(height, t.Root, t.Encs, t.Enc)
+func (t *BaseTestDatabase) NewLeveldbBlockWriteDatabase(height base.Height) *LeveldbBlockWrite {
+	st, err := NewLeveldbBlockWrite(height, t.Root, t.Encs, t.Enc)
 	t.noerror(err)
 
 	return st
 }
 
-func (t *BaseTestDatabase) NewMemLeveldbBlockWriteDatabase(height base.Height) *LeveldbBlockWriteDatabase {
+func (t *BaseTestDatabase) NewMemLeveldbBlockWriteDatabase(height base.Height) *LeveldbBlockWrite {
 	st := leveldbstorage.NewMemWriteStorage()
-	return newLeveldbBlockWriteDatabase(st, height, t.Encs, t.Enc)
+	return newLeveldbBlockWrite(st, height, t.Encs, t.Enc)
 }
 
-func (t *BaseTestDatabase) NewPool() *TempPoolDatabase {
+func (t *BaseTestDatabase) NewPool() *TempPool {
 	st := leveldbstorage.NewMemRWStorage()
 
-	return &TempPoolDatabase{
-		baseLeveldbDatabase: newBaseLeveldbDatabase(st, t.Encs, t.Enc),
-		st:                  st,
+	return &TempPool{
+		baseLeveldb: newBaseLeveldb(st, t.Encs, t.Enc),
+		st:          st,
 	}
 }
 

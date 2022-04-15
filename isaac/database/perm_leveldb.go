@@ -1,4 +1,4 @@
-package isaac
+package database
 
 import (
 	"bytes"
@@ -6,40 +6,41 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
 
-type LeveldbPermanentDatabase struct {
-	*basePermanentDatabase
-	*baseLeveldbDatabase
+type LeveldbPermanent struct {
+	*basePermanent
+	*baseLeveldb
 	st *leveldbstorage.WriteStorage
 }
 
-func NewLeveldbPermanentDatabase(
+func NewLeveldbPermanent(
 	f string,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
-) (*LeveldbPermanentDatabase, error) {
+) (*LeveldbPermanent, error) {
 	st, err := leveldbstorage.NewWriteStorage(f)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed new LeveldbPermanentDatabase")
 	}
 
-	return newLeveldbPermanentDatabase(st, encs, enc)
+	return newLeveldbPermanent(st, encs, enc)
 }
 
-func newLeveldbPermanentDatabase(
+func newLeveldbPermanent(
 	st *leveldbstorage.WriteStorage,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
-) (*LeveldbPermanentDatabase, error) {
-	db := &LeveldbPermanentDatabase{
-		basePermanentDatabase: newBasePermanentDatabase(),
-		baseLeveldbDatabase:   newBaseLeveldbDatabase(st, encs, enc),
-		st:                    st,
+) (*LeveldbPermanent, error) {
+	db := &LeveldbPermanent{
+		basePermanent: newBasePermanent(),
+		baseLeveldb:   newBaseLeveldb(st, encs, enc),
+		st:            st,
 	}
 
 	if err := db.loadLastBlockDataMap(); err != nil {
@@ -53,7 +54,7 @@ func newLeveldbPermanentDatabase(
 	return db, nil
 }
 
-func (db *LeveldbPermanentDatabase) Suffrage(height base.Height) (base.State, bool, error) {
+func (db *LeveldbPermanent) Suffrage(height base.Height) (base.State, bool, error) {
 	e := util.StringErrorFunc("failed to get suffrage by block height")
 
 	switch m, found, err := db.LastMap(); {
@@ -95,7 +96,7 @@ func (db *LeveldbPermanentDatabase) Suffrage(height base.Height) (base.State, bo
 	return st, st != nil, nil
 }
 
-func (db *LeveldbPermanentDatabase) SuffrageByHeight(suffrageHeight base.Height) (base.State, bool, error) {
+func (db *LeveldbPermanent) SuffrageByHeight(suffrageHeight base.Height) (base.State, bool, error) {
 	e := util.StringErrorFunc("failed to get suffrage by height")
 
 	switch st, found, err := db.LastSuffrage(); {
@@ -123,15 +124,15 @@ func (db *LeveldbPermanentDatabase) SuffrageByHeight(suffrageHeight base.Height)
 	}
 }
 
-func (db *LeveldbPermanentDatabase) State(key string) (base.State, bool, error) {
+func (db *LeveldbPermanent) State(key string) (base.State, bool, error) {
 	return db.state(key)
 }
 
-func (db *LeveldbPermanentDatabase) ExistsOperation(h util.Hash) (bool, error) {
+func (db *LeveldbPermanent) ExistsOperation(h util.Hash) (bool, error) {
 	return db.existsOperation(h)
 }
 
-func (db *LeveldbPermanentDatabase) Map(height base.Height) (base.BlockDataMap, bool, error) {
+func (db *LeveldbPermanent) Map(height base.Height) (base.BlockDataMap, bool, error) {
 	e := util.StringErrorFunc("failed to load blockdatamap")
 
 	switch m, found, err := db.LastMap(); {
@@ -156,7 +157,7 @@ func (db *LeveldbPermanentDatabase) Map(height base.Height) (base.BlockDataMap, 
 	}
 }
 
-func (db *LeveldbPermanentDatabase) MergeTempDatabase(_ context.Context, temp TempDatabase) error {
+func (db *LeveldbPermanent) MergeTempDatabase(_ context.Context, temp isaac.TempDatabase) error {
 	db.Lock()
 	defer db.Unlock()
 
@@ -167,7 +168,7 @@ func (db *LeveldbPermanentDatabase) MergeTempDatabase(_ context.Context, temp Te
 	e := util.StringErrorFunc("failed to merge TempDatabase")
 
 	switch t := temp.(type) {
-	case *TempLeveldbDatabase:
+	case *TempLeveldb:
 		mp, sufstt, err := db.mergeTempDatabaseFromLeveldb(t)
 		if err != nil {
 			return e(err, "")
@@ -182,7 +183,7 @@ func (db *LeveldbPermanentDatabase) MergeTempDatabase(_ context.Context, temp Te
 	}
 }
 
-func (db *LeveldbPermanentDatabase) mergeTempDatabaseFromLeveldb(temp *TempLeveldbDatabase) (
+func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(temp *TempLeveldb) (
 	base.BlockDataMap, base.State, error,
 ) {
 	e := util.StringErrorFunc("failed to merge LeveldbTempDatabase")
@@ -260,7 +261,7 @@ func (db *LeveldbPermanentDatabase) mergeTempDatabaseFromLeveldb(temp *TempLevel
 	return mp, sufstt, nil
 }
 
-func (db *LeveldbPermanentDatabase) loadLastBlockDataMap() error {
+func (db *LeveldbPermanent) loadLastBlockDataMap() error {
 	e := util.StringErrorFunc("failed to load last blockdatamap")
 
 	var m base.BlockDataMap
@@ -290,7 +291,7 @@ func (db *LeveldbPermanentDatabase) loadLastBlockDataMap() error {
 	return nil
 }
 
-func (db *LeveldbPermanentDatabase) loadLastSuffrage() error {
+func (db *LeveldbPermanent) loadLastSuffrage() error {
 	e := util.StringErrorFunc("failed to load last suffrage state")
 
 	var sufstt base.State

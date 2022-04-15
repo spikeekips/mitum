@@ -13,6 +13,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
+	"github.com/spikeekips/mitum/isaac/database"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/tree"
@@ -23,7 +24,7 @@ import (
 
 type testBaseLocalBlockDataFS struct {
 	isaac.BaseTestBallots
-	isaac.BaseTestDatabase
+	database.BaseTestDatabase
 	root string
 }
 

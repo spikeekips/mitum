@@ -1,4 +1,4 @@
-package isaac
+package database
 
 import (
 	"os"
@@ -6,6 +6,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/storage"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/valuehash"
@@ -13,7 +14,7 @@ import (
 	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
 
-func (db *TempLeveldbDatabase) States(f func(base.State) (bool, error)) error {
+func (db *TempLeveldb) States(f func(base.State) (bool, error)) error {
 	if err := db.st.Iter(
 		leveldbutil.BytesPrefix(leveldbKeyPrefixState),
 		func(key []byte, raw []byte) (bool, error) {
@@ -32,17 +33,17 @@ func (db *TempLeveldbDatabase) States(f func(base.State) (bool, error)) error {
 	return nil
 }
 
-type testTempLeveldbDatabase struct {
-	BaseTestBallots
+type testTempLeveldb struct {
+	isaac.BaseTestBallots
 	BaseTestDatabase
 }
 
-func (t *testTempLeveldbDatabase) SetupTest() {
+func (t *testTempLeveldb) SetupTest() {
 	t.BaseTestBallots.SetupTest()
 	t.BaseTestDatabase.SetupTest()
 }
 
-func (t *testTempLeveldbDatabase) TestLoad() {
+func (t *testTempLeveldb) TestLoad() {
 	height := base.Height(33)
 	_, nodes := t.Locals(3)
 
@@ -67,11 +68,11 @@ func (t *testTempLeveldbDatabase) TestLoad() {
 
 	t.NoError(wst.Close())
 
-	rst, err := NewTempLeveldbDatabase(t.Root, t.Encs, t.Enc)
+	rst, err := NewTempLeveldb(t.Root, t.Encs, t.Enc)
 	t.NoError(err)
 	defer rst.Remove()
 
-	_ = (interface{})(rst).(TempDatabase)
+	_ = (interface{})(rst).(isaac.TempDatabase)
 
 	t.Run("blockdatamap", func() {
 		rm, err := rst.Map()
@@ -136,6 +137,6 @@ func (t *testTempLeveldbDatabase) TestLoad() {
 	})
 }
 
-func TestTempLeveldbDatabase(t *testing.T) {
-	suite.Run(t, new(testTempLeveldbDatabase))
+func TestTempLeveldb(t *testing.T) {
+	suite.Run(t, new(testTempLeveldb))
 }

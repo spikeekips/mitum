@@ -1,25 +1,26 @@
-package isaac
+package database
 
 import (
 	"testing"
 
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 )
 
-type testPoolDatabase struct {
-	BaseTestBallots
+type testPool struct {
+	isaac.BaseTestBallots
 	BaseTestDatabase
 }
 
-func (t *testPoolDatabase) SetupTest() {
+func (t *testPool) SetupTest() {
 	t.BaseTestBallots.SetupTest()
 	t.BaseTestDatabase.SetupTest()
 }
 
-func (t *testPoolDatabase) TestProposal() {
+func (t *testPool) TestProposal() {
 	pst := t.NewPool()
 	defer pst.Close()
 
@@ -68,7 +69,7 @@ func (t *testPoolDatabase) TestProposal() {
 	})
 }
 
-func (t *testPoolDatabase) TestCleanOldProposals() {
+func (t *testPool) TestCleanOldProposals() {
 	pst := t.NewPool()
 	defer pst.Close()
 
@@ -124,6 +125,6 @@ func (t *testPoolDatabase) TestCleanOldProposals() {
 	})
 }
 
-func TestPoolDatabase(t *testing.T) {
-	suite.Run(t, new(testPoolDatabase))
+func TestPool(t *testing.T) {
+	suite.Run(t, new(testPool))
 }

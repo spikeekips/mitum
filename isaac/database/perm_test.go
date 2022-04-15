@@ -1,56 +1,57 @@
-package isaac
+package database
 
 import (
 	"context"
 
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/valuehash"
 )
 
-type testCommonPermanentDatabase struct {
-	BaseTestBallots
+type testCommonPermanent struct {
+	isaac.BaseTestBallots
 	BaseTestDatabase
-	newDB     func() PermanentDatabase
-	newFromDB func(PermanentDatabase) (PermanentDatabase, error)
-	setState  func(PermanentDatabase, base.State) error
+	newDB     func() isaac.PermanentDatabase
+	newFromDB func(isaac.PermanentDatabase) (isaac.PermanentDatabase, error)
+	setState  func(isaac.PermanentDatabase, base.State) error
 }
 
-func (t *testCommonPermanentDatabase) SetupTest() {
+func (t *testCommonPermanent) SetupTest() {
 	t.BaseTestBallots.SetupTest()
 	t.BaseTestDatabase.SetupTest()
 }
 
-func (t *testCommonPermanentDatabase) setMap(db PermanentDatabase, mp base.BlockDataMap) {
+func (t *testCommonPermanent) setMap(db isaac.PermanentDatabase, mp base.BlockDataMap) {
 	switch t := db.(type) {
-	case *LeveldbPermanentDatabase:
+	case *LeveldbPermanent:
 		_ = t.mp.SetValue(mp)
-	case *RedisPermanentDatabase:
+	case *RedisPermanent:
 		_ = t.mp.SetValue(mp)
 	default:
 		panic("unknown PermanentDatabase")
 	}
 }
 
-func (t *testCommonPermanentDatabase) setSuffrageState(db PermanentDatabase, st base.State) {
+func (t *testCommonPermanent) setSuffrageState(db isaac.PermanentDatabase, st base.State) {
 	switch t := db.(type) {
-	case *LeveldbPermanentDatabase:
+	case *LeveldbPermanent:
 		_ = t.sufstt.SetValue(st)
-	case *RedisPermanentDatabase:
+	case *RedisPermanent:
 		_ = t.sufstt.SetValue(st)
 	default:
 		panic("unknown PermanentDatabase")
 	}
 }
 
-func (t *testCommonPermanentDatabase) TestNew() {
+func (t *testCommonPermanent) TestNew() {
 	db := t.newDB()
 	defer db.Close()
 
-	_ = (interface{})(db).(PermanentDatabase)
+	_ = (interface{})(db).(isaac.PermanentDatabase)
 }
 
-func (t *testCommonPermanentDatabase) TestLastMap() {
+func (t *testCommonPermanent) TestLastMap() {
 	height := base.Height(33)
 	manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
 	mp := base.NewDummyBlockDataMap(manifest)
@@ -76,7 +77,7 @@ func (t *testCommonPermanentDatabase) TestLastMap() {
 	})
 }
 
-func (t *testCommonPermanentDatabase) TestLastSuffrage() {
+func (t *testCommonPermanent) TestLastSuffrage() {
 	height := base.Height(33)
 	_, nodes := t.Locals(3)
 
@@ -103,7 +104,7 @@ func (t *testCommonPermanentDatabase) TestLastSuffrage() {
 	})
 }
 
-func (t *testCommonPermanentDatabase) TestSuffrage() {
+func (t *testCommonPermanent) TestSuffrage() {
 	baseheight := base.Height(33)
 	_, nodes := t.Locals(3)
 
@@ -205,12 +206,12 @@ func (t *testCommonPermanentDatabase) TestSuffrage() {
 	})
 }
 
-func (t *testCommonPermanentDatabase) TestLoadEmptyDB() {
+func (t *testCommonPermanent) TestLoadEmptyDB() {
 	db := t.newDB()
 	defer db.Close()
 }
 
-func (t *testCommonPermanentDatabase) TestLoad() {
+func (t *testCommonPermanent) TestLoad() {
 	height := base.Height(33)
 	_, nodes := t.Locals(3)
 
@@ -271,7 +272,7 @@ func (t *testCommonPermanentDatabase) TestLoad() {
 	})
 }
 
-func (t *testCommonPermanentDatabase) TestMergeTempDatabase() {
+func (t *testCommonPermanent) TestMergeTempDatabase() {
 	height := base.Height(33)
 	_, nodes := t.Locals(3)
 

@@ -1,34 +1,35 @@
-package isaac
+package database
 
 import (
 	"testing"
 
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
 )
 
-type testLeveldbPermanentDatabase struct {
-	testCommonPermanentDatabase
+type testLeveldbPermanent struct {
+	testCommonPermanent
 }
 
-func TestLeveldbPermanentDatabase(tt *testing.T) {
-	t := new(testLeveldbPermanentDatabase)
-	t.newDB = func() PermanentDatabase {
+func TestLeveldbPermanent(tt *testing.T) {
+	t := new(testLeveldbPermanent)
+	t.newDB = func() isaac.PermanentDatabase {
 		st := leveldbstorage.NewMemWriteStorage()
-		db, err := newLeveldbPermanentDatabase(st, t.Encs, t.Enc)
+		db, err := newLeveldbPermanent(st, t.Encs, t.Enc)
 		t.NoError(err)
 
 		return db
 	}
 
-	t.newFromDB = func(db PermanentDatabase) (PermanentDatabase, error) {
-		return newLeveldbPermanentDatabase(db.(*LeveldbPermanentDatabase).st, t.Encs, t.Enc)
+	t.newFromDB = func(db isaac.PermanentDatabase) (isaac.PermanentDatabase, error) {
+		return newLeveldbPermanent(db.(*LeveldbPermanent).st, t.Encs, t.Enc)
 	}
 
-	t.setState = func(perm PermanentDatabase, st base.State) error {
-		db := perm.(*LeveldbPermanentDatabase)
+	t.setState = func(perm isaac.PermanentDatabase, st base.State) error {
+		db := perm.(*LeveldbPermanent)
 
 		e := util.StringErrorFunc("failed to set state")
 
@@ -41,7 +42,7 @@ func TestLeveldbPermanentDatabase(tt *testing.T) {
 			return e(err, "failed to put state")
 		}
 
-		if st.Key() == SuffrageStateKey {
+		if st.Key() == isaac.SuffrageStateKey {
 			if err := db.st.Put(leveldbSuffrageKey(st.Height()), b, nil); err != nil {
 				return e(err, "failed to put suffrage by block height")
 			}

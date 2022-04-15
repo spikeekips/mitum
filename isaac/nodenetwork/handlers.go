@@ -1,4 +1,4 @@
-package isaac
+package nodenetwork
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 )
@@ -16,19 +17,19 @@ type (
 )
 
 type QuicstreamNodeNetworkHandlers struct {
-	local LocalNode
+	local isaac.LocalNode
 	*baseNodeNetwork
-	pool          *TempPoolDatabase
-	proposalMaker *ProposalMaker
+	pool          isaac.TempPoolDatabase
+	proposalMaker *isaac.ProposalMaker
 	lastSuffragef QuicstreamNodeNetworkHandlerLastSuffrageFunction
 }
 
 func NewQuicstreamNodeNetworkHandlers(
-	local LocalNode,
+	local isaac.LocalNode,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
-	pool *TempPoolDatabase,
-	proposalMaker *ProposalMaker,
+	pool isaac.TempPoolDatabase,
+	proposalMaker *isaac.ProposalMaker,
 	lastSuffragef QuicstreamNodeNetworkHandlerLastSuffrageFunction,
 ) *QuicstreamNodeNetworkHandlers {
 	return &QuicstreamNodeNetworkHandlers{

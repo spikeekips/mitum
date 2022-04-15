@@ -6,6 +6,7 @@ import (
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
+	"github.com/spikeekips/mitum/isaac/database"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/tree"
 	"github.com/spikeekips/mitum/util/valuehash"
@@ -15,7 +16,7 @@ import (
 )
 
 type dummyBlockWriteDatabase struct {
-	*isaac.LeveldbBlockWriteDatabase
+	*database.LeveldbBlockWrite
 	setOperationsf func([]util.Hash) error
 }
 
@@ -24,12 +25,12 @@ func (db *dummyBlockWriteDatabase) SetOperations(ops []util.Hash) error {
 		return db.setOperationsf(ops)
 	}
 
-	return db.LeveldbBlockWriteDatabase.SetOperations(ops)
+	return db.LeveldbBlockWrite.SetOperations(ops)
 }
 
 type testWriter struct {
 	isaac.BaseTestBallots
-	isaac.BaseTestDatabase
+	database.BaseTestDatabase
 }
 
 func (t *testWriter) SetupTest() {

@@ -1,4 +1,4 @@
-package isaac
+package database
 
 import (
 	"context"
@@ -9,33 +9,34 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/logging"
 )
 
-type DefaultDatabase struct {
+type Default struct {
 	sync.RWMutex
 	*logging.Logging
 	*util.ContextDaemon
 	encs                  *encoder.Encoders
 	enc                   encoder.Encoder
-	perm                  PermanentDatabase
-	newBlockWriteDatabase func(base.Height) (BlockWriteDatabase, error)
-	temps                 []TempDatabase // NOTE higher height will be prior
-	removed               []TempDatabase
+	perm                  isaac.PermanentDatabase
+	newBlockWriteDatabase func(base.Height) (isaac.BlockWriteDatabase, error)
+	temps                 []isaac.TempDatabase // NOTE higher height will be prior
+	removed               []isaac.TempDatabase
 	mergeInterval         time.Duration
 	// BLOCK integrate TempPoolDatabase
 }
 
-func NewDefaultDatabase(
+func NewDefault(
 	root string,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
-	perm PermanentDatabase,
-	newBlockWriteDatabase func(base.Height) (BlockWriteDatabase, error),
-) (*DefaultDatabase, error) {
-	db := &DefaultDatabase{
+	perm isaac.PermanentDatabase,
+	newBlockWriteDatabase func(base.Height) (isaac.BlockWriteDatabase, error),
+) (*Default, error) {
+	db := &Default{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", "default-database")
 		}),
@@ -55,13 +56,13 @@ func NewDefaultDatabase(
 	return db, nil
 }
 
-func (db *DefaultDatabase) SetLogging(l *logging.Logging) *logging.Logging {
+func (db *Default) SetLogging(l *logging.Logging) *logging.Logging {
 	_ = db.ContextDaemon.SetLogging(l)
 
 	return db.Logging.SetLogging(l)
 }
 
-func (db *DefaultDatabase) Close() error {
+func (db *Default) Close() error {
 	e := util.StringErrorFunc("failed to close database")
 	for i := range db.temps {
 		if err := db.temps[i].Close(); err != nil {
@@ -76,7 +77,7 @@ func (db *DefaultDatabase) Close() error {
 	return nil
 }
 
-func (db *DefaultDatabase) load(root string) error {
+func (db *Default) load(root string) error {
 	e := util.StringErrorFunc("failed to load temps to DefaultDatabase")
 
 	var last base.Height
@@ -88,7 +89,7 @@ func (db *DefaultDatabase) load(root string) error {
 	}
 
 	// NOTE find leveldb directory
-	temps, err := loadTempDatabases(root, last, db.encs, db.enc, true)
+	temps, err := loadTemps(root, last, db.encs, db.enc, true)
 	if err != nil {
 		return e(err, "")
 	}
@@ -98,7 +99,7 @@ func (db *DefaultDatabase) load(root string) error {
 	return nil
 }
 
-func (db *DefaultDatabase) SuffrageByHeight(suffrageHeight base.Height) (base.State, bool, error) {
+func (db *Default) SuffrageByHeight(suffrageHeight base.Height) (base.State, bool, error) {
 	e := util.StringErrorFunc("failed to find suffrage by suffrage height")
 
 	temps := db.activeTemps()
@@ -129,7 +130,7 @@ end:
 	return st, found, nil
 }
 
-func (db *DefaultDatabase) Suffrage(height base.Height) (base.State, bool, error) {
+func (db *Default) Suffrage(height base.Height) (base.State, bool, error) {
 	e := util.StringErrorFunc("failed to find suffrage by block height")
 
 	temps := db.activeTemps()
@@ -171,7 +172,7 @@ func (db *DefaultDatabase) Suffrage(height base.Height) (base.State, bool, error
 	return st, found, nil
 }
 
-func (db *DefaultDatabase) LastSuffrage() (base.State, bool, error) {
+func (db *Default) LastSuffrage() (base.State, bool, error) {
 	temps := db.activeTemps()
 
 	for i := range temps {
@@ -186,10 +187,10 @@ func (db *DefaultDatabase) LastSuffrage() (base.State, bool, error) {
 	return db.perm.LastSuffrage()
 }
 
-func (db *DefaultDatabase) State(key string) (base.State, bool, error) {
+func (db *Default) State(key string) (base.State, bool, error) {
 	e := util.StringErrorFunc("failed to find State")
 	l := util.NewLocked(nil)
-	if err := db.dig(func(p PartialDatabase) (bool, error) {
+	if err := db.dig(func(p isaac.PartialDatabase) (bool, error) {
 		switch st, found, err := p.State(key); {
 		case err != nil:
 			return false, err
@@ -223,11 +224,11 @@ func (db *DefaultDatabase) State(key string) (base.State, bool, error) {
 	return st, found, nil
 }
 
-func (db *DefaultDatabase) ExistsOperation(h util.Hash) (bool, error) {
+func (db *Default) ExistsOperation(h util.Hash) (bool, error) {
 	e := util.StringErrorFunc("failed to check operation")
 
 	l := util.NewLocked(false)
-	if err := db.dig(func(p PartialDatabase) (bool, error) {
+	if err := db.dig(func(p isaac.PartialDatabase) (bool, error) {
 		switch found, err := p.ExistsOperation(h); {
 		case err != nil:
 			return false, err
@@ -254,7 +255,7 @@ func (db *DefaultDatabase) ExistsOperation(h util.Hash) (bool, error) {
 	return found, nil
 }
 
-func (db *DefaultDatabase) Map(height base.Height) (base.BlockDataMap, bool, error) {
+func (db *Default) Map(height base.Height) (base.BlockDataMap, bool, error) {
 	switch temps := db.activeTemps(); {
 	case len(temps) < 1:
 	case temps[0].Height() > height:
@@ -273,7 +274,7 @@ func (db *DefaultDatabase) Map(height base.Height) (base.BlockDataMap, bool, err
 	return db.perm.Map(height)
 }
 
-func (db *DefaultDatabase) LastMap() (base.BlockDataMap, bool, error) {
+func (db *Default) LastMap() (base.BlockDataMap, bool, error) {
 	if temps := db.activeTemps(); len(temps) > 0 {
 		m, err := temps[0].Map()
 		if err != nil {
@@ -286,11 +287,11 @@ func (db *DefaultDatabase) LastMap() (base.BlockDataMap, bool, error) {
 	return db.perm.LastMap()
 }
 
-func (db *DefaultDatabase) NewBlockWriteDatabase(height base.Height) (BlockWriteDatabase, error) {
+func (db *Default) NewBlockWriteDatabase(height base.Height) (isaac.BlockWriteDatabase, error) {
 	return db.newBlockWriteDatabase(height)
 }
 
-func (db *DefaultDatabase) MergeBlockWriteDatabase(w BlockWriteDatabase) error {
+func (db *Default) MergeBlockWriteDatabase(w isaac.BlockWriteDatabase) error {
 	db.Lock()
 	defer db.Unlock()
 
@@ -319,9 +320,9 @@ func (db *DefaultDatabase) MergeBlockWriteDatabase(w BlockWriteDatabase) error {
 
 	switch {
 	case len(db.temps) < 1:
-		db.temps = []TempDatabase{temp}
+		db.temps = []isaac.TempDatabase{temp}
 	default:
-		temps := make([]TempDatabase, len(db.temps)+1)
+		temps := make([]isaac.TempDatabase, len(db.temps)+1)
 		temps[0] = temp
 		copy(temps[1:], db.temps)
 
@@ -331,14 +332,14 @@ func (db *DefaultDatabase) MergeBlockWriteDatabase(w BlockWriteDatabase) error {
 	return nil
 }
 
-func (db *DefaultDatabase) activeTemps() []TempDatabase {
+func (db *Default) activeTemps() []isaac.TempDatabase {
 	db.RLock()
 	defer db.RUnlock()
 
 	return db.temps
 }
 
-func (db *DefaultDatabase) removeTemp(temp TempDatabase) error {
+func (db *Default) removeTemp(temp isaac.TempDatabase) error {
 	db.Lock()
 	defer db.Unlock()
 
@@ -363,7 +364,7 @@ func (db *DefaultDatabase) removeTemp(temp TempDatabase) error {
 		return nil
 	}
 
-	temps := make([]TempDatabase, len(db.temps)-1)
+	temps := make([]isaac.TempDatabase, len(db.temps)-1)
 	var j int
 	for i := range db.temps {
 		if int64(i) == found {
@@ -379,7 +380,7 @@ func (db *DefaultDatabase) removeTemp(temp TempDatabase) error {
 	return nil
 }
 
-func (db *DefaultDatabase) findTemp(height base.Height) TempDatabase {
+func (db *Default) findTemp(height base.Height) isaac.TempDatabase {
 	db.RLock()
 	defer db.RUnlock()
 
@@ -395,9 +396,9 @@ func (db *DefaultDatabase) findTemp(height base.Height) TempDatabase {
 	return nil
 }
 
-func (db *DefaultDatabase) dig(f func(PartialDatabase) (bool, error)) error {
+func (db *Default) dig(f func(isaac.PartialDatabase) (bool, error)) error {
 	temps := db.activeTemps()
-	partials := make([]PartialDatabase, len(temps)+1)
+	partials := make([]isaac.PartialDatabase, len(temps)+1)
 	for i := range temps {
 		partials[i] = temps[i]
 	}
@@ -437,7 +438,7 @@ func (db *DefaultDatabase) dig(f func(PartialDatabase) (bool, error)) error {
 	return nil
 }
 
-func (db *DefaultDatabase) start(ctx context.Context) error {
+func (db *Default) start(ctx context.Context) error {
 	ticker := time.NewTicker(db.mergeInterval)
 	defer ticker.Stop()
 
@@ -448,7 +449,7 @@ func (db *DefaultDatabase) start(ctx context.Context) error {
 		case <-ticker.C:
 			switch err := db.mergePermanent(ctx); {
 			case err == nil:
-			case errors.Is(err, RetryMergeToPermanentDatabaseError):
+			case errors.Is(err, isaac.RetryMergeToPermanentDatabaseError):
 				db.Log().Debug().Err(err).Msg("failed to merge to permanent database; retry")
 			default:
 				return errors.Wrap(err, "")
@@ -461,7 +462,7 @@ func (db *DefaultDatabase) start(ctx context.Context) error {
 	}
 }
 
-func (db *DefaultDatabase) mergePermanent(ctx context.Context) error {
+func (db *Default) mergePermanent(ctx context.Context) error {
 	e := util.StringErrorFunc("failed to merge to permanent database")
 
 	temps := db.activeTemps()
@@ -481,7 +482,7 @@ func (db *DefaultDatabase) mergePermanent(ctx context.Context) error {
 	return nil
 }
 
-func (db *DefaultDatabase) cleanRemoved() error {
+func (db *Default) cleanRemoved() error {
 	db.Lock()
 	defer db.Unlock()
 
@@ -492,7 +493,7 @@ func (db *DefaultDatabase) cleanRemoved() error {
 
 	temp := db.removed[0]
 
-	removed := make([]TempDatabase, len(db.removed)-1)
+	removed := make([]isaac.TempDatabase, len(db.removed)-1)
 	copy(removed, db.removed[1:])
 	db.removed = removed
 

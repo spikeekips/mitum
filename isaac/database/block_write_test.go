@@ -1,4 +1,4 @@
-package isaac
+package database
 
 import (
 	"os"
@@ -6,38 +6,39 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/storage"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 )
 
-type testLeveldbBlockWriteDatabase struct {
-	BaseTestBallots
+type testLeveldbBlockWrite struct {
+	isaac.BaseTestBallots
 	BaseTestDatabase
 }
 
-func (t *testLeveldbBlockWriteDatabase) SetupTest() {
+func (t *testLeveldbBlockWrite) SetupTest() {
 	t.BaseTestBallots.SetupTest()
 	t.BaseTestDatabase.SetupTest()
 }
 
-func (t *testLeveldbBlockWriteDatabase) TestNew() {
+func (t *testLeveldbBlockWrite) TestNew() {
 	t.Run("valid", func() {
-		wst, err := NewLeveldbBlockWriteDatabase(base.Height(33), t.Root, t.Encs, t.Enc)
+		wst, err := NewLeveldbBlockWrite(base.Height(33), t.Root, t.Encs, t.Enc)
 		t.NoError(err)
 
-		_ = (interface{})(wst).(BlockWriteDatabase)
+		_ = (interface{})(wst).(isaac.BlockWriteDatabase)
 	})
 
 	t.Run("root exists", func() {
-		_, err := NewLeveldbBlockWriteDatabase(base.Height(33), t.Root, t.Encs, t.Enc)
+		_, err := NewLeveldbBlockWrite(base.Height(33), t.Root, t.Encs, t.Enc)
 		t.Error(err)
 		t.Contains(err.Error(), "failed batch leveldb storage")
 	})
 }
 
-func (t *testLeveldbBlockWriteDatabase) TestSetMap() {
+func (t *testLeveldbBlockWrite) TestSetMap() {
 	height := base.Height(33)
 
 	wst := t.NewMemLeveldbBlockWriteDatabase(height)
@@ -60,7 +61,7 @@ func (t *testLeveldbBlockWriteDatabase) TestSetMap() {
 	})
 }
 
-func (t *testLeveldbBlockWriteDatabase) TestSetStates() {
+func (t *testLeveldbBlockWrite) TestSetStates() {
 	height := base.Height(33)
 	_, nodes := t.Locals(3)
 
@@ -112,7 +113,7 @@ func (t *testLeveldbBlockWriteDatabase) TestSetStates() {
 	})
 }
 
-func (t *testLeveldbBlockWriteDatabase) TestSetOperations() {
+func (t *testLeveldbBlockWrite) TestSetOperations() {
 	wst := t.NewMemLeveldbBlockWriteDatabase(base.Height(33))
 	defer wst.Close()
 
@@ -146,7 +147,7 @@ func (t *testLeveldbBlockWriteDatabase) TestSetOperations() {
 	})
 }
 
-func (t *testLeveldbBlockWriteDatabase) TestRemove() {
+func (t *testLeveldbBlockWrite) TestRemove() {
 	height := base.Height(33)
 
 	wst := t.NewLeveldbBlockWriteDatabase(height)
@@ -170,6 +171,6 @@ func (t *testLeveldbBlockWriteDatabase) TestRemove() {
 	t.True(errors.Is(err, storage.InternalError))
 }
 
-func TestLeveldbBlockWriteDatabase(t *testing.T) {
-	suite.Run(t, new(testLeveldbBlockWriteDatabase))
+func TestLeveldbBlockWrite(t *testing.T) {
+	suite.Run(t, new(testLeveldbBlockWrite))
 }

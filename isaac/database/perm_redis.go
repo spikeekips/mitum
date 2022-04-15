@@ -1,4 +1,4 @@
-package isaac
+package database
 
 import (
 	"bytes"
@@ -10,6 +10,7 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	redisstorage "github.com/spikeekips/mitum/storage/redis"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -34,25 +35,25 @@ var (
 	redisZEndBlockDataMaps     = fmt.Sprintf("%s-%s", redisBlockDataMapKeyPrefix, strings.Repeat("9", 20))
 )
 
-type RedisPermanentDatabase struct {
+type RedisPermanent struct {
 	sync.Mutex
 	*baseDatabase
-	*basePermanentDatabase
+	*basePermanent
 	st *redisstorage.Storage
 }
 
-func NewRedisPermanentDatabase(
+func NewRedisPermanent(
 	st *redisstorage.Storage,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
-) (*RedisPermanentDatabase, error) {
-	db := &RedisPermanentDatabase{
+) (*RedisPermanent, error) {
+	db := &RedisPermanent{
 		baseDatabase: newBaseDatabase(
 			encs,
 			enc,
 		),
-		basePermanentDatabase: newBasePermanentDatabase(),
-		st:                    st,
+		basePermanent: newBasePermanent(),
+		st:            st,
 	}
 
 	if err := db.loadLastBlockDataMap(); err != nil {
@@ -66,7 +67,7 @@ func NewRedisPermanentDatabase(
 	return db, nil
 }
 
-func (db *RedisPermanentDatabase) Close() error {
+func (db *RedisPermanent) Close() error {
 	if err := db.st.Close(); err != nil {
 		return errors.Wrap(err, "failed to close RedisPermanentDatabase")
 	}
@@ -74,7 +75,7 @@ func (db *RedisPermanentDatabase) Close() error {
 	return nil
 }
 
-func (db *RedisPermanentDatabase) Suffrage(height base.Height) (base.State, bool, error) {
+func (db *RedisPermanent) Suffrage(height base.Height) (base.State, bool, error) {
 	e := util.StringErrorFunc("failed to get suffrage by block height")
 
 	switch m, found, err := db.LastMap(); {
@@ -124,7 +125,7 @@ func (db *RedisPermanentDatabase) Suffrage(height base.Height) (base.State, bool
 	}
 }
 
-func (db *RedisPermanentDatabase) SuffrageByHeight(suffrageHeight base.Height) (base.State, bool, error) {
+func (db *RedisPermanent) SuffrageByHeight(suffrageHeight base.Height) (base.State, bool, error) {
 	e := util.StringErrorFunc("failed to get suffrage by height")
 
 	switch st, found, err := db.LastSuffrage(); {
@@ -152,7 +153,7 @@ func (db *RedisPermanentDatabase) SuffrageByHeight(suffrageHeight base.Height) (
 	}
 }
 
-func (db *RedisPermanentDatabase) State(key string) (base.State, bool, error) {
+func (db *RedisPermanent) State(key string) (base.State, bool, error) {
 	e := util.StringErrorFunc("failed to get state")
 
 	switch b, found, err := db.st.Get(context.Background(), redisStateKey(key)); {
@@ -170,7 +171,7 @@ func (db *RedisPermanentDatabase) State(key string) (base.State, bool, error) {
 	}
 }
 
-func (db *RedisPermanentDatabase) ExistsOperation(h util.Hash) (bool, error) {
+func (db *RedisPermanent) ExistsOperation(h util.Hash) (bool, error) {
 	e := util.StringErrorFunc("failed to check operation")
 
 	switch found, err := db.st.Exists(context.Background(), redisOperationKey(h)); {
@@ -181,7 +182,7 @@ func (db *RedisPermanentDatabase) ExistsOperation(h util.Hash) (bool, error) {
 	}
 }
 
-func (db *RedisPermanentDatabase) Map(height base.Height) (base.BlockDataMap, bool, error) {
+func (db *RedisPermanent) Map(height base.Height) (base.BlockDataMap, bool, error) {
 	e := util.StringErrorFunc("failed to load blockdatamap")
 
 	switch m, found, err := db.LastMap(); {
@@ -206,7 +207,7 @@ func (db *RedisPermanentDatabase) Map(height base.Height) (base.BlockDataMap, bo
 	}
 }
 
-func (db *RedisPermanentDatabase) MergeTempDatabase(ctx context.Context, temp TempDatabase) error {
+func (db *RedisPermanent) MergeTempDatabase(ctx context.Context, temp isaac.TempDatabase) error {
 	db.Lock()
 	defer db.Unlock()
 
@@ -217,7 +218,7 @@ func (db *RedisPermanentDatabase) MergeTempDatabase(ctx context.Context, temp Te
 	e := util.StringErrorFunc("failed to merge TempDatabase")
 
 	switch t := temp.(type) {
-	case *TempLeveldbDatabase:
+	case *TempLeveldb:
 		mp, sufstt, err := db.mergeTempDatabaseFromLeveldb(ctx, t)
 		if err != nil {
 			return e(err, "")
@@ -232,7 +233,7 @@ func (db *RedisPermanentDatabase) MergeTempDatabase(ctx context.Context, temp Te
 	}
 }
 
-func (db *RedisPermanentDatabase) mergeTempDatabaseFromLeveldb(ctx context.Context, temp *TempLeveldbDatabase) (
+func (db *RedisPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp *TempLeveldb) (
 	base.BlockDataMap, base.State, error,
 ) {
 	e := util.StringErrorFunc("failed to merge LeveldbTempDatabase")
@@ -281,8 +282,8 @@ func (db *RedisPermanentDatabase) mergeTempDatabaseFromLeveldb(ctx context.Conte
 	return mp, sufstt, nil
 }
 
-func (db *RedisPermanentDatabase) mergeOperationsTempDatabaseFromLeveldb(
-	ctx context.Context, temp *TempLeveldbDatabase,
+func (db *RedisPermanent) mergeOperationsTempDatabaseFromLeveldb(
+	ctx context.Context, temp *TempLeveldb,
 ) error {
 	return temp.st.Iter(
 		leveldbutil.BytesPrefix(leveldbKeyPrefixOperation),
@@ -295,8 +296,8 @@ func (db *RedisPermanentDatabase) mergeOperationsTempDatabaseFromLeveldb(
 		}, true)
 }
 
-func (db *RedisPermanentDatabase) mergeStatesTempDatabaseFromLeveldb(
-	ctx context.Context, temp *TempLeveldbDatabase,
+func (db *RedisPermanent) mergeStatesTempDatabaseFromLeveldb(
+	ctx context.Context, temp *TempLeveldb,
 ) ([]byte, error) {
 	var bsufst []byte
 	if err := temp.st.Iter(
@@ -318,9 +319,9 @@ func (db *RedisPermanentDatabase) mergeStatesTempDatabaseFromLeveldb(
 	return bsufst, nil
 }
 
-func (db *RedisPermanentDatabase) mergeSuffrageStateTempDatabaseFromLeveldb(
+func (db *RedisPermanent) mergeSuffrageStateTempDatabaseFromLeveldb(
 	ctx context.Context,
-	temp *TempLeveldbDatabase,
+	temp *TempLeveldb,
 	sufsv base.SuffrageStateValue,
 	bsufst []byte,
 ) error {
@@ -343,8 +344,8 @@ func (db *RedisPermanentDatabase) mergeSuffrageStateTempDatabaseFromLeveldb(
 	return nil
 }
 
-func (db *RedisPermanentDatabase) mergeBlockDataMapTempDatabaseFromLeveldb(
-	ctx context.Context, temp *TempLeveldbDatabase,
+func (db *RedisPermanent) mergeBlockDataMapTempDatabaseFromLeveldb(
+	ctx context.Context, temp *TempLeveldb,
 ) error {
 	switch b, found, err := temp.st.Get(leveldbKeyPrefixBlockDataMap); {
 	case err != nil || !found:
@@ -367,7 +368,7 @@ func (db *RedisPermanentDatabase) mergeBlockDataMapTempDatabaseFromLeveldb(
 	}
 }
 
-func (db *RedisPermanentDatabase) loadLastBlockDataMap() error {
+func (db *RedisPermanent) loadLastBlockDataMap() error {
 	e := util.StringErrorFunc("failed to load last blockdatamap")
 
 	keys, err := db.st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
@@ -402,7 +403,7 @@ func (db *RedisPermanentDatabase) loadLastBlockDataMap() error {
 	return nil
 }
 
-func (db *RedisPermanentDatabase) loadLastSuffrage() error {
+func (db *RedisPermanent) loadLastSuffrage() error {
 	e := util.StringErrorFunc("failed to load last suffrage state")
 
 	keys, err := db.st.ZRangeArgs(context.Background(), redis.ZRangeArgs{

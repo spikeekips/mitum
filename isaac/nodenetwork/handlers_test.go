@@ -1,4 +1,4 @@
-package isaac
+package nodenetwork
 
 import (
 	"bytes"
@@ -8,6 +8,8 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
+	"github.com/spikeekips/mitum/isaac/database"
 	"github.com/spikeekips/mitum/network/quictransport"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -17,8 +19,8 @@ import (
 )
 
 type testQuicstreamNodeNetworkHandlers struct {
-	BaseTestDatabase
-	BaseTestBallots
+	database.BaseTestDatabase
+	isaac.BaseTestBallots
 	ci quictransport.ConnInfo
 }
 
@@ -37,14 +39,14 @@ func (t *testQuicstreamNodeNetworkHandlers) SetupSuite() {
 func (t *testQuicstreamNodeNetworkHandlers) TestClient() {
 	c := newBaseNodeNetworkClient(t.Encs, t.Enc, nil)
 
-	_ = (interface{})(c).(NodeNetworkClient)
+	_ = (interface{})(c).(isaac.NodeNetworkClient)
 }
 
 func (t *testQuicstreamNodeNetworkHandlers) TestRequestProposal() {
 	pool := t.NewPool()
 	defer pool.Close()
 
-	proposalMaker := NewProposalMaker(
+	proposalMaker := isaac.NewProposalMaker(
 		t.Local,
 		t.Policy,
 		func(context.Context) ([]util.Hash, error) {
@@ -97,7 +99,7 @@ func (t *testQuicstreamNodeNetworkHandlers) TestProposal() {
 	pool := t.NewPool()
 	defer pool.Close()
 
-	proposalMaker := NewProposalMaker(
+	proposalMaker := isaac.NewProposalMaker(
 		t.Local,
 		t.Policy,
 		func(context.Context) ([]util.Hash, error) {
