@@ -21,7 +21,7 @@ var (
 	MPublickeyHint  = hint.MustNewHint("mpu-v0.0.1")
 )
 
-const MinSeedSize = 36
+const PrivatekeyMinSeedSize = 36
 
 // MPrivatekey is the default privatekey of mitum, it is based on BTC Privatekey.
 type MPrivatekey struct {
@@ -41,9 +41,9 @@ func NewMPrivatekey() MPrivatekey {
 }
 
 func NewMPrivatekeyFromSeed(s string) (MPrivatekey, error) {
-	if l := len(s); l < MinSeedSize {
+	if l := len(s); l < PrivatekeyMinSeedSize {
 		return MPrivatekey{}, util.InvalidError.Errorf(
-			"wrong seed for privatekey; too short, %d < %d", l, MinSeedSize)
+			"wrong seed for privatekey; too short, %d < %d", l, PrivatekeyMinSeedSize)
 	}
 
 	k, err := ecdsa.GenerateKey(

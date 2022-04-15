@@ -92,7 +92,7 @@ func (t *testMPrivatekey) TestConflictsSeed() {
 }
 
 func (t *testMPrivatekey) TestFromSeedButTooShort() {
-	seed := util.UUID().String()[:MinSeedSize-1]
+	seed := util.UUID().String()[:PrivatekeyMinSeedSize-1]
 
 	_, err := NewMPrivatekeyFromSeed(seed)
 	t.True(errors.Is(err, util.InvalidError))
