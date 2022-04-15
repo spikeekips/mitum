@@ -1,4 +1,4 @@
-package isaac
+package isaacstates
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 )
@@ -22,25 +23,25 @@ var (
 type States struct {
 	*logging.Logging
 	*util.ContextDaemon
-	box       *Ballotbox
+	box       *isaac.Ballotbox
 	stateLock sync.RWMutex
-	statech   chan stateSwitchContext
+	statech   chan switchContext
 	vpch      chan base.Voteproof
-	handlers  map[StateType]stateHandler
-	cs        stateHandler
+	handlers  map[StateType]handler
+	cs        handler
 	timers    *util.Timers
 	lvps      *lastVoteproofsHandler
 }
 
-func NewStates(box *Ballotbox) *States {
+func NewStates(box *isaac.Ballotbox) *States {
 	st := &States{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", "states")
 		}),
 		box:      box,
-		statech:  make(chan stateSwitchContext),
+		statech:  make(chan switchContext),
 		vpch:     make(chan base.Voteproof),
-		handlers: map[StateType]stateHandler{},
+		handlers: map[StateType]handler{},
 		cs:       nil,
 		timers: util.NewTimers([]util.TimerID{
 			timerIDBroadcastINITBallot,
@@ -54,7 +55,7 @@ func NewStates(box *Ballotbox) *States {
 	return st
 }
 
-func (st *States) SetHandler(h stateHandler) *States {
+func (st *States) SetHandler(h handler) *States {
 	if st.ContextDaemon.IsStarted() {
 		panic("can not set state handler; already started")
 	}
@@ -117,7 +118,7 @@ func (st *States) start(ctx context.Context) error {
 
 func (st *States) startStatesSwitch(ctx context.Context) error {
 	for {
-		var sctx stateSwitchContext
+		var sctx switchContext
 		var vp base.Voteproof
 
 		select {
@@ -156,26 +157,26 @@ func (st *States) Current() StateType {
 	return st.current().state()
 }
 
-func (st *States) current() stateHandler {
+func (st *States) current() handler {
 	st.stateLock.RLock()
 	defer st.stateLock.RUnlock()
 
 	return st.cs
 }
 
-func (st *States) setCurrent(cs stateHandler) {
+func (st *States) setCurrent(cs handler) {
 	st.stateLock.Lock()
 	defer st.stateLock.Unlock()
 
 	st.cs = cs
 }
 
-func (st *States) ensureSwitchState(sctx stateSwitchContext) error {
+func (st *States) ensureSwitchState(sctx switchContext) error {
 	var n int
 
 	current := st.cs
 
-	movetobroken := func(nsctx stateSwitchContext) stateSwitchContext {
+	movetobroken := func(nsctx switchContext) switchContext {
 		l := st.stateSwitchContextLog(nsctx, current)
 		l.Error().Msg("failed to switch state; wil move to broken")
 
@@ -202,7 +203,7 @@ end:
 
 		n++
 
-		var rsctx stateSwitchContext
+		var rsctx switchContext
 		switch err := st.switchState(nsctx); {
 		case err == nil:
 			if nsctx.next() == StateStopped {
@@ -232,7 +233,7 @@ end:
 	}
 }
 
-func (st *States) switchState(sctx stateSwitchContext) error {
+func (st *States) switchState(sctx switchContext) error {
 	e := util.StringErrorFunc("failed to switch state")
 
 	current := st.current()
@@ -258,7 +259,7 @@ func (st *States) switchState(sctx stateSwitchContext) error {
 	return nil
 }
 
-func (st *States) exitAndEnter(sctx stateSwitchContext, current stateHandler) (func(), func(), error) {
+func (st *States) exitAndEnter(sctx switchContext, current handler) (func(), func(), error) {
 	st.stateLock.Lock()
 	defer st.stateLock.Unlock()
 
@@ -304,7 +305,7 @@ func (st *States) exitAndEnter(sctx stateSwitchContext, current stateHandler) (f
 	return cdefer, ndefer, nil
 }
 
-func (st *States) newState(sctx stateSwitchContext) error {
+func (st *States) newState(sctx switchContext) error {
 	l := st.stateSwitchContextLog(sctx, st.current())
 
 	switch err := st.checkStateSwitchContext(sctx, st.current()); {
@@ -343,7 +344,7 @@ func (st *States) newVoteproof(vp base.Voteproof) error {
 	return nil
 }
 
-func (*States) voteproofToCurrent(vp base.Voteproof, current stateHandler) error {
+func (*States) voteproofToCurrent(vp base.Voteproof, current handler) error {
 	e := util.StringErrorFunc("failed to send voteproof to current")
 
 	if err := current.newVoteproof(vp); err != nil {
@@ -365,7 +366,7 @@ func (*States) callDeferStates(c, n func()) {
 	}()
 }
 
-func (st *States) checkStateSwitchContext(sctx stateSwitchContext, current stateHandler) error {
+func (st *States) checkStateSwitchContext(sctx switchContext, current handler) error {
 	if current == nil {
 		return nil
 	}
@@ -394,10 +395,10 @@ func (st *States) checkStateSwitchContext(sctx stateSwitchContext, current state
 	return nil
 }
 
-func (st *States) stateSwitchContextLog(sctx stateSwitchContext, current stateHandler) zerolog.Logger {
+func (st *States) stateSwitchContextLog(sctx switchContext, current handler) zerolog.Logger {
 	return st.Log().With().
-		Stringer("current_state", stateHandlerLog(current)).
-		Dict("next_state", stateSwitchContextLog(sctx)).Logger()
+		Stringer("current_state", handlerLog(current)).
+		Dict("next_state", switchContextLog(sctx)).Logger()
 }
 
 func (st *States) broadcastBallot(bl base.Ballot) error {

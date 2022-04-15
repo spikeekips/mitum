@@ -34,7 +34,7 @@ type (
 	OperationProcessorGetOperationFunction func(context.Context, util.Hash) (base.Operation, error)
 )
 
-type proposalProcessor interface {
+type ProposalProcessor interface {
 	Proposal() base.ProposalSignedFact
 	Process(context.Context, base.INITVoteproof) (base.Manifest, error)
 	Save(context.Context, base.ACCEPTVoteproof) error

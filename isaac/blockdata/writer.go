@@ -16,11 +16,24 @@ import (
 	"github.com/spikeekips/mitum/util/valuehash"
 )
 
+type FSWriter interface {
+	SetProposal(context.Context, base.ProposalSignedFact) error
+	SetOperation(context.Context, int, base.Operation) error
+	SetOperationsTree(context.Context, tree.FixedTree) error
+	SetState(context.Context, int, base.State) error
+	SetStatesTree(context.Context, tree.FixedTree) error
+	SetManifest(context.Context, base.Manifest) error
+	SetINITVoteproof(context.Context, base.INITVoteproof) error
+	SetACCEPTVoteproof(context.Context, base.ACCEPTVoteproof) error
+	Save(context.Context) (base.BlockDataMap, error)
+	Cancel() error
+}
+
 type Writer struct {
 	sync.RWMutex
 	mergeDatabase func(isaac.BlockWriteDatabase) error
 	db            isaac.BlockWriteDatabase
-	fswriter      isaac.BlockDataFSWriter
+	fswriter      FSWriter
 	proposal      base.ProposalSignedFact
 	manifest      base.Manifest
 	opstreeg      *tree.FixedTreeGenerator
@@ -32,7 +45,7 @@ type Writer struct {
 func NewWriter(
 	db isaac.BlockWriteDatabase,
 	mergeDatabase func(isaac.BlockWriteDatabase) error,
-	fswriter isaac.BlockDataFSWriter,
+	fswriter FSWriter,
 ) *Writer {
 	return &Writer{
 		db:            db,

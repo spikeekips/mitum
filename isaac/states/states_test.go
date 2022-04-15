@@ -1,4 +1,4 @@
-package isaac
+package isaacstates
 
 import (
 	"context"
@@ -8,12 +8,13 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/stretchr/testify/suite"
 )
 
-func (st *States) setHandler(h stateHandler) *States {
+func (st *States) setHandler(h handler) *States {
 	st.handlers[h.state()] = h
 
 	return st
@@ -31,7 +32,7 @@ func (t *testStates) TestWait() {
 	booting := newDummyStateHandler(StateBooting)
 
 	enterch := make(chan bool, 1)
-	_ = booting.setEnter(func(stateSwitchContext) error {
+	_ = booting.setEnter(func(switchContext) error {
 		enterch <- true
 
 		return nil
@@ -60,7 +61,7 @@ func (t *testStates) TestExit() {
 	booting := st.handlers[StateBooting].(*dummyStateHandler)
 
 	exitch := make(chan bool, 1)
-	_ = booting.setExit(func(stateSwitchContext) error {
+	_ = booting.setExit(func(switchContext) error {
 		exitch <- true
 
 		return nil
@@ -85,7 +86,7 @@ func (t *testStates) TestBootingAtStarting() {
 	booting := newDummyStateHandler(StateBooting)
 
 	enterch := make(chan bool, 1)
-	_ = booting.setEnter(func(stateSwitchContext) error {
+	_ = booting.setEnter(func(switchContext) error {
 		enterch <- true
 
 		return nil
@@ -112,7 +113,7 @@ func (t *testStates) TestFailedToEnterIntoBootingAtStarting() {
 	booting := newDummyStateHandler(StateBooting)
 
 	bootingenterch := make(chan bool, 1)
-	_ = booting.setEnter(func(stateSwitchContext) error {
+	_ = booting.setEnter(func(switchContext) error {
 		bootingenterch <- true
 
 		return errors.Errorf("something wrong in booting")
@@ -152,7 +153,7 @@ func (t *testStates) booted() (*States, <-chan error) {
 	booting := newDummyStateHandler(StateBooting)
 
 	enterch := make(chan bool, 1)
-	_ = booting.setEnter(func(stateSwitchContext) error {
+	_ = booting.setEnter(func(switchContext) error {
 		enterch <- true
 
 		return nil
@@ -180,7 +181,7 @@ func (t *testStates) TestFailedToEnterIntoBrokenAtStarting() {
 	booting := newDummyStateHandler(StateBooting)
 
 	bootingenterch := make(chan bool, 1)
-	_ = booting.setEnter(func(stateSwitchContext) error {
+	_ = booting.setEnter(func(switchContext) error {
 		bootingenterch <- true
 
 		return errors.Errorf("something wrong in booting")
@@ -189,7 +190,7 @@ func (t *testStates) TestFailedToEnterIntoBrokenAtStarting() {
 
 	broken := newDummyStateHandler(StateBroken)
 	brokenenterch := make(chan bool, 1)
-	_ = broken.setEnter(func(stateSwitchContext) error {
+	_ = broken.setEnter(func(switchContext) error {
 		brokenenterch <- true
 
 		return errors.Errorf("something wrong in broken")
@@ -229,7 +230,7 @@ func (t *testStates) TestNewStateWithWrongFrom() {
 	stopped := st.handlers[StateStopped].(*dummyStateHandler)
 
 	enterch := make(chan bool, 1)
-	_ = stopped.setEnter(func(stateSwitchContext) error {
+	_ = stopped.setEnter(func(switchContext) error {
 		enterch <- true
 
 		return errors.Errorf("something wrong in joining")
@@ -270,7 +271,7 @@ func (t *testStates) TestNewState() {
 	joining := newDummyStateHandler(StateJoining)
 
 	enterch := make(chan bool, 1)
-	_ = joining.setEnter(func(stateSwitchContext) error {
+	_ = joining.setEnter(func(switchContext) error {
 		enterch <- true
 
 		return nil
@@ -298,11 +299,11 @@ func (t *testStates) TestExitCurrentWhenStopped() {
 
 	enterch := make(chan bool, 1)
 	exitch := make(chan bool, 1)
-	_ = joining.setEnter(func(stateSwitchContext) error {
+	_ = joining.setEnter(func(switchContext) error {
 		enterch <- true
 
 		return nil
-	}, nil).setExit(func(stateSwitchContext) error {
+	}, nil).setExit(func(switchContext) error {
 		exitch <- true
 
 		return nil
@@ -339,7 +340,7 @@ func (t *testStates) TestEnterWithVoteproof() {
 	joining := newDummyStateHandler(StateJoining)
 
 	enterch := make(chan base.Voteproof, 1)
-	_ = joining.setEnter(func(sctx stateSwitchContext) error {
+	_ = joining.setEnter(func(sctx switchContext) error {
 		i, ok := sctx.(dummySwitchContext)
 		t.True(ok)
 
@@ -349,8 +350,8 @@ func (t *testStates) TestEnterWithVoteproof() {
 	}, nil)
 	_ = st.setHandler(joining)
 
-	vp := INITVoteproof{}
-	vp.id = util.UUID().String()
+	vp := isaac.INITVoteproof{}
+	vp.SetID(util.UUID().String())
 
 	sctx := newDummySwitchContext(st.current().state(), StateJoining, vp)
 	t.NoError(st.newState(sctx))
@@ -369,14 +370,14 @@ func (t *testStates) TestSameCurrentWithNext() {
 	booting := st.handlers[StateBooting].(*dummyStateHandler)
 
 	reenterch := make(chan bool, 1)
-	_ = booting.setEnter(func(stateSwitchContext) error {
+	_ = booting.setEnter(func(switchContext) error {
 		reenterch <- true
 
 		return nil
 	}, nil)
 
-	vp := INITVoteproof{}
-	vp.id = util.UUID().String()
+	vp := isaac.INITVoteproof{}
+	vp.SetID(util.UUID().String())
 
 	sctx := newDummySwitchContext(st.current().state(), StateBooting, vp)
 	err := st.newState(sctx)
@@ -396,7 +397,7 @@ func (t *testStates) TestSameCurrentWithNextWithoutVoteproof() {
 	booting := st.handlers[StateBooting].(*dummyStateHandler)
 
 	reenterch := make(chan bool, 1)
-	_ = booting.setEnter(func(stateSwitchContext) error {
+	_ = booting.setEnter(func(switchContext) error {
 		reenterch <- true
 
 		return nil
@@ -425,8 +426,8 @@ func (t *testStates) TestNewVoteproof() {
 		return nil
 	})
 
-	vp := INITVoteproof{}
-	vp.id = util.UUID().String()
+	vp := isaac.INITVoteproof{}
+	vp.SetID(util.UUID().String())
 
 	t.NoError(st.newVoteproof(vp))
 
@@ -443,7 +444,7 @@ func (t *testStates) TestNewVoteproofSwitchState() {
 	defer st.Stop()
 
 	joiningch := make(chan base.Voteproof, 1)
-	joining := newDummyStateHandler(StateJoining).setEnter(func(sctx stateSwitchContext) error {
+	joining := newDummyStateHandler(StateJoining).setEnter(func(sctx switchContext) error {
 		i, ok := sctx.(dummySwitchContext)
 		t.True(ok)
 
@@ -462,8 +463,8 @@ func (t *testStates) TestNewVoteproofSwitchState() {
 		return newDummySwitchContext(st.current().state(), StateJoining, vp)
 	})
 
-	vp := INITVoteproof{}
-	vp.id = util.UUID().String()
+	vp := isaac.INITVoteproof{}
+	vp.SetID(util.UUID().String())
 
 	t.NoError(st.newVoteproof(vp))
 
@@ -489,7 +490,7 @@ func (t *testStates) TestCurrentIgnoresSwitchingState() {
 
 	exitch := make(chan struct{}, 1)
 	booting := st.handlers[StateBooting].(*dummyStateHandler)
-	_ = booting.setExit(func(stateSwitchContext) error {
+	_ = booting.setExit(func(switchContext) error {
 		exitch <- struct{}{}
 
 		return ignoreSwithingStateError.Call()
@@ -498,7 +499,7 @@ func (t *testStates) TestCurrentIgnoresSwitchingState() {
 	joining := newDummyStateHandler(StateJoining)
 
 	enterch := make(chan bool, 1)
-	_ = joining.setEnter(func(stateSwitchContext) error {
+	_ = joining.setEnter(func(switchContext) error {
 		enterch <- true
 
 		return nil
@@ -533,7 +534,7 @@ func (t *testStates) TestStoppedByStateStopped() {
 
 	exitch := make(chan struct{}, 1)
 	booting := st.handlers[StateBooting].(*dummyStateHandler)
-	_ = booting.setExit(func(stateSwitchContext) error {
+	_ = booting.setExit(func(switchContext) error {
 		exitch <- struct{}{}
 
 		return nil
@@ -568,9 +569,9 @@ func TestStates(t *testing.T) {
 
 type dummyStateHandler struct {
 	s             StateType
-	enterf        func(stateSwitchContext) error
+	enterf        func(switchContext) error
 	enterdefer    func()
-	exitf         func(stateSwitchContext) error
+	exitf         func(switchContext) error
 	exitdefer     func()
 	newVoteprooff func(base.Voteproof) error
 }
@@ -585,7 +586,7 @@ func (st *dummyStateHandler) state() StateType {
 	return st.s
 }
 
-func (st *dummyStateHandler) enter(sctx stateSwitchContext) (func(), error) {
+func (st *dummyStateHandler) enter(sctx switchContext) (func(), error) {
 	if st.enterf == nil {
 		return st.enterdefer, nil
 	}
@@ -597,7 +598,7 @@ func (st *dummyStateHandler) enter(sctx stateSwitchContext) (func(), error) {
 	return st.enterdefer, nil
 }
 
-func (st *dummyStateHandler) exit(sctx stateSwitchContext) (func(), error) {
+func (st *dummyStateHandler) exit(sctx switchContext) (func(), error) {
 	if st.exitf == nil {
 		return st.exitdefer, nil
 	}
@@ -617,14 +618,14 @@ func (st *dummyStateHandler) newVoteproof(vp base.Voteproof) error {
 	return st.newVoteprooff(vp)
 }
 
-func (st *dummyStateHandler) setEnter(f func(stateSwitchContext) error, d func()) *dummyStateHandler {
+func (st *dummyStateHandler) setEnter(f func(switchContext) error, d func()) *dummyStateHandler {
 	st.enterf = f
 	st.enterdefer = d
 
 	return st
 }
 
-func (st *dummyStateHandler) setExit(f func(stateSwitchContext) error, d func()) *dummyStateHandler {
+func (st *dummyStateHandler) setExit(f func(switchContext) error, d func()) *dummyStateHandler {
 	st.exitf = f
 	st.exitdefer = d
 
@@ -638,19 +639,19 @@ func (st *dummyStateHandler) setNewVoteproof(f func(base.Voteproof) error) *dumm
 }
 
 type dummySwitchContext struct {
-	baseStateSwitchContext
+	baseSwitchContext
 	vp base.Voteproof
 }
 
 func newDummySwitchContext(from, next StateType, vp base.Voteproof) dummySwitchContext {
 	return dummySwitchContext{
-		baseStateSwitchContext: newBaseStateSwitchContext(from, next),
-		vp:                     vp,
+		baseSwitchContext: newBaseSwitchContext(from, next),
+		vp:                vp,
 	}
 }
 
 func (s dummySwitchContext) MarshalZerologObject(e *zerolog.Event) {
-	s.baseStateSwitchContext.MarshalZerologObject(e)
+	s.baseSwitchContext.MarshalZerologObject(e)
 
 	if s.vp != nil {
 		e.Interface("voteproof", s.vp)

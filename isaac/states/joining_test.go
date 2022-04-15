@@ -1,4 +1,4 @@
-package isaac
+package isaacstates
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/valuehash"
@@ -14,10 +15,10 @@ import (
 )
 
 type testJoiningHandler struct {
-	BaseTestBallots
+	isaac.BaseTestBallots
 }
 
-func (t *testJoiningHandler) newState(suf suffrage) (*JoiningHandler, func()) {
+func (t *testJoiningHandler) newState(suf base.Suffrage) (*JoiningHandler, func()) {
 	local := t.Local
 	policy := t.Policy
 
@@ -39,7 +40,7 @@ func (t *testJoiningHandler) newState(suf suffrage) (*JoiningHandler, func()) {
 	st.broadcastBallotFunc = func(bl base.Ballot) error {
 		return nil
 	}
-	st.switchStateFunc = func(stateSwitchContext) error {
+	st.switchStateFunc = func(switchContext) error {
 		return nil
 	}
 
@@ -51,12 +52,12 @@ func (t *testJoiningHandler) newState(suf suffrage) (*JoiningHandler, func()) {
 }
 
 func (t *testJoiningHandler) TestNew() {
-	suf, nodes := NewTestSuffrage(2, t.Local)
+	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
 	st, closef := t.newState(suf)
 	defer closef()
 
-	_, ok := (interface{})(st).(stateHandler)
+	_, ok := (interface{})(st).(handler)
 	t.True(ok)
 
 	point := base.RawPoint(33, 0)
@@ -81,7 +82,7 @@ func (t *testJoiningHandler) TestNew() {
 }
 
 func (t *testJoiningHandler) TestFailedLastManifest() {
-	suf, nodes := NewTestSuffrage(2, t.Local)
+	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
 	t.Run("with error", func() {
 		st, closef := t.newState(suf)
@@ -127,7 +128,7 @@ func (t *testJoiningHandler) TestFailedLastManifest() {
 }
 
 func (t *testJoiningHandler) TestInvalidINITVoteproof() {
-	suf, nodes := NewTestSuffrage(2, t.Local)
+	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
 	t.Run("lower height", func() {
 		st, closef := t.newState(suf)
@@ -200,7 +201,7 @@ func (t *testJoiningHandler) TestInvalidINITVoteproof() {
 }
 
 func (t *testJoiningHandler) TestInvalidACCEPTVoteproof() {
-	suf, nodes := NewTestSuffrage(2, t.Local)
+	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
 	t.Run("lower height", func() {
 		st, closef := t.newState(suf)
@@ -273,7 +274,7 @@ func (t *testJoiningHandler) TestInvalidACCEPTVoteproof() {
 }
 
 func (t *testJoiningHandler) TestINITVoteproofNextRound() {
-	suf, nodes := NewTestSuffrage(2, t.Local)
+	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
 	st, closef := t.newState(suf)
 	defer closef()
@@ -294,12 +295,12 @@ func (t *testJoiningHandler) TestINITVoteproofNextRound() {
 		return nil
 	}
 
-	st.proposalSelector = DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
+	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		default:
-			return t.prpool.get(p), nil
+			return t.PRPool.Get(p), nil
 		}
 	})
 
@@ -331,7 +332,7 @@ func (t *testJoiningHandler) TestINITVoteproofNextRound() {
 }
 
 func (t *testJoiningHandler) TestACCEPTVoteproofNextRound() {
-	suf, nodes := NewTestSuffrage(2, t.Local)
+	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
 	st, closef := t.newState(suf)
 	defer closef()
@@ -352,12 +353,12 @@ func (t *testJoiningHandler) TestACCEPTVoteproofNextRound() {
 		return nil
 	}
 
-	st.proposalSelector = DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
+	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		default:
-			return t.prpool.get(p), nil
+			return t.PRPool.Get(p), nil
 		}
 	})
 
@@ -389,7 +390,7 @@ func (t *testJoiningHandler) TestACCEPTVoteproofNextRound() {
 }
 
 func (t *testJoiningHandler) TestLastINITVoteproofNextRound() {
-	suf, nodes := NewTestSuffrage(2, t.Local)
+	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
 	st, closef := t.newState(suf)
 	defer closef()
@@ -412,12 +413,12 @@ func (t *testJoiningHandler) TestLastINITVoteproofNextRound() {
 		return nil
 	}
 
-	st.proposalSelector = DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
+	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		default:
-			return t.prpool.get(p), nil
+			return t.PRPool.Get(p), nil
 		}
 	})
 
@@ -448,7 +449,7 @@ func (t *testJoiningHandler) TestLastINITVoteproofNextRound() {
 }
 
 func (t *testJoiningHandler) TestLastACCEPTVoteproofNextRound() {
-	suf, nodes := NewTestSuffrage(2, t.Local)
+	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
 	st, closef := t.newState(suf)
 	defer closef()
@@ -471,12 +472,12 @@ func (t *testJoiningHandler) TestLastACCEPTVoteproofNextRound() {
 		return nil
 	}
 
-	st.proposalSelector = DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
+	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		default:
-			return t.prpool.get(p), nil
+			return t.PRPool.Get(p), nil
 		}
 	})
 

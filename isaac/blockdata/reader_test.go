@@ -1,10 +1,11 @@
-package isaac
+package blockdata
 
 import (
 	"testing"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
@@ -29,7 +30,7 @@ func (t *testBlockDataReaders) TestNew() {
 	t.Run("known", func() {
 		ht := hint.MustNewHint("abc-v0.0.1")
 
-		t.NoError(readers.Add(ht, func(base.Height, encoder.Encoder) (BlockDataReader, error) { return nil, nil }))
+		t.NoError(readers.Add(ht, func(base.Height, encoder.Encoder) (isaac.BlockDataReader, error) { return nil, nil }))
 
 		f := readers.Find(ht)
 		t.NotNil(f)
@@ -58,7 +59,7 @@ func (t *testBlockDataReaders) TestLoadReader() {
 	readers := NewBlockDataReaders()
 
 	writerhint := hint.MustNewHint("writer-v0.0.1")
-	t.NoError(readers.Add(writerhint, func(base.Height, encoder.Encoder) (BlockDataReader, error) { return nil, errors.Errorf("findme") }))
+	t.NoError(readers.Add(writerhint, func(base.Height, encoder.Encoder) (isaac.BlockDataReader, error) { return nil, errors.Errorf("findme") }))
 
 	t.Run("known", func() {
 		_, err := LoadBlockDataReader(readers, encs, writerhint, enc.Hint(), base.Height(66))

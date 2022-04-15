@@ -1,4 +1,4 @@
-package isaac
+package isaacstates
 
 import (
 	"sync"
@@ -6,34 +6,35 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 )
 
 type JoiningHandler struct {
-	*baseStateHandler
+	*baseHandler
 	getLastManifest    func() (base.Manifest, bool, error)
 	newvoteproofLock   sync.Mutex
 	waitFirstVoteproof time.Duration
 }
 
 func NewJoiningHandler(
-	local LocalNode,
-	policy Policy,
-	proposalSelector ProposalSelector,
+	local isaac.LocalNode,
+	policy isaac.Policy,
+	proposalSelector isaac.ProposalSelector,
 	getSuffrage func(base.Height) base.Suffrage,
 	getLastManifest func() (base.Manifest, bool, error),
 ) *JoiningHandler {
 	return &JoiningHandler{
-		baseStateHandler:   newBaseStateHandler(StateJoining, local, policy, proposalSelector, getSuffrage),
+		baseHandler:        newBaseHandler(StateJoining, local, policy, proposalSelector, getSuffrage),
 		getLastManifest:    getLastManifest,
 		waitFirstVoteproof: policy.IntervalBroadcastBallot()*2 + policy.WaitProcessingProposal(),
 	}
 }
 
-func (st *JoiningHandler) enter(i stateSwitchContext) (func(), error) {
+func (st *JoiningHandler) enter(i switchContext) (func(), error) {
 	e := util.StringErrorFunc("failed to enter joining state")
 
-	deferred, err := st.baseStateHandler.enter(i)
+	deferred, err := st.baseHandler.enter(i)
 	if err != nil {
 		return nil, e(err, "")
 	}
@@ -55,10 +56,10 @@ func (st *JoiningHandler) enter(i stateSwitchContext) (func(), error) {
 	}, nil
 }
 
-func (st *JoiningHandler) exit(sctx stateSwitchContext) (func(), error) {
+func (st *JoiningHandler) exit(sctx switchContext) (func(), error) {
 	e := util.StringErrorFunc("failed to exit from joining state")
 
-	deferred, err := st.baseStateHandler.exit(sctx)
+	deferred, err := st.baseHandler.exit(sctx)
 	if err != nil {
 		return nil, e(err, "")
 	}
@@ -139,7 +140,7 @@ func (st *JoiningHandler) newINITVoteproof(ivp base.INITVoteproof, manifest base
 		go st.nextRound(ivp, manifest.Hash())
 
 		return nil
-	case !ivp.Majority().(INITBallotFact).PreviousBlock().Equal(manifest.Hash()):
+	case !ivp.Majority().(isaac.INITBallotFact).PreviousBlock().Equal(manifest.Hash()):
 		l.Debug().Msg("previous block of init voteproof does tno match with last manifest; moves to syncing state")
 
 		return newSyncingSwitchContext(StateJoining, ivp.Point().Height()-1)
@@ -195,7 +196,7 @@ func (st *JoiningHandler) firstVoteproof(lvp base.Voteproof) {
 
 	st.Log().Debug().Msg("last voteproof found for firstVoteproof")
 
-	var dsctx stateSwitchContext
+	var dsctx switchContext
 	switch err := st.newVoteproof(lvp); {
 	case err == nil:
 	case !errors.As(err, &dsctx):
@@ -207,13 +208,13 @@ func (st *JoiningHandler) firstVoteproof(lvp base.Voteproof) {
 }
 
 type joiningSwitchContext struct {
-	baseStateSwitchContext
+	baseSwitchContext
 	vp base.Voteproof
 }
 
 func newJoiningSwitchContext(from StateType, vp base.Voteproof) joiningSwitchContext {
 	return joiningSwitchContext{
-		baseStateSwitchContext: newBaseStateSwitchContext(from, StateJoining),
-		vp:                     vp,
+		baseSwitchContext: newBaseSwitchContext(from, StateJoining),
+		vp:                vp,
 	}
 }

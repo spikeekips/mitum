@@ -73,7 +73,7 @@ func (vp baseVoteproof) FinishedAt() time.Time {
 	return vp.finishedAt
 }
 
-func (vp *baseVoteproof) finish() baseVoteproof {
+func (vp *baseVoteproof) Finish() baseVoteproof {
 	vp.finishedAt = localtime.UTCNow()
 
 	return *vp

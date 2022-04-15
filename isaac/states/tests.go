@@ -1,11 +1,11 @@
 //go:build test
 // +build test
 
-package isaac
+package isaacstates
 
 import "github.com/spikeekips/mitum/util"
 
-func (st *baseStateHandler) setTimers(t *util.Timers) *baseStateHandler {
+func (st *baseHandler) setTimers(t *util.Timers) *baseHandler {
 	st.timers = t
 
 	return nil

@@ -1,4 +1,4 @@
-package isaac
+package isaacstates
 
 import (
 	"context"
@@ -8,13 +8,14 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 )
 
 type SyncingHandler struct {
-	*baseStateHandler
-	newSyncer       func() syncer
-	syncer          syncer
+	*baseHandler
+	newSyncer       func() Syncer
+	syncer          Syncer
 	finishedLock    sync.RWMutex
 	stuckcancel     func()
 	stuckcancellock sync.RWMutex
@@ -22,23 +23,23 @@ type SyncingHandler struct {
 }
 
 func NewSyncingHandler(
-	local LocalNode,
-	policy Policy,
-	proposalSelector ProposalSelector,
+	local isaac.LocalNode,
+	policy isaac.Policy,
+	proposalSelector isaac.ProposalSelector,
 	getSuffrage func(base.Height) base.Suffrage,
-	newSyncer func() syncer,
+	newSyncer func() Syncer,
 ) *SyncingHandler {
 	return &SyncingHandler{
-		baseStateHandler: newBaseStateHandler(StateSyncing, local, policy, proposalSelector, getSuffrage),
-		newSyncer:        newSyncer,
-		waitStuck:        policy.IntervalBroadcastBallot()*2 + policy.WaitProcessingProposal(),
+		baseHandler: newBaseHandler(StateSyncing, local, policy, proposalSelector, getSuffrage),
+		newSyncer:   newSyncer,
+		waitStuck:   policy.IntervalBroadcastBallot()*2 + policy.WaitProcessingProposal(),
 	}
 }
 
-func (st *SyncingHandler) enter(i stateSwitchContext) (func(), error) {
+func (st *SyncingHandler) enter(i switchContext) (func(), error) {
 	e := util.StringErrorFunc("failed to enter syncing state")
 
-	deferred, err := st.baseStateHandler.enter(i)
+	deferred, err := st.baseHandler.enter(i)
 	if err != nil {
 		return nil, e(err, "")
 	}
@@ -64,19 +65,19 @@ func (st *SyncingHandler) enter(i stateSwitchContext) (func(), error) {
 	}, nil
 }
 
-func (st *SyncingHandler) exit(sctx stateSwitchContext) (func(), error) {
+func (st *SyncingHandler) exit(sctx switchContext) (func(), error) {
 	e := util.StringErrorFunc("failed to exit from syncing state")
 
 	st.cancelstuck()
 
 	if st.syncer != nil {
-		if !st.syncer.isFinished() {
+		if !st.syncer.IsFinished() {
 			return nil, ignoreSwithingStateError.Errorf("syncer not yet finished")
 		}
 
-		switch err := st.syncer.cancel(); {
+		switch err := st.syncer.Cancel(); {
 		case err == nil:
-		case errors.Is(err, syncerCanNotCancelError):
+		case errors.Is(err, SyncerCanNotCancelError):
 			return nil, ignoreSwithingStateError.Wrap(err)
 		default:
 			return nil, e(err, "failed to stop syncer")
@@ -85,7 +86,7 @@ func (st *SyncingHandler) exit(sctx stateSwitchContext) (func(), error) {
 		st.syncer = nil
 	}
 
-	deferred, err := st.baseStateHandler.exit(sctx)
+	deferred, err := st.baseHandler.exit(sctx)
 	if err != nil {
 		return nil, e(err, "")
 	}
@@ -99,7 +100,7 @@ func (st *SyncingHandler) newVoteproof(vp base.Voteproof) error {
 	e := util.StringErrorFunc("failed to handle new voteproof")
 
 	if _, err := st.checkFinished(vp); err != nil {
-		if _, ok := err.(stateSwitchContext); ok { // nolint:errorlint
+		if _, ok := err.(switchContext); ok { // nolint:errorlint
 			return err
 		}
 
@@ -115,13 +116,13 @@ func (st *SyncingHandler) checkFinished(vp base.Voteproof) (bool, error) {
 
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(vp)).Logger()
 
-	top := st.syncer.top()
+	top := st.syncer.Top()
 
 	switch {
 	case vp.Point().Height() <= top:
 		return false, nil
 	case vp.Point().Stage() == base.StageINIT && vp.Point().Height() == top+1:
-		if !st.syncer.isFinished() {
+		if !st.syncer.IsFinished() {
 			l.Debug().Msg("expected init voteproof found; but not yet finished")
 
 			return false, nil
@@ -150,16 +151,16 @@ func (st *SyncingHandler) add(h base.Height) bool {
 
 	st.cancelstuck()
 
-	return st.syncer.add(h)
+	return st.syncer.Add(h)
 }
 
-func (st *SyncingHandler) finished(sc syncer) {
+func (st *SyncingHandler) finished(sc Syncer) {
 end:
 	for {
 		select {
 		case <-st.ctx.Done():
 			return
-		case h := <-sc.finished():
+		case h := <-sc.Finished():
 			st.Log().Debug().Object("height", h).Msg("syncer finished")
 
 			st.cancelstuck()
@@ -169,10 +170,10 @@ end:
 				continue
 			}
 
-			var sctx stateSwitchContext
+			var sctx switchContext
 			switch added, err := st.checkFinished(lvp); {
 			case err == nil:
-				if !added && lvp.Point().Height() == sc.top() && lvp.Point().Stage() == base.StageACCEPT {
+				if !added && lvp.Point().Height() == sc.Top() && lvp.Point().Stage() == base.StageACCEPT {
 					st.newStuckCancel(lvp)
 				}
 
@@ -233,14 +234,14 @@ func (st *SyncingHandler) newStuckCancel(vp base.Voteproof) {
 }
 
 type syncingSwitchContext struct {
-	baseStateSwitchContext
+	baseSwitchContext
 	height base.Height
 }
 
 func newSyncingSwitchContext(from StateType, height base.Height) syncingSwitchContext {
 	return syncingSwitchContext{
-		baseStateSwitchContext: newBaseStateSwitchContext(from, StateSyncing),
-		height:                 height,
+		baseSwitchContext: newBaseSwitchContext(from, StateSyncing),
+		height:            height,
 	}
 }
 
@@ -249,7 +250,7 @@ func (syncingSwitchContext) Error() string {
 }
 
 func (s syncingSwitchContext) MarshalZerologObject(e *zerolog.Event) {
-	s.baseStateSwitchContext.MarshalZerologObject(e)
+	s.baseSwitchContext.MarshalZerologObject(e)
 
 	e.Object("height", s.height)
 }

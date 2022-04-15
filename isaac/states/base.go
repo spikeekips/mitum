@@ -1,4 +1,4 @@
-package isaac
+package isaacstates
 
 import (
 	"context"
@@ -10,37 +10,38 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 )
 
-type baseStateHandler struct {
+type baseHandler struct {
 	*logging.Logging
 	ctx                  context.Context
 	cancel               func()
-	local                LocalNode
-	policy               Policy
-	proposalSelector     ProposalSelector
+	local                isaac.LocalNode
+	policy               isaac.Policy
+	proposalSelector     isaac.ProposalSelector
 	getSuffrage          func(base.Height) base.Suffrage
 	stt                  StateType
 	sts                  *States
 	timers               *util.Timers // NOTE only for testing
-	switchStateFunc      func(stateSwitchContext) error
+	switchStateFunc      func(switchContext) error
 	broadcastBallotFunc  func(base.Ballot) error
 	lastVoteproofFunc    func() lastVoteproofs
 	setLastVoteproofFunc func(base.Voteproof) bool
 }
 
-func newBaseStateHandler(
+func newBaseHandler(
 	state StateType,
-	local LocalNode,
-	policy Policy,
-	proposalSelector ProposalSelector,
+	local isaac.LocalNode,
+	policy isaac.Policy,
+	proposalSelector isaac.ProposalSelector,
 	getSuffrage func(base.Height) base.Suffrage,
-) *baseStateHandler {
+) *baseHandler {
 	lvps := newLastVoteproofs()
 
-	return &baseStateHandler{
+	return &baseHandler{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", fmt.Sprintf("state-handler-%s", state))
 		}),
@@ -61,19 +62,19 @@ func newBaseStateHandler(
 	}
 }
 
-func (st *baseStateHandler) enter(stateSwitchContext) (func(), error) {
+func (st *baseHandler) enter(switchContext) (func(), error) {
 	st.ctx, st.cancel = context.WithCancel(context.Background())
 
 	return func() {}, nil
 }
 
-func (st *baseStateHandler) exit(stateSwitchContext) (func(), error) {
+func (st *baseHandler) exit(switchContext) (func(), error) {
 	st.cancel()
 
 	return func() {}, nil
 }
 
-func (st *baseStateHandler) newVoteproof(vp base.Voteproof) (lastVoteproofs, base.Voteproof, error) {
+func (st *baseHandler) newVoteproof(vp base.Voteproof) (lastVoteproofs, base.Voteproof, error) {
 	lvps := st.lastVoteproof()
 
 	if st.sts == nil && !lvps.isNew(vp) {
@@ -85,19 +86,19 @@ func (st *baseStateHandler) newVoteproof(vp base.Voteproof) (lastVoteproofs, bas
 	return lvps, vp, nil
 }
 
-func (st *baseStateHandler) state() StateType {
+func (st *baseHandler) state() StateType {
 	return st.stt
 }
 
-func (st *baseStateHandler) lastVoteproof() lastVoteproofs {
+func (st *baseHandler) lastVoteproof() lastVoteproofs {
 	return st.lastVoteproofFunc()
 }
 
-func (st *baseStateHandler) setLastVoteproof(vp base.Voteproof) bool {
+func (st *baseHandler) setLastVoteproof(vp base.Voteproof) bool {
 	return st.setLastVoteproofFunc(vp)
 }
 
-func (st *baseStateHandler) switchState(sctx stateSwitchContext) {
+func (st *baseHandler) switchState(sctx switchContext) {
 	elem := reflect.ValueOf(sctx)
 	p := reflect.New(elem.Type())
 	p.Elem().Set(elem)
@@ -106,9 +107,9 @@ func (st *baseStateHandler) switchState(sctx stateSwitchContext) {
 		i.setFrom(st.stt)
 	}
 
-	nsctx := p.Elem().Interface().(stateSwitchContext)
+	nsctx := p.Elem().Interface().(switchContext)
 
-	l := st.Log().With().Dict("next_state", stateSwitchContextLog(nsctx)).Logger()
+	l := st.Log().With().Dict("next_state", switchContextLog(nsctx)).Logger()
 
 	switch err := st.switchStateFunc(nsctx); {
 	case err == nil:
@@ -126,10 +127,10 @@ func (st *baseStateHandler) switchState(sctx stateSwitchContext) {
 	}
 }
 
-func (st *baseStateHandler) setStates(sts *States) {
+func (st *baseHandler) setStates(sts *States) {
 	st.sts = sts
 
-	st.switchStateFunc = func(sctx stateSwitchContext) error {
+	st.switchStateFunc = func(sctx switchContext) error {
 		return st.sts.newState(sctx)
 	}
 
@@ -147,7 +148,7 @@ func (st *baseStateHandler) setStates(sts *States) {
 	}
 }
 
-func (st *baseStateHandler) broadcastBallot(
+func (st *baseHandler) broadcastBallot(
 	bl base.Ballot,
 	tolocal bool,
 	timerid util.TimerID,
@@ -194,15 +195,15 @@ func (st *baseStateHandler) broadcastBallot(
 	return nil
 }
 
-func (st *baseStateHandler) broadcastINITBallot(bl base.Ballot, tolocal bool) error {
+func (st *baseHandler) broadcastINITBallot(bl base.Ballot, tolocal bool) error {
 	return st.broadcastBallot(bl, tolocal, timerIDBroadcastINITBallot, 0)
 }
 
-func (st *baseStateHandler) broadcastACCEPTBallot(bl base.Ballot, tolocal bool, initialWait time.Duration) error {
+func (st *baseHandler) broadcastACCEPTBallot(bl base.Ballot, tolocal bool, initialWait time.Duration) error {
 	return st.broadcastBallot(bl, tolocal, timerIDBroadcastACCEPTBallot, initialWait)
 }
 
-func (st *baseStateHandler) isLocalInSuffrage(height base.Height) (bool /* in suffrage */, error) {
+func (st *baseHandler) isLocalInSuffrage(height base.Height) (bool /* in suffrage */, error) {
 	suf := st.getSuffrage(height)
 	switch {
 	case suf == nil:
@@ -214,7 +215,7 @@ func (st *baseStateHandler) isLocalInSuffrage(height base.Height) (bool /* in su
 	}
 }
 
-func (st *baseStateHandler) nextRound(vp base.Voteproof, prevBlock util.Hash) {
+func (st *baseHandler) nextRound(vp base.Voteproof, prevBlock util.Hash) {
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(vp)).Logger()
 
 	point := vp.Point().Point.NextRound()
@@ -235,12 +236,12 @@ func (st *baseStateHandler) nextRound(vp base.Voteproof, prevBlock util.Hash) {
 
 	e := util.StringErrorFunc("failed to move to next round")
 
-	fact := NewINITBallotFact(
+	fact := isaac.NewINITBallotFact(
 		point,
 		prevBlock,
 		pr.Fact().Hash(),
 	)
-	sf := NewINITBallotSignedFact(st.local.Address(), fact)
+	sf := isaac.NewINITBallotSignedFact(st.local.Address(), fact)
 
 	if err := sf.Sign(st.local.Privatekey(), st.policy.NetworkID()); err != nil {
 		go st.switchState(newBrokenSwitchContext(st.stt, e(err, "failed to make next round init ballot")))
@@ -248,7 +249,7 @@ func (st *baseStateHandler) nextRound(vp base.Voteproof, prevBlock util.Hash) {
 		return
 	}
 
-	bl := NewINITBallot(vp, sf)
+	bl := isaac.NewINITBallot(vp, sf)
 	if err := st.broadcastINITBallot(bl, true); err != nil {
 		go st.switchState(newBrokenSwitchContext(st.stt, e(err, "failed to broadcast next round init ballot")))
 	}

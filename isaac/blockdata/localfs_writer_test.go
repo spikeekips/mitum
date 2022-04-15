@@ -121,7 +121,7 @@ func (t *testLocalFSWriter) TestNew() {
 	fs, err := NewLocalFSWriter(t.root, base.Height(33), t.Enc, t.Local, t.Policy.NetworkID())
 	t.NoError(err)
 
-	_ = (interface{})(fs).(isaac.BlockDataFSWriter)
+	_ = (interface{})(fs).(FSWriter)
 
 	t.T().Logf("root directory: %q", fs.root)
 	t.T().Logf("root base directory: %q", fs.heightbase)

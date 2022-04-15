@@ -13,23 +13,23 @@ import (
 
 var SuffrageStateKey = "suffrage"
 
-type suffrage struct {
+type Suffrage struct {
 	m  map[string]base.Node
 	ns []base.Node
 }
 
-func newSuffrage(nodes []base.Node) (suffrage, error) {
+func NewSuffrage(nodes []base.Node) (Suffrage, error) {
 	e := util.StringErrorFunc("failed to newsuffrage")
 
 	if len(nodes) < 1 {
-		return suffrage{}, e(nil, "empty suffrage nodes")
+		return Suffrage{}, e(nil, "empty suffrage nodes")
 	}
 
 	m := map[string]base.Node{}
 	for i := range nodes {
 		n := nodes[i]
 		if n == nil {
-			return suffrage{}, e(nil, "nil node address")
+			return Suffrage{}, e(nil, "nil node address")
 		}
 
 		m[n.Address().String()] = n
@@ -38,19 +38,19 @@ func newSuffrage(nodes []base.Node) (suffrage, error) {
 	if util.CheckSliceDuplicated(nodes, func(i interface{}) string {
 		return i.(base.Node).Address().String()
 	}) {
-		return suffrage{}, e(nil, "duplicated node address found")
+		return Suffrage{}, e(nil, "duplicated node address found")
 	}
 
-	return suffrage{m: m, ns: nodes}, nil
+	return Suffrage{m: m, ns: nodes}, nil
 }
 
-func (suf suffrage) Exists(node base.Address) bool {
+func (suf Suffrage) Exists(node base.Address) bool {
 	_, found := suf.m[node.String()]
 
 	return found
 }
 
-func (suf suffrage) ExistsPublickey(node base.Address, pub base.Publickey) bool {
+func (suf Suffrage) ExistsPublickey(node base.Address, pub base.Publickey) bool {
 	switch n, found := suf.m[node.String()]; {
 	case !found:
 		return false
@@ -61,11 +61,11 @@ func (suf suffrage) ExistsPublickey(node base.Address, pub base.Publickey) bool 
 	}
 }
 
-func (suf suffrage) Nodes() []base.Node {
+func (suf Suffrage) Nodes() []base.Node {
 	return suf.ns
 }
 
-func (suf suffrage) Len() int {
+func (suf Suffrage) Len() int {
 	return len(suf.ns)
 }
 
@@ -152,7 +152,7 @@ func (s SuffrageStateValue) Equal(b base.StateValue) bool {
 }
 
 func (s SuffrageStateValue) Suffrage() (base.Suffrage, error) {
-	return newSuffrage(s.nodes)
+	return NewSuffrage(s.nodes)
 }
 
 type suffrageStateValueJSONMarshaler struct {

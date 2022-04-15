@@ -503,7 +503,7 @@ func (vr *voterecords) newVoteproof(
 			SetSignedFacts(sfs).
 			SetMajority(majority).
 			SetThreshold(vr.threshold).
-			finish()
+			Finish()
 
 		return vp
 	case base.StageACCEPT:
@@ -512,7 +512,7 @@ func (vr *voterecords) newVoteproof(
 			SetSignedFacts(sfs).
 			SetMajority(majority).
 			SetThreshold(vr.threshold).
-			finish()
+			Finish()
 
 		return vp
 	default:

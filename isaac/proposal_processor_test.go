@@ -228,7 +228,7 @@ func (t *testDefaultProposalProcessor) TestNew() {
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	opp := NewDefaultProposalProcessor(pr, previous, nil, nil, nil, nil)
-	_ = (interface{})(opp).(proposalProcessor)
+	_ = (interface{})(opp).(ProposalProcessor)
 
 	base.EqualProposalSignedFact(t.Assert(), pr, opp.Proposal())
 }

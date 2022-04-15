@@ -54,7 +54,7 @@ func (t *testBallotbox) initBallot(node LocalNode, nodes []LocalNode, point base
 		SetMajority(afact).
 		SetSignedFacts(asfs).
 		SetThreshold(base.Threshold(100)).
-		finish()
+		Finish()
 
 	fact := NewINITBallotFact(point, prev, proposal)
 
@@ -82,7 +82,7 @@ func (t *testBallotbox) acceptBallot(node LocalNode, nodes []LocalNode, point ba
 		SetMajority(ifact).
 		SetSignedFacts(isfs).
 		SetThreshold(base.Threshold(100)).
-		finish()
+		Finish()
 
 	fact := NewACCEPTBallotFact(point, pr, block)
 

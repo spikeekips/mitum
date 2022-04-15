@@ -1,22 +1,25 @@
-package isaac
+package isaacstates
 
-import "github.com/spikeekips/mitum/base"
+import (
+	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
+)
 
 type BootingHandler struct {
-	*baseStateHandler
+	*baseHandler
 }
 
 func NewBootingHandler(
-	local LocalNode,
-	policy Policy,
+	local isaac.LocalNode,
+	policy isaac.Policy,
 	getSuffrage func(base.Height) base.Suffrage,
 ) *BootingHandler {
 	return &BootingHandler{
-		baseStateHandler: newBaseStateHandler(StateBooting, local, policy, nil, getSuffrage),
+		baseHandler: newBaseHandler(StateBooting, local, policy, nil, getSuffrage),
 	}
 }
 
-func (*BootingHandler) enter(stateSwitchContext) (func(), error) {
+func (*BootingHandler) enter(switchContext) (func(), error) {
 	// NOTE find last manifest
 	// NOTE load last init, accept voteproof and last majority voteproof
 	// NOTE if ok, moves to joining
@@ -30,11 +33,11 @@ func (*BootingHandler) newVoteproof(base.Voteproof) error {
 }
 
 type bootingSwitchContext struct {
-	baseStateSwitchContext
+	baseSwitchContext
 }
 
 func newBootingSwitchContext() bootingSwitchContext {
 	return bootingSwitchContext{
-		baseStateSwitchContext: newBaseStateSwitchContext(StateStopped, StateBooting),
+		baseSwitchContext: newBaseSwitchContext(StateStopped, StateBooting),
 	}
 }

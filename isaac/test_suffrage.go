@@ -10,7 +10,7 @@ import (
 	"github.com/spikeekips/mitum/base"
 )
 
-func (suf suffrage) Locals() []LocalNode {
+func (suf Suffrage) Locals() []LocalNode {
 	locals := make([]LocalNode, suf.Len())
 	for i := range suf.ns {
 		locals[i] = suf.ns[i].(LocalNode)
@@ -19,7 +19,7 @@ func (suf suffrage) Locals() []LocalNode {
 	return locals
 }
 
-func NewTestSuffrage(n int, extras ...LocalNode) (suffrage, []LocalNode) {
+func NewTestSuffrage(n int, extras ...LocalNode) (Suffrage, []LocalNode) {
 	locals := make([]LocalNode, n+len(extras))
 	nodes := make([]base.Node, n+len(extras))
 	for i := range make([]int, n) {
@@ -36,7 +36,7 @@ func NewTestSuffrage(n int, extras ...LocalNode) (suffrage, []LocalNode) {
 		nodes[i+n] = l
 	}
 
-	suf, _ := newSuffrage(nodes)
+	suf, _ := NewSuffrage(nodes)
 
 	sort.Slice(locals, func(i, j int) bool {
 		return locals[i].Address().String() < locals[j].Address().String()

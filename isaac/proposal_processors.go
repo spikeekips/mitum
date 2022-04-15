@@ -20,22 +20,22 @@ var (
 	NotProposalProcessorProcessedError = util.NewError("proposal processor not processed")
 )
 
-type proposalProcessors struct {
+type ProposalProcessors struct {
 	sync.RWMutex
 	*logging.Logging
-	makenew     func(proposal base.ProposalSignedFact, previous base.Manifest) proposalProcessor
+	makenew     func(proposal base.ProposalSignedFact, previous base.Manifest) ProposalProcessor
 	getproposal func(_ context.Context, facthash util.Hash) (
 		base.ProposalSignedFact, error) // BLOCK use NewProposalPool
-	p             proposalProcessor
+	p             ProposalProcessor
 	retrylimit    int
 	retryinterval time.Duration
 }
 
-func newProposalProcessors(
-	makenew func(base.ProposalSignedFact, base.Manifest) proposalProcessor,
+func NewProposalProcessors(
+	makenew func(base.ProposalSignedFact, base.Manifest) ProposalProcessor,
 	getproposal func(context.Context, util.Hash) (base.ProposalSignedFact, error),
-) *proposalProcessors {
-	return &proposalProcessors{
+) *ProposalProcessors {
+	return &ProposalProcessors{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", "proposal-processors")
 		}),
@@ -46,14 +46,14 @@ func newProposalProcessors(
 	}
 }
 
-func (pps *proposalProcessors) processor() proposalProcessor {
+func (pps *ProposalProcessors) Processor() ProposalProcessor {
 	pps.RLock()
 	defer pps.RUnlock()
 
 	return pps.p
 }
 
-func (pps *proposalProcessors) process(
+func (pps *ProposalProcessors) Process(
 	ctx context.Context,
 	facthash util.Hash,
 	previous base.Manifest,
@@ -75,7 +75,7 @@ func (pps *proposalProcessors) process(
 	}
 }
 
-func (pps *proposalProcessors) save(ctx context.Context, facthash util.Hash, avp base.ACCEPTVoteproof) error {
+func (pps *ProposalProcessors) Save(ctx context.Context, facthash util.Hash, avp base.ACCEPTVoteproof) error {
 	pps.Lock()
 	defer pps.Unlock()
 
@@ -104,7 +104,37 @@ func (pps *proposalProcessors) save(ctx context.Context, facthash util.Hash, avp
 	}
 }
 
-func (pps *proposalProcessors) fetchFact(ctx context.Context, facthash util.Hash) (base.ProposalSignedFact, error) {
+func (pps *ProposalProcessors) Close() error {
+	pps.Lock()
+	defer pps.Unlock()
+
+	if pps.p == nil {
+		return nil
+	}
+
+	e := util.StringErrorFunc("failed to close proposal processors")
+	if err := pps.p.Cancel(); err != nil {
+		return e(err, "")
+	}
+
+	pps.p = nil
+
+	return nil
+}
+
+func (pps *ProposalProcessors) SetRetryLimit(l int) *ProposalProcessors {
+	pps.retrylimit = l
+
+	return pps
+}
+
+func (pps *ProposalProcessors) SetRetryInterval(i time.Duration) *ProposalProcessors {
+	pps.retryinterval = i
+
+	return pps
+}
+
+func (pps *ProposalProcessors) fetchFact(ctx context.Context, facthash util.Hash) (base.ProposalSignedFact, error) {
 	e := util.StringErrorFunc("failed to fetch fact")
 
 	var pr base.ProposalSignedFact
@@ -129,9 +159,9 @@ func (pps *proposalProcessors) fetchFact(ctx context.Context, facthash util.Hash
 	return pr, err
 }
 
-func (pps *proposalProcessors) newProcessor(
+func (pps *ProposalProcessors) newProcessor(
 	ctx context.Context, facthash util.Hash, previous base.Manifest,
-) (proposalProcessor, error) {
+) (ProposalProcessor, error) {
 	pps.Lock()
 	defer pps.Unlock()
 
@@ -170,8 +200,8 @@ func (pps *proposalProcessors) newProcessor(
 	return pps.p, nil
 }
 
-func (*proposalProcessors) runProcessor(
-	ctx context.Context, p proposalProcessor, ivp base.INITVoteproof,
+func (*ProposalProcessors) runProcessor(
+	ctx context.Context, p ProposalProcessor, ivp base.INITVoteproof,
 ) (base.Manifest, error) {
 	manifest, err := p.Process(ctx, ivp)
 	switch {
@@ -186,22 +216,4 @@ func (*proposalProcessors) runProcessor(
 
 		return nil, err
 	}
-}
-
-func (pps *proposalProcessors) close() error {
-	pps.Lock()
-	defer pps.Unlock()
-
-	if pps.p == nil {
-		return nil
-	}
-
-	e := util.StringErrorFunc("failed to close proposal processors")
-	if err := pps.p.Cancel(); err != nil {
-		return e(err, "")
-	}
-
-	pps.p = nil
-
-	return nil
 }

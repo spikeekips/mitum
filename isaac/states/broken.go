@@ -1,16 +1,16 @@
-package isaac
+package isaacstates
 
 import "github.com/rs/zerolog"
 
 type brokenSwitchContext struct {
-	baseStateSwitchContext
+	baseSwitchContext
 	err error
 }
 
 func newBrokenSwitchContext(from StateType, err error) brokenSwitchContext {
 	return brokenSwitchContext{
-		baseStateSwitchContext: newBaseStateSwitchContext(from, StateBroken),
-		err:                    err,
+		baseSwitchContext: newBaseSwitchContext(from, StateBroken),
+		err:               err,
 	}
 }
 
@@ -27,7 +27,7 @@ func (s brokenSwitchContext) Unwrap() error {
 }
 
 func (s brokenSwitchContext) MarshalZerologObject(e *zerolog.Event) {
-	s.baseStateSwitchContext.MarshalZerologObject(e)
+	s.baseSwitchContext.MarshalZerologObject(e)
 
 	if s.err != nil {
 		e.Err(s.err)

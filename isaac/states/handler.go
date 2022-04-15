@@ -1,4 +1,4 @@
-package isaac
+package isaacstates
 
 import (
 	"fmt"
@@ -33,14 +33,14 @@ func (s StateType) String() string {
 	return string(s)
 }
 
-type stateHandler interface {
+type handler interface {
 	state() StateType
-	enter(stateSwitchContext) (func(), error)
-	exit(stateSwitchContext) (func(), error)
+	enter(switchContext) (func(), error)
+	exit(switchContext) (func(), error)
 	newVoteproof(base.Voteproof) error
 }
 
-func stateHandlerLog(st stateHandler) fmt.Stringer {
+func handlerLog(st handler) fmt.Stringer {
 	return util.Stringer(func() string {
 		if st == nil {
 			return ""
@@ -50,41 +50,41 @@ func stateHandlerLog(st stateHandler) fmt.Stringer {
 	})
 }
 
-type stateSwitchContext interface {
+type switchContext interface {
 	from() StateType
 	next() StateType
 	Error() string
 }
 
-type baseStateSwitchContext struct {
+type baseSwitchContext struct {
 	f StateType
 	n StateType
 }
 
-func newBaseStateSwitchContext(from, next StateType) baseStateSwitchContext {
-	return baseStateSwitchContext{
+func newBaseSwitchContext(from, next StateType) baseSwitchContext {
+	return baseSwitchContext{
 		f: from,
 		n: next,
 	}
 }
 
-func (s baseStateSwitchContext) from() StateType {
+func (s baseSwitchContext) from() StateType {
 	return s.f
 }
 
-func (s baseStateSwitchContext) next() StateType {
+func (s baseSwitchContext) next() StateType {
 	return s.n
 }
 
-func (baseStateSwitchContext) Error() string {
+func (baseSwitchContext) Error() string {
 	return ""
 }
 
-func (s baseStateSwitchContext) MarshalZerologObject(e *zerolog.Event) {
+func (s baseSwitchContext) MarshalZerologObject(e *zerolog.Event) {
 	e.Stringer("from", s.f).Stringer("next", s.n)
 }
 
-func stateSwitchContextLog(sctx stateSwitchContext) *zerolog.Event {
+func switchContextLog(sctx switchContext) *zerolog.Event {
 	e := zerolog.Dict()
 
 	o, ok := sctx.(zerolog.LogObjectMarshaler)

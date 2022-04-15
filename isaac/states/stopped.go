@@ -1,33 +1,34 @@
-package isaac
+package isaacstates
 
 import (
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 )
 
 type StoppedHandler struct {
-	*baseStateHandler
+	*baseHandler
 }
 
 func NewStoppedHandler(
-	local LocalNode,
-	policy Policy,
+	local isaac.LocalNode,
+	policy isaac.Policy,
 	getSuffrage func(base.Height) base.Suffrage,
 ) *StoppedHandler {
 	return &StoppedHandler{
-		baseStateHandler: newBaseStateHandler(StateStopped, local, policy, nil, getSuffrage),
+		baseHandler: newBaseHandler(StateStopped, local, policy, nil, getSuffrage),
 	}
 }
 
 type stoppedSwitchContext struct {
-	baseStateSwitchContext
+	baseSwitchContext
 	err error
 }
 
 func newStoppedSwitchContext(from StateType, err error) stoppedSwitchContext {
 	return stoppedSwitchContext{
-		baseStateSwitchContext: newBaseStateSwitchContext(from, StateStopped),
-		err:                    err,
+		baseSwitchContext: newBaseSwitchContext(from, StateStopped),
+		err:               err,
 	}
 }
 
@@ -44,7 +45,7 @@ func (s stoppedSwitchContext) Unwrap() error {
 }
 
 func (s stoppedSwitchContext) MarshalZerologObject(e *zerolog.Event) {
-	s.baseStateSwitchContext.MarshalZerologObject(e)
+	s.baseSwitchContext.MarshalZerologObject(e)
 
 	if s.err != nil {
 		e.Err(s.err)
