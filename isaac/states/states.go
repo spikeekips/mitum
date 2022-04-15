@@ -8,7 +8,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
-	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 )
@@ -23,7 +22,7 @@ var (
 type States struct {
 	*logging.Logging
 	*util.ContextDaemon
-	box       *isaac.Ballotbox
+	box       *Ballotbox
 	stateLock sync.RWMutex
 	statech   chan switchContext
 	vpch      chan base.Voteproof
@@ -33,7 +32,7 @@ type States struct {
 	lvps      *lastVoteproofsHandler
 }
 
-func NewStates(box *isaac.Ballotbox) *States {
+func NewStates(box *Ballotbox) *States {
 	st := &States{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", "states")

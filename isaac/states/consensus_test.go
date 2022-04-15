@@ -487,7 +487,7 @@ func (t *testConsensusHandler) TestWithBallotbox() {
 	point := base.RawPoint(33, 44)
 	suf, _ := isaac.NewTestSuffrage(0, t.Local)
 
-	box := isaac.NewBallotbox(
+	box := NewBallotbox(
 		func(base.Height) base.Suffrage {
 			return suf
 		},

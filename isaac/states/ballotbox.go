@@ -1,4 +1,4 @@
-package isaac
+package isaacstates
 
 import (
 	"math"
@@ -7,6 +7,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -498,7 +499,7 @@ func (vr *voterecords) newVoteproof(
 ) base.Voteproof {
 	switch vr.stagepoint.Stage() {
 	case base.StageINIT:
-		vp := NewINITVoteproof(vr.stagepoint.Point)
+		vp := isaac.NewINITVoteproof(vr.stagepoint.Point)
 		_ = vp.SetResult(result).
 			SetSignedFacts(sfs).
 			SetMajority(majority).
@@ -507,7 +508,7 @@ func (vr *voterecords) newVoteproof(
 
 		return vp
 	case base.StageACCEPT:
-		vp := NewACCEPTVoteproof(vr.stagepoint.Point)
+		vp := isaac.NewACCEPTVoteproof(vr.stagepoint.Point)
 		_ = vp.SetResult(result).
 			SetSignedFacts(sfs).
 			SetMajority(majority).
