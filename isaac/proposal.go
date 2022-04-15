@@ -12,8 +12,8 @@ import (
 )
 
 var (
-	ProposalFactHint       = hint.MustNewHint("proposalt-fact-v0.0.1")
-	ProposalSignedFactHint = hint.MustNewHint("proposalt-signed-fact-v0.0.1")
+	ProposalFactHint       = hint.MustNewHint("proposal-fact-v0.0.1")
+	ProposalSignedFactHint = hint.MustNewHint("proposal-signed-fact-v0.0.1")
 )
 
 type ProposalFact struct {
