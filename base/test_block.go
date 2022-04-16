@@ -26,7 +26,7 @@ type DummyManifest struct {
 	opstree       util.Hash
 	statestree    util.Hash
 	suf           util.Hash
-	createdAt     time.Time
+	proposedAt    time.Time
 	nodeCreatedAt time.Time
 	Invalidf      func([]byte) error
 }
@@ -35,7 +35,7 @@ func NewDummyManifest(height Height, h util.Hash) DummyManifest {
 	return DummyManifest{
 		h:             h,
 		height:        height,
-		createdAt:     localtime.UTCNow(),
+		proposedAt:    localtime.UTCNow(),
 		nodeCreatedAt: localtime.UTCNow(),
 	}
 }
@@ -72,8 +72,8 @@ func (m DummyManifest) Suffrage() util.Hash {
 	return m.suf
 }
 
-func (m DummyManifest) CreatedAt() time.Time {
-	return m.createdAt
+func (m DummyManifest) ProposedAt() time.Time {
+	return m.proposedAt
 }
 
 func (m DummyManifest) NodeCreatedAt() time.Time {
@@ -123,8 +123,8 @@ func (m *DummyManifest) SetSuffrage(i util.Hash) *DummyManifest {
 	return m
 }
 
-func (m *DummyManifest) SetCreatedAt(i time.Time) *DummyManifest {
-	m.createdAt = i
+func (m *DummyManifest) SetProposedAt(i time.Time) *DummyManifest {
+	m.proposedAt = i
 	return m
 }
 
@@ -142,7 +142,7 @@ type DummyManifestJSONMarshaler struct {
 	Opstree       util.Hash      `json:"operations_tree"`
 	Statestree    util.Hash      `json:"states_tree"`
 	Suf           util.Hash      `json:"suffrage"`
-	CreatedAt     localtime.Time `json:"created_at"`
+	ProposedAt    localtime.Time `json:"proposed_at"`
 	NodeCreatedAt localtime.Time `json:"node_created_at"`
 }
 
@@ -156,7 +156,7 @@ func (m DummyManifest) MarshalJSON() ([]byte, error) {
 		Opstree:       m.opstree,
 		Statestree:    m.statestree,
 		Suf:           m.suf,
-		CreatedAt:     localtime.New(m.createdAt),
+		ProposedAt:    localtime.New(m.proposedAt),
 		NodeCreatedAt: localtime.New(m.nodeCreatedAt),
 	})
 }
@@ -169,7 +169,7 @@ type DummyManifestJSONUnmarshaler struct {
 	Opstree       valuehash.HashDecoder `json:"operations_tree"`
 	Statestree    valuehash.HashDecoder `json:"states_tree"`
 	Suf           valuehash.HashDecoder `json:"suffrage"`
-	CreatedAt     localtime.Time        `json:"created_at"`
+	ProposedAt    localtime.Time        `json:"proposed_at"`
 	NodeCreatedAt localtime.Time        `json:"node_created_at"`
 }
 
@@ -186,7 +186,7 @@ func (m *DummyManifest) UnmarshalJSON(b []byte) error {
 	m.opstree = u.Opstree.Hash()
 	m.statestree = u.Statestree.Hash()
 	m.suf = u.Suf.Hash()
-	m.createdAt = u.CreatedAt.Time
+	m.proposedAtt = u.ProposedAt.Time
 	m.nodeCreatedAt = u.NodeCreatedAt.Time
 
 	return nil
@@ -227,7 +227,7 @@ func EqualManifest(t *assert.Assertions, a, b Manifest) {
 	if !isnil("Suffrage", a.Suffrage(), b.Suffrage()) {
 		t.True(a.Suffrage().Equal(b.Suffrage()), "Suffrage does not match")
 	}
-	t.True(localtime.Equal(a.CreatedAt(), b.CreatedAt()), "CreatedAt does not match")
+	t.True(localtime.Equal(a.ProposedAt(), b.ProposedAt()), "ProposedAt does not match")
 	t.True(localtime.Equal(a.NodeCreatedAt(), b.NodeCreatedAt()), "NodeCreatedAt does not match")
 }
 
