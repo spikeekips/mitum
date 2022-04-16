@@ -13,8 +13,8 @@ import (
 )
 
 var (
-	RequestProposalBodyHint = hint.MustNewHint("request_proposal_body-v0.0.1")
-	ProposalBodyHint        = hint.MustNewHint("proposal_body-v0.0.1")
+	RequestProposalBodyHint = hint.MustNewHint("request-proposal-body-v0.0.1")
+	ProposalBodyHint        = hint.MustNewHint("proposal-body-v0.0.1")
 )
 
 var (

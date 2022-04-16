@@ -76,7 +76,7 @@ func NewLocalFSWriter(
 
 	id := ulid.New().String()
 	temp := filepath.Join(abs, fmt.Sprintf("%d-%s", height, id))
-	if err := os.Mkdir(temp, 0o700); err != nil {
+	if err := os.MkdirAll(temp, 0o700); err != nil {
 		return nil, e(err, "failed to create temp directory")
 	}
 

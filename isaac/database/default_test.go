@@ -847,7 +847,7 @@ func (t *testDefaultLoad) SetupTest() {
 }
 
 func (t *testDefaultLoad) TestNewDirectory() {
-	d, err := newTempDirectory(t.Root, base.Height(33))
+	d, err := NewTempDirectory(t.Root, base.Height(33))
 	t.NoError(err)
 	t.True(strings.HasPrefix(d, t.Root))
 }
@@ -863,18 +863,18 @@ func (t *testDefaultLoad) TestNewDirectoryWithExistings() {
 			h++
 		}
 
-		d, err := newTempDirectory(t.Root, h)
+		d, err := NewTempDirectory(t.Root, h)
 		t.NoError(err)
 		t.NoError(os.Mkdir(d, 0o755))
 	}
 
 	for range make([]int, 33) {
-		d, err := newTempDirectory(t.Root, height)
+		d, err := NewTempDirectory(t.Root, height)
 		t.NoError(err)
 		t.NoError(os.Mkdir(d, 0o755))
 	}
 
-	d, err := newTempDirectory(t.Root, height)
+	d, err := NewTempDirectory(t.Root, height)
 	t.NoError(err)
 	t.NotEmpty(d)
 	t.True(strings.HasSuffix(d, fmt.Sprintf("-%d", 33)))
@@ -887,7 +887,7 @@ func (t *testDefaultLoad) TestNewDirectoryWithExistings() {
 func (t *testDefaultLoad) TestNewDirectoryWithoutExistingDirectories() {
 	height := base.Height(33)
 
-	d, err := newTempDirectory(t.Root, height)
+	d, err := NewTempDirectory(t.Root, height)
 	t.NoError(err)
 	t.NotEmpty(d)
 	t.Equal(d, newTempDirectoryName(t.Root, height, 0))
@@ -901,7 +901,7 @@ func (t *testDefaultLoad) TestNewDirectoryWithUnknownDirectories() {
 		t.NoError(os.Mkdir(d, 0o755))
 	}
 
-	d, err := newTempDirectory(t.Root, height)
+	d, err := NewTempDirectory(t.Root, height)
 	t.NoError(err)
 	t.NotEmpty(d)
 	t.Equal(newTempDirectoryName(t.Root, height, 0), d)
@@ -923,7 +923,7 @@ func (t *testDefaultLoad) TestLoadTempDatabases() {
 	}
 
 	db, err := NewDefault(t.Root, t.Encs, t.Enc, perm, func(height base.Height) (isaac.BlockWriteDatabase, error) {
-		f, _ := newTempDirectory(t.Root, height)
+		f, _ := NewTempDirectory(t.Root, height)
 		return NewLeveldbBlockWrite(height, f, t.Encs, t.Enc)
 	})
 	t.NoError(err)
@@ -963,7 +963,7 @@ func (t *testDefaultLoad) TestLoadTempDatabases() {
 
 	// NOTE create wrong leveldb directory
 	for i := range created {
-		f, _ := newTempDirectory(t.Root, baseheight+base.Height(i+1))
+		f, _ := NewTempDirectory(t.Root, baseheight+base.Height(i+1))
 		t.NoError(os.Mkdir(f, 0o755))
 		_, err := os.Create(filepath.Join(f, util.UUID().String()))
 		t.NoError(err)

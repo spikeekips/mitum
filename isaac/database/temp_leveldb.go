@@ -222,7 +222,7 @@ func sortTempDirectoryNames(matches []string) {
 	})
 }
 
-func newTempDirectory(root string, height base.Height) (string, error) {
+func NewTempDirectory(root string, height base.Height) (string, error) {
 	e := util.StringErrorFunc("failed to get new TempDatabase directory")
 
 	matches, err := loadTempDirectoriesByHeight(root, height)

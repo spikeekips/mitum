@@ -289,7 +289,7 @@ func (w *Writer) Manifest(ctx context.Context, previous base.Manifest) (base.Man
 
 	e := util.StringErrorFunc("failed to make manifest")
 
-	if previous == nil || w.proposal == nil {
+	if w.proposal == nil || (w.proposal.Point().Height() > base.GenesisHeight && previous == nil) {
 		return nil, e(nil, "not yet written")
 	}
 
@@ -297,15 +297,19 @@ func (w *Writer) Manifest(ctx context.Context, previous base.Manifest) (base.Man
 		return nil, e(err, "")
 	}
 
-	suffrage := previous.Suffrage()
-	if i := w.db.SuffrageState(); i != nil {
-		suffrage = i.Hash()
+	var suffrage, previousHash util.Hash
+	if w.proposal.Point().Height() > base.GenesisHeight {
+		suffrage = previous.Suffrage()
+		if i := w.db.SuffrageState(); i != nil {
+			suffrage = i.Hash()
+		}
+		previousHash = previous.Hash()
 	}
 
 	if w.manifest == nil {
 		w.manifest = isaac.NewManifest(
 			w.proposal.Point().Height(),
-			previous.Hash(),
+			previousHash,
 			w.proposal.Fact().Hash(),
 			valuehash.NewBytes(w.opstree.Root()),
 			valuehash.NewBytes(w.ststree.Root()),
