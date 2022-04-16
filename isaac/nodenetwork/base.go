@@ -112,8 +112,14 @@ func NewRequestProposalBody(point base.Point, proposer base.Address) RequestProp
 }
 
 func (body RequestProposalBody) IsValid([]byte) error {
-	if err := util.CheckIsValid(nil, false, body.BaseHinter, body.Point, body.Proposer); err != nil {
-		return errors.Wrap(err, "invalid RequestProposalBody")
+	e := util.StringErrorFunc("invalid RequestProposalBody")
+
+	if err := body.BaseHinter.IsValid(body.Hint().Type().Bytes()); err != nil {
+		return e(err, "")
+	}
+
+	if err := util.CheckIsValid(nil, false, body.Point, body.Proposer); err != nil {
+		return e(err, "")
 	}
 
 	return nil
@@ -157,8 +163,14 @@ func NewProposalBody(pr util.Hash) ProposalBody {
 }
 
 func (body ProposalBody) IsValid([]byte) error {
-	if err := util.CheckIsValid(nil, false, body.BaseHinter, body.Proposal); err != nil {
-		return errors.Wrap(err, "invalid ProposalBody")
+	e := util.StringErrorFunc("invalid ProposalBody")
+
+	if err := body.BaseHinter.IsValid(body.Hint().Type().Bytes()); err != nil {
+		return e(err, "")
+	}
+
+	if err := util.CheckIsValid(nil, false, body.Proposal); err != nil {
+		return e(err, "")
 	}
 
 	return nil

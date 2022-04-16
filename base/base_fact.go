@@ -33,8 +33,12 @@ func (fact BaseFact) Token() Token {
 
 func (fact BaseFact) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid BaseFact")
+
+	if err := fact.BaseHinter.IsValid(fact.Hint().Type().Bytes()); err != nil {
+		return e(err, "")
+	}
+
 	if err := util.CheckIsValid(nil, false,
-		fact.BaseHinter,
 		fact.h,
 		fact.t,
 	); err != nil {
