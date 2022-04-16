@@ -16,6 +16,14 @@ func NewBytes(b []byte) Bytes {
 	return Bytes(b)
 }
 
+func NewHashFromBytes(b []byte) util.Hash {
+	if b == nil {
+		return nil
+	}
+
+	return NewBytes(b)
+}
+
 func NewBytesFromString(s string) Bytes {
 	return NewBytes(base58.Decode(s))
 }

@@ -20,6 +20,21 @@ func (t *testBytes) TestEmpty() {
 	t.Contains(err.Error(), "empty")
 }
 
+func (t *testBytes) TestNewHashFromBytes() {
+	t.Run("nil", func() {
+		h := NewHashFromBytes(nil)
+		t.Nil(h)
+	})
+
+	t.Run("not nil", func() {
+		b := []byte("findme")
+		h0 := NewHashFromBytes(b)
+		h1 := NewBytes(b)
+
+		t.True(h0.Equal(h1))
+	})
+}
+
 func (t *testBytes) TestNil() {
 	s := NewBytes(nil)
 	err := s.IsValid(nil)
