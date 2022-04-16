@@ -137,7 +137,16 @@ func IsValidINITBallotFact(fact INITBallotFact) error {
 		return e(err, "")
 	}
 
-	if err := util.CheckIsValid(nil, false, fact.PreviousBlock(), fact.Proposal()); err != nil {
+	if err := util.CheckIsValid(nil, false,
+		util.DummyIsValider(func(b []byte) error {
+			if fact.Point().Point.Equal(GenesisPoint) {
+				return nil
+			}
+
+			return fact.PreviousBlock().IsValid(b)
+		}),
+		fact.Proposal(),
+	); err != nil {
 		return e(err, "")
 	}
 

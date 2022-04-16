@@ -311,8 +311,8 @@ func (w *Writer) Manifest(ctx context.Context, previous base.Manifest) (base.Man
 			w.proposal.Point().Height(),
 			previousHash,
 			w.proposal.Fact().Hash(),
-			valuehash.NewBytes(w.opstree.Root()),
-			valuehash.NewBytes(w.ststree.Root()),
+			valuehash.NewHashFromBytes(w.opstree.Root()),
+			valuehash.NewHashFromBytes(w.ststree.Root()),
 			suffrage,
 			localtime.UTCNow(),
 		)

@@ -332,6 +332,22 @@ func (db *Default) MergeBlockWriteDatabase(w isaac.BlockWriteDatabase) error {
 	return nil
 }
 
+func (db *Default) MergeAllPermanent() error {
+	e := util.StringErrorFunc("failed to merge all temps to permanent")
+
+	for len(db.activeTemps()) > 0 {
+		if err := db.mergePermanent(context.Background()); err != nil {
+			return e(err, "")
+		}
+	}
+
+	if err := db.cleanRemoved(0); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
 func (db *Default) activeTemps() []isaac.TempDatabase {
 	db.RLock()
 	defer db.RUnlock()
@@ -455,7 +471,7 @@ func (db *Default) start(ctx context.Context) error {
 				return errors.Wrap(err, "")
 			}
 
-			if err := db.cleanRemoved(); err != nil {
+			if err := db.cleanRemoved(3); err != nil {
 				return errors.Wrap(err, "")
 			}
 		}
@@ -482,12 +498,12 @@ func (db *Default) mergePermanent(ctx context.Context) error {
 	return nil
 }
 
-func (db *Default) cleanRemoved() error {
+func (db *Default) cleanRemoved(limit int) error {
 	db.Lock()
 	defer db.Unlock()
 
-	if len(db.removed) < 3 {
-		// NOTE last 3 temp databases will be kept for safe concurreny access from DefaultDatabase.
+	if len(db.removed) <= limit {
+		// NOTE last limit temp databases will be kept for safe concurreny access from DefaultDatabase.
 		return nil
 	}
 

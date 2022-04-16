@@ -12,6 +12,7 @@ import (
 var (
 	NilHeight      = Height(-1)
 	GenesisHeight  = Height(0)
+	GenesisPoint   = Point{h: GenesisHeight, r: Round(0)}
 	ZeroStagePoint = StagePoint{Point: ZeroPoint, stage: StageUnknown}
 	ZeroPoint      = Point{h: NilHeight, r: Round(0)}
 )
@@ -113,6 +114,10 @@ func (p Point) String() string {
 func (p Point) IsValid([]byte) error {
 	if err := p.h.IsValid(nil); err != nil {
 		return errors.Wrapf(err, "invalid point")
+	}
+
+	if p.h == GenesisHeight && p.r != Round(0) {
+		return errors.Errorf("invalid genesis point, %q", p)
 	}
 
 	return nil

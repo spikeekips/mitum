@@ -10,6 +10,8 @@ import (
 	"github.com/spikeekips/mitum/util/valuehash"
 )
 
+var ManifestHint = hint.MustNewHint("manifest-v0.0.1")
+
 type Manifest struct {
 	hint.BaseHinter
 	h              util.Hash
@@ -33,6 +35,7 @@ func NewManifest(
 	createdAt time.Time,
 ) Manifest {
 	m := Manifest{
+		BaseHinter:     hint.NewBaseHinter(ManifestHint),
 		height:         height,
 		previous:       previous,
 		proposal:       proposal,
@@ -48,13 +51,15 @@ func NewManifest(
 	return m
 }
 
-func (m Manifest) IsValid(networkID []byte) error {
+func (m Manifest) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid manifest")
 
-	if err := util.CheckIsValid(networkID, false,
-		m.BaseHinter,
+	if err := m.BaseHinter.IsValid(ManifestHint.Type().Bytes()); err != nil {
+		return e(err, "")
+	}
+
+	if err := util.CheckIsValid(nil, false,
 		m.height,
-		m.previous,
 		m.proposal,
 		util.DummyIsValider(func([]byte) error {
 			if m.createdAt.IsZero() {
@@ -74,7 +79,13 @@ func (m Manifest) IsValid(networkID []byte) error {
 		return e(err, "")
 	}
 
-	if err := util.CheckIsValid(networkID, true,
+	if m.height != base.GenesisHeight {
+		if err := util.CheckIsValid(nil, false, m.previous); err != nil {
+			return e(err, "")
+		}
+	}
+
+	if err := util.CheckIsValid(nil, true,
 		m.operationsTree,
 		m.statesTree,
 		m.suffrage,
@@ -130,6 +141,5 @@ func (m Manifest) hash() util.Hash {
 		m.statesTree,
 		m.suffrage,
 		localtime.New(m.createdAt),
-		localtime.New(m.nodeCreatedAt),
 	))
 }
