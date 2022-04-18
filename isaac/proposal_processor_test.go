@@ -82,23 +82,19 @@ func (w *DummyBlockDataWriter) setStates(ctx context.Context, index int, states 
 	for i := range states {
 		stv := states[i]
 
-		var st base.State
-		switch j, found, err := w.getStateFunc(stv.Key()); {
-		case err != nil:
-			return e(err, "")
-		case !found:
-			st = base.NewBaseState(base.NilHeight, stv.Key(), nil, nil, nil)
-		default:
-			st = j
-		}
+		j, _, _ := w.sts.Get(stv.Key(), func() (interface{}, error) {
+			var st base.State
+			switch j, found, err := w.getStateFunc(stv.Key()); {
+			case err != nil:
+				return nil, err
+			case found:
+				st = j
+			}
 
-		j, _, _ := w.sts.Get(st.Key(), func() (interface{}, error) {
-			return st.Merger(w.proposal.Point().Height()), nil
+			return stv.Merger(w.proposal.Point().Height(), st), nil
 		})
 
-		merger := j.(base.StateValueMerger)
-
-		if err := merger.Merge(stv, []util.Hash{op.Fact().Hash()}); err != nil {
+		if err := j.(base.StateValueMerger).Merge(stv, []util.Hash{op.Fact().Hash()}); err != nil {
 			return e(err, "failed to merge")
 		}
 	}
@@ -167,7 +163,7 @@ func (t *testDefaultProposalProcessor) newproposal(fact ProposalFact) base.Propo
 func (t *testDefaultProposalProcessor) newStateMergeValue(key string) base.StateMergeValue {
 	v := base.NewDummyStateValue(util.UUID().String())
 
-	return base.NewBaseStateMergeValue(key, v)
+	return base.NewBaseStateMergeValue(key, v, nil)
 }
 
 func (t *testDefaultProposalProcessor) prepareOperations(height base.Height, n int) (

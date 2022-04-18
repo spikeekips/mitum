@@ -109,10 +109,6 @@ func (s BaseState) SetValue(v StateValue) BaseState {
 	return s
 }
 
-func (s BaseState) Merger(height Height) StateValueMerger {
-	return NewBaseStateValueMerger(height, s)
-}
-
 func (s BaseState) hash() util.Hash {
 	return valuehash.NewSHA256(util.ConcatByters(
 		util.DummyByter(func() []byte {
@@ -218,10 +214,15 @@ type BaseStateValueMerger struct {
 }
 
 func NewBaseStateValueMerger(height Height, st State) *BaseStateValueMerger {
+	var value StateValue
+	if st != nil {
+		value = st.Value()
+	}
+
 	return &BaseStateValueMerger{
 		State:  st,
 		height: height,
-		value:  st.Value(),
+		value:  value,
 	}
 }
 
@@ -294,7 +295,12 @@ func (s *BaseStateValueMerger) Close() error {
 		return strings.Compare(s.ops[i].String(), s.ops[j].String()) < 0
 	})
 
-	s.nst = NewBaseState(s.height, s.Key(), s.value, s.State.Hash(), s.ops)
+	var previous util.Hash
+	if s.State != nil {
+		previous = s.State.Hash()
+	}
+
+	s.nst = NewBaseState(s.height, s.Key(), s.value, previous, s.ops)
 
 	return nil
 }
@@ -313,11 +319,22 @@ func (s *BaseStateValueMerger) MarshalJSON() ([]byte, error) {
 
 type BaseStateMergeValue struct {
 	StateValue
-	key string
+	key    string
+	merger func(Height, State) StateValueMerger
 }
 
-func NewBaseStateMergeValue(key string, value StateValue) BaseStateMergeValue {
-	return BaseStateMergeValue{StateValue: value, key: key}
+func NewBaseStateMergeValue(
+	key string,
+	value StateValue,
+	merger func(Height, State) StateValueMerger,
+) BaseStateMergeValue {
+	v := BaseStateMergeValue{StateValue: value, key: key, merger: merger}
+
+	if merger == nil {
+		v.merger = v.defaultMerger
+	}
+
+	return v
 }
 
 func (v BaseStateMergeValue) Key() string {
@@ -326,6 +343,18 @@ func (v BaseStateMergeValue) Key() string {
 
 func (v BaseStateMergeValue) Value() StateValue {
 	return v.StateValue
+}
+
+func (v BaseStateMergeValue) Merger(height Height, st State) StateValueMerger {
+	return v.merger(height, st)
+}
+
+func (v BaseStateMergeValue) defaultMerger(height Height, st State) StateValueMerger {
+	if st == nil {
+		st = NewBaseState(NilHeight, v.key, nil, nil, nil)
+	}
+
+	return NewBaseStateValueMerger(height, st)
 }
 
 func DecodeStateValue(b []byte, enc encoder.Encoder) (StateValue, error) {

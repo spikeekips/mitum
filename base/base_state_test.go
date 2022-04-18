@@ -19,11 +19,16 @@ var dummySimpleStateValueHint = hint.MustNewHint("dummy-simple-state-value-v0.0.
 
 type dummySimpleStateValue struct {
 	hint.BaseHinter
-	I int64 `json:"i"`
+	K string `json:"key"`
+	I int64  `json:"value"`
 }
 
 func newDummySimpleStateValue(i int64) dummySimpleStateValue {
 	return dummySimpleStateValue{BaseHinter: hint.NewBaseHinter(dummySimpleStateValueHint), I: i}
+}
+
+func (s dummySimpleStateValue) Key() string {
+	return s.K
 }
 
 func (s dummySimpleStateValue) HashBytes() []byte {
@@ -52,6 +57,14 @@ func (s dummySimpleStateValue) Equal(b StateValue) bool {
 	}
 }
 
+func (s dummySimpleStateValue) Merger(height Height, st State) StateValueMerger {
+	if st == nil {
+		st = newDummyState(NilHeight, s.K, nil, nil)
+	}
+
+	return newDummySimpleStateValueMerger(height, st)
+}
+
 type dummyState struct {
 	BaseState
 }
@@ -60,10 +73,6 @@ func newDummyState(height Height, k string, v StateValue, previous util.Hash) du
 	return dummyState{
 		BaseState: NewBaseState(height, k, v, previous, nil),
 	}
-}
-
-func (s dummyState) Merger(height Height) StateValueMerger {
-	return newDummySimpleStateValueMerger(height, s)
 }
 
 type dummySimpleStateValueMerger struct {
@@ -122,7 +131,8 @@ func (t *testStateValueMerger) TestNew() {
 		st := newDummyState(Height(33), util.UUID().String(), sv, valuehash.RandomSHA256())
 		_ = (interface{})(st).(State)
 
-		merger := st.Merger(Height(44))
+		v := newDummySimpleStateValue(55)
+		merger := v.Merger(Height(44), st)
 		_ = (merger).(State)
 	})
 }
@@ -133,7 +143,7 @@ func (t *testStateValueMerger) TestAsyncMerge() {
 
 	sv := newDummySimpleStateValue(55)
 	st := newDummyState(Height(33), util.UUID().String(), sv, valuehash.RandomSHA256())
-	merger := st.Merger(Height(44))
+	merger := sv.Merger(Height(44), st)
 
 	ops := make([]util.Hash, 301)
 
@@ -172,8 +182,8 @@ func (t *testStateValueMerger) TestMergedSameHash() {
 
 	sv := newDummySimpleStateValue(55)
 	st := newDummyState(Height(33), util.UUID().String(), sv, valuehash.RandomSHA256())
-	merger0 := st.Merger(Height(44))
-	merger1 := st.Merger(Height(44))
+	merger0 := sv.Merger(Height(44), st)
+	merger1 := sv.Merger(Height(44), st)
 
 	ops := make([]util.Hash, 301)
 
@@ -266,7 +276,7 @@ func TestStateValueMergerEncode(tt *testing.T) {
 
 	sv := newDummySimpleStateValue(55)
 	st := newDummyState(Height(33), util.UUID().String(), sv, valuehash.RandomSHA256())
-	merger := st.Merger(Height(44))
+	merger := sv.Merger(Height(44), st)
 
 	t.Encode = func() (interface{}, []byte) {
 		t.NoError(merger.Merge(newDummySimpleStateValue(77), []util.Hash{valuehash.RandomSHA256()}))

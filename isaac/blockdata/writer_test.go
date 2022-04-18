@@ -153,7 +153,7 @@ func (t *testWriter) TestSetStates() {
 		stvs := make([]base.StateMergeValue, len(sts))
 		for j := range sts {
 			st := sts[j]
-			stvs[j] = base.NewBaseStateMergeValue(st.Key(), st.Value())
+			stvs[j] = base.NewBaseStateMergeValue(st.Key(), st.Value(), nil)
 		}
 		states[i] = stvs
 	}
@@ -233,7 +233,7 @@ func (t *testWriter) TestSetStatesAndClose() {
 		stvs := make([]base.StateMergeValue, len(sts))
 		for j := range sts {
 			st := sts[j]
-			stvs[j] = base.NewBaseStateMergeValue(st.Key(), st.Value())
+			stvs[j] = base.NewBaseStateMergeValue(st.Key(), st.Value(), nil)
 		}
 		states[i] = stvs
 
@@ -241,7 +241,7 @@ func (t *testWriter) TestSetStatesAndClose() {
 
 	{
 		sufst, _ := t.SuffrageState(point.Height(), base.Height(22), nil)
-		states[len(ops)-1] = []base.StateMergeValue{base.NewBaseStateMergeValue(sufst.Key(), sufst.Value())}
+		states[len(ops)-1] = []base.StateMergeValue{base.NewBaseStateMergeValue(sufst.Key(), sufst.Value(), nil)}
 	}
 
 	pr := isaac.NewProposalSignedFact(isaac.NewProposalFact(point, t.Local.Address(), ophs))

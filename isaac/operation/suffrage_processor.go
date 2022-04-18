@@ -149,6 +149,7 @@ func (p *SuffrageUpdateProcessor) Process(ctx context.Context, op base.Operation
 			base.NewBaseStateMergeValue(
 				isaac.SuffrageStateKey,
 				isaac.NewSuffrageStateValue(base.Height(0), nil, fact.NewMembers()),
+				nil,
 			),
 		}, nil, nil
 	}
@@ -191,6 +192,7 @@ func (p *SuffrageUpdateProcessor) Process(ctx context.Context, op base.Operation
 		base.NewBaseStateMergeValue(
 			isaac.SuffrageStateKey,
 			isaac.NewSuffrageStateValue(p.stv.Height()+1, p.st.Hash(), newmembers),
+			nil,
 		),
 	}, nil, nil
 }

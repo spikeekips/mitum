@@ -15,7 +15,6 @@ type State interface {
 	Height() Height      // NOTE manifest height
 	Previous() util.Hash // NOTE previous state hash
 	Operations() []util.Hash
-	Merger(Height) StateValueMerger
 }
 
 type StateValue interface {
@@ -29,6 +28,7 @@ type StateMergeValue interface {
 	StateValue
 	Key() string
 	Value() StateValue
+	Merger(Height, State) StateValueMerger
 }
 
 type StateValueMerger interface {

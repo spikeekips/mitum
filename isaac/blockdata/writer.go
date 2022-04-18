@@ -126,23 +126,22 @@ func (w *Writer) SetState(
 ) error {
 	e := util.StringErrorFunc("failed to set state")
 
-	var st base.State
-	switch j, found, err := w.getStateFunc(stv.Key()); {
-	case err != nil:
+	j, _, err := w.states.Get(stv.Key(), func() (interface{}, error) {
+		var st base.State
+		switch j, found, err := w.getStateFunc(stv.Key()); {
+		case err != nil:
+			return nil, err
+		case found:
+			st = j
+		}
+
+		return stv.Merger(w.proposal.Point().Height(), st), nil
+	})
+	if err != nil {
 		return e(err, "")
-	case !found:
-		st = base.NewBaseState(base.NilHeight, stv.Key(), nil, nil, nil)
-	default:
-		st = j
 	}
 
-	j, _, _ := w.states.Get(stv.Key(), func() (interface{}, error) {
-		return st.Merger(w.proposal.Point().Height()), nil
-	})
-
-	merger := j.(base.StateValueMerger)
-
-	if err := merger.Merge(stv.Value(), []util.Hash{operation.Fact().Hash()}); err != nil {
+	if err := j.(base.StateValueMerger).Merge(stv.Value(), []util.Hash{operation.Fact().Hash()}); err != nil {
 		return e(err, "failed to merge")
 	}
 
