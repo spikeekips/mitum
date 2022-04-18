@@ -23,7 +23,7 @@ var (
 type ProposalProcessors struct {
 	sync.RWMutex
 	*logging.Logging
-	makenew     func(proposal base.ProposalSignedFact, previous base.Manifest) ProposalProcessor
+	makenew     func(proposal base.ProposalSignedFact, previous base.Manifest) (ProposalProcessor, error)
 	getproposal func(_ context.Context, facthash util.Hash) (
 		base.ProposalSignedFact, error) // BLOCK use NewProposalPool
 	p             ProposalProcessor
@@ -32,7 +32,7 @@ type ProposalProcessors struct {
 }
 
 func NewProposalProcessors(
-	makenew func(base.ProposalSignedFact, base.Manifest) ProposalProcessor,
+	makenew func(base.ProposalSignedFact, base.Manifest) (ProposalProcessor, error),
 	getproposal func(context.Context, util.Hash) (base.ProposalSignedFact, error),
 ) *ProposalProcessors {
 	return &ProposalProcessors{
@@ -192,7 +192,34 @@ func (pps *ProposalProcessors) newProcessor(
 		return nil, e(err, "failed to get proposal fact")
 	}
 
-	pps.p = pps.makenew(fact, previous)
+	switch p, err := pps.makenew(fact, previous); {
+	case err != nil:
+		return nil, e(err, "")
+	default:
+		pps.p = p
+
+		if l, ok := pps.p.(logging.SetLogging); ok {
+			_ = l.SetLogging(pps.Logging)
+		}
+
+		return pps.p, nil
+	}
+
+	var p ProposalProcessor
+	if err := util.Retry(ctx, func() (bool, error) {
+		switch i, err := pps.makenew(fact, previous); {
+		case err != nil:
+			return true, err
+		default:
+			p = i
+
+			return false, nil
+		}
+	}, pps.retrylimit, pps.retryinterval); err != nil {
+		return nil, e(err, "")
+	}
+
+	pps.p = p
 	if l, ok := pps.p.(logging.SetLogging); ok {
 		_ = l.SetLogging(pps.Logging)
 	}

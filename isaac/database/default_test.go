@@ -776,7 +776,7 @@ func (t *testDefaultBlockWrite) TestMergePermanent() {
 	t.Equal(10, len(db.activeTemps()))
 	for range make([]int, 3) { // 0, 1, 2
 		t.NoError(db.mergePermanent(context.TODO()))
-		t.NoError(db.cleanRemoved())
+		t.NoError(db.cleanRemoved(2))
 	}
 
 	t.Equal(7, len(db.activeTemps()))

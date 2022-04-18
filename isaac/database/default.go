@@ -339,10 +339,10 @@ func (db *Default) MergeAllPermanent() error {
 		if err := db.mergePermanent(context.Background()); err != nil {
 			return e(err, "")
 		}
-	}
 
-	if err := db.cleanRemoved(0); err != nil {
-		return e(err, "")
+		if err := db.cleanRemoved(0); err != nil {
+			return e(err, "")
+		}
 	}
 
 	return nil

@@ -97,8 +97,10 @@ func (fact *DummyOperationFact) UnmarshalJSON(b []byte) error {
 }
 
 type DummyOperation struct {
-	fact   DummyOperationFact
-	signed base.BaseSigned
+	fact       DummyOperationFact
+	signed     base.BaseSigned
+	preprocess func(context.Context, base.GetStateFunc) (base.OperationProcessReasonError, error)
+	process    func(context.Context, base.GetStateFunc) ([]base.StateMergeValue, base.OperationProcessReasonError, error)
 }
 
 func NewDummyOperation(fact DummyOperationFact, priv base.Privatekey, networkID base.NetworkID) (DummyOperation, error) {
@@ -172,35 +174,18 @@ func (op *DummyOperation) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	return nil
 }
 
-type DummyOperationProcessable struct {
-	DummyOperation
-	preprocess func(context.Context, base.StatePool) (base.OperationProcessReasonError, error)
-	process    func(context.Context, base.StatePool) ([]base.State, base.OperationProcessReasonError, error)
-}
-
-func NewDummyOperationProcessable(fact DummyOperationFact, priv base.Privatekey, networkID base.NetworkID) (DummyOperationProcessable, error) {
-	op, err := NewDummyOperation(fact, priv, networkID)
-	if err != nil {
-		return DummyOperationProcessable{}, err
-	}
-
-	return DummyOperationProcessable{
-		DummyOperation: op,
-	}, nil
-}
-
-func (op DummyOperationProcessable) PreProcess(ctx context.Context, sp base.StatePool) (base.OperationProcessReasonError, error) {
+func (op DummyOperation) PreProcess(ctx context.Context, getStateFunc base.GetStateFunc) (base.OperationProcessReasonError, error) {
 	if op.preprocess == nil {
 		return base.NewBaseOperationProcessReasonError("nil preprocess"), nil
 	}
 
-	return op.preprocess(ctx, sp)
+	return op.preprocess(ctx, getStateFunc)
 }
 
-func (op DummyOperationProcessable) Process(ctx context.Context, sp base.StatePool) ([]base.State, base.OperationProcessReasonError, error) {
+func (op DummyOperation) Process(ctx context.Context, getStateFunc base.GetStateFunc) ([]base.StateMergeValue, base.OperationProcessReasonError, error) {
 	if op.process == nil {
 		return nil, base.NewBaseOperationProcessReasonError("empty process"), nil
 	}
 
-	return op.process(ctx, sp)
+	return op.process(ctx, getStateFunc)
 }

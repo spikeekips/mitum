@@ -153,7 +153,7 @@ func (BlockDataMap) Bytes() []byte {
 	return nil
 }
 
-func (m *BlockDataMap) signedBytes() []byte {
+func (m BlockDataMap) signedBytes() []byte {
 	ts := make([][]byte, len(m.m))
 
 	i := -1

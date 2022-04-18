@@ -23,8 +23,7 @@ func NewTestSuffrage(n int, extras ...LocalNode) (Suffrage, []LocalNode) {
 	locals := make([]LocalNode, n+len(extras))
 	nodes := make([]base.Node, n+len(extras))
 	for i := range make([]int, n) {
-		l := RandomLocalNode()
-		l.addr = base.NewStringAddress(fmt.Sprintf("no%02d", i))
+		l := NewLocalNode(base.NewMPrivatekey(), base.NewStringAddress(fmt.Sprintf("no%02d", i)))
 
 		nodes[i] = l
 		locals[i] = l

@@ -27,18 +27,31 @@ func (t *testRetry) TestNoError() {
 }
 
 func (t *testRetry) TestError() {
-	var called int
-	err := Retry(context.Background(), func() (bool, error) {
-		called++
+	t.Run("false error", func() {
+		var called int
+		err := Retry(context.Background(), func() (bool, error) {
+			called++
 
-		if called < 2 {
-			return true, errors.Errorf("findme")
-		}
+			if called < 2 {
+				return true, errors.Errorf("findme")
+			}
 
-		return false, errors.Errorf("showme")
-	}, 3, 0)
-	t.Contains(err.Error(), "showme")
-	t.Equal(2, called)
+			return false, errors.Errorf("showme")
+		}, 3, 1)
+		t.Contains(err.Error(), "showme")
+		t.Equal(2, called)
+	})
+
+	t.Run("limited error", func() {
+		var called int
+		err := Retry(context.Background(), func() (bool, error) {
+			called++
+
+			return true, errors.Errorf("showme: %d", called)
+		}, 3, 1)
+		t.Contains(err.Error(), "showme: 3")
+		t.Equal(3, called)
+	})
 }
 
 func (t *testRetry) TestCancel() {

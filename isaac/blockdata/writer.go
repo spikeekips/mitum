@@ -31,10 +31,11 @@ type FSWriter interface {
 
 type Writer struct {
 	sync.RWMutex
-	mergeDatabase func(isaac.BlockWriteDatabase) error
-	db            isaac.BlockWriteDatabase
-	fswriter      FSWriter
 	proposal      base.ProposalSignedFact
+	getStateFunc  base.GetStateFunc
+	db            isaac.BlockWriteDatabase
+	mergeDatabase func(isaac.BlockWriteDatabase) error
+	fswriter      FSWriter
 	manifest      base.Manifest
 	opstreeg      *tree.FixedTreeGenerator
 	opstree       tree.FixedTree
@@ -43,11 +44,15 @@ type Writer struct {
 }
 
 func NewWriter(
+	proposal base.ProposalSignedFact,
+	getStateFunc base.GetStateFunc,
 	db isaac.BlockWriteDatabase,
 	mergeDatabase func(isaac.BlockWriteDatabase) error,
 	fswriter FSWriter,
 ) *Writer {
 	return &Writer{
+		proposal:      proposal,
+		getStateFunc:  getStateFunc,
 		db:            db,
 		mergeDatabase: mergeDatabase,
 		fswriter:      fswriter,
@@ -55,16 +60,6 @@ func NewWriter(
 		ststree:       tree.EmptyFixedTree(),
 		states:        util.NewLockedMap(),
 	}
-}
-
-func (w *Writer) SetProposal(ctx context.Context, proposal base.ProposalSignedFact) error {
-	if err := w.fswriter.SetProposal(ctx, proposal); err != nil {
-		return errors.Wrap(err, "failed to set proposal")
-	}
-
-	w.proposal = proposal
-
-	return nil
 }
 
 func (w *Writer) SetOperationsSize(n uint64) {
@@ -105,7 +100,7 @@ func (w *Writer) SetProcessResult(
 }
 
 func (w *Writer) SetStates(
-	ctx context.Context, index int, states []base.State, operation base.Operation,
+	ctx context.Context, index int, states []base.StateMergeValue, operation base.Operation,
 ) error {
 	e := util.StringErrorFunc("failed to set states")
 
@@ -114,22 +109,41 @@ func (w *Writer) SetStates(
 	}
 
 	for i := range states {
-		st := states[i]
-
-		j, found, _ := w.states.Get(st.Key(), func() (interface{}, error) {
-			return st.Merger(w.proposal.Point().Height()), nil
-		})
-		if found {
-			merger := j.(base.StateValueMerger)
-
-			if err := merger.Merge(st.Value(), []util.Hash{operation.Fact().Hash()}); err != nil {
-				return e(err, "failed to merge")
-			}
+		if err := w.SetState(ctx, states[i], operation); err != nil {
+			return e(err, "")
 		}
 	}
 
 	if err := w.fswriter.SetOperation(ctx, index, operation); err != nil {
 		return e(err, "")
+	}
+
+	return nil
+}
+
+func (w *Writer) SetState(
+	ctx context.Context, stv base.StateMergeValue, operation base.Operation,
+) error {
+	e := util.StringErrorFunc("failed to set state")
+
+	var st base.State
+	switch j, found, err := w.getStateFunc(stv.Key()); {
+	case err != nil:
+		return e(err, "")
+	case !found:
+		st = base.NewBaseState(base.NilHeight, stv.Key(), nil, nil, nil)
+	default:
+		st = j
+	}
+
+	j, _, _ := w.states.Get(stv.Key(), func() (interface{}, error) {
+		return st.Merger(w.proposal.Point().Height()), nil
+	})
+
+	merger := j.(base.StateValueMerger)
+
+	if err := merger.Merge(stv.Value(), []util.Hash{operation.Fact().Hash()}); err != nil {
+		return e(err, "failed to merge")
 	}
 
 	return nil
@@ -252,6 +266,12 @@ func (w *Writer) saveStates(
 	defer worker.Close()
 
 	if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
+		return w.setProposal(ctx)
+	}); err != nil {
+		return e(err, "")
+	}
+
+	if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
 		return w.db.SetStates(states)
 	}); err != nil {
 		return e(err, "")
@@ -300,10 +320,11 @@ func (w *Writer) Manifest(ctx context.Context, previous base.Manifest) (base.Man
 	var suffrage, previousHash util.Hash
 	if w.proposal.Point().Height() > base.GenesisHeight {
 		suffrage = previous.Suffrage()
-		if i := w.db.SuffrageState(); i != nil {
-			suffrage = i.Hash()
-		}
 		previousHash = previous.Hash()
+	}
+
+	if i := w.db.SuffrageState(); i != nil {
+		suffrage = i.Hash()
 	}
 
 	if w.manifest == nil {
@@ -374,6 +395,14 @@ func (w *Writer) Cancel() error {
 
 	if err := w.db.Cancel(); err != nil {
 		return e(err, "")
+	}
+
+	return nil
+}
+
+func (w *Writer) setProposal(ctx context.Context) error {
+	if err := w.fswriter.SetProposal(ctx, w.proposal); err != nil {
+		return errors.Wrap(err, "failed to set proposal")
 	}
 
 	return nil

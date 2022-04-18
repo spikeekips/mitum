@@ -103,10 +103,10 @@ func (s BaseState) Operations() []util.Hash {
 	return s.ops
 }
 
-func (s *BaseState) SetOperations(ops []util.Hash) BaseState {
-	s.ops = ops
+func (s BaseState) SetValue(v StateValue) BaseState {
+	s.v = v
 
-	return *s
+	return s
 }
 
 func (s BaseState) Merger(height Height) StateValueMerger {
@@ -262,13 +262,6 @@ func (s *BaseStateValueMerger) Value() StateValue {
 	return s.nst.Value()
 }
 
-func (s *BaseStateValueMerger) SetValue(value StateValue) {
-	s.Lock()
-	defer s.Unlock()
-
-	s.value = value
-}
-
 func (s *BaseStateValueMerger) Operations() []util.Hash {
 	s.RLock()
 	defer s.RUnlock()
@@ -294,7 +287,7 @@ func (s *BaseStateValueMerger) Close() error {
 	e := util.StringErrorFunc("failed to close")
 
 	if s.value == nil {
-		return e(nil, "empty hash")
+		return e(nil, "empty value")
 	}
 
 	sort.Slice(s.ops, func(i, j int) bool {
@@ -316,6 +309,23 @@ func (s *BaseStateValueMerger) AddOperations(ops []util.Hash) {
 
 func (s *BaseStateValueMerger) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(s.nst)
+}
+
+type BaseStateMergeValue struct {
+	StateValue
+	key string
+}
+
+func NewBaseStateMergeValue(key string, value StateValue) BaseStateMergeValue {
+	return BaseStateMergeValue{StateValue: value, key: key}
+}
+
+func (v BaseStateMergeValue) Key() string {
+	return v.key
+}
+
+func (v BaseStateMergeValue) Value() StateValue {
+	return v.StateValue
 }
 
 func DecodeStateValue(b []byte, enc encoder.Encoder) (StateValue, error) {

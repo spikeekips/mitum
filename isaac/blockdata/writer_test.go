@@ -44,7 +44,7 @@ func (t *testWriter) TestNew() {
 	defer db.Close()
 
 	fswriter := &DummyBlockDataFSWriter{}
-	writer := NewWriter(db, func(isaac.BlockWriteDatabase) error {
+	writer := NewWriter(nil, nil, db, func(isaac.BlockWriteDatabase) error {
 		return nil
 	}, fswriter)
 
@@ -64,24 +64,13 @@ func (t *testWriter) TestNew() {
 	})
 }
 
-func (t *testWriter) TestSetProposal() {
+func (t *testWriter) TestSetOperations() {
 	point := base.RawPoint(33, 44)
 
 	db := t.NewMemLeveldbBlockWriteDatabase(point.Height())
 	defer db.Close()
 
 	fswriter := &DummyBlockDataFSWriter{}
-
-	prch := make(chan base.ProposalSignedFact, 1)
-	fswriter.setProposalf = func(_ context.Context, pr base.ProposalSignedFact) error {
-		prch <- pr
-
-		return nil
-	}
-
-	writer := NewWriter(db, func(isaac.BlockWriteDatabase) error {
-		return nil
-	}, fswriter)
 
 	ops := make([]util.Hash, 33)
 	for i := range ops {
@@ -91,28 +80,7 @@ func (t *testWriter) TestSetProposal() {
 	pr := isaac.NewProposalSignedFact(isaac.NewProposalFact(point, t.Local.Address(), ops))
 	_ = pr.Sign(t.Local.Privatekey(), t.Policy.NetworkID())
 
-	t.NoError(writer.SetProposal(context.Background(), pr))
-
-	base.EqualProposalSignedFact(t.Assert(), pr, writer.proposal)
-
-	upr := <-prch
-	base.EqualProposalSignedFact(t.Assert(), pr, upr)
-}
-
-func (t *testWriter) TestSetOperations() {
-	point := base.RawPoint(33, 44)
-
-	db := t.NewMemLeveldbBlockWriteDatabase(point.Height())
-	defer db.Close()
-
-	fswriter := &DummyBlockDataFSWriter{}
-
-	writer := NewWriter(db, func(isaac.BlockWriteDatabase) error { return nil }, fswriter)
-
-	ops := make([]util.Hash, 33)
-	for i := range ops {
-		ops[i] = valuehash.RandomSHA256()
-	}
+	writer := NewWriter(pr, nil, db, func(isaac.BlockWriteDatabase) error { return nil }, fswriter)
 
 	writer.SetOperationsSize(uint64(len(ops)))
 
@@ -168,27 +136,32 @@ func (t *testWriter) TestSetStates() {
 
 	fswriter := &DummyBlockDataFSWriter{}
 
-	writer := NewWriter(db, func(isaac.BlockWriteDatabase) error { return nil }, fswriter)
-
 	ophs := make([]util.Hash, 33)
 	ops := make([]base.Operation, 33)
 	for i := range ops {
 		fact := isaac.NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
-		op, err := isaac.NewDummyOperationProcessable(fact, t.Local.Privatekey(), t.Policy.NetworkID())
+		op, err := isaac.NewDummyOperation(fact, t.Local.Privatekey(), t.Policy.NetworkID())
 		t.NoError(err)
 
 		ops[i] = op
 		ophs[i] = op.Fact().Hash()
 	}
-	states := make([][]base.State, len(ops))
+	states := make([][]base.StateMergeValue, len(ops))
 	for i := range ops {
-		states[i] = t.States(point.Height(), i%5+1)
+		sts := t.States(point.Height(), i%5+1)
+
+		stvs := make([]base.StateMergeValue, len(sts))
+		for j := range sts {
+			st := sts[j]
+			stvs[j] = base.NewBaseStateMergeValue(st.Key(), st.Value())
+		}
+		states[i] = stvs
 	}
 
 	pr := isaac.NewProposalSignedFact(isaac.NewProposalFact(point, t.Local.Address(), ophs))
 	_ = pr.Sign(t.Local.Privatekey(), t.Policy.NetworkID())
 
-	t.NoError(writer.SetProposal(context.Background(), pr))
+	writer := NewWriter(pr, base.NilGetState, db, func(isaac.BlockWriteDatabase) error { return nil }, fswriter)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -221,7 +194,7 @@ func (t *testWriter) TestSetStates() {
 			t.NoError(merger.Close())
 
 			t.Equal(st.Key(), merger.Key())
-			t.True(st.Value().Equal(merger.Value()))
+			t.True(st.Equal(merger.Value()))
 		}
 	}
 }
@@ -243,32 +216,39 @@ func (t *testWriter) TestSetStatesAndClose() {
 		return nil
 	}
 
-	writer := NewWriter(db, func(isaac.BlockWriteDatabase) error { return nil }, fswriter)
-
 	ophs := make([]util.Hash, 33)
 	ops := make([]base.Operation, len(ophs))
 	for i := range ops {
 		fact := isaac.NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
-		op, err := isaac.NewDummyOperationProcessable(fact, t.Local.Privatekey(), t.Policy.NetworkID())
+		op, err := isaac.NewDummyOperation(fact, t.Local.Privatekey(), t.Policy.NetworkID())
 		t.NoError(err)
 
 		ops[i] = op
 		ophs[i] = op.Fact().Hash()
 	}
-	states := make([][]base.State, len(ops))
+	states := make([][]base.StateMergeValue, len(ops))
 	for i := range ops[:len(ops)-1] {
-		states[i] = t.States(point.Height(), i%5+1)
+		sts := t.States(point.Height(), i%5+1)
+
+		stvs := make([]base.StateMergeValue, len(sts))
+		for j := range sts {
+			st := sts[j]
+			stvs[j] = base.NewBaseStateMergeValue(st.Key(), st.Value())
+		}
+		states[i] = stvs
+
 	}
 
 	{
 		sufst, _ := t.SuffrageState(point.Height(), base.Height(22), nil)
-		states[len(ops)-1] = []base.State{sufst}
+		states[len(ops)-1] = []base.StateMergeValue{base.NewBaseStateMergeValue(sufst.Key(), sufst.Value())}
 	}
 
 	pr := isaac.NewProposalSignedFact(isaac.NewProposalFact(point, t.Local.Address(), ophs))
 	_ = pr.Sign(t.Local.Privatekey(), t.Policy.NetworkID())
 
-	t.NoError(writer.SetProposal(context.Background(), pr))
+	writer := NewWriter(pr, base.NilGetState, db, func(isaac.BlockWriteDatabase) error { return nil }, fswriter)
+
 	writer.SetOperationsSize(uint64(len(ops)))
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -330,10 +310,6 @@ func (t *testWriter) TestManifest() {
 		return nil
 	}
 
-	writer := NewWriter(db, func(isaac.BlockWriteDatabase) error {
-		return nil
-	}, fswriter)
-
 	ops := make([]util.Hash, 33)
 	for i := range ops {
 		ops[i] = valuehash.RandomSHA256()
@@ -342,7 +318,9 @@ func (t *testWriter) TestManifest() {
 	pr := isaac.NewProposalSignedFact(isaac.NewProposalFact(point, t.Local.Address(), ops))
 	_ = pr.Sign(t.Local.Privatekey(), t.Policy.NetworkID())
 
-	t.NoError(writer.SetProposal(context.Background(), pr))
+	writer := NewWriter(pr, nil, db, func(isaac.BlockWriteDatabase) error {
+		return nil
+	}, fswriter)
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest, err := writer.Manifest(context.Background(), previous)
@@ -351,8 +329,8 @@ func (t *testWriter) TestManifest() {
 
 	t.True(manifest.Previous().Equal(previous.Hash()))
 	t.True(manifest.Proposal().Equal(pr.Fact().Hash()))
-	t.True(manifest.OperationsTree().Equal(valuehash.Bytes(writer.opstree.Root())))
-	t.True(manifest.StatesTree().Equal(valuehash.Bytes(writer.ststree.Root())))
+	t.Equal(manifest.OperationsTree(), valuehash.NewHashFromBytes(writer.opstree.Root()))
+	t.Equal(manifest.StatesTree(), valuehash.NewHashFromBytes(writer.ststree.Root()))
 
 	um := <-mch
 	base.EqualManifest(t.Assert(), manifest, um)

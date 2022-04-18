@@ -20,18 +20,17 @@ var (
 
 type Operation interface {
 	hint.Hinter
-	SealBody
+	util.IsValider
 	SignedFact
+	PreProcess(context.Context, GetStateFunc) (OperationProcessReasonError, error)
+	Process(context.Context, GetStateFunc) ([]StateMergeValue, OperationProcessReasonError, error)
 }
 
-type ProcessableOperation interface {
-	PreProcess(context.Context, StatePool) (OperationProcessReasonError, error)
-	Process(context.Context, StatePool) ([]State, OperationProcessReasonError, error)
-}
+type OperationProcessorProcessFunc func(context.Context, Operation, GetStateFunc) (OperationProcessReasonError, error)
 
 type OperationProcessor interface {
-	PreProcess(context.Context, Operation, StatePool) (OperationProcessReasonError, error)
-	Process(context.Context, Operation, StatePool) ([]State, OperationProcessReasonError, error)
+	PreProcess(context.Context, Operation, GetStateFunc) (OperationProcessReasonError, error)
+	Process(context.Context, Operation, GetStateFunc) ([]StateMergeValue, OperationProcessReasonError, error)
 }
 
 type OperationFixedTreeNode struct {

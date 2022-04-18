@@ -25,16 +25,19 @@ type StateValue interface {
 	Equal(StateValue) bool
 }
 
+type StateMergeValue interface {
+	StateValue
+	Key() string
+	Value() StateValue
+}
+
 type StateValueMerger interface {
 	State
 	Merge(value StateValue, operations []util.Hash) error
 	Close() error
 }
 
-type StatePool interface {
-	GetState(key string) (State, bool, error)
-	SetStates([]State) error
-}
+type GetStateFunc func(key string) (State, bool, error)
 
 func IsEqualState(a, b State) bool {
 	switch {

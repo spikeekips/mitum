@@ -11,7 +11,7 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
-func (pps *ProposalProcessors) SetMakeNew(f func(proposal base.ProposalSignedFact, previous base.Manifest) ProposalProcessor) {
+func (pps *ProposalProcessors) SetMakeNew(f func(proposal base.ProposalSignedFact, previous base.Manifest) (ProposalProcessor, error)) {
 	pps.makenew = f
 }
 
@@ -31,14 +31,14 @@ func NewDummyProposalProcessor() *DummyProposalProcessor {
 	return &DummyProposalProcessor{}
 }
 
-func (p *DummyProposalProcessor) Make(proposal base.ProposalSignedFact, previous base.Manifest) ProposalProcessor {
+func (p *DummyProposalProcessor) Make(proposal base.ProposalSignedFact, previous base.Manifest) (ProposalProcessor, error) {
 	return DummyProposalProcessor{
 		proposal:   proposal,
 		previous:   previous,
 		Processerr: p.Processerr,
 		Saveerr:    p.Saveerr,
 		Cancelerr:  p.Cancelerr,
-	}
+	}, nil
 }
 
 func (p DummyProposalProcessor) Process(ctx context.Context, ivp base.INITVoteproof) (base.Manifest, error) {

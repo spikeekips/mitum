@@ -382,7 +382,7 @@ func (t *testLocalFSWriter) TestSetOperations() {
 	opstreeg := tree.NewFixedTreeGenerator(33)
 	for i := range ops {
 		fact := isaac.NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
-		op, _ := isaac.NewDummyOperationProcessable(fact, t.Local.Privatekey(), t.Policy.NetworkID())
+		op, _ := isaac.NewDummyOperation(fact, t.Local.Privatekey(), t.Policy.NetworkID())
 		ops[i] = op
 
 		node := base.NewOperationFixedTreeNode(uint64(i), op.Fact().Hash(), true, "")

@@ -8,7 +8,6 @@ import (
 )
 
 type BlockDataWriter interface {
-	SetProposal(context.Context, base.ProposalSignedFact) error
 	SetOperationsSize(uint64)
 	SetProcessResult(
 		_ context.Context,
@@ -17,7 +16,7 @@ type BlockDataWriter interface {
 		instate bool,
 		errorreason base.OperationProcessReasonError,
 	) error
-	SetStates(_ context.Context, index int, states []base.State, operation base.Operation) error
+	SetStates(_ context.Context, index int, values []base.StateMergeValue, operation base.Operation) error
 	Manifest(_ context.Context, previous base.Manifest) (base.Manifest, error)
 	SetINITVoteproof(context.Context, base.INITVoteproof) error
 	SetACCEPTVoteproof(context.Context, base.ACCEPTVoteproof) error

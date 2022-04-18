@@ -186,7 +186,7 @@ func (m *DummyManifest) UnmarshalJSON(b []byte) error {
 	m.opstree = u.Opstree.Hash()
 	m.statestree = u.Statestree.Hash()
 	m.suf = u.Suf.Hash()
-	m.proposedAtt = u.ProposedAt.Time
+	m.proposedAt = u.ProposedAt.Time
 	m.nodeCreatedAt = u.NodeCreatedAt.Time
 
 	return nil

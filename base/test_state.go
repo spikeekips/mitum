@@ -4,9 +4,26 @@
 package base
 
 import (
+	"bytes"
+
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
 )
+
+func (s *BaseStateValueMerger) SetValue(value StateValue) State {
+	s.Lock()
+	defer s.Unlock()
+
+	s.value = value
+
+	return s
+}
+
+func (s *BaseState) SetOperations(ops []util.Hash) BaseState {
+	s.ops = ops
+
+	return *s
+}
 
 var DummyStateValueHint = hint.MustNewHint("dummy-state-value-v0.0.1")
 
@@ -39,12 +56,9 @@ func (s DummyStateValue) Equal(b StateValue) bool {
 		return false
 	}
 
-	switch j, ok := b.(DummyStateValue); {
-	case !ok:
-		return false
-	case s.S != j.S:
-		return false
-	default:
-		return true
-	}
+	return bytes.Equal(s.HashBytes(), b.HashBytes())
+}
+
+func NilGetState(string) (State, bool, error) {
+	return nil, false, nil
 }
