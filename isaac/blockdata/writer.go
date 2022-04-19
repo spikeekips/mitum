@@ -246,14 +246,14 @@ func (*Writer) closeStateValue(
 ) (base.State, error) {
 	stm, ok := st.(base.StateValueMerger)
 	if !ok {
-		return st, tg.Add(base.NewStateFixedTreeNode(uint64(index), []byte(st.Key())))
+		return st, tg.Add(base.NewStateFixedTreeNode(uint64(index), st.Key()))
 	}
 
 	if err := stm.Close(); err != nil {
 		return nil, err
 	}
 
-	return stm, tg.Add(base.NewStateFixedTreeNode(uint64(index), []byte(stm.Key())))
+	return stm, tg.Add(base.NewStateFixedTreeNode(uint64(index), stm.Key()))
 }
 
 func (w *Writer) saveStates(

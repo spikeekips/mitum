@@ -2,6 +2,8 @@ package util
 
 import (
 	"fmt"
+
+	"github.com/btcsuite/btcutil/base58"
 )
 
 type Hash interface {
@@ -18,4 +20,12 @@ type Hasher interface {
 type HashByter interface {
 	// HashBytes is uses to generate hash
 	HashBytes() []byte
+}
+
+func EncodeHash(b []byte) string {
+	return base58.Encode(b)
+}
+
+func DecodeHash(s string) []byte {
+	return base58.Decode(s)
 }

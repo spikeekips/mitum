@@ -3,7 +3,6 @@ package valuehash
 import (
 	"crypto/rand"
 
-	"github.com/btcsuite/btcutil/base58"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -43,8 +42,4 @@ func RandomSHA512WithPrefix(prefix []byte) util.Hash {
 	lp := util.Int64ToBytes(int64(len(prefix)))
 
 	return NewBytes(util.ConcatBytesSlice(lh, lp, RandomSHA512().Bytes(), prefix))
-}
-
-func toString(b []byte) string {
-	return base58.Encode(b)
 }

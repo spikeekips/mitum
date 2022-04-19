@@ -3,7 +3,6 @@ package tree
 import (
 	"encoding/json"
 
-	"github.com/btcsuite/btcutil/base58"
 	"github.com/spikeekips/mitum/util"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
@@ -20,8 +19,8 @@ func (no BaseFixedTreeNode) JSONMarshaler() BaseFixedTreeNodeJSONMarshaler {
 	return BaseFixedTreeNodeJSONMarshaler{
 		BaseHinter: no.BaseHinter,
 		IN:         no.index,
-		KY:         base58.Encode(no.key),
-		HS:         base58.Encode(no.hash),
+		KY:         no.key,
+		HS:         util.EncodeHash(no.hash),
 	}
 }
 
@@ -40,14 +39,17 @@ type BaseFixedTreeNodeJSONUnmarshaler struct {
 }
 
 func (no *BaseFixedTreeNode) UnmarshalJSON(b []byte) error {
+	e := util.StringErrorFunc("failed to unmarshal BaseFixedTreeNode")
+
 	var u BaseFixedTreeNodeJSONUnmarshaler
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return err
+		return e(err, "")
 	}
 
 	no.index = u.IN
-	no.key = base58.Decode(u.KY)
-	no.hash = base58.Decode(u.HS)
+	no.key = u.KY
+
+	no.hash = util.DecodeHash(u.HS)
 
 	return nil
 }

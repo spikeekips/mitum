@@ -29,7 +29,7 @@ func (h L32) Bytes() []byte {
 }
 
 func (h L32) String() string {
-	return toString(h[:])
+	return util.EncodeHash(h[:])
 }
 
 func (h L32) Equal(b util.Hash) bool {
@@ -53,7 +53,7 @@ func (h L64) Bytes() []byte {
 }
 
 func (h L64) String() string {
-	return toString(h[:])
+	return util.EncodeHash(h[:])
 }
 
 func (h L64) Equal(b util.Hash) bool {

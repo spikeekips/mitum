@@ -474,7 +474,7 @@ func (t *testLocalFSWriter) TestSetStates() {
 			valuehash.RandomSHA256(),
 			nil,
 		)
-		node := base.NewStateFixedTreeNode(uint64(i), []byte(key))
+		node := base.NewStateFixedTreeNode(uint64(i), key)
 		t.NoError(sttstreeg.Add(node))
 	}
 

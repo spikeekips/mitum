@@ -2,7 +2,9 @@ package blockdata
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -84,6 +86,24 @@ func (t *testBaseLocalBlockDataFS) walkDirectory(root string) {
 
 		t.T().Log("file:", path)
 
+		f, err := os.Open(path)
+		t.NoError(err)
+		var b []byte
+		if strings.HasSuffix(path, ".gz") {
+			gr, err := gzip.NewReader(f)
+			t.NoError(err)
+			i, err := io.ReadAll(gr)
+			t.NoError(err)
+
+			b = i
+		} else {
+			i, err := io.ReadAll(f)
+			t.NoError(err)
+
+			b = i
+		}
+		t.T().Log("   >", string(b))
+
 		return nil
 	})
 }
@@ -141,7 +161,7 @@ func (t *testLocalFSReader) preparefs(point base.Point) (
 	stts := make([]base.State, 3)
 	sttstreeg := tree.NewFixedTreeGenerator(uint64(len(stts)))
 	for i := range stts {
-		key := util.UUID().String()
+		key := fmt.Sprintf("state-key-%d-%s", i, util.UUID().String())
 		stts[i] = base.NewBaseState(
 			point.Height(),
 			key,
@@ -149,7 +169,7 @@ func (t *testLocalFSReader) preparefs(point base.Point) (
 			valuehash.RandomSHA256(),
 			nil,
 		)
-		node := base.NewStateFixedTreeNode(uint64(i), []byte(key))
+		node := base.NewStateFixedTreeNode(uint64(i), key)
 		t.NoError(sttstreeg.Add(node))
 	}
 

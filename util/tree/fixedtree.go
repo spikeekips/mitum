@@ -23,7 +23,7 @@ type FixedTreeNode interface {
 	hint.Hinter
 	util.IsValider
 	Index() uint64
-	Key() []byte
+	Key() string
 	Hash() []byte
 	SetHash([]byte) FixedTreeNode
 	Equal(FixedTreeNode) bool
@@ -33,11 +33,11 @@ type BaseFixedTreeNode struct {
 	util.DefaultJSONMarshaled
 	hint.BaseHinter
 	index uint64
-	key   []byte
+	key   string
 	hash  []byte
 }
 
-func NewBaseFixedTreeNode(ht hint.Hint, index uint64, key []byte) BaseFixedTreeNode {
+func NewBaseFixedTreeNode(ht hint.Hint, index uint64, key string) BaseFixedTreeNode {
 	return BaseFixedTreeNode{
 		BaseHinter: hint.NewBaseHinter(ht),
 		index:      index,
@@ -45,7 +45,7 @@ func NewBaseFixedTreeNode(ht hint.Hint, index uint64, key []byte) BaseFixedTreeN
 	}
 }
 
-func NewBaseFixedTreeNodeWithHash(ht hint.Hint, index uint64, key, hash []byte) BaseFixedTreeNode {
+func NewBaseFixedTreeNodeWithHash(ht hint.Hint, index uint64, key string, hash []byte) BaseFixedTreeNode {
 	tr := NewBaseFixedTreeNode(ht, index, key)
 	tr.hash = hash
 
@@ -72,7 +72,7 @@ func (no BaseFixedTreeNode) Equal(n FixedTreeNode) bool {
 	switch {
 	case no.index != n.Index():
 		return false
-	case !bytes.Equal(no.key, n.Key()):
+	case no.key != n.Key():
 		return false
 	case !bytes.Equal(no.hash, n.Hash()):
 		return false
@@ -85,7 +85,7 @@ func (no BaseFixedTreeNode) Index() uint64 {
 	return no.index
 }
 
-func (no BaseFixedTreeNode) Key() []byte {
+func (no BaseFixedTreeNode) Key() string {
 	return no.key
 }
 
@@ -377,9 +377,10 @@ func fixedTreeNodeHash(
 	}
 
 	bi := util.Uint64ToBytes(self.Index())
-	a := make([]byte, len(self.Key())+len(bi))
+	key := []byte(self.Key())
+	a := make([]byte, len(key)+len(bi))
 	copy(a, bi)
-	copy(a[len(bi):], self.Key())
+	copy(a[len(bi):], key)
 
 	var lh, rh []byte
 	if left != nil {

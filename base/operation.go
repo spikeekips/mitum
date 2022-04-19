@@ -61,7 +61,7 @@ func NewOperationFixedTreeNodeWithHash(
 	}
 
 	return OperationFixedTreeNode{
-		BaseFixedTreeNode: tree.NewBaseFixedTreeNodeWithHash(OperationFixedTreeNodeHint, index, facthash.Bytes(), hash),
+		BaseFixedTreeNode: tree.NewBaseFixedTreeNodeWithHash(OperationFixedTreeNodeHint, index, facthash.String(), hash),
 		inState:           inState,
 		reason:            operr,
 	}
@@ -72,7 +72,7 @@ func (no OperationFixedTreeNode) InState() bool {
 }
 
 func (no OperationFixedTreeNode) Operation() util.Hash {
-	return valuehash.Bytes(no.Key())
+	return valuehash.NewBytesFromString(no.Key())
 }
 
 func (no OperationFixedTreeNode) Reason() OperationProcessReasonError {

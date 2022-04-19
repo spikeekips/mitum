@@ -75,7 +75,7 @@ type StateFixedTreeNode struct {
 	tree.BaseFixedTreeNode
 }
 
-func NewStateFixedTreeNode(index uint64, key []byte) StateFixedTreeNode {
+func NewStateFixedTreeNode(index uint64, key string) StateFixedTreeNode {
 	return StateFixedTreeNode{
 		BaseFixedTreeNode: tree.NewBaseFixedTreeNodeWithHash(StateFixedTreeNodeHint, index, key, nil),
 	}

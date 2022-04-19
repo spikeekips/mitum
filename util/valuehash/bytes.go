@@ -3,7 +3,6 @@ package valuehash
 import (
 	"bytes"
 
-	"github.com/btcsuite/btcutil/base58"
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 )
@@ -25,11 +24,11 @@ func NewHashFromBytes(b []byte) util.Hash {
 }
 
 func NewBytesFromString(s string) Bytes {
-	return NewBytes(base58.Decode(s))
+	return NewBytes(util.DecodeHash(s))
 }
 
 func (hs Bytes) String() string {
-	return toString(hs)
+	return util.EncodeHash(hs.Bytes())
 }
 
 func (hs Bytes) IsValid([]byte) error {
