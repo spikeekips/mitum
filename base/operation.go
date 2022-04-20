@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
@@ -60,19 +61,29 @@ func NewOperationFixedTreeNodeWithHash(
 		operr = NewBaseOperationProcessReasonError(reason)
 	}
 
+	k := facthash.String()
+	if !inState {
+		k += "-"
+	}
+
+	// BLOCK node key = <facthash>[instate, -]
 	return OperationFixedTreeNode{
-		BaseFixedTreeNode: tree.NewBaseFixedTreeNodeWithHash(OperationFixedTreeNodeHint, index, facthash.String(), hash),
+		BaseFixedTreeNode: tree.NewBaseFixedTreeNodeWithHash(OperationFixedTreeNodeHint, index, k, hash),
 		inState:           inState,
 		reason:            operr,
 	}
 }
 
 func (no OperationFixedTreeNode) InState() bool {
-	return no.inState
+	_, instate := ParseTreeNodeOperationKey(no.Key())
+
+	return instate
 }
 
 func (no OperationFixedTreeNode) Operation() util.Hash {
-	return valuehash.NewBytesFromString(no.Key())
+	h, _ := ParseTreeNodeOperationKey(no.Key())
+
+	return h
 }
 
 func (no OperationFixedTreeNode) Reason() OperationProcessReasonError {
@@ -85,41 +96,20 @@ func (no OperationFixedTreeNode) SetHash(h []byte) tree.FixedTreeNode {
 	return no
 }
 
-func (no OperationFixedTreeNode) Equal(n tree.FixedTreeNode) bool {
-	if !no.BaseFixedTreeNode.Equal(n) {
-		return false
-	}
-
-	nno, ok := n.(OperationFixedTreeNode)
-	if !ok {
-		return true
-	}
-
-	switch {
-	case no.inState != nno.inState:
-		return false
-	default:
-		return true
-	}
-}
-
 type operationFixedTreeNodeJSONMarshaler struct {
 	tree.BaseFixedTreeNodeJSONMarshaler
-	InState bool                        `json:"in_state"`
-	Reason  OperationProcessReasonError `json:"reason"`
+	Reason OperationProcessReasonError `json:"reason"`
 }
 
 func (no OperationFixedTreeNode) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(operationFixedTreeNodeJSONMarshaler{
 		BaseFixedTreeNodeJSONMarshaler: no.BaseFixedTreeNode.JSONMarshaler(),
-		InState:                        no.inState,
 		Reason:                         no.reason,
 	})
 }
 
 type operationFixedTreeNodeJSONUnmarshaler struct {
-	InState bool            `json:"in_state"`
-	Reason  json.RawMessage `json:"reason"`
+	Reason json.RawMessage `json:"reason"`
 }
 
 func (no *OperationFixedTreeNode) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
@@ -148,7 +138,6 @@ func (no *OperationFixedTreeNode) DecodeJSON(b []byte, enc *jsonenc.Encoder) err
 	}
 
 	no.BaseFixedTreeNode = ub
-	no.inState = u.InState
 
 	return nil
 }
@@ -223,4 +212,16 @@ func (e *BaseOperationProcessReasonError) UnmarshalJSON(b []byte) error {
 	e.msg = u.Msg
 
 	return nil
+}
+
+func ParseTreeNodeOperationKey(s string) (util.Hash, bool) {
+	k := s
+
+	var notInState bool
+	if strings.HasSuffix(s, "-") {
+		k = k[:len(k)-1]
+		notInState = true
+	}
+
+	return valuehash.NewBytesFromString(k), !notInState
 }

@@ -110,16 +110,33 @@ func (t *testTempLeveldb) TestLoad() {
 		t.NoError(err)
 	})
 
-	t.Run("check operation exists", func() {
+	t.Run("check instate operations", func() {
+		for i := range stts {
+			ops := stts[i].Operations()
+			for j := range ops {
+				op := ops[j]
+
+				found, err := rst.ExistsInStateOperation(op)
+				t.NoError(err)
+				t.True(found)
+
+				found, err = rst.ExistsKnownOperation(op)
+				t.NoError(err)
+				t.False(found)
+			}
+		}
+	})
+
+	t.Run("check known operation exists", func() {
 		for i := range ops {
-			found, err := rst.ExistsOperation(ops[i])
+			found, err := rst.ExistsKnownOperation(ops[i])
 			t.NoError(err)
 			t.True(found)
 		}
 	})
 
 	t.Run("check unknown operation", func() {
-		found, err := rst.ExistsOperation(valuehash.RandomSHA256())
+		found, err := rst.ExistsKnownOperation(valuehash.RandomSHA256())
 		t.NoError(err)
 		t.False(found)
 	})

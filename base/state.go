@@ -12,9 +12,9 @@ type State interface {
 	util.IsValider
 	Key() string
 	Value() StateValue
-	Height() Height      // NOTE manifest height
-	Previous() util.Hash // NOTE previous state hash
-	Operations() []util.Hash
+	Height() Height          // NOTE manifest height
+	Previous() util.Hash     // NOTE previous state hash
+	Operations() []util.Hash // NOTE operation fact hash
 }
 
 type StateValue interface {

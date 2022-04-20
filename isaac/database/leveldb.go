@@ -14,13 +14,14 @@ import (
 )
 
 var (
-	leveldbKeyPrefixSuffrage        = []byte{0x00, 0x01}
-	leveldbKeyPrefixSuffrageHeight  = []byte{0x00, 0x02}
-	leveldbKeyPrefixState           = []byte{0x00, 0x03}
-	leveldbKeyPrefixOperation       = []byte{0x00, 0x04}
-	leveldbKeyPrefixProposal        = []byte{0x00, 0x05}
-	leveldbKeyPrefixProposalByPoint = []byte{0x00, 0x06}
-	leveldbKeyPrefixBlockDataMap    = []byte{0x00, 0x07}
+	leveldbKeyPrefixSuffrage         = []byte{0x00, 0x01}
+	leveldbKeyPrefixSuffrageHeight   = []byte{0x00, 0x02}
+	leveldbKeyPrefixState            = []byte{0x00, 0x03}
+	leveldbKeyPrefixInStateOperation = []byte{0x00, 0x04}
+	leveldbKeyPrefixKnownOperation   = []byte{0x00, 0x05}
+	leveldbKeyPrefixProposal         = []byte{0x00, 0x06}
+	leveldbKeyPrefixProposalByPoint  = []byte{0x00, 0x07}
+	leveldbKeyPrefixBlockDataMap     = []byte{0x00, 0x08}
 )
 
 var (
@@ -74,12 +75,21 @@ func (db *baseLeveldb) Remove() error {
 	return nil
 }
 
-func (db *baseLeveldb) existsOperation(h util.Hash) (bool, error) {
-	switch found, err := db.st.Exists(leveldbOperationKey(h)); {
+func (db *baseLeveldb) existsInStateOperation(h util.Hash) (bool, error) {
+	switch found, err := db.st.Exists(leveldbInStateOperationKey(h)); {
 	case err == nil:
 		return found, nil
 	default:
-		return false, errors.Wrap(err, "failed to check exists operation")
+		return false, errors.Wrap(err, "failed to check exists instate operation")
+	}
+}
+
+func (db *baseLeveldb) existsKnownOperation(h util.Hash) (bool, error) {
+	switch found, err := db.st.Exists(leveldbKnownOperationKey(h)); {
+	case err == nil:
+		return found, nil
+	default:
+		return false, errors.Wrap(err, "failed to check exists known operation")
 	}
 }
 
@@ -113,8 +123,12 @@ func leveldbStateKey(key string) []byte {
 	return util.ConcatBytesSlice(leveldbKeyPrefixState, []byte(key))
 }
 
-func leveldbOperationKey(h util.Hash) []byte {
-	return util.ConcatBytesSlice(leveldbKeyPrefixOperation, h.Bytes())
+func leveldbInStateOperationKey(h util.Hash) []byte {
+	return util.ConcatBytesSlice(leveldbKeyPrefixInStateOperation, h.Bytes())
+}
+
+func leveldbKnownOperationKey(h util.Hash) []byte {
+	return util.ConcatBytesSlice(leveldbKeyPrefixKnownOperation, h.Bytes())
 }
 
 func leveldbProposalKey(h util.Hash) []byte {

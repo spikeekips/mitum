@@ -17,15 +17,16 @@ import (
 )
 
 type DummyPermanentDatabase struct {
-	closef             func() error
-	suffragef          func(height base.Height) (base.State, bool, error)
-	suffrageByHeightf  func(suffrageHeight base.Height) (base.State, bool, error)
-	lastSuffragef      func() (base.State, bool, error)
-	statef             func(key string) (base.State, bool, error)
-	existsOperationf   func(operationFactHash util.Hash) (bool, error)
-	mapf               func(height base.Height) (base.BlockDataMap, bool, error)
-	lastMapf           func() (base.BlockDataMap, bool, error)
-	mergeTempDatabasef func(isaac.TempDatabase) error
+	closef                  func() error
+	suffragef               func(height base.Height) (base.State, bool, error)
+	suffrageByHeightf       func(suffrageHeight base.Height) (base.State, bool, error)
+	lastSuffragef           func() (base.State, bool, error)
+	statef                  func(key string) (base.State, bool, error)
+	existsInStateOperationf func(operationFactHash util.Hash) (bool, error)
+	existsKnownOperationf   func(operationHash util.Hash) (bool, error)
+	mapf                    func(height base.Height) (base.BlockDataMap, bool, error)
+	lastMapf                func() (base.BlockDataMap, bool, error)
+	mergeTempDatabasef      func(isaac.TempDatabase) error
 }
 
 func (db *DummyPermanentDatabase) Close() error {
@@ -48,8 +49,12 @@ func (db *DummyPermanentDatabase) State(key string) (base.State, bool, error) {
 	return db.statef(key)
 }
 
-func (db *DummyPermanentDatabase) ExistsOperation(operationFactHash util.Hash) (bool, error) {
-	return db.existsOperationf(operationFactHash)
+func (db *DummyPermanentDatabase) ExistsInStateOperation(operationFactHash util.Hash) (bool, error) {
+	return db.existsInStateOperationf(operationFactHash)
+}
+
+func (db *DummyPermanentDatabase) ExistsKnownOperation(operationHash util.Hash) (bool, error) {
+	return db.existsKnownOperationf(operationHash)
 }
 
 func (db *DummyPermanentDatabase) Map(height base.Height) (base.BlockDataMap, bool, error) {
@@ -329,12 +334,12 @@ func (t *testDefaultWithPermanent) TestState() {
 	})
 }
 
-func (t *testDefaultWithPermanent) TestExistsOperation() {
+func (t *testDefaultWithPermanent) TestExistsInStateOperation() {
 	op := valuehash.RandomSHA256()
 	errop := valuehash.RandomSHA256()
 
 	perm := &DummyPermanentDatabase{
-		existsOperationf: func(operationFactHash util.Hash) (bool, error) {
+		existsInStateOperationf: func(operationFactHash util.Hash) (bool, error) {
 			switch {
 			case operationFactHash.Equal(op):
 				return true, nil
@@ -350,19 +355,59 @@ func (t *testDefaultWithPermanent) TestExistsOperation() {
 	t.NoError(err)
 
 	t.Run("found", func() {
-		found, err := db.ExistsOperation(op)
+		found, err := db.ExistsInStateOperation(op)
 		t.NoError(err)
 		t.True(found)
 	})
 
 	t.Run("not found", func() {
-		found, err := db.ExistsOperation(valuehash.RandomSHA256())
+		found, err := db.ExistsInStateOperation(valuehash.RandomSHA256())
 		t.NoError(err)
 		t.False(found)
 	})
 
 	t.Run("error", func() {
-		found, err := db.ExistsOperation(errop)
+		found, err := db.ExistsInStateOperation(errop)
+		t.Error(err)
+		t.False(found)
+		t.Contains(err.Error(), "hihihi")
+	})
+}
+
+func (t *testDefaultWithPermanent) TestExistsKnownOperation() {
+	op := valuehash.RandomSHA256()
+	errop := valuehash.RandomSHA256()
+
+	perm := &DummyPermanentDatabase{
+		existsKnownOperationf: func(operationFactHash util.Hash) (bool, error) {
+			switch {
+			case operationFactHash.Equal(op):
+				return true, nil
+			case operationFactHash.Equal(errop):
+				return false, errors.Errorf("hihihi")
+			default:
+				return false, nil
+			}
+		},
+	}
+
+	db, err := NewDefault(t.Root, t.Encs, t.Enc, perm, nil)
+	t.NoError(err)
+
+	t.Run("found", func() {
+		found, err := db.ExistsKnownOperation(op)
+		t.NoError(err)
+		t.True(found)
+	})
+
+	t.Run("not found", func() {
+		found, err := db.ExistsKnownOperation(valuehash.RandomSHA256())
+		t.NoError(err)
+		t.False(found)
+	})
+
+	t.Run("error", func() {
+		found, err := db.ExistsKnownOperation(errop)
 		t.Error(err)
 		t.False(found)
 		t.Contains(err.Error(), "hihihi")
@@ -440,7 +485,7 @@ func (t *testDefaultBlockWrite) TestMerge() {
 
 			return nil, false, nil
 		},
-		existsOperationf: func(util.Hash) (bool, error) {
+		existsKnownOperationf: func(util.Hash) (bool, error) {
 			return false, nil
 		},
 	}
@@ -532,7 +577,7 @@ func (t *testDefaultBlockWrite) TestMerge() {
 		for i := range ops {
 			op := ops[i]
 
-			found, err := db.ExistsOperation(op)
+			found, err := db.ExistsKnownOperation(op)
 			t.NoError(err)
 			t.False(found)
 		}
@@ -592,7 +637,7 @@ func (t *testDefaultBlockWrite) TestMerge() {
 		for i := range ops {
 			op := ops[i]
 
-			found, err := db.ExistsOperation(op)
+			found, err := db.ExistsKnownOperation(op)
 			t.NoError(err)
 			t.True(found)
 		}

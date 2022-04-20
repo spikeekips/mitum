@@ -123,8 +123,12 @@ func (db *TempLeveldb) State(key string) (base.State, bool, error) {
 	return db.state(key)
 }
 
-func (db *TempLeveldb) ExistsOperation(h util.Hash) (bool, error) {
-	return db.existsOperation(h)
+func (db *TempLeveldb) ExistsInStateOperation(h util.Hash) (bool, error) {
+	return db.existsInStateOperation(h)
+}
+
+func (db *TempLeveldb) ExistsKnownOperation(h util.Hash) (bool, error) {
+	return db.existsKnownOperation(h)
 }
 
 func (db *TempLeveldb) loadLastBlockDataMap() error {

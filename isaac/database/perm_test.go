@@ -298,11 +298,11 @@ func (t *testCommonPermanent) TestMergeTempDatabase() {
 	temp, err := wst.TempDatabase()
 	t.NoError(err)
 
-	t.Run("check opertions", func() {
+	t.Run("check known opertions", func() {
 		perm := t.newDB()
 
 		for i := range ops {
-			found, err := perm.ExistsOperation(ops[i])
+			found, err := perm.ExistsKnownOperation(ops[i])
 			t.NoError(err)
 			t.False(found)
 		}
@@ -310,7 +310,7 @@ func (t *testCommonPermanent) TestMergeTempDatabase() {
 		t.NoError(perm.MergeTempDatabase(context.TODO(), temp))
 
 		for i := range ops {
-			found, err := perm.ExistsOperation(ops[i])
+			found, err := perm.ExistsKnownOperation(ops[i])
 			t.NoError(err)
 			t.True(found)
 		}
@@ -355,6 +355,42 @@ func (t *testCommonPermanent) TestMergeTempDatabase() {
 		t.NotNil(rst)
 
 		t.True(base.IsEqualState(sufstt, rst))
+	})
+
+	t.Run("check instate operations", func() {
+		perm := t.newDB()
+
+		for i := range stts {
+			ops := stts[i].Operations()
+			for j := range ops {
+				op := ops[j]
+
+				found, err := perm.ExistsInStateOperation(op)
+				t.NoError(err)
+				t.False(found)
+
+				found, err = perm.ExistsKnownOperation(op)
+				t.NoError(err)
+				t.False(found)
+			}
+		}
+
+		t.NoError(perm.MergeTempDatabase(context.TODO(), temp))
+
+		for i := range stts {
+			ops := stts[i].Operations()
+			for j := range ops {
+				op := ops[j]
+
+				found, err := perm.ExistsInStateOperation(op)
+				t.NoError(err)
+				t.True(found)
+
+				found, err = perm.ExistsKnownOperation(op)
+				t.NoError(err)
+				t.False(found)
+			}
+		}
 	})
 
 	t.Run("check blockdatamap", func() {

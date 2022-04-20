@@ -22,7 +22,8 @@ var (
 	redisSuffrageKeyPrerfix         = "sf"
 	redisSuffrageByHeightKeyPrerfix = "sh"
 	redisStateKeyPrerfix            = "st"
-	redisOperationKeyPrerfix        = "op"
+	redisInStateOperationKeyPrerfix = "ip"
+	redisKnownOperationKeyPrerfix   = "kp"
 	redisBlockDataMapKeyPrefix      = "mp"
 )
 
@@ -171,10 +172,21 @@ func (db *RedisPermanent) State(key string) (base.State, bool, error) {
 	}
 }
 
-func (db *RedisPermanent) ExistsOperation(h util.Hash) (bool, error) {
-	e := util.StringErrorFunc("failed to check operation")
+func (db *RedisPermanent) ExistsInStateOperation(h util.Hash) (bool, error) {
+	e := util.StringErrorFunc("failed to check instate operation")
 
-	switch found, err := db.st.Exists(context.Background(), redisOperationKey(h)); {
+	switch found, err := db.st.Exists(context.Background(), redisInStateOperationKey(h)); {
+	case err != nil:
+		return false, e(err, "")
+	default:
+		return found, nil
+	}
+}
+
+func (db *RedisPermanent) ExistsKnownOperation(h util.Hash) (bool, error) {
+	e := util.StringErrorFunc("failed to check known operation")
+
+	switch found, err := db.st.Exists(context.Background(), redisKnownOperationKey(h)); {
 	case err != nil:
 		return false, e(err, "")
 	default:
@@ -256,6 +268,8 @@ func (db *RedisPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp
 		sufsv = st.Value().(base.SuffrageStateValue)
 	}
 
+	// BLOCK apply ErrgroupWorker
+
 	// NOTE merge operations
 	if err := db.mergeOperationsTempDatabaseFromLeveldb(ctx, temp); err != nil {
 		return nil, nil, e(err, "failed to merge operations")
@@ -285,15 +299,33 @@ func (db *RedisPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp
 func (db *RedisPermanent) mergeOperationsTempDatabaseFromLeveldb(
 	ctx context.Context, temp *TempLeveldb,
 ) error {
-	return temp.st.Iter(
-		leveldbutil.BytesPrefix(leveldbKeyPrefixOperation),
+	e := util.StringErrorFunc("failed to merge operations from temp")
+
+	if err := temp.st.Iter(
+		leveldbutil.BytesPrefix(leveldbKeyPrefixInStateOperation),
 		func(_, b []byte) (bool, error) {
-			if err := db.st.Set(ctx, redisOperationKey(valuehash.Bytes(b)), b); err != nil {
+			if err := db.st.Set(ctx, redisInStateOperationKey(valuehash.Bytes(b)), b); err != nil {
 				return false, err
 			}
 
 			return true, nil
-		}, true)
+		}, true); err != nil {
+		return e(err, "")
+	}
+
+	if err := temp.st.Iter(
+		leveldbutil.BytesPrefix(leveldbKeyPrefixKnownOperation),
+		func(_, b []byte) (bool, error) {
+			if err := db.st.Set(ctx, redisKnownOperationKey(valuehash.Bytes(b)), b); err != nil {
+				return false, err
+			}
+
+			return true, nil
+		}, true); err != nil {
+		return e(err, "")
+	}
+
+	return nil
 }
 
 func (db *RedisPermanent) mergeStatesTempDatabaseFromLeveldb(
@@ -449,8 +481,12 @@ func redisStateKey(key string) string {
 	return fmt.Sprintf("%s-%s", redisStateKeyPrerfix, key)
 }
 
-func redisOperationKey(h util.Hash) string {
-	return fmt.Sprintf("%s-%s", redisOperationKeyPrerfix, h.String())
+func redisInStateOperationKey(h util.Hash) string {
+	return fmt.Sprintf("%s-%s", redisInStateOperationKeyPrerfix, h.String())
+}
+
+func redisKnownOperationKey(h util.Hash) string {
+	return fmt.Sprintf("%s-%s", redisKnownOperationKeyPrerfix, h.String())
 }
 
 func redisStateKeyFromLeveldb(b []byte) string {

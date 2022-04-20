@@ -21,7 +21,10 @@ type Database interface {
 	SuffrageByHeight(suffrageHeight base.Height) (base.State, bool, error)
 	LastSuffrage() (base.State, bool, error)
 	State(key string) (base.State, bool, error)
-	ExistsOperation(operationFactHash util.Hash) (bool, error)
+	// ExistsInStateOperation has only operation facts, which is in state
+	ExistsInStateOperation(operationFactHash util.Hash) (bool, error)
+	// NOTE ExistsKnownOperation has the known operation hashes
+	ExistsKnownOperation(operationHash util.Hash) (bool, error)
 	NewBlockWriteDatabase(height base.Height) (BlockWriteDatabase, error)
 	MergeBlockWriteDatabase(BlockWriteDatabase) error
 	// BLOCK get last init and accept voteproof
@@ -29,7 +32,8 @@ type Database interface {
 
 type PartialDatabase interface {
 	State(key string) (base.State, bool, error)
-	ExistsOperation(operationFactHash util.Hash) (bool, error)
+	ExistsInStateOperation(operationFactHash util.Hash) (bool, error)
+	ExistsKnownOperation(operationFactHash util.Hash) (bool, error)
 }
 
 // TempDatabase is the temporary database; it contains only blockdatamap and
@@ -50,7 +54,7 @@ type BlockWriteDatabase interface {
 	Map() (base.BlockDataMap, error)
 	SetMap(base.BlockDataMap) error
 	SetStates(sts []base.State) error
-	SetOperations(ops []util.Hash) error
+	SetOperations(ops []util.Hash) error // NOTE operation hash, not operation fact hash
 	SuffrageState() base.State
 	Write() error
 	TempDatabase() (TempDatabase, error)

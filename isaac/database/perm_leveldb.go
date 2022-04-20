@@ -128,8 +128,12 @@ func (db *LeveldbPermanent) State(key string) (base.State, bool, error) {
 	return db.state(key)
 }
 
-func (db *LeveldbPermanent) ExistsOperation(h util.Hash) (bool, error) {
-	return db.existsOperation(h)
+func (db *LeveldbPermanent) ExistsInStateOperation(h util.Hash) (bool, error) {
+	return db.existsInStateOperation(h)
+}
+
+func (db *LeveldbPermanent) ExistsKnownOperation(h util.Hash) (bool, error) {
+	return db.existsKnownOperation(h)
 }
 
 func (db *LeveldbPermanent) Map(height base.Height) (base.BlockDataMap, bool, error) {
@@ -188,6 +192,8 @@ func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(temp *TempLeveldb) (
 ) {
 	e := util.StringErrorFunc("failed to merge LeveldbTempDatabase")
 
+	// BLOCK apply ErrgroupWorker
+
 	var mp base.BlockDataMap
 	switch i, err := temp.Map(); {
 	case err != nil:
@@ -208,7 +214,7 @@ func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(temp *TempLeveldb) (
 
 	// NOTE merge operations
 	if err := temp.st.Iter(
-		leveldbutil.BytesPrefix(leveldbKeyPrefixOperation),
+		leveldbutil.BytesPrefix(leveldbKeyPrefixInStateOperation),
 		func(key, b []byte) (bool, error) {
 			if err := db.st.Put(key, b, nil); err != nil {
 				return false, err
@@ -216,7 +222,19 @@ func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(temp *TempLeveldb) (
 
 			return true, nil
 		}, true); err != nil {
-		return nil, nil, e(err, "failed to merge operations")
+		return nil, nil, e(err, "failed to merge instate operations")
+	}
+
+	if err := temp.st.Iter(
+		leveldbutil.BytesPrefix(leveldbKeyPrefixKnownOperation),
+		func(key, b []byte) (bool, error) {
+			if err := db.st.Put(key, b, nil); err != nil {
+				return false, err
+			}
+
+			return true, nil
+		}, true); err != nil {
+		return nil, nil, e(err, "failed to merge known operations")
 	}
 
 	// NOTE merge states

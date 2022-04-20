@@ -83,7 +83,7 @@ func (t *BaseTestDatabase) States(height base.Height, n int) []base.State {
 			util.UUID().String(),
 			v,
 			valuehash.RandomSHA256(),
-			nil,
+			[]util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()},
 		)
 	}
 

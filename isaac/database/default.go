@@ -224,12 +224,12 @@ func (db *Default) State(key string) (base.State, bool, error) {
 	return st, found, nil
 }
 
-func (db *Default) ExistsOperation(h util.Hash) (bool, error) {
+func (db *Default) ExistsInStateOperation(h util.Hash) (bool, error) {
 	e := util.StringErrorFunc("failed to check operation")
 
 	l := util.NewLocked(false)
 	if err := db.dig(func(p isaac.PartialDatabase) (bool, error) {
-		switch found, err := p.ExistsOperation(h); {
+		switch found, err := p.ExistsInStateOperation(h); {
 		case err != nil:
 			return false, err
 		case found:
@@ -247,7 +247,38 @@ func (db *Default) ExistsOperation(h util.Hash) (bool, error) {
 		return i.(bool), nil
 	}
 
-	found, err := db.perm.ExistsOperation(h)
+	found, err := db.perm.ExistsInStateOperation(h)
+	if err != nil {
+		return false, e(err, "")
+	}
+
+	return found, nil
+}
+
+func (db *Default) ExistsKnownOperation(h util.Hash) (bool, error) {
+	e := util.StringErrorFunc("failed to check operation")
+
+	l := util.NewLocked(false)
+	if err := db.dig(func(p isaac.PartialDatabase) (bool, error) {
+		switch found, err := p.ExistsKnownOperation(h); {
+		case err != nil:
+			return false, err
+		case found:
+			_ = l.SetValue(true)
+
+			return false, nil
+		default:
+			return true, nil
+		}
+	}); err != nil {
+		return false, e(err, "")
+	}
+
+	if i, _ := l.Value(); i != nil {
+		return i.(bool), nil
+	}
+
+	found, err := db.perm.ExistsKnownOperation(h)
 	if err != nil {
 		return false, e(err, "")
 	}
