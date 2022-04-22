@@ -5,7 +5,6 @@ import (
 	"net/url"
 	"sort"
 	"strings"
-	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -16,8 +15,13 @@ import (
 var BlockDataMapHint = hint.MustNewHint("blockdatamap-v0.0.1")
 
 var (
-	supportedBlockDataMapItemURLSchemes = []string{"file+blockdata", "file", "http", "https"}
-	fileBlockDataURL                    url.URL
+	supportedBlockDataMapItemURLSchemes = map[string]struct{}{
+		"file+blockdata": {},
+		"file":           {},
+		"http":           {},
+		"https":          {},
+	}
+	fileBlockDataURL url.URL
 )
 
 var BlockDirectoryHeightFormat = "%021s"
@@ -31,13 +35,12 @@ func init() {
 }
 
 type BlockDataMap struct {
-	sync.RWMutex
 	hint.BaseHinter
 	base.BaseNodeSigned
 	writer   hint.Hint
 	encoder  hint.Hint
 	manifest base.Manifest
-	m        map[base.BlockDataType]base.BlockDataMapItem
+	m        *util.LockedMap
 }
 
 func NewBlockDataMap(writer, encoder hint.Hint) BlockDataMap {
@@ -45,7 +48,7 @@ func NewBlockDataMap(writer, encoder hint.Hint) BlockDataMap {
 		BaseHinter: hint.NewBaseHinter(BlockDataMapHint),
 		writer:     writer,
 		encoder:    encoder,
-		m:          map[base.BlockDataType]base.BlockDataMapItem{},
+		m:          util.NewLockedMap(),
 	}
 }
 
@@ -63,12 +66,21 @@ func (m BlockDataMap) IsValid(b []byte) error {
 		return e(err, "")
 	}
 
-	vs := make([]util.IsValider, len(m.m))
+	vs := make([]util.IsValider, m.m.Len())
 	var i int
-	for k := range m.m {
-		vs[i] = m.m[k]
+	m.m.Traverse(func(_, v interface{}) bool {
+		switch {
+		case v == nil:
+			return true
+		case util.IsNilLockedValue(v):
+			return true
+		}
+
+		vs[i] = v.(BlockDataMapItem)
 		i++
-	}
+
+		return true
+	})
 
 	if err := util.CheckIsValid(nil, true, vs...); err != nil {
 		return e(err, "invalid item found")
@@ -90,33 +102,41 @@ func (m *BlockDataMap) SetManifest(manifest base.Manifest) {
 }
 
 func (m BlockDataMap) Item(t base.BlockDataType) (base.BlockDataMapItem, bool) {
-	m.RLock()
-	defer m.RUnlock()
-
-	item, found := m.m[t]
-
-	return item, found
+	switch i, found := m.m.Value(t); {
+	case !found:
+		return nil, false
+	case i == nil:
+		return nil, false
+	case util.IsNilLockedValue(i):
+		return nil, false
+	default:
+		return i.(BlockDataMapItem), true
+	}
 }
 
 func (m *BlockDataMap) SetItem(item base.BlockDataMapItem) error {
-	m.Lock()
-	defer m.Unlock()
-
 	e := util.StringErrorFunc("failed to set blockdatamap item")
+
 	if err := item.IsValid(nil); err != nil {
 		return e(err, "")
 	}
 
-	m.m[item.Type()] = item
+	_ = m.m.SetValue(item.Type(), item)
 
 	return nil
 }
 
-func (m BlockDataMap) All() map[base.BlockDataType]base.BlockDataMapItem {
-	m.RLock()
-	defer m.RUnlock()
+func (m BlockDataMap) Items(f func(base.BlockDataMapItem) bool) {
+	m.m.Traverse(func(_, v interface{}) bool {
+		switch {
+		case v == nil:
+			return true
+		case util.IsNilLockedValue(v):
+			return true
+		}
 
-	return m.m
+		return f(v.(base.BlockDataMapItem))
+	})
 }
 
 func (m *BlockDataMap) Sign(node base.Address, priv base.Privatekey, networkID base.NetworkID) error {
@@ -132,9 +152,16 @@ func (m *BlockDataMap) Sign(node base.Address, priv base.Privatekey, networkID b
 
 func (m BlockDataMap) checkItems() error {
 	check := func(t base.BlockDataType) bool {
-		i, found := m.m[t]
-
-		return found && i != nil
+		switch i, found := m.m.Value(t); {
+		case !found:
+			return false
+		case i == nil:
+			return false
+		case util.IsNilLockedValue(i):
+			return false
+		default:
+			return true
+		}
 	}
 
 	if !check(base.BlockDataTypeProposal) {
@@ -165,18 +192,22 @@ func (BlockDataMap) Bytes() []byte {
 }
 
 func (m BlockDataMap) signedBytes() []byte {
-	ts := make([][]byte, len(m.m))
+	ts := make([][]byte, m.m.Len())
 
-	i := -1
-	for k := range m.m {
-		i++
-		j := m.m[k]
-		if j == nil {
-			continue
+	var i int
+	m.m.Traverse(func(_, v interface{}) bool {
+		switch {
+		case v == nil:
+			return true
+		case util.IsNilLockedValue(v):
+			return true
 		}
 
-		ts[i] = []byte(j.Checksum())
-	}
+		ts[i] = []byte(v.(BlockDataMapItem).Checksum())
+		i++
+
+		return true
+	})
 
 	sort.Slice(ts, func(i, j int) bool {
 		return bytes.Compare(ts[i], ts[j]) < 0
@@ -229,8 +260,7 @@ func (item BlockDataMapItem) IsValid([]byte) error {
 		return e(util.InvalidError.Errorf("empty url scheme"), "")
 	default:
 		scheme := strings.ToLower(item.url.Scheme)
-
-		if !util.InStringSlice(strings.ToLower(item.url.Scheme), supportedBlockDataMapItemURLSchemes) {
+		if _, found := supportedBlockDataMapItemURLSchemes[strings.ToLower(item.url.Scheme)]; !found {
 			return e(util.InvalidError.Errorf("unsupported url scheme found, %q", scheme), "")
 		}
 	}

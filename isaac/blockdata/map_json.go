@@ -20,13 +20,25 @@ type blockDataMapJSONMarshaler struct {
 }
 
 func (m BlockDataMap) MarshalJSON() ([]byte, error) {
+	items := map[base.BlockDataType]base.BlockDataMapItem{}
+	m.m.Traverse(func(_, v interface{}) bool {
+		if util.IsNilLockedValue(v) {
+			return true
+		}
+
+		i := v.(BlockDataMapItem)
+		items[i.Type()] = i
+
+		return true
+	})
+
 	return util.MarshalJSON(blockDataMapJSONMarshaler{
 		BaseHinter:                  m.BaseHinter,
 		BaseNodeSignedJSONMarshaler: m.BaseNodeSigned.JSONMarshaler(),
 		W:                           m.writer,
 		E:                           m.encoder,
 		Manifest:                    m.manifest,
-		M:                           m.m,
+		M:                           items,
 	})
 }
 
@@ -61,19 +73,19 @@ func (m *BlockDataMap) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		m.manifest = i
 	}
 
-	um := map[base.BlockDataType]base.BlockDataMapItem{}
+	items := util.NewLockedMap()
 	for k := range u.M {
 		var ui BlockDataMapItem
 		if err := enc.Unmarshal(u.M[k], &ui); err != nil {
 			return e(err, "failed to unmarshal blockdatamap item, %q", k)
 		}
 
-		um[k] = ui
+		_ = items.SetValue(ui.Type(), ui)
 	}
 
 	m.writer = u.W
 	m.encoder = u.E
-	m.m = um
+	m.m = items
 
 	return nil
 }

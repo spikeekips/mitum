@@ -27,7 +27,7 @@ type BlockDataMap interface {
 	NodeSigned
 	Manifest() Manifest
 	Item(BlockDataType) (BlockDataMapItem, bool)
-	All() map[BlockDataType]BlockDataMapItem
+	Items(func(BlockDataMapItem) bool)
 }
 
 type BlockDataMapItem interface {

@@ -60,12 +60,6 @@ func (t *testBlockDataMap) TestNew() {
 
 	t.NotNil(m.Manifest())
 
-	all := m.All()
-	for k := range all {
-		t.NotNil(all[k])
-		t.Equal(k, all[k].Type())
-	}
-
 	t.True(LocalFSWriterHint.Equal(m.writer))
 	t.True(jsonenc.JSONEncoderHint.Equal(m.encoder))
 }
@@ -99,7 +93,7 @@ func (t *testBlockDataMap) TestInvalid() {
 
 	t.Run("proposal not set", func() {
 		m := t.newmap()
-		delete(m.m, base.BlockDataTypeProposal)
+		m.m.RemoveValue(base.BlockDataTypeProposal)
 
 		err := m.IsValid(t.networkID)
 		t.True(errors.Is(err, util.InvalidError))
@@ -108,7 +102,7 @@ func (t *testBlockDataMap) TestInvalid() {
 
 	t.Run("empty proposal", func() {
 		m := t.newmap()
-		m.m[base.BlockDataTypeProposal] = nil
+		m.m.SetValue(base.BlockDataTypeProposal, nil)
 
 		err := m.IsValid(t.networkID)
 		t.True(errors.Is(err, util.InvalidError))
@@ -117,7 +111,7 @@ func (t *testBlockDataMap) TestInvalid() {
 
 	t.Run("voteproofs not set", func() {
 		m := t.newmap()
-		delete(m.m, base.BlockDataTypeVoteproofs)
+		m.m.RemoveValue(base.BlockDataTypeVoteproofs)
 
 		err := m.IsValid(t.networkID)
 		t.True(errors.Is(err, util.InvalidError))
@@ -126,7 +120,7 @@ func (t *testBlockDataMap) TestInvalid() {
 
 	t.Run("empty voteproofs", func() {
 		m := t.newmap()
-		m.m[base.BlockDataTypeVoteproofs] = nil
+		m.m.SetValue(base.BlockDataTypeVoteproofs, nil)
 
 		err := m.IsValid(t.networkID)
 		t.True(errors.Is(err, util.InvalidError))
@@ -135,7 +129,7 @@ func (t *testBlockDataMap) TestInvalid() {
 
 	t.Run("invalid item", func() {
 		m := t.newmap()
-		m.m[base.BlockDataTypeVoteproofs] = t.newitem(base.BlockDataType("hehe"))
+		m.m.SetValue(base.BlockDataTypeVoteproofs, t.newitem(base.BlockDataType("hehe")))
 
 		err := m.IsValid(t.networkID)
 		t.True(errors.Is(err, util.InvalidError))

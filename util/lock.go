@@ -164,6 +164,13 @@ func (l *LockedMap) Set(k interface{}, f func(interface{}) (interface{}, error))
 	}
 }
 
+func (l *LockedMap) RemoveValue(k interface{}) {
+	l.Lock()
+	defer l.Unlock()
+
+	delete(l.m, k)
+}
+
 func (l *LockedMap) Remove(k interface{}, f func(interface{}) error) error {
 	l.Lock()
 	defer l.Unlock()

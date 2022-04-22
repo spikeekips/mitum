@@ -263,8 +263,7 @@ func (m DummyBlockDataMap) Item(BlockDataType) (BlockDataMapItem, bool) {
 	return nil, false
 }
 
-func (m DummyBlockDataMap) All() map[BlockDataType]BlockDataMapItem {
-	return nil
+func (m DummyBlockDataMap) Items(func(BlockDataMapItem) bool) {
 }
 
 func (m DummyBlockDataMap) Bytes() []byte {
@@ -320,17 +319,14 @@ func EqualBlockDataMap(t *assert.Assertions, a, b BlockDataMap) {
 	t.True(a.Hint().Equal(b.Hint()))
 	EqualManifest(t, a.Manifest(), b.Manifest())
 
-	am := a.All()
-	bm := b.All()
-
-	t.Equal(len(am), len(bm))
-
-	for k := range am {
-		ai := am[k]
-		bi := bm[k]
+	a.Items(func(ai BlockDataMapItem) bool {
+		bi, found := b.Item(ai.Type())
+		t.True(found)
 
 		EqualBlockDataMapItem(t, ai, bi)
-	}
+
+		return true
+	})
 }
 
 func EqualBlockDataMapItem(t *assert.Assertions, a, b BlockDataMapItem) {
