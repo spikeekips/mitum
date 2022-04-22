@@ -18,7 +18,7 @@ import (
 	"go.uber.org/goleak"
 )
 
-// BLOCK test merger; multple adding
+// BLOCK test merger; multiple adding
 
 type DummyBlockDataWriter struct {
 	sync.RWMutex

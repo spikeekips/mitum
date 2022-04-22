@@ -145,13 +145,19 @@ func (s SuffrageStateValue) Equal(b base.StateValue) bool {
 		return false
 	case s.height != j.height:
 		return false
-	case !s.previous.Equal(j.previous):
-		return false
+	case s.previous != nil:
+		if j.previous == nil {
+			return false
+		}
+
+		if !s.previous.Equal(j.previous) {
+			return false
+		}
 	case !base.IsEqualNodes(s.nodes, j.nodes):
 		return false
-	default:
-		return true
 	}
+
+	return true
 }
 
 func (s SuffrageStateValue) Suffrage() (base.Suffrage, error) {

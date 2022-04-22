@@ -64,7 +64,7 @@ func (op BaseOperation) IsValid(networkID []byte) error {
 		vs[i+1] = s
 	}
 
-	if err := util.CheckIsValid(nil, false, vs...); err != nil {
+	if err := util.CheckIsValid(networkID, false, vs...); err != nil {
 		return e(err, "")
 	}
 

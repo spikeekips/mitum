@@ -243,6 +243,9 @@ func prepareEncoders() error {
 		{Hint: quictransport.NodeHint, Instance: quictransport.BaseNode{}},
 		{Hint: quictransport.NodeMetaHint, Instance: quictransport.NodeMeta{}},
 		{Hint: tree.FixedTreeHint, Instance: tree.FixedTree{}},
+		{Hint: isaac.SuffrageStateValueHint, Instance: isaac.SuffrageStateValue{}},
+		{Hint: isaac.SuffrageCandidateStateValueHint, Instance: isaac.SuffrageCandidateStateValue{}},
+		{Hint: isaac.SuffrageCandidateStateNodeValueHint, Instance: isaac.SuffrageCandidateStateNodeValue{}},
 	}
 
 	for i := range ds {
