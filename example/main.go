@@ -12,13 +12,13 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/isaac/blockdata"
 	"github.com/spikeekips/mitum/isaac/database"
-	"github.com/spikeekips/mitum/isaac/nodenetwork"
-	"github.com/spikeekips/mitum/network/quictransport"
+	isaacoperation "github.com/spikeekips/mitum/isaac/operation"
+	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
+	"github.com/spikeekips/mitum/util/hint"
 	mitumlogging "github.com/spikeekips/mitum/util/logging"
-	"github.com/spikeekips/mitum/util/tree"
 )
 
 var (
@@ -88,8 +88,17 @@ func (cmd *initCommand) Run() error {
 	}
 
 	// BLOCK new update suffrage operation to local is only suffrage node
+	joinFact := isaacoperation.NewSuffrageGenesisJoinPermissionFact(local.Address(), local.Publickey(), networkID)
+	if err := joinFact.IsValid(networkID); err != nil {
+		return errors.Wrap(err, "")
+	}
 
-	proposal, err := newGenesisProposal(address, local.Privatekey())
+	joinOp := isaacoperation.NewSuffrageGenesisJoin(joinFact)
+	if err := joinOp.Sign(local.Privatekey(), networkID); err != nil {
+		return errors.Wrap(err, "")
+	}
+
+	proposal, err := newGenesisProposal(address, local.Privatekey(), []util.Hash{joinOp.Fact().Hash()})
 	if err != nil {
 		return errors.Wrap(err, "")
 	}
@@ -118,16 +127,30 @@ func (cmd *initCommand) Run() error {
 		fswriter = i
 	}
 
-	writer := blockdata.NewWriter(dbw, db.MergeBlockWriteDatabase, fswriter)
-
-	pp := isaac.NewDefaultProposalProcessor(
+	pp, err := isaac.NewDefaultProposalProcessor(
 		proposal,
 		nil,
-		writer,
-		nil,
-		nil,
-		nil,
+		func(pr base.ProposalSignedFact, getStateFunc base.GetStateFunc) (isaac.BlockDataWriter, error) {
+			return blockdata.NewWriter(pr, getStateFunc, dbw, db.MergeBlockWriteDatabase, fswriter), nil
+		},
+		func(key string) (base.State, bool, error) {
+			return nil, false, nil
+		},
+		func(_ context.Context, facthash util.Hash) (base.Operation, error) {
+			switch {
+			case facthash.Equal(joinOp.Fact().Hash()):
+				return joinOp, nil
+			default:
+				return nil, util.NotFoundError.Errorf("operation not found")
+			}
+		},
+		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) {
+			return nil, false, nil
+		},
 	)
+	if err != nil {
+		return errors.Wrap(err, "")
+	}
 
 	var avp base.ACCEPTVoteproof
 	switch m, err := pp.Process(context.Background(), ivp); {
@@ -215,43 +238,8 @@ func prepareEncoders() error {
 		return err
 	}
 
-	ds := []encoder.DecodeDetail{
-		{Hint: base.BaseOperationProcessReasonErrorHint, Instance: base.BaseOperationProcessReasonError{}},
-		{Hint: base.BaseStateHint, Instance: base.BaseState{}},
-		{Hint: base.MPrivatekeyHint, Instance: base.MPrivatekey{}},
-		{Hint: base.MPublickeyHint, Instance: base.MPublickey{}},
-		{Hint: base.OperationFixedTreeNodeHint, Instance: base.OperationFixedTreeNode{}},
-		{Hint: base.StateFixedTreeNodeHint, Instance: base.StateFixedTreeNode{}},
-		{Hint: base.StringAddressHint, Instance: base.StringAddress{}},
-		{Hint: blockdata.BlockDataMapHint, Instance: blockdata.BlockDataMap{}},
-		{Hint: isaac.ACCEPTBallotFactHint, Instance: isaac.ACCEPTBallotFact{}},
-		{Hint: isaac.ACCEPTBallotHint, Instance: isaac.ACCEPTBallot{}},
-		{Hint: isaac.ACCEPTBallotSignedFactHint, Instance: isaac.ACCEPTBallotSignedFact{}},
-		{Hint: isaac.ACCEPTVoteproofHint, Instance: isaac.ACCEPTVoteproof{}},
-		{Hint: isaac.INITBallotFactHint, Instance: isaac.INITBallotFact{}},
-		{Hint: isaac.INITBallotHint, Instance: isaac.INITBallot{}},
-		{Hint: isaac.INITBallotSignedFactHint, Instance: isaac.INITBallotSignedFact{}},
-		{Hint: isaac.INITVoteproofHint, Instance: isaac.INITVoteproof{}},
-		{Hint: isaac.ManifestHint, Instance: isaac.Manifest{}},
-		{Hint: isaac.NodeHint, Instance: base.BaseNode{}},
-		{Hint: isaac.PolicyHint, Instance: isaac.Policy{}},
-		{Hint: isaac.ProposalFactHint, Instance: isaac.ProposalFact{}},
-		{Hint: isaac.ProposalSignedFactHint, Instance: isaac.ProposalSignedFact{}},
-		{Hint: isaac.SuffrageStateValueHint, Instance: isaac.SuffrageStateValue{}},
-		{Hint: nodenetwork.ProposalBodyHint, Instance: nodenetwork.ProposalBody{}},
-		{Hint: nodenetwork.RequestProposalBodyHint, Instance: nodenetwork.RequestProposalBody{}},
-		{Hint: quictransport.NodeHint, Instance: quictransport.BaseNode{}},
-		{Hint: quictransport.NodeMetaHint, Instance: quictransport.NodeMeta{}},
-		{Hint: tree.FixedTreeHint, Instance: tree.FixedTree{}},
-		{Hint: isaac.SuffrageStateValueHint, Instance: isaac.SuffrageStateValue{}},
-		{Hint: isaac.SuffrageCandidateStateValueHint, Instance: isaac.SuffrageCandidateStateValue{}},
-		{Hint: isaac.SuffrageCandidateStateNodeValueHint, Instance: isaac.SuffrageCandidateStateNodeValue{}},
-	}
-
-	for i := range ds {
-		if err := enc.Add(ds[i]); err != nil {
-			return errors.Wrap(err, "failed to add to encoder")
-		}
+	if err := launch.LoadHinters(enc); err != nil {
+		return errors.Wrap(err, "")
 	}
 
 	return nil
@@ -314,10 +302,10 @@ func generatePrivatekey(address base.Address) (base.Privatekey, error) {
 	return base.NewMPrivatekeyFromSeed(string(b))
 }
 
-func newGenesisProposal(proposer base.Address, priv base.Privatekey) (base.ProposalSignedFact, error) {
+func newGenesisProposal(proposer base.Address, priv base.Privatekey, ops []util.Hash) (base.ProposalSignedFact, error) {
 	e := util.StringErrorFunc("failed to make genesis proposal")
 
-	fact := isaac.NewProposalFact(base.GenesisPoint, proposer, nil)
+	fact := isaac.NewProposalFact(base.GenesisPoint, proposer, ops)
 	signed := isaac.NewProposalSignedFact(fact)
 
 	if err := signed.Sign(local.Privatekey(), networkID); err != nil {

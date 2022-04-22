@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -30,6 +31,7 @@ func init() {
 }
 
 type BlockDataMap struct {
+	sync.RWMutex
 	hint.BaseHinter
 	base.BaseNodeSigned
 	writer   hint.Hint
@@ -88,12 +90,18 @@ func (m *BlockDataMap) SetManifest(manifest base.Manifest) {
 }
 
 func (m BlockDataMap) Item(t base.BlockDataType) (base.BlockDataMapItem, bool) {
+	m.RLock()
+	defer m.RUnlock()
+
 	item, found := m.m[t]
 
 	return item, found
 }
 
 func (m *BlockDataMap) SetItem(item base.BlockDataMapItem) error {
+	m.Lock()
+	defer m.Unlock()
+
 	e := util.StringErrorFunc("failed to set blockdatamap item")
 	if err := item.IsValid(nil); err != nil {
 		return e(err, "")
@@ -105,6 +113,9 @@ func (m *BlockDataMap) SetItem(item base.BlockDataMapItem) error {
 }
 
 func (m BlockDataMap) All() map[base.BlockDataType]base.BlockDataMapItem {
+	m.RLock()
+	defer m.RUnlock()
+
 	return m.m
 }
 

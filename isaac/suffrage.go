@@ -70,7 +70,6 @@ func (suf Suffrage) Len() int {
 
 var (
 	SuffrageStateValueHint              = hint.MustNewHint("suffrage-state-value-v0.0.1")
-	SuffrageCandidateStateValueHint     = hint.MustNewHint("suffrage-candidate-state-value-v0.0.1")
 	SuffrageCandidateStateNodeValueHint = hint.MustNewHint("suffrage-candidate-state-node-value-v0.0.1")
 )
 
