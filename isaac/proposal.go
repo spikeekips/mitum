@@ -57,6 +57,10 @@ func (fact ProposalFact) ProposedAt() time.Time {
 func (fact ProposalFact) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid ProposalFact")
 
+	if err := fact.BaseFact.IsValid(nil); err != nil {
+		return e(err, "")
+	}
+
 	if err := base.IsValidProposalFact(fact); err != nil {
 		return e(err, "")
 	}
@@ -69,10 +73,11 @@ func (fact ProposalFact) IsValid([]byte) error {
 }
 
 func (fact ProposalFact) hash() util.Hash {
-	bs := make([]util.Byter, len(fact.operations)+3)
-	bs[0] = fact.point
-	bs[1] = fact.proposer
-	bs[2] = localtime.New(fact.proposedAt)
+	bs := make([]util.Byter, len(fact.operations)+4)
+	bs[0] = util.BytesToByter(fact.Token())
+	bs[1] = fact.point
+	bs[2] = fact.proposer
+	bs[3] = localtime.New(fact.proposedAt)
 	for i := range fact.operations {
 		bs[i+3] = fact.operations[i]
 	}

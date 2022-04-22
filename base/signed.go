@@ -116,6 +116,14 @@ func NewBaseNodeSigned(node Address, signer Publickey, signature Signature, sign
 	}
 }
 
+func BaseNodeSignedFromFact(node Address, priv Privatekey, networkID NetworkID, fact Fact) (BaseNodeSigned, error) {
+	if fact == nil || fact.Hash() == nil {
+		return BaseNodeSigned{}, util.InvalidError.Errorf("failed to make BaseSigned; empty fact")
+	}
+
+	return BaseNodeSignedFromBytes(node, priv, networkID, fact.Hash().Bytes())
+}
+
 func BaseNodeSignedFromBytes(node Address, priv Privatekey, networkID NetworkID, b []byte) (BaseNodeSigned, error) {
 	si, err := BaseSignedFromBytes(priv, networkID, util.ConcatByters(node, util.BytesToByter(b)))
 	if err != nil {

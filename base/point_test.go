@@ -1,6 +1,7 @@
 package base
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/pkg/errors"
@@ -157,6 +158,26 @@ func (t *testPoint) TestNextRound() {
 			},
 		)
 	}
+}
+
+func (t *testPoint) TestZeroHeightJSON() {
+	p := NewPoint(Height(33), Round(44))
+	b, err := util.MarshalJSON(p)
+	t.NoError(err)
+
+	t.T().Log("marshaled:", string(b))
+
+	nb := []byte(strings.Replace(string(b), `"height"`, `"empty_height"`, -1))
+
+	t.T().Log("modified marshaled:", string(nb))
+
+	var u Point
+	t.NoError(util.UnmarshalJSON(nb, &u))
+
+	err = u.IsValid(nil)
+	t.Error(err)
+	t.True(errors.Is(err, util.InvalidError))
+	t.Contains(err.Error(), "height must be greater than 0")
 }
 
 func TestPoint(t *testing.T) {

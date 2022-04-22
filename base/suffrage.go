@@ -21,6 +21,18 @@ type SuffrageStateValue interface {
 	Suffrage() (Suffrage, error)
 }
 
+type SuffrageCandidateStateNodeValue interface {
+	Node
+	StartHeight() Height
+	EndHeight() Height
+	Node() Node
+}
+
+type SuffrageCandidateStateValue interface {
+	StateValue
+	Nodes() []SuffrageCandidateStateNodeValue
+}
+
 func InterfaceIsSuffrageState(i interface{}) (State, error) {
 	switch st, ok := i.(State); {
 	case !ok:

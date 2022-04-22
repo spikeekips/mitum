@@ -40,7 +40,7 @@ func (m Manifest) MarshalJSON() ([]byte, error) {
 
 type ManifestJSONUnmarshaler struct {
 	H              valuehash.HashDecoder `json:"hash"`
-	Height         base.Height           `json:"height"`
+	Height         base.HeightDecoder    `json:"height"`
 	Previous       valuehash.HashDecoder `json:"previous"`
 	Proposal       valuehash.HashDecoder `json:"proposal"`
 	OperationsTree valuehash.HashDecoder `json:"operations_tree"`
@@ -59,7 +59,7 @@ func (m *Manifest) UnmarshalJSON(b []byte) error {
 	}
 
 	m.h = u.H.Hash()
-	m.height = u.Height
+	m.height = u.Height.Height()
 	m.previous = u.Previous.Hash()
 	m.proposal = u.Proposal.Hash()
 	m.operationsTree = u.OperationsTree.Hash()

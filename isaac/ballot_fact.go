@@ -71,6 +71,10 @@ func (fact INITBallotFact) IsValid([]byte) error {
 		return e(util.InvalidError.Errorf("invalid stage, %q", fact.point.Stage()), "")
 	}
 
+	if err := fact.BaseFact.IsValid(nil); err != nil {
+		return e(err, "")
+	}
+
 	if err := base.IsValidINITBallotFact(fact); err != nil {
 		return e(err, "")
 	}

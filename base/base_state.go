@@ -170,7 +170,7 @@ func (s BaseState) MarshalJSON() ([]byte, error) {
 type baseStateJSONUnmarshaler struct {
 	H      valuehash.HashDecoder   `json:"hash"`
 	P      valuehash.HashDecoder   `json:"previous"`
-	Height Height                  `json:"height"`
+	Height HeightDecoder           `json:"height"`
 	K      string                  `json:"key"`
 	V      json.RawMessage         `json:"value"`
 	OPS    []valuehash.HashDecoder `json:"operations"`
@@ -186,7 +186,7 @@ func (s *BaseState) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 
 	s.h = u.H.Hash()
 	s.previous = u.P.Hash()
-	s.height = u.Height
+	s.height = u.Height.Height()
 	s.k = u.K
 
 	s.ops = make([]util.Hash, len(u.OPS))

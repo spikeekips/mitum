@@ -1,17 +1,16 @@
 package isaac
 
 import (
-	"encoding/json"
-
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
-	"github.com/spikeekips/mitum/util/valuehash"
 )
 
-var SuffrageStateKey = "suffrage"
+var (
+	SuffrageStateKey          = "suffrage"
+	SuffrageCandidateStateKey = "suffrage_candidate"
+)
 
 type Suffrage struct {
 	m  map[string]base.Node
@@ -69,7 +68,11 @@ func (suf Suffrage) Len() int {
 	return len(suf.ns)
 }
 
-var SuffrageStateValueHint = hint.MustNewHint("suffrage-state-value-v0.0.1")
+var (
+	SuffrageStateValueHint              = hint.MustNewHint("suffrage-state-value-v0.0.1")
+	SuffrageCandidateStateValueHint     = hint.MustNewHint("suffrage-candidate-state-value-v0.0.1")
+	SuffrageCandidateStateNodeValueHint = hint.MustNewHint("suffrage-candidate-state-node-value-v0.0.1")
+)
 
 type SuffrageStateValue struct {
 	hint.BaseHinter
@@ -155,49 +158,29 @@ func (s SuffrageStateValue) Suffrage() (base.Suffrage, error) {
 	return NewSuffrage(s.nodes)
 }
 
-type suffrageStateValueJSONMarshaler struct {
-	hint.BaseHinter
-	Height   base.Height `json:"height"`
-	Previous util.Hash   `json:"previous"`
-	Nodes    []base.Node `json:"nodes"`
+type SuffrageCandidateStateNodeValue struct {
+	base.BaseNode
+	startHeight base.Height
+	endHeight   base.Height
 }
 
-func (s SuffrageStateValue) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(suffrageStateValueJSONMarshaler{
-		BaseHinter: s.BaseHinter,
-		Height:     s.height,
-		Previous:   s.previous,
-		Nodes:      s.nodes,
-	})
-}
-
-type suffrageStateValueJSONUnmarshaler struct {
-	Height   base.Height           `json:"height"`
-	Previous valuehash.HashDecoder `json:"previous"`
-	Nodes    []json.RawMessage     `json:"nodes"`
-}
-
-func (s *SuffrageStateValue) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode SuffrageStateValue")
-
-	var u suffrageStateValueJSONUnmarshaler
-	if err := enc.Unmarshal(b, &u); err != nil {
-		return e(err, "")
+func NewSuffrageCandidateStateNodeValue(
+	pub base.Publickey,
+	addr base.Address,
+	startHeight,
+	endHeight base.Height,
+) SuffrageCandidateStateNodeValue {
+	return SuffrageCandidateStateNodeValue{
+		BaseNode:    base.NewBaseNode(SuffrageCandidateStateNodeValueHint, pub, addr),
+		startHeight: startHeight,
+		endHeight:   endHeight,
 	}
+}
 
-	nodes := make([]base.Node, len(u.Nodes))
-	for i := range u.Nodes {
-		j, err := base.DecodeNode(u.Nodes[i], enc)
-		if err != nil {
-			return e(err, "")
-		}
+func (suf SuffrageCandidateStateNodeValue) StartHeight() base.Height {
+	return suf.startHeight
+}
 
-		nodes[i] = j
-	}
-
-	s.height = u.Height
-	s.previous = u.Previous.Hash()
-	s.nodes = nodes
-
-	return nil
+func (suf SuffrageCandidateStateNodeValue) EndHeight() base.Height {
+	return suf.endHeight
 }

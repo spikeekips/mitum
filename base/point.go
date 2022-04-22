@@ -200,8 +200,8 @@ func (p Point) MarshalJSON() ([]byte, error) {
 }
 
 type pointJSONUnmarshaler struct {
-	H Height `json:"height"`
-	R Round  `json:"round"`
+	H HeightDecoder `json:"height"`
+	R Round         `json:"round"`
 }
 
 func (p *Point) UnmarshalJSON(b []byte) error {
@@ -210,7 +210,7 @@ func (p *Point) UnmarshalJSON(b []byte) error {
 		return errors.Wrap(err, "failed to unmarshal point")
 	}
 
-	p.h = u.H
+	p.h = u.H.Height()
 	p.r = u.R
 
 	return nil
@@ -316,7 +316,7 @@ func (p *StagePoint) UnmarshalJSON(b []byte) error {
 		return errors.Wrap(err, "failed to unmarshal stage point")
 	}
 
-	p.h = u.H
+	p.h = u.H.Height()
 	p.r = u.R
 	p.stage = u.S
 
