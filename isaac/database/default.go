@@ -30,7 +30,7 @@ type Default struct {
 }
 
 func NewDefault(
-	root string,
+	temproot string,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
 	perm isaac.PermanentDatabase,
@@ -47,7 +47,7 @@ func NewDefault(
 		mergeInterval:         time.Second * 10,
 	}
 
-	if err := db.load(root); err != nil {
+	if err := db.load(temproot); err != nil {
 		return nil, errors.Wrap(err, "")
 	}
 
@@ -77,7 +77,7 @@ func (db *Default) Close() error {
 	return nil
 }
 
-func (db *Default) load(root string) error {
+func (db *Default) load(temproot string) error {
 	e := util.StringErrorFunc("failed to load temps to DefaultDatabase")
 
 	var last base.Height
@@ -89,7 +89,7 @@ func (db *Default) load(root string) error {
 	}
 
 	// NOTE find leveldb directory
-	temps, err := loadTemps(root, last, db.encs, db.enc, true)
+	temps, err := loadTemps(temproot, last, db.encs, db.enc, true)
 	if err != nil {
 		return e(err, "")
 	}
