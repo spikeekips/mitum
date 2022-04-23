@@ -106,7 +106,7 @@ func (cmd *runCommand) Run() error {
 func prepareLocal(address base.Address) (base.LocalNode, error) {
 	// NOTE make privatekey, based on node address
 	b := make([]byte, base.PrivatekeyMinSeedSize)
-	copy(b, []byte(address.Bytes()))
+	copy(b, address.Bytes())
 
 	priv, err := base.NewMPrivatekeyFromSeed(string(b))
 	if err != nil {

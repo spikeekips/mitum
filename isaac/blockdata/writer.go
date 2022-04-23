@@ -264,36 +264,38 @@ func (w *Writer) saveStates(
 	worker := util.NewErrgroupWorker(ctx, math.MaxInt32)
 	defer worker.Close()
 
-	if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-		return w.setProposal(ctx)
-	}); err != nil {
-		return e(err, "")
-	}
+	go func() {
+		defer worker.Done()
 
-	if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-		return w.db.SetStates(states)
-	}); err != nil {
-		return e(err, "")
-	}
-
-	if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-		switch i, err := tg.Tree(); {
-		case err != nil:
-			return err
-		default:
-			if err := w.fswriter.SetStatesTree(ctx, i); err != nil {
-				return errors.Wrap(err, "")
-			}
-
-			w.ststree = i
-
-			return nil
+		if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
+			return w.setProposal(ctx)
+		}); err != nil {
+			return
 		}
-	}); err != nil {
-		return e(err, "")
-	}
 
-	worker.Done()
+		if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
+			return w.db.SetStates(states)
+		}); err != nil {
+			return
+		}
+
+		if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
+			switch i, err := tg.Tree(); {
+			case err != nil:
+				return err
+			default:
+				if err := w.fswriter.SetStatesTree(ctx, i); err != nil {
+					return errors.Wrap(err, "")
+				}
+
+				w.ststree = i
+
+				return nil
+			}
+		}); err != nil {
+			return
+		}
+	}()
 
 	if err := worker.Wait(); err != nil {
 		return e(err, "")

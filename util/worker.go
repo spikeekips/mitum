@@ -62,11 +62,7 @@ type (
 	ContextWorkerCallback func(ctx context.Context, jobid uint64) error
 )
 
-type contextCanceled struct{}
-
-func (contextCanceled) Error() string {
-	return "context canceled in worker"
-}
+var WorkerCanceledError = NewError("context canceled in worker")
 
 type ParallelWorker struct {
 	sync.RWMutex
@@ -220,7 +216,7 @@ func (wk *BaseSemWorker) NewJob(callback ContextWorkerCallback) error {
 	if err := wk.Sem.Acquire(wk.Ctx, 1); err != nil {
 		wk.Cancel()
 
-		return err
+		return WorkerCanceledError.Wrap(err)
 	}
 
 	ctx, cancel := context.WithCancel(wk.Ctx)
@@ -242,10 +238,6 @@ func (wk *BaseSemWorker) Jobs() uint64 {
 func (wk *BaseSemWorker) Wait() error {
 	err := wk.wait()
 	if err != nil {
-		if errors.Is(err, contextCanceled{}) {
-			return context.Canceled
-		}
-
 		return err
 	}
 
@@ -283,7 +275,7 @@ func (wk *BaseSemWorker) wait() error {
 		case <-time.After(timeout):
 			cancel()
 
-			errch <- contextCanceled{}
+			errch <- WorkerCanceledError.Call()
 		case err := <-donech:
 			errch <- err
 		}
@@ -411,7 +403,7 @@ func (wk *ErrgroupWorker) Wait() error {
 		switch {
 		case errors.Is(err, context.Canceled):
 			berr = err
-		case errors.Is(err, contextCanceled{}):
+		case errors.Is(err, WorkerCanceledError):
 			return context.Canceled
 		default:
 			return err

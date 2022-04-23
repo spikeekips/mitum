@@ -27,7 +27,7 @@ func PrepareDatabase(
 
 	switch _, err := os.Stat(fsroot); {
 	case err == nil:
-		if err := os.RemoveAll(fsroot); err != nil {
+		if err = os.RemoveAll(fsroot); err != nil {
 			return nil, e(err, "")
 		}
 	case os.IsNotExist(err):
@@ -54,9 +54,9 @@ func PrepareDatabase(
 	}
 
 	db, err := database.NewDefault(temproot, encs, enc, perm, func(height base.Height) (isaac.BlockWriteDatabase, error) {
-		newroot, err := database.NewTempDirectory(temproot, height)
-		if err != nil {
-			return nil, errors.Wrap(err, "")
+		newroot, eerr := database.NewTempDirectory(temproot, height)
+		if eerr != nil {
+			return nil, errors.Wrap(eerr, "")
 		}
 
 		return database.NewLeveldbBlockWrite(height, newroot, encs, enc)

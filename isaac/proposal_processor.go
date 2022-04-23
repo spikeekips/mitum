@@ -216,6 +216,8 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) (err e
 	defer worker.Close()
 
 	go func() {
+		defer worker.Done()
+
 		ophs := p.proposal.ProposalFact().Operations()
 		for i := range ophs {
 			i := i
@@ -237,11 +239,9 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) (err e
 
 				return nil
 			}); err != nil {
-				break
+				return
 			}
 		}
-
-		worker.Done()
 	}()
 
 	if err := worker.Wait(); err != nil {
@@ -291,8 +291,12 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context) error 
 	worker := util.NewErrgroupWorker(wctx, math.MaxInt32)
 	defer worker.Close()
 
-	errch := make(chan error, 1)
+	errch := make(chan error, 2)
 	go func() {
+		defer func() {
+			errch <- nil
+		}()
+
 		defer worker.Done()
 
 		ops := p.operations()
@@ -312,7 +316,7 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context) error 
 				if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
 					return p.writer.SetProcessResult(ctx, opsindex, i.FactHash(), false, i.Reason())
 				}); err != nil {
-					errch <- errors.Wrapf(err, "failed to process operation, %d", opsindex)
+					return
 				}
 
 				continue
@@ -321,13 +325,13 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context) error 
 			gvalidindex++
 			validindex := gvalidindex
 			if err := p.workOperation(wctx, worker, opsindex, validindex, op); err != nil {
-				errch <- err
+				if !errors.Is(err, util.WorkerCanceledError) {
+					errch <- err
+				}
 
 				return
 			}
 		}
-
-		errch <- nil
 	}()
 
 	gerr := <-errch

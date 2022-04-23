@@ -72,7 +72,6 @@ func (db *LeveldbBlockWrite) SetStates(sts []base.State) error {
 	go func() {
 		defer worker.Done()
 
-	end:
 		for i := range sts {
 			st := sts[i]
 
@@ -88,7 +87,7 @@ func (db *LeveldbBlockWrite) SetStates(sts []base.State) error {
 				return nil
 			})
 			if err != nil {
-				break
+				return
 			}
 
 			ops := st.Operations()
@@ -102,7 +101,7 @@ func (db *LeveldbBlockWrite) SetStates(sts []base.State) error {
 					return nil
 				})
 				if err != nil {
-					break end
+					return
 				}
 			}
 		}
@@ -141,15 +140,14 @@ func (db *LeveldbBlockWrite) SetOperations(ops []util.Hash) error {
 
 		for i := range ops {
 			op := ops[i]
-			err := worker.NewJob(func(context.Context, uint64) error {
+			if err := worker.NewJob(func(context.Context, uint64) error {
 				if err := db.st.Put(leveldbKnownOperationKey(op), op.Bytes(), nil); err != nil {
 					return e(err, "")
 				}
 
 				return nil
-			})
-			if err != nil {
-				break
+			}); err != nil {
+				return
 			}
 		}
 	}()

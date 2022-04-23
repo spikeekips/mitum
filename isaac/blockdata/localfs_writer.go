@@ -365,7 +365,7 @@ func (w *LocalFSWriter) setTree(
 
 				return nil
 			}); err != nil {
-				return false, errors.Wrap(err, "")
+				return false, nil
 			}
 
 			return true, nil

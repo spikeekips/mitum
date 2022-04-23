@@ -772,8 +772,6 @@ func (t *testDefaultProposalProcessor) TestPreProcessContextCancel() {
 	point := base.RawPoint(33, 44)
 
 	ophs, ops, _ := t.prepareOperations(point.Height()-1, 4)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	startprocessedch := make(chan struct{}, 1)
 	var startprocessedonece sync.Once
@@ -822,6 +820,9 @@ func (t *testDefaultProposalProcessor) TestPreProcessContextCancel() {
 	)
 	opp.retrylimit = 1
 	opp.retryinterval = 1
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	donech := make(chan error)
 	go func() {
@@ -1066,6 +1067,10 @@ func (t *testDefaultProposalProcessor) TestProcessButError() {
 	m, err := opp.Process(context.Background(), nil)
 	t.Error(err)
 	t.Nil(m)
+
+	if errors.Is(err, context.Canceled) {
+		t.T().Logf("unexpected context canceled: %T %+v", err, err)
+	}
 
 	t.Contains(err.Error(), fmt.Sprintf("findme: %q", ophs[1]))
 }

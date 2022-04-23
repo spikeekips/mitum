@@ -25,12 +25,12 @@ func Retry(ctx context.Context, f func() (bool, error), limit int, interval time
 			return ctx.Err()
 		default:
 			keep, err := f()
-			if err != nil {
-				lerr = err
-			}
-
 			if !keep {
 				return err
+			}
+
+			if err != nil {
+				lerr = err
 			}
 
 			select {
