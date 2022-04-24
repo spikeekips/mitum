@@ -20,7 +20,7 @@ type testJoiningHandler struct {
 
 func (t *testJoiningHandler) newState(suf base.Suffrage) (*JoiningHandler, func()) {
 	local := t.Local
-	policy := t.Policy
+	policy := t.NodePolicy
 
 	st := NewJoiningHandler(
 		local,

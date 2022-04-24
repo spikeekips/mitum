@@ -19,7 +19,7 @@ type ConsensusHandler struct {
 
 func NewConsensusHandler(
 	local isaac.LocalNode,
-	policy isaac.Policy,
+	policy isaac.NodePolicy,
 	proposalSelector isaac.ProposalSelector,
 	getManifest func(base.Height) (base.Manifest, error),
 	getSuffrage func(base.Height) base.Suffrage,

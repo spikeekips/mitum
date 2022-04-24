@@ -20,7 +20,7 @@ type baseTestConsensusHandler struct {
 
 func (t *baseTestConsensusHandler) newState(previous base.Manifest, suf base.Suffrage) (*ConsensusHandler, func()) {
 	local := t.Local
-	policy := t.Policy
+	policy := t.NodePolicy
 
 	st := NewConsensusHandler(
 		local,
@@ -108,7 +108,7 @@ func (t *testConsensusHandler) TestNew() {
 
 	st := NewConsensusHandler(
 		t.Local,
-		t.Policy,
+		t.NodePolicy,
 		nil,
 		func(base.Height) (base.Manifest, error) { return previous, nil },
 		func(base.Height) base.Suffrage { return suf },
@@ -223,7 +223,7 @@ func (t *testConsensusHandler) TestExit() {
 
 		return
 	case bl := <-ballotch:
-		t.NoError(bl.IsValid(t.Policy.NetworkID()))
+		t.NoError(bl.IsValid(t.NodePolicy.NetworkID()))
 
 		abl, ok := bl.(base.ACCEPTBallot)
 		t.True(ok)
@@ -272,7 +272,7 @@ func (t *testConsensusHandler) TestProcessingProposalAfterEntered() {
 
 		return
 	case bl := <-ballotch:
-		t.NoError(bl.IsValid(t.Policy.NetworkID()))
+		t.NoError(bl.IsValid(t.NodePolicy.NetworkID()))
 
 		abl, ok := bl.(base.ACCEPTBallot)
 		t.True(ok)

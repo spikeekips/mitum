@@ -631,7 +631,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndDrawAgain() 
 
 		return
 	case bl := <-ballotch:
-		t.NoError(bl.IsValid(t.Policy.NetworkID()))
+		t.NoError(bl.IsValid(t.NodePolicy.NetworkID()))
 
 		rbl, ok := bl.(base.INITBallot)
 		t.True(ok)

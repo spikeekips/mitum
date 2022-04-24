@@ -123,7 +123,7 @@ func (t *testLocalFSReader) preparefs(point base.Point) (
 ) {
 	ctx := context.Background()
 
-	fs, err := NewLocalFSWriter(t.root, point.Height(), t.Enc, t.Local, t.Policy.NetworkID())
+	fs, err := NewLocalFSWriter(t.root, point.Height(), t.Enc, t.Local, t.NodePolicy.NetworkID())
 	t.NoError(err)
 
 	// NOTE set manifest
@@ -132,7 +132,7 @@ func (t *testLocalFSReader) preparefs(point base.Point) (
 
 	// NOTE set proposal
 	pr := isaac.NewProposalSignedFact(isaac.NewProposalFact(point, t.Local.Address(), []util.Hash{valuehash.RandomSHA256()}))
-	_ = pr.Sign(t.Local.Privatekey(), t.Policy.NetworkID())
+	_ = pr.Sign(t.Local.Privatekey(), t.NodePolicy.NetworkID())
 	t.NoError(fs.SetProposal(ctx, pr))
 
 	// NOTE set operations
@@ -140,7 +140,7 @@ func (t *testLocalFSReader) preparefs(point base.Point) (
 	opstreeg := tree.NewFixedTreeGenerator(uint64(len(ops)))
 	for i := range ops {
 		fact := isaac.NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
-		op, _ := isaac.NewDummyOperation(fact, t.Local.Privatekey(), t.Policy.NetworkID())
+		op, _ := isaac.NewDummyOperation(fact, t.Local.Privatekey(), t.NodePolicy.NetworkID())
 		ops[i] = op
 
 		node := base.NewOperationFixedTreeNode(uint64(i), op.Fact().Hash(), true, "")
@@ -220,7 +220,7 @@ func (t *testLocalFSReader) TestMap() {
 	t.NoError(err)
 	t.True(found)
 
-	t.NoError(m.IsValid(t.Policy.NetworkID()))
+	t.NoError(m.IsValid(t.NodePolicy.NetworkID()))
 }
 
 func (t *testLocalFSReader) TestReader() {

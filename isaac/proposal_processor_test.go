@@ -155,7 +155,7 @@ type testDefaultProposalProcessor struct {
 
 func (t *testDefaultProposalProcessor) newproposal(fact ProposalFact) base.ProposalSignedFact {
 	fs := NewProposalSignedFact(fact)
-	_ = fs.Sign(t.Local.Privatekey(), t.Policy.NetworkID())
+	_ = fs.Sign(t.Local.Privatekey(), t.NodePolicy.NetworkID())
 
 	return fs
 }
@@ -177,7 +177,7 @@ func (t *testDefaultProposalProcessor) prepareOperations(height base.Height, n i
 
 	for i := range ophs {
 		fact := NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
-		op, _ := NewDummyOperation(fact, t.Local.Privatekey(), t.Policy.NetworkID())
+		op, _ := NewDummyOperation(fact, t.Local.Privatekey(), t.NodePolicy.NetworkID())
 
 		ophs[i] = fact.Hash()
 		st := t.newStateMergeValue(fact.Hash().String())

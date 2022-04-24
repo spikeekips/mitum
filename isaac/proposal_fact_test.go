@@ -79,6 +79,10 @@ func (t *testProposalFact) TestDuplicatedOperations() {
 	t.Contains(err.Error(), "duplicated operation found")
 }
 
+func TestProposalFact(t *testing.T) {
+	suite.Run(t, new(testProposalFact))
+}
+
 type testProposalFactEncode struct {
 	encoder.BaseTestEncode
 	enc *jsonenc.Encoder

@@ -19,7 +19,7 @@ type testSyncingHandler struct {
 
 func (t *testSyncingHandler) newState(finishch chan base.Height) (*SyncingHandler, func()) {
 	local := t.Local
-	policy := t.Policy
+	policy := t.NodePolicy
 
 	st := NewSyncingHandler(
 		local,

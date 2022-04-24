@@ -1,4 +1,4 @@
 /*
-Package network provides network.
+Package nodenetwork provides network.
 */
 package nodenetwork

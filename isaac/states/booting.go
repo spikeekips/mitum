@@ -11,7 +11,7 @@ type BootingHandler struct {
 
 func NewBootingHandler(
 	local isaac.LocalNode,
-	policy isaac.Policy,
+	policy isaac.NodePolicy,
 ) *BootingHandler {
 	return &BootingHandler{
 		baseHandler: newBaseHandler(StateBooting, local, policy, nil),

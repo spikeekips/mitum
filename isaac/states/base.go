@@ -20,7 +20,7 @@ type baseHandler struct {
 	ctx                  context.Context
 	cancel               func()
 	local                isaac.LocalNode
-	policy               isaac.Policy
+	policy               isaac.NodePolicy
 	proposalSelector     isaac.ProposalSelector
 	stt                  StateType
 	sts                  *States
@@ -34,7 +34,7 @@ type baseHandler struct {
 func newBaseHandler(
 	state StateType,
 	local isaac.LocalNode,
-	policy isaac.Policy,
+	policy isaac.NodePolicy,
 	proposalSelector isaac.ProposalSelector,
 ) *baseHandler {
 	lvps := newLastVoteproofs()

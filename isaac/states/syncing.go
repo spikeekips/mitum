@@ -24,7 +24,7 @@ type SyncingHandler struct {
 
 func NewSyncingHandler(
 	local isaac.LocalNode,
-	policy isaac.Policy,
+	policy isaac.NodePolicy,
 	proposalSelector isaac.ProposalSelector,
 	newSyncer func() Syncer,
 ) *SyncingHandler {

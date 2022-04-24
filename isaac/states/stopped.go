@@ -11,7 +11,7 @@ type StoppedHandler struct {
 
 func NewStoppedHandler(
 	local isaac.LocalNode,
-	policy isaac.Policy,
+	policy isaac.NodePolicy,
 ) *StoppedHandler {
 	return &StoppedHandler{
 		baseHandler: newBaseHandler(StateStopped, local, policy, nil),

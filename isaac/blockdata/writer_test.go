@@ -78,7 +78,7 @@ func (t *testWriter) TestSetOperations() {
 	}
 
 	pr := isaac.NewProposalSignedFact(isaac.NewProposalFact(point, t.Local.Address(), ops))
-	_ = pr.Sign(t.Local.Privatekey(), t.Policy.NetworkID())
+	_ = pr.Sign(t.Local.Privatekey(), t.NodePolicy.NetworkID())
 
 	writer := NewWriter(pr, nil, db, func(isaac.BlockWriteDatabase) error { return nil }, fswriter)
 
@@ -140,7 +140,7 @@ func (t *testWriter) TestSetStates() {
 	ops := make([]base.Operation, 33)
 	for i := range ops {
 		fact := isaac.NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
-		op, err := isaac.NewDummyOperation(fact, t.Local.Privatekey(), t.Policy.NetworkID())
+		op, err := isaac.NewDummyOperation(fact, t.Local.Privatekey(), t.NodePolicy.NetworkID())
 		t.NoError(err)
 
 		ops[i] = op
@@ -159,7 +159,7 @@ func (t *testWriter) TestSetStates() {
 	}
 
 	pr := isaac.NewProposalSignedFact(isaac.NewProposalFact(point, t.Local.Address(), ophs))
-	_ = pr.Sign(t.Local.Privatekey(), t.Policy.NetworkID())
+	_ = pr.Sign(t.Local.Privatekey(), t.NodePolicy.NetworkID())
 
 	writer := NewWriter(pr, base.NilGetState, db, func(isaac.BlockWriteDatabase) error { return nil }, fswriter)
 
@@ -220,7 +220,7 @@ func (t *testWriter) TestSetStatesAndClose() {
 	ops := make([]base.Operation, len(ophs))
 	for i := range ops {
 		fact := isaac.NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
-		op, err := isaac.NewDummyOperation(fact, t.Local.Privatekey(), t.Policy.NetworkID())
+		op, err := isaac.NewDummyOperation(fact, t.Local.Privatekey(), t.NodePolicy.NetworkID())
 		t.NoError(err)
 
 		ops[i] = op
@@ -245,7 +245,7 @@ func (t *testWriter) TestSetStatesAndClose() {
 	}
 
 	pr := isaac.NewProposalSignedFact(isaac.NewProposalFact(point, t.Local.Address(), ophs))
-	_ = pr.Sign(t.Local.Privatekey(), t.Policy.NetworkID())
+	_ = pr.Sign(t.Local.Privatekey(), t.NodePolicy.NetworkID())
 
 	writer := NewWriter(pr, base.NilGetState, db, func(isaac.BlockWriteDatabase) error { return nil }, fswriter)
 
@@ -316,7 +316,7 @@ func (t *testWriter) TestManifest() {
 	}
 
 	pr := isaac.NewProposalSignedFact(isaac.NewProposalFact(point, t.Local.Address(), ops))
-	_ = pr.Sign(t.Local.Privatekey(), t.Policy.NetworkID())
+	_ = pr.Sign(t.Local.Privatekey(), t.NodePolicy.NetworkID())
 
 	writer := NewWriter(pr, nil, db, func(isaac.BlockWriteDatabase) error {
 		return nil

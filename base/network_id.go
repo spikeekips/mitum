@@ -29,7 +29,7 @@ func (ni NetworkID) IsValid([]byte) error {
 	}
 }
 
-func (ni NetworkID) Equal(a NetworkID) bool { // BLOCK remove
+func (ni NetworkID) Equal(a NetworkID) bool {
 	return bytes.Equal([]byte(ni), []byte(a))
 }
 

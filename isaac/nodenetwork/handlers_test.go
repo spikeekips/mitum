@@ -48,7 +48,7 @@ func (t *testQuicstreamNodeNetworkHandlers) TestRequestProposal() {
 
 	proposalMaker := isaac.NewProposalMaker(
 		t.Local,
-		t.Policy,
+		t.NodePolicy,
 		func(context.Context) ([]util.Hash, error) {
 			return []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}, nil
 		},
@@ -82,7 +82,7 @@ func (t *testQuicstreamNodeNetworkHandlers) TestRequestProposal() {
 
 		t.Equal(point, pr.Point())
 		t.True(t.Local.Address().Equal(pr.ProposalFact().Proposer()))
-		t.NoError(base.IsValidProposalSignedFact(pr, t.Policy.NetworkID()))
+		t.NoError(base.IsValidProposalSignedFact(pr, t.NodePolicy.NetworkID()))
 	})
 
 	t.Run("local is not proposer", func() {
@@ -101,7 +101,7 @@ func (t *testQuicstreamNodeNetworkHandlers) TestProposal() {
 
 	proposalMaker := isaac.NewProposalMaker(
 		t.Local,
-		t.Policy,
+		t.NodePolicy,
 		func(context.Context) ([]util.Hash, error) {
 			return []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}, nil
 		},
@@ -140,7 +140,7 @@ func (t *testQuicstreamNodeNetworkHandlers) TestProposal() {
 
 		t.Equal(point, pr.Point())
 		t.True(t.Local.Address().Equal(pr.ProposalFact().Proposer()))
-		t.NoError(base.IsValidProposalSignedFact(pr, t.Policy.NetworkID()))
+		t.NoError(base.IsValidProposalSignedFact(pr, t.NodePolicy.NetworkID()))
 	})
 
 	t.Run("unknown", func() {

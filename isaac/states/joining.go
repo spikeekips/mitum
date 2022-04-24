@@ -19,7 +19,7 @@ type JoiningHandler struct {
 
 func NewJoiningHandler(
 	local isaac.LocalNode,
-	policy isaac.Policy,
+	policy isaac.NodePolicy,
 	proposalSelector isaac.ProposalSelector,
 	getLastManifest func() (base.Manifest, bool, error),
 ) *JoiningHandler {

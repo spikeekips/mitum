@@ -9,71 +9,71 @@ import (
 
 func TestThreshold(t *testing.T) {
 	cases := []struct {
-		name     string
-		quorum   uint
-		ratio    float64
-		expected uint // expected Threshold.Threshold
-		err      string
+		name      string
+		quorum    uint
+		threshold float64
+		expected  uint // expected Threshold.Threshold
+		err       string
 	}{
 		{
-			name:   "0 quorum",
-			quorum: 10,
-			ratio:  67,
-			err:    "0 quorum",
+			name:      "0 quorum",
+			quorum:    10,
+			threshold: 67,
+			err:       "0 quorum",
 		},
 		{
-			name:   "under zero ratio: 0",
-			quorum: 10,
-			ratio:  0,
-			err:    "under zero ratio",
+			name:      "under zero threshold: 0",
+			quorum:    10,
+			threshold: 0,
+			err:       "under zero threshold",
 		},
 		{
-			name:   "0 ratio: under 1",
-			quorum: 10,
-			ratio:  0.5,
-			err:    "dangerous ratio",
+			name:      "0 threshold: under 1",
+			quorum:    10,
+			threshold: 0.5,
+			err:       "risky threshold",
 		},
 		{
-			name:   "0 ratio: under 67",
-			quorum: 10,
-			ratio:  66,
-			err:    "dangerous ratio",
+			name:      "0 threshold: under 67",
+			quorum:    10,
+			threshold: 66,
+			err:       "risky threshold",
 		},
 		{
-			name:   "over ratio",
-			quorum: 10,
-			ratio:  100.5,
-			err:    "over 100 ratio",
+			name:      "over threshold",
+			quorum:    10,
+			threshold: 100.5,
+			err:       "over 100 threshold",
 		},
 		{
-			name:     "threshold #0",
-			quorum:   10,
-			ratio:    50,
-			expected: 5,
+			name:      "threshold #0",
+			quorum:    10,
+			threshold: 50,
+			expected:  5,
 		},
 		{
-			name:     "ceiled #0",
-			quorum:   10,
-			ratio:    55,
-			expected: 6,
+			name:      "ceiled #0",
+			quorum:    10,
+			threshold: 55,
+			expected:  6,
 		},
 		{
-			name:     "ceiled #1",
-			quorum:   10,
-			ratio:    51,
-			expected: 6,
+			name:      "ceiled #1",
+			quorum:    10,
+			threshold: 51,
+			expected:  6,
 		},
 		{
-			name:     "ceiled #1",
-			quorum:   10,
-			ratio:    99,
-			expected: 10,
+			name:      "ceiled #1",
+			quorum:    10,
+			threshold: 99,
+			expected:  10,
 		},
 		{
-			name:     "ceiled #1",
-			quorum:   10,
-			ratio:    67,
-			expected: 7,
+			name:      "ceiled #1",
+			quorum:    10,
+			threshold: 67,
+			expected:  7,
 		},
 	}
 
@@ -83,7 +83,7 @@ func TestThreshold(t *testing.T) {
 		t.Run(
 			c.name,
 			func(*testing.T) {
-				tr := Threshold(c.ratio)
+				tr := Threshold(c.threshold)
 				err := tr.IsValid(nil)
 				if len(c.err) > 0 {
 					if err == nil {

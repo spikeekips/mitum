@@ -31,7 +31,7 @@ type ProposalPool interface {
 type BaseProposalSelector struct {
 	sync.Mutex
 	local            LocalNode
-	policy           Policy
+	policy           NodePolicy
 	proposerSelector ProposerSelector
 	maker            *ProposalMaker
 	getSuffrage      func(base.Height) base.Suffrage
@@ -42,7 +42,7 @@ type BaseProposalSelector struct {
 
 func NewBaseProposalSelector(
 	local LocalNode,
-	policy Policy,
+	policy NodePolicy,
 	proposerSelector ProposerSelector,
 	maker *ProposalMaker,
 	getSuffrage func(base.Height) base.Suffrage,
@@ -232,14 +232,14 @@ func (p BlockBasedProposerSelector) Select(
 type ProposalMaker struct {
 	sync.Mutex
 	local         LocalNode
-	policy        base.Policy
+	policy        base.NodePolicy
 	getOperations func(context.Context) ([]util.Hash, error)
 	pool          ProposalPool
 }
 
 func NewProposalMaker(
 	local LocalNode,
-	policy base.Policy,
+	policy base.NodePolicy,
 	getOperations func(context.Context) ([]util.Hash, error),
 	pool ProposalPool,
 ) *ProposalMaker {

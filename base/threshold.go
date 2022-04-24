@@ -29,11 +29,11 @@ func (t Threshold) Equal(b Threshold) bool {
 func (t Threshold) IsValid([]byte) error {
 	switch {
 	case t <= 0:
-		return util.InvalidError.Errorf("under zero ratio, %v", t)
+		return util.InvalidError.Errorf("under zero threshold, %v", t)
 	case t > 100:
-		return util.InvalidError.Errorf("over 100 ratio, %v", t)
+		return util.InvalidError.Errorf("over 100 threshold, %v", t)
 	case t < 67:
-		return util.InvalidError.Errorf("dangerous ratio, %v < 67", t)
+		return util.InvalidError.Errorf("risky threshold, %v < 67", t)
 	}
 
 	return nil

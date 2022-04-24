@@ -112,10 +112,10 @@ func (cmd *runCommand) Run() error {
 		return errors.Wrap(err, "")
 	}
 
-	policy := defaultPolicy()
+	nodePolicy := defaultNodePolicy()
 	log.Info().
-		Interface("policy", policy).
-		Msg("policy loaded")
+		Interface("node_policy", nodePolicy).
+		Msg("node policy loaded")
 
 	getSuffrage := func(blockheight base.Height) base.Suffrage {
 		st, found, err := db.Suffrage(blockheight)
@@ -147,7 +147,7 @@ func (cmd *runCommand) Run() error {
 
 	proposalMaker := isaac.NewProposalMaker(
 		local,
-		policy,
+		nodePolicy,
 		func(ctx context.Context) ([]util.Hash, error) {
 			hs, err := pool.NewOperationHashes(
 				100, // BLOCK set ops limit in proposal
@@ -173,7 +173,7 @@ func (cmd *runCommand) Run() error {
 
 	proposerSelector := isaac.NewBaseProposalSelector(
 		local,
-		policy,
+		nodePolicy,
 		isaac.NewBlockBasedProposerSelector(
 			func(height base.Height) (util.Hash, error) {
 				switch m, err := getManifest(height); {
@@ -209,13 +209,13 @@ func (cmd *runCommand) Run() error {
 
 	pps := isaac.NewProposalProcessors(newProposalProcessor, nil)
 
-	box := isaacstates.NewBallotbox(getSuffrage, policy.Threshold())
+	box := isaacstates.NewBallotbox(getSuffrage, nodePolicy.Threshold())
 	states := isaacstates.NewStates(box)
 	states.
-		SetHandler(isaacstates.NewStoppedHandler(local, policy)).
-		SetHandler(isaacstates.NewBootingHandler(local, policy)).
-		SetHandler(isaacstates.NewJoiningHandler(local, policy, proposerSelector, getLastManifest)).
-		SetHandler(isaacstates.NewConsensusHandler(local, policy, proposerSelector, getManifest, getSuffrage, pps))
+		SetHandler(isaacstates.NewStoppedHandler(local, nodePolicy)).
+		SetHandler(isaacstates.NewBootingHandler(local, nodePolicy)).
+		SetHandler(isaacstates.NewJoiningHandler(local, nodePolicy, proposerSelector, getLastManifest)).
+		SetHandler(isaacstates.NewConsensusHandler(local, nodePolicy, proposerSelector, getManifest, getSuffrage, pps))
 
 	fmt.Println(">", states)
 	log.Debug().Msg("states loaded")
@@ -242,6 +242,6 @@ func prepareLocal(address base.Address) (base.LocalNode, error) {
 	return isaac.NewLocalNode(priv, address), nil
 }
 
-func defaultPolicy() base.Policy {
-	return isaac.DefaultPolicy(networkID)
+func defaultNodePolicy() base.NodePolicy {
+	return isaac.DefaultNodePolicy(networkID)
 }

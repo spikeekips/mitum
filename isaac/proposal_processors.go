@@ -192,26 +192,12 @@ func (pps *ProposalProcessors) newProcessor(
 		return nil, e(err, "failed to get proposal fact")
 	}
 
-	switch p, err := pps.makenew(fact, previous); {
-	case err != nil:
-		return nil, e(err, "")
-	default:
-		pps.p = p
-
-		if l, ok := pps.p.(logging.SetLogging); ok {
-			_ = l.SetLogging(pps.Logging)
-		}
-
-		return pps.p, nil
-	}
-
-	var p ProposalProcessor
 	if err := util.Retry(ctx, func() (bool, error) {
 		switch i, err := pps.makenew(fact, previous); {
 		case err != nil:
 			return true, err
 		default:
-			p = i
+			pps.p = i
 
 			return false, nil
 		}
@@ -219,7 +205,6 @@ func (pps *ProposalProcessors) newProcessor(
 		return nil, e(err, "")
 	}
 
-	pps.p = p
 	if l, ok := pps.p.(logging.SetLogging); ok {
 		_ = l.SetLogging(pps.Logging)
 	}
