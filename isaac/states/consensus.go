@@ -13,6 +13,7 @@ import (
 type ConsensusHandler struct {
 	*baseHandler
 	getManifest func(base.Height) (base.Manifest, error)
+	getSuffrage func(base.Height) base.Suffrage
 	pps         *isaac.ProposalProcessors
 }
 
@@ -25,8 +26,9 @@ func NewConsensusHandler(
 	pps *isaac.ProposalProcessors,
 ) *ConsensusHandler {
 	return &ConsensusHandler{
-		baseHandler: newBaseHandler(StateConsensus, local, policy, proposalSelector, getSuffrage),
+		baseHandler: newBaseHandler(StateConsensus, local, policy, proposalSelector),
 		getManifest: getManifest,
+		getSuffrage: getSuffrage,
 		pps:         pps,
 	}
 }
@@ -529,6 +531,18 @@ func (st *ConsensusHandler) saveBlock(avp base.ACCEPTVoteproof) error {
 		ll.Error().Err(err).Msg("failed to save proposal; moves to broken state")
 
 		return newBrokenSwitchContext(StateConsensus, err)
+	}
+}
+
+func (st *ConsensusHandler) isLocalInSuffrage(height base.Height) (bool /* in suffrage */, error) {
+	suf := st.getSuffrage(height)
+	switch {
+	case suf == nil:
+		return false, errors.Errorf("empty suffrage")
+	case !suf.Exists(st.local.Address()):
+		return false, nil
+	default:
+		return true, nil
 	}
 }
 

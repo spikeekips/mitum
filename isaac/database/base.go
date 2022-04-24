@@ -34,20 +34,29 @@ func (db *baseDatabase) marshal(i interface{}) ([]byte, error) {
 	return db.marshalWithEncoder(b), nil
 }
 
+func (db *baseDatabase) readEncoder(b []byte) (encoder.Encoder, []byte, error) {
+	var ht hint.Hint
+	ht, raw, err := db.readHint(b)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	switch enc := db.encs.Find(ht); {
+	case enc == nil:
+		return nil, nil, util.NotFoundError.Errorf("encoder not found for %q", ht)
+	default:
+		return enc, raw, nil
+	}
+}
+
 func (db *baseDatabase) readHinter(b []byte) (interface{}, error) {
 	if b == nil {
 		return nil, nil
 	}
 
-	var ht hint.Hint
-	ht, raw, err := db.readHint(b)
-	if err != nil {
-		return nil, err
-	}
-
-	switch enc := db.encs.Find(ht); {
-	case enc == nil:
-		return nil, util.NotFoundError.Errorf("encoder not found for %q", ht)
+	switch enc, raw, err := db.readEncoder(b); {
+	case err != nil:
+		return nil, errors.Wrap(err, "")
 	default:
 		return enc.Decode(raw)
 	}

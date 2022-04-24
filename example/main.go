@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,11 +11,16 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
+	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/launch"
+	"github.com/spikeekips/mitum/util"
 	mitumlogging "github.com/spikeekips/mitum/util/logging"
 )
 
-var networkID = base.NetworkID([]byte("mitum-example-node"))
+var (
+	networkID     = base.NetworkID([]byte("mitum-example-node"))
+	envKeyFSRootf = "MITUM_FS_ROOT"
+)
 
 var (
 	logging *mitumlogging.Logging
@@ -62,8 +68,12 @@ func (cmd *initCommand) Run() error {
 		return errors.Wrap(err, "failed to prepare local")
 	}
 
-	root := filepath.Join(os.TempDir(), "mitum-example-"+local.Address().String())
-	db, err := launch.PrepareDatabase(root, encs, enc)
+	root, found := os.LookupEnv(envKeyFSRootf)
+	if !found {
+		root = filepath.Join(os.TempDir(), "mitum-example-"+local.Address().String())
+	}
+
+	db, _, err := launch.PrepareDatabase(root, encs, enc)
 	if err != nil {
 		return errors.Wrap(err, "")
 	}
@@ -92,13 +102,123 @@ func (cmd *runCommand) Run() error {
 		return errors.Wrap(err, "failed to prepare local")
 	}
 
-	root := filepath.Join(os.TempDir(), "mitum-example-"+local.Address().String())
-	db, err := launch.PrepareDatabase(root, encs, enc)
+	root, found := os.LookupEnv(envKeyFSRootf)
+	if !found {
+		root = filepath.Join(os.TempDir(), "mitum-example-"+local.Address().String())
+	}
+
+	db, pool, err := launch.PrepareDatabase(root, encs, enc)
 	if err != nil {
 		return errors.Wrap(err, "")
 	}
 
-	fmt.Println(">", db)
+	policy := defaultPolicy()
+	log.Info().
+		Interface("policy", policy).
+		Msg("policy loaded")
+
+	getSuffrage := func(blockheight base.Height) base.Suffrage {
+		st, found, err := db.Suffrage(blockheight)
+		switch {
+		case err != nil:
+			return nil
+		case !found:
+			return nil
+		}
+
+		suf, err := isaac.NewSuffrage(st.Value().(base.SuffrageStateValue).Nodes())
+		if err != nil {
+			return nil
+		}
+
+		return suf
+	}
+
+	getManifest := func(height base.Height) (base.Manifest, error) {
+		switch m, found, err := db.Map(height); {
+		case err != nil:
+			return nil, errors.Wrap(err, "")
+		case !found:
+			return nil, nil
+		default:
+			return m.Manifest(), nil
+		}
+	}
+
+	proposalMaker := isaac.NewProposalMaker(
+		local,
+		policy,
+		func(ctx context.Context) ([]util.Hash, error) {
+			hs, err := pool.NewOperationHashes(
+				100, // BLOCK set ops limit in proposal
+				func(facthash util.Hash) (bool, error) {
+					switch found, err := db.ExistsInStateOperation(facthash); {
+					case err != nil:
+						return false, errors.Wrap(err, "")
+					case !found:
+						return false, nil
+					}
+
+					return true, nil
+				},
+			)
+			if err != nil {
+				return nil, errors.Wrap(err, "")
+			}
+
+			return hs, nil
+		},
+		nil,
+	)
+
+	proposerSelector := isaac.NewBaseProposalSelector(
+		local,
+		policy,
+		isaac.NewBlockBasedProposerSelector(
+			func(height base.Height) (util.Hash, error) {
+				switch m, err := getManifest(height); {
+				case err != nil:
+					return nil, errors.Wrap(err, "")
+				case m == nil:
+					return nil, nil
+				default:
+					return m.Hash(), nil
+				}
+			},
+		),
+	)
+
+	getLastManifest := func() (base.Manifest, bool, error) {
+		switch m, found, err := db.LastMap(); {
+		case err != nil || !found:
+			return nil, found, err
+		default:
+			return m.Manifest(), true, nil
+		}
+	}
+
+	newProposalProcessor := func(proposal base.ProposalSignedFact, previous base.Manifest) (ProposalProcessor, error) {
+		return isaac.NewDefaultProposalProcessor(
+			proposal,
+			previous,
+			launch.NewBlockDataWriterFunc(local, networkID, launch.FSRootDataDirectory(root), g.enc, g.db),
+			db.State,
+			nil, nil,
+		)
+	}
+
+	pps := isaac.NewProposalProcessors(newProposalProcessor, nil)
+
+	box := isaacstates.NewBallotbox(getSuffrage, policy.Threshold())
+	states := isaacstates.NewStates(box)
+	states.
+		SetHandler(isaacstates.NewStoppedHandler(local, policy)).
+		SetHandler(isaacstates.NewBootingHandler(local, policy)).
+		SetHandler(isaacstates.NewJoiningHandler(local, policy, proposerSelector, getLastManifest)).
+		SetHandler(isaacstates.NewConsensusHandler(local, policy, proposerSelector, getManifest, getSuffrage, pps))
+
+	fmt.Println(">", states)
+	log.Debug().Msg("states loaded")
 
 	return nil
 }
@@ -120,4 +240,8 @@ func prepareLocal(address base.Address) (base.LocalNode, error) {
 		Msg("keypair generated")
 
 	return isaac.NewLocalNode(priv, address), nil
+}
+
+func defaultPolicy() base.Policy {
+	return isaac.DefaultPolicy(networkID)
 }

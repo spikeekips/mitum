@@ -25,7 +25,6 @@ func (t *testSyncingHandler) newState(finishch chan base.Height) (*SyncingHandle
 		local,
 		policy,
 		nil,
-		func(base.Height) base.Suffrage { return nil },
 		func() Syncer {
 			return newDummySyncer(finishch)
 		},

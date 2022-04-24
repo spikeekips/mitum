@@ -22,7 +22,6 @@ type baseHandler struct {
 	local                isaac.LocalNode
 	policy               isaac.Policy
 	proposalSelector     isaac.ProposalSelector
-	getSuffrage          func(base.Height) base.Suffrage
 	stt                  StateType
 	sts                  *States
 	timers               *util.Timers // NOTE only for testing
@@ -37,7 +36,6 @@ func newBaseHandler(
 	local isaac.LocalNode,
 	policy isaac.Policy,
 	proposalSelector isaac.ProposalSelector,
-	getSuffrage func(base.Height) base.Suffrage,
 ) *baseHandler {
 	lvps := newLastVoteproofs()
 
@@ -49,7 +47,6 @@ func newBaseHandler(
 		local:            local,
 		policy:           policy,
 		proposalSelector: proposalSelector,
-		getSuffrage:      getSuffrage,
 		broadcastBallotFunc: func(base.Ballot) error {
 			return nil
 		},
@@ -201,18 +198,6 @@ func (st *baseHandler) broadcastINITBallot(bl base.Ballot, tolocal bool) error {
 
 func (st *baseHandler) broadcastACCEPTBallot(bl base.Ballot, tolocal bool, initialWait time.Duration) error {
 	return st.broadcastBallot(bl, tolocal, timerIDBroadcastACCEPTBallot, initialWait)
-}
-
-func (st *baseHandler) isLocalInSuffrage(height base.Height) (bool /* in suffrage */, error) {
-	suf := st.getSuffrage(height)
-	switch {
-	case suf == nil:
-		return false, errors.Errorf("empty suffrage")
-	case !suf.Exists(st.local.Address()):
-		return false, nil
-	default:
-		return true, nil
-	}
 }
 
 func (st *baseHandler) nextRound(vp base.Voteproof, prevBlock util.Hash) {

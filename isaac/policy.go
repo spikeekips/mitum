@@ -19,9 +19,13 @@ type Policy struct {
 	timeoutRequestProposal  time.Duration
 }
 
-func NewPolicy() Policy {
+func DefaultPolicy(networkID base.NetworkID) Policy {
+	b := base.NewBasePolicy(PolicyHint)
+	b.SetNetworkID(networkID).
+		SetThreshold(base.Threshold(100))
+
 	return Policy{
-		BasePolicy:              base.NewBasePolicy(PolicyHint),
+		BasePolicy:              b,
 		intervalBroadcastBallot: time.Second * 3,
 		waitProcessingProposal:  time.Second * 3,
 		timeoutRequestProposal:  time.Second * 3,

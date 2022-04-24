@@ -77,3 +77,14 @@ type TempPoolDatabase interface {
 	ProposalByPoint(base.Point, base.Address) (base.ProposalSignedFact, bool, error)
 	SetProposal(pr base.ProposalSignedFact) (bool, error)
 }
+
+type NewOperationPool interface {
+	NewOperation(_ context.Context, facthash util.Hash) (base.Operation, bool, error)
+	NewOperationHashes(
+		_ context.Context,
+		limit uint64,
+		filter func(facthash util.Hash) (ok bool, err error),
+	) ([]util.Hash, error)
+	SetNewOperation(context.Context, base.Operation) (bool, error)
+	RemoveNewOperations(context.Context, []util.Hash) error
+}

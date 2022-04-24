@@ -21,8 +21,7 @@ type BaseTestBallots struct {
 
 func (t *BaseTestBallots) SetupTest() {
 	local := RandomLocalNode()
-	policy := NewPolicy()
-	policy.SetNetworkID(base.RandomNetworkID())
+	policy := DefaultPolicy(base.RandomNetworkID())
 	policy.SetThreshold(base.Threshold(100))
 	policy.SetWaitProcessingProposal(time.Nanosecond)
 

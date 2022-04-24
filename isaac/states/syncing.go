@@ -26,11 +26,10 @@ func NewSyncingHandler(
 	local isaac.LocalNode,
 	policy isaac.Policy,
 	proposalSelector isaac.ProposalSelector,
-	getSuffrage func(base.Height) base.Suffrage,
 	newSyncer func() Syncer,
 ) *SyncingHandler {
 	return &SyncingHandler{
-		baseHandler: newBaseHandler(StateSyncing, local, policy, proposalSelector, getSuffrage),
+		baseHandler: newBaseHandler(StateSyncing, local, policy, proposalSelector),
 		newSyncer:   newSyncer,
 		waitStuck:   policy.IntervalBroadcastBallot()*2 + policy.WaitProcessingProposal(),
 	}

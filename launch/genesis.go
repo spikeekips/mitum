@@ -246,27 +246,7 @@ func (g *GenesisBlockGenerator) newProposalProcessor() (*isaac.DefaultProposalPr
 	return isaac.NewDefaultProposalProcessor(
 		g.proposal,
 		nil,
-		func(pr base.ProposalSignedFact, getStateFunc base.GetStateFunc) (isaac.BlockDataWriter, error) {
-			e := util.StringErrorFunc("failed to crete BlockDataWriter")
-
-			dbw, err := g.db.NewBlockWriteDatabase(pr.Point().Height())
-			if err != nil {
-				return nil, e(err, "")
-			}
-
-			fswriter, err := blockdata.NewLocalFSWriter(
-				g.dataroot,
-				pr.Point().Height(),
-				g.enc,
-				g.local,
-				g.networkID,
-			)
-			if err != nil {
-				return nil, e(err, "")
-			}
-
-			return blockdata.NewWriter(pr, getStateFunc, dbw, g.db.MergeBlockWriteDatabase, fswriter), nil
-		},
+		NewBlockDataWriterFunc(g.local, g.networkID, g.dataroot, g.enc, g.db),
 		func(key string) (base.State, bool, error) {
 			return nil, false, nil
 		},
@@ -282,4 +262,34 @@ func (g *GenesisBlockGenerator) newProposalProcessor() (*isaac.DefaultProposalPr
 			return nil, false, nil
 		},
 	)
+}
+
+func NewBlockDataWriterFunc(
+	local base.LocalNode,
+	networkID base.NetworkID,
+	dataroot string,
+	enc encoder.Encoder,
+	db isaac.Database,
+) isaac.NewBlockDataWriterFunc {
+	return func(proposal base.ProposalSignedFact, getStateFunc base.GetStateFunc) (isaac.BlockDataWriter, error) {
+		e := util.StringErrorFunc("failed to crete BlockDataWriter")
+
+		dbw, err := db.NewBlockWriteDatabase(proposal.Point().Height())
+		if err != nil {
+			return nil, e(err, "")
+		}
+
+		fswriter, err := blockdata.NewLocalFSWriter(
+			dataroot,
+			proposal.Point().Height(),
+			enc,
+			local,
+			networkID,
+		)
+		if err != nil {
+			return nil, e(err, "")
+		}
+
+		return blockdata.NewWriter(proposal, getStateFunc, dbw, db.MergeBlockWriteDatabase, fswriter), nil
+	}
 }

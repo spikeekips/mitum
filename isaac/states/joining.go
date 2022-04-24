@@ -21,11 +21,10 @@ func NewJoiningHandler(
 	local isaac.LocalNode,
 	policy isaac.Policy,
 	proposalSelector isaac.ProposalSelector,
-	getSuffrage func(base.Height) base.Suffrage,
 	getLastManifest func() (base.Manifest, bool, error),
 ) *JoiningHandler {
 	return &JoiningHandler{
-		baseHandler:        newBaseHandler(StateJoining, local, policy, proposalSelector, getSuffrage),
+		baseHandler:        newBaseHandler(StateJoining, local, policy, proposalSelector),
 		getLastManifest:    getLastManifest,
 		waitFirstVoteproof: policy.IntervalBroadcastBallot()*2 + policy.WaitProcessingProposal(),
 	}

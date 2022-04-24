@@ -23,8 +23,7 @@ func TestPolicyJSON(tt *testing.T) {
 	t.Encode = func() (interface{}, []byte) {
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: PolicyHint, Instance: Policy{}}))
 
-		p := NewPolicy()
-		p.SetNetworkID(util.UUID().Bytes())
+		p := DefaultPolicy(util.UUID().Bytes())
 		p.SetThreshold(base.Threshold(77.7))
 		p.SetIntervalBroadcastBallot(time.Second * 33)
 

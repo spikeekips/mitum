@@ -12,10 +12,9 @@ type BootingHandler struct {
 func NewBootingHandler(
 	local isaac.LocalNode,
 	policy isaac.Policy,
-	getSuffrage func(base.Height) base.Suffrage,
 ) *BootingHandler {
 	return &BootingHandler{
-		baseHandler: newBaseHandler(StateBooting, local, policy, nil, getSuffrage),
+		baseHandler: newBaseHandler(StateBooting, local, policy, nil),
 	}
 }
 

@@ -1,6 +1,7 @@
 package localtime
 
 import (
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -17,7 +18,10 @@ func ParseRFC3339(s string) (time.Time, error) {
 
 // RFC3339 formats time.Time to RFC3339Nano string.
 func RFC3339(t time.Time) string {
-	return t.Format(time.RFC3339Nano)
+	s := t.Format(time.RFC3339Nano)
+	s = s[:len(s)-1]
+
+	return s + strings.Repeat("0", 29-len(s)) + "Z"
 }
 
 // Normalize clear the nanoseconds part from Time and make time to UTC.
@@ -55,6 +59,10 @@ func New(t time.Time) Time {
 
 func (t Time) Bytes() []byte {
 	return []byte(t.Normalize().String())
+}
+
+func (t Time) UTC() Time {
+	return New(t.Time.UTC())
 }
 
 func (t Time) RFC3339() string {

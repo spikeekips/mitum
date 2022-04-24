@@ -11,17 +11,21 @@ import (
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
+	"github.com/spikeekips/mitum/util/localtime"
 )
 
 var (
-	leveldbKeyPrefixSuffrage         = []byte{0x00, 0x01}
-	leveldbKeyPrefixSuffrageHeight   = []byte{0x00, 0x02}
-	leveldbKeyPrefixState            = []byte{0x00, 0x03}
-	leveldbKeyPrefixInStateOperation = []byte{0x00, 0x04}
-	leveldbKeyPrefixKnownOperation   = []byte{0x00, 0x05}
-	leveldbKeyPrefixProposal         = []byte{0x00, 0x06}
-	leveldbKeyPrefixProposalByPoint  = []byte{0x00, 0x07}
-	leveldbKeyPrefixBlockDataMap     = []byte{0x00, 0x08}
+	leveldbKeyPrefixSuffrage                = []byte{0x00, 0x01}
+	leveldbKeyPrefixSuffrageHeight          = []byte{0x00, 0x02}
+	leveldbKeyPrefixState                   = []byte{0x00, 0x03}
+	leveldbKeyPrefixInStateOperation        = []byte{0x00, 0x04}
+	leveldbKeyPrefixKnownOperation          = []byte{0x00, 0x05}
+	leveldbKeyPrefixProposal                = []byte{0x00, 0x06}
+	leveldbKeyPrefixProposalByPoint         = []byte{0x00, 0x07}
+	leveldbKeyPrefixBlockDataMap            = []byte{0x00, 0x08}
+	leveldbKeyPrefixNewOperation            = []byte{0x00, 0x09}
+	leveldbKeyPrefixNewOperationOrdered     = []byte{0x00, 0x10}
+	leveldbKeyPrefixNewOperationOrderedInfo = []byte{0x00, 0x11}
 )
 
 var (
@@ -154,4 +158,23 @@ func leveldbBlockDataMapKey(height base.Height) []byte {
 		leveldbKeyPrefixBlockDataMap,
 		[]byte(fmt.Sprintf("%021d", height)),
 	)
+}
+
+func leveldbNewOperationOrderedKey(facthash util.Hash) []byte {
+	return util.ConcatBytesSlice(
+		leveldbKeyPrefixNewOperationOrdered,
+		[]byte(localtime.RFC3339(localtime.UTCNow())),
+		facthash.Bytes(),
+	)
+}
+
+func leveldbNewOperationInfoKey(facthash util.Hash) []byte {
+	return util.ConcatBytesSlice(
+		leveldbKeyPrefixNewOperationOrderedInfo,
+		facthash.Bytes(),
+	)
+}
+
+func leveldbNewOperationKey(facthash util.Hash) []byte {
+	return util.ConcatBytesSlice(leveldbKeyPrefixNewOperation, facthash.Bytes())
 }

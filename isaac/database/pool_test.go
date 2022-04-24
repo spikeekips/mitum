@@ -1,11 +1,14 @@
 package database
 
 import (
+	"context"
 	"testing"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 )
@@ -127,4 +130,206 @@ func (t *testPool) TestCleanOldProposals() {
 
 func TestPool(t *testing.T) {
 	suite.Run(t, new(testPool))
+}
+
+type testNewOperationPool struct {
+	isaac.BaseTestBallots
+	BaseTestDatabase
+	local     isaac.LocalNode
+	networkID base.NetworkID
+}
+
+func (t *testNewOperationPool) SetupSuite() {
+	t.BaseTestDatabase.SetupSuite()
+
+	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.DummyOperationFactHint, Instance: isaac.DummyOperationFact{}}))
+	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.DummyOperationHint, Instance: isaac.DummyOperation{}}))
+
+	t.local = isaac.RandomLocalNode()
+	t.networkID = util.UUID().Bytes()
+}
+
+func (t *testNewOperationPool) SetupTest() {
+	t.BaseTestBallots.SetupTest()
+	t.BaseTestDatabase.SetupTest()
+}
+
+func (t *testNewOperationPool) TestNewOperation() {
+	pst := t.NewPool()
+	defer pst.Close()
+
+	_ = (interface{})(pst).(isaac.NewOperationPool)
+
+	ops := make([]base.Operation, 33)
+	for i := range ops {
+		fact := isaac.NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
+		op, _ := isaac.NewDummyOperation(fact, t.local.Privatekey(), t.networkID)
+
+		ops[i] = op
+
+		added, err := pst.SetNewOperation(context.Background(), op)
+		t.NoError(err)
+		t.True(added)
+	}
+
+	t.Run("check", func() {
+		for i := range ops {
+			op := ops[i]
+
+			rop, found, err := pst.NewOperation(context.Background(), op.Fact().Hash())
+			t.NoError(err)
+			t.True(found)
+			base.EqualOperation(t.Assert(), op, rop)
+		}
+	})
+
+	t.Run("unknown", func() {
+		op, found, err := pst.NewOperation(context.Background(), valuehash.RandomSHA256())
+		t.NoError(err)
+		t.False(found)
+		t.Nil(op)
+	})
+}
+
+func (t *testNewOperationPool) TestNewOperationHashes() {
+	pst := t.NewPool()
+	defer pst.Close()
+
+	ops := make([]base.Operation, 33)
+	for i := range ops {
+		fact := isaac.NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
+		op, _ := isaac.NewDummyOperation(fact, t.local.Privatekey(), t.networkID)
+
+		ops[i] = op
+
+		added, err := pst.SetNewOperation(context.Background(), op)
+		t.NoError(err)
+		t.True(added)
+	}
+
+	t.Run("limit 10", func() {
+		rops, err := pst.NewOperationHashes(context.Background(), 10, nil)
+		t.NoError(err)
+		t.Equal(10, len(rops))
+
+		for i := range rops {
+			op := ops[i].Fact().Hash()
+			rop := rops[i]
+
+			t.True(op.Equal(rop), "op=%q rop=%q", op, rop)
+		}
+	})
+
+	t.Run("over 33", func() {
+		rops, err := pst.NewOperationHashes(context.Background(), 100, nil)
+		t.NoError(err)
+		t.Equal(len(ops), len(rops))
+
+		for i := range rops {
+			op := ops[i].Fact().Hash()
+			rop := rops[i]
+
+			t.True(op.Equal(rop), "op=%q rop=%q", op, rop)
+		}
+	})
+
+	t.Run("filter", func() {
+		filter := func(facthash util.Hash) (bool, error) {
+			if facthash.Equal(ops[32].Fact().Hash()) {
+				return false, nil
+			}
+
+			return true, nil
+		}
+
+		rops, err := pst.NewOperationHashes(context.Background(), 100, filter)
+		t.NoError(err)
+		t.Equal(len(ops)-1, len(rops))
+
+		for i := range rops {
+			op := ops[i].Fact().Hash()
+			rop := rops[i]
+
+			t.True(op.Equal(rop), "op=%q rop=%q", op, rop)
+		}
+
+		// NOTE ops[32] was removed
+		op, found, err := pst.NewOperation(context.Background(), ops[32].Fact().Hash())
+		t.NoError(err)
+		t.False(found)
+		t.Nil(op)
+	})
+
+	t.Run("filter error", func() {
+		filter := func(facthash util.Hash) (bool, error) {
+			if facthash.Equal(ops[31].Fact().Hash()) {
+				return false, errors.Errorf("findme")
+			}
+
+			return true, nil
+		}
+
+		_, err := pst.NewOperationHashes(context.Background(), 100, filter)
+		t.Error(err)
+		t.Contains(err.Error(), "findme")
+	})
+}
+
+func (t *testNewOperationPool) TestRemoveNewOperations() {
+	pst := t.NewPool()
+	defer pst.Close()
+
+	ops := make([]base.Operation, 33)
+	var removes []util.Hash
+	for i := range ops {
+		fact := isaac.NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
+		op, _ := isaac.NewDummyOperation(fact, t.local.Privatekey(), t.networkID)
+
+		ops[i] = op
+		if i%3 == 0 {
+			removes = append(removes, fact.Hash())
+		}
+
+		added, err := pst.SetNewOperation(context.Background(), op)
+		t.NoError(err)
+		t.True(added)
+	}
+
+	t.NoError(pst.RemoveNewOperations(context.Background(), removes))
+
+	t.Run("all", func() {
+		rops, err := pst.NewOperationHashes(context.Background(), 100, nil)
+		t.NoError(err)
+		t.Equal(len(ops)-len(removes), len(rops))
+
+		var j int
+		for i := range ops {
+			if i%3 == 0 {
+				continue
+			}
+			if i >= len(rops)-1 {
+				break
+			}
+
+			op := ops[i].Fact().Hash()
+			rop := rops[j]
+
+			t.True(op.Equal(rop), "op=%q rop=%q", op, rop)
+
+			j++
+		}
+	})
+
+	for i := range removes {
+		h := removes[i]
+
+		op, found, err := pst.NewOperation(context.Background(), h)
+		t.NoError(err)
+		t.False(found)
+		t.Nil(op)
+	}
+}
+
+func TestNewOperationPool(t *testing.T) {
+	suite.Run(t, new(testNewOperationPool))
 }

@@ -26,7 +26,6 @@ func (t *testJoiningHandler) newState(suf base.Suffrage) (*JoiningHandler, func(
 		local,
 		policy,
 		nil,
-		func(base.Height) base.Suffrage { return suf },
 		func() (base.Manifest, bool, error) {
 			return nil, false, errors.Errorf("empty manifest")
 		},
