@@ -5,6 +5,12 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 )
 
+type NetworkPolicy interface {
+	hint.Hinter
+	util.IsValider
+	MaxOperationsInProposal() uint64
+}
+
 type NodePolicy interface {
 	hint.Hinter
 	util.IsValider

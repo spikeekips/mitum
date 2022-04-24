@@ -9,7 +9,7 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 )
 
-var NodePolicyHint = hint.MustNewHint("isaac-node-policy-v0.0.1")
+var NodePolicyHint = hint.MustNewHint("node-policy-v0.0.1")
 
 type NodePolicy struct {
 	util.DefaultJSONMarshaled
@@ -34,6 +34,10 @@ func DefaultNodePolicy(networkID base.NetworkID) NodePolicy {
 
 func (p NodePolicy) IsValid(networkID []byte) error {
 	e := util.StringErrorFunc("invalid NodePolicy")
+
+	if err := p.BaseHinter.IsValid(NodePolicyHint.Type().Bytes()); err != nil {
+		return e(err, "")
+	}
 
 	if !p.networkID.Equal(networkID) {
 		return e(util.InvalidError.Errorf("network id does not match"), "")
@@ -104,7 +108,7 @@ func (p *NodePolicy) SetTimeoutRequestProposal(d time.Duration) *NodePolicy {
 	return p
 }
 
-type policyJSONMarshaler struct {
+type nodePolicyJSONMarshaler struct {
 	hint.BaseHinter
 	NT base.NetworkID `json:"network_id"`
 	TH base.Threshold `json:"threshold"`
@@ -114,7 +118,7 @@ type policyJSONMarshaler struct {
 }
 
 func (p NodePolicy) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(policyJSONMarshaler{
+	return util.MarshalJSON(nodePolicyJSONMarshaler{
 		BaseHinter: p.BaseHinter,
 		NT:         p.networkID,
 		TH:         p.threshold,
@@ -124,7 +128,7 @@ func (p NodePolicy) MarshalJSON() ([]byte, error) {
 	})
 }
 
-type policyJSONUnmarshaler struct {
+type nodePolicyJSONUnmarshaler struct {
 	NT base.NetworkID `json:"network_id"`
 	TH base.Threshold `json:"threshold"`
 	IB time.Duration  `json:"interval_broadcast_ballot"`
@@ -133,7 +137,7 @@ type policyJSONUnmarshaler struct {
 }
 
 func (p *NodePolicy) UnmarshalJSON(b []byte) error {
-	var u policyJSONUnmarshaler
+	var u nodePolicyJSONUnmarshaler
 	if err := util.UnmarshalJSON(b, &u); err != nil {
 		return errors.Wrap(err, "failed to unmarshal NodePolicy")
 	}

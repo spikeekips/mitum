@@ -122,6 +122,7 @@ func TestNodePolicyJSON(tt *testing.T) {
 		ap := a.(NodePolicy)
 		bp := b.(NodePolicy)
 
+		t.True(ap.Hint().Equal(bp.Hint()))
 		t.True(ap.networkID.Equal(bp.networkID))
 		t.Equal(ap.threshold, bp.threshold)
 		t.Equal(ap.intervalBroadcastBallot, bp.intervalBroadcastBallot)
