@@ -1,3 +1,6 @@
+//go:build redis
+// +build redis
+
 package database
 
 import (
@@ -17,9 +20,10 @@ type testRedisPermanent struct {
 }
 
 func TestRedisPermanent(tt *testing.T) {
-	t := new(testLeveldbPermanent)
+	t := new(testRedisPermanent)
 	t.newDB = func() isaac.PermanentDatabase {
 		st, err := redisstorage.NewStorage(context.Background(), &redis.Options{}, util.UUID().String())
+		t.NoError(err)
 
 		db, err := NewRedisPermanent(st, t.Encs, t.Enc)
 		t.NoError(err)
