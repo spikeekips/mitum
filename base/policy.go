@@ -8,6 +8,7 @@ import (
 type NetworkPolicy interface {
 	hint.Hinter
 	util.IsValider
+	util.HashByter
 	MaxOperationsInProposal() uint64
 }
 

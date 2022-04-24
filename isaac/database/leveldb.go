@@ -1,6 +1,7 @@
 package database
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 	"sync"
@@ -25,7 +26,13 @@ var (
 	leveldbKeyPrefixBlockDataMap            = []byte{0x00, 0x08}
 	leveldbKeyPrefixNewOperation            = []byte{0x00, 0x09}
 	leveldbKeyPrefixNewOperationOrdered     = []byte{0x00, 0x10}
-	leveldbKeyPrefixNewOperationOrderedInfo = []byte{0x00, 0x11}
+	leveldbKeyPrefixNewOperationOrderedKeys = []byte{0x00, 0x11}
+
+	leveldbNewOperationOrderedKeysJoinSep   = bytes.Repeat([]byte{0xff}, 10)
+	leveldbNewOperationOrderedKeysJoinedSep = util.ConcatBytesSlice(
+		leveldbNewOperationOrderedKeysJoinSep,
+		leveldbKeyPrefixNewOperationOrdered,
+	)
 )
 
 var (
@@ -168,9 +175,9 @@ func leveldbNewOperationOrderedKey(facthash util.Hash) []byte {
 	)
 }
 
-func leveldbNewOperationInfoKey(facthash util.Hash) []byte {
+func leveldbNewOperationKeysKey(facthash util.Hash) []byte {
 	return util.ConcatBytesSlice(
-		leveldbKeyPrefixNewOperationOrderedInfo,
+		leveldbKeyPrefixNewOperationOrderedKeys,
 		facthash.Bytes(),
 	)
 }

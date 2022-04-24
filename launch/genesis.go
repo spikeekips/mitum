@@ -18,15 +18,16 @@ import (
 
 type GenesisBlockGenerator struct {
 	*logging.Logging
-	local     base.LocalNode
-	networkID base.NetworkID
-	enc       encoder.Encoder
-	db        *database.Default
-	dataroot  string
-	proposal  base.ProposalSignedFact
-	joinOp    isaacoperation.SuffrageGenesisJoin
-	ivp       base.INITVoteproof
-	avp       base.ACCEPTVoteproof
+	local           base.LocalNode
+	networkID       base.NetworkID
+	enc             encoder.Encoder
+	db              *database.Default
+	dataroot        string
+	proposal        base.ProposalSignedFact
+	ops             []base.Operation
+	networkPolicyOp isaacoperation.GenesisNetworkPolicy
+	ivp             base.INITVoteproof
+	avp             base.ACCEPTVoteproof
 }
 
 func NewGenesisBlockGenerator(
@@ -52,6 +53,10 @@ func (g *GenesisBlockGenerator) Generate() (base.BlockDataMap, error) {
 	e := util.StringErrorFunc("failed to generate genesis block")
 
 	if err := g.joinOperation(); err != nil {
+		return nil, e(err, "")
+	}
+
+	if err := g.networkPolicyOperation(); err != nil {
 		return nil, e(err, "")
 	}
 
@@ -101,9 +106,29 @@ func (g *GenesisBlockGenerator) joinOperation() error {
 		return e(err, "")
 	}
 
-	g.joinOp = op
+	g.ops = append(g.ops, op)
 
 	g.Log().Debug().Interface("operation", op).Msg("genesis join operation created")
+
+	return nil
+}
+
+func (g *GenesisBlockGenerator) networkPolicyOperation() error {
+	e := util.StringErrorFunc("failed to make join operation")
+
+	fact := isaacoperation.NewGenesisNetworkPolicyFact(isaac.DefaultNetworkPolicy())
+	if err := fact.IsValid(nil); err != nil {
+		return e(err, "")
+	}
+
+	op := isaacoperation.NewGenesisNetworkPolicy(fact)
+	if err := op.Sign(g.local.Privatekey(), g.networkID); err != nil {
+		return e(err, "")
+	}
+
+	g.ops = append(g.ops, op)
+
+	g.Log().Debug().Interface("operation", op).Msg("genesis network policy operation created")
 
 	return nil
 }
@@ -111,7 +136,9 @@ func (g *GenesisBlockGenerator) joinOperation() error {
 func (g *GenesisBlockGenerator) newProposal(ops []util.Hash) error {
 	e := util.StringErrorFunc("failed to make genesis proposal")
 
-	ops = append(ops, g.joinOp.Fact().Hash())
+	for i := range g.ops {
+		ops = append(ops, g.ops[i].Fact().Hash())
+	}
 
 	fact := isaac.NewProposalFact(base.GenesisPoint, g.local.Address(), ops)
 	signed := isaac.NewProposalSignedFact(fact)
@@ -251,12 +278,13 @@ func (g *GenesisBlockGenerator) newProposalProcessor() (*isaac.DefaultProposalPr
 			return nil, false, nil
 		},
 		func(_ context.Context, facthash util.Hash) (base.Operation, error) {
-			switch {
-			case facthash.Equal(g.joinOp.Fact().Hash()):
-				return g.joinOp, nil
-			default:
-				return nil, util.NotFoundError.Errorf("operation not found")
+			for i := range g.ops {
+				op := g.ops[i]
+				if facthash.Equal(op.Fact().Hash()) {
+					return op, nil
+				}
 			}
+			return nil, util.NotFoundError.Errorf("operation not found")
 		},
 		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) {
 			return nil, false, nil

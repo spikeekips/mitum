@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
@@ -46,37 +45,37 @@ func NewSuffrageJoinPermissionFact(
 	return fact
 }
 
-func (suf SuffrageJoinPermissionFact) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid SuffrageJoinPermission")
+func (fact SuffrageJoinPermissionFact) IsValid([]byte) error {
+	e := util.StringErrorFunc("invalid SuffrageJoinPermissionFact")
 
-	if err := util.CheckIsValid(nil, false, suf.BaseFact, suf.candidate, suf.state); err != nil {
+	if err := util.CheckIsValid(nil, false, fact.BaseFact, fact.candidate, fact.state); err != nil {
 		return e(err, "")
 	}
 
-	if !valuehash.Bytes(suf.BaseFact.Token()).Equal(suf.state) {
+	if !valuehash.Bytes(fact.BaseFact.Token()).Equal(fact.state) {
 		return e(util.InvalidError.Errorf("wrong token"), "")
 	}
 
-	if !suf.Hash().Equal(suf.hash()) {
+	if !fact.Hash().Equal(fact.hash()) {
 		return e(util.InvalidError.Errorf("hash does not match"), "")
 	}
 
 	return nil
 }
 
-func (suf SuffrageJoinPermissionFact) Candidate() base.Address {
-	return suf.candidate
+func (fact SuffrageJoinPermissionFact) Candidate() base.Address {
+	return fact.candidate
 }
 
-func (suf SuffrageJoinPermissionFact) State() util.Hash {
-	return suf.state
+func (fact SuffrageJoinPermissionFact) State() util.Hash {
+	return fact.state
 }
 
-func (suf SuffrageJoinPermissionFact) hash() util.Hash {
+func (fact SuffrageJoinPermissionFact) hash() util.Hash {
 	return valuehash.NewSHA256(util.ConcatByters(
-		util.BytesToByter(suf.Token()),
-		suf.candidate,
-		suf.state,
+		util.BytesToByter(fact.Token()),
+		fact.candidate,
+		fact.state,
 	))
 }
 
@@ -102,52 +101,38 @@ func NewSuffrageGenesisJoinPermissionFact(
 	return fact
 }
 
-func (suf SuffrageGenesisJoinPermissionFact) IsValid(networkID []byte) error {
-	e := util.StringErrorFunc("invalid SuffrageGenesisJoinPermission")
+func (fact SuffrageGenesisJoinPermissionFact) IsValid(networkID []byte) error {
+	e := util.StringErrorFunc("invalid SuffrageGenesisJoinPermissionFact")
 
-	if err := util.CheckIsValid(nil, false, suf.BaseFact, suf.node, suf.pub); err != nil {
+	if err := util.CheckIsValid(nil, false, fact.BaseFact, fact.node, fact.pub); err != nil {
 		return e(err, "")
 	}
 
-	if !bytes.Equal(suf.BaseFact.Token(), networkID) {
+	if !bytes.Equal(fact.BaseFact.Token(), networkID) {
 		return e(util.InvalidError.Errorf("wrong token"), "")
 	}
 
-	if !suf.Hash().Equal(suf.hash()) {
+	if !fact.Hash().Equal(fact.hash()) {
 		return e(util.InvalidError.Errorf("hash does not match"), "")
 	}
 
 	return nil
 }
 
-func (suf SuffrageGenesisJoinPermissionFact) Node() base.Address {
-	return suf.node
+func (fact SuffrageGenesisJoinPermissionFact) Node() base.Address {
+	return fact.node
 }
 
-func (suf SuffrageGenesisJoinPermissionFact) Publickey() base.Publickey {
-	return suf.pub
+func (fact SuffrageGenesisJoinPermissionFact) Publickey() base.Publickey {
+	return fact.pub
 }
 
-func (suf SuffrageGenesisJoinPermissionFact) hash() util.Hash {
+func (fact SuffrageGenesisJoinPermissionFact) hash() util.Hash {
 	return valuehash.NewSHA256(util.ConcatByters(
-		util.BytesToByter(suf.Token()),
-		suf.node,
-		suf.pub,
+		util.BytesToByter(fact.Token()),
+		fact.node,
+		fact.pub,
 	))
-}
-
-func NewSuffrageJoinPermissionNodeSignedFact(
-	node base.Address,
-	priv base.Privatekey,
-	networkID base.NetworkID,
-	fact SuffrageJoinPermissionFact,
-) (base.NodeSigned, error) {
-	signed, err := base.BaseNodeSignedFromFact(node, priv, networkID, fact)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to sign SuffrageJoinPermissionNodeSignedFact")
-	}
-
-	return signed, nil
 }
 
 func NewSuffrageJoin(fact SuffrageJoinPermissionFact) base.BaseOperation {
@@ -174,6 +159,8 @@ func (op SuffrageGenesisJoin) IsValid(networkID []byte) error {
 	if len(op.Signed()) > 1 {
 		return e(util.InvalidError.Errorf("multiple signed found"), "")
 	}
+
+	// BLOCK check signer should be genesis block creator
 
 	fact := op.Fact().(SuffrageGenesisJoinPermissionFact)
 	if !fact.Publickey().Equal(op.Signed()[0].Signer()) {

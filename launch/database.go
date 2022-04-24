@@ -23,7 +23,7 @@ func PrepareDatabase(
 	fsroot string,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
-) (*database.Default, database.TempPool, error) {
+) (*database.Default, *database.TempPool, error) {
 	e := util.StringErrorFunc("failed to prepare database")
 
 	switch _, err := os.Stat(fsroot); {
@@ -58,7 +58,7 @@ func PrepareDatabase(
 	db, err := database.NewDefault(temproot, encs, enc, perm, func(height base.Height) (isaac.BlockWriteDatabase, error) {
 		newroot, eerr := database.NewTempDirectory(temproot, height)
 		if eerr != nil {
-			return nil, nil, errors.Wrap(eerr, "")
+			return nil, errors.Wrap(eerr, "")
 		}
 
 		return database.NewLeveldbBlockWrite(height, newroot, encs, enc)

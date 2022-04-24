@@ -202,8 +202,8 @@ func (db *TempPool) SetNewOperation(_ context.Context, op base.Operation) (bool,
 
 	facthash := op.Fact().Hash()
 
-	info := newNewOperationLeveldbInfo(facthash)
-	switch found, err := db.st.Exists(info.Key); {
+	key, orderedkey := newNewOperationLeveldbKeys(facthash)
+	switch found, err := db.st.Exists(key); {
 	case err != nil:
 		return false, e(err, "")
 	case found:
@@ -216,15 +216,10 @@ func (db *TempPool) SetNewOperation(_ context.Context, op base.Operation) (bool,
 	}
 
 	batch := new(leveldb.Batch)
-	batch.Put(info.Key, b)
-	batch.Put(info.OrderedKey, facthash.Bytes())
+	batch.Put(key, b)
+	batch.Put(orderedkey, facthash.Bytes())
 
-	b, err = db.marshal(info)
-	if err != nil {
-		return false, e(err, "failed to marshal newOperationLeveldbInfo")
-	}
-
-	batch.Put(leveldbNewOperationInfoKey(facthash), b)
+	batch.Put(leveldbNewOperationKeysKey(facthash), joinNewOperationLeveldbOrderedKeys(key, orderedkey))
 
 	if err := db.st.Write(batch, nil); err != nil {
 		return false, e(err, "")
@@ -281,7 +276,7 @@ func (db *TempPool) removeNewOperations(ctx context.Context, facthashes []util.H
 		}
 
 		if err := worker.NewJob(func(context.Context, uint64) error {
-			infokey := leveldbNewOperationInfoKey(h)
+			infokey := leveldbNewOperationKeysKey(h)
 			b, found, err := db.st.Get(infokey)
 			switch {
 			case err != nil:
@@ -290,14 +285,14 @@ func (db *TempPool) removeNewOperations(ctx context.Context, facthashes []util.H
 				return nil
 			}
 
-			info, err := db.loadNewOperationInfo(b)
+			key, orderedkey, err := db.loadNewOperationKeys(b)
 			if err != nil {
 				return errors.Wrap(err, "")
 			}
 
 			removekeysch <- infokey
-			removekeysch <- info.Key
-			removekeysch <- info.OrderedKey
+			removekeysch <- key
+			removekeysch <- orderedkey
 
 			return nil
 		}); err != nil {
@@ -365,34 +360,23 @@ func (db *TempPool) loadOperation(b []byte) (base.Operation, error) {
 	}
 }
 
-func (db *TempPool) loadNewOperationInfo(b []byte) (NewOperationLeveldbInfo, error) {
+func (db *TempPool) loadNewOperationKeys(b []byte) (key []byte, orderedkey []byte, err error) {
 	if b == nil {
-		return NewOperationLeveldbInfo{}, nil
+		return nil, nil, nil
 	}
 
-	e := util.StringErrorFunc("failed to load NewOperationLeveldbInfo")
-
-	enc, raw, err := db.readEncoder(b)
-	if err != nil {
-		return NewOperationLeveldbInfo{}, e(err, "")
+	i := bytes.LastIndex(b, leveldbNewOperationOrderedKeysJoinedSep)
+	if i < 0 {
+		return nil, nil, errors.Errorf("unknown NewOperations info key format")
 	}
 
-	var u NewOperationLeveldbInfo
-	if err := enc.Unmarshal(raw, &u); err != nil {
-		return NewOperationLeveldbInfo{}, e(err, "")
-	}
-
-	return u, nil
+	return b[:i], b[i+len(leveldbNewOperationOrderedKeysJoinSep):], nil
 }
 
-type NewOperationLeveldbInfo struct {
-	Key        []byte
-	OrderedKey []byte
+func newNewOperationLeveldbKeys(facthash util.Hash) (key []byte, orderedkey []byte) {
+	return leveldbNewOperationKey(facthash), leveldbNewOperationOrderedKey(facthash)
 }
 
-func newNewOperationLeveldbInfo(facthash util.Hash) NewOperationLeveldbInfo {
-	return NewOperationLeveldbInfo{
-		Key:        leveldbNewOperationKey(facthash),
-		OrderedKey: leveldbNewOperationOrderedKey(facthash),
-	}
+func joinNewOperationLeveldbOrderedKeys(a, b []byte) []byte {
+	return bytes.Join([][]byte{a, b}, leveldbNewOperationOrderedKeysJoinSep)
 }

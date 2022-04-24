@@ -1,7 +1,6 @@
 package isaac
 
 import (
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
@@ -10,6 +9,7 @@ import (
 var (
 	SuffrageStateKey          = "suffrage"
 	SuffrageCandidateStateKey = "suffrage_candidate"
+	NetworkPolicyStateKey     = "network_policy"
 )
 
 type Suffrage struct {
@@ -105,6 +105,11 @@ func (s SuffrageStateValue) HashBytes() []byte {
 }
 
 func (s SuffrageStateValue) IsValid([]byte) error {
+	e := util.StringErrorFunc("invalid SuffrageStateValue")
+	if err := s.BaseHinter.IsValid(SuffrageStateValueHint.Type().Bytes()); err != nil {
+		return e(err, "")
+	}
+
 	vs := make([]util.IsValider, len(s.nodes)+2)
 	vs[0] = s.height
 	vs[1] = s.previous
@@ -113,7 +118,7 @@ func (s SuffrageStateValue) IsValid([]byte) error {
 	}
 
 	if err := util.CheckIsValid(nil, false, vs...); err != nil {
-		return errors.Wrap(err, "invalid SuffrageStateValue")
+		return e(err, "")
 	}
 
 	return nil
@@ -129,6 +134,10 @@ func (s SuffrageStateValue) Previous() util.Hash {
 
 func (s SuffrageStateValue) Nodes() []base.Node {
 	return s.nodes
+}
+
+func (s SuffrageStateValue) Suffrage() (base.Suffrage, error) {
+	return NewSuffrage(s.nodes)
 }
 
 func (s SuffrageStateValue) Equal(b base.StateValue) bool {
@@ -157,10 +166,6 @@ func (s SuffrageStateValue) Equal(b base.StateValue) bool {
 	}
 
 	return true
-}
-
-func (s SuffrageStateValue) Suffrage() (base.Suffrage, error) {
-	return NewSuffrage(s.nodes)
 }
 
 type SuffrageCandidateStateNodeValue struct {

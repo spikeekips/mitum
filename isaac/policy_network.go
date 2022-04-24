@@ -1,12 +1,16 @@
 package isaac
 
 import (
+	"bytes"
+
 	"github.com/pkg/errors"
+	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
 )
 
 var (
+	NetworkPolicyStateValueHint           = hint.MustNewHint("network-policy-state-value-v0.0.1")
 	NetworkPolicyHint                     = hint.MustNewHint("network-policy-v0.0.1")
 	DefaultMaxOperationsInProposal uint64 = 333
 )
@@ -24,7 +28,7 @@ func DefaultNetworkPolicy() NetworkPolicy {
 	}
 }
 
-func (p NetworkPolicy) IsValid(networkID []byte) error {
+func (p NetworkPolicy) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid NetworkPolicy")
 
 	if err := p.BaseHinter.IsValid(NetworkPolicyHint.Type().Bytes()); err != nil {
@@ -36,6 +40,10 @@ func (p NetworkPolicy) IsValid(networkID []byte) error {
 	}
 
 	return nil
+}
+
+func (p NetworkPolicy) HashBytes() []byte {
+	return util.Uint64ToBytes(p.maxOperationsInProposal)
 }
 
 func (p NetworkPolicy) MaxOperationsInProposal() uint64 {
@@ -73,4 +81,55 @@ func (p *NetworkPolicy) UnmarshalJSON(b []byte) error {
 	p.maxOperationsInProposal = u.MO
 
 	return nil
+}
+
+type NetworkPolicyStateValue struct {
+	hint.BaseHinter
+	policy base.NetworkPolicy
+}
+
+func NewNetworkPolicyStateValue(policy base.NetworkPolicy) NetworkPolicyStateValue {
+	return NetworkPolicyStateValue{
+		BaseHinter: hint.NewBaseHinter(NetworkPolicyStateValueHint),
+		policy:     policy,
+	}
+}
+
+func (s NetworkPolicyStateValue) HashBytes() []byte {
+	return s.policy.HashBytes()
+}
+
+func (s NetworkPolicyStateValue) IsValid([]byte) error {
+	e := util.StringErrorFunc("invalid NetworkPolicyStateValue")
+	if err := s.BaseHinter.IsValid(NetworkPolicyStateValueHint.Type().Bytes()); err != nil {
+		return e(err, "")
+	}
+
+	if err := util.CheckIsValid(nil, false, s.policy); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
+func (s NetworkPolicyStateValue) Policy() base.NetworkPolicy {
+	return s.policy
+}
+
+func (s NetworkPolicyStateValue) Equal(b base.StateValue) bool {
+	switch {
+	case b == nil:
+		return false
+	case s.Hint().Type() != b.Hint().Type():
+		return false
+	}
+
+	switch j, ok := b.(NetworkPolicyStateValue); {
+	case !ok:
+		return false
+	case !bytes.Equal(s.policy.HashBytes(), j.Policy().HashBytes()):
+		return false
+	default:
+		return true
+	}
 }
