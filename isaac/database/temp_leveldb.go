@@ -20,6 +20,7 @@ type TempLeveldb struct {
 	st     *leveldbstorage.ReadonlyStorage
 	mp     base.BlockDataMap // NOTE last blockdatamap
 	sufstt base.State        // NOTE last suffrage state
+	policy base.NetworkPolicy
 }
 
 func NewTempLeveldb(f string, encs *encoder.Encoders, enc encoder.Encoder) (*TempLeveldb, error) {
@@ -56,6 +57,10 @@ func newTempLeveldb(
 		return nil, err
 	}
 
+	if err := db.loadNetworkPolicy(); err != nil {
+		return nil, err
+	}
+
 	return db, nil
 }
 
@@ -79,11 +84,17 @@ func newTempLeveldbFromBlockWriteStorage(wst *LeveldbBlockWrite) (*TempLeveldb, 
 		sufstt = i.(base.State)
 	}
 
+	var policy base.NetworkPolicy
+	if i, _ := wst.policy.Value(); i != nil {
+		policy = i.(base.NetworkPolicy)
+	}
+
 	return &TempLeveldb{
 		baseLeveldb: newBaseLeveldb(st, wst.encs, wst.enc),
 		st:          st,
 		mp:          mp,
 		sufstt:      sufstt,
+		policy:      policy,
 	}, nil
 }
 
@@ -117,6 +128,10 @@ func (db *TempLeveldb) Suffrage() (base.State, bool, error) {
 	}
 
 	return db.sufstt, true, nil
+}
+
+func (db *TempLeveldb) NetworkPolicy() base.NetworkPolicy {
+	return db.policy
 }
 
 func (db *TempLeveldb) State(key string) (base.State, bool, error) {
@@ -154,21 +169,11 @@ func (db *TempLeveldb) loadLastBlockDataMap() error {
 func (db *TempLeveldb) loadLastSuffrage() error {
 	e := util.StringErrorFunc("failed to load suffrage state")
 
-	var key string
-	switch b, found, err := db.st.Get(leveldbKeyPrefixSuffrage); {
+	switch b, found, err := db.st.Get(leveldbStateKey(isaac.SuffrageStateKey)); {
 	case err != nil:
 		return e(err, "")
 	case !found:
 		return nil
-	default:
-		key = string(b)
-	}
-
-	switch b, found, err := db.st.Get(leveldbStateKey(key)); {
-	case err != nil:
-		return e(err, "")
-	case !found:
-		return e(nil, "suffrage state not found")
 	default:
 		st, err := db.decodeSuffrage(b)
 		if err != nil {
@@ -176,6 +181,37 @@ func (db *TempLeveldb) loadLastSuffrage() error {
 		}
 
 		db.sufstt = st
+
+		return nil
+	}
+}
+
+func (db *TempLeveldb) loadNetworkPolicy() error {
+	e := util.StringErrorFunc("failed to load suffrage state")
+
+	b, found, err := db.st.Get(leveldbStateKey(isaac.NetworkPolicyStateKey))
+
+	switch {
+	case err != nil:
+		return e(err, "")
+	case !found:
+		return nil
+	}
+
+	switch hinter, err := db.readHinter(b); {
+	case err != nil:
+		return e(err, "")
+	default:
+		i, ok := hinter.(base.State)
+		if !ok {
+			return e(nil, "not state: %T", hinter)
+		}
+
+		if !base.IsNetworkPolicyState(i) {
+			return e(nil, "not NetworkPolicy state: %T", i)
+		}
+
+		db.policy = i.Value().(base.NetworkPolicyStateValue).Policy()
 
 		return nil
 	}

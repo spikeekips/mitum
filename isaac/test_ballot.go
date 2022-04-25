@@ -178,16 +178,33 @@ func (t *BaseTestBallots) SuffrageState(height, sufheight base.Height, nodes []b
 
 	_ = (interface{})(sv).(base.SuffrageStateValue)
 
-	sufstt := base.NewBaseState(
+	st := base.NewBaseState(
 		height,
 		SuffrageStateKey,
 		sv,
 		valuehash.RandomSHA256(),
 		nil,
 	)
-	sufstt.SetOperations([]util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256(), valuehash.RandomSHA256()})
+	st.SetOperations([]util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256(), valuehash.RandomSHA256()})
 
-	return sufstt, sv
+	return st, sv
+}
+
+func (t *BaseTestBallots) NetworkPolicyState(height base.Height, policy NetworkPolicy) (base.State, base.NetworkPolicyStateValue) {
+	sv := NewNetworkPolicyStateValue(policy)
+
+	_ = (interface{})(sv).(base.NetworkPolicyStateValue)
+
+	st := base.NewBaseState(
+		height,
+		NetworkPolicyStateKey,
+		sv,
+		valuehash.RandomSHA256(),
+		nil,
+	)
+	st.SetOperations([]util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256(), valuehash.RandomSHA256()})
+
+	return st, sv
 }
 
 type proposalPool struct {

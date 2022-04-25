@@ -9,18 +9,20 @@ import (
 type basePermanent struct {
 	mp     *util.Locked // NOTE last blockdatamap
 	sufstt *util.Locked // NOTE last suffrage state
+	policy *util.Locked // NOTE last NetworkPolicy
 }
 
 func newBasePermanent() *basePermanent {
 	return &basePermanent{
 		mp:     util.EmptyLocked(),
 		sufstt: util.EmptyLocked(),
+		policy: util.EmptyLocked(),
 	}
 }
 
 func (db *basePermanent) LastMap() (base.BlockDataMap, bool, error) {
-	switch i, isnil := db.mp.Value(); {
-	case isnil || i == nil:
+	switch i, _ := db.mp.Value(); {
+	case i == nil:
 		return nil, false, nil
 	default:
 		return i.(base.BlockDataMap), true, nil
@@ -36,10 +38,17 @@ func (db *basePermanent) LastSuffrage() (base.State, bool, error) {
 	}
 }
 
-func (db *LeveldbPermanent) canMergeTempDatabase(temp isaac.TempDatabase) bool {
-	i, _ := db.mp.Value()
+func (db *basePermanent) LastNetworkPolicy() base.NetworkPolicy {
+	switch i, _ := db.policy.Value(); {
+	case i == nil:
+		return nil
+	default:
+		return i.(base.NetworkPolicy)
+	}
+}
 
-	switch {
+func (db *LeveldbPermanent) canMergeTempDatabase(temp isaac.TempDatabase) bool {
+	switch i, _ := db.mp.Value(); {
 	case i == nil:
 		return true
 	case i.(base.BlockDataMap).Manifest().Height() < temp.Height():

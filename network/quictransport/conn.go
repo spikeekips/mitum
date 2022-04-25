@@ -53,8 +53,8 @@ func (c *qconn) Read(b []byte) (int, error) {
 	}
 
 	var t time.Time
-	switch i, isnil := c.dr.Value(); {
-	case isnil || i == nil:
+	switch i, _ := c.dr.Value(); {
+	case i == nil:
 		return c.r.Read(b)
 	default:
 		t = i.(time.Time)
@@ -96,8 +96,8 @@ func (c *qconn) Write(b []byte) (int, error) {
 
 	ctx := context.Background()
 	var t time.Time
-	switch i, isnil := c.dw.Value(); {
-	case isnil || i == nil:
+	switch i, _ := c.dw.Value(); {
+	case i == nil:
 		return c.writef(ctx, b)
 	default:
 		t = i.(time.Time)

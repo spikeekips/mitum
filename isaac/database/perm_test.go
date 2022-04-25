@@ -44,6 +44,17 @@ func (t *testCommonPermanent) setSuffrageState(db isaac.PermanentDatabase, st ba
 	}
 }
 
+func (t *testCommonPermanent) setNetworkPolicy(db isaac.PermanentDatabase, policy base.NetworkPolicy) {
+	switch t := db.(type) {
+	case *LeveldbPermanent:
+		_ = t.policy.SetValue(policy)
+	case *RedisPermanent:
+		_ = t.policy.SetValue(policy)
+	default:
+		panic("unknown PermanentDatabase")
+	}
+}
+
 func (t *testCommonPermanent) TestNew() {
 	db := t.newDB()
 	defer db.Close()
@@ -101,6 +112,26 @@ func (t *testCommonPermanent) TestLastSuffrage() {
 		t.True(found)
 
 		t.True(base.IsEqualState(sufstt, rsufstt))
+	})
+}
+
+func (t *testCommonPermanent) TestNetworkPolicy() {
+	policy := isaac.DefaultNetworkPolicy()
+
+	db := t.newDB()
+	defer db.Close()
+
+	t.Run("empty policy", func() {
+		rpolicy := db.LastNetworkPolicy()
+		t.Nil(rpolicy)
+	})
+
+	t.setNetworkPolicy(db, policy)
+
+	t.Run("none-empty policy", func() {
+		rpolicy := db.LastNetworkPolicy()
+
+		base.EqualNetworkPolicy(t.Assert(), policy, rpolicy)
 	})
 }
 
@@ -216,9 +247,11 @@ func (t *testCommonPermanent) TestLoad() {
 	_, nodes := t.Locals(3)
 
 	sufstt, _ := t.SuffrageState(height, base.Height(66), nodes)
+	policy := isaac.DefaultNetworkPolicy()
+	policystt, _ := t.NetworkPolicyState(height, policy)
 
 	stts := t.States(height, 3)
-	stts = append(stts, sufstt)
+	stts = append(stts, sufstt, policystt)
 
 	manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
 	mp := base.NewDummyBlockDataMap(manifest)
@@ -252,6 +285,11 @@ func (t *testCommonPermanent) TestLoad() {
 		t.NoError(err)
 		t.True(found)
 		t.True(base.IsEqualState(sufstt, nst))
+	})
+
+	t.Run("check network policy in perm", func() {
+		rpolicy := perm.LastNetworkPolicy()
+		base.EqualNetworkPolicy(t.Assert(), policy, rpolicy)
 	})
 
 	newperm, err := t.newFromDB(perm)

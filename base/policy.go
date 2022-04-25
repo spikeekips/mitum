@@ -18,3 +18,18 @@ type NodePolicy interface {
 	NetworkID() NetworkID
 	Threshold() Threshold
 }
+
+type NetworkPolicyStateValue interface {
+	StateValue
+	Policy() NetworkPolicy
+}
+
+func IsNetworkPolicyState(st State) bool {
+	if st.Value() == nil {
+		return false
+	}
+
+	_, ok := st.Value().(NetworkPolicyStateValue)
+
+	return ok
+}

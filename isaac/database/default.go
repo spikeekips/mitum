@@ -187,6 +187,18 @@ func (db *Default) LastSuffrage() (base.State, bool, error) {
 	return db.perm.LastSuffrage()
 }
 
+func (db *Default) LastNetworkPolicy() base.NetworkPolicy {
+	temps := db.activeTemps()
+
+	for i := range temps {
+		if i := temps[i].NetworkPolicy(); i != nil {
+			return i
+		}
+	}
+
+	return db.perm.LastNetworkPolicy()
+}
+
 func (db *Default) State(key string) (base.State, bool, error) {
 	e := util.StringErrorFunc("failed to find State")
 	l := util.NewLocked(nil)

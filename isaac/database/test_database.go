@@ -43,6 +43,8 @@ func (t *BaseTestDatabase) SetupSuite() {
 	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageStateValueHint, Instance: isaac.SuffrageStateValue{}}))
 	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.ProposalFactHint, Instance: isaac.ProposalFact{}}))
 	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.ProposalSignedFactHint, Instance: isaac.ProposalSignedFact{}}))
+	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.NetworkPolicyStateValueHint, Instance: isaac.NetworkPolicyStateValue{}}))
+	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.NetworkPolicyHint, Instance: isaac.NetworkPolicy{}}))
 }
 
 func (t *BaseTestDatabase) SetupTest() {

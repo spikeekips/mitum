@@ -26,6 +26,7 @@ type DummyPermanentDatabase struct {
 	existsKnownOperationf   func(operationHash util.Hash) (bool, error)
 	mapf                    func(height base.Height) (base.BlockDataMap, bool, error)
 	lastMapf                func() (base.BlockDataMap, bool, error)
+	lastNetworkPolicyf      func() base.NetworkPolicy
 	mergeTempDatabasef      func(isaac.TempDatabase) error
 }
 
@@ -67,6 +68,14 @@ func (db *DummyPermanentDatabase) LastMap() (base.BlockDataMap, bool, error) {
 	}
 
 	return db.lastMapf()
+}
+
+func (db *DummyPermanentDatabase) LastNetworkPolicy() base.NetworkPolicy {
+	if db.lastNetworkPolicyf == nil {
+		return nil
+	}
+
+	return db.lastNetworkPolicyf()
 }
 
 func (db *DummyPermanentDatabase) MergeTempDatabase(_ context.Context, temp isaac.TempDatabase) error {
@@ -288,6 +297,33 @@ func (t *testDefaultWithPermanent) TestLastSuffrage() {
 		t.False(found)
 		t.Nil(rst)
 		t.Contains(err.Error(), "hihihi")
+	})
+}
+
+func (t *testDefaultWithPermanent) TestLastNetworkPolicy() {
+	perm := &DummyPermanentDatabase{}
+
+	db, err := NewDefault(t.Root, t.Encs, t.Enc, perm, nil)
+	t.NoError(err)
+
+	policy := isaac.DefaultNetworkPolicy()
+
+	t.Run("found", func() {
+		perm.lastNetworkPolicyf = func() base.NetworkPolicy {
+			return policy
+		}
+
+		r := db.LastNetworkPolicy()
+		base.EqualNetworkPolicy(t.Assert(), policy, r)
+	})
+
+	t.Run("not found", func() {
+		perm.lastNetworkPolicyf = func() base.NetworkPolicy {
+			return nil
+		}
+
+		r := db.LastNetworkPolicy()
+		t.Nil(r)
 	})
 }
 

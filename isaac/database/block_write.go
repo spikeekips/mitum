@@ -19,6 +19,7 @@ type LeveldbBlockWrite struct {
 	height base.Height
 	mp     *util.Locked // NOTE blockdatamap
 	sufstt *util.Locked // NOTE suffrage state
+	policy *util.Locked // NetworkPolicy
 }
 
 func NewLeveldbBlockWrite(
@@ -47,6 +48,7 @@ func newLeveldbBlockWrite(
 		height:      height,
 		mp:          util.EmptyLocked(),
 		sufstt:      util.EmptyLocked(),
+		policy:      util.EmptyLocked(),
 	}
 }
 
@@ -68,16 +70,11 @@ func (db *LeveldbBlockWrite) SetStates(sts []base.State) error {
 	worker := util.NewErrgroupWorker(context.Background(), math.MaxInt32)
 	defer worker.Close()
 
-	var suffragestate base.State
 	go func() {
 		defer worker.Done()
 
 		for i := range sts {
 			st := sts[i]
-
-			if err := base.IsSuffrageState(st); err == nil && st.Key() == isaac.SuffrageStateKey {
-				suffragestate = st
-			}
 
 			err := worker.NewJob(func(context.Context, uint64) error {
 				if err := db.setState(st); err != nil {
@@ -109,18 +106,6 @@ func (db *LeveldbBlockWrite) SetStates(sts []base.State) error {
 
 	if err := worker.Wait(); err != nil {
 		return e(err, "")
-	}
-
-	if suffragestate != nil {
-		if _, err := db.sufstt.Set(func(i interface{}) (interface{}, error) {
-			if err := db.st.Put(leveldbKeyPrefixSuffrage, []byte(suffragestate.Key()), nil); err != nil {
-				return nil, errors.Wrap(err, "failed to put suffrage state")
-			}
-
-			return suffragestate, nil
-		}); err != nil {
-			return e(err, "failed to put suffrage state")
-		}
 	}
 
 	return nil
@@ -160,8 +145,8 @@ func (db *LeveldbBlockWrite) SetOperations(ops []util.Hash) error {
 }
 
 func (db *LeveldbBlockWrite) Map() (base.BlockDataMap, error) {
-	switch i, isnil := db.mp.Value(); {
-	case isnil || i == nil:
+	switch i, _ := db.mp.Value(); {
+	case i == nil:
 		return nil, storage.NotFoundError.Errorf("empty blockdatamap")
 	default:
 		return i.(base.BlockDataMap), nil
@@ -184,12 +169,21 @@ func (db *LeveldbBlockWrite) SetMap(m base.BlockDataMap) error {
 }
 
 func (db *LeveldbBlockWrite) SuffrageState() base.State {
-	i, isnil := db.sufstt.Value()
-	if isnil {
+	i, _ := db.sufstt.Value()
+	if i == nil {
 		return nil
 	}
 
 	return i.(base.State)
+}
+
+func (db *LeveldbBlockWrite) NetworkPolicy() base.NetworkPolicy {
+	i, _ := db.policy.Value()
+	if i == nil {
+		return nil
+	}
+
+	return i.(base.NetworkPolicy)
 }
 
 func (db *LeveldbBlockWrite) Write() error {
@@ -220,8 +214,10 @@ func (db *LeveldbBlockWrite) TempDatabase() (isaac.TempDatabase, error) {
 }
 
 func (db *LeveldbBlockWrite) setState(st base.State) error {
+	e := util.StringErrorFunc("failed to set state")
+
 	if st.Height() != db.height {
-		return errors.Errorf("wrong state height")
+		return e(nil, "wrong state height")
 	}
 
 	b, err := db.marshal(st)
@@ -229,8 +225,15 @@ func (db *LeveldbBlockWrite) setState(st base.State) error {
 		return errors.Wrap(err, "failed to set state")
 	}
 
+	switch {
+	case base.IsSuffrageState(st) && st.Key() == isaac.SuffrageStateKey:
+		_ = db.sufstt.SetValue(st)
+	case base.IsNetworkPolicyState(st) && st.Key() == isaac.NetworkPolicyStateKey:
+		_ = db.policy.SetValue(st.Value().(base.NetworkPolicyStateValue).Policy())
+	}
+
 	if err := db.st.Put(leveldbStateKey(st.Key()), b, nil); err != nil {
-		return errors.Errorf("failed to put state")
+		return e(err, "")
 	}
 
 	return nil

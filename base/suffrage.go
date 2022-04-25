@@ -2,7 +2,6 @@ package base
 
 import (
 	"github.com/pkg/errors"
-	"github.com/spikeekips/mitum/storage"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -37,20 +36,19 @@ func InterfaceIsSuffrageState(i interface{}) (State, error) {
 	switch st, ok := i.(State); {
 	case !ok:
 		return nil, errors.Errorf("not suffrage state: %T", i)
+	case !IsSuffrageState(st):
+		return nil, errors.Errorf("not suffrage state value: %T", st.Value())
 	default:
-		return st, IsSuffrageState(st)
+		return st, nil
 	}
 }
 
-func IsSuffrageState(st State) error {
-	switch {
-	case st.Value() == nil:
-		return storage.NotFoundError.Errorf("state value not found")
-	default:
-		if _, ok := st.Value().(SuffrageStateValue); !ok {
-			return errors.Errorf("not suffrage state value: %T", st.Value())
-		}
-
-		return nil
+func IsSuffrageState(st State) bool {
+	if st.Value() == nil {
+		return false
 	}
+
+	_, ok := st.Value().(SuffrageStateValue)
+
+	return ok
 }

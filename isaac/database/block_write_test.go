@@ -66,9 +66,11 @@ func (t *testLeveldbBlockWrite) TestSetStates() {
 	_, nodes := t.Locals(3)
 
 	sufstt, _ := t.SuffrageState(height, base.Height(33), nodes)
+	policy := isaac.DefaultNetworkPolicy()
+	policystt, _ := t.NetworkPolicyState(height, policy)
 
 	stts := t.States(height, 3)
-	stts = append(stts, sufstt)
+	stts = append(stts, sufstt, policystt)
 
 	manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
 
@@ -90,6 +92,13 @@ func (t *testLeveldbBlockWrite) TestSetStates() {
 		t.NoError(err)
 
 		t.True(base.IsEqualState(sufstt, rstt))
+	})
+
+	t.Run("check network policy", func() {
+		rpolicy := rst.NetworkPolicy()
+		t.NotNil(rpolicy)
+
+		base.EqualNetworkPolicy(t.Assert(), policy, rpolicy)
 	})
 
 	t.Run("check states", func() {

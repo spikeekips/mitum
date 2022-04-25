@@ -36,7 +36,7 @@ var (
 )
 
 var (
-	leveldbBeginSuffrageKey = util.ConcatBytesSlice(leveldbKeyPrefixSuffrage, []byte(strings.Repeat("0", 20)))
+	leveldbBeginSuffrageKey = util.ConcatBytesSlice(leveldbKeyPrefixSuffrage, []byte(strings.Repeat("0", 21)))
 	leveldbSuffrageStateKey = leveldbStateKey(isaac.SuffrageStateKey)
 )
 

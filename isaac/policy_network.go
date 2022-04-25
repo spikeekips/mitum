@@ -10,8 +10,9 @@ import (
 )
 
 var (
-	NetworkPolicyStateValueHint           = hint.MustNewHint("network-policy-state-value-v0.0.1")
-	NetworkPolicyHint                     = hint.MustNewHint("network-policy-v0.0.1")
+	NetworkPolicyHint           = hint.MustNewHint("network-policy-v0.0.1")
+	NetworkPolicyStateValueHint = hint.MustNewHint("network-policy-state-value-v0.0.1")
+
 	DefaultMaxOperationsInProposal uint64 = 333
 )
 
