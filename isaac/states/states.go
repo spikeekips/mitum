@@ -86,6 +86,10 @@ func (st *States) start(ctx context.Context) error {
 	case !found:
 		return errors.Errorf("failed to find stopped handler")
 	default:
+		if _, err := h.enter(nil); err != nil {
+			return errors.Errorf("failed to enter stopped handler")
+		}
+
 		st.cs = h
 	}
 

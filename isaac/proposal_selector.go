@@ -30,22 +30,22 @@ type ProposalPool interface {
 
 type BaseProposalSelector struct {
 	sync.Mutex
-	local            LocalNode
+	local            base.LocalNode
 	policy           NodePolicy
 	proposerSelector ProposerSelector
 	maker            *ProposalMaker
-	getSuffrage      func(base.Height) base.Suffrage
+	getSuffrage      func(base.Height) (base.Suffrage, bool, error)
 	getLongDeadNodes func() []base.Address
 	request          func(context.Context, base.Point, base.Address) (base.ProposalSignedFact, error)
 	pool             ProposalPool
 }
 
 func NewBaseProposalSelector(
-	local LocalNode,
+	local base.LocalNode,
 	policy NodePolicy,
 	proposerSelector ProposerSelector,
 	maker *ProposalMaker,
-	getSuffrage func(base.Height) base.Suffrage,
+	getSuffrage func(base.Height) (base.Suffrage, bool, error),
 	getLongDeadNodes func() []base.Address,
 	request func(context.Context, base.Point, base.Address) (base.ProposalSignedFact, error),
 	pool ProposalPool,
@@ -68,9 +68,14 @@ func (p *BaseProposalSelector) Select(ctx context.Context, point base.Point) (ba
 
 	e := util.StringErrorFunc("failed to select proposal")
 
-	suf := p.getSuffrage(point.Height())
-	if suf == nil {
-		return nil, e(nil, "failed to get suffrage for height, %d", point.Height())
+	var suf base.Suffrage
+	switch i, found, err := p.getSuffrage(point.Height()); {
+	case err != nil:
+		return nil, e(err, "failed to get suffrage for height, %d", point.Height())
+	case !found:
+		return nil, e(nil, "suffrage not found for height, %d", point.Height())
+	default:
+		suf = i
 	}
 
 	switch n := suf.Len(); {
@@ -231,14 +236,14 @@ func (p BlockBasedProposerSelector) Select(
 
 type ProposalMaker struct {
 	sync.Mutex
-	local         LocalNode
+	local         base.LocalNode
 	policy        base.NodePolicy
 	getOperations func(context.Context) ([]util.Hash, error)
 	pool          ProposalPool
 }
 
 func NewProposalMaker(
-	local LocalNode,
+	local base.LocalNode,
 	policy base.NodePolicy,
 	getOperations func(context.Context) ([]util.Hash, error),
 	pool ProposalPool,

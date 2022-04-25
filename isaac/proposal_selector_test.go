@@ -108,8 +108,8 @@ func (t *testBaseProposalSelector) TestNew() {
 			},
 		),
 		NewProposalMaker(t.Local, t.NodePolicy, func(context.Context) ([]util.Hash, error) { return nil, nil }, pool),
-		func(base.Height) base.Suffrage {
-			return suf
+		func(base.Height) (base.Suffrage, bool, error) {
+			return suf, true, nil
 		},
 		func() []base.Address {
 			return nil
@@ -160,8 +160,8 @@ func (t *testBaseProposalSelector) TestOneNode() {
 			},
 		),
 		NewProposalMaker(t.Local, t.NodePolicy, func(context.Context) ([]util.Hash, error) { return nil, nil }, pool),
-		func(base.Height) base.Suffrage {
-			return suf
+		func(base.Height) (base.Suffrage, bool, error) {
+			return suf, true, nil
 		},
 		func() []base.Address {
 			return nil
@@ -200,8 +200,8 @@ func (t *testBaseProposalSelector) TestUnknownSuffrage() {
 			},
 		),
 		NewProposalMaker(t.Local, t.NodePolicy, func(context.Context) ([]util.Hash, error) { return nil, nil }, pool),
-		func(base.Height) base.Suffrage {
-			return nil
+		func(base.Height) (base.Suffrage, bool, error) {
+			return nil, false, nil
 		},
 		func() []base.Address {
 			return nil
@@ -218,7 +218,7 @@ func (t *testBaseProposalSelector) TestUnknownSuffrage() {
 	pr, err := p.Select(context.Background(), point)
 	t.Error(err)
 	t.Nil(pr)
-	t.Contains(err.Error(), "failed to get suffrage for height")
+	t.Contains(err.Error(), "suffrage not found for height")
 }
 
 func (t *testBaseProposalSelector) TestUnknownManifestHash() {
@@ -234,8 +234,8 @@ func (t *testBaseProposalSelector) TestUnknownManifestHash() {
 			},
 		),
 		NewProposalMaker(t.Local, t.NodePolicy, func(context.Context) ([]util.Hash, error) { return nil, nil }, pool),
-		func(base.Height) base.Suffrage {
-			return suf
+		func(base.Height) (base.Suffrage, bool, error) {
+			return suf, true, nil
 		},
 		func() []base.Address {
 			return nil
@@ -269,8 +269,8 @@ func (t *testBaseProposalSelector) TestDeadNode() {
 			},
 		),
 		NewProposalMaker(t.Local, t.NodePolicy, func(context.Context) ([]util.Hash, error) { return nil, nil }, pool),
-		func(base.Height) base.Suffrage {
-			return suf
+		func(base.Height) (base.Suffrage, bool, error) {
+			return suf, true, nil
 		},
 		func() []base.Address {
 			return []base.Address{nodes[2].Address()}
@@ -326,8 +326,8 @@ func (t *testBaseProposalSelector) TestFailedToReqeustByContext() {
 			},
 		),
 		NewProposalMaker(t.Local, t.NodePolicy, func(context.Context) ([]util.Hash, error) { return nil, nil }, pool),
-		func(base.Height) base.Suffrage {
-			return suf
+		func(base.Height) (base.Suffrage, bool, error) {
+			return suf, true, nil
 		},
 		func() []base.Address {
 			return nil
@@ -383,8 +383,8 @@ func (t *testBaseProposalSelector) TestAllFailedToReqeust() {
 			},
 		),
 		NewProposalMaker(t.Local, t.NodePolicy, func(context.Context) ([]util.Hash, error) { return nil, nil }, pool),
-		func(base.Height) base.Suffrage {
-			return suf
+		func(base.Height) (base.Suffrage, bool, error) {
+			return suf, true, nil
 		},
 		func() []base.Address {
 			return nil
@@ -424,8 +424,8 @@ func (t *testBaseProposalSelector) TestContextCanceled() {
 			},
 		),
 		NewProposalMaker(t.Local, t.NodePolicy, func(context.Context) ([]util.Hash, error) { return nil, nil }, pool),
-		func(base.Height) base.Suffrage {
-			return suf
+		func(base.Height) (base.Suffrage, bool, error) {
+			return suf, true, nil
 		},
 		func() []base.Address {
 			return nil
@@ -502,8 +502,8 @@ func (t *testBaseProposalSelector) TestMainContextCanceled() {
 			},
 		),
 		NewProposalMaker(t.Local, t.NodePolicy, func(context.Context) ([]util.Hash, error) { return nil, nil }, pool),
-		func(base.Height) base.Suffrage {
-			return suf
+		func(base.Height) (base.Suffrage, bool, error) {
+			return suf, true, nil
 		},
 		func() []base.Address {
 			return nil

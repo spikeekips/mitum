@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
+	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/util"
 	mitumlogging "github.com/spikeekips/mitum/util/logging"
@@ -148,8 +148,15 @@ func (cmd *runCommand) Run() error {
 		local,
 		nodePolicy,
 		func(ctx context.Context) ([]util.Hash, error) {
+			policy := db.LastNetworkPolicy()
+			n := policy.MaxOperationsInProposal()
+			if n < 1 {
+				return nil, nil
+			}
+
 			hs, err := pool.NewOperationHashes(
-				100, // BLOCK set ops limit in proposal
+				ctx,
+				n, // BLOCK set ops limit in proposal
 				func(facthash util.Hash) (bool, error) {
 					switch found, err := db.ExistsInStateOperation(facthash); {
 					case err != nil:
@@ -167,7 +174,7 @@ func (cmd *runCommand) Run() error {
 
 			return hs, nil
 		},
-		nil,
+		pool,
 	)
 
 	proposerSelector := isaac.NewBaseProposalSelector(
@@ -185,6 +192,28 @@ func (cmd *runCommand) Run() error {
 				}
 			},
 		),
+		proposalMaker,
+		func(height base.Height) (base.Suffrage, bool, error) {
+			i, found, err := db.Suffrage(height)
+			switch {
+			case err != nil:
+				return nil, false, errors.Wrap(err, "")
+			case !found:
+				return nil, false, nil
+			case !base.IsSuffrageState(i):
+				return nil, false, errors.Errorf("invalid suffrage state")
+			}
+
+			suf, err := i.Value().(base.SuffrageStateValue).Suffrage()
+			if err != nil {
+				return nil, false, errors.Wrap(err, "")
+			}
+
+			return suf, true, nil
+		},
+		func() []base.Address { return nil },
+		func(context.Context, base.Point, base.Address) (base.ProposalSignedFact, error) { return nil, nil }, // BLOCK set request
+		pool,
 	)
 
 	getLastManifest := func() (base.Manifest, bool, error) {
@@ -196,11 +225,11 @@ func (cmd *runCommand) Run() error {
 		}
 	}
 
-	newProposalProcessor := func(proposal base.ProposalSignedFact, previous base.Manifest) (ProposalProcessor, error) {
+	newProposalProcessor := func(proposal base.ProposalSignedFact, previous base.Manifest) (isaac.ProposalProcessor, error) {
 		return isaac.NewDefaultProposalProcessor(
 			proposal,
 			previous,
-			launch.NewBlockDataWriterFunc(local, networkID, launch.FSRootDataDirectory(root), g.enc, g.db),
+			launch.NewBlockDataWriterFunc(local, networkID, launch.FSRootDataDirectory(root), enc, db),
 			db.State,
 			nil, nil,
 		)
@@ -210,14 +239,22 @@ func (cmd *runCommand) Run() error {
 
 	box := isaacstates.NewBallotbox(getSuffrage, nodePolicy.Threshold())
 	states := isaacstates.NewStates(box)
+	_ = states.SetLogging(logging)
+
 	states.
 		SetHandler(isaacstates.NewStoppedHandler(local, nodePolicy)).
 		SetHandler(isaacstates.NewBootingHandler(local, nodePolicy)).
 		SetHandler(isaacstates.NewJoiningHandler(local, nodePolicy, proposerSelector, getLastManifest)).
 		SetHandler(isaacstates.NewConsensusHandler(local, nodePolicy, proposerSelector, getManifest, getSuffrage, pps))
 
-	fmt.Println(">", states)
 	log.Debug().Msg("states loaded")
+
+	select {
+	case err := <-states.Wait(context.Background()):
+		if err != nil {
+			return errors.Wrap(err, "")
+		}
+	}
 
 	return nil
 }
@@ -241,6 +278,6 @@ func prepareLocal(address base.Address) (base.LocalNode, error) {
 	return isaac.NewLocalNode(priv, address), nil
 }
 
-func defaultNodePolicy() base.NodePolicy {
+func defaultNodePolicy() isaac.NodePolicy {
 	return isaac.DefaultNodePolicy(networkID)
 }

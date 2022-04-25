@@ -2,6 +2,7 @@ package isaacstates
 
 import (
 	"github.com/rs/zerolog"
+	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 )
 
@@ -10,7 +11,7 @@ type StoppedHandler struct {
 }
 
 func NewStoppedHandler(
-	local isaac.LocalNode,
+	local base.LocalNode,
 	policy isaac.NodePolicy,
 ) *StoppedHandler {
 	return &StoppedHandler{

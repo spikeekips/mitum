@@ -18,7 +18,7 @@ type ConsensusHandler struct {
 }
 
 func NewConsensusHandler(
-	local isaac.LocalNode,
+	local base.LocalNode,
 	policy isaac.NodePolicy,
 	proposalSelector isaac.ProposalSelector,
 	getManifest func(base.Height) (base.Manifest, error),
@@ -245,7 +245,7 @@ func (st *ConsensusHandler) newVoteproof(vp base.Voteproof) error {
 	e := util.StringErrorFunc("failed to handle new voteproof")
 
 	var lvps lastVoteproofs
-	switch l, v, err := st.baseHandler.newVoteproof(vp); {
+	switch l, v, err := st.baseHandler.setNewVoteproof(vp); {
 	case err != nil:
 		return e(err, "")
 	case v == nil:

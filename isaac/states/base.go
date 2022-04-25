@@ -19,7 +19,7 @@ type baseHandler struct {
 	*logging.Logging
 	ctx                  context.Context
 	cancel               func()
-	local                isaac.LocalNode
+	local                base.LocalNode
 	policy               isaac.NodePolicy
 	proposalSelector     isaac.ProposalSelector
 	stt                  StateType
@@ -33,7 +33,7 @@ type baseHandler struct {
 
 func newBaseHandler(
 	state StateType,
-	local isaac.LocalNode,
+	local base.LocalNode,
 	policy isaac.NodePolicy,
 	proposalSelector isaac.ProposalSelector,
 ) *baseHandler {
@@ -71,16 +71,8 @@ func (st *baseHandler) exit(switchContext) (func(), error) {
 	return func() {}, nil
 }
 
-func (st *baseHandler) newVoteproof(vp base.Voteproof) (lastVoteproofs, base.Voteproof, error) {
-	lvps := st.lastVoteproof()
-
-	if st.sts == nil && !lvps.isNew(vp) {
-		return lastVoteproofs{}, nil, nil
-	}
-
-	_ = st.setLastVoteproof(vp)
-
-	return lvps, vp, nil
+func (st *baseHandler) newVoteproof(vp base.Voteproof) error {
+	return nil
 }
 
 func (st *baseHandler) state() StateType {
@@ -143,6 +135,18 @@ func (st *baseHandler) setStates(sts *States) {
 	st.setLastVoteproofFunc = func(vp base.Voteproof) bool {
 		return st.sts.setLastVoteproof(vp)
 	}
+}
+
+func (st *baseHandler) setNewVoteproof(vp base.Voteproof) (lastVoteproofs, base.Voteproof, error) {
+	lvps := st.lastVoteproof()
+
+	if st.sts == nil && !lvps.isNew(vp) {
+		return lastVoteproofs{}, nil, nil
+	}
+
+	_ = st.setLastVoteproof(vp)
+
+	return lvps, vp, nil
 }
 
 func (st *baseHandler) broadcastBallot(

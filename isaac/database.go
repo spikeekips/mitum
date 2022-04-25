@@ -20,7 +20,7 @@ type Database interface {
 	Suffrage(blockheight base.Height) (base.State, bool, error)
 	SuffrageByHeight(suffrageHeight base.Height) (base.State, bool, error)
 	LastSuffrage() (base.State, bool, error)
-	NetworkPolicy() base.NetworkPolicy
+	LastNetworkPolicy() base.NetworkPolicy
 	State(key string) (base.State, bool, error)
 	// ExistsInStateOperation has only operation facts, which is in state
 	ExistsInStateOperation(operationFactHash util.Hash) (bool, error)

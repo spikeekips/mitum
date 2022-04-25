@@ -10,7 +10,7 @@ type BootingHandler struct {
 }
 
 func NewBootingHandler(
-	local isaac.LocalNode,
+	local base.LocalNode,
 	policy isaac.NodePolicy,
 ) *BootingHandler {
 	return &BootingHandler{

@@ -112,6 +112,8 @@ func (t *testDefaultWithPermanent) TestMap() {
 	db, err := NewDefault(t.Root, t.Encs, t.Enc, perm, nil)
 	t.NoError(err)
 
+	_ = (interface{})(db).(isaac.Database)
+
 	t.Run("found", func() {
 		rm, found, err := db.Map(manifest.Height())
 		t.NoError(err)
