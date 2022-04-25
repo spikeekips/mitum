@@ -23,6 +23,15 @@ func (t *testPool) SetupTest() {
 	t.BaseTestDatabase.SetupTest()
 }
 
+func (t *testPool) TestNew() {
+	pst := t.NewPool()
+	defer pst.Close()
+
+	_ = (interface{})(pst).(isaac.TempPoolDatabase)
+	_ = (interface{})(pst).(isaac.NewOperationPool)
+	_ = (interface{})(pst).(isaac.VoteproofsPool)
+}
+
 func (t *testPool) TestProposal() {
 	pst := t.NewPool()
 	defer pst.Close()
@@ -328,6 +337,49 @@ func (t *testNewOperationPool) TestRemoveNewOperations() {
 		t.False(found)
 		t.Nil(op)
 	}
+}
+
+func (t *testNewOperationPool) TestLastVoteproofs() {
+	pst := t.NewPool()
+	defer pst.Close()
+
+	point := base.RawPoint(33, 0)
+
+	pr := valuehash.RandomSHA256()
+	_, ivp := t.VoteproofsPair(
+		point.Prev(), point,
+		valuehash.RandomSHA256(), valuehash.RandomSHA256(), pr,
+		[]isaac.LocalNode{t.Local},
+	)
+	avp, _ := t.VoteproofsPair(
+		point, point.Next(),
+		valuehash.RandomSHA256(), pr, valuehash.RandomSHA256(),
+		[]isaac.LocalNode{t.Local},
+	)
+
+	t.T().Log("marshaled ivp:", string(util.MustMarshalJSON(ivp)))
+	t.T().Log("marshaled avp:", string(util.MustMarshalJSON(avp)))
+
+	t.Run("before set", func() {
+		ivp, avp, found, err := pst.LastVoteproofs()
+		t.NoError(err)
+		t.False(found)
+		t.Nil(ivp)
+		t.Nil(avp)
+	})
+
+	t.NoError(pst.SetLastVoteproofs(ivp, avp))
+
+	t.Run("after set", func() {
+		rivp, ravp, found, err := pst.LastVoteproofs()
+		t.NoError(err)
+		t.True(found)
+		t.NotNil(rivp)
+		t.NotNil(ravp)
+
+		base.EqualVoteproof(t.Assert(), ivp, rivp)
+		base.EqualVoteproof(t.Assert(), avp, ravp)
+	})
 }
 
 func TestNewOperationPool(t *testing.T) {

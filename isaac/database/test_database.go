@@ -70,10 +70,10 @@ func (t *BaseTestDatabase) NewMemLeveldbBlockWriteDatabase(height base.Height) *
 func (t *BaseTestDatabase) NewPool() *TempPool {
 	st := leveldbstorage.NewMemRWStorage()
 
-	return &TempPool{
-		baseLeveldb: newBaseLeveldb(st, t.Encs, t.Enc),
-		st:          st,
-	}
+	db, err := newTempPool(st, t.Encs, t.Enc)
+	t.noerror(err)
+
+	return db
 }
 
 func (t *BaseTestDatabase) States(height base.Height, n int) []base.State {

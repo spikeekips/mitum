@@ -28,6 +28,8 @@ var (
 	leveldbKeyPrefixNewOperationOrdered     = []byte{0x00, 0x10}
 	leveldbKeyPrefixNewOperationOrderedKeys = []byte{0x00, 0x11}
 
+	leveldbKeyLastVoteproofs = []byte{0x00, 0x12}
+
 	leveldbNewOperationOrderedKeysJoinSep   = bytes.Repeat([]byte{0xff}, 10)
 	leveldbNewOperationOrderedKeysJoinedSep = util.ConcatBytesSlice(
 		leveldbNewOperationOrderedKeysJoinSep,

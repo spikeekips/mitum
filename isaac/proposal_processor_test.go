@@ -220,7 +220,7 @@ func (t *testDefaultProposalProcessor) TestNew() {
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	_, newwriterf := t.newBlockDataWriter()
-	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, nil, nil)
+	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, nil, nil, nil)
 	_ = (interface{})(opp).(ProposalProcessor)
 
 	base.EqualProposalSignedFact(t.Assert(), pr, opp.Proposal())
@@ -247,6 +247,7 @@ func (t *testDefaultProposalProcessor) TestCollectOperations() {
 		return op, nil
 	},
 		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) { return nil, false, nil },
+		nil,
 	)
 
 	m, err := opp.Process(context.Background(), nil)
@@ -289,7 +290,10 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsFailed() {
 		}
 
 		return op, nil
-	}, nil)
+	},
+		nil,
+		nil,
+	)
 	opp.retrylimit = 1
 	opp.retryinterval = 1
 
@@ -329,6 +333,7 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsFailedButIgnored() {
 		return op, nil
 	},
 		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) { return nil, false, nil },
+		nil,
 	)
 
 	m, err := opp.Process(context.Background(), nil)
@@ -388,6 +393,7 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsInvalidError() {
 		return op, nil
 	},
 		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) { return nil, false, nil },
+		nil,
 	)
 
 	m, err := opp.Process(context.Background(), nil)
@@ -445,6 +451,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessButFailedToGetOperationProc
 
 			return nil, false, errors.Errorf("hehehe")
 		},
+		nil,
 	)
 	opp.retrylimit = 3
 	opp.retryinterval = 1
@@ -494,6 +501,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessWithOperationProcessor() {
 				},
 			}, true, nil
 		},
+		nil,
 	)
 
 	m, err := opp.Process(context.Background(), nil)
@@ -572,6 +580,7 @@ func (t *testDefaultProposalProcessor) TestPreProcess() {
 		return op, nil
 	},
 		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) { return nil, false, nil },
+		nil,
 	)
 
 	m, err := opp.Process(context.Background(), nil)
@@ -645,6 +654,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessButError() {
 		return op, nil
 	},
 		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) { return nil, false, nil },
+		nil,
 	)
 	opp.retrylimit = 1
 	opp.retryinterval = 1
@@ -693,6 +703,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessButWithOperationReasonError
 		return op, nil
 	},
 		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) { return nil, false, nil },
+		nil,
 	)
 	opp.retrylimit = 1
 	opp.retryinterval = 1
@@ -756,6 +767,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessButErrorRetry() {
 		return op, nil
 	},
 		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) { return nil, false, nil },
+		nil,
 	)
 	opp.retrylimit = 3
 	opp.retryinterval = 1
@@ -817,6 +829,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessContextCancel() {
 		return op, nil
 	},
 		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) { return nil, false, nil },
+		nil,
 	)
 	opp.retrylimit = 1
 	opp.retryinterval = 1
@@ -887,6 +900,7 @@ func (t *testDefaultProposalProcessor) TestProcess() {
 		return op, nil
 	},
 		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) { return nil, false, nil },
+		nil,
 	)
 
 	m, err := opp.Process(context.Background(), nil)
@@ -989,6 +1003,7 @@ func (t *testDefaultProposalProcessor) TestProcessWithOperationProcessor() {
 				},
 			}, true, nil
 		},
+		nil,
 	)
 
 	m, err := opp.Process(context.Background(), nil)
@@ -1060,6 +1075,7 @@ func (t *testDefaultProposalProcessor) TestProcessButError() {
 		return op, nil
 	},
 		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) { return nil, false, nil },
+		nil,
 	)
 	opp.retrylimit = 1
 	opp.retryinterval = 1
@@ -1109,6 +1125,7 @@ func (t *testDefaultProposalProcessor) TestProcessButErrorRetry() {
 		return op, nil
 	},
 		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) { return nil, false, nil },
+		nil,
 	)
 	opp.retrylimit = 3
 	opp.retryinterval = 1
@@ -1152,6 +1169,7 @@ func (t *testDefaultProposalProcessor) TestProcessButSetStatesErrorRetry() {
 		return op, nil
 	},
 		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) { return nil, false, nil },
+		nil,
 	)
 	opp.retrylimit = 2
 	opp.retryinterval = 1
@@ -1215,6 +1233,7 @@ func (t *testDefaultProposalProcessor) TestProcessContextCancel() {
 		return op, nil
 	},
 		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) { return nil, false, nil },
+		nil,
 	)
 	opp.retrylimit = 1
 	opp.retryinterval = 1
@@ -1288,6 +1307,7 @@ func (t *testDefaultProposalProcessor) TestProcessCancel() {
 		return op, nil
 	},
 		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) { return nil, false, nil },
+		nil,
 	)
 	opp.retrylimit = 1
 	opp.retryinterval = 1
@@ -1331,13 +1351,25 @@ func (t *testDefaultProposalProcessor) TestSave() {
 		return nil
 	}
 
+	vpsch := make(chan [2]base.Voteproof, 1)
+	setLastVoteproofsFunc := func(ivp base.INITVoteproof, avp base.ACCEPTVoteproof) error {
+		vpsch <- [2]base.Voteproof{ivp, avp}
+
+		return nil
+	}
+
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		return ops[facthash.String()], nil
 	},
 		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) { return nil, false, nil },
+		setLastVoteproofsFunc,
 	)
 
-	m, err := opp.Process(context.Background(), nil)
+	ifact := t.NewINITBallotFact(point.Next(), previous.Hash(), pr.Fact().Hash())
+	ivp, err := t.NewINITVoteproof(ifact, t.Local, []LocalNode{t.Local})
+	t.NoError(err)
+
+	m, err := opp.Process(context.Background(), ivp)
 	t.NoError(err)
 	t.NotNil(m)
 
@@ -1354,6 +1386,10 @@ func (t *testDefaultProposalProcessor) TestSave() {
 		t.NoError(errors.Errorf("failed to wait to save"))
 	case <-savech:
 	}
+
+	vps := <-vpsch
+	base.EqualVoteproof(t.Assert(), ivp, vps[0])
+	base.EqualVoteproof(t.Assert(), avp, vps[1])
 }
 
 func (t *testDefaultProposalProcessor) TestSaveFailed() {
@@ -1376,7 +1412,10 @@ func (t *testDefaultProposalProcessor) TestSaveFailed() {
 		return ops[facthash.String()], nil
 	},
 		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) { return nil, false, nil },
+		nil,
 	)
+	opp.retrylimit = 2
+	opp.retryinterval = 1
 
 	m, err := opp.Process(context.Background(), nil)
 	t.NoError(err)

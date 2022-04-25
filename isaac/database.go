@@ -28,7 +28,6 @@ type Database interface {
 	ExistsKnownOperation(operationHash util.Hash) (bool, error)
 	NewBlockWriteDatabase(height base.Height) (BlockWriteDatabase, error)
 	MergeBlockWriteDatabase(BlockWriteDatabase) error
-	// BLOCK get last init and accept voteproof
 }
 
 type PartialDatabase interface {
@@ -91,4 +90,9 @@ type NewOperationPool interface {
 	) ([]util.Hash, error)
 	SetNewOperation(context.Context, base.Operation) (bool, error)
 	RemoveNewOperations(context.Context, []util.Hash) error
+}
+
+type VoteproofsPool interface {
+	LastVoteproofs() (base.INITVoteproof, base.ACCEPTVoteproof, bool, error)
+	SetLastVoteproofs(base.INITVoteproof, base.ACCEPTVoteproof) error
 }

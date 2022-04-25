@@ -21,7 +21,8 @@ type GenesisBlockGenerator struct {
 	local           base.LocalNode
 	networkID       base.NetworkID
 	enc             encoder.Encoder
-	db              *database.Default
+	db              isaac.Database
+	pool            isaac.VoteproofsPool
 	dataroot        string
 	proposal        base.ProposalSignedFact
 	ops             []base.Operation
@@ -34,7 +35,8 @@ func NewGenesisBlockGenerator(
 	local base.LocalNode,
 	networkID base.NetworkID,
 	enc encoder.Encoder,
-	db *database.Default,
+	db isaac.Database,
+	pool isaac.VoteproofsPool,
 	dataroot string,
 ) *GenesisBlockGenerator {
 	return &GenesisBlockGenerator{
@@ -45,6 +47,7 @@ func NewGenesisBlockGenerator(
 		networkID: networkID,
 		enc:       enc,
 		db:        db,
+		pool:      pool,
 		dataroot:  dataroot,
 	}
 }
@@ -262,8 +265,10 @@ func (g *GenesisBlockGenerator) process() error {
 func (g *GenesisBlockGenerator) closeDatabase() error {
 	e := util.StringErrorFunc("failed to close database")
 
-	if err := g.db.MergeAllPermanent(); err != nil {
-		return e(err, "failed to merge temps")
+	if i, ok := g.db.(*database.Default); ok {
+		if err := i.MergeAllPermanent(); err != nil {
+			return e(err, "failed to merge temps")
+		}
 	}
 
 	return nil
@@ -289,6 +294,7 @@ func (g *GenesisBlockGenerator) newProposalProcessor() (*isaac.DefaultProposalPr
 		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) {
 			return nil, false, nil
 		},
+		g.pool.SetLastVoteproofs,
 	)
 }
 

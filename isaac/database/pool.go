@@ -3,6 +3,7 @@ package database
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"math"
 
 	"github.com/pkg/errors"
@@ -17,7 +18,8 @@ import (
 
 type TempPool struct {
 	*baseLeveldb
-	st *leveldbstorage.RWStorage
+	st             *leveldbstorage.RWStorage
+	lastvoteproofs *util.Locked
 }
 
 // BLOCK will be used for ProposalPool
@@ -29,14 +31,21 @@ func NewTempPool(f string, encs *encoder.Encoders, enc encoder.Encoder) (*TempPo
 		return nil, errors.Wrap(err, "failed new TempPoolDatabase")
 	}
 
-	return newTempPool(st, encs, enc), nil
+	return newTempPool(st, encs, enc)
 }
 
-func newTempPool(st *leveldbstorage.RWStorage, encs *encoder.Encoders, enc encoder.Encoder) *TempPool {
-	return &TempPool{
-		baseLeveldb: newBaseLeveldb(st, encs, enc),
-		st:          st,
+func newTempPool(st *leveldbstorage.RWStorage, encs *encoder.Encoders, enc encoder.Encoder) (*TempPool, error) {
+	db := &TempPool{
+		baseLeveldb:    newBaseLeveldb(st, encs, enc),
+		st:             st,
+		lastvoteproofs: util.EmptyLocked(),
 	}
+
+	if err := db.loadLastVoteproofs(); err != nil {
+		return nil, errors.Wrap(err, "failed newTempPool")
+	}
+
+	return db, nil
 }
 
 func (db *TempPool) Proposal(h util.Hash) (base.ProposalSignedFact, bool, error) {
@@ -253,6 +262,46 @@ func (db *TempPool) RemoveNewOperations(ctx context.Context, facthashes []util.H
 	return nil
 }
 
+func (db *TempPool) LastVoteproofs() (base.INITVoteproof, base.ACCEPTVoteproof, bool, error) {
+	switch i, _ := db.lastvoteproofs.Value(); {
+	case i == nil:
+		return nil, nil, false, nil
+	default:
+		j, ok := i.([2]base.Voteproof)
+		if !ok {
+			return nil, nil, false, errors.Errorf("invalid last voteproofs")
+		}
+
+		return j[0].(base.INITVoteproof), j[1].(base.ACCEPTVoteproof), true, nil
+	}
+}
+
+func (db *TempPool) SetLastVoteproofs(ivp base.INITVoteproof, avp base.ACCEPTVoteproof) error {
+	e := util.StringErrorFunc("failed to set last voteproofs")
+
+	if !ivp.Point().Point.Equal(avp.Point().Point) {
+		return e(nil, "voteproofs should have same point")
+	}
+
+	if _, err := db.lastvoteproofs.Set(func(interface{}) (interface{}, error) {
+		vps := [2]base.Voteproof{ivp, avp}
+		b, err := db.marshal(vps)
+		if err != nil {
+			return nil, errors.Wrap(err, "")
+		}
+
+		if err := db.st.Put(leveldbKeyLastVoteproofs, b, nil); err != nil {
+			return nil, errors.Wrap(err, "")
+		}
+
+		return vps, nil
+	}); err != nil {
+		return e(err, "failed to set last voteproofs")
+	}
+
+	return nil
+}
+
 func (db *TempPool) removeNewOperations(ctx context.Context, facthashes []util.Hash) error {
 	worker := util.NewErrgroupWorker(ctx, math.MaxInt32)
 	defer worker.Close()
@@ -371,6 +420,62 @@ func (db *TempPool) loadNewOperationKeys(b []byte) (key []byte, orderedkey []byt
 	}
 
 	return b[:i], b[i+len(leveldbNewOperationOrderedKeysJoinSep):], nil
+}
+
+func (db *TempPool) loadLastVoteproofs() error {
+	e := util.StringErrorFunc("failed to load last voteproofs")
+
+	b, found, err := db.st.Get(leveldbKeyLastVoteproofs)
+	switch {
+	case err != nil:
+		return e(err, "")
+	case !found:
+		return nil
+	}
+
+	enc, raw, err := db.readEncoder(b)
+	if err != nil {
+		return e(err, "")
+	}
+
+	var u [2]json.RawMessage
+	if err := enc.Unmarshal(raw, &u); err != nil {
+		return e(err, "")
+	}
+
+	var ivp base.INITVoteproof
+	switch hinter, err := enc.Decode(u[0]); {
+	case err != nil:
+		return e(err, "")
+	case hinter == nil:
+		return e(nil, "empty init voteproof")
+	default:
+		i, ok := hinter.(base.INITVoteproof)
+		if !ok {
+			return e(nil, "expected INITVoteproof, but %T", hinter)
+		}
+
+		ivp = i
+	}
+
+	var avp base.ACCEPTVoteproof
+	switch hinter, err := enc.Decode(u[1]); {
+	case err != nil:
+		return e(err, "")
+	case hinter == nil:
+		return e(nil, "empty accept voteproof")
+	default:
+		i, ok := hinter.(base.ACCEPTVoteproof)
+		if !ok {
+			return e(nil, "expected ACCEPTVoteproof, but %T", hinter)
+		}
+
+		avp = i
+	}
+
+	_ = db.lastvoteproofs.SetValue([2]base.Voteproof{ivp, avp})
+
+	return nil
 }
 
 func newNewOperationLeveldbKeys(facthash util.Hash) (key []byte, orderedkey []byte) {

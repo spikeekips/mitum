@@ -72,12 +72,12 @@ func (cmd *initCommand) Run() error {
 		root = filepath.Join(os.TempDir(), "mitum-example-"+local.Address().String())
 	}
 
-	db, _, err := launch.PrepareDatabase(root, encs, enc)
+	db, pool, err := launch.PrepareDatabase(root, encs, enc)
 	if err != nil {
 		return errors.Wrap(err, "")
 	}
 
-	g := launch.NewGenesisBlockGenerator(local, networkID, enc, db, launch.FSRootDataDirectory(root))
+	g := launch.NewGenesisBlockGenerator(local, networkID, enc, db, pool, launch.FSRootDataDirectory(root))
 	_ = g.SetLogging(logging)
 	if _, err := g.Generate(); err != nil {
 		return errors.Wrap(err, "")
@@ -231,7 +231,9 @@ func (cmd *runCommand) Run() error {
 			previous,
 			launch.NewBlockDataWriterFunc(local, networkID, launch.FSRootDataDirectory(root), enc, db),
 			db.State,
-			nil, nil,
+			nil,
+			nil,
+			pool.SetLastVoteproofs,
 		)
 	}
 

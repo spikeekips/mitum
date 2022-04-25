@@ -58,6 +58,8 @@ type DefaultProposalProcessor struct {
 	oprs                  *util.LockedMap
 	retrylimit            int
 	retryinterval         time.Duration
+	ivp                   base.INITVoteproof
+	setLastVoteproofsFunc func(base.INITVoteproof, base.ACCEPTVoteproof) error
 }
 
 func NewDefaultProposalProcessor(
@@ -67,6 +69,7 @@ func NewDefaultProposalProcessor(
 	getStateFunc base.GetStateFunc,
 	getOperation OperationProcessorGetOperationFunction,
 	newOperationProcessor NewOperationProcessorFunction,
+	setLastVoteproofsFunc func(base.INITVoteproof, base.ACCEPTVoteproof) error,
 ) (*DefaultProposalProcessor, error) {
 	writer, err := newWriter(proposal, getStateFunc)
 	if err != nil {
@@ -83,6 +86,7 @@ func NewDefaultProposalProcessor(
 		getStateFunc:          getStateFunc,
 		getOperation:          getOperation,
 		newOperationProcessor: newOperationProcessor,
+		setLastVoteproofsFunc: setLastVoteproofsFunc,
 		ops:                   make([]base.Operation, len(proposal.ProposalFact().Operations())),
 		cancel:                func() {},
 		oprs:                  util.NewLockedMap(),
@@ -112,6 +116,8 @@ func (p *DefaultProposalProcessor) setOperation(index int, op base.Operation) {
 func (p *DefaultProposalProcessor) Process(ctx context.Context, vp base.INITVoteproof) (base.Manifest, error) {
 	e := util.StringErrorFunc("failed to process proposal")
 
+	p.ivp = vp
+
 	if err := p.process(ctx, vp); err != nil {
 		return nil, e(err, "failed to process operations")
 	}
@@ -124,7 +130,25 @@ func (p *DefaultProposalProcessor) Process(ctx context.Context, vp base.INITVote
 	return m, nil
 }
 
-func (p *DefaultProposalProcessor) Save(ctx context.Context, acceptVoteproof base.ACCEPTVoteproof) error {
+func (p *DefaultProposalProcessor) Save(ctx context.Context, avp base.ACCEPTVoteproof) error {
+	if err := util.Retry(ctx, func() (bool, error) {
+		err := p.save(ctx, avp)
+		switch {
+		case err == nil:
+			return false, nil
+		case errors.Is(err, StopProcessingRetryError):
+			return false, err
+		default:
+			return true, err
+		}
+	}, p.retrylimit, p.retryinterval); err != nil {
+		return errors.Wrap(err, "failed to save proposal")
+	}
+
+	return nil
+}
+
+func (p *DefaultProposalProcessor) save(ctx context.Context, acceptVoteproof base.ACCEPTVoteproof) error {
 	p.Lock()
 	defer p.Unlock()
 
@@ -141,6 +165,12 @@ func (p *DefaultProposalProcessor) Save(ctx context.Context, acceptVoteproof bas
 		return e(err, "")
 	}
 
+	if p.setLastVoteproofsFunc != nil {
+		if err := p.setLastVoteproofsFunc(p.ivp, acceptVoteproof); err != nil {
+			return e(err, "failed to save last voteproofs")
+		}
+	}
+
 	return nil
 }
 
@@ -154,6 +184,7 @@ func (p *DefaultProposalProcessor) Cancel() error {
 
 	p.cancel()
 
+	p.ivp = nil
 	p.proposal = nil
 	p.ops = nil
 	p.oprs = nil
