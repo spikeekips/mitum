@@ -27,7 +27,7 @@ type baseHandler struct {
 	timers               *util.Timers // NOTE only for testing
 	switchStateFunc      func(switchContext) error
 	broadcastBallotFunc  func(base.Ballot) error
-	lastVoteproofFunc    func() lastVoteproofs
+	lastVoteproofFunc    func() LastVoteproofs
 	setLastVoteproofFunc func(base.Voteproof) bool
 }
 
@@ -37,7 +37,7 @@ func newBaseHandler(
 	policy isaac.NodePolicy,
 	proposalSelector isaac.ProposalSelector,
 ) *baseHandler {
-	lvps := newLastVoteproofs()
+	lvps := NewLastVoteproofs()
 
 	return &baseHandler{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
@@ -50,11 +50,11 @@ func newBaseHandler(
 		broadcastBallotFunc: func(base.Ballot) error {
 			return nil
 		},
-		lastVoteproofFunc: func() lastVoteproofs {
-			return lvps.last()
+		lastVoteproofFunc: func() LastVoteproofs {
+			return lvps.Last()
 		},
 		setLastVoteproofFunc: func(vp base.Voteproof) bool {
-			return lvps.set(vp)
+			return lvps.Set(vp)
 		},
 	}
 }
@@ -79,7 +79,7 @@ func (st *baseHandler) state() StateType {
 	return st.stt
 }
 
-func (st *baseHandler) lastVoteproof() lastVoteproofs {
+func (st *baseHandler) lastVoteproof() LastVoteproofs { // BLOCK rename to lastVoteproofs
 	return st.lastVoteproofFunc()
 }
 
@@ -129,7 +129,7 @@ func (st *baseHandler) setStates(sts *States) {
 
 	st.timers = st.sts.timers
 
-	st.lastVoteproofFunc = func() lastVoteproofs {
+	st.lastVoteproofFunc = func() LastVoteproofs {
 		return st.sts.lastVoteproof()
 	}
 	st.setLastVoteproofFunc = func(vp base.Voteproof) bool {
@@ -137,11 +137,11 @@ func (st *baseHandler) setStates(sts *States) {
 	}
 }
 
-func (st *baseHandler) setNewVoteproof(vp base.Voteproof) (lastVoteproofs, base.Voteproof, error) {
+func (st *baseHandler) setNewVoteproof(vp base.Voteproof) (LastVoteproofs, base.Voteproof, error) {
 	lvps := st.lastVoteproof()
 
-	if st.sts == nil && !lvps.isNew(vp) {
-		return lastVoteproofs{}, nil, nil
+	if st.sts == nil && !lvps.IsNew(vp) {
+		return LastVoteproofs{}, nil, nil
 	}
 
 	_ = st.setLastVoteproof(vp)
@@ -252,29 +252,29 @@ func (st *baseHandler) nextRound(vp base.Voteproof, prevBlock util.Hash) {
 	l.Debug().Interface("ballot", bl).Msg("next round init ballot broadcasted")
 }
 
-type lastVoteproofsHandler struct {
+type LastVoteproofsHandler struct {
 	sync.RWMutex
 	ivp base.INITVoteproof
 	avp base.ACCEPTVoteproof
 	mvp base.Voteproof
 }
 
-func newLastVoteproofs() *lastVoteproofsHandler {
-	return &lastVoteproofsHandler{}
+func NewLastVoteproofs() *LastVoteproofsHandler { // BLOCK rename to lastVoteproofsHandler
+	return &LastVoteproofsHandler{}
 }
 
-func (l *lastVoteproofsHandler) last() lastVoteproofs {
+func (l *LastVoteproofsHandler) Last() LastVoteproofs {
 	l.RLock()
 	defer l.RUnlock()
 
-	return lastVoteproofs{
+	return LastVoteproofs{
 		ivp: l.ivp,
 		avp: l.avp,
 		mvp: l.mvp,
 	}
 }
 
-func (l *lastVoteproofsHandler) isNew(vp base.Voteproof) bool {
+func (l *LastVoteproofsHandler) IsNew(vp base.Voteproof) bool {
 	l.RLock()
 	defer l.RUnlock()
 
@@ -285,7 +285,7 @@ func (l *lastVoteproofsHandler) isNew(vp base.Voteproof) bool {
 	return true
 }
 
-func (l *lastVoteproofsHandler) set(vp base.Voteproof) bool {
+func (l *LastVoteproofsHandler) Set(vp base.Voteproof) bool {
 	l.Lock()
 	defer l.Unlock()
 
@@ -307,21 +307,21 @@ func (l *lastVoteproofsHandler) set(vp base.Voteproof) bool {
 	return true
 }
 
-type lastVoteproofs struct {
+type LastVoteproofs struct {
 	ivp base.INITVoteproof
 	avp base.ACCEPTVoteproof
 	mvp base.Voteproof
 }
 
-func (l lastVoteproofs) cap() base.Voteproof {
+func (l LastVoteproofs) Cap() base.Voteproof {
 	return findLastVoteproofs(l.ivp, l.avp)
 }
 
-func (l lastVoteproofs) init() base.INITVoteproof {
+func (l LastVoteproofs) INIT() base.INITVoteproof {
 	return l.ivp
 }
 
-// previousBlockForNextRound finds the previous block hash from last majority
+// PreviousBlockForNextRound finds the previous block hash from last majority
 // voteproof.
 //
 // --------------------------------------
@@ -335,7 +335,7 @@ func (l lastVoteproofs) init() base.INITVoteproof {
 //
 // * 'm' is last majority voteproof
 // * 'v' is draw voteproof, new incoming voteproof for next round
-func (l lastVoteproofs) previousBlockForNextRound(vp base.Voteproof) util.Hash {
+func (l LastVoteproofs) PreviousBlockForNextRound(vp base.Voteproof) util.Hash {
 	switch {
 	case l.mvp == nil:
 		return nil
@@ -361,12 +361,12 @@ func (l lastVoteproofs) previousBlockForNextRound(vp base.Voteproof) util.Hash {
 	return nil
 }
 
-func (l lastVoteproofs) accept() base.ACCEPTVoteproof {
+func (l LastVoteproofs) ACCEPT() base.ACCEPTVoteproof {
 	return l.avp
 }
 
-func (l lastVoteproofs) isNew(vp base.Voteproof) bool {
-	if lvp := l.cap(); lvp != nil && vp.Point().Compare(lvp.Point()) < 1 {
+func (l LastVoteproofs) IsNew(vp base.Voteproof) bool {
+	if lvp := l.Cap(); lvp != nil && vp.Point().Compare(lvp.Point()) < 1 {
 		return false
 	}
 

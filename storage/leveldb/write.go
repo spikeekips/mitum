@@ -17,7 +17,7 @@ var writeOptions = &leveldbOpt.Options{
 	CompactionL0Trigger:    math.MaxInt32, // NOTE virtually disable compaction
 	WriteL0PauseTrigger:    math.MaxInt32,
 	WriteL0SlowdownTrigger: math.MaxInt32,
-	ErrorIfExist:           true,
+	ErrorIfExist:           false,
 	ErrorIfMissing:         false,
 	NoWriteMerge:           true,
 	ReadOnly:               false,

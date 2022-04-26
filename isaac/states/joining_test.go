@@ -29,6 +29,7 @@ func (t *testJoiningHandler) newState(suf base.Suffrage) (*JoiningHandler, func(
 		func() (base.Manifest, bool, error) {
 			return nil, false, errors.Errorf("empty manifest")
 		},
+		func(base.Height) base.Suffrage { return suf },
 	)
 	_ = st.SetLogging(logging.TestNilLogging)
 	_ = st.setTimers(util.NewTimers([]util.TimerID{
@@ -62,7 +63,7 @@ func (t *testJoiningHandler) TestNew() {
 	point := base.RawPoint(33, 0)
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 
-	st.getLastManifest = func() (base.Manifest, bool, error) {
+	st.lastManifest = func() (base.Manifest, bool, error) {
 		return manifest, true, nil
 	}
 
@@ -78,6 +79,32 @@ func (t *testJoiningHandler) TestNew() {
 	var ssctx consensusSwitchContext
 	t.True(errors.As(err, &ssctx))
 	base.EqualVoteproof(t.Assert(), ivp, ssctx.ivp)
+}
+
+func (t *testJoiningHandler) TestLocalNotInSuffrage() {
+	suf, _ := isaac.NewTestSuffrage(2) // NOTE local is not in suffrage
+
+	st, closef := t.newState(suf)
+	defer closef()
+
+	_, ok := (interface{})(st).(handler)
+	t.True(ok)
+
+	point := base.RawPoint(33, 0)
+	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+
+	st.lastManifest = func() (base.Manifest, bool, error) {
+		return manifest, true, nil
+	}
+
+	sctx := newJoiningSwitchContext(StateBooting, nil)
+
+	_, err := st.enter(sctx)
+	t.Error(err)
+
+	var ssctx syncingSwitchContext
+	t.True(errors.As(err, &ssctx))
+	t.Equal(manifest.Height(), ssctx.height)
 }
 
 func (t *testJoiningHandler) TestFailedLastManifest() {
@@ -106,7 +133,7 @@ func (t *testJoiningHandler) TestFailedLastManifest() {
 		st, closef := t.newState(suf)
 		defer closef()
 
-		st.getLastManifest = func() (base.Manifest, bool, error) {
+		st.lastManifest = func() (base.Manifest, bool, error) {
 			return nil, false, nil
 		}
 
@@ -135,7 +162,7 @@ func (t *testJoiningHandler) TestInvalidINITVoteproof() {
 
 		point := base.RawPoint(33, 0)
 		manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-		st.getLastManifest = func() (base.Manifest, bool, error) {
+		st.lastManifest = func() (base.Manifest, bool, error) {
 			return manifest, true, nil
 		}
 
@@ -155,7 +182,7 @@ func (t *testJoiningHandler) TestInvalidINITVoteproof() {
 
 		point := base.RawPoint(33, 0)
 		manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-		st.getLastManifest = func() (base.Manifest, bool, error) {
+		st.lastManifest = func() (base.Manifest, bool, error) {
 			return manifest, true, nil
 		}
 
@@ -180,7 +207,7 @@ func (t *testJoiningHandler) TestInvalidINITVoteproof() {
 		point := base.RawPoint(33, 0)
 		manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 
-		st.getLastManifest = func() (base.Manifest, bool, error) {
+		st.lastManifest = func() (base.Manifest, bool, error) {
 			return manifest, true, nil
 		}
 
@@ -208,7 +235,7 @@ func (t *testJoiningHandler) TestInvalidACCEPTVoteproof() {
 
 		point := base.RawPoint(33, 0)
 		manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-		st.getLastManifest = func() (base.Manifest, bool, error) {
+		st.lastManifest = func() (base.Manifest, bool, error) {
 			return manifest, true, nil
 		}
 
@@ -228,7 +255,7 @@ func (t *testJoiningHandler) TestInvalidACCEPTVoteproof() {
 
 		point := base.RawPoint(33, 0)
 		manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-		st.getLastManifest = func() (base.Manifest, bool, error) {
+		st.lastManifest = func() (base.Manifest, bool, error) {
 			return manifest, true, nil
 		}
 
@@ -252,7 +279,7 @@ func (t *testJoiningHandler) TestInvalidACCEPTVoteproof() {
 
 		point := base.RawPoint(33, 0)
 		manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-		st.getLastManifest = func() (base.Manifest, bool, error) {
+		st.lastManifest = func() (base.Manifest, bool, error) {
 			return manifest, true, nil
 		}
 
@@ -281,7 +308,7 @@ func (t *testJoiningHandler) TestINITVoteproofNextRound() {
 	point := base.RawPoint(33, 0)
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 
-	st.getLastManifest = func() (base.Manifest, bool, error) {
+	st.lastManifest = func() (base.Manifest, bool, error) {
 		return manifest, true, nil
 	}
 
@@ -339,7 +366,7 @@ func (t *testJoiningHandler) TestACCEPTVoteproofNextRound() {
 	point := base.RawPoint(33, 0)
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 
-	st.getLastManifest = func() (base.Manifest, bool, error) {
+	st.lastManifest = func() (base.Manifest, bool, error) {
 		return manifest, true, nil
 	}
 
@@ -399,7 +426,7 @@ func (t *testJoiningHandler) TestLastINITVoteproofNextRound() {
 	point := base.RawPoint(33, 0)
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 
-	st.getLastManifest = func() (base.Manifest, bool, error) {
+	st.lastManifest = func() (base.Manifest, bool, error) {
 		return manifest, true, nil
 	}
 
@@ -458,7 +485,7 @@ func (t *testJoiningHandler) TestLastACCEPTVoteproofNextRound() {
 	point := base.RawPoint(33, 0)
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 
-	st.getLastManifest = func() (base.Manifest, bool, error) {
+	st.lastManifest = func() (base.Manifest, bool, error) {
 		return manifest, true, nil
 	}
 

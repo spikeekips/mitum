@@ -4,10 +4,12 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/alecthomas/kong"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/pkgerrors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
@@ -25,6 +27,12 @@ var (
 	logging *mitumlogging.Logging
 	log     *zerolog.Logger
 )
+
+func init() {
+	zerolog.TimeFieldFormat = time.RFC3339Nano
+	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
+	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
+}
 
 func main() {
 	logging = mitumlogging.Setup(os.Stderr, zerolog.DebugLevel, "json", false)
@@ -70,6 +78,10 @@ func (cmd *initCommand) Run() error {
 	root, found := os.LookupEnv(envKeyFSRootf)
 	if !found {
 		root = filepath.Join(os.TempDir(), "mitum-example-"+local.Address().String())
+	}
+
+	if err := launch.InitializeDatabase(root); err != nil {
+		return errors.Wrap(err, "")
 	}
 
 	db, pool, err := launch.PrepareDatabase(root, encs, enc)
@@ -244,10 +256,21 @@ func (cmd *runCommand) Run() error {
 	_ = states.SetLogging(logging)
 
 	states.
+		SetHandler(isaacstates.NewBrokenHandler(local, nodePolicy)).
 		SetHandler(isaacstates.NewStoppedHandler(local, nodePolicy)).
-		SetHandler(isaacstates.NewBootingHandler(local, nodePolicy)).
-		SetHandler(isaacstates.NewJoiningHandler(local, nodePolicy, proposerSelector, getLastManifest)).
+		SetHandler(isaacstates.NewBootingHandler(local, nodePolicy, getLastManifest, getSuffrage)).
+		SetHandler(isaacstates.NewJoiningHandler(local, nodePolicy, proposerSelector, getLastManifest, getSuffrage)).
 		SetHandler(isaacstates.NewConsensusHandler(local, nodePolicy, proposerSelector, getManifest, getSuffrage, pps))
+
+	// NOTE load last init, accept voteproof and last majority voteproof
+	switch ivp, avp, found, err := pool.LastVoteproofs(); {
+	case err != nil:
+		return errors.Wrap(err, "")
+	case !found:
+	default:
+		_ = states.LastVoteproofsHandler().Set(ivp)
+		_ = states.LastVoteproofsHandler().Set(avp)
+	}
 
 	log.Debug().Msg("states loaded")
 

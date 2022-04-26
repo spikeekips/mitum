@@ -132,7 +132,7 @@ func (st *ConsensusHandler) processProposal(ivp base.INITVoteproof) {
 
 	l.Debug().Msg("proposal processed")
 
-	eavp := st.lastVoteproof().accept()
+	eavp := st.lastVoteproof().ACCEPT()
 	if eavp == nil || !eavp.Point().Point.Equal(ivp.Point().Point) {
 		return
 	}
@@ -244,7 +244,7 @@ func (st *ConsensusHandler) processProposalInternal(ivp base.INITVoteproof) (bas
 func (st *ConsensusHandler) newVoteproof(vp base.Voteproof) error {
 	e := util.StringErrorFunc("failed to handle new voteproof")
 
-	var lvps lastVoteproofs
+	var lvps LastVoteproofs
 	switch l, v, err := st.baseHandler.setNewVoteproof(vp); {
 	case err != nil:
 		return e(err, "")
@@ -264,8 +264,8 @@ func (st *ConsensusHandler) newVoteproof(vp base.Voteproof) error {
 	}
 }
 
-func (st *ConsensusHandler) newINITVoteproof(ivp base.INITVoteproof, lvps lastVoteproofs) error {
-	c := lvps.cap()
+func (st *ConsensusHandler) newINITVoteproof(ivp base.INITVoteproof, lvps LastVoteproofs) error {
+	c := lvps.Cap()
 	l := st.Log().With().
 		Dict("init_voteproof", base.VoteproofLog(ivp)).
 		Dict("last_voteproof", base.VoteproofLog(c)).
@@ -283,8 +283,8 @@ func (st *ConsensusHandler) newINITVoteproof(ivp base.INITVoteproof, lvps lastVo
 	return nil
 }
 
-func (st *ConsensusHandler) newACCEPTVoteproof(avp base.ACCEPTVoteproof, lvps lastVoteproofs) error {
-	lvp := lvps.cap()
+func (st *ConsensusHandler) newACCEPTVoteproof(avp base.ACCEPTVoteproof, lvps LastVoteproofs) error {
+	lvp := lvps.Cap()
 	l := st.Log().With().
 		Dict("accept_voteproof", base.VoteproofLog(avp)).
 		Dict("last_voteproof", base.VoteproofLog(lvp)).
@@ -303,9 +303,9 @@ func (st *ConsensusHandler) newACCEPTVoteproof(avp base.ACCEPTVoteproof, lvps la
 }
 
 func (st *ConsensusHandler) newINITVoteproofWithLastINITVoteproof(
-	ivp base.INITVoteproof, lvps lastVoteproofs,
+	ivp base.INITVoteproof, lvps LastVoteproofs,
 ) error {
-	livp := lvps.cap().(base.INITVoteproof)
+	livp := lvps.Cap().(base.INITVoteproof)
 
 	switch {
 	case ivp.Point().Height() > livp.Point().Height(): // NOTE higher height; moves to syncing state
@@ -313,7 +313,7 @@ func (st *ConsensusHandler) newINITVoteproofWithLastINITVoteproof(
 	case livp.Result() == base.VoteResultMajority:
 		return nil
 	case ivp.Result() == base.VoteResultMajority: // NOTE new init voteproof has same height, but higher round
-		lavp := lvps.accept()
+		lavp := lvps.ACCEPT()
 
 		l := st.Log().With().
 			Dict("init_voteproof", base.VoteproofLog(ivp)).
@@ -347,9 +347,9 @@ func (st *ConsensusHandler) newINITVoteproofWithLastINITVoteproof(
 }
 
 func (st *ConsensusHandler) newINITVoteproofWithLastACCEPTVoteproof(
-	ivp base.INITVoteproof, lvps lastVoteproofs,
+	ivp base.INITVoteproof, lvps LastVoteproofs,
 ) error {
-	lavp := lvps.cap().(base.ACCEPTVoteproof)
+	lavp := lvps.Cap().(base.ACCEPTVoteproof)
 
 	l := st.Log().With().
 		Dict("init_voteproof", base.VoteproofLog(ivp)).
@@ -382,9 +382,9 @@ func (st *ConsensusHandler) newINITVoteproofWithLastACCEPTVoteproof(
 }
 
 func (st *ConsensusHandler) newACCEPTVoteproofWithLastINITVoteproof(
-	avp base.ACCEPTVoteproof, lvps lastVoteproofs,
+	avp base.ACCEPTVoteproof, lvps LastVoteproofs,
 ) error {
-	livp := lvps.cap().(base.INITVoteproof)
+	livp := lvps.Cap().(base.INITVoteproof)
 	switch {
 	case avp.Point().Point.Equal(livp.Point().Point): // NOTE expected accept voteproof
 		if avp.Result() == base.VoteResultMajority {
@@ -405,9 +405,9 @@ func (st *ConsensusHandler) newACCEPTVoteproofWithLastINITVoteproof(
 }
 
 func (st *ConsensusHandler) newACCEPTVoteproofWithLastACCEPTVoteproof(
-	avp base.ACCEPTVoteproof, lvps lastVoteproofs,
+	avp base.ACCEPTVoteproof, lvps LastVoteproofs,
 ) error {
-	lavp := lvps.cap().(base.ACCEPTVoteproof)
+	lavp := lvps.Cap().(base.ACCEPTVoteproof)
 	switch {
 	case avp.Point().Height() > lavp.Point().Height():
 		return newSyncingSwitchContext(StateConsensus, avp.Point().Height())
@@ -422,10 +422,10 @@ func (st *ConsensusHandler) newACCEPTVoteproofWithLastACCEPTVoteproof(
 	}
 }
 
-func (st *ConsensusHandler) nextRound(vp base.Voteproof, lvps lastVoteproofs) {
+func (st *ConsensusHandler) nextRound(vp base.Voteproof, lvps LastVoteproofs) {
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(vp)).Logger()
 
-	prevBlock := lvps.previousBlockForNextRound(vp)
+	prevBlock := lvps.PreviousBlockForNextRound(vp)
 	if prevBlock == nil {
 		l.Debug().Msg("failed to find previous block from last voteproofs; ignore to move next round")
 

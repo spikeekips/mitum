@@ -23,7 +23,7 @@ type SuffrageStateValue interface {
 type SuffrageCandidateStateNodeValue interface {
 	Node
 	StartHeight() Height
-	EndHeight() Height
+	EndHeight() Height // BLOCK rename to Deadline
 	Node() Node
 }
 

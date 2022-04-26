@@ -29,7 +29,7 @@ type States struct {
 	handlers  map[StateType]handler
 	cs        handler
 	timers    *util.Timers
-	lvps      *lastVoteproofsHandler
+	lvps      *LastVoteproofsHandler
 }
 
 func NewStates(box *Ballotbox) *States {
@@ -46,7 +46,7 @@ func NewStates(box *Ballotbox) *States {
 			timerIDBroadcastINITBallot,
 			timerIDBroadcastACCEPTBallot,
 		}, false),
-		lvps: newLastVoteproofs(),
+		lvps: NewLastVoteproofs(),
 	}
 
 	st.ContextDaemon = util.NewContextDaemon("states", st.start)
@@ -57,6 +57,10 @@ func NewStates(box *Ballotbox) *States {
 func (st *States) SetHandler(h handler) *States {
 	if st.ContextDaemon.IsStarted() {
 		panic("can not set state handler; already started")
+	}
+
+	if i, ok := h.(interface{ setStates(*States) }); ok {
+		i.setStates(st)
 	}
 
 	st.handlers[h.state()] = h
@@ -78,6 +82,10 @@ func (st *States) SetLogging(l *logging.Logging) *logging.Logging {
 	return st.Logging.SetLogging(l)
 }
 
+func (st *States) LastVoteproofsHandler() *LastVoteproofsHandler {
+	return st.lvps
+}
+
 func (st *States) start(ctx context.Context) error {
 	defer st.Log().Debug().Msg("states stopped")
 
@@ -94,7 +102,7 @@ func (st *States) start(ctx context.Context) error {
 	}
 
 	// NOTE entering to booting at starting
-	if err := st.ensureSwitchState(newBootingSwitchContext()); err != nil {
+	if err := st.ensureSwitchState(newBootingSwitchContext(StateStopped)); err != nil {
 		return errors.Wrap(err, "failed to enter booting state")
 	}
 
@@ -133,7 +141,7 @@ func (st *States) startStatesSwitch(ctx context.Context) error {
 		}
 
 		if vp != nil {
-			if !st.lvps.isNew(vp) {
+			if !st.lvps.IsNew(vp) {
 				continue
 			}
 
@@ -336,7 +344,7 @@ func (st *States) newVoteproof(vp base.Voteproof) error {
 		return nil
 	}
 
-	if !st.lvps.isNew(vp) {
+	if !st.lvps.IsNew(vp) {
 		return nil
 	}
 
@@ -410,10 +418,10 @@ func (st *States) broadcastBallot(bl base.Ballot) error {
 	return nil
 }
 
-func (st *States) lastVoteproof() lastVoteproofs {
-	return st.lvps.last()
+func (st *States) lastVoteproof() LastVoteproofs {
+	return st.lvps.Last()
 }
 
 func (st *States) setLastVoteproof(vp base.Voteproof) bool {
-	return st.lvps.set(vp)
+	return st.lvps.Set(vp)
 }

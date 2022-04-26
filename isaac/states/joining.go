@@ -12,21 +12,24 @@ import (
 
 type JoiningHandler struct {
 	*baseHandler
-	getLastManifest    func() (base.Manifest, bool, error)
+	lastManifest       func() (base.Manifest, bool, error)
 	newvoteproofLock   sync.Mutex
 	waitFirstVoteproof time.Duration
+	getSuffrage        func(base.Height) base.Suffrage
 }
 
 func NewJoiningHandler(
 	local base.LocalNode,
 	policy isaac.NodePolicy,
 	proposalSelector isaac.ProposalSelector,
-	getLastManifest func() (base.Manifest, bool, error),
+	lastManifest func() (base.Manifest, bool, error),
+	getSuffrage func(base.Height) base.Suffrage,
 ) *JoiningHandler {
 	return &JoiningHandler{
 		baseHandler:        newBaseHandler(StateJoining, local, policy, proposalSelector),
-		getLastManifest:    getLastManifest,
+		lastManifest:       lastManifest,
 		waitFirstVoteproof: policy.IntervalBroadcastBallot()*2 + policy.WaitProcessingProposal(),
+		getSuffrage:        getSuffrage,
 	}
 }
 
@@ -38,7 +41,8 @@ func (st *JoiningHandler) enter(i switchContext) (func(), error) {
 		return nil, e(err, "")
 	}
 
-	if _, ok := i.(joiningSwitchContext); !ok {
+	jctx, ok := i.(joiningSwitchContext)
+	if !ok {
 		return nil, e(nil, "invalid stateSwitchContext, not for joining state; %T", i)
 	}
 
@@ -46,12 +50,39 @@ func (st *JoiningHandler) enter(i switchContext) (func(), error) {
 		return nil, e(err, "")
 	}
 
-	lvp := st.lastVoteproof().cap()
+	vp := jctx.vp
+	lvp := st.lastVoteproof().Cap()
+	switch {
+	case lvp == nil:
+	case vp == nil:
+		vp = lvp
+	default:
+		if lvp.Point().Point.Compare(vp.Point().Point) > 0 {
+			vp = lvp
+		}
+	}
+
+	switch manifest, found, err := st.lastManifest(); {
+	case err != nil:
+		return nil, e(err, "")
+	case !found:
+	default:
+		switch suf := st.getSuffrage(manifest.Height()); {
+		case !suf.Exists(st.local.Address()):
+			st.Log().Debug().Msg("local not in suffrage; moves to syncing")
+
+			return nil, newSyncingSwitchContext(StateEmpty, manifest.Height())
+		case suf.Len() < 2:
+			st.Log().Debug().Msg("local alone in suffrage; will not wait new voteproof")
+
+			st.waitFirstVoteproof = 0
+		}
+	}
 
 	return func() {
 		deferred()
 
-		go st.firstVoteproof(lvp)
+		go st.firstVoteproof(vp)
 	}, nil
 }
 
@@ -95,7 +126,7 @@ func (st *JoiningHandler) newVoteproof(vp base.Voteproof) error {
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(vp)).Logger()
 
 	var manifest base.Manifest
-	switch i, found, err := st.getLastManifest(); {
+	switch i, found, err := st.lastManifest(); {
 	case err != nil:
 		err = e(err, "failed to get last manifest")
 
@@ -113,6 +144,8 @@ func (st *JoiningHandler) newVoteproof(vp base.Voteproof) error {
 		return newSyncingSwitchContext(StateJoining, height)
 	default:
 		manifest = i
+
+		st.Log().Debug().Interface("last_manifest", manifest).Msg("new valid voteproof")
 	}
 
 	switch vp.Point().Stage() {
@@ -182,14 +215,15 @@ func (st *JoiningHandler) firstVoteproof(lvp base.Voteproof) {
 		return
 	}
 
+	st.Log().Debug().Dur("wait", st.waitFirstVoteproof).Msg("will wait new voteproof")
+
 	select {
 	case <-st.ctx.Done():
 		return
 	case <-time.After(st.waitFirstVoteproof):
 	}
 
-	nlvp := st.lastVoteproof().cap()
-	if nlvp != nil && nlvp.Point().Compare(lvp.Point()) != 0 {
+	if nlvp := st.lastVoteproof().Cap(); nlvp == nil || nlvp.Point().Compare(lvp.Point()) != 0 {
 		return
 	}
 

@@ -19,6 +19,31 @@ var (
 	FSRootPoolDirectoryName = "pool"
 )
 
+func InitializeDatabase(fsroot string) error {
+	e := util.StringErrorFunc("failed to initialize database")
+
+	switch _, err := os.Stat(fsroot); {
+	case err == nil:
+		if err = os.RemoveAll(fsroot); err != nil {
+			return e(err, "")
+		}
+	case os.IsNotExist(err):
+	default:
+		return e(err, "")
+	}
+
+	if err := os.MkdirAll(fsroot, 0o700); err != nil {
+		return e(err, "")
+	}
+
+	dataroot := FSRootDataDirectory(fsroot)
+	if err := os.MkdirAll(dataroot, 0o700); err != nil {
+		return e(err, "failed to make blockdata fsroot")
+	}
+
+	return nil
+}
+
 func PrepareDatabase(
 	fsroot string,
 	encs *encoder.Encoders,
@@ -26,28 +51,17 @@ func PrepareDatabase(
 ) (*database.Default, *database.TempPool, error) {
 	e := util.StringErrorFunc("failed to prepare database")
 
-	switch _, err := os.Stat(fsroot); {
+	switch fi, err := os.Stat(fsroot); {
 	case err == nil:
-		if err = os.RemoveAll(fsroot); err != nil {
-			return nil, nil, e(err, "")
-		}
-	case os.IsNotExist(err):
+	case !fi.IsDir():
+		return nil, nil, e(nil, "not directory")
 	default:
-		return nil, nil, e(err, "")
-	}
-
-	if err := os.MkdirAll(fsroot, 0o700); err != nil {
 		return nil, nil, e(err, "")
 	}
 
 	permroot := FSRootPermDirectory(fsroot)
 	temproot := FSRootTempDirectory(fsroot)
-	dataroot := FSRootDataDirectory(fsroot)
 	poolroot := FSRootPoolDirectory(fsroot)
-
-	if err := os.MkdirAll(dataroot, 0o700); err != nil {
-		return nil, nil, e(err, "failed to make blockdata fsroot")
-	}
 
 	// NOTE db
 	perm, err := database.NewLeveldbPermanent(permroot, encs, enc)

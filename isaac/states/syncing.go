@@ -164,7 +164,7 @@ end:
 
 			st.cancelstuck()
 
-			lvp := st.lastVoteproof().cap()
+			lvp := st.lastVoteproof().Cap()
 			if lvp == nil {
 				continue
 			}
@@ -220,7 +220,7 @@ func (st *SyncingHandler) newStuckCancel(vp base.Voteproof) {
 		st.finishedLock.Lock()
 		defer st.finishedLock.Unlock()
 
-		lvp := st.lastVoteproof().cap()
+		lvp := st.lastVoteproof().Cap()
 		if lvp.Point().Compare(vp.Point()) != 0 {
 			return
 		}
