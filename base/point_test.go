@@ -96,7 +96,7 @@ func (t *testPoint) TestPrev() {
 			func() {
 				p := NewPoint(Height(c.h), Round(c.r))
 				expected := NewPoint(Height(c.expectedh), Round(c.expectedr))
-				r := p.Prev()
+				r := p.PrevRound()
 
 				t.Equal(expected, r, "%d: %v; %q, %q", i, c.name, expected, r)
 			},
@@ -124,7 +124,7 @@ func (t *testPoint) TestNext() {
 			func() {
 				p := NewPoint(Height(c.h), Round(c.r))
 				expected := NewPoint(Height(c.expectedh), Round(c.expectedr))
-				r := p.Next()
+				r := p.NextHeight()
 
 				t.Equal(expected, r, "%d: %v; %q, %q", i, c.name, expected, r)
 			},

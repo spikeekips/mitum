@@ -63,6 +63,14 @@ func (h Height) String() string {
 	return fmt.Sprintf("%d", h)
 }
 
+func (h Height) Prev() Height {
+	if h <= GenesisHeight {
+		return GenesisHeight
+	}
+
+	return h - 1
+}
+
 func (h Height) MarshalZerologObject(e *zerolog.Event) {
 	e.Int64("height", h.Int64())
 }
@@ -75,6 +83,14 @@ func (r Round) Uint64() uint64 {
 
 func (r Round) Bytes() []byte {
 	return util.Uint64ToBytes(uint64(r))
+}
+
+func (r Round) Prev() Round {
+	if r <= 0 {
+		return 0
+	}
+
+	return r - 1
 }
 
 func (r Round) MarshalZerologObject(e *zerolog.Event) {
@@ -146,25 +162,20 @@ func (p Point) IsZero() bool {
 	return p.h.IsZero()
 }
 
-func (p Point) Prev() Point {
-	switch {
-	case p.r > 0:
-		p.r--
-
-		return p
-	case p.h <= GenesisHeight:
-		return p
-	default:
-		p.h--
-		p.r = Round(0)
-
-		return p
+// PrevRound returns previous round; if 0 round, returns previous height and zero
+// round
+func (p Point) PrevRound() Point {
+	if p.Equal(GenesisPoint) {
+		return GenesisPoint
 	}
-}
 
-func (p Point) Next() Point {
-	p.h++
-	p.r = Round(0)
+	switch {
+	case p.r == 0:
+		p.h = p.h.Prev()
+		p.r = Round(0)
+	default:
+		p.r = p.r.Prev()
+	}
 
 	return p
 }
@@ -175,7 +186,16 @@ func (p Point) NextRound() Point {
 	return p
 }
 
-func (p Point) Decrease() Point {
+// NextHeight returns next height with 0 round.
+func (p Point) NextHeight() Point {
+	p.h++
+	p.r = Round(0)
+
+	return p
+}
+
+// PrevHeight returns previous height with 0 round
+func (p Point) PrevHeight() Point {
 	if p.h <= GenesisHeight {
 		return p
 	}
@@ -281,7 +301,7 @@ func (p StagePoint) Compare(b StagePoint) int {
 }
 
 func (p StagePoint) Decrease() StagePoint {
-	p.Point = p.Point.Decrease()
+	p.Point = p.Point.PrevHeight()
 
 	return p
 }

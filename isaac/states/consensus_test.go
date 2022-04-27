@@ -90,7 +90,7 @@ func (t *baseTestConsensusHandler) newStateWithINITVoteproof(point base.Point, s
 		nodes[i] = sn[i].(isaac.LocalNode)
 	}
 
-	_, ivp := t.VoteproofsPair(point.Decrease(), point, nil, nil, fact.Hash(), nodes)
+	_, ivp := t.VoteproofsPair(point.PrevHeight(), point, nil, nil, fact.Hash(), nodes)
 	t.True(st.setLastVoteproof(ivp))
 
 	return st, closef, pp, ivp
@@ -134,7 +134,7 @@ func (t *testConsensusHandler) TestNew() {
 		timerIDBroadcastACCEPTBallot,
 	}, false))
 
-	_, ivp := t.VoteproofsPair(point.Decrease(), point, nil, nil, nil, nodes)
+	_, ivp := t.VoteproofsPair(point.PrevHeight(), point, nil, nil, nil, nodes)
 	t.True(st.setLastVoteproof(ivp))
 
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
@@ -165,7 +165,7 @@ func (t *testConsensusHandler) TestInvalidVoteproofs() {
 		defer closef()
 
 		point := base.RawPoint(33, 0)
-		_, ivp := t.VoteproofsPair(point.Decrease(), point, nil, nil, nil, nodes)
+		_, ivp := t.VoteproofsPair(point.PrevHeight(), point, nil, nil, nil, nodes)
 		ivp.SetResult(base.VoteResultDraw).Finish()
 
 		sctx := newConsensusSwitchContext(StateJoining, ivp)
@@ -181,7 +181,7 @@ func (t *testConsensusHandler) TestInvalidVoteproofs() {
 		defer closef()
 
 		point := base.RawPoint(33, 0)
-		_, ivp := t.VoteproofsPair(point.Decrease(), point, nil, nil, nil, nodes)
+		_, ivp := t.VoteproofsPair(point.PrevHeight(), point, nil, nil, nil, nodes)
 		ivp.SetMajority(nil).Finish()
 
 		sctx := newConsensusSwitchContext(StateJoining, ivp)
@@ -373,7 +373,7 @@ func (t *testConsensusHandler) TestProcessingProposalWithACCEPTVoteproof() {
 	defer closefunc()
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	avp, _ := t.VoteproofsPair(point, point.Next(), manifest.Hash(), t.PRPool.Hash(point), nil, nodes)
+	avp, _ := t.VoteproofsPair(point, point.NextHeight(), manifest.Hash(), t.PRPool.Hash(point), nil, nodes)
 
 	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
 		st.setLastVoteproof(avp)
@@ -411,7 +411,7 @@ func (t *testConsensusHandler) TestProcessingProposalWithDrawACCEPTVoteproof() {
 	defer closefunc()
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	avp, _ := t.VoteproofsPair(point, point.Next(), manifest.Hash(), nil, nil, nodes)
+	avp, _ := t.VoteproofsPair(point, point.NextHeight(), manifest.Hash(), nil, nil, nodes)
 	avp.SetResult(base.VoteResultDraw).Finish()
 
 	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
@@ -449,7 +449,7 @@ func (t *testConsensusHandler) TestProcessingProposalWithWrongNewBlockACCEPTVote
 	defer closefunc()
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	avp, _ := t.VoteproofsPair(point, point.Next(), nil, nil, nil, nodes) // random new block hash
+	avp, _ := t.VoteproofsPair(point, point.NextHeight(), nil, nil, nil, nodes) // random new block hash
 
 	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
 		st.setLastVoteproof(avp)
@@ -584,7 +584,7 @@ func (t *testConsensusHandler) TestWithBallotbox() {
 
 	target := point
 	for range make([]struct{}, 33) {
-		target = target.Next()
+		target = target.NextHeight()
 	}
 
 	wait := processdelay * time.Duration((target.Height()-point.Height()).Int64()*10)
@@ -662,7 +662,7 @@ func (t *testConsensusHandler) TestEmptySuffrageNextBlock() {
 	t.NoError(err)
 	deferred()
 
-	avp, _ := t.VoteproofsPair(point, point.Next(), manifest.Hash(), t.PRPool.Hash(point), t.PRPool.Hash(point.Next()), nodes)
+	avp, _ := t.VoteproofsPair(point, point.NextHeight(), manifest.Hash(), t.PRPool.Hash(point), t.PRPool.Hash(point.NextHeight()), nodes)
 	t.NoError(st.newVoteproof(avp))
 
 	t.T().Log("wait new block saved")
@@ -735,7 +735,7 @@ func (t *testConsensusHandler) TestOutOfSuffrage() {
 	t.NoError(err)
 	deferred()
 
-	avp, _ := t.VoteproofsPair(point, point.Next(), manifest.Hash(), t.PRPool.Hash(point), t.PRPool.Hash(point.Next()), nodes)
+	avp, _ := t.VoteproofsPair(point, point.NextHeight(), manifest.Hash(), t.PRPool.Hash(point), t.PRPool.Hash(point.NextHeight()), nodes)
 	t.NoError(st.newVoteproof(avp))
 
 	t.T().Log("wait new block saved")

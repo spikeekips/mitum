@@ -267,7 +267,7 @@ func (st *JoiningHandler) firstVoteproof(lvp base.Voteproof, manifest base.Manif
 }
 
 func (st *JoiningHandler) nextBlock(avp base.ACCEPTVoteproof) {
-	point := avp.Point().Point.Next()
+	point := avp.Point().Point.NextHeight()
 
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(avp)).Object("point", point).Logger()
 

@@ -128,7 +128,18 @@ func (cmd *runCommand) Run() error {
 		Interface("node_policy", nodePolicy).
 		Msg("node policy loaded")
 
+		// BLOCK hehehe
+		// BLOCK
+		// ================================================================================
+		// ================================================================================
+		// ================================================================================
+		// ================================================================================
 	getSuffrage := func(blockheight base.Height) base.Suffrage {
+		blockheight--
+		if blockheight < base.GenesisHeight {
+			blockheight = base.GenesisHeight
+		}
+
 		st, found, err := db.Suffrage(blockheight)
 		switch {
 		case err != nil:
@@ -205,7 +216,7 @@ func (cmd *runCommand) Run() error {
 			},
 		),
 		proposalMaker,
-		func(height base.Height) (base.Suffrage, bool, error) {
+		func(height base.Height) (base.Suffrage, bool, error) { // BLOCK replace  getSuffrage
 			i, found, err := db.Suffrage(height)
 			switch {
 			case err != nil:

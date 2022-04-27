@@ -255,7 +255,7 @@ func (st *baseHandler) nextRound(vp base.Voteproof, prevBlock util.Hash) {
 func (st *baseHandler) prepareNextBlock(avp base.ACCEPTVoteproof, suf base.Suffrage) error {
 	e := util.StringErrorFunc("failed to prepare next block")
 
-	point := avp.Point().Point.Next()
+	point := avp.Point().Point.NextHeight()
 
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(avp)).Object("point", point).Logger()
 

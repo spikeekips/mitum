@@ -58,9 +58,9 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestHigherHeight() {
 	}
 
 	t.T().Log("new higher init voteproof")
-	newpoint := point.Next()
+	newpoint := point.NextHeight()
 	fact := t.PRPool.GetFact(point)
-	_, newivp := t.VoteproofsPair(newpoint.Decrease(), newpoint, nil, nil, fact.Hash(), nodes)
+	_, newivp := t.VoteproofsPair(newpoint.PrevHeight(), newpoint, nil, nil, fact.Hash(), nodes)
 
 	err = st.newVoteproof(newivp)
 	t.Error(err)
@@ -112,7 +112,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestNextRoundButAlreadyFini
 	t.T().Log("next round init voteproof")
 	newpoint := point.NextRound()
 	fact := t.PRPool.GetFact(point)
-	_, newivp := t.VoteproofsPair(newpoint.Decrease(), newpoint, nil, nil, fact.Hash(), nodes)
+	_, newivp := t.VoteproofsPair(newpoint.PrevHeight(), newpoint, nil, nil, fact.Hash(), nodes)
 
 	t.NoError(st.newVoteproof(newivp))
 }
@@ -137,9 +137,9 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBeforePreviousBlock
 	ballotch := make(chan base.Ballot, 1)
 	st.broadcastBallotFunc = func(bl base.Ballot) error {
 		switch {
-		case bl.Point().Point.Equal(point.Next()):
+		case bl.Point().Point.Equal(point.NextHeight()):
 			ballotch <- bl
-		case bl.Point().Point.Equal(point.Next().NextRound()):
+		case bl.Point().Point.Equal(point.NextHeight().NextRound()):
 			ballotch <- bl
 		}
 
@@ -161,7 +161,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBeforePreviousBlock
 	t.NoError(err)
 	deferred()
 
-	nextavp, drawivp := t.VoteproofsPair(point, point.Next(), manifest.Hash(), t.PRPool.Hash(point), nil, nodes)
+	nextavp, drawivp := t.VoteproofsPair(point, point.NextHeight(), manifest.Hash(), t.PRPool.Hash(point), nil, nodes)
 	t.NoError(st.newVoteproof(nextavp))
 
 	t.T().Log("wait new block saved")
@@ -180,7 +180,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBeforePreviousBlock
 
 		return
 	case bl := <-ballotch:
-		t.Equal(point.Next(), bl.Point().Point)
+		t.Equal(point.NextHeight(), bl.Point().Point)
 	}
 
 	drawivp.SetResult(base.VoteResultDraw).Finish()
@@ -194,7 +194,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBeforePreviousBlock
 
 		return
 	case bl := <-ballotch:
-		t.Equal(point.Next().NextRound(), bl.Point().Point)
+		t.Equal(point.NextHeight().NextRound(), bl.Point().Point)
 	}
 
 	_, newivp := t.VoteproofsPair(point, drawivp.Point().Point.NextRound(), valuehash.RandomSHA256(), nil, t.PRPool.Hash(drawivp.Point().Point.NextRound()), nodes)
@@ -226,9 +226,9 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBefore() {
 	ballotch := make(chan base.Ballot, 1)
 	st.broadcastBallotFunc = func(bl base.Ballot) error {
 		switch {
-		case bl.Point().Point.Equal(point.Next()):
+		case bl.Point().Point.Equal(point.NextHeight()):
 			ballotch <- bl
-		case bl.Point().Point.Equal(point.Next().NextRound()):
+		case bl.Point().Point.Equal(point.NextHeight().NextRound()):
 			ballotch <- bl
 		}
 
@@ -250,7 +250,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBefore() {
 	t.NoError(err)
 	deferred()
 
-	nextavp, drawivp := t.VoteproofsPair(point, point.Next(), nil, t.PRPool.Hash(point), nil, nodes)
+	nextavp, drawivp := t.VoteproofsPair(point, point.NextHeight(), nil, t.PRPool.Hash(point), nil, nodes)
 	t.NoError(st.newVoteproof(nextavp))
 
 	t.T().Log("wait new block saved")
@@ -269,7 +269,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBefore() {
 
 		return
 	case bl := <-ballotch:
-		t.Equal(point.Next(), bl.Point().Point)
+		t.Equal(point.NextHeight(), bl.Point().Point)
 	}
 
 	drawivp.SetResult(base.VoteResultDraw).Finish()
@@ -283,7 +283,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBefore() {
 
 		return
 	case bl := <-ballotch:
-		t.Equal(point.Next().NextRound(), bl.Point().Point)
+		t.Equal(point.NextHeight().NextRound(), bl.Point().Point)
 	}
 
 	_, newivp := t.VoteproofsPair(point, drawivp.Point().Point.NextRound(), nextavp.BallotMajority().NewBlock(), nil, t.PRPool.Hash(drawivp.Point().Point.NextRound()), nodes)
@@ -320,11 +320,11 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawAndDrawAgain() {
 	ballotch := make(chan base.Ballot, 1)
 	st.broadcastBallotFunc = func(bl base.Ballot) error {
 		switch {
-		case bl.Point().Point.Equal(point.Next()):
+		case bl.Point().Point.Equal(point.NextHeight()):
 			ballotch <- bl
-		case bl.Point().Point.Equal(point.Next().NextRound()):
+		case bl.Point().Point.Equal(point.NextHeight().NextRound()):
 			ballotch <- bl
-		case bl.Point().Point.Equal(point.Next().NextRound().NextRound()):
+		case bl.Point().Point.Equal(point.NextHeight().NextRound().NextRound()):
 			ballotch <- bl
 		}
 
@@ -346,7 +346,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawAndDrawAgain() {
 	t.NoError(err)
 	deferred()
 
-	nextavp, drawivp := t.VoteproofsPair(point, point.Next(), manifest.Hash(), t.PRPool.Hash(point), nil, nodes)
+	nextavp, drawivp := t.VoteproofsPair(point, point.NextHeight(), manifest.Hash(), t.PRPool.Hash(point), nil, nodes)
 	t.NoError(st.newVoteproof(nextavp))
 
 	t.T().Log("wait new block saved")
@@ -365,7 +365,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawAndDrawAgain() {
 
 		return
 	case bl := <-ballotch:
-		t.Equal(point.Next(), bl.Point().Point)
+		t.Equal(point.NextHeight(), bl.Point().Point)
 	}
 
 	drawivp.SetResult(base.VoteResultDraw).Finish()
@@ -379,7 +379,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawAndDrawAgain() {
 
 		return
 	case bl := <-ballotch:
-		t.Equal(point.Next().NextRound(), bl.Point().Point)
+		t.Equal(point.NextHeight().NextRound(), bl.Point().Point)
 	}
 
 	_, newivp := t.VoteproofsPair(point, drawivp.Point().Point.NextRound(), nil, nil, t.PRPool.Hash(drawivp.Point().Point.NextRound()), nodes)
@@ -427,7 +427,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestExpected() {
 
 	ballotch := make(chan base.Ballot, 1)
 	st.broadcastBallotFunc = func(bl base.Ballot) error {
-		if p := bl.Point(); p.Point.Equal(point.Next()) && p.Stage() == base.StageACCEPT {
+		if p := bl.Point(); p.Point.Equal(point.NextHeight()) && p.Stage() == base.StageACCEPT {
 			ballotch <- bl
 		}
 
@@ -450,7 +450,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestExpected() {
 	t.NoError(err)
 	deferred()
 
-	nextavp, nextivp := t.VoteproofsPair(point, point.Next(), manifest.Hash(), t.PRPool.Hash(point), t.PRPool.Hash(point.Next()), nodes)
+	nextavp, nextivp := t.VoteproofsPair(point, point.NextHeight(), manifest.Hash(), t.PRPool.Hash(point), t.PRPool.Hash(point.NextHeight()), nodes)
 	t.NoError(st.newVoteproof(nextavp))
 
 	t.T().Log("wait new block saved")
@@ -473,7 +473,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestExpected() {
 
 		return
 	case bl := <-ballotch:
-		t.Equal(point.Next(), bl.Point().Point)
+		t.Equal(point.NextHeight(), bl.Point().Point)
 	}
 }
 
@@ -498,9 +498,9 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestHigherHeight() {
 	ballotch := make(chan base.Ballot, 1)
 	st.broadcastBallotFunc = func(bl base.Ballot) error {
 		switch {
-		case bl.Point().Point.Equal(point.Next()):
+		case bl.Point().Point.Equal(point.NextHeight()):
 			ballotch <- bl
-		case bl.Point().Point.Equal(point.Next().NextRound()):
+		case bl.Point().Point.Equal(point.NextHeight().NextRound()):
 			ballotch <- bl
 		}
 
@@ -522,7 +522,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestHigherHeight() {
 	t.NoError(err)
 	deferred()
 
-	nextavp, _ := t.VoteproofsPair(point, point.Next(), manifest.Hash(), t.PRPool.Hash(point), nil, nodes)
+	nextavp, _ := t.VoteproofsPair(point, point.NextHeight(), manifest.Hash(), t.PRPool.Hash(point), nil, nodes)
 	t.NoError(st.newVoteproof(nextavp))
 
 	t.T().Log("wait new block saved")
@@ -534,7 +534,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestHigherHeight() {
 	case <-savedch:
 	}
 
-	_, newivp := t.VoteproofsPair(point.Next(), point.Next().Next(), nil, nil, t.PRPool.Hash(point.Next().Next()), nodes)
+	_, newivp := t.VoteproofsPair(point.NextHeight(), point.NextHeight().NextHeight(), nil, nil, t.PRPool.Hash(point.NextHeight().NextHeight()), nodes)
 	err = st.newVoteproof(newivp)
 
 	var ssctx syncingSwitchContext
@@ -563,9 +563,9 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestPreviousBlockNotMatch
 	ballotch := make(chan base.Ballot, 1)
 	st.broadcastBallotFunc = func(bl base.Ballot) error {
 		switch {
-		case bl.Point().Point.Equal(point.Next()):
+		case bl.Point().Point.Equal(point.NextHeight()):
 			ballotch <- bl
-		case bl.Point().Point.Equal(point.Next().NextRound()):
+		case bl.Point().Point.Equal(point.NextHeight().NextRound()):
 			ballotch <- bl
 		}
 
@@ -587,7 +587,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestPreviousBlockNotMatch
 	t.NoError(err)
 	deferred()
 
-	nextavp, _ := t.VoteproofsPair(point, point.Next(), manifest.Hash(), t.PRPool.Hash(point), nil, nodes)
+	nextavp, _ := t.VoteproofsPair(point, point.NextHeight(), manifest.Hash(), t.PRPool.Hash(point), nil, nodes)
 	t.NoError(st.newVoteproof(nextavp))
 
 	t.T().Log("wait new block saved")
@@ -601,7 +601,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestPreviousBlockNotMatch
 
 	t.T().Log("new init voteproof; wrong previous block")
 
-	ifact := t.NewINITBallotFact(point.Next(), valuehash.RandomSHA256(), t.PRPool.Hash(point.Next()))
+	ifact := t.NewINITBallotFact(point.NextHeight(), valuehash.RandomSHA256(), t.PRPool.Hash(point.NextHeight()))
 	newivp, err := t.NewINITVoteproof(ifact, t.Local, nodes)
 	t.NoError(err)
 

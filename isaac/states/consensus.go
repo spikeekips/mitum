@@ -446,7 +446,7 @@ func (st *ConsensusHandler) nextRound(vp base.Voteproof, lvps LastVoteproofs) {
 }
 
 func (st *ConsensusHandler) nextBlock(avp base.ACCEPTVoteproof) {
-	point := avp.Point().Point.Next()
+	point := avp.Point().Point.NextHeight()
 
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(avp)).Object("point", point).Logger()
 

@@ -101,7 +101,7 @@ func (db *TempPool) SetProposal(pr base.ProposalSignedFact) (bool, error) {
 	batch := new(leveldb.Batch)
 
 	// NOTE remove old proposals
-	top := leveldbProposalPointKey(pr.ProposalFact().Point().Decrease(), nil)
+	top := leveldbProposalPointKey(pr.ProposalFact().Point().PrevHeight(), nil)
 	if err := db.st.Iter(leveldbutil.BytesPrefix(leveldbKeyPrefixProposalByPoint), func(key, b []byte) (bool, error) {
 		if bytes.Compare(key[:len(top)], top) > 0 {
 			return false, nil

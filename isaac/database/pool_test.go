@@ -67,7 +67,7 @@ func (t *testPool) TestProposal() {
 	})
 
 	t.Run("unknown point", func() {
-		upr, found, err := pst.ProposalByPoint(prfact.Point().Next(), prfact.Proposer())
+		upr, found, err := pst.ProposalByPoint(prfact.Point().NextHeight(), prfact.Proposer())
 		t.NoError(err)
 		t.False(found)
 		t.Nil(upr)
@@ -87,7 +87,7 @@ func (t *testPool) TestCleanOldProposals() {
 
 	point := base.RawPoint(33, 44)
 
-	oldpr := t.NewProposal(t.Local, t.NewProposalFact(point.Decrease(), t.Local, []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}))
+	oldpr := t.NewProposal(t.Local, t.NewProposalFact(point.PrevHeight(), t.Local, []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}))
 
 	issaved, err := pst.SetProposal(oldpr)
 	t.NoError(err)
@@ -101,7 +101,7 @@ func (t *testPool) TestCleanOldProposals() {
 		base.EqualProposalSignedFact(t.Assert(), oldpr, upr)
 	})
 
-	sameheightpr := t.NewProposal(t.Local, t.NewProposalFact(point.Prev(), t.Local, []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}))
+	sameheightpr := t.NewProposal(t.Local, t.NewProposalFact(point.PrevRound(), t.Local, []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}))
 
 	issaved, err = pst.SetProposal(sameheightpr)
 	t.NoError(err)
@@ -347,12 +347,12 @@ func (t *testNewOperationPool) TestLastVoteproofs() {
 
 	pr := valuehash.RandomSHA256()
 	_, ivp := t.VoteproofsPair(
-		point.Prev(), point,
+		point.PrevRound(), point,
 		valuehash.RandomSHA256(), valuehash.RandomSHA256(), pr,
 		[]isaac.LocalNode{t.Local},
 	)
 	avp, _ := t.VoteproofsPair(
-		point, point.Next(),
+		point, point.NextHeight(),
 		valuehash.RandomSHA256(), pr, valuehash.RandomSHA256(),
 		[]isaac.LocalNode{t.Local},
 	)

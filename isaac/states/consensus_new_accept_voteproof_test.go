@@ -38,14 +38,14 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestExpected() {
 
 	ballotch := make(chan base.Ballot, 1)
 	st.broadcastBallotFunc = func(bl base.Ballot) error {
-		if bl.Point().Point.Equal(point.Next()) {
+		if bl.Point().Point.Equal(point.NextHeight()) {
 			ballotch <- bl
 		}
 
 		return nil
 	}
 
-	nextpr := t.PRPool.Get(point.Next())
+	nextpr := t.PRPool.Get(point.NextHeight())
 
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
@@ -54,7 +54,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestExpected() {
 	deferred()
 
 	fact := t.PRPool.GetFact(point)
-	nextavp, _ := t.VoteproofsPair(point, point.Next(), manifest.Hash(), fact.Hash(), nil, nodes)
+	nextavp, _ := t.VoteproofsPair(point, point.NextHeight(), manifest.Hash(), fact.Hash(), nil, nodes)
 	t.NoError(st.newVoteproof(nextavp))
 
 	t.T().Log("wait new block saved")
@@ -76,7 +76,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestExpected() {
 
 		return
 	case bl := <-ballotch:
-		t.Equal(point.Next(), bl.Point().Point)
+		t.Equal(point.NextHeight(), bl.Point().Point)
 
 		rbl, ok := bl.(base.INITBallot)
 		t.True(ok)
@@ -101,7 +101,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestOld() {
 	deferred()
 
 	fact := t.PRPool.GetFact(point)
-	nextavp, _ := t.VoteproofsPair(point.Decrease(), point.Next(), nil, fact.Hash(), nil, nodes)
+	nextavp, _ := t.VoteproofsPair(point.PrevHeight(), point.NextHeight(), nil, fact.Hash(), nil, nodes)
 	t.NoError(st.newVoteproof(nextavp))
 	t.Nil(st.lastVoteproof().ACCEPT())
 }
@@ -120,7 +120,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestHiger() {
 	deferred()
 
 	fact := t.PRPool.GetFact(point)
-	nextavp, _ := t.VoteproofsPair(point.Next(), point.Next(), nil, fact.Hash(), nil, nodes)
+	nextavp, _ := t.VoteproofsPair(point.NextHeight(), point.NextHeight(), nil, fact.Hash(), nil, nodes)
 	err = st.newVoteproof(nextavp)
 	t.Error(err)
 	t.NotNil(st.lastVoteproof().ACCEPT())
@@ -156,7 +156,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestDraw() {
 	deferred()
 
 	fact := t.PRPool.GetFact(point)
-	nextavp, _ := t.VoteproofsPair(point, point.Next(), nil, fact.Hash(), nil, nodes)
+	nextavp, _ := t.VoteproofsPair(point, point.NextHeight(), nil, fact.Hash(), nil, nodes)
 	nextavp.SetResult(base.VoteResultDraw).Finish()
 
 	t.NoError(st.newVoteproof(nextavp))
@@ -211,7 +211,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestDrawFailedProposalSel
 	deferred()
 
 	fact := t.PRPool.GetFact(point)
-	nextavp, _ := t.VoteproofsPair(point, point.Next(), nil, fact.Hash(), nil, nodes)
+	nextavp, _ := t.VoteproofsPair(point, point.NextHeight(), nil, fact.Hash(), nil, nodes)
 	nextavp.SetResult(base.VoteResultDraw).Finish()
 
 	t.NoError(st.newVoteproof(nextavp))
@@ -256,7 +256,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestNotProposalProcessorP
 	deferred()
 
 	fact := t.PRPool.GetFact(point)
-	nextavp, _ := t.VoteproofsPair(point, point.Next(), nil, fact.Hash(), nil, nodes)
+	nextavp, _ := t.VoteproofsPair(point, point.NextHeight(), nil, fact.Hash(), nil, nodes)
 
 	t.T().Log("wait new block saved, but it will be failed; wait to move syncing")
 
@@ -294,7 +294,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestSaveBlockError() {
 	deferred()
 
 	fact := t.PRPool.GetFact(point)
-	nextavp, _ := t.VoteproofsPair(point, point.Next(), nil, fact.Hash(), nil, nodes)
+	nextavp, _ := t.VoteproofsPair(point, point.NextHeight(), nil, fact.Hash(), nil, nodes)
 
 	err = st.newVoteproof(nextavp)
 
@@ -319,7 +319,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestHigherAndDraw() {
 	deferred()
 
 	fact := t.PRPool.GetFact(point)
-	nextavp, _ := t.VoteproofsPair(point.Next(), point.Next().Next(), nil, fact.Hash(), nil, nodes)
+	nextavp, _ := t.VoteproofsPair(point.NextHeight(), point.NextHeight().NextHeight(), nil, fact.Hash(), nil, nodes)
 	nextavp.SetResult(base.VoteResultDraw).Finish()
 
 	err = st.newVoteproof(nextavp)
@@ -358,7 +358,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestHigherRoundDraw() {
 	deferred()
 
 	fact := t.PRPool.GetFact(point)
-	nextavp, _ := t.VoteproofsPair(point.NextRound().NextRound(), point.Next(), nil, fact.Hash(), nil, nodes)
+	nextavp, _ := t.VoteproofsPair(point.NextRound().NextRound(), point.NextHeight(), nil, fact.Hash(), nil, nodes)
 	nextavp.SetResult(base.VoteResultDraw).Finish()
 
 	t.NoError(st.newVoteproof(nextavp))
@@ -408,7 +408,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestHigerHeight() {
 		return nil
 	}
 
-	_ = t.PRPool.Get(point.Next())
+	_ = t.PRPool.Get(point.NextHeight())
 	fact := t.PRPool.GetFact(point)
 
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
@@ -417,7 +417,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestHigerHeight() {
 	t.NoError(err)
 	deferred()
 
-	avp, _ := t.VoteproofsPair(point, point.Next(), manifest.Hash(), fact.Hash(), nil, nodes)
+	avp, _ := t.VoteproofsPair(point, point.NextHeight(), manifest.Hash(), fact.Hash(), nil, nodes)
 	t.NoError(st.newVoteproof(avp))
 
 	t.T().Log("wait new block saved")
@@ -433,7 +433,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestHigerHeight() {
 
 	t.T().Log("new accept voteproof; higher height")
 
-	newavp, _ := t.VoteproofsPair(point.Next().Next(), point.Next(), nil, nil, nil, nodes)
+	newavp, _ := t.VoteproofsPair(point.NextHeight().NextHeight(), point.NextHeight(), nil, nil, nil, nodes)
 	err = st.newVoteproof(newavp)
 
 	var ssctx syncingSwitchContext
@@ -475,7 +475,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndHigherHeight
 	deferred()
 
 	fact := t.PRPool.GetFact(point)
-	avp, _ := t.VoteproofsPair(point, point.Next(), nil, fact.Hash(), nil, nodes)
+	avp, _ := t.VoteproofsPair(point, point.NextHeight(), nil, fact.Hash(), nil, nodes)
 	avp.SetResult(base.VoteResultDraw).Finish()
 
 	t.NoError(st.newVoteproof(avp))
@@ -492,7 +492,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndHigherHeight
 
 	t.T().Log("new accept voteproof; higher height")
 
-	newavp, _ := t.VoteproofsPair(point.Next(), point.Next().Next(), nil, nil, nil, nodes)
+	newavp, _ := t.VoteproofsPair(point.NextHeight(), point.NextHeight().NextHeight(), nil, nil, nil, nodes)
 	err = st.newVoteproof(newavp)
 
 	var ssctx syncingSwitchContext
@@ -534,7 +534,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndHigherRound(
 	deferred()
 
 	fact := t.PRPool.GetFact(point)
-	avp, _ := t.VoteproofsPair(point, point.Next(), nil, fact.Hash(), nil, nodes)
+	avp, _ := t.VoteproofsPair(point, point.NextHeight(), nil, fact.Hash(), nil, nodes)
 	avp.SetResult(base.VoteResultDraw).Finish()
 
 	t.NoError(st.newVoteproof(avp))
@@ -551,7 +551,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndHigherRound(
 
 	t.T().Log("new accept voteproof; higher height")
 
-	newavp, _ := t.VoteproofsPair(point.NextRound(), point.Next(), nil, nil, nil, nodes)
+	newavp, _ := t.VoteproofsPair(point.NextRound(), point.NextHeight(), nil, nil, nil, nodes)
 	err = st.newVoteproof(newavp)
 
 	var ssctx syncingSwitchContext
@@ -603,7 +603,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndDrawAgain() 
 	deferred()
 
 	fact := t.PRPool.GetFact(point)
-	avp, _ := t.VoteproofsPair(point, point.Next(), nil, fact.Hash(), nil, nodes)
+	avp, _ := t.VoteproofsPair(point, point.NextHeight(), nil, fact.Hash(), nil, nodes)
 	avp.SetResult(base.VoteResultDraw).Finish()
 
 	t.NoError(st.newVoteproof(avp))
@@ -620,7 +620,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndDrawAgain() 
 
 	t.T().Log("new accept voteproof; higher height")
 
-	newavp, _ := t.VoteproofsPair(point.NextRound(), point.Next(), nil, nil, nil, nodes)
+	newavp, _ := t.VoteproofsPair(point.NextRound(), point.NextHeight(), nil, nil, nil, nodes)
 	newavp.SetResult(base.VoteResultDraw).Finish()
 
 	t.NoError(st.newVoteproof(newavp))

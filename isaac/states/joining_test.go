@@ -73,7 +73,7 @@ func (t *testJoiningHandler) TestNew() {
 	t.NoError(err)
 	deferred()
 
-	_, ivp := t.VoteproofsPair(point, point.Next(), manifest.Hash(), nil, nil, nodes)
+	_, ivp := t.VoteproofsPair(point, point.NextHeight(), manifest.Hash(), nil, nil, nodes)
 	err = st.newVoteproof(ivp)
 
 	var ssctx consensusSwitchContext
@@ -142,7 +142,7 @@ func (t *testJoiningHandler) TestFailedLastManifest() {
 
 		st.lastManifest = orig
 
-		_, ivp := t.VoteproofsPair(point, point.Next(), nil, nil, nil, nodes)
+		_, ivp := t.VoteproofsPair(point, point.NextHeight(), nil, nil, nil, nodes)
 		err = st.newVoteproof(ivp)
 
 		var ssctx brokenSwitchContext
@@ -186,7 +186,7 @@ func (t *testJoiningHandler) TestInvalidINITVoteproof() {
 		t.NoError(err)
 		deferred()
 
-		_, ivp := t.VoteproofsPair(point.Decrease().Decrease(), point.Decrease(), nil, nil, nil, nodes)
+		_, ivp := t.VoteproofsPair(point.PrevHeight().PrevHeight(), point.PrevHeight(), nil, nil, nil, nodes)
 		t.NoError(st.newVoteproof(ivp))
 	})
 
@@ -206,7 +206,7 @@ func (t *testJoiningHandler) TestInvalidINITVoteproof() {
 		t.NoError(err)
 		deferred()
 
-		_, ivp := t.VoteproofsPair(point.Next(), point.Next().Next(), nil, nil, nil, nodes)
+		_, ivp := t.VoteproofsPair(point.NextHeight(), point.NextHeight().NextHeight(), nil, nil, nil, nodes)
 		err = st.newVoteproof(ivp)
 
 		var ssctx syncingSwitchContext
@@ -231,7 +231,7 @@ func (t *testJoiningHandler) TestInvalidINITVoteproof() {
 		t.NoError(err)
 		deferred()
 
-		_, ivp := t.VoteproofsPair(point, point.Next(), nil, nil, nil, nodes)
+		_, ivp := t.VoteproofsPair(point, point.NextHeight(), nil, nil, nil, nodes)
 		err = st.newVoteproof(ivp)
 
 		var ssctx syncingSwitchContext
@@ -260,14 +260,14 @@ func (t *testJoiningHandler) TestFirstVoteproof() {
 
 	ballotch := make(chan base.Ballot, 1)
 	st.broadcastBallotFunc = func(bl base.Ballot) error {
-		if bl.Point().Point.Equal(point.Next()) {
+		if bl.Point().Point.Equal(point.NextHeight()) {
 			ballotch <- bl
 		}
 
 		return nil
 	}
 
-	avp, _ := t.VoteproofsPair(point, point.Next(), manifest.Hash(), nil, nil, nodes)
+	avp, _ := t.VoteproofsPair(point, point.NextHeight(), manifest.Hash(), nil, nil, nodes)
 	sctx := newJoiningSwitchContext(StateBooting, avp)
 
 	deferred, err := st.enter(sctx)
@@ -306,7 +306,7 @@ func (t *testJoiningHandler) TestInvalidACCEPTVoteproof() {
 		t.NoError(err)
 		deferred()
 
-		avp, _ := t.VoteproofsPair(point, point.Next(), nil, nil, nil, nodes)
+		avp, _ := t.VoteproofsPair(point, point.NextHeight(), nil, nil, nil, nodes)
 		t.NoError(st.newVoteproof(avp))
 	})
 
@@ -326,7 +326,7 @@ func (t *testJoiningHandler) TestInvalidACCEPTVoteproof() {
 		t.NoError(err)
 		deferred()
 
-		avp, _ := t.VoteproofsPair(point.Next().Next(), point.Next().Next().Next(), nil, nil, nil, nodes)
+		avp, _ := t.VoteproofsPair(point.NextHeight().NextHeight(), point.NextHeight().NextHeight().NextHeight(), nil, nil, nil, nodes)
 		err = st.newVoteproof(avp)
 
 		var ssctx syncingSwitchContext
@@ -350,7 +350,7 @@ func (t *testJoiningHandler) TestInvalidACCEPTVoteproof() {
 		t.NoError(err)
 		deferred()
 
-		avp, _ := t.VoteproofsPair(point.Next().Next(), point.Next().Next().Next(), nil, nil, nil, nodes)
+		avp, _ := t.VoteproofsPair(point.NextHeight().NextHeight(), point.NextHeight().NextHeight().NextHeight(), nil, nil, nil, nodes)
 		avp.SetResult(base.VoteResultDraw)
 		err = st.newVoteproof(avp)
 
@@ -375,7 +375,7 @@ func (t *testJoiningHandler) TestINITVoteproofNextRound() {
 
 	ballotch := make(chan base.Ballot, 1)
 	st.broadcastBallotFunc = func(bl base.Ballot) error {
-		if bl.Point().Point.Equal(point.Next().NextRound()) {
+		if bl.Point().Point.Equal(point.NextHeight().NextRound()) {
 			ballotch <- bl
 		}
 
@@ -397,7 +397,7 @@ func (t *testJoiningHandler) TestINITVoteproofNextRound() {
 	t.NoError(err)
 	deferred()
 
-	_, ivp := t.VoteproofsPair(point, point.Next(), manifest.Hash(), nil, nil, nodes)
+	_, ivp := t.VoteproofsPair(point, point.NextHeight(), manifest.Hash(), nil, nil, nodes)
 	ivp.SetResult(base.VoteResultDraw)
 
 	t.NoError(st.newVoteproof(ivp))
@@ -409,7 +409,7 @@ func (t *testJoiningHandler) TestINITVoteproofNextRound() {
 
 		return
 	case bl := <-ballotch:
-		t.Equal(point.Next().NextRound(), bl.Point().Point)
+		t.Equal(point.NextHeight().NextRound(), bl.Point().Point)
 
 		rbl, ok := bl.(base.INITBallot)
 		t.True(ok)
@@ -433,7 +433,7 @@ func (t *testJoiningHandler) TestACCEPTVoteproofNextRound() {
 
 	ballotch := make(chan base.Ballot, 1)
 	st.broadcastBallotFunc = func(bl base.Ballot) error {
-		if bl.Point().Point.Equal(point.Next().NextRound()) {
+		if bl.Point().Point.Equal(point.NextHeight().NextRound()) {
 			ballotch <- bl
 		}
 
@@ -455,7 +455,7 @@ func (t *testJoiningHandler) TestACCEPTVoteproofNextRound() {
 	t.NoError(err)
 	deferred()
 
-	avp, _ := t.VoteproofsPair(point.Next(), point.Next().Next(), manifest.Hash(), nil, nil, nodes)
+	avp, _ := t.VoteproofsPair(point.NextHeight(), point.NextHeight().NextHeight(), manifest.Hash(), nil, nil, nodes)
 	avp.SetResult(base.VoteResultDraw)
 
 	t.NoError(st.newVoteproof(avp))
@@ -467,7 +467,7 @@ func (t *testJoiningHandler) TestACCEPTVoteproofNextRound() {
 
 		return
 	case bl := <-ballotch:
-		t.Equal(point.Next().NextRound(), bl.Point().Point)
+		t.Equal(point.NextHeight().NextRound(), bl.Point().Point)
 
 		rbl, ok := bl.(base.INITBallot)
 		t.True(ok)
@@ -493,7 +493,7 @@ func (t *testJoiningHandler) TestLastINITVoteproofNextRound() {
 
 	ballotch := make(chan base.Ballot, 1)
 	st.broadcastBallotFunc = func(bl base.Ballot) error {
-		if bl.Point().Point.Equal(point.Next().NextRound()) {
+		if bl.Point().Point.Equal(point.NextHeight().NextRound()) {
 			ballotch <- bl
 		}
 
@@ -511,7 +511,7 @@ func (t *testJoiningHandler) TestLastINITVoteproofNextRound() {
 
 	sctx := newJoiningSwitchContext(StateBooting, nil)
 
-	_, ivp := t.VoteproofsPair(point, point.Next(), manifest.Hash(), nil, nil, nodes)
+	_, ivp := t.VoteproofsPair(point, point.NextHeight(), manifest.Hash(), nil, nil, nodes)
 	ivp.SetResult(base.VoteResultDraw)
 	t.True(st.setLastVoteproof(ivp))
 
@@ -526,7 +526,7 @@ func (t *testJoiningHandler) TestLastINITVoteproofNextRound() {
 
 		return
 	case bl := <-ballotch:
-		t.Equal(point.Next().NextRound(), bl.Point().Point)
+		t.Equal(point.NextHeight().NextRound(), bl.Point().Point)
 
 		rbl, ok := bl.(base.INITBallot)
 		t.True(ok)
@@ -552,7 +552,7 @@ func (t *testJoiningHandler) TestLastACCEPTVoteproofNextRound() {
 
 	ballotch := make(chan base.Ballot, 1)
 	st.broadcastBallotFunc = func(bl base.Ballot) error {
-		if bl.Point().Point.Equal(point.Next().NextRound()) {
+		if bl.Point().Point.Equal(point.NextHeight().NextRound()) {
 			ballotch <- bl
 		}
 
@@ -570,7 +570,7 @@ func (t *testJoiningHandler) TestLastACCEPTVoteproofNextRound() {
 
 	sctx := newJoiningSwitchContext(StateBooting, nil)
 
-	avp, _ := t.VoteproofsPair(point.Next(), point.Next().Next(), manifest.Hash(), nil, nil, nodes)
+	avp, _ := t.VoteproofsPair(point.NextHeight(), point.NextHeight().NextHeight(), manifest.Hash(), nil, nil, nodes)
 	avp.SetResult(base.VoteResultDraw)
 	st.setLastVoteproof(avp)
 
@@ -585,7 +585,7 @@ func (t *testJoiningHandler) TestLastACCEPTVoteproofNextRound() {
 
 		return
 	case bl := <-ballotch:
-		t.Equal(point.Next().NextRound(), bl.Point().Point)
+		t.Equal(point.NextHeight().NextRound(), bl.Point().Point)
 
 		rbl, ok := bl.(base.INITBallot)
 		t.True(ok)

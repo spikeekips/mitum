@@ -40,7 +40,7 @@ func (t *testBallotbox) SetupSuite() {
 }
 
 func (t *testBallotbox) initBallot(node isaac.LocalNode, nodes []isaac.LocalNode, point base.Point, prev, proposal util.Hash) isaac.INITBallot {
-	afact := isaac.NewACCEPTBallotFact(point.Decrease(), valuehash.RandomSHA256(), prev)
+	afact := isaac.NewACCEPTBallotFact(point.PrevHeight(), valuehash.RandomSHA256(), prev)
 
 	asfs := make([]base.BallotSignedFact, len(nodes))
 	for i := range nodes {
@@ -484,7 +484,7 @@ func (t *testBallotbox) TestVoteproofFromBallotACCEPTVoteproof() {
 	)
 
 	point := base.RawPoint(33, 0)
-	prevpoint := point.Decrease()
+	prevpoint := point.PrevHeight()
 	prev := valuehash.RandomSHA256()
 	pr := valuehash.RandomSHA256()
 

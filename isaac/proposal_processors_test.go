@@ -55,7 +55,7 @@ func (t *testProposalProcessors) TestProcess() {
 
 	t.T().Log("save")
 	avp, _ := t.VoteproofsPair(
-		point.Decrease(),
+		point.PrevHeight(),
 		point,
 		nil,
 		facthash,
@@ -374,7 +374,7 @@ func (t *testProposalProcessors) TestSaveError() {
 
 	t.T().Log("save")
 	avp, _ := t.VoteproofsPair(
-		point.Decrease(),
+		point.PrevHeight(),
 		point,
 		nil,
 		facthash,

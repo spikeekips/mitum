@@ -32,7 +32,7 @@ func (t *testBootingHandler) newState() *BootingHandler {
 		},
 	)
 
-	avp, _ := t.VoteproofsPair(point, point.Next(), manifest.Hash(), nil, nil, nodes)
+	avp, _ := t.VoteproofsPair(point, point.NextHeight(), manifest.Hash(), nil, nil, nodes)
 	st.setLastVoteproofFunc(avp)
 
 	return st
@@ -73,9 +73,9 @@ func (t *testBootingHandler) TestWrongLastACCEPTVoteproof() {
 	st := t.newState()
 
 	oldavp := st.lastVoteproof().ACCEPT()
-	point := oldavp.Point().Point.Next()
+	point := oldavp.Point().Point.NextHeight()
 
-	newavp, _ := t.VoteproofsPair(point, point.Next(), valuehash.RandomSHA256(), nil, nil, []isaac.LocalNode{t.Local})
+	newavp, _ := t.VoteproofsPair(point, point.NextHeight(), valuehash.RandomSHA256(), nil, nil, []isaac.LocalNode{t.Local})
 	st.setLastVoteproofFunc(newavp)
 
 	sctx := newBootingSwitchContext(StateStopped)

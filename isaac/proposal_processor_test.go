@@ -1365,7 +1365,7 @@ func (t *testDefaultProposalProcessor) TestSave() {
 		setLastVoteproofsFunc,
 	)
 
-	ifact := t.NewINITBallotFact(point.Next(), previous.Hash(), pr.Fact().Hash())
+	ifact := t.NewINITBallotFact(point.NextHeight(), previous.Hash(), pr.Fact().Hash())
 	ivp, err := t.NewINITVoteproof(ifact, t.Local, []LocalNode{t.Local})
 	t.NoError(err)
 
@@ -1375,7 +1375,7 @@ func (t *testDefaultProposalProcessor) TestSave() {
 
 	t.Equal(4, writer.sts.Len())
 
-	afact := t.NewACCEPTBallotFact(point.Next(), nil, nil)
+	afact := t.NewACCEPTBallotFact(point.NextHeight(), nil, nil)
 	avp, err := t.NewACCEPTVoteproof(afact, t.Local, []LocalNode{t.Local})
 	t.NoError(err)
 
@@ -1423,7 +1423,7 @@ func (t *testDefaultProposalProcessor) TestSaveFailed() {
 
 	t.Equal(4, writer.sts.Len())
 
-	afact := t.NewACCEPTBallotFact(point.Next(), nil, nil)
+	afact := t.NewACCEPTBallotFact(point.NextHeight(), nil, nil)
 	avp, err := t.NewACCEPTVoteproof(afact, t.Local, []LocalNode{t.Local})
 	t.NoError(err)
 
