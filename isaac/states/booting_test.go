@@ -27,8 +27,8 @@ func (t *testBootingHandler) newState() *BootingHandler {
 		func() (base.Manifest, bool, error) {
 			return manifest, true, nil
 		},
-		func(base.Height) base.Suffrage {
-			return suf
+		func(base.Height) (base.Suffrage, bool, error) {
+			return suf, true, nil
 		},
 	)
 
@@ -87,7 +87,7 @@ func (t *testBootingHandler) TestWrongLastACCEPTVoteproof() {
 
 func (t *testBootingHandler) TestEmptySuffrage() {
 	st := t.newState()
-	st.getSuffrage = func(base.Height) base.Suffrage { return nil }
+	st.getSuffrage = func(base.Height) (base.Suffrage, bool, error) { return nil, false, nil }
 
 	sctx := newBootingSwitchContext(StateStopped)
 	_, err := st.enter(sctx)
@@ -100,7 +100,7 @@ func (t *testBootingHandler) TestNotInSuffrage() {
 	st := t.newState()
 
 	suf, _ := isaac.NewTestSuffrage(2)
-	st.getSuffrage = func(base.Height) base.Suffrage { return suf }
+	st.getSuffrage = func(base.Height) (base.Suffrage, bool, error) { return suf, true, nil }
 
 	sctx := newBootingSwitchContext(StateStopped)
 	_, err := st.enter(sctx)

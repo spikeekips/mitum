@@ -27,7 +27,7 @@ func (t *baseTestConsensusHandler) newState(previous base.Manifest, suf base.Suf
 		policy,
 		nil,
 		func(base.Height) (base.Manifest, error) { return previous, nil },
-		func(base.Height) base.Suffrage { return suf },
+		func(base.Height) (base.Suffrage, bool, error) { return suf, true, nil },
 		isaac.NewProposalProcessors(nil, nil),
 	)
 	_ = st.SetLogging(logging.TestNilLogging)
@@ -111,7 +111,7 @@ func (t *testConsensusHandler) TestNew() {
 		t.NodePolicy,
 		nil,
 		func(base.Height) (base.Manifest, error) { return previous, nil },
-		func(base.Height) base.Suffrage { return suf },
+		func(base.Height) (base.Suffrage, bool, error) { return suf, true, nil },
 		isaac.NewProposalProcessors(nil, func(context.Context, util.Hash) (base.ProposalSignedFact, error) {
 			return nil, util.NotFoundError.Call()
 		}),
@@ -488,8 +488,8 @@ func (t *testConsensusHandler) TestWithBallotbox() {
 	suf, _ := isaac.NewTestSuffrage(0, t.Local)
 
 	box := NewBallotbox(
-		func(base.Height) base.Suffrage {
-			return suf
+		func(base.Height) (base.Suffrage, bool, error) {
+			return suf, true, nil
 		},
 		base.Threshold(100),
 	)
@@ -621,12 +621,12 @@ func (t *testConsensusHandler) TestEmptySuffrageNextBlock() {
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
 
-	st.getSuffrage = func(height base.Height) base.Suffrage {
+	st.getSuffrage = func(height base.Height) (base.Suffrage, bool, error) {
 		switch {
 		case height <= point.Height():
-			return suf
+			return suf, true, nil
 		default:
-			return nil
+			return nil, false, nil
 		}
 	}
 
@@ -695,12 +695,12 @@ func (t *testConsensusHandler) TestOutOfSuffrage() {
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
 
-	st.getSuffrage = func(height base.Height) base.Suffrage {
+	st.getSuffrage = func(height base.Height) (base.Suffrage, bool, error) {
 		if height == point.Height() {
-			return suf
+			return suf, true, nil
 		}
 
-		return newsuf
+		return newsuf, true, nil
 	}
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
@@ -766,8 +766,8 @@ func (t *testConsensusHandler) TestEnterButEmptySuffrage() {
 
 	st, closefunc, _, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
-	st.getSuffrage = func(base.Height) base.Suffrage {
-		return nil
+	st.getSuffrage = func(base.Height) (base.Suffrage, bool, error) {
+		return nil, false, nil
 	}
 
 	sctxch := make(chan switchContext, 1)
@@ -780,10 +780,8 @@ func (t *testConsensusHandler) TestEnterButEmptySuffrage() {
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 	_, err := st.enter(sctx)
-
-	var ssctx brokenSwitchContext
-	t.True(errors.As(err, &ssctx))
-	t.Contains(ssctx.Error(), "empty suffrage")
+	t.Error(err)
+	t.Contains(err.Error(), "suffrage not found of init voteproof")
 }
 
 func (t *testConsensusHandler) TestEnterButNotInSuffrage() {

@@ -13,7 +13,7 @@ import (
 type ConsensusHandler struct {
 	*baseHandler
 	getManifest func(base.Height) (base.Manifest, error)
-	getSuffrage func(base.Height) base.Suffrage
+	getSuffrage isaac.GetSuffrageByBlockHeight
 	pps         *isaac.ProposalProcessors
 }
 
@@ -22,7 +22,7 @@ func NewConsensusHandler(
 	policy isaac.NodePolicy,
 	proposalSelector isaac.ProposalSelector,
 	getManifest func(base.Height) (base.Manifest, error),
-	getSuffrage func(base.Height) base.Suffrage,
+	getSuffrage isaac.GetSuffrageByBlockHeight,
 	pps *isaac.ProposalProcessors,
 ) *ConsensusHandler {
 	return &ConsensusHandler{
@@ -53,9 +53,19 @@ func (st *ConsensusHandler) enter(i switchContext) (func(), error) {
 		sctx = j
 	}
 
-	switch ok, err := st.isLocalInSuffrage(sctx.ivp.Point().Height()); {
+	var suf base.Suffrage
+	switch i, found, err := st.getSuffrage(sctx.ivp.Point().Height()); {
 	case err != nil:
-		return nil, newBrokenSwitchContext(StateEmpty, e(err, "local not in suffrage for next block"))
+		return nil, e(err, "local not in suffrage for next block")
+	case !found:
+		return nil, e(nil, "suffrage not found of init voteproof")
+	default:
+		suf = i
+	}
+
+	switch ok, err := isInSuffrage(st.local.Address(), suf); {
+	case err != nil:
+		return nil, e(err, "local not in suffrage for next block")
 	case !ok:
 		st.Log().Debug().
 			Dict("state_context", switchContextLog(sctx)).
@@ -440,72 +450,41 @@ func (st *ConsensusHandler) nextBlock(avp base.ACCEPTVoteproof) {
 
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(avp)).Object("point", point).Logger()
 
-	switch ok, err := st.isLocalInSuffrage(point.Height()); {
+	var suf base.Suffrage
+	switch i, found, err := st.getSuffrage(point.Height()); {
 	case err != nil:
-		l.Debug().Object("height", point.Height()).Msg("empty suffrage of next block; moves to broken state")
-
-		go st.switchState(newBrokenSwitchContext(
-			StateConsensus, errors.Wrap(err, "local not in suffrage for next block")))
+		go st.switchState(newBrokenSwitchContext(StateConsensus, err))
 
 		return
-	case !ok:
-		l.Debug().
-			Object("height", point.Height()).
-			Msg("local is not in suffrage at next block; moves to syncing state")
-
-		go st.switchState(newSyncingSwitchContext(StateConsensus, point.Height()))
-
-		return
-	}
-
-	// NOTE find next proposal
-	pr, err := st.proposalSelector.Select(st.ctx, point)
-	switch {
-	case err == nil:
-	case errors.Is(err, context.Canceled):
-		l.Debug().Err(err).Msg("canceled to select proposal; ignore")
+	case !found:
+		go st.switchState(newBrokenSwitchContext(StateConsensus, util.NotFoundError.Errorf("empty suffrage")))
 
 		return
 	default:
-		l.Error().Err(err).Msg("failed to select proposal")
+		suf = i
+	}
+
+	var sctx switchContext
+	switch err := st.prepareNextBlock(avp, suf); {
+	case err == nil:
+	case errors.Is(err, (switchContext)(nil)) && errors.As(err, &sctx):
+		go st.switchState(sctx)
+
+		return
+	default:
+		l.Debug().Err(err).Msg("failed to prepare next block; moves to broken state")
 
 		go st.switchState(newBrokenSwitchContext(StateConsensus, err))
 
 		return
 	}
 
-	l.Debug().Interface("proposal", pr).Msg("proposal selected")
-
-	// NOTE broadcast next init ballot
-	e := util.StringErrorFunc("failed to prepare next block")
-	fact := isaac.NewINITBallotFact(
-		point,
-		avp.BallotMajority().NewBlock(),
-		pr.Fact().Hash(),
-	)
-	sf := isaac.NewINITBallotSignedFact(st.local.Address(), fact)
-
-	if err := sf.Sign(st.local.Privatekey(), st.policy.NetworkID()); err != nil {
-		go st.switchState(newBrokenSwitchContext(StateConsensus, e(err, "failed to make next init ballot")))
-
-		return
-	}
-
-	bl := isaac.NewINITBallot(avp, sf)
-	if err := st.broadcastINITBallot(bl, true); err != nil {
-		go st.switchState(newBrokenSwitchContext(StateConsensus, e(err, "failed to broadcast next init ballot")))
-	}
-
 	if err := st.timers.StartTimers([]util.TimerID{
 		timerIDBroadcastINITBallot,
 		timerIDBroadcastACCEPTBallot,
 	}, true); err != nil {
-		l.Error().Err(e(err, "")).Msg("failed to start timers for broadcasting next init ballot")
-
-		return
+		l.Error().Err(err).Msg("failed to start timers for broadcasting next init ballot")
 	}
-
-	l.Debug().Interface("ballot", bl).Msg("next init ballot broadcasted")
 }
 
 func (st *ConsensusHandler) saveBlock(avp base.ACCEPTVoteproof) error {
@@ -531,18 +510,6 @@ func (st *ConsensusHandler) saveBlock(avp base.ACCEPTVoteproof) error {
 		ll.Error().Err(err).Msg("failed to save proposal; moves to broken state")
 
 		return newBrokenSwitchContext(StateConsensus, err)
-	}
-}
-
-func (st *ConsensusHandler) isLocalInSuffrage(height base.Height) (bool /* in suffrage */, error) {
-	suf := st.getSuffrage(height)
-	switch {
-	case suf == nil:
-		return false, errors.Errorf("empty suffrage")
-	case !suf.Exists(st.local.Address()):
-		return false, nil
-	default:
-		return true, nil
 	}
 }
 

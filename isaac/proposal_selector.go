@@ -34,7 +34,7 @@ type BaseProposalSelector struct {
 	policy           NodePolicy
 	proposerSelector ProposerSelector
 	maker            *ProposalMaker
-	getSuffrage      func(base.Height) (base.Suffrage, bool, error)
+	getSuffrage      GetSuffrageByBlockHeight
 	getLongDeadNodes func() []base.Address
 	request          func(context.Context, base.Point, base.Address) (base.ProposalSignedFact, error)
 	pool             ProposalPool
@@ -45,7 +45,7 @@ func NewBaseProposalSelector(
 	policy NodePolicy,
 	proposerSelector ProposerSelector,
 	maker *ProposalMaker,
-	getSuffrage func(base.Height) (base.Suffrage, bool, error),
+	getSuffrage GetSuffrageByBlockHeight,
 	getLongDeadNodes func() []base.Address,
 	request func(context.Context, base.Point, base.Address) (base.ProposalSignedFact, error),
 	pool ProposalPool,

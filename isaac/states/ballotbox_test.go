@@ -111,8 +111,8 @@ func (t *testBallotbox) TestVoteINITBallotSignedFact() {
 	th := base.Threshold(100)
 
 	box := NewBallotbox(
-		func(base.Height) base.Suffrage {
-			return suf
+		func(base.Height) (base.Suffrage, bool, error) {
+			return suf, true, nil
 		},
 		th,
 	)
@@ -152,8 +152,8 @@ func (t *testBallotbox) TestVoteACCEPTBallotSignedFact() {
 	th := base.Threshold(100)
 
 	box := NewBallotbox(
-		func(base.Height) base.Suffrage {
-			return suf
+		func(base.Height) (base.Suffrage, bool, error) {
+			return suf, true, nil
 		},
 		th,
 	)
@@ -195,8 +195,8 @@ func (t *testBallotbox) TestVoteSamePointAndStageWithLastVoteproof() {
 	th := base.Threshold(60)
 
 	box := NewBallotbox(
-		func(base.Height) base.Suffrage {
-			return suf
+		func(base.Height) (base.Suffrage, bool, error) {
+			return suf, true, nil
 		},
 		th,
 	)
@@ -238,8 +238,8 @@ func (t *testBallotbox) TestOldBallotSignedFact() {
 	th := base.Threshold(100)
 
 	box := NewBallotbox(
-		func(base.Height) base.Suffrage {
-			return suf
+		func(base.Height) (base.Suffrage, bool, error) {
+			return suf, true, nil
 		},
 		th,
 	)
@@ -281,8 +281,8 @@ func (t *testBallotbox) TestUnknownSuffrageNode() {
 	th := base.Threshold(100)
 
 	box := NewBallotbox(
-		func(base.Height) base.Suffrage {
-			return suf
+		func(base.Height) (base.Suffrage, bool, error) {
+			return suf, true, nil
 		},
 		th,
 	)
@@ -303,8 +303,8 @@ func (t *testBallotbox) TestNilSuffrage() {
 	n0 := isaac.RandomLocalNode()
 
 	box := NewBallotbox(
-		func(base.Height) base.Suffrage {
-			return nil
+		func(base.Height) (base.Suffrage, bool, error) {
+			return nil, false, nil
 		},
 		base.Threshold(100),
 	)
@@ -322,6 +322,9 @@ func (t *testBallotbox) TestNilSuffrage() {
 	t.NotNil(vr)
 	t.Equal(stagepoint, vr.stagepoint)
 
+	vr.Lock()
+	defer vr.Unlock()
+
 	vbl := vr.ballots[n0.Address().String()]
 	base.EqualBallot(t.Assert(), bl, vbl)
 }
@@ -332,13 +335,13 @@ func (t *testBallotbox) TestNilSuffrageCount() {
 
 	var i int64
 	box := NewBallotbox(
-		func(base.Height) base.Suffrage {
+		func(base.Height) (base.Suffrage, bool, error) {
 			if atomic.LoadInt64(&i) < 1 {
 				atomic.StoreInt64(&i, 1)
-				return nil
+				return nil, false, nil
 			}
 
-			return suf
+			return suf, true, nil
 		},
 		th,
 	)
@@ -381,12 +384,12 @@ func (t *testBallotbox) TestVoteproofOrder() {
 
 	var enablesuf int64
 	box := NewBallotbox(
-		func(base.Height) base.Suffrage {
+		func(base.Height) (base.Suffrage, bool, error) {
 			if atomic.LoadInt64(&enablesuf) < 1 {
-				return nil
+				return nil, false, nil
 			}
 
-			return suf
+			return suf, true, nil
 		},
 		th,
 	)
@@ -474,8 +477,8 @@ func (t *testBallotbox) TestVoteproofFromBallotACCEPTVoteproof() {
 	th := base.Threshold(100)
 
 	box := NewBallotbox(
-		func(base.Height) base.Suffrage {
-			return suf
+		func(base.Height) (base.Suffrage, bool, error) {
+			return suf, true, nil
 		},
 		th,
 	)
@@ -509,8 +512,8 @@ func (t *testBallotbox) TestVoteproofFromBallotINITVoteproof() {
 	th := base.Threshold(100)
 
 	box := NewBallotbox(
-		func(base.Height) base.Suffrage {
-			return suf
+		func(base.Height) (base.Suffrage, bool, error) {
+			return suf, true, nil
 		},
 		th,
 	)
@@ -556,12 +559,12 @@ func (t *testBallotbox) TestVoteproofFromBallotWhenCount() {
 
 	var i int64
 	box := NewBallotbox(
-		func(base.Height) base.Suffrage {
+		func(base.Height) (base.Suffrage, bool, error) {
 			if atomic.LoadInt64(&i) < 1 {
-				return nil
+				return nil, false, nil
 			}
 
-			return suf
+			return suf, true, nil
 		},
 		th,
 	)
@@ -624,7 +627,7 @@ func (t *testBallotbox) TestAsyncVoterecords() {
 	suf, nodes := isaac.NewTestSuffrage(max + 2)
 	th := base.Threshold(100)
 	stagepoint := base.NewStagePoint(base.RawPoint(33, 44), base.StageINIT)
-	vr := newVoterecords(stagepoint, nil, func(base.Height) base.Suffrage { return suf }, th)
+	vr := newVoterecords(stagepoint, nil, func(base.Height) (base.Suffrage, bool, error) { return suf, true, nil }, th)
 
 	ctx := context.TODO()
 	sem := semaphore.NewWeighted(300)
@@ -657,8 +660,8 @@ func (t *testBallotbox) TestAsyncVoteAndClean() {
 
 	suf, nodes := isaac.NewTestSuffrage(max)
 
-	box := NewBallotbox(func(base.Height) base.Suffrage {
-		return suf
+	box := NewBallotbox(func(base.Height) (base.Suffrage, bool, error) {
+		return suf, true, nil
 	}, th)
 	box.isValidVoteproofWithSuffrage = func(base.Voteproof, base.Suffrage) error {
 		return nil

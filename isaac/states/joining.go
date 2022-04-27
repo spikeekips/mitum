@@ -15,7 +15,7 @@ type JoiningHandler struct {
 	lastManifest       func() (base.Manifest, bool, error)
 	newvoteproofLock   sync.Mutex
 	waitFirstVoteproof time.Duration
-	getSuffrage        func(base.Height) base.Suffrage
+	getSuffrage        isaac.GetSuffrageByBlockHeight
 }
 
 func NewJoiningHandler(
@@ -23,7 +23,7 @@ func NewJoiningHandler(
 	policy isaac.NodePolicy,
 	proposalSelector isaac.ProposalSelector,
 	lastManifest func() (base.Manifest, bool, error),
-	getSuffrage func(base.Height) base.Suffrage,
+	getSuffrage isaac.GetSuffrageByBlockHeight,
 ) *JoiningHandler {
 	return &JoiningHandler{
 		baseHandler:        newBaseHandler(StateJoining, local, policy, proposalSelector),
@@ -62,27 +62,34 @@ func (st *JoiningHandler) enter(i switchContext) (func(), error) {
 		}
 	}
 
-	switch manifest, found, err := st.lastManifest(); {
+	var manifest base.Manifest
+	switch i, found, err := st.lastManifest(); {
 	case err != nil:
 		return nil, e(err, "")
 	case !found:
+		return nil, e(nil, "last manifest not found")
 	default:
-		switch suf := st.getSuffrage(manifest.Height()); {
+		switch suf, found, err := st.getSuffrage(i.Height()); {
+		case err != nil:
+			return nil, e(err, "")
+		case !found:
 		case !suf.Exists(st.local.Address()):
 			st.Log().Debug().Msg("local not in suffrage; moves to syncing")
 
-			return nil, newSyncingSwitchContext(StateEmpty, manifest.Height())
+			return nil, newSyncingSwitchContext(StateEmpty, i.Height())
 		case suf.Len() < 2:
 			st.Log().Debug().Msg("local alone in suffrage; will not wait new voteproof")
 
 			st.waitFirstVoteproof = 0
 		}
+
+		manifest = i
 	}
 
 	return func() {
 		deferred()
 
-		go st.firstVoteproof(vp)
+		go st.firstVoteproof(vp, manifest)
 	}, nil
 }
 
@@ -164,7 +171,9 @@ func (st *JoiningHandler) newINITVoteproof(ivp base.INITVoteproof, manifest base
 	switch expectedheight := manifest.Height() + 1; {
 	case ivp.Point().Height() < expectedheight: // NOTE lower height; ignore
 		return nil
-	case ivp.Point().Height() > expectedheight: // NOTE higher height; moves to syncing state
+	case ivp.Point().Height() > expectedheight:
+		l.Debug().Msg("new init voteproof found; moves to syncing")
+
 		return newSyncingSwitchContext(StateJoining, ivp.Point().Height()-1)
 	case ivp.Result() != base.VoteResultMajority:
 		l.Debug().Msg("init voteproof not majroity; moves to next round")
@@ -186,18 +195,19 @@ func (st *JoiningHandler) newINITVoteproof(ivp base.INITVoteproof, manifest base
 func (st *JoiningHandler) newACCEPTVoteproof(avp base.ACCEPTVoteproof, manifest base.Manifest) error {
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(avp)).Logger()
 
-	switch expectedheight := manifest.Height() + 1; {
-	case avp.Point().Height() < expectedheight: // NOTE lower height; ignore
+	switch lastheight := manifest.Height(); {
+	case avp.Point().Height() < lastheight+1: // NOTE lower height; ignore
 		return nil
-	case avp.Point().Height() > expectedheight: // NOTE higher height; moves to syncing state
+	case avp.Point().Height() > lastheight+1,
+		avp.Point().Height() == lastheight+1 && avp.Result() == base.VoteResultMajority:
+		l.Debug().Msg("new accept voteproof found; moves to syncing")
+
 		height := avp.Point().Height()
 		if avp.Result() != base.VoteResultMajority {
 			height = avp.Point().Height() - 1
 		}
 
 		return newSyncingSwitchContext(StateJoining, height)
-	case avp.Result() == base.VoteResultMajority:
-		return newSyncingSwitchContext(StateJoining, avp.Point().Height())
 	default:
 		l.Debug().Msg("init voteproof not majroity; moves to next round")
 
@@ -210,7 +220,7 @@ func (st *JoiningHandler) newACCEPTVoteproof(avp base.ACCEPTVoteproof, manifest 
 // firstVoteproof handles the voteproof, which is received before joining
 // handler. It will help to prevent voting stuck. firstVoteproof waits for given
 // time, if no incoming voteproof, process last voteproof.
-func (st *JoiningHandler) firstVoteproof(lvp base.Voteproof) {
+func (st *JoiningHandler) firstVoteproof(lvp base.Voteproof, manifest base.Manifest) {
 	if lvp == nil {
 		return
 	}
@@ -223,11 +233,27 @@ func (st *JoiningHandler) firstVoteproof(lvp base.Voteproof) {
 	case <-time.After(st.waitFirstVoteproof):
 	}
 
-	if nlvp := st.lastVoteproof().Cap(); nlvp == nil || nlvp.Point().Compare(lvp.Point()) != 0 {
+	switch nlvp := st.lastVoteproof().Cap(); {
+	case nlvp == nil:
+	case nlvp.Point().Compare(lvp.Point()) > 0:
 		return
 	}
 
 	st.Log().Debug().Msg("last voteproof found for firstVoteproof")
+
+	// NOTE if no new voteproof and last accept voteproof looks good, broadcast
+	// next init ballot
+	switch avp, ok := lvp.(base.ACCEPTVoteproof); {
+	case !ok:
+	case avp.Result() != base.VoteResultMajority:
+	case avp.Point().Height() != manifest.Height():
+	default:
+		st.Log().Debug().Msg("no more new voteproof; prepare next block")
+
+		go st.nextBlock(avp)
+
+		return
+	}
 
 	var dsctx switchContext
 	switch err := st.newVoteproof(lvp); {
@@ -237,6 +263,43 @@ func (st *JoiningHandler) firstVoteproof(lvp base.Voteproof) {
 			Msg("failed last voteproof after enter; ignore")
 	default:
 		go st.switchState(dsctx)
+	}
+}
+
+func (st *JoiningHandler) nextBlock(avp base.ACCEPTVoteproof) {
+	point := avp.Point().Point.Next()
+
+	l := st.Log().With().Dict("voteproof", base.VoteproofLog(avp)).Object("point", point).Logger()
+
+	var suf base.Suffrage
+	switch i, found, err := st.getSuffrage(point.Height()); {
+	case err != nil, !found:
+		go st.switchState(newBrokenSwitchContext(StateConsensus, err))
+
+		return
+	default:
+		suf = i
+	}
+
+	var sctx switchContext
+	switch err := st.prepareNextBlock(avp, suf); {
+	case err == nil:
+	case errors.Is(err, (switchContext)(nil)) && errors.As(err, &sctx):
+		go st.switchState(sctx)
+
+		return
+	default:
+		l.Debug().Err(err).Msg("failed to prepare next block; moves to broken state")
+
+		go st.switchState(newBrokenSwitchContext(StateConsensus, err))
+
+		return
+	}
+
+	if err := st.timers.StartTimers([]util.TimerID{
+		timerIDBroadcastINITBallot,
+	}, true); err != nil {
+		l.Error().Err(err).Msg("failed to start timers for broadcasting next init ballot")
 	}
 }
 

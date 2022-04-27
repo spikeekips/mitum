@@ -9,14 +9,14 @@ import (
 type BootingHandler struct {
 	*baseHandler
 	lastManifest func() (base.Manifest, bool, error)
-	getSuffrage  func(base.Height) base.Suffrage
+	getSuffrage  isaac.GetSuffrageByBlockHeight
 }
 
 func NewBootingHandler(
 	local base.LocalNode,
 	policy isaac.NodePolicy,
 	lastManifest func() (base.Manifest, bool, error),
-	getSuffrage func(base.Height) base.Suffrage,
+	getSuffrage isaac.GetSuffrageByBlockHeight,
 ) *BootingHandler {
 	return &BootingHandler{
 		baseHandler:  newBaseHandler(StateBooting, local, policy, nil),
@@ -60,8 +60,10 @@ func (st *BootingHandler) enter(i switchContext) (func(), error) {
 
 	// BLOCK if node is candidate, moves to joining
 	// NOTE if node not in suffrage, moves to syncing
-	switch suf := st.getSuffrage(manifest.Height()); {
-	case suf == nil:
+	switch suf, found, err := st.getSuffrage(manifest.Height()); {
+	case err != nil:
+		return nil, e(err, "")
+	case !found:
 		return nil, e(nil, "empty suffrage for last manifest")
 	case !suf.Exists(st.local.Address()):
 		st.Log().Debug().Msg("local not in suffrage; moves to syncing")

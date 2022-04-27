@@ -29,7 +29,7 @@ func (t *testJoiningHandler) newState(suf base.Suffrage) (*JoiningHandler, func(
 		func() (base.Manifest, bool, error) {
 			return nil, false, errors.Errorf("empty manifest")
 		},
-		func(base.Height) base.Suffrage { return suf },
+		func(base.Height) (base.Suffrage, bool, error) { return suf, true, nil },
 	)
 	_ = st.SetLogging(logging.TestNilLogging)
 	_ = st.setTimers(util.NewTimers([]util.TimerID{
@@ -116,11 +116,32 @@ func (t *testJoiningHandler) TestFailedLastManifest() {
 
 		sctx := newJoiningSwitchContext(StateBooting, nil)
 
+		_, err := st.enter(sctx)
+		t.Error(err)
+		t.Contains(err.Error(), "failed to enter joining state")
+		t.Contains(err.Error(), "empty manifest")
+	})
+
+	t.Run("new voteproof with error", func() {
+		st, closef := t.newState(suf)
+		defer closef()
+
+		point := base.RawPoint(33, 0)
+		manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+
+		orig := st.lastManifest
+		st.lastManifest = func() (base.Manifest, bool, error) {
+			return manifest, true, nil
+		}
+
+		sctx := newJoiningSwitchContext(StateBooting, nil)
+
 		deferred, err := st.enter(sctx)
 		t.NoError(err)
 		deferred()
 
-		point := base.RawPoint(33, 0)
+		st.lastManifest = orig
+
 		_, ivp := t.VoteproofsPair(point, point.Next(), nil, nil, nil, nodes)
 		err = st.newVoteproof(ivp)
 
@@ -139,17 +160,10 @@ func (t *testJoiningHandler) TestFailedLastManifest() {
 
 		sctx := newJoiningSwitchContext(StateBooting, nil)
 
-		deferred, err := st.enter(sctx)
-		t.NoError(err)
-		deferred()
+		_, err := st.enter(sctx)
+		t.Error(err)
 
-		point := base.RawPoint(33, 0)
-		_, ivp := t.VoteproofsPair(point, point.Next(), nil, nil, nil, nodes)
-		err = st.newVoteproof(ivp)
-
-		var ssctx syncingSwitchContext
-		t.True(errors.As(err, &ssctx))
-		t.Equal(ivp.Point().Height()-1, ssctx.height)
+		t.Contains(err.Error(), "last manifest not found")
 	})
 }
 
@@ -224,6 +238,53 @@ func (t *testJoiningHandler) TestInvalidINITVoteproof() {
 		t.True(errors.As(err, &ssctx))
 		t.Equal(ivp.Point().Height()-1, ssctx.height)
 	})
+}
+
+func (t *testJoiningHandler) TestFirstVoteproof() {
+	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
+	prpool := t.PRPool
+
+	st, closef := t.newState(suf)
+	defer closef()
+
+	point := base.RawPoint(33, 0)
+	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+	st.lastManifest = func() (base.Manifest, bool, error) {
+		return manifest, true, nil
+	}
+	st.waitFirstVoteproof = 1
+
+	st.proposalSelector = isaac.DummyProposalSelector(func(_ context.Context, p base.Point) (base.ProposalSignedFact, error) {
+		return prpool.Get(p), nil
+	})
+
+	ballotch := make(chan base.Ballot, 1)
+	st.broadcastBallotFunc = func(bl base.Ballot) error {
+		if bl.Point().Point.Equal(point.Next()) {
+			ballotch <- bl
+		}
+
+		return nil
+	}
+
+	avp, _ := t.VoteproofsPair(point, point.Next(), manifest.Hash(), nil, nil, nodes)
+	sctx := newJoiningSwitchContext(StateBooting, avp)
+
+	deferred, err := st.enter(sctx)
+	t.NoError(err)
+	deferred()
+
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("timeout to wait init ballot for next block"))
+
+		return
+	case bl := <-ballotch:
+		rbl, ok := bl.(base.INITBallot)
+		t.True(ok)
+
+		t.True(manifest.Hash().Equal(rbl.BallotSignedFact().BallotFact().PreviousBlock()))
+	}
 }
 
 func (t *testJoiningHandler) TestInvalidACCEPTVoteproof() {

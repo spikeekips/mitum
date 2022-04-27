@@ -252,6 +252,64 @@ func (st *baseHandler) nextRound(vp base.Voteproof, prevBlock util.Hash) {
 	l.Debug().Interface("ballot", bl).Msg("next round init ballot broadcasted")
 }
 
+func (st *baseHandler) prepareNextBlock(avp base.ACCEPTVoteproof, suf base.Suffrage) error {
+	e := util.StringErrorFunc("failed to prepare next block")
+
+	point := avp.Point().Point.Next()
+
+	l := st.Log().With().Dict("voteproof", base.VoteproofLog(avp)).Object("point", point).Logger()
+
+	switch ok, err := isInSuffrage(st.local.Address(), suf); {
+	case err != nil:
+		l.Debug().Object("height", point.Height()).Msg("empty suffrage of next block; moves to broken state")
+
+		return e(err, "local not in suffrage for next block")
+	case !ok:
+		l.Debug().
+			Object("height", point.Height()).
+			Msg("local is not in suffrage at next block; moves to syncing state")
+
+		return newSyncingSwitchContext(StateConsensus, point.Height())
+	}
+
+	// NOTE find next proposal
+	pr, err := st.proposalSelector.Select(st.ctx, point)
+	switch {
+	case err == nil:
+	case errors.Is(err, context.Canceled):
+		l.Debug().Err(err).Msg("canceled to select proposal; ignore")
+
+		return nil
+	default:
+		l.Error().Err(err).Msg("failed to select proposal")
+
+		return e(err, "")
+	}
+
+	l.Debug().Interface("proposal", pr).Msg("proposal selected")
+
+	// NOTE broadcast next init ballot
+	fact := isaac.NewINITBallotFact(
+		point,
+		avp.BallotMajority().NewBlock(),
+		pr.Fact().Hash(),
+	)
+	sf := isaac.NewINITBallotSignedFact(st.local.Address(), fact)
+
+	if err := sf.Sign(st.local.Privatekey(), st.policy.NetworkID()); err != nil {
+		return e(err, "failed to make next init ballot")
+	}
+
+	bl := isaac.NewINITBallot(avp, sf)
+	if err := st.broadcastINITBallot(bl, true); err != nil {
+		return e(err, "failed to broadcast next init ballot")
+	}
+
+	l.Debug().Interface("ballot", bl).Msg("next init ballot broadcasted")
+
+	return nil
+}
+
 type LastVoteproofsHandler struct {
 	sync.RWMutex
 	ivp base.INITVoteproof
@@ -386,5 +444,16 @@ func findLastVoteproofs(ivp, avp base.Voteproof) base.Voteproof {
 		return ivp
 	default:
 		return avp
+	}
+}
+
+func isInSuffrage(local base.Address, suf base.Suffrage) (bool, error) {
+	switch {
+	case suf == nil:
+		return false, errors.Errorf("empty suffrage")
+	case !suf.Exists(local):
+		return false, nil
+	default:
+		return true, nil
 	}
 }
