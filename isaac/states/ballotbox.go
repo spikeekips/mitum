@@ -63,7 +63,7 @@ func (box *Ballotbox) Voteproof() <-chan base.Voteproof {
 	return box.vpch
 }
 
-func (box *Ballotbox) Count() {
+func (box *Ballotbox) Count() { // BLOCK after new block saved, Count() should be called for checking next voteproofs
 	box.countLock.Lock()
 	defer box.countLock.Unlock()
 

@@ -14,6 +14,7 @@ type ConsensusHandler struct {
 	*baseHandler
 	getManifest func(base.Height) (base.Manifest, error)
 	getSuffrage isaac.GetSuffrageByBlockHeight
+	voteFunc    func(base.Ballot) (bool, error)
 	pps         *isaac.ProposalProcessors
 }
 
@@ -23,12 +24,18 @@ func NewConsensusHandler(
 	proposalSelector isaac.ProposalSelector,
 	getManifest func(base.Height) (base.Manifest, error),
 	getSuffrage isaac.GetSuffrageByBlockHeight,
+	voteFunc func(base.Ballot) (bool, error),
 	pps *isaac.ProposalProcessors,
 ) *ConsensusHandler {
+	if voteFunc == nil {
+		voteFunc = func(base.Ballot) (bool, error) { return false, errors.Errorf("not voted") }
+	}
+
 	return &ConsensusHandler{
 		baseHandler: newBaseHandler(StateConsensus, local, policy, proposalSelector),
 		getManifest: getManifest,
 		getSuffrage: getSuffrage,
+		voteFunc:    voteFunc,
 		pps:         pps,
 	}
 }
@@ -236,7 +243,12 @@ func (st *ConsensusHandler) processProposalInternal(ivp base.INITVoteproof) (bas
 		}
 
 		bl := isaac.NewACCEPTBallot(ivp, signedFact)
-		if err := st.broadcastACCEPTBallot(bl, true, initialWait); err != nil {
+
+		if _, err := st.voteFunc(bl); err != nil {
+			return nil, e(err, "failed to vote accept ballot")
+		}
+
+		if err := st.broadcastACCEPTBallot(bl, initialWait); err != nil {
 			return nil, e(err, "failed to broadcast accept ballot")
 		}
 
@@ -442,7 +454,46 @@ func (st *ConsensusHandler) nextRound(vp base.Voteproof, lvps LastVoteproofs) {
 		return
 	}
 
-	st.baseHandler.nextRound(vp, prevBlock)
+	var sctx switchContext
+	var bl base.INITBallot
+	switch i, err := st.prepareNextRound(vp, prevBlock); {
+	case err == nil:
+		if i == nil {
+			return
+		}
+
+		bl = i
+	case errors.Is(err, (switchContext)(nil)) && errors.As(err, &sctx):
+		go st.switchState(sctx)
+
+		return
+	default:
+		l.Debug().Err(err).Msg("failed to prepare next round; moves to broken state")
+
+		go st.switchState(newBrokenSwitchContext(StateConsensus, err))
+
+		return
+	}
+
+	if _, err := st.voteFunc(bl); err != nil {
+		l.Error().Err(err).Msg("failed to vote init ballot for next round")
+
+		return
+	}
+
+	if err := st.broadcastINITBallot(bl); err != nil {
+		l.Error().Err(err).Msg("failed to broadcast init ballot for next round")
+
+		return
+	}
+
+	if err := st.timers.StartTimers([]util.TimerID{timerIDBroadcastINITBallot}, true); err != nil {
+		l.Error().Err(err).Msg("failed to start timers for broadcasting init ballot for next round")
+
+		return
+	}
+
+	l.Debug().Interface("ballot", bl).Msg("init ballot broadcasted for next round")
 }
 
 func (st *ConsensusHandler) nextBlock(avp base.ACCEPTVoteproof) {
@@ -451,7 +502,7 @@ func (st *ConsensusHandler) nextBlock(avp base.ACCEPTVoteproof) {
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(avp)).Object("point", point).Logger()
 
 	var suf base.Suffrage
-	switch i, found, err := st.getSuffrage(point.Height()); {
+	switch i, found, err := st.getSuffrage(point.Height() + 1); {
 	case err != nil:
 		go st.switchState(newBrokenSwitchContext(StateConsensus, err))
 
@@ -465,8 +516,14 @@ func (st *ConsensusHandler) nextBlock(avp base.ACCEPTVoteproof) {
 	}
 
 	var sctx switchContext
-	switch err := st.prepareNextBlock(avp, suf); {
+	var bl base.INITBallot
+	switch i, err := st.prepareNextBlock(avp, suf); {
 	case err == nil:
+		if i == nil {
+			return
+		}
+
+		bl = i
 	case errors.Is(err, (switchContext)(nil)) && errors.As(err, &sctx):
 		go st.switchState(sctx)
 
@@ -479,12 +536,28 @@ func (st *ConsensusHandler) nextBlock(avp base.ACCEPTVoteproof) {
 		return
 	}
 
+	if _, err := st.voteFunc(bl); err != nil {
+		l.Error().Err(err).Msg("failed to vote init ballot for next block")
+
+		return
+	}
+
+	if err := st.broadcastINITBallot(bl); err != nil {
+		l.Error().Err(err).Msg("failed to broadcast next init ballot")
+
+		return
+	}
+
 	if err := st.timers.StartTimers([]util.TimerID{
 		timerIDBroadcastINITBallot,
 		timerIDBroadcastACCEPTBallot,
 	}, true); err != nil {
 		l.Error().Err(err).Msg("failed to start timers for broadcasting next init ballot")
+
+		return
 	}
+
+	l.Debug().Interface("ballot", bl).Msg("next init ballot broadcasted")
 }
 
 func (st *ConsensusHandler) saveBlock(avp base.ACCEPTVoteproof) error {

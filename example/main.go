@@ -145,6 +145,8 @@ func (cmd *runCommand) Run() error {
 		return suf, true, nil
 	}
 
+	box := isaacstates.NewBallotbox(getSuffrage, nodePolicy.Threshold())
+
 	getManifest := func(height base.Height) (base.Manifest, error) {
 		switch m, found, err := db.Map(height); {
 		case err != nil:
@@ -220,6 +222,15 @@ func (cmd *runCommand) Run() error {
 		}
 	}
 
+	voteFunc := func(bl base.Ballot) (bool, error) {
+		voted, err := box.Vote(bl)
+		if err != nil {
+			return false, errors.Wrap(err, "")
+		}
+
+		return voted, nil
+	}
+
 	newProposalProcessor := func(proposal base.ProposalSignedFact, previous base.Manifest) (isaac.ProposalProcessor, error) {
 		return isaac.NewDefaultProposalProcessor(
 			proposal,
@@ -234,7 +245,6 @@ func (cmd *runCommand) Run() error {
 
 	pps := isaac.NewProposalProcessors(newProposalProcessor, nil)
 
-	box := isaacstates.NewBallotbox(getSuffrage, nodePolicy.Threshold())
 	states := isaacstates.NewStates(box)
 	_ = states.SetLogging(logging)
 
@@ -242,8 +252,8 @@ func (cmd *runCommand) Run() error {
 		SetHandler(isaacstates.NewBrokenHandler(local, nodePolicy)).
 		SetHandler(isaacstates.NewStoppedHandler(local, nodePolicy)).
 		SetHandler(isaacstates.NewBootingHandler(local, nodePolicy, getLastManifest, getSuffrage)).
-		SetHandler(isaacstates.NewJoiningHandler(local, nodePolicy, proposerSelector, getLastManifest, getSuffrage)).
-		SetHandler(isaacstates.NewConsensusHandler(local, nodePolicy, proposerSelector, getManifest, getSuffrage, pps))
+		SetHandler(isaacstates.NewJoiningHandler(local, nodePolicy, proposerSelector, getLastManifest, getSuffrage, voteFunc)).
+		SetHandler(isaacstates.NewConsensusHandler(local, nodePolicy, proposerSelector, getManifest, getSuffrage, voteFunc, pps))
 
 	// NOTE load last init, accept voteproof and last majority voteproof
 	switch ivp, avp, found, err := pool.LastVoteproofs(); {

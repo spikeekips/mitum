@@ -30,6 +30,7 @@ func (t *testJoiningHandler) newState(suf base.Suffrage) (*JoiningHandler, func(
 			return nil, false, errors.Errorf("empty manifest")
 		},
 		func(base.Height) (base.Suffrage, bool, error) { return suf, true, nil },
+		func(base.Ballot) (bool, error) { return true, nil },
 	)
 	_ = st.SetLogging(logging.TestNilLogging)
 	_ = st.setTimers(util.NewTimers([]util.TimerID{
@@ -374,12 +375,12 @@ func (t *testJoiningHandler) TestINITVoteproofNextRound() {
 	}
 
 	ballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot) error {
+	st.voteFunc = func(bl base.Ballot) (bool, error) {
 		if bl.Point().Point.Equal(point.NextHeight().NextRound()) {
 			ballotch <- bl
 		}
 
-		return nil
+		return true, nil
 	}
 
 	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
@@ -432,12 +433,12 @@ func (t *testJoiningHandler) TestACCEPTVoteproofNextRound() {
 	}
 
 	ballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot) error {
+	st.voteFunc = func(bl base.Ballot) (bool, error) {
 		if bl.Point().Point.Equal(point.NextHeight().NextRound()) {
 			ballotch <- bl
 		}
 
-		return nil
+		return true, nil
 	}
 
 	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
@@ -492,12 +493,12 @@ func (t *testJoiningHandler) TestLastINITVoteproofNextRound() {
 	}
 
 	ballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot) error {
+	st.voteFunc = func(bl base.Ballot) (bool, error) {
 		if bl.Point().Point.Equal(point.NextHeight().NextRound()) {
 			ballotch <- bl
 		}
 
-		return nil
+		return true, nil
 	}
 
 	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
@@ -551,12 +552,12 @@ func (t *testJoiningHandler) TestLastACCEPTVoteproofNextRound() {
 	}
 
 	ballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot) error {
+	st.voteFunc = func(bl base.Ballot) (bool, error) {
 		if bl.Point().Point.Equal(point.NextHeight().NextRound()) {
 			ballotch <- bl
 		}
 
-		return nil
+		return true, nil
 	}
 
 	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {

@@ -151,7 +151,6 @@ func (st *baseHandler) setNewVoteproof(vp base.Voteproof) (LastVoteproofs, base.
 
 func (st *baseHandler) broadcastBallot(
 	bl base.Ballot,
-	tolocal bool,
 	timerid util.TimerID,
 	initialWait time.Duration,
 ) error {
@@ -161,6 +160,7 @@ func (st *baseHandler) broadcastBallot(
 	if iw < 1 {
 		iw = time.Nanosecond
 	}
+
 	l := st.Log().With().
 		Stringer("ballot_hash", bl.SignedFact().Fact().Hash()).
 		Dur("initial_wait", iw).
@@ -174,9 +174,7 @@ func (st *baseHandler) broadcastBallot(
 		st.policy.IntervalBroadcastBallot(),
 		func(int) (bool, error) {
 			if err := st.broadcastBallotFunc(bl); err != nil {
-				l.Error().Err(err).Msg("failed to broadcast ballot; timer will be stopped")
-
-				return false, e(err, "")
+				l.Error().Err(err).Msg("failed to broadcast ballot; keep going")
 			}
 
 			return true, nil
@@ -196,15 +194,15 @@ func (st *baseHandler) broadcastBallot(
 	return nil
 }
 
-func (st *baseHandler) broadcastINITBallot(bl base.Ballot, tolocal bool) error {
-	return st.broadcastBallot(bl, tolocal, timerIDBroadcastINITBallot, 0)
+func (st *baseHandler) broadcastINITBallot(bl base.Ballot) error {
+	return st.broadcastBallot(bl, timerIDBroadcastINITBallot, 0)
 }
 
-func (st *baseHandler) broadcastACCEPTBallot(bl base.Ballot, tolocal bool, initialWait time.Duration) error {
-	return st.broadcastBallot(bl, tolocal, timerIDBroadcastACCEPTBallot, initialWait)
+func (st *baseHandler) broadcastACCEPTBallot(bl base.Ballot, initialWait time.Duration) error {
+	return st.broadcastBallot(bl, timerIDBroadcastACCEPTBallot, initialWait)
 }
 
-func (st *baseHandler) nextRound(vp base.Voteproof, prevBlock util.Hash) {
+func (st *baseHandler) prepareNextRound(vp base.Voteproof, prevBlock util.Hash) (base.INITBallot, error) {
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(vp)).Logger()
 
 	point := vp.Point().Point.NextRound()
@@ -216,9 +214,7 @@ func (st *baseHandler) nextRound(vp base.Voteproof, prevBlock util.Hash) {
 	if err != nil {
 		l.Error().Err(err).Msg("failed to select proposal")
 
-		go st.switchState(newBrokenSwitchContext(st.stt, err))
-
-		return
+		return nil, newBrokenSwitchContext(st.stt, err)
 	}
 
 	l.Debug().Interface("proposal", pr).Msg("proposal selected")
@@ -233,26 +229,13 @@ func (st *baseHandler) nextRound(vp base.Voteproof, prevBlock util.Hash) {
 	sf := isaac.NewINITBallotSignedFact(st.local.Address(), fact)
 
 	if err := sf.Sign(st.local.Privatekey(), st.policy.NetworkID()); err != nil {
-		go st.switchState(newBrokenSwitchContext(st.stt, e(err, "failed to make next round init ballot")))
-
-		return
+		return nil, newBrokenSwitchContext(st.stt, e(err, "failed to make next round init ballot"))
 	}
 
-	bl := isaac.NewINITBallot(vp, sf)
-	if err := st.broadcastINITBallot(bl, true); err != nil {
-		go st.switchState(newBrokenSwitchContext(st.stt, e(err, "failed to broadcast next round init ballot")))
-	}
-
-	if err := st.timers.StartTimers([]util.TimerID{timerIDBroadcastINITBallot}, true); err != nil {
-		l.Error().Err(e(err, "")).Msg("failed to start timers for broadcasting next round init ballot")
-
-		return
-	}
-
-	l.Debug().Interface("ballot", bl).Msg("next round init ballot broadcasted")
+	return isaac.NewINITBallot(vp, sf), nil
 }
 
-func (st *baseHandler) prepareNextBlock(avp base.ACCEPTVoteproof, suf base.Suffrage) error {
+func (st *baseHandler) prepareNextBlock(avp base.ACCEPTVoteproof, suf base.Suffrage) (ballot base.INITBallot, err error) {
 	e := util.StringErrorFunc("failed to prepare next block")
 
 	point := avp.Point().Point.NextHeight()
@@ -263,13 +246,13 @@ func (st *baseHandler) prepareNextBlock(avp base.ACCEPTVoteproof, suf base.Suffr
 	case err != nil:
 		l.Debug().Object("height", point.Height()).Msg("empty suffrage of next block; moves to broken state")
 
-		return e(err, "local not in suffrage for next block")
+		return nil, e(err, "local not in suffrage for next block")
 	case !ok:
 		l.Debug().
 			Object("height", point.Height()).
 			Msg("local is not in suffrage at next block; moves to syncing state")
 
-		return newSyncingSwitchContext(StateConsensus, point.Height())
+		return nil, newSyncingSwitchContext(StateConsensus, point.Height())
 	}
 
 	// NOTE find next proposal
@@ -279,11 +262,11 @@ func (st *baseHandler) prepareNextBlock(avp base.ACCEPTVoteproof, suf base.Suffr
 	case errors.Is(err, context.Canceled):
 		l.Debug().Err(err).Msg("canceled to select proposal; ignore")
 
-		return nil
+		return nil, nil
 	default:
 		l.Error().Err(err).Msg("failed to select proposal")
 
-		return e(err, "")
+		return nil, e(err, "")
 	}
 
 	l.Debug().Interface("proposal", pr).Msg("proposal selected")
@@ -297,17 +280,10 @@ func (st *baseHandler) prepareNextBlock(avp base.ACCEPTVoteproof, suf base.Suffr
 	sf := isaac.NewINITBallotSignedFact(st.local.Address(), fact)
 
 	if err := sf.Sign(st.local.Privatekey(), st.policy.NetworkID()); err != nil {
-		return e(err, "failed to make next init ballot")
+		return nil, e(err, "failed to make next init ballot")
 	}
 
-	bl := isaac.NewINITBallot(avp, sf)
-	if err := st.broadcastINITBallot(bl, true); err != nil {
-		return e(err, "failed to broadcast next init ballot")
-	}
-
-	l.Debug().Interface("ballot", bl).Msg("next init ballot broadcasted")
-
-	return nil
+	return isaac.NewINITBallot(avp, sf), nil
 }
 
 type LastVoteproofsHandler struct {

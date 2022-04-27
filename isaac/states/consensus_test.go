@@ -28,6 +28,7 @@ func (t *baseTestConsensusHandler) newState(previous base.Manifest, suf base.Suf
 		nil,
 		func(base.Height) (base.Manifest, error) { return previous, nil },
 		func(base.Height) (base.Suffrage, bool, error) { return suf, true, nil },
+		func(base.Ballot) (bool, error) { return true, nil },
 		isaac.NewProposalProcessors(nil, nil),
 	)
 	_ = st.SetLogging(logging.TestNilLogging)
@@ -112,6 +113,7 @@ func (t *testConsensusHandler) TestNew() {
 		nil,
 		func(base.Height) (base.Manifest, error) { return previous, nil },
 		func(base.Height) (base.Suffrage, bool, error) { return suf, true, nil },
+		func(base.Ballot) (bool, error) { return true, nil },
 		isaac.NewProposalProcessors(nil, func(context.Context, util.Hash) (base.ProposalSignedFact, error) {
 			return nil, util.NotFoundError.Call()
 		}),
@@ -533,15 +535,17 @@ func (t *testConsensusHandler) TestWithBallotbox() {
 		return nil
 	}
 
-	st.broadcastBallotFunc = func(bl base.Ballot) error {
-		_, err := box.Vote(bl)
-		// t.T().Logf("voted: point=%q, node=%q, voted=%v", bl.Point(), bl.SignedFact().Node(), voted)
+	st.voteFunc = func(bl base.Ballot) (bool, error) {
+		voted, err := box.Vote(bl)
+		t.T().Logf("voted: point=%q, node=%q, voted=%v error=%+v", bl.Point(), bl.SignedFact().Node(), voted, err)
+
 		if err != nil {
-			return err
+			return false, errors.Wrap(err, "")
 		}
 
-		return nil
+		return voted, nil
 	}
+
 	prpool := t.PRPool
 	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
 		var pr base.ProposalSignedFact
@@ -623,7 +627,7 @@ func (t *testConsensusHandler) TestEmptySuffrageNextBlock() {
 
 	st.getSuffrage = func(height base.Height) (base.Suffrage, bool, error) {
 		switch {
-		case height <= point.Height():
+		case height <= point.Height()+1:
 			return suf, true, nil
 		default:
 			return nil, false, nil
@@ -696,7 +700,7 @@ func (t *testConsensusHandler) TestOutOfSuffrage() {
 	defer closefunc()
 
 	st.getSuffrage = func(height base.Height) (base.Suffrage, bool, error) {
-		if height == point.Height() {
+		if height == point.Height()+1 {
 			return suf, true, nil
 		}
 

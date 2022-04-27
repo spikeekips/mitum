@@ -16,6 +16,7 @@ type JoiningHandler struct {
 	newvoteproofLock   sync.Mutex
 	waitFirstVoteproof time.Duration
 	getSuffrage        isaac.GetSuffrageByBlockHeight
+	voteFunc           func(base.Ballot) (bool, error)
 }
 
 func NewJoiningHandler(
@@ -24,12 +25,18 @@ func NewJoiningHandler(
 	proposalSelector isaac.ProposalSelector,
 	lastManifest func() (base.Manifest, bool, error),
 	getSuffrage isaac.GetSuffrageByBlockHeight,
+	voteFunc func(base.Ballot) (bool, error),
 ) *JoiningHandler {
+	if voteFunc == nil {
+		voteFunc = func(base.Ballot) (bool, error) { return false, errors.Errorf("not voted") }
+	}
+
 	return &JoiningHandler{
 		baseHandler:        newBaseHandler(StateJoining, local, policy, proposalSelector),
 		lastManifest:       lastManifest,
 		waitFirstVoteproof: policy.IntervalBroadcastBallot()*2 + policy.WaitProcessingProposal(),
 		getSuffrage:        getSuffrage,
+		voteFunc:           voteFunc,
 	}
 }
 
@@ -266,6 +273,51 @@ func (st *JoiningHandler) firstVoteproof(lvp base.Voteproof, manifest base.Manif
 	}
 }
 
+func (st *JoiningHandler) nextRound(vp base.Voteproof, prevBlock util.Hash) {
+	l := st.Log().With().Dict("voteproof", base.VoteproofLog(vp)).Logger()
+
+	var sctx switchContext
+	var bl base.INITBallot
+	switch i, err := st.prepareNextRound(vp, prevBlock); {
+	case err == nil:
+		if i == nil {
+			return
+		}
+
+		bl = i
+	case errors.Is(err, (switchContext)(nil)) && errors.As(err, &sctx):
+		go st.switchState(sctx)
+
+		return
+	default:
+		l.Debug().Err(err).Msg("failed to prepare next round; moves to broken state")
+
+		go st.switchState(newBrokenSwitchContext(StateConsensus, err))
+
+		return
+	}
+
+	if _, err := st.voteFunc(bl); err != nil {
+		l.Error().Err(err).Msg("failed to vote init ballot for next round")
+
+		return
+	}
+
+	if err := st.broadcastINITBallot(bl); err != nil {
+		l.Error().Err(err).Msg("failed to broadcast init ballot for next round")
+
+		return
+	}
+
+	if err := st.timers.StartTimers([]util.TimerID{timerIDBroadcastINITBallot}, true); err != nil {
+		l.Error().Err(err).Msg("failed to start timers for broadcasting init ballot for next round")
+
+		return
+	}
+
+	l.Debug().Interface("ballot", bl).Msg("init ballot broadcasted for next round")
+}
+
 func (st *JoiningHandler) nextBlock(avp base.ACCEPTVoteproof) {
 	point := avp.Point().Point.NextHeight()
 
@@ -274,7 +326,7 @@ func (st *JoiningHandler) nextBlock(avp base.ACCEPTVoteproof) {
 	var suf base.Suffrage
 	switch i, found, err := st.getSuffrage(point.Height()); {
 	case err != nil, !found:
-		go st.switchState(newBrokenSwitchContext(StateConsensus, err))
+		go st.switchState(newBrokenSwitchContext(StateJoining, err))
 
 		return
 	default:
@@ -282,8 +334,14 @@ func (st *JoiningHandler) nextBlock(avp base.ACCEPTVoteproof) {
 	}
 
 	var sctx switchContext
-	switch err := st.prepareNextBlock(avp, suf); {
+	var bl base.INITBallot
+	switch i, err := st.prepareNextBlock(avp, suf); {
 	case err == nil:
+		if i == nil {
+			return
+		}
+
+		bl = i
 	case errors.Is(err, (switchContext)(nil)) && errors.As(err, &sctx):
 		go st.switchState(sctx)
 
@@ -291,7 +349,19 @@ func (st *JoiningHandler) nextBlock(avp base.ACCEPTVoteproof) {
 	default:
 		l.Debug().Err(err).Msg("failed to prepare next block; moves to broken state")
 
-		go st.switchState(newBrokenSwitchContext(StateConsensus, err))
+		go st.switchState(newBrokenSwitchContext(StateJoining, err))
+
+		return
+	}
+
+	if _, err := st.voteFunc(bl); err != nil {
+		l.Error().Err(err).Msg("failed to vote init ballot for next block")
+
+		return
+	}
+
+	if err := st.broadcastINITBallot(bl); err != nil {
+		l.Error().Err(err).Msg("failed to broadcast init ballot for next block")
 
 		return
 	}
@@ -299,8 +369,12 @@ func (st *JoiningHandler) nextBlock(avp base.ACCEPTVoteproof) {
 	if err := st.timers.StartTimers([]util.TimerID{
 		timerIDBroadcastINITBallot,
 	}, true); err != nil {
-		l.Error().Err(err).Msg("failed to start timers for broadcasting next init ballot")
+		l.Error().Err(err).Msg("failed to start timers for broadcasting init ballot for next block")
+
+		return
 	}
+
+	l.Debug().Interface("ballot", bl).Msg("next init ballot broadcasted")
 }
 
 type joiningSwitchContext struct {
