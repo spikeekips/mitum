@@ -60,7 +60,7 @@ func (st *BootingHandler) enter(i switchContext) (func(), error) {
 
 	// BLOCK if node is candidate, moves to joining
 	// NOTE if node not in suffrage, moves to syncing
-	switch suf, found, err := st.getSuffrage(manifest.Height()); {
+	switch suf, found, err := st.getSuffrage(manifest.Height() + 1); {
 	case err != nil:
 		return nil, e(err, "")
 	case !found:

@@ -49,8 +49,11 @@ func (t *testTempLeveldb) TestLoad() {
 
 	sufstt, _ := t.SuffrageState(height, base.Height(66), nodes)
 
+	policy := isaac.DefaultNetworkPolicy()
+	policystt, _ := t.NetworkPolicyState(height, policy)
+
 	stts := t.States(height, 3)
-	stts = append(stts, sufstt)
+	stts = append(stts, sufstt, policystt)
 
 	manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
 	mp := base.NewDummyBlockDataMap(manifest)
@@ -88,6 +91,13 @@ func (t *testTempLeveldb) TestLoad() {
 		t.NoError(err)
 
 		t.True(base.IsEqualState(sufstt, rstt))
+	})
+
+	t.Run("check network policy", func() {
+		rpolicy := rst.NetworkPolicy()
+		t.NotNil(rpolicy)
+
+		base.EqualNetworkPolicy(t.Assert(), policy, rpolicy)
 	})
 
 	t.Run("check states", func() {

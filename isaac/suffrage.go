@@ -12,7 +12,7 @@ var (
 	NetworkPolicyStateKey     = "network_policy"
 )
 
-type GetSuffrageByBlockHeight func(base.Height) (base.Suffrage, bool, error)
+type GetSuffrageByBlockHeight func(nextheight base.Height) (base.Suffrage, bool, error)
 
 type Suffrage struct {
 	m  map[string]base.Node

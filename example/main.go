@@ -128,32 +128,21 @@ func (cmd *runCommand) Run() error {
 		Interface("node_policy", nodePolicy).
 		Msg("node policy loaded")
 
-		// BLOCK hehehe
-		// BLOCK
-		// ================================================================================
-		// ================================================================================
-		// ================================================================================
-		// ================================================================================
-	getSuffrage := func(blockheight base.Height) base.Suffrage {
-		blockheight--
-		if blockheight < base.GenesisHeight {
-			blockheight = base.GenesisHeight
-		}
-
-		st, found, err := db.Suffrage(blockheight)
+	getSuffrage := func(blockheight base.Height) (base.Suffrage, bool, error) {
+		st, found, err := db.Suffrage(blockheight.Prev())
 		switch {
 		case err != nil:
-			return nil
+			return nil, false, nil
 		case !found:
-			return nil
+			return nil, false, nil
 		}
 
 		suf, err := isaac.NewSuffrage(st.Value().(base.SuffrageStateValue).Nodes())
 		if err != nil {
-			return nil
+			return nil, true, nil
 		}
 
-		return suf
+		return suf, true, nil
 	}
 
 	getManifest := func(height base.Height) (base.Manifest, error) {
@@ -216,24 +205,7 @@ func (cmd *runCommand) Run() error {
 			},
 		),
 		proposalMaker,
-		func(height base.Height) (base.Suffrage, bool, error) { // BLOCK replace  getSuffrage
-			i, found, err := db.Suffrage(height)
-			switch {
-			case err != nil:
-				return nil, false, errors.Wrap(err, "")
-			case !found:
-				return nil, false, nil
-			case !base.IsSuffrageState(i):
-				return nil, false, errors.Errorf("invalid suffrage state")
-			}
-
-			suf, err := i.Value().(base.SuffrageStateValue).Suffrage()
-			if err != nil {
-				return nil, false, errors.Wrap(err, "")
-			}
-
-			return suf, true, nil
-		},
+		getSuffrage,
 		func() []base.Address { return nil },
 		func(context.Context, base.Point, base.Address) (base.ProposalSignedFact, error) { return nil, nil }, // BLOCK set request
 		pool,

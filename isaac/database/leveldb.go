@@ -124,6 +124,35 @@ func (db *baseLeveldb) state(key string) (base.State, bool, error) {
 	}
 }
 
+func (db *baseLeveldb) loadNetworkPolicy() (base.NetworkPolicy, bool, error) {
+	e := util.StringErrorFunc("failed to load suffrage state")
+
+	b, found, err := db.st.Get(leveldbStateKey(isaac.NetworkPolicyStateKey))
+
+	switch {
+	case err != nil:
+		return nil, false, e(err, "")
+	case !found:
+		return nil, false, nil
+	}
+
+	switch hinter, err := db.readHinter(b); {
+	case err != nil:
+		return nil, true, e(err, "")
+	default:
+		i, ok := hinter.(base.State)
+		if !ok {
+			return nil, true, e(nil, "not state: %T", hinter)
+		}
+
+		if !base.IsNetworkPolicyState(i) {
+			return nil, true, e(nil, "not NetworkPolicy state: %T", i)
+		}
+
+		return i.Value().(base.NetworkPolicyStateValue).Policy(), true, nil
+	}
+}
+
 func leveldbSuffrageKey(height base.Height) []byte {
 	return util.ConcatBytesSlice(leveldbKeyPrefixSuffrage, []byte(fmt.Sprintf("%021d", height)))
 }

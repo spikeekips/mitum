@@ -187,31 +187,13 @@ func (db *TempLeveldb) loadLastSuffrage() error {
 }
 
 func (db *TempLeveldb) loadNetworkPolicy() error {
-	e := util.StringErrorFunc("failed to load suffrage state")
-
-	b, found, err := db.st.Get(leveldbStateKey(isaac.NetworkPolicyStateKey))
-
-	switch {
+	switch policy, found, err := db.baseLeveldb.loadNetworkPolicy(); {
 	case err != nil:
-		return e(err, "")
+		return errors.Wrap(err, "")
 	case !found:
 		return nil
-	}
-
-	switch hinter, err := db.readHinter(b); {
-	case err != nil:
-		return e(err, "")
 	default:
-		i, ok := hinter.(base.State)
-		if !ok {
-			return e(nil, "not state: %T", hinter)
-		}
-
-		if !base.IsNetworkPolicyState(i) {
-			return e(nil, "not NetworkPolicy state: %T", i)
-		}
-
-		db.policy = i.Value().(base.NetworkPolicyStateValue).Policy()
+		db.policy = policy
 
 		return nil
 	}

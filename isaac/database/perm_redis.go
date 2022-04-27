@@ -65,6 +65,10 @@ func NewRedisPermanent(
 		return nil, err
 	}
 
+	if err := db.loadNetworkPolicy(); err != nil {
+		return nil, err
+	}
+
 	return db, nil
 }
 
@@ -468,6 +472,25 @@ func (db *RedisPermanent) loadLastSuffrage() error {
 			return e(err, "")
 		}
 		_ = db.sufstt.SetValue(sufstt)
+
+		return nil
+	}
+}
+
+func (db *RedisPermanent) loadNetworkPolicy() error {
+	e := util.StringErrorFunc("failed to load last network policy")
+
+	switch st, found, err := db.State(isaac.NetworkPolicyStateKey); {
+	case err != nil:
+		return e(err, "")
+	case !found:
+		return nil
+	default:
+		if !base.IsNetworkPolicyState(st) {
+			return e(nil, "not NetworkPolicy state: %T", st)
+		}
+
+		_ = db.policy.SetValue(st.Value().(base.NetworkPolicyStateValue).Policy())
 
 		return nil
 	}

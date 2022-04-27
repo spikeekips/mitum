@@ -31,6 +31,8 @@ type GenesisBlockGenerator struct {
 	avp             base.ACCEPTVoteproof
 }
 
+// BLOCK set genesis design
+
 func NewGenesisBlockGenerator(
 	local base.LocalNode,
 	networkID base.NetworkID,

@@ -54,7 +54,7 @@ func (st *ConsensusHandler) enter(i switchContext) (func(), error) {
 	}
 
 	var suf base.Suffrage
-	switch i, found, err := st.getSuffrage(sctx.ivp.Point().Height()); {
+	switch i, found, err := st.getSuffrage(sctx.ivp.Point().Height() + 1); {
 	case err != nil:
 		return nil, e(err, "local not in suffrage for next block")
 	case !found:

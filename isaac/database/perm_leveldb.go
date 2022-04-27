@@ -51,6 +51,10 @@ func newLeveldbPermanent(
 		return nil, err
 	}
 
+	if err := db.loadNetworkPolicy(); err != nil {
+		return nil, err
+	}
+
 	return db, nil
 }
 
@@ -341,4 +345,17 @@ func (db *LeveldbPermanent) loadLastSuffrage() error {
 	_ = db.sufstt.SetValue(sufstt)
 
 	return nil
+}
+
+func (db *LeveldbPermanent) loadNetworkPolicy() error {
+	switch policy, found, err := db.baseLeveldb.loadNetworkPolicy(); {
+	case err != nil:
+		return errors.Wrap(err, "")
+	case !found:
+		return nil
+	default:
+		_ = db.policy.SetValue(policy)
+
+		return nil
+	}
 }

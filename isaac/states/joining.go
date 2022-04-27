@@ -69,7 +69,7 @@ func (st *JoiningHandler) enter(i switchContext) (func(), error) {
 	case !found:
 		return nil, e(nil, "last manifest not found")
 	default:
-		switch suf, found, err := st.getSuffrage(i.Height()); {
+		switch suf, found, err := st.getSuffrage(i.Height() + 1); {
 		case err != nil:
 			return nil, e(err, "")
 		case !found:
