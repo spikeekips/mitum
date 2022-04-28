@@ -2,7 +2,6 @@ package database
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 
@@ -378,13 +377,13 @@ end:
 		}
 	}
 
-	if clean {
-		for i := range removes {
-			f := removes[i]
-			if err := os.RemoveAll(f); err != nil {
-				return nil, e(err, "failed to remove useless directory, %q", f)
-			}
-		}
+	if clean { // BLOCK too dangerous; remove
+		//for i := range removes {
+		//	f := removes[i]
+		//	if err := os.RemoveAll(f); err != nil {
+		//		return nil, e(err, "failed to remove useless directory, %q", f)
+		//	}
+		//}
 	}
 
 	sort.Slice(temps, func(i, j int) bool {

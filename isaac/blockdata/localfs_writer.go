@@ -79,7 +79,6 @@ func NewLocalFSWriter(
 	if err := os.MkdirAll(temp, 0o700); err != nil {
 		return nil, e(err, "failed to create temp directory")
 	}
-	fmt.Println("a0>", temp)
 
 	w := &LocalFSWriter{
 		BaseHinter: hint.NewBaseHinter(LocalFSWriterHint),

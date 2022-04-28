@@ -110,9 +110,15 @@ func (pps *ProposalProcessors) Save(ctx context.Context, facthash util.Hash, avp
 	}
 }
 
-func (pps *ProposalProcessors) Close() error {
+func (pps *ProposalProcessors) Cancel() error {
 	pps.Lock()
 	defer pps.Unlock()
+
+	if pps.p != nil {
+		if err := pps.p.Cancel(); err != nil {
+			return errors.Wrap(err, "failed to cancel")
+		}
+	}
 
 	return pps.close()
 }
@@ -120,11 +126,6 @@ func (pps *ProposalProcessors) Close() error {
 func (pps *ProposalProcessors) close() error {
 	if pps.p == nil {
 		return nil
-	}
-
-	e := util.StringErrorFunc("failed to close proposal processors")
-	if err := pps.p.Cancel(); err != nil {
-		return e(err, "")
 	}
 
 	pps.p = nil

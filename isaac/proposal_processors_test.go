@@ -71,7 +71,7 @@ func (t *testProposalProcessors) TestProcess() {
 		base.EqualVoteproof(t.Assert(), avp, ravp)
 	}
 
-	t.NoError(pps.Close())
+	t.NoError(pps.Cancel())
 	t.Nil(pps.Processor())
 }
 
@@ -385,7 +385,7 @@ func (t *testProposalProcessors) TestSaveError() {
 	t.Error(err)
 	t.Contains(err.Error(), "findme")
 
-	t.NoError(pps.Close())
+	t.NoError(pps.Cancel())
 	t.Nil(pps.Processor())
 }
 

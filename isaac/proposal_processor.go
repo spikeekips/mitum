@@ -176,6 +176,8 @@ func (p *DefaultProposalProcessor) save(ctx context.Context, acceptVoteproof bas
 
 	p.Log().Info().Interface("blockdatamap", m).Msg("new block saved")
 
+	p.close()
+
 	return nil
 }
 
@@ -183,8 +185,18 @@ func (p *DefaultProposalProcessor) Cancel() error {
 	p.Lock()
 	defer p.Unlock()
 
+	p.close()
+
+	if err := p.writer.Cancel(); err != nil {
+		return errors.Wrap(err, "failed to cancel DefaultProposalProcessor")
+	}
+
+	return nil
+}
+
+func (p *DefaultProposalProcessor) close() {
 	if p.proposal == nil {
-		return nil
+		return
 	}
 
 	p.cancel()
@@ -193,12 +205,6 @@ func (p *DefaultProposalProcessor) Cancel() error {
 	p.proposal = nil
 	p.ops = nil
 	p.oprs = nil
-
-	if err := p.writer.Cancel(); err != nil {
-		return errors.Wrap(err, "failed to cancel DefaultProposalProcessor")
-	}
-
-	return nil
 }
 
 func (p *DefaultProposalProcessor) isCanceled() bool {

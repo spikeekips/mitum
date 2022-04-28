@@ -97,8 +97,8 @@ func (st *ConsensusHandler) exit(sctx switchContext) (func(), error) {
 		return nil, e(err, "")
 	}
 
-	if err := st.pps.Close(); err != nil {
-		return nil, e(err, "failed to close proposal processors")
+	if err := st.pps.Cancel(); err != nil {
+		return nil, e(err, "failed to cancel proposal processors")
 	}
 
 	return func() {
@@ -172,8 +172,8 @@ func (st *ConsensusHandler) processProposal(ivp base.INITVoteproof) {
 
 	switch { // NOTE check last accept voteproof is the execpted
 	case eavp.Result() != base.VoteResultMajority:
-		if err := st.pps.Close(); err != nil {
-			ll.Error().Err(e(err, "failed to close processor")).
+		if err := st.pps.Cancel(); err != nil {
+			ll.Error().Err(e(err, "failed to cancel processor")).
 				Msg("expected accept voteproof is not majority result; cancel processor, but failed")
 
 			return
@@ -183,7 +183,7 @@ func (st *ConsensusHandler) processProposal(ivp base.INITVoteproof) {
 
 		return
 	case !manifest.Hash().Equal(eavp.BallotMajority().NewBlock()):
-		if err := st.pps.Close(); err != nil {
+		if err := st.pps.Cancel(); err != nil {
 			ll.Error().Err(e(err, "failed to close processor")).
 				Msg("expected accept voteproof has different new block; cancel processor, but failed")
 
@@ -233,8 +233,8 @@ func (st *ConsensusHandler) processProposalInternal(ivp base.INITVoteproof) (bas
 			return nil, nil
 		}
 
-		if err0 := st.pps.Close(); err0 != nil {
-			return nil, e(err0, "failed to close proposal processors")
+		if err0 := st.pps.Cancel(); err0 != nil {
+			return nil, e(err0, "failed to cancel proposal processors")
 		}
 
 		return nil, err
