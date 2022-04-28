@@ -162,6 +162,7 @@ func (db *Default) Suffrage(height base.Height) (base.State, bool, error) {
 				return j, true, nil
 			}
 		}
+		height = temps[len(temps)-1].Height() - 1
 	}
 
 	st, found, err := db.perm.Suffrage(height)

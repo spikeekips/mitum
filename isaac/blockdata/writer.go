@@ -363,26 +363,29 @@ func (w *Writer) SetACCEPTVoteproof(ctx context.Context, vp base.ACCEPTVoteproof
 	return nil
 }
 
-func (w *Writer) Save(ctx context.Context) error {
+func (w *Writer) Save(ctx context.Context) (base.BlockDataMap, error) {
 	w.Lock()
 	defer w.Unlock()
 
 	e := util.StringErrorFunc("failed to save")
 
-	switch m, err := w.fswriter.Save(ctx); {
+	var m base.BlockDataMap
+	switch i, err := w.fswriter.Save(ctx); {
 	case err != nil:
-		return e(err, "")
+		return nil, e(err, "")
 	default:
-		if err := w.db.SetMap(m); err != nil {
-			return e(err, "")
+		if err := w.db.SetMap(i); err != nil {
+			return nil, e(err, "")
 		}
+
+		m = i
 	}
 
 	if err := w.mergeDatabase(w.db); err != nil {
-		return e(err, "")
+		return nil, e(err, "")
 	}
 
-	return nil
+	return m, nil
 }
 
 func (w *Writer) Cancel() error {

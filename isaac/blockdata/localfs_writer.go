@@ -79,6 +79,7 @@ func NewLocalFSWriter(
 	if err := os.MkdirAll(temp, 0o700); err != nil {
 		return nil, e(err, "failed to create temp directory")
 	}
+	fmt.Println("a0>", temp)
 
 	w := &LocalFSWriter{
 		BaseHinter: hint.NewBaseHinter(LocalFSWriterHint),
@@ -201,7 +202,7 @@ func (w *LocalFSWriter) SetINITVoteproof(_ context.Context, vp base.INITVoteproo
 	}
 
 	if err := w.saveVoteproofs(); err != nil {
-		return errors.Wrap(err, "failed to set voteproofs in fs writer")
+		return errors.Wrap(err, "failed to set init voteproof in fs writer")
 	}
 
 	return nil
@@ -214,7 +215,7 @@ func (w *LocalFSWriter) SetACCEPTVoteproof(_ context.Context, vp base.ACCEPTVote
 	}
 
 	if err := w.saveVoteproofs(); err != nil {
-		return errors.Wrap(err, "failed to set voteproofs in fs writer")
+		return errors.Wrap(err, "failed to set accept voteproof in fs writer")
 	}
 
 	return nil
@@ -233,6 +234,7 @@ func (w *LocalFSWriter) saveVoteproofs() error {
 
 	for i := range w.vps {
 		if err := w.appendfile(f, w.vps[i]); err != nil {
+			fmt.Printf("01>%+v\n", err)
 			return e(err, "")
 		}
 	}

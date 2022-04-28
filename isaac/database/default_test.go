@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 
@@ -1055,6 +1056,10 @@ func (t *testDefaultLoad) TestLoadTempDatabases() {
 	temps, err := loadTemps(t.Root, basemanifest.Height(), t.Encs, t.Enc, false)
 	t.NoError(err)
 	t.Equal(len(created), len(temps))
+
+	sort.Slice(created, func(i, j int) bool {
+		return created[i].Manifest().Height() > created[j].Manifest().Height()
+	})
 
 	for i := range temps {
 		temp := temps[i]

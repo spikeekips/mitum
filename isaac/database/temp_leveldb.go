@@ -388,7 +388,7 @@ end:
 	}
 
 	sort.Slice(temps, func(i, j int) bool {
-		return temps[i].Height() < temps[j].Height()
+		return temps[i].Height() > temps[j].Height()
 	})
 
 	return temps, nil

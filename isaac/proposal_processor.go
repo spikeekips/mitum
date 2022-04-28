@@ -122,12 +122,14 @@ func (p *DefaultProposalProcessor) Process(ctx context.Context, vp base.INITVote
 		return nil, e(err, "failed to process operations")
 	}
 
-	m, err := p.writer.Manifest(ctx, p.previous)
+	manifest, err := p.writer.Manifest(ctx, p.previous)
 	if err != nil {
 		return nil, e(err, "")
 	}
 
-	return m, nil
+	p.Log().Info().Interface("manifest", manifest).Msg("new manifest prepared")
+
+	return manifest, nil
 }
 
 func (p *DefaultProposalProcessor) Save(ctx context.Context, avp base.ACCEPTVoteproof) error {
@@ -161,7 +163,8 @@ func (p *DefaultProposalProcessor) save(ctx context.Context, acceptVoteproof bas
 		return e(err, "failed to set accept voteproof")
 	}
 
-	if err := p.writer.Save(ctx); err != nil {
+	m, err := p.writer.Save(ctx)
+	if err != nil {
 		return e(err, "")
 	}
 
@@ -170,6 +173,8 @@ func (p *DefaultProposalProcessor) save(ctx context.Context, acceptVoteproof bas
 			return e(err, "failed to save last voteproofs")
 		}
 	}
+
+	p.Log().Info().Interface("blockdatamap", m).Msg("new block saved")
 
 	return nil
 }

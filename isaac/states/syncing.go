@@ -49,6 +49,9 @@ func (st *SyncingHandler) enter(i switchContext) (func(), error) {
 	}
 
 	sc := st.newSyncer()
+	if sc == nil {
+		return nil, e(nil, "empty syncer") // BlOCK remove; only for testing
+	}
 
 	st.syncer = sc
 	_ = st.add(sctx.height)
@@ -160,7 +163,7 @@ end:
 		case <-st.ctx.Done():
 			return
 		case h := <-sc.Finished():
-			st.Log().Debug().Object("height", h).Msg("syncer finished")
+			st.Log().Debug().Interface("height", h).Msg("syncer finished")
 
 			st.cancelstuck()
 
@@ -251,5 +254,5 @@ func (syncingSwitchContext) Error() string {
 func (s syncingSwitchContext) MarshalZerologObject(e *zerolog.Event) {
 	s.baseSwitchContext.MarshalZerologObject(e)
 
-	e.Object("height", s.height)
+	e.Interface("height", s.height)
 }

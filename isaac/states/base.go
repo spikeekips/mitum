@@ -244,12 +244,12 @@ func (st *baseHandler) prepareNextBlock(avp base.ACCEPTVoteproof, suf base.Suffr
 
 	switch ok, err := isInSuffrage(st.local.Address(), suf); {
 	case err != nil:
-		l.Debug().Object("height", point.Height()).Msg("empty suffrage of next block; moves to broken state")
+		l.Debug().Interface("height", point.Height()).Msg("empty suffrage of next block; moves to broken state")
 
 		return nil, e(err, "local not in suffrage for next block")
 	case !ok:
 		l.Debug().
-			Object("height", point.Height()).
+			Interface("height", point.Height()).
 			Msg("local is not in suffrage at next block; moves to syncing state")
 
 		return nil, newSyncingSwitchContext(StateConsensus, point.Height())

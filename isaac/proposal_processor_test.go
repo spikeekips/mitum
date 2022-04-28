@@ -30,7 +30,7 @@ type DummyBlockDataWriter struct {
 	ops          []base.Operation
 	sts          *util.LockedMap
 	setstatesf   func(context.Context, int, []base.StateMergeValue, base.Operation) error
-	savef        func(context.Context) error
+	savef        func(context.Context) (base.BlockDataMap, error)
 }
 
 func NewDummyBlockDataWriter(proposal base.ProposalSignedFact, getStateFunc base.GetStateFunc) *DummyBlockDataWriter {
@@ -116,9 +116,9 @@ func (w *DummyBlockDataWriter) Manifest(context.Context, base.Manifest) (base.Ma
 	return w.manifest, w.manifesterr
 }
 
-func (w *DummyBlockDataWriter) Save(ctx context.Context) error {
+func (w *DummyBlockDataWriter) Save(ctx context.Context) (base.BlockDataMap, error) {
 	if w.savef == nil {
-		return nil
+		return nil, nil
 	}
 
 	return w.savef(ctx)
@@ -1345,10 +1345,10 @@ func (t *testDefaultProposalProcessor) TestSave() {
 	writer.manifest = manifest
 
 	savech := make(chan struct{}, 1)
-	writer.savef = func(_ context.Context) error {
+	writer.savef = func(_ context.Context) (base.BlockDataMap, error) {
 		savech <- struct{}{}
 
-		return nil
+		return nil, nil
 	}
 
 	vpsch := make(chan [2]base.Voteproof, 1)
@@ -1404,8 +1404,8 @@ func (t *testDefaultProposalProcessor) TestSaveFailed() {
 	writer, newwriterf := t.newBlockDataWriter()
 	writer.manifest = manifest
 
-	writer.savef = func(_ context.Context) error {
-		return errors.Errorf("killme")
+	writer.savef = func(_ context.Context) (base.BlockDataMap, error) {
+		return nil, errors.Errorf("killme")
 	}
 
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {

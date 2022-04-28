@@ -139,6 +139,8 @@ func (st *JoiningHandler) newVoteproof(vp base.Voteproof) error {
 
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(vp)).Logger()
 
+	_, _, _ = st.baseHandler.setNewVoteproof(vp)
+
 	var manifest base.Manifest
 	switch i, found, err := st.lastManifest(); {
 	case err != nil:

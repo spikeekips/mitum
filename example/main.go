@@ -123,7 +123,7 @@ func (cmd *runCommand) Run() error {
 		return errors.Wrap(err, "")
 	}
 
-	nodePolicy := defaultNodePolicy()
+	nodePolicy := isaac.DefaultNodePolicy(networkID)
 	log.Info().
 		Interface("node_policy", nodePolicy).
 		Msg("node policy loaded")
@@ -243,7 +243,20 @@ func (cmd *runCommand) Run() error {
 		)
 	}
 
-	pps := isaac.NewProposalProcessors(newProposalProcessor, nil)
+	getProposal := func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error) {
+		switch pr, found, err := pool.Proposal(facthash); {
+		case err != nil:
+			return nil, errors.Wrap(err, "")
+		case !found:
+			// BLOCK if not found, request to remote node
+			return nil, nil
+		default:
+			return pr, nil
+		}
+	}
+
+	pps := isaac.NewProposalProcessors(newProposalProcessor, getProposal)
+	_ = pps.SetLogging(logging)
 
 	states := isaacstates.NewStates(box)
 	_ = states.SetLogging(logging)
@@ -253,7 +266,8 @@ func (cmd *runCommand) Run() error {
 		SetHandler(isaacstates.NewStoppedHandler(local, nodePolicy)).
 		SetHandler(isaacstates.NewBootingHandler(local, nodePolicy, getLastManifest, getSuffrage)).
 		SetHandler(isaacstates.NewJoiningHandler(local, nodePolicy, proposerSelector, getLastManifest, getSuffrage, voteFunc)).
-		SetHandler(isaacstates.NewConsensusHandler(local, nodePolicy, proposerSelector, getManifest, getSuffrage, voteFunc, pps))
+		SetHandler(isaacstates.NewConsensusHandler(local, nodePolicy, proposerSelector, getManifest, getSuffrage, voteFunc, pps)).
+		SetHandler(isaacstates.NewSyncingHandler(local, nodePolicy, proposerSelector, nil))
 
 	// NOTE load last init, accept voteproof and last majority voteproof
 	switch ivp, avp, found, err := pool.LastVoteproofs(); {
@@ -294,8 +308,4 @@ func prepareLocal(address base.Address) (base.LocalNode, error) {
 		Msg("keypair generated")
 
 	return isaac.NewLocalNode(priv, address), nil
-}
-
-func defaultNodePolicy() isaac.NodePolicy {
-	return isaac.DefaultNodePolicy(networkID)
 }

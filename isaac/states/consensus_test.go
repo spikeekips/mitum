@@ -627,7 +627,7 @@ func (t *testConsensusHandler) TestEmptySuffrageNextBlock() {
 
 	st.getSuffrage = func(height base.Height) (base.Suffrage, bool, error) {
 		switch {
-		case height <= point.Height()+1:
+		case height <= point.Height():
 			return suf, true, nil
 		default:
 			return nil, false, nil
@@ -678,7 +678,7 @@ func (t *testConsensusHandler) TestEmptySuffrageNextBlock() {
 	case <-savedch:
 	}
 
-	t.T().Log("wait to switch syncing state")
+	t.T().Log("wait to switch broken state")
 	select {
 	case <-time.After(time.Second * 2):
 		t.NoError(errors.Errorf("timeout to wait next init ballot"))
@@ -700,7 +700,7 @@ func (t *testConsensusHandler) TestOutOfSuffrage() {
 	defer closefunc()
 
 	st.getSuffrage = func(height base.Height) (base.Suffrage, bool, error) {
-		if height == point.Height()+1 {
+		if height == point.Height() {
 			return suf, true, nil
 		}
 

@@ -65,7 +65,7 @@ func (pps *ProposalProcessors) Process(
 
 	switch p, err := pps.newProcessor(ctx, facthash, previous); {
 	case err != nil:
-		l.Error().Err(err).Msg("fialed to process proposal")
+		l.Error().Err(err).Msg("failed to process proposal")
 
 		return nil, e(err, "")
 	case p == nil:
@@ -81,24 +81,30 @@ func (pps *ProposalProcessors) Save(ctx context.Context, facthash util.Hash, avp
 
 	l := pps.Log().With().Stringer("fact", facthash).Logger()
 
+	defer func() {
+		if err := pps.close(); err != nil {
+			l.Error().Err(err).Msg("failed to close proposal processor")
+		}
+	}()
+
 	e := util.StringErrorFunc("failed to save proposal, %q", facthash)
 
 	switch {
 	case pps.p == nil:
 		l.Debug().Msg("proposal processor not found")
 
-		return NotProposalProcessorProcessedError.Call()
+		return e(NotProposalProcessorProcessedError.Call(), "")
 	case !pps.p.Proposal().Fact().Hash().Equal(facthash):
 		l.Debug().Msg("proposal processor not found")
 
-		return NotProposalProcessorProcessedError.Call()
+		return e(NotProposalProcessorProcessedError.Call(), "")
 	}
 
 	switch err := pps.p.Save(ctx, avp); {
 	case err == nil:
 		return nil
 	case errors.Is(err, context.Canceled):
-		return NotProposalProcessorProcessedError.Call()
+		return e(NotProposalProcessorProcessedError.Call(), "")
 	default:
 		return e(err, "")
 	}
@@ -108,6 +114,10 @@ func (pps *ProposalProcessors) Close() error {
 	pps.Lock()
 	defer pps.Unlock()
 
+	return pps.close()
+}
+
+func (pps *ProposalProcessors) close() error {
 	if pps.p == nil {
 		return nil
 	}
@@ -188,8 +198,11 @@ func (pps *ProposalProcessors) newProcessor(
 
 	// NOTE fetch proposal fact
 	fact, err := pps.fetchFact(ctx, facthash)
-	if err != nil {
+	switch {
+	case err != nil:
 		return nil, e(err, "failed to get proposal fact")
+	case fact == nil:
+		return nil, e(util.NotFoundError.Call(), "failed to get proposal fact; empty fact")
 	}
 
 	if err := util.Retry(ctx, func() (bool, error) {

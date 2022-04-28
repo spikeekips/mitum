@@ -172,7 +172,7 @@ func (t *testCommonPermanent) TestSuffrage() {
 		t.Nil(rsufstt)
 	})
 
-	t.Run("> last height", func() {
+	t.Run("> higher height", func() {
 		rsufstt, found, err := db.Suffrage(baseheight + 100)
 		t.NoError(err)
 		t.False(found)

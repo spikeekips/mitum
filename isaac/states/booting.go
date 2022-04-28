@@ -64,7 +64,7 @@ func (st *BootingHandler) enter(i switchContext) (func(), error) {
 	case err != nil:
 		return nil, e(err, "")
 	case !found:
-		return nil, e(nil, "empty suffrage for last manifest")
+		return nil, e(nil, "empty suffrage for last manifest, %d", manifest.Height())
 	case !suf.Exists(st.local.Address()):
 		st.Log().Debug().Msg("local not in suffrage; moves to syncing")
 
@@ -91,7 +91,7 @@ func compareManifestWithACCEPTVoteproof(manifest base.Manifest, vp base.ACCEPTVo
 
 	switch {
 	case manifest.Height() != vp.Point().Height():
-		return e(nil, "height does not match")
+		return e(nil, "height does not match; %d != %d", manifest.Height(), vp.Point().Height())
 	case !manifest.Hash().Equal(vp.BallotMajority().NewBlock()):
 		return e(nil, "hash does not match")
 	default:

@@ -3,6 +3,7 @@ package isaacstates
 import (
 	"fmt"
 
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
@@ -96,4 +97,9 @@ func switchContextLog(sctx switchContext) *zerolog.Event {
 	}
 
 	return e
+}
+
+func isSwitchContextError(err error) bool {
+	var ssctx switchContext
+	return errors.As(err, &ssctx)
 }

@@ -252,15 +252,18 @@ func (st *States) switchState(sctx switchContext) error {
 
 	cdefer, ndefer, err := st.exitAndEnter(sctx, current)
 	if err != nil {
-		if errors.Is(err, ignoreSwithingStateError) {
+		switch {
+		case errors.Is(err, ignoreSwithingStateError):
 			l.Debug().Msg("switching state ignored")
 
 			return nil
+		case isSwitchContextError(err):
+			return err
+		default:
+			l.Error().Err(err).Msg("failed to switch(locked)")
+
+			return e(err, "")
 		}
-
-		l.Error().Err(err).Msg("failed to switch(locked)")
-
-		return e(err, "")
 	}
 
 	st.callDeferStates(cdefer, ndefer)
@@ -308,6 +311,10 @@ func (st *States) exitAndEnter(sctx switchContext, current handler) (func(), fun
 
 	ndefer, err := next.enter(sctx)
 	if err != nil {
+		if isSwitchContextError(err) {
+			return nil, nil, err
+		}
+
 		return nil, nil, e(err, "failed to enter next state")
 	}
 

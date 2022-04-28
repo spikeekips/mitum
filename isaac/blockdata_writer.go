@@ -20,7 +20,7 @@ type BlockDataWriter interface {
 	Manifest(_ context.Context, previous base.Manifest) (base.Manifest, error)
 	SetINITVoteproof(context.Context, base.INITVoteproof) error
 	SetACCEPTVoteproof(context.Context, base.ACCEPTVoteproof) error
-	Save(context.Context) error
+	Save(context.Context) (base.BlockDataMap, error)
 	Cancel() error
 }
 
