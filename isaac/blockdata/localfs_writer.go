@@ -32,6 +32,7 @@ var (
 		base.BlockDataTypeStatesTree:     "states_tree",
 		base.BlockDataTypeVoteproofs:     "voteproofs",
 	}
+	blockDataTempDirectoryPrefix = "temp"
 )
 
 var ulid = util.NewULID()
@@ -75,7 +76,7 @@ func NewLocalFSWriter(
 	}
 
 	id := ulid.New().String()
-	temp := filepath.Join(abs, fmt.Sprintf("%d-%s", height, id))
+	temp := filepath.Join(abs, blockDataTempDirectoryPrefix, fmt.Sprintf("%d-%s", height, id))
 	if err := os.MkdirAll(temp, 0o700); err != nil {
 		return nil, e(err, "failed to create temp directory")
 	}
@@ -589,4 +590,13 @@ func isCompressedBlockDataType(t base.BlockDataType) bool {
 
 func blockDataFSMapFilename(enc encoder.Encoder) string {
 	return fmt.Sprintf("%s%s", blockDataMapFilename, fileExtFromEncoder(enc))
+}
+
+func CleanBlockDataTempDirectory(root string) error {
+	d := filepath.Join(filepath.Clean(root), blockDataTempDirectoryPrefix)
+	if err := os.RemoveAll(d); err != nil {
+		return errors.Wrap(err, "failed to remove blockdata temp directory")
+	}
+
+	return nil
 }

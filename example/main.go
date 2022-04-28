@@ -12,6 +12,7 @@ import (
 	"github.com/rs/zerolog/pkgerrors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
+	"github.com/spikeekips/mitum/isaac/blockdata"
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/util"
@@ -80,6 +81,10 @@ func (cmd *initCommand) Run() error {
 		root = filepath.Join(os.TempDir(), "mitum-example-"+local.Address().String())
 	}
 
+	if err := blockdata.CleanBlockDataTempDirectory(launch.FSRootDataDirectory(root)); err != nil {
+		return errors.Wrap(err, "")
+	}
+
 	if err := launch.InitializeDatabase(root); err != nil {
 		return errors.Wrap(err, "")
 	}
@@ -116,6 +121,10 @@ func (cmd *runCommand) Run() error {
 	root, found := os.LookupEnv(envKeyFSRootf)
 	if !found {
 		root = filepath.Join(os.TempDir(), "mitum-example-"+local.Address().String())
+	}
+
+	if err := blockdata.CleanBlockDataTempDirectory(launch.FSRootDataDirectory(root)); err != nil {
+		return errors.Wrap(err, "")
 	}
 
 	db, pool, err := launch.PrepareDatabase(root, encs, enc)
