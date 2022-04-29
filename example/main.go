@@ -131,6 +131,11 @@ func (cmd *runCommand) Run() error {
 	if err != nil {
 		return errors.Wrap(err, "")
 	}
+	_ = db.SetLogging(logging)
+
+	if err := db.Start(); err != nil {
+		return errors.Wrap(err, "")
+	}
 
 	nodePolicy := isaac.DefaultNodePolicy(networkID)
 	log.Info().

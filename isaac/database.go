@@ -7,8 +7,6 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
-var RetryMergeToPermanentDatabaseError = util.NewError("failed to merge to permanent database; retry")
-
 // Database serves block data like blockdatamap, states and operations from
 // TempDatabases and PermanentDatabase. It has several TempDatabases and one
 // PermanentDatabase.

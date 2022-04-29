@@ -44,7 +44,7 @@ func NewDefault(
 		enc:                   enc,
 		perm:                  perm,
 		newBlockWriteDatabase: newBlockWriteDatabase,
-		mergeInterval:         time.Second * 10,
+		mergeInterval:         time.Second * 2,
 	}
 
 	if err := db.load(temproot); err != nil {
@@ -502,6 +502,7 @@ func (db *Default) start(ctx context.Context) error {
 	ticker := time.NewTicker(db.mergeInterval)
 	defer ticker.Stop()
 
+end:
 	for {
 		select {
 		case <-ctx.Done():
@@ -509,14 +510,16 @@ func (db *Default) start(ctx context.Context) error {
 		case <-ticker.C:
 			switch err := db.mergePermanent(ctx); {
 			case err == nil:
-			case errors.Is(err, isaac.RetryMergeToPermanentDatabaseError):
-				db.Log().Debug().Err(err).Msg("failed to merge to permanent database; retry")
 			default:
-				return errors.Wrap(err, "")
+				db.Log().Debug().Err(err).Msg("failed to merge to permanent database; will retry")
+
+				continue end
 			}
 
 			if err := db.cleanRemoved(3); err != nil {
-				return errors.Wrap(err, "")
+				db.Log().Debug().Err(err).Msg("failed to clean temp databases; will retry")
+
+				continue end
 			}
 		}
 	}
@@ -539,6 +542,8 @@ func (db *Default) mergePermanent(ctx context.Context) error {
 		return e(err, "")
 	}
 
+	db.Log().Debug().Interface("height", temp.Height()).Msg("temp database merged")
+
 	return nil
 }
 
@@ -547,7 +552,8 @@ func (db *Default) cleanRemoved(limit int) error {
 	defer db.Unlock()
 
 	if len(db.removed) <= limit {
-		// NOTE last limit temp databases will be kept for safe concurreny access from DefaultDatabase.
+		// NOTE last limit temp databases will be kept for safe concurreny
+		// access from DefaultDatabase.
 		return nil
 	}
 
@@ -560,6 +566,8 @@ func (db *Default) cleanRemoved(limit int) error {
 	if err := temp.Remove(); err != nil {
 		return errors.Wrap(err, "failed to clean removed")
 	}
+
+	db.Log().Debug().Interface("height", temp.Height()).Msg("temp database removed")
 
 	return nil
 }
