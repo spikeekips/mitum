@@ -486,6 +486,7 @@ func (t *testLocalFSReader) TestWrongChecksum() {
 	nf, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	t.NoError(err)
 	_, err = nf.Write(b)
+	t.NoError(err)
 	nf.Close()
 
 	t.Run("load proposal after modifying", func() {

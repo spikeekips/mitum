@@ -18,17 +18,16 @@ import (
 
 type GenesisBlockGenerator struct {
 	*logging.Logging
-	local           base.LocalNode
-	networkID       base.NetworkID
-	enc             encoder.Encoder
-	db              isaac.Database
-	pool            isaac.VoteproofsPool
-	dataroot        string
-	proposal        base.ProposalSignedFact
-	ops             []base.Operation
-	networkPolicyOp isaacoperation.GenesisNetworkPolicy
-	ivp             base.INITVoteproof
-	avp             base.ACCEPTVoteproof
+	local     base.LocalNode
+	networkID base.NetworkID
+	enc       encoder.Encoder
+	db        isaac.Database
+	pool      isaac.VoteproofsPool
+	dataroot  string
+	proposal  base.ProposalSignedFact
+	ops       []base.Operation
+	ivp       base.INITVoteproof
+	avp       base.ACCEPTVoteproof
 }
 
 // BLOCK set genesis design

@@ -216,3 +216,16 @@ func leveldbNewOperationKeysKey(facthash util.Hash) []byte {
 func leveldbNewOperationKey(facthash util.Hash) []byte {
 	return util.ConcatBytesSlice(leveldbKeyPrefixNewOperation, facthash.Bytes())
 }
+
+func loadLeveldbNewOperationKeys(b []byte) (key []byte, orderedkey []byte, err error) {
+	if b == nil {
+		return nil, nil, nil
+	}
+
+	i := bytes.LastIndex(b, leveldbNewOperationOrderedKeysJoinedSep)
+	if i < 0 {
+		return nil, nil, errors.Errorf("unknown NewOperations info key format")
+	}
+
+	return b[:i], b[i+len(leveldbNewOperationOrderedKeysJoinSep):], nil
+}

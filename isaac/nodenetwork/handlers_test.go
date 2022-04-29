@@ -21,7 +21,6 @@ import (
 type testQuicstreamNodeNetworkHandlers struct {
 	database.BaseTestDatabase
 	isaac.BaseTestBallots
-	ci quictransport.ConnInfo
 }
 
 func (t *testQuicstreamNodeNetworkHandlers) SetupTest() {

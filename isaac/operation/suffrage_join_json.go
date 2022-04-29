@@ -13,11 +13,11 @@ type SuffrageJoinPermissionFactJSONMarshaler struct {
 	State     util.Hash
 }
 
-func (suf SuffrageJoinPermissionFact) MarshalJSON() ([]byte, error) {
+func (fact SuffrageJoinPermissionFact) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(SuffrageJoinPermissionFactJSONMarshaler{
-		BaseFactJSONMarshaler: suf.BaseFact.JSONMarshaler(),
-		Candidate:             suf.candidate,
-		State:                 suf.state,
+		BaseFactJSONMarshaler: fact.BaseFact.JSONMarshaler(),
+		Candidate:             fact.candidate,
+		State:                 fact.state,
 	})
 }
 
@@ -27,7 +27,7 @@ type SuffrageJoinPermissionFactJSONUnmarshaler struct {
 	State     valuehash.HashDecoder
 }
 
-func (suf *SuffrageJoinPermissionFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (fact *SuffrageJoinPermissionFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	e := util.StringErrorFunc("failed to decode SuffrageJoinPermissionFact")
 
 	var u SuffrageJoinPermissionFactJSONUnmarshaler
@@ -35,16 +35,16 @@ func (suf *SuffrageJoinPermissionFact) DecodeJSON(b []byte, enc *jsonenc.Encoder
 		return e(err, "")
 	}
 
-	suf.BaseFact.SetJSONUnmarshaler(u.BaseFactJSONUnmarshaler)
+	fact.BaseFact.SetJSONUnmarshaler(u.BaseFactJSONUnmarshaler)
 
 	switch i, err := base.DecodeAddress(u.Candidate, enc); {
 	case err != nil:
 		return e(err, "")
 	default:
-		suf.candidate = i
+		fact.candidate = i
 	}
 
-	suf.state = u.State.Hash()
+	fact.state = u.State.Hash()
 
 	return nil
 }
@@ -55,11 +55,11 @@ type SuffrageGenesisJoinPermissionFactJSONMarshaler struct {
 	Pub  base.Publickey
 }
 
-func (suf SuffrageGenesisJoinPermissionFact) MarshalJSON() ([]byte, error) {
+func (fact SuffrageGenesisJoinPermissionFact) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(SuffrageGenesisJoinPermissionFactJSONMarshaler{
-		BaseFactJSONMarshaler: suf.BaseFact.JSONMarshaler(),
-		Node:                  suf.node,
-		Pub:                   suf.pub,
+		BaseFactJSONMarshaler: fact.BaseFact.JSONMarshaler(),
+		Node:                  fact.node,
+		Pub:                   fact.pub,
 	})
 }
 
@@ -69,7 +69,7 @@ type SuffrageGenesisJoinPermissionFactJSONUnmarshaler struct {
 	Pub  string
 }
 
-func (suf *SuffrageGenesisJoinPermissionFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (fact *SuffrageGenesisJoinPermissionFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	e := util.StringErrorFunc("failed to decode SuffrageGenesisJoinPermissionFact")
 
 	var u SuffrageGenesisJoinPermissionFactJSONUnmarshaler
@@ -77,13 +77,13 @@ func (suf *SuffrageGenesisJoinPermissionFact) DecodeJSON(b []byte, enc *jsonenc.
 		return e(err, "")
 	}
 
-	suf.BaseFact.SetJSONUnmarshaler(u.BaseFactJSONUnmarshaler)
+	fact.BaseFact.SetJSONUnmarshaler(u.BaseFactJSONUnmarshaler)
 
 	switch i, err := base.DecodeAddress(u.Node, enc); {
 	case err != nil:
 		return e(err, "")
 	default:
-		suf.node = i
+		fact.node = i
 	}
 
 	pub, err := base.DecodePublickeyFromString(u.Pub, enc)
@@ -91,7 +91,7 @@ func (suf *SuffrageGenesisJoinPermissionFact) DecodeJSON(b []byte, enc *jsonenc.
 		return e(err, "")
 	}
 
-	suf.pub = pub
+	fact.pub = pub
 
 	return nil
 }

@@ -170,11 +170,13 @@ func (op SuffrageGenesisJoin) IsValid(networkID []byte) error {
 	return nil
 }
 
-func (op SuffrageGenesisJoin) PreProcess(context.Context, base.GetStateFunc) (base.OperationProcessReasonError, error) {
+func (SuffrageGenesisJoin) PreProcess(context.Context, base.GetStateFunc) (base.OperationProcessReasonError, error) {
 	return nil, nil
 }
 
-func (op SuffrageGenesisJoin) Process(context.Context, base.GetStateFunc) ([]base.StateMergeValue, base.OperationProcessReasonError, error) {
+func (op SuffrageGenesisJoin) Process(context.Context, base.GetStateFunc) (
+	[]base.StateMergeValue, base.OperationProcessReasonError, error,
+) {
 	fact := op.Fact().(SuffrageGenesisJoinPermissionFact)
 
 	node := isaac.NewNode(fact.Publickey(), fact.Node())

@@ -83,11 +83,15 @@ func (op GenesisNetworkPolicy) IsValid(networkID []byte) error {
 	return nil
 }
 
-func (op GenesisNetworkPolicy) PreProcess(_ context.Context, getStateFunc base.GetStateFunc) (base.OperationProcessReasonError, error) {
+func (GenesisNetworkPolicy) PreProcess(context.Context, base.GetStateFunc) (
+	base.OperationProcessReasonError, error,
+) {
 	return nil, nil
 }
 
-func (op GenesisNetworkPolicy) Process(context.Context, base.GetStateFunc) ([]base.StateMergeValue, base.OperationProcessReasonError, error) {
+func (op GenesisNetworkPolicy) Process(context.Context, base.GetStateFunc) (
+	[]base.StateMergeValue, base.OperationProcessReasonError, error,
+) {
 	fact := op.Fact().(GenesisNetworkPolicyFact)
 
 	return []base.StateMergeValue{

@@ -15,19 +15,6 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-type dummyBlockWriteDatabase struct {
-	*database.LeveldbBlockWrite
-	setOperationsf func([]util.Hash) error
-}
-
-func (db *dummyBlockWriteDatabase) SetOperations(ops []util.Hash) error {
-	if db.setOperationsf != nil {
-		return db.setOperationsf(ops)
-	}
-
-	return db.LeveldbBlockWrite.SetOperations(ops)
-}
-
 type testWriter struct {
 	isaac.BaseTestBallots
 	database.BaseTestDatabase

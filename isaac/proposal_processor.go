@@ -333,57 +333,47 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context) error 
 	worker := util.NewErrgroupWorker(wctx, math.MaxInt32)
 	defer worker.Close()
 
-	errch := make(chan error, 2)
-	go func() {
-		defer func() {
-			errch <- nil
-		}()
+	ops := p.operations()
 
-		defer worker.Done()
-
-		ops := p.operations()
-
-		gopsindex := -1
-		gvalidindex := -1
-		for i := range ops {
-			op := ops[i]
-			if op == nil {
-				continue
-			}
-
-			gopsindex++
-			opsindex := gopsindex
-
-			if i, ok := op.(ReasonProcessedOperation); ok {
-				if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-					return p.writer.SetProcessResult(ctx, opsindex, i.FactHash(), false, i.Reason())
-				}); err != nil {
-					return
-				}
-
-				continue
-			}
-
-			gvalidindex++
-			validindex := gvalidindex
-			if err := p.workOperation(wctx, worker, opsindex, validindex, op); err != nil {
-				if !errors.Is(err, util.WorkerCanceledError) {
-					errch <- err
-				}
-
-				return
-			}
+	gopsindex := -1
+	gvalidindex := -1
+	for i := range ops {
+		op := ops[i]
+		if op == nil {
+			continue
 		}
-	}()
 
-	gerr := <-errch
-	if err := worker.Wait(); err != nil {
-		if gerr == nil {
-			gerr = e(err, "")
+		gopsindex++
+		opsindex := gopsindex
+
+		if i, ok := op.(ReasonProcessedOperation); ok {
+			if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
+				return p.writer.SetProcessResult(ctx, opsindex, i.FactHash(), false, i.Reason())
+			}); err != nil {
+				return e(err, "")
+			}
+
+			continue
+		}
+
+		gvalidindex++
+		validindex := gvalidindex
+		if err := p.workOperation(wctx, worker, opsindex, validindex, op); err != nil {
+			if !errors.Is(err, util.WorkerCanceledError) {
+				return e(err, "")
+			}
+
+			break
 		}
 	}
 
-	return gerr
+	worker.Done()
+
+	if err := worker.Wait(); err != nil {
+		return e(err, "")
+	}
+
+	return nil
 }
 
 func (p *DefaultProposalProcessor) workOperation(
@@ -543,7 +533,9 @@ func (p *DefaultProposalProcessor) getProcessor(ctx context.Context, op base.Ope
 	}, nil
 }
 
-func (p *DefaultProposalProcessor) getOperationProcessor(ctx context.Context, ht hint.Hint) (base.OperationProcessor, bool, error) {
+func (p *DefaultProposalProcessor) getOperationProcessor(ctx context.Context, ht hint.Hint) (
+	base.OperationProcessor, bool, error,
+) {
 	j, _, err := p.oprs.Get(ht.String(), func() (interface{}, error) {
 		var opp base.OperationProcessor
 		var found bool

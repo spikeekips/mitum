@@ -22,7 +22,6 @@ type Manifest struct {
 	statesTree     util.Hash
 	suffrage       util.Hash
 	proposedAt     time.Time
-	nodeCreatedAt  time.Time
 }
 
 func NewManifest(
@@ -43,7 +42,6 @@ func NewManifest(
 		statesTree:     statesTree,
 		suffrage:       suffrage,
 		proposedAt:     proposedAt,
-		nodeCreatedAt:  localtime.UTCNow(),
 	}
 
 	m.h = m.hash()
@@ -64,13 +62,6 @@ func (m Manifest) IsValid([]byte) error {
 		util.DummyIsValider(func([]byte) error {
 			if m.proposedAt.IsZero() {
 				return util.InvalidError.Errorf("empty proposedAt")
-			}
-
-			return nil
-		}),
-		util.DummyIsValider(func([]byte) error {
-			if m.nodeCreatedAt.IsZero() {
-				return util.InvalidError.Errorf("empty nodeCreatedAt")
 			}
 
 			return nil
@@ -126,10 +117,6 @@ func (m Manifest) Suffrage() util.Hash {
 
 func (m Manifest) ProposedAt() time.Time {
 	return m.proposedAt
-}
-
-func (m Manifest) NodeCreatedAt() time.Time {
-	return m.nodeCreatedAt
 }
 
 func (m Manifest) hash() util.Hash {

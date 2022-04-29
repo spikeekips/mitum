@@ -334,7 +334,7 @@ func (db *TempPool) removeNewOperations(ctx context.Context, facthashes []util.H
 				return nil
 			}
 
-			key, orderedkey, err := db.loadNewOperationKeys(b)
+			key, orderedkey, err := loadLeveldbNewOperationKeys(b)
 			if err != nil {
 				return errors.Wrap(err, "")
 			}
@@ -407,19 +407,6 @@ func (db *TempPool) loadOperation(b []byte) (base.Operation, error) {
 
 		return i, nil
 	}
-}
-
-func (db *TempPool) loadNewOperationKeys(b []byte) (key []byte, orderedkey []byte, err error) {
-	if b == nil {
-		return nil, nil, nil
-	}
-
-	i := bytes.LastIndex(b, leveldbNewOperationOrderedKeysJoinedSep)
-	if i < 0 {
-		return nil, nil, errors.Errorf("unknown NewOperations info key format")
-	}
-
-	return b[:i], b[i+len(leveldbNewOperationOrderedKeysJoinSep):], nil
 }
 
 func (db *TempPool) loadLastVoteproofs() error {

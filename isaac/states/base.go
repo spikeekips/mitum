@@ -59,19 +59,19 @@ func newBaseHandler(
 	}
 }
 
-func (st *baseHandler) enter(switchContext) (func(), error) {
+func (st *baseHandler) enter(switchContext) (func(), error) { // nolint:unparam
 	st.ctx, st.cancel = context.WithCancel(context.Background())
 
 	return func() {}, nil
 }
 
-func (st *baseHandler) exit(switchContext) (func(), error) {
+func (st *baseHandler) exit(switchContext) (func(), error) { // nolint:unparam
 	st.cancel()
 
 	return func() {}, nil
 }
 
-func (st *baseHandler) newVoteproof(vp base.Voteproof) error {
+func (*baseHandler) newVoteproof(base.Voteproof) error {
 	return nil
 }
 
@@ -137,16 +137,16 @@ func (st *baseHandler) setStates(sts *States) {
 	}
 }
 
-func (st *baseHandler) setNewVoteproof(vp base.Voteproof) (LastVoteproofs, base.Voteproof, error) {
+func (st *baseHandler) setNewVoteproof(vp base.Voteproof) (LastVoteproofs, base.Voteproof) {
 	lvps := st.lastVoteproof()
 
 	if st.sts == nil && !lvps.IsNew(vp) {
-		return LastVoteproofs{}, nil, nil
+		return LastVoteproofs{}, nil
 	}
 
 	_ = st.setLastVoteproof(vp)
 
-	return lvps, vp, nil
+	return lvps, vp
 }
 
 func (st *baseHandler) broadcastBallot(
@@ -235,7 +235,7 @@ func (st *baseHandler) prepareNextRound(vp base.Voteproof, prevBlock util.Hash) 
 	return isaac.NewINITBallot(vp, sf), nil
 }
 
-func (st *baseHandler) prepareNextBlock(avp base.ACCEPTVoteproof, suf base.Suffrage) (ballot base.INITBallot, err error) {
+func (st *baseHandler) prepareNextBlock(avp base.ACCEPTVoteproof, suf base.Suffrage) (base.INITBallot, error) {
 	e := util.StringErrorFunc("failed to prepare next block")
 
 	point := avp.Point().Point.NextHeight()

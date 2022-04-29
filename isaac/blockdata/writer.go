@@ -121,9 +121,7 @@ func (w *Writer) SetStates(
 	return nil
 }
 
-func (w *Writer) SetState(
-	ctx context.Context, stv base.StateMergeValue, operation base.Operation,
-) error {
+func (w *Writer) SetState(_ context.Context, stv base.StateMergeValue, operation base.Operation) error {
 	e := util.StringErrorFunc("failed to set state")
 
 	j, _, err := w.states.Get(stv.Key(), func() (interface{}, error) {

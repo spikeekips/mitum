@@ -20,7 +20,6 @@ type ManifestJSONMarshaler struct {
 	StatesTree     util.Hash   `json:"states_tree"`
 	Suffrage       util.Hash   `json:"suffrage"`
 	ProposedAt     time.Time   `json:"proposed_at"`
-	NodeCreatedAt  time.Time   `json:"node_created_at"`
 }
 
 func (m Manifest) MarshalJSON() ([]byte, error) {
@@ -34,7 +33,6 @@ func (m Manifest) MarshalJSON() ([]byte, error) {
 		StatesTree:     m.statesTree,
 		Suffrage:       m.suffrage,
 		ProposedAt:     m.proposedAt,
-		NodeCreatedAt:  m.nodeCreatedAt,
 	})
 }
 
@@ -47,7 +45,6 @@ type ManifestJSONUnmarshaler struct {
 	StatesTree     valuehash.HashDecoder `json:"states_tree"`
 	Suffrage       valuehash.HashDecoder `json:"suffrage"`
 	ProposedAt     localtime.Time        `json:"proposed_at"`
-	NodeCreatedAt  localtime.Time        `json:"node_created_at"`
 }
 
 func (m *Manifest) UnmarshalJSON(b []byte) error {
@@ -66,7 +63,6 @@ func (m *Manifest) UnmarshalJSON(b []byte) error {
 	m.statesTree = u.StatesTree.Hash()
 	m.suffrage = u.Suffrage.Hash()
 	m.proposedAt = u.ProposedAt.Time
-	m.nodeCreatedAt = u.NodeCreatedAt.Time
 
 	return nil
 }

@@ -85,6 +85,38 @@ func (s baseSwitchContext) MarshalZerologObject(e *zerolog.Event) {
 	e.Stringer("from", s.f).Stringer("next", s.n)
 }
 
+type baseErrorSwitchContext struct {
+	baseSwitchContext
+	err error
+}
+
+func newBaseErrorSwitchContext(from, next StateType, err error) baseErrorSwitchContext {
+	return baseErrorSwitchContext{
+		baseSwitchContext: newBaseSwitchContext(from, next),
+		err:               err,
+	}
+}
+
+func (s baseErrorSwitchContext) Error() string {
+	if s.err != nil {
+		return s.err.Error()
+	}
+
+	return ""
+}
+
+func (s baseErrorSwitchContext) Unwrap() error {
+	return s.err
+}
+
+func (s baseErrorSwitchContext) MarshalZerologObject(e *zerolog.Event) {
+	s.baseSwitchContext.MarshalZerologObject(e)
+
+	if s.err != nil {
+		e.Err(s.err)
+	}
+}
+
 func switchContextLog(sctx switchContext) *zerolog.Event {
 	e := zerolog.Dict()
 
@@ -100,6 +132,6 @@ func switchContextLog(sctx switchContext) *zerolog.Event {
 }
 
 func isSwitchContextError(err error) bool {
-	var ssctx switchContext
-	return errors.As(err, &ssctx)
+	var sctx switchContext
+	return errors.As(err, &sctx)
 }

@@ -223,8 +223,9 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestDrawFailedProposalSel
 
 		return
 	case nsctx := <-sctxch:
-		var bsctx brokenSwitchContext
+		var bsctx baseErrorSwitchContext
 		t.True(errors.As(nsctx, &bsctx))
+		t.Equal(bsctx.next(), StateBroken)
 		t.Contains(bsctx.Error(), "hahaha")
 	}
 }
@@ -300,8 +301,9 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestSaveBlockError() {
 
 	t.T().Log("wait new block saved, but it will be failed; wait to move syncing")
 
-	var bsctx brokenSwitchContext
+	var bsctx baseErrorSwitchContext
 	t.True(errors.As(err, &bsctx))
+	t.Equal(bsctx.next(), StateBroken)
 	t.Contains(bsctx.Error(), "hehehe")
 }
 

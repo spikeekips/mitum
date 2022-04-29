@@ -19,7 +19,6 @@ type Manifest interface {
 	StatesTree() util.Hash     // NOTE states tree root hash
 	Suffrage() util.Hash       // NOTE state hash of newly updated SuffrageStateValue
 	ProposedAt() time.Time     // NOTE Proposal proposed time
-	NodeCreatedAt() time.Time  // NOTE created time in local node
 }
 
 type BlockDataMap interface {

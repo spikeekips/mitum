@@ -10,6 +10,8 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
+// BLOCK moves to broken when empty suffrage
+
 type ConsensusHandler struct {
 	*baseHandler
 	getManifest func(base.Height) (base.Manifest, error)
@@ -170,40 +172,15 @@ func (st *ConsensusHandler) processProposal(ivp base.INITVoteproof) {
 
 	ll := l.With().Dict("accept_voteproof", base.VoteproofLog(eavp)).Logger()
 
-	switch { // NOTE check last accept voteproof is the execpted
-	case eavp.Result() != base.VoteResultMajority:
-		if err := st.pps.Cancel(); err != nil {
-			ll.Error().Err(e(err, "failed to cancel processor")).
-				Msg("expected accept voteproof is not majority result; cancel processor, but failed")
-
-			return
-		}
-
-		ll.Debug().Msg("expected accept voteproof is not majority result; ignore")
-
-		return
-	case !manifest.Hash().Equal(eavp.BallotMajority().NewBlock()):
-		if err := st.pps.Cancel(); err != nil {
-			ll.Error().Err(e(err, "failed to close processor")).
-				Msg("expected accept voteproof has different new block; cancel processor, but failed")
-
-			return
-		}
-
-		ll.Debug().Msg("expected accept voteproof has different new block; moves to syncing")
-
-		go st.switchState(newSyncingSwitchContext(StateConsensus, eavp.Point().Height()))
-
-		return
-	default:
-		ll.Debug().Msg("proposal processed and expected voteproof found")
-	}
-
 	var sctx switchContext
-	switch err := st.saveBlock(eavp); {
+	switch saved, err := st.handleACCEPTVoteproofAfterProcessingProposal(manifest, eavp); {
+	case saved:
 	case err == nil:
+		ll.Debug().Msg("new block saved by accept voteproof after processing proposal")
 	case errors.As(err, &sctx):
 	default:
+		ll.Error().Err(err).Msg("failed to save new block by accept voteproof after processing proposal")
+
 		sctx = newBrokenSwitchContext(StateConsensus, errors.Wrap(err, "failed to save proposal"))
 	}
 
@@ -247,6 +224,50 @@ func (st *ConsensusHandler) processProposalInternal(ivp base.INITVoteproof) (bas
 	}
 }
 
+func (st *ConsensusHandler) handleACCEPTVoteproofAfterProcessingProposal(
+	manifest base.Manifest, avp base.ACCEPTVoteproof,
+) (saved bool, _ error) {
+	l := st.Log().With().Dict("accept_voteproof", base.VoteproofLog(avp)).Logger()
+
+	switch { // NOTE check last accept voteproof is the execpted
+	case avp.Result() != base.VoteResultMajority:
+		if err := st.pps.Cancel(); err != nil {
+			l.Error().Err(err).
+				Msg("expected accept voteproof is not majority result; cancel processor, but failed")
+
+			return false, errors.Wrap(err, "")
+		}
+
+		l.Debug().Msg("expected accept voteproof is not majority result; ignore")
+
+		return false, nil
+	case !manifest.Hash().Equal(avp.BallotMajority().NewBlock()):
+		if err := st.pps.Cancel(); err != nil {
+			l.Error().Err(err).
+				Msg("expected accept voteproof has different new block; cancel processor, but failed")
+
+			return false, errors.Wrap(err, "")
+		}
+
+		l.Debug().Msg("expected accept voteproof has different new block; moves to syncing")
+
+		return false, newSyncingSwitchContext(StateConsensus, avp.Point().Height())
+	default:
+		l.Debug().Msg("proposal processed and expected voteproof found")
+	}
+
+	var sctx switchContext
+	switch err := st.saveBlock(avp); {
+	case err == nil:
+		saved = true
+	case errors.As(err, &sctx):
+	default:
+		sctx = newBrokenSwitchContext(StateConsensus, errors.Wrap(err, "failed to save proposal"))
+	}
+
+	return saved, sctx
+}
+
 func (st *ConsensusHandler) prepareACCEPBallot(
 	ivp base.INITVoteproof,
 	manifest base.Manifest,
@@ -288,9 +309,7 @@ func (st *ConsensusHandler) newVoteproof(vp base.Voteproof) error {
 	e := util.StringErrorFunc("failed to handle new voteproof")
 
 	var lvps LastVoteproofs
-	switch l, v, err := st.baseHandler.setNewVoteproof(vp); {
-	case err != nil:
-		return e(err, "")
+	switch l, v := st.baseHandler.setNewVoteproof(vp); {
 	case v == nil:
 		return nil
 	default:
@@ -502,7 +521,7 @@ func (st *ConsensusHandler) nextRound(vp base.Voteproof, lvps LastVoteproofs) {
 		}
 
 		bl = i
-	case errors.Is(err, (switchContext)(nil)) && errors.As(err, &sctx):
+	case errors.As(err, &sctx):
 		go st.switchState(sctx)
 
 		return
@@ -563,7 +582,7 @@ func (st *ConsensusHandler) nextBlock(avp base.ACCEPTVoteproof) {
 		}
 
 		bl = i
-	case errors.Is(err, (switchContext)(nil)) && errors.As(err, &sctx):
+	case errors.As(err, &sctx):
 		go st.switchState(sctx)
 
 		return

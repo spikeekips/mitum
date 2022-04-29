@@ -234,7 +234,6 @@ func (w *LocalFSWriter) saveVoteproofs() error {
 
 	for i := range w.vps {
 		if err := w.appendfile(f, w.vps[i]); err != nil {
-			fmt.Printf("01>%+v\n", err)
 			return e(err, "")
 		}
 	}
@@ -367,7 +366,7 @@ func (w *LocalFSWriter) setTree(
 
 				return nil
 			}); err != nil {
-				return false, nil
+				return false, err
 			}
 
 			return true, nil

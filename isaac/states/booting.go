@@ -25,11 +25,10 @@ func NewBootingHandler(
 	}
 }
 
-func (st *BootingHandler) enter(i switchContext) (func(), error) {
+func (st *BootingHandler) enter(i switchContext) (func(), error) { // nolint:unparam
 	e := util.StringErrorFunc("failed to enter booting state")
 
-	_, err := st.baseHandler.enter(i)
-	if err != nil {
+	if _, err := st.baseHandler.enter(i); err != nil {
 		return nil, e(err, "")
 	}
 

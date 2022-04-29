@@ -102,10 +102,6 @@ func (st *SyncingHandler) newVoteproof(vp base.Voteproof) error {
 	e := util.StringErrorFunc("failed to handle new voteproof")
 
 	if _, err := st.checkFinished(vp); err != nil {
-		if _, ok := err.(switchContext); ok { // nolint:errorlint
-			return err
-		}
-
 		return e(err, "")
 	}
 
@@ -140,9 +136,7 @@ func (st *SyncingHandler) checkFinished(vp base.Voteproof) (bool, error) {
 			height--
 		}
 
-		_ = st.add(height)
-
-		return true, nil
+		return st.add(height), nil
 	}
 }
 
@@ -184,7 +178,9 @@ end:
 				sctx = newBrokenSwitchContext(StateSyncing, err)
 			}
 
-			go st.switchState(sctx)
+			if sctx != nil {
+				go st.switchState(sctx)
+			}
 
 			st.cancel()
 

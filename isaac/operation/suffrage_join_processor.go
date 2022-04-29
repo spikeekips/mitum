@@ -76,12 +76,16 @@ func NewSuffrageJoinProcessor(
 	}
 
 	if preProcessConstraintFunc == nil {
-		p.preProcessConstraintFunc = func(context.Context, base.Operation, base.GetStateFunc) (base.OperationProcessReasonError, error) {
+		p.preProcessConstraintFunc = func(context.Context, base.Operation, base.GetStateFunc) (
+			base.OperationProcessReasonError, error,
+		) {
 			return nil, nil
 		}
 	}
 	if processConstraintFunc == nil {
-		p.processConstraintFunc = func(context.Context, base.Operation, base.GetStateFunc) (base.OperationProcessReasonError, error) {
+		p.processConstraintFunc = func(context.Context, base.Operation, base.GetStateFunc) (
+			base.OperationProcessReasonError, error,
+		) {
 			return nil, nil
 		}
 	}
@@ -89,7 +93,9 @@ func NewSuffrageJoinProcessor(
 	return p, nil
 }
 
-func (p *SuffrageJoinProcessor) PreProcess(ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (base.OperationProcessReasonError, error) {
+func (p *SuffrageJoinProcessor) PreProcess(ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (
+	base.OperationProcessReasonError, error,
+) {
 	e := util.StringErrorFunc("failed to preprocess for SuffrageJoin")
 
 	if err := base.CheckFactSignsByPubs(p.pubs, p.threshold, op.Signed()); err != nil {

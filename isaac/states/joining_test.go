@@ -146,8 +146,9 @@ func (t *testJoiningHandler) TestFailedLastManifest() {
 		_, ivp := t.VoteproofsPair(point, point.NextHeight(), nil, nil, nil, nodes)
 		err = st.newVoteproof(ivp)
 
-		var ssctx brokenSwitchContext
+		var ssctx baseErrorSwitchContext
 		t.True(errors.As(err, &ssctx))
+		t.Equal(ssctx.next(), StateBroken)
 		t.Contains(err.Error(), "failed to get last manifest")
 	})
 

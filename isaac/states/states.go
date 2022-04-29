@@ -343,25 +343,6 @@ func (st *States) newState(sctx switchContext) error {
 	return nil
 }
 
-func (st *States) newVoteproof(vp base.Voteproof) error {
-	current := st.current()
-	if current == nil {
-		st.Log().Debug().Msg("voteproof ignored; nil current")
-
-		return nil
-	}
-
-	if !st.lvps.IsNew(vp) {
-		return nil
-	}
-
-	go func() {
-		st.vpch <- vp
-	}()
-
-	return nil
-}
-
 func (*States) voteproofToCurrent(vp base.Voteproof, current handler) error {
 	e := util.StringErrorFunc("failed to send voteproof to current")
 
@@ -419,7 +400,7 @@ func (st *States) stateSwitchContextLog(sctx switchContext, current handler) zer
 		Dict("next_state", switchContextLog(sctx)).Logger()
 }
 
-func (st *States) broadcastBallot(bl base.Ballot) error {
+func (*States) broadcastBallot(base.Ballot) error {
 	// BLOCK implement
 
 	return nil

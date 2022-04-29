@@ -14,6 +14,25 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
+func (st *States) newVoteproof(vp base.Voteproof) error {
+	current := st.current()
+	if current == nil {
+		st.Log().Debug().Msg("voteproof ignored; nil current")
+
+		return nil
+	}
+
+	if !st.lvps.IsNew(vp) {
+		return nil
+	}
+
+	go func() {
+		st.vpch <- vp
+	}()
+
+	return nil
+}
+
 func (st *States) setHandler(h handler) *States {
 	st.handlers[h.state()] = h
 
@@ -544,7 +563,7 @@ func (t *testStates) TestStoppedByStateStopped() {
 
 	t.Equal(StateBooting, st.current().state())
 
-	sctx := newStoppedSwitchContext(st.current().state(), errors.Errorf("something wrong"))
+	sctx := newBaseErrorSwitchContext(st.current().state(), StateStopped, errors.Errorf("something wrong"))
 	err := st.newState(sctx)
 	t.NoError(err)
 

@@ -81,11 +81,11 @@ func (cmd *initCommand) Run() error {
 		root = filepath.Join(os.TempDir(), "mitum-example-"+local.Address().String())
 	}
 
-	if err := blockdata.CleanBlockDataTempDirectory(launch.FSRootDataDirectory(root)); err != nil {
+	if err = blockdata.CleanBlockDataTempDirectory(launch.FSRootDataDirectory(root)); err != nil {
 		return errors.Wrap(err, "")
 	}
 
-	if err := launch.InitializeDatabase(root); err != nil {
+	if err = launch.InitializeDatabase(root); err != nil {
 		return errors.Wrap(err, "")
 	}
 
@@ -123,7 +123,7 @@ func (cmd *runCommand) Run() error {
 		root = filepath.Join(os.TempDir(), "mitum-example-"+local.Address().String())
 	}
 
-	if err := blockdata.CleanBlockDataTempDirectory(launch.FSRootDataDirectory(root)); err != nil {
+	if err = blockdata.CleanBlockDataTempDirectory(launch.FSRootDataDirectory(root)); err != nil {
 		return errors.Wrap(err, "")
 	}
 
@@ -146,14 +146,14 @@ func (cmd *runCommand) Run() error {
 		st, found, err := db.Suffrage(blockheight.Prev())
 		switch {
 		case err != nil:
-			return nil, false, nil
+			return nil, false, errors.Wrap(err, "")
 		case !found:
 			return nil, false, nil
 		}
 
 		suf, err := isaac.NewSuffrage(st.Value().(base.SuffrageStateValue).Nodes())
 		if err != nil {
-			return nil, true, nil
+			return nil, true, errors.Wrap(err, "")
 		}
 
 		return suf, true, nil
@@ -184,7 +184,7 @@ func (cmd *runCommand) Run() error {
 
 			hs, err := pool.NewOperationHashes(
 				ctx,
-				n, // BLOCK set ops limit in proposal
+				n,
 				func(facthash util.Hash) (bool, error) {
 					switch found, err := db.ExistsInStateOperation(facthash); {
 					case err != nil:
@@ -223,7 +223,12 @@ func (cmd *runCommand) Run() error {
 		proposalMaker,
 		getSuffrage,
 		func() []base.Address { return nil },
-		func(context.Context, base.Point, base.Address) (base.ProposalSignedFact, error) { return nil, nil }, // BLOCK set request
+		func(context.Context, base.Point, base.Address) (
+			base.ProposalSignedFact, error,
+		) {
+			// BLOCK set request
+			return nil, nil
+		},
 		pool,
 	)
 
@@ -245,7 +250,9 @@ func (cmd *runCommand) Run() error {
 		return voted, nil
 	}
 
-	newProposalProcessor := func(proposal base.ProposalSignedFact, previous base.Manifest) (isaac.ProposalProcessor, error) {
+	newProposalProcessor := func(proposal base.ProposalSignedFact, previous base.Manifest) (
+		isaac.ProposalProcessor, error,
+	) {
 		return isaac.NewDefaultProposalProcessor(
 			proposal,
 			previous,
@@ -279,8 +286,12 @@ func (cmd *runCommand) Run() error {
 		SetHandler(isaacstates.NewBrokenHandler(local, nodePolicy)).
 		SetHandler(isaacstates.NewStoppedHandler(local, nodePolicy)).
 		SetHandler(isaacstates.NewBootingHandler(local, nodePolicy, getLastManifest, getSuffrage)).
-		SetHandler(isaacstates.NewJoiningHandler(local, nodePolicy, proposerSelector, getLastManifest, getSuffrage, voteFunc)).
-		SetHandler(isaacstates.NewConsensusHandler(local, nodePolicy, proposerSelector, getManifest, getSuffrage, voteFunc, pps)).
+		SetHandler(
+			isaacstates.NewJoiningHandler(local, nodePolicy, proposerSelector, getLastManifest, getSuffrage, voteFunc)).
+		SetHandler(
+			isaacstates.NewConsensusHandler(
+				local, nodePolicy, proposerSelector, getManifest, getSuffrage, voteFunc, pps,
+			)).
 		SetHandler(isaacstates.NewSyncingHandler(local, nodePolicy, proposerSelector, nil))
 
 	// NOTE load last init, accept voteproof and last majority voteproof
@@ -295,11 +306,8 @@ func (cmd *runCommand) Run() error {
 
 	log.Debug().Msg("states loaded")
 
-	select {
-	case err := <-states.Wait(context.Background()):
-		if err != nil {
-			return errors.Wrap(err, "")
-		}
+	if err := <-states.Wait(context.Background()); err != nil {
+		return errors.Wrap(err, "")
 	}
 
 	return nil

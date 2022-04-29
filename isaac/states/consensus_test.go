@@ -685,8 +685,9 @@ func (t *testConsensusHandler) TestEmptySuffrageNextBlock() {
 
 		return
 	case sctx := <-sctxch:
-		var ssctx brokenSwitchContext
+		var ssctx baseErrorSwitchContext
 		t.True(errors.As(sctx, &ssctx))
+		t.Equal(ssctx.next(), StateBroken)
 		t.Contains(ssctx.Error(), "empty suffrage")
 	}
 }

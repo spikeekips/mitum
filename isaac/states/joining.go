@@ -139,7 +139,7 @@ func (st *JoiningHandler) newVoteproof(vp base.Voteproof) error {
 
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(vp)).Logger()
 
-	_, _, _ = st.baseHandler.setNewVoteproof(vp)
+	_, _ = st.baseHandler.setNewVoteproof(vp)
 
 	var manifest base.Manifest
 	switch i, found, err := st.lastManifest(); {
@@ -287,7 +287,7 @@ func (st *JoiningHandler) nextRound(vp base.Voteproof, prevBlock util.Hash) {
 		}
 
 		bl = i
-	case errors.Is(err, (switchContext)(nil)) && errors.As(err, &sctx):
+	case errors.As(err, &sctx):
 		go st.switchState(sctx)
 
 		return
@@ -344,7 +344,7 @@ func (st *JoiningHandler) nextBlock(avp base.ACCEPTVoteproof) {
 		}
 
 		bl = i
-	case errors.Is(err, (switchContext)(nil)) && errors.As(err, &sctx):
+	case errors.As(err, &sctx):
 		go st.switchState(sctx)
 
 		return

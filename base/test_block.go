@@ -19,24 +19,22 @@ import (
 var DummyManifestHint = hint.MustNewHint("dummy-manifest-v0.0.1")
 
 type DummyManifest struct {
-	h             util.Hash
-	height        Height
-	prev          util.Hash
-	proposal      util.Hash
-	opstree       util.Hash
-	statestree    util.Hash
-	suf           util.Hash
-	proposedAt    time.Time
-	nodeCreatedAt time.Time
-	Invalidf      func([]byte) error
+	h          util.Hash
+	height     Height
+	prev       util.Hash
+	proposal   util.Hash
+	opstree    util.Hash
+	statestree util.Hash
+	suf        util.Hash
+	proposedAt time.Time
+	Invalidf   func([]byte) error
 }
 
 func NewDummyManifest(height Height, h util.Hash) DummyManifest {
 	return DummyManifest{
-		h:             h,
-		height:        height,
-		proposedAt:    localtime.UTCNow(),
-		nodeCreatedAt: localtime.UTCNow(),
+		h:          h,
+		height:     height,
+		proposedAt: localtime.UTCNow(),
 	}
 }
 
@@ -74,10 +72,6 @@ func (m DummyManifest) Suffrage() util.Hash {
 
 func (m DummyManifest) ProposedAt() time.Time {
 	return m.proposedAt
-}
-
-func (m DummyManifest) NodeCreatedAt() time.Time {
-	return m.nodeCreatedAt
 }
 
 func (m DummyManifest) IsValid(b []byte) error {
@@ -128,49 +122,41 @@ func (m *DummyManifest) SetProposedAt(i time.Time) *DummyManifest {
 	return m
 }
 
-func (m *DummyManifest) SetNodeCreatedAt(i time.Time) *DummyManifest {
-	m.nodeCreatedAt = i
-	return m
-}
-
 type DummyManifestJSONMarshaler struct {
 	hint.BaseHinter
-	H             util.Hash      `json:"hash"`
-	Height        Height         `json:"height"`
-	Prev          util.Hash      `json:"previous_block"`
-	Proposal      util.Hash      `json:"proposal"`
-	Opstree       util.Hash      `json:"operations_tree"`
-	Statestree    util.Hash      `json:"states_tree"`
-	Suf           util.Hash      `json:"suffrage"`
-	ProposedAt    localtime.Time `json:"proposed_at"`
-	NodeCreatedAt localtime.Time `json:"node_created_at"`
+	H          util.Hash      `json:"hash"`
+	Height     Height         `json:"height"`
+	Prev       util.Hash      `json:"previous_block"`
+	Proposal   util.Hash      `json:"proposal"`
+	Opstree    util.Hash      `json:"operations_tree"`
+	Statestree util.Hash      `json:"states_tree"`
+	Suf        util.Hash      `json:"suffrage"`
+	ProposedAt localtime.Time `json:"proposed_at"`
 }
 
 func (m DummyManifest) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(DummyManifestJSONMarshaler{
-		BaseHinter:    hint.NewBaseHinter(DummyManifestHint),
-		H:             m.h,
-		Height:        m.height,
-		Prev:          m.prev,
-		Proposal:      m.proposal,
-		Opstree:       m.opstree,
-		Statestree:    m.statestree,
-		Suf:           m.suf,
-		ProposedAt:    localtime.New(m.proposedAt),
-		NodeCreatedAt: localtime.New(m.nodeCreatedAt),
+		BaseHinter: hint.NewBaseHinter(DummyManifestHint),
+		H:          m.h,
+		Height:     m.height,
+		Prev:       m.prev,
+		Proposal:   m.proposal,
+		Opstree:    m.opstree,
+		Statestree: m.statestree,
+		Suf:        m.suf,
+		ProposedAt: localtime.New(m.proposedAt),
 	})
 }
 
 type DummyManifestJSONUnmarshaler struct {
-	H             valuehash.HashDecoder `json:"hash"`
-	Height        Height                `json:"height"`
-	Prev          valuehash.HashDecoder `json:"previous_block"`
-	Proposal      valuehash.HashDecoder `json:"proposal"`
-	Opstree       valuehash.HashDecoder `json:"operations_tree"`
-	Statestree    valuehash.HashDecoder `json:"states_tree"`
-	Suf           valuehash.HashDecoder `json:"suffrage"`
-	ProposedAt    localtime.Time        `json:"proposed_at"`
-	NodeCreatedAt localtime.Time        `json:"node_created_at"`
+	H          valuehash.HashDecoder `json:"hash"`
+	Height     Height                `json:"height"`
+	Prev       valuehash.HashDecoder `json:"previous_block"`
+	Proposal   valuehash.HashDecoder `json:"proposal"`
+	Opstree    valuehash.HashDecoder `json:"operations_tree"`
+	Statestree valuehash.HashDecoder `json:"states_tree"`
+	Suf        valuehash.HashDecoder `json:"suffrage"`
+	ProposedAt localtime.Time        `json:"proposed_at"`
 }
 
 func (m *DummyManifest) UnmarshalJSON(b []byte) error {
@@ -187,7 +173,6 @@ func (m *DummyManifest) UnmarshalJSON(b []byte) error {
 	m.statestree = u.Statestree.Hash()
 	m.suf = u.Suf.Hash()
 	m.proposedAt = u.ProposedAt.Time
-	m.nodeCreatedAt = u.NodeCreatedAt.Time
 
 	return nil
 }
@@ -228,7 +213,6 @@ func EqualManifest(t *assert.Assertions, a, b Manifest) {
 		t.True(a.Suffrage().Equal(b.Suffrage()), "Suffrage does not match")
 	}
 	t.True(localtime.Equal(a.ProposedAt(), b.ProposedAt()), "ProposedAt does not match")
-	t.True(localtime.Equal(a.NodeCreatedAt(), b.NodeCreatedAt()), "NodeCreatedAt does not match")
 }
 
 var DummyBlockDataMapHint = hint.MustNewHint("dummy-blockdatamap-v0.0.1")

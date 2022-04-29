@@ -221,6 +221,7 @@ func (t *testLocalFSWriter) TestSave() {
 
 	checkfile := func(d base.BlockDataType) {
 		fname, err := BlockDataFileName(d, t.Enc)
+		t.NoError(err)
 		fi, err := os.Stat(filepath.Join(newroot, fname))
 		t.NoError(err)
 		t.False(fi.IsDir())
