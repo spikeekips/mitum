@@ -37,6 +37,9 @@ func init() {
 	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 }
 
+type newProposalProcessorFunc func(proposal base.ProposalSignedFact, previous base.Manifest) (
+	isaac.ProposalProcessor, error)
+
 func main() {
 	logging = mitumlogging.Setup(os.Stderr, zerolog.DebugLevel, "json", false)
 	log = mitumlogging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
@@ -65,6 +68,7 @@ func main() {
 
 type initCommand struct {
 	Address launch.AddressFlag `arg:"" name:"address" help:"node address"`
+	local   base.LocalNode
 }
 
 func (cmd *initCommand) Run() error {
@@ -77,10 +81,11 @@ func (cmd *initCommand) Run() error {
 	if err != nil {
 		return errors.Wrap(err, "failed to prepare local")
 	}
+	cmd.local = local
 
 	dbroot, found := os.LookupEnv(envKeyFSRootf)
 	if !found {
-		dbroot = filepath.Join(os.TempDir(), "mitum-example-"+local.Address().String())
+		dbroot = filepath.Join(os.TempDir(), "mitum-example-"+cmd.local.Address().String())
 	}
 
 	if err = launch.CleanDatabase(dbroot); err != nil {
@@ -101,7 +106,7 @@ func (cmd *initCommand) Run() error {
 		return errors.Wrap(err, "")
 	}
 
-	g := launch.NewGenesisBlockGenerator(local, networkID, enc, db, pool, launch.DBRootDataDirectory(dbroot))
+	g := launch.NewGenesisBlockGenerator(cmd.local, networkID, enc, db, pool, launch.DBRootDataDirectory(dbroot))
 	_ = g.SetLogging(logging)
 	if _, err := g.Generate(); err != nil {
 		return errors.Wrap(err, "")
@@ -111,10 +116,18 @@ func (cmd *initCommand) Run() error {
 }
 
 type runCommand struct {
-	Address launch.AddressFlag `arg:"" name:"address" help:"node address"`
-	perm    isaac.PermanentDatabase
-	db      isaac.Database
-	pool    *database.TempPool
+	Address              launch.AddressFlag `arg:"" name:"address" help:"node address"`
+	local                base.LocalNode
+	nodePolicy           isaac.NodePolicy
+	db                   isaac.Database
+	perm                 isaac.PermanentDatabase
+	pool                 *database.TempPool
+	getSuffrage          func(blockheight base.Height) (base.Suffrage, bool, error)
+	getManifest          func(height base.Height) (base.Manifest, error)
+	proposalSelector     *isaac.BaseProposalSelector
+	getLastManifest      func() (base.Manifest, bool, error)
+	newProposalProcessor newProposalProcessorFunc
+	getProposal          func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error)
 }
 
 func (cmd *runCommand) Run() error {
@@ -125,183 +138,34 @@ func (cmd *runCommand) Run() error {
 
 	local, err := prepareLocal(cmd.Address.Address())
 	if err != nil {
-		return errors.Wrap(err, "failed to prepare local")
+		return errors.Wrap(err, "failed to prepare cmd.local")
 	}
+	cmd.local = local
 
 	dbroot, found := os.LookupEnv(envKeyFSRootf)
 	if !found {
-		dbroot = filepath.Join(os.TempDir(), "mitum-example-"+local.Address().String())
+		dbroot = filepath.Join(os.TempDir(), "mitum-example-"+cmd.local.Address().String())
 	}
 
-	if err := cmd.prepareDatabase(dbroot, encs, enc); err != nil {
+	if err = cmd.prepareDatabase(dbroot, encs, enc); err != nil {
 		return errors.Wrap(err, "")
 	}
 
-	nodePolicy := isaac.DefaultNodePolicy(networkID)
+	cmd.nodePolicy = isaac.DefaultNodePolicy(networkID)
 	log.Info().
-		Interface("node_policy", nodePolicy).
+		Interface("node_policy", cmd.nodePolicy).
 		Msg("node policy loaded")
 
-	getSuffrage := func(blockheight base.Height) (base.Suffrage, bool, error) {
-		st, found, err := cmd.db.Suffrage(blockheight.Prev())
-		switch {
-		case err != nil:
-			return nil, false, errors.Wrap(err, "")
-		case !found:
-			return nil, false, nil
-		}
+	cmd.getSuffrage = cmd.getSuffrageFunc()
+	cmd.getManifest = cmd.getManifestFunc()
+	cmd.proposalSelector = cmd.proposalSelectorFunc()
+	cmd.getLastManifest = cmd.getLastManifestFunc()
+	cmd.newProposalProcessor = cmd.newProposalProcessorFunc(dbroot, enc)
+	cmd.getProposal = cmd.getProposalFunc()
 
-		suf, err := isaac.NewSuffrage(st.Value().(base.SuffrageStateValue).Nodes())
-		if err != nil {
-			return nil, true, errors.Wrap(err, "")
-		}
-
-		return suf, true, nil
-	}
-
-	box := isaacstates.NewBallotbox(getSuffrage, nodePolicy.Threshold())
-
-	getManifest := func(height base.Height) (base.Manifest, error) {
-		switch m, found, err := cmd.db.Map(height); {
-		case err != nil:
-			return nil, errors.Wrap(err, "")
-		case !found:
-			return nil, nil
-		default:
-			return m.Manifest(), nil
-		}
-	}
-
-	proposalMaker := isaac.NewProposalMaker(
-		local,
-		nodePolicy,
-		func(ctx context.Context) ([]util.Hash, error) {
-			policy := cmd.db.LastNetworkPolicy()
-			n := policy.MaxOperationsInProposal()
-			if n < 1 {
-				return nil, nil
-			}
-
-			hs, err := cmd.pool.NewOperationHashes(
-				ctx,
-				n,
-				func(facthash util.Hash) (bool, error) {
-					switch found, err := cmd.db.ExistsInStateOperation(facthash); {
-					case err != nil:
-						return false, errors.Wrap(err, "")
-					case !found:
-						return false, nil
-					}
-
-					return true, nil
-				},
-			)
-			if err != nil {
-				return nil, errors.Wrap(err, "")
-			}
-
-			return hs, nil
-		},
-		cmd.pool,
-	)
-
-	proposerSelector := isaac.NewBaseProposalSelector(
-		local,
-		nodePolicy,
-		isaac.NewBlockBasedProposerSelector(
-			func(height base.Height) (util.Hash, error) {
-				switch m, err := getManifest(height); {
-				case err != nil:
-					return nil, errors.Wrap(err, "")
-				case m == nil:
-					return nil, nil
-				default:
-					return m.Hash(), nil
-				}
-			},
-		),
-		proposalMaker,
-		getSuffrage,
-		func() []base.Address { return nil },
-		func(context.Context, base.Point, base.Address) (
-			base.ProposalSignedFact, error,
-		) {
-			// BLOCK set request
-			return nil, nil
-		},
-		cmd.pool,
-	)
-
-	getLastManifest := func() (base.Manifest, bool, error) {
-		switch m, found, err := cmd.db.LastMap(); {
-		case err != nil || !found:
-			return nil, found, err
-		default:
-			return m.Manifest(), true, nil
-		}
-	}
-
-	voteFunc := func(bl base.Ballot) (bool, error) {
-		voted, err := box.Vote(bl)
-		if err != nil {
-			return false, errors.Wrap(err, "")
-		}
-
-		return voted, nil
-	}
-
-	newProposalProcessor := func(proposal base.ProposalSignedFact, previous base.Manifest) (
-		isaac.ProposalProcessor, error,
-	) {
-		return isaac.NewDefaultProposalProcessor(
-			proposal,
-			previous,
-			launch.NewBlockDataWriterFunc(local, networkID, launch.DBRootDataDirectory(dbroot), enc, cmd.db),
-			cmd.db.State,
-			nil,
-			nil,
-			cmd.pool.SetLastVoteproofs,
-		)
-	}
-
-	getProposal := func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error) {
-		switch pr, found, err := cmd.pool.Proposal(facthash); {
-		case err != nil:
-			return nil, errors.Wrap(err, "")
-		case !found:
-			// BLOCK if not found, request to remote node
-			return nil, nil
-		default:
-			return pr, nil
-		}
-	}
-
-	pps := isaac.NewProposalProcessors(newProposalProcessor, getProposal)
-	_ = pps.SetLogging(logging)
-
-	states := isaacstates.NewStates(box)
-	_ = states.SetLogging(logging)
-
-	states.
-		SetHandler(isaacstates.NewBrokenHandler(local, nodePolicy)).
-		SetHandler(isaacstates.NewStoppedHandler(local, nodePolicy)).
-		SetHandler(isaacstates.NewBootingHandler(local, nodePolicy, getLastManifest, getSuffrage)).
-		SetHandler(
-			isaacstates.NewJoiningHandler(local, nodePolicy, proposerSelector, getLastManifest, getSuffrage, voteFunc)).
-		SetHandler(
-			isaacstates.NewConsensusHandler(
-				local, nodePolicy, proposerSelector, getManifest, getSuffrage, voteFunc, pps,
-			)).
-		SetHandler(isaacstates.NewSyncingHandler(local, nodePolicy, proposerSelector, nil))
-
-	// NOTE load last init, accept voteproof and last majority voteproof
-	switch ivp, avp, found, err := cmd.pool.LastVoteproofs(); {
-	case err != nil:
+	states, err := cmd.states()
+	if err != nil {
 		return errors.Wrap(err, "")
-	case !found:
-	default:
-		_ = states.LastVoteproofsHandler().Set(ivp)
-		_ = states.LastVoteproofsHandler().Set(avp)
 	}
 
 	log.Debug().Msg("states loaded")
@@ -342,6 +206,188 @@ func (cmd *runCommand) prepareDatabase(dbroot string, encs *encoder.Encoders, en
 	}
 
 	return nil
+}
+
+func (cmd *runCommand) getSuffrageFunc() func(blockheight base.Height) (base.Suffrage, bool, error) {
+	return func(blockheight base.Height) (base.Suffrage, bool, error) {
+		st, found, err := cmd.db.Suffrage(blockheight.Prev())
+		switch {
+		case err != nil:
+			return nil, false, errors.Wrap(err, "")
+		case !found:
+			return nil, false, nil
+		}
+
+		suf, err := isaac.NewSuffrage(st.Value().(base.SuffrageStateValue).Nodes())
+		if err != nil {
+			return nil, true, errors.Wrap(err, "")
+		}
+
+		return suf, true, nil
+	}
+}
+
+func (cmd *runCommand) getManifestFunc() func(height base.Height) (base.Manifest, error) {
+	return func(height base.Height) (base.Manifest, error) {
+		switch m, found, err := cmd.db.Map(height); {
+		case err != nil:
+			return nil, errors.Wrap(err, "")
+		case !found:
+			return nil, nil
+		default:
+			return m.Manifest(), nil
+		}
+	}
+}
+
+func (cmd *runCommand) proposalMaker() *isaac.ProposalMaker {
+	return isaac.NewProposalMaker(
+		cmd.local,
+		cmd.nodePolicy,
+		func(ctx context.Context) ([]util.Hash, error) {
+			policy := cmd.db.LastNetworkPolicy()
+			n := policy.MaxOperationsInProposal()
+			if n < 1 {
+				return nil, nil
+			}
+
+			hs, err := cmd.pool.NewOperationHashes(
+				ctx,
+				n,
+				func(facthash util.Hash) (bool, error) {
+					switch found, err := cmd.db.ExistsInStateOperation(facthash); {
+					case err != nil:
+						return false, errors.Wrap(err, "")
+					case !found:
+						return false, nil
+					}
+
+					return true, nil
+				},
+			)
+			if err != nil {
+				return nil, errors.Wrap(err, "")
+			}
+
+			return hs, nil
+		},
+		cmd.pool,
+	)
+}
+
+func (cmd *runCommand) proposalSelectorFunc() *isaac.BaseProposalSelector {
+	return isaac.NewBaseProposalSelector(
+		cmd.local,
+		cmd.nodePolicy,
+		isaac.NewBlockBasedProposerSelector(
+			func(height base.Height) (util.Hash, error) {
+				switch m, err := cmd.getManifest(height); {
+				case err != nil:
+					return nil, errors.Wrap(err, "")
+				case m == nil:
+					return nil, nil
+				default:
+					return m.Hash(), nil
+				}
+			},
+		),
+		cmd.proposalMaker(),
+		cmd.getSuffrage,
+		func() []base.Address { return nil },
+		func(context.Context, base.Point, base.Address) (
+			base.ProposalSignedFact, error,
+		) {
+			// BLOCK set request
+			return nil, nil
+		},
+		cmd.pool,
+	)
+}
+
+func (cmd *runCommand) getLastManifestFunc() func() (base.Manifest, bool, error) {
+	return func() (base.Manifest, bool, error) {
+		switch m, found, err := cmd.db.LastMap(); {
+		case err != nil || !found:
+			return nil, found, err
+		default:
+			return m.Manifest(), true, nil
+		}
+	}
+}
+
+func (cmd *runCommand) newProposalProcessorFunc(dbroot string, enc encoder.Encoder) newProposalProcessorFunc {
+	return func(proposal base.ProposalSignedFact, previous base.Manifest) (
+		isaac.ProposalProcessor, error,
+	) {
+		return isaac.NewDefaultProposalProcessor(
+			proposal,
+			previous,
+			launch.NewBlockDataWriterFunc(cmd.local, networkID, launch.DBRootDataDirectory(dbroot), enc, cmd.db),
+			cmd.db.State,
+			nil,
+			nil,
+			cmd.pool.SetLastVoteproofs,
+		)
+	}
+}
+
+func (cmd *runCommand) states() (*isaacstates.States, error) {
+	box := isaacstates.NewBallotbox(cmd.getSuffrage, cmd.nodePolicy.Threshold())
+	voteFunc := func(bl base.Ballot) (bool, error) {
+		voted, err := box.Vote(bl)
+		if err != nil {
+			return false, errors.Wrap(err, "")
+		}
+
+		return voted, nil
+	}
+
+	pps := isaac.NewProposalProcessors(cmd.newProposalProcessor, cmd.getProposal)
+	_ = pps.SetLogging(logging)
+
+	states := isaacstates.NewStates(box)
+	_ = states.SetLogging(logging)
+
+	states.
+		SetHandler(isaacstates.NewBrokenHandler(cmd.local, cmd.nodePolicy)).
+		SetHandler(isaacstates.NewStoppedHandler(cmd.local, cmd.nodePolicy)).
+		SetHandler(isaacstates.NewBootingHandler(cmd.local, cmd.nodePolicy, cmd.getLastManifest, cmd.getSuffrage)).
+		SetHandler(
+			isaacstates.NewJoiningHandler(
+				cmd.local, cmd.nodePolicy, cmd.proposalSelector, cmd.getLastManifest, cmd.getSuffrage, voteFunc,
+			),
+		).
+		SetHandler(
+			isaacstates.NewConsensusHandler(
+				cmd.local, cmd.nodePolicy, cmd.proposalSelector, cmd.getManifest, cmd.getSuffrage, voteFunc, pps,
+			)).
+		SetHandler(isaacstates.NewSyncingHandler(cmd.local, cmd.nodePolicy, cmd.proposalSelector, nil))
+
+	// NOTE load last init, accept voteproof and last majority voteproof
+	switch ivp, avp, found, err := cmd.pool.LastVoteproofs(); {
+	case err != nil:
+		return nil, errors.Wrap(err, "")
+	case !found:
+	default:
+		_ = states.LastVoteproofsHandler().Set(ivp)
+		_ = states.LastVoteproofsHandler().Set(avp)
+	}
+
+	return states, nil
+}
+
+func (cmd *runCommand) getProposalFunc() func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error) {
+	return func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error) {
+		switch pr, found, err := cmd.pool.Proposal(facthash); {
+		case err != nil:
+			return nil, errors.Wrap(err, "")
+		case !found:
+			// BLOCK if not found, request to remote node
+			return nil, nil
+		default:
+			return pr, nil
+		}
+	}
 }
 
 func prepareLocal(address base.Address) (base.LocalNode, error) {

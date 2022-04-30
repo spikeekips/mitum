@@ -25,6 +25,7 @@ var (
 	DBRootPoolDirectoryName = "pool"
 
 	RedisPermanentDatabasePrefix = "mitum"
+	leveldbURIScheme             = "file"
 )
 
 func InitializeDatabase(root string) error {
@@ -36,7 +37,7 @@ func InitializeDatabase(root string) error {
 			return e(nil, "root is not directory")
 		}
 	case os.IsNotExist(err):
-		if err := os.MkdirAll(root, 0o700); err != nil {
+		if err = os.MkdirAll(root, 0o700); err != nil {
 			return e(err, "")
 		}
 	default:
@@ -54,7 +55,7 @@ func InitializeDatabase(root string) error {
 				return e(nil, "root is not directory, %q", i)
 			}
 		case os.IsNotExist(err):
-			if err := os.MkdirAll(i, 0o700); err != nil {
+			if err = os.MkdirAll(i, 0o700); err != nil {
 				return e(err, "failed to make directory, %i", i)
 			}
 		default:
@@ -163,13 +164,12 @@ func LoadPermanentDatabase(uri string, encs *encoder.Encoders, enc encoder.Encod
 
 	u, err := url.Parse(uri)
 
-	var dbtype string
-	var network string
+	var dbtype, network string
 	switch {
 	case err != nil:
 		return nil, e(err, "")
-	case len(u.Scheme) < 1 || strings.ToLower(u.Scheme) == "file":
-		dbtype = "file"
+	case len(u.Scheme) < 1, strings.EqualFold(u.Scheme, leveldbURIScheme):
+		dbtype = leveldbURIScheme
 	default:
 		u.Scheme = strings.ToLower(u.Scheme)
 
@@ -181,7 +181,7 @@ func LoadPermanentDatabase(uri string, encs *encoder.Encoders, enc encoder.Encod
 	}
 
 	switch {
-	case dbtype == "file":
+	case dbtype == leveldbURIScheme:
 		if len(u.Path) < 1 {
 			return nil, e(nil, "empty path")
 		}
@@ -193,9 +193,6 @@ func LoadPermanentDatabase(uri string, encs *encoder.Encoders, enc encoder.Encod
 
 		return perm, nil
 	case dbtype == "redis":
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
-		defer cancel()
-
 		if strings.Contains(u.Scheme, "+") {
 			u.Scheme = network
 		}
@@ -203,17 +200,7 @@ func LoadPermanentDatabase(uri string, encs *encoder.Encoders, enc encoder.Encod
 			u.Scheme = "redis"
 		}
 
-		option, err := redis.ParseURL(u.String())
-		if err != nil {
-			return nil, e(err, "invalid redis url")
-		}
-
-		st, err := redisstorage.NewStorage(ctx, option, RedisPermanentDatabasePrefix)
-		if err != nil {
-			return nil, e(err, "failed to create redis storage")
-		}
-
-		perm, err := database.NewRedisPermanent(st, encs, enc)
+		perm, err := loadRedisPermanentDatabase(u.String(), encs, enc)
 		if err != nil {
 			return nil, e(err, "failed to create redis PermanentDatabase")
 		}
@@ -222,6 +209,32 @@ func LoadPermanentDatabase(uri string, encs *encoder.Encoders, enc encoder.Encod
 	default:
 		return nil, e(nil, "unsupported database type, %q", dbtype)
 	}
+}
+
+func loadRedisPermanentDatabase(uri string, encs *encoder.Encoders, enc encoder.Encoder) (
+	*database.RedisPermanent, error,
+) {
+	e := util.StringErrorFunc("failed to load redis PermanentDatabase")
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	defer cancel()
+
+	option, err := redis.ParseURL(uri)
+	if err != nil {
+		return nil, e(err, "invalid redis url")
+	}
+
+	st, err := redisstorage.NewStorage(ctx, option, RedisPermanentDatabasePrefix)
+	if err != nil {
+		return nil, e(err, "failed to create redis storage")
+	}
+
+	perm, err := database.NewRedisPermanent(st, encs, enc)
+	if err != nil {
+		return nil, e(err, "")
+	}
+
+	return perm, nil
 }
 
 // BLOCK clean data from RedisPermanent
