@@ -16,7 +16,6 @@ type ConsensusHandler struct {
 	*baseHandler
 	getManifest func(base.Height) (base.Manifest, error)
 	getSuffrage isaac.GetSuffrageByBlockHeight
-	voteFunc    func(base.Ballot) (bool, error)
 	pps         *isaac.ProposalProcessors
 }
 
@@ -29,15 +28,16 @@ func NewConsensusHandler(
 	voteFunc func(base.Ballot) (bool, error),
 	pps *isaac.ProposalProcessors,
 ) *ConsensusHandler {
-	if voteFunc == nil {
-		voteFunc = func(base.Ballot) (bool, error) { return false, errors.Errorf("not voted") }
+	baseHandler := newBaseHandler(StateConsensus, local, policy, proposalSelector)
+
+	if voteFunc != nil {
+		baseHandler.voteFunc = preventVotingWithEmptySuffrage(voteFunc, getSuffrage)
 	}
 
 	return &ConsensusHandler{
-		baseHandler: newBaseHandler(StateConsensus, local, policy, proposalSelector),
+		baseHandler: baseHandler,
 		getManifest: getManifest,
 		getSuffrage: getSuffrage,
-		voteFunc:    voteFunc,
 		pps:         pps,
 	}
 }
@@ -160,7 +160,7 @@ func (st *ConsensusHandler) processProposal(ivp base.INITVoteproof) {
 		initialWait = st.policy.WaitProcessingProposal() - d
 	}
 
-	if err := st.prepareACCEPBallot(ivp, manifest, initialWait); err != nil {
+	if err := st.prepareACCEPTBallot(ivp, manifest, initialWait); err != nil {
 		l.Error().Err(err).Msg("failed to prepare accept ballot")
 
 		return
@@ -268,7 +268,7 @@ func (st *ConsensusHandler) handleACCEPTVoteproofAfterProcessingProposal(
 	return saved, sctx
 }
 
-func (st *ConsensusHandler) prepareACCEPBallot(
+func (st *ConsensusHandler) prepareACCEPTBallot(
 	ivp base.INITVoteproof,
 	manifest base.Manifest,
 	initialWait time.Duration,
@@ -286,8 +286,11 @@ func (st *ConsensusHandler) prepareACCEPBallot(
 	go func() {
 		<-time.After(initialWait)
 
-		if _, err := st.voteFunc(bl); err != nil {
-			st.Log().Error().Err(err).Msg("failed to vote accept ballot")
+		_, err := st.vote(bl)
+		if err != nil {
+			st.Log().Error().Err(err).Msg("failed to vote accept ballot; moves to broken state")
+
+			go st.switchState(newBrokenSwitchContext(StateConsensus, err))
 		}
 	}()
 
@@ -533,8 +536,10 @@ func (st *ConsensusHandler) nextRound(vp base.Voteproof, lvps LastVoteproofs) {
 		return
 	}
 
-	if _, err := st.voteFunc(bl); err != nil {
-		l.Error().Err(err).Msg("failed to vote init ballot for next round")
+	if _, err := st.vote(bl); err != nil {
+		l.Error().Err(err).Msg("failed to vote init ballot for next round; moves to broken state")
+
+		go st.switchState(newBrokenSwitchContext(StateConsensus, err))
 
 		return
 	}
@@ -594,8 +599,10 @@ func (st *ConsensusHandler) nextBlock(avp base.ACCEPTVoteproof) {
 		return
 	}
 
-	if _, err := st.voteFunc(bl); err != nil {
-		l.Error().Err(err).Msg("failed to vote init ballot for next block")
+	if _, err := st.vote(bl); err != nil {
+		l.Error().Err(err).Msg("failed to vote init ballot for next block; moves to broken")
+
+		go st.switchState(newBrokenSwitchContext(StateConsensus, err))
 
 		return
 	}

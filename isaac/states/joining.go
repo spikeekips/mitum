@@ -16,7 +16,6 @@ type JoiningHandler struct {
 	newvoteproofLock   sync.Mutex
 	waitFirstVoteproof time.Duration
 	getSuffrage        isaac.GetSuffrageByBlockHeight
-	voteFunc           func(base.Ballot) (bool, error)
 }
 
 func NewJoiningHandler(
@@ -27,16 +26,17 @@ func NewJoiningHandler(
 	getSuffrage isaac.GetSuffrageByBlockHeight,
 	voteFunc func(base.Ballot) (bool, error),
 ) *JoiningHandler {
-	if voteFunc == nil {
-		voteFunc = func(base.Ballot) (bool, error) { return false, errors.Errorf("not voted") }
+	baseHandler := newBaseHandler(StateJoining, local, policy, proposalSelector)
+
+	if voteFunc != nil {
+		baseHandler.voteFunc = preventVotingWithEmptySuffrage(voteFunc, getSuffrage)
 	}
 
 	return &JoiningHandler{
-		baseHandler:        newBaseHandler(StateJoining, local, policy, proposalSelector),
+		baseHandler:        baseHandler,
 		lastManifest:       lastManifest,
 		waitFirstVoteproof: policy.IntervalBroadcastBallot()*2 + policy.WaitProcessingProposal(),
 		getSuffrage:        getSuffrage,
-		voteFunc:           voteFunc,
 	}
 }
 
@@ -299,8 +299,10 @@ func (st *JoiningHandler) nextRound(vp base.Voteproof, prevBlock util.Hash) {
 		return
 	}
 
-	if _, err := st.voteFunc(bl); err != nil {
-		l.Error().Err(err).Msg("failed to vote init ballot for next round")
+	if _, err := st.vote(bl); err != nil {
+		l.Error().Err(err).Msg("failed to vote init ballot for next round; moves to broken state")
+
+		go st.switchState(newBrokenSwitchContext(StateJoining, err))
 
 		return
 	}
@@ -356,8 +358,10 @@ func (st *JoiningHandler) nextBlock(avp base.ACCEPTVoteproof) {
 		return
 	}
 
-	if _, err := st.voteFunc(bl); err != nil {
-		l.Error().Err(err).Msg("failed to vote init ballot for next block")
+	if _, err := st.vote(bl); err != nil {
+		l.Error().Err(err).Msg("failed to vote init ballot for next block; moves to broken")
+
+		go st.switchState(newBrokenSwitchContext(StateJoining, err))
 
 		return
 	}

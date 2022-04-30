@@ -13,9 +13,11 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/isaac/blockdata"
+	"github.com/spikeekips/mitum/isaac/database"
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
 	mitumlogging "github.com/spikeekips/mitum/util/logging"
 )
 
@@ -76,25 +78,30 @@ func (cmd *initCommand) Run() error {
 		return errors.Wrap(err, "failed to prepare local")
 	}
 
-	root, found := os.LookupEnv(envKeyFSRootf)
+	dbroot, found := os.LookupEnv(envKeyFSRootf)
 	if !found {
-		root = filepath.Join(os.TempDir(), "mitum-example-"+local.Address().String())
+		dbroot = filepath.Join(os.TempDir(), "mitum-example-"+local.Address().String())
 	}
 
-	if err = blockdata.CleanBlockDataTempDirectory(launch.FSRootDataDirectory(root)); err != nil {
+	if err = launch.CleanDatabase(dbroot); err != nil {
 		return errors.Wrap(err, "")
 	}
 
-	if err = launch.InitializeDatabase(root); err != nil {
+	if err = launch.InitializeDatabase(dbroot); err != nil {
 		return errors.Wrap(err, "")
 	}
 
-	db, pool, err := launch.PrepareDatabase(root, encs, enc)
+	perm, err := loadPermanentDatabase(launch.DBRootPermDirectory(dbroot), encs, enc)
 	if err != nil {
 		return errors.Wrap(err, "")
 	}
 
-	g := launch.NewGenesisBlockGenerator(local, networkID, enc, db, pool, launch.FSRootDataDirectory(root))
+	db, pool, err := launch.PrepareDatabase(perm, dbroot, encs, enc)
+	if err != nil {
+		return errors.Wrap(err, "")
+	}
+
+	g := launch.NewGenesisBlockGenerator(local, networkID, enc, db, pool, launch.DBRootDataDirectory(dbroot))
 	_ = g.SetLogging(logging)
 	if _, err := g.Generate(); err != nil {
 		return errors.Wrap(err, "")
@@ -105,6 +112,9 @@ func (cmd *initCommand) Run() error {
 
 type runCommand struct {
 	Address launch.AddressFlag `arg:"" name:"address" help:"node address"`
+	perm    isaac.PermanentDatabase
+	db      isaac.Database
+	pool    *database.TempPool
 }
 
 func (cmd *runCommand) Run() error {
@@ -118,22 +128,12 @@ func (cmd *runCommand) Run() error {
 		return errors.Wrap(err, "failed to prepare local")
 	}
 
-	root, found := os.LookupEnv(envKeyFSRootf)
+	dbroot, found := os.LookupEnv(envKeyFSRootf)
 	if !found {
-		root = filepath.Join(os.TempDir(), "mitum-example-"+local.Address().String())
+		dbroot = filepath.Join(os.TempDir(), "mitum-example-"+local.Address().String())
 	}
 
-	if err = blockdata.CleanBlockDataTempDirectory(launch.FSRootDataDirectory(root)); err != nil {
-		return errors.Wrap(err, "")
-	}
-
-	db, pool, err := launch.PrepareDatabase(root, encs, enc)
-	if err != nil {
-		return errors.Wrap(err, "")
-	}
-	_ = db.SetLogging(logging)
-
-	if err := db.Start(); err != nil {
+	if err := cmd.prepareDatabase(dbroot, encs, enc); err != nil {
 		return errors.Wrap(err, "")
 	}
 
@@ -143,7 +143,7 @@ func (cmd *runCommand) Run() error {
 		Msg("node policy loaded")
 
 	getSuffrage := func(blockheight base.Height) (base.Suffrage, bool, error) {
-		st, found, err := db.Suffrage(blockheight.Prev())
+		st, found, err := cmd.db.Suffrage(blockheight.Prev())
 		switch {
 		case err != nil:
 			return nil, false, errors.Wrap(err, "")
@@ -162,7 +162,7 @@ func (cmd *runCommand) Run() error {
 	box := isaacstates.NewBallotbox(getSuffrage, nodePolicy.Threshold())
 
 	getManifest := func(height base.Height) (base.Manifest, error) {
-		switch m, found, err := db.Map(height); {
+		switch m, found, err := cmd.db.Map(height); {
 		case err != nil:
 			return nil, errors.Wrap(err, "")
 		case !found:
@@ -176,17 +176,17 @@ func (cmd *runCommand) Run() error {
 		local,
 		nodePolicy,
 		func(ctx context.Context) ([]util.Hash, error) {
-			policy := db.LastNetworkPolicy()
+			policy := cmd.db.LastNetworkPolicy()
 			n := policy.MaxOperationsInProposal()
 			if n < 1 {
 				return nil, nil
 			}
 
-			hs, err := pool.NewOperationHashes(
+			hs, err := cmd.pool.NewOperationHashes(
 				ctx,
 				n,
 				func(facthash util.Hash) (bool, error) {
-					switch found, err := db.ExistsInStateOperation(facthash); {
+					switch found, err := cmd.db.ExistsInStateOperation(facthash); {
 					case err != nil:
 						return false, errors.Wrap(err, "")
 					case !found:
@@ -202,7 +202,7 @@ func (cmd *runCommand) Run() error {
 
 			return hs, nil
 		},
-		pool,
+		cmd.pool,
 	)
 
 	proposerSelector := isaac.NewBaseProposalSelector(
@@ -229,11 +229,11 @@ func (cmd *runCommand) Run() error {
 			// BLOCK set request
 			return nil, nil
 		},
-		pool,
+		cmd.pool,
 	)
 
 	getLastManifest := func() (base.Manifest, bool, error) {
-		switch m, found, err := db.LastMap(); {
+		switch m, found, err := cmd.db.LastMap(); {
 		case err != nil || !found:
 			return nil, found, err
 		default:
@@ -256,16 +256,16 @@ func (cmd *runCommand) Run() error {
 		return isaac.NewDefaultProposalProcessor(
 			proposal,
 			previous,
-			launch.NewBlockDataWriterFunc(local, networkID, launch.FSRootDataDirectory(root), enc, db),
-			db.State,
+			launch.NewBlockDataWriterFunc(local, networkID, launch.DBRootDataDirectory(dbroot), enc, cmd.db),
+			cmd.db.State,
 			nil,
 			nil,
-			pool.SetLastVoteproofs,
+			cmd.pool.SetLastVoteproofs,
 		)
 	}
 
 	getProposal := func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error) {
-		switch pr, found, err := pool.Proposal(facthash); {
+		switch pr, found, err := cmd.pool.Proposal(facthash); {
 		case err != nil:
 			return nil, errors.Wrap(err, "")
 		case !found:
@@ -295,7 +295,7 @@ func (cmd *runCommand) Run() error {
 		SetHandler(isaacstates.NewSyncingHandler(local, nodePolicy, proposerSelector, nil))
 
 	// NOTE load last init, accept voteproof and last majority voteproof
-	switch ivp, avp, found, err := pool.LastVoteproofs(); {
+	switch ivp, avp, found, err := cmd.pool.LastVoteproofs(); {
 	case err != nil:
 		return errors.Wrap(err, "")
 	case !found:
@@ -307,6 +307,37 @@ func (cmd *runCommand) Run() error {
 	log.Debug().Msg("states loaded")
 
 	if err := <-states.Wait(context.Background()); err != nil {
+		return errors.Wrap(err, "")
+	}
+
+	return nil
+}
+
+func (cmd *runCommand) prepareDatabase(dbroot string, encs *encoder.Encoders, enc encoder.Encoder) error {
+	if err := launch.CheckDatabase(dbroot); err != nil {
+		return errors.Wrap(err, "")
+	}
+
+	if err := blockdata.CleanBlockDataTempDirectory(launch.DBRootDataDirectory(dbroot)); err != nil {
+		return errors.Wrap(err, "")
+	}
+
+	perm, err := loadPermanentDatabase(launch.DBRootPermDirectory(dbroot), encs, enc)
+	if err != nil {
+		return errors.Wrap(err, "")
+	}
+	cmd.perm = perm
+
+	db, pool, err := launch.PrepareDatabase(perm, dbroot, encs, enc)
+	if err != nil {
+		return errors.Wrap(err, "")
+	}
+	_ = db.SetLogging(logging)
+
+	cmd.db = db
+	cmd.pool = pool
+
+	if err := db.Start(); err != nil {
 		return errors.Wrap(err, "")
 	}
 
@@ -330,4 +361,11 @@ func prepareLocal(address base.Address) (base.LocalNode, error) {
 		Msg("keypair generated")
 
 	return isaac.NewLocalNode(priv, address), nil
+}
+
+func loadPermanentDatabase(_ string, encs *encoder.Encoders, enc encoder.Encoder) (isaac.PermanentDatabase, error) {
+	// uri := launch.DBRootPermDirectory(dbroot)
+	uri := "redis://"
+
+	return launch.LoadPermanentDatabase(uri, encs, enc)
 }

@@ -179,13 +179,18 @@ func (db *Default) LastSuffrage() (base.State, bool, error) {
 	for i := range temps {
 		switch i, found, err := temps[i].Suffrage(); {
 		case err != nil:
-			return nil, false, err
+			return nil, false, errors.Wrap(err, "")
 		case found:
 			return i, true, nil
 		}
 	}
 
-	return db.perm.LastSuffrage()
+	st, found, err := db.perm.LastSuffrage()
+	if err != nil {
+		return nil, false, errors.Wrap(err, "")
+	}
+
+	return st, found, nil
 }
 
 func (db *Default) LastNetworkPolicy() base.NetworkPolicy {

@@ -1,30 +1,106 @@
 package launch
 
 import (
+	"context"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/isaac/database"
+	redisstorage "github.com/spikeekips/mitum/storage/redis"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
 var (
-	FSRootPermDirectoryName = "perm"
-	FSRootTempDirectoryName = "temp"
-	FSRootDataDirectoryName = "data"
-	FSRootPoolDirectoryName = "pool"
+	DBRootPermDirectoryName = "perm"
+	DBRootTempDirectoryName = "temp"
+	DBRootDataDirectoryName = "data"
+	DBRootPoolDirectoryName = "pool"
+
+	RedisPermanentDatabasePrefix = "mitum"
 )
 
-func InitializeDatabase(fsroot string) error {
+func InitializeDatabase(root string) error {
 	e := util.StringErrorFunc("failed to initialize database")
 
-	switch _, err := os.Stat(fsroot); {
+	switch fi, err := os.Stat(root); {
 	case err == nil:
-		if err = os.RemoveAll(fsroot); err != nil {
+		if !fi.IsDir() {
+			return e(nil, "root is not directory")
+		}
+	case os.IsNotExist(err):
+		if err := os.MkdirAll(root, 0o700); err != nil {
+			return e(err, "")
+		}
+	default:
+		return e(err, "")
+	}
+
+	temproot := DBRootTempDirectory(root)
+	poolroot := DBRootPoolDirectory(root)
+	dataroot := DBRootDataDirectory(root)
+
+	for _, i := range []string{temproot, poolroot, dataroot} {
+		switch fi, err := os.Stat(i); {
+		case err == nil:
+			if !fi.IsDir() {
+				return e(nil, "root is not directory, %q", i)
+			}
+		case os.IsNotExist(err):
+			if err := os.MkdirAll(i, 0o700); err != nil {
+				return e(err, "failed to make directory, %i", i)
+			}
+		default:
+			return e(err, "")
+		}
+	}
+
+	return nil
+}
+
+func CheckDatabase(root string) error {
+	e := util.StringErrorFunc("failed to check database")
+
+	switch fi, err := os.Stat(root); {
+	case err == nil:
+		if !fi.IsDir() {
+			return e(nil, "root is not directory")
+		}
+	default:
+		return e(err, "")
+	}
+
+	temproot := DBRootTempDirectory(root)
+	poolroot := DBRootPoolDirectory(root)
+	dataroot := DBRootDataDirectory(root)
+
+	for _, i := range []string{temproot, poolroot, dataroot} {
+		switch fi, err := os.Stat(i); {
+		case err == nil:
+			if !fi.IsDir() {
+				return e(nil, "root is not directory, %q", i)
+			}
+		default:
+			return e(err, "")
+		}
+	}
+
+	return nil
+}
+
+func CleanDatabase(root string) error {
+	e := util.StringErrorFunc("failed to initialize database")
+
+	switch _, err := os.Stat(root); {
+	case err == nil:
+		if err = os.RemoveAll(root); err != nil {
 			return e(err, "")
 		}
 	case os.IsNotExist(err):
@@ -32,42 +108,19 @@ func InitializeDatabase(fsroot string) error {
 		return e(err, "")
 	}
 
-	if err := os.MkdirAll(fsroot, 0o700); err != nil {
-		return e(err, "")
-	}
-
-	dataroot := FSRootDataDirectory(fsroot)
-	if err := os.MkdirAll(dataroot, 0o700); err != nil {
-		return e(err, "failed to make blockdata fsroot")
-	}
-
 	return nil
 }
 
 func PrepareDatabase(
-	fsroot string,
+	perm isaac.PermanentDatabase,
+	root string,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
 ) (*database.Default, *database.TempPool, error) {
 	e := util.StringErrorFunc("failed to prepare database")
 
-	switch fi, err := os.Stat(fsroot); {
-	case err == nil:
-	case !fi.IsDir():
-		return nil, nil, e(nil, "not directory")
-	default:
-		return nil, nil, e(err, "")
-	}
-
-	permroot := FSRootPermDirectory(fsroot)
-	temproot := FSRootTempDirectory(fsroot)
-	poolroot := FSRootPoolDirectory(fsroot)
-
-	// NOTE db
-	perm, err := database.NewLeveldbPermanent(permroot, encs, enc)
-	if err != nil {
-		return nil, nil, e(err, "")
-	}
+	temproot := DBRootTempDirectory(root)
+	poolroot := DBRootPoolDirectory(root)
 
 	db, err := database.NewDefault(temproot, encs, enc, perm, func(height base.Height) (isaac.BlockWriteDatabase, error) {
 		newroot, eerr := database.NewTempDirectory(temproot, height)
@@ -89,18 +142,86 @@ func PrepareDatabase(
 	return db, pool, nil
 }
 
-func FSRootPermDirectory(root string) string {
-	return filepath.Join(root, FSRootPermDirectoryName)
+func DBRootPermDirectory(root string) string {
+	return filepath.Join(root, DBRootPermDirectoryName)
 }
 
-func FSRootTempDirectory(root string) string {
-	return filepath.Join(root, FSRootTempDirectoryName)
+func DBRootTempDirectory(root string) string {
+	return filepath.Join(root, DBRootTempDirectoryName)
 }
 
-func FSRootDataDirectory(root string) string {
-	return filepath.Join(root, FSRootDataDirectoryName)
+func DBRootDataDirectory(root string) string {
+	return filepath.Join(root, DBRootDataDirectoryName)
 }
 
-func FSRootPoolDirectory(root string) string {
-	return filepath.Join(root, FSRootPoolDirectoryName)
+func DBRootPoolDirectory(root string) string {
+	return filepath.Join(root, DBRootPoolDirectoryName)
 }
+
+func LoadPermanentDatabase(uri string, encs *encoder.Encoders, enc encoder.Encoder) (isaac.PermanentDatabase, error) {
+	e := util.StringErrorFunc("failed to load PermanentDatabase")
+
+	u, err := url.Parse(uri)
+
+	var dbtype string
+	var network string
+	switch {
+	case err != nil:
+		return nil, e(err, "")
+	case len(u.Scheme) < 1 || strings.ToLower(u.Scheme) == "file":
+		dbtype = "file"
+	default:
+		u.Scheme = strings.ToLower(u.Scheme)
+
+		l := strings.SplitN(u.Scheme, "+", 2)
+		dbtype = l[0]
+		if len(l) > 1 {
+			network = l[1]
+		}
+	}
+
+	switch {
+	case dbtype == "file":
+		if len(u.Path) < 1 {
+			return nil, e(nil, "empty path")
+		}
+
+		perm, err := database.NewLeveldbPermanent(u.Path, encs, enc)
+		if err != nil {
+			return nil, e(err, "")
+		}
+
+		return perm, nil
+	case dbtype == "redis":
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+		defer cancel()
+
+		if strings.Contains(u.Scheme, "+") {
+			u.Scheme = network
+		}
+		if len(u.Scheme) < 1 {
+			u.Scheme = "redis"
+		}
+
+		option, err := redis.ParseURL(u.String())
+		if err != nil {
+			return nil, e(err, "invalid redis url")
+		}
+
+		st, err := redisstorage.NewStorage(ctx, option, RedisPermanentDatabasePrefix)
+		if err != nil {
+			return nil, e(err, "failed to create redis storage")
+		}
+
+		perm, err := database.NewRedisPermanent(st, encs, enc)
+		if err != nil {
+			return nil, e(err, "failed to create redis PermanentDatabase")
+		}
+
+		return perm, nil
+	default:
+		return nil, e(nil, "unsupported database type, %q", dbtype)
+	}
+}
+
+// BLOCK clean data from RedisPermanent

@@ -1,5 +1,5 @@
-//go:build redis
-// +build redis
+//go:build test && redis
+// +build test,redis
 
 package database
 

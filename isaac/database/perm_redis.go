@@ -241,7 +241,9 @@ func (db *RedisPermanent) MergeTempDatabase(ctx context.Context, temp isaac.Temp
 		}
 
 		_ = db.mp.SetValue(mp)
-		_ = db.sufstt.SetValue(sufstt)
+		if sufstt != nil {
+			_ = db.sufstt.SetValue(sufstt)
+		}
 
 		if t.policy != nil {
 			_ = db.policy.SetValue(t.policy)

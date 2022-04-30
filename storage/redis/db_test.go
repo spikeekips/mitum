@@ -1,5 +1,5 @@
-//go:build test
-// +build test
+//go:build test && redis
+// +build test,redis
 
 package redisstorage
 
