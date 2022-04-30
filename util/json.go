@@ -1,11 +1,6 @@
 package util
 
-import (
-	"bytes"
-
-	"github.com/bytedance/sonic"
-	sonicencoder "github.com/bytedance/sonic/encoder"
-)
+import "bytes"
 
 var nullJSONBytes = []byte("null")
 
@@ -31,6 +26,12 @@ func (m *DefaultJSONMarshaled) SetMarshaled(b []byte) {
 	m.marshaled = b
 }
 
+func IsNilJSON(b []byte) bool {
+	i := bytes.TrimSpace(b)
+
+	return len(i) < 1 || bytes.Equal(i, nullJSONBytes)
+}
+
 func MarshalJSON(v interface{}) ([]byte, error) {
 	var marshaled JSONSetMarshaled
 	switch j, ok := v.(JSONMarshaled); {
@@ -45,7 +46,7 @@ func MarshalJSON(v interface{}) ([]byte, error) {
 		}
 	}
 
-	b, err := sonic.Marshal(v)
+	b, err := marshalJSON(v)
 
 	if marshaled != nil {
 		marshaled.SetMarshaled(b)
@@ -59,7 +60,11 @@ func UnmarshalJSON(b []byte, v interface{}) error {
 		return nil
 	}
 
-	return sonic.Unmarshal(b, v)
+	return unmarshalJSON(b, v)
+}
+
+func MarshalJSONIndent(i interface{}) ([]byte, error) {
+	return marshalJSONIndent(i)
 }
 
 func MustMarshalJSON(i interface{}) []byte {
@@ -69,10 +74,6 @@ func MustMarshalJSON(i interface{}) []byte {
 	}
 
 	return b
-}
-
-func MarshalJSONIndent(i interface{}) ([]byte, error) {
-	return sonicencoder.EncodeIndented(i, "", "  ", 0)
 }
 
 func MustMarshalJSONIndent(i interface{}) []byte {
@@ -91,10 +92,4 @@ func MustMarshalJSONIndentString(i interface{}) string {
 	}
 
 	return string(b)
-}
-
-func IsNilJSON(b []byte) bool {
-	i := bytes.TrimSpace(b)
-
-	return len(i) < 1 || bytes.Equal(i, nullJSONBytes)
 }

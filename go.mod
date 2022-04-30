@@ -4,6 +4,7 @@ go 1.17
 
 require (
 	github.com/Masterminds/semver/v3 v3.1.1
+	github.com/alecthomas/kong v0.5.0
 	github.com/beevik/ntp v0.3.0
 	github.com/bluele/gcache v0.0.2
 	github.com/btcsuite/btcd v0.22.0-beta
@@ -11,6 +12,7 @@ require (
 	github.com/bytedance/sonic v1.1.1
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/hashicorp/memberlist v0.3.1
+	github.com/json-iterator/go v1.1.12
 	github.com/lucas-clemente/quic-go v0.25.0
 	github.com/mattn/go-isatty v0.0.14
 	github.com/oklog/ulid v1.3.1
@@ -27,7 +29,6 @@ require (
 )
 
 require (
-	github.com/alecthomas/kong v0.5.0 // indirect
 	github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/cheekybits/genny v1.0.0 // indirect
@@ -49,6 +50,8 @@ require (
 	github.com/marten-seemann/qtls-go1-17 v0.1.0 // indirect
 	github.com/marten-seemann/qtls-go1-18 v0.1.0-beta.1 // indirect
 	github.com/miekg/dns v1.1.26 // indirect
+	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
+	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/nxadm/tail v1.4.8 // indirect
 	github.com/onsi/ginkgo v1.16.5 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
