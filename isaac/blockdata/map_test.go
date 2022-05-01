@@ -73,7 +73,7 @@ func (t *testBlockDataMap) TestInvalid() {
 		m.BaseHinter = hint.NewBaseHinter(base.StringAddressHint)
 		err := m.IsValid(t.networkID)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "type does not match")
+		t.ErrorContains(err, "type does not match")
 	})
 
 	t.Run("invalid manifest", func() {
@@ -88,7 +88,7 @@ func (t *testBlockDataMap) TestInvalid() {
 
 		err := m.IsValid(t.networkID)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "kikiki")
+		t.ErrorContains(err, "kikiki")
 	})
 
 	t.Run("proposal not set", func() {
@@ -97,7 +97,7 @@ func (t *testBlockDataMap) TestInvalid() {
 
 		err := m.IsValid(t.networkID)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "empty proposal")
+		t.ErrorContains(err, "empty proposal")
 	})
 
 	t.Run("empty proposal", func() {
@@ -106,7 +106,7 @@ func (t *testBlockDataMap) TestInvalid() {
 
 		err := m.IsValid(t.networkID)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "empty proposal")
+		t.ErrorContains(err, "empty proposal")
 	})
 
 	t.Run("voteproofs not set", func() {
@@ -115,7 +115,7 @@ func (t *testBlockDataMap) TestInvalid() {
 
 		err := m.IsValid(t.networkID)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "empty voteproofs")
+		t.ErrorContains(err, "empty voteproofs")
 	})
 
 	t.Run("empty voteproofs", func() {
@@ -124,7 +124,7 @@ func (t *testBlockDataMap) TestInvalid() {
 
 		err := m.IsValid(t.networkID)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "empty voteproofs")
+		t.ErrorContains(err, "empty voteproofs")
 	})
 
 	t.Run("invalid item", func() {
@@ -133,8 +133,8 @@ func (t *testBlockDataMap) TestInvalid() {
 
 		err := m.IsValid(t.networkID)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "invalid item found")
-		t.Contains(err.Error(), "hehe")
+		t.ErrorContains(err, "invalid item found")
+		t.ErrorContains(err, "hehe")
 	})
 
 	t.Run("invalid signature", func() {
@@ -171,7 +171,7 @@ func (t *testBlockDataMap) TestSetItem() {
 		err := m.SetItem(newitem)
 
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "unknown block data type")
+		t.ErrorContains(err, "unknown block data type")
 	})
 }
 
@@ -260,7 +260,7 @@ func (t *testBlockDataMapItem) TestInvalid() {
 
 		err := item.IsValid(nil)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "unknown block data type")
+		t.ErrorContains(err, "unknown block data type")
 	})
 
 	t.Run("empty checksum", func() {
@@ -269,7 +269,7 @@ func (t *testBlockDataMapItem) TestInvalid() {
 
 		err := item.IsValid(nil)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "empty checksum")
+		t.ErrorContains(err, "empty checksum")
 	})
 
 	t.Run("empty url", func() {
@@ -277,7 +277,7 @@ func (t *testBlockDataMapItem) TestInvalid() {
 
 		err := item.IsValid(nil)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "empty url")
+		t.ErrorContains(err, "empty url")
 	})
 
 	t.Run("empty url scheme", func() {
@@ -286,7 +286,7 @@ func (t *testBlockDataMapItem) TestInvalid() {
 
 		err := item.IsValid(nil)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "empty url")
+		t.ErrorContains(err, "empty url")
 	})
 
 	t.Run("unsupported url scheme", func() {
@@ -295,7 +295,7 @@ func (t *testBlockDataMapItem) TestInvalid() {
 
 		err := item.IsValid(nil)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "unsupported url scheme found")
+		t.ErrorContains(err, "unsupported url scheme found")
 	})
 }
 

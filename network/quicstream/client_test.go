@@ -55,7 +55,7 @@ func (t *testClient) TestSessionRemove() {
 		var nerr net.Error
 		t.True(errors.As(err, &nerr))
 		t.True(nerr.Timeout())
-		t.Contains(err.Error(), "no recent network activity")
+		t.ErrorContains(err, "no recent network activity")
 
 		i, isnil := client.session.Value()
 		t.True(isnil)

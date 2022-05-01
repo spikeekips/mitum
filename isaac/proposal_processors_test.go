@@ -191,7 +191,7 @@ func (t *testProposalProcessors) TestFailedToFetchFact() {
 	_, err := pps.Process(context.Background(), valuehash.RandomSHA256(), nil, nil)
 	t.Error(err)
 	t.True(errors.Is(err, util.NotFoundError))
-	t.Contains(err.Error(), "hehehe")
+	t.ErrorContains(err, "hehehe")
 }
 
 func (t *testProposalProcessors) TestFailedToFetchFactCanceled() {
@@ -208,7 +208,7 @@ func (t *testProposalProcessors) TestFailedToFetchFactCanceled() {
 	_, err := pps.Process(context.Background(), valuehash.RandomSHA256(), nil, nil)
 	t.Error(err)
 	t.True(errors.Is(err, context.Canceled))
-	t.Contains(err.Error(), "canceled")
+	t.ErrorContains(err, "canceled")
 }
 
 func (t *testProposalProcessors) TestRetryFetchFact() {
@@ -232,7 +232,7 @@ func (t *testProposalProcessors) TestRetryFetchFact() {
 	_, err := pps.Process(context.Background(), valuehash.RandomSHA256(), nil, nil)
 	t.Error(err)
 	t.True(errors.Is(err, context.Canceled))
-	t.Contains(err.Error(), "canceled")
+	t.ErrorContains(err, "canceled")
 
 	t.True(atomic.LoadInt64(&try) > 2)
 }
@@ -253,7 +253,7 @@ func (t *testProposalProcessors) TestRetryFetchFactOverLimit() {
 	t.T().Log("process")
 	_, err := pps.Process(context.Background(), valuehash.RandomSHA256(), nil, nil)
 	t.Error(err)
-	t.Contains(err.Error(), "findme")
+	t.ErrorContains(err, "findme")
 
 	t.True(atomic.LoadInt64(&try) > 2)
 }
@@ -281,7 +281,7 @@ func (t *testProposalProcessors) TestProcessError() {
 	_, err := pps.Process(context.Background(), facthash, previous, nil)
 
 	t.Error(err)
-	t.Contains(err.Error(), "hihihi")
+	t.ErrorContains(err, "hihihi")
 }
 
 func (t *testProposalProcessors) TestProcessIgnoreError() {
@@ -383,7 +383,7 @@ func (t *testProposalProcessors) TestSaveError() {
 	)
 	err = pps.Save(context.Background(), facthash, avp)
 	t.Error(err)
-	t.Contains(err.Error(), "findme")
+	t.ErrorContains(err, "findme")
 
 	t.NoError(pps.Cancel())
 	t.Nil(pps.Processor())

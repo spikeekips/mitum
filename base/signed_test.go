@@ -37,7 +37,7 @@ func (t *testSigned) TestEmptySigner() {
 	err := s.IsValid(nil)
 	t.Error(err)
 	t.True(errors.Is(err, util.InvalidError))
-	t.Contains(err.Error(), "invalid BaseSign")
+	t.ErrorContains(err, "invalid BaseSign")
 }
 
 func (t *testSigned) TestEmptySignature() {
@@ -50,7 +50,7 @@ func (t *testSigned) TestEmptySignature() {
 	err := s.IsValid(nil)
 	t.Error(err)
 	t.True(errors.Is(err, util.InvalidError))
-	t.Contains(err.Error(), "empty signature")
+	t.ErrorContains(err, "empty signature")
 }
 
 func (t *testSigned) TestZeroSignedAt() {
@@ -63,7 +63,7 @@ func (t *testSigned) TestZeroSignedAt() {
 	err := s.IsValid(nil)
 	t.Error(err)
 	t.True(errors.Is(err, util.InvalidError))
-	t.Contains(err.Error(), "empty signedAt")
+	t.ErrorContains(err, "empty signedAt")
 }
 
 func (t *testSigned) TestSignedAndVerify() {

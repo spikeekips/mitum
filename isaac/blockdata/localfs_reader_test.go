@@ -245,7 +245,7 @@ func (t *testLocalFSReader) TestReader() {
 		t.False(found)
 		t.Nil(f)
 
-		t.Contains(err.Error(), "unknown block data type")
+		t.ErrorContains(err, "unknown block data type")
 	})
 
 	t.Run("all knowns", func() {
@@ -495,7 +495,7 @@ func (t *testLocalFSReader) TestWrongChecksum() {
 
 		v, found, err := r.Item(base.BlockDataTypeProposal)
 		t.Error(err)
-		t.Contains(err.Error(), "checksum mismatch")
+		t.ErrorContains(err, "checksum mismatch")
 		t.True(found)
 		t.NotNil(v)
 	})

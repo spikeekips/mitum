@@ -80,7 +80,7 @@ func (t *testBaseOperation) TestIsValid() {
 		err := op.IsValid(util.UUID().Bytes())
 		t.Error(err)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "hash does not match")
+		t.ErrorContains(err, "hash does not match")
 	})
 
 	t.Run("empty Signeds", func() {
@@ -89,7 +89,7 @@ func (t *testBaseOperation) TestIsValid() {
 		err := op.IsValid(util.UUID().Bytes())
 		t.Error(err)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "empty signed")
+		t.ErrorContains(err, "empty signed")
 	})
 
 	t.Run("invalid network id", func() {

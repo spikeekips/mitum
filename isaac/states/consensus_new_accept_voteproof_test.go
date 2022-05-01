@@ -226,7 +226,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestDrawFailedProposalSel
 		var bsctx baseErrorSwitchContext
 		t.True(errors.As(nsctx, &bsctx))
 		t.Equal(bsctx.next(), StateBroken)
-		t.Contains(bsctx.Error(), "hahaha")
+		t.ErrorContains(bsctx, "hahaha")
 	}
 }
 
@@ -304,7 +304,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestSaveBlockError() {
 	var bsctx baseErrorSwitchContext
 	t.True(errors.As(err, &bsctx))
 	t.Equal(bsctx.next(), StateBroken)
-	t.Contains(bsctx.Error(), "hehehe")
+	t.ErrorContains(bsctx, "hehehe")
 }
 
 func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestHigherAndDraw() {

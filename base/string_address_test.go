@@ -31,7 +31,7 @@ func (t *testStringAddress) TestEmpty() {
 		err := ad.IsValid(nil)
 		t.Error(err)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "too short")
+		t.ErrorContains(err, "too short")
 	}
 
 	{ // short
@@ -39,7 +39,7 @@ func (t *testStringAddress) TestEmpty() {
 		err := ad.IsValid(nil)
 		t.Error(err)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "too short")
+		t.ErrorContains(err, "too short")
 	}
 
 	{ // long
@@ -47,7 +47,7 @@ func (t *testStringAddress) TestEmpty() {
 		err := ad.IsValid(nil)
 		t.Error(err)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "too long")
+		t.ErrorContains(err, "too long")
 	}
 }
 
@@ -75,7 +75,7 @@ func (t *testStringAddress) TestWrongHint() {
 	err := ad.IsValid(ad.Hint().Type().Bytes())
 	t.NotNil(err)
 	t.True(errors.Is(err, util.InvalidError))
-	t.Contains(err.Error(), "wrong hint in StringAddress")
+	t.ErrorContains(err, "wrong hint in StringAddress")
 }
 
 func (t *testStringAddress) TestParse() {
@@ -96,7 +96,7 @@ func (t *testStringAddress) TestParse() {
 		_, err := ParseStringAddress(ad.s[:len(ad.s)-AddressTypeSize] + "000")
 		t.NotNil(err)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "wrong hint type in StringAddress")
+		t.ErrorContains(err, "wrong hint type in StringAddress")
 	})
 }
 
@@ -152,7 +152,7 @@ func (t *testStringAddress) TestFormat() {
 					if len(c.err) < 1 {
 						t.NoError(err, "%d: %v", i, c.name)
 					} else {
-						t.Contains(err.Error(), c.err, "%d: %v; %v != %v", i, c.name, c.err, err)
+						t.ErrorContains(err, c.err, "%d: %v; %v != %v", i, c.name, c.err, err)
 					}
 				} else if len(c.err) > 0 {
 					t.NoError(errors.Errorf(c.err), "%d: %v", i, c.name)

@@ -17,7 +17,7 @@ type testBytes struct {
 func (t *testBytes) TestEmpty() {
 	s := Bytes{}
 	err := s.IsValid(nil)
-	t.Contains(err.Error(), "empty")
+	t.ErrorContains(err, "empty")
 }
 
 func (t *testBytes) TestNewHashFromBytes() {
@@ -38,7 +38,7 @@ func (t *testBytes) TestNewHashFromBytes() {
 func (t *testBytes) TestNil() {
 	s := NewBytes(nil)
 	err := s.IsValid(nil)
-	t.Contains(err.Error(), "empty")
+	t.ErrorContains(err, "empty")
 }
 
 func (t *testBytes) TestEqual() {
@@ -72,7 +72,7 @@ func (t *testBytes) TestSHA256WithPrefix() {
 	h = RandomSHA256WithPrefix(bytes.Repeat([]byte("s"), 53)) // NOTE 52 is max prefix length
 	err := h.IsValid(nil)
 	t.True(errors.Is(err, util.InvalidError))
-	t.Contains(err.Error(), "over max")
+	t.ErrorContains(err, "over max")
 
 	{
 		prefix := []byte("findme")
@@ -102,7 +102,7 @@ func (t *testBytes) TestSHA512WithPrefix() {
 	h = RandomSHA512WithPrefix(bytes.Repeat([]byte("s"), 21)) // NOTE 20 is max prefix length
 	err := h.IsValid(nil)
 	t.True(errors.Is(err, util.InvalidError))
-	t.Contains(err.Error(), "over max")
+	t.ErrorContains(err, "over max")
 
 	{
 		prefix := []byte("findme")

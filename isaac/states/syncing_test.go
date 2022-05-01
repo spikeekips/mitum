@@ -101,7 +101,7 @@ func (t *testSyncingHandler) TestExit() {
 		deferredexit, err := st.exit(nil)
 		t.Nil(deferredexit)
 		t.Error(err)
-		t.Contains(err.Error(), "hehehe")
+		t.ErrorContains(err, "hehehe")
 	})
 
 	t.Run("can not cancel", func() {

@@ -91,7 +91,7 @@ func TestThreshold(t *testing.T) {
 						return
 					}
 
-					assert.Contains(t, err.Error(), c.err, "%d: %v", i, c.name)
+					assert.ErrorContains(t, err, c.err, "%d: %v", i, c.name)
 					return
 				}
 

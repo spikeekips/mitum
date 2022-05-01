@@ -77,7 +77,7 @@ func (t *testPool) TestFailedToDial() {
 	var nerr net.Error
 	t.True(errors.As(err, &nerr))
 	t.True(nerr.Timeout())
-	t.Contains(err.Error(), "no recent network activity")
+	t.ErrorContains(err, "no recent network activity")
 
 	removedid := <-removedch
 	t.Equal(clientid, removedid)

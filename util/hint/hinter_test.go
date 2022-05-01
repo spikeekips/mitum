@@ -27,7 +27,7 @@ func (t *testBaseHinter) TestIsValidWithUnknownType() {
 	err := b.IsValid(Type("showme").Bytes())
 	t.Error(err)
 	t.True(errors.Is(err, util.InvalidError))
-	t.Contains(err.Error(), "type does not match")
+	t.ErrorContains(err, "type does not match")
 }
 
 func TestBaseHinter(t *testing.T) {

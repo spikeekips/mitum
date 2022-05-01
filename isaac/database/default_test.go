@@ -138,7 +138,7 @@ func (t *testDefaultWithPermanent) TestMap() {
 		t.Error(err)
 		t.False(found)
 		t.Nil(rm)
-		t.Contains(err.Error(), "hihihi")
+		t.ErrorContains(err, "hihihi")
 	})
 }
 
@@ -182,7 +182,7 @@ func (t *testDefaultWithPermanent) TestLastMap() {
 		t.Error(err)
 		t.False(found)
 		t.Nil(rm)
-		t.Contains(err.Error(), "hihihi")
+		t.ErrorContains(err, "hihihi")
 	})
 }
 
@@ -237,7 +237,7 @@ func (t *testDefaultWithPermanent) TestSuffrage() {
 		t.Error(err)
 		t.False(found)
 		t.Nil(rst)
-		t.Contains(err.Error(), "hihihi")
+		t.ErrorContains(err, "hihihi")
 	})
 
 	t.Run("found Suffrage", func() {
@@ -259,7 +259,7 @@ func (t *testDefaultWithPermanent) TestSuffrage() {
 		t.Error(err)
 		t.False(found)
 		t.Nil(rst)
-		t.Contains(err.Error(), "hihihi")
+		t.ErrorContains(err, "hihihi")
 	})
 }
 
@@ -303,7 +303,7 @@ func (t *testDefaultWithPermanent) TestLastSuffrage() {
 		t.Error(err)
 		t.False(found)
 		t.Nil(rst)
-		t.Contains(err.Error(), "hihihi")
+		t.ErrorContains(err, "hihihi")
 	})
 }
 
@@ -373,7 +373,7 @@ func (t *testDefaultWithPermanent) TestState() {
 		t.Error(err)
 		t.False(found)
 		t.Nil(rst)
-		t.Contains(err.Error(), "hihihi")
+		t.ErrorContains(err, "hihihi")
 	})
 }
 
@@ -413,7 +413,7 @@ func (t *testDefaultWithPermanent) TestExistsInStateOperation() {
 		found, err := db.ExistsInStateOperation(errop)
 		t.Error(err)
 		t.False(found)
-		t.Contains(err.Error(), "hihihi")
+		t.ErrorContains(err, "hihihi")
 	})
 }
 
@@ -453,7 +453,7 @@ func (t *testDefaultWithPermanent) TestExistsKnownOperation() {
 		found, err := db.ExistsKnownOperation(errop)
 		t.Error(err)
 		t.False(found)
-		t.Contains(err.Error(), "hihihi")
+		t.ErrorContains(err, "hihihi")
 	})
 }
 
@@ -778,8 +778,8 @@ func (t *testDefaultBlockWrite) TestInvalidMerge() {
 
 		err = db.MergeBlockWriteDatabase(wst)
 		t.Error(err)
-		t.Contains(err.Error(), "failed to merge new TempDatabase")
-		t.Contains(err.Error(), "wrong height")
+		t.ErrorContains(err, "failed to merge new TempDatabase")
+		t.ErrorContains(err, "wrong height")
 	})
 
 	t.Run("not yet written", func() {
@@ -791,8 +791,8 @@ func (t *testDefaultBlockWrite) TestInvalidMerge() {
 
 		err = db.MergeBlockWriteDatabase(wst)
 		t.Error(err)
-		t.Contains(err.Error(), "failed to merge new TempDatabase")
-		t.Contains(err.Error(), "empty blockdatamap")
+		t.ErrorContains(err, "failed to merge new TempDatabase")
+		t.ErrorContains(err, "empty blockdatamap")
 	})
 }
 
@@ -910,7 +910,7 @@ func (t *testDefaultBlockWrite) TestMergePermanent() {
 	err = removed.Remove()
 	t.Error(err)
 	t.True(errors.Is(err, os.ErrNotExist))
-	t.Contains(err.Error(), "failed to remove")
+	t.ErrorContains(err, "failed to remove")
 
 	for i := range db.removed {
 		r := db.removed[i]

@@ -33,7 +33,7 @@ func (t *testNodePolicy) TestIsValid() {
 		err := p.IsValid(base.RandomNetworkID())
 		t.Error(err)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "network id does not match")
+		t.ErrorContains(err, "network id does not match")
 	})
 
 	t.Run("wrong network id", func() {
@@ -43,7 +43,7 @@ func (t *testNodePolicy) TestIsValid() {
 		err := p.IsValid(wrongnetworkID)
 		t.Error(err)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "network id too long")
+		t.ErrorContains(err, "network id too long")
 	})
 
 	t.Run("wrong threshold", func() {
@@ -53,7 +53,7 @@ func (t *testNodePolicy) TestIsValid() {
 		err := p.IsValid(networkID)
 		t.Error(err)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "risky threshold")
+		t.ErrorContains(err, "risky threshold")
 	})
 
 	t.Run("wrong intervalBroadcastBallot", func() {
@@ -63,7 +63,7 @@ func (t *testNodePolicy) TestIsValid() {
 		err := p.IsValid(networkID)
 		t.Error(err)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "wrong duration")
+		t.ErrorContains(err, "wrong duration")
 	})
 
 	t.Run("wrong waitProcessingProposal", func() {
@@ -73,7 +73,7 @@ func (t *testNodePolicy) TestIsValid() {
 		err := p.IsValid(networkID)
 		t.Error(err)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "wrong duration")
+		t.ErrorContains(err, "wrong duration")
 	})
 
 	t.Run("wrong timeoutRequestProposal", func() {
@@ -83,7 +83,7 @@ func (t *testNodePolicy) TestIsValid() {
 		err := p.IsValid(networkID)
 		t.Error(err)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "wrong duration")
+		t.ErrorContains(err, "wrong duration")
 	})
 }
 

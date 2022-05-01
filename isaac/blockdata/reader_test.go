@@ -64,19 +64,19 @@ func (t *testBlockDataReaders) TestLoadReader() {
 	t.Run("known", func() {
 		_, err := LoadBlockDataReader(readers, encs, writerhint, enc.Hint(), base.Height(66))
 		t.Error(err)
-		t.Contains(err.Error(), "findme")
+		t.ErrorContains(err, "findme")
 	})
 
 	t.Run("unknown writer", func() {
 		_, err := LoadBlockDataReader(readers, encs, hint.MustNewHint("hehe-v0.0.1"), enc.Hint(), base.Height(66))
 		t.Error(err)
-		t.Contains(err.Error(), "unknown writer hint")
+		t.ErrorContains(err, "unknown writer hint")
 	})
 
 	t.Run("unknown encodeer", func() {
 		_, err := LoadBlockDataReader(readers, encs, writerhint, hint.MustNewHint("hehe-v0.0.1"), base.Height(66))
 		t.Error(err)
-		t.Contains(err.Error(), "unknown encoder hint")
+		t.ErrorContains(err, "unknown encoder hint")
 	})
 }
 

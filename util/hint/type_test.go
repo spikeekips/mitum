@@ -48,7 +48,7 @@ func (t *testType) TestIsValid() {
 						return
 					}
 
-					t.Contains(err.Error(), c.err, "%d: %v", i, c.name)
+					t.ErrorContains(err, c.err, "%d: %v", i, c.name)
 				} else if err != nil {
 					t.NoError(errors.Errorf("expected nil error, but %+v", err), "%d: %v", i, c.name)
 

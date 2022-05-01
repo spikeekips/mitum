@@ -296,7 +296,7 @@ func (t *testBallotbox) TestUnknownSuffrageNode() {
 	voted, err := box.Vote(bl)
 	t.Error(err)
 	t.False(voted)
-	t.Contains(err.Error(), "ballot not in suffrage")
+	t.ErrorContains(err, "ballot not in suffrage")
 }
 
 func (t *testBallotbox) TestNilSuffrage() {

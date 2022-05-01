@@ -99,7 +99,7 @@ func (t *testBaseSeal) TestEmptyBody() {
 	err := sl.IsValid(t.networkID)
 	t.Error(err)
 	t.True(errors.Is(err, util.InvalidError))
-	t.Contains(err.Error(), "empty body in BaseSeal")
+	t.ErrorContains(err, "empty body in BaseSeal")
 }
 
 func (t *testBaseSeal) TestWithoutSigned() {
@@ -114,7 +114,7 @@ func (t *testBaseSeal) TestWithoutSigned() {
 	err := sl.IsValid(t.networkID)
 	t.Error(err)
 	t.True(errors.Is(err, util.InvalidError))
-	t.Contains(err.Error(), "invalid BaseSeal")
+	t.ErrorContains(err, "invalid BaseSeal")
 }
 
 func TestBaseSeal(t *testing.T) {
@@ -152,7 +152,7 @@ func (t *testDummySeal) TestEmptyBody() {
 	err := sl.IsValid(t.networkID)
 	t.Error(err)
 	t.True(errors.Is(err, util.InvalidError))
-	t.Contains(err.Error(), "empty body in BaseSeal")
+	t.ErrorContains(err, "empty body in BaseSeal")
 }
 
 func (t *testDummySeal) TestWithoutSigned() {
@@ -165,7 +165,7 @@ func (t *testDummySeal) TestWithoutSigned() {
 	err := sl.IsValid(t.networkID)
 	t.Error(err)
 	t.True(errors.Is(err, util.InvalidError))
-	t.Contains(err.Error(), "invalid BaseSeal")
+	t.ErrorContains(err, "invalid BaseSeal")
 }
 
 func (t *testDummySeal) TestTypeMismatch() {
@@ -181,7 +181,7 @@ func (t *testDummySeal) TestTypeMismatch() {
 	err := sl.IsValid(t.networkID)
 	t.Error(err)
 	t.True(errors.Is(err, util.InvalidError))
-	t.Contains(err.Error(), "type does not match in BaseHinter")
+	t.ErrorContains(err, "type does not match in BaseHinter")
 }
 
 func TestDummySeal(t *testing.T) {

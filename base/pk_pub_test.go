@@ -44,7 +44,7 @@ func (t *testMPublickey) TestInvalid() {
 		n.k = nil
 		err := n.IsValid(nil)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "empty btc publickey")
+		t.ErrorContains(err, "empty btc publickey")
 	}
 
 	{ // empty *btcec.PublicKey
@@ -52,7 +52,7 @@ func (t *testMPublickey) TestInvalid() {
 		n.s = ""
 		err := n.IsValid(nil)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "empty publickey string")
+		t.ErrorContains(err, "empty publickey string")
 	}
 
 	{ // empty *btcec.PublicKey
@@ -60,7 +60,7 @@ func (t *testMPublickey) TestInvalid() {
 		n.b = nil
 		err := n.IsValid(nil)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "empty publickey []byte")
+		t.ErrorContains(err, "empty publickey []byte")
 	}
 }
 

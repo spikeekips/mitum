@@ -81,8 +81,8 @@ func (t *testBootingHandler) TestWrongLastACCEPTVoteproof() {
 	sctx := newBootingSwitchContext(StateStopped)
 	_, err := st.enter(sctx)
 	t.Error(err)
-	t.Contains(err.Error(), "failed to enter booting state")
-	t.Contains(err.Error(), "failed to compare manifest with accept voteproof")
+	t.ErrorContains(err, "failed to enter booting state")
+	t.ErrorContains(err, "failed to compare manifest with accept voteproof")
 }
 
 func (t *testBootingHandler) TestEmptySuffrage() {
@@ -92,8 +92,8 @@ func (t *testBootingHandler) TestEmptySuffrage() {
 	sctx := newBootingSwitchContext(StateStopped)
 	_, err := st.enter(sctx)
 	t.Error(err)
-	t.Contains(err.Error(), "failed to enter booting state")
-	t.Contains(err.Error(), "empty suffrage for last manifest")
+	t.ErrorContains(err, "failed to enter booting state")
+	t.ErrorContains(err, "empty suffrage for last manifest")
 }
 
 func (t *testBootingHandler) TestNotInSuffrage() {

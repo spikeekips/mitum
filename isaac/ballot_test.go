@@ -183,7 +183,7 @@ func (t *testBaseINITBallotWithVoteproof) TestWrongResultINITVoteproofNone0Round
 	bl := NewINITBallot(ivp, signedFact)
 
 	err := bl.IsValid(t.networkID)
-	t.Contains(err.Error(), "wrong vote result of init voteproof")
+	t.ErrorContains(err, "wrong vote result of init voteproof")
 }
 
 func (t *testBaseINITBallotWithVoteproof) TestWrongHeightINITVoteproofNone0Round() {
@@ -214,7 +214,7 @@ func (t *testBaseINITBallotWithVoteproof) TestWrongHeightINITVoteproofNone0Round
 	err := bl.IsValid(t.networkID)
 	t.Error(err)
 	t.True(errors.Is(err, util.InvalidError))
-	t.Contains(err.Error(), "wrong point of init voteproof")
+	t.ErrorContains(err, "wrong point of init voteproof")
 }
 
 func TestBaseINITBallotWithVoteproof(t *testing.T) {

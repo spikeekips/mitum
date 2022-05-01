@@ -581,7 +581,7 @@ func (t *testErrgroupWorker) TestError() {
 	err := wk.Wait()
 	t.NotNil(err)
 	if !errors.Is(err, context.Canceled) {
-		t.Contains(err.Error(), "error:3")
+		t.ErrorContains(err, "error:3")
 	}
 
 	c := atomic.LoadUint64(&called)

@@ -280,7 +280,7 @@ func (t *testNewOperationPool) TestNewOperationHashes() {
 
 		_, err := pst.NewOperationHashes(context.Background(), 100, filter)
 		t.Error(err)
-		t.Contains(err.Error(), "findme")
+		t.ErrorContains(err, "findme")
 	})
 }
 

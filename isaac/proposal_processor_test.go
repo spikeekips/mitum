@@ -302,7 +302,7 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsFailed() {
 	t.Nil(m)
 
 	t.True(errors.Is(err, util.WrongTypeError))
-	t.Contains(err.Error(), "failed to collect operations")
+	t.ErrorContains(err, "failed to collect operations")
 }
 
 func (t *testDefaultProposalProcessor) TestCollectOperationsFailedButIgnored() {
@@ -458,7 +458,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessButFailedToGetOperationProc
 
 	_, err := opp.Process(context.Background(), nil)
 	t.Error(err)
-	t.Contains(err.Error(), "hehehe")
+	t.ErrorContains(err, "hehehe")
 }
 
 func (t *testDefaultProposalProcessor) TestPreProcessWithOperationProcessor() {
@@ -663,7 +663,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessButError() {
 	t.Error(err)
 	t.Nil(m)
 
-	t.Contains(err.Error(), fmt.Sprintf("findme: %q", ophs[1]))
+	t.ErrorContains(err, fmt.Sprintf("findme: %q", ophs[1]))
 }
 
 func (t *testDefaultProposalProcessor) TestPreProcessButWithOperationReasonError() {
@@ -776,7 +776,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessButErrorRetry() {
 	t.Error(err)
 	t.Nil(m)
 
-	t.Contains(err.Error(), fmt.Sprintf("findme: %q", ophs[1]))
+	t.ErrorContains(err, fmt.Sprintf("findme: %q", ophs[1]))
 	t.Equal(opp.retrylimit, called)
 }
 
@@ -854,7 +854,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessContextCancel() {
 	t.Error(err)
 
 	t.True(errors.Is(err, context.Canceled))
-	t.Contains(err.Error(), "failed to pre process operation")
+	t.ErrorContains(err, "failed to pre process operation")
 }
 
 func (t *testDefaultProposalProcessor) TestProcess() {
@@ -1088,7 +1088,7 @@ func (t *testDefaultProposalProcessor) TestProcessButError() {
 		t.T().Logf("unexpected context canceled: %T %+v", err, err)
 	}
 
-	t.Contains(err.Error(), fmt.Sprintf("findme: %q", ophs[1]))
+	t.ErrorContains(err, fmt.Sprintf("findme: %q", ophs[1]))
 }
 
 func (t *testDefaultProposalProcessor) TestProcessButErrorRetry() {
@@ -1134,7 +1134,7 @@ func (t *testDefaultProposalProcessor) TestProcessButErrorRetry() {
 	t.Error(err)
 	t.Nil(m)
 
-	t.Contains(err.Error(), "failed to process operation")
+	t.ErrorContains(err, "failed to process operation")
 	t.Equal(opp.retrylimit, called)
 }
 
@@ -1178,7 +1178,7 @@ func (t *testDefaultProposalProcessor) TestProcessButSetStatesErrorRetry() {
 	t.Error(err)
 	t.Nil(m)
 
-	t.Contains(err.Error(), "failed to process operation")
+	t.ErrorContains(err, "failed to process operation")
 	t.Equal(opp.retrylimit, called)
 }
 
@@ -1255,7 +1255,7 @@ func (t *testDefaultProposalProcessor) TestProcessContextCancel() {
 	t.Error(err)
 
 	t.True(errors.Is(err, context.Canceled))
-	t.Contains(err.Error(), "failed to process operation")
+	t.ErrorContains(err, "failed to process operation")
 }
 
 func (t *testDefaultProposalProcessor) TestProcessCancel() {
@@ -1329,7 +1329,7 @@ func (t *testDefaultProposalProcessor) TestProcessCancel() {
 	t.Error(err)
 
 	t.True(errors.Is(err, context.Canceled))
-	t.Contains(err.Error(), "failed to process operation")
+	t.ErrorContains(err, "failed to process operation")
 }
 
 func (t *testDefaultProposalProcessor) TestSave() {
@@ -1429,7 +1429,7 @@ func (t *testDefaultProposalProcessor) TestSaveFailed() {
 
 	err = opp.Save(context.Background(), avp)
 	t.Error(err)
-	t.Contains(err.Error(), "killme")
+	t.ErrorContains(err, "killme")
 }
 
 func TestDefaultProposalProcessor(t *testing.T) {

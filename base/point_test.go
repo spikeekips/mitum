@@ -177,7 +177,7 @@ func (t *testPoint) TestZeroHeightJSON() {
 	err = u.IsValid(nil)
 	t.Error(err)
 	t.True(errors.Is(err, util.InvalidError))
-	t.Contains(err.Error(), "height must be greater than 0")
+	t.ErrorContains(err, "height must be greater than 0")
 }
 
 func TestPoint(t *testing.T) {

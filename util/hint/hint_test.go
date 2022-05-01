@@ -53,7 +53,7 @@ func (t *testType) TestParse() {
 						return
 					}
 
-					t.Contains(err.Error(), c.err, "%d(%q): %v", i, c.s, c.name)
+					t.ErrorContains(err, c.err, "%d(%q): %v", i, c.s, c.name)
 
 					return
 				} else if err != nil {

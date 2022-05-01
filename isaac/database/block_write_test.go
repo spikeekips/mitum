@@ -34,7 +34,7 @@ func (t *testLeveldbBlockWrite) TestNew() {
 	t.Run("root exists", func() {
 		_, err := NewLeveldbBlockWrite(base.Height(33), t.Root, t.Encs, t.Enc)
 		t.Error(err)
-		t.Contains(err.Error(), "failed batch leveldb storage")
+		t.ErrorContains(err, "failed batch leveldb storage")
 	})
 }
 

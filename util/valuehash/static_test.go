@@ -64,7 +64,7 @@ func (t *testStatic) TestNew32Long() {
 	b := bytes.Repeat([]byte("1"), 33)
 	_, err := newL32(b)
 	t.Error(err)
-	t.Contains(err.Error(), "invalid length")
+	t.ErrorContains(err, "invalid length")
 }
 
 func (t *testStatic) TestEmpty32() {
@@ -72,7 +72,7 @@ func (t *testStatic) TestEmpty32() {
 
 	err := h.IsValid(nil)
 	t.True(errors.Is(err, util.InvalidError))
-	t.Contains(err.Error(), "empty hash")
+	t.ErrorContains(err, "empty hash")
 }
 
 func (t *testStatic) TestEmpty64() {
@@ -80,7 +80,7 @@ func (t *testStatic) TestEmpty64() {
 
 	err := h.IsValid(nil)
 	t.True(errors.Is(err, util.InvalidError))
-	t.Contains(err.Error(), "empty hash")
+	t.ErrorContains(err, "empty hash")
 }
 
 func (t *testStatic) TestString() {

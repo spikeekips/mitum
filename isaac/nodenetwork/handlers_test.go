@@ -153,7 +153,7 @@ func (t *testQuicstreamNodeNetworkHandlers) TestProposal() {
 		pr, found, err := c.Proposal(context.Background(), ci, nil)
 		t.Error(err)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "invalid ProposalBody")
+		t.ErrorContains(err, "invalid ProposalBody")
 		t.False(found)
 		t.Nil(pr)
 	})

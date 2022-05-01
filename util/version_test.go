@@ -16,7 +16,7 @@ func (t *testVersion) TestParseError() {
 	o := "va.b.c"
 	_, err := ParseVersion(o)
 	t.Error(err)
-	t.Contains(err.Error(), "Invalid Semantic Version")
+	t.ErrorContains(err, "Invalid Semantic Version")
 	t.True(errors.Is(err, InvalidError))
 }
 
@@ -26,7 +26,7 @@ func (t *testVersion) TestEnsureParseVersion() {
 		v := EnsureParseVersion(o)
 		err := v.IsValid(nil)
 		t.Error(err)
-		t.Contains(err.Error(), "empty version string")
+		t.ErrorContains(err, "empty version string")
 		t.True(errors.Is(err, InvalidError))
 	}
 
@@ -83,7 +83,7 @@ func (t *testVersion) TestParse() {
 						return
 					}
 
-					t.Contains(err.Error(), c.err, "%d(%q): %v; %+v", i, c.s, c.name, err)
+					t.ErrorContains(err, c.err, "%d(%q): %v; %+v", i, c.s, c.name, err)
 
 					return
 				}
@@ -166,7 +166,7 @@ func (t *testVersion) TestIsValid() {
 					}
 
 					t.True(errors.Is(err, InvalidError))
-					t.Contains(err.Error(), c.err, "%d(%q): %v; %+v", i, c.s, c.name, err)
+					t.ErrorContains(err, c.err, "%d(%q): %v; %+v", i, c.s, c.name, err)
 
 					return
 				}

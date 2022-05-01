@@ -218,7 +218,7 @@ func (t *testBaseProposalSelector) TestUnknownSuffrage() {
 	pr, err := p.Select(context.Background(), point)
 	t.Error(err)
 	t.Nil(pr)
-	t.Contains(err.Error(), "suffrage not found for height")
+	t.ErrorContains(err, "suffrage not found for height")
 }
 
 func (t *testBaseProposalSelector) TestUnknownManifestHash() {
@@ -253,7 +253,7 @@ func (t *testBaseProposalSelector) TestUnknownManifestHash() {
 	t.Error(err)
 	t.Nil(pr)
 	t.True(errors.Is(err, util.NotFoundError))
-	t.Contains(err.Error(), "hahaha")
+	t.ErrorContains(err, "hahaha")
 }
 
 func (t *testBaseProposalSelector) TestDeadNode() {
@@ -405,7 +405,7 @@ func (t *testBaseProposalSelector) TestAllFailedToReqeust() {
 	t.Error(err)
 	t.Nil(pr)
 
-	t.Contains(err.Error(), "no valid nodes left")
+	t.ErrorContains(err, "no valid nodes left")
 }
 
 func (t *testBaseProposalSelector) TestContextCanceled() {
@@ -483,7 +483,7 @@ func (t *testBaseProposalSelector) TestContextCanceled() {
 	t.Error(err)
 	t.Nil(pr)
 
-	t.Contains(err.Error(), "no valid nodes left")
+	t.ErrorContains(err, "no valid nodes left")
 }
 
 func (t *testBaseProposalSelector) TestMainContextCanceled() {
@@ -573,7 +573,7 @@ func (t *testBaseProposalSelector) TestMainContextCanceled() {
 
 	t.Nil(pr)
 	t.True(errors.Is(err, context.Canceled))
-	t.Contains(err.Error(), "context canceled")
+	t.ErrorContains(err, "context canceled")
 }
 
 func TestBaseProposalSelector(tt *testing.T) {

@@ -63,7 +63,7 @@ func (t *testLoadPermanentDatabase) TestXXX() {
 						return
 					}
 
-					t.Contains(err.Error(), c.err, "%d: %v", i, c.name)
+					t.ErrorContains(err, c.err, "%d: %v", i, c.name)
 				case err != nil:
 					t.NoError(errors.Errorf("expected nil error, but %+v", err), "%d: %v", i, c.name)
 

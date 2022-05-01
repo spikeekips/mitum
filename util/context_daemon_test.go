@@ -116,7 +116,7 @@ func (t *testContextDaemon) TestWait() {
 	})
 
 	err := <-ed.Wait(context.Background())
-	t.Contains(err.Error(), "show me")
+	t.ErrorContains(err, "show me")
 	t.True(errors.Is(ed.Stop(), DaemonAlreadyStoppedError))
 
 	ed = NewContextDaemon("test", func(_ context.Context) error {
@@ -134,7 +134,7 @@ func (t *testContextDaemon) TestWait() {
 	t.True(ed.IsStarted())
 
 	err = <-done
-	t.Contains(err.Error(), "show me")
+	t.ErrorContains(err, "show me")
 }
 
 func (t *testContextDaemon) TestStartWithContext() {
@@ -156,7 +156,7 @@ func (t *testContextDaemon) TestStartWithContext() {
 
 	t.True(time.Since(started) < time.Second*2)
 
-	t.Contains(err.Error(), "find me")
+	t.ErrorContains(err, "find me")
 	<-time.After(time.Second)
 	t.False(ed.IsStarted())
 }

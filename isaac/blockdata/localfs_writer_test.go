@@ -290,7 +290,7 @@ func (t *testLocalFSWriter) TestSaveAgain() {
 		m, err := fs.Save(context.Background())
 		t.Error(err)
 		t.Nil(m)
-		t.Contains(err.Error(), "height directory already exists")
+		t.ErrorContains(err, "height directory already exists")
 	})
 }
 

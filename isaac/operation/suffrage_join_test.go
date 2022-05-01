@@ -32,7 +32,7 @@ func (t *testSuffrageJoinPermissionFact) TestIsValid() {
 		err := fact.IsValid(nil)
 		t.Error(err)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "invalid BaseFact")
+		t.ErrorContains(err, "invalid BaseFact")
 	})
 
 	t.Run("empty candidate", func() {
@@ -40,7 +40,7 @@ func (t *testSuffrageJoinPermissionFact) TestIsValid() {
 		err := fact.IsValid(nil)
 		t.Error(err)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "invalid SuffrageJoinPermission")
+		t.ErrorContains(err, "invalid SuffrageJoinPermission")
 	})
 
 	t.Run("bad candidate", func() {
@@ -49,7 +49,7 @@ func (t *testSuffrageJoinPermissionFact) TestIsValid() {
 		err := fact.IsValid(nil)
 		t.Error(err)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "invalid SuffrageJoinPermission")
+		t.ErrorContains(err, "invalid SuffrageJoinPermission")
 	})
 
 	t.Run("empty state", func() {
@@ -57,7 +57,7 @@ func (t *testSuffrageJoinPermissionFact) TestIsValid() {
 		err := fact.IsValid(nil)
 		t.Error(err)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "invalid SuffrageJoinPermission")
+		t.ErrorContains(err, "invalid SuffrageJoinPermission")
 	})
 
 	t.Run("token == state", func() {
@@ -67,8 +67,8 @@ func (t *testSuffrageJoinPermissionFact) TestIsValid() {
 		err := fact.IsValid(nil)
 		t.Error(err)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "invalid SuffrageJoinPermission")
-		t.Contains(err.Error(), "wrong token")
+		t.ErrorContains(err, "invalid SuffrageJoinPermission")
+		t.ErrorContains(err, "wrong token")
 	})
 
 	t.Run("wrong hash", func() {
@@ -78,7 +78,7 @@ func (t *testSuffrageJoinPermissionFact) TestIsValid() {
 		err := fact.IsValid(nil)
 		t.Error(err)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "hash does not match")
+		t.ErrorContains(err, "hash does not match")
 	})
 }
 
@@ -151,7 +151,7 @@ func (t *testSuffrageGenesisJoinPermissionFact) TestIsValid() {
 		err := fact.IsValid(t.networkID)
 		t.Error(err)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "invalid BaseFact")
+		t.ErrorContains(err, "invalid BaseFact")
 	})
 
 	t.Run("empty node", func() {
@@ -159,7 +159,7 @@ func (t *testSuffrageGenesisJoinPermissionFact) TestIsValid() {
 		err := fact.IsValid(t.networkID)
 		t.Error(err)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "invalid SuffrageGenesisJoinPermission")
+		t.ErrorContains(err, "invalid SuffrageGenesisJoinPermission")
 	})
 
 	t.Run("bad node", func() {
@@ -168,7 +168,7 @@ func (t *testSuffrageGenesisJoinPermissionFact) TestIsValid() {
 		err := fact.IsValid(t.networkID)
 		t.Error(err)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "invalid SuffrageGenesisJoinPermission")
+		t.ErrorContains(err, "invalid SuffrageGenesisJoinPermission")
 	})
 
 	t.Run("empty publickey", func() {
@@ -176,7 +176,7 @@ func (t *testSuffrageGenesisJoinPermissionFact) TestIsValid() {
 		err := fact.IsValid(t.networkID)
 		t.Error(err)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "invalid SuffrageGenesisJoinPermission")
+		t.ErrorContains(err, "invalid SuffrageGenesisJoinPermission")
 	})
 
 	t.Run("token == networkID", func() {
@@ -186,8 +186,8 @@ func (t *testSuffrageGenesisJoinPermissionFact) TestIsValid() {
 		err := fact.IsValid(t.networkID)
 		t.Error(err)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "invalid SuffrageGenesisJoinPermission")
-		t.Contains(err.Error(), "wrong token")
+		t.ErrorContains(err, "invalid SuffrageGenesisJoinPermission")
+		t.ErrorContains(err, "wrong token")
 	})
 
 	t.Run("wrong hash", func() {
@@ -197,7 +197,7 @@ func (t *testSuffrageGenesisJoinPermissionFact) TestIsValid() {
 		err := fact.IsValid(t.networkID)
 		t.Error(err)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "hash does not match")
+		t.ErrorContains(err, "hash does not match")
 	})
 }
 
@@ -278,7 +278,7 @@ func (t *testSuffrageGenesisJoin) TestIsValid() {
 		err := op.IsValid(t.networkID)
 		t.Error(err)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "invalid SuffrageGenesisJoin")
+		t.ErrorContains(err, "invalid SuffrageGenesisJoin")
 	})
 
 	t.Run("multiple signed", func() {
@@ -292,7 +292,7 @@ func (t *testSuffrageGenesisJoin) TestIsValid() {
 		err := op.IsValid(t.networkID)
 		t.Error(err)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "multiple signed found")
+		t.ErrorContains(err, "multiple signed found")
 	})
 
 	t.Run("signer does not match with node publickey", func() {
@@ -303,7 +303,7 @@ func (t *testSuffrageGenesisJoin) TestIsValid() {
 		err := op.IsValid(t.networkID)
 		t.Error(err)
 		t.True(errors.Is(err, util.InvalidError))
-		t.Contains(err.Error(), "signer does not match with publickey")
+		t.ErrorContains(err, "signer does not match with publickey")
 	})
 }
 

@@ -38,7 +38,7 @@ func (t *testRetry) TestError() {
 
 			return false, errors.Errorf("showme")
 		}, 3, 1)
-		t.Contains(err.Error(), "showme")
+		t.ErrorContains(err, "showme")
 		t.Equal(2, called)
 	})
 
@@ -49,7 +49,7 @@ func (t *testRetry) TestError() {
 
 			return true, errors.Errorf("showme: %d", called)
 		}, 3, 1)
-		t.Contains(err.Error(), "showme: 3")
+		t.ErrorContains(err, "showme: 3")
 		t.Equal(3, called)
 	})
 }

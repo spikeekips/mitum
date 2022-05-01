@@ -40,13 +40,13 @@ type testFixedTreeNode struct {
 func (t *testFixedTreeNode) TestEmptyKey() {
 	err := newDummyNode(1, "").IsValid(nil)
 	t.True(errors.Is(err, util.InvalidError))
-	t.Contains(err.Error(), "empty key")
+	t.ErrorContains(err, "empty key")
 }
 
 func (t *testFixedTreeNode) TestEmptyHash() {
 	err := newDummyNode(1, util.UUID().String()).IsValid(nil)
 	t.True(errors.Is(err, util.InvalidError))
-	t.Contains(err.Error(), "empty hash")
+	t.ErrorContains(err, "empty hash")
 }
 
 func (t *testFixedTreeNode) TestEncodeJSON() {
@@ -84,7 +84,7 @@ func (t *testFixedTree) TestWrongHash() {
 	tr.nodes[2] = tr.nodes[2].SetHash([]byte("showme"))
 	err = tr.IsValid(nil)
 	t.True(errors.Is(err, util.InvalidError))
-	t.Contains(err.Error(), "wrong node hash")
+	t.ErrorContains(err, "wrong node hash")
 }
 
 func (t *testFixedTree) TestTraverse() {
@@ -164,7 +164,7 @@ func (t *testFixedTree) TestProofWrongSelfHash() {
 
 	err = ProveFixedTreeProof(pr)
 	t.True(errors.Is(err, InvalidProofError))
-	t.Contains(err.Error(), "wrong hash")
+	t.ErrorContains(err, "wrong hash")
 }
 
 func (t *testFixedTree) TestProofWrongHash() {
@@ -189,7 +189,7 @@ func (t *testFixedTree) TestProofWrongHash() {
 
 	err = ProveFixedTreeProof(pr)
 	t.True(errors.Is(err, InvalidProofError))
-	t.Contains(err.Error(), "wrong hash")
+	t.ErrorContains(err, "wrong hash")
 }
 
 func (t *testFixedTree) TestProof() {
@@ -279,7 +279,7 @@ func (t *testFixedTreeGenerator) TestAddOutOfRange() {
 	t.NoError(trg.Add(newDummyNode(1, util.UUID().String())))
 
 	err := trg.Add(newDummyNode(3, util.UUID().String()))
-	t.Contains(err.Error(), "out of range")
+	t.ErrorContains(err, "out of range")
 }
 
 func (t *testFixedTreeGenerator) TestAddSetNilHash() {
@@ -299,7 +299,7 @@ func (t *testFixedTreeGenerator) TestTreeNotFilled() {
 	t.NoError(trg.Add(newDummyNode(2, util.UUID().String())))
 
 	_, err := trg.Tree()
-	t.Contains(err.Error(), "empty node")
+	t.ErrorContains(err, "empty node")
 }
 
 func (t *testFixedTreeGenerator) TestTreeFilled() {

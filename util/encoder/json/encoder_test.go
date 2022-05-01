@@ -135,7 +135,7 @@ func (t *testJSONEncoder) TestAddAgain() {
 	// add again
 	err := t.enc.Add(d)
 	t.True(errors.Is(err, util.DuplicatedError))
-	t.Contains(err.Error(), "already added")
+	t.ErrorContains(err, "already added")
 }
 
 func (t *testJSONEncoder) TestAddEmptyDecodeFuncAndInstance() {
@@ -145,7 +145,7 @@ func (t *testJSONEncoder) TestAddEmptyDecodeFuncAndInstance() {
 
 	err := t.enc.Add(d)
 	t.True(errors.Is(err, util.InvalidError))
-	t.Contains(err.Error(), "instance and decode func are empty")
+	t.ErrorContains(err, "instance and decode func are empty")
 }
 
 func (t *testJSONEncoder) TestAddHinterAgain() {
@@ -158,7 +158,7 @@ func (t *testJSONEncoder) TestAddHinterAgain() {
 	// add again
 	err := t.enc.AddHinter(hr)
 	t.True(errors.Is(err, util.DuplicatedError))
-	t.Contains(err.Error(), "already added")
+	t.ErrorContains(err, "already added")
 }
 
 func (t *testJSONEncoder) TestDecodeNoneHinter() {
@@ -276,7 +276,7 @@ func (t *testJSONEncoder) TestDecodeWithFixedHintTypePoolError() {
 	i, derr := t.enc.DecodeWithFixedHintType(s, len(ht.Type())-1)
 	t.Error(derr)
 	t.Nil(i)
-	t.Contains(derr.Error(), "failed to find decoder by type")
+	t.ErrorContains(derr, "failed to find decoder by type")
 
 	perr0, found := pool.Get(v.String())
 	t.True(found)
@@ -502,7 +502,7 @@ func (t *testJSONEncoder) TestDecodeUnknown() {
 
 	_, err = t.enc.Decode(b)
 	t.True(errors.Is(err, util.NotFoundError))
-	t.Contains(err.Error(), "failed to find decoder")
+	t.ErrorContains(err, "failed to find decoder")
 }
 
 func (t *testJSONEncoder) TestDecodeSlice() {

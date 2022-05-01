@@ -238,7 +238,7 @@ func (t *testStates) TestFailedToEnterIntoBrokenAtStarting() {
 		t.Equal(StateStopped, st.current().state())
 
 		t.Error(err)
-		t.Contains(err.Error(), "something wrong in broken")
+		t.ErrorContains(err, "something wrong in broken")
 	}
 }
 
@@ -280,7 +280,7 @@ func (t *testStates) TestNewStateWithWrongNext() {
 	sctx := newDummySwitchContext(st.current().state(), StateType(util.UUID().String()), nil)
 	err := st.newState(sctx)
 	t.Error(err)
-	t.Contains(err.Error(), "unknown next state")
+	t.ErrorContains(err, "unknown next state")
 }
 
 func (t *testStates) TestNewState() {
@@ -576,7 +576,7 @@ func (t *testStates) TestStoppedByStateStopped() {
 	<-time.After(time.Second)
 	err = <-errch
 	t.Error(err)
-	t.Contains(err.Error(), "something wrong")
+	t.ErrorContains(err, "something wrong")
 
 	t.Nil(st.current())
 	t.False(st.IsStarted())

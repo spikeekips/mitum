@@ -76,7 +76,7 @@ func (t *testProposalFact) TestDuplicatedOperations() {
 	err := pr.IsValid(nil)
 	t.Error(err)
 	t.True(errors.Is(err, util.InvalidError))
-	t.Contains(err.Error(), "duplicated operation found")
+	t.ErrorContains(err, "duplicated operation found")
 }
 
 func TestProposalFact(t *testing.T) {

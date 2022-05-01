@@ -119,8 +119,8 @@ func (t *testJoiningHandler) TestFailedLastManifest() {
 
 		_, err := st.enter(sctx)
 		t.Error(err)
-		t.Contains(err.Error(), "failed to enter joining state")
-		t.Contains(err.Error(), "empty manifest")
+		t.ErrorContains(err, "failed to enter joining state")
+		t.ErrorContains(err, "empty manifest")
 	})
 
 	t.Run("new voteproof with error", func() {
@@ -149,7 +149,7 @@ func (t *testJoiningHandler) TestFailedLastManifest() {
 		var ssctx baseErrorSwitchContext
 		t.True(errors.As(err, &ssctx))
 		t.Equal(ssctx.next(), StateBroken)
-		t.Contains(err.Error(), "failed to get last manifest")
+		t.ErrorContains(err, "failed to get last manifest")
 	})
 
 	t.Run("not found", func() {
@@ -165,7 +165,7 @@ func (t *testJoiningHandler) TestFailedLastManifest() {
 		_, err := st.enter(sctx)
 		t.Error(err)
 
-		t.Contains(err.Error(), "last manifest not found")
+		t.ErrorContains(err, "last manifest not found")
 	})
 }
 

@@ -159,7 +159,7 @@ func (t *testConsensusHandler) TestInvalidVoteproofs() {
 		deferred, err := st.enter(sctx)
 		t.Nil(deferred)
 		t.Error(err)
-		t.Contains(err.Error(), "empty init voteproof")
+		t.ErrorContains(err, "empty init voteproof")
 	})
 
 	t.Run("draw result of init voteproof", func() {
@@ -175,7 +175,7 @@ func (t *testConsensusHandler) TestInvalidVoteproofs() {
 		deferred, err := st.enter(sctx)
 		t.Nil(deferred)
 		t.Error(err)
-		t.Contains(err.Error(), "wrong vote result")
+		t.ErrorContains(err, "wrong vote result")
 	})
 
 	t.Run("empty majority of init voteproof", func() {
@@ -317,7 +317,7 @@ func (t *testConsensusHandler) TestFailedProcessingProposalFetchFactFailed() {
 	case sctx := <-sctxch:
 		t.Equal(StateConsensus, sctx.from())
 		t.Equal(StateBroken, sctx.next())
-		t.Contains(sctx.Error(), "failed to get proposal fact")
+		t.ErrorContains(sctx, "failed to get proposal fact")
 	}
 }
 
@@ -363,7 +363,7 @@ func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailed() {
 	case sctx := <-sctxch:
 		t.Equal(StateConsensus, sctx.from())
 		t.Equal(StateBroken, sctx.next())
-		t.Contains(sctx.Error(), "hahaha")
+		t.ErrorContains(sctx, "hahaha")
 	}
 }
 
@@ -688,7 +688,7 @@ func (t *testConsensusHandler) TestEmptySuffrageNextBlock() {
 		var ssctx baseErrorSwitchContext
 		t.True(errors.As(sctx, &ssctx))
 		t.Equal(ssctx.next(), StateBroken)
-		t.Contains(ssctx.Error(), "empty suffrage")
+		t.ErrorContains(ssctx, "empty suffrage")
 	}
 }
 
@@ -786,7 +786,7 @@ func (t *testConsensusHandler) TestEnterButEmptySuffrage() {
 
 	_, err := st.enter(sctx)
 	t.Error(err)
-	t.Contains(err.Error(), "suffrage not found of init voteproof")
+	t.ErrorContains(err, "suffrage not found of init voteproof")
 }
 
 func (t *testConsensusHandler) TestEnterButNotInSuffrage() {
