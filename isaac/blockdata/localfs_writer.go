@@ -139,7 +139,6 @@ func (w *LocalFSWriter) SetOperationsTree(ctx context.Context, tr tree.FixedTree
 
 			if err := w.m.SetItem(NewLocalBlockDataMapItem(
 				base.BlockDataTypeOperations,
-				filepath.Join(w.heightbase, w.opsf.Name()),
 				w.opsf.Checksum(),
 				atomic.LoadInt64(&w.lenops),
 			)); err != nil {
@@ -173,7 +172,6 @@ func (w *LocalFSWriter) SetStatesTree(ctx context.Context, tr tree.FixedTree) er
 
 			if err := w.m.SetItem(NewLocalBlockDataMapItem(
 				base.BlockDataTypeStates,
-				filepath.Join(w.heightbase, w.stsf.Name()),
 				w.stsf.Checksum(),
 				int64(tr.Len()),
 			)); err != nil {
@@ -240,7 +238,6 @@ func (w *LocalFSWriter) saveVoteproofs() error {
 
 	if err := w.m.SetItem(NewLocalBlockDataMapItem(
 		base.BlockDataTypeVoteproofs,
-		filepath.Join(w.heightbase, f.Name()),
 		f.Checksum(),
 		1,
 	)); err != nil {
@@ -379,10 +376,7 @@ func (w *LocalFSWriter) setTree(
 
 	_ = tf.Close()
 
-	if err := w.m.SetItem(NewLocalBlockDataMapItem(
-		treetype,
-		filepath.Join(w.heightbase, tf.Name()), tf.Checksum(), int64(tr.Len())),
-	); err != nil {
+	if err := w.m.SetItem(NewLocalBlockDataMapItem(treetype, tf.Checksum(), int64(tr.Len()))); err != nil {
 		return e(err, "")
 	}
 
@@ -441,7 +435,6 @@ func (w *LocalFSWriter) writeItem(t base.BlockDataType, i interface{}) error {
 
 	if err := w.m.SetItem(NewLocalBlockDataMapItem(
 		t,
-		filepath.Join(w.heightbase, cw.Name()),
 		cw.Checksum(),
 		1,
 	)); err != nil {
@@ -481,7 +474,7 @@ func (w *LocalFSWriter) newChecksumWriter(t base.BlockDataType) (util.ChecksumWr
 	fname, temppath, _ := w.filename(t)
 	switch f, err := os.OpenFile(temppath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600); { // nolint:gosec
 	case err != nil:
-		return nil, errors.Wrap(err, "")
+		return nil, errors.Wrapf(err, "failed to open file, %q", temppath)
 	default:
 		var cw util.ChecksumWriter
 		cw = util.NewHashChecksumWriter(fname, f, sha256.New())

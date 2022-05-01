@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog/pkgerrors"
 )
 
 type Error struct {
@@ -219,3 +220,83 @@ func FuncCaller(skip int) errors.Frame {
 
 	return errors.Frame(pcs[0])
 }
+
+func ZerologMarshalStack(err error) interface{} {
+	type stackTracer interface {
+		StackTrace() errors.StackTrace
+	}
+
+	var sterr stackTracer
+
+	if !errors.As(err, &sterr) {
+		uerr := errors.Unwrap(err)
+		if uerr == nil {
+			return nil
+		}
+
+		return ZerologMarshalStack(uerr)
+	}
+
+	st := sterr.StackTrace()
+	s := &state{}
+	out := make([]map[string]string, len(st)+1)
+
+	out[0] = map[string]string{"error": err.Error()}
+	for i := range st {
+		frame := st[i]
+		out[i+1] = map[string]string{
+			pkgerrors.StackSourceFileName:     frameField(frame, s, 's') + ":" + frameField(frame, s, 'd'),
+			pkgerrors.StackSourceFunctionName: frameField(frame, s, 'n'),
+		}
+	}
+
+	uerr := errors.Unwrap(err)
+	if uerr == nil {
+		return out
+	}
+
+	uout := ZerologMarshalStack(uerr)
+	if uout == nil {
+		return out
+	}
+
+	uoutl := uout.([]map[string]string)
+
+	nout := make([]map[string]string, len(out)+len(uoutl))
+	copy(nout[:len(uoutl)], uoutl)
+	copy(nout[len(uoutl):], out)
+
+	return nout
+}
+
+// -x----------------------------------------------------
+// NOTE from github.com/pkg/errors/stack.go
+
+type state struct {
+	b []byte
+}
+
+func (s *state) Write(b []byte) (n int, err error) {
+	s.b = b
+	return len(b), nil
+}
+
+func (*state) Width() (wid int, ok bool) {
+	return 0, false
+}
+
+func (*state) Precision() (prec int, ok bool) {
+	return 0, false
+}
+
+func (*state) Flag(int) bool {
+	return true
+}
+
+func frameField(f errors.Frame, s *state, c rune) string {
+	f.Format(s, c)
+
+	return string(s.b)
+}
+
+// ----------------------------------------------------x-

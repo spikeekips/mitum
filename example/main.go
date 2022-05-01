@@ -9,7 +9,6 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/pkgerrors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/isaac/blockdata"
@@ -33,8 +32,7 @@ var (
 
 func init() {
 	zerolog.TimeFieldFormat = time.RFC3339Nano
-	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
-	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
+	zerolog.ErrorStackMarshaler = util.ZerologMarshalStack
 }
 
 type newProposalProcessorFunc func(proposal base.ProposalSignedFact, previous base.Manifest) (

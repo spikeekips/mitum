@@ -141,6 +141,8 @@ func (p *DefaultProposalProcessor) Save(ctx context.Context, avp base.ACCEPTVote
 		case errors.Is(err, StopProcessingRetryError):
 			return false, err
 		default:
+			p.Log().Error().Err(err).Msg("failed to save; will retry")
+
 			return true, err
 		}
 	}, p.retrylimit, p.retryinterval); err != nil {

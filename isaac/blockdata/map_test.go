@@ -28,7 +28,7 @@ func (t *testBlockDataMap) SetupSuite() {
 }
 
 func (t *testBlockDataMap) newitem(ty base.BlockDataType) BlockDataMapItem {
-	return NewLocalBlockDataMapItem(ty, util.UUID().String(), util.UUID().String(), 1)
+	return NewLocalBlockDataMapItem(ty, util.UUID().String(), 1)
 }
 
 func (t *testBlockDataMap) newmap() BlockDataMap {
@@ -245,8 +245,8 @@ func (t *testBlockDataMapItem) TestNew() {
 
 func (t *testBlockDataMapItem) TestLocal() {
 	ty := base.BlockDataTypeProposal
-	m0 := NewLocalBlockDataMapItem(ty, util.UUID().String(), util.UUID().String(), 1)
-	m1 := NewLocalBlockDataMapItem(ty, util.UUID().String(), util.UUID().String(), 1)
+	m0 := NewLocalBlockDataMapItem(ty, util.UUID().String(), 1)
+	m1 := NewLocalBlockDataMapItem(ty, util.UUID().String(), 1)
 
 	t.T().Log("fileBlockDataURL:", fileBlockDataURL.String())
 	t.T().Log("m0.url:", m0.URL())

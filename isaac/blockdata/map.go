@@ -15,24 +15,17 @@ import (
 var BlockDataMapHint = hint.MustNewHint("blockdatamap-v0.0.1")
 
 var (
+	LocalBlockDataMapScheme             = "file+blockdata"
 	supportedBlockDataMapItemURLSchemes = map[string]struct{}{
-		"file+blockdata": {},
-		"file":           {},
-		"http":           {},
-		"https":          {},
+		LocalBlockDataMapScheme: {},
+		"file":                  {},
+		"http":                  {},
+		"https":                 {},
 	}
-	fileBlockDataURL url.URL
+	fileBlockDataURL = url.URL{Scheme: LocalBlockDataMapScheme}
 )
 
 var BlockDirectoryHeightFormat = "%021s"
-
-func init() {
-	u, err := url.Parse("file+blockdata://")
-	if err != nil {
-		panic(errors.Wrap(err, "failed to initialize fileBlockDataURL"))
-	}
-	fileBlockDataURL = *u
-}
 
 type BlockDataMap struct {
 	hint.BaseHinter
@@ -235,11 +228,8 @@ func NewBlockDataMapItem(t base.BlockDataType, u url.URL, checksum string, num i
 	}
 }
 
-func NewLocalBlockDataMapItem(t base.BlockDataType, path string, checksum string, num int64) BlockDataMapItem {
-	u := fileBlockDataURL
-	u.Path = path
-
-	return NewBlockDataMapItem(t, u, checksum, num)
+func NewLocalBlockDataMapItem(t base.BlockDataType, checksum string, num int64) BlockDataMapItem {
+	return NewBlockDataMapItem(t, fileBlockDataURL, checksum, num)
 }
 
 func (item BlockDataMapItem) IsValid([]byte) error {
