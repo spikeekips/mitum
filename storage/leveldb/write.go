@@ -79,7 +79,7 @@ func (st *WriteStorage) Remove() error {
 
 func (st *WriteStorage) Put(k, b []byte, opt *leveldbOpt.WriteOptions) error {
 	if err := st.db.Put(k, b, opt); err != nil {
-		return storage.ExecError.Errorf("failed to put")
+		return storage.ExecError.Wrapf(err, "failed to put")
 	}
 
 	return nil
@@ -87,7 +87,7 @@ func (st *WriteStorage) Put(k, b []byte, opt *leveldbOpt.WriteOptions) error {
 
 func (st *WriteStorage) Delete(k []byte, opt *leveldbOpt.WriteOptions) error {
 	if err := st.db.Delete(k, opt); err != nil {
-		return storage.ExecError.Errorf("failed to delete")
+		return storage.ExecError.Wrapf(err, "failed to delete")
 	}
 
 	return nil
@@ -120,7 +120,7 @@ func (st *WriteStorage) Write() error {
 
 	if st.batch.Len() > 0 {
 		if err := st.db.Write(st.batch, &leveldbOpt.WriteOptions{Sync: true}); err != nil {
-			return storage.ExecError.Errorf("failed to write in batch stroage")
+			return storage.ExecError.Wrapf(err, "failed to write in batch stroage")
 		}
 	}
 

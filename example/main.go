@@ -99,6 +99,10 @@ func (cmd *initCommand) Run() error {
 		return errors.Wrap(err, "")
 	}
 
+	if err = perm.Clean(); err != nil {
+		return errors.Wrap(err, "")
+	}
+
 	db, pool, err := launch.PrepareDatabase(perm, dbroot, encs, enc)
 	if err != nil {
 		return errors.Wrap(err, "")

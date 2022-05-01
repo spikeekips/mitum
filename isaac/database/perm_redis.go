@@ -80,6 +80,14 @@ func (db *RedisPermanent) Close() error {
 	return nil
 }
 
+func (db *RedisPermanent) Clean() error {
+	if err := db.st.Clean(context.Background()); err != nil {
+		return errors.Wrap(err, "failed to clean redis PermanentDatabase")
+	}
+
+	return nil
+}
+
 func (db *RedisPermanent) Suffrage(height base.Height) (base.State, bool, error) {
 	e := util.StringErrorFunc("failed to get suffrage by block height")
 
@@ -101,22 +109,31 @@ func (db *RedisPermanent) Suffrage(height base.Height) (base.State, bool, error)
 		return st, true, nil
 	}
 
-	keys, err := db.st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
-		Key:   redisZKeySuffragesByHeight,
-		Start: "[" + redisZBeginSuffrages,
-		Stop:  "[" + redisSuffrageKey(height),
-		ByLex: true,
-		Rev:   true,
-		Count: 1,
-	})
-	switch {
-	case err != nil:
+	var key string
+	if err := db.st.ZRangeArgs(
+		context.Background(),
+		redis.ZRangeArgs{
+			Key:   redisZKeySuffragesByHeight,
+			Start: "[" + redisZBeginSuffrages,
+			Stop:  "[" + redisSuffrageKey(height),
+			ByLex: true,
+			Rev:   true,
+			Count: 1,
+		},
+		func(i string) (bool, error) {
+			key = i
+
+			return false, nil
+		},
+	); err != nil {
 		return nil, false, e(err, "")
-	case len(keys) < 1:
+	}
+
+	if len(key) < 1 {
 		return nil, false, nil
 	}
 
-	switch b, found, err := db.st.Get(context.Background(), keys[0]); {
+	switch b, found, err := db.st.Get(context.Background(), key); {
 	case err != nil:
 		return nil, false, err
 	case !found:
@@ -413,24 +430,11 @@ func (db *RedisPermanent) mergeBlockDataMapTempDatabaseFromLeveldb(
 func (db *RedisPermanent) loadLastBlockDataMap() error {
 	e := util.StringErrorFunc("failed to load last blockdatamap")
 
-	keys, err := db.st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
-		Key:   redisZKeyBlockDataMaps,
-		Start: "[" + redisZBeginBlockDataMaps,
-		Stop:  "[" + redisZEndBlockDataMaps,
-		ByLex: true,
-		Rev:   true,
-		Count: 1,
-	})
+	b, found, err := db.loadLast(redisZKeyBlockDataMaps, redisZBeginBlockDataMaps, redisZEndBlockDataMaps)
+
 	switch {
 	case err != nil:
 		return e(err, "")
-	case len(keys) < 1:
-		return nil
-	}
-
-	switch b, found, err := db.st.Get(context.Background(), keys[0]); {
-	case err != nil:
-		return err
 	case !found:
 		return nil
 	default:
@@ -448,24 +452,11 @@ func (db *RedisPermanent) loadLastBlockDataMap() error {
 func (db *RedisPermanent) loadLastSuffrage() error {
 	e := util.StringErrorFunc("failed to load last suffrage state")
 
-	keys, err := db.st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
-		Key:   redisZKeySuffragesByHeight,
-		Start: "[" + redisZBeginSuffrages,
-		Stop:  "[" + redisZEndSuffrages,
-		ByLex: true,
-		Rev:   true,
-		Count: 1,
-	})
+	b, found, err := db.loadLast(redisZKeySuffragesByHeight, redisZBeginSuffrages, redisZEndSuffrages)
+
 	switch {
 	case err != nil:
 		return e(err, "")
-	case len(keys) < 1:
-		return nil
-	}
-
-	switch b, found, err := db.st.Get(context.Background(), keys[0]); {
-	case err != nil:
-		return err
 	case !found:
 		return nil
 	default:
@@ -495,6 +486,41 @@ func (db *RedisPermanent) loadNetworkPolicy() error {
 		_ = db.policy.SetValue(st.Value().(base.NetworkPolicyStateValue).Policy())
 
 		return nil
+	}
+}
+
+func (db *RedisPermanent) loadLast(zkey, begin, end string) ([]byte, bool, error) {
+	var key string
+	if err := db.st.ZRangeArgs(
+		context.Background(),
+		redis.ZRangeArgs{
+			Key:   zkey,
+			Start: "[" + begin,
+			Stop:  "[" + end,
+			ByLex: true,
+			Rev:   true,
+			Count: 1,
+		},
+		func(i string) (bool, error) {
+			key = i
+
+			return false, nil
+		},
+	); err != nil {
+		return nil, false, errors.Wrap(err, "")
+	}
+
+	if len(key) < 1 {
+		return nil, false, nil
+	}
+
+	switch b, found, err := db.st.Get(context.Background(), key); {
+	case err != nil:
+		return nil, false, errors.Wrap(err, "")
+	case !found:
+		return nil, false, nil
+	default:
+		return b, true, nil
 	}
 }
 

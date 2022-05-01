@@ -240,6 +240,7 @@ func (g *GenesisBlockGenerator) process() error {
 	if err != nil {
 		return e(err, "")
 	}
+	_ = pp.SetLogging(g.Logging)
 
 	switch m, err := pp.Process(context.Background(), g.ivp); {
 	case err != nil:

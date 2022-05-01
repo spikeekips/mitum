@@ -154,7 +154,11 @@ func (db *LeveldbBlockWrite) Map() (base.BlockDataMap, error) {
 }
 
 func (db *LeveldbBlockWrite) SetMap(m base.BlockDataMap) error {
-	if _, err := db.mp.Set(func(interface{}) (interface{}, error) {
+	if _, err := db.mp.Set(func(i interface{}) (interface{}, error) {
+		if i != nil {
+			return i, nil
+		}
+
 		b, err := db.marshal(m)
 		if err != nil {
 			return nil, err

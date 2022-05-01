@@ -64,6 +64,7 @@ type BlockWriteDatabase interface {
 type PermanentDatabase interface {
 	PartialDatabase
 	Close() error
+	Clean() error
 	LastMap() (base.BlockDataMap, bool, error)
 	LastSuffrage() (base.State, bool, error)
 	Suffrage(blockheight base.Height) (base.State, bool, error)

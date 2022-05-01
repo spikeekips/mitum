@@ -236,5 +236,3 @@ func loadRedisPermanentDatabase(uri string, encs *encoder.Encoders, enc encoder.
 
 	return perm, nil
 }
-
-// BLOCK clean data from RedisPermanent

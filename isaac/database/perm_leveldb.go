@@ -58,6 +58,14 @@ func newLeveldbPermanent(
 	return db, nil
 }
 
+func (db *LeveldbPermanent) Clean() error {
+	if err := db.st.Remove(); err != nil {
+		return errors.Wrap(err, "failed to clean leveldb PermanentDatabase")
+	}
+
+	return nil
+}
+
 func (db *LeveldbPermanent) Suffrage(height base.Height) (base.State, bool, error) {
 	e := util.StringErrorFunc("failed to get suffrage by block height")
 

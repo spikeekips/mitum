@@ -142,23 +142,33 @@ func (t *testRedisStorage) TestZAddArgs() {
 
 		t.NoError(st.ZAddArgs(context.Background(), key, args))
 
-		r, err := st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
+		var r []string
+		err := st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
 			Key:     key,
 			Start:   "0",
 			Stop:    "5",
 			ByScore: true,
 			Rev:     false,
+		}, func(i string) (bool, error) {
+			r = append(r, i)
+
+			return true, nil
 		})
 		t.NoError(err)
 		t.Equal(members, r)
 
 		// reverse
-		r, err = st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
+		r = nil
+		err = st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
 			Key:     key,
 			Start:   "0",
 			Stop:    "5",
 			ByScore: true,
 			Rev:     true,
+		}, func(i string) (bool, error) {
+			r = append(r, i)
+
+			return true, nil
 		})
 		t.NoError(err)
 
@@ -183,23 +193,33 @@ func (t *testRedisStorage) TestZAddArgs() {
 
 		t.NoError(st.ZAddArgs(context.Background(), key, args))
 
-		r, err := st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
+		var r []string
+		err := st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
 			Key:     key,
 			Start:   "3",
 			Stop:    "5",
 			ByScore: true,
 			Rev:     false,
+		}, func(i string) (bool, error) {
+			r = append(r, i)
+
+			return true, nil
 		})
 		t.NoError(err)
 		t.Equal(members[3:], r)
 
 		// reverse
-		r, err = st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
+		r = nil
+		err = st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
 			Key:     key,
 			Start:   "3",
 			Stop:    "5",
 			ByScore: true,
 			Rev:     true,
+		}, func(i string) (bool, error) {
+			r = append(r, i)
+
+			return true, nil
 		})
 		t.NoError(err)
 
@@ -224,35 +244,50 @@ func (t *testRedisStorage) TestZAddArgs() {
 
 		t.NoError(st.ZAddArgs(context.Background(), key, args))
 
-		r, err := st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
+		var r []string
+		err := st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
 			Key:     key,
 			Start:   "0",
 			Stop:    "5",
 			ByScore: true,
 			Rev:     false,
 			Count:   1,
+		}, func(i string) (bool, error) {
+			r = append(r, i)
+
+			return true, nil
 		})
 		t.NoError(err)
 		t.Equal(members[:1], r)
 
-		r, err = st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
+		r = nil
+		err = st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
 			Key:     key,
 			Start:   "0",
 			Stop:    "5",
 			ByScore: true,
 			Rev:     false,
 			Count:   2,
+		}, func(i string) (bool, error) {
+			r = append(r, i)
+
+			return true, nil
 		})
 		t.NoError(err)
 		t.Equal(members[:2], r)
 
-		r, err = st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
+		r = nil
+		err = st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
 			Key:     key,
 			Start:   "0",
 			Stop:    "5",
 			ByScore: true,
 			Rev:     false,
 			Count:   int64(len(members)) + 100,
+		}, func(i string) (bool, error) {
+			r = append(r, i)
+
+			return true, nil
 		})
 		t.NoError(err)
 		t.Equal(members, r)
@@ -275,46 +310,66 @@ func (t *testRedisStorage) TestZAddArgs() {
 
 		t.NoError(st.ZAddArgs(context.Background(), key, args))
 
-		r, err := st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
+		var r []string
+		err := st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
 			Key:   key,
 			Start: fmt.Sprintf("[%s-%021d", key, 0),
 			Stop:  fmt.Sprintf("[%s-%021d", key, 5),
 			ByLex: true,
 			Rev:   false,
+		}, func(i string) (bool, error) {
+			r = append(r, i)
+
+			return true, nil
 		})
 		t.NoError(err)
 		t.Equal(members, r)
 
 		// set Start
-		r, err = st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
+		r = nil
+		err = st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
 			Key:   key,
 			Start: fmt.Sprintf("(%s-%021d", key, 3),
 			Stop:  fmt.Sprintf("[%s-%021d", key, 5),
 			ByLex: true,
 			Rev:   false,
+		}, func(i string) (bool, error) {
+			r = append(r, i)
+
+			return true, nil
 		})
 		t.NoError(err)
 		t.Equal(members[4:], r)
 
 		// count over items
-		r, err = st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
+		r = nil
+		err = st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
 			Key:   key,
 			Start: fmt.Sprintf("[%s-%021d", key, 0),
 			Stop:  fmt.Sprintf("[%s-%021d", key, 5),
 			ByLex: true,
 			Rev:   false,
 			Count: int64(len(members)) + 100,
+		}, func(i string) (bool, error) {
+			r = append(r, i)
+
+			return true, nil
 		})
 		t.NoError(err)
 		t.Equal(members, r)
 
 		// reverse
-		r, err = st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
+		r = nil
+		err = st.ZRangeArgs(context.Background(), redis.ZRangeArgs{
 			Key:   key,
 			Start: fmt.Sprintf("[%s-%021d", key, 0),
 			Stop:  fmt.Sprintf("[%s-%021d", key, 5),
 			ByLex: true,
 			Rev:   true,
+		}, func(i string) (bool, error) {
+			r = append(r, i)
+
+			return true, nil
 		})
 		t.NoError(err)
 

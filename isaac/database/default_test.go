@@ -35,6 +35,10 @@ func (db *DummyPermanentDatabase) Close() error {
 	return db.closef()
 }
 
+func (db *DummyPermanentDatabase) Clean() error {
+	return nil
+}
+
 func (db *DummyPermanentDatabase) SuffrageByHeight(suffrageHeight base.Height) (base.State, bool, error) {
 	return db.suffrageByHeightf(suffrageHeight)
 }

@@ -53,6 +53,7 @@ type LocalFSWriter struct {
 	lenops     int64
 	opsf       util.ChecksumWriter
 	stsf       util.ChecksumWriter
+	saved      *util.Locked
 }
 
 func NewLocalFSWriter(
@@ -92,6 +93,7 @@ func NewLocalFSWriter(
 		heightbase: HeightDirectory(height),
 		temp:       temp,
 		m:          NewBlockDataMap(LocalFSWriterHint, enc.Hint()),
+		saved:      util.NewLocked(nil),
 	}
 
 	switch f, err := w.newChecksumWriter(base.BlockDataTypeOperations); {
@@ -220,6 +222,10 @@ func (w *LocalFSWriter) SetACCEPTVoteproof(_ context.Context, vp base.ACCEPTVote
 }
 
 func (w *LocalFSWriter) saveVoteproofs() error {
+	if _, found := w.m.Item(base.BlockDataTypeVoteproofs); found {
+		return nil
+	}
+
 	e := util.StringErrorFunc("failed to save voteproofs ")
 
 	f, err := w.newChecksumWriter(base.BlockDataTypeVoteproofs)
@@ -247,7 +253,22 @@ func (w *LocalFSWriter) saveVoteproofs() error {
 	return nil
 }
 
-func (w *LocalFSWriter) Save(_ context.Context) (base.BlockDataMap, error) {
+func (w *LocalFSWriter) Save(ctx context.Context) (base.BlockDataMap, error) {
+	if i, _ := w.saved.Value(); i != nil {
+		return w.m, nil
+	}
+
+	m, err := w.save(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "")
+	}
+
+	_ = w.saved.SetValue(true)
+
+	return m, nil
+}
+
+func (w *LocalFSWriter) save(context.Context) (base.BlockDataMap, error) {
 	w.Lock()
 	defer w.Unlock()
 

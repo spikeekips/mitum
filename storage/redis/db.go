@@ -7,6 +7,7 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/storage"
+	"github.com/spikeekips/mitum/util"
 )
 
 type Storage struct {
@@ -60,6 +61,15 @@ func (st *Storage) key(key string) string {
 	return st.prefix + "-" + key
 }
 
+func (st *Storage) unkey(s string) string {
+	i := st.prefix + "-"
+	if len(s) < len(i)+1 {
+		return s
+	}
+
+	return s[len(i):]
+}
+
 func (st *Storage) Get(ctx context.Context, key string) ([]byte, bool, error) {
 	r := st.client.Get(ctx, st.key(key))
 	switch {
@@ -93,14 +103,33 @@ func (st *Storage) Exists(ctx context.Context, key string) (bool, error) {
 }
 
 func (st *Storage) Clean(ctx context.Context) error {
-	if err := st.client.FlushAll(ctx).Err(); err != nil {
-		return storage.ExecError.Wrapf(err, "failed to clean redis server")
+	e := util.StringErrorFunc("failed to clean redis storage")
+
+	for {
+		var cursor uint64
+		keys, _, err := st.client.Scan(ctx, cursor, st.prefix+"*", 333).Result()
+		if err != nil {
+			return e(err, "")
+		}
+
+		if len(keys) < 1 {
+			break
+		}
+
+		if _, err := st.client.Del(ctx, keys...).Result(); err != nil {
+			return e(err, "")
+		}
 	}
 
 	return nil
 }
 
 func (st *Storage) ZAddArgs(ctx context.Context, key string, args redis.ZAddArgs) error {
+	for i := range args.Members {
+		z := args.Members[i]
+		z.Member = st.key(z.Member.(string))
+		args.Members[i] = z
+	}
 	if err := st.client.ZAddArgs(ctx, st.key(key), args).Err(); err != nil {
 		return storage.ExecError.Wrapf(err, "failed to ZAddArgs")
 	}
@@ -108,13 +137,34 @@ func (st *Storage) ZAddArgs(ctx context.Context, key string, args redis.ZAddArgs
 	return nil
 }
 
-func (st *Storage) ZRangeArgs(ctx context.Context, z redis.ZRangeArgs) ([]string, error) {
+func (st *Storage) ZRangeArgs(ctx context.Context, z redis.ZRangeArgs, f func(string) (bool, error)) error {
 	z.Key = st.key(z.Key)
 
-	s, err := st.client.ZRangeArgs(ctx, z).Result()
-	if err != nil {
-		return nil, storage.ExecError.Wrapf(err, "failed to ZRangeArgs")
+	if z.ByLex {
+		if z.Start != nil {
+			zstart := z.Start.(string)
+			z.Start = zstart[:1] + st.key(zstart[1:])
+		}
+
+		if z.Stop != nil {
+			zstop := z.Stop.(string)
+			z.Stop = zstop[:1] + st.key(zstop[1:])
+		}
 	}
 
-	return s, nil
+	sl, err := st.client.ZRangeArgs(ctx, z).Result()
+	if err != nil {
+		return storage.ExecError.Wrapf(err, "failed to ZRangeArgs")
+	}
+
+	for i := range sl {
+		switch keep, err := f(st.unkey(sl[i])); {
+		case err != nil:
+			return errors.Wrap(err, "")
+		case !keep:
+			return nil
+		}
+	}
+
+	return nil
 }
