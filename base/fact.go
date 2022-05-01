@@ -36,8 +36,6 @@ func (t Token) IsValid([]byte) error {
 	return nil
 }
 
-// BLOCK add Token.Bytes()
-
 func IsValidFact(fact Fact, b []byte) error {
 	if err := util.CheckIsValid(b, false,
 		fact.Hint(),

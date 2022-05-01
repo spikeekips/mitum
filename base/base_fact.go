@@ -38,10 +38,7 @@ func (fact BaseFact) IsValid([]byte) error {
 		return e(err, "")
 	}
 
-	if err := util.CheckIsValid(nil, false,
-		fact.h,
-		fact.t,
-	); err != nil {
+	if err := IsValidFact(fact, nil); err != nil {
 		return e(err, "")
 	}
 

@@ -46,7 +46,7 @@ func NewStates(box *Ballotbox) *States {
 			timerIDBroadcastINITBallot,
 			timerIDBroadcastACCEPTBallot,
 		}, false),
-		lvps: NewLastVoteproofs(),
+		lvps: NewLastVoteproofsHandler(),
 	}
 
 	st.ContextDaemon = util.NewContextDaemon("states", st.start)

@@ -12,10 +12,12 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
+var SyncerCanNotCancelError = util.NewError("can not cancel syncer")
+
 type SyncingHandler struct {
 	*baseHandler
-	newSyncer       func() Syncer
-	syncer          Syncer
+	newSyncer       func() isaac.Syncer
+	syncer          isaac.Syncer
 	finishedLock    sync.RWMutex
 	stuckcancel     func()
 	stuckcancellock sync.RWMutex
@@ -26,7 +28,7 @@ func NewSyncingHandler(
 	local base.LocalNode,
 	policy isaac.NodePolicy,
 	proposalSelector isaac.ProposalSelector,
-	newSyncer func() Syncer,
+	newSyncer func() isaac.Syncer,
 ) *SyncingHandler {
 	return &SyncingHandler{
 		baseHandler: newBaseHandler(StateSyncing, local, policy, proposalSelector),
@@ -150,7 +152,7 @@ func (st *SyncingHandler) add(h base.Height) bool {
 	return st.syncer.Add(h)
 }
 
-func (st *SyncingHandler) finished(sc Syncer) {
+func (st *SyncingHandler) finished(sc isaac.Syncer) {
 end:
 	for {
 		select {
@@ -161,7 +163,7 @@ end:
 
 			st.cancelstuck()
 
-			lvp := st.lastVoteproof().Cap()
+			lvp := st.lastVoteproofs().Cap()
 			if lvp == nil {
 				continue
 			}
@@ -219,7 +221,7 @@ func (st *SyncingHandler) newStuckCancel(vp base.Voteproof) {
 		st.finishedLock.Lock()
 		defer st.finishedLock.Unlock()
 
-		lvp := st.lastVoteproof().Cap()
+		lvp := st.lastVoteproofs().Cap()
 		if lvp.Point().Compare(vp.Point()) != 0 {
 			return
 		}

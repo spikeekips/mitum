@@ -66,7 +66,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestExpected() {
 		return
 	case avp = <-savedch:
 		base.EqualVoteproof(t.Assert(), nextavp, avp)
-		base.EqualVoteproof(t.Assert(), avp, st.lastVoteproof().ACCEPT())
+		base.EqualVoteproof(t.Assert(), avp, st.lastVoteproofs().ACCEPT())
 	}
 
 	t.T().Log("wait next init ballot")
@@ -103,7 +103,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestOld() {
 	fact := t.PRPool.GetFact(point)
 	nextavp, _ := t.VoteproofsPair(point.PrevHeight(), point.NextHeight(), nil, fact.Hash(), nil, nodes)
 	t.NoError(st.newVoteproof(nextavp))
-	t.Nil(st.lastVoteproof().ACCEPT())
+	t.Nil(st.lastVoteproofs().ACCEPT())
 }
 
 func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestHiger() {
@@ -123,7 +123,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestHiger() {
 	nextavp, _ := t.VoteproofsPair(point.NextHeight(), point.NextHeight(), nil, fact.Hash(), nil, nodes)
 	err = st.newVoteproof(nextavp)
 	t.Error(err)
-	t.NotNil(st.lastVoteproof().ACCEPT())
+	t.NotNil(st.lastVoteproofs().ACCEPT())
 
 	var nsctx syncingSwitchContext
 	t.True(errors.As(err, &nsctx))
@@ -160,7 +160,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestDraw() {
 	nextavp.SetResult(base.VoteResultDraw).Finish()
 
 	t.NoError(st.newVoteproof(nextavp))
-	t.NotNil(st.lastVoteproof().ACCEPT())
+	t.NotNil(st.lastVoteproofs().ACCEPT())
 
 	t.T().Log("will wait init ballot of next round")
 
@@ -215,7 +215,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestDrawFailedProposalSel
 	nextavp.SetResult(base.VoteResultDraw).Finish()
 
 	t.NoError(st.newVoteproof(nextavp))
-	t.NotNil(st.lastVoteproof().ACCEPT())
+	t.NotNil(st.lastVoteproofs().ACCEPT())
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -325,7 +325,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestHigherAndDraw() {
 	nextavp.SetResult(base.VoteResultDraw).Finish()
 
 	err = st.newVoteproof(nextavp)
-	t.NotNil(st.lastVoteproof().ACCEPT())
+	t.NotNil(st.lastVoteproofs().ACCEPT())
 
 	var ssctx syncingSwitchContext
 	t.True(errors.As(err, &ssctx))
@@ -364,7 +364,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestHigherRoundDraw() {
 	nextavp.SetResult(base.VoteResultDraw).Finish()
 
 	t.NoError(st.newVoteproof(nextavp))
-	t.NotNil(st.lastVoteproof().ACCEPT())
+	t.NotNil(st.lastVoteproofs().ACCEPT())
 
 	t.T().Log("will wait init ballot of next round")
 
@@ -430,7 +430,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestHigerHeight() {
 		return
 	case ravp := <-savedch:
 		base.EqualVoteproof(t.Assert(), avp, ravp)
-		base.EqualVoteproof(t.Assert(), ravp, st.lastVoteproof().ACCEPT())
+		base.EqualVoteproof(t.Assert(), ravp, st.lastVoteproofs().ACCEPT())
 	}
 
 	t.T().Log("new accept voteproof; higher height")

@@ -66,7 +66,6 @@ func NewOperationFixedTreeNodeWithHash(
 		k += "-"
 	}
 
-	// BLOCK node key = <facthash>[instate, -]
 	return OperationFixedTreeNode{
 		BaseFixedTreeNode: tree.NewBaseFixedTreeNodeWithHash(OperationFixedTreeNodeHint, index, k, hash),
 		inState:           inState,

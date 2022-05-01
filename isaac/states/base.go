@@ -37,7 +37,7 @@ func newBaseHandler(
 	policy isaac.NodePolicy,
 	proposalSelector isaac.ProposalSelector,
 ) *baseHandler {
-	lvps := NewLastVoteproofs()
+	lvps := NewLastVoteproofsHandler()
 
 	return &baseHandler{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
@@ -80,7 +80,7 @@ func (st *baseHandler) state() StateType {
 	return st.stt
 }
 
-func (st *baseHandler) lastVoteproof() LastVoteproofs { // BLOCK rename to lastVoteproofs
+func (st *baseHandler) lastVoteproofs() LastVoteproofs {
 	return st.lastVoteproofFunc()
 }
 
@@ -139,7 +139,7 @@ func (st *baseHandler) setStates(sts *States) {
 }
 
 func (st *baseHandler) setNewVoteproof(vp base.Voteproof) (LastVoteproofs, base.Voteproof) {
-	lvps := st.lastVoteproof()
+	lvps := st.lastVoteproofs()
 
 	if st.sts == nil && !lvps.IsNew(vp) {
 		return LastVoteproofs{}, nil

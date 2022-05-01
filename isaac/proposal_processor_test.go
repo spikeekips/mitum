@@ -18,8 +18,6 @@ import (
 	"go.uber.org/goleak"
 )
 
-// BLOCK test merger; multiple adding
-
 type DummyBlockDataWriter struct {
 	sync.RWMutex
 	getStateFunc base.GetStateFunc

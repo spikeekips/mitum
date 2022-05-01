@@ -45,7 +45,7 @@ func (st *BootingHandler) enter(i switchContext) (func(), error) { // nolint:unp
 		manifest = i
 	}
 
-	avp := st.lastVoteproof().ACCEPT()
+	avp := st.lastVoteproofs().ACCEPT()
 	switch {
 	case avp == nil:
 		return nil, e(nil, "empty last accept voteproof")

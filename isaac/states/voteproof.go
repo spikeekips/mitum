@@ -14,7 +14,7 @@ type LastVoteproofsHandler struct {
 	mvp base.Voteproof
 }
 
-func NewLastVoteproofs() *LastVoteproofsHandler { // BLOCK rename to lastVoteproofsHandler
+func NewLastVoteproofsHandler() *LastVoteproofsHandler {
 	return &LastVoteproofsHandler{}
 }
 

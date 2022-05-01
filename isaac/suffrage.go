@@ -172,27 +172,27 @@ func (s SuffrageStateValue) Equal(b base.StateValue) bool {
 
 type SuffrageCandidateStateNodeValue struct {
 	base.BaseNode
-	startHeight base.Height
-	endHeight   base.Height
+	start    base.Height
+	deadline base.Height
 }
 
 func NewSuffrageCandidateStateNodeValue(
 	pub base.Publickey,
 	addr base.Address,
-	startHeight,
-	endHeight base.Height,
+	start,
+	deadline base.Height,
 ) SuffrageCandidateStateNodeValue {
 	return SuffrageCandidateStateNodeValue{
-		BaseNode:    base.NewBaseNode(SuffrageCandidateStateNodeValueHint, pub, addr),
-		startHeight: startHeight,
-		endHeight:   endHeight,
+		BaseNode: base.NewBaseNode(SuffrageCandidateStateNodeValueHint, pub, addr),
+		start:    start,
+		deadline: deadline,
 	}
 }
 
-func (suf SuffrageCandidateStateNodeValue) StartHeight() base.Height {
-	return suf.startHeight
+func (suf SuffrageCandidateStateNodeValue) Start() base.Height {
+	return suf.start
 }
 
-func (suf SuffrageCandidateStateNodeValue) EndHeight() base.Height {
-	return suf.endHeight
+func (suf SuffrageCandidateStateNodeValue) Deadline() base.Height {
+	return suf.deadline
 }

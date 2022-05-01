@@ -52,7 +52,7 @@ func (t *testBootingHandler) TestNew() {
 	var rsctx joiningSwitchContext
 	t.True(errors.As(err, &rsctx))
 
-	avp := st.lastVoteproof().ACCEPT()
+	avp := st.lastVoteproofs().ACCEPT()
 	base.EqualVoteproof(t.Assert(), avp, rsctx.vp)
 }
 
@@ -72,7 +72,7 @@ func (t *testBootingHandler) TestEmptyManifest() {
 func (t *testBootingHandler) TestWrongLastACCEPTVoteproof() {
 	st := t.newState()
 
-	oldavp := st.lastVoteproof().ACCEPT()
+	oldavp := st.lastVoteproofs().ACCEPT()
 	point := oldavp.Point().Point.NextHeight()
 
 	newavp, _ := t.VoteproofsPair(point, point.NextHeight(), valuehash.RandomSHA256(), nil, nil, []isaac.LocalNode{t.Local})

@@ -22,8 +22,8 @@ type SuffrageStateValue interface {
 
 type SuffrageCandidateStateNodeValue interface {
 	Node
-	StartHeight() Height
-	EndHeight() Height // BLOCK rename to Deadline
+	Start() Height
+	Deadline() Height
 	Node() Node
 }
 

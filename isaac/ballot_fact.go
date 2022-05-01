@@ -35,7 +35,7 @@ func (fact baseBallotFact) Point() base.StagePoint {
 }
 
 func (fact baseBallotFact) hashBytes() []byte {
-	return fact.Token()
+	return util.ConcatByters(fact.point, util.BytesToByter(fact.Token()))
 }
 
 type INITBallotFact struct {

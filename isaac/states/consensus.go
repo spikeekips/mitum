@@ -10,8 +10,6 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
-// BLOCK moves to broken when empty suffrage
-
 type ConsensusHandler struct {
 	*baseHandler
 	getManifest func(base.Height) (base.Manifest, error)
@@ -153,7 +151,7 @@ func (st *ConsensusHandler) processProposal(ivp base.INITVoteproof) {
 
 	l.Debug().Msg("proposal processed")
 
-	eavp := st.lastVoteproof().ACCEPT()
+	eavp := st.lastVoteproofs().ACCEPT()
 
 	initialWait := time.Nanosecond
 	if d := time.Since(started); d < st.policy.WaitProcessingProposal() {

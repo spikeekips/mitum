@@ -25,7 +25,7 @@ func (t *testSyncingHandler) newState(finishch chan base.Height) (*SyncingHandle
 		local,
 		policy,
 		nil,
-		func() Syncer {
+		func() isaac.Syncer {
 			return newDummySyncer(finishch)
 		},
 	)

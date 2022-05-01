@@ -58,7 +58,7 @@ func (st *JoiningHandler) enter(i switchContext) (func(), error) {
 	}
 
 	vp := jctx.vp
-	lvp := st.lastVoteproof().Cap()
+	lvp := st.lastVoteproofs().Cap()
 	switch {
 	case lvp == nil:
 	case vp == nil:
@@ -242,7 +242,7 @@ func (st *JoiningHandler) firstVoteproof(lvp base.Voteproof, manifest base.Manif
 	case <-time.After(st.waitFirstVoteproof):
 	}
 
-	switch nlvp := st.lastVoteproof().Cap(); {
+	switch nlvp := st.lastVoteproofs().Cap(); {
 	case nlvp == nil:
 	case nlvp.Point().Compare(lvp.Point()) > 0:
 		return
