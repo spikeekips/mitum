@@ -33,6 +33,10 @@ func (h L32) String() string {
 }
 
 func (h L32) Equal(b util.Hash) bool {
+	if b == nil {
+		return false
+	}
+
 	return bytes.Equal(h[:], b.Bytes())
 }
 
@@ -57,6 +61,10 @@ func (h L64) String() string {
 }
 
 func (h L64) Equal(b util.Hash) bool {
+	if b == nil {
+		return false
+	}
+
 	return bytes.Equal(h[:], b.Bytes())
 }
 

@@ -27,36 +27,40 @@ func NewBytesFromString(s string) Bytes {
 	return NewBytes(util.DecodeHash(s))
 }
 
-func (hs Bytes) String() string {
-	return util.EncodeHash(hs.Bytes())
+func (h Bytes) String() string {
+	return util.EncodeHash(h.Bytes())
 }
 
-func (hs Bytes) IsValid([]byte) error {
-	if hs == nil || len(hs) < 1 {
+func (h Bytes) IsValid([]byte) error {
+	if h == nil || len(h) < 1 {
 		return util.InvalidError.Errorf("empty hash")
 	}
 
-	if len(hs) > maxBytesHashSize {
-		return util.InvalidError.Errorf("over max: %d > %d", len(hs), maxBytesHashSize)
+	if len(h) > maxBytesHashSize {
+		return util.InvalidError.Errorf("over max: %d > %d", len(h), maxBytesHashSize)
 	}
 
 	return nil
 }
 
-func (hs Bytes) Bytes() []byte {
-	return []byte(hs)
+func (h Bytes) Bytes() []byte {
+	return []byte(h)
 }
 
-func (hs Bytes) Equal(h util.Hash) bool {
-	return bytes.Equal(hs, h.Bytes())
+func (h Bytes) Equal(b util.Hash) bool {
+	if b == nil {
+		return false
+	}
+
+	return bytes.Equal(h, b.Bytes())
 }
 
-func (hs Bytes) MarshalText() ([]byte, error) {
-	return []byte(hs.String()), nil
+func (h Bytes) MarshalText() ([]byte, error) {
+	return []byte(h.String()), nil
 }
 
-func (hs *Bytes) UnmarshalText(b []byte) error {
-	*hs = NewBytesFromString(string(b))
+func (h *Bytes) UnmarshalText(b []byte) error {
+	*h = NewBytesFromString(string(b))
 
 	return nil
 }
