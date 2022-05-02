@@ -5,11 +5,9 @@ import (
 	"time"
 
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/hint"
 )
 
 type Manifest interface {
-	hint.Hinter
 	util.Hasher
 	util.IsValider
 	Height() Height
@@ -22,7 +20,6 @@ type Manifest interface {
 }
 
 type BlockDataMap interface {
-	hint.Hinter
 	NodeSigned
 	Manifest() Manifest
 	Item(BlockDataType) (BlockDataMapItem, bool)
