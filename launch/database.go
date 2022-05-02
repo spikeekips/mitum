@@ -12,7 +12,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
-	"github.com/spikeekips/mitum/isaac/database"
+	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
 	redisstorage "github.com/spikeekips/mitum/storage/redis"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -117,25 +117,26 @@ func PrepareDatabase(
 	root string,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
-) (*database.Default, *database.TempPool, error) {
+) (*isaacdatabase.Default, *isaacdatabase.TempPool, error) {
 	e := util.StringErrorFunc("failed to prepare database")
 
 	temproot := DBRootTempDirectory(root)
 	poolroot := DBRootPoolDirectory(root)
 
-	db, err := database.NewDefault(temproot, encs, enc, perm, func(height base.Height) (isaac.BlockWriteDatabase, error) {
-		newroot, eerr := database.NewTempDirectory(temproot, height)
-		if eerr != nil {
-			return nil, errors.Wrap(eerr, "")
-		}
+	db, err := isaacdatabase.NewDefault(
+		temproot, encs, enc, perm, func(height base.Height) (isaac.BlockWriteDatabase, error) {
+			newroot, eerr := isaacdatabase.NewTempDirectory(temproot, height)
+			if eerr != nil {
+				return nil, errors.Wrap(eerr, "")
+			}
 
-		return database.NewLeveldbBlockWrite(height, newroot, encs, enc)
-	})
+			return isaacdatabase.NewLeveldbBlockWrite(height, newroot, encs, enc)
+		})
 	if err != nil {
 		return nil, nil, e(err, "")
 	}
 
-	pool, err := database.NewTempPool(poolroot, encs, enc)
+	pool, err := isaacdatabase.NewTempPool(poolroot, encs, enc)
 	if err != nil {
 		return nil, nil, e(err, "")
 	}
@@ -186,7 +187,7 @@ func LoadPermanentDatabase(uri string, encs *encoder.Encoders, enc encoder.Encod
 			return nil, e(nil, "empty path")
 		}
 
-		perm, err := database.NewLeveldbPermanent(u.Path, encs, enc)
+		perm, err := isaacdatabase.NewLeveldbPermanent(u.Path, encs, enc)
 		if err != nil {
 			return nil, e(err, "")
 		}
@@ -212,7 +213,7 @@ func LoadPermanentDatabase(uri string, encs *encoder.Encoders, enc encoder.Encod
 }
 
 func loadRedisPermanentDatabase(uri string, encs *encoder.Encoders, enc encoder.Encoder) (
-	*database.RedisPermanent, error,
+	*isaacdatabase.RedisPermanent, error,
 ) {
 	e := util.StringErrorFunc("failed to load redis PermanentDatabase")
 
@@ -229,7 +230,7 @@ func loadRedisPermanentDatabase(uri string, encs *encoder.Encoders, enc encoder.
 		return nil, e(err, "failed to create redis storage")
 	}
 
-	perm, err := database.NewRedisPermanent(st, encs, enc)
+	perm, err := isaacdatabase.NewRedisPermanent(st, encs, enc)
 	if err != nil {
 		return nil, e(err, "")
 	}

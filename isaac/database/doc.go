@@ -1,4 +1,4 @@
 /*
-Package database handles data for isaac
+Package isaacdatabase handles data for isaac
 */
-package database
+package isaacdatabase

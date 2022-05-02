@@ -1,4 +1,4 @@
-package blockdata
+package isaacblockdata
 
 import (
 	"context"

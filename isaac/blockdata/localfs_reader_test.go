@@ -1,4 +1,4 @@
-package blockdata
+package isaacblockdata
 
 import (
 	"bytes"
@@ -15,7 +15,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
-	"github.com/spikeekips/mitum/isaac/database"
+	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/tree"
@@ -26,7 +26,7 @@ import (
 
 type testBaseLocalBlockDataFS struct {
 	isaac.BaseTestBallots
-	database.BaseTestDatabase
+	isaacdatabase.BaseTestDatabase
 	root string
 }
 

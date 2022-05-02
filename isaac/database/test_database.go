@@ -1,7 +1,7 @@
 //go:build test
 // +build test
 
-package database
+package isaacdatabase
 
 import (
 	"os"

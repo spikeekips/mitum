@@ -1,4 +1,4 @@
-package nodenetwork
+package isaacnodenetwork
 
 import (
 	"bytes"
@@ -9,7 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
-	"github.com/spikeekips/mitum/isaac/database"
+	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
 	"github.com/spikeekips/mitum/network/quictransport"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -19,7 +19,7 @@ import (
 )
 
 type testQuicstreamNodeNetworkHandlers struct {
-	database.BaseTestDatabase
+	isaacdatabase.BaseTestDatabase
 	isaac.BaseTestBallots
 }
 

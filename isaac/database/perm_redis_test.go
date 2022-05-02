@@ -1,7 +1,7 @@
 //go:build test && redis
 // +build test,redis
 
-package database
+package isaacdatabase
 
 import (
 	"context"

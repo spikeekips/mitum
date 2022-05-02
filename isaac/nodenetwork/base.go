@@ -1,4 +1,4 @@
-package nodenetwork
+package isaacnodenetwork
 
 import (
 	"bytes"

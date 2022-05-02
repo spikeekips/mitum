@@ -1,4 +1,4 @@
-package blockdata
+package isaacblockdata
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
-	"github.com/spikeekips/mitum/isaac/database"
+	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/tree"
 	"github.com/spikeekips/mitum/util/valuehash"
@@ -17,7 +17,7 @@ import (
 
 type testWriter struct {
 	isaac.BaseTestBallots
-	database.BaseTestDatabase
+	isaacdatabase.BaseTestDatabase
 }
 
 func (t *testWriter) SetupTest() {

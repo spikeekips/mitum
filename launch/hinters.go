@@ -4,8 +4,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
-	"github.com/spikeekips/mitum/isaac/blockdata"
-	"github.com/spikeekips/mitum/isaac/nodenetwork"
+	isaacblockdata "github.com/spikeekips/mitum/isaac/blockdata"
+	isaacnodenetwork "github.com/spikeekips/mitum/isaac/nodenetwork"
 	isaacoperation "github.com/spikeekips/mitum/isaac/operation"
 	"github.com/spikeekips/mitum/network/quictransport"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -20,7 +20,7 @@ var Hinters = []encoder.DecodeDetail{
 	{Hint: base.OperationFixedTreeNodeHint, Instance: base.OperationFixedTreeNode{}},
 	{Hint: base.StateFixedTreeNodeHint, Instance: base.StateFixedTreeNode{}},
 	{Hint: base.StringAddressHint, Instance: base.StringAddress{}},
-	{Hint: blockdata.BlockDataMapHint, Instance: blockdata.BlockDataMap{}},
+	{Hint: isaacblockdata.BlockDataMapHint, Instance: isaacblockdata.BlockDataMap{}},
 	{Hint: isaac.ACCEPTBallotFactHint, Instance: isaac.ACCEPTBallotFact{}},
 	{Hint: isaac.ACCEPTBallotHint, Instance: isaac.ACCEPTBallot{}},
 	{Hint: isaac.ACCEPTBallotSignedFactHint, Instance: isaac.ACCEPTBallotSignedFact{}},
@@ -47,8 +47,8 @@ var Hinters = []encoder.DecodeDetail{
 	{Hint: isaacoperation.SuffrageJoinHint, Instance: base.BaseOperation{}},
 	{Hint: isaacoperation.SuffrageJoinPermissionFactHint, Instance: isaacoperation.SuffrageJoinPermissionFact{}},
 	{Hint: isaac.SuffrageStateValueHint, Instance: isaac.SuffrageStateValue{}},
-	{Hint: nodenetwork.ProposalBodyHint, Instance: nodenetwork.ProposalBody{}},
-	{Hint: nodenetwork.RequestProposalBodyHint, Instance: nodenetwork.RequestProposalBody{}},
+	{Hint: isaacnodenetwork.ProposalBodyHint, Instance: isaacnodenetwork.ProposalBody{}},
+	{Hint: isaacnodenetwork.RequestProposalBodyHint, Instance: isaacnodenetwork.RequestProposalBody{}},
 	{Hint: quictransport.NodeHint, Instance: quictransport.BaseNode{}},
 	{Hint: quictransport.NodeMetaHint, Instance: quictransport.NodeMeta{}},
 	{Hint: tree.FixedTreeHint, Instance: tree.FixedTree{}},

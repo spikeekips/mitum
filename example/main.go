@@ -11,8 +11,8 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
-	"github.com/spikeekips/mitum/isaac/blockdata"
-	"github.com/spikeekips/mitum/isaac/database"
+	isaacblockdata "github.com/spikeekips/mitum/isaac/blockdata"
+	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/util"
@@ -123,7 +123,7 @@ type runCommand struct {
 	nodePolicy           isaac.NodePolicy
 	db                   isaac.Database
 	perm                 isaac.PermanentDatabase
-	pool                 *database.TempPool
+	pool                 *isaacdatabase.TempPool
 	getSuffrage          func(blockheight base.Height) (base.Suffrage, bool, error)
 	getManifest          func(height base.Height) (base.Manifest, error)
 	proposalSelector     *isaac.BaseProposalSelector
@@ -184,7 +184,7 @@ func (cmd *runCommand) prepareDatabase(dbroot string, encs *encoder.Encoders, en
 		return errors.Wrap(err, "")
 	}
 
-	if err := blockdata.CleanBlockDataTempDirectory(launch.DBRootDataDirectory(dbroot)); err != nil {
+	if err := isaacblockdata.CleanBlockDataTempDirectory(launch.DBRootDataDirectory(dbroot)); err != nil {
 		return errors.Wrap(err, "")
 	}
 

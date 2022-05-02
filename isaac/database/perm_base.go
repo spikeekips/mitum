@@ -1,4 +1,4 @@
-package database
+package isaacdatabase
 
 import (
 	"github.com/spikeekips/mitum/base"

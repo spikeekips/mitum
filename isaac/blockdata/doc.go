@@ -1,4 +1,4 @@
 /*
-Package blockdata handles data of block.
+Package isaacblockdata handles data of block.
 */
-package blockdata
+package isaacblockdata

@@ -7,8 +7,8 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
-	"github.com/spikeekips/mitum/isaac/blockdata"
-	"github.com/spikeekips/mitum/isaac/database"
+	isaacblockdata "github.com/spikeekips/mitum/isaac/blockdata"
+	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
 	isaacoperation "github.com/spikeekips/mitum/isaac/operation"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -72,7 +72,7 @@ func (g *GenesisBlockGenerator) Generate() (base.BlockDataMap, error) {
 		return nil, e(err, "")
 	}
 
-	fsreader, err := blockdata.NewLocalFSReader(g.dataroot, base.GenesisHeight, g.enc)
+	fsreader, err := isaacblockdata.NewLocalFSReader(g.dataroot, base.GenesisHeight, g.enc)
 	if err != nil {
 		return nil, e(err, "")
 	}
@@ -267,7 +267,7 @@ func (g *GenesisBlockGenerator) process() error {
 func (g *GenesisBlockGenerator) closeDatabase() error {
 	e := util.StringErrorFunc("failed to close database")
 
-	if i, ok := g.db.(*database.Default); ok {
+	if i, ok := g.db.(*isaacdatabase.Default); ok {
 		if err := i.MergeAllPermanent(); err != nil {
 			return e(err, "failed to merge temps")
 		}
@@ -315,7 +315,7 @@ func NewBlockDataWriterFunc(
 			return nil, e(err, "")
 		}
 
-		fswriter, err := blockdata.NewLocalFSWriter(
+		fswriter, err := isaacblockdata.NewLocalFSWriter(
 			dataroot,
 			proposal.Point().Height(),
 			enc,
@@ -326,6 +326,6 @@ func NewBlockDataWriterFunc(
 			return nil, e(err, "")
 		}
 
-		return blockdata.NewWriter(proposal, getStateFunc, dbw, db.MergeBlockWriteDatabase, fswriter), nil
+		return isaacblockdata.NewWriter(proposal, getStateFunc, dbw, db.MergeBlockWriteDatabase, fswriter), nil
 	}
 }

@@ -1,4 +1,4 @@
 /*
-Package nodenetwork provides network.
+Package isaacnodenetwork provides network.
 */
-package nodenetwork
+package isaacnodenetwork
