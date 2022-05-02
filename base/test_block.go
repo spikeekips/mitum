@@ -194,7 +194,10 @@ func EqualManifest(t *assert.Assertions, a, b Manifest) {
 		return
 	}
 
-	t.True(a.Hint().Equal(b.Hint()), "Hint does not match")
+	aht := a.(hint.Hinter).Hint()
+	bht := b.(hint.Hinter).Hint()
+	t.True(aht.Equal(bht), "Hint does not match")
+
 	t.True(a.Hash().Equal(b.Hash()), "Hash does not match")
 	t.Equal(a.Height(), b.Height(), "Height does not match")
 	if !isnil("previous", a.Previous(), b.Previous()) {
@@ -300,7 +303,10 @@ func (m *DummyBlockDataMap) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 }
 
 func EqualBlockDataMap(t *assert.Assertions, a, b BlockDataMap) {
-	t.True(a.Hint().Equal(b.Hint()))
+	aht := a.(hint.Hinter).Hint()
+	bht := b.(hint.Hinter).Hint()
+	t.True(aht.Equal(bht), "Hint does not match")
+
 	EqualManifest(t, a.Manifest(), b.Manifest())
 
 	a.Items(func(ai BlockDataMapItem) bool {

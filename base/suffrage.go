@@ -20,16 +20,16 @@ type SuffrageStateValue interface {
 	Suffrage() (Suffrage, error)
 }
 
-type SuffrageCandidateStateNodeValue interface {
+type SuffrageCandidate interface {
+	util.IsValider
 	Node
 	Start() Height
 	Deadline() Height
-	Node() Node
 }
 
 type SuffrageCandidateStateValue interface {
 	StateValue
-	Nodes() []SuffrageCandidateStateNodeValue
+	Nodes() []SuffrageCandidate
 }
 
 func InterfaceIsSuffrageState(i interface{}) (State, error) {

@@ -20,7 +20,7 @@ var (
 )
 
 type Operation interface {
-	hint.Hinter
+	hint.Hinter // BLOCK remove Hinter from interface
 	util.IsValider
 	SignedFact
 	PreProcess(context.Context, GetStateFunc) (OperationProcessReasonError, error)
