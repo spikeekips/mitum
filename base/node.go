@@ -6,11 +6,9 @@ import (
 
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	"github.com/spikeekips/mitum/util/hint"
 )
 
 type Node interface {
-	hint.Hinter
 	util.HashByter
 	util.IsValider
 	Address() Address
