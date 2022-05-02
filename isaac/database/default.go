@@ -207,7 +207,7 @@ func (db *Default) LastNetworkPolicy() base.NetworkPolicy {
 
 func (db *Default) State(key string) (base.State, bool, error) {
 	e := util.StringErrorFunc("failed to find State")
-	l := util.NewLocked(nil)
+	l := util.EmptyLocked()
 	if err := db.dig(func(p isaac.PartialDatabase) (bool, error) {
 		switch st, found, err := p.State(key); {
 		case err != nil:
