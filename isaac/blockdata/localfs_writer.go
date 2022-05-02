@@ -93,7 +93,7 @@ func NewLocalFSWriter(
 		heightbase: HeightDirectory(height),
 		temp:       temp,
 		m:          NewBlockDataMap(LocalFSWriterHint, enc.Hint()),
-		saved:      util.NewLocked(nil),
+		saved:      util.EmptyLocked(),
 	}
 
 	switch f, err := w.newChecksumWriter(base.BlockDataTypeOperations); {
