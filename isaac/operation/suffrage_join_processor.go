@@ -12,7 +12,7 @@ type SuffrageJoinProcessor struct {
 	height                   base.Height
 	threshold                base.Threshold
 	suffrage                 map[string]base.Node
-	candidates               map[string]base.SuffrageCandidateStateNodeValue
+	candidates               map[string]base.SuffrageCandidate
 	pubs                     []base.Publickey
 	sufst                    base.State // NOTE state of SuffrageStateValue
 	sufcst                   base.State // NOTE state of SuffrageCandidateStateValue
@@ -20,7 +20,7 @@ type SuffrageJoinProcessor struct {
 	sufcstv                  base.SuffrageCandidateStateValue
 	preProcessConstraintFunc base.OperationProcessorProcessFunc
 	processConstraintFunc    base.OperationProcessorProcessFunc
-	candidateInfo            base.SuffrageCandidateStateNodeValue
+	candidateInfo            base.SuffrageCandidate
 }
 
 func NewSuffrageJoinProcessor(
@@ -36,7 +36,7 @@ func NewSuffrageJoinProcessor(
 		height:     height,
 		threshold:  threshold,
 		suffrage:   map[string]base.Node{},
-		candidates: map[string]base.SuffrageCandidateStateNodeValue{},
+		candidates: map[string]base.SuffrageCandidate{},
 	}
 
 	switch i, found, err := getStateFunc(isaac.SuffrageStateKey); {
@@ -137,7 +137,7 @@ func (p *SuffrageJoinProcessor) Process(ctx context.Context, op base.Operation, 
 		return []base.StateMergeValue{
 			base.NewBaseStateMergeValue(
 				isaac.SuffrageStateKey,
-				isaac.NewSuffrageStateValue(base.GenesisHeight, nil, []base.Node{p.candidateInfo.Node()}),
+				isaac.NewSuffrageStateValue(base.GenesisHeight, nil, []base.Node{p.candidateInfo}),
 				nil,
 			),
 		}, nil, nil

@@ -5,7 +5,7 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacblockdata "github.com/spikeekips/mitum/isaac/blockdata"
-	isaacnodenetwork "github.com/spikeekips/mitum/isaac/nodenetwork"
+	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	isaacoperation "github.com/spikeekips/mitum/isaac/operation"
 	"github.com/spikeekips/mitum/network/quictransport"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -20,7 +20,6 @@ var Hinters = []encoder.DecodeDetail{
 	{Hint: base.OperationFixedTreeNodeHint, Instance: base.OperationFixedTreeNode{}},
 	{Hint: base.StateFixedTreeNodeHint, Instance: base.StateFixedTreeNode{}},
 	{Hint: base.StringAddressHint, Instance: base.StringAddress{}},
-	{Hint: isaacblockdata.BlockDataMapHint, Instance: isaacblockdata.BlockDataMap{}},
 	{Hint: isaac.ACCEPTBallotFactHint, Instance: isaac.ACCEPTBallotFact{}},
 	{Hint: isaac.ACCEPTBallotHint, Instance: isaac.ACCEPTBallot{}},
 	{Hint: isaac.ACCEPTBallotSignedFactHint, Instance: isaac.ACCEPTBallotSignedFact{}},
@@ -30,15 +29,18 @@ var Hinters = []encoder.DecodeDetail{
 	{Hint: isaac.INITBallotSignedFactHint, Instance: isaac.INITBallotSignedFact{}},
 	{Hint: isaac.INITVoteproofHint, Instance: isaac.INITVoteproof{}},
 	{Hint: isaac.ManifestHint, Instance: isaac.Manifest{}},
-	{Hint: isaac.NodeHint, Instance: base.BaseNode{}},
-	{Hint: isaac.NodePolicyHint, Instance: isaac.NodePolicy{}},
 	{Hint: isaac.NetworkPolicyHint, Instance: isaac.NetworkPolicy{}},
 	{Hint: isaac.NetworkPolicyStateValueHint, Instance: isaac.NetworkPolicyStateValue{}},
-	{Hint: isaacoperation.GenesisNetworkPolicyFactHint, Instance: isaacoperation.GenesisNetworkPolicyFact{}},
-	{Hint: isaacoperation.GenesisNetworkPolicyHint, Instance: isaacoperation.GenesisNetworkPolicy{}},
+	{Hint: isaac.NodeHint, Instance: base.BaseNode{}},
+	{Hint: isaac.NodePolicyHint, Instance: isaac.NodePolicy{}},
 	{Hint: isaac.ProposalFactHint, Instance: isaac.ProposalFact{}},
 	{Hint: isaac.ProposalSignedFactHint, Instance: isaac.ProposalSignedFact{}},
-	{Hint: isaac.SuffrageCandidateStateNodeValueHint, Instance: isaac.SuffrageCandidateStateNodeValue{}},
+	{Hint: isaac.SuffrageCandidateHint, Instance: isaac.SuffrageCandidate{}},
+	{Hint: isaac.SuffrageCandidateHint, Instance: isaac.SuffrageCandidate{}},
+	{Hint: isaac.SuffrageInfoHint, Instance: isaac.SuffrageInfo{}},
+	{Hint: isaacblockdata.BlockDataMapHint, Instance: isaacblockdata.BlockDataMap{}},
+	{Hint: isaacoperation.GenesisNetworkPolicyFactHint, Instance: isaacoperation.GenesisNetworkPolicyFact{}},
+	{Hint: isaacoperation.GenesisNetworkPolicyHint, Instance: isaacoperation.GenesisNetworkPolicy{}},
 	{Hint: isaacoperation.SuffrageGenesisJoinHint, Instance: isaacoperation.SuffrageGenesisJoin{}},
 	{
 		Hint:     isaacoperation.SuffrageGenesisJoinPermissionFactHint,
@@ -47,8 +49,8 @@ var Hinters = []encoder.DecodeDetail{
 	{Hint: isaacoperation.SuffrageJoinHint, Instance: base.BaseOperation{}},
 	{Hint: isaacoperation.SuffrageJoinPermissionFactHint, Instance: isaacoperation.SuffrageJoinPermissionFact{}},
 	{Hint: isaac.SuffrageStateValueHint, Instance: isaac.SuffrageStateValue{}},
-	{Hint: isaacnodenetwork.ProposalBodyHint, Instance: isaacnodenetwork.ProposalBody{}},
-	{Hint: isaacnodenetwork.RequestProposalBodyHint, Instance: isaacnodenetwork.RequestProposalBody{}},
+	{Hint: isaacnetwork.ProposalBodyHint, Instance: isaacnetwork.ProposalBody{}},
+	{Hint: isaacnetwork.RequestProposalBodyHint, Instance: isaacnetwork.RequestProposalBody{}},
 	{Hint: quictransport.NodeHint, Instance: quictransport.BaseNode{}},
 	{Hint: quictransport.NodeMetaHint, Instance: quictransport.NodeMeta{}},
 	{Hint: tree.FixedTreeHint, Instance: tree.FixedTree{}},

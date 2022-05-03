@@ -1,4 +1,4 @@
-package isaacnodenetwork
+package isaacnetwork
 
 import (
 	"bytes"
@@ -33,6 +33,8 @@ func (t *testQuicstreamNodeNetworkHandlers) SetupSuite() {
 
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: RequestProposalBodyHint, Instance: RequestProposalBody{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ProposalBodyHint, Instance: ProposalBody{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageCandidateHint, Instance: isaac.SuffrageCandidate{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageInfoHint, Instance: isaac.SuffrageInfo{}}))
 }
 
 func (t *testQuicstreamNodeNetworkHandlers) TestClient() {
@@ -160,11 +162,9 @@ func (t *testQuicstreamNodeNetworkHandlers) TestProposal() {
 }
 
 func (t *testQuicstreamNodeNetworkHandlers) TestLastSuffrageState() {
-	_, nodes := t.Locals(3)
 	height := base.Height(33)
 
-	_, stv := t.SuffrageState(height, base.Height(22), nodes)
-	manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
+	info := newSuffrageInfo(height, 3, 3)
 
 	pool := t.NewPool()
 	defer pool.Close()
@@ -189,28 +189,26 @@ func (t *testQuicstreamNodeNetworkHandlers) TestLastSuffrageState() {
 	c := newBaseNodeNetworkClient(t.Encs, t.Enc, send)
 
 	t.Run("found", func() {
-		handlers.lastSuffragef = func() (base.Manifest, base.SuffrageStateValue, bool, error) {
-			return manifest, stv, true, nil
+		handlers.lastSuffragef = func() (base.SuffrageInfo, bool, error) {
+			return info, true, nil
 		}
 
-		rm, rstv, found, err := c.LastSuffrage(context.Background(), ci)
+		rinfo, found, err := c.LastSuffrage(context.Background(), ci)
 		t.NoError(err)
 		t.True(found)
 
-		base.EqualManifest(t.Assert(), manifest, rm)
-		t.True(stv.Equal(rstv))
+		base.EqualSuffrageInfo(t.Assert(), info, rinfo)
 	})
 
 	t.Run("not found", func() {
-		handlers.lastSuffragef = func() (base.Manifest, base.SuffrageStateValue, bool, error) {
-			return nil, nil, false, nil
+		handlers.lastSuffragef = func() (base.SuffrageInfo, bool, error) {
+			return nil, false, nil
 		}
 
-		rm, rstv, found, err := c.LastSuffrage(context.Background(), ci)
+		rinfo, found, err := c.LastSuffrage(context.Background(), ci)
 		t.NoError(err)
 		t.False(found)
-		t.Nil(rm)
-		t.Nil(rstv)
+		t.Nil(rinfo)
 	})
 }
 

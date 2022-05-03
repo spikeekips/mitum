@@ -1,4 +1,4 @@
-package isaacnodenetwork
+package isaacnetwork
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 )
 
 type (
-	QuicstreamNodeNetworkHandlerLastSuffrageFunction func() (base.Manifest, base.SuffrageStateValue, bool, error)
+	QuicstreamNodeNetworkHandlerLastSuffrageFunction func() (base.SuffrageInfo, bool, error)
 )
 
 type QuicstreamNodeNetworkHandlers struct {
@@ -153,13 +153,13 @@ func (c *QuicstreamNodeNetworkHandlers) Proposal(_ net.Addr, r io.Reader, w io.W
 func (c *QuicstreamNodeNetworkHandlers) LastSuffrage(_ net.Addr, _ io.Reader, w io.Writer) error {
 	e := util.StringErrorFunc("failed to handle get last suffrage state")
 
-	switch m, st, found, err := c.lastSuffragef(); {
+	switch info, found, err := c.lastSuffragef(); {
 	case err != nil:
 		return e(err, "")
 	case !found:
 		return nil
 	default:
-		if err := c.response(w, []interface{}{m, st}); err != nil {
+		if err := c.response(w, info); err != nil {
 			return e(err, "")
 		}
 

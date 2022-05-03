@@ -7,6 +7,11 @@ import (
 )
 
 var (
+	SuffrageStateValueHint = hint.MustNewHint("suffrage-state-value-v0.0.1")
+	SuffrageCandidateHint  = hint.MustNewHint("suffrage-candidate-v0.0.1")
+)
+
+var (
 	SuffrageStateKey          = "suffrage"
 	SuffrageCandidateStateKey = "suffrage_candidate"
 	NetworkPolicyStateKey     = "network_policy"
@@ -69,11 +74,6 @@ func (suf Suffrage) Nodes() []base.Node {
 func (suf Suffrage) Len() int {
 	return len(suf.ns)
 }
-
-var (
-	SuffrageStateValueHint              = hint.MustNewHint("suffrage-state-value-v0.0.1")
-	SuffrageCandidateStateNodeValueHint = hint.MustNewHint("suffrage-candidate-state-node-value-v0.0.1")
-)
 
 type SuffrageStateValue struct {
 	hint.BaseHinter
@@ -170,29 +170,44 @@ func (s SuffrageStateValue) Equal(b base.StateValue) bool {
 	return true
 }
 
-type SuffrageCandidateStateNodeValue struct {
-	base.BaseNode
+type SuffrageCandidate struct {
+	hint.BaseHinter
+	base.Node
 	start    base.Height
 	deadline base.Height
 }
 
-func NewSuffrageCandidateStateNodeValue(
-	pub base.Publickey,
-	addr base.Address,
-	start,
-	deadline base.Height,
-) SuffrageCandidateStateNodeValue {
-	return SuffrageCandidateStateNodeValue{
-		BaseNode: base.NewBaseNode(SuffrageCandidateStateNodeValueHint, pub, addr),
-		start:    start,
-		deadline: deadline,
+func NewSuffrageCandidate(node base.Node, start, deadline base.Height) SuffrageCandidate {
+	return SuffrageCandidate{
+		BaseHinter: hint.NewBaseHinter(SuffrageCandidateHint),
+		Node:       node,
+		start:      start,
+		deadline:   deadline,
 	}
 }
 
-func (suf SuffrageCandidateStateNodeValue) Start() base.Height {
+func (suf SuffrageCandidate) IsValid([]byte) error {
+	e := util.StringErrorFunc("invalid SuffrageCandidate")
+
+	if err := suf.BaseHinter.IsValid(SuffrageCandidateHint.Type().Bytes()); err != nil {
+		return e(err, "")
+	}
+
+	if err := suf.Node.IsValid(nil); err != nil {
+		return e(err, "")
+	}
+
+	if suf.start >= suf.deadline {
+		return e(util.InvalidError.Errorf("start >= deadline"), "")
+	}
+
+	return nil
+}
+
+func (suf SuffrageCandidate) Start() base.Height {
 	return suf.start
 }
 
-func (suf SuffrageCandidateStateNodeValue) Deadline() base.Height {
+func (suf SuffrageCandidate) Deadline() base.Height {
 	return suf.deadline
 }

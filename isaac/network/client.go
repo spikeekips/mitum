@@ -1,4 +1,4 @@
-package isaacnodenetwork
+package isaacnetwork
 
 import (
 	"context"
@@ -118,46 +118,36 @@ func (c *baseNodeNetworkClient) Proposal(
 func (c *baseNodeNetworkClient) LastSuffrage(
 	ctx context.Context,
 	ci quictransport.ConnInfo,
-) (base.Manifest, base.SuffrageStateValue, bool, error) {
+) (base.SuffrageInfo, bool, error) {
 	e := util.StringErrorFunc("failed to request proposal")
 
 	r, err := c.send(ctx, ci, HandlerPrefixLastSuffrage, nil)
 	if err != nil {
-		return nil, nil, false, e(err, "failed to send request")
+		return nil, false, e(err, "failed to send request")
 	}
 
 	rb, err := quicstream.ReadAll(ctx, r)
 	switch {
 	case err != nil:
-		return nil, nil, false, e(err, "failed to read stream")
+		return nil, false, e(err, "failed to read stream")
 	case len(rb) < 1:
-		return nil, nil, false, nil
+		return nil, false, nil
 	}
 
-	enc, raw, err := c.readEncoder(rb)
-	if err != nil {
-		return nil, nil, false, e(err, "")
-	}
-
-	l, err := enc.DecodeSlice(raw)
+	hinter, err := c.readHinter(rb)
 	switch {
 	case err != nil:
-		return nil, nil, false, e(err, "")
-	case len(l) != 2:
-		return nil, nil, false, e(nil, "invalid response")
+		return nil, false, e(err, "")
+	case hinter == nil:
+		return nil, false, nil
 	}
 
-	manifest, ok := l[0].(base.Manifest)
+	info, ok := hinter.(base.SuffrageInfo)
 	if !ok {
-		return nil, nil, false, e(nil, "invalid response; not manifest")
+		return nil, false, e(nil, "invalid response; not SuffrageNodesNetworkInfo")
 	}
 
-	stv, ok := l[1].(base.SuffrageStateValue)
-	if !ok {
-		return nil, nil, false, e(nil, "invalid response; not suffrage state value")
-	}
-
-	return manifest, stv, true, nil
+	return info, true, nil
 }
 
 func (c *baseNodeNetworkClient) loadProposal(b []byte) (base.ProposalSignedFact, error) {

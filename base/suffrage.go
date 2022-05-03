@@ -52,3 +52,11 @@ func IsSuffrageState(st State) bool {
 
 	return ok
 }
+
+type SuffrageInfo interface {
+	util.IsValider
+	State() util.Hash // NOTE suffrage state hash
+	Height() Height   // NOTE suffrage height
+	Suffrage() []Node
+	Candidates() []SuffrageCandidate
+}

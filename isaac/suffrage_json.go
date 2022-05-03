@@ -56,3 +56,45 @@ func (s *SuffrageStateValue) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 
 	return nil
 }
+
+type SuffrageCandidateJSONMarshaler struct {
+	hint.BaseHinter
+	Node     base.Node   `json:"node"`
+	Start    base.Height `json:"start"`
+	Deadline base.Height `json:"deadline"`
+}
+
+func (suf SuffrageCandidate) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(SuffrageCandidateJSONMarshaler{
+		BaseHinter: suf.BaseHinter,
+		Node:       suf.Node,
+		Start:      suf.start,
+		Deadline:   suf.deadline,
+	})
+}
+
+type SuffrageCandidateJSONUnmarshaler struct {
+	Node     json.RawMessage    `json:"node"`
+	Start    base.HeightDecoder `json:"start"`
+	Deadline base.HeightDecoder `json:"deadline"`
+}
+
+func (suf *SuffrageCandidate) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+	e := util.StringErrorFunc("failed to decode SuffrageCandidate")
+
+	var u SuffrageCandidateJSONUnmarshaler
+	if err := enc.Unmarshal(b, &u); err != nil {
+		return e(err, "")
+	}
+
+	node, err := base.DecodeNode(u.Node, enc)
+	if err != nil {
+		return e(err, "")
+	}
+	suf.Node = node
+
+	suf.start = u.Start.Height()
+	suf.deadline = u.Deadline.Height()
+
+	return nil
+}
