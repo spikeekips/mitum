@@ -84,7 +84,7 @@ func (l *Locked) Set(f func(interface{}) (interface{}, error)) (interface{}, err
 
 	switch j, err := f(i); {
 	case err != nil:
-		return nil, err
+		return j, err
 	default:
 		l.value = j
 
@@ -163,7 +163,7 @@ func (l *LockedMap) Set(k interface{}, f func(interface{}) (interface{}, error))
 
 	switch j, err := f(i); {
 	case err != nil:
-		return nil, err
+		return j, err
 	default:
 		l.m[k] = j
 
