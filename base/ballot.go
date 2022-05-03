@@ -2,7 +2,6 @@ package base
 
 import (
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/hint"
 )
 
 type BallotFact interface {
@@ -11,7 +10,6 @@ type BallotFact interface {
 }
 
 type BallotSignedFact interface {
-	hint.Hinter
 	util.HashByter
 	util.IsValider
 	SignedFact

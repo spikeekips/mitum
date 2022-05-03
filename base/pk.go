@@ -7,7 +7,6 @@ import (
 	"github.com/btcsuite/btcutil/base58"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	"github.com/spikeekips/mitum/util/hint"
 )
 
 const PKKeyTypeSize = 3
@@ -16,7 +15,6 @@ var SignatureVerificationError = util.NewError("signature verification failed")
 
 type PKKey interface {
 	fmt.Stringer
-	hint.Hinter
 	util.Byter
 	util.IsValider
 	Equal(PKKey) bool

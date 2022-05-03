@@ -5,6 +5,7 @@ package base
 
 import (
 	"github.com/pkg/errors"
+	"github.com/spikeekips/mitum/util/hint"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -20,7 +21,10 @@ func EqualBallotSignedFact(t *assert.Assertions, a, b BallotSignedFact) {
 
 	EqualSignedFact(t, a, b)
 
-	t.True(a.Hint().Equal(b.Hint()))
+	aht := a.(hint.Hinter).Hint()
+	bht := b.(hint.Hinter).Hint()
+	t.True(aht.Equal(bht), "Hint does not match")
+
 	t.True(a.Node().Equal(b.Node()))
 
 	var af, bf BallotFact

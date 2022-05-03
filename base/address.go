@@ -5,7 +5,6 @@ import (
 
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	"github.com/spikeekips/mitum/util/hint"
 )
 
 const AddressTypeSize = 3
@@ -13,7 +12,6 @@ const AddressTypeSize = 3
 // Address represents the address of account.
 type Address interface {
 	fmt.Stringer // NOTE String() should be typed string
-	hint.Hinter
 	util.Byter
 	util.IsValider
 	Equal(Address) bool

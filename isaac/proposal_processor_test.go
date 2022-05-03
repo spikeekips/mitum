@@ -933,7 +933,7 @@ func (t *testDefaultProposalProcessor) TestProcess() {
 		_ = bst.(io.Closer).Close()
 
 		t.Equal(point.Height(), bst.Height())
-		t.True(st.Equal(bst.Value()))
+		t.True(base.IsEqualStateValue(st, bst.Value()))
 
 		bops := bst.Operations()
 		t.Equal(1, len(bops))

@@ -31,9 +31,7 @@ func (t *BaseTestEncode) TestDecode() {
 	ih, iok := i.(hint.Hinter)
 	uh, uok := u.(hint.Hinter)
 
-	t.Equal(iok, uok)
-
-	if !iok {
+	if !iok || !uok {
 		return
 	}
 

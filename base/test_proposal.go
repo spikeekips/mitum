@@ -5,6 +5,7 @@ package base
 
 import (
 	"github.com/pkg/errors"
+	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/localtime"
 	"github.com/stretchr/testify/assert"
 )
@@ -21,7 +22,9 @@ func EqualProposalSignedFact(t *assert.Assertions, a, b ProposalSignedFact) {
 
 	EqualSignedFact(t, a, b)
 
-	t.True(a.Hint().Equal(b.Hint()))
+	aht := a.(hint.Hinter).Hint()
+	bht := b.(hint.Hinter).Hint()
+	t.True(aht.Equal(bht), "Hint does not match")
 
 	EqualProposalFact(t, a.ProposalFact(), b.ProposalFact())
 }

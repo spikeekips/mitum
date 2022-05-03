@@ -51,7 +51,7 @@ func TestSuffrageStateValueJSON(tt *testing.T) {
 		bv := b.(SuffrageStateValue)
 
 		t.True(av.Hint().Equal(bv.Hint()))
-		t.True(av.Equal(bv))
+		t.True(base.IsEqualStateValue(av, bv))
 	}
 
 	suite.Run(tt, t)

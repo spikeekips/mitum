@@ -39,24 +39,6 @@ func (s dummySimpleStateValue) IsValid([]byte) error {
 	return nil
 }
 
-func (s dummySimpleStateValue) Equal(b StateValue) bool {
-	switch {
-	case b == nil:
-		return false
-	case s.Hint().Type() != b.Hint().Type():
-		return false
-	}
-
-	switch j, ok := b.(dummySimpleStateValue); {
-	case !ok:
-		return false
-	case s.I != j.I:
-		return false
-	default:
-		return true
-	}
-}
-
 func (s dummySimpleStateValue) Merger(height Height, st State) StateValueMerger {
 	if st == nil {
 		st = newDummyState(NilHeight, s.K, nil, nil)
@@ -285,7 +267,9 @@ func TestStateValueMergerEncode(tt *testing.T) {
 		b, err := enc.Marshal(merger)
 		t.NoError(err)
 
-		return merger, b
+		t.T().Log("marshaled:", string(b))
+
+		return merger.(*dummySimpleStateValueMerger), b
 	}
 	t.Decode = func(b []byte) interface{} {
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: dummySimpleStateValueHint, Instance: dummySimpleStateValue{}}))

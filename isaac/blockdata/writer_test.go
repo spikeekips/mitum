@@ -181,7 +181,7 @@ func (t *testWriter) TestSetStates() {
 			t.NoError(merger.Close())
 
 			t.Equal(st.Key(), merger.Key())
-			t.True(st.Equal(merger.Value()))
+			t.True(base.IsEqualStateValue(st, merger.Value()))
 		}
 	}
 }

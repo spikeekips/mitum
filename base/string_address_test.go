@@ -100,22 +100,16 @@ func (t *testStringAddress) TestParse() {
 	})
 }
 
-type wrongHintedAddress struct {
-	Address
-	ht hint.Hint
-}
-
-func (k wrongHintedAddress) Hint() hint.Hint {
-	return k.ht
-}
-
 func (t *testStringAddress) TestEqual() {
 	a := NewStringAddress("abc")
 	b := NewStringAddress("abc")
 	t.True(a.Equal(b))
 
-	t.False(a.Equal(wrongHintedAddress{Address: a, ht: hint.MustNewHint("wrong-v0.0.1")}))
-	t.True(a.Equal(wrongHintedAddress{Address: a, ht: hint.MustNewHint(StringAddressHint.Type().String() + "-v0.0.1")}))
+	other := NewBaseStringAddressWithHint(hint.MustNewHint("wrong-v0.0.1"), "abc")
+	t.False(a.Equal(other))
+
+	other = NewBaseStringAddressWithHint(hint.MustNewHint(StringAddressHint.Type().String()+"-v0.0.1"), "abc")
+	t.True(a.Equal(other))
 }
 
 func (t *testStringAddress) TestFormat() {
@@ -188,7 +182,10 @@ func (t *baseTestStringAddressEncode) Compare(a, b interface{}) {
 		return
 	}
 
-	t.True(ad.Hint().Equal(uad.Hint()))
+	aht := ad.(hint.Hinter).Hint()
+	uht := uad.(hint.Hinter).Hint()
+	t.True(aht.Equal(uht), "Hint does not match")
+
 	t.True(ad.Equal(uad))
 }
 

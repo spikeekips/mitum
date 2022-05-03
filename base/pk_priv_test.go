@@ -139,15 +139,6 @@ func (t *testMPrivatekey) TestFromSeed() {
 	}
 }
 
-type wrongHintedKey struct {
-	PKKey
-	ht hint.Hint
-}
-
-func (k wrongHintedKey) Hint() hint.Hint {
-	return k.ht
-}
-
 func (t *testMPrivatekey) TestEqual() {
 	priv := NewMPrivatekey()
 	b := NewMPrivatekey()
@@ -157,8 +148,15 @@ func (t *testMPrivatekey) TestEqual() {
 	t.True(b.Equal(b))
 	t.False(priv.Equal(nil))
 	t.False(b.Equal(nil))
-	t.False(priv.Equal(wrongHintedKey{PKKey: priv, ht: hint.MustNewHint("wrong-v0.0.1")}))
-	t.True(priv.Equal(wrongHintedKey{PKKey: priv, ht: hint.MustNewHint(MPrivatekeyHint.Type().String() + "-v0.0.1")}))
+
+	npriv := priv
+	npriv.BaseHinter = npriv.BaseHinter.SetHint(hint.MustNewHint("wrong-v0.0.1")).(hint.BaseHinter)
+	npriv = npriv.ensure()
+	t.False(priv.Equal(npriv))
+
+	npriv.BaseHinter = npriv.BaseHinter.SetHint(hint.MustNewHint(MPrivatekeyHint.Type().String() + "-v0.0.1")).(hint.BaseHinter)
+	npriv = npriv.ensure()
+	t.True(priv.Equal(npriv))
 }
 
 func TestMPrivatekey(t *testing.T) {
@@ -182,7 +180,10 @@ func (t *baseTestMPKKeyEncode) Compare(a, b interface{}) {
 		return
 	}
 
-	t.True(ak.Hint().Equal(uak.Hint()))
+	aht := ak.(hint.Hinter).Hint()
+	uht := uak.(hint.Hinter).Hint()
+
+	t.True(aht.Equal(uht))
 	t.True(ak.Equal(uak))
 	t.Equal(ak.String(), uak.String())
 }

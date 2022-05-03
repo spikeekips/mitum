@@ -4,11 +4,9 @@ import (
 	"time"
 
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/hint"
 )
 
 type Voteproof interface {
-	hint.Hinter
 	util.IsValider
 	util.HashByter
 	FinishedAt() time.Time // NOTE if zero, not yet finished

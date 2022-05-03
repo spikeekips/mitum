@@ -4,6 +4,7 @@
 package base
 
 import (
+	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/localtime"
 	"github.com/stretchr/testify/assert"
 )
@@ -14,7 +15,10 @@ func EqualVoteproof(t *assert.Assertions, a, b Voteproof) {
 		return
 	}
 
-	t.True(a.Hint().Equal(b.Hint()))
+	aht := a.(hint.Hinter).Hint()
+	bht := b.(hint.Hinter).Hint()
+	t.True(aht.Equal(bht), "Hint does not match")
+
 	t.Equal(a.HashBytes(), b.HashBytes())
 	t.True(localtime.New(a.FinishedAt()).Equal(localtime.New(b.FinishedAt())))
 	t.Equal(a.Point(), b.Point())

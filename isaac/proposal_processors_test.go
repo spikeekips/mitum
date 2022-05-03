@@ -103,10 +103,8 @@ func (t *testProposalProcessors) TestAlreadyProcessing() {
 	facthash := pr.Fact().Hash()
 
 	t.T().Log("process")
-	go func() {
-		_, err := pps.Process(context.Background(), facthash, previous, nil)
-		t.NoError(err)
-	}()
+	_, err := pps.Process(context.Background(), facthash, previous, nil)
+	t.NoError(err)
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -115,7 +113,7 @@ func (t *testProposalProcessors) TestAlreadyProcessing() {
 	}
 
 	t.T().Log("try process again")
-	_, err := pps.Process(context.Background(), facthash, previous, nil)
+	_, err = pps.Process(context.Background(), facthash, previous, nil)
 	t.NoError(err)
 
 	t.NotNil(pps.Processor())

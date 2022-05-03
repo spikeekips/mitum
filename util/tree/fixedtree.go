@@ -20,7 +20,6 @@ var (
 )
 
 type FixedTreeNode interface {
-	hint.Hinter
 	util.IsValider
 	Index() uint64
 	Key() string

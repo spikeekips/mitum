@@ -127,8 +127,6 @@ func (k MPrivatekey) Equal(b PKKey) bool {
 	switch {
 	case b == nil:
 		return false
-	case k.Hint().Type() != b.Hint().Type():
-		return false
 	default:
 		return k.s == b.String()
 	}
@@ -166,17 +164,9 @@ func (k MPrivatekey) ensure() MPrivatekey {
 		return k
 	}
 
-	if k.pub.k == nil {
-		k.pub = NewMPublickey(k.wif.PrivKey.PubKey())
-	}
-
-	if len(k.s) < 1 {
-		k.s = fmt.Sprintf("%s%s", k.wif.String(), MPrivatekeyHint.Type().String())
-	}
-
-	if len(k.b) < 1 {
-		k.b = []byte(k.s)
-	}
+	k.pub = NewMPublickey(k.wif.PrivKey.PubKey())
+	k.s = fmt.Sprintf("%s%s", k.wif.String(), k.Hint().Type().String())
+	k.b = []byte(k.s)
 
 	return k
 }

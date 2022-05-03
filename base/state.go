@@ -1,13 +1,14 @@
 package base
 
 import (
+	"bytes"
+
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/tree"
 )
 
 type State interface {
-	hint.Hinter
 	util.Hasher // NOTE <key> + <value HashByte> + <height>
 	util.IsValider
 	Key() string
@@ -18,10 +19,8 @@ type State interface {
 }
 
 type StateValue interface {
-	hint.Hinter
 	util.HashByter
 	util.IsValider
-	Equal(StateValue) bool
 }
 
 type StateMergeValue interface {
@@ -43,15 +42,13 @@ func IsEqualState(a, b State) bool {
 	switch {
 	case a == nil || b == nil:
 		return false
-	case a.Hint().Type() != b.Hint().Type():
-		return false
 	case !a.Hash().Equal(b.Hash()):
 		return false
 	case a.Key() != b.Key():
 		return false
 	case a.Height() != b.Height():
 		return false
-	case !a.Value().Equal(b.Value()):
+	case !IsEqualStateValue(a.Value(), b.Value()):
 		return false
 	case len(a.Operations()) != len(b.Operations()):
 		return false
@@ -65,6 +62,17 @@ func IsEqualState(a, b State) bool {
 			}
 		}
 
+		return true
+	}
+}
+
+func IsEqualStateValue(a, b StateValue) bool {
+	switch {
+	case a == nil || b == nil:
+		return false
+	case !bytes.Equal(a.HashBytes(), b.HashBytes()):
+		return false
+	default:
 		return true
 	}
 }

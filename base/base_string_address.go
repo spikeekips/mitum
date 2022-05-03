@@ -68,10 +68,6 @@ func (ad BaseStringAddress) Equal(b Address) bool {
 		return false
 	}
 
-	if ad.Hint().Type() != b.Hint().Type() {
-		return false
-	}
-
 	return ad.s == b.String()
 }
 

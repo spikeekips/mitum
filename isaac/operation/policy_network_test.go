@@ -175,7 +175,7 @@ func (t *testGenesisNetworkPolicy) TestProcess() {
 
 	expected := isaac.NewNetworkPolicyStateValue(policy)
 
-	t.True(expected.Equal(value.Value()))
+	t.True(base.IsEqualStateValue(expected, value.Value()))
 }
 
 func TestGenesisNetworkPolicy(t *testing.T) {

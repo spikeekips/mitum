@@ -4,8 +4,6 @@
 package base
 
 import (
-	"bytes"
-
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
 )
@@ -46,17 +44,6 @@ func (s DummyStateValue) IsValid([]byte) error {
 	}
 
 	return nil
-}
-
-func (s DummyStateValue) Equal(b StateValue) bool {
-	switch {
-	case b == nil:
-		return false
-	case s.Hint().Type() != b.Hint().Type():
-		return false
-	}
-
-	return bytes.Equal(s.HashBytes(), b.HashBytes())
 }
 
 func NilGetState(string) (State, bool, error) {

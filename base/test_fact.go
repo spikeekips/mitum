@@ -93,7 +93,10 @@ func (fact *DummyFact) UnmarshalJSON(b []byte) error {
 }
 
 func EqualFact(t *assert.Assertions, a, b Fact) {
-	t.True(a.Hint().Equal(b.Hint()))
+	aht := a.(hint.Hinter).Hint()
+	bht := b.(hint.Hinter).Hint()
+	t.True(aht.Equal(bht), "Hint does not match")
+
 	t.True(a.Hash().Equal(b.Hash()))
 	t.Equal(a.Token(), b.Token())
 }

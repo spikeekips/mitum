@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/hint"
 )
 
 type ProposalFact interface {
@@ -16,7 +15,6 @@ type ProposalFact interface {
 }
 
 type ProposalSignedFact interface {
-	hint.Hinter
 	util.HashByter
 	util.IsValider
 	SignedFact

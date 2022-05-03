@@ -66,18 +66,25 @@ func (t *testMPublickey) TestInvalid() {
 
 func (t *testMPublickey) TestEqual() {
 	priv := NewMPrivatekey()
-	pub := priv.Publickey()
+	pub := priv.Publickey().(MPublickey)
 
 	privb := NewMPrivatekey()
-	pubb := privb.Publickey()
+	pubb := privb.Publickey().(MPublickey)
 
 	t.True(pub.Equal(pub))
 	t.False(pub.Equal(pubb))
 	t.True(pubb.Equal(pubb))
 	t.False(pub.Equal(nil))
 	t.False(pubb.Equal(nil))
-	t.False(pub.Equal(wrongHintedKey{PKKey: pub, ht: hint.MustNewHint("wrong-v0.0.1")}))
-	t.True(pub.Equal(wrongHintedKey{PKKey: pub, ht: hint.MustNewHint(MPublickeyHint.Type().String() + "-v0.0.1")}))
+
+	npub := pub
+	npub.BaseHinter = npub.BaseHinter.SetHint(hint.MustNewHint("wrong-v0.0.1")).(hint.BaseHinter)
+	npub = npub.ensure()
+	t.False(pub.Equal(npub))
+
+	npub.BaseHinter = npub.BaseHinter.SetHint(hint.MustNewHint(MPublickeyHint.Type().String() + "-v0.0.1")).(hint.BaseHinter)
+	npub = npub.ensure()
+	t.True(pub.Equal(npub))
 }
 
 func (t *testMPublickey) TestSign() {

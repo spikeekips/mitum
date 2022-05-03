@@ -5,6 +5,7 @@ package base
 
 import (
 	"github.com/pkg/errors"
+	"github.com/spikeekips/mitum/util/hint"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -18,7 +19,9 @@ func EqualNetworkPolicy(t *assert.Assertions, a, b NetworkPolicy) {
 		return
 	}
 
-	t.True(a.Hint().Equal(b.Hint()))
+	aht := a.(hint.Hinter).Hint()
+	bht := b.(hint.Hinter).Hint()
+	t.True(aht.Equal(bht), "Hint does not match")
 
 	t.Equal(a.HashBytes(), b.HashBytes())
 }

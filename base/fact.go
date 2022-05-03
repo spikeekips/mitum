@@ -4,13 +4,11 @@ import (
 	"math"
 
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/hint"
 )
 
 const MaxTokenSize = math.MaxUint16
 
 type Fact interface {
-	hint.Hinter
 	util.IsValider
 	util.Hasher
 	Token() Token
@@ -38,7 +36,6 @@ func (t Token) IsValid([]byte) error {
 
 func IsValidFact(fact Fact, b []byte) error {
 	if err := util.CheckIsValid(b, false,
-		fact.Hint(),
 		fact.Hash(),
 		fact.Token(),
 	); err != nil {

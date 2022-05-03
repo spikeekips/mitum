@@ -20,7 +20,7 @@ var (
 )
 
 type Operation interface {
-	hint.Hinter // BLOCK remove Hinter from interface
+	hint.Hinter
 	util.IsValider
 	SignedFact
 	PreProcess(context.Context, GetStateFunc) (OperationProcessReasonError, error)
@@ -145,7 +145,6 @@ var NotChangedOperationProcessReasonError = NewBaseOperationProcessReasonError("
 
 type OperationProcessReasonError interface {
 	error
-	hint.Hinter
 	Msg() string
 }
 

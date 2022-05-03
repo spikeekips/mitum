@@ -79,8 +79,6 @@ func (k MPublickey) Equal(b PKKey) bool {
 	switch {
 	case b == nil:
 		return false
-	case k.Hint().Type() != b.Hint().Type():
-		return false
 	default:
 		return k.s == b.String()
 	}
@@ -119,13 +117,8 @@ func (k MPublickey) ensure() MPublickey {
 		return k
 	}
 
-	if len(k.s) < 1 {
-		k.s = fmt.Sprintf("%s%s", base58.Encode(k.k.SerializeCompressed()), MPublickeyHint.Type().String())
-	}
-
-	if len(k.b) < 1 {
-		k.b = []byte(k.s)
-	}
+	k.s = fmt.Sprintf("%s%s", base58.Encode(k.k.SerializeCompressed()), k.Hint().Type().String())
+	k.b = []byte(k.s)
 
 	return k
 }

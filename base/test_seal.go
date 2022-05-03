@@ -6,11 +6,15 @@ package base
 import (
 	"reflect"
 
+	"github.com/spikeekips/mitum/util/hint"
 	"github.com/stretchr/testify/assert"
 )
 
 func EqualSeal(t *assert.Assertions, a, b Seal) {
-	t.True(a.Hint().Equal(b.Hint()))
+	aht := a.(hint.Hinter).Hint()
+	bht := b.(hint.Hinter).Hint()
+	t.True(aht.Equal(bht), "Hint does not match")
+
 	EqualSigned(t, a.Signed(), b.Signed())
 
 	abs := a.Body()

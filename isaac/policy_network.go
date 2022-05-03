@@ -1,8 +1,6 @@
 package isaac
 
 import (
-	"bytes"
-
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
@@ -115,22 +113,4 @@ func (s NetworkPolicyStateValue) IsValid([]byte) error {
 
 func (s NetworkPolicyStateValue) Policy() base.NetworkPolicy {
 	return s.policy
-}
-
-func (s NetworkPolicyStateValue) Equal(b base.StateValue) bool {
-	switch {
-	case b == nil:
-		return false
-	case s.Hint().Type() != b.Hint().Type():
-		return false
-	}
-
-	switch j, ok := b.(NetworkPolicyStateValue); {
-	case !ok:
-		return false
-	case !bytes.Equal(s.policy.HashBytes(), j.Policy().HashBytes()):
-		return false
-	default:
-		return true
-	}
 }
