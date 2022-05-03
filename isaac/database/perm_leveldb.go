@@ -3,6 +3,7 @@ package isaacdatabase
 import (
 	"bytes"
 	"context"
+	"math"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -173,7 +174,7 @@ func (db *LeveldbPermanent) Map(height base.Height) (base.BlockDataMap, bool, er
 	}
 }
 
-func (db *LeveldbPermanent) MergeTempDatabase(_ context.Context, temp isaac.TempDatabase) error {
+func (db *LeveldbPermanent) MergeTempDatabase(ctx context.Context, temp isaac.TempDatabase) error {
 	db.Lock()
 	defer db.Unlock()
 
@@ -185,7 +186,7 @@ func (db *LeveldbPermanent) MergeTempDatabase(_ context.Context, temp isaac.Temp
 
 	switch t := temp.(type) {
 	case *TempLeveldb:
-		mp, sufstt, err := db.mergeTempDatabaseFromLeveldb(t)
+		mp, sufstt, err := db.mergeTempDatabaseFromLeveldb(ctx, t)
 		if err != nil {
 			return e(err, "")
 		}
@@ -205,12 +206,10 @@ func (db *LeveldbPermanent) MergeTempDatabase(_ context.Context, temp isaac.Temp
 	}
 }
 
-func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(temp *TempLeveldb) (
+func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp *TempLeveldb) (
 	base.BlockDataMap, base.State, error,
 ) {
 	e := util.StringErrorFunc("failed to merge LeveldbTempDatabase")
-
-	// BLOCK apply ErrgroupWorker
 
 	var mp base.BlockDataMap
 	switch i, err := temp.Map(); {
@@ -220,27 +219,54 @@ func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(temp *TempLeveldb) (
 		mp = i
 	}
 
+	worker := util.NewErrgroupWorker(ctx, math.MaxInt32)
+	defer worker.Close()
+
 	// NOTE merge operations
-	if err := db.mergeOperationsTempDatabaseFromLeveldb(temp); err != nil {
-		return nil, nil, e(err, "failed to merge operations")
+	if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
+		if err := db.mergeOperationsTempDatabaseFromLeveldb(temp); err != nil {
+			return errors.Wrap(err, "failed to merge operations")
+		}
+
+		return nil
+	}); err != nil {
+		return nil, nil, e(err, "")
 	}
 
+	// NOTE merge states
 	var sufstt base.State
-	switch i, err := db.mergeStatesTempDatabaseFromLeveldb(temp); {
-	case err != nil:
-		return nil, nil, e(err, "failed to merge states")
-	default:
-		sufstt = i
+	if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
+		switch i, err := db.mergeStatesTempDatabaseFromLeveldb(temp); {
+		case err != nil:
+			return errors.Wrap(err, "failed to merge states")
+		default:
+			sufstt = i
+
+			return nil
+		}
+	}); err != nil {
+		return nil, nil, e(err, "")
 	}
 
 	// NOTE merge blockdatamap
-	switch b, found, err := temp.st.Get(leveldbKeyPrefixBlockDataMap); {
-	case err != nil || !found:
-		return nil, nil, e(err, "failed to get blockdatamap from TempDatabase")
-	default:
-		if err := db.st.Put(leveldbBlockDataMapKey(temp.Height()), b, nil); err != nil {
-			return nil, nil, e(err, "failed to put blockdatamap")
+	if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
+		switch b, found, err := temp.st.Get(leveldbKeyPrefixBlockDataMap); {
+		case err != nil || !found:
+			return errors.Wrap(err, "failed to get blockdatamap from TempDatabase")
+		default:
+			if err := db.st.Put(leveldbBlockDataMapKey(temp.Height()), b, nil); err != nil {
+				return errors.Wrap(err, "failed to put blockdatamap")
+			}
+
+			return nil
 		}
+	}); err != nil {
+		return nil, nil, e(err, "")
+	}
+
+	worker.Done()
+	if err := worker.Wait(); err != nil {
+		return nil, nil, e(err, "")
 	}
 
 	return mp, sufstt, nil
