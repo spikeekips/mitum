@@ -196,7 +196,9 @@ func (m BlockDataMap) signedBytes() []byte {
 			return true
 		}
 
-		ts[i] = []byte(v.(BlockDataMapItem).Checksum())
+		// NOTE only checksum and num will be included in signature
+		item := v.(BlockDataMapItem)
+		ts[i] = util.ConcatBytesSlice([]byte(item.Checksum()), util.Uint64ToBytes(item.Num()))
 		i++
 
 		return true
@@ -216,10 +218,10 @@ type BlockDataMapItem struct {
 	t        base.BlockDataType
 	url      url.URL
 	checksum string
-	num      int64
+	num      uint64
 }
 
-func NewBlockDataMapItem(t base.BlockDataType, u url.URL, checksum string, num int64) BlockDataMapItem {
+func NewBlockDataMapItem(t base.BlockDataType, u url.URL, checksum string, num uint64) BlockDataMapItem {
 	return BlockDataMapItem{
 		t:        t,
 		url:      u,
@@ -228,7 +230,7 @@ func NewBlockDataMapItem(t base.BlockDataType, u url.URL, checksum string, num i
 	}
 }
 
-func NewLocalBlockDataMapItem(t base.BlockDataType, checksum string, num int64) BlockDataMapItem {
+func NewLocalBlockDataMapItem(t base.BlockDataType, checksum string, num uint64) BlockDataMapItem {
 	return NewBlockDataMapItem(t, fileBlockDataURL, checksum, num)
 }
 
@@ -237,6 +239,10 @@ func (item BlockDataMapItem) IsValid([]byte) error {
 
 	if err := item.t.IsValid(nil); err != nil {
 		return e(err, "")
+	}
+
+	if item.num < 1 {
+		return e(util.InvalidError.Errorf("zero num"), "")
 	}
 
 	if n := len(item.checksum); n < 1 {
@@ -270,6 +276,6 @@ func (item BlockDataMapItem) Checksum() string {
 	return item.checksum
 }
 
-func (item BlockDataMapItem) Num() int64 {
+func (item BlockDataMapItem) Num() uint64 {
 	return item.num
 }

@@ -31,7 +31,7 @@ type BlockDataMapItem interface {
 	Type() BlockDataType
 	URL() *url.URL
 	Checksum() string
-	Num() int64
+	Num() uint64
 }
 
 type BlockDataType string

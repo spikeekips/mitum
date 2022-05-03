@@ -22,7 +22,6 @@ type TempPool struct {
 	lastvoteproofs *util.Locked
 }
 
-// BLOCK will be used for ProposalPool
 // BLOCK clean old proposals
 
 func NewTempPool(f string, encs *encoder.Encoders, enc encoder.Encoder) (*TempPool, error) {

@@ -26,7 +26,6 @@ type Default struct {
 	temps                 []isaac.TempDatabase // NOTE higher height will be prior
 	removed               []isaac.TempDatabase
 	mergeInterval         time.Duration
-	// BLOCK integrate TempPoolDatabase
 }
 
 func NewDefault(

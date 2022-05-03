@@ -94,7 +94,7 @@ type blockDataMapItemJSONMarshaler struct {
 	T        base.BlockDataType `json:"type"`
 	URL      string             `json:"url"`
 	Checksum string             `json:"checksum"`
-	Num      int64              `json:"num"`
+	Num      uint64             `json:"num"`
 }
 
 func (item BlockDataMapItem) MarshalJSON() ([]byte, error) {
@@ -110,7 +110,7 @@ type blockDataMapItemJSONUnmarshaler struct {
 	T        base.BlockDataType `json:"type"`
 	URL      string             `json:"url"`
 	Checksum string             `json:"checksum"`
-	Num      int64              `json:"num"`
+	Num      uint64             `json:"num"`
 }
 
 func (item *BlockDataMapItem) UnmarshalJSON(b []byte) error {

@@ -50,7 +50,7 @@ type LocalFSWriter struct {
 	temp       string
 	m          BlockDataMap
 	vps        [2]base.Voteproof
-	lenops     int64
+	lenops     uint64
 	opsf       util.ChecksumWriter
 	stsf       util.ChecksumWriter
 	saved      *util.Locked
@@ -126,7 +126,7 @@ func (w *LocalFSWriter) SetOperation(_ context.Context, _ int, op base.Operation
 		return errors.Wrap(err, "failed to set operation")
 	}
 
-	atomic.AddInt64(&w.lenops, 1)
+	atomic.AddUint64(&w.lenops, 1)
 
 	return nil
 }
@@ -142,7 +142,7 @@ func (w *LocalFSWriter) SetOperationsTree(ctx context.Context, tr tree.FixedTree
 			if err := w.m.SetItem(NewLocalBlockDataMapItem(
 				base.BlockDataTypeOperations,
 				w.opsf.Checksum(),
-				atomic.LoadInt64(&w.lenops),
+				atomic.LoadUint64(&w.lenops),
 			)); err != nil {
 				return errors.Wrap(err, "failed to set operations")
 			}
@@ -175,7 +175,7 @@ func (w *LocalFSWriter) SetStatesTree(ctx context.Context, tr tree.FixedTree) er
 			if err := w.m.SetItem(NewLocalBlockDataMapItem(
 				base.BlockDataTypeStates,
 				w.stsf.Checksum(),
-				int64(tr.Len()),
+				uint64(tr.Len()),
 			)); err != nil {
 				return errors.Wrap(err, "failed to set states")
 			}
@@ -397,7 +397,7 @@ func (w *LocalFSWriter) setTree(
 
 	_ = tf.Close()
 
-	if err := w.m.SetItem(NewLocalBlockDataMapItem(treetype, tf.Checksum(), int64(tr.Len()))); err != nil {
+	if err := w.m.SetItem(NewLocalBlockDataMapItem(treetype, tf.Checksum(), uint64(tr.Len()))); err != nil {
 		return e(err, "")
 	}
 

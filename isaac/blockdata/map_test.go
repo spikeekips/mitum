@@ -175,6 +175,28 @@ func (t *testBlockDataMap) TestSetItem() {
 	})
 }
 
+func (t *testBlockDataMap) TestVerify() {
+	t.Run("basic", func() {
+		m := t.newmap()
+		t.NoError(m.IsValid(t.networkID))
+	})
+
+	t.Run("update item with same checksum", func() {
+		m := t.newmap()
+		t.NoError(m.IsValid(t.networkID))
+
+		olditem, found := m.Item(base.BlockDataTypeProposal)
+		t.True(found)
+		t.NotNil(olditem)
+
+		u := url.URL{Scheme: "https", Host: util.UUID().String(), Path: util.UUID().String()}
+		newitem := NewBlockDataMapItem(olditem.Type(), u, olditem.Checksum(), olditem.Num())
+		t.NoError(m.SetItem(newitem))
+
+		t.NoError(m.IsValid(t.networkID))
+	})
+}
+
 type testBlockDataMapEncode struct {
 	encoder.BaseTestEncode
 	enc *jsonenc.Encoder

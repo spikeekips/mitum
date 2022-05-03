@@ -407,7 +407,7 @@ func (r *LocalFSReader) loadTree(
 
 	e := util.StringErrorFunc("failed to load tree")
 
-	tg := tree.NewFixedTreeGenerator(uint64(item.Num()))
+	tg := tree.NewFixedTreeGenerator(item.Num())
 
 	worker := util.NewErrgroupWorker(context.Background(), math.MaxInt32)
 	defer worker.Close()
