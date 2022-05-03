@@ -12,9 +12,10 @@ import (
 
 type ConsensusHandler struct {
 	*baseHandler
-	getManifest func(base.Height) (base.Manifest, error)
-	getSuffrage isaac.GetSuffrageByBlockHeight
-	pps         *isaac.ProposalProcessors
+	getManifest       func(base.Height) (base.Manifest, error)
+	getSuffrage       isaac.GetSuffrageByBlockHeight
+	whenNewBlockSaved func(base.Height)
+	pps               *isaac.ProposalProcessors
 }
 
 func NewConsensusHandler(
@@ -24,6 +25,7 @@ func NewConsensusHandler(
 	getManifest func(base.Height) (base.Manifest, error),
 	getSuffrage isaac.GetSuffrageByBlockHeight,
 	voteFunc func(base.Ballot) (bool, error),
+	whenNewBlockSaved func(base.Height),
 	pps *isaac.ProposalProcessors,
 ) *ConsensusHandler {
 	baseHandler := newBaseHandler(StateConsensus, local, policy, proposalSelector)
@@ -33,10 +35,11 @@ func NewConsensusHandler(
 	}
 
 	return &ConsensusHandler{
-		baseHandler: baseHandler,
-		getManifest: getManifest,
-		getSuffrage: getSuffrage,
-		pps:         pps,
+		baseHandler:       baseHandler,
+		getManifest:       getManifest,
+		getSuffrage:       getSuffrage,
+		whenNewBlockSaved: whenNewBlockSaved,
+		pps:               pps,
 	}
 }
 
@@ -635,6 +638,7 @@ func (st *ConsensusHandler) saveBlock(avp base.ACCEPTVoteproof) error {
 	case err == nil:
 		ll.Debug().Msg("processed proposal saved; moves to next block")
 
+		go st.whenNewBlockSaved(avp.Point().Height())
 		go st.nextBlock(avp)
 
 		return nil

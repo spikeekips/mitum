@@ -401,7 +401,7 @@ func (st *States) stateSwitchContextLog(sctx switchContext, current handler) zer
 }
 
 func (*States) broadcastBallot(base.Ballot) error {
-	// BLOCK implement
+	// BLOCK broadcast thru memberlist
 
 	return nil
 }

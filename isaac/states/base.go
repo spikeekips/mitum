@@ -155,8 +155,6 @@ func (st *baseHandler) broadcastBallot(
 	timerid util.TimerID,
 	initialWait time.Duration,
 ) error {
-	// BLOCK vote ballot to local if tolocal is true
-
 	iw := initialWait
 	if iw < 1 {
 		iw = time.Nanosecond

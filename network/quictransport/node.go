@@ -23,7 +23,6 @@ var (
 )
 
 type ConnInfo interface {
-	// BLOCK add IsValid()?
 	Address() *net.UDPAddr
 	Insecure() bool
 }

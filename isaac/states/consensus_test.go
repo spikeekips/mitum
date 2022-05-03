@@ -29,6 +29,7 @@ func (t *baseTestConsensusHandler) newState(previous base.Manifest, suf base.Suf
 		func(base.Height) (base.Manifest, error) { return previous, nil },
 		func(base.Height) (base.Suffrage, bool, error) { return suf, true, nil },
 		func(base.Ballot) (bool, error) { return true, nil },
+		func(base.Height) {},
 		isaac.NewProposalProcessors(nil, nil),
 	)
 	_ = st.SetLogging(logging.TestNilLogging)
@@ -114,6 +115,7 @@ func (t *testConsensusHandler) TestNew() {
 		func(base.Height) (base.Manifest, error) { return previous, nil },
 		func(base.Height) (base.Suffrage, bool, error) { return suf, true, nil },
 		func(base.Ballot) (bool, error) { return true, nil },
+		nil,
 		isaac.NewProposalProcessors(nil, func(context.Context, util.Hash) (base.ProposalSignedFact, error) {
 			return nil, util.NotFoundError.Call()
 		}),

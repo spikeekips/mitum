@@ -350,6 +350,10 @@ func (cmd *runCommand) states() (*isaacstates.States, error) {
 	states := isaacstates.NewStates(box)
 	_ = states.SetLogging(logging)
 
+	whenNewBlockSaved := func(height base.Height) {
+		box.Count()
+	}
+
 	states.
 		SetHandler(isaacstates.NewBrokenHandler(cmd.local, cmd.nodePolicy)).
 		SetHandler(isaacstates.NewStoppedHandler(cmd.local, cmd.nodePolicy)).
@@ -361,7 +365,9 @@ func (cmd *runCommand) states() (*isaacstates.States, error) {
 		).
 		SetHandler(
 			isaacstates.NewConsensusHandler(
-				cmd.local, cmd.nodePolicy, cmd.proposalSelector, cmd.getManifest, cmd.getSuffrage, voteFunc, pps,
+				cmd.local, cmd.nodePolicy, cmd.proposalSelector,
+				cmd.getManifest, cmd.getSuffrage, voteFunc, whenNewBlockSaved,
+				pps,
 			)).
 		SetHandler(isaacstates.NewSyncingHandler(cmd.local, cmd.nodePolicy, cmd.proposalSelector, nil))
 
