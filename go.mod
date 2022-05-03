@@ -9,7 +9,7 @@ require (
 	github.com/bluele/gcache v0.0.2
 	github.com/btcsuite/btcd v0.22.0-beta
 	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce
-	github.com/bytedance/sonic v1.1.1
+	github.com/bytedance/sonic v1.2.1
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/hashicorp/memberlist v0.3.1
 	github.com/json-iterator/go v1.1.12

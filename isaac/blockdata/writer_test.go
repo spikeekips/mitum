@@ -226,8 +226,8 @@ func (t *testWriter) TestSetStatesAndClose() {
 
 	}
 
+	sufst, _ := t.SuffrageState(point.Height(), base.Height(22), nil)
 	{
-		sufst, _ := t.SuffrageState(point.Height(), base.Height(22), nil)
 		states[len(ops)-1] = []base.StateMergeValue{base.NewBaseStateMergeValue(sufst.Key(), sufst.Value(), nil)}
 	}
 
@@ -264,10 +264,13 @@ func (t *testWriter) TestSetStatesAndClose() {
 	t.NotNil(writer.opstree.Root())
 	t.NotNil(writer.ststree.Root())
 
+	t.NotNil(sufststored)
+	t.True(manifest.Suffrage().Equal(sufststored.Hash())) // NOTE suffrage hash
+
 	var sufnodefound bool
 	writer.ststree.Traverse(func(i tree.FixedTreeNode) (bool, error) {
 		node := i.(base.StateFixedTreeNode)
-		if string(node.Key()) == isaac.SuffrageStateKey {
+		if string(node.Key()) == sufststored.Hash().String() {
 			sufnodefound = true
 
 			return false, nil
@@ -276,10 +279,6 @@ func (t *testWriter) TestSetStatesAndClose() {
 	})
 	t.NoError(err)
 	t.True(sufnodefound)
-
-	t.NotNil(sufststored)
-
-	t.True(manifest.Suffrage().Equal(sufststored.Hash())) // NOTE suffrage hash
 }
 
 func (t *testWriter) TestManifest() {

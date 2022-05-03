@@ -76,6 +76,10 @@ func (s BaseState) IsValid([]byte) error {
 		}
 	}
 
+	if !s.h.Equal(s.hash()) {
+		return util.InvalidError.Errorf("wrong hash")
+	}
+
 	return nil
 }
 
