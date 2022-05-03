@@ -44,7 +44,7 @@ func newLeveldbPermanent(
 		st:            st,
 	}
 
-	if err := db.loadLastBlockDataMap(); err != nil {
+	if err := db.loadLastBlockdataMap(); err != nil {
 		return nil, err
 	}
 
@@ -149,7 +149,7 @@ func (db *LeveldbPermanent) ExistsKnownOperation(h util.Hash) (bool, error) {
 	return db.existsKnownOperation(h)
 }
 
-func (db *LeveldbPermanent) Map(height base.Height) (base.BlockDataMap, bool, error) {
+func (db *LeveldbPermanent) Map(height base.Height) (base.BlockdataMap, bool, error) {
 	e := util.StringErrorFunc("failed to load blockdatamap")
 
 	switch m, found, err := db.LastMap(); {
@@ -159,13 +159,13 @@ func (db *LeveldbPermanent) Map(height base.Height) (base.BlockDataMap, bool, er
 		return m, true, nil
 	}
 
-	switch b, found, err := db.st.Get(leveldbBlockDataMapKey(height)); {
+	switch b, found, err := db.st.Get(leveldbBlockdataMapKey(height)); {
 	case err != nil:
 		return nil, false, e(err, "")
 	case !found:
 		return nil, false, nil
 	default:
-		m, err := db.decodeBlockDataMap(b)
+		m, err := db.decodeBlockdataMap(b)
 		if err != nil {
 			return nil, false, e(err, "")
 		}
@@ -207,11 +207,11 @@ func (db *LeveldbPermanent) MergeTempDatabase(ctx context.Context, temp isaac.Te
 }
 
 func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp *TempLeveldb) (
-	base.BlockDataMap, base.State, error,
+	base.BlockdataMap, base.State, error,
 ) {
 	e := util.StringErrorFunc("failed to merge LeveldbTempDatabase")
 
-	var mp base.BlockDataMap
+	var mp base.BlockdataMap
 	switch i, err := temp.Map(); {
 	case err != nil:
 		return nil, nil, e(err, "")
@@ -250,11 +250,11 @@ func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, te
 
 	// NOTE merge blockdatamap
 	if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
-		switch b, found, err := temp.st.Get(leveldbKeyPrefixBlockDataMap); {
+		switch b, found, err := temp.st.Get(leveldbKeyPrefixBlockdataMap); {
 		case err != nil || !found:
 			return errors.Wrap(err, "failed to get blockdatamap from TempDatabase")
 		default:
-			if err := db.st.Put(leveldbBlockDataMapKey(temp.Height()), b, nil); err != nil {
+			if err := db.st.Put(leveldbBlockdataMapKey(temp.Height()), b, nil); err != nil {
 				return errors.Wrap(err, "failed to put blockdatamap")
 			}
 
@@ -272,14 +272,14 @@ func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, te
 	return mp, sufstt, nil
 }
 
-func (db *LeveldbPermanent) loadLastBlockDataMap() error {
+func (db *LeveldbPermanent) loadLastBlockdataMap() error {
 	e := util.StringErrorFunc("failed to load last blockdatamap")
 
-	var m base.BlockDataMap
+	var m base.BlockdataMap
 	if err := db.st.Iter(
-		leveldbutil.BytesPrefix(leveldbKeyPrefixBlockDataMap),
+		leveldbutil.BytesPrefix(leveldbKeyPrefixBlockdataMap),
 		func(_, b []byte) (bool, error) {
-			i, err := db.decodeBlockDataMap(b)
+			i, err := db.decodeBlockdataMap(b)
 			if err != nil {
 				return false, err
 			}

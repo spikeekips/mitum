@@ -20,12 +20,12 @@ func newBasePermanent() *basePermanent {
 	}
 }
 
-func (db *basePermanent) LastMap() (base.BlockDataMap, bool, error) {
+func (db *basePermanent) LastMap() (base.BlockdataMap, bool, error) {
 	switch i, _ := db.mp.Value(); {
 	case i == nil:
 		return nil, false, nil
 	default:
-		return i.(base.BlockDataMap), true, nil
+		return i.(base.BlockdataMap), true, nil
 	}
 }
 
@@ -51,7 +51,7 @@ func (db *LeveldbPermanent) canMergeTempDatabase(temp isaac.TempDatabase) bool {
 	switch i, _ := db.mp.Value(); {
 	case i == nil:
 		return true
-	case i.(base.BlockDataMap).Manifest().Height() < temp.Height():
+	case i.(base.BlockdataMap).Manifest().Height() < temp.Height():
 		return true
 	default:
 		return false

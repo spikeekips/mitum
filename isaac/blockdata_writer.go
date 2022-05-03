@@ -7,7 +7,7 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
-type BlockDataWriter interface {
+type BlockdataWriter interface {
 	SetOperationsSize(uint64)
 	SetProcessResult(
 		_ context.Context,
@@ -20,12 +20,12 @@ type BlockDataWriter interface {
 	Manifest(_ context.Context, previous base.Manifest) (base.Manifest, error)
 	SetINITVoteproof(context.Context, base.INITVoteproof) error
 	SetACCEPTVoteproof(context.Context, base.ACCEPTVoteproof) error
-	Save(context.Context) (base.BlockDataMap, error)
+	Save(context.Context) (base.BlockdataMap, error)
 	Cancel() error
 }
 
-type BlockDataReader interface {
-	Map() (base.BlockDataMap, bool, error)
-	Reader(base.BlockDataType) (util.ChecksumReader, bool, error)
-	Item(base.BlockDataType) (interface{}, bool, error)
+type BlockdataReader interface {
+	Map() (base.BlockdataMap, bool, error)
+	Reader(base.BlockdataType) (util.ChecksumReader, bool, error)
+	Item(base.BlockdataType) (interface{}, bool, error)
 }

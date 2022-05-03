@@ -25,7 +25,7 @@ type FSWriter interface {
 	SetManifest(context.Context, base.Manifest) error
 	SetINITVoteproof(context.Context, base.INITVoteproof) error
 	SetACCEPTVoteproof(context.Context, base.ACCEPTVoteproof) error
-	Save(context.Context) (base.BlockDataMap, error)
+	Save(context.Context) (base.BlockdataMap, error)
 	Cancel() error
 }
 
@@ -361,13 +361,13 @@ func (w *Writer) SetACCEPTVoteproof(ctx context.Context, vp base.ACCEPTVoteproof
 	return nil
 }
 
-func (w *Writer) Save(ctx context.Context) (base.BlockDataMap, error) {
+func (w *Writer) Save(ctx context.Context) (base.BlockdataMap, error) {
 	w.Lock()
 	defer w.Unlock()
 
 	e := util.StringErrorFunc("failed to save")
 
-	var m base.BlockDataMap
+	var m base.BlockdataMap
 	switch i, err := w.fswriter.Save(ctx); {
 	case err != nil:
 		return nil, e(err, "")

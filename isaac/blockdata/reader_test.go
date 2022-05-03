@@ -12,15 +12,15 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type testBlockDataReaders struct {
+type testBlockdataReaders struct {
 	suite.Suite
 }
 
-func (t *testBlockDataReaders) SetupTest() {
+func (t *testBlockdataReaders) SetupTest() {
 }
 
-func (t *testBlockDataReaders) TestNew() {
-	readers := NewBlockDataReaders()
+func (t *testBlockdataReaders) TestNew() {
+	readers := NewBlockdataReaders()
 
 	t.Run("unknown", func() {
 		f := readers.Find(hint.MustNewHint("ab-v0.0.1"))
@@ -30,7 +30,7 @@ func (t *testBlockDataReaders) TestNew() {
 	t.Run("known", func() {
 		ht := hint.MustNewHint("abc-v0.0.1")
 
-		t.NoError(readers.Add(ht, func(base.Height, encoder.Encoder) (isaac.BlockDataReader, error) { return nil, nil }))
+		t.NoError(readers.Add(ht, func(base.Height, encoder.Encoder) (isaac.BlockdataReader, error) { return nil, nil }))
 
 		f := readers.Find(ht)
 		t.NotNil(f)
@@ -51,35 +51,35 @@ func (t *testBlockDataReaders) TestNew() {
 	})
 }
 
-func (t *testBlockDataReaders) TestLoadReader() {
+func (t *testBlockdataReaders) TestLoadReader() {
 	encs := encoder.NewEncoders()
 	enc := jsonenc.NewEncoder()
 	t.NoError(encs.AddHinter(enc))
 
-	readers := NewBlockDataReaders()
+	readers := NewBlockdataReaders()
 
 	writerhint := hint.MustNewHint("writer-v0.0.1")
-	t.NoError(readers.Add(writerhint, func(base.Height, encoder.Encoder) (isaac.BlockDataReader, error) { return nil, errors.Errorf("findme") }))
+	t.NoError(readers.Add(writerhint, func(base.Height, encoder.Encoder) (isaac.BlockdataReader, error) { return nil, errors.Errorf("findme") }))
 
 	t.Run("known", func() {
-		_, err := LoadBlockDataReader(readers, encs, writerhint, enc.Hint(), base.Height(66))
+		_, err := LoadBlockdataReader(readers, encs, writerhint, enc.Hint(), base.Height(66))
 		t.Error(err)
 		t.ErrorContains(err, "findme")
 	})
 
 	t.Run("unknown writer", func() {
-		_, err := LoadBlockDataReader(readers, encs, hint.MustNewHint("hehe-v0.0.1"), enc.Hint(), base.Height(66))
+		_, err := LoadBlockdataReader(readers, encs, hint.MustNewHint("hehe-v0.0.1"), enc.Hint(), base.Height(66))
 		t.Error(err)
 		t.ErrorContains(err, "unknown writer hint")
 	})
 
 	t.Run("unknown encodeer", func() {
-		_, err := LoadBlockDataReader(readers, encs, writerhint, hint.MustNewHint("hehe-v0.0.1"), base.Height(66))
+		_, err := LoadBlockdataReader(readers, encs, writerhint, hint.MustNewHint("hehe-v0.0.1"), base.Height(66))
 		t.Error(err)
 		t.ErrorContains(err, "unknown encoder hint")
 	})
 }
 
-func TestBlockDataReaders(t *testing.T) {
-	suite.Run(t, new(testBlockDataReaders))
+func TestBlockdataReaders(t *testing.T) {
+	suite.Run(t, new(testBlockdataReaders))
 }

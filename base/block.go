@@ -19,46 +19,46 @@ type Manifest interface {
 	ProposedAt() time.Time     // NOTE Proposal proposed time
 }
 
-type BlockDataMap interface {
+type BlockdataMap interface {
 	NodeSigned
 	Manifest() Manifest
-	Item(BlockDataType) (BlockDataMapItem, bool)
-	Items(func(BlockDataMapItem) bool)
+	Item(BlockdataType) (BlockdataMapItem, bool)
+	Items(func(BlockdataMapItem) bool)
 }
 
-type BlockDataMapItem interface {
+type BlockdataMapItem interface {
 	util.IsValider
-	Type() BlockDataType
+	Type() BlockdataType
 	URL() *url.URL
 	Checksum() string
 	Num() uint64
 }
 
-type BlockDataType string
+type BlockdataType string
 
 var (
-	BlockDataTypeProposal       BlockDataType = "block_data_proposal"
-	BlockDataTypeOperations     BlockDataType = "block_data_operations"
-	BlockDataTypeOperationsTree BlockDataType = "block_data_operations_tree"
-	BlockDataTypeStates         BlockDataType = "block_data_states"
-	BlockDataTypeStatesTree     BlockDataType = "block_data_states_tree"
-	BlockDataTypeVoteproofs     BlockDataType = "block_data_voteproofs"
+	BlockdataTypeProposal       BlockdataType = "block_data_proposal"
+	BlockdataTypeOperations     BlockdataType = "block_data_operations"
+	BlockdataTypeOperationsTree BlockdataType = "block_data_operations_tree"
+	BlockdataTypeStates         BlockdataType = "block_data_states"
+	BlockdataTypeStatesTree     BlockdataType = "block_data_states_tree"
+	BlockdataTypeVoteproofs     BlockdataType = "block_data_voteproofs"
 )
 
-func (t BlockDataType) IsValid([]byte) error {
+func (t BlockdataType) IsValid([]byte) error {
 	switch t {
-	case BlockDataTypeProposal,
-		BlockDataTypeOperations,
-		BlockDataTypeOperationsTree,
-		BlockDataTypeStates,
-		BlockDataTypeStatesTree,
-		BlockDataTypeVoteproofs:
+	case BlockdataTypeProposal,
+		BlockdataTypeOperations,
+		BlockdataTypeOperationsTree,
+		BlockdataTypeStates,
+		BlockdataTypeStatesTree,
+		BlockdataTypeVoteproofs:
 		return nil
 	default:
 		return util.InvalidError.Errorf("unknown block data type, %q", t)
 	}
 }
 
-func (t BlockDataType) String() string {
+func (t BlockdataType) String() string {
 	return string(t)
 }

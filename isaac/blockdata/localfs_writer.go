@@ -23,16 +23,16 @@ import (
 var LocalFSWriterHint = hint.MustNewHint("local-blockdata-fs-writer-v0.0.1")
 
 var (
-	blockDataMapFilename = "map"
-	blockDataFilenames   = map[base.BlockDataType]string{
-		base.BlockDataTypeProposal:       "proposal",
-		base.BlockDataTypeOperations:     "operations",
-		base.BlockDataTypeOperationsTree: "operations_tree",
-		base.BlockDataTypeStates:         "states",
-		base.BlockDataTypeStatesTree:     "states_tree",
-		base.BlockDataTypeVoteproofs:     "voteproofs",
+	blockdataMapFilename = "map"
+	blockdataFilenames   = map[base.BlockdataType]string{
+		base.BlockdataTypeProposal:       "proposal",
+		base.BlockdataTypeOperations:     "operations",
+		base.BlockdataTypeOperationsTree: "operations_tree",
+		base.BlockdataTypeStates:         "states",
+		base.BlockdataTypeStatesTree:     "states_tree",
+		base.BlockdataTypeVoteproofs:     "voteproofs",
 	}
-	blockDataTempDirectoryPrefix = "temp"
+	blockdataTempDirectoryPrefix = "temp"
 )
 
 var ulid = util.NewULID()
@@ -48,7 +48,7 @@ type LocalFSWriter struct {
 	networkID  base.NetworkID
 	heightbase string
 	temp       string
-	m          BlockDataMap
+	m          BlockdataMap
 	vps        [2]base.Voteproof
 	lenops     uint64
 	opsf       util.ChecksumWriter
@@ -77,7 +77,7 @@ func NewLocalFSWriter(
 	}
 
 	id := ulid.New().String()
-	temp := filepath.Join(abs, blockDataTempDirectoryPrefix, fmt.Sprintf("%d-%s", height, id))
+	temp := filepath.Join(abs, blockdataTempDirectoryPrefix, fmt.Sprintf("%d-%s", height, id))
 	if err := os.MkdirAll(temp, 0o700); err != nil {
 		return nil, e(err, "failed to create temp directory")
 	}
@@ -92,18 +92,18 @@ func NewLocalFSWriter(
 		networkID:  networkID,
 		heightbase: HeightDirectory(height),
 		temp:       temp,
-		m:          NewBlockDataMap(LocalFSWriterHint, enc.Hint()),
+		m:          NewBlockdataMap(LocalFSWriterHint, enc.Hint()),
 		saved:      util.EmptyLocked(),
 	}
 
-	switch f, err := w.newChecksumWriter(base.BlockDataTypeOperations); {
+	switch f, err := w.newChecksumWriter(base.BlockdataTypeOperations); {
 	case err != nil:
 		return nil, e(err, "failed to create operations file")
 	default:
 		w.opsf = f
 	}
 
-	switch f, err := w.newChecksumWriter(base.BlockDataTypeStates); {
+	switch f, err := w.newChecksumWriter(base.BlockdataTypeStates); {
 	case err != nil:
 		return nil, e(err, "failed to create states file")
 	default:
@@ -114,7 +114,7 @@ func NewLocalFSWriter(
 }
 
 func (w *LocalFSWriter) SetProposal(_ context.Context, pr base.ProposalSignedFact) error {
-	if err := w.writeItem(base.BlockDataTypeProposal, pr); err != nil {
+	if err := w.writeItem(base.BlockdataTypeProposal, pr); err != nil {
 		return errors.Wrap(err, "failed to set proposal in fs writer")
 	}
 
@@ -135,12 +135,12 @@ func (w *LocalFSWriter) SetOperationsTree(ctx context.Context, tr tree.FixedTree
 	if err := w.setTree(
 		ctx,
 		tr,
-		base.BlockDataTypeOperationsTree,
+		base.BlockdataTypeOperationsTree,
 		func(ctx context.Context, _ uint64) error {
 			_ = w.opsf.Close()
 
-			if err := w.m.SetItem(NewLocalBlockDataMapItem(
-				base.BlockDataTypeOperations,
+			if err := w.m.SetItem(NewLocalBlockdataMapItem(
+				base.BlockdataTypeOperations,
 				w.opsf.Checksum(),
 				atomic.LoadUint64(&w.lenops),
 			)); err != nil {
@@ -168,12 +168,12 @@ func (w *LocalFSWriter) SetStatesTree(ctx context.Context, tr tree.FixedTree) er
 	if err := w.setTree(
 		ctx,
 		tr,
-		base.BlockDataTypeStatesTree,
+		base.BlockdataTypeStatesTree,
 		func(ctx context.Context, _ uint64) error {
 			_ = w.stsf.Close()
 
-			if err := w.m.SetItem(NewLocalBlockDataMapItem(
-				base.BlockDataTypeStates,
+			if err := w.m.SetItem(NewLocalBlockdataMapItem(
+				base.BlockdataTypeStates,
 				w.stsf.Checksum(),
 				uint64(tr.Len()),
 			)); err != nil {
@@ -222,13 +222,13 @@ func (w *LocalFSWriter) SetACCEPTVoteproof(_ context.Context, vp base.ACCEPTVote
 }
 
 func (w *LocalFSWriter) saveVoteproofs() error {
-	if _, found := w.m.Item(base.BlockDataTypeVoteproofs); found {
+	if _, found := w.m.Item(base.BlockdataTypeVoteproofs); found {
 		return nil
 	}
 
 	e := util.StringErrorFunc("failed to save voteproofs ")
 
-	f, err := w.newChecksumWriter(base.BlockDataTypeVoteproofs)
+	f, err := w.newChecksumWriter(base.BlockdataTypeVoteproofs)
 	if err != nil {
 		return e(err, "")
 	}
@@ -242,8 +242,8 @@ func (w *LocalFSWriter) saveVoteproofs() error {
 		}
 	}
 
-	if err := w.m.SetItem(NewLocalBlockDataMapItem(
-		base.BlockDataTypeVoteproofs,
+	if err := w.m.SetItem(NewLocalBlockdataMapItem(
+		base.BlockdataTypeVoteproofs,
 		f.Checksum(),
 		1,
 	)); err != nil {
@@ -253,7 +253,7 @@ func (w *LocalFSWriter) saveVoteproofs() error {
 	return nil
 }
 
-func (w *LocalFSWriter) Save(ctx context.Context) (base.BlockDataMap, error) {
+func (w *LocalFSWriter) Save(ctx context.Context) (base.BlockdataMap, error) {
 	if i, _ := w.saved.Value(); i != nil {
 		return w.m, nil
 	}
@@ -268,7 +268,7 @@ func (w *LocalFSWriter) Save(ctx context.Context) (base.BlockDataMap, error) {
 	return m, nil
 }
 
-func (w *LocalFSWriter) save(context.Context) (base.BlockDataMap, error) {
+func (w *LocalFSWriter) save(context.Context) (base.BlockdataMap, error) {
 	w.Lock()
 	defer w.Unlock()
 
@@ -288,7 +288,7 @@ func (w *LocalFSWriter) save(context.Context) (base.BlockDataMap, error) {
 	if w.opsf != nil {
 		_ = w.opsf.Close()
 
-		if item, found := w.m.Item(base.BlockDataTypeOperations); !found || item == nil {
+		if item, found := w.m.Item(base.BlockdataTypeOperations); !found || item == nil {
 			_ = os.Remove(filepath.Join(w.temp, w.opsf.Name())) // NOTE remove empty operations file
 		}
 	}
@@ -296,12 +296,12 @@ func (w *LocalFSWriter) save(context.Context) (base.BlockDataMap, error) {
 	if w.stsf != nil {
 		_ = w.stsf.Close()
 
-		if item, found := w.m.Item(base.BlockDataTypeStates); !found || item == nil {
+		if item, found := w.m.Item(base.BlockdataTypeStates); !found || item == nil {
 			_ = os.Remove(filepath.Join(w.temp, w.stsf.Name())) // NOTE remove empty states file
 		}
 	}
 
-	if item, found := w.m.Item(base.BlockDataTypeVoteproofs); !found || item == nil {
+	if item, found := w.m.Item(base.BlockdataTypeVoteproofs); !found || item == nil {
 		return nil, e(nil, "empty voteproofs")
 	}
 
@@ -350,7 +350,7 @@ func (w *LocalFSWriter) Cancel() error {
 func (w *LocalFSWriter) setTree(
 	ctx context.Context,
 	tr tree.FixedTree,
-	treetype base.BlockDataType,
+	treetype base.BlockdataType,
 	newjob util.ContextWorkerCallback,
 ) error {
 	worker := util.NewErrgroupWorker(ctx, math.MaxInt32)
@@ -397,7 +397,7 @@ func (w *LocalFSWriter) setTree(
 
 	_ = tf.Close()
 
-	if err := w.m.SetItem(NewLocalBlockDataMapItem(treetype, tf.Checksum(), uint64(tr.Len()))); err != nil {
+	if err := w.m.SetItem(NewLocalBlockdataMapItem(treetype, tf.Checksum(), uint64(tr.Len()))); err != nil {
 		return e(err, "")
 	}
 
@@ -414,7 +414,7 @@ func (w *LocalFSWriter) saveMap() error {
 
 	// NOTE save blockdatamap
 	f, err := os.OpenFile(
-		filepath.Join(w.temp, blockDataFSMapFilename(w.enc)),
+		filepath.Join(w.temp, blockdataFSMapFilename(w.enc)),
 		os.O_WRONLY|os.O_CREATE|os.O_TRUNC,
 		0o600,
 	)
@@ -429,8 +429,8 @@ func (w *LocalFSWriter) saveMap() error {
 	return nil
 }
 
-func (w *LocalFSWriter) filename(t base.BlockDataType) (filename string, temppath string, err error) {
-	f, err := BlockDataFileName(t, w.enc)
+func (w *LocalFSWriter) filename(t base.BlockdataType) (filename string, temppath string, err error) {
+	f, err := BlockdataFileName(t, w.enc)
 	if err != nil {
 		return "", "", errors.Wrap(err, "")
 	}
@@ -438,7 +438,7 @@ func (w *LocalFSWriter) filename(t base.BlockDataType) (filename string, temppat
 	return f, filepath.Join(w.temp, f), nil
 }
 
-func (w *LocalFSWriter) writeItem(t base.BlockDataType, i interface{}) error {
+func (w *LocalFSWriter) writeItem(t base.BlockdataType, i interface{}) error {
 	cw, err := w.newChecksumWriter(t)
 	if err != nil {
 		return errors.Wrap(err, "")
@@ -454,7 +454,7 @@ func (w *LocalFSWriter) writeItem(t base.BlockDataType, i interface{}) error {
 
 	_ = cw.Close()
 
-	if err := w.m.SetItem(NewLocalBlockDataMapItem(
+	if err := w.m.SetItem(NewLocalBlockdataMapItem(
 		t,
 		cw.Checksum(),
 		1,
@@ -491,7 +491,7 @@ func (*LocalFSWriter) writefile(f io.Writer, b []byte) error {
 	return nil
 }
 
-func (w *LocalFSWriter) newChecksumWriter(t base.BlockDataType) (util.ChecksumWriter, error) {
+func (w *LocalFSWriter) newChecksumWriter(t base.BlockdataType) (util.ChecksumWriter, error) {
 	fname, temppath, _ := w.filename(t)
 	switch f, err := os.OpenFile(temppath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600); { // nolint:gosec
 	case err != nil:
@@ -499,7 +499,7 @@ func (w *LocalFSWriter) newChecksumWriter(t base.BlockDataType) (util.ChecksumWr
 	default:
 		var cw util.ChecksumWriter
 		cw = util.NewHashChecksumWriter(fname, f, sha256.New())
-		if isCompressedBlockDataType(t) {
+		if isCompressedBlockdataType(t) {
 			cw = util.NewDummyChecksumWriter(util.NewGzipWriter(cw), cw)
 		}
 
@@ -540,18 +540,18 @@ func HeightDirectory(height base.Height) string {
 	return "/" + strings.Join(sl, "/")
 }
 
-func BlockDataFileName(t base.BlockDataType, enc encoder.Encoder) (string, error) {
-	name, found := blockDataFilenames[t]
+func BlockdataFileName(t base.BlockdataType, enc encoder.Encoder) (string, error) {
+	name, found := blockdataFilenames[t]
 	if !found {
 		return "", errors.Errorf("unknown block data type, %q", t)
 	}
 
 	ext := fileExtFromEncoder(enc)
-	if isListBlockDataType(t) {
+	if isListBlockdataType(t) {
 		ext = listFileExtFromEncoder(enc)
 	}
 
-	if isCompressedBlockDataType(t) {
+	if isCompressedBlockdataType(t) {
 		ext += ".gz"
 	}
 
@@ -576,37 +576,37 @@ func listFileExtFromEncoder(enc encoder.Encoder) string {
 	}
 }
 
-func isListBlockDataType(t base.BlockDataType) bool {
+func isListBlockdataType(t base.BlockdataType) bool {
 	switch t {
-	case base.BlockDataTypeOperations,
-		base.BlockDataTypeOperationsTree,
-		base.BlockDataTypeStates,
-		base.BlockDataTypeStatesTree,
-		base.BlockDataTypeVoteproofs:
+	case base.BlockdataTypeOperations,
+		base.BlockdataTypeOperationsTree,
+		base.BlockdataTypeStates,
+		base.BlockdataTypeStatesTree,
+		base.BlockdataTypeVoteproofs:
 		return true
 	default:
 		return false
 	}
 }
 
-func isCompressedBlockDataType(t base.BlockDataType) bool {
+func isCompressedBlockdataType(t base.BlockdataType) bool {
 	switch t {
-	case base.BlockDataTypeOperations,
-		base.BlockDataTypeOperationsTree,
-		base.BlockDataTypeStates,
-		base.BlockDataTypeStatesTree:
+	case base.BlockdataTypeOperations,
+		base.BlockdataTypeOperationsTree,
+		base.BlockdataTypeStates,
+		base.BlockdataTypeStatesTree:
 		return true
 	default:
 		return false
 	}
 }
 
-func blockDataFSMapFilename(enc encoder.Encoder) string {
-	return fmt.Sprintf("%s%s", blockDataMapFilename, fileExtFromEncoder(enc))
+func blockdataFSMapFilename(enc encoder.Encoder) string {
+	return fmt.Sprintf("%s%s", blockdataMapFilename, fileExtFromEncoder(enc))
 }
 
-func CleanBlockDataTempDirectory(root string) error {
-	d := filepath.Join(filepath.Clean(root), blockDataTempDirectoryPrefix)
+func CleanBlockdataTempDirectory(root string) error {
+	d := filepath.Join(filepath.Clean(root), blockdataTempDirectoryPrefix)
 	if err := os.RemoveAll(d); err != nil {
 		return errors.Wrap(err, "failed to remove blockdata temp directory")
 	}

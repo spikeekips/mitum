@@ -25,16 +25,16 @@ var (
 	redisStateKeyPrerfix            = "st"
 	redisInStateOperationKeyPrerfix = "ip"
 	redisKnownOperationKeyPrerfix   = "kp"
-	redisBlockDataMapKeyPrefix      = "mp"
+	redisBlockdataMapKeyPrefix      = "mp"
 )
 
 var (
 	redisZKeySuffragesByHeight = "suffrages_by_height"
 	redisZBeginSuffrages       = redisSuffrageKey(base.GenesisHeight)
 	redisZEndSuffrages         = fmt.Sprintf("%s-%s", redisSuffrageKeyPrerfix, strings.Repeat("9", 20))
-	redisZKeyBlockDataMaps     = "blockdatamaps"
-	redisZBeginBlockDataMaps   = redisBlockDataMapKey(base.GenesisHeight)
-	redisZEndBlockDataMaps     = fmt.Sprintf("%s-%s", redisBlockDataMapKeyPrefix, strings.Repeat("9", 20))
+	redisZKeyBlockdataMaps     = "blockdatamaps"
+	redisZBeginBlockdataMaps   = redisBlockdataMapKey(base.GenesisHeight)
+	redisZEndBlockdataMaps     = fmt.Sprintf("%s-%s", redisBlockdataMapKeyPrefix, strings.Repeat("9", 20))
 )
 
 type RedisPermanent struct {
@@ -58,7 +58,7 @@ func NewRedisPermanent(
 		st:            st,
 	}
 
-	if err := db.loadLastBlockDataMap(); err != nil {
+	if err := db.loadLastBlockdataMap(); err != nil {
 		return nil, err
 	}
 
@@ -216,7 +216,7 @@ func (db *RedisPermanent) ExistsKnownOperation(h util.Hash) (bool, error) {
 	}
 }
 
-func (db *RedisPermanent) Map(height base.Height) (base.BlockDataMap, bool, error) {
+func (db *RedisPermanent) Map(height base.Height) (base.BlockdataMap, bool, error) {
 	e := util.StringErrorFunc("failed to load blockdatamap")
 
 	switch m, found, err := db.LastMap(); {
@@ -226,13 +226,13 @@ func (db *RedisPermanent) Map(height base.Height) (base.BlockDataMap, bool, erro
 		return m, true, nil
 	}
 
-	switch b, found, err := db.st.Get(context.Background(), redisBlockDataMapKey(height)); {
+	switch b, found, err := db.st.Get(context.Background(), redisBlockdataMapKey(height)); {
 	case err != nil:
 		return nil, false, e(err, "")
 	case !found:
 		return nil, false, nil
 	default:
-		m, err := db.decodeBlockDataMap(b)
+		m, err := db.decodeBlockdataMap(b)
 		if err != nil {
 			return nil, false, e(err, "")
 		}
@@ -245,7 +245,7 @@ func (db *RedisPermanent) MergeTempDatabase(ctx context.Context, temp isaac.Temp
 	db.Lock()
 	defer db.Unlock()
 
-	if i, _ := db.mp.Value(); i != nil && i.(base.BlockDataMap).Manifest().Height() >= temp.Height() {
+	if i, _ := db.mp.Value(); i != nil && i.(base.BlockdataMap).Manifest().Height() >= temp.Height() {
 		return nil
 	}
 
@@ -274,11 +274,11 @@ func (db *RedisPermanent) MergeTempDatabase(ctx context.Context, temp isaac.Temp
 }
 
 func (db *RedisPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp *TempLeveldb) (
-	base.BlockDataMap, base.State, error,
+	base.BlockdataMap, base.State, error,
 ) {
 	e := util.StringErrorFunc("failed to merge LeveldbTempDatabase")
 
-	var mp base.BlockDataMap
+	var mp base.BlockdataMap
 	switch i, err := temp.Map(); {
 	case err != nil:
 		return nil, nil, e(err, "")
@@ -331,7 +331,7 @@ func (db *RedisPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp
 
 	// NOTE merge blockdatamap
 	if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
-		if err := db.mergeBlockDataMapTempDatabaseFromLeveldb(ctx, temp); err != nil {
+		if err := db.mergeBlockdataMapTempDatabaseFromLeveldb(ctx, temp); err != nil {
 			return errors.Wrap(err, "failed to merge blockdatamap")
 		}
 
@@ -428,19 +428,19 @@ func (db *RedisPermanent) mergeSuffrageStateTempDatabaseFromLeveldb(
 	return nil
 }
 
-func (db *RedisPermanent) mergeBlockDataMapTempDatabaseFromLeveldb(
+func (db *RedisPermanent) mergeBlockdataMapTempDatabaseFromLeveldb(
 	ctx context.Context, temp *TempLeveldb,
 ) error {
-	switch b, found, err := temp.st.Get(leveldbKeyPrefixBlockDataMap); {
+	switch b, found, err := temp.st.Get(leveldbKeyPrefixBlockdataMap); {
 	case err != nil || !found:
 		return errors.Wrap(err, "failed to get blockdatamap from TempDatabase")
 	default:
-		key := redisBlockDataMapKey(temp.Height())
+		key := redisBlockdataMapKey(temp.Height())
 		z := redis.ZAddArgs{
 			NX:      true,
 			Members: []redis.Z{{Score: 0, Member: key}},
 		}
-		if err := db.st.ZAddArgs(ctx, redisZKeyBlockDataMaps, z); err != nil {
+		if err := db.st.ZAddArgs(ctx, redisZKeyBlockdataMaps, z); err != nil {
 			return errors.Wrap(err, "failed to zadd blockdatamap by block height")
 		}
 
@@ -452,10 +452,10 @@ func (db *RedisPermanent) mergeBlockDataMapTempDatabaseFromLeveldb(
 	}
 }
 
-func (db *RedisPermanent) loadLastBlockDataMap() error {
+func (db *RedisPermanent) loadLastBlockdataMap() error {
 	e := util.StringErrorFunc("failed to load last blockdatamap")
 
-	b, found, err := db.loadLast(redisZKeyBlockDataMaps, redisZBeginBlockDataMaps, redisZEndBlockDataMaps)
+	b, found, err := db.loadLast(redisZKeyBlockdataMaps, redisZBeginBlockdataMaps, redisZEndBlockdataMaps)
 
 	switch {
 	case err != nil:
@@ -463,7 +463,7 @@ func (db *RedisPermanent) loadLastBlockDataMap() error {
 	case !found:
 		return nil
 	default:
-		m, err := db.decodeBlockDataMap(b)
+		m, err := db.decodeBlockdataMap(b)
 		if err != nil {
 			return e(err, "")
 		}
@@ -573,6 +573,6 @@ func redisStateKeyFromLeveldb(b []byte) string {
 	return redisStateKey(string(b[2:]))
 }
 
-func redisBlockDataMapKey(height base.Height) string {
-	return fmt.Sprintf("%s-%021d", redisBlockDataMapKeyPrefix, height)
+func redisBlockdataMapKey(height base.Height) string {
+	return fmt.Sprintf("%s-%021d", redisBlockdataMapKeyPrefix, height)
 }

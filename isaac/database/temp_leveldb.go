@@ -18,7 +18,7 @@ import (
 type TempLeveldb struct {
 	*baseLeveldb
 	st     *leveldbstorage.ReadonlyStorage
-	mp     base.BlockDataMap // NOTE last blockdatamap
+	mp     base.BlockdataMap // NOTE last blockdatamap
 	sufstt base.State        // NOTE last suffrage state
 	policy base.NetworkPolicy
 }
@@ -49,7 +49,7 @@ func newTempLeveldb(
 		st:          st,
 	}
 
-	if err := db.loadLastBlockDataMap(); err != nil {
+	if err := db.loadLastBlockdataMap(); err != nil {
 		return nil, err
 	}
 
@@ -71,7 +71,7 @@ func newTempLeveldbFromBlockWriteStorage(wst *LeveldbBlockWrite) (*TempLeveldb, 
 		return nil, e(err, "")
 	}
 
-	var mp base.BlockDataMap
+	var mp base.BlockdataMap
 	switch i, err := wst.Map(); {
 	case err != nil:
 		return nil, e(err, "")
@@ -114,7 +114,7 @@ func (db *TempLeveldb) SuffrageHeight() base.Height {
 	return db.sufstt.Value().(base.SuffrageStateValue).Height()
 }
 
-func (db *TempLeveldb) Map() (base.BlockDataMap, error) {
+func (db *TempLeveldb) Map() (base.BlockdataMap, error) {
 	if db.mp == nil {
 		return nil, storage.NotFoundError.Errorf("blockdatamap not found")
 	}
@@ -146,16 +146,16 @@ func (db *TempLeveldb) ExistsKnownOperation(h util.Hash) (bool, error) {
 	return db.existsKnownOperation(h)
 }
 
-func (db *TempLeveldb) loadLastBlockDataMap() error {
+func (db *TempLeveldb) loadLastBlockdataMap() error {
 	e := util.StringErrorFunc("failed to load blockdatamap")
 
-	switch b, found, err := db.st.Get(leveldbKeyPrefixBlockDataMap); {
+	switch b, found, err := db.st.Get(leveldbKeyPrefixBlockdataMap); {
 	case err != nil:
 		return e(err, "")
 	case !found:
 		return e(err, "blockdatamap not found")
 	default:
-		m, err := db.decodeBlockDataMap(b)
+		m, err := db.decodeBlockdataMap(b)
 		if err != nil {
 			return e(err, "")
 		}

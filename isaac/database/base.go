@@ -121,7 +121,7 @@ func (db *baseDatabase) decodeSuffrage(b []byte) (base.State, error) {
 	}
 }
 
-func (db *baseDatabase) decodeBlockDataMap(b []byte) (base.BlockDataMap, error) {
+func (db *baseDatabase) decodeBlockdataMap(b []byte) (base.BlockdataMap, error) {
 	if b == nil {
 		return nil, nil
 	}
@@ -136,7 +136,7 @@ func (db *baseDatabase) decodeBlockDataMap(b []byte) (base.BlockDataMap, error) 
 		return nil, e(nil, "empty blockdatamap")
 	}
 
-	switch i, ok := hinter.(base.BlockDataMap); {
+	switch i, ok := hinter.(base.BlockdataMap); {
 	case !ok:
 		return nil, e(nil, "not blockdatamap: %T", hinter)
 	default:

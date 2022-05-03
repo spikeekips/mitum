@@ -184,7 +184,7 @@ func (cmd *runCommand) prepareDatabase(dbroot string, encs *encoder.Encoders, en
 		return errors.Wrap(err, "")
 	}
 
-	if err := isaacblockdata.CleanBlockDataTempDirectory(launch.DBRootDataDirectory(dbroot)); err != nil {
+	if err := isaacblockdata.CleanBlockdataTempDirectory(launch.DBRootDataDirectory(dbroot)); err != nil {
 		return errors.Wrap(err, "")
 	}
 
@@ -324,7 +324,7 @@ func (cmd *runCommand) newProposalProcessorFunc(dbroot string, enc encoder.Encod
 		return isaac.NewDefaultProposalProcessor(
 			proposal,
 			previous,
-			launch.NewBlockDataWriterFunc(cmd.local, networkID, launch.DBRootDataDirectory(dbroot), enc, cmd.db),
+			launch.NewBlockdataWriterFunc(cmd.local, networkID, launch.DBRootDataDirectory(dbroot), enc, cmd.db),
 			cmd.db.State,
 			nil,
 			nil,

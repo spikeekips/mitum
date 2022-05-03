@@ -144,16 +144,16 @@ func (db *LeveldbBlockWrite) SetOperations(ops []util.Hash) error {
 	return nil
 }
 
-func (db *LeveldbBlockWrite) Map() (base.BlockDataMap, error) {
+func (db *LeveldbBlockWrite) Map() (base.BlockdataMap, error) {
 	switch i, _ := db.mp.Value(); {
 	case i == nil:
 		return nil, storage.NotFoundError.Errorf("empty blockdatamap")
 	default:
-		return i.(base.BlockDataMap), nil
+		return i.(base.BlockdataMap), nil
 	}
 }
 
-func (db *LeveldbBlockWrite) SetMap(m base.BlockDataMap) error {
+func (db *LeveldbBlockWrite) SetMap(m base.BlockdataMap) error {
 	if _, err := db.mp.Set(func(i interface{}) (interface{}, error) {
 		if i != nil {
 			return i, nil
@@ -164,7 +164,7 @@ func (db *LeveldbBlockWrite) SetMap(m base.BlockDataMap) error {
 			return nil, err
 		}
 
-		return m, db.st.Put(leveldbKeyPrefixBlockDataMap, b, nil)
+		return m, db.st.Put(leveldbKeyPrefixBlockdataMap, b, nil)
 	}); err != nil {
 		return errors.Wrap(err, "failed to set blockdatamap")
 	}

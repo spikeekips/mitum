@@ -9,39 +9,39 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 )
 
-type NewBlockDataReaderFunc func(base.Height, encoder.Encoder) (isaac.BlockDataReader, error)
+type NewBlockdataReaderFunc func(base.Height, encoder.Encoder) (isaac.BlockdataReader, error)
 
-type BlockDataReaders struct {
-	*hint.CompatibleSet // NOTE handles NewBlockDataReaderFunc
+type BlockdataReaders struct {
+	*hint.CompatibleSet // NOTE handles NewBlockdataReaderFunc
 }
 
-func NewBlockDataReaders() *BlockDataReaders {
-	return &BlockDataReaders{
+func NewBlockdataReaders() *BlockdataReaders {
+	return &BlockdataReaders{
 		CompatibleSet: hint.NewCompatibleSet(),
 	}
 }
 
-func (rs *BlockDataReaders) Add(ht hint.Hint, v interface{}) error {
-	r, ok := v.(NewBlockDataReaderFunc)
+func (rs *BlockdataReaders) Add(ht hint.Hint, v interface{}) error {
+	r, ok := v.(NewBlockdataReaderFunc)
 	if !ok {
-		f, ok := v.(func(base.Height, encoder.Encoder) (isaac.BlockDataReader, error))
+		f, ok := v.(func(base.Height, encoder.Encoder) (isaac.BlockdataReader, error))
 		if !ok {
-			return errors.Errorf("not valid NewBlockDataReaderFunc")
+			return errors.Errorf("not valid NewBlockdataReaderFunc")
 		}
 
-		r = NewBlockDataReaderFunc(f)
+		r = NewBlockdataReaderFunc(f)
 	}
 
 	return rs.CompatibleSet.Add(ht, r)
 }
 
-func (rs *BlockDataReaders) Find(writerhint hint.Hint) NewBlockDataReaderFunc {
+func (rs *BlockdataReaders) Find(writerhint hint.Hint) NewBlockdataReaderFunc {
 	i := rs.CompatibleSet.Find(writerhint)
 	if i == nil {
 		return nil
 	}
 
-	r, ok := i.(NewBlockDataReaderFunc)
+	r, ok := i.(NewBlockdataReaderFunc)
 	if !ok {
 		return nil
 	}
@@ -49,13 +49,13 @@ func (rs *BlockDataReaders) Find(writerhint hint.Hint) NewBlockDataReaderFunc {
 	return r
 }
 
-func LoadBlockDataReader(
-	readers *BlockDataReaders,
+func LoadBlockdataReader(
+	readers *BlockdataReaders,
 	encs *encoder.Encoders,
 	writerhint, enchint hint.Hint,
 	height base.Height,
-) (isaac.BlockDataReader, error) {
-	e := util.StringErrorFunc("failed to load BlockDataReader")
+) (isaac.BlockdataReader, error) {
+	e := util.StringErrorFunc("failed to load BlockdataReader")
 
 	f := readers.Find(writerhint)
 	if f == nil {

@@ -25,8 +25,8 @@ type DummyPermanentDatabase struct {
 	statef                  func(key string) (base.State, bool, error)
 	existsInStateOperationf func(operationFactHash util.Hash) (bool, error)
 	existsKnownOperationf   func(operationHash util.Hash) (bool, error)
-	mapf                    func(height base.Height) (base.BlockDataMap, bool, error)
-	lastMapf                func() (base.BlockDataMap, bool, error)
+	mapf                    func(height base.Height) (base.BlockdataMap, bool, error)
+	lastMapf                func() (base.BlockdataMap, bool, error)
 	lastNetworkPolicyf      func() base.NetworkPolicy
 	mergeTempDatabasef      func(isaac.TempDatabase) error
 }
@@ -63,11 +63,11 @@ func (db *DummyPermanentDatabase) ExistsKnownOperation(operationHash util.Hash) 
 	return db.existsKnownOperationf(operationHash)
 }
 
-func (db *DummyPermanentDatabase) Map(height base.Height) (base.BlockDataMap, bool, error) {
+func (db *DummyPermanentDatabase) Map(height base.Height) (base.BlockdataMap, bool, error) {
 	return db.mapf(height)
 }
 
-func (db *DummyPermanentDatabase) LastMap() (base.BlockDataMap, bool, error) {
+func (db *DummyPermanentDatabase) LastMap() (base.BlockdataMap, bool, error) {
 	if db.lastMapf == nil {
 		return nil, false, nil
 	}
@@ -99,10 +99,10 @@ func (t *testDefaultWithPermanent) SetupTest() {
 
 func (t *testDefaultWithPermanent) TestMap() {
 	manifest := base.NewDummyManifest(base.Height(33), valuehash.RandomSHA256())
-	mp := base.NewDummyBlockDataMap(manifest)
+	mp := base.NewDummyBlockdataMap(manifest)
 
 	perm := &DummyPermanentDatabase{
-		mapf: func(height base.Height) (base.BlockDataMap, bool, error) {
+		mapf: func(height base.Height) (base.BlockdataMap, bool, error) {
 			switch {
 			case height == manifest.Height():
 				return mp, true, nil
@@ -123,7 +123,7 @@ func (t *testDefaultWithPermanent) TestMap() {
 		rm, found, err := db.Map(manifest.Height())
 		t.NoError(err)
 		t.True(found)
-		base.EqualBlockDataMap(t.Assert(), mp, rm)
+		base.EqualBlockdataMap(t.Assert(), mp, rm)
 	})
 
 	t.Run("not found", func() {
@@ -144,7 +144,7 @@ func (t *testDefaultWithPermanent) TestMap() {
 
 func (t *testDefaultWithPermanent) TestLastMap() {
 	manifest := base.NewDummyManifest(base.Height(33), valuehash.RandomSHA256())
-	mp := base.NewDummyBlockDataMap(manifest)
+	mp := base.NewDummyBlockdataMap(manifest)
 
 	perm := &DummyPermanentDatabase{}
 
@@ -152,18 +152,18 @@ func (t *testDefaultWithPermanent) TestLastMap() {
 	t.NoError(err)
 
 	t.Run("found", func() {
-		perm.lastMapf = func() (base.BlockDataMap, bool, error) {
+		perm.lastMapf = func() (base.BlockdataMap, bool, error) {
 			return mp, true, nil
 		}
 
 		rm, found, err := db.LastMap()
 		t.NoError(err)
 		t.True(found)
-		base.EqualBlockDataMap(t.Assert(), mp, rm)
+		base.EqualBlockdataMap(t.Assert(), mp, rm)
 	})
 
 	t.Run("not found", func() {
-		perm.lastMapf = func() (base.BlockDataMap, bool, error) {
+		perm.lastMapf = func() (base.BlockdataMap, bool, error) {
 			return nil, false, nil
 		}
 
@@ -174,7 +174,7 @@ func (t *testDefaultWithPermanent) TestLastMap() {
 	})
 
 	t.Run("error", func() {
-		perm.lastMapf = func() (base.BlockDataMap, bool, error) {
+		perm.lastMapf = func() (base.BlockdataMap, bool, error) {
 			return nil, false, errors.Errorf("hihihi")
 		}
 
@@ -476,7 +476,7 @@ func (t *testDefaultBlockWrite) TestMerge() {
 	_, nodes := t.Locals(3)
 
 	lmanifest := base.NewDummyManifest(height-1, valuehash.RandomSHA256())
-	lmp := base.NewDummyBlockDataMap(lmanifest)
+	lmp := base.NewDummyBlockdataMap(lmanifest)
 	newstts := t.States(height, 3)
 	oldstts := make([]base.State, len(newstts)+1)
 	for i := range newstts {
@@ -493,10 +493,10 @@ func (t *testDefaultBlockWrite) TestMerge() {
 	oldstts[3] = lsufstt
 
 	perm := &DummyPermanentDatabase{
-		mapf: func(base.Height) (base.BlockDataMap, bool, error) {
+		mapf: func(base.Height) (base.BlockdataMap, bool, error) {
 			return nil, false, nil
 		},
-		lastMapf: func() (base.BlockDataMap, bool, error) {
+		lastMapf: func() (base.BlockdataMap, bool, error) {
 			return lmp, true, nil
 		},
 		suffragef: func(height base.Height) (base.State, bool, error) {
@@ -552,7 +552,7 @@ func (t *testDefaultBlockWrite) TestMerge() {
 		ops[i] = valuehash.RandomSHA256()
 	}
 
-	mp := base.NewDummyBlockDataMap(manifest)
+	mp := base.NewDummyBlockdataMap(manifest)
 
 	t.NoError(wst.SetMap(mp))
 	t.NoError(wst.SetStates(newstts))
@@ -571,7 +571,7 @@ func (t *testDefaultBlockWrite) TestMerge() {
 		t.NoError(err)
 		t.True(found)
 
-		base.EqualBlockDataMap(t.Assert(), lmp, rm)
+		base.EqualBlockdataMap(t.Assert(), lmp, rm)
 	})
 
 	t.Run("check SuffrageByHeight before merging", func() {
@@ -633,7 +633,7 @@ func (t *testDefaultBlockWrite) TestMerge() {
 		t.NoError(err)
 		t.True(found)
 
-		base.EqualBlockDataMap(t.Assert(), mp, rm)
+		base.EqualBlockdataMap(t.Assert(), mp, rm)
 	})
 
 	t.Run("check last blockdatamap", func() {
@@ -641,7 +641,7 @@ func (t *testDefaultBlockWrite) TestMerge() {
 		t.NoError(err)
 		t.True(found)
 
-		base.EqualBlockDataMap(t.Assert(), mp, rm)
+		base.EqualBlockdataMap(t.Assert(), mp, rm)
 	})
 
 	t.Run("check SuffrageByHeight", func() {
@@ -691,9 +691,9 @@ func (t *testDefaultBlockWrite) TestFindState() {
 	baseheight := base.Height(33)
 
 	manifest := base.NewDummyManifest(baseheight, valuehash.RandomSHA256())
-	mp := base.NewDummyBlockDataMap(manifest)
+	mp := base.NewDummyBlockdataMap(manifest)
 	perm := &DummyPermanentDatabase{
-		lastMapf: func() (base.BlockDataMap, bool, error) {
+		lastMapf: func() (base.BlockdataMap, bool, error) {
 			return mp, true, nil
 		},
 		statef: func(string) (base.State, bool, error) {
@@ -728,7 +728,7 @@ func (t *testDefaultBlockWrite) TestFindState() {
 			)
 		}
 
-		m := base.NewDummyBlockDataMap(manifest)
+		m := base.NewDummyBlockdataMap(manifest)
 
 		t.NoError(wst.SetMap(m))
 		t.NoError(wst.SetStates(laststts))
@@ -754,9 +754,9 @@ func (t *testDefaultBlockWrite) TestInvalidMerge() {
 	height := base.Height(33)
 
 	perm := &DummyPermanentDatabase{
-		lastMapf: func() (base.BlockDataMap, bool, error) {
+		lastMapf: func() (base.BlockdataMap, bool, error) {
 			m := base.NewDummyManifest(height-1, valuehash.RandomSHA256())
-			return base.NewDummyBlockDataMap(m), true, nil
+			return base.NewDummyBlockdataMap(m), true, nil
 		},
 	}
 
@@ -772,7 +772,7 @@ func (t *testDefaultBlockWrite) TestInvalidMerge() {
 		t.NoError(err)
 		defer wst.Close()
 
-		mp := base.NewDummyBlockDataMap(manifest)
+		mp := base.NewDummyBlockdataMap(manifest)
 		t.NoError(wst.SetMap(mp))
 		t.NoError(wst.Write())
 
@@ -800,11 +800,11 @@ func (t *testDefaultBlockWrite) TestMergePermanent() {
 	baseheight := base.Height(33)
 
 	lmanifest := base.NewDummyManifest(baseheight, valuehash.RandomSHA256())
-	lmp := base.NewDummyBlockDataMap(lmanifest)
+	lmp := base.NewDummyBlockdataMap(lmanifest)
 
 	var mergedstt []base.State
 	perm := &DummyPermanentDatabase{
-		lastMapf: func() (base.BlockDataMap, bool, error) {
+		lastMapf: func() (base.BlockdataMap, bool, error) {
 			return lmp, true, nil
 		},
 
@@ -840,7 +840,7 @@ func (t *testDefaultBlockWrite) TestMergePermanent() {
 	for i := range make([]int, 10) {
 		height := baseheight + base.Height(i+1)
 		manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
-		m := base.NewDummyBlockDataMap(manifest)
+		m := base.NewDummyBlockdataMap(manifest)
 
 		sttss := t.States(height, 2)
 
@@ -1003,9 +1003,9 @@ func (t *testDefaultLoad) TestLoadTempDatabases() {
 	baseheight := base.Height(33)
 
 	basemanifest := base.NewDummyManifest(baseheight, valuehash.RandomSHA256())
-	basemp := base.NewDummyBlockDataMap(basemanifest)
+	basemp := base.NewDummyBlockdataMap(basemanifest)
 	perm := &DummyPermanentDatabase{
-		lastMapf: func() (base.BlockDataMap, bool, error) {
+		lastMapf: func() (base.BlockdataMap, bool, error) {
 			return basemp, true, nil
 		},
 	}
@@ -1016,7 +1016,7 @@ func (t *testDefaultLoad) TestLoadTempDatabases() {
 	})
 	t.NoError(err)
 
-	created := make([]base.BlockDataMap, 4)
+	created := make([]base.BlockdataMap, 4)
 	for i := range created {
 		height := baseheight + base.Height(i+1)
 		wst, err := db.NewBlockWriteDatabase(height)
@@ -1024,7 +1024,7 @@ func (t *testDefaultLoad) TestLoadTempDatabases() {
 
 		manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
 
-		mp := base.NewDummyBlockDataMap(manifest)
+		mp := base.NewDummyBlockdataMap(manifest)
 		t.NoError(wst.SetMap(mp))
 
 		t.NoError(wst.Write())
@@ -1037,7 +1037,7 @@ func (t *testDefaultLoad) TestLoadTempDatabases() {
 		t.NoError(err)
 
 		manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
-		mp := base.NewDummyBlockDataMap(manifest)
+		mp := base.NewDummyBlockdataMap(manifest)
 		t.NoError(wst.SetMap(mp))
 
 		t.NoError(wst.Write())
@@ -1074,7 +1074,7 @@ func (t *testDefaultLoad) TestLoadTempDatabases() {
 		tm, err := temp.Map()
 		t.NoError(err)
 
-		base.EqualBlockDataMap(t.Assert(), expected, tm)
+		base.EqualBlockdataMap(t.Assert(), expected, tm)
 	}
 
 	newdb, err := NewDefault(t.Root, t.Encs, t.Enc, perm, nil)
@@ -1094,7 +1094,7 @@ func (t *testDefaultLoad) TestLoadTempDatabases() {
 		tm, err := temp.Map()
 		t.NoError(err)
 
-		base.EqualBlockDataMap(t.Assert(), em, tm)
+		base.EqualBlockdataMap(t.Assert(), em, tm)
 	}
 }
 

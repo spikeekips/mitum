@@ -13,8 +13,8 @@ import (
 type Database interface {
 	util.Daemon
 	Close() error
-	Map(height base.Height) (base.BlockDataMap, bool, error)
-	LastMap() (base.BlockDataMap, bool, error)
+	Map(height base.Height) (base.BlockdataMap, bool, error)
+	LastMap() (base.BlockdataMap, bool, error)
 	Suffrage(blockheight base.Height) (base.State, bool, error)
 	SuffrageByHeight(suffrageHeight base.Height) (base.State, bool, error)
 	LastSuffrage() (base.State, bool, error)
@@ -41,7 +41,7 @@ type TempDatabase interface {
 	Close() error
 	Remove() error
 	Height() base.Height
-	Map() (base.BlockDataMap, error)
+	Map() (base.BlockdataMap, error)
 	SuffrageHeight() base.Height
 	Suffrage() (base.State, bool, error)
 	NetworkPolicy() base.NetworkPolicy
@@ -50,8 +50,8 @@ type TempDatabase interface {
 type BlockWriteDatabase interface {
 	Close() error
 	Cancel() error
-	Map() (base.BlockDataMap, error)
-	SetMap(base.BlockDataMap) error
+	Map() (base.BlockdataMap, error)
+	SetMap(base.BlockdataMap) error
 	SetStates(sts []base.State) error
 	SetOperations(ops []util.Hash) error // NOTE operation hash, not operation fact hash
 	SuffrageState() base.State
@@ -65,11 +65,11 @@ type PermanentDatabase interface {
 	PartialDatabase
 	Close() error
 	Clean() error
-	LastMap() (base.BlockDataMap, bool, error)
+	LastMap() (base.BlockdataMap, bool, error)
 	LastSuffrage() (base.State, bool, error)
 	Suffrage(blockheight base.Height) (base.State, bool, error)
 	SuffrageByHeight(suffrageHeight base.Height) (base.State, bool, error)
-	Map(base.Height) (base.BlockDataMap, bool, error)
+	Map(base.Height) (base.BlockdataMap, bool, error)
 	LastNetworkPolicy() base.NetworkPolicy
 	MergeTempDatabase(context.Context, TempDatabase) error
 }

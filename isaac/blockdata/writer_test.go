@@ -30,12 +30,12 @@ func (t *testWriter) TestNew() {
 	db := t.NewMemLeveldbBlockWriteDatabase(height)
 	defer db.Close()
 
-	fswriter := &DummyBlockDataFSWriter{}
+	fswriter := &DummyBlockdataFSWriter{}
 	writer := NewWriter(nil, nil, db, func(isaac.BlockWriteDatabase) error {
 		return nil
 	}, fswriter)
 
-	_ = (interface{})(writer).(isaac.BlockDataWriter)
+	_ = (interface{})(writer).(isaac.BlockdataWriter)
 
 	t.Run("empty previous", func() {
 		m, err := writer.Manifest(context.Background(), nil)
@@ -57,7 +57,7 @@ func (t *testWriter) TestSetOperations() {
 	db := t.NewMemLeveldbBlockWriteDatabase(point.Height())
 	defer db.Close()
 
-	fswriter := &DummyBlockDataFSWriter{}
+	fswriter := &DummyBlockdataFSWriter{}
 
 	ops := make([]util.Hash, 33)
 	for i := range ops {
@@ -121,7 +121,7 @@ func (t *testWriter) TestSetStates() {
 	db := t.NewMemLeveldbBlockWriteDatabase(point.Height())
 	defer db.Close()
 
-	fswriter := &DummyBlockDataFSWriter{}
+	fswriter := &DummyBlockdataFSWriter{}
 
 	ophs := make([]util.Hash, 33)
 	ops := make([]base.Operation, 33)
@@ -192,7 +192,7 @@ func (t *testWriter) TestSetStatesAndClose() {
 	db := t.NewMemLeveldbBlockWriteDatabase(point.Height())
 	defer db.Close()
 
-	fswriter := &DummyBlockDataFSWriter{}
+	fswriter := &DummyBlockdataFSWriter{}
 
 	var sufststored base.State
 	fswriter.setStatef = func(_ context.Context, _ int, st base.State) error {
@@ -287,7 +287,7 @@ func (t *testWriter) TestManifest() {
 	db := t.NewMemLeveldbBlockWriteDatabase(point.Height())
 	defer db.Close()
 
-	fswriter := &DummyBlockDataFSWriter{}
+	fswriter := &DummyBlockdataFSWriter{}
 
 	mch := make(chan base.Manifest, 1)
 	fswriter.setManifestf = func(_ context.Context, m base.Manifest) error {

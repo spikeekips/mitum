@@ -32,7 +32,7 @@ func NewLocalFSReader(
 	e := util.StringErrorFunc("failed to NewLocalFSReader")
 
 	heightroot := filepath.Join(baseroot, HeightDirectory(height))
-	switch fi, err := os.Stat(filepath.Join(heightroot, blockDataFSMapFilename(enc))); {
+	switch fi, err := os.Stat(filepath.Join(heightroot, blockdataFSMapFilename(enc))); {
 	case err != nil:
 		return nil, e(err, "invalid root directory")
 	case fi.IsDir():
@@ -48,10 +48,10 @@ func NewLocalFSReader(
 	}, nil
 }
 
-func (r *LocalFSReader) Map() (base.BlockDataMap, bool, error) {
+func (r *LocalFSReader) Map() (base.BlockdataMap, bool, error) {
 	i, err := r.mapl.Get(func() (interface{}, error) {
 		var b []byte
-		switch f, err := os.Open(filepath.Join(r.root, blockDataFSMapFilename(r.enc))); {
+		switch f, err := os.Open(filepath.Join(r.root, blockdataFSMapFilename(r.enc))); {
 		case err != nil:
 			return nil, err
 		default:
@@ -72,7 +72,7 @@ func (r *LocalFSReader) Map() (base.BlockDataMap, bool, error) {
 			return nil, err
 		}
 
-		um, ok := hinter.(base.BlockDataMap)
+		um, ok := hinter.(base.BlockdataMap)
 		if !ok {
 			return nil, errors.Errorf("not blockdatamap, %T", hinter)
 		}
@@ -83,7 +83,7 @@ func (r *LocalFSReader) Map() (base.BlockDataMap, bool, error) {
 	e := util.StringErrorFunc("failed to load blockdatamap")
 	switch {
 	case err == nil:
-		return i.(base.BlockDataMap), true, nil
+		return i.(base.BlockdataMap), true, nil
 	case os.IsNotExist(err):
 		return nil, false, nil
 	default:
@@ -91,11 +91,11 @@ func (r *LocalFSReader) Map() (base.BlockDataMap, bool, error) {
 	}
 }
 
-func (r *LocalFSReader) Reader(t base.BlockDataType) (util.ChecksumReader, bool, error) {
+func (r *LocalFSReader) Reader(t base.BlockdataType) (util.ChecksumReader, bool, error) {
 	e := util.StringErrorFunc("failed to make reader, %q", t)
 
 	var fpath string
-	switch i, err := BlockDataFileName(t, r.enc); {
+	switch i, err := BlockdataFileName(t, r.enc); {
 	case err != nil:
 		return nil, false, e(err, "")
 	default:
@@ -130,7 +130,7 @@ func (r *LocalFSReader) Reader(t base.BlockDataType) (util.ChecksumReader, bool,
 	if err == nil {
 		cr := util.NewHashChecksumReader(rawf, sha256.New())
 		switch {
-		case isCompressedBlockDataType(t):
+		case isCompressedBlockdataType(t):
 			gr, eerr := util.NewGzipReader(cr)
 			if eerr != nil {
 				err = eerr
@@ -154,7 +154,7 @@ func (r *LocalFSReader) Reader(t base.BlockDataType) (util.ChecksumReader, bool,
 	}
 }
 
-func (r *LocalFSReader) Item(t base.BlockDataType) (interface{}, bool, error) {
+func (r *LocalFSReader) Item(t base.BlockdataType) (interface{}, bool, error) {
 	i, _, _ := r.itemsl.Get(t, func() (interface{}, error) {
 		j, found, err := r.item(t)
 
@@ -171,10 +171,10 @@ func (r *LocalFSReader) Item(t base.BlockDataType) (interface{}, bool, error) {
 	return l[0], l[1].(bool), err
 }
 
-func (r *LocalFSReader) item(t base.BlockDataType) (interface{}, bool, error) {
+func (r *LocalFSReader) item(t base.BlockdataType) (interface{}, bool, error) {
 	e := util.StringErrorFunc("failed to load item, %q", t)
 
-	var item base.BlockDataMapItem
+	var item base.BlockdataMapItem
 	switch m, found, err := r.Map(); {
 	case err != nil || !found:
 		return nil, found, e(err, "")
@@ -201,7 +201,7 @@ func (r *LocalFSReader) item(t base.BlockDataType) (interface{}, bool, error) {
 	var i interface{}
 	var err error
 	switch {
-	case !isListBlockDataType(t):
+	case !isListBlockdataType(t):
 		i, err = r.loadItem(f)
 	default:
 		i, err = r.loadItems(item, f)
@@ -264,24 +264,24 @@ end:
 	return nil
 }
 
-func (r *LocalFSReader) loadItems(item base.BlockDataMapItem, f io.Reader) (interface{}, error) {
+func (r *LocalFSReader) loadItems(item base.BlockdataMapItem, f io.Reader) (interface{}, error) {
 	switch item.Type() {
-	case base.BlockDataTypeOperations:
+	case base.BlockdataTypeOperations:
 		return r.loadOperations(item, f)
-	case base.BlockDataTypeOperationsTree:
+	case base.BlockdataTypeOperationsTree:
 		return r.loadOperationsTree(item, f)
-	case base.BlockDataTypeStates:
+	case base.BlockdataTypeStates:
 		return r.loadStates(item, f)
-	case base.BlockDataTypeStatesTree:
+	case base.BlockdataTypeStatesTree:
 		return r.loadStatesTree(item, f)
-	case base.BlockDataTypeVoteproofs:
+	case base.BlockdataTypeVoteproofs:
 		return r.loadVoteproofs(item, f)
 	default:
 		return nil, errors.Errorf("unsupported list items, %q", item.Type())
 	}
 }
 
-func (r *LocalFSReader) loadOperations(item base.BlockDataMapItem, f io.Reader) ([]base.Operation, error) {
+func (r *LocalFSReader) loadOperations(item base.BlockdataMapItem, f io.Reader) ([]base.Operation, error) {
 	if item.Num() < 1 {
 		return nil, nil
 	}
@@ -307,7 +307,7 @@ func (r *LocalFSReader) loadOperations(item base.BlockDataMapItem, f io.Reader) 
 	return ops, nil
 }
 
-func (r *LocalFSReader) loadOperationsTree(item base.BlockDataMapItem, f io.Reader) (tree.FixedTree, error) {
+func (r *LocalFSReader) loadOperationsTree(item base.BlockdataMapItem, f io.Reader) (tree.FixedTree, error) {
 	tr, err := r.loadTree(item, f, func(i interface{}) (tree.FixedTreeNode, error) {
 		node, ok := i.(base.OperationFixedTreeNode)
 		if !ok {
@@ -323,7 +323,7 @@ func (r *LocalFSReader) loadOperationsTree(item base.BlockDataMapItem, f io.Read
 	return tr, nil
 }
 
-func (r *LocalFSReader) loadStates(item base.BlockDataMapItem, f io.Reader) ([]base.State, error) {
+func (r *LocalFSReader) loadStates(item base.BlockdataMapItem, f io.Reader) ([]base.State, error) {
 	if item.Num() < 1 {
 		return nil, nil
 	}
@@ -349,7 +349,7 @@ func (r *LocalFSReader) loadStates(item base.BlockDataMapItem, f io.Reader) ([]b
 	return ops, nil
 }
 
-func (r *LocalFSReader) loadStatesTree(item base.BlockDataMapItem, f io.Reader) (tree.FixedTree, error) {
+func (r *LocalFSReader) loadStatesTree(item base.BlockdataMapItem, f io.Reader) (tree.FixedTree, error) {
 	tr, err := r.loadTree(item, f, func(i interface{}) (tree.FixedTreeNode, error) {
 		node, ok := i.(base.StateFixedTreeNode)
 		if !ok {
@@ -365,7 +365,7 @@ func (r *LocalFSReader) loadStatesTree(item base.BlockDataMapItem, f io.Reader) 
 	return tr, nil
 }
 
-func (r *LocalFSReader) loadVoteproofs(item base.BlockDataMapItem, f io.Reader) ([]base.Voteproof, error) {
+func (r *LocalFSReader) loadVoteproofs(item base.BlockdataMapItem, f io.Reader) ([]base.Voteproof, error) {
 	if item.Num() < 1 {
 		return nil, nil
 	}
@@ -397,7 +397,7 @@ func (r *LocalFSReader) loadVoteproofs(item base.BlockDataMapItem, f io.Reader) 
 }
 
 func (r *LocalFSReader) loadTree(
-	item base.BlockDataMapItem,
+	item base.BlockdataMapItem,
 	f io.Reader,
 	callback func(interface{}) (tree.FixedTreeNode, error),
 ) (tree.FixedTree, error) {

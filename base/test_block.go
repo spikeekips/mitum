@@ -218,50 +218,50 @@ func EqualManifest(t *assert.Assertions, a, b Manifest) {
 	t.True(localtime.Equal(a.ProposedAt(), b.ProposedAt()), "ProposedAt does not match")
 }
 
-var DummyBlockDataMapHint = hint.MustNewHint("dummy-blockdatamap-v0.0.1")
+var DummyBlockdataMapHint = hint.MustNewHint("dummy-blockdatamap-v0.0.1")
 
-type DummyBlockDataMap struct {
+type DummyBlockdataMap struct {
 	BaseNodeSigned
 	M Manifest
 }
 
-func NewDummyBlockDataMap(manifest Manifest) DummyBlockDataMap {
+func NewDummyBlockdataMap(manifest Manifest) DummyBlockdataMap {
 	signed, _ := BaseNodeSignedFromBytes(
 		RandomAddress(""),
 		NewMPrivatekey(),
 		util.UUID().Bytes(),
 		nil,
 	)
-	return DummyBlockDataMap{
+	return DummyBlockdataMap{
 		BaseNodeSigned: signed,
 		M:              manifest,
 	}
 }
 
-func (m DummyBlockDataMap) Hint() hint.Hint {
-	return DummyBlockDataMapHint
+func (m DummyBlockdataMap) Hint() hint.Hint {
+	return DummyBlockdataMapHint
 }
 
-func (m DummyBlockDataMap) Manifest() Manifest {
+func (m DummyBlockdataMap) Manifest() Manifest {
 	return m.M
 }
 
-func (m DummyBlockDataMap) Item(BlockDataType) (BlockDataMapItem, bool) {
+func (m DummyBlockdataMap) Item(BlockdataType) (BlockdataMapItem, bool) {
 	return nil, false
 }
 
-func (m DummyBlockDataMap) Items(func(BlockDataMapItem) bool) {
+func (m DummyBlockdataMap) Items(func(BlockdataMapItem) bool) {
 }
 
-func (m DummyBlockDataMap) Bytes() []byte {
+func (m DummyBlockdataMap) Bytes() []byte {
 	return nil
 }
 
-func (m DummyBlockDataMap) IsValid([]byte) error {
+func (m DummyBlockdataMap) IsValid([]byte) error {
 	return nil
 }
 
-func (m DummyBlockDataMap) MarshalJSON() ([]byte, error) {
+func (m DummyBlockdataMap) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
 		hint.HintedJSONHead
 		B BaseNodeSigned
@@ -273,7 +273,7 @@ func (m DummyBlockDataMap) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (m *DummyBlockDataMap) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (m *DummyBlockdataMap) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	var u struct {
 		B json.RawMessage
 		M json.RawMessage
@@ -302,24 +302,24 @@ func (m *DummyBlockDataMap) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	return nil
 }
 
-func EqualBlockDataMap(t *assert.Assertions, a, b BlockDataMap) {
+func EqualBlockdataMap(t *assert.Assertions, a, b BlockdataMap) {
 	aht := a.(hint.Hinter).Hint()
 	bht := b.(hint.Hinter).Hint()
 	t.True(aht.Equal(bht), "Hint does not match")
 
 	EqualManifest(t, a.Manifest(), b.Manifest())
 
-	a.Items(func(ai BlockDataMapItem) bool {
+	a.Items(func(ai BlockdataMapItem) bool {
 		bi, found := b.Item(ai.Type())
 		t.True(found)
 
-		EqualBlockDataMapItem(t, ai, bi)
+		EqualBlockdataMapItem(t, ai, bi)
 
 		return true
 	})
 }
 
-func EqualBlockDataMapItem(t *assert.Assertions, a, b BlockDataMapItem) {
+func EqualBlockdataMapItem(t *assert.Assertions, a, b BlockdataMapItem) {
 	t.Equal(a.Type(), b.Type())
 	t.Equal(a.URL().String(), b.URL().String())
 	t.Equal(a.Checksum(), b.Checksum())

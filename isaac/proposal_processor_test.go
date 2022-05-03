@@ -18,7 +18,7 @@ import (
 	"go.uber.org/goleak"
 )
 
-type DummyBlockDataWriter struct {
+type DummyBlockdataWriter struct {
 	sync.RWMutex
 	getStateFunc base.GetStateFunc
 	proposal     base.ProposalSignedFact
@@ -28,23 +28,23 @@ type DummyBlockDataWriter struct {
 	ops          []base.Operation
 	sts          *util.LockedMap
 	setstatesf   func(context.Context, int, []base.StateMergeValue, base.Operation) error
-	savef        func(context.Context) (base.BlockDataMap, error)
+	savef        func(context.Context) (base.BlockdataMap, error)
 }
 
-func NewDummyBlockDataWriter(proposal base.ProposalSignedFact, getStateFunc base.GetStateFunc) *DummyBlockDataWriter {
-	return &DummyBlockDataWriter{
+func NewDummyBlockdataWriter(proposal base.ProposalSignedFact, getStateFunc base.GetStateFunc) *DummyBlockdataWriter {
+	return &DummyBlockdataWriter{
 		proposal:     proposal,
 		getStateFunc: getStateFunc,
 		sts:          util.NewLockedMap(),
 	}
 }
 
-func (w *DummyBlockDataWriter) SetOperationsSize(n uint64) {
+func (w *DummyBlockdataWriter) SetOperationsSize(n uint64) {
 	w.ops = nil
 	w.opstree = tree.NewFixedTreeGenerator(n)
 }
 
-func (w *DummyBlockDataWriter) SetProcessResult(ctx context.Context, index int, facthash util.Hash, instate bool, errorreason base.OperationProcessReasonError) error {
+func (w *DummyBlockdataWriter) SetProcessResult(ctx context.Context, index int, facthash util.Hash, instate bool, errorreason base.OperationProcessReasonError) error {
 	var msg string
 	if errorreason != nil {
 		msg = errorreason.Msg()
@@ -63,7 +63,7 @@ func (w *DummyBlockDataWriter) SetProcessResult(ctx context.Context, index int, 
 	return nil
 }
 
-func (w *DummyBlockDataWriter) SetStates(ctx context.Context, index int, states []base.StateMergeValue, operation base.Operation) error {
+func (w *DummyBlockdataWriter) SetStates(ctx context.Context, index int, states []base.StateMergeValue, operation base.Operation) error {
 	if w.setstatesf != nil {
 		return w.setstatesf(ctx, index, states, operation)
 	}
@@ -71,7 +71,7 @@ func (w *DummyBlockDataWriter) SetStates(ctx context.Context, index int, states 
 	return w.setStates(ctx, index, states, operation)
 }
 
-func (w *DummyBlockDataWriter) setStates(ctx context.Context, index int, states []base.StateMergeValue, op base.Operation) error {
+func (w *DummyBlockdataWriter) setStates(ctx context.Context, index int, states []base.StateMergeValue, op base.Operation) error {
 	w.Lock()
 	defer w.Unlock()
 
@@ -102,19 +102,19 @@ func (w *DummyBlockDataWriter) setStates(ctx context.Context, index int, states 
 	return nil
 }
 
-func (w *DummyBlockDataWriter) SetINITVoteproof(ctx context.Context, vp base.INITVoteproof) error {
+func (w *DummyBlockdataWriter) SetINITVoteproof(ctx context.Context, vp base.INITVoteproof) error {
 	return nil
 }
 
-func (w *DummyBlockDataWriter) SetACCEPTVoteproof(ctx context.Context, vp base.ACCEPTVoteproof) error {
+func (w *DummyBlockdataWriter) SetACCEPTVoteproof(ctx context.Context, vp base.ACCEPTVoteproof) error {
 	return nil
 }
 
-func (w *DummyBlockDataWriter) Manifest(context.Context, base.Manifest) (base.Manifest, error) {
+func (w *DummyBlockdataWriter) Manifest(context.Context, base.Manifest) (base.Manifest, error) {
 	return w.manifest, w.manifesterr
 }
 
-func (w *DummyBlockDataWriter) Save(ctx context.Context) (base.BlockDataMap, error) {
+func (w *DummyBlockdataWriter) Save(ctx context.Context) (base.BlockdataMap, error) {
 	if w.savef == nil {
 		return nil, nil
 	}
@@ -122,7 +122,7 @@ func (w *DummyBlockDataWriter) Save(ctx context.Context) (base.BlockDataMap, err
 	return w.savef(ctx)
 }
 
-func (w *DummyBlockDataWriter) Cancel() error {
+func (w *DummyBlockdataWriter) Cancel() error {
 	return nil
 }
 
@@ -194,13 +194,13 @@ func (t *testDefaultProposalProcessor) prepareOperations(height base.Height, n i
 	return ophs, ops, sts
 }
 
-func (t *testDefaultProposalProcessor) newBlockDataWriter() (
-	*DummyBlockDataWriter,
-	NewBlockDataWriterFunc,
+func (t *testDefaultProposalProcessor) newBlockdataWriter() (
+	*DummyBlockdataWriter,
+	NewBlockdataWriterFunc,
 ) {
-	writer := NewDummyBlockDataWriter(nil, base.NilGetState)
+	writer := NewDummyBlockdataWriter(nil, base.NilGetState)
 
-	return writer, func(proposal base.ProposalSignedFact, getStateFunc base.GetStateFunc) (BlockDataWriter, error) {
+	return writer, func(proposal base.ProposalSignedFact, getStateFunc base.GetStateFunc) (BlockdataWriter, error) {
 		writer.proposal = proposal
 
 		if getStateFunc != nil {
@@ -217,7 +217,7 @@ func (t *testDefaultProposalProcessor) TestNew() {
 	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), []util.Hash{valuehash.RandomSHA256()}))
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
-	_, newwriterf := t.newBlockDataWriter()
+	_, newwriterf := t.newBlockdataWriter()
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, nil, nil, nil)
 	_ = (interface{})(opp).(ProposalProcessor)
 
@@ -233,7 +233,7 @@ func (t *testDefaultProposalProcessor) TestCollectOperations() {
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer, newwriterf := t.newBlockDataWriter()
+	writer, newwriterf := t.newBlockdataWriter()
 	writer.manifest = manifest
 
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
@@ -272,7 +272,7 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsFailed() {
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer, newwriterf := t.newBlockDataWriter()
+	writer, newwriterf := t.newBlockdataWriter()
 	writer.manifest = manifest
 
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
@@ -312,7 +312,7 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsFailedButIgnored() {
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer, newwriterf := t.newBlockDataWriter()
+	writer, newwriterf := t.newBlockdataWriter()
 	writer.manifest = manifest
 
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
@@ -372,7 +372,7 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsInvalidError() {
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer, newwriterf := t.newBlockDataWriter()
+	writer, newwriterf := t.newBlockdataWriter()
 	writer.manifest = manifest
 
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
@@ -432,7 +432,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessButFailedToGetOperationProc
 
 	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), ophs))
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
-	_, newwriterf := t.newBlockDataWriter()
+	_, newwriterf := t.newBlockdataWriter()
 
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
@@ -468,7 +468,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessWithOperationProcessor() {
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer, newwriterf := t.newBlockDataWriter()
+	writer, newwriterf := t.newBlockdataWriter()
 	writer.manifest = manifest
 
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
@@ -562,7 +562,7 @@ func (t *testDefaultProposalProcessor) TestPreProcess() {
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer, newwriterf := t.newBlockDataWriter()
+	writer, newwriterf := t.newBlockdataWriter()
 	writer.manifest = manifest
 
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
@@ -640,7 +640,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessButError() {
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer, newwriterf := t.newBlockDataWriter()
+	writer, newwriterf := t.newBlockdataWriter()
 	writer.manifest = manifest
 
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
@@ -689,7 +689,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessButWithOperationReasonError
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer, newwriterf := t.newBlockDataWriter()
+	writer, newwriterf := t.newBlockdataWriter()
 	writer.manifest = manifest
 
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
@@ -753,7 +753,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessButErrorRetry() {
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer, newwriterf := t.newBlockDataWriter()
+	writer, newwriterf := t.newBlockdataWriter()
 	writer.manifest = manifest
 
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
@@ -815,7 +815,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessContextCancel() {
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer, newwriterf := t.newBlockDataWriter()
+	writer, newwriterf := t.newBlockdataWriter()
 	writer.manifest = manifest
 
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
@@ -878,7 +878,7 @@ func (t *testDefaultProposalProcessor) TestProcess() {
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer, newwriterf := t.newBlockDataWriter()
+	writer, newwriterf := t.newBlockdataWriter()
 	writer.manifest = manifest
 	writer.getStateFunc = func(key string) (base.State, bool, error) {
 		switch key {
@@ -970,7 +970,7 @@ func (t *testDefaultProposalProcessor) TestProcessWithOperationProcessor() {
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer, newwriterf := t.newBlockDataWriter()
+	writer, newwriterf := t.newBlockdataWriter()
 	writer.manifest = manifest
 
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
@@ -1061,7 +1061,7 @@ func (t *testDefaultProposalProcessor) TestProcessButError() {
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer, newwriterf := t.newBlockDataWriter()
+	writer, newwriterf := t.newBlockdataWriter()
 	writer.manifest = manifest
 
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
@@ -1111,7 +1111,7 @@ func (t *testDefaultProposalProcessor) TestProcessButErrorRetry() {
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer, newwriterf := t.newBlockDataWriter()
+	writer, newwriterf := t.newBlockdataWriter()
 	writer.manifest = manifest
 
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
@@ -1145,7 +1145,7 @@ func (t *testDefaultProposalProcessor) TestProcessButSetStatesErrorRetry() {
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer, newwriterf := t.newBlockDataWriter()
+	writer, newwriterf := t.newBlockdataWriter()
 	writer.manifest = manifest
 
 	var called int
@@ -1219,7 +1219,7 @@ func (t *testDefaultProposalProcessor) TestProcessContextCancel() {
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer, newwriterf := t.newBlockDataWriter()
+	writer, newwriterf := t.newBlockdataWriter()
 	writer.manifest = manifest
 
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
@@ -1293,7 +1293,7 @@ func (t *testDefaultProposalProcessor) TestProcessCancel() {
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer, newwriterf := t.newBlockDataWriter()
+	writer, newwriterf := t.newBlockdataWriter()
 	writer.manifest = manifest
 
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
@@ -1339,11 +1339,11 @@ func (t *testDefaultProposalProcessor) TestSave() {
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer, newwriterf := t.newBlockDataWriter()
+	writer, newwriterf := t.newBlockdataWriter()
 	writer.manifest = manifest
 
 	savech := make(chan struct{}, 1)
-	writer.savef = func(_ context.Context) (base.BlockDataMap, error) {
+	writer.savef = func(_ context.Context) (base.BlockdataMap, error) {
 		savech <- struct{}{}
 
 		return nil, nil
@@ -1399,10 +1399,10 @@ func (t *testDefaultProposalProcessor) TestSaveFailed() {
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	writer, newwriterf := t.newBlockDataWriter()
+	writer, newwriterf := t.newBlockdataWriter()
 	writer.manifest = manifest
 
-	writer.savef = func(_ context.Context) (base.BlockDataMap, error) {
+	writer.savef = func(_ context.Context) (base.BlockdataMap, error) {
 		return nil, errors.Errorf("killme")
 	}
 

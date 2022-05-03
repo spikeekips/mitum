@@ -17,7 +17,7 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-type DummyBlockDataFSWriter struct {
+type DummyBlockdataFSWriter struct {
 	setProposalf        func(context.Context, base.ProposalSignedFact) error
 	setOperationf       func(context.Context, int, base.Operation) error
 	setOperationsTreef  func(context.Context, tree.FixedTree) error
@@ -26,74 +26,74 @@ type DummyBlockDataFSWriter struct {
 	setManifestf        func(context.Context, base.Manifest) error
 	setINITVoteprooff   func(context.Context, base.INITVoteproof) error
 	setACCEPTVoteprooff func(context.Context, base.ACCEPTVoteproof) error
-	savef               func(context.Context) (base.BlockDataMap, error)
+	savef               func(context.Context) (base.BlockdataMap, error)
 	cancelf             func() error
 }
 
-func (w *DummyBlockDataFSWriter) SetProposal(ctx context.Context, pr base.ProposalSignedFact) error {
+func (w *DummyBlockdataFSWriter) SetProposal(ctx context.Context, pr base.ProposalSignedFact) error {
 	if w.setProposalf != nil {
 		return w.setProposalf(ctx, pr)
 	}
 	return nil
 }
 
-func (w *DummyBlockDataFSWriter) SetOperation(ctx context.Context, index int, op base.Operation) error {
+func (w *DummyBlockdataFSWriter) SetOperation(ctx context.Context, index int, op base.Operation) error {
 	if w.setOperationf != nil {
 		return w.setOperationf(ctx, index, op)
 	}
 	return nil
 }
 
-func (w *DummyBlockDataFSWriter) SetOperationsTree(ctx context.Context, tr tree.FixedTree) error {
+func (w *DummyBlockdataFSWriter) SetOperationsTree(ctx context.Context, tr tree.FixedTree) error {
 	if w.setOperationsTreef != nil {
 		return w.setOperationsTreef(ctx, tr)
 	}
 	return nil
 }
 
-func (w *DummyBlockDataFSWriter) SetState(ctx context.Context, index int, st base.State) error {
+func (w *DummyBlockdataFSWriter) SetState(ctx context.Context, index int, st base.State) error {
 	if w.setStatef != nil {
 		return w.setStatef(ctx, index, st)
 	}
 	return nil
 }
 
-func (w *DummyBlockDataFSWriter) SetStatesTree(ctx context.Context, tr tree.FixedTree) error {
+func (w *DummyBlockdataFSWriter) SetStatesTree(ctx context.Context, tr tree.FixedTree) error {
 	if w.setStatesTreef != nil {
 		return w.setStatesTreef(ctx, tr)
 	}
 	return nil
 }
 
-func (w *DummyBlockDataFSWriter) SetManifest(ctx context.Context, m base.Manifest) error {
+func (w *DummyBlockdataFSWriter) SetManifest(ctx context.Context, m base.Manifest) error {
 	if w.setManifestf != nil {
 		return w.setManifestf(ctx, m)
 	}
 	return nil
 }
 
-func (w *DummyBlockDataFSWriter) SetINITVoteproof(ctx context.Context, vp base.INITVoteproof) error {
+func (w *DummyBlockdataFSWriter) SetINITVoteproof(ctx context.Context, vp base.INITVoteproof) error {
 	if w.setINITVoteprooff != nil {
 		return w.setINITVoteprooff(ctx, vp)
 	}
 	return nil
 }
 
-func (w *DummyBlockDataFSWriter) SetACCEPTVoteproof(ctx context.Context, vp base.ACCEPTVoteproof) error {
+func (w *DummyBlockdataFSWriter) SetACCEPTVoteproof(ctx context.Context, vp base.ACCEPTVoteproof) error {
 	if w.setACCEPTVoteprooff != nil {
 		return w.setACCEPTVoteprooff(ctx, vp)
 	}
 	return nil
 }
 
-func (w *DummyBlockDataFSWriter) Save(ctx context.Context) (base.BlockDataMap, error) {
+func (w *DummyBlockdataFSWriter) Save(ctx context.Context) (base.BlockdataMap, error) {
 	if w.savef != nil {
 		return w.savef(ctx)
 	}
 	return nil, nil
 }
 
-func (w *DummyBlockDataFSWriter) Cancel() error {
+func (w *DummyBlockdataFSWriter) Cancel() error {
 	if w.cancelf != nil {
 		return w.cancelf()
 	}
@@ -101,11 +101,11 @@ func (w *DummyBlockDataFSWriter) Cancel() error {
 }
 
 type testLocalFSWriter struct {
-	testBaseLocalBlockDataFS
+	testBaseLocalBlockdataFS
 }
 
-func (t *testLocalFSWriter) findTempFile(temp string, d base.BlockDataType, islist bool) (string, io.Reader, error) {
-	fname, err := BlockDataFileName(d, t.Enc)
+func (t *testLocalFSWriter) findTempFile(temp string, d base.BlockdataType, islist bool) (string, io.Reader, error) {
+	fname, err := BlockdataFileName(d, t.Enc)
 	t.NoError(err)
 
 	fpath := filepath.Join(temp, fname)
@@ -153,12 +153,12 @@ func (t *testLocalFSWriter) TestSetProposal() {
 
 	t.NoError(fs.SetProposal(context.Background(), pr))
 
-	fpath, f, err := t.findTempFile(fs.temp, base.BlockDataTypeProposal, false)
+	fpath, f, err := t.findTempFile(fs.temp, base.BlockdataTypeProposal, false)
 	t.NoError(err)
 	t.T().Log("temp file:", fpath)
 	t.NotNil(f)
 
-	item, found := fs.m.Item(base.BlockDataTypeProposal)
+	item, found := fs.m.Item(base.BlockdataTypeProposal)
 	t.True(found)
 	t.NoError(item.IsValid(nil))
 
@@ -206,21 +206,21 @@ func (t *testLocalFSWriter) TestSave() {
 	t.T().Log("blockdatamap:", string(b))
 
 	t.Run("operations(tree) should be empty in map", func() {
-		_, found := m.Item(base.BlockDataTypeOperations)
+		_, found := m.Item(base.BlockdataTypeOperations)
 		t.False(found)
-		_, found = m.Item(base.BlockDataTypeOperationsTree)
+		_, found = m.Item(base.BlockdataTypeOperationsTree)
 		t.False(found)
 	})
 
 	t.Run("states(tree) should be empty in map", func() {
-		_, found := m.Item(base.BlockDataTypeStates)
+		_, found := m.Item(base.BlockdataTypeStates)
 		t.False(found)
-		_, found = m.Item(base.BlockDataTypeStatesTree)
+		_, found = m.Item(base.BlockdataTypeStatesTree)
 		t.False(found)
 	})
 
-	checkfile := func(d base.BlockDataType) {
-		fname, err := BlockDataFileName(d, t.Enc)
+	checkfile := func(d base.BlockdataType) {
+		fname, err := BlockdataFileName(d, t.Enc)
 		t.NoError(err)
 		fi, err := os.Stat(filepath.Join(newroot, fname))
 		t.NoError(err)
@@ -232,12 +232,12 @@ func (t *testLocalFSWriter) TestSave() {
 		t.NoError(err)
 		t.True(fi.IsDir())
 
-		checkfile(base.BlockDataTypeProposal)
-		checkfile(base.BlockDataTypeVoteproofs)
+		checkfile(base.BlockdataTypeProposal)
+		checkfile(base.BlockdataTypeVoteproofs)
 	})
 
 	t.Run("check map file", func() {
-		fname := blockDataFSMapFilename(t.Enc)
+		fname := blockdataFSMapFilename(t.Enc)
 		fpath := filepath.Join(newroot, fname)
 		f, err := os.Open(fpath)
 		t.NoError(err)
@@ -248,10 +248,10 @@ func (t *testLocalFSWriter) TestSave() {
 		hinter, err := t.Enc.Decode(b)
 		t.NoError(err)
 
-		um, ok := hinter.(base.BlockDataMap)
+		um, ok := hinter.(base.BlockdataMap)
 		t.True(ok)
 
-		base.EqualBlockDataMap(t.Assert(), fs.m, um)
+		base.EqualBlockdataMap(t.Assert(), fs.m, um)
 	})
 }
 
@@ -330,12 +330,12 @@ func (t *testLocalFSWriter) TestSetACCEPTVoteproof() {
 		t.NoError(fs.SetINITVoteproof(context.Background(), ivp))
 		t.NoError(fs.SetACCEPTVoteproof(context.Background(), avp))
 
-		fpath, f, err := t.findTempFile(fs.temp, base.BlockDataTypeVoteproofs, false)
+		fpath, f, err := t.findTempFile(fs.temp, base.BlockdataTypeVoteproofs, false)
 		t.NoError(err)
 		t.T().Log("temp file:", fpath)
 		t.NotNil(f)
 
-		item, found := fs.m.Item(base.BlockDataTypeVoteproofs)
+		item, found := fs.m.Item(base.BlockdataTypeVoteproofs)
 		t.True(found)
 		t.NoError(item.IsValid(nil))
 	})
@@ -346,12 +346,12 @@ func (t *testLocalFSWriter) TestSetACCEPTVoteproof() {
 
 		t.NoError(fs.SetACCEPTVoteproof(context.Background(), avp))
 
-		fpath, f, err := t.findTempFile(fs.temp, base.BlockDataTypeVoteproofs, false)
+		fpath, f, err := t.findTempFile(fs.temp, base.BlockdataTypeVoteproofs, false)
 		t.Error(err)
 		t.T().Log("temp file:", fpath)
 		t.Nil(f)
 
-		item, found := fs.m.Item(base.BlockDataTypeVoteproofs)
+		item, found := fs.m.Item(base.BlockdataTypeVoteproofs)
 		t.False(found)
 		t.Nil(item)
 	})
@@ -362,12 +362,12 @@ func (t *testLocalFSWriter) TestSetACCEPTVoteproof() {
 
 		t.NoError(fs.SetINITVoteproof(context.Background(), ivp))
 
-		fpath, f, err := t.findTempFile(fs.temp, base.BlockDataTypeVoteproofs, false)
+		fpath, f, err := t.findTempFile(fs.temp, base.BlockdataTypeVoteproofs, false)
 		t.Error(err)
 		t.T().Log("temp file:", fpath)
 		t.Nil(f)
 
-		item, found := fs.m.Item(base.BlockDataTypeVoteproofs)
+		item, found := fs.m.Item(base.BlockdataTypeVoteproofs)
 		t.False(found)
 		t.Nil(item)
 	})
@@ -420,12 +420,12 @@ func (t *testLocalFSWriter) TestSetOperations() {
 	t.NoError(fs.SetOperationsTree(ctx, opstree))
 
 	t.Run("operations file", func() {
-		fpath, f, err := t.findTempFile(fs.temp, base.BlockDataTypeOperations, true)
+		fpath, f, err := t.findTempFile(fs.temp, base.BlockdataTypeOperations, true)
 		t.NoError(err)
 		t.T().Log("temp file:", fpath)
 		t.NotNil(f)
 
-		item, found := fs.m.Item(base.BlockDataTypeOperations)
+		item, found := fs.m.Item(base.BlockdataTypeOperations)
 		t.True(found)
 		t.NoError(item.IsValid(nil))
 
@@ -439,12 +439,12 @@ func (t *testLocalFSWriter) TestSetOperations() {
 	})
 
 	t.Run("operations tree file", func() {
-		fpath, f, err := t.findTempFile(fs.temp, base.BlockDataTypeOperationsTree, true)
+		fpath, f, err := t.findTempFile(fs.temp, base.BlockdataTypeOperationsTree, true)
 		t.NoError(err)
 		t.T().Log("temp file:", fpath)
 		t.NotNil(f)
 
-		item, found := fs.m.Item(base.BlockDataTypeOperationsTree)
+		item, found := fs.m.Item(base.BlockdataTypeOperationsTree)
 		t.True(found)
 		t.NoError(item.IsValid(nil))
 
@@ -508,12 +508,12 @@ func (t *testLocalFSWriter) TestSetStates() {
 	t.NoError(fs.SetStatesTree(ctx, sttstree))
 
 	t.Run("states file", func() {
-		fpath, f, err := t.findTempFile(fs.temp, base.BlockDataTypeStates, true)
+		fpath, f, err := t.findTempFile(fs.temp, base.BlockdataTypeStates, true)
 		t.NoError(err)
 		t.T().Log("temp file:", fpath)
 		t.NotNil(f)
 
-		item, found := fs.m.Item(base.BlockDataTypeStates)
+		item, found := fs.m.Item(base.BlockdataTypeStates)
 		t.True(found)
 		t.NoError(item.IsValid(nil))
 
@@ -527,12 +527,12 @@ func (t *testLocalFSWriter) TestSetStates() {
 	})
 
 	t.Run("states tree file", func() {
-		fpath, f, err := t.findTempFile(fs.temp, base.BlockDataTypeStatesTree, true)
+		fpath, f, err := t.findTempFile(fs.temp, base.BlockdataTypeStatesTree, true)
 		t.NoError(err)
 		t.T().Log("temp file:", fpath)
 		t.NotNil(f)
 
-		item, found := fs.m.Item(base.BlockDataTypeStatesTree)
+		item, found := fs.m.Item(base.BlockdataTypeStatesTree)
 		t.True(found)
 		t.NoError(item.IsValid(nil))
 

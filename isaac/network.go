@@ -16,9 +16,9 @@ type NodeNetworkClient interface {
 	) (base.ProposalSignedFact, bool, error)
 	Proposal(context.Context, quictransport.ConnInfo, util.Hash /* fact hash */) (base.ProposalSignedFact, bool, error)
 	LastSuffrage(context.Context, quictransport.ConnInfo) (base.SuffrageInfo, bool, error)
-	// BLOCK BlockDataMap(context.Context, quictransport.ConnInfo, base.Height)
-	// (base.BlockDataMap, bool, error)
+	// BLOCK BlockdataMap(context.Context, quictransport.ConnInfo, base.Height)
+	// (base.BlockdataMap, bool, error)
 
-	// BLOCK BlockData(context.Context, quictransport.ConnInfo, base.Height,
-	// base.BlockDataType) (base.BlockData, bool, error)
+	// BLOCK Blockdata(context.Context, quictransport.ConnInfo, base.Height,
+	// base.BlockdataType) (base.Blockdata, bool, error)
 }

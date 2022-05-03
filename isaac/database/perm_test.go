@@ -22,7 +22,7 @@ func (t *testCommonPermanent) SetupTest() {
 	t.BaseTestDatabase.SetupTest()
 }
 
-func (t *testCommonPermanent) setMap(db isaac.PermanentDatabase, mp base.BlockDataMap) {
+func (t *testCommonPermanent) setMap(db isaac.PermanentDatabase, mp base.BlockdataMap) {
 	switch t := db.(type) {
 	case *LeveldbPermanent:
 		_ = t.mp.SetValue(mp)
@@ -65,7 +65,7 @@ func (t *testCommonPermanent) TestNew() {
 func (t *testCommonPermanent) TestLastMap() {
 	height := base.Height(33)
 	manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
-	mp := base.NewDummyBlockDataMap(manifest)
+	mp := base.NewDummyBlockdataMap(manifest)
 
 	db := t.newDB()
 	defer db.Close()
@@ -84,7 +84,7 @@ func (t *testCommonPermanent) TestLastMap() {
 		t.NoError(err)
 		t.True(found)
 
-		base.EqualBlockDataMap(t.Assert(), mp, rm)
+		base.EqualBlockdataMap(t.Assert(), mp, rm)
 	})
 }
 
@@ -160,7 +160,7 @@ func (t *testCommonPermanent) TestSuffrage() {
 	}
 
 	manifest := base.NewDummyManifest(height+10, valuehash.RandomSHA256())
-	mp := base.NewDummyBlockDataMap(manifest)
+	mp := base.NewDummyBlockdataMap(manifest)
 	t.setMap(db, mp)
 	st, _ := t.SuffrageState(height+10, suffrageheight, nodes)
 	t.setSuffrageState(db, st)
@@ -254,7 +254,7 @@ func (t *testCommonPermanent) TestLoad() {
 	stts = append(stts, sufstt, policystt)
 
 	manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
-	mp := base.NewDummyBlockDataMap(manifest)
+	mp := base.NewDummyBlockdataMap(manifest)
 
 	ops := make([]util.Hash, 3)
 	for i := range ops {
@@ -277,7 +277,7 @@ func (t *testCommonPermanent) TestLoad() {
 		nm, found, err := perm.LastMap()
 		t.NoError(err)
 		t.True(found)
-		base.EqualBlockDataMap(t.Assert(), mp, nm)
+		base.EqualBlockdataMap(t.Assert(), mp, nm)
 	})
 
 	t.Run("check suffrage state in perm", func() {
@@ -299,7 +299,7 @@ func (t *testCommonPermanent) TestLoad() {
 		nm, found, err := newperm.LastMap()
 		t.NoError(err)
 		t.True(found)
-		base.EqualBlockDataMap(t.Assert(), mp, nm)
+		base.EqualBlockdataMap(t.Assert(), mp, nm)
 	})
 
 	t.Run("check suffrage state in new perm", func() {
@@ -320,7 +320,7 @@ func (t *testCommonPermanent) TestMergeTempDatabase() {
 	stts = append(stts, sufstt)
 
 	manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
-	mp := base.NewDummyBlockDataMap(manifest)
+	mp := base.NewDummyBlockdataMap(manifest)
 
 	ops := make([]util.Hash, 3)
 	for i := range ops {
@@ -446,6 +446,6 @@ func (t *testCommonPermanent) TestMergeTempDatabase() {
 		t.True(found)
 		t.NotNil(rm)
 
-		base.EqualBlockDataMap(t.Assert(), mp, rm)
+		base.EqualBlockdataMap(t.Assert(), mp, rm)
 	})
 }

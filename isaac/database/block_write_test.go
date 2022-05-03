@@ -45,7 +45,7 @@ func (t *testLeveldbBlockWrite) TestSetMap() {
 	defer wst.Close()
 
 	manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
-	mp := base.NewDummyBlockDataMap(manifest)
+	mp := base.NewDummyBlockdataMap(manifest)
 	t.NoError(wst.SetMap(mp))
 
 	t.NoError(wst.Write())
@@ -57,7 +57,7 @@ func (t *testLeveldbBlockWrite) TestSetMap() {
 		rm, err := rst.Map()
 		t.NoError(err)
 
-		base.EqualBlockDataMap(t.Assert(), mp, rm)
+		base.EqualBlockdataMap(t.Assert(), mp, rm)
 	})
 }
 
@@ -77,7 +77,7 @@ func (t *testLeveldbBlockWrite) TestSetStates() {
 	wst := t.NewMemLeveldbBlockWriteDatabase(height)
 	defer wst.Close()
 
-	mp := base.NewDummyBlockDataMap(manifest)
+	mp := base.NewDummyBlockdataMap(manifest)
 	t.NoError(wst.SetMap(mp))
 	t.NoError(wst.SetStates(stts))
 	t.NoError(wst.Write())
@@ -151,7 +151,7 @@ func (t *testLeveldbBlockWrite) TestSetOperations() {
 	t.NoError(wst.SetOperations(ops))
 
 	manifest := base.NewDummyManifest(base.Height(33), valuehash.RandomSHA256())
-	mp := base.NewDummyBlockDataMap(manifest)
+	mp := base.NewDummyBlockdataMap(manifest)
 	t.NoError(wst.SetMap(mp))
 	t.NoError(wst.Write())
 

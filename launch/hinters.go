@@ -38,7 +38,7 @@ var Hinters = []encoder.DecodeDetail{
 	{Hint: isaac.SuffrageCandidateHint, Instance: isaac.SuffrageCandidate{}},
 	{Hint: isaac.SuffrageCandidateHint, Instance: isaac.SuffrageCandidate{}},
 	{Hint: isaac.SuffrageInfoHint, Instance: isaac.SuffrageInfo{}},
-	{Hint: isaacblockdata.BlockDataMapHint, Instance: isaacblockdata.BlockDataMap{}},
+	{Hint: isaacblockdata.BlockdataMapHint, Instance: isaacblockdata.BlockdataMap{}},
 	{Hint: isaacoperation.GenesisNetworkPolicyFactHint, Instance: isaacoperation.GenesisNetworkPolicyFact{}},
 	{Hint: isaacoperation.GenesisNetworkPolicyHint, Instance: isaacoperation.GenesisNetworkPolicy{}},
 	{Hint: isaacoperation.SuffrageGenesisJoinHint, Instance: isaacoperation.SuffrageGenesisJoin{}},

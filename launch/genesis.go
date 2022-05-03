@@ -53,7 +53,7 @@ func NewGenesisBlockGenerator(
 	}
 }
 
-func (g *GenesisBlockGenerator) Generate() (base.BlockDataMap, error) {
+func (g *GenesisBlockGenerator) Generate() (base.BlockdataMap, error) {
 	e := util.StringErrorFunc("failed to generate genesis block")
 
 	if err := g.joinOperation(); err != nil {
@@ -280,7 +280,7 @@ func (g *GenesisBlockGenerator) newProposalProcessor() (*isaac.DefaultProposalPr
 	return isaac.NewDefaultProposalProcessor(
 		g.proposal,
 		nil,
-		NewBlockDataWriterFunc(g.local, g.networkID, g.dataroot, g.enc, g.db),
+		NewBlockdataWriterFunc(g.local, g.networkID, g.dataroot, g.enc, g.db),
 		func(key string) (base.State, bool, error) {
 			return nil, false, nil
 		},
@@ -300,15 +300,15 @@ func (g *GenesisBlockGenerator) newProposalProcessor() (*isaac.DefaultProposalPr
 	)
 }
 
-func NewBlockDataWriterFunc(
+func NewBlockdataWriterFunc(
 	local base.LocalNode,
 	networkID base.NetworkID,
 	dataroot string,
 	enc encoder.Encoder,
 	db isaac.Database,
-) isaac.NewBlockDataWriterFunc {
-	return func(proposal base.ProposalSignedFact, getStateFunc base.GetStateFunc) (isaac.BlockDataWriter, error) {
-		e := util.StringErrorFunc("failed to crete BlockDataWriter")
+) isaac.NewBlockdataWriterFunc {
+	return func(proposal base.ProposalSignedFact, getStateFunc base.GetStateFunc) (isaac.BlockdataWriter, error) {
+		e := util.StringErrorFunc("failed to crete BlockdataWriter")
 
 		dbw, err := db.NewBlockWriteDatabase(proposal.Point().Height())
 		if err != nil {
