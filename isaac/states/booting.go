@@ -37,8 +37,8 @@ func (st *BootingHandler) enter(i switchContext) (func(), error) { // nolint:unp
 	case err != nil:
 		return nil, e(err, "")
 	case !found:
-		// NOTE empty block data, moves to syncing
-		st.Log().Debug().Msg("empty block data; moves to syncing")
+		// NOTE empty block map item, moves to syncing
+		st.Log().Debug().Msg("empty block map item; moves to syncing")
 
 		return nil, newSyncingSwitchContext(StateEmpty, base.GenesisHeight)
 	default:

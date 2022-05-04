@@ -4,7 +4,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
-	isaacblockdata "github.com/spikeekips/mitum/isaac/blockdata"
+	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	isaacoperation "github.com/spikeekips/mitum/isaac/operation"
 	"github.com/spikeekips/mitum/network/quictransport"
@@ -38,7 +38,7 @@ var Hinters = []encoder.DecodeDetail{
 	{Hint: isaac.SuffrageCandidateHint, Instance: isaac.SuffrageCandidate{}},
 	{Hint: isaac.SuffrageCandidateHint, Instance: isaac.SuffrageCandidate{}},
 	{Hint: isaac.SuffrageInfoHint, Instance: isaac.SuffrageInfo{}},
-	{Hint: isaacblockdata.BlockdataMapHint, Instance: isaacblockdata.BlockdataMap{}},
+	{Hint: isaacblock.BlockMapHint, Instance: isaacblock.BlockMap{}},
 	{Hint: isaacoperation.GenesisNetworkPolicyFactHint, Instance: isaacoperation.GenesisNetworkPolicyFact{}},
 	{Hint: isaacoperation.GenesisNetworkPolicyHint, Instance: isaacoperation.GenesisNetworkPolicy{}},
 	{Hint: isaacoperation.SuffrageGenesisJoinHint, Instance: isaacoperation.SuffrageGenesisJoin{}},

@@ -218,50 +218,50 @@ func EqualManifest(t *assert.Assertions, a, b Manifest) {
 	t.True(localtime.Equal(a.ProposedAt(), b.ProposedAt()), "ProposedAt does not match")
 }
 
-var DummyBlockdataMapHint = hint.MustNewHint("dummy-blockdatamap-v0.0.1")
+var DummyBlockMapHint = hint.MustNewHint("dummy-blockmap-v0.0.1")
 
-type DummyBlockdataMap struct {
+type DummyBlockMap struct {
 	BaseNodeSigned
 	M Manifest
 }
 
-func NewDummyBlockdataMap(manifest Manifest) DummyBlockdataMap {
+func NewDummyBlockMap(manifest Manifest) DummyBlockMap {
 	signed, _ := BaseNodeSignedFromBytes(
 		RandomAddress(""),
 		NewMPrivatekey(),
 		util.UUID().Bytes(),
 		nil,
 	)
-	return DummyBlockdataMap{
+	return DummyBlockMap{
 		BaseNodeSigned: signed,
 		M:              manifest,
 	}
 }
 
-func (m DummyBlockdataMap) Hint() hint.Hint {
-	return DummyBlockdataMapHint
+func (m DummyBlockMap) Hint() hint.Hint {
+	return DummyBlockMapHint
 }
 
-func (m DummyBlockdataMap) Manifest() Manifest {
+func (m DummyBlockMap) Manifest() Manifest {
 	return m.M
 }
 
-func (m DummyBlockdataMap) Item(BlockdataType) (BlockdataMapItem, bool) {
+func (m DummyBlockMap) Item(BlockMapItemType) (BlockMapItem, bool) {
 	return nil, false
 }
 
-func (m DummyBlockdataMap) Items(func(BlockdataMapItem) bool) {
+func (m DummyBlockMap) Items(func(BlockMapItem) bool) {
 }
 
-func (m DummyBlockdataMap) Bytes() []byte {
+func (m DummyBlockMap) Bytes() []byte {
 	return nil
 }
 
-func (m DummyBlockdataMap) IsValid([]byte) error {
+func (m DummyBlockMap) IsValid([]byte) error {
 	return nil
 }
 
-func (m DummyBlockdataMap) MarshalJSON() ([]byte, error) {
+func (m DummyBlockMap) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
 		hint.HintedJSONHead
 		B BaseNodeSigned
@@ -273,7 +273,7 @@ func (m DummyBlockdataMap) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (m *DummyBlockdataMap) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (m *DummyBlockMap) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	var u struct {
 		B json.RawMessage
 		M json.RawMessage
@@ -302,24 +302,24 @@ func (m *DummyBlockdataMap) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	return nil
 }
 
-func EqualBlockdataMap(t *assert.Assertions, a, b BlockdataMap) {
+func EqualBlockMap(t *assert.Assertions, a, b BlockMap) {
 	aht := a.(hint.Hinter).Hint()
 	bht := b.(hint.Hinter).Hint()
 	t.True(aht.Equal(bht), "Hint does not match")
 
 	EqualManifest(t, a.Manifest(), b.Manifest())
 
-	a.Items(func(ai BlockdataMapItem) bool {
+	a.Items(func(ai BlockMapItem) bool {
 		bi, found := b.Item(ai.Type())
 		t.True(found)
 
-		EqualBlockdataMapItem(t, ai, bi)
+		EqualBlockMapItem(t, ai, bi)
 
 		return true
 	})
 }
 
-func EqualBlockdataMapItem(t *assert.Assertions, a, b BlockdataMapItem) {
+func EqualBlockMapItem(t *assert.Assertions, a, b BlockMapItem) {
 	t.Equal(a.Type(), b.Type())
 	t.Equal(a.URL().String(), b.URL().String())
 	t.Equal(a.Checksum(), b.Checksum())

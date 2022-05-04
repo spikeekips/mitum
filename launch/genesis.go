@@ -7,7 +7,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
-	isaacblockdata "github.com/spikeekips/mitum/isaac/blockdata"
+	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
 	isaacoperation "github.com/spikeekips/mitum/isaac/operation"
 	"github.com/spikeekips/mitum/util"
@@ -53,7 +53,7 @@ func NewGenesisBlockGenerator(
 	}
 }
 
-func (g *GenesisBlockGenerator) Generate() (base.BlockdataMap, error) {
+func (g *GenesisBlockGenerator) Generate() (base.BlockMap, error) {
 	e := util.StringErrorFunc("failed to generate genesis block")
 
 	if err := g.joinOperation(); err != nil {
@@ -72,28 +72,28 @@ func (g *GenesisBlockGenerator) Generate() (base.BlockdataMap, error) {
 		return nil, e(err, "")
 	}
 
-	fsreader, err := isaacblockdata.NewLocalFSReader(g.dataroot, base.GenesisHeight, g.enc)
+	fsreader, err := isaacblock.NewLocalFSReader(g.dataroot, base.GenesisHeight, g.enc)
 	if err != nil {
 		return nil, e(err, "")
 	}
 
-	switch blockdatamap, found, err := fsreader.Map(); {
+	switch blockmap, found, err := fsreader.Map(); {
 	case err != nil:
 		return nil, e(err, "")
 	case !found:
-		return nil, errors.Errorf("blockdatamap not found")
+		return nil, errors.Errorf("blockmap not found")
 	default:
-		if err := blockdatamap.IsValid(g.networkID); err != nil {
+		if err := blockmap.IsValid(g.networkID); err != nil {
 			return nil, e(err, "")
 		}
 
-		g.Log().Info().Interface("blockdatamap", blockdatamap).Msg("genesis block generated")
+		g.Log().Info().Interface("blockmap", blockmap).Msg("genesis block generated")
 
 		if err := g.closeDatabase(); err != nil {
 			return nil, e(err, "")
 		}
 
-		return blockdatamap, nil
+		return blockmap, nil
 	}
 }
 
@@ -280,7 +280,7 @@ func (g *GenesisBlockGenerator) newProposalProcessor() (*isaac.DefaultProposalPr
 	return isaac.NewDefaultProposalProcessor(
 		g.proposal,
 		nil,
-		NewBlockdataWriterFunc(g.local, g.networkID, g.dataroot, g.enc, g.db),
+		NewBlockWriterFunc(g.local, g.networkID, g.dataroot, g.enc, g.db),
 		func(key string) (base.State, bool, error) {
 			return nil, false, nil
 		},
@@ -300,22 +300,22 @@ func (g *GenesisBlockGenerator) newProposalProcessor() (*isaac.DefaultProposalPr
 	)
 }
 
-func NewBlockdataWriterFunc(
+func NewBlockWriterFunc(
 	local base.LocalNode,
 	networkID base.NetworkID,
 	dataroot string,
 	enc encoder.Encoder,
 	db isaac.Database,
-) isaac.NewBlockdataWriterFunc {
-	return func(proposal base.ProposalSignedFact, getStateFunc base.GetStateFunc) (isaac.BlockdataWriter, error) {
-		e := util.StringErrorFunc("failed to crete BlockdataWriter")
+) isaac.NewBlockWriterFunc {
+	return func(proposal base.ProposalSignedFact, getStateFunc base.GetStateFunc) (isaac.BlockWriter, error) {
+		e := util.StringErrorFunc("failed to crete BlockWriter")
 
 		dbw, err := db.NewBlockWriteDatabase(proposal.Point().Height())
 		if err != nil {
 			return nil, e(err, "")
 		}
 
-		fswriter, err := isaacblockdata.NewLocalFSWriter(
+		fswriter, err := isaacblock.NewLocalFSWriter(
 			dataroot,
 			proposal.Point().Height(),
 			enc,
@@ -326,6 +326,6 @@ func NewBlockdataWriterFunc(
 			return nil, e(err, "")
 		}
 
-		return isaacblockdata.NewWriter(proposal, getStateFunc, dbw, db.MergeBlockWriteDatabase, fswriter), nil
+		return isaacblock.NewWriter(proposal, getStateFunc, dbw, db.MergeBlockWriteDatabase, fswriter), nil
 	}
 }

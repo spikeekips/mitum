@@ -33,7 +33,7 @@ type (
 	// - if operation is known, return nil,
 	// OperationAlreadyProcessedInProcessorError; it will be ignored.
 	OperationProcessorGetOperationFunction func(context.Context, util.Hash) (base.Operation, error)
-	NewBlockdataWriterFunc                 func(base.ProposalSignedFact, base.GetStateFunc) (BlockdataWriter, error)
+	NewBlockWriterFunc                     func(base.ProposalSignedFact, base.GetStateFunc) (BlockWriter, error)
 )
 
 type ProposalProcessor interface {
@@ -48,7 +48,7 @@ type DefaultProposalProcessor struct {
 	*logging.Logging
 	proposal              base.ProposalSignedFact
 	previous              base.Manifest
-	writer                BlockdataWriter
+	writer                BlockWriter
 	getStateFunc          base.GetStateFunc
 	getOperation          OperationProcessorGetOperationFunction
 	newOperationProcessor NewOperationProcessorFunction
@@ -65,7 +65,7 @@ type DefaultProposalProcessor struct {
 func NewDefaultProposalProcessor(
 	proposal base.ProposalSignedFact,
 	previous base.Manifest,
-	newWriter NewBlockdataWriterFunc,
+	newWriter NewBlockWriterFunc,
 	getStateFunc base.GetStateFunc,
 	getOperation OperationProcessorGetOperationFunction,
 	newOperationProcessor NewOperationProcessorFunction,
@@ -176,7 +176,7 @@ func (p *DefaultProposalProcessor) save(ctx context.Context, acceptVoteproof bas
 		}
 	}
 
-	p.Log().Info().Interface("blockdatamap", m).Msg("new block saved")
+	p.Log().Info().Interface("blockmap", m).Msg("new block saved")
 
 	p.close()
 

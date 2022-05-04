@@ -663,6 +663,7 @@ func (t *testMemberlist) TestLocalOverMemberLimit() {
 func TestMemberlist(t *testing.T) {
 	defer goleak.VerifyNone(t,
 		goleak.IgnoreTopFunction("github.com/hashicorp/memberlist.(*Memberlist).probeNode"),
+		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/network/quictransport.(*Transport).receivePacket"),
 	)
 
 	suite.Run(t, new(testMemberlist))

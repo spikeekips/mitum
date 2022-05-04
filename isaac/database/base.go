@@ -121,24 +121,24 @@ func (db *baseDatabase) decodeSuffrage(b []byte) (base.State, error) {
 	}
 }
 
-func (db *baseDatabase) decodeBlockdataMap(b []byte) (base.BlockdataMap, error) {
+func (db *baseDatabase) decodeBlockMap(b []byte) (base.BlockMap, error) {
 	if b == nil {
 		return nil, nil
 	}
 
-	e := util.StringErrorFunc("failed to load blockdatamap")
+	e := util.StringErrorFunc("failed to load blockmap")
 
 	hinter, err := db.readHinter(b)
 	switch {
 	case err != nil:
 		return nil, e(err, "")
 	case hinter == nil:
-		return nil, e(nil, "empty blockdatamap")
+		return nil, e(nil, "empty blockmap")
 	}
 
-	switch i, ok := hinter.(base.BlockdataMap); {
+	switch i, ok := hinter.(base.BlockMap); {
 	case !ok:
-		return nil, e(nil, "not blockdatamap: %T", hinter)
+		return nil, e(nil, "not blockmap: %T", hinter)
 	default:
 		return i, nil
 	}

@@ -56,7 +56,7 @@ func (t *testTempLeveldb) TestLoad() {
 	stts = append(stts, sufstt, policystt)
 
 	manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
-	mp := base.NewDummyBlockdataMap(manifest)
+	mp := base.NewDummyBlockMap(manifest)
 
 	ops := make([]util.Hash, 33)
 	for i := range ops {
@@ -77,11 +77,11 @@ func (t *testTempLeveldb) TestLoad() {
 
 	_ = (interface{})(rst).(isaac.TempDatabase)
 
-	t.Run("blockdatamap", func() {
+	t.Run("blockmap", func() {
 		rm, err := rst.Map()
 		t.NoError(err)
 
-		base.EqualBlockdataMap(t.Assert(), mp, rm)
+		base.EqualBlockMap(t.Assert(), mp, rm)
 	})
 
 	t.Run("check last suffrage", func() {

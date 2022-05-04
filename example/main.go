@@ -11,7 +11,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
-	isaacblockdata "github.com/spikeekips/mitum/isaac/blockdata"
+	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/launch"
@@ -184,7 +184,7 @@ func (cmd *runCommand) prepareDatabase(dbroot string, encs *encoder.Encoders, en
 		return errors.Wrap(err, "")
 	}
 
-	if err := isaacblockdata.CleanBlockdataTempDirectory(launch.DBRootDataDirectory(dbroot)); err != nil {
+	if err := isaacblock.CleanBlockTempDirectory(launch.DBRootDataDirectory(dbroot)); err != nil {
 		return errors.Wrap(err, "")
 	}
 
@@ -324,7 +324,7 @@ func (cmd *runCommand) newProposalProcessorFunc(dbroot string, enc encoder.Encod
 		return isaac.NewDefaultProposalProcessor(
 			proposal,
 			previous,
-			launch.NewBlockdataWriterFunc(cmd.local, networkID, launch.DBRootDataDirectory(dbroot), enc, cmd.db),
+			launch.NewBlockWriterFunc(cmd.local, networkID, launch.DBRootDataDirectory(dbroot), enc, cmd.db),
 			cmd.db.State,
 			nil,
 			nil,

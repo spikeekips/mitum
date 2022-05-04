@@ -3,6 +3,7 @@ package base
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
@@ -126,6 +127,7 @@ func (t *testBaseOperation) TestSign() {
 
 		oldsigned := op.signed[0]
 
+		<-time.After(time.Millisecond * 100)
 		t.NoError(op.Sign(t.priv, t.networkID))
 
 		newsigned := op.signed[0]

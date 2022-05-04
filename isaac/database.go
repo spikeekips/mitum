@@ -7,14 +7,14 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
-// Database serves block data like blockdatamap, states and operations from
+// Database serves block map item like blockmap, states and operations from
 // TempDatabases and PermanentDatabase. It has several TempDatabases and one
 // PermanentDatabase.
 type Database interface {
 	util.Daemon
 	Close() error
-	Map(height base.Height) (base.BlockdataMap, bool, error)
-	LastMap() (base.BlockdataMap, bool, error)
+	Map(height base.Height) (base.BlockMap, bool, error)
+	LastMap() (base.BlockMap, bool, error)
 	Suffrage(blockheight base.Height) (base.State, bool, error)
 	SuffrageByHeight(suffrageHeight base.Height) (base.State, bool, error)
 	LastSuffrage() (base.State, bool, error)
@@ -34,14 +34,14 @@ type PartialDatabase interface {
 	ExistsKnownOperation(operationFactHash util.Hash) (bool, error)
 }
 
-// TempDatabase is the temporary database; it contains only blockdatamap and
-// others of one block for storing block data fast.
+// TempDatabase is the temporary database; it contains only blockmap and
+// others of one block for storing block map item fast.
 type TempDatabase interface {
 	PartialDatabase
 	Close() error
 	Remove() error
 	Height() base.Height
-	Map() (base.BlockdataMap, error)
+	Map() (base.BlockMap, error)
 	SuffrageHeight() base.Height
 	Suffrage() (base.State, bool, error)
 	NetworkPolicy() base.NetworkPolicy
@@ -50,8 +50,8 @@ type TempDatabase interface {
 type BlockWriteDatabase interface {
 	Close() error
 	Cancel() error
-	Map() (base.BlockdataMap, error)
-	SetMap(base.BlockdataMap) error
+	Map() (base.BlockMap, error)
+	SetMap(base.BlockMap) error
 	SetStates(sts []base.State) error
 	SetOperations(ops []util.Hash) error // NOTE operation hash, not operation fact hash
 	SuffrageState() base.State
@@ -60,16 +60,16 @@ type BlockWriteDatabase interface {
 	TempDatabase() (TempDatabase, error)
 }
 
-// PermanentDatabase stores block data permanently.
+// PermanentDatabase stores block map item permanently.
 type PermanentDatabase interface {
 	PartialDatabase
 	Close() error
 	Clean() error
-	LastMap() (base.BlockdataMap, bool, error)
+	LastMap() (base.BlockMap, bool, error)
 	LastSuffrage() (base.State, bool, error)
 	Suffrage(blockheight base.Height) (base.State, bool, error)
 	SuffrageByHeight(suffrageHeight base.Height) (base.State, bool, error)
-	Map(base.Height) (base.BlockdataMap, bool, error)
+	Map(base.Height) (base.BlockMap, bool, error)
 	LastNetworkPolicy() base.NetworkPolicy
 	MergeTempDatabase(context.Context, TempDatabase) error
 }

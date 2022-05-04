@@ -19,46 +19,46 @@ type Manifest interface {
 	ProposedAt() time.Time     // NOTE Proposal proposed time
 }
 
-type BlockdataMap interface {
+type BlockMap interface {
 	NodeSigned
 	Manifest() Manifest
-	Item(BlockdataType) (BlockdataMapItem, bool)
-	Items(func(BlockdataMapItem) bool)
+	Item(BlockMapItemType) (BlockMapItem, bool)
+	Items(func(BlockMapItem) bool)
 }
 
-type BlockdataMapItem interface {
+type BlockMapItem interface {
 	util.IsValider
-	Type() BlockdataType
+	Type() BlockMapItemType
 	URL() *url.URL
 	Checksum() string
 	Num() uint64
 }
 
-type BlockdataType string
+type BlockMapItemType string
 
 var (
-	BlockdataTypeProposal       BlockdataType = "block_data_proposal"
-	BlockdataTypeOperations     BlockdataType = "block_data_operations"
-	BlockdataTypeOperationsTree BlockdataType = "block_data_operations_tree"
-	BlockdataTypeStates         BlockdataType = "block_data_states"
-	BlockdataTypeStatesTree     BlockdataType = "block_data_states_tree"
-	BlockdataTypeVoteproofs     BlockdataType = "block_data_voteproofs"
+	BlockMapItemTypeProposal       BlockMapItemType = "blockmapitem_proposal"
+	BlockMapItemTypeOperations     BlockMapItemType = "blockmapitem_operations"
+	BlockMapItemTypeOperationsTree BlockMapItemType = "blockmapitem_operations_tree"
+	BlockMapItemTypeStates         BlockMapItemType = "blockmapitem_states"
+	BlockMapItemTypeStatesTree     BlockMapItemType = "blockmapitem_states_tree"
+	BlockMapItemTypeVoteproofs     BlockMapItemType = "blockmapitem_voteproofs"
 )
 
-func (t BlockdataType) IsValid([]byte) error {
+func (t BlockMapItemType) IsValid([]byte) error {
 	switch t {
-	case BlockdataTypeProposal,
-		BlockdataTypeOperations,
-		BlockdataTypeOperationsTree,
-		BlockdataTypeStates,
-		BlockdataTypeStatesTree,
-		BlockdataTypeVoteproofs:
+	case BlockMapItemTypeProposal,
+		BlockMapItemTypeOperations,
+		BlockMapItemTypeOperationsTree,
+		BlockMapItemTypeStates,
+		BlockMapItemTypeStatesTree,
+		BlockMapItemTypeVoteproofs:
 		return nil
 	default:
-		return util.InvalidError.Errorf("unknown block data type, %q", t)
+		return util.InvalidError.Errorf("unknown block map item type, %q", t)
 	}
 }
 
-func (t BlockdataType) String() string {
+func (t BlockMapItemType) String() string {
 	return string(t)
 }

@@ -303,7 +303,7 @@ func (db *Default) ExistsKnownOperation(h util.Hash) (bool, error) {
 	return found, nil
 }
 
-func (db *Default) Map(height base.Height) (base.BlockdataMap, bool, error) {
+func (db *Default) Map(height base.Height) (base.BlockMap, bool, error) {
 	switch temps := db.activeTemps(); {
 	case len(temps) < 1:
 	case temps[0].Height() > height:
@@ -322,7 +322,7 @@ func (db *Default) Map(height base.Height) (base.BlockdataMap, bool, error) {
 	return db.perm.Map(height)
 }
 
-func (db *Default) LastMap() (base.BlockdataMap, bool, error) {
+func (db *Default) LastMap() (base.BlockMap, bool, error) {
 	if temps := db.activeTemps(); len(temps) > 0 {
 		m, err := temps[0].Map()
 		if err != nil {

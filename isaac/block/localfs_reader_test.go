@@ -1,4 +1,4 @@
-package isaacblockdata
+package isaacblock
 
 import (
 	"bytes"
@@ -24,16 +24,16 @@ import (
 	"go.uber.org/goleak"
 )
 
-type testBaseLocalBlockdataFS struct {
+type testBaseLocalBlockFS struct {
 	isaac.BaseTestBallots
 	isaacdatabase.BaseTestDatabase
 	root string
 }
 
-func (t *testBaseLocalBlockdataFS) SetupSuite() {
+func (t *testBaseLocalBlockFS) SetupSuite() {
 	t.BaseTestDatabase.SetupSuite()
 
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: BlockdataMapHint, Instance: BlockdataMap{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: BlockMapHint, Instance: BlockMap{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.INITVoteproofHint, Instance: isaac.INITVoteproof{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.ACCEPTVoteproofHint, Instance: isaac.ACCEPTVoteproof{}}))
 
@@ -47,18 +47,18 @@ func (t *testBaseLocalBlockdataFS) SetupSuite() {
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.ACCEPTBallotSignedFactHint, Instance: isaac.ACCEPTBallotSignedFact{}}))
 }
 
-func (t *testBaseLocalBlockdataFS) SetupTest() {
+func (t *testBaseLocalBlockFS) SetupTest() {
 	t.BaseTestBallots.SetupTest()
 	t.BaseTestDatabase.SetupTest()
 
 	t.root, _ = os.MkdirTemp("", "mitum-test")
 }
 
-func (t *testBaseLocalBlockdataFS) TearDownTest() {
+func (t *testBaseLocalBlockFS) TearDownTest() {
 	os.RemoveAll(t.root)
 }
 
-func (t *testBaseLocalBlockdataFS) voteproofs(point base.Point) (base.INITVoteproof, base.ACCEPTVoteproof) {
+func (t *testBaseLocalBlockFS) voteproofs(point base.Point) (base.INITVoteproof, base.ACCEPTVoteproof) {
 	_, nodes := isaac.NewTestSuffrage(1, t.Local)
 
 	ifact := t.NewINITBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256())
@@ -72,7 +72,7 @@ func (t *testBaseLocalBlockdataFS) voteproofs(point base.Point) (base.INITVotepr
 	return ivp, avp
 }
 
-func (t *testBaseLocalBlockdataFS) walkDirectory(root string) {
+func (t *testBaseLocalBlockFS) walkDirectory(root string) {
 	filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			t.T().Logf("error: %+v", err)
@@ -109,7 +109,7 @@ func (t *testBaseLocalBlockdataFS) walkDirectory(root string) {
 }
 
 type testLocalFSReader struct {
-	testBaseLocalBlockdataFS
+	testBaseLocalBlockFS
 }
 
 func (t *testLocalFSReader) preparefs(point base.Point) (
@@ -202,7 +202,7 @@ func (t *testLocalFSReader) TestNew() {
 	t.NoError(err)
 	t.NotNil(r)
 
-	_ = (interface{})(r).(isaac.BlockdataReader)
+	_ = (interface{})(r).(isaac.BlockReader)
 
 	t.Equal(filepath.Join(fs.root, fs.heightbase), r.root)
 }
@@ -233,29 +233,29 @@ func (t *testLocalFSReader) TestReader() {
 		t.walkDirectory(fs.root)
 
 		b, _ := util.MarshalJSONIndent(m)
-		t.T().Log("blockdatamap:", string(b))
+		t.T().Log("blockmap:", string(b))
 	}
 
 	r, err := NewLocalFSReader(t.root, point.Height(), t.Enc)
 	t.NoError(err)
 
 	t.Run("unknown", func() {
-		f, found, err := r.Reader(base.BlockdataType("findme"))
+		f, found, err := r.Reader(base.BlockMapItemType("findme"))
 		t.Error(err)
 		t.False(found)
 		t.Nil(f)
 
-		t.ErrorContains(err, "unknown block data type")
+		t.ErrorContains(err, "unknown block map item type")
 	})
 
 	t.Run("all knowns", func() {
-		types := []base.BlockdataType{
-			base.BlockdataTypeProposal,
-			base.BlockdataTypeOperations,
-			base.BlockdataTypeOperationsTree,
-			base.BlockdataTypeStates,
-			base.BlockdataTypeStatesTree,
-			base.BlockdataTypeVoteproofs,
+		types := []base.BlockMapItemType{
+			base.BlockMapItemTypeProposal,
+			base.BlockMapItemTypeOperations,
+			base.BlockMapItemTypeOperationsTree,
+			base.BlockMapItemTypeStates,
+			base.BlockMapItemTypeStatesTree,
+			base.BlockMapItemTypeVoteproofs,
 		}
 
 		for i := range types {
@@ -267,7 +267,7 @@ func (t *testLocalFSReader) TestReader() {
 	})
 
 	t.Run("known and found", func() {
-		f, found, err := r.Reader(base.BlockdataTypeProposal)
+		f, found, err := r.Reader(base.BlockMapItemTypeProposal)
 		t.NoError(err)
 		t.True(found)
 		defer f.Close()
@@ -282,10 +282,10 @@ func (t *testLocalFSReader) TestReader() {
 
 	t.Run("known, but not found", func() {
 		// NOTE remove
-		fname, _ := BlockdataFileName(base.BlockdataTypeOperations, t.Enc)
+		fname, _ := BlockFileName(base.BlockMapItemTypeOperations, t.Enc)
 		t.NoError(os.Remove(filepath.Join(r.root, fname)))
 
-		f, found, err := r.Reader(base.BlockdataTypeOperations)
+		f, found, err := r.Reader(base.BlockMapItemTypeOperations)
 		t.NoError(err)
 		t.False(found)
 		t.Nil(f)
@@ -303,20 +303,20 @@ func (t *testLocalFSReader) TestItem() {
 	t.NoError(err)
 
 	t.Run("unknown", func() {
-		f, found, err := r.Item(base.BlockdataType("findme"))
+		f, found, err := r.Item(base.BlockMapItemType("findme"))
 		t.NoError(err)
 		t.False(found)
 		t.Nil(f)
 	})
 
 	t.Run("all knowns", func() {
-		types := []base.BlockdataType{
-			base.BlockdataTypeProposal,
-			base.BlockdataTypeOperations,
-			base.BlockdataTypeOperationsTree,
-			base.BlockdataTypeStates,
-			base.BlockdataTypeStatesTree,
-			base.BlockdataTypeVoteproofs,
+		types := []base.BlockMapItemType{
+			base.BlockMapItemTypeProposal,
+			base.BlockMapItemTypeOperations,
+			base.BlockMapItemTypeOperationsTree,
+			base.BlockMapItemTypeStates,
+			base.BlockMapItemTypeStatesTree,
+			base.BlockMapItemTypeVoteproofs,
 		}
 
 		for i := range types {
@@ -328,7 +328,7 @@ func (t *testLocalFSReader) TestItem() {
 	})
 
 	t.Run("proposal", func() {
-		v, found, err := r.Item(base.BlockdataTypeProposal)
+		v, found, err := r.Item(base.BlockMapItemTypeProposal)
 		t.NoError(err)
 		t.True(found)
 		t.NotNil(v)
@@ -340,7 +340,7 @@ func (t *testLocalFSReader) TestItem() {
 	})
 
 	t.Run("operations", func() {
-		v, found, err := r.Item(base.BlockdataTypeOperations)
+		v, found, err := r.Item(base.BlockMapItemTypeOperations)
 		t.NoError(err)
 		t.True(found)
 		t.NotNil(v)
@@ -366,7 +366,7 @@ func (t *testLocalFSReader) TestItem() {
 	})
 
 	t.Run("operations tree", func() {
-		v, found, err := r.Item(base.BlockdataTypeOperationsTree)
+		v, found, err := r.Item(base.BlockMapItemTypeOperationsTree)
 		t.NoError(err)
 		t.True(found)
 		t.NotNil(v)
@@ -386,7 +386,7 @@ func (t *testLocalFSReader) TestItem() {
 	})
 
 	t.Run("states", func() {
-		v, found, err := r.Item(base.BlockdataTypeStates)
+		v, found, err := r.Item(base.BlockMapItemTypeStates)
 		t.NoError(err)
 		t.True(found)
 		t.NotNil(v)
@@ -412,7 +412,7 @@ func (t *testLocalFSReader) TestItem() {
 	})
 
 	t.Run("states tree", func() {
-		v, found, err := r.Item(base.BlockdataTypeStatesTree)
+		v, found, err := r.Item(base.BlockMapItemTypeStatesTree)
 		t.NoError(err)
 		t.True(found)
 		t.NotNil(v)
@@ -432,7 +432,7 @@ func (t *testLocalFSReader) TestItem() {
 	})
 
 	t.Run("voteproofs", func() {
-		v, found, err := r.Item(base.BlockdataTypeVoteproofs)
+		v, found, err := r.Item(base.BlockMapItemTypeVoteproofs)
 		t.NoError(err)
 		t.True(found)
 		t.NotNil(v)
@@ -462,7 +462,7 @@ func (t *testLocalFSReader) TestWrongChecksum() {
 
 		root = r.root
 
-		v, found, err := r.Item(base.BlockdataTypeProposal)
+		v, found, err := r.Item(base.BlockMapItemTypeProposal)
 		t.NoError(err)
 		t.True(found)
 		t.NotNil(v)
@@ -474,7 +474,7 @@ func (t *testLocalFSReader) TestWrongChecksum() {
 	})
 
 	// NOTE modify proposal.json
-	i, _ := BlockdataFileName(base.BlockdataTypeProposal, t.Enc)
+	i, _ := BlockFileName(base.BlockMapItemTypeProposal, t.Enc)
 	path := filepath.Join(root, i)
 	f, err := os.Open(path)
 	t.NoError(err)
@@ -493,7 +493,7 @@ func (t *testLocalFSReader) TestWrongChecksum() {
 		r, err := NewLocalFSReader(t.root, point.Height(), t.Enc)
 		t.NoError(err)
 
-		v, found, err := r.Item(base.BlockdataTypeProposal)
+		v, found, err := r.Item(base.BlockMapItemTypeProposal)
 		t.Error(err)
 		t.ErrorContains(err, "checksum mismatch")
 		t.True(found)

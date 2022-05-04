@@ -34,7 +34,7 @@ func (t *BaseTestDatabase) SetupSuite() {
 	t.noerror(t.Encs.AddHinter(t.Enc))
 
 	t.noerror(t.Enc.AddHinter(base.DummyManifest{}))
-	t.noerror(t.Enc.AddHinter(base.DummyBlockdataMap{}))
+	t.noerror(t.Enc.AddHinter(base.DummyBlockMap{}))
 	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
 	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
 	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.NodeHint, Instance: base.BaseNode{}}))

@@ -1,4 +1,4 @@
-package isaacblockdata
+package isaacblock
 
 import (
 	"context"
@@ -25,7 +25,7 @@ type FSWriter interface {
 	SetManifest(context.Context, base.Manifest) error
 	SetINITVoteproof(context.Context, base.INITVoteproof) error
 	SetACCEPTVoteproof(context.Context, base.ACCEPTVoteproof) error
-	Save(context.Context) (base.BlockdataMap, error)
+	Save(context.Context) (base.BlockMap, error)
 	Cancel() error
 }
 
@@ -361,13 +361,13 @@ func (w *Writer) SetACCEPTVoteproof(ctx context.Context, vp base.ACCEPTVoteproof
 	return nil
 }
 
-func (w *Writer) Save(ctx context.Context) (base.BlockdataMap, error) {
+func (w *Writer) Save(ctx context.Context) (base.BlockMap, error) {
 	w.Lock()
 	defer w.Unlock()
 
 	e := util.StringErrorFunc("failed to save")
 
-	var m base.BlockdataMap
+	var m base.BlockMap
 	switch i, err := w.fswriter.Save(ctx); {
 	case err != nil:
 		return nil, e(err, "")

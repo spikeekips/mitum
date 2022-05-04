@@ -1,4 +1,4 @@
-package isaacblockdata
+package isaacblock
 
 import (
 	"bytes"
@@ -12,22 +12,22 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 )
 
-var BlockdataMapHint = hint.MustNewHint("blockdatamap-v0.0.1")
+var BlockMapHint = hint.MustNewHint("blockmap-v0.0.1")
 
 var (
-	LocalBlockdataMapScheme             = "file+blockdata"
-	supportedBlockdataMapItemURLSchemes = map[string]struct{}{
-		LocalBlockdataMapScheme: {},
-		"file":                  {},
-		"http":                  {},
-		"https":                 {},
+	LocalBlockMapScheme             = "file+block"
+	supportedBlockMapItemURLSchemes = map[string]struct{}{
+		LocalBlockMapScheme: {},
+		"file":              {},
+		"http":              {},
+		"https":             {},
 	}
-	fileBlockdataURL = url.URL{Scheme: LocalBlockdataMapScheme}
+	fileBlockURL = url.URL{Scheme: LocalBlockMapScheme}
 )
 
 var BlockDirectoryHeightFormat = "%021s"
 
-type BlockdataMap struct {
+type BlockMap struct {
 	hint.BaseHinter
 	base.BaseNodeSigned
 	writer   hint.Hint
@@ -36,18 +36,18 @@ type BlockdataMap struct {
 	m        *util.LockedMap
 }
 
-func NewBlockdataMap(writer, encoder hint.Hint) BlockdataMap {
-	return BlockdataMap{
-		BaseHinter: hint.NewBaseHinter(BlockdataMapHint),
+func NewBlockMap(writer, encoder hint.Hint) BlockMap {
+	return BlockMap{
+		BaseHinter: hint.NewBaseHinter(BlockMapHint),
 		writer:     writer,
 		encoder:    encoder,
 		m:          util.NewLockedMap(),
 	}
 }
 
-func (m BlockdataMap) IsValid(b []byte) error {
-	e := util.StringErrorFunc("invalid blockdatamap")
-	if err := m.BaseHinter.IsValid(BlockdataMapHint.Type().Bytes()); err != nil {
+func (m BlockMap) IsValid(b []byte) error {
+	e := util.StringErrorFunc("invalid blockmap")
+	if err := m.BaseHinter.IsValid(BlockMapHint.Type().Bytes()); err != nil {
 		return e(err, "")
 	}
 
@@ -69,7 +69,7 @@ func (m BlockdataMap) IsValid(b []byte) error {
 			return true
 		}
 
-		vs[i] = v.(BlockdataMapItem)
+		vs[i] = v.(BlockMapItem)
 		i++
 
 		return true
@@ -86,15 +86,15 @@ func (m BlockdataMap) IsValid(b []byte) error {
 	return nil
 }
 
-func (m BlockdataMap) Manifest() base.Manifest {
+func (m BlockMap) Manifest() base.Manifest {
 	return m.manifest
 }
 
-func (m *BlockdataMap) SetManifest(manifest base.Manifest) {
+func (m *BlockMap) SetManifest(manifest base.Manifest) {
 	m.manifest = manifest
 }
 
-func (m BlockdataMap) Item(t base.BlockdataType) (base.BlockdataMapItem, bool) {
+func (m BlockMap) Item(t base.BlockMapItemType) (base.BlockMapItem, bool) {
 	switch i, found := m.m.Value(t); {
 	case !found:
 		return nil, false
@@ -103,12 +103,12 @@ func (m BlockdataMap) Item(t base.BlockdataType) (base.BlockdataMapItem, bool) {
 	case util.IsNilLockedValue(i):
 		return nil, false
 	default:
-		return i.(BlockdataMapItem), true
+		return i.(BlockMapItem), true
 	}
 }
 
-func (m *BlockdataMap) SetItem(item base.BlockdataMapItem) error {
-	e := util.StringErrorFunc("failed to set blockdatamap item")
+func (m *BlockMap) SetItem(item base.BlockMapItem) error {
+	e := util.StringErrorFunc("failed to set blockmap item")
 
 	if err := item.IsValid(nil); err != nil {
 		return e(err, "")
@@ -119,7 +119,7 @@ func (m *BlockdataMap) SetItem(item base.BlockdataMapItem) error {
 	return nil
 }
 
-func (m BlockdataMap) Items(f func(base.BlockdataMapItem) bool) {
+func (m BlockMap) Items(f func(base.BlockMapItem) bool) {
 	m.m.Traverse(func(_, v interface{}) bool {
 		switch {
 		case v == nil:
@@ -128,14 +128,14 @@ func (m BlockdataMap) Items(f func(base.BlockdataMapItem) bool) {
 			return true
 		}
 
-		return f(v.(base.BlockdataMapItem))
+		return f(v.(base.BlockMapItem))
 	})
 }
 
-func (m *BlockdataMap) Sign(node base.Address, priv base.Privatekey, networkID base.NetworkID) error {
+func (m *BlockMap) Sign(node base.Address, priv base.Privatekey, networkID base.NetworkID) error {
 	sign, err := base.BaseNodeSignedFromBytes(node, priv, networkID, m.signedBytes())
 	if err != nil {
-		return errors.Wrap(err, "failed to sign blockdatamap")
+		return errors.Wrap(err, "failed to sign blockmap")
 	}
 
 	m.BaseNodeSigned = sign
@@ -143,8 +143,8 @@ func (m *BlockdataMap) Sign(node base.Address, priv base.Privatekey, networkID b
 	return nil
 }
 
-func (m BlockdataMap) checkItems() error {
-	check := func(t base.BlockdataType) bool {
+func (m BlockMap) checkItems() error {
+	check := func(t base.BlockMapItemType) bool {
 		switch i, found := m.m.Value(t); {
 		case !found:
 			return false
@@ -157,22 +157,22 @@ func (m BlockdataMap) checkItems() error {
 		}
 	}
 
-	if !check(base.BlockdataTypeProposal) {
+	if !check(base.BlockMapItemTypeProposal) {
 		return util.InvalidError.Errorf("empty proposal")
 	}
 
-	if !check(base.BlockdataTypeVoteproofs) {
+	if !check(base.BlockMapItemTypeVoteproofs) {
 		return util.InvalidError.Errorf("empty voteproofs")
 	}
 
 	if m.manifest.OperationsTree() != nil {
-		if !check(base.BlockdataTypeOperationsTree) {
+		if !check(base.BlockMapItemTypeOperationsTree) {
 			return util.InvalidError.Errorf("empty operations tree")
 		}
 	}
 
 	if m.manifest.StatesTree() != nil {
-		if !check(base.BlockdataTypeStatesTree) {
+		if !check(base.BlockMapItemTypeStatesTree) {
 			return util.InvalidError.Errorf("empty states tree")
 		}
 	}
@@ -180,11 +180,11 @@ func (m BlockdataMap) checkItems() error {
 	return nil
 }
 
-func (BlockdataMap) Bytes() []byte {
+func (BlockMap) Bytes() []byte {
 	return nil
 }
 
-func (m BlockdataMap) signedBytes() []byte {
+func (m BlockMap) signedBytes() []byte {
 	ts := make([][]byte, m.m.Len())
 
 	var i int
@@ -197,7 +197,7 @@ func (m BlockdataMap) signedBytes() []byte {
 		}
 
 		// NOTE only checksum and num will be included in signature
-		item := v.(BlockdataMapItem)
+		item := v.(BlockMapItem)
 		ts[i] = util.ConcatBytesSlice([]byte(item.Checksum()), util.Uint64ToBytes(item.Num()))
 		i++
 
@@ -214,15 +214,15 @@ func (m BlockdataMap) signedBytes() []byte {
 	)
 }
 
-type BlockdataMapItem struct {
-	t        base.BlockdataType
+type BlockMapItem struct {
+	t        base.BlockMapItemType
 	url      url.URL
 	checksum string
 	num      uint64
 }
 
-func NewBlockdataMapItem(t base.BlockdataType, u url.URL, checksum string, num uint64) BlockdataMapItem {
-	return BlockdataMapItem{
+func NewBlockMapItem(t base.BlockMapItemType, u url.URL, checksum string, num uint64) BlockMapItem {
+	return BlockMapItem{
 		t:        t,
 		url:      u,
 		checksum: checksum,
@@ -230,12 +230,12 @@ func NewBlockdataMapItem(t base.BlockdataType, u url.URL, checksum string, num u
 	}
 }
 
-func NewLocalBlockdataMapItem(t base.BlockdataType, checksum string, num uint64) BlockdataMapItem {
-	return NewBlockdataMapItem(t, fileBlockdataURL, checksum, num)
+func NewLocalBlockMapItem(t base.BlockMapItemType, checksum string, num uint64) BlockMapItem {
+	return NewBlockMapItem(t, fileBlockURL, checksum, num)
 }
 
-func (item BlockdataMapItem) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid blockdatamapItem")
+func (item BlockMapItem) IsValid([]byte) error {
+	e := util.StringErrorFunc("invalid BlockMapItem")
 
 	if err := item.t.IsValid(nil); err != nil {
 		return e(err, "")
@@ -256,7 +256,7 @@ func (item BlockdataMapItem) IsValid([]byte) error {
 		return e(util.InvalidError.Errorf("empty url scheme"), "")
 	default:
 		scheme := strings.ToLower(item.url.Scheme)
-		if _, found := supportedBlockdataMapItemURLSchemes[strings.ToLower(item.url.Scheme)]; !found {
+		if _, found := supportedBlockMapItemURLSchemes[strings.ToLower(item.url.Scheme)]; !found {
 			return e(util.InvalidError.Errorf("unsupported url scheme found, %q", scheme), "")
 		}
 	}
@@ -264,18 +264,18 @@ func (item BlockdataMapItem) IsValid([]byte) error {
 	return nil
 }
 
-func (item BlockdataMapItem) Type() base.BlockdataType {
+func (item BlockMapItem) Type() base.BlockMapItemType {
 	return item.t
 }
 
-func (item BlockdataMapItem) URL() *url.URL {
+func (item BlockMapItem) URL() *url.URL {
 	return &item.url
 }
 
-func (item BlockdataMapItem) Checksum() string {
+func (item BlockMapItem) Checksum() string {
 	return item.checksum
 }
 
-func (item BlockdataMapItem) Num() uint64 {
+func (item BlockMapItem) Num() uint64 {
 	return item.num
 }

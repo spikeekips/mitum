@@ -17,7 +17,7 @@ type LeveldbBlockWrite struct {
 	*baseLeveldb
 	st     *leveldbstorage.WriteStorage
 	height base.Height
-	mp     *util.Locked // NOTE blockdatamap
+	mp     *util.Locked // NOTE blockmap
 	sufstt *util.Locked // NOTE suffrage state
 	policy *util.Locked // NetworkPolicy
 }
@@ -144,16 +144,16 @@ func (db *LeveldbBlockWrite) SetOperations(ops []util.Hash) error {
 	return nil
 }
 
-func (db *LeveldbBlockWrite) Map() (base.BlockdataMap, error) {
+func (db *LeveldbBlockWrite) Map() (base.BlockMap, error) {
 	switch i, _ := db.mp.Value(); {
 	case i == nil:
-		return nil, storage.NotFoundError.Errorf("empty blockdatamap")
+		return nil, storage.NotFoundError.Errorf("empty blockmap")
 	default:
-		return i.(base.BlockdataMap), nil
+		return i.(base.BlockMap), nil
 	}
 }
 
-func (db *LeveldbBlockWrite) SetMap(m base.BlockdataMap) error {
+func (db *LeveldbBlockWrite) SetMap(m base.BlockMap) error {
 	if _, err := db.mp.Set(func(i interface{}) (interface{}, error) {
 		if i != nil {
 			return i, nil
@@ -164,9 +164,9 @@ func (db *LeveldbBlockWrite) SetMap(m base.BlockdataMap) error {
 			return nil, err
 		}
 
-		return m, db.st.Put(leveldbKeyPrefixBlockdataMap, b, nil)
+		return m, db.st.Put(leveldbKeyPrefixBlockMap, b, nil)
 	}); err != nil {
-		return errors.Wrap(err, "failed to set blockdatamap")
+		return errors.Wrap(err, "failed to set blockmap")
 	}
 
 	return nil
@@ -211,7 +211,7 @@ func (db *LeveldbBlockWrite) TempDatabase() (isaac.TempDatabase, error) {
 	case err != nil:
 		return nil, e(err, "")
 	case m.Manifest().Height() != db.height:
-		return nil, e(nil, "wrong blockdatamap")
+		return nil, e(nil, "wrong blockmap")
 	}
 
 	return newTempLeveldbFromBlockWriteStorage(db)
