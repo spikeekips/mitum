@@ -77,20 +77,20 @@ func IsEqualStateValue(a, b StateValue) bool {
 	}
 }
 
-var StateFixedTreeNodeHint = hint.MustNewHint("state-fixedtree-node-v0.0.1")
+var StateFixedtreeNodeHint = hint.MustNewHint("state-fixedtree-node-v0.0.1")
 
-type StateFixedTreeNode struct {
-	tree.BaseFixedTreeNode
+type StateFixedtreeNode struct {
+	tree.BaseFixedtreeNode
 }
 
-func NewStateFixedTreeNode(index uint64, key string) StateFixedTreeNode {
-	return StateFixedTreeNode{
-		BaseFixedTreeNode: tree.NewBaseFixedTreeNodeWithHash(StateFixedTreeNodeHint, index, key, nil),
+func NewStateFixedtreeNode(index uint64, key string) StateFixedtreeNode {
+	return StateFixedtreeNode{
+		BaseFixedtreeNode: tree.NewBaseFixedtreeNodeWithHash(StateFixedtreeNodeHint, index, key, nil),
 	}
 }
 
-func (no StateFixedTreeNode) SetHash(h []byte) tree.FixedTreeNode {
-	no.BaseFixedTreeNode = no.BaseFixedTreeNode.SetHash(h).(tree.BaseFixedTreeNode)
+func (no StateFixedtreeNode) SetHash(h []byte) tree.FixedtreeNode {
+	no.BaseFixedtreeNode = no.BaseFixedtreeNode.SetHash(h).(tree.BaseFixedtreeNode)
 
 	return no
 }

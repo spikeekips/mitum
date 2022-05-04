@@ -18,60 +18,60 @@ import (
 var dummyNodeHint = hint.MustNewHint("tree-node-v0.0.1")
 
 type dummyNode struct {
-	BaseFixedTreeNode
+	BaseFixedtreeNode
 }
 
 func newDummyNode(index uint64, key string) dummyNode {
 	return dummyNode{
-		BaseFixedTreeNode: NewBaseFixedTreeNode(dummyNodeHint, index, key),
+		BaseFixedtreeNode: NewBaseFixedtreeNode(dummyNodeHint, index, key),
 	}
 }
 
 func newDummyNodeWithHash(index uint64, key string, h []byte) dummyNode {
 	return dummyNode{
-		BaseFixedTreeNode: NewBaseFixedTreeNodeWithHash(dummyNodeHint, index, key, h),
+		BaseFixedtreeNode: NewBaseFixedtreeNodeWithHash(dummyNodeHint, index, key, h),
 	}
 }
 
-type testFixedTreeNode struct {
+type testFixedtreeNode struct {
 	suite.Suite
 }
 
-func (t *testFixedTreeNode) TestEmptyKey() {
+func (t *testFixedtreeNode) TestEmptyKey() {
 	err := newDummyNode(1, "").IsValid(nil)
 	t.True(errors.Is(err, util.InvalidError))
 	t.ErrorContains(err, "empty key")
 }
 
-func (t *testFixedTreeNode) TestEmptyHash() {
+func (t *testFixedtreeNode) TestEmptyHash() {
 	err := newDummyNode(1, util.UUID().String()).IsValid(nil)
 	t.True(errors.Is(err, util.InvalidError))
 	t.ErrorContains(err, "empty hash")
 }
 
-func (t *testFixedTreeNode) TestEncodeJSON() {
+func (t *testFixedtreeNode) TestEncodeJSON() {
 	no := newDummyNodeWithHash(20, util.UUID().String(), util.UUID().Bytes())
 
 	b, err := util.MarshalJSON(&no)
 	t.NoError(err)
 	t.NotNil(b)
 
-	var uno BaseFixedTreeNode
+	var uno BaseFixedtreeNode
 	t.NoError(util.UnmarshalJSON(b, &uno))
 
 	t.True(no.Equal(uno))
 }
 
-func TestFixedTreeNode(t *testing.T) {
-	suite.Run(t, new(testFixedTreeNode))
+func TestFixedtreeNode(t *testing.T) {
+	suite.Run(t, new(testFixedtreeNode))
 }
 
-type testFixedTree struct {
+type testFixedtree struct {
 	suite.Suite
 }
 
-func (t *testFixedTree) TestWrongHash() {
-	trg := NewFixedTreeGenerator(3)
+func (t *testFixedtree) TestWrongHash() {
+	trg := NewFixedtreeGenerator(3)
 
 	t.NoError(trg.Add(newDummyNode(0, util.UUID().String())))
 	t.NoError(trg.Add(newDummyNode(1, util.UUID().String())))
@@ -87,8 +87,8 @@ func (t *testFixedTree) TestWrongHash() {
 	t.ErrorContains(err, "wrong node hash")
 }
 
-func (t *testFixedTree) TestTraverse() {
-	trg := NewFixedTreeGenerator(10)
+func (t *testFixedtree) TestTraverse() {
+	trg := NewFixedtreeGenerator(10)
 
 	for i := 0; i < 10; i++ {
 		n := newDummyNode(uint64(i), util.UUID().String())
@@ -100,7 +100,7 @@ func (t *testFixedTree) TestTraverse() {
 	t.NoError(tr.IsValid(nil))
 
 	var i uint64
-	t.NoError(tr.Traverse(func(n FixedTreeNode) (bool, error) {
+	t.NoError(tr.Traverse(func(n FixedtreeNode) (bool, error) {
 		t.True(n.Equal(tr.nodes[i]))
 		i++
 
@@ -108,8 +108,8 @@ func (t *testFixedTree) TestTraverse() {
 	}))
 }
 
-func (t *testFixedTree) TestProof1Index() {
-	trg := NewFixedTreeGenerator(10)
+func (t *testFixedtree) TestProof1Index() {
+	trg := NewFixedtreeGenerator(10)
 
 	for i := 0; i < 10; i++ {
 		n := newDummyNode(uint64(i), util.UUID().String())
@@ -123,11 +123,11 @@ func (t *testFixedTree) TestProof1Index() {
 	pr, err := tr.Proof(1)
 	t.NoError(err)
 
-	t.NoError(ProveFixedTreeProof(pr))
+	t.NoError(ProveFixedtreeProof(pr))
 }
 
-func (t *testFixedTree) TestProof0Index() {
-	trg := NewFixedTreeGenerator(10)
+func (t *testFixedtree) TestProof0Index() {
+	trg := NewFixedtreeGenerator(10)
 
 	for i := 0; i < 10; i++ {
 		n := newDummyNode(uint64(i), util.UUID().String())
@@ -141,12 +141,12 @@ func (t *testFixedTree) TestProof0Index() {
 	pr, err := tr.Proof(0)
 	t.NoError(err)
 
-	t.NoError(ProveFixedTreeProof(pr))
+	t.NoError(ProveFixedtreeProof(pr))
 }
 
-func (t *testFixedTree) TestProofWrongSelfHash() {
+func (t *testFixedtree) TestProofWrongSelfHash() {
 	l := uint64(15)
-	trg := NewFixedTreeGenerator(l)
+	trg := NewFixedtreeGenerator(l)
 
 	for i := uint64(0); i < l; i++ {
 		n := newDummyNode(i, util.UUID().String())
@@ -162,14 +162,14 @@ func (t *testFixedTree) TestProofWrongSelfHash() {
 
 	pr[0] = pr[0].SetHash(util.UUID().Bytes()) // NOTE make wrong hash
 
-	err = ProveFixedTreeProof(pr)
+	err = ProveFixedtreeProof(pr)
 	t.True(errors.Is(err, InvalidProofError))
 	t.ErrorContains(err, "wrong hash")
 }
 
-func (t *testFixedTree) TestProofWrongHash() {
+func (t *testFixedtree) TestProofWrongHash() {
 	l := uint64(15)
-	trg := NewFixedTreeGenerator(l)
+	trg := NewFixedtreeGenerator(l)
 
 	for i := uint64(0); i < l; i++ {
 		n := newDummyNode(i, util.UUID().String())
@@ -183,18 +183,18 @@ func (t *testFixedTree) TestProofWrongHash() {
 	pr, err := tr.Proof(4)
 	t.NoError(err)
 
-	n := pr[3].(BaseFixedTreeNode)
+	n := pr[3].(BaseFixedtreeNode)
 	n.key = util.UUID().String() // NOTE make wrong key
 	pr[3] = n
 
-	err = ProveFixedTreeProof(pr)
+	err = ProveFixedtreeProof(pr)
 	t.True(errors.Is(err, InvalidProofError))
 	t.ErrorContains(err, "wrong hash")
 }
 
-func (t *testFixedTree) TestProof() {
+func (t *testFixedtree) TestProof() {
 	l := uint64(15)
-	trg := NewFixedTreeGenerator(l)
+	trg := NewFixedtreeGenerator(l)
 
 	for i := uint64(0); i < l; i++ {
 		n := newDummyNode(i, util.UUID().String())
@@ -208,12 +208,12 @@ func (t *testFixedTree) TestProof() {
 	pr, err := tr.Proof(4)
 	t.NoError(err)
 
-	t.NoError(ProveFixedTreeProof(pr))
+	t.NoError(ProveFixedtreeProof(pr))
 }
 
-func (t *testFixedTree) TestEncodeJSON() {
+func (t *testFixedtree) TestEncodeJSON() {
 	l := uint64(15)
-	trg := NewFixedTreeGenerator(l)
+	trg := NewFixedtreeGenerator(l)
 
 	for i := uint64(0); i < l; i++ {
 		n := newDummyNode(i, util.UUID().String())
@@ -229,16 +229,16 @@ func (t *testFixedTree) TestEncodeJSON() {
 
 	enc := jsonenc.NewEncoder()
 	t.NoError(enc.Add(encoder.DecodeDetail{Hint: dummyNodeHint, Instance: dummyNode{}}))
-	t.NoError(enc.Add(encoder.DecodeDetail{Hint: FixedTreeHint, Instance: FixedTree{}}))
+	t.NoError(enc.Add(encoder.DecodeDetail{Hint: FixedtreeHint, Instance: Fixedtree{}}))
 
 	hinter, err := enc.Decode(b)
 	t.NoError(err)
 
-	utr := hinter.(FixedTree)
+	utr := hinter.(Fixedtree)
 
 	t.Equal(tr.Len(), utr.Len())
 
-	t.NoError(tr.Traverse(func(n FixedTreeNode) (bool, error) {
+	t.NoError(tr.Traverse(func(n FixedtreeNode) (bool, error) {
 		if i, err := utr.Node(n.Index()); err != nil {
 			return false, err
 		} else if !n.Equal(i) {
@@ -249,32 +249,32 @@ func (t *testFixedTree) TestEncodeJSON() {
 	}))
 }
 
-func TestFixedTree(t *testing.T) {
-	suite.Run(t, new(testFixedTree))
+func TestFixedtree(t *testing.T) {
+	suite.Run(t, new(testFixedtree))
 }
 
-type testFixedTreeGenerator struct {
+type testFixedtreeGenerator struct {
 	suite.Suite
 }
 
-func (t *testFixedTreeGenerator) TestNew() {
-	trg := NewFixedTreeGenerator(10)
+func (t *testFixedtreeGenerator) TestNew() {
+	trg := NewFixedtreeGenerator(10)
 	t.NotNil(trg)
 	t.Equal(10, len(trg.nodes))
 
-	trg = NewFixedTreeGenerator(9)
+	trg = NewFixedtreeGenerator(9)
 	t.NotNil(trg)
 	t.Equal(9, len(trg.nodes))
 }
 
-func (t *testFixedTreeGenerator) TestZeroSize() {
-	trg := NewFixedTreeGenerator(0)
+func (t *testFixedtreeGenerator) TestZeroSize() {
+	trg := NewFixedtreeGenerator(0)
 	t.NotNil(trg)
 	t.Equal(0, len(trg.nodes))
 }
 
-func (t *testFixedTreeGenerator) TestAddOutOfRange() {
-	trg := NewFixedTreeGenerator(3)
+func (t *testFixedtreeGenerator) TestAddOutOfRange() {
+	trg := NewFixedtreeGenerator(3)
 
 	t.NoError(trg.Add(newDummyNode(1, util.UUID().String())))
 
@@ -282,8 +282,8 @@ func (t *testFixedTreeGenerator) TestAddOutOfRange() {
 	t.ErrorContains(err, "out of range")
 }
 
-func (t *testFixedTreeGenerator) TestAddSetNilHash() {
-	trg := NewFixedTreeGenerator(3)
+func (t *testFixedtreeGenerator) TestAddSetNilHash() {
+	trg := NewFixedtreeGenerator(3)
 
 	n := newDummyNode(1, util.UUID().String())
 	n.hash = util.UUID().Bytes()
@@ -292,8 +292,8 @@ func (t *testFixedTreeGenerator) TestAddSetNilHash() {
 	t.Nil(trg.nodes[1].Hash())
 }
 
-func (t *testFixedTreeGenerator) TestTreeNotFilled() {
-	trg := NewFixedTreeGenerator(3)
+func (t *testFixedtreeGenerator) TestTreeNotFilled() {
+	trg := NewFixedtreeGenerator(3)
 
 	t.NoError(trg.Add(newDummyNode(0, util.UUID().String())))
 	t.NoError(trg.Add(newDummyNode(2, util.UUID().String())))
@@ -302,8 +302,8 @@ func (t *testFixedTreeGenerator) TestTreeNotFilled() {
 	t.ErrorContains(err, "empty node")
 }
 
-func (t *testFixedTreeGenerator) TestTreeFilled() {
-	trg := NewFixedTreeGenerator(3)
+func (t *testFixedtreeGenerator) TestTreeFilled() {
+	trg := NewFixedtreeGenerator(3)
 
 	t.NoError(trg.Add(newDummyNode(0, util.UUID().String())))
 	t.NoError(trg.Add(newDummyNode(1, util.UUID().String())))
@@ -314,8 +314,8 @@ func (t *testFixedTreeGenerator) TestTreeFilled() {
 	t.NoError(tr.IsValid(nil))
 }
 
-func (t *testFixedTreeGenerator) TestTreeAgain() {
-	trg := NewFixedTreeGenerator(3)
+func (t *testFixedtreeGenerator) TestTreeAgain() {
+	trg := NewFixedtreeGenerator(3)
 
 	t.NoError(trg.Add(newDummyNode(0, util.UUID().String())))
 	t.NoError(trg.Add(newDummyNode(1, util.UUID().String())))
@@ -337,8 +337,8 @@ func (t *testFixedTreeGenerator) TestTreeAgain() {
 	}
 }
 
-func (t *testFixedTreeGenerator) TestNodeHash() {
-	trg := NewFixedTreeGenerator(20)
+func (t *testFixedtreeGenerator) TestNodeHash() {
+	trg := NewFixedtreeGenerator(20)
 
 	for i := 0; i < 20; i++ {
 		b := fmt.Sprintf("%d", i)
@@ -375,11 +375,11 @@ func (t *testFixedTreeGenerator) TestNodeHash() {
 	}
 }
 
-func (t *testFixedTreeGenerator) TestAddMany() {
+func (t *testFixedtreeGenerator) TestAddMany() {
 	var size uint64 = 200000
 	var root []byte
 	{
-		tr := NewFixedTreeGenerator(size)
+		tr := NewFixedtreeGenerator(size)
 
 		s := time.Now()
 		for i := uint64(0); i < tr.size; i++ {
@@ -393,7 +393,7 @@ func (t *testFixedTreeGenerator) TestAddMany() {
 	}
 
 	{
-		tr := NewFixedTreeGenerator(size)
+		tr := NewFixedtreeGenerator(size)
 
 		s := time.Now()
 		for i := uint64(0); i < tr.size; i++ {
@@ -410,12 +410,12 @@ func (t *testFixedTreeGenerator) TestAddMany() {
 	}
 }
 
-func (t *testFixedTreeGenerator) TestParallel() {
+func (t *testFixedtreeGenerator) TestParallel() {
 	var size uint64 = 200000
 
 	var root []byte
 	{
-		tr := NewFixedTreeGenerator(size)
+		tr := NewFixedtreeGenerator(size)
 
 		s := time.Now()
 		for i := uint64(0); i < tr.size; i++ {
@@ -437,7 +437,7 @@ func (t *testFixedTreeGenerator) TestParallel() {
 		rand.Seed(time.Now().UnixNano())
 		rand.Shuffle(len(l), func(i, j int) { l[i], l[j] = l[j], l[i] })
 
-		tr := NewFixedTreeGenerator(size)
+		tr := NewFixedtreeGenerator(size)
 
 		indexChan := make(chan uint64, size)
 		done := make(chan struct{}, size)
@@ -480,6 +480,6 @@ func (t *testFixedTreeGenerator) TestParallel() {
 	}
 }
 
-func TestFixedTreeGenerator(t *testing.T) {
-	suite.Run(t, new(testFixedTreeGenerator))
+func TestFixedtreeGenerator(t *testing.T) {
+	suite.Run(t, new(testFixedtreeGenerator))
 }

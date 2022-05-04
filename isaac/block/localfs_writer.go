@@ -131,7 +131,7 @@ func (w *LocalFSWriter) SetOperation(_ context.Context, _ int, op base.Operation
 	return nil
 }
 
-func (w *LocalFSWriter) SetOperationsTree(ctx context.Context, tr tree.FixedTree) error {
+func (w *LocalFSWriter) SetOperationsTree(ctx context.Context, tr tree.Fixedtree) error {
 	if err := w.setTree(
 		ctx,
 		tr,
@@ -164,7 +164,7 @@ func (w *LocalFSWriter) SetState(_ context.Context, _ int, st base.State) error 
 	return nil
 }
 
-func (w *LocalFSWriter) SetStatesTree(ctx context.Context, tr tree.FixedTree) error {
+func (w *LocalFSWriter) SetStatesTree(ctx context.Context, tr tree.Fixedtree) error {
 	if err := w.setTree(
 		ctx,
 		tr,
@@ -349,7 +349,7 @@ func (w *LocalFSWriter) Cancel() error {
 
 func (w *LocalFSWriter) setTree(
 	ctx context.Context,
-	tr tree.FixedTree,
+	tr tree.Fixedtree,
 	treetype base.BlockMapItemType,
 	newjob util.ContextWorkerCallback,
 ) error {
@@ -375,7 +375,7 @@ func (w *LocalFSWriter) setTree(
 	go func() {
 		defer worker.Done()
 
-		_ = tr.Traverse(func(node tree.FixedTreeNode) (bool, error) {
+		_ = tr.Traverse(func(node tree.FixedtreeNode) (bool, error) {
 			n := node
 			if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
 				if err := w.appendfile(tf, n); err != nil {

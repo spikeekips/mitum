@@ -20,9 +20,9 @@ import (
 type DummyBlockFSWriter struct {
 	setProposalf        func(context.Context, base.ProposalSignedFact) error
 	setOperationf       func(context.Context, int, base.Operation) error
-	setOperationsTreef  func(context.Context, tree.FixedTree) error
+	setOperationsTreef  func(context.Context, tree.Fixedtree) error
 	setStatef           func(context.Context, int, base.State) error
-	setStatesTreef      func(context.Context, tree.FixedTree) error
+	setStatesTreef      func(context.Context, tree.Fixedtree) error
 	setManifestf        func(context.Context, base.Manifest) error
 	setINITVoteprooff   func(context.Context, base.INITVoteproof) error
 	setACCEPTVoteprooff func(context.Context, base.ACCEPTVoteproof) error
@@ -44,7 +44,7 @@ func (w *DummyBlockFSWriter) SetOperation(ctx context.Context, index int, op bas
 	return nil
 }
 
-func (w *DummyBlockFSWriter) SetOperationsTree(ctx context.Context, tr tree.FixedTree) error {
+func (w *DummyBlockFSWriter) SetOperationsTree(ctx context.Context, tr tree.Fixedtree) error {
 	if w.setOperationsTreef != nil {
 		return w.setOperationsTreef(ctx, tr)
 	}
@@ -58,7 +58,7 @@ func (w *DummyBlockFSWriter) SetState(ctx context.Context, index int, st base.St
 	return nil
 }
 
-func (w *DummyBlockFSWriter) SetStatesTree(ctx context.Context, tr tree.FixedTree) error {
+func (w *DummyBlockFSWriter) SetStatesTree(ctx context.Context, tr tree.Fixedtree) error {
 	if w.setStatesTreef != nil {
 		return w.setStatesTreef(ctx, tr)
 	}
@@ -380,13 +380,13 @@ func (t *testLocalFSWriter) TestSetOperations() {
 	t.NoError(err)
 
 	ops := make([]base.Operation, 33)
-	opstreeg := tree.NewFixedTreeGenerator(33)
+	opstreeg := tree.NewFixedtreeGenerator(33)
 	for i := range ops {
 		fact := isaac.NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
 		op, _ := isaac.NewDummyOperation(fact, t.Local.Privatekey(), t.NodePolicy.NetworkID())
 		ops[i] = op
 
-		node := base.NewOperationFixedTreeNode(uint64(i), op.Fact().Hash(), true, "")
+		node := base.NewOperationFixedtreeNode(uint64(i), op.Fact().Hash(), true, "")
 
 		t.NoError(opstreeg.Add(node))
 	}
@@ -465,7 +465,7 @@ func (t *testLocalFSWriter) TestSetStates() {
 	t.NoError(err)
 
 	stts := make([]base.State, 33)
-	sttstreeg := tree.NewFixedTreeGenerator(33)
+	sttstreeg := tree.NewFixedtreeGenerator(33)
 	for i := range stts {
 		key := util.UUID().String()
 		stts[i] = base.NewBaseState(
@@ -475,7 +475,7 @@ func (t *testLocalFSWriter) TestSetStates() {
 			valuehash.RandomSHA256(),
 			nil,
 		)
-		node := base.NewStateFixedTreeNode(uint64(i), key)
+		node := base.NewStateFixedtreeNode(uint64(i), key)
 		t.NoError(sttstreeg.Add(node))
 	}
 

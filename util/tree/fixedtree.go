@@ -11,7 +11,7 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 )
 
-var FixedTreeHint = hint.MustNewHint("fixedtree-v0.0.1")
+var FixedtreeHint = hint.MustNewHint("fixedtree-v0.0.1")
 
 var (
 	noParentError     = util.NewError("node has no parent")
@@ -19,16 +19,16 @@ var (
 	InvalidProofError = util.NewError("invalid proof")
 )
 
-type FixedTreeNode interface {
+type FixedtreeNode interface {
 	util.IsValider
 	Index() uint64
 	Key() string
 	Hash() []byte
-	SetHash([]byte) FixedTreeNode
-	Equal(FixedTreeNode) bool
+	SetHash([]byte) FixedtreeNode
+	Equal(FixedtreeNode) bool
 }
 
-type BaseFixedTreeNode struct {
+type BaseFixedtreeNode struct {
 	util.DefaultJSONMarshaled
 	hint.BaseHinter
 	index uint64
@@ -36,23 +36,23 @@ type BaseFixedTreeNode struct {
 	hash  []byte
 }
 
-func NewBaseFixedTreeNode(ht hint.Hint, index uint64, key string) BaseFixedTreeNode {
-	return BaseFixedTreeNode{
+func NewBaseFixedtreeNode(ht hint.Hint, index uint64, key string) BaseFixedtreeNode {
+	return BaseFixedtreeNode{
 		BaseHinter: hint.NewBaseHinter(ht),
 		index:      index,
 		key:        key,
 	}
 }
 
-func NewBaseFixedTreeNodeWithHash(ht hint.Hint, index uint64, key string, hash []byte) BaseFixedTreeNode {
-	tr := NewBaseFixedTreeNode(ht, index, key)
+func NewBaseFixedtreeNodeWithHash(ht hint.Hint, index uint64, key string, hash []byte) BaseFixedtreeNode {
+	tr := NewBaseFixedtreeNode(ht, index, key)
 	tr.hash = hash
 
 	return tr
 }
 
-func (no BaseFixedTreeNode) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid BaseFixedTreeNode")
+func (no BaseFixedtreeNode) IsValid([]byte) error {
+	e := util.StringErrorFunc("invalid BaseFixedtreeNode")
 	if err := no.BaseHinter.IsValid(nil); err != nil {
 		return e(err, "")
 	}
@@ -67,7 +67,7 @@ func (no BaseFixedTreeNode) IsValid([]byte) error {
 	return nil
 }
 
-func (no BaseFixedTreeNode) Equal(n FixedTreeNode) bool {
+func (no BaseFixedtreeNode) Equal(n FixedtreeNode) bool {
 	switch {
 	case no.index != n.Index():
 		return false
@@ -80,45 +80,45 @@ func (no BaseFixedTreeNode) Equal(n FixedTreeNode) bool {
 	return true
 }
 
-func (no BaseFixedTreeNode) Index() uint64 {
+func (no BaseFixedtreeNode) Index() uint64 {
 	return no.index
 }
 
-func (no BaseFixedTreeNode) Key() string {
+func (no BaseFixedtreeNode) Key() string {
 	return no.key
 }
 
-func (no BaseFixedTreeNode) Hash() []byte {
+func (no BaseFixedtreeNode) Hash() []byte {
 	return no.hash
 }
 
-func (no BaseFixedTreeNode) SetHash(h []byte) FixedTreeNode {
+func (no BaseFixedtreeNode) SetHash(h []byte) FixedtreeNode {
 	no.hash = h
 
 	return no
 }
 
-type FixedTree struct {
+type Fixedtree struct {
 	util.DefaultJSONMarshaled
 	hint.BaseHinter
-	nodes []FixedTreeNode
+	nodes []FixedtreeNode
 }
 
-func EmptyFixedTree() FixedTree {
-	return FixedTree{BaseHinter: hint.NewBaseHinter(FixedTreeHint)}
+func EmptyFixedtree() Fixedtree {
+	return Fixedtree{BaseHinter: hint.NewBaseHinter(FixedtreeHint)}
 }
 
-func NewFixedTree(nodes []FixedTreeNode) FixedTree {
-	return NewFixedTreeWithHint(FixedTreeHint, nodes)
+func NewFixedtree(nodes []FixedtreeNode) Fixedtree {
+	return NewFixedtreeWithHint(FixedtreeHint, nodes)
 }
 
-func NewFixedTreeWithHint(ht hint.Hint, nodes []FixedTreeNode) FixedTree {
-	return FixedTree{BaseHinter: hint.NewBaseHinter(ht), nodes: nodes}
+func NewFixedtreeWithHint(ht hint.Hint, nodes []FixedtreeNode) Fixedtree {
+	return Fixedtree{BaseHinter: hint.NewBaseHinter(ht), nodes: nodes}
 }
 
-func (tr FixedTree) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid FixedTree")
-	if err := tr.BaseHinter.IsValid(FixedTreeHint.Type().Bytes()); err != nil {
+func (tr Fixedtree) IsValid([]byte) error {
+	e := util.StringErrorFunc("invalid Fixedtree")
+	if err := tr.BaseHinter.IsValid(FixedtreeHint.Type().Bytes()); err != nil {
 		return e(err, "")
 	}
 
@@ -133,7 +133,7 @@ func (tr FixedTree) IsValid([]byte) error {
 		ns[i] = util.DummyIsValider(func([]byte) error {
 			n := tr.nodes[i]
 			if n == nil {
-				return util.InvalidError.Errorf("empty FixedTreeNode")
+				return util.InvalidError.Errorf("empty FixedtreeNode")
 			}
 
 			if err := tr.nodes[i].IsValid(nil); err != nil {
@@ -167,12 +167,12 @@ func (tr FixedTree) IsValid([]byte) error {
 	return nil
 }
 
-func (tr FixedTree) Len() int {
+func (tr Fixedtree) Len() int {
 	return len(tr.nodes)
 }
 
 // Root returns hash of top node
-func (tr FixedTree) Root() []byte {
+func (tr Fixedtree) Root() []byte {
 	if tr.Len() < 1 {
 		return nil
 	}
@@ -180,7 +180,7 @@ func (tr FixedTree) Root() []byte {
 	return tr.nodes[0].Hash()
 }
 
-func (tr FixedTree) Node(index uint64) (FixedTreeNode, error) {
+func (tr Fixedtree) Node(index uint64) (FixedtreeNode, error) {
 	if int(index) >= tr.Len() {
 		return nil, util.NotFoundError.Errorf("node, %d not found", index)
 	}
@@ -188,7 +188,7 @@ func (tr FixedTree) Node(index uint64) (FixedTreeNode, error) {
 	return tr.nodes[index], nil
 }
 
-func (tr FixedTree) Traverse(f func(FixedTreeNode) (bool, error)) error {
+func (tr Fixedtree) Traverse(f func(FixedtreeNode) (bool, error)) error {
 	for i := range tr.nodes {
 		if keep, err := f(tr.nodes[i]); err != nil {
 			return err
@@ -202,7 +202,7 @@ func (tr FixedTree) Traverse(f func(FixedTreeNode) (bool, error)) error {
 
 // Proof returns the nodes to prove whether node is in tree. It always returns
 // root node + N(2 children).
-func (tr FixedTree) Proof(index uint64) ([]FixedTreeNode, error) {
+func (tr Fixedtree) Proof(index uint64) ([]FixedtreeNode, error) {
 	e := util.StringErrorFunc("failed to make proof")
 
 	self, err := tr.Node(index)
@@ -214,12 +214,9 @@ func (tr FixedTree) Proof(index uint64) ([]FixedTreeNode, error) {
 		return nil, nil
 	}
 
-	height, err := tr.height(index)
-	if err != nil {
-		return nil, e(err, "")
-	}
+	height := heightFixedtree(index)
 
-	parents := make([]FixedTreeNode, height+1)
+	parents := make([]FixedtreeNode, height+1)
 	parents[0] = self
 
 	l := index
@@ -238,7 +235,7 @@ func (tr FixedTree) Proof(index uint64) ([]FixedTreeNode, error) {
 		i++
 	}
 
-	pr := make([]FixedTreeNode, (height+1)*2+1)
+	pr := make([]FixedtreeNode, (height+1)*2+1)
 	for i := range parents {
 		n := parents[i]
 		if cs, err := tr.children(n.Index()); err != nil {
@@ -255,24 +252,20 @@ func (tr FixedTree) Proof(index uint64) ([]FixedTreeNode, error) {
 	return pr, nil
 }
 
-func (tr FixedTree) children(index uint64) ([]FixedTreeNode, error) {
-	i, err := childrenFixedTree(tr.Len(), index)
+func (tr Fixedtree) children(index uint64) ([]FixedtreeNode, error) {
+	i, err := childrenFixedtree(tr.Len(), index)
 	if err != nil {
 		return nil, err
 	}
 	if i[1] == 0 {
-		return []FixedTreeNode{tr.nodes[i[0]], nil}, nil
+		return []FixedtreeNode{tr.nodes[i[0]], nil}, nil
 	}
-	return []FixedTreeNode{tr.nodes[i[0]], tr.nodes[i[1]]}, nil
+	return []FixedtreeNode{tr.nodes[i[0]], tr.nodes[i[1]]}, nil
 }
 
-func (tr FixedTree) height(index uint64) (uint64, error) {
-	return heightFixedTree(tr.Len(), index)
-}
-
-func (tr FixedTree) parent(index uint64) (FixedTreeNode, error) {
-	var n FixedTreeNode
-	i, err := parentFixedTree(tr.Len(), index)
+func (tr Fixedtree) parent(index uint64) (FixedtreeNode, error) {
+	var n FixedtreeNode
+	i, err := parentFixedtree(index)
 	if err != nil {
 		return n, err
 	}
@@ -280,14 +273,14 @@ func (tr FixedTree) parent(index uint64) (FixedTreeNode, error) {
 }
 
 // generateNodeHash generates node hash. Hash was derived from index and key.
-func (tr FixedTree) generateNodeHash(n FixedTreeNode) ([]byte, error) {
+func (tr Fixedtree) generateNodeHash(n FixedtreeNode) ([]byte, error) {
 	e := util.StringErrorFunc("failed to generate node hash")
 
 	if n == nil || len(n.Key()) < 1 {
 		return nil, e(nil, "node has empty key")
 	}
 
-	var left, right FixedTreeNode
+	var left, right FixedtreeNode
 	if i, err := tr.children(n.Index()); err != nil {
 		if !errors.Is(err, noChildrenError) {
 			return nil, e(err, "")
@@ -297,7 +290,7 @@ func (tr FixedTree) generateNodeHash(n FixedTreeNode) ([]byte, error) {
 		right = i[1]
 	}
 
-	b, err := fixedTreeNodeHash(n, left, right)
+	b, err := fixedtreeNodeHash(n, left, right)
 	if err != nil {
 		return nil, e(err, "")
 	}
@@ -305,24 +298,24 @@ func (tr FixedTree) generateNodeHash(n FixedTreeNode) ([]byte, error) {
 	return b, nil
 }
 
-type FixedTreeGenerator struct {
+type FixedtreeGenerator struct {
 	sync.RWMutex
-	FixedTree
+	Fixedtree
 	size uint64
 }
 
-func NewFixedTreeGenerator(size uint64) *FixedTreeGenerator {
-	return &FixedTreeGenerator{
-		FixedTree: NewFixedTree(make([]FixedTreeNode, size)),
+func NewFixedtreeGenerator(size uint64) *FixedtreeGenerator {
+	return &FixedtreeGenerator{
+		Fixedtree: NewFixedtree(make([]FixedtreeNode, size)),
 		size:      size,
 	}
 }
 
-func (tr *FixedTreeGenerator) Add(n FixedTreeNode) error {
+func (tr *FixedtreeGenerator) Add(n FixedtreeNode) error {
 	tr.Lock()
 	defer tr.Unlock()
 
-	e := util.StringErrorFunc("failed add to FixedTree")
+	e := util.StringErrorFunc("failed add to Fixedtree")
 
 	if len(n.Key()) < 1 {
 		return e(nil, "node has empty key")
@@ -337,18 +330,18 @@ func (tr *FixedTreeGenerator) Add(n FixedTreeNode) error {
 	return nil
 }
 
-func (tr *FixedTreeGenerator) Tree() (FixedTree, error) {
+func (tr *FixedtreeGenerator) Tree() (Fixedtree, error) {
 	tr.RLock()
 	defer tr.RUnlock()
 
-	e := util.StringErrorFunc("failed to generate FixedTree")
+	e := util.StringErrorFunc("failed to generate Fixedtree")
 
 	if tr.size < 1 {
-		return NewFixedTree(tr.nodes), nil
+		return NewFixedtree(tr.nodes), nil
 	}
 	for i := range tr.nodes {
 		if tr.nodes[i] == nil {
-			return FixedTree{}, e(nil, "empty node found, %d", i)
+			return Fixedtree{}, e(nil, "empty node found, %d", i)
 		}
 	}
 
@@ -357,19 +350,19 @@ func (tr *FixedTreeGenerator) Tree() (FixedTree, error) {
 			n := tr.nodes[len(tr.nodes)-i-1]
 			h, err := tr.generateNodeHash(n)
 			if err != nil {
-				return FixedTree{}, e(err, "")
+				return Fixedtree{}, e(err, "")
 			}
 			tr.nodes[n.Index()] = n.SetHash(h)
 		}
 	}
 
-	return NewFixedTree(tr.nodes), nil
+	return NewFixedtree(tr.nodes), nil
 }
 
-func fixedTreeNodeHash(
+func fixedtreeNodeHash(
 	self, // self node
 	left, // left child
-	right FixedTreeNode, // right child
+	right FixedtreeNode, // right child
 ) ([]byte, error) {
 	if len(self.Key()) < 1 {
 		return nil, errors.Errorf("node has empty key")
@@ -392,15 +385,15 @@ func fixedTreeNodeHash(
 	return hashNode(util.ConcatBytesSlice(a, lh, rh)), nil
 }
 
-func ProveFixedTreeProof(pr []FixedTreeNode) error {
-	if err := proveFixedTreeProof(pr); err != nil {
+func ProveFixedtreeProof(pr []FixedtreeNode) error {
+	if err := proveFixedtreeProof(pr); err != nil {
 		return InvalidProofError.Wrap(err)
 	}
 
 	return nil
 }
 
-func proveFixedTreeProof(pr []FixedTreeNode) error {
+func proveFixedtreeProof(pr []FixedtreeNode) error {
 	e := util.StringErrorFunc("failed to prove fixed tree proof")
 
 	switch n := len(pr); {
@@ -422,7 +415,7 @@ func proveFixedTreeProof(pr []FixedTreeNode) error {
 		a, b := pr[(i*2)], pr[(i*2)+1]
 		if p, err := parentNodeInProof(i, pr, a.Index()); err != nil {
 			return e(err, "nodes, %d and %d", a.Index(), b.Index())
-		} else if h, err := fixedTreeNodeHash(p, a, b); err != nil {
+		} else if h, err := fixedtreeNodeHash(p, a, b); err != nil {
 			return e(err, "")
 		} else if !bytes.Equal(p.Hash(), h) {
 			return e(nil, "node, %d has wrong hash", p.Index())
@@ -432,11 +425,9 @@ func proveFixedTreeProof(pr []FixedTreeNode) error {
 	return nil
 }
 
-func parentNodeInProof(i int, pr []FixedTreeNode, index uint64) (FixedTreeNode, error) {
-	maxSize := int(math.Pow(2, float64(len(pr[:len(pr)-1])/2)+1)) - 1
-
-	var p FixedTreeNode
-	switch j, err := parentFixedTree(maxSize, index); {
+func parentNodeInProof(i int, pr []FixedtreeNode, index uint64) (FixedtreeNode, error) {
+	var p FixedtreeNode
+	switch j, err := parentFixedtree(index); {
 	case err != nil:
 		return p, err
 	case i < (len(pr[:len(pr)-1])/2)-1:
@@ -457,25 +448,18 @@ func parentNodeInProof(i int, pr []FixedTreeNode, index uint64) (FixedTreeNode, 
 	return p, nil
 }
 
-func heightFixedTree(size int, index uint64) (uint64, error) {
-	if int(index) >= size {
-		return 0, util.NotFoundError.Errorf("node, %d not found", index)
-	} else if index == 0 {
-		return 0, nil
+func heightFixedtree(index uint64) uint64 {
+	if index == 0 {
+		return 0
 	}
 
-	return uint64(math.Log(float64(index+1)) / math.Log(2)), nil
+	return uint64(math.Log(float64(index+1)) / math.Log(2))
 }
 
-func parentFixedTree(size int, index uint64) (uint64, error) {
-	var height uint64
-	switch i, err := heightFixedTree(size, index); {
-	case err != nil:
-		return 0, err
-	case i == 0:
+func parentFixedtree(index uint64) (uint64, error) {
+	height := heightFixedtree(index)
+	if height == 0 {
 		return 0, noParentError.Call()
-	default:
-		height = i
 	}
 
 	currentFirst := uint64(math.Pow(2, float64(height)) - 1)
@@ -489,11 +473,8 @@ func parentFixedTree(size int, index uint64) (uint64, error) {
 	return upFirst + pos/2, nil
 }
 
-func childrenFixedTree(size int, index uint64) ([]uint64, error) {
-	height, err := heightFixedTree(size, index)
-	if err != nil {
-		return nil, err
-	}
+func childrenFixedtree(size int, index uint64) ([]uint64, error) {
+	height := heightFixedtree(index)
 
 	currentFirst := uint64(math.Pow(2, float64(height)) - 1)
 	pos := index - currentFirst

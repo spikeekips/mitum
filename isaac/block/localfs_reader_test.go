@@ -39,8 +39,8 @@ func (t *testBaseLocalBlockFS) SetupSuite() {
 
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.DummyOperationFactHint, Instance: isaac.DummyOperationFact{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.DummyOperationHint, Instance: isaac.DummyOperation{}}))
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: base.StateFixedTreeNodeHint, Instance: base.StateFixedTreeNode{}}))
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: base.OperationFixedTreeNodeHint, Instance: base.OperationFixedTreeNode{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: base.StateFixedtreeNodeHint, Instance: base.StateFixedtreeNode{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: base.OperationFixedtreeNodeHint, Instance: base.OperationFixedtreeNode{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.INITBallotFactHint, Instance: isaac.INITBallotFact{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.ACCEPTBallotFactHint, Instance: isaac.ACCEPTBallotFact{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.INITBallotSignedFactHint, Instance: isaac.INITBallotSignedFact{}}))
@@ -116,9 +116,9 @@ func (t *testLocalFSReader) preparefs(point base.Point) (
 	*LocalFSWriter,
 	base.ProposalSignedFact,
 	[]base.Operation,
-	tree.FixedTree,
+	tree.Fixedtree,
 	[]base.State,
-	tree.FixedTree,
+	tree.Fixedtree,
 	[]base.Voteproof,
 ) {
 	ctx := context.Background()
@@ -137,13 +137,13 @@ func (t *testLocalFSReader) preparefs(point base.Point) (
 
 	// NOTE set operations
 	ops := make([]base.Operation, 3)
-	opstreeg := tree.NewFixedTreeGenerator(uint64(len(ops)))
+	opstreeg := tree.NewFixedtreeGenerator(uint64(len(ops)))
 	for i := range ops {
 		fact := isaac.NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
 		op, _ := isaac.NewDummyOperation(fact, t.Local.Privatekey(), t.NodePolicy.NetworkID())
 		ops[i] = op
 
-		node := base.NewOperationFixedTreeNode(uint64(i), op.Fact().Hash(), true, "")
+		node := base.NewOperationFixedtreeNode(uint64(i), op.Fact().Hash(), true, "")
 
 		t.NoError(opstreeg.Add(node))
 	}
@@ -159,7 +159,7 @@ func (t *testLocalFSReader) preparefs(point base.Point) (
 
 	// NOTE set states
 	stts := make([]base.State, 3)
-	sttstreeg := tree.NewFixedTreeGenerator(uint64(len(stts)))
+	sttstreeg := tree.NewFixedtreeGenerator(uint64(len(stts)))
 	for i := range stts {
 		key := fmt.Sprintf("state-key-%d-%s", i, util.UUID().String())
 		stts[i] = base.NewBaseState(
@@ -169,7 +169,7 @@ func (t *testLocalFSReader) preparefs(point base.Point) (
 			valuehash.RandomSHA256(),
 			nil,
 		)
-		node := base.NewStateFixedTreeNode(uint64(i), key)
+		node := base.NewStateFixedtreeNode(uint64(i), key)
 		t.NoError(sttstreeg.Add(node))
 	}
 
@@ -371,10 +371,10 @@ func (t *testLocalFSReader) TestItem() {
 		t.True(found)
 		t.NotNil(v)
 
-		uopstree, ok := v.(tree.FixedTree)
+		uopstree, ok := v.(tree.Fixedtree)
 		t.True(ok)
 
-		t.NoError(opstree.Traverse(func(n tree.FixedTreeNode) (bool, error) {
+		t.NoError(opstree.Traverse(func(n tree.FixedtreeNode) (bool, error) {
 			if i, err := uopstree.Node(n.Index()); err != nil {
 				return false, err
 			} else if !n.Equal(i) {
@@ -417,10 +417,10 @@ func (t *testLocalFSReader) TestItem() {
 		t.True(found)
 		t.NotNil(v)
 
-		usttstree, ok := v.(tree.FixedTree)
+		usttstree, ok := v.(tree.Fixedtree)
 		t.True(ok)
 
-		t.NoError(sttstree.Traverse(func(n tree.FixedTreeNode) (bool, error) {
+		t.NoError(sttstree.Traverse(func(n tree.FixedtreeNode) (bool, error) {
 			if i, err := usttstree.Node(n.Index()); err != nil {
 				return false, err
 			} else if !n.Equal(i) {

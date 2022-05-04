@@ -24,7 +24,7 @@ type DummyBlockWriter struct {
 	proposal     base.ProposalSignedFact
 	manifest     base.Manifest
 	manifesterr  error
-	opstree      *tree.FixedTreeGenerator
+	opstree      *tree.FixedtreeGenerator
 	ops          []base.Operation
 	sts          *util.LockedMap
 	setstatesf   func(context.Context, int, []base.StateMergeValue, base.Operation) error
@@ -41,7 +41,7 @@ func NewDummyBlockWriter(proposal base.ProposalSignedFact, getStateFunc base.Get
 
 func (w *DummyBlockWriter) SetOperationsSize(n uint64) {
 	w.ops = nil
-	w.opstree = tree.NewFixedTreeGenerator(n)
+	w.opstree = tree.NewFixedtreeGenerator(n)
 }
 
 func (w *DummyBlockWriter) SetProcessResult(ctx context.Context, index int, facthash util.Hash, instate bool, errorreason base.OperationProcessReasonError) error {
@@ -50,7 +50,7 @@ func (w *DummyBlockWriter) SetProcessResult(ctx context.Context, index int, fact
 		msg = errorreason.Msg()
 	}
 
-	node := base.NewOperationFixedTreeNode(
+	node := base.NewOperationFixedtreeNode(
 		uint64(index),
 		facthash,
 		instate,
@@ -713,8 +713,8 @@ func (t *testDefaultProposalProcessor) TestPreProcessButWithOperationReasonError
 	opstree, err := writer.opstree.Tree()
 	t.NoError(err)
 
-	opstree.Traverse(func(n tree.FixedTreeNode) (bool, error) {
-		node := n.(base.OperationFixedTreeNode)
+	opstree.Traverse(func(n tree.FixedtreeNode) (bool, error) {
+		node := n.(base.OperationFixedtreeNode)
 
 		i := node.Index()
 		switch {
@@ -948,8 +948,8 @@ func (t *testDefaultProposalProcessor) TestProcess() {
 	t.NoError(err)
 	t.Equal(4, opstree.Len())
 
-	opstree.Traverse(func(n tree.FixedTreeNode) (bool, error) {
-		node := n.(base.OperationFixedTreeNode)
+	opstree.Traverse(func(n tree.FixedtreeNode) (bool, error) {
+		node := n.(base.OperationFixedtreeNode)
 		switch {
 		case node.Index() == 1, node.Index() == 3:
 			t.True(node.InState())

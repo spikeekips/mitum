@@ -17,8 +17,8 @@ var Hinters = []encoder.DecodeDetail{
 	{Hint: base.BaseStateHint, Instance: base.BaseState{}},
 	{Hint: base.MPrivatekeyHint, Instance: base.MPrivatekey{}},
 	{Hint: base.MPublickeyHint, Instance: base.MPublickey{}},
-	{Hint: base.OperationFixedTreeNodeHint, Instance: base.OperationFixedTreeNode{}},
-	{Hint: base.StateFixedTreeNodeHint, Instance: base.StateFixedTreeNode{}},
+	{Hint: base.OperationFixedtreeNodeHint, Instance: base.OperationFixedtreeNode{}},
+	{Hint: base.StateFixedtreeNodeHint, Instance: base.StateFixedtreeNode{}},
 	{Hint: base.StringAddressHint, Instance: base.StringAddress{}},
 	{Hint: isaac.ACCEPTBallotFactHint, Instance: isaac.ACCEPTBallotFact{}},
 	{Hint: isaac.ACCEPTBallotHint, Instance: isaac.ACCEPTBallot{}},
@@ -53,7 +53,7 @@ var Hinters = []encoder.DecodeDetail{
 	{Hint: isaacnetwork.RequestProposalBodyHint, Instance: isaacnetwork.RequestProposalBody{}},
 	{Hint: quictransport.NodeHint, Instance: quictransport.BaseNode{}},
 	{Hint: quictransport.NodeMetaHint, Instance: quictransport.NodeMeta{}},
-	{Hint: tree.FixedTreeHint, Instance: tree.FixedTree{}},
+	{Hint: tree.FixedtreeHint, Instance: tree.Fixedtree{}},
 }
 
 var LoadOperationHinters = []encoder.DecodeDetail{} // BLOCK apply to getOperation in ProposalProcessor

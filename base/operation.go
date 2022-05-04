@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	OperationFixedTreeNodeHint          = hint.MustNewHint("operation-fixedtree-node-v0.0.1")
+	OperationFixedtreeNodeHint          = hint.MustNewHint("operation-fixedtree-node-v0.0.1")
 	BaseOperationProcessReasonErrorHint = hint.MustNewHint("operation-fixedtree-node-process-reason-v0.0.1")
 )
 
@@ -34,28 +34,28 @@ type OperationProcessor interface {
 	Process(context.Context, Operation, GetStateFunc) ([]StateMergeValue, OperationProcessReasonError, error)
 }
 
-type OperationFixedTreeNode struct {
-	tree.BaseFixedTreeNode
+type OperationFixedtreeNode struct {
+	tree.BaseFixedtreeNode
 	inState bool
 	reason  OperationProcessReasonError
 }
 
-func NewOperationFixedTreeNode(
+func NewOperationFixedtreeNode(
 	index uint64,
 	facthash util.Hash,
 	inState bool,
 	errorreason string,
-) OperationFixedTreeNode {
-	return NewOperationFixedTreeNodeWithHash(index, facthash, nil, inState, errorreason)
+) OperationFixedtreeNode {
+	return NewOperationFixedtreeNodeWithHash(index, facthash, nil, inState, errorreason)
 }
 
-func NewOperationFixedTreeNodeWithHash(
+func NewOperationFixedtreeNodeWithHash(
 	index uint64,
 	facthash util.Hash,
 	hash []byte,
 	inState bool,
 	reason string,
-) OperationFixedTreeNode {
+) OperationFixedtreeNode {
 	var operr OperationProcessReasonError
 	if len(reason) > 0 {
 		operr = NewBaseOperationProcessReasonError(reason)
@@ -66,60 +66,60 @@ func NewOperationFixedTreeNodeWithHash(
 		k += "-"
 	}
 
-	return OperationFixedTreeNode{
-		BaseFixedTreeNode: tree.NewBaseFixedTreeNodeWithHash(OperationFixedTreeNodeHint, index, k, hash),
+	return OperationFixedtreeNode{
+		BaseFixedtreeNode: tree.NewBaseFixedtreeNodeWithHash(OperationFixedtreeNodeHint, index, k, hash),
 		inState:           inState,
 		reason:            operr,
 	}
 }
 
-func (no OperationFixedTreeNode) InState() bool {
+func (no OperationFixedtreeNode) InState() bool {
 	_, instate := ParseTreeNodeOperationKey(no.Key())
 
 	return instate
 }
 
-func (no OperationFixedTreeNode) Operation() util.Hash {
+func (no OperationFixedtreeNode) Operation() util.Hash {
 	h, _ := ParseTreeNodeOperationKey(no.Key())
 
 	return h
 }
 
-func (no OperationFixedTreeNode) Reason() OperationProcessReasonError {
+func (no OperationFixedtreeNode) Reason() OperationProcessReasonError {
 	return no.reason
 }
 
-func (no OperationFixedTreeNode) SetHash(h []byte) tree.FixedTreeNode {
-	no.BaseFixedTreeNode = no.BaseFixedTreeNode.SetHash(h).(tree.BaseFixedTreeNode)
+func (no OperationFixedtreeNode) SetHash(h []byte) tree.FixedtreeNode {
+	no.BaseFixedtreeNode = no.BaseFixedtreeNode.SetHash(h).(tree.BaseFixedtreeNode)
 
 	return no
 }
 
-type operationFixedTreeNodeJSONMarshaler struct {
-	tree.BaseFixedTreeNodeJSONMarshaler
+type operationFixedtreeNodeJSONMarshaler struct {
+	tree.BaseFixedtreeNodeJSONMarshaler
 	Reason OperationProcessReasonError `json:"reason"`
 }
 
-func (no OperationFixedTreeNode) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(operationFixedTreeNodeJSONMarshaler{
-		BaseFixedTreeNodeJSONMarshaler: no.BaseFixedTreeNode.JSONMarshaler(),
+func (no OperationFixedtreeNode) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(operationFixedtreeNodeJSONMarshaler{
+		BaseFixedtreeNodeJSONMarshaler: no.BaseFixedtreeNode.JSONMarshaler(),
 		Reason:                         no.reason,
 	})
 }
 
-type operationFixedTreeNodeJSONUnmarshaler struct {
+type operationFixedtreeNodeJSONUnmarshaler struct {
 	Reason json.RawMessage `json:"reason"`
 }
 
-func (no *OperationFixedTreeNode) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode OperationFixedTreeNode")
+func (no *OperationFixedtreeNode) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+	e := util.StringErrorFunc("failed to decode OperationFixedtreeNode")
 
-	var ub tree.BaseFixedTreeNode
+	var ub tree.BaseFixedtreeNode
 	if err := enc.Unmarshal(b, &ub); err != nil {
 		return e(err, "")
 	}
 
-	var u operationFixedTreeNodeJSONUnmarshaler
+	var u operationFixedtreeNodeJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
 		return e(err, "")
 	}
@@ -136,7 +136,7 @@ func (no *OperationFixedTreeNode) DecodeJSON(b []byte, enc *jsonenc.Encoder) err
 		no.reason = i
 	}
 
-	no.BaseFixedTreeNode = ub
+	no.BaseFixedtreeNode = ub
 
 	return nil
 }

@@ -8,15 +8,15 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 )
 
-type BaseFixedTreeNodeJSONMarshaler struct {
+type BaseFixedtreeNodeJSONMarshaler struct {
 	hint.BaseHinter
 	IN uint64 `json:"index"`
 	KY string `json:"key"`
 	HS string `json:"hash"`
 }
 
-func (no BaseFixedTreeNode) JSONMarshaler() BaseFixedTreeNodeJSONMarshaler {
-	return BaseFixedTreeNodeJSONMarshaler{
+func (no BaseFixedtreeNode) JSONMarshaler() BaseFixedtreeNodeJSONMarshaler {
+	return BaseFixedtreeNodeJSONMarshaler{
 		BaseHinter: no.BaseHinter,
 		IN:         no.index,
 		KY:         no.key,
@@ -24,7 +24,7 @@ func (no BaseFixedTreeNode) JSONMarshaler() BaseFixedTreeNodeJSONMarshaler {
 	}
 }
 
-func (no BaseFixedTreeNode) MarshalJSON() ([]byte, error) {
+func (no BaseFixedtreeNode) MarshalJSON() ([]byte, error) {
 	if len(no.key) < 1 {
 		return util.MarshalJSON(nil)
 	}
@@ -32,16 +32,16 @@ func (no BaseFixedTreeNode) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(no.JSONMarshaler())
 }
 
-type BaseFixedTreeNodeJSONUnmarshaler struct {
+type BaseFixedtreeNodeJSONUnmarshaler struct {
 	IN uint64 `json:"index"`
 	KY string `json:"key"`
 	HS string `json:"hash"`
 }
 
-func (no *BaseFixedTreeNode) UnmarshalJSON(b []byte) error {
-	e := util.StringErrorFunc("failed to unmarshal BaseFixedTreeNode")
+func (no *BaseFixedtreeNode) UnmarshalJSON(b []byte) error {
+	e := util.StringErrorFunc("failed to unmarshal BaseFixedtreeNode")
 
-	var u BaseFixedTreeNodeJSONUnmarshaler
+	var u BaseFixedtreeNodeJSONUnmarshaler
 	if err := util.UnmarshalJSON(b, &u); err != nil {
 		return e(err, "")
 	}
@@ -54,31 +54,31 @@ func (no *BaseFixedTreeNode) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-type FixedTreeJSONMarshaler struct {
+type FixedtreeJSONMarshaler struct {
 	hint.BaseHinter
-	NS []FixedTreeNode `json:"nodes"`
+	NS []FixedtreeNode `json:"nodes"`
 }
 
-func (tr FixedTree) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(FixedTreeJSONMarshaler{
+func (tr Fixedtree) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(FixedtreeJSONMarshaler{
 		BaseHinter: tr.BaseHinter,
 		NS:         tr.nodes,
 	})
 }
 
-type FixedTreeJSONUnmarshaler struct {
+type FixedtreeJSONUnmarshaler struct {
 	NS []json.RawMessage `json:"nodes"`
 }
 
-func (tr *FixedTree) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode FixedTree")
+func (tr *Fixedtree) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+	e := util.StringErrorFunc("failed to decode Fixedtree")
 
-	var u FixedTreeJSONUnmarshaler
+	var u FixedtreeJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
 		return e(err, "")
 	}
 
-	tr.nodes = make([]FixedTreeNode, len(u.NS))
+	tr.nodes = make([]FixedtreeNode, len(u.NS))
 
 	for i := range u.NS {
 		j, err := enc.Decode(u.NS[i])
@@ -86,9 +86,9 @@ func (tr *FixedTree) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 			return e(err, "")
 		}
 
-		k, ok := j.(FixedTreeNode)
+		k, ok := j.(FixedtreeNode)
 		if !ok {
-			return e(nil, "not FixedTreeNode, %T", j)
+			return e(nil, "not FixedtreeNode, %T", j)
 		}
 
 		tr.nodes[i] = k

@@ -19,9 +19,9 @@ import (
 type FSWriter interface {
 	SetProposal(context.Context, base.ProposalSignedFact) error
 	SetOperation(context.Context, int, base.Operation) error
-	SetOperationsTree(context.Context, tree.FixedTree) error
+	SetOperationsTree(context.Context, tree.Fixedtree) error
 	SetState(context.Context, int, base.State) error
-	SetStatesTree(context.Context, tree.FixedTree) error
+	SetStatesTree(context.Context, tree.Fixedtree) error
 	SetManifest(context.Context, base.Manifest) error
 	SetINITVoteproof(context.Context, base.INITVoteproof) error
 	SetACCEPTVoteproof(context.Context, base.ACCEPTVoteproof) error
@@ -37,9 +37,9 @@ type Writer struct {
 	mergeDatabase func(isaac.BlockWriteDatabase) error
 	fswriter      FSWriter
 	manifest      base.Manifest
-	opstreeg      *tree.FixedTreeGenerator
-	opstree       tree.FixedTree
-	ststree       tree.FixedTree
+	opstreeg      *tree.FixedtreeGenerator
+	opstree       tree.Fixedtree
+	ststree       tree.Fixedtree
 	states        *util.LockedMap
 }
 
@@ -56,8 +56,8 @@ func NewWriter(
 		db:            db,
 		mergeDatabase: mergeDatabase,
 		fswriter:      fswriter,
-		opstree:       tree.EmptyFixedTree(),
-		ststree:       tree.EmptyFixedTree(),
+		opstree:       tree.EmptyFixedtree(),
+		ststree:       tree.EmptyFixedtree(),
 		states:        util.NewLockedMap(),
 	}
 }
@@ -70,7 +70,7 @@ func (w *Writer) SetOperationsSize(n uint64) {
 		return
 	}
 
-	w.opstreeg = tree.NewFixedTreeGenerator(n)
+	w.opstreeg = tree.NewFixedtreeGenerator(n)
 }
 
 func (w *Writer) SetProcessResult(
@@ -86,7 +86,7 @@ func (w *Writer) SetProcessResult(
 		msg = errorreason.Msg()
 	}
 
-	node := base.NewOperationFixedTreeNode(
+	node := base.NewOperationFixedtreeNode(
 		uint64(index),
 		facthash,
 		instate,
@@ -190,7 +190,7 @@ func (w *Writer) closeStateValues(ctx context.Context) error {
 		return strings.Compare(sortedkeys[i], sortedkeys[j]) < 0
 	})
 
-	tg := tree.NewFixedTreeGenerator(uint64(w.states.Len()))
+	tg := tree.NewFixedtreeGenerator(uint64(w.states.Len()))
 	states := make([]base.State, w.states.Len())
 
 	go func() {
@@ -240,22 +240,22 @@ func (w *Writer) closeStateValues(ctx context.Context) error {
 }
 
 func (*Writer) closeStateValue(
-	tg *tree.FixedTreeGenerator, st base.State, index int,
+	tg *tree.FixedtreeGenerator, st base.State, index int,
 ) (base.State, error) {
 	stm, ok := st.(base.StateValueMerger)
 	if !ok {
-		return st, tg.Add(base.NewStateFixedTreeNode(uint64(index), st.Hash().String()))
+		return st, tg.Add(base.NewStateFixedtreeNode(uint64(index), st.Hash().String()))
 	}
 
 	if err := stm.Close(); err != nil {
 		return nil, err
 	}
 
-	return stm, tg.Add(base.NewStateFixedTreeNode(uint64(index), stm.Hash().String()))
+	return stm, tg.Add(base.NewStateFixedtreeNode(uint64(index), stm.Hash().String()))
 }
 
 func (w *Writer) saveStates(
-	ctx context.Context, tg *tree.FixedTreeGenerator, states []base.State,
+	ctx context.Context, tg *tree.FixedtreeGenerator, states []base.State,
 ) error {
 	e := util.StringErrorFunc("failed to set states tree")
 

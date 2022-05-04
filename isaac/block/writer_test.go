@@ -95,8 +95,8 @@ func (t *testWriter) TestSetOperations() {
 	t.Equal(len(ops), writer.opstreeg.Len())
 
 	uops := make([]util.Hash, writer.opstreeg.Len())
-	writer.opstreeg.Traverse(func(i tree.FixedTreeNode) (bool, error) {
-		node := i.(base.OperationFixedTreeNode)
+	writer.opstreeg.Traverse(func(i tree.FixedtreeNode) (bool, error) {
+		node := i.(base.OperationFixedtreeNode)
 		uops[node.Index()] = node.Operation()
 
 		if node.Index()%3 == 0 {
@@ -268,8 +268,8 @@ func (t *testWriter) TestSetStatesAndClose() {
 	t.True(manifest.Suffrage().Equal(sufststored.Hash())) // NOTE suffrage hash
 
 	var sufnodefound bool
-	writer.ststree.Traverse(func(i tree.FixedTreeNode) (bool, error) {
-		node := i.(base.StateFixedTreeNode)
+	writer.ststree.Traverse(func(i tree.FixedtreeNode) (bool, error) {
+		node := i.(base.StateFixedtreeNode)
 		if string(node.Key()) == sufststored.Hash().String() {
 			sufnodefound = true
 

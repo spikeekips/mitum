@@ -307,17 +307,17 @@ func (r *LocalFSReader) loadOperations(item base.BlockMapItem, f io.Reader) ([]b
 	return ops, nil
 }
 
-func (r *LocalFSReader) loadOperationsTree(item base.BlockMapItem, f io.Reader) (tree.FixedTree, error) {
-	tr, err := r.loadTree(item, f, func(i interface{}) (tree.FixedTreeNode, error) {
-		node, ok := i.(base.OperationFixedTreeNode)
+func (r *LocalFSReader) loadOperationsTree(item base.BlockMapItem, f io.Reader) (tree.Fixedtree, error) {
+	tr, err := r.loadTree(item, f, func(i interface{}) (tree.FixedtreeNode, error) {
+		node, ok := i.(base.OperationFixedtreeNode)
 		if !ok {
-			return nil, errors.Errorf("not OperationFixedTreeNode, %T", i)
+			return nil, errors.Errorf("not OperationFixedtreeNode, %T", i)
 		}
 
 		return node, nil
 	})
 	if err != nil {
-		return tree.FixedTree{}, errors.Wrap(err, "failed to load OperationsTree")
+		return tree.Fixedtree{}, errors.Wrap(err, "failed to load OperationsTree")
 	}
 
 	return tr, nil
@@ -349,17 +349,17 @@ func (r *LocalFSReader) loadStates(item base.BlockMapItem, f io.Reader) ([]base.
 	return ops, nil
 }
 
-func (r *LocalFSReader) loadStatesTree(item base.BlockMapItem, f io.Reader) (tree.FixedTree, error) {
-	tr, err := r.loadTree(item, f, func(i interface{}) (tree.FixedTreeNode, error) {
-		node, ok := i.(base.StateFixedTreeNode)
+func (r *LocalFSReader) loadStatesTree(item base.BlockMapItem, f io.Reader) (tree.Fixedtree, error) {
+	tr, err := r.loadTree(item, f, func(i interface{}) (tree.FixedtreeNode, error) {
+		node, ok := i.(base.StateFixedtreeNode)
 		if !ok {
-			return nil, errors.Errorf("not StateFixedTreeNode, %T", i)
+			return nil, errors.Errorf("not StateFixedtreeNode, %T", i)
 		}
 
 		return node, nil
 	})
 	if err != nil {
-		return tree.FixedTree{}, errors.Wrap(err, "failed to load StatesTree")
+		return tree.Fixedtree{}, errors.Wrap(err, "failed to load StatesTree")
 	}
 
 	return tr, nil
@@ -399,15 +399,15 @@ func (r *LocalFSReader) loadVoteproofs(item base.BlockMapItem, f io.Reader) ([]b
 func (r *LocalFSReader) loadTree(
 	item base.BlockMapItem,
 	f io.Reader,
-	callback func(interface{}) (tree.FixedTreeNode, error),
-) (tree.FixedTree, error) {
+	callback func(interface{}) (tree.FixedtreeNode, error),
+) (tree.Fixedtree, error) {
 	if item.Num() < 1 {
-		return tree.FixedTree{}, nil
+		return tree.Fixedtree{}, nil
 	}
 
 	e := util.StringErrorFunc("failed to load tree")
 
-	tg := tree.NewFixedTreeGenerator(item.Num())
+	tg := tree.NewFixedtreeGenerator(item.Num())
 
 	worker := util.NewErrgroupWorker(context.Background(), math.MaxInt32)
 	defer worker.Close()
@@ -430,18 +430,18 @@ func (r *LocalFSReader) loadTree(
 
 		return true, nil
 	}); err != nil {
-		return tree.FixedTree{}, e(err, "")
+		return tree.Fixedtree{}, e(err, "")
 	}
 
 	worker.Done()
 
 	if err := worker.Wait(); err != nil {
-		return tree.FixedTree{}, e(err, "")
+		return tree.Fixedtree{}, e(err, "")
 	}
 
 	switch tr, err := tg.Tree(); {
 	case err != nil:
-		return tree.FixedTree{}, e(err, "")
+		return tree.Fixedtree{}, e(err, "")
 	default:
 		return tr, nil
 	}
