@@ -257,6 +257,12 @@ func (cmd *runCommand) proposalMaker() *isaac.ProposalMaker {
 				ctx,
 				n,
 				func(facthash util.Hash) (bool, error) {
+					// BLOCK if bad operation and it is failed to be processed;
+					// it can be included in next proposal; it should be
+					// excluded.
+					// BLOCK if operation has not enough fact signs, it will
+					// ignored. It must be filtered for not this kind of
+					// operations.
 					switch found, err := cmd.db.ExistsInStateOperation(facthash); {
 					case err != nil:
 						return false, errors.Wrap(err, "")

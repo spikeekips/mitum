@@ -5,7 +5,9 @@ package util
 
 import jsoniter "github.com/json-iterator/go"
 
-var jsoniterconfiged = jsoniter.ConfigDefault
+var jsoniterconfiged = jsoniter.Config{
+	EscapeHTML: false,
+}.Froze()
 
 func marshalJSON(v interface{}) ([]byte, error) {
 	return jsoniterconfiged.Marshal(v)
