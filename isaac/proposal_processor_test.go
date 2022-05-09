@@ -11,8 +11,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/fixedtree"
 	"github.com/spikeekips/mitum/util/hint"
-	"github.com/spikeekips/mitum/util/tree"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
@@ -24,10 +24,10 @@ type DummyBlockWriter struct {
 	proposal     base.ProposalSignedFact
 	manifest     base.Manifest
 	manifesterr  error
-	opstree      *tree.FixedtreeGenerator
+	opstreeg     *fixedtree.Writer
 	ops          []base.Operation
 	sts          *util.LockedMap
-	setstatesf   func(context.Context, int, []base.StateMergeValue, base.Operation) error
+	setstatesf   func(context.Context, uint64, []base.StateMergeValue, base.Operation) error
 	savef        func(context.Context) (base.BlockMap, error)
 }
 
@@ -41,29 +41,24 @@ func NewDummyBlockWriter(proposal base.ProposalSignedFact, getStateFunc base.Get
 
 func (w *DummyBlockWriter) SetOperationsSize(n uint64) {
 	w.ops = nil
-	w.opstree = tree.NewFixedtreeGenerator(n)
+	w.opstreeg, _ = fixedtree.NewWriter(base.OperationFixedtreeHint, n)
 }
 
-func (w *DummyBlockWriter) SetProcessResult(ctx context.Context, index int, facthash util.Hash, instate bool, errorreason base.OperationProcessReasonError) error {
+func (w *DummyBlockWriter) SetProcessResult(ctx context.Context, index uint64, facthash util.Hash, instate bool, errorreason base.OperationProcessReasonError) error {
 	var msg string
 	if errorreason != nil {
 		msg = errorreason.Msg()
 	}
 
-	node := base.NewOperationFixedtreeNode(
-		uint64(index),
-		facthash,
-		instate,
-		msg,
-	)
-	if err := w.opstree.Add(node); err != nil {
+	node := base.NewOperationFixedtreeNode(facthash, instate, msg)
+	if err := w.opstreeg.Add(index, node); err != nil {
 		return errors.Wrap(err, "failed to set operation")
 	}
 
 	return nil
 }
 
-func (w *DummyBlockWriter) SetStates(ctx context.Context, index int, states []base.StateMergeValue, operation base.Operation) error {
+func (w *DummyBlockWriter) SetStates(ctx context.Context, index uint64, states []base.StateMergeValue, operation base.Operation) error {
 	if w.setstatesf != nil {
 		return w.setstatesf(ctx, index, states, operation)
 	}
@@ -71,7 +66,7 @@ func (w *DummyBlockWriter) SetStates(ctx context.Context, index int, states []ba
 	return w.setStates(ctx, index, states, operation)
 }
 
-func (w *DummyBlockWriter) setStates(ctx context.Context, index int, states []base.StateMergeValue, op base.Operation) error {
+func (w *DummyBlockWriter) setStates(ctx context.Context, index uint64, states []base.StateMergeValue, op base.Operation) error {
 	w.Lock()
 	defer w.Unlock()
 
@@ -710,15 +705,11 @@ func (t *testDefaultProposalProcessor) TestPreProcessButWithOperationReasonError
 	t.NoError(err)
 	t.NotNil(m)
 
-	opstree, err := writer.opstree.Tree()
-	t.NoError(err)
-
-	opstree.Traverse(func(n tree.FixedtreeNode) (bool, error) {
+	writer.opstreeg.Traverse(func(index uint64, n fixedtree.Node) (bool, error) {
 		node := n.(base.OperationFixedtreeNode)
 
-		i := node.Index()
 		switch {
-		case i == 1 || i == 3:
+		case index == 1 || index == 3:
 			t.False(node.InState())
 			t.NotNil(node.Reason())
 			t.Contains(node.Reason().Msg(), "showme")
@@ -944,14 +935,12 @@ func (t *testDefaultProposalProcessor) TestProcess() {
 		}
 	}
 
-	opstree, err := writer.opstree.Tree()
-	t.NoError(err)
-	t.Equal(4, opstree.Len())
+	t.Equal(4, writer.opstreeg.Len())
 
-	opstree.Traverse(func(n tree.FixedtreeNode) (bool, error) {
+	writer.opstreeg.Traverse(func(index uint64, n fixedtree.Node) (bool, error) {
 		node := n.(base.OperationFixedtreeNode)
 		switch {
-		case node.Index() == 1, node.Index() == 3:
+		case index == 1, index == 3:
 			t.True(node.InState())
 		default:
 			t.Contains(base.NotChangedOperationProcessReasonError.Msg(), node.Reason().Msg())
@@ -1149,7 +1138,7 @@ func (t *testDefaultProposalProcessor) TestProcessButSetStatesErrorRetry() {
 	writer.manifest = manifest
 
 	var called int
-	writer.setstatesf = func(ctx context.Context, index int, sts []base.StateMergeValue, op base.Operation) error {
+	writer.setstatesf = func(ctx context.Context, index uint64, sts []base.StateMergeValue, op base.Operation) error {
 		if index == 2 {
 			called++
 			return errors.Errorf("findme: %q", op.Fact().Hash())

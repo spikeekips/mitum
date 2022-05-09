@@ -8,7 +8,7 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/tree"
+	"github.com/spikeekips/mitum/util/fixedtree"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
@@ -71,12 +71,21 @@ func (t *testWriter) TestSetOperations() {
 
 	writer.SetOperationsSize(uint64(len(ops)))
 
+	unodes := make([]fixedtree.Node, len(ops))
+	fswriter.setOperationsTreef = func(_ context.Context, w *fixedtree.Writer) error {
+		return w.Write(func(index uint64, n fixedtree.Node) error {
+			unodes[index] = n
+
+			return nil
+		})
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	sem := semaphore.NewWeighted(int64(len(ops)))
 	for i := range ops {
-		index := i
+		index := uint64(i)
 		_ = sem.Acquire(ctx, 1)
 
 		go func() {
@@ -92,26 +101,21 @@ func (t *testWriter) TestSetOperations() {
 
 	_ = sem.Acquire(ctx, int64(len(ops)))
 
+	t.NoError(fswriter.SetOperationsTree(context.Background(), writer.opstreeg))
+
 	t.Equal(len(ops), writer.opstreeg.Len())
 
-	uops := make([]util.Hash, writer.opstreeg.Len())
-	writer.opstreeg.Traverse(func(i tree.FixedtreeNode) (bool, error) {
-		node := i.(base.OperationFixedtreeNode)
-		uops[node.Index()] = node.Operation()
+	for i := range unodes {
+		n := unodes[i].(base.OperationFixedtreeNode)
 
-		if node.Index()%3 == 0 {
-			t.NotNil(node.Reason())
-			t.False(node.InState())
+		switch {
+		case i%3 == 0:
+			t.NotNil(n.Reason())
+			t.False(n.InState())
+		default:
+			t.Nil(n.Reason())
+			t.True(n.InState())
 		}
-
-		return true, nil
-	})
-
-	for i := range ops {
-		a := ops[i]
-		b := uops[i]
-
-		t.True(a.Equal(b))
 	}
 }
 
@@ -155,7 +159,7 @@ func (t *testWriter) TestSetStates() {
 
 	sem := semaphore.NewWeighted(int64(len(ops)))
 	for i := range states {
-		index := i
+		index := uint64(i)
 		_ = sem.Acquire(ctx, 1)
 
 		go func() {
@@ -195,12 +199,23 @@ func (t *testWriter) TestSetStatesAndClose() {
 	fswriter := &DummyBlockFSWriter{}
 
 	var sufststored base.State
-	fswriter.setStatef = func(_ context.Context, _ int, st base.State) error {
+	fswriter.setStatef = func(_ context.Context, _ uint64, st base.State) error {
 		if string(st.Key()) == isaac.SuffrageStateKey {
 			sufststored = st
 		}
 
 		return nil
+	}
+
+	var sufnodefound bool
+	fswriter.setStatesTreef = func(_ context.Context, tw *fixedtree.Writer) error {
+		return tw.Write(func(index uint64, n fixedtree.Node) error {
+			if n.Key() == sufststored.Hash().String() {
+				sufnodefound = true
+			}
+
+			return nil
+		})
 	}
 
 	ophs := make([]util.Hash, 33)
@@ -243,7 +258,7 @@ func (t *testWriter) TestSetStatesAndClose() {
 
 	sem := semaphore.NewWeighted(int64(len(ops)))
 	for i := range states {
-		index := i
+		index := uint64(i)
 		_ = sem.Acquire(ctx, 1)
 
 		go func() {
@@ -261,23 +276,9 @@ func (t *testWriter) TestSetStatesAndClose() {
 	t.NoError(err)
 	t.NotNil(manifest)
 
-	t.NotNil(writer.opstree.Root())
-	t.NotNil(writer.ststree.Root())
-
 	t.NotNil(sufststored)
 	t.True(manifest.Suffrage().Equal(sufststored.Hash())) // NOTE suffrage hash
 
-	var sufnodefound bool
-	writer.ststree.Traverse(func(i tree.FixedtreeNode) (bool, error) {
-		node := i.(base.StateFixedtreeNode)
-		if string(node.Key()) == sufststored.Hash().String() {
-			sufnodefound = true
-
-			return false, nil
-		}
-		return true, nil
-	})
-	t.NoError(err)
 	t.True(sufnodefound)
 }
 
@@ -315,8 +316,8 @@ func (t *testWriter) TestManifest() {
 
 	t.True(manifest.Previous().Equal(previous.Hash()))
 	t.True(manifest.Proposal().Equal(pr.Fact().Hash()))
-	t.Equal(manifest.OperationsTree(), valuehash.NewHashFromBytes(writer.opstree.Root()))
-	t.Equal(manifest.StatesTree(), valuehash.NewHashFromBytes(writer.ststree.Root()))
+	t.Equal(manifest.OperationsTree(), writer.opstreeroot)
+	t.Equal(manifest.StatesTree(), writer.ststreeroot)
 
 	um := <-mch
 	base.EqualManifest(t.Assert(), manifest, um)

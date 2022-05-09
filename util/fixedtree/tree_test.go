@@ -32,7 +32,7 @@ func (t *baseTestTree) nodesWithoutHash(n int) []Node {
 
 func (t *baseTestTree) nodes(n int) []Node {
 	nodes := t.nodesWithoutHash(n)
-	nodes, err := generateNodesHash(nodes, nil)
+	nodes, err := generateNodesHash(nodes, func(uint64, Node) error { return nil })
 	t.NoError(err)
 
 	return nodes

@@ -9,7 +9,7 @@ import (
 	isaacoperation "github.com/spikeekips/mitum/isaac/operation"
 	"github.com/spikeekips/mitum/network/quictransport"
 	"github.com/spikeekips/mitum/util/encoder"
-	"github.com/spikeekips/mitum/util/tree"
+	"github.com/spikeekips/mitum/util/fixedtree"
 )
 
 var Hinters = []encoder.DecodeDetail{
@@ -17,8 +17,8 @@ var Hinters = []encoder.DecodeDetail{
 	{Hint: base.BaseStateHint, Instance: base.BaseState{}},
 	{Hint: base.MPrivatekeyHint, Instance: base.MPrivatekey{}},
 	{Hint: base.MPublickeyHint, Instance: base.MPublickey{}},
-	{Hint: base.OperationFixedtreeNodeHint, Instance: base.OperationFixedtreeNode{}},
-	{Hint: base.StateFixedtreeNodeHint, Instance: base.StateFixedtreeNode{}},
+	{Hint: base.OperationFixedtreeHint, Instance: base.OperationFixedtreeNode{}},
+	{Hint: base.StateFixedtreeHint, Instance: fixedtree.BaseNode{}},
 	{Hint: base.StringAddressHint, Instance: base.StringAddress{}},
 	{Hint: isaac.ACCEPTBallotFactHint, Instance: isaac.ACCEPTBallotFact{}},
 	{Hint: isaac.ACCEPTBallotHint, Instance: isaac.ACCEPTBallot{}},
@@ -36,7 +36,6 @@ var Hinters = []encoder.DecodeDetail{
 	{Hint: isaac.ProposalFactHint, Instance: isaac.ProposalFact{}},
 	{Hint: isaac.ProposalSignedFactHint, Instance: isaac.ProposalSignedFact{}},
 	{Hint: isaac.SuffrageCandidateHint, Instance: isaac.SuffrageCandidate{}},
-	{Hint: isaac.SuffrageCandidateHint, Instance: isaac.SuffrageCandidate{}},
 	{Hint: isaac.SuffrageInfoHint, Instance: isaac.SuffrageInfo{}},
 	{Hint: isaacblock.BlockMapHint, Instance: isaacblock.BlockMap{}},
 	{Hint: isaacoperation.GenesisNetworkPolicyFactHint, Instance: isaacoperation.GenesisNetworkPolicyFact{}},
@@ -53,7 +52,6 @@ var Hinters = []encoder.DecodeDetail{
 	{Hint: isaacnetwork.RequestProposalBodyHint, Instance: isaacnetwork.RequestProposalBody{}},
 	{Hint: quictransport.NodeHint, Instance: quictransport.BaseNode{}},
 	{Hint: quictransport.NodeMetaHint, Instance: quictransport.NodeMeta{}},
-	{Hint: tree.FixedtreeHint, Instance: tree.Fixedtree{}},
 }
 
 var LoadOperationHinters = []encoder.DecodeDetail{} // BLOCK apply to getOperation in ProposalProcessor

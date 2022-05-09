@@ -11,12 +11,12 @@ type BlockWriter interface {
 	SetOperationsSize(uint64)
 	SetProcessResult(
 		_ context.Context,
-		index int,
+		index uint64,
 		facthash util.Hash,
 		instate bool,
 		errorreason base.OperationProcessReasonError,
 	) error
-	SetStates(_ context.Context, index int, values []base.StateMergeValue, operation base.Operation) error
+	SetStates(_ context.Context, index uint64, values []base.StateMergeValue, operation base.Operation) error
 	Manifest(_ context.Context, previous base.Manifest) (base.Manifest, error)
 	SetINITVoteproof(context.Context, base.INITVoteproof) error
 	SetACCEPTVoteproof(context.Context, base.ACCEPTVoteproof) error

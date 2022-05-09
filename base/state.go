@@ -5,7 +5,11 @@ import (
 
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
-	"github.com/spikeekips/mitum/util/tree"
+)
+
+var (
+	StateFixedtreeHint     = hint.MustNewHint("state-fixedtree-v0.0.1")
+	StateFixedtreeNodeHint = hint.MustNewHint("state-fixedtree-node-v0.0.1")
 )
 
 type State interface {
@@ -75,22 +79,4 @@ func IsEqualStateValue(a, b StateValue) bool {
 	default:
 		return true
 	}
-}
-
-var StateFixedtreeNodeHint = hint.MustNewHint("state-fixedtree-node-v0.0.1")
-
-type StateFixedtreeNode struct {
-	tree.BaseFixedtreeNode
-}
-
-func NewStateFixedtreeNode(index uint64, key string) StateFixedtreeNode {
-	return StateFixedtreeNode{
-		BaseFixedtreeNode: tree.NewBaseFixedtreeNodeWithHash(StateFixedtreeNodeHint, index, key, nil),
-	}
-}
-
-func (no StateFixedtreeNode) SetHash(h []byte) tree.FixedtreeNode {
-	no.BaseFixedtreeNode = no.BaseFixedtreeNode.SetHash(h).(tree.BaseFixedtreeNode)
-
-	return no
 }

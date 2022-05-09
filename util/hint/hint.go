@@ -3,6 +3,7 @@ package hint
 import (
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
@@ -39,6 +40,7 @@ func EnsureParseHint(s string) Hint {
 
 // ParseHint tries to parse hint string and also checks IsValid().
 func ParseHint(s string) (Hint, error) {
+	s = strings.TrimSpace(s)
 	l := regVersion.FindStringIndex(s)
 	if len(l) < 1 {
 		return Hint{}, util.InvalidError.Errorf("invalid hint string, %q", s)

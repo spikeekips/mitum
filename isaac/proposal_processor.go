@@ -350,7 +350,7 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context) error 
 
 		if i, ok := op.(ReasonProcessedOperation); ok {
 			if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-				return p.writer.SetProcessResult(ctx, opsindex, i.FactHash(), false, i.Reason())
+				return p.writer.SetProcessResult(ctx, uint64(opsindex), i.FactHash(), false, i.Reason())
 			}); err != nil {
 				return e(err, "")
 			}
@@ -360,7 +360,7 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context) error 
 
 		gvalidindex++
 		validindex := gvalidindex
-		if err := p.workOperation(wctx, worker, opsindex, validindex, op); err != nil {
+		if err := p.workOperation(wctx, worker, uint64(opsindex), uint64(validindex), op); err != nil {
 			if !errors.Is(err, util.WorkerCanceledError) {
 				return e(err, "")
 			}
@@ -381,7 +381,7 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context) error 
 func (p *DefaultProposalProcessor) workOperation(
 	ctx context.Context,
 	worker *util.ErrgroupWorker,
-	opsindex, validindex int,
+	opsindex, validindex uint64,
 	op base.Operation,
 ) error {
 	e := util.StringErrorFunc("failed to process operation, %q", op.Fact().Hash())
@@ -403,7 +403,7 @@ func (p *DefaultProposalProcessor) workOperation(
 }
 
 func (p *DefaultProposalProcessor) doPreProcessOperation(
-	ctx context.Context, opsindex int, op base.Operation,
+	ctx context.Context, opsindex uint64, op base.Operation,
 ) (bool, error) {
 	e := util.StringErrorFunc("failed to pre process operation, %q", op.Fact().Hash())
 
@@ -439,7 +439,7 @@ func (p *DefaultProposalProcessor) doPreProcessOperation(
 }
 
 func (p *DefaultProposalProcessor) doProcessOperation(
-	ctx context.Context, opsindex, validindex int, op base.Operation,
+	ctx context.Context, opsindex, validindex uint64, op base.Operation,
 ) error {
 	e := util.StringErrorFunc("failed to process operation, %q", op.Fact().Hash())
 

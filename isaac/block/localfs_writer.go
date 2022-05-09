@@ -1,6 +1,7 @@
 package isaacblock
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -16,8 +18,8 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
+	"github.com/spikeekips/mitum/util/fixedtree"
 	"github.com/spikeekips/mitum/util/hint"
-	"github.com/spikeekips/mitum/util/tree"
 )
 
 var LocalFSWriterHint = hint.MustNewHint("local-block-fs-writer-v0.0.1")
@@ -121,7 +123,7 @@ func (w *LocalFSWriter) SetProposal(_ context.Context, pr base.ProposalSignedFac
 	return nil
 }
 
-func (w *LocalFSWriter) SetOperation(_ context.Context, _ int, op base.Operation) error {
+func (w *LocalFSWriter) SetOperation(_ context.Context, _ uint64, op base.Operation) error {
 	if err := w.appendfile(w.opsf, op); err != nil {
 		return errors.Wrap(err, "failed to set operation")
 	}
@@ -131,11 +133,11 @@ func (w *LocalFSWriter) SetOperation(_ context.Context, _ int, op base.Operation
 	return nil
 }
 
-func (w *LocalFSWriter) SetOperationsTree(ctx context.Context, tr tree.Fixedtree) error {
+func (w *LocalFSWriter) SetOperationsTree(ctx context.Context, tw *fixedtree.Writer) error {
 	if err := w.setTree(
 		ctx,
-		tr,
 		base.BlockMapItemTypeOperationsTree,
+		tw,
 		func(ctx context.Context, _ uint64) error {
 			_ = w.opsf.Close()
 
@@ -156,7 +158,7 @@ func (w *LocalFSWriter) SetOperationsTree(ctx context.Context, tr tree.Fixedtree
 	return nil
 }
 
-func (w *LocalFSWriter) SetState(_ context.Context, _ int, st base.State) error {
+func (w *LocalFSWriter) SetState(_ context.Context, _ uint64, st base.State) error {
 	if err := w.appendfile(w.stsf, st); err != nil {
 		return errors.Wrap(err, "failed to set state")
 	}
@@ -164,18 +166,18 @@ func (w *LocalFSWriter) SetState(_ context.Context, _ int, st base.State) error 
 	return nil
 }
 
-func (w *LocalFSWriter) SetStatesTree(ctx context.Context, tr tree.Fixedtree) error {
+func (w *LocalFSWriter) SetStatesTree(ctx context.Context, tw *fixedtree.Writer) error {
 	if err := w.setTree(
 		ctx,
-		tr,
 		base.BlockMapItemTypeStatesTree,
+		tw,
 		func(ctx context.Context, _ uint64) error {
 			_ = w.stsf.Close()
 
 			if err := w.m.SetItem(NewLocalBlockMapItem(
 				base.BlockMapItemTypeStates,
 				w.stsf.Checksum(),
-				uint64(tr.Len()),
+				uint64(tw.Len()),
 			)); err != nil {
 				return errors.Wrap(err, "failed to set states")
 			}
@@ -349,8 +351,8 @@ func (w *LocalFSWriter) Cancel() error {
 
 func (w *LocalFSWriter) setTree(
 	ctx context.Context,
-	tr tree.Fixedtree,
 	treetype base.BlockMapItemType,
+	tw *fixedtree.Writer,
 	newjob util.ContextWorkerCallback,
 ) error {
 	worker := util.NewErrgroupWorker(ctx, math.MaxInt32)
@@ -366,30 +368,30 @@ func (w *LocalFSWriter) setTree(
 		_ = tf.Close()
 	}()
 
+	if err := w.writefile(tf, append(tw.Hint().Bytes(), '\n')); err != nil {
+		return e(err, "")
+	}
+
 	if newjob != nil {
 		if err := worker.NewJob(newjob); err != nil {
 			return e(err, "")
 		}
 	}
 
-	go func() {
-		defer worker.Done()
-
-		_ = tr.Traverse(func(node tree.FixedtreeNode) (bool, error) {
-			n := node
-			if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-				if err := w.appendfile(tf, n); err != nil {
-					return errors.Wrap(err, "failed to write fixed tree node")
-				}
-
-				return nil
-			}); err != nil {
-				return false, err
+	if err := tw.Write(func(index uint64, n fixedtree.Node) error {
+		return worker.NewJob(func(ctx context.Context, _ uint64) error {
+			b, err := marshalIndexedTreeNode(w.enc, index, n)
+			if err != nil {
+				return err
 			}
 
-			return true, nil
+			return w.writefile(tf, append(b, '\n'))
 		})
-	}()
+	}); err != nil {
+		return e(err, "")
+	}
+
+	worker.Done()
 
 	if err := worker.Wait(); err != nil {
 		return e(err, "")
@@ -397,7 +399,7 @@ func (w *LocalFSWriter) setTree(
 
 	_ = tf.Close()
 
-	if err := w.m.SetItem(NewLocalBlockMapItem(treetype, tf.Checksum(), uint64(tr.Len()))); err != nil {
+	if err := w.m.SetItem(NewLocalBlockMapItem(treetype, tf.Checksum(), uint64(tw.Len()))); err != nil {
 		return e(err, "")
 	}
 
@@ -612,4 +614,58 @@ func CleanBlockTempDirectory(root string) error {
 	}
 
 	return nil
+}
+
+func marshalIndexedTreeNode(enc encoder.Encoder, index uint64, n fixedtree.Node) ([]byte, error) {
+	b, err := enc.Marshal(n)
+	if err != nil {
+		return nil, errors.Wrap(err, "")
+	}
+
+	return util.ConcatBytesSlice([]byte(fmt.Sprintf("%d,", index)), b), nil
+}
+
+type indexedTreeNode struct {
+	Index uint64
+	Node  fixedtree.Node
+}
+
+func unmarshalIndexedTreeNode(enc encoder.Encoder, b []byte, ht hint.Hint) (in indexedTreeNode, _ error) {
+	e := util.StringErrorFunc("failed to unmarshal indexed tree node")
+
+	bf := bytes.NewBuffer(b)
+	switch i, err := bf.ReadBytes(','); {
+	case err != nil:
+		return in, e(err, "")
+	case len(i) < 2:
+		return in, e(nil, "failed to find index string")
+	default:
+		index, err := strconv.ParseUint(string(i[:len(i)-1]), 10, 64)
+		if err != nil {
+			return in, e(err, "")
+		}
+
+		in.Index = index
+	}
+
+	left, err := io.ReadAll(bf)
+	if err != nil {
+		return in, e(err, "")
+	}
+
+	switch i, err := enc.DecodeWithHint(left, ht); {
+	case err != nil:
+		return in, errors.Wrap(err, "")
+	case i == nil:
+		return in, errors.Errorf("empty node")
+	default:
+		j, ok := i.(fixedtree.Node)
+		if !ok {
+			return in, errors.Errorf("expected fixedtree.Node, but %T", i)
+		}
+
+		in.Node = j
+
+		return in, nil
+	}
 }

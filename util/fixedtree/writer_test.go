@@ -2,7 +2,6 @@ package fixedtree
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -27,7 +26,7 @@ func (t *testGenerator) TestNew() {
 
 			started := time.Now()
 
-			g, err := NewWriter(size)
+			g, err := NewWriter(t.ht, size)
 			t.NoError(err)
 
 			worker := util.NewErrgroupWorker(context.Background(), math.MaxInt32)
@@ -54,7 +53,7 @@ func (t *testGenerator) TestNew() {
 				return nil
 			}))
 
-			t.T().Log(fmt.Sprintf("size-%d: total=%v tree=%v", size, totalelapsed, time.Since(treestarted)))
+			t.T().Logf("size-%d: total=%v tree=%v", size, totalelapsed, time.Since(treestarted))
 
 			newtr, err := NewTree(t.ht, generated)
 			t.NoError(err)
@@ -75,13 +74,13 @@ func (t *testGenerator) TestNew() {
 }
 
 func (t *testGenerator) TestZeroSize() {
-	_, err := NewWriter(0)
+	_, err := NewWriter(t.ht, 0)
 	t.Error(err)
 	t.ErrorContains(err, "zero size")
 }
 
 func (t *testGenerator) TestFailedToAdd() {
-	g, err := NewWriter(3)
+	g, err := NewWriter(t.ht, 3)
 	t.NoError(err)
 
 	nodes := t.nodesWithoutHash(1)
@@ -93,7 +92,7 @@ func (t *testGenerator) TestFailedToAdd() {
 
 func (t *testGenerator) TestEmptyKey() {
 	size := 333
-	g, err := NewWriter(uint64(size))
+	g, err := NewWriter(t.ht, uint64(size))
 	t.NoError(err)
 
 	nodes := t.nodesWithoutHash(size)
@@ -123,7 +122,7 @@ func (t *testGenerator) TestEmptyKey() {
 func (t *testGenerator) TestWriter() {
 	nodes := t.nodesWithoutHash(33)
 
-	g, err := NewWriter(uint64(len(nodes)))
+	g, err := NewWriter(t.ht, uint64(len(nodes)))
 	t.NoError(err)
 
 	for i := range nodes {

@@ -10,7 +10,7 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/tree"
+	"github.com/spikeekips/mitum/util/fixedtree"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
@@ -19,10 +19,10 @@ import (
 
 type DummyBlockFSWriter struct {
 	setProposalf        func(context.Context, base.ProposalSignedFact) error
-	setOperationf       func(context.Context, int, base.Operation) error
-	setOperationsTreef  func(context.Context, tree.Fixedtree) error
-	setStatef           func(context.Context, int, base.State) error
-	setStatesTreef      func(context.Context, tree.Fixedtree) error
+	setOperationf       func(context.Context, uint64, base.Operation) error
+	setOperationsTreef  func(context.Context, *fixedtree.Writer) error
+	setStatef           func(context.Context, uint64, base.State) error
+	setStatesTreef      func(context.Context, *fixedtree.Writer) error
 	setManifestf        func(context.Context, base.Manifest) error
 	setINITVoteprooff   func(context.Context, base.INITVoteproof) error
 	setACCEPTVoteprooff func(context.Context, base.ACCEPTVoteproof) error
@@ -37,30 +37,30 @@ func (w *DummyBlockFSWriter) SetProposal(ctx context.Context, pr base.ProposalSi
 	return nil
 }
 
-func (w *DummyBlockFSWriter) SetOperation(ctx context.Context, index int, op base.Operation) error {
+func (w *DummyBlockFSWriter) SetOperation(ctx context.Context, index uint64, op base.Operation) error {
 	if w.setOperationf != nil {
 		return w.setOperationf(ctx, index, op)
 	}
 	return nil
 }
 
-func (w *DummyBlockFSWriter) SetOperationsTree(ctx context.Context, tr tree.Fixedtree) error {
+func (w *DummyBlockFSWriter) SetOperationsTree(ctx context.Context, tw *fixedtree.Writer) error {
 	if w.setOperationsTreef != nil {
-		return w.setOperationsTreef(ctx, tr)
+		return w.setOperationsTreef(ctx, tw)
 	}
 	return nil
 }
 
-func (w *DummyBlockFSWriter) SetState(ctx context.Context, index int, st base.State) error {
+func (w *DummyBlockFSWriter) SetState(ctx context.Context, index uint64, st base.State) error {
 	if w.setStatef != nil {
 		return w.setStatef(ctx, index, st)
 	}
 	return nil
 }
 
-func (w *DummyBlockFSWriter) SetStatesTree(ctx context.Context, tr tree.Fixedtree) error {
+func (w *DummyBlockFSWriter) SetStatesTree(ctx context.Context, tw *fixedtree.Writer) error {
 	if w.setStatesTreef != nil {
-		return w.setStatesTreef(ctx, tr)
+		return w.setStatesTreef(ctx, tw)
 	}
 	return nil
 }
@@ -380,15 +380,16 @@ func (t *testLocalFSWriter) TestSetOperations() {
 	t.NoError(err)
 
 	ops := make([]base.Operation, 33)
-	opstreeg := tree.NewFixedtreeGenerator(33)
+	opstreeg, err := fixedtree.NewWriter(base.OperationFixedtreeHint, 33)
+	t.NoError(err)
 	for i := range ops {
 		fact := isaac.NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
 		op, _ := isaac.NewDummyOperation(fact, t.Local.Privatekey(), t.NodePolicy.NetworkID())
 		ops[i] = op
 
-		node := base.NewOperationFixedtreeNode(uint64(i), op.Fact().Hash(), true, "")
+		node := base.NewOperationFixedtreeNode(op.Fact().Hash(), true, "")
 
-		t.NoError(opstreeg.Add(node))
+		t.NoError(opstreeg.Add(uint64(i), node))
 	}
 
 	ctx := context.Background()
@@ -399,7 +400,7 @@ func (t *testLocalFSWriter) TestSetOperations() {
 			panic(err)
 		}
 
-		i := i
+		i := uint64(i)
 		op := ops[i]
 		go func() {
 			defer sem.Release(1)
@@ -414,10 +415,7 @@ func (t *testLocalFSWriter) TestSetOperations() {
 		panic(err)
 	}
 
-	opstree, err := opstreeg.Tree()
-	t.NoError(err)
-
-	t.NoError(fs.SetOperationsTree(ctx, opstree))
+	t.NoError(fs.SetOperationsTree(ctx, opstreeg))
 
 	t.Run("operations file", func() {
 		fpath, f, err := t.findTempFile(fs.temp, base.BlockMapItemTypeOperations, true)
@@ -465,7 +463,8 @@ func (t *testLocalFSWriter) TestSetStates() {
 	t.NoError(err)
 
 	stts := make([]base.State, 33)
-	sttstreeg := tree.NewFixedtreeGenerator(33)
+	sttstreeg, err := fixedtree.NewWriter(base.StateFixedtreeHint, 33)
+	t.NoError(err)
 	for i := range stts {
 		key := util.UUID().String()
 		stts[i] = base.NewBaseState(
@@ -475,8 +474,8 @@ func (t *testLocalFSWriter) TestSetStates() {
 			valuehash.RandomSHA256(),
 			nil,
 		)
-		node := base.NewStateFixedtreeNode(uint64(i), key)
-		t.NoError(sttstreeg.Add(node))
+		node := fixedtree.NewBaseNode(key)
+		t.NoError(sttstreeg.Add(uint64(i), node))
 	}
 
 	ctx := context.Background()
@@ -487,7 +486,7 @@ func (t *testLocalFSWriter) TestSetStates() {
 			panic(err)
 		}
 
-		i := i
+		i := uint64(i)
 		st := stts[i]
 		go func() {
 			defer sem.Release(1)
@@ -502,10 +501,7 @@ func (t *testLocalFSWriter) TestSetStates() {
 		panic(err)
 	}
 
-	sttstree, err := sttstreeg.Tree()
-	t.NoError(err)
-
-	t.NoError(fs.SetStatesTree(ctx, sttstree))
+	t.NoError(fs.SetStatesTree(ctx, sttstreeg))
 
 	t.Run("states file", func() {
 		fpath, f, err := t.findTempFile(fs.temp, base.BlockMapItemTypeStates, true)

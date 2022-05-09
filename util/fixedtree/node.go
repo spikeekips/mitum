@@ -77,19 +77,14 @@ func (n BaseNode) Equal(b Node) bool {
 		return false
 	}
 
-	bn, ok := b.(BaseNode)
-	if !ok {
-		return false
-	}
-
 	switch {
-	case n.isempty || bn.isempty:
+	case n.IsEmpty() || b.IsEmpty():
 		return false
-	case n.key != bn.key:
+	case n.Key() != b.Key():
 		return false
-	case n.h == nil || bn.h == nil:
-		return !(n.h != nil || bn.h != nil)
-	case !n.h.Equal(bn.h):
+	case n.Hash() == nil || b.Hash() == nil:
+		return !(n.Hash() != nil || b.Hash() != nil)
+	case !n.Hash().Equal(b.Hash()):
 		return false
 	default:
 		return true

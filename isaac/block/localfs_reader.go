@@ -13,7 +13,8 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	"github.com/spikeekips/mitum/util/tree"
+	"github.com/spikeekips/mitum/util/fixedtree"
+	"github.com/spikeekips/mitum/util/hint"
 )
 
 type LocalFSReader struct {
@@ -232,24 +233,55 @@ func (r *LocalFSReader) loadItem(f io.Reader) (interface{}, error) {
 	}
 }
 
-func (r *LocalFSReader) loadRawItems(f io.Reader, callback func(interface{}) (bool, error)) error {
-	br := bufio.NewReader(f)
+func (r *LocalFSReader) loadRawItems(
+	f io.Reader,
+	decode func([]byte) (interface{}, error),
+	callback func(uint64, interface{}) error,
+) error {
+	if decode == nil {
+		decode = func(b []byte) (interface{}, error) {
+			return r.enc.Decode(b)
+		}
+	}
 
+	var br *bufio.Reader
+	if i, ok := f.(*bufio.Reader); ok {
+		br = i
+	} else {
+		br = bufio.NewReader(f)
+	}
+
+	worker := util.NewErrgroupWorker(context.Background(), math.MaxInt32)
+	defer worker.Close()
+
+	var index uint64
 end:
 	for {
 		b, err := br.ReadBytes('\n')
+		if err != nil && !errors.Is(err, io.EOF) {
+			return errors.Wrap(err, "")
+		}
+
 		if len(b) > 0 {
-			hinter, eerr := r.enc.Decode(b)
-			if err != nil {
+			b := b
+			i := index
+
+			if eerr := worker.NewJob(func(ctx context.Context, _ uint64) error {
+				v, eerr := decode(b)
+				if eerr != nil {
+					return errors.Wrap(eerr, "")
+				}
+
+				if eerr := callback(i, v); eerr != nil {
+					return errors.Wrap(eerr, "")
+				}
+
+				return nil
+			}); eerr != nil {
 				return errors.Wrap(eerr, "")
 			}
 
-			switch keep, eerr := callback(hinter); {
-			case eerr != nil:
-				return errors.Wrap(err, "")
-			case !keep:
-				break end
-			}
+			index++
 		}
 
 		switch {
@@ -259,6 +291,11 @@ end:
 		default:
 			return errors.Wrap(err, "")
 		}
+	}
+
+	worker.Done()
+	if err := worker.Wait(); err != nil {
+		return errors.Wrap(err, "")
 	}
 
 	return nil
@@ -288,27 +325,25 @@ func (r *LocalFSReader) loadOperations(item base.BlockMapItem, f io.Reader) ([]b
 
 	ops := make([]base.Operation, item.Num())
 
-	i := -1
-	if err := r.loadRawItems(f, func(v interface{}) (bool, error) {
-		i++
-
+	if err := r.loadRawItems(f, nil, func(index uint64, v interface{}) error {
 		op, ok := v.(base.Operation)
 		if !ok {
-			return false, errors.Errorf("not Operation, %T", v)
+			return errors.Errorf("not Operation, %T", v)
 		}
 
-		ops[i] = op
+		ops[index] = op
 
-		return true, nil
-	}); err != nil {
+		return nil
+	},
+	); err != nil {
 		return nil, errors.Wrap(err, "")
 	}
 
 	return ops, nil
 }
 
-func (r *LocalFSReader) loadOperationsTree(item base.BlockMapItem, f io.Reader) (tree.Fixedtree, error) {
-	tr, err := r.loadTree(item, f, func(i interface{}) (tree.FixedtreeNode, error) {
+func (r *LocalFSReader) loadOperationsTree(item base.BlockMapItem, f io.Reader) (fixedtree.Tree, error) {
+	tr, err := r.loadTree(item, f, func(i interface{}) (fixedtree.Node, error) {
 		node, ok := i.(base.OperationFixedtreeNode)
 		if !ok {
 			return nil, errors.Errorf("not OperationFixedtreeNode, %T", i)
@@ -317,7 +352,7 @@ func (r *LocalFSReader) loadOperationsTree(item base.BlockMapItem, f io.Reader) 
 		return node, nil
 	})
 	if err != nil {
-		return tree.Fixedtree{}, errors.Wrap(err, "failed to load OperationsTree")
+		return fixedtree.Tree{}, errors.Wrap(err, "failed to load OperationsTree")
 	}
 
 	return tr, nil
@@ -328,30 +363,27 @@ func (r *LocalFSReader) loadStates(item base.BlockMapItem, f io.Reader) ([]base.
 		return nil, nil
 	}
 
-	ops := make([]base.State, item.Num())
+	sts := make([]base.State, item.Num())
 
-	i := -1
-	if err := r.loadRawItems(f, func(v interface{}) (bool, error) {
-		i++
-
-		op, ok := v.(base.State)
+	if err := r.loadRawItems(f, nil, func(index uint64, v interface{}) error {
+		st, ok := v.(base.State)
 		if !ok {
-			return false, errors.Errorf("not State, %T", v)
+			return errors.Errorf("expected State, but %T", v)
 		}
 
-		ops[i] = op
+		sts[index] = st
 
-		return true, nil
+		return nil
 	}); err != nil {
 		return nil, errors.Wrap(err, "")
 	}
 
-	return ops, nil
+	return sts, nil
 }
 
-func (r *LocalFSReader) loadStatesTree(item base.BlockMapItem, f io.Reader) (tree.Fixedtree, error) {
-	tr, err := r.loadTree(item, f, func(i interface{}) (tree.FixedtreeNode, error) {
-		node, ok := i.(base.StateFixedtreeNode)
+func (r *LocalFSReader) loadStatesTree(item base.BlockMapItem, f io.Reader) (fixedtree.Tree, error) {
+	tr, err := r.loadTree(item, f, func(i interface{}) (fixedtree.Node, error) {
+		node, ok := i.(fixedtree.Node)
 		if !ok {
 			return nil, errors.Errorf("not StateFixedtreeNode, %T", i)
 		}
@@ -359,7 +391,7 @@ func (r *LocalFSReader) loadStatesTree(item base.BlockMapItem, f io.Reader) (tre
 		return node, nil
 	})
 	if err != nil {
-		return tree.Fixedtree{}, errors.Wrap(err, "failed to load StatesTree")
+		return fixedtree.Tree{}, errors.Wrap(err, "failed to load StatesTree")
 	}
 
 	return tr, nil
@@ -374,17 +406,17 @@ func (r *LocalFSReader) loadVoteproofs(item base.BlockMapItem, f io.Reader) ([]b
 
 	vps := make([]base.Voteproof, 2)
 
-	if err := r.loadRawItems(f, func(v interface{}) (bool, error) {
+	if err := r.loadRawItems(f, nil, func(_ uint64, v interface{}) error {
 		switch t := v.(type) {
 		case base.INITVoteproof:
 			vps[0] = t
 		case base.ACCEPTVoteproof:
 			vps[1] = t
 		default:
-			return false, errors.Errorf("not Operation, %T", v)
+			return errors.Errorf("not Operation, %T", v)
 		}
 
-		return true, nil
+		return nil
 	}); err != nil {
 		return nil, e(err, "")
 	}
@@ -399,50 +431,66 @@ func (r *LocalFSReader) loadVoteproofs(item base.BlockMapItem, f io.Reader) ([]b
 func (r *LocalFSReader) loadTree(
 	item base.BlockMapItem,
 	f io.Reader,
-	callback func(interface{}) (tree.FixedtreeNode, error),
-) (tree.Fixedtree, error) {
+	callback func(interface{}) (fixedtree.Node, error),
+) (tr fixedtree.Tree, err error) {
 	if item.Num() < 1 {
-		return tree.Fixedtree{}, nil
+		return tr, nil
 	}
 
 	e := util.StringErrorFunc("failed to load tree")
 
-	tg := tree.NewFixedtreeGenerator(item.Num())
+	br := bufio.NewReader(f)
+	ht, err := r.loadTreeHint(br)
+	if err != nil {
+		return tr, e(err, "")
+	}
 
-	worker := util.NewErrgroupWorker(context.Background(), math.MaxInt32)
-	defer worker.Close()
+	nodes := make([]fixedtree.Node, item.Num())
+	if tr, err = fixedtree.NewTree(ht, nodes); err != nil {
+		return tr, e(err, "")
+	}
 
-	if err := r.loadRawItems(f, func(v interface{}) (bool, error) {
-		if err := worker.NewJob(func(context.Context, uint64) error {
-			node, err := callback(v)
+	if err := r.loadRawItems(
+		br,
+		func(b []byte) (interface{}, error) {
+			return unmarshalIndexedTreeNode(r.enc, b, ht)
+		},
+		func(_ uint64, v interface{}) error {
+			in := v.(indexedTreeNode)
+			n, err := callback(in.Node)
 			if err != nil {
 				return errors.Wrap(err, "")
 			}
 
-			if err := tg.Add(node); err != nil {
+			if err := tr.Set(in.Index, n); err != nil {
 				return errors.Wrap(err, "")
 			}
 
 			return nil
-		}); err != nil {
-			return false, errors.Wrap(err, "")
+		},
+	); err != nil {
+		return tr, e(err, "")
+	}
+
+	return tr, nil
+}
+
+func (*LocalFSReader) loadTreeHint(br *bufio.Reader) (hint.Hint, error) {
+end:
+	for {
+		s, err := br.ReadString('\n')
+		switch {
+		case err != nil:
+			return hint.Hint{}, errors.Wrap(err, "")
+		case len(s) < 1:
+			continue end
 		}
 
-		return true, nil
-	}); err != nil {
-		return tree.Fixedtree{}, e(err, "")
-	}
+		ht, err := hint.ParseHint(s)
+		if err != nil {
+			return hint.Hint{}, errors.Wrap(err, "failed to load tree hint")
+		}
 
-	worker.Done()
-
-	if err := worker.Wait(); err != nil {
-		return tree.Fixedtree{}, e(err, "")
-	}
-
-	switch tr, err := tg.Tree(); {
-	case err != nil:
-		return tree.Fixedtree{}, e(err, "")
-	default:
-		return tr, nil
+		return ht, nil
 	}
 }

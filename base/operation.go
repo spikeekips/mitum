@@ -9,12 +9,13 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
+	"github.com/spikeekips/mitum/util/fixedtree"
 	"github.com/spikeekips/mitum/util/hint"
-	"github.com/spikeekips/mitum/util/tree"
 	"github.com/spikeekips/mitum/util/valuehash"
 )
 
 var (
+	OperationFixedtreeHint              = hint.MustNewHint("operation-fixedtree-v0.0.1")
 	OperationFixedtreeNodeHint          = hint.MustNewHint("operation-fixedtree-node-v0.0.1")
 	BaseOperationProcessReasonErrorHint = hint.MustNewHint("operation-fixedtree-node-process-reason-v0.0.1")
 )
@@ -35,24 +36,21 @@ type OperationProcessor interface {
 }
 
 type OperationFixedtreeNode struct {
-	tree.BaseFixedtreeNode
+	fixedtree.BaseNode
 	inState bool
 	reason  OperationProcessReasonError
 }
 
 func NewOperationFixedtreeNode(
-	index uint64,
 	facthash util.Hash,
 	inState bool,
 	errorreason string,
 ) OperationFixedtreeNode {
-	return NewOperationFixedtreeNodeWithHash(index, facthash, nil, inState, errorreason)
+	return NewOperationFixedtreeNodeWithHash(facthash, inState, errorreason)
 }
 
 func NewOperationFixedtreeNodeWithHash(
-	index uint64,
 	facthash util.Hash,
-	hash []byte,
 	inState bool,
 	reason string,
 ) OperationFixedtreeNode {
@@ -67,9 +65,9 @@ func NewOperationFixedtreeNodeWithHash(
 	}
 
 	return OperationFixedtreeNode{
-		BaseFixedtreeNode: tree.NewBaseFixedtreeNodeWithHash(OperationFixedtreeNodeHint, index, k, hash),
-		inState:           inState,
-		reason:            operr,
+		BaseNode: fixedtree.NewBaseNode(k),
+		inState:  inState,
+		reason:   operr,
 	}
 }
 
@@ -89,21 +87,21 @@ func (no OperationFixedtreeNode) Reason() OperationProcessReasonError {
 	return no.reason
 }
 
-func (no OperationFixedtreeNode) SetHash(h []byte) tree.FixedtreeNode {
-	no.BaseFixedtreeNode = no.BaseFixedtreeNode.SetHash(h).(tree.BaseFixedtreeNode)
+func (no OperationFixedtreeNode) SetHash(h util.Hash) fixedtree.Node {
+	no.BaseNode = no.BaseNode.SetHash(h).(fixedtree.BaseNode)
 
 	return no
 }
 
 type operationFixedtreeNodeJSONMarshaler struct {
-	tree.BaseFixedtreeNodeJSONMarshaler
+	fixedtree.BaseNodeJSONMarshaler
 	Reason OperationProcessReasonError `json:"reason"`
 }
 
 func (no OperationFixedtreeNode) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(operationFixedtreeNodeJSONMarshaler{
-		BaseFixedtreeNodeJSONMarshaler: no.BaseFixedtreeNode.JSONMarshaler(),
-		Reason:                         no.reason,
+		BaseNodeJSONMarshaler: no.BaseNode.JSONMarshaler(),
+		Reason:                no.reason,
 	})
 }
 
@@ -114,10 +112,12 @@ type operationFixedtreeNodeJSONUnmarshaler struct {
 func (no *OperationFixedtreeNode) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	e := util.StringErrorFunc("failed to decode OperationFixedtreeNode")
 
-	var ub tree.BaseFixedtreeNode
+	var ub fixedtree.BaseNode
 	if err := enc.Unmarshal(b, &ub); err != nil {
 		return e(err, "")
 	}
+
+	no.BaseNode = ub
 
 	var u operationFixedtreeNodeJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
@@ -133,10 +133,9 @@ func (no *OperationFixedtreeNode) DecodeJSON(b []byte, enc *jsonenc.Encoder) err
 		if !ok {
 			return e(nil, "not OperationProcessReasonError, %T", hinter)
 		}
+
 		no.reason = i
 	}
-
-	no.BaseFixedtreeNode = ub
 
 	return nil
 }

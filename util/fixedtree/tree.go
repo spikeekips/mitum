@@ -14,6 +14,10 @@ type Tree struct {
 	nodes []Node
 }
 
+func EmptyTree() Tree {
+	return Tree{}
+}
+
 func NewTree(ht hint.Hint, nodes []Node) (Tree, error) {
 	if len(nodes) < 1 {
 		return Tree{}, errors.Errorf("empty ndoes")
@@ -64,6 +68,14 @@ func (t Tree) Len() int {
 	return len(t.nodes)
 }
 
+func (t Tree) Node(index uint64) Node {
+	if index >= uint64(t.Len()) {
+		return nil
+	}
+
+	return t.nodes[index]
+}
+
 func (t Tree) Root() util.Hash {
 	return t.nodes[0].Hash()
 }
@@ -82,6 +94,16 @@ func (t Tree) Traverse(f func(index uint64, node Node) (bool, error)) error {
 			return nil
 		}
 	}
+
+	return nil
+}
+
+func (t *Tree) Set(index uint64, n Node) error {
+	if index >= uint64(len(t.nodes)) {
+		return errors.Errorf("over size")
+	}
+
+	t.nodes[index] = n
 
 	return nil
 }

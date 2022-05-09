@@ -16,9 +16,6 @@ type testBlockReaders struct {
 	suite.Suite
 }
 
-func (t *testBlockReaders) SetupTest() {
-}
-
 func (t *testBlockReaders) TestNew() {
 	readers := NewBlockReaders()
 

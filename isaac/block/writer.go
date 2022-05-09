@@ -11,17 +11,16 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/fixedtree"
 	"github.com/spikeekips/mitum/util/localtime"
-	"github.com/spikeekips/mitum/util/tree"
-	"github.com/spikeekips/mitum/util/valuehash"
 )
 
 type FSWriter interface {
 	SetProposal(context.Context, base.ProposalSignedFact) error
-	SetOperation(context.Context, int, base.Operation) error
-	SetOperationsTree(context.Context, tree.Fixedtree) error
-	SetState(context.Context, int, base.State) error
-	SetStatesTree(context.Context, tree.Fixedtree) error
+	SetOperation(context.Context, uint64, base.Operation) error
+	SetOperationsTree(context.Context, *fixedtree.Writer) error
+	SetState(context.Context, uint64, base.State) error
+	SetStatesTree(context.Context, *fixedtree.Writer) error
 	SetManifest(context.Context, base.Manifest) error
 	SetINITVoteproof(context.Context, base.INITVoteproof) error
 	SetACCEPTVoteproof(context.Context, base.ACCEPTVoteproof) error
@@ -37,9 +36,9 @@ type Writer struct {
 	mergeDatabase func(isaac.BlockWriteDatabase) error
 	fswriter      FSWriter
 	manifest      base.Manifest
-	opstreeg      *tree.FixedtreeGenerator
-	opstree       tree.Fixedtree
-	ststree       tree.Fixedtree
+	opstreeg      *fixedtree.Writer
+	opstreeroot   util.Hash
+	ststreeroot   util.Hash
 	states        *util.LockedMap
 }
 
@@ -56,8 +55,6 @@ func NewWriter(
 		db:            db,
 		mergeDatabase: mergeDatabase,
 		fswriter:      fswriter,
-		opstree:       tree.EmptyFixedtree(),
-		ststree:       tree.EmptyFixedtree(),
 		states:        util.NewLockedMap(),
 	}
 }
@@ -66,15 +63,16 @@ func (w *Writer) SetOperationsSize(n uint64) {
 	w.Lock()
 	defer w.Unlock()
 
-	if n < 1 {
+	opstreeg, err := fixedtree.NewWriter(base.OperationFixedtreeHint, n)
+	if err != nil {
 		return
 	}
 
-	w.opstreeg = tree.NewFixedtreeGenerator(n)
+	w.opstreeg = opstreeg
 }
 
 func (w *Writer) SetProcessResult(
-	_ context.Context, index int, facthash util.Hash, instate bool, errorreason base.OperationProcessReasonError,
+	_ context.Context, index uint64, facthash util.Hash, instate bool, errorreason base.OperationProcessReasonError,
 ) error {
 	e := util.StringErrorFunc("failed to set operation")
 	if err := w.db.SetOperations([]util.Hash{facthash}); err != nil {
@@ -86,13 +84,8 @@ func (w *Writer) SetProcessResult(
 		msg = errorreason.Msg()
 	}
 
-	node := base.NewOperationFixedtreeNode(
-		uint64(index),
-		facthash,
-		instate,
-		msg,
-	)
-	if err := w.opstreeg.Add(node); err != nil {
+	node := base.NewOperationFixedtreeNode(facthash, instate, msg)
+	if err := w.opstreeg.Add(index, node); err != nil {
 		return e(err, "failed to set operation")
 	}
 
@@ -100,7 +93,7 @@ func (w *Writer) SetProcessResult(
 }
 
 func (w *Writer) SetStates(
-	ctx context.Context, index int, states []base.StateMergeValue, operation base.Operation,
+	ctx context.Context, index uint64, states []base.StateMergeValue, operation base.Operation,
 ) error {
 	e := util.StringErrorFunc("failed to set states")
 
@@ -158,16 +151,11 @@ func (w *Writer) closeStateValues(ctx context.Context) error {
 
 	if w.opstreeg != nil {
 		if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-			i, err := w.opstreeg.Tree()
-			if err != nil {
-				return err
-			}
-
-			if err := w.fswriter.SetOperationsTree(ctx, i); err != nil {
+			if err := w.fswriter.SetOperationsTree(ctx, w.opstreeg); err != nil {
 				return errors.Wrap(err, "")
 			}
 
-			w.opstree = i
+			w.opstreeroot = w.opstreeg.Root()
 
 			return nil
 		}); err != nil {
@@ -190,7 +178,11 @@ func (w *Writer) closeStateValues(ctx context.Context) error {
 		return strings.Compare(sortedkeys[i], sortedkeys[j]) < 0
 	})
 
-	tg := tree.NewFixedtreeGenerator(uint64(w.states.Len()))
+	tg, err := fixedtree.NewWriter(base.StateFixedtreeHint, uint64(w.states.Len()))
+	if err != nil {
+		return e(err, "")
+	}
+
 	states := make([]base.State, w.states.Len())
 
 	go func() {
@@ -200,7 +192,7 @@ func (w *Writer) closeStateValues(ctx context.Context) error {
 			v, _ := w.states.Value(sortedkeys[i])
 			st := v.(base.State)
 
-			index := i
+			index := uint64(i)
 			if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
 				nst, err := w.closeStateValue(tg, st, index)
 				if err != nil {
@@ -240,22 +232,22 @@ func (w *Writer) closeStateValues(ctx context.Context) error {
 }
 
 func (*Writer) closeStateValue(
-	tg *tree.FixedtreeGenerator, st base.State, index int,
+	tg *fixedtree.Writer, st base.State, index uint64,
 ) (base.State, error) {
 	stm, ok := st.(base.StateValueMerger)
 	if !ok {
-		return st, tg.Add(base.NewStateFixedtreeNode(uint64(index), st.Hash().String()))
+		return st, tg.Add(index, fixedtree.NewBaseNode(st.Hash().String()))
 	}
 
 	if err := stm.Close(); err != nil {
 		return nil, err
 	}
 
-	return stm, tg.Add(base.NewStateFixedtreeNode(uint64(index), stm.Hash().String()))
+	return stm, tg.Add(index, fixedtree.NewBaseNode(stm.Hash().String()))
 }
 
 func (w *Writer) saveStates(
-	ctx context.Context, tg *tree.FixedtreeGenerator, states []base.State,
+	ctx context.Context, tg *fixedtree.Writer, states []base.State,
 ) error {
 	e := util.StringErrorFunc("failed to set states tree")
 
@@ -278,18 +270,13 @@ func (w *Writer) saveStates(
 		}
 
 		if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-			switch i, err := tg.Tree(); {
-			case err != nil:
-				return err
-			default:
-				if err := w.fswriter.SetStatesTree(ctx, i); err != nil {
-					return errors.Wrap(err, "")
-				}
-
-				w.ststree = i
-
-				return nil
+			if err := w.fswriter.SetStatesTree(ctx, tg); err != nil {
+				return errors.Wrap(err, "")
 			}
+
+			w.ststreeroot = tg.Root()
+
+			return nil
 		}); err != nil {
 			return
 		}
@@ -331,8 +318,8 @@ func (w *Writer) Manifest(ctx context.Context, previous base.Manifest) (base.Man
 			w.proposal.Point().Height(),
 			previousHash,
 			w.proposal.Fact().Hash(),
-			valuehash.NewHashFromBytes(w.opstree.Root()),
-			valuehash.NewHashFromBytes(w.ststree.Root()),
+			w.opstreeroot,
+			w.ststreeroot,
 			suffrage,
 			localtime.UTCNow(),
 		)

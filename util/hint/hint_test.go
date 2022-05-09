@@ -32,6 +32,8 @@ func (t *testType) TestParse() {
 		err      string
 	}{
 		{name: "valid", s: "showme-v1.2.3+incompatible"},
+		{name: "ended with whitespace", s: "showme-v1.2.3 "},
+		{name: "started with whitespace", s: " showme-v1.2.3 "},
 		{name: "empty version #0", s: "showme", err: "invalid hint string"},
 		{name: "empty version #1", s: "showme-", err: "invalid hint string"},
 		{name: "inside v+hyphen", s: "sho-vwme-v1.2.3+incompatible", expected: "sho-vwme-v1.2.3+incompatible"},
