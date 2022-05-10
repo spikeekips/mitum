@@ -29,3 +29,33 @@ type ACCEPTVoteproof interface {
 	BallotMajority() ACCEPTBallotFact
 	BallotSignedFacts() []ACCEPTBallotSignedFact
 }
+
+func EnsureINITVoteproof(vp Voteproof) (INITVoteproof, error) {
+	e := util.StringErrorFunc("invalid INITVoteproof")
+
+	if vp.Point().Stage() != StageINIT {
+		return nil, e(util.InvalidError.Errorf("wrong point stage"), "")
+	}
+
+	i, ok := vp.(INITVoteproof)
+	if !ok {
+		return nil, e(util.InvalidError.Errorf("expected INITVoteproof, but %T", vp), "")
+	}
+
+	return i, nil
+}
+
+func EnsureACCEPTVoteproof(vp Voteproof) (ACCEPTVoteproof, error) {
+	e := util.StringErrorFunc("invalid ACCEPTVoteproof")
+
+	if vp.Point().Stage() != StageACCEPT {
+		return nil, e(util.InvalidError.Errorf("wrong point stage"), "")
+	}
+
+	i, ok := vp.(ACCEPTVoteproof)
+	if !ok {
+		return nil, e(util.InvalidError.Errorf("expected ACCEPTVoteproof, but %T", vp), "")
+	}
+
+	return i, nil
+}

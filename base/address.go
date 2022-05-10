@@ -40,6 +40,7 @@ func DecodeAddress(s string, enc encoder.Encoder) (Address, error) {
 	e := util.StringErrorFunc("failed to parse address")
 
 	i, err := enc.DecodeWithFixedHintType(s, AddressTypeSize)
+
 	switch {
 	case err != nil:
 		return nil, e(err, "failed to decode address")

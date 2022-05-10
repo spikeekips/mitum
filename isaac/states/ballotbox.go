@@ -473,7 +473,7 @@ func (vr *voterecords) countFromBallots() base.Voteproof {
 		i++
 	}
 
-	set, sfs, m := base.CountBallotSignedFacts(collectedsfs)
+	set, sfs, m, _ := base.CountBallotSignedFacts(collectedsfs)
 
 	vr.voted = map[string]base.Ballot{}
 

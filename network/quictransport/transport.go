@@ -17,7 +17,7 @@ import (
 )
 
 type (
-	TransportDialFunc    func(context.Context, ConnInfo) (quic.EarlySession, error)
+	TransportDialFunc    func(context.Context, ConnInfo) (quic.EarlyConnection, error)
 	TransportWriteFunc   func(context.Context, ConnInfo, []byte) error
 	TransportGetConnInfo func(*net.UDPAddr) ConnInfo
 )
@@ -71,7 +71,7 @@ func NewTransportWithQuicstream(
 
 	return NewTransport(
 		laddr,
-		func(ctx context.Context, ci ConnInfo) (quic.EarlySession, error) {
+		func(ctx context.Context, ci ConnInfo) (quic.EarlyConnection, error) {
 			return poolclient.Dial(
 				ctx,
 				ci.Address(),

@@ -8,10 +8,10 @@ import (
 )
 
 type BaseNode struct {
-	util.DefaultJSONMarshaled // BLOCK apply all json struct
 	hint.BaseHinter
-	addr Address
-	pub  Publickey
+	addr                      Address
+	pub                       Publickey
+	util.DefaultJSONMarshaled // BLOCK apply all json struct
 }
 
 func NewBaseNode(ht hint.Hint, pub Publickey, addr Address) BaseNode {
@@ -43,9 +43,9 @@ func (n BaseNode) HashBytes() []byte {
 }
 
 type BaseNodeJSONMarshaler struct {
-	hint.BaseHinter
 	Addr Address   `json:"address"`
 	Pub  Publickey `json:"publickey"`
+	hint.BaseHinter
 }
 
 func (n BaseNode) MarshalJSON() ([]byte, error) {

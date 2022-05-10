@@ -1,6 +1,7 @@
 package base
 
 import (
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -27,13 +28,23 @@ func IsValidINITBallot(bl INITBallot, networkID []byte) error {
 		return e(util.InvalidError.Errorf("INITBallotSignedFact expected, not %T", bl.SignedFact()), "")
 	}
 
-	switch bl.Voteproof().Point().Stage() {
+	switch bl.Voteproof().Point().Stage() { //nolint:exhaustive // state already checked
 	case StageINIT:
-		if err := checkINITVoteproofInINITBallot(bl, bl.Voteproof().(INITVoteproof)); err != nil {
+		ivp, err := EnsureINITVoteproof(bl.Voteproof())
+		if err != nil {
+			return e(err, "")
+		}
+
+		if err := checkINITVoteproofInINITBallot(bl, ivp); err != nil {
 			return e(err, "")
 		}
 	case StageACCEPT:
-		if err := checkACCEPTVoteproofInINITBallot(bl, bl.Voteproof().(ACCEPTVoteproof)); err != nil {
+		avp, err := EnsureACCEPTVoteproof(bl.Voteproof())
+		if err != nil {
+			return e(err, "")
+		}
+
+		if err := checkACCEPTVoteproofInINITBallot(bl, avp); err != nil {
 			return e(err, "")
 		}
 	}
@@ -49,7 +60,7 @@ func checkINITVoteproofInINITBallot(bl INITBallot, vp INITVoteproof) error {
 		return e(util.InvalidError.Errorf("init voteproof should not be in 0 round init ballot"), "")
 	case !vp.Point().Point.NextRound().Equal(bl.Point().Point):
 		return e(util.InvalidError.Errorf(
-			"wrong point of init voteproof; ballot(%q) == voteproof(%q)", bl.Point(), vp.Point()), "")
+			"next round not match; ballot(%q) == voteproof(%q)", bl.Point(), vp.Point()), "")
 	case vp.Result() != VoteResultDraw:
 		return e(util.InvalidError.Errorf("wrong vote result of init voteproof; %q", vp.Result()), "")
 	}
@@ -58,7 +69,7 @@ func checkINITVoteproofInINITBallot(bl INITBallot, vp INITVoteproof) error {
 }
 
 func checkACCEPTVoteproofInINITBallot(bl INITBallot, vp ACCEPTVoteproof) error {
-	e := util.StringErrorFunc("invalid init voteproof in init ballot")
+	e := util.StringErrorFunc("invalid accept voteproof in init ballot")
 
 	switch {
 	case vp.Result() == VoteResultMajority:
@@ -88,7 +99,7 @@ func checkVoteproofInACCEPTBallot(bl Ballot, vp INITVoteproof) error {
 	switch {
 	case !bl.Point().Point.Equal(vp.Point().Point):
 		return e(util.InvalidError.Errorf(
-			"wrong point of init voteproof; ballot(%q) == voteproof(%q)", bl.Point(), vp.Point()), "")
+			"not same point; ballot(%q) == voteproof(%q)", bl.Point(), vp.Point()), "")
 	case vp.Result() != VoteResultMajority:
 		return e(util.InvalidError.Errorf("init voteproof not majority result, %q", vp.Result()), "")
 	}
@@ -143,7 +154,11 @@ func IsValidINITBallotFact(fact INITBallotFact) error {
 				return nil
 			}
 
-			return fact.PreviousBlock().IsValid(b)
+			if err := fact.PreviousBlock().IsValid(b); err != nil {
+				return errors.Wrap(err, "")
+			}
+
+			return nil
 		}),
 		fact.Proposal(),
 	); err != nil {

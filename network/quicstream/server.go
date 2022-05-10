@@ -84,7 +84,7 @@ func (srv *Server) accept(ctx context.Context, listener quic.EarlyListener) {
 	}
 }
 
-func (srv *Server) handleSession(ctx context.Context, session quic.EarlySession) {
+func (srv *Server) handleSession(ctx context.Context, session quic.EarlyConnection) {
 	for {
 		stream, err := session.AcceptStream(ctx)
 		if err != nil {

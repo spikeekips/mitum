@@ -20,7 +20,7 @@ type (
 		addr string,
 		tlsconfig *tls.Config,
 		quicconfig *quic.Config,
-	) (quic.EarlySession, error)
+	) (quic.EarlyConnection, error)
 )
 
 type Client struct {
@@ -66,16 +66,16 @@ func NewClient(
 	}
 }
 
-func (c *Client) Session() quic.EarlySession {
+func (c *Client) Session() quic.EarlyConnection {
 	i, _ := c.session.Value()
 	if i == nil {
 		return nil
 	}
 
-	return i.(quic.EarlySession)
+	return i.(quic.EarlyConnection)
 }
 
-func (c *Client) Dial(ctx context.Context) (quic.EarlySession, error) {
+func (c *Client) Dial(ctx context.Context) (quic.EarlyConnection, error) {
 	session, err := c.dial(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "")
@@ -104,7 +104,7 @@ func (c *Client) Send(ctx context.Context, b []byte) (quic.Stream, error) {
 	return nil, e(err, "")
 }
 
-func (c *Client) send(ctx context.Context, session quic.EarlySession, b []byte) (quic.Stream, error) {
+func (c *Client) send(ctx context.Context, session quic.EarlyConnection, b []byte) (quic.Stream, error) {
 	e := util.StringErrorFunc("failed to send")
 
 	stream, err := session.OpenStreamSync(ctx)
@@ -124,7 +124,7 @@ func (c *Client) send(ctx context.Context, session quic.EarlySession, b []byte) 
 	return StreamResponse{stream}, nil
 }
 
-func (c *Client) dial(ctx context.Context) (quic.EarlySession, error) {
+func (c *Client) dial(ctx context.Context) (quic.EarlyConnection, error) {
 	c.Lock()
 	defer c.Unlock()
 
@@ -142,7 +142,7 @@ func (c *Client) dial(ctx context.Context) (quic.EarlySession, error) {
 		return nil, e(err, "")
 	}
 
-	return i.(quic.EarlySession), nil
+	return i.(quic.EarlyConnection), nil
 }
 
 func dial(
@@ -150,7 +150,7 @@ func dial(
 	addr string,
 	tlsconfig *tls.Config,
 	quicconfig *quic.Config,
-) (quic.EarlySession, error) {
+) (quic.EarlyConnection, error) {
 	return quic.DialAddrEarlyContext(ctx, addr, tlsconfig, quicconfig)
 }
 

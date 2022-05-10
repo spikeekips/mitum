@@ -16,14 +16,14 @@ import (
 var BaseStateHint = hint.MustNewHint("base-state-v0.0.1")
 
 type BaseState struct {
-	util.DefaultJSONMarshaled
-	hint.BaseHinter
 	h        util.Hash
 	previous util.Hash
 	height   Height
 	k        string
 	v        StateValue
 	ops      []util.Hash
+	util.DefaultJSONMarshaled
+	hint.BaseHinter
 }
 
 func NewBaseState(

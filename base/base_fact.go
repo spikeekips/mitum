@@ -48,23 +48,23 @@ func (fact BaseFact) IsValid([]byte) error {
 func (fact BaseFact) JSONMarshaler() BaseFactJSONMarshaler {
 	return BaseFactJSONMarshaler{
 		BaseHinter: fact.BaseHinter,
-		H:          fact.h,
-		T:          fact.t,
+		Hash:       fact.h,
+		Token:      fact.t,
 	}
 }
 
 func (fact *BaseFact) SetJSONUnmarshaler(u BaseFactJSONUnmarshaler) {
-	fact.h = u.H.Hash()
-	fact.t = u.T
+	fact.h = u.Hash.Hash()
+	fact.t = u.Token
 }
 
 type BaseFactJSONMarshaler struct {
 	hint.BaseHinter
-	H util.Hash `json:"hash"`
-	T Token     `json:"token"`
+	Hash  util.Hash `json:"hash"`
+	Token Token     `json:"token"`
 }
 
 type BaseFactJSONUnmarshaler struct {
-	H valuehash.HashDecoder `json:"hash"`
-	T Token                 `json:"token"`
+	Hash  valuehash.HashDecoder `json:"hash"`
+	Token Token                 `json:"token"`
 }

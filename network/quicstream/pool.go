@@ -25,7 +25,7 @@ func (p *PoolClient) Dial(
 	ctx context.Context,
 	addr *net.UDPAddr,
 	newClient func(*net.UDPAddr) *Client,
-) (quic.EarlySession, error) {
+) (quic.EarlyConnection, error) {
 	var found bool
 	var client *Client
 	_, _ = p.clients.Set(addr.String(), func(i interface{}) (interface{}, error) {
