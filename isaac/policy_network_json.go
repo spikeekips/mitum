@@ -10,8 +10,8 @@ import (
 )
 
 type NetworkPolicyStateValueJSONMarshaler struct {
-	hint.BaseHinter
 	Policy base.NetworkPolicy `json:"policy"`
+	hint.BaseHinter
 }
 
 func (s NetworkPolicyStateValue) MarshalJSON() ([]byte, error) {

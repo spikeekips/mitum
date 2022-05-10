@@ -10,9 +10,9 @@ import (
 
 // BaseOperation is basic form to make new Operation.
 type BaseOperation struct {
-	hint.BaseHinter
 	fact   Fact
 	signed []Signed
+	hint.BaseHinter
 }
 
 func NewBaseOperation(ht hint.Hint, fact Fact) BaseOperation {

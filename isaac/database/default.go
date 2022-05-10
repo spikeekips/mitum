@@ -16,16 +16,16 @@ import (
 )
 
 type Default struct {
-	sync.RWMutex
-	*logging.Logging
-	*util.ContextDaemon
-	encs                  *encoder.Encoders
 	enc                   encoder.Encoder
 	perm                  isaac.PermanentDatabase
 	newBlockWriteDatabase func(base.Height) (isaac.BlockWriteDatabase, error)
-	temps                 []isaac.TempDatabase // NOTE higher height will be prior
-	removed               []isaac.TempDatabase
-	mergeInterval         time.Duration
+	*logging.Logging
+	*util.ContextDaemon
+	encs          *encoder.Encoders
+	temps         []isaac.TempDatabase
+	removed       []isaac.TempDatabase
+	mergeInterval time.Duration
+	sync.RWMutex
 }
 
 func NewDefault(

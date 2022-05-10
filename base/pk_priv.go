@@ -25,11 +25,11 @@ const PrivatekeyMinSeedSize = 36
 
 // MPrivatekey is the default privatekey of mitum, it is based on BTC Privatekey.
 type MPrivatekey struct {
-	hint.BaseHinter
 	wif *btcutil.WIF
-	pub MPublickey
 	s   string
+	pub MPublickey
 	b   []byte
+	hint.BaseHinter
 }
 
 func NewMPrivatekey() MPrivatekey {

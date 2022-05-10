@@ -14,8 +14,8 @@ func NewNode(pub base.Publickey, addr base.Address) base.BaseNode {
 }
 
 type LocalNode struct {
-	base.BaseNode
 	priv base.Privatekey
+	base.BaseNode
 }
 
 func NewLocalNode(priv base.Privatekey, addr base.Address) LocalNode {

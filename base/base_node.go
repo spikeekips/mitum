@@ -8,10 +8,10 @@ import (
 )
 
 type BaseNode struct {
+	addr Address
+	pub  Publickey
+	util.DefaultJSONMarshaled
 	hint.BaseHinter
-	addr                      Address
-	pub                       Publickey
-	util.DefaultJSONMarshaled // BLOCK apply all json struct
 }
 
 func NewBaseNode(ht hint.Hint, pub Publickey, addr Address) BaseNode {

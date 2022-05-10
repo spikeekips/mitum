@@ -17,8 +17,8 @@ var (
 )
 
 type GenesisNetworkPolicyFact struct {
-	base.BaseFact
 	policy base.NetworkPolicy
+	base.BaseFact
 }
 
 func NewGenesisNetworkPolicyFact(policy base.NetworkPolicy) GenesisNetworkPolicyFact {

@@ -13,9 +13,9 @@ import (
 type JoiningHandler struct {
 	*baseHandler
 	lastManifest       func() (base.Manifest, bool, error)
-	newvoteproofLock   sync.Mutex
-	waitFirstVoteproof time.Duration
 	getSuffrage        isaac.GetSuffrageByBlockHeight
+	waitFirstVoteproof time.Duration
+	newvoteproofLock   sync.Mutex
 }
 
 func NewJoiningHandler(
@@ -384,8 +384,8 @@ func (st *JoiningHandler) nextBlock(avp base.ACCEPTVoteproof) {
 }
 
 type joiningSwitchContext struct {
-	baseSwitchContext
 	vp base.Voteproof
+	baseSwitchContext
 }
 
 func newJoiningSwitchContext(from StateType, vp base.Voteproof) joiningSwitchContext {

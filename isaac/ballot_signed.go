@@ -13,11 +13,11 @@ var (
 )
 
 type baseBallotSignedFact struct {
-	util.DefaultJSONMarshaled
-	hint.BaseHinter
 	fact   base.BallotFact
 	node   base.Address
 	signed base.BaseSigned
+	util.DefaultJSONMarshaled
+	hint.BaseHinter
 }
 
 func newBaseBallotSignedFact(ht hint.Hint, node base.Address, fact base.BallotFact) baseBallotSignedFact {

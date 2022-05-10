@@ -9,18 +9,18 @@ import (
 )
 
 type SuffrageJoinProcessor struct {
-	height                   base.Height
-	threshold                base.Threshold
-	suffrage                 map[string]base.Node
-	candidates               map[string]base.SuffrageCandidate
-	pubs                     []base.Publickey
-	sufst                    base.State // NOTE state of SuffrageStateValue
-	sufcst                   base.State // NOTE state of SuffrageCandidateStateValue
+	sufcst                   base.State
 	sufstv                   base.SuffrageStateValue
 	sufcstv                  base.SuffrageCandidateStateValue
-	preProcessConstraintFunc base.OperationProcessorProcessFunc
-	processConstraintFunc    base.OperationProcessorProcessFunc
+	sufst                    base.State
 	candidateInfo            base.SuffrageCandidate
+	candidates               map[string]base.SuffrageCandidate
+	processConstraintFunc    base.OperationProcessorProcessFunc
+	suffrage                 map[string]base.Node
+	preProcessConstraintFunc base.OperationProcessorProcessFunc
+	pubs                     []base.Publickey
+	height                   base.Height
+	threshold                base.Threshold
 }
 
 func NewSuffrageJoinProcessor(

@@ -12,14 +12,14 @@ import (
 )
 
 type baseVoteproofJSONMarshaler struct {
+	FinishedAt time.Time       `json:"finished_at"`
+	Majority   base.BallotFact `json:"majority"`
 	hint.BaseHinter
-	FinishedAt  time.Time               `json:"finished_at"`
-	Majority    base.BallotFact         `json:"majority"`
-	Point       base.StagePoint         `json:"point"`
 	Result      base.VoteResult         `json:"result"`
-	Threshold   base.Threshold          `json:"threshold"`
-	SignedFacts []base.BallotSignedFact `json:"signed_facts"`
 	ID          string                  `json:"id"`
+	SignedFacts []base.BallotSignedFact `json:"signed_facts"`
+	Point       base.StagePoint         `json:"point"`
+	Threshold   base.Threshold          `json:"threshold"`
 }
 
 func (vp baseVoteproof) MarshalJSON() ([]byte, error) {
@@ -37,12 +37,12 @@ func (vp baseVoteproof) MarshalJSON() ([]byte, error) {
 
 type baseVoteproofJSONUnmarshaler struct {
 	FinishedAt  localtime.Time    `json:"finished_at"`
-	Majority    json.RawMessage   `json:"majority"`
-	Point       base.StagePoint   `json:"point"`
 	Result      base.VoteResult   `json:"result"`
-	Threshold   base.Threshold    `json:"threshold"`
-	SignedFacts []json.RawMessage `json:"signed_facts"`
 	ID          string            `json:"id"`
+	Majority    json.RawMessage   `json:"majority"`
+	SignedFacts []json.RawMessage `json:"signed_facts"`
+	Point       base.StagePoint   `json:"point"`
+	Threshold   base.Threshold    `json:"threshold"`
 }
 
 func (vp *baseVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {

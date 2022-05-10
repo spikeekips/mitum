@@ -11,9 +11,9 @@ import (
 // Timers handles the multiple timers and controls them selectively.
 type Timers struct {
 	*logging.Logging
+	timers map[TimerID]Timer
 	sync.RWMutex
-	timers       map[ /* timer id */ TimerID]Timer
-	allowUnknown bool // if allowUnknown is true, new timer can be added and unknown timer is ignored.
+	allowUnknown bool
 }
 
 func NewTimers(ids []TimerID, allowUnknown bool) *Timers {

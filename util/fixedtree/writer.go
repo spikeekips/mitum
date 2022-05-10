@@ -17,9 +17,9 @@ var (
 type NodeWrite func(uint64, Node) error
 
 type Writer struct {
-	sync.RWMutex
-	ht    hint.Hint
 	nodes []Node
+	ht    hint.Hint
+	sync.RWMutex
 }
 
 func NewWriter(ht hint.Hint, size uint64) (*Writer, error) {

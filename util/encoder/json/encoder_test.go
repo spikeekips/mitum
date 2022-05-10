@@ -18,14 +18,14 @@ type sample struct {
 }
 
 type sampleNative struct {
-	hint.BaseHinter
 	A string
+	hint.BaseHinter
 	B int
 }
 
 type sampleJSONUnmarshaler struct {
-	hint.BaseHinter
 	A string
+	hint.BaseHinter
 	B int
 }
 
@@ -46,8 +46,8 @@ func (s *sampleJSONUnmarshaler) UnmarshalJSON(b []byte) error {
 }
 
 type sampleTextUnmarshaler struct {
-	hint.BaseHinter
 	A string
+	hint.BaseHinter
 	B int
 }
 
@@ -68,8 +68,8 @@ func (s *sampleTextUnmarshaler) UnmarshalText(b []byte) error {
 }
 
 type sampleDecodable struct {
-	hint.BaseHinter
 	A string
+	hint.BaseHinter
 	B int
 }
 
@@ -90,8 +90,8 @@ func (s *sampleDecodable) DecodeJSON(b []byte, _ *Encoder) error {
 }
 
 type sampleFixedType struct {
-	hint.BaseHinter
 	s string
+	hint.BaseHinter
 }
 
 func (s sampleFixedType) String() string {
@@ -167,8 +167,8 @@ func (t *testJSONEncoder) TestDecodeNoneHinter() {
 	v := sample{A: "A", B: 33}
 
 	b, err := t.enc.Marshal(struct {
-		hint.HintedJSONHead
 		sample
+		hint.HintedJSONHead
 	}{
 		HintedJSONHead: hint.NewHintedJSONHead(ht),
 		sample:         v,
@@ -191,8 +191,8 @@ func (t *testJSONEncoder) TestDecodeWithHintType() {
 	v := sample{A: "A", B: 33}
 
 	b, err := t.enc.Marshal(struct {
-		hint.HintedJSONHead
 		sample
+		hint.HintedJSONHead
 	}{
 		HintedJSONHead: hint.NewHintedJSONHead(ht),
 		sample:         v,

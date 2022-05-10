@@ -53,11 +53,11 @@ func (t *testVersion) TestParse() {
 	cases := []struct {
 		name       string
 		s          string
+		prerelease string
+		err        string
 		major      uint64
 		minor      uint64
 		patch      uint64
-		prerelease string
-		err        string
 	}{
 		{name: "simple", s: "v1.2.3", major: 1, minor: 2, patch: 3, prerelease: ""},
 		{name: "not v prefix", s: "1.2.3", err: "invalid version string"},

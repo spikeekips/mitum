@@ -11,9 +11,9 @@ type SetLogging interface {
 }
 
 type Logging struct {
+	f    func(zerolog.Context) zerolog.Context
 	l    zerolog.Logger
 	orig zerolog.Logger
-	f    func(zerolog.Context) zerolog.Context
 }
 
 func NewLogging(f func(zerolog.Context) zerolog.Context) *Logging {

@@ -13,15 +13,15 @@ import (
 var ManifestHint = hint.MustNewHint("manifest-v0.0.1")
 
 type Manifest struct {
-	hint.BaseHinter
+	proposedAt     time.Time
+	statesTree     util.Hash
 	h              util.Hash
-	height         base.Height
 	previous       util.Hash
 	proposal       util.Hash
 	operationsTree util.Hash
-	statesTree     util.Hash
 	suffrage       util.Hash
-	proposedAt     time.Time
+	hint.BaseHinter
+	height base.Height
 }
 
 func NewManifest(

@@ -11,15 +11,15 @@ import (
 )
 
 type ManifestJSONMarshaler struct {
+	ProposedAt     time.Time `json:"proposed_at"`
+	StatesTree     util.Hash `json:"states_tree"`
+	H              util.Hash `json:"hash"`
+	Previous       util.Hash `json:"previous"`
+	Proposal       util.Hash `json:"proposal"`
+	OperationsTree util.Hash `json:"operations_tree"`
+	Suffrage       util.Hash `json:"suffrage"`
 	hint.BaseHinter
-	H              util.Hash   `json:"hash"`
-	Height         base.Height `json:"height"`
-	Previous       util.Hash   `json:"previous"`
-	Proposal       util.Hash   `json:"proposal"`
-	OperationsTree util.Hash   `json:"operations_tree"`
-	StatesTree     util.Hash   `json:"states_tree"`
-	Suffrage       util.Hash   `json:"suffrage"`
-	ProposedAt     time.Time   `json:"proposed_at"`
+	Height base.Height `json:"height"`
 }
 
 func (m Manifest) MarshalJSON() ([]byte, error) {
@@ -37,14 +37,14 @@ func (m Manifest) MarshalJSON() ([]byte, error) {
 }
 
 type ManifestJSONUnmarshaler struct {
+	ProposedAt     localtime.Time        `json:"proposed_at"`
 	H              valuehash.HashDecoder `json:"hash"`
-	Height         base.HeightDecoder    `json:"height"`
 	Previous       valuehash.HashDecoder `json:"previous"`
 	Proposal       valuehash.HashDecoder `json:"proposal"`
 	OperationsTree valuehash.HashDecoder `json:"operations_tree"`
 	StatesTree     valuehash.HashDecoder `json:"states_tree"`
 	Suffrage       valuehash.HashDecoder `json:"suffrage"`
-	ProposedAt     localtime.Time        `json:"proposed_at"`
+	Height         base.HeightDecoder    `json:"height"`
 }
 
 func (m *Manifest) UnmarshalJSON(b []byte) error {

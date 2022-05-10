@@ -16,10 +16,10 @@ import (
 type LeveldbBlockWrite struct {
 	*baseLeveldb
 	st     *leveldbstorage.WriteStorage
+	mp     *util.Locked
+	sufstt *util.Locked
+	policy *util.Locked
 	height base.Height
-	mp     *util.Locked // NOTE blockmap
-	sufstt *util.Locked // NOTE suffrage state
-	policy *util.Locked // NetworkPolicy
 }
 
 func NewLeveldbBlockWrite(

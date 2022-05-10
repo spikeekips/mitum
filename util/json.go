@@ -13,8 +13,8 @@ type JSONSetMarshaled interface {
 }
 
 type DefaultJSONMarshaled struct {
-	ismarshaled bool
 	marshaled   []byte
+	ismarshaled bool
 }
 
 func (m DefaultJSONMarshaled) Marshaled() ([]byte, bool) {

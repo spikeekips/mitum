@@ -91,9 +91,9 @@ func (suf Suffrage) Len() int {
 }
 
 type SuffrageStateValue struct {
+	nodes []base.Node
 	hint.BaseHinter
-	height base.Height // NOTE suffrage height
-	nodes  []base.Node
+	height base.Height
 }
 
 func NewSuffrageStateValue(suffrageheight base.Height, nodes []base.Node) SuffrageStateValue {
@@ -150,8 +150,8 @@ func (s SuffrageStateValue) Suffrage() (base.Suffrage, error) {
 }
 
 type SuffrageCandidate struct {
-	hint.BaseHinter
 	base.Node
+	hint.BaseHinter
 	start    base.Height
 	deadline base.Height
 }

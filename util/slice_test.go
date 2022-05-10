@@ -15,9 +15,9 @@ func (t *testCheckSliceDuplicated) TestCases() {
 	var nilslice []int
 
 	cases := []struct {
-		name     string
 		s        interface{}
 		k        func(interface{}) string
+		name     string
 		expected bool
 	}{
 		{name: "invalid: string", s: "string", expected: false},

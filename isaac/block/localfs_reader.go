@@ -18,11 +18,11 @@ import (
 )
 
 type LocalFSReader struct {
-	root     string
 	enc      encoder.Encoder
 	mapl     *util.Locked
 	readersl *util.LockedMap
 	itemsl   *util.LockedMap
+	root     string
 }
 
 func NewLocalFSReader(

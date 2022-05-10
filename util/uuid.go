@@ -15,8 +15,8 @@ func UUID() uuid.UUID {
 }
 
 type ULID struct {
-	sync.Mutex
 	entropy io.Reader
+	sync.Mutex
 }
 
 func NewULID() *ULID {

@@ -23,16 +23,16 @@ type (
 )
 
 type Transport struct {
-	sync.RWMutex
+	streamch chan net.Conn
 	*logging.Logging
-	laddr        *net.UDPAddr // NOTE advertise local node address
+	laddr        *net.UDPAddr
 	dialf        TransportDialFunc
 	writef       TransportWriteFunc
 	packetch     chan *memberlist.Packet
-	streamch     chan net.Conn
 	conns        *util.LockedMap
-	shutdowned   bool
 	getconninfof TransportGetConnInfo
+	sync.RWMutex
+	shutdowned bool
 }
 
 func NewTransport(

@@ -29,15 +29,15 @@ type ProposalPool interface {
 }
 
 type BaseProposalSelector struct {
-	sync.Mutex
 	local            base.LocalNode
-	policy           NodePolicy
+	pool             ProposalPool
 	proposerSelector ProposerSelector
+	getLongDeadNodes func() []base.Address
 	maker            *ProposalMaker
 	getSuffrage      GetSuffrageByBlockHeight
-	getLongDeadNodes func() []base.Address
 	request          func(context.Context, base.Point, base.Address) (base.ProposalSignedFact, error)
-	pool             ProposalPool
+	policy           NodePolicy
+	sync.Mutex
 }
 
 func NewBaseProposalSelector(
@@ -235,11 +235,11 @@ func (p BlockBasedProposerSelector) Select(
 }
 
 type ProposalMaker struct {
-	sync.Mutex
 	local         base.LocalNode
 	policy        base.NodePolicy
-	getOperations func(context.Context) ([]util.Hash, error)
 	pool          ProposalPool
+	getOperations func(context.Context) ([]util.Hash, error)
+	sync.Mutex
 }
 
 func NewProposalMaker(

@@ -12,19 +12,19 @@ import (
 )
 
 type proposalFactJSONMarshaler struct {
-	base.BaseFactJSONMarshaler
-	Point      base.Point     `json:"point"`
-	Proposer   base.Address   `json:"proposer"`
-	Operations []util.Hash    `json:"operations"`
 	ProposedAt localtime.Time `json:"proposed_at"`
+	Proposer   base.Address   `json:"proposer"`
+	base.BaseFactJSONMarshaler
+	Operations []util.Hash `json:"operations"`
+	Point      base.Point  `json:"point"`
 }
 
 type proposalFactJSONUnmarshaler struct {
+	ProposedAt localtime.Time `json:"proposed_at"`
+	Proposer   string         `json:"proposer"`
 	base.BaseFactJSONUnmarshaler
-	Point      base.Point              `json:"point"`
-	Proposer   string                  `json:"proposer"`
 	Operations []valuehash.HashDecoder `json:"operations"`
-	ProposedAt localtime.Time          `json:"proposed_at"`
+	Point      base.Point              `json:"point"`
 }
 
 func (fact ProposalFact) MarshalJSON() ([]byte, error) {
@@ -67,15 +67,15 @@ func (fact *ProposalFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 }
 
 type proposalSignedFactJSONMarshaler struct {
-	hint.BaseHinter
 	Fact   base.ProposalFact `json:"fact"`
 	Signed base.BaseSigned   `json:"signed"`
+	hint.BaseHinter
 }
 
 type proposalSignedFactJSONUnmarshaler struct {
-	hint.BaseHinter
 	Fact   json.RawMessage `json:"fact"`
 	Signed json.RawMessage `json:"signed"`
+	hint.BaseHinter
 }
 
 func (sf ProposalSignedFact) MarshalJSON() ([]byte, error) {

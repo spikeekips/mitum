@@ -11,12 +11,12 @@ import (
 )
 
 type blockMapJSONMarshaler struct {
-	hint.BaseHinter
-	base.BaseNodeSignedJSONMarshaler
-	W        hint.Hint                                   `json:"writer"`
-	E        hint.Hint                                   `json:"encoder"`
 	Manifest base.Manifest                               `json:"manifest"`
 	M        map[base.BlockMapItemType]base.BlockMapItem `json:"items"`
+	base.BaseNodeSignedJSONMarshaler
+	hint.BaseHinter
+	W hint.Hint `json:"writer"`
+	E hint.Hint `json:"encoder"`
 }
 
 func (m BlockMap) MarshalJSON() ([]byte, error) {
@@ -43,10 +43,10 @@ func (m BlockMap) MarshalJSON() ([]byte, error) {
 }
 
 type blockMapJSONUnmarshaler struct {
+	M        map[base.BlockMapItemType]json.RawMessage `json:"items"`
+	Manifest json.RawMessage                           `json:"manifest"`
 	W        hint.Hint                                 `json:"writer"`
 	E        hint.Hint                                 `json:"encoder"`
-	Manifest json.RawMessage                           `json:"manifest"`
-	M        map[base.BlockMapItemType]json.RawMessage `json:"items"`
 }
 
 func (m *BlockMap) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {

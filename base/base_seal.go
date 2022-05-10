@@ -8,10 +8,10 @@ import (
 )
 
 type BaseSeal struct {
-	hint.BaseHinter
-	signed BaseSigned
 	h      util.Hash
+	signed BaseSigned
 	body   []SealBody
+	hint.BaseHinter
 }
 
 func NewBaseSeal(ht hint.Hint, body []SealBody) BaseSeal {

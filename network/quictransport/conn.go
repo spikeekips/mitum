@@ -13,17 +13,17 @@ import (
 )
 
 type qconn struct {
+	laddr  net.Addr
+	raddr  net.Addr
+	writef func(context.Context, []byte) (int, error)
+	closef func()
+	r      *io.PipeReader
+	w      *io.PipeWriter
+	dr     *util.Locked
+	dw     *util.Locked
 	sync.RWMutex
-	laddr     net.Addr
-	raddr     net.Addr
-	writef    func(context.Context, []byte) (int, error)
-	closef    func()
 	closeonce sync.Once
 	closed    bool
-	r         *io.PipeReader
-	w         *io.PipeWriter
-	dr        *util.Locked
-	dw        *util.Locked
 }
 
 func newQConn(

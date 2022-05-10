@@ -7,9 +7,9 @@ import (
 )
 
 type BaseSignedJSONMarshaler struct {
+	SignedAt  localtime.Time `json:"signed_at"`
 	Signer    Publickey      `json:"signer"`
 	Signature Signature      `json:"signature"`
-	SignedAt  localtime.Time `json:"signed_at"`
 }
 
 func (si BaseSigned) JSONMarshaler() BaseSignedJSONMarshaler {
@@ -25,9 +25,9 @@ func (si BaseSigned) MarshalJSON() ([]byte, error) {
 }
 
 type baseSignedJSONUnmarshaler struct {
+	SignedAt  localtime.Time `json:"signed_at"`
 	Signer    string         `json:"signer"`
 	Signature Signature      `json:"signature"`
-	SignedAt  localtime.Time `json:"signed_at"`
 }
 
 func (si *BaseSigned) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
@@ -51,8 +51,8 @@ func (si *BaseSigned) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 }
 
 type BaseNodeSignedJSONMarshaler struct {
-	BaseSignedJSONMarshaler
 	Node Address `json:"node"`
+	BaseSignedJSONMarshaler
 }
 
 func (si BaseNodeSigned) JSONMarshaler() BaseNodeSignedJSONMarshaler {

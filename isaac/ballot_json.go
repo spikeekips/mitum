@@ -10,9 +10,9 @@ import (
 )
 
 type baseBallotJSONMarshaler struct {
-	hint.BaseHinter
 	VP base.Voteproof        `json:"voteproof,omitempty"`
 	SF base.BallotSignedFact `json:"signed_fact"`
+	hint.BaseHinter
 }
 
 func (bl baseBallot) MarshalJSON() ([]byte, error) {

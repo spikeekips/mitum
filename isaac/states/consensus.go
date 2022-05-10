@@ -654,8 +654,8 @@ func (st *ConsensusHandler) saveBlock(avp base.ACCEPTVoteproof) error {
 }
 
 type consensusSwitchContext struct {
-	baseSwitchContext
 	ivp base.INITVoteproof
+	baseSwitchContext
 }
 
 func newConsensusSwitchContext(from StateType, ivp base.INITVoteproof) consensusSwitchContext {

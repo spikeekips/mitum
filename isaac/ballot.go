@@ -12,10 +12,10 @@ var (
 )
 
 type baseBallot struct {
-	util.DefaultJSONMarshaled
-	hint.BaseHinter
 	vp         base.Voteproof
 	signedFact base.BallotSignedFact
+	util.DefaultJSONMarshaled
+	hint.BaseHinter
 }
 
 func newBaseBallot(ht hint.Hint, vp base.Voteproof, signedFact base.BallotSignedFact) baseBallot {

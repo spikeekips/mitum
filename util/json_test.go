@@ -17,9 +17,9 @@ type noneMarshaledStruct struct {
 }
 
 type marshaledStruct struct {
-	DefaultJSONMarshaled
 	A string `json:"a"`
-	B int    `json:"b"`
+	DefaultJSONMarshaled
+	B int `json:"b"`
 }
 
 func (t *testJSONMarshaled) TestNoneMarshaled() {

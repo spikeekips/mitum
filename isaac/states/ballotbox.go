@@ -13,14 +13,14 @@ import (
 
 type Ballotbox struct {
 	getSuffrage                  isaac.GetSuffrageByBlockHeight
-	threshold                    base.Threshold
-	vrsLock                      sync.RWMutex
+	isValidVoteproofWithSuffrage func(base.Voteproof, base.Suffrage) error
 	vrs                          map[string]*voterecords
 	vpch                         chan base.Voteproof
-	lsp                          *util.Locked // stagepoint of last voteproof
-	countLock                    sync.Mutex
+	lsp                          *util.Locked
 	removed                      []*voterecords
-	isValidVoteproofWithSuffrage func(base.Voteproof, base.Suffrage) error
+	threshold                    base.Threshold
+	vrsLock                      sync.RWMutex
+	countLock                    sync.Mutex
 }
 
 func NewBallotbox(
@@ -322,19 +322,19 @@ end:
 }
 
 type voterecords struct {
-	sync.RWMutex
-	stagepoint                   base.StagePoint
+	m                            map[string]base.BallotFact
+	ballots                      map[string]base.Ballot
 	isValidVoteproofWithSuffrage func(base.Voteproof, base.Suffrage) error
 	getSuffrageFunc              isaac.GetSuffrageByBlockHeight
-	threshold                    base.Threshold
-	voted                        map[string]base.Ballot
-	set                          []string
-	m                            map[string]base.BallotFact
-	sfs                          []base.BallotSignedFact
 	nodes                        map[string]struct{}
-	f                            bool
-	ballots                      map[string]base.Ballot
+	voted                        map[string]base.Ballot
 	suf                          *util.Locked
+	set                          []string
+	sfs                          []base.BallotSignedFact
+	stagepoint                   base.StagePoint
+	threshold                    base.Threshold
+	sync.RWMutex
+	f bool
 }
 
 func newVoterecords(

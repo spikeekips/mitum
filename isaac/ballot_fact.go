@@ -39,9 +39,9 @@ func (fact baseBallotFact) hashBytes() []byte {
 }
 
 type INITBallotFact struct {
-	baseBallotFact
 	previousBlock util.Hash
 	proposal      util.Hash
+	baseBallotFact
 }
 
 func NewINITBallotFact(point base.Point, previousBlock, proposal util.Hash) INITBallotFact {
@@ -95,9 +95,9 @@ func (fact INITBallotFact) hash() util.Hash {
 }
 
 type ACCEPTBallotFact struct {
-	baseBallotFact
 	proposal util.Hash
 	newBlock util.Hash
+	baseBallotFact
 }
 
 func NewACCEPTBallotFact(point base.Point, proposal, newBlock util.Hash) ACCEPTBallotFact {

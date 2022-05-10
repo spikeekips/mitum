@@ -40,22 +40,22 @@ var (
 var ulid = util.NewULID()
 
 type LocalFSWriter struct {
-	sync.Mutex
-	hint.BaseHinter
-	id         string
-	root       string
-	height     base.Height
-	enc        encoder.Encoder
+	vps        [2]base.Voteproof
 	local      base.LocalNode
-	networkID  base.NetworkID
+	opsf       util.ChecksumWriter
+	stsf       util.ChecksumWriter
+	enc        encoder.Encoder
+	saved      *util.Locked
+	root       string
+	id         string
 	heightbase string
 	temp       string
 	m          BlockMap
-	vps        [2]base.Voteproof
-	lenops     uint64
-	opsf       util.ChecksumWriter
-	stsf       util.ChecksumWriter
-	saved      *util.Locked
+	networkID  base.NetworkID
+	hint.BaseHinter
+	lenops uint64
+	height base.Height
+	sync.Mutex
 }
 
 func NewLocalFSWriter(
@@ -626,8 +626,8 @@ func marshalIndexedTreeNode(enc encoder.Encoder, index uint64, n fixedtree.Node)
 }
 
 type indexedTreeNode struct {
-	Index uint64
 	Node  fixedtree.Node
+	Index uint64
 }
 
 func unmarshalIndexedTreeNode(enc encoder.Encoder, b []byte, ht hint.Hint) (in indexedTreeNode, _ error) {

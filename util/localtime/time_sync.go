@@ -21,12 +21,12 @@ var (
 
 // TimeSyncer tries to sync time to time server.
 type TimeSyncer struct {
-	sync.RWMutex
 	*logging.Logging
 	*util.ContextDaemon
 	server   string
 	offset   time.Duration
 	interval time.Duration
+	sync.RWMutex
 }
 
 // NewTimeSyncer creates new TimeSyncer

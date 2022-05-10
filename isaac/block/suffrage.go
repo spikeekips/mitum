@@ -11,11 +11,11 @@ import (
 var SuffrageProofHint = hint.MustNewHint("suffrage-proof-v0.0.1")
 
 type SuffrageProof struct {
-	hint.BaseHinter
 	m         base.BlockMap
 	st        base.State
-	proof     fixedtree.Proof
 	voteproof base.ACCEPTVoteproof
+	proof     fixedtree.Proof
+	hint.BaseHinter
 }
 
 func NewSuffrageProof(

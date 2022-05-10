@@ -9,14 +9,14 @@ import (
 )
 
 type ContextDaemon struct {
-	sync.RWMutex
+	ctx         context.Context
+	callbackCtx context.Context
 	*logging.Logging
-	ctxLock            sync.RWMutex
 	callback           func(context.Context) error
-	callbackCtx        context.Context
 	callbackCancelFunc func()
-	ctx                context.Context
 	stopfunc           func()
+	ctxLock            sync.RWMutex
+	sync.RWMutex
 }
 
 func NewContextDaemon(name string, startfunc func(context.Context) error) *ContextDaemon {

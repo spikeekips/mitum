@@ -86,8 +86,8 @@ func (s baseSwitchContext) MarshalZerologObject(e *zerolog.Event) {
 }
 
 type baseErrorSwitchContext struct {
-	baseSwitchContext
 	err error
+	baseSwitchContext
 }
 
 func newBaseErrorSwitchContext(from, next StateType, err error) baseErrorSwitchContext {

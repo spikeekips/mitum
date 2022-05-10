@@ -29,17 +29,17 @@ type FSWriter interface {
 }
 
 type Writer struct {
-	sync.RWMutex
-	proposal      base.ProposalSignedFact
-	getStateFunc  base.GetStateFunc
-	db            isaac.BlockWriteDatabase
-	mergeDatabase func(isaac.BlockWriteDatabase) error
-	fswriter      FSWriter
 	manifest      base.Manifest
-	opstreeg      *fixedtree.Writer
+	proposal      base.ProposalSignedFact
 	opstreeroot   util.Hash
+	db            isaac.BlockWriteDatabase
+	fswriter      FSWriter
 	ststreeroot   util.Hash
+	mergeDatabase func(isaac.BlockWriteDatabase) error
+	opstreeg      *fixedtree.Writer
+	getStateFunc  base.GetStateFunc
 	states        *util.LockedMap
+	sync.RWMutex
 }
 
 func NewWriter(

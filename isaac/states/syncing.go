@@ -15,13 +15,13 @@ import (
 var SyncerCanNotCancelError = util.NewError("can not cancel syncer")
 
 type SyncingHandler struct {
+	syncer isaac.Syncer
 	*baseHandler
 	newSyncer       func() isaac.Syncer
-	syncer          isaac.Syncer
-	finishedLock    sync.RWMutex
 	stuckcancel     func()
-	stuckcancellock sync.RWMutex
 	waitStuck       time.Duration
+	finishedLock    sync.RWMutex
+	stuckcancellock sync.RWMutex
 }
 
 func NewSyncingHandler(

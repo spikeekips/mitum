@@ -17,11 +17,11 @@ type (
 )
 
 type QuicstreamNodeNetworkHandlers struct {
-	local isaac.LocalNode
+	pool isaac.TempPoolDatabase
 	*baseNodeNetwork
-	pool          isaac.TempPoolDatabase
 	proposalMaker *isaac.ProposalMaker
 	lastSuffragef QuicstreamNodeNetworkHandlerLastSuffrageFunction
+	local         isaac.LocalNode
 }
 
 func NewQuicstreamNodeNetworkHandlers(

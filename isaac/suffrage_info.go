@@ -8,12 +8,12 @@ import (
 
 var SuffrageInfoHint = hint.MustNewHint("suffrage-info-v0.0.1")
 
-type SuffrageInfo struct { // BLOCK remove
-	hint.BaseHinter
+type SuffrageInfo struct {
 	state      util.Hash
-	height     base.Height
 	suffrage   []base.Node
 	candidates []base.SuffrageCandidate
+	hint.BaseHinter
+	height base.Height
 }
 
 func NewSuffrageNodesNetworkInfo(

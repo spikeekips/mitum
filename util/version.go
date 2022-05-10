@@ -10,10 +10,10 @@ import (
 
 type Version struct {
 	s          string
+	prerelease string
 	major      uint64
 	minor      uint64
 	patch      uint64
-	prerelease string
 }
 
 // EnsureParseVersion tries to parse version string, but skips to check

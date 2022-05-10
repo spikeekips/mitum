@@ -7,9 +7,9 @@ import (
 )
 
 type BaseFact struct {
-	hint.BaseHinter
 	h util.Hash
 	t Token
+	hint.BaseHinter
 }
 
 func NewBaseFact(ht hint.Hint, t Token) BaseFact {
@@ -59,9 +59,9 @@ func (fact *BaseFact) SetJSONUnmarshaler(u BaseFactJSONUnmarshaler) {
 }
 
 type BaseFactJSONMarshaler struct {
-	hint.BaseHinter
 	Hash  util.Hash `json:"hash"`
 	Token Token     `json:"token"`
+	hint.BaseHinter
 }
 
 type BaseFactJSONUnmarshaler struct {

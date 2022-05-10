@@ -10,8 +10,8 @@ import (
 )
 
 type Tree struct {
-	hint.BaseHinter
 	nodes []Node
+	hint.BaseHinter
 }
 
 func EmptyTree() Tree {

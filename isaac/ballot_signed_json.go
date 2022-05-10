@@ -10,17 +10,17 @@ import (
 )
 
 type baseBallotSignedFactJSONMarshaler struct {
-	hint.BaseHinter
 	Fact   base.BallotFact `json:"fact"`
 	Node   base.Address    `json:"node"`
 	Signed base.BaseSigned `json:"signed"`
+	hint.BaseHinter
 }
 
 type baseBallotSignedFactJSONUnmarshaler struct {
-	hint.BaseHinter
-	Fact   json.RawMessage `json:"fact"`
 	Node   string          `json:"node"`
+	Fact   json.RawMessage `json:"fact"`
 	Signed json.RawMessage `json:"signed"`
+	hint.BaseHinter
 }
 
 func (sf baseBallotSignedFact) MarshalJSON() ([]byte, error) {

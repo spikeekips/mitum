@@ -16,8 +16,8 @@ var (
 )
 
 type BaseStringAddress struct {
-	hint.BaseHinter
 	s string
+	hint.BaseHinter
 }
 
 func NewBaseStringAddressWithHint(ht hint.Hint, s string) BaseStringAddress {

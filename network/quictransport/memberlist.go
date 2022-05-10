@@ -20,18 +20,18 @@ import (
 )
 
 type Memberlist struct {
-	sync.Mutex
+	local Node
+	enc   encoder.Encoder
 	*logging.Logging
 	*util.ContextDaemon
-	local          Node
-	enc            encoder.Encoder
 	mconfig        *memberlist.Config
-	oneMemberLimit int
 	m              *memberlist.Memberlist
 	delegate       *Delegate
 	members        *membersPool
-	joinedLock     sync.Mutex
 	cicache        *util.GCacheObjectPool
+	oneMemberLimit int
+	sync.Mutex
+	joinedLock sync.Mutex
 }
 
 func NewMemberlist(

@@ -18,12 +18,12 @@ var BaseStateHint = hint.MustNewHint("base-state-v0.0.1")
 type BaseState struct {
 	h        util.Hash
 	previous util.Hash
-	height   Height
-	k        string
 	v        StateValue
+	k        string
 	ops      []util.Hash
 	util.DefaultJSONMarshaled
 	hint.BaseHinter
+	height Height
 }
 
 func NewBaseState(
@@ -150,13 +150,13 @@ func (s BaseState) hash() util.Hash {
 }
 
 type baseStateJSONMarshaler struct {
+	H   util.Hash   `json:"hash"`
+	P   util.Hash   `json:"previous"`
+	V   StateValue  `json:"value"`
+	K   string      `json:"key"`
+	OPS []util.Hash `json:"operations"`
 	hint.BaseHinter
-	H      util.Hash   `json:"hash"`
-	P      util.Hash   `json:"previous"`
-	Height Height      `json:"height"`
-	K      string      `json:"key"`
-	V      StateValue  `json:"value"`
-	OPS    []util.Hash `json:"operations"`
+	Height Height `json:"height"`
 }
 
 func (s BaseState) MarshalJSON() ([]byte, error) {
@@ -174,10 +174,10 @@ func (s BaseState) MarshalJSON() ([]byte, error) {
 type baseStateJSONUnmarshaler struct {
 	H      valuehash.HashDecoder   `json:"hash"`
 	P      valuehash.HashDecoder   `json:"previous"`
-	Height HeightDecoder           `json:"height"`
 	K      string                  `json:"key"`
 	V      json.RawMessage         `json:"value"`
 	OPS    []valuehash.HashDecoder `json:"operations"`
+	Height HeightDecoder           `json:"height"`
 }
 
 func (s *BaseState) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
@@ -209,12 +209,12 @@ func (s *BaseState) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 }
 
 type BaseStateValueMerger struct {
-	sync.RWMutex
 	State
-	height Height
 	value  StateValue
-	ops    []util.Hash
 	nst    State
+	ops    []util.Hash
+	height Height
+	sync.RWMutex
 }
 
 func NewBaseStateValueMerger(height Height, st State) *BaseStateValueMerger {
@@ -323,8 +323,8 @@ func (s *BaseStateValueMerger) MarshalJSON() ([]byte, error) {
 
 type BaseStateMergeValue struct {
 	StateValue
-	key    string
 	merger func(Height, State) StateValueMerger
+	key    string
 }
 
 func NewBaseStateMergeValue(

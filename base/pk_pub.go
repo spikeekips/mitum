@@ -14,10 +14,10 @@ import (
 
 // MPublickey is the default publickey of mitum, it is based on BTC Privatekey.
 type MPublickey struct {
-	hint.BaseHinter
 	k *btcec.PublicKey
 	s string
 	b []byte
+	hint.BaseHinter
 }
 
 func NewMPublickey(k *btcec.PublicKey) MPublickey {

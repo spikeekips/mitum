@@ -229,9 +229,9 @@ func (p *Point) UnmarshalJSON(b []byte) error {
 }
 
 type StagePoint struct {
+	stage Stage
 	util.DefaultJSONMarshaled
 	Point
-	stage Stage
 }
 
 func NewStagePoint(point Point, stage Stage) StagePoint {
@@ -303,8 +303,8 @@ func (p StagePoint) MarshalZerologObject(e *zerolog.Event) {
 }
 
 type stagePointJSONMarshaler struct {
-	pointJSONMarshaler
 	S Stage `json:"stage"`
+	pointJSONMarshaler
 }
 
 func (p StagePoint) MarshalJSON() ([]byte, error) {
@@ -318,8 +318,8 @@ func (p StagePoint) MarshalJSON() ([]byte, error) {
 }
 
 type stagePointJSONUnmarshaler struct {
-	pointJSONUnmarshaler
 	S Stage `json:"stage"`
+	pointJSONUnmarshaler
 }
 
 func (p *StagePoint) UnmarshalJSON(b []byte) error {

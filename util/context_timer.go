@@ -35,14 +35,14 @@ var (
 )
 
 type ContextTimer struct {
-	sync.RWMutex
+	callback func(int) (bool, error)
 	*logging.Logging
 	*ContextDaemon
-	id              TimerID
 	interval        func(int, time.Duration) time.Duration
+	id              TimerID
 	defaultInterval time.Duration
-	callback        func(int) (bool, error)
 	c               int
+	sync.RWMutex
 }
 
 func NewContextTimer(id TimerID, interval time.Duration, callback func(int) (bool, error)) *ContextTimer {

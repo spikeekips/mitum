@@ -19,10 +19,9 @@ var (
 )
 
 type SuffrageJoinPermissionFact struct {
-	base.BaseFact
 	candidate base.Address
-	// NOTE suffrage candidate state hash, when candidate is added to SuffrageCandidateState
-	state util.Hash
+	state     util.Hash
+	base.BaseFact
 }
 
 func NewSuffrageJoinPermissionFact(
@@ -80,9 +79,9 @@ func (fact SuffrageJoinPermissionFact) hash() util.Hash {
 }
 
 type SuffrageGenesisJoinPermissionFact struct {
-	base.BaseFact
 	node base.Address
 	pub  base.Publickey
+	base.BaseFact
 }
 
 func NewSuffrageGenesisJoinPermissionFact(

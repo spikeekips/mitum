@@ -11,11 +11,11 @@ import (
 )
 
 type Error struct {
-	stack
+	wrapped error
 	id      string
 	msg     string
 	extra   string
-	wrapped error
+	stack
 }
 
 func NewError(s string, a ...interface{}) Error {

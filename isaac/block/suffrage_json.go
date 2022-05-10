@@ -11,11 +11,11 @@ import (
 )
 
 type SuffrageProofJSONMarshaler struct {
-	hint.BaseHinter
 	M         base.BlockMap        `json:"map"`
 	St        base.State           `json:"state"`
-	Proof     fixedtree.Proof      `json:"proof"`
 	Voteproof base.ACCEPTVoteproof `json:"voteproof"`
+	Proof     fixedtree.Proof      `json:"proof"`
+	hint.BaseHinter
 }
 
 func (s SuffrageProof) MarshalJSON() ([]byte, error) {

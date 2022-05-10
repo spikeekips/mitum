@@ -10,9 +10,9 @@ import (
 
 // GzipWriter closes the underlying reader too.
 type GzipWriter struct {
-	sync.Mutex
 	io.Writer
 	gw *gzip.Writer
+	sync.Mutex
 }
 
 func NewGzipWriter(f io.Writer) *GzipWriter {

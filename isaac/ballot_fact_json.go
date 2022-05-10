@@ -18,27 +18,27 @@ type baseBallotFactJSONUnmarshaler struct {
 }
 
 type INITBallotFactJSONMarshaler struct {
-	baseBallotFactJSONMarshaler
 	PreviousBlock util.Hash `json:"previous_block"`
 	Proposal      util.Hash `json:"proposal"`
+	baseBallotFactJSONMarshaler
 }
 
 type INITBallotFactJSONUnmarshaler struct {
-	baseBallotFactJSONUnmarshaler
 	PreviousBlock valuehash.HashDecoder `json:"previous_block"`
 	Proposal      valuehash.HashDecoder `json:"proposal"`
+	baseBallotFactJSONUnmarshaler
 }
 
 type ACCEPTBallotFactJSONMarshaler struct {
-	baseBallotFactJSONMarshaler
 	Proposal util.Hash `json:"proposal"`
 	NewBlock util.Hash `json:"new_block"`
+	baseBallotFactJSONMarshaler
 }
 
 type ACCEPTBallotFactJSONUnmarshaler struct {
-	baseBallotFactJSONUnmarshaler
 	Proposal valuehash.HashDecoder `json:"proposal"`
 	NewBlock valuehash.HashDecoder `json:"new_block"`
+	baseBallotFactJSONUnmarshaler
 }
 
 func (fact baseBallotFact) jsonMarshaler() baseBallotFactJSONMarshaler {

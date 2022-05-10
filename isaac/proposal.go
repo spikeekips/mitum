@@ -17,11 +17,11 @@ var (
 )
 
 type ProposalFact struct {
-	base.BaseFact
-	point      base.Point
-	proposer   base.Address
-	operations []util.Hash
 	proposedAt time.Time
+	proposer   base.Address
+	base.BaseFact
+	operations []util.Hash
+	point      base.Point
 }
 
 func NewProposalFact(point base.Point, proposer base.Address, operations []util.Hash) ProposalFact {
@@ -86,10 +86,10 @@ func (fact ProposalFact) hash() util.Hash {
 }
 
 type ProposalSignedFact struct {
-	util.DefaultJSONMarshaled
-	hint.BaseHinter
 	fact   base.ProposalFact
 	signed base.BaseSigned
+	util.DefaultJSONMarshaled
+	hint.BaseHinter
 }
 
 func NewProposalSignedFact(fact ProposalFact) ProposalSignedFact {

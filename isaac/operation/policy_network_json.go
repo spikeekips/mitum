@@ -9,8 +9,8 @@ import (
 )
 
 type GenesisNetworkPolicyFactJSONMarshaler struct {
-	base.BaseFactJSONMarshaler
 	Policy base.NetworkPolicy `json:"policy"`
+	base.BaseFactJSONMarshaler
 }
 
 func (fact GenesisNetworkPolicyFact) MarshalJSON() ([]byte, error) {

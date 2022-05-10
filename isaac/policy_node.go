@@ -12,9 +12,9 @@ import (
 var NodePolicyHint = hint.MustNewHint("node-policy-v0.0.1")
 
 type NodePolicy struct {
+	networkID base.NetworkID
 	util.DefaultJSONMarshaled
 	hint.BaseHinter
-	networkID               base.NetworkID
 	threshold               base.Threshold
 	intervalBroadcastBallot time.Duration
 	waitProcessingProposal  time.Duration
@@ -109,8 +109,8 @@ func (p *NodePolicy) SetTimeoutRequestProposal(d time.Duration) *NodePolicy {
 }
 
 type nodePolicyJSONMarshaler struct {
-	hint.BaseHinter
 	NT base.NetworkID `json:"network_id"`
+	hint.BaseHinter
 	TH base.Threshold `json:"threshold"`
 	IB time.Duration  `json:"interval_broadcast_ballot"`
 	WP time.Duration  `json:"wait_processing_proposal"`

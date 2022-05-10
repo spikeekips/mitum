@@ -27,10 +27,10 @@ type ReadStorage interface {
 }
 
 type BaseStorage struct {
-	sync.Mutex
-	f   string
-	db  *leveldb.DB
 	str leveldbStorage.Storage
+	db  *leveldb.DB
+	f   string
+	sync.Mutex
 }
 
 func newBaseStorage(f string, str leveldbStorage.Storage, opt *leveldbOpt.Options) (*BaseStorage, error) {

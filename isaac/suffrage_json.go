@@ -10,9 +10,9 @@ import (
 )
 
 type suffrageStateValueJSONMarshaler struct {
+	Nodes []base.Node `json:"nodes"`
 	hint.BaseHinter
 	Height base.Height `json:"height"`
-	Nodes  []base.Node `json:"nodes"`
 }
 
 func (s SuffrageStateValue) MarshalJSON() ([]byte, error) {
@@ -24,8 +24,8 @@ func (s SuffrageStateValue) MarshalJSON() ([]byte, error) {
 }
 
 type suffrageStateValueJSONUnmarshaler struct {
-	Height base.HeightDecoder `json:"height"`
 	Nodes  []json.RawMessage  `json:"nodes"`
+	Height base.HeightDecoder `json:"height"`
 }
 
 func (s *SuffrageStateValue) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
@@ -53,8 +53,8 @@ func (s *SuffrageStateValue) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 }
 
 type SuffrageCandidateJSONMarshaler struct {
+	Node base.Node `json:"node"`
 	hint.BaseHinter
-	Node     base.Node   `json:"node"`
 	Start    base.Height `json:"start"`
 	Deadline base.Height `json:"deadline"`
 }

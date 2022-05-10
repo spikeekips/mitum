@@ -36,9 +36,9 @@ type OperationProcessor interface {
 }
 
 type OperationFixedtreeNode struct {
+	reason OperationProcessReasonError
 	fixedtree.BaseNode
 	inState bool
-	reason  OperationProcessReasonError
 }
 
 func NewOperationFixedtreeNode(
@@ -94,8 +94,8 @@ func (no OperationFixedtreeNode) SetHash(h util.Hash) fixedtree.Node {
 }
 
 type operationFixedtreeNodeJSONMarshaler struct {
-	fixedtree.BaseNodeJSONMarshaler
 	Reason OperationProcessReasonError `json:"reason"`
+	fixedtree.BaseNodeJSONMarshaler
 }
 
 func (no OperationFixedtreeNode) MarshalJSON() ([]byte, error) {
@@ -148,9 +148,9 @@ type OperationProcessReasonError interface {
 }
 
 type BaseOperationProcessReasonError struct {
-	hint.BaseHinter
 	id  string
 	msg string
+	hint.BaseHinter
 }
 
 func NewBaseOperationProcessReasonError(s string, a ...interface{}) BaseOperationProcessReasonError {
@@ -185,8 +185,8 @@ func (e BaseOperationProcessReasonError) Error() string {
 }
 
 type BaseOperationProcessReasonErrorJSONMarshaler struct {
-	hint.BaseHinter
 	Msg string `json:"message"`
+	hint.BaseHinter
 }
 
 func (e BaseOperationProcessReasonError) MarshalJSON() ([]byte, error) {

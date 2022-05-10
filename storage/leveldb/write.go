@@ -25,9 +25,9 @@ var writeOptions = &leveldbOpt.Options{
 }
 
 type WriteStorage struct {
-	sync.Mutex
 	*BaseStorage
 	batch *leveldb.Batch
+	sync.Mutex
 }
 
 // NewWriteStorage creates new leveldb storage.

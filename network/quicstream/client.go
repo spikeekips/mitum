@@ -24,15 +24,15 @@ type (
 )
 
 type Client struct {
-	sync.Mutex
+	dialf DialFunc
 	*logging.Logging
-	id           string
+	session      *util.Locked
 	addr         *net.UDPAddr
 	tlsconfig    *tls.Config
 	quicconfig   *quic.Config
-	dialf        DialFunc
 	streamWritef StreamWriteFunc
-	session      *util.Locked
+	id           string
+	sync.Mutex
 }
 
 func NewClient(

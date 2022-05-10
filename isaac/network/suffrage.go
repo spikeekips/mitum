@@ -21,12 +21,12 @@ type SuffrageCheckerCallback func(context.Context, base.SuffrageInfo)
 type SuffrageChecker struct {
 	*logging.Logging
 	*util.ContextDaemon
-	discoveries                []quictransport.ConnInfo
 	lastSuffrage               isaac.LastSuffrageFunc
-	minIntervalSuffrageChecker time.Duration
-	interval                   time.Duration
 	info                       *util.Locked
 	ncbs                       *util.Locked
+	discoveries                []quictransport.ConnInfo
+	minIntervalSuffrageChecker time.Duration
+	interval                   time.Duration
 }
 
 func NewSuffrageChecker(

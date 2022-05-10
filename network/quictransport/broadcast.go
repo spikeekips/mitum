@@ -6,9 +6,9 @@ import (
 )
 
 type Broadcast struct {
-	b        []byte
-	id       string
 	notifych chan struct{}
+	id       string
+	b        []byte
 }
 
 func NewBroadcast(b []byte, id string, notifych chan struct{}) *Broadcast {

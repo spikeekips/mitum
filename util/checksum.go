@@ -22,12 +22,12 @@ type ChecksumWriter interface {
 }
 
 type HashChecksumWriter struct {
-	sync.Mutex
-	fname    string
 	w        io.WriteCloser
 	h        hash.Hash
 	m        io.Writer
+	fname    string
 	checksum string
+	sync.Mutex
 }
 
 func NewHashChecksumWriter(fname string, w io.WriteCloser, h hash.Hash) *HashChecksumWriter {
@@ -94,11 +94,11 @@ type ChecksumReader interface {
 }
 
 type HashChecksumReader struct {
-	sync.Mutex
 	r        io.ReadCloser
 	h        hash.Hash
 	m        io.Reader
 	checksum string
+	sync.Mutex
 }
 
 func NewHashChecksumReader(r io.ReadCloser, h hash.Hash) *HashChecksumReader {

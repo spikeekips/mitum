@@ -21,10 +21,10 @@ type Encoder interface {
 type DecodeFunc func([]byte, hint.Hint) (interface{}, error)
 
 type DecodeDetail struct {
-	Hint     hint.Hint
+	Instance interface{}
 	Decode   DecodeFunc
 	Desc     string
-	Instance interface{}
+	Hint     hint.Hint
 }
 
 func (d DecodeDetail) IsValid([]byte) error {

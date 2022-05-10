@@ -7,8 +7,8 @@ import (
 type NilLockedValue struct{}
 
 type Locked struct {
-	sync.RWMutex
 	value interface{}
+	sync.RWMutex
 }
 
 func EmptyLocked() *Locked {
@@ -93,8 +93,8 @@ func (l *Locked) Set(f func(interface{}) (interface{}, error)) (interface{}, err
 }
 
 type LockedMap struct {
-	sync.RWMutex
 	m map[interface{}]interface{}
+	sync.RWMutex
 }
 
 func NewLockedMap() *LockedMap {

@@ -9,9 +9,9 @@ import (
 )
 
 type BaseOperationJSONMarshaler struct {
-	hint.BaseHinter
 	Fact   Fact     `json:"fact"`
 	Signed []Signed `json:"signed"`
+	hint.BaseHinter
 }
 
 func (op BaseOperation) JSONMarshaler() BaseOperationJSONMarshaler {

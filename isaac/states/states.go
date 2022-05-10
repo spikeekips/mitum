@@ -20,16 +20,16 @@ var (
 )
 
 type States struct {
+	cs handler
 	*logging.Logging
+	box      *Ballotbox
+	lvps     *LastVoteproofsHandler
+	statech  chan switchContext
+	vpch     chan base.Voteproof
+	handlers map[StateType]handler
 	*util.ContextDaemon
-	box       *Ballotbox
-	stateLock sync.RWMutex
-	statech   chan switchContext
-	vpch      chan base.Voteproof
-	handlers  map[StateType]handler
-	cs        handler
 	timers    *util.Timers
-	lvps      *LastVoteproofsHandler
+	stateLock sync.RWMutex
 }
 
 func NewStates(box *Ballotbox) *States {

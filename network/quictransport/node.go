@@ -37,12 +37,12 @@ type Node interface {
 }
 
 type BaseNode struct {
-	hint.BaseHinter
-	name     string
-	addr     *net.UDPAddr
 	joinedAt time.Time
-	meta     NodeMeta
+	addr     *net.UDPAddr
+	name     string
 	metab    []byte
+	hint.BaseHinter
+	meta NodeMeta
 }
 
 func NewNode(name string, addr *net.UDPAddr, meta NodeMeta) (BaseNode, error) {
@@ -165,8 +165,8 @@ func (n *BaseNode) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 }
 
 type NodeMeta struct {
+	node base.Address
 	hint.BaseHinter
-	node     base.Address
 	insecure bool
 }
 
@@ -187,9 +187,9 @@ func (n NodeMeta) Insecure() bool {
 }
 
 type nodeMetaJSONMmarshaler struct {
+	Node base.Address `json:"node"`
 	hint.BaseHinter
-	Node     base.Address `json:"node"`
-	Insecure bool         `json:"insecure"`
+	Insecure bool `json:"insecure"`
 }
 
 func (n NodeMeta) MarshalJSON() ([]byte, error) {

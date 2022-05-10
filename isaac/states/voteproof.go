@@ -8,10 +8,10 @@ import (
 )
 
 type LastVoteproofsHandler struct {
-	sync.RWMutex
 	ivp base.INITVoteproof
 	avp base.ACCEPTVoteproof
 	mvp base.Voteproof
+	sync.RWMutex
 }
 
 func NewLastVoteproofsHandler() *LastVoteproofsHandler {

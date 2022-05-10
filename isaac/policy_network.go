@@ -83,8 +83,8 @@ func (p *NetworkPolicy) UnmarshalJSON(b []byte) error {
 }
 
 type NetworkPolicyStateValue struct {
-	hint.BaseHinter
 	policy base.NetworkPolicy
+	hint.BaseHinter
 }
 
 func NewNetworkPolicyStateValue(policy base.NetworkPolicy) NetworkPolicyStateValue {

@@ -21,8 +21,8 @@ type Node interface {
 }
 
 type BaseNode struct {
-	key     string
 	h       util.Hash
+	key     string
 	isempty bool
 }
 
@@ -124,8 +124,8 @@ func (n BaseNode) String() string {
 }
 
 type BaseNodeJSONMarshaler struct {
-	K string    `json:"key,omitempty"`
 	H util.Hash `json:"hash,omitempty"`
+	K string    `json:"key,omitempty"`
 	E bool      `json:"isempty,omitempty"`
 }
 
@@ -147,8 +147,8 @@ func (n BaseNode) MarshalJSON() ([]byte, error) {
 }
 
 type baseNodeJSONUnmarshaler struct {
-	K string                `json:"key"`
 	H valuehash.HashDecoder `json:"hash"`
+	K string                `json:"key"`
 	E bool                  `json:"isempty"`
 }
 

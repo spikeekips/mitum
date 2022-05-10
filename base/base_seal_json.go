@@ -11,10 +11,10 @@ import (
 )
 
 type baseSealJSONMarshaler struct {
-	hint.BaseHinter
-	Signed BaseSigned `json:"signed"`
 	H      util.Hash  `json:"hash"`
+	Signed BaseSigned `json:"signed"`
 	Body   []SealBody `json:"body"`
+	hint.BaseHinter
 }
 
 func (sl BaseSeal) MarshalJSON() ([]byte, error) {

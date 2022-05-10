@@ -44,22 +44,22 @@ type ProposalProcessor interface {
 }
 
 type DefaultProposalProcessor struct {
-	sync.RWMutex
-	*logging.Logging
+	writer                BlockWriter
+	ivp                   base.INITVoteproof
 	proposal              base.ProposalSignedFact
 	previous              base.Manifest
-	writer                BlockWriter
+	newOperationProcessor NewOperationProcessorFunction
 	getStateFunc          base.GetStateFunc
 	getOperation          OperationProcessorGetOperationFunction
-	newOperationProcessor NewOperationProcessorFunction
-	opslock               sync.RWMutex
-	ops                   []base.Operation
-	cancel                func()
+	*logging.Logging
+	setLastVoteproofsFunc func(base.INITVoteproof, base.ACCEPTVoteproof) error
 	oprs                  *util.LockedMap
+	cancel                func()
+	ops                   []base.Operation
 	retrylimit            int
 	retryinterval         time.Duration
-	ivp                   base.INITVoteproof
-	setLastVoteproofsFunc func(base.INITVoteproof, base.ACCEPTVoteproof) error
+	opslock               sync.RWMutex
+	sync.RWMutex
 }
 
 func NewDefaultProposalProcessor(

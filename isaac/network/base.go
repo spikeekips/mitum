@@ -98,9 +98,9 @@ func (*baseNodeNetwork) readHint(b []byte) (hint.Hint, []byte, error) {
 }
 
 type RequestProposalBody struct {
-	hint.BaseHinter
-	Point    base.Point
 	Proposer base.Address
+	hint.BaseHinter
+	Point base.Point
 }
 
 func NewRequestProposalBody(point base.Point, proposer base.Address) RequestProposalBody {
@@ -126,8 +126,8 @@ func (body RequestProposalBody) IsValid([]byte) error {
 }
 
 type requestProposalBodyJSONUnmarshaler struct {
-	Point    base.Point
 	Proposer string
+	Point    base.Point
 }
 
 func (body *RequestProposalBody) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
@@ -151,8 +151,8 @@ func (body *RequestProposalBody) DecodeJSON(b []byte, enc *jsonenc.Encoder) erro
 }
 
 type ProposalBody struct {
-	hint.BaseHinter
 	Proposal util.Hash
+	hint.BaseHinter
 }
 
 func NewProposalBody(pr util.Hash) ProposalBody {

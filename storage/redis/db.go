@@ -11,9 +11,9 @@ import (
 )
 
 type Storage struct {
-	sync.RWMutex
 	client *redis.Client
 	prefix string
+	sync.RWMutex
 }
 
 func NewStorage(ctx context.Context, opt *redis.Options, prefix string) (*Storage, error) {

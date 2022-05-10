@@ -23,9 +23,9 @@ type NodeSigned interface {
 }
 
 type BaseSigned struct {
+	signedAt  time.Time
 	signer    Publickey
 	signature Signature
-	signedAt  time.Time
 }
 
 func NewBaseSigned(signer Publickey, signature Signature, signedAt time.Time) BaseSigned {
@@ -105,8 +105,8 @@ func (si BaseSigned) Verify(networkID NetworkID, b []byte) error {
 }
 
 type BaseNodeSigned struct {
-	BaseSigned
 	node Address
+	BaseSigned
 }
 
 func NewBaseNodeSigned(node Address, signer Publickey, signature Signature, signedAt time.Time) BaseNodeSigned {

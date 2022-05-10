@@ -43,9 +43,9 @@ var (
 )
 
 type baseLeveldb struct {
-	sync.Mutex
-	*baseDatabase
 	st leveldbstorage.ReadStorage
+	*baseDatabase
+	sync.Mutex
 }
 
 func newBaseLeveldb(

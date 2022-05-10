@@ -65,15 +65,15 @@ type (
 var WorkerCanceledError = NewError("context canceled in worker")
 
 type ParallelWorker struct {
-	sync.RWMutex
 	*logging.Logging
 	jobChan     chan interface{}
 	errChan     chan error
+	callbacks   []WorkerCallback
+	jobFinished int
 	bufsize     uint
 	jobCalled   uint
-	jobFinished int
-	callbacks   []WorkerCallback
 	lastCalled  int
+	sync.RWMutex
 }
 
 func NewParallelWorker(name string, bufsize uint) *ParallelWorker {
@@ -178,14 +178,14 @@ func (wk *ParallelWorker) IsFinished() bool {
 }
 
 type BaseSemWorker struct {
-	N          int64
-	Sem        *semaphore.Weighted
 	Ctx        context.Context
+	Sem        *semaphore.Weighted
 	Cancel     func()
-	JobCount   uint64
 	NewJobFunc func(context.Context, uint64, ContextWorkerCallback)
-	runonce    sync.Once
 	donech     chan time.Duration
+	N          int64
+	JobCount   uint64
+	runonce    sync.Once
 	closeonece sync.Once
 }
 

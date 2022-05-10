@@ -15,20 +15,20 @@ import (
 )
 
 type baseHandler struct {
+	local            base.LocalNode
+	ctx              context.Context
+	proposalSelector isaac.ProposalSelector
 	*logging.Logging
-	ctx                  context.Context
+	setLastVoteproofFunc func(base.Voteproof) bool
 	cancel               func()
-	local                base.LocalNode
-	policy               isaac.NodePolicy
-	proposalSelector     isaac.ProposalSelector
-	stt                  StateType
+	lastVoteproofFunc    func() LastVoteproofs
 	sts                  *States
-	timers               *util.Timers // NOTE only for testing
+	timers               *util.Timers
 	switchStateFunc      func(switchContext) error
 	broadcastBallotFunc  func(base.Ballot) error
-	lastVoteproofFunc    func() LastVoteproofs
-	setLastVoteproofFunc func(base.Voteproof) bool
 	voteFunc             func(base.Ballot) (bool, error)
+	stt                  StateType
+	policy               isaac.NodePolicy
 }
 
 func newBaseHandler(

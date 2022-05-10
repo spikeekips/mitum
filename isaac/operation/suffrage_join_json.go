@@ -8,9 +8,9 @@ import (
 )
 
 type SuffrageJoinPermissionFactJSONMarshaler struct {
-	base.BaseFactJSONMarshaler
 	Candidate base.Address
 	State     util.Hash
+	base.BaseFactJSONMarshaler
 }
 
 func (fact SuffrageJoinPermissionFact) MarshalJSON() ([]byte, error) {
@@ -22,9 +22,9 @@ func (fact SuffrageJoinPermissionFact) MarshalJSON() ([]byte, error) {
 }
 
 type SuffrageJoinPermissionFactJSONUnmarshaler struct {
-	base.BaseFactJSONUnmarshaler
-	Candidate string
 	State     valuehash.HashDecoder
+	Candidate string
+	base.BaseFactJSONUnmarshaler
 }
 
 func (fact *SuffrageJoinPermissionFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
@@ -50,9 +50,9 @@ func (fact *SuffrageJoinPermissionFact) DecodeJSON(b []byte, enc *jsonenc.Encode
 }
 
 type SuffrageGenesisJoinPermissionFactJSONMarshaler struct {
-	base.BaseFactJSONMarshaler
 	Node base.Address
 	Pub  base.Publickey
+	base.BaseFactJSONMarshaler
 }
 
 func (fact SuffrageGenesisJoinPermissionFact) MarshalJSON() ([]byte, error) {
@@ -64,9 +64,9 @@ func (fact SuffrageGenesisJoinPermissionFact) MarshalJSON() ([]byte, error) {
 }
 
 type SuffrageGenesisJoinPermissionFactJSONUnmarshaler struct {
-	base.BaseFactJSONUnmarshaler
 	Node string
 	Pub  string
+	base.BaseFactJSONUnmarshaler
 }
 
 func (fact *SuffrageGenesisJoinPermissionFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {

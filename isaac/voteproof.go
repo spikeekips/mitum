@@ -16,15 +16,15 @@ var (
 )
 
 type baseVoteproof struct {
-	util.DefaultJSONMarshaled
-	hint.BaseHinter
 	finishedAt time.Time
 	majority   base.BallotFact
-	point      base.StagePoint
-	result     base.VoteResult
-	threshold  base.Threshold
-	sfs        []base.BallotSignedFact
-	id         string
+	hint.BaseHinter
+	result base.VoteResult
+	id     string
+	util.DefaultJSONMarshaled
+	sfs       []base.BallotSignedFact
+	point     base.StagePoint
+	threshold base.Threshold
 }
 
 func newBaseVoteproof(

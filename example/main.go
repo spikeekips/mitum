@@ -120,16 +120,16 @@ func (cmd *initCommand) Run() error {
 type runCommand struct {
 	Address              launch.AddressFlag `arg:"" name:"address" help:"node address"`
 	local                base.LocalNode
-	nodePolicy           isaac.NodePolicy
 	db                   isaac.Database
 	perm                 isaac.PermanentDatabase
+	proposalSelector     *isaac.BaseProposalSelector
 	pool                 *isaacdatabase.TempPool
 	getSuffrage          func(blockheight base.Height) (base.Suffrage, bool, error)
 	getManifest          func(height base.Height) (base.Manifest, error)
-	proposalSelector     *isaac.BaseProposalSelector
 	getLastManifest      func() (base.Manifest, bool, error)
 	newProposalProcessor newProposalProcessorFunc
 	getProposal          func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error)
+	nodePolicy           isaac.NodePolicy
 }
 
 func (cmd *runCommand) Run() error {

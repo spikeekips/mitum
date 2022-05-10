@@ -28,12 +28,12 @@ var (
 var BlockDirectoryHeightFormat = "%021s"
 
 type BlockMap struct {
-	hint.BaseHinter
-	base.BaseNodeSigned
-	writer   hint.Hint
-	encoder  hint.Hint
 	manifest base.Manifest
 	m        *util.LockedMap
+	base.BaseNodeSigned
+	hint.BaseHinter
+	writer  hint.Hint
+	encoder hint.Hint
 }
 
 func NewBlockMap(writer, encoder hint.Hint) BlockMap {

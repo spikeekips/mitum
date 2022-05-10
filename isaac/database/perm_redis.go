@@ -38,10 +38,10 @@ var (
 )
 
 type RedisPermanent struct {
-	sync.Mutex
 	*baseDatabase
 	*basePermanent
 	st *redisstorage.Storage
+	sync.Mutex
 }
 
 func NewRedisPermanent(
