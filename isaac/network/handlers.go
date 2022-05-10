@@ -50,6 +50,7 @@ func (c *QuicstreamNodeNetworkHandlers) RequestProposal(_ net.Addr, r io.Reader,
 	}
 
 	hinter, err := c.readHinter(b)
+
 	switch {
 	case err != nil:
 		return e(err, "")
@@ -58,6 +59,7 @@ func (c *QuicstreamNodeNetworkHandlers) RequestProposal(_ net.Addr, r io.Reader,
 	}
 
 	body, ok := hinter.(RequestProposalBody)
+
 	switch {
 	case !ok:
 		return e(nil, "not RequestProposalBody: %T", hinter)
@@ -70,6 +72,7 @@ func (c *QuicstreamNodeNetworkHandlers) RequestProposal(_ net.Addr, r io.Reader,
 	// BLOCK if point is too old, returns error
 
 	pr, err := c.getOrCreateProposal(body.Point, body.Proposer)
+
 	switch {
 	case err != nil:
 		return e(err, "")
@@ -118,6 +121,7 @@ func (c *QuicstreamNodeNetworkHandlers) Proposal(_ net.Addr, r io.Reader, w io.W
 	}
 
 	hinter, err := c.readHinter(b)
+
 	switch {
 	case err != nil:
 		return e(err, "")
@@ -126,6 +130,7 @@ func (c *QuicstreamNodeNetworkHandlers) Proposal(_ net.Addr, r io.Reader, w io.W
 	}
 
 	body, ok := hinter.(ProposalBody)
+
 	switch {
 	case !ok:
 		return e(nil, "not ProposalBody: %T", hinter)
@@ -136,6 +141,7 @@ func (c *QuicstreamNodeNetworkHandlers) Proposal(_ net.Addr, r io.Reader, w io.W
 	}
 
 	pr, found, err := c.pool.Proposal(body.Proposal)
+
 	switch {
 	case err != nil:
 		return err

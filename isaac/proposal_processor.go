@@ -90,8 +90,8 @@ func NewDefaultProposalProcessor(
 		ops:                   make([]base.Operation, len(proposal.ProposalFact().Operations())),
 		cancel:                func() {},
 		oprs:                  util.NewLockedMap(),
-		retrylimit:            15,
-		retryinterval:         time.Millisecond * 600,
+		retrylimit:            15,                     //nolint:gomnd //...
+		retryinterval:         time.Millisecond * 600, //nolint:gomnd //...
 	}, nil
 }
 
@@ -134,8 +134,7 @@ func (p *DefaultProposalProcessor) Process(ctx context.Context, vp base.INITVote
 
 func (p *DefaultProposalProcessor) Save(ctx context.Context, avp base.ACCEPTVoteproof) error {
 	if err := util.Retry(ctx, func() (bool, error) {
-		err := p.save(ctx, avp)
-		switch {
+		switch err := p.save(ctx, avp); {
 		case err == nil:
 			return false, nil
 		case errors.Is(err, StopProcessingRetryError):
@@ -254,6 +253,7 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) (err e
 	if err != nil {
 		return e(err, "")
 	}
+
 	defer done()
 
 	worker := util.NewErrgroupWorker(wctx, math.MaxInt32)
@@ -263,11 +263,14 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) (err e
 		defer worker.Done()
 
 		ophs := p.proposal.ProposalFact().Operations()
+
 		for i := range ophs {
 			i := i
 			h := ophs[i]
+
 			if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
 				op, err := p.collectOperation(ctx, h)
+
 				switch {
 				case err == nil:
 				case errors.Is(err, InvalidOperationInProcessorError):
@@ -299,6 +302,7 @@ func (p *DefaultProposalProcessor) collectOperation(ctx context.Context, h util.
 	e := util.StringErrorFunc("failed to collect operation, %q", h)
 
 	var op base.Operation
+
 	if err := p.retry(ctx, func() (bool, error) {
 		switch j, err := p.getOperation(ctx, h); {
 		case err == nil:
@@ -330,6 +334,7 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context) error 
 	if err != nil {
 		return e(err, "")
 	}
+
 	defer done()
 
 	worker := util.NewErrgroupWorker(wctx, math.MaxInt32)
@@ -339,6 +344,7 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context) error 
 
 	gopsindex := -1
 	gvalidindex := -1
+
 	for i := range ops {
 		op := ops[i]
 		if op == nil {
@@ -350,7 +356,8 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context) error 
 
 		if i, ok := op.(ReasonProcessedOperation); ok {
 			if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-				return p.writer.SetProcessResult(ctx, uint64(opsindex), i.FactHash(), false, i.Reason())
+				return p.writer.SetProcessResult( //nolint:wrapcheck //...
+					ctx, uint64(opsindex), i.FactHash(), false, i.Reason())
 			}); err != nil {
 				return e(err, "")
 			}
@@ -360,8 +367,9 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context) error 
 
 		gvalidindex++
 		validindex := gvalidindex
+
 		if err := p.workOperation(wctx, worker, uint64(opsindex), uint64(validindex), op); err != nil {
-			if !errors.Is(err, util.WorkerCanceledError) {
+			if !errors.Is(err, util.ErrWorkerCanceled) {
 				return e(err, "")
 			}
 
@@ -408,8 +416,10 @@ func (p *DefaultProposalProcessor) doPreProcessOperation(
 	e := util.StringErrorFunc("failed to pre process operation, %q", op.Fact().Hash())
 
 	var errorreason base.OperationProcessReasonError
+
 	if err := p.retry(ctx, func() (bool, error) {
 		f, err := p.getPreProcessor(ctx, op)
+
 		switch {
 		case err != nil:
 			return false, err
@@ -445,9 +455,11 @@ func (p *DefaultProposalProcessor) doProcessOperation(
 
 	var errorreason base.OperationProcessReasonError
 	var stvs []base.StateMergeValue
+
 	if err := p.retry(ctx, func() (bool, error) {
 		if stvs == nil {
 			f, err := p.getProcessor(ctx, op)
+
 			switch {
 			case err != nil:
 				return false, err
@@ -456,6 +468,7 @@ func (p *DefaultProposalProcessor) doProcessOperation(
 			}
 
 			i, j, err := f(ctx)
+
 			switch {
 			case err == nil:
 				stvs = i
@@ -505,12 +518,12 @@ func (p *DefaultProposalProcessor) getPreProcessor(ctx context.Context, op base.
 		return nil, errors.Wrap(err, "failed to get OperationProcessor for PreProcess")
 	case found:
 		return func(ctx context.Context) (base.OperationProcessReasonError, error) {
-			return opp.PreProcess(ctx, op, p.getStateFunc)
+			return opp.PreProcess(ctx, op, p.getStateFunc) //nolint:wrapcheck //...
 		}, nil
 	}
 
 	return func(ctx context.Context) (base.OperationProcessReasonError, error) {
-		return op.PreProcess(ctx, p.getStateFunc)
+		return op.PreProcess(ctx, p.getStateFunc) //nolint:wrapcheck //...
 	}, nil
 }
 
@@ -526,12 +539,12 @@ func (p *DefaultProposalProcessor) getProcessor(ctx context.Context, op base.Ope
 		return nil, errors.Wrap(err, "failed to get OperationProcessor for Process")
 	case found:
 		return func(ctx context.Context) ([]base.StateMergeValue, base.OperationProcessReasonError, error) {
-			return opp.Process(ctx, op, p.getStateFunc)
+			return opp.Process(ctx, op, p.getStateFunc) //nolint:wrapcheck //...
 		}, nil
 	}
 
 	return func(ctx context.Context) ([]base.StateMergeValue, base.OperationProcessReasonError, error) {
-		return op.Process(ctx, p.getStateFunc)
+		return op.Process(ctx, p.getStateFunc) //nolint:wrapcheck //...
 	}, nil
 }
 
@@ -574,7 +587,7 @@ func (p *DefaultProposalProcessor) getOperationProcessor(ctx context.Context, ht
 		return nil, false, nil
 	}
 
-	return j.(base.OperationProcessor), true, nil
+	return j.(base.OperationProcessor), true, nil //nolint:forcetypeassert //...
 }
 
 func (p *DefaultProposalProcessor) wait(ctx context.Context) (

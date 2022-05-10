@@ -33,7 +33,7 @@ func NewProposalFact(point base.Point, proposer base.Address, operations []util.
 		proposedAt: localtime.UTCNow(),
 	}
 
-	fact.SetHash(fact.hash())
+	fact.SetHash(fact.generateHash())
 
 	return fact
 }
@@ -65,19 +65,20 @@ func (fact ProposalFact) IsValid([]byte) error {
 		return e(err, "")
 	}
 
-	if !fact.Hash().Equal(fact.hash()) {
-		return util.InvalidError.Errorf("wrong hash of ProposalFact")
+	if !fact.Hash().Equal(fact.generateHash()) {
+		return util.ErrInvalid.Errorf("wrong hash of ProposalFact")
 	}
 
 	return nil
 }
 
-func (fact ProposalFact) hash() util.Hash {
+func (fact ProposalFact) generateHash() util.Hash {
 	bs := make([]util.Byter, len(fact.operations)+4)
 	bs[0] = util.BytesToByter(fact.Token())
 	bs[1] = fact.point
 	bs[2] = fact.proposer
 	bs[3] = localtime.New(fact.proposedAt)
+
 	for i := range fact.operations {
 		bs[i+3] = fact.operations[i]
 	}
@@ -101,7 +102,7 @@ func NewProposalSignedFact(fact ProposalFact) ProposalSignedFact {
 
 func (sf ProposalSignedFact) IsValid(networkID []byte) error {
 	if err := base.IsValidProposalSignedFact(sf, networkID); err != nil {
-		return util.InvalidError.Wrapf(err, "invalid ProposalSignedFact")
+		return util.ErrInvalid.Wrapf(err, "invalid ProposalSignedFact")
 	}
 
 	return nil

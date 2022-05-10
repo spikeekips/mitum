@@ -28,9 +28,9 @@ func (p *PoolClient) Dial(
 ) (quic.EarlyConnection, error) {
 	var found bool
 	var client *Client
-	_, _ = p.clients.Set(addr.String(), func(i interface{}) (interface{}, error) {
+	_, _ = p.clients.Set(addr.String(), func(i interface{}) (interface{}, error) { //nolint:errcheck //...
 		if !util.IsNilLockedValue(i) {
-			item := i.(*poolClientItem)
+			item := i.(*poolClientItem) //nolint:forcetypeassert // ...
 			item.accessed = time.Now()
 
 			client = item.client
@@ -41,6 +41,7 @@ func (p *PoolClient) Dial(
 		}
 
 		client = newClient(addr)
+
 		return &poolClientItem{
 			client:   client,
 			accessed: time.Now(),
@@ -68,9 +69,9 @@ func (p *PoolClient) Send(
 	newClient func(*net.UDPAddr) *Client,
 ) (quic.Stream, error) {
 	var client *Client
-	_, _ = p.clients.Set(addr.String(), func(i interface{}) (interface{}, error) {
+	_, _ = p.clients.Set(addr.String(), func(i interface{}) (interface{}, error) { //nolint:errcheck //...
 		if !util.IsNilLockedValue(i) {
-			item := i.(*poolClientItem)
+			item := i.(*poolClientItem) //nolint:forcetypeassert // ...
 			item.accessed = time.Now()
 
 			client = item.client
@@ -79,6 +80,7 @@ func (p *PoolClient) Send(
 		}
 
 		client = newClient(addr)
+
 		return &poolClientItem{
 			client:   client,
 			accessed: time.Now(),
@@ -101,18 +103,19 @@ func (p *PoolClient) onerror(addr *net.UDPAddr, c *Client, err error) {
 	}
 
 	var client *Client
+
 	switch i, found := p.clients.Value(addr.String()); {
 	case !found:
 		return
 	default:
-		client = i.(*poolClientItem).client
+		client = i.(*poolClientItem).client //nolint:forcetypeassert // ...
 	}
 
 	if client.id != c.id {
 		return
 	}
 
-	_ = p.clients.Remove(addr.String(), nil)
+	_ = p.clients.Remove(addr.String(), nil) //nolint:errcheck //...
 
 	if p.onerrorf != nil {
 		p.onerrorf(addr, c, err)
@@ -124,9 +127,9 @@ func (p *PoolClient) Clean(cleanDuration time.Duration) int {
 
 	var n int
 	p.clients.Traverse(func(k interface{}, v interface{}) bool {
-		item := v.(*poolClientItem)
+		item := v.(*poolClientItem) //nolint:forcetypeassert // ...
 		if time.Since(item.accessed) > cleanDuration {
-			removeds[n] = k.(string)
+			removeds[n] = k.(string) //nolint:forcetypeassert // ...
 			n++
 		}
 
@@ -138,7 +141,7 @@ func (p *PoolClient) Clean(cleanDuration time.Duration) int {
 	}
 
 	for i := range removeds[:n] {
-		_ = p.clients.Remove(removeds[i], nil)
+		_ = p.clients.Remove(removeds[i], nil) //nolint:errcheck //...
 	}
 
 	return n

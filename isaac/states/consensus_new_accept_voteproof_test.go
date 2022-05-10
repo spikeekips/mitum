@@ -466,7 +466,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndHigherHeight
 
 				return pr, nil
 			}
-			return nil, util.NotFoundError.Call()
+			return nil, util.ErrNotFound.Call()
 		}
 	})
 
@@ -525,7 +525,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndHigherRound(
 
 				return pr, nil
 			}
-			return nil, util.NotFoundError.Call()
+			return nil, util.ErrNotFound.Call()
 		}
 	})
 
@@ -585,7 +585,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndDrawAgain() 
 
 				return pr, nil
 			}
-			return nil, util.NotFoundError.Call()
+			return nil, util.ErrNotFound.Call()
 		}
 	})
 

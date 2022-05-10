@@ -82,7 +82,7 @@ func (t *baseTestConsensusHandler) newStateWithINITVoteproof(point base.Point, s
 			if pr != nil {
 				return pr, nil
 			}
-			return nil, util.NotFoundError.Call()
+			return nil, util.ErrNotFound.Call()
 		}
 	})
 
@@ -117,7 +117,7 @@ func (t *testConsensusHandler) TestNew() {
 		func(base.Ballot) (bool, error) { return true, nil },
 		nil,
 		isaac.NewProposalProcessors(nil, func(context.Context, util.Hash) (base.ProposalSignedFact, error) {
-			return nil, util.NotFoundError.Call()
+			return nil, util.ErrNotFound.Call()
 		}),
 	)
 	_ = st.SetLogging(logging.TestNilLogging)
@@ -294,7 +294,7 @@ func (t *testConsensusHandler) TestFailedProcessingProposalFetchFactFailed() {
 	defer closefunc()
 
 	st.pps.SetGetProposal(func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error) {
-		return nil, util.NotFoundError.Errorf("fact not found")
+		return nil, util.ErrNotFound.Errorf("fact not found")
 	})
 	st.pps.SetRetryLimit(1).SetRetryInterval(1)
 

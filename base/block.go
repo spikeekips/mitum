@@ -55,7 +55,7 @@ func (t BlockMapItemType) IsValid([]byte) error {
 		BlockMapItemTypeVoteproofs:
 		return nil
 	default:
-		return util.InvalidError.Errorf("unknown block map item type, %q", t)
+		return util.ErrInvalid.Errorf("unknown block map item type, %q", t)
 	}
 }
 

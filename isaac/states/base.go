@@ -256,6 +256,7 @@ func (st *baseHandler) prepareNextBlock(avp base.ACCEPTVoteproof, suf base.Suffr
 
 	// NOTE find next proposal
 	pr, err := st.proposalSelector.Select(st.ctx, point)
+
 	switch {
 	case err == nil:
 	case errors.Is(err, context.Canceled):

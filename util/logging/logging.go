@@ -18,6 +18,7 @@ type Logging struct {
 
 func NewLogging(f func(zerolog.Context) zerolog.Context) *Logging {
 	nop := zerolog.Nop()
+
 	return &Logging{
 		l:    nop,
 		orig: nop,

@@ -33,7 +33,7 @@ func IsValidProposalFact(fact ProposalFact) error {
 		fact.Proposer(),
 		util.DummyIsValider(func([]byte) error {
 			if fact.ProposedAt().IsZero() {
-				return util.InvalidError.Errorf("zero propsed at time")
+				return util.ErrInvalid.Errorf("zero propsed at time")
 			}
 
 			return nil
@@ -46,6 +46,7 @@ func IsValidProposalFact(fact ProposalFact) error {
 	vs := make([]util.IsValider, len(ops))
 
 	var c int
+
 	if util.CheckSliceDuplicated(ops, func(i interface{}) string {
 		j, ok := i.(util.Hash)
 		if !ok {
@@ -57,7 +58,7 @@ func IsValidProposalFact(fact ProposalFact) error {
 
 		return j.String()
 	}) {
-		return util.InvalidError.Errorf("duplicated operation found")
+		return util.ErrInvalid.Errorf("duplicated operation found")
 	}
 
 	if err := util.CheckIsValid(nil, false, vs...); err != nil {
@@ -75,7 +76,7 @@ func IsValidProposalSignedFact(sf ProposalSignedFact, networkID []byte) error {
 	}
 
 	if _, ok := sf.Fact().(ProposalFact); !ok {
-		return e(util.InvalidError.Errorf("not ProposalFact, %T", sf.Fact()), "")
+		return e(util.ErrInvalid.Errorf("not ProposalFact, %T", sf.Fact()), "")
 	}
 
 	return nil

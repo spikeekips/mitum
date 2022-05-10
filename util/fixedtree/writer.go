@@ -9,9 +9,8 @@ import (
 )
 
 var (
-	noParentError     = util.NewError("no parent")
-	noChildrenError   = util.NewError("no children")
-	InvalidProofError = util.NewError("invalid proof")
+	noParentError   = util.NewError("no parent")
+	noChildrenError = util.NewError("no children")
 )
 
 type NodeWrite func(uint64, Node) error
@@ -91,6 +90,7 @@ func (g *Writer) Traverse(f func(index uint64, node Node) (bool, error)) error {
 
 func generateNodeHash(index uint64, nodes []Node, w NodeWrite) (Node, error) {
 	var n Node
+
 	switch j := nodes[index]; {
 	case j == nil:
 		return nil, errors.Errorf("empty node")
@@ -99,6 +99,7 @@ func generateNodeHash(index uint64, nodes []Node, w NodeWrite) (Node, error) {
 	}
 
 	children, err := childrenNodes(nodes, index)
+
 	switch {
 	case err == nil:
 	case errors.Is(err, noChildrenError):

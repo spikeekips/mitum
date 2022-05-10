@@ -90,6 +90,7 @@ func (srv *Server) handleSession(ctx context.Context, session quic.EarlyConnecti
 		if err != nil {
 			var nerr net.Error
 			var errcode quic.ApplicationErrorCode
+
 			switch {
 			case errors.Is(err, context.Canceled):
 				errcode = 0x401
@@ -103,7 +104,7 @@ func (srv *Server) handleSession(ctx context.Context, session quic.EarlyConnecti
 				srv.Log().Error().Err(err).Msg("failed to accept stream")
 			}
 
-			_ = session.CloseWithError(errcode, err.Error())
+			_ = session.CloseWithError(errcode, err.Error()) //nolint:errcheck //...
 
 			return
 		}
@@ -114,7 +115,7 @@ func (srv *Server) handleSession(ctx context.Context, session quic.EarlyConnecti
 
 func (srv *Server) handleStream(ctx context.Context, remoteAddr net.Addr, stream quic.Stream) {
 	defer func() {
-		_ = stream.Close()
+		_ = stream.Close() //nolint:errcheck //...
 	}()
 
 	if err := util.AwareContext(ctx, func() error {

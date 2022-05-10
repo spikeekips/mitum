@@ -47,7 +47,7 @@ func (t *testBaseBallotSignedFact) TestEmptySigned() {
 
 	err := sb.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.InvalidError))
+	t.True(errors.Is(err, util.ErrInvalid))
 }
 
 func (t *testBaseBallotSignedFact) TestWrongFact() {
@@ -65,7 +65,7 @@ func (t *testBaseBallotSignedFact) TestWrongFact() {
 
 	err := sb.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.InvalidError))
+	t.True(errors.Is(err, util.ErrInvalid))
 }
 
 func TestINITBallotSignedFact(tt *testing.T) {

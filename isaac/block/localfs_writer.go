@@ -66,6 +66,7 @@ func NewLocalFSWriter(
 	networkID base.NetworkID,
 ) (*LocalFSWriter, error) {
 	e := util.StringErrorFunc("failed to create LocalFSWriter")
+
 	abs, err := filepath.Abs(filepath.Clean(root))
 	if err != nil {
 		return nil, e(err, "")
@@ -80,6 +81,7 @@ func NewLocalFSWriter(
 
 	id := ulid.New().String()
 	temp := filepath.Join(abs, blockTempDirectoryPrefix, fmt.Sprintf("%d-%s", height, id))
+
 	if err := os.MkdirAll(temp, 0o700); err != nil {
 		return nil, e(err, "failed to create temp directory")
 	}
@@ -139,7 +141,7 @@ func (w *LocalFSWriter) SetOperationsTree(ctx context.Context, tw *fixedtree.Wri
 		base.BlockMapItemTypeOperationsTree,
 		tw,
 		func(ctx context.Context, _ uint64) error {
-			_ = w.opsf.Close()
+			_ = w.opsf.Close() //nolint:errcheck //...
 
 			if err := w.m.SetItem(NewLocalBlockMapItem(
 				base.BlockMapItemTypeOperations,
@@ -172,7 +174,7 @@ func (w *LocalFSWriter) SetStatesTree(ctx context.Context, tw *fixedtree.Writer)
 		base.BlockMapItemTypeStatesTree,
 		tw,
 		func(ctx context.Context, _ uint64) error {
-			_ = w.stsf.Close()
+			_ = w.stsf.Close() //nolint:errcheck //...
 
 			if err := w.m.SetItem(NewLocalBlockMapItem(
 				base.BlockMapItemTypeStates,
@@ -234,8 +236,9 @@ func (w *LocalFSWriter) saveVoteproofs() error {
 	if err != nil {
 		return e(err, "")
 	}
+
 	defer func() {
-		_ = f.Close()
+		_ = f.Close() //nolint:errcheck //...
 	}()
 
 	for i := range w.vps {
@@ -288,18 +291,20 @@ func (w *LocalFSWriter) save(context.Context) (base.BlockMap, error) {
 	}
 
 	if w.opsf != nil {
-		_ = w.opsf.Close()
+		_ = w.opsf.Close() //nolint:errcheck //...
 
 		if item, found := w.m.Item(base.BlockMapItemTypeOperations); !found || item == nil {
-			_ = os.Remove(filepath.Join(w.temp, w.opsf.Name())) // NOTE remove empty operations file
+			// NOTE remove empty operations file
+			_ = os.Remove(filepath.Join(w.temp, w.opsf.Name())) //nolint:errcheck //...
 		}
 	}
 
 	if w.stsf != nil {
-		_ = w.stsf.Close()
+		_ = w.stsf.Close() //nolint:errcheck //...
 
 		if item, found := w.m.Item(base.BlockMapItemTypeStates); !found || item == nil {
-			_ = os.Remove(filepath.Join(w.temp, w.stsf.Name())) // NOTE remove empty states file
+			// NOTE remove empty states file
+			_ = os.Remove(filepath.Join(w.temp, w.stsf.Name())) //nolint:errcheck //...
 		}
 	}
 
@@ -330,12 +335,12 @@ func (w *LocalFSWriter) Cancel() error {
 	defer w.Unlock()
 
 	if w.opsf != nil {
-		_ = w.opsf.Close()
+		_ = w.opsf.Close() //nolint:errcheck //...
 		w.opsf = nil
 	}
 
 	if w.stsf != nil {
-		_ = w.stsf.Close()
+		_ = w.stsf.Close() //nolint:errcheck //...
 		w.stsf = nil
 	}
 
@@ -364,8 +369,9 @@ func (w *LocalFSWriter) setTree(
 	if err != nil {
 		return e(err, "failed to create tree file, %q", treetype)
 	}
+
 	defer func() {
-		_ = tf.Close()
+		_ = tf.Close() //nolint:errcheck //...
 	}()
 
 	if err := w.writefile(tf, append(tw.Hint().Bytes(), '\n')); err != nil {
@@ -397,7 +403,7 @@ func (w *LocalFSWriter) setTree(
 		return e(err, "")
 	}
 
-	_ = tf.Close()
+	_ = tf.Close() //nolint:errcheck //...
 
 	if err := w.m.SetItem(NewLocalBlockMapItem(treetype, tf.Checksum(), uint64(tw.Len()))); err != nil {
 		return e(err, "")
@@ -447,14 +453,14 @@ func (w *LocalFSWriter) writeItem(t base.BlockMapItemType, i interface{}) error 
 	}
 
 	defer func() {
-		_ = cw.Close()
+		_ = cw.Close() //nolint:errcheck //...
 	}()
 
 	if err := w.writefileonce(cw, i); err != nil {
 		return errors.Wrap(err, "")
 	}
 
-	_ = cw.Close()
+	_ = cw.Close() //nolint:errcheck //...
 
 	if err := w.m.SetItem(NewLocalBlockMapItem(
 		t,
@@ -494,13 +500,15 @@ func (*LocalFSWriter) writefile(f io.Writer, b []byte) error {
 }
 
 func (w *LocalFSWriter) newChecksumWriter(t base.BlockMapItemType) (util.ChecksumWriter, error) {
-	fname, temppath, _ := w.filename(t)
-	switch f, err := os.OpenFile(temppath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600); { // nolint:gosec
+	fname, temppath, _ := w.filename(t) //nolint:errcheck //...
+
+	switch f, err := os.OpenFile(temppath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600); { //nolint:gosec //...
 	case err != nil:
 		return nil, errors.Wrapf(err, "failed to open file, %q", temppath)
 	default:
 		var cw util.ChecksumWriter
 		cw = util.NewHashChecksumWriter(fname, f, sha256.New())
+
 		if isCompressedBlockMapItemType(t) {
 			cw = util.NewDummyChecksumWriter(util.NewGzipWriter(cw), cw)
 		}
@@ -519,8 +527,9 @@ func HeightDirectory(height base.Height) string {
 
 	sl := make([]string, 7)
 	var i int
+
 	for {
-		e := (i * 3) + 3
+		e := (i * 3) + 3 //nolint:gomnd //...
 		if e > len(p) {
 			e = len(p)
 		}
@@ -532,7 +541,7 @@ func HeightDirectory(height base.Height) string {
 
 		sl[i] = s
 
-		if len(s) < 3 {
+		if len(s) < 3 { //nolint:gomnd //...
 			break
 		}
 
@@ -634,10 +643,11 @@ func unmarshalIndexedTreeNode(enc encoder.Encoder, b []byte, ht hint.Hint) (in i
 	e := util.StringErrorFunc("failed to unmarshal indexed tree node")
 
 	bf := bytes.NewBuffer(b)
+
 	switch i, err := bf.ReadBytes(','); {
 	case err != nil:
 		return in, e(err, "")
-	case len(i) < 2:
+	case len(i) < 2: //nolint:gomnd //...
 		return in, e(nil, "failed to find index string")
 	default:
 		index, err := strconv.ParseUint(string(i[:len(i)-1]), 10, 64)

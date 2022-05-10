@@ -63,7 +63,7 @@ func (t *testNode) TestInvalid() {
 		n.h = valuehash.RandomSHA256()
 
 		err := n.IsValid(nil)
-		t.True(errors.Is(err, util.InvalidError))
+		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "empty key")
 	})
 
@@ -71,7 +71,7 @@ func (t *testNode) TestInvalid() {
 		n := NewBaseNode(util.UUID().String())
 
 		err := n.IsValid(nil)
-		t.True(errors.Is(err, util.InvalidError))
+		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "empty hash")
 	})
 
@@ -80,7 +80,7 @@ func (t *testNode) TestInvalid() {
 		n.h = valuehash.NewBytes(make([]byte, 300))
 
 		err := n.IsValid(nil)
-		t.True(errors.Is(err, util.InvalidError))
+		t.True(errors.Is(err, util.ErrInvalid))
 	})
 }
 

@@ -154,7 +154,7 @@ func (t *testQuicstreamNodeNetworkHandlers) TestProposal() {
 	t.Run("nil proposal fact hash", func() {
 		pr, found, err := c.Proposal(context.Background(), ci, nil)
 		t.Error(err)
-		t.True(errors.Is(err, util.InvalidError))
+		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "invalid ProposalBody")
 		t.False(found)
 		t.Nil(pr)

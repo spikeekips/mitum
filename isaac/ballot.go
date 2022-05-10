@@ -45,7 +45,7 @@ func (bl baseBallot) Voteproof() base.Voteproof {
 
 func (bl baseBallot) IsValid(networkID []byte) error {
 	if err := base.IsValidBallot(bl, networkID); err != nil {
-		return util.InvalidError.Wrapf(err, "invalid baseBallot")
+		return util.ErrInvalid.Wrapf(err, "invalid baseBallot")
 	}
 
 	return nil
@@ -96,7 +96,7 @@ func (bl *baseBallot) Sign(priv base.Privatekey, networkID base.NetworkID) error
 		return e(err, "")
 	}
 
-	bl.signedFact = signer.(base.BallotSignedFact)
+	bl.signedFact = signer.(base.BallotSignedFact) //nolint:forcetypeassert //...
 
 	return nil
 }
@@ -116,11 +116,11 @@ func NewINITBallot(
 
 func (bl INITBallot) IsValid(networkID []byte) error {
 	if err := bl.BaseHinter.IsValid(INITBallotHint.Type().Bytes()); err != nil {
-		return util.InvalidError.Wrapf(err, "invalid INITBallot")
+		return util.ErrInvalid.Wrapf(err, "invalid INITBallot")
 	}
 
 	if err := base.IsValidINITBallot(bl, networkID); err != nil {
-		return util.InvalidError.Wrapf(err, "invalid INITBallot")
+		return util.ErrInvalid.Wrapf(err, "invalid INITBallot")
 	}
 
 	return nil
@@ -131,7 +131,7 @@ func (bl INITBallot) BallotSignedFact() base.INITBallotSignedFact {
 		return nil
 	}
 
-	return bl.signedFact.(base.INITBallotSignedFact)
+	return bl.signedFact.(base.INITBallotSignedFact) //nolint:forcetypeassert //...
 }
 
 type ACCEPTBallot struct {
@@ -149,11 +149,11 @@ func NewACCEPTBallot(
 
 func (bl ACCEPTBallot) IsValid(networkID []byte) error {
 	if err := bl.BaseHinter.IsValid(ACCEPTBallotHint.Type().Bytes()); err != nil {
-		return util.InvalidError.Wrapf(err, "invalid ACCEPTBallot")
+		return util.ErrInvalid.Wrapf(err, "invalid ACCEPTBallot")
 	}
 
 	if err := base.IsValidACCEPTBallot(bl, networkID); err != nil {
-		return util.InvalidError.Wrapf(err, "invalid ACCEPTBallot")
+		return util.ErrInvalid.Wrapf(err, "invalid ACCEPTBallot")
 	}
 
 	return nil
@@ -164,5 +164,5 @@ func (bl ACCEPTBallot) BallotSignedFact() base.ACCEPTBallotSignedFact {
 		return nil
 	}
 
-	return bl.signedFact.(base.ACCEPTBallotSignedFact)
+	return bl.signedFact.(base.ACCEPTBallotSignedFact) //nolint:forcetypeassert //...
 }

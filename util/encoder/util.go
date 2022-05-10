@@ -7,8 +7,8 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 )
 
-func Ptr(i interface{}) (reflect.Value /* ptr */, reflect.Value /* elem */) {
-	elem := reflect.ValueOf(i)
+func Ptr(i interface{}) (ptr reflect.Value, elem reflect.Value) {
+	elem = reflect.ValueOf(i)
 	if elem.Type().Kind() == reflect.Ptr {
 		return elem, elem.Elem()
 	}
@@ -17,7 +17,7 @@ func Ptr(i interface{}) (reflect.Value /* ptr */, reflect.Value /* elem */) {
 		return elem.Addr(), elem
 	}
 
-	ptr := reflect.New(elem.Type())
+	ptr = reflect.New(elem.Type())
 	ptr.Elem().Set(elem)
 
 	return ptr, elem
@@ -28,7 +28,7 @@ func AnalyzeSetHinter(d DecodeDetail, v interface{}) DecodeDetail {
 		return d
 	}
 
-	oht := v.(hint.Hinter).Hint()
+	oht := v.(hint.Hinter).Hint() //nolint:forcetypeassert //...
 
 	// NOTE hint.BaseHinter
 	var found bool
@@ -48,7 +48,7 @@ func AnalyzeSetHinter(d DecodeDetail, v interface{}) DecodeDetail {
 				ht = oht
 			}
 
-			return i.(hint.SetHinter).SetHint(ht), nil
+			return i.(hint.SetHinter).SetHint(ht), nil //nolint:forcetypeassert //...
 		}
 
 		return d

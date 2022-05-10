@@ -1,8 +1,8 @@
 package util
 
 var (
-	DaemonAlreadyStartedError = NewError("daemon already started")
-	DaemonAlreadyStoppedError = NewError("daemon already stopped")
+	ErrDaemonAlreadyStarted = NewError("daemon already started")
+	ErrDaemonAlreadyStopped = NewError("daemon already stopped")
 )
 
 type Daemon interface {

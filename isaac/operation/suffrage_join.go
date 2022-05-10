@@ -39,7 +39,7 @@ func NewSuffrageJoinPermissionFact(
 		state:     state,
 	}
 
-	fact.SetHash(fact.hash())
+	fact.SetHash(fact.generateHash())
 
 	return fact
 }
@@ -52,11 +52,11 @@ func (fact SuffrageJoinPermissionFact) IsValid([]byte) error {
 	}
 
 	if !valuehash.Bytes(fact.BaseFact.Token()).Equal(fact.state) {
-		return e(util.InvalidError.Errorf("wrong token"), "")
+		return e(util.ErrInvalid.Errorf("wrong token"), "")
 	}
 
-	if !fact.Hash().Equal(fact.hash()) {
-		return e(util.InvalidError.Errorf("hash does not match"), "")
+	if !fact.Hash().Equal(fact.generateHash()) {
+		return e(util.ErrInvalid.Errorf("hash does not match"), "")
 	}
 
 	return nil
@@ -70,7 +70,7 @@ func (fact SuffrageJoinPermissionFact) State() util.Hash {
 	return fact.state
 }
 
-func (fact SuffrageJoinPermissionFact) hash() util.Hash {
+func (fact SuffrageJoinPermissionFact) generateHash() util.Hash {
 	return valuehash.NewSHA256(util.ConcatByters(
 		util.BytesToByter(fact.Token()),
 		fact.candidate,
@@ -95,7 +95,7 @@ func NewSuffrageGenesisJoinPermissionFact(
 		pub:      pub,
 	}
 
-	fact.SetHash(fact.hash())
+	fact.SetHash(fact.generateHash())
 
 	return fact
 }
@@ -108,11 +108,11 @@ func (fact SuffrageGenesisJoinPermissionFact) IsValid(networkID []byte) error {
 	}
 
 	if !bytes.Equal(fact.BaseFact.Token(), networkID) {
-		return e(util.InvalidError.Errorf("wrong token"), "")
+		return e(util.ErrInvalid.Errorf("wrong token"), "")
 	}
 
-	if !fact.Hash().Equal(fact.hash()) {
-		return e(util.InvalidError.Errorf("hash does not match"), "")
+	if !fact.Hash().Equal(fact.generateHash()) {
+		return e(util.ErrInvalid.Errorf("hash does not match"), "")
 	}
 
 	return nil
@@ -126,7 +126,7 @@ func (fact SuffrageGenesisJoinPermissionFact) Publickey() base.Publickey {
 	return fact.pub
 }
 
-func (fact SuffrageGenesisJoinPermissionFact) hash() util.Hash {
+func (fact SuffrageGenesisJoinPermissionFact) generateHash() util.Hash {
 	return valuehash.NewSHA256(util.ConcatByters(
 		util.BytesToByter(fact.Token()),
 		fact.node,
@@ -156,14 +156,14 @@ func (op SuffrageGenesisJoin) IsValid(networkID []byte) error {
 	}
 
 	if len(op.Signed()) > 1 {
-		return e(util.InvalidError.Errorf("multiple signed found"), "")
+		return e(util.ErrInvalid.Errorf("multiple signed found"), "")
 	}
 
 	// BLOCK check signer should be genesis block creator
 
 	fact := op.Fact().(SuffrageGenesisJoinPermissionFact)
 	if !fact.Publickey().Equal(op.Signed()[0].Signer()) {
-		return e(util.InvalidError.Errorf("signer does not match with publickey"), "")
+		return e(util.ErrInvalid.Errorf("signer does not match with publickey"), "")
 	}
 
 	return nil

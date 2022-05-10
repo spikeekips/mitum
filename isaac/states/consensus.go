@@ -52,6 +52,7 @@ func (st *ConsensusHandler) enter(i switchContext) (func(), error) {
 	}
 
 	var sctx consensusSwitchContext
+
 	switch j, ok := i.(consensusSwitchContext); {
 	case !ok:
 		return nil, e(nil, "invalid stateSwitchContext, not for consensus state; %T", i)
@@ -64,6 +65,7 @@ func (st *ConsensusHandler) enter(i switchContext) (func(), error) {
 	}
 
 	var suf base.Suffrage
+
 	switch i, found, err := st.getSuffrage(sctx.ivp.Point().Height()); {
 	case err != nil:
 		return nil, e(err, "local not in suffrage for next block")
@@ -138,6 +140,7 @@ func (st *ConsensusHandler) processProposal(ivp base.INITVoteproof) {
 	started := time.Now()
 
 	manifest, err := st.processProposalInternal(ivp)
+
 	switch {
 	case err != nil:
 		err = e(err, "")
@@ -174,6 +177,7 @@ func (st *ConsensusHandler) processProposal(ivp base.INITVoteproof) {
 	ll := l.With().Dict("accept_voteproof", base.VoteproofLog(eavp)).Logger()
 
 	var sctx switchContext
+
 	switch saved, err := st.handleACCEPTVoteproofAfterProcessingProposal(manifest, eavp); {
 	case saved:
 	case err == nil:
@@ -196,6 +200,7 @@ func (st *ConsensusHandler) processProposalInternal(ivp base.INITVoteproof) (bas
 	facthash := ivp.BallotMajority().Proposal()
 
 	var previous base.Manifest
+
 	switch m, err := st.getManifest(ivp.Point().Height() - 1); {
 	case err != nil:
 		return nil, e(err, "")
@@ -258,6 +263,7 @@ func (st *ConsensusHandler) handleACCEPTVoteproofAfterProcessingProposal(
 	}
 
 	var sctx switchContext
+
 	switch err := st.saveBlock(avp); {
 	case err == nil:
 		saved = true
@@ -313,6 +319,7 @@ func (st *ConsensusHandler) newVoteproof(vp base.Voteproof) error {
 	e := util.StringErrorFunc("failed to handle new voteproof")
 
 	var lvps LastVoteproofs
+
 	switch l, v := st.baseHandler.setNewVoteproof(vp); {
 	case v == nil:
 		return nil
@@ -518,6 +525,7 @@ func (st *ConsensusHandler) nextRound(vp base.Voteproof, lvps LastVoteproofs) {
 
 	var sctx switchContext
 	var bl base.INITBallot
+
 	switch i, err := st.prepareNextRound(vp, prevBlock); {
 	case err == nil:
 		if i == nil {
@@ -566,13 +574,14 @@ func (st *ConsensusHandler) nextBlock(avp base.ACCEPTVoteproof) {
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(avp)).Object("point", point).Logger()
 
 	var suf base.Suffrage
+
 	switch i, found, err := st.getSuffrage(point.Height()); {
 	case err != nil:
 		go st.switchState(newBrokenSwitchContext(StateConsensus, err))
 
 		return
 	case !found:
-		go st.switchState(newBrokenSwitchContext(StateConsensus, util.NotFoundError.Errorf("empty suffrage")))
+		go st.switchState(newBrokenSwitchContext(StateConsensus, util.ErrNotFound.Errorf("empty suffrage")))
 
 		return
 	default:
@@ -581,6 +590,7 @@ func (st *ConsensusHandler) nextBlock(avp base.ACCEPTVoteproof) {
 
 	var sctx switchContext
 	var bl base.INITBallot
+
 	switch i, err := st.prepareNextBlock(avp, suf); {
 	case err == nil:
 		if i == nil {

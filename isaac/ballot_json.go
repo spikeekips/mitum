@@ -10,22 +10,22 @@ import (
 )
 
 type baseBallotJSONMarshaler struct {
-	VP base.Voteproof        `json:"voteproof,omitempty"`
-	SF base.BallotSignedFact `json:"signed_fact"`
+	Voteproof  base.Voteproof        `json:"voteproof,omitempty"`
+	SignedFact base.BallotSignedFact `json:"signed_fact"`
 	hint.BaseHinter
 }
 
 func (bl baseBallot) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(baseBallotJSONMarshaler{
 		BaseHinter: bl.BaseHinter,
-		VP:         bl.vp,
-		SF:         bl.signedFact,
+		Voteproof:  bl.vp,
+		SignedFact: bl.signedFact,
 	})
 }
 
 type baseBallotJSONUnmarshaler struct {
-	VP json.RawMessage `json:"voteproof"`
-	SF json.RawMessage `json:"signed_fact"`
+	Voteproof  json.RawMessage `json:"voteproof"`
+	SignedFact json.RawMessage `json:"signed_fact"`
 }
 
 func (bl *baseBallot) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
@@ -36,7 +36,7 @@ func (bl *baseBallot) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "")
 	}
 
-	switch i, err := enc.Decode(u.VP); {
+	switch i, err := enc.Decode(u.Voteproof); {
 	case err != nil:
 		return e(err, "")
 	case i == nil:
@@ -49,7 +49,7 @@ func (bl *baseBallot) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		bl.vp = vp
 	}
 
-	switch i, err := enc.Decode(u.SF); {
+	switch i, err := enc.Decode(u.SignedFact); {
 	case err != nil:
 		return e(err, "")
 	case i == nil:

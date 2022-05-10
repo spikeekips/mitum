@@ -70,7 +70,7 @@ func (t *testTree) TestInvalid() {
 		tr, err := NewTree(t.ht, nodes)
 		t.NoError(err)
 		err = tr.IsValid(nil)
-		t.True(errors.Is(err, util.InvalidError))
+		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "empty hash")
 	})
 
@@ -84,7 +84,7 @@ func (t *testTree) TestInvalid() {
 		tr, err := NewTree(t.ht, nodes)
 		t.NoError(err)
 		err = tr.IsValid(nil)
-		t.True(errors.Is(err, util.InvalidError))
+		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "hash does not match")
 	})
 }

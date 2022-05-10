@@ -34,6 +34,7 @@ func IsNilJSON(b []byte) bool {
 
 func MarshalJSON(v interface{}) ([]byte, error) {
 	var marshaled JSONSetMarshaled
+
 	switch j, ok := v.(JSONMarshaled); {
 	case !ok:
 	default:

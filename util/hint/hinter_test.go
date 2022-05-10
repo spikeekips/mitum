@@ -26,7 +26,7 @@ func (t *testBaseHinter) TestIsValidWithUnknownType() {
 	b := NewBaseHinter(MustNewHint("abc-v1.2.3"))
 	err := b.IsValid(Type("showme").Bytes())
 	t.Error(err)
-	t.True(errors.Is(err, util.InvalidError))
+	t.True(errors.Is(err, util.ErrInvalid))
 	t.ErrorContains(err, "type does not match")
 }
 

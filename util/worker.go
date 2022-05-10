@@ -62,7 +62,7 @@ type (
 	ContextWorkerCallback func(ctx context.Context, jobid uint64) error
 )
 
-var WorkerCanceledError = NewError("context canceled in worker")
+var ErrWorkerCanceled = NewError("context canceled in worker")
 
 type ParallelWorker struct {
 	*logging.Logging
@@ -94,8 +94,10 @@ func NewParallelWorker(name string, bufsize uint) *ParallelWorker {
 
 func (wk *ParallelWorker) roundrobin() {
 	var jobID uint
+
 	for job := range wk.jobChan {
 		callback := wk.nextCallback()
+
 		go func(jobID uint, job interface{}) {
 			err := callback(jobID, job)
 
@@ -178,7 +180,7 @@ func (wk *ParallelWorker) IsFinished() bool {
 }
 
 type BaseSemWorker struct {
-	Ctx        context.Context
+	Ctx        context.Context //nolint:containedctx //...
 	Sem        *semaphore.Weighted
 	Cancel     func()
 	NewJobFunc func(context.Context, uint64, ContextWorkerCallback)
@@ -190,7 +192,7 @@ type BaseSemWorker struct {
 }
 
 func NewBaseSemWorker(ctx context.Context, semsize int64) *BaseSemWorker {
-	wk := baseSemWorkerPool.Get().(*BaseSemWorker)
+	wk := baseSemWorkerPool.Get().(*BaseSemWorker) //nolint:forcetypeassert //...
 	closectx, cancel := context.WithCancel(ctx)
 
 	wk.N = semsize
@@ -216,10 +218,11 @@ func (wk *BaseSemWorker) NewJob(callback ContextWorkerCallback) error {
 	if err := wk.Sem.Acquire(wk.Ctx, 1); err != nil {
 		wk.Cancel()
 
-		return WorkerCanceledError.Wrap(err)
+		return ErrWorkerCanceled.Wrap(err)
 	}
 
 	ctx, cancel := context.WithCancel(wk.Ctx)
+
 	go func() {
 		defer sem.Release(1)
 		defer cancel()
@@ -236,12 +239,7 @@ func (wk *BaseSemWorker) Jobs() uint64 {
 }
 
 func (wk *BaseSemWorker) Wait() error {
-	err := wk.wait()
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return wk.wait()
 }
 
 func (wk *BaseSemWorker) wait() error {
@@ -257,7 +255,7 @@ func (wk *BaseSemWorker) wait() error {
 
 		donech := make(chan error, 1)
 		go func() {
-			switch err := sem.Acquire(context.Background(), n); { // nolint:contextcheck
+			switch err := sem.Acquire(context.Background(), n); { //nolint:contextcheck //...
 			case err != nil:
 				donech <- err
 			default:
@@ -275,7 +273,7 @@ func (wk *BaseSemWorker) wait() error {
 		case <-time.After(timeout):
 			cancel()
 
-			errch <- WorkerCanceledError.Call()
+			errch <- ErrWorkerCanceled.Call()
 		case err := <-donech:
 			errch <- err
 		}
@@ -286,6 +284,7 @@ func (wk *BaseSemWorker) wait() error {
 
 func (wk *BaseSemWorker) WaitChan() chan error {
 	ch := make(chan error)
+
 	go func() {
 		ch <- wk.Wait()
 	}()
@@ -317,7 +316,7 @@ type DistributeWorker struct {
 }
 
 func NewDistributeWorker(ctx context.Context, semsize int64, errch chan error) *DistributeWorker {
-	wk := distributeWorkerPool.Get().(*DistributeWorker)
+	wk := distributeWorkerPool.Get().(*DistributeWorker) //nolint:forcetypeassert //...
 
 	base := NewBaseSemWorker(ctx, semsize)
 
@@ -356,7 +355,7 @@ type ErrgroupWorker struct {
 }
 
 func NewErrgroupWorker(ctx context.Context, semsize int64) *ErrgroupWorker {
-	wk := errgroupWorkerPool.Get().(*ErrgroupWorker)
+	wk := errgroupWorkerPool.Get().(*ErrgroupWorker) //nolint:forcetypeassert //...
 
 	base := NewBaseSemWorker(ctx, semsize)
 
@@ -365,6 +364,7 @@ func NewErrgroupWorker(ctx context.Context, semsize int64) *ErrgroupWorker {
 
 	base.NewJobFunc = func(ctx context.Context, jobs uint64, callback ContextWorkerCallback) {
 		donech := make(chan struct{}, 1)
+
 		eg.Go(func() error {
 			defer func() {
 				donech <- struct{}{}
@@ -399,11 +399,12 @@ func NewErrgroupWorker(ctx context.Context, semsize int64) *ErrgroupWorker {
 
 func (wk *ErrgroupWorker) Wait() error {
 	var berr error
+
 	if err := wk.BaseSemWorker.wait(); err != nil {
 		switch {
 		case errors.Is(err, context.Canceled):
 			berr = err
-		case errors.Is(err, WorkerCanceledError):
+		case errors.Is(err, ErrWorkerCanceled):
 			return context.Canceled
 		default:
 			return err
@@ -411,6 +412,7 @@ func (wk *ErrgroupWorker) Wait() error {
 	}
 
 	errch := make(chan error, 1)
+
 	wk.doneonce.Do(func() {
 		errch <- wk.eg.Wait()
 	})
@@ -433,6 +435,7 @@ func (wk *ErrgroupWorker) Close() {
 
 func (wk *ErrgroupWorker) RunChan() chan error {
 	ch := make(chan error)
+
 	go func() {
 		ch <- wk.Wait()
 	}()

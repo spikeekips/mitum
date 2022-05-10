@@ -17,9 +17,9 @@ const MaxNetworkIDLength = 300
 func (ni NetworkID) IsValid([]byte) error {
 	switch {
 	case len(ni) < 1:
-		return util.InvalidError.Errorf("empty network id")
+		return util.ErrInvalid.Errorf("empty network id")
 	case len(ni) > MaxNetworkIDLength:
-		return util.InvalidError.Errorf(
+		return util.ErrInvalid.Errorf(
 			"network id too long; %d < max=%d",
 			len(ni),
 			MaxNetworkIDLength,

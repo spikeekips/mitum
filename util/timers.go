@@ -18,6 +18,7 @@ type Timers struct {
 
 func NewTimers(ids []TimerID, allowUnknown bool) *Timers {
 	timers := map[TimerID]Timer{}
+
 	for _, id := range ids {
 		timers[id] = nil
 	}
@@ -110,7 +111,7 @@ func (ts *Timers) ResetTimer(id TimerID) error {
 	case t == nil:
 		return errors.Errorf("timer, %q not running", id)
 	default:
-		return t.Reset()
+		return t.Reset() //nolint:wrapcheck //...
 	}
 }
 
@@ -148,7 +149,7 @@ func (ts *Timers) SetTimer(timer Timer) error {
 
 // StartTimers starts timers with the given ids, before starting timers, stops
 // the other timers if stopOthers is true.
-func (ts *Timers) StartTimers(ids []TimerID, stopOthers bool) error {
+func (ts *Timers) StartTimers(ids []TimerID, stopOthers bool) error { // revive:disable-line:flag-parameter
 	ts.Lock()
 	defer ts.Unlock()
 
@@ -157,6 +158,7 @@ func (ts *Timers) StartTimers(ids []TimerID, stopOthers bool) error {
 	}
 
 	sids := make([]string, len(ids))
+
 	for i := range ids {
 		sids[i] = ids[i].String()
 	}
@@ -165,10 +167,12 @@ func (ts *Timers) StartTimers(ids []TimerID, stopOthers bool) error {
 		stopIDs := make([]TimerID, len(ts.timers))
 
 		var n int
+
 		for id := range ts.timers {
 			if InStringSlice(id.String(), sids) {
 				continue
 			}
+
 			stopIDs[n] = id
 			n++
 		}
@@ -216,6 +220,7 @@ func (ts *Timers) StopTimersAll() error {
 	ids := make([]TimerID, len(ts.timers))
 
 	var i int
+
 	for id := range ts.timers {
 		ids[i] = id
 		i++
@@ -239,6 +244,7 @@ func (ts *Timers) Started() []TimerID {
 	started := make([]TimerID, len(ts.timers))
 
 	var n int
+
 	for id := range ts.timers {
 		timer := ts.timers[id]
 		if timer != nil && ts.timers[id].IsStarted() {

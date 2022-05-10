@@ -1,9 +1,9 @@
 package util
 
 var (
-	FoundError          = NewError("found")
-	NotFoundError       = NewError("not found")
-	DuplicatedError     = NewError("duplicated")
-	WrongTypeError      = NewError("wrong type")
-	NotImplementedError = NewError("not implemented")
+	ErrFound          = NewError("found")
+	ErrNotFound       = NewError("not found")
+	ErrDuplicated     = NewError("duplicated")
+	ErrWrongType      = NewError("wrong type")
+	ErrNotImplemented = NewError("not implemented")
 )

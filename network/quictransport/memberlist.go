@@ -65,6 +65,7 @@ func (srv *Memberlist) Start() error {
 	if err != nil {
 		return errors.Wrap(err, "failed to create memberlist")
 	}
+
 	srv.m = m
 
 	return srv.ContextDaemon.Start()
@@ -74,12 +75,13 @@ func (srv *Memberlist) Join(cis []ConnInfo) error {
 	e := util.StringErrorFunc("failed to join")
 
 	if util.CheckSliceDuplicated(cis, func(i interface{}) string {
-		return i.(ConnInfo).Address().String()
+		return i.(ConnInfo).Address().String() //nolint:forcetypeassert // ...
 	}) {
 		return e(nil, "duplicated join url found")
 	}
 
 	stringurls := make([]string, len(cis))
+
 	for i := range cis {
 		ci := cis[i]
 
@@ -139,7 +141,7 @@ func (srv *Memberlist) start(ctx context.Context) error {
 	<-ctx.Done()
 
 	// NOTE leave before shutdown
-	_ = srv.m.Leave(time.Second * 3)
+	_ = srv.m.Leave(time.Second * 3) //nolint:gomnd,errcheck //...
 
 	if err := srv.m.Shutdown(); err != nil {
 		return errors.Wrap(err, "failed to shutdown memberlist")
@@ -171,7 +173,7 @@ func (srv *Memberlist) patchMemberlistConfig(config *memberlist.Config) error { 
 				return NewBaseConnInfo(addr, true)
 			}
 
-			return j.(ConnInfo)
+			return j.(ConnInfo) //nolint:forcetypeassert // ...
 		}
 	}
 
@@ -242,7 +244,7 @@ func (srv *Memberlist) whenLeft(node Node) {
 	srv.joinedLock.Lock()
 	defer srv.joinedLock.Unlock()
 
-	_ = srv.members.Remove(node.Address())
+	_ = srv.members.Remove(node.Address()) //nolint:errcheck //...
 
 	srv.Log().Debug().Interface("node", node).Msg("node left")
 }
@@ -261,6 +263,7 @@ func (srv *Memberlist) SetLogging(l *logging.Logging) *logging.Logging {
 		srv.mconfig.Events,
 		srv.mconfig.Alive,
 	}
+
 	for i := range ds {
 		if j, ok := ds[i].(logging.SetLogging); ok {
 			_ = j.SetLogging(l)
@@ -277,10 +280,10 @@ func BasicMemberlistConfig(name string, bind, advertise *net.UDPAddr) *memberlis
 	config.BindPort = bind.Port
 	config.AdvertiseAddr = advertise.IP.String()
 	config.AdvertisePort = advertise.Port
-	config.TCPTimeout = time.Second * 2
+	config.TCPTimeout = time.Second * 2 //nolint:gomnd //...
 	config.IndirectChecks = math.MaxInt8
 	config.RetransmitMult = 3
-	config.ProbeTimeout = 500 * time.Millisecond
+	config.ProbeTimeout = 500 * time.Millisecond //nolint:gomnd //...
 	config.ProbeInterval = 1 * time.Second
 	config.SuspicionMult = 1 // NOTE fast detection for failed nodes
 	config.SuspicionMaxTimeoutMult = 1
@@ -323,7 +326,7 @@ func (m *membersPool) Get(k *net.UDPAddr) (Node, bool) {
 	case i == nil:
 		return nil, true
 	default:
-		return i.(Node), false
+		return i.(Node), false //nolint:forcetypeassert // ...
 	}
 }
 
@@ -336,13 +339,13 @@ func (m *membersPool) NodesLen(node base.Address) int {
 	case i == nil:
 		return 0
 	default:
-		return len(i.([]Node))
+		return len(i.([]Node)) //nolint:forcetypeassert // ...
 	}
 }
 
 func (m *membersPool) Set(node Node) bool {
 	var found bool
-	_, _ = m.addrs.Set(nodeid(node.Address()), func(i interface{}) (interface{}, error) {
+	_, _ = m.addrs.Set(nodeid(node.Address()), func(i interface{}) (interface{}, error) { //nolint:errcheck //...
 		switch {
 		case i == nil:
 		case util.IsNilLockedValue(i):
@@ -351,12 +354,13 @@ func (m *membersPool) Set(node Node) bool {
 		}
 
 		var nodes []Node
+
 		switch i, f := m.nodes.Value(node.Node().String()); {
 		case !f:
 		case util.IsNilLockedValue(i):
 		case i == nil:
 		default:
-			nodes = i.([]Node)
+			nodes = i.([]Node) //nolint:forcetypeassert // ...
 		}
 
 		nodes = append(nodes, node)
@@ -369,12 +373,12 @@ func (m *membersPool) Set(node Node) bool {
 }
 
 func (m *membersPool) Remove(k *net.UDPAddr) error {
-	_ = m.addrs.Remove(nodeid(k), func(i interface{}) error {
+	_ = m.addrs.Remove(nodeid(k), func(i interface{}) error { //nolint:errcheck //...
 		switch {
 		case i == nil:
 		case util.IsNilLockedValue(i):
 		default:
-			_ = m.nodes.Remove(i.(Node).Node().String(), nil)
+			_ = m.nodes.Remove(i.(Node).Node().String(), nil) //nolint:forcetypeassert,errcheck // ...
 		}
 
 		return nil
@@ -389,7 +393,7 @@ func (m *membersPool) Len() int {
 
 func (m *membersPool) Traverse(f func(Node) bool) {
 	m.addrs.Traverse(func(k, v interface{}) bool {
-		return f(v.(Node))
+		return f(v.(Node)) //nolint:forcetypeassert // ...
 	})
 }
 

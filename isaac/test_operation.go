@@ -31,7 +31,7 @@ func NewDummyOperationFact(token base.Token, v util.Byter) DummyOperationFact {
 		token: token,
 		v:     v,
 	}
-	fact.h = fact.hash()
+	fact.h = fact.generateHash()
 
 	return fact
 }
@@ -42,11 +42,11 @@ func (fact DummyOperationFact) Hint() hint.Hint {
 
 func (fact DummyOperationFact) IsValid([]byte) error {
 	if err := util.CheckIsValid(nil, false, fact.h, fact.token); err != nil {
-		return util.InvalidError.Wrapf(err, "invalid DummyOperationFact")
+		return util.ErrInvalid.Wrapf(err, "invalid DummyOperationFact")
 	}
 
-	if !fact.h.Equal(fact.hash()) {
-		return util.InvalidError.Errorf("DummyOperationFact hash does not match")
+	if !fact.h.Equal(fact.generateHash()) {
+		return util.ErrInvalid.Errorf("DummyOperationFact hash does not match")
 	}
 
 	return nil
@@ -60,7 +60,7 @@ func (fact DummyOperationFact) Token() base.Token {
 	return fact.token
 }
 
-func (fact DummyOperationFact) hash() util.Hash {
+func (fact DummyOperationFact) generateHash() util.Hash {
 	return valuehash.NewSHA256(util.ConcatByters(fact.v, util.BytesToByter(fact.token)))
 }
 

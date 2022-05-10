@@ -140,8 +140,11 @@ func (g *GenesisBlockGenerator) networkPolicyOperation() error {
 func (g *GenesisBlockGenerator) newProposal(ops []util.Hash) error {
 	e := util.StringErrorFunc("failed to make genesis proposal")
 
+	nops := make([]util.Hash, len(ops)+len(g.ops))
+	copy(nops[:len(ops)], ops)
+
 	for i := range g.ops {
-		ops = append(ops, g.ops[i].Fact().Hash())
+		nops[i+len(ops)] = g.ops[i].Fact().Hash()
 	}
 
 	fact := isaac.NewProposalFact(base.GenesisPoint, g.local.Address(), ops)
@@ -174,6 +177,7 @@ func (g *GenesisBlockGenerator) initVoetproof() error {
 	if err := sf.Sign(g.local.Privatekey(), g.networkID); err != nil {
 		return e(err, "")
 	}
+
 	if err := sf.IsValid(g.networkID); err != nil {
 		return e(err, "")
 	}
@@ -182,7 +186,7 @@ func (g *GenesisBlockGenerator) initVoetproof() error {
 	vp.SetResult(base.VoteResultMajority).
 		SetMajority(fact).
 		SetSignedFacts([]base.BallotSignedFact{sf}).
-		SetThreshold(base.Threshold(100)).
+		SetThreshold(base.MaxThreshold).
 		Finish()
 
 	if err := vp.IsValid(g.networkID); err != nil {
@@ -208,6 +212,7 @@ func (g *GenesisBlockGenerator) acceptVoteproof(proposal, newblock util.Hash) er
 	if err := sf.Sign(g.local.Privatekey(), g.networkID); err != nil {
 		return e(err, "")
 	}
+
 	if err := sf.IsValid(g.networkID); err != nil {
 		return e(err, "")
 	}
@@ -216,8 +221,9 @@ func (g *GenesisBlockGenerator) acceptVoteproof(proposal, newblock util.Hash) er
 	vp.SetResult(base.VoteResultMajority).
 		SetMajority(fact).
 		SetSignedFacts([]base.BallotSignedFact{sf}).
-		SetThreshold(base.Threshold(100)).
+		SetThreshold(base.MaxThreshold).
 		Finish()
+
 	if err := vp.IsValid(g.networkID); err != nil {
 		return e(err, "")
 	}
@@ -240,6 +246,7 @@ func (g *GenesisBlockGenerator) process() error {
 	if err != nil {
 		return e(err, "")
 	}
+
 	_ = pp.SetLogging(g.Logging)
 
 	switch m, err := pp.Process(context.Background(), g.ivp); {
@@ -291,7 +298,8 @@ func (g *GenesisBlockGenerator) newProposalProcessor() (*isaac.DefaultProposalPr
 					return op, nil
 				}
 			}
-			return nil, util.NotFoundError.Errorf("operation not found")
+
+			return nil, util.ErrNotFound.Errorf("operation not found")
 		},
 		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) {
 			return nil, false, nil

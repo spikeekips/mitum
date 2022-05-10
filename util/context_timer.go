@@ -18,7 +18,7 @@ var contextTimerPool = sync.Pool{
 
 var (
 	ContextTimerPoolGet = func() *ContextTimer {
-		return contextTimerPool.Get().(*ContextTimer)
+		return contextTimerPool.Get().(*ContextTimer) //nolint:forcetypeassert //...
 	}
 	ContextTimerPoolPut = func(ct *ContextTimer) {
 		ct.Lock()
@@ -92,6 +92,7 @@ func (ct *ContextTimer) SetLogging(l *logging.Logging) *logging.Logging {
 
 func (ct *ContextTimer) Stop() error {
 	errch := make(chan error)
+
 	go func() {
 		errch <- ct.ContextDaemon.Stop()
 	}()
@@ -100,7 +101,6 @@ func (ct *ContextTimer) Stop() error {
 	case err := <-errch:
 		return errors.Wrap(err, "failed to stop ContextTimer")
 	case <-time.After(time.Millisecond * 300):
-		break
 	}
 
 	go func() {
@@ -141,7 +141,7 @@ end:
 
 			if err := ct.prepareCallback(ctx); err != nil {
 				switch {
-				case errors.Is(err, StopTimerError):
+				case errors.Is(err, ErrStopTimer):
 				default:
 					ct.Log().Debug().Err(err).Msg("timer got error; timer will be stopped")
 				}
@@ -171,6 +171,7 @@ func (ct *ContextTimer) prepareCallback(ctx context.Context) error {
 
 	count := ct.count()
 	interval := intervalfunc(count, ct.defaultInterval)
+
 	if interval < time.Nanosecond {
 		return errors.Errorf("invalid interval; too narrow, %v", interval)
 	}
@@ -193,7 +194,7 @@ func (ct *ContextTimer) waitAndRun(
 	if keep, err := callback(count); err != nil {
 		return errors.Wrap(err, "failed to callback in ContextTimer")
 	} else if !keep {
-		return StopTimerError.Call()
+		return ErrStopTimer.Call()
 	}
 
 	ct.finishCallback(count)

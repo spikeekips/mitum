@@ -51,6 +51,7 @@ func NewSuffrageJoinProcessor(
 
 		sufnodes := p.sufstv.Nodes()
 		p.pubs = make([]base.Publickey, len(sufnodes))
+
 		for i := range sufnodes {
 			n := sufnodes[i]
 			p.suffrage[n.Address().String()] = n
@@ -69,6 +70,7 @@ func NewSuffrageJoinProcessor(
 		p.sufcstv = i.Value().(base.SuffrageCandidateStateValue)
 
 		sufcnodes := p.sufcstv.Nodes()
+
 		for i := range sufcnodes {
 			n := sufcnodes[i]
 			p.candidates[n.Address().String()] = n

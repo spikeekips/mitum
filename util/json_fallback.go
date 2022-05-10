@@ -10,13 +10,13 @@ var jsoniterconfiged = jsoniter.Config{
 }.Froze()
 
 func marshalJSON(v interface{}) ([]byte, error) {
-	return jsoniterconfiged.Marshal(v)
+	return jsoniterconfiged.Marshal(v) //nolint:wrapcheck //...
 }
 
 func unmarshalJSON(b []byte, v interface{}) error {
-	return jsoniterconfiged.Unmarshal(b, v)
+	return jsoniterconfiged.Unmarshal(b, v) //nolint:wrapcheck //...
 }
 
 func marshalJSONIndent(i interface{}) ([]byte, error) {
-	return jsoniterconfiged.MarshalIndent(i, "", "  ")
+	return jsoniterconfiged.MarshalIndent(i, "", "  ") //nolint:wrapcheck //...
 }

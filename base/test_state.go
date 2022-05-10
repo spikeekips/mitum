@@ -40,7 +40,7 @@ func (s DummyStateValue) HashBytes() []byte {
 
 func (s DummyStateValue) IsValid([]byte) error {
 	if len(s.S) < 1 {
-		return util.InvalidError.Errorf("empty string in DummyStateValue")
+		return util.ErrInvalid.Errorf("empty string in DummyStateValue")
 	}
 
 	return nil

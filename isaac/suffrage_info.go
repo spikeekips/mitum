@@ -43,11 +43,12 @@ func (info SuffrageInfo) IsValid([]byte) error {
 	}
 
 	if len(info.suffrage) < 1 {
-		return e(util.InvalidError.Errorf("empty suffrage"), "")
+		return e(util.ErrInvalid.Errorf("empty suffrage"), "")
 	}
 
 	sufs := map[string]struct{}{}
 	var foundnil bool
+
 	if util.CheckSliceDuplicated(info.suffrage, func(j interface{}) string {
 		if j == nil {
 			foundnil = true
@@ -55,18 +56,20 @@ func (info SuffrageInfo) IsValid([]byte) error {
 			return ""
 		}
 
-		addr := j.(base.Node).Address().String()
+		addr := j.(base.Node).Address().String() //nolint:forcetypeassert //...
 		sufs[addr] = struct{}{}
 
 		return addr
 	}) {
-		return e(util.InvalidError.Errorf("duplicated suffrage node found"), "")
+		return e(util.ErrInvalid.Errorf("duplicated suffrage node found"), "")
 	}
+
 	if foundnil {
-		return e(util.InvalidError.Errorf("empty suffrage node found"), "")
+		return e(util.ErrInvalid.Errorf("empty suffrage node found"), "")
 	}
 
 	var foundinsufs bool
+
 	if util.CheckSliceDuplicated(info.candidates, func(j interface{}) string {
 		if j == nil {
 			foundnil = true
@@ -74,20 +77,21 @@ func (info SuffrageInfo) IsValid([]byte) error {
 			return ""
 		}
 
-		addr := j.(base.SuffrageCandidate).Address().String()
+		addr := j.(base.SuffrageCandidate).Address().String() //nolint:forcetypeassert //...
 		if _, found := sufs[addr]; found {
 			foundinsufs = true
 		}
 
 		return addr
 	}) {
-		return e(util.InvalidError.Errorf("duplicated candidates node found"), "")
+		return e(util.ErrInvalid.Errorf("duplicated candidates node found"), "")
 	}
+
 	switch {
 	case foundnil:
-		return e(util.InvalidError.Errorf("empty candidates node found"), "")
+		return e(util.ErrInvalid.Errorf("empty candidates node found"), "")
 	case foundinsufs:
-		return e(util.InvalidError.Errorf("candidates node found in suffrage"), "")
+		return e(util.ErrInvalid.Errorf("candidates node found in suffrage"), "")
 	}
 
 	return nil

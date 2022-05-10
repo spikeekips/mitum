@@ -20,6 +20,7 @@ type baseBallotFact struct {
 
 func newBaseBallotFact(ht hint.Hint, stage base.Stage, point base.Point) baseBallotFact {
 	sp := base.NewStagePoint(point, stage)
+
 	return baseBallotFact{
 		BaseFact: base.NewBaseFact(ht, base.Token(util.ConcatByters(ht, sp))),
 		point:    sp,
@@ -51,7 +52,7 @@ func NewINITBallotFact(point base.Point, previousBlock, proposal util.Hash) INIT
 		proposal:       proposal,
 	}
 
-	fact.SetHash(fact.hash())
+	fact.SetHash(fact.generateHash())
 
 	return fact
 }
@@ -68,7 +69,7 @@ func (fact INITBallotFact) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid INITBallotFact")
 
 	if fact.point.Stage() != base.StageINIT {
-		return e(util.InvalidError.Errorf("invalid stage, %q", fact.point.Stage()), "")
+		return e(util.ErrInvalid.Errorf("invalid stage, %q", fact.point.Stage()), "")
 	}
 
 	if err := fact.BaseFact.IsValid(nil); err != nil {
@@ -79,14 +80,14 @@ func (fact INITBallotFact) IsValid([]byte) error {
 		return e(err, "")
 	}
 
-	if !fact.Hash().Equal(fact.hash()) {
-		return util.InvalidError.Errorf("wrong hash of INITBallotFact")
+	if !fact.Hash().Equal(fact.generateHash()) {
+		return util.ErrInvalid.Errorf("wrong hash of INITBallotFact")
 	}
 
 	return nil
 }
 
-func (fact INITBallotFact) hash() util.Hash {
+func (fact INITBallotFact) generateHash() util.Hash {
 	return valuehash.NewSHA256(util.ConcatByters(
 		util.DummyByter(fact.baseBallotFact.hashBytes),
 		fact.previousBlock,
@@ -107,7 +108,7 @@ func NewACCEPTBallotFact(point base.Point, proposal, newBlock util.Hash) ACCEPTB
 		newBlock:       newBlock,
 	}
 
-	fact.SetHash(fact.hash())
+	fact.SetHash(fact.generateHash())
 
 	return fact
 }
@@ -124,21 +125,21 @@ func (fact ACCEPTBallotFact) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid ACCEPTBallotFact")
 
 	if fact.point.Stage() != base.StageACCEPT {
-		return e(util.InvalidError.Errorf("invalid stage, %q", fact.point.Stage()), "")
+		return e(util.ErrInvalid.Errorf("invalid stage, %q", fact.point.Stage()), "")
 	}
 
 	if err := base.IsValidACCEPTBallotFact(fact); err != nil {
 		return e(err, "")
 	}
 
-	if !fact.Hash().Equal(fact.hash()) {
-		return util.InvalidError.Errorf("wrong hash of ACCEPTBallotFact")
+	if !fact.Hash().Equal(fact.generateHash()) {
+		return util.ErrInvalid.Errorf("wrong hash of ACCEPTBallotFact")
 	}
 
 	return nil
 }
 
-func (fact ACCEPTBallotFact) hash() util.Hash {
+func (fact ACCEPTBallotFact) generateHash() util.Hash {
 	return valuehash.NewSHA256(util.ConcatByters(
 		util.DummyByter(fact.baseBallotFact.hashBytes),
 		fact.proposal,

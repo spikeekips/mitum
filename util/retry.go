@@ -11,6 +11,7 @@ func Retry(ctx context.Context, f func() (bool, error), limit int, interval time
 	var i int
 
 	var lerr error
+
 	for {
 		if i == limit {
 			if lerr != nil {

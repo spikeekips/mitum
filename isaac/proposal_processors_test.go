@@ -179,7 +179,7 @@ func (t *testProposalProcessors) TestFailedToFetchFact() {
 	pps := NewProposalProcessors(
 		NewDummyProposalProcessor().Make,
 		func(context.Context, util.Hash) (base.ProposalSignedFact, error) {
-			return nil, util.NotFoundError.Errorf("hehehe")
+			return nil, util.ErrNotFound.Errorf("hehehe")
 		},
 	)
 	pps.retrylimit = 1
@@ -188,7 +188,7 @@ func (t *testProposalProcessors) TestFailedToFetchFact() {
 	t.T().Log("process")
 	_, err := pps.Process(context.Background(), valuehash.RandomSHA256(), nil, nil)
 	t.Error(err)
-	t.True(errors.Is(err, util.NotFoundError))
+	t.True(errors.Is(err, util.ErrNotFound))
 	t.ErrorContains(err, "hehehe")
 }
 

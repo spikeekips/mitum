@@ -38,22 +38,23 @@ func (t Tree) IsValid(b []byte) error {
 
 	if err := t.Traverse(func(index uint64, n Node) (bool, error) {
 		if err := n.IsValid(b); err != nil {
-			return false, err
+			return false, errors.Wrap(err, "")
 		}
 
 		children, err := childrenNodes(t.nodes, index)
+
 		switch {
 		case err == nil:
 		case errors.Is(err, noChildrenError):
 		default:
-			return false, util.InvalidError.Wrap(err)
+			return false, util.ErrInvalid.Wrap(err)
 		}
 
 		switch h, err := nodeHash(n, children[0], children[1]); {
 		case err != nil:
-			return false, util.InvalidError.Wrap(err)
+			return false, util.ErrInvalid.Wrap(err)
 		case !n.Hash().Equal(h):
-			return false, util.InvalidError.Errorf("hash does not match")
+			return false, util.ErrInvalid.Errorf("hash does not match")
 		}
 
 		return true, nil
@@ -154,7 +155,7 @@ func children(size int, index uint64) (c [2]uint64, err error) {
 	pos := index - currentFirst
 	nextFirst := uint64(math.Pow(2, float64(height+1)) - 1)
 
-	switch i := nextFirst + pos*2; {
+	switch i := nextFirst + pos*2; { //nolint:gomnd //...
 	case i >= uint64(size):
 		return c, noChildrenError.Call()
 	default:
@@ -180,6 +181,7 @@ func parent(index uint64) (uint64, error) {
 	}
 
 	upFirst := uint64(math.Pow(2, float64(height-1)) - 1)
+
 	return upFirst + pos/2, nil
 }
 

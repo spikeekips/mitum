@@ -56,7 +56,7 @@ func (t *testBaseBallotFact) TestEmptyHash() {
 
 	err := bl.IsValid(nil)
 	t.Error(err)
-	t.True(errors.Is(err, util.InvalidError))
+	t.True(errors.Is(err, util.ErrInvalid))
 }
 
 func (t *testBaseBallotFact) TestWrongHash() {
@@ -65,7 +65,7 @@ func (t *testBaseBallotFact) TestWrongHash() {
 
 	err := bl.IsValid(nil)
 	t.Error(err)
-	t.True(errors.Is(err, util.InvalidError))
+	t.True(errors.Is(err, util.ErrInvalid))
 }
 
 func (t *testBaseBallotFact) TestWrongStage() {
@@ -74,7 +74,7 @@ func (t *testBaseBallotFact) TestWrongStage() {
 
 	err := bl.IsValid(nil)
 	t.Error(err)
-	t.True(errors.Is(err, util.InvalidError))
+	t.True(errors.Is(err, util.ErrInvalid))
 }
 
 func TestBasicINITBallotFact(tt *testing.T) {

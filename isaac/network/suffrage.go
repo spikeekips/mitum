@@ -165,13 +165,14 @@ func (s *SuffrageChecker) find(ctx context.Context, oldinfo base.SuffrageInfo) (
 			l := s.Log().With().Interface("conninfo", conninfo).Logger()
 
 			rinfo, found, err := s.lastSuffrage(ctx, conninfo)
+
 			switch {
 			case err != nil:
 				l.Error().Err(err).Msg("failed to check last suffrage info from remote node")
 
 				return err
 			case !found:
-				err = util.NotFoundError.Errorf("no last suffrage info")
+				err = util.ErrNotFound.Errorf("no last suffrage info")
 
 				l.Error().Err(err).Msg("failed to check last suffrage info from remote node")
 

@@ -29,7 +29,7 @@ func (t *testContextDaemon) TestNew() {
 	t.True(ed.IsStarted())
 
 	err := ed.Start()
-	t.True(errors.Is(err, DaemonAlreadyStartedError))
+	t.True(errors.Is(err, ErrDaemonAlreadyStarted))
 
 	<-time.After(time.Millisecond * 100)
 
@@ -41,7 +41,7 @@ func (t *testContextDaemon) TestNew() {
 	t.True(timeStopped.Sub(timeStopping) > 0)
 
 	err = ed.Stop()
-	t.True(errors.Is(err, DaemonAlreadyStoppedError))
+	t.True(errors.Is(err, ErrDaemonAlreadyStopped))
 }
 
 func (t *testContextDaemon) TestFuncStopped() {
@@ -73,7 +73,7 @@ func (t *testContextDaemon) TestStop() {
 	t.True(time.Since(timeStopping) > stopAfter)
 
 	// stop again
-	t.True(errors.Is(ed.Stop(), DaemonAlreadyStoppedError))
+	t.True(errors.Is(ed.Stop(), ErrDaemonAlreadyStopped))
 }
 
 func (t *testContextDaemon) TestStartAgain() {
@@ -117,7 +117,7 @@ func (t *testContextDaemon) TestWait() {
 
 	err := <-ed.Wait(context.Background())
 	t.ErrorContains(err, "show me")
-	t.True(errors.Is(ed.Stop(), DaemonAlreadyStoppedError))
+	t.True(errors.Is(ed.Stop(), ErrDaemonAlreadyStopped))
 
 	ed = NewContextDaemon("test", func(_ context.Context) error {
 		<-time.After(time.Second * 2)

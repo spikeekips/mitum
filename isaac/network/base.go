@@ -67,7 +67,7 @@ func (c *baseNodeNetwork) readEncoder(b []byte) (encoder.Encoder, []byte, error)
 
 	switch enc := c.encs.Find(ht); {
 	case enc == nil:
-		return nil, nil, util.NotFoundError.Errorf("encoder not found for %q", ht)
+		return nil, nil, util.ErrNotFound.Errorf("encoder not found for %q", ht)
 	default:
 		return enc, raw, nil
 	}

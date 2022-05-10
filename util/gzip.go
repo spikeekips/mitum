@@ -23,7 +23,7 @@ func (w *GzipWriter) Write(p []byte) (int, error) {
 	w.Lock()
 	defer w.Unlock()
 
-	return w.gw.Write(p)
+	return w.gw.Write(p) //nolint:wrapcheck //...
 }
 
 func (w *GzipWriter) Close() error {
@@ -59,7 +59,7 @@ func NewGzipReader(f io.Reader) (*GzipReader, error) {
 }
 
 func (r *GzipReader) Read(p []byte) (int, error) {
-	return r.gr.Read(p)
+	return r.gr.Read(p) //nolint:wrapcheck //...
 }
 
 func (r *GzipReader) Close() error {

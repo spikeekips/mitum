@@ -22,7 +22,7 @@ type BaseStringAddress struct {
 
 func NewBaseStringAddressWithHint(ht hint.Hint, s string) BaseStringAddress {
 	ad := BaseStringAddress{BaseHinter: hint.NewBaseHinter(ht)}
-	ad.s = ad.string(s)
+	ad.s = s + ht.Type().String()
 
 	return ad
 }
@@ -30,25 +30,25 @@ func NewBaseStringAddressWithHint(ht hint.Hint, s string) BaseStringAddress {
 func (ad BaseStringAddress) IsValid([]byte) error {
 	switch l := len(ad.s); {
 	case l < MinAddressSize:
-		return util.InvalidError.Errorf("too short string address")
+		return util.ErrInvalid.Errorf("too short string address")
 	case l > MaxAddressSize:
-		return util.InvalidError.Errorf("too long string address")
+		return util.ErrInvalid.Errorf("too long string address")
 	}
 
 	p := ad.s[:len(ad.s)-AddressTypeSize]
 	if reBlankStringAddressString.MatchString(p) {
-		return util.InvalidError.Errorf("string address string, %q has blank", ad)
+		return util.ErrInvalid.Errorf("string address string, %q has blank", ad)
 	}
 
 	if !reStringAddressString.MatchString(p) {
-		return util.InvalidError.Errorf("invalid string address string, %q", ad)
+		return util.ErrInvalid.Errorf("invalid string address string, %q", ad)
 	}
 
 	switch {
 	case len(ad.Hint().Type().String()) != AddressTypeSize:
-		return util.InvalidError.Errorf("wrong hint of string address")
+		return util.ErrInvalid.Errorf("wrong hint of string address")
 	case ad.s[len(ad.s)-AddressTypeSize:] != ad.Hint().Type().String():
-		return util.InvalidError.Errorf(
+		return util.ErrInvalid.Errorf(
 			"wrong type of string address; %v != %v", ad.s[len(ad.s)-AddressTypeSize:], ad.Hint().Type())
 	}
 
@@ -73,8 +73,4 @@ func (ad BaseStringAddress) Equal(b Address) bool {
 
 func (ad BaseStringAddress) MarshalText() ([]byte, error) {
 	return []byte(ad.s), nil
-}
-
-func (ad BaseStringAddress) string(s string) string {
-	return s + ad.Hint().Type().String()
 }

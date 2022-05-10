@@ -244,14 +244,15 @@ func (t *Transport) receiveStream(b []byte, raddr net.Addr) {
 
 	var conn *qconn
 	i, _ := t.conns.Value(raddr.String())
+
 	switch {
 	case i != nil:
-		conn = i.(*qconn)
+		conn = i.(*qconn) //nolint:forcetypeassert // ...
 	case i == nil:
-		conn = t.newConn(raddr.(*net.UDPAddr))
+		conn = t.newConn(raddr.(*net.UDPAddr)) //nolint:forcetypeassert // ...
 	}
 
-	if conn.append(b) {
+	if conn.writeClose(b) {
 		t.streamch <- conn
 	}
 }
@@ -272,7 +273,7 @@ func (t *Transport) newConn(raddr *net.UDPAddr) *qconn {
 			return n, err
 		},
 		func() {
-			_ = t.conns.Remove(raddr.String(), nil)
+			_ = t.conns.Remove(raddr.String(), nil) //nolint:errcheck //...
 		},
 	)
 
@@ -301,7 +302,7 @@ func unmarshalMsg(b []byte) (rawDataType, net.Addr, []byte, error) {
 
 	addr, err := net.ResolveUDPAddr("udp", s)
 	if err != nil {
-		return noneDataType, nil, nil, err
+		return noneDataType, nil, nil, errors.Wrap(err, "")
 	}
 
 	return rawDataType(dt), addr, b[200:], nil

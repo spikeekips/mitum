@@ -16,7 +16,6 @@ import (
 
 var (
 	OperationFixedtreeHint              = hint.MustNewHint("operation-fixedtree-v0.0.1")
-	OperationFixedtreeNodeHint          = hint.MustNewHint("operation-fixedtree-node-v0.0.1")
 	BaseOperationProcessReasonErrorHint = hint.MustNewHint("operation-fixedtree-node-process-reason-v0.0.1")
 )
 
@@ -41,32 +40,28 @@ type OperationFixedtreeNode struct {
 	inState bool
 }
 
-func NewOperationFixedtreeNode(
-	facthash util.Hash,
-	inState bool,
-	errorreason string,
-) OperationFixedtreeNode {
-	return NewOperationFixedtreeNodeWithHash(facthash, inState, errorreason)
-}
-
-func NewOperationFixedtreeNodeWithHash(
-	facthash util.Hash,
-	inState bool,
-	reason string,
-) OperationFixedtreeNode {
+func NewInStateOperationFixedtreeNode(facthash util.Hash, reason string) OperationFixedtreeNode {
 	var operr OperationProcessReasonError
 	if len(reason) > 0 {
 		operr = NewBaseOperationProcessReasonError(reason)
 	}
 
-	k := facthash.String()
-	if !inState {
-		k += "-"
+	return OperationFixedtreeNode{
+		BaseNode: fixedtree.NewBaseNode(facthash.String()),
+		inState:  true,
+		reason:   operr,
+	}
+}
+
+func NewNotInStateOperationFixedtreeNode(facthash util.Hash, reason string) OperationFixedtreeNode {
+	var operr OperationProcessReasonError
+	if len(reason) > 0 {
+		operr = NewBaseOperationProcessReasonError(reason)
 	}
 
 	return OperationFixedtreeNode{
-		BaseNode: fixedtree.NewBaseNode(k),
-		inState:  inState,
+		BaseNode: fixedtree.NewBaseNode(facthash.String() + "-"),
+		inState:  false,
 		reason:   operr,
 	}
 }
@@ -88,9 +83,11 @@ func (no OperationFixedtreeNode) Reason() OperationProcessReasonError {
 }
 
 func (no OperationFixedtreeNode) SetHash(h util.Hash) fixedtree.Node {
-	no.BaseNode = no.BaseNode.SetHash(h).(fixedtree.BaseNode)
-
-	return no
+	return OperationFixedtreeNode{
+		BaseNode: no.BaseNode.SetHash(h).(fixedtree.BaseNode), //nolint:forcetypeassert // ...
+		inState:  no.inState,
+		reason:   no.reason,
+	}
 }
 
 type operationFixedtreeNodeJSONMarshaler struct {
@@ -140,7 +137,8 @@ func (no *OperationFixedtreeNode) DecodeJSON(b []byte, enc *jsonenc.Encoder) err
 	return nil
 }
 
-var NotChangedOperationProcessReasonError = NewBaseOperationProcessReasonError("states not changed")
+var ErrNotChangedOperationProcessReason = NewBaseOperationProcessReasonError( //nolint:varcheck // .
+	"states not changed")
 
 type OperationProcessReasonError interface {
 	error
@@ -159,7 +157,7 @@ func NewBaseOperationProcessReasonError(s string, a ...interface{}) BaseOperatio
 	return BaseOperationProcessReasonError{
 		BaseHinter: hint.NewBaseHinter(BaseOperationProcessReasonErrorHint),
 		id:         fmt.Sprintf("%+v", f),
-		msg:        fmt.Errorf(s, a...).Error(),
+		msg:        fmt.Errorf(s, a...).Error(), //nolint:goerr113 // it just stores error message
 	}
 }
 
@@ -168,7 +166,7 @@ func (BaseOperationProcessReasonError) Hint() hint.Hint {
 }
 
 func (e BaseOperationProcessReasonError) Is(err error) bool {
-	b, ok := err.(BaseOperationProcessReasonError) // nolint:errorlint
+	b, ok := err.(BaseOperationProcessReasonError) //nolint:errorlint // ...
 	if !ok {
 		return false
 	}
@@ -185,19 +183,19 @@ func (e BaseOperationProcessReasonError) Error() string {
 }
 
 type BaseOperationProcessReasonErrorJSONMarshaler struct {
-	Msg string `json:"message"`
+	Message string `json:"message"`
 	hint.BaseHinter
 }
 
 func (e BaseOperationProcessReasonError) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(BaseOperationProcessReasonErrorJSONMarshaler{
 		BaseHinter: e.BaseHinter,
-		Msg:        e.msg,
+		Message:    e.msg,
 	})
 }
 
 type BaseOperationProcessReasonErrorJSONUnmarshaler struct {
-	Msg string `json:"message"`
+	Message string `json:"message"`
 }
 
 func (e *BaseOperationProcessReasonError) UnmarshalJSON(b []byte) error {
@@ -206,7 +204,7 @@ func (e *BaseOperationProcessReasonError) UnmarshalJSON(b []byte) error {
 		return errors.Wrap(err, "failed to unmarshal BaseOperationProcessReasonError")
 	}
 
-	e.msg = u.Msg
+	e.msg = u.Message
 
 	return nil
 }
@@ -215,6 +213,7 @@ func ParseTreeNodeOperationKey(s string) (util.Hash, bool) {
 	k := s
 
 	var notInState bool
+
 	if strings.HasSuffix(s, "-") {
 		k = k[:len(k)-1]
 		notInState = true

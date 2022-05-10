@@ -124,39 +124,39 @@ func (m *DummyManifest) SetProposedAt(i time.Time) *DummyManifest {
 
 type DummyManifestJSONMarshaler struct {
 	hint.BaseHinter
-	H          util.Hash      `json:"hash"`
-	Height     Height         `json:"height"`
-	Prev       util.Hash      `json:"previous_block"`
-	Proposal   util.Hash      `json:"proposal"`
-	Opstree    util.Hash      `json:"operations_tree"`
-	Statestree util.Hash      `json:"states_tree"`
-	Suf        util.Hash      `json:"suffrage"`
-	ProposedAt localtime.Time `json:"proposed_at"`
+	Hash           util.Hash      `json:"hash"`
+	Height         Height         `json:"height"`
+	PreviousBlock  util.Hash      `json:"previous_block"`
+	Proposal       util.Hash      `json:"proposal"`
+	OperationsTree util.Hash      `json:"operations_tree"`
+	StatesTree     util.Hash      `json:"states_tree"`
+	Suffrage       util.Hash      `json:"suffrage"`
+	ProposedAt     localtime.Time `json:"proposed_at"`
 }
 
 func (m DummyManifest) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(DummyManifestJSONMarshaler{
-		BaseHinter: hint.NewBaseHinter(DummyManifestHint),
-		H:          m.h,
-		Height:     m.height,
-		Prev:       m.prev,
-		Proposal:   m.proposal,
-		Opstree:    m.opstree,
-		Statestree: m.statestree,
-		Suf:        m.suf,
-		ProposedAt: localtime.New(m.proposedAt),
+		BaseHinter:     hint.NewBaseHinter(DummyManifestHint),
+		Hash:           m.h,
+		Height:         m.height,
+		PreviousBlock:  m.prev,
+		Proposal:       m.proposal,
+		OperationsTree: m.opstree,
+		StatesTree:     m.statestree,
+		Suffrage:       m.suf,
+		ProposedAt:     localtime.New(m.proposedAt),
 	})
 }
 
 type DummyManifestJSONUnmarshaler struct {
-	H          valuehash.HashDecoder `json:"hash"`
-	Height     Height                `json:"height"`
-	Prev       valuehash.HashDecoder `json:"previous_block"`
-	Proposal   valuehash.HashDecoder `json:"proposal"`
-	Opstree    valuehash.HashDecoder `json:"operations_tree"`
-	Statestree valuehash.HashDecoder `json:"states_tree"`
-	Suf        valuehash.HashDecoder `json:"suffrage"`
-	ProposedAt localtime.Time        `json:"proposed_at"`
+	Hash           valuehash.HashDecoder `json:"hash"`
+	Height         Height                `json:"height"`
+	PreviousBlock  valuehash.HashDecoder `json:"previous_block"`
+	Proposal       valuehash.HashDecoder `json:"proposal"`
+	OperationsTree valuehash.HashDecoder `json:"operations_tree"`
+	StatesTree     valuehash.HashDecoder `json:"states_tree"`
+	Suffrage       valuehash.HashDecoder `json:"suffrage"`
+	ProposedAt     localtime.Time        `json:"proposed_at"`
 }
 
 func (m *DummyManifest) UnmarshalJSON(b []byte) error {
@@ -165,13 +165,13 @@ func (m *DummyManifest) UnmarshalJSON(b []byte) error {
 		return errors.Wrap(err, "failed to unmarshal DummyManifest")
 	}
 
-	m.h = u.H.Hash()
+	m.h = u.Hash.Hash()
 	m.height = u.Height
-	m.prev = u.Prev.Hash()
+	m.prev = u.PreviousBlock.Hash()
 	m.proposal = u.Proposal.Hash()
-	m.opstree = u.Opstree.Hash()
-	m.statestree = u.Statestree.Hash()
-	m.suf = u.Suf.Hash()
+	m.opstree = u.OperationsTree.Hash()
+	m.statestree = u.StatesTree.Hash()
+	m.suf = u.Suffrage.Hash()
 	m.proposedAt = u.ProposedAt.Time
 
 	return nil

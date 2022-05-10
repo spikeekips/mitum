@@ -71,8 +71,12 @@ func (w *Writer) SetOperationsSize(n uint64) {
 	w.opstreeg = opstreeg
 }
 
-func (w *Writer) SetProcessResult(
-	_ context.Context, index uint64, facthash util.Hash, instate bool, errorreason base.OperationProcessReasonError,
+func (w *Writer) SetProcessResult( // revive:disable-line:flag-parameter
+	_ context.Context,
+	index uint64,
+	facthash util.Hash,
+	instate bool,
+	errorreason base.OperationProcessReasonError,
 ) error {
 	e := util.StringErrorFunc("failed to set operation")
 	if err := w.db.SetOperations([]util.Hash{facthash}); err != nil {
@@ -84,7 +88,13 @@ func (w *Writer) SetProcessResult(
 		msg = errorreason.Msg()
 	}
 
-	node := base.NewOperationFixedtreeNode(facthash, instate, msg)
+	var node base.OperationFixedtreeNode
+	if instate {
+		node = base.NewInStateOperationFixedtreeNode(facthash, msg)
+	} else {
+		node = base.NewNotInStateOperationFixedtreeNode(facthash, msg)
+	}
+
 	if err := w.opstreeg.Add(index, node); err != nil {
 		return e(err, "failed to set operation")
 	}
@@ -119,6 +129,7 @@ func (w *Writer) SetState(_ context.Context, stv base.StateMergeValue, operation
 
 	j, _, err := w.states.Get(stv.Key(), func() (interface{}, error) {
 		var st base.State
+
 		switch j, found, err := w.getStateFunc(stv.Key()); {
 		case err != nil:
 			return nil, err
@@ -132,7 +143,8 @@ func (w *Writer) SetState(_ context.Context, stv base.StateMergeValue, operation
 		return e(err, "")
 	}
 
-	if err := j.(base.StateValueMerger).Merge(stv.Value(), []util.Hash{operation.Fact().Hash()}); err != nil {
+	if err := j.(base.StateValueMerger).Merge( //nolint:forcetypeassert //...
+		stv.Value(), []util.Hash{operation.Fact().Hash()}); err != nil {
 		return e(err, "failed to merge")
 	}
 
@@ -167,7 +179,7 @@ func (w *Writer) closeStateValues(ctx context.Context) error {
 	{
 		var i int
 		w.states.Traverse(func(k, _ interface{}) bool {
-			sortedkeys[i] = k.(string)
+			sortedkeys[i] = k.(string) //nolint:forcetypeassert //...
 			i++
 
 			return true
@@ -190,9 +202,10 @@ func (w *Writer) closeStateValues(ctx context.Context) error {
 
 		for i := range sortedkeys {
 			v, _ := w.states.Value(sortedkeys[i])
-			st := v.(base.State)
+			st := v.(base.State) //nolint:forcetypeassert //...
 
 			index := uint64(i)
+
 			if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
 				nst, err := w.closeStateValue(tg, st, index)
 				if err != nil {
@@ -200,11 +213,11 @@ func (w *Writer) closeStateValues(ctx context.Context) error {
 				}
 
 				if err := w.fswriter.SetState(ctx, index, nst); err != nil {
-					return err
+					return errors.Wrap(err, "")
 				}
 
 				if err := w.db.SetStates([]base.State{nst}); err != nil {
-					return err
+					return errors.Wrap(err, "")
 				}
 
 				states[index] = nst
@@ -240,7 +253,7 @@ func (*Writer) closeStateValue(
 	}
 
 	if err := stm.Close(); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "")
 	}
 
 	return stm, tg.Add(index, fixedtree.NewBaseNode(stm.Hash().String()))
@@ -264,7 +277,7 @@ func (w *Writer) saveStates(
 		}
 
 		if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-			return w.db.SetStates(states)
+			return w.db.SetStates(states) //nolint:wrapcheck //...
 		}); err != nil {
 			return
 		}
@@ -295,7 +308,7 @@ func (w *Writer) Manifest(ctx context.Context, previous base.Manifest) (base.Man
 
 	e := util.StringErrorFunc("failed to make manifest")
 
-	if w.proposal == nil || (w.proposal.Point().Height() > base.GenesisHeight && previous == nil) {
+	if w.proposal == nil || (previous == nil && w.proposal.Point().Height() > base.GenesisHeight) {
 		return nil, e(nil, "not yet written")
 	}
 
@@ -355,6 +368,7 @@ func (w *Writer) Save(ctx context.Context) (base.BlockMap, error) {
 	e := util.StringErrorFunc("failed to save")
 
 	var m base.BlockMap
+
 	switch i, err := w.fswriter.Save(ctx); {
 	case err != nil:
 		return nil, e(err, "")

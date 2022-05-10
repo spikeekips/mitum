@@ -26,9 +26,9 @@ func DefaultNodePolicy(networkID base.NetworkID) NodePolicy {
 		BaseHinter:              hint.NewBaseHinter(NodePolicyHint),
 		networkID:               networkID,
 		threshold:               base.DefaultThreshold,
-		intervalBroadcastBallot: time.Second * 3,
-		waitProcessingProposal:  time.Second * 3,
-		timeoutRequestProposal:  time.Second * 3,
+		intervalBroadcastBallot: time.Second * 3, //nolint:gomnd //...
+		waitProcessingProposal:  time.Second * 3, //nolint:gomnd //...
+		timeoutRequestProposal:  time.Second * 3, //nolint:gomnd //...
 	}
 }
 
@@ -40,19 +40,23 @@ func (p NodePolicy) IsValid(networkID []byte) error {
 	}
 
 	if !p.networkID.Equal(networkID) {
-		return e(util.InvalidError.Errorf("network id does not match"), "")
+		return e(util.ErrInvalid.Errorf("network id does not match"), "")
 	}
+
 	if err := util.CheckIsValid(networkID, false, p.networkID, p.threshold); err != nil {
 		return e(err, "")
 	}
+
 	if p.intervalBroadcastBallot < 0 {
-		return e(util.InvalidError.Errorf("wrong duration"), "invalid intervalBroadcastBallot")
+		return e(util.ErrInvalid.Errorf("wrong duration"), "invalid intervalBroadcastBallot")
 	}
+
 	if p.waitProcessingProposal < 0 {
-		return e(util.InvalidError.Errorf("wrong duration"), "invalid waitProcessingProposal")
+		return e(util.ErrInvalid.Errorf("wrong duration"), "invalid waitProcessingProposal")
 	}
+
 	if p.timeoutRequestProposal < 0 {
-		return e(util.InvalidError.Errorf("wrong duration"), "invalid timeoutRequestProposal")
+		return e(util.ErrInvalid.Errorf("wrong duration"), "invalid timeoutRequestProposal")
 	}
 
 	return nil
@@ -109,31 +113,31 @@ func (p *NodePolicy) SetTimeoutRequestProposal(d time.Duration) *NodePolicy {
 }
 
 type nodePolicyJSONMarshaler struct {
-	NT base.NetworkID `json:"network_id"`
+	NetworkID base.NetworkID `json:"network_id"`
 	hint.BaseHinter
-	TH base.Threshold `json:"threshold"`
-	IB time.Duration  `json:"interval_broadcast_ballot"`
-	WP time.Duration  `json:"wait_processing_proposal"`
-	TP time.Duration  `json:"timeout_request_proposal"`
+	Threshold               base.Threshold `json:"threshold"`
+	IntervalBroadcastBallot time.Duration  `json:"interval_broadcast_ballot"`
+	WaitProcessingProposal  time.Duration  `json:"wait_processing_proposal"`
+	TimeoutRequestProposal  time.Duration  `json:"timeout_request_proposal"`
 }
 
 func (p NodePolicy) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(nodePolicyJSONMarshaler{
-		BaseHinter: p.BaseHinter,
-		NT:         p.networkID,
-		TH:         p.threshold,
-		IB:         p.intervalBroadcastBallot,
-		WP:         p.waitProcessingProposal,
-		TP:         p.timeoutRequestProposal,
+		BaseHinter:              p.BaseHinter,
+		NetworkID:               p.networkID,
+		Threshold:               p.threshold,
+		IntervalBroadcastBallot: p.intervalBroadcastBallot,
+		WaitProcessingProposal:  p.waitProcessingProposal,
+		TimeoutRequestProposal:  p.timeoutRequestProposal,
 	})
 }
 
 type nodePolicyJSONUnmarshaler struct {
-	NT base.NetworkID `json:"network_id"`
-	TH base.Threshold `json:"threshold"`
-	IB time.Duration  `json:"interval_broadcast_ballot"`
-	WP time.Duration  `json:"wait_processing_proposal"`
-	TP time.Duration  `json:"timeout_request_proposal"`
+	NetworkID               base.NetworkID `json:"network_id"`
+	Threshold               base.Threshold `json:"threshold"`
+	IntervalBroadcastBallot time.Duration  `json:"interval_broadcast_ballot"`
+	WaitProcessingProposal  time.Duration  `json:"wait_processing_proposal"`
+	TimeoutRequestProposal  time.Duration  `json:"timeout_request_proposal"`
 }
 
 func (p *NodePolicy) UnmarshalJSON(b []byte) error {
@@ -142,11 +146,11 @@ func (p *NodePolicy) UnmarshalJSON(b []byte) error {
 		return errors.Wrap(err, "failed to unmarshal NodePolicy")
 	}
 
-	p.networkID = u.NT
-	p.threshold = u.TH
-	p.intervalBroadcastBallot = u.IB
-	p.waitProcessingProposal = u.WP
-	p.timeoutRequestProposal = u.TP
+	p.networkID = u.NetworkID
+	p.threshold = u.Threshold
+	p.intervalBroadcastBallot = u.IntervalBroadcastBallot
+	p.waitProcessingProposal = u.WaitProcessingProposal
+	p.timeoutRequestProposal = u.TimeoutRequestProposal
 
 	return nil
 }

@@ -77,6 +77,7 @@ func (fact *INITBallotFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	if err := ub.DecodeJSON(b, enc); err != nil {
 		return e(err, "")
 	}
+
 	fact.baseBallotFact = ub
 
 	var u INITBallotFactJSONUnmarshaler
@@ -105,6 +106,7 @@ func (fact *ACCEPTBallotFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	if err := ub.DecodeJSON(b, enc); err != nil {
 		return e(err, "")
 	}
+
 	fact.baseBallotFact = ub
 
 	var u ACCEPTBallotFactJSONUnmarshaler

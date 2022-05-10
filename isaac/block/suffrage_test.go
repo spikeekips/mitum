@@ -142,7 +142,7 @@ func (t *testSuffrageProof) TestInvalid() {
 
 		err := p.IsValid(t.NodePolicy.NetworkID())
 		t.Error(err)
-		t.True(errors.Is(err, util.InvalidError))
+		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "type does not match")
 	})
 
@@ -151,7 +151,7 @@ func (t *testSuffrageProof) TestInvalid() {
 
 		err := p.IsValid(t.NodePolicy.NetworkID())
 		t.Error(err)
-		t.True(errors.Is(err, util.InvalidError))
+		t.True(errors.Is(err, util.ErrInvalid))
 	})
 
 	t.Run("nil state", func() {
@@ -159,7 +159,7 @@ func (t *testSuffrageProof) TestInvalid() {
 
 		err := p.IsValid(t.NodePolicy.NetworkID())
 		t.Error(err)
-		t.True(errors.Is(err, util.InvalidError))
+		t.True(errors.Is(err, util.ErrInvalid))
 	})
 
 	t.Run("nil voteproof", func() {
@@ -167,7 +167,7 @@ func (t *testSuffrageProof) TestInvalid() {
 
 		err := p.IsValid(t.NodePolicy.NetworkID())
 		t.Error(err)
-		t.True(errors.Is(err, util.InvalidError))
+		t.True(errors.Is(err, util.ErrInvalid))
 	})
 
 	t.Run("wrong suffrage state", func() {
@@ -175,7 +175,7 @@ func (t *testSuffrageProof) TestInvalid() {
 
 		err := p.IsValid(t.NodePolicy.NetworkID())
 		t.Error(err)
-		t.True(errors.Is(err, util.InvalidError))
+		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "expected SuffrageStateValue")
 	})
 
@@ -190,7 +190,7 @@ func (t *testSuffrageProof) TestInvalid() {
 
 		err = p.IsValid(t.NodePolicy.NetworkID())
 		t.Error(err)
-		t.True(errors.Is(err, util.InvalidError))
+		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "accept voteproof is not majority")
 	})
 }

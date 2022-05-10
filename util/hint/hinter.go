@@ -10,7 +10,7 @@ type SetHinter interface {
 }
 
 type BaseHinter struct {
-	HT Hint `json:"_hint"`
+	HT Hint `json:"_hint"` //nolint:tagliatelle //...
 }
 
 func NewBaseHinter(ht Hint) BaseHinter {
@@ -21,10 +21,8 @@ func (ht BaseHinter) Hint() Hint {
 	return ht.HT
 }
 
-func (ht BaseHinter) SetHint(n Hint) Hinter {
-	ht.HT = n
-
-	return ht
+func (BaseHinter) SetHint(n Hint) Hinter {
+	return BaseHinter{HT: n}
 }
 
 func (ht BaseHinter) IsValid(expectedType []byte) error {
@@ -34,7 +32,7 @@ func (ht BaseHinter) IsValid(expectedType []byte) error {
 
 	if len(expectedType) > 0 {
 		if t := Type(string(expectedType)); t != ht.HT.Type() {
-			return util.InvalidError.Errorf("type does not match in BaseHinter, %q != %q", ht.HT.Type(), t)
+			return util.ErrInvalid.Errorf("type does not match in BaseHinter, %q != %q", ht.HT.Type(), t)
 		}
 	}
 

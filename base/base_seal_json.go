@@ -11,7 +11,7 @@ import (
 )
 
 type baseSealJSONMarshaler struct {
-	H      util.Hash  `json:"hash"`
+	Hash   util.Hash  `json:"hash"`
 	Signed BaseSigned `json:"signed"`
 	Body   []SealBody `json:"body"`
 	hint.BaseHinter
@@ -21,13 +21,13 @@ func (sl BaseSeal) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(baseSealJSONMarshaler{
 		BaseHinter: sl.BaseHinter,
 		Signed:     sl.signed,
-		H:          sl.h,
+		Hash:       sl.h,
 		Body:       sl.body,
 	})
 }
 
 type baseSealJSONUnmarshaler struct {
-	H      valuehash.HashDecoder `json:"hash"`
+	Hash   valuehash.HashDecoder `json:"hash"`
 	Signed json.RawMessage       `json:"signed"`
 	Body   []json.RawMessage     `json:"body"`
 }
@@ -46,6 +46,7 @@ func (sl *BaseSeal) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	}
 
 	bs := make([]SealBody, len(u.Body))
+
 	for i := range u.Body {
 		hinter, err := enc.Decode(u.Body[i])
 		if err != nil {
@@ -56,10 +57,11 @@ func (sl *BaseSeal) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		if !ok {
 			return e(nil, "expected SealBody, not %T", hinter)
 		}
+
 		bs[i] = j
 	}
 
-	sl.h = u.H.Hash()
+	sl.h = u.Hash.Hash()
 	sl.signed = us
 	sl.body = bs
 

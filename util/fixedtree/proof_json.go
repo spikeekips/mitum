@@ -19,6 +19,7 @@ func (p *Proof) UnmarshalJSON(b []byte) error {
 	}
 
 	p.nodes = make([]Node, len(u))
+
 	for i := range u {
 		var un BaseNode
 		if err := util.UnmarshalJSON(u[i], &un); err != nil {

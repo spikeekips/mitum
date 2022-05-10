@@ -135,7 +135,7 @@ func (l *LockedMap) SetValue(k, v interface{}) bool {
 	return found
 }
 
-func (l *LockedMap) Get(k interface{}, f func() (interface{}, error)) (interface{}, bool, error) {
+func (l *LockedMap) Get(k interface{}, f func() (interface{}, error)) (v interface{}, found bool, _ error) {
 	l.Lock()
 	defer l.Unlock()
 
@@ -187,6 +187,7 @@ func (l *LockedMap) Remove(k interface{}, f func(interface{}) error) error {
 		if j, found := l.m[k]; found {
 			i = j
 		}
+
 		if err := f(i); err != nil {
 			return err
 		}

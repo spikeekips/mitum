@@ -34,7 +34,7 @@ func (er Error) Unwrap() error {
 func (er Error) Is(err error) bool {
 	er.checkStack()
 
-	e, ok := err.(Error) // nolint:errorlint
+	e, ok := err.(Error) //nolint:errorlint //...
 	if !ok {
 		if er.wrapped == nil {
 			return false
@@ -47,27 +47,35 @@ func (er Error) Is(err error) bool {
 }
 
 func (er Error) Wrap(err error) Error {
-	er.stack = er.setStack()
-	er.wrapped = err
-
-	return er
+	return Error{
+		wrapped: err,
+		id:      er.id,
+		msg:     er.msg,
+		extra:   er.extra,
+		stack:   er.setStack(),
+	}
 }
 
 // Wrapf formats strings with error.
 func (er Error) Wrapf(err error, s string, a ...interface{}) Error {
-	er.stack = er.setStack()
-	er.extra = fmt.Sprintf(s, a...)
-	er.wrapped = err
-
-	return er
+	return Error{
+		wrapped: err,
+		id:      er.id,
+		msg:     er.msg,
+		extra:   fmt.Sprintf(s, a...),
+		stack:   er.setStack(),
+	}
 }
 
 // Errorf formats strings. It does not support `%w` error formatting.
 func (er Error) Errorf(s string, a ...interface{}) Error {
-	er.stack = er.setStack()
-	er.extra = fmt.Sprintf(s, a...)
-
-	return er
+	return Error{
+		wrapped: er.wrapped,
+		id:      er.id,
+		msg:     er.msg,
+		extra:   fmt.Sprintf(s, a...),
+		stack:   er.setStack(),
+	}
 }
 
 func (er Error) Format(st fmt.State, verb rune) {
@@ -87,7 +95,7 @@ func (er Error) Format(st fmt.State, verb rune) {
 			}
 
 			if er.wrapped != nil {
-				if fm, ok := er.wrapped.(fmt.Formatter); ok { // nolint:errorlint
+				if fm, ok := er.wrapped.(fmt.Formatter); ok { //nolint:errorlint //...
 					_, _ = fmt.Fprintln(st)
 					fm.Format(st, verb)
 				} else {
@@ -106,9 +114,9 @@ func (er Error) Format(st fmt.State, verb rune) {
 
 		fallthrough
 	case 's':
-		_, _ = io.WriteString(st, er.Error())
+		_, _ = io.WriteString(st, er.Error()) //nolint:errcheck //...
 	case 'q':
-		_, _ = fmt.Fprintf(st, "%q", er.Error())
+		_, _ = fmt.Fprintf(st, "%q", er.Error()) //nolint:errcheck //...
 	}
 }
 
@@ -121,7 +129,7 @@ func (er Error) StackTrace() errors.StackTrace {
 		return nil
 	}
 
-	i, ok := er.wrapped.(stackTracer) // nolint:errorlint
+	i, ok := er.wrapped.(stackTracer) //nolint:errorlint //...
 	if !ok {
 		return nil
 	}
@@ -137,7 +145,7 @@ func (er Error) Call() Error {
 
 func (er Error) checkStack() {
 	if er.stack == nil {
-		panic(fmt.Errorf("error, %q should not be used as error directly without Call()", er.msg))
+		panic(errors.Errorf("error, %q should not be used as error directly without Call()", er.msg))
 	}
 }
 
@@ -158,6 +166,7 @@ func (er Error) Error() string {
 	er.checkStack()
 
 	s := er.message()
+
 	if er.wrapped != nil {
 		if e := er.wrapped.Error(); len(e) > 0 {
 			s += "; " + e
@@ -192,6 +201,7 @@ func (s stack) StackTrace() errors.StackTrace {
 	for i := 0; i < len(f); i++ {
 		f[i] = errors.Frame((s)[i])
 	}
+
 	return f
 }
 
@@ -201,6 +211,7 @@ type stackTracer interface {
 
 func StringErrorFunc(m string, a ...interface{}) func(error, string, ...interface{}) error {
 	f := fmt.Sprintf(m, a...)
+
 	return func(err error, s string, a ...interface{}) error {
 		if len(s) > 0 {
 			s = "; " + s
@@ -242,6 +253,7 @@ func ZerologMarshalStack(err error) interface{} {
 	out := make([]map[string]string, len(st)+1)
 
 	out[0] = map[string]string{"error": err.Error()}
+
 	for i := range st {
 		frame := st[i]
 		out[i+1] = map[string]string{
@@ -260,7 +272,7 @@ func ZerologMarshalStack(err error) interface{} {
 		return out
 	}
 
-	uoutl := uout.([]map[string]string)
+	uoutl := uout.([]map[string]string) //nolint:errcheck,forcetypeassert //...
 
 	nout := make([]map[string]string, len(out)+len(uoutl))
 	copy(nout[:len(uoutl)], uoutl)

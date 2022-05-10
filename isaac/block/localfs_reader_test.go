@@ -144,7 +144,7 @@ func (t *testLocalFSReader) preparefs(point base.Point) (
 		op, _ := isaac.NewDummyOperation(fact, t.Local.Privatekey(), t.NodePolicy.NetworkID())
 		ops[i] = op
 
-		node := base.NewOperationFixedtreeNode(op.Fact().Hash(), true, "")
+		node := base.NewInStateOperationFixedtreeNode(op.Fact().Hash(), "")
 
 		t.NoError(fs.SetOperation(context.Background(), uint64(i), op))
 		t.NoError(opstreeg.Add(uint64(i), node))
@@ -373,7 +373,7 @@ func (t *testLocalFSReader) TestItem() {
 
 		t.NoError(opstree.Traverse(func(index uint64, n fixedtree.Node) (bool, error) {
 			if i := uopstree.Node(index); i == nil {
-				return false, util.NotFoundError.Errorf("node not found")
+				return false, util.ErrNotFound.Errorf("node not found")
 			} else if !n.Equal(i) {
 				return false, errors.Errorf("not equal")
 			}
@@ -419,7 +419,7 @@ func (t *testLocalFSReader) TestItem() {
 
 		t.NoError(sttstree.Traverse(func(index uint64, n fixedtree.Node) (bool, error) {
 			if i := usttstree.Node(index); i == nil {
-				return false, util.NotFoundError.Errorf("node not found")
+				return false, util.ErrNotFound.Errorf("node not found")
 			} else if !n.Equal(i) {
 				return false, errors.Errorf("not equal")
 			}

@@ -71,7 +71,7 @@ func (t *testQConn) TestRead() {
 		<-startreadch
 
 		b := util.UUID().Bytes()
-		t.True(c.append(b))
+		t.True(c.writeClose(b))
 
 		r := <-readch
 		t.NotNil(r)
@@ -88,7 +88,7 @@ func (t *testQConn) TestRead() {
 		defer c.Close()
 
 		b := util.UUID().Bytes()
-		t.True(c.append(b))
+		t.True(c.writeClose(b))
 
 		rb := make([]byte, 1024)
 		n, err := c.Read(rb)
@@ -102,7 +102,7 @@ func (t *testQConn) TestRead() {
 		c := newQConn(t.laddr, t.raddr, nil, nil)
 		c.Close()
 
-		t.False(c.append(util.UUID().Bytes()))
+		t.False(c.writeClose(util.UUID().Bytes()))
 	})
 
 	t.Run("after close", func() {

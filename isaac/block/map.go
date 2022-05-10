@@ -69,7 +69,7 @@ func (m BlockMap) IsValid(b []byte) error {
 			return true
 		}
 
-		vs[i] = v.(BlockMapItem)
+		vs[i] = v.(BlockMapItem) //nolint:forcetypeassert //...
 		i++
 
 		return true
@@ -80,7 +80,7 @@ func (m BlockMap) IsValid(b []byte) error {
 	}
 
 	if err := m.BaseNodeSigned.Verify(b, m.signedBytes()); err != nil {
-		return e(util.InvalidError.Wrap(err), "")
+		return e(util.ErrInvalid.Wrap(err), "")
 	}
 
 	return nil
@@ -103,7 +103,7 @@ func (m BlockMap) Item(t base.BlockMapItemType) (base.BlockMapItem, bool) {
 	case util.IsNilLockedValue(i):
 		return nil, false
 	default:
-		return i.(BlockMapItem), true
+		return i.(BlockMapItem), true //nolint:forcetypeassert //...
 	}
 }
 
@@ -128,7 +128,7 @@ func (m BlockMap) Items(f func(base.BlockMapItem) bool) {
 			return true
 		}
 
-		return f(v.(base.BlockMapItem))
+		return f(v.(base.BlockMapItem)) //nolint:forcetypeassert //...
 	})
 }
 
@@ -158,22 +158,22 @@ func (m BlockMap) checkItems() error {
 	}
 
 	if !check(base.BlockMapItemTypeProposal) {
-		return util.InvalidError.Errorf("empty proposal")
+		return util.ErrInvalid.Errorf("empty proposal")
 	}
 
 	if !check(base.BlockMapItemTypeVoteproofs) {
-		return util.InvalidError.Errorf("empty voteproofs")
+		return util.ErrInvalid.Errorf("empty voteproofs")
 	}
 
 	if m.manifest.OperationsTree() != nil {
 		if !check(base.BlockMapItemTypeOperationsTree) {
-			return util.InvalidError.Errorf("empty operations tree")
+			return util.ErrInvalid.Errorf("empty operations tree")
 		}
 	}
 
 	if m.manifest.StatesTree() != nil {
 		if !check(base.BlockMapItemTypeStatesTree) {
-			return util.InvalidError.Errorf("empty states tree")
+			return util.ErrInvalid.Errorf("empty states tree")
 		}
 	}
 
@@ -197,7 +197,7 @@ func (m BlockMap) signedBytes() []byte {
 		}
 
 		// NOTE only checksum and num will be included in signature
-		item := v.(BlockMapItem)
+		item := v.(BlockMapItem) //nolint:forcetypeassert //...
 		ts[i] = util.ConcatBytesSlice([]byte(item.Checksum()), util.Uint64ToBytes(item.Num()))
 		i++
 
@@ -242,22 +242,22 @@ func (item BlockMapItem) IsValid([]byte) error {
 	}
 
 	if item.num < 1 {
-		return e(util.InvalidError.Errorf("zero num"), "")
+		return e(util.ErrInvalid.Errorf("zero num"), "")
 	}
 
 	if n := len(item.checksum); n < 1 {
-		return e(util.InvalidError.Errorf("empty checksum"), "")
+		return e(util.ErrInvalid.Errorf("empty checksum"), "")
 	}
 
 	switch {
 	case len(item.url.String()) < 1:
-		return e(util.InvalidError.Errorf("empty url"), "")
+		return e(util.ErrInvalid.Errorf("empty url"), "")
 	case len(item.url.Scheme) < 1:
-		return e(util.InvalidError.Errorf("empty url scheme"), "")
+		return e(util.ErrInvalid.Errorf("empty url scheme"), "")
 	default:
 		scheme := strings.ToLower(item.url.Scheme)
 		if _, found := supportedBlockMapItemURLSchemes[strings.ToLower(item.url.Scheme)]; !found {
-			return e(util.InvalidError.Errorf("unsupported url scheme found, %q", scheme), "")
+			return e(util.ErrInvalid.Errorf("unsupported url scheme found, %q", scheme), "")
 		}
 	}
 

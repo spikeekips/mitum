@@ -50,8 +50,8 @@ func (fact *SuffrageJoinPermissionFact) DecodeJSON(b []byte, enc *jsonenc.Encode
 }
 
 type SuffrageGenesisJoinPermissionFactJSONMarshaler struct {
-	Node base.Address
-	Pub  base.Publickey
+	Node      base.Address
+	Publickey base.Publickey
 	base.BaseFactJSONMarshaler
 }
 
@@ -59,13 +59,13 @@ func (fact SuffrageGenesisJoinPermissionFact) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(SuffrageGenesisJoinPermissionFactJSONMarshaler{
 		BaseFactJSONMarshaler: fact.BaseFact.JSONMarshaler(),
 		Node:                  fact.node,
-		Pub:                   fact.pub,
+		Publickey:             fact.pub,
 	})
 }
 
 type SuffrageGenesisJoinPermissionFactJSONUnmarshaler struct {
-	Node string
-	Pub  string
+	Node      string
+	Publickey string
 	base.BaseFactJSONUnmarshaler
 }
 
@@ -86,7 +86,7 @@ func (fact *SuffrageGenesisJoinPermissionFact) DecodeJSON(b []byte, enc *jsonenc
 		fact.node = i
 	}
 
-	pub, err := base.DecodePublickeyFromString(u.Pub, enc)
+	pub, err := base.DecodePublickeyFromString(u.Publickey, enc)
 	if err != nil {
 		return e(err, "")
 	}

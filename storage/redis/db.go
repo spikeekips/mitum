@@ -70,8 +70,9 @@ func (st *Storage) unkey(s string) string {
 	return s[len(i):]
 }
 
-func (st *Storage) Get(ctx context.Context, key string) ([]byte, bool, error) {
+func (st *Storage) Get(ctx context.Context, key string) (b []byte, found bool, _ error) {
 	r := st.client.Get(ctx, st.key(key))
+
 	switch {
 	case r.Err() == nil:
 		return []byte(r.Val()), true, nil
@@ -84,6 +85,7 @@ func (st *Storage) Get(ctx context.Context, key string) ([]byte, bool, error) {
 
 func (st *Storage) Set(ctx context.Context, key string, b []byte) error {
 	r := st.client.Set(ctx, st.key(key), b, 0)
+
 	switch {
 	case r.Err() != nil:
 		return storage.ExecError.Wrapf(r.Err(), "failed to set from redis storage")
@@ -94,6 +96,7 @@ func (st *Storage) Set(ctx context.Context, key string, b []byte) error {
 
 func (st *Storage) Exists(ctx context.Context, key string) (bool, error) {
 	r := st.client.Exists(ctx, st.key(key))
+
 	switch {
 	case r.Err() != nil:
 		return false, storage.ExecError.Wrapf(r.Err(), "failed exists from redis storage")
@@ -107,7 +110,8 @@ func (st *Storage) Clean(ctx context.Context) error {
 
 	for {
 		var cursor uint64
-		keys, _, err := st.client.Scan(ctx, cursor, st.prefix+"*", 333).Result()
+
+		keys, _, err := st.client.Scan(ctx, cursor, st.prefix+"*", 333).Result() //nolint:gomnd // bulk size
 		if err != nil {
 			return e(err, "")
 		}
@@ -127,9 +131,10 @@ func (st *Storage) Clean(ctx context.Context) error {
 func (st *Storage) ZAddArgs(ctx context.Context, key string, args redis.ZAddArgs) error {
 	for i := range args.Members {
 		z := args.Members[i]
-		z.Member = st.key(z.Member.(string))
+		z.Member = st.key(z.Member.(string)) //nolint:forcetypeassert //...
 		args.Members[i] = z
 	}
+
 	if err := st.client.ZAddArgs(ctx, st.key(key), args).Err(); err != nil {
 		return storage.ExecError.Wrapf(err, "failed to ZAddArgs")
 	}
@@ -142,12 +147,12 @@ func (st *Storage) ZRangeArgs(ctx context.Context, z redis.ZRangeArgs, f func(st
 
 	if z.ByLex {
 		if z.Start != nil {
-			zstart := z.Start.(string)
+			zstart := z.Start.(string) //nolint:forcetypeassert //...
 			z.Start = zstart[:1] + st.key(zstart[1:])
 		}
 
 		if z.Stop != nil {
-			zstop := z.Stop.(string)
+			zstop := z.Stop.(string) //nolint:forcetypeassert //...
 			z.Stop = zstop[:1] + st.key(zstop[1:])
 		}
 	}

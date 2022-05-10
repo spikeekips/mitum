@@ -117,9 +117,9 @@ func (db *LeveldbPermanent) SuffrageByHeight(suffrageHeight base.Height) (base.S
 		return nil, false, e(err, "")
 	case !found:
 		return nil, false, nil
-	case suffrageHeight > st.Value().(base.SuffrageStateValue).Height():
+	case suffrageHeight > st.Value().(base.SuffrageStateValue).Height(): //nolint:forcetypeassert //...
 		return nil, false, nil
-	case suffrageHeight == st.Value().(base.SuffrageStateValue).Height():
+	case suffrageHeight == st.Value().(base.SuffrageStateValue).Height(): //nolint:forcetypeassert //...
 		return st, true, nil
 	}
 
@@ -133,6 +133,7 @@ func (db *LeveldbPermanent) SuffrageByHeight(suffrageHeight base.Height) (base.S
 		if err != nil {
 			return nil, false, e(err, "")
 		}
+
 		return st, true, nil
 	}
 }
@@ -212,6 +213,7 @@ func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, te
 	e := util.StringErrorFunc("failed to merge LeveldbTempDatabase")
 
 	var mp base.BlockMap
+
 	switch i, err := temp.Map(); {
 	case err != nil:
 		return nil, nil, e(err, "")
@@ -235,6 +237,7 @@ func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, te
 
 	// NOTE merge states
 	var sufstt base.State
+
 	if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
 		switch i, err := db.mergeStatesTempDatabaseFromLeveldb(temp); {
 		case err != nil:
@@ -265,6 +268,7 @@ func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, te
 	}
 
 	worker.Done()
+
 	if err := worker.Wait(); err != nil {
 		return nil, nil, e(err, "")
 	}
@@ -276,6 +280,7 @@ func (db *LeveldbPermanent) loadLastBlockMap() error {
 	e := util.StringErrorFunc("failed to load last blockmap")
 
 	var m base.BlockMap
+
 	if err := db.st.Iter(
 		leveldbutil.BytesPrefix(leveldbKeyPrefixBlockMap),
 		func(_, b []byte) (bool, error) {
@@ -306,6 +311,7 @@ func (db *LeveldbPermanent) loadLastSuffrage() error {
 	e := util.StringErrorFunc("failed to load last suffrage state")
 
 	var sufstt base.State
+
 	if err := db.st.Iter(
 		leveldbutil.BytesPrefix(leveldbKeyPrefixSuffrageHeight),
 		func(_, b []byte) (bool, error) {
@@ -377,16 +383,18 @@ func (db *LeveldbPermanent) mergeOperationsTempDatabaseFromLeveldb(temp *TempLev
 func (db *LeveldbPermanent) mergeStatesTempDatabaseFromLeveldb(temp *TempLeveldb) (base.State, error) {
 	var sufstt base.State
 	var sufsv base.SuffrageStateValue
+
 	switch st, found, err := temp.Suffrage(); {
 	case err != nil:
 		return nil, errors.Wrap(err, "")
 	case found:
 		sufstt = st
-		sufsv = st.Value().(base.SuffrageStateValue)
+		sufsv = st.Value().(base.SuffrageStateValue) //nolint:forcetypeassert //...
 	}
 
 	// NOTE merge states
 	var bsufst []byte
+
 	if err := temp.st.Iter(
 		leveldbutil.BytesPrefix(leveldbKeyPrefixState),
 		func(key, b []byte) (bool, error) {

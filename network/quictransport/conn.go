@@ -49,17 +49,24 @@ func newQConn(
 
 func (c *qconn) Read(b []byte) (int, error) {
 	if c.isclosed() {
-		return c.r.Read(b)
+		n, err := c.r.Read(b)
+
+		return n, errors.Wrap(err, "")
 	}
 
 	var t time.Time
+
 	switch i, _ := c.dr.Value(); {
 	case i == nil:
-		return c.r.Read(b)
+		n, err := c.r.Read(b)
+
+		return n, errors.Wrap(err, "")
 	default:
-		t = i.(time.Time)
+		t = i.(time.Time) //nolint:forcetypeassert // ...
 		if t.IsZero() {
-			return c.r.Read(b)
+			n, err := c.r.Read(b)
+
+			return n, errors.Wrap(err, "")
 		}
 	}
 
@@ -85,7 +92,7 @@ func (c *qconn) Read(b []byte) (int, error) {
 	case errors.Is(err, context.DeadlineExceeded):
 		return n, errors.Wrap(os.ErrDeadlineExceeded, "")
 	default:
-		return n, e
+		return n, errors.Wrap(e, "")
 	}
 }
 
@@ -96,11 +103,12 @@ func (c *qconn) Write(b []byte) (int, error) {
 
 	ctx := context.Background()
 	var t time.Time
+
 	switch i, _ := c.dw.Value(); {
 	case i == nil:
 		return c.writef(ctx, b)
 	default:
-		t = i.(time.Time)
+		t = i.(time.Time) //nolint:forcetypeassert // ...
 		if t.IsZero() {
 			return c.writef(ctx, b)
 		}
@@ -113,9 +121,11 @@ func (c *qconn) Write(b []byte) (int, error) {
 
 	var cancel func()
 	ctx, cancel = context.WithTimeout(ctx, dur)
+
 	defer cancel()
 
 	n, err := c.writef(ctx, b)
+
 	switch {
 	case err == nil:
 		return n, nil
@@ -140,7 +150,7 @@ func (c *qconn) Close() error {
 			c.closef()
 		}
 
-		_ = c.w.Close()
+		_ = c.w.Close() //nolint:errcheck //...
 	})
 
 	return nil
@@ -199,14 +209,14 @@ func (c *qconn) isclosed() bool {
 	return c.closed
 }
 
-func (c *qconn) append(b []byte) bool {
+func (c *qconn) writeClose(b []byte) bool {
 	if c.isclosed() {
 		return false
 	}
 
 	go func() {
-		_, _ = c.w.Write(b)
-		_ = c.w.Close()
+		_, _ = c.w.Write(b) //nolint:errcheck //...
+		_ = c.w.Close()     //nolint:errcheck //...
 	}()
 
 	return true

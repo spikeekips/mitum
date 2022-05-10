@@ -24,7 +24,7 @@ type Delegate struct {
 }
 
 func NewDelegate(local Node, numNodes func() int) *Delegate {
-	qu := &memberlist.TransmitLimitedQueue{NumNodes: numNodes, RetransmitMult: 2}
+	qu := &memberlist.TransmitLimitedQueue{NumNodes: numNodes, RetransmitMult: 2} //nolint:gomnd //...
 
 	return &Delegate{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {

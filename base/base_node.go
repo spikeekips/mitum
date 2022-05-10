@@ -43,22 +43,22 @@ func (n BaseNode) HashBytes() []byte {
 }
 
 type BaseNodeJSONMarshaler struct {
-	Addr Address   `json:"address"`
-	Pub  Publickey `json:"publickey"`
+	Address   Address   `json:"address"`
+	Publickey Publickey `json:"publickey"`
 	hint.BaseHinter
 }
 
 func (n BaseNode) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(BaseNodeJSONMarshaler{
 		BaseHinter: n.BaseHinter,
-		Addr:       n.addr,
-		Pub:        n.pub,
+		Address:    n.addr,
+		Publickey:  n.pub,
 	})
 }
 
 type BaseNodeJSONUnmarshaler struct {
-	Addr string `json:"address"`
-	Pub  string `json:"publickey"`
+	Address   string `json:"address"`
+	Publickey string `json:"publickey"`
 }
 
 func (n *BaseNode) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
@@ -69,14 +69,14 @@ func (n *BaseNode) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "")
 	}
 
-	switch i, err := DecodeAddress(u.Addr, enc); {
+	switch i, err := DecodeAddress(u.Address, enc); {
 	case err != nil:
 		return e(err, "failed to decode node address")
 	default:
 		n.addr = i
 	}
 
-	switch i, err := DecodePublickeyFromString(u.Pub, enc); {
+	switch i, err := DecodePublickeyFromString(u.Publickey, enc); {
 	case err != nil:
 		return e(err, "failed to decode node publickey")
 	default:

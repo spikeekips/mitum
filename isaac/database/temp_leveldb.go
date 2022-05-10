@@ -66,12 +66,14 @@ func newTempLeveldb(
 
 func newTempLeveldbFromBlockWriteStorage(wst *LeveldbBlockWrite) (*TempLeveldb, error) {
 	e := util.StringErrorFunc("failed new TempLeveldbDatabase from TempLeveldbDatabase")
+
 	st, err := leveldbstorage.NewReadonlyStorageFromWrite(wst.st)
 	if err != nil {
 		return nil, e(err, "")
 	}
 
 	var mp base.BlockMap
+
 	switch i, err := wst.Map(); {
 	case err != nil:
 		return nil, e(err, "")
@@ -81,12 +83,12 @@ func newTempLeveldbFromBlockWriteStorage(wst *LeveldbBlockWrite) (*TempLeveldb, 
 
 	var sufstt base.State
 	if i, _ := wst.sufstt.Value(); i != nil {
-		sufstt = i.(base.State)
+		sufstt = i.(base.State) //nolint:forcetypeassert //...
 	}
 
 	var policy base.NetworkPolicy
 	if i, _ := wst.policy.Value(); i != nil {
-		policy = i.(base.NetworkPolicy)
+		policy = i.(base.NetworkPolicy) //nolint:forcetypeassert //...
 	}
 
 	return &TempLeveldb{
@@ -111,7 +113,7 @@ func (db *TempLeveldb) SuffrageHeight() base.Height {
 		return base.NilHeight
 	}
 
-	return db.sufstt.Value().(base.SuffrageStateValue).Height()
+	return db.sufstt.Value().(base.SuffrageStateValue).Height() //nolint:forcetypeassert //...
 }
 
 func (db *TempLeveldb) Map() (base.BlockMap, error) {
@@ -217,6 +219,7 @@ func tempDirectoryNameFormat() string {
 
 func findSuffixFromTempDirectoryName(d, f string) (height int64, suffix int64) {
 	var h, s int64
+
 	_, err := fmt.Sscanf(filepath.Base(d), f, &h, &s)
 	if err != nil {
 		return -1, -1
@@ -227,6 +230,7 @@ func findSuffixFromTempDirectoryName(d, f string) (height int64, suffix int64) {
 
 func sortTempDirectoryNames(matches []string) {
 	f := tempDirectoryNameFormat()
+
 	sort.Slice(matches, func(i, j int) bool {
 		hi, si := findSuffixFromTempDirectoryName(matches[i], f)
 		hj, sj := findSuffixFromTempDirectoryName(matches[j], f)
@@ -290,6 +294,7 @@ func loadTempDirectoriesByHeight(root string, height base.Height) ([]string, err
 	e := util.StringErrorFunc("failed to load TempDatabase directories of height")
 
 	prefix := newTempDirectoryPrefixWithHeight(root, height)
+
 	switch matches, err := loadTempDirectories(prefix + "*"); {
 	case err != nil:
 		return nil, e(err, "")
@@ -300,6 +305,7 @@ func loadTempDirectoriesByHeight(root string, height base.Height) ([]string, err
 
 func loadAllTempDirectories(root string) ([]string, error) {
 	prefix := newTempDirectoryPrefix(root)
+
 	switch matches, err := loadTempDirectories(prefix + "*"); {
 	case err != nil:
 		return nil, errors.Wrap(err, "failed to load all TempDatabase directories")
@@ -312,6 +318,7 @@ func loadTempDirectories(prefix string) ([]string, error) {
 	e := util.StringErrorFunc("failed to load TempDatabase directories")
 
 	matches, err := filepath.Glob(prefix + "*")
+
 	switch {
 	case err != nil:
 		return nil, e(err, "")
@@ -333,7 +340,7 @@ func loadTemp(f string, encs *encoder.Encoders, enc encoder.Encoder) (isaac.Temp
 
 // loadTemps loads all the TempDatabases from the given root directory.
 // If clean is true, the useless directories will be removed.
-func loadTemps(
+func loadTemps( // revive:disable-line:flag-parameter
 	root string,
 	minHeight base.Height,
 	encs *encoder.Encoders,
@@ -358,6 +365,7 @@ end:
 			f,
 			tempDirectoryNameFormat(),
 		)
+
 		switch {
 		case h < 0 || suffix < 0:
 			removes = append(removes, f)

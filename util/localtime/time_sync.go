@@ -41,7 +41,7 @@ func NewTimeSyncer(server string, checkInterval time.Duration) (*TimeSyncer, err
 		}
 
 		return false, nil
-	}, 3, time.Second*2); err != nil {
+	}, 3, time.Second*2); err != nil { //nolint:gomnd //...
 		return nil, errors.Wrap(err, "failed to create TimeSyncer")
 	}
 
@@ -120,8 +120,6 @@ func (ts *TimeSyncer) check() {
 		return
 	}
 
-	offset := ts.Offset()
-
 	if err := response.Validate(); err != nil {
 		ts.Log().Error().
 			Err(err).
@@ -131,18 +129,10 @@ func (ts *TimeSyncer) check() {
 		return
 	}
 
+	offset := ts.Offset()
 	defer func() {
-		ts.Log().Debug().
-			Interface("response", response).
-			Dur("offset", offset).
-			Msg("time checked")
+		ts.Log().Debug().Interface("response", response).Dur("offset", offset).Msg("time checked")
 	}()
-
-	if offset < 1 {
-		ts.setOffset(response.ClockOffset)
-
-		return
-	}
 
 	switch diff := offset - response.ClockOffset; {
 	case diff == 0:

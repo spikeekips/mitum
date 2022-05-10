@@ -21,12 +21,13 @@ func (r StreamResponse) Close() error {
 
 func ReadAll(ctx context.Context, r io.ReadCloser) ([]byte, error) {
 	defer func() {
-		_ = r.Close()
+		_ = r.Close() //nolint:errcheck //...
 	}()
 
 	var b bytes.Buffer
 
 	readdonech := make(chan error, 1)
+
 	go func() {
 		var err error
 
@@ -36,10 +37,11 @@ func ReadAll(ctx context.Context, r io.ReadCloser) ([]byte, error) {
 			n, e := r.Read(p)
 
 			if n > 0 {
-				_, _ = b.Write(p[:n])
+				_, _ = b.Write(p[:n]) //nolint:errcheck //...
 			}
 
 			var eof bool
+
 			switch {
 			case e == nil:
 			default:

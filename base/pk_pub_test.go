@@ -43,7 +43,7 @@ func (t *testMPublickey) TestInvalid() {
 		n := pub
 		n.k = nil
 		err := n.IsValid(nil)
-		t.True(errors.Is(err, util.InvalidError))
+		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "empty btc publickey")
 	}
 
@@ -51,7 +51,7 @@ func (t *testMPublickey) TestInvalid() {
 		n := pub
 		n.s = ""
 		err := n.IsValid(nil)
-		t.True(errors.Is(err, util.InvalidError))
+		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "empty publickey string")
 	}
 
@@ -59,7 +59,7 @@ func (t *testMPublickey) TestInvalid() {
 		n := pub
 		n.b = nil
 		err := n.IsValid(nil)
-		t.True(errors.Is(err, util.InvalidError))
+		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "empty publickey []byte")
 	}
 }

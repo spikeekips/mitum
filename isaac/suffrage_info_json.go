@@ -44,6 +44,7 @@ func (info *SuffrageInfo) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	}
 
 	info.suffrage = make([]base.Node, len(u.Suffrage))
+
 	for i := range u.Suffrage {
 		node, err := base.DecodeNode(u.Suffrage[i], enc)
 		if err != nil {
@@ -54,6 +55,7 @@ func (info *SuffrageInfo) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	}
 
 	info.candidates = make([]base.SuffrageCandidate, len(u.Candidates))
+
 	for i := range u.Candidates {
 		switch hinter, err := enc.Decode(u.Candidates[i]); {
 		case err != nil:

@@ -1,22 +1,23 @@
 package util
 
-var InvalidError = NewError("invalid")
+var ErrInvalid = NewError("invalid")
 
 type IsValider interface {
 	IsValid([]byte) error
 }
 
-func CheckIsValid(b []byte, allowNil bool, vs ...IsValider) error {
+func CheckIsValid(b []byte, allowNil bool, vs ...IsValider) error { // revive:disable-line:flag-parameter
 	for i, v := range vs {
 		if v == nil {
 			if allowNil {
 				return nil
 			}
 
-			return InvalidError.Errorf("%dth: nil found", i)
+			return ErrInvalid.Errorf("%dth: nil found", i)
 		}
+
 		if err := v.IsValid(b); err != nil {
-			return InvalidError.Wrap(err)
+			return ErrInvalid.Wrap(err)
 		}
 	}
 

@@ -40,7 +40,7 @@ func (t *testContextTimer) TestStart() {
 	)
 
 	t.NoError(ct.Start())
-	t.True(errors.Is(ct.Start(), DaemonAlreadyStartedError))
+	t.True(errors.Is(ct.Start(), ErrDaemonAlreadyStarted))
 
 	<-time.After(time.Millisecond * 50)
 
@@ -62,7 +62,7 @@ func (t *testContextTimer) TestStop() {
 	)
 
 	t.NoError(ct.Start())
-	t.True(errors.Is(ct.Start(), DaemonAlreadyStartedError))
+	t.True(errors.Is(ct.Start(), ErrDaemonAlreadyStarted))
 
 	<-time.After(time.Millisecond * 40)
 	ct.Stop()
@@ -94,7 +94,7 @@ func (t *testContextTimer) TestStoppedByCallback() {
 	})
 
 	t.NoError(ct.Start())
-	t.True(errors.Is(ct.Start(), DaemonAlreadyStartedError))
+	t.True(errors.Is(ct.Start(), ErrDaemonAlreadyStarted))
 
 	<-time.After(time.Millisecond * 100)
 	t.True(atomic.LoadInt64(&ticked) < 4)
@@ -117,7 +117,7 @@ func (t *testContextTimer) TestIntervalFunc() {
 	})
 
 	t.NoError(ct.Start())
-	t.True(errors.Is(ct.Start(), DaemonAlreadyStartedError))
+	t.True(errors.Is(ct.Start(), ErrDaemonAlreadyStarted))
 
 	<-time.After(time.Millisecond * 60)
 
@@ -146,7 +146,7 @@ func (t *testContextTimer) TestIntervalFuncNarrowInterval() {
 	})
 
 	t.NoError(ct.Start())
-	t.True(errors.Is(ct.Start(), DaemonAlreadyStartedError))
+	t.True(errors.Is(ct.Start(), ErrDaemonAlreadyStarted))
 
 	<-time.After(time.Millisecond * 50)
 

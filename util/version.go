@@ -34,17 +34,17 @@ func EnsureParseVersion(s string) Version {
 // ParseVersion tries to parse version string and also checks IsValid().
 func ParseVersion(s string) (Version, error) {
 	if !strings.HasPrefix(s, "v") {
-		return Version{}, InvalidError.Errorf("invalid version string, %q", s)
+		return Version{}, ErrInvalid.Errorf("invalid version string, %q", s)
 	}
 
 	v, err := semver.NewVersion(s)
 	if err != nil {
-		return Version{}, InvalidError.Wrapf(err, "version string=%q", s)
+		return Version{}, ErrInvalid.Wrapf(err, "version string=%q", s)
 	}
 
 	p := newVersion(v)
 	if err := p.IsValid(nil); err != nil {
-		return Version{}, InvalidError.Wrap(err)
+		return Version{}, ErrInvalid.Wrap(err)
 	}
 
 	return p, nil
@@ -73,12 +73,12 @@ func (v Version) String() string { return v.s }
 
 func (v Version) IsValid([]byte) error {
 	switch s := strings.TrimSpace(v.s); {
-	case len(s) < 2:
-		return InvalidError.Errorf("empty version string")
+	case len(s) < 2: //nolint:gomnd //...
+		return ErrInvalid.Errorf("empty version string")
 	case !strings.HasPrefix(s, "v"):
-		return InvalidError.Errorf("invalid version string, %q", s)
+		return ErrInvalid.Errorf("invalid version string, %q", s)
 	case !stdsemver.IsValid(v.s):
-		return InvalidError.Errorf("invalid semver, %q", s)
+		return ErrInvalid.Errorf("invalid semver, %q", s)
 	default:
 		return nil
 	}
@@ -166,28 +166,28 @@ func compareVersionPrerelease(a, b string) int {
 
 	x := a
 	y := b
+
 	for x != "" && y != "" {
-		x = x[1:] // skip - or .
-		y = y[1:] // skip - or .
+		x, y = x[1:], y[1:] // skip - or .
 
 		var dx, dy string
 		dx, x = versionNextIdent(x)
 		dy, y = versionNextIdent(y)
+
 		if dx == dy {
 			continue
 		}
 
-		ix := versionIsNum(dx)
-		iy := versionIsNum(dy)
-		if ix != iy {
+		ix, iy := versionIsNum(dx), versionIsNum(dy)
+
+		switch {
+		case ix != iy:
 			if ix {
 				return -1
 			}
 
 			return 1
-		}
-
-		if ix {
+		case ix:
 			if len(dx) < len(dy) {
 				return -1
 			}
@@ -195,13 +195,11 @@ func compareVersionPrerelease(a, b string) int {
 			if len(dx) > len(dy) {
 				return 1
 			}
-		}
-
-		if dx < dy {
+		case dx < dy:
 			return -1
+		default:
+			return 1
 		}
-
-		return 1
 	}
 
 	if x == "" {
@@ -213,16 +211,18 @@ func compareVersionPrerelease(a, b string) int {
 
 func versionNextIdent(x string) (dx, rest string) {
 	i := 0
-	for i < len(x) && x[i] != '.' {
+	for i < len(x) && x[i] != '.' { // revive:disable-line:optimize-operands-order
 		i++
 	}
+
 	return x[:i], x[i:]
 }
 
 func versionIsNum(v string) bool {
 	i := 0
-	for i < len(v) && '0' <= v[i] && v[i] <= '9' {
+	for i < len(v) && '0' <= v[i] && v[i] <= '9' { // revive:disable-line:optimize-operands-order
 		i++
 	}
+
 	return i == len(v)
 }

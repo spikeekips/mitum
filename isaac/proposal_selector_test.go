@@ -230,7 +230,7 @@ func (t *testBaseProposalSelector) TestUnknownManifestHash() {
 		t.NodePolicy,
 		NewBlockBasedProposerSelector(
 			func(base.Height) (util.Hash, error) {
-				return nil, util.NotFoundError.Errorf("hahaha")
+				return nil, util.ErrNotFound.Errorf("hahaha")
 			},
 		),
 		NewProposalMaker(t.Local, t.NodePolicy, func(context.Context) ([]util.Hash, error) { return nil, nil }, pool),
@@ -252,7 +252,7 @@ func (t *testBaseProposalSelector) TestUnknownManifestHash() {
 	pr, err := p.Select(context.Background(), point)
 	t.Error(err)
 	t.Nil(pr)
-	t.True(errors.Is(err, util.NotFoundError))
+	t.True(errors.Is(err, util.ErrNotFound))
 	t.ErrorContains(err, "hahaha")
 }
 

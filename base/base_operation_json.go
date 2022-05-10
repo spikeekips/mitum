@@ -52,6 +52,7 @@ func (op *BaseOperation) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	}
 
 	op.signed = make([]Signed, len(u.Signed))
+
 	for i := range u.Signed {
 		var ub BaseSigned
 		if err := ub.DecodeJSON(u.Signed[i], enc); err != nil {

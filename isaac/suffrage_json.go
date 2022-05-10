@@ -37,6 +37,7 @@ func (s *SuffrageStateValue) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	}
 
 	nodes := make([]base.Node, len(u.Nodes))
+
 	for i := range u.Nodes {
 		j, err := base.DecodeNode(u.Nodes[i], enc)
 		if err != nil {
@@ -86,6 +87,7 @@ func (suf *SuffrageCandidate) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	if err != nil {
 		return e(err, "")
 	}
+
 	suf.Node = node
 
 	suf.start = u.Start.Height()

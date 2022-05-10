@@ -33,16 +33,16 @@ type MPrivatekey struct {
 }
 
 func NewMPrivatekey() MPrivatekey {
-	secret, _ := btcec.NewPrivateKey(btcec.S256())
+	secret, _ := btcec.NewPrivateKey(btcec.S256()) //nolint:errcheck // ...
 
-	wif, _ := btcutil.NewWIF(secret, &chaincfg.MainNetParams, true)
+	wif, _ := btcutil.NewWIF(secret, &chaincfg.MainNetParams, true) //nolint:errcheck // ...
 
-	return newMPrivatekey(wif)
+	return newMPrivatekeyFromWIF(wif)
 }
 
 func NewMPrivatekeyFromSeed(s string) (MPrivatekey, error) {
 	if l := len(s); l < PrivatekeyMinSeedSize {
-		return MPrivatekey{}, util.InvalidError.Errorf(
+		return MPrivatekey{}, util.ErrInvalid.Errorf(
 			"wrong seed for privatekey; too short, %d < %d", l, PrivatekeyMinSeedSize)
 	}
 
@@ -59,16 +59,17 @@ func NewMPrivatekeyFromSeed(s string) (MPrivatekey, error) {
 		return MPrivatekey{}, errors.Wrap(err, "failed NewPrivatekeyFromSeed")
 	}
 
-	return newMPrivatekey(wif), nil
+	return newMPrivatekeyFromWIF(wif), nil
 }
 
 func ParseMPrivatekey(s string) (MPrivatekey, error) {
 	t := MPrivatekeyHint.Type().String()
+
 	switch {
 	case !strings.HasSuffix(s, t):
-		return MPrivatekey{}, util.InvalidError.Errorf("unknown privatekey string")
+		return MPrivatekey{}, util.ErrInvalid.Errorf("unknown privatekey string")
 	case len(s) <= len(t):
-		return MPrivatekey{}, util.InvalidError.Errorf("invalid privatekey string; too short")
+		return MPrivatekey{}, util.ErrInvalid.Errorf("invalid privatekey string; too short")
 	}
 
 	return LoadMPrivatekey(s[:len(s)-len(t)])
@@ -77,13 +78,13 @@ func ParseMPrivatekey(s string) (MPrivatekey, error) {
 func LoadMPrivatekey(s string) (MPrivatekey, error) {
 	wif, err := btcutil.DecodeWIF(s)
 	if err != nil {
-		return MPrivatekey{}, util.InvalidError.Wrapf(err, "failed to load privatekey")
+		return MPrivatekey{}, util.ErrInvalid.Wrapf(err, "failed to load privatekey")
 	}
 
-	return newMPrivatekey(wif), nil
+	return newMPrivatekeyFromWIF(wif), nil
 }
 
-func newMPrivatekey(wif *btcutil.WIF) MPrivatekey {
+func newMPrivatekeyFromWIF(wif *btcutil.WIF) MPrivatekey {
 	k := MPrivatekey{
 		BaseHinter: hint.NewBaseHinter(MPrivatekeyHint),
 		wif:        wif,
@@ -102,18 +103,18 @@ func (k MPrivatekey) Bytes() []byte {
 
 func (k MPrivatekey) IsValid([]byte) error {
 	if err := k.BaseHinter.IsValid(MPrivatekeyHint.Type().Bytes()); err != nil {
-		return util.InvalidError.Wrapf(err, "wrong hint in privatekey")
+		return util.ErrInvalid.Wrapf(err, "wrong hint in privatekey")
 	}
 
 	switch {
 	case k.wif == nil:
-		return util.InvalidError.Errorf("empty btc wif of privatekey")
+		return util.ErrInvalid.Errorf("empty btc wif of privatekey")
 	case k.wif.PrivKey == nil:
-		return util.InvalidError.Errorf("empty btc wif.PrivKey of privatekey")
+		return util.ErrInvalid.Errorf("empty btc wif.PrivKey of privatekey")
 	case len(k.s) < 1:
-		return util.InvalidError.Errorf("empty privatekey string")
+		return util.ErrInvalid.Errorf("empty privatekey string")
 	case len(k.b) < 1:
-		return util.InvalidError.Errorf("empty privatekey []byte")
+		return util.ErrInvalid.Errorf("empty privatekey []byte")
 	}
 
 	return nil
@@ -156,17 +157,17 @@ func (k *MPrivatekey) UnmarshalText(b []byte) error {
 	return nil
 }
 
-func (k MPrivatekey) ensure() MPrivatekey {
+func (k *MPrivatekey) ensure() MPrivatekey {
 	switch {
 	case k.wif == nil:
-		return k
+		return *k
 	case k.wif.PrivKey == nil:
-		return k
+		return *k
 	}
 
 	k.pub = NewMPublickey(k.wif.PrivKey.PubKey())
 	k.s = fmt.Sprintf("%s%s", k.wif.String(), k.Hint().Type().String())
 	k.b = []byte(k.s)
 
-	return k
+	return *k
 }

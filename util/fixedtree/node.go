@@ -34,8 +34,9 @@ func ParseBaseNodeString(s string) (n BaseNode, err error) {
 	e := util.StringErrorFunc("failed to parse BaseNode")
 
 	l := strings.SplitN(s, " ", 2)
+
 	switch {
-	case len(l) != 2:
+	case len(l) != 2: //nolint:gomnd //...
 		return n, e(nil, "invalid string")
 	case len(l[0]) > 0:
 		n.h = valuehash.NewBytesFromString(l[0])
@@ -67,9 +68,7 @@ func (n BaseNode) Hash() util.Hash {
 }
 
 func (n BaseNode) SetHash(h util.Hash) Node {
-	n.h = h
-
-	return n
+	return BaseNode{h: h, key: n.key, isempty: n.isempty}
 }
 
 func (n BaseNode) Equal(b Node) bool {
@@ -102,9 +101,9 @@ func (n BaseNode) IsValid([]byte) error {
 	case n.isempty:
 		return nil
 	case len(n.key) < 1:
-		return e(util.InvalidError.Errorf("empty key"), "")
+		return e(util.ErrInvalid.Errorf("empty key"), "")
 	case n.h == nil:
-		return e(util.InvalidError.Errorf("empty hash"), "")
+		return e(util.ErrInvalid.Errorf("empty hash"), "")
 	}
 
 	if err := n.h.IsValid(nil); err != nil {
@@ -124,21 +123,21 @@ func (n BaseNode) String() string {
 }
 
 type BaseNodeJSONMarshaler struct {
-	H util.Hash `json:"hash,omitempty"`
-	K string    `json:"key,omitempty"`
-	E bool      `json:"isempty,omitempty"`
+	Hash    util.Hash `json:"hash,omitempty"`
+	Key     string    `json:"key,omitempty"`
+	Isempty bool      `json:"isempty,omitempty"`
 }
 
 func (n BaseNode) JSONMarshaler() BaseNodeJSONMarshaler {
 	if n.isempty {
 		return BaseNodeJSONMarshaler{
-			E: n.isempty,
+			Isempty: n.isempty,
 		}
 	}
 
 	return BaseNodeJSONMarshaler{
-		K: n.key,
-		H: n.h,
+		Key:  n.key,
+		Hash: n.h,
 	}
 }
 
@@ -147,9 +146,9 @@ func (n BaseNode) MarshalJSON() ([]byte, error) {
 }
 
 type baseNodeJSONUnmarshaler struct {
-	H valuehash.HashDecoder `json:"hash"`
-	K string                `json:"key"`
-	E bool                  `json:"isempty"`
+	Hash    valuehash.HashDecoder `json:"hash"`
+	Key     string                `json:"key"`
+	Isempty bool                  `json:"isempty"`
 }
 
 func (n *BaseNode) UnmarshalJSON(b []byte) error {
@@ -158,7 +157,7 @@ func (n *BaseNode) UnmarshalJSON(b []byte) error {
 		return errors.Wrap(err, "failed to unmarshal BaseNode")
 	}
 
-	if u.E {
+	if u.Isempty {
 		n.key = ""
 		n.h = nil
 		n.isempty = true
@@ -166,8 +165,8 @@ func (n *BaseNode) UnmarshalJSON(b []byte) error {
 		return nil
 	}
 
-	n.key = u.K
-	n.h = u.H.Hash()
+	n.key = u.Key
+	n.h = u.Hash.Hash()
 
 	return nil
 }

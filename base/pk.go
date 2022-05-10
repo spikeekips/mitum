@@ -47,7 +47,7 @@ func (sg Signature) String() string {
 
 func (sg Signature) IsValid([]byte) error {
 	if len(sg) < 1 {
-		return util.InvalidError.Errorf("empty signature")
+		return util.ErrInvalid.Errorf("empty signature")
 	}
 
 	return nil
@@ -71,6 +71,7 @@ func decodePKKeyFromString(s string, enc encoder.Encoder) (PKKey, error) {
 	e := util.StringErrorFunc("failed to parse pk key")
 
 	i, err := enc.DecodeWithFixedHintType(s, PKKeyTypeSize)
+
 	switch {
 	case err != nil:
 		return nil, e(err, "failed to decode pk key")
@@ -90,6 +91,7 @@ func DecodePrivatekeyFromString(s string, enc encoder.Encoder) (Privatekey, erro
 	e := util.StringErrorFunc("failed to parse privatekey")
 
 	i, err := decodePKKeyFromString(s, enc)
+
 	switch {
 	case err != nil:
 		return nil, e(err, "")
@@ -109,6 +111,7 @@ func DecodePublickeyFromString(s string, enc encoder.Encoder) (Publickey, error)
 	e := util.StringErrorFunc("failed to parse publickey")
 
 	i, err := decodePKKeyFromString(s, enc)
+
 	switch {
 	case err != nil:
 		return nil, e(err, "")

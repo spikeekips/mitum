@@ -35,7 +35,7 @@ func (p NetworkPolicy) IsValid([]byte) error {
 	}
 
 	if p.maxOperationsInProposal < 1 {
-		return e(util.InvalidError.Errorf("under zero maxOperationsInProposal"), "")
+		return e(util.ErrInvalid.Errorf("under zero maxOperationsInProposal"), "")
 	}
 
 	return nil
@@ -57,18 +57,18 @@ func (p *NetworkPolicy) SetMaxOperationsInProposal(i uint64) *NetworkPolicy {
 
 type networkPolicyJSONMarshaler struct {
 	hint.BaseHinter
-	MO uint64 `json:"max_operations_in_proposal"`
+	MaxOperationsInProposal uint64 `json:"max_operations_in_proposal"`
 }
 
 func (p NetworkPolicy) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(networkPolicyJSONMarshaler{
-		BaseHinter: p.BaseHinter,
-		MO:         p.maxOperationsInProposal,
+		BaseHinter:              p.BaseHinter,
+		MaxOperationsInProposal: p.maxOperationsInProposal,
 	})
 }
 
 type networkPolicyJSONUnmarshaler struct {
-	MO uint64 `json:"max_operations_in_proposal"`
+	MaxOperationsInProposal uint64 `json:"max_operations_in_proposal"`
 }
 
 func (p *NetworkPolicy) UnmarshalJSON(b []byte) error {
@@ -77,7 +77,7 @@ func (p *NetworkPolicy) UnmarshalJSON(b []byte) error {
 		return errors.Wrap(err, "failed to unmarshal NetworkPolicy")
 	}
 
-	p.maxOperationsInProposal = u.MO
+	p.maxOperationsInProposal = u.MaxOperationsInProposal
 
 	return nil
 }

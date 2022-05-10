@@ -59,6 +59,7 @@ func (st *JoiningHandler) enter(i switchContext) (func(), error) {
 
 	vp := jctx.vp
 	lvp := st.lastVoteproofs().Cap()
+
 	switch {
 	case lvp == nil:
 	case vp == nil:
@@ -70,6 +71,7 @@ func (st *JoiningHandler) enter(i switchContext) (func(), error) {
 	}
 
 	var manifest base.Manifest
+
 	switch i, found, err := st.lastManifest(); {
 	case err != nil:
 		return nil, e(err, "")
@@ -142,6 +144,7 @@ func (st *JoiningHandler) newVoteproof(vp base.Voteproof) error {
 	_, _ = st.baseHandler.setNewVoteproof(vp)
 
 	var manifest base.Manifest
+
 	switch i, found, err := st.lastManifest(); {
 	case err != nil:
 		err = e(err, "failed to get last manifest")
@@ -265,6 +268,7 @@ func (st *JoiningHandler) firstVoteproof(lvp base.Voteproof, manifest base.Manif
 	}
 
 	var dsctx switchContext
+
 	switch err := st.newVoteproof(lvp); {
 	case err == nil:
 	case !errors.As(err, &dsctx):
@@ -280,6 +284,7 @@ func (st *JoiningHandler) nextRound(vp base.Voteproof, prevBlock util.Hash) {
 
 	var sctx switchContext
 	var bl base.INITBallot
+
 	switch i, err := st.prepareNextRound(vp, prevBlock); {
 	case err == nil:
 		if i == nil {
@@ -328,6 +333,7 @@ func (st *JoiningHandler) nextBlock(avp base.ACCEPTVoteproof) {
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(avp)).Object("point", point).Logger()
 
 	var suf base.Suffrage
+
 	switch i, found, err := st.getSuffrage(point.Height()); {
 	case err != nil, !found:
 		go st.switchState(newBrokenSwitchContext(StateJoining, err))
@@ -339,6 +345,7 @@ func (st *JoiningHandler) nextBlock(avp base.ACCEPTVoteproof) {
 
 	var sctx switchContext
 	var bl base.INITBallot
+
 	switch i, err := st.prepareNextBlock(avp, suf); {
 	case err == nil:
 		if i == nil {

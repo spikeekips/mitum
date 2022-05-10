@@ -40,7 +40,7 @@ func NewHeightFromBytes(b []byte) (Height, error) {
 
 func (h Height) IsValid([]byte) error {
 	if h < GenesisHeight {
-		return util.InvalidError.Errorf("height must be greater than %d; height=%d", GenesisHeight, h)
+		return util.ErrInvalid.Errorf("height must be greater than %d; height=%d", GenesisHeight, h)
 	}
 
 	return nil
@@ -161,29 +161,28 @@ func (p Point) PrevRound() Point {
 		return GenesisPoint
 	}
 
+	var h Height
+	var r Round
+
 	switch {
 	case p.r == 0:
-		p.h = p.h.Prev()
-		p.r = Round(0)
+		h = p.h.Prev()
+		r = Round(0)
 	default:
-		p.r = p.r.Prev()
+		h = p.h
+		r = p.r.Prev()
 	}
 
-	return p
+	return NewPoint(h, r)
 }
 
 func (p Point) NextRound() Point {
-	p.r++
-
-	return p
+	return NewPoint(p.h, p.r+1)
 }
 
 // NextHeight returns next height with 0 round.
 func (p Point) NextHeight() Point {
-	p.h++
-	p.r = Round(0)
-
-	return p
+	return NewPoint(p.h+1, Round(0))
 }
 
 // PrevHeight returns previous height with 0 round
@@ -200,20 +199,20 @@ func (p Point) MarshalZerologObject(e *zerolog.Event) {
 }
 
 type pointJSONMarshaler struct {
-	H Height `json:"height"`
-	R Round  `json:"round"`
+	Height Height `json:"height"`
+	Round  Round  `json:"round"`
 }
 
 func (p Point) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(pointJSONMarshaler{
-		H: p.h,
-		R: p.r,
+		Height: p.h,
+		Round:  p.r,
 	})
 }
 
 type pointJSONUnmarshaler struct {
-	H HeightDecoder `json:"height"`
-	R Round         `json:"round"`
+	Height HeightDecoder `json:"height"`
+	Round  Round         `json:"round"`
 }
 
 func (p *Point) UnmarshalJSON(b []byte) error {
@@ -222,8 +221,8 @@ func (p *Point) UnmarshalJSON(b []byte) error {
 		return errors.Wrap(err, "failed to unmarshal point")
 	}
 
-	p.h = u.H.Height()
-	p.r = u.R
+	p.h = u.Height.Height()
+	p.r = u.Round
 
 	return nil
 }
@@ -243,9 +242,7 @@ func (p StagePoint) Stage() Stage {
 }
 
 func (p StagePoint) SetStage(s Stage) StagePoint {
-	p.stage = s
-
-	return p
+	return NewStagePoint(p.Point, s)
 }
 
 func (p StagePoint) IsZero() bool {
@@ -280,7 +277,7 @@ func (p StagePoint) String() string {
 }
 
 func (p StagePoint) Equal(b StagePoint) bool {
-	return p.Point.Equal(b.Point) && p.stage == b.stage
+	return p.stage == b.stage && p.Point.Equal(b.Point)
 }
 
 func (p StagePoint) Compare(b StagePoint) int {
@@ -293,9 +290,7 @@ func (p StagePoint) Compare(b StagePoint) int {
 }
 
 func (p StagePoint) Decrease() StagePoint {
-	p.Point = p.Point.PrevHeight()
-
-	return p
+	return NewStagePoint(p.Point.PrevHeight(), p.stage)
 }
 
 func (p StagePoint) MarshalZerologObject(e *zerolog.Event) {
@@ -303,7 +298,7 @@ func (p StagePoint) MarshalZerologObject(e *zerolog.Event) {
 }
 
 type stagePointJSONMarshaler struct {
-	S Stage `json:"stage"`
+	Stage Stage `json:"stage"`
 	pointJSONMarshaler
 }
 
@@ -313,12 +308,12 @@ func (p StagePoint) MarshalJSON() ([]byte, error) {
 			p.h,
 			p.r,
 		},
-		S: p.stage,
+		Stage: p.stage,
 	})
 }
 
 type stagePointJSONUnmarshaler struct {
-	S Stage `json:"stage"`
+	Stage Stage `json:"stage"`
 	pointJSONUnmarshaler
 }
 
@@ -328,9 +323,9 @@ func (p *StagePoint) UnmarshalJSON(b []byte) error {
 		return errors.Wrap(err, "failed to unmarshal stage point")
 	}
 
-	p.h = u.H.Height()
-	p.r = u.R
-	p.stage = u.S
+	p.h = u.Height.Height()
+	p.r = u.Round
+	p.stage = u.Stage
 
 	return nil
 }

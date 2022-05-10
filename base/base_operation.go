@@ -33,6 +33,7 @@ func (op BaseOperation) Fact() Fact {
 func (op BaseOperation) HashBytes() []byte {
 	bs := make([]util.Byter, len(op.signed))
 	bs[0] = op.fact.Hash()
+
 	for i := range op.signed {
 		bs[i+1] = op.signed[i]
 	}
@@ -44,21 +45,22 @@ func (op BaseOperation) IsValid(networkID []byte) error {
 	e := util.StringErrorFunc("invalid BaseOperation")
 
 	if len(op.signed) < 1 {
-		return util.InvalidError.Errorf("empty signed")
+		return util.ErrInvalid.Errorf("empty signed")
 	}
 
 	vs := make([]util.IsValider, len(op.signed)+1)
 	vs[0] = op.fact
 
 	duplicated := map[string]struct{}{}
+
 	for i := range op.signed {
 		s := op.signed[i]
 		if s == nil {
-			return e(util.InvalidError.Errorf("empty signed found"), "")
+			return e(util.ErrInvalid.Errorf("empty signed found"), "")
 		}
 
 		if _, found := duplicated[s.Signer().String()]; found {
-			return e(util.InvalidError.Errorf("duplicated signed found"), "")
+			return e(util.ErrInvalid.Errorf("duplicated signed found"), "")
 		}
 
 		vs[i+1] = s
@@ -70,7 +72,7 @@ func (op BaseOperation) IsValid(networkID []byte) error {
 
 	for i := range op.signed {
 		if err := op.signed[i].Verify(networkID, op.fact.Hash().Bytes()); err != nil {
-			return e(util.InvalidError.Wrap(err), "")
+			return e(util.ErrInvalid.Wrap(err), "")
 		}
 	}
 
@@ -81,6 +83,7 @@ func (op *BaseOperation) Sign(priv Privatekey, networkID NetworkID) error {
 	e := util.StringErrorFunc("failed to sign BaseOperation")
 
 	found := -1
+
 	for i := range op.signed {
 		s := op.signed[i]
 		if s == nil {
@@ -111,9 +114,9 @@ func (op *BaseOperation) Sign(priv Privatekey, networkID NetworkID) error {
 }
 
 func (BaseOperation) PreProcess(context.Context, GetStateFunc) (OperationProcessReasonError, error) {
-	return nil, errors.Wrap(util.NotImplementedError, "")
+	return nil, errors.Wrap(util.ErrNotImplemented, "")
 }
 
 func (BaseOperation) Process(context.Context, GetStateFunc) ([]StateMergeValue, OperationProcessReasonError, error) {
-	return nil, nil, errors.Wrap(util.NotImplementedError, "")
+	return nil, nil, errors.Wrap(util.ErrNotImplemented, "")
 }

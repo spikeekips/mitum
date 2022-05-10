@@ -30,7 +30,7 @@ var (
 
 	leveldbKeyLastVoteproofs = []byte{0x00, 0x12}
 
-	leveldbNewOperationOrderedKeysJoinSep   = bytes.Repeat([]byte{0xff}, 10)
+	leveldbNewOperationOrderedKeysJoinSep   = bytes.Repeat([]byte{0xff}, 10) //nolint:gomnd //...
 	leveldbNewOperationOrderedKeysJoinedSep = util.ConcatBytesSlice(
 		leveldbNewOperationOrderedKeysJoinSep,
 		leveldbKeyPrefixNewOperationOrdered,
@@ -149,7 +149,7 @@ func (db *baseLeveldb) loadNetworkPolicy() (base.NetworkPolicy, bool, error) {
 			return nil, true, e(nil, "not NetworkPolicy state: %T", i)
 		}
 
-		return i.Value().(base.NetworkPolicyStateValue).Policy(), true, nil
+		return i.Value().(base.NetworkPolicyStateValue).Policy(), true, nil //nolint:forcetypeassert //...
 	}
 }
 

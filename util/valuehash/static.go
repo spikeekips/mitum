@@ -18,7 +18,7 @@ var (
 
 func (h L32) IsValid([]byte) error {
 	if emptyL32 == h {
-		return util.InvalidError.Errorf("empty hash")
+		return util.ErrInvalid.Errorf("empty hash")
 	}
 
 	return nil
@@ -46,7 +46,7 @@ func (h L32) MarshalText() ([]byte, error) {
 
 func (h L64) IsValid([]byte) error {
 	if emptyL64 == h {
-		return util.InvalidError.Errorf("empty hash")
+		return util.ErrInvalid.Errorf("empty hash")
 	}
 
 	return nil

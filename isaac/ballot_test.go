@@ -43,7 +43,7 @@ func (t *testBaseBallot) TestEmptyVoteproof() {
 	}
 	err := bl.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.InvalidError))
+	t.True(errors.Is(err, util.ErrInvalid))
 }
 
 func (t *testBaseBallot) TestEmptySignedFact() {
@@ -60,7 +60,7 @@ func (t *testBaseBallot) TestEmptySignedFact() {
 	}
 	err := bl.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.InvalidError))
+	t.True(errors.Is(err, util.ErrInvalid))
 }
 
 func TestINITBallot(tt *testing.T) {
@@ -213,8 +213,8 @@ func (t *testBaseINITBallotWithVoteproof) TestWrongHeightINITVoteproofNone0Round
 
 	err := bl.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.InvalidError))
-	t.ErrorContains(err, "wrong point of init voteproof")
+	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorContains(err, "next round not match")
 }
 
 func TestBaseINITBallotWithVoteproof(t *testing.T) {

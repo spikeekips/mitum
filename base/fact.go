@@ -24,11 +24,12 @@ type Token []byte
 
 func (t Token) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid Token")
+
 	switch l := len(t); {
 	case l < 1:
-		return e(util.InvalidError.Errorf("empty"), "")
+		return e(util.ErrInvalid.Errorf("empty"), "")
 	case l > MaxTokenSize:
-		return e(util.InvalidError.Errorf("too long; %d > %d", l, MaxTokenSize), "")
+		return e(util.ErrInvalid.Errorf("too long; %d > %d", l, MaxTokenSize), "")
 	}
 
 	return nil
@@ -39,7 +40,7 @@ func IsValidFact(fact Fact, b []byte) error {
 		fact.Hash(),
 		fact.Token(),
 	); err != nil {
-		return util.InvalidError.Wrapf(err, "invalid Fact")
+		return util.ErrInvalid.Wrapf(err, "invalid Fact")
 	}
 
 	return nil
@@ -53,7 +54,7 @@ func IsValidSignedFact(sf SignedFact, networkID []byte) error {
 
 	sfs := sf.Signed()
 	if len(sfs) < 1 {
-		return e(util.InvalidError.Errorf("empty SignedFact"), "")
+		return e(util.ErrInvalid.Errorf("empty SignedFact"), "")
 	}
 
 	for i := range sfs {
@@ -61,12 +62,12 @@ func IsValidSignedFact(sf SignedFact, networkID []byte) error {
 	}
 
 	if err := util.CheckIsValid(networkID, false, bs...); err != nil {
-		return e(util.InvalidError.Wrapf(err, "invalid SignedFact"), "")
+		return e(util.ErrInvalid.Wrapf(err, "invalid SignedFact"), "")
 	}
 
 	for i := range sfs {
 		if err := sfs[i].Verify(networkID, sf.Fact().Hash().Bytes()); err != nil {
-			return e(util.InvalidError.Wrapf(err, "failed to verify signed"), "")
+			return e(util.ErrInvalid.Wrapf(err, "failed to verify signed"), "")
 		}
 	}
 

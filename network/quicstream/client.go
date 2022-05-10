@@ -44,7 +44,11 @@ func NewClient(
 ) *Client {
 	lstreamWritef := streamWritef
 	if lstreamWritef == nil {
-		lstreamWritef = func(stream quic.Stream, b []byte) (int, error) { return stream.Write(b) }
+		lstreamWritef = func(stream quic.Stream, b []byte) (int, error) {
+			n, err := stream.Write(b)
+
+			return n, errors.Wrap(err, "")
+		}
 	}
 
 	ldialf := dialf
@@ -72,7 +76,7 @@ func (c *Client) Session() quic.EarlyConnection {
 		return nil
 	}
 
-	return i.(quic.EarlyConnection)
+	return i.(quic.EarlyConnection) //nolint:forcetypeassert // ...
 }
 
 func (c *Client) Dial(ctx context.Context) (quic.EarlyConnection, error) {
@@ -111,15 +115,16 @@ func (c *Client) send(ctx context.Context, session quic.EarlyConnection, b []byt
 	if err != nil {
 		return nil, e(err, "failed to open stream")
 	}
+
 	defer func() {
-		_ = stream.Close()
+		_ = stream.Close() //nolint:errcheck //...
 	}()
 
 	if _, err = c.streamWritef(stream, b); err != nil {
 		return nil, e(err, "failed to write to stream")
 	}
 
-	_ = stream.Close()
+	_ = stream.Close() //nolint:errcheck //...
 
 	return StreamResponse{stream}, nil
 }
@@ -142,7 +147,7 @@ func (c *Client) dial(ctx context.Context) (quic.EarlyConnection, error) {
 		return nil, e(err, "")
 	}
 
-	return i.(quic.EarlyConnection), nil
+	return i.(quic.EarlyConnection), nil //nolint:forcetypeassert // ...
 }
 
 func dial(
@@ -151,7 +156,9 @@ func dial(
 	tlsconfig *tls.Config,
 	quicconfig *quic.Config,
 ) (quic.EarlyConnection, error) {
-	return quic.DialAddrEarlyContext(ctx, addr, tlsconfig, quicconfig)
+	c, err := quic.DialAddrEarlyContext(ctx, addr, tlsconfig, quicconfig)
+
+	return c, errors.Wrap(err, "")
 }
 
 func isNetworkError(err error) bool {
@@ -172,7 +179,7 @@ func isNetworkError(err error) bool {
 	}
 
 	var nerr net.Error
-	if errors.As(err, &nerr) && nerr != nil {
+	if nerr != nil && errors.As(err, &nerr) {
 		return true
 	}
 

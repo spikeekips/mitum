@@ -18,15 +18,11 @@ func IsStorageError(err error) bool {
 	switch {
 	case err == nil:
 		return false
-	case errors.Is(err, InternalError):
-		return true
-	case errors.Is(err, ConnectionError):
-		return true
-	case errors.Is(err, ExecError):
-		return true
-	case errors.Is(err, NotFoundError):
-		return true
-	case errors.Is(err, FoundError):
+	case errors.Is(err, InternalError),
+		errors.Is(err, ConnectionError),
+		errors.Is(err, ExecError),
+		errors.Is(err, NotFoundError),
+		errors.Is(err, FoundError):
 		return true
 	default:
 		return false

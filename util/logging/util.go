@@ -14,12 +14,10 @@ import (
 )
 
 func Setup(
-	output io.Writer,
-	level zerolog.Level,
-	format string,
-	forceColor bool,
-) *Logging {
+	output io.Writer, level zerolog.Level, format string, forceColor bool,
+) *Logging { // revive:disable-line:flag-parameter
 	o := output
+
 	if format == "terminal" {
 		var useColor bool
 		if forceColor {
@@ -50,7 +48,7 @@ func Output(f string) (io.Writer, error) {
 		return nil, errors.Wrapf(err, "failed to open file, %q", f)
 	}
 
-	return diode.NewWriter(out, 1000, 0, nil), nil
+	return diode.NewWriter(out, 1000, 0, nil), nil //nolint:gomnd //...
 }
 
 func Outputs(files []string) (io.Writer, error) {
@@ -59,6 +57,7 @@ func Outputs(files []string) (io.Writer, error) {
 	}
 
 	ws := make([]io.Writer, len(files))
+
 	for i, f := range files {
 		out, err := Output(f)
 		if err != nil {

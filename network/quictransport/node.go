@@ -65,6 +65,7 @@ func newNodeFromMemberlist(node *memberlist.Node, enc encoder.Encoder) (BaseNode
 	e := util.StringErrorFunc("failed to make Node from memberlist.Node")
 
 	var meta NodeMeta
+
 	switch hinter, err := enc.Decode(node.Meta); {
 	case err != nil:
 		return BaseNode{}, e(err, "failed to decode NodeMeta")
@@ -77,9 +78,9 @@ func newNodeFromMemberlist(node *memberlist.Node, enc encoder.Encoder) (BaseNode
 		meta = i
 	}
 
-	addr, _ := convertNetAddr(node)
+	addr, _ := convertNetAddr(node) //nolint:errcheck //...
 
-	return NewNode(node.Name, addr.(*net.UDPAddr), meta)
+	return NewNode(node.Name, addr.(*net.UDPAddr), meta) //nolint:forcetypeassert // ...
 }
 
 func (n BaseNode) Name() string {
@@ -237,11 +238,13 @@ func NewBaseConnInfo(addr *net.UDPAddr, insecure bool) BaseConnInfo {
 func NewBaseConnInfoFromString(s string) (BaseConnInfo, error) {
 	var as string
 	var insecure bool
+
 	switch i := strings.Index(s, "#"); {
 	case i < 0:
 		as = s
 	default:
 		as = s[:i]
+
 		if len(s[i:]) > 0 {
 			insecure = strings.ToLower(s[i+1:]) == "insecure"
 		}

@@ -159,7 +159,7 @@ func TestNumberOfFaultyNodes(t *testing.T) {
 		t.Run(
 			c.name,
 			func(*testing.T) {
-				f := NumberOfFaultyNodes(c.n, c.threshold)
+				f := NumberOfFaultyNodes(c.n, Threshold(c.threshold))
 				assert.Equal(t, c.expected, f, "%d: %v; %v != %v", i, c.name, c.expected, f)
 			},
 		)

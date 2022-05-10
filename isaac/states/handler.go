@@ -121,6 +121,7 @@ func switchContextLog(sctx switchContext) *zerolog.Event {
 	e := zerolog.Dict()
 
 	o, ok := sctx.(zerolog.LogObjectMarshaler)
+
 	switch {
 	case ok:
 		e = e.Object("next_state", o)

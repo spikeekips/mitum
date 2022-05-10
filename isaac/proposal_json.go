@@ -56,6 +56,7 @@ func (fact *ProposalFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	}
 
 	hs := make([]util.Hash, len(u.Operations))
+
 	for i := range u.Operations {
 		hs[i] = u.Operations[i].Hash()
 	}

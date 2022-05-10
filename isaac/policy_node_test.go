@@ -32,7 +32,7 @@ func (t *testNodePolicy) TestIsValid() {
 		p := DefaultNodePolicy(networkID)
 		err := p.IsValid(base.RandomNetworkID())
 		t.Error(err)
-		t.True(errors.Is(err, util.InvalidError))
+		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "network id does not match")
 	})
 
@@ -42,7 +42,7 @@ func (t *testNodePolicy) TestIsValid() {
 		p := DefaultNodePolicy(wrongnetworkID)
 		err := p.IsValid(wrongnetworkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.InvalidError))
+		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "network id too long")
 	})
 
@@ -52,7 +52,7 @@ func (t *testNodePolicy) TestIsValid() {
 
 		err := p.IsValid(networkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.InvalidError))
+		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "risky threshold")
 	})
 
@@ -62,7 +62,7 @@ func (t *testNodePolicy) TestIsValid() {
 
 		err := p.IsValid(networkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.InvalidError))
+		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "wrong duration")
 	})
 
@@ -72,7 +72,7 @@ func (t *testNodePolicy) TestIsValid() {
 
 		err := p.IsValid(networkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.InvalidError))
+		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "wrong duration")
 	})
 
@@ -82,7 +82,7 @@ func (t *testNodePolicy) TestIsValid() {
 
 		err := p.IsValid(networkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.InvalidError))
+		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "wrong duration")
 	})
 }

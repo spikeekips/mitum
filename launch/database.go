@@ -166,6 +166,7 @@ func LoadPermanentDatabase(uri string, encs *encoder.Encoders, enc encoder.Encod
 	u, err := url.Parse(uri)
 
 	var dbtype, network string
+
 	switch {
 	case err != nil:
 		return nil, e(err, "")
@@ -176,6 +177,7 @@ func LoadPermanentDatabase(uri string, encs *encoder.Encoders, enc encoder.Encod
 
 		l := strings.SplitN(u.Scheme, "+", 2)
 		dbtype = l[0]
+
 		if len(l) > 1 {
 			network = l[1]
 		}
@@ -197,6 +199,7 @@ func LoadPermanentDatabase(uri string, encs *encoder.Encoders, enc encoder.Encod
 		if strings.Contains(u.Scheme, "+") {
 			u.Scheme = network
 		}
+
 		if len(u.Scheme) < 1 {
 			u.Scheme = "redis"
 		}
@@ -217,7 +220,7 @@ func loadRedisPermanentDatabase(uri string, encs *encoder.Encoders, enc encoder.
 ) {
 	e := util.StringErrorFunc("failed to load redis PermanentDatabase")
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2) //nolint:gomnd //...
 	defer cancel()
 
 	option, err := redis.ParseURL(uri)

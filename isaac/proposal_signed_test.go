@@ -53,7 +53,7 @@ func (t *testProposalSignedFact) TestEmptySigned() {
 
 	err := sf.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.InvalidError))
+	t.True(errors.Is(err, util.ErrInvalid))
 }
 
 func (t *testProposalSignedFact) TestWrongFact() {
@@ -67,7 +67,7 @@ func (t *testProposalSignedFact) TestWrongFact() {
 
 	err := sf.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.InvalidError))
+	t.True(errors.Is(err, util.ErrInvalid))
 }
 
 func TestProposalSignedFact(tt *testing.T) {

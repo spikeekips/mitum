@@ -149,24 +149,25 @@ func NewINITVoteproof(point base.Point) INITVoteproof {
 
 func (vp INITVoteproof) IsValid(networkID []byte) error {
 	if err := vp.BaseHinter.IsValid(INITVoteproofHint.Type().Bytes()); err != nil {
-		return util.InvalidError.Wrapf(err, "invalid INITVoteproof")
+		return util.ErrInvalid.Wrapf(err, "invalid INITVoteproof")
 	}
 
 	if err := base.IsValidINITVoteproof(vp, networkID); err != nil {
-		return util.InvalidError.Wrapf(err, "invalid INITVoteproof")
+		return util.ErrInvalid.Wrapf(err, "invalid INITVoteproof")
 	}
 
 	return nil
 }
 
 func (vp INITVoteproof) BallotMajority() base.INITBallotFact {
-	return vp.majority.(base.INITBallotFact)
+	return vp.majority.(base.INITBallotFact) //nolint:forcetypeassert //...
 }
 
 func (vp INITVoteproof) BallotSignedFacts() []base.INITBallotSignedFact {
 	vs := make([]base.INITBallotSignedFact, len(vp.sfs))
+
 	for i := range vp.sfs {
-		vs[i] = vp.sfs[i].(base.INITBallotSignedFact)
+		vs[i] = vp.sfs[i].(base.INITBallotSignedFact) //nolint:forcetypeassert //...
 	}
 
 	return vs
@@ -184,24 +185,25 @@ func NewACCEPTVoteproof(point base.Point) ACCEPTVoteproof {
 
 func (vp ACCEPTVoteproof) IsValid(networkID []byte) error {
 	if err := vp.BaseHinter.IsValid(ACCEPTVoteproofHint.Type().Bytes()); err != nil {
-		return util.InvalidError.Wrapf(err, "invalid ACCEPTVoteproof")
+		return util.ErrInvalid.Wrapf(err, "invalid ACCEPTVoteproof")
 	}
 
 	if err := base.IsValidACCEPTVoteproof(vp, networkID); err != nil {
-		return util.InvalidError.Wrapf(err, "invalid ACCEPTVoteproof")
+		return util.ErrInvalid.Wrapf(err, "invalid ACCEPTVoteproof")
 	}
 
 	return nil
 }
 
 func (vp ACCEPTVoteproof) BallotMajority() base.ACCEPTBallotFact {
-	return vp.majority.(base.ACCEPTBallotFact)
+	return vp.majority.(base.ACCEPTBallotFact) //nolint:forcetypeassert //...
 }
 
 func (vp ACCEPTVoteproof) BallotSignedFacts() []base.ACCEPTBallotSignedFact {
 	vs := make([]base.ACCEPTBallotSignedFact, len(vp.sfs))
+
 	for i := range vp.sfs {
-		vs[i] = vp.sfs[i].(base.ACCEPTBallotSignedFact)
+		vs[i] = vp.sfs[i].(base.ACCEPTBallotSignedFact) //nolint:forcetypeassert //...
 	}
 
 	return vs

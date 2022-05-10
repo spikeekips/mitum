@@ -28,7 +28,7 @@ func newBaseDatabase(
 func (db *baseDatabase) marshal(i interface{}) ([]byte, error) {
 	b, err := db.enc.Marshal(i)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "")
 	}
 
 	return db.marshalWithEncoder(b), nil
@@ -36,6 +36,7 @@ func (db *baseDatabase) marshal(i interface{}) ([]byte, error) {
 
 func (db *baseDatabase) readEncoder(b []byte) (encoder.Encoder, []byte, error) {
 	var ht hint.Hint
+
 	ht, raw, err := db.readHint(b)
 	if err != nil {
 		return nil, nil, err
@@ -43,7 +44,7 @@ func (db *baseDatabase) readEncoder(b []byte) (encoder.Encoder, []byte, error) {
 
 	switch enc := db.encs.Find(ht); {
 	case enc == nil:
-		return nil, nil, util.NotFoundError.Errorf("encoder not found for %q", ht)
+		return nil, nil, util.ErrNotFound.Errorf("encoder not found for %q", ht)
 	default:
 		return enc, raw, nil
 	}
@@ -58,7 +59,9 @@ func (db *baseDatabase) readHinter(b []byte) (interface{}, error) {
 	case err != nil:
 		return nil, errors.Wrap(err, "")
 	default:
-		return enc.Decode(raw)
+		hinter, err := enc.Decode(raw)
+
+		return hinter, errors.Wrap(err, "")
 	}
 }
 
@@ -90,6 +93,7 @@ func (db *baseDatabase) decodeState(b []byte) (base.State, error) {
 	e := util.StringErrorFunc("failed to load state")
 
 	hinter, err := db.readHinter(b)
+
 	switch {
 	case err != nil:
 		return nil, e(err, "")
@@ -129,6 +133,7 @@ func (db *baseDatabase) decodeBlockMap(b []byte) (base.BlockMap, error) {
 	e := util.StringErrorFunc("failed to load blockmap")
 
 	hinter, err := db.readHinter(b)
+
 	switch {
 	case err != nil:
 		return nil, e(err, "")

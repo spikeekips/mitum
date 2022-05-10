@@ -28,9 +28,9 @@ func (p Proof) IsValid(b []byte) error {
 
 	switch n := len(p.nodes); {
 	case n < 1:
-		return e(util.InvalidError.Errorf("empty extracted"), "")
+		return e(util.ErrInvalid.Errorf("empty extracted"), "")
 	case n%2 != 1:
-		return e(util.InvalidError.Errorf("invalid number of extracted"), "")
+		return e(util.ErrInvalid.Errorf("invalid number of extracted"), "")
 	}
 
 end:
@@ -39,7 +39,7 @@ end:
 
 		switch {
 		case i > 2 && n == nil:
-			return e(util.InvalidError.Errorf("empty node found at %d", i), "")
+			return e(util.ErrInvalid.Errorf("empty node found at %d", i), "")
 		case n == nil:
 			continue end
 		}
@@ -51,7 +51,7 @@ end:
 
 	switch {
 	case util.CheckSliceDuplicated(p.nodes, func(i interface{}) string {
-		n := i.(Node)
+		n := i.(Node) //nolint:forcetypeassert //...
 		if n.IsEmpty() {
 			return util.UUID().String()
 		}
@@ -60,7 +60,7 @@ end:
 	}):
 		return errors.Errorf("duplicated key found")
 	case util.CheckSliceDuplicated(p.nodes, func(i interface{}) string {
-		n := i.(Node)
+		n := i.(Node) //nolint:forcetypeassert //...
 		if n.IsEmpty() {
 			return valuehash.Bytes(util.UUID().Bytes()).String()
 		}
@@ -87,8 +87,9 @@ func (p Proof) Prove(key string) error {
 	}
 
 	for i := 0; i < (len(nodes)-1)/2; i++ {
-		bi := i * 2
+		bi := i * 2 //nolint:gomnd //...
 		parents := nodes[bi+2 : bi+3]
+
 		if i*2+4 < len(nodes) {
 			parents = nodes[bi+2 : bi+4]
 		}
@@ -170,6 +171,7 @@ func ExtractProofMaterial(nodes []Node, key string) (extracted []Node, err error
 	// NOTE find index
 	var index uint64
 	var node Node
+
 	for i := uint64(0); i < uint64(size); i++ {
 		n := nodes[i]
 		if n.Key() == key {
@@ -178,8 +180,6 @@ func ExtractProofMaterial(nodes []Node, key string) (extracted []Node, err error
 
 			break
 		}
-
-		continue
 	}
 
 	if node == nil {
@@ -197,18 +197,18 @@ end:
 				return nil, e(nil, "empty children found at %d", l)
 			}
 
-			extracted[(i * 2)] = c[0]
+			extracted[(i * 2)] = c[0] //nolint:gomnd //...
 			if c[1] == nil {
 				c[1] = EmptyBaseNode()
 			}
-			extracted[(i*2)+1] = c[1]
+			extracted[(i*2)+1] = c[1] //nolint:gomnd //...
 		case errors.Is(err, noChildrenError):
 			if l != index {
 				return nil, e(err, "")
 			}
 
-			extracted[(i * 2)] = EmptyBaseNode()
-			extracted[(i*2)+1] = EmptyBaseNode()
+			extracted[(i * 2)] = EmptyBaseNode() //nolint:gomnd //...
+			extracted[(i*2)+1] = EmptyBaseNode() //nolint:gomnd //...
 		default:
 			return nil, e(err, "")
 		}

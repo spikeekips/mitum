@@ -29,7 +29,7 @@ func (t *testNetworkPolicy) TestIsValid() {
 
 		err := p.IsValid(nil)
 		t.Error(err)
-		t.True(errors.Is(err, util.InvalidError))
+		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "under zero maxOperationsInProposal")
 	})
 }

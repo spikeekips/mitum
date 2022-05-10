@@ -11,8 +11,9 @@ import (
 func ParseRFC3339(s string) (time.Time, error) {
 	t, err := time.Parse(time.RFC3339Nano, s)
 	if err != nil {
-		return time.Time{}, err
+		return time.Time{}, errors.Wrap(err, "")
 	}
+
 	return t, nil
 }
 
@@ -36,7 +37,7 @@ func Normalize(t time.Time) time.Time {
 		n.Hour(),
 		n.Minute(),
 		n.Second(),
-		(n.Nanosecond()/1000000)*1000000,
+		(n.Nanosecond()/1000000)*1000000, //nolint:gomnd //...
 		time.UTC,
 	)
 }
@@ -70,9 +71,7 @@ func (t Time) RFC3339() string {
 }
 
 func (t Time) Normalize() Time {
-	t.Time = Normalize(t.Time)
-
-	return t
+	return Time{Time: Normalize(t.Time)}
 }
 
 func (t Time) Equal(n Time) bool {

@@ -42,7 +42,7 @@ func NewBaseState(
 		ops:        ops,
 	}
 
-	s.h = s.hash()
+	s.h = s.generateHash()
 
 	return s
 }
@@ -56,12 +56,13 @@ func (s BaseState) IsValid([]byte) error {
 	vs[2] = s.height
 	vs[3] = util.DummyIsValider(func([]byte) error {
 		if len(s.k) < 1 {
-			return util.InvalidError.Errorf("empty state key")
+			return util.ErrInvalid.Errorf("empty state key")
 		}
 
 		return nil
 	})
 	vs[4] = s.v
+
 	for i := range s.ops {
 		vs[i+5] = s.ops[i]
 	}
@@ -76,8 +77,8 @@ func (s BaseState) IsValid([]byte) error {
 		}
 	}
 
-	if !s.h.Equal(s.hash()) {
-		return util.InvalidError.Errorf("wrong hash")
+	if !s.h.Equal(s.generateHash()) {
+		return util.ErrInvalid.Errorf("wrong hash")
 	}
 
 	return nil
@@ -107,13 +108,7 @@ func (s BaseState) Operations() []util.Hash {
 	return s.ops
 }
 
-func (s BaseState) SetValue(v StateValue) BaseState {
-	s.v = v
-
-	return s
-}
-
-func (s BaseState) hash() util.Hash {
+func (s BaseState) generateHash() util.Hash {
 	return valuehash.NewSHA256(util.ConcatByters(
 		util.DummyByter(func() []byte {
 			if s.previous == nil {
@@ -136,6 +131,7 @@ func (s BaseState) hash() util.Hash {
 			}
 
 			bs := make([][]byte, len(s.ops))
+
 			for i := range s.ops {
 				if s.ops[i] == nil {
 					continue
@@ -150,11 +146,11 @@ func (s BaseState) hash() util.Hash {
 }
 
 type baseStateJSONMarshaler struct {
-	H   util.Hash   `json:"hash"`
-	P   util.Hash   `json:"previous"`
-	V   StateValue  `json:"value"`
-	K   string      `json:"key"`
-	OPS []util.Hash `json:"operations"`
+	Hash       util.Hash   `json:"hash"`
+	Previous   util.Hash   `json:"previous"`
+	Value      StateValue  `json:"value"`
+	Key        string      `json:"key"`
+	Operations []util.Hash `json:"operations"`
 	hint.BaseHinter
 	Height Height `json:"height"`
 }
@@ -162,22 +158,22 @@ type baseStateJSONMarshaler struct {
 func (s BaseState) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(baseStateJSONMarshaler{
 		BaseHinter: s.BaseHinter,
-		H:          s.h,
-		P:          s.previous,
+		Hash:       s.h,
+		Previous:   s.previous,
 		Height:     s.height,
-		K:          s.k,
-		V:          s.v,
-		OPS:        s.ops,
+		Key:        s.k,
+		Value:      s.v,
+		Operations: s.ops,
 	})
 }
 
 type baseStateJSONUnmarshaler struct {
-	H      valuehash.HashDecoder   `json:"hash"`
-	P      valuehash.HashDecoder   `json:"previous"`
-	K      string                  `json:"key"`
-	V      json.RawMessage         `json:"value"`
-	OPS    []valuehash.HashDecoder `json:"operations"`
-	Height HeightDecoder           `json:"height"`
+	Hash       valuehash.HashDecoder   `json:"hash"`
+	Previous   valuehash.HashDecoder   `json:"previous"`
+	Key        string                  `json:"key"`
+	Value      json.RawMessage         `json:"value"`
+	Operations []valuehash.HashDecoder `json:"operations"`
+	Height     HeightDecoder           `json:"height"`
 }
 
 func (s *BaseState) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
@@ -188,17 +184,18 @@ func (s *BaseState) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "")
 	}
 
-	s.h = u.H.Hash()
-	s.previous = u.P.Hash()
+	s.h = u.Hash.Hash()
+	s.previous = u.Previous.Hash()
 	s.height = u.Height.Height()
-	s.k = u.K
+	s.k = u.Key
 
-	s.ops = make([]util.Hash, len(u.OPS))
-	for i := range u.OPS {
-		s.ops[i] = u.OPS[i].Hash()
+	s.ops = make([]util.Hash, len(u.Operations))
+
+	for i := range u.Operations {
+		s.ops[i] = u.Operations[i].Hash()
 	}
 
-	switch i, err := DecodeStateValue(u.V, enc); {
+	switch i, err := DecodeStateValue(u.Value, enc); {
 	case err != nil:
 		return e(err, "")
 	default:
@@ -354,11 +351,12 @@ func (v BaseStateMergeValue) Merger(height Height, st State) StateValueMerger {
 }
 
 func (v BaseStateMergeValue) defaultMerger(height Height, st State) StateValueMerger {
+	nst := st
 	if st == nil {
-		st = NewBaseState(NilHeight, v.key, nil, nil, nil)
+		nst = NewBaseState(NilHeight, v.key, nil, nil, nil)
 	}
 
-	return NewBaseStateValueMerger(height, st)
+	return NewBaseStateValueMerger(height, nst)
 }
 
 func DecodeStateValue(b []byte, enc encoder.Encoder) (StateValue, error) {

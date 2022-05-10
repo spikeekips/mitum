@@ -30,7 +30,7 @@ var (
 	log     *zerolog.Logger
 )
 
-func init() {
+func init() { //nolint:gochecknoinits //...
 	zerolog.TimeFieldFormat = time.RFC3339Nano
 	zerolog.ErrorStackMarshaler = util.ZerologMarshalStack
 }
@@ -56,7 +56,7 @@ func main() {
 	if err := func() error {
 		defer log.Info().Msg("stopped")
 
-		return kctx.Run()
+		return errors.Wrap(kctx.Run(), "")
 	}(); err != nil {
 		log.Error().Err(err).Msg("stopped by error")
 
@@ -79,6 +79,7 @@ func (cmd *initCommand) Run() error {
 	if err != nil {
 		return errors.Wrap(err, "failed to prepare local")
 	}
+
 	cmd.local = local
 
 	dbroot, found := os.LookupEnv(envKeyFSRootf)
@@ -110,6 +111,7 @@ func (cmd *initCommand) Run() error {
 
 	g := launch.NewGenesisBlockGenerator(cmd.local, networkID, enc, db, pool, launch.DBRootDataDirectory(dbroot))
 	_ = g.SetLogging(logging)
+
 	if _, err := g.Generate(); err != nil {
 		return errors.Wrap(err, "")
 	}
@@ -142,6 +144,7 @@ func (cmd *runCommand) Run() error {
 	if err != nil {
 		return errors.Wrap(err, "failed to prepare cmd.local")
 	}
+
 	cmd.local = local
 
 	dbroot, found := os.LookupEnv(envKeyFSRootf)
@@ -192,12 +195,14 @@ func (cmd *runCommand) prepareDatabase(dbroot string, encs *encoder.Encoders, en
 	if err != nil {
 		return errors.Wrap(err, "")
 	}
+
 	cmd.perm = perm
 
 	db, pool, err := launch.PrepareDatabase(perm, dbroot, encs, enc)
 	if err != nil {
 		return errors.Wrap(err, "")
 	}
+
 	_ = db.SetLogging(logging)
 
 	cmd.db = db
@@ -213,6 +218,7 @@ func (cmd *runCommand) prepareDatabase(dbroot string, encs *encoder.Encoders, en
 func (cmd *runCommand) getSuffrageFunc() func(blockheight base.Height) (base.Suffrage, bool, error) {
 	return func(blockheight base.Height) (base.Suffrage, bool, error) {
 		st, found, err := cmd.db.Suffrage(blockheight.Prev())
+
 		switch {
 		case err != nil:
 			return nil, false, errors.Wrap(err, "")
@@ -316,7 +322,7 @@ func (cmd *runCommand) getLastManifestFunc() func() (base.Manifest, bool, error)
 	return func() (base.Manifest, bool, error) {
 		switch m, found, err := cmd.db.LastMap(); {
 		case err != nil || !found:
-			return nil, found, err
+			return nil, found, errors.Wrap(err, "")
 		default:
 			return m.Manifest(), true, nil
 		}

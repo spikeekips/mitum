@@ -169,6 +169,7 @@ end:
 			}
 
 			var sctx switchContext
+
 			switch added, err := st.checkFinished(lvp); {
 			case err == nil:
 				if !added && lvp.Point().Height() == sc.Top() && lvp.Point().Stage() == base.StageACCEPT {

@@ -215,6 +215,7 @@ end:
 		n++
 
 		var rsctx switchContext
+
 		switch err := st.switchState(nsctx); {
 		case err == nil:
 			if nsctx.next() == StateStopped {
@@ -371,6 +372,7 @@ func (st *States) checkStateSwitchContext(sctx switchContext, current handler) e
 	}
 
 	from := sctx.from()
+
 	switch {
 	case from == StateEmpty:
 		from = current.state()

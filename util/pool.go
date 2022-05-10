@@ -27,6 +27,7 @@ func (po *GCacheObjectPool) Exists(key string) bool {
 
 func (po *GCacheObjectPool) Get(key string) (interface{}, bool) {
 	i, err := po.cache.Get(key)
+
 	switch {
 	case errors.Is(err, gcache.KeyNotFoundError):
 		return nil, false
@@ -38,5 +39,5 @@ func (po *GCacheObjectPool) Get(key string) (interface{}, bool) {
 }
 
 func (po *GCacheObjectPool) Set(key string, v interface{}) {
-	_ = po.cache.Set(key, v)
+	_ = po.cache.Set(key, v) //nolint:errcheck //...
 }

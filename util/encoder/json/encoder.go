@@ -36,7 +36,7 @@ func (enc *Encoder) SetPool(pool util.ObjectPool) *Encoder {
 
 func (enc *Encoder) Add(d encoder.DecodeDetail) error {
 	if err := d.IsValid(nil); err != nil {
-		return util.InvalidError.Wrapf(err, "failed to add in json encoder")
+		return util.ErrInvalid.Wrapf(err, "failed to add in json encoder")
 	}
 
 	x := d
@@ -49,7 +49,7 @@ func (enc *Encoder) Add(d encoder.DecodeDetail) error {
 
 func (enc *Encoder) AddHinter(hr hint.Hinter) error {
 	if err := hr.Hint().IsValid(nil); err != nil {
-		return util.InvalidError.Wrapf(err, "failed to add in json encoder")
+		return util.ErrInvalid.Wrapf(err, "failed to add in json encoder")
 	}
 
 	return enc.addDecodeDetail(enc.analyze(encoder.DecodeDetail{Hint: hr.Hint()}, hr))
@@ -170,6 +170,7 @@ func (enc *Encoder) DecodeSlice(b []byte) ([]interface{}, error) {
 	}
 
 	s := make([]interface{}, len(j))
+
 	for i := range j {
 		k, err := enc.Decode(j[i])
 		if err != nil {
@@ -184,7 +185,7 @@ func (enc *Encoder) DecodeSlice(b []byte) ([]interface{}, error) {
 
 func (enc *Encoder) addDecodeDetail(d encoder.DecodeDetail) error {
 	if err := enc.decoders.Add(d.Hint, d); err != nil {
-		return util.InvalidError.Wrapf(err, "failed to add DecodeDetail in json encoder")
+		return util.ErrInvalid.Wrapf(err, "failed to add DecodeDetail in json encoder")
 	}
 
 	return nil
@@ -194,7 +195,7 @@ func (enc *Encoder) decodeWithHint(b []byte, ht hint.Hint) (interface{}, error) 
 	v := enc.decoders.Find(ht)
 	if v == nil {
 		return nil,
-			util.NotFoundError.Errorf("failed to find decoder by hint, %q in json decoders", ht)
+			util.ErrNotFound.Errorf("failed to find decoder by hint, %q in json decoders", ht)
 	}
 
 	d, ok := v.(encoder.DecodeDetail)
@@ -230,13 +231,14 @@ func (enc *Encoder) analyze(d encoder.DecodeDetail, v interface{}) encoder.Decod
 	e := util.StringErrorFunc("failed to analyze in json encoder")
 
 	ptr, elem := encoder.Ptr(v)
+
 	switch ptr.Interface().(type) {
 	case Decodable:
 		d.Desc = "JSONDecodable"
 		d.Decode = func(b []byte, _ hint.Hint) (interface{}, error) {
 			i := reflect.New(elem.Type()).Interface()
 
-			if err := i.(Decodable).DecodeJSON(b, enc); err != nil {
+			if err := i.(Decodable).DecodeJSON(b, enc); err != nil { //nolint:forcetypeassert //...
 				return nil, e(err, "failed to DecodeJSON")
 			}
 
@@ -247,7 +249,7 @@ func (enc *Encoder) analyze(d encoder.DecodeDetail, v interface{}) encoder.Decod
 		d.Decode = func(b []byte, _ hint.Hint) (interface{}, error) {
 			i := reflect.New(elem.Type()).Interface()
 
-			if err := i.(json.Unmarshaler).UnmarshalJSON(b); err != nil {
+			if err := i.(json.Unmarshaler).UnmarshalJSON(b); err != nil { //nolint:forcetypeassert //...
 				return nil, e(err, "failed to UnmarshalJSON")
 			}
 
@@ -258,7 +260,7 @@ func (enc *Encoder) analyze(d encoder.DecodeDetail, v interface{}) encoder.Decod
 		d.Decode = func(b []byte, _ hint.Hint) (interface{}, error) {
 			i := reflect.New(elem.Type()).Interface()
 
-			if err := i.(encoding.TextUnmarshaler).UnmarshalText(b); err != nil {
+			if err := i.(encoding.TextUnmarshaler).UnmarshalText(b); err != nil { //nolint:forcetypeassert //...
 				return nil, e(err, "failed to UnmarshalText")
 			}
 

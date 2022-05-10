@@ -134,7 +134,7 @@ func (t *testJSONEncoder) TestAddAgain() {
 
 	// add again
 	err := t.enc.Add(d)
-	t.True(errors.Is(err, util.DuplicatedError))
+	t.True(errors.Is(err, util.ErrDuplicated))
 	t.ErrorContains(err, "already added")
 }
 
@@ -144,7 +144,7 @@ func (t *testJSONEncoder) TestAddEmptyDecodeFuncAndInstance() {
 	}
 
 	err := t.enc.Add(d)
-	t.True(errors.Is(err, util.InvalidError))
+	t.True(errors.Is(err, util.ErrInvalid))
 	t.ErrorContains(err, "instance and decode func are empty")
 }
 
@@ -157,7 +157,7 @@ func (t *testJSONEncoder) TestAddHinterAgain() {
 
 	// add again
 	err := t.enc.AddHinter(hr)
-	t.True(errors.Is(err, util.DuplicatedError))
+	t.True(errors.Is(err, util.ErrDuplicated))
 	t.ErrorContains(err, "already added")
 }
 
@@ -501,7 +501,7 @@ func (t *testJSONEncoder) TestDecodeUnknown() {
 	t.NoError(err)
 
 	_, err = t.enc.Decode(b)
-	t.True(errors.Is(err, util.NotFoundError))
+	t.True(errors.Is(err, util.ErrNotFound))
 	t.ErrorContains(err, "failed to find decoder")
 }
 

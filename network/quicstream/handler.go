@@ -55,6 +55,7 @@ func (h *PrefixHandler) loadHandler(r io.Reader) (Handler, error) {
 	e := util.StringErrorFunc("failed to load handler")
 
 	p := make([]byte, handlerPrefixSize)
+
 	switch n, err := r.Read(p); {
 	case err != nil:
 		return nil, e(err, "failed to read handler prefix")

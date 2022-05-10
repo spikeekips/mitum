@@ -33,11 +33,11 @@ func (h Bytes) String() string {
 
 func (h Bytes) IsValid([]byte) error {
 	if h == nil || len(h) < 1 {
-		return util.InvalidError.Errorf("empty hash")
+		return util.ErrInvalid.Errorf("empty hash")
 	}
 
 	if len(h) > maxBytesHashSize {
-		return util.InvalidError.Errorf("over max: %d > %d", len(h), maxBytesHashSize)
+		return util.ErrInvalid.Errorf("over max: %d > %d", len(h), maxBytesHashSize)
 	}
 
 	return nil

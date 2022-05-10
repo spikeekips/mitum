@@ -15,7 +15,7 @@ const (
 var statesmap = map[Stage]int{
 	StageUnknown: 0,
 	StageINIT:    1,
-	StageACCEPT:  3,
+	StageACCEPT:  3, //nolint:gomnd // for Compare()
 }
 
 func (st Stage) Bytes() []byte {
@@ -30,9 +30,9 @@ func (st Stage) IsValid([]byte) error {
 	switch st {
 	case StageINIT, StageACCEPT:
 		return nil
+	default:
+		return util.ErrInvalid.Errorf("unknown stage, %q", st)
 	}
-
-	return util.InvalidError.Errorf("unknown stage, %q", st)
 }
 
 func (st Stage) Compare(b Stage) int {

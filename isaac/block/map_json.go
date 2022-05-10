@@ -12,21 +12,22 @@ import (
 
 type blockMapJSONMarshaler struct {
 	Manifest base.Manifest                               `json:"manifest"`
-	M        map[base.BlockMapItemType]base.BlockMapItem `json:"items"`
+	Items    map[base.BlockMapItemType]base.BlockMapItem `json:"items"`
 	base.BaseNodeSignedJSONMarshaler
 	hint.BaseHinter
-	W hint.Hint `json:"writer"`
-	E hint.Hint `json:"encoder"`
+	Writer  hint.Hint `json:"writer"`
+	Encoder hint.Hint `json:"encoder"`
 }
 
 func (m BlockMap) MarshalJSON() ([]byte, error) {
 	items := map[base.BlockMapItemType]base.BlockMapItem{}
+
 	m.m.Traverse(func(_, v interface{}) bool {
 		if util.IsNilLockedValue(v) {
 			return true
 		}
 
-		i := v.(BlockMapItem)
+		i := v.(BlockMapItem) //nolint:forcetypeassert //...
 		items[i.Type()] = i
 
 		return true
@@ -35,18 +36,18 @@ func (m BlockMap) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(blockMapJSONMarshaler{
 		BaseHinter:                  m.BaseHinter,
 		BaseNodeSignedJSONMarshaler: m.BaseNodeSigned.JSONMarshaler(),
-		W:                           m.writer,
-		E:                           m.encoder,
+		Writer:                      m.writer,
+		Encoder:                     m.encoder,
 		Manifest:                    m.manifest,
-		M:                           items,
+		Items:                       items,
 	})
 }
 
 type blockMapJSONUnmarshaler struct {
-	M        map[base.BlockMapItemType]json.RawMessage `json:"items"`
+	Items    map[base.BlockMapItemType]json.RawMessage `json:"items"`
 	Manifest json.RawMessage                           `json:"manifest"`
-	W        hint.Hint                                 `json:"writer"`
-	E        hint.Hint                                 `json:"encoder"`
+	Writer   hint.Hint                                 `json:"writer"`
+	Encoder  hint.Hint                                 `json:"encoder"`
 }
 
 func (m *BlockMap) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
@@ -74,24 +75,25 @@ func (m *BlockMap) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	}
 
 	items := util.NewLockedMap()
-	for k := range u.M {
+
+	for k := range u.Items {
 		var ui BlockMapItem
-		if err := enc.Unmarshal(u.M[k], &ui); err != nil {
+		if err := enc.Unmarshal(u.Items[k], &ui); err != nil {
 			return e(err, "failed to unmarshal blockmap item, %q", k)
 		}
 
 		_ = items.SetValue(ui.Type(), ui)
 	}
 
-	m.writer = u.W
-	m.encoder = u.E
+	m.writer = u.Writer
+	m.encoder = u.Encoder
 	m.m = items
 
 	return nil
 }
 
 type blockMapItemJSONMarshaler struct {
-	T        base.BlockMapItemType `json:"type"`
+	Type     base.BlockMapItemType `json:"type"`
 	URL      string                `json:"url"`
 	Checksum string                `json:"checksum"`
 	Num      uint64                `json:"num"`
@@ -99,7 +101,7 @@ type blockMapItemJSONMarshaler struct {
 
 func (item BlockMapItem) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(blockMapItemJSONMarshaler{
-		T:        item.t,
+		Type:     item.t,
 		URL:      item.url.String(),
 		Checksum: item.checksum,
 		Num:      item.num,
@@ -107,7 +109,7 @@ func (item BlockMapItem) MarshalJSON() ([]byte, error) {
 }
 
 type blockMapItemJSONUnmarshaler struct {
-	T        base.BlockMapItemType `json:"type"`
+	Type     base.BlockMapItemType `json:"type"`
 	URL      string                `json:"url"`
 	Checksum string                `json:"checksum"`
 	Num      uint64                `json:"num"`
@@ -116,6 +118,7 @@ type blockMapItemJSONUnmarshaler struct {
 func (item *BlockMapItem) UnmarshalJSON(b []byte) error {
 	e := util.StringErrorFunc("failed to unmarshal blockMapItem")
 	var u blockMapItemJSONUnmarshaler
+
 	if err := util.UnmarshalJSON(b, &u); err != nil {
 		return e(err, "")
 	}
@@ -127,7 +130,7 @@ func (item *BlockMapItem) UnmarshalJSON(b []byte) error {
 		item.url = *i
 	}
 
-	item.t = u.T
+	item.t = u.Type
 	item.checksum = u.Checksum
 	item.num = u.Num
 

@@ -90,6 +90,7 @@ func (db *TempPool) SetProposal(pr base.ProposalSignedFact) (bool, error) {
 	e := util.StringErrorFunc("failed to put proposal")
 
 	key := leveldbProposalKey(pr.Fact().Hash())
+
 	switch found, err := db.st.Exists(key); {
 	case err != nil:
 		return false, e(err, "")
@@ -101,6 +102,7 @@ func (db *TempPool) SetProposal(pr base.ProposalSignedFact) (bool, error) {
 
 	// NOTE remove old proposals
 	top := leveldbProposalPointKey(pr.ProposalFact().Point().PrevHeight(), nil)
+
 	if err := db.st.Iter(leveldbutil.BytesPrefix(leveldbKeyPrefixProposalByPoint), func(key, b []byte) (bool, error) {
 		if bytes.Compare(key[:len(top)], top) > 0 {
 			return false, nil
@@ -145,6 +147,7 @@ func (db *TempPool) NewOperation(_ context.Context, facthash util.Hash) (base.Op
 		if err != nil {
 			return nil, false, e(err, "")
 		}
+
 		return op, true, nil
 	}
 }
@@ -159,17 +162,19 @@ func (db *TempPool) NewOperationHashes(
 	ops := make([]util.Hash, limit)
 	var removes []util.Hash
 
-	if filter == nil {
-		filter = func(facthash util.Hash) (bool, error) { return true, nil }
+	nfilter := filter
+	if nfilter == nil {
+		nfilter = func(facthash util.Hash) (bool, error) { return true, nil }
 	}
 
 	var i uint64
+
 	if err := db.st.Iter(
 		leveldbutil.BytesPrefix(leveldbKeyPrefixNewOperationOrdered),
 		func(_ []byte, b []byte) (bool, error) {
 			h := valuehash.Bytes(b)
 
-			switch ok, err := filter(h); {
+			switch ok, err := nfilter(h); {
 			case err != nil:
 				return false, errors.Wrap(err, "")
 			case !ok:
@@ -211,6 +216,7 @@ func (db *TempPool) SetNewOperation(_ context.Context, op base.Operation) (bool,
 	facthash := op.Fact().Hash()
 
 	key, orderedkey := newNewOperationLeveldbKeys(facthash)
+
 	switch found, err := db.st.Exists(key); {
 	case err != nil:
 		return false, e(err, "")
@@ -240,6 +246,7 @@ func (db *TempPool) RemoveNewOperations(ctx context.Context, facthashes []util.H
 	e := util.StringErrorFunc("failed to remove NewOperations")
 
 	hs := make([]util.Hash, 3333)
+
 	for i := range facthashes {
 		hs[i%len(hs)] = facthashes[i]
 
@@ -271,7 +278,7 @@ func (db *TempPool) LastVoteproofs() (base.INITVoteproof, base.ACCEPTVoteproof, 
 			return nil, nil, false, errors.Errorf("invalid last voteproofs")
 		}
 
-		return j[0].(base.INITVoteproof), j[1].(base.ACCEPTVoteproof), true, nil
+		return j[0].(base.INITVoteproof), j[1].(base.ACCEPTVoteproof), true, nil //nolint:forcetypeassert //...
 	}
 }
 
@@ -309,6 +316,7 @@ func (db *TempPool) removeNewOperations(ctx context.Context, facthashes []util.H
 
 	removekeysch := make(chan []byte)
 	donech := make(chan struct{})
+
 	go func() {
 		for i := range removekeysch {
 			batch.Delete(i)
@@ -347,6 +355,7 @@ func (db *TempPool) removeNewOperations(ctx context.Context, facthashes []util.H
 			break
 		}
 	}
+
 	worker.Done()
 
 	if err := worker.Wait(); err != nil {
@@ -371,6 +380,7 @@ func (db *TempPool) loadProposal(b []byte) (base.ProposalSignedFact, error) {
 	e := util.StringErrorFunc("failed to load proposal")
 
 	hinter, err := db.readHinter(b)
+
 	switch {
 	case err != nil:
 		return nil, e(err, "")
@@ -412,6 +422,7 @@ func (db *TempPool) loadLastVoteproofs() error {
 	e := util.StringErrorFunc("failed to load last voteproofs")
 
 	b, found, err := db.st.Get(leveldbKeyLastVoteproofs)
+
 	switch {
 	case err != nil:
 		return e(err, "")
@@ -430,6 +441,7 @@ func (db *TempPool) loadLastVoteproofs() error {
 	}
 
 	var ivp base.INITVoteproof
+
 	switch hinter, err := enc.Decode(u[0]); {
 	case err != nil:
 		return e(err, "")
@@ -445,6 +457,7 @@ func (db *TempPool) loadLastVoteproofs() error {
 	}
 
 	var avp base.ACCEPTVoteproof
+
 	switch hinter, err := enc.Decode(u[1]); {
 	case err != nil:
 		return e(err, "")

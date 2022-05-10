@@ -111,6 +111,7 @@ func (db *RedisPermanent) Suffrage(height base.Height) (base.State, bool, error)
 	}
 
 	var key string
+
 	if err := db.st.ZRangeArgs(
 		context.Background(),
 		redis.ZRangeArgs{
@@ -144,6 +145,7 @@ func (db *RedisPermanent) Suffrage(height base.Height) (base.State, bool, error)
 		if err != nil {
 			return nil, false, e(err, "")
 		}
+
 		return st, true, nil
 	}
 }
@@ -156,9 +158,9 @@ func (db *RedisPermanent) SuffrageByHeight(suffrageHeight base.Height) (base.Sta
 		return nil, false, e(err, "")
 	case !found:
 		return nil, false, nil
-	case suffrageHeight > st.Value().(base.SuffrageStateValue).Height():
+	case suffrageHeight > st.Value().(base.SuffrageStateValue).Height(): //nolint:forcetypeassert //...
 		return nil, false, nil
-	case suffrageHeight == st.Value().(base.SuffrageStateValue).Height():
+	case suffrageHeight == st.Value().(base.SuffrageStateValue).Height(): //nolint:forcetypeassert //...
 		return st, true, nil
 	}
 
@@ -172,6 +174,7 @@ func (db *RedisPermanent) SuffrageByHeight(suffrageHeight base.Height) (base.Sta
 		if err != nil {
 			return nil, false, e(err, "")
 		}
+
 		return st, true, nil
 	}
 }
@@ -245,7 +248,8 @@ func (db *RedisPermanent) MergeTempDatabase(ctx context.Context, temp isaac.Temp
 	db.Lock()
 	defer db.Unlock()
 
-	if i, _ := db.mp.Value(); i != nil && i.(base.BlockMap).Manifest().Height() >= temp.Height() {
+	if i, _ := db.mp.Value(); i != nil &&
+		i.(base.BlockMap).Manifest().Height() >= temp.Height() { //nolint:forcetypeassert //...
 		return nil
 	}
 
@@ -279,6 +283,7 @@ func (db *RedisPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp
 	e := util.StringErrorFunc("failed to merge LeveldbTempDatabase")
 
 	var mp base.BlockMap
+
 	switch i, err := temp.Map(); {
 	case err != nil:
 		return nil, nil, e(err, "")
@@ -288,12 +293,13 @@ func (db *RedisPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp
 
 	var sufstt base.State
 	var sufsv base.SuffrageStateValue
+
 	switch st, found, err := temp.Suffrage(); {
 	case err != nil:
 		return nil, nil, e(err, "")
 	case found:
 		sufstt = st
-		sufsv = st.Value().(base.SuffrageStateValue)
+		sufsv = st.Value().(base.SuffrageStateValue) //nolint:forcetypeassert //...
 	}
 
 	worker := util.NewErrgroupWorker(ctx, math.MaxInt32)
@@ -341,6 +347,7 @@ func (db *RedisPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp
 	}
 
 	worker.Done()
+
 	if err := worker.Wait(); err != nil {
 		return nil, nil, e(err, "")
 	}
@@ -384,6 +391,7 @@ func (db *RedisPermanent) mergeStatesTempDatabaseFromLeveldb(
 	ctx context.Context, temp *TempLeveldb,
 ) ([]byte, error) {
 	var bsufst []byte
+
 	if err := temp.st.Iter(
 		leveldbutil.BytesPrefix(leveldbKeyPrefixState),
 		func(key, b []byte) (bool, error) {
@@ -440,6 +448,7 @@ func (db *RedisPermanent) mergeBlockMapTempDatabaseFromLeveldb(
 			NX:      true,
 			Members: []redis.Z{{Score: 0, Member: key}},
 		}
+
 		if err := db.st.ZAddArgs(ctx, redisZKeyBlockMaps, z); err != nil {
 			return errors.Wrap(err, "failed to zadd blockmap by block height")
 		}
@@ -489,6 +498,7 @@ func (db *RedisPermanent) loadLastSuffrage() error {
 		if err != nil {
 			return e(err, "")
 		}
+
 		_ = db.sufstt.SetValue(sufstt)
 
 		return nil
@@ -508,7 +518,7 @@ func (db *RedisPermanent) loadNetworkPolicy() error {
 			return e(nil, "not NetworkPolicy state: %T", st)
 		}
 
-		_ = db.policy.SetValue(st.Value().(base.NetworkPolicyStateValue).Policy())
+		_ = db.policy.SetValue(st.Value().(base.NetworkPolicyStateValue).Policy()) //nolint:forcetypeassert //...
 
 		return nil
 	}
@@ -516,6 +526,7 @@ func (db *RedisPermanent) loadNetworkPolicy() error {
 
 func (db *RedisPermanent) loadLast(zkey, begin, end string) ([]byte, bool, error) {
 	var key string
+
 	if err := db.st.ZRangeArgs(
 		context.Background(),
 		redis.ZRangeArgs{

@@ -82,12 +82,12 @@ func (sf INITBallotSignedFact) BallotFact() base.INITBallotFact {
 		return nil
 	}
 
-	return sf.fact.(base.INITBallotFact)
+	return sf.fact.(base.INITBallotFact) //nolint:forcetypeassert //...
 }
 
 func (sf INITBallotSignedFact) IsValid(networkID []byte) error {
 	if err := base.IsValidINITBallotSignedFact(sf, networkID); err != nil {
-		return util.InvalidError.Wrapf(err, "invalid INITBallotSignedFact")
+		return util.ErrInvalid.Wrapf(err, "invalid INITBallotSignedFact")
 	}
 
 	return nil
@@ -108,12 +108,12 @@ func (sf ACCEPTBallotSignedFact) BallotFact() base.ACCEPTBallotFact {
 		return nil
 	}
 
-	return sf.fact.(base.ACCEPTBallotFact)
+	return sf.fact.(base.ACCEPTBallotFact) //nolint:forcetypeassert //...
 }
 
 func (sf ACCEPTBallotSignedFact) IsValid(networkID []byte) error {
 	if err := base.IsValidACCEPTBallotSignedFact(sf, networkID); err != nil {
-		return util.InvalidError.Wrapf(err, "invalid ACCEPTBallotSignedFact")
+		return util.ErrInvalid.Wrapf(err, "invalid ACCEPTBallotSignedFact")
 	}
 
 	return nil

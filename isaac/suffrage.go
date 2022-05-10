@@ -47,6 +47,7 @@ func NewSuffrage(nodes []base.Node) (Suffrage, error) {
 	}
 
 	m := map[string]base.Node{}
+
 	for i := range nodes {
 		n := nodes[i]
 		if n == nil {
@@ -57,7 +58,7 @@ func NewSuffrage(nodes []base.Node) (Suffrage, error) {
 	}
 
 	if util.CheckSliceDuplicated(nodes, func(i interface{}) string {
-		return i.(base.Node).Address().String()
+		return i.(base.Node).Address().String() //nolint:forcetypeassert //...
 	}) {
 		return Suffrage{}, e(nil, "duplicated node address found")
 	}
@@ -109,6 +110,7 @@ func (s SuffrageStateValue) HashBytes() []byte {
 		s.height,
 		util.DummyByter(func() []byte {
 			n := make([][]byte, len(s.nodes))
+
 			for i := range s.nodes {
 				n[i] = s.nodes[i].HashBytes()
 			}
@@ -124,8 +126,9 @@ func (s SuffrageStateValue) IsValid([]byte) error {
 		return e(err, "")
 	}
 
-	vs := make([]util.IsValider, len(s.nodes)+2)
+	vs := make([]util.IsValider, len(s.nodes)+1)
 	vs[0] = s.height
+
 	for i := range s.nodes {
 		vs[i+1] = s.nodes[i]
 	}
@@ -177,7 +180,7 @@ func (suf SuffrageCandidate) IsValid([]byte) error {
 	}
 
 	if suf.start >= suf.deadline {
-		return e(util.InvalidError.Errorf("start >= deadline"), "")
+		return e(util.ErrInvalid.Errorf("start >= deadline"), "")
 	}
 
 	return nil

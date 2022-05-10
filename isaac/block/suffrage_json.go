@@ -11,8 +11,8 @@ import (
 )
 
 type SuffrageProofJSONMarshaler struct {
-	M         base.BlockMap        `json:"map"`
-	St        base.State           `json:"state"`
+	Map       base.BlockMap        `json:"map"`
+	State     base.State           `json:"state"`
 	Voteproof base.ACCEPTVoteproof `json:"voteproof"`
 	Proof     fixedtree.Proof      `json:"proof"`
 	hint.BaseHinter
@@ -21,16 +21,16 @@ type SuffrageProofJSONMarshaler struct {
 func (s SuffrageProof) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(SuffrageProofJSONMarshaler{
 		BaseHinter: s.BaseHinter,
-		M:          s.m,
-		St:         s.st,
+		Map:        s.m,
+		State:      s.st,
 		Proof:      s.proof,
 		Voteproof:  s.voteproof,
 	})
 }
 
 type SuffrageProofJSONUnmarshaler struct {
-	M         json.RawMessage `json:"map"`
-	St        json.RawMessage `json:"state"`
+	Map       json.RawMessage `json:"map"`
+	State     json.RawMessage `json:"state"`
 	Proof     fixedtree.Proof `json:"proof"`
 	Voteproof json.RawMessage `json:"voteproof"`
 }
@@ -43,7 +43,7 @@ func (s *SuffrageProof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "")
 	}
 
-	switch hinter, err := enc.Decode(u.M); {
+	switch hinter, err := enc.Decode(u.Map); {
 	case err != nil:
 		return e(err, "")
 	case hinter == nil:
@@ -57,7 +57,7 @@ func (s *SuffrageProof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		s.m = i
 	}
 
-	switch hinter, err := enc.Decode(u.St); {
+	switch hinter, err := enc.Decode(u.State); {
 	case err != nil:
 		return e(err, "")
 	case hinter == nil:

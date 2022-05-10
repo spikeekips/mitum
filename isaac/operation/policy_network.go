@@ -27,7 +27,7 @@ func NewGenesisNetworkPolicyFact(policy base.NetworkPolicy) GenesisNetworkPolicy
 		policy:   policy,
 	}
 
-	fact.SetHash(fact.hash())
+	fact.SetHash(fact.generateHash())
 
 	return fact
 }
@@ -39,8 +39,8 @@ func (fact GenesisNetworkPolicyFact) IsValid([]byte) error {
 		return e(err, "")
 	}
 
-	if !fact.Hash().Equal(fact.hash()) {
-		return e(util.InvalidError.Errorf("hash does not match"), "")
+	if !fact.Hash().Equal(fact.generateHash()) {
+		return e(util.ErrInvalid.Errorf("hash does not match"), "")
 	}
 
 	return nil
@@ -50,7 +50,7 @@ func (fact GenesisNetworkPolicyFact) Policy() base.NetworkPolicy {
 	return fact.policy
 }
 
-func (fact GenesisNetworkPolicyFact) hash() util.Hash {
+func (fact GenesisNetworkPolicyFact) generateHash() util.Hash {
 	return valuehash.NewSHA256(util.ConcatByters(
 		util.BytesToByter(fact.Token()),
 		util.DummyByter(fact.policy.HashBytes),
@@ -75,7 +75,7 @@ func (op GenesisNetworkPolicy) IsValid(networkID []byte) error {
 	}
 
 	if len(op.Signed()) > 1 {
-		return e(util.InvalidError.Errorf("multiple signed found"), "")
+		return e(util.ErrInvalid.Errorf("multiple signed found"), "")
 	}
 
 	// BLOCK check signer should be genesis block creator

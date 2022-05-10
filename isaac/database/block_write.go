@@ -88,16 +88,17 @@ func (db *LeveldbBlockWrite) SetStates(sts []base.State) error {
 			}
 
 			ops := st.Operations()
+
 			for j := range ops {
 				op := ops[j]
-				err := worker.NewJob(func(context.Context, uint64) error {
+
+				if err := worker.NewJob(func(context.Context, uint64) error {
 					if err := db.st.Put(leveldbInStateOperationKey(op), op.Bytes(), nil); err != nil {
 						return e(err, "")
 					}
 
 					return nil
-				})
-				if err != nil {
+				}); err != nil {
 					return
 				}
 			}
@@ -120,11 +121,13 @@ func (db *LeveldbBlockWrite) SetOperations(ops []util.Hash) error {
 	defer worker.Close()
 
 	e := util.StringErrorFunc("failed to set operation")
+
 	go func() {
 		defer worker.Done()
 
 		for i := range ops {
 			op := ops[i]
+
 			if err := worker.NewJob(func(context.Context, uint64) error {
 				if err := db.st.Put(leveldbKnownOperationKey(op), op.Bytes(), nil); err != nil {
 					return e(err, "")
@@ -149,7 +152,7 @@ func (db *LeveldbBlockWrite) Map() (base.BlockMap, error) {
 	case i == nil:
 		return nil, storage.NotFoundError.Errorf("empty blockmap")
 	default:
-		return i.(base.BlockMap), nil
+		return i.(base.BlockMap), nil //nolint:forcetypeassert //...
 	}
 }
 
@@ -178,7 +181,7 @@ func (db *LeveldbBlockWrite) SuffrageState() base.State {
 		return nil
 	}
 
-	return i.(base.State)
+	return i.(base.State) //nolint:forcetypeassert //...
 }
 
 func (db *LeveldbBlockWrite) NetworkPolicy() base.NetworkPolicy {
@@ -187,7 +190,7 @@ func (db *LeveldbBlockWrite) NetworkPolicy() base.NetworkPolicy {
 		return nil
 	}
 
-	return i.(base.NetworkPolicy)
+	return i.(base.NetworkPolicy) //nolint:forcetypeassert //...
 }
 
 func (db *LeveldbBlockWrite) Write() error {
@@ -233,7 +236,7 @@ func (db *LeveldbBlockWrite) setState(st base.State) error {
 	case base.IsSuffrageState(st) && st.Key() == isaac.SuffrageStateKey:
 		_ = db.sufstt.SetValue(st)
 	case base.IsNetworkPolicyState(st) && st.Key() == isaac.NetworkPolicyStateKey:
-		_ = db.policy.SetValue(st.Value().(base.NetworkPolicyStateValue).Policy())
+		_ = db.policy.SetValue(st.Value().(base.NetworkPolicyStateValue).Policy()) //nolint:forcetypeassert //...
 	}
 
 	if err := db.st.Put(leveldbStateKey(st.Key()), b, nil); err != nil {

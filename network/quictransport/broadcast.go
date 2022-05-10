@@ -6,7 +6,7 @@ import (
 )
 
 type Broadcast struct {
-	notifych chan struct{}
+	notifych chan struct{} // revive:disable-line:nested-structs
 	id       string
 	b        []byte
 }

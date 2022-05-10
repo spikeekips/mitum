@@ -31,11 +31,12 @@ func NewMPublickey(k *btcec.PublicKey) MPublickey {
 
 func ParseMPublickey(s string) (MPublickey, error) {
 	t := MPublickeyHint.Type().String()
+
 	switch {
 	case !strings.HasSuffix(s, t):
-		return MPublickey{}, util.InvalidError.Errorf("unknown publickey string")
+		return MPublickey{}, util.ErrInvalid.Errorf("unknown publickey string")
 	case len(s) <= len(t):
-		return MPublickey{}, util.InvalidError.Errorf("invalid publickey string; too short")
+		return MPublickey{}, util.ErrInvalid.Errorf("invalid publickey string; too short")
 	}
 
 	return LoadMPublickey(s[:len(s)-len(t)])
@@ -44,7 +45,7 @@ func ParseMPublickey(s string) (MPublickey, error) {
 func LoadMPublickey(s string) (MPublickey, error) {
 	k, err := btcec.ParsePubKey(base58.Decode(s), btcec.S256())
 	if err != nil {
-		return MPublickey{}, util.InvalidError.Wrapf(err, "failed to load publickey")
+		return MPublickey{}, util.ErrInvalid.Wrapf(err, "failed to load publickey")
 	}
 
 	return NewMPublickey(k), nil
@@ -60,16 +61,16 @@ func (k MPublickey) Bytes() []byte {
 
 func (k MPublickey) IsValid([]byte) error {
 	if err := k.BaseHinter.IsValid(MPublickeyHint.Type().Bytes()); err != nil {
-		return util.InvalidError.Wrapf(err, "wrong hint in publickey")
+		return util.ErrInvalid.Wrapf(err, "wrong hint in publickey")
 	}
 
 	switch {
 	case k.k == nil:
-		return util.InvalidError.Errorf("empty btc publickey in publickey")
+		return util.ErrInvalid.Errorf("empty btc publickey in publickey")
 	case len(k.s) < 1:
-		return util.InvalidError.Errorf("empty publickey string")
+		return util.ErrInvalid.Errorf("empty publickey string")
 	case len(k.b) < 1:
-		return util.InvalidError.Errorf("empty publickey []byte")
+		return util.ErrInvalid.Errorf("empty publickey []byte")
 	}
 
 	return nil
@@ -112,13 +113,13 @@ func (k *MPublickey) UnmarshalText(b []byte) error {
 	return nil
 }
 
-func (k MPublickey) ensure() MPublickey {
+func (k *MPublickey) ensure() MPublickey {
 	if k.k == nil {
-		return k
+		return *k
 	}
 
 	k.s = fmt.Sprintf("%s%s", base58.Encode(k.k.SerializeCompressed()), k.Hint().Type().String())
 	k.b = []byte(k.s)
 
-	return k
+	return *k
 }

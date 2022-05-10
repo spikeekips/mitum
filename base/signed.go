@@ -38,7 +38,7 @@ func NewBaseSigned(signer Publickey, signature Signature, signedAt time.Time) Ba
 
 func BaseSignedFromFact(priv Privatekey, networkID NetworkID, fact Fact) (BaseSigned, error) {
 	if fact == nil || fact.Hash() == nil {
-		return BaseSigned{}, util.InvalidError.Errorf("failed to make BaseSigned; empty fact")
+		return BaseSigned{}, util.ErrInvalid.Errorf("failed to make BaseSigned; empty fact")
 	}
 
 	return BaseSignedFromBytes(priv, networkID, fact.Hash().Bytes())
@@ -46,6 +46,7 @@ func BaseSignedFromFact(priv Privatekey, networkID NetworkID, fact Fact) (BaseSi
 
 func BaseSignedFromBytes(priv Privatekey, networkID NetworkID, b []byte) (BaseSigned, error) {
 	now := localtime.New(localtime.Now())
+
 	sig, err := priv.Sign(util.ConcatBytesSlice(networkID, b, now.Bytes()))
 	if err != nil {
 		return BaseSigned{}, errors.Wrap(err, "failed to generate BaseSign")
@@ -80,7 +81,7 @@ func (si BaseSigned) IsValid([]byte) error {
 		si.signature,
 		util.DummyIsValider(func([]byte) error {
 			if si.signedAt.IsZero() {
-				return util.InvalidError.Errorf("empty signedAt in BaseSign")
+				return util.ErrInvalid.Errorf("empty signedAt in BaseSign")
 			}
 
 			return nil
@@ -118,7 +119,7 @@ func NewBaseNodeSigned(node Address, signer Publickey, signature Signature, sign
 
 func BaseNodeSignedFromFact(node Address, priv Privatekey, networkID NetworkID, fact Fact) (BaseNodeSigned, error) {
 	if fact == nil || fact.Hash() == nil {
-		return BaseNodeSigned{}, util.InvalidError.Errorf("failed to make BaseSigned; empty fact")
+		return BaseNodeSigned{}, util.ErrInvalid.Errorf("failed to make BaseSigned; empty fact")
 	}
 
 	return BaseNodeSignedFromBytes(node, priv, networkID, fact.Hash().Bytes())
@@ -164,6 +165,7 @@ func (si BaseNodeSigned) Verify(networkID NetworkID, b []byte) error {
 
 func CheckFactSignsByPubs(pubs []Publickey, threshold Threshold, signs []Signed) error {
 	var signed float64
+
 	for i := range signs {
 		for j := range pubs {
 			if signs[i].Signer().Equal(pubs[j]) {

@@ -20,7 +20,7 @@ func NewCompatibleSet() *CompatibleSet {
 		hints:         map[Type]map[uint64]Hint{},
 		typeheads:     map[Type]interface{}{},
 		typeheadhints: map[Type]Hint{},
-		cache:         gcache.New(100 * 100).LRU().Build(),
+		cache:         gcache.New(100 * 100).LRU().Build(), //nolint:gomnd //...
 	}
 }
 
@@ -70,7 +70,7 @@ func (st *CompatibleSet) addWithHint(ht Hint, v interface{}) error {
 	}
 
 	if eht.Equal(ht) {
-		return util.DuplicatedError.Errorf("hint, %q already added", ht)
+		return util.ErrDuplicated.Errorf("hint, %q already added", ht)
 	}
 
 	switch {
@@ -95,15 +95,15 @@ func (st *CompatibleSet) Find(ht Hint) interface{} {
 
 	hr := st.find(ht)
 
-	_ = st.cache.Set(ht.String(), hr)
+	_ = st.cache.Set(ht.String(), hr) //nolint:errcheck //...
 
 	return hr
 }
 
-func (st *CompatibleSet) FindBytType(t Type) (Hint, interface{}) {
+func (st *CompatibleSet) FindBytType(t Type) (ht Hint, value interface{}) {
 	vs, found := st.typeheads[t]
 	if !found {
-		return Hint{}, nil
+		return ht, nil
 	}
 
 	return st.typeheadhints[t], vs

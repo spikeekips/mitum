@@ -6,11 +6,13 @@ import (
 	"hash"
 	"io"
 	"sync"
+
+	"github.com/pkg/errors"
 )
 
 func SHA256Checksum(b []byte) string {
 	sha := sha256.New()
-	_, _ = sha.Write(b)
+	_, _ = sha.Write(b) //nolint:errcheck //...
 
 	return checksumstring(sha)
 }
@@ -40,14 +42,23 @@ func NewHashChecksumWriter(fname string, w io.WriteCloser, h hash.Hash) *HashChe
 }
 
 func (w *HashChecksumWriter) Close() error {
-	return w.w.Close()
+	if err := w.w.Close(); err != nil {
+		return errors.Wrap(err, "")
+	}
+
+	return nil
 }
 
 func (w *HashChecksumWriter) Write(b []byte) (int, error) {
 	w.Lock()
 	defer w.Unlock()
 
-	return w.m.Write(b)
+	n, err := w.m.Write(b)
+	if err != nil {
+		return 0, errors.Wrap(err, "")
+	}
+
+	return n, nil
 }
 
 func (w *HashChecksumWriter) Name() string {
@@ -110,14 +121,27 @@ func NewHashChecksumReader(r io.ReadCloser, h hash.Hash) *HashChecksumReader {
 }
 
 func (r *HashChecksumReader) Close() error {
-	return r.r.Close()
+	if err := r.r.Close(); err != nil {
+		return errors.Wrap(err, "")
+	}
+
+	return nil
 }
 
 func (r *HashChecksumReader) Read(b []byte) (int, error) {
 	r.Lock()
 	defer r.Unlock()
 
-	return r.m.Read(b)
+	n, err := r.m.Read(b)
+
+	switch {
+	case err == nil:
+	case errors.Is(err, io.EOF):
+	default:
+		return 0, errors.Wrap(err, "")
+	}
+
+	return n, err //nolint:wrapcheck // nil || io.EOF
 }
 
 func (r *HashChecksumReader) Checksum() string {
@@ -128,7 +152,9 @@ func (r *HashChecksumReader) Checksum() string {
 		return r.checksum
 	}
 
-	_, _ = io.ReadAll(r.m) // NOTE read rest parts if Checksum() called before fully reading
+	if _, err := io.ReadAll(r.m); err != nil { // NOTE read rest parts if Checksum() called before fully reading
+		return ""
+	}
 
 	r.checksum = checksumstring(r.h)
 	r.h.Reset()

@@ -38,10 +38,12 @@ func NewProposalProcessors(
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", "proposal-processors")
 		}),
-		makenew:       makenew,
-		getproposal:   getproposal,
-		retrylimit:    15, // NOTE endure failure for almost 9 seconds, it is almost 3 consensus cycle.
-		retryinterval: time.Millisecond * 600,
+		makenew:     makenew,
+		getproposal: getproposal,
+		// NOTE endure failure for almost 9 seconds, it is almost 3 consensus
+		// cycle.
+		retrylimit:    15,                     //nolint:gomnd //...
+		retryinterval: time.Millisecond * 600, //nolint:gomnd //...
 	}
 }
 
@@ -153,6 +155,7 @@ func (pps *ProposalProcessors) fetchFact(ctx context.Context, facthash util.Hash
 		ctx,
 		func() (bool, error) {
 			j, err := pps.getproposal(ctx, facthash)
+
 			switch {
 			case err == nil:
 				pr = j
@@ -178,6 +181,7 @@ func (pps *ProposalProcessors) newProcessor(
 	e := util.StringErrorFunc("failed new processor, %q", facthash)
 
 	l := pps.Log().With().Stringer("fact", facthash).Logger()
+
 	if pps.p != nil {
 		p := pps.p
 		if p.Proposal().Fact().Hash().Equal(facthash) {
@@ -198,11 +202,12 @@ func (pps *ProposalProcessors) newProcessor(
 
 	// NOTE fetch proposal fact
 	fact, err := pps.fetchFact(ctx, facthash)
+
 	switch {
 	case err != nil:
 		return nil, e(err, "failed to get proposal fact")
 	case fact == nil:
-		return nil, e(util.NotFoundError.Call(), "failed to get proposal fact; empty fact")
+		return nil, e(util.ErrNotFound.Call(), "failed to get proposal fact; empty fact")
 	}
 
 	if err := util.Retry(ctx, func() (bool, error) {
@@ -229,6 +234,7 @@ func (*ProposalProcessors) runProcessor(
 	ctx context.Context, p ProposalProcessor, ivp base.INITVoteproof,
 ) (base.Manifest, error) {
 	manifest, err := p.Process(ctx, ivp)
+
 	switch {
 	case err == nil:
 		return manifest, nil
@@ -239,6 +245,6 @@ func (*ProposalProcessors) runProcessor(
 			return nil, errors.Wrap(e, "failed to run processor")
 		}
 
-		return nil, err
+		return nil, errors.Wrap(err, "")
 	}
 }

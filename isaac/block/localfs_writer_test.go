@@ -387,7 +387,7 @@ func (t *testLocalFSWriter) TestSetOperations() {
 		op, _ := isaac.NewDummyOperation(fact, t.Local.Privatekey(), t.NodePolicy.NetworkID())
 		ops[i] = op
 
-		node := base.NewOperationFixedtreeNode(op.Fact().Hash(), true, "")
+		node := base.NewInStateOperationFixedtreeNode(op.Fact().Hash(), "")
 
 		t.NoError(opstreeg.Add(uint64(i), node))
 	}

@@ -40,13 +40,13 @@ func EnsureParseHint(s string) Hint {
 
 // ParseHint tries to parse hint string and also checks IsValid().
 func ParseHint(s string) (Hint, error) {
-	s = strings.TrimSpace(s)
-	l := regVersion.FindStringIndex(s)
-	if len(l) < 1 {
-		return Hint{}, util.InvalidError.Errorf("invalid hint string, %q", s)
+	ns := strings.TrimSpace(s)
+
+	if l := regVersion.FindStringIndex(ns); len(l) < 1 {
+		return Hint{}, util.ErrInvalid.Errorf("invalid hint string, %q", ns)
 	}
 
-	ht := EnsureParseHint(s)
+	ht := EnsureParseHint(ns)
 	if err := ht.IsValid(nil); err != nil {
 		return Hint{}, errors.Wrap(err, "failed to parse hint")
 	}
@@ -73,7 +73,7 @@ func (ht Hint) IsValid([]byte) error {
 	}
 
 	if l := len(ht.v.String()); l > MaxVersionLength {
-		return util.InvalidError.Errorf("too long version in hint, %d > %d", l, MaxVersionLength)
+		return util.ErrInvalid.Errorf("too long version in hint, %d > %d", l, MaxVersionLength)
 	}
 
 	return nil

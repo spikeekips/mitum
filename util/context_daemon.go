@@ -9,8 +9,7 @@ import (
 )
 
 type ContextDaemon struct {
-	ctx         context.Context
-	callbackCtx context.Context
+	ctxDone func()
 	*logging.Logging
 	callback           func(context.Context) error
 	callbackCancelFunc func()
@@ -37,7 +36,7 @@ func (dm *ContextDaemon) IsStarted() bool {
 
 func (dm *ContextDaemon) Start() error {
 	if dm.IsStarted() {
-		return DaemonAlreadyStartedError.Call()
+		return ErrDaemonAlreadyStarted.Call()
 	}
 
 	_ = dm.Wait(context.Background())
@@ -49,7 +48,7 @@ func (dm *ContextDaemon) Start() error {
 
 func (dm *ContextDaemon) StartWithContext(ctx context.Context) error {
 	if dm.IsStarted() {
-		return DaemonAlreadyStartedError.Call()
+		return ErrDaemonAlreadyStarted.Call()
 	}
 
 	_ = dm.Wait(ctx)
@@ -65,7 +64,7 @@ func (dm *ContextDaemon) Wait(ctx context.Context) <-chan error {
 
 	if dm.IsStarted() {
 		go func() {
-			ch <- DaemonAlreadyStartedError
+			ch <- ErrDaemonAlreadyStarted
 		}()
 
 		return ch
@@ -91,7 +90,7 @@ func (dm *ContextDaemon) Stop() error {
 	defer dm.Unlock()
 
 	if !dm.IsStarted() {
-		return DaemonAlreadyStoppedError.Call()
+		return ErrDaemonAlreadyStopped.Call()
 	}
 
 	dm.callbackCancel()
@@ -103,25 +102,27 @@ func (dm *ContextDaemon) Stop() error {
 	return nil
 }
 
-func (dm *ContextDaemon) getCtx(ctx context.Context) (context.Context, func(), context.Context, func()) {
+func (dm *ContextDaemon) getCtx(ctx context.Context) (context.Context, func(), func(), func()) {
 	dm.ctxLock.Lock()
 	defer dm.ctxLock.Unlock()
 
-	dm.callbackCtx, dm.callbackCancelFunc = context.WithCancel(ctx)
-	dm.ctx, dm.stopfunc = context.WithCancel(context.Background())
+	callbackCtx, callbackCancelFunc := context.WithCancel(ctx)
+	dm.callbackCancelFunc = callbackCancelFunc
 
-	return dm.callbackCtx, dm.callbackCancelFunc, dm.ctx, dm.stopfunc
+	nctx, stopfunc := context.WithCancel(context.Background())
+	dm.ctxDone = func() {
+		<-nctx.Done()
+	}
+
+	dm.stopfunc = stopfunc
+
+	return callbackCtx, dm.callbackCancelFunc, dm.ctxDone, dm.stopfunc
 }
 
 func (dm *ContextDaemon) releaseCallbackCtx() {
 	dm.ctxLock.Lock()
 	defer dm.ctxLock.Unlock()
 
-	if dm.callbackCtx == nil {
-		return
-	}
-
-	dm.callbackCtx = nil
 	dm.callbackCancelFunc = nil
 }
 
@@ -136,5 +137,5 @@ func (dm *ContextDaemon) waitCallbackFinished() {
 	dm.ctxLock.RLock()
 	defer dm.ctxLock.RUnlock()
 
-	<-dm.ctx.Done()
+	dm.ctxDone()
 }

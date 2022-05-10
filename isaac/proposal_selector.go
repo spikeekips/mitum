@@ -69,6 +69,7 @@ func (p *BaseProposalSelector) Select(ctx context.Context, point base.Point) (ba
 	e := util.StringErrorFunc("failed to select proposal")
 
 	var suf base.Suffrage
+
 	switch i, found, err := p.getSuffrage(point.Height()); {
 	case err != nil:
 		return nil, e(err, "failed to get suffrage for height, %d", point.Height())
@@ -81,7 +82,7 @@ func (p *BaseProposalSelector) Select(ctx context.Context, point base.Point) (ba
 	switch n := suf.Len(); {
 	case n < 1:
 		return nil, errors.Errorf("empty suffrage nodes")
-	case n < 2:
+	case n < 2: //nolint:gomnd //...
 		pr, err := p.findProposal(ctx, point, suf.Nodes()[0])
 		if err != nil {
 			return nil, e(err, "")
@@ -92,6 +93,7 @@ func (p *BaseProposalSelector) Select(ctx context.Context, point base.Point) (ba
 
 	sufnodes := suf.Nodes()
 	nodes := make([]base.Node, len(sufnodes))
+
 	for i := range nodes {
 		nodes[i] = sufnodes[i]
 	}
@@ -129,6 +131,7 @@ func (p *BaseProposalSelector) findProposal(
 	proposer base.Node,
 ) (base.ProposalSignedFact, error) {
 	e := util.StringErrorFunc("failed to find proposal")
+
 	switch pr, found, err := p.pool.ProposalByPoint(point, proposer.Address()); {
 	case err != nil:
 		return nil, e(err, "")
@@ -167,6 +170,7 @@ func (p *BaseProposalSelector) findProposalFromProposer(
 
 	done := make(chan struct{}, 1)
 	rctx, cancel := context.WithTimeout(ctx, p.policy.TimeoutRequestProposal())
+
 	go func() {
 		defer cancel()
 
@@ -208,11 +212,12 @@ func (p BlockBasedProposerSelector) Select(
 	nodes []base.Node,
 ) (base.Node, error) {
 	var manifest util.Hash
+
 	switch h, err := p.getManifestHash(point.Height() - 1); {
 	case err != nil:
 		return nil, err
 	case h == nil:
-		return nil, util.NotFoundError.Errorf("manifest hash not found in height, %d", point.Height()-1)
+		return nil, util.ErrNotFound.Errorf("manifest hash not found in height, %d", point.Height()-1)
 	default:
 		manifest = h
 	}
@@ -220,11 +225,12 @@ func (p BlockBasedProposerSelector) Select(
 	switch n := len(nodes); {
 	case n < 1:
 		return nil, errors.Errorf("empty suffrage nodes")
-	case n < 2:
+	case n < 2: //nolint:gomnd //...
 		return nodes[0], nil
 	}
 
 	var sum uint64
+
 	for _, b := range manifest.Bytes() {
 		sum += uint64(b)
 	}
@@ -285,13 +291,14 @@ func filterDeadNodes(n []base.Node, b []base.Address) []base.Node {
 	l := util.FilterSlice( // NOTE filter long dead nodes
 		n, b,
 		func(a, b interface{}) bool {
-			return a.(base.Node).Address().Equal(b.(base.Address))
+			return a.(base.Node).Address().Equal(b.(base.Address)) //nolint:forcetypeassert //...
 		},
 	)
 
 	m := make([]base.Node, len(l))
+
 	for i := range l {
-		m[i] = l[i].(base.Node)
+		m[i] = l[i].(base.Node) //nolint:forcetypeassert //...
 	}
 
 	return m

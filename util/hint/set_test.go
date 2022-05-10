@@ -70,7 +70,7 @@ func (t *testCompatibleSet) TestAlreadyAdded() {
 	hr := newHinter("showme", "v2019.10")
 	t.NoError(hs.AddHinter(hr))
 	err := hs.AddHinter(hr)
-	t.True(errors.Is(err, util.DuplicatedError))
+	t.True(errors.Is(err, util.ErrDuplicated))
 }
 
 func (t *testCompatibleSet) TestFind() {

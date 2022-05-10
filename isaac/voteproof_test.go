@@ -52,7 +52,7 @@ func (t *testBaseVoteproof) TestEmptyID() {
 
 	err := ivp.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.InvalidError))
+	t.True(errors.Is(err, util.ErrInvalid))
 	t.ErrorContains(err, "empty id")
 }
 
@@ -62,7 +62,7 @@ func (t *testBaseVoteproof) TestInvalidStage() {
 
 	err := ivp.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.InvalidError))
+	t.True(errors.Is(err, util.ErrInvalid))
 	t.ErrorContains(err, "wrong stage")
 }
 
@@ -72,7 +72,7 @@ func (t *testBaseVoteproof) TestInvalidVoteResult() {
 
 	err := ivp.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.InvalidError))
+	t.True(errors.Is(err, util.ErrInvalid))
 	t.ErrorContains(err, "not yet finished")
 }
 
@@ -82,7 +82,7 @@ func (t *testBaseVoteproof) TestZeroFinishedAt() {
 
 	err := ivp.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.InvalidError))
+	t.True(errors.Is(err, util.ErrInvalid))
 	t.ErrorContains(err, "zero finished time")
 }
 
@@ -92,7 +92,7 @@ func (t *testBaseVoteproof) TestEmptySignedFacts() {
 
 	err := ivp.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.InvalidError))
+	t.True(errors.Is(err, util.ErrInvalid))
 	t.ErrorContains(err, "empty signed facts")
 }
 
@@ -102,7 +102,7 @@ func (t *testBaseVoteproof) TestNilMajority() {
 
 	err := ivp.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.InvalidError))
+	t.True(errors.Is(err, util.ErrInvalid))
 	t.ErrorContains(err, "empty majority")
 }
 
@@ -113,7 +113,7 @@ func (t *testBaseVoteproof) TestNotNilMajorityOfDraw() {
 
 	err := ivp.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.InvalidError))
+	t.True(errors.Is(err, util.ErrInvalid))
 	t.ErrorContains(err, "empty majority")
 }
 
@@ -123,7 +123,7 @@ func (t *testBaseVoteproof) TestInvalidPoint() {
 
 	err := ivp.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.InvalidError))
+	t.True(errors.Is(err, util.ErrInvalid))
 	t.ErrorContains(err, "invalid point")
 }
 
@@ -142,7 +142,7 @@ func (t *testBaseVoteproof) TestDuplicatedNodeInSignedFact() {
 
 	err := ivp.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.InvalidError))
+	t.True(errors.Is(err, util.ErrInvalid))
 	t.ErrorContains(err, "duplicated node found")
 }
 
@@ -158,7 +158,7 @@ func (t *testBaseVoteproof) TestInvalidSignedFact() {
 
 	err := ivp.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.InvalidError))
+	t.True(errors.Is(err, util.ErrInvalid))
 	t.ErrorContains(err, "failed to verify signed")
 }
 
@@ -179,7 +179,7 @@ func (t *testBaseVoteproof) TestWrongPointOfSignedFact() {
 
 	err := ivp.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.InvalidError))
+	t.True(errors.Is(err, util.ErrInvalid))
 	t.ErrorContains(err, "point does not match")
 	t.ErrorContains(err, "invalid signed fact")
 }
@@ -197,7 +197,7 @@ func (t *testBaseVoteproof) TestWrongPointOfMajority() {
 
 	err := ivp.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.InvalidError))
+	t.True(errors.Is(err, util.ErrInvalid))
 	t.ErrorContains(err, "point does not match")
 	t.ErrorContains(err, "invalid majority")
 }
@@ -211,7 +211,7 @@ func (t *testBaseVoteproof) TestMajorityNotFoundInSignedFacts() {
 
 	err := ivp.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.InvalidError))
+	t.True(errors.Is(err, util.ErrInvalid))
 	t.ErrorContains(err, "majoirty not found in signed facts")
 }
 
@@ -239,7 +239,7 @@ func (t *testBaseVoteproof) TestWrongMajorityWithSuffrage() {
 
 	err := base.IsValidVoteproofWithSuffrage(ivp, suf)
 	t.Error(err)
-	t.True(errors.Is(err, util.InvalidError))
+	t.True(errors.Is(err, util.ErrInvalid))
 	t.ErrorContains(err, "wrong majority")
 }
 
@@ -254,7 +254,7 @@ func (t *testBaseVoteproof) TestUnknownNode() {
 
 	err := base.IsValidVoteproofWithSuffrage(ivp, suf)
 	t.Error(err)
-	t.True(errors.Is(err, util.InvalidError))
+	t.True(errors.Is(err, util.ErrInvalid))
 	t.ErrorContains(err, "unknown node found")
 }
 

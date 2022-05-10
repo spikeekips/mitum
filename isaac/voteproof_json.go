@@ -59,14 +59,16 @@ func (vp *baseVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	default:
 		j, ok := i.(base.BallotFact)
 		if !ok {
-			return e(util.InvalidError.Errorf("expected BallotFact, not %T", i), "")
+			return e(util.ErrInvalid.Errorf("expected BallotFact, not %T", i), "")
 		}
+
 		vp.majority = j
 	}
 
 	vp.threshold = u.Threshold
 
 	vp.sfs = make([]base.BallotSignedFact, len(u.SignedFacts))
+
 	for i := range u.SignedFacts {
 		switch j, err := enc.Decode(u.SignedFacts[i]); {
 		case err != nil:
@@ -75,7 +77,7 @@ func (vp *baseVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		default:
 			k, ok := j.(base.BallotSignedFact)
 			if !ok {
-				return e(util.InvalidError.Errorf("expected BallotSignedFact, not %T", j), "")
+				return e(util.ErrInvalid.Errorf("expected BallotSignedFact, not %T", j), "")
 			}
 
 			vp.sfs[i] = k

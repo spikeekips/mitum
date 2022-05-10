@@ -16,13 +16,13 @@ type Type string // revive:disable-line:redefines-builtin-id
 func (t Type) IsValid([]byte) error {
 	switch n := len(t); {
 	case n < minTypeLength:
-		return util.InvalidError.Errorf("too short Type; %q >= %d", t, minTypeLength)
+		return util.ErrInvalid.Errorf("too short Type; %q >= %d", t, minTypeLength)
 	case n > MaxTypeLength:
-		return util.InvalidError.Errorf("too long Type; %q < %d", t, MaxTypeLength)
+		return util.ErrInvalid.Errorf("too long Type; %q < %d", t, MaxTypeLength)
 	}
 
 	if !reTypeAllowedChars.Match([]byte(t)) {
-		return util.InvalidError.Errorf("invalid char found in Type")
+		return util.ErrInvalid.Errorf("invalid char found in Type")
 	}
 
 	return nil
@@ -38,7 +38,7 @@ func (t Type) String() string {
 
 func ParseFixedTypedString(s string, typesize int) (string, Type, error) {
 	if len(s) <= typesize {
-		return "", Type(""), util.InvalidError.Errorf("too short fixed typed string, %q", s)
+		return "", Type(""), util.ErrInvalid.Errorf("too short fixed typed string, %q", s)
 	}
 
 	return s[:len(s)-typesize], Type(s[len(s)-typesize:]), nil

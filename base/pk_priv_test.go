@@ -95,7 +95,7 @@ func (t *testMPrivatekey) TestFromSeedButTooShort() {
 	seed := util.UUID().String()[:PrivatekeyMinSeedSize-1]
 
 	_, err := NewMPrivatekeyFromSeed(seed)
-	t.True(errors.Is(err, util.InvalidError))
+	t.True(errors.Is(err, util.ErrInvalid))
 	t.ErrorContains(err, "too short")
 }
 
@@ -109,15 +109,15 @@ func (t *testMPrivatekey) TestParseMPrivatekey() {
 
 func (t *testMPrivatekey) TestParseMPrivatekeyButEmpty() {
 	_, err := ParseMPrivatekey("")
-	t.True(errors.Is(err, util.InvalidError))
+	t.True(errors.Is(err, util.ErrInvalid))
 	t.ErrorContains(err, "unknown privatekey string")
 
 	_, err = ParseMPrivatekey(MPrivatekeyHint.Type().String())
-	t.True(errors.Is(err, util.InvalidError))
+	t.True(errors.Is(err, util.ErrInvalid))
 	t.ErrorContains(err, "invalid privatekey string")
 
 	_, err = ParseMPrivatekey(util.UUID().String() + MPrivatekeyHint.Type().String())
-	t.True(errors.Is(err, util.InvalidError))
+	t.True(errors.Is(err, util.ErrInvalid))
 	t.ErrorContains(err, "malformed private key")
 }
 

@@ -25,6 +25,7 @@ func CheckSliceDuplicated(s interface{}, key func(interface{}) string) bool {
 	}
 
 	m := map[string]struct{}{}
+
 	for i := range sl {
 		var k string
 		if sl[i] == nil {
@@ -48,6 +49,7 @@ func FilterSlice(a, b interface{}, f func(interface{}, interface{}) bool) []inte
 	if as == nil {
 		return nil
 	}
+
 	bs := makeInterfaceSlice(b)
 	if bs == nil {
 		return nil
@@ -56,8 +58,10 @@ func FilterSlice(a, b interface{}, f func(interface{}, interface{}) bool) []inte
 	nb := make([]interface{}, len(as))
 
 	var n int
+
 	for i := range as {
 		var found bool
+
 		for j := range bs {
 			if f(as[i], bs[j]) {
 				found = true
@@ -79,6 +83,7 @@ func FilterSlice(a, b interface{}, f func(interface{}, interface{}) bool) []inte
 
 func makeInterfaceSlice(s interface{}) []interface{} {
 	v := reflect.ValueOf(s)
+
 	switch v.Kind() {
 	case reflect.Slice, reflect.Array:
 		l := make([]interface{}, v.Len())

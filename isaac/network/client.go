@@ -62,6 +62,7 @@ func (c *baseNodeNetworkClient) RequestProposal(
 	}()
 
 	rb, err := quicstream.ReadAll(ctx, r)
+
 	switch {
 	case err != nil:
 		return nil, false, e(err, "failed to read stream")
@@ -100,6 +101,7 @@ func (c *baseNodeNetworkClient) Proposal(
 	}
 
 	rb, err := quicstream.ReadAll(ctx, r)
+
 	switch {
 	case err != nil:
 		return nil, false, e(err, "failed to read stream")
@@ -127,6 +129,7 @@ func (c *baseNodeNetworkClient) LastSuffrage(
 	}
 
 	rb, err := quicstream.ReadAll(ctx, r)
+
 	switch {
 	case err != nil:
 		return nil, false, e(err, "failed to read stream")
@@ -152,6 +155,7 @@ func (c *baseNodeNetworkClient) LastSuffrage(
 
 func (c *baseNodeNetworkClient) loadProposal(b []byte) (base.ProposalSignedFact, error) {
 	hinter, err := c.readHinter(b)
+
 	switch {
 	case err != nil:
 		return nil, err

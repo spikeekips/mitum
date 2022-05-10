@@ -7,10 +7,7 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 )
 
-var (
-	StateFixedtreeHint     = hint.MustNewHint("state-fixedtree-v0.0.1")
-	StateFixedtreeNodeHint = hint.MustNewHint("state-fixedtree-node-v0.0.1")
-)
+var StateFixedtreeHint = hint.MustNewHint("state-fixedtree-v0.0.1")
 
 type State interface {
 	util.Hasher // NOTE <key> + <value HashByte> + <height>

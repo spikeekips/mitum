@@ -25,7 +25,7 @@ func (db *basePermanent) LastMap() (base.BlockMap, bool, error) {
 	case i == nil:
 		return nil, false, nil
 	default:
-		return i.(base.BlockMap), true, nil
+		return i.(base.BlockMap), true, nil //nolint:forcetypeassert //...
 	}
 }
 
@@ -34,7 +34,7 @@ func (db *basePermanent) LastSuffrage() (base.State, bool, error) {
 	case i == nil:
 		return nil, false, nil
 	default:
-		return i.(base.State), true, nil
+		return i.(base.State), true, nil //nolint:forcetypeassert //...
 	}
 }
 
@@ -43,7 +43,7 @@ func (db *basePermanent) LastNetworkPolicy() base.NetworkPolicy {
 	case i == nil:
 		return nil
 	default:
-		return i.(base.NetworkPolicy)
+		return i.(base.NetworkPolicy) //nolint:forcetypeassert //...
 	}
 }
 
@@ -51,7 +51,7 @@ func (db *LeveldbPermanent) canMergeTempDatabase(temp isaac.TempDatabase) bool {
 	switch i, _ := db.mp.Value(); {
 	case i == nil:
 		return true
-	case i.(base.BlockMap).Manifest().Height() < temp.Height():
+	case i.(base.BlockMap).Manifest().Height() < temp.Height(): //nolint:forcetypeassert //...
 		return true
 	default:
 		return false

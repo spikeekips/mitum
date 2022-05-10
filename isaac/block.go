@@ -44,7 +44,7 @@ func NewManifest(
 		proposedAt:     proposedAt,
 	}
 
-	m.h = m.hash()
+	m.h = m.generateHash()
 
 	return m
 }
@@ -61,7 +61,7 @@ func (m Manifest) IsValid([]byte) error {
 		m.proposal,
 		util.DummyIsValider(func([]byte) error {
 			if m.proposedAt.IsZero() {
-				return util.InvalidError.Errorf("empty proposedAt")
+				return util.ErrInvalid.Errorf("empty proposedAt")
 			}
 
 			return nil
@@ -119,7 +119,7 @@ func (m Manifest) ProposedAt() time.Time {
 	return m.proposedAt
 }
 
-func (m Manifest) hash() util.Hash {
+func (m Manifest) generateHash() util.Hash {
 	return valuehash.NewSHA256(util.ConcatByters(
 		m.height,
 		m.previous,

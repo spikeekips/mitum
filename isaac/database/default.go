@@ -43,7 +43,7 @@ func NewDefault(
 		enc:                   enc,
 		perm:                  perm,
 		newBlockWriteDatabase: newBlockWriteDatabase,
-		mergeInterval:         time.Second * 2,
+		mergeInterval:         time.Second * 2, //nolint:gomnd //...
 	}
 
 	if err := db.load(temproot); err != nil {
@@ -63,6 +63,7 @@ func (db *Default) SetLogging(l *logging.Logging) *logging.Logging {
 
 func (db *Default) Close() error {
 	e := util.StringErrorFunc("failed to close database")
+
 	for i := range db.temps {
 		if err := db.temps[i].Close(); err != nil {
 			return e(err, "failed to close temp")
@@ -80,6 +81,7 @@ func (db *Default) load(temproot string) error {
 	e := util.StringErrorFunc("failed to load temps to DefaultDatabase")
 
 	var last base.Height
+
 	switch m, found, err := db.perm.LastMap(); {
 	case err != nil:
 		return e(err, "")
@@ -106,6 +108,7 @@ func (db *Default) SuffrageByHeight(suffrageHeight base.Height) (base.State, boo
 end:
 	for i := range temps {
 		temp := temps[i]
+
 		switch sh := temp.SuffrageHeight(); {
 		case sh == base.NilHeight:
 			continue end
@@ -147,24 +150,27 @@ func (db *Default) Suffrage(height base.Height) (base.State, bool, error) {
 		}
 	}
 
+	lastheight := height
+
 	if temph != nil {
 		for i := range temps {
 			temp := temps[i]
-			if temp.Height() > height {
+			if temp.Height() > lastheight {
 				continue
 			}
 
 			switch j, found, err := temp.Suffrage(); {
 			case err != nil:
-				return nil, false, err
+				return nil, false, errors.Wrap(err, "")
 			case found:
 				return j, true, nil
 			}
 		}
-		height = temps[len(temps)-1].Height() - 1
+
+		lastheight = temps[len(temps)-1].Height() - 1
 	}
 
-	st, found, err := db.perm.Suffrage(height)
+	st, found, err := db.perm.Suffrage(lastheight)
 	if err != nil {
 		return nil, false, e(err, "")
 	}
@@ -206,17 +212,19 @@ func (db *Default) LastNetworkPolicy() base.NetworkPolicy {
 
 func (db *Default) State(key string) (base.State, bool, error) {
 	e := util.StringErrorFunc("failed to find State")
+
 	l := util.EmptyLocked()
+
 	if err := db.dig(func(p isaac.PartialDatabase) (bool, error) {
 		switch st, found, err := p.State(key); {
 		case err != nil:
-			return false, err
+			return false, errors.Wrap(err, "")
 		case found:
-			_, _ = l.Set(func(old interface{}) (interface{}, error) {
+			_, _ = l.Set(func(old interface{}) (interface{}, error) { //nolint:errcheck //...
 				switch {
 				case old == nil:
 					return st, nil
-				case st.Height() > old.(base.State).Height():
+				case st.Height() > old.(base.State).Height(): //nolint:forcetypeassert //...
 					return st, nil
 				default:
 					return nil, errors.Errorf("old")
@@ -230,7 +238,7 @@ func (db *Default) State(key string) (base.State, bool, error) {
 	}
 
 	if i, _ := l.Value(); i != nil {
-		return i.(base.State), true, nil
+		return i.(base.State), true, nil //nolint:forcetypeassert //...
 	}
 
 	st, found, err := db.perm.State(key)
@@ -241,14 +249,15 @@ func (db *Default) State(key string) (base.State, bool, error) {
 	return st, found, nil
 }
 
-func (db *Default) ExistsInStateOperation(h util.Hash) (bool, error) {
+func (db *Default) ExistsInStateOperation(h util.Hash) (bool, error) { //nolint:dupl //...
 	e := util.StringErrorFunc("failed to check operation")
 
 	l := util.NewLocked(false)
+
 	if err := db.dig(func(p isaac.PartialDatabase) (bool, error) {
 		switch found, err := p.ExistsInStateOperation(h); {
 		case err != nil:
-			return false, err
+			return false, errors.Wrap(err, "")
 		case found:
 			_ = l.SetValue(true)
 
@@ -261,7 +270,7 @@ func (db *Default) ExistsInStateOperation(h util.Hash) (bool, error) {
 	}
 
 	if i, _ := l.Value(); i != nil {
-		return i.(bool), nil
+		return i.(bool), nil //nolint:forcetypeassert //...
 	}
 
 	found, err := db.perm.ExistsInStateOperation(h)
@@ -272,14 +281,15 @@ func (db *Default) ExistsInStateOperation(h util.Hash) (bool, error) {
 	return found, nil
 }
 
-func (db *Default) ExistsKnownOperation(h util.Hash) (bool, error) {
+func (db *Default) ExistsKnownOperation(h util.Hash) (bool, error) { //nolint:dupl //...
 	e := util.StringErrorFunc("failed to check operation")
 
 	l := util.NewLocked(false)
+
 	if err := db.dig(func(p isaac.PartialDatabase) (bool, error) {
 		switch found, err := p.ExistsKnownOperation(h); {
 		case err != nil:
-			return false, err
+			return false, errors.Wrap(err, "")
 		case found:
 			_ = l.SetValue(true)
 
@@ -292,7 +302,7 @@ func (db *Default) ExistsKnownOperation(h util.Hash) (bool, error) {
 	}
 
 	if i, _ := l.Value(); i != nil {
-		return i.(bool), nil
+		return i.(bool), nil //nolint:forcetypeassert //...
 	}
 
 	found, err := db.perm.ExistsKnownOperation(h)
@@ -312,27 +322,31 @@ func (db *Default) Map(height base.Height) (base.BlockMap, bool, error) {
 		if temp := db.findTemp(height); temp != nil {
 			m, err := temp.Map()
 			if err != nil {
-				return nil, false, err
+				return nil, false, errors.Wrap(err, "")
 			}
 
 			return m, true, nil
 		}
 	}
 
-	return db.perm.Map(height)
+	m, found, err := db.perm.Map(height)
+
+	return m, found, errors.Wrap(err, "")
 }
 
 func (db *Default) LastMap() (base.BlockMap, bool, error) {
 	if temps := db.activeTemps(); len(temps) > 0 {
 		m, err := temps[0].Map()
 		if err != nil {
-			return nil, false, err
+			return nil, false, errors.Wrap(err, "")
 		}
 
 		return m, true, nil
 	}
 
-	return db.perm.LastMap()
+	m, found, err := db.perm.LastMap()
+
+	return m, found, errors.Wrap(err, "")
 }
 
 func (db *Default) NewBlockWriteDatabase(height base.Height) (isaac.BlockWriteDatabase, error) {
@@ -344,12 +358,14 @@ func (db *Default) MergeBlockWriteDatabase(w isaac.BlockWriteDatabase) error {
 	defer db.Unlock()
 
 	e := util.StringErrorFunc("failed to merge new TempDatabase")
+
 	temp, err := w.TempDatabase()
 	if err != nil {
 		return e(err, "")
 	}
 
 	preheight := base.NilHeight
+
 	switch {
 	case len(db.temps) > 0:
 		preheight = db.temps[0].Height()
@@ -419,10 +435,10 @@ func (db *Default) removeTemp(temp isaac.TempDatabase) error {
 	}
 
 	if found < 0 || found >= int64(len(db.temps)) {
-		return util.NotFoundError.Errorf("TempDatabase not found, height=%d", temp.Height())
+		return util.ErrNotFound.Errorf("TempDatabase not found, height=%d", temp.Height())
 	}
 
-	if len(db.temps) < 2 {
+	if len(db.temps) < 2 { //nolint:gomnd //...
 		db.temps = nil
 
 		return nil
@@ -430,6 +446,7 @@ func (db *Default) removeTemp(temp isaac.TempDatabase) error {
 
 	temps := make([]isaac.TempDatabase, len(db.temps)-1)
 	var j int
+
 	for i := range db.temps {
 		if int64(i) == found {
 			continue
@@ -463,6 +480,7 @@ func (db *Default) findTemp(height base.Height) isaac.TempDatabase {
 func (db *Default) dig(f func(isaac.PartialDatabase) (bool, error)) error {
 	temps := db.activeTemps()
 	partials := make([]isaac.PartialDatabase, len(temps)+1)
+
 	for i := range temps {
 		partials[i] = temps[i]
 	}
@@ -477,6 +495,7 @@ func (db *Default) dig(f func(isaac.PartialDatabase) (bool, error)) error {
 
 	for i := range partials {
 		p := partials[i]
+
 		if err := worker.NewJob(func(context.Context, uint64) error {
 			switch keep, err := f(p); {
 			case err != nil:
@@ -490,6 +509,7 @@ func (db *Default) dig(f func(isaac.PartialDatabase) (bool, error)) error {
 			break
 		}
 	}
+
 	worker.Done()
 
 	switch err := worker.Wait(); {
@@ -520,7 +540,7 @@ end:
 				continue end
 			}
 
-			if err := db.cleanRemoved(3); err != nil {
+			if err := db.cleanRemoved(3); err != nil { //nolint:gomnd //...
 				db.Log().Debug().Err(err).Msg("failed to clean temp databases; will retry")
 
 				continue end

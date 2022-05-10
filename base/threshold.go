@@ -11,6 +11,7 @@ import (
 var (
 	DefaultThreshold Threshold = 67
 	MinThreshold     Threshold = 67
+	MaxThreshold     Threshold = 100
 )
 
 type Threshold float64
@@ -34,21 +35,21 @@ func (t Threshold) Equal(b Threshold) bool {
 func (t Threshold) IsValid([]byte) error {
 	switch {
 	case t <= 0:
-		return util.InvalidError.Errorf("under zero threshold, %v", t)
-	case t > 100:
-		return util.InvalidError.Errorf("over 100 threshold, %v", t)
+		return util.ErrInvalid.Errorf("under zero threshold, %v", t)
+	case t > MaxThreshold:
+		return util.ErrInvalid.Errorf("over 100 threshold, %v", t)
 	case t < MinThreshold:
-		return util.InvalidError.Errorf("risky threshold, %v < 67", t)
+		return util.ErrInvalid.Errorf("risky threshold, %v < 67", t)
 	}
 
 	return nil
 }
 
 func (t Threshold) Threshold(quorum uint) uint {
-	return uint(math.Ceil(float64(quorum) * (t.Float64() / 100)))
+	return uint(math.Ceil(float64(quorum) * (t / MaxThreshold).Float64()))
 }
 
-func (t Threshold) VoteResult(quorum uint, set []string) (VoteResult, string) {
+func (t Threshold) VoteResult(quorum uint, set []string) (result VoteResult, key string) {
 	return FindVoteResult(quorum, t.Threshold(quorum), set)
 }
 
@@ -67,12 +68,12 @@ func (t *Threshold) UnmarshalText(b []byte) error {
 	return nil
 }
 
-func NumberOfFaultyNodes(n uint, threshold float64) int {
+func NumberOfFaultyNodes(n uint, threshold Threshold) int {
 	if n < 1 {
 		return 0
-	} else if threshold >= 100 {
+	} else if threshold >= MaxThreshold {
 		return 0
 	}
 
-	return int(float64(n) - float64(n)*(threshold/100))
+	return int(float64(n) - float64(n)*(threshold/MaxThreshold).Float64())
 }

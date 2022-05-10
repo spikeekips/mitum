@@ -50,7 +50,13 @@ func (w *DummyBlockWriter) SetProcessResult(ctx context.Context, index uint64, f
 		msg = errorreason.Msg()
 	}
 
-	node := base.NewOperationFixedtreeNode(facthash, instate, msg)
+	var node base.OperationFixedtreeNode
+	if instate {
+		node = base.NewInStateOperationFixedtreeNode(facthash, msg)
+	} else {
+		node = base.NewNotInStateOperationFixedtreeNode(facthash, msg)
+	}
+
 	if err := w.opstreeg.Add(index, node); err != nil {
 		return errors.Wrap(err, "failed to set operation")
 	}
@@ -279,7 +285,7 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsFailed() {
 		switch {
 		case facthash.Equal(ophs[1]), facthash.Equal(ophs[3]):
 		default:
-			return nil, util.WrongTypeError.Errorf("operation not found")
+			return nil, util.ErrWrongType.Errorf("operation not found")
 		}
 
 		return op, nil
@@ -294,7 +300,7 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsFailed() {
 	t.Error(err)
 	t.Nil(m)
 
-	t.True(errors.Is(err, util.WrongTypeError))
+	t.True(errors.Is(err, util.ErrWrongType))
 	t.ErrorContains(err, "failed to collect operations")
 }
 
@@ -855,7 +861,7 @@ func (t *testDefaultProposalProcessor) TestProcess() {
 		if !op.Fact().Hash().Equal(ophs[1]) && !op.Fact().Hash().Equal(ophs[3]) {
 			// NOTE only will process, index 1 and 3 operation
 			op.process = func(ctx context.Context, getStateFunc base.GetStateFunc) ([]base.StateMergeValue, base.OperationProcessReasonError, error) {
-				return nil, base.NotChangedOperationProcessReasonError, nil
+				return nil, base.ErrNotChangedOperationProcessReason, nil
 			}
 		}
 
@@ -943,7 +949,7 @@ func (t *testDefaultProposalProcessor) TestProcess() {
 		case index == 1, index == 3:
 			t.True(node.InState())
 		default:
-			t.Contains(base.NotChangedOperationProcessReasonError.Msg(), node.Reason().Msg())
+			t.Contains(base.ErrNotChangedOperationProcessReason.Msg(), node.Reason().Msg())
 		}
 
 		return true, nil
@@ -985,7 +991,7 @@ func (t *testDefaultProposalProcessor) TestProcessWithOperationProcessor() {
 						h.Equal(ophs[3]): // NOTE only will process, index 1 and 3 operation
 						return []base.StateMergeValue{sts[op.Fact().Hash().String()]}, nil, nil
 					default:
-						return nil, base.NotChangedOperationProcessReasonError, nil
+						return nil, base.ErrNotChangedOperationProcessReason, nil
 					}
 				},
 			}, true, nil

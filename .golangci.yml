@@ -118,11 +118,11 @@ linters-settings:
 
   cyclop:
     # The maximal code complexity to report.
-    max-complexity: 10
+    max-complexity: 20
     # The maximal average package complexity.
     # If it's higher than 0.0 (float) the check is enabled
     # Default: 0.0
-    package-average: 0.5
+    package-average: 5.0
     # Should ignore tests.
     # Default: false
     skip-tests: true
@@ -178,14 +178,14 @@ linters-settings:
 
   dupl:
     # Tokens count to trigger issue.
-    # Default: 150
-    threshold: 100
+    # Default: 15
+    threshold: 110
 
   errcheck:
     # Report about not checking of errors in type assertions: `a := b.(MyStruct)`.
     # Such cases aren't reported by default.
     # Default: false
-    check-type-assertions: true
+    check-type-assertions: false
 
     # report about assignment of errors to blank identifier: `num, _ := strconv.Atoi(numStr)`.
     # Such cases aren't reported by default.
@@ -329,19 +329,19 @@ linters-settings:
     min-len: 2
     # Minimum occurrences of constant string count to trigger issue.
     # Default: 3
-    min-occurrences: 2
+    min-occurrences: 10
     # Ignore test files.
     # Default: false
     ignore-tests: true
     # Look for existing constants matching the values.
     # Default: true
-    match-constant: false
+    match-constant: true
     # Search also for duplicated numbers.
     # Default: false
     numbers: true
     # Minimum value, only works with goconst.numbers
     # Default: 3
-    min: 2
+    min: 3
     # Maximum value, only works with goconst.numbers
     # Default: 3
     max: 2
@@ -471,7 +471,7 @@ linters-settings:
   gocyclo:
     # Minimal code complexity to report.
     # Default: 30 (but we recommend 10-20)
-    min-complexity: 10
+    min-complexity: 20
 
   godot:
     # Comments to be checked: `declarations`, `toplevel`, or `all`.
@@ -523,6 +523,8 @@ linters-settings:
     # Values always ignored: "1", "1.0", "0" and "0.0"
     ignored-numbers:
       - '0666'
+      - '0o600'
+      - '0o700'
       - '0755'
       - '42'
     # List of file patterns to exclude from analysis.
@@ -534,6 +536,13 @@ linters-settings:
     ignored-functions:
       - 'math.*'
       - 'http.StatusText'
+      - 'strconv.*'
+      - 'make'
+      - 'time.*'
+      - 'util.FuncCaller'
+      - 'FuncCaller'
+      - 'callers'
+      - 'strings.*'
 
   gomoddirectives:
     # Allow local `replace` directives.
@@ -541,7 +550,7 @@ linters-settings:
     # List of allowed `replace` directives.
     # Default: []
     replace-allow-list:
-      - launchpad.net/gocheck
+      - github.com/hashicorp/memberlist
     # Allow to not explain why the version has been retracted in the `retract` directives.
     # Default: false
     retract-allow-no-explanation: false
@@ -757,17 +766,17 @@ linters-settings:
   grouper:
     # Require the use of a single global 'const' declaration only.
     # Default: false
-    const-require-single-const: true
+    const-require-single-const: false
     # Require the use of grouped global 'const' declarations.
     # Default: false
     const-require-grouping: false
 
     # Require the use of a single 'import' declaration only.
     # Default: false
-    import-require-single-import: true
+    import-require-single-import: false
     # Require the use of grouped 'import' declarations.
     # Default: false
-    import-require-grouping: true
+    import-require-grouping: false
 
     # Require the use of a single global 'type' declaration only.
     # Default: false
@@ -776,21 +785,22 @@ linters-settings:
     # Default: false
     type-require-grouping: false
 
-    # Require the use of a single global 'var' declaration only.
-    # Default: false
-    var-require-single-var: true
     # Require the use of grouped global 'var' declarations.
     # Default: false
-    var-require-grouping: true
+    var-require-grouping: false
+
+    # Require the use of a single global 'var' declaration only.
+    # Default: false
+    var-require-single-var: false
 
   ifshort:
     # Maximum length of variable declaration measured in number of lines, after which linter won't suggest using short syntax.
     # Has higher priority than max-decl-chars.
     # Default: 1
-    max-decl-lines: 2
+    max-decl-lines: 10
     # Maximum length of variable declaration measured in number of characters, after which linter won't suggest using short syntax.
     # Default: 30
-    max-decl-chars: 40
+    max-decl-chars: 10
 
   ireturn:
     # ireturn allows using `allow` and `reject` settings at the same time.
@@ -850,7 +860,7 @@ linters-settings:
   nestif:
     # Minimal complexity of if statements to report.
     # Default: 5
-    min-complexity: 4
+    min-complexity: 11
 
   nilnil:
     # Checks that there is no simultaneous return of `nil` error and an invalid value.
@@ -902,7 +912,7 @@ linters-settings:
   predeclared:
     # Comma-separated list of predeclared identifiers to not report on.
     # Default: ""
-    ignore: "new,int"
+    ignore: "new,int,close"
     # Include method names and field names (i.e., qualified names) in checks.
     # Default: false
     q: true
@@ -952,7 +962,7 @@ linters-settings:
       # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#add-constant
       - name: add-constant
         severity: warning
-        disabled: false
+        disabled: true
         arguments:
           - maxLitCount: "3"
             allowStrs: '""'
@@ -962,7 +972,7 @@ linters-settings:
       - name: argument-limit
         severity: warning
         disabled: false
-        arguments: [4]
+        arguments: [10]
       # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#atomic
       - name: atomic
         severity: warning
@@ -996,7 +1006,7 @@ linters-settings:
       # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#confusing-naming
       - name: confusing-naming
         severity: warning
-        disabled: false
+        disabled: true
       # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#confusing-results
       - name: confusing-results
         severity: warning
@@ -1017,7 +1027,7 @@ linters-settings:
       - name: cyclomatic
         severity: warning
         disabled: false
-        arguments: [ 18 ]
+        arguments: [ 20 ]
       # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#deep-exit
       - name: deep-exit
         severity: warning
@@ -1291,7 +1301,7 @@ linters-settings:
       rules:
         # Any struct tag type can be used.
         # Support string case: `camel`, `pascal`, `kebab`, `snake`, `goCamel`, `goPascal`, `goKebab`, `goSnake`, `upper`, `lower`
-        json: camel
+        json: snake
         yaml: camel
         xml: camel
         bson: camel
@@ -1397,11 +1407,13 @@ linters-settings:
       - .WithMessage(
       - .WithMessagef(
       - .WithStack(
+      - .Err(
     ignoreSigRegexps:
       - \.New.*Error\(
     ignorePackageGlobs:
       - encoding/*
       - github.com/pkg/*
+      - github.com/spikeekips/mitum/*
     ignoreInterfaceRegexps:
       - ^(?i)c(?-i)ach(ing|e)
 
@@ -1429,7 +1441,7 @@ linters-settings:
 
     # This option allows whitespace after each comment group that begins a block.
     # Default: false
-    allow-separated-leading-comment: false
+    allow-separated-leading-comment: true
 
     # Controls if blocks can end with comments.
     # This is not encouraged sine it's usually code smell but might be useful do improve understanding or learning purposes.
@@ -1446,7 +1458,7 @@ linters-settings:
     # Enforces that an `if` statement checking an error variable is cuddled
     # with the line that assigned that error variable.
     # Default: false
-    force-err-cuddling: false
+    force-err-cuddling: true
 
     # Enforces that an assignment which is actually a short declaration (using `:=`)
     # is only allowed to cuddle with other short declarations, and not plain assignments, blocks, etc.
@@ -1500,7 +1512,6 @@ linters:
     - forcetypeassert
     - funlen
     - gci
-    - gochecknoglobals
     - gochecknoinits
     - gocognit
     - goconst
@@ -1519,7 +1530,6 @@ linters:
     - govet
     - ifshort
     - ineffassign
-    - lll
     - makezero
     - misspell
     - nakedret
@@ -1556,6 +1566,9 @@ linters:
     - gofumpt
     - nonamedreturns
     - gomodguard
+    - gochecknoglobals
+    - execinquery
+    - lll
 
   # Enable presets.
   # https://golangci-lint.run/usage/linters

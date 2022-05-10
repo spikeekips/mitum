@@ -46,11 +46,11 @@ func (s SuffrageProof) IsValid(b []byte) error {
 	}
 
 	if _, err := s.Suffrage(); err != nil {
-		return e(util.InvalidError.Wrap(err), "")
+		return e(util.ErrInvalid.Wrap(err), "")
 	}
 
 	if s.voteproof.Result() != base.VoteResultMajority {
-		return e(util.InvalidError.Errorf("accept voteproof is not majority"), "")
+		return e(util.ErrInvalid.Errorf("accept voteproof is not majority"), "")
 	}
 
 	return nil
@@ -78,6 +78,7 @@ func (s SuffrageProof) Prove(previousState base.State) error {
 	}
 
 	var previoussuf base.Suffrage
+
 	switch {
 	case s.m.Manifest().Height() == base.GenesisHeight:
 	case s.st.Height() <= previousState.Height():
@@ -90,8 +91,9 @@ func (s SuffrageProof) Prove(previousState base.State) error {
 			return e(err, "")
 		}
 
-		previous, _ := base.LoadSuffrageState(previousState)
-		current, _ := base.LoadSuffrageState(s.st)
+		previous, _ := base.LoadSuffrageState(previousState) //nolint:errcheck //...
+		current, _ := base.LoadSuffrageState(s.st)           //nolint:errcheck //...
+
 		if current.Height() != previous.Height()+1 {
 			return e(nil, "invalid previous state value; not +1")
 		}

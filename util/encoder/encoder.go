@@ -29,11 +29,11 @@ type DecodeDetail struct {
 
 func (d DecodeDetail) IsValid([]byte) error {
 	if err := d.Hint.IsValid(nil); err != nil {
-		return util.InvalidError.Wrapf(err, "invalid hint in DecodeDetail")
+		return util.ErrInvalid.Wrapf(err, "invalid hint in DecodeDetail")
 	}
 
 	if d.Decode == nil && d.Instance == nil {
-		return util.InvalidError.Errorf("instance and decode func are empty in DecodeDetail")
+		return util.ErrInvalid.Errorf("instance and decode func are empty in DecodeDetail")
 	}
 
 	return nil

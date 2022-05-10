@@ -107,7 +107,7 @@ func (t *testGenesisNetworkPolicy) TestIsValid() {
 		fact := NewGenesisNetworkPolicyFact(policy)
 		err := fact.IsValid(nil)
 		t.Error(err)
-		t.True(errors.Is(err, util.InvalidError))
+		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "under zero maxOperationsInProposal")
 
 		op := NewGenesisNetworkPolicy(fact)
@@ -115,7 +115,7 @@ func (t *testGenesisNetworkPolicy) TestIsValid() {
 
 		err = op.IsValid(t.networkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.InvalidError))
+		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "under zero maxOperationsInProposal")
 	})
 
@@ -134,7 +134,7 @@ func (t *testGenesisNetworkPolicy) TestIsValid() {
 
 		err := op.IsValid(t.networkID)
 		t.Error(err)
-		t.True(errors.Is(err, util.InvalidError))
+		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "multiple signed found")
 	})
 }
