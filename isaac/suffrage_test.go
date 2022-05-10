@@ -7,7 +7,6 @@ import (
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
-	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -27,7 +26,7 @@ func TestSuffrageStateValueJSON(tt *testing.T) {
 			nodes[i] = RandomLocalNode()
 		}
 
-		stv := NewSuffrageStateValue(base.Height(33), valuehash.RandomSHA256(), nodes)
+		stv := NewSuffrageStateValue(base.Height(33), nodes)
 
 		b, err := util.MarshalJSON(&stv)
 		t.NoError(err)

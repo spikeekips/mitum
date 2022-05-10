@@ -92,16 +92,14 @@ func (suf Suffrage) Len() int {
 
 type SuffrageStateValue struct {
 	hint.BaseHinter
-	height   base.Height // NOTE suffrage height
-	previous util.Hash   // BLOCK remove; duplicated with State.Previous()
-	nodes    []base.Node
+	height base.Height // NOTE suffrage height
+	nodes  []base.Node
 }
 
-func NewSuffrageStateValue(suffrageheight base.Height, previous util.Hash, nodes []base.Node) SuffrageStateValue {
+func NewSuffrageStateValue(suffrageheight base.Height, nodes []base.Node) SuffrageStateValue {
 	return SuffrageStateValue{
 		BaseHinter: hint.NewBaseHinter(SuffrageStateValueHint),
 		height:     suffrageheight,
-		previous:   previous,
 		nodes:      nodes,
 	}
 }
@@ -109,7 +107,6 @@ func NewSuffrageStateValue(suffrageheight base.Height, previous util.Hash, nodes
 func (s SuffrageStateValue) HashBytes() []byte {
 	return util.ConcatByters(
 		s.height,
-		s.previous,
 		util.DummyByter(func() []byte {
 			n := make([][]byte, len(s.nodes))
 			for i := range s.nodes {
@@ -129,9 +126,8 @@ func (s SuffrageStateValue) IsValid([]byte) error {
 
 	vs := make([]util.IsValider, len(s.nodes)+2)
 	vs[0] = s.height
-	vs[1] = s.previous
 	for i := range s.nodes {
-		vs[i+2] = s.nodes[i]
+		vs[i+1] = s.nodes[i]
 	}
 
 	if err := util.CheckIsValid(nil, false, vs...); err != nil {
@@ -143,10 +139,6 @@ func (s SuffrageStateValue) IsValid([]byte) error {
 
 func (s SuffrageStateValue) Height() base.Height {
 	return s.height
-}
-
-func (s SuffrageStateValue) Previous() util.Hash {
-	return s.previous
 }
 
 func (s SuffrageStateValue) Nodes() []base.Node {

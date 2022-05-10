@@ -14,8 +14,7 @@ type Suffrage interface {
 
 type SuffrageStateValue interface {
 	StateValue
-	Height() Height      // NOTE not manifest height
-	Previous() util.Hash // NOTE previous state hash of SuffrageStateValue
+	Height() Height // NOTE not manifest height
 	Nodes() []Node
 	Suffrage() (Suffrage, error)
 }

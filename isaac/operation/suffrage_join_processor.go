@@ -137,7 +137,7 @@ func (p *SuffrageJoinProcessor) Process(ctx context.Context, op base.Operation, 
 		return []base.StateMergeValue{
 			base.NewBaseStateMergeValue(
 				isaac.SuffrageStateKey,
-				isaac.NewSuffrageStateValue(base.GenesisHeight, nil, []base.Node{p.candidateInfo}),
+				isaac.NewSuffrageStateValue(base.GenesisHeight, []base.Node{p.candidateInfo}),
 				nil,
 			),
 		}, nil, nil
@@ -157,7 +157,7 @@ func (p *SuffrageJoinProcessor) Process(ctx context.Context, op base.Operation, 
 	return []base.StateMergeValue{
 		base.NewBaseStateMergeValue(
 			isaac.SuffrageStateKey,
-			isaac.NewSuffrageStateValue(p.sufstv.Height()+1, p.sufst.Hash(), newmembers),
+			isaac.NewSuffrageStateValue(p.sufstv.Height()+1, newmembers),
 			nil,
 		),
 	}, nil, nil

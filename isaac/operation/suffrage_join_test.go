@@ -332,7 +332,7 @@ func (t *testSuffrageGenesisJoin) TestProcess() {
 	t.Equal(isaac.SuffrageStateKey, value.Key())
 
 	node := isaac.NewNode(fact.Publickey(), fact.Node())
-	expected := isaac.NewSuffrageStateValue(base.GenesisHeight, nil, []base.Node{node})
+	expected := isaac.NewSuffrageStateValue(base.GenesisHeight, []base.Node{node})
 
 	t.True(base.IsEqualStateValue(expected, value.Value()))
 }

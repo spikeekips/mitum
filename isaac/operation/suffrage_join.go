@@ -183,7 +183,7 @@ func (op SuffrageGenesisJoin) Process(context.Context, base.GetStateFunc) (
 	return []base.StateMergeValue{
 		base.NewBaseStateMergeValue(
 			isaac.SuffrageStateKey,
-			isaac.NewSuffrageStateValue(base.GenesisHeight, nil, []base.Node{node}),
+			isaac.NewSuffrageStateValue(base.GenesisHeight, []base.Node{node}),
 			nil,
 		),
 	}, nil, nil
