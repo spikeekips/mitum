@@ -20,6 +20,8 @@ type SuffrageStateValue interface {
 	Suffrage() (Suffrage, error)
 }
 
+// BLOCK if new suffrage node from candidate, update SuffrageCandidateStateValue
+
 type SuffrageCandidate interface {
 	util.IsValider
 	Node
@@ -36,21 +38,32 @@ func InterfaceIsSuffrageState(i interface{}) (State, error) {
 	switch st, ok := i.(State); {
 	case !ok:
 		return nil, errors.Errorf("not suffrage state: %T", i)
-	case !IsSuffrageState(st):
-		return nil, errors.Errorf("not suffrage state value: %T", st.Value())
 	default:
+		if _, err := LoadSuffrageState(st); err != nil {
+			return nil, errors.Wrap(err, "")
+		}
+
 		return st, nil
 	}
 }
 
 func IsSuffrageState(st State) bool {
-	if st.Value() == nil {
-		return false
+	_, err := LoadSuffrageState(st)
+
+	return err == nil
+}
+
+func LoadSuffrageState(st State) (SuffrageStateValue, error) {
+	if st == nil || st.Value() == nil {
+		return nil, errors.Errorf("empty state")
 	}
 
-	_, ok := st.Value().(SuffrageStateValue)
+	j, ok := st.Value().(SuffrageStateValue)
+	if !ok {
+		return nil, errors.Errorf("expected SuffrageStateValue, but %T", st.Value())
+	}
 
-	return ok
+	return j, nil
 }
 
 type SuffrageInfo interface {

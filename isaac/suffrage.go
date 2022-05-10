@@ -1,6 +1,7 @@
 package isaac
 
 import (
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
@@ -22,6 +23,20 @@ type GetSuffrageByBlockHeight func(nextheight base.Height) (base.Suffrage, bool,
 type Suffrage struct {
 	m  map[string]base.Node
 	ns []base.Node
+}
+
+func NewSuffrageFromState(st base.State) (suf Suffrage, _ error) {
+	switch v, err := base.LoadSuffrageState(st); {
+	case err != nil:
+		return suf, errors.Wrap(err, "")
+	default:
+		i, err := NewSuffrage(v.Nodes())
+		if err != nil {
+			return suf, errors.Wrap(err, "")
+		}
+
+		return i, nil
+	}
 }
 
 func NewSuffrage(nodes []base.Node) (Suffrage, error) {
@@ -78,7 +93,7 @@ func (suf Suffrage) Len() int {
 type SuffrageStateValue struct {
 	hint.BaseHinter
 	height   base.Height // NOTE suffrage height
-	previous util.Hash
+	previous util.Hash   // BLOCK remove; duplicated with State.Previous()
 	nodes    []base.Node
 }
 

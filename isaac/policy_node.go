@@ -25,7 +25,7 @@ func DefaultNodePolicy(networkID base.NetworkID) NodePolicy {
 	return NodePolicy{
 		BaseHinter:              hint.NewBaseHinter(NodePolicyHint),
 		networkID:               networkID,
-		threshold:               base.Threshold(100),
+		threshold:               base.DefaultThreshold,
 		intervalBroadcastBallot: time.Second * 3,
 		waitProcessingProposal:  time.Second * 3,
 		timeoutRequestProposal:  time.Second * 3,

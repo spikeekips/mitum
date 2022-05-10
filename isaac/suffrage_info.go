@@ -8,7 +8,7 @@ import (
 
 var SuffrageInfoHint = hint.MustNewHint("suffrage-info-v0.0.1")
 
-type SuffrageInfo struct {
+type SuffrageInfo struct { // BLOCK remove
 	hint.BaseHinter
 	state      util.Hash
 	height     base.Height

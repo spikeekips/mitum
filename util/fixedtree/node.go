@@ -79,7 +79,7 @@ func (n BaseNode) Equal(b Node) bool {
 
 	switch {
 	case n.IsEmpty() || b.IsEmpty():
-		return false
+		return n.IsEmpty() && b.IsEmpty()
 	case n.Key() != b.Key():
 		return false
 	case n.Hash() == nil || b.Hash() == nil:

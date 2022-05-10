@@ -127,6 +127,14 @@ func (t *testNode) TestEqual() {
 		a := EmptyBaseNode()
 		b := EmptyBaseNode()
 
+		t.True(a.Equal(b))
+	})
+
+	t.Run("empty with none-empty", func() {
+		a := EmptyBaseNode()
+		b := NewBaseNode(n.key)
+		b.h = valuehash.RandomSHA256()
+
 		t.False(a.Equal(b))
 	})
 }
@@ -195,7 +203,7 @@ func TestEmptyNodeEncode(tt *testing.T) {
 		t.NoError(an.IsValid(nil))
 		t.NoError(bn.IsValid(nil))
 
-		t.False(an.Equal(bn))
+		t.True(an.Equal(bn))
 	}
 
 	suite.Run(tt, t)

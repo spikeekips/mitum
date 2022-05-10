@@ -8,6 +8,11 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
+var (
+	DefaultThreshold Threshold = 67
+	MinThreshold     Threshold = 67
+)
+
 type Threshold float64
 
 func (t Threshold) Float64() float64 {
@@ -32,7 +37,7 @@ func (t Threshold) IsValid([]byte) error {
 		return util.InvalidError.Errorf("under zero threshold, %v", t)
 	case t > 100:
 		return util.InvalidError.Errorf("over 100 threshold, %v", t)
-	case t < 67:
+	case t < MinThreshold:
 		return util.InvalidError.Errorf("risky threshold, %v < 67", t)
 	}
 

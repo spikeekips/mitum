@@ -7,11 +7,11 @@ import (
 )
 
 type Proof struct {
-	extracted []Node
+	nodes []Node
 }
 
 func NewProof(extracted []Node) Proof {
-	return Proof{extracted: extracted}
+	return Proof{nodes: extracted}
 }
 
 func NewProofFromNodes(nodes []Node, key string) (p Proof, err error) {
@@ -26,7 +26,7 @@ func NewProofFromNodes(nodes []Node, key string) (p Proof, err error) {
 func (p Proof) IsValid(b []byte) error {
 	e := util.StringErrorFunc("invalid Proof")
 
-	switch n := len(p.extracted); {
+	switch n := len(p.nodes); {
 	case n < 1:
 		return e(util.InvalidError.Errorf("empty extracted"), "")
 	case n%2 != 1:
@@ -34,8 +34,8 @@ func (p Proof) IsValid(b []byte) error {
 	}
 
 end:
-	for i := range p.extracted {
-		n := p.extracted[i]
+	for i := range p.nodes {
+		n := p.nodes[i]
 
 		switch {
 		case i > 2 && n == nil:
@@ -50,7 +50,7 @@ end:
 	}
 
 	switch {
-	case util.CheckSliceDuplicated(p.extracted, func(i interface{}) string {
+	case util.CheckSliceDuplicated(p.nodes, func(i interface{}) string {
 		n := i.(Node)
 		if n.IsEmpty() {
 			return util.UUID().String()
@@ -59,7 +59,7 @@ end:
 		return n.Key()
 	}):
 		return errors.Errorf("duplicated key found")
-	case util.CheckSliceDuplicated(p.extracted, func(i interface{}) string {
+	case util.CheckSliceDuplicated(p.nodes, func(i interface{}) string {
 		n := i.(Node)
 		if n.IsEmpty() {
 			return valuehash.Bytes(util.UUID().Bytes()).String()
@@ -74,7 +74,7 @@ end:
 }
 
 func (p Proof) Nodes() []Node {
-	return p.extracted
+	return p.nodes
 }
 
 func (p Proof) Prove(key string) error {
@@ -119,8 +119,8 @@ func (p Proof) Prove(key string) error {
 }
 
 func (p Proof) filterNodes(key string) (nodes []Node) {
-	for i := range p.extracted {
-		n := p.extracted[i]
+	for i := range p.nodes {
+		n := p.nodes[i]
 		if n == nil {
 			continue
 		}
@@ -131,26 +131,26 @@ func (p Proof) filterNodes(key string) (nodes []Node) {
 
 		switch {
 		case i%2 == 0:
-			nodes = make([]Node, 2+len(p.extracted[i:]))
+			nodes = make([]Node, 2+len(p.nodes[i:]))
 			if i > 1 {
-				copy(nodes[:2], p.extracted[i-2:i])
+				copy(nodes[:2], p.nodes[i-2:i])
 			}
 
-			copy(nodes[2:], p.extracted[i:])
-		case i+1 == len(p.extracted):
+			copy(nodes[2:], p.nodes[i:])
+		case i+1 == len(p.nodes):
 			nodes = make([]Node, 3)
 			if i > 1 {
-				copy(nodes[:2], p.extracted[i-2:i])
+				copy(nodes[:2], p.nodes[i-2:i])
 			}
 
-			nodes[2] = p.extracted[i]
+			nodes[2] = p.nodes[i]
 		default:
-			nodes = make([]Node, 2+len(p.extracted[i-1:]))
+			nodes = make([]Node, 2+len(p.nodes[i-1:]))
 			if i > 1 {
-				copy(nodes[:2], p.extracted[i-3:i-1])
+				copy(nodes[:2], p.nodes[i-3:i-1])
 			}
 
-			copy(nodes[2:], p.extracted[i-1:])
+			copy(nodes[2:], p.nodes[i-1:])
 		}
 
 		break

@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
+	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 )
@@ -272,6 +274,51 @@ func (t *testProof) TestProveMultipleNodes() {
 			t.ErrorContains(err, "hash does not match")
 		})
 	}
+}
+
+func (t *testProof) TestEncode() {
+	tt := new(encoder.BaseTestEncode)
+
+	enc := jsonenc.NewEncoder()
+
+	tr, err := NewTree(t.ht, t.nodes(34))
+	t.NoError(err)
+	t.NoError(tr.IsValid(nil))
+
+	key := tr.Node(13).Key()
+	proof, err := NewProofFromNodes(tr.Nodes(), key)
+	t.NoError(err)
+
+	t.NoError(proof.Prove(key))
+
+	tt.Encode = func() (interface{}, []byte) {
+		b, err := enc.Marshal(proof)
+		t.NoError(err)
+
+		t.T().Log("marshaled:", string(b))
+
+		return proof, b
+	}
+	tt.Decode = func(b []byte) interface{} {
+		var u Proof
+		t.NoError(enc.Unmarshal(b, &u))
+
+		return u
+	}
+	tt.Compare = func(a interface{}, b interface{}) {
+		ap := a.(Proof)
+		bp := b.(Proof)
+
+		t.NoError(ap.IsValid(nil))
+		t.NoError(bp.IsValid(nil))
+
+		t.Equal(len(ap.nodes), len(bp.nodes))
+		for i := range ap.nodes {
+			t.True(ap.nodes[i].Equal(bp.nodes[i]))
+		}
+	}
+
+	suite.Run(t.T(), tt)
 }
 
 func TestProof(t *testing.T) {

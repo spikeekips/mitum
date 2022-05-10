@@ -183,9 +183,8 @@ func (t *BaseTestBallots) SuffrageState(height, sufheight base.Height, nodes []b
 		SuffrageStateKey,
 		sv,
 		valuehash.RandomSHA256(),
-		nil,
+		[]util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256(), valuehash.RandomSHA256()},
 	)
-	st.SetOperations([]util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256(), valuehash.RandomSHA256()})
 
 	return st, sv
 }

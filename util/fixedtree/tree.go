@@ -68,6 +68,10 @@ func (t Tree) Len() int {
 	return len(t.nodes)
 }
 
+func (t Tree) Nodes() []Node {
+	return t.nodes
+}
+
 func (t Tree) Node(index uint64) Node {
 	if index >= uint64(t.Len()) {
 		return nil
@@ -106,6 +110,10 @@ func (t *Tree) Set(index uint64, n Node) error {
 	t.nodes[index] = n
 
 	return nil
+}
+
+func (t Tree) Proof(key string) (Proof, error) {
+	return NewProofFromNodes(t.nodes, key)
 }
 
 func childrenNodes(nodes []Node, index uint64) (c [2]Node, err error) {
