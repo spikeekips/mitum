@@ -50,7 +50,7 @@ func (c *QuicstreamNodeNetworkClient) newClient(ci quictransport.ConnInfo) func(
 		return quicstream.NewClient(
 			ci.Address(),
 			&tls.Config{
-				InsecureSkipVerify: ci.Insecure(), // nolint:gosec
+				InsecureSkipVerify: ci.Insecure(), //nolint:gosec //...
 				NextProtos:         []string{c.proto},
 			},
 			nil,

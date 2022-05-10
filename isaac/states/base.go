@@ -16,7 +16,7 @@ import (
 
 type baseHandler struct {
 	local            base.LocalNode
-	ctx              context.Context
+	ctx              context.Context //nolint:containedctx //...
 	proposalSelector isaac.ProposalSelector
 	*logging.Logging
 	setLastVoteproofFunc func(base.Voteproof) bool
@@ -60,13 +60,13 @@ func newBaseHandler(
 	}
 }
 
-func (st *baseHandler) enter(switchContext) (func(), error) { // nolint:unparam
+func (st *baseHandler) enter(switchContext) (func(), error) { //nolint:unparam //...
 	st.ctx, st.cancel = context.WithCancel(context.Background())
 
 	return func() {}, nil
 }
 
-func (st *baseHandler) exit(switchContext) (func(), error) { // nolint:unparam
+func (st *baseHandler) exit(switchContext) (func(), error) { //nolint:unparam //...
 	st.cancel()
 
 	return func() {}, nil
@@ -97,7 +97,7 @@ func (st *baseHandler) switchState(sctx switchContext) {
 		i.setFrom(st.stt)
 	}
 
-	nsctx := p.Elem().Interface().(switchContext)
+	nsctx := p.Elem().Interface().(switchContext) //nolint:forcetypeassert //...
 
 	l := st.Log().With().Dict("next_state", switchContextLog(nsctx)).Logger()
 

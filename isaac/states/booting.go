@@ -25,7 +25,7 @@ func NewBootingHandler(
 	}
 }
 
-func (st *BootingHandler) enter(i switchContext) (func(), error) { // nolint:unparam
+func (st *BootingHandler) enter(i switchContext) (func(), error) { //nolint:unparam //...
 	e := util.StringErrorFunc("failed to enter booting state")
 
 	if _, err := st.baseHandler.enter(i); err != nil {
@@ -34,7 +34,7 @@ func (st *BootingHandler) enter(i switchContext) (func(), error) { // nolint:unp
 
 	var manifest base.Manifest
 
-	switch i, found, err := st.lastManifest(); {
+	switch m, found, err := st.lastManifest(); {
 	case err != nil:
 		return nil, e(err, "")
 	case !found:
@@ -43,7 +43,7 @@ func (st *BootingHandler) enter(i switchContext) (func(), error) { // nolint:unp
 
 		return nil, newSyncingSwitchContext(StateEmpty, base.GenesisHeight)
 	default:
-		manifest = i
+		manifest = m
 	}
 
 	avp := st.lastVoteproofs().ACCEPT()

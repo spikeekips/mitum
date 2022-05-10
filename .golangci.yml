@@ -329,7 +329,7 @@ linters-settings:
     min-len: 2
     # Minimum occurrences of constant string count to trigger issue.
     # Default: 3
-    min-occurrences: 10
+    min-occurrences: 15
     # Ignore test files.
     # Default: false
     ignore-tests: true
@@ -1336,7 +1336,7 @@ linters-settings:
   varcheck:
     # Check usage of exported fields and variables.
     # Default: false
-    exported-fields: true
+    exported-fields: false
 
   varnamelen:
     # The longest distance, in source lines, that is being considered a "small scope".

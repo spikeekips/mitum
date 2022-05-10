@@ -66,13 +66,13 @@ func (st *ConsensusHandler) enter(i switchContext) (func(), error) {
 
 	var suf base.Suffrage
 
-	switch i, found, err := st.getSuffrage(sctx.ivp.Point().Height()); {
+	switch m, found, err := st.getSuffrage(sctx.ivp.Point().Height()); {
 	case err != nil:
 		return nil, e(err, "local not in suffrage for next block")
 	case !found:
 		return nil, e(nil, "suffrage not found of init voteproof")
 	default:
-		suf = i
+		suf = m
 	}
 
 	switch ok, err := isInSuffrage(st.local.Address(), suf); {
@@ -110,8 +110,9 @@ func (st *ConsensusHandler) exit(sctx switchContext) (func(), error) {
 		deferred()
 
 		var timers []util.TimerID
+
 		if sctx != nil {
-			switch sctx.next() {
+			switch sctx.next() { //nolint:exhaustive //...
 			case StateJoining, StateHandover:
 				timers = []util.TimerID{timerIDBroadcastINITBallot, timerIDBroadcastACCEPTBallot}
 			}
@@ -284,6 +285,7 @@ func (st *ConsensusHandler) prepareACCEPTBallot(
 
 	afact := isaac.NewACCEPTBallotFact(ivp.Point().Point, ivp.BallotMajority().Proposal(), manifest.Hash())
 	signedFact := isaac.NewACCEPTBallotSignedFact(st.local.Address(), afact)
+
 	if err := signedFact.Sign(st.local.Privatekey(), st.policy.NetworkID()); err != nil {
 		return e(err, "")
 	}
@@ -329,9 +331,9 @@ func (st *ConsensusHandler) newVoteproof(vp base.Voteproof) error {
 
 	switch vp.Point().Stage() {
 	case base.StageINIT:
-		return st.newINITVoteproof(vp.(base.INITVoteproof), lvps)
+		return st.newINITVoteproof(vp.(base.INITVoteproof), lvps) //nolint:forcetypeassert //...
 	case base.StageACCEPT:
-		return st.newACCEPTVoteproof(vp.(base.ACCEPTVoteproof), lvps)
+		return st.newACCEPTVoteproof(vp.(base.ACCEPTVoteproof), lvps) //nolint:forcetypeassert //...
 	default:
 		return e(nil, "invalid voteproof received, %T", vp)
 	}
@@ -346,7 +348,7 @@ func (st *ConsensusHandler) newINITVoteproof(ivp base.INITVoteproof, lvps LastVo
 
 	l.Debug().Msg("new init voteproof received")
 
-	switch c.Point().Stage() {
+	switch c.Point().Stage() { //nolint:exhaustive //...
 	case base.StageINIT:
 		return st.newINITVoteproofWithLastINITVoteproof(ivp, lvps)
 	case base.StageACCEPT:
@@ -365,7 +367,7 @@ func (st *ConsensusHandler) newACCEPTVoteproof(avp base.ACCEPTVoteproof, lvps La
 
 	l.Debug().Msg("new accept voteproof received")
 
-	switch lvp.Point().Stage() {
+	switch lvp.Point().Stage() { //nolint:exhaustive //...
 	case base.StageINIT:
 		return st.newACCEPTVoteproofWithLastINITVoteproof(avp, lvps)
 	case base.StageACCEPT:
@@ -378,7 +380,7 @@ func (st *ConsensusHandler) newACCEPTVoteproof(avp base.ACCEPTVoteproof, lvps La
 func (st *ConsensusHandler) newINITVoteproofWithLastINITVoteproof(
 	ivp base.INITVoteproof, lvps LastVoteproofs,
 ) error {
-	livp := lvps.Cap().(base.INITVoteproof)
+	livp := lvps.Cap().(base.INITVoteproof) //nolint:forcetypeassert //...
 
 	l := st.Log().With().
 		Dict("last_init_voteproof", base.VoteproofLog(livp)).
@@ -430,7 +432,7 @@ func (st *ConsensusHandler) newINITVoteproofWithLastINITVoteproof(
 func (st *ConsensusHandler) newINITVoteproofWithLastACCEPTVoteproof(
 	ivp base.INITVoteproof, lvps LastVoteproofs,
 ) error {
-	lavp := lvps.Cap().(base.ACCEPTVoteproof)
+	lavp := lvps.Cap().(base.ACCEPTVoteproof) //nolint:forcetypeassert //...
 
 	l := st.Log().With().
 		Dict("init_voteproof", base.VoteproofLog(ivp)).
@@ -468,7 +470,8 @@ func (st *ConsensusHandler) newINITVoteproofWithLastACCEPTVoteproof(
 func (st *ConsensusHandler) newACCEPTVoteproofWithLastINITVoteproof(
 	avp base.ACCEPTVoteproof, lvps LastVoteproofs,
 ) error {
-	livp := lvps.Cap().(base.INITVoteproof)
+	livp := lvps.Cap().(base.INITVoteproof) //nolint:forcetypeassert //...
+
 	switch {
 	case avp.Point().Point.Equal(livp.Point().Point): // NOTE expected accept voteproof
 		if avp.Result() == base.VoteResultMajority {
@@ -491,7 +494,7 @@ func (st *ConsensusHandler) newACCEPTVoteproofWithLastINITVoteproof(
 func (st *ConsensusHandler) newACCEPTVoteproofWithLastACCEPTVoteproof(
 	avp base.ACCEPTVoteproof, lvps LastVoteproofs,
 ) error {
-	lavp := lvps.Cap().(base.ACCEPTVoteproof)
+	lavp := lvps.Cap().(base.ACCEPTVoteproof) //nolint:forcetypeassert //...
 
 	l := st.Log().With().
 		Dict("last_accept_voteproof", base.VoteproofLog(lavp)).

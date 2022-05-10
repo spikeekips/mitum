@@ -57,7 +57,7 @@ type switchContext interface {
 	Error() string
 }
 
-type baseSwitchContext struct {
+type baseSwitchContext struct { //nolint:errname //...
 	f StateType
 	n StateType
 }
@@ -85,7 +85,7 @@ func (s baseSwitchContext) MarshalZerologObject(e *zerolog.Event) {
 	e.Stringer("from", s.f).Stringer("next", s.n)
 }
 
-type baseErrorSwitchContext struct {
+type baseErrorSwitchContext struct { //nolint:errname //...
 	err error
 	baseSwitchContext
 }

@@ -47,7 +47,7 @@ func NewSuffrageJoinProcessor(
 		return nil, e(isaac.StopProcessingRetryError.Errorf("empty state returned"), "")
 	default:
 		p.sufst = i
-		p.sufstv = i.Value().(base.SuffrageStateValue)
+		p.sufstv = i.Value().(base.SuffrageStateValue) //nolint:forcetypeassert //...
 
 		sufnodes := p.sufstv.Nodes()
 		p.pubs = make([]base.Publickey, len(sufnodes))
@@ -67,7 +67,7 @@ func NewSuffrageJoinProcessor(
 		return nil, e(isaac.StopProcessingRetryError.Errorf("empty state returned"), "")
 	default:
 		p.sufcst = i
-		p.sufcstv = i.Value().(base.SuffrageCandidateStateValue)
+		p.sufcstv = i.Value().(base.SuffrageCandidateStateValue) //nolint:forcetypeassert //...
 
 		sufcnodes := p.sufcstv.Nodes()
 
@@ -84,6 +84,7 @@ func NewSuffrageJoinProcessor(
 			return nil, nil
 		}
 	}
+
 	if processConstraintFunc == nil {
 		p.processConstraintFunc = func(context.Context, base.Operation, base.GetStateFunc) (
 			base.OperationProcessReasonError, error,
@@ -104,7 +105,7 @@ func (p *SuffrageJoinProcessor) PreProcess(ctx context.Context, op base.Operatio
 		return base.NewBaseOperationProcessReasonError("not enough signs"), nil
 	}
 
-	fact := op.Fact().(SuffrageJoinPermissionFact)
+	fact := op.Fact().(SuffrageJoinPermissionFact) //nolint:forcetypeassert //...
 
 	n := fact.Candidate().String()
 	if _, found := p.suffrage[n]; found {

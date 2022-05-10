@@ -161,7 +161,7 @@ func (op SuffrageGenesisJoin) IsValid(networkID []byte) error {
 
 	// BLOCK check signer should be genesis block creator
 
-	fact := op.Fact().(SuffrageGenesisJoinPermissionFact)
+	fact := op.Fact().(SuffrageGenesisJoinPermissionFact) //nolint:forcetypeassert //...
 	if !fact.Publickey().Equal(op.Signed()[0].Signer()) {
 		return e(util.ErrInvalid.Errorf("signer does not match with publickey"), "")
 	}
@@ -176,9 +176,10 @@ func (SuffrageGenesisJoin) PreProcess(context.Context, base.GetStateFunc) (base.
 func (op SuffrageGenesisJoin) Process(context.Context, base.GetStateFunc) (
 	[]base.StateMergeValue, base.OperationProcessReasonError, error,
 ) {
-	fact := op.Fact().(SuffrageGenesisJoinPermissionFact)
+	fact := op.Fact().(SuffrageGenesisJoinPermissionFact) //nolint:forcetypeassert //...
 
 	node := isaac.NewNode(fact.Publickey(), fact.Node())
+
 	return []base.StateMergeValue{
 		base.NewBaseStateMergeValue(
 			isaac.SuffrageStateKey,

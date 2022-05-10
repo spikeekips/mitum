@@ -41,7 +41,7 @@ func newBaseNodeNetwork(
 func (c *baseNodeNetwork) marshal(i interface{}) ([]byte, error) {
 	b, err := c.enc.Marshal(i)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "")
 	}
 
 	return c.marshalWithEncoder(b), nil
@@ -60,6 +60,7 @@ func (c *baseNodeNetwork) readEncoder(b []byte) (encoder.Encoder, []byte, error)
 	}
 
 	var ht hint.Hint
+
 	ht, raw, err := c.readHint(b)
 	if err != nil {
 		return nil, nil, err
@@ -80,7 +81,9 @@ func (c *baseNodeNetwork) readHinter(b []byte) (interface{}, error) {
 	case enc == nil:
 		return nil, nil
 	default:
-		return enc.Decode(raw)
+		i, err := enc.Decode(raw)
+
+		return i, errors.Wrap(err, "")
 	}
 }
 

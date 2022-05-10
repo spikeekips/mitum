@@ -67,15 +67,15 @@ func (s *SuffrageChecker) suffrageInfo() base.SuffrageInfo {
 	case isnil, i == nil:
 		return nil
 	default:
-		return i.(base.SuffrageInfo)
+		return i.(base.SuffrageInfo) //nolint:forcetypeassert //...
 	}
 }
 
 func (s *SuffrageChecker) AddCallback(cb SuffrageCheckerCallback) *SuffrageChecker {
-	_, _ = s.ncbs.Set(func(i interface{}) (interface{}, error) {
+	_, _ = s.ncbs.Set(func(i interface{}) (interface{}, error) { //nolint:errcheck //...
 		var ncbs []SuffrageCheckerCallback
 		if i != nil {
-			ncbs = i.([]SuffrageCheckerCallback)
+			ncbs = i.([]SuffrageCheckerCallback) //nolint:forcetypeassert //...
 		}
 
 		ncbs = append(ncbs, cb)
@@ -116,10 +116,11 @@ end:
 
 func (s *SuffrageChecker) check(ctx context.Context) (base.SuffrageInfo, bool, error) {
 	var updated bool
+
 	i, err := s.info.Set(func(i interface{}) (interface{}, error) {
 		var oldinfo base.SuffrageInfo
 		if i != nil {
-			oldinfo = i.(base.SuffrageInfo)
+			oldinfo = i.(base.SuffrageInfo) //nolint:forcetypeassert //...
 		}
 
 		switch newinfo, err := s.find(ctx, oldinfo); {
@@ -137,7 +138,7 @@ func (s *SuffrageChecker) check(ctx context.Context) (base.SuffrageInfo, bool, e
 		return nil, false, errors.Wrap(err, "")
 	}
 
-	n := i.(base.SuffrageInfo)
+	n := i.(base.SuffrageInfo) //nolint:forcetypeassert //...
 
 	if updated {
 		s.Log().Debug().Interface("suffrage_info", n).Msg("new suffrage info found")
@@ -179,12 +180,12 @@ func (s *SuffrageChecker) find(ctx context.Context, oldinfo base.SuffrageInfo) (
 				return err
 			}
 
-			_, _ = newinfo.Set(func(i interface{}) (interface{}, error) {
+			_, _ = newinfo.Set(func(i interface{}) (interface{}, error) { //nolint:errcheck //...
 				if i == nil {
 					return rinfo, nil
 				}
 
-				old := i.(base.SuffrageInfo)
+				old := i.(base.SuffrageInfo) //nolint:forcetypeassert //...
 				if rinfo.Height() > old.Height() {
 					return rinfo, nil
 				}
@@ -208,7 +209,7 @@ func (s *SuffrageChecker) find(ctx context.Context, oldinfo base.SuffrageInfo) (
 	case isnil, i == nil:
 		return nil, nil
 	default:
-		return i.(base.SuffrageInfo), nil
+		return i.(base.SuffrageInfo), nil //nolint:forcetypeassert //...
 	}
 }
 
@@ -217,7 +218,7 @@ func (s *SuffrageChecker) notifyCallbacks() []SuffrageCheckerCallback {
 	case isnil, i == nil:
 		return nil
 	default:
-		return i.([]SuffrageCheckerCallback)
+		return i.([]SuffrageCheckerCallback) //nolint:forcetypeassert //...
 	}
 }
 
@@ -248,6 +249,7 @@ func (s *SuffrageChecker) notify(ctx context.Context, info base.SuffrageInfo) {
 	}
 
 	worker.Done()
+
 	if err := worker.Wait(); err != nil {
 		l.Error().Err(err).Msg("callback failed")
 

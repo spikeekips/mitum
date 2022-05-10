@@ -94,7 +94,7 @@ func (c *QuicstreamNodeNetworkHandlers) getOrCreateProposal(
 	// NOTE find proposal of this point
 	switch pr, found, err := c.pool.ProposalByPoint(point, proposer); {
 	case err != nil:
-		return nil, err
+		return nil, errors.Wrap(err, "")
 	case found:
 		return pr, nil
 	}
@@ -144,7 +144,7 @@ func (c *QuicstreamNodeNetworkHandlers) Proposal(_ net.Addr, r io.Reader, w io.W
 
 	switch {
 	case err != nil:
-		return err
+		return errors.Wrap(err, "")
 	case !found:
 		return nil
 	}

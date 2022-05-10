@@ -114,6 +114,7 @@ func (st *States) start(ctx context.Context) error {
 		return errors.WithStack(serr)
 	default:
 		e := util.StringErrorFunc("failed to exit current state")
+
 		deferred, err := current.exit(nil)
 		if err != nil {
 			return e(err, "failed to exit current")
@@ -204,7 +205,7 @@ func (st *States) ensureSwitchState(sctx switchContext) error {
 	nsctx := sctx
 end:
 	for {
-		if n > 3 {
+		if n > 3 { //nolint:gomnd //...
 			st.Log().Warn().Msg("suspicious infinite loop in switch states; > 3; will move to broken")
 
 			nsctx = movetobroken(nsctx)
@@ -313,7 +314,7 @@ func (st *States) exitAndEnter(sctx switchContext, current handler) (func(), fun
 	ndefer, err := next.enter(sctx)
 	if err != nil {
 		if isSwitchContextError(err) {
-			return nil, nil, err
+			return nil, nil, errors.Wrap(err, "")
 		}
 
 		return nil, nil, e(err, "failed to enter next state")

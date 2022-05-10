@@ -92,7 +92,7 @@ func (GenesisNetworkPolicy) PreProcess(context.Context, base.GetStateFunc) (
 func (op GenesisNetworkPolicy) Process(context.Context, base.GetStateFunc) (
 	[]base.StateMergeValue, base.OperationProcessReasonError, error,
 ) {
-	fact := op.Fact().(GenesisNetworkPolicyFact)
+	fact := op.Fact().(GenesisNetworkPolicyFact) //nolint:forcetypeassert //...
 
 	return []base.StateMergeValue{
 		base.NewBaseStateMergeValue(

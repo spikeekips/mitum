@@ -72,27 +72,27 @@ func (st *JoiningHandler) enter(i switchContext) (func(), error) {
 
 	var manifest base.Manifest
 
-	switch i, found, err := st.lastManifest(); {
+	switch m, found, err := st.lastManifest(); {
 	case err != nil:
 		return nil, e(err, "")
 	case !found:
 		return nil, e(nil, "last manifest not found")
 	default:
-		switch suf, found, err := st.getSuffrage(i.Height() + 1); {
+		switch suf, found, err := st.getSuffrage(m.Height() + 1); {
 		case err != nil:
 			return nil, e(err, "")
 		case !found:
 		case !suf.Exists(st.local.Address()):
 			st.Log().Debug().Msg("local not in suffrage; moves to syncing")
 
-			return nil, newSyncingSwitchContext(StateEmpty, i.Height())
-		case suf.Len() < 2:
+			return nil, newSyncingSwitchContext(StateEmpty, m.Height())
+		case suf.Len() < 2: //nolint:gomnd //...
 			st.Log().Debug().Msg("local alone in suffrage; will not wait new voteproof")
 
 			st.waitFirstVoteproof = 0
 		}
 
-		manifest = i
+		manifest = m
 	}
 
 	return func() {
@@ -114,8 +114,9 @@ func (st *JoiningHandler) exit(sctx switchContext) (func(), error) {
 		deferred()
 
 		var timers []util.TimerID
+
 		if sctx != nil {
-			switch sctx.next() {
+			switch sctx.next() { //nolint:exhaustive //...
 			case StateConsensus, StateHandover:
 				timers = []util.TimerID{timerIDBroadcastINITBallot}
 			}
@@ -169,9 +170,9 @@ func (st *JoiningHandler) newVoteproof(vp base.Voteproof) error {
 
 	switch vp.Point().Stage() {
 	case base.StageINIT:
-		return st.newINITVoteproof(vp.(base.INITVoteproof), manifest)
+		return st.newINITVoteproof(vp.(base.INITVoteproof), manifest) //nolint:forcetypeassert //...
 	case base.StageACCEPT:
-		return st.newACCEPTVoteproof(vp.(base.ACCEPTVoteproof), manifest)
+		return st.newACCEPTVoteproof(vp.(base.ACCEPTVoteproof), manifest) //nolint:forcetypeassert //...
 	default:
 		return e(nil, "invalid voteproof received, %T", vp)
 	}
@@ -193,7 +194,7 @@ func (st *JoiningHandler) newINITVoteproof(ivp base.INITVoteproof, manifest base
 		go st.nextRound(ivp, manifest.Hash())
 
 		return nil
-	case !ivp.Majority().(isaac.INITBallotFact).PreviousBlock().Equal(manifest.Hash()):
+	case !ivp.Majority().(isaac.INITBallotFact).PreviousBlock().Equal(manifest.Hash()): //nolint:forcetypeassert //...
 		l.Debug().Msg("previous block of init voteproof does tno match with last manifest; moves to syncing state")
 
 		return newSyncingSwitchContext(StateJoining, ivp.Point().Height()-1)
@@ -230,7 +231,7 @@ func (st *JoiningHandler) newACCEPTVoteproof(avp base.ACCEPTVoteproof, manifest 
 }
 
 // firstVoteproof handles the voteproof, which is received before joining
-// handler. It will help to prevent voting stuck. firstVoteproof waits for given
+// handler. It will help to prevent voting stuck. It waits for given
 // time, if no incoming voteproof, process last voteproof.
 func (st *JoiningHandler) firstVoteproof(lvp base.Voteproof, manifest base.Manifest) {
 	if lvp == nil {

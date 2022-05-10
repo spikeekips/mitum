@@ -79,9 +79,10 @@ func (box *Ballotbox) Count() {
 
 	for i := range nvrs {
 		vr := nvrs[i]
-		if _, found, _ := vr.getSuffrage(); !found {
+		if _, found, err := vr.getSuffrage(); !found || err != nil {
 			break
 		}
+
 		_ = box.count(vr, vr.stagepoint)
 	}
 
@@ -116,6 +117,7 @@ func (box *Ballotbox) vote(bl base.Ballot) (bool, func() base.Voteproof, error) 
 
 	var vp base.Voteproof
 	voted, validated, err := vr.vote(bl)
+
 	switch {
 	case err != nil:
 		return false, nil, e(err, "")
@@ -163,12 +165,12 @@ func (box *Ballotbox) newVoterecords(bl base.Ballot) *voterecords {
 func (box *Ballotbox) lastStagePoint() base.StagePoint {
 	i, _ := box.lsp.Value()
 
-	return i.(base.StagePoint)
+	return i.(base.StagePoint) //nolint:forcetypeassert //...
 }
 
 func (box *Ballotbox) setLastStagePoint(p base.StagePoint) bool {
 	_, err := box.lsp.Set(func(i interface{}) (interface{}, error) {
-		lsp := i.(base.StagePoint)
+		lsp := i.(base.StagePoint) //nolint:forcetypeassert //...
 
 		if lsp.Compare(p) >= 0 {
 			return nil, errors.Errorf("not higher")
@@ -228,6 +230,7 @@ func (box *Ballotbox) clean() {
 
 	lsp := box.lastStagePoint()
 	stagepoint := lsp.Decrease()
+
 	if lsp.IsZero() || stagepoint.IsZero() {
 		return
 	}
@@ -253,6 +256,7 @@ func (box *Ballotbox) filterVoterecords(filter func(*voterecords) (bool, bool)) 
 
 	for stagepoint := range box.vrs {
 		vr := box.vrs[stagepoint]
+
 		keep, ok := filter(vr)
 		if ok {
 			vrs[n] = vr
@@ -285,7 +289,7 @@ func (box *Ballotbox) notFinishedVoterecords() ([]*voterecords, []*voterecords) 
 		}
 	})
 
-	if len(vrs) < 2 {
+	if len(vrs) < 2 { //nolint:gomnd //...
 		return nil, vrs
 	}
 
@@ -330,7 +334,7 @@ type voterecords struct {
 	ballots                      map[string]base.Ballot
 	isValidVoteproofWithSuffrage func(base.Voteproof, base.Suffrage) error
 	getSuffrageFunc              isaac.GetSuffrageByBlockHeight
-	nodes                        map[string]struct{}
+	nodes                        map[string]struct{} // revive:disable-line:nested-structs
 	voted                        map[string]base.Ballot
 	suf                          *util.Locked
 	set                          []string
@@ -347,7 +351,7 @@ func newVoterecords(
 	getSuffrageFunc isaac.GetSuffrageByBlockHeight,
 	threshold base.Threshold,
 ) *voterecords {
-	vr := voterecordsPool.Get().(*voterecords)
+	vr := voterecordsPool.Get().(*voterecords) //nolint:forcetypeassert //...
 
 	vr.stagepoint = stagepoint
 	vr.isValidVoteproofWithSuffrage = isValidVoteproofWithSuffrage
@@ -373,6 +377,7 @@ func (vr *voterecords) vote(bl base.Ballot) (voted bool, validated bool, err err
 	if _, found := vr.nodes[node]; found {
 		return false, false, nil
 	}
+
 	if _, found := vr.ballots[node]; found {
 		return false, false, nil
 	}
@@ -417,6 +422,7 @@ func (vr *voterecords) count(lastStagePoint base.StagePoint) []base.Voteproof {
 
 	var digged base.Voteproof
 	var vpchecked bool
+
 	if len(vr.ballots) > 0 {
 		for i := range vr.ballots {
 			bl := vr.ballots[i]
@@ -479,7 +485,10 @@ func (vr *voterecords) countFromBallots() base.Voteproof {
 		i++
 	}
 
-	set, sfs, m, _ := base.CountBallotSignedFacts(collectedsfs)
+	set, sfs, m, err := base.CountBallotSignedFacts(collectedsfs)
+	if err != nil {
+		return nil
+	}
 
 	vr.voted = map[string]base.Ballot{}
 
@@ -563,7 +572,7 @@ func (vr *voterecords) getSuffrage() (base.Suffrage, bool, error) {
 	case err == nil:
 		return nil, false, nil
 	case errors.Is(err, util.ErrFound):
-		return i.(base.Suffrage), true, nil
+		return i.(base.Suffrage), true, nil //nolint:forcetypeassert //...
 	case errors.Is(err, util.ErrNotFound):
 		return nil, false, nil
 	default:

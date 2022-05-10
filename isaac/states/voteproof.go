@@ -48,11 +48,11 @@ func (l *LastVoteproofsHandler) Set(vp base.Voteproof) bool {
 		return false
 	}
 
-	switch vp.Point().Stage() {
+	switch vp.Point().Stage() { //nolint:exhaustive //...
 	case base.StageINIT:
-		l.ivp = vp.(base.INITVoteproof)
+		l.ivp = vp.(base.INITVoteproof) //nolint:forcetypeassert //...
 	case base.StageACCEPT:
-		l.avp = vp.(base.ACCEPTVoteproof)
+		l.avp = vp.(base.ACCEPTVoteproof) //nolint:forcetypeassert //...
 	}
 
 	if vp.Result() == base.VoteResultMajority {
@@ -98,19 +98,19 @@ func (l LastVoteproofs) PreviousBlockForNextRound(vp base.Voteproof) util.Hash {
 		return nil
 	}
 
-	switch l.mvp.Point().Stage() {
+	switch l.mvp.Point().Stage() { //nolint:exhaustive //...
 	case base.StageINIT:
 		if l.mvp.Point().Height() != vp.Point().Height() {
 			return nil
 		}
 
-		return l.mvp.Majority().(base.INITBallotFact).PreviousBlock()
+		return l.mvp.Majority().(base.INITBallotFact).PreviousBlock() //nolint:forcetypeassert //...
 	case base.StageACCEPT:
 		if l.mvp.Point().Height() != vp.Point().Height()-1 {
 			return nil
 		}
 
-		return l.mvp.Majority().(base.ACCEPTBallotFact).NewBlock()
+		return l.mvp.Majority().(base.ACCEPTBallotFact).NewBlock() //nolint:forcetypeassert //...
 	}
 
 	return nil

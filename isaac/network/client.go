@@ -57,8 +57,9 @@ func (c *baseNodeNetworkClient) RequestProposal(
 	if err != nil {
 		return nil, false, e(err, "failed to send request")
 	}
+
 	defer func() {
-		_ = r.Close()
+		_ = r.Close() //nolint:errcheck //...
 	}()
 
 	rb, err := quicstream.ReadAll(ctx, r)
@@ -138,6 +139,7 @@ func (c *baseNodeNetworkClient) LastSuffrage(
 	}
 
 	hinter, err := c.readHinter(rb)
+
 	switch {
 	case err != nil:
 		return nil, false, e(err, "")

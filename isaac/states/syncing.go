@@ -131,7 +131,7 @@ func (st *SyncingHandler) checkFinished(vp base.Voteproof) (bool, error) {
 		// NOTE expected init voteproof found, moves to consensus state
 		l.Debug().Msg("expected init voteproof found; moves to syncing state")
 
-		return false, newConsensusSwitchContext(StateSyncing, vp.(base.INITVoteproof))
+		return false, newConsensusSwitchContext(StateSyncing, vp.(base.INITVoteproof)) //nolint:forcetypeassert //...
 	default:
 		height := vp.Point().Height()
 		if vp.Point().Stage() == base.StageINIT {
@@ -234,7 +234,7 @@ func (st *SyncingHandler) newStuckCancel(vp base.Voteproof) {
 	}()
 }
 
-type syncingSwitchContext struct {
+type syncingSwitchContext struct { //nolint:errname //...
 	baseSwitchContext
 	height base.Height
 }
