@@ -179,7 +179,7 @@ func isNetworkError(err error) bool {
 	}
 
 	var nerr net.Error
-	if nerr != nil && errors.As(err, &nerr) {
+	if errors.As(err, &nerr) {
 		return true
 	}
 

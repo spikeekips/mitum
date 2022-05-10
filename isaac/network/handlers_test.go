@@ -34,7 +34,6 @@ func (t *testQuicstreamNodeNetworkHandlers) SetupSuite() {
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: RequestProposalBodyHint, Instance: RequestProposalBody{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ProposalBodyHint, Instance: ProposalBody{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageCandidateHint, Instance: isaac.SuffrageCandidate{}}))
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageInfoHint, Instance: isaac.SuffrageInfo{}}))
 }
 
 func (t *testQuicstreamNodeNetworkHandlers) TestClient() {
@@ -56,7 +55,7 @@ func (t *testQuicstreamNodeNetworkHandlers) TestRequestProposal() {
 		pool,
 	)
 
-	handlers := NewQuicstreamNodeNetworkHandlers(t.Local, t.Encs, t.Enc, pool, proposalMaker, nil)
+	handlers := NewQuicstreamNodeNetworkHandlers(t.Local, t.Encs, t.Enc, pool, proposalMaker)
 	send := func(ctx context.Context, ci quictransport.ConnInfo, prefix string, b []byte) (io.ReadCloser, error) {
 		if prefix != HandlerPrefixRequestProposal {
 			return nil, errors.Errorf("unknown request, %q", prefix)
@@ -115,7 +114,7 @@ func (t *testQuicstreamNodeNetworkHandlers) TestProposal() {
 	_, err = pool.SetProposal(pr)
 	t.NoError(err)
 
-	handlers := NewQuicstreamNodeNetworkHandlers(t.Local, t.Encs, t.Enc, pool, proposalMaker, nil)
+	handlers := NewQuicstreamNodeNetworkHandlers(t.Local, t.Encs, t.Enc, pool, proposalMaker)
 	send := func(ctx context.Context, ci quictransport.ConnInfo, prefix string, b []byte) (io.ReadCloser, error) {
 		if prefix != HandlerPrefixProposal {
 			return nil, errors.Errorf("unknown request, %q", prefix)
@@ -158,57 +157,6 @@ func (t *testQuicstreamNodeNetworkHandlers) TestProposal() {
 		t.ErrorContains(err, "invalid ProposalBody")
 		t.False(found)
 		t.Nil(pr)
-	})
-}
-
-func (t *testQuicstreamNodeNetworkHandlers) TestLastSuffrageState() {
-	height := base.Height(33)
-
-	info := newSuffrageInfo(height, 3, 3)
-
-	pool := t.NewPool()
-	defer pool.Close()
-
-	handlers := NewQuicstreamNodeNetworkHandlers(t.Local, t.Encs, t.Enc, pool, nil, nil)
-	send := func(ctx context.Context, ci quictransport.ConnInfo, prefix string, b []byte) (io.ReadCloser, error) {
-		if prefix != HandlerPrefixLastSuffrage {
-			return nil, errors.Errorf("unknown request, %q", prefix)
-		}
-
-		r := bytes.NewBuffer(b)
-		w := bytes.NewBuffer(nil)
-
-		if err := handlers.LastSuffrage(nil, r, w); err != nil {
-			return nil, errors.Wrap(err, "failed to handle request")
-		}
-
-		return io.NopCloser(w), nil
-	}
-
-	ci := quictransport.NewBaseConnInfo(nil, true)
-	c := newBaseNodeNetworkClient(t.Encs, t.Enc, send)
-
-	t.Run("found", func() {
-		handlers.lastSuffragef = func() (base.SuffrageInfo, bool, error) {
-			return info, true, nil
-		}
-
-		rinfo, found, err := c.LastSuffrage(context.Background(), ci)
-		t.NoError(err)
-		t.True(found)
-
-		base.EqualSuffrageInfo(t.Assert(), info, rinfo)
-	})
-
-	t.Run("not found", func() {
-		handlers.lastSuffragef = func() (base.SuffrageInfo, bool, error) {
-			return nil, false, nil
-		}
-
-		rinfo, found, err := c.LastSuffrage(context.Background(), ci)
-		t.NoError(err)
-		t.False(found)
-		t.Nil(rinfo)
 	})
 }
 

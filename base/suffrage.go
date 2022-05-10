@@ -64,11 +64,3 @@ func LoadSuffrageState(st State) (SuffrageStateValue, error) {
 
 	return j, nil
 }
-
-type SuffrageInfo interface {
-	util.IsValider
-	State() util.Hash // NOTE suffrage state hash
-	Height() Height   // NOTE suffrage height
-	Suffrage() []Node
-	Candidates() []SuffrageCandidate
-}

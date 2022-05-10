@@ -56,8 +56,20 @@ func (s SuffrageProof) IsValid(b []byte) error {
 	return nil
 }
 
-func (s SuffrageProof) SuffrageMap() base.BlockMap {
+func (s SuffrageProof) Map() base.BlockMap {
 	return s.m
+}
+
+func (s SuffrageProof) State() base.State {
+	return s.st
+}
+
+func (s SuffrageProof) ACCEPTVoteproof() base.ACCEPTVoteproof {
+	return s.voteproof
+}
+
+func (s SuffrageProof) Proof() fixedtree.Proof {
+	return s.proof
 }
 
 func (s SuffrageProof) Suffrage() (base.Suffrage, error) {

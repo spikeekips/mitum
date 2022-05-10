@@ -36,7 +36,6 @@ var Hinters = []encoder.DecodeDetail{
 	{Hint: isaac.ProposalFactHint, Instance: isaac.ProposalFact{}},
 	{Hint: isaac.ProposalSignedFactHint, Instance: isaac.ProposalSignedFact{}},
 	{Hint: isaac.SuffrageCandidateHint, Instance: isaac.SuffrageCandidate{}},
-	{Hint: isaac.SuffrageInfoHint, Instance: isaac.SuffrageInfo{}},
 	{Hint: isaac.SuffrageStateValueHint, Instance: isaac.SuffrageStateValue{}},
 	{Hint: isaacblock.BlockMapHint, Instance: isaacblock.BlockMap{}},
 	{Hint: isaacblock.SuffrageProofHint, Instance: isaacblock.SuffrageProof{}},

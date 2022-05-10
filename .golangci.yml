@@ -497,7 +497,6 @@ linters-settings:
       - OPTIMIZE # marks code that should be optimized before merging
       - HACK # marks hack-around that should be removed before merging
       - BLOCK
-      - BLOCK
 
   gofmt:
     # Simplify code: gofmt with `-s` option.

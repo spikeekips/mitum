@@ -118,43 +118,6 @@ func (c *baseNodeNetworkClient) Proposal(
 	}
 }
 
-func (c *baseNodeNetworkClient) LastSuffrage(
-	ctx context.Context,
-	ci quictransport.ConnInfo,
-) (base.SuffrageInfo, bool, error) {
-	e := util.StringErrorFunc("failed to request proposal")
-
-	r, err := c.send(ctx, ci, HandlerPrefixLastSuffrage, nil)
-	if err != nil {
-		return nil, false, e(err, "failed to send request")
-	}
-
-	rb, err := quicstream.ReadAll(ctx, r)
-
-	switch {
-	case err != nil:
-		return nil, false, e(err, "failed to read stream")
-	case len(rb) < 1:
-		return nil, false, nil
-	}
-
-	hinter, err := c.readHinter(rb)
-
-	switch {
-	case err != nil:
-		return nil, false, e(err, "")
-	case hinter == nil:
-		return nil, false, nil
-	}
-
-	info, ok := hinter.(base.SuffrageInfo)
-	if !ok {
-		return nil, false, e(nil, "invalid response; not SuffrageNodesNetworkInfo")
-	}
-
-	return info, true, nil
-}
-
 func (c *baseNodeNetworkClient) loadProposal(b []byte) (base.ProposalSignedFact, error) {
 	hinter, err := c.readHinter(b)
 

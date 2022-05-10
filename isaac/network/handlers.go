@@ -12,15 +12,10 @@ import (
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
-type (
-	QuicstreamNodeNetworkHandlerLastSuffrageFunction func() (base.SuffrageInfo, bool, error)
-)
-
 type QuicstreamNodeNetworkHandlers struct {
 	pool isaac.TempPoolDatabase
 	*baseNodeNetwork
 	proposalMaker *isaac.ProposalMaker
-	lastSuffragef QuicstreamNodeNetworkHandlerLastSuffrageFunction
 	local         isaac.LocalNode
 }
 
@@ -30,14 +25,12 @@ func NewQuicstreamNodeNetworkHandlers(
 	enc encoder.Encoder,
 	pool isaac.TempPoolDatabase,
 	proposalMaker *isaac.ProposalMaker,
-	lastSuffragef QuicstreamNodeNetworkHandlerLastSuffrageFunction,
 ) *QuicstreamNodeNetworkHandlers {
 	return &QuicstreamNodeNetworkHandlers{
 		baseNodeNetwork: newBaseNodeNetwork(encs, enc),
 		local:           local,
 		pool:            pool,
 		proposalMaker:   proposalMaker,
-		lastSuffragef:   lastSuffragef,
 	}
 }
 
@@ -154,23 +147,6 @@ func (c *QuicstreamNodeNetworkHandlers) Proposal(_ net.Addr, r io.Reader, w io.W
 	}
 
 	return nil
-}
-
-func (c *QuicstreamNodeNetworkHandlers) LastSuffrage(_ net.Addr, _ io.Reader, w io.Writer) error {
-	e := util.StringErrorFunc("failed to handle get last suffrage state")
-
-	switch info, found, err := c.lastSuffragef(); {
-	case err != nil:
-		return e(err, "")
-	case !found:
-		return nil
-	default:
-		if err := c.response(w, info); err != nil {
-			return e(err, "")
-		}
-
-		return nil
-	}
 }
 
 func (c *QuicstreamNodeNetworkHandlers) response(w io.Writer, i interface{}) error {
