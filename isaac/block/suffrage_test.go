@@ -181,6 +181,23 @@ func (t *testSuffrageProof) TestInvalid() {
 		t.ErrorContains(err, "expected SuffrageStateValue")
 	})
 
+	t.Run("height not match", func() {
+		current := base.NewBaseState(
+			t.point.Height()+1,
+			isaac.SuffrageStateKey,
+			t.current.Value(),
+			t.current.Previous(),
+			t.current.Operations(),
+		)
+
+		p := NewSuffrageProof(SuffrageProofHint, t.blockMap, current, t.proof, t.voteproof)
+
+		err := p.IsValid(t.NodePolicy.NetworkID())
+		t.Error(err)
+		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorContains(err, "state height does not match with manifest")
+	})
+
 	t.Run("not majority voteproof", func() {
 		afact := t.NewACCEPTBallotFact(t.point, valuehash.RandomSHA256(), valuehash.RandomSHA256())
 		avp, err := t.NewACCEPTVoteproof(afact, t.Local, t.locals)

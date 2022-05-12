@@ -45,6 +45,10 @@ func (s SuffrageProof) IsValid(b []byte) error {
 		return e(err, "")
 	}
 
+	if s.st.Height() != s.m.Manifest().Height() {
+		return e(util.ErrInvalid.Errorf("state height does not match with manifest"), "")
+	}
+
 	if _, err := s.Suffrage(); err != nil {
 		return e(util.ErrInvalid.Wrap(err), "")
 	}
