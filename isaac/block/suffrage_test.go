@@ -22,7 +22,6 @@ type testSuffrageProof struct {
 	isaacdatabase.BaseTestDatabase
 	locals    []isaac.LocalNode
 	nodes     []base.Node
-	suffrage  base.Suffrage
 	point     base.Point
 	blockMap  base.BlockMap
 	previous  base.State
@@ -47,8 +46,6 @@ func (t *testSuffrageProof) prepare(point base.Point) {
 	for i := range t.nodes {
 		t.nodes[i] = t.locals[i]
 	}
-
-	t.suffrage, _ = isaac.NewSuffrage(t.nodes)
 
 	var previousHash util.Hash
 	if point.Height() == base.GenesisHeight {
@@ -89,11 +86,9 @@ func (t *testSuffrageProof) prepare(point base.Point) {
 	t.NoError(err)
 
 	t.proof, _ = tr.Proof(t.current.Hash().String())
-	t.NoError(err)
 
 	afact := t.NewACCEPTBallotFact(t.point, valuehash.RandomSHA256(), t.blockMap.Manifest().Hash())
 	t.voteproof, _ = t.NewACCEPTVoteproof(afact, t.Local, t.locals)
-	t.NoError(err)
 }
 
 func (t *testSuffrageProof) newitem(ty base.BlockMapItemType) BlockMapItem {

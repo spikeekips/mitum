@@ -127,6 +127,7 @@ type runCommand struct {
 	proposalSelector     *isaac.BaseProposalSelector
 	pool                 *isaacdatabase.TempPool
 	getSuffrage          func(blockheight base.Height) (base.Suffrage, bool, error)
+	getSuffrageBooting   func(blockheight base.Height) (base.Suffrage, bool, error)
 	getManifest          func(height base.Height) (base.Manifest, error)
 	getLastManifest      func() (base.Manifest, bool, error)
 	newProposalProcessor newProposalProcessorFunc
@@ -161,7 +162,11 @@ func (cmd *runCommand) Run() error {
 		Interface("node_policy", cmd.nodePolicy).
 		Msg("node policy loaded")
 
+	// BLOCK implement isaacstates.NewSuffrageStateBuilder(cmd.nodePolicy.NetworkID(), )
+
 	cmd.getSuffrage = cmd.getSuffrageFunc()
+	//BLOCK implement cmd.getSuffrageBooting   func(blockheight base.Height) (base.Suffrage, bool, error) {
+	//}
 	cmd.getManifest = cmd.getManifestFunc()
 	cmd.proposalSelector = cmd.proposalSelectorFunc()
 	cmd.getLastManifest = cmd.getLastManifestFunc()

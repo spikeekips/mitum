@@ -198,7 +198,7 @@ func IsValidVoteproofWithSuffrage(vp Voteproof, suf Suffrage) error {
 
 		switch {
 		case !suf.Exists(n.Node()):
-			return e(util.ErrInvalid.Errorf("unknown node found, %q", n), "")
+			return e(util.ErrInvalid.Errorf("unknown node found, %q", n.Node()), "")
 		case !suf.ExistsPublickey(n.Node(), n.Signer()):
 			return e(util.ErrInvalid.Errorf("wrong publickey"), "")
 		}

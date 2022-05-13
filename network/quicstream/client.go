@@ -179,9 +179,6 @@ func isNetworkError(err error) bool {
 	}
 
 	var nerr net.Error
-	if errors.As(err, &nerr) {
-		return true
-	}
 
-	return false
+	return errors.As(err, &nerr)
 }
