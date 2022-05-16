@@ -2,6 +2,7 @@ package isaac
 
 import (
 	"context"
+	"io"
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
@@ -26,6 +27,7 @@ type BlockWriter interface {
 
 type BlockReader interface {
 	Map() (base.BlockMap, bool, error)
-	Reader(base.BlockMapItemType) (util.ChecksumReader, bool, error)
+	Reader(base.BlockMapItemType) (io.ReadCloser, bool, error)
+	ChecksumReader(base.BlockMapItemType) (util.ChecksumReader, bool, error)
 	Item(base.BlockMapItemType) (interface{}, bool, error)
 }

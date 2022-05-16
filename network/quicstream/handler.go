@@ -11,18 +11,21 @@ import (
 
 const handlerPrefixSize = 32
 
-type Handler func(net.Addr, io.Reader, io.Writer) error
+type (
+	Handler      func(net.Addr, io.Reader, io.Writer) error
+	ErrorHandler func(net.Addr, io.Reader, io.Writer, error) error
+)
 
-type PrefixHandler struct {
+type PrefixHandler struct { // BLOCK remove; unused
 	handlers     map[string]Handler
-	errorHandler Handler
+	errorHandler ErrorHandler
 }
 
-func NewPrefixHandler(errorHandler Handler) *PrefixHandler {
+func NewPrefixHandler(errorHandler ErrorHandler) *PrefixHandler {
 	nerrorHandler := errorHandler
 	if nerrorHandler == nil {
-		nerrorHandler = func(net.Addr, io.Reader, io.Writer) error {
-			return errors.Errorf("handler not found")
+		nerrorHandler = func(_ net.Addr, _ io.Reader, _ io.Writer, err error) error {
+			return errors.Wrap(err, "")
 		}
 	}
 
@@ -35,20 +38,20 @@ func NewPrefixHandler(errorHandler Handler) *PrefixHandler {
 func (h *PrefixHandler) Handler(addr net.Addr, r io.Reader, w io.Writer) error {
 	handler, err := h.loadHandler(r)
 	if err != nil {
-		return h.doErrorHandler(addr, r, w)
+		return h.errorHandler(addr, r, w, errors.Errorf("handler not found"))
 	}
 
-	return handler(addr, r, w)
+	if err := handler(addr, r, w); err != nil {
+		return h.errorHandler(addr, r, w, err)
+	}
+
+	return nil
 }
 
 func (h *PrefixHandler) Add(prefix string, handler Handler) *PrefixHandler {
 	h.handlers[string(valuehash.NewSHA256([]byte(prefix)).Bytes())] = handler
 
 	return h
-}
-
-func (h *PrefixHandler) doErrorHandler(addr net.Addr, r io.Reader, w io.Writer) error {
-	return h.errorHandler(addr, r, w)
 }
 
 func (h *PrefixHandler) loadHandler(r io.Reader) (Handler, error) {

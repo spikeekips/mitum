@@ -95,7 +95,58 @@ func (r *LocalFSReader) Map() (base.BlockMap, bool, error) {
 	}
 }
 
-func (r *LocalFSReader) Reader(t base.BlockMapItemType) (util.ChecksumReader, bool, error) {
+func (r *LocalFSReader) Reader(t base.BlockMapItemType) (io.ReadCloser, bool, error) {
+	e := util.StringErrorFunc("failed to make reader, %q", t)
+
+	var fpath string
+
+	switch i, err := BlockFileName(t, r.enc); {
+	case err != nil:
+		return nil, false, e(err, "")
+	default:
+		fpath = filepath.Join(r.root, i)
+	}
+
+	i, _, _ := r.readersl.Get(t, func() (interface{}, error) { //nolint:errcheck //...
+		switch fi, err := os.Stat(fpath); {
+		case err != nil:
+			return err, nil //nolint:nilerr,wrapcheck //...
+		case fi.IsDir():
+			return errors.Errorf("not normal file; directory"), nil
+		default:
+			return nil, nil
+		}
+	})
+
+	if i != nil {
+		switch err, ok := i.(error); {
+		case !ok:
+			return nil, false, nil
+		case os.IsNotExist(err):
+			return nil, false, nil
+		default:
+			return nil, false, e(err, "")
+		}
+	}
+
+	f, err := os.Open(filepath.Clean(fpath))
+	if err == nil {
+		return f, true, nil
+	}
+
+	_ = r.readersl.SetValue(t, err)
+
+	switch {
+	case err == nil:
+		return f, true, nil
+	case os.IsNotExist(err):
+		return nil, false, nil
+	default:
+		return nil, false, e(err, "")
+	}
+}
+
+func (r *LocalFSReader) ChecksumReader(t base.BlockMapItemType) (util.ChecksumReader, bool, error) {
 	e := util.StringErrorFunc("failed to make reader, %q", t)
 
 	var fpath string
@@ -193,7 +244,7 @@ func (r *LocalFSReader) item(t base.BlockMapItemType) (interface{}, bool, error)
 
 	var f util.ChecksumReader
 
-	switch i, found, err := r.Reader(t); {
+	switch i, found, err := r.ChecksumReader(t); {
 	case err != nil:
 		return nil, false, e(err, "")
 	case !found:

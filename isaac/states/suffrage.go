@@ -15,7 +15,7 @@ import (
 // should be valid(IsValid()).
 type SuffrageStateBuilder struct {
 	lastproof         isaac.SuffrageProof
-	lastSuffrageProof func(context.Context) (isaac.SuffrageProof, bool, error)
+	lastSuffrageProof func(context.Context) (isaac.SuffrageProof, error)
 	getSuffrageProof  func(context.Context, base.Height) (isaac.SuffrageProof, bool, error)
 	networkID         base.NetworkID
 	numbatches        int64
@@ -23,7 +23,7 @@ type SuffrageStateBuilder struct {
 
 func NewSuffrageStateBuilder(
 	networkID base.NetworkID,
-	lastSuffrageProof func(context.Context) (isaac.SuffrageProof, bool, error),
+	lastSuffrageProof func(context.Context) (isaac.SuffrageProof, error),
 	getSuffrageProof func(context.Context, base.Height) (isaac.SuffrageProof, bool, error),
 ) *SuffrageStateBuilder {
 	return &SuffrageStateBuilder{
@@ -57,10 +57,10 @@ func (s *SuffrageStateBuilder) Build(ctx context.Context, localstate base.State)
 
 	var last base.State
 
-	switch proof, found, err := s.lastSuffrageProof(ctx); {
+	switch proof, err := s.lastSuffrageProof(ctx); {
 	case err != nil:
 		return nil, e(err, "")
-	case !found:
+	case proof == nil:
 		return nil, e(util.ErrNotFound.Call(), "last suffrage proof not found")
 	default:
 		if err := proof.IsValid(s.networkID); err != nil {

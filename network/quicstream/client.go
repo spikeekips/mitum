@@ -88,7 +88,7 @@ func (c *Client) Dial(ctx context.Context) (quic.EarlyConnection, error) {
 	return session, nil
 }
 
-func (c *Client) Send(ctx context.Context, b []byte) (quic.Stream, error) {
+func (c *Client) Send(ctx context.Context, b []byte) (quic.Stream, error) { // BLOCK rename to Write
 	e := util.StringErrorFunc("failed to send")
 
 	session, err := c.dial(ctx)

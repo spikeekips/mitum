@@ -289,6 +289,75 @@ func (t *testLocalFSReader) TestReader() {
 	})
 }
 
+func (t *testLocalFSReader) TestChecksumReader() {
+	point := base.RawPoint(33, 44)
+	fs, _, _, _, _, _, _ := t.preparefs(point)
+	m, err := fs.Save(context.Background())
+	t.NoError(err)
+
+	{
+		t.walkDirectory(fs.root)
+
+		b, _ := util.MarshalJSONIndent(m)
+		t.T().Log("blockmap:", string(b))
+	}
+
+	r, err := NewLocalFSReader(t.root, point.Height(), t.Enc)
+	t.NoError(err)
+
+	t.Run("unknown", func() {
+		f, found, err := r.ChecksumReader(base.BlockMapItemType("findme"))
+		t.Error(err)
+		t.False(found)
+		t.Nil(f)
+
+		t.ErrorContains(err, "unknown block map item type")
+	})
+
+	t.Run("all knowns", func() {
+		types := []base.BlockMapItemType{
+			base.BlockMapItemTypeProposal,
+			base.BlockMapItemTypeOperations,
+			base.BlockMapItemTypeOperationsTree,
+			base.BlockMapItemTypeStates,
+			base.BlockMapItemTypeStatesTree,
+			base.BlockMapItemTypeVoteproofs,
+		}
+
+		for i := range types {
+			f, found, err := r.ChecksumReader(types[i])
+			t.NoError(err, "type: %q", types[i])
+			t.True(found, "type: %q", types[i])
+			t.NotNil(f, "type: %q", types[i])
+		}
+	})
+
+	t.Run("known and found", func() {
+		f, found, err := r.ChecksumReader(base.BlockMapItemTypeProposal)
+		t.NoError(err)
+		t.True(found)
+		defer f.Close()
+
+		b, err := io.ReadAll(f)
+		t.NoError(err)
+		hinter, err := t.Enc.Decode(b)
+		t.NoError(err)
+
+		_ = hinter.(base.ProposalSignedFact)
+	})
+
+	t.Run("known, but not found", func() {
+		// NOTE remove
+		fname, _ := BlockFileName(base.BlockMapItemTypeOperations, t.Enc)
+		t.NoError(os.Remove(filepath.Join(r.root, fname)))
+
+		f, found, err := r.ChecksumReader(base.BlockMapItemTypeOperations)
+		t.NoError(err)
+		t.False(found)
+		t.Nil(f)
+	})
+}
+
 func (t *testLocalFSReader) TestItem() {
 	point := base.RawPoint(33, 44)
 	fs, pr, ops, opstree, stts, sttstree, vps := t.preparefs(point)

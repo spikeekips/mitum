@@ -240,7 +240,7 @@ func (t *testServer) TestServerGone() {
 func (t *testServer) TestPrefixHandler() {
 	srv := t.NewDefaultServer()
 
-	handler := NewPrefixHandler(func(_ net.Addr, r io.Reader, w io.Writer) error {
+	handler := NewPrefixHandler(func(_ net.Addr, r io.Reader, w io.Writer, err error) error {
 		_, _ = w.Write([]byte("hehehe"))
 
 		return nil

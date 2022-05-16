@@ -11,24 +11,24 @@ import (
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
-type QuicstreamNodeNetworkClient struct {
-	*baseNodeNetworkClient
+type QuicstreamClient struct {
+	*baseNetworkClient
 	client *quicstream.PoolClient
 	proto  string
 }
 
-func NewQuicstreamNodeNetworkClient(
+func NewQuicstreamClient(
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
 	proto string,
-) *QuicstreamNodeNetworkClient {
-	c := &QuicstreamNodeNetworkClient{
-		baseNodeNetworkClient: newBaseNodeNetworkClient(encs, enc, nil),
-		client:                quicstream.NewPoolClient(),
-		proto:                 proto,
+) *QuicstreamClient {
+	c := &QuicstreamClient{
+		baseNetworkClient: newBaseNetworkClient(encs, enc, nil),
+		client:            quicstream.NewPoolClient(),
+		proto:             proto,
 	}
 
-	c.baseNodeNetworkClient.send = func(
+	c.baseNetworkClient.send = func(
 		ctx context.Context,
 		ci quictransport.ConnInfo,
 		prefix string,
@@ -45,7 +45,7 @@ func NewQuicstreamNodeNetworkClient(
 	return c
 }
 
-func (c *QuicstreamNodeNetworkClient) newClient(ci quictransport.ConnInfo) func(*net.UDPAddr) *quicstream.Client {
+func (c *QuicstreamClient) newClient(ci quictransport.ConnInfo) func(*net.UDPAddr) *quicstream.Client {
 	return func(*net.UDPAddr) *quicstream.Client {
 		return quicstream.NewClient(
 			ci.Address(),

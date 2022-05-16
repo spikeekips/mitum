@@ -24,13 +24,13 @@ func InterfaceSetValue(v, target interface{}) error {
 	switch t := elem.Type(); t.Kind() {
 	case reflect.Interface:
 		if !reflect.TypeOf(v).Implements(t) {
-			return errors.Errorf("%T not implements the target, %T", v, elem.Interface())
+			return errors.Errorf("expoected %T, but %T", elem.Interface(), v)
 		}
 	default:
 		if elem.Type() != reflect.TypeOf(v) {
-			return errors.Errorf("%T, not the expected %T type", v, elem.Interface())
+			return errors.Errorf("expoected %T, but %T", elem.Interface(), v)
 		} else if !elem.CanSet() {
-			return errors.Errorf("target can not set")
+			return errors.Errorf("target can not be set")
 		}
 	}
 

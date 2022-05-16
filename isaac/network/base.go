@@ -1,195 +1,106 @@
 package isaacnetwork
 
 import (
-	"bytes"
+	"io"
 
-	"github.com/pkg/errors"
-	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
-	"github.com/spikeekips/mitum/util/hint"
-	"github.com/spikeekips/mitum/util/valuehash"
-)
-
-var (
-	RequestProposalBodyHint = hint.MustNewHint("request-proposal-body-v0.0.1")
-	ProposalBodyHint        = hint.MustNewHint("proposal-body-v0.0.1")
 )
 
 var (
 	HandlerPrefixRequestProposal = "request_proposal"
 	HandlerPrefixProposal        = "proposal"
-	HandlerPrefixLastSuffrage    = "last_suffrage_"
+	HandlerPrefixSuffrageProof   = "suffrage_proof"
+	HandlerPrefixLastBlockMap    = "last_blockmap"
+	HandlerPrefixBlockMap        = "blockmap"
+	HandlerPrefixBlockMapItem    = "blockmap_item"
 )
 
-type baseNodeNetwork struct {
+type baseNetwork struct {
 	encs *encoder.Encoders
 	enc  encoder.Encoder
 }
 
-func newBaseNodeNetwork(
+func newBaseNetwork(
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
-) *baseNodeNetwork {
-	return &baseNodeNetwork{
+) *baseNetwork {
+	return &baseNetwork{
 		encs: encs,
 		enc:  enc,
 	}
 }
 
-func (c *baseNodeNetwork) marshal(i interface{}) ([]byte, error) {
-	b, err := c.enc.Marshal(i)
-	if err != nil {
-		return nil, errors.Wrap(err, "")
+func (c *baseNetwork) response(w io.Writer, header Header, body interface{}, enc encoder.Encoder) error {
+	e := util.StringErrorFunc("failed to write response")
+
+	var b []byte
+	if body != nil {
+		i, err := enc.Marshal(body)
+		if err != nil {
+			return e(err, "")
+		}
+
+		b = i
 	}
 
-	return c.marshalWithEncoder(b), nil
-}
-
-func (c *baseNodeNetwork) marshalWithEncoder(b []byte) []byte {
-	h := make([]byte, hint.MaxHintLength)
-	copy(h, c.enc.Hint().Bytes())
-
-	return util.ConcatBytesSlice(h, b)
-}
-
-func (c *baseNodeNetwork) readEncoder(b []byte) (encoder.Encoder, []byte, error) {
-	if b == nil {
-		return nil, nil, nil
+	if err := writeHint(w, enc.Hint()); err != nil {
+		return e(err, "")
 	}
 
-	var ht hint.Hint
+	var headerb []byte
+	if header != nil {
+		i, err := enc.Marshal(header)
+		if err != nil {
+			return e(err, "")
+		}
 
-	ht, raw, err := c.readHint(b)
+		headerb = i
+	}
+
+	if err := writeHeader(w, headerb); err != nil {
+		return e(err, "")
+	}
+
+	if _, err := ensureWrite(w, b); err != nil {
+		return e(err, "failed to write body")
+	}
+
+	return nil
+}
+
+func (c *baseNetwork) readEncoder(r io.Reader) (encoder.Encoder, error) {
+	e := util.StringErrorFunc("failed to read encoder")
+
+	ht, err := readHint(r)
 	if err != nil {
-		return nil, nil, err
+		return nil, e(err, "")
 	}
 
 	switch enc := c.encs.Find(ht); {
 	case enc == nil:
-		return nil, nil, util.ErrNotFound.Errorf("encoder not found for %q", ht)
+		return nil, e(util.ErrNotFound.Errorf("encoder not found for %q", ht), "")
 	default:
-		return enc, raw, nil
+		return enc, nil
 	}
 }
 
-func (c *baseNodeNetwork) readHinter(b []byte) (interface{}, error) {
-	switch enc, raw, err := c.readEncoder(b); {
-	case err != nil:
-		return nil, err
-	case enc == nil:
-		return nil, nil
-	default:
-		i, err := enc.Decode(raw)
+func (c *baseNetwork) readHinter(r io.Reader, enc encoder.Encoder, v interface{}) error {
+	e := util.StringErrorFunc("failed to read hinter")
 
-		return i, errors.Wrap(err, "")
-	}
-}
-
-func (*baseNodeNetwork) readHint(b []byte) (hint.Hint, []byte, error) {
-	if len(b) < hint.MaxHintLength {
-		return hint.Hint{}, nil, errors.Errorf("none hinted string; too short")
-	}
-
-	ht, err := hint.ParseHint(string(bytes.TrimRight(b[:hint.MaxHintLength], "\x00")))
+	b, err := io.ReadAll(r)
 	if err != nil {
-		return hint.Hint{}, nil, err
-	}
-
-	return ht, b[hint.MaxHintLength:], nil
-}
-
-type RequestProposalBody struct {
-	Proposer base.Address
-	hint.BaseHinter
-	Point base.Point
-}
-
-func NewRequestProposalBody(point base.Point, proposer base.Address) RequestProposalBody {
-	return RequestProposalBody{
-		BaseHinter: hint.NewBaseHinter(RequestProposalBodyHint),
-		Point:      point,
-		Proposer:   proposer,
-	}
-}
-
-func (body RequestProposalBody) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid RequestProposalBody")
-
-	if err := body.BaseHinter.IsValid(body.Hint().Type().Bytes()); err != nil {
 		return e(err, "")
 	}
 
-	if err := util.CheckIsValid(nil, false, body.Point, body.Proposer); err != nil {
+	hinter, err := enc.Decode(b)
+	if err != nil {
 		return e(err, "")
 	}
 
-	return nil
-}
-
-type requestProposalBodyJSONUnmarshaler struct {
-	Proposer string
-	Point    base.Point
-}
-
-func (body *RequestProposalBody) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to unmarshal RequestProposalBody")
-
-	var u requestProposalBodyJSONUnmarshaler
-	if err := util.UnmarshalJSON(b, &u); err != nil {
+	if err := util.InterfaceSetValue(hinter, v); err != nil {
 		return e(err, "")
 	}
-
-	switch addr, err := base.DecodeAddress(u.Proposer, enc); {
-	case err != nil:
-		return e(err, "")
-	default:
-		body.Proposer = addr
-	}
-
-	body.Point = u.Point
-
-	return nil
-}
-
-type ProposalBody struct {
-	Proposal util.Hash
-	hint.BaseHinter
-}
-
-func NewProposalBody(pr util.Hash) ProposalBody {
-	return ProposalBody{
-		BaseHinter: hint.NewBaseHinter(ProposalBodyHint),
-		Proposal:   pr,
-	}
-}
-
-func (body ProposalBody) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid ProposalBody")
-
-	if err := body.BaseHinter.IsValid(body.Hint().Type().Bytes()); err != nil {
-		return e(err, "")
-	}
-
-	if err := util.CheckIsValid(nil, false, body.Proposal); err != nil {
-		return e(err, "")
-	}
-
-	return nil
-}
-
-type proposalBodyJSONUnmarshaler struct {
-	Proposal valuehash.HashDecoder
-}
-
-func (body *ProposalBody) UnmarshalJSON(b []byte) error {
-	var u proposalBodyJSONUnmarshaler
-	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return errors.Wrap(err, "failed to unmarshal proposalBody")
-	}
-
-	body.Proposal = u.Proposal.Hash()
 
 	return nil
 }
