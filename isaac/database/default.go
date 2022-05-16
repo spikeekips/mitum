@@ -220,7 +220,7 @@ func (db *Default) State(key string) (base.State, bool, error) {
 		case err != nil:
 			return false, errors.Wrap(err, "")
 		case found:
-			_, _ = l.Set(func(old interface{}) (interface{}, error) { //nolint:errcheck //...
+			_, _ = l.Set(func(old interface{}) (interface{}, error) {
 				switch {
 				case old == nil:
 					return st, nil

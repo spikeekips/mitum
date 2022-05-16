@@ -12,7 +12,7 @@ import (
 
 func SHA256Checksum(b []byte) string {
 	sha := sha256.New()
-	_, _ = sha.Write(b) //nolint:errcheck //...
+	_, _ = sha.Write(b)
 
 	return checksumstring(sha)
 }

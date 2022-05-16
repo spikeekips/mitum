@@ -2,6 +2,7 @@ package quicstream
 
 import (
 	"context"
+	"io"
 	"net"
 	"time"
 
@@ -28,7 +29,7 @@ func (p *PoolClient) Dial(
 ) (quic.EarlyConnection, error) {
 	var found bool
 	var client *Client
-	_, _ = p.clients.Set(addr.String(), func(i interface{}) (interface{}, error) { //nolint:errcheck //...
+	_, _ = p.clients.Set(addr.String(), func(i interface{}) (interface{}, error) {
 		if !util.IsNilLockedValue(i) {
 			item := i.(*poolClientItem) //nolint:forcetypeassert // ...
 			item.accessed = time.Now()
@@ -62,14 +63,14 @@ func (p *PoolClient) Dial(
 	return session, nil
 }
 
-func (p *PoolClient) Send(
+func (p *PoolClient) Write(
 	ctx context.Context,
 	addr *net.UDPAddr,
-	b []byte,
+	f func(io.Writer) error,
 	newClient func(*net.UDPAddr) *Client,
 ) (quic.Stream, error) {
 	var client *Client
-	_, _ = p.clients.Set(addr.String(), func(i interface{}) (interface{}, error) { //nolint:errcheck //...
+	_, _ = p.clients.Set(addr.String(), func(i interface{}) (interface{}, error) {
 		if !util.IsNilLockedValue(i) {
 			item := i.(*poolClientItem) //nolint:forcetypeassert // ...
 			item.accessed = time.Now()
@@ -87,7 +88,7 @@ func (p *PoolClient) Send(
 		}, nil
 	})
 
-	r, err := client.Send(ctx, b)
+	r, err := client.Write(ctx, f)
 	if err != nil {
 		go p.onerror(addr, client, err)
 
@@ -115,7 +116,7 @@ func (p *PoolClient) onerror(addr *net.UDPAddr, c *Client, err error) {
 		return
 	}
 
-	_ = p.clients.Remove(addr.String(), nil) //nolint:errcheck //...
+	_ = p.clients.Remove(addr.String(), nil)
 
 	if p.onerrorf != nil {
 		p.onerrorf(addr, c, err)
@@ -141,7 +142,7 @@ func (p *PoolClient) Clean(cleanDuration time.Duration) int {
 	}
 
 	for i := range removeds[:n] {
-		_ = p.clients.Remove(removeds[i], nil) //nolint:errcheck //...
+		_ = p.clients.Remove(removeds[i], nil)
 	}
 
 	return n

@@ -150,7 +150,7 @@ func (c *qconn) Close() error {
 			c.closef()
 		}
 
-		_ = c.w.Close() //nolint:errcheck //...
+		_ = c.w.Close()
 	})
 
 	return nil
@@ -215,8 +215,8 @@ func (c *qconn) writeClose(b []byte) bool {
 	}
 
 	go func() {
-		_, _ = c.w.Write(b) //nolint:errcheck //...
-		_ = c.w.Close()     //nolint:errcheck //...
+		_, _ = c.w.Write(b)
+		_ = c.w.Close()
 	}()
 
 	return true

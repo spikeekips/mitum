@@ -31,10 +31,11 @@ func newBaseNetwork(
 	}
 }
 
-func (c *baseNetwork) response(w io.Writer, header Header, body interface{}, enc encoder.Encoder) error {
+func (*baseNetwork) response(w io.Writer, header Header, body interface{}, enc encoder.Encoder) error {
 	e := util.StringErrorFunc("failed to write response")
 
 	var b []byte
+
 	if body != nil {
 		i, err := enc.Marshal(body)
 		if err != nil {
@@ -49,6 +50,7 @@ func (c *baseNetwork) response(w io.Writer, header Header, body interface{}, enc
 	}
 
 	var headerb []byte
+
 	if header != nil {
 		i, err := enc.Marshal(header)
 		if err != nil {
@@ -85,7 +87,7 @@ func (c *baseNetwork) readEncoder(r io.Reader) (encoder.Encoder, error) {
 	}
 }
 
-func (c *baseNetwork) readHinter(r io.Reader, enc encoder.Encoder, v interface{}) error {
+func (*baseNetwork) readHinter(r io.Reader, enc encoder.Encoder, v interface{}) error {
 	e := util.StringErrorFunc("failed to read hinter")
 
 	b, err := io.ReadAll(r)

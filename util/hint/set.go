@@ -95,7 +95,7 @@ func (st *CompatibleSet) Find(ht Hint) interface{} {
 
 	hr := st.find(ht)
 
-	_ = st.cache.Set(ht.String(), hr) //nolint:errcheck //...
+	_ = st.cache.Set(ht.String(), hr)
 
 	return hr
 }

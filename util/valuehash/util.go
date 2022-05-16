@@ -8,14 +8,14 @@ import (
 
 func RandomSHA256() util.Hash {
 	b := make([]byte, 100)
-	_, _ = rand.Read(b) //nolint:errcheck //..
+	_, _ = rand.Read(b)
 
 	return NewSHA256(b)
 }
 
 func RandomSHA512() util.Hash {
 	b := make([]byte, 100)
-	_, _ = rand.Read(b) //nolint:errcheck //..
+	_, _ = rand.Read(b)
 
 	return NewSHA512(b)
 }

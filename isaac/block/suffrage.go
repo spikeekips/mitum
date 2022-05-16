@@ -107,8 +107,8 @@ func (s SuffrageProof) Prove(previousState base.State) error {
 			return e(err, "")
 		}
 
-		previous, _ := base.LoadSuffrageState(previousState) //nolint:errcheck //...
-		current, _ := base.LoadSuffrageState(s.st)           //nolint:errcheck //...
+		previous, _ := base.LoadSuffrageState(previousState)
+		current, _ := base.LoadSuffrageState(s.st)
 
 		if current.Height() != previous.Height()+1 {
 			return e(nil, "invalid previous state value; not +1")

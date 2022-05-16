@@ -10,7 +10,7 @@ import (
 
 func Int64ToBytes(i int64) []byte {
 	b := new(bytes.Buffer)
-	_ = binary.Write(b, binary.LittleEndian, i) //nolint:errcheck //...
+	_ = binary.Write(b, binary.LittleEndian, i)
 
 	return b.Bytes()
 }
@@ -28,7 +28,7 @@ func BytesToInt64(b []byte) (int64, error) {
 
 func Uint64ToBytes(i uint64) []byte {
 	b := new(bytes.Buffer)
-	_ = binary.Write(b, binary.LittleEndian, i) //nolint:errcheck //...
+	_ = binary.Write(b, binary.LittleEndian, i)
 
 	return b.Bytes()
 }
@@ -54,14 +54,14 @@ func Float64ToBytes(i float64) []byte {
 
 func UintToBytes(i uint) []byte {
 	b := new(bytes.Buffer)
-	_ = binary.Write(b, binary.LittleEndian, uint64(i)) //nolint:errcheck //...
+	_ = binary.Write(b, binary.LittleEndian, uint64(i))
 
 	return b.Bytes()
 }
 
 func Uint8ToBytes(i uint8) []byte {
 	b := new(bytes.Buffer)
-	_ = binary.Write(b, binary.LittleEndian, i) //nolint:errcheck //...
+	_ = binary.Write(b, binary.LittleEndian, i)
 
 	return b.Bytes()
 }

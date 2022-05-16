@@ -141,7 +141,7 @@ func (srv *Memberlist) start(ctx context.Context) error {
 	<-ctx.Done()
 
 	// NOTE leave before shutdown
-	_ = srv.m.Leave(time.Second * 3) //nolint:gomnd,errcheck //...
+	_ = srv.m.Leave(time.Second * 3) //nolint:gomnd //...
 
 	if err := srv.m.Shutdown(); err != nil {
 		return errors.Wrap(err, "failed to shutdown memberlist")
@@ -244,7 +244,7 @@ func (srv *Memberlist) whenLeft(node Node) {
 	srv.joinedLock.Lock()
 	defer srv.joinedLock.Unlock()
 
-	_ = srv.members.Remove(node.Address()) //nolint:errcheck //...
+	_ = srv.members.Remove(node.Address())
 
 	srv.Log().Debug().Interface("node", node).Msg("node left")
 }
@@ -345,7 +345,7 @@ func (m *membersPool) NodesLen(node base.Address) int {
 
 func (m *membersPool) Set(node Node) bool {
 	var found bool
-	_, _ = m.addrs.Set(nodeid(node.Address()), func(i interface{}) (interface{}, error) { //nolint:errcheck //...
+	_, _ = m.addrs.Set(nodeid(node.Address()), func(i interface{}) (interface{}, error) {
 		switch {
 		case i == nil:
 		case util.IsNilLockedValue(i):
@@ -373,12 +373,12 @@ func (m *membersPool) Set(node Node) bool {
 }
 
 func (m *membersPool) Remove(k *net.UDPAddr) error {
-	_ = m.addrs.Remove(nodeid(k), func(i interface{}) error { //nolint:errcheck //...
+	_ = m.addrs.Remove(nodeid(k), func(i interface{}) error {
 		switch {
 		case i == nil:
 		case util.IsNilLockedValue(i):
 		default:
-			_ = m.nodes.Remove(i.(Node).Node().String(), nil) //nolint:forcetypeassert,errcheck // ...
+			_ = m.nodes.Remove(i.(Node).Node().String(), nil) //nolint:forcetypeassert // ...
 		}
 
 		return nil

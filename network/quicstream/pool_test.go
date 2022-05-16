@@ -17,6 +17,38 @@ type testPool struct {
 	BaseTest
 }
 
+func (t *testPool) TestWrite() {
+	srv := t.NewDefaultServer()
+
+	t.NoError(srv.Start())
+	defer srv.Stop()
+
+	p := NewPoolClient()
+
+	b := util.UUID().Bytes()
+	r, err := p.Write(
+		context.Background(),
+		t.Bind,
+		DefaultClientWriteFunc(b),
+		func(addr *net.UDPAddr) *Client {
+			client := t.NewClient(addr)
+			client.quicconfig = &quic.Config{
+				HandshakeIdleTimeout: time.Millisecond * 100,
+			}
+
+			return client
+		},
+	)
+	t.NoError(err)
+
+	rb, err := ReadAll(context.Background(), r)
+	t.NoError(err)
+	t.Equal(b, rb)
+	t.Equal(1, p.clients.Len())
+
+	t.True(p.clients.Exists(t.Bind.String()))
+}
+
 func (t *testPool) TestSend() {
 	srv := t.NewDefaultServer()
 
@@ -26,10 +58,10 @@ func (t *testPool) TestSend() {
 	p := NewPoolClient()
 
 	b := util.UUID().Bytes()
-	r, err := p.Send(
+	r, err := p.Write(
 		context.Background(),
 		t.Bind,
-		b,
+		DefaultClientWriteFunc(b),
 		func(addr *net.UDPAddr) *Client {
 			client := t.NewClient(addr)
 			client.quicconfig = &quic.Config{
@@ -58,10 +90,10 @@ func (t *testPool) TestFailedToDial() {
 	}
 
 	var clientid string
-	_, err := p.Send(
+	_, err := p.Write(
 		context.Background(),
 		t.Bind,
-		util.UUID().Bytes(),
+		DefaultClientWriteFunc(util.UUID().Bytes()),
 		func(addr *net.UDPAddr) *Client {
 			client := t.NewClient(addr)
 			client.quicconfig = &quic.Config{
@@ -95,10 +127,10 @@ func (t *testPool) TestRemoveAgain() {
 	p := NewPoolClient()
 
 	var oldclient *Client
-	_, err := p.Send(
+	_, err := p.Write(
 		context.Background(),
 		t.Bind,
-		util.UUID().Bytes(),
+		DefaultClientWriteFunc(util.UUID().Bytes()),
 		func(addr *net.UDPAddr) *Client {
 			oldclient = t.NewClient(addr)
 			oldclient.quicconfig = &quic.Config{
@@ -113,10 +145,10 @@ func (t *testPool) TestRemoveAgain() {
 	p.onerror(t.Bind, oldclient, &quic.ApplicationError{})
 	t.False(p.clients.Exists(t.Bind.String()))
 
-	_, err = p.Send(
+	_, err = p.Write(
 		context.Background(),
 		t.Bind,
-		util.UUID().Bytes(),
+		DefaultClientWriteFunc(util.UUID().Bytes()),
 		func(addr *net.UDPAddr) *Client {
 			client := t.NewClient(addr)
 			client.quicconfig = &quic.Config{
@@ -153,10 +185,10 @@ func (t *testPool) TestClean() {
 	_ = p.clients.SetValue(refreshed, &poolClientItem{client: t.NewClient(t.Bind), accessed: time.Now().Add(dur * -1)})
 	youngs[3] = refreshed
 
-	_, err := p.Send(
+	_, err := p.Write(
 		context.Background(),
 		t.Bind,
-		util.UUID().Bytes(),
+		DefaultClientWriteFunc(util.UUID().Bytes()),
 		func(*net.UDPAddr) *Client { return nil },
 	)
 	t.NoError(err)

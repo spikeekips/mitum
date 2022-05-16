@@ -28,18 +28,12 @@ func NewQuicstreamClient(
 		proto:             proto,
 	}
 
-	c.baseNetworkClient.send = func(
+	c.baseNetworkClient.writef = func(
 		ctx context.Context,
 		ci quictransport.ConnInfo,
-		prefix string,
-		b []byte,
+		writef quicstream.ClientWriteFunc,
 	) (io.ReadCloser, error) {
-		return c.client.Send(
-			ctx,
-			ci.Address(),
-			quicstream.BodyWithPrefix(prefix, b),
-			c.newClient(ci),
-		)
+		return c.client.Write(ctx, ci.Address(), writef, c.newClient(ci))
 	}
 
 	return c
@@ -53,7 +47,6 @@ func (c *QuicstreamClient) newClient(ci quictransport.ConnInfo) func(*net.UDPAdd
 				InsecureSkipVerify: ci.Insecure(), //nolint:gosec //...
 				NextProtos:         []string{c.proto},
 			},
-			nil,
 			nil,
 			nil,
 		)

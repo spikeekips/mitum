@@ -28,7 +28,7 @@ func (t *testClient) TestSessionRemove() {
 		HandshakeIdleTimeout: time.Millisecond * 100,
 	}
 
-	_, err := client.Send(context.Background(), util.UUID().Bytes())
+	_, err := client.Write(context.Background(), DefaultClientWriteFunc(util.UUID().Bytes()))
 	t.NoError(err)
 
 	i, isnil := client.session.Value()
@@ -38,7 +38,7 @@ func (t *testClient) TestSessionRemove() {
 	t.NoError(srv.Stop())
 
 	t.Run("send after stopped", func() {
-		_, err = client.Send(context.Background(), util.UUID().Bytes())
+		_, err := client.Write(context.Background(), DefaultClientWriteFunc(util.UUID().Bytes()))
 		t.Error(err)
 
 		t.True(isNetworkError(err))
@@ -49,7 +49,7 @@ func (t *testClient) TestSessionRemove() {
 	})
 
 	t.Run("send again after stopped", func() {
-		_, err = client.Send(context.Background(), util.UUID().Bytes())
+		_, err := client.Write(context.Background(), DefaultClientWriteFunc(util.UUID().Bytes()))
 		t.Error(err)
 
 		var nerr net.Error
@@ -67,7 +67,7 @@ func (t *testClient) TestSessionRemove() {
 	defer newsrv.Stop()
 
 	t.Run("send again after restarting", func() {
-		_, err = client.Send(context.Background(), util.UUID().Bytes())
+		_, err := client.Write(context.Background(), DefaultClientWriteFunc(util.UUID().Bytes()))
 		t.NoError(err)
 	})
 }

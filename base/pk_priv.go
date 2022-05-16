@@ -33,9 +33,9 @@ type MPrivatekey struct {
 }
 
 func NewMPrivatekey() MPrivatekey {
-	secret, _ := btcec.NewPrivateKey(btcec.S256()) //nolint:errcheck // ...
+	secret, _ := btcec.NewPrivateKey(btcec.S256())
 
-	wif, _ := btcutil.NewWIF(secret, &chaincfg.MainNetParams, true) //nolint:errcheck // ...
+	wif, _ := btcutil.NewWIF(secret, &chaincfg.MainNetParams, true)
 
 	return newMPrivatekeyFromWIF(wif)
 }

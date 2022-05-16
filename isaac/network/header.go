@@ -1,0 +1,285 @@
+package isaacnetwork
+
+import (
+	"github.com/pkg/errors"
+	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/hint"
+)
+
+var (
+	RequestProposalRequestHeaderHint = hint.MustNewHint("request-proposal-header-v0.0.1")
+	ProposalHeaderHint               = hint.MustNewHint("proposal-header-v0.0.1")
+	SuffrageProofHeaderHint          = hint.MustNewHint("suffrage-proof-header-v0.0.1")
+	LastBlockMapHeaderHint           = hint.MustNewHint("last-blockmap-header-v0.0.1")
+	BlockMapHeaderHint               = hint.MustNewHint("blockmap-header-v0.0.1")
+	BlockMapItemHeaderHint           = hint.MustNewHint("blockmap-item-header-v0.0.1")
+)
+
+var (
+	ErrorResponseHeaderHint = hint.MustNewHint("error-response-header-v0.0.1")
+	OKResponseHeaderHint    = hint.MustNewHint("ok-response-header-v0.0.1")
+)
+
+type Header interface {
+	util.IsValider
+	ThisIsHeader()
+}
+
+type BaseHeader struct {
+	hint.BaseHinter
+}
+
+func NewBaseHeader(ht hint.Hint) BaseHeader {
+	return BaseHeader{
+		BaseHinter: hint.NewBaseHinter(ht),
+	}
+}
+
+func (BaseHeader) ThisIsHeader() {}
+
+type RequestProposalRequestHeader struct {
+	proposer base.Address
+	BaseHeader
+	point base.Point
+}
+
+func NewRequestProposalRequestHeader(point base.Point, proposer base.Address) RequestProposalRequestHeader {
+	return RequestProposalRequestHeader{
+		BaseHeader: NewBaseHeader(RequestProposalRequestHeaderHint),
+		point:      point,
+		proposer:   proposer,
+	}
+}
+
+func (h RequestProposalRequestHeader) IsValid([]byte) error {
+	e := util.StringErrorFunc("invalid RequestProposalHeader")
+
+	if err := h.BaseHinter.IsValid(h.Hint().Type().Bytes()); err != nil {
+		return e(err, "")
+	}
+
+	if err := util.CheckIsValid(nil, false, h.point, h.proposer); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
+func (h RequestProposalRequestHeader) Proposer() base.Address {
+	return h.proposer
+}
+
+func (h RequestProposalRequestHeader) Point() base.Point {
+	return h.point
+}
+
+type ProposalRequestHeader struct {
+	proposal util.Hash
+	BaseHeader
+}
+
+func NewProposalRequestHeader(proposal util.Hash) ProposalRequestHeader {
+	return ProposalRequestHeader{
+		BaseHeader: NewBaseHeader(ProposalHeaderHint),
+		proposal:   proposal,
+	}
+}
+
+func (h ProposalRequestHeader) IsValid([]byte) error {
+	e := util.StringErrorFunc("invalid ProposalHeader")
+
+	if err := h.BaseHinter.IsValid(h.Hint().Type().Bytes()); err != nil {
+		return e(err, "")
+	}
+
+	if err := util.CheckIsValid(nil, false, h.proposal); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
+func (h ProposalRequestHeader) Proposal() util.Hash {
+	return h.proposal
+}
+
+type SuffrageProofRequestHeader struct {
+	state util.Hash
+	BaseHeader
+}
+
+func NewSuffrageProofRequestHeader(state util.Hash) SuffrageProofRequestHeader {
+	return SuffrageProofRequestHeader{
+		BaseHeader: NewBaseHeader(SuffrageProofHeaderHint),
+		state:      state,
+	}
+}
+
+func (h SuffrageProofRequestHeader) IsValid([]byte) error {
+	e := util.StringErrorFunc("invalid LastSuffrageProofHeader")
+
+	if err := h.BaseHinter.IsValid(h.Hint().Type().Bytes()); err != nil {
+		return e(err, "")
+	}
+
+	if err := util.CheckIsValid(nil, false, h.state); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
+func (h SuffrageProofRequestHeader) State() util.Hash {
+	return h.state
+}
+
+type LastBlockMapRequestHeader struct {
+	manifest util.Hash
+	BaseHeader
+}
+
+func NewLastBlockMapHeader(manifest util.Hash) LastBlockMapRequestHeader {
+	return LastBlockMapRequestHeader{
+		BaseHeader: NewBaseHeader(LastBlockMapHeaderHint),
+		manifest:   manifest,
+	}
+}
+
+func (h LastBlockMapRequestHeader) IsValid([]byte) error {
+	e := util.StringErrorFunc("invalid LastLastBlockMapHeader")
+
+	if err := h.BaseHinter.IsValid(h.Hint().Type().Bytes()); err != nil {
+		return e(err, "")
+	}
+
+	if err := util.CheckIsValid(nil, true, h.manifest); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
+func (h LastBlockMapRequestHeader) Manifest() util.Hash {
+	return h.manifest
+}
+
+type BlockMapRequestHeader struct {
+	BaseHeader
+	height base.Height
+}
+
+func NewBlockMapHeader(height base.Height) BlockMapRequestHeader {
+	return BlockMapRequestHeader{
+		BaseHeader: NewBaseHeader(BlockMapHeaderHint),
+		height:     height,
+	}
+}
+
+func (h BlockMapRequestHeader) IsValid([]byte) error {
+	e := util.StringErrorFunc("invalid LastBlockMapHeader")
+
+	if err := h.BaseHinter.IsValid(h.Hint().Type().Bytes()); err != nil {
+		return e(err, "")
+	}
+
+	if err := util.CheckIsValid(nil, false, h.height); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
+func (h BlockMapRequestHeader) Height() base.Height {
+	return h.height
+}
+
+type BlockMapItemRequestHeader struct {
+	item base.BlockMapItemType
+	BaseHeader
+	height base.Height
+}
+
+func NewBlockMapItemRequestHeader(height base.Height, item base.BlockMapItemType) BlockMapItemRequestHeader {
+	return BlockMapItemRequestHeader{
+		BaseHeader: NewBaseHeader(BlockMapItemHeaderHint),
+		height:     height,
+		item:       item,
+	}
+}
+
+func (h BlockMapItemRequestHeader) IsValid([]byte) error {
+	e := util.StringErrorFunc("invalid LastBlockMapItemHeader")
+
+	if err := h.BaseHinter.IsValid(h.Hint().Type().Bytes()); err != nil {
+		return e(err, "")
+	}
+
+	if err := util.CheckIsValid(nil, false, h.height, h.item); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
+func (h BlockMapItemRequestHeader) Height() base.Height {
+	return h.height
+}
+
+func (h BlockMapItemRequestHeader) Item() base.BlockMapItemType {
+	return h.item
+}
+
+type ErrorResponseHeader struct {
+	err error
+	BaseHeader
+}
+
+func NewErrorResponseHeader(err error) ErrorResponseHeader {
+	return ErrorResponseHeader{
+		BaseHeader: NewBaseHeader(ErrorResponseHeaderHint),
+		err:        err,
+	}
+}
+
+func (r ErrorResponseHeader) Err() error {
+	return r.err
+}
+
+func (r ErrorResponseHeader) IsValid([]byte) error {
+	if err := r.BaseHeader.BaseHinter.IsValid(ErrorResponseHeaderHint.Type().Bytes()); err != nil {
+		return errors.Wrap(err, "invalid ErrorResponseHeaderHint")
+	}
+
+	return nil
+}
+
+type OKResponseHeader struct {
+	err error
+	BaseHeader
+	ok bool
+}
+
+func NewOKResponseHeader(ok bool, err error) OKResponseHeader {
+	return OKResponseHeader{
+		BaseHeader: NewBaseHeader(OKResponseHeaderHint),
+		ok:         ok,
+		err:        err,
+	}
+}
+
+func (r OKResponseHeader) IsValid([]byte) error {
+	if err := r.BaseHeader.BaseHinter.IsValid(OKResponseHeaderHint.Type().Bytes()); err != nil {
+		return errors.Wrap(err, "invalid OKResponseHeaderHint")
+	}
+
+	return nil
+}
+
+func (r OKResponseHeader) OK() bool {
+	return r.ok
+}
+
+func (r OKResponseHeader) Err() error {
+	return r.err
+}

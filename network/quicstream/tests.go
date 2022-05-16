@@ -82,7 +82,6 @@ func (t *BaseTest) NewClient(addr *net.UDPAddr) *Client {
 		},
 		nil,
 		nil,
-		nil,
 	)
 }
 

@@ -78,7 +78,7 @@ func newNodeFromMemberlist(node *memberlist.Node, enc encoder.Encoder) (BaseNode
 		meta = i
 	}
 
-	addr, _ := convertNetAddr(node) //nolint:errcheck //...
+	addr, _ := convertNetAddr(node)
 
 	return NewNode(node.Name, addr.(*net.UDPAddr), meta) //nolint:forcetypeassert // ...
 }

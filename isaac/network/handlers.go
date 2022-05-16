@@ -19,7 +19,7 @@ type QuicstreamHandlers struct {
 	suffrageProof func(util.Hash) (isaac.SuffrageProof, bool, error)
 	lastBlockMap  func(util.Hash) (base.BlockMap, bool, error)
 	blockMap      func(base.Height) (base.BlockMap, bool, error)
-	blockReader   func(base.Height) (isaac.BlockReader, error)
+	blockMapItem  func(base.Height, base.BlockMapItemType) (io.ReadCloser, bool, error)
 	local         isaac.LocalNode
 }
 
@@ -32,7 +32,7 @@ func NewQuicstreamHandlers(
 	suffrageProof func(util.Hash) (isaac.SuffrageProof, bool, error),
 	lastBlockMap func(util.Hash) (base.BlockMap, bool, error),
 	blockMap func(base.Height) (base.BlockMap, bool, error),
-	blockReader func(base.Height) (isaac.BlockReader, error),
+	blockMapItem func(base.Height, base.BlockMapItemType) (io.ReadCloser, bool, error),
 ) *QuicstreamHandlers {
 	return &QuicstreamHandlers{
 		baseNetwork:   newBaseNetwork(encs, enc),
@@ -42,13 +42,13 @@ func NewQuicstreamHandlers(
 		suffrageProof: suffrageProof,
 		lastBlockMap:  lastBlockMap,
 		blockMap:      blockMap,
-		blockReader:   blockReader,
+		blockMapItem:  blockMapItem,
 	}
 }
 
-func (c *QuicstreamHandlers) ErrorHandler(_ net.Addr, r io.Reader, w io.Writer, err error) error {
-	if err := c.response(w, NewErrorResponseHeader(err), nil, c.enc); err != nil {
-		return errors.Wrap(err, "failed to response error response")
+func (c *QuicstreamHandlers) ErrorHandler(_ net.Addr, _ io.Reader, w io.Writer, err error) error {
+	if e := c.response(w, NewErrorResponseHeader(err), nil, c.enc); e != nil {
+		return errors.Wrap(e, "failed to response error response")
 	}
 
 	return nil
@@ -62,8 +62,8 @@ func (c *QuicstreamHandlers) RequestProposal(_ net.Addr, r io.Reader, w io.Write
 		return e(err, "")
 	}
 
-	var body RequestProposalBody
-	if err := c.readHinter(r, enc, &body); err != nil {
+	var body RequestProposalRequestHeader
+	if err = c.readHinter(r, enc, &body); err != nil {
 		return e(err, "")
 	}
 
@@ -73,7 +73,7 @@ func (c *QuicstreamHandlers) RequestProposal(_ net.Addr, r io.Reader, w io.Write
 
 	// BLOCK if point is too old, returns error
 
-	pr, err := c.getOrCreateProposal(body.Point, body.Proposer)
+	pr, err := c.getOrCreateProposal(body.point, body.proposer)
 
 	header := NewOKResponseHeader(pr != nil, err)
 
@@ -92,8 +92,8 @@ func (c *QuicstreamHandlers) Proposal(_ net.Addr, r io.Reader, w io.Writer) erro
 		return e(err, "")
 	}
 
-	var body ProposalBody
-	if err := c.readHinter(r, enc, &body); err != nil {
+	var body ProposalRequestHeader
+	if err = c.readHinter(r, enc, &body); err != nil {
 		return e(err, "")
 	}
 
@@ -101,7 +101,7 @@ func (c *QuicstreamHandlers) Proposal(_ net.Addr, r io.Reader, w io.Writer) erro
 		return e(err, "")
 	}
 
-	pr, found, err := c.pool.Proposal(body.Proposal)
+	pr, found, err := c.pool.Proposal(body.proposal)
 
 	header := NewOKResponseHeader(found, err)
 
@@ -120,8 +120,8 @@ func (c *QuicstreamHandlers) SuffrageProof(_ net.Addr, r io.Reader, w io.Writer)
 		return e(err, "")
 	}
 
-	var body SuffrageProofBody
-	if err := c.readHinter(r, enc, &body); err != nil {
+	var body SuffrageProofRequestHeader
+	if err = c.readHinter(r, enc, &body); err != nil {
 		return e(err, "")
 	}
 
@@ -137,7 +137,7 @@ func (c *QuicstreamHandlers) SuffrageProof(_ net.Addr, r io.Reader, w io.Writer)
 
 // LastBlockMap responds the last BlockMap to client; if there is no BlockMap,
 // it returns nil BlockMap and not updated without error.
-func (c *QuicstreamHandlers) LastBlockMap(_ net.Addr, r io.Reader, w io.Writer) error {
+func (c *QuicstreamHandlers) LastBlockMap(_ net.Addr, r io.Reader, w io.Writer) error { //nolint:dupl //...
 	e := util.StringErrorFunc("failed to handle request last BlockMap")
 
 	enc, err := c.readEncoder(r)
@@ -145,8 +145,8 @@ func (c *QuicstreamHandlers) LastBlockMap(_ net.Addr, r io.Reader, w io.Writer) 
 		return e(err, "")
 	}
 
-	var body LastBlockMapBody
-	if err := c.readHinter(r, enc, &body); err != nil {
+	var body LastBlockMapRequestHeader
+	if err = c.readHinter(r, enc, &body); err != nil {
 		return e(err, "")
 	}
 
@@ -164,7 +164,7 @@ func (c *QuicstreamHandlers) LastBlockMap(_ net.Addr, r io.Reader, w io.Writer) 
 	return nil
 }
 
-func (c *QuicstreamHandlers) BlockMap(_ net.Addr, r io.Reader, w io.Writer) error {
+func (c *QuicstreamHandlers) BlockMap(_ net.Addr, r io.Reader, w io.Writer) error { //nolint:dupl //...
 	e := util.StringErrorFunc("failed to handle request BlockMap")
 
 	enc, err := c.readEncoder(r)
@@ -172,8 +172,8 @@ func (c *QuicstreamHandlers) BlockMap(_ net.Addr, r io.Reader, w io.Writer) erro
 		return e(err, "")
 	}
 
-	var body BlockMapBody
-	if err := c.readHinter(r, enc, &body); err != nil {
+	var body BlockMapRequestHeader
+	if err = c.readHinter(r, enc, &body); err != nil {
 		return e(err, "")
 	}
 
@@ -199,8 +199,8 @@ func (c *QuicstreamHandlers) BlockMapItem(_ net.Addr, r io.Reader, w io.Writer) 
 		return e(err, "")
 	}
 
-	var body BlockMapItemBody
-	if err := c.readHinter(r, enc, &body); err != nil {
+	var body BlockMapItemRequestHeader
+	if err = c.readHinter(r, enc, &body); err != nil {
 		return e(err, "")
 	}
 
@@ -208,12 +208,12 @@ func (c *QuicstreamHandlers) BlockMapItem(_ net.Addr, r io.Reader, w io.Writer) 
 		return e(err, "")
 	}
 
-	blockReader, err := c.blockReader(body.Height())
-	if err != nil {
-		return e(err, "")
+	itemr, found, err := c.blockMapItem(body.Height(), body.Item())
+	if itemr != nil {
+		defer func() {
+			_ = itemr.Close()
+		}()
 	}
-
-	reader, found, err := blockReader.Reader(body.Item())
 
 	header := NewOKResponseHeader(found, err)
 
@@ -221,7 +221,11 @@ func (c *QuicstreamHandlers) BlockMapItem(_ net.Addr, r io.Reader, w io.Writer) 
 		return e(err, "")
 	}
 
-	if _, err := io.Copy(w, reader); err != nil {
+	if itemr == nil {
+		return nil
+	}
+
+	if _, err := io.Copy(w, itemr); err != nil {
 		return e(err, "")
 	}
 

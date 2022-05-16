@@ -39,5 +39,5 @@ func (po *GCacheObjectPool) Get(key string) (interface{}, bool) {
 }
 
 func (po *GCacheObjectPool) Set(key string, v interface{}) {
-	_ = po.cache.Set(key, v) //nolint:errcheck //...
+	_ = po.cache.Set(key, v)
 }

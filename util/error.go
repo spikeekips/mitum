@@ -114,9 +114,9 @@ func (er Error) Format(st fmt.State, verb rune) {
 
 		fallthrough
 	case 's':
-		_, _ = io.WriteString(st, er.Error()) //nolint:errcheck //...
+		_, _ = io.WriteString(st, er.Error())
 	case 'q':
-		_, _ = fmt.Fprintf(st, "%q", er.Error()) //nolint:errcheck //...
+		_, _ = fmt.Fprintf(st, "%q", er.Error())
 	}
 }
 
@@ -272,7 +272,7 @@ func ZerologMarshalStack(err error) interface{} {
 		return out
 	}
 
-	uoutl := uout.([]map[string]string) //nolint:errcheck,forcetypeassert //...
+	uoutl := uout.([]map[string]string) //nolint:forcetypeassert //...
 
 	nout := make([]map[string]string, len(out)+len(uoutl))
 	copy(nout[:len(uoutl)], uoutl)

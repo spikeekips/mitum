@@ -2,6 +2,7 @@ package quictransport
 
 import (
 	"context"
+	"io"
 	"net"
 	"strings"
 	"sync"
@@ -79,10 +80,14 @@ func NewTransportWithQuicstream(
 			)
 		},
 		func(ctx context.Context, ci ConnInfo, b []byte) error {
-			_, err := poolclient.Send(
+			_, err := poolclient.Write(
 				ctx,
 				ci.Address(),
-				makebody(b),
+				func(w io.Writer) error {
+					_, err := w.Write(makebody(b))
+
+					return errors.Wrap(err, "")
+				},
 				newClient(ci),
 			)
 
@@ -273,7 +278,7 @@ func (t *Transport) newConn(raddr *net.UDPAddr) *qconn {
 			return n, err
 		},
 		func() {
-			_ = t.conns.Remove(raddr.String(), nil) //nolint:errcheck //...
+			_ = t.conns.Remove(raddr.String(), nil)
 		},
 	)
 

@@ -1,38 +1,37 @@
 package isaacnetwork
 
 import (
-	"bytes"
 	"context"
 	"io"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
+	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/network/quictransport"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
-type baseNetworkClientSend func(
+type baseNetworkClientWriteFunc func(
 	ctx context.Context,
 	conninfo quictransport.ConnInfo,
-	handlerprefix string,
-	body []byte,
+	writef quicstream.ClientWriteFunc,
 ) (io.ReadCloser, error)
 
 type baseNetworkClient struct {
 	*baseNetwork
-	send baseNetworkClientSend
+	writef baseNetworkClientWriteFunc
 }
 
 func newBaseNetworkClient(
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
-	send baseNetworkClientSend,
+	writef baseNetworkClientWriteFunc,
 ) *baseNetworkClient {
 	return &baseNetworkClient{
 		baseNetwork: newBaseNetwork(encs, enc),
-		send:        send,
+		writef:      writef,
 	}
 }
 
@@ -44,24 +43,19 @@ func (c *baseNetworkClient) RequestProposal(
 ) (base.ProposalSignedFact, bool, error) {
 	e := util.StringErrorFunc("failed to request proposal")
 
-	body := NewRequestProposalBody(point, proposer)
+	header := NewRequestProposalRequestHeader(point, proposer)
 
-	if err := body.IsValid(nil); err != nil {
+	if err := header.IsValid(nil); err != nil {
 		return nil, false, e(err, "")
 	}
 
-	b, err := c.marshal(body, c.enc)
-	if err != nil {
-		return nil, false, e(err, "failed to marshal body")
-	}
-
-	r, err := c.send(ctx, ci, HandlerPrefixRequestProposal, b)
+	r, err := c.write(ctx, ci, c.enc, HandlerPrefixRequestProposal, header, nil)
 	if err != nil {
 		return nil, false, e(err, "failed to send request")
 	}
 
 	defer func() {
-		_ = r.Close() //nolint:errcheck //...
+		_ = r.Close()
 	}()
 
 	h, enc, err := c.loadOKHeader(ctx, r)
@@ -74,34 +68,30 @@ func (c *baseNetworkClient) RequestProposal(
 	case !h.OK():
 		return nil, false, nil
 	default:
-		switch i, err := c.loadProposal(r, enc); {
-		case err != nil:
+		var u base.ProposalSignedFact
+
+		if err := c.loadBody(r, enc, &u); err != nil {
 			return nil, false, e(err, "")
-		default:
-			return i, true, nil
 		}
+
+		return u, true, nil
 	}
 }
 
-func (c *baseNetworkClient) Proposal(
+func (c *baseNetworkClient) Proposal( //nolint:dupl //...
 	ctx context.Context,
 	ci quictransport.ConnInfo,
 	pr util.Hash,
 ) (base.ProposalSignedFact, bool, error) {
 	e := util.StringErrorFunc("failed to get proposal")
 
-	body := NewProposalBody(pr)
+	header := NewProposalRequestHeader(pr)
 
-	if err := body.IsValid(nil); err != nil {
+	if err := header.IsValid(nil); err != nil {
 		return nil, false, e(err, "")
 	}
 
-	b, err := c.marshal(body, c.enc)
-	if err != nil {
-		return nil, false, e(err, "failed to marshal body")
-	}
-
-	r, err := c.send(ctx, ci, HandlerPrefixProposal, b)
+	r, err := c.write(ctx, ci, c.enc, HandlerPrefixProposal, header, nil)
 	if err != nil {
 		return nil, false, e(err, "failed to send request")
 	}
@@ -116,12 +106,13 @@ func (c *baseNetworkClient) Proposal(
 	case !h.OK():
 		return nil, false, nil
 	default:
-		switch i, err := c.loadProposal(r, enc); {
-		case err != nil:
+		var u base.ProposalSignedFact
+
+		if err := c.loadBody(r, enc, &u); err != nil {
 			return nil, false, e(err, "")
-		default:
-			return i, true, nil
 		}
+
+		return u, true, nil
 	}
 }
 
@@ -151,23 +142,18 @@ func (c *baseNetworkClient) LastSuffrageProof(
 	}
 }
 
-func (c *baseNetworkClient) SuffrageProof(
+func (c *baseNetworkClient) SuffrageProof( //nolint:dupl //...
 	ctx context.Context, ci quictransport.ConnInfo, state util.Hash,
 ) (isaac.SuffrageProof, bool, error) {
 	e := util.StringErrorFunc("failed to get suffrage proof")
 
-	body := NewSuffrageProofBody(state)
+	header := NewSuffrageProofRequestHeader(state)
 
-	if err := body.IsValid(nil); err != nil {
+	if err := header.IsValid(nil); err != nil {
 		return nil, false, e(err, "")
 	}
 
-	b, err := c.marshal(body, c.enc)
-	if err != nil {
-		return nil, false, e(err, "failed to marshal body")
-	}
-
-	r, err := c.send(ctx, ci, HandlerPrefixSuffrageProof, b)
+	r, err := c.write(ctx, ci, c.enc, HandlerPrefixSuffrageProof, header, nil)
 	if err != nil {
 		return nil, false, e(err, "failed to send request")
 	}
@@ -182,32 +168,28 @@ func (c *baseNetworkClient) SuffrageProof(
 	case !h.OK():
 		return nil, false, nil
 	default:
-		switch i, err := c.loadSuffrageProof(r, enc); {
-		case err != nil:
+		var u isaac.SuffrageProof
+
+		if err := c.loadBody(r, enc, &u); err != nil {
 			return nil, false, e(err, "")
-		default:
-			return i, true, nil
 		}
+
+		return u, true, nil
 	}
 }
 
-func (c *baseNetworkClient) LastBlockMap(
+func (c *baseNetworkClient) LastBlockMap( //nolint:dupl //...
 	ctx context.Context, ci quictransport.ConnInfo, manifest util.Hash,
 ) (base.BlockMap, bool, error) {
 	e := util.StringErrorFunc("failed to get last BlockMap")
 
-	body := NewLastBlockMapBody(manifest)
+	header := NewLastBlockMapHeader(manifest)
 
-	if err := body.IsValid(nil); err != nil {
+	if err := header.IsValid(nil); err != nil {
 		return nil, false, e(err, "")
 	}
 
-	b, err := c.marshal(body, c.enc)
-	if err != nil {
-		return nil, false, e(err, "failed to marshal body")
-	}
-
-	r, err := c.send(ctx, ci, HandlerPrefixLastBlockMap, b)
+	r, err := c.write(ctx, ci, c.enc, HandlerPrefixLastBlockMap, header, nil)
 	if err != nil {
 		return nil, false, e(err, "failed to send request")
 	}
@@ -222,32 +204,28 @@ func (c *baseNetworkClient) LastBlockMap(
 	case !h.OK():
 		return nil, false, nil
 	default:
-		switch i, err := c.loadBlockMap(r, enc); {
-		case err != nil:
+		var u base.BlockMap
+
+		if err := c.loadBody(r, enc, &u); err != nil {
 			return nil, false, e(err, "")
-		default:
-			return i, true, nil
 		}
+
+		return u, true, nil
 	}
 }
 
-func (c *baseNetworkClient) BlockMap(
+func (c *baseNetworkClient) BlockMap( //nolint:dupl //...
 	ctx context.Context, ci quictransport.ConnInfo, height base.Height,
 ) (base.BlockMap, bool, error) {
 	e := util.StringErrorFunc("failed to get BlockMap")
 
-	body := NewBlockMapBody(height)
+	header := NewBlockMapHeader(height)
 
-	if err := body.IsValid(nil); err != nil {
+	if err := header.IsValid(nil); err != nil {
 		return nil, false, e(err, "")
 	}
 
-	b, err := c.marshal(body, c.enc)
-	if err != nil {
-		return nil, false, e(err, "failed to marshal body")
-	}
-
-	r, err := c.send(ctx, ci, HandlerPrefixBlockMap, b)
+	r, err := c.write(ctx, ci, c.enc, HandlerPrefixBlockMap, header, nil)
 	if err != nil {
 		return nil, false, e(err, "failed to send request")
 	}
@@ -262,42 +240,52 @@ func (c *baseNetworkClient) BlockMap(
 	case !h.OK():
 		return nil, false, nil
 	default:
-		switch i, err := c.loadBlockMap(r, enc); {
-		case err != nil:
+		var u base.BlockMap
+
+		if err := c.loadBody(r, enc, &u); err != nil {
 			return nil, false, e(err, "")
-		default:
-			return i, true, nil
 		}
+
+		return u, true, nil
 	}
 }
 
 func (c *baseNetworkClient) BlockMapItem(
 	ctx context.Context, ci quictransport.ConnInfo, height base.Height, item base.BlockMapItemType,
-) (io.ReadCloser, error) {
+) (io.ReadCloser, bool, error) {
+	// NOTE the io.ReadCloser should be closed.
+
 	e := util.StringErrorFunc("failed to get BlockMap")
 
-	body := NewBlockMapItemBody(height, item)
+	header := NewBlockMapItemRequestHeader(height, item)
 
-	if err := body.IsValid(nil); err != nil {
-		return nil, e(err, "")
+	if err := header.IsValid(nil); err != nil {
+		return nil, false, e(err, "")
 	}
 
-	b, err := c.marshal(body, c.enc)
+	r, err := c.write(ctx, ci, c.enc, HandlerPrefixBlockMapItem, header, nil)
 	if err != nil {
-		return nil, e(err, "failed to marshal body")
+		return nil, false, e(err, "failed to send request")
 	}
 
-	r, err := c.send(ctx, ci, HandlerPrefixBlockMapItem, b)
-	if err != nil {
-		return nil, e(err, "failed to send request")
+	h, _, err := c.loadOKHeader(ctx, r)
+
+	switch {
+	case err != nil:
+		return nil, false, e(err, "failed to read stream")
+	case h.Err() != nil:
+		return nil, false, e(h.Err(), "")
+	case !h.OK():
+		return nil, false, nil
+	default:
+		return r, true, nil
 	}
-
-	// BLOCK apply new quicstream header system
-
-	return r, nil
 }
 
-func (c *baseNetworkClient) loadOKHeader(ctx context.Context, r io.ReadCloser) (h OKResponseHeader, enc encoder.Encoder, _ error) {
+func (c *baseNetworkClient) loadOKHeader(
+	_ context.Context,
+	r io.ReadCloser,
+) (h OKResponseHeader, enc encoder.Encoder, _ error) {
 	e := util.StringErrorFunc("failed to load ok header")
 
 	enc, err := c.readEncoder(r)
@@ -312,105 +300,31 @@ func (c *baseNetworkClient) loadOKHeader(ctx context.Context, r io.ReadCloser) (
 	return h, enc, nil
 }
 
-func (c *baseNetworkClient) loadProposal(r io.Reader, enc encoder.Encoder) (base.ProposalSignedFact, error) {
-	// BLOCK use readHinter()
-	e := util.StringErrorFunc("failed to load proposal")
+func (*baseNetworkClient) loadBody(r io.Reader, enc encoder.Encoder, v interface{}) error {
+	e := util.StringErrorFunc("failed to load %T", v)
 
 	b, err := io.ReadAll(r)
 	if err != nil {
-		return nil, e(err, "")
+		return e(err, "")
 	}
 
 	hinter, err := enc.Decode(b)
 
 	switch {
 	case err != nil:
-		return nil, err
+		return errors.Wrap(err, "")
 	case hinter == nil:
-		return nil, errors.Errorf("empty proposal")
+		return errors.Errorf("empty")
 	}
 
-	switch i, ok := hinter.(base.ProposalSignedFact); {
-	case !ok:
-		return nil, errors.Errorf("not ProposalSignedFact: %T", hinter)
-	default:
-		return i, nil
+	if err := util.InterfaceSetValue(hinter, v); err != nil {
+		return errors.Wrap(err, "")
 	}
+
+	return nil
 }
 
-func (c *baseNetworkClient) loadSuffrageProof(r io.Reader, enc encoder.Encoder) (isaac.SuffrageProof, error) {
-	e := util.StringErrorFunc("failed to load SuffrageProof")
-
-	b, err := io.ReadAll(r)
-	if err != nil {
-		return nil, e(err, "")
-	}
-
-	hinter, err := enc.Decode(b)
-
-	switch {
-	case err != nil:
-		return nil, err
-	case hinter == nil:
-		return nil, errors.Errorf("empty proposal")
-	}
-
-	switch i, ok := hinter.(isaac.SuffrageProof); {
-	case !ok:
-		return nil, errors.Errorf("not SuffrageProof: %T", hinter)
-	default:
-		return i, nil
-	}
-}
-
-func (c *baseNetworkClient) loadBlockMap(r io.Reader, enc encoder.Encoder) (base.BlockMap, error) {
-	e := util.StringErrorFunc("failed to load BlockMap")
-
-	b, err := io.ReadAll(r)
-	if err != nil {
-		return nil, e(err, "")
-	}
-
-	hinter, err := enc.Decode(b)
-
-	switch {
-	case err != nil:
-		return nil, err
-	case hinter == nil:
-		return nil, errors.Errorf("empty BlockMap")
-	}
-
-	switch i, ok := hinter.(base.BlockMap); {
-	case !ok:
-		return nil, errors.Errorf("not BlockMap: %T", hinter)
-	default:
-		return i, nil
-	}
-}
-
-func (c *baseNetworkClient) marshal(body interface{}, enc encoder.Encoder) ([]byte, error) {
-	if body == nil {
-		return nil, nil
-	}
-
-	e := util.StringErrorFunc("failed to marshal body")
-
-	buf := bytes.NewBuffer(nil)
-	if err := writeHint(buf, enc.Hint()); err != nil {
-		return nil, e(err, "")
-	}
-
-	b, err := enc.Marshal(body)
-	if err != nil {
-		return nil, e(err, "")
-	}
-
-	_, _ = buf.Write(b)
-
-	return buf.Bytes(), nil
-}
-
-func (c *baseNetworkClient) readHeader(r io.Reader, enc encoder.Encoder, header Header) error {
+func (*baseNetworkClient) readHeader(r io.Reader, enc encoder.Encoder, header Header) error {
 	e := util.StringErrorFunc("failed to read header")
 
 	b, err := readHeader(r)
@@ -428,4 +342,45 @@ func (c *baseNetworkClient) readHeader(r io.Reader, enc encoder.Encoder, header 
 	}
 
 	return nil
+}
+
+func (c *baseNetworkClient) write(
+	ctx context.Context,
+	ci quictransport.ConnInfo,
+	enc encoder.Encoder,
+	handlerprefix string,
+	header Header,
+	body io.Reader,
+) (io.ReadCloser, error) {
+	b, err := enc.Marshal(header)
+	if err != nil {
+		return nil, errors.Wrap(err, "")
+	}
+
+	r, err := c.writef(ctx, ci, func(w io.Writer) error {
+		if err = quicstream.WritePrefix(w, handlerprefix); err != nil {
+			return errors.Wrap(err, "")
+		}
+
+		if err = writeHint(w, enc.Hint()); err != nil {
+			return errors.Wrap(err, "")
+		}
+
+		if _, err = w.Write(b); err != nil {
+			return errors.Wrap(err, "")
+		}
+
+		if body != nil {
+			if _, err = io.Copy(w, body); err != nil {
+				return errors.Wrap(err, "")
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to write")
+	}
+
+	return r, nil
 }

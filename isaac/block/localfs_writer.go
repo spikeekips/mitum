@@ -141,7 +141,7 @@ func (w *LocalFSWriter) SetOperationsTree(ctx context.Context, tw *fixedtree.Wri
 		base.BlockMapItemTypeOperationsTree,
 		tw,
 		func(ctx context.Context, _ uint64) error {
-			_ = w.opsf.Close() //nolint:errcheck //...
+			_ = w.opsf.Close()
 
 			if err := w.m.SetItem(NewLocalBlockMapItem(
 				base.BlockMapItemTypeOperations,
@@ -174,7 +174,7 @@ func (w *LocalFSWriter) SetStatesTree(ctx context.Context, tw *fixedtree.Writer)
 		base.BlockMapItemTypeStatesTree,
 		tw,
 		func(ctx context.Context, _ uint64) error {
-			_ = w.stsf.Close() //nolint:errcheck //...
+			_ = w.stsf.Close()
 
 			if err := w.m.SetItem(NewLocalBlockMapItem(
 				base.BlockMapItemTypeStates,
@@ -238,7 +238,7 @@ func (w *LocalFSWriter) saveVoteproofs() error {
 	}
 
 	defer func() {
-		_ = f.Close() //nolint:errcheck //...
+		_ = f.Close()
 	}()
 
 	for i := range w.vps {
@@ -291,20 +291,20 @@ func (w *LocalFSWriter) save(context.Context) (base.BlockMap, error) {
 	}
 
 	if w.opsf != nil {
-		_ = w.opsf.Close() //nolint:errcheck //...
+		_ = w.opsf.Close()
 
 		if item, found := w.m.Item(base.BlockMapItemTypeOperations); !found || item == nil {
 			// NOTE remove empty operations file
-			_ = os.Remove(filepath.Join(w.temp, w.opsf.Name())) //nolint:errcheck //...
+			_ = os.Remove(filepath.Join(w.temp, w.opsf.Name()))
 		}
 	}
 
 	if w.stsf != nil {
-		_ = w.stsf.Close() //nolint:errcheck //...
+		_ = w.stsf.Close()
 
 		if item, found := w.m.Item(base.BlockMapItemTypeStates); !found || item == nil {
 			// NOTE remove empty states file
-			_ = os.Remove(filepath.Join(w.temp, w.stsf.Name())) //nolint:errcheck //...
+			_ = os.Remove(filepath.Join(w.temp, w.stsf.Name()))
 		}
 	}
 
@@ -335,12 +335,12 @@ func (w *LocalFSWriter) Cancel() error {
 	defer w.Unlock()
 
 	if w.opsf != nil {
-		_ = w.opsf.Close() //nolint:errcheck //...
+		_ = w.opsf.Close()
 		w.opsf = nil
 	}
 
 	if w.stsf != nil {
-		_ = w.stsf.Close() //nolint:errcheck //...
+		_ = w.stsf.Close()
 		w.stsf = nil
 	}
 
@@ -371,7 +371,7 @@ func (w *LocalFSWriter) setTree(
 	}
 
 	defer func() {
-		_ = tf.Close() //nolint:errcheck //...
+		_ = tf.Close()
 	}()
 
 	if err := w.writefile(tf, append(tw.Hint().Bytes(), '\n')); err != nil {
@@ -403,7 +403,7 @@ func (w *LocalFSWriter) setTree(
 		return e(err, "")
 	}
 
-	_ = tf.Close() //nolint:errcheck //...
+	_ = tf.Close()
 
 	if err := w.m.SetItem(NewLocalBlockMapItem(treetype, tf.Checksum(), uint64(tw.Len()))); err != nil {
 		return e(err, "")
@@ -453,14 +453,14 @@ func (w *LocalFSWriter) writeItem(t base.BlockMapItemType, i interface{}) error 
 	}
 
 	defer func() {
-		_ = cw.Close() //nolint:errcheck //...
+		_ = cw.Close()
 	}()
 
 	if err := w.writefileonce(cw, i); err != nil {
 		return errors.Wrap(err, "")
 	}
 
-	_ = cw.Close() //nolint:errcheck //...
+	_ = cw.Close()
 
 	if err := w.m.SetItem(NewLocalBlockMapItem(
 		t,
@@ -500,7 +500,7 @@ func (*LocalFSWriter) writefile(f io.Writer, b []byte) error {
 }
 
 func (w *LocalFSWriter) newChecksumWriter(t base.BlockMapItemType) (util.ChecksumWriter, error) {
-	fname, temppath, _ := w.filename(t) //nolint:errcheck //...
+	fname, temppath, _ := w.filename(t)
 
 	switch f, err := os.OpenFile(temppath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600); { //nolint:gosec //...
 	case err != nil:

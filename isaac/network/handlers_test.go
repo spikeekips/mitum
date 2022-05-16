@@ -10,6 +10,7 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
+	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/network/quictransport"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -31,11 +32,12 @@ func (t *testQuicstreamHandlers) SetupTest() {
 func (t *testQuicstreamHandlers) SetupSuite() {
 	t.BaseTestDatabase.SetupSuite()
 
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: RequestProposalBodyHint, Instance: RequestProposalBody{}}))
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ProposalBodyHint, Instance: ProposalBody{}}))
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: SuffrageProofBodyHint, Instance: SuffrageProofBody{}}))
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: LastBlockMapBodyHint, Instance: LastBlockMapBody{}}))
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: BlockMapBodyHint, Instance: BlockMapBody{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: RequestProposalRequestHeaderHint, Instance: RequestProposalRequestHeader{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ProposalHeaderHint, Instance: ProposalRequestHeader{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: SuffrageProofHeaderHint, Instance: SuffrageProofRequestHeader{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: LastBlockMapHeaderHint, Instance: LastBlockMapRequestHeader{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: BlockMapHeaderHint, Instance: BlockMapRequestHeader{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: BlockMapItemHeaderHint, Instance: BlockMapItemRequestHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageCandidateHint, Instance: isaac.SuffrageCandidate{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ErrorResponseHeaderHint, Instance: ErrorResponseHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: OKResponseHeaderHint, Instance: OKResponseHeader{}}))
@@ -46,6 +48,31 @@ func (t *testQuicstreamHandlers) TestClient() {
 	c := newBaseNetworkClient(t.Encs, t.Enc, nil)
 
 	_ = (interface{})(c).(isaac.NetworkClient)
+}
+
+func (t *testQuicstreamHandlers) writef(prefix string, handler quicstream.Handler) baseNetworkClientWriteFunc {
+	return func(ctx context.Context, ci quictransport.ConnInfo, f quicstream.ClientWriteFunc) (io.ReadCloser, error) {
+		r := bytes.NewBuffer(nil)
+		if err := f(r); err != nil {
+			return nil, errors.Wrap(err, "")
+		}
+
+		uprefix, err := quicstream.ReadPrefix(r)
+		if err != nil {
+			return nil, errors.Wrap(err, "")
+		}
+
+		if !bytes.Equal(uprefix, quicstream.HashPrefix(prefix)) {
+			return nil, errors.Errorf("unknown request, %q", prefix)
+		}
+
+		w := bytes.NewBuffer(nil)
+		if err := handler(nil, r, w); err != nil {
+			return nil, errors.Wrap(err, "failed to handle request")
+		}
+
+		return io.NopCloser(w), nil
+	}
 }
 
 func (t *testQuicstreamHandlers) TestRequestProposal() {
@@ -62,23 +89,9 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 	)
 
 	handlers := NewQuicstreamHandlers(t.Local, t.Encs, t.Enc, pool, proposalMaker, nil, nil, nil, nil)
-	send := func(ctx context.Context, ci quictransport.ConnInfo, prefix string, b []byte) (io.ReadCloser, error) {
-		if prefix != HandlerPrefixRequestProposal {
-			return nil, errors.Errorf("unknown request, %q", prefix)
-		}
-
-		r := bytes.NewBuffer(b)
-		w := bytes.NewBuffer(nil)
-
-		if err := handlers.RequestProposal(nil, r, w); err != nil {
-			return nil, errors.Wrap(err, "failed to handle request")
-		}
-
-		return io.NopCloser(w), nil
-	}
 
 	ci := quictransport.NewBaseConnInfo(nil, true)
-	c := newBaseNetworkClient(t.Encs, t.Enc, send)
+	c := newBaseNetworkClient(t.Encs, t.Enc, t.writef(HandlerPrefixRequestProposal, handlers.RequestProposal))
 
 	t.Run("local is proposer", func() {
 		point := base.RawPoint(33, 1)
@@ -121,23 +134,9 @@ func (t *testQuicstreamHandlers) TestProposal() {
 	t.NoError(err)
 
 	handlers := NewQuicstreamHandlers(t.Local, t.Encs, t.Enc, pool, proposalMaker, nil, nil, nil, nil)
-	send := func(ctx context.Context, ci quictransport.ConnInfo, prefix string, b []byte) (io.ReadCloser, error) {
-		if prefix != HandlerPrefixProposal {
-			return nil, errors.Errorf("unknown request, %q", prefix)
-		}
-
-		r := bytes.NewBuffer(b)
-		w := bytes.NewBuffer(nil)
-
-		if err := handlers.Proposal(nil, r, w); err != nil {
-			return nil, errors.Wrap(err, "failed to handle request")
-		}
-
-		return io.NopCloser(w), nil
-	}
 
 	ci := quictransport.NewBaseConnInfo(nil, true)
-	c := newBaseNetworkClient(t.Encs, t.Enc, send)
+	c := newBaseNetworkClient(t.Encs, t.Enc, t.writef(HandlerPrefixProposal, handlers.Proposal))
 
 	t.Run("found", func() {
 		pr, found, err := c.Proposal(context.Background(), ci, pr.Fact().Hash())
@@ -160,7 +159,7 @@ func (t *testQuicstreamHandlers) TestProposal() {
 		pr, found, err := c.Proposal(context.Background(), ci, nil)
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
-		t.ErrorContains(err, "invalid ProposalBody")
+		t.ErrorContains(err, "invalid ProposalHeader")
 		t.False(found)
 		t.Nil(pr)
 	})
@@ -168,23 +167,9 @@ func (t *testQuicstreamHandlers) TestProposal() {
 
 func (t *testQuicstreamHandlers) TestSuffrageProof() {
 	handlers := NewQuicstreamHandlers(t.Local, t.Encs, t.Enc, nil, nil, nil, nil, nil, nil)
-	send := func(ctx context.Context, ci quictransport.ConnInfo, prefix string, b []byte) (io.ReadCloser, error) {
-		if prefix != HandlerPrefixSuffrageProof {
-			return nil, errors.Errorf("unknown request, %q", prefix)
-		}
-
-		r := bytes.NewBuffer(b)
-		w := bytes.NewBuffer(nil)
-
-		if err := handlers.SuffrageProof(nil, r, w); err != nil {
-			return nil, errors.Wrap(err, "failed to handle request")
-		}
-
-		return io.NopCloser(w), nil
-	}
 
 	ci := quictransport.NewBaseConnInfo(nil, true)
-	c := newBaseNetworkClient(t.Encs, t.Enc, send)
+	c := newBaseNetworkClient(t.Encs, t.Enc, t.writef(HandlerPrefixSuffrageProof, handlers.SuffrageProof))
 
 	t.Run("found", func() {
 		st, _ := t.SuffrageState(base.Height(33), base.Height(11), nil)
@@ -231,23 +216,9 @@ func (t *testQuicstreamHandlers) TestSuffrageProof() {
 
 func (t *testQuicstreamHandlers) TestLastBlockMap() {
 	handlers := NewQuicstreamHandlers(t.Local, t.Encs, t.Enc, nil, nil, nil, nil, nil, nil)
-	send := func(ctx context.Context, ci quictransport.ConnInfo, prefix string, b []byte) (io.ReadCloser, error) {
-		if prefix != HandlerPrefixLastBlockMap {
-			return nil, errors.Errorf("unknown request, %q", prefix)
-		}
-
-		r := bytes.NewBuffer(b)
-		w := bytes.NewBuffer(nil)
-
-		if err := handlers.LastBlockMap(nil, r, w); err != nil {
-			return nil, errors.Wrap(err, "failed to handle request")
-		}
-
-		return io.NopCloser(w), nil
-	}
 
 	ci := quictransport.NewBaseConnInfo(nil, true)
-	c := newBaseNetworkClient(t.Encs, t.Enc, send)
+	c := newBaseNetworkClient(t.Encs, t.Enc, t.writef(HandlerPrefixLastBlockMap, handlers.LastBlockMap))
 
 	t.Run("nil and updated", func() {
 		m := base.NewDummyManifest(base.Height(33), valuehash.RandomSHA256())
@@ -301,23 +272,9 @@ func (t *testQuicstreamHandlers) TestLastBlockMap() {
 
 func (t *testQuicstreamHandlers) TestBlockMap() {
 	handlers := NewQuicstreamHandlers(t.Local, t.Encs, t.Enc, nil, nil, nil, nil, nil, nil)
-	send := func(ctx context.Context, ci quictransport.ConnInfo, prefix string, b []byte) (io.ReadCloser, error) {
-		if prefix != HandlerPrefixBlockMap {
-			return nil, errors.Errorf("unknown request, %q", prefix)
-		}
-
-		r := bytes.NewBuffer(b)
-		w := bytes.NewBuffer(nil)
-
-		if err := handlers.BlockMap(nil, r, w); err != nil {
-			return nil, errors.Wrap(err, "failed to handle request")
-		}
-
-		return io.NopCloser(w), nil
-	}
 
 	ci := quictransport.NewBaseConnInfo(nil, true)
-	c := newBaseNetworkClient(t.Encs, t.Enc, send)
+	c := newBaseNetworkClient(t.Encs, t.Enc, t.writef(HandlerPrefixBlockMap, handlers.BlockMap))
 
 	t.Run("found", func() {
 		m := base.NewDummyManifest(base.Height(33), valuehash.RandomSHA256())
@@ -363,7 +320,53 @@ func (t *testQuicstreamHandlers) TestBlockMap() {
 	})
 }
 
-// BLOCK test BlockMapItem
+func (t *testQuicstreamHandlers) TestBlockMapItem() {
+	handlers := NewQuicstreamHandlers(t.Local, t.Encs, t.Enc, nil, nil, nil, nil, nil, nil)
+
+	ci := quictransport.NewBaseConnInfo(nil, true)
+	c := newBaseNetworkClient(t.Encs, t.Enc, t.writef(HandlerPrefixBlockMapItem, handlers.BlockMapItem))
+
+	t.Run("known item", func() {
+		height := base.Height(33)
+		item := base.BlockMapItemTypeVoteproofs
+
+		body := util.UUID().Bytes()
+		r := bytes.NewBuffer(body)
+
+		handlers.blockMapItem = func(h base.Height, i base.BlockMapItemType) (io.ReadCloser, bool, error) {
+			if h != height {
+				return nil, false, nil
+			}
+
+			if i != item {
+				return nil, false, nil
+			}
+
+			return io.NopCloser(r), true, nil
+		}
+
+		rr, found, err := c.BlockMapItem(context.Background(), ci, height, item)
+		t.NoError(err)
+		t.True(found)
+		t.NotNil(rr)
+
+		rb, err := io.ReadAll(rr)
+		t.NoError(err)
+
+		t.Equal(body, rb)
+	})
+
+	t.Run("unknown item", func() {
+		handlers.blockMapItem = func(h base.Height, i base.BlockMapItemType) (io.ReadCloser, bool, error) {
+			return nil, false, nil
+		}
+
+		rr, found, err := c.BlockMapItem(context.Background(), ci, base.Height(33), base.BlockMapItemTypeVoteproofs)
+		t.NoError(err)
+		t.False(found)
+		t.Nil(rr)
+	})
+}
 
 func TestQuicstreamHandlers(t *testing.T) {
 	defer goleak.VerifyNone(t,

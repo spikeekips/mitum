@@ -3,6 +3,7 @@ package quicstream
 import (
 	"context"
 	"crypto/tls"
+	"io"
 	"net"
 	"sync"
 
@@ -13,9 +14,10 @@ import (
 	"github.com/spikeekips/mitum/util/logging"
 )
 
+type ClientWriteFunc func(io.Writer) error
+
 type (
-	StreamWriteFunc func(quic.Stream, []byte) (int, error)
-	DialFunc        func(
+	DialFunc func(
 		ctx context.Context,
 		addr string,
 		tlsconfig *tls.Config,
@@ -26,12 +28,11 @@ type (
 type Client struct {
 	dialf DialFunc
 	*logging.Logging
-	session      *util.Locked
-	addr         *net.UDPAddr
-	tlsconfig    *tls.Config
-	quicconfig   *quic.Config
-	streamWritef StreamWriteFunc
-	id           string
+	session    *util.Locked
+	addr       *net.UDPAddr
+	tlsconfig  *tls.Config
+	quicconfig *quic.Config
+	id         string
 	sync.Mutex
 }
 
@@ -39,18 +40,8 @@ func NewClient(
 	addr *net.UDPAddr,
 	tlsconfig *tls.Config,
 	quicconfig *quic.Config,
-	streamWritef StreamWriteFunc,
 	dialf DialFunc,
 ) *Client {
-	lstreamWritef := streamWritef
-	if lstreamWritef == nil {
-		lstreamWritef = func(stream quic.Stream, b []byte) (int, error) {
-			n, err := stream.Write(b)
-
-			return n, errors.Wrap(err, "")
-		}
-	}
-
 	ldialf := dialf
 	if dialf == nil {
 		ldialf = dial
@@ -60,13 +51,12 @@ func NewClient(
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", "quicstream-client")
 		}),
-		id:           util.UUID().String(),
-		addr:         addr,
-		tlsconfig:    tlsconfig,
-		quicconfig:   quicconfig,
-		streamWritef: lstreamWritef,
-		dialf:        ldialf,
-		session:      util.EmptyLocked(),
+		id:         util.UUID().String(),
+		addr:       addr,
+		tlsconfig:  tlsconfig,
+		quicconfig: quicconfig,
+		dialf:      ldialf,
+		session:    util.EmptyLocked(),
 	}
 }
 
@@ -88,28 +78,26 @@ func (c *Client) Dial(ctx context.Context) (quic.EarlyConnection, error) {
 	return session, nil
 }
 
-func (c *Client) Send(ctx context.Context, b []byte) (quic.Stream, error) { // BLOCK rename to Write
-	e := util.StringErrorFunc("failed to send")
+func (c *Client) Write(ctx context.Context, f ClientWriteFunc) (quic.Stream, error) {
+	r, err := c.write(ctx, f)
+	if err != nil {
+		if isNetworkError(err) {
+			_ = c.session.Empty()
+		}
+
+		return nil, err
+	}
+
+	return r, nil
+}
+
+func (c *Client) write(ctx context.Context, f ClientWriteFunc) (quic.Stream, error) {
+	e := util.StringErrorFunc("failed to write")
 
 	session, err := c.dial(ctx)
 	if err != nil {
 		return nil, e(err, "")
 	}
-
-	r, err := c.send(ctx, session, b)
-	if err == nil {
-		return r, nil
-	}
-
-	if isNetworkError(err) {
-		_ = c.session.Empty()
-	}
-
-	return nil, e(err, "")
-}
-
-func (c *Client) send(ctx context.Context, session quic.EarlyConnection, b []byte) (quic.Stream, error) {
-	e := util.StringErrorFunc("failed to send")
 
 	stream, err := session.OpenStreamSync(ctx)
 	if err != nil {
@@ -117,14 +105,14 @@ func (c *Client) send(ctx context.Context, session quic.EarlyConnection, b []byt
 	}
 
 	defer func() {
-		_ = stream.Close() //nolint:errcheck //...
+		_ = stream.Close()
 	}()
 
-	if _, err = c.streamWritef(stream, b); err != nil {
-		return nil, e(err, "failed to write to stream")
+	if err := f(stream); err != nil {
+		return nil, e(err, "")
 	}
 
-	_ = stream.Close() //nolint:errcheck //...
+	_ = stream.Close()
 
 	return StreamResponse{stream}, nil
 }
@@ -181,4 +169,12 @@ func isNetworkError(err error) bool {
 	var nerr net.Error
 
 	return errors.As(err, &nerr)
+}
+
+func DefaultClientWriteFunc(b []byte) ClientWriteFunc {
+	return func(w io.Writer) error {
+		_, err := w.Write(b)
+
+		return errors.Wrap(err, "")
+	}
 }
