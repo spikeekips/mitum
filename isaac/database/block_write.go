@@ -122,23 +122,24 @@ func (db *LeveldbBlockWrite) SetOperations(ops []util.Hash) error {
 
 	e := util.StringErrorFunc("failed to set operation")
 
-	go func() {
-		defer worker.Done()
-
-		for i := range ops {
-			op := ops[i]
-
-			if err := worker.NewJob(func(context.Context, uint64) error {
-				if err := db.st.Put(leveldbKnownOperationKey(op), op.Bytes(), nil); err != nil {
-					return e(err, "")
-				}
-
-				return nil
-			}); err != nil {
-				return
-			}
+	for i := range ops {
+		op := ops[i]
+		if op == nil {
+			return e(nil, "empty operation hash")
 		}
-	}()
+
+		if err := worker.NewJob(func(context.Context, uint64) error {
+			if err := db.st.Put(leveldbKnownOperationKey(op), op.Bytes(), nil); err != nil {
+				return e(err, "")
+			}
+
+			return nil
+		}); err != nil {
+			return e(err, "")
+		}
+	}
+
+	worker.Done()
 
 	if err := worker.Wait(); err != nil {
 		return e(err, "")

@@ -17,7 +17,7 @@ var SyncerCanNotCancelError = util.NewError("can not cancel syncer")
 type SyncingHandler struct {
 	syncer isaac.Syncer
 	*baseHandler
-	newSyncer       func() isaac.Syncer
+	newSyncer       func(base.Height) (isaac.Syncer, error)
 	stuckcancel     func()
 	waitStuck       time.Duration
 	finishedLock    sync.RWMutex
@@ -28,7 +28,7 @@ func NewSyncingHandler(
 	local base.LocalNode,
 	policy isaac.NodePolicy,
 	proposalSelector isaac.ProposalSelector,
-	newSyncer func() isaac.Syncer,
+	newSyncer func(base.Height) (isaac.Syncer, error),
 ) *SyncingHandler {
 	return &SyncingHandler{
 		baseHandler: newBaseHandler(StateSyncing, local, policy, proposalSelector),
@@ -50,13 +50,16 @@ func (st *SyncingHandler) enter(i switchContext) (func(), error) {
 		return nil, e(nil, "invalid stateSwitchContext, not for syncing state; %T", i)
 	}
 
-	sc := st.newSyncer()
+	sc, err := st.newSyncer(sctx.height)
+	if err != nil {
+		return nil, e(err, "")
+	}
+
 	if sc == nil {
 		return nil, e(nil, "empty syncer") // BlOCK remove; only for testing
 	}
 
 	st.syncer = sc
-	_ = st.add(sctx.height)
 
 	if err := st.timers.StopTimersAll(); err != nil {
 		return nil, e(err, "")
@@ -155,9 +158,12 @@ func (st *SyncingHandler) add(h base.Height) bool {
 func (st *SyncingHandler) finished(sc isaac.Syncer) {
 end:
 	for {
+		var err error
 		select {
 		case <-st.ctx.Done():
 			return
+		case <-sc.Done():
+			err = sc.Err()
 		case h := <-sc.Finished():
 			st.Log().Debug().Interface("height", h).Msg("syncer finished")
 
@@ -168,27 +174,29 @@ end:
 				continue
 			}
 
-			var sctx switchContext
-
-			switch added, err := st.checkFinished(lvp); {
-			case err == nil:
+			var added bool
+			if added, err = st.checkFinished(lvp); err == nil {
 				if !added && lvp.Point().Height() == sc.Top() && lvp.Point().Stage() == base.StageACCEPT {
 					st.newStuckCancel(lvp)
 				}
 
-				continue
-			case !errors.As(err, &sctx):
-				sctx = newBrokenSwitchContext(StateSyncing, err)
+				continue end
 			}
-
-			if sctx != nil {
-				go st.switchState(sctx)
-			}
-
-			st.cancel()
-
-			break end
 		}
+
+		var sctx switchContext
+
+		if !errors.As(err, &sctx) {
+			sctx = newBrokenSwitchContext(StateSyncing, err)
+		}
+
+		if sctx != nil {
+			go st.switchState(sctx)
+		}
+
+		st.cancel()
+
+		break
 	}
 }
 

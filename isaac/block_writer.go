@@ -13,7 +13,7 @@ type BlockWriter interface {
 	SetProcessResult(
 		_ context.Context,
 		index uint64,
-		facthash util.Hash,
+		ophash, facthash util.Hash,
 		instate bool,
 		errorreason base.OperationProcessReasonError,
 	) error
@@ -30,4 +30,10 @@ type BlockReader interface {
 	Reader(base.BlockMapItemType) (io.ReadCloser, bool, error)
 	ChecksumReader(base.BlockMapItemType) (util.ChecksumReader, bool, error)
 	Item(base.BlockMapItemType) (interface{}, bool, error)
+}
+
+type BlockImporter interface {
+	WriteMap(base.BlockMap) error
+	WriteItem(base.BlockMapItemType, io.Reader) error
+	Save(context.Context) error
 }

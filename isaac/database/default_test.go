@@ -422,7 +422,7 @@ func (t *testDefaultWithPermanent) TestExistsKnownOperation() {
 	errop := valuehash.RandomSHA256()
 
 	perm := &DummyPermanentDatabase{
-		existsKnownOperationf: func(operationFactHash util.Hash) (bool, error) {
+		existsKnownOperationf: func(operationFactHash util.Hash) (bool, error) { // BLOCK rename operationFactHash to operationHash
 			switch {
 			case operationFactHash.Equal(op):
 				return true, nil
@@ -930,8 +930,6 @@ type testDefaultLoad struct {
 func (t *testDefaultLoad) SetupTest() {
 	t.BaseTestBallots.SetupTest()
 	t.BaseTestDatabase.SetupTest()
-
-	t.NoError(os.Mkdir(t.Root, 0o755))
 }
 
 func (t *testDefaultLoad) TestNewDirectory() {

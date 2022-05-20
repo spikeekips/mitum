@@ -5,7 +5,6 @@ package isaacdatabase
 
 import (
 	"os"
-	"path/filepath"
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
@@ -48,7 +47,7 @@ func (t *BaseTestDatabase) SetupSuite() {
 }
 
 func (t *BaseTestDatabase) SetupTest() {
-	t.Root = filepath.Join(os.TempDir(), "test-mitum-wo-database-"+util.UUID().String())
+	t.Root, _ = os.MkdirTemp("", "mitum-test")
 }
 
 func (t *BaseTestDatabase) TearDownTest() {

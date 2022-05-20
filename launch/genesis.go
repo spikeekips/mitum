@@ -72,7 +72,7 @@ func (g *GenesisBlockGenerator) Generate() (base.BlockMap, error) {
 		return nil, e(err, "")
 	}
 
-	fsreader, err := isaacblock.NewLocalFSReader(g.dataroot, base.GenesisHeight, g.enc)
+	fsreader, err := isaacblock.NewLocalFSReaderFromHeight(g.dataroot, base.GenesisHeight, g.enc)
 	if err != nil {
 		return nil, e(err, "")
 	}

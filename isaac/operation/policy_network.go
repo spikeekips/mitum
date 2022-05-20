@@ -27,7 +27,7 @@ func NewGenesisNetworkPolicyFact(policy base.NetworkPolicy) GenesisNetworkPolicy
 		policy:   policy,
 	}
 
-	fact.SetHash(fact.generateHash())
+	fact.SetHash(fact.hash())
 
 	return fact
 }
@@ -39,7 +39,7 @@ func (fact GenesisNetworkPolicyFact) IsValid([]byte) error {
 		return e(err, "")
 	}
 
-	if !fact.Hash().Equal(fact.generateHash()) {
+	if !fact.Hash().Equal(fact.hash()) {
 		return e(util.ErrInvalid.Errorf("hash does not match"), "")
 	}
 
@@ -50,7 +50,7 @@ func (fact GenesisNetworkPolicyFact) Policy() base.NetworkPolicy {
 	return fact.policy
 }
 
-func (fact GenesisNetworkPolicyFact) generateHash() util.Hash {
+func (fact GenesisNetworkPolicyFact) hash() util.Hash {
 	return valuehash.NewSHA256(util.ConcatByters(
 		util.BytesToByter(fact.Token()),
 		util.DummyByter(fact.policy.HashBytes),

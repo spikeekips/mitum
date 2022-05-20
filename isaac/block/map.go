@@ -86,6 +86,14 @@ func (m BlockMap) IsValid(b []byte) error {
 	return nil
 }
 
+func (m BlockMap) Writer() hint.Hint {
+	return m.writer
+}
+
+func (m BlockMap) Encoder() hint.Hint {
+	return m.encoder
+}
+
 func (m BlockMap) Manifest() base.Manifest {
 	return m.manifest
 }

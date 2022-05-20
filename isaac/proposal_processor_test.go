@@ -44,7 +44,7 @@ func (w *DummyBlockWriter) SetOperationsSize(n uint64) {
 	w.opstreeg, _ = fixedtree.NewWriter(base.OperationFixedtreeHint, n)
 }
 
-func (w *DummyBlockWriter) SetProcessResult(ctx context.Context, index uint64, facthash util.Hash, instate bool, errorreason base.OperationProcessReasonError) error {
+func (w *DummyBlockWriter) SetProcessResult(ctx context.Context, index uint64, _, facthash util.Hash, instate bool, errorreason base.OperationProcessReasonError) error {
 	var msg string
 	if errorreason != nil {
 		msg = errorreason.Msg()

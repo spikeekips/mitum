@@ -82,7 +82,6 @@ func (t *testMemberlist) newServersForJoining(
 					},
 					nil,
 					nil,
-					nil,
 				)
 			}
 		},

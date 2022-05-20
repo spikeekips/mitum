@@ -25,8 +25,13 @@ func (t *testSyncingHandler) newState(finishch chan base.Height) (*SyncingHandle
 		local,
 		policy,
 		nil,
-		func() isaac.Syncer {
-			return newDummySyncer(finishch)
+		func(height base.Height) (isaac.Syncer, error) {
+			syncer := newDummySyncer(finishch, nil)
+			if !syncer.Add(height) {
+				return nil, errors.Errorf("failed new syncer")
+			}
+
+			return syncer, nil
 		},
 	)
 	_ = st.SetLogging(logging.TestNilLogging)
@@ -96,7 +101,7 @@ func (t *testSyncingHandler) TestExit() {
 			return errors.Errorf("hehehe")
 		}
 
-		syncer.Done(point.Height())
+		syncer.finish(point.Height())
 
 		deferredexit, err := st.exit(nil)
 		t.Nil(deferredexit)
@@ -237,7 +242,7 @@ func (t *testSyncingHandler) TestNewExpectedINITVoteproof() {
 
 		syncer := st.syncer.(*dummySyncer)
 
-		syncer.Done(point.Height())
+		syncer.finish(point.Height())
 
 		ifact := t.NewINITBallotFact(point.NextHeight(), nil, nil)
 		ivp, err := t.NewINITVoteproof(ifact, t.Local, []isaac.LocalNode{t.Local})
@@ -276,7 +281,7 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 
 		st.setLastVoteproof(ivp)
 
-		syncer.Done(point.Height())
+		syncer.finish(point.Height())
 
 		select {
 		case <-time.After(time.Second * 1):
@@ -310,7 +315,7 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 
 		st.setLastVoteproof(ivp)
 
-		syncer.Done(point.Height())
+		syncer.finish(point.Height())
 
 		select {
 		case <-time.After(time.Second * 1):
@@ -344,7 +349,7 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 		t.NoError(err)
 		st.setLastVoteproof(avp)
 
-		syncer.Done(point.Height())
+		syncer.finish(point.Height())
 
 		select {
 		case <-time.After(time.Second * 1):
@@ -375,7 +380,7 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 		t.NoError(err)
 		st.setLastVoteproof(avp)
 
-		syncer.Done(point.Height())
+		syncer.finish(point.Height())
 
 		select {
 		case <-time.After(time.Second * 1):
@@ -410,7 +415,7 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 
 		st.setLastVoteproof(ivp)
 
-		syncer.Done(point.Height())
+		syncer.finish(point.Height())
 
 		select {
 		case <-time.After(time.Second * 1):
@@ -450,7 +455,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 
 		st.waitStuck = time.Millisecond * 100
 
-		syncer.Done(point.Height())
+		syncer.finish(point.Height())
 
 		select {
 		case <-time.After(time.Second * 1):
@@ -487,7 +492,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 
 		st.waitStuck = time.Second
 
-		syncer.Done(point.Height())
+		syncer.finish(point.Height())
 		syncer.Add(point.NextHeight().Height())
 
 		select {
@@ -522,7 +527,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 
 		st.waitStuck = time.Second
 
-		syncer.Done(point.Height())
+		syncer.finish(point.Height())
 		syncer.Add(point.NextHeight().Height())
 
 		newavp, err := t.NewACCEPTVoteproof(t.NewACCEPTBallotFact(point.NextHeight(), nil, nil), t.Local, []isaac.LocalNode{t.Local})
@@ -531,7 +536,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 		st.waitStuck = time.Millisecond * 100
 
 		st.setLastVoteproof(newavp)
-		syncer.Done(newavp.Point().Height())
+		syncer.finish(newavp.Point().Height())
 
 		select {
 		case <-time.After(time.Second * 2):
@@ -544,6 +549,35 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 	})
 }
 
+func (t *testSyncingHandler) TestSyncerErr() {
+	st, closef := t.newState(nil)
+	defer closef()
+
+	sctxch := make(chan switchContext, 1)
+	st.switchStateFunc = func(sctx switchContext) error {
+		sctxch <- sctx
+
+		return nil
+	}
+
+	point := base.RawPoint(33, 2)
+	deferred, err := st.enter(newSyncingSwitchContext(StateJoining, point.Height()))
+	t.NoError(err)
+	deferred()
+
+	syncer := st.syncer.(*dummySyncer)
+	syncer.done(errors.Errorf("kekeke"))
+
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("timeout to switch joining state"))
+	case sctx := <-sctxch:
+		var bsctx baseErrorSwitchContext
+		t.True(errors.As(sctx, &bsctx))
+		t.ErrorContains(bsctx.err, "kekeke")
+	}
+}
+
 func TestSyncingHandler(t *testing.T) {
 	suite.Run(t, new(testSyncingHandler))
 }
@@ -553,16 +587,24 @@ type dummySyncer struct {
 	topHeight  base.Height
 	doneHeight base.Height
 	ch         chan base.Height
+	donech     chan struct{}
+	err        error
 	canceled   bool
 	cancelf    func() error
 }
 
-func newDummySyncer(ch chan base.Height) *dummySyncer {
+func newDummySyncer(ch chan base.Height, donech chan struct{}) *dummySyncer {
 	if ch == nil {
 		ch = make(chan base.Height)
 	}
+
+	if donech == nil {
+		donech = make(chan struct{})
+	}
+
 	return &dummySyncer{
-		ch: ch,
+		ch:     ch,
+		donech: donech,
 	}
 }
 
@@ -590,7 +632,7 @@ func (s *dummySyncer) Add(h base.Height) bool {
 	return true
 }
 
-func (s *dummySyncer) Done(h base.Height) {
+func (s *dummySyncer) finish(h base.Height) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -609,9 +651,32 @@ func (s *dummySyncer) Finished() <-chan base.Height {
 	return s.ch
 }
 
+func (s *dummySyncer) Done() <-chan struct{} {
+	return s.donech
+}
+
+func (s *dummySyncer) Err() error {
+	s.RLock()
+	defer s.RUnlock()
+
+	return s.err
+}
+
+func (s *dummySyncer) done(err error) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.err = err
+	s.donech <- struct{}{}
+}
+
 func (s *dummySyncer) IsFinished() bool {
 	s.RLock()
 	defer s.RUnlock()
+
+	if s.err != nil {
+		return true
+	}
 
 	if s.canceled {
 		return true

@@ -74,13 +74,16 @@ func (w *Writer) SetOperationsSize(n uint64) {
 func (w *Writer) SetProcessResult( // revive:disable-line:flag-parameter
 	_ context.Context,
 	index uint64,
-	facthash util.Hash,
+	op, facthash util.Hash,
 	instate bool,
 	errorreason base.OperationProcessReasonError,
 ) error {
 	e := util.StringErrorFunc("failed to set operation")
-	if err := w.db.SetOperations([]util.Hash{facthash}); err != nil {
-		return e(err, "")
+
+	if op != nil {
+		if err := w.db.SetOperations([]util.Hash{op}); err != nil {
+			return e(err, "")
+		}
 	}
 
 	var msg string

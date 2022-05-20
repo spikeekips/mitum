@@ -422,7 +422,7 @@ func (w *LocalFSWriter) saveMap() error {
 
 	// NOTE save blockmap
 	f, err := os.OpenFile(
-		filepath.Join(w.temp, blockFSMapFilename(w.enc)),
+		filepath.Join(w.temp, blockFSMapFilename(w.enc.Hint().Type().String())),
 		os.O_WRONLY|os.O_CREATE|os.O_TRUNC,
 		0o600,
 	)
@@ -438,7 +438,7 @@ func (w *LocalFSWriter) saveMap() error {
 }
 
 func (w *LocalFSWriter) filename(t base.BlockMapItemType) (filename string, temppath string, err error) {
-	f, err := BlockFileName(t, w.enc)
+	f, err := BlockFileName(t, w.enc.Hint().Type().String())
 	if err != nil {
 		return "", "", errors.Wrap(err, "")
 	}
@@ -551,15 +551,15 @@ func HeightDirectory(height base.Height) string {
 	return "/" + strings.Join(sl, "/")
 }
 
-func BlockFileName(t base.BlockMapItemType, enc encoder.Encoder) (string, error) {
+func BlockFileName(t base.BlockMapItemType, hinttype string) (string, error) {
 	name, found := blockFilenames[t]
 	if !found {
 		return "", errors.Errorf("unknown block map item type, %q", t)
 	}
 
-	ext := fileExtFromEncoder(enc)
+	ext := fileExtFromEncoder(hinttype)
 	if isListBlockMapItemType(t) {
-		ext = listFileExtFromEncoder(enc)
+		ext = listFileExtFromEncoder(hinttype)
 	}
 
 	if isCompressedBlockMapItemType(t) {
@@ -569,18 +569,18 @@ func BlockFileName(t base.BlockMapItemType, enc encoder.Encoder) (string, error)
 	return fmt.Sprintf("%s%s", name, ext), nil
 }
 
-func fileExtFromEncoder(enc encoder.Encoder) string {
+func fileExtFromEncoder(hinttype string) string {
 	switch {
-	case strings.Contains(strings.ToLower(enc.Hint().Type().String()), "json"):
+	case strings.Contains(strings.ToLower(hinttype), "json"):
 		return ".json"
 	default:
 		return ".b" // NOTE means b(ytes)
 	}
 }
 
-func listFileExtFromEncoder(enc encoder.Encoder) string {
+func listFileExtFromEncoder(hinttype string) string {
 	switch {
-	case strings.Contains(strings.ToLower(enc.Hint().Type().String()), "json"):
+	case strings.Contains(strings.ToLower(hinttype), "json"):
 		return ".ndjson"
 	default:
 		return ".blist"
@@ -612,8 +612,8 @@ func isCompressedBlockMapItemType(t base.BlockMapItemType) bool {
 	}
 }
 
-func blockFSMapFilename(enc encoder.Encoder) string {
-	return fmt.Sprintf("%s%s", blockMapFilename, fileExtFromEncoder(enc))
+func blockFSMapFilename(hinttype string) string {
+	return fmt.Sprintf("%s%s", blockMapFilename, fileExtFromEncoder(hinttype))
 }
 
 func CleanBlockTempDirectory(root string) error {

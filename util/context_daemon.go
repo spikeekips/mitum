@@ -72,7 +72,7 @@ func (dm *ContextDaemon) Wait(ctx context.Context) <-chan error {
 
 	nctx, _, _, finish := dm.getCtx(ctx)
 
-	go func(nctx context.Context, ch chan error) {
+	go func() {
 		err := dm.callback(nctx)
 
 		finish()
@@ -80,7 +80,7 @@ func (dm *ContextDaemon) Wait(ctx context.Context) <-chan error {
 
 		ch <- err
 		close(ch)
-	}(nctx, ch)
+	}()
 
 	return ch
 }

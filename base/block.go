@@ -4,7 +4,9 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/hint"
 )
 
 type Manifest interface {
@@ -24,6 +26,8 @@ type BlockMap interface {
 	Manifest() Manifest
 	Item(BlockMapItemType) (BlockMapItem, bool)
 	Items(func(BlockMapItem) bool)
+	Writer() hint.Hint
+	Encoder() hint.Hint
 }
 
 type BlockMapItem interface {
@@ -61,4 +65,12 @@ func (t BlockMapItemType) IsValid([]byte) error {
 
 func (t BlockMapItemType) String() string {
 	return string(t)
+}
+
+func ValidateManifests(m Manifest, previous util.Hash) error {
+	if !m.Previous().Equal(previous) {
+		return errors.Errorf("previous does not match")
+	}
+
+	return nil
 }

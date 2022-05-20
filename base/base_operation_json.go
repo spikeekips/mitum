@@ -6,17 +6,20 @@ import (
 	"github.com/spikeekips/mitum/util"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
+	"github.com/spikeekips/mitum/util/valuehash"
 )
 
 type BaseOperationJSONMarshaler struct {
-	Fact   Fact     `json:"fact"`
-	Signed []Signed `json:"signed"`
+	Hash   util.Hash `json:"hash"`
+	Fact   Fact      `json:"fact"`
+	Signed []Signed  `json:"signed"`
 	hint.BaseHinter
 }
 
 func (op BaseOperation) JSONMarshaler() BaseOperationJSONMarshaler {
 	return BaseOperationJSONMarshaler{
 		BaseHinter: op.BaseHinter,
+		Hash:       op.h,
 		Fact:       op.fact,
 		Signed:     op.signed,
 	}
@@ -27,8 +30,9 @@ func (op BaseOperation) MarshalJSON() ([]byte, error) {
 }
 
 type BaseOperationJSONUnmarshaler struct {
-	Fact   json.RawMessage   `json:"fact"`
-	Signed []json.RawMessage `json:"signed"`
+	Hash   valuehash.HashDecoder `json:"hash"`
+	Fact   json.RawMessage       `json:"fact"`
+	Signed []json.RawMessage     `json:"signed"`
 }
 
 func (op *BaseOperation) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
@@ -38,6 +42,8 @@ func (op *BaseOperation) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	if err := enc.Unmarshal(b, &u); err != nil {
 		return e(err, "")
 	}
+
+	op.h = u.Hash.Hash()
 
 	switch hinter, err := enc.Decode(u.Fact); {
 	case err != nil:

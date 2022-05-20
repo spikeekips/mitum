@@ -3,6 +3,7 @@ package isaacstates
 import (
 	"context"
 	"math"
+	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -15,7 +16,7 @@ import (
 // should be valid(IsValid()).
 type SuffrageStateBuilder struct {
 	lastproof         isaac.SuffrageProof
-	lastSuffrageProof func(context.Context) (isaac.SuffrageProof, error)
+	lastSuffrageProof func(context.Context) (isaac.SuffrageProof, bool, error)
 	getSuffrageProof  func(context.Context, base.Height) (isaac.SuffrageProof, bool, error)
 	networkID         base.NetworkID
 	numbatches        int64
@@ -23,7 +24,7 @@ type SuffrageStateBuilder struct {
 
 func NewSuffrageStateBuilder(
 	networkID base.NetworkID,
-	lastSuffrageProof func(context.Context) (isaac.SuffrageProof, error),
+	lastSuffrageProof func(context.Context) (isaac.SuffrageProof, bool, error),
 	getSuffrageProof func(context.Context, base.Height) (isaac.SuffrageProof, bool, error),
 ) *SuffrageStateBuilder {
 	return &SuffrageStateBuilder{
@@ -57,10 +58,10 @@ func (s *SuffrageStateBuilder) Build(ctx context.Context, localstate base.State)
 
 	var last base.State
 
-	switch proof, err := s.lastSuffrageProof(ctx); {
+	switch proof, found, err := s.lastSuffrageProof(ctx); {
 	case err != nil:
 		return nil, e(err, "")
-	case proof == nil:
+	case !found:
 		return nil, e(util.ErrNotFound.Call(), "last suffrage proof not found")
 	default:
 		if err := proof.IsValid(s.networkID); err != nil {
@@ -126,51 +127,42 @@ func (s *SuffrageStateBuilder) build(
 	return suf, nil
 }
 
-func (s *SuffrageStateBuilder) buildBatch(ctx context.Context, from, to base.Height, previous base.State) (laststate base.State, _ error) {
+func (s *SuffrageStateBuilder) buildBatch(ctx context.Context, from, to base.Height, previous base.State) (base.State, error) {
 	e := util.StringErrorFunc("failed to build by batch")
 
 	worker := util.NewErrgroupWorker(ctx, math.MaxInt32)
 	defer worker.Close()
 
-	proofch := make(chan isaac.SuffrageProof, 1)
-	donech := make(chan error, 1)
-
-	go func() {
-		var last base.State
-		proofs := make([]isaac.SuffrageProof, (to - from + 1).Int64())
-
-	end:
-		for proof := range proofch {
-			if err := s.prove(from, proof, proofs, previous); err != nil {
-				donech <- err
-
-				break end
-			}
-
-			if proof.State().Height() == to {
-				last = proof.State()
-			}
-		}
-
-		laststate = last
-
-		donech <- nil
-	}()
+	var provelock sync.Mutex
+	var laststate base.State
+	proofs := make([]isaac.SuffrageProof, (to - from + 1).Int64())
 
 	for i := from; i <= to; i++ {
 		height := i
 
 		if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-			switch proof, found, err := s.getSuffrageProof(ctx, height); {
+			proof, found, err := s.getSuffrageProof(ctx, height)
+			switch {
 			case err != nil:
 				return err
 			case !found:
 				return util.ErrNotFound.Errorf("suffrage proof not found, %d", height)
-			default:
-				proofch <- proof
+			}
+
+			return func() error {
+				provelock.Lock()
+				defer provelock.Unlock()
+
+				if err := s.prove(from, proof, proofs, previous); err != nil {
+					return err
+				}
+
+				if proof.State().Height() == to {
+					laststate = proof.State()
+				}
 
 				return nil
-			}
+			}()
 		}); err != nil {
 			return nil, e(err, "")
 		}
@@ -179,12 +171,6 @@ func (s *SuffrageStateBuilder) buildBatch(ctx context.Context, from, to base.Hei
 	worker.Done()
 
 	if err := worker.Wait(); err != nil {
-		return nil, e(err, "")
-	}
-
-	close(proofch)
-
-	if err := <-donech; err != nil {
 		return nil, e(err, "")
 	}
 

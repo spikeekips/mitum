@@ -31,7 +31,7 @@ type Database interface {
 type PartialDatabase interface {
 	State(key string) (base.State, bool, error)
 	ExistsInStateOperation(operationFactHash util.Hash) (bool, error)
-	ExistsKnownOperation(operationFactHash util.Hash) (bool, error)
+	ExistsKnownOperation(operationHash util.Hash) (bool, error)
 }
 
 // TempDatabase is the temporary database; it contains only blockmap and

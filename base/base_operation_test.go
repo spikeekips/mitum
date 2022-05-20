@@ -71,6 +71,16 @@ func (t *testBaseOperation) TestIsValid() {
 		t.NoError(op.IsValid(t.networkID))
 	})
 
+	t.Run("wrong hash", func() {
+		op := t.newSignedOperation()
+		op.h = valuehash.RandomSHA256()
+
+		err := op.IsValid(t.networkID)
+		t.Error(err)
+		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorContains(err, "hash does not match")
+	})
+
 	t.Run("invalid fact", func() {
 		op := t.newSignedOperation()
 

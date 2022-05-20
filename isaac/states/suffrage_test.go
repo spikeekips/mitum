@@ -11,7 +11,6 @@ import (
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
 	"github.com/spikeekips/mitum/util"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/fixedtree"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
@@ -45,7 +44,8 @@ func (t *testSuffrageStateBuilder) prepare(point base.Point, previous base.State
 		previoushash = previous.Hash()
 	}
 
-	blockMap := t.newmap(point.Height(), previoushash)
+	blockMap, err := newTestBlockMap(point.Height(), nil, previoushash, t.Local, t.NodePolicy.NetworkID())
+	t.NoError(err)
 
 	var suffrageheight base.Height
 	if previous != nil {
@@ -83,33 +83,6 @@ func (t *testSuffrageStateBuilder) prepare(point base.Point, previous base.State
 	t.NoError(err)
 
 	return isaacblock.NewSuffrageProof(isaacblock.SuffrageProofHint, blockMap, newstate, proof, voteproof)
-}
-
-func (t *testSuffrageStateBuilder) newitem(ty base.BlockMapItemType) isaacblock.BlockMapItem {
-	return isaacblock.NewLocalBlockMapItem(ty, util.UUID().String(), 1)
-}
-
-func (t *testSuffrageStateBuilder) newmap(height base.Height, previous util.Hash) isaacblock.BlockMap {
-	m := isaacblock.NewBlockMap(isaacblock.LocalFSWriterHint, jsonenc.JSONEncoderHint)
-
-	for _, i := range []base.BlockMapItemType{
-		base.BlockMapItemTypeProposal,
-		base.BlockMapItemTypeOperations,
-		base.BlockMapItemTypeOperationsTree,
-		base.BlockMapItemTypeStates,
-		base.BlockMapItemTypeStatesTree,
-		base.BlockMapItemTypeVoteproofs,
-	} {
-		t.NoError(m.SetItem(t.newitem(i)))
-	}
-
-	manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
-	manifest.SetSuffrage(previous)
-
-	m.SetManifest(manifest)
-	t.NoError(m.Sign(t.Local.Address(), t.Local.Privatekey(), t.NodePolicy.NetworkID()))
-
-	return m
 }
 
 func (t *testSuffrageStateBuilder) newProofs(n int) map[base.Height]isaac.SuffrageProof {

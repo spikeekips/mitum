@@ -9,8 +9,6 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
-type LastSuffrageFunc func(context.Context, quictransport.ConnInfo) (SuffrageProof, bool, error)
-
 // revive:disable:line-length-limit
 type NetworkClient interface {
 	RequestProposal(_ context.Context, connInfo quictransport.ConnInfo, point base.Point, propser base.Address) (base.ProposalSignedFact, bool, error)

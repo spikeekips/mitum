@@ -27,7 +27,6 @@ import (
 type testBaseLocalBlockFS struct {
 	isaac.BaseTestBallots
 	isaacdatabase.BaseTestDatabase
-	root string
 }
 
 func (t *testBaseLocalBlockFS) SetupSuite() {
@@ -50,12 +49,6 @@ func (t *testBaseLocalBlockFS) SetupSuite() {
 func (t *testBaseLocalBlockFS) SetupTest() {
 	t.BaseTestBallots.SetupTest()
 	t.BaseTestDatabase.SetupTest()
-
-	t.root, _ = os.MkdirTemp("", "mitum-test")
-}
-
-func (t *testBaseLocalBlockFS) TearDownTest() {
-	os.RemoveAll(t.root)
 }
 
 func (t *testBaseLocalBlockFS) voteproofs(point base.Point) (base.INITVoteproof, base.ACCEPTVoteproof) {
@@ -108,11 +101,7 @@ func (t *testBaseLocalBlockFS) walkDirectory(root string) {
 	})
 }
 
-type testLocalFSReader struct {
-	testBaseLocalBlockFS
-}
-
-func (t *testLocalFSReader) preparefs(point base.Point) (
+func (t *testBaseLocalBlockFS) preparefs(point base.Point) (
 	*LocalFSWriter,
 	base.ProposalSignedFact,
 	[]base.Operation,
@@ -123,7 +112,7 @@ func (t *testLocalFSReader) preparefs(point base.Point) (
 ) {
 	ctx := context.Background()
 
-	fs, err := NewLocalFSWriter(t.root, point.Height(), t.Enc, t.Local, t.NodePolicy.NetworkID())
+	fs, err := NewLocalFSWriter(t.Root, point.Height(), t.Enc, t.Local, t.NodePolicy.NetworkID())
 	t.NoError(err)
 
 	// NOTE set manifest
@@ -187,6 +176,10 @@ func (t *testLocalFSReader) preparefs(point base.Point) (
 	return fs, pr, ops, opstree, stts, sttstree, []base.Voteproof{ivp, avp}
 }
 
+type testLocalFSReader struct {
+	testBaseLocalBlockFS
+}
+
 func (t *testLocalFSReader) TestNew() {
 	ctx := context.Background()
 
@@ -195,7 +188,7 @@ func (t *testLocalFSReader) TestNew() {
 	_, err := fs.Save(ctx)
 	t.NoError(err)
 
-	r, err := NewLocalFSReader(t.root, point.Height(), t.Enc)
+	r, err := NewLocalFSReaderFromHeight(t.Root, point.Height(), t.Enc)
 	t.NoError(err)
 	t.NotNil(r)
 
@@ -210,7 +203,7 @@ func (t *testLocalFSReader) TestMap() {
 	_, err := fs.Save(context.Background())
 	t.NoError(err)
 
-	r, err := NewLocalFSReader(t.root, point.Height(), t.Enc)
+	r, err := NewLocalFSReaderFromHeight(t.Root, point.Height(), t.Enc)
 	t.NoError(err)
 
 	m, found, err := r.Map()
@@ -233,7 +226,7 @@ func (t *testLocalFSReader) TestReader() {
 		t.T().Log("blockmap:", string(b))
 	}
 
-	r, err := NewLocalFSReader(t.root, point.Height(), t.Enc)
+	r, err := NewLocalFSReaderFromHeight(t.Root, point.Height(), t.Enc)
 	t.NoError(err)
 
 	t.Run("unknown", func() {
@@ -279,7 +272,7 @@ func (t *testLocalFSReader) TestReader() {
 
 	t.Run("known, but not found", func() {
 		// NOTE remove
-		fname, _ := BlockFileName(base.BlockMapItemTypeOperations, t.Enc)
+		fname, _ := BlockFileName(base.BlockMapItemTypeOperations, t.Enc.Hint().Type().String())
 		t.NoError(os.Remove(filepath.Join(r.root, fname)))
 
 		f, found, err := r.Reader(base.BlockMapItemTypeOperations)
@@ -302,7 +295,7 @@ func (t *testLocalFSReader) TestChecksumReader() {
 		t.T().Log("blockmap:", string(b))
 	}
 
-	r, err := NewLocalFSReader(t.root, point.Height(), t.Enc)
+	r, err := NewLocalFSReaderFromHeight(t.Root, point.Height(), t.Enc)
 	t.NoError(err)
 
 	t.Run("unknown", func() {
@@ -348,7 +341,7 @@ func (t *testLocalFSReader) TestChecksumReader() {
 
 	t.Run("known, but not found", func() {
 		// NOTE remove
-		fname, _ := BlockFileName(base.BlockMapItemTypeOperations, t.Enc)
+		fname, _ := BlockFileName(base.BlockMapItemTypeOperations, t.Enc.Hint().Type().String())
 		t.NoError(os.Remove(filepath.Join(r.root, fname)))
 
 		f, found, err := r.ChecksumReader(base.BlockMapItemTypeOperations)
@@ -365,7 +358,7 @@ func (t *testLocalFSReader) TestItem() {
 	_, err := fs.Save(context.Background())
 	t.NoError(err)
 
-	r, err := NewLocalFSReader(t.root, point.Height(), t.Enc)
+	r, err := NewLocalFSReaderFromHeight(t.Root, point.Height(), t.Enc)
 	t.NoError(err)
 
 	t.Run("unknown", func() {
@@ -519,11 +512,11 @@ func (t *testLocalFSReader) TestWrongChecksum() {
 	_, err := fs.Save(context.Background())
 	t.NoError(err)
 
-	t.walkDirectory(t.root)
+	t.walkDirectory(t.Root)
 
 	var root string
 	t.Run("load proposal before modifying", func() {
-		r, err := NewLocalFSReader(t.root, point.Height(), t.Enc)
+		r, err := NewLocalFSReaderFromHeight(t.Root, point.Height(), t.Enc)
 		t.NoError(err)
 
 		root = r.root
@@ -540,7 +533,7 @@ func (t *testLocalFSReader) TestWrongChecksum() {
 	})
 
 	// NOTE modify proposal.json
-	i, _ := BlockFileName(base.BlockMapItemTypeProposal, t.Enc)
+	i, _ := BlockFileName(base.BlockMapItemTypeProposal, t.Enc.Hint().Type().String())
 	path := filepath.Join(root, i)
 	f, err := os.Open(path)
 	t.NoError(err)
@@ -556,7 +549,7 @@ func (t *testLocalFSReader) TestWrongChecksum() {
 	nf.Close()
 
 	t.Run("load proposal after modifying", func() {
-		r, err := NewLocalFSReader(t.root, point.Height(), t.Enc)
+		r, err := NewLocalFSReaderFromHeight(t.Root, point.Height(), t.Enc)
 		t.NoError(err)
 
 		v, found, err := r.Item(base.BlockMapItemTypeProposal)

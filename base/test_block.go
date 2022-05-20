@@ -218,7 +218,10 @@ func EqualManifest(t *assert.Assertions, a, b Manifest) {
 	t.True(localtime.Equal(a.ProposedAt(), b.ProposedAt()), "ProposedAt does not match")
 }
 
-var DummyBlockMapHint = hint.MustNewHint("dummy-blockmap-v0.0.1")
+var (
+	DummyBlockMapHint    = hint.MustNewHint("dummy-blockmap-v0.0.1")
+	DummyBlockWriterHint = hint.MustNewHint("dummy-block-writer-v0.0.1")
+)
 
 type DummyBlockMap struct {
 	BaseNodeSigned
@@ -240,6 +243,14 @@ func NewDummyBlockMap(manifest Manifest) DummyBlockMap {
 
 func (m DummyBlockMap) Hint() hint.Hint {
 	return DummyBlockMapHint
+}
+
+func (m DummyBlockMap) Writer() hint.Hint {
+	return DummyBlockWriterHint
+}
+
+func (m DummyBlockMap) Encoder() hint.Hint {
+	return jsonenc.JSONEncoderHint
 }
 
 func (m DummyBlockMap) Manifest() Manifest {

@@ -97,6 +97,7 @@ func (fact *DummyOperationFact) UnmarshalJSON(b []byte) error {
 }
 
 type DummyOperation struct {
+	h          util.Hash
 	fact       DummyOperationFact
 	signed     base.BaseSigned
 	preprocess func(context.Context, base.GetStateFunc) (base.OperationProcessReasonError, error)
@@ -113,11 +114,15 @@ func NewDummyOperation(fact DummyOperationFact, priv base.Privatekey, networkID 
 		return DummyOperation{}, errors.Wrap(err, "failed to sign DummyOperation")
 	}
 
-	return DummyOperation{fact: fact, signed: signed}, nil
+	return DummyOperation{h: valuehash.RandomSHA256(), fact: fact, signed: signed}, nil
 }
 
 func (op DummyOperation) Hint() hint.Hint {
 	return DummyOperationHint
+}
+
+func (op DummyOperation) Hash() util.Hash {
+	return op.h
 }
 
 func (op DummyOperation) Signed() []base.Signed {
@@ -143,10 +148,12 @@ func (op DummyOperation) IsValid([]byte) error {
 func (op DummyOperation) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
 		hint.HintedJSONHead
+		H      util.Hash
 		Fact   DummyOperationFact
 		Signed base.BaseSigned
 	}{
 		HintedJSONHead: hint.NewHintedJSONHead(op.Hint()),
+		H:              op.h,
 		Fact:           op.fact,
 		Signed:         op.signed,
 	})
@@ -154,6 +161,7 @@ func (op DummyOperation) MarshalJSON() ([]byte, error) {
 
 func (op *DummyOperation) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	var u struct {
+		H      valuehash.HashDecoder
 		Fact   DummyOperationFact
 		Signed json.RawMessage
 	}
@@ -161,6 +169,7 @@ func (op *DummyOperation) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return err
 	}
 
+	op.h = u.H.Hash()
 	op.fact = u.Fact
 
 	var bs base.BaseSigned

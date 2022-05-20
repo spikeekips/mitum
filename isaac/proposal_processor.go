@@ -274,7 +274,8 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) (err e
 				switch {
 				case err == nil:
 				case errors.Is(err, InvalidOperationInProcessorError):
-					op = NewReasonProcessedOperation(h, base.NewBaseOperationProcessReasonError("invalid operation"))
+					op = NewReasonProcessedOperation(
+						nil, h, base.NewBaseOperationProcessReasonError("invalid operation"))
 				case errors.Is(err, OperationNotFoundInProcessorError),
 					errors.Is(err, OperationAlreadyProcessedInProcessorError):
 					return nil
@@ -357,7 +358,7 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context) error 
 		if i, ok := op.(ReasonProcessedOperation); ok {
 			if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
 				return p.writer.SetProcessResult( //nolint:wrapcheck //...
-					ctx, uint64(opsindex), i.FactHash(), false, i.Reason())
+					ctx, uint64(opsindex), i.OperationHash(), i.FactHash(), false, i.Reason())
 			}); err != nil {
 				return e(err, "")
 			}
@@ -440,7 +441,9 @@ func (p *DefaultProposalProcessor) doPreProcessOperation(
 	}
 
 	if errorreason != nil {
-		if err := p.writer.SetProcessResult(ctx, opsindex, op.Fact().Hash(), false, errorreason); err != nil {
+		if err := p.writer.SetProcessResult(
+			ctx, opsindex, op.Hash(), op.Fact().Hash(), false, errorreason,
+		); err != nil {
 			return false, e(err, "")
 		}
 	}
@@ -494,7 +497,9 @@ func (p *DefaultProposalProcessor) doProcessOperation(
 			}
 		}
 
-		if err := p.writer.SetProcessResult(ctx, opsindex, op.Fact().Hash(), instate, errorreason); err != nil {
+		if err := p.writer.SetProcessResult(
+			ctx, opsindex, op.Hash(), op.Fact().Hash(), instate, errorreason,
+		); err != nil {
 			return true, e(err, "")
 		}
 
@@ -637,12 +642,19 @@ func (p *DefaultProposalProcessor) retry(ctx context.Context, f func() (bool, er
 
 type ReasonProcessedOperation struct {
 	base.Operation
+	op       util.Hash
 	facthash util.Hash
 	reason   base.OperationProcessReasonError
 }
 
-func NewReasonProcessedOperation(facthash util.Hash, reason base.OperationProcessReasonError) ReasonProcessedOperation {
-	return ReasonProcessedOperation{facthash: facthash, reason: reason}
+func NewReasonProcessedOperation(
+	op, facthash util.Hash, reason base.OperationProcessReasonError,
+) ReasonProcessedOperation {
+	return ReasonProcessedOperation{op: op, facthash: facthash, reason: reason}
+}
+
+func (op ReasonProcessedOperation) OperationHash() util.Hash {
+	return op.op
 }
 
 func (op ReasonProcessedOperation) FactHash() util.Hash {

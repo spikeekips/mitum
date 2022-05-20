@@ -39,7 +39,7 @@ func NewSuffrageJoinPermissionFact(
 		state:     state,
 	}
 
-	fact.SetHash(fact.generateHash())
+	fact.SetHash(fact.hash())
 
 	return fact
 }
@@ -55,7 +55,7 @@ func (fact SuffrageJoinPermissionFact) IsValid([]byte) error {
 		return e(util.ErrInvalid.Errorf("wrong token"), "")
 	}
 
-	if !fact.Hash().Equal(fact.generateHash()) {
+	if !fact.Hash().Equal(fact.hash()) {
 		return e(util.ErrInvalid.Errorf("hash does not match"), "")
 	}
 
@@ -70,7 +70,7 @@ func (fact SuffrageJoinPermissionFact) State() util.Hash { // BLOCK check state;
 	return fact.state
 }
 
-func (fact SuffrageJoinPermissionFact) generateHash() util.Hash {
+func (fact SuffrageJoinPermissionFact) hash() util.Hash {
 	return valuehash.NewSHA256(util.ConcatByters(
 		util.BytesToByter(fact.Token()),
 		fact.candidate,
@@ -95,7 +95,7 @@ func NewSuffrageGenesisJoinPermissionFact(
 		pub:      pub,
 	}
 
-	fact.SetHash(fact.generateHash())
+	fact.SetHash(fact.hash())
 
 	return fact
 }
@@ -111,7 +111,7 @@ func (fact SuffrageGenesisJoinPermissionFact) IsValid(networkID []byte) error {
 		return e(util.ErrInvalid.Errorf("wrong token"), "")
 	}
 
-	if !fact.Hash().Equal(fact.generateHash()) {
+	if !fact.Hash().Equal(fact.hash()) {
 		return e(util.ErrInvalid.Errorf("hash does not match"), "")
 	}
 
@@ -126,7 +126,7 @@ func (fact SuffrageGenesisJoinPermissionFact) Publickey() base.Publickey {
 	return fact.pub
 }
 
-func (fact SuffrageGenesisJoinPermissionFact) generateHash() util.Hash {
+func (fact SuffrageGenesisJoinPermissionFact) hash() util.Hash {
 	return valuehash.NewSHA256(util.ConcatByters(
 		util.BytesToByter(fact.Token()),
 		fact.node,
