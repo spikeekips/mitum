@@ -127,7 +127,9 @@ func (s *SuffrageStateBuilder) build(
 	return suf, nil
 }
 
-func (s *SuffrageStateBuilder) buildBatch(ctx context.Context, from, to base.Height, previous base.State) (base.State, error) {
+func (s *SuffrageStateBuilder) buildBatch(
+	ctx context.Context, from, to base.Height, previous base.State,
+) (base.State, error) {
 	e := util.StringErrorFunc("failed to build by batch")
 
 	worker := util.NewErrgroupWorker(ctx, math.MaxInt32)

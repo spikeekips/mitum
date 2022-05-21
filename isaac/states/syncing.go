@@ -78,7 +78,7 @@ func (st *SyncingHandler) exit(sctx switchContext) (func(), error) {
 	st.cancelstuck()
 
 	if st.syncer != nil {
-		if !st.syncer.IsFinished() {
+		if _, isfinished := st.syncer.IsFinished(); !isfinished {
 			return nil, ignoreSwithingStateError.Errorf("syncer not yet finished")
 		}
 
@@ -119,13 +119,13 @@ func (st *SyncingHandler) checkFinished(vp base.Voteproof) (bool, error) {
 
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(vp)).Logger()
 
-	top := st.syncer.Top()
+	top, isfinished := st.syncer.IsFinished()
 
 	switch {
 	case vp.Point().Height() <= top:
 		return false, nil
 	case vp.Point().Stage() == base.StageINIT && vp.Point().Height() == top+1:
-		if !st.syncer.IsFinished() {
+		if !isfinished {
 			l.Debug().Msg("expected init voteproof found; but not yet finished")
 
 			return false, nil
@@ -164,8 +164,8 @@ end:
 			return
 		case <-sc.Done():
 			err = sc.Err()
-		case h := <-sc.Finished():
-			st.Log().Debug().Interface("height", h).Msg("syncer finished")
+		case top := <-sc.Finished():
+			st.Log().Debug().Interface("height", top).Msg("syncer finished")
 
 			st.cancelstuck()
 
@@ -176,7 +176,7 @@ end:
 
 			var added bool
 			if added, err = st.checkFinished(lvp); err == nil {
-				if !added && lvp.Point().Height() == sc.Top() && lvp.Point().Stage() == base.StageACCEPT {
+				if !added && lvp.Point().Height() == top && lvp.Point().Stage() == base.StageACCEPT {
 					st.newStuckCancel(lvp)
 				}
 

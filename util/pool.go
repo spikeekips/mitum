@@ -41,3 +41,27 @@ func (po *GCacheObjectPool) Get(key string) (interface{}, bool) {
 func (po *GCacheObjectPool) Set(key string, v interface{}) {
 	_ = po.cache.Set(key, v)
 }
+
+type LockedObjectPool struct {
+	maps *LockedMap
+}
+
+func NewLockedObjectPool() *LockedObjectPool {
+	return &LockedObjectPool{
+		maps: NewLockedMap(),
+	}
+}
+
+func (po *LockedObjectPool) Exists(key string) bool {
+	_, found := po.maps.Value(key)
+
+	return found
+}
+
+func (po *LockedObjectPool) Get(key string) (interface{}, bool) {
+	return po.maps.Value(key)
+}
+
+func (po *LockedObjectPool) Set(key string, v interface{}) {
+	_ = po.maps.SetValue(key, v)
+}

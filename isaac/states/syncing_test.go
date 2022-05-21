@@ -65,7 +65,7 @@ func (t *testSyncingHandler) TestNew() {
 	deferred()
 
 	t.NotNil(st.syncer)
-	t.Equal(base.Height(33), st.syncer.Top())
+	t.Equal(base.Height(33), st.syncer.(*dummySyncer).Top())
 
 	t.NoError(st.syncer.(*dummySyncer).Cancel())
 }
@@ -609,9 +609,6 @@ func newDummySyncer(ch chan base.Height, donech chan struct{}) *dummySyncer {
 }
 
 func (s *dummySyncer) Top() base.Height {
-	s.RLock()
-	defer s.RUnlock()
-
 	return s.topHeight
 }
 
@@ -670,19 +667,19 @@ func (s *dummySyncer) done(err error) {
 	s.donech <- struct{}{}
 }
 
-func (s *dummySyncer) IsFinished() bool {
+func (s *dummySyncer) IsFinished() (base.Height, bool) {
 	s.RLock()
 	defer s.RUnlock()
 
 	if s.err != nil {
-		return true
+		return s.topHeight, true
 	}
 
 	if s.canceled {
-		return true
+		return s.topHeight, true
 	}
 
-	return s.topHeight == s.doneHeight
+	return s.topHeight, s.topHeight == s.doneHeight
 }
 
 func (s *dummySyncer) Cancel() error {

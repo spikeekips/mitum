@@ -3,12 +3,14 @@ package isaacstates
 import (
 	"context"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
+	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
 	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
@@ -19,7 +21,7 @@ type testSyncer struct {
 }
 
 func (t *testSyncer) TestNew() {
-	s := NewSyncer(nil, nil, nil)
+	s := NewSyncer(nil, nil, nil, isaacdatabase.NewMemTempSyncPool())
 
 	_ = (interface{})(s).(isaac.Syncer)
 }
@@ -42,59 +44,63 @@ func (t *testSyncer) maps(from, to base.Height) []base.BlockMap {
 
 func (t *testSyncer) TestAdd() {
 	t.Run("with nil last", func() {
-		s := NewSyncer(nil, nil, nil)
+		s := NewSyncer(nil, nil, nil, isaacdatabase.NewMemTempSyncPool())
 
 		height := base.Height(33)
 		t.True(s.Add(height))
-		t.Equal(height, s.Top())
+		t.Equal(height, s.top())
+
+		<-s.startsyncch
 	})
 
 	t.Run("same with last", func() {
 		lastheight := base.Height(33)
 		last := t.maps(lastheight, lastheight)[0]
 
-		s := NewSyncer(last, nil, nil)
+		s := NewSyncer(last, nil, nil, isaacdatabase.NewMemTempSyncPool())
 
 		height := base.Height(33)
 		t.False(s.Add(height))
-		t.Equal(lastheight, s.Top())
+		t.Equal(lastheight, s.top())
 	})
 
 	t.Run("older than last", func() {
 		lastheight := base.Height(33)
 		last := t.maps(lastheight, lastheight)[0]
 
-		s := NewSyncer(last, nil, nil)
+		s := NewSyncer(last, nil, nil, isaacdatabase.NewMemTempSyncPool())
 
 		height := lastheight - 1
 		t.False(s.Add(height))
-		t.Equal(lastheight, s.Top())
+		t.Equal(lastheight, s.top())
 	})
 
 	t.Run("higher than last", func() {
 		lastheight := base.Height(33)
 		last := t.maps(lastheight, lastheight)[0]
 
-		s := NewSyncer(last, nil, nil)
+		s := NewSyncer(last, nil, nil, isaacdatabase.NewMemTempSyncPool())
 
 		height := lastheight + 1
 		t.True(s.Add(height))
-		t.Equal(height, s.Top())
+		t.Equal(height, s.top())
+
+		<-s.startsyncch
 	})
 }
 
 func (t *testSyncer) TestAddChan() {
 	t.Run("with nil last", func() {
-		s := NewSyncer(nil, nil, nil)
+		s := NewSyncer(nil, nil, nil, isaacdatabase.NewMemTempSyncPool())
 
 		height := base.Height(33)
 		t.True(s.Add(height))
-		t.Equal(height, s.Top())
+		t.Equal(height, s.top())
 
 		select {
 		case <-time.After(time.Millisecond * 300):
 			t.NoError(errors.Errorf("waits height from addch, but not"))
-		case h := <-s.addch:
+		case h := <-s.startsyncch:
 			t.Equal(h, height)
 		}
 	})
@@ -104,41 +110,41 @@ func (t *testSyncer) TestAddChan() {
 
 		last := t.maps(lastheight, lastheight)[0]
 
-		s := NewSyncer(last, nil, nil)
+		s := NewSyncer(last, nil, nil, isaacdatabase.NewMemTempSyncPool())
 
 		height := lastheight + 1
 		t.True(s.Add(height))
-		t.Equal(height, s.Top())
+		t.Equal(height, s.top())
 
 		select {
 		case <-time.After(time.Millisecond * 300):
 			t.NoError(errors.Errorf("waits height from addch, but not"))
-		case h := <-s.addch:
+		case h := <-s.startsyncch:
 			t.Equal(h, height)
 		}
 	})
 
 	t.Run("same with synced height", func() {
-		s := NewSyncer(nil, nil, nil)
+		s := NewSyncer(nil, nil, nil, isaacdatabase.NewMemTempSyncPool())
 
-		s.topLocked = util.NewLocked(base.Height(33))
-		s.syncedheightLocked = util.NewLocked(base.Height(33))
+		s.topvalue = util.NewLocked(base.Height(33))
+		s.lastvalue.SetValue(t.maps(base.Height(33), base.Height(33))[0])
 
 		height := base.Height(34)
 		t.True(s.Add(height))
-		t.Equal(height, s.Top())
+		t.Equal(height, s.top())
 
 		select {
 		case <-time.After(time.Millisecond * 300):
 			t.NoError(errors.Errorf("waits height from addch, but not"))
-		case h := <-s.addch:
+		case h := <-s.startsyncch:
 			t.Equal(h, height)
 		}
 	})
 }
 
 func (t *testSyncer) TestCancel() {
-	s := NewSyncer(nil, nil, nil)
+	s := NewSyncer(nil, nil, nil, isaacdatabase.NewMemTempSyncPool())
 	t.NoError(s.Start())
 
 	t.NoError(s.Cancel())
@@ -161,7 +167,7 @@ func (t *testSyncer) TestFetchMaps() {
 			}
 
 			return maps[index], true, nil
-		}, nil)
+		}, nil, isaacdatabase.NewMemTempSyncPool())
 		t.NoError(s.Start())
 		defer s.Cancel()
 
@@ -189,7 +195,7 @@ func (t *testSyncer) TestFetchMaps() {
 			}
 
 			return maps[index], true, nil
-		}, nil)
+		}, nil, isaacdatabase.NewMemTempSyncPool())
 		t.NoError(s.Start())
 		defer s.Cancel()
 
@@ -205,6 +211,51 @@ func (t *testSyncer) TestFetchMaps() {
 		}
 	})
 
+	t.Run("top updated", func() {
+		to := base.Height(5)
+		newto := to + 5
+		maps := t.maps(base.GenesisHeight, newto)
+
+		reachedlock := sync.NewCond(&sync.Mutex{})
+
+		reachedch := make(chan struct{})
+		var reached bool
+		s := NewSyncer(nil, func(_ context.Context, height base.Height) (base.BlockMap, bool, error) {
+			reachedlock.L.Lock()
+			if height == to && !reached {
+				close(reachedch)
+
+				reachedlock.Wait()
+			}
+			reachedlock.L.Unlock()
+
+			index := (height - base.GenesisHeight).Int64()
+			if index < 0 || index >= int64(len(maps)) {
+				return nil, false, nil
+			}
+
+			return maps[index], true, nil
+		}, nil, isaacdatabase.NewMemTempSyncPool())
+		t.NoError(s.Start())
+		defer s.Cancel()
+
+		t.True(s.Add(to))
+		<-reachedch
+
+		reachedlock.L.Lock()
+		reached = true
+		t.True(s.Add(newto))
+		reachedlock.L.Unlock()
+		reachedlock.Broadcast()
+
+		select {
+		case height := <-s.Finished():
+			t.Equal(newto, height)
+		case <-s.Done():
+			t.NoError(s.Err())
+		}
+	})
+
 	t.Run("with nil last", func() {
 		to := base.Height(5)
 		maps := t.maps(base.GenesisHeight, to)
@@ -216,7 +267,7 @@ func (t *testSyncer) TestFetchMaps() {
 			}
 
 			return maps[index], true, nil
-		}, nil)
+		}, nil, isaacdatabase.NewMemTempSyncPool())
 		t.NoError(s.Start())
 		defer s.Cancel()
 
@@ -242,7 +293,7 @@ func (t *testSyncer) TestFetchMaps() {
 			}
 
 			return maps[index], true, nil
-		}, nil)
+		}, nil, isaacdatabase.NewMemTempSyncPool())
 		t.NoError(s.Start())
 		defer s.Cancel()
 
@@ -268,7 +319,8 @@ func (t *testSyncer) TestFetchMaps() {
 			}
 
 			return maps[index], true, nil
-		}, nil)
+		}, nil, isaacdatabase.NewMemTempSyncPool())
+
 		s.batchlimit = 2
 		t.NoError(s.Start())
 		defer s.Cancel()
@@ -283,6 +335,8 @@ func (t *testSyncer) TestFetchMaps() {
 		}
 	})
 }
+
+// BLOCK test LeveldbTempSyncPool
 
 func TestSyncer(t *testing.T) {
 	defer goleak.VerifyNone(t)

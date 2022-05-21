@@ -66,7 +66,8 @@ func (fact SuffrageJoinPermissionFact) Candidate() base.Address {
 	return fact.candidate
 }
 
-func (fact SuffrageJoinPermissionFact) State() util.Hash { // BLOCK check state; it indicates that the candidate registered.
+func (fact SuffrageJoinPermissionFact) State() util.Hash {
+	// BLOCK check state; it indicates that the candidate registered.
 	return fact.state
 }
 

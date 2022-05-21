@@ -27,8 +27,8 @@ var (
 	leveldbKeyPrefixNewOperation            = []byte{0x00, 0x09}
 	leveldbKeyPrefixNewOperationOrdered     = []byte{0x00, 0x10}
 	leveldbKeyPrefixNewOperationOrderedKeys = []byte{0x00, 0x11}
-
-	leveldbKeyLastVoteproofs = []byte{0x00, 0x12}
+	leveldbKeyLastVoteproofs                = []byte{0x00, 0x12}
+	leveldbKeyTempSyncMap                   = []byte{0x00, 0x13}
 
 	leveldbNewOperationOrderedKeysJoinSep   = bytes.Repeat([]byte{0xff}, 10) //nolint:gomnd //...
 	leveldbNewOperationOrderedKeysJoinedSep = util.ConcatBytesSlice(
@@ -228,4 +228,11 @@ func loadLeveldbNewOperationKeys(b []byte) (key []byte, orderedkey []byte, err e
 	}
 
 	return b[:i], b[i+len(leveldbNewOperationOrderedKeysJoinSep):], nil
+}
+
+func leveldbTempSyncMapKey(height base.Height) []byte {
+	return util.ConcatBytesSlice(
+		leveldbKeyTempSyncMap,
+		[]byte(fmt.Sprintf("%021d", height)),
+	)
 }

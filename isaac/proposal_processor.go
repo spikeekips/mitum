@@ -273,11 +273,12 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) (err e
 
 				switch {
 				case err == nil:
-				case errors.Is(err, InvalidOperationInProcessorError):
-					op = NewReasonProcessedOperation(
-						nil, h, base.NewBaseOperationProcessReasonError("invalid operation"))
-				case errors.Is(err, OperationNotFoundInProcessorError),
+				case errors.Is(err, util.ErrInvalid),
+					errors.Is(err, InvalidOperationInProcessorError),
+					errors.Is(err, OperationNotFoundInProcessorError),
 					errors.Is(err, OperationAlreadyProcessedInProcessorError):
+					p.Log().Debug().Err(err).Stringer("facthash", h).Msg("operation ignored")
+
 					return nil
 				default:
 					return errors.Wrapf(err, "failed to collect operation, %q", h)
@@ -310,7 +311,8 @@ func (p *DefaultProposalProcessor) collectOperation(ctx context.Context, h util.
 			op = j
 
 			return false, nil
-		case errors.Is(err, InvalidOperationInProcessorError),
+		case errors.Is(err, util.ErrInvalid),
+			errors.Is(err, InvalidOperationInProcessorError),
 			errors.Is(err, OperationNotFoundInProcessorError),
 			errors.Is(err, OperationAlreadyProcessedInProcessorError):
 			return false, err

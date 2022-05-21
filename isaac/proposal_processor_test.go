@@ -325,6 +325,8 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsFailedButIgnored() {
 		switch {
 		case facthash.Equal(ophs[1]):
 			return nil, InvalidOperationInProcessorError.Call()
+		case facthash.Equal(ophs[2]):
+			return nil, util.ErrInvalid.Call()
 		case facthash.Equal(ophs[3]):
 			return nil, OperationNotFoundInProcessorError.Call()
 		}
@@ -341,12 +343,7 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsFailedButIgnored() {
 
 	for i := range ophs {
 		b := opp.ops[i]
-		if i == 1 {
-			j, ok := b.(ReasonProcessedOperation)
-			t.True(ok)
-
-			t.Contains("invalid operation", j.Reason().Msg())
-
+		if i == 1 || i == 2 {
 			continue
 		}
 
@@ -410,11 +407,6 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsInvalidError() {
 		}
 
 		if i == 3 {
-			j, ok := b.(ReasonProcessedOperation)
-			t.True(ok)
-
-			t.Contains("invalid operation", j.Reason().Msg())
-
 			continue
 		}
 

@@ -95,3 +95,10 @@ type VoteproofsPool interface {
 	LastVoteproofs() (base.INITVoteproof, base.ACCEPTVoteproof, bool, error)
 	SetLastVoteproofs(base.INITVoteproof, base.ACCEPTVoteproof) error
 }
+
+type TempSyncPool interface {
+	Map(base.Height) (base.BlockMap, bool, error)
+	SetMap(base.BlockMap) error
+	Cancel() error
+	Close() error
+}
