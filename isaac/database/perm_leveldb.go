@@ -192,14 +192,25 @@ func (db *LeveldbPermanent) MergeTempDatabase(ctx context.Context, temp isaac.Te
 			return e(err, "")
 		}
 
-		_ = db.mp.SetValue(mp)
-		if sufstt != nil {
-			_ = db.sufstt.SetValue(sufstt)
-		}
+		_, _ = db.mp.Set(func(i interface{}) (interface{}, error) {
+			if i != nil {
+				old := i.(base.BlockMap) //nolint:forcetypeassert //...
 
-		if t.policy != nil {
-			_ = db.policy.SetValue(t.policy)
-		}
+				if mp.Manifest().Height() <= old.Manifest().Height() {
+					return nil, errors.Errorf("old")
+				}
+			}
+
+			if sufstt != nil {
+				_ = db.sufstt.SetValue(sufstt)
+			}
+
+			if t.policy != nil {
+				_ = db.policy.SetValue(t.policy)
+			}
+
+			return mp, nil
+		})
 
 		return nil
 	default:

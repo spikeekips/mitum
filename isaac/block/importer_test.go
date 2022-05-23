@@ -37,10 +37,13 @@ func (t *testBlockImporter) TestNew() {
 	point := base.RawPoint(33, 44)
 	m := t.prepare(point)
 
-	db := t.NewMemLeveldbBlockWriteDatabase(point.Height())
-	defer db.Close()
+	bwdb := t.NewMemLeveldbBlockWriteDatabase(point.Height())
+	defer bwdb.Close()
 
-	im, err := NewBlockImporter(t.Root, t.Encs, m, db)
+	permdb := t.NewMemLeveldbPermanentDatabase()
+	defer permdb.Close()
+
+	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, permdb)
 	t.NoError(err)
 
 	_ = (interface{})(im).(isaac.BlockImporter)
@@ -50,10 +53,13 @@ func (t *testBlockImporter) TestWriteMap() {
 	point := base.RawPoint(33, 44)
 	m := t.prepare(point)
 
-	db := t.NewMemLeveldbBlockWriteDatabase(point.Height())
-	defer db.Close()
+	bwdb := t.NewMemLeveldbBlockWriteDatabase(point.Height())
+	defer bwdb.Close()
 
-	im, err := NewBlockImporter(t.Root, t.Encs, m, db)
+	permdb := t.NewMemLeveldbPermanentDatabase()
+	defer permdb.Close()
+
+	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, permdb)
 	t.NoError(err)
 
 	reader, err := NewLocalFSReader(im.localfs.temp, t.Enc)
@@ -67,8 +73,8 @@ func (t *testBlockImporter) TestWriteMap() {
 		base.EqualBlockMap(t.Assert(), m, rm)
 	})
 
-	t.Run("map in db", func() {
-		tempdb, err := db.TempDatabase()
+	t.Run("map in bwdb", func() {
+		tempdb, err := bwdb.TempDatabase()
 		t.NoError(err)
 
 		rm, err := tempdb.Map()
@@ -82,10 +88,13 @@ func (t *testBlockImporter) TestWriteProposal() {
 	point := base.RawPoint(33, 44)
 	m := t.prepare(point)
 
-	db := t.NewMemLeveldbBlockWriteDatabase(point.Height())
-	defer db.Close()
+	bwdb := t.NewMemLeveldbBlockWriteDatabase(point.Height())
+	defer bwdb.Close()
 
-	im, err := NewBlockImporter(t.Root, t.Encs, m, db)
+	permdb := t.NewMemLeveldbPermanentDatabase()
+	defer permdb.Close()
+
+	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, permdb)
 	t.NoError(err)
 	im.batchlimit = 2
 
@@ -138,10 +147,13 @@ func (t *testBlockImporter) TestWriteOperations() {
 	point := base.RawPoint(33, 44)
 	m := t.prepare(point)
 
-	db := t.NewMemLeveldbBlockWriteDatabase(point.Height())
-	defer db.Close()
+	bwdb := t.NewMemLeveldbBlockWriteDatabase(point.Height())
+	defer bwdb.Close()
 
-	im, err := NewBlockImporter(t.Root, t.Encs, m, db)
+	permdb := t.NewMemLeveldbPermanentDatabase()
+	defer permdb.Close()
+
+	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, permdb)
 	t.NoError(err)
 	im.batchlimit = 2
 
@@ -192,8 +204,8 @@ func (t *testBlockImporter) TestWriteOperations() {
 		t.Equal(checksum, cr.Checksum())
 	})
 
-	t.Run("in db", func() {
-		tempdb, err := db.TempDatabase()
+	t.Run("in bwdb", func() {
+		tempdb, err := bwdb.TempDatabase()
 		t.NoError(err)
 
 		for i := range ops {
@@ -208,10 +220,13 @@ func (t *testBlockImporter) TestWriteOperationsTree() {
 	point := base.RawPoint(33, 44)
 	m := t.prepare(point)
 
-	db := t.NewMemLeveldbBlockWriteDatabase(point.Height())
-	defer db.Close()
+	bwdb := t.NewMemLeveldbBlockWriteDatabase(point.Height())
+	defer bwdb.Close()
 
-	im, err := NewBlockImporter(t.Root, t.Encs, m, db)
+	permdb := t.NewMemLeveldbPermanentDatabase()
+	defer permdb.Close()
+
+	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, permdb)
 	t.NoError(err)
 	im.batchlimit = 2
 
@@ -270,10 +285,13 @@ func (t *testBlockImporter) TestWriteVoteproofs() {
 	point := base.RawPoint(33, 44)
 	m := t.prepare(point)
 
-	db := t.NewMemLeveldbBlockWriteDatabase(point.Height())
-	defer db.Close()
+	bwdb := t.NewMemLeveldbBlockWriteDatabase(point.Height())
+	defer bwdb.Close()
 
-	im, err := NewBlockImporter(t.Root, t.Encs, m, db)
+	permdb := t.NewMemLeveldbPermanentDatabase()
+	defer permdb.Close()
+
+	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, permdb)
 	t.NoError(err)
 	im.batchlimit = 2
 
@@ -328,10 +346,13 @@ func (t *testBlockImporter) TestWriteStates() {
 	point := base.RawPoint(33, 44)
 	m := t.prepare(point)
 
-	db := t.NewMemLeveldbBlockWriteDatabase(point.Height())
-	defer db.Close()
+	bwdb := t.NewMemLeveldbBlockWriteDatabase(point.Height())
+	defer bwdb.Close()
 
-	im, err := NewBlockImporter(t.Root, t.Encs, m, db)
+	permdb := t.NewMemLeveldbPermanentDatabase()
+	defer permdb.Close()
+
+	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, permdb)
 	t.NoError(err)
 	im.batchlimit = 2
 
@@ -382,8 +403,8 @@ func (t *testBlockImporter) TestWriteStates() {
 		t.Equal(checksum, cr.Checksum())
 	})
 
-	t.Run("in db", func() {
-		tempdb, err := db.TempDatabase()
+	t.Run("in bwdb", func() {
+		tempdb, err := bwdb.TempDatabase()
 		t.NoError(err)
 
 		for i := range sts {
@@ -402,10 +423,13 @@ func (t *testBlockImporter) TestWriteStatesTree() {
 	point := base.RawPoint(33, 44)
 	m := t.prepare(point)
 
-	db := t.NewMemLeveldbBlockWriteDatabase(point.Height())
-	defer db.Close()
+	bwdb := t.NewMemLeveldbBlockWriteDatabase(point.Height())
+	defer bwdb.Close()
 
-	im, err := NewBlockImporter(t.Root, t.Encs, m, db)
+	permdb := t.NewMemLeveldbPermanentDatabase()
+	defer permdb.Close()
+
+	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, permdb)
 	t.NoError(err)
 	im.batchlimit = 2
 
@@ -467,11 +491,14 @@ func (t *testBlockImporter) TestSave() {
 	reader, err := NewLocalFSReaderFromHeight(t.Root, point.Height(), t.Enc)
 	t.NoError(err)
 
-	db := t.NewMemLeveldbBlockWriteDatabase(point.Height())
-	defer db.Close()
+	bwdb := t.NewMemLeveldbBlockWriteDatabase(point.Height())
+	defer bwdb.Close()
 
 	newroot := filepath.Join(t.Root, "save")
-	im, err := NewBlockImporter(newroot, t.Encs, m, db)
+	permdb := t.NewMemLeveldbPermanentDatabase()
+	defer permdb.Close()
+
+	im, err := NewBlockImporter(newroot, t.Encs, m, bwdb, permdb)
 	t.NoError(err)
 
 	m.Items(func(item base.BlockMapItem) bool {
@@ -508,6 +535,98 @@ func (t *testBlockImporter) TestSave() {
 
 			return true
 		})
+	})
+
+	t.Run("merge", func() {
+		t.NoError(im.Merge(context.Background()))
+
+		i, found, err := reader.Item(base.BlockMapItemTypeOperations)
+		t.NoError(err)
+		t.True(found)
+
+		ops := i.([]base.Operation)
+
+		i, found, err = reader.Item(base.BlockMapItemTypeStates)
+		t.NoError(err)
+		t.True(found)
+
+		sts := i.([]base.State)
+
+		for i := range ops {
+			found, err := permdb.ExistsKnownOperation(ops[i].Hash())
+			t.NoError(err)
+			t.True(found)
+		}
+
+		for i := range sts {
+			st, found, err := permdb.State(sts[i].Key())
+			t.NoError(err)
+			t.True(found)
+			t.NotNil(st)
+		}
+	})
+}
+
+func (t *testBlockImporter) TestCancelImport() {
+	point := base.RawPoint(33, 44)
+	m := t.prepare(point)
+
+	reader, err := NewLocalFSReaderFromHeight(t.Root, point.Height(), t.Enc)
+	t.NoError(err)
+
+	newroot := filepath.Join(t.Root, "save")
+
+	t.Run("cancel before save", func() {
+		bwdb := t.NewMemLeveldbBlockWriteDatabase(point.Height())
+		defer bwdb.Close()
+
+		permdb := t.NewMemLeveldbPermanentDatabase()
+		defer permdb.Close()
+
+		im, err := NewBlockImporter(newroot, t.Encs, m, bwdb, permdb)
+		t.NoError(err)
+
+		t.NoError(im.CancelImport(context.Background()))
+	})
+
+	bwdb := t.NewMemLeveldbBlockWriteDatabase(point.Height())
+	defer bwdb.Close()
+
+	permdb := t.NewMemLeveldbPermanentDatabase()
+	defer permdb.Close()
+
+	im, err := NewBlockImporter(newroot, t.Encs, m, bwdb, permdb)
+	t.NoError(err)
+
+	m.Items(func(item base.BlockMapItem) bool {
+		r, found, err := reader.Reader(item.Type())
+		t.NoError(err)
+		t.True(found)
+
+		t.NoError(im.WriteItem(item.Type(), r), "failed: %q", item.Type())
+
+		return true
+	})
+
+	t.Run("cancel after save", func() {
+		t.walkDirectory(newroot, "temp files")
+
+		t.NoError(im.Save(context.Background()))
+
+		t.walkDirectory(newroot, "after saved")
+
+		t.NoError(im.CancelImport(context.Background()))
+
+		t.T().Log("check directory; it should be empty")
+		t.walkDirectory(newroot)
+
+		_, err = os.Stat(im.localfs.temp)
+		t.True(os.IsNotExist(err))
+	})
+
+	t.Run("cancel again", func() {
+		t.NoError(im.CancelImport(context.Background()))
+		t.NoError(im.CancelImport(context.Background()))
 	})
 }
 

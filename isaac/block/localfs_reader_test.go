@@ -65,7 +65,11 @@ func (t *testBaseLocalBlockFS) voteproofs(point base.Point) (base.INITVoteproof,
 	return ivp, avp
 }
 
-func (t *testBaseLocalBlockFS) walkDirectory(root string) {
+func (t *testBaseLocalBlockFS) walkDirectory(root string, a ...any) {
+	if len(a) > 0 {
+		t.T().Logf(a[0].(string), a[1:]...)
+	}
+
 	filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			t.T().Logf("error: %+v", err)
@@ -74,6 +78,8 @@ func (t *testBaseLocalBlockFS) walkDirectory(root string) {
 		}
 
 		if info.IsDir() {
+			t.T().Log("directory:", path)
+
 			return nil
 		}
 

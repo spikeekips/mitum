@@ -28,7 +28,7 @@ func NewLocalFSImporter(root string, enc encoder.Encoder, m base.BlockMap) (*Loc
 
 	temp := filepath.Join(
 		abs,
-		blockTempDirectoryPrefix,
+		BlockTempDirectoryPrefix,
 		fmt.Sprintf("%d-%s", m.Manifest().Height(), ulid.New().String()),
 	)
 
@@ -82,7 +82,7 @@ func (l *LocalFSImporter) WriteItem(t base.BlockMapItemType) (io.Writer, error) 
 }
 
 func (l *LocalFSImporter) Save() error {
-	e := util.StringErrorFunc("failed to save to localfs")
+	e := util.StringErrorFunc("failed to save localfs")
 
 	d := filepath.Join(l.root, HeightDirectory(l.height))
 
@@ -105,6 +105,34 @@ func (l *LocalFSImporter) Save() error {
 
 	if err := os.Rename(l.temp, d); err != nil {
 		return e(err, "")
+	}
+
+	return nil
+}
+
+func (l *LocalFSImporter) Cancel() error {
+	e := util.StringErrorFunc("failed to cancel localfs")
+
+	switch _, err := os.Stat(l.temp); {
+	case err == nil:
+		if err = os.RemoveAll(l.temp); err != nil {
+			return e(err, "failed to remove existing height directory")
+		}
+	case os.IsNotExist(err):
+	default:
+		return e(err, "failed to check temp directory")
+	}
+
+	d := filepath.Join(l.root, HeightDirectory(l.height))
+
+	switch _, err := os.Stat(d); {
+	case err == nil:
+		if err = os.RemoveAll(d); err != nil {
+			return e(err, "failed to remove existing height directory")
+		}
+	case os.IsNotExist(err):
+	default:
+		return e(err, "failed to check height directory")
 	}
 
 	return nil

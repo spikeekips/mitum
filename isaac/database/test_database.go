@@ -66,6 +66,14 @@ func (t *BaseTestDatabase) NewMemLeveldbBlockWriteDatabase(height base.Height) *
 	return newLeveldbBlockWrite(st, height, t.Encs, t.Enc)
 }
 
+func (t *BaseTestDatabase) NewMemLeveldbPermanentDatabase() *LeveldbPermanent {
+	st := leveldbstorage.NewMemWriteStorage()
+	db, err := newLeveldbPermanent(st, t.Encs, t.Enc)
+	t.noerror(err)
+
+	return db
+}
+
 func (t *BaseTestDatabase) NewMemLeveldbTempSyncPool() *LeveldbTempSyncPool {
 	st := leveldbstorage.NewMemWriteStorage()
 	return newLeveldbTempSyncPool(st, t.Encs, t.Enc)
