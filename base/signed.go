@@ -36,15 +36,15 @@ func NewBaseSigned(signer Publickey, signature Signature, signedAt time.Time) Ba
 	}
 }
 
-func BaseSignedFromFact(priv Privatekey, networkID NetworkID, fact Fact) (BaseSigned, error) {
+func NewBaseSignedFromFact(priv Privatekey, networkID NetworkID, fact Fact) (BaseSigned, error) {
 	if fact == nil || fact.Hash() == nil {
 		return BaseSigned{}, util.ErrInvalid.Errorf("failed to make BaseSigned; empty fact")
 	}
 
-	return BaseSignedFromBytes(priv, networkID, fact.Hash().Bytes())
+	return NewBaseSignedFromBytes(priv, networkID, fact.Hash().Bytes())
 }
 
-func BaseSignedFromBytes(priv Privatekey, networkID NetworkID, b []byte) (BaseSigned, error) {
+func NewBaseSignedFromBytes(priv Privatekey, networkID NetworkID, b []byte) (BaseSigned, error) {
 	now := localtime.New(localtime.Now())
 
 	sig, err := priv.Sign(util.ConcatBytesSlice(networkID, b, now.Bytes()))
@@ -52,11 +52,7 @@ func BaseSignedFromBytes(priv Privatekey, networkID NetworkID, b []byte) (BaseSi
 		return BaseSigned{}, errors.Wrap(err, "failed to generate BaseSign")
 	}
 
-	return BaseSigned{
-		signer:    priv.Publickey(),
-		signature: sig,
-		signedAt:  now.Time,
-	}, nil
+	return NewBaseSigned(priv.Publickey(), sig, now.Time), nil
 }
 
 func (si BaseSigned) Signer() Publickey {
@@ -126,7 +122,7 @@ func BaseNodeSignedFromFact(node Address, priv Privatekey, networkID NetworkID, 
 }
 
 func BaseNodeSignedFromBytes(node Address, priv Privatekey, networkID NetworkID, b []byte) (BaseNodeSigned, error) {
-	si, err := BaseSignedFromBytes(priv, networkID, util.ConcatByters(node, util.BytesToByter(b)))
+	si, err := NewBaseSignedFromBytes(priv, networkID, util.ConcatByters(node, util.BytesToByter(b)))
 	if err != nil {
 		return BaseNodeSigned{}, errors.Wrap(err, "failed to create BaseNodeSigned from bytes")
 	}

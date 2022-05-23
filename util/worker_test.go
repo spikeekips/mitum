@@ -761,3 +761,55 @@ func TestErrgroupWorker(t *testing.T) {
 
 	_ = sem.Acquire(context.Background(), 100)
 }
+
+type testBatchWork struct {
+	suite.Suite
+}
+
+func (t *testBatchWork) TestSimple() {
+	size := uint64(14)
+	limit := uint64(3)
+
+	founds := make([]byte, size)
+	foundlasts := make([]uint64, size/limit+1)
+
+	lastlock := &sync.Mutex{}
+	var l uint64
+	t.NoError(BatchWork(context.Background(), size, limit,
+		func(_ context.Context, last uint64) error {
+			lastlock.Lock()
+			defer lastlock.Unlock()
+
+			foundlasts[l] = last
+			l++
+
+			return nil
+		},
+		func(_ context.Context, i, last uint64) error {
+			founds[i] = 'f'
+
+			return nil
+		},
+	))
+
+	for i := range founds {
+		t.NotNil(founds[i])
+	}
+
+	t.Equal(uint64(5), size/limit+1)
+
+	for i := uint64(0); i <= size/limit; i++ {
+		j := (i+1)*limit - 1
+		if j > size-1 {
+			j = size - 1
+		}
+
+		t.Equal(j, foundlasts[i])
+	}
+}
+
+func TestBatchWork(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	suite.Run(t, new(testBatchWork))
+}

@@ -106,14 +106,14 @@ func (st *SyncingHandler) exit(sctx switchContext) (func(), error) {
 func (st *SyncingHandler) newVoteproof(vp base.Voteproof) error {
 	e := util.StringErrorFunc("failed to handle new voteproof")
 
-	if _, err := st.checkFinished(vp); err != nil {
+	if _, _, err := st.checkFinished(vp); err != nil {
 		return e(err, "")
 	}
 
 	return nil
 }
 
-func (st *SyncingHandler) checkFinished(vp base.Voteproof) (bool, error) {
+func (st *SyncingHandler) checkFinished(vp base.Voteproof) (added bool, isfinished bool, _ error) {
 	st.finishedLock.Lock()
 	defer st.finishedLock.Unlock()
 
@@ -123,25 +123,26 @@ func (st *SyncingHandler) checkFinished(vp base.Voteproof) (bool, error) {
 
 	switch {
 	case vp.Point().Height() <= top:
-		return false, nil
+		return false, isfinished, nil
 	case vp.Point().Stage() == base.StageINIT && vp.Point().Height() == top+1:
 		if !isfinished {
 			l.Debug().Msg("expected init voteproof found; but not yet finished")
 
-			return false, nil
+			return false, isfinished, nil
 		}
 
 		// NOTE expected init voteproof found, moves to consensus state
 		l.Debug().Msg("expected init voteproof found; moves to syncing state")
 
-		return false, newConsensusSwitchContext(StateSyncing, vp.(base.INITVoteproof)) //nolint:forcetypeassert //...
+		return false, isfinished,
+			newConsensusSwitchContext(StateSyncing, vp.(base.INITVoteproof)) //nolint:forcetypeassert //...
 	default:
 		height := vp.Point().Height()
 		if vp.Point().Stage() == base.StageINIT {
 			height--
 		}
 
-		return st.add(height), nil
+		return st.add(height), isfinished, nil
 	}
 }
 
@@ -174,9 +175,9 @@ end:
 				continue
 			}
 
-			var added bool
-			if added, err = st.checkFinished(lvp); err == nil {
-				if !added && lvp.Point().Height() == top && lvp.Point().Stage() == base.StageACCEPT {
+			var added, isfinished bool
+			if added, isfinished, err = st.checkFinished(lvp); err == nil {
+				if isfinished && !added && lvp.Point().Height() == top && lvp.Point().Stage() == base.StageACCEPT {
 					st.newStuckCancel(lvp)
 				}
 

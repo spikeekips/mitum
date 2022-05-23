@@ -105,7 +105,7 @@ type DummyOperation struct {
 }
 
 func NewDummyOperation(fact DummyOperationFact, priv base.Privatekey, networkID base.NetworkID) (DummyOperation, error) {
-	signed, err := base.BaseSignedFromFact(
+	signed, err := base.NewBaseSignedFromFact(
 		priv,
 		networkID,
 		fact,

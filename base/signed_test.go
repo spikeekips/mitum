@@ -70,7 +70,7 @@ func (t *testSigned) TestSignedAndVerify() {
 	priv := NewMPrivatekey()
 	input := util.UUID().Bytes()
 
-	s, err := BaseSignedFromBytes(priv, nil, input)
+	s, err := NewBaseSignedFromBytes(priv, nil, input)
 	t.NoError(err)
 	t.NoError(s.IsValid(nil))
 
@@ -95,7 +95,7 @@ func TestBaseSignedJSON(tt *testing.T) {
 	t.Encode = func() (interface{}, []byte) {
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: MPublickeyHint, Instance: MPublickey{}}))
 
-		s, err := BaseSignedFromBytes(priv, nil, input)
+		s, err := NewBaseSignedFromBytes(priv, nil, input)
 		t.NoError(err)
 
 		b, err := enc.Marshal(s)

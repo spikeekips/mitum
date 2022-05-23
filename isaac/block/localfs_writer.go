@@ -34,7 +34,7 @@ var (
 		base.BlockMapItemTypeStatesTree:     "states_tree",
 		base.BlockMapItemTypeVoteproofs:     "voteproofs",
 	}
-	blockTempDirectoryPrefix = "temp"
+	BlockTempDirectoryPrefix = "temp"
 )
 
 var ulid = util.NewULID()
@@ -80,7 +80,7 @@ func NewLocalFSWriter(
 	}
 
 	id := ulid.New().String()
-	temp := filepath.Join(abs, blockTempDirectoryPrefix, fmt.Sprintf("%d-%s", height, id))
+	temp := filepath.Join(abs, BlockTempDirectoryPrefix, fmt.Sprintf("%d-%s", height, id))
 
 	if err := os.MkdirAll(temp, 0o700); err != nil {
 		return nil, e(err, "failed to create temp directory")
@@ -617,7 +617,7 @@ func blockFSMapFilename(hinttype string) string {
 }
 
 func CleanBlockTempDirectory(root string) error {
-	d := filepath.Join(filepath.Clean(root), blockTempDirectoryPrefix)
+	d := filepath.Join(filepath.Clean(root), BlockTempDirectoryPrefix)
 	if err := os.RemoveAll(d); err != nil {
 		return errors.Wrap(err, "failed to remove block temp directory")
 	}

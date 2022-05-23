@@ -442,3 +442,80 @@ func (wk *ErrgroupWorker) RunChan() chan error {
 
 	return ch
 }
+
+// BatchWork runs f by limit size in worker. For example,
+// size=5 limit=2 are given,
+// 1. Run worker(0,1)
+// 2. Run worker(2,3)
+// 3. Run worker(4), done.
+func BatchWork(
+	ctx context.Context,
+	size, limit uint64,
+	pref func(_ context.Context, last uint64) error,
+	f func(_ context.Context, i, last uint64) error,
+) error {
+	if size < 1 {
+		return errors.Errorf("do nothing; wrong size")
+	}
+
+	if size <= limit {
+		if err := pref(ctx, size-1); err != nil {
+			return errors.Wrap(err, "")
+		}
+
+		return RunErrgroupWorker(ctx, size, func(ctx context.Context, i, _ uint64) error {
+			return f(ctx, i, size-1)
+		})
+	}
+
+	var i uint64
+
+	for {
+		end := i + limit
+		if end > size {
+			end = size
+		}
+
+		if err := pref(ctx, end-1); err != nil {
+			return errors.Wrap(err, "")
+		}
+
+		if err := RunErrgroupWorker(ctx, end-i, func(ctx context.Context, n, _ uint64) error {
+			return f(ctx, i+n, end-1)
+		}); err != nil {
+			return errors.Wrap(err, "")
+		}
+
+		if end == size {
+			break
+		}
+
+		i += limit
+	}
+
+	return nil
+}
+
+func RunErrgroupWorker(ctx context.Context, size uint64, f func(ctx context.Context, i, jobid uint64) error) error {
+	// BLOCK replace NewErrgroupWorker
+	worker := NewErrgroupWorker(ctx, int64(size))
+	defer worker.Close()
+
+	for i := uint64(0); i < size; i++ {
+		i := i
+
+		if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
+			return f(ctx, i, jobid)
+		}); err != nil {
+			return errors.Wrap(err, "")
+		}
+	}
+
+	worker.Done()
+
+	if err := worker.Wait(); err != nil {
+		return errors.Wrap(err, "")
+	}
+
+	return nil
+}

@@ -16,7 +16,8 @@ type BlockImporter struct {
 	m          base.BlockMap
 	enc        encoder.Encoder
 	localfs    *LocalFSImporter
-	db         isaac.BlockWriteDatabase
+	bwdb       isaac.BlockWriteDatabase
+	permdb     isaac.PermanentDatabase
 	finisheds  *util.LockedMap
 	batchlimit uint64
 }
@@ -25,7 +26,8 @@ func NewBlockImporter(
 	root string,
 	encs *encoder.Encoders,
 	m base.BlockMap,
-	db isaac.BlockWriteDatabase,
+	bwdb isaac.BlockWriteDatabase,
+	permdb isaac.PermanentDatabase,
 ) (*BlockImporter, error) {
 	e := util.StringErrorFunc("failed new BlockImporter")
 
@@ -43,7 +45,8 @@ func NewBlockImporter(
 		m:          m,
 		enc:        enc,
 		localfs:    localfs,
-		db:         db,
+		bwdb:       bwdb,
+		permdb:     permdb,
 		finisheds:  util.NewLockedMap(),
 		batchlimit: 333, //nolint:gomnd // enough big size
 	}
@@ -71,7 +74,7 @@ func (im *BlockImporter) WriteMap(m base.BlockMap) error {
 		return e(err, "failed to write BlockMap")
 	}
 
-	if err := im.db.SetMap(m); err != nil {
+	if err := im.bwdb.SetMap(m); err != nil {
 		return e(err, "")
 	}
 
@@ -91,33 +94,50 @@ func (im *BlockImporter) WriteItem(t base.BlockMapItemType, r io.Reader) error {
 }
 
 func (im *BlockImporter) Save(context.Context) error {
-	var notyet bool
-	im.m.Items(func(item base.BlockMapItem) bool {
-		switch i, found := im.finisheds.Value(item.Type()); {
-		case !found:
-			notyet = true
-
-			return false
-		case !i.(bool): //nolint:forcetypeassert //...
-			notyet = true
-
-			return false
-		default:
-			return true
-		}
-	})
-
 	e := util.StringErrorFunc("failed to save")
 
-	if notyet {
+	if !im.isfinished() {
 		return e(nil, "not yet finished")
 	}
 
-	if err := im.db.Write(); err != nil {
+	if err := im.bwdb.Write(); err != nil {
 		return e(err, "")
 	}
 
 	if err := im.localfs.Save(); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
+func (im *BlockImporter) CancelImport(context.Context) error {
+	e := util.StringErrorFunc("failed to cancel")
+
+	if err := im.bwdb.Cancel(); err != nil {
+		return e(err, "")
+	}
+
+	if err := im.localfs.Cancel(); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
+func (im *BlockImporter) Merge(ctx context.Context) error {
+	e := util.StringErrorFunc("failed to merge")
+
+	temp, err := im.bwdb.TempDatabase()
+	if err != nil {
+		return e(err, "")
+	}
+
+	if err := im.permdb.MergeTempDatabase(ctx, temp); err != nil {
+		return e(err, "")
+	}
+
+	if err := temp.Remove(); err != nil {
 		return e(err, "")
 	}
 
@@ -204,7 +224,7 @@ func (im *BlockImporter) importOperations(item base.BlockMapItem, r io.Reader) e
 		ops[index] = op.Hash()
 
 		if index == uint64(len(ops))-1 {
-			if err := im.db.SetOperations(ops); err != nil {
+			if err := im.bwdb.SetOperations(ops); err != nil {
 				return errors.Wrap(err, "")
 			}
 
@@ -251,7 +271,7 @@ func (im *BlockImporter) importStates(item base.BlockMapItem, r io.Reader) error
 		sts[index] = st
 
 		if index == uint64(len(sts))-1 {
-			if err := im.db.SetStates(sts); err != nil {
+			if err := im.bwdb.SetStates(sts); err != nil {
 				return errors.Wrap(err, "")
 			}
 
@@ -275,4 +295,24 @@ func (im *BlockImporter) importStates(item base.BlockMapItem, r io.Reader) error
 	}
 
 	return nil
+}
+
+func (im *BlockImporter) isfinished() bool {
+	var notyet bool
+	im.m.Items(func(item base.BlockMapItem) bool {
+		switch i, found := im.finisheds.Value(item.Type()); {
+		case !found:
+			notyet = true
+
+			return false
+		case !i.(bool): //nolint:forcetypeassert //...
+			notyet = true
+
+			return false
+		default:
+			return true
+		}
+	})
+
+	return !notyet
 }

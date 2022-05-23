@@ -49,7 +49,7 @@ func (baseBallotSignedFact) IsValid([]byte) error {
 }
 
 func (sf *baseBallotSignedFact) Sign(priv base.Privatekey, networkID base.NetworkID) error {
-	sign, err := base.BaseSignedFromFact(
+	sign, err := base.NewBaseSignedFromFact(
 		priv,
 		networkID,
 		sf.fact,

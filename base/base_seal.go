@@ -63,7 +63,7 @@ func (sl BaseSeal) IsValid(networkID []byte) error {
 }
 
 func (sl *BaseSeal) Sign(priv Privatekey, networkID []byte) error {
-	sign, err := BaseSignedFromBytes(priv, networkID, sl.signedHashBytes())
+	sign, err := NewBaseSignedFromBytes(priv, networkID, sl.signedHashBytes())
 	if err != nil {
 		return errors.Wrap(err, "failed to sign BaseSeal")
 	}

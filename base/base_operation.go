@@ -118,7 +118,7 @@ func (op *BaseOperation) sign(priv Privatekey, networkID NetworkID) error {
 		}
 	}
 
-	newsigned, err := BaseSignedFromFact(priv, networkID, op.fact)
+	newsigned, err := NewBaseSignedFromFact(priv, networkID, op.fact)
 	if err != nil {
 		return e(err, "")
 	}

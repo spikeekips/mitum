@@ -498,7 +498,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 		select {
 		case <-time.After(time.Second * 2):
 		case <-sctxch:
-			t.NoError(errors.Errorf("switched joining state"))
+			t.NoError(errors.Errorf("unexpected; switched joining state"))
 		}
 	})
 
@@ -609,6 +609,9 @@ func newDummySyncer(ch chan base.Height, donech chan struct{}) *dummySyncer {
 }
 
 func (s *dummySyncer) Top() base.Height {
+	s.RLock()
+	defer s.RUnlock()
+
 	return s.topHeight
 }
 

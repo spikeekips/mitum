@@ -133,7 +133,7 @@ func (sf ProposalSignedFact) HashBytes() []byte {
 }
 
 func (sf *ProposalSignedFact) Sign(priv base.Privatekey, networkID base.NetworkID) error {
-	signed, err := base.BaseSignedFromFact(
+	signed, err := base.NewBaseSignedFromFact(
 		priv,
 		networkID,
 		sf.fact,
