@@ -274,12 +274,6 @@ func (w *Writer) saveStates(
 		defer worker.Done()
 
 		if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-			return w.setProposal(ctx)
-		}); err != nil {
-			return
-		}
-
-		if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
 			return w.db.SetStates(states) //nolint:wrapcheck //...
 		}); err != nil {
 			return
@@ -313,6 +307,10 @@ func (w *Writer) Manifest(ctx context.Context, previous base.Manifest) (base.Man
 
 	if w.proposal == nil || (previous == nil && w.proposal.Point().Height() > base.GenesisHeight) {
 		return nil, e(nil, "not yet written")
+	}
+
+	if err := w.setProposal(ctx); err != nil {
+		return nil, e(err, "")
 	}
 
 	if err := w.closeStateValues(ctx); err != nil {
