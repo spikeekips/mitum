@@ -449,3 +449,31 @@ func (t *testCommonPermanent) TestMergeTempDatabase() {
 		base.EqualBlockMap(t.Assert(), mp, rm)
 	})
 }
+
+func (t *testCommonPermanent) TestClean() {
+	height := base.Height(33)
+	_, nodes := t.Locals(3)
+
+	sufstt, _ := t.SuffrageState(height, base.Height(66), nodes)
+
+	db := t.newDB()
+	defer db.Close()
+
+	t.setSuffrageState(db, sufstt)
+
+	t.Run("before clean", func() {
+		rsufstt, found, err := db.LastSuffrage()
+		t.NoError(err)
+		t.True(found)
+		t.NotNil(rsufstt)
+	})
+
+	t.Run("clean", func() {
+		t.NoError(db.Clean())
+
+		rsufstt, found, err := db.LastSuffrage()
+		t.NoError(err)
+		t.False(found)
+		t.Nil(rsufstt)
+	})
+}

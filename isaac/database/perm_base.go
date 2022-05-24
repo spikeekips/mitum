@@ -47,7 +47,18 @@ func (db *basePermanent) LastNetworkPolicy() base.NetworkPolicy {
 	}
 }
 
-func (db *LeveldbPermanent) canMergeTempDatabase(temp isaac.TempDatabase) bool {
+func (db *basePermanent) Clean() error {
+	_, _ = db.mp.Set(func(interface{}) (interface{}, error) {
+		db.sufstt.SetValue(util.NilLockedValue{})
+		db.policy.SetValue(util.NilLockedValue{})
+
+		return util.NilLockedValue{}, nil
+	})
+
+	return nil
+}
+
+func (db *basePermanent) canMergeTempDatabase(temp isaac.TempDatabase) bool {
 	switch i, _ := db.mp.Value(); {
 	case i == nil:
 		return true

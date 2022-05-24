@@ -86,7 +86,7 @@ func (db *RedisPermanent) Clean() error {
 		return errors.Wrap(err, "failed to clean redis PermanentDatabase")
 	}
 
-	return nil
+	return db.basePermanent.Clean()
 }
 
 func (db *RedisPermanent) Suffrage(height base.Height) (base.State, bool, error) {
@@ -248,8 +248,7 @@ func (db *RedisPermanent) MergeTempDatabase(ctx context.Context, temp isaac.Temp
 	db.Lock()
 	defer db.Unlock()
 
-	if i, _ := db.mp.Value(); i != nil &&
-		i.(base.BlockMap).Manifest().Height() >= temp.Height() { //nolint:forcetypeassert //...
+	if !db.canMergeTempDatabase(temp) {
 		return nil
 	}
 
