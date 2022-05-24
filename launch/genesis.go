@@ -147,7 +147,7 @@ func (g *GenesisBlockGenerator) newProposal(ops []util.Hash) error {
 		nops[i+len(ops)] = g.ops[i].Fact().Hash()
 	}
 
-	fact := isaac.NewProposalFact(base.GenesisPoint, g.local.Address(), ops)
+	fact := isaac.NewProposalFact(base.GenesisPoint, g.local.Address(), nops)
 	signed := isaac.NewProposalSignedFact(fact)
 
 	if err := signed.Sign(g.local.Privatekey(), g.networkID); err != nil {
