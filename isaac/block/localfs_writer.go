@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"math"
 	"os"
@@ -27,7 +28,7 @@ import (
 
 var LocalFSWriterHint = hint.MustNewHint("local-block-fs-writer-v0.0.1")
 
-var rHeightDirectory = regexp.MustCompile(`^\d+$`)
+var rHeightDirectory = regexp.MustCompile(`^[\d]{3}$`)
 
 var (
 	blockMapFilename = "map"
@@ -558,6 +559,7 @@ func HeightDirectory(height base.Height) string {
 
 func HeightFromDirectory(s string) (base.Height, error) {
 	hs := strings.Replace(s, "/", "", -1)
+
 	h, err := base.NewHeightFromString(hs)
 	if err != nil {
 		return base.NilHeight, errors.Wrap(err, "")
@@ -566,13 +568,13 @@ func HeightFromDirectory(s string) (base.Height, error) {
 	return h, nil
 }
 
-func FindHighestDirectory(root string) (string, bool, error) {
+func FindHighestDirectory(root string) (highest string, found bool, _ error) {
 	abs, err := filepath.Abs(filepath.Clean(root))
 	if err != nil {
-		return "", false, err
+		return "", false, errors.Wrap(err, "")
 	}
 
-	switch highest, found, err := findHighestDirectory(abs); {
+	switch highest, found, err = findHighestDirectory(abs); {
 	case err != nil:
 		return highest, found, errors.Wrap(err, "")
 	case !found:
@@ -590,23 +592,30 @@ func findHighestDirectory(root string) (string, bool, error) {
 			return errors.Wrap(err, "")
 		case !info.IsDir():
 			return nil
-		case !rHeightDirectory.MatchString(info.Name()):
-			return nil
 		}
 
 		files, err := ioutil.ReadDir(path)
+		var names []string
+
 		switch {
 		case err != nil:
 			return errors.Wrap(err, "")
 		default:
 			var foundsubs bool
-			for i := range files {
-				if files[i].IsDir() {
-					foundsubs = true
+			filtered := util.FilterSlices(files, func(i interface{}) bool {
+				f := i.(fs.FileInfo) //nolint:forcetypeassert //.
 
-					break
+				switch {
+				case !f.IsDir(), !rHeightDirectory.MatchString(f.Name()):
+					return false
+				default:
+					if !foundsubs {
+						foundsubs = true
+					}
+
+					return true
 				}
-			}
+			})
 
 			if !foundsubs {
 				highest = path
@@ -614,12 +623,17 @@ func findHighestDirectory(root string) (string, bool, error) {
 				return util.ErrNotFound.Call()
 			}
 
-			sort.Slice(files, func(i, j int) bool {
-				return strings.Compare(files[i].Name(), files[j].Name()) > 0
+			names = make([]string, len(filtered))
+			for i := range filtered {
+				names[i] = filtered[i].(fs.FileInfo).Name() //nolint:forcetypeassert //.
+			}
+
+			sort.Slice(names, func(i, j int) bool {
+				return strings.Compare(names[i], names[j]) > 0
 			})
 		}
 
-		switch a, found, err := findHighestDirectory(filepath.Join(path, files[0].Name())); {
+		switch a, found, err := findHighestDirectory(filepath.Join(path, names[0])); {
 		case err != nil:
 			if !errors.Is(err, util.ErrNotFound) {
 				return err
@@ -636,7 +650,7 @@ func findHighestDirectory(root string) (string, bool, error) {
 	case err == nil, errors.Is(err, util.ErrNotFound):
 		return highest, highest != "", nil
 	default:
-		return highest, false, err
+		return highest, false, errors.Wrap(err, "")
 	}
 }
 

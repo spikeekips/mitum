@@ -140,11 +140,7 @@ func BatchValidateMaps(
 				return err
 			}
 
-			if err := callback(m); err != nil {
-				return err
-			}
-
-			return nil
+			return callback(m)
 		},
 	); err != nil {
 		return e(err, "")
@@ -215,7 +211,7 @@ func ValidateOperationsTreeWithManifest(tr fixedtree.Tree, ops []Operation, mani
 	}
 
 	mops, duplicated := util.CheckSliceDuplicated(ops, func(i interface{}) string {
-		return i.(Operation).Fact().Hash().String()
+		return i.(Operation).Fact().Hash().String() //nolint:forcetypeassert //...
 	})
 	if duplicated {
 		return e(nil, "duplicated operation found in operations")
@@ -254,7 +250,7 @@ func ValidateStatesTreeWithManifest(tr fixedtree.Tree, sts []State, manifest Man
 	}
 
 	msts, duplicated := util.CheckSliceDuplicated(sts, func(i interface{}) string {
-		return i.(State).Hash().String()
+		return i.(State).Hash().String() //nolint:forcetypeassert //...
 	})
 	if duplicated {
 		return e(nil, "duplicated state found in states")
@@ -264,7 +260,7 @@ func ValidateStatesTreeWithManifest(tr fixedtree.Tree, sts []State, manifest Man
 		switch i, found := msts[node.Key()]; {
 		case !found:
 			return false, errors.Errorf("state in tree not found in states")
-		case i.(State).Height() != manifest.Height():
+		case i.(State).Height() != manifest.Height(): //nolint:forcetypeassert //...
 			return false, errors.Errorf("height does not match")
 		}
 
@@ -284,13 +280,14 @@ func ValidateVoteproofsWithManifest(vps []Voteproof, manifest Manifest) error {
 	e := util.StringErrorFunc("invalid voteproofs by manifest")
 
 	switch {
-	case len(vps) != 2:
+	case len(vps) != 2: //nolint:gomnd //...
 		return e(nil, "not voteproofs")
 	case vps[0] == nil, vps[1] == nil:
 		return e(nil, "empty voteproof")
 	}
 
 	var ivp INITVoteproof
+
 	switch i, ok := vps[0].(INITVoteproof); {
 	case !ok:
 		return e(nil, "expected INITVoteproof, but %T", vps[0])
@@ -299,6 +296,7 @@ func ValidateVoteproofsWithManifest(vps []Voteproof, manifest Manifest) error {
 	}
 
 	var avp ACCEPTVoteproof
+
 	switch i, ok := vps[1].(ACCEPTVoteproof); {
 	case !ok:
 		return e(nil, "expected ACCEPTVoteproof, but %T", vps[0])

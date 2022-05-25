@@ -44,7 +44,28 @@ func CheckSliceDuplicated(s interface{}, key func(interface{}) string) (map[stri
 	return m, false
 }
 
-func FilterSlice(a, b interface{}, f func(interface{}, interface{}) bool) []interface{} {
+func FilterSlices(a interface{}, f func(interface{}) bool) []interface{} {
+	as := makeInterfaceSlice(a)
+	if as == nil {
+		return nil
+	}
+
+	ns := make([]interface{}, len(as))
+	var index int
+
+	for i := range as {
+		if !f(as[i]) {
+			continue
+		}
+
+		ns[index] = as[i]
+		index++
+	}
+
+	return ns[:index]
+}
+
+func Filter2Slices(a, b interface{}, f func(interface{}, interface{}) bool) []interface{} {
 	as := makeInterfaceSlice(a)
 	if as == nil {
 		return nil

@@ -19,13 +19,13 @@ import (
 
 type importCommand struct {
 	Address launch.AddressFlag `arg:"" name:"local address" help:"node address"`
-	From    string             `arg:"" name:"from directory" help:" block data directory to import" type:"existingdir"`
 	local   base.LocalNode
-	encs    *encoder.Encoders
 	enc     encoder.Encoder
 	db      isaac.Database
 	perm    isaac.PermanentDatabase
 	pool    *isaacdatabase.TempPool
+	encs    *encoder.Encoders
+	From    string `arg:"" name:"from directory" help:" block data directory to import" type:"existingdir"`
 }
 
 func (cmd *importCommand) Run() error {

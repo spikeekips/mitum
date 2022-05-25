@@ -292,7 +292,7 @@ func (db *TempPool) SetLastVoteproofs(ivp base.INITVoteproof, avp base.ACCEPTVot
 	if _, err := db.lastvoteproofs.Set(func(i interface{}) (interface{}, error) {
 		var old [2]base.Voteproof
 		if i != nil {
-			old = i.([2]base.Voteproof)
+			old = i.([2]base.Voteproof) //nolint:forcetypeassert //...
 
 			if ivp.Point().Compare(old[0].Point()) < 1 {
 				return nil, util.ErrLockedSetIgnore.Call()

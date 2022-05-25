@@ -34,9 +34,9 @@ func main() {
 	}).SetLogging(logging).Log()
 
 	var cli struct {
+		Import importCommand `cmd:"" help:"import from block data"`
 		Init   initCommand   `cmd:"" help:"init node"`
 		Run    runCommand    `cmd:"" help:"run node"`
-		Import importCommand `cmd:"" help:"import from block data"`
 	}
 
 	kctx := kong.Parse(&cli)

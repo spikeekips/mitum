@@ -13,18 +13,16 @@ import (
 )
 
 type BlockImporter struct {
-	root       string
 	m          base.BlockMap
 	enc        encoder.Encoder
-	localfs    *LocalFSImporter
 	bwdb       isaac.BlockWriteDatabase
 	permdb     isaac.PermanentDatabase
-	networkID  base.NetworkID
+	localfs    *LocalFSImporter
 	finisheds  *util.LockedMap
+	root       string
+	networkID  base.NetworkID
 	batchlimit uint64
 }
-
-// BLOCK set last voteproofs in pool
 
 func NewBlockImporter(
 	root string,
@@ -197,6 +195,8 @@ func (im *BlockImporter) importItem(t base.BlockMapItemType, r io.Reader) error 
 		err = im.importStates(item, cr)
 	case base.BlockMapItemTypeOperations:
 		err = im.importOperations(item, cr)
+	case base.BlockMapItemTypeVoteproofs:
+		err = im.importVoteproofs(item, cr)
 	default:
 		_, err = io.ReadAll(cr)
 	}
@@ -328,6 +328,21 @@ func (im *BlockImporter) importStates(item base.BlockMapItem, r io.Reader) error
 
 		return nil
 	}); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
+func (im *BlockImporter) importVoteproofs(_ base.BlockMapItem, r io.Reader) error {
+	e := util.StringErrorFunc("failed to import voteproofs")
+
+	vps, err := LoadVoteproofsFromReader(r, im.enc.Decode)
+	if err != nil {
+		return e(err, "")
+	}
+
+	if err := base.ValidateVoteproofsWithManifest(vps, im.m.Manifest()); err != nil {
 		return e(err, "")
 	}
 

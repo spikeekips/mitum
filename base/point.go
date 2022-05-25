@@ -25,15 +25,16 @@ var zeroPrefixHeightString = regexp.MustCompile(`^[0]+`)
 type Height int64
 
 func NewHeightFromString(s string) (Height, error) {
-	if strings.HasPrefix(s, "0") {
-		s = zeroPrefixHeightString.ReplaceAllString(s, "")
+	n := s
+	if strings.HasPrefix(n, "0") {
+		n = zeroPrefixHeightString.ReplaceAllString(n, "")
 
-		if len(s) < 1 {
-			s = "0"
+		if len(n) < 1 {
+			n = "0"
 		}
 	}
 
-	i, err := strconv.ParseInt(s, 10, 64)
+	i, err := strconv.ParseInt(n, 10, 64)
 	if err != nil {
 		return NilHeight, errors.Wrap(err, "failed to NewHeightFromString")
 	}

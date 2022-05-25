@@ -224,6 +224,7 @@ func (r *LocalFSReader) Item(t base.BlockMapItemType) (item interface{}, found b
 
 func (r *LocalFSReader) Items(f func(base.BlockMapItem, interface{}, bool, error) bool) error {
 	var m base.BlockMap
+
 	switch i, found, err := r.Map(); {
 	case err != nil:
 		return errors.Wrap(err, "")
@@ -412,11 +413,23 @@ func (r *LocalFSReader) loadVoteproofs(item base.BlockMapItem, f io.Reader) ([]b
 		return nil, nil
 	}
 
+	vps, err := LoadVoteproofsFromReader(f, r.enc.Decode)
+	if err != nil {
+		return nil, errors.Wrap(err, "")
+	}
+
+	return vps, nil
+}
+
+func LoadVoteproofsFromReader(
+	r io.Reader,
+	decode func([]byte) (interface{}, error),
+) ([]base.Voteproof, error) {
 	e := util.StringErrorFunc("failed to load voteproofs")
 
 	vps := make([]base.Voteproof, 2)
 
-	if err := LoadRawItemsWithWorker(f, r.enc.Decode, func(_ uint64, v interface{}) error {
+	if err := LoadRawItemsWithWorker(r, decode, func(_ uint64, v interface{}) error {
 		switch t := v.(type) {
 		case base.INITVoteproof:
 			vps[0] = t

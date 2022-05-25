@@ -136,7 +136,7 @@ func PrepareDatabase(
 		return nil, nil, e(err, "")
 	}
 
-	if err := db.MergeAllPermanent(); err != nil {
+	if err = db.MergeAllPermanent(); err != nil {
 		return nil, nil, e(err, "")
 	}
 

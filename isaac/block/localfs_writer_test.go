@@ -562,7 +562,7 @@ func (t *testHeightDirectory) TearDownTest() {
 	os.RemoveAll(t.root)
 }
 
-func (t *testHeightDirectory) prepareFS(root string, heights ...uint64) {
+func (t *testHeightDirectory) prepareFS(root string, heights []uint64, others []string) {
 	for i := range heights {
 		t.NoError(os.MkdirAll(
 			filepath.Join(
@@ -571,6 +571,10 @@ func (t *testHeightDirectory) prepareFS(root string, heights ...uint64) {
 			),
 			0o700,
 		))
+	}
+
+	for i := range others {
+		t.NoError(os.MkdirAll(filepath.Join(root, others[i]), 0o700))
 	}
 }
 
@@ -593,14 +597,37 @@ func (t *testHeightDirectory) TestFindHighest() {
 	cases := []struct {
 		name    string
 		heights []uint64
+		others  []string
 		r       uint64
 	}{
-		{"same level", []uint64{0, 1, 2, 3}, 3},
-		{"max", []uint64{0, 1, 2, uint64(math.MaxInt64)}, uint64(math.MaxInt64)},
-		{"zero level", []uint64{0}, 0},
-		{"different level #0", []uint64{0, 1, 2, 3333333}, 3333333},
-		{"different level #1", []uint64{0, 1, 2, 1333333, 3333333, 3333334, 3333339}, 3333339},
-		{"different level #2", []uint64{0, 1, 2, 1333333, 3333333, 9333333333}, 9333333333},
+		{"same level", []uint64{0, 1, 2, 3}, nil, 3},
+		{
+			"max",
+			[]uint64{0, 1, 2, uint64(math.MaxInt64)},
+			nil,
+			uint64(math.MaxInt64),
+		},
+		{"zero level", []uint64{0}, nil, 0},
+		{"different level #0", []uint64{0, 1, 2, 3333333}, nil, 3333333},
+		{"different level #1", []uint64{0, 1, 2, 1333333, 3333333, 3333334, 3333339}, nil, 3333339},
+		{"different level #2", []uint64{0, 1, 2, 1333333, 3333333, 9333333333}, nil, 9333333333},
+		{
+			"not height directory #0",
+			[]uint64{0, 1, 2, 1333333, 3333333, 9333333333},
+			[]string{
+				"tem",
+				"900000000000000000",
+			},
+			9333333333,
+		},
+		{
+			"not height directory #1",
+			[]uint64{0, 1, 2, 1333333, 3333333, 9333333333},
+			[]string{
+				"000/000/000/009/43a/433",
+			},
+			9333333333,
+		},
 	}
 
 	for i, c := range cases {
@@ -610,7 +637,7 @@ func (t *testHeightDirectory) TestFindHighest() {
 			c.name,
 			func() {
 				root := filepath.Join(t.root, util.UUID().String())
-				t.prepareFS(root, c.heights...)
+				t.prepareFS(root, c.heights, c.others)
 
 				t.walk(root)
 

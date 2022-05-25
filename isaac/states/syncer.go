@@ -25,22 +25,22 @@ type (
 
 type Syncer struct {
 	tempsyncpool     isaac.TempSyncPool
-	isdonevalue      *atomic.Value
+	startsyncch      chan base.Height
 	newBlockImporter NewBlockImporterFunc
 	*logging.Logging
 	prevvalue     *util.Locked
 	blockMapf     SyncerBlockMapFunc
 	blockMapItemf SyncerBlockMapItemFunc
 	*util.ContextDaemon
-	startsyncch           chan base.Height
+	isdonevalue           *atomic.Value
 	finishedch            chan base.Height
 	donech                chan struct{} // revive:disable-line:nested-structs
 	doneerr               *util.Locked
 	topvalue              *util.Locked
+	setLastVoteproofsFunc func(isaac.BlockImporter) error
 	root                  string
 	batchlimit            int64
 	cancelonece           sync.Once
-	setLastVoteproofsFunc func(isaac.BlockImporter) error
 }
 
 func NewSyncer(
@@ -291,73 +291,6 @@ func (s *Syncer) prepareMaps(ctx context.Context, prev base.BlockMap, to base.He
 	}
 
 	return last, nil
-}
-
-func (s *Syncer) prepareMaps0(ctx context.Context, prev base.BlockMap, to base.Height) (base.BlockMap, error) {
-	prevheight := base.NilHeight
-	if prev != nil {
-		prevheight = prev.Manifest().Height()
-	}
-
-	var validateLock sync.Mutex
-	var maps []base.BlockMap
-
-	var lastprev base.BlockMap
-	newprev := prev
-
-	if err := util.BatchWork(
-		ctx,
-		uint64((to - prevheight).Int64()),
-		uint64(s.batchlimit),
-		func(ctx context.Context, last uint64) error {
-			lastprev = newprev
-
-			switch r := (last + 1) % uint64(s.batchlimit); {
-			case r == 0:
-				maps = make([]base.BlockMap, s.batchlimit)
-			default:
-				maps = make([]base.BlockMap, r)
-			}
-
-			return nil
-		},
-		func(ctx context.Context, i, last uint64) error {
-			height := prevheight + base.Height(int64(i)) + 1
-			lastheight := prevheight + base.Height(int64(last)) + 1
-
-			m, err := s.fetchMap(ctx, height)
-			if err != nil {
-				return err
-			}
-
-			if err = func() error {
-				validateLock.Lock()
-				defer validateLock.Unlock()
-
-				if err = ValidateMaps(m, maps, lastprev); err != nil {
-					return err
-				}
-
-				if m.Manifest().Height() == lastheight {
-					newprev = m
-				}
-
-				return nil
-			}(); err != nil {
-				return err
-			}
-
-			if err := s.tempsyncpool.SetMap(m); err != nil {
-				return errors.Wrap(err, "")
-			}
-
-			return nil
-		},
-	); err != nil {
-		return nil, errors.Wrap(err, "failed to prepare BlockMaps")
-	}
-
-	return newprev, nil
 }
 
 func (s *Syncer) fetchMap(ctx context.Context, height base.Height) (base.BlockMap, error) {
