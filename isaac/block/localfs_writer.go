@@ -6,9 +6,11 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -551,6 +553,88 @@ func HeightDirectory(height base.Height) string {
 	return "/" + strings.Join(sl, "/")
 }
 
+func HeightFromDirectory(s string) (base.Height, error) {
+	hs := strings.Replace(s, "/", "", -1)
+	h, err := base.NewHeightFromString(hs)
+	if err != nil {
+		return base.NilHeight, errors.Wrap(err, "")
+	}
+
+	return h, nil
+}
+
+func FindHighestDirectory(root string) (string, bool, error) {
+	abs, err := filepath.Abs(filepath.Clean(root))
+	if err != nil {
+		return "", false, err
+	}
+
+	switch highest, found, err := findHighestDirectory(abs); {
+	case err != nil:
+		return highest, found, errors.Wrap(err, "")
+	case !found:
+		return highest, found, nil
+	default:
+		return highest, found, nil
+	}
+}
+
+func findHighestDirectory(root string) (string, bool, error) {
+	var highest string
+	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		switch {
+		case err != nil:
+			return errors.Wrap(err, "")
+		case !info.IsDir():
+			return nil
+		}
+
+		files, err := ioutil.ReadDir(path)
+		switch {
+		case err != nil:
+			return errors.Wrap(err, "")
+		default:
+			var foundsubs bool
+			for i := range files {
+				if files[i].IsDir() {
+					foundsubs = true
+
+					break
+				}
+			}
+
+			if !foundsubs {
+				highest = path
+
+				return util.ErrNotFound.Call()
+			}
+
+			sort.Slice(files, func(i, j int) bool {
+				return strings.Compare(files[i].Name(), files[j].Name()) > 0
+			})
+		}
+
+		switch a, found, err := findHighestDirectory(filepath.Join(path, files[0].Name())); {
+		case err != nil:
+			if !errors.Is(err, util.ErrNotFound) {
+				return err
+			}
+		case !found:
+		default:
+			highest = a
+		}
+
+		return util.ErrNotFound.Call()
+	})
+
+	switch {
+	case err == nil, errors.Is(err, util.ErrNotFound):
+		return highest, highest != "", nil
+	default:
+		return highest, false, err
+	}
+}
+
 func BlockFileName(t base.BlockMapItemType, hinttype string) (string, error) {
 	name, found := blockFilenames[t]
 	if !found {
@@ -567,6 +651,15 @@ func BlockFileName(t base.BlockMapItemType, hinttype string) (string, error) {
 	}
 
 	return fmt.Sprintf("%s%s", name, ext), nil
+}
+
+func CleanBlockTempDirectory(root string) error {
+	d := filepath.Join(filepath.Clean(root), BlockTempDirectoryPrefix)
+	if err := os.RemoveAll(d); err != nil {
+		return errors.Wrap(err, "failed to remove block temp directory")
+	}
+
+	return nil
 }
 
 func fileExtFromEncoder(hinttype string) string {
@@ -614,15 +707,6 @@ func isCompressedBlockMapItemType(t base.BlockMapItemType) bool {
 
 func blockFSMapFilename(hinttype string) string {
 	return fmt.Sprintf("%s%s", blockMapFilename, fileExtFromEncoder(hinttype))
-}
-
-func CleanBlockTempDirectory(root string) error {
-	d := filepath.Join(filepath.Clean(root), BlockTempDirectoryPrefix)
-	if err := os.RemoveAll(d); err != nil {
-		return errors.Wrap(err, "failed to remove block temp directory")
-	}
-
-	return nil
 }
 
 func marshalIndexedTreeNode(enc encoder.Encoder, index uint64, n fixedtree.Node) ([]byte, error) {

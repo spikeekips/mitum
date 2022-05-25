@@ -2,7 +2,11 @@ package util
 
 import (
 	"sync"
+
+	"github.com/pkg/errors"
 )
+
+var ErrLockedSetIgnore = NewError("ignore to set locked value")
 
 type NilLockedValue struct{}
 
@@ -83,12 +87,14 @@ func (l *Locked) Set(f func(interface{}) (interface{}, error)) (interface{}, err
 	}
 
 	switch j, err := f(i); {
-	case err != nil:
-		return j, err
-	default:
+	case err == nil:
 		l.value = j
 
 		return j, nil
+	case errors.Is(err, ErrLockedSetIgnore):
+		return i, nil
+	default:
+		return j, err
 	}
 }
 
@@ -162,12 +168,14 @@ func (l *LockedMap) Set(k interface{}, f func(interface{}) (interface{}, error))
 	}
 
 	switch j, err := f(i); {
-	case err != nil:
-		return j, err
-	default:
+	case err == nil:
 		l.m[k] = j
 
 		return j, nil
+	case errors.Is(err, ErrLockedSetIgnore):
+		return i, nil
+	default:
+		return j, err
 	}
 }
 

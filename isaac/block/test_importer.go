@@ -8,9 +8,14 @@ import (
 	"io"
 
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/util/encoder"
 )
 
 type DummyBlockImporter struct {
+	root          string
+	m             base.BlockMap
+	enc           encoder.Encoder
+	localfs       *LocalFSImporter
 	WriteMapf     func(base.BlockMap) error
 	WriteItemf    func(base.BlockMapItemType, io.Reader) error
 	Savef         func(context.Context) error

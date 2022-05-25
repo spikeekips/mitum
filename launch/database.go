@@ -136,6 +136,10 @@ func PrepareDatabase(
 		return nil, nil, e(err, "")
 	}
 
+	if err := db.MergeAllPermanent(); err != nil {
+		return nil, nil, e(err, "")
+	}
+
 	pool, err := isaacdatabase.NewTempPool(poolroot, encs, enc)
 	if err != nil {
 		return nil, nil, e(err, "")

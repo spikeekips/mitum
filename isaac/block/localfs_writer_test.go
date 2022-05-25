@@ -3,6 +3,7 @@ package isaacblock
 import (
 	"context"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -546,4 +547,92 @@ func TestLocalFSWriter(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
 	suite.Run(t, new(testLocalFSWriter))
+}
+
+type testHeightDirectory struct {
+	suite.Suite
+	root string
+}
+
+func (t *testHeightDirectory) SetupTest() {
+	t.root, _ = os.MkdirTemp("", "mitum-test")
+}
+
+func (t *testHeightDirectory) TearDownTest() {
+	os.RemoveAll(t.root)
+}
+
+func (t *testHeightDirectory) prepareFS(root string, heights ...uint64) {
+	for i := range heights {
+		t.NoError(os.MkdirAll(
+			filepath.Join(
+				root,
+				HeightDirectory(base.Height(int64(heights[i]))),
+			),
+			0o700,
+		))
+	}
+}
+
+func (t *testHeightDirectory) walk(root string) {
+	t.NoError(filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		switch {
+		case err != nil:
+			return err
+		case !info.IsDir():
+			return nil
+		}
+
+		t.T().Log(" >", path)
+
+		return nil
+	}))
+}
+
+func (t *testHeightDirectory) TestFindHighest() {
+	cases := []struct {
+		name    string
+		heights []uint64
+		r       uint64
+	}{
+		{"same level", []uint64{0, 1, 2, 3}, 3},
+		{"max", []uint64{0, 1, 2, uint64(math.MaxInt64)}, uint64(math.MaxInt64)},
+		{"zero level", []uint64{0}, 0},
+		{"different level #0", []uint64{0, 1, 2, 3333333}, 3333333},
+		{"different level #1", []uint64{0, 1, 2, 1333333, 3333333, 3333334, 3333339}, 3333339},
+		{"different level #2", []uint64{0, 1, 2, 1333333, 3333333, 9333333333}, 9333333333},
+	}
+
+	for i, c := range cases {
+		i := i
+		c := c
+		t.Run(
+			c.name,
+			func() {
+				root := filepath.Join(t.root, util.UUID().String())
+				t.prepareFS(root, c.heights...)
+
+				t.walk(root)
+
+				d, found, err := FindHighestDirectory(root)
+				t.NoError(err, "%d: %v", i, c.name)
+				t.True(found, "%d: %v", i, c.name)
+				t.NotEmpty(d, "%d: %v", i, c.name)
+
+				rel, err := filepath.Rel(root, d)
+				t.NoError(err, "%d: %v", i, c.name)
+
+				rh, err := HeightFromDirectory(rel)
+				t.NoError(err, "%d: %v", i, c.name)
+
+				t.Equal(c.r, uint64(rh.Int64()), "%d: %v; %v != %v", i, c.name, c.r, rh.Int64())
+			},
+		)
+	}
+}
+
+func TestHeightDirectory(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	suite.Run(t, new(testHeightDirectory))
 }

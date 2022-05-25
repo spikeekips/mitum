@@ -50,6 +50,7 @@ func (st *SyncingHandler) enter(i switchContext) (func(), error) {
 		return nil, e(nil, "invalid stateSwitchContext, not for syncing state; %T", i)
 	}
 
+	// BLOCK new syncer must call isaac.Databasee.MergeAllPermanent()
 	sc, err := st.newSyncer(sctx.height)
 	if err != nil {
 		return nil, e(err, "")

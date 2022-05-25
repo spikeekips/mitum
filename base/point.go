@@ -2,7 +2,9 @@ package base
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -17,10 +19,20 @@ var (
 	ZeroPoint      = Point{h: NilHeight, r: Round(0)}
 )
 
+var zeroPrefixHeightString = regexp.MustCompile(`^[0]+`)
+
 // Height stands for height of Block
 type Height int64
 
 func NewHeightFromString(s string) (Height, error) {
+	if strings.HasPrefix(s, "0") {
+		s = zeroPrefixHeightString.ReplaceAllString(s, "")
+
+		if len(s) < 1 {
+			s = "0"
+		}
+	}
+
 	i, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
 		return NilHeight, errors.Wrap(err, "failed to NewHeightFromString")

@@ -13,6 +13,7 @@ import (
 )
 
 type BlockImporter struct {
+	root       string
 	m          base.BlockMap
 	enc        encoder.Encoder
 	localfs    *LocalFSImporter
@@ -21,6 +22,8 @@ type BlockImporter struct {
 	finisheds  *util.LockedMap
 	batchlimit uint64
 }
+
+// BLOCK set last voteproofs in pool
 
 func NewBlockImporter(
 	root string,
@@ -42,6 +45,7 @@ func NewBlockImporter(
 	}
 
 	im := &BlockImporter{
+		root:       root,
 		m:          m,
 		enc:        enc,
 		localfs:    localfs,
@@ -56,6 +60,10 @@ func NewBlockImporter(
 	}
 
 	return im, nil
+}
+
+func (im *BlockImporter) Reader() (isaac.BlockReader, error) {
+	return NewLocalFSReader(im.root, im.enc)
 }
 
 func (im *BlockImporter) WriteMap(m base.BlockMap) error {

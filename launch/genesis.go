@@ -8,7 +8,6 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
-	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
 	isaacoperation "github.com/spikeekips/mitum/isaac/operation"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -274,10 +273,8 @@ func (g *GenesisBlockGenerator) process() error {
 func (g *GenesisBlockGenerator) closeDatabase() error {
 	e := util.StringErrorFunc("failed to close database")
 
-	if i, ok := g.db.(*isaacdatabase.Default); ok {
-		if err := i.MergeAllPermanent(); err != nil {
-			return e(err, "failed to merge temps")
-		}
+	if err := g.db.MergeAllPermanent(); err != nil {
+		return e(err, "failed to merge temps")
 	}
 
 	return nil

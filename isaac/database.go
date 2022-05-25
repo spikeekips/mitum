@@ -26,6 +26,7 @@ type Database interface {
 	ExistsKnownOperation(operationHash util.Hash) (bool, error)
 	NewBlockWriteDatabase(height base.Height) (BlockWriteDatabase, error)
 	MergeBlockWriteDatabase(BlockWriteDatabase) error
+	MergeAllPermanent() error
 }
 
 type PartialDatabase interface {
