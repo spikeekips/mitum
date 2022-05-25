@@ -222,6 +222,26 @@ func (r *LocalFSReader) Item(t base.BlockMapItemType) (item interface{}, found b
 	return l[0], l[1].(bool), err //nolint:forcetypeassert //...
 }
 
+func (r *LocalFSReader) Items(f func(base.BlockMapItem, interface{}, bool, error) bool) error {
+	var m base.BlockMap
+	switch i, found, err := r.Map(); {
+	case err != nil:
+		return errors.Wrap(err, "")
+	case !found:
+		return errors.Wrap(util.ErrNotFound.Errorf("BlockMap not found"), "")
+	default:
+		m = i
+	}
+
+	m.Items(func(item base.BlockMapItem) bool {
+		i, found, err := r.Item(item.Type())
+
+		return f(item, i, found, err)
+	})
+
+	return nil
+}
+
 func (r *LocalFSReader) item(t base.BlockMapItemType) (interface{}, bool, error) {
 	e := util.StringErrorFunc("failed to load item, %q", t)
 

@@ -267,6 +267,33 @@ func (s *Syncer) doSync(ctx context.Context, prev base.BlockMap, to base.Height)
 }
 
 func (s *Syncer) prepareMaps(ctx context.Context, prev base.BlockMap, to base.Height) (base.BlockMap, error) {
+	var last base.BlockMap
+
+	if err := base.BatchValidateMaps(
+		ctx,
+		prev,
+		to,
+		uint64(s.batchlimit),
+		s.fetchMap,
+		func(m base.BlockMap) error {
+			if err := s.tempsyncpool.SetMap(m); err != nil {
+				return errors.Wrap(err, "")
+			}
+
+			if m.Manifest().Height() == to {
+				last = m
+			}
+
+			return nil
+		},
+	); err != nil {
+		return nil, errors.Wrap(err, "")
+	}
+
+	return last, nil
+}
+
+func (s *Syncer) prepareMaps0(ctx context.Context, prev base.BlockMap, to base.Height) (base.BlockMap, error) {
 	prevheight := base.NilHeight
 	if prev != nil {
 		prevheight = prev.Manifest().Height()

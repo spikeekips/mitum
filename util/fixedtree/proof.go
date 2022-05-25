@@ -49,24 +49,25 @@ end:
 		}
 	}
 
-	switch {
-	case util.CheckSliceDuplicated(p.nodes, func(i interface{}) string {
+	if _, found := util.CheckSliceDuplicated(p.nodes, func(i interface{}) string {
 		n := i.(Node) //nolint:forcetypeassert //...
 		if n.IsEmpty() {
 			return util.UUID().String()
 		}
 
 		return n.Key()
-	}):
+	}); found {
 		return errors.Errorf("duplicated key found")
-	case util.CheckSliceDuplicated(p.nodes, func(i interface{}) string {
+	}
+
+	if _, found := util.CheckSliceDuplicated(p.nodes, func(i interface{}) string {
 		n := i.(Node) //nolint:forcetypeassert //...
 		if n.IsEmpty() {
 			return valuehash.Bytes(util.UUID().Bytes()).String()
 		}
 
 		return n.Hash().String()
-	}):
+	}); found {
 		return errors.Errorf("duplicated hash found")
 	}
 

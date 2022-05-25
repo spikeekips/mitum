@@ -14,17 +14,17 @@ func InStringSlice(n string, s []string) bool {
 	return false
 }
 
-func CheckSliceDuplicated(s interface{}, key func(interface{}) string) bool {
+func CheckSliceDuplicated(s interface{}, key func(interface{}) string) (map[string]interface{}, bool) {
 	if s == nil {
-		return false
+		return nil, false
 	}
 
 	sl := makeInterfaceSlice(s)
 	if sl == nil {
-		return false
+		return nil, false
 	}
 
-	m := map[string]struct{}{}
+	m := map[string]interface{}{}
 
 	for i := range sl {
 		var k string
@@ -35,13 +35,13 @@ func CheckSliceDuplicated(s interface{}, key func(interface{}) string) bool {
 		}
 
 		if _, found := m[k]; found {
-			return true
+			return nil, true
 		}
 
-		m[k] = struct{}{}
+		m[k] = sl[i]
 	}
 
-	return false
+	return m, false
 }
 
 func FilterSlice(a, b interface{}, f func(interface{}, interface{}) bool) []interface{} {

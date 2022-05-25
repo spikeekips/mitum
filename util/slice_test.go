@@ -50,7 +50,7 @@ func (t *testCheckSliceDuplicated) TestCases() {
 		t.Run(
 			c.name,
 			func() {
-				isduplicated := CheckSliceDuplicated(c.s, c.k)
+				_, isduplicated := CheckSliceDuplicated(c.s, c.k)
 				t.Equal(c.expected, isduplicated, "%d(%q): %v", i, c.name, c.s)
 			},
 		)

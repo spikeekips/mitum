@@ -10,6 +10,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -25,6 +26,8 @@ import (
 )
 
 var LocalFSWriterHint = hint.MustNewHint("local-block-fs-writer-v0.0.1")
+
+var rHeightDirectory = regexp.MustCompile(`^\d+$`)
 
 var (
 	blockMapFilename = "map"
@@ -586,6 +589,8 @@ func findHighestDirectory(root string) (string, bool, error) {
 		case err != nil:
 			return errors.Wrap(err, "")
 		case !info.IsDir():
+			return nil
+		case !rHeightDirectory.MatchString(info.Name()):
 			return nil
 		}
 

@@ -232,6 +232,7 @@ func loadRedisPermanentDatabase(uri string, encs *encoder.Encoders, enc encoder.
 		return nil, e(err, "invalid redis url")
 	}
 
+	// BLOCK set local address in prefix
 	st, err := redisstorage.NewStorage(ctx, option, RedisPermanentDatabasePrefix)
 	if err != nil {
 		return nil, e(err, "failed to create redis storage")

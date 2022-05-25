@@ -47,7 +47,7 @@ func IsValidProposalFact(fact ProposalFact) error {
 
 	var c int
 
-	if util.CheckSliceDuplicated(ops, func(i interface{}) string {
+	if _, found := util.CheckSliceDuplicated(ops, func(i interface{}) string {
 		j, ok := i.(util.Hash)
 		if !ok {
 			return ""
@@ -57,7 +57,7 @@ func IsValidProposalFact(fact ProposalFact) error {
 		c++
 
 		return j.String()
-	}) {
+	}); found {
 		return util.ErrInvalid.Errorf("duplicated operation found")
 	}
 

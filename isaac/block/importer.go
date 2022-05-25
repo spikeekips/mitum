@@ -19,6 +19,7 @@ type BlockImporter struct {
 	localfs    *LocalFSImporter
 	bwdb       isaac.BlockWriteDatabase
 	permdb     isaac.PermanentDatabase
+	networkID  base.NetworkID
 	finisheds  *util.LockedMap
 	batchlimit uint64
 }
@@ -31,6 +32,7 @@ func NewBlockImporter(
 	m base.BlockMap,
 	bwdb isaac.BlockWriteDatabase,
 	permdb isaac.PermanentDatabase,
+	networkID base.NetworkID,
 ) (*BlockImporter, error) {
 	e := util.StringErrorFunc("failed new BlockImporter")
 
@@ -51,6 +53,7 @@ func NewBlockImporter(
 		localfs:    localfs,
 		bwdb:       bwdb,
 		permdb:     permdb,
+		networkID:  networkID,
 		finisheds:  util.NewLockedMap(),
 		batchlimit: 333, //nolint:gomnd // enough big size
 	}
@@ -198,8 +201,6 @@ func (im *BlockImporter) importItem(t base.BlockMapItemType, r io.Reader) error 
 		_, err = io.ReadAll(cr)
 	}
 
-	// BLOCK last voteproofs should be set by VoteproofsPool.SetLastVoteproofs()
-
 	if err != nil {
 		return errors.Wrap(err, "")
 	}
@@ -209,6 +210,26 @@ func (im *BlockImporter) importItem(t base.BlockMapItemType, r io.Reader) error 
 	}
 
 	return nil
+}
+
+func (im *BlockImporter) isfinished() bool {
+	var notyet bool
+	im.m.Items(func(item base.BlockMapItem) bool {
+		switch i, found := im.finisheds.Value(item.Type()); {
+		case !found:
+			notyet = true
+
+			return false
+		case !i.(bool): //nolint:forcetypeassert //...
+			notyet = true
+
+			return false
+		default:
+			return true
+		}
+	})
+
+	return !notyet
 }
 
 func (im *BlockImporter) importOperations(item base.BlockMapItem, r io.Reader) error {
@@ -227,6 +248,10 @@ func (im *BlockImporter) importOperations(item base.BlockMapItem, r io.Reader) e
 		op, ok := v.(base.Operation)
 		if !ok {
 			return errors.Errorf("not Operation, %T", v)
+		}
+
+		if err := op.IsValid(im.networkID); err != nil {
+			return errors.Wrap(err, "")
 		}
 
 		ops[index] = op.Hash()
@@ -276,6 +301,10 @@ func (im *BlockImporter) importStates(item base.BlockMapItem, r io.Reader) error
 			return errors.Errorf("not State, %T", v)
 		}
 
+		if err := st.IsValid(nil); err != nil {
+			return errors.Wrap(err, "")
+		}
+
 		sts[index] = st
 
 		if index == uint64(len(sts))-1 {
@@ -303,24 +332,4 @@ func (im *BlockImporter) importStates(item base.BlockMapItem, r io.Reader) error
 	}
 
 	return nil
-}
-
-func (im *BlockImporter) isfinished() bool {
-	var notyet bool
-	im.m.Items(func(item base.BlockMapItem) bool {
-		switch i, found := im.finisheds.Value(item.Type()); {
-		case !found:
-			notyet = true
-
-			return false
-		case !i.(bool): //nolint:forcetypeassert //...
-			notyet = true
-
-			return false
-		default:
-			return true
-		}
-	})
-
-	return !notyet
 }

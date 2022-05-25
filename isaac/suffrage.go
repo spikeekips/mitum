@@ -58,9 +58,9 @@ func NewSuffrage(nodes []base.Node) (Suffrage, error) {
 		m[n.Address().String()] = n
 	}
 
-	if util.CheckSliceDuplicated(nodes, func(i interface{}) string {
+	if _, found := util.CheckSliceDuplicated(nodes, func(i interface{}) string {
 		return i.(base.Node).Address().String() //nolint:forcetypeassert //...
-	}) {
+	}); found {
 		return Suffrage{}, e(nil, "duplicated node address found")
 	}
 

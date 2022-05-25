@@ -15,7 +15,6 @@ import (
 var (
 	networkID     = base.NetworkID([]byte("mitum-example-node"))
 	envKeyFSRootf = "MITUM_FS_ROOT"
-	dbroot        string
 )
 
 var (

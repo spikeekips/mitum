@@ -30,6 +30,7 @@ type BlockReader interface {
 	Reader(base.BlockMapItemType) (io.ReadCloser, bool, error)
 	ChecksumReader(base.BlockMapItemType) (util.ChecksumReader, bool, error)
 	Item(base.BlockMapItemType) (interface{}, bool, error)
+	Items(func(base.BlockMapItem, interface{}, bool, error) bool) error
 }
 
 type BlockImporter interface {
