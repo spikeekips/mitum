@@ -7,8 +7,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
-	"github.com/spikeekips/mitum/launch"
-	"github.com/spikeekips/mitum/util/encoder"
 )
 
 type newProposalProcessorFunc func(proposal base.ProposalSignedFact, previous base.Manifest) (
@@ -33,18 +31,15 @@ func prepareLocal(address base.Address) (base.LocalNode, error) {
 	return isaac.NewLocalNode(priv, address), nil
 }
 
-func loadPermanentDatabase(_ string, encs *encoder.Encoders, enc encoder.Encoder) (isaac.PermanentDatabase, error) {
-	// uri := launch.DBRootPermDirectory(dbroot)
-	uri := "redis://"
-
-	return launch.LoadPermanentDatabase(uri, encs, enc)
+func defaultPermanentDatabaseURI() string {
+	return "redis://"
 }
 
-func defaultDBRoot(addr base.Address) string {
-	dbroot, found := os.LookupEnv(envKeyFSRootf)
+func defaultLocalFSRoot(addr base.Address) string {
+	root, found := os.LookupEnv(envKeyFSRootf)
 	if !found {
-		dbroot = filepath.Join(os.TempDir(), "mitum-example-"+addr.String())
+		root = filepath.Join(os.TempDir(), "mitum-example-"+addr.String())
 	}
 
-	return dbroot
+	return root
 }

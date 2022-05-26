@@ -24,31 +24,27 @@ func (cmd *initCommand) Run() error {
 
 	cmd.local = local
 
-	dbroot := defaultDBRoot(cmd.local.Address())
+	localfsroot := defaultLocalFSRoot(cmd.local.Address())
+	permuri := launch.LocalFSPermDatabaseURI(localfsroot)
 
-	if err = launch.CleanDatabase(dbroot); err != nil {
+	if err = launch.CleanStorage(
+		permuri,
+		localfsroot,
+		encs, enc,
+	); err != nil {
 		return errors.Wrap(err, "")
 	}
 
-	if err = launch.InitializeDatabase(dbroot); err != nil {
+	if err = launch.CreateLocalFS(localfsroot); err != nil {
 		return errors.Wrap(err, "")
 	}
 
-	perm, err := loadPermanentDatabase(launch.DBRootPermDirectory(dbroot), encs, enc)
+	db, _, pool, err := launch.LoadDatabase(defaultPermanentDatabaseURI(), localfsroot, encs, enc)
 	if err != nil {
 		return errors.Wrap(err, "")
 	}
 
-	if err = perm.Clean(); err != nil {
-		return errors.Wrap(err, "")
-	}
-
-	db, pool, err := launch.PrepareDatabase(perm, dbroot, encs, enc)
-	if err != nil {
-		return errors.Wrap(err, "")
-	}
-
-	g := launch.NewGenesisBlockGenerator(cmd.local, networkID, enc, db, pool, launch.DBRootDataDirectory(dbroot))
+	g := launch.NewGenesisBlockGenerator(cmd.local, networkID, enc, db, pool, launch.LocalFSDataDirectory(localfsroot))
 	_ = g.SetLogging(logging)
 
 	if _, err := g.Generate(); err != nil {

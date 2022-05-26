@@ -47,11 +47,11 @@ func (cmd *importCommand) Run() error {
 
 	cmd.local = local
 
-	dbroot := defaultDBRoot(cmd.local.Address())
+	localfsroot := defaultLocalFSRoot(cmd.local.Address())
 
-	log.Debug().Str("root", dbroot).Msg("block data directory")
+	log.Debug().Str("root", localfsroot).Msg("block data directory")
 
-	if err = cmd.prepareDatabase(dbroot); err != nil {
+	if err = cmd.prepareDatabase(localfsroot); err != nil {
 		return errors.Wrap(err, "")
 	}
 
@@ -60,38 +60,35 @@ func (cmd *importCommand) Run() error {
 		return errors.Wrap(err, "")
 	}
 
-	if err := cmd.importBlocks(dbroot, base.GenesisHeight, last); err != nil {
+	if err := cmd.importBlocks(localfsroot, base.GenesisHeight, last); err != nil {
 		return errors.Wrap(err, "")
 	}
 
-	if err := cmd.validateImported(dbroot, last); err != nil {
+	if err := cmd.validateImported(localfsroot, last); err != nil {
 		return errors.Wrap(err, "")
 	}
 
 	return nil
 }
 
-func (cmd *importCommand) prepareDatabase(dbroot string) error {
+func (cmd *importCommand) prepareDatabase(localfsroot string) error {
 	e := util.StringErrorFunc("failed to prepare database")
 
-	if err := launch.CleanDatabase(dbroot); err != nil {
+	permuri := launch.LocalFSPermDatabaseURI(localfsroot)
+
+	if err := launch.CleanStorage(
+		permuri,
+		localfsroot,
+		cmd.encs, cmd.enc,
+	); err != nil {
 		return e(err, "")
 	}
 
-	if err := launch.InitializeDatabase(dbroot); err != nil {
+	if err := launch.CreateLocalFS(localfsroot); err != nil {
 		return e(err, "")
 	}
 
-	perm, err := loadPermanentDatabase(launch.DBRootPermDirectory(dbroot), cmd.encs, cmd.enc)
-	if err != nil {
-		return e(err, "")
-	}
-
-	if err = perm.Clean(); err != nil {
-		return e(err, "")
-	}
-
-	db, pool, err := launch.PrepareDatabase(perm, dbroot, cmd.encs, cmd.enc)
+	db, perm, pool, err := launch.LoadDatabase(defaultPermanentDatabaseURI(), localfsroot, cmd.encs, cmd.enc)
 	if err != nil {
 		return e(err, "")
 	}
@@ -234,7 +231,7 @@ func (cmd *importCommand) validateLocalFS(last base.Height) error {
 	return nil
 }
 
-func (cmd *importCommand) importBlocks(dbroot string, from, to base.Height) error {
+func (cmd *importCommand) importBlocks(localfsroot string, from, to base.Height) error {
 	e := util.StringErrorFunc("failed to import blocks")
 
 	readercache := gcache.New(math.MaxInt).LRU().Build()
@@ -289,7 +286,7 @@ func (cmd *importCommand) importBlocks(dbroot string, from, to base.Height) erro
 			}
 
 			im, err := isaacblock.NewBlockImporter(
-				launch.DBRootDataDirectory(dbroot),
+				launch.LocalFSDataDirectory(localfsroot),
 				cmd.encs,
 				m,
 				bwdb,
@@ -327,10 +324,10 @@ func (cmd *importCommand) importBlocks(dbroot string, from, to base.Height) erro
 	return nil
 }
 
-func (cmd *importCommand) validateImported(dbroot string, last base.Height) error {
+func (cmd *importCommand) validateImported(localfsroot string, last base.Height) error {
 	e := util.StringErrorFunc("failed to validate imported")
 
-	root := launch.DBRootDataDirectory(dbroot)
+	root := launch.LocalFSDataDirectory(localfsroot)
 
 	switch h, found, err := isaacblock.FindHighestDirectory(root); {
 	case err != nil:

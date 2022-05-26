@@ -43,9 +43,9 @@ func (cmd *runCommand) Run() error {
 
 	cmd.local = local
 
-	dbroot := defaultDBRoot(cmd.local.Address())
+	localfsroot := defaultLocalFSRoot(cmd.local.Address())
 
-	if err = cmd.prepareDatabase(dbroot, encs, enc); err != nil {
+	if err = cmd.prepareDatabase(localfsroot, encs, enc); err != nil {
 		return errors.Wrap(err, "")
 	}
 
@@ -62,7 +62,7 @@ func (cmd *runCommand) Run() error {
 	cmd.getManifest = cmd.getManifestFunc()
 	cmd.proposalSelector = cmd.proposalSelectorFunc()
 	cmd.getLastManifest = cmd.getLastManifestFunc()
-	cmd.newProposalProcessor = cmd.newProposalProcessorFunc(dbroot, enc)
+	cmd.newProposalProcessor = cmd.newProposalProcessorFunc(localfsroot, enc)
 	cmd.getProposal = cmd.getProposalFunc()
 
 	states, err := cmd.states()
@@ -79,23 +79,18 @@ func (cmd *runCommand) Run() error {
 	return nil
 }
 
-func (cmd *runCommand) prepareDatabase(dbroot string, encs *encoder.Encoders, enc encoder.Encoder) error {
+func (cmd *runCommand) prepareDatabase(localfsroot string, encs *encoder.Encoders, enc encoder.Encoder) error {
 	e := util.StringErrorFunc("failed to prepare database")
 
-	if err := launch.CheckDatabase(dbroot); err != nil {
+	if err := launch.CheckLocalFS(localfsroot); err != nil {
 		return e(err, "")
 	}
 
-	if err := isaacblock.CleanBlockTempDirectory(launch.DBRootDataDirectory(dbroot)); err != nil {
+	if err := isaacblock.CleanBlockTempDirectory(launch.LocalFSDataDirectory(localfsroot)); err != nil {
 		return e(err, "")
 	}
 
-	perm, err := loadPermanentDatabase(launch.DBRootPermDirectory(dbroot), encs, enc)
-	if err != nil {
-		return e(err, "")
-	}
-
-	db, pool, err := launch.PrepareDatabase(perm, dbroot, encs, enc)
+	db, perm, pool, err := launch.LoadDatabase(defaultPermanentDatabaseURI(), localfsroot, encs, enc)
 	if err != nil {
 		return e(err, "")
 	}
@@ -227,14 +222,14 @@ func (cmd *runCommand) getLastManifestFunc() func() (base.Manifest, bool, error)
 	}
 }
 
-func (cmd *runCommand) newProposalProcessorFunc(dbroot string, enc encoder.Encoder) newProposalProcessorFunc {
+func (cmd *runCommand) newProposalProcessorFunc(localfsroot string, enc encoder.Encoder) newProposalProcessorFunc {
 	return func(proposal base.ProposalSignedFact, previous base.Manifest) (
 		isaac.ProposalProcessor, error,
 	) {
 		return isaac.NewDefaultProposalProcessor(
 			proposal,
 			previous,
-			launch.NewBlockWriterFunc(cmd.local, networkID, launch.DBRootDataDirectory(dbroot), enc, cmd.db),
+			launch.NewBlockWriterFunc(cmd.local, networkID, launch.LocalFSDataDirectory(localfsroot), enc, cmd.db),
 			cmd.db.State,
 			nil,
 			nil,

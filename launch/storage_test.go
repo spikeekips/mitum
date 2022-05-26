@@ -40,7 +40,7 @@ func (t *testLoadPermanentDatabase) TestXXX() {
 	}{
 		{name: "leveldb: ok", uri: newleveldbroot()},
 		{name: "leveldb: empty", uri: "", err: "empty path"},
-		{name: "leveldb: empty path", uri: "file://", err: "empty path"},
+		{name: "leveldb: empty path", uri: "file+leveldb://", err: "empty path"},
 		{name: "redis: ok", uri: "redis://"},
 		{name: "redis: with redis", uri: "redis+redis://"},
 		{name: "redis: with empty network", uri: "redis+://"},

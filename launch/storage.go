@@ -19,17 +19,33 @@ import (
 )
 
 var (
-	DBRootPermDirectoryName = "perm"
-	DBRootTempDirectoryName = "temp"
-	DBRootDataDirectoryName = "data"
-	DBRootPoolDirectoryName = "pool"
+	LocalFSPermDirectoryName = "perm"
+	LocalFSTempDirectoryName = "temp"
+	LocalFSDataDirectoryName = "data"
+	LocalFSPoolDirectoryName = "pool"
 
 	RedisPermanentDatabasePrefix = "mitum"
-	leveldbURIScheme             = "file"
+	LeveldbURIScheme             = "file+leveldb"
 )
 
-func InitializeDatabase(root string) error {
-	e := util.StringErrorFunc("failed to initialize database")
+func CleanStorage(permuri, root string, encs *encoder.Encoders, enc encoder.Encoder) error {
+	e := util.StringErrorFunc("failed to clean storage")
+
+	if perm, err := LoadPermanentDatabase(permuri, encs, enc); err == nil {
+		if err := perm.Clean(); err != nil {
+			return e(err, "")
+		}
+	}
+
+	if err := RemoveLocalFS(root); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
+func CreateLocalFS(root string) error {
+	e := util.StringErrorFunc("failed to initialize localfs")
 
 	switch fi, err := os.Stat(root); {
 	case err == nil:
@@ -44,9 +60,9 @@ func InitializeDatabase(root string) error {
 		return e(err, "")
 	}
 
-	temproot := DBRootTempDirectory(root)
-	poolroot := DBRootPoolDirectory(root)
-	dataroot := DBRootDataDirectory(root)
+	temproot := LocalFSTempDirectory(root)
+	poolroot := LocalFSPoolDirectory(root)
+	dataroot := LocalFSDataDirectory(root)
 
 	for _, i := range []string{temproot, poolroot, dataroot} {
 		switch fi, err := os.Stat(i); {
@@ -54,6 +70,8 @@ func InitializeDatabase(root string) error {
 			if !fi.IsDir() {
 				return e(nil, "root is not directory, %q", i)
 			}
+
+			return errors.Errorf("directory already exists, %q", i)
 		case os.IsNotExist(err):
 			if err = os.MkdirAll(i, 0o700); err != nil {
 				return e(err, "failed to make directory, %i", i)
@@ -66,8 +84,8 @@ func InitializeDatabase(root string) error {
 	return nil
 }
 
-func CheckDatabase(root string) error {
-	e := util.StringErrorFunc("failed to check database")
+func CheckLocalFS(root string) error {
+	e := util.StringErrorFunc("failed to check localfs")
 
 	switch fi, err := os.Stat(root); {
 	case err == nil:
@@ -78,9 +96,9 @@ func CheckDatabase(root string) error {
 		return e(err, "")
 	}
 
-	temproot := DBRootTempDirectory(root)
-	poolroot := DBRootPoolDirectory(root)
-	dataroot := DBRootDataDirectory(root)
+	temproot := LocalFSTempDirectory(root)
+	poolroot := LocalFSPoolDirectory(root)
+	dataroot := LocalFSDataDirectory(root)
 
 	for _, i := range []string{temproot, poolroot, dataroot} {
 		switch fi, err := os.Stat(i); {
@@ -96,32 +114,39 @@ func CheckDatabase(root string) error {
 	return nil
 }
 
-func CleanDatabase(root string) error {
-	e := util.StringErrorFunc("failed to initialize database")
+func RemoveLocalFS(root string) error {
+	knowns := map[string]struct{}{
+		LocalFSTempDirectoryName: {},
+		LocalFSPoolDirectoryName: {},
+		LocalFSDataDirectoryName: {},
+	}
 
-	switch _, err := os.Stat(root); {
-	case err == nil:
-		if err = os.RemoveAll(root); err != nil {
-			return e(err, "")
-		}
-	case os.IsNotExist(err):
-	default:
-		return e(err, "")
+	if err := util.CleanDirectory(root, func(name string) bool {
+		_, found := knowns[name]
+
+		return found
+	}); err != nil {
+		return errors.Wrap(err, "failed to initialize localfs")
 	}
 
 	return nil
 }
 
-func PrepareDatabase(
-	perm isaac.PermanentDatabase,
-	root string,
+func LoadDatabase(
+	permuri string,
+	localfsroot string,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
-) (*isaacdatabase.Default, *isaacdatabase.TempPool, error) {
+) (*isaacdatabase.Default, isaac.PermanentDatabase, *isaacdatabase.TempPool, error) {
 	e := util.StringErrorFunc("failed to prepare database")
 
-	temproot := DBRootTempDirectory(root)
-	poolroot := DBRootPoolDirectory(root)
+	perm, err := LoadPermanentDatabase(permuri, encs, enc)
+	if err != nil {
+		return nil, nil, nil, e(err, "")
+	}
+
+	temproot := LocalFSTempDirectory(localfsroot)
+	poolroot := LocalFSPoolDirectory(localfsroot)
 
 	db, err := isaacdatabase.NewDefault(
 		temproot, encs, enc, perm, func(height base.Height) (isaac.BlockWriteDatabase, error) {
@@ -133,35 +158,19 @@ func PrepareDatabase(
 			return isaacdatabase.NewLeveldbBlockWrite(height, newroot, encs, enc)
 		})
 	if err != nil {
-		return nil, nil, e(err, "")
+		return nil, nil, nil, e(err, "")
 	}
 
 	if err = db.MergeAllPermanent(); err != nil {
-		return nil, nil, e(err, "")
+		return nil, nil, nil, e(err, "")
 	}
 
 	pool, err := isaacdatabase.NewTempPool(poolroot, encs, enc)
 	if err != nil {
-		return nil, nil, e(err, "")
+		return nil, nil, nil, e(err, "")
 	}
 
-	return db, pool, nil
-}
-
-func DBRootPermDirectory(root string) string {
-	return filepath.Join(root, DBRootPermDirectoryName)
-}
-
-func DBRootTempDirectory(root string) string {
-	return filepath.Join(root, DBRootTempDirectoryName)
-}
-
-func DBRootDataDirectory(root string) string {
-	return filepath.Join(root, DBRootDataDirectoryName)
-}
-
-func DBRootPoolDirectory(root string) string {
-	return filepath.Join(root, DBRootPoolDirectoryName)
+	return db, perm, pool, nil
 }
 
 func LoadPermanentDatabase(uri string, encs *encoder.Encoders, enc encoder.Encoder) (isaac.PermanentDatabase, error) {
@@ -174,8 +183,8 @@ func LoadPermanentDatabase(uri string, encs *encoder.Encoders, enc encoder.Encod
 	switch {
 	case err != nil:
 		return nil, e(err, "")
-	case len(u.Scheme) < 1, strings.EqualFold(u.Scheme, leveldbURIScheme):
-		dbtype = leveldbURIScheme
+	case len(u.Scheme) < 1, strings.EqualFold(u.Scheme, LeveldbURIScheme):
+		dbtype = LeveldbURIScheme
 	default:
 		u.Scheme = strings.ToLower(u.Scheme)
 
@@ -188,7 +197,7 @@ func LoadPermanentDatabase(uri string, encs *encoder.Encoders, enc encoder.Encod
 	}
 
 	switch {
-	case dbtype == leveldbURIScheme:
+	case dbtype == LeveldbURIScheme:
 		if len(u.Path) < 1 {
 			return nil, e(nil, "empty path")
 		}
@@ -244,4 +253,20 @@ func loadRedisPermanentDatabase(uri string, encs *encoder.Encoders, enc encoder.
 	}
 
 	return perm, nil
+}
+
+func LocalFSPermDatabaseURI(root string) string {
+	return LeveldbURIScheme + "//" + filepath.Join(root, LocalFSPermDirectoryName)
+}
+
+func LocalFSTempDirectory(root string) string {
+	return filepath.Join(root, LocalFSTempDirectoryName)
+}
+
+func LocalFSDataDirectory(root string) string {
+	return filepath.Join(root, LocalFSDataDirectoryName)
+}
+
+func LocalFSPoolDirectory(root string) string {
+	return filepath.Join(root, LocalFSPoolDirectoryName)
 }

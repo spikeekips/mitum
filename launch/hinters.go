@@ -50,6 +50,7 @@ var Hinters = []encoder.DecodeDetail{
 	{Hint: isaacoperation.SuffrageJoinPermissionFactHint, Instance: isaacoperation.SuffrageJoinPermissionFact{}},
 	{Hint: quictransport.NodeHint, Instance: quictransport.BaseNode{}},
 	{Hint: quictransport.NodeMetaHint, Instance: quictransport.NodeMeta{}},
+	{Hint: DefaultNodeInfoHint, Instance: DefaultNodeInfo{}},
 }
 
 var LoadOperationHinters = []encoder.DecodeDetail{} // BLOCK apply to getOperation in ProposalProcessor
