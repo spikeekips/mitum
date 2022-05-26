@@ -1,21 +1,21 @@
 package isaacdatabase
 
 import (
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
-	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 )
 
 type basePermanent struct {
 	mp     *util.Locked // NOTE last blockmap
-	sufstt *util.Locked // NOTE last suffrage state
+	sufst  *util.Locked // NOTE last suffrage state
 	policy *util.Locked // NOTE last NetworkPolicy
 }
 
 func newBasePermanent() *basePermanent {
 	return &basePermanent{
 		mp:     util.EmptyLocked(),
-		sufstt: util.EmptyLocked(),
+		sufst:  util.EmptyLocked(),
 		policy: util.EmptyLocked(),
 	}
 }
@@ -30,7 +30,7 @@ func (db *basePermanent) LastMap() (base.BlockMap, bool, error) {
 }
 
 func (db *basePermanent) LastSuffrage() (base.State, bool, error) {
-	switch i, _ := db.sufstt.Value(); {
+	switch i, _ := db.sufst.Value(); {
 	case i == nil:
 		return nil, false, nil
 	default:
@@ -49,7 +49,7 @@ func (db *basePermanent) LastNetworkPolicy() base.NetworkPolicy {
 
 func (db *basePermanent) Clean() error {
 	_, _ = db.mp.Set(func(interface{}) (interface{}, error) {
-		db.sufstt.SetValue(util.NilLockedValue{})
+		db.sufst.SetValue(util.NilLockedValue{})
 		db.policy.SetValue(util.NilLockedValue{})
 
 		return util.NilLockedValue{}, nil
@@ -58,13 +58,26 @@ func (db *basePermanent) Clean() error {
 	return nil
 }
 
-func (db *basePermanent) canMergeTempDatabase(temp isaac.TempDatabase) bool {
-	switch i, _ := db.mp.Value(); {
-	case i == nil:
-		return true
-	case i.(base.BlockMap).Manifest().Height() < temp.Height(): //nolint:forcetypeassert //...
-		return true
-	default:
-		return false
-	}
+func (db *basePermanent) updateLast(mp base.BlockMap, sufst base.State, policy base.NetworkPolicy) (updated bool) {
+	_, err := db.mp.Set(func(i interface{}) (interface{}, error) {
+		if i != nil {
+			old := i.(base.BlockMap) //nolint:forcetypeassert //...
+
+			if mp.Manifest().Height() <= old.Manifest().Height() {
+				return nil, errors.Errorf("old")
+			}
+		}
+
+		if sufst != nil {
+			_ = db.sufst.SetValue(sufst)
+		}
+
+		if policy != nil {
+			_ = db.policy.SetValue(policy)
+		}
+
+		return mp, nil
+	})
+
+	return err == nil
 }

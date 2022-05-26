@@ -179,38 +179,16 @@ func (db *LeveldbPermanent) MergeTempDatabase(ctx context.Context, temp isaac.Te
 	db.Lock()
 	defer db.Unlock()
 
-	if !db.canMergeTempDatabase(temp) {
-		return nil
-	}
-
 	e := util.StringErrorFunc("failed to merge TempDatabase")
 
 	switch t := temp.(type) {
 	case *TempLeveldb:
-		mp, sufstt, err := db.mergeTempDatabaseFromLeveldb(ctx, t)
+		mp, sufst, err := db.mergeTempDatabaseFromLeveldb(ctx, t)
 		if err != nil {
 			return e(err, "")
 		}
 
-		_, _ = db.mp.Set(func(i interface{}) (interface{}, error) {
-			if i != nil {
-				old := i.(base.BlockMap) //nolint:forcetypeassert //...
-
-				if mp.Manifest().Height() <= old.Manifest().Height() {
-					return nil, errors.Errorf("old")
-				}
-			}
-
-			if sufstt != nil {
-				_ = db.sufstt.SetValue(sufstt)
-			}
-
-			if t.policy != nil {
-				_ = db.policy.SetValue(t.policy)
-			}
-
-			return mp, nil
-		})
+		_ = db.updateLast(mp, sufst, t.policy)
 
 		return nil
 	default:
@@ -247,14 +225,14 @@ func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, te
 	}
 
 	// NOTE merge states
-	var sufstt base.State
+	var sufst base.State
 
 	if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
 		switch i, err := db.mergeStatesTempDatabaseFromLeveldb(temp); {
 		case err != nil:
 			return errors.Wrap(err, "failed to merge states")
 		default:
-			sufstt = i
+			sufst = i
 
 			return nil
 		}
@@ -284,7 +262,7 @@ func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, te
 		return nil, nil, e(err, "")
 	}
 
-	return mp, sufstt, nil
+	return mp, sufst, nil
 }
 
 func (db *LeveldbPermanent) loadLastBlockMap() error {
@@ -321,7 +299,7 @@ func (db *LeveldbPermanent) loadLastBlockMap() error {
 func (db *LeveldbPermanent) loadLastSuffrage() error {
 	e := util.StringErrorFunc("failed to load last suffrage state")
 
-	var sufstt base.State
+	var sufst base.State
 
 	if err := db.st.Iter(
 		leveldbutil.BytesPrefix(leveldbKeyPrefixSuffrageHeight),
@@ -331,7 +309,7 @@ func (db *LeveldbPermanent) loadLastSuffrage() error {
 				return false, err
 			}
 
-			sufstt = i
+			sufst = i
 
 			return false, nil
 		},
@@ -340,11 +318,11 @@ func (db *LeveldbPermanent) loadLastSuffrage() error {
 		return e(err, "")
 	}
 
-	if sufstt == nil {
+	if sufst == nil {
 		return nil
 	}
 
-	_ = db.sufstt.SetValue(sufstt)
+	_ = db.sufst.SetValue(sufst)
 
 	return nil
 }
@@ -392,14 +370,14 @@ func (db *LeveldbPermanent) mergeOperationsTempDatabaseFromLeveldb(temp *TempLev
 }
 
 func (db *LeveldbPermanent) mergeStatesTempDatabaseFromLeveldb(temp *TempLeveldb) (base.State, error) {
-	var sufstt base.State
+	var sufst base.State
 	var sufsv base.SuffrageStateValue
 
 	switch st, found, err := temp.Suffrage(); {
 	case err != nil:
 		return nil, errors.Wrap(err, "")
 	case found:
-		sufstt = st
+		sufst = st
 		sufsv = st.Value().(base.SuffrageStateValue) //nolint:forcetypeassert //...
 	}
 
@@ -433,5 +411,5 @@ func (db *LeveldbPermanent) mergeStatesTempDatabaseFromLeveldb(temp *TempLeveldb
 		}
 	}
 
-	return sufstt, nil
+	return sufst, nil
 }

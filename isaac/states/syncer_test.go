@@ -82,8 +82,8 @@ func (t *testSyncer) dummyBlockMapItemFunc() SyncerBlockMapItemFunc {
 	}
 }
 
-func (t *testSyncer) dummySetLastVoteproofs() func(isaac.BlockImporter) error {
-	return func(isaac.BlockImporter) error {
+func (t *testSyncer) dummySetLastVoteproofs() func(isaac.BlockReader) error {
+	return func(isaac.BlockReader) error {
 		return nil
 	}
 }
@@ -447,7 +447,7 @@ func (t *testSyncer) TestFetchBlockItem() {
 		},
 		t.dummyBlockMapItemFunc(),
 		isaacdatabase.NewMemTempSyncPool(),
-		func(isaac.BlockImporter) error {
+		func(isaac.BlockReader) error {
 			lastvoteproofsavedch <- struct{}{}
 
 			return nil

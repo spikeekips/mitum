@@ -64,7 +64,7 @@ func NewBlockImporter(
 }
 
 func (im *BlockImporter) Reader() (isaac.BlockReader, error) {
-	return NewLocalFSReader(im.root, im.enc)
+	return NewLocalFSReaderFromHeight(im.root, im.m.Manifest().Height(), im.enc)
 }
 
 func (im *BlockImporter) WriteMap(m base.BlockMap) error {

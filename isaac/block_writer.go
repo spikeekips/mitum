@@ -39,4 +39,5 @@ type BlockImporter interface {
 	Save(context.Context) error
 	CancelImport(context.Context) error
 	Merge(context.Context) error
+	Reader() (BlockReader, error)
 }

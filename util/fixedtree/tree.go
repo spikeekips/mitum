@@ -32,6 +32,10 @@ func NewTree(ht hint.Hint, nodes []Node) (Tree, error) {
 func (t Tree) IsValid(b []byte) error {
 	e := util.StringErrorFunc("invalid Tree")
 
+	if t.Len() < 1 {
+		return nil
+	}
+
 	if err := t.BaseHinter.IsValid(nil); err != nil {
 		return e(err, "")
 	}

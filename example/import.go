@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"io"
+	"math"
 	"path/filepath"
 	"sync"
 
+	"github.com/bluele/gcache"
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
@@ -48,7 +51,7 @@ func (cmd *importCommand) Run() error {
 
 	log.Debug().Str("root", dbroot).Msg("block data directory")
 
-	if err := cmd.prepareDatabase(dbroot); err != nil {
+	if err = cmd.prepareDatabase(dbroot); err != nil {
 		return errors.Wrap(err, "")
 	}
 
@@ -57,7 +60,7 @@ func (cmd *importCommand) Run() error {
 		return errors.Wrap(err, "")
 	}
 
-	if err := cmd.importBlocks(dbroot, last); err != nil {
+	if err := cmd.importBlocks(dbroot, base.GenesisHeight, last); err != nil {
 		return errors.Wrap(err, "")
 	}
 
@@ -84,7 +87,7 @@ func (cmd *importCommand) prepareDatabase(dbroot string) error {
 		return e(err, "")
 	}
 
-	if err := perm.Clean(); err != nil {
+	if err = perm.Clean(); err != nil {
 		return e(err, "")
 	}
 
@@ -169,7 +172,7 @@ func (cmd *importCommand) validateLocalFS(last base.Height) error {
 	var lastprev, newprev base.BlockMap
 	var maps []base.BlockMap
 
-	batchlimit := uint64(333)
+	batchlimit := uint64(333) //nolint:gomnd //...
 
 	if err := util.BatchWork(context.Background(), uint64(last.Int64())+1, batchlimit,
 		func(_ context.Context, last uint64) error {
@@ -231,31 +234,61 @@ func (cmd *importCommand) validateLocalFS(last base.Height) error {
 	return nil
 }
 
-func (cmd *importCommand) importBlocks(dbroot string, last base.Height) error {
+func (cmd *importCommand) importBlocks(dbroot string, from, to base.Height) error {
 	e := util.StringErrorFunc("failed to import blocks")
 
-	for i := base.GenesisHeight; i <= last; i++ {
-		fsreader, err := isaacblock.NewLocalFSReaderFromHeight(cmd.From, i, cmd.enc)
+	readercache := gcache.New(math.MaxInt).LRU().Build()
+	var readerLock sync.Mutex
+	getreader := func(height base.Height) (isaac.BlockReader, error) {
+		readerLock.Lock()
+		defer readerLock.Unlock()
+
+		reader, err := readercache.Get(height)
 		if err != nil {
-			return e(err, "")
-		}
-
-		var m base.BlockMap
-		var im isaac.BlockImporter
-		switch j, found, err := fsreader.Map(); {
-		case err != nil:
-			return e(err, "")
-		case !found:
-			return errors.Errorf("BlockMap not found")
-		default:
-			m = j
-
-			bwdb, err := cmd.db.NewBlockWriteDatabase(i)
+			i, err := isaacblock.NewLocalFSReaderFromHeight(cmd.From, height, cmd.enc)
 			if err != nil {
-				return e(err, "")
+				return nil, errors.Wrap(err, "")
 			}
 
-			y, err := isaacblock.NewBlockImporter(
+			_ = readercache.Set(height, i)
+
+			reader = i
+		}
+
+		return reader.(isaac.BlockReader), nil //nolint:forcetypeassert //...
+	}
+
+	if err := isaacstates.ImportBlocks(
+		context.Background(),
+		from, to,
+		333, //nolint:gomnd //...
+		func(height base.Height) (base.BlockMap, bool, error) {
+			reader, err := getreader(height)
+			if err != nil {
+				return nil, false, errors.Wrap(err, "")
+			}
+
+			m, found, err := reader.Map()
+
+			return m, found, errors.Wrap(err, "")
+		},
+		func(_ context.Context, height base.Height, item base.BlockMapItemType) (io.Reader, bool, error) {
+			reader, err := getreader(height)
+			if err != nil {
+				return nil, false, errors.Wrap(err, "")
+			}
+
+			r, found, err := reader.Reader(item)
+
+			return r, found, errors.Wrap(err, "")
+		},
+		func(m base.BlockMap) (isaac.BlockImporter, error) {
+			bwdb, err := cmd.db.NewBlockWriteDatabase(m.Manifest().Height())
+			if err != nil {
+				return nil, errors.Wrap(err, "")
+			}
+
+			im, err := isaacblock.NewBlockImporter(
 				launch.DBRootDataDirectory(dbroot),
 				cmd.encs,
 				m,
@@ -264,64 +297,32 @@ func (cmd *importCommand) importBlocks(dbroot string, last base.Height) error {
 				networkID,
 			)
 			if err != nil {
-				return e(err, "")
+				return nil, errors.Wrap(err, "")
 			}
 
-			im = y
-		}
-
-		var itemserr error
-		m.Items(func(item base.BlockMapItem) bool {
-			r, found, err := fsreader.Reader(item.Type())
-			switch {
+			return im, nil
+		},
+		func(reader isaac.BlockReader) error {
+			switch v, found, err := reader.Item(base.BlockMapItemTypeVoteproofs); {
 			case err != nil:
-				itemserr = err
-
-				return false
-			case !found:
-				return false
-			}
-
-			if err := im.WriteItem(item.Type(), r); err != nil {
-				itemserr = err
-
-				return false
-			}
-
-			return true
-		})
-
-		if itemserr != nil {
-			return e(itemserr, "")
-		}
-
-		if err := im.Save(context.Background()); err != nil {
-			return e(err, "")
-		}
-
-		if err := im.Merge(context.Background()); err != nil {
-			return e(err, "")
-		}
-
-		if i == last { // NOTE set last voteproof
-			switch v, found, err := fsreader.Item(base.BlockMapItemTypeVoteproofs); {
-			case err != nil:
-				return e(err, "")
+				return errors.Wrap(err, "")
 			case !found:
 				return errors.Errorf("voteproofs not found at last")
 			default:
-				vps := v.([]base.Voteproof)
-				if err := cmd.pool.SetLastVoteproofs(
+				vps := v.([]base.Voteproof)           //nolint:forcetypeassert //...
+				if err := cmd.pool.SetLastVoteproofs( //nolint:forcetypeassert //...
 					vps[0].(base.INITVoteproof),
 					vps[1].(base.ACCEPTVoteproof),
 				); err != nil {
-					return e(err, "")
+					return errors.Wrap(err, "")
 				}
-			}
-		}
-	}
 
-	log.Debug().Msg("blocks imported")
+				return nil
+			}
+		},
+	); err != nil {
+		return e(err, "")
+	}
 
 	return nil
 }
@@ -330,6 +331,7 @@ func (cmd *importCommand) validateImported(dbroot string, last base.Height) erro
 	e := util.StringErrorFunc("failed to validate imported")
 
 	root := launch.DBRootDataDirectory(dbroot)
+
 	switch h, found, err := isaacblock.FindHighestDirectory(root); {
 	case err != nil:
 		return e(err, "")
@@ -367,7 +369,7 @@ func (cmd *importCommand) validateImportedBlockMaps(root string, last base.Heigh
 		context.Background(),
 		nil,
 		last,
-		333,
+		333, //nolint:gomnd //...
 		func(_ context.Context, height base.Height) (base.BlockMap, error) {
 			reader, err := isaacblock.NewLocalFSReaderFromHeight(root, height, cmd.enc)
 			if err != nil {
@@ -401,7 +403,7 @@ func (cmd *importCommand) validateImportedBlocks(root string, last base.Height) 
 	if err := util.BatchWork(
 		context.Background(),
 		uint64(last.Int64()),
-		333,
+		333, //nolint:gomnd //...
 		func(context.Context, uint64) error {
 			return nil
 		},
@@ -424,6 +426,7 @@ func (cmd *importCommand) validateImportedBlock(root string, height base.Height)
 	}
 
 	var m base.BlockMap
+
 	switch i, found, err := reader.Map(); {
 	case err != nil:
 		return e(err, "")
@@ -438,7 +441,7 @@ func (cmd *importCommand) validateImportedBlock(root string, height base.Height)
 	var opstree, ststree fixedtree.Tree
 
 	var readererr error
-	reader.Items(func(item base.BlockMapItem, i interface{}, found bool, err error) bool {
+	if err := reader.Items(func(item base.BlockMapItem, i interface{}, found bool, err error) bool {
 		switch {
 		case err != nil:
 			readererr = err
@@ -454,33 +457,122 @@ func (cmd *importCommand) validateImportedBlock(root string, height base.Height)
 
 		switch item.Type() {
 		case base.BlockMapItemTypeProposal:
-			readererr = base.ValidateProposalWithManifest(i.(base.ProposalSignedFact), m.Manifest())
+			pr := i.(base.ProposalSignedFact) //nolint:forcetypeassert //...
+
+			if err := pr.IsValid(networkID); err != nil {
+				readererr = err
+			}
+
+			if readererr != nil {
+				readererr = base.ValidateProposalWithManifest(pr, m.Manifest())
+			}
 		case base.BlockMapItemTypeOperations:
-			ops = i.([]base.Operation)
+			ops = i.([]base.Operation) //nolint:forcetypeassert //...
 		case base.BlockMapItemTypeOperationsTree:
-			opstree = i.(fixedtree.Tree)
+			opstree = i.(fixedtree.Tree) //nolint:forcetypeassert //...
 		case base.BlockMapItemTypeStates:
-			sts = i.([]base.State)
+			sts = i.([]base.State) //nolint:forcetypeassert //...
 		case base.BlockMapItemTypeStatesTree:
-			ststree = i.(fixedtree.Tree)
+			ststree = i.(fixedtree.Tree) //nolint:forcetypeassert //...
 		case base.BlockMapItemTypeVoteproofs:
-			readererr = base.ValidateVoteproofsWithManifest(i.([]base.Voteproof), m.Manifest())
+			readererr = base.ValidateVoteproofsWithManifest( //nolint:forcetypeassert //...
+				i.([]base.Voteproof), m.Manifest())
 		}
 
-		if readererr != nil {
-			return false
-		}
-
-		return true
-	})
-
-	if readererr == nil {
-		readererr = base.ValidateOperationsTreeWithManifest(opstree, ops, m.Manifest())
+		return readererr == nil
+	}); err != nil {
+		readererr = err
 	}
 
 	if readererr == nil {
-		readererr = base.ValidateStatesTreeWithManifest(ststree, sts, m.Manifest())
+		readererr = cmd.validateOperations(opstree, ops, m.Manifest())
+	}
+
+	if readererr == nil {
+		readererr = cmd.validateStates(ststree, sts, m.Manifest())
 	}
 
 	return readererr
 }
+
+func (cmd *importCommand) validateOperations(
+	opstree fixedtree.Tree, ops []base.Operation, manifest base.Manifest,
+) error {
+	e := util.StringErrorFunc("failed to validate imported operations")
+
+	if err := opstree.IsValid(nil); err != nil {
+		return e(err, "")
+	}
+
+	if err := base.ValidateOperationsTreeWithManifest(opstree, ops, manifest); err != nil {
+		return e(err, "")
+	}
+
+	if len(ops) > 0 {
+		if err := util.BatchWork(context.Background(), uint64(len(ops)), 333, //nolint:gomnd //...
+			func(context.Context, uint64) error { return nil },
+			func(_ context.Context, i, _ uint64) error {
+				switch found, err := cmd.perm.ExistsKnownOperation(ops[i].Hash()); {
+				case err != nil:
+					return errors.Wrap(err, "")
+				case !found:
+					return util.ErrNotFound.Errorf("operation not found in ExistsKnownOperation; %q", ops[i].Hash())
+				default:
+					return nil
+				}
+			},
+		); err != nil {
+			return e(err, "")
+		}
+	}
+
+	return nil
+}
+
+func (cmd *importCommand) validateStates(ststree fixedtree.Tree, sts []base.State, manifest base.Manifest) error {
+	e := util.StringErrorFunc("failed to validate imported states")
+
+	if err := ststree.IsValid(nil); err != nil {
+		return e(err, "")
+	}
+
+	if err := base.ValidateStatesTreeWithManifest(ststree, sts, manifest); err != nil {
+		return e(err, "")
+	}
+
+	if len(sts) > 0 {
+		if err := util.BatchWork(context.Background(), uint64(len(sts)), 333, //nolint:gomnd //...
+			func(context.Context, uint64) error { return nil },
+			func(_ context.Context, i, _ uint64) error {
+				st := sts[i]
+
+				switch rst, found, err := cmd.perm.State(st.Key()); {
+				case err != nil:
+					return errors.Wrap(err, "")
+				case !found:
+					return util.ErrNotFound.Errorf("state not found in State")
+				case !base.IsEqualState(st, rst):
+					return errors.Errorf("states does not match")
+				}
+
+				ops := st.Operations()
+				for j := range ops {
+					switch found, err := cmd.perm.ExistsInStateOperation(ops[j]); {
+					case err != nil:
+						return errors.Wrap(err, "")
+					case !found:
+						return util.ErrNotFound.Errorf("operation of state not found in ExistsInStateOperation")
+					}
+				}
+
+				return nil
+			},
+		); err != nil {
+			return e(err, "")
+		}
+	}
+
+	return nil
+}
+
+// BLOCK check SuffrageProof

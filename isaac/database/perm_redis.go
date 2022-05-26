@@ -248,27 +248,16 @@ func (db *RedisPermanent) MergeTempDatabase(ctx context.Context, temp isaac.Temp
 	db.Lock()
 	defer db.Unlock()
 
-	if !db.canMergeTempDatabase(temp) {
-		return nil
-	}
-
 	e := util.StringErrorFunc("failed to merge TempDatabase")
 
 	switch t := temp.(type) {
 	case *TempLeveldb:
-		mp, sufstt, err := db.mergeTempDatabaseFromLeveldb(ctx, t)
+		mp, sufst, err := db.mergeTempDatabaseFromLeveldb(ctx, t)
 		if err != nil {
 			return e(err, "")
 		}
 
-		_ = db.mp.SetValue(mp)
-		if sufstt != nil {
-			_ = db.sufstt.SetValue(sufstt)
-		}
-
-		if t.policy != nil {
-			_ = db.policy.SetValue(t.policy)
-		}
+		_ = db.updateLast(mp, sufst, t.policy)
 
 		return nil
 	default:
@@ -290,14 +279,14 @@ func (db *RedisPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp
 		mp = i
 	}
 
-	var sufstt base.State
+	var sufst base.State
 	var sufsv base.SuffrageStateValue
 
 	switch st, found, err := temp.Suffrage(); {
 	case err != nil:
 		return nil, nil, e(err, "")
 	case found:
-		sufstt = st
+		sufst = st
 		sufsv = st.Value().(base.SuffrageStateValue) //nolint:forcetypeassert //...
 	}
 
@@ -351,7 +340,7 @@ func (db *RedisPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp
 		return nil, nil, e(err, "")
 	}
 
-	return mp, sufstt, nil
+	return mp, sufst, nil
 }
 
 func (db *RedisPermanent) mergeOperationsTempDatabaseFromLeveldb(
@@ -493,12 +482,12 @@ func (db *RedisPermanent) loadLastSuffrage() error {
 	case !found:
 		return nil
 	default:
-		sufstt, err := db.decodeSuffrage(b)
+		sufst, err := db.decodeSuffrage(b)
 		if err != nil {
 			return e(err, "")
 		}
 
-		_ = db.sufstt.SetValue(sufstt)
+		_ = db.sufst.SetValue(sufst)
 
 		return nil
 	}

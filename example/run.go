@@ -45,7 +45,7 @@ func (cmd *runCommand) Run() error {
 
 	dbroot := defaultDBRoot(cmd.local.Address())
 
-	if err := cmd.prepareDatabase(dbroot, encs, enc); err != nil {
+	if err = cmd.prepareDatabase(dbroot, encs, enc); err != nil {
 		return errors.Wrap(err, "")
 	}
 

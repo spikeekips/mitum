@@ -3,7 +3,6 @@ package isaacstates
 import (
 	"context"
 	"io"
-	"math"
 	"os"
 	"path/filepath"
 	"sync"
@@ -20,7 +19,8 @@ import (
 type (
 	SyncerBlockMapFunc     func(context.Context, base.Height) (base.BlockMap, bool, error)
 	SyncerBlockMapItemFunc func(context.Context, base.Height, base.BlockMapItemType) (io.Reader, bool, error)
-	NewBlockImporterFunc   func(root string, blockmap base.BlockMap) (isaac.BlockImporter, error)
+	// BLOCK use ReadCloser?
+	NewBlockImporterFunc func(root string, blockmap base.BlockMap) (isaac.BlockImporter, error)
 )
 
 type Syncer struct {
@@ -37,7 +37,7 @@ type Syncer struct {
 	donech                chan struct{} // revive:disable-line:nested-structs
 	doneerr               *util.Locked
 	topvalue              *util.Locked
-	setLastVoteproofsFunc func(isaac.BlockImporter) error
+	setLastVoteproofsFunc func(isaac.BlockReader) error
 	root                  string
 	batchlimit            int64
 	cancelonece           sync.Once
@@ -50,7 +50,7 @@ func NewSyncer(
 	blockMapf SyncerBlockMapFunc,
 	blockMapItemf SyncerBlockMapItemFunc,
 	tempsyncpool isaac.TempSyncPool,
-	setLastVoteproofsFunc func(isaac.BlockImporter) error,
+	setLastVoteproofsFunc func(isaac.BlockReader) error,
 ) (*Syncer, error) {
 	e := util.StringErrorFunc("failed NewSyncer")
 
@@ -315,168 +315,17 @@ func (s *Syncer) syncBlocks(ctx context.Context, prev base.BlockMap, to base.Hei
 		from = prev.Manifest().Height() + 1
 	}
 
-	var lastim isaac.BlockImporter
-	var ims []isaac.BlockImporter
-
-	if err := util.BatchWork(
+	if err := ImportBlocks(
 		ctx,
-		uint64((to - from + 1).Int64()),
-		uint64(s.batchlimit),
-		func(ctx context.Context, last uint64) error {
-			if ims != nil {
-				if err := s.saveImporters(ctx, ims); err != nil {
-					return errors.Wrap(err, "")
-				}
-			}
-
-			switch r := (last + 1) % uint64(s.batchlimit); {
-			case r == 0:
-				ims = make([]isaac.BlockImporter, s.batchlimit)
-			default:
-				ims = make([]isaac.BlockImporter, r)
-			}
-
-			return nil
+		from, to,
+		s.batchlimit,
+		s.tempsyncpool.Map,
+		s.blockMapItemf,
+		func(m base.BlockMap) (isaac.BlockImporter, error) {
+			return s.newBlockImporter(s.root, m)
 		},
-		func(ctx context.Context, i, _ uint64) error {
-			height := from + base.Height(int64(i))
-
-			im, err := s.fetchBlock(ctx, height)
-			if err != nil {
-				return errors.Wrap(err, "")
-			}
-
-			ims[(height-from).Int64()%s.batchlimit] = im
-
-			if height == to {
-				lastim = im
-			}
-
-			return nil
-		},
+		s.setLastVoteproofsFunc,
 	); err != nil {
-		return e(err, "")
-	}
-
-	if err := s.saveImporters(ctx, ims); err != nil {
-		return errors.Wrap(err, "")
-	}
-
-	if err := s.setLastVoteproofsFunc(lastim); err != nil {
-		return errors.Wrap(err, "")
-	}
-
-	return nil
-}
-
-func (s *Syncer) fetchBlock(ctx context.Context, height base.Height) (isaac.BlockImporter, error) {
-	e := util.StringErrorFunc("failed to fetch block, %d", height)
-
-	m, found, err := s.tempsyncpool.Map(height)
-
-	switch {
-	case err != nil:
-		return nil, e(err, "")
-	case !found:
-		return nil, e(nil, "BlockMap not found") // BLOCK use util.ErrNotFound
-	}
-
-	im, err := s.newBlockImporter(s.root, m)
-	if err != nil {
-		return nil, e(err, "")
-	}
-
-	worker := util.NewErrgroupWorker(ctx, math.MaxInt32)
-	defer worker.Close()
-
-	m.Items(func(item base.BlockMapItem) bool {
-		if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-			return s.fetchBlockItem(ctx, height, item.Type(), im)
-		}); err != nil {
-			return false
-		}
-
-		return true
-	})
-
-	worker.Done()
-
-	if err := worker.Wait(); err != nil {
-		_ = im.CancelImport(ctx)
-
-		return nil, e(err, "")
-	}
-
-	return im, nil
-}
-
-func (s *Syncer) fetchBlockItem(
-	ctx context.Context, height base.Height, item base.BlockMapItemType, im isaac.BlockImporter,
-) error {
-	e := util.StringErrorFunc("failed to fetch block item, %q", item)
-
-	switch r, found, err := s.blockMapItemf(ctx, height, item); {
-	case err != nil:
-		return e(err, "")
-	case !found:
-		return e(nil, "blockMapItem not found")
-	default:
-		if err := im.WriteItem(item, r); err != nil {
-			return e(err, "")
-		}
-	}
-
-	return nil
-}
-
-func (s *Syncer) saveImporters(ctx context.Context, ims []isaac.BlockImporter) error {
-	e := util.StringErrorFunc("failed to cancel importers")
-
-	switch {
-	case len(ims) < 1:
-		return errors.Errorf("empty BlockImporters")
-	case len(ims) < 2: //nolint:gomnd //...
-		if err := ims[0].Save(ctx); err != nil {
-			return e(err, "")
-		}
-
-		return nil
-	}
-
-	if err := util.RunErrgroupWorker(ctx, uint64(len(ims)), func(ctx context.Context, i, _ uint64) error {
-		return errors.Wrap(ims[i].Save(ctx), "")
-	}); err != nil {
-		_ = s.cancelImporters(ctx, ims)
-
-		return e(err, "")
-	}
-
-	if err := util.RunErrgroupWorker(ctx, uint64(len(ims)), func(ctx context.Context, i, _ uint64) error {
-		return errors.Wrap(ims[i].Merge(ctx), "")
-	}); err != nil {
-		return e(err, "")
-	}
-
-	return nil
-}
-
-func (*Syncer) cancelImporters(ctx context.Context, ims []isaac.BlockImporter) error {
-	e := util.StringErrorFunc("failed to cancel importers")
-
-	switch {
-	case len(ims) < 1:
-		return nil
-	case len(ims) < 2: //nolint:gomnd //...
-		if err := ims[0].CancelImport(ctx); err != nil {
-			return e(err, "")
-		}
-
-		return nil
-	}
-
-	if err := util.RunErrgroupWorker(ctx, uint64(len(ims)), func(ctx context.Context, i, _ uint64) error {
-		return errors.Wrap(ims[i].CancelImport(ctx), "")
-	}); err != nil {
 		return e(err, "")
 	}
 

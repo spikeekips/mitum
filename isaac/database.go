@@ -15,7 +15,7 @@ type Database interface {
 	Close() error
 	Map(height base.Height) (base.BlockMap, bool, error)
 	LastMap() (base.BlockMap, bool, error)
-	Suffrage(blockheight base.Height) (base.State, bool, error)
+	Suffrage(blockheight base.Height) (base.State, bool, error) // BLOCK should returns SuffrageProof
 	SuffrageByHeight(suffrageHeight base.Height) (base.State, bool, error)
 	LastSuffrage() (base.State, bool, error)
 	LastNetworkPolicy() base.NetworkPolicy

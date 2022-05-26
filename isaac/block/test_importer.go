@@ -8,19 +8,19 @@ import (
 	"io"
 
 	"github.com/spikeekips/mitum/base"
-	"github.com/spikeekips/mitum/util/encoder"
+	"github.com/spikeekips/mitum/isaac"
 )
 
 type DummyBlockImporter struct {
-	root          string
-	m             base.BlockMap
-	enc           encoder.Encoder
-	localfs       *LocalFSImporter
 	WriteMapf     func(base.BlockMap) error
 	WriteItemf    func(base.BlockMapItemType, io.Reader) error
 	Savef         func(context.Context) error
 	Mergef        func(context.Context) error
 	CancelImportf func(context.Context) error
+}
+
+func (im *DummyBlockImporter) Reader() (isaac.BlockReader, error) {
+	return nil, nil
 }
 
 func (im *DummyBlockImporter) WriteMap(m base.BlockMap) error {
