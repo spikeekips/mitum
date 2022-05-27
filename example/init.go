@@ -25,7 +25,7 @@ func (cmd *initCommand) Run() error {
 	cmd.local = local
 
 	localfsroot := defaultLocalFSRoot(cmd.local.Address())
-	permuri := launch.LocalFSPermDatabaseURI(localfsroot)
+	permuri := defaultPermanentDatabaseURI()
 
 	if err = launch.CleanStorage(
 		permuri,
@@ -35,11 +35,12 @@ func (cmd *initCommand) Run() error {
 		return errors.Wrap(err, "")
 	}
 
-	if err = launch.CreateLocalFS(localfsroot); err != nil {
+	nodeinfo, err := launch.CreateLocalFS(localfsroot, enc)
+	if err != nil {
 		return errors.Wrap(err, "")
 	}
 
-	db, _, pool, err := launch.LoadDatabase(defaultPermanentDatabaseURI(), localfsroot, encs, enc)
+	db, _, pool, err := launch.LoadDatabase(nodeinfo, permuri, localfsroot, encs, enc)
 	if err != nil {
 		return errors.Wrap(err, "")
 	}

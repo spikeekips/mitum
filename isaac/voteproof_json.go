@@ -6,6 +6,7 @@ import (
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/localtime"
@@ -53,16 +54,8 @@ func (vp *baseVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "")
 	}
 
-	switch i, err := enc.Decode(u.Majority); {
-	case err != nil:
-	case i == nil:
-	default:
-		j, ok := i.(base.BallotFact)
-		if !ok {
-			return e(util.ErrInvalid.Errorf("expected BallotFact, not %T", i), "")
-		}
-
-		vp.majority = j
+	if err := encoder.Decode(enc, u.Majority, &vp.majority); err != nil {
+		return e(err, "")
 	}
 
 	vp.threshold = u.Threshold
@@ -70,17 +63,8 @@ func (vp *baseVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	vp.sfs = make([]base.BallotSignedFact, len(u.SignedFacts))
 
 	for i := range u.SignedFacts {
-		switch j, err := enc.Decode(u.SignedFacts[i]); {
-		case err != nil:
+		if err := encoder.Decode(enc, u.SignedFacts[i], &vp.sfs[i]); err != nil {
 			return e(err, "")
-		case j == nil:
-		default:
-			k, ok := j.(base.BallotSignedFact)
-			if !ok {
-				return e(util.ErrInvalid.Errorf("expected BallotSignedFact, not %T", j), "")
-			}
-
-			vp.sfs[i] = k
 		}
 	}
 

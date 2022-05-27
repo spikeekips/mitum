@@ -3,6 +3,7 @@ package base
 import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/fixedtree"
 )
 
 type Suffrage interface {
@@ -63,4 +64,14 @@ func LoadSuffrageState(st State) (SuffrageStateValue, error) {
 	}
 
 	return j, nil
+}
+
+type SuffrageProof interface {
+	util.IsValider
+	Map() BlockMap
+	State() State
+	ACCEPTVoteproof() ACCEPTVoteproof
+	Proof() fixedtree.Proof
+	Suffrage() (Suffrage, error)
+	Prove(previousState State) error
 }

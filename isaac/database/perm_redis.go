@@ -179,7 +179,7 @@ func (db *RedisPermanent) SuffrageByHeight(suffrageHeight base.Height) (base.Sta
 	}
 }
 
-func (db *RedisPermanent) State(key string) (base.State, bool, error) {
+func (db *RedisPermanent) State(key string) (st base.State, found bool, _ error) {
 	e := util.StringErrorFunc("failed to get state")
 
 	switch b, found, err := db.st.Get(context.Background(), redisStateKey(key)); {
@@ -188,12 +188,11 @@ func (db *RedisPermanent) State(key string) (base.State, bool, error) {
 	case !found:
 		return nil, false, nil
 	default:
-		i, err := db.decodeState(b)
-		if err != nil {
+		if err := db.readHinter(b, &st); err != nil {
 			return nil, false, e(err, "")
 		}
 
-		return i, true, nil
+		return st, true, nil
 	}
 }
 
@@ -219,14 +218,14 @@ func (db *RedisPermanent) ExistsKnownOperation(h util.Hash) (bool, error) {
 	}
 }
 
-func (db *RedisPermanent) Map(height base.Height) (base.BlockMap, bool, error) {
+func (db *RedisPermanent) Map(height base.Height) (m base.BlockMap, found bool, _ error) {
 	e := util.StringErrorFunc("failed to load blockmap")
 
-	switch m, found, err := db.LastMap(); {
+	switch i, found, err := db.LastMap(); {
 	case err != nil:
 		return nil, false, e(err, "")
 	case found:
-		return m, true, nil
+		return i, true, nil
 	}
 
 	switch b, found, err := db.st.Get(context.Background(), redisBlockMapKey(height)); {
@@ -235,8 +234,7 @@ func (db *RedisPermanent) Map(height base.Height) (base.BlockMap, bool, error) {
 	case !found:
 		return nil, false, nil
 	default:
-		m, err := db.decodeBlockMap(b)
-		if err != nil {
+		if err := db.readHinter(b, &m); err != nil {
 			return nil, false, e(err, "")
 		}
 
@@ -460,8 +458,9 @@ func (db *RedisPermanent) loadLastBlockMap() error {
 	case !found:
 		return nil
 	default:
-		m, err := db.decodeBlockMap(b)
-		if err != nil {
+		var m base.BlockMap
+
+		if err := db.readHinter(b, &m); err != nil {
 			return e(err, "")
 		}
 

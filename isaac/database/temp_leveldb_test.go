@@ -18,12 +18,12 @@ func (db *TempLeveldb) States(f func(base.State) (bool, error)) error {
 	if err := db.st.Iter(
 		leveldbutil.BytesPrefix(leveldbKeyPrefixState),
 		func(key []byte, raw []byte) (bool, error) {
-			i, err := db.decodeState(raw)
-			if err != nil {
+			var st base.State
+			if err := db.readHinter(raw, &st); err != nil {
 				return false, errors.Wrap(err, "")
 			}
 
-			return f(i)
+			return f(st)
 		},
 		true,
 	); err != nil {

@@ -150,14 +150,14 @@ func (db *LeveldbPermanent) ExistsKnownOperation(h util.Hash) (bool, error) {
 	return db.existsKnownOperation(h)
 }
 
-func (db *LeveldbPermanent) Map(height base.Height) (base.BlockMap, bool, error) {
+func (db *LeveldbPermanent) Map(height base.Height) (m base.BlockMap, found bool, _ error) {
 	e := util.StringErrorFunc("failed to load blockmap")
 
-	switch m, found, err := db.LastMap(); {
+	switch i, found, err := db.LastMap(); {
 	case err != nil:
 		return nil, false, e(err, "")
 	case found:
-		return m, true, nil
+		return i, true, nil
 	}
 
 	switch b, found, err := db.st.Get(leveldbBlockMapKey(height)); {
@@ -166,8 +166,7 @@ func (db *LeveldbPermanent) Map(height base.Height) (base.BlockMap, bool, error)
 	case !found:
 		return nil, false, nil
 	default:
-		m, err := db.decodeBlockMap(b)
-		if err != nil {
+		if err := db.readHinter(b, &m); err != nil {
 			return nil, false, e(err, "")
 		}
 
@@ -273,14 +272,7 @@ func (db *LeveldbPermanent) loadLastBlockMap() error {
 	if err := db.st.Iter(
 		leveldbutil.BytesPrefix(leveldbKeyPrefixBlockMap),
 		func(_, b []byte) (bool, error) {
-			i, err := db.decodeBlockMap(b)
-			if err != nil {
-				return false, err
-			}
-
-			m = i
-
-			return false, nil
+			return false, db.readHinter(b, &m)
 		},
 		false,
 	); err != nil {

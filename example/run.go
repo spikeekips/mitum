@@ -82,15 +82,16 @@ func (cmd *runCommand) Run() error {
 func (cmd *runCommand) prepareDatabase(localfsroot string, encs *encoder.Encoders, enc encoder.Encoder) error {
 	e := util.StringErrorFunc("failed to prepare database")
 
-	if err := launch.CheckLocalFS(localfsroot); err != nil {
+	nodeinfo, err := launch.CheckLocalFS(localfsroot, enc)
+	if err != nil {
 		return e(err, "")
 	}
 
-	if err := isaacblock.CleanBlockTempDirectory(launch.LocalFSDataDirectory(localfsroot)); err != nil {
+	if err = isaacblock.CleanBlockTempDirectory(launch.LocalFSDataDirectory(localfsroot)); err != nil {
 		return e(err, "")
 	}
 
-	db, perm, pool, err := launch.LoadDatabase(defaultPermanentDatabaseURI(), localfsroot, encs, enc)
+	db, perm, pool, err := launch.LoadDatabase(nodeinfo, defaultPermanentDatabaseURI(), localfsroot, encs, enc)
 	if err != nil {
 		return e(err, "")
 	}

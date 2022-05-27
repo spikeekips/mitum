@@ -50,18 +50,20 @@ func (db *baseDatabase) readEncoder(b []byte) (encoder.Encoder, []byte, error) {
 	}
 }
 
-func (db *baseDatabase) readHinter(b []byte) (interface{}, error) {
+func (db *baseDatabase) readHinter(b []byte, v interface{}) error {
 	if b == nil {
-		return nil, nil
+		return nil
 	}
 
 	switch enc, raw, err := db.readEncoder(b); {
 	case err != nil:
-		return nil, errors.Wrap(err, "")
+		return errors.Wrap(err, "")
 	default:
-		hinter, err := enc.Decode(raw)
+		if err := encoder.Decode(enc, raw, v); err != nil {
+			return errors.Wrap(err, "")
+		}
 
-		return hinter, errors.Wrap(err, "")
+		return nil
 	}
 }
 
@@ -85,66 +87,18 @@ func (db *baseDatabase) marshalWithEncoder(b []byte) []byte {
 	return util.ConcatBytesSlice(h, b)
 }
 
-func (db *baseDatabase) decodeState(b []byte) (base.State, error) {
-	if b == nil {
-		return nil, nil
-	}
-
-	e := util.StringErrorFunc("failed to load state")
-
-	hinter, err := db.readHinter(b)
-
-	switch {
-	case err != nil:
-		return nil, e(err, "")
-	case hinter == nil:
-		return nil, nil
-	}
-
-	switch i, ok := hinter.(base.State); {
-	case !ok:
-		return nil, e(nil, "not suffrage state: %T", hinter)
-	default:
-		return i, nil
-	}
-}
-
 func (db *baseDatabase) decodeSuffrage(b []byte) (base.State, error) {
 	e := util.StringErrorFunc("failed to load suffrage")
 
-	switch i, err := db.decodeState(b); {
-	case err != nil:
+	var st base.State
+
+	if err := db.readHinter(b, &st); err != nil {
 		return nil, e(err, "failed to load suffrage state")
-	default:
-		st, err := base.InterfaceIsSuffrageState(i)
-		if err != nil {
-			return nil, e(err, "")
-		}
-
-		return st, nil
-	}
-}
-
-func (db *baseDatabase) decodeBlockMap(b []byte) (base.BlockMap, error) {
-	if b == nil {
-		return nil, nil
 	}
 
-	e := util.StringErrorFunc("failed to load blockmap")
-
-	hinter, err := db.readHinter(b)
-
-	switch {
-	case err != nil:
-		return nil, e(err, "")
-	case hinter == nil:
-		return nil, e(nil, "empty blockmap")
+	if !base.IsSuffrageState(st) {
+		return nil, errors.Errorf("not suffrage state")
 	}
 
-	switch i, ok := hinter.(base.BlockMap); {
-	case !ok:
-		return nil, e(nil, "not blockmap: %T", hinter)
-	default:
-		return i, nil
-	}
+	return st, nil
 }

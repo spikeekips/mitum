@@ -5,6 +5,7 @@ import (
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
 )
@@ -36,30 +37,12 @@ func (bl *baseBallot) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "")
 	}
 
-	switch i, err := enc.Decode(u.Voteproof); {
-	case err != nil:
+	if err := encoder.Decode(enc, u.Voteproof, &bl.vp); err != nil {
 		return e(err, "")
-	case i == nil:
-	default:
-		vp, ok := i.(base.Voteproof)
-		if !ok {
-			return e(err, "decoded not Voteproof, %T", i)
-		}
-
-		bl.vp = vp
 	}
 
-	switch i, err := enc.Decode(u.SignedFact); {
-	case err != nil:
+	if err := encoder.Decode(enc, u.SignedFact, &bl.signedFact); err != nil {
 		return e(err, "")
-	case i == nil:
-	default:
-		sf, ok := i.(base.BallotSignedFact)
-		if !ok {
-			return e(err, "decoded not BallotSignedFact, %T", i)
-		}
-
-		bl.signedFact = sf
 	}
 
 	return nil

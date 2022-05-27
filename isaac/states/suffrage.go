@@ -15,17 +15,17 @@ import (
 // rebuild the entire suffrage states history. SuffrageProof from getSuffrageProof
 // should be valid(IsValid()).
 type SuffrageStateBuilder struct {
-	lastproof         isaac.SuffrageProof
-	lastSuffrageProof func(context.Context) (isaac.SuffrageProof, bool, error)
-	getSuffrageProof  func(context.Context, base.Height) (isaac.SuffrageProof, bool, error)
+	lastproof         base.SuffrageProof
+	lastSuffrageProof func(context.Context) (base.SuffrageProof, bool, error)
+	getSuffrageProof  func(context.Context, base.Height) (base.SuffrageProof, bool, error)
 	networkID         base.NetworkID
 	numbatches        int64
 }
 
 func NewSuffrageStateBuilder(
 	networkID base.NetworkID,
-	lastSuffrageProof func(context.Context) (isaac.SuffrageProof, bool, error),
-	getSuffrageProof func(context.Context, base.Height) (isaac.SuffrageProof, bool, error),
+	lastSuffrageProof func(context.Context) (base.SuffrageProof, bool, error),
+	getSuffrageProof func(context.Context, base.Height) (base.SuffrageProof, bool, error),
 ) *SuffrageStateBuilder {
 	return &SuffrageStateBuilder{
 		networkID:         networkID,
@@ -137,7 +137,7 @@ func (s *SuffrageStateBuilder) buildBatch(
 
 	var provelock sync.Mutex
 	var laststate base.State
-	proofs := make([]isaac.SuffrageProof, (to - from + 1).Int64())
+	proofs := make([]base.SuffrageProof, (to - from + 1).Int64())
 
 	for i := from; i <= to; i++ {
 		height := i
@@ -181,8 +181,8 @@ func (s *SuffrageStateBuilder) buildBatch(
 
 func (*SuffrageStateBuilder) prove(
 	from base.Height,
-	proof isaac.SuffrageProof,
-	proofs []isaac.SuffrageProof,
+	proof base.SuffrageProof,
+	proofs []base.SuffrageProof,
 	previous base.State,
 ) error {
 	height := proof.State().Height()

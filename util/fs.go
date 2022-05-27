@@ -15,7 +15,7 @@ func CleanDirectory(root string, filter func(path string) bool) error {
 			return e(nil, "not directory")
 		}
 	case os.IsNotExist(err):
-		return e(err, "")
+		return nil
 	default:
 		return e(err, "")
 	}

@@ -5,6 +5,7 @@ import (
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/fixedtree"
 	"github.com/spikeekips/mitum/util/hint"
@@ -43,46 +44,16 @@ func (s *SuffrageProof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "")
 	}
 
-	switch hinter, err := enc.Decode(u.Map); {
-	case err != nil:
+	if err := encoder.Decode(enc, u.Map, &s.m); err != nil {
 		return e(err, "")
-	case hinter == nil:
-		return e(nil, "empty manifest")
-	default:
-		i, ok := hinter.(base.BlockMap)
-		if !ok {
-			return e(nil, "expected BlockMap, but %T", hinter)
-		}
-
-		s.m = i
 	}
 
-	switch hinter, err := enc.Decode(u.State); {
-	case err != nil:
+	if err := encoder.Decode(enc, u.State, &s.st); err != nil {
 		return e(err, "")
-	case hinter == nil:
-		return e(nil, "empty state")
-	default:
-		i, ok := hinter.(base.State)
-		if !ok {
-			return e(nil, "expected State, but %T", hinter)
-		}
-
-		s.st = i
 	}
 
-	switch hinter, err := enc.Decode(u.Voteproof); {
-	case err != nil:
+	if err := encoder.Decode(enc, u.Voteproof, &s.voteproof); err != nil {
 		return e(err, "")
-	case hinter == nil:
-		return e(nil, "empty accept voteproof")
-	default:
-		i, ok := hinter.(base.ACCEPTVoteproof)
-		if !ok {
-			return e(nil, "expected ACCEPTVoteproof, but %T", hinter)
-		}
-
-		s.voteproof = i
 	}
 
 	s.proof = u.Proof

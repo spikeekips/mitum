@@ -5,6 +5,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
@@ -45,25 +46,16 @@ func (sl *BaseSeal) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "")
 	}
 
-	bs := make([]SealBody, len(u.Body))
+	sl.body = make([]SealBody, len(u.Body))
 
 	for i := range u.Body {
-		hinter, err := enc.Decode(u.Body[i])
-		if err != nil {
+		if err := encoder.Decode(enc, u.Body[i], &sl.body[i]); err != nil {
 			return errors.Wrap(err, "failed to decode seal body")
 		}
-
-		j, ok := hinter.(SealBody)
-		if !ok {
-			return e(nil, "expected SealBody, not %T", hinter)
-		}
-
-		bs[i] = j
 	}
 
 	sl.h = u.Hash.Hash()
 	sl.signed = us
-	sl.body = bs
 
 	return nil
 }

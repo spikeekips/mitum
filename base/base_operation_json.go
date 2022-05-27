@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
@@ -45,16 +46,8 @@ func (op *BaseOperation) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 
 	op.h = u.Hash.Hash()
 
-	switch hinter, err := enc.Decode(u.Fact); {
-	case err != nil:
+	if err := encoder.Decode(enc, u.Fact, &op.fact); err != nil {
 		return e(err, "failed to decode fact")
-	default:
-		i, ok := hinter.(Fact)
-		if !ok {
-			return e(nil, "not Fact, %T", hinter)
-		}
-
-		op.fact = i
 	}
 
 	op.signed = make([]Signed, len(u.Signed))

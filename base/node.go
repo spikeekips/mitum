@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/encoder"
 )
 
 type Node interface {
@@ -18,22 +17,6 @@ type Node interface {
 type LocalNode interface {
 	Node
 	Privatekey() Privatekey
-}
-
-func DecodeNode(b []byte, enc encoder.Encoder) (Node, error) {
-	e := util.StringErrorFunc("failed to decode node")
-
-	hinter, err := enc.Decode(b)
-	if err != nil {
-		return nil, e(err, "")
-	}
-
-	i, ok := hinter.(Node)
-	if !ok {
-		return nil, e(nil, "expected Node, but %T", hinter)
-	}
-
-	return i, nil
 }
 
 func IsEqualNode(a, b Node) bool {

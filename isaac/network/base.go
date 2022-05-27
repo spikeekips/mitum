@@ -86,23 +86,3 @@ func (c *baseNetwork) readEncoder(r io.Reader) (encoder.Encoder, error) {
 		return enc, nil
 	}
 }
-
-func (*baseNetwork) readHinter(r io.Reader, enc encoder.Encoder, v interface{}) error {
-	e := util.StringErrorFunc("failed to read hinter")
-
-	b, err := io.ReadAll(r)
-	if err != nil {
-		return e(err, "")
-	}
-
-	hinter, err := enc.Decode(b)
-	if err != nil {
-		return e(err, "")
-	}
-
-	if err := util.InterfaceSetValue(hinter, v); err != nil {
-		return e(err, "")
-	}
-
-	return nil
-}

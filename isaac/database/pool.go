@@ -47,7 +47,7 @@ func newTempPool(st *leveldbstorage.RWStorage, encs *encoder.Encoders, enc encod
 	return db, nil
 }
 
-func (db *TempPool) Proposal(h util.Hash) (base.ProposalSignedFact, bool, error) {
+func (db *TempPool) Proposal(h util.Hash) (pr base.ProposalSignedFact, found bool, _ error) {
 	e := util.StringErrorFunc("failed to find proposal by hash")
 
 	switch b, found, err := db.st.Get(leveldbProposalKey(h)); {
@@ -56,8 +56,7 @@ func (db *TempPool) Proposal(h util.Hash) (base.ProposalSignedFact, bool, error)
 	case !found:
 		return nil, false, nil
 	default:
-		pr, err := db.loadProposal(b)
-		if err != nil {
+		if err := db.readHinter(b, &pr); err != nil {
 			return nil, false, e(err, "")
 		}
 
@@ -134,7 +133,7 @@ func (db *TempPool) SetProposal(pr base.ProposalSignedFact) (bool, error) {
 	return true, nil
 }
 
-func (db *TempPool) NewOperation(_ context.Context, facthash util.Hash) (base.Operation, bool, error) {
+func (db *TempPool) NewOperation(_ context.Context, facthash util.Hash) (op base.Operation, found bool, _ error) {
 	e := util.StringErrorFunc("failed to find operation")
 
 	switch b, found, err := db.st.Get(leveldbNewOperationKey(facthash)); {
@@ -143,8 +142,7 @@ func (db *TempPool) NewOperation(_ context.Context, facthash util.Hash) (base.Op
 	case !found:
 		return nil, false, nil
 	default:
-		op, err := db.loadOperation(b)
-		if err != nil {
+		if err := db.readHinter(b, &op); err != nil {
 			return nil, false, e(err, "")
 		}
 
@@ -381,52 +379,6 @@ func (db *TempPool) removeNewOperations(ctx context.Context, facthashes []util.H
 	return nil
 }
 
-func (db *TempPool) loadProposal(b []byte) (base.ProposalSignedFact, error) {
-	if b == nil {
-		return nil, nil
-	}
-
-	e := util.StringErrorFunc("failed to load proposal")
-
-	hinter, err := db.readHinter(b)
-
-	switch {
-	case err != nil:
-		return nil, e(err, "")
-	case hinter == nil:
-		return nil, e(nil, "empty proposal")
-	}
-
-	switch i, ok := hinter.(base.ProposalSignedFact); {
-	case !ok:
-		return nil, e(nil, "not ProposalSignedFact: %T", hinter)
-	default:
-		return i, nil
-	}
-}
-
-func (db *TempPool) loadOperation(b []byte) (base.Operation, error) {
-	if b == nil {
-		return nil, nil
-	}
-
-	e := util.StringErrorFunc("failed to load operation")
-
-	switch hinter, err := db.readHinter(b); {
-	case err != nil:
-		return nil, e(err, "")
-	case hinter == nil:
-		return nil, e(nil, "empty hinter")
-	default:
-		i, ok := hinter.(base.Operation)
-		if !ok {
-			return nil, e(nil, "expected Operation, but %T", hinter)
-		}
-
-		return i, nil
-	}
-}
-
 func (db *TempPool) loadLastVoteproofs() error {
 	e := util.StringErrorFunc("failed to load last voteproofs")
 
@@ -451,34 +403,14 @@ func (db *TempPool) loadLastVoteproofs() error {
 
 	var ivp base.INITVoteproof
 
-	switch hinter, err := enc.Decode(u[0]); {
-	case err != nil:
+	if err := encoder.Decode(enc, u[0], &ivp); err != nil {
 		return e(err, "")
-	case hinter == nil:
-		return e(nil, "empty init voteproof")
-	default:
-		i, ok := hinter.(base.INITVoteproof)
-		if !ok {
-			return e(nil, "expected INITVoteproof, but %T", hinter)
-		}
-
-		ivp = i
 	}
 
 	var avp base.ACCEPTVoteproof
 
-	switch hinter, err := enc.Decode(u[1]); {
-	case err != nil:
+	if err := encoder.Decode(enc, u[1], &avp); err != nil {
 		return e(err, "")
-	case hinter == nil:
-		return e(nil, "empty accept voteproof")
-	default:
-		i, ok := hinter.(base.ACCEPTVoteproof)
-		if !ok {
-			return e(nil, "expected ACCEPTVoteproof, but %T", hinter)
-		}
-
-		avp = i
 	}
 
 	_ = db.lastvoteproofs.SetValue([2]base.Voteproof{ivp, avp})

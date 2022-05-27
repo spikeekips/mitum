@@ -5,6 +5,7 @@ import (
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/localtime"
@@ -95,16 +96,8 @@ func (sf *ProposalSignedFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "")
 	}
 
-	switch i, err := enc.Decode(u.Fact); {
-	case err != nil:
+	if err := encoder.Decode(enc, u.Fact, &sf.fact); err != nil {
 		return e(err, "failed to decode fact")
-	default:
-		j, ok := i.(ProposalFact)
-		if !ok {
-			return e(err, "decoded fact not ProposalFact, %T", i)
-		}
-
-		sf.fact = j
 	}
 
 	if err := sf.signed.DecodeJSON(u.Signed, enc); err != nil {

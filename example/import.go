@@ -74,7 +74,7 @@ func (cmd *importCommand) Run() error {
 func (cmd *importCommand) prepareDatabase(localfsroot string) error {
 	e := util.StringErrorFunc("failed to prepare database")
 
-	permuri := launch.LocalFSPermDatabaseURI(localfsroot)
+	permuri := defaultPermanentDatabaseURI()
 
 	if err := launch.CleanStorage(
 		permuri,
@@ -84,11 +84,12 @@ func (cmd *importCommand) prepareDatabase(localfsroot string) error {
 		return e(err, "")
 	}
 
-	if err := launch.CreateLocalFS(localfsroot); err != nil {
+	nodeinfo, err := launch.CreateLocalFS(localfsroot, cmd.enc)
+	if err != nil {
 		return e(err, "")
 	}
 
-	db, perm, pool, err := launch.LoadDatabase(defaultPermanentDatabaseURI(), localfsroot, cmd.encs, cmd.enc)
+	db, perm, pool, err := launch.LoadDatabase(nodeinfo, permuri, localfsroot, cmd.encs, cmd.enc)
 	if err != nil {
 		return e(err, "")
 	}

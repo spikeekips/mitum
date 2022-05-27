@@ -2,6 +2,7 @@ package launch
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -24,16 +25,28 @@ var (
 	LocalFSDataDirectoryName = "data"
 	LocalFSPoolDirectoryName = "pool"
 
-	RedisPermanentDatabasePrefix = "mitum"
-	LeveldbURIScheme             = "file+leveldb"
+	RedisPermanentDatabasePrefixFormat = "mitum-%s"
+	LeveldbURIScheme                   = "file+leveldb"
 )
 
 func CleanStorage(permuri, root string, encs *encoder.Encoders, enc encoder.Encoder) error {
 	e := util.StringErrorFunc("failed to clean storage")
 
-	if perm, err := LoadPermanentDatabase(permuri, encs, enc); err == nil {
-		if err := perm.Clean(); err != nil {
-			return e(err, "")
+	var id string
+
+	switch i, found, err := LoadNodeInfo(root, enc); {
+	case err != nil:
+		return e(err, "")
+	case !found:
+	default:
+		id = i.ID()
+	}
+
+	if len(id) > 0 {
+		if perm, err := LoadPermanentDatabase(permuri, id, encs, enc); err == nil {
+			if err := perm.Clean(); err != nil {
+				return e(err, "")
+			}
 		}
 	}
 
@@ -44,20 +57,20 @@ func CleanStorage(permuri, root string, encs *encoder.Encoders, enc encoder.Enco
 	return nil
 }
 
-func CreateLocalFS(root string) error {
+func CreateLocalFS(root string, enc encoder.Encoder) (NodeInfo, error) {
 	e := util.StringErrorFunc("failed to initialize localfs")
 
 	switch fi, err := os.Stat(root); {
 	case err == nil:
 		if !fi.IsDir() {
-			return e(nil, "root is not directory")
+			return nil, e(nil, "root is not directory")
 		}
 	case os.IsNotExist(err):
 		if err = os.MkdirAll(root, 0o700); err != nil {
-			return e(err, "")
+			return nil, e(err, "")
 		}
 	default:
-		return e(err, "")
+		return nil, e(err, "")
 	}
 
 	temproot := LocalFSTempDirectory(root)
@@ -68,32 +81,47 @@ func CreateLocalFS(root string) error {
 		switch fi, err := os.Stat(i); {
 		case err == nil:
 			if !fi.IsDir() {
-				return e(nil, "root is not directory, %q", i)
+				return nil, e(nil, "root is not directory, %q", i)
 			}
 
-			return errors.Errorf("directory already exists, %q", i)
+			return nil, e(nil, "directory already exists, %q", i)
 		case os.IsNotExist(err):
 			if err = os.MkdirAll(i, 0o700); err != nil {
-				return e(err, "failed to make directory, %i", i)
+				return nil, e(err, "failed to make directory, %i", i)
 			}
 		default:
-			return e(err, "")
+			return nil, e(err, "")
 		}
 	}
 
-	return nil
+	var nodeinfo NodeInfo
+
+	switch i, found, err := LoadNodeInfo(root, enc); {
+	case err != nil:
+		return nil, e(err, "")
+	case !found: // NOTE if not found, create new one
+		nodeinfo = CreateDefaultNodeInfo()
+	default:
+		nodeinfo = i
+	}
+
+	if err := SaveNodeInfo(root, nodeinfo); err != nil {
+		return nil, e(err, "")
+	}
+
+	return nodeinfo, nil
 }
 
-func CheckLocalFS(root string) error {
+func CheckLocalFS(root string, enc encoder.Encoder) (NodeInfo, error) {
 	e := util.StringErrorFunc("failed to check localfs")
 
 	switch fi, err := os.Stat(root); {
 	case err == nil:
 		if !fi.IsDir() {
-			return e(nil, "root is not directory")
+			return nil, e(nil, "root is not directory")
 		}
 	default:
-		return e(err, "")
+		return nil, e(err, "")
 	}
 
 	temproot := LocalFSTempDirectory(root)
@@ -104,16 +132,25 @@ func CheckLocalFS(root string) error {
 		switch fi, err := os.Stat(i); {
 		case err == nil:
 			if !fi.IsDir() {
-				return e(nil, "root is not directory, %q", i)
+				return nil, e(nil, "root is not directory, %q", i)
 			}
 		default:
-			return e(err, "")
+			return nil, e(err, "")
 		}
 	}
 
-	return nil
+	switch info, found, err := LoadNodeInfo(root, enc); {
+	case err != nil:
+		return nil, e(err, "")
+	case !found:
+		return nil, e(util.ErrNotFound.Errorf("NodeInfo not found"), "")
+	default:
+		return info, nil
+	}
 }
 
+// RemoveLocalFS removes basic directories and files except perm and nodeinfo
+// file.
 func RemoveLocalFS(root string) error {
 	knowns := map[string]struct{}{
 		LocalFSTempDirectoryName: {},
@@ -126,13 +163,14 @@ func RemoveLocalFS(root string) error {
 
 		return found
 	}); err != nil {
-		return errors.Wrap(err, "failed to initialize localfs")
+		return errors.Wrap(err, "failed to remove localfs")
 	}
 
 	return nil
 }
 
 func LoadDatabase(
+	nodeinfo NodeInfo,
 	permuri string,
 	localfsroot string,
 	encs *encoder.Encoders,
@@ -140,7 +178,7 @@ func LoadDatabase(
 ) (*isaacdatabase.Default, isaac.PermanentDatabase, *isaacdatabase.TempPool, error) {
 	e := util.StringErrorFunc("failed to prepare database")
 
-	perm, err := LoadPermanentDatabase(permuri, encs, enc)
+	perm, err := LoadPermanentDatabase(permuri, nodeinfo.ID(), encs, enc)
 	if err != nil {
 		return nil, nil, nil, e(err, "")
 	}
@@ -173,7 +211,7 @@ func LoadDatabase(
 	return db, perm, pool, nil
 }
 
-func LoadPermanentDatabase(uri string, encs *encoder.Encoders, enc encoder.Encoder) (isaac.PermanentDatabase, error) {
+func LoadPermanentDatabase(uri, id string, encs *encoder.Encoders, enc encoder.Encoder) (isaac.PermanentDatabase, error) {
 	e := util.StringErrorFunc("failed to load PermanentDatabase")
 
 	u, err := url.Parse(uri)
@@ -217,7 +255,7 @@ func LoadPermanentDatabase(uri string, encs *encoder.Encoders, enc encoder.Encod
 			u.Scheme = "redis"
 		}
 
-		perm, err := loadRedisPermanentDatabase(u.String(), encs, enc)
+		perm, err := loadRedisPermanentDatabase(u.String(), id, encs, enc)
 		if err != nil {
 			return nil, e(err, "failed to create redis PermanentDatabase")
 		}
@@ -228,7 +266,7 @@ func LoadPermanentDatabase(uri string, encs *encoder.Encoders, enc encoder.Encod
 	}
 }
 
-func loadRedisPermanentDatabase(uri string, encs *encoder.Encoders, enc encoder.Encoder) (
+func loadRedisPermanentDatabase(uri, id string, encs *encoder.Encoders, enc encoder.Encoder) (
 	*isaacdatabase.RedisPermanent, error,
 ) {
 	e := util.StringErrorFunc("failed to load redis PermanentDatabase")
@@ -242,7 +280,7 @@ func loadRedisPermanentDatabase(uri string, encs *encoder.Encoders, enc encoder.
 	}
 
 	// BLOCK set local address in prefix
-	st, err := redisstorage.NewStorage(ctx, option, RedisPermanentDatabasePrefix)
+	st, err := redisstorage.NewStorage(ctx, option, fmt.Sprintf(RedisPermanentDatabasePrefixFormat, id))
 	if err != nil {
 		return nil, e(err, "failed to create redis storage")
 	}

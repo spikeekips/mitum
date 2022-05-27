@@ -130,7 +130,7 @@ func (t *testSuffrageProof) TestInvalid() {
 		p := NewSuffrageProof(SuffrageProofHint, t.blockMap, t.current, t.proof, t.voteproof)
 		t.NoError(p.IsValid(t.NodePolicy.NetworkID()))
 
-		_ = (interface{})(p).(isaac.SuffrageProof)
+		_ = (interface{})(p).(base.SuffrageProof)
 	})
 
 	t.Run("invalid hint type", func() {

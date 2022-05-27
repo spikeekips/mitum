@@ -6,6 +6,7 @@ import (
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
 )
@@ -62,16 +63,8 @@ func (m *BlockMap) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "")
 	}
 
-	switch hinter, err := enc.Decode(u.Manifest); {
-	case err != nil:
+	if err := encoder.Decode(enc, u.Manifest, &m.manifest); err != nil {
 		return e(err, "failed to decode manifest")
-	default:
-		i, ok := hinter.(base.Manifest)
-		if !ok {
-			return e(err, "decoded not Manifest, %T", hinter)
-		}
-
-		m.manifest = i
 	}
 
 	items := util.NewLockedMap()

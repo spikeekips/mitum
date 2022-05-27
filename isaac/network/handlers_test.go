@@ -41,7 +41,7 @@ func (t *testQuicstreamHandlers) SetupSuite() {
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageCandidateHint, Instance: isaac.SuffrageCandidate{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ErrorResponseHeaderHint, Instance: ErrorResponseHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: OKResponseHeaderHint, Instance: OKResponseHeader{}}))
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.DummySuffrageProofHint, Instance: isaac.DummySuffrageProof{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: base.DummySuffrageProofHint, Instance: base.DummySuffrageProof{}}))
 }
 
 func (t *testQuicstreamHandlers) TestClient() {
@@ -173,10 +173,10 @@ func (t *testQuicstreamHandlers) TestSuffrageProof() {
 
 	t.Run("found", func() {
 		st, _ := t.SuffrageState(base.Height(33), base.Height(11), nil)
-		proof := isaac.NewDummySuffrageProof()
+		proof := base.NewDummySuffrageProof()
 		proof = proof.SetState(st)
 
-		handlers.suffrageProof = func(state util.Hash) (isaac.SuffrageProof, bool, error) {
+		handlers.suffrageProof = func(state util.Hash) (base.SuffrageProof, bool, error) {
 			if !state.Equal(st.Hash()) {
 				return nil, false, nil
 			}
@@ -193,7 +193,7 @@ func (t *testQuicstreamHandlers) TestSuffrageProof() {
 	})
 
 	t.Run("nil state", func() {
-		handlers.suffrageProof = func(state util.Hash) (isaac.SuffrageProof, bool, error) {
+		handlers.suffrageProof = func(state util.Hash) (base.SuffrageProof, bool, error) {
 			return nil, true, nil
 		}
 
@@ -203,7 +203,7 @@ func (t *testQuicstreamHandlers) TestSuffrageProof() {
 	})
 
 	t.Run("not found", func() {
-		handlers.suffrageProof = func(state util.Hash) (isaac.SuffrageProof, bool, error) {
+		handlers.suffrageProof = func(state util.Hash) (base.SuffrageProof, bool, error) {
 			return nil, false, nil
 		}
 

@@ -362,15 +362,10 @@ func (v BaseStateMergeValue) defaultMerger(height Height, st State) StateValueMe
 func DecodeStateValue(b []byte, enc encoder.Encoder) (StateValue, error) {
 	e := util.StringErrorFunc("failed to decode StateValue")
 
-	i, err := enc.Decode(b)
-	if err != nil {
+	var s StateValue
+	if err := encoder.Decode(enc, b, &s); err != nil {
 		return nil, e(err, "")
 	}
 
-	j, ok := i.(StateValue)
-	if !ok {
-		return nil, e(err, "not StateValue, %T", i)
-	}
-
-	return j, nil
+	return s, nil
 }

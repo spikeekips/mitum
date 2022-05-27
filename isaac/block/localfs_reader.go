@@ -64,14 +64,9 @@ func (r *LocalFSReader) Map() (base.BlockMap, bool, error) {
 			b = i
 		}
 
-		hinter, err := r.enc.Decode(b)
-		if err != nil {
+		var um base.BlockMap
+		if err := encoder.Decode(r.enc, b, &um); err != nil {
 			return nil, errors.Wrap(err, "")
-		}
-
-		um, ok := hinter.(base.BlockMap)
-		if !ok {
-			return nil, errors.Errorf("not blockmap, %T", hinter)
 		}
 
 		return um, nil
@@ -277,7 +272,7 @@ func (r *LocalFSReader) item(t base.BlockMapItemType) (interface{}, bool, error)
 
 	switch {
 	case !isListBlockMapItemType(t):
-		i, err = r.loadItem(f)
+		i, err = r.loadItem(item, f)
 	default:
 		i, err = r.loadItems(item, f)
 	}
@@ -292,19 +287,17 @@ func (r *LocalFSReader) item(t base.BlockMapItemType) (interface{}, bool, error)
 	}
 }
 
-func (r *LocalFSReader) loadItem(f io.Reader) (interface{}, error) {
-	b, err := io.ReadAll(f)
-	if err != nil {
-		return nil, errors.Wrap(err, "")
-	}
+func (r *LocalFSReader) loadItem(item base.BlockMapItem, f io.Reader) (interface{}, error) {
+	switch item.Type() {
+	case base.BlockMapItemTypeProposal:
+		var u base.ProposalSignedFact
+		if err := encoder.DecodeReader(r.enc, f, &u); err != nil {
+			return nil, errors.Wrap(err, "")
+		}
 
-	hinter, err := r.enc.Decode(b)
-
-	switch {
-	case err != nil:
-		return nil, errors.Wrap(err, "")
+		return u, nil
 	default:
-		return hinter, nil
+		return nil, errors.Errorf("unsupported list items, %q", item.Type())
 	}
 }
 

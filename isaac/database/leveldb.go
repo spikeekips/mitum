@@ -106,7 +106,7 @@ func (db *baseLeveldb) existsKnownOperation(h util.Hash) (bool, error) {
 	}
 }
 
-func (db *baseLeveldb) state(key string) (base.State, bool, error) {
+func (db *baseLeveldb) state(key string) (st base.State, found bool, _ error) {
 	e := util.StringErrorFunc("failed to get state")
 
 	switch b, found, err := db.st.Get(leveldbStateKey(key)); {
@@ -115,12 +115,11 @@ func (db *baseLeveldb) state(key string) (base.State, bool, error) {
 	case !found:
 		return nil, false, nil
 	default:
-		i, err := db.decodeState(b)
-		if err != nil {
+		if err := db.readHinter(b, &st); err != nil {
 			return nil, false, e(err, "")
 		}
 
-		return i, true, nil
+		return st, true, nil
 	}
 }
 
@@ -136,21 +135,16 @@ func (db *baseLeveldb) loadNetworkPolicy() (base.NetworkPolicy, bool, error) {
 		return nil, false, nil
 	}
 
-	switch hinter, err := db.readHinter(b); {
-	case err != nil:
+	var st base.State
+	if err := db.readHinter(b, &st); err != nil {
 		return nil, true, e(err, "")
-	default:
-		i, ok := hinter.(base.State)
-		if !ok {
-			return nil, true, e(nil, "not state: %T", hinter)
-		}
-
-		if !base.IsNetworkPolicyState(i) {
-			return nil, true, e(nil, "not NetworkPolicy state: %T", i)
-		}
-
-		return i.Value().(base.NetworkPolicyStateValue).Policy(), true, nil //nolint:forcetypeassert //...
 	}
+
+	if !base.IsNetworkPolicyState(st) {
+		return nil, true, e(nil, "not NetworkPolicy state")
+	}
+
+	return st.Value().(base.NetworkPolicyStateValue).Policy(), true, nil //nolint:forcetypeassert //...
 }
 
 func leveldbSuffrageKey(height base.Height) []byte {

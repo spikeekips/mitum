@@ -85,11 +85,11 @@ func (t *testSuffrageStateBuilder) prepare(point base.Point, previous base.State
 	return isaacblock.NewSuffrageProof(isaacblock.SuffrageProofHint, blockMap, newstate, proof, voteproof)
 }
 
-func (t *testSuffrageStateBuilder) newProofs(n int) map[base.Height]isaac.SuffrageProof {
+func (t *testSuffrageStateBuilder) newProofs(n int) map[base.Height]base.SuffrageProof {
 	locals := []isaac.LocalNode{t.Local}
 
 	p := base.GenesisPoint
-	proofs := map[base.Height]isaac.SuffrageProof{}
+	proofs := map[base.Height]base.SuffrageProof{}
 	for i := range make([]byte, 14) {
 		newnodes, _ := t.Locals(i)
 		newlocals := make([]isaac.LocalNode, len(locals)+len(newnodes))
@@ -135,10 +135,10 @@ func (t *testSuffrageStateBuilder) TestBuildOneFromGenesis() {
 
 	s := NewSuffrageStateBuilder(
 		t.NodePolicy.NetworkID(),
-		func(context.Context) (isaac.SuffrageProof, bool, error) {
+		func(context.Context) (base.SuffrageProof, bool, error) {
 			return proofs[last.State().Height()], true, nil
 		},
-		func(_ context.Context, height base.Height) (isaac.SuffrageProof, bool, error) {
+		func(_ context.Context, height base.Height) (base.SuffrageProof, bool, error) {
 			switch {
 			case height < base.GenesisHeight, height > last.State().Height():
 				return nil, false, errors.Errorf("invalid height request, %d", height)
@@ -176,10 +176,10 @@ func (t *testSuffrageStateBuilder) TestBuildFromGenesis() {
 
 	s := NewSuffrageStateBuilder(
 		t.NodePolicy.NetworkID(),
-		func(context.Context) (isaac.SuffrageProof, bool, error) {
+		func(context.Context) (base.SuffrageProof, bool, error) {
 			return proofs[last.State().Height()], true, nil
 		},
-		func(_ context.Context, height base.Height) (isaac.SuffrageProof, bool, error) {
+		func(_ context.Context, height base.Height) (base.SuffrageProof, bool, error) {
 			switch {
 			case height < base.GenesisHeight, height > last.State().Height():
 				return nil, false, errors.Errorf("invalid height request, %d", height)
@@ -219,10 +219,10 @@ func (t *testSuffrageStateBuilder) TestBuildNotFromGenesis() {
 
 	s := NewSuffrageStateBuilder(
 		t.NodePolicy.NetworkID(),
-		func(context.Context) (isaac.SuffrageProof, bool, error) {
+		func(context.Context) (base.SuffrageProof, bool, error) {
 			return proofs[last.State().Height()], true, nil
 		},
-		func(_ context.Context, height base.Height) (isaac.SuffrageProof, bool, error) {
+		func(_ context.Context, height base.Height) (base.SuffrageProof, bool, error) {
 			switch {
 			case height <= localheight, height > last.State().Height():
 				return nil, false, errors.Errorf("invalid height request, %d", height)
@@ -259,10 +259,10 @@ func (t *testSuffrageStateBuilder) TestBuildLastNotFromGenesis() {
 
 	s := NewSuffrageStateBuilder(
 		t.NodePolicy.NetworkID(),
-		func(context.Context) (isaac.SuffrageProof, bool, error) {
+		func(context.Context) (base.SuffrageProof, bool, error) {
 			return proofs[last.State().Height()], true, nil
 		},
-		func(_ context.Context, height base.Height) (isaac.SuffrageProof, bool, error) {
+		func(_ context.Context, height base.Height) (base.SuffrageProof, bool, error) {
 			return nil, false, errors.Errorf("invalid height request, %d", height)
 		},
 	)

@@ -5,6 +5,7 @@ import (
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
 )
@@ -33,16 +34,8 @@ func (s *NetworkPolicyStateValue) DecodeJSON(b []byte, enc *jsonenc.Encoder) err
 		return e(err, "")
 	}
 
-	switch hinter, err := enc.Decode(u.Policy); {
-	case err != nil:
+	if err := encoder.Decode(enc, u.Policy, &s.policy); err != nil {
 		return e(err, "")
-	default:
-		i, ok := hinter.(base.NetworkPolicy)
-		if !ok {
-			return e(nil, "expectec NetworkPolicyStateValue, but %T", hinter)
-		}
-
-		s.policy = i
 	}
 
 	return nil

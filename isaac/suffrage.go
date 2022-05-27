@@ -4,7 +4,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/fixedtree"
 	"github.com/spikeekips/mitum/util/hint"
 )
 
@@ -193,14 +192,4 @@ func (suf SuffrageCandidate) Start() base.Height {
 
 func (suf SuffrageCandidate) Deadline() base.Height {
 	return suf.deadline
-}
-
-type SuffrageProof interface {
-	util.IsValider
-	Map() base.BlockMap
-	State() base.State
-	ACCEPTVoteproof() base.ACCEPTVoteproof
-	Proof() fixedtree.Proof
-	Suffrage() (base.Suffrage, error)
-	Prove(previousState base.State) error
 }

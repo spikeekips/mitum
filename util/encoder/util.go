@@ -1,9 +1,11 @@
 package encoder
 
 import (
+	"io"
 	"reflect"
 
 	"github.com/pkg/errors"
+	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
 )
 
@@ -79,4 +81,34 @@ func AnalyzeSetHinter(d DecodeDetail, v interface{}) DecodeDetail {
 	}
 
 	return d
+}
+
+func Decode(enc Encoder, b []byte, v interface{}) error {
+	e := util.StringErrorFunc("failed to decode")
+
+	hinter, err := enc.Decode(b)
+	if err != nil {
+		return e(err, "")
+	}
+
+	if err := util.InterfaceSetValue(hinter, v); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
+func DecodeReader(enc Encoder, r io.Reader, v interface{}) error {
+	e := util.StringErrorFunc("failed to decode from reader")
+
+	b, err := io.ReadAll(r)
+	if err != nil {
+		return e(err, "")
+	}
+
+	if err := Decode(enc, b, v); err != nil {
+		return e(err, "")
+	}
+
+	return nil
 }

@@ -5,6 +5,7 @@ import (
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
 )
@@ -36,19 +37,15 @@ func (s *SuffrageStateValue) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "")
 	}
 
-	nodes := make([]base.Node, len(u.Nodes))
+	s.nodes = make([]base.Node, len(u.Nodes))
 
 	for i := range u.Nodes {
-		j, err := base.DecodeNode(u.Nodes[i], enc)
-		if err != nil {
+		if err := encoder.Decode(enc, u.Nodes[i], &s.nodes[i]); err != nil {
 			return e(err, "")
 		}
-
-		nodes[i] = j
 	}
 
 	s.height = u.Height.Height()
-	s.nodes = nodes
 
 	return nil
 }
@@ -83,12 +80,9 @@ func (suf *SuffrageCandidate) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "")
 	}
 
-	node, err := base.DecodeNode(u.Node, enc)
-	if err != nil {
+	if err := encoder.Decode(enc, u.Node, &suf.Node); err != nil {
 		return e(err, "")
 	}
-
-	suf.Node = node
 
 	suf.start = u.Start.Height()
 	suf.deadline = u.Deadline.Height()

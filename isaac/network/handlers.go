@@ -16,7 +16,7 @@ type QuicstreamHandlers struct {
 	pool isaac.TempPoolDatabase
 	*baseNetwork
 	proposalMaker *isaac.ProposalMaker
-	suffrageProof func(util.Hash) (isaac.SuffrageProof, bool, error)
+	suffrageProof func(util.Hash) (base.SuffrageProof, bool, error)
 	lastBlockMap  func(util.Hash) (base.BlockMap, bool, error)
 	blockMap      func(base.Height) (base.BlockMap, bool, error)
 	blockMapItem  func(base.Height, base.BlockMapItemType) (io.ReadCloser, bool, error)
@@ -29,7 +29,7 @@ func NewQuicstreamHandlers(
 	enc encoder.Encoder,
 	pool isaac.TempPoolDatabase,
 	proposalMaker *isaac.ProposalMaker,
-	suffrageProof func(util.Hash) (isaac.SuffrageProof, bool, error),
+	suffrageProof func(util.Hash) (base.SuffrageProof, bool, error),
 	lastBlockMap func(util.Hash) (base.BlockMap, bool, error),
 	blockMap func(base.Height) (base.BlockMap, bool, error),
 	blockMapItem func(base.Height, base.BlockMapItemType) (io.ReadCloser, bool, error),
@@ -63,7 +63,7 @@ func (c *QuicstreamHandlers) RequestProposal(_ net.Addr, r io.Reader, w io.Write
 	}
 
 	var body RequestProposalRequestHeader
-	if err = c.readHinter(r, enc, &body); err != nil {
+	if err = encoder.DecodeReader(enc, r, &body); err != nil {
 		return e(err, "")
 	}
 
@@ -93,7 +93,7 @@ func (c *QuicstreamHandlers) Proposal(_ net.Addr, r io.Reader, w io.Writer) erro
 	}
 
 	var body ProposalRequestHeader
-	if err = c.readHinter(r, enc, &body); err != nil {
+	if err = encoder.DecodeReader(enc, r, &body); err != nil {
 		return e(err, "")
 	}
 
@@ -121,7 +121,7 @@ func (c *QuicstreamHandlers) SuffrageProof(_ net.Addr, r io.Reader, w io.Writer)
 	}
 
 	var body SuffrageProofRequestHeader
-	if err = c.readHinter(r, enc, &body); err != nil {
+	if err = encoder.DecodeReader(enc, r, &body); err != nil {
 		return e(err, "")
 	}
 
@@ -146,7 +146,7 @@ func (c *QuicstreamHandlers) LastBlockMap(_ net.Addr, r io.Reader, w io.Writer) 
 	}
 
 	var body LastBlockMapRequestHeader
-	if err = c.readHinter(r, enc, &body); err != nil {
+	if err = encoder.DecodeReader(enc, r, &body); err != nil {
 		return e(err, "")
 	}
 
@@ -173,7 +173,7 @@ func (c *QuicstreamHandlers) BlockMap(_ net.Addr, r io.Reader, w io.Writer) erro
 	}
 
 	var body BlockMapRequestHeader
-	if err = c.readHinter(r, enc, &body); err != nil {
+	if err = encoder.DecodeReader(enc, r, &body); err != nil {
 		return e(err, "")
 	}
 
@@ -200,7 +200,7 @@ func (c *QuicstreamHandlers) BlockMapItem(_ net.Addr, r io.Reader, w io.Writer) 
 	}
 
 	var body BlockMapItemRequestHeader
-	if err = c.readHinter(r, enc, &body); err != nil {
+	if err = encoder.DecodeReader(enc, r, &body); err != nil {
 		return e(err, "")
 	}
 

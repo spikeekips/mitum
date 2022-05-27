@@ -66,16 +66,8 @@ func newNodeFromMemberlist(node *memberlist.Node, enc encoder.Encoder) (BaseNode
 
 	var meta NodeMeta
 
-	switch hinter, err := enc.Decode(node.Meta); {
-	case err != nil:
+	if err := encoder.Decode(enc, node.Meta, &meta); err != nil {
 		return BaseNode{}, e(err, "failed to decode NodeMeta")
-	default:
-		i, ok := hinter.(NodeMeta)
-		if !ok {
-			return BaseNode{}, e(err, "failed to decode NodeMeta; not NodeMeta, %T", hinter)
-		}
-
-		meta = i
 	}
 
 	addr, _ := convertNetAddr(node)

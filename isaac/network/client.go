@@ -6,7 +6,6 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
-	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/network/quictransport"
 	"github.com/spikeekips/mitum/util"
@@ -70,7 +69,7 @@ func (c *baseNetworkClient) RequestProposal(
 	default:
 		var u base.ProposalSignedFact
 
-		if err := c.loadBody(r, enc, &u); err != nil {
+		if err := encoder.DecodeReader(enc, r, &u); err != nil {
 			return nil, false, e(err, "")
 		}
 
@@ -108,7 +107,7 @@ func (c *baseNetworkClient) Proposal( //nolint:dupl //...
 	default:
 		var u base.ProposalSignedFact
 
-		if err := c.loadBody(r, enc, &u); err != nil {
+		if err := encoder.DecodeReader(enc, r, &u); err != nil {
 			return nil, false, e(err, "")
 		}
 
@@ -118,7 +117,7 @@ func (c *baseNetworkClient) Proposal( //nolint:dupl //...
 
 func (c *baseNetworkClient) LastSuffrageProof(
 	ctx context.Context, ci quictransport.ConnInfo, manifest util.Hash,
-) (isaac.SuffrageProof, bool, error) {
+) (base.SuffrageProof, bool, error) {
 	e := util.StringErrorFunc("failed to get last suffrage proof")
 
 	m, updated, err := c.LastBlockMap(ctx, ci, manifest)
@@ -144,7 +143,7 @@ func (c *baseNetworkClient) LastSuffrageProof(
 
 func (c *baseNetworkClient) SuffrageProof( //nolint:dupl //...
 	ctx context.Context, ci quictransport.ConnInfo, state util.Hash,
-) (isaac.SuffrageProof, bool, error) {
+) (base.SuffrageProof, bool, error) {
 	e := util.StringErrorFunc("failed to get suffrage proof")
 
 	header := NewSuffrageProofRequestHeader(state)
@@ -168,9 +167,9 @@ func (c *baseNetworkClient) SuffrageProof( //nolint:dupl //...
 	case !h.OK():
 		return nil, false, nil
 	default:
-		var u isaac.SuffrageProof
+		var u base.SuffrageProof
 
-		if err := c.loadBody(r, enc, &u); err != nil {
+		if err := encoder.DecodeReader(enc, r, &u); err != nil {
 			return nil, false, e(err, "")
 		}
 
@@ -206,7 +205,7 @@ func (c *baseNetworkClient) LastBlockMap( //nolint:dupl //...
 	default:
 		var u base.BlockMap
 
-		if err := c.loadBody(r, enc, &u); err != nil {
+		if err := encoder.DecodeReader(enc, r, &u); err != nil {
 			return nil, false, e(err, "")
 		}
 
@@ -242,7 +241,7 @@ func (c *baseNetworkClient) BlockMap( //nolint:dupl //...
 	default:
 		var u base.BlockMap
 
-		if err := c.loadBody(r, enc, &u); err != nil {
+		if err := encoder.DecodeReader(enc, r, &u); err != nil {
 			return nil, false, e(err, "")
 		}
 
@@ -293,55 +292,16 @@ func (c *baseNetworkClient) loadOKHeader(
 		return h, nil, e(err, "")
 	}
 
-	if err := c.readHeader(r, enc, &h); err != nil {
-		return h, nil, e(err, "failed to read stream")
-	}
-
-	return h, enc, nil
-}
-
-func (*baseNetworkClient) loadBody(r io.Reader, enc encoder.Encoder, v interface{}) error {
-	e := util.StringErrorFunc("failed to load %T", v)
-
-	b, err := io.ReadAll(r)
-	if err != nil {
-		return e(err, "")
-	}
-
-	hinter, err := enc.Decode(b)
-
-	switch {
+	switch b, err := readHeader(r); {
 	case err != nil:
-		return errors.Wrap(err, "")
-	case hinter == nil:
-		return errors.Errorf("empty")
+		return h, nil, e(err, "")
+	default:
+		if err := encoder.Decode(enc, b, &h); err != nil {
+			return h, nil, e(err, "failed to read stream")
+		}
+
+		return h, enc, nil
 	}
-
-	if err := util.InterfaceSetValue(hinter, v); err != nil {
-		return errors.Wrap(err, "")
-	}
-
-	return nil
-}
-
-func (*baseNetworkClient) readHeader(r io.Reader, enc encoder.Encoder, header Header) error {
-	e := util.StringErrorFunc("failed to read header")
-
-	b, err := readHeader(r)
-	if err != nil {
-		return e(err, "")
-	}
-
-	hinter, err := enc.Decode(b)
-	if err != nil {
-		return e(err, "")
-	}
-
-	if err := util.InterfaceSetValue(hinter, header); err != nil {
-		return e(err, "")
-	}
-
-	return nil
 }
 
 func (c *baseNetworkClient) write(

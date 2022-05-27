@@ -157,8 +157,9 @@ func (db *TempLeveldb) loadLastBlockMap() error {
 	case !found:
 		return e(err, "blockmap not found")
 	default:
-		m, err := db.decodeBlockMap(b)
-		if err != nil {
+		var m base.BlockMap
+
+		if err := db.readHinter(b, &m); err != nil {
 			return e(err, "")
 		}
 

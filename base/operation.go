@@ -8,6 +8,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/fixedtree"
 	"github.com/spikeekips/mitum/util/hint"
@@ -122,17 +123,8 @@ func (no *OperationFixedtreeNode) DecodeJSON(b []byte, enc *jsonenc.Encoder) err
 		return e(err, "")
 	}
 
-	switch hinter, err := enc.Decode(u.Reason); {
-	case err != nil:
+	if err := encoder.Decode(enc, u.Reason, &no.reason); err != nil {
 		return e(err, "")
-	case hinter == nil:
-	default:
-		i, ok := hinter.(OperationProcessReasonError)
-		if !ok {
-			return e(nil, "not OperationProcessReasonError, %T", hinter)
-		}
-
-		no.reason = i
 	}
 
 	return nil
