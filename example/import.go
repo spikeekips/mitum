@@ -84,7 +84,7 @@ func (cmd *importCommand) prepareDatabase(localfsroot string) error {
 		return e(err, "")
 	}
 
-	nodeinfo, err := launch.CreateLocalFS(localfsroot, cmd.enc)
+	nodeinfo, err := launch.CreateLocalFS(networkID, localfsroot, cmd.enc)
 	if err != nil {
 		return e(err, "")
 	}

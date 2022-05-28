@@ -80,6 +80,15 @@ func (s SuffrageProof) Suffrage() (base.Suffrage, error) {
 	return isaac.NewSuffrageFromState(s.st)
 }
 
+func (s SuffrageProof) SuffrageHeight() base.Height {
+	i, err := base.LoadSuffrageState(s.st)
+	if err != nil {
+		return base.NilHeight
+	}
+
+	return i.Height()
+}
+
 // Prove should be called after IsValid().
 func (s SuffrageProof) Prove(previousState base.State) error {
 	e := util.StringErrorFunc("failed to prove SuffrageProof")

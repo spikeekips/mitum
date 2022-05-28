@@ -152,7 +152,7 @@ func (t *testSuffrageStateBuilder) TestBuildOneFromGenesis() {
 			return proof, found, nil
 		},
 	)
-	s.numbatches = 3
+	s.batchlimit = 3
 
 	suf, err := s.Build(context.Background(), nil)
 	t.NoError(err)
@@ -193,7 +193,7 @@ func (t *testSuffrageStateBuilder) TestBuildFromGenesis() {
 			return proof, found, nil
 		},
 	)
-	s.numbatches = 3
+	s.batchlimit = 3
 
 	suf, err := s.Build(context.Background(), nil)
 	t.NoError(err)
@@ -236,7 +236,7 @@ func (t *testSuffrageStateBuilder) TestBuildNotFromGenesis() {
 			return proof, found, nil
 		},
 	)
-	s.numbatches = 3
+	s.batchlimit = 3
 
 	suf, err := s.Build(context.Background(), proofs[localheight].State())
 	t.NoError(err)
@@ -266,7 +266,7 @@ func (t *testSuffrageStateBuilder) TestBuildLastNotFromGenesis() {
 			return nil, false, errors.Errorf("invalid height request, %d", height)
 		},
 	)
-	s.numbatches = 3
+	s.batchlimit = 3
 
 	suf, err := s.Build(context.Background(), proofs[localheight].State())
 	t.NoError(err)

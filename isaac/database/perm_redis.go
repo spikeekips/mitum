@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"math"
 	"strings"
 	"sync"
 
@@ -288,53 +287,38 @@ func (db *RedisPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp
 		sufsv = st.Value().(base.SuffrageStateValue) //nolint:forcetypeassert //...
 	}
 
-	worker := util.NewErrgroupWorker(ctx, math.MaxInt32)
-	defer worker.Close()
-
-	// NOTE merge operations
-	if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
-		if err := db.mergeOperationsTempDatabaseFromLeveldb(ctx, temp); err != nil {
-			return errors.Wrap(err, "failed to merge operations")
-		}
-
-		return nil
-	}); err != nil {
-		return nil, nil, e(err, "")
-	}
-
-	// NOTE merge states
-	if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
-		bsufst, err := db.mergeStatesTempDatabaseFromLeveldb(ctx, temp)
-		if err != nil {
-			return errors.Wrap(err, "failed to merge states")
-		}
-
-		// NOTE merge suffrage state
-		if sufsv != nil && len(bsufst) > 0 {
-			if err := db.mergeSuffrageStateTempDatabaseFromLeveldb(ctx, temp, sufsv, bsufst); err != nil {
-				return errors.Wrap(err, "failed to merge suffrage state")
+	if err := util.RunErrgroupWorkerByJobs(
+		ctx,
+		func(ctx context.Context, jobid uint64) error {
+			if err := db.mergeOperationsTempDatabaseFromLeveldb(ctx, temp); err != nil {
+				return errors.Wrap(err, "failed to merge operations")
 			}
-		}
 
-		return nil
-	}); err != nil {
-		return nil, nil, e(err, "")
-	}
+			return nil
+		},
+		func(ctx context.Context, jobid uint64) error {
+			bsufst, err := db.mergeStatesTempDatabaseFromLeveldb(ctx, temp)
+			if err != nil {
+				return errors.Wrap(err, "failed to merge states")
+			}
 
-	// NOTE merge blockmap
-	if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
-		if err := db.mergeBlockMapTempDatabaseFromLeveldb(ctx, temp); err != nil {
-			return errors.Wrap(err, "failed to merge blockmap")
-		}
+			// NOTE merge suffrage state
+			if sufsv != nil && len(bsufst) > 0 {
+				if err := db.mergeSuffrageStateTempDatabaseFromLeveldb(ctx, temp, sufsv, bsufst); err != nil {
+					return errors.Wrap(err, "failed to merge suffrage state")
+				}
+			}
 
-		return nil
-	}); err != nil {
-		return nil, nil, e(err, "")
-	}
+			return nil
+		},
+		func(ctx context.Context, jobid uint64) error {
+			if err := db.mergeBlockMapTempDatabaseFromLeveldb(ctx, temp); err != nil {
+				return errors.Wrap(err, "failed to merge blockmap")
+			}
 
-	worker.Done()
-
-	if err := worker.Wait(); err != nil {
+			return nil
+		},
+	); err != nil {
 		return nil, nil, e(err, "")
 	}
 

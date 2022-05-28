@@ -35,7 +35,7 @@ func (cmd *initCommand) Run() error {
 		return errors.Wrap(err, "")
 	}
 
-	nodeinfo, err := launch.CreateLocalFS(localfsroot, enc)
+	nodeinfo, err := launch.CreateLocalFS(networkID, localfsroot, enc)
 	if err != nil {
 		return errors.Wrap(err, "")
 	}

@@ -2,7 +2,6 @@ package isaac
 
 import (
 	"context"
-	"math"
 	"sync"
 	"time"
 
@@ -256,44 +255,29 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) (err e
 
 	defer done()
 
-	worker := util.NewErrgroupWorker(wctx, math.MaxInt32)
-	defer worker.Close()
+	ophs := p.proposal.ProposalFact().Operations()
 
-	go func() {
-		defer worker.Done()
+	if err := util.RunErrgroupWorker(wctx, uint64(len(ophs)), func(ctx context.Context, i, _ uint64) error {
+		h := ophs[i]
+		op, err := p.collectOperation(ctx, h)
 
-		ophs := p.proposal.ProposalFact().Operations()
+		switch {
+		case err == nil:
+		case errors.Is(err, util.ErrInvalid),
+			errors.Is(err, InvalidOperationInProcessorError),
+			errors.Is(err, OperationNotFoundInProcessorError),
+			errors.Is(err, OperationAlreadyProcessedInProcessorError):
+			p.Log().Debug().Err(err).Stringer("facthash", h).Msg("operation ignored")
 
-		for i := range ophs {
-			i := i
-			h := ophs[i]
-
-			if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-				op, err := p.collectOperation(ctx, h)
-
-				switch {
-				case err == nil:
-				case errors.Is(err, util.ErrInvalid),
-					errors.Is(err, InvalidOperationInProcessorError),
-					errors.Is(err, OperationNotFoundInProcessorError),
-					errors.Is(err, OperationAlreadyProcessedInProcessorError):
-					p.Log().Debug().Err(err).Stringer("facthash", h).Msg("operation ignored")
-
-					return nil
-				default:
-					return errors.Wrapf(err, "failed to collect operation, %q", h)
-				}
-
-				p.setOperation(i, op)
-
-				return nil
-			}); err != nil {
-				return
-			}
+			return nil
+		default:
+			return errors.Wrapf(err, "failed to collect operation, %q", h)
 		}
-	}()
 
-	if err := worker.Wait(); err != nil {
+		p.setOperation(int(i), op)
+
+		return nil
+	}); err != nil {
 		return e(err, "")
 	}
 
@@ -340,77 +324,81 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context) error 
 
 	defer done()
 
-	worker := util.NewErrgroupWorker(wctx, math.MaxInt32)
-	defer worker.Close()
-
 	ops := p.operations()
 
-	gopsindex := -1
-	gvalidindex := -1
+	workch := make(chan util.ContextWorkerCallback)
 
-	for i := range ops {
-		op := ops[i]
-		if op == nil {
-			continue
-		}
+	errch := make(chan error, 1)
 
-		gopsindex++
-		opsindex := gopsindex
+	go func() {
+		errch <- util.RunErrgroupWorkerByChan(wctx, workch)
+	}()
 
-		if i, ok := op.(ReasonProcessedOperation); ok {
-			if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-				return p.writer.SetProcessResult( //nolint:wrapcheck //...
-					ctx, uint64(opsindex), i.OperationHash(), i.FactHash(), false, i.Reason())
-			}); err != nil {
-				return e(err, "")
+	if err := func() error {
+		defer close(workch)
+
+		gopsindex := -1
+		gvalidindex := -1
+
+		for i := range ops {
+			op := ops[i]
+			if op == nil {
+				continue
 			}
 
-			continue
-		}
+			gopsindex++
+			opsindex := gopsindex
 
-		gvalidindex++
-		validindex := gvalidindex
+			if i, ok := op.(ReasonProcessedOperation); ok {
+				workch <- func(ctx context.Context, _ uint64) error {
+					return p.writer.SetProcessResult( //nolint:wrapcheck //...
+						ctx, uint64(opsindex), i.OperationHash(), i.FactHash(), false, i.Reason())
+				}
 
-		if err := p.workOperation(wctx, worker, uint64(opsindex), uint64(validindex), op); err != nil {
-			if !errors.Is(err, util.ErrWorkerCanceled) {
-				return e(err, "")
+				continue
 			}
 
-			break
+			gvalidindex++
+			validindex := gvalidindex
+
+			f, err := p.workOperation(wctx, uint64(opsindex), uint64(validindex), op)
+			if err != nil {
+				if !errors.Is(err, util.ErrWorkerCanceled) {
+					return e(err, "")
+				}
+
+				break
+			}
+
+			workch <- f
 		}
-	}
 
-	worker.Done()
-
-	if err := worker.Wait(); err != nil {
+		return nil
+	}(); err != nil {
 		return e(err, "")
 	}
 
-	return nil
+	return errors.Wrap(<-errch, "")
 }
 
 func (p *DefaultProposalProcessor) workOperation(
 	ctx context.Context,
-	worker *util.ErrgroupWorker,
+	// worker *util.ErrgroupWorker,
 	opsindex, validindex uint64,
 	op base.Operation,
-) error {
+) (util.ContextWorkerCallback, error) {
 	e := util.StringErrorFunc("failed to process operation, %q", op.Fact().Hash())
 
 	switch passed, err := p.doPreProcessOperation(ctx, opsindex, op); {
 	case err != nil:
-		return e(err, "failed to pre process operation")
+		return nil, e(err, "failed to pre process operation")
 	case !passed:
-		return nil
+		return nil, nil
 	}
 
-	if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
+	return func(ctx context.Context, _ uint64) error {
 		return p.doProcessOperation(ctx, opsindex, validindex, op)
-	}); err != nil {
-		return e(err, "")
-	}
-
-	return nil
+	}, nil
 }
 
 func (p *DefaultProposalProcessor) doPreProcessOperation(

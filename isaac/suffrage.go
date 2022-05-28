@@ -30,13 +30,17 @@ func NewSuffrageFromState(st base.State) (suf Suffrage, _ error) {
 	case err != nil:
 		return suf, errors.Wrap(err, "")
 	default:
-		i, err := NewSuffrage(v.Nodes())
-		if err != nil {
-			return suf, errors.Wrap(err, "")
-		}
-
-		return i, nil
+		return NewSuffrageFromStateValue(v)
 	}
+}
+
+func NewSuffrageFromStateValue(v base.SuffrageStateValue) (suf Suffrage, _ error) {
+	i, err := NewSuffrage(v.Nodes())
+	if err != nil {
+		return suf, errors.Wrap(err, "")
+	}
+
+	return i, nil
 }
 
 func NewSuffrage(nodes []base.Node) (Suffrage, error) {

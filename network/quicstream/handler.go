@@ -16,7 +16,7 @@ type (
 	ErrorHandler func(net.Addr, io.Reader, io.Writer, error) error
 )
 
-type PrefixHandler struct { // BLOCK remove; unused
+type PrefixHandler struct {
 	handlers     map[string]Handler
 	errorHandler ErrorHandler
 }

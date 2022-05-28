@@ -265,21 +265,12 @@ func (*Writer) closeStateValue(
 func (w *Writer) saveStates(
 	ctx context.Context, tg *fixedtree.Writer, states []base.State,
 ) error {
-	e := util.StringErrorFunc("failed to set states tree")
-
-	worker := util.NewErrgroupWorker(ctx, math.MaxInt32)
-	defer worker.Close()
-
-	go func() {
-		defer worker.Done()
-
-		if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
+	if err := util.RunErrgroupWorkerByJobs(
+		ctx,
+		func(ctx context.Context, _ uint64) error {
 			return w.db.SetStates(states) //nolint:wrapcheck //...
-		}); err != nil {
-			return
-		}
-
-		if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
+		},
+		func(ctx context.Context, _ uint64) error {
 			if err := w.fswriter.SetStatesTree(ctx, tg); err != nil {
 				return errors.Wrap(err, "")
 			}
@@ -287,13 +278,9 @@ func (w *Writer) saveStates(
 			w.ststreeroot = tg.Root()
 
 			return nil
-		}); err != nil {
-			return
-		}
-	}()
-
-	if err := worker.Wait(); err != nil {
-		return e(err, "")
+		},
+	); err != nil {
+		return errors.Wrap(err, "failed to set states tree")
 	}
 
 	return nil

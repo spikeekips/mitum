@@ -72,6 +72,10 @@ func (p DummySuffrageProof) Suffrage() (Suffrage, error) {
 	return nil, nil
 }
 
+func (p DummySuffrageProof) SuffrageHeight() Height {
+	return NilHeight
+}
+
 func (p DummySuffrageProof) Prove(previousState State) error {
 	return nil
 }

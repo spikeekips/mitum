@@ -82,7 +82,7 @@ func (cmd *runCommand) Run() error {
 func (cmd *runCommand) prepareDatabase(localfsroot string, encs *encoder.Encoders, enc encoder.Encoder) error {
 	e := util.StringErrorFunc("failed to prepare database")
 
-	nodeinfo, err := launch.CheckLocalFS(localfsroot, enc)
+	nodeinfo, err := launch.CheckLocalFS(networkID, localfsroot, enc)
 	if err != nil {
 		return e(err, "")
 	}

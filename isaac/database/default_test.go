@@ -23,7 +23,7 @@ type DummyPermanentDatabase struct {
 	suffrageByHeightf       func(suffrageHeight base.Height) (base.State, bool, error)
 	lastSuffragef           func() (base.State, bool, error)
 	statef                  func(key string) (base.State, bool, error)
-	existsInStateOperationf func(operationFactHash util.Hash) (bool, error)
+	existsInStateOperationf func(facthash util.Hash) (bool, error)
 	existsKnownOperationf   func(operationHash util.Hash) (bool, error)
 	mapf                    func(height base.Height) (base.BlockMap, bool, error)
 	lastMapf                func() (base.BlockMap, bool, error)
@@ -55,8 +55,8 @@ func (db *DummyPermanentDatabase) State(key string) (base.State, bool, error) {
 	return db.statef(key)
 }
 
-func (db *DummyPermanentDatabase) ExistsInStateOperation(operationFactHash util.Hash) (bool, error) {
-	return db.existsInStateOperationf(operationFactHash)
+func (db *DummyPermanentDatabase) ExistsInStateOperation(facthash util.Hash) (bool, error) {
+	return db.existsInStateOperationf(facthash)
 }
 
 func (db *DummyPermanentDatabase) ExistsKnownOperation(operationHash util.Hash) (bool, error) {
@@ -382,11 +382,11 @@ func (t *testDefaultWithPermanent) TestExistsInStateOperation() {
 	errop := valuehash.RandomSHA256()
 
 	perm := &DummyPermanentDatabase{
-		existsInStateOperationf: func(operationFactHash util.Hash) (bool, error) {
+		existsInStateOperationf: func(facthash util.Hash) (bool, error) {
 			switch {
-			case operationFactHash.Equal(op):
+			case facthash.Equal(op):
 				return true, nil
-			case operationFactHash.Equal(errop):
+			case facthash.Equal(errop):
 				return false, errors.Errorf("hihihi")
 			default:
 				return false, nil
@@ -422,11 +422,11 @@ func (t *testDefaultWithPermanent) TestExistsKnownOperation() {
 	errop := valuehash.RandomSHA256()
 
 	perm := &DummyPermanentDatabase{
-		existsKnownOperationf: func(operationFactHash util.Hash) (bool, error) { // BLOCK rename operationFactHash to operationHash
+		existsKnownOperationf: func(operationhash util.Hash) (bool, error) {
 			switch {
-			case operationFactHash.Equal(op):
+			case operationhash.Equal(op):
 				return true, nil
-			case operationFactHash.Equal(errop):
+			case operationhash.Equal(errop):
 				return false, errors.Errorf("hihihi")
 			default:
 				return false, nil

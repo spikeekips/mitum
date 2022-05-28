@@ -544,7 +544,9 @@ func (t *testLocalFSWriter) TestSetStates() {
 }
 
 func TestLocalFSWriter(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	defer goleak.VerifyNone(t,
+		goleak.IgnoreTopFunction("github.com/syndtr/goleveldb/leveldb.(*DB).mpoolDrain"),
+	)
 
 	suite.Run(t, new(testLocalFSWriter))
 }
@@ -659,7 +661,5 @@ func (t *testHeightDirectory) TestFindHighest() {
 }
 
 func TestHeightDirectory(t *testing.T) {
-	defer goleak.VerifyNone(t)
-
 	suite.Run(t, new(testHeightDirectory))
 }

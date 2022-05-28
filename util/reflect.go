@@ -6,8 +6,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-// BLOCK use encoder.Decode
-
 func InterfaceSetValue(v, target interface{}) error {
 	switch {
 	case v == nil:

@@ -567,7 +567,9 @@ func (t *testLocalFSReader) TestWrongChecksum() {
 }
 
 func TestLocalFSReader(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	defer goleak.VerifyNone(t,
+		goleak.IgnoreTopFunction("github.com/syndtr/goleveldb/leveldb.(*DB).mpoolDrain"),
+	)
 
 	suite.Run(t, new(testLocalFSReader))
 }

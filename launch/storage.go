@@ -57,7 +57,7 @@ func CleanStorage(permuri, root string, encs *encoder.Encoders, enc encoder.Enco
 	return nil
 }
 
-func CreateLocalFS(root string, enc encoder.Encoder) (NodeInfo, error) {
+func CreateLocalFS(networkID base.NetworkID, root string, enc encoder.Encoder) (NodeInfo, error) {
 	e := util.StringErrorFunc("failed to initialize localfs")
 
 	switch fi, err := os.Stat(root); {
@@ -100,7 +100,9 @@ func CreateLocalFS(root string, enc encoder.Encoder) (NodeInfo, error) {
 	case err != nil:
 		return nil, e(err, "")
 	case !found: // NOTE if not found, create new one
-		nodeinfo = CreateDefaultNodeInfo()
+		nodeinfo = CreateDefaultNodeInfo(networkID)
+	case !i.NetworkID().Equal(networkID):
+		return nil, e(nil, "network id does not match")
 	default:
 		nodeinfo = i
 	}
@@ -112,7 +114,7 @@ func CreateLocalFS(root string, enc encoder.Encoder) (NodeInfo, error) {
 	return nodeinfo, nil
 }
 
-func CheckLocalFS(root string, enc encoder.Encoder) (NodeInfo, error) {
+func CheckLocalFS(networkID base.NetworkID, root string, enc encoder.Encoder) (NodeInfo, error) {
 	e := util.StringErrorFunc("failed to check localfs")
 
 	switch fi, err := os.Stat(root); {
@@ -144,6 +146,8 @@ func CheckLocalFS(root string, enc encoder.Encoder) (NodeInfo, error) {
 		return nil, e(err, "")
 	case !found:
 		return nil, e(util.ErrNotFound.Errorf("NodeInfo not found"), "")
+	case !info.NetworkID().Equal(networkID):
+		return nil, e(nil, "network id does not match")
 	default:
 		return info, nil
 	}
@@ -211,7 +215,9 @@ func LoadDatabase(
 	return db, perm, pool, nil
 }
 
-func LoadPermanentDatabase(uri, id string, encs *encoder.Encoders, enc encoder.Encoder) (isaac.PermanentDatabase, error) {
+func LoadPermanentDatabase(
+	uri, id string, encs *encoder.Encoders, enc encoder.Encoder,
+) (isaac.PermanentDatabase, error) {
 	e := util.StringErrorFunc("failed to load PermanentDatabase")
 
 	u, err := url.Parse(uri)
@@ -279,7 +285,6 @@ func loadRedisPermanentDatabase(uri, id string, encs *encoder.Encoders, enc enco
 		return nil, e(err, "invalid redis url")
 	}
 
-	// BLOCK set local address in prefix
 	st, err := redisstorage.NewStorage(ctx, option, fmt.Sprintf(RedisPermanentDatabasePrefixFormat, id))
 	if err != nil {
 		return nil, e(err, "failed to create redis storage")

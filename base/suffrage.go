@@ -73,5 +73,6 @@ type SuffrageProof interface {
 	ACCEPTVoteproof() ACCEPTVoteproof
 	Proof() fixedtree.Proof
 	Suffrage() (Suffrage, error)
+	SuffrageHeight() Height
 	Prove(previousState State) error
 }

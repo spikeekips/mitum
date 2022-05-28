@@ -3,6 +3,7 @@ package util
 import (
 	"context"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -507,6 +508,48 @@ func RunErrgroupWorker(ctx context.Context, size uint64, f func(ctx context.Cont
 		if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
 			return f(ctx, i, jobid)
 		}); err != nil {
+			return errors.Wrap(err, "")
+		}
+	}
+
+	worker.Done()
+
+	if err := worker.Wait(); err != nil {
+		return errors.Wrap(err, "")
+	}
+
+	return nil
+}
+
+func RunErrgroupWorkerByChan(ctx context.Context, workch chan ContextWorkerCallback) error {
+	worker := NewErrgroupWorker(ctx, math.MaxInt32)
+	defer worker.Close()
+
+	for f := range workch {
+		if f == nil {
+			continue
+		}
+
+		if err := worker.NewJob(f); err != nil {
+			return errors.Wrap(err, "")
+		}
+	}
+
+	worker.Done()
+
+	if err := worker.Wait(); err != nil {
+		return errors.Wrap(err, "")
+	}
+
+	return nil
+}
+
+func RunErrgroupWorkerByJobs(ctx context.Context, jobs ...ContextWorkerCallback) error {
+	worker := NewErrgroupWorker(ctx, int64(len(jobs)))
+	defer worker.Close()
+
+	for i := range jobs {
+		if err := worker.NewJob(jobs[i]); err != nil {
 			return errors.Wrap(err, "")
 		}
 	}

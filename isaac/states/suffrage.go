@@ -2,7 +2,6 @@ package isaacstates
 
 import (
 	"context"
-	"math"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -15,11 +14,10 @@ import (
 // rebuild the entire suffrage states history. SuffrageProof from getSuffrageProof
 // should be valid(IsValid()).
 type SuffrageStateBuilder struct {
-	lastproof         base.SuffrageProof
 	lastSuffrageProof func(context.Context) (base.SuffrageProof, bool, error)
-	getSuffrageProof  func(context.Context, base.Height) (base.SuffrageProof, bool, error)
+	getSuffrageProof  func(_ context.Context, suffrageheight base.Height) (base.SuffrageProof, bool, error)
 	networkID         base.NetworkID
-	numbatches        int64
+	batchlimit        uint64
 }
 
 func NewSuffrageStateBuilder(
@@ -31,7 +29,7 @@ func NewSuffrageStateBuilder(
 		networkID:         networkID,
 		lastSuffrageProof: lastSuffrageProof,
 		getSuffrageProof:  getSuffrageProof,
-		numbatches:        33, //nolint:gomnd //...
+		batchlimit:        333, //nolint:gomnd //...
 	}
 }
 
@@ -39,8 +37,8 @@ func NewSuffrageStateBuilder(
 func (s *SuffrageStateBuilder) Build(ctx context.Context, localstate base.State) (base.Suffrage, error) {
 	e := util.StringErrorFunc("failed to build suffrage states")
 
-	if s.numbatches < 1 {
-		return nil, e(nil, "invalid numbatches, %d", s.numbatches)
+	if s.batchlimit < 1 {
+		return nil, e(nil, "invalid numbatches, %d", s.batchlimit)
 	}
 
 	fromheight := base.GenesisHeight
@@ -52,10 +50,13 @@ func (s *SuffrageStateBuilder) Build(ctx context.Context, localstate base.State)
 			return nil, e(err, "invalid localstate")
 		default:
 			currentsuf = i
-			fromheight = localstate.Height() + 1
+
+			v, _ := base.LoadSuffrageState(localstate)
+			fromheight = v.Height() + 1
 		}
 	}
 
+	var suf base.Suffrage
 	var last base.State
 
 	switch proof, found, err := s.lastSuffrageProof(ctx); {
@@ -72,78 +73,64 @@ func (s *SuffrageStateBuilder) Build(ctx context.Context, localstate base.State)
 			if proof.State().Height() <= localstate.Height() {
 				return currentsuf, nil
 			}
+
+			v, _ := base.LoadSuffrageState(localstate)
+
+			if proof.SuffrageHeight() <= v.Height() {
+				return currentsuf, nil
+			}
 		}
 
-		// NOTE proof will be Prove() later
-		s.lastproof = proof
+		i, err := isaac.NewSuffrageFromState(proof.State())
+		if err != nil {
+			return nil, e(err, "")
+		}
+
 		last = proof.State()
+		suf = i
 	}
 
-	suf, err := s.build(ctx, localstate, last, fromheight.Int64())
-	if err != nil {
+	if err := s.buildBatch(ctx, localstate, last, fromheight); err != nil {
 		return nil, e(err, "")
 	}
 
 	return suf, nil
 }
 
-func (s *SuffrageStateBuilder) build(
-	ctx context.Context, localstate, last base.State, fromheight int64,
-) (base.Suffrage, error) {
-	var diff int64
-
-	switch {
-	case localstate == nil && last.Height() == base.GenesisHeight:
-		diff = 1
-	case localstate == nil:
-		diff = last.Height().Int64()
-	default:
-		diff = last.Height().Int64() - localstate.Height().Int64()
-	}
-
-	laststate := localstate
-
-	for i := int64(0); i < (diff/s.numbatches + 1); i++ {
-		from := fromheight + (i * s.numbatches)
-		to := fromheight + ((i + 1) * s.numbatches) - 1
-
-		if to > last.Height().Int64() {
-			to = last.Height().Int64()
-		}
-
-		j, err := s.buildBatch(ctx, base.Height(from), base.Height(to), laststate)
-		if err != nil {
-			return nil, errors.Wrap(err, "")
-		}
-
-		laststate = j
-	}
-
-	suf, err := isaac.NewSuffrageFromState(laststate)
-	if err != nil {
-		return nil, errors.Wrap(err, "")
-	}
-
-	return suf, nil
-}
-
 func (s *SuffrageStateBuilder) buildBatch(
-	ctx context.Context, from, to base.Height, previous base.State,
-) (base.State, error) {
+	ctx context.Context, localstate, last base.State, from base.Height,
+) error {
 	e := util.StringErrorFunc("failed to build by batch")
 
-	worker := util.NewErrgroupWorker(ctx, math.MaxInt32)
-	defer worker.Close()
+	lastv, _ := base.LoadSuffrageState(last)
+	lastheight := lastv.Height()
 
+	newprev := localstate
+	var previous base.State
+	var proofs []base.SuffrageProof
 	var provelock sync.Mutex
-	var laststate base.State
-	proofs := make([]base.SuffrageProof, (to - from + 1).Int64())
 
-	for i := from; i <= to; i++ {
-		height := i
+	if err := util.BatchWork(
+		ctx,
+		uint64((lastheight-from).Int64())+1,
+		s.batchlimit,
+		func(_ context.Context, last uint64) error {
+			previous = newprev
 
-		if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
+			switch r := (last + 1) % s.batchlimit; {
+			case r == 0:
+				proofs = make([]base.SuffrageProof, s.batchlimit)
+			default:
+				proofs = make([]base.SuffrageProof, r)
+			}
+
+			return nil
+		},
+		func(_ context.Context, i, last uint64) error {
+			height := base.Height(int64(i)) + from
+
 			proof, found, err := s.getSuffrageProof(ctx, height)
+
 			switch {
 			case err != nil:
 				return err
@@ -155,39 +142,39 @@ func (s *SuffrageStateBuilder) buildBatch(
 				provelock.Lock()
 				defer provelock.Unlock()
 
-				if err := s.prove(from, proof, proofs, previous); err != nil {
+				if err := s.prove(proof, proofs, previous); err != nil {
 					return err
 				}
 
-				if proof.State().Height() == to {
-					laststate = proof.State()
+				if uint64((proof.SuffrageHeight() - from).Int64()) == last {
+					newprev = proof.State()
 				}
 
 				return nil
 			}()
-		}); err != nil {
-			return nil, e(err, "")
-		}
+		},
+	); err != nil {
+		return e(err, "")
 	}
 
-	worker.Done()
-
-	if err := worker.Wait(); err != nil {
-		return nil, e(err, "")
-	}
-
-	return laststate, nil
+	return nil
 }
 
 func (*SuffrageStateBuilder) prove(
-	from base.Height,
 	proof base.SuffrageProof,
 	proofs []base.SuffrageProof,
 	previous base.State,
 ) error {
-	height := proof.State().Height()
+	prevheight := base.NilHeight
 
-	index := (height - from).Int64()
+	if previous != nil {
+		i, _ := base.LoadSuffrageState(previous)
+		prevheight = i.Height()
+	}
+
+	height := proof.SuffrageHeight()
+
+	index := (height - prevheight - 1).Int64()
 	if index >= int64(len(proofs)) {
 		return errors.Errorf("wrong height")
 	}

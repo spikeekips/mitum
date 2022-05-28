@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
@@ -21,10 +22,10 @@ var ulid = util.NewULID()
 type NodeInfo interface {
 	util.IsValider
 	ID() string
+	NetworkID() base.NetworkID
 	CreatedAt() time.Time
 	LastStartedAt() time.Time
 	UpdateLastStartedAt() NodeInfo
-	// BLOCK NetworkID?
 	// BLOCK mitum version
 }
 
@@ -32,26 +33,32 @@ type DefaultNodeInfo struct {
 	createdAt     time.Time
 	lastStartedAt time.Time
 	id            string
+	networkID     base.NetworkID
 	hint.BaseHinter
 }
 
-func NewDefaultNodeInfo(id string) DefaultNodeInfo {
+func NewDefaultNodeInfo(id string, networkID base.NetworkID) DefaultNodeInfo {
 	now := localtime.UTCNow()
 
 	return DefaultNodeInfo{
 		BaseHinter:    hint.NewBaseHinter(DefaultNodeInfoHint),
 		id:            id,
+		networkID:     networkID,
 		createdAt:     now,
 		lastStartedAt: now,
 	}
 }
 
-func CreateDefaultNodeInfo() DefaultNodeInfo {
-	return NewDefaultNodeInfo(ulid.New().String())
+func CreateDefaultNodeInfo(networkID base.NetworkID) DefaultNodeInfo {
+	return NewDefaultNodeInfo(ulid.New().String(), networkID)
 }
 
 func (info DefaultNodeInfo) ID() string {
 	return info.id
+}
+
+func (info DefaultNodeInfo) NetworkID() base.NetworkID {
+	return info.networkID
 }
 
 func (info DefaultNodeInfo) CreatedAt() time.Time {
@@ -66,6 +73,7 @@ func (info DefaultNodeInfo) UpdateLastStartedAt() NodeInfo {
 	return DefaultNodeInfo{
 		BaseHinter:    info.BaseHinter,
 		id:            info.id,
+		networkID:     info.networkID,
 		createdAt:     info.createdAt,
 		lastStartedAt: localtime.UTCNow(),
 	}
@@ -75,6 +83,10 @@ func (info DefaultNodeInfo) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid DefaultNodeInfo")
 
 	if err := info.BaseHinter.IsValid(DefaultNodeInfoHint.Type().Bytes()); err != nil {
+		return e(err, "")
+	}
+
+	if err := info.networkID.IsValid(nil); err != nil {
 		return e(err, "")
 	}
 
@@ -96,6 +108,7 @@ func (info DefaultNodeInfo) IsValid([]byte) error {
 type defaultNodeInfoJSONMarshaler struct {
 	ID            string         `json:"id"`
 	CreatedAt     localtime.Time `json:"created_at"`
+	NetworkID     base.NetworkID `json:"network_id"`
 	LastStartedAt localtime.Time `json:"last_started_at"`
 	hint.BaseHinter
 }
@@ -104,6 +117,7 @@ func (info DefaultNodeInfo) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(defaultNodeInfoJSONMarshaler{
 		BaseHinter:    info.BaseHinter,
 		ID:            info.id,
+		NetworkID:     info.networkID,
 		CreatedAt:     localtime.New(info.createdAt),
 		LastStartedAt: localtime.New(info.lastStartedAt),
 	})
@@ -113,6 +127,7 @@ type defaultNodeInfoJSONUnmarshaler struct {
 	CreatedAt     localtime.Time `json:"created_at"`
 	LastStartedAt localtime.Time `json:"last_started_at"`
 	ID            string         `json:"id"`
+	NetworkID     base.NetworkID `json:"network_id"`
 }
 
 func (info *DefaultNodeInfo) UnmarshalJSON(b []byte) error {
@@ -124,6 +139,7 @@ func (info *DefaultNodeInfo) UnmarshalJSON(b []byte) error {
 	}
 
 	info.id = u.ID
+	info.networkID = u.NetworkID
 	info.createdAt = u.CreatedAt.Time
 	info.lastStartedAt = u.LastStartedAt.Time
 
