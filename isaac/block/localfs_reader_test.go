@@ -169,7 +169,8 @@ func (t *testBaseLocalBlockFS) preparefs(point base.Point) (
 		t.NoError(fs.SetState(context.Background(), uint64(i), stts[i]))
 	}
 
-	t.NoError(fs.SetStatesTree(context.Background(), sttstreeg))
+	_, err = fs.SetStatesTree(context.Background(), sttstreeg)
+	t.NoError(err)
 
 	sttstree, err := sttstreeg.Tree()
 	t.NoError(err)

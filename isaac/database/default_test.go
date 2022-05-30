@@ -22,6 +22,8 @@ type DummyPermanentDatabase struct {
 	suffragef               func(height base.Height) (base.State, bool, error)
 	suffrageByHeightf       func(suffrageHeight base.Height) (base.State, bool, error)
 	lastSuffragef           func() (base.State, bool, error)
+	suffrageprooff          func(base.Height) (base.SuffrageProof, bool, error)
+	lastSuffrageprooff      func() (base.SuffrageProof, bool, error)
 	statef                  func(key string) (base.State, bool, error)
 	existsInStateOperationf func(facthash util.Hash) (bool, error)
 	existsKnownOperationf   func(operationHash util.Hash) (bool, error)
@@ -49,6 +51,14 @@ func (db *DummyPermanentDatabase) Suffrage(height base.Height) (base.State, bool
 
 func (db *DummyPermanentDatabase) LastSuffrage() (base.State, bool, error) {
 	return db.lastSuffragef()
+}
+
+func (db *DummyPermanentDatabase) SuffrageProof(h base.Height) (base.SuffrageProof, bool, error) {
+	return db.suffrageprooff(h)
+}
+
+func (db *DummyPermanentDatabase) LastSuffrageProof() (base.SuffrageProof, bool, error) {
+	return db.lastSuffrageprooff()
 }
 
 func (db *DummyPermanentDatabase) State(key string) (base.State, bool, error) {
@@ -307,6 +317,92 @@ func (t *testDefaultWithPermanent) TestLastSuffrage() {
 	})
 }
 
+func (t *testDefaultWithPermanent) TestSuffrageProof() {
+	suffrageheight := base.Height(66)
+	proof := NewDummySuffrageProof()
+
+	perm := &DummyPermanentDatabase{
+		suffrageprooff: func(h base.Height) (base.SuffrageProof, bool, error) {
+			switch {
+			case h == suffrageheight:
+				return proof, true, nil
+			case h == suffrageheight+2:
+				return nil, false, errors.Errorf("hihihi")
+			default:
+				return nil, false, nil
+			}
+		},
+	}
+
+	db, err := NewDefault(t.Root, t.Encs, t.Enc, perm, nil)
+	t.NoError(err)
+
+	t.Run("found SuffrageProof", func() {
+		rproof, found, err := db.SuffrageProof(suffrageheight)
+		t.NoError(err)
+		t.True(found)
+		t.Equal(proof, rproof)
+	})
+
+	t.Run("not found SuffrageProof", func() {
+		rproof, found, err := db.SuffrageProof(suffrageheight + 1)
+		t.NoError(err)
+		t.False(found)
+		t.Nil(rproof)
+	})
+
+	t.Run("error SuffrageProof", func() {
+		rproof, found, err := db.SuffrageProof(suffrageheight + 2)
+		t.Error(err)
+		t.False(found)
+		t.Nil(rproof)
+		t.ErrorContains(err, "hihihi")
+	})
+}
+
+func (t *testDefaultWithPermanent) TestLastSuffrageProof() {
+	proof := NewDummySuffrageProof()
+
+	perm := &DummyPermanentDatabase{}
+
+	db, err := NewDefault(t.Root, t.Encs, t.Enc, perm, nil)
+	t.NoError(err)
+
+	t.Run("found", func() {
+		perm.lastSuffrageprooff = func() (base.SuffrageProof, bool, error) {
+			return proof, true, nil
+		}
+
+		rproof, found, err := db.LastSuffrageProof()
+		t.NoError(err)
+		t.True(found)
+		t.Equal(proof, rproof)
+	})
+
+	t.Run("not found", func() {
+		perm.lastSuffrageprooff = func() (base.SuffrageProof, bool, error) {
+			return nil, false, nil
+		}
+
+		rproof, found, err := db.LastSuffrageProof()
+		t.NoError(err)
+		t.False(found)
+		t.Nil(rproof)
+	})
+
+	t.Run("error", func() {
+		perm.lastSuffrageprooff = func() (base.SuffrageProof, bool, error) {
+			return nil, false, errors.Errorf("hihihi")
+		}
+
+		rproof, found, err := db.LastSuffrageProof()
+		t.Error(err)
+		t.False(found)
+		t.Nil(rproof)
+		t.ErrorContains(err, "hihihi")
+	})
+}
+
 func (t *testDefaultWithPermanent) TestLastNetworkPolicy() {
 	perm := &DummyPermanentDatabase{}
 
@@ -491,6 +587,7 @@ func (t *testDefaultBlockWrite) TestMerge() {
 
 	lsufstt, lsufsv := t.SuffrageState(height-1, base.Height(66)-1, nodes)
 	oldstts[3] = lsufstt
+	lproof := NewDummySuffrageProof()
 
 	perm := &DummyPermanentDatabase{
 		mapf: func(base.Height) (base.BlockMap, bool, error) {
@@ -518,6 +615,17 @@ func (t *testDefaultBlockWrite) TestMerge() {
 		lastSuffragef: func() (base.State, bool, error) {
 			return lsufstt, true, nil
 		},
+		suffrageprooff: func(suffrageHeight base.Height) (base.SuffrageProof, bool, error) {
+			switch {
+			case suffrageHeight == lsufsv.Height():
+				return lproof, true, nil
+			default:
+				return nil, false, nil
+			}
+		},
+		lastSuffrageprooff: func() (base.SuffrageProof, bool, error) {
+			return lproof, true, nil
+		},
 		statef: func(key string) (base.State, bool, error) {
 			for i := range oldstts {
 				st := oldstts[i]
@@ -544,6 +652,7 @@ func (t *testDefaultBlockWrite) TestMerge() {
 
 	sufstt, sufsv := t.SuffrageState(height, lsufsv.Height()+1, nodes)
 	newstts = append(newstts, sufstt)
+	proof := NewDummySuffrageProof()
 
 	manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
 
@@ -557,6 +666,7 @@ func (t *testDefaultBlockWrite) TestMerge() {
 	t.NoError(wst.SetMap(mp))
 	t.NoError(wst.SetStates(newstts))
 	t.NoError(wst.SetOperations(ops))
+	t.NoError(wst.SetSuffrageProof(proof))
 	t.NoError(wst.Write())
 
 	t.Run("check blockmap before merging", func() {
@@ -572,6 +682,19 @@ func (t *testDefaultBlockWrite) TestMerge() {
 		t.True(found)
 
 		base.EqualBlockMap(t.Assert(), lmp, rm)
+	})
+
+	t.Run("check SuffrageProof before merging", func() {
+		rproof, found, err := db.SuffrageProof(sufsv.Height())
+		t.NoError(err)
+		t.False(found)
+		t.Nil(rproof)
+
+		rproof, found, err = db.SuffrageProof(lsufsv.Height())
+		t.NoError(err)
+		t.True(found)
+
+		t.Equal(lproof, rproof)
 	})
 
 	t.Run("check SuffrageByHeight before merging", func() {
@@ -665,6 +788,22 @@ func (t *testDefaultBlockWrite) TestMerge() {
 
 		t.True(base.IsEqualState(sufstt, rst))
 	})
+
+	t.Run("check SuffrageProof", func() {
+		rproof, found, err := db.SuffrageProof(sufsv.Height())
+		t.NoError(err)
+		t.True(found)
+
+		t.Equal(proof, rproof)
+	})
+	t.Run("check last SuffrageProof", func() {
+		rproof, found, err := db.LastSuffrageProof()
+		t.NoError(err)
+		t.True(found)
+
+		t.Equal(proof, rproof)
+	})
+
 	t.Run("check state", func() {
 		for i := range newstts {
 			st := newstts[i]

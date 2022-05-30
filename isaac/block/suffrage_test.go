@@ -127,14 +127,14 @@ func (t *testSuffrageProof) TestInvalid() {
 	t.prepare(base.RawPoint(33, 0))
 
 	t.Run("ok", func() {
-		p := NewSuffrageProof(SuffrageProofHint, t.blockMap, t.current, t.proof, t.voteproof)
+		p := NewSuffrageProof(t.blockMap, t.current, t.proof, t.voteproof)
 		t.NoError(p.IsValid(t.NodePolicy.NetworkID()))
 
 		_ = (interface{})(p).(base.SuffrageProof)
 	})
 
 	t.Run("invalid hint type", func() {
-		p := NewSuffrageProof(SuffrageProofHint, t.blockMap, t.current, t.proof, t.voteproof)
+		p := NewSuffrageProof(t.blockMap, t.current, t.proof, t.voteproof)
 		p.BaseHinter = hint.NewBaseHinter(hint.MustNewHint("findme-v0.0.1"))
 
 		err := p.IsValid(t.NodePolicy.NetworkID())
@@ -144,7 +144,7 @@ func (t *testSuffrageProof) TestInvalid() {
 	})
 
 	t.Run("nil map", func() {
-		p := NewSuffrageProof(SuffrageProofHint, nil, t.current, t.proof, t.voteproof)
+		p := NewSuffrageProof(nil, t.current, t.proof, t.voteproof)
 
 		err := p.IsValid(t.NodePolicy.NetworkID())
 		t.Error(err)
@@ -152,7 +152,7 @@ func (t *testSuffrageProof) TestInvalid() {
 	})
 
 	t.Run("nil state", func() {
-		p := NewSuffrageProof(SuffrageProofHint, t.blockMap, nil, t.proof, t.voteproof)
+		p := NewSuffrageProof(t.blockMap, nil, t.proof, t.voteproof)
 
 		err := p.IsValid(t.NodePolicy.NetworkID())
 		t.Error(err)
@@ -160,7 +160,7 @@ func (t *testSuffrageProof) TestInvalid() {
 	})
 
 	t.Run("nil voteproof", func() {
-		p := NewSuffrageProof(SuffrageProofHint, t.blockMap, t.current, t.proof, nil)
+		p := NewSuffrageProof(t.blockMap, t.current, t.proof, nil)
 
 		err := p.IsValid(t.NodePolicy.NetworkID())
 		t.Error(err)
@@ -168,7 +168,7 @@ func (t *testSuffrageProof) TestInvalid() {
 	})
 
 	t.Run("wrong suffrage state", func() {
-		p := NewSuffrageProof(SuffrageProofHint, t.blockMap, t.states[0], t.proof, t.voteproof)
+		p := NewSuffrageProof(t.blockMap, t.states[0], t.proof, t.voteproof)
 
 		err := p.IsValid(t.NodePolicy.NetworkID())
 		t.Error(err)
@@ -185,7 +185,7 @@ func (t *testSuffrageProof) TestInvalid() {
 			t.current.Operations(),
 		)
 
-		p := NewSuffrageProof(SuffrageProofHint, t.blockMap, current, t.proof, t.voteproof)
+		p := NewSuffrageProof(t.blockMap, current, t.proof, t.voteproof)
 
 		err := p.IsValid(t.NodePolicy.NetworkID())
 		t.Error(err)
@@ -200,7 +200,7 @@ func (t *testSuffrageProof) TestInvalid() {
 		_ = avp.SetResult(base.VoteResultDraw)
 		t.NoError(err)
 
-		p := NewSuffrageProof(SuffrageProofHint, t.blockMap, t.current, t.proof, avp)
+		p := NewSuffrageProof(t.blockMap, t.current, t.proof, avp)
 
 		err = p.IsValid(t.NodePolicy.NetworkID())
 		t.Error(err)
@@ -213,7 +213,7 @@ func (t *testSuffrageProof) TestProve() {
 	t.Run("ok", func() {
 		t.prepare(base.RawPoint(33, 0))
 
-		p := NewSuffrageProof(SuffrageProofHint, t.blockMap, t.current, t.proof, t.voteproof)
+		p := NewSuffrageProof(t.blockMap, t.current, t.proof, t.voteproof)
 		t.NoError(p.Prove(t.previous))
 	})
 
@@ -221,7 +221,7 @@ func (t *testSuffrageProof) TestProve() {
 		t.prepare(base.RawPoint(33, 0))
 		previous, _ := t.SuffrageState(t.point.Height(), t.point.Height(), t.nodes)
 
-		p := NewSuffrageProof(SuffrageProofHint, t.blockMap, t.current, t.proof, t.voteproof)
+		p := NewSuffrageProof(t.blockMap, t.current, t.proof, t.voteproof)
 		err := p.Prove(previous)
 		t.Error(err)
 		t.ErrorContains(err, "invalid previous state; higher height")
@@ -239,7 +239,7 @@ func (t *testSuffrageProof) TestProve() {
 			[]util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256(), valuehash.RandomSHA256()},
 		)
 
-		p := NewSuffrageProof(SuffrageProofHint, t.blockMap, current, t.proof, t.voteproof)
+		p := NewSuffrageProof(t.blockMap, current, t.proof, t.voteproof)
 		err := p.Prove(previous)
 		t.Error(err)
 		t.ErrorContains(err, "invalid previous state value")
@@ -248,7 +248,7 @@ func (t *testSuffrageProof) TestProve() {
 	t.Run("genesis", func() {
 		t.prepare(base.GenesisPoint)
 
-		p := NewSuffrageProof(SuffrageProofHint, t.blockMap, t.current, t.proof, t.voteproof)
+		p := NewSuffrageProof(t.blockMap, t.current, t.proof, t.voteproof)
 		t.NoError(p.Prove(t.previous))
 	})
 
@@ -256,7 +256,7 @@ func (t *testSuffrageProof) TestProve() {
 		t.prepare(base.GenesisPoint)
 		previous, _ := t.SuffrageState(t.point.Height(), t.point.Height(), t.nodes)
 
-		p := NewSuffrageProof(SuffrageProofHint, t.blockMap, t.current, t.proof, t.voteproof)
+		p := NewSuffrageProof(t.blockMap, t.current, t.proof, t.voteproof)
 		err := p.Prove(previous)
 		t.Error(err)
 		t.ErrorContains(err, "previous state should be nil for genesis")
@@ -286,7 +286,7 @@ func (t *testSuffrageProof) TestEncode() {
 
 	tt.Encode = func() (interface{}, []byte) {
 		t.prepare(base.RawPoint(33, 0))
-		p := NewSuffrageProof(SuffrageProofHint, t.blockMap, t.current, t.proof, t.voteproof)
+		p := NewSuffrageProof(t.blockMap, t.current, t.proof, t.voteproof)
 
 		b, err := enc.Marshal(p)
 		t.NoError(err)

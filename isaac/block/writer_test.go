@@ -6,7 +6,6 @@ import (
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
-	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/fixedtree"
 	"github.com/spikeekips/mitum/util/valuehash"
@@ -16,13 +15,7 @@ import (
 )
 
 type testWriter struct {
-	isaac.BaseTestBallots
-	isaacdatabase.BaseTestDatabase
-}
-
-func (t *testWriter) SetupTest() {
-	t.BaseTestBallots.SetupTest()
-	t.BaseTestDatabase.SetupTest()
+	testBaseLocalBlockFS
 }
 
 func (t *testWriter) TestNew() {
@@ -210,8 +203,8 @@ func (t *testWriter) TestSetStatesAndClose() {
 	}
 
 	var sufnodefound bool
-	fswriter.setStatesTreef = func(_ context.Context, tw *fixedtree.Writer) error {
-		return tw.Write(func(index uint64, n fixedtree.Node) error {
+	fswriter.setStatesTreef = func(_ context.Context, tw *fixedtree.Writer) (tr fixedtree.Tree, _ error) {
+		return tr, tw.Write(func(index uint64, n fixedtree.Node) error {
 			if n.Key() == sufststored.Hash().String() {
 				sufnodefound = true
 			}
@@ -320,8 +313,8 @@ func (t *testWriter) TestManifest() {
 
 	t.True(manifest.Previous().Equal(previous.Hash()))
 	t.True(manifest.Proposal().Equal(pr.Fact().Hash()))
-	t.Equal(manifest.OperationsTree(), writer.opstreeroot)
-	t.Equal(manifest.StatesTree(), writer.ststreeroot)
+	t.Equal(manifest.OperationsTree(), nil)
+	t.Equal(manifest.StatesTree(), nil)
 
 	um := <-mch
 	base.EqualManifest(t.Assert(), manifest, um)

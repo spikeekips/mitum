@@ -19,8 +19,9 @@ type TempLeveldb struct {
 	*baseLeveldb
 	st     *leveldbstorage.ReadonlyStorage
 	mp     base.BlockMap // NOTE last blockmap
-	sufstt base.State    // NOTE last suffrage state
+	sufst  base.State    // NOTE last suffrage state
 	policy base.NetworkPolicy
+	proof  base.SuffrageProof
 }
 
 func NewTempLeveldb(f string, encs *encoder.Encoders, enc encoder.Encoder) (*TempLeveldb, error) {
@@ -54,6 +55,10 @@ func newTempLeveldb(
 	}
 
 	if err := db.loadLastSuffrage(); err != nil {
+		return nil, err
+	}
+
+	if err := db.loadLastSuffrageProof(); err != nil {
 		return nil, err
 	}
 
@@ -91,12 +96,18 @@ func newTempLeveldbFromBlockWriteStorage(wst *LeveldbBlockWrite) (*TempLeveldb, 
 		policy = i.(base.NetworkPolicy) //nolint:forcetypeassert //...
 	}
 
+	var proof base.SuffrageProof
+	if i, _ := wst.proof.Value(); i != nil {
+		proof = i.(base.SuffrageProof) //nolint:forcetypeassert //...
+	}
+
 	return &TempLeveldb{
 		baseLeveldb: newBaseLeveldb(st, wst.encs, wst.enc),
 		st:          st,
 		mp:          mp,
-		sufstt:      sufstt,
+		sufst:       sufstt,
 		policy:      policy,
+		proof:       proof,
 	}, nil
 }
 
@@ -109,11 +120,11 @@ func (db *TempLeveldb) Height() base.Height {
 }
 
 func (db *TempLeveldb) SuffrageHeight() base.Height {
-	if db.sufstt == nil {
+	if db.sufst == nil {
 		return base.NilHeight
 	}
 
-	return db.sufstt.Value().(base.SuffrageStateValue).Height() //nolint:forcetypeassert //...
+	return db.sufst.Value().(base.SuffrageStateValue).Height() //nolint:forcetypeassert //...
 }
 
 func (db *TempLeveldb) Map() (base.BlockMap, error) {
@@ -125,11 +136,19 @@ func (db *TempLeveldb) Map() (base.BlockMap, error) {
 }
 
 func (db *TempLeveldb) Suffrage() (base.State, bool, error) {
-	if db.sufstt == nil {
+	if db.sufst == nil {
 		return nil, false, nil
 	}
 
-	return db.sufstt, true, nil
+	return db.sufst, true, nil
+}
+
+func (db *TempLeveldb) SuffrageProof() (base.SuffrageProof, bool, error) {
+	if db.proof == nil {
+		return nil, false, nil
+	}
+
+	return db.proof, true, nil
 }
 
 func (db *TempLeveldb) NetworkPolicy() base.NetworkPolicy {
@@ -183,7 +202,28 @@ func (db *TempLeveldb) loadLastSuffrage() error {
 			return e(err, "")
 		}
 
-		db.sufstt = st
+		db.sufst = st
+
+		return nil
+	}
+}
+
+func (db *TempLeveldb) loadLastSuffrageProof() error {
+	e := util.StringErrorFunc("failed to load SuffrageProof")
+
+	switch b, found, err := db.st.Get(leveldbKeySuffrageProof); {
+	case err != nil:
+		return e(err, "")
+	case !found:
+		return nil
+	default:
+		var proof base.SuffrageProof
+
+		if err := db.readHinter(b, &proof); err != nil {
+			return e(err, "")
+		}
+
+		db.proof = proof
 
 		return nil
 	}

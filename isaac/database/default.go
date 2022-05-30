@@ -202,6 +202,58 @@ func (db *Default) LastSuffrage() (base.State, bool, error) {
 	return st, found, nil
 }
 
+func (db *Default) LastSuffrageProof() (base.SuffrageProof, bool, error) {
+	temps := db.activeTemps()
+
+	for i := range temps {
+		switch proof, found, err := temps[i].SuffrageProof(); {
+		case err != nil:
+			return nil, false, errors.Wrap(err, "")
+		case found:
+			return proof, true, nil
+		}
+	}
+
+	proof, found, err := db.perm.LastSuffrageProof()
+	if err != nil {
+		return nil, false, errors.Wrap(err, "")
+	}
+
+	return proof, found, nil
+}
+
+func (db *Default) SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof, bool, error) {
+	e := util.StringErrorFunc("failed to find SuffrageProof by suffrage height")
+
+	temps := db.activeTemps()
+
+end:
+	for i := range temps {
+		temp := temps[i]
+
+		switch sh := temp.SuffrageHeight(); {
+		case sh == base.NilHeight:
+			continue end
+		case sh > suffrageHeight:
+			continue end
+		}
+
+		switch j, found, err := temp.SuffrageProof(); {
+		case err != nil:
+			return nil, false, e(err, "")
+		case found:
+			return j, true, nil
+		}
+	}
+
+	proof, found, err := db.perm.SuffrageProof(suffrageHeight)
+	if err != nil {
+		return nil, false, e(err, "")
+	}
+
+	return proof, found, nil
+}
+
 func (db *Default) LastNetworkPolicy() base.NetworkPolicy {
 	temps := db.activeTemps()
 

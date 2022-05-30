@@ -18,6 +18,8 @@ type Database interface {
 	Suffrage(blockheight base.Height) (base.State, bool, error) // BLOCK should returns SuffrageProof
 	SuffrageByHeight(suffrageHeight base.Height) (base.State, bool, error)
 	LastSuffrage() (base.State, bool, error)
+	LastSuffrageProof() (base.SuffrageProof, bool, error)
+	SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof, bool, error)
 	LastNetworkPolicy() base.NetworkPolicy
 	State(key string) (base.State, bool, error)
 	// ExistsInStateOperation has only operation facts, which is in state
@@ -45,6 +47,7 @@ type TempDatabase interface {
 	Map() (base.BlockMap, error)
 	SuffrageHeight() base.Height
 	Suffrage() (base.State, bool, error)
+	SuffrageProof() (base.SuffrageProof, bool, error)
 	NetworkPolicy() base.NetworkPolicy
 }
 
@@ -55,6 +58,7 @@ type BlockWriteDatabase interface {
 	SetMap(base.BlockMap) error
 	SetStates(sts []base.State) error
 	SetOperations(ops []util.Hash) error // NOTE operation hash, not operation fact hash
+	SetSuffrageProof(base.SuffrageProof) error
 	SuffrageState() base.State
 	NetworkPolicy() base.NetworkPolicy
 	Write() error
@@ -68,8 +72,10 @@ type PermanentDatabase interface {
 	Clean() error
 	LastMap() (base.BlockMap, bool, error)
 	LastSuffrage() (base.State, bool, error)
+	LastSuffrageProof() (base.SuffrageProof, bool, error)
 	Suffrage(blockheight base.Height) (base.State, bool, error)
 	SuffrageByHeight(suffrageHeight base.Height) (base.State, bool, error)
+	SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof, bool, error)
 	Map(base.Height) (base.BlockMap, bool, error)
 	LastNetworkPolicy() base.NetworkPolicy
 	MergeTempDatabase(context.Context, TempDatabase) error

@@ -10,6 +10,7 @@ type basePermanent struct {
 	mp     *util.Locked // NOTE last blockmap
 	sufst  *util.Locked // NOTE last suffrage state
 	policy *util.Locked // NOTE last NetworkPolicy
+	proof  *util.Locked // NOTE last SuffrageProof
 }
 
 func newBasePermanent() *basePermanent {
@@ -17,6 +18,7 @@ func newBasePermanent() *basePermanent {
 		mp:     util.EmptyLocked(),
 		sufst:  util.EmptyLocked(),
 		policy: util.EmptyLocked(),
+		proof:  util.EmptyLocked(),
 	}
 }
 
@@ -35,6 +37,15 @@ func (db *basePermanent) LastSuffrage() (base.State, bool, error) {
 		return nil, false, nil
 	default:
 		return i.(base.State), true, nil //nolint:forcetypeassert //...
+	}
+}
+
+func (db *basePermanent) LastSuffrageProof() (base.SuffrageProof, bool, error) {
+	switch i, _ := db.proof.Value(); {
+	case i == nil:
+		return nil, false, nil
+	default:
+		return i.(base.SuffrageProof), true, nil //nolint:forcetypeassert //...
 	}
 }
 
@@ -58,7 +69,9 @@ func (db *basePermanent) Clean() error {
 	return nil
 }
 
-func (db *basePermanent) updateLast(mp base.BlockMap, sufst base.State, policy base.NetworkPolicy) (updated bool) {
+func (db *basePermanent) updateLast(
+	mp base.BlockMap, sufst base.State, proof base.SuffrageProof, policy base.NetworkPolicy,
+) (updated bool) {
 	_, err := db.mp.Set(func(i interface{}) (interface{}, error) {
 		if i != nil {
 			old := i.(base.BlockMap) //nolint:forcetypeassert //...
@@ -70,6 +83,10 @@ func (db *basePermanent) updateLast(mp base.BlockMap, sufst base.State, policy b
 
 		if sufst != nil {
 			_ = db.sufst.SetValue(sufst)
+		}
+
+		if proof != nil {
+			_ = db.proof.SetValue(proof)
 		}
 
 		if policy != nil {

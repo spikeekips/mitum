@@ -23,7 +23,7 @@ type DummyBlockFSWriter struct {
 	setOperationf       func(context.Context, uint64, base.Operation) error
 	setOperationsTreef  func(context.Context, *fixedtree.Writer) error
 	setStatef           func(context.Context, uint64, base.State) error
-	setStatesTreef      func(context.Context, *fixedtree.Writer) error
+	setStatesTreef      func(context.Context, *fixedtree.Writer) (fixedtree.Tree, error)
 	setManifestf        func(context.Context, base.Manifest) error
 	setINITVoteprooff   func(context.Context, base.INITVoteproof) error
 	setACCEPTVoteprooff func(context.Context, base.ACCEPTVoteproof) error
@@ -59,11 +59,11 @@ func (w *DummyBlockFSWriter) SetState(ctx context.Context, index uint64, st base
 	return nil
 }
 
-func (w *DummyBlockFSWriter) SetStatesTree(ctx context.Context, tw *fixedtree.Writer) error {
+func (w *DummyBlockFSWriter) SetStatesTree(ctx context.Context, tw *fixedtree.Writer) (tr fixedtree.Tree, _ error) {
 	if w.setStatesTreef != nil {
 		return w.setStatesTreef(ctx, tw)
 	}
-	return nil
+	return tr, nil
 }
 
 func (w *DummyBlockFSWriter) SetManifest(ctx context.Context, m base.Manifest) error {
@@ -502,7 +502,8 @@ func (t *testLocalFSWriter) TestSetStates() {
 		panic(err)
 	}
 
-	t.NoError(fs.SetStatesTree(ctx, sttstreeg))
+	_, err = fs.SetStatesTree(ctx, sttstreeg)
+	t.NoError(err)
 
 	t.Run("states file", func() {
 		fpath, f, err := t.findTempFile(fs.temp, base.BlockMapItemTypeStates, true)

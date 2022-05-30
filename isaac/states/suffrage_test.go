@@ -82,7 +82,7 @@ func (t *testSuffrageStateBuilder) prepare(point base.Point, previous base.State
 	voteproof, err := t.NewACCEPTVoteproof(afact, t.Local, locals)
 	t.NoError(err)
 
-	return isaacblock.NewSuffrageProof(isaacblock.SuffrageProofHint, blockMap, newstate, proof, voteproof)
+	return isaacblock.NewSuffrageProof(blockMap, newstate, proof, voteproof)
 }
 
 func (t *testSuffrageStateBuilder) newProofs(n int) map[base.Height]base.SuffrageProof {

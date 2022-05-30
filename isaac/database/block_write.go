@@ -17,8 +17,9 @@ type LeveldbBlockWrite struct {
 	*baseLeveldb
 	st     *leveldbstorage.WriteStorage
 	mp     *util.Locked
-	sufstt *util.Locked
+	sufstt *util.Locked // BLOCK rename to sufst
 	policy *util.Locked
+	proof  *util.Locked
 	height base.Height
 }
 
@@ -49,6 +50,7 @@ func newLeveldbBlockWrite(
 		mp:          util.EmptyLocked(),
 		sufstt:      util.EmptyLocked(),
 		policy:      util.EmptyLocked(),
+		proof:       util.EmptyLocked(),
 	}
 }
 
@@ -182,6 +184,25 @@ func (db *LeveldbBlockWrite) NetworkPolicy() base.NetworkPolicy {
 	}
 
 	return i.(base.NetworkPolicy) //nolint:forcetypeassert //...
+}
+
+func (db *LeveldbBlockWrite) SetSuffrageProof(proof base.SuffrageProof) error {
+	if _, err := db.proof.Set(func(i interface{}) (interface{}, error) {
+		if i != nil {
+			return i, nil
+		}
+
+		b, err := db.marshal(proof)
+		if err != nil {
+			return nil, err
+		}
+
+		return proof, db.st.Put(leveldbKeySuffrageProof, b, nil)
+	}); err != nil {
+		return errors.Wrap(err, "failed to set SuffrageProof")
+	}
+
+	return nil
 }
 
 func (db *LeveldbBlockWrite) Write() error {

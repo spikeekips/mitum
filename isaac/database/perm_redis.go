@@ -11,6 +11,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
+	"github.com/spikeekips/mitum/storage"
 	redisstorage "github.com/spikeekips/mitum/storage/redis"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -22,18 +23,22 @@ var (
 	redisSuffrageKeyPrerfix         = "sf"
 	redisSuffrageByHeightKeyPrerfix = "sh"
 	redisStateKeyPrerfix            = "st"
-	redisInStateOperationKeyPrerfix = "ip"
-	redisKnownOperationKeyPrerfix   = "kp"
+	redisInStateOperationKeyPrerfix = "io"
+	redisKnownOperationKeyPrerfix   = "ko"
 	redisBlockMapKeyPrefix          = "mp"
+	redisSuffrageProofPrefix        = "sp"
 )
 
 var (
-	redisZKeySuffragesByHeight = "suffrages_by_height"
-	redisZBeginSuffrages       = redisSuffrageKey(base.GenesisHeight)
-	redisZEndSuffrages         = fmt.Sprintf("%s-%s", redisSuffrageKeyPrerfix, strings.Repeat("9", 20))
-	redisZKeyBlockMaps         = "blockmaps"
-	redisZBeginBlockMaps       = redisBlockMapKey(base.GenesisHeight)
-	redisZEndBlockMaps         = fmt.Sprintf("%s-%s", redisBlockMapKeyPrefix, strings.Repeat("9", 20))
+	redisZKeySuffragesByHeight      = "suffrages_by_height"
+	redisZBeginSuffrages            = redisSuffrageKey(base.GenesisHeight)
+	redisZEndSuffrages              = fmt.Sprintf("%s-%s", redisSuffrageKeyPrerfix, strings.Repeat("9", 20))
+	redisZKeyBlockMaps              = "blockmaps"
+	redisZBeginBlockMaps            = redisBlockMapKey(base.GenesisHeight)
+	redisZEndBlockMaps              = fmt.Sprintf("%s-%s", redisBlockMapKeyPrefix, strings.Repeat("9", 20))
+	redisZKeySuffrageProofsByHeight = "suffrageproofs_by_height"
+	redisZBeginSuffrageProofs       = redisSuffrageProofKey(base.GenesisHeight)
+	redisZEndSuffrageProofs         = fmt.Sprintf("%s-%s", redisSuffrageProofPrefix, strings.Repeat("9", 20))
 )
 
 type RedisPermanent struct {
@@ -62,6 +67,10 @@ func NewRedisPermanent(
 	}
 
 	if err := db.loadLastSuffrage(); err != nil {
+		return nil, err
+	}
+
+	if err := db.loadLastSuffrageProof(); err != nil {
 		return nil, err
 	}
 
@@ -178,6 +187,46 @@ func (db *RedisPermanent) SuffrageByHeight(suffrageHeight base.Height) (base.Sta
 	}
 }
 
+func (db *RedisPermanent) SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof, bool, error) {
+	e := util.StringErrorFunc("failed to get suffrageproof by height")
+
+	proof, found, err := db.LastSuffrageProof()
+
+	switch {
+	case err != nil:
+		return nil, false, e(err, "")
+	case !found:
+		return nil, false, nil
+	}
+
+	stv, err := base.LoadSuffrageState(proof.State())
+	if err != nil {
+		return nil, false, e(err, "")
+	}
+
+	switch {
+	case suffrageHeight > stv.Height():
+		return nil, false, nil
+	case suffrageHeight == stv.Height():
+		return proof, true, nil
+	}
+
+	switch b, found, err := db.st.Get(context.Background(), redisSuffrageProofKey(suffrageHeight)); {
+	case err != nil:
+		return nil, false, err
+	case !found:
+		return nil, false, nil
+	default:
+		var proof base.SuffrageProof
+
+		if err := db.readHinter(b, &proof); err != nil {
+			return nil, false, e(err, "")
+		}
+
+		return proof, true, nil
+	}
+}
+
 func (db *RedisPermanent) State(key string) (st base.State, found bool, _ error) {
 	e := util.StringErrorFunc("failed to get state")
 
@@ -249,12 +298,9 @@ func (db *RedisPermanent) MergeTempDatabase(ctx context.Context, temp isaac.Temp
 
 	switch t := temp.(type) {
 	case *TempLeveldb:
-		mp, sufst, err := db.mergeTempDatabaseFromLeveldb(ctx, t)
-		if err != nil {
+		if err := db.mergeTempDatabaseFromLeveldb(ctx, t); err != nil {
 			return e(err, "")
 		}
-
-		_ = db.updateLast(mp, sufst, t.policy)
 
 		return nil
 	default:
@@ -262,29 +308,16 @@ func (db *RedisPermanent) MergeTempDatabase(ctx context.Context, temp isaac.Temp
 	}
 }
 
-func (db *RedisPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp *TempLeveldb) (
-	base.BlockMap, base.State, error,
-) {
+func (db *RedisPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp *TempLeveldb) error {
 	e := util.StringErrorFunc("failed to merge LeveldbTempDatabase")
 
-	var mp base.BlockMap
-
-	switch i, err := temp.Map(); {
-	case err != nil:
-		return nil, nil, e(err, "")
-	default:
-		mp = i
+	if temp.mp == nil {
+		return e(storage.NotFoundError.Errorf("blockmap not found in LeveldbTempDatabase"), "")
 	}
 
-	var sufst base.State
 	var sufsv base.SuffrageStateValue
-
-	switch st, found, err := temp.Suffrage(); {
-	case err != nil:
-		return nil, nil, e(err, "")
-	case found:
-		sufst = st
-		sufsv = st.Value().(base.SuffrageStateValue) //nolint:forcetypeassert //...
+	if sufst := temp.sufst; sufst != nil {
+		sufsv = sufst.Value().(base.SuffrageStateValue) //nolint:forcetypeassert //...
 	}
 
 	if err := util.RunErrgroupWorkerByJobs(
@@ -307,6 +340,10 @@ func (db *RedisPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp
 				if err := db.mergeSuffrageStateTempDatabaseFromLeveldb(ctx, temp, sufsv, bsufst); err != nil {
 					return errors.Wrap(err, "failed to merge suffrage state")
 				}
+
+				if err := db.mergeSuffrageProofTempDatabaseFromLeveldb(ctx, temp, sufsv); err != nil {
+					return errors.Wrap(err, "failed to merge SuffrageProof")
+				}
 			}
 
 			return nil
@@ -319,10 +356,12 @@ func (db *RedisPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp
 			return nil
 		},
 	); err != nil {
-		return nil, nil, e(err, "")
+		return e(err, "")
 	}
 
-	return mp, sufst, nil
+	_ = db.updateLast(temp.mp, temp.sufst, temp.proof, temp.policy)
+
+	return nil
 }
 
 func (db *RedisPermanent) mergeOperationsTempDatabaseFromLeveldb(
@@ -406,6 +445,34 @@ func (db *RedisPermanent) mergeSuffrageStateTempDatabaseFromLeveldb(
 	return nil
 }
 
+func (db *RedisPermanent) mergeSuffrageProofTempDatabaseFromLeveldb(
+	ctx context.Context,
+	temp *TempLeveldb,
+	sufsv base.SuffrageStateValue,
+) error {
+	z := redis.ZAddArgs{
+		NX:      true,
+		Members: []redis.Z{{Score: 0, Member: redisSuffrageProofKey(sufsv.Height())}},
+	}
+	if err := db.st.ZAddArgs(ctx, redisZKeySuffrageProofsByHeight, z); err != nil {
+		return errors.Wrap(err, "failed to zadd suffrageproof by suffrage height")
+	}
+
+	// NOTE merge SuffrageProof
+	switch b, found, err := temp.st.Get(leveldbKeySuffrageProof); {
+	case err != nil:
+		return errors.Wrap(err, "failed to get SuffrageProof")
+	case !found:
+		return storage.NotFoundError.Errorf("failed to get SuffrageProof")
+	default:
+		if err := db.st.Set(ctx, redisSuffrageProofKey(sufsv.Height()), b); err != nil {
+			return errors.Wrap(err, "failed to set SuffrageProof by height")
+		}
+	}
+
+	return nil
+}
+
 func (db *RedisPermanent) mergeBlockMapTempDatabaseFromLeveldb(
 	ctx context.Context, temp *TempLeveldb,
 ) error {
@@ -471,6 +538,29 @@ func (db *RedisPermanent) loadLastSuffrage() error {
 		}
 
 		_ = db.sufst.SetValue(sufst)
+
+		return nil
+	}
+}
+
+func (db *RedisPermanent) loadLastSuffrageProof() error {
+	e := util.StringErrorFunc("failed to load last suffrage state")
+
+	b, found, err := db.loadLast(redisZKeySuffrageProofsByHeight, redisZBeginSuffrageProofs, redisZEndSuffrageProofs)
+
+	switch {
+	case err != nil:
+		return e(err, "")
+	case !found:
+		return nil
+	default:
+		var proof base.SuffrageProof
+
+		if err := db.readHinter(b, &proof); err != nil {
+			return e(err, "")
+		}
+
+		_ = db.proof.SetValue(proof)
 
 		return nil
 	}
@@ -557,4 +647,8 @@ func redisStateKeyFromLeveldb(b []byte) string {
 
 func redisBlockMapKey(height base.Height) string {
 	return fmt.Sprintf("%s-%021d", redisBlockMapKeyPrefix, height)
+}
+
+func redisSuffrageProofKey(height base.Height) string {
+	return fmt.Sprintf("%s-%021d", redisSuffrageProofPrefix, height)
 }

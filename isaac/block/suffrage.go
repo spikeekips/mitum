@@ -19,14 +19,13 @@ type SuffrageProof struct {
 }
 
 func NewSuffrageProof(
-	ht hint.Hint,
 	m base.BlockMap,
 	st base.State,
 	proof fixedtree.Proof,
 	voteproof base.ACCEPTVoteproof,
 ) SuffrageProof {
 	return SuffrageProof{
-		BaseHinter: hint.NewBaseHinter(ht),
+		BaseHinter: hint.NewBaseHinter(SuffrageProofHint),
 		m:          m,
 		st:         st,
 		proof:      proof,

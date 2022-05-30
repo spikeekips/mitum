@@ -20,7 +20,7 @@ type FSWriter interface {
 	SetOperation(context.Context, uint64, base.Operation) error
 	SetOperationsTree(context.Context, *fixedtree.Writer) error
 	SetState(context.Context, uint64, base.State) error
-	SetStatesTree(context.Context, *fixedtree.Writer) error
+	SetStatesTree(context.Context, *fixedtree.Writer) (fixedtree.Tree, error)
 	SetManifest(context.Context, base.Manifest) error
 	SetINITVoteproof(context.Context, base.INITVoteproof) error
 	SetACCEPTVoteproof(context.Context, base.ACCEPTVoteproof) error
@@ -34,11 +34,12 @@ type Writer struct {
 	opstreeroot   util.Hash
 	db            isaac.BlockWriteDatabase
 	fswriter      FSWriter
-	ststreeroot   util.Hash
+	avp           base.ACCEPTVoteproof
 	mergeDatabase func(isaac.BlockWriteDatabase) error
 	opstreeg      *fixedtree.Writer
 	getStateFunc  base.GetStateFunc
 	states        *util.LockedMap
+	ststree       fixedtree.Tree
 	sync.RWMutex
 }
 
@@ -271,11 +272,12 @@ func (w *Writer) saveStates(
 			return w.db.SetStates(states) //nolint:wrapcheck //...
 		},
 		func(ctx context.Context, _ uint64) error {
-			if err := w.fswriter.SetStatesTree(ctx, tg); err != nil {
+			i, err := w.fswriter.SetStatesTree(ctx, tg)
+			if err != nil {
 				return errors.Wrap(err, "")
 			}
 
-			w.ststreeroot = tg.Root()
+			w.ststree = i
 
 			return nil
 		},
@@ -310,8 +312,13 @@ func (w *Writer) Manifest(ctx context.Context, previous base.Manifest) (base.Man
 		previousHash = previous.Hash()
 	}
 
-	if i := w.db.SuffrageState(); i != nil {
-		suffrage = i.Hash()
+	if st := w.db.SuffrageState(); st != nil {
+		suffrage = st.Hash()
+	}
+
+	var ststreeroot util.Hash
+	if w.ststree.Len() > 0 {
+		ststreeroot = w.ststree.Root()
 	}
 
 	if w.manifest == nil {
@@ -320,7 +327,7 @@ func (w *Writer) Manifest(ctx context.Context, previous base.Manifest) (base.Man
 			previousHash,
 			w.proposal.Fact().Hash(),
 			w.opstreeroot,
-			w.ststreeroot,
+			ststreeroot,
 			suffrage,
 			localtime.UTCNow(),
 		)
@@ -346,6 +353,8 @@ func (w *Writer) SetACCEPTVoteproof(ctx context.Context, vp base.ACCEPTVoteproof
 		return errors.Wrap(err, "failed to set accept voteproof")
 	}
 
+	w.avp = vp
+
 	return nil
 }
 
@@ -366,6 +375,20 @@ func (w *Writer) Save(ctx context.Context) (base.BlockMap, error) {
 		}
 
 		m = i
+	}
+
+	if st := w.db.SuffrageState(); st != nil {
+		// NOTE save suffrageproof
+		proof, err := w.ststree.Proof(st.Hash().String())
+		if err != nil {
+			return nil, e(err, "failed to make proof of suffrage state")
+		}
+
+		sufproof := NewSuffrageProof(m, st, proof, w.avp)
+
+		if err := w.db.SetSuffrageProof(sufproof); err != nil {
+			return nil, e(err, "")
+		}
 	}
 
 	if err := w.mergeDatabase(w.db); err != nil {
