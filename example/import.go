@@ -270,7 +270,7 @@ func (cmd *importCommand) importBlocks(localfsroot string, from, to base.Height)
 
 			return m, found, errors.Wrap(err, "")
 		},
-		func(_ context.Context, height base.Height, item base.BlockMapItemType) (io.Reader, bool, error) {
+		func(_ context.Context, height base.Height, item base.BlockMapItemType) (io.ReadCloser, bool, error) {
 			reader, err := getreader(height)
 			if err != nil {
 				return nil, false, errors.Wrap(err, "")

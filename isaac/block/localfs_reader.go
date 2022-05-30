@@ -261,7 +261,7 @@ func (r *LocalFSReader) item(t base.BlockMapItemType) (interface{}, bool, error)
 		return nil, false, nil
 	default:
 		defer func() {
-			_ = f.Close()
+			_ = i.Close()
 		}()
 
 		f = i

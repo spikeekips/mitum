@@ -1,6 +1,7 @@
 package isaacstates
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"strings"
@@ -77,8 +78,8 @@ func (t *testSyncer) dummyNewBlockImporterFunc() NewBlockImporterFunc {
 }
 
 func (t *testSyncer) dummyBlockMapItemFunc() SyncerBlockMapItemFunc {
-	return func(context.Context, base.Height, base.BlockMapItemType) (io.Reader, bool, error) {
-		return nil, true, nil
+	return func(context.Context, base.Height, base.BlockMapItemType) (io.ReadCloser, bool, error) {
+		return io.NopCloser(&bytes.Buffer{}), true, nil
 	}
 }
 

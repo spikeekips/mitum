@@ -18,7 +18,7 @@ import (
 
 type (
 	SyncerBlockMapFunc     func(context.Context, base.Height) (base.BlockMap, bool, error)
-	SyncerBlockMapItemFunc func(context.Context, base.Height, base.BlockMapItemType) (io.Reader, bool, error)
+	SyncerBlockMapItemFunc func(context.Context, base.Height, base.BlockMapItemType) (io.ReadCloser, bool, error)
 	// BLOCK use ReadCloser?
 	NewBlockImporterFunc func(root string, blockmap base.BlockMap) (isaac.BlockImporter, error)
 )

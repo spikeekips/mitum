@@ -15,7 +15,7 @@ func ImportBlocks(
 	from, to base.Height,
 	batchlimit int64,
 	blockMapf func(base.Height) (base.BlockMap, bool, error),
-	blockMapItemf func(context.Context, base.Height, base.BlockMapItemType) (io.Reader, bool, error),
+	blockMapItemf func(context.Context, base.Height, base.BlockMapItemType) (io.ReadCloser, bool, error),
 	newBlockImporter func(base.BlockMap) (isaac.BlockImporter, error),
 	setLastVoteproofsFunc func(isaac.BlockReader) error,
 ) error {
@@ -97,7 +97,7 @@ func ImportBlock(
 	height base.Height,
 	m base.BlockMap,
 	im isaac.BlockImporter,
-	blockMapItemf func(context.Context, base.Height, base.BlockMapItemType) (io.Reader, bool, error),
+	blockMapItemf func(context.Context, base.Height, base.BlockMapItemType) (io.ReadCloser, bool, error),
 ) error {
 	e := util.StringErrorFunc("failed to import block, %d", height)
 
@@ -114,6 +114,10 @@ func ImportBlock(
 				case !found:
 					return e(util.ErrNotFound.Errorf("blockMapItem not found"), "")
 				default:
+					defer func() {
+						_ = r.Close()
+					}()
+
 					if err := im.WriteItem(item.Type(), r); err != nil {
 						return errors.Wrap(err, "")
 					}
