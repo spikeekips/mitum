@@ -15,9 +15,6 @@ type Database interface {
 	Close() error
 	Map(height base.Height) (base.BlockMap, bool, error)
 	LastMap() (base.BlockMap, bool, error)
-	Suffrage(blockheight base.Height) (base.State, bool, error) // BLOCK should returns SuffrageProof
-	SuffrageByHeight(suffrageHeight base.Height) (base.State, bool, error)
-	LastSuffrage() (base.State, bool, error)
 	LastSuffrageProof() (base.SuffrageProof, bool, error)
 	SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof, bool, error)
 	SuffrageProofByBlockHeight(blockheight base.Height) (base.SuffrageProof, bool, error)
@@ -47,7 +44,6 @@ type TempDatabase interface {
 	Height() base.Height
 	Map() (base.BlockMap, error)
 	SuffrageHeight() base.Height
-	Suffrage() (base.State, bool, error)
 	SuffrageProof() (base.SuffrageProof, bool, error)
 	NetworkPolicy() base.NetworkPolicy
 }
@@ -72,10 +68,7 @@ type PermanentDatabase interface {
 	Close() error
 	Clean() error
 	LastMap() (base.BlockMap, bool, error)
-	LastSuffrage() (base.State, bool, error)
 	LastSuffrageProof() (base.SuffrageProof, bool, error)
-	Suffrage(blockheight base.Height) (base.State, bool, error)
-	SuffrageByHeight(suffrageHeight base.Height) (base.State, bool, error)
 	SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof, bool, error)
 	SuffrageProofByBlockHeight(blockheight base.Height) (base.SuffrageProof, bool, error)
 	Map(base.Height) (base.BlockMap, bool, error)

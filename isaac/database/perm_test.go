@@ -121,12 +121,12 @@ func (t *testCommonPermanent) setMap(db isaac.PermanentDatabase, mp base.BlockMa
 	}
 }
 
-func (t *testCommonPermanent) setSuffrageState(db isaac.PermanentDatabase, st base.State) {
+func (t *testCommonPermanent) setSuffrageProof(db isaac.PermanentDatabase, proof base.SuffrageProof) {
 	switch t := db.(type) {
 	case *LeveldbPermanent:
-		_ = t.sufst.SetValue(st)
+		_ = t.proof.SetValue(proof)
 	case *RedisPermanent:
-		_ = t.sufst.SetValue(st)
+		_ = t.proof.SetValue(proof)
 	default:
 		panic("unknown PermanentDatabase")
 	}
@@ -176,33 +176,6 @@ func (t *testCommonPermanent) TestLastMap() {
 	})
 }
 
-func (t *testCommonPermanent) TestLastSuffrage() {
-	height := base.Height(33)
-	_, nodes := t.Locals(3)
-
-	sufst, _ := t.SuffrageState(height, base.Height(66), nodes)
-
-	db := t.newDB()
-	defer db.Close()
-
-	t.Run("empty suffrage", func() {
-		rsufst, found, err := db.LastSuffrage()
-		t.NoError(err)
-		t.False(found)
-		t.Nil(rsufst)
-	})
-
-	t.setSuffrageState(db, sufst)
-
-	t.Run("none-empty suffrage", func() {
-		rsufst, found, err := db.LastSuffrage()
-		t.NoError(err)
-		t.True(found)
-
-		t.True(base.IsEqualState(sufst, rsufst))
-	})
-}
-
 func (t *testCommonPermanent) TestNetworkPolicy() {
 	policy := isaac.DefaultNetworkPolicy()
 
@@ -220,108 +193,6 @@ func (t *testCommonPermanent) TestNetworkPolicy() {
 		rpolicy := db.LastNetworkPolicy()
 
 		base.EqualNetworkPolicy(t.Assert(), policy, rpolicy)
-	})
-}
-
-func (t *testCommonPermanent) TestSuffrage() {
-	baseheight := base.Height(33)
-	_, nodes := t.Locals(3)
-
-	db := t.newDB()
-	defer db.Close()
-
-	height := baseheight
-	basesuffrageheight := base.Height(66)
-	suffrageheight := basesuffrageheight
-
-	stm := map[base.Height]base.State{}
-	sthm := map[base.Height]base.State{}
-	for range make([]int, 3) {
-		st, _ := t.SuffrageState(height, suffrageheight, nodes)
-		t.NoError(t.setState(db, st))
-
-		stm[height] = st
-		sthm[suffrageheight] = st
-
-		height++
-		suffrageheight++
-	}
-
-	manifest := base.NewDummyManifest(height+10, valuehash.RandomSHA256())
-	mp := base.NewDummyBlockMap(manifest)
-	t.setMap(db, mp)
-	st, _ := t.SuffrageState(height+10, suffrageheight, nodes)
-	t.setSuffrageState(db, st)
-
-	t.Run("unknown suffrage", func() {
-		rsufst, found, err := db.Suffrage(baseheight - 1)
-		t.NoError(err)
-		t.False(found)
-		t.Nil(rsufst)
-	})
-
-	t.Run("> higher height", func() {
-		rsufst, found, err := db.Suffrage(baseheight + 100)
-		t.NoError(err)
-		t.False(found)
-		t.Nil(rsufst)
-	})
-
-	t.Run("known suffrage", func() {
-		height := baseheight
-		for {
-			if height >= baseheight+3 {
-				break
-			}
-
-			rsufst, found, err := db.Suffrage(height)
-			t.NoError(err)
-			t.True(found)
-			t.NotNil(rsufst)
-
-			t.True(base.IsEqualState(stm[height], rsufst))
-			height++
-		}
-	})
-
-	t.Run("known suffrage; last height", func() {
-		rsufst, found, err := db.Suffrage(manifest.Height())
-		t.NoError(err)
-		t.True(found)
-		t.NotNil(rsufst)
-
-		t.True(base.IsEqualState(st, rsufst))
-	})
-
-	t.Run("unknown suffrage by height", func() {
-		rsufst, found, err := db.SuffrageByHeight(basesuffrageheight - 1)
-		t.NoError(err)
-		t.False(found)
-		t.Nil(rsufst)
-	})
-
-	t.Run("suffrage by height; > last height", func() {
-		rsufst, found, err := db.SuffrageByHeight(basesuffrageheight + 100)
-		t.NoError(err)
-		t.False(found)
-		t.Nil(rsufst)
-	})
-
-	t.Run("known suffrage by height", func() {
-		height := basesuffrageheight
-		for {
-			if height >= basesuffrageheight+3 {
-				break
-			}
-
-			rsufst, found, err := db.SuffrageByHeight(height)
-			t.NoError(err)
-			t.True(found)
-			t.NotNil(rsufst)
-
-			t.True(base.IsEqualState(sthm[height], rsufst))
-			height++
-		}
 	})
 }
 
@@ -371,13 +242,6 @@ func (t *testCommonPermanent) TestLoad() {
 		base.EqualBlockMap(t.Assert(), mp, nm)
 	})
 
-	t.Run("check suffrage state in perm", func() {
-		nst, found, err := perm.LastSuffrage()
-		t.NoError(err)
-		t.True(found)
-		t.True(base.IsEqualState(sufst, nst))
-	})
-
 	t.Run("check network policy in perm", func() {
 		rpolicy := perm.LastNetworkPolicy()
 		base.EqualNetworkPolicy(t.Assert(), policy, rpolicy)
@@ -391,13 +255,6 @@ func (t *testCommonPermanent) TestLoad() {
 		t.NoError(err)
 		t.True(found)
 		base.EqualBlockMap(t.Assert(), mp, nm)
-	})
-
-	t.Run("check suffrage state in new perm", func() {
-		nst, found, err := newperm.LastSuffrage()
-		t.NoError(err)
-		t.True(found)
-		t.True(base.IsEqualState(sufst, nst))
 	})
 
 	t.Run("check SuffrageProof in new perm", func() {
@@ -485,24 +342,6 @@ func (t *testCommonPermanent) TestMergeTempDatabase() {
 		}
 	})
 
-	t.Run("check suffrage state", func() {
-		perm := t.newDB()
-
-		rst, found, err := perm.Suffrage(height)
-		t.NoError(err)
-		t.False(found)
-		t.Nil(rst)
-
-		t.NoError(perm.MergeTempDatabase(context.TODO(), temp))
-
-		rst, found, err = perm.Suffrage(height)
-		t.NoError(err)
-		t.True(found)
-		t.NotNil(rst)
-
-		t.True(base.IsEqualState(sufst, rst))
-	})
-
 	t.Run("check instate operations", func() {
 		perm := t.newDB()
 
@@ -581,29 +420,26 @@ func (t *testCommonPermanent) TestMergeTempDatabase() {
 }
 
 func (t *testCommonPermanent) TestClean() {
-	height := base.Height(33)
-	_, nodes := t.Locals(3)
-
-	sufst, _ := t.SuffrageState(height, base.Height(66), nodes)
+	proof := NewDummySuffrageProof(nil)
 
 	db := t.newDB()
 	defer db.Close()
 
-	t.setSuffrageState(db, sufst)
+	t.setSuffrageProof(db, proof)
 
 	t.Run("before clean", func() {
-		rsufst, found, err := db.LastSuffrage()
+		rproof, found, err := db.LastSuffrageProof()
 		t.NoError(err)
 		t.True(found)
-		t.NotNil(rsufst)
+		t.NotNil(rproof)
 	})
 
 	t.Run("clean", func() {
 		t.NoError(db.Clean())
 
-		rsufst, found, err := db.LastSuffrage()
+		rproof, found, err := db.LastSuffrageProof()
 		t.NoError(err)
 		t.False(found)
-		t.Nil(rsufst)
+		t.Nil(rproof)
 	})
 }

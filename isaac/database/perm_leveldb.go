@@ -1,7 +1,6 @@
 package isaacdatabase
 
 import (
-	"bytes"
 	"context"
 	"math"
 
@@ -49,10 +48,6 @@ func newLeveldbPermanent(
 		return nil, err
 	}
 
-	if err := db.loadLastSuffrage(); err != nil {
-		return nil, err
-	}
-
 	if err := db.loadLastSuffrageProof(); err != nil {
 		return nil, err
 	}
@@ -70,77 +65,6 @@ func (db *LeveldbPermanent) Clean() error {
 	}
 
 	return db.basePermanent.Clean()
-}
-
-func (db *LeveldbPermanent) Suffrage(height base.Height) (base.State, bool, error) {
-	e := util.StringErrorFunc("failed to get suffrage by block height")
-
-	switch m, found, err := db.LastMap(); {
-	case err != nil:
-		return nil, false, e(err, "")
-	case !found:
-		return nil, false, nil
-	case height > m.Manifest().Height():
-		return nil, false, nil
-	}
-
-	switch st, found, err := db.LastSuffrage(); {
-	case err != nil:
-		return nil, false, e(err, "")
-	case !found:
-		return nil, false, nil
-	case height == st.Height():
-		return st, true, nil
-	}
-
-	var st base.State
-	if err := db.st.Iter(
-		&leveldbutil.Range{Start: leveldbBeginSuffrageKey, Limit: leveldbSuffrageKey(height + 1)},
-		func(_, b []byte) (bool, error) {
-			i, err := db.decodeSuffrage(b)
-			if err != nil {
-				return false, errors.Wrap(err, "")
-			}
-
-			st = i
-
-			return false, nil
-		},
-		false,
-	); err != nil {
-		return nil, false, errors.Wrap(err, "failed to get suffrage by block height")
-	}
-
-	return st, st != nil, nil
-}
-
-func (db *LeveldbPermanent) SuffrageByHeight(suffrageHeight base.Height) (base.State, bool, error) {
-	e := util.StringErrorFunc("failed to get suffrage by height")
-
-	switch st, found, err := db.LastSuffrage(); {
-	case err != nil:
-		return nil, false, e(err, "")
-	case !found:
-		return nil, false, nil
-	case suffrageHeight > st.Value().(base.SuffrageStateValue).Height(): //nolint:forcetypeassert //...
-		return nil, false, nil
-	case suffrageHeight == st.Value().(base.SuffrageStateValue).Height(): //nolint:forcetypeassert //...
-		return st, true, nil
-	}
-
-	switch b, found, err := db.st.Get(leveldbSuffrageHeightKey(suffrageHeight)); {
-	case err != nil:
-		return nil, false, e(err, "")
-	case !found:
-		return nil, false, nil
-	default:
-		st, err := db.decodeSuffrage(b)
-		if err != nil {
-			return nil, false, e(err, "")
-		}
-
-		return st, true, nil
-	}
 }
 
 func (db *LeveldbPermanent) SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof, bool, error) {
@@ -321,7 +245,7 @@ func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, te
 		return e(err, "")
 	}
 
-	_ = db.updateLast(temp.mp, temp.sufst, temp.proof, temp.policy)
+	_ = db.updateLast(temp.mp, temp.proof, temp.policy)
 
 	return nil
 }
@@ -330,24 +254,13 @@ func (db *LeveldbPermanent) mergeStatesTempDatabaseFromLeveldb(temp *TempLeveldb
 	e := util.StringErrorFunc("failed to merge states from LeveldbTempDatabase")
 
 	sufst := temp.sufst
-	var sufsv base.SuffrageStateValue
-
-	if sufst != nil {
-		sufsv = sufst.Value().(base.SuffrageStateValue) //nolint:forcetypeassert //...
-	}
 
 	// NOTE merge states
-	var bsufst []byte
-
 	if err := temp.st.Iter(
 		leveldbutil.BytesPrefix(leveldbKeyPrefixState),
 		func(key, b []byte) (bool, error) {
 			if err := db.st.Put(key, b, nil); err != nil {
 				return false, err
-			}
-
-			if bytes.Equal(key, leveldbSuffrageStateKey) {
-				bsufst = b
 			}
 
 			return true, nil
@@ -356,22 +269,14 @@ func (db *LeveldbPermanent) mergeStatesTempDatabaseFromLeveldb(temp *TempLeveldb
 	}
 
 	// NOTE merge suffrage state
-	if sufsv != nil && len(bsufst) > 0 {
-		if err := db.st.Put(leveldbSuffrageKey(temp.Height()), bsufst, nil); err != nil {
-			return e(err, "failed to put suffrage by block height")
-		}
-
-		if err := db.st.Put(leveldbSuffrageHeightKey(sufsv.Height()), bsufst, nil); err != nil {
-			return e(err, "failed to put suffrage by height")
-		}
-
+	if sufst != nil {
 		switch b, found, err := temp.st.Get(leveldbKeySuffrageProof); {
 		case err != nil:
 			return e(err, "failed to get SuffrageProof")
 		case !found:
 			return storage.NotFoundError.Errorf("failed to get SuffrageProof")
 		default:
-			if err := db.st.Put(leveldbSuffrageProofKey(sufsv.Height()), b, nil); err != nil {
+			if err := db.st.Put(leveldbSuffrageProofKey(temp.SuffrageHeight()), b, nil); err != nil {
 				return e(err, "failed to set SuffrageProof")
 			}
 
@@ -404,37 +309,6 @@ func (db *LeveldbPermanent) loadLastBlockMap() error {
 	}
 
 	_ = db.mp.SetValue(m)
-
-	return nil
-}
-
-func (db *LeveldbPermanent) loadLastSuffrage() error {
-	e := util.StringErrorFunc("failed to load last suffrage state")
-
-	var sufst base.State
-
-	if err := db.st.Iter(
-		leveldbutil.BytesPrefix(leveldbKeyPrefixSuffrageHeight),
-		func(_, b []byte) (bool, error) {
-			i, err := db.decodeSuffrage(b)
-			if err != nil {
-				return false, err
-			}
-
-			sufst = i
-
-			return false, nil
-		},
-		false,
-	); err != nil {
-		return e(err, "")
-	}
-
-	if sufst == nil {
-		return nil
-	}
-
-	_ = db.sufst.SetValue(sufst)
 
 	return nil
 }

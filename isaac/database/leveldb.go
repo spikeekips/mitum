@@ -3,7 +3,6 @@ package isaacdatabase
 import (
 	"bytes"
 	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -16,32 +15,25 @@ import (
 )
 
 var (
-	leveldbKeyPrefixSuffrage                = []byte{0x00, 0x01}
-	leveldbKeyPrefixSuffrageHeight          = []byte{0x00, 0x02}
-	leveldbKeyPrefixState                   = []byte{0x00, 0x03}
-	leveldbKeyPrefixInStateOperation        = []byte{0x00, 0x04}
-	leveldbKeyPrefixKnownOperation          = []byte{0x00, 0x05}
-	leveldbKeyPrefixProposal                = []byte{0x00, 0x06}
-	leveldbKeyPrefixProposalByPoint         = []byte{0x00, 0x07}
-	leveldbKeyPrefixBlockMap                = []byte{0x00, 0x08}
-	leveldbKeyPrefixNewOperation            = []byte{0x00, 0x09}
-	leveldbKeyPrefixNewOperationOrdered     = []byte{0x00, 0x0a}
-	leveldbKeyPrefixNewOperationOrderedKeys = []byte{0x00, 0x0b}
-	leveldbKeyLastVoteproofs                = []byte{0x00, 0x0c}
-	leveldbKeyTempSyncMap                   = []byte{0x00, 0x0d}
-	leveldbKeySuffrageProof                 = []byte{0x00, 0x0e}
-	leveldbKeySuffrageProofByBlockHeight    = []byte{0x00, 0x0f}
+	leveldbKeyPrefixState                   = []byte{0x00, 0x01}
+	leveldbKeyPrefixInStateOperation        = []byte{0x00, 0x02}
+	leveldbKeyPrefixKnownOperation          = []byte{0x00, 0x03}
+	leveldbKeyPrefixProposal                = []byte{0x00, 0x04}
+	leveldbKeyPrefixProposalByPoint         = []byte{0x00, 0x05}
+	leveldbKeyPrefixBlockMap                = []byte{0x00, 0x06}
+	leveldbKeyPrefixNewOperation            = []byte{0x00, 0x07}
+	leveldbKeyPrefixNewOperationOrdered     = []byte{0x00, 0x08}
+	leveldbKeyPrefixNewOperationOrderedKeys = []byte{0x00, 0x09}
+	leveldbKeyLastVoteproofs                = []byte{0x00, 0x0a}
+	leveldbKeyTempSyncMap                   = []byte{0x00, 0x0b}
+	leveldbKeySuffrageProof                 = []byte{0x00, 0x0c}
+	leveldbKeySuffrageProofByBlockHeight    = []byte{0x00, 0x0d}
 
 	leveldbNewOperationOrderedKeysJoinSep   = bytes.Repeat([]byte{0xff}, 10) //nolint:gomnd //...
 	leveldbNewOperationOrderedKeysJoinedSep = util.ConcatBytesSlice(
 		leveldbNewOperationOrderedKeysJoinSep,
 		leveldbKeyPrefixNewOperationOrdered,
 	)
-)
-
-var (
-	leveldbBeginSuffrageKey = util.ConcatBytesSlice(leveldbKeyPrefixSuffrage, []byte(strings.Repeat("0", 21)))
-	leveldbSuffrageStateKey = leveldbStateKey(isaac.SuffrageStateKey)
 )
 
 type baseLeveldb struct {
@@ -147,14 +139,6 @@ func (db *baseLeveldb) loadNetworkPolicy() (base.NetworkPolicy, bool, error) {
 	}
 
 	return st.Value().(base.NetworkPolicyStateValue).Policy(), true, nil //nolint:forcetypeassert //...
-}
-
-func leveldbSuffrageKey(height base.Height) []byte {
-	return util.ConcatBytesSlice(leveldbKeyPrefixSuffrage, []byte(fmt.Sprintf("%021d", height)))
-}
-
-func leveldbSuffrageHeightKey(suffrageheight base.Height) []byte {
-	return util.ConcatBytesSlice(leveldbKeyPrefixSuffrageHeight, []byte(fmt.Sprintf("%021d", suffrageheight)))
 }
 
 func leveldbStateKey(key string) []byte {

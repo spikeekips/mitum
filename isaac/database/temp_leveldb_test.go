@@ -47,13 +47,13 @@ func (t *testTempLeveldb) TestLoad() {
 	height := base.Height(33)
 	_, nodes := t.Locals(3)
 
-	sufstt, _ := t.SuffrageState(height, base.Height(66), nodes)
+	sufst, _ := t.SuffrageState(height, base.Height(66), nodes)
 
 	policy := isaac.DefaultNetworkPolicy()
 	policystt, _ := t.NetworkPolicyState(height, policy)
 
 	stts := t.States(height, 3)
-	stts = append(stts, sufstt, policystt)
+	stts = append(stts, sufst, policystt)
 
 	manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
 	mp := base.NewDummyBlockMap(manifest)
@@ -85,12 +85,8 @@ func (t *testTempLeveldb) TestLoad() {
 	})
 
 	t.Run("check last suffrage", func() {
-		rstt, found, err := rst.Suffrage()
-		t.NotNil(rstt)
-		t.True(found)
-		t.NoError(err)
-
-		t.True(base.IsEqualState(sufstt, rstt))
+		h := rst.SuffrageHeight()
+		t.Equal(h, sufst.Value().(base.SuffrageStateValue).Height())
 	})
 
 	t.Run("check network policy", func() {

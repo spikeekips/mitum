@@ -42,17 +42,6 @@ func TestLeveldbPermanent(tt *testing.T) {
 			return e(err, "failed to put state")
 		}
 
-		if st.Key() == isaac.SuffrageStateKey {
-			if err := db.st.Put(leveldbSuffrageKey(st.Height()), b, nil); err != nil {
-				return e(err, "failed to put suffrage by block height")
-			}
-
-			sv := st.Value().(base.SuffrageStateValue)
-			if err := db.st.Put(leveldbSuffrageHeightKey(sv.Height()), b, nil); err != nil {
-				return e(err, "failed to put suffrage by height")
-			}
-		}
-
 		return nil
 	}
 

@@ -1,7 +1,6 @@
 package isaacdatabase
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"strings"
@@ -20,8 +19,6 @@ import (
 )
 
 var (
-	redisSuffrageKeyPrerfix               = "suf"
-	redisSuffrageByHeightKeyPrerfix       = "suh"
 	redisStateKeyPrerfix                  = "stt"
 	redisInStateOperationKeyPrerfix       = "iso"
 	redisKnownOperationKeyPrerfix         = "kno"
@@ -31,9 +28,6 @@ var (
 )
 
 var (
-	redisZKeySuffragesByHeight             = "suffrages_by_height"
-	redisZBeginSuffrages                   = redisSuffrageKey(base.GenesisHeight)
-	redisZEndSuffrages                     = fmt.Sprintf("%s-%s", redisSuffrageKeyPrerfix, strings.Repeat("9", 20))
 	redisZKeyBlockMaps                     = "blockmaps"
 	redisZBeginBlockMaps                   = redisBlockMapKey(base.GenesisHeight)
 	redisZEndBlockMaps                     = fmt.Sprintf("%s-%s", redisBlockMapKeyPrefix, strings.Repeat("9", 20))
@@ -68,10 +62,6 @@ func NewRedisPermanent(
 		return nil, err
 	}
 
-	if err := db.loadLastSuffrage(); err != nil {
-		return nil, err
-	}
-
 	if err := db.loadLastSuffrageProof(); err != nil {
 		return nil, err
 	}
@@ -97,96 +87,6 @@ func (db *RedisPermanent) Clean() error {
 	}
 
 	return db.basePermanent.Clean()
-}
-
-func (db *RedisPermanent) Suffrage(height base.Height) (base.State, bool, error) {
-	e := util.StringErrorFunc("failed to get suffrage by block height")
-
-	switch m, found, err := db.LastMap(); {
-	case err != nil:
-		return nil, false, e(err, "")
-	case !found:
-		return nil, false, nil
-	case height > m.Manifest().Height():
-		return nil, false, nil
-	}
-
-	switch st, found, err := db.LastSuffrage(); {
-	case err != nil:
-		return nil, false, e(err, "")
-	case !found:
-		return nil, false, nil
-	case height == st.Height():
-		return st, true, nil
-	}
-
-	var key string
-
-	if err := db.st.ZRangeArgs(
-		context.Background(),
-		redis.ZRangeArgs{
-			Key:   redisZKeySuffragesByHeight,
-			Start: "[" + redisZBeginSuffrages,
-			Stop:  "[" + redisSuffrageKey(height),
-			ByLex: true,
-			Rev:   true,
-			Count: 1,
-		},
-		func(i string) (bool, error) {
-			key = i
-
-			return false, nil
-		},
-	); err != nil {
-		return nil, false, e(err, "")
-	}
-
-	if len(key) < 1 {
-		return nil, false, nil
-	}
-
-	switch b, found, err := db.st.Get(context.Background(), key); {
-	case err != nil:
-		return nil, false, err
-	case !found:
-		return nil, false, nil
-	default:
-		st, err := db.decodeSuffrage(b)
-		if err != nil {
-			return nil, false, e(err, "")
-		}
-
-		return st, true, nil
-	}
-}
-
-func (db *RedisPermanent) SuffrageByHeight(suffrageHeight base.Height) (base.State, bool, error) {
-	e := util.StringErrorFunc("failed to get suffrage by height")
-
-	switch st, found, err := db.LastSuffrage(); {
-	case err != nil:
-		return nil, false, e(err, "")
-	case !found:
-		return nil, false, nil
-	case suffrageHeight > st.Value().(base.SuffrageStateValue).Height(): //nolint:forcetypeassert //...
-		return nil, false, nil
-	case suffrageHeight == st.Value().(base.SuffrageStateValue).Height(): //nolint:forcetypeassert //...
-		return st, true, nil
-	}
-
-	switch b, found, err := db.st.Get(context.Background(), redisSuffrageByHeightKey(suffrageHeight)); {
-	case err != nil:
-		return nil, false, err
-	case !found:
-		return nil, false, nil
-	default:
-		st, err := db.decodeSuffrage(b)
-		if err != nil {
-			return nil, false, e(err, "")
-		}
-
-		return st, true, nil
-	}
 }
 
 func (db *RedisPermanent) SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof, bool, error) {
@@ -373,11 +273,6 @@ func (db *RedisPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp
 	}
 
 	sufst := temp.sufst
-	var sufsv base.SuffrageStateValue
-
-	if sufst != nil {
-		sufsv = sufst.Value().(base.SuffrageStateValue) //nolint:forcetypeassert //...
-	}
 
 	if err := util.RunErrgroupWorkerByJobs(
 		ctx,
@@ -389,18 +284,13 @@ func (db *RedisPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp
 			return nil
 		},
 		func(ctx context.Context, jobid uint64) error {
-			bsufst, err := db.mergeStatesTempDatabaseFromLeveldb(ctx, temp)
-			if err != nil {
+			if err := db.mergeStatesTempDatabaseFromLeveldb(ctx, temp); err != nil {
 				return errors.Wrap(err, "failed to merge states")
 			}
 
 			// NOTE merge suffrage state
-			if sufsv != nil && len(bsufst) > 0 {
-				if err := db.mergeSuffrageStateTempDatabaseFromLeveldb(ctx, temp, sufsv, bsufst); err != nil {
-					return errors.Wrap(err, "failed to merge suffrage state")
-				}
-
-				if err := db.mergeSuffrageProofTempDatabaseFromLeveldb(ctx, temp, sufst, sufsv); err != nil {
+			if sufst != nil {
+				if err := db.mergeSuffrageProofTempDatabaseFromLeveldb(ctx, temp, sufst); err != nil {
 					return errors.Wrap(err, "failed to merge SuffrageProof")
 				}
 			}
@@ -418,7 +308,7 @@ func (db *RedisPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp
 		return e(err, "")
 	}
 
-	_ = db.updateLast(temp.mp, temp.sufst, temp.proof, temp.policy)
+	_ = db.updateLast(temp.mp, temp.proof, temp.policy)
 
 	return nil
 }
@@ -455,60 +345,22 @@ func (db *RedisPermanent) mergeOperationsTempDatabaseFromLeveldb(
 	return nil
 }
 
-func (db *RedisPermanent) mergeStatesTempDatabaseFromLeveldb(
-	ctx context.Context, temp *TempLeveldb,
-) ([]byte, error) {
-	var bsufst []byte
-
-	if err := temp.st.Iter(
+func (db *RedisPermanent) mergeStatesTempDatabaseFromLeveldb(ctx context.Context, temp *TempLeveldb) error {
+	return temp.st.Iter(
 		leveldbutil.BytesPrefix(leveldbKeyPrefixState),
 		func(key, b []byte) (bool, error) {
 			if err := db.st.Set(ctx, redisStateKeyFromLeveldb(key), b); err != nil {
 				return false, err
 			}
 
-			if bytes.Equal(key, leveldbSuffrageStateKey) {
-				bsufst = b
-			}
-
 			return true, nil
-		}, true); err != nil {
-		return nil, err
-	}
-
-	return bsufst, nil
-}
-
-func (db *RedisPermanent) mergeSuffrageStateTempDatabaseFromLeveldb(
-	ctx context.Context,
-	temp *TempLeveldb,
-	sufsv base.SuffrageStateValue,
-	bsufst []byte,
-) error {
-	z := redis.ZAddArgs{
-		NX:      true,
-		Members: []redis.Z{{Score: 0, Member: redisSuffrageKey(temp.Height())}},
-	}
-	if err := db.st.ZAddArgs(ctx, redisZKeySuffragesByHeight, z); err != nil {
-		return errors.Wrap(err, "failed to zadd suffrage by block height")
-	}
-
-	if err := db.st.Set(ctx, redisSuffrageKey(temp.Height()), bsufst); err != nil {
-		return errors.Wrap(err, "failed to set suffrage")
-	}
-
-	if err := db.st.Set(ctx, redisSuffrageByHeightKey(sufsv.Height()), bsufst); err != nil {
-		return errors.Wrap(err, "failed to set suffrage by height")
-	}
-
-	return nil
+		}, true)
 }
 
 func (db *RedisPermanent) mergeSuffrageProofTempDatabaseFromLeveldb(
 	ctx context.Context,
 	temp *TempLeveldb,
 	sufst base.State,
-	sufsv base.SuffrageStateValue,
 ) error {
 	z := redis.ZAddArgs{
 		NX:      true,
@@ -525,7 +377,7 @@ func (db *RedisPermanent) mergeSuffrageProofTempDatabaseFromLeveldb(
 	case !found:
 		return storage.NotFoundError.Errorf("failed to get SuffrageProof")
 	default:
-		if err := db.st.Set(ctx, redisSuffrageProofKey(sufsv.Height()), b); err != nil {
+		if err := db.st.Set(ctx, redisSuffrageProofKey(temp.SuffrageHeight()), b); err != nil {
 			return errors.Wrap(err, "failed to set SuffrageProof")
 		}
 
@@ -583,28 +435,6 @@ func (db *RedisPermanent) loadLastBlockMap() error {
 	}
 
 	return nil
-}
-
-func (db *RedisPermanent) loadLastSuffrage() error {
-	e := util.StringErrorFunc("failed to load last suffrage state")
-
-	b, found, err := db.loadLast(redisZKeySuffragesByHeight, redisZBeginSuffrages, redisZEndSuffrages)
-
-	switch {
-	case err != nil:
-		return e(err, "")
-	case !found:
-		return nil
-	default:
-		sufst, err := db.decodeSuffrage(b)
-		if err != nil {
-			return e(err, "")
-		}
-
-		_ = db.sufst.SetValue(sufst)
-
-		return nil
-	}
 }
 
 func (db *RedisPermanent) loadLastSuffrageProof() error {
@@ -687,14 +517,6 @@ func (db *RedisPermanent) loadLast(zkey, begin, end string) ([]byte, bool, error
 	default:
 		return b, true, nil
 	}
-}
-
-func redisSuffrageKey(height base.Height) string {
-	return fmt.Sprintf("%s-%021d", redisSuffrageKeyPrerfix, height)
-}
-
-func redisSuffrageByHeightKey(suffrageheight base.Height) string {
-	return fmt.Sprintf("%s-%021d", redisSuffrageByHeightKeyPrerfix, suffrageheight)
 }
 
 func redisStateKey(key string) string {

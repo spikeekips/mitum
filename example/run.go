@@ -111,21 +111,21 @@ func (cmd *runCommand) prepareDatabase(localfsroot string, encs *encoder.Encoder
 
 func (cmd *runCommand) getSuffrageFunc() func(blockheight base.Height) (base.Suffrage, bool, error) {
 	return func(blockheight base.Height) (base.Suffrage, bool, error) {
-		st, found, err := cmd.db.Suffrage(blockheight.Prev())
+		proof, found, err := cmd.db.SuffrageProofByBlockHeight(blockheight.Prev())
 
 		switch {
 		case err != nil:
 			return nil, false, errors.Wrap(err, "")
 		case !found:
 			return nil, false, nil
-		}
+		default:
+			suf, err := proof.Suffrage()
+			if err != nil {
+				return nil, true, errors.Wrap(err, "")
+			}
 
-		suf, err := isaac.NewSuffrage(st.Value().(base.SuffrageStateValue).Nodes())
-		if err != nil {
-			return nil, true, errors.Wrap(err, "")
+			return suf, true, nil
 		}
-
-		return suf, true, nil
 	}
 }
 

@@ -50,15 +50,15 @@ func newTempLeveldb(
 		st:          st,
 	}
 
-	if err := db.loadLastBlockMap(); err != nil {
+	if err := db.loadBlockMap(); err != nil {
 		return nil, err
 	}
 
-	if err := db.loadLastSuffrage(); err != nil {
+	if err := db.loadSuffrageState(); err != nil {
 		return nil, err
 	}
 
-	if err := db.loadLastSuffrageProof(); err != nil {
+	if err := db.loadSuffrageProof(); err != nil {
 		return nil, err
 	}
 
@@ -86,9 +86,9 @@ func newTempLeveldbFromBlockWriteStorage(wst *LeveldbBlockWrite) (*TempLeveldb, 
 		mp = i
 	}
 
-	var sufstt base.State
-	if i, _ := wst.sufstt.Value(); i != nil {
-		sufstt = i.(base.State) //nolint:forcetypeassert //...
+	var sufst base.State
+	if i, _ := wst.sufst.Value(); i != nil {
+		sufst = i.(base.State) //nolint:forcetypeassert //...
 	}
 
 	var policy base.NetworkPolicy
@@ -105,7 +105,7 @@ func newTempLeveldbFromBlockWriteStorage(wst *LeveldbBlockWrite) (*TempLeveldb, 
 		baseLeveldb: newBaseLeveldb(st, wst.encs, wst.enc),
 		st:          st,
 		mp:          mp,
-		sufst:       sufstt,
+		sufst:       sufst,
 		policy:      policy,
 		proof:       proof,
 	}, nil
@@ -135,14 +135,6 @@ func (db *TempLeveldb) Map() (base.BlockMap, error) {
 	return db.mp, nil
 }
 
-func (db *TempLeveldb) Suffrage() (base.State, bool, error) {
-	if db.sufst == nil {
-		return nil, false, nil
-	}
-
-	return db.sufst, true, nil
-}
-
 func (db *TempLeveldb) SuffrageProof() (base.SuffrageProof, bool, error) {
 	if db.proof == nil {
 		return nil, false, nil
@@ -167,7 +159,7 @@ func (db *TempLeveldb) ExistsKnownOperation(h util.Hash) (bool, error) {
 	return db.existsKnownOperation(h)
 }
 
-func (db *TempLeveldb) loadLastBlockMap() error {
+func (db *TempLeveldb) loadBlockMap() error {
 	e := util.StringErrorFunc("failed to load blockmap")
 
 	switch b, found, err := db.st.Get(leveldbKeyPrefixBlockMap); {
@@ -188,7 +180,7 @@ func (db *TempLeveldb) loadLastBlockMap() error {
 	}
 }
 
-func (db *TempLeveldb) loadLastSuffrage() error {
+func (db *TempLeveldb) loadSuffrageState() error {
 	e := util.StringErrorFunc("failed to load suffrage state")
 
 	switch b, found, err := db.st.Get(leveldbStateKey(isaac.SuffrageStateKey)); {
@@ -208,7 +200,7 @@ func (db *TempLeveldb) loadLastSuffrage() error {
 	}
 }
 
-func (db *TempLeveldb) loadLastSuffrageProof() error {
+func (db *TempLeveldb) loadSuffrageProof() error {
 	e := util.StringErrorFunc("failed to load SuffrageProof")
 
 	switch b, found, err := db.st.Get(leveldbKeySuffrageProof); {

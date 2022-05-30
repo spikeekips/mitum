@@ -17,7 +17,7 @@ type LeveldbBlockWrite struct {
 	*baseLeveldb
 	st     *leveldbstorage.WriteStorage
 	mp     *util.Locked
-	sufstt *util.Locked // BLOCK rename to sufst
+	sufst  *util.Locked // BLOCK rename to sufst
 	policy *util.Locked
 	proof  *util.Locked
 	height base.Height
@@ -48,7 +48,7 @@ func newLeveldbBlockWrite(
 		st:          st,
 		height:      height,
 		mp:          util.EmptyLocked(),
-		sufstt:      util.EmptyLocked(),
+		sufst:       util.EmptyLocked(),
 		policy:      util.EmptyLocked(),
 		proof:       util.EmptyLocked(),
 	}
@@ -169,7 +169,7 @@ func (db *LeveldbBlockWrite) SetMap(m base.BlockMap) error {
 }
 
 func (db *LeveldbBlockWrite) SuffrageState() base.State {
-	i, _ := db.sufstt.Value()
+	i, _ := db.sufst.Value()
 	if i == nil {
 		return nil
 	}
@@ -246,7 +246,7 @@ func (db *LeveldbBlockWrite) setState(st base.State) error {
 
 	switch {
 	case base.IsSuffrageState(st) && st.Key() == isaac.SuffrageStateKey:
-		_ = db.sufstt.SetValue(st)
+		_ = db.sufst.SetValue(st)
 	case base.IsNetworkPolicyState(st) && st.Key() == isaac.NetworkPolicyStateKey:
 		_ = db.policy.SetValue(st.Value().(base.NetworkPolicyStateValue).Policy()) //nolint:forcetypeassert //...
 	}
