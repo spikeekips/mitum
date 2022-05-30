@@ -2,14 +2,17 @@ package isaacdatabase
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
+	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/fixedtree"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
+	"github.com/stretchr/testify/assert"
 )
 
 var DummySuffrageProofHint = hint.MustNewHint("dummy-suffrage-proof-v0.0.1")
@@ -17,12 +20,14 @@ var DummySuffrageProofHint = hint.MustNewHint("dummy-suffrage-proof-v0.0.1")
 type DummySuffrageProof struct {
 	hint.BaseHinter
 	ID string
+	ST base.State
 }
 
-func NewDummySuffrageProof() DummySuffrageProof {
+func NewDummySuffrageProof(st base.State) DummySuffrageProof {
 	return DummySuffrageProof{
 		BaseHinter: hint.NewBaseHinter(DummySuffrageProofHint),
 		ID:         util.UUID().String(),
+		ST:         st,
 	}
 }
 
@@ -35,7 +40,7 @@ func (proof DummySuffrageProof) Map() base.BlockMap {
 }
 
 func (proof DummySuffrageProof) State() base.State {
-	return nil
+	return proof.ST
 }
 
 func (proof DummySuffrageProof) ACCEPTVoteproof() base.ACCEPTVoteproof {
@@ -56,6 +61,34 @@ func (proof DummySuffrageProof) SuffrageHeight() base.Height {
 
 func (proof DummySuffrageProof) Prove(previousState base.State) error {
 	return nil
+}
+
+func (proof *DummySuffrageProof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+	var u struct {
+		ID string
+		ST json.RawMessage
+	}
+	if err := enc.Unmarshal(b, &u); err != nil {
+		return err
+	}
+
+	proof.ID = u.ID
+
+	if err := encoder.Decode(enc, u.ST, &proof.ST); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func IsEqualDummySuffrageProof(t *assert.Assertions, a, b base.SuffrageProof) {
+	ap, ok := a.(DummySuffrageProof)
+	t.True(ok)
+
+	bp, ok := b.(DummySuffrageProof)
+	t.True(ok)
+
+	t.Equal(ap.ID, bp.ID)
 }
 
 type testCommonPermanent struct {
@@ -316,7 +349,7 @@ func (t *testCommonPermanent) TestLoad() {
 		ops[i] = valuehash.RandomSHA256()
 	}
 
-	proof := NewDummySuffrageProof()
+	proof := NewDummySuffrageProof(sufst)
 
 	wst := t.NewMemLeveldbBlockWriteDatabase(height)
 	t.NoError(wst.SetMap(mp))
@@ -371,7 +404,14 @@ func (t *testCommonPermanent) TestLoad() {
 		nproof, found, err := newperm.LastSuffrageProof()
 		t.NoError(err)
 		t.True(found)
-		t.Equal(proof, nproof)
+		IsEqualDummySuffrageProof(t.Assert(), proof, nproof)
+	})
+
+	t.Run("check SuffrageProof by block height in new perm", func() {
+		nproof, found, err := newperm.SuffrageProofByBlockHeight(height)
+		t.NoError(err)
+		t.True(found)
+		IsEqualDummySuffrageProof(t.Assert(), proof, nproof)
 	})
 }
 
@@ -392,7 +432,7 @@ func (t *testCommonPermanent) TestMergeTempDatabase() {
 		ops[i] = valuehash.RandomSHA256()
 	}
 
-	proof := NewDummySuffrageProof()
+	proof := NewDummySuffrageProof(sufst)
 
 	wst := t.NewMemLeveldbBlockWriteDatabase(height)
 	t.NoError(wst.SetMap(mp))
@@ -525,7 +565,18 @@ func (t *testCommonPermanent) TestMergeTempDatabase() {
 		nproof, found, err := perm.LastSuffrageProof()
 		t.NoError(err)
 		t.True(found)
-		t.Equal(proof, nproof)
+		IsEqualDummySuffrageProof(t.Assert(), proof, nproof)
+	})
+
+	t.Run("check SuffrageProof by block height", func() {
+		perm := t.newDB()
+
+		t.NoError(perm.MergeTempDatabase(context.TODO(), temp))
+
+		nproof, found, err := perm.SuffrageProofByBlockHeight(height)
+		t.NoError(err)
+		t.True(found)
+		IsEqualDummySuffrageProof(t.Assert(), proof, nproof)
 	})
 }
 

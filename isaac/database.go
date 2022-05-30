@@ -20,6 +20,7 @@ type Database interface {
 	LastSuffrage() (base.State, bool, error)
 	LastSuffrageProof() (base.SuffrageProof, bool, error)
 	SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof, bool, error)
+	SuffrageProofByBlockHeight(blockheight base.Height) (base.SuffrageProof, bool, error)
 	LastNetworkPolicy() base.NetworkPolicy
 	State(key string) (base.State, bool, error)
 	// ExistsInStateOperation has only operation facts, which is in state
@@ -76,6 +77,7 @@ type PermanentDatabase interface {
 	Suffrage(blockheight base.Height) (base.State, bool, error)
 	SuffrageByHeight(suffrageHeight base.Height) (base.State, bool, error)
 	SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof, bool, error)
+	SuffrageProofByBlockHeight(blockheight base.Height) (base.SuffrageProof, bool, error)
 	Map(base.Height) (base.BlockMap, bool, error)
 	LastNetworkPolicy() base.NetworkPolicy
 	MergeTempDatabase(context.Context, TempDatabase) error

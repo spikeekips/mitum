@@ -25,11 +25,12 @@ var (
 	leveldbKeyPrefixProposalByPoint         = []byte{0x00, 0x07}
 	leveldbKeyPrefixBlockMap                = []byte{0x00, 0x08}
 	leveldbKeyPrefixNewOperation            = []byte{0x00, 0x09}
-	leveldbKeyPrefixNewOperationOrdered     = []byte{0x00, 0x10}
-	leveldbKeyPrefixNewOperationOrderedKeys = []byte{0x00, 0x11}
-	leveldbKeyLastVoteproofs                = []byte{0x00, 0x12}
-	leveldbKeyTempSyncMap                   = []byte{0x00, 0x13}
-	leveldbKeySuffrageProof                 = []byte{0x00, 0x14}
+	leveldbKeyPrefixNewOperationOrdered     = []byte{0x00, 0x0a}
+	leveldbKeyPrefixNewOperationOrderedKeys = []byte{0x00, 0x0b}
+	leveldbKeyLastVoteproofs                = []byte{0x00, 0x0c}
+	leveldbKeyTempSyncMap                   = []byte{0x00, 0x0d}
+	leveldbKeySuffrageProof                 = []byte{0x00, 0x0e}
+	leveldbKeySuffrageProofByBlockHeight    = []byte{0x00, 0x0f}
 
 	leveldbNewOperationOrderedKeysJoinSep   = bytes.Repeat([]byte{0xff}, 10) //nolint:gomnd //...
 	leveldbNewOperationOrderedKeysJoinedSep = util.ConcatBytesSlice(
@@ -232,9 +233,16 @@ func leveldbTempSyncMapKey(height base.Height) []byte {
 	)
 }
 
-func leveldbSuffrageProofKey(height base.Height) []byte {
+func leveldbSuffrageProofKey(suffrageheight base.Height) []byte {
 	return util.ConcatBytesSlice(
 		leveldbKeySuffrageProof,
+		[]byte(fmt.Sprintf("%021d", suffrageheight)),
+	)
+}
+
+func leveldbSuffrageProofByBlockHeightKey(height base.Height) []byte {
+	return util.ConcatBytesSlice(
+		leveldbKeySuffrageProofByBlockHeight,
 		[]byte(fmt.Sprintf("%021d", height)),
 	)
 }

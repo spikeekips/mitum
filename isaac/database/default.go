@@ -254,6 +254,52 @@ end:
 	return proof, found, nil
 }
 
+func (db *Default) SuffrageProofByBlockHeight(height base.Height) (base.SuffrageProof, bool, error) {
+	e := util.StringErrorFunc("failed to find suffrage by SuffrageProof by block height")
+
+	temps := db.activeTemps()
+	if len(temps) > 0 && height > temps[0].Height() {
+		return nil, false, nil
+	}
+
+	temph := db.findTemp(height)
+	if temph != nil {
+		switch i, found, err := temph.SuffrageProof(); {
+		case err != nil:
+			return nil, false, e(err, "")
+		case found:
+			return i, true, nil
+		}
+	}
+
+	lastheight := height
+
+	if temph != nil {
+		for i := range temps {
+			temp := temps[i]
+			if temp.Height() > lastheight {
+				continue
+			}
+
+			switch j, found, err := temp.SuffrageProof(); {
+			case err != nil:
+				return nil, false, e(err, "")
+			case found:
+				return j, true, nil
+			}
+		}
+
+		lastheight = temps[len(temps)-1].Height() - 1
+	}
+
+	proof, found, err := db.perm.SuffrageProofByBlockHeight(lastheight)
+	if err != nil {
+		return nil, false, e(err, "")
+	}
+
+	return proof, found, nil
+}
+
 func (db *Default) LastNetworkPolicy() base.NetworkPolicy {
 	temps := db.activeTemps()
 
