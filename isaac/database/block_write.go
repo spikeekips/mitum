@@ -17,7 +17,7 @@ type LeveldbBlockWrite struct {
 	*baseLeveldb
 	st     *leveldbstorage.WriteStorage
 	mp     *util.Locked
-	sufst  *util.Locked // BLOCK rename to sufst
+	sufst  *util.Locked
 	policy *util.Locked
 	proof  *util.Locked
 	height base.Height

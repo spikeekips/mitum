@@ -498,7 +498,6 @@ func BatchWork(
 }
 
 func RunErrgroupWorker(ctx context.Context, size uint64, f func(ctx context.Context, i, jobid uint64) error) error {
-	// BLOCK replace NewErrgroupWorker
 	worker := NewErrgroupWorker(ctx, int64(size))
 	defer worker.Close()
 

@@ -26,7 +26,7 @@ type NodeInfo interface {
 	CreatedAt() time.Time
 	LastStartedAt() time.Time
 	UpdateLastStartedAt() NodeInfo
-	// BLOCK mitum version
+	// FIXME mitum version
 }
 
 type DefaultNodeInfo struct {

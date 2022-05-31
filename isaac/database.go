@@ -76,7 +76,7 @@ type PermanentDatabase interface {
 	MergeTempDatabase(context.Context, TempDatabase) error
 }
 
-type TempPoolDatabase interface {
+type ProposalPool interface {
 	Proposal(util.Hash) (base.ProposalSignedFact, bool, error)
 	ProposalByPoint(base.Point, base.Address) (base.ProposalSignedFact, bool, error)
 	SetProposal(pr base.ProposalSignedFact) (bool, error)

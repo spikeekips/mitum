@@ -22,8 +22,6 @@ type TempPool struct {
 	lastvoteproofs *util.Locked
 }
 
-// BLOCK clean old proposals
-
 func NewTempPool(f string, encs *encoder.Encoders, enc encoder.Encoder) (*TempPool, error) {
 	st, err := leveldbstorage.NewRWStorage(f)
 	if err != nil {

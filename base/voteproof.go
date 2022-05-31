@@ -14,7 +14,7 @@ type Voteproof interface {
 	Result() VoteResult
 	Threshold() Threshold
 	Majority() BallotFact
-	SignedFacts() []BallotSignedFact // BLOCK Fact of BallotSignedFact can be duplicated within SignedFacts
+	SignedFacts() []BallotSignedFact // FIXME Fact of BallotSignedFact can be duplicated within SignedFacts
 	ID() string                      // NOTE ID is only unique in local machine
 }
 

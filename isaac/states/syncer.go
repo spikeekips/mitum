@@ -19,8 +19,7 @@ import (
 type (
 	SyncerBlockMapFunc     func(context.Context, base.Height) (base.BlockMap, bool, error)
 	SyncerBlockMapItemFunc func(context.Context, base.Height, base.BlockMapItemType) (io.ReadCloser, bool, error)
-	// BLOCK use ReadCloser?
-	NewBlockImporterFunc func(root string, blockmap base.BlockMap) (isaac.BlockImporter, error)
+	NewBlockImporterFunc   func(root string, blockmap base.BlockMap) (isaac.BlockImporter, error)
 )
 
 type Syncer struct {
@@ -302,7 +301,7 @@ func (s *Syncer) fetchMap(ctx context.Context, height base.Height) (base.BlockMa
 	case !found:
 		return nil, e(nil, "not found")
 	default:
-		// BLOCK blockMap should be passed IsValid() in s.blockMap.
+		// FIXME blockMap should be passed IsValid() in s.blockMap.
 		return m, nil
 	}
 }

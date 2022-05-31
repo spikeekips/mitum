@@ -404,7 +404,7 @@ func (st *States) stateSwitchContextLog(sctx switchContext, current handler) zer
 }
 
 func (*States) broadcastBallot(base.Ballot) error {
-	// BLOCK broadcast thru memberlist
+	// FIXME broadcast thru memberlist
 
 	return nil
 }

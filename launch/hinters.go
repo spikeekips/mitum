@@ -53,7 +53,7 @@ var Hinters = []encoder.DecodeDetail{
 	{Hint: DefaultNodeInfoHint, Instance: DefaultNodeInfo{}},
 }
 
-var LoadOperationHinters = []encoder.DecodeDetail{} // BLOCK apply to getOperation in ProposalProcessor
+var LoadOperationHinters = []encoder.DecodeDetail{} // FIXME apply to getOperation in ProposalProcessor
 
 func LoadHinters(enc encoder.Encoder) error {
 	for i := range Hinters {

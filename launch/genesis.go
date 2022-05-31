@@ -29,7 +29,7 @@ type GenesisBlockGenerator struct {
 	ops       []base.Operation
 }
 
-// BLOCK set genesis design
+// FIXME set genesis design
 
 func NewGenesisBlockGenerator(
 	local base.LocalNode,

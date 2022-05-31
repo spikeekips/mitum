@@ -27,7 +27,7 @@ func (t *testPool) TestNew() {
 	pst := t.NewPool()
 	defer pst.Close()
 
-	_ = (interface{})(pst).(isaac.TempPoolDatabase)
+	_ = (interface{})(pst).(isaac.ProposalPool)
 	_ = (interface{})(pst).(isaac.NewOperationPool)
 	_ = (interface{})(pst).(isaac.VoteproofsPool)
 }

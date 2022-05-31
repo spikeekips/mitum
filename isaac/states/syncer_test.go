@@ -429,8 +429,6 @@ func (t *testSyncer) TestFetchMaps() {
 	})
 }
 
-// BLOCK test LeveldbTempSyncPool
-
 func (t *testSyncer) TestFetchBlockItem() {
 	lastheight := base.Height(3)
 	to := lastheight + 10

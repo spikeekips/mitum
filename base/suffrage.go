@@ -20,7 +20,7 @@ type SuffrageStateValue interface {
 	Suffrage() (Suffrage, error)
 }
 
-// BLOCK if new suffrage node from candidate, update SuffrageCandidateStateValue
+// FIXME if new suffrage node from candidate, update SuffrageCandidateStateValue
 
 type SuffrageCandidate interface {
 	util.IsValider

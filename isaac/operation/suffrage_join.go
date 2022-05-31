@@ -67,7 +67,7 @@ func (fact SuffrageJoinPermissionFact) Candidate() base.Address {
 }
 
 func (fact SuffrageJoinPermissionFact) State() util.Hash {
-	// BLOCK check state; it indicates that the candidate registered.
+	// FIXME check state; it indicates that the candidate registered.
 	return fact.state
 }
 
@@ -160,7 +160,7 @@ func (op SuffrageGenesisJoin) IsValid(networkID []byte) error {
 		return e(util.ErrInvalid.Errorf("multiple signed found"), "")
 	}
 
-	// BLOCK check signer should be genesis block creator
+	// FIXME check signer should be genesis block creator
 
 	fact := op.Fact().(SuffrageGenesisJoinPermissionFact) //nolint:forcetypeassert //...
 	if !fact.Publickey().Equal(op.Signed()[0].Signer()) {

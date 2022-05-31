@@ -573,4 +573,4 @@ func (cmd *importCommand) validateStates(ststree fixedtree.Tree, sts []base.Stat
 	return nil
 }
 
-// BLOCK check SuffrageProof
+// FIXME check SuffrageProof

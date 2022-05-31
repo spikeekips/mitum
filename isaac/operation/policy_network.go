@@ -78,7 +78,7 @@ func (op GenesisNetworkPolicy) IsValid(networkID []byte) error {
 		return e(util.ErrInvalid.Errorf("multiple signed found"), "")
 	}
 
-	// BLOCK check signer should be genesis block creator
+	// FIXME check signer should be genesis block creator
 
 	return nil
 }

@@ -54,10 +54,10 @@ func (cmd *runCommand) Run() error {
 		Interface("node_policy", cmd.nodePolicy).
 		Msg("node policy loaded")
 
-	// BLOCK implement isaacstates.NewSuffrageStateBuilder(cmd.nodePolicy.NetworkID(), )
+	// FIXME implement isaacstates.NewSuffrageStateBuilder(cmd.nodePolicy.NetworkID(), )
 
 	cmd.getSuffrage = cmd.getSuffrageFunc()
-	//BLOCK implement cmd.getSuffrageBooting   func(blockheight base.Height) (base.Suffrage, bool, error) {
+	// FIXME cmd.getSuffrageBooting   func(blockheight base.Height) (base.Suffrage, bool, error) {
 	//}
 	cmd.getManifest = cmd.getManifestFunc()
 	cmd.proposalSelector = cmd.proposalSelectorFunc()
@@ -157,10 +157,10 @@ func (cmd *runCommand) proposalMaker() *isaac.ProposalMaker {
 				ctx,
 				n,
 				func(facthash util.Hash) (bool, error) {
-					// BLOCK if bad operation and it is failed to be processed;
+					// FIXME if bad operation and it is failed to be processed;
 					// it can be included in next proposal; it should be
 					// excluded.
-					// BLOCK if operation has not enough fact signs, it will
+					// FIXME if operation has not enough fact signs, it will
 					// ignored. It must be filtered for not this kind of
 					// operations.
 					switch found, err := cmd.db.ExistsInStateOperation(facthash); {
@@ -205,7 +205,7 @@ func (cmd *runCommand) proposalSelectorFunc() *isaac.BaseProposalSelector {
 		func(context.Context, base.Point, base.Address) (
 			base.ProposalSignedFact, error,
 		) {
-			// BLOCK set request
+			// FIXME set request
 			return nil, nil
 		},
 		cmd.pool,
@@ -296,7 +296,7 @@ func (cmd *runCommand) getProposalFunc() func(_ context.Context, facthash util.H
 		case err != nil:
 			return nil, errors.Wrap(err, "")
 		case !found:
-			// BLOCK if not found, request to remote node
+			// FIXME if not found, request to remote node
 			return nil, nil
 		default:
 			return pr, nil

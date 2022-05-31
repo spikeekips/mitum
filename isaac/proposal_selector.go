@@ -22,12 +22,6 @@ type ProposalSelector interface {
 	Select(context.Context, base.Point) (base.ProposalSignedFact, error)
 }
 
-type ProposalPool interface {
-	Proposal(facthash util.Hash) (base.ProposalSignedFact, bool, error)
-	ProposalByPoint(point base.Point, proposer base.Address) (base.ProposalSignedFact, bool, error)
-	SetProposal(pr base.ProposalSignedFact) (bool, error)
-}
-
 type BaseProposalSelector struct {
 	local            base.LocalNode
 	pool             ProposalPool

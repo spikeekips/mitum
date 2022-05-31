@@ -13,7 +13,7 @@ import (
 )
 
 type QuicstreamHandlers struct {
-	pool isaac.TempPoolDatabase
+	pool isaac.ProposalPool
 	*baseNetwork
 	proposalMaker *isaac.ProposalMaker
 	suffrageProof func(util.Hash) (base.SuffrageProof, bool, error)
@@ -27,7 +27,7 @@ func NewQuicstreamHandlers(
 	local isaac.LocalNode,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
-	pool isaac.TempPoolDatabase,
+	pool isaac.ProposalPool,
 	proposalMaker *isaac.ProposalMaker,
 	suffrageProof func(util.Hash) (base.SuffrageProof, bool, error),
 	lastBlockMap func(util.Hash) (base.BlockMap, bool, error),
@@ -71,7 +71,7 @@ func (c *QuicstreamHandlers) RequestProposal(_ net.Addr, r io.Reader, w io.Write
 		return e(err, "")
 	}
 
-	// BLOCK if point is too old, returns error
+	// FIXME if point is too old, returns error
 
 	pr, err := c.getOrCreateProposal(body.point, body.proposer)
 
