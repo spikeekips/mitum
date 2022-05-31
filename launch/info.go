@@ -26,7 +26,7 @@ type NodeInfo interface {
 	CreatedAt() time.Time
 	LastStartedAt() time.Time
 	UpdateLastStartedAt() NodeInfo
-	// FIXME mitum version
+	Version() util.Version // NOTE mitum build version
 }
 
 type DefaultNodeInfo struct {
@@ -34,10 +34,11 @@ type DefaultNodeInfo struct {
 	lastStartedAt time.Time
 	id            string
 	networkID     base.NetworkID
+	version       util.Version
 	hint.BaseHinter
 }
 
-func NewDefaultNodeInfo(id string, networkID base.NetworkID) DefaultNodeInfo {
+func NewDefaultNodeInfo(id string, networkID base.NetworkID, version util.Version) DefaultNodeInfo {
 	now := localtime.UTCNow()
 
 	return DefaultNodeInfo{
@@ -46,11 +47,12 @@ func NewDefaultNodeInfo(id string, networkID base.NetworkID) DefaultNodeInfo {
 		networkID:     networkID,
 		createdAt:     now,
 		lastStartedAt: now,
+		version:       version,
 	}
 }
 
-func CreateDefaultNodeInfo(networkID base.NetworkID) DefaultNodeInfo {
-	return NewDefaultNodeInfo(ulid.New().String(), networkID)
+func CreateDefaultNodeInfo(networkID base.NetworkID, version util.Version) DefaultNodeInfo {
+	return NewDefaultNodeInfo(ulid.New().String(), networkID, version)
 }
 
 func (info DefaultNodeInfo) ID() string {
@@ -69,6 +71,10 @@ func (info DefaultNodeInfo) LastStartedAt() time.Time {
 	return info.lastStartedAt
 }
 
+func (info DefaultNodeInfo) Version() util.Version {
+	return info.version
+}
+
 func (info DefaultNodeInfo) UpdateLastStartedAt() NodeInfo {
 	return DefaultNodeInfo{
 		BaseHinter:    info.BaseHinter,
@@ -76,6 +82,7 @@ func (info DefaultNodeInfo) UpdateLastStartedAt() NodeInfo {
 		networkID:     info.networkID,
 		createdAt:     info.createdAt,
 		lastStartedAt: localtime.UTCNow(),
+		version:       info.version,
 	}
 }
 
@@ -86,7 +93,7 @@ func (info DefaultNodeInfo) IsValid([]byte) error {
 		return e(err, "")
 	}
 
-	if err := info.networkID.IsValid(nil); err != nil {
+	if err := util.CheckIsValid(nil, false, info.networkID, info.version); err != nil {
 		return e(err, "")
 	}
 
@@ -110,6 +117,7 @@ type defaultNodeInfoJSONMarshaler struct {
 	CreatedAt     localtime.Time `json:"created_at"`
 	NetworkID     base.NetworkID `json:"network_id"`
 	LastStartedAt localtime.Time `json:"last_started_at"`
+	Version       util.Version   `json:"version"`
 	hint.BaseHinter
 }
 
@@ -120,6 +128,7 @@ func (info DefaultNodeInfo) MarshalJSON() ([]byte, error) {
 		NetworkID:     info.networkID,
 		CreatedAt:     localtime.New(info.createdAt),
 		LastStartedAt: localtime.New(info.lastStartedAt),
+		Version:       info.version,
 	})
 }
 
@@ -128,6 +137,7 @@ type defaultNodeInfoJSONUnmarshaler struct {
 	LastStartedAt localtime.Time `json:"last_started_at"`
 	ID            string         `json:"id"`
 	NetworkID     base.NetworkID `json:"network_id"`
+	Version       util.Version   `json:"version"`
 }
 
 func (info *DefaultNodeInfo) UnmarshalJSON(b []byte) error {
@@ -142,6 +152,7 @@ func (info *DefaultNodeInfo) UnmarshalJSON(b []byte) error {
 	info.networkID = u.NetworkID
 	info.createdAt = u.CreatedAt.Time
 	info.lastStartedAt = u.LastStartedAt.Time
+	info.version = u.Version
 
 	return nil
 }

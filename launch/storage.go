@@ -57,7 +57,7 @@ func CleanStorage(permuri, root string, encs *encoder.Encoders, enc encoder.Enco
 	return nil
 }
 
-func CreateLocalFS(networkID base.NetworkID, root string, enc encoder.Encoder) (NodeInfo, error) {
+func CreateLocalFS(newinfo NodeInfo, root string, enc encoder.Encoder) (NodeInfo, error) {
 	e := util.StringErrorFunc("failed to initialize localfs")
 
 	switch fi, err := os.Stat(root); {
@@ -100,8 +100,8 @@ func CreateLocalFS(networkID base.NetworkID, root string, enc encoder.Encoder) (
 	case err != nil:
 		return nil, e(err, "")
 	case !found: // NOTE if not found, create new one
-		nodeinfo = CreateDefaultNodeInfo(networkID)
-	case !i.NetworkID().Equal(networkID):
+		nodeinfo = newinfo
+	case !i.NetworkID().Equal(newinfo.NetworkID()):
 		return nil, e(nil, "network id does not match")
 	default:
 		nodeinfo = i
