@@ -137,9 +137,7 @@ func (db *RedisPermanent) SuffrageProofByBlockHeight(height base.Height) (base.S
 		return nil, false, e(err, "")
 	case !found:
 		return nil, false, nil
-	case height > proof.State().Height():
-		return nil, false, nil
-	case height == proof.State().Height():
+	case height >= proof.State().Height():
 		return proof, true, nil
 	}
 
