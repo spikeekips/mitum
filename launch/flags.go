@@ -2,6 +2,7 @@ package launch
 
 import (
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -28,4 +29,25 @@ func (f *AddressFlag) UnmarshalText(b []byte) error {
 
 func (f AddressFlag) Address() base.Address {
 	return f.address
+}
+
+type ConnInfoFlag struct {
+	ci network.ConnInfo
+}
+
+func (f *ConnInfoFlag) UnmarshalText(b []byte) error {
+	e := util.StringErrorFunc("failed to parse ConnInfo flag")
+
+	ci, err := network.ParseConnInfo(string(b))
+	if err != nil {
+		return e(err, "")
+	}
+
+	f.ci = ci
+
+	return nil
+}
+
+func (f *ConnInfoFlag) ConnInfo() network.ConnInfo {
+	return f.ci
 }

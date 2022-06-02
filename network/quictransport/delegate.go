@@ -203,9 +203,9 @@ func isEqualAddress(a, b interface{}) bool {
 func convertNetAddr(a interface{}) (net.Addr, error) {
 	switch t := a.(type) {
 	case Node:
-		return t.Address(), nil
+		return t.UDPAddr(), nil
 	case ConnInfo:
-		return t.Address(), nil
+		return t.UDPAddr(), nil
 	case *memberlist.Node:
 		return &net.UDPAddr{IP: t.Addr, Port: int(t.Port)}, nil
 	case *net.TCPAddr:

@@ -33,7 +33,7 @@ func NewQuicstreamClient(
 		ci quictransport.ConnInfo,
 		writef quicstream.ClientWriteFunc,
 	) (io.ReadCloser, error) {
-		return c.client.Write(ctx, ci.Address(), writef, c.newClient(ci))
+		return c.client.Write(ctx, ci.UDPAddr(), writef, c.newClient(ci))
 	}
 
 	return c
@@ -42,7 +42,7 @@ func NewQuicstreamClient(
 func (c *QuicstreamClient) newClient(ci quictransport.ConnInfo) func(*net.UDPAddr) *quicstream.Client {
 	return func(*net.UDPAddr) *quicstream.Client {
 		return quicstream.NewClient(
-			ci.Address(),
+			ci.UDPAddr(),
 			&tls.Config{
 				InsecureSkipVerify: ci.Insecure(), //nolint:gosec //...
 				NextProtos:         []string{c.proto},

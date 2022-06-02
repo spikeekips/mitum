@@ -49,7 +49,7 @@ func (t *testMemberlist) TestNew() {
 
 	config.Delegate = NewDelegate(local, nil)
 	config.Transport = &Transport{}
-	config.Alive = NewAliveDelegate(t.enc, local.Address(), nil)
+	config.Alive = NewAliveDelegate(t.enc, local.UDPAddr(), nil)
 
 	srv, err := NewMemberlist(local, t.enc, config, 3)
 	t.NoError(err)
@@ -67,7 +67,7 @@ func (t *testMemberlist) newServersForJoining(
 	tlsconfig := t.NewTLSConfig(t.Proto)
 	poolclient := quicstream.NewPoolClient()
 
-	laddr := ci.Address()
+	laddr := ci.UDPAddr()
 	transport := NewTransportWithQuicstream(
 		laddr,
 		"",
@@ -75,7 +75,7 @@ func (t *testMemberlist) newServersForJoining(
 		func(ci ConnInfo) func(*net.UDPAddr) *quicstream.Client {
 			return func(*net.UDPAddr) *quicstream.Client {
 				return quicstream.NewClient(
-					ci.Address(),
+					ci.UDPAddr(),
 					&tls.Config{
 						InsecureSkipVerify: ci.Insecure(),
 						NextProtos:         []string{t.Proto},
@@ -163,7 +163,7 @@ func (t *testMemberlist) TestLocalJoinToRemote() {
 	rci := t.newConnInfo()
 	rnode := base.RandomAddress("")
 
-	addrs := []*net.UDPAddr{lci.Address(), rci.Address()}
+	addrs := []*net.UDPAddr{lci.UDPAddr(), rci.UDPAddr()}
 	sort.Slice(addrs, func(i, j int) bool {
 		return strings.Compare(addrs[i].String(), addrs[j].String()) < 0
 	})
@@ -226,7 +226,7 @@ func (t *testMemberlist) TestLocalJoinToRemote() {
 		t.Equal(2, len(joined))
 
 		sort.Slice(joined, func(i, j int) bool {
-			return strings.Compare(joined[i].Address().String(), joined[j].Address().String()) < 0
+			return strings.Compare(joined[i].UDPAddr().String(), joined[j].UDPAddr().String()) < 0
 		})
 		t.True(isEqualAddress(addrs[0], joined[0]))
 		t.True(isEqualAddress(addrs[1], joined[1]))
@@ -249,7 +249,7 @@ func (t *testMemberlist) TestLocalJoinToRemote() {
 		t.Equal(2, len(joined))
 
 		sort.Slice(joined, func(i, j int) bool {
-			return strings.Compare(joined[i].Address().String(), joined[j].Address().String()) < 0
+			return strings.Compare(joined[i].UDPAddr().String(), joined[j].UDPAddr().String()) < 0
 		})
 		t.True(isEqualAddress(addrs[0], joined[0]))
 		t.True(isEqualAddress(addrs[1], joined[1]))
@@ -272,7 +272,7 @@ func (t *testMemberlist) TestLocalJoinToRemoteButNotAllowed() {
 
 	lsrv.mconfig.Alive = NewAliveDelegate(
 		t.enc,
-		lci.Address(),
+		lci.UDPAddr(),
 		func(node Node) error {
 			if isEqualAddress(node, rci) {
 				return errors.Errorf("remote disallowed")
@@ -656,7 +656,7 @@ func (t *testMemberlist) TestLocalOverMemberLimit() {
 
 	t.Equal(2, lsrv.MembersLen())
 	t.Equal(1, len(joinedremotes))
-	t.True(isEqualAddress(rci0, joinedremotes[0].Address()))
+	t.True(isEqualAddress(rci0, joinedremotes[0].UDPAddr()))
 }
 
 func TestMemberlist(t *testing.T) {

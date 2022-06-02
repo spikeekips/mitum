@@ -75,7 +75,7 @@ func (srv *Memberlist) Join(cis []ConnInfo) error {
 	e := util.StringErrorFunc("failed to join")
 
 	if _, found := util.CheckSliceDuplicated(cis, func(i interface{}) string {
-		return i.(ConnInfo).Address().String() //nolint:forcetypeassert // ...
+		return i.(ConnInfo).UDPAddr().String() //nolint:forcetypeassert // ...
 	}); found {
 		return e(nil, "duplicated join url found")
 	}
@@ -85,8 +85,8 @@ func (srv *Memberlist) Join(cis []ConnInfo) error {
 	for i := range cis {
 		ci := cis[i]
 
-		stringurls[i] = ci.Address().String()
-		srv.cicache.Set(ci.Address().String(), ci)
+		stringurls[i] = ci.UDPAddr().String()
+		srv.cicache.Set(ci.UDPAddr().String(), ci)
 	}
 
 	l := srv.Log().With().Strs("urls", stringurls).Logger()
@@ -188,7 +188,7 @@ func (srv *Memberlist) patchMemberlistConfig(config *memberlist.Config) error { 
 
 	if i, ok := config.Alive.(*AliveDelegate); ok {
 		i.storeconninfof = func(ci ConnInfo) {
-			srv.cicache.Set(ci.Address().String(), ci)
+			srv.cicache.Set(ci.UDPAddr().String(), ci)
 		}
 
 		origallowf := i.allowf
@@ -244,7 +244,7 @@ func (srv *Memberlist) whenLeft(node Node) {
 	srv.joinedLock.Lock()
 	defer srv.joinedLock.Unlock()
 
-	_ = srv.members.Remove(node.Address())
+	_ = srv.members.Remove(node.UDPAddr())
 
 	srv.Log().Debug().Interface("node", node).Msg("node left")
 }
@@ -345,7 +345,7 @@ func (m *membersPool) NodesLen(node base.Address) int {
 
 func (m *membersPool) Set(node Node) bool {
 	var found bool
-	_, _ = m.addrs.Set(nodeid(node.Address()), func(i interface{}) (interface{}, error) {
+	_, _ = m.addrs.Set(nodeid(node.UDPAddr()), func(i interface{}) (interface{}, error) {
 		switch {
 		case i == nil:
 		case util.IsNilLockedValue(i):

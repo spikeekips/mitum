@@ -32,11 +32,16 @@ func prepareLocal(address base.Address) (base.LocalNode, error) {
 }
 
 func defaultPermanentDatabaseURI() string {
-	return "redis://"
+	uri, found := os.LookupEnv(envKeyPermanentDatabase)
+	if !found {
+		return "redis://"
+	}
+
+	return uri
 }
 
 func defaultLocalFSRoot(addr base.Address) string {
-	root, found := os.LookupEnv(envKeyFSRootf)
+	root, found := os.LookupEnv(envKeyFSRoot)
 	if !found {
 		root = filepath.Join(os.TempDir(), "mitum-example-"+addr.String())
 	}

@@ -3,13 +3,13 @@ package quictransport
 import (
 	"encoding/json"
 	"net"
-	"strings"
 	"time"
 
 	"github.com/hashicorp/memberlist"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
@@ -23,7 +23,8 @@ var (
 )
 
 type ConnInfo interface {
-	Address() *net.UDPAddr
+	Addr() net.Addr
+	UDPAddr() *net.UDPAddr
 	Insecure() bool
 }
 
@@ -83,7 +84,11 @@ func (n BaseNode) Node() base.Address {
 	return n.meta.Node()
 }
 
-func (n BaseNode) Address() *net.UDPAddr {
+func (n BaseNode) Addr() net.Addr {
+	return n.addr
+}
+
+func (n BaseNode) UDPAddr() *net.UDPAddr {
 	return n.addr
 }
 
@@ -228,19 +233,7 @@ func NewBaseConnInfo(addr *net.UDPAddr, insecure bool) BaseConnInfo {
 }
 
 func NewBaseConnInfoFromString(s string) (BaseConnInfo, error) {
-	var as string
-	var insecure bool
-
-	switch i := strings.Index(s, "#"); {
-	case i < 0:
-		as = s
-	default:
-		as = s[:i]
-
-		if len(s[i:]) > 0 {
-			insecure = strings.ToLower(s[i+1:]) == "insecure"
-		}
-	}
+	as, insecure := network.ParseInsecure(s)
 
 	addr, err := net.ResolveUDPAddr("udp", as)
 	if err != nil {
@@ -250,7 +243,11 @@ func NewBaseConnInfoFromString(s string) (BaseConnInfo, error) {
 	return NewBaseConnInfo(addr, insecure), nil
 }
 
-func (c BaseConnInfo) Address() *net.UDPAddr {
+func (c BaseConnInfo) Addr() net.Addr {
+	return c.addr
+}
+
+func (c BaseConnInfo) UDPAddr() *net.UDPAddr {
 	return c.addr
 }
 
@@ -259,26 +256,39 @@ func (c BaseConnInfo) Insecure() bool {
 }
 
 func (c BaseConnInfo) String() string {
-	insecure := ""
-	if c.insecure {
-		insecure = "#insecure"
-	}
-
-	return c.addr.String() + insecure
+	return network.ConnInfoToString(c)
 }
 
-func (c BaseConnInfo) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(struct {
-		Addr     *net.UDPAddr
-		Insecure bool
-	}{
-		Addr:     c.addr,
-		Insecure: c.insecure,
-	})
+func (c BaseConnInfo) MarshalText() ([]byte, error) {
+	return []byte(c.String()), nil
+}
+
+func (c *BaseConnInfo) UnmarshalText(b []byte) error {
+	ci, err := NewBaseConnInfoFromString(string(b))
+	if err != nil {
+		return errors.Wrap(err, "failed to unmarshal BaseConnInfo")
+	}
+
+	*c = ci
+
+	return nil
 }
 
 func (c BaseConnInfo) MarshalZerologObject(e *zerolog.Event) {
 	e.
 		Stringer("address", c.addr).
 		Bool("insecure", c.insecure)
+}
+
+func ToQuicConnInfo(ci network.ConnInfo) (ConnInfo, error) {
+	if i, ok := ci.(ConnInfo); ok {
+		return i, nil
+	}
+
+	nci, err := NewBaseConnInfoFromString(ci.String())
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to convert to quic ConnInfo")
+	}
+
+	return nci, nil
 }

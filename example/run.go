@@ -15,7 +15,9 @@ import (
 )
 
 type runCommand struct {
-	Address              launch.AddressFlag `arg:"" name:"local address" help:"node address"`
+	Address              launch.AddressFlag    `arg:"" name:"local address" help:"node address"`
+	Hold                 bool                  `help:"hold consensus states"`
+	Discovery            []launch.ConnInfoFlag `help:"discoveries" placeholder:"ConnInfo"`
 	local                base.LocalNode
 	db                   isaac.Database
 	perm                 isaac.PermanentDatabase
@@ -31,6 +33,12 @@ type runCommand struct {
 }
 
 func (cmd *runCommand) Run() error {
+	log.Debug().
+		Interface("address", cmd.Address).
+		Interface("hold", cmd.Hold).
+		Interface("discovery", cmd.Discovery).
+		Msg("flags")
+
 	encs, enc, err := launch.PrepareEncoders()
 	if err != nil {
 		return errors.Wrap(err, "")
@@ -38,12 +46,13 @@ func (cmd *runCommand) Run() error {
 
 	local, err := prepareLocal(cmd.Address.Address())
 	if err != nil {
-		return errors.Wrap(err, "failed to prepare cmd.local")
+		return errors.Wrap(err, "failed to prepare local node")
 	}
 
 	cmd.local = local
 
 	localfsroot := defaultLocalFSRoot(cmd.local.Address())
+	log.Debug().Str("localfs_root", localfsroot).Msg("localfs root")
 
 	if err = cmd.prepareDatabase(localfsroot, encs, enc); err != nil {
 		return errors.Wrap(err, "")
@@ -65,12 +74,28 @@ func (cmd *runCommand) Run() error {
 	cmd.newProposalProcessor = cmd.newProposalProcessorFunc(localfsroot, enc)
 	cmd.getProposal = cmd.getProposalFunc()
 
+	if err := cmd.run(); err != nil {
+		return errors.Wrap(err, "")
+	}
+
+	return nil
+}
+
+func (cmd *runCommand) run() error {
+	log.Debug().Msg("node started")
+
+	if cmd.Hold {
+		select {}
+
+		return nil
+	}
+
 	states, err := cmd.states()
 	if err != nil {
 		return errors.Wrap(err, "")
 	}
 
-	log.Debug().Msg("states loaded")
+	log.Debug().Msg("states started")
 
 	if err := <-states.Wait(context.Background()); err != nil {
 		return errors.Wrap(err, "")

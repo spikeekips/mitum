@@ -75,14 +75,14 @@ func NewTransportWithQuicstream(
 		func(ctx context.Context, ci ConnInfo) (quic.EarlyConnection, error) {
 			return poolclient.Dial(
 				ctx,
-				ci.Address(),
+				ci.UDPAddr(),
 				newClient(ci),
 			)
 		},
 		func(ctx context.Context, ci ConnInfo, b []byte) error {
 			_, err := poolclient.Write(
 				ctx,
-				ci.Address(),
+				ci.UDPAddr(),
 				func(w io.Writer) error {
 					_, err := w.Write(makebody(b))
 
