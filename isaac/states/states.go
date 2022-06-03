@@ -188,9 +188,8 @@ func (st *States) ensureSwitchState(sctx switchContext) error {
 
 	current := st.cs
 
-	movetobroken := func(nsctx switchContext) switchContext {
-		l := st.stateSwitchContextLog(nsctx, current)
-		l.Error().Msg("failed to switch state; wil move to broken")
+	movetobroken := func(err error) switchContext {
+		st.Log().Error().Err(err).Msg("failed to switch state; wil move to broken")
 
 		n = 0
 
@@ -199,7 +198,7 @@ func (st *States) ensureSwitchState(sctx switchContext) error {
 			from = current.state()
 		}
 
-		return newBrokenSwitchContext(from, nsctx)
+		return newBrokenSwitchContext(from, err)
 	}
 
 	nsctx := sctx
@@ -237,7 +236,7 @@ end:
 				<-time.After(time.Second) // NOTE prevents too fast switching
 			}
 
-			nsctx = movetobroken(nsctx)
+			nsctx = movetobroken(err)
 
 			continue end
 		default:
