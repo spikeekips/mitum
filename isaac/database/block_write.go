@@ -140,7 +140,7 @@ func (db *LeveldbBlockWrite) SetOperations(ops []util.Hash) error {
 	return nil
 }
 
-func (db *LeveldbBlockWrite) Map() (base.BlockMap, error) {
+func (db *LeveldbBlockWrite) BlockMap() (base.BlockMap, error) {
 	switch i, _ := db.mp.Value(); {
 	case i == nil:
 		return nil, storage.NotFoundError.Errorf("empty blockmap")
@@ -149,7 +149,7 @@ func (db *LeveldbBlockWrite) Map() (base.BlockMap, error) {
 	}
 }
 
-func (db *LeveldbBlockWrite) SetMap(m base.BlockMap) error {
+func (db *LeveldbBlockWrite) SetBlockMap(m base.BlockMap) error {
 	if _, err := db.mp.Set(func(i interface{}) (interface{}, error) {
 		if i != nil {
 			return i, nil
@@ -222,7 +222,7 @@ func (db *LeveldbBlockWrite) TempDatabase() (isaac.TempDatabase, error) {
 
 	e := util.StringErrorFunc("failed to make TempDatabase from BlockWriteDatabase")
 
-	switch m, err := db.Map(); {
+	switch m, err := db.BlockMap(); {
 	case err != nil:
 		return nil, e(err, "")
 	case m.Manifest().Height() != db.height:

@@ -20,7 +20,7 @@ func newBasePermanent() *basePermanent {
 	}
 }
 
-func (db *basePermanent) LastMap() (base.BlockMap, bool, error) {
+func (db *basePermanent) LastBlockMap() (base.BlockMap, bool, error) {
 	switch i, _ := db.mp.Value(); {
 	case i == nil:
 		return nil, false, nil

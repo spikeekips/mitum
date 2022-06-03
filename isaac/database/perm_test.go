@@ -159,7 +159,7 @@ func (t *testCommonPermanent) TestLastMap() {
 	defer db.Close()
 
 	t.Run("empty blockmap", func() {
-		rm, found, err := db.LastMap()
+		rm, found, err := db.LastBlockMap()
 		t.NoError(err)
 		t.False(found)
 		t.Nil(rm)
@@ -168,7 +168,7 @@ func (t *testCommonPermanent) TestLastMap() {
 	t.setMap(db, mp)
 
 	t.Run("none-empty blockmap", func() {
-		rm, found, err := db.LastMap()
+		rm, found, err := db.LastBlockMap()
 		t.NoError(err)
 		t.True(found)
 
@@ -223,7 +223,7 @@ func (t *testCommonPermanent) TestLoad() {
 	proof := NewDummySuffrageProof(sufst)
 
 	wst := t.NewMemLeveldbBlockWriteDatabase(height)
-	t.NoError(wst.SetMap(mp))
+	t.NoError(wst.SetBlockMap(mp))
 	t.NoError(wst.SetStates(stts))
 	t.NoError(wst.SetOperations(ops))
 	t.NoError(wst.SetSuffrageProof(proof))
@@ -236,7 +236,7 @@ func (t *testCommonPermanent) TestLoad() {
 	t.NoError(perm.MergeTempDatabase(context.TODO(), temp))
 
 	t.Run("check blockmap in perm", func() {
-		nm, found, err := perm.LastMap()
+		nm, found, err := perm.LastBlockMap()
 		t.NoError(err)
 		t.True(found)
 		base.EqualBlockMap(t.Assert(), mp, nm)
@@ -251,7 +251,7 @@ func (t *testCommonPermanent) TestLoad() {
 	t.NoError(err)
 
 	t.Run("check blockmap in new perm", func() {
-		nm, found, err := newperm.LastMap()
+		nm, found, err := newperm.LastBlockMap()
 		t.NoError(err)
 		t.True(found)
 		base.EqualBlockMap(t.Assert(), mp, nm)
@@ -292,7 +292,7 @@ func (t *testCommonPermanent) TestMergeTempDatabase() {
 	proof := NewDummySuffrageProof(sufst)
 
 	wst := t.NewMemLeveldbBlockWriteDatabase(height)
-	t.NoError(wst.SetMap(mp))
+	t.NoError(wst.SetBlockMap(mp))
 	t.NoError(wst.SetStates(stts))
 	t.NoError(wst.SetOperations(ops))
 	t.NoError(wst.SetSuffrageProof(proof))
@@ -381,14 +381,14 @@ func (t *testCommonPermanent) TestMergeTempDatabase() {
 	t.Run("check blockmap", func() {
 		perm := t.newDB()
 
-		rm, found, err := perm.Map(height)
+		rm, found, err := perm.BlockMap(height)
 		t.NoError(err)
 		t.False(found)
 		t.Nil(rm)
 
 		t.NoError(perm.MergeTempDatabase(context.TODO(), temp))
 
-		rm, found, err = perm.Map(height)
+		rm, found, err = perm.BlockMap(height)
 		t.NoError(err)
 		t.True(found)
 		t.NotNil(rm)

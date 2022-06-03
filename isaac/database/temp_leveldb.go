@@ -79,7 +79,7 @@ func newTempLeveldbFromBlockWriteStorage(wst *LeveldbBlockWrite) (*TempLeveldb, 
 
 	var mp base.BlockMap
 
-	switch i, err := wst.Map(); {
+	switch i, err := wst.BlockMap(); {
 	case err != nil:
 		return nil, e(err, "")
 	default:
@@ -127,7 +127,7 @@ func (db *TempLeveldb) SuffrageHeight() base.Height {
 	return db.sufst.Value().(base.SuffrageStateValue).Height() //nolint:forcetypeassert //...
 }
 
-func (db *TempLeveldb) Map() (base.BlockMap, error) {
+func (db *TempLeveldb) BlockMap() (base.BlockMap, error) {
 	if db.mp == nil {
 		return nil, storage.NotFoundError.Errorf("blockmap not found")
 	}
@@ -281,11 +281,11 @@ func sortTempDirectoryNames(matches []string) {
 	})
 }
 
-func NewTempDirectory(root string, height base.Height) (string, error) {
+func NewTempDirectory(temproot string, height base.Height) (string, error) {
 	e := util.StringErrorFunc("failed to get new TempDatabase directory")
 
-	matches, err := loadTempDirectoriesByHeight(root, height)
-	zero := newTempDirectoryName(root, height, 0)
+	matches, err := loadTempDirectoriesByHeight(temproot, height)
+	zero := newTempDirectoryName(temproot, height, 0)
 
 	switch {
 	case err != nil:
@@ -320,7 +320,11 @@ end:
 		return zero, nil
 	}
 
-	return newTempDirectoryName(root, height, suffix+1), nil
+	return newTempDirectoryName(temproot, height, suffix+1), nil
+}
+
+func NewSyncPoolDirectory(temproot string, height base.Height) string {
+	return filepath.Join(filepath.Clean(temproot), "syncpool-"+height.String()+util.ULID().String())
 }
 
 func loadTempDirectoriesByHeight(root string, height base.Height) ([]string, error) {

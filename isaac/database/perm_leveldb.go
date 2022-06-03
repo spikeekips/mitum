@@ -147,10 +147,10 @@ func (db *LeveldbPermanent) ExistsKnownOperation(h util.Hash) (bool, error) {
 	return db.existsKnownOperation(h)
 }
 
-func (db *LeveldbPermanent) Map(height base.Height) (m base.BlockMap, found bool, _ error) {
+func (db *LeveldbPermanent) BlockMap(height base.Height) (m base.BlockMap, found bool, _ error) {
 	e := util.StringErrorFunc("failed to load blockmap")
 
-	switch i, found, err := db.LastMap(); {
+	switch i, found, err := db.LastBlockMap(); {
 	case err != nil:
 		return nil, false, e(err, "")
 	case found:

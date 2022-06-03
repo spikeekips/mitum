@@ -221,10 +221,10 @@ func (db *RedisPermanent) ExistsKnownOperation(h util.Hash) (bool, error) {
 	}
 }
 
-func (db *RedisPermanent) Map(height base.Height) (m base.BlockMap, found bool, _ error) {
+func (db *RedisPermanent) BlockMap(height base.Height) (m base.BlockMap, found bool, _ error) {
 	e := util.StringErrorFunc("failed to load blockmap")
 
-	switch i, found, err := db.LastMap(); {
+	switch i, found, err := db.LastBlockMap(); {
 	case err != nil:
 		return nil, false, e(err, "")
 	case found:

@@ -64,7 +64,7 @@ func (t *testTempLeveldb) TestLoad() {
 	}
 
 	wst := t.NewLeveldbBlockWriteDatabase(height)
-	t.NoError(wst.SetMap(mp))
+	t.NoError(wst.SetBlockMap(mp))
 	t.NoError(wst.SetStates(stts))
 	t.NoError(wst.SetOperations(ops))
 	t.NoError(wst.Write())
@@ -78,7 +78,7 @@ func (t *testTempLeveldb) TestLoad() {
 	_ = (interface{})(rst).(isaac.TempDatabase)
 
 	t.Run("blockmap", func() {
-		rm, err := rst.Map()
+		rm, err := rst.BlockMap()
 		t.NoError(err)
 
 		base.EqualBlockMap(t.Assert(), mp, rm)

@@ -86,7 +86,7 @@ func (db *Default) load(temproot string) error {
 
 	var last base.Height
 
-	switch m, found, err := db.perm.LastMap(); {
+	switch m, found, err := db.perm.LastBlockMap(); {
 	case err != nil:
 		return e(err, "")
 	case found:
@@ -317,14 +317,14 @@ func (db *Default) ExistsKnownOperation(h util.Hash) (bool, error) { //nolint:du
 	return found, nil
 }
 
-func (db *Default) Map(height base.Height) (base.BlockMap, bool, error) {
+func (db *Default) BlockMap(height base.Height) (base.BlockMap, bool, error) {
 	switch temps := db.activeTemps(); {
 	case len(temps) < 1:
 	case temps[0].Height() > height:
 		return nil, false, nil
 	default:
 		if temp := db.findTemp(height); temp != nil {
-			m, err := temp.Map()
+			m, err := temp.BlockMap()
 			if err != nil {
 				return nil, false, errors.Wrap(err, "")
 			}
@@ -333,14 +333,14 @@ func (db *Default) Map(height base.Height) (base.BlockMap, bool, error) {
 		}
 	}
 
-	m, found, err := db.perm.Map(height)
+	m, found, err := db.perm.BlockMap(height)
 
 	return m, found, errors.Wrap(err, "")
 }
 
-func (db *Default) LastMap() (base.BlockMap, bool, error) {
+func (db *Default) LastBlockMap() (base.BlockMap, bool, error) {
 	if temps := db.activeTemps(); len(temps) > 0 {
-		m, err := temps[0].Map()
+		m, err := temps[0].BlockMap()
 		if err != nil {
 			return nil, false, errors.Wrap(err, "")
 		}
@@ -348,7 +348,7 @@ func (db *Default) LastMap() (base.BlockMap, bool, error) {
 		return m, true, nil
 	}
 
-	m, found, err := db.perm.LastMap()
+	m, found, err := db.perm.LastBlockMap()
 
 	return m, found, errors.Wrap(err, "")
 }
@@ -374,7 +374,7 @@ func (db *Default) MergeBlockWriteDatabase(w isaac.BlockWriteDatabase) error {
 	case len(db.temps) > 0:
 		preheight = db.temps[0].Height()
 	default:
-		switch m, found, err := db.perm.LastMap(); {
+		switch m, found, err := db.perm.LastBlockMap(); {
 		case err != nil:
 			return e(err, "")
 		case found:

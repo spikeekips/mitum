@@ -36,7 +36,7 @@ func newLeveldbTempSyncPool(
 	}
 }
 
-func (db *LeveldbTempSyncPool) Map(height base.Height) (m base.BlockMap, found bool, _ error) {
+func (db *LeveldbTempSyncPool) BlockMap(height base.Height) (m base.BlockMap, found bool, _ error) {
 	switch b, found, err := db.st.Get(leveldbTempSyncMapKey(height)); {
 	case err != nil:
 		return nil, false, errors.Wrap(err, "")
@@ -51,7 +51,7 @@ func (db *LeveldbTempSyncPool) Map(height base.Height) (m base.BlockMap, found b
 	}
 }
 
-func (db *LeveldbTempSyncPool) SetMap(m base.BlockMap) error {
+func (db *LeveldbTempSyncPool) SetBlockMap(m base.BlockMap) error {
 	b, err := db.marshal(m)
 	if err != nil {
 		return errors.Wrap(err, "")
