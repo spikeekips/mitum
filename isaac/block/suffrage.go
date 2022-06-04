@@ -128,8 +128,6 @@ func (s SuffrageProof) Prove(previousState base.State) error {
 	switch {
 	case !s.m.Manifest().Hash().Equal(s.voteproof.BallotMajority().NewBlock()):
 		return e(nil, "manifest doest not match with suffrage voteproof")
-	case previoussuf == nil && s.m.Manifest().Suffrage() != nil:
-		return e(nil, "suffrage should be nil for genesis")
 	case previoussuf != nil && !s.m.Manifest().Suffrage().Equal(previousState.Hash()):
 		return e(nil, "suffrage does not match with previous suffrage")
 	}

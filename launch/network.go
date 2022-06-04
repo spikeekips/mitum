@@ -62,7 +62,8 @@ func Handlers(handlers *isaacnetwork.QuicstreamHandlers) quicstream.Handler {
 	prefix.
 		Add(isaacnetwork.HandlerPrefixRequestProposal, handlers.RequestProposal).
 		Add(isaacnetwork.HandlerPrefixProposal, handlers.Proposal).
-		Add(isaacnetwork.HandlerPrefixSuffrageProof, handlers.LastSuffrageProof).
+		Add(isaacnetwork.HandlerPrefixLastSuffrageProof, handlers.LastSuffrageProof).
+		Add(isaacnetwork.HandlerPrefixSuffrageProof, handlers.SuffrageProof).
 		Add(isaacnetwork.HandlerPrefixLastBlockMap, handlers.LastBlockMap).
 		Add(isaacnetwork.HandlerPrefixBlockMap, handlers.BlockMap).
 		Add(isaacnetwork.HandlerPrefixBlockMapItem, handlers.BlockMapItem)

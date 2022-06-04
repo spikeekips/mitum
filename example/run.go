@@ -42,6 +42,8 @@ type runCommand struct {
 	nodePolicy           isaac.NodePolicy
 	Port                 int  `arg:"" name:"port" help:"network port"`
 	Hold                 bool `help:"hold consensus states"`
+	suffrageStateBuilder *isaacstates.SuffrageStateBuilder
+	client               isaac.NetworkClient
 }
 
 func (cmd *runCommand) Run() error {
@@ -117,6 +119,8 @@ func (cmd *runCommand) run() error {
 		select {} //revive:disable-line:empty-block
 	}
 
+	cmd.prepareSuffrageBuilder()
+
 	states, err := cmd.states()
 	if err != nil {
 		return errors.Wrap(err, "")
@@ -179,6 +183,8 @@ func (cmd *runCommand) prepareDatabase() error {
 }
 
 func (cmd *runCommand) prepareNetwork() error {
+	cmd.client = launch.NewNetworkClient(cmd.encs, cmd.enc)
+
 	handlers := isaacnetwork.NewQuicstreamHandlers(
 		cmd.local,
 		cmd.encs,
@@ -438,6 +444,14 @@ func (cmd *runCommand) newSyncer(height base.Height) (isaac.Syncer, error) {
 		return nil, e(isaacstates.ErrUnpromising.Errorf("syncer needs one or more discoveries"), "")
 	}
 
+	var lastsuffrageproof base.SuffrageProof
+	switch proof, found, err := cmd.db.LastSuffrageProof(); {
+	case err != nil:
+		return nil, e(err, "")
+	case found:
+		lastsuffrageproof = proof
+	}
+
 	var prev base.BlockMap
 
 	switch m, found, err := cmd.db.LastBlockMap(); {
@@ -456,8 +470,6 @@ func (cmd *runCommand) newSyncer(height base.Height) (isaac.Syncer, error) {
 	if err != nil {
 		return nil, e(isaacstates.ErrUnpromising.Wrap(err), "")
 	}
-
-	client := launch.NewNetworkClient(cmd.encs, cmd.enc)
 
 	syncer, err := isaacstates.NewSyncer(
 		cmd.localfsroot,
@@ -481,7 +493,7 @@ func (cmd *runCommand) newSyncer(height base.Height) (isaac.Syncer, error) {
 				return nil, false, errors.Wrap(err, "")
 			}
 
-			switch m, found, eerr := client.BlockMap(ctx, ci, height); {
+			switch m, found, eerr := cmd.client.BlockMap(ctx, ci, height); {
 			case err != nil, !found:
 				return m, found, errors.Wrap(eerr, "")
 			default:
@@ -500,7 +512,7 @@ func (cmd *runCommand) newSyncer(height base.Height) (isaac.Syncer, error) {
 				return nil, false, errors.Wrap(eerr, "")
 			}
 
-			r, found, eerr := client.BlockMapItem(ctx, ci, height, item)
+			r, found, eerr := cmd.client.BlockMapItem(ctx, ci, height, item)
 
 			return r, found, errors.Wrap(eerr, "")
 		},
@@ -528,13 +540,28 @@ func (cmd *runCommand) newSyncer(height base.Height) (isaac.Syncer, error) {
 		return nil, e(err, "")
 	}
 
-	_ = syncer.Add(height)
-
 	go func() {
+		var lastsuffragestate base.State
+		if lastsuffrageproof != nil {
+			lastsuffragestate = lastsuffrageproof.State()
+		}
+
+		if _, err := cmd.suffrageStateBuilder.Build(context.Background(), lastsuffragestate); err != nil {
+			log.Error().Err(err).Msg("suffrage state builder failed")
+
+			return
+		}
+
+		log.Debug().Msg("SuffrageProofs built")
+
 		err := syncer.Start()
 		if err != nil {
 			log.Error().Err(err).Msg("syncer stopped")
+
+			return
 		}
+
+		_ = syncer.Add(height)
 	}()
 
 	return syncer, nil
@@ -552,4 +579,46 @@ func (cmd *runCommand) getProposalFunc() func(_ context.Context, facthash util.H
 			return pr, nil
 		}
 	}
+}
+
+func (cmd *runCommand) prepareSuffrageBuilder() {
+	var last util.Hash
+
+	cmd.suffrageStateBuilder = isaacstates.NewSuffrageStateBuilder(
+		networkID,
+		func(ctx context.Context) (base.SuffrageProof, bool, error) {
+			discovery := cmd.Discovery[0]
+
+			ci, err := quictransport.ToQuicConnInfo(discovery.ConnInfo())
+			if err != nil {
+				return nil, false, errors.Wrap(err, "")
+			}
+
+			proof, updated, err := cmd.client.LastSuffrageProof(ctx, ci, last)
+			switch {
+			case err != nil:
+				return proof, updated, err
+			case !updated:
+				return proof, updated, nil
+			default:
+				if err := proof.IsValid(networkID); err != nil {
+					return nil, updated, err
+				}
+
+				last = proof.Map().Manifest().Suffrage()
+
+				return proof, updated, nil
+			}
+		},
+		func(ctx context.Context, suffrageheight base.Height) (base.SuffrageProof, bool, error) {
+			discovery := cmd.Discovery[0]
+
+			ci, err := quictransport.ToQuicConnInfo(discovery.ConnInfo())
+			if err != nil {
+				return nil, false, errors.Wrap(err, "")
+			}
+
+			return cmd.client.SuffrageProof(ctx, ci, suffrageheight)
+		},
+	)
 }

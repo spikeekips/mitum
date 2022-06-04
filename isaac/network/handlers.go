@@ -128,8 +128,8 @@ func (c *QuicstreamHandlers) LastSuffrageProof(_ net.Addr, r io.Reader, w io.Wri
 		return e(err, "")
 	}
 
-	proof, found, err := c.lastSuffrageProoff(body.State())
-	header := NewOKResponseHeader(found, err)
+	proof, updated, err := c.lastSuffrageProoff(body.State())
+	header := NewOKResponseHeader(updated, err)
 
 	if err := c.response(w, header, proof, enc); err != nil {
 		return e(err, "")

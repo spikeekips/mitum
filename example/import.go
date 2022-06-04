@@ -136,7 +136,7 @@ func (cmd *importCommand) findLastFromLocalFS() (last base.Height, _ error) {
 		return last, e(err, "")
 	}
 
-	switch blockmap, found, err := fsreader.Map(); {
+	switch blockmap, found, err := fsreader.BlockMap(); {
 	case err != nil:
 		return last, e(err, "")
 	case !found:
@@ -200,7 +200,7 @@ func (cmd *importCommand) validateLocalFS(last base.Height) error {
 				return errors.Wrap(err, "")
 			}
 
-			switch m, found, err := reader.Map(); {
+			switch m, found, err := reader.BlockMap(); {
 			case err != nil:
 				return errors.Wrap(err, "")
 			case !found:
@@ -381,7 +381,7 @@ func (cmd *importCommand) validateImportedBlockMaps(root string, last base.Heigh
 				return nil, errors.Wrap(err, "")
 			}
 
-			switch m, found, err := reader.Map(); {
+			switch m, found, err := reader.BlockMap(); {
 			case err != nil:
 				return nil, errors.Wrap(err, "")
 			case !found:
@@ -432,7 +432,7 @@ func (cmd *importCommand) validateImportedBlock(root string, height base.Height)
 
 	var m base.BlockMap
 
-	switch i, found, err := reader.Map(); {
+	switch i, found, err := reader.BlockMap(); {
 	case err != nil:
 		return e(err, "")
 	case !found:
