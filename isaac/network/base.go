@@ -8,12 +8,13 @@ import (
 )
 
 var (
-	HandlerPrefixRequestProposal = "request_proposal"
-	HandlerPrefixProposal        = "proposal"
-	HandlerPrefixSuffrageProof   = "suffrage_proof"
-	HandlerPrefixLastBlockMap    = "last_blockmap"
-	HandlerPrefixBlockMap        = "blockmap"
-	HandlerPrefixBlockMapItem    = "blockmap_item"
+	HandlerPrefixRequestProposal   = "request_proposal"
+	HandlerPrefixProposal          = "proposal"
+	HandlerPrefixLastSuffrageProof = "last_suffrage_proof"
+	HandlerPrefixSuffrageProof     = "suffrage_proof"
+	HandlerPrefixLastBlockMap      = "last_blockmap"
+	HandlerPrefixBlockMap          = "blockmap"
+	HandlerPrefixBlockMapItem      = "blockmap_item"
 )
 
 type baseNetwork struct {

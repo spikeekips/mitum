@@ -17,8 +17,6 @@ var (
 	NodeInfoFilename    = "info.json"
 )
 
-var ulid = util.NewULID()
-
 type NodeInfo interface {
 	util.IsValider
 	ID() string
@@ -52,7 +50,7 @@ func NewDefaultNodeInfo(id string, networkID base.NetworkID, version util.Versio
 }
 
 func CreateDefaultNodeInfo(networkID base.NetworkID, version util.Version) DefaultNodeInfo {
-	return NewDefaultNodeInfo(ulid.New().String(), networkID, version)
+	return NewDefaultNodeInfo(util.ULID().String(), networkID, version)
 }
 
 func (info DefaultNodeInfo) ID() string {

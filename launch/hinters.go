@@ -13,6 +13,8 @@ import (
 )
 
 var Hinters = []encoder.DecodeDetail{
+	// revive:disable-next-line:line-length-limit
+	{Hint: DefaultNodeInfoHint, Instance: DefaultNodeInfo{}},
 	{Hint: base.BaseOperationProcessReasonErrorHint, Instance: base.BaseOperationProcessReasonError{}},
 	{Hint: base.BaseStateHint, Instance: base.BaseState{}},
 	{Hint: base.MPrivatekeyHint, Instance: base.MPrivatekey{}},
@@ -39,18 +41,25 @@ var Hinters = []encoder.DecodeDetail{
 	{Hint: isaac.SuffrageStateValueHint, Instance: isaac.SuffrageStateValue{}},
 	{Hint: isaacblock.BlockMapHint, Instance: isaacblock.BlockMap{}},
 	{Hint: isaacblock.SuffrageProofHint, Instance: isaacblock.SuffrageProof{}},
+	{Hint: isaacnetwork.BlockMapHeaderHint, Instance: isaacnetwork.BlockMapRequestHeader{}},
+	{Hint: isaacnetwork.BlockMapItemHeaderHint, Instance: isaacnetwork.BlockMapItemRequestHeader{}},
+	{Hint: isaacnetwork.LastSuffrageProofHeaderHint, Instance: isaacnetwork.LastSuffrageProofRequestHeader{}},
 	{Hint: isaacnetwork.ProposalHeaderHint, Instance: isaacnetwork.ProposalRequestHeader{}},
 	{Hint: isaacnetwork.RequestProposalRequestHeaderHint, Instance: isaacnetwork.RequestProposalRequestHeader{}},
+	{Hint: isaacnetwork.SuffrageProofHeaderHint, Instance: isaacnetwork.SuffrageProofRequestHeader{}},
+	{Hint: isaacnetwork.ErrorResponseHeaderHint, Instance: isaacnetwork.ErrorResponseHeader{}},
+	{Hint: isaacnetwork.OKResponseHeaderHint, Instance: isaacnetwork.OKResponseHeader{}},
 	{Hint: isaacoperation.GenesisNetworkPolicyFactHint, Instance: isaacoperation.GenesisNetworkPolicyFact{}},
 	{Hint: isaacoperation.GenesisNetworkPolicyHint, Instance: isaacoperation.GenesisNetworkPolicy{}},
 	{Hint: isaacoperation.SuffrageGenesisJoinHint, Instance: isaacoperation.SuffrageGenesisJoin{}},
-	// revive:disable-next-line:line-length-limit
-	{Hint: isaacoperation.SuffrageGenesisJoinPermissionFactHint, Instance: isaacoperation.SuffrageGenesisJoinPermissionFact{}},
+	{
+		Hint:     isaacoperation.SuffrageGenesisJoinPermissionFactHint,
+		Instance: isaacoperation.SuffrageGenesisJoinPermissionFact{},
+	},
 	{Hint: isaacoperation.SuffrageJoinHint, Instance: base.BaseOperation{}},
 	{Hint: isaacoperation.SuffrageJoinPermissionFactHint, Instance: isaacoperation.SuffrageJoinPermissionFact{}},
 	{Hint: quictransport.NodeHint, Instance: quictransport.BaseNode{}},
 	{Hint: quictransport.NodeMetaHint, Instance: quictransport.NodeMeta{}},
-	{Hint: DefaultNodeInfoHint, Instance: DefaultNodeInfo{}},
 }
 
 var LoadOperationHinters = []encoder.DecodeDetail{} // FIXME apply to getOperation in ProposalProcessor

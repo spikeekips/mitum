@@ -26,7 +26,7 @@ func (t *testBlockImporter) prepare(point base.Point) base.BlockMap {
 	reader, err := NewLocalFSReaderFromHeight(t.Root, point.Height(), t.Enc)
 	t.NoError(err)
 
-	m, found, err := reader.Map()
+	m, found, err := reader.BlockMap()
 	t.NoError(err)
 	t.True(found)
 
@@ -66,7 +66,7 @@ func (t *testBlockImporter) TestWriteMap() {
 	t.NoError(err)
 
 	t.Run("map in localfs", func() {
-		rm, found, err := reader.Map()
+		rm, found, err := reader.BlockMap()
 		t.NoError(err)
 		t.True(found)
 
@@ -77,7 +77,7 @@ func (t *testBlockImporter) TestWriteMap() {
 		tempdb, err := bwdb.TempDatabase()
 		t.NoError(err)
 
-		rm, err := tempdb.Map()
+		rm, err := tempdb.BlockMap()
 		t.NoError(err)
 
 		base.EqualBlockMap(t.Assert(), m, rm)

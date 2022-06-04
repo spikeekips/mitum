@@ -29,7 +29,7 @@ func NewLocalFSImporter(root string, enc encoder.Encoder, m base.BlockMap) (*Loc
 	temp := filepath.Join(
 		abs,
 		BlockTempDirectoryPrefix,
-		fmt.Sprintf("%d-%s", m.Manifest().Height(), ulid.New().String()),
+		fmt.Sprintf("%d-%s", m.Manifest().Height(), util.ULID().String()),
 	)
 
 	if err := os.MkdirAll(temp, 0o700); err != nil {

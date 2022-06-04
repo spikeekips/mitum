@@ -44,7 +44,7 @@ func NewLocalFSReaderFromHeight(baseroot string, height base.Height, enc encoder
 	return NewLocalFSReader(filepath.Join(baseroot, HeightDirectory(height)), enc)
 }
 
-func (r *LocalFSReader) Map() (base.BlockMap, bool, error) {
+func (r *LocalFSReader) BlockMap() (base.BlockMap, bool, error) {
 	i, err := r.mapl.Get(func() (interface{}, error) {
 		var b []byte
 
@@ -220,7 +220,7 @@ func (r *LocalFSReader) Item(t base.BlockMapItemType) (item interface{}, found b
 func (r *LocalFSReader) Items(f func(base.BlockMapItem, interface{}, bool, error) bool) error {
 	var m base.BlockMap
 
-	switch i, found, err := r.Map(); {
+	switch i, found, err := r.BlockMap(); {
 	case err != nil:
 		return errors.Wrap(err, "")
 	case !found:
@@ -243,7 +243,7 @@ func (r *LocalFSReader) item(t base.BlockMapItemType) (interface{}, bool, error)
 
 	var item base.BlockMapItem
 
-	switch m, found, err := r.Map(); {
+	switch m, found, err := r.BlockMap(); {
 	case err != nil || !found:
 		return nil, found, e(err, "")
 	default:

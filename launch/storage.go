@@ -32,18 +32,13 @@ var (
 func CleanStorage(permuri, root string, encs *encoder.Encoders, enc encoder.Encoder) error {
 	e := util.StringErrorFunc("failed to clean storage")
 
-	var id string
-
-	switch i, found, err := LoadNodeInfo(root, enc); {
+	switch nodeinfo, found, err := LoadNodeInfo(root, enc); {
 	case err != nil:
 		return e(err, "")
 	case !found:
 	default:
-		id = i.ID()
-	}
-
-	if len(id) > 0 {
-		if perm, err := LoadPermanentDatabase(permuri, id, encs, enc); err == nil {
+		perm, err := LoadPermanentDatabase(permuri, nodeinfo.ID(), encs, enc)
+		if err == nil {
 			if err := perm.Clean(); err != nil {
 				return e(err, "")
 			}
@@ -203,6 +198,10 @@ func LoadDatabase(
 		return nil, nil, nil, e(err, "")
 	}
 
+	if err = CleanTempSyncPoolDatabase(localfsroot); err != nil {
+		return nil, nil, nil, e(err, "")
+	}
+
 	if err = db.MergeAllPermanent(); err != nil {
 		return nil, nil, nil, e(err, "")
 	}
@@ -213,6 +212,38 @@ func LoadDatabase(
 	}
 
 	return db, perm, pool, nil
+}
+
+func CleanTempSyncPoolDatabase(localfsroot string) error {
+	e := util.StringErrorFunc("failed to clean syncpool database directories")
+
+	temproot := LocalFSTempDirectory(localfsroot)
+
+	matches, err := filepath.Glob(filepath.Join(filepath.Clean(temproot), "syncpool-*"))
+	if err != nil {
+		return e(err, "")
+	}
+
+	for i := range matches {
+		if err := os.RemoveAll(matches[i]); err != nil {
+			return e(err, "")
+		}
+	}
+
+	return nil
+}
+
+func NewTempSyncPoolDatabase(localfsroot string, height base.Height, encs *encoder.Encoders, enc encoder.Encoder) (isaac.TempSyncPool, error) {
+	temproot := LocalFSTempDirectory(localfsroot)
+
+	root := isaacdatabase.NewSyncPoolDirectory(temproot, height)
+
+	syncpool, err := isaacdatabase.NewLeveldbTempSyncPool(root, encs, enc)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create new TempSyncPool")
+	}
+
+	return syncpool, nil
 }
 
 func LoadPermanentDatabase(

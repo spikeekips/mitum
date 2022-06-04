@@ -7,14 +7,14 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
-// Database serves block map item like blockmap, states and operations from
+// Database serves BlockMapItem like blockmap, states and operations from
 // TempDatabases and PermanentDatabase. It has several TempDatabases and one
 // PermanentDatabase.
 type Database interface {
 	util.Daemon
 	Close() error
-	Map(height base.Height) (base.BlockMap, bool, error)
-	LastMap() (base.BlockMap, bool, error)
+	BlockMap(height base.Height) (base.BlockMap, bool, error)
+	LastBlockMap() (base.BlockMap, bool, error)
 	LastSuffrageProof() (base.SuffrageProof, bool, error)
 	SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof, bool, error)
 	SuffrageProofByBlockHeight(blockheight base.Height) (base.SuffrageProof, bool, error)
@@ -36,13 +36,13 @@ type PartialDatabase interface {
 }
 
 // TempDatabase is the temporary database; it contains only blockmap and
-// others of one block for storing block map item fast.
+// others of one block for storing BlockMapItem fast.
 type TempDatabase interface {
 	PartialDatabase
 	Close() error
 	Remove() error
 	Height() base.Height
-	Map() (base.BlockMap, error)
+	BlockMap() (base.BlockMap, error)
 	SuffrageHeight() base.Height
 	SuffrageProof() (base.SuffrageProof, bool, error)
 	NetworkPolicy() base.NetworkPolicy
@@ -51,8 +51,8 @@ type TempDatabase interface {
 type BlockWriteDatabase interface {
 	Close() error
 	Cancel() error
-	Map() (base.BlockMap, error)
-	SetMap(base.BlockMap) error
+	BlockMap() (base.BlockMap, error)
+	SetBlockMap(base.BlockMap) error
 	SetStates(sts []base.State) error
 	SetOperations(ops []util.Hash) error // NOTE operation hash, not operation fact hash
 	SetSuffrageProof(base.SuffrageProof) error
@@ -62,16 +62,16 @@ type BlockWriteDatabase interface {
 	TempDatabase() (TempDatabase, error)
 }
 
-// PermanentDatabase stores block map item permanently.
+// PermanentDatabase stores BlockMapItem permanently.
 type PermanentDatabase interface {
 	PartialDatabase
 	Close() error
 	Clean() error
-	LastMap() (base.BlockMap, bool, error)
+	LastBlockMap() (base.BlockMap, bool, error)
 	LastSuffrageProof() (base.SuffrageProof, bool, error)
 	SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof, bool, error)
 	SuffrageProofByBlockHeight(blockheight base.Height) (base.SuffrageProof, bool, error)
-	Map(base.Height) (base.BlockMap, bool, error)
+	BlockMap(base.Height) (base.BlockMap, bool, error)
 	LastNetworkPolicy() base.NetworkPolicy
 	MergeTempDatabase(context.Context, TempDatabase) error
 }
@@ -99,8 +99,8 @@ type VoteproofsPool interface {
 }
 
 type TempSyncPool interface {
-	Map(base.Height) (base.BlockMap, bool, error)
-	SetMap(base.BlockMap) error
+	BlockMap(base.Height) (base.BlockMap, bool, error)
+	SetBlockMap(base.BlockMap) error
 	Cancel() error
 	Close() error
 }

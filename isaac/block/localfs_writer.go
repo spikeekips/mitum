@@ -43,8 +43,6 @@ var (
 	BlockTempDirectoryPrefix = "temp"
 )
 
-var ulid = util.NewULID()
-
 type LocalFSWriter struct {
 	vps        [2]base.Voteproof
 	local      base.LocalNode
@@ -85,7 +83,7 @@ func NewLocalFSWriter(
 		return nil, e(nil, "root is not directory")
 	}
 
-	id := ulid.New().String()
+	id := util.ULID().String()
 	temp := filepath.Join(abs, BlockTempDirectoryPrefix, fmt.Sprintf("%d-%s", height, id))
 
 	if err := os.MkdirAll(temp, 0o700); err != nil {

@@ -179,7 +179,7 @@ linters-settings:
   dupl:
     # Tokens count to trigger issue.
     # Default: 15
-    threshold: 110
+    threshold: 130
 
   errcheck:
     # Report about not checking of errors in type assertions: `a := b.(MyStruct)`.

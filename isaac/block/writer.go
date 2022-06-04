@@ -370,7 +370,7 @@ func (w *Writer) Save(ctx context.Context) (base.BlockMap, error) {
 	case err != nil:
 		return nil, e(err, "")
 	default:
-		if err := w.db.SetMap(i); err != nil {
+		if err := w.db.SetBlockMap(i); err != nil {
 			return nil, e(err, "")
 		}
 

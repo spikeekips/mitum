@@ -40,11 +40,16 @@ func defaultPermanentDatabaseURI() string {
 	return uri
 }
 
-func defaultLocalFSRoot(addr base.Address) string {
-	root, found := os.LookupEnv(envKeyFSRoot)
-	if !found {
-		root = filepath.Join(os.TempDir(), "mitum-example-"+addr.String())
-	}
+func defaultLocalFSRoot(addr base.Address) (string, error) {
+	switch root, found := os.LookupEnv(envKeyFSRoot); {
+	case found:
+		i, err := filepath.Abs(root)
+		if err != nil {
+			return "", errors.Wrap(err, "")
+		}
 
-	return root
+		return i, nil
+	default:
+		return filepath.Join(os.TempDir(), "mitum-example-"+addr.String()), nil
+	}
 }

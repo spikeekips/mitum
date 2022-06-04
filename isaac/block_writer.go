@@ -26,7 +26,7 @@ type BlockWriter interface {
 }
 
 type BlockReader interface {
-	Map() (base.BlockMap, bool, error)
+	BlockMap() (base.BlockMap, bool, error)
 	Reader(base.BlockMapItemType) (io.ReadCloser, bool, error)
 	ChecksumReader(base.BlockMapItemType) (util.ChecksumReader, bool, error)
 	Item(base.BlockMapItemType) (interface{}, bool, error)

@@ -213,7 +213,7 @@ func (t *testLocalFSReader) TestMap() {
 	r, err := NewLocalFSReaderFromHeight(t.Root, point.Height(), t.Enc)
 	t.NoError(err)
 
-	m, found, err := r.Map()
+	m, found, err := r.BlockMap()
 	t.NoError(err)
 	t.True(found)
 

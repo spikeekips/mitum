@@ -2,34 +2,46 @@ package main
 
 import (
 	"context"
+	"io"
+	"net"
+	"os"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
+	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/launch"
+	"github.com/spikeekips/mitum/network/quicstream"
+	"github.com/spikeekips/mitum/network/quictransport"
+	"github.com/spikeekips/mitum/storage"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
 type runCommand struct {
-	Address              launch.AddressFlag    `arg:"" name:"local address" help:"node address"`
-	Hold                 bool                  `help:"hold consensus states"`
-	Discovery            []launch.ConnInfoFlag `help:"discoveries" placeholder:"ConnInfo"`
-	local                base.LocalNode
 	db                   isaac.Database
+	enc                  encoder.Encoder
+	Address              launch.AddressFlag `arg:"" name:"local address" help:"node address"`
 	perm                 isaac.PermanentDatabase
+	local                base.LocalNode
+	newProposalProcessor newProposalProcessorFunc
+	getProposal          func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error)
 	proposalSelector     *isaac.BaseProposalSelector
 	pool                 *isaacdatabase.TempPool
 	getSuffrage          func(blockheight base.Height) (base.Suffrage, bool, error)
-	getSuffrageBooting   func(blockheight base.Height) (base.Suffrage, bool, error)
+	encs                 *encoder.Encoders
 	getManifest          func(height base.Height) (base.Manifest, error)
 	getLastManifest      func() (base.Manifest, bool, error)
-	newProposalProcessor newProposalProcessorFunc
-	getProposal          func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error)
+	getSuffrageBooting   func(blockheight base.Height) (base.Suffrage, bool, error)
+	quicstreamserver     *quicstream.Server
+	localfsroot          string
+	Discovery            []launch.ConnInfoFlag `help:"discoveries" placeholder:"ConnInfo"`
 	nodePolicy           isaac.NodePolicy
+	Port                 int  `arg:"" name:"port" help:"network port"`
+	Hold                 bool `help:"hold consensus states"`
 }
 
 func (cmd *runCommand) Run() error {
@@ -39,9 +51,12 @@ func (cmd *runCommand) Run() error {
 		Interface("discovery", cmd.Discovery).
 		Msg("flags")
 
-	encs, enc, err := launch.PrepareEncoders()
-	if err != nil {
+	switch encs, enc, err := launch.PrepareEncoders(); {
+	case err != nil:
 		return errors.Wrap(err, "")
+	default:
+		cmd.encs = encs
+		cmd.enc = enc
 	}
 
 	local, err := prepareLocal(cmd.Address.Address())
@@ -51,10 +66,20 @@ func (cmd *runCommand) Run() error {
 
 	cmd.local = local
 
-	localfsroot := defaultLocalFSRoot(cmd.local.Address())
-	log.Debug().Str("localfs_root", localfsroot).Msg("localfs root")
+	switch localfsroot, err := defaultLocalFSRoot(cmd.local.Address()); {
+	case err != nil:
+		return errors.Wrap(err, "")
+	default:
+		cmd.localfsroot = localfsroot
 
-	if err = cmd.prepareDatabase(localfsroot, encs, enc); err != nil {
+		log.Debug().Str("localfs_root", cmd.localfsroot).Msg("localfs root")
+	}
+
+	if err := cmd.prepareDatabase(); err != nil {
+		return errors.Wrap(err, "")
+	}
+
+	if err := cmd.prepareNetwork(); err != nil {
 		return errors.Wrap(err, "")
 	}
 
@@ -71,7 +96,7 @@ func (cmd *runCommand) Run() error {
 	cmd.getManifest = cmd.getManifestFunc()
 	cmd.proposalSelector = cmd.proposalSelectorFunc()
 	cmd.getLastManifest = cmd.getLastManifestFunc()
-	cmd.newProposalProcessor = cmd.newProposalProcessorFunc(localfsroot, enc)
+	cmd.newProposalProcessor = cmd.newProposalProcessorFunc(cmd.enc)
 	cmd.getProposal = cmd.getProposalFunc()
 
 	if err := cmd.run(); err != nil {
@@ -84,10 +109,12 @@ func (cmd *runCommand) Run() error {
 func (cmd *runCommand) run() error {
 	log.Debug().Msg("node started")
 
-	if cmd.Hold {
-		select {}
+	if err := cmd.quicstreamserver.Start(); err != nil {
+		return errors.Wrap(err, "")
+	}
 
-		return nil
+	if cmd.Hold {
+		select {} //revive:disable-line:empty-block
 	}
 
 	states, err := cmd.states()
@@ -104,19 +131,36 @@ func (cmd *runCommand) run() error {
 	return nil
 }
 
-func (cmd *runCommand) prepareDatabase(localfsroot string, encs *encoder.Encoders, enc encoder.Encoder) error {
+func (cmd *runCommand) prepareDatabase() error {
 	e := util.StringErrorFunc("failed to prepare database")
 
-	nodeinfo, err := launch.CheckLocalFS(networkID, localfsroot, enc)
-	if err != nil {
+	permuri := defaultPermanentDatabaseURI()
+
+	nodeinfo, err := launch.CheckLocalFS(networkID, cmd.localfsroot, cmd.enc)
+
+	switch {
+	case err == nil:
+		if err = isaacblock.CleanBlockTempDirectory(launch.LocalFSDataDirectory(cmd.localfsroot)); err != nil {
+			return e(err, "")
+		}
+	case errors.Is(err, os.ErrNotExist):
+		if err = launch.CleanStorage(
+			permuri,
+			cmd.localfsroot,
+			cmd.encs, cmd.enc,
+		); err != nil {
+			return e(err, "")
+		}
+
+		nodeinfo, err = launch.CreateLocalFS(launch.CreateDefaultNodeInfo(networkID, version), cmd.localfsroot, cmd.enc)
+		if err != nil {
+			return e(err, "")
+		}
+	default:
 		return e(err, "")
 	}
 
-	if err = isaacblock.CleanBlockTempDirectory(launch.LocalFSDataDirectory(localfsroot)); err != nil {
-		return e(err, "")
-	}
-
-	db, perm, pool, err := launch.LoadDatabase(nodeinfo, defaultPermanentDatabaseURI(), localfsroot, encs, enc)
+	db, perm, pool, err := launch.LoadDatabase(nodeinfo, permuri, cmd.localfsroot, cmd.encs, cmd.enc)
 	if err != nil {
 		return e(err, "")
 	}
@@ -130,6 +174,77 @@ func (cmd *runCommand) prepareDatabase(localfsroot string, encs *encoder.Encoder
 	cmd.db = db
 	cmd.perm = perm
 	cmd.pool = pool
+
+	return nil
+}
+
+func (cmd *runCommand) prepareNetwork() error {
+	handlers := isaacnetwork.NewQuicstreamHandlers(
+		cmd.local,
+		cmd.encs,
+		cmd.enc,
+		cmd.pool,
+		cmd.proposalMaker(),
+		func(last util.Hash) (base.SuffrageProof, bool, error) {
+			switch proof, found, err := cmd.db.LastSuffrageProof(); {
+			case err != nil:
+				return nil, false, errors.Wrap(err, "")
+			case !found:
+				return nil, false, storage.NotFoundError.Errorf("last SuffrageProof not found")
+			case last != nil && last.Equal(proof.Map().Manifest().Suffrage()):
+				return nil, false, nil
+			default:
+				return proof, true, nil
+			}
+		},
+		cmd.db.SuffrageProof,
+		func(last util.Hash) (base.BlockMap, bool, error) {
+			switch m, found, err := cmd.db.LastBlockMap(); {
+			case err != nil:
+				return nil, false, errors.Wrap(err, "")
+			case !found:
+				return nil, false, storage.NotFoundError.Errorf("last BlockMap not found")
+			case last != nil && last.Equal(m.Manifest().Hash()):
+				return nil, false, nil
+			default:
+				return m, true, nil
+			}
+		},
+		cmd.db.BlockMap,
+		func(height base.Height, item base.BlockMapItemType) (io.ReadCloser, bool, error) {
+			e := util.StringErrorFunc("failed to get BlockMapItem")
+
+			var enc encoder.Encoder
+
+			switch m, found, err := cmd.db.BlockMap(height); {
+			case err != nil:
+				return nil, false, e(err, "")
+			case !found:
+				return nil, false, e(storage.NotFoundError.Errorf("BlockMap not found"), "")
+			default:
+				enc = cmd.encs.Find(m.Encoder())
+			}
+
+			// FIXME use cache
+
+			reader, err := isaacblock.NewLocalFSReaderFromHeight(
+				launch.LocalFSDataDirectory(cmd.localfsroot), height, enc,
+			)
+			if err != nil {
+				return nil, false, e(err, "")
+			}
+
+			return reader.Reader(item)
+		},
+	)
+
+	cmd.quicstreamserver = quicstream.NewServer(
+		&net.UDPAddr{Port: cmd.Port},
+		launch.GenerateNewTLSConfig(),
+		launch.DefaultQuicConfig(),
+		launch.Handlers(handlers),
+	)
+	_ = cmd.quicstreamserver.SetLogging(logging)
 
 	return nil
 }
@@ -156,7 +271,7 @@ func (cmd *runCommand) getSuffrageFunc() func(blockheight base.Height) (base.Suf
 
 func (cmd *runCommand) getManifestFunc() func(height base.Height) (base.Manifest, error) {
 	return func(height base.Height) (base.Manifest, error) {
-		switch m, found, err := cmd.db.Map(height); {
+		switch m, found, err := cmd.db.BlockMap(height); {
 		case err != nil:
 			return nil, errors.Wrap(err, "")
 		case !found:
@@ -239,7 +354,7 @@ func (cmd *runCommand) proposalSelectorFunc() *isaac.BaseProposalSelector {
 
 func (cmd *runCommand) getLastManifestFunc() func() (base.Manifest, bool, error) {
 	return func() (base.Manifest, bool, error) {
-		switch m, found, err := cmd.db.LastMap(); {
+		switch m, found, err := cmd.db.LastBlockMap(); {
 		case err != nil || !found:
 			return nil, found, errors.Wrap(err, "")
 		default:
@@ -248,14 +363,14 @@ func (cmd *runCommand) getLastManifestFunc() func() (base.Manifest, bool, error)
 	}
 }
 
-func (cmd *runCommand) newProposalProcessorFunc(localfsroot string, enc encoder.Encoder) newProposalProcessorFunc {
+func (cmd *runCommand) newProposalProcessorFunc(enc encoder.Encoder) newProposalProcessorFunc {
 	return func(proposal base.ProposalSignedFact, previous base.Manifest) (
 		isaac.ProposalProcessor, error,
 	) {
 		return isaac.NewDefaultProposalProcessor(
 			proposal,
 			previous,
-			launch.NewBlockWriterFunc(cmd.local, networkID, launch.LocalFSDataDirectory(localfsroot), enc, cmd.db),
+			launch.NewBlockWriterFunc(cmd.local, networkID, launch.LocalFSDataDirectory(cmd.localfsroot), enc, cmd.db),
 			cmd.db.State,
 			nil,
 			nil,
@@ -300,7 +415,7 @@ func (cmd *runCommand) states() (*isaacstates.States, error) {
 				cmd.getManifest, cmd.getSuffrage, voteFunc, whenNewBlockSaved,
 				pps,
 			)).
-		SetHandler(isaacstates.NewSyncingHandler(cmd.local, cmd.nodePolicy, cmd.proposalSelector, nil))
+		SetHandler(isaacstates.NewSyncingHandler(cmd.local, cmd.nodePolicy, cmd.proposalSelector, cmd.newSyncer))
 
 	// NOTE load last init, accept voteproof and last majority voteproof
 	switch ivp, avp, found, err := cmd.pool.LastVoteproofs(); {
@@ -313,6 +428,116 @@ func (cmd *runCommand) states() (*isaacstates.States, error) {
 	}
 
 	return states, nil
+}
+
+func (cmd *runCommand) newSyncer(height base.Height) (isaac.Syncer, error) {
+	e := util.StringErrorFunc("failed newSyncer")
+
+	// NOTE if no discoveries, moves to broken state
+	if len(cmd.Discovery) < 1 {
+		return nil, e(isaacstates.ErrUnpromising.Errorf("syncer needs one or more discoveries"), "")
+	}
+
+	var prev base.BlockMap
+
+	switch m, found, err := cmd.db.LastBlockMap(); {
+	case err != nil:
+		return nil, e(isaacstates.ErrUnpromising.Wrap(err), "")
+	case found:
+		prev = m
+	}
+
+	bwdb, err := cmd.db.NewBlockWriteDatabase(height)
+	if err != nil {
+		return nil, e(isaacstates.ErrUnpromising.Wrap(err), "")
+	}
+
+	syncpool, err := launch.NewTempSyncPoolDatabase(cmd.localfsroot, height, cmd.encs, cmd.enc)
+	if err != nil {
+		return nil, e(isaacstates.ErrUnpromising.Wrap(err), "")
+	}
+
+	client := launch.NewNetworkClient(cmd.encs, cmd.enc)
+
+	syncer, err := isaacstates.NewSyncer(
+		cmd.localfsroot,
+		func(root string, blockmap base.BlockMap) (isaac.BlockImporter, error) {
+			return isaacblock.NewBlockImporter(
+				root,
+				cmd.encs,
+				blockmap,
+				bwdb,
+				cmd.perm,
+				networkID,
+			)
+		},
+		prev,
+		func(ctx context.Context, height base.Height) (base.BlockMap, bool, error) {
+			// FIXME use multiple discoveries
+			discovery := cmd.Discovery[0]
+
+			ci, eerr := quictransport.ToQuicConnInfo(discovery.ConnInfo())
+			if eerr != nil {
+				return nil, false, errors.Wrap(err, "")
+			}
+
+			switch m, found, eerr := client.BlockMap(ctx, ci, height); {
+			case err != nil, !found:
+				return m, found, errors.Wrap(eerr, "")
+			default:
+				if eerr := m.IsValid(networkID); eerr != nil {
+					return m, found, errors.Wrap(eerr, "")
+				}
+
+				return m, found, nil
+			}
+		},
+		func(ctx context.Context, height base.Height, item base.BlockMapItemType) (io.ReadCloser, bool, error) {
+			discovery := cmd.Discovery[0]
+
+			ci, eerr := quictransport.ToQuicConnInfo(discovery.ConnInfo())
+			if eerr != nil {
+				return nil, false, errors.Wrap(eerr, "")
+			}
+
+			r, found, eerr := client.BlockMapItem(ctx, ci, height, item)
+
+			return r, found, errors.Wrap(eerr, "")
+		},
+		syncpool,
+		func(reader isaac.BlockReader) error {
+			switch v, found, eerr := reader.Item(base.BlockMapItemTypeVoteproofs); {
+			case err != nil:
+				return errors.Wrap(eerr, "")
+			case !found:
+				return errors.Errorf("voteproofs not found at last")
+			default:
+				vps := v.([]base.Voteproof)            //nolint:forcetypeassert //...
+				if eerr := cmd.pool.SetLastVoteproofs( //nolint:forcetypeassert //...
+					vps[0].(base.INITVoteproof),
+					vps[1].(base.ACCEPTVoteproof),
+				); eerr != nil {
+					return errors.Wrap(eerr, "")
+				}
+
+				return nil
+			}
+		},
+	)
+	if err != nil {
+		return nil, e(err, "")
+	}
+
+	_ = syncer.Add(height)
+
+	go func() {
+		err := syncer.Start()
+		if err != nil {
+			log.Error().Err(err).Msg("syncer stopped")
+		}
+	}()
+
+	return syncer, nil
 }
 
 func (cmd *runCommand) getProposalFunc() func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error) {

@@ -275,7 +275,7 @@ func (s *Syncer) prepareMaps(ctx context.Context, prev base.BlockMap, to base.He
 		uint64(s.batchlimit),
 		s.fetchMap,
 		func(m base.BlockMap) error {
-			if err := s.tempsyncpool.SetMap(m); err != nil {
+			if err := s.tempsyncpool.SetBlockMap(m); err != nil {
 				return errors.Wrap(err, "")
 			}
 
@@ -318,7 +318,7 @@ func (s *Syncer) syncBlocks(ctx context.Context, prev base.BlockMap, to base.Hei
 		ctx,
 		from, to,
 		s.batchlimit,
-		s.tempsyncpool.Map,
+		s.tempsyncpool.BlockMap,
 		s.blockMapItemf,
 		func(m base.BlockMap) (isaac.BlockImporter, error) {
 			return s.newBlockImporter(s.root, m)
@@ -326,44 +326,6 @@ func (s *Syncer) syncBlocks(ctx context.Context, prev base.BlockMap, to base.Hei
 		s.setLastVoteproofsFunc,
 	); err != nil {
 		return e(err, "")
-	}
-
-	return nil
-}
-
-func ValidateMaps(m base.BlockMap, maps []base.BlockMap, previous base.BlockMap) error {
-	prev := base.NilHeight
-	if previous != nil {
-		prev = previous.Manifest().Height()
-	}
-
-	index := (m.Manifest().Height() - prev - 1).Int64()
-
-	e := util.StringErrorFunc("failed to validate BlockMaps")
-
-	if index < 0 || index >= int64(len(maps)) {
-		return e(nil, "invalid BlockMaps found; wrong index")
-	}
-
-	maps[index] = m
-
-	switch {
-	case index == 0 && m.Manifest().Height() == base.GenesisHeight:
-	case index == 0 && m.Manifest().Height() != base.GenesisHeight:
-		if err := base.ValidateManifests(m.Manifest(), previous.Manifest().Hash()); err != nil {
-			return e(err, "")
-		}
-	case maps[index-1] != nil:
-		if err := base.ValidateManifests(m.Manifest(), maps[index-1].Manifest().Hash()); err != nil {
-			return e(err, "")
-		}
-	}
-
-	// revive:disable-next-line:optimize-operands-order
-	if index+1 < int64(len(maps)) && maps[index+1] != nil {
-		if err := base.ValidateManifests(maps[index+1].Manifest(), m.Manifest().Hash()); err != nil {
-			return e(err, "")
-		}
 	}
 
 	return nil

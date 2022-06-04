@@ -32,26 +32,33 @@ type importCommand struct {
 }
 
 func (cmd *importCommand) Run() error {
-	encs, enc, err := launch.PrepareEncoders()
-	if err != nil {
+	switch encs, enc, err := launch.PrepareEncoders(); {
+	case err != nil:
 		return errors.Wrap(err, "")
+	default:
+		cmd.encs = encs
+		cmd.enc = enc
 	}
 
-	cmd.encs = encs
-	cmd.enc = enc
-
-	local, err := prepareLocal(cmd.Address.Address())
-	if err != nil {
+	switch local, err := prepareLocal(cmd.Address.Address()); {
+	case err != nil:
 		return errors.Wrap(err, "failed to prepare local")
+	default:
+		cmd.local = local
 	}
 
-	cmd.local = local
+	var localfsroot string
 
-	localfsroot := defaultLocalFSRoot(cmd.local.Address())
+	switch i, err := defaultLocalFSRoot(cmd.local.Address()); {
+	case err != nil:
+		return errors.Wrap(err, "")
+	default:
+		localfsroot = i
 
-	log.Debug().Str("root", localfsroot).Msg("block data directory")
+		log.Debug().Str("localfs_root", localfsroot).Msg("localfs root")
+	}
 
-	if err = cmd.prepareDatabase(localfsroot); err != nil {
+	if err := cmd.prepareDatabase(localfsroot); err != nil {
 		return errors.Wrap(err, "")
 	}
 
@@ -207,7 +214,7 @@ func (cmd *importCommand) validateLocalFS(last base.Height) error {
 					validateLock.Lock()
 					defer validateLock.Unlock()
 
-					if err = isaacstates.ValidateMaps(m, maps, lastprev); err != nil {
+					if err = base.ValidateMaps(m, maps, lastprev); err != nil {
 						return err
 					}
 
@@ -266,7 +273,7 @@ func (cmd *importCommand) importBlocks(localfsroot string, from, to base.Height)
 				return nil, false, errors.Wrap(err, "")
 			}
 
-			m, found, err := reader.Map()
+			m, found, err := reader.BlockMap()
 
 			return m, found, errors.Wrap(err, "")
 		},

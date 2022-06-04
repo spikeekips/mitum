@@ -76,7 +76,7 @@ func (g *GenesisBlockGenerator) Generate() (base.BlockMap, error) {
 		return nil, e(err, "")
 	}
 
-	switch blockmap, found, err := fsreader.Map(); {
+	switch blockmap, found, err := fsreader.BlockMap(); {
 	case err != nil:
 		return nil, e(err, "")
 	case !found:

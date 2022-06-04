@@ -227,7 +227,9 @@ func (db *RedisPermanent) BlockMap(height base.Height) (m base.BlockMap, found b
 	switch i, found, err := db.LastBlockMap(); {
 	case err != nil:
 		return nil, false, e(err, "")
-	case found:
+	case !found:
+		return nil, false, nil
+	case found && i.Manifest().Height() == height:
 		return i, true, nil
 	}
 

@@ -19,7 +19,7 @@ func NewMemTempSyncPool() *MemTempSyncPool {
 	}
 }
 
-func (db *MemTempSyncPool) Map(height base.Height) (base.BlockMap, bool, error) {
+func (db *MemTempSyncPool) BlockMap(height base.Height) (base.BlockMap, bool, error) {
 	db.RLock()
 	defer db.RUnlock()
 
@@ -40,7 +40,7 @@ func (db *MemTempSyncPool) Map(height base.Height) (base.BlockMap, bool, error) 
 	}
 }
 
-func (db *MemTempSyncPool) SetMap(m base.BlockMap) error {
+func (db *MemTempSyncPool) SetBlockMap(m base.BlockMap) error {
 	db.RLock()
 	defer db.RUnlock()
 

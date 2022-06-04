@@ -10,24 +10,30 @@ import (
 	uuid "github.com/satori/go.uuid"
 )
 
+var ulidpool = NewULIDPool()
+
 func UUID() uuid.UUID {
 	return uuid.NewV4()
 }
 
-type ULID struct {
+type ULIDPool struct {
 	entropy io.Reader
 	sync.Mutex
 }
 
-func NewULID() *ULID {
-	return &ULID{
+func NewULIDPool() *ULIDPool {
+	return &ULIDPool{
 		entropy: ulid.Monotonic(rand.Reader, 0),
 	}
 }
 
-func (u *ULID) New() ulid.ULID {
+func (u *ULIDPool) New() ulid.ULID {
 	u.Lock()
 	defer u.Unlock()
 
 	return ulid.MustNew(ulid.Timestamp(time.Now()), u.entropy)
+}
+
+func ULID() ulid.ULID {
+	return ulidpool.New()
 }

@@ -116,137 +116,51 @@ func (c *baseNetworkClient) Proposal( //nolint:dupl //...
 }
 
 func (c *baseNetworkClient) LastSuffrageProof(
-	ctx context.Context, ci quictransport.ConnInfo, manifest util.Hash,
+	ctx context.Context, ci quictransport.ConnInfo, state util.Hash,
 ) (base.SuffrageProof, bool, error) {
-	e := util.StringErrorFunc("failed to get last suffrage proof")
+	header := NewLastSuffrageProofRequestHeader(state)
 
-	m, updated, err := c.LastBlockMap(ctx, ci, manifest)
+	var u base.SuffrageProof
 
-	switch {
-	case err != nil:
-		return nil, false, e(err, "")
-	case !updated:
-		return nil, false, nil
-	}
+	found, err := c.requestOK(ctx, ci, HandlerPrefixLastSuffrageProof, header, nil, &u)
 
-	proof, found, err := c.SuffrageProof(ctx, ci, m.Manifest().Suffrage())
-
-	switch {
-	case err != nil:
-		return nil, false, e(err, "")
-	case !found:
-		return nil, false, e(err, "")
-	default:
-		return proof, true, nil
-	}
+	return u, found, errors.Wrap(err, "failed to get last SuffrageProof")
 }
 
 func (c *baseNetworkClient) SuffrageProof( //nolint:dupl //...
-	ctx context.Context, ci quictransport.ConnInfo, state util.Hash,
+	ctx context.Context, ci quictransport.ConnInfo, suffrageheight base.Height,
 ) (base.SuffrageProof, bool, error) {
-	e := util.StringErrorFunc("failed to get suffrage proof")
+	header := NewSuffrageProofRequestHeader(suffrageheight)
 
-	header := NewSuffrageProofRequestHeader(state)
+	var u base.SuffrageProof
 
-	if err := header.IsValid(nil); err != nil {
-		return nil, false, e(err, "")
-	}
+	found, err := c.requestOK(ctx, ci, HandlerPrefixSuffrageProof, header, nil, &u)
 
-	r, err := c.write(ctx, ci, c.enc, HandlerPrefixSuffrageProof, header, nil)
-	if err != nil {
-		return nil, false, e(err, "failed to send request")
-	}
-
-	h, enc, err := c.loadOKHeader(ctx, r)
-
-	switch {
-	case err != nil:
-		return nil, false, e(err, "failed to read stream")
-	case h.Err() != nil:
-		return nil, false, e(h.Err(), "")
-	case !h.OK():
-		return nil, false, nil
-	default:
-		var u base.SuffrageProof
-
-		if err := encoder.DecodeReader(enc, r, &u); err != nil {
-			return nil, false, e(err, "")
-		}
-
-		return u, true, nil
-	}
+	return u, found, errors.Wrap(err, "failed to get SuffrageProof")
 }
 
 func (c *baseNetworkClient) LastBlockMap( //nolint:dupl //...
 	ctx context.Context, ci quictransport.ConnInfo, manifest util.Hash,
 ) (base.BlockMap, bool, error) {
-	e := util.StringErrorFunc("failed to get last BlockMap")
+	header := NewLastBlockMapRequestHeader(manifest)
 
-	header := NewLastBlockMapHeader(manifest)
+	var u base.BlockMap
 
-	if err := header.IsValid(nil); err != nil {
-		return nil, false, e(err, "")
-	}
+	found, err := c.requestOK(ctx, ci, HandlerPrefixLastBlockMap, header, nil, &u)
 
-	r, err := c.write(ctx, ci, c.enc, HandlerPrefixLastBlockMap, header, nil)
-	if err != nil {
-		return nil, false, e(err, "failed to send request")
-	}
-
-	h, enc, err := c.loadOKHeader(ctx, r)
-
-	switch {
-	case err != nil:
-		return nil, false, e(err, "failed to read stream")
-	case h.Err() != nil:
-		return nil, false, e(h.Err(), "")
-	case !h.OK():
-		return nil, false, nil
-	default:
-		var u base.BlockMap
-
-		if err := encoder.DecodeReader(enc, r, &u); err != nil {
-			return nil, false, e(err, "")
-		}
-
-		return u, true, nil
-	}
+	return u, found, errors.Wrap(err, "failed to get last BlockMap")
 }
 
 func (c *baseNetworkClient) BlockMap( //nolint:dupl //...
 	ctx context.Context, ci quictransport.ConnInfo, height base.Height,
 ) (base.BlockMap, bool, error) {
-	e := util.StringErrorFunc("failed to get BlockMap")
+	header := NewBlockMapRequestHeader(height)
 
-	header := NewBlockMapHeader(height)
+	var u base.BlockMap
 
-	if err := header.IsValid(nil); err != nil {
-		return nil, false, e(err, "")
-	}
+	found, err := c.requestOK(ctx, ci, HandlerPrefixBlockMap, header, nil, &u)
 
-	r, err := c.write(ctx, ci, c.enc, HandlerPrefixBlockMap, header, nil)
-	if err != nil {
-		return nil, false, e(err, "failed to send request")
-	}
-
-	h, enc, err := c.loadOKHeader(ctx, r)
-
-	switch {
-	case err != nil:
-		return nil, false, e(err, "failed to read stream")
-	case h.Err() != nil:
-		return nil, false, e(h.Err(), "")
-	case !h.OK():
-		return nil, false, nil
-	default:
-		var u base.BlockMap
-
-		if err := encoder.DecodeReader(enc, r, &u); err != nil {
-			return nil, false, e(err, "")
-		}
-
-		return u, true, nil
-	}
+	return u, found, errors.Wrap(err, "failed to get BlockMap")
 }
 
 func (c *baseNetworkClient) BlockMapItem(
@@ -278,6 +192,41 @@ func (c *baseNetworkClient) BlockMapItem(
 		return nil, false, nil
 	default:
 		return r, true, nil
+	}
+}
+
+func (c *baseNetworkClient) requestOK(
+	ctx context.Context,
+	ci quictransport.ConnInfo,
+	handlerprefix string,
+	header Header,
+	body io.Reader,
+	u interface{},
+) (bool, error) {
+	if err := header.IsValid(nil); err != nil {
+		return false, errors.Wrap(err, "")
+	}
+
+	r, err := c.write(ctx, ci, c.enc, handlerprefix, header, body)
+	if err != nil {
+		return false, errors.Wrap(err, "failed to send request")
+	}
+
+	h, enc, err := c.loadOKHeader(ctx, r)
+
+	switch {
+	case err != nil:
+		return false, errors.Wrap(err, "failed to read stream")
+	case h.Err() != nil:
+		return false, errors.Wrap(h.Err(), "")
+	case !h.OK():
+		return false, nil
+	default:
+		if err := encoder.DecodeReader(enc, r, u); err != nil {
+			return false, errors.Wrap(err, "")
+		}
+
+		return true, nil
 	}
 }
 

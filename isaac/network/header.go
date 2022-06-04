@@ -10,6 +10,7 @@ import (
 var (
 	RequestProposalRequestHeaderHint = hint.MustNewHint("request-proposal-header-v0.0.1")
 	ProposalHeaderHint               = hint.MustNewHint("proposal-header-v0.0.1")
+	LastSuffrageProofHeaderHint      = hint.MustNewHint("last-suffrage-proof-header-v0.0.1")
 	SuffrageProofHeaderHint          = hint.MustNewHint("suffrage-proof-header-v0.0.1")
 	LastBlockMapHeaderHint           = hint.MustNewHint("last-blockmap-header-v0.0.1")
 	BlockMapHeaderHint               = hint.MustNewHint("blockmap-header-v0.0.1")
@@ -104,34 +105,66 @@ func (h ProposalRequestHeader) Proposal() util.Hash {
 	return h.proposal
 }
 
-type SuffrageProofRequestHeader struct {
+type LastSuffrageProofRequestHeader struct {
 	state util.Hash
 	BaseHeader
 }
 
-func NewSuffrageProofRequestHeader(state util.Hash) SuffrageProofRequestHeader {
-	return SuffrageProofRequestHeader{
-		BaseHeader: NewBaseHeader(SuffrageProofHeaderHint),
+func NewLastSuffrageProofRequestHeader(state util.Hash) LastSuffrageProofRequestHeader {
+	return LastSuffrageProofRequestHeader{
+		BaseHeader: NewBaseHeader(LastSuffrageProofHeaderHint),
 		state:      state,
 	}
 }
 
-func (h SuffrageProofRequestHeader) IsValid([]byte) error {
+func (h LastSuffrageProofRequestHeader) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid LastSuffrageProofHeader")
 
 	if err := h.BaseHinter.IsValid(h.Hint().Type().Bytes()); err != nil {
 		return e(err, "")
 	}
 
-	if err := util.CheckIsValid(nil, false, h.state); err != nil {
+	if h.state != nil {
+		if err := h.state.IsValid(nil); err != nil {
+			return e(err, "")
+		}
+	}
+
+	return nil
+}
+
+func (h LastSuffrageProofRequestHeader) State() util.Hash {
+	return h.state
+}
+
+type SuffrageProofRequestHeader struct {
+	BaseHeader
+	suffrageheight base.Height
+}
+
+func NewSuffrageProofRequestHeader(suffrageheight base.Height) SuffrageProofRequestHeader {
+	return SuffrageProofRequestHeader{
+		BaseHeader:     NewBaseHeader(SuffrageProofHeaderHint),
+		suffrageheight: suffrageheight,
+	}
+}
+
+func (h SuffrageProofRequestHeader) IsValid([]byte) error {
+	e := util.StringErrorFunc("invalid SuffrageProofHeader")
+
+	if err := h.BaseHinter.IsValid(h.Hint().Type().Bytes()); err != nil {
+		return e(err, "")
+	}
+
+	if err := util.CheckIsValid(nil, false, h.suffrageheight); err != nil {
 		return e(err, "")
 	}
 
 	return nil
 }
 
-func (h SuffrageProofRequestHeader) State() util.Hash {
-	return h.state
+func (h SuffrageProofRequestHeader) Height() base.Height {
+	return h.suffrageheight
 }
 
 type LastBlockMapRequestHeader struct {
@@ -139,7 +172,7 @@ type LastBlockMapRequestHeader struct {
 	BaseHeader
 }
 
-func NewLastBlockMapHeader(manifest util.Hash) LastBlockMapRequestHeader {
+func NewLastBlockMapRequestHeader(manifest util.Hash) LastBlockMapRequestHeader {
 	return LastBlockMapRequestHeader{
 		BaseHeader: NewBaseHeader(LastBlockMapHeaderHint),
 		manifest:   manifest,
@@ -169,7 +202,7 @@ type BlockMapRequestHeader struct {
 	height base.Height
 }
 
-func NewBlockMapHeader(height base.Height) BlockMapRequestHeader {
+func NewBlockMapRequestHeader(height base.Height) BlockMapRequestHeader {
 	return BlockMapRequestHeader{
 		BaseHeader: NewBaseHeader(BlockMapHeaderHint),
 		height:     height,

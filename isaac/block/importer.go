@@ -10,6 +10,7 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
+	"github.com/spikeekips/mitum/util/fixedtree"
 )
 
 type BlockImporter struct {
@@ -17,10 +18,13 @@ type BlockImporter struct {
 	enc        encoder.Encoder
 	bwdb       isaac.BlockWriteDatabase
 	permdb     isaac.PermanentDatabase
+	avp        base.ACCEPTVoteproof
+	sufst      base.State
 	localfs    *LocalFSImporter
 	finisheds  *util.LockedMap
 	root       string
 	networkID  base.NetworkID
+	statestree fixedtree.Tree
 	batchlimit uint64
 }
 
@@ -83,7 +87,7 @@ func (im *BlockImporter) WriteMap(m base.BlockMap) error {
 		return e(err, "failed to write BlockMap")
 	}
 
-	if err := im.bwdb.SetMap(m); err != nil {
+	if err := im.bwdb.SetBlockMap(m); err != nil {
 		return e(err, "")
 	}
 
@@ -107,6 +111,19 @@ func (im *BlockImporter) Save(context.Context) error {
 
 	if !im.isfinished() {
 		return e(nil, "not yet finished")
+	}
+
+	if im.sufst != nil {
+		proof, err := im.statestree.Proof(im.sufst.Hash().String())
+		if err != nil {
+			return e(err, "failed to make proof of suffrage state")
+		}
+
+		sufproof := NewSuffrageProof(im.m, im.sufst, proof, im.avp)
+
+		if err := im.bwdb.SetSuffrageProof(sufproof); err != nil {
+			return e(err, "")
+		}
 	}
 
 	if err := im.bwdb.Write(); err != nil {
@@ -191,6 +208,8 @@ func (im *BlockImporter) importItem(t base.BlockMapItemType, r io.Reader) error 
 	var err error
 
 	switch t {
+	case base.BlockMapItemTypeStatesTree:
+		err = im.importStatesTree(item, cr)
 	case base.BlockMapItemTypeStates:
 		err = im.importStates(item, cr)
 	case base.BlockMapItemTypeOperations:
@@ -284,7 +303,7 @@ func (im *BlockImporter) importOperations(item base.BlockMapItem, r io.Reader) e
 }
 
 func (im *BlockImporter) importStates(item base.BlockMapItem, r io.Reader) error {
-	e := util.StringErrorFunc("failed to import operations")
+	e := util.StringErrorFunc("failed to import states")
 
 	sts := make([]base.State, item.Num())
 	if uint64(len(sts)) > im.batchlimit {
@@ -303,6 +322,10 @@ func (im *BlockImporter) importStates(item base.BlockMapItem, r io.Reader) error
 
 		if err := st.IsValid(nil); err != nil {
 			return errors.Wrap(err, "")
+		}
+
+		if base.IsSuffrageState(st) {
+			im.sufst = st
 		}
 
 		sts[index] = st
@@ -334,6 +357,26 @@ func (im *BlockImporter) importStates(item base.BlockMapItem, r io.Reader) error
 	return nil
 }
 
+func (im *BlockImporter) importStatesTree(item base.BlockMapItem, r io.Reader) error {
+	e := util.StringErrorFunc("failed to import states tree")
+
+	tr, err := LoadTree(im.enc, item, r, func(i interface{}) (fixedtree.Node, error) {
+		node, ok := i.(fixedtree.Node)
+		if !ok {
+			return nil, errors.Errorf("not StateFixedtreeNode, %T", i)
+		}
+
+		return node, nil
+	})
+	if err != nil {
+		return e(err, "failed to load StatesTree")
+	}
+
+	im.statestree = tr
+
+	return nil
+}
+
 func (im *BlockImporter) importVoteproofs(_ base.BlockMapItem, r io.Reader) error {
 	e := util.StringErrorFunc("failed to import voteproofs")
 
@@ -345,6 +388,8 @@ func (im *BlockImporter) importVoteproofs(_ base.BlockMapItem, r io.Reader) erro
 	if err := base.ValidateVoteproofsWithManifest(vps, im.m.Manifest()); err != nil {
 		return e(err, "")
 	}
+
+	im.avp = vps[1].(base.ACCEPTVoteproof) //nolint:forcetypeassert //...
 
 	return nil
 }

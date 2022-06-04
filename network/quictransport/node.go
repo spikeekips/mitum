@@ -237,7 +237,7 @@ func NewBaseConnInfoFromString(s string) (BaseConnInfo, error) {
 
 	addr, err := net.ResolveUDPAddr("udp", as)
 	if err != nil {
-		return BaseConnInfo{}, errors.Wrap(err, "failed to parse net.UDPAddr")
+		return BaseConnInfo{}, util.ErrInvalid.Wrapf(err, "failed to parse net.UDPAddr")
 	}
 
 	return NewBaseConnInfo(addr, insecure), nil

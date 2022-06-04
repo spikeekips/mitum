@@ -15,34 +15,37 @@ import (
 type QuicstreamHandlers struct {
 	pool isaac.ProposalPool
 	*baseNetwork
-	proposalMaker *isaac.ProposalMaker
-	suffrageProof func(util.Hash) (base.SuffrageProof, bool, error)
-	lastBlockMap  func(util.Hash) (base.BlockMap, bool, error)
-	blockMap      func(base.Height) (base.BlockMap, bool, error)
-	blockMapItem  func(base.Height, base.BlockMapItemType) (io.ReadCloser, bool, error)
-	local         isaac.LocalNode
+	proposalMaker      *isaac.ProposalMaker
+	lastSuffrageProoff func(suffragestate util.Hash) (base.SuffrageProof, bool, error)
+	suffrageProoff     func(base.Height) (base.SuffrageProof, bool, error)
+	lastBlockMapf      func(util.Hash) (base.BlockMap, bool, error)
+	blockMapf          func(base.Height) (base.BlockMap, bool, error)
+	blockMapItemf      func(base.Height, base.BlockMapItemType) (io.ReadCloser, bool, error)
+	local              base.LocalNode
 }
 
 func NewQuicstreamHandlers(
-	local isaac.LocalNode,
+	local base.LocalNode,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
 	pool isaac.ProposalPool,
 	proposalMaker *isaac.ProposalMaker,
-	suffrageProof func(util.Hash) (base.SuffrageProof, bool, error),
-	lastBlockMap func(util.Hash) (base.BlockMap, bool, error),
-	blockMap func(base.Height) (base.BlockMap, bool, error),
-	blockMapItem func(base.Height, base.BlockMapItemType) (io.ReadCloser, bool, error),
+	lastSuffrageProoff func(util.Hash) (base.SuffrageProof, bool, error),
+	suffrageProoff func(base.Height) (base.SuffrageProof, bool, error),
+	lastBlockMapf func(util.Hash) (base.BlockMap, bool, error),
+	blockMapf func(base.Height) (base.BlockMap, bool, error),
+	blockMapItemf func(base.Height, base.BlockMapItemType) (io.ReadCloser, bool, error),
 ) *QuicstreamHandlers {
 	return &QuicstreamHandlers{
-		baseNetwork:   newBaseNetwork(encs, enc),
-		local:         local,
-		pool:          pool,
-		proposalMaker: proposalMaker,
-		suffrageProof: suffrageProof,
-		lastBlockMap:  lastBlockMap,
-		blockMap:      blockMap,
-		blockMapItem:  blockMapItem,
+		baseNetwork:        newBaseNetwork(encs, enc),
+		local:              local,
+		pool:               pool,
+		proposalMaker:      proposalMaker,
+		lastSuffrageProoff: lastSuffrageProoff,
+		suffrageProoff:     suffrageProoff,
+		lastBlockMapf:      lastBlockMapf,
+		blockMapf:          blockMapf,
+		blockMapItemf:      blockMapItemf,
 	}
 }
 
@@ -112,6 +115,29 @@ func (c *QuicstreamHandlers) Proposal(_ net.Addr, r io.Reader, w io.Writer) erro
 	return nil
 }
 
+func (c *QuicstreamHandlers) LastSuffrageProof(_ net.Addr, r io.Reader, w io.Writer) error {
+	e := util.StringErrorFunc("failed to handle get last suffrage proof")
+
+	enc, err := c.readEncoder(r)
+	if err != nil {
+		return e(err, "")
+	}
+
+	var body LastSuffrageProofRequestHeader
+	if err = encoder.DecodeReader(enc, r, &body); err != nil {
+		return e(err, "")
+	}
+
+	proof, found, err := c.lastSuffrageProoff(body.State())
+	header := NewOKResponseHeader(found, err)
+
+	if err := c.response(w, header, proof, enc); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
 func (c *QuicstreamHandlers) SuffrageProof(_ net.Addr, r io.Reader, w io.Writer) error {
 	e := util.StringErrorFunc("failed to handle get suffrage proof")
 
@@ -125,7 +151,7 @@ func (c *QuicstreamHandlers) SuffrageProof(_ net.Addr, r io.Reader, w io.Writer)
 		return e(err, "")
 	}
 
-	proof, found, err := c.suffrageProof(body.State())
+	proof, found, err := c.suffrageProoff(body.Height())
 	header := NewOKResponseHeader(found, err)
 
 	if err := c.response(w, header, proof, enc); err != nil {
@@ -154,7 +180,7 @@ func (c *QuicstreamHandlers) LastBlockMap(_ net.Addr, r io.Reader, w io.Writer) 
 		return e(err, "")
 	}
 
-	m, updated, err := c.lastBlockMap(body.Manifest())
+	m, updated, err := c.lastBlockMapf(body.Manifest())
 	header := NewOKResponseHeader(updated, err)
 
 	if err := c.response(w, header, m, enc); err != nil {
@@ -181,7 +207,7 @@ func (c *QuicstreamHandlers) BlockMap(_ net.Addr, r io.Reader, w io.Writer) erro
 		return e(err, "")
 	}
 
-	m, found, err := c.blockMap(body.Height())
+	m, found, err := c.blockMapf(body.Height())
 	header := NewOKResponseHeader(found, err)
 
 	if err := c.response(w, header, m, enc); err != nil {
@@ -208,7 +234,7 @@ func (c *QuicstreamHandlers) BlockMapItem(_ net.Addr, r io.Reader, w io.Writer) 
 		return e(err, "")
 	}
 
-	itemr, found, err := c.blockMapItem(body.Height(), body.Item())
+	itemr, found, err := c.blockMapItemf(body.Height(), body.Item())
 	if itemr != nil {
 		defer func() {
 			_ = itemr.Close()

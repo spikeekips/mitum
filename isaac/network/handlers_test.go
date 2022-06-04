@@ -34,6 +34,7 @@ func (t *testQuicstreamHandlers) SetupSuite() {
 
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: RequestProposalRequestHeaderHint, Instance: RequestProposalRequestHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ProposalHeaderHint, Instance: ProposalRequestHeader{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: LastSuffrageProofHeaderHint, Instance: LastSuffrageProofRequestHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: SuffrageProofHeaderHint, Instance: SuffrageProofRequestHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: LastBlockMapHeaderHint, Instance: LastBlockMapRequestHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: BlockMapHeaderHint, Instance: BlockMapRequestHeader{}}))
@@ -88,7 +89,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 		pool,
 	)
 
-	handlers := NewQuicstreamHandlers(t.Local, t.Encs, t.Enc, pool, proposalMaker, nil, nil, nil, nil)
+	handlers := NewQuicstreamHandlers(t.Local, t.Encs, t.Enc, pool, proposalMaker, nil, nil, nil, nil, nil)
 
 	ci := quictransport.NewBaseConnInfo(nil, true)
 	c := newBaseNetworkClient(t.Encs, t.Enc, t.writef(HandlerPrefixRequestProposal, handlers.RequestProposal))
@@ -133,7 +134,7 @@ func (t *testQuicstreamHandlers) TestProposal() {
 	_, err = pool.SetProposal(pr)
 	t.NoError(err)
 
-	handlers := NewQuicstreamHandlers(t.Local, t.Encs, t.Enc, pool, proposalMaker, nil, nil, nil, nil)
+	handlers := NewQuicstreamHandlers(t.Local, t.Encs, t.Enc, pool, proposalMaker, nil, nil, nil, nil, nil)
 
 	ci := quictransport.NewBaseConnInfo(nil, true)
 	c := newBaseNetworkClient(t.Encs, t.Enc, t.writef(HandlerPrefixProposal, handlers.Proposal))
@@ -165,26 +166,70 @@ func (t *testQuicstreamHandlers) TestProposal() {
 	})
 }
 
+func (t *testQuicstreamHandlers) TestLastSuffrageProof() {
+	handlers := NewQuicstreamHandlers(t.Local, t.Encs, t.Enc, nil, nil, nil, nil, nil, nil, nil)
+
+	ci := quictransport.NewBaseConnInfo(nil, true)
+	c := newBaseNetworkClient(t.Encs, t.Enc, t.writef(HandlerPrefixLastSuffrageProof, handlers.LastSuffrageProof))
+
+	st, _ := t.SuffrageState(base.Height(33), base.Height(11), nil)
+	proof := base.NewDummySuffrageProof()
+	proof = proof.SetState(st)
+
+	handlers.lastSuffrageProoff = func(h util.Hash) (base.SuffrageProof, bool, error) {
+		if h != nil && h.Equal(st.Hash()) {
+			return nil, false, nil
+		}
+
+		return proof, true, nil
+	}
+
+	t.Run("not updated", func() {
+		rproof, updated, err := c.LastSuffrageProof(context.Background(), ci, st.Hash())
+		t.NoError(err)
+		t.False(updated)
+		t.Nil(rproof)
+	})
+
+	t.Run("nil state", func() {
+		rproof, updated, err := c.LastSuffrageProof(context.Background(), ci, nil)
+		t.NoError(err)
+		t.True(updated)
+		t.NotNil(rproof)
+	})
+
+	t.Run("updated", func() {
+		rproof, updated, err := c.LastSuffrageProof(context.Background(), ci, valuehash.RandomSHA256())
+		t.NoError(err)
+		t.True(updated)
+		t.NotNil(proof)
+
+		t.True(base.IsEqualState(proof.State(), rproof.State()))
+	})
+}
+
 func (t *testQuicstreamHandlers) TestSuffrageProof() {
-	handlers := NewQuicstreamHandlers(t.Local, t.Encs, t.Enc, nil, nil, nil, nil, nil, nil)
+	handlers := NewQuicstreamHandlers(t.Local, t.Encs, t.Enc, nil, nil, nil, nil, nil, nil, nil)
 
 	ci := quictransport.NewBaseConnInfo(nil, true)
 	c := newBaseNetworkClient(t.Encs, t.Enc, t.writef(HandlerPrefixSuffrageProof, handlers.SuffrageProof))
 
+	suffrageheight := base.Height(11)
+
 	t.Run("found", func() {
-		st, _ := t.SuffrageState(base.Height(33), base.Height(11), nil)
+		st, _ := t.SuffrageState(base.Height(33), suffrageheight, nil)
 		proof := base.NewDummySuffrageProof()
 		proof = proof.SetState(st)
 
-		handlers.suffrageProof = func(state util.Hash) (base.SuffrageProof, bool, error) {
-			if !state.Equal(st.Hash()) {
+		handlers.suffrageProoff = func(h base.Height) (base.SuffrageProof, bool, error) {
+			if h != suffrageheight {
 				return nil, false, nil
 			}
 
 			return proof, true, nil
 		}
 
-		rproof, found, err := c.SuffrageProof(context.Background(), ci, st.Hash())
+		rproof, found, err := c.SuffrageProof(context.Background(), ci, suffrageheight)
 		t.NoError(err)
 		t.True(found)
 		t.NotNil(rproof)
@@ -192,22 +237,12 @@ func (t *testQuicstreamHandlers) TestSuffrageProof() {
 		t.True(base.IsEqualState(proof.State(), rproof.State()))
 	})
 
-	t.Run("nil state", func() {
-		handlers.suffrageProof = func(state util.Hash) (base.SuffrageProof, bool, error) {
-			return nil, true, nil
-		}
-
-		_, _, err := c.SuffrageProof(context.Background(), ci, nil)
-		t.Error(err)
-		t.ErrorContains(err, "invalid")
-	})
-
 	t.Run("not found", func() {
-		handlers.suffrageProof = func(state util.Hash) (base.SuffrageProof, bool, error) {
+		handlers.lastSuffrageProoff = func(state util.Hash) (base.SuffrageProof, bool, error) {
 			return nil, false, nil
 		}
 
-		proof, found, err := c.SuffrageProof(context.Background(), ci, valuehash.RandomSHA256())
+		proof, found, err := c.SuffrageProof(context.Background(), ci, suffrageheight+1)
 		t.NoError(err)
 		t.False(found)
 		t.Nil(proof)
@@ -215,7 +250,7 @@ func (t *testQuicstreamHandlers) TestSuffrageProof() {
 }
 
 func (t *testQuicstreamHandlers) TestLastBlockMap() {
-	handlers := NewQuicstreamHandlers(t.Local, t.Encs, t.Enc, nil, nil, nil, nil, nil, nil)
+	handlers := NewQuicstreamHandlers(t.Local, t.Encs, t.Enc, nil, nil, nil, nil, nil, nil, nil)
 
 	ci := quictransport.NewBaseConnInfo(nil, true)
 	c := newBaseNetworkClient(t.Encs, t.Enc, t.writef(HandlerPrefixLastBlockMap, handlers.LastBlockMap))
@@ -224,7 +259,7 @@ func (t *testQuicstreamHandlers) TestLastBlockMap() {
 		m := base.NewDummyManifest(base.Height(33), valuehash.RandomSHA256())
 		mp := base.NewDummyBlockMap(m)
 
-		handlers.lastBlockMap = func(manifest util.Hash) (base.BlockMap, bool, error) {
+		handlers.lastBlockMapf = func(manifest util.Hash) (base.BlockMap, bool, error) {
 			if manifest != nil && manifest.Equal(m.Hash()) {
 				return nil, false, nil
 			}
@@ -244,7 +279,7 @@ func (t *testQuicstreamHandlers) TestLastBlockMap() {
 		m := base.NewDummyManifest(base.Height(33), valuehash.RandomSHA256())
 		mp := base.NewDummyBlockMap(m)
 
-		handlers.lastBlockMap = func(manifest util.Hash) (base.BlockMap, bool, error) {
+		handlers.lastBlockMapf = func(manifest util.Hash) (base.BlockMap, bool, error) {
 			if manifest != nil && manifest.Equal(m.Hash()) {
 				return nil, false, nil
 			}
@@ -259,7 +294,7 @@ func (t *testQuicstreamHandlers) TestLastBlockMap() {
 	})
 
 	t.Run("not found", func() {
-		handlers.lastBlockMap = func(manifest util.Hash) (base.BlockMap, bool, error) {
+		handlers.lastBlockMapf = func(manifest util.Hash) (base.BlockMap, bool, error) {
 			return nil, false, nil
 		}
 
@@ -271,7 +306,7 @@ func (t *testQuicstreamHandlers) TestLastBlockMap() {
 }
 
 func (t *testQuicstreamHandlers) TestBlockMap() {
-	handlers := NewQuicstreamHandlers(t.Local, t.Encs, t.Enc, nil, nil, nil, nil, nil, nil)
+	handlers := NewQuicstreamHandlers(t.Local, t.Encs, t.Enc, nil, nil, nil, nil, nil, nil, nil)
 
 	ci := quictransport.NewBaseConnInfo(nil, true)
 	c := newBaseNetworkClient(t.Encs, t.Enc, t.writef(HandlerPrefixBlockMap, handlers.BlockMap))
@@ -280,7 +315,7 @@ func (t *testQuicstreamHandlers) TestBlockMap() {
 		m := base.NewDummyManifest(base.Height(33), valuehash.RandomSHA256())
 		mp := base.NewDummyBlockMap(m)
 
-		handlers.blockMap = func(height base.Height) (base.BlockMap, bool, error) {
+		handlers.blockMapf = func(height base.Height) (base.BlockMap, bool, error) {
 			if height != m.Height() {
 				return nil, false, nil
 			}
@@ -297,7 +332,7 @@ func (t *testQuicstreamHandlers) TestBlockMap() {
 	})
 
 	t.Run("not found", func() {
-		handlers.blockMap = func(height base.Height) (base.BlockMap, bool, error) {
+		handlers.blockMapf = func(height base.Height) (base.BlockMap, bool, error) {
 			return nil, false, nil
 		}
 
@@ -308,7 +343,7 @@ func (t *testQuicstreamHandlers) TestBlockMap() {
 	})
 
 	t.Run("error", func() {
-		handlers.blockMap = func(height base.Height) (base.BlockMap, bool, error) {
+		handlers.blockMapf = func(height base.Height) (base.BlockMap, bool, error) {
 			return nil, false, errors.Errorf("hehehe")
 		}
 
@@ -321,7 +356,7 @@ func (t *testQuicstreamHandlers) TestBlockMap() {
 }
 
 func (t *testQuicstreamHandlers) TestBlockMapItem() {
-	handlers := NewQuicstreamHandlers(t.Local, t.Encs, t.Enc, nil, nil, nil, nil, nil, nil)
+	handlers := NewQuicstreamHandlers(t.Local, t.Encs, t.Enc, nil, nil, nil, nil, nil, nil, nil)
 
 	ci := quictransport.NewBaseConnInfo(nil, true)
 	c := newBaseNetworkClient(t.Encs, t.Enc, t.writef(HandlerPrefixBlockMapItem, handlers.BlockMapItem))
@@ -333,7 +368,7 @@ func (t *testQuicstreamHandlers) TestBlockMapItem() {
 		body := util.UUID().Bytes()
 		r := bytes.NewBuffer(body)
 
-		handlers.blockMapItem = func(h base.Height, i base.BlockMapItemType) (io.ReadCloser, bool, error) {
+		handlers.blockMapItemf = func(h base.Height, i base.BlockMapItemType) (io.ReadCloser, bool, error) {
 			if h != height {
 				return nil, false, nil
 			}
@@ -357,7 +392,7 @@ func (t *testQuicstreamHandlers) TestBlockMapItem() {
 	})
 
 	t.Run("unknown item", func() {
-		handlers.blockMapItem = func(h base.Height, i base.BlockMapItemType) (io.ReadCloser, bool, error) {
+		handlers.blockMapItemf = func(h base.Height, i base.BlockMapItemType) (io.ReadCloser, bool, error) {
 			return nil, false, nil
 		}
 

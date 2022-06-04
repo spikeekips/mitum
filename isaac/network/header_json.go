@@ -97,7 +97,7 @@ type lastSuffrageProofRequestHeaderJSONMarshaler struct {
 	State util.Hash `json:"state"`
 }
 
-func (h SuffrageProofRequestHeader) MarshalJSON() ([]byte, error) {
+func (h LastSuffrageProofRequestHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
 		lastSuffrageProofRequestHeaderJSONMarshaler
 		BaseHeader
@@ -109,13 +109,13 @@ func (h SuffrageProofRequestHeader) MarshalJSON() ([]byte, error) {
 	})
 }
 
-type suffrageProofRequestHeaderJSONUnmarshaler struct {
+type lastSuffrageProofRequestHeaderJSONUnmarshaler struct {
 	State valuehash.HashDecoder `json:"state"`
 }
 
-func (h *SuffrageProofRequestHeader) UnmarshalJSON(b []byte) error {
+func (h *LastSuffrageProofRequestHeader) UnmarshalJSON(b []byte) error {
 	var u struct {
-		suffrageProofRequestHeaderJSONUnmarshaler
+		lastSuffrageProofRequestHeaderJSONUnmarshaler
 		BaseHeader
 	}
 
@@ -125,6 +125,42 @@ func (h *SuffrageProofRequestHeader) UnmarshalJSON(b []byte) error {
 
 	h.BaseHeader = u.BaseHeader
 	h.state = u.State.Hash()
+
+	return nil
+}
+
+type suffrageProofRequestHeaderJSONMarshaler struct {
+	SuffrageHeight base.Height `json:"suffrage_height"`
+}
+
+func (h SuffrageProofRequestHeader) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(struct {
+		BaseHeader
+		suffrageProofRequestHeaderJSONMarshaler
+	}{
+		BaseHeader: h.BaseHeader,
+		suffrageProofRequestHeaderJSONMarshaler: suffrageProofRequestHeaderJSONMarshaler{
+			SuffrageHeight: h.suffrageheight,
+		},
+	})
+}
+
+type suffrageProofRequestHeaderJSONUnmarshaler struct {
+	SuffrageHeight base.Height `json:"suffrage_height"`
+}
+
+func (h *SuffrageProofRequestHeader) UnmarshalJSON(b []byte) error {
+	var u struct {
+		BaseHeader
+		suffrageProofRequestHeaderJSONUnmarshaler
+	}
+
+	if err := util.UnmarshalJSON(b, &u); err != nil {
+		return errors.Wrap(err, "failed to unmarshal SuffrageProofHeader")
+	}
+
+	h.BaseHeader = u.BaseHeader
+	h.suffrageheight = u.SuffrageHeight
 
 	return nil
 }
