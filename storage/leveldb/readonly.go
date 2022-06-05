@@ -14,7 +14,7 @@ import (
 
 var readonlyDBOOptions = &leveldbOpt.Options{
 	Compression:            leveldbOpt.NoCompression,
-	CompactionL0Trigger:    math.MaxInt,
+	CompactionL0Trigger:    math.MaxInt32,
 	WriteL0PauseTrigger:    math.MaxInt,
 	WriteL0SlowdownTrigger: math.MaxInt,
 	ErrorIfExist:           false,

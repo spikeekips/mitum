@@ -1,7 +1,6 @@
 package leveldbstorage
 
 import (
-	"math"
 	"path/filepath"
 
 	"github.com/spikeekips/mitum/storage"
@@ -14,7 +13,7 @@ import (
 var rwDBOOptions = &leveldbOpt.Options{
 	ErrorIfExist:   false,
 	ErrorIfMissing: false,
-	WriteBuffer:    math.MaxInt32,
+	// WriteBuffer:    math.MaxInt32,
 }
 
 type RWStorage struct {
