@@ -51,14 +51,19 @@ func readHeader(r io.Reader) ([]byte, error) {
 }
 
 func ensureRead(r io.Reader, b []byte) (int, error) {
-	switch n, err := r.Read(b); {
-	case err != nil:
+	n, err := r.Read(b)
+
+	switch {
+	case err == nil:
+	case !errors.Is(err, io.EOF):
 		return n, errors.Wrap(err, "")
-	case n != len(b):
-		return n, errors.Errorf("failed to read")
-	default:
-		return n, nil
 	}
+
+	if n != len(b) {
+		return n, errors.Errorf("failed to read")
+	}
+
+	return n, nil
 }
 
 func writeHint(w io.Writer, ht hint.Hint) error {

@@ -164,7 +164,8 @@ func SaveImporters(ctx context.Context, ims []isaac.BlockImporter) error {
 	}
 
 	if err := util.RunErrgroupWorker(ctx, uint64(len(ims)), func(ctx context.Context, i, _ uint64) error {
-		return errors.Wrap(ims[i].Merge(ctx), "")
+		err := errors.Wrap(ims[i].Merge(ctx), "")
+		return err
 	}); err != nil {
 		return e(err, "")
 	}

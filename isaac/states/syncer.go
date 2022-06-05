@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -20,11 +21,13 @@ type (
 	SyncerBlockMapFunc     func(context.Context, base.Height) (base.BlockMap, bool, error)
 	SyncerBlockMapItemFunc func(context.Context, base.Height, base.BlockMapItemType) (io.ReadCloser, bool, error)
 	NewBlockImporterFunc   func(root string, blockmap base.BlockMap) (isaac.BlockImporter, error)
+	SyncerLastBlockMapFunc func(_ context.Context, manifest util.Hash) (
+		_ base.BlockMap, updated bool, _ error) // FIXME should IsValid()
 )
 
 type Syncer struct {
 	tempsyncpool     isaac.TempSyncPool
-	startsyncch      chan base.Height
+	finishedch       chan base.Height
 	newBlockImporter NewBlockImporterFunc
 	*logging.Logging
 	prevvalue     *util.Locked
@@ -32,13 +35,15 @@ type Syncer struct {
 	blockMapItemf SyncerBlockMapItemFunc
 	*util.ContextDaemon
 	isdonevalue           *atomic.Value
-	finishedch            chan base.Height
+	startsyncch           chan base.Height
 	donech                chan struct{} // revive:disable-line:nested-structs
 	doneerr               *util.Locked
 	topvalue              *util.Locked
 	setLastVoteproofsFunc func(isaac.BlockReader) error
+	lastBlockMapf         SyncerLastBlockMapFunc
 	root                  string
 	batchlimit            int64
+	lastBlockMapInterval  time.Duration
 	cancelonece           sync.Once
 }
 
@@ -46,6 +51,7 @@ func NewSyncer(
 	root string,
 	newBlockImporter NewBlockImporterFunc,
 	prev base.BlockMap,
+	lastBlockMapf SyncerLastBlockMapFunc,
 	blockMapf SyncerBlockMapFunc,
 	blockMapItemf SyncerBlockMapItemFunc,
 	tempsyncpool isaac.TempSyncPool,
@@ -80,6 +86,7 @@ func NewSyncer(
 		root:                  abs,
 		newBlockImporter:      newBlockImporter,
 		prevvalue:             util.NewLocked(prev),
+		lastBlockMapf:         lastBlockMapf,
 		blockMapf:             blockMapf,
 		blockMapItemf:         blockMapItemf,
 		tempsyncpool:          tempsyncpool,
@@ -91,6 +98,7 @@ func NewSyncer(
 		isdonevalue:           &atomic.Value{},
 		startsyncch:           make(chan base.Height),
 		setLastVoteproofsFunc: setLastVoteproofsFunc,
+		lastBlockMapInterval:  time.Second * 2, //nolint:gomnd //...
 	}
 
 	s.ContextDaemon = util.NewContextDaemon("syncer", s.start)
@@ -160,14 +168,14 @@ func (s *Syncer) Cancel() error {
 			_ = s.tempsyncpool.Cancel()
 		}()
 
-		_, _ = s.doneerr.Set(func(interface{}) (interface{}, error) {
+		_, _ = s.doneerr.Set(func(i interface{}) (interface{}, error) {
 			s.isdonevalue.Store(true)
 
 			close(s.donech)
 
 			err = s.ContextDaemon.Stop()
 
-			return nil, nil
+			return i, nil
 		})
 	})
 
@@ -178,6 +186,8 @@ func (s *Syncer) start(ctx context.Context) error {
 	defer func() {
 		_ = s.tempsyncpool.Cancel()
 	}()
+
+	go s.updateLastBlockMap(ctx)
 
 	for {
 		select {
@@ -329,4 +339,48 @@ func (s *Syncer) syncBlocks(ctx context.Context, prev base.BlockMap, to base.Hei
 	}
 
 	return nil
+}
+
+func (s *Syncer) updateLastBlockMap(ctx context.Context) {
+	var last util.Hash
+
+	if s.prev() != nil {
+		last = s.prev().Manifest().Hash()
+	}
+
+	ticker := time.NewTicker(s.lastBlockMapInterval)
+	defer ticker.Stop()
+
+end:
+	for {
+		select {
+		case <-ctx.Done():
+			break end
+		case <-ticker.C:
+			_, err := s.doneerr.Set(func(i interface{}) (interface{}, error) {
+				if i != nil {
+					return nil, errors.Errorf("already done by error")
+				}
+
+				nctx, cancel := context.WithTimeout(ctx, s.lastBlockMapInterval)
+				defer cancel()
+
+				switch m, updated, err := s.lastBlockMapf(nctx, last); {
+				case err != nil:
+					s.Log().Error().Err(err).Msg("failed to update last BlockMap")
+					return nil, nil
+				case !updated:
+					return nil, nil
+				default:
+					_ = s.Add(m.Manifest().Height())
+
+					return nil, nil
+				}
+			})
+			if err != nil {
+				break end
+			}
+		}
+		// FIXME log new block
+	}
 }

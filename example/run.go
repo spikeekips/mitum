@@ -27,23 +27,23 @@ type runCommand struct {
 	Address              launch.AddressFlag `arg:"" name:"local address" help:"node address"`
 	perm                 isaac.PermanentDatabase
 	local                base.LocalNode
-	newProposalProcessor newProposalProcessorFunc
-	getProposal          func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error)
+	client               isaac.NetworkClient
+	suffrageStateBuilder *isaacstates.SuffrageStateBuilder
 	proposalSelector     *isaac.BaseProposalSelector
 	pool                 *isaacdatabase.TempPool
 	getSuffrage          func(blockheight base.Height) (base.Suffrage, bool, error)
 	encs                 *encoder.Encoders
-	getManifest          func(height base.Height) (base.Manifest, error)
+	newProposalProcessor newProposalProcessorFunc
 	getLastManifest      func() (base.Manifest, bool, error)
 	getSuffrageBooting   func(blockheight base.Height) (base.Suffrage, bool, error)
 	quicstreamserver     *quicstream.Server
+	getProposal          func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error)
+	getManifest          func(height base.Height) (base.Manifest, error)
 	localfsroot          string
 	Discovery            []launch.ConnInfoFlag `help:"discoveries" placeholder:"ConnInfo"`
 	nodePolicy           isaac.NodePolicy
 	Port                 int  `arg:"" name:"port" help:"network port"`
 	Hold                 bool `help:"hold consensus states"`
-	suffrageStateBuilder *isaacstates.SuffrageStateBuilder
-	client               isaac.NetworkClient
 }
 
 func (cmd *runCommand) Run() error {
@@ -239,6 +239,9 @@ func (cmd *runCommand) prepareNetwork() error {
 			if err != nil {
 				return nil, false, e(err, "")
 			}
+			defer func() {
+				_ = reader.Close()
+			}()
 
 			return reader.Reader(item)
 		},
@@ -445,6 +448,7 @@ func (cmd *runCommand) newSyncer(height base.Height) (isaac.Syncer, error) {
 	}
 
 	var lastsuffrageproof base.SuffrageProof
+
 	switch proof, found, err := cmd.db.LastSuffrageProof(); {
 	case err != nil:
 		return nil, e(err, "")
@@ -461,19 +465,23 @@ func (cmd *runCommand) newSyncer(height base.Height) (isaac.Syncer, error) {
 		prev = m
 	}
 
-	bwdb, err := cmd.db.NewBlockWriteDatabase(height)
-	if err != nil {
-		return nil, e(isaacstates.ErrUnpromising.Wrap(err), "")
-	}
+	var tempsyncpool isaac.TempSyncPool
 
-	syncpool, err := launch.NewTempSyncPoolDatabase(cmd.localfsroot, height, cmd.encs, cmd.enc)
-	if err != nil {
+	switch i, err := launch.NewTempSyncPoolDatabase(cmd.localfsroot, height, cmd.encs, cmd.enc); {
+	case err != nil:
 		return nil, e(isaacstates.ErrUnpromising.Wrap(err), "")
+	default:
+		tempsyncpool = i
 	}
 
 	syncer, err := isaacstates.NewSyncer(
 		cmd.localfsroot,
 		func(root string, blockmap base.BlockMap) (isaac.BlockImporter, error) {
+			bwdb, err := cmd.db.NewBlockWriteDatabase(blockmap.Manifest().Height())
+			if err != nil {
+				return nil, errors.Wrap(err, "")
+			}
+
 			return isaacblock.NewBlockImporter(
 				root,
 				cmd.encs,
@@ -484,57 +492,11 @@ func (cmd *runCommand) newSyncer(height base.Height) (isaac.Syncer, error) {
 			)
 		},
 		prev,
-		func(ctx context.Context, height base.Height) (base.BlockMap, bool, error) {
-			// FIXME use multiple discoveries
-			discovery := cmd.Discovery[0]
-
-			ci, eerr := quictransport.ToQuicConnInfo(discovery.ConnInfo())
-			if eerr != nil {
-				return nil, false, errors.Wrap(err, "")
-			}
-
-			switch m, found, eerr := cmd.client.BlockMap(ctx, ci, height); {
-			case err != nil, !found:
-				return m, found, errors.Wrap(eerr, "")
-			default:
-				if eerr := m.IsValid(networkID); eerr != nil {
-					return m, found, errors.Wrap(eerr, "")
-				}
-
-				return m, found, nil
-			}
-		},
-		func(ctx context.Context, height base.Height, item base.BlockMapItemType) (io.ReadCloser, bool, error) {
-			discovery := cmd.Discovery[0]
-
-			ci, eerr := quictransport.ToQuicConnInfo(discovery.ConnInfo())
-			if eerr != nil {
-				return nil, false, errors.Wrap(eerr, "")
-			}
-
-			r, found, eerr := cmd.client.BlockMapItem(ctx, ci, height, item)
-
-			return r, found, errors.Wrap(eerr, "")
-		},
-		syncpool,
-		func(reader isaac.BlockReader) error {
-			switch v, found, eerr := reader.Item(base.BlockMapItemTypeVoteproofs); {
-			case err != nil:
-				return errors.Wrap(eerr, "")
-			case !found:
-				return errors.Errorf("voteproofs not found at last")
-			default:
-				vps := v.([]base.Voteproof)            //nolint:forcetypeassert //...
-				if eerr := cmd.pool.SetLastVoteproofs( //nolint:forcetypeassert //...
-					vps[0].(base.INITVoteproof),
-					vps[1].(base.ACCEPTVoteproof),
-				); eerr != nil {
-					return errors.Wrap(eerr, "")
-				}
-
-				return nil
-			}
-		},
+		cmd.syncerLastBlockMapf(),
+		cmd.syncerBlockMapf(),
+		cmd.syncerBlockMapItemf(),
+		tempsyncpool,
+		cmd.setLastVoteproofsf(),
 	)
 	if err != nil {
 		return nil, e(err, "")
@@ -597,12 +559,12 @@ func (cmd *runCommand) prepareSuffrageBuilder() {
 			proof, updated, err := cmd.client.LastSuffrageProof(ctx, ci, last)
 			switch {
 			case err != nil:
-				return proof, updated, err
+				return proof, updated, errors.Wrap(err, "")
 			case !updated:
 				return proof, updated, nil
 			default:
 				if err := proof.IsValid(networkID); err != nil {
-					return nil, updated, err
+					return nil, updated, errors.Wrap(err, "")
 				}
 
 				last = proof.Map().Manifest().Suffrage()
@@ -618,7 +580,90 @@ func (cmd *runCommand) prepareSuffrageBuilder() {
 				return nil, false, errors.Wrap(err, "")
 			}
 
-			return cmd.client.SuffrageProof(ctx, ci, suffrageheight)
+			proof, found, err := cmd.client.SuffrageProof(ctx, ci, suffrageheight)
+
+			return proof, found, errors.Wrap(err, "")
 		},
 	)
+}
+
+func (cmd *runCommand) syncerLastBlockMapf() isaacstates.SyncerLastBlockMapFunc {
+	return func(ctx context.Context, manifest util.Hash) (_ base.BlockMap, updated bool, _ error) {
+		discovery := cmd.Discovery[0]
+
+		ci, err := quictransport.ToQuicConnInfo(discovery.ConnInfo())
+		if err != nil {
+			return nil, false, errors.Wrap(err, "")
+		}
+
+		switch m, updated, err := cmd.client.LastBlockMap(ctx, ci, manifest); {
+		case err != nil, !updated:
+			return m, updated, errors.Wrap(err, "")
+		default:
+			if err := m.IsValid(networkID); err != nil {
+				return m, updated, errors.Wrap(err, "")
+			}
+
+			return m, updated, nil
+		}
+	}
+}
+
+func (cmd *runCommand) syncerBlockMapf() isaacstates.SyncerBlockMapFunc {
+	return func(ctx context.Context, height base.Height) (base.BlockMap, bool, error) {
+		// FIXME use multiple discoveries
+		discovery := cmd.Discovery[0]
+
+		ci, err := quictransport.ToQuicConnInfo(discovery.ConnInfo())
+		if err != nil {
+			return nil, false, errors.Wrap(err, "")
+		}
+
+		switch m, found, err := cmd.client.BlockMap(ctx, ci, height); {
+		case err != nil, !found:
+			return m, found, errors.Wrap(err, "")
+		default:
+			if err := m.IsValid(networkID); err != nil {
+				return m, found, errors.Wrap(err, "")
+			}
+
+			return m, found, nil
+		}
+	}
+}
+
+func (cmd *runCommand) syncerBlockMapItemf() isaacstates.SyncerBlockMapItemFunc {
+	return func(ctx context.Context, height base.Height, item base.BlockMapItemType) (io.ReadCloser, bool, error) {
+		discovery := cmd.Discovery[0]
+
+		ci, err := quictransport.ToQuicConnInfo(discovery.ConnInfo())
+		if err != nil {
+			return nil, false, errors.Wrap(err, "")
+		}
+
+		r, found, err := cmd.client.BlockMapItem(ctx, ci, height, item)
+
+		return r, found, errors.Wrap(err, "")
+	}
+}
+
+func (cmd *runCommand) setLastVoteproofsf() func(isaac.BlockReader) error {
+	return func(reader isaac.BlockReader) error {
+		switch v, found, err := reader.Item(base.BlockMapItemTypeVoteproofs); {
+		case err != nil:
+			return errors.Wrap(err, "")
+		case !found:
+			return errors.Errorf("voteproofs not found at last")
+		default:
+			vps := v.([]base.Voteproof)           //nolint:forcetypeassert //...
+			if err := cmd.pool.SetLastVoteproofs( //nolint:forcetypeassert //...
+				vps[0].(base.INITVoteproof),
+				vps[1].(base.ACCEPTVoteproof),
+			); err != nil {
+				return errors.Wrap(err, "")
+			}
+
+			return nil
+		}
+	}
 }

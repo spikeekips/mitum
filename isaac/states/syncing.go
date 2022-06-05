@@ -165,7 +165,11 @@ end:
 		case <-st.ctx.Done():
 			return
 		case <-sc.Done():
+			_ = st.syncer.Cancel()
+
 			err = sc.Err()
+
+			st.Log().Error().Err(err).Msg("syncer canceled by error")
 		case top := <-sc.Finished():
 			st.Log().Debug().Interface("height", top).Msg("syncer finished")
 
