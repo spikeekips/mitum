@@ -3,6 +3,7 @@ package isaacstates
 import (
 	"context"
 	"io"
+	"math"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -130,7 +131,7 @@ func ImportBlock(
 		})
 	}()
 
-	if err := util.RunErrgroupWorkerByChan(ctx, workch); err != nil {
+	if err := util.RunErrgroupWorkerByChan(ctx, math.MaxInt8, workch); err != nil {
 		return e(err, "")
 	}
 

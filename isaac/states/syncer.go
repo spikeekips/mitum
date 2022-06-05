@@ -90,7 +90,7 @@ func NewSyncer(
 		blockMapf:             blockMapf,
 		blockMapItemf:         blockMapItemf,
 		tempsyncpool:          tempsyncpool,
-		batchlimit:            333, //nolint:gomnd // big enough size
+		batchlimit:            3, //nolint:gomnd // big enough size
 		finishedch:            make(chan base.Height),
 		donech:                make(chan struct{}),
 		doneerr:               util.EmptyLocked(),
@@ -100,6 +100,8 @@ func NewSyncer(
 		setLastVoteproofsFunc: setLastVoteproofsFunc,
 		lastBlockMapInterval:  time.Second * 2, //nolint:gomnd //...
 	}
+
+	// FIXME big batchlimit causes too many open files error
 
 	s.ContextDaemon = util.NewContextDaemon("syncer", s.start)
 

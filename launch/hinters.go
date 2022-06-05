@@ -47,6 +47,7 @@ var Hinters = []encoder.DecodeDetail{
 	{Hint: isaacnetwork.LastBlockMapHeaderHint, Instance: isaacnetwork.LastBlockMapRequestHeader{}},
 	{Hint: isaacnetwork.LastSuffrageProofHeaderHint, Instance: isaacnetwork.LastSuffrageProofRequestHeader{}},
 	{Hint: isaacnetwork.OKResponseHeaderHint, Instance: isaacnetwork.OKResponseHeader{}},
+	{Hint: isaacnetwork.ResponseHeaderHint, Instance: isaacnetwork.ResponseHeader{}},
 	{Hint: isaacnetwork.ProposalHeaderHint, Instance: isaacnetwork.ProposalRequestHeader{}},
 	{Hint: isaacnetwork.RequestProposalRequestHeaderHint, Instance: isaacnetwork.RequestProposalRequestHeader{}},
 	{Hint: isaacnetwork.SuffrageProofHeaderHint, Instance: isaacnetwork.SuffrageProofRequestHeader{}},

@@ -365,7 +365,7 @@ func (w *LocalFSWriter) setTree(
 	tw *fixedtree.Writer,
 	newjob util.ContextWorkerCallback,
 ) (tr fixedtree.Tree, _ error) {
-	worker := util.NewErrgroupWorker(ctx, math.MaxInt32)
+	worker := util.NewErrgroupWorker(ctx, math.MaxInt8)
 	defer worker.Close()
 
 	e := util.StringErrorFunc("failed to set tree, %q", treetype)

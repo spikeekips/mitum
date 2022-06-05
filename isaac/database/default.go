@@ -2,7 +2,6 @@ package isaacdatabase
 
 import (
 	"context"
-	"math"
 	"sync"
 	"time"
 
@@ -494,7 +493,7 @@ func (db *Default) dig(f func(isaac.PartialDatabase) (bool, error)) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	worker := util.NewErrgroupWorker(ctx, math.MaxInt32)
+	worker := util.NewErrgroupWorker(ctx, int64(len(partials)))
 	defer worker.Close()
 
 	for i := range partials {

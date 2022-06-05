@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"io"
+	"math"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -194,7 +195,7 @@ func LoadRawItemsWithWorker(
 		})
 	}()
 
-	if err := util.RunErrgroupWorkerByChan(context.Background(), workch); err != nil {
+	if err := util.RunErrgroupWorkerByChan(context.Background(), math.MaxInt8, workch); err != nil {
 		return errors.Wrap(err, "")
 	}
 

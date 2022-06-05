@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"os"
+	"path/filepath"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -110,6 +112,18 @@ func (cmd *runCommand) Run() error {
 
 func (cmd *runCommand) run() error {
 	log.Debug().Msg("node started")
+
+	profiledefer, err := launch.StartProfile(
+		filepath.Join(cmd.localfsroot, fmt.Sprintf("cpu-%s.pprof", util.ULID().String())),
+		filepath.Join(cmd.localfsroot, fmt.Sprintf("mem-%s.pprof", util.ULID().String())),
+	)
+	if err != nil {
+		return errors.Wrap(err, "")
+	}
+
+	defer func() {
+		_ = profiledefer()
+	}()
 
 	if err := cmd.quicstreamserver.Start(); err != nil {
 		return errors.Wrap(err, "")

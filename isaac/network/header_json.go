@@ -359,3 +359,47 @@ func (r *OKResponseHeader) UnmarshalJSON(b []byte) error {
 
 	return nil
 }
+
+type ResponseHeaderJSONMarshaler struct {
+	Error string `json:"error,omitempty"`
+	OK    bool   `json:"ok,omitempty"`
+}
+
+func (r ResponseHeader) MarshalJSON() ([]byte, error) {
+	var err string
+	if r.err != nil {
+		err = r.err.Error()
+	}
+
+	return util.MarshalJSON(struct {
+		ResponseHeaderJSONMarshaler
+		BaseHeader
+	}{
+		BaseHeader: r.BaseHeader,
+		ResponseHeaderJSONMarshaler: ResponseHeaderJSONMarshaler{
+			OK:    r.ok,
+			Error: err,
+		},
+	})
+}
+
+func (r *ResponseHeader) UnmarshalJSON(b []byte) error {
+	var u struct {
+		ResponseHeaderJSONMarshaler
+		BaseHeader
+	}
+
+	if err := util.UnmarshalJSON(b, &u); err != nil {
+		return errors.Wrap(err, "failed to unmarshal ResponseHeader")
+	}
+
+	r.BaseHeader = u.BaseHeader
+
+	r.ok = u.OK
+
+	if len(u.Error) > 0 {
+		r.err = errors.Errorf(u.Error)
+	}
+
+	return nil
+}

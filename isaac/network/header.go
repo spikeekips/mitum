@@ -18,8 +18,9 @@ var (
 )
 
 var (
-	ErrorResponseHeaderHint = hint.MustNewHint("error-response-header-v0.0.1")
-	OKResponseHeaderHint    = hint.MustNewHint("ok-response-header-v0.0.1")
+	ErrorResponseHeaderHint = hint.MustNewHint("error-response-header-v0.0.1") // FIXME remove
+	OKResponseHeaderHint    = hint.MustNewHint("ok-response-header-v0.0.1")    // FIXME remove
+	ResponseHeaderHint      = hint.MustNewHint("response-header-v0.0.1")
 )
 
 type Header interface {
@@ -314,5 +315,27 @@ func (r OKResponseHeader) OK() bool {
 }
 
 func (r OKResponseHeader) Err() error {
+	return r.err
+}
+
+type ResponseHeader struct {
+	err error
+	BaseHeader
+	ok bool
+}
+
+func NewResponseHeader(ok bool, err error) ResponseHeader {
+	return ResponseHeader{
+		BaseHeader: NewBaseHeader(ResponseHeaderHint),
+		ok:         ok,
+		err:        err,
+	}
+}
+
+func (r ResponseHeader) OK() bool {
+	return r.ok
+}
+
+func (r ResponseHeader) Err() error {
 	return r.err
 }

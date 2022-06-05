@@ -198,7 +198,7 @@ func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, te
 		return e(storage.NotFoundError.Errorf("blockmap not found in LeveldbTempDatabase"), "")
 	}
 
-	worker := util.NewErrgroupWorker(ctx, math.MaxInt32)
+	worker := util.NewErrgroupWorker(ctx, math.MaxInt8)
 	defer worker.Close()
 
 	// NOTE merge operations

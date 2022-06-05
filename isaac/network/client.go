@@ -57,7 +57,7 @@ func (c *baseNetworkClient) RequestProposal(
 		_ = r.Close()
 	}()
 
-	h, enc, err := c.loadOKHeader(ctx, r)
+	h, enc, err := c.loadResponseHeader(ctx, r)
 
 	switch {
 	case err != nil:
@@ -95,7 +95,7 @@ func (c *baseNetworkClient) Proposal( //nolint:dupl //...
 		return nil, false, e(err, "failed to send request")
 	}
 
-	h, enc, err := c.loadOKHeader(ctx, r)
+	h, enc, err := c.loadResponseHeader(ctx, r)
 
 	switch {
 	case err != nil:
@@ -181,7 +181,7 @@ func (c *baseNetworkClient) BlockMapItem(
 		return nil, false, e(err, "failed to send request")
 	}
 
-	h, _, err := c.loadOKHeader(ctx, r)
+	h, _, err := c.loadResponseHeader(ctx, r)
 
 	switch {
 	case err != nil:
@@ -211,8 +211,11 @@ func (c *baseNetworkClient) requestOK(
 	if err != nil {
 		return false, errors.Wrap(err, "failed to send request")
 	}
+	defer func() {
+		_ = r.Close()
+	}()
 
-	h, enc, err := c.loadOKHeader(ctx, r)
+	h, enc, err := c.loadResponseHeader(ctx, r)
 
 	switch {
 	case err != nil:
@@ -230,11 +233,11 @@ func (c *baseNetworkClient) requestOK(
 	}
 }
 
-func (c *baseNetworkClient) loadOKHeader(
+func (c *baseNetworkClient) loadResponseHeader(
 	_ context.Context,
 	r io.ReadCloser,
-) (h OKResponseHeader, enc encoder.Encoder, _ error) {
-	e := util.StringErrorFunc("failed to load ok header")
+) (h ResponseHeader, enc encoder.Encoder, _ error) {
+	e := util.StringErrorFunc("failed to load response header")
 
 	enc, err := c.readEncoder(r)
 	if err != nil {

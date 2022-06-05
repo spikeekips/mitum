@@ -97,7 +97,7 @@ func (db *LeveldbBlockWrite) SetStates(sts []base.State) error {
 		}
 	}()
 
-	if err := util.RunErrgroupWorkerByChan(context.Background(), workch); err != nil {
+	if err := util.RunErrgroupWorkerByChan(context.Background(), math.MaxInt8, workch); err != nil {
 		return e(err, "")
 	}
 
@@ -109,7 +109,7 @@ func (db *LeveldbBlockWrite) SetOperations(ops []util.Hash) error {
 		return nil
 	}
 
-	worker := util.NewErrgroupWorker(context.Background(), math.MaxInt32)
+	worker := util.NewErrgroupWorker(context.Background(), int64(len(ops)))
 	defer worker.Close()
 
 	e := util.StringErrorFunc("failed to set operation")

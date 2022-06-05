@@ -162,7 +162,7 @@ func (w *Writer) closeStateValues(ctx context.Context) error {
 
 	e := util.StringErrorFunc("failed to close state values")
 
-	worker := util.NewErrgroupWorker(ctx, math.MaxInt32)
+	worker := util.NewErrgroupWorker(ctx, math.MaxInt8)
 	defer worker.Close()
 
 	if w.opstreeg != nil {

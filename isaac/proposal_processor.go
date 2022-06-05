@@ -2,6 +2,7 @@ package isaac
 
 import (
 	"context"
+	"math"
 	"sync"
 	"time"
 
@@ -331,7 +332,7 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context) error 
 	errch := make(chan error, 1)
 
 	go func() {
-		errch <- util.RunErrgroupWorkerByChan(wctx, workch)
+		errch <- util.RunErrgroupWorkerByChan(wctx, math.MaxInt8, workch)
 	}()
 
 	if err := func() error {

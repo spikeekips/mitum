@@ -314,7 +314,7 @@ func (db *TempPool) SetLastVoteproofs(ivp base.INITVoteproof, avp base.ACCEPTVot
 }
 
 func (db *TempPool) removeNewOperations(ctx context.Context, facthashes []util.Hash) error {
-	worker := util.NewErrgroupWorker(ctx, math.MaxInt32)
+	worker := util.NewErrgroupWorker(ctx, math.MaxInt8)
 	defer worker.Close()
 
 	batch := new(leveldb.Batch)

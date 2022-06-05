@@ -3,7 +3,6 @@ package util
 import (
 	"context"
 	"fmt"
-	"math"
 	"sync"
 	"time"
 
@@ -524,8 +523,8 @@ func RunErrgroupWorker(ctx context.Context, size uint64, f func(ctx context.Cont
 	return nil
 }
 
-func RunErrgroupWorkerByChan(ctx context.Context, workch chan ContextWorkerCallback) error {
-	worker := NewErrgroupWorker(ctx, math.MaxInt32)
+func RunErrgroupWorkerByChan(ctx context.Context, size int64, workch chan ContextWorkerCallback) error {
+	worker := NewErrgroupWorker(ctx, size)
 	defer worker.Close()
 
 	for f := range workch {
