@@ -188,7 +188,10 @@ func (t *testDefaultWithPermanent) TestLastMap() {
 
 func (t *testDefaultWithPermanent) TestSuffrageProof() {
 	suffrageheight := base.Height(66)
-	proof := NewDummySuffrageProof(nil)
+
+	_, nodes := t.Locals(1)
+	sufst, _ := t.SuffrageState(base.Height(77), suffrageheight, nodes)
+	proof := NewDummySuffrageProof(sufst)
 
 	perm := &DummyPermanentDatabase{
 		suffrageprooff: func(h base.Height) (base.SuffrageProof, bool, error) {
@@ -231,7 +234,10 @@ func (t *testDefaultWithPermanent) TestSuffrageProof() {
 
 func (t *testDefaultWithPermanent) TestSuffrageProofByBlockHeight() {
 	height := base.Height(66)
-	proof := NewDummySuffrageProof(nil)
+
+	_, nodes := t.Locals(1)
+	sufst, _ := t.SuffrageState(height, base.Height(44), nodes)
+	proof := NewDummySuffrageProof(sufst)
 
 	perm := &DummyPermanentDatabase{
 		suffrageproofbyblockheightf: func(h base.Height) (base.SuffrageProof, bool, error) {
@@ -273,7 +279,9 @@ func (t *testDefaultWithPermanent) TestSuffrageProofByBlockHeight() {
 }
 
 func (t *testDefaultWithPermanent) TestLastSuffrageProof() {
-	proof := NewDummySuffrageProof(nil)
+	_, nodes := t.Locals(1)
+	sufst, _ := t.SuffrageState(base.Height(77), base.Height(66), nodes)
+	proof := NewDummySuffrageProof(sufst)
 
 	perm := &DummyPermanentDatabase{}
 
@@ -499,7 +507,7 @@ func (t *testDefaultBlockWrite) TestMerge() {
 
 	lsufst, lsufsv := t.SuffrageState(height-1, base.Height(66)-1, nodes)
 	oldstts[3] = lsufst
-	lproof := NewDummySuffrageProof(nil)
+	lproof := NewDummySuffrageProof(lsufst)
 
 	perm := &DummyPermanentDatabase{
 		mapf: func(base.Height) (base.BlockMap, bool, error) {

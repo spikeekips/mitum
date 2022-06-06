@@ -49,7 +49,7 @@ func (t *testSyncer) SetupTest() {
 }
 
 func (t *testSyncer) TestNew() {
-	s, err := NewSyncer(t.Root, nil, nil, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil)
+	s, err := NewSyncer(t.Root, nil, nil, nil, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil)
 	t.NoError(err)
 
 	_ = (interface{})(s).(isaac.Syncer)
@@ -91,7 +91,7 @@ func (t *testSyncer) dummySetLastVoteproofs() func(isaac.BlockReader) error {
 
 func (t *testSyncer) TestAdd() {
 	t.Run("with nil last", func() {
-		s, err := NewSyncer(t.Root, nil, nil, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil)
+		s, err := NewSyncer(t.Root, nil, nil, nil, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil)
 		t.NoError(err)
 
 		height := base.Height(33)
@@ -105,7 +105,7 @@ func (t *testSyncer) TestAdd() {
 		lastheight := base.Height(33)
 		last := t.maps(lastheight, lastheight)[0]
 
-		s, err := NewSyncer(t.Root, nil, last, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil)
+		s, err := NewSyncer(t.Root, nil, last, nil, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil)
 		t.NoError(err)
 
 		height := base.Height(33)
@@ -117,7 +117,7 @@ func (t *testSyncer) TestAdd() {
 		lastheight := base.Height(33)
 		last := t.maps(lastheight, lastheight)[0]
 
-		s, err := NewSyncer(t.Root, nil, last, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil)
+		s, err := NewSyncer(t.Root, nil, last, nil, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil)
 		t.NoError(err)
 
 		height := lastheight - 1
@@ -129,7 +129,7 @@ func (t *testSyncer) TestAdd() {
 		lastheight := base.Height(33)
 		last := t.maps(lastheight, lastheight)[0]
 
-		s, err := NewSyncer(t.Root, nil, last, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil)
+		s, err := NewSyncer(t.Root, nil, last, nil, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil)
 		t.NoError(err)
 
 		height := lastheight + 1
@@ -142,7 +142,7 @@ func (t *testSyncer) TestAdd() {
 
 func (t *testSyncer) TestAddChan() {
 	t.Run("with nil last", func() {
-		s, err := NewSyncer(t.Root, nil, nil, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil)
+		s, err := NewSyncer(t.Root, nil, nil, nil, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil)
 		t.NoError(err)
 
 		height := base.Height(33)
@@ -162,7 +162,7 @@ func (t *testSyncer) TestAddChan() {
 
 		last := t.maps(lastheight, lastheight)[0]
 
-		s, err := NewSyncer(t.Root, nil, last, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil)
+		s, err := NewSyncer(t.Root, nil, last, nil, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil)
 		t.NoError(err)
 
 		height := lastheight + 1
@@ -178,7 +178,7 @@ func (t *testSyncer) TestAddChan() {
 	})
 
 	t.Run("same with synced height", func() {
-		s, err := NewSyncer(t.Root, nil, nil, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil)
+		s, err := NewSyncer(t.Root, nil, nil, nil, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil)
 		t.NoError(err)
 
 		s.topvalue = util.NewLocked(base.Height(33))
@@ -198,7 +198,7 @@ func (t *testSyncer) TestAddChan() {
 }
 
 func (t *testSyncer) TestCancel() {
-	s, err := NewSyncer(t.Root, nil, nil, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil)
+	s, err := NewSyncer(t.Root, nil, nil, nil, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil)
 	t.NoError(err)
 	t.NoError(s.Start())
 
@@ -211,7 +211,7 @@ func (t *testSyncer) TestFetchMaps() {
 		to := base.Height(5)
 		maps := t.maps(base.GenesisHeight, to)
 
-		s, err := NewSyncer(t.Root, nil, nil, func(_ context.Context, height base.Height) (base.BlockMap, bool, error) {
+		s, err := NewSyncer(t.Root, nil, nil, nil, func(_ context.Context, height base.Height) (base.BlockMap, bool, error) {
 			index := (height - base.GenesisHeight).Int64()
 			if index < 0 || index >= int64(len(maps)) {
 				return nil, false, nil
@@ -244,7 +244,7 @@ func (t *testSyncer) TestFetchMaps() {
 		wrongmap := t.maps(maps[1].Manifest().Height(), maps[1].Manifest().Height())[0]
 		maps[1] = wrongmap
 
-		s, err := NewSyncer(t.Root, nil, nil, func(_ context.Context, height base.Height) (base.BlockMap, bool, error) {
+		s, err := NewSyncer(t.Root, nil, nil, nil, func(_ context.Context, height base.Height) (base.BlockMap, bool, error) {
 			index := (height - base.GenesisHeight).Int64()
 			if index < 0 || index >= int64(len(maps)) {
 				return nil, false, nil
@@ -280,6 +280,7 @@ func (t *testSyncer) TestFetchMaps() {
 		s, err := NewSyncer(
 			t.Root,
 			t.dummyNewBlockImporterFunc(),
+			nil,
 			nil,
 			func(_ context.Context, height base.Height) (base.BlockMap, bool, error) {
 				reachedlock.L.Lock()
@@ -330,6 +331,7 @@ func (t *testSyncer) TestFetchMaps() {
 			t.Root,
 			t.dummyNewBlockImporterFunc(),
 			nil,
+			nil,
 			func(_ context.Context, height base.Height) (base.BlockMap, bool, error) {
 				index := (height - base.GenesisHeight).Int64()
 				if index < 0 || index >= int64(len(maps)) {
@@ -365,6 +367,7 @@ func (t *testSyncer) TestFetchMaps() {
 			t.Root,
 			t.dummyNewBlockImporterFunc(),
 			maps[0],
+			nil,
 			func(_ context.Context, height base.Height) (base.BlockMap, bool, error) {
 				index := (height - lastheight).Int64()
 				if index < 0 || index >= int64(len(maps)) {
@@ -400,6 +403,7 @@ func (t *testSyncer) TestFetchMaps() {
 			t.Root,
 			t.dummyNewBlockImporterFunc(),
 			maps[0],
+			nil,
 			func(_ context.Context, height base.Height) (base.BlockMap, bool, error) {
 				index := (height - lastheight).Int64()
 				if index < 0 || index >= int64(len(maps)) {
@@ -439,6 +443,7 @@ func (t *testSyncer) TestFetchBlockItem() {
 		t.Root,
 		t.dummyNewBlockImporterFunc(),
 		maps[0],
+		nil,
 		func(_ context.Context, height base.Height) (base.BlockMap, bool, error) {
 			index := (height - lastheight).Int64()
 

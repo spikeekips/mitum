@@ -264,7 +264,7 @@ func (h BlockMapItemRequestHeader) Item() base.BlockMapItemType {
 	return h.item
 }
 
-type ErrorResponseHeader struct {
+type ErrorResponseHeader struct { // FIXME remove
 	err error
 	BaseHeader
 }
@@ -288,7 +288,7 @@ func (r ErrorResponseHeader) IsValid([]byte) error {
 	return nil
 }
 
-type OKResponseHeader struct {
+type OKResponseHeader struct { // FIXME remove
 	err error
 	BaseHeader
 	ok bool

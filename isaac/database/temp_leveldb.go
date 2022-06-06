@@ -50,7 +50,7 @@ func newTempLeveldb(
 		st:          st,
 	}
 
-	if err := db.loadBlockMap(); err != nil {
+	if err := db.loadLastBlockMap(); err != nil {
 		return nil, err
 	}
 
@@ -86,15 +86,8 @@ func newTempLeveldbFromBlockWriteStorage(wst *LeveldbBlockWrite) (*TempLeveldb, 
 		mp = i
 	}
 
-	var sufst base.State
-	if i, _ := wst.sufst.Value(); i != nil {
-		sufst = i.(base.State) //nolint:forcetypeassert //...
-	}
-
-	var policy base.NetworkPolicy
-	if i, _ := wst.policy.Value(); i != nil {
-		policy = i.(base.NetworkPolicy) //nolint:forcetypeassert //...
-	}
+	sufst := wst.SuffrageState()
+	policy := wst.NetworkPolicy()
 
 	var proof base.SuffrageProof
 	if i, _ := wst.proof.Value(); i != nil {
@@ -159,21 +152,13 @@ func (db *TempLeveldb) ExistsKnownOperation(h util.Hash) (bool, error) {
 	return db.existsKnownOperation(h)
 }
 
-func (db *TempLeveldb) loadBlockMap() error {
-	e := util.StringErrorFunc("failed to load blockmap")
-
-	switch b, found, err := db.st.Get(leveldbKeyPrefixBlockMap); {
+func (db *TempLeveldb) loadLastBlockMap() error {
+	switch m, err := db.baseLeveldb.loadLastBlockMap(); {
 	case err != nil:
-		return e(err, "")
-	case !found:
-		return e(err, "blockmap not found")
+		return err
+	case m == nil:
+		return nil
 	default:
-		var m base.BlockMap
-
-		if err := db.readHinter(b, &m); err != nil {
-			return e(err, "")
-		}
-
 		db.mp = m
 
 		return nil

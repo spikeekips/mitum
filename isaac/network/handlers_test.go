@@ -42,6 +42,7 @@ func (t *testQuicstreamHandlers) SetupSuite() {
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageCandidateHint, Instance: isaac.SuffrageCandidate{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ErrorResponseHeaderHint, Instance: ErrorResponseHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: OKResponseHeaderHint, Instance: OKResponseHeader{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ResponseHeaderHint, Instance: ResponseHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: base.DummySuffrageProofHint, Instance: base.DummySuffrageProof{}}))
 }
 

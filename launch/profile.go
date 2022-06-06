@@ -15,7 +15,7 @@ func StartProfile(cpu, mem string) (func() error, error) {
 		return nil, e(err, "could not create CPU profile")
 	}
 
-	if err := pprof.StartCPUProfile(cpuf); err != nil {
+	if err = pprof.StartCPUProfile(cpuf); err != nil {
 		defer func() {
 			_ = cpuf.Close()
 		}()

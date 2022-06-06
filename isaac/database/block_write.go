@@ -15,12 +15,13 @@ import (
 
 type LeveldbBlockWrite struct {
 	*baseLeveldb
-	st     *leveldbstorage.WriteStorage
-	mp     *util.Locked
-	sufst  *util.Locked
-	policy *util.Locked
-	proof  *util.Locked
-	height base.Height
+	st         *leveldbstorage.WriteStorage
+	mp         *util.Locked
+	sufst      *util.Locked
+	policy     *util.Locked
+	proof      *util.Locked
+	laststates *util.ShardedMap
+	height     base.Height
 }
 
 func NewLeveldbBlockWrite(
@@ -51,10 +52,13 @@ func newLeveldbBlockWrite(
 		sufst:       util.EmptyLocked(),
 		policy:      util.EmptyLocked(),
 		proof:       util.EmptyLocked(),
+		laststates:  util.NewShardedMap(math.MaxInt8),
 	}
 }
 
 func (db *LeveldbBlockWrite) Cancel() error {
+	db.laststates.Close()
+
 	if err := db.Remove(); err != nil {
 		return errors.Wrap(err, "failed to cancel TempLeveldbDatabase")
 	}
@@ -151,16 +155,20 @@ func (db *LeveldbBlockWrite) BlockMap() (base.BlockMap, error) {
 
 func (db *LeveldbBlockWrite) SetBlockMap(m base.BlockMap) error {
 	if _, err := db.mp.Set(func(i interface{}) (interface{}, error) {
-		if i != nil {
-			return i, nil
-		}
-
 		b, err := db.marshal(m)
 		if err != nil {
 			return nil, err
 		}
 
-		return m, db.st.Put(leveldbKeyPrefixBlockMap, b, nil)
+		if err := db.st.Put(leveldbBlockMapKey(m.Manifest().Height()), b, nil); err != nil {
+			return nil, err
+		}
+
+		if i != nil && m.Manifest().Height() <= i.(base.BlockMap).Manifest().Height() { //nolint:forcetypeassert //...
+			return i, nil
+		}
+
+		return m, nil
 	}); err != nil {
 		return errors.Wrap(err, "failed to set blockmap")
 	}
@@ -183,21 +191,30 @@ func (db *LeveldbBlockWrite) NetworkPolicy() base.NetworkPolicy {
 		return nil
 	}
 
-	return i.(base.NetworkPolicy) //nolint:forcetypeassert //...
+	return i.(base.State).Value().(base.NetworkPolicyStateValue).Policy() //nolint:forcetypeassert //...
 }
 
 func (db *LeveldbBlockWrite) SetSuffrageProof(proof base.SuffrageProof) error {
 	if _, err := db.proof.Set(func(i interface{}) (interface{}, error) {
-		if i != nil {
-			return i, nil
-		}
-
 		b, err := db.marshal(proof)
 		if err != nil {
 			return nil, err
 		}
 
-		return proof, db.st.Put(leveldbKeySuffrageProof, b, nil)
+		if err := db.st.Put(leveldbSuffrageProofKey(proof.SuffrageHeight()), b, nil); err != nil {
+			return nil, err
+		}
+
+		if err := db.st.Put(leveldbSuffrageProofByBlockHeightKey(proof.Map().Manifest().Height()), b, nil); err != nil {
+			return nil, err
+		}
+
+		if i != nil && proof.SuffrageHeight() <=
+			i.(base.SuffrageProof).SuffrageHeight() { //nolint:forcetypeassert //...
+			return i, nil
+		}
+
+		return proof, nil
 	}); err != nil {
 		return errors.Wrap(err, "failed to set SuffrageProof")
 	}
@@ -209,6 +226,8 @@ func (db *LeveldbBlockWrite) Write() error {
 	db.Lock()
 	defer db.Unlock()
 
+	db.laststates.Close()
+
 	if err := db.st.Write(); err != nil {
 		return errors.Wrap(err, "failed to write to TempLeveldbDatabase")
 	}
@@ -219,6 +238,8 @@ func (db *LeveldbBlockWrite) Write() error {
 func (db *LeveldbBlockWrite) TempDatabase() (isaac.TempDatabase, error) {
 	db.Lock()
 	defer db.Unlock()
+
+	db.laststates.Close()
 
 	e := util.StringErrorFunc("failed to make TempDatabase from BlockWriteDatabase")
 
@@ -235,8 +256,8 @@ func (db *LeveldbBlockWrite) TempDatabase() (isaac.TempDatabase, error) {
 func (db *LeveldbBlockWrite) setState(st base.State) error {
 	e := util.StringErrorFunc("failed to set state")
 
-	if st.Height() != db.height {
-		return e(nil, "wrong state height")
+	if !db.isLastStates(st) {
+		return nil
 	}
 
 	b, err := db.marshal(st)
@@ -246,9 +267,9 @@ func (db *LeveldbBlockWrite) setState(st base.State) error {
 
 	switch {
 	case base.IsSuffrageState(st) && st.Key() == isaac.SuffrageStateKey:
-		_ = db.sufst.SetValue(st)
+		db.updateLockedStates(st, db.sufst)
 	case base.IsNetworkPolicyState(st) && st.Key() == isaac.NetworkPolicyStateKey:
-		_ = db.policy.SetValue(st.Value().(base.NetworkPolicyStateValue).Policy()) //nolint:forcetypeassert //...
+		db.updateLockedStates(st, db.policy)
 	}
 
 	if err := db.st.Put(leveldbStateKey(st.Key()), b, nil); err != nil {
@@ -256,4 +277,29 @@ func (db *LeveldbBlockWrite) setState(st base.State) error {
 	}
 
 	return nil
+}
+
+func (db *LeveldbBlockWrite) isLastStates(st base.State) bool {
+	var islast bool
+	_, _ = db.laststates.Set(st.Key(), func(i interface{}) (interface{}, error) {
+		if !util.IsNilLockedValue(i) && st.Height() <= i.(base.Height) { //nolint:forcetypeassert //...
+			return nil, errors.Errorf("old")
+		}
+
+		islast = true
+
+		return st.Height(), nil
+	})
+
+	return islast
+}
+
+func (*LeveldbBlockWrite) updateLockedStates(st base.State, locked *util.Locked) {
+	_, _ = locked.Set(func(i interface{}) (interface{}, error) {
+		if i != nil && st.Height() <= i.(base.State).Height() { //nolint:forcetypeassert //...
+			return i, nil
+		}
+
+		return st, nil
+	})
 }

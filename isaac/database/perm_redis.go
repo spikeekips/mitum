@@ -272,8 +272,6 @@ func (db *RedisPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp
 		return e(storage.NotFoundError.Errorf("blockmap not found in LeveldbTempDatabase"), "")
 	}
 
-	sufst := temp.sufst
-
 	if err := util.RunErrgroupWorkerByJobs(
 		ctx,
 		func(ctx context.Context, jobid uint64) error {
@@ -288,11 +286,12 @@ func (db *RedisPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp
 				return errors.Wrap(err, "failed to merge states")
 			}
 
-			// NOTE merge suffrage state
-			if sufst != nil {
-				if err := db.mergeSuffrageProofTempDatabaseFromLeveldb(ctx, temp, sufst); err != nil {
-					return errors.Wrap(err, "failed to merge SuffrageProof")
-				}
+			if err := db.mergeSuffrageProofsTempDatabaseFromLeveldb(ctx, temp); err != nil {
+				return errors.Wrap(err, "failed to merge SuffrageProof")
+			}
+
+			if err := db.mergeSuffrageProofsByBlockHeightTempDatabaseFromLeveldb(ctx, temp); err != nil {
+				return errors.Wrap(err, "failed to merge SuffrageProof")
 			}
 
 			return nil
@@ -357,61 +356,77 @@ func (db *RedisPermanent) mergeStatesTempDatabaseFromLeveldb(ctx context.Context
 		}, true)
 }
 
-func (db *RedisPermanent) mergeSuffrageProofTempDatabaseFromLeveldb(
-	ctx context.Context,
-	temp *TempLeveldb,
-	sufst base.State,
+func (db *RedisPermanent) mergeSuffrageProofsTempDatabaseFromLeveldb(ctx context.Context, temp *TempLeveldb) error {
+	return temp.st.Iter(
+		leveldbutil.BytesPrefix(leveldbKeySuffrageProof),
+		func(k, b []byte) (bool, error) {
+			height, err := heightFromleveldbKey(k, leveldbKeySuffrageProof)
+			if err != nil {
+				return false, err
+			}
+
+			if err := db.st.Set(ctx, redisSuffrageProofKey(height), b); err != nil {
+				return false, errors.Wrap(err, "failed to set SuffrageProof")
+			}
+
+			return true, nil
+		}, true)
+}
+
+func (db *RedisPermanent) mergeSuffrageProofsByBlockHeightTempDatabaseFromLeveldb(
+	ctx context.Context, temp *TempLeveldb,
 ) error {
-	z := redis.ZAddArgs{
-		NX:      true,
-		Members: []redis.Z{{Score: 0, Member: redisSuffrageProofByBlockHeightKey(sufst.Height())}},
-	}
-	if err := db.st.ZAddArgs(ctx, redisZKeySuffrageProofsByBlockHeight, z); err != nil {
-		return errors.Wrap(err, "failed to zadd suffrageproof by suffrage proof by block height")
-	}
+	return temp.st.Iter(
+		leveldbutil.BytesPrefix(leveldbKeySuffrageProofByBlockHeight),
+		func(k, b []byte) (bool, error) {
+			height, err := heightFromleveldbKey(k, leveldbKeySuffrageProofByBlockHeight)
+			if err != nil {
+				return false, err
+			}
 
-	// NOTE merge SuffrageProof
-	switch b, found, err := temp.st.Get(leveldbKeySuffrageProof); {
-	case err != nil:
-		return errors.Wrap(err, "failed to get SuffrageProof")
-	case !found:
-		return storage.NotFoundError.Errorf("failed to get SuffrageProof")
-	default:
-		if err := db.st.Set(ctx, redisSuffrageProofKey(temp.SuffrageHeight()), b); err != nil {
-			return errors.Wrap(err, "failed to set SuffrageProof")
-		}
+			z := redis.ZAddArgs{
+				NX:      true,
+				Members: []redis.Z{{Score: 0, Member: redisSuffrageProofByBlockHeightKey(height)}},
+			}
+			if err := db.st.ZAddArgs(ctx, redisZKeySuffrageProofsByBlockHeight, z); err != nil {
+				return false, errors.Wrap(err, "failed to zadd suffrageproof by suffrage proof by block height")
+			}
 
-		if err := db.st.Set(ctx, redisSuffrageProofByBlockHeightKey(sufst.Height()), b); err != nil {
-			return errors.Wrap(err, "failed to set SuffrageProof by block height")
-		}
-	}
+			if err := db.st.Set(ctx, redisSuffrageProofByBlockHeightKey(height), b); err != nil {
+				return false, errors.Wrap(err, "failed to set SuffrageProof by block height")
+			}
 
-	return nil
+			return true, nil
+		}, true)
 }
 
 func (db *RedisPermanent) mergeBlockMapTempDatabaseFromLeveldb(
 	ctx context.Context, temp *TempLeveldb,
 ) error {
-	switch b, found, err := temp.st.Get(leveldbKeyPrefixBlockMap); {
-	case err != nil || !found:
-		return errors.Wrap(err, "failed to get blockmap from TempDatabase")
-	default:
-		key := redisBlockMapKey(temp.Height())
-		z := redis.ZAddArgs{
-			NX:      true,
-			Members: []redis.Z{{Score: 0, Member: key}},
-		}
+	return temp.st.Iter(
+		leveldbutil.BytesPrefix(leveldbKeyPrefixBlockMap),
+		func(k, b []byte) (bool, error) {
+			height, err := heightFromleveldbKey(k, leveldbKeyPrefixBlockMap)
+			if err != nil {
+				return false, err
+			}
 
-		if err := db.st.ZAddArgs(ctx, redisZKeyBlockMaps, z); err != nil {
-			return errors.Wrap(err, "failed to zadd blockmap by block height")
-		}
+			key := redisBlockMapKey(height)
+			z := redis.ZAddArgs{
+				NX:      true,
+				Members: []redis.Z{{Score: 0, Member: key}},
+			}
 
-		if err := db.st.Set(ctx, key, b); err != nil {
-			return errors.Wrap(err, "failed to set blockmap")
-		}
+			if err := db.st.ZAddArgs(ctx, redisZKeyBlockMaps, z); err != nil {
+				return false, errors.Wrap(err, "failed to zadd blockmap by block height")
+			}
 
-		return nil
-	}
+			if err := db.st.Set(ctx, key, b); err != nil {
+				return false, errors.Wrap(err, "failed to set blockmap")
+			}
+
+			return true, nil
+		}, true)
 }
 
 func (db *RedisPermanent) loadLastBlockMap() error {

@@ -21,6 +21,7 @@ type DummySuffrageProof struct {
 	hint.BaseHinter
 	ID string
 	ST base.State
+	MP base.BlockMap
 }
 
 func NewDummySuffrageProof(st base.State) DummySuffrageProof {
@@ -28,6 +29,7 @@ func NewDummySuffrageProof(st base.State) DummySuffrageProof {
 		BaseHinter: hint.NewBaseHinter(DummySuffrageProofHint),
 		ID:         util.UUID().String(),
 		ST:         st,
+		MP:         base.NewDummyBlockMap(base.NewDummyManifest(st.Height(), valuehash.RandomSHA256())),
 	}
 }
 
@@ -36,7 +38,7 @@ func (proof DummySuffrageProof) IsValid([]byte) error {
 }
 
 func (proof DummySuffrageProof) Map() base.BlockMap {
-	return nil
+	return proof.MP
 }
 
 func (proof DummySuffrageProof) State() base.State {
@@ -67,6 +69,7 @@ func (proof *DummySuffrageProof) DecodeJSON(b []byte, enc *jsonenc.Encoder) erro
 	var u struct {
 		ID string
 		ST json.RawMessage
+		MP json.RawMessage
 	}
 	if err := enc.Unmarshal(b, &u); err != nil {
 		return err
@@ -75,6 +78,10 @@ func (proof *DummySuffrageProof) DecodeJSON(b []byte, enc *jsonenc.Encoder) erro
 	proof.ID = u.ID
 
 	if err := encoder.Decode(enc, u.ST, &proof.ST); err != nil {
+		return err
+	}
+
+	if err := encoder.Decode(enc, u.MP, &proof.MP); err != nil {
 		return err
 	}
 
@@ -420,7 +427,7 @@ func (t *testCommonPermanent) TestMergeTempDatabase() {
 }
 
 func (t *testCommonPermanent) TestClean() {
-	proof := NewDummySuffrageProof(nil)
+	proof := NewDummySuffrageProof(t.States(base.Height(33), 1)[0])
 
 	db := t.newDB()
 	defer db.Close()

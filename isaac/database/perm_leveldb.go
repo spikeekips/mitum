@@ -11,13 +11,15 @@ import (
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
+	"github.com/syndtr/goleveldb/leveldb"
 	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
 
 type LeveldbPermanent struct {
 	*basePermanent
 	*baseLeveldb
-	st *leveldbstorage.WriteStorage
+	st         *leveldbstorage.WriteStorage
+	batchlimit int
 }
 
 func NewLeveldbPermanent(
@@ -42,6 +44,7 @@ func newLeveldbPermanent(
 		basePermanent: newBasePermanent(),
 		baseLeveldb:   newBaseLeveldb(st, encs, enc),
 		st:            st,
+		batchlimit:    333, //nolint:gomnd //...
 	}
 
 	if err := db.loadLastBlockMap(); err != nil {
@@ -201,42 +204,34 @@ func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, te
 	worker := util.NewErrgroupWorker(ctx, math.MaxInt8)
 	defer worker.Close()
 
-	// NOTE merge operations
-	if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
-		if err := db.mergeOperationsTempDatabaseFromLeveldb(temp); err != nil {
-			return errors.Wrap(err, "failed to merge operations")
-		}
+	batch := &leveldb.Batch{}
 
-		return nil
-	}); err != nil {
-		return e(err, "")
-	}
+	if err := temp.st.Iter(nil, func(k, v []byte) (bool, error) {
+		if batch.Len() == db.batchlimit {
+			b := batch
 
-	// NOTE merge states
-	if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
-		if err := db.mergeStatesTempDatabaseFromLeveldb(temp); err != nil {
-			return errors.Wrap(err, "failed to merge states")
-		}
-
-		return nil
-	}); err != nil {
-		return e(err, "")
-	}
-
-	// NOTE merge blockmap
-	if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
-		switch b, found, err := temp.st.Get(leveldbKeyPrefixBlockMap); {
-		case err != nil || !found:
-			return errors.Wrap(err, "failed to get blockmap from TempDatabase")
-		default:
-			if err := db.st.Put(leveldbBlockMapKey(temp.Height()), b, nil); err != nil {
-				return errors.Wrap(err, "failed to put blockmap")
+			if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
+				return db.st.WriteBatch(b, nil)
+			}); err != nil {
+				return false, err
 			}
 
-			return nil
+			batch = &leveldb.Batch{}
 		}
-	}); err != nil {
+
+		batch.Put(k, v)
+
+		return true, nil
+	}, false); err != nil {
 		return e(err, "")
+	}
+
+	if batch.Len() > 0 {
+		if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
+			return db.st.WriteBatch(batch, nil)
+		}); err != nil {
+			return e(err, "")
+		}
 	}
 
 	worker.Done()
@@ -250,67 +245,17 @@ func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, te
 	return nil
 }
 
-func (db *LeveldbPermanent) mergeStatesTempDatabaseFromLeveldb(temp *TempLeveldb) error {
-	e := util.StringErrorFunc("failed to merge states from LeveldbTempDatabase")
-
-	sufst := temp.sufst
-
-	// NOTE merge states
-	if err := temp.st.Iter(
-		leveldbutil.BytesPrefix(leveldbKeyPrefixState),
-		func(key, b []byte) (bool, error) {
-			if err := db.st.Put(key, b, nil); err != nil {
-				return false, err
-			}
-
-			return true, nil
-		}, true); err != nil {
-		return e(err, "failed to merge states")
-	}
-
-	// NOTE merge suffrage state
-	if sufst != nil {
-		switch b, found, err := temp.st.Get(leveldbKeySuffrageProof); {
-		case err != nil:
-			return e(err, "failed to get SuffrageProof")
-		case !found:
-			return storage.NotFoundError.Errorf("failed to get SuffrageProof")
-		default:
-			if err := db.st.Put(leveldbSuffrageProofKey(temp.SuffrageHeight()), b, nil); err != nil {
-				return e(err, "failed to set SuffrageProof")
-			}
-
-			if err := db.st.Put(leveldbSuffrageProofByBlockHeightKey(sufst.Height()), b, nil); err != nil {
-				return errors.Wrap(err, "failed to set SuffrageProof by block height")
-			}
-		}
-	}
-
-	return nil
-}
-
 func (db *LeveldbPermanent) loadLastBlockMap() error {
-	e := util.StringErrorFunc("failed to load last blockmap")
+	switch m, err := db.baseLeveldb.loadLastBlockMap(); {
+	case err != nil:
+		return err
+	case m == nil:
+		return nil
+	default:
+		_ = db.mp.SetValue(m)
 
-	var m base.BlockMap
-
-	if err := db.st.Iter(
-		leveldbutil.BytesPrefix(leveldbKeyPrefixBlockMap),
-		func(_, b []byte) (bool, error) {
-			return false, db.readHinter(b, &m)
-		},
-		false,
-	); err != nil {
-		return e(err, "")
-	}
-
-	if m == nil {
 		return nil
 	}
-
-	_ = db.mp.SetValue(m)
-
-	return nil
 }
 
 func (db *LeveldbPermanent) loadLastSuffrageProof() error {
@@ -344,33 +289,4 @@ func (db *LeveldbPermanent) loadNetworkPolicy() error {
 
 		return nil
 	}
-}
-
-func (db *LeveldbPermanent) mergeOperationsTempDatabaseFromLeveldb(temp *TempLeveldb) error {
-	// NOTE merge operations
-	if err := temp.st.Iter(
-		leveldbutil.BytesPrefix(leveldbKeyPrefixInStateOperation),
-		func(key, b []byte) (bool, error) {
-			if err := db.st.Put(key, b, nil); err != nil {
-				return false, err
-			}
-
-			return true, nil
-		}, true); err != nil {
-		return errors.Wrap(err, "failed to merge instate operations")
-	}
-
-	if err := temp.st.Iter(
-		leveldbutil.BytesPrefix(leveldbKeyPrefixKnownOperation),
-		func(key, b []byte) (bool, error) {
-			if err := db.st.Put(key, b, nil); err != nil {
-				return false, err
-			}
-
-			return true, nil
-		}, true); err != nil {
-		return errors.Wrap(err, "failed to merge known operations")
-	}
-
-	return nil
 }

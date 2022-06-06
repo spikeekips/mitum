@@ -128,3 +128,7 @@ func (st *WriteStorage) Write() error {
 
 	return nil
 }
+
+func (st *WriteStorage) WriteBatch(batch *leveldb.Batch, wo *leveldbOpt.WriteOptions) error {
+	return st.db.Write(batch, wo)
+}

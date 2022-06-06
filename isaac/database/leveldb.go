@@ -3,6 +3,7 @@ package isaacdatabase
 import (
 	"bytes"
 	"fmt"
+	"strconv"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -12,6 +13,7 @@ import (
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/localtime"
+	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
 
 var (
@@ -115,6 +117,24 @@ func (db *baseLeveldb) state(key string) (st base.State, found bool, _ error) {
 
 		return st, true, nil
 	}
+}
+
+func (db *baseLeveldb) loadLastBlockMap() (base.BlockMap, error) {
+	e := util.StringErrorFunc("failed to load last blockmap")
+
+	var m base.BlockMap
+
+	if err := db.st.Iter(
+		leveldbutil.BytesPrefix(leveldbKeyPrefixBlockMap),
+		func(_, b []byte) (bool, error) {
+			return false, db.readHinter(b, &m)
+		},
+		false,
+	); err != nil {
+		return nil, e(err, "")
+	}
+
+	return m, nil
 }
 
 func (db *baseLeveldb) loadNetworkPolicy() (base.NetworkPolicy, bool, error) {
@@ -229,4 +249,19 @@ func leveldbSuffrageProofByBlockHeightKey(height base.Height) []byte {
 		leveldbKeySuffrageProofByBlockHeight,
 		[]byte(fmt.Sprintf("%021d", height)),
 	)
+}
+
+func heightFromleveldbKey(b, prefix []byte) (base.Height, error) {
+	e := util.StringErrorFunc("failed to parse height from leveldbBlockMapKey")
+
+	if len(b) < len(prefix)+21 {
+		return base.NilHeight, e(nil, "too short")
+	}
+
+	d, err := strconv.ParseInt(string(b[len(prefix):]), 10, 64)
+	if err != nil {
+		return base.NilHeight, e(err, "")
+	}
+
+	return base.Height(d), nil
 }

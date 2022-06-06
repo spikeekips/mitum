@@ -211,6 +211,7 @@ func (c *baseNetworkClient) requestOK(
 	if err != nil {
 		return false, errors.Wrap(err, "failed to send request")
 	}
+
 	defer func() {
 		_ = r.Close()
 	}()
