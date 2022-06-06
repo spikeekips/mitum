@@ -2,6 +2,7 @@ package util
 
 import (
 	"sync"
+	"sync/atomic"
 
 	"github.com/pkg/errors"
 )
@@ -107,6 +108,13 @@ func NewLockedMap() *LockedMap {
 	return &LockedMap{
 		m: map[interface{}]interface{}{},
 	}
+}
+
+func (l *LockedMap) Close() {
+	l.Lock()
+	defer l.Unlock()
+
+	l.m = nil
 }
 
 func (l *LockedMap) Exists(k interface{}) bool {
@@ -228,4 +236,118 @@ func IsNilLockedValue(i interface{}) bool {
 	_, ok := i.(NilLockedValue)
 
 	return ok
+}
+
+type ShardedMap struct {
+	sharded []*LockedMap
+	length  int64
+}
+
+func NewShardedMap(size int64) *ShardedMap {
+	sharded := make([]*LockedMap, size)
+
+	for i := int64(0); i < size; i++ {
+		sharded[i] = NewLockedMap()
+	}
+
+	return &ShardedMap{
+		sharded: sharded,
+	}
+}
+
+func (l *ShardedMap) Close() {
+	for i := range l.sharded {
+		l.sharded[i].Close()
+	}
+
+	l.sharded = nil
+	l.length = 0
+}
+
+func (l *ShardedMap) Exists(k string) bool {
+	return l.sharded[l.fnv(k)].Exists(k)
+}
+
+func (l *ShardedMap) Value(k string) (interface{}, bool) {
+	return l.sharded[l.fnv(k)].Value(k)
+}
+
+func (l *ShardedMap) SetValue(k string, v interface{}) bool {
+	found := l.sharded[l.fnv(k)].SetValue(k, v)
+
+	if !found {
+		atomic.AddInt64(&l.length, 1)
+	}
+
+	return found
+}
+
+func (l *ShardedMap) Get(k string, f func() (interface{}, error)) (v interface{}, found bool, _ error) {
+	return l.sharded[l.fnv(k)].Get(k, f)
+}
+
+func (l *ShardedMap) Set(k string, f func(interface{}) (interface{}, error)) (interface{}, error) {
+	return l.sharded[l.fnv(k)].Set(k, func(i interface{}) (interface{}, error) {
+		v, err := f(i)
+		if err != nil {
+			return v, err
+		}
+
+		if IsNilLockedValue(i) {
+			atomic.AddInt64(&l.length, 1)
+		}
+
+		return v, nil
+	})
+}
+
+func (l *ShardedMap) RemoveValue(k string) {
+	found := l.Exists(k)
+
+	l.sharded[l.fnv(k)].RemoveValue(k)
+
+	if found {
+		atomic.AddInt64(&l.length, -1)
+	}
+}
+
+func (l *ShardedMap) Remove(k string, f func(interface{}) error) error {
+	return l.sharded[l.fnv(k)].Remove(k, func(i interface{}) error {
+		if err := f(i); err != nil {
+			return err
+		}
+
+		if !IsNilLockedValue(i) {
+			atomic.AddInt64(&l.length, -1)
+		}
+
+		return nil
+	})
+}
+
+func (l *ShardedMap) Traverse(f func(interface{}, interface{}) bool) {
+	for i := range l.sharded {
+		l.sharded[i].Traverse(f)
+	}
+}
+
+func (l *ShardedMap) Len() int {
+	return int(atomic.LoadInt64(&l.length))
+}
+
+const (
+	shardedprime = uint32(16777619)
+	shardedseed  = uint32(2166136261)
+)
+
+func (l *ShardedMap) fnv(k string) int64 {
+	h := shardedseed
+
+	kl := len(k)
+	for i := 0; i < kl; i++ {
+		h *= shardedprime
+		h ^= uint32(k[i])
+	}
+
+	return int64(h) % int64(len(l.sharded))
 }
