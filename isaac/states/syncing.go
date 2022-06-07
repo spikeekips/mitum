@@ -23,6 +23,7 @@ type SyncingHandler struct {
 	waitStuck       time.Duration
 	finishedLock    sync.RWMutex
 	stuckcancellock sync.RWMutex
+	whenFinishedf   func(base.Height)
 }
 
 func NewSyncingHandler(
@@ -177,6 +178,8 @@ end:
 		case top := <-sc.Finished():
 			st.Log().Debug().Interface("height", top).Msg("syncer finished")
 
+			st.whenFinishedf(top)
+
 			st.cancelstuck()
 
 			lvp := st.lastVoteproofs().Cap()
@@ -250,6 +253,10 @@ func (st *SyncingHandler) newStuckCancel(vp base.Voteproof) {
 		// NOTE no more valid voteproof received, moves to joining state
 		go st.switchState(newJoiningSwitchContext(StateSyncing, vp))
 	}()
+}
+
+func (st *SyncingHandler) SetWhenFinished(f func(base.Height)) {
+	st.whenFinishedf = f
 }
 
 type syncingSwitchContext struct { //nolint:errname //...

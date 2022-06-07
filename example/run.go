@@ -425,6 +425,17 @@ func (cmd *runCommand) states() (*isaacstates.States, error) {
 		box.Count()
 	}
 
+	syncinghandler := isaacstates.NewSyncingHandler(cmd.local, cmd.nodePolicy, cmd.proposalSelector, cmd.newSyncer)
+	syncinghandler.SetWhenFinished(func(height base.Height) { // NOTE for detecing syncing errors
+		if height <= base.GenesisHeight {
+			return
+		}
+
+		log.Info().Msg("done")
+
+		os.Exit(0)
+	})
+
 	states.
 		SetHandler(isaacstates.NewBrokenHandler(cmd.local, cmd.nodePolicy)).
 		SetHandler(isaacstates.NewStoppedHandler(cmd.local, cmd.nodePolicy)).
@@ -440,7 +451,7 @@ func (cmd *runCommand) states() (*isaacstates.States, error) {
 				cmd.getManifest, cmd.getSuffrage, voteFunc, whenNewBlockSaved,
 				pps,
 			)).
-		SetHandler(isaacstates.NewSyncingHandler(cmd.local, cmd.nodePolicy, cmd.proposalSelector, cmd.newSyncer))
+		SetHandler(syncinghandler)
 
 	// NOTE load last init, accept voteproof and last majority voteproof
 	switch ivp, avp, found, err := cmd.pool.LastVoteproofs(); {
