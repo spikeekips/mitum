@@ -24,7 +24,7 @@ func NewQuicstreamClient(
 	enc encoder.Encoder,
 	idleTimeout time.Duration,
 	proto string,
-	// FIXME set quic.Config
+	quicconfig *quic.Config,
 ) *QuicstreamClient {
 	c := &QuicstreamClient{
 		baseNetworkClient: newBaseNetworkClient(encs, enc, idleTimeout, nil),
@@ -37,7 +37,7 @@ func NewQuicstreamClient(
 		ci quictransport.ConnInfo,
 		writef quicstream.ClientWriteFunc,
 	) (io.ReadCloser, func() error, error) {
-		r, err := c.client.Write(ctx, ci.UDPAddr(), writef, c.newClient(ci))
+		r, err := c.client.Write(ctx, ci.UDPAddr(), writef, c.newClient(ci, quicconfig))
 		if err != nil {
 			return nil, nil, err
 		}
@@ -52,7 +52,7 @@ func NewQuicstreamClient(
 	return c
 }
 
-func (c *QuicstreamClient) newClient(ci quictransport.ConnInfo) func(*net.UDPAddr) *quicstream.Client {
+func (c *QuicstreamClient) newClient(ci quictransport.ConnInfo, quicconfig *quic.Config) func(*net.UDPAddr) *quicstream.Client {
 	return func(*net.UDPAddr) *quicstream.Client {
 		return quicstream.NewClient(
 			ci.UDPAddr(),
@@ -60,11 +60,7 @@ func (c *QuicstreamClient) newClient(ci quictransport.ConnInfo) func(*net.UDPAdd
 				InsecureSkipVerify: ci.Insecure(), //nolint:gosec //...
 				NextProtos:         []string{c.proto},
 			},
-			&quic.Config{
-				HandshakeIdleTimeout: time.Second * 2,  //nolint:gomnd //...
-				MaxIdleTimeout:       time.Second * 30, //nolint:gomnd //...
-				KeepAlive:            true,
-			},
+			quicconfig,
 			nil,
 		)
 	}

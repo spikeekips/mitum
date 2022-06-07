@@ -10,6 +10,7 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/logging"
 )
 
 var SyncerCanNotCancelError = util.NewError("can not cancel syncer")
@@ -50,7 +51,6 @@ func (st *SyncingHandler) enter(i switchContext) (func(), error) {
 		return nil, e(nil, "invalid stateSwitchContext, not for syncing state; %T", i)
 	}
 
-	// FIXME new syncer must call isaac.Databasee.MergeAllPermanent()
 	sc, err := st.newSyncer(sctx.height)
 	if err != nil {
 		return nil, e(err, "")
@@ -58,6 +58,10 @@ func (st *SyncingHandler) enter(i switchContext) (func(), error) {
 
 	if sc == nil {
 		return nil, e(nil, "empty syncer") // BlOCK remove; only for testing
+	}
+
+	if l, ok := sc.(logging.SetLogging); ok {
+		_ = l.SetLogging(st.Logging)
 	}
 
 	st.syncer = sc

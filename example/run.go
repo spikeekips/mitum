@@ -247,7 +247,7 @@ func (cmd *runCommand) prepareNetwork() error {
 				enc = cmd.encs.Find(m.Encoder())
 			}
 
-			// FIXME use cache
+			// FIXME use cache with singleflight
 
 			reader, err := isaacblock.NewLocalFSReaderFromHeight(
 				launch.LocalFSDataDirectory(cmd.localfsroot), height, enc,
@@ -524,31 +524,47 @@ func (cmd *runCommand) newSyncer(height base.Height) (isaac.Syncer, error) {
 		return nil, e(err, "")
 	}
 
-	go func() {
-		var lastsuffragestate base.State
-		if lastsuffrageproof != nil {
-			lastsuffragestate = lastsuffrageproof.State()
-		}
-
-		if _, err := cmd.suffrageStateBuilder.Build(context.Background(), lastsuffragestate); err != nil {
-			log.Error().Err(err).Msg("suffrage state builder failed")
-
-			return
-		}
-
-		log.Debug().Msg("SuffrageProofs built")
-
-		err := syncer.Start()
-		if err != nil {
-			log.Error().Err(err).Msg("syncer stopped")
-
-			return
-		}
-
-		_ = syncer.Add(height)
-	}()
+	go cmd.newSyncerDeferred(height, syncer, lastsuffrageproof)
 
 	return syncer, nil
+}
+
+func (cmd *runCommand) newSyncerDeferred(
+	height base.Height,
+	syncer *isaacstates.Syncer,
+	lastsuffrageproof base.SuffrageProof,
+) {
+	l := log.With().Str("module", "new-syncer").Logger()
+
+	if err := cmd.db.MergeAllPermanent(); err != nil {
+		l.Error().Err(err).Msg("failed to merge temps")
+
+		return
+	}
+
+	var lastsuffragestate base.State
+	if lastsuffrageproof != nil {
+		lastsuffragestate = lastsuffrageproof.State()
+	}
+
+	if _, err := cmd.suffrageStateBuilder.Build(context.Background(), lastsuffragestate); err != nil {
+		l.Error().Err(err).Msg("suffrage state builder failed")
+
+		return
+	}
+
+	log.Debug().Msg("SuffrageProofs built")
+
+	err := syncer.Start()
+	if err != nil {
+		l.Error().Err(err).Msg("syncer stopped")
+
+		return
+	}
+
+	_ = syncer.Add(height)
+
+	l.Debug().Interface("height", height).Msg("new syncer created")
 }
 
 func (cmd *runCommand) getProposalFunc() func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error) {

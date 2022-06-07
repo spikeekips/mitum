@@ -8,12 +8,14 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/storage"
 	redisstorage "github.com/spikeekips/mitum/storage/redis"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
+	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/valuehash"
 	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
@@ -38,6 +40,7 @@ var (
 )
 
 type RedisPermanent struct {
+	*logging.Logging
 	*baseDatabase
 	*basePermanent
 	st *redisstorage.Storage
@@ -50,6 +53,9 @@ func NewRedisPermanent(
 	enc encoder.Encoder,
 ) (*RedisPermanent, error) {
 	db := &RedisPermanent{
+		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
+			return lctx.Str("module", "redis-permanent-database")
+		}),
 		baseDatabase: newBaseDatabase(
 			encs,
 			enc,
@@ -286,12 +292,18 @@ func (db *RedisPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp
 				return errors.Wrap(err, "failed to merge states")
 			}
 
+			return nil
+		},
+		func(ctx context.Context, jobid uint64) error {
 			if err := db.mergeSuffrageProofsTempDatabaseFromLeveldb(ctx, temp); err != nil {
 				return errors.Wrap(err, "failed to merge SuffrageProof")
 			}
 
+			return nil
+		},
+		func(ctx context.Context, jobid uint64) error {
 			if err := db.mergeSuffrageProofsByBlockHeightTempDatabaseFromLeveldb(ctx, temp); err != nil {
-				return errors.Wrap(err, "failed to merge SuffrageProof")
+				return errors.Wrap(err, "failed to merge SuffrageProof by block height")
 			}
 
 			return nil
@@ -424,6 +436,8 @@ func (db *RedisPermanent) mergeBlockMapTempDatabaseFromLeveldb(
 			if err := db.st.Set(ctx, key, b); err != nil {
 				return false, errors.Wrap(err, "failed to set blockmap")
 			}
+
+			db.Log().Info().Interface("height", height).Msg("new block merged")
 
 			return true, nil
 		}, true)

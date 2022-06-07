@@ -25,11 +25,8 @@ type (
 	NewBlockImporterFunc      func(
 		root string, _ base.BlockMap, _ isaac.BlockWriteDatabase) (isaac.BlockImporter, error)
 	SyncerLastBlockMapFunc func(_ context.Context, manifest util.Hash) (
-		_ base.BlockMap, updated bool, _ error) // FIXME should IsValid()
+		_ base.BlockMap, updated bool, _ error) // NOTE BlockMap.IsValid() should be called
 )
-
-// FIXME clear syncpool after sync finished
-// FIXME remove mitum-example-no1sas/temp/temp1-0
 
 type Syncer struct {
 	tempsyncpool           isaac.TempSyncPool
@@ -109,8 +106,6 @@ func NewSyncer(
 		setLastVoteproofsFunc:  setLastVoteproofsFunc,
 		lastBlockMapInterval:   time.Second * 2, //nolint:gomnd //...
 	}
-
-	// FIXME big batchlimit causes too many open files error
 
 	s.ContextDaemon = util.NewContextDaemon("syncer", s.start)
 
@@ -322,7 +317,6 @@ func (s *Syncer) fetchMap(ctx context.Context, height base.Height) (base.BlockMa
 	case !found:
 		return nil, e(nil, "not found")
 	default:
-		// FIXME blockMap should be passed IsValid() in s.blockMap.
 		return m, nil
 	}
 }
@@ -393,6 +387,5 @@ end:
 				break end
 			}
 		}
-		// FIXME log new block
 	}
 }

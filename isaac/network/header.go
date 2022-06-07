@@ -1,27 +1,22 @@
 package isaacnetwork
 
 import (
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
 )
 
 var (
-	RequestProposalRequestHeaderHint = hint.MustNewHint("request-proposal-header-v0.0.1")
-	ProposalHeaderHint               = hint.MustNewHint("proposal-header-v0.0.1")
-	LastSuffrageProofHeaderHint      = hint.MustNewHint("last-suffrage-proof-header-v0.0.1")
-	SuffrageProofHeaderHint          = hint.MustNewHint("suffrage-proof-header-v0.0.1")
-	LastBlockMapHeaderHint           = hint.MustNewHint("last-blockmap-header-v0.0.1")
-	BlockMapHeaderHint               = hint.MustNewHint("blockmap-header-v0.0.1")
-	BlockMapItemHeaderHint           = hint.MustNewHint("blockmap-item-header-v0.0.1")
+	RequestProposalRequestHeaderHint   = hint.MustNewHint("request-proposal-header-v0.0.1")
+	ProposalRequestHeaderHint          = hint.MustNewHint("proposal-header-v0.0.1")
+	LastSuffrageProofRequestHeaderHint = hint.MustNewHint("last-suffrage-proof-header-v0.0.1")
+	SuffrageProofRequestHeaderHint     = hint.MustNewHint("suffrage-proof-header-v0.0.1")
+	LastBlockMapRequestHeaderHint      = hint.MustNewHint("last-blockmap-header-v0.0.1")
+	BlockMapRequestHeaderHint          = hint.MustNewHint("blockmap-header-v0.0.1")
+	BlockMapItemRequestHeaderHint      = hint.MustNewHint("blockmap-item-header-v0.0.1")
 )
 
-var (
-	ErrorResponseHeaderHint = hint.MustNewHint("error-response-header-v0.0.1") // FIXME remove
-	OKResponseHeaderHint    = hint.MustNewHint("ok-response-header-v0.0.1")    // FIXME remove
-	ResponseHeaderHint      = hint.MustNewHint("response-header-v0.0.1")
-)
+var ResponseHeaderHint = hint.MustNewHint("response-header-v0.0.1")
 
 type Header interface {
 	util.IsValider
@@ -83,7 +78,7 @@ type ProposalRequestHeader struct {
 
 func NewProposalRequestHeader(proposal util.Hash) ProposalRequestHeader {
 	return ProposalRequestHeader{
-		BaseHeader: NewBaseHeader(ProposalHeaderHint),
+		BaseHeader: NewBaseHeader(ProposalRequestHeaderHint),
 		proposal:   proposal,
 	}
 }
@@ -113,7 +108,7 @@ type LastSuffrageProofRequestHeader struct {
 
 func NewLastSuffrageProofRequestHeader(state util.Hash) LastSuffrageProofRequestHeader {
 	return LastSuffrageProofRequestHeader{
-		BaseHeader: NewBaseHeader(LastSuffrageProofHeaderHint),
+		BaseHeader: NewBaseHeader(LastSuffrageProofRequestHeaderHint),
 		state:      state,
 	}
 }
@@ -145,7 +140,7 @@ type SuffrageProofRequestHeader struct {
 
 func NewSuffrageProofRequestHeader(suffrageheight base.Height) SuffrageProofRequestHeader {
 	return SuffrageProofRequestHeader{
-		BaseHeader:     NewBaseHeader(SuffrageProofHeaderHint),
+		BaseHeader:     NewBaseHeader(SuffrageProofRequestHeaderHint),
 		suffrageheight: suffrageheight,
 	}
 }
@@ -175,7 +170,7 @@ type LastBlockMapRequestHeader struct {
 
 func NewLastBlockMapRequestHeader(manifest util.Hash) LastBlockMapRequestHeader {
 	return LastBlockMapRequestHeader{
-		BaseHeader: NewBaseHeader(LastBlockMapHeaderHint),
+		BaseHeader: NewBaseHeader(LastBlockMapRequestHeaderHint),
 		manifest:   manifest,
 	}
 }
@@ -205,7 +200,7 @@ type BlockMapRequestHeader struct {
 
 func NewBlockMapRequestHeader(height base.Height) BlockMapRequestHeader {
 	return BlockMapRequestHeader{
-		BaseHeader: NewBaseHeader(BlockMapHeaderHint),
+		BaseHeader: NewBaseHeader(BlockMapRequestHeaderHint),
 		height:     height,
 	}
 }
@@ -236,7 +231,7 @@ type BlockMapItemRequestHeader struct {
 
 func NewBlockMapItemRequestHeader(height base.Height, item base.BlockMapItemType) BlockMapItemRequestHeader {
 	return BlockMapItemRequestHeader{
-		BaseHeader: NewBaseHeader(BlockMapItemHeaderHint),
+		BaseHeader: NewBaseHeader(BlockMapItemRequestHeaderHint),
 		height:     height,
 		item:       item,
 	}
@@ -262,60 +257,6 @@ func (h BlockMapItemRequestHeader) Height() base.Height {
 
 func (h BlockMapItemRequestHeader) Item() base.BlockMapItemType {
 	return h.item
-}
-
-type ErrorResponseHeader struct { // FIXME remove
-	err error
-	BaseHeader
-}
-
-func NewErrorResponseHeader(err error) ErrorResponseHeader {
-	return ErrorResponseHeader{
-		BaseHeader: NewBaseHeader(ErrorResponseHeaderHint),
-		err:        err,
-	}
-}
-
-func (r ErrorResponseHeader) Err() error {
-	return r.err
-}
-
-func (r ErrorResponseHeader) IsValid([]byte) error {
-	if err := r.BaseHeader.BaseHinter.IsValid(ErrorResponseHeaderHint.Type().Bytes()); err != nil {
-		return errors.Wrap(err, "invalid ErrorResponseHeaderHint")
-	}
-
-	return nil
-}
-
-type OKResponseHeader struct { // FIXME remove
-	err error
-	BaseHeader
-	ok bool
-}
-
-func NewOKResponseHeader(ok bool, err error) OKResponseHeader {
-	return OKResponseHeader{
-		BaseHeader: NewBaseHeader(OKResponseHeaderHint),
-		ok:         ok,
-		err:        err,
-	}
-}
-
-func (r OKResponseHeader) IsValid([]byte) error {
-	if err := r.BaseHeader.BaseHinter.IsValid(OKResponseHeaderHint.Type().Bytes()); err != nil {
-		return errors.Wrap(err, "invalid OKResponseHeaderHint")
-	}
-
-	return nil
-}
-
-func (r OKResponseHeader) OK() bool {
-	return r.ok
-}
-
-func (r OKResponseHeader) Err() error {
-	return r.err
 }
 
 type ResponseHeader struct {
