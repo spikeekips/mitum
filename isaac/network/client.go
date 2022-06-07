@@ -3,6 +3,7 @@ package isaacnetwork
 import (
 	"context"
 	"io"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -16,7 +17,7 @@ type baseNetworkClientWriteFunc func(
 	ctx context.Context,
 	conninfo quictransport.ConnInfo,
 	writef quicstream.ClientWriteFunc,
-) (io.ReadCloser, error)
+) (_ io.ReadCloser, cancel func() error, _ error)
 
 type baseNetworkClient struct {
 	*baseNetwork
@@ -26,10 +27,11 @@ type baseNetworkClient struct {
 func newBaseNetworkClient(
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
+	idleTimeout time.Duration,
 	writef baseNetworkClientWriteFunc,
 ) *baseNetworkClient {
 	return &baseNetworkClient{
-		baseNetwork: newBaseNetwork(encs, enc),
+		baseNetwork: newBaseNetwork(encs, enc, idleTimeout),
 		writef:      writef,
 	}
 }
@@ -48,13 +50,13 @@ func (c *baseNetworkClient) RequestProposal(
 		return nil, false, e(err, "")
 	}
 
-	r, err := c.write(ctx, ci, c.enc, HandlerPrefixRequestProposal, header, nil)
+	r, cancel, err := c.write(ctx, ci, c.enc, HandlerPrefixRequestProposal, header, nil)
 	if err != nil {
 		return nil, false, e(err, "failed to send request")
 	}
 
 	defer func() {
-		_ = r.Close()
+		_ = cancel()
 	}()
 
 	h, enc, err := c.loadResponseHeader(ctx, r)
@@ -90,10 +92,14 @@ func (c *baseNetworkClient) Proposal( //nolint:dupl //...
 		return nil, false, e(err, "")
 	}
 
-	r, err := c.write(ctx, ci, c.enc, HandlerPrefixProposal, header, nil)
+	r, cancel, err := c.write(ctx, ci, c.enc, HandlerPrefixProposal, header, nil)
 	if err != nil {
 		return nil, false, e(err, "failed to send request")
 	}
+
+	defer func() {
+		_ = cancel()
+	}()
 
 	h, enc, err := c.loadResponseHeader(ctx, r)
 
@@ -165,7 +171,7 @@ func (c *baseNetworkClient) BlockMap( //nolint:dupl //...
 
 func (c *baseNetworkClient) BlockMapItem(
 	ctx context.Context, ci quictransport.ConnInfo, height base.Height, item base.BlockMapItemType,
-) (io.ReadCloser, bool, error) {
+) (_ io.ReadCloser, cancel func() error, found bool, _ error) {
 	// NOTE the io.ReadCloser should be closed.
 
 	e := util.StringErrorFunc("failed to get BlockMap")
@@ -173,25 +179,31 @@ func (c *baseNetworkClient) BlockMapItem(
 	header := NewBlockMapItemRequestHeader(height, item)
 
 	if err := header.IsValid(nil); err != nil {
-		return nil, false, e(err, "")
+		return nil, nil, false, e(err, "")
 	}
 
-	r, err := c.write(ctx, ci, c.enc, HandlerPrefixBlockMapItem, header, nil)
+	r, cancel, err := c.write(ctx, ci, c.enc, HandlerPrefixBlockMapItem, header, nil)
 	if err != nil {
-		return nil, false, e(err, "failed to send request")
+		return nil, nil, false, e(err, "failed to send request")
 	}
 
 	h, _, err := c.loadResponseHeader(ctx, r)
 
 	switch {
 	case err != nil:
-		return nil, false, e(err, "failed to read stream")
+		_ = cancel()
+
+		return nil, nil, false, e(err, "failed to read stream")
 	case h.Err() != nil:
-		return nil, false, e(h.Err(), "")
+		_ = cancel()
+
+		return nil, nil, false, e(h.Err(), "")
 	case !h.OK():
-		return nil, false, nil
+		_ = cancel()
+
+		return nil, nil, false, nil
 	default:
-		return r, true, nil
+		return r, cancel, true, nil
 	}
 }
 
@@ -207,13 +219,13 @@ func (c *baseNetworkClient) requestOK(
 		return false, errors.Wrap(err, "")
 	}
 
-	r, err := c.write(ctx, ci, c.enc, handlerprefix, header, body)
+	r, cancel, err := c.write(ctx, ci, c.enc, handlerprefix, header, body)
 	if err != nil {
 		return false, errors.Wrap(err, "failed to send request")
 	}
 
 	defer func() {
-		_ = r.Close()
+		_ = cancel()
 	}()
 
 	h, enc, err := c.loadResponseHeader(ctx, r)
@@ -235,7 +247,7 @@ func (c *baseNetworkClient) requestOK(
 }
 
 func (c *baseNetworkClient) loadResponseHeader(
-	_ context.Context,
+	ctx context.Context,
 	r io.ReadCloser,
 ) (h ResponseHeader, enc encoder.Encoder, _ error) {
 	e := util.StringErrorFunc("failed to load response header")
@@ -245,7 +257,10 @@ func (c *baseNetworkClient) loadResponseHeader(
 		return h, nil, e(err, "")
 	}
 
-	switch b, err := readHeader(r); {
+	tctx, cancel := context.WithTimeout(ctx, c.idleTimeout)
+	defer cancel()
+
+	switch b, err := readHeader(tctx, r); {
 	case err != nil:
 		return h, nil, e(err, "")
 	default:
@@ -264,13 +279,13 @@ func (c *baseNetworkClient) write(
 	handlerprefix string,
 	header Header,
 	body io.Reader,
-) (io.ReadCloser, error) {
+) (io.ReadCloser, func() error, error) {
 	b, err := enc.Marshal(header)
 	if err != nil {
-		return nil, errors.Wrap(err, "")
+		return nil, nil, errors.Wrap(err, "")
 	}
 
-	r, err := c.writef(ctx, ci, func(w io.Writer) error {
+	r, cancel, err := c.writef(ctx, ci, func(w io.Writer) error {
 		if err = quicstream.WritePrefix(w, handlerprefix); err != nil {
 			return errors.Wrap(err, "")
 		}
@@ -292,8 +307,8 @@ func (c *baseNetworkClient) write(
 		return nil
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to write")
+		return nil, nil, errors.Wrap(err, "failed to write")
 	}
 
-	return r, nil
+	return r, cancel, nil
 }

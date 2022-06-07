@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -125,7 +126,7 @@ func (cmd *runCommand) run() error {
 		_ = profiledefer()
 	}()
 
-	if err := cmd.quicstreamserver.Start(); err != nil {
+	if err = cmd.quicstreamserver.Start(); err != nil {
 		return errors.Wrap(err, "")
 	}
 
@@ -197,12 +198,13 @@ func (cmd *runCommand) prepareDatabase() error {
 }
 
 func (cmd *runCommand) prepareNetwork() error {
-	cmd.client = launch.NewNetworkClient(cmd.encs, cmd.enc)
+	cmd.client = launch.NewNetworkClient(cmd.encs, cmd.enc, time.Second*2) //nolint:gomnd //...
 
 	handlers := isaacnetwork.NewQuicstreamHandlers(
 		cmd.local,
 		cmd.encs,
 		cmd.enc,
+		time.Second*2, //nolint:gomnd //...
 		cmd.pool,
 		cmd.proposalMaker(),
 		func(last util.Hash) (base.SuffrageProof, bool, error) {
@@ -490,18 +492,24 @@ func (cmd *runCommand) newSyncer(height base.Height) (isaac.Syncer, error) {
 
 	syncer, err := isaacstates.NewSyncer(
 		cmd.localfsroot,
-		func(root string, blockmap base.BlockMap) (isaac.BlockImporter, error) {
-			bwdb, err := cmd.db.NewBlockWriteDatabase(blockmap.Manifest().Height())
+		func(height base.Height) (isaac.BlockWriteDatabase, func(context.Context) error, error) {
+			bwdb, err := cmd.db.NewBlockWriteDatabase(height)
 			if err != nil {
-				return nil, errors.Wrap(err, "")
+				return nil, nil, errors.Wrap(err, "")
 			}
 
+			return bwdb,
+				func(ctx context.Context) error {
+					return launch.MergeBlockWriteToPermanentDatabase(ctx, bwdb, cmd.perm)
+				},
+				nil
+		},
+		func(root string, blockmap base.BlockMap, bwdb isaac.BlockWriteDatabase) (isaac.BlockImporter, error) {
 			return isaacblock.NewBlockImporter(
 				root,
 				cmd.encs,
 				blockmap,
 				bwdb,
-				cmd.perm,
 				networkID,
 			)
 		},
@@ -647,17 +655,19 @@ func (cmd *runCommand) syncerBlockMapf() isaacstates.SyncerBlockMapFunc {
 }
 
 func (cmd *runCommand) syncerBlockMapItemf() isaacstates.SyncerBlockMapItemFunc {
-	return func(ctx context.Context, height base.Height, item base.BlockMapItemType) (io.ReadCloser, bool, error) {
+	return func(
+		ctx context.Context, height base.Height, item base.BlockMapItemType,
+	) (io.ReadCloser, func() error, bool, error) {
 		discovery := cmd.Discovery[0]
 
 		ci, err := quictransport.ToQuicConnInfo(discovery.ConnInfo())
 		if err != nil {
-			return nil, false, errors.Wrap(err, "")
+			return nil, nil, false, errors.Wrap(err, "")
 		}
 
-		r, found, err := cmd.client.BlockMapItem(ctx, ci, height, item)
+		r, cancel, found, err := cmd.client.BlockMapItem(ctx, ci, height, item)
 
-		return r, found, errors.Wrap(err, "")
+		return r, cancel, found, errors.Wrap(err, "")
 	}
 }
 

@@ -40,10 +40,7 @@ func (t *testBlockImporter) TestNew() {
 	bwdb := t.NewMemLeveldbBlockWriteDatabase(point.Height())
 	defer bwdb.Close()
 
-	permdb := t.NewMemLeveldbPermanentDatabase()
-	defer permdb.Close()
-
-	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, permdb, t.NodePolicy.NetworkID())
+	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.NodePolicy.NetworkID())
 	t.NoError(err)
 
 	_ = (interface{})(im).(isaac.BlockImporter)
@@ -56,10 +53,7 @@ func (t *testBlockImporter) TestWriteMap() {
 	bwdb := t.NewMemLeveldbBlockWriteDatabase(point.Height())
 	defer bwdb.Close()
 
-	permdb := t.NewMemLeveldbPermanentDatabase()
-	defer permdb.Close()
-
-	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, permdb, t.NodePolicy.NetworkID())
+	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.NodePolicy.NetworkID())
 	t.NoError(err)
 
 	reader, err := NewLocalFSReader(im.localfs.temp, t.Enc)
@@ -91,10 +85,7 @@ func (t *testBlockImporter) TestWriteProposal() {
 	bwdb := t.NewMemLeveldbBlockWriteDatabase(point.Height())
 	defer bwdb.Close()
 
-	permdb := t.NewMemLeveldbPermanentDatabase()
-	defer permdb.Close()
-
-	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, permdb, t.NodePolicy.NetworkID())
+	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.NodePolicy.NetworkID())
 	t.NoError(err)
 	im.batchlimit = 2
 
@@ -150,10 +141,7 @@ func (t *testBlockImporter) TestWriteOperations() {
 	bwdb := t.NewMemLeveldbBlockWriteDatabase(point.Height())
 	defer bwdb.Close()
 
-	permdb := t.NewMemLeveldbPermanentDatabase()
-	defer permdb.Close()
-
-	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, permdb, t.NodePolicy.NetworkID())
+	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.NodePolicy.NetworkID())
 	t.NoError(err)
 	im.batchlimit = 2
 
@@ -223,10 +211,7 @@ func (t *testBlockImporter) TestWriteOperationsTree() {
 	bwdb := t.NewMemLeveldbBlockWriteDatabase(point.Height())
 	defer bwdb.Close()
 
-	permdb := t.NewMemLeveldbPermanentDatabase()
-	defer permdb.Close()
-
-	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, permdb, t.NodePolicy.NetworkID())
+	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.NodePolicy.NetworkID())
 	t.NoError(err)
 	im.batchlimit = 2
 
@@ -288,10 +273,7 @@ func (t *testBlockImporter) TestWriteVoteproofs() {
 	bwdb := t.NewMemLeveldbBlockWriteDatabase(point.Height())
 	defer bwdb.Close()
 
-	permdb := t.NewMemLeveldbPermanentDatabase()
-	defer permdb.Close()
-
-	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, permdb, t.NodePolicy.NetworkID())
+	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.NodePolicy.NetworkID())
 	t.NoError(err)
 	im.batchlimit = 2
 
@@ -349,10 +331,7 @@ func (t *testBlockImporter) TestWriteStates() {
 	bwdb := t.NewMemLeveldbBlockWriteDatabase(point.Height())
 	defer bwdb.Close()
 
-	permdb := t.NewMemLeveldbPermanentDatabase()
-	defer permdb.Close()
-
-	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, permdb, t.NodePolicy.NetworkID())
+	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.NodePolicy.NetworkID())
 	t.NoError(err)
 	im.batchlimit = 2
 
@@ -426,10 +405,7 @@ func (t *testBlockImporter) TestWriteStatesTree() {
 	bwdb := t.NewMemLeveldbBlockWriteDatabase(point.Height())
 	defer bwdb.Close()
 
-	permdb := t.NewMemLeveldbPermanentDatabase()
-	defer permdb.Close()
-
-	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, permdb, t.NodePolicy.NetworkID())
+	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.NodePolicy.NetworkID())
 	t.NoError(err)
 	im.batchlimit = 2
 
@@ -495,10 +471,8 @@ func (t *testBlockImporter) TestSave() {
 	defer bwdb.Close()
 
 	newroot := filepath.Join(t.Root, "save")
-	permdb := t.NewMemLeveldbPermanentDatabase()
-	defer permdb.Close()
 
-	im, err := NewBlockImporter(newroot, t.Encs, m, bwdb, permdb, t.NodePolicy.NetworkID())
+	im, err := NewBlockImporter(newroot, t.Encs, m, bwdb, t.NodePolicy.NetworkID())
 	t.NoError(err)
 
 	m.Items(func(item base.BlockMapItem) bool {
@@ -536,35 +510,6 @@ func (t *testBlockImporter) TestSave() {
 			return true
 		})
 	})
-
-	t.Run("merge", func() {
-		t.NoError(im.Merge(context.Background()))
-
-		i, found, err := reader.Item(base.BlockMapItemTypeOperations)
-		t.NoError(err)
-		t.True(found)
-
-		ops := i.([]base.Operation)
-
-		i, found, err = reader.Item(base.BlockMapItemTypeStates)
-		t.NoError(err)
-		t.True(found)
-
-		sts := i.([]base.State)
-
-		for i := range ops {
-			found, err := permdb.ExistsKnownOperation(ops[i].Hash())
-			t.NoError(err)
-			t.True(found)
-		}
-
-		for i := range sts {
-			st, found, err := permdb.State(sts[i].Key())
-			t.NoError(err)
-			t.True(found)
-			t.NotNil(st)
-		}
-	})
 }
 
 func (t *testBlockImporter) TestCancelImport() {
@@ -580,10 +525,7 @@ func (t *testBlockImporter) TestCancelImport() {
 		bwdb := t.NewMemLeveldbBlockWriteDatabase(point.Height())
 		defer bwdb.Close()
 
-		permdb := t.NewMemLeveldbPermanentDatabase()
-		defer permdb.Close()
-
-		im, err := NewBlockImporter(newroot, t.Encs, m, bwdb, permdb, t.NodePolicy.NetworkID())
+		im, err := NewBlockImporter(newroot, t.Encs, m, bwdb, t.NodePolicy.NetworkID())
 		t.NoError(err)
 
 		t.NoError(im.CancelImport(context.Background()))
@@ -592,10 +534,7 @@ func (t *testBlockImporter) TestCancelImport() {
 	bwdb := t.NewMemLeveldbBlockWriteDatabase(point.Height())
 	defer bwdb.Close()
 
-	permdb := t.NewMemLeveldbPermanentDatabase()
-	defer permdb.Close()
-
-	im, err := NewBlockImporter(newroot, t.Encs, m, bwdb, permdb, t.NodePolicy.NetworkID())
+	im, err := NewBlockImporter(newroot, t.Encs, m, bwdb, t.NodePolicy.NetworkID())
 	t.NoError(err)
 
 	m.Items(func(item base.BlockMapItem) bool {

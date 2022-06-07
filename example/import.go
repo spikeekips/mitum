@@ -277,28 +277,36 @@ func (cmd *importCommand) importBlocks(localfsroot string, from, to base.Height)
 
 			return m, found, errors.Wrap(err, "")
 		},
-		func(_ context.Context, height base.Height, item base.BlockMapItemType) (io.ReadCloser, bool, error) {
+		func(
+			_ context.Context, height base.Height, item base.BlockMapItemType,
+		) (io.ReadCloser, func() error, bool, error) {
 			reader, err := getreader(height)
 			if err != nil {
-				return nil, false, errors.Wrap(err, "")
+				return nil, nil, false, errors.Wrap(err, "")
 			}
 
 			r, found, err := reader.Reader(item)
 
-			return r, found, errors.Wrap(err, "")
+			return r, func() error { return nil }, found, errors.Wrap(err, "")
 		},
-		func(m base.BlockMap) (isaac.BlockImporter, error) {
-			bwdb, err := cmd.db.NewBlockWriteDatabase(m.Manifest().Height())
+		func(height base.Height) (isaac.BlockWriteDatabase, func(context.Context) error, error) {
+			bwdb, err := cmd.db.NewBlockWriteDatabase(height)
 			if err != nil {
-				return nil, errors.Wrap(err, "")
+				return nil, nil, errors.Wrap(err, "")
 			}
 
+			return bwdb,
+				func(ctx context.Context) error {
+					return launch.MergeBlockWriteToPermanentDatabase(ctx, bwdb, cmd.perm)
+				},
+				nil
+		},
+		func(m base.BlockMap, bwdb isaac.BlockWriteDatabase) (isaac.BlockImporter, error) {
 			im, err := isaacblock.NewBlockImporter(
 				launch.LocalFSDataDirectory(localfsroot),
 				cmd.encs,
 				m,
 				bwdb,
-				cmd.perm,
 				networkID,
 			)
 			if err != nil {

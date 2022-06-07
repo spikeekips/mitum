@@ -18,8 +18,8 @@ import (
 
 var QuicStreamNetworkProto = "mitum-example-network"
 
-func NewNetworkClient(encs *encoder.Encoders, enc encoder.Encoder) isaac.NetworkClient {
-	return isaacnetwork.NewQuicstreamClient(encs, enc, QuicStreamNetworkProto)
+func NewNetworkClient(encs *encoder.Encoders, enc encoder.Encoder, idleTimeout time.Duration) isaac.NetworkClient {
+	return isaacnetwork.NewQuicstreamClient(encs, enc, idleTimeout, QuicStreamNetworkProto)
 }
 
 func GenerateNewTLSConfig() *tls.Config {

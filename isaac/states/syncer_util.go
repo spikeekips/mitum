@@ -16,11 +16,17 @@ func ImportBlocks(
 	from, to base.Height,
 	batchlimit int64,
 	blockMapf func(base.Height) (base.BlockMap, bool, error),
-	blockMapItemf func(context.Context, base.Height, base.BlockMapItemType) (io.ReadCloser, bool, error),
-	newBlockImporter func(base.BlockMap) (isaac.BlockImporter, error),
+	blockMapItemf func(context.Context, base.Height, base.BlockMapItemType) (io.ReadCloser, func() error, bool, error),
+	newBlockWriteDatabase newBlockWriteDatabaseFunc,
+	newBlockImporter func(base.BlockMap, isaac.BlockWriteDatabase) (isaac.BlockImporter, error),
 	setLastVoteproofsFunc func(isaac.BlockReader) error,
 ) error {
 	e := util.StringErrorFunc("failed to import blocks; %d - %d", from, to)
+
+	bwdb, merge, err := newBlockWriteDatabase(from)
+	if err != nil {
+		return e(err, "")
+	}
 
 	var lastim isaac.BlockImporter
 	var ims []isaac.BlockImporter
@@ -31,9 +37,17 @@ func ImportBlocks(
 		uint64(batchlimit),
 		func(ctx context.Context, last uint64) error {
 			if ims != nil {
-				if err := SaveImporters(ctx, ims); err != nil {
+				if err := saveImporters(ctx, ims, merge); err != nil {
 					return errors.Wrap(err, "")
 				}
+			}
+
+			switch i, j, err := newBlockWriteDatabase(from); {
+			case err != nil:
+				return errors.Wrap(err, "")
+			default:
+				bwdb = i
+				merge = j
 			}
 
 			switch r := (last + 1) % uint64(batchlimit); {
@@ -56,12 +70,12 @@ func ImportBlocks(
 				return util.ErrNotFound.Errorf("BlockMap not found")
 			}
 
-			im, err := newBlockImporter(m)
+			im, err := newBlockImporter(m, bwdb)
 			if err != nil {
 				return errors.Wrap(err, "")
 			}
 
-			if err := ImportBlock(ctx, height, m, im, blockMapItemf); err != nil {
+			if err := importBlock(ctx, height, m, im, blockMapItemf); err != nil {
 				return errors.Wrap(err, "")
 			}
 
@@ -77,8 +91,10 @@ func ImportBlocks(
 		return e(err, "")
 	}
 
-	if err := SaveImporters(ctx, ims); err != nil {
-		return e(err, "")
+	if int64(len(ims)) < batchlimit {
+		if err := saveImporters(ctx, ims, merge); err != nil {
+			return e(err, "")
+		}
 	}
 
 	switch reader, err := lastim.Reader(); {
@@ -93,12 +109,12 @@ func ImportBlocks(
 	return nil
 }
 
-func ImportBlock(
+func importBlock(
 	ctx context.Context,
 	height base.Height,
 	m base.BlockMap,
 	im isaac.BlockImporter,
-	blockMapItemf func(context.Context, base.Height, base.BlockMapItemType) (io.ReadCloser, bool, error),
+	blockMapItemf func(context.Context, base.Height, base.BlockMapItemType) (io.ReadCloser, func() error, bool, error),
 ) error {
 	e := util.StringErrorFunc("failed to import block, %d", height)
 
@@ -109,13 +125,16 @@ func ImportBlock(
 
 		m.Items(func(item base.BlockMapItem) bool {
 			workch <- func(ctx context.Context, _ uint64) error {
-				switch r, found, err := blockMapItemf(ctx, height, item.Type()); {
+				switch r, cancel, found, err := blockMapItemf(ctx, height, item.Type()); {
 				case err != nil:
 					return errors.Wrap(err, "")
 				case !found:
+					_ = cancel()
+
 					return e(util.ErrNotFound.Errorf("blockMapItem not found"), "")
 				default:
 					defer func() {
+						_ = cancel()
 						_ = r.Close()
 					}()
 
@@ -138,7 +157,7 @@ func ImportBlock(
 	return nil
 }
 
-func SaveImporters(ctx context.Context, ims []isaac.BlockImporter) error {
+func saveImporters(ctx context.Context, ims []isaac.BlockImporter, merge func(context.Context) error) error {
 	e := util.StringErrorFunc("failed to save importers")
 
 	switch {
@@ -146,35 +165,28 @@ func SaveImporters(ctx context.Context, ims []isaac.BlockImporter) error {
 		return errors.Errorf("empty BlockImporters")
 	case len(ims) < 2: //nolint:gomnd //...
 		if err := ims[0].Save(ctx); err != nil {
+			_ = cancelImporters(ctx, ims)
+
 			return e(err, "")
 		}
+	default:
+		if err := util.RunErrgroupWorker(ctx, uint64(len(ims)), func(ctx context.Context, i, _ uint64) error {
+			return errors.Wrap(ims[i].Save(ctx), "")
+		}); err != nil {
+			_ = cancelImporters(ctx, ims)
 
-		if err := ims[0].Merge(ctx); err != nil {
 			return e(err, "")
 		}
-
-		return nil
 	}
 
-	if err := util.RunErrgroupWorker(ctx, uint64(len(ims)), func(ctx context.Context, i, _ uint64) error {
-		return errors.Wrap(ims[i].Save(ctx), "")
-	}); err != nil {
-		_ = CancelImporters(ctx, ims)
-
-		return e(err, "")
-	}
-
-	if err := util.RunErrgroupWorker(ctx, uint64(len(ims)), func(ctx context.Context, i, _ uint64) error {
-		err := errors.Wrap(ims[i].Merge(ctx), "")
-		return err
-	}); err != nil {
+	if err := merge(ctx); err != nil {
 		return e(err, "")
 	}
 
 	return nil
 }
 
-func CancelImporters(ctx context.Context, ims []isaac.BlockImporter) error {
+func cancelImporters(ctx context.Context, ims []isaac.BlockImporter) error {
 	e := util.StringErrorFunc("failed to cancel importers")
 
 	switch {

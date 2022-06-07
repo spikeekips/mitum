@@ -2,18 +2,20 @@ package isaacnetwork
 
 import (
 	"bytes"
+	"context"
 	"io"
 
 	"github.com/pkg/errors"
+	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
 )
 
-func readHint(r io.Reader) (ht hint.Hint, _ error) {
+func readHint(ctx context.Context, r io.Reader) (ht hint.Hint, _ error) {
 	e := util.StringErrorFunc("failed to read hint")
 
 	b := make([]byte, hint.MaxHintLength)
-	if _, err := ensureRead(r, b); err != nil {
+	if _, err := network.EnsureRead(ctx, r, b); err != nil {
 		return ht, e(err, "")
 	}
 
@@ -25,10 +27,10 @@ func readHint(r io.Reader) (ht hint.Hint, _ error) {
 	return ht, nil
 }
 
-func readHeader(r io.Reader) ([]byte, error) {
+func readHeader(ctx context.Context, r io.Reader) ([]byte, error) {
 	l := make([]byte, 8)
 
-	if _, err := ensureRead(r, l); err != nil {
+	if _, err := network.EnsureRead(ctx, r, l); err != nil {
 		return nil, errors.Wrap(err, "failed to read header length")
 	}
 
@@ -43,27 +45,11 @@ func readHeader(r io.Reader) ([]byte, error) {
 
 	h := make([]byte, length)
 
-	if _, err := ensureRead(r, h); err != nil {
+	if _, err := network.EnsureRead(ctx, r, h); err != nil {
 		return nil, errors.Wrap(err, "failed to read header")
 	}
 
 	return h, nil
-}
-
-func ensureRead(r io.Reader, b []byte) (int, error) {
-	n, err := r.Read(b)
-
-	switch {
-	case err == nil:
-	case !errors.Is(err, io.EOF):
-		return n, errors.Wrap(err, "")
-	}
-
-	if n != len(b) {
-		return n, errors.Errorf("failed to read")
-	}
-
-	return n, nil
 }
 
 func writeHint(w io.Writer, ht hint.Hint) error {

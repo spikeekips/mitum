@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"testing"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -47,33 +48,33 @@ func (t *testQuicstreamHandlers) SetupSuite() {
 }
 
 func (t *testQuicstreamHandlers) TestClient() {
-	c := newBaseNetworkClient(t.Encs, t.Enc, nil)
+	c := newBaseNetworkClient(t.Encs, t.Enc, time.Second, nil)
 
 	_ = (interface{})(c).(isaac.NetworkClient)
 }
 
 func (t *testQuicstreamHandlers) writef(prefix string, handler quicstream.Handler) baseNetworkClientWriteFunc {
-	return func(ctx context.Context, ci quictransport.ConnInfo, f quicstream.ClientWriteFunc) (io.ReadCloser, error) {
+	return func(ctx context.Context, ci quictransport.ConnInfo, f quicstream.ClientWriteFunc) (io.ReadCloser, func() error, error) {
 		r := bytes.NewBuffer(nil)
 		if err := f(r); err != nil {
-			return nil, errors.Wrap(err, "")
+			return nil, nil, errors.Wrap(err, "")
 		}
 
 		uprefix, err := quicstream.ReadPrefix(r)
 		if err != nil {
-			return nil, errors.Wrap(err, "")
+			return nil, nil, errors.Wrap(err, "")
 		}
 
 		if !bytes.Equal(uprefix, quicstream.HashPrefix(prefix)) {
-			return nil, errors.Errorf("unknown request, %q", prefix)
+			return nil, nil, errors.Errorf("unknown request, %q", prefix)
 		}
 
 		w := bytes.NewBuffer(nil)
 		if err := handler(nil, r, w); err != nil {
-			return nil, errors.Wrap(err, "failed to handle request")
+			return nil, nil, errors.Wrap(err, "failed to handle request")
 		}
 
-		return io.NopCloser(w), nil
+		return io.NopCloser(w), func() error { return nil }, nil
 	}
 }
 
@@ -90,10 +91,10 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 		pool,
 	)
 
-	handlers := NewQuicstreamHandlers(t.Local, t.Encs, t.Enc, pool, proposalMaker, nil, nil, nil, nil, nil)
+	handlers := NewQuicstreamHandlers(t.Local, t.Encs, t.Enc, time.Second, pool, proposalMaker, nil, nil, nil, nil, nil)
 
 	ci := quictransport.NewBaseConnInfo(nil, true)
-	c := newBaseNetworkClient(t.Encs, t.Enc, t.writef(HandlerPrefixRequestProposal, handlers.RequestProposal))
+	c := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixRequestProposal, handlers.RequestProposal))
 
 	t.Run("local is proposer", func() {
 		point := base.RawPoint(33, 1)
@@ -135,10 +136,10 @@ func (t *testQuicstreamHandlers) TestProposal() {
 	_, err = pool.SetProposal(pr)
 	t.NoError(err)
 
-	handlers := NewQuicstreamHandlers(t.Local, t.Encs, t.Enc, pool, proposalMaker, nil, nil, nil, nil, nil)
+	handlers := NewQuicstreamHandlers(t.Local, t.Encs, t.Enc, time.Second, pool, proposalMaker, nil, nil, nil, nil, nil)
 
 	ci := quictransport.NewBaseConnInfo(nil, true)
-	c := newBaseNetworkClient(t.Encs, t.Enc, t.writef(HandlerPrefixProposal, handlers.Proposal))
+	c := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixProposal, handlers.Proposal))
 
 	t.Run("found", func() {
 		pr, found, err := c.Proposal(context.Background(), ci, pr.Fact().Hash())
@@ -168,10 +169,10 @@ func (t *testQuicstreamHandlers) TestProposal() {
 }
 
 func (t *testQuicstreamHandlers) TestLastSuffrageProof() {
-	handlers := NewQuicstreamHandlers(t.Local, t.Encs, t.Enc, nil, nil, nil, nil, nil, nil, nil)
+	handlers := NewQuicstreamHandlers(t.Local, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil)
 
 	ci := quictransport.NewBaseConnInfo(nil, true)
-	c := newBaseNetworkClient(t.Encs, t.Enc, t.writef(HandlerPrefixLastSuffrageProof, handlers.LastSuffrageProof))
+	c := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixLastSuffrageProof, handlers.LastSuffrageProof))
 
 	st, _ := t.SuffrageState(base.Height(33), base.Height(11), nil)
 	proof := base.NewDummySuffrageProof()
@@ -210,10 +211,10 @@ func (t *testQuicstreamHandlers) TestLastSuffrageProof() {
 }
 
 func (t *testQuicstreamHandlers) TestSuffrageProof() {
-	handlers := NewQuicstreamHandlers(t.Local, t.Encs, t.Enc, nil, nil, nil, nil, nil, nil, nil)
+	handlers := NewQuicstreamHandlers(t.Local, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil)
 
 	ci := quictransport.NewBaseConnInfo(nil, true)
-	c := newBaseNetworkClient(t.Encs, t.Enc, t.writef(HandlerPrefixSuffrageProof, handlers.SuffrageProof))
+	c := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixSuffrageProof, handlers.SuffrageProof))
 
 	suffrageheight := base.Height(11)
 
@@ -251,10 +252,10 @@ func (t *testQuicstreamHandlers) TestSuffrageProof() {
 }
 
 func (t *testQuicstreamHandlers) TestLastBlockMap() {
-	handlers := NewQuicstreamHandlers(t.Local, t.Encs, t.Enc, nil, nil, nil, nil, nil, nil, nil)
+	handlers := NewQuicstreamHandlers(t.Local, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil)
 
 	ci := quictransport.NewBaseConnInfo(nil, true)
-	c := newBaseNetworkClient(t.Encs, t.Enc, t.writef(HandlerPrefixLastBlockMap, handlers.LastBlockMap))
+	c := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixLastBlockMap, handlers.LastBlockMap))
 
 	t.Run("nil and updated", func() {
 		m := base.NewDummyManifest(base.Height(33), valuehash.RandomSHA256())
@@ -307,10 +308,10 @@ func (t *testQuicstreamHandlers) TestLastBlockMap() {
 }
 
 func (t *testQuicstreamHandlers) TestBlockMap() {
-	handlers := NewQuicstreamHandlers(t.Local, t.Encs, t.Enc, nil, nil, nil, nil, nil, nil, nil)
+	handlers := NewQuicstreamHandlers(t.Local, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil)
 
 	ci := quictransport.NewBaseConnInfo(nil, true)
-	c := newBaseNetworkClient(t.Encs, t.Enc, t.writef(HandlerPrefixBlockMap, handlers.BlockMap))
+	c := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixBlockMap, handlers.BlockMap))
 
 	t.Run("found", func() {
 		m := base.NewDummyManifest(base.Height(33), valuehash.RandomSHA256())
@@ -357,10 +358,10 @@ func (t *testQuicstreamHandlers) TestBlockMap() {
 }
 
 func (t *testQuicstreamHandlers) TestBlockMapItem() {
-	handlers := NewQuicstreamHandlers(t.Local, t.Encs, t.Enc, nil, nil, nil, nil, nil, nil, nil)
+	handlers := NewQuicstreamHandlers(t.Local, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil)
 
 	ci := quictransport.NewBaseConnInfo(nil, true)
-	c := newBaseNetworkClient(t.Encs, t.Enc, t.writef(HandlerPrefixBlockMapItem, handlers.BlockMapItem))
+	c := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixBlockMapItem, handlers.BlockMapItem))
 
 	t.Run("known item", func() {
 		height := base.Height(33)
@@ -381,13 +382,14 @@ func (t *testQuicstreamHandlers) TestBlockMapItem() {
 			return io.NopCloser(r), true, nil
 		}
 
-		rr, found, err := c.BlockMapItem(context.Background(), ci, height, item)
+		rr, cancel, found, err := c.BlockMapItem(context.Background(), ci, height, item)
 		t.NoError(err)
 		t.True(found)
 		t.NotNil(rr)
 
 		rb, err := io.ReadAll(rr)
 		t.NoError(err)
+		cancel()
 
 		t.Equal(body, rb)
 	})
@@ -397,7 +399,7 @@ func (t *testQuicstreamHandlers) TestBlockMapItem() {
 			return nil, false, nil
 		}
 
-		rr, found, err := c.BlockMapItem(context.Background(), ci, base.Height(33), base.BlockMapItemTypeVoteproofs)
+		rr, _, found, err := c.BlockMapItem(context.Background(), ci, base.Height(33), base.BlockMapItemTypeVoteproofs)
 		t.NoError(err)
 		t.False(found)
 		t.Nil(rr)

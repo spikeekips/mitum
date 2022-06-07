@@ -19,16 +19,23 @@ import (
 
 type (
 	SyncerBlockMapFunc     func(context.Context, base.Height) (base.BlockMap, bool, error)
-	SyncerBlockMapItemFunc func(context.Context, base.Height, base.BlockMapItemType) (io.ReadCloser, bool, error)
-	NewBlockImporterFunc   func(root string, blockmap base.BlockMap) (isaac.BlockImporter, error)
+	SyncerBlockMapItemFunc func(
+		context.Context, base.Height, base.BlockMapItemType) (io.ReadCloser, func() error, bool, error)
+	newBlockWriteDatabaseFunc func(base.Height) (_ isaac.BlockWriteDatabase, merge func(context.Context) error, _ error)
+	NewBlockImporterFunc      func(
+		root string, _ base.BlockMap, _ isaac.BlockWriteDatabase) (isaac.BlockImporter, error)
 	SyncerLastBlockMapFunc func(_ context.Context, manifest util.Hash) (
 		_ base.BlockMap, updated bool, _ error) // FIXME should IsValid()
 )
 
+// FIXME clear syncpool after sync finished
+// FIXME remove mitum-example-no1sas/temp/temp1-0
+
 type Syncer struct {
-	tempsyncpool     isaac.TempSyncPool
-	finishedch       chan base.Height
-	newBlockImporter NewBlockImporterFunc
+	tempsyncpool           isaac.TempSyncPool
+	finishedch             chan base.Height
+	newBlockWriteDatabasef newBlockWriteDatabaseFunc
+	newBlockImporter       NewBlockImporterFunc
 	*logging.Logging
 	prevvalue     *util.Locked
 	blockMapf     SyncerBlockMapFunc
@@ -49,6 +56,7 @@ type Syncer struct {
 
 func NewSyncer(
 	root string,
+	newBlockWriteDatabasef newBlockWriteDatabaseFunc,
 	newBlockImporter NewBlockImporterFunc,
 	prev base.BlockMap,
 	lastBlockMapf SyncerLastBlockMapFunc,
@@ -83,22 +91,23 @@ func NewSyncer(
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", "syncer")
 		}),
-		root:                  abs,
-		newBlockImporter:      newBlockImporter,
-		prevvalue:             util.NewLocked(prev),
-		lastBlockMapf:         lastBlockMapf,
-		blockMapf:             blockMapf,
-		blockMapItemf:         blockMapItemf,
-		tempsyncpool:          tempsyncpool,
-		batchlimit:            3, //nolint:gomnd // big enough size
-		finishedch:            make(chan base.Height),
-		donech:                make(chan struct{}),
-		doneerr:               util.EmptyLocked(),
-		topvalue:              util.NewLocked(prevheight),
-		isdonevalue:           &atomic.Value{},
-		startsyncch:           make(chan base.Height),
-		setLastVoteproofsFunc: setLastVoteproofsFunc,
-		lastBlockMapInterval:  time.Second * 2, //nolint:gomnd //...
+		root:                   abs,
+		newBlockWriteDatabasef: newBlockWriteDatabasef,
+		newBlockImporter:       newBlockImporter,
+		prevvalue:              util.NewLocked(prev),
+		lastBlockMapf:          lastBlockMapf,
+		blockMapf:              blockMapf,
+		blockMapItemf:          blockMapItemf,
+		tempsyncpool:           tempsyncpool,
+		batchlimit:             333, //nolint:gomnd // big enough size
+		finishedch:             make(chan base.Height),
+		donech:                 make(chan struct{}),
+		doneerr:                util.EmptyLocked(),
+		topvalue:               util.NewLocked(prevheight),
+		isdonevalue:            &atomic.Value{},
+		startsyncch:            make(chan base.Height),
+		setLastVoteproofsFunc:  setLastVoteproofsFunc,
+		lastBlockMapInterval:   time.Second * 2, //nolint:gomnd //...
 	}
 
 	// FIXME big batchlimit causes too many open files error
@@ -332,8 +341,9 @@ func (s *Syncer) syncBlocks(ctx context.Context, prev base.BlockMap, to base.Hei
 		s.batchlimit,
 		s.tempsyncpool.BlockMap,
 		s.blockMapItemf,
-		func(m base.BlockMap) (isaac.BlockImporter, error) {
-			return s.newBlockImporter(s.root, m)
+		s.newBlockWriteDatabasef,
+		func(m base.BlockMap, bwdb isaac.BlockWriteDatabase) (isaac.BlockImporter, error) {
+			return s.newBlockImporter(s.root, m, bwdb)
 		},
 		s.setLastVoteproofsFunc,
 	); err != nil {

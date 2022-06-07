@@ -243,11 +243,8 @@ func (db *LeveldbBlockWrite) TempDatabase() (isaac.TempDatabase, error) {
 
 	e := util.StringErrorFunc("failed to make TempDatabase from BlockWriteDatabase")
 
-	switch m, err := db.BlockMap(); {
-	case err != nil:
+	if _, err := db.BlockMap(); err != nil {
 		return nil, e(err, "")
-	case m.Manifest().Height() != db.height:
-		return nil, e(nil, "wrong blockmap")
 	}
 
 	return newTempLeveldbFromBlockWriteStorage(db)

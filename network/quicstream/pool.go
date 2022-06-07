@@ -3,6 +3,7 @@ package quicstream
 import (
 	"context"
 	"io"
+	"math"
 	"net"
 	"time"
 
@@ -12,13 +13,13 @@ import (
 )
 
 type PoolClient struct {
-	clients  *util.LockedMap
+	clients  *util.ShardedMap
 	onerrorf func(addr *net.UDPAddr, c *Client, err error)
 }
 
 func NewPoolClient() *PoolClient {
 	return &PoolClient{
-		clients: util.NewLockedMap(),
+		clients: util.NewShardedMap(math.MaxInt8),
 	}
 }
 

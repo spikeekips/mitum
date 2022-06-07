@@ -80,7 +80,7 @@ func NewTransportWithQuicstream(
 			)
 		},
 		func(ctx context.Context, ci ConnInfo, b []byte) error {
-			_, err := poolclient.Write(
+			r, err := poolclient.Write(
 				ctx,
 				ci.UDPAddr(),
 				func(w io.Writer) error {
@@ -90,6 +90,8 @@ func NewTransportWithQuicstream(
 				},
 				newClient(ci),
 			)
+
+			r.CancelRead(0)
 
 			return err
 		},

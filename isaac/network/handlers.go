@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -28,6 +29,7 @@ func NewQuicstreamHandlers(
 	local base.LocalNode,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
+	idleTimeout time.Duration,
 	pool isaac.ProposalPool,
 	proposalMaker *isaac.ProposalMaker,
 	lastSuffrageProoff func(util.Hash) (base.SuffrageProof, bool, error),
@@ -37,7 +39,7 @@ func NewQuicstreamHandlers(
 	blockMapItemf func(base.Height, base.BlockMapItemType) (io.ReadCloser, bool, error),
 ) *QuicstreamHandlers {
 	return &QuicstreamHandlers{
-		baseNetwork:        newBaseNetwork(encs, enc),
+		baseNetwork:        newBaseNetwork(encs, enc, idleTimeout),
 		local:              local,
 		pool:               pool,
 		proposalMaker:      proposalMaker,

@@ -17,7 +17,7 @@ type NetworkClient interface {
 	SuffrageProof(_ context.Context, connInfo quictransport.ConnInfo, suffrageheight base.Height) (_ base.SuffrageProof, found bool, _ error)
 	LastBlockMap(_ context.Context, _ quictransport.ConnInfo, manifest util.Hash) (_ base.BlockMap, updated bool, _ error)
 	BlockMap(context.Context, quictransport.ConnInfo, base.Height) (_ base.BlockMap, updated bool, _ error)
-	BlockMapItem(context.Context, quictransport.ConnInfo, base.Height, base.BlockMapItemType) (io.ReadCloser, bool, error)
+	BlockMapItem(context.Context, quictransport.ConnInfo, base.Height, base.BlockMapItemType) (io.ReadCloser, func() error, bool, error)
 }
 
 // revive:enable:line-length-limit

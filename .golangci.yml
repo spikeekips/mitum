@@ -971,7 +971,7 @@ linters-settings:
       - name: argument-limit
         severity: warning
         disabled: false
-        arguments: [10]
+        arguments: [11]
       # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#atomic
       - name: atomic
         severity: warning

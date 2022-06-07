@@ -233,7 +233,9 @@ func CleanTempSyncPoolDatabase(localfsroot string) error {
 	return nil
 }
 
-func NewTempSyncPoolDatabase(localfsroot string, height base.Height, encs *encoder.Encoders, enc encoder.Encoder) (isaac.TempSyncPool, error) {
+func NewTempSyncPoolDatabase(
+	localfsroot string, height base.Height, encs *encoder.Encoders, enc encoder.Encoder,
+) (isaac.TempSyncPool, error) {
 	temproot := LocalFSTempDirectory(localfsroot)
 
 	root := isaacdatabase.NewSyncPoolDirectory(temproot, height)
@@ -343,4 +345,25 @@ func LocalFSDataDirectory(root string) string {
 
 func LocalFSPoolDirectory(root string) string {
 	return filepath.Join(root, LocalFSPoolDirectoryName)
+}
+
+func MergeBlockWriteToPermanentDatabase(
+	ctx context.Context, bwdb isaac.BlockWriteDatabase, perm isaac.PermanentDatabase,
+) error {
+	e := util.StringErrorFunc("failed to merge BlockWriter")
+
+	temp, err := bwdb.TempDatabase()
+	if err != nil {
+		return e(err, "")
+	}
+
+	if err := perm.MergeTempDatabase(ctx, temp); err != nil {
+		return e(err, "")
+	}
+
+	if err := temp.Remove(); err != nil {
+		return e(err, "")
+	}
+
+	return nil
 }

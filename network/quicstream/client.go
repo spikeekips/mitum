@@ -109,12 +109,14 @@ func (c *Client) write(ctx context.Context, f ClientWriteFunc) (quic.Stream, err
 	}()
 
 	if err := f(stream); err != nil {
+		stream.CancelRead(0)
+
 		return nil, e(err, "")
 	}
 
 	_ = stream.Close()
 
-	return StreamResponse{stream}, nil
+	return stream, nil
 }
 
 func (c *Client) dial(ctx context.Context) (quic.EarlyConnection, error) {

@@ -70,7 +70,7 @@ func (l *LocalFSImporter) WriteMap(m base.BlockMap) error {
 	return nil
 }
 
-func (l *LocalFSImporter) WriteItem(t base.BlockMapItemType) (io.Writer, error) {
+func (l *LocalFSImporter) WriteItem(t base.BlockMapItemType) (io.WriteCloser, error) {
 	e := util.StringErrorFunc("failed to write item to localfs")
 
 	f, err := BlockFileName(t, l.enc.Hint().Type().String())

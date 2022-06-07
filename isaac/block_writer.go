@@ -38,6 +38,5 @@ type BlockImporter interface {
 	WriteItem(base.BlockMapItemType, io.Reader) error
 	Save(context.Context) error
 	CancelImport(context.Context) error
-	Merge(context.Context) error
 	Reader() (BlockReader, error)
 }

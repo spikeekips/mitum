@@ -1,7 +1,9 @@
 package isaacnetwork
 
 import (
+	"context"
 	"io"
+	"time"
 
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -18,17 +20,20 @@ var (
 )
 
 type baseNetwork struct {
-	encs *encoder.Encoders
-	enc  encoder.Encoder
+	encs        *encoder.Encoders
+	enc         encoder.Encoder
+	idleTimeout time.Duration
 }
 
 func newBaseNetwork(
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
+	idleTimeout time.Duration,
 ) *baseNetwork {
 	return &baseNetwork{
-		encs: encs,
-		enc:  enc,
+		encs:        encs,
+		enc:         enc,
+		idleTimeout: idleTimeout,
 	}
 }
 
@@ -75,7 +80,10 @@ func (*baseNetwork) response(w io.Writer, header Header, body interface{}, enc e
 func (c *baseNetwork) readEncoder(r io.Reader) (encoder.Encoder, error) {
 	e := util.StringErrorFunc("failed to read encoder")
 
-	ht, err := readHint(r)
+	ctx, cancel := context.WithTimeout(context.Background(), c.idleTimeout)
+	defer cancel()
+
+	ht, err := readHint(ctx, r)
 	if err != nil {
 		return nil, e(err, "")
 	}

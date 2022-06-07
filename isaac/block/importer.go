@@ -17,7 +17,6 @@ type BlockImporter struct {
 	m          base.BlockMap
 	enc        encoder.Encoder
 	bwdb       isaac.BlockWriteDatabase
-	permdb     isaac.PermanentDatabase
 	avp        base.ACCEPTVoteproof
 	sufst      base.State
 	localfs    *LocalFSImporter
@@ -33,7 +32,6 @@ func NewBlockImporter(
 	encs *encoder.Encoders,
 	m base.BlockMap,
 	bwdb isaac.BlockWriteDatabase,
-	permdb isaac.PermanentDatabase,
 	networkID base.NetworkID,
 ) (*BlockImporter, error) {
 	e := util.StringErrorFunc("failed new BlockImporter")
@@ -54,7 +52,6 @@ func NewBlockImporter(
 		enc:        enc,
 		localfs:    localfs,
 		bwdb:       bwdb,
-		permdb:     permdb,
 		networkID:  networkID,
 		finisheds:  util.NewLockedMap(),
 		batchlimit: 333, //nolint:gomnd // enough big size
@@ -151,25 +148,6 @@ func (im *BlockImporter) CancelImport(context.Context) error {
 	return nil
 }
 
-func (im *BlockImporter) Merge(ctx context.Context) error {
-	e := util.StringErrorFunc("failed to merge")
-
-	temp, err := im.bwdb.TempDatabase()
-	if err != nil {
-		return e(err, "")
-	}
-
-	if err := im.permdb.MergeTempDatabase(ctx, temp); err != nil {
-		return e(err, "")
-	}
-
-	if err := temp.Remove(); err != nil {
-		return e(err, "")
-	}
-
-	return nil
-}
-
 func (im *BlockImporter) importItem(t base.BlockMapItemType, r io.Reader) error {
 	item, found := im.m.Item(t)
 	if !found {
@@ -186,6 +164,10 @@ func (im *BlockImporter) importItem(t base.BlockMapItemType, r io.Reader) error 
 	case err != nil:
 		return errors.Wrap(err, "")
 	default:
+		defer func() {
+			_ = w.Close()
+		}()
+
 		tr = io.NopCloser(io.TeeReader(r, w))
 	}
 
@@ -204,6 +186,10 @@ func (im *BlockImporter) importItem(t base.BlockMapItemType, r io.Reader) error 
 	default:
 		cr = util.NewHashChecksumReader(tr, sha256.New())
 	}
+
+	defer func() {
+		_ = cr.Close()
+	}()
 
 	var err error
 

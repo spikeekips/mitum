@@ -313,8 +313,10 @@ func (l *ShardedMap) RemoveValue(k string) {
 
 func (l *ShardedMap) Remove(k string, f func(interface{}) error) error {
 	return l.sharded[l.fnv(k)].Remove(k, func(i interface{}) error {
-		if err := f(i); err != nil {
-			return err
+		if f != nil {
+			if err := f(i); err != nil {
+				return err
+			}
 		}
 
 		if !IsNilLockedValue(i) {
