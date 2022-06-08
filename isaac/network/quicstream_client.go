@@ -57,7 +57,7 @@ func (c *QuicstreamClient) newClient(ci quictransport.ConnInfo, quicconfig *quic
 		return quicstream.NewClient(
 			ci.UDPAddr(),
 			&tls.Config{
-				InsecureSkipVerify: ci.Insecure(), //nolint:gosec //...
+				InsecureSkipVerify: ci.TLSInsecure(), //nolint:gosec //...
 				NextProtos:         []string{c.proto},
 			},
 			quicconfig,

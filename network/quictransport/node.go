@@ -25,7 +25,7 @@ var (
 type ConnInfo interface {
 	Addr() net.Addr
 	UDPAddr() *net.UDPAddr
-	Insecure() bool
+	TLSInsecure() bool
 }
 
 type Node interface {
@@ -92,8 +92,8 @@ func (n BaseNode) UDPAddr() *net.UDPAddr {
 	return n.addr
 }
 
-func (n BaseNode) Insecure() bool {
-	return n.meta.Insecure()
+func (n BaseNode) TLSInsecure() bool {
+	return n.meta.TLSInsecure()
 }
 
 func (n BaseNode) JoinedAt() time.Time {
@@ -113,7 +113,7 @@ func (n BaseNode) MarshalZerologObject(e *zerolog.Event) {
 		Str("name", n.name).
 		Stringer("node", n.meta.Node()).
 		Stringer("address", n.addr).
-		Bool("insecure", n.meta.Insecure()).
+		Bool("tls_insecure", n.meta.TLSInsecure()).
 		Time("joined_at", n.joinedAt)
 }
 
@@ -165,14 +165,14 @@ func (n *BaseNode) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 type NodeMeta struct {
 	node base.Address
 	hint.BaseHinter
-	insecure bool
+	tlsinsecure bool
 }
 
-func NewNodeMeta(node base.Address, insecure bool) NodeMeta {
+func NewNodeMeta(node base.Address, tlsinsecure bool) NodeMeta {
 	return NodeMeta{
-		BaseHinter: hint.NewBaseHinter(NodeMetaHint),
-		node:       node,
-		insecure:   insecure,
+		BaseHinter:  hint.NewBaseHinter(NodeMetaHint),
+		node:        node,
+		tlsinsecure: tlsinsecure,
 	}
 }
 
@@ -180,27 +180,27 @@ func (n NodeMeta) Node() base.Address {
 	return n.node
 }
 
-func (n NodeMeta) Insecure() bool {
-	return n.insecure
+func (n NodeMeta) TLSInsecure() bool {
+	return n.tlsinsecure
 }
 
 type nodeMetaJSONMmarshaler struct {
 	Node base.Address `json:"node"`
 	hint.BaseHinter
-	Insecure bool `json:"insecure"`
+	TLSInsecure bool `json:"tls_insecure"`
 }
 
 func (n NodeMeta) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(nodeMetaJSONMmarshaler{
-		BaseHinter: n.BaseHinter,
-		Node:       n.node,
-		Insecure:   n.insecure,
+		BaseHinter:  n.BaseHinter,
+		Node:        n.node,
+		TLSInsecure: n.tlsinsecure,
 	})
 }
 
 type nodeMetaJSONUnmarshaler struct {
-	Node     string `json:"node"`
-	Insecure bool   `json:"insecure"`
+	Node        string `json:"node"`
+	TLSInsecure bool   `json:"tls_insecure"`
 }
 
 func (n *NodeMeta) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
@@ -218,29 +218,29 @@ func (n *NodeMeta) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		n.node = i
 	}
 
-	n.insecure = u.Insecure
+	n.tlsinsecure = u.TLSInsecure
 
 	return nil
 }
 
 type BaseConnInfo struct {
-	addr     *net.UDPAddr
-	insecure bool
+	addr        *net.UDPAddr
+	tlsinsecure bool
 }
 
-func NewBaseConnInfo(addr *net.UDPAddr, insecure bool) BaseConnInfo {
-	return BaseConnInfo{addr: addr, insecure: insecure}
+func NewBaseConnInfo(addr *net.UDPAddr, tlsinsecure bool) BaseConnInfo {
+	return BaseConnInfo{addr: addr, tlsinsecure: tlsinsecure}
 }
 
 func NewBaseConnInfoFromString(s string) (BaseConnInfo, error) {
-	as, insecure := network.ParseInsecure(s)
+	as, tlsinsecure := network.ParseInsecure(s)
 
 	addr, err := net.ResolveUDPAddr("udp", as)
 	if err != nil {
 		return BaseConnInfo{}, util.ErrInvalid.Wrapf(err, "failed to parse net.UDPAddr")
 	}
 
-	return NewBaseConnInfo(addr, insecure), nil
+	return NewBaseConnInfo(addr, tlsinsecure), nil
 }
 
 func (c BaseConnInfo) Addr() net.Addr {
@@ -251,8 +251,8 @@ func (c BaseConnInfo) UDPAddr() *net.UDPAddr {
 	return c.addr
 }
 
-func (c BaseConnInfo) Insecure() bool {
-	return c.insecure
+func (c BaseConnInfo) TLSInsecure() bool {
+	return c.tlsinsecure
 }
 
 func (c BaseConnInfo) String() string {
@@ -277,7 +277,7 @@ func (c *BaseConnInfo) UnmarshalText(b []byte) error {
 func (c BaseConnInfo) MarshalZerologObject(e *zerolog.Event) {
 	e.
 		Stringer("address", c.addr).
-		Bool("insecure", c.insecure)
+		Bool("tls_insecure", c.tlsinsecure)
 }
 
 func ToQuicConnInfo(ci network.ConnInfo) (ConnInfo, error) {

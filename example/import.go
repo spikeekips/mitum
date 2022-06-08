@@ -28,7 +28,7 @@ type importCommand struct {
 	perm    isaac.PermanentDatabase
 	pool    *isaacdatabase.TempPool
 	encs    *encoder.Encoders
-	From    string `arg:"" name:"from directory" help:" block data directory to import" type:"existingdir"`
+	From    string `arg:"" name:"from directory" help:"block data directory to import" type:"existingdir"`
 }
 
 func (cmd *importCommand) Run() error {

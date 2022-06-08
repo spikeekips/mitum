@@ -11,7 +11,7 @@ import (
 type ConnInfo interface {
 	fmt.Stringer
 	Addr() net.Addr
-	Insecure() bool
+	TLSInsecure() bool
 }
 
 type NamedAddr struct {
@@ -27,16 +27,16 @@ func (c NamedAddr) String() string {
 }
 
 type NamedConnInfo struct {
-	addr     NamedAddr
-	insecure bool
+	addr        NamedAddr
+	tlsinsecure bool
 }
 
 func (c NamedConnInfo) Addr() net.Addr {
 	return c.addr
 }
 
-func (c NamedConnInfo) Insecure() bool {
-	return c.insecure
+func (c NamedConnInfo) TLSInsecure() bool {
+	return c.tlsinsecure
 }
 
 func (c NamedConnInfo) String() string {
@@ -50,11 +50,11 @@ func ParseConnInfo(s string) (ConnInfo, error) {
 		return nil, e(err, "")
 	}
 
-	as, insecure := ParseInsecure(s)
+	as, tlsinsecure := ParseInsecure(s)
 
 	return NamedConnInfo{
-		addr:     NamedAddr{addr: as},
-		insecure: insecure,
+		addr:        NamedAddr{addr: as},
+		tlsinsecure: tlsinsecure,
 	}, nil
 }
 
@@ -63,17 +63,17 @@ func ParseInsecure(s string) (string, bool) {
 	case i < 0:
 		return s, false
 	case len(s[i:]) > 0:
-		return s[:i], strings.ToLower(s[i+1:]) == "insecure"
+		return s[:i], strings.ToLower(s[i+1:]) == "tls_insecure"
 	default:
 		return s[:i], false
 	}
 }
 
 func ConnInfoToString(ci ConnInfo) string {
-	insecure := ""
-	if ci.Insecure() {
-		insecure = "#insecure"
+	tlsinsecure := ""
+	if ci.TLSInsecure() {
+		tlsinsecure = "#tls_insecure"
 	}
 
-	return ci.Addr().String() + insecure
+	return ci.Addr().String() + tlsinsecure
 }

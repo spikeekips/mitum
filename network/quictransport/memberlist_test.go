@@ -77,7 +77,7 @@ func (t *testMemberlist) newServersForJoining(
 				return quicstream.NewClient(
 					ci.UDPAddr(),
 					&tls.Config{
-						InsecureSkipVerify: ci.Insecure(),
+						InsecureSkipVerify: ci.TLSInsecure(),
 						NextProtos:         []string{t.Proto},
 					},
 					nil,

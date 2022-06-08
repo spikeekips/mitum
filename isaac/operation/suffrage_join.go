@@ -86,7 +86,7 @@ type SuffrageGenesisJoinPermissionFact struct {
 }
 
 func NewSuffrageGenesisJoinPermissionFact(
-	node base.Address,
+	node base.Address, // FIXME set multiple nodes
 	pub base.Publickey,
 	networkID base.NetworkID,
 ) SuffrageGenesisJoinPermissionFact {

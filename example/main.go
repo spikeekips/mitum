@@ -2,12 +2,12 @@ package main
 
 import (
 	"os"
-	"time"
 
 	"github.com/alecthomas/kong"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
+	_ "github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/util"
 	mitumlogging "github.com/spikeekips/mitum/util/logging"
 )
@@ -23,11 +23,6 @@ var (
 	logging *mitumlogging.Logging
 	log     *zerolog.Logger
 )
-
-func init() { //nolint:gochecknoinits //...
-	zerolog.TimeFieldFormat = time.RFC3339Nano
-	zerolog.ErrorStackMarshaler = util.ZerologMarshalStack
-}
 
 func main() {
 	logging = mitumlogging.Setup(os.Stderr, zerolog.DebugLevel, "json", false)

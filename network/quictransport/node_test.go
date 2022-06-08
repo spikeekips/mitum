@@ -12,7 +12,7 @@ func TestBaseConnInfoEncode(t *testing.T) {
 	tt := new(encoder.BaseTestEncode)
 
 	tt.Encode = func() (interface{}, []byte) {
-		ci, err := NewBaseConnInfoFromString("1.2.3.4:4321#insecure")
+		ci, err := NewBaseConnInfoFromString("1.2.3.4:4321#tls_insecure")
 		tt.NoError(err)
 
 		b, err := util.MarshalJSON(ci)
