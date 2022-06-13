@@ -8,8 +8,8 @@ import (
 )
 
 type SuffrageJoinPermissionFactJSONMarshaler struct {
-	Candidate base.Address
-	State     util.Hash
+	Candidate base.Address `json:"candidate"`
+	State     util.Hash    `json:"state"`
 	base.BaseFactJSONMarshaler
 }
 
@@ -22,8 +22,8 @@ func (fact SuffrageJoinPermissionFact) MarshalJSON() ([]byte, error) {
 }
 
 type SuffrageJoinPermissionFactJSONUnmarshaler struct {
-	State     valuehash.HashDecoder
-	Candidate string
+	Candidate string                `json:"candidate"`
+	State     valuehash.HashDecoder `json:"state"`
 	base.BaseFactJSONUnmarshaler
 }
 
@@ -50,8 +50,8 @@ func (fact *SuffrageJoinPermissionFact) DecodeJSON(b []byte, enc *jsonenc.Encode
 }
 
 type SuffrageGenesisJoinPermissionFactJSONMarshaler struct {
-	Node      base.Address
-	Publickey base.Publickey
+	Node      base.Address   `json:"node"`
+	Publickey base.Publickey `json:"publickey"`
 	base.BaseFactJSONMarshaler
 }
 
@@ -64,8 +64,8 @@ func (fact SuffrageGenesisJoinPermissionFact) MarshalJSON() ([]byte, error) {
 }
 
 type SuffrageGenesisJoinPermissionFactJSONUnmarshaler struct {
-	Node      string
-	Publickey string
+	Node      string `json:"node"`
+	Publickey string `json:"publickey"`
 	base.BaseFactJSONUnmarshaler
 }
 

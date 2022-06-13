@@ -26,7 +26,7 @@ var (
 	LocalFSPoolDirectoryName = "pool"
 
 	RedisPermanentDatabasePrefixFormat = "mitum-%s"
-	LeveldbURIScheme                   = "file+leveldb"
+	LeveldbURIScheme                   = "leveldb"
 )
 
 func CleanStorage(permuri, root string, encs *encoder.Encoders, enc encoder.Encoder) error {
