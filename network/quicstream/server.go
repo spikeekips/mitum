@@ -22,7 +22,7 @@ type Server struct {
 }
 
 func NewServer(
-	bind *net.UDPAddr,
+	bind *net.UDPAddr, // FIXME use netip.AddrPort
 	tlsconfig *tls.Config,
 	quicconfig *quic.Config,
 	handler Handler,

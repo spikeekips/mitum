@@ -80,20 +80,17 @@ func (fact SuffrageJoinPermissionFact) hash() util.Hash {
 }
 
 type SuffrageGenesisJoinPermissionFact struct {
-	node base.Address
-	pub  base.Publickey
+	nodes []base.Node
 	base.BaseFact
 }
 
 func NewSuffrageGenesisJoinPermissionFact(
-	node base.Address, // FIXME set multiple nodes
-	pub base.Publickey,
+	nodes []base.Node,
 	networkID base.NetworkID,
 ) SuffrageGenesisJoinPermissionFact {
 	fact := SuffrageGenesisJoinPermissionFact{
 		BaseFact: base.NewBaseFact(SuffrageGenesisJoinPermissionFactHint, base.Token(networkID)),
-		node:     node,
-		pub:      pub,
+		nodes:    nodes,
 	}
 
 	fact.SetHash(fact.hash())
@@ -102,36 +99,50 @@ func NewSuffrageGenesisJoinPermissionFact(
 }
 
 func (fact SuffrageGenesisJoinPermissionFact) IsValid(networkID []byte) error {
-	e := util.StringErrorFunc("invalid SuffrageGenesisJoinPermissionFact")
+	e := util.ErrInvalid.Errorf("invalid SuffrageGenesisJoinPermissionFact")
 
-	if err := util.CheckIsValid(nil, false, fact.BaseFact, fact.node, fact.pub); err != nil {
-		return e(err, "")
+	if len(fact.nodes) < 1 {
+		return e.Errorf("empty nodes")
+	}
+
+	vs := make([]util.IsValider, len(fact.nodes)+1)
+	vs[0] = fact.BaseFact
+
+	for i := range fact.nodes {
+		vs[i+1] = fact.nodes[i]
+	}
+
+	if err := util.CheckIsValid(nil, false, vs...); err != nil {
+		return e.Wrap(err)
 	}
 
 	if !bytes.Equal(fact.BaseFact.Token(), networkID) {
-		return e(util.ErrInvalid.Errorf("wrong token"), "")
+		return e.Errorf("wrong token")
 	}
 
 	if !fact.Hash().Equal(fact.hash()) {
-		return e(util.ErrInvalid.Errorf("hash does not match"), "")
+		return e.Errorf("hash does not match")
 	}
 
 	return nil
 }
 
-func (fact SuffrageGenesisJoinPermissionFact) Node() base.Address {
-	return fact.node
-}
-
-func (fact SuffrageGenesisJoinPermissionFact) Publickey() base.Publickey {
-	return fact.pub
+func (fact SuffrageGenesisJoinPermissionFact) Nodes() []base.Node {
+	return fact.nodes
 }
 
 func (fact SuffrageGenesisJoinPermissionFact) hash() util.Hash {
 	return valuehash.NewSHA256(util.ConcatByters(
 		util.BytesToByter(fact.Token()),
-		fact.node,
-		fact.pub,
+		util.DummyByter(func() []byte {
+			var b bytes.Buffer
+
+			for i := range fact.nodes {
+				_, _ = b.Write(fact.nodes[i].HashBytes())
+			}
+
+			return b.Bytes()
+		}),
 	))
 }
 
@@ -160,13 +171,6 @@ func (op SuffrageGenesisJoin) IsValid(networkID []byte) error {
 		return e(util.ErrInvalid.Errorf("multiple signed found"), "")
 	}
 
-	// FIXME check signer should be genesis block creator
-
-	fact := op.Fact().(SuffrageGenesisJoinPermissionFact) //nolint:forcetypeassert //...
-	if !fact.Publickey().Equal(op.Signed()[0].Signer()) {
-		return e(util.ErrInvalid.Errorf("signer does not match with publickey"), "")
-	}
-
 	return nil
 }
 
@@ -179,12 +183,10 @@ func (op SuffrageGenesisJoin) Process(context.Context, base.GetStateFunc) (
 ) {
 	fact := op.Fact().(SuffrageGenesisJoinPermissionFact) //nolint:forcetypeassert //...
 
-	node := isaac.NewNode(fact.Publickey(), fact.Node())
-
 	return []base.StateMergeValue{
 		base.NewBaseStateMergeValue(
 			isaac.SuffrageStateKey,
-			isaac.NewSuffrageStateValue(base.GenesisHeight, []base.Node{node}),
+			isaac.NewSuffrageStateValue(base.GenesisHeight, fact.Nodes()),
 			nil,
 		),
 	}, nil, nil

@@ -25,59 +25,36 @@ import (
 )
 
 type runCommand struct {
+	baseCommand
 	db                   isaac.Database
-	enc                  encoder.Encoder
-	Address              launch.AddressFlag `arg:"" name:"local address" help:"node address"`
 	perm                 isaac.PermanentDatabase
-	local                base.LocalNode
 	client               isaac.NetworkClient
 	suffrageStateBuilder *isaacstates.SuffrageStateBuilder
 	proposalSelector     *isaac.BaseProposalSelector
 	pool                 *isaacdatabase.TempPool
 	getSuffrage          func(blockheight base.Height) (base.Suffrage, bool, error)
-	encs                 *encoder.Encoders
 	newProposalProcessor newProposalProcessorFunc
 	getLastManifest      func() (base.Manifest, bool, error)
 	getSuffrageBooting   func(blockheight base.Height) (base.Suffrage, bool, error)
 	quicstreamserver     *quicstream.Server
 	getProposal          func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error)
 	getManifest          func(height base.Height) (base.Manifest, error)
-	localfsroot          string
 	Discovery            []launch.ConnInfoFlag `help:"discoveries" placeholder:"ConnInfo"`
 	nodePolicy           isaac.NodePolicy
-	Port                 int  `arg:"" name:"port" help:"network port"`
 	Hold                 bool `help:"hold consensus states"`
 }
 
 func (cmd *runCommand) Run() error {
-	log.Debug().
-		Interface("address", cmd.Address).
-		Interface("hold", cmd.Hold).
-		Interface("discovery", cmd.Discovery).
-		Msg("flags")
-
-	switch encs, enc, err := launch.PrepareEncoders(); {
-	case err != nil:
+	if err := cmd.prepareEncoder(); err != nil {
 		return errors.Wrap(err, "")
-	default:
-		cmd.encs = encs
-		cmd.enc = enc
 	}
 
-	local, err := prepareLocal(cmd.Address.Address())
-	if err != nil {
-		return errors.Wrap(err, "failed to prepare local node")
+	if err := cmd.prepareDesigns(); err != nil {
+		return errors.Wrap(err, "")
 	}
 
-	cmd.local = local
-
-	switch localfsroot, err := defaultLocalFSRoot(cmd.local.Address()); {
-	case err != nil:
+	if err := cmd.prepareLocal(); err != nil {
 		return errors.Wrap(err, "")
-	default:
-		cmd.localfsroot = localfsroot
-
-		log.Debug().Str("localfs_root", cmd.localfsroot).Msg("localfs root")
 	}
 
 	if err := cmd.prepareDatabase(); err != nil {
@@ -115,8 +92,8 @@ func (cmd *runCommand) run() error {
 	log.Debug().Msg("node started")
 
 	profiledefer, err := launch.StartProfile(
-		filepath.Join(cmd.localfsroot, fmt.Sprintf("cpu-%s.pprof", util.ULID().String())),
-		filepath.Join(cmd.localfsroot, fmt.Sprintf("mem-%s.pprof", util.ULID().String())),
+		filepath.Join(cmd.design.Storage.Base, fmt.Sprintf("cpu-%s.pprof", util.ULID().String())),
+		filepath.Join(cmd.design.Storage.Base, fmt.Sprintf("mem-%s.pprof", util.ULID().String())),
 	)
 	if err != nil {
 		return errors.Wrap(err, "")
@@ -153,25 +130,24 @@ func (cmd *runCommand) run() error {
 func (cmd *runCommand) prepareDatabase() error {
 	e := util.StringErrorFunc("failed to prepare database")
 
-	permuri := defaultPermanentDatabaseURI()
-
-	nodeinfo, err := launch.CheckLocalFS(networkID, cmd.localfsroot, cmd.enc)
+	nodeinfo, err := launch.CheckLocalFS(networkID, cmd.design.Storage.Base, cmd.enc)
 
 	switch {
 	case err == nil:
-		if err = isaacblock.CleanBlockTempDirectory(launch.LocalFSDataDirectory(cmd.localfsroot)); err != nil {
+		if err = isaacblock.CleanBlockTempDirectory(launch.LocalFSDataDirectory(cmd.design.Storage.Base)); err != nil {
 			return e(err, "")
 		}
 	case errors.Is(err, os.ErrNotExist):
 		if err = launch.CleanStorage(
-			permuri,
-			cmd.localfsroot,
+			cmd.design.Storage.Database.String(),
+			cmd.design.Storage.Base,
 			cmd.encs, cmd.enc,
 		); err != nil {
 			return e(err, "")
 		}
 
-		nodeinfo, err = launch.CreateLocalFS(launch.CreateDefaultNodeInfo(networkID, version), cmd.localfsroot, cmd.enc)
+		nodeinfo, err = launch.CreateLocalFS(
+			launch.CreateDefaultNodeInfo(networkID, version), cmd.design.Storage.Base, cmd.enc)
 		if err != nil {
 			return e(err, "")
 		}
@@ -179,7 +155,8 @@ func (cmd *runCommand) prepareDatabase() error {
 		return e(err, "")
 	}
 
-	db, perm, pool, err := launch.LoadDatabase(nodeinfo, permuri, cmd.localfsroot, cmd.encs, cmd.enc)
+	db, perm, pool, err := launch.LoadDatabase(
+		nodeinfo, cmd.design.Storage.Database.String(), cmd.design.Storage.Base, cmd.encs, cmd.enc)
 	if err != nil {
 		return e(err, "")
 	}
@@ -250,7 +227,7 @@ func (cmd *runCommand) prepareNetwork() error {
 			// FIXME use cache with singleflight
 
 			reader, err := isaacblock.NewLocalFSReaderFromHeight(
-				launch.LocalFSDataDirectory(cmd.localfsroot), height, enc,
+				launch.LocalFSDataDirectory(cmd.design.Storage.Base), height, enc,
 			)
 			if err != nil {
 				return nil, false, e(err, "")
@@ -264,7 +241,7 @@ func (cmd *runCommand) prepareNetwork() error {
 	)
 
 	cmd.quicstreamserver = quicstream.NewServer(
-		&net.UDPAddr{Port: cmd.Port},
+		&net.UDPAddr{Port: int(cmd.design.Network.Bind.Port())}, // FIXME use design.Network.Bind directly
 		launch.GenerateNewTLSConfig(),
 		launch.DefaultQuicConfig(),
 		launch.Handlers(handlers),
@@ -395,7 +372,8 @@ func (cmd *runCommand) newProposalProcessorFunc(enc encoder.Encoder) newProposal
 		return isaac.NewDefaultProposalProcessor(
 			proposal,
 			previous,
-			launch.NewBlockWriterFunc(cmd.local, networkID, launch.LocalFSDataDirectory(cmd.localfsroot), enc, cmd.db),
+			launch.NewBlockWriterFunc(
+				cmd.local, networkID, launch.LocalFSDataDirectory(cmd.design.Storage.Base), enc, cmd.db),
 			cmd.db.State,
 			nil,
 			nil,
@@ -426,14 +404,7 @@ func (cmd *runCommand) states() (*isaacstates.States, error) {
 	}
 
 	syncinghandler := isaacstates.NewSyncingHandler(cmd.local, cmd.nodePolicy, cmd.proposalSelector, cmd.newSyncer)
-	syncinghandler.SetWhenFinished(func(height base.Height) { // NOTE for detecing syncing errors
-		if height <= base.GenesisHeight {
-			return
-		}
-
-		log.Info().Msg("done")
-
-		os.Exit(0)
+	syncinghandler.SetWhenFinished(func(height base.Height) { // FIXME set later
 	})
 
 	states.
@@ -494,7 +465,7 @@ func (cmd *runCommand) newSyncer(height base.Height) (isaac.Syncer, error) {
 
 	var tempsyncpool isaac.TempSyncPool
 
-	switch i, err := launch.NewTempSyncPoolDatabase(cmd.localfsroot, height, cmd.encs, cmd.enc); {
+	switch i, err := launch.NewTempSyncPoolDatabase(cmd.design.Storage.Base, height, cmd.encs, cmd.enc); {
 	case err != nil:
 		return nil, e(isaacstates.ErrUnpromising.Wrap(err), "")
 	default:
@@ -502,7 +473,7 @@ func (cmd *runCommand) newSyncer(height base.Height) (isaac.Syncer, error) {
 	}
 
 	syncer, err := isaacstates.NewSyncer(
-		cmd.localfsroot,
+		cmd.design.Storage.Base,
 		func(height base.Height) (isaac.BlockWriteDatabase, func(context.Context) error, error) {
 			bwdb, err := cmd.db.NewBlockWriteDatabase(height)
 			if err != nil {

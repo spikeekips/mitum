@@ -26,6 +26,7 @@ type GenesisBlockGenerator struct {
 	*logging.Logging
 	dataroot  string
 	networkID base.NetworkID
+	facts     []base.Fact
 	ops       []base.Operation
 }
 
@@ -38,6 +39,7 @@ func NewGenesisBlockGenerator(
 	db isaac.Database,
 	pool isaac.VoteproofsPool,
 	dataroot string,
+	facts []base.Fact,
 ) *GenesisBlockGenerator {
 	return &GenesisBlockGenerator{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
@@ -49,17 +51,14 @@ func NewGenesisBlockGenerator(
 		db:        db,
 		pool:      pool,
 		dataroot:  dataroot,
+		facts:     facts,
 	}
 }
 
 func (g *GenesisBlockGenerator) Generate() (base.BlockMap, error) {
 	e := util.StringErrorFunc("failed to generate genesis block")
 
-	if err := g.joinOperation(); err != nil {
-		return nil, e(err, "")
-	}
-
-	if err := g.networkPolicyOperation(); err != nil {
+	if err := g.generateOperations(); err != nil {
 		return nil, e(err, "")
 	}
 
@@ -96,44 +95,92 @@ func (g *GenesisBlockGenerator) Generate() (base.BlockMap, error) {
 	}
 }
 
-func (g *GenesisBlockGenerator) joinOperation() error {
-	e := util.StringErrorFunc("failed to make join operation")
+func (g *GenesisBlockGenerator) generateOperations() error {
+	g.ops = make([]base.Operation, len(g.facts))
 
-	fact := isaacoperation.NewSuffrageGenesisJoinPermissionFact(g.local.Address(), g.local.Publickey(), g.networkID)
-	if err := fact.IsValid(g.networkID); err != nil {
-		return e(err, "")
+	types := map[string]struct{}{}
+
+	for i := range g.facts {
+		fact := g.facts[i]
+
+		var err error
+
+		hinter, ok := fact.(hint.Hinter)
+		if !ok {
+			return errors.Errorf("fact does not support Hinter")
+		}
+
+		switch ht := hinter.Hint(); ht {
+		case isaacoperation.SuffrageGenesisJoinPermissionFactHint:
+			if _, found := types[ht.String()]; found {
+				return errors.Errorf("multiple join operation found")
+			}
+
+			g.ops[i], err = g.joinOperation(fact)
+		case isaacoperation.GenesisNetworkPolicyFactHint:
+			if _, found := types[ht.String()]; found {
+				return errors.Errorf("multiple network policy operation found")
+			}
+
+			g.ops[i], err = g.networkPolicyOperation(fact)
+		}
+
+		if err != nil {
+			return err
+		}
+
+		types[hinter.Hint().String()] = struct{}{}
 	}
-
-	op := isaacoperation.NewSuffrageGenesisJoin(fact)
-	if err := op.Sign(g.local.Privatekey(), g.networkID); err != nil {
-		return e(err, "")
-	}
-
-	g.ops = append(g.ops, op)
-
-	g.Log().Debug().Interface("operation", op).Msg("genesis join operation created")
 
 	return nil
 }
 
-func (g *GenesisBlockGenerator) networkPolicyOperation() error {
+func (g *GenesisBlockGenerator) joinOperation(i base.Fact) (base.Operation, error) {
 	e := util.StringErrorFunc("failed to make join operation")
 
-	fact := isaacoperation.NewGenesisNetworkPolicyFact(isaac.DefaultNetworkPolicy())
+	basefact, ok := i.(isaacoperation.SuffrageGenesisJoinPermissionFact)
+	if !ok {
+		return nil, e(nil, "expected SuffrageGenesisJoinPermissionFact, not %T", i)
+	}
+
+	fact := isaacoperation.NewSuffrageGenesisJoinPermissionFact(basefact.Nodes(), g.networkID)
+
+	if err := fact.IsValid(g.networkID); err != nil {
+		return nil, e(err, "")
+	}
+
+	op := isaacoperation.NewSuffrageGenesisJoin(fact)
+	if err := op.Sign(g.local.Privatekey(), g.networkID); err != nil {
+		return nil, e(err, "")
+	}
+
+	g.Log().Debug().Interface("operation", op).Msg("genesis join operation created")
+
+	return op, nil
+}
+
+func (g *GenesisBlockGenerator) networkPolicyOperation(i base.Fact) (base.Operation, error) {
+	e := util.StringErrorFunc("failed to make join operation")
+
+	basefact, ok := i.(isaacoperation.GenesisNetworkPolicyFact)
+	if !ok {
+		return nil, e(nil, "expected GenesisNetworkPolicyFact, not %T", i)
+	}
+
+	fact := isaacoperation.NewGenesisNetworkPolicyFact(basefact.Policy())
+
 	if err := fact.IsValid(nil); err != nil {
-		return e(err, "")
+		return nil, e(err, "")
 	}
 
 	op := isaacoperation.NewGenesisNetworkPolicy(fact)
 	if err := op.Sign(g.local.Privatekey(), g.networkID); err != nil {
-		return e(err, "")
+		return nil, e(err, "")
 	}
-
-	g.ops = append(g.ops, op)
 
 	g.Log().Debug().Interface("operation", op).Msg("genesis network policy operation created")
 
-	return nil
+	return op, nil
 }
 
 func (g *GenesisBlockGenerator) newProposal(ops []util.Hash) error {

@@ -1301,7 +1301,7 @@ linters-settings:
         # Any struct tag type can be used.
         # Support string case: `camel`, `pascal`, `kebab`, `snake`, `goCamel`, `goPascal`, `goKebab`, `goSnake`, `upper`, `lower`
         json: snake
-        yaml: camel
+        yaml: snake
         xml: camel
         bson: camel
         avro: snake
@@ -1511,7 +1511,6 @@ linters:
     - forcetypeassert
     - funlen
     - gci
-    - gochecknoinits
     - gocognit
     - goconst
     - gocritic
@@ -1568,6 +1567,7 @@ linters:
     - gochecknoglobals
     - execinquery
     - lll
+    - gochecknoinits
 
   # Enable presets.
   # https://golangci-lint.run/usage/linters

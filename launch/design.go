@@ -17,6 +17,7 @@ import (
 
 var (
 	DefaultNetworkBind     *netip.AddrPort
+	defaultStorageBase     string
 	DefaultStorageBase     string
 	DefaultStorageDatabase *url.URL
 )
@@ -27,58 +28,85 @@ func init() {
 		DefaultNetworkBind = &i
 	}
 
-	a, err := os.Getwd()
-	if err != nil {
-		panic(err)
-	}
+	{
+		a, err := os.Getwd()
+		if err != nil {
+			panic(err)
+		}
 
-	DefaultStorageBase = filepath.Join(a, "tmp", "data")
-	DefaultStorageDatabase = &url.URL{
-		Scheme: LeveldbURIScheme,
-		Path:   filepath.Join(a, "tmp", "db"),
+		defaultStorageBase = filepath.Join(a, "tmp", "mitum")
+
+		DefaultStorageBase = defaultStorageBase
+		DefaultStorageDatabase = &url.URL{
+			Scheme: LeveldbURIScheme,
+			Path:   filepath.Join(defaultStorageBase, "perm"),
+		}
 	}
 }
 
 type NodeDesign struct {
 	Address    base.Address
 	Privatekey base.Privatekey
-	NetworkID  base.NetworkID
-	Network    NodeNetworkDesign
 	Storage    NodeStorageDesign
+	Network    NodeNetworkDesign
+	NetworkID  base.NetworkID
+}
+
+func NodeDesignFromFile(f string, enc *jsonenc.Encoder) (d NodeDesign, _ []byte, _ error) {
+	e := util.StringErrorFunc("failed to load NodeDesign from file")
+
+	b, err := os.ReadFile(filepath.Clean(f))
+	if err != nil {
+		return d, nil, e(err, "")
+	}
+
+	if err := d.DecodeYAML(b, enc); err != nil {
+		return d, b, e(err, "")
+	}
+
+	if err := d.IsValid(nil); err != nil {
+		return d, b, e(err, "")
+	}
+
+	return d, b, nil
 }
 
 func (d *NodeDesign) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid NodeDesign")
+	e := util.ErrInvalid.Errorf("invalid NodeDesign")
 
 	if err := util.CheckIsValid(nil, false, d.Address, d.Privatekey, d.NetworkID); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := d.Network.IsValid(nil); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := d.Storage.IsValid(nil); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
+	}
+
+	if err := d.Storage.Patch(d.Address); err != nil {
+		return e.Wrap(err)
 	}
 
 	return nil
 }
 
 type NodeDesignYAMLUnmarshaler struct {
+	Storage    NodeStorageDesignYAMLMarshal   `yaml:"storage"`
 	Address    string                         `yaml:"address"`
 	Privatekey string                         `yaml:"privatekey"`
 	NetworkID  string                         `yaml:"network_id"`
 	Network    NodeNetworkDesignYAMLMarshaler `yaml:"network"`
-	Storage    NodeStorageDesignYAMLMarshal   `yaml:"storage"`
 }
 
 type NodeDesignYAMLMarshaler struct {
 	Address    base.Address      `yaml:"address"`
 	Privatekey base.Privatekey   `yaml:"privatekey"`
+	Storage    NodeStorageDesign `yaml:"storage"`
 	NetworkID  string            `yaml:"network_id"`
 	Network    NodeNetworkDesign `yaml:"network"`
-	Storage    NodeStorageDesign `yaml:"storage"`
 }
 
 func (d NodeDesign) MarshalYAML() (interface{}, error) {
@@ -140,23 +168,23 @@ type NodeNetworkDesign struct {
 }
 
 func (d *NodeNetworkDesign) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid NodeNetworkDesign")
+	e := util.ErrInvalid.Errorf("invalid NodeNetworkDesign")
 
 	switch {
 	case d.Bind == nil:
 		d.Bind = DefaultNetworkBind
 	case !d.Bind.IsValid():
-		return e(nil, "invalid bind")
+		return e.Errorf("invalid bind")
 	}
 
 	if len(d.Publish) > 0 {
 		switch host, port, err := net.SplitHostPort(d.Publish); {
 		case err != nil:
-			return e(err, "invalid publish")
+			return e.Wrapf(err, "invalid publish")
 		case len(host) < 1:
-			return e(err, "invalid publish; empty host")
+			return e.Wrapf(err, "invalid publish; empty host")
 		case len(port) < 1:
-			return e(err, "invalid publish; empty port")
+			return e.Wrapf(err, "invalid publish; empty port")
 		}
 	}
 
@@ -169,7 +197,7 @@ type NodeNetworkDesignYAMLMarshaler struct {
 	TLSInsecure bool   `yaml:"tls_insecure"`
 }
 
-func (y *NodeNetworkDesignYAMLMarshaler) Decode(enc *jsonenc.Encoder) (d NodeNetworkDesign, _ error) {
+func (y *NodeNetworkDesignYAMLMarshaler) Decode(*jsonenc.Encoder) (d NodeNetworkDesign, _ error) {
 	e := util.StringErrorFunc("failed to unmarshal NodeNetworkDesign")
 
 	if s := strings.TrimSpace(y.Bind); len(s) > 0 {
@@ -213,8 +241,8 @@ func (d *NodeNetworkDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 }
 
 type NodeStorageDesign struct {
-	Base     string   `yaml:"base"`
 	Database *url.URL `yaml:"database"`
+	Base     string   `yaml:"base"`
 }
 
 type NodeStorageDesignYAMLMarshal struct {
@@ -223,23 +251,45 @@ type NodeStorageDesignYAMLMarshal struct {
 }
 
 func (d *NodeStorageDesign) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid NodeStorageDesign")
+	e := util.ErrInvalid.Errorf("invalid NodeStorageDesign")
 
 	if len(d.Base) < 1 {
 		d.Base = DefaultStorageBase
+	}
+
+	switch i, err := filepath.Abs(d.Base); {
+	case err != nil:
+		return e.Wrap(err)
+	default:
+		d.Base = i
 	}
 
 	switch {
 	case d.Database == nil:
 		d.Database = DefaultStorageDatabase
 	case len(d.Database.Scheme) < 1:
-		return e(nil, "wrong database; empty scheme")
+		return e.Errorf("wrong database; empty scheme")
 	}
 
 	return nil
 }
 
-func (y *NodeStorageDesignYAMLMarshal) Decode(enc *jsonenc.Encoder) (d NodeStorageDesign, _ error) {
+func (d *NodeStorageDesign) Patch(node base.Address) error {
+	if d.Base == DefaultStorageBase {
+		d.Base = filepath.Join(defaultStorageBase, node.String())
+	}
+
+	if d.Database.String() == DefaultStorageDatabase.String() {
+		d.Database = &url.URL{
+			Scheme: LeveldbURIScheme,
+			Path:   filepath.Join(defaultStorageBase, node.String(), "perm"),
+		}
+	}
+
+	return nil
+}
+
+func (y *NodeStorageDesignYAMLMarshal) Decode(*jsonenc.Encoder) (d NodeStorageDesign, _ error) {
 	e := util.StringErrorFunc("failed to unmarshal NodeStorageDesign")
 
 	d.Base = strings.TrimSpace(y.Base)
@@ -282,30 +332,58 @@ func (d *NodeStorageDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 	}
 }
 
-type GenesisOpertionsDesign []base.Fact
+type GenesisDesign struct {
+	Facts []base.Fact `yaml:"facts" json:"facts"`
+}
 
-func (d *GenesisOpertionsDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
+func GenesisDesignFromFile(f string, enc *jsonenc.Encoder) (d GenesisDesign, _ []byte, _ error) {
+	e := util.StringErrorFunc("failed to load GenesisDesign from file")
+
+	b, err := os.ReadFile(filepath.Clean(f))
+	if err != nil {
+		return d, nil, e(err, "")
+	}
+
+	if err := d.DecodeYAML(b, enc); err != nil {
+		return d, b, e(err, "")
+	}
+
+	if err := d.IsValid(nil); err != nil {
+		return d, b, e(err, "")
+	}
+
+	return d, b, nil
+}
+
+type GenesisDesignYAMLUnmarshaler struct {
+	Facts []interface{} `yaml:"facts" json:"facts"`
+}
+
+func (*GenesisDesign) IsValid([]byte) error {
+	return nil
+}
+
+func (d *GenesisDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 	e := util.StringErrorFunc("failed to decode GenesisOpertionsDesign")
 
-	var u []interface{}
+	var u GenesisDesignYAMLUnmarshaler
 
 	if err := yaml.Unmarshal(b, &u); err != nil {
 		return e(err, "")
 	}
 
-	facts := make([]base.Fact, len(u))
-	for i := range u {
-		bj, err := util.MarshalJSON(u[i])
+	d.Facts = make([]base.Fact, len(u.Facts))
+
+	for i := range u.Facts {
+		bj, err := util.MarshalJSON(u.Facts[i])
 		if err != nil {
 			return e(err, "")
 		}
 
-		if err := encoder.Decode(enc, bj, &facts[i]); err != nil {
+		if err := encoder.Decode(enc, bj, &d.Facts[i]); err != nil {
 			return e(err, "")
 		}
 	}
-
-	*d = GenesisOpertionsDesign(facts)
 
 	return nil
 }

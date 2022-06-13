@@ -16,49 +16,30 @@ import (
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/encoder"
-	"github.com/spikeekips/mitum/util/fixedtree"
 )
 
-type importCommand struct {
-	Address launch.AddressFlag `arg:"" name:"local address" help:"node address"`
-	local   base.LocalNode
-	enc     encoder.Encoder
-	db      isaac.Database
-	perm    isaac.PermanentDatabase
-	pool    *isaacdatabase.TempPool
-	encs    *encoder.Encoders
-	From    string `arg:"" name:"from directory" help:"block data directory to import" type:"existingdir"`
+type importCommand struct { //nolint:govet //...
+	db   isaac.Database
+	perm isaac.PermanentDatabase
+	pool *isaacdatabase.TempPool
+	baseCommand
+	From string `arg:"" name:"from directory" help:"block data directory to import" type:"existingdir"`
 }
 
 func (cmd *importCommand) Run() error {
-	switch encs, enc, err := launch.PrepareEncoders(); {
-	case err != nil:
+	if err := cmd.prepareEncoder(); err != nil {
 		return errors.Wrap(err, "")
-	default:
-		cmd.encs = encs
-		cmd.enc = enc
 	}
 
-	switch local, err := prepareLocal(cmd.Address.Address()); {
-	case err != nil:
-		return errors.Wrap(err, "failed to prepare local")
-	default:
-		cmd.local = local
-	}
-
-	var localfsroot string
-
-	switch i, err := defaultLocalFSRoot(cmd.local.Address()); {
-	case err != nil:
+	if err := cmd.prepareDesigns(); err != nil {
 		return errors.Wrap(err, "")
-	default:
-		localfsroot = i
-
-		log.Debug().Str("localfs_root", localfsroot).Msg("localfs root")
 	}
 
-	if err := cmd.prepareDatabase(localfsroot); err != nil {
+	if err := cmd.prepareLocal(); err != nil {
+		return errors.Wrap(err, "")
+	}
+
+	if err := cmd.prepareDatabase(); err != nil {
 		return errors.Wrap(err, "")
 	}
 
@@ -67,36 +48,36 @@ func (cmd *importCommand) Run() error {
 		return errors.Wrap(err, "")
 	}
 
-	if err := cmd.importBlocks(localfsroot, base.GenesisHeight, last); err != nil {
+	if err := cmd.importBlocks(base.GenesisHeight, last); err != nil {
 		return errors.Wrap(err, "")
 	}
 
-	if err := cmd.validateImported(localfsroot, last); err != nil {
+	if err := cmd.validateImported(last); err != nil {
 		return errors.Wrap(err, "")
 	}
 
 	return nil
 }
 
-func (cmd *importCommand) prepareDatabase(localfsroot string) error {
+func (cmd *importCommand) prepareDatabase() error {
 	e := util.StringErrorFunc("failed to prepare database")
 
-	permuri := defaultPermanentDatabaseURI()
-
 	if err := launch.CleanStorage(
-		permuri,
-		localfsroot,
+		cmd.design.Storage.Database.String(),
+		cmd.design.Storage.Base,
 		cmd.encs, cmd.enc,
 	); err != nil {
 		return e(err, "")
 	}
 
-	nodeinfo, err := launch.CreateLocalFS(launch.CreateDefaultNodeInfo(networkID, version), localfsroot, cmd.enc)
+	nodeinfo, err := launch.CreateLocalFS(
+		launch.CreateDefaultNodeInfo(networkID, version), cmd.design.Storage.Base, cmd.enc)
 	if err != nil {
 		return e(err, "")
 	}
 
-	db, perm, pool, err := launch.LoadDatabase(nodeinfo, permuri, localfsroot, cmd.encs, cmd.enc)
+	db, perm, pool, err := launch.LoadDatabase(
+		nodeinfo, cmd.design.Storage.Database.String(), cmd.design.Storage.Base, cmd.encs, cmd.enc)
 	if err != nil {
 		return e(err, "")
 	}
@@ -113,133 +94,19 @@ func (cmd *importCommand) prepareDatabase(localfsroot string) error {
 func (cmd *importCommand) checkLocalFS() (last base.Height, _ error) {
 	e := util.StringErrorFunc("failed to check localfs")
 
-	last, err := cmd.findLastFromLocalFS()
+	last, err := launch.FindLastHeightFromLocalFS(cmd.From, cmd.enc, networkID)
 	if err != nil {
 		return last, e(err, "")
 	}
 
-	if err := cmd.validateLocalFS(last); err != nil {
+	if err := launch.ValidateLocalFS(cmd.From, cmd.enc, last); err != nil {
 		return last, e(err, "")
 	}
 
 	return last, nil
 }
 
-func (cmd *importCommand) findLastFromLocalFS() (last base.Height, _ error) {
-	e := util.StringErrorFunc("failed to find last height from localfs")
-
-	last = base.NilHeight
-
-	// NOTE check genesis first
-	fsreader, err := isaacblock.NewLocalFSReaderFromHeight(cmd.From, base.GenesisHeight, cmd.enc)
-	if err != nil {
-		return last, e(err, "")
-	}
-
-	switch blockmap, found, err := fsreader.BlockMap(); {
-	case err != nil:
-		return last, e(err, "")
-	case !found:
-		return last, util.ErrNotFound.Errorf("genesis not found")
-	default:
-		if err := blockmap.IsValid(networkID); err != nil {
-			return last, e(err, "")
-		}
-	}
-
-	switch h, found, err := isaacblock.FindHighestDirectory(cmd.From); {
-	case err != nil:
-		return last, e(err, "")
-	case !found:
-		return last, util.ErrNotFound.Errorf("height directories not found")
-	default:
-		rel, err := filepath.Rel(cmd.From, h)
-		if err != nil {
-			return last, e(err, "")
-		}
-
-		height, err := isaacblock.HeightFromDirectory(rel)
-		if err != nil {
-			return last, e(err, "")
-		}
-
-		last = height
-	}
-
-	return last, nil
-}
-
-func (cmd *importCommand) validateLocalFS(last base.Height) error {
-	e := util.StringErrorFunc("failed to validate localfs")
-
-	// NOTE check all blockmap items
-	var validateLock sync.Mutex
-	var lastprev, newprev base.BlockMap
-	var maps []base.BlockMap
-
-	batchlimit := uint64(333) //nolint:gomnd //...
-
-	if err := util.BatchWork(context.Background(), uint64(last.Int64())+1, batchlimit,
-		func(_ context.Context, last uint64) error {
-			lastprev = newprev
-
-			switch r := (last + 1) % batchlimit; {
-			case r == 0:
-				maps = make([]base.BlockMap, batchlimit)
-			default:
-				maps = make([]base.BlockMap, r)
-			}
-
-			return nil
-		},
-		func(_ context.Context, i, last uint64) error {
-			height := base.Height(int64(i))
-
-			reader, err := isaacblock.NewLocalFSReaderFromHeight(cmd.From, height, cmd.enc)
-			if err != nil {
-				return errors.Wrap(err, "")
-			}
-
-			switch m, found, err := reader.BlockMap(); {
-			case err != nil:
-				return errors.Wrap(err, "")
-			case !found:
-				return errors.Wrap(util.ErrNotFound.Errorf("BlockMap not found"), "")
-			case m.Manifest().Height() != height:
-				return errors.Wrap(util.ErrInvalid.Errorf(
-					"invalid BlockMap; wrong height; directory=%d manifest=%d", height, m.Manifest().Height()), "")
-			default:
-				m := m
-				if err = func() error {
-					validateLock.Lock()
-					defer validateLock.Unlock()
-
-					if err = base.ValidateMaps(m, maps, lastprev); err != nil {
-						return err
-					}
-
-					if m.Manifest().Height() == base.Height(int64(last)) {
-						newprev = m
-					}
-
-					return nil
-				}(); err != nil {
-					return err
-				}
-
-				return nil
-			}
-		},
-	); err != nil {
-		return e(err, "")
-	}
-
-	maps = nil
-
-	return nil
-}
-
-func (cmd *importCommand) importBlocks(localfsroot string, from, to base.Height) error {
+func (cmd *importCommand) importBlocks(from, to base.Height) error {
 	e := util.StringErrorFunc("failed to import blocks")
 
 	readercache := gcache.New(math.MaxInt).LRU().Build()
@@ -303,7 +170,7 @@ func (cmd *importCommand) importBlocks(localfsroot string, from, to base.Height)
 		},
 		func(m base.BlockMap, bwdb isaac.BlockWriteDatabase) (isaac.BlockImporter, error) {
 			im, err := isaacblock.NewBlockImporter(
-				launch.LocalFSDataDirectory(localfsroot),
+				launch.LocalFSDataDirectory(cmd.design.Storage.Base),
 				cmd.encs,
 				m,
 				bwdb,
@@ -340,10 +207,10 @@ func (cmd *importCommand) importBlocks(localfsroot string, from, to base.Height)
 	return nil
 }
 
-func (cmd *importCommand) validateImported(localfsroot string, last base.Height) error {
+func (cmd *importCommand) validateImported(last base.Height) error {
 	e := util.StringErrorFunc("failed to validate imported")
 
-	root := launch.LocalFSDataDirectory(localfsroot)
+	root := launch.LocalFSDataDirectory(cmd.design.Storage.Base)
 
 	switch h, found, err := isaacblock.FindHighestDirectory(root); {
 	case err != nil:
@@ -395,6 +262,10 @@ func (cmd *importCommand) validateImportedBlockMaps(root string, last base.Heigh
 			case !found:
 				return nil, util.ErrNotFound.Call()
 			default:
+				if err := m.IsValid(networkID); err != nil {
+					return nil, errors.Wrap(err, "")
+				}
+
 				return m, nil
 			}
 		},
@@ -421,168 +292,10 @@ func (cmd *importCommand) validateImportedBlocks(root string, last base.Height) 
 			return nil
 		},
 		func(_ context.Context, i, _ uint64) error {
-			return cmd.validateImportedBlock(root, base.Height(int64(i)))
+			return launch.ValidateBlockFromLocalFS(base.Height(int64(i)), root, cmd.enc, networkID, cmd.perm)
 		},
 	); err != nil {
 		return e(err, "")
-	}
-
-	return nil
-}
-
-func (cmd *importCommand) validateImportedBlock(root string, height base.Height) error {
-	e := util.StringErrorFunc("failed to validate imported block")
-
-	reader, err := isaacblock.NewLocalFSReaderFromHeight(root, height, cmd.enc)
-	if err != nil {
-		return e(err, "")
-	}
-
-	var m base.BlockMap
-
-	switch i, found, err := reader.BlockMap(); {
-	case err != nil:
-		return e(err, "")
-	case !found:
-		return e(util.ErrNotFound.Errorf("BlockMap not found"), "")
-	default:
-		m = i
-	}
-
-	var ops []base.Operation
-	var sts []base.State
-	var opstree, ststree fixedtree.Tree
-
-	var readererr error
-	if err := reader.Items(func(item base.BlockMapItem, i interface{}, found bool, err error) bool {
-		switch {
-		case err != nil:
-			readererr = err
-		case !found:
-			readererr = util.ErrNotFound.Errorf("BlockMapItem not found, %q", item.Type())
-		case i == nil:
-			readererr = util.ErrNotFound.Errorf("empty item found, %q", item.Type())
-		}
-
-		if readererr != nil {
-			return false
-		}
-
-		switch item.Type() {
-		case base.BlockMapItemTypeProposal:
-			pr := i.(base.ProposalSignedFact) //nolint:forcetypeassert //...
-
-			if err := pr.IsValid(networkID); err != nil {
-				readererr = err
-			}
-
-			if readererr != nil {
-				readererr = base.ValidateProposalWithManifest(pr, m.Manifest())
-			}
-		case base.BlockMapItemTypeOperations:
-			ops = i.([]base.Operation) //nolint:forcetypeassert //...
-		case base.BlockMapItemTypeOperationsTree:
-			opstree = i.(fixedtree.Tree) //nolint:forcetypeassert //...
-		case base.BlockMapItemTypeStates:
-			sts = i.([]base.State) //nolint:forcetypeassert //...
-		case base.BlockMapItemTypeStatesTree:
-			ststree = i.(fixedtree.Tree) //nolint:forcetypeassert //...
-		case base.BlockMapItemTypeVoteproofs:
-			readererr = base.ValidateVoteproofsWithManifest( //nolint:forcetypeassert //...
-				i.([]base.Voteproof), m.Manifest())
-		}
-
-		return readererr == nil
-	}); err != nil {
-		readererr = err
-	}
-
-	if readererr == nil {
-		readererr = cmd.validateOperations(opstree, ops, m.Manifest())
-	}
-
-	if readererr == nil {
-		readererr = cmd.validateStates(ststree, sts, m.Manifest())
-	}
-
-	return readererr
-}
-
-func (cmd *importCommand) validateOperations(
-	opstree fixedtree.Tree, ops []base.Operation, manifest base.Manifest,
-) error {
-	e := util.StringErrorFunc("failed to validate imported operations")
-
-	if err := opstree.IsValid(nil); err != nil {
-		return e(err, "")
-	}
-
-	if err := base.ValidateOperationsTreeWithManifest(opstree, ops, manifest); err != nil {
-		return e(err, "")
-	}
-
-	if len(ops) > 0 {
-		if err := util.BatchWork(context.Background(), uint64(len(ops)), 333, //nolint:gomnd //...
-			func(context.Context, uint64) error { return nil },
-			func(_ context.Context, i, _ uint64) error {
-				switch found, err := cmd.perm.ExistsKnownOperation(ops[i].Hash()); {
-				case err != nil:
-					return errors.Wrap(err, "")
-				case !found:
-					return util.ErrNotFound.Errorf("operation not found in ExistsKnownOperation; %q", ops[i].Hash())
-				default:
-					return nil
-				}
-			},
-		); err != nil {
-			return e(err, "")
-		}
-	}
-
-	return nil
-}
-
-func (cmd *importCommand) validateStates(ststree fixedtree.Tree, sts []base.State, manifest base.Manifest) error {
-	e := util.StringErrorFunc("failed to validate imported states")
-
-	if err := ststree.IsValid(nil); err != nil {
-		return e(err, "")
-	}
-
-	if err := base.ValidateStatesTreeWithManifest(ststree, sts, manifest); err != nil {
-		return e(err, "")
-	}
-
-	if len(sts) > 0 {
-		if err := util.BatchWork(context.Background(), uint64(len(sts)), 333, //nolint:gomnd //...
-			func(context.Context, uint64) error { return nil },
-			func(_ context.Context, i, _ uint64) error {
-				st := sts[i]
-
-				switch rst, found, err := cmd.perm.State(st.Key()); {
-				case err != nil:
-					return errors.Wrap(err, "")
-				case !found:
-					return util.ErrNotFound.Errorf("state not found in State")
-				case !base.IsEqualState(st, rst):
-					return errors.Errorf("states does not match")
-				}
-
-				ops := st.Operations()
-				for j := range ops {
-					switch found, err := cmd.perm.ExistsInStateOperation(ops[j]); {
-					case err != nil:
-						return errors.Wrap(err, "")
-					case !found:
-						return util.ErrNotFound.Errorf("operation of state not found in ExistsInStateOperation")
-					}
-				}
-
-				return nil
-			},
-		); err != nil {
-			return e(err, "")
-		}
 	}
 
 	return nil

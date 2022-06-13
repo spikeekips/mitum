@@ -69,8 +69,13 @@ func (er Error) Wrapf(err error, s string, a ...interface{}) Error {
 
 // Errorf formats strings. It does not support `%w` error formatting.
 func (er Error) Errorf(s string, a ...interface{}) Error {
+	prev := er.wrapped
+	if er.stack != nil {
+		prev = er
+	}
+
 	return Error{
-		wrapped: er.wrapped,
+		wrapped: prev,
 		id:      er.id,
 		msg:     er.msg,
 		extra:   fmt.Sprintf(s, a...),

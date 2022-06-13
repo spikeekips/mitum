@@ -138,14 +138,19 @@ func (t *testSuffrageGenesisJoinPermissionFact) SetupSuite() {
 	t.networkID = util.UUID().Bytes()
 }
 
+func (t *testSuffrageGenesisJoinPermissionFact) newFact() SuffrageGenesisJoinPermissionFact {
+	node := isaac.NewNode(t.pub, base.RandomAddress(""))
+	return NewSuffrageGenesisJoinPermissionFact([]base.Node{node}, t.networkID)
+}
+
 func (t *testSuffrageGenesisJoinPermissionFact) TestNew() {
-	fact := NewSuffrageGenesisJoinPermissionFact(base.RandomAddress(""), t.pub, t.networkID)
+	fact := t.newFact()
 	t.NoError(fact.IsValid(t.networkID))
 }
 
 func (t *testSuffrageGenesisJoinPermissionFact) TestIsValid() {
 	t.Run("invalid BaseFact", func() {
-		fact := NewSuffrageGenesisJoinPermissionFact(base.RandomAddress(""), t.pub, t.networkID)
+		fact := t.newFact()
 		fact.SetToken(nil)
 
 		err := fact.IsValid(t.networkID)
@@ -155,7 +160,7 @@ func (t *testSuffrageGenesisJoinPermissionFact) TestIsValid() {
 	})
 
 	t.Run("empty node", func() {
-		fact := NewSuffrageGenesisJoinPermissionFact(nil, t.pub, t.networkID)
+		fact := NewSuffrageGenesisJoinPermissionFact(nil, t.networkID)
 		err := fact.IsValid(t.networkID)
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
@@ -164,7 +169,9 @@ func (t *testSuffrageGenesisJoinPermissionFact) TestIsValid() {
 
 	t.Run("bad node", func() {
 		addr := base.NewStringAddress(strings.Repeat("a", base.MinAddressSize-base.AddressTypeSize-1))
-		fact := NewSuffrageGenesisJoinPermissionFact(addr, t.pub, t.networkID)
+		node := isaac.NewNode(t.pub, addr)
+
+		fact := NewSuffrageGenesisJoinPermissionFact([]base.Node{node}, t.networkID)
 		err := fact.IsValid(t.networkID)
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
@@ -172,7 +179,9 @@ func (t *testSuffrageGenesisJoinPermissionFact) TestIsValid() {
 	})
 
 	t.Run("empty publickey", func() {
-		fact := NewSuffrageGenesisJoinPermissionFact(base.RandomAddress(""), nil, t.networkID)
+		node := isaac.NewNode(nil, base.RandomAddress(""))
+
+		fact := NewSuffrageGenesisJoinPermissionFact([]base.Node{node}, t.networkID)
 		err := fact.IsValid(t.networkID)
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
@@ -180,7 +189,7 @@ func (t *testSuffrageGenesisJoinPermissionFact) TestIsValid() {
 	})
 
 	t.Run("token == networkID", func() {
-		fact := NewSuffrageGenesisJoinPermissionFact(base.RandomAddress(""), t.pub, t.networkID)
+		fact := t.newFact()
 		fact.SetToken(valuehash.RandomSHA256().Bytes())
 
 		err := fact.IsValid(t.networkID)
@@ -191,7 +200,7 @@ func (t *testSuffrageGenesisJoinPermissionFact) TestIsValid() {
 	})
 
 	t.Run("wrong hash", func() {
-		fact := NewSuffrageGenesisJoinPermissionFact(base.RandomAddress(""), t.pub, t.networkID)
+		fact := t.newFact()
 		fact.SetHash(valuehash.NewBytes(util.UUID().Bytes()))
 
 		err := fact.IsValid(t.networkID)
@@ -212,7 +221,8 @@ func TestSuffrageGenesisJoinPermissionFactEncode(tt *testing.T) {
 	networkID := util.UUID().Bytes()
 
 	t.Encode = func() (interface{}, []byte) {
-		fact := NewSuffrageGenesisJoinPermissionFact(base.RandomAddress(""), base.NewMPrivatekey().Publickey(), networkID)
+		node := isaac.NewNode(base.NewMPrivatekey().Publickey(), base.RandomAddress(""))
+		fact := NewSuffrageGenesisJoinPermissionFact([]base.Node{node}, networkID)
 
 		b, err := enc.Marshal(fact)
 		t.NoError(err)
@@ -225,6 +235,7 @@ func TestSuffrageGenesisJoinPermissionFactEncode(tt *testing.T) {
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: SuffrageGenesisJoinPermissionFactHint, Instance: SuffrageGenesisJoinPermissionFact{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: isaac.NodeHint, Instance: base.BaseNode{}}))
 
 		i, err := enc.Decode(b)
 		t.NoError(err)
@@ -259,8 +270,13 @@ func (t *testSuffrageGenesisJoin) SetupSuite() {
 	t.networkID = util.UUID().Bytes()
 }
 
+func (t *testSuffrageGenesisJoin) newFact() SuffrageGenesisJoinPermissionFact {
+	node := isaac.NewNode(t.priv.Publickey(), base.RandomAddress(""))
+	return NewSuffrageGenesisJoinPermissionFact([]base.Node{node}, t.networkID)
+}
+
 func (t *testSuffrageGenesisJoin) TestNew() {
-	fact := NewSuffrageGenesisJoinPermissionFact(base.RandomAddress(""), t.priv.Publickey(), t.networkID)
+	fact := t.newFact()
 	op := NewSuffrageGenesisJoin(fact)
 	t.NoError(op.Sign(t.priv, t.networkID))
 
@@ -271,7 +287,9 @@ func (t *testSuffrageGenesisJoin) TestNew() {
 
 func (t *testSuffrageGenesisJoin) TestIsValid() {
 	t.Run("invalid fact", func() {
-		fact := NewSuffrageGenesisJoinPermissionFact(nil, t.priv.Publickey(), t.networkID)
+		fact := t.newFact()
+		fact.SetToken(nil)
+
 		op := NewSuffrageGenesisJoin(fact)
 		t.NoError(op.Sign(t.priv, t.networkID))
 
@@ -282,7 +300,7 @@ func (t *testSuffrageGenesisJoin) TestIsValid() {
 	})
 
 	t.Run("multiple signed", func() {
-		fact := NewSuffrageGenesisJoinPermissionFact(base.RandomAddress(""), t.priv.Publickey(), t.networkID)
+		fact := t.newFact()
 		op := NewSuffrageGenesisJoin(fact)
 		t.NoError(op.Sign(t.priv, t.networkID))
 		t.NoError(op.Sign(base.NewMPrivatekey(), t.networkID))
@@ -296,19 +314,16 @@ func (t *testSuffrageGenesisJoin) TestIsValid() {
 	})
 
 	t.Run("signer does not match with node publickey", func() {
-		fact := NewSuffrageGenesisJoinPermissionFact(base.RandomAddress(""), t.priv.Publickey(), t.networkID)
+		fact := t.newFact()
 		op := NewSuffrageGenesisJoin(fact)
 		t.NoError(op.Sign(base.NewMPrivatekey(), t.networkID))
 
-		err := op.IsValid(t.networkID)
-		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
-		t.ErrorContains(err, "signer does not match with publickey")
+		t.NoError(op.IsValid(t.networkID))
 	})
 }
 
 func (t *testSuffrageGenesisJoin) TestPreProcess() {
-	fact := NewSuffrageGenesisJoinPermissionFact(base.RandomAddress(""), t.priv.Publickey(), t.networkID)
+	fact := t.newFact()
 	op := NewSuffrageGenesisJoin(fact)
 	t.NoError(op.Sign(t.priv, t.networkID))
 
@@ -318,7 +333,7 @@ func (t *testSuffrageGenesisJoin) TestPreProcess() {
 }
 
 func (t *testSuffrageGenesisJoin) TestProcess() {
-	fact := NewSuffrageGenesisJoinPermissionFact(base.RandomAddress(""), t.priv.Publickey(), t.networkID)
+	fact := t.newFact()
 	op := NewSuffrageGenesisJoin(fact)
 	t.NoError(op.Sign(t.priv, t.networkID))
 
@@ -331,8 +346,7 @@ func (t *testSuffrageGenesisJoin) TestProcess() {
 	value := values[0]
 	t.Equal(isaac.SuffrageStateKey, value.Key())
 
-	node := isaac.NewNode(fact.Publickey(), fact.Node())
-	expected := isaac.NewSuffrageStateValue(base.GenesisHeight, []base.Node{node})
+	expected := isaac.NewSuffrageStateValue(base.GenesisHeight, fact.Nodes())
 
 	t.True(base.IsEqualStateValue(expected, value.Value()))
 }

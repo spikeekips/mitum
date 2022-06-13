@@ -3,6 +3,7 @@ package launch
 import (
 	"net/netip"
 	"net/url"
+	"path/filepath"
 	"testing"
 
 	"github.com/spikeekips/mitum/base"
@@ -319,8 +320,11 @@ func (t *testNodeDesign) TestIsValid() {
 
 		t.NoError(a.IsValid(nil))
 
-		t.Equal(DefaultStorageBase, a.Storage.Base)
-		t.Equal(DefaultStorageDatabase, a.Storage.Database)
+		t.Equal(DefaultStorageBase+"/"+a.Address.String(), a.Storage.Base)
+		t.Equal((&url.URL{
+			Scheme: LeveldbURIScheme,
+			Path:   filepath.Join(defaultStorageBase, a.Address.String(), "perm"),
+		}).String(), a.Storage.Database.String())
 	})
 }
 
@@ -471,6 +475,7 @@ func (t *testGenesisOpertionsDesign) SetupSuite() {
 
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: isaac.NodeHint, Instance: base.BaseNode{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: isaac.NetworkPolicyHint, Instance: isaac.NetworkPolicy{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: isaacoperation.SuffrageGenesisJoinPermissionFactHint, Instance: isaacoperation.SuffrageGenesisJoinPermissionFact{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: isaacoperation.GenesisNetworkPolicyFactHint, Instance: isaacoperation.GenesisNetworkPolicyFact{}}))
@@ -479,7 +484,12 @@ func (t *testGenesisOpertionsDesign) SetupSuite() {
 }
 
 func (t *testGenesisOpertionsDesign) newSuffrageGenesisJoinPermissionFact() isaacoperation.SuffrageGenesisJoinPermissionFact {
-	return isaacoperation.NewSuffrageGenesisJoinPermissionFact(base.RandomAddress(""), base.NewMPrivatekey().Publickey(), t.networkID)
+	return isaacoperation.NewSuffrageGenesisJoinPermissionFact(
+		[]base.Node{
+			isaac.NewNode(base.NewMPrivatekey().Publickey(), base.RandomAddress("")),
+		},
+		t.networkID,
+	)
 }
 
 func (t *testGenesisOpertionsDesign) newGenesisNetworkPolicyFact() isaacoperation.GenesisNetworkPolicyFact {
@@ -493,20 +503,20 @@ func (t *testGenesisOpertionsDesign) TestDecode() {
 	suffact := t.newSuffrageGenesisJoinPermissionFact()
 	policyfact := t.newGenesisNetworkPolicyFact()
 
-	facts := []base.Fact{suffact, policyfact}
+	g := GenesisDesign{Facts: []base.Fact{suffact, policyfact}}
 
 	var b []byte
 	{
-		rb, err := t.enc.Marshal(facts)
+		rb, err := t.enc.Marshal(g)
 		t.NoError(err)
-		t.T().Logf("json marshaled:\n%s", string(b))
+		t.T().Logf("json marshaled:\n%s", string(rb))
 
-		var m []map[string]interface{}
+		var m map[string][]map[string]interface{}
 		t.NoError(yaml.Unmarshal(rb, &m))
 
-		for i := range m {
-			delete(m[i], "hash")
-			delete(m[i], "token")
+		for i := range m["facts"] {
+			delete(m["facts"][i], "hash")
+			delete(m["facts"][i], "token")
 		}
 
 		b, err = yaml.Marshal(m)
@@ -515,18 +525,28 @@ func (t *testGenesisOpertionsDesign) TestDecode() {
 		t.T().Logf("yaml marshaled:\n%s", string(b))
 	}
 
-	var u GenesisOpertionsDesign
+	var u GenesisDesign
 	t.NoError(u.DecodeYAML(b, t.enc))
 
-	usuffact := u[0].(isaacoperation.SuffrageGenesisJoinPermissionFact)
+	usuffact := u.Facts[0].(isaacoperation.SuffrageGenesisJoinPermissionFact)
 	t.Nil(usuffact.Hash())
 	t.Empty(usuffact.Token())
 
 	t.True(suffact.Hint().Equal(usuffact.Hint()))
-	t.True(suffact.Node().Equal(usuffact.Node()))
-	t.True(suffact.Publickey().Equal(usuffact.Publickey()))
+	t.Equal(len(suffact.Nodes()), len(usuffact.Nodes()))
 
-	upolicyfact := u[1].(isaacoperation.GenesisNetworkPolicyFact)
+	ans := suffact.Nodes()
+	bns := usuffact.Nodes()
+
+	for i := range ans {
+		a := ans[i]
+		b := bns[i]
+
+		t.True(a.Address().Equal(b.Address()))
+		t.True(a.Publickey().Equal(b.Publickey()))
+	}
+
+	upolicyfact := u.Facts[1].(isaacoperation.GenesisNetworkPolicyFact)
 	t.Nil(upolicyfact.Hash())
 	t.Empty(upolicyfact.Token())
 

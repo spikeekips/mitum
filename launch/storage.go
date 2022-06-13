@@ -7,16 +7,19 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
+	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
 	redisstorage "github.com/spikeekips/mitum/storage/redis"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
+	"github.com/spikeekips/mitum/util/fixedtree"
 )
 
 var (
@@ -363,6 +366,298 @@ func MergeBlockWriteToPermanentDatabase(
 
 	if err := temp.Remove(); err != nil {
 		return e(err, "")
+	}
+
+	return nil
+}
+
+func FindLastHeightFromLocalFS(
+	dataroot string, enc encoder.Encoder, networkID base.NetworkID,
+) (last base.Height, _ error) {
+	e := util.StringErrorFunc("failed to find last height from localfs")
+
+	last = base.NilHeight
+
+	// NOTE check genesis first
+	fsreader, err := isaacblock.NewLocalFSReaderFromHeight(dataroot, base.GenesisHeight, enc)
+	if err != nil {
+		return last, e(err, "")
+	}
+
+	switch blockmap, found, err := fsreader.BlockMap(); {
+	case err != nil:
+		return last, e(err, "")
+	case !found:
+		return last, util.ErrNotFound.Errorf("genesis not found")
+	default:
+		if err := blockmap.IsValid(networkID); err != nil {
+			return last, e(err, "")
+		}
+	}
+
+	switch h, found, err := isaacblock.FindHighestDirectory(dataroot); {
+	case err != nil:
+		return last, e(err, "")
+	case !found:
+		return last, util.ErrNotFound.Errorf("height directories not found")
+	default:
+		rel, err := filepath.Rel(dataroot, h)
+		if err != nil {
+			return last, e(err, "")
+		}
+
+		height, err := isaacblock.HeightFromDirectory(rel)
+		if err != nil {
+			return last, e(err, "")
+		}
+
+		last = height
+	}
+
+	return last, nil
+}
+
+func ValidateLocalFS(
+	dataroot string,
+	enc encoder.Encoder,
+	last base.Height,
+) error {
+	e := util.StringErrorFunc("failed to validate localfs")
+
+	// NOTE check all blockmap items
+	var validateLock sync.Mutex
+	var lastprev, newprev base.BlockMap
+	var maps []base.BlockMap
+
+	batchlimit := uint64(333) //nolint:gomnd //...
+
+	if err := util.BatchWork(context.Background(), uint64(last.Int64())+1, batchlimit,
+		func(_ context.Context, last uint64) error {
+			lastprev = newprev
+
+			switch r := (last + 1) % batchlimit; {
+			case r == 0:
+				maps = make([]base.BlockMap, batchlimit)
+			default:
+				maps = make([]base.BlockMap, r)
+			}
+
+			return nil
+		},
+		func(_ context.Context, i, last uint64) error {
+			height := base.Height(int64(i))
+
+			reader, err := isaacblock.NewLocalFSReaderFromHeight(dataroot, height, enc)
+			if err != nil {
+				return errors.Wrap(err, "")
+			}
+
+			switch m, found, err := reader.BlockMap(); {
+			case err != nil:
+				return errors.Wrap(err, "")
+			case !found:
+				return errors.Wrap(util.ErrNotFound.Errorf("BlockMap not found"), "")
+			case m.Manifest().Height() != height:
+				return errors.Wrap(util.ErrInvalid.Errorf(
+					"invalid BlockMap; wrong height; directory=%d manifest=%d", height, m.Manifest().Height()), "")
+			default:
+				m := m
+				if err = func() error {
+					validateLock.Lock()
+					defer validateLock.Unlock()
+
+					if err = base.ValidateMaps(m, maps, lastprev); err != nil {
+						return err
+					}
+
+					if m.Manifest().Height() == base.Height(int64(last)) {
+						newprev = m
+					}
+
+					return nil
+				}(); err != nil {
+					return err
+				}
+
+				return nil
+			}
+		},
+	); err != nil {
+		return e(err, "")
+	}
+
+	maps = nil
+
+	return nil
+}
+
+func ValidateBlockFromLocalFS(
+	height base.Height,
+	dataroot string,
+	enc encoder.Encoder,
+	networkID base.NetworkID,
+	perm isaac.PermanentDatabase,
+) error {
+	e := util.StringErrorFunc("failed to validate imported block")
+
+	reader, err := isaacblock.NewLocalFSReaderFromHeight(dataroot, height, enc)
+	if err != nil {
+		return e(err, "")
+	}
+
+	var m base.BlockMap
+
+	switch i, found, err := reader.BlockMap(); {
+	case err != nil:
+		return e(err, "")
+	case !found:
+		return e(util.ErrNotFound.Errorf("BlockMap not found"), "")
+	default:
+		m = i
+	}
+
+	var ops []base.Operation
+	var sts []base.State
+	var opstree, ststree fixedtree.Tree
+
+	var readererr error
+	if err := reader.Items(func(item base.BlockMapItem, i interface{}, found bool, err error) bool {
+		switch {
+		case err != nil:
+			readererr = err
+		case !found:
+			readererr = util.ErrNotFound.Errorf("BlockMapItem not found, %q", item.Type())
+		case i == nil:
+			readererr = util.ErrNotFound.Errorf("empty item found, %q", item.Type())
+		}
+
+		if readererr != nil {
+			return false
+		}
+
+		switch item.Type() {
+		case base.BlockMapItemTypeProposal:
+			pr := i.(base.ProposalSignedFact) //nolint:forcetypeassert //...
+
+			if err := pr.IsValid(networkID); err != nil {
+				readererr = err
+			}
+
+			if readererr != nil {
+				readererr = base.ValidateProposalWithManifest(pr, m.Manifest())
+			}
+		case base.BlockMapItemTypeOperations:
+			ops = i.([]base.Operation) //nolint:forcetypeassert //...
+		case base.BlockMapItemTypeOperationsTree:
+			opstree = i.(fixedtree.Tree) //nolint:forcetypeassert //...
+		case base.BlockMapItemTypeStates:
+			sts = i.([]base.State) //nolint:forcetypeassert //...
+		case base.BlockMapItemTypeStatesTree:
+			ststree = i.(fixedtree.Tree) //nolint:forcetypeassert //...
+		case base.BlockMapItemTypeVoteproofs:
+			readererr = base.ValidateVoteproofsWithManifest( //nolint:forcetypeassert //...
+				i.([]base.Voteproof), m.Manifest())
+		}
+
+		return readererr == nil
+	}); err != nil {
+		readererr = err
+	}
+
+	if readererr == nil {
+		readererr = ValidateOperationsOfBlock(opstree, ops, m.Manifest(), perm)
+	}
+
+	if readererr == nil {
+		readererr = ValidateStatesOfBlock(ststree, sts, m.Manifest(), perm)
+	}
+
+	return readererr
+}
+
+func ValidateOperationsOfBlock(
+	opstree fixedtree.Tree,
+	ops []base.Operation,
+	manifest base.Manifest,
+	perm isaac.PermanentDatabase,
+) error {
+	e := util.StringErrorFunc("failed to validate imported operations")
+
+	if err := opstree.IsValid(nil); err != nil {
+		return e(err, "")
+	}
+
+	if err := base.ValidateOperationsTreeWithManifest(opstree, ops, manifest); err != nil {
+		return e(err, "")
+	}
+
+	if len(ops) > 0 {
+		if err := util.BatchWork(context.Background(), uint64(len(ops)), 333, //nolint:gomnd //...
+			func(context.Context, uint64) error { return nil },
+			func(_ context.Context, i, _ uint64) error {
+				switch found, err := perm.ExistsKnownOperation(ops[i].Hash()); {
+				case err != nil:
+					return errors.Wrap(err, "")
+				case !found:
+					return util.ErrNotFound.Errorf("operation not found in ExistsKnownOperation; %q", ops[i].Hash())
+				default:
+					return nil
+				}
+			},
+		); err != nil {
+			return e(err, "")
+		}
+	}
+
+	return nil
+}
+
+func ValidateStatesOfBlock(
+	ststree fixedtree.Tree,
+	sts []base.State,
+	manifest base.Manifest,
+	perm isaac.PermanentDatabase,
+) error {
+	e := util.StringErrorFunc("failed to validate imported states")
+
+	if err := ststree.IsValid(nil); err != nil {
+		return e(err, "")
+	}
+
+	if err := base.ValidateStatesTreeWithManifest(ststree, sts, manifest); err != nil {
+		return e(err, "")
+	}
+
+	if len(sts) > 0 {
+		if err := util.BatchWork(context.Background(), uint64(len(sts)), 333, //nolint:gomnd //...
+			func(context.Context, uint64) error { return nil },
+			func(_ context.Context, i, _ uint64) error {
+				st := sts[i]
+
+				switch rst, found, err := perm.State(st.Key()); {
+				case err != nil:
+					return errors.Wrap(err, "")
+				case !found:
+					return util.ErrNotFound.Errorf("state not found in State")
+				case !base.IsEqualState(st, rst):
+					return errors.Errorf("states does not match")
+				}
+
+				ops := st.Operations()
+				for j := range ops {
+					switch found, err := perm.ExistsInStateOperation(ops[j]); {
+					case err != nil:
+						return errors.Wrap(err, "")
+					case !found:
+						return util.ErrNotFound.Errorf("operation of state not found in ExistsInStateOperation")
+					}
+				}
+
+				return nil
+			},
+		); err != nil {
+			return e(err, "")
+		}
 	}
 
 	return nil

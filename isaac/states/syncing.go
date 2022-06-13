@@ -20,10 +20,10 @@ type SyncingHandler struct {
 	*baseHandler
 	newSyncer       func(base.Height) (isaac.Syncer, error)
 	stuckcancel     func()
+	whenFinishedf   func(base.Height)
 	waitStuck       time.Duration
 	finishedLock    sync.RWMutex
 	stuckcancellock sync.RWMutex
-	whenFinishedf   func(base.Height)
 }
 
 func NewSyncingHandler(

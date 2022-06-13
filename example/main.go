@@ -13,10 +13,8 @@ import (
 )
 
 var (
-	version                 = util.MustNewVersion("v0.0.1")
-	networkID               = base.NetworkID([]byte("mitum-example-node"))
-	envKeyFSRoot            = "MITUM_FS_ROOT"
-	envKeyPermanentDatabase = "MITUM_PERM_DATABASE"
+	version   = util.MustNewVersion("v0.0.1")
+	networkID = base.NetworkID([]byte("mitum-example-node"))
 )
 
 var (

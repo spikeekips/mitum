@@ -1,8 +1,11 @@
 package isaacoperation
 
 import (
+	"encoding/json"
+
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/valuehash"
 )
@@ -50,22 +53,19 @@ func (fact *SuffrageJoinPermissionFact) DecodeJSON(b []byte, enc *jsonenc.Encode
 }
 
 type SuffrageGenesisJoinPermissionFactJSONMarshaler struct {
-	Node      base.Address   `json:"node"`
-	Publickey base.Publickey `json:"publickey"`
+	Nodes []base.Node `json:"nodes"`
 	base.BaseFactJSONMarshaler
 }
 
 func (fact SuffrageGenesisJoinPermissionFact) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(SuffrageGenesisJoinPermissionFactJSONMarshaler{
 		BaseFactJSONMarshaler: fact.BaseFact.JSONMarshaler(),
-		Node:                  fact.node,
-		Publickey:             fact.pub,
+		Nodes:                 fact.nodes,
 	})
 }
 
 type SuffrageGenesisJoinPermissionFactJSONUnmarshaler struct {
-	Node      string `json:"node"`
-	Publickey string `json:"publickey"`
+	Nodes []json.RawMessage `json:"nodes"`
 	base.BaseFactJSONUnmarshaler
 }
 
@@ -79,19 +79,13 @@ func (fact *SuffrageGenesisJoinPermissionFact) DecodeJSON(b []byte, enc *jsonenc
 
 	fact.BaseFact.SetJSONUnmarshaler(u.BaseFactJSONUnmarshaler)
 
-	switch i, err := base.DecodeAddress(u.Node, enc); {
-	case err != nil:
-		return e(err, "")
-	default:
-		fact.node = i
-	}
+	fact.nodes = make([]base.Node, len(u.Nodes))
 
-	pub, err := base.DecodePublickeyFromString(u.Publickey, enc)
-	if err != nil {
-		return e(err, "")
+	for i := range u.Nodes {
+		if err := encoder.Decode(enc, u.Nodes[i], &fact.nodes[i]); err != nil {
+			return e(err, "")
+		}
 	}
-
-	fact.pub = pub
 
 	return nil
 }
