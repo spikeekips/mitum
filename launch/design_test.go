@@ -332,7 +332,7 @@ func (t *testNodeDesign) TestDecode() {
 	t.Run("ok", func() {
 		b := []byte(`
 address: no0sas
-privatekey: L5GTSKkRs9NPsXwYgACZdodNUJqCAWjz2BccuR4cAgxJumEZWjokmpr
+privatekey: 9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr
 network_id: hehe 1 2 3 4
 network:
   bind: 0.0.0.0:1234
@@ -347,7 +347,7 @@ storage:
 		t.NoError(a.DecodeYAML(b, t.enc))
 
 		t.Equal("no0sas", a.Address.String())
-		t.Equal("L5GTSKkRs9NPsXwYgACZdodNUJqCAWjz2BccuR4cAgxJumEZWjokmpr", a.Privatekey.String())
+		t.Equal("9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr", a.Privatekey.String())
 		t.Equal("hehe 1 2 3 4", string(a.NetworkID))
 
 		t.Equal("0.0.0.0:1234", a.Network.Bind.String())
@@ -361,7 +361,7 @@ storage:
 	t.Run("empty network", func() {
 		b := []byte(`
 address: no0sas
-privatekey: L5GTSKkRs9NPsXwYgACZdodNUJqCAWjz2BccuR4cAgxJumEZWjokmpr
+privatekey: 9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr
 network_id: hehe 1 2 3 4
 storage:
   base: /tmp/a/b/c
@@ -372,7 +372,7 @@ storage:
 		t.NoError(a.DecodeYAML(b, t.enc))
 
 		t.Equal("no0sas", a.Address.String())
-		t.Equal("L5GTSKkRs9NPsXwYgACZdodNUJqCAWjz2BccuR4cAgxJumEZWjokmpr", a.Privatekey.String())
+		t.Equal("9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr", a.Privatekey.String())
 		t.Equal("hehe 1 2 3 4", string(a.NetworkID))
 
 		t.Nil(a.Network.Bind)
@@ -386,7 +386,7 @@ storage:
 	t.Run("empty storage", func() {
 		b := []byte(`
 address: no0sas
-privatekey: L5GTSKkRs9NPsXwYgACZdodNUJqCAWjz2BccuR4cAgxJumEZWjokmpr
+privatekey: 9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr
 network_id: hehe 1 2 3 4
 network:
   bind: 0.0.0.0:1234
@@ -398,7 +398,7 @@ network:
 		t.NoError(a.DecodeYAML(b, t.enc))
 
 		t.Equal("no0sas", a.Address.String())
-		t.Equal("L5GTSKkRs9NPsXwYgACZdodNUJqCAWjz2BccuR4cAgxJumEZWjokmpr", a.Privatekey.String())
+		t.Equal("9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr", a.Privatekey.String())
 		t.Equal("hehe 1 2 3 4", string(a.NetworkID))
 
 		t.Equal("0.0.0.0:1234", a.Network.Bind.String())
@@ -414,7 +414,7 @@ func (t *testNodeDesign) TestEncode() {
 	t.Run("ok", func() {
 		b := []byte(`
 address: no0sas
-privatekey: L5GTSKkRs9NPsXwYgACZdodNUJqCAWjz2BccuR4cAgxJumEZWjokmpr
+privatekey: 9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr
 network_id: hehe 1 2 3 4
 network:
   bind: 0.0.0.0:1234
@@ -429,7 +429,7 @@ storage:
 		t.NoError(a.DecodeYAML(b, t.enc))
 
 		t.Equal("no0sas", a.Address.String())
-		t.Equal("L5GTSKkRs9NPsXwYgACZdodNUJqCAWjz2BccuR4cAgxJumEZWjokmpr", a.Privatekey.String())
+		t.Equal("9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr", a.Privatekey.String())
 		t.Equal("hehe 1 2 3 4", string(a.NetworkID))
 
 		t.Equal("0.0.0.0:1234", a.Network.Bind.String())
@@ -448,7 +448,7 @@ storage:
 		t.NoError(ua.DecodeYAML(ub, t.enc))
 
 		t.Equal("no0sas", ua.Address.String())
-		t.Equal("L5GTSKkRs9NPsXwYgACZdodNUJqCAWjz2BccuR4cAgxJumEZWjokmpr", ua.Privatekey.String())
+		t.Equal("9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr", ua.Privatekey.String())
 		t.Equal("hehe 1 2 3 4", string(ua.NetworkID))
 
 		t.Equal("0.0.0.0:1234", ua.Network.Bind.String())

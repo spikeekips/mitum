@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/btcsuite/btcd/btcec"
+	btcec "github.com/btcsuite/btcd/btcec/v2"
+	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
+	"github.com/btcsuite/btcd/btcutil/base58"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
-	"github.com/btcsuite/btcutil/base58"
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
@@ -43,7 +44,7 @@ func ParseMPublickey(s string) (MPublickey, error) {
 }
 
 func LoadMPublickey(s string) (MPublickey, error) {
-	k, err := btcec.ParsePubKey(base58.Decode(s), btcec.S256())
+	k, err := btcec.ParsePubKey(base58.Decode(s))
 	if err != nil {
 		return MPublickey{}, util.ErrInvalid.Wrapf(err, "failed to load publickey")
 	}
@@ -86,7 +87,7 @@ func (k MPublickey) Equal(b PKKey) bool {
 }
 
 func (k MPublickey) Verify(input []byte, sig Signature) error {
-	bsig, err := btcec.ParseSignature(sig, btcec.S256())
+	bsig, err := ecdsa.ParseSignature(sig)
 	if err != nil {
 		return errors.Wrap(err, "failed to verify signature by publickey")
 	}

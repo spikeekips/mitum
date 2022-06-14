@@ -600,7 +600,7 @@ func findHighestDirectory(root string) (string, bool, error) {
 			return nil
 		}
 
-		files, err := ioutil.ReadDir(path)
+		files, err := ioutil.ReadDir(path) // FIXME use os.ReadDir
 		var names []string
 
 		switch {

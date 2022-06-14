@@ -20,7 +20,7 @@ func CleanDirectory(root string, filter func(path string) bool) error {
 		return e(err, "")
 	}
 
-	subs, err := ioutil.ReadDir(root)
+	subs, err := ioutil.ReadDir(root) // FIXME use os.ReadDir
 	if err != nil {
 		return e(err, "")
 	}

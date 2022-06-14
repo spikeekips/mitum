@@ -90,10 +90,13 @@ func NewTransportWithQuicstream(
 				},
 				newClient(ci),
 			)
+			if err != nil {
+				return err
+			}
 
 			r.CancelRead(0)
 
-			return err
+			return nil
 		},
 	)
 }

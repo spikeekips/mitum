@@ -26,11 +26,18 @@ func (t *testMPrivatekey) TestNew() {
 
 func (t *testMPrivatekey) TestFromSeedStatic() {
 	seed := "L1bQZCcDZKy342x8xjK9Hk935Nttm2jkApVVS2mn4Nqyxvu7nyGC"
-	priv, err := NewMPrivatekeyFromSeed(seed)
-	t.NoError(err)
 
-	t.Equal("KzBYiN3Qr1JuYNf7Eyc67PAC5bzBazopzwAQDVZj4jmya7sWTbCDmpr", priv.String())
-	t.Equal("oxkQTcfKzrC67GE8ChZmZw8SBBBYefMp5859R2AZ8bB9mpu", priv.Publickey().String())
+	for i := 0; i < 400; i++ {
+		if i%200 == 0 {
+			t.T().Log("generated:", i)
+		}
+
+		priv, err := NewMPrivatekeyFromSeed(seed)
+		t.NoError(err)
+
+		t.Equal("6x5HXuF41Vq2ZjDnb6k7H13BVs38hzJJn5WQq2UvZBW1mpr", priv.String())
+		t.Equal("oxkQTcfKzrC67GE8ChZmZw8SBBBYefMp5859R2AZ8bB9mpu", priv.Publickey().String())
+	}
 }
 
 func (t *testMPrivatekey) TestConflicts() {
@@ -108,17 +115,25 @@ func (t *testMPrivatekey) TestParseMPrivatekey() {
 }
 
 func (t *testMPrivatekey) TestParseMPrivatekeyButEmpty() {
-	_, err := ParseMPrivatekey("")
-	t.True(errors.Is(err, util.ErrInvalid))
-	t.ErrorContains(err, "unknown privatekey string")
+	t.Run("empty", func() {
+		_, err := ParseMPrivatekey("")
+		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorContains(err, "unknown privatekey string")
+	})
 
-	_, err = ParseMPrivatekey(MPrivatekeyHint.Type().String())
-	t.True(errors.Is(err, util.ErrInvalid))
-	t.ErrorContains(err, "invalid privatekey string")
+	t.Run("empty body", func() {
+		_, err := ParseMPrivatekey(MPrivatekeyHint.Type().String())
+		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorContains(err, "invalid privatekey string")
+	})
 
-	_, err = ParseMPrivatekey(util.UUID().String() + MPrivatekeyHint.Type().String())
-	t.True(errors.Is(err, util.ErrInvalid))
-	t.ErrorContains(err, "malformed private key")
+	t.Run("random", func() {
+		_, err := ParseMPrivatekey(util.UUID().String() + MPrivatekeyHint.Type().String())
+		t.Error(err)
+
+		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorContains(err, "malformed private key")
+	})
 }
 
 func (t *testMPrivatekey) TestFromSeed() {
@@ -214,8 +229,13 @@ func testMPrivatekeyEncode() *baseTestMPKKeyEncode {
 func TestMPrivatekeyJSON(tt *testing.T) {
 	t := testMPrivatekeyEncode()
 	t.enc = jsonenc.NewEncoder()
+
+	orig := NewMPrivatekey().String()
+
 	t.Encode = func() (interface{}, []byte) {
-		k := NewMPrivatekey()
+		k, err := DecodePrivatekeyFromString(orig, t.enc)
+		t.NoError(err)
+
 		b, err := t.enc.Marshal(k)
 		t.NoError(err)
 
@@ -227,6 +247,8 @@ func TestMPrivatekeyJSON(tt *testing.T) {
 
 		uk, err := DecodePrivatekeyFromString(s, t.enc)
 		t.NoError(err)
+
+		t.Equal(orig, uk.String())
 
 		return uk
 	}

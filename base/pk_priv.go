@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/btcsuite/btcd/btcec"
-	"github.com/btcsuite/btcd/chaincfg"
+	btcec "github.com/btcsuite/btcd/btcec/v2"
+	btcec_ecdsa "github.com/btcsuite/btcd/btcec/v2/ecdsa"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
-	"github.com/btcsuite/btcutil"
+	"github.com/btcsuite/btcutil/base58"
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
@@ -25,23 +25,21 @@ const PrivatekeyMinSeedSize = 36
 
 // MPrivatekey is the default privatekey of mitum, it is based on BTC Privatekey.
 type MPrivatekey struct {
-	wif *btcutil.WIF
-	s   string
-	pub MPublickey
-	b   []byte
+	priv *btcec.PrivateKey
+	s    string
+	pub  MPublickey
+	b    []byte
 	hint.BaseHinter
 }
 
 func NewMPrivatekey() MPrivatekey {
-	secret, _ := btcec.NewPrivateKey(btcec.S256())
+	priv, _ := btcec.NewPrivateKey()
 
-	wif, _ := btcutil.NewWIF(secret, &chaincfg.MainNetParams, true)
-
-	return newMPrivatekeyFromWIF(wif)
+	return newMPrivatekeyFromPrivateKey(priv)
 }
 
 func NewMPrivatekeyFromSeed(s string) (MPrivatekey, error) {
-	if l := len(s); l < PrivatekeyMinSeedSize {
+	if l := len([]byte(s)); l < PrivatekeyMinSeedSize {
 		return MPrivatekey{}, util.ErrInvalid.Errorf(
 			"wrong seed for privatekey; too short, %d < %d", l, PrivatekeyMinSeedSize)
 	}
@@ -51,15 +49,12 @@ func NewMPrivatekeyFromSeed(s string) (MPrivatekey, error) {
 		bytes.NewReader([]byte(valuehash.NewSHA256([]byte(s)).String())),
 	)
 	if err != nil {
-		return MPrivatekey{}, errors.Wrap(err, "failed NewPrivatekeyFromSeed")
+		return MPrivatekey{}, errors.Wrap(err, "")
 	}
 
-	wif, err := btcutil.NewWIF((*btcec.PrivateKey)(k), &chaincfg.MainNetParams, true)
-	if err != nil {
-		return MPrivatekey{}, errors.Wrap(err, "failed NewPrivatekeyFromSeed")
-	}
+	priv, _ := btcec.PrivKeyFromBytes(k.D.Bytes())
 
-	return newMPrivatekeyFromWIF(wif), nil
+	return newMPrivatekeyFromPrivateKey(priv), nil
 }
 
 func ParseMPrivatekey(s string) (MPrivatekey, error) {
@@ -76,18 +71,21 @@ func ParseMPrivatekey(s string) (MPrivatekey, error) {
 }
 
 func LoadMPrivatekey(s string) (MPrivatekey, error) {
-	wif, err := btcutil.DecodeWIF(s)
-	if err != nil {
-		return MPrivatekey{}, util.ErrInvalid.Wrapf(err, "failed to load privatekey")
+	b := base58.Decode(s)
+
+	if len(b) < 1 {
+		return MPrivatekey{}, util.ErrInvalid.Errorf("malformed private key")
 	}
 
-	return newMPrivatekeyFromWIF(wif), nil
+	priv, _ := btcec.PrivKeyFromBytes(b)
+
+	return newMPrivatekeyFromPrivateKey(priv), nil
 }
 
-func newMPrivatekeyFromWIF(wif *btcutil.WIF) MPrivatekey {
+func newMPrivatekeyFromPrivateKey(priv *btcec.PrivateKey) MPrivatekey {
 	k := MPrivatekey{
 		BaseHinter: hint.NewBaseHinter(MPrivatekeyHint),
-		wif:        wif,
+		priv:       priv,
 	}
 
 	return k.ensure()
@@ -107,10 +105,8 @@ func (k MPrivatekey) IsValid([]byte) error {
 	}
 
 	switch {
-	case k.wif == nil:
-		return util.ErrInvalid.Errorf("empty btc wif of privatekey")
-	case k.wif.PrivKey == nil:
-		return util.ErrInvalid.Errorf("empty btc wif.PrivKey of privatekey")
+	case k.priv == nil:
+		return util.ErrInvalid.Errorf("empty btc privatekey")
 	case len(k.s) < 1:
 		return util.ErrInvalid.Errorf("empty privatekey string")
 	case len(k.b) < 1:
@@ -134,10 +130,7 @@ func (k MPrivatekey) Equal(b PKKey) bool {
 }
 
 func (k MPrivatekey) Sign(b []byte) (Signature, error) {
-	sig, err := k.wif.PrivKey.Sign(chainhash.DoubleHashB(b))
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to sign")
-	}
+	sig := btcec_ecdsa.Sign(k.priv, chainhash.DoubleHashB(b))
 
 	return Signature(sig.Serialize()), nil
 }
@@ -149,7 +142,7 @@ func (k MPrivatekey) MarshalText() ([]byte, error) {
 func (k *MPrivatekey) UnmarshalText(b []byte) error {
 	u, err := LoadMPrivatekey(string(b))
 	if err != nil {
-		return errors.Wrap(err, "failed to UnmarshalText for privatekey")
+		return errors.Wrap(err, "")
 	}
 
 	*k = u.ensure()
@@ -158,15 +151,12 @@ func (k *MPrivatekey) UnmarshalText(b []byte) error {
 }
 
 func (k *MPrivatekey) ensure() MPrivatekey {
-	switch {
-	case k.wif == nil:
-		return *k
-	case k.wif.PrivKey == nil:
+	if k.priv == nil {
 		return *k
 	}
 
-	k.pub = NewMPublickey(k.wif.PrivKey.PubKey())
-	k.s = fmt.Sprintf("%s%s", k.wif.String(), k.Hint().Type().String())
+	k.pub = NewMPublickey(k.priv.PubKey())
+	k.s = fmt.Sprintf("%s%s", base58.Encode(k.priv.Serialize()), k.Hint().Type().String())
 	k.b = []byte(k.s)
 
 	return *k

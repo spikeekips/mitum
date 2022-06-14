@@ -33,9 +33,10 @@ func NewSyncingHandler(
 	newSyncer func(base.Height) (isaac.Syncer, error),
 ) *SyncingHandler {
 	return &SyncingHandler{
-		baseHandler: newBaseHandler(StateSyncing, local, policy, proposalSelector),
-		newSyncer:   newSyncer,
-		waitStuck:   policy.IntervalBroadcastBallot()*2 + policy.WaitProcessingProposal(),
+		baseHandler:   newBaseHandler(StateSyncing, local, policy, proposalSelector),
+		newSyncer:     newSyncer,
+		waitStuck:     policy.IntervalBroadcastBallot()*2 + policy.WaitProcessingProposal(),
+		whenFinishedf: func(base.Height) {},
 	}
 }
 
