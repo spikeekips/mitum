@@ -6,8 +6,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/rs/zerolog"
-	"github.com/spikeekips/mitum/util/logging"
 )
 
 var contextTimerPool = sync.Pool{
@@ -22,7 +20,6 @@ var (
 	}
 	ContextTimerPoolPut = func(ct *ContextTimer) {
 		ct.Lock()
-		ct.Logging = nil
 		ct.ContextDaemon = nil
 		ct.id = TimerID("")
 		ct.interval = nil
@@ -36,7 +33,6 @@ var (
 
 type ContextTimer struct {
 	callback func(int) (bool, error)
-	*logging.Logging
 	*ContextDaemon
 	interval        func(int, time.Duration) time.Duration
 	id              TimerID
@@ -48,9 +44,6 @@ type ContextTimer struct {
 func NewContextTimer(id TimerID, interval time.Duration, callback func(int) (bool, error)) *ContextTimer {
 	ct := ContextTimerPoolGet()
 	ct.RWMutex = sync.RWMutex{}
-	ct.Logging = logging.NewLogging(func(c zerolog.Context) zerolog.Context {
-		return c.Str("module", "context-timer").Stringer("id", id)
-	})
 	ct.id = id
 	ct.interval = func(int, time.Duration) time.Duration {
 		return interval
@@ -82,12 +75,6 @@ func (ct *ContextTimer) Reset() error {
 	ct.c = 0
 
 	return nil
-}
-
-func (ct *ContextTimer) SetLogging(l *logging.Logging) *logging.Logging {
-	_ = ct.ContextDaemon.SetLogging(l)
-
-	return ct.Logging.SetLogging(l)
 }
 
 func (ct *ContextTimer) Stop() error {
@@ -140,12 +127,6 @@ end:
 			}
 
 			if err := ct.prepareCallback(ctx); err != nil {
-				switch {
-				case errors.Is(err, ErrStopTimer):
-				default:
-					ct.Log().Debug().Err(err).Msg("timer got error; timer will be stopped")
-				}
-
 				break end
 			}
 		}

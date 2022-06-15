@@ -215,7 +215,7 @@ func EqualManifest(t *assert.Assertions, a, b Manifest) {
 	if !isnil("Suffrage", a.Suffrage(), b.Suffrage()) {
 		t.True(a.Suffrage().Equal(b.Suffrage()), "Suffrage does not match")
 	}
-	t.True(localtime.Equal(a.ProposedAt(), b.ProposedAt()), "ProposedAt does not match")
+	t.True(util.TimeEqual(a.ProposedAt(), b.ProposedAt()), "ProposedAt does not match")
 }
 
 var (

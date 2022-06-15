@@ -3,14 +3,10 @@ package util
 import (
 	"context"
 	"sync"
-
-	"github.com/rs/zerolog"
-	"github.com/spikeekips/mitum/util/logging"
 )
 
 type ContextDaemon struct {
-	ctxDone func()
-	*logging.Logging
+	ctxDone            func()
 	callback           func(context.Context) error
 	callbackCancelFunc func()
 	stopfunc           func()
@@ -20,9 +16,6 @@ type ContextDaemon struct {
 
 func NewContextDaemon(name string, startfunc func(context.Context) error) *ContextDaemon {
 	return &ContextDaemon{
-		Logging: logging.NewLogging(func(c zerolog.Context) zerolog.Context {
-			return c.Str("module", "context-daemon").Str("daemon", name)
-		}),
 		callback: startfunc,
 	}
 }
@@ -40,8 +33,6 @@ func (dm *ContextDaemon) Start() error {
 	}
 
 	_ = dm.Wait(context.Background())
-
-	dm.Log().Debug().Msg("started")
 
 	return nil
 }
@@ -96,8 +87,6 @@ func (dm *ContextDaemon) Stop() error {
 	dm.callbackCancel()
 	dm.waitCallbackFinished()
 	dm.releaseCallbackCtx()
-
-	dm.Log().Debug().Msg("stopped")
 
 	return nil
 }

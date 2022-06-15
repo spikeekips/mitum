@@ -4,13 +4,10 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
-	"github.com/rs/zerolog"
-	"github.com/spikeekips/mitum/util/logging"
 )
 
 // Timers handles the multiple timers and controls them selectively.
 type Timers struct {
-	*logging.Logging
 	timers map[TimerID]Timer
 	sync.RWMutex
 	allowUnknown bool
@@ -24,30 +21,9 @@ func NewTimers(ids []TimerID, allowUnknown bool) *Timers {
 	}
 
 	return &Timers{
-		Logging: logging.NewLogging(func(c zerolog.Context) zerolog.Context {
-			return c.Str("module", "timers")
-		}),
 		timers:       timers,
 		allowUnknown: allowUnknown,
 	}
-}
-
-func (ts *Timers) SetLogging(l *logging.Logging) *logging.Logging {
-	ts.Lock()
-	defer ts.Unlock()
-
-	for id := range ts.timers {
-		timer := ts.timers[id]
-		if timer == nil {
-			continue
-		}
-
-		if i, ok := timer.(logging.SetLogging); ok {
-			_ = i.SetLogging(l)
-		}
-	}
-
-	return ts.Logging.SetLogging(l)
 }
 
 // Start of Timers does nothing
@@ -84,9 +60,7 @@ func (ts *Timers) Stop() error {
 		go func(t Timer) {
 			defer wg.Done()
 
-			if err := t.Stop(); err != nil {
-				ts.Log().Error().Err(err).Stringer("timer", t.ID()).Msg("failed to stop timer")
-			}
+			_ = t.Stop()
 		}(timer)
 	}
 
@@ -138,12 +112,6 @@ func (ts *Timers) SetTimer(timer Timer) error {
 
 	ts.timers[timer.ID()] = timer
 
-	if timer != nil {
-		if l, ok := ts.timers[timer.ID()].(logging.SetLogging); ok {
-			_ = l.SetLogging(ts.Logging)
-		}
-	}
-
 	return nil
 }
 
@@ -190,9 +158,7 @@ func (ts *Timers) StartTimers(ids []TimerID, stopOthers bool) error { // revive:
 			return
 		}
 
-		if err := t.Start(); err != nil {
-			ts.Log().Error().Err(err).Stringer("timer", t.ID()).Msg("failed to start timer")
-		}
+		_ = t.Start()
 	}
 
 	return ts.traverse(callback, ids)
@@ -280,9 +246,7 @@ func (ts *Timers) stopTimers(ids []TimerID) error {
 			return
 		}
 
-		if err := t.Stop(); err != nil {
-			ts.Log().Error().Err(err).Stringer("timer", t.ID()).Msg("failed to stop timer")
-		}
+		_ = t.Stop()
 	}
 
 	if err := ts.traverse(callback, ids); err != nil {

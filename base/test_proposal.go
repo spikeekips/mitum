@@ -5,8 +5,8 @@ package base
 
 import (
 	"github.com/pkg/errors"
+	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
-	"github.com/spikeekips/mitum/util/localtime"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -50,5 +50,5 @@ func EqualProposalFact(t *assert.Assertions, a, b ProposalFact) {
 	for i := range aop {
 		t.True(aop[i].Equal(bop[i]))
 	}
-	t.True(localtime.Equal(a.ProposedAt(), b.ProposedAt()))
+	t.True(util.TimeEqual(a.ProposedAt(), b.ProposedAt()))
 }

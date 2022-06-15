@@ -2,13 +2,10 @@ package util
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/rs/zerolog"
-	"github.com/spikeekips/mitum/util/logging"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
@@ -65,7 +62,6 @@ type (
 var ErrWorkerCanceled = NewError("context canceled in worker")
 
 type ParallelWorker struct {
-	*logging.Logging
 	jobChan     chan interface{}
 	errChan     chan error
 	callbacks   []WorkerCallback
@@ -78,9 +74,6 @@ type ParallelWorker struct {
 
 func NewParallelWorker(name string, bufsize uint) *ParallelWorker {
 	wk := &ParallelWorker{
-		Logging: logging.NewLogging(func(c zerolog.Context) zerolog.Context {
-			return c.Str("module", fmt.Sprintf("worker-%s", name))
-		}),
 		bufsize:    bufsize,
 		jobChan:    make(chan interface{}, int(bufsize)),
 		errChan:    make(chan error),
@@ -139,10 +132,6 @@ func (wk *ParallelWorker) NewJob(j interface{}) {
 	wk.Lock()
 	wk.jobCalled++
 	wk.Unlock()
-
-	wk.Log().Debug().
-		Interface("arguments", j).
-		Msg("new job")
 
 	wk.jobChan <- j
 }

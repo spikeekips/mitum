@@ -55,8 +55,6 @@ func NewDefault(
 }
 
 func (db *Default) SetLogging(l *logging.Logging) *logging.Logging {
-	_ = db.ContextDaemon.SetLogging(l)
-
 	if i, ok := db.perm.(logging.SetLogging); ok {
 		_ = i.SetLogging(l)
 	}

@@ -132,9 +132,3 @@ func (srv *Server) handleStream(ctx context.Context, remoteAddr net.Addr, stream
 		srv.Log().Error().Err(err).Msg("failed to handle stream")
 	}
 }
-
-func (srv *Server) SetLogging(l *logging.Logging) *logging.Logging {
-	_ = srv.ContextDaemon.SetLogging(l)
-
-	return srv.Logging.SetLogging(l)
-}

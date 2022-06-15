@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 )
@@ -13,7 +14,7 @@ type testTime struct {
 }
 
 func (t *testTime) loadTime(s string) Time {
-	a, err := ParseRFC3339(s)
+	a, err := util.ParseRFC3339(s)
 	t.NoError(err)
 
 	return New(a)
@@ -27,13 +28,13 @@ func (t *testTime) TestNew() {
 }
 
 func (t *testTime) TestNormalizeToUTC() {
-	tm, err := ParseRFC3339("2009-11-10T10:00:00.001+09:00")
+	tm, err := util.ParseRFC3339("2009-11-10T10:00:00.001+09:00")
 	t.NoError(err)
 
 	_, offset := tm.Zone()
 	t.Equal(32400, offset)
 
-	_, offset = Normalize(tm).Zone()
+	_, offset = util.NormalizeTime(tm).Zone()
 
 	t.Equal(0, offset)
 }
@@ -82,14 +83,14 @@ func (t *testTime) TestNormalizeCases() {
 		if !t.Run(
 			c.name,
 			func() {
-				a, err := ParseRFC3339(c.s)
+				a, err := util.ParseRFC3339(c.s)
 				t.NoError(err)
 
-				b, err := ParseRFC3339(c.expected)
+				b, err := util.ParseRFC3339(c.expected)
 				t.NoError(err)
 
-				an := Normalize(a)
-				bn := Normalize(b)
+				an := util.NormalizeTime(a)
+				bn := util.NormalizeTime(b)
 
 				t.True(bn.Equal(an), "%d: %v; %v != %v", i, c.name, bn.String(), an.String())
 			},
@@ -171,13 +172,13 @@ func (t *testTime) TestWithin() {
 		if !t.Run(
 			c.name,
 			func() {
-				base, err := ParseRFC3339(c.base)
+				base, err := util.ParseRFC3339(c.base)
 				t.NoError(err)
-				target, err := ParseRFC3339(c.target)
+				target, err := util.ParseRFC3339(c.target)
 				t.NoError(err)
 
-				bn := Normalize(base)
-				tn := Normalize(target)
+				bn := util.NormalizeTime(base)
+				tn := util.NormalizeTime(target)
 
 				r := Within(bn, tn, c.d)
 

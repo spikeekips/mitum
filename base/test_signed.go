@@ -6,7 +6,7 @@ package base
 import (
 	"bytes"
 
-	"github.com/spikeekips/mitum/util/localtime"
+	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -22,5 +22,5 @@ func EqualSigned(t *assert.Assertions, a, b Signed) {
 	t.True(bytes.Equal(a.Bytes(), b.Bytes()))
 	t.True(a.Signer().Equal(b.Signer()))
 	t.True(a.Signature().Equal(b.Signature()))
-	t.True(localtime.Equal(a.SignedAt(), b.SignedAt()))
+	t.True(util.TimeEqual(a.SignedAt(), b.SignedAt()))
 }

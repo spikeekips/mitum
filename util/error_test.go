@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"testing"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/pkgerrors"
-	"github.com/spikeekips/mitum/util/logging"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -219,6 +219,10 @@ func (t *testError) checkStack(b []byte) bool {
 		s := stacks[i]
 		sm := s.(map[string]interface{})
 		j := sm[pkgerrors.StackSourceFileName]
+		if j == nil {
+			continue
+		}
+
 		k, ok := j.(string)
 		t.True(ok)
 
@@ -231,13 +235,21 @@ func (t *testError) checkStack(b []byte) bool {
 	return goexitfound
 }
 
+func (t *testError) setupLogging(out io.Writer) zerolog.Logger {
+	zerolog.ErrorStackMarshaler = ZerologMarshalStack
+
+	z := zerolog.New(out).With().Timestamp().Caller().Stack()
+
+	return z.Logger().Level(zerolog.DebugLevel)
+}
+
 func (t *testError) TestPKGErrorStack() {
 	e := errors.Errorf("showme")
 
 	var bf bytes.Buffer
-	l := logging.Setup(&bf, zerolog.DebugLevel, "json", false)
+	l := t.setupLogging(&bf)
 
-	l.Log().Error().Err(e).Msg("find")
+	l.Error().Err(e).Msg("find")
 	t.T().Log(bf.String())
 
 	t.False(t.checkStack(bf.Bytes()))
@@ -247,9 +259,9 @@ func (t *testError) TestErrorStack() {
 	e := NewError("showme").Call()
 
 	var bf bytes.Buffer
-	l := logging.Setup(&bf, zerolog.DebugLevel, "json", false)
+	l := t.setupLogging(&bf)
 
-	l.Log().Error().Err(e).Msg("find")
+	l.Error().Err(e).Msg("killme")
 	t.T().Log(bf.String())
 
 	t.False(t.checkStack(bf.Bytes()))

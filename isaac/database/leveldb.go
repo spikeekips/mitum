@@ -201,7 +201,7 @@ func leveldbBlockMapKey(height base.Height) []byte {
 func leveldbNewOperationOrderedKey(facthash util.Hash) []byte {
 	return util.ConcatBytesSlice(
 		leveldbKeyPrefixNewOperationOrdered,
-		[]byte(localtime.RFC3339(localtime.UTCNow())),
+		[]byte(util.RFC3339(localtime.UTCNow())),
 		facthash.Bytes(),
 	)
 }
