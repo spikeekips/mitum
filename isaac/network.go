@@ -11,7 +11,7 @@ import (
 
 // revive:disable:line-length-limit
 type NetworkClient interface {
-	// Request(context.Context, quictransport.ConnInfo, NetworkHeader) (NetworkResponseHeader, io.ReadCloser, error)
+	Request(context.Context, quictransport.ConnInfo, NetworkHeader) (NetworkResponseHeader, interface{}, error)
 	RequestProposal(_ context.Context, connInfo quictransport.ConnInfo, point base.Point, propser base.Address) (base.ProposalSignedFact, bool, error)
 	Proposal(_ context.Context, connInfo quictransport.ConnInfo, facthash util.Hash) (base.ProposalSignedFact, bool, error)
 	LastSuffrageProof(_ context.Context, connInfo quictransport.ConnInfo, state util.Hash) (_ base.SuffrageProof, updated bool, _ error)

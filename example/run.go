@@ -4,28 +4,24 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
-	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/network/quictransport"
-	"github.com/spikeekips/mitum/storage"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
 type runCommand struct {
-	baseCommand
+	baseNodeCommand
 	db                   isaac.Database
 	perm                 isaac.PermanentDatabase
 	client               isaac.NetworkClient
@@ -170,83 +166,6 @@ func (cmd *runCommand) prepareDatabase() error {
 	cmd.db = db
 	cmd.perm = perm
 	cmd.pool = pool
-
-	return nil
-}
-
-func (cmd *runCommand) prepareNetwork() error {
-	cmd.client = launch.NewNetworkClient(cmd.encs, cmd.enc, time.Second*2) //nolint:gomnd //...
-
-	handlers := isaacnetwork.NewQuicstreamHandlers(
-		cmd.local,
-		cmd.encs,
-		cmd.enc,
-		time.Second*2, //nolint:gomnd //...
-		cmd.pool,
-		cmd.proposalMaker(),
-		func(last util.Hash) (base.SuffrageProof, bool, error) {
-			switch proof, found, err := cmd.db.LastSuffrageProof(); {
-			case err != nil:
-				return nil, false, errors.Wrap(err, "")
-			case !found:
-				return nil, false, storage.NotFoundError.Errorf("last SuffrageProof not found")
-			case last != nil && last.Equal(proof.Map().Manifest().Suffrage()):
-				return nil, false, nil
-			default:
-				return proof, true, nil
-			}
-		},
-		cmd.db.SuffrageProof,
-		func(last util.Hash) (base.BlockMap, bool, error) {
-			switch m, found, err := cmd.db.LastBlockMap(); {
-			case err != nil:
-				return nil, false, errors.Wrap(err, "")
-			case !found:
-				return nil, false, storage.NotFoundError.Errorf("last BlockMap not found")
-			case last != nil && last.Equal(m.Manifest().Hash()):
-				return nil, false, nil
-			default:
-				return m, true, nil
-			}
-		},
-		cmd.db.BlockMap,
-		func(height base.Height, item base.BlockMapItemType) (io.ReadCloser, bool, error) {
-			e := util.StringErrorFunc("failed to get BlockMapItem")
-
-			var enc encoder.Encoder
-
-			switch m, found, err := cmd.db.BlockMap(height); {
-			case err != nil:
-				return nil, false, e(err, "")
-			case !found:
-				return nil, false, e(storage.NotFoundError.Errorf("BlockMap not found"), "")
-			default:
-				enc = cmd.encs.Find(m.Encoder())
-			}
-
-			// FIXME use cache with singleflight
-
-			reader, err := isaacblock.NewLocalFSReaderFromHeight(
-				launch.LocalFSDataDirectory(cmd.design.Storage.Base), height, enc,
-			)
-			if err != nil {
-				return nil, false, e(err, "")
-			}
-			defer func() {
-				_ = reader.Close()
-			}()
-
-			return reader.Reader(item)
-		},
-	)
-
-	cmd.quicstreamserver = quicstream.NewServer(
-		&net.UDPAddr{Port: int(cmd.design.Network.Bind.Port())}, // FIXME use design.Network.Bind directly
-		launch.GenerateNewTLSConfig(),
-		launch.DefaultQuicConfig(),
-		launch.Handlers(handlers),
-	)
-	_ = cmd.quicstreamserver.SetLogging(logging)
 
 	return nil
 }

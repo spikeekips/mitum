@@ -7,7 +7,7 @@ import (
 )
 
 type initCommand struct {
-	baseCommand
+	baseNodeCommand
 	GenesisDesign string `arg:"" name:"genesis design" help:"genesis design" type:"filepath"`
 	genesisDesign launch.GenesisDesign
 }
@@ -66,7 +66,7 @@ func (cmd *initCommand) Run() error {
 }
 
 func (cmd *initCommand) prepareDesigns() error {
-	if err := cmd.baseCommand.prepareDesigns(); err != nil {
+	if err := cmd.baseNodeCommand.prepareDesigns(); err != nil {
 		return errors.Wrap(err, "")
 	}
 

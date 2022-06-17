@@ -15,7 +15,7 @@ func readHint(ctx context.Context, r io.Reader) (ht hint.Hint, _ error) {
 	e := util.StringErrorFunc("failed to read hint")
 
 	b := make([]byte, hint.MaxHintLength)
-	if _, err := network.EnsureRead(ctx, r, b); err != nil {
+	if n, err := network.EnsureRead(ctx, r, b); n != len(b) {
 		return ht, e(err, "")
 	}
 
@@ -30,7 +30,7 @@ func readHint(ctx context.Context, r io.Reader) (ht hint.Hint, _ error) {
 func readHeader(ctx context.Context, r io.Reader) ([]byte, error) {
 	l := make([]byte, 8)
 
-	if _, err := network.EnsureRead(ctx, r, l); err != nil {
+	if n, err := network.EnsureRead(ctx, r, l); n != len(l) {
 		return nil, errors.Wrap(err, "failed to read header length")
 	}
 
@@ -45,7 +45,7 @@ func readHeader(ctx context.Context, r io.Reader) ([]byte, error) {
 
 	h := make([]byte, length)
 
-	if _, err := network.EnsureRead(ctx, r, h); err != nil {
+	if n, err := network.EnsureRead(ctx, r, h); n != len(h) {
 		return nil, errors.Wrap(err, "failed to read header")
 	}
 

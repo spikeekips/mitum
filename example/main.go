@@ -28,10 +28,13 @@ func main() {
 		return lctx.Str("module", "main")
 	}).SetLogging(logging).Log()
 
-	var cli struct {
-		Init   initCommand   `cmd:"" help:"init node"`
-		Import importCommand `cmd:"" help:"import from block data"`
-		Run    runCommand    `cmd:"" help:"run node"`
+	var cli struct { //nolint:govet //...
+		Init    initCommand   `cmd:"" help:"init node"`
+		Import  importCommand `cmd:"" help:"import from block data"`
+		Run     runCommand    `cmd:"" help:"run node"`
+		Network struct {      // revive:disable-line:nested-structs
+			Client networkClientCommand `cmd:"" help:"network client"`
+		} `cmd:"" help:"network"`
 	}
 
 	kctx := kong.Parse(&cli)

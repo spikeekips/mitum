@@ -5,8 +5,38 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
+	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
 )
+
+func (h *BaseHeader) unmarshalJSON(b []byte) error {
+	var u hint.BaseHinter
+
+	if err := util.UnmarshalJSON(b, &u); err != nil {
+		return errors.Wrap(err, "")
+	}
+
+	h.BaseHinter = u
+
+	switch u.Hint().Type() {
+	case RequestProposalRequestHeaderHint.Type():
+		h.prefix = HandlerPrefixRequestProposal
+	case ProposalRequestHeaderHint.Type():
+		h.prefix = HandlerPrefixProposal
+	case LastSuffrageProofRequestHeaderHint.Type():
+		h.prefix = HandlerPrefixLastSuffrageProof
+	case SuffrageProofRequestHeaderHint.Type():
+		h.prefix = HandlerPrefixSuffrageProof
+	case LastBlockMapRequestHeaderHint.Type():
+		h.prefix = HandlerPrefixLastBlockMap
+	case BlockMapRequestHeaderHint.Type():
+		h.prefix = HandlerPrefixBlockMap
+	case BlockMapItemRequestHeaderHint.Type():
+		h.prefix = HandlerPrefixBlockMapItem
+	}
+
+	return nil
+}
 
 type requestProposalRequestHeaderJSONMarshaler struct {
 	Proposer base.Address `json:"proposer"`
@@ -34,16 +64,15 @@ type requestProposalRequestHeaderJSONUnmarshaler struct {
 func (h *RequestProposalRequestHeader) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	e := util.StringErrorFunc("failed to unmarshal RequestProposalHeader")
 
-	var u struct {
-		BaseHeader
-		requestProposalRequestHeaderJSONUnmarshaler
-	}
+	var u requestProposalRequestHeaderJSONUnmarshaler
 
 	if err := util.UnmarshalJSON(b, &u); err != nil {
 		return e(err, "")
 	}
 
-	h.BaseHeader = u.BaseHeader
+	if err := h.BaseHeader.unmarshalJSON(b); err != nil {
+		return e(err, "")
+	}
 
 	switch addr, err := base.DecodeAddress(u.Proposer, enc); {
 	case err != nil:
@@ -78,16 +107,18 @@ type proposalRequestHeaderJSONUnmarshaler struct {
 }
 
 func (h *ProposalRequestHeader) UnmarshalJSON(b []byte) error {
-	var u struct {
-		proposalRequestHeaderJSONUnmarshaler
-		BaseHeader
-	}
+	e := util.StringErrorFunc("failed to unmarshal proposalHeader")
+
+	var u proposalRequestHeaderJSONUnmarshaler
 
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return errors.Wrap(err, "failed to unmarshal proposalHeader")
+		return e(err, "")
 	}
 
-	h.BaseHeader = u.BaseHeader
+	if err := h.BaseHeader.unmarshalJSON(b); err != nil {
+		return e(err, "")
+	}
+
 	h.proposal = u.Proposal.Hash()
 
 	return nil
@@ -114,16 +145,18 @@ type lastSuffrageProofRequestHeaderJSONUnmarshaler struct {
 }
 
 func (h *LastSuffrageProofRequestHeader) UnmarshalJSON(b []byte) error {
-	var u struct {
-		lastSuffrageProofRequestHeaderJSONUnmarshaler
-		BaseHeader
-	}
+	e := util.StringErrorFunc("failed to unmarshal LastSuffrageProofHeader")
+
+	var u lastSuffrageProofRequestHeaderJSONUnmarshaler
 
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return errors.Wrap(err, "failed to unmarshal LastSuffrageProofHeader")
+		return e(err, "")
 	}
 
-	h.BaseHeader = u.BaseHeader
+	if err := h.BaseHeader.unmarshalJSON(b); err != nil {
+		return e(err, "")
+	}
+
 	h.state = u.State.Hash()
 
 	return nil
@@ -150,16 +183,17 @@ type suffrageProofRequestHeaderJSONUnmarshaler struct {
 }
 
 func (h *SuffrageProofRequestHeader) UnmarshalJSON(b []byte) error {
-	var u struct {
-		BaseHeader
-		suffrageProofRequestHeaderJSONUnmarshaler
-	}
+	e := util.StringErrorFunc("failed to unmarshal SuffrageProofHeader")
+	var u suffrageProofRequestHeaderJSONUnmarshaler
 
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return errors.Wrap(err, "failed to unmarshal SuffrageProofHeader")
+		return e(err, "")
 	}
 
-	h.BaseHeader = u.BaseHeader
+	if err := h.BaseHeader.unmarshalJSON(b); err != nil {
+		return e(err, "")
+	}
+
 	h.suffrageheight = u.SuffrageHeight
 
 	return nil
@@ -186,16 +220,17 @@ type lastBlockMapRequestHeaderJSONUnmarshaler struct {
 }
 
 func (h *LastBlockMapRequestHeader) UnmarshalJSON(b []byte) error {
-	var u struct {
-		lastBlockMapRequestHeaderJSONUnmarshaler
-		BaseHeader
-	}
+	e := util.StringErrorFunc("failed to unmarshal LastBlockMapHeader")
+	var u lastBlockMapRequestHeaderJSONUnmarshaler
 
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return errors.Wrap(err, "failed to unmarshal LastBlockMapHeader")
+		return e(err, "")
 	}
 
-	h.BaseHeader = u.BaseHeader
+	if err := h.BaseHeader.unmarshalJSON(b); err != nil {
+		return e(err, "")
+	}
+
 	h.manifest = u.Manifest.Hash()
 
 	return nil
@@ -222,16 +257,17 @@ type BlockMapRequestHeaderJSONUnmarshaler struct {
 }
 
 func (h *BlockMapRequestHeader) UnmarshalJSON(b []byte) error {
-	var u struct {
-		BaseHeader
-		BlockMapRequestHeaderJSONUnmarshaler
-	}
+	e := util.StringErrorFunc("failed to unmarshal BlockMapHeader")
+	var u BlockMapRequestHeaderJSONUnmarshaler
 
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return errors.Wrap(err, "failed to unmarshal BlockMapHeader")
+		return e(err, "")
 	}
 
-	h.BaseHeader = u.BaseHeader
+	if err := h.BaseHeader.unmarshalJSON(b); err != nil {
+		return e(err, "")
+	}
+
 	h.height = u.Height
 
 	return nil
@@ -261,16 +297,17 @@ type BlockMapItemRequestHeaderJSONUnmarshaler struct {
 }
 
 func (h *BlockMapItemRequestHeader) UnmarshalJSON(b []byte) error {
-	var u struct {
-		BlockMapItemRequestHeaderJSONUnmarshaler
-		BaseHeader
-	}
+	e := util.StringErrorFunc("failed to unmarshal BlockMapItemHeader")
+	var u BlockMapItemRequestHeaderJSONUnmarshaler
 
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return errors.Wrap(err, "failed to unmarshal BlockMapItemHeader")
+		return e(err, "")
 	}
 
-	h.BaseHeader = u.BaseHeader
+	if err := h.BaseHeader.unmarshalJSON(b); err != nil {
+		return e(err, "")
+	}
+
 	h.height = u.Height
 	h.item = u.Item
 
@@ -301,16 +338,11 @@ func (r ResponseHeader) MarshalJSON() ([]byte, error) {
 }
 
 func (r *ResponseHeader) UnmarshalJSON(b []byte) error {
-	var u struct {
-		ResponseHeaderJSONMarshaler
-		BaseHeader
-	}
+	var u ResponseHeaderJSONMarshaler
 
 	if err := util.UnmarshalJSON(b, &u); err != nil {
 		return errors.Wrap(err, "failed to unmarshal ResponseHeader")
 	}
-
-	r.BaseHeader = u.BaseHeader
 
 	r.ok = u.OK
 

@@ -22,7 +22,7 @@ type importCommand struct { //nolint:govet //...
 	db   isaac.Database
 	perm isaac.PermanentDatabase
 	pool *isaacdatabase.TempPool
-	baseCommand
+	baseNodeCommand
 	From string `arg:"" name:"from directory" help:"block data directory to import" type:"existingdir"`
 }
 

@@ -52,7 +52,7 @@ func NewQuicstreamHandlers(
 }
 
 func (c *QuicstreamHandlers) ErrorHandler(_ net.Addr, _ io.Reader, w io.Writer, err error) error {
-	if e := c.response(w, NewResponseHeader(false, err), nil, c.enc); e != nil {
+	if e := Response(w, NewResponseHeader(false, err), nil, c.enc); e != nil {
 		return errors.Wrap(e, "failed to response error response")
 	}
 
@@ -82,7 +82,7 @@ func (c *QuicstreamHandlers) RequestProposal(_ net.Addr, r io.Reader, w io.Write
 
 	header := NewResponseHeader(pr != nil, err)
 
-	if err := c.response(w, header, pr, enc); err != nil {
+	if err := Response(w, header, pr, enc); err != nil {
 		return e(err, "")
 	}
 
@@ -110,7 +110,7 @@ func (c *QuicstreamHandlers) Proposal(_ net.Addr, r io.Reader, w io.Writer) erro
 
 	header := NewResponseHeader(found, err)
 
-	if err := c.response(w, header, pr, enc); err != nil {
+	if err := Response(w, header, pr, enc); err != nil {
 		return e(err, "")
 	}
 
@@ -133,7 +133,7 @@ func (c *QuicstreamHandlers) LastSuffrageProof(_ net.Addr, r io.Reader, w io.Wri
 	proof, updated, err := c.lastSuffrageProoff(body.State())
 	header := NewResponseHeader(updated, err)
 
-	if err := c.response(w, header, proof, enc); err != nil {
+	if err := Response(w, header, proof, enc); err != nil {
 		return e(err, "")
 	}
 
@@ -156,7 +156,7 @@ func (c *QuicstreamHandlers) SuffrageProof(_ net.Addr, r io.Reader, w io.Writer)
 	proof, found, err := c.suffrageProoff(body.Height())
 	header := NewResponseHeader(found, err)
 
-	if err := c.response(w, header, proof, enc); err != nil {
+	if err := Response(w, header, proof, enc); err != nil {
 		return e(err, "")
 	}
 
@@ -185,7 +185,7 @@ func (c *QuicstreamHandlers) LastBlockMap(_ net.Addr, r io.Reader, w io.Writer) 
 	m, updated, err := c.lastBlockMapf(body.Manifest())
 	header := NewResponseHeader(updated, err)
 
-	if err := c.response(w, header, m, enc); err != nil {
+	if err := Response(w, header, m, enc); err != nil {
 		return e(err, "")
 	}
 
@@ -212,7 +212,7 @@ func (c *QuicstreamHandlers) BlockMap(_ net.Addr, r io.Reader, w io.Writer) erro
 	m, found, err := c.blockMapf(body.Height())
 	header := NewResponseHeader(found, err)
 
-	if err := c.response(w, header, m, enc); err != nil {
+	if err := Response(w, header, m, enc); err != nil {
 		return e(err, "")
 	}
 
@@ -245,7 +245,7 @@ func (c *QuicstreamHandlers) BlockMapItem(_ net.Addr, r io.Reader, w io.Writer) 
 
 	header := NewResponseHeader(found, err)
 
-	if err := c.response(w, header, nil, enc); err != nil {
+	if err := Response(w, header, nil, enc); err != nil {
 		return e(err, "")
 	}
 

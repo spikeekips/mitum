@@ -57,7 +57,7 @@ func DefaultQuicConfig() *quic.Config {
 	}
 }
 
-func Handlers(handlers *isaacnetwork.QuicstreamHandlers) quicstream.Handler {
+func Handlers(handlers *isaacnetwork.QuicstreamHandlers) *quicstream.PrefixHandler {
 	prefix := quicstream.NewPrefixHandler(handlers.ErrorHandler)
 	prefix.
 		Add(isaacnetwork.HandlerPrefixRequestProposal, handlers.RequestProposal).
@@ -68,5 +68,5 @@ func Handlers(handlers *isaacnetwork.QuicstreamHandlers) quicstream.Handler {
 		Add(isaacnetwork.HandlerPrefixBlockMap, handlers.BlockMap).
 		Add(isaacnetwork.HandlerPrefixBlockMapItem, handlers.BlockMapItem)
 
-	return prefix.Handler
+	return prefix
 }

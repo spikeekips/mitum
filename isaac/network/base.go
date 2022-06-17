@@ -38,7 +38,14 @@ func newBaseNetwork(
 	}
 }
 
-func (*baseNetwork) response(w io.Writer, header isaac.NetworkHeader, body interface{}, enc encoder.Encoder) error {
+func (c *baseNetwork) readEncoder(r io.Reader) (encoder.Encoder, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.idleTimeout)
+	defer cancel()
+
+	return ReadEncoder(ctx, c.encs, r)
+}
+
+func Response(w io.Writer, header isaac.NetworkHeader, body interface{}, enc encoder.Encoder) error {
 	e := util.StringErrorFunc("failed to write response")
 
 	var b []byte
@@ -78,18 +85,15 @@ func (*baseNetwork) response(w io.Writer, header isaac.NetworkHeader, body inter
 	return nil
 }
 
-func (c *baseNetwork) readEncoder(r io.Reader) (encoder.Encoder, error) {
+func ReadEncoder(ctx context.Context, encs *encoder.Encoders, r io.Reader) (encoder.Encoder, error) {
 	e := util.StringErrorFunc("failed to read encoder")
-
-	ctx, cancel := context.WithTimeout(context.Background(), c.idleTimeout)
-	defer cancel()
 
 	ht, err := readHint(ctx, r)
 	if err != nil {
 		return nil, e(err, "")
 	}
 
-	switch enc := c.encs.Find(ht); {
+	switch enc := encs.Find(ht); {
 	case enc == nil:
 		return nil, e(util.ErrNotFound.Errorf("encoder not found for %q", ht), "")
 	default:

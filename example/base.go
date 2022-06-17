@@ -9,11 +9,8 @@ import (
 )
 
 type baseCommand struct {
-	enc    encoder.Encoder
-	local  base.LocalNode
-	encs   *encoder.Encoders
-	Design string `arg:"" name:"node design" help:"node design" type:"filepath"`
-	design launch.NodeDesign
+	enc  encoder.Encoder
+	encs *encoder.Encoders
 }
 
 func (cmd *baseCommand) prepareEncoder() error {
@@ -25,10 +22,22 @@ func (cmd *baseCommand) prepareEncoder() error {
 		cmd.enc = enc
 	}
 
+	_ = cmd.enc.Add(encoder.DecodeDetail{Hint: stateRequestHeaderHint, Instance: stateRequestHeader{}})
+	_ = cmd.enc.Add(encoder.DecodeDetail{
+		Hint: existsInStateOperationRequestHeaderHint, Instance: existsInStateOperationRequestHeader{},
+	})
+
 	return nil
 }
 
-func (cmd *baseCommand) prepareDesigns() error {
+type baseNodeCommand struct {
+	baseCommand
+	local  base.LocalNode
+	Design string `arg:"" name:"node design" help:"node design" type:"filepath"`
+	design launch.NodeDesign
+}
+
+func (cmd *baseNodeCommand) prepareDesigns() error {
 	switch d, b, err := launch.NodeDesignFromFile( //nolint:forcetypeassert //...
 		cmd.Design, cmd.enc.(*jsonenc.Encoder)); {
 	case err != nil:
@@ -42,7 +51,7 @@ func (cmd *baseCommand) prepareDesigns() error {
 	return nil
 }
 
-func (cmd *baseCommand) prepareLocal() error {
+func (cmd *baseNodeCommand) prepareLocal() error {
 	local, err := launch.LocalFromDesign(cmd.design)
 	if err != nil {
 		return errors.Wrap(err, "failed to prepare local")
