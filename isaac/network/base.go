@@ -5,6 +5,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 )
@@ -37,7 +38,7 @@ func newBaseNetwork(
 	}
 }
 
-func (*baseNetwork) response(w io.Writer, header Header, body interface{}, enc encoder.Encoder) error {
+func (*baseNetwork) response(w io.Writer, header isaac.NetworkHeader, body interface{}, enc encoder.Encoder) error {
 	e := util.StringErrorFunc("failed to write response")
 
 	var b []byte

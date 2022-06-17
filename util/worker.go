@@ -72,7 +72,7 @@ type ParallelWorker struct {
 	sync.RWMutex
 }
 
-func NewParallelWorker(name string, bufsize uint) *ParallelWorker {
+func NewParallelWorker(bufsize uint) *ParallelWorker {
 	wk := &ParallelWorker{
 		bufsize:    bufsize,
 		jobChan:    make(chan interface{}, int(bufsize)),

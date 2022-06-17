@@ -49,7 +49,7 @@ func NewDefault(
 		return nil, errors.Wrap(err, "")
 	}
 
-	db.ContextDaemon = util.NewContextDaemon("default-database", db.start)
+	db.ContextDaemon = util.NewContextDaemon(db.start)
 
 	return db, nil
 }

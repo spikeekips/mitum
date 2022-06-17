@@ -55,7 +55,7 @@ func NewMemberlist(
 		return nil, errors.Wrap(err, "wrong memberlist.Config")
 	}
 
-	srv.ContextDaemon = util.NewContextDaemon("memberlist", srv.start)
+	srv.ContextDaemon = util.NewContextDaemon(srv.start)
 
 	return srv, nil
 }

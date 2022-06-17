@@ -14,7 +14,7 @@ type ContextDaemon struct {
 	sync.RWMutex
 }
 
-func NewContextDaemon(name string, startfunc func(context.Context) error) *ContextDaemon {
+func NewContextDaemon(startfunc func(context.Context) error) *ContextDaemon {
 	return &ContextDaemon{
 		callback: startfunc,
 	}

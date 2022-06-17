@@ -55,7 +55,7 @@ func NewTimeSyncer(server string, checkInterval time.Duration) (*TimeSyncer, err
 		interval: checkInterval,
 	}
 
-	ts.ContextDaemon = util.NewContextDaemon("time-syncer", ts.schedule)
+	ts.ContextDaemon = util.NewContextDaemon(ts.schedule)
 
 	ts.check()
 

@@ -21,7 +21,7 @@ func ParseRFC3339(s string) (time.Time, error) {
 func RFC3339(t time.Time) string {
 	s := t.Format("2006-01-02T15:04:05.999999999")
 
-	if len(s) < 29 {
+	if len(s) < 29 { //nolint:gomnd //...
 		s += strings.Repeat("0", 29-len(s))
 	}
 

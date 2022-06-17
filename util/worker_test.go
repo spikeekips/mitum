@@ -21,7 +21,7 @@ type testParallelWorker struct {
 }
 
 func (t *testParallelWorker) TestRun() {
-	wk := NewParallelWorker("test-worker", 1)
+	wk := NewParallelWorker(1)
 	defer wk.Done()
 
 	wk.Run(func(_ uint, job interface{}) error {
@@ -65,7 +65,7 @@ func (t *testParallelWorker) TestRun() {
 }
 
 func (t *testParallelWorker) TestMultipleCallbacks() {
-	wk := NewParallelWorker("test-worker", 1)
+	wk := NewParallelWorker(1)
 	defer wk.Done()
 
 	numWorkers := 3
@@ -103,12 +103,12 @@ func (t *testParallelWorker) TestMultipleCallbacks() {
 }
 
 func (t *testParallelWorker) TestDoneBeforeRun() {
-	wk := NewParallelWorker("test-worker", 1)
+	wk := NewParallelWorker(1)
 	defer wk.Done()
 }
 
 func (t *testParallelWorker) TestStopBeforeFinish() {
-	wk := NewParallelWorker("test-worker", 1)
+	wk := NewParallelWorker(1)
 
 	longrunningChan := make(chan struct{})
 	wk.Run(func(_ uint, job interface{}) error {

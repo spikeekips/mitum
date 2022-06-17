@@ -107,7 +107,7 @@ func NewSyncer(
 		lastBlockMapInterval:   time.Second * 2, //nolint:gomnd //...
 	}
 
-	s.ContextDaemon = util.NewContextDaemon("syncer", s.start)
+	s.ContextDaemon = util.NewContextDaemon(s.start)
 
 	return s, nil
 }

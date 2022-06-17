@@ -17,7 +17,7 @@ type testContextDaemon struct {
 
 func (t *testContextDaemon) TestNew() {
 	stoppedchan := make(chan time.Time, 2)
-	ed := NewContextDaemon("test", func(ctx context.Context) error {
+	ed := NewContextDaemon(func(ctx context.Context) error {
 		<-ctx.Done()
 
 		stoppedchan <- time.Now()
@@ -45,7 +45,7 @@ func (t *testContextDaemon) TestNew() {
 }
 
 func (t *testContextDaemon) TestFuncStopped() {
-	ed := NewContextDaemon("test", func(ctx context.Context) error {
+	ed := NewContextDaemon(func(ctx context.Context) error {
 		<-time.After(time.Millisecond * 100)
 
 		return errors.Errorf("show me")
@@ -61,7 +61,7 @@ func (t *testContextDaemon) TestFuncStopped() {
 
 func (t *testContextDaemon) TestStop() {
 	stopAfter := time.Second
-	ed := NewContextDaemon("test", func(ctx context.Context) error {
+	ed := NewContextDaemon(func(ctx context.Context) error {
 		<-time.After(stopAfter)
 
 		return nil
@@ -78,7 +78,7 @@ func (t *testContextDaemon) TestStop() {
 
 func (t *testContextDaemon) TestStartAgain() {
 	resultchan := make(chan error, 1)
-	ed := NewContextDaemon("test", func(ctx context.Context) error {
+	ed := NewContextDaemon(func(ctx context.Context) error {
 		<-ctx.Done()
 
 		resultchan <- nil
@@ -111,7 +111,7 @@ func (t *testContextDaemon) TestStartAgain() {
 }
 
 func (t *testContextDaemon) TestWait() {
-	ed := NewContextDaemon("test", func(_ context.Context) error {
+	ed := NewContextDaemon(func(_ context.Context) error {
 		return errors.Errorf("show me")
 	})
 
@@ -119,7 +119,7 @@ func (t *testContextDaemon) TestWait() {
 	t.ErrorContains(err, "show me")
 	t.True(errors.Is(ed.Stop(), ErrDaemonAlreadyStopped))
 
-	ed = NewContextDaemon("test", func(_ context.Context) error {
+	ed = NewContextDaemon(func(_ context.Context) error {
 		<-time.After(time.Second * 2)
 
 		return errors.Errorf("show me")
@@ -139,7 +139,7 @@ func (t *testContextDaemon) TestWait() {
 
 func (t *testContextDaemon) TestStartWithContext() {
 	resultchan := make(chan error, 1)
-	ed := NewContextDaemon("test", func(ctx context.Context) error {
+	ed := NewContextDaemon(func(ctx context.Context) error {
 		<-ctx.Done()
 
 		resultchan <- errors.Errorf("find me")
@@ -162,7 +162,7 @@ func (t *testContextDaemon) TestStartWithContext() {
 }
 
 func (t *testContextDaemon) TestStopInGoroutine() {
-	ed := NewContextDaemon("test", func(ctx context.Context) error {
+	ed := NewContextDaemon(func(ctx context.Context) error {
 		<-ctx.Done()
 
 		return nil

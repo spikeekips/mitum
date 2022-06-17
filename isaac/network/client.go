@@ -7,6 +7,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/network/quictransport"
 	"github.com/spikeekips/mitum/util"
@@ -36,6 +37,44 @@ func newBaseNetworkClient(
 	}
 }
 
+func (c *baseNetworkClient) Request(
+	ctx context.Context,
+	ci quictransport.ConnInfo,
+	header isaac.NetworkHeader,
+) (
+	isaac.NetworkResponseHeader,
+	interface{},
+	error,
+) {
+	e := util.StringErrorFunc("failed to request")
+
+	r, cancel, err := c.write(ctx, ci, c.enc, header, nil)
+	if err != nil {
+		return nil, false, e(err, "failed to send request")
+	}
+
+	defer func() {
+		_ = cancel()
+	}()
+
+	h, enc, err := c.loadResponseHeader(ctx, r)
+
+	switch {
+	case err != nil:
+		return h, nil, e(err, "failed to read stream")
+	case h.Err() != nil, !h.OK():
+		return h, nil, nil
+	default:
+		var u interface{}
+
+		if err := encoder.DecodeReader(enc, r, &u); err != nil {
+			return h, nil, e(err, "")
+		}
+
+		return h, u, nil
+	}
+}
+
 func (c *baseNetworkClient) RequestProposal(
 	ctx context.Context,
 	ci quictransport.ConnInfo,
@@ -50,7 +89,7 @@ func (c *baseNetworkClient) RequestProposal(
 		return nil, false, e(err, "")
 	}
 
-	r, cancel, err := c.write(ctx, ci, c.enc, HandlerPrefixRequestProposal, header, nil)
+	r, cancel, err := c.write(ctx, ci, c.enc, header, nil)
 	if err != nil {
 		return nil, false, e(err, "failed to send request")
 	}
@@ -92,7 +131,7 @@ func (c *baseNetworkClient) Proposal( //nolint:dupl //...
 		return nil, false, e(err, "")
 	}
 
-	r, cancel, err := c.write(ctx, ci, c.enc, HandlerPrefixProposal, header, nil)
+	r, cancel, err := c.write(ctx, ci, c.enc, header, nil)
 	if err != nil {
 		return nil, false, e(err, "failed to send request")
 	}
@@ -128,7 +167,7 @@ func (c *baseNetworkClient) LastSuffrageProof(
 
 	var u base.SuffrageProof
 
-	found, err := c.requestOK(ctx, ci, HandlerPrefixLastSuffrageProof, header, nil, &u)
+	found, err := c.requestOK(ctx, ci, header, nil, &u)
 
 	return u, found, errors.Wrap(err, "failed to get last SuffrageProof")
 }
@@ -140,7 +179,7 @@ func (c *baseNetworkClient) SuffrageProof( //nolint:dupl //...
 
 	var u base.SuffrageProof
 
-	found, err := c.requestOK(ctx, ci, HandlerPrefixSuffrageProof, header, nil, &u)
+	found, err := c.requestOK(ctx, ci, header, nil, &u)
 
 	return u, found, errors.Wrap(err, "failed to get SuffrageProof")
 }
@@ -152,7 +191,7 @@ func (c *baseNetworkClient) LastBlockMap( //nolint:dupl //...
 
 	var u base.BlockMap
 
-	found, err := c.requestOK(ctx, ci, HandlerPrefixLastBlockMap, header, nil, &u)
+	found, err := c.requestOK(ctx, ci, header, nil, &u)
 
 	return u, found, errors.Wrap(err, "failed to get last BlockMap")
 }
@@ -164,7 +203,7 @@ func (c *baseNetworkClient) BlockMap( //nolint:dupl //...
 
 	var u base.BlockMap
 
-	found, err := c.requestOK(ctx, ci, HandlerPrefixBlockMap, header, nil, &u)
+	found, err := c.requestOK(ctx, ci, header, nil, &u)
 
 	return u, found, errors.Wrap(err, "failed to get BlockMap")
 }
@@ -182,7 +221,7 @@ func (c *baseNetworkClient) BlockMapItem(
 		return nil, nil, false, e(err, "")
 	}
 
-	r, cancel, err := c.write(ctx, ci, c.enc, HandlerPrefixBlockMapItem, header, nil)
+	r, cancel, err := c.write(ctx, ci, c.enc, header, nil)
 	if err != nil {
 		return nil, nil, false, e(err, "failed to send request")
 	}
@@ -210,8 +249,7 @@ func (c *baseNetworkClient) BlockMapItem(
 func (c *baseNetworkClient) requestOK(
 	ctx context.Context,
 	ci quictransport.ConnInfo,
-	handlerprefix string,
-	header Header,
+	header isaac.NetworkHeader,
 	body io.Reader,
 	u interface{},
 ) (bool, error) {
@@ -219,7 +257,7 @@ func (c *baseNetworkClient) requestOK(
 		return false, errors.Wrap(err, "")
 	}
 
-	r, cancel, err := c.write(ctx, ci, c.enc, handlerprefix, header, body)
+	r, cancel, err := c.write(ctx, ci, c.enc, header, body)
 	if err != nil {
 		return false, errors.Wrap(err, "failed to send request")
 	}
@@ -249,7 +287,7 @@ func (c *baseNetworkClient) requestOK(
 func (c *baseNetworkClient) loadResponseHeader(
 	ctx context.Context,
 	r io.ReadCloser,
-) (h ResponseHeader, enc encoder.Encoder, _ error) {
+) (h isaac.NetworkResponseHeader, enc encoder.Encoder, _ error) {
 	e := util.StringErrorFunc("failed to load response header")
 
 	enc, err := c.readEncoder(r)
@@ -276,8 +314,7 @@ func (c *baseNetworkClient) write(
 	ctx context.Context,
 	ci quictransport.ConnInfo,
 	enc encoder.Encoder,
-	handlerprefix string,
-	header Header,
+	header isaac.NetworkHeader,
 	body io.Reader,
 ) (io.ReadCloser, func() error, error) {
 	b, err := enc.Marshal(header)
@@ -286,7 +323,7 @@ func (c *baseNetworkClient) write(
 	}
 
 	r, cancel, err := c.writef(ctx, ci, func(w io.Writer) error {
-		if err = quicstream.WritePrefix(w, handlerprefix); err != nil {
+		if err = quicstream.WritePrefix(w, header.HandlerPrefix()); err != nil {
 			return errors.Wrap(err, "")
 		}
 

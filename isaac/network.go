@@ -11,6 +11,7 @@ import (
 
 // revive:disable:line-length-limit
 type NetworkClient interface {
+	// Request(context.Context, quictransport.ConnInfo, NetworkHeader) (NetworkResponseHeader, io.ReadCloser, error)
 	RequestProposal(_ context.Context, connInfo quictransport.ConnInfo, point base.Point, propser base.Address) (base.ProposalSignedFact, bool, error)
 	Proposal(_ context.Context, connInfo quictransport.ConnInfo, facthash util.Hash) (base.ProposalSignedFact, bool, error)
 	LastSuffrageProof(_ context.Context, connInfo quictransport.ConnInfo, state util.Hash) (_ base.SuffrageProof, updated bool, _ error)
@@ -18,6 +19,18 @@ type NetworkClient interface {
 	LastBlockMap(_ context.Context, _ quictransport.ConnInfo, manifest util.Hash) (_ base.BlockMap, updated bool, _ error)
 	BlockMap(context.Context, quictransport.ConnInfo, base.Height) (_ base.BlockMap, updated bool, _ error)
 	BlockMapItem(context.Context, quictransport.ConnInfo, base.Height, base.BlockMapItemType) (io.ReadCloser, func() error, bool, error)
+	// FIXME use network.ConnInfo instead of quictransport.ConnInfo
 }
 
 // revive:enable:line-length-limit
+
+type NetworkHeader interface {
+	util.IsValider
+	HandlerPrefix() string
+}
+
+type NetworkResponseHeader interface {
+	NetworkHeader
+	Err() error
+	OK() bool
+}

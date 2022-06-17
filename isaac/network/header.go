@@ -18,22 +18,21 @@ var (
 
 var ResponseHeaderHint = hint.MustNewHint("response-header-v0.0.1")
 
-type Header interface {
-	util.IsValider
-	ThisIsHeader()
-}
-
 type BaseHeader struct {
+	prefix string
 	hint.BaseHinter
 }
 
-func NewBaseHeader(ht hint.Hint) BaseHeader {
+func NewBaseHeader(ht hint.Hint, prefix string) BaseHeader {
 	return BaseHeader{
 		BaseHinter: hint.NewBaseHinter(ht),
+		prefix:     prefix,
 	}
 }
 
-func (BaseHeader) ThisIsHeader() {}
+func (h BaseHeader) HandlerPrefix() string {
+	return h.prefix
+}
 
 type RequestProposalRequestHeader struct {
 	proposer base.Address
@@ -43,7 +42,7 @@ type RequestProposalRequestHeader struct {
 
 func NewRequestProposalRequestHeader(point base.Point, proposer base.Address) RequestProposalRequestHeader {
 	return RequestProposalRequestHeader{
-		BaseHeader: NewBaseHeader(RequestProposalRequestHeaderHint),
+		BaseHeader: NewBaseHeader(RequestProposalRequestHeaderHint, HandlerPrefixRequestProposal),
 		point:      point,
 		proposer:   proposer,
 	}
@@ -78,7 +77,7 @@ type ProposalRequestHeader struct {
 
 func NewProposalRequestHeader(proposal util.Hash) ProposalRequestHeader {
 	return ProposalRequestHeader{
-		BaseHeader: NewBaseHeader(ProposalRequestHeaderHint),
+		BaseHeader: NewBaseHeader(ProposalRequestHeaderHint, HandlerPrefixProposal),
 		proposal:   proposal,
 	}
 }
@@ -108,7 +107,7 @@ type LastSuffrageProofRequestHeader struct {
 
 func NewLastSuffrageProofRequestHeader(state util.Hash) LastSuffrageProofRequestHeader {
 	return LastSuffrageProofRequestHeader{
-		BaseHeader: NewBaseHeader(LastSuffrageProofRequestHeaderHint),
+		BaseHeader: NewBaseHeader(LastSuffrageProofRequestHeaderHint, HandlerPrefixLastSuffrageProof),
 		state:      state,
 	}
 }
@@ -140,7 +139,7 @@ type SuffrageProofRequestHeader struct {
 
 func NewSuffrageProofRequestHeader(suffrageheight base.Height) SuffrageProofRequestHeader {
 	return SuffrageProofRequestHeader{
-		BaseHeader:     NewBaseHeader(SuffrageProofRequestHeaderHint),
+		BaseHeader:     NewBaseHeader(SuffrageProofRequestHeaderHint, HandlerPrefixSuffrageProof),
 		suffrageheight: suffrageheight,
 	}
 }
@@ -170,7 +169,7 @@ type LastBlockMapRequestHeader struct {
 
 func NewLastBlockMapRequestHeader(manifest util.Hash) LastBlockMapRequestHeader {
 	return LastBlockMapRequestHeader{
-		BaseHeader: NewBaseHeader(LastBlockMapRequestHeaderHint),
+		BaseHeader: NewBaseHeader(LastBlockMapRequestHeaderHint, HandlerPrefixLastBlockMap),
 		manifest:   manifest,
 	}
 }
@@ -200,7 +199,7 @@ type BlockMapRequestHeader struct {
 
 func NewBlockMapRequestHeader(height base.Height) BlockMapRequestHeader {
 	return BlockMapRequestHeader{
-		BaseHeader: NewBaseHeader(BlockMapRequestHeaderHint),
+		BaseHeader: NewBaseHeader(BlockMapRequestHeaderHint, HandlerPrefixBlockMap),
 		height:     height,
 	}
 }
@@ -231,7 +230,7 @@ type BlockMapItemRequestHeader struct {
 
 func NewBlockMapItemRequestHeader(height base.Height, item base.BlockMapItemType) BlockMapItemRequestHeader {
 	return BlockMapItemRequestHeader{
-		BaseHeader: NewBaseHeader(BlockMapItemRequestHeaderHint),
+		BaseHeader: NewBaseHeader(BlockMapItemRequestHeaderHint, HandlerPrefixBlockMapItem),
 		height:     height,
 		item:       item,
 	}
@@ -267,7 +266,7 @@ type ResponseHeader struct {
 
 func NewResponseHeader(ok bool, err error) ResponseHeader {
 	return ResponseHeader{
-		BaseHeader: NewBaseHeader(ResponseHeaderHint),
+		BaseHeader: NewBaseHeader(ResponseHeaderHint, ""),
 		ok:         ok,
 		err:        err,
 	}

@@ -52,7 +52,9 @@ func NewQuicstreamClient(
 	return c
 }
 
-func (c *QuicstreamClient) newClient(ci quictransport.ConnInfo, quicconfig *quic.Config) func(*net.UDPAddr) *quicstream.Client {
+func (c *QuicstreamClient) newClient(
+	ci quictransport.ConnInfo, quicconfig *quic.Config,
+) func(*net.UDPAddr) *quicstream.Client {
 	return func(*net.UDPAddr) *quicstream.Client {
 		return quicstream.NewClient(
 			ci.UDPAddr(),

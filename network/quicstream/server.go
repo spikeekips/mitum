@@ -37,7 +37,7 @@ func NewServer(
 		handler:    handler,
 	}
 
-	srv.ContextDaemon = util.NewContextDaemon("quicstream-server", srv.start)
+	srv.ContextDaemon = util.NewContextDaemon(srv.start)
 
 	return srv
 }

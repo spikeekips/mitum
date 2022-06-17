@@ -404,6 +404,52 @@ func (t *testQuicstreamHandlers) TestBlockMapItem() {
 	})
 }
 
+func (t *testQuicstreamHandlers) TestRequest() {
+	handlers := NewQuicstreamHandlers(t.Local, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil)
+
+	ci := quictransport.NewBaseConnInfo(nil, true)
+	c := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixLastBlockMap, handlers.LastBlockMap))
+
+	t.Run("ok", func() {
+		m := base.NewDummyManifest(base.Height(33), valuehash.RandomSHA256())
+		mp := base.NewDummyBlockMap(m)
+
+		handlers.lastBlockMapf = func(manifest util.Hash) (base.BlockMap, bool, error) {
+			if manifest != nil && manifest.Equal(m.Hash()) {
+				return nil, false, nil
+			}
+
+			return mp, true, nil
+		}
+
+		header := NewLastBlockMapRequestHeader(nil)
+		response, v, err := c.Request(context.Background(), ci, header)
+		t.NoError(err)
+
+		t.NoError(response.Err())
+		t.True(response.OK())
+
+		rmp, ok := v.(base.BlockMap)
+		t.True(ok)
+
+		base.EqualBlockMap(t.Assert(), mp, rmp)
+	})
+
+	t.Run("error", func() {
+		handlers.lastBlockMapf = func(manifest util.Hash) (base.BlockMap, bool, error) {
+			return nil, false, errors.Errorf("hehehe")
+		}
+
+		header := NewLastBlockMapRequestHeader(nil)
+		response, _, err := c.Request(context.Background(), ci, header)
+		t.NoError(err)
+
+		t.Error(response.Err())
+		t.ErrorContains(response.Err(), "hehehe")
+		t.False(response.OK())
+	})
+}
+
 func TestQuicstreamHandlers(t *testing.T) {
 	defer goleak.VerifyNone(t,
 		goleak.IgnoreTopFunction("github.com/syndtr/goleveldb/leveldb.(*DB).mpoolDrain"),
