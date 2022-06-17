@@ -157,7 +157,7 @@ func (db *TempLeveldb) loadLastBlockMap() error {
 	case err != nil:
 		return err
 	case m == nil:
-		return nil
+		return util.ErrNotFound.Errorf("last BlockMap not found")
 	default:
 		db.mp = m
 
