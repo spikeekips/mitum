@@ -1,13 +1,11 @@
 package main
 
 import (
-	"os"
-
 	"github.com/alecthomas/kong"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
-	_ "github.com/spikeekips/mitum/launch"
+	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/util"
 	mitumlogging "github.com/spikeekips/mitum/util/logging"
 )
@@ -23,21 +21,28 @@ var (
 )
 
 func main() {
-	logging = mitumlogging.Setup(os.Stderr, zerolog.DebugLevel, "json", false)
-	log = mitumlogging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
-		return lctx.Str("module", "main")
-	}).SetLogging(logging).Log()
-
 	var cli struct { //nolint:govet //...
-		Init    initCommand   `cmd:"" help:"init node"`
-		Import  importCommand `cmd:"" help:"import from block data"`
-		Run     runCommand    `cmd:"" help:"run node"`
-		Network struct {      // revive:disable-line:nested-structs
+		launch.Logging `embed:"" prefix:"log."`
+		Init           initCommand   `cmd:"" help:"init node"`
+		Import         importCommand `cmd:"" help:"import from block data"`
+		Run            runCommand    `cmd:"" help:"run node"`
+		Network        struct {      // revive:disable-line:nested-structs
 			Client networkClientCommand `cmd:"" help:"network client"`
 		} `cmd:"" help:"network"`
 	}
 
 	kctx := kong.Parse(&cli)
+
+	l, err := launch.SetupLoggingFromFlags(cli.Logging)
+	if err != nil {
+		kctx.FatalIfErrorf(err)
+	}
+
+	logging = l
+
+	log = mitumlogging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
+		return lctx.Str("module", "main")
+	}).SetLogging(logging).Log()
 
 	log.Info().Str("command", kctx.Command()).Msg("start command")
 
