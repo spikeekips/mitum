@@ -286,7 +286,7 @@ func (cmd *importCommand) validateImportedBlocks(root string, last base.Height) 
 
 	if err := util.BatchWork(
 		context.Background(),
-		uint64(last.Int64()),
+		uint64(last.Int64())+1,
 		333, //nolint:gomnd //...
 		func(context.Context, uint64) error {
 			return nil
