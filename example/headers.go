@@ -17,6 +17,13 @@ type stateRequestHeader struct {
 	isaacnetwork.BaseHeader
 }
 
+func newStateRequestHeader(key string) stateRequestHeader {
+	return stateRequestHeader{
+		BaseHeader: isaacnetwork.NewBaseHeader(stateRequestHeaderHint),
+		key:        key,
+	}
+}
+
 func (h stateRequestHeader) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid stateHeader")
 
@@ -68,6 +75,13 @@ func (h *stateRequestHeader) UnmarshalJSON(b []byte) error {
 type existsInStateOperationRequestHeader struct {
 	op util.Hash
 	isaacnetwork.BaseHeader
+}
+
+func newExistsInStateOperationRequestHeader(op util.Hash) existsInStateOperationRequestHeader {
+	return existsInStateOperationRequestHeader{
+		BaseHeader: isaacnetwork.NewBaseHeader(existsInStateOperationRequestHeaderHint),
+		op:         op,
+	}
 }
 
 func (h existsInStateOperationRequestHeader) IsValid([]byte) error {

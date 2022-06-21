@@ -9,6 +9,11 @@ var jsoniterconfiged = jsoniter.Config{
 	EscapeHTML: false,
 }.Froze()
 
+var indentjsoniterconfiged = jsoniter.Config{
+	IndentionStep: 2, //nolint:gomnd //...
+	EscapeHTML:    false,
+}.Froze()
+
 func marshalJSON(v interface{}) ([]byte, error) {
 	return jsoniterconfiged.Marshal(v) //nolint:wrapcheck //...
 }
@@ -18,5 +23,5 @@ func unmarshalJSON(b []byte, v interface{}) error {
 }
 
 func marshalJSONIndent(i interface{}) ([]byte, error) {
-	return jsoniterconfiged.MarshalIndent(i, "", "  ") //nolint:wrapcheck //...
+	return indentjsoniterconfiged.MarshalIndent(i, "", "  ") //nolint:wrapcheck //...
 }

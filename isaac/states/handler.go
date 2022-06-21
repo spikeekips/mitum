@@ -124,7 +124,7 @@ func switchContextLog(sctx switchContext) *zerolog.Event {
 
 	switch {
 	case ok:
-		e = e.Object("next_state", o)
+		e = e.EmbedObject(o)
 	default:
 		e = e.Stringer("from", sctx.from()).Stringer("next", sctx.next())
 	}
