@@ -24,7 +24,7 @@ var (
 
 func init() {
 	{
-		i := netip.MustParseAddrPort("0.0.0.0:4321")
+		i := netip.AddrPortFrom(netip.IPv4Unspecified(), 4321)
 		DefaultNetworkBind = &i
 	}
 

@@ -1,7 +1,6 @@
 package util
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 )
@@ -20,7 +19,7 @@ func CleanDirectory(root string, filter func(path string) bool) error {
 		return e(err, "")
 	}
 
-	subs, err := ioutil.ReadDir(root) // FIXME use os.ReadDir
+	subs, err := os.ReadDir(root)
 	if err != nil {
 		return e(err, "")
 	}

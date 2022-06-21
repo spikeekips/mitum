@@ -14,6 +14,7 @@ import (
 	"io"
 	"math/big"
 	"net"
+	"net/netip"
 	"sync"
 
 	"github.com/lucas-clemente/quic-go"
@@ -25,10 +26,10 @@ import (
 type BaseTest struct {
 	sync.Mutex
 	suite.Suite
-	Bind      *net.UDPAddr
+	Bind      *netip.AddrPort
 	TLSConfig *tls.Config
 	Proto     string
-	binded    []*net.UDPAddr
+	binded    []*netip.AddrPort
 }
 
 func (t *BaseTest) SetupSuite() {
@@ -40,7 +41,7 @@ func (t *BaseTest) SetupTest() {
 	t.Bind = t.NewBind()
 }
 
-func (t *BaseTest) NewBind() *net.UDPAddr {
+func (t *BaseTest) NewBind() *netip.AddrPort {
 	t.Lock()
 	defer t.Unlock()
 
@@ -56,7 +57,7 @@ func (t *BaseTest) NewTLSConfig(proto string) *tls.Config {
 	return generateTLSConfig(proto)
 }
 
-func (t *BaseTest) NewServer(bind *net.UDPAddr, tlsconfig *tls.Config) *Server {
+func (t *BaseTest) NewServer(bind *netip.AddrPort, tlsconfig *tls.Config) *Server {
 	srv := NewServer(bind, tlsconfig, &quic.Config{}, func(_ net.Addr, r io.Reader, w io.Writer) error {
 		b, err := io.ReadAll(r)
 		if err != nil {
@@ -88,7 +89,7 @@ func (t *BaseTest) NewClient(addr *net.UDPAddr) *Client {
 	)
 }
 
-func freePort(excludes []*net.UDPAddr) (*net.UDPAddr, error) {
+func freePort(excludes []*netip.AddrPort) (*netip.AddrPort, error) {
 	for {
 		zero, err := net.ResolveUDPAddr("udp", "127.0.0.1:0")
 		if err != nil {
@@ -102,11 +103,13 @@ func freePort(excludes []*net.UDPAddr) (*net.UDPAddr, error) {
 
 		_ = l.Close()
 
-		addr := l.LocalAddr().(*net.UDPAddr)
+		i := l.LocalAddr().(*net.UDPAddr)
+
+		addr := netip.AddrPortFrom(netip.IPv4Unspecified(), uint16(i.Port))
 
 		var found bool
 		for i := range excludes {
-			if addr.Port == excludes[i].Port {
+			if addr.Port() == excludes[i].Port() {
 				found = true
 
 				break
@@ -114,7 +117,7 @@ func freePort(excludes []*net.UDPAddr) (*net.UDPAddr, error) {
 		}
 
 		if !found {
-			return addr, nil
+			return &addr, nil
 		}
 	}
 }

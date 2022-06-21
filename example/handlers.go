@@ -28,7 +28,7 @@ func (cmd *runCommand) prepareNetwork() error {
 	cmd.client = launch.NewNetworkClient(cmd.encs, cmd.enc, time.Second*2) //nolint:gomnd //...
 
 	cmd.quicstreamserver = quicstream.NewServer(
-		&net.UDPAddr{Port: int(cmd.design.Network.Bind.Port())}, // FIXME use design.Network.Bind directly
+		cmd.design.Network.Bind,
 		launch.GenerateNewTLSConfig(),
 		launch.DefaultQuicConfig(),
 		cmd.networkHandlers(),

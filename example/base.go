@@ -14,7 +14,7 @@ type baseCommand struct {
 }
 
 func (cmd *baseCommand) prepareEncoder() error {
-	switch encs, enc, err := launch.PrepareEncoders(); { // FIXME return jsonenc too
+	switch encs, enc, err := launch.PrepareEncoders(); {
 	case err != nil:
 		return errors.Wrap(err, "")
 	default:

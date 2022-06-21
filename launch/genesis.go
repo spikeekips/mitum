@@ -30,8 +30,6 @@ type GenesisBlockGenerator struct {
 	ops       []base.Operation
 }
 
-// FIXME set genesis design
-
 func NewGenesisBlockGenerator(
 	local base.LocalNode,
 	networkID base.NetworkID,

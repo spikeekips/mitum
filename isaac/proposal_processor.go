@@ -201,11 +201,6 @@ func (p *DefaultProposalProcessor) close() {
 	}
 
 	p.cancel()
-
-	p.ivp = nil
-	p.proposal = nil
-	p.ops = nil
-	p.oprs = nil
 }
 
 func (p *DefaultProposalProcessor) isCanceled() bool {

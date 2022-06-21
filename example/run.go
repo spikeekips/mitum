@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -41,24 +43,84 @@ type runCommand struct {
 }
 
 func (cmd *runCommand) Run() error {
-	if err := cmd.prepareEncoder(); err != nil {
+	switch stop, err := cmd.prepare(); {
+	case err != nil:
 		return errors.Wrap(err, "")
+	default:
+		defer func() {
+			_ = stop()
+		}()
+	}
+
+	log.Debug().Msg("node started")
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	if err := cmd.quicstreamserver.Start(); err != nil {
+		return errors.Wrap(err, "")
+	}
+
+	var states *isaacstates.States
+	var statesch <-chan error = make(chan error)
+
+	if !cmd.Hold {
+		var err error
+
+		states, err = cmd.states()
+		if err != nil {
+			return errors.Wrap(err, "")
+		}
+
+		statesch = states.Wait(ctx)
+	}
+
+	select {
+	case <-ctx.Done(): // NOTE graceful stop
+		if states != nil {
+			if err := states.Stop(); err != nil {
+				log.Error().Err(err).Msg("failed to stop states")
+			}
+		}
+
+		return nil
+	case err := <-statesch:
+		return errors.Wrap(err, "")
+	}
+}
+
+func (cmd *runCommand) prepare() (func() error, error) {
+	stop := func() error {
+		return nil
+	}
+
+	e := util.StringErrorFunc("failed to prepare")
+
+	if err := cmd.prepareEncoder(); err != nil {
+		return stop, e(err, "")
 	}
 
 	if err := cmd.prepareDesigns(); err != nil {
-		return errors.Wrap(err, "")
+		return stop, e(err, "")
 	}
 
 	if err := cmd.prepareLocal(); err != nil {
-		return errors.Wrap(err, "")
+		return stop, e(err, "")
 	}
 
 	if err := cmd.prepareDatabase(); err != nil {
-		return errors.Wrap(err, "")
+		return stop, e(err, "")
 	}
 
 	if err := cmd.prepareNetwork(); err != nil {
-		return errors.Wrap(err, "")
+		return stop, e(err, "")
+	}
+
+	switch i, err := cmd.prepareProfiling(); {
+	case err != nil:
+		return stop, e(err, "")
+	default:
+		stop = i
 	}
 
 	cmd.nodePolicy = isaac.DefaultNodePolicy(networkID)
@@ -77,50 +139,9 @@ func (cmd *runCommand) Run() error {
 	cmd.newProposalProcessor = cmd.newProposalProcessorFunc(cmd.enc)
 	cmd.getProposal = cmd.getProposalFunc()
 
-	if err := cmd.run(); err != nil {
-		return errors.Wrap(err, "")
-	}
-
-	return nil
-}
-
-func (cmd *runCommand) run() error {
-	log.Debug().Msg("node started")
-
-	profiledefer, err := launch.StartProfile(
-		filepath.Join(cmd.design.Storage.Base, fmt.Sprintf("cpu-%s.pprof", util.ULID().String())),
-		filepath.Join(cmd.design.Storage.Base, fmt.Sprintf("mem-%s.pprof", util.ULID().String())),
-	)
-	if err != nil {
-		return errors.Wrap(err, "")
-	}
-
-	defer func() {
-		_ = profiledefer()
-	}()
-
-	if err = cmd.quicstreamserver.Start(); err != nil {
-		return errors.Wrap(err, "")
-	}
-
-	if cmd.Hold {
-		select {} //revive:disable-line:empty-block
-	}
-
 	cmd.prepareSuffrageBuilder()
 
-	states, err := cmd.states()
-	if err != nil {
-		return errors.Wrap(err, "")
-	}
-
-	log.Debug().Msg("states started")
-
-	if err := <-states.Wait(context.Background()); err != nil {
-		return errors.Wrap(err, "")
-	}
-
-	return nil
+	return stop, nil
 }
 
 func (cmd *runCommand) prepareDatabase() error {
@@ -168,6 +189,13 @@ func (cmd *runCommand) prepareDatabase() error {
 	cmd.pool = pool
 
 	return nil
+}
+
+func (cmd *runCommand) prepareProfiling() (func() error, error) {
+	return launch.StartProfile(
+		filepath.Join(cmd.design.Storage.Base, fmt.Sprintf("cpu-%s.pprof", util.ULID().String())),
+		filepath.Join(cmd.design.Storage.Base, fmt.Sprintf("mem-%s.pprof", util.ULID().String())),
+	)
 }
 
 func (cmd *runCommand) getSuffrageFunc() func(blockheight base.Height) (base.Suffrage, bool, error) {
