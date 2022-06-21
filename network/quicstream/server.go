@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
-	"net/netip"
 
 	"github.com/lucas-clemente/quic-go"
 	"github.com/pkg/errors"
@@ -16,14 +15,14 @@ import (
 type Server struct {
 	*logging.Logging
 	*util.ContextDaemon
-	bind       *netip.AddrPort
+	bind       *net.UDPAddr
 	tlsconfig  *tls.Config
 	quicconfig *quic.Config
 	handler    Handler
 }
 
 func NewServer(
-	bind *netip.AddrPort,
+	bind *net.UDPAddr,
 	tlsconfig *tls.Config,
 	quicconfig *quic.Config,
 	handler Handler,

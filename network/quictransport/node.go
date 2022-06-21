@@ -235,9 +235,13 @@ func NewBaseConnInfo(addr *net.UDPAddr, tlsinsecure bool) BaseConnInfo {
 func NewBaseConnInfoFromString(s string) (BaseConnInfo, error) {
 	as, tlsinsecure := network.ParseInsecure(s)
 
-	addr, err := net.ResolveUDPAddr("udp", as)
+	return NewBaseConnInfoFromStringAddress(as, tlsinsecure)
+}
+
+func NewBaseConnInfoFromStringAddress(s string, tlsinsecure bool) (BaseConnInfo, error) {
+	addr, err := net.ResolveUDPAddr("udp", s)
 	if err != nil {
-		return BaseConnInfo{}, util.ErrInvalid.Wrapf(err, "failed to parse net.UDPAddr")
+		return BaseConnInfo{}, util.ErrInvalid.Wrapf(err, "failed to parse BaseConnInfo")
 	}
 
 	return NewBaseConnInfo(addr, tlsinsecure), nil
@@ -256,7 +260,12 @@ func (c BaseConnInfo) TLSInsecure() bool {
 }
 
 func (c BaseConnInfo) String() string {
-	return network.ConnInfoToString(c)
+	var addr string
+	if c.addr != nil {
+		addr = c.addr.String()
+	}
+
+	return network.ConnInfoToString(addr, c.tlsinsecure)
 }
 
 func (c BaseConnInfo) MarshalText() ([]byte, error) {
@@ -278,17 +287,4 @@ func (c BaseConnInfo) MarshalZerologObject(e *zerolog.Event) {
 	e.
 		Stringer("address", c.addr).
 		Bool("tls_insecure", c.tlsinsecure)
-}
-
-func ToQuicConnInfo(ci network.ConnInfo) (ConnInfo, error) {
-	if i, ok := ci.(ConnInfo); ok {
-		return i, nil
-	}
-
-	nci, err := NewBaseConnInfoFromString(ci.String())
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to convert to quic ConnInfo")
-	}
-
-	return nci, nil
 }

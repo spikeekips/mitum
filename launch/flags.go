@@ -2,6 +2,7 @@ package launch
 
 import (
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/network"
+	"github.com/spikeekips/mitum/network/quictransport"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -89,22 +91,38 @@ func (f AddressFlag) Address() base.Address {
 }
 
 type ConnInfoFlag struct {
-	ci network.ConnInfo
+	ci          quictransport.ConnInfo
+	addr        string
+	tlsinsecure bool
 }
 
 func (f *ConnInfoFlag) UnmarshalText(b []byte) error {
 	e := util.StringErrorFunc("failed to parse ConnInfo flag")
 
-	ci, err := network.ParseConnInfo(string(b))
-	if err != nil {
+	s := string(b)
+
+	if _, _, err := net.SplitHostPort(s); err != nil {
 		return e(err, "")
 	}
 
-	f.ci = ci
+	f.addr, f.tlsinsecure = network.ParseInsecure(s)
 
 	return nil
 }
 
-func (f *ConnInfoFlag) ConnInfo() network.ConnInfo {
-	return f.ci
+func (f ConnInfoFlag) String() string {
+	return network.ConnInfoToString(f.addr, f.tlsinsecure)
+}
+
+func (f *ConnInfoFlag) ConnInfo() (quictransport.ConnInfo, error) {
+	if f.ci == nil {
+		ci, err := quictransport.NewBaseConnInfoFromStringAddress(f.addr, f.tlsinsecure)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to convert to quic ConnInfo")
+		}
+
+		f.ci = ci
+	}
+
+	return f.ci, nil
 }

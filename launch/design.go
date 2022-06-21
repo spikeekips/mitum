@@ -2,7 +2,6 @@ package launch
 
 import (
 	"net"
-	"net/netip"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -16,18 +15,13 @@ import (
 )
 
 var (
-	DefaultNetworkBind     *netip.AddrPort
+	DefaultNetworkBind     = &net.UDPAddr{IP: net.ParseIP("127.0.0.0"), Port: 4321} //nolint:gomnd //...
 	defaultStorageBase     string
 	DefaultStorageBase     string
 	DefaultStorageDatabase *url.URL
 )
 
 func init() {
-	{
-		i := netip.AddrPortFrom(netip.IPv4Unspecified(), 4321)
-		DefaultNetworkBind = &i
-	}
-
 	{
 		a, err := os.Getwd()
 		if err != nil {
@@ -162,9 +156,9 @@ func (d *NodeDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 }
 
 type NodeNetworkDesign struct {
-	Bind        *netip.AddrPort `yaml:"bind"`
-	Publish     string          `yaml:"publish"`
-	TLSInsecure bool            `yaml:"tls_insecure"`
+	Bind        *net.UDPAddr `yaml:"bind"`
+	Publish     string       `yaml:"publish"`
+	TLSInsecure bool         `yaml:"tls_insecure"`
 }
 
 func (d *NodeNetworkDesign) IsValid([]byte) error {
@@ -173,8 +167,8 @@ func (d *NodeNetworkDesign) IsValid([]byte) error {
 	switch {
 	case d.Bind == nil:
 		d.Bind = DefaultNetworkBind
-	case !d.Bind.IsValid():
-		return e.Errorf("invalid bind")
+	case d.Bind.Port < 1:
+		return e.Errorf("invalid bind port")
 	}
 
 	if len(d.Publish) > 0 {
@@ -197,16 +191,30 @@ type NodeNetworkDesignYAMLMarshaler struct {
 	TLSInsecure bool   `yaml:"tls_insecure"`
 }
 
+func (d NodeNetworkDesign) MarshalYAML() (interface{}, error) {
+	var bind string
+
+	if d.Bind != nil {
+		bind = d.Bind.String()
+	}
+
+	return NodeNetworkDesignYAMLMarshaler{
+		Bind:        bind,
+		Publish:     d.Publish,
+		TLSInsecure: d.TLSInsecure,
+	}, nil
+}
+
 func (y *NodeNetworkDesignYAMLMarshaler) Decode(*jsonenc.Encoder) (d NodeNetworkDesign, _ error) {
 	e := util.StringErrorFunc("failed to unmarshal NodeNetworkDesign")
 
 	if s := strings.TrimSpace(y.Bind); len(s) > 0 {
-		ip, err := netip.ParseAddrPort(y.Bind)
+		addr, err := net.ResolveUDPAddr("udp", y.Bind)
 		if err != nil {
 			return d, e(err, "invalid bind")
 		}
 
-		d.Bind = &ip
+		d.Bind = addr
 	}
 
 	if s := strings.TrimSpace(y.Publish); len(s) > 0 {

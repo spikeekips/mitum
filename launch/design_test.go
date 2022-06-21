@@ -1,7 +1,7 @@
 package launch
 
 import (
-	"net/netip"
+	"net"
 	"net/url"
 	"path/filepath"
 	"testing"
@@ -125,10 +125,11 @@ func (t *testNodeNetworkDesign) SetupSuite() {
 }
 
 func (t *testNodeNetworkDesign) TestIsValid() {
-	addrport := netip.MustParseAddrPort("1.2.3.4:4321")
+	addrport := mustResolveUDPAddr("1.2.3.4:4321")
+
 	t.Run("ok", func() {
 		a := NodeNetworkDesign{
-			Bind:        &addrport,
+			Bind:        addrport,
 			Publish:     "4.3.2.1:1234",
 			TLSInsecure: true,
 		}
@@ -137,9 +138,11 @@ func (t *testNodeNetworkDesign) TestIsValid() {
 	})
 
 	t.Run("wrong bind", func() {
-		addrport := netip.AddrPortFrom(netip.Addr{}, 1234)
+		addrport := mustResolveUDPAddr("1.2.3.4:4321")
+		addrport.Port = 0
+
 		a := NodeNetworkDesign{
-			Bind:        &addrport,
+			Bind:        addrport,
 			Publish:     "4.3.2.1:1234",
 			TLSInsecure: true,
 		}
@@ -151,7 +154,7 @@ func (t *testNodeNetworkDesign) TestIsValid() {
 
 	t.Run("wrong publish; empty port", func() {
 		a := NodeNetworkDesign{
-			Bind:        &addrport,
+			Bind:        addrport,
 			Publish:     "4.3.2.1:",
 			TLSInsecure: true,
 		}
@@ -163,7 +166,7 @@ func (t *testNodeNetworkDesign) TestIsValid() {
 
 	t.Run("wrong publish; missing port", func() {
 		a := NodeNetworkDesign{
-			Bind:        &addrport,
+			Bind:        addrport,
 			Publish:     "4.3.2.1",
 			TLSInsecure: true,
 		}
@@ -175,7 +178,7 @@ func (t *testNodeNetworkDesign) TestIsValid() {
 
 	t.Run("wrong publish; empty host", func() {
 		a := NodeNetworkDesign{
-			Bind:        &addrport,
+			Bind:        addrport,
 			Publish:     ":4321",
 			TLSInsecure: true,
 		}
@@ -187,7 +190,7 @@ func (t *testNodeNetworkDesign) TestIsValid() {
 
 	t.Run("empty publish", func() {
 		a := NodeNetworkDesign{
-			Bind:        &addrport,
+			Bind:        addrport,
 			Publish:     "",
 			TLSInsecure: true,
 		}
@@ -272,7 +275,7 @@ func (t *testNodeDesign) SetupSuite() {
 }
 
 func (t *testNodeDesign) TestIsValid() {
-	addrport := netip.MustParseAddrPort("1.2.3.4:4321")
+	addrport := mustResolveUDPAddr("1.2.3.4:4321")
 
 	t.Run("ok", func() {
 		a := NodeDesign{
@@ -280,7 +283,7 @@ func (t *testNodeDesign) TestIsValid() {
 			Privatekey: base.NewMPrivatekey(),
 			NetworkID:  base.NetworkID(util.UUID().String()),
 			Network: NodeNetworkDesign{
-				Bind:        &addrport,
+				Bind:        addrport,
 				Publish:     "4.3.2.1:1234",
 				TLSInsecure: true,
 			},
@@ -312,7 +315,7 @@ func (t *testNodeDesign) TestIsValid() {
 			Privatekey: base.NewMPrivatekey(),
 			NetworkID:  base.NetworkID(util.UUID().String()),
 			Network: NodeNetworkDesign{
-				Bind:        &addrport,
+				Bind:        addrport,
 				Publish:     "4.3.2.1:1234",
 				TLSInsecure: true,
 			},
@@ -556,4 +559,10 @@ func (t *testGenesisOpertionsDesign) TestDecode() {
 
 func TestGenesisOpertionsDesign(t *testing.T) {
 	suite.Run(t, new(testGenesisOpertionsDesign))
+}
+
+func mustResolveUDPAddr(s string) *net.UDPAddr {
+	a, _ := net.ResolveUDPAddr("udp", s)
+
+	return a
 }

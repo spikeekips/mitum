@@ -10,7 +10,6 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	"github.com/spikeekips/mitum/launch"
-	"github.com/spikeekips/mitum/network/quictransport"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 )
@@ -47,7 +46,7 @@ func (cmd *networkClientCommand) Run() error {
 	}
 
 	log.Debug().
-		Stringer("remote", cmd.Remote.ConnInfo()).
+		Stringer("remote", cmd.Remote).
 		Stringer("timeout", cmd.Timeout).
 		Str("header", cmd.Header).
 		Msg("flags")
@@ -56,7 +55,7 @@ func (cmd *networkClientCommand) Run() error {
 		return errors.Wrap(err, "")
 	}
 
-	ci, err := quictransport.ToQuicConnInfo(cmd.Remote.ConnInfo())
+	ci, err := cmd.Remote.ConnInfo()
 	if err != nil {
 		return errors.Wrap(err, "")
 	}

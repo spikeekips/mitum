@@ -17,7 +17,6 @@ import (
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/network/quicstream"
-	"github.com/spikeekips/mitum/network/quictransport"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 )
@@ -518,7 +517,7 @@ func (cmd *runCommand) prepareSuffrageBuilder() {
 		func(ctx context.Context) (base.SuffrageProof, bool, error) {
 			discovery := cmd.Discovery[0]
 
-			ci, err := quictransport.ToQuicConnInfo(discovery.ConnInfo())
+			ci, err := discovery.ConnInfo()
 			if err != nil {
 				return nil, false, errors.Wrap(err, "")
 			}
@@ -542,7 +541,7 @@ func (cmd *runCommand) prepareSuffrageBuilder() {
 		func(ctx context.Context, suffrageheight base.Height) (base.SuffrageProof, bool, error) {
 			discovery := cmd.Discovery[0]
 
-			ci, err := quictransport.ToQuicConnInfo(discovery.ConnInfo())
+			ci, err := discovery.ConnInfo()
 			if err != nil {
 				return nil, false, errors.Wrap(err, "")
 			}
@@ -558,7 +557,7 @@ func (cmd *runCommand) syncerLastBlockMapf() isaacstates.SyncerLastBlockMapFunc 
 	return func(ctx context.Context, manifest util.Hash) (_ base.BlockMap, updated bool, _ error) {
 		discovery := cmd.Discovery[0]
 
-		ci, err := quictransport.ToQuicConnInfo(discovery.ConnInfo())
+		ci, err := discovery.ConnInfo()
 		if err != nil {
 			return nil, false, errors.Wrap(err, "")
 		}
@@ -581,7 +580,7 @@ func (cmd *runCommand) syncerBlockMapf() isaacstates.SyncerBlockMapFunc {
 		// FIXME use multiple discoveries
 		discovery := cmd.Discovery[0]
 
-		ci, err := quictransport.ToQuicConnInfo(discovery.ConnInfo())
+		ci, err := discovery.ConnInfo()
 		if err != nil {
 			return nil, false, errors.Wrap(err, "")
 		}
@@ -605,7 +604,7 @@ func (cmd *runCommand) syncerBlockMapItemf() isaacstates.SyncerBlockMapItemFunc 
 	) (io.ReadCloser, func() error, bool, error) {
 		discovery := cmd.Discovery[0]
 
-		ci, err := quictransport.ToQuicConnInfo(discovery.ConnInfo())
+		ci, err := discovery.ConnInfo()
 		if err != nil {
 			return nil, nil, false, errors.Wrap(err, "")
 		}
