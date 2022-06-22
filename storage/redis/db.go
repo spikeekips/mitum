@@ -108,20 +108,24 @@ func (st *Storage) Exists(ctx context.Context, key string) (bool, error) {
 func (st *Storage) Clean(ctx context.Context) error {
 	e := util.StringErrorFunc("failed to clean redis storage")
 
-	for {
-		var cursor uint64
+	var cursor uint64
 
-		keys, _, err := st.client.Scan(ctx, cursor, st.prefix+"*", 333).Result() //nolint:gomnd // bulk size
+	for {
+		keys, c, err := st.client.Scan(ctx, cursor, st.prefix+"*", 333).Result() //nolint:gomnd // bulk size
 		if err != nil {
 			return e(err, "")
 		}
 
-		if len(keys) < 1 {
-			break
+		cursor = c
+
+		if len(keys) > 0 {
+			if _, err := st.client.Del(ctx, keys...).Result(); err != nil {
+				return e(err, "")
+			}
 		}
 
-		if _, err := st.client.Del(ctx, keys...).Result(); err != nil {
-			return e(err, "")
+		if cursor == 0 {
+			break
 		}
 	}
 
