@@ -262,6 +262,7 @@ func (srv *Memberlist) SetLogging(l *logging.Logging) *logging.Logging {
 		srv.mconfig.Delegate,
 		srv.mconfig.Events,
 		srv.mconfig.Alive,
+		srv.mconfig.Transport,
 	}
 
 	for i := range ds {

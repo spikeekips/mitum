@@ -66,7 +66,7 @@ func NewTransportWithQuicstream(
 	}
 	if len(handlerPrefix) > 0 {
 		makebody = func(b []byte) []byte {
-			return quicstream.BodyWithPrefix("memberlist", b)
+			return quicstream.BodyWithPrefix(handlerPrefix, b)
 		}
 	}
 
