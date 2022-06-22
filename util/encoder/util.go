@@ -43,7 +43,7 @@ func AnalyzeSetHinter(d DecodeDetail, v interface{}) DecodeDetail {
 		d.Decode = func(b []byte, ht hint.Hint) (interface{}, error) {
 			i, err := p(b, ht)
 			if err != nil {
-				return i, errors.Wrap(err, "failed to decode")
+				return i, errors.WithMessage(err, "failed to decode")
 			}
 
 			if ht.IsEmpty() {
@@ -60,7 +60,7 @@ func AnalyzeSetHinter(d DecodeDetail, v interface{}) DecodeDetail {
 	d.Decode = func(b []byte, ht hint.Hint) (interface{}, error) {
 		i, err := p(b, ht)
 		if err != nil {
-			return i, errors.Wrap(err, "failed to decode")
+			return i, errors.WithMessage(err, "failed to decode")
 		}
 
 		n := reflect.New(reflect.TypeOf(i))

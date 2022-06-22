@@ -162,7 +162,7 @@ func (im *BlockImporter) importItem(t base.BlockMapItemType, r io.Reader) error 
 
 	switch w, err := im.localfs.WriteItem(t); {
 	case err != nil:
-		return errors.Wrap(err, "")
+		return err
 	default:
 		defer func() {
 			_ = w.Close()
@@ -179,7 +179,7 @@ func (im *BlockImporter) importItem(t base.BlockMapItemType, r io.Reader) error 
 
 		gr, err := util.NewGzipReader(j)
 		if err != nil {
-			return errors.Wrap(err, "")
+			return err
 		}
 
 		cr = util.NewDummyChecksumReader(gr, j)
@@ -191,23 +191,25 @@ func (im *BlockImporter) importItem(t base.BlockMapItemType, r io.Reader) error 
 		_ = cr.Close()
 	}()
 
-	var err error
+	var ierr error
 
 	switch t {
 	case base.BlockMapItemTypeStatesTree:
-		err = im.importStatesTree(item, cr)
+		ierr = im.importStatesTree(item, cr)
 	case base.BlockMapItemTypeStates:
-		err = im.importStates(item, cr)
+		ierr = im.importStates(item, cr)
 	case base.BlockMapItemTypeOperations:
-		err = im.importOperations(item, cr)
+		ierr = im.importOperations(item, cr)
 	case base.BlockMapItemTypeVoteproofs:
-		err = im.importVoteproofs(item, cr)
+		ierr = im.importVoteproofs(item, cr)
 	default:
-		_, err = io.ReadAll(cr)
+		if _, err := io.ReadAll(cr); err != nil {
+			return errors.Wrap(err, "")
+		}
 	}
 
-	if err != nil {
-		return errors.Wrap(err, "")
+	if ierr != nil {
+		return ierr
 	}
 
 	if cr.Checksum() != item.Checksum() {
@@ -256,14 +258,14 @@ func (im *BlockImporter) importOperations(item base.BlockMapItem, r io.Reader) e
 		}
 
 		if err := op.IsValid(im.networkID); err != nil {
-			return errors.Wrap(err, "")
+			return err
 		}
 
 		ops[index] = op.Hash()
 
 		if index == uint64(len(ops))-1 {
 			if err := im.bwdb.SetOperations(ops); err != nil {
-				return errors.Wrap(err, "")
+				return err
 			}
 
 			index = 0
@@ -307,7 +309,7 @@ func (im *BlockImporter) importStates(item base.BlockMapItem, r io.Reader) error
 		}
 
 		if err := st.IsValid(nil); err != nil {
-			return errors.Wrap(err, "")
+			return err
 		}
 
 		if base.IsSuffrageState(st) {
@@ -318,7 +320,7 @@ func (im *BlockImporter) importStates(item base.BlockMapItem, r io.Reader) error
 
 		if index == uint64(len(sts))-1 {
 			if err := im.bwdb.SetStates(sts); err != nil {
-				return errors.Wrap(err, "")
+				return err
 			}
 
 			index = 0

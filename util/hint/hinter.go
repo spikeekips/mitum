@@ -27,7 +27,7 @@ func (BaseHinter) SetHint(n Hint) Hinter {
 
 func (ht BaseHinter) IsValid(expectedType []byte) error {
 	if err := ht.HT.IsValid(nil); err != nil {
-		return errors.Wrap(err, "invalid hint in BaseHinter")
+		return errors.WithMessage(err, "invalid hint in BaseHinter")
 	}
 
 	if len(expectedType) > 0 {

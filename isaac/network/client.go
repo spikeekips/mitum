@@ -254,7 +254,7 @@ func (c *baseNetworkClient) requestOK(
 	u interface{},
 ) (bool, error) {
 	if err := header.IsValid(nil); err != nil {
-		return false, errors.Wrap(err, "")
+		return false, err
 	}
 
 	r, cancel, err := c.write(ctx, ci, c.enc, header, body)
@@ -277,7 +277,7 @@ func (c *baseNetworkClient) requestOK(
 		return false, nil
 	default:
 		if err := encoder.DecodeReader(enc, r, u); err != nil {
-			return false, errors.Wrap(err, "")
+			return false, err
 		}
 
 		return true, nil
@@ -319,16 +319,16 @@ func (c *baseNetworkClient) write(
 ) (io.ReadCloser, func() error, error) {
 	b, err := enc.Marshal(header)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "")
+		return nil, nil, err
 	}
 
 	r, cancel, err := c.writef(ctx, ci, func(w io.Writer) error {
 		if err = quicstream.WritePrefix(w, header.HandlerPrefix()); err != nil {
-			return errors.Wrap(err, "")
+			return err
 		}
 
 		if err = writeHint(w, enc.Hint()); err != nil {
-			return errors.Wrap(err, "")
+			return err
 		}
 
 		if _, err = w.Write(b); err != nil {

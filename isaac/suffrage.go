@@ -1,7 +1,6 @@
 package isaac
 
 import (
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
@@ -28,7 +27,7 @@ type Suffrage struct {
 func NewSuffrageFromState(st base.State) (suf Suffrage, _ error) {
 	switch v, err := base.LoadSuffrageState(st); {
 	case err != nil:
-		return suf, errors.Wrap(err, "")
+		return suf, err
 	default:
 		return NewSuffrageFromStateValue(v)
 	}
@@ -37,7 +36,7 @@ func NewSuffrageFromState(st base.State) (suf Suffrage, _ error) {
 func NewSuffrageFromStateValue(v base.SuffrageStateValue) (suf Suffrage, _ error) {
 	i, err := NewSuffrage(v.Nodes())
 	if err != nil {
-		return suf, errors.Wrap(err, "")
+		return suf, err
 	}
 
 	return i, nil

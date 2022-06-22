@@ -49,7 +49,7 @@ type BaseNode struct {
 func NewNode(name string, addr *net.UDPAddr, meta NodeMeta) (BaseNode, error) {
 	metab, err := util.MarshalJSON(meta)
 	if err != nil {
-		return BaseNode{}, errors.Wrap(err, "failed to create Node")
+		return BaseNode{}, errors.WithMessage(err, "failed to create Node")
 	}
 
 	return BaseNode{
@@ -241,7 +241,7 @@ func NewBaseConnInfoFromString(s string) (BaseConnInfo, error) {
 func NewBaseConnInfoFromStringAddress(s string, tlsinsecure bool) (BaseConnInfo, error) {
 	addr, err := net.ResolveUDPAddr("udp", s)
 	if err != nil {
-		return BaseConnInfo{}, util.ErrInvalid.Wrapf(err, "failed to parse BaseConnInfo")
+		return BaseConnInfo{}, util.ErrInvalid.Wrap(errors.Wrap(err, "failed to parse BaseConnInfo"))
 	}
 
 	return NewBaseConnInfo(addr, tlsinsecure), nil
@@ -275,7 +275,7 @@ func (c BaseConnInfo) MarshalText() ([]byte, error) {
 func (c *BaseConnInfo) UnmarshalText(b []byte) error {
 	ci, err := NewBaseConnInfoFromString(string(b))
 	if err != nil {
-		return errors.Wrap(err, "failed to unmarshal BaseConnInfo")
+		return errors.WithMessage(err, "failed to unmarshal BaseConnInfo")
 	}
 
 	*c = ci

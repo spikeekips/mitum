@@ -9,13 +9,19 @@ import (
 )
 
 func marshalJSON(v interface{}) ([]byte, error) {
-	return sonic.Marshal(v) //nolint:wrapcheck //...
+	b, err := sonic.Marshal(v) //nolint:wrapcheck //...
+
+	return b, errors.Wrap(err, "")
 }
 
 func unmarshalJSON(b []byte, v interface{}) error {
-	return sonic.Unmarshal(b, v) //nolint:wrapcheck //...
+	err := sonic.Unmarshal(b, v) //nolint:wrapcheck //...
+
+	return errors.Wrap(err, "")
 }
 
 func marshalJSONIndent(i interface{}) ([]byte, error) {
-	return sonicencoder.EncodeIndented(i, "", "  ", 0) //nolint:wrapcheck //...
+	b, err := sonicencoder.EncodeIndented(i, "", "  ", 0) //nolint:wrapcheck //...
+
+	return b, errors.Wrap(err, "")
 }

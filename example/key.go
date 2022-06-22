@@ -26,6 +26,7 @@ func (cmd *keyNewCommand) Run() error {
 	}
 
 	var key base.Privatekey
+
 	switch {
 	case len(cmd.Seed) > 0:
 		if len(strings.TrimSpace(cmd.Seed)) < 1 {
@@ -43,11 +44,11 @@ func (cmd *keyNewCommand) Run() error {
 	}
 
 	o := struct {
-		Seed       string      `json:"seed"`
-		PrivateKey base.PKKey  `json:"privatekey"`
+		PrivateKey base.PKKey  `json:"privatekey"` //nolint:tagliatelle //...
 		Publickey  base.PKKey  `json:"publickey"`
-		Type       string      `json:"type"`
 		Hint       interface{} `json:"hint,omitempty"`
+		Seed       string      `json:"seed"`
+		Type       string      `json:"type"`
 	}{
 		Seed:       cmd.Seed,
 		PrivateKey: key,
@@ -80,7 +81,7 @@ func (cmd *keyLoadCommand) Run() error {
 		Msg("flags")
 
 	if err := cmd.prepareEncoder(); err != nil {
-		return errors.Wrap(err, "")
+		return err
 	}
 
 	if len(cmd.KeyString) < 1 {
@@ -89,13 +90,13 @@ func (cmd *keyLoadCommand) Run() error {
 
 	if key, err := base.DecodePrivatekeyFromString(cmd.KeyString, cmd.enc); err == nil {
 		o := struct {
-			KeyString  string      `json:"string"`
-			PrivateKey base.PKKey  `json:"privatekey"`
+			PrivateKey base.PKKey  `json:"privatekey"` //nolint:tagliatelle //...
 			Publickey  base.PKKey  `json:"publickey"`
-			Type       string      `json:"type"`
 			Hint       interface{} `json:"hint,omitempty"`
+			String     string      `json:"string"`
+			Type       string      `json:"type"`
 		}{
-			KeyString:  cmd.KeyString,
+			String:     cmd.KeyString,
 			PrivateKey: key,
 			Publickey:  key.Publickey(),
 			Type:       "privatekey",
@@ -107,7 +108,7 @@ func (cmd *keyLoadCommand) Run() error {
 
 		b, err := util.MarshalJSONIndent(o)
 		if err != nil {
-			return errors.Wrap(err, "")
+			return err
 		}
 
 		_, _ = fmt.Fprintln(os.Stdout, string(b))
@@ -117,12 +118,12 @@ func (cmd *keyLoadCommand) Run() error {
 
 	if key, err := base.DecodePublickeyFromString(cmd.KeyString, cmd.enc); err == nil {
 		o := struct {
-			KeyString string      `json:"string"`
 			Publickey base.PKKey  `json:"publickey"`
-			Type      string      `json:"type"`
 			Hint      interface{} `json:"hint,omitempty"`
+			String    string      `json:"string"`
+			Type      string      `json:"type"`
 		}{
-			KeyString: cmd.KeyString,
+			String:    cmd.KeyString,
 			Publickey: key,
 			Type:      "publickey",
 		}
@@ -133,7 +134,7 @@ func (cmd *keyLoadCommand) Run() error {
 
 		b, err := util.MarshalJSONIndent(o)
 		if err != nil {
-			return errors.Wrap(err, "")
+			return err
 		}
 
 		_, _ = fmt.Fprintln(os.Stdout, string(b))

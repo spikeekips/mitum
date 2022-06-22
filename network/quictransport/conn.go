@@ -132,7 +132,7 @@ func (c *qconn) Write(b []byte) (int, error) {
 	case errors.Is(err, context.DeadlineExceeded):
 		return n, errors.Wrap(os.ErrDeadlineExceeded, "")
 	default:
-		return n, errors.Wrap(err, "")
+		return n, err
 	}
 }
 

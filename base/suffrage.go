@@ -40,7 +40,7 @@ func InterfaceIsSuffrageState(i interface{}) (State, error) {
 		return nil, errors.Errorf("not suffrage state: %T", i)
 	default:
 		if _, err := LoadSuffrageState(st); err != nil {
-			return nil, errors.Wrap(err, "")
+			return nil, err
 		}
 
 		return st, nil

@@ -168,7 +168,7 @@ func (w *Writer) closeStateValues(ctx context.Context) error {
 	if w.opstreeg != nil {
 		if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
 			if err := w.fswriter.SetOperationsTree(ctx, w.opstreeg); err != nil {
-				return errors.Wrap(err, "")
+				return err
 			}
 
 			w.opstreeroot = w.opstreeg.Root()
@@ -217,11 +217,11 @@ func (w *Writer) closeStateValues(ctx context.Context) error {
 				}
 
 				if err := w.fswriter.SetState(ctx, index, nst); err != nil {
-					return errors.Wrap(err, "")
+					return err
 				}
 
 				if err := w.db.SetStates([]base.State{nst}); err != nil {
-					return errors.Wrap(err, "")
+					return err
 				}
 
 				states[index] = nst
@@ -257,7 +257,7 @@ func (*Writer) closeStateValue(
 	}
 
 	if err := stm.Close(); err != nil {
-		return nil, errors.Wrap(err, "")
+		return nil, err
 	}
 
 	return stm, tg.Add(index, fixedtree.NewBaseNode(stm.Hash().String()))
@@ -274,7 +274,7 @@ func (w *Writer) saveStates(
 		func(ctx context.Context, _ uint64) error {
 			i, err := w.fswriter.SetStatesTree(ctx, tg)
 			if err != nil {
-				return errors.Wrap(err, "")
+				return err
 			}
 
 			w.ststree = i

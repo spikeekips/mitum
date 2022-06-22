@@ -13,7 +13,7 @@ func (h *BaseHeader) unmarshalJSON(b []byte) error {
 	var u hint.BaseHinter
 
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return errors.Wrap(err, "")
+		return err
 	}
 
 	h.BaseHinter = u

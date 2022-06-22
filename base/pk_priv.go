@@ -142,7 +142,7 @@ func (k MPrivatekey) MarshalText() ([]byte, error) {
 func (k *MPrivatekey) UnmarshalText(b []byte) error {
 	u, err := LoadMPrivatekey(string(b))
 	if err != nil {
-		return errors.Wrap(err, "")
+		return err
 	}
 
 	*k = u.ensure()

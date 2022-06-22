@@ -28,7 +28,7 @@ func newBaseDatabase(
 func (db *baseDatabase) marshal(i interface{}) ([]byte, error) {
 	b, err := db.enc.Marshal(i)
 	if err != nil {
-		return nil, errors.Wrap(err, "")
+		return nil, err
 	}
 
 	return db.marshalWithEncoder(b), nil
@@ -57,10 +57,10 @@ func (db *baseDatabase) readHinter(b []byte, v interface{}) error {
 
 	switch enc, raw, err := db.readEncoder(b); {
 	case err != nil:
-		return errors.Wrap(err, "")
+		return err
 	default:
 		if err := encoder.Decode(enc, raw, v); err != nil {
-			return errors.Wrap(err, "")
+			return err
 		}
 
 		return nil

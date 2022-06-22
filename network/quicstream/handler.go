@@ -25,7 +25,7 @@ func NewPrefixHandler(errorHandler ErrorHandler) *PrefixHandler {
 	nerrorHandler := errorHandler
 	if nerrorHandler == nil {
 		nerrorHandler = func(_ net.Addr, _ io.Reader, _ io.Writer, err error) error {
-			return errors.Wrap(err, "")
+			return err
 		}
 	}
 
@@ -38,7 +38,7 @@ func NewPrefixHandler(errorHandler ErrorHandler) *PrefixHandler {
 func (h *PrefixHandler) Handler(addr net.Addr, r io.Reader, w io.Writer) error {
 	handler, err := h.loadHandler(r)
 	if err != nil {
-		return h.errorHandler(addr, r, w, errors.Errorf("handler not found"))
+		return h.errorHandler(addr, r, w, err)
 	}
 
 	if err := handler(addr, r, w); err != nil {
@@ -64,7 +64,7 @@ func (h *PrefixHandler) loadHandler(r io.Reader) (Handler, error) {
 
 	handler, found := h.handlers[string(prefix)]
 	if !found {
-		return nil, errors.Errorf("handler not found")
+		return nil, e(nil, "handler not found")
 	}
 
 	return handler, nil

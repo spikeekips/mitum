@@ -61,7 +61,7 @@ func Outputs(files []string) (io.Writer, error) {
 	for i, f := range files {
 		out, err := Output(f)
 		if err != nil {
-			return zerolog.Logger{}, errors.Wrap(err, "failed Outputs")
+			return zerolog.Logger{}, errors.WithMessage(err, "failed Outputs")
 		}
 
 		ws[i] = out

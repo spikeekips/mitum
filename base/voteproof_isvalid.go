@@ -1,7 +1,6 @@
 package base
 
 import (
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -102,7 +101,7 @@ func isValidVoteproofSignedFacts(vp Voteproof, networkID NetworkID) error {
 			}
 
 			if err := vs[i].IsValid(networkID); err != nil {
-				return errors.Wrap(err, "")
+				return err
 			}
 
 			return isValidSignedFactInVoteproof(vp, vs[i])

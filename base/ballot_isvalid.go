@@ -1,7 +1,6 @@
 package base
 
 import (
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -154,11 +153,7 @@ func IsValidINITBallotFact(fact INITBallotFact) error {
 				return nil
 			}
 
-			if err := fact.PreviousBlock().IsValid(b); err != nil {
-				return errors.Wrap(err, "")
-			}
-
-			return nil
+			return fact.PreviousBlock().IsValid(b)
 		}),
 		fact.Proposal(),
 	); err != nil {

@@ -38,13 +38,13 @@ func ImportBlocks(
 		func(ctx context.Context, last uint64) error {
 			if ims != nil {
 				if err := saveImporters(ctx, ims, merge); err != nil {
-					return errors.Wrap(err, "")
+					return err
 				}
 			}
 
 			switch i, j, err := newBlockWriteDatabase(from); {
 			case err != nil:
-				return errors.Wrap(err, "")
+				return err
 			default:
 				bwdb = i
 				merge = j
@@ -65,18 +65,18 @@ func ImportBlocks(
 			m, found, err := blockMapf(height)
 			switch {
 			case err != nil:
-				return errors.Wrap(err, "")
+				return err
 			case !found:
 				return util.ErrNotFound.Errorf("BlockMap not found")
 			}
 
 			im, err := newBlockImporter(m, bwdb)
 			if err != nil {
-				return errors.Wrap(err, "")
+				return err
 			}
 
 			if err := importBlock(ctx, height, m, im, blockMapItemf); err != nil {
-				return errors.Wrap(err, "")
+				return err
 			}
 
 			ims[(height-from).Int64()%batchlimit] = im
@@ -127,7 +127,7 @@ func importBlock(
 			workch <- func(ctx context.Context, _ uint64) error {
 				switch r, cancel, found, err := blockMapItemf(ctx, height, item.Type()); {
 				case err != nil:
-					return errors.Wrap(err, "")
+					return err
 				case !found:
 					_ = cancel()
 
@@ -139,7 +139,7 @@ func importBlock(
 					}()
 
 					if err := im.WriteItem(item.Type(), r); err != nil {
-						return errors.Wrap(err, "")
+						return err
 					}
 
 					return nil

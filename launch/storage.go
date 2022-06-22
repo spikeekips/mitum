@@ -449,12 +449,12 @@ func ValidateLocalFS(
 
 			reader, err := isaacblock.NewLocalFSReaderFromHeight(dataroot, height, enc)
 			if err != nil {
-				return errors.Wrap(err, "")
+				return err
 			}
 
 			switch m, found, err := reader.BlockMap(); {
 			case err != nil:
-				return errors.Wrap(err, "")
+				return err
 			case !found:
 				return errors.Wrap(util.ErrNotFound.Errorf("BlockMap not found"), "")
 			case m.Manifest().Height() != height:
@@ -597,7 +597,7 @@ func ValidateOperationsOfBlock(
 			func(_ context.Context, i, _ uint64) error {
 				switch found, err := perm.ExistsKnownOperation(ops[i].Hash()); {
 				case err != nil:
-					return errors.Wrap(err, "")
+					return err
 				case !found:
 					return util.ErrNotFound.Errorf("operation not found in ExistsKnownOperation; %q", ops[i].Hash())
 				default:
@@ -636,7 +636,7 @@ func ValidateStatesOfBlock(
 
 				switch rst, found, err := perm.State(st.Key()); {
 				case err != nil:
-					return errors.Wrap(err, "")
+					return err
 				case !found:
 					return util.ErrNotFound.Errorf("state not found in State")
 				case !base.IsEqualState(st, rst):
@@ -647,7 +647,7 @@ func ValidateStatesOfBlock(
 				for j := range ops {
 					switch found, err := perm.ExistsInStateOperation(ops[j]); {
 					case err != nil:
-						return errors.Wrap(err, "")
+						return err
 					case !found:
 						return util.ErrNotFound.Errorf("operation of state not found in ExistsInStateOperation")
 					}

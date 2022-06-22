@@ -3,7 +3,10 @@
 
 package util
 
-import jsoniter "github.com/json-iterator/go"
+import (
+	jsoniter "github.com/json-iterator/go"
+	"github.com/pkg/errors"
+)
 
 var jsoniterconfiged = jsoniter.Config{
 	EscapeHTML: false,
@@ -15,13 +18,19 @@ var indentjsoniterconfiged = jsoniter.Config{
 }.Froze()
 
 func marshalJSON(v interface{}) ([]byte, error) {
-	return jsoniterconfiged.Marshal(v) //nolint:wrapcheck //...
+	b, err := jsoniterconfiged.Marshal(v) //nolint:wrapcheck //...
+
+	return b, errors.Wrap(err, "")
 }
 
 func unmarshalJSON(b []byte, v interface{}) error {
-	return jsoniterconfiged.Unmarshal(b, v) //nolint:wrapcheck //...
+	err := jsoniterconfiged.Unmarshal(b, v) //nolint:wrapcheck //...
+
+	return errors.Wrap(err, "")
 }
 
 func marshalJSONIndent(i interface{}) ([]byte, error) {
-	return indentjsoniterconfiged.MarshalIndent(i, "", "  ") //nolint:wrapcheck //...
+	b, err := indentjsoniterconfiged.MarshalIndent(i, "", "  ") //nolint:wrapcheck //...
+
+	return b, errors.Wrap(err, "")
 }

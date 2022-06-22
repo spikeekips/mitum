@@ -612,18 +612,14 @@ func (p *DefaultProposalProcessor) wait(ctx context.Context) (
 }
 
 func (p *DefaultProposalProcessor) retry(ctx context.Context, f func() (bool, error)) error {
-	if err := util.Retry(ctx, func() (bool, error) {
+	return util.Retry(ctx, func() (bool, error) {
 		keep, err := f()
 		if errors.Is(err, StopProcessingRetryError) {
 			return false, err
 		}
 
 		return keep, err
-	}, p.retrylimit, p.retryinterval); err != nil {
-		return errors.Wrap(err, "")
-	}
-
-	return nil
+	}, p.retrylimit, p.retryinterval)
 }
 
 type ReasonProcessedOperation struct {

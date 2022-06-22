@@ -1409,6 +1409,7 @@ linters-settings:
       - .Err(
     ignoreSigRegexps:
       - \.New.*Error\(
+      - /mitum/
     ignorePackageGlobs:
       - encoding/*
       - github.com/pkg/*

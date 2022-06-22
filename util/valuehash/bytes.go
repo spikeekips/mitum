@@ -76,7 +76,7 @@ func (d *HashDecoder) UnmarshalText(b []byte) error {
 
 	var u Bytes
 	if err := u.UnmarshalText(b); err != nil {
-		return errors.Wrap(err, "failed to decode hash by Bytes")
+		return errors.WithMessage(err, "failed to decode hash by Bytes")
 	}
 
 	d.h = u

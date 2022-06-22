@@ -32,8 +32,6 @@ func (er Error) Unwrap() error {
 }
 
 func (er Error) Is(err error) bool {
-	er.checkStack()
-
 	e, ok := err.(Error) //nolint:errorlint //...
 	if !ok {
 		if er.wrapped == nil {
@@ -47,12 +45,17 @@ func (er Error) Is(err error) bool {
 }
 
 func (er Error) Wrap(err error) Error {
+	var stk stack
+	if _, ok := err.(stackTracer); !ok {
+		stk = er.setStack()
+	}
+
 	return Error{
 		wrapped: err,
 		id:      er.id,
 		msg:     er.msg,
 		extra:   er.extra,
-		stack:   er.setStack(),
+		stack:   stk,
 	}
 }
 
@@ -63,29 +66,20 @@ func (er Error) Wrapf(err error, s string, a ...interface{}) Error {
 		id:      er.id,
 		msg:     er.msg,
 		extra:   fmt.Sprintf(s, a...),
-		stack:   er.setStack(),
 	}
 }
 
 // Errorf formats strings. It does not support `%w` error formatting.
 func (er Error) Errorf(s string, a ...interface{}) Error {
-	prev := er.wrapped
-	if er.stack != nil {
-		prev = er
-	}
-
 	return Error{
-		wrapped: prev,
-		id:      er.id,
-		msg:     er.msg,
-		extra:   fmt.Sprintf(s, a...),
-		stack:   er.setStack(),
+		id:    er.id,
+		msg:   er.msg,
+		extra: fmt.Sprintf(s, a...),
+		stack: er.setStack(),
 	}
 }
 
 func (er Error) Format(st fmt.State, verb rune) {
-	er.checkStack()
-
 	switch verb {
 	case 'v':
 		if st.Flag('+') {
@@ -148,14 +142,8 @@ func (er Error) Call() Error {
 	return er
 }
 
-func (er Error) checkStack() {
-	if er.stack == nil {
-		panic(errors.Errorf("error, %q should not be used as error directly without Call()", er.msg))
-	}
-}
-
 func (Error) setStack() stack {
-	return callers(3)
+	return callers(4)
 }
 
 func (er Error) message() string {
@@ -168,8 +156,6 @@ func (er Error) message() string {
 }
 
 func (er Error) Error() string {
-	er.checkStack()
-
 	s := er.message()
 
 	if er.wrapped != nil {
@@ -226,7 +212,7 @@ func StringErrorFunc(m string, a ...interface{}) func(error, string, ...interfac
 			return errors.Errorf(f+s, a...)
 		}
 
-		return errors.Wrapf(err, f+s, a...)
+		return errors.WithMessage(err, fmt.Sprintf(f+s, a...))
 	}
 }
 
@@ -253,37 +239,25 @@ func ZerologMarshalStack(err error) interface{} {
 		return ZerologMarshalStack(uerr)
 	}
 
+	switch uerr := errors.Unwrap(err); {
+	case uerr == nil:
+	case errors.As(err, &sterr):
+		return ZerologMarshalStack(uerr)
+	}
+
 	st := sterr.StackTrace()
 	s := &state{}
 	out := make([]map[string]string, len(st)+1)
 
-	out[0] = map[string]string{"error": err.Error()}
-
 	for i := range st {
 		frame := st[i]
-		out[i+1] = map[string]string{
+		out[i] = map[string]string{
 			pkgerrors.StackSourceFileName:     frameField(frame, s, 's') + ":" + frameField(frame, s, 'd'),
 			pkgerrors.StackSourceFunctionName: frameField(frame, s, 'n'),
 		}
 	}
 
-	uerr := errors.Unwrap(err)
-	if uerr == nil {
-		return out
-	}
-
-	uout := ZerologMarshalStack(uerr)
-	if uout == nil {
-		return out
-	}
-
-	uoutl := uout.([]map[string]string) //nolint:forcetypeassert //...
-
-	nout := make([]map[string]string, len(out)+len(uoutl))
-	copy(nout[:len(uoutl)], uoutl)
-	copy(nout[len(uoutl):], out)
-
-	return nout
+	return out
 }
 
 // -x----------------------------------------------------

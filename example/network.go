@@ -6,7 +6,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
@@ -53,7 +52,7 @@ func (cmd *networkClientCommand) Run() error {
 		Msg("flags")
 
 	if err := cmd.prepareEncoder(); err != nil {
-		return errors.Wrap(err, "")
+		return err
 	}
 
 	if cmd.Header == "example" {
@@ -62,7 +61,7 @@ func (cmd *networkClientCommand) Run() error {
 		for desc := range headerExamples {
 			b, err := util.MarshalJSON(headerExamples[desc])
 			if err != nil {
-				return errors.Wrap(err, "")
+				return err
 			}
 
 			_, _ = fmt.Fprintf(os.Stdout, " - %s:\n%s\n", desc, string(b))
@@ -75,12 +74,12 @@ func (cmd *networkClientCommand) Run() error {
 
 	ci, err := cmd.Remote.ConnInfo()
 	if err != nil {
-		return errors.Wrap(err, "")
+		return err
 	}
 
 	var header isaac.NetworkHeader
 	if err = encoder.Decode(cmd.enc, []byte(cmd.Header), &header); err != nil {
-		return errors.Wrap(err, "")
+		return err
 	}
 
 	client := launch.NewNetworkClient(cmd.encs, cmd.enc, cmd.Timeout) //nolint:gomnd //...
@@ -96,7 +95,7 @@ func (cmd *networkClientCommand) Run() error {
 		"error":    err,
 	})
 	if err != nil {
-		return errors.Wrap(err, "")
+		return err
 	}
 
 	_, _ = fmt.Fprintln(os.Stdout, string(b))

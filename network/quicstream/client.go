@@ -72,7 +72,7 @@ func (c *Client) Session() quic.EarlyConnection {
 func (c *Client) Dial(ctx context.Context) (quic.EarlyConnection, error) {
 	session, err := c.dial(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "")
+		return nil, err
 	}
 
 	return session, nil

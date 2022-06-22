@@ -3,6 +3,7 @@ package leveldbstorage
 import (
 	"path/filepath"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/storage"
 	"github.com/spikeekips/mitum/util"
 	"github.com/syndtr/goleveldb/leveldb"
@@ -49,13 +50,13 @@ func newRWStorage(st leveldbStorage.Storage, f string) (*RWStorage, error) {
 }
 
 func (st *RWStorage) Put(k, b []byte, opt *leveldbOpt.WriteOptions) error {
-	return st.db.Put(k, b, opt)
+	return errors.Wrap(st.db.Put(k, b, opt), "")
 }
 
 func (st *RWStorage) Delete(k []byte, opt *leveldbOpt.WriteOptions) error {
-	return st.db.Delete(k, opt)
+	return errors.Wrap(st.db.Delete(k, opt), "")
 }
 
 func (st *RWStorage) Write(batch *leveldb.Batch, opt *leveldbOpt.WriteOptions) error {
-	return st.db.Write(batch, opt)
+	return errors.Wrap(st.db.Write(batch, opt), "")
 }

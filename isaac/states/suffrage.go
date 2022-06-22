@@ -183,20 +183,20 @@ func (*SuffrageStateBuilder) prove(
 
 	if index == 0 {
 		if err := proof.Prove(previous); err != nil {
-			return errors.Wrap(err, "")
+			return err
 		}
 	}
 
 	if index > 0 && proofs[index-1] != nil {
 		if err := proof.Prove(proofs[index-1].State()); err != nil {
-			return errors.Wrap(err, "")
+			return err
 		}
 	}
 
 	// revive:disable-next-line:optimize-operands-order
 	if index+1 < int64(len(proofs)) && proofs[index+1] != nil {
 		if err := proofs[index+1].Prove(proof.State()); err != nil {
-			return errors.Wrap(err, "")
+			return err
 		}
 	}
 

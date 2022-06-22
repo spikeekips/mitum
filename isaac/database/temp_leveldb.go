@@ -209,7 +209,7 @@ func (db *TempLeveldb) loadSuffrageProof() error {
 func (db *TempLeveldb) loadNetworkPolicy() error {
 	switch policy, found, err := db.baseLeveldb.loadNetworkPolicy(); {
 	case err != nil:
-		return errors.Wrap(err, "")
+		return err
 	case !found:
 		return nil
 	default:
@@ -354,7 +354,7 @@ func loadTempDirectories(prefix string) ([]string, error) {
 func loadTemp(f string, encs *encoder.Encoders, enc encoder.Encoder) (isaac.TempDatabase, error) {
 	temp, err := NewTempLeveldb(f, encs, enc)
 	if err != nil {
-		return nil, errors.Wrap(err, "")
+		return nil, err
 	}
 
 	return temp, nil

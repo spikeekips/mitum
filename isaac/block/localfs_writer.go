@@ -270,7 +270,7 @@ func (w *LocalFSWriter) Save(ctx context.Context) (base.BlockMap, error) {
 
 	m, err := w.save(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "")
+		return nil, err
 	}
 
 	_ = w.saved.SetValue(true)
@@ -452,7 +452,7 @@ func (w *LocalFSWriter) saveMap() error {
 func (w *LocalFSWriter) filename(t base.BlockMapItemType) (filename string, temppath string, err error) {
 	f, err := BlockFileName(t, w.enc.Hint().Type().String())
 	if err != nil {
-		return "", "", errors.Wrap(err, "")
+		return "", "", err
 	}
 
 	return f, filepath.Join(w.temp, f), nil
@@ -461,7 +461,7 @@ func (w *LocalFSWriter) filename(t base.BlockMapItemType) (filename string, temp
 func (w *LocalFSWriter) writeItem(t base.BlockMapItemType, i interface{}) error {
 	cw, err := w.newChecksumWriter(t)
 	if err != nil {
-		return errors.Wrap(err, "")
+		return err
 	}
 
 	defer func() {
@@ -469,26 +469,22 @@ func (w *LocalFSWriter) writeItem(t base.BlockMapItemType, i interface{}) error 
 	}()
 
 	if err := w.writefileonce(cw, i); err != nil {
-		return errors.Wrap(err, "")
+		return err
 	}
 
 	_ = cw.Close()
 
-	if err := w.m.SetItem(NewLocalBlockMapItem(
+	return w.m.SetItem(NewLocalBlockMapItem(
 		t,
 		cw.Checksum(),
 		1,
-	)); err != nil {
-		return errors.Wrap(err, "")
-	}
-
-	return nil
+	))
 }
 
 func (w *LocalFSWriter) writefileonce(f io.Writer, i interface{}) error {
 	b, err := w.enc.Marshal(i)
 	if err != nil {
-		return errors.Wrap(err, "")
+		return err
 	}
 
 	return w.writefile(f, b)
@@ -497,18 +493,16 @@ func (w *LocalFSWriter) writefileonce(f io.Writer, i interface{}) error {
 func (w *LocalFSWriter) appendfile(f io.Writer, i interface{}) error {
 	b, err := w.enc.Marshal(i)
 	if err != nil {
-		return errors.Wrap(err, "")
+		return err
 	}
 
 	return w.writefile(f, append(b, '\n'))
 }
 
 func (*LocalFSWriter) writefile(f io.Writer, b []byte) error {
-	if _, err := f.Write(b); err != nil {
-		return errors.Wrap(err, "")
-	}
+	_, err := f.Write(b)
 
-	return nil
+	return errors.Wrap(err, "")
 }
 
 func (w *LocalFSWriter) newChecksumWriter(t base.BlockMapItemType) (util.ChecksumWriter, error) {
@@ -568,7 +562,7 @@ func HeightFromDirectory(s string) (base.Height, error) {
 
 	h, err := base.NewHeightFromString(hs)
 	if err != nil {
-		return base.NilHeight, errors.Wrap(err, "")
+		return base.NilHeight, err
 	}
 
 	return h, nil
@@ -582,7 +576,7 @@ func FindHighestDirectory(root string) (highest string, found bool, _ error) {
 
 	switch highest, found, err = findHighestDirectory(abs); {
 	case err != nil:
-		return highest, found, errors.Wrap(err, "")
+		return highest, found, err
 	case !found:
 		return highest, found, nil
 	default:
@@ -737,7 +731,7 @@ func blockFSMapFilename(hinttype string) string {
 func marshalIndexedTreeNode(enc encoder.Encoder, index uint64, n fixedtree.Node) ([]byte, error) {
 	b, err := enc.Marshal(n)
 	if err != nil {
-		return nil, errors.Wrap(err, "")
+		return nil, err
 	}
 
 	return util.ConcatBytesSlice([]byte(fmt.Sprintf("%d,", index)), b), nil
@@ -774,7 +768,7 @@ func unmarshalIndexedTreeNode(enc encoder.Encoder, b []byte, ht hint.Hint) (in i
 
 	switch i, err := enc.DecodeWithHint(left, ht); {
 	case err != nil:
-		return in, errors.Wrap(err, "")
+		return in, err
 	case i == nil:
 		return in, errors.Errorf("empty node")
 	default:

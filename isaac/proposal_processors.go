@@ -245,6 +245,6 @@ func (*ProposalProcessors) runProcessor(
 			return nil, errors.Wrap(e, "failed to run processor")
 		}
 
-		return nil, errors.Wrap(err, "")
+		return nil, err
 	}
 }

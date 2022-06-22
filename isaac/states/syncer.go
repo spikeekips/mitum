@@ -292,7 +292,7 @@ func (s *Syncer) prepareMaps(ctx context.Context, prev base.BlockMap, to base.He
 		s.fetchMap,
 		func(m base.BlockMap) error {
 			if err := s.tempsyncpool.SetBlockMap(m); err != nil {
-				return errors.Wrap(err, "")
+				return err
 			}
 
 			if m.Manifest().Height() == to {
@@ -302,7 +302,7 @@ func (s *Syncer) prepareMaps(ctx context.Context, prev base.BlockMap, to base.He
 			return nil
 		},
 	); err != nil {
-		return nil, errors.Wrap(err, "")
+		return nil, err
 	}
 
 	return last, nil

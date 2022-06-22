@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/alecthomas/kong"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/launch"
@@ -52,7 +53,7 @@ func main() {
 	if err := func() error {
 		defer log.Info().Msg("stopped")
 
-		return kctx.Run()
+		return errors.Wrap(kctx.Run(), "")
 	}(); err != nil {
 		log.Error().Err(err).Msg("stopped by error")
 

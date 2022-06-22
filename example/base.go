@@ -16,7 +16,7 @@ type baseCommand struct {
 func (cmd *baseCommand) prepareEncoder() error {
 	switch encs, enc, err := launch.PrepareEncoders(); {
 	case err != nil:
-		return errors.Wrap(err, "")
+		return err
 	default:
 		cmd.encs = encs
 		cmd.enc = enc
@@ -41,7 +41,7 @@ func (cmd *baseNodeCommand) prepareDesigns() error {
 	switch d, b, err := launch.NodeDesignFromFile( //nolint:forcetypeassert //...
 		cmd.Design, cmd.enc.(*jsonenc.Encoder)); {
 	case err != nil:
-		return errors.Wrap(err, "")
+		return err
 	default:
 		log.Debug().Interface("design", d).Str("design_file", string(b)).Msg("design loaded")
 

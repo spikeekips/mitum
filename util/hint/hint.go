@@ -48,7 +48,7 @@ func ParseHint(s string) (Hint, error) {
 
 	ht := EnsureParseHint(ns)
 	if err := ht.IsValid(nil); err != nil {
-		return Hint{}, errors.Wrap(err, "failed to parse hint")
+		return Hint{}, errors.WithMessage(err, "failed to parse hint")
 	}
 
 	return ht, nil
@@ -65,11 +65,11 @@ func MustNewHint(s string) Hint {
 
 func (ht Hint) IsValid([]byte) error {
 	if err := ht.t.IsValid(nil); err != nil {
-		return errors.Wrap(err, "invalid type in hint")
+		return errors.WithMessage(err, "invalid type in hint")
 	}
 
 	if err := ht.v.IsValid(nil); err != nil {
-		return errors.Wrap(err, "invalid version in hint")
+		return errors.WithMessage(err, "invalid version in hint")
 	}
 
 	if l := len(ht.v.String()); l > MaxVersionLength {

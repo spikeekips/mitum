@@ -531,7 +531,7 @@ func (db *RedisPermanent) loadLast(zkey, begin, end string) ([]byte, bool, error
 			return false, nil
 		},
 	); err != nil {
-		return nil, false, errors.Wrap(err, "")
+		return nil, false, err
 	}
 
 	if len(key) < 1 {
@@ -540,7 +540,7 @@ func (db *RedisPermanent) loadLast(zkey, begin, end string) ([]byte, bool, error
 
 	switch b, found, err := db.st.Get(context.Background(), key); {
 	case err != nil:
-		return nil, false, errors.Wrap(err, "")
+		return nil, false, err
 	case !found:
 		return nil, false, nil
 	default:

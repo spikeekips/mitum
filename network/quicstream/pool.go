@@ -58,7 +58,7 @@ func (p *PoolClient) Dial(
 	if err != nil {
 		go p.onerror(addr, client, err)
 
-		return nil, errors.Wrap(err, "")
+		return nil, err
 	}
 
 	return session, nil
@@ -93,7 +93,7 @@ func (p *PoolClient) Write(
 	if err != nil {
 		go p.onerror(addr, client, err)
 
-		return nil, errors.Wrap(err, "")
+		return nil, err
 	}
 
 	return r, nil

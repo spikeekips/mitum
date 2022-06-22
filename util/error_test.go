@@ -18,16 +18,9 @@ type testError struct {
 	suite.Suite
 }
 
-func (t *testError) TestErrorWithoutCall() {
-	e := NewError("showme")
-	t.PanicsWithError("error, \"showme\" should not be used as error directly without Call()", func() { _ = e.Error() })
-
-	t.NotPanics(func() { _ = e.Call().Error() })
-}
-
 func (t *testError) TestFuncCaller() {
 	f := FuncCaller(2)
-	t.Equal("(*testError).TestFuncCaller:29", fmt.Sprintf("%n:%d", f, f))
+	t.Equal("(*testError).TestFuncCaller:22", fmt.Sprintf("%n:%d", f, f))
 
 	e := NewError("showme")
 	t.Contains(e.id, "(*testError).TestFuncCaller")
@@ -136,9 +129,7 @@ func (t *testError) TestErrorf() {
 }
 
 func (t *testError) printStack(err error) (string, bool) {
-	i, ok := err.(interface {
-		StackTrace() errors.StackTrace
-	})
+	i, ok := err.(stackTracer)
 	if !ok {
 		return "<no StackTrace()>", false
 	}
@@ -265,6 +256,22 @@ func (t *testError) TestErrorStack() {
 	t.T().Log(bf.String())
 
 	t.False(t.checkStack(bf.Bytes()))
+}
+
+func (t *testError) TestStringErrorFunc() {
+	e := StringErrorFunc("showme")
+
+	t.Run("nil error", func() {
+		ee := e(nil, "hehehe")
+
+		t.T().Logf("nil error:\n%s", t.printStacks(ee))
+	})
+
+	t.Run("with error", func() {
+		ee := e(fmt.Errorf("hohoho"), "hehehe")
+
+		t.T().Logf("with error:\n%s", t.printStacks(ee))
+	})
 }
 
 func TestError(t *testing.T) {

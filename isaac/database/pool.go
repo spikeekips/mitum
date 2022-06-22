@@ -172,7 +172,7 @@ func (db *TempPool) NewOperationHashes(
 
 			switch ok, err := nfilter(h); {
 			case err != nil:
-				return false, errors.Wrap(err, "")
+				return false, err
 			case !ok:
 				removes = append(removes, h)
 
@@ -298,11 +298,11 @@ func (db *TempPool) SetLastVoteproofs(ivp base.INITVoteproof, avp base.ACCEPTVot
 		vps := [2]base.Voteproof{ivp, avp}
 		b, err := db.marshal(vps)
 		if err != nil {
-			return nil, errors.Wrap(err, "")
+			return nil, err
 		}
 
 		if err := db.st.Put(leveldbKeyLastVoteproofs, b, nil); err != nil {
-			return nil, errors.Wrap(err, "")
+			return nil, err
 		}
 
 		return vps, nil
@@ -341,14 +341,14 @@ func (db *TempPool) removeNewOperations(ctx context.Context, facthashes []util.H
 			b, found, err := db.st.Get(infokey)
 			switch {
 			case err != nil:
-				return errors.Wrap(err, "")
+				return err
 			case !found:
 				return nil
 			}
 
 			key, orderedkey, err := loadLeveldbNewOperationKeys(b)
 			if err != nil {
-				return errors.Wrap(err, "")
+				return err
 			}
 
 			removekeysch <- infokey
@@ -364,17 +364,13 @@ func (db *TempPool) removeNewOperations(ctx context.Context, facthashes []util.H
 	worker.Done()
 
 	if err := worker.Wait(); err != nil {
-		return errors.Wrap(err, "")
+		return err
 	}
 
 	close(removekeysch)
 	<-donech
 
-	if err := db.st.Write(batch, nil); err != nil {
-		return errors.Wrap(err, "")
-	}
-
-	return nil
+	return db.st.Write(batch, nil)
 }
 
 func (db *TempPool) loadLastVoteproofs() error {

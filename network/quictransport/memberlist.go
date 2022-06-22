@@ -52,7 +52,7 @@ func NewMemberlist(
 	}
 
 	if err := srv.patchMemberlistConfig(config); err != nil {
-		return nil, errors.Wrap(err, "wrong memberlist.Config")
+		return nil, errors.WithMessage(err, "wrong memberlist.Config")
 	}
 
 	srv.ContextDaemon = util.NewContextDaemon(srv.start)

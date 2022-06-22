@@ -266,7 +266,7 @@ func (c *QuicstreamHandlers) getOrCreateProposal(
 ) (base.ProposalSignedFact, error) {
 	switch pr, found, err := c.pool.ProposalByPoint(point, proposer); {
 	case err != nil:
-		return nil, errors.Wrap(err, "")
+		return nil, err
 	case found:
 		return pr, nil
 	}

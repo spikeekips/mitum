@@ -98,7 +98,7 @@ func (st *BaseStorage) close() error {
 	case errors.Is(err, leveldb.ErrClosed):
 		return nil
 	default:
-		return e(storage.InternalError.Wrapf(err, ""), "")
+		return e(storage.InternalError.Wrap(errors.Wrap(err, "")), "")
 	}
 }
 
@@ -109,7 +109,7 @@ func (st *BaseStorage) Get(key []byte) ([]byte, bool, error) {
 	case errors.Is(err, leveldb.ErrNotFound):
 		return nil, false, nil
 	default:
-		return b, false, storage.ExecError.Wrapf(err, "failed to get")
+		return b, false, storage.ExecError.Wrap(errors.Wrap(err, "failed to get"))
 	}
 }
 
@@ -118,7 +118,7 @@ func (st *BaseStorage) Exists(key []byte) (bool, error) {
 	case err == nil:
 		return b, nil
 	default:
-		return false, storage.ExecError.Errorf("failed to check exists")
+		return false, storage.ExecError.Wrap(errors.Wrap(err, "failed to check exists"))
 	}
 }
 
@@ -148,7 +148,7 @@ end:
 	for {
 		switch keep, err := callback(copyBytes(iter.Key()), copyBytes(iter.Value())); {
 		case err != nil:
-			return errors.Wrap(err, "")
+			return err
 		case !keep:
 			break end
 		case !next():

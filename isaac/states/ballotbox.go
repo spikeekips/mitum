@@ -560,7 +560,7 @@ func (vr *voterecords) getSuffrage() (base.Suffrage, bool, error) {
 
 		switch j, found, err := vr.getSuffrageFunc(vr.stagepoint.Height()); {
 		case err != nil:
-			return nil, errors.Wrap(err, "")
+			return nil, err
 		case !found:
 			return nil, util.ErrNotFound.Call()
 		default:
@@ -576,7 +576,7 @@ func (vr *voterecords) getSuffrage() (base.Suffrage, bool, error) {
 	case errors.Is(err, util.ErrNotFound):
 		return nil, false, nil
 	default:
-		return nil, false, errors.Wrap(err, "")
+		return nil, false, err
 	}
 }
 

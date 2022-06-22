@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/storage"
 	"github.com/spikeekips/mitum/util"
 	"github.com/syndtr/goleveldb/leveldb"
@@ -36,7 +37,7 @@ func NewWriteStorage(f string) (*WriteStorage, error) {
 
 	lst, err := leveldbStorage.OpenFile(filepath.Clean(f), false)
 	if err != nil {
-		return nil, e(storage.ConnectionError.Wrapf(err, "failed to open leveldb"), "")
+		return nil, e(storage.ConnectionError.Wrap(errors.Wrap(err, "failed to open leveldb")), "")
 	}
 
 	st, err := newWriteStorage(lst, f)
@@ -50,7 +51,7 @@ func NewWriteStorage(f string) (*WriteStorage, error) {
 func newWriteStorage(st leveldbStorage.Storage, f string) (*WriteStorage, error) {
 	bst, err := newBaseStorage(f, st, writeOptions)
 	if err != nil {
-		return nil, storage.ConnectionError.Wrapf(err, "failed to open leveldb")
+		return nil, storage.ConnectionError.Wrap(errors.Wrap(err, "failed to open leveldb"))
 	}
 
 	return &WriteStorage{
@@ -79,7 +80,7 @@ func (st *WriteStorage) Remove() error {
 
 func (st *WriteStorage) Put(k, b []byte, opt *leveldbOpt.WriteOptions) error {
 	if err := st.db.Put(k, b, opt); err != nil {
-		return storage.ExecError.Wrapf(err, "failed to put")
+		return storage.ExecError.Wrap(errors.Wrap(err, "failed to put"))
 	}
 
 	return nil
@@ -87,7 +88,7 @@ func (st *WriteStorage) Put(k, b []byte, opt *leveldbOpt.WriteOptions) error {
 
 func (st *WriteStorage) Delete(k []byte, opt *leveldbOpt.WriteOptions) error {
 	if err := st.db.Delete(k, opt); err != nil {
-		return storage.ExecError.Wrapf(err, "failed to delete")
+		return storage.ExecError.Wrap(errors.Wrap(err, "failed to delete"))
 	}
 
 	return nil
@@ -120,7 +121,7 @@ func (st *WriteStorage) Write() error {
 
 	if st.batch.Len() > 0 {
 		if err := st.db.Write(st.batch, &leveldbOpt.WriteOptions{Sync: true}); err != nil {
-			return storage.ExecError.Wrapf(err, "failed to write in batch stroage")
+			return storage.ExecError.Wrap(errors.Wrap(err, "failed to write in batch stroage"))
 		}
 	}
 
@@ -130,5 +131,5 @@ func (st *WriteStorage) Write() error {
 }
 
 func (st *WriteStorage) WriteBatch(batch *leveldb.Batch, wo *leveldbOpt.WriteOptions) error {
-	return st.db.Write(batch, wo)
+	return errors.Wrap(st.db.Write(batch, wo), "")
 }

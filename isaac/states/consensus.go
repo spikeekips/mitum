@@ -242,7 +242,7 @@ func (st *ConsensusHandler) handleACCEPTVoteproofAfterProcessingProposal(
 			l.Error().Err(err).
 				Msg("expected accept voteproof is not majority result; cancel processor, but failed")
 
-			return false, errors.Wrap(err, "")
+			return false, err
 		}
 
 		l.Debug().Msg("expected accept voteproof is not majority result; ignore")
@@ -253,7 +253,7 @@ func (st *ConsensusHandler) handleACCEPTVoteproofAfterProcessingProposal(
 			l.Error().Err(err).
 				Msg("expected accept voteproof has different new block; cancel processor, but failed")
 
-			return false, errors.Wrap(err, "")
+			return false, err
 		}
 
 		l.Debug().Msg("expected accept voteproof has different new block; moves to syncing")

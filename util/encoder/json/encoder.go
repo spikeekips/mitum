@@ -70,7 +70,7 @@ func (enc *Encoder) Decode(b []byte) (interface{}, error) {
 
 	ht, err := enc.guessHint(b)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to guess hint in json decoders")
+		return nil, errors.WithMessage(err, "failed to guess hint in json decoders")
 	}
 
 	return enc.decodeWithHint(b, ht)
@@ -103,7 +103,7 @@ func (enc *Encoder) DecodeWithHintType(b []byte, t hint.Type) (interface{}, erro
 
 	i, err := d.Decode(b, ht)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to decode, %q in json decoders", ht)
+		return nil, errors.WithMessagef(err, "failed to decode, %q in json decoders", ht)
 	}
 
 	return i, nil
@@ -166,7 +166,7 @@ func (enc *Encoder) DecodeSlice(b []byte) ([]interface{}, error) {
 
 	var j []json.RawMessage
 	if err := util.UnmarshalJSON(b, &j); err != nil {
-		return nil, errors.Wrap(err, "failed to decode slice in json decoders")
+		return nil, errors.WithMessage(err, "failed to decode slice in json decoders")
 	}
 
 	s := make([]interface{}, len(j))
@@ -174,7 +174,7 @@ func (enc *Encoder) DecodeSlice(b []byte) ([]interface{}, error) {
 	for i := range j {
 		k, err := enc.Decode(j[i])
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to decode slice in json decoders")
+			return nil, errors.WithMessage(err, "failed to decode slice in json decoders")
 		}
 
 		s[i] = k
@@ -206,7 +206,7 @@ func (enc *Encoder) decodeWithHint(b []byte, ht hint.Hint) (interface{}, error) 
 
 	i, err := d.Decode(b, ht)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to decode, %q in json decoders", ht)
+		return nil, errors.WithMessagef(err, "failed to decode, %q in json decoders", ht)
 	}
 
 	return i, nil

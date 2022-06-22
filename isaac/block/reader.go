@@ -109,14 +109,10 @@ func LoadTree(
 			in := v.(indexedTreeNode) //nolint:forcetypeassert //...
 			n, err := callback(in.Node)
 			if err != nil {
-				return errors.Wrap(err, "")
+				return err
 			}
 
-			if err := tr.Set(in.Index, n); err != nil {
-				return errors.Wrap(err, "")
-			}
-
-			return nil
+			return tr.Set(in.Index, n)
 		},
 	); err != nil {
 		return tr, e(err, "")
@@ -184,11 +180,7 @@ func LoadRawItemsWithWorker(
 
 		errch <- LoadRawItems(f, decode, func(index uint64, v interface{}) error {
 			workch <- func(ctx context.Context, _ uint64) error {
-				if err := callback(index, v); err != nil {
-					return errors.Wrap(err, "")
-				}
-
-				return nil
+				return callback(index, v)
 			}
 
 			return nil
@@ -196,7 +188,7 @@ func LoadRawItemsWithWorker(
 	}()
 
 	if err := util.RunErrgroupWorkerByChan(context.Background(), math.MaxInt8, workch); err != nil {
-		return errors.Wrap(err, "")
+		return err
 	}
 
 	return errors.Wrap(<-errch, "")

@@ -44,7 +44,7 @@ type runCommand struct {
 func (cmd *runCommand) Run() error {
 	switch stop, err := cmd.prepare(); {
 	case err != nil:
-		return errors.Wrap(err, "")
+		return err
 	default:
 		defer func() {
 			_ = stop()
@@ -57,7 +57,7 @@ func (cmd *runCommand) Run() error {
 	defer stop()
 
 	if err := cmd.quicstreamserver.Start(); err != nil {
-		return errors.Wrap(err, "")
+		return err
 	}
 
 	var states *isaacstates.States
@@ -68,7 +68,7 @@ func (cmd *runCommand) Run() error {
 
 		states, err = cmd.states()
 		if err != nil {
-			return errors.Wrap(err, "")
+			return err
 		}
 
 		statesch = states.Wait(ctx)
@@ -84,7 +84,7 @@ func (cmd *runCommand) Run() error {
 
 		return nil
 	case err := <-statesch:
-		return errors.Wrap(err, "")
+		return err
 	}
 }
 
@@ -203,13 +203,13 @@ func (cmd *runCommand) getSuffrageFunc() func(blockheight base.Height) (base.Suf
 
 		switch {
 		case err != nil:
-			return nil, false, errors.Wrap(err, "")
+			return nil, false, err
 		case !found:
 			return nil, false, nil
 		default:
 			suf, err := proof.Suffrage()
 			if err != nil {
-				return nil, true, errors.Wrap(err, "")
+				return nil, true, err
 			}
 
 			return suf, true, nil
@@ -221,7 +221,7 @@ func (cmd *runCommand) getManifestFunc() func(height base.Height) (base.Manifest
 	return func(height base.Height) (base.Manifest, error) {
 		switch m, found, err := cmd.db.BlockMap(height); {
 		case err != nil:
-			return nil, errors.Wrap(err, "")
+			return nil, err
 		case !found:
 			return nil, nil
 		default:
@@ -253,7 +253,7 @@ func (cmd *runCommand) proposalMaker() *isaac.ProposalMaker {
 					// operations.
 					switch found, err := cmd.db.ExistsInStateOperation(facthash); {
 					case err != nil:
-						return false, errors.Wrap(err, "")
+						return false, err
 					case !found:
 						return false, nil
 					}
@@ -262,7 +262,7 @@ func (cmd *runCommand) proposalMaker() *isaac.ProposalMaker {
 				},
 			)
 			if err != nil {
-				return nil, errors.Wrap(err, "")
+				return nil, err
 			}
 
 			return hs, nil
@@ -279,7 +279,7 @@ func (cmd *runCommand) proposalSelectorFunc() *isaac.BaseProposalSelector {
 			func(height base.Height) (util.Hash, error) {
 				switch m, err := cmd.getManifest(height); {
 				case err != nil:
-					return nil, errors.Wrap(err, "")
+					return nil, err
 				case m == nil:
 					return nil, nil
 				default:
@@ -304,7 +304,7 @@ func (cmd *runCommand) getLastManifestFunc() func() (base.Manifest, bool, error)
 	return func() (base.Manifest, bool, error) {
 		switch m, found, err := cmd.db.LastBlockMap(); {
 		case err != nil || !found:
-			return nil, found, errors.Wrap(err, "")
+			return nil, found, err
 		default:
 			return m.Manifest(), true, nil
 		}
@@ -333,7 +333,7 @@ func (cmd *runCommand) states() (*isaacstates.States, error) {
 	voteFunc := func(bl base.Ballot) (bool, error) {
 		voted, err := box.Vote(bl)
 		if err != nil {
-			return false, errors.Wrap(err, "")
+			return false, err
 		}
 
 		return voted, nil
@@ -373,7 +373,7 @@ func (cmd *runCommand) states() (*isaacstates.States, error) {
 	// NOTE load last init, accept voteproof and last majority voteproof
 	switch ivp, avp, found, err := cmd.pool.LastVoteproofs(); {
 	case err != nil:
-		return nil, errors.Wrap(err, "")
+		return nil, err
 	case !found:
 	default:
 		_ = states.LastVoteproofsHandler().Set(ivp)
@@ -423,7 +423,7 @@ func (cmd *runCommand) newSyncer(height base.Height) (isaac.Syncer, error) {
 		func(height base.Height) (isaac.BlockWriteDatabase, func(context.Context) error, error) {
 			bwdb, err := cmd.db.NewBlockWriteDatabase(height)
 			if err != nil {
-				return nil, nil, errors.Wrap(err, "")
+				return nil, nil, err
 			}
 
 			return bwdb,
@@ -499,7 +499,7 @@ func (cmd *runCommand) getProposalFunc() func(_ context.Context, facthash util.H
 	return func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error) {
 		switch pr, found, err := cmd.pool.Proposal(facthash); {
 		case err != nil:
-			return nil, errors.Wrap(err, "")
+			return nil, err
 		case !found:
 			// FIXME if not found, request to remote node
 			return nil, nil
@@ -519,18 +519,18 @@ func (cmd *runCommand) prepareSuffrageBuilder() {
 
 			ci, err := discovery.ConnInfo()
 			if err != nil {
-				return nil, false, errors.Wrap(err, "")
+				return nil, false, err
 			}
 
 			proof, updated, err := cmd.client.LastSuffrageProof(ctx, ci, last)
 			switch {
 			case err != nil:
-				return proof, updated, errors.Wrap(err, "")
+				return proof, updated, err
 			case !updated:
 				return proof, updated, nil
 			default:
 				if err := proof.IsValid(networkID); err != nil {
-					return nil, updated, errors.Wrap(err, "")
+					return nil, updated, err
 				}
 
 				last = proof.Map().Manifest().Suffrage()
@@ -543,12 +543,12 @@ func (cmd *runCommand) prepareSuffrageBuilder() {
 
 			ci, err := discovery.ConnInfo()
 			if err != nil {
-				return nil, false, errors.Wrap(err, "")
+				return nil, false, err
 			}
 
 			proof, found, err := cmd.client.SuffrageProof(ctx, ci, suffrageheight)
 
-			return proof, found, errors.Wrap(err, "")
+			return proof, found, err
 		},
 	)
 }
@@ -559,15 +559,15 @@ func (cmd *runCommand) syncerLastBlockMapf() isaacstates.SyncerLastBlockMapFunc 
 
 		ci, err := discovery.ConnInfo()
 		if err != nil {
-			return nil, false, errors.Wrap(err, "")
+			return nil, false, err
 		}
 
 		switch m, updated, err := cmd.client.LastBlockMap(ctx, ci, manifest); {
 		case err != nil, !updated:
-			return m, updated, errors.Wrap(err, "")
+			return m, updated, err
 		default:
 			if err := m.IsValid(networkID); err != nil {
-				return m, updated, errors.Wrap(err, "")
+				return m, updated, err
 			}
 
 			return m, updated, nil
@@ -582,15 +582,15 @@ func (cmd *runCommand) syncerBlockMapf() isaacstates.SyncerBlockMapFunc {
 
 		ci, err := discovery.ConnInfo()
 		if err != nil {
-			return nil, false, errors.Wrap(err, "")
+			return nil, false, err
 		}
 
 		switch m, found, err := cmd.client.BlockMap(ctx, ci, height); {
 		case err != nil, !found:
-			return m, found, errors.Wrap(err, "")
+			return m, found, err
 		default:
 			if err := m.IsValid(networkID); err != nil {
-				return m, found, errors.Wrap(err, "")
+				return m, found, err
 			}
 
 			return m, found, nil
@@ -606,12 +606,12 @@ func (cmd *runCommand) syncerBlockMapItemf() isaacstates.SyncerBlockMapItemFunc 
 
 		ci, err := discovery.ConnInfo()
 		if err != nil {
-			return nil, nil, false, errors.Wrap(err, "")
+			return nil, nil, false, err
 		}
 
 		r, cancel, found, err := cmd.client.BlockMapItem(ctx, ci, height, item)
 
-		return r, cancel, found, errors.Wrap(err, "")
+		return r, cancel, found, err
 	}
 }
 
@@ -619,7 +619,7 @@ func (cmd *runCommand) setLastVoteproofsf() func(isaac.BlockReader) error {
 	return func(reader isaac.BlockReader) error {
 		switch v, found, err := reader.Item(base.BlockMapItemTypeVoteproofs); {
 		case err != nil:
-			return errors.Wrap(err, "")
+			return err
 		case !found:
 			return errors.Errorf("voteproofs not found at last")
 		default:
@@ -628,7 +628,7 @@ func (cmd *runCommand) setLastVoteproofsf() func(isaac.BlockReader) error {
 				vps[0].(base.INITVoteproof),
 				vps[1].(base.ACCEPTVoteproof),
 			); err != nil {
-				return errors.Wrap(err, "")
+				return err
 			}
 
 			return nil

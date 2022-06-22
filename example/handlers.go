@@ -6,7 +6,6 @@ import (
 	"net"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
@@ -49,7 +48,7 @@ func (cmd *runCommand) networkHandlers() quicstream.Handler {
 		func(last util.Hash) (base.SuffrageProof, bool, error) {
 			switch proof, found, err := cmd.db.LastSuffrageProof(); {
 			case err != nil:
-				return nil, false, errors.Wrap(err, "")
+				return nil, false, err
 			case !found:
 				return nil, false, storage.NotFoundError.Errorf("last SuffrageProof not found")
 			case last != nil && last.Equal(proof.Map().Manifest().Suffrage()):
@@ -62,7 +61,7 @@ func (cmd *runCommand) networkHandlers() quicstream.Handler {
 		func(last util.Hash) (base.BlockMap, bool, error) {
 			switch m, found, err := cmd.db.LastBlockMap(); {
 			case err != nil:
-				return nil, false, errors.Wrap(err, "")
+				return nil, false, err
 			case !found:
 				return nil, false, storage.NotFoundError.Errorf("last BlockMap not found")
 			case last != nil && last.Equal(m.Manifest().Hash()):

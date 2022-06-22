@@ -281,7 +281,7 @@ func (db *LeveldbPermanent) loadLastSuffrageProof() error {
 func (db *LeveldbPermanent) loadNetworkPolicy() error {
 	switch policy, found, err := db.baseLeveldb.loadNetworkPolicy(); {
 	case err != nil:
-		return errors.Wrap(err, "")
+		return err
 	case !found:
 		return nil
 	default:

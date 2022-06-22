@@ -154,7 +154,7 @@ type baseNodeJSONUnmarshaler struct {
 func (n *BaseNode) UnmarshalJSON(b []byte) error {
 	var u baseNodeJSONUnmarshaler
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return errors.Wrap(err, "failed to unmarshal BaseNode")
+		return errors.WithMessage(err, "failed to unmarshal BaseNode")
 	}
 
 	if u.Isempty {

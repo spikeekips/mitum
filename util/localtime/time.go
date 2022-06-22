@@ -42,7 +42,7 @@ func (t Time) MarshalText() ([]byte, error) {
 func (t *Time) UnmarshalText(b []byte) error {
 	s, err := util.ParseRFC3339(string(b))
 	if err != nil {
-		return errors.Wrap(err, "failed to unmarshal Time")
+		return errors.WithMessage(err, "failed to unmarshal Time")
 	}
 
 	t.Time = util.NormalizeTime(s)

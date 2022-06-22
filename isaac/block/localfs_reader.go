@@ -74,7 +74,7 @@ func (r *LocalFSReader) BlockMap() (base.BlockMap, bool, error) {
 
 		var um base.BlockMap
 		if err := encoder.Decode(r.enc, b, &um); err != nil {
-			return nil, errors.Wrap(err, "")
+			return nil, err
 		}
 
 		return um, nil
@@ -230,7 +230,7 @@ func (r *LocalFSReader) Items(f func(base.BlockMapItem, interface{}, bool, error
 
 	switch i, found, err := r.BlockMap(); {
 	case err != nil:
-		return errors.Wrap(err, "")
+		return err
 	case !found:
 		return errors.Wrap(util.ErrNotFound.Errorf("BlockMap not found"), "")
 	default:
@@ -300,7 +300,7 @@ func (r *LocalFSReader) loadItem(item base.BlockMapItem, f io.Reader) (interface
 	case base.BlockMapItemTypeProposal:
 		var u base.ProposalSignedFact
 		if err := encoder.DecodeReader(r.enc, f, &u); err != nil {
-			return nil, errors.Wrap(err, "")
+			return nil, err
 		}
 
 		return u, nil
@@ -346,7 +346,7 @@ func (r *LocalFSReader) loadOperations( //nolint:dupl //...
 		return nil
 	},
 	); err != nil {
-		return nil, errors.Wrap(err, "")
+		return nil, err
 	}
 
 	return ops, nil
@@ -387,7 +387,7 @@ func (r *LocalFSReader) loadStates( //nolint:dupl //...
 
 		return nil
 	}); err != nil {
-		return nil, errors.Wrap(err, "")
+		return nil, err
 	}
 
 	return sts, nil
@@ -416,7 +416,7 @@ func (r *LocalFSReader) loadVoteproofs(item base.BlockMapItem, f io.Reader) ([]b
 
 	vps, err := LoadVoteproofsFromReader(f, r.enc.Decode)
 	if err != nil {
-		return nil, errors.Wrap(err, "")
+		return nil, err
 	}
 
 	return vps, nil

@@ -133,7 +133,7 @@ func (v Version) MarshalText() ([]byte, error) {
 func (v *Version) UnmarshalText(b []byte) error {
 	u, err := ParseVersion(string(b))
 	if err != nil {
-		return errors.Wrap(err, "failed to unmarshal version")
+		return errors.WithMessage(err, "failed to unmarshal version")
 	}
 
 	*v = u

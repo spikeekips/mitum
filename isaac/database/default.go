@@ -46,7 +46,7 @@ func NewDefault(
 	}
 
 	if err := db.load(temproot); err != nil {
-		return nil, errors.Wrap(err, "")
+		return nil, err
 	}
 
 	db.ContextDaemon = util.NewContextDaemon(db.start)
@@ -107,7 +107,7 @@ func (db *Default) LastSuffrageProof() (base.SuffrageProof, bool, error) {
 	for i := range temps {
 		switch proof, found, err := temps[i].SuffrageProof(); {
 		case err != nil:
-			return nil, false, errors.Wrap(err, "")
+			return nil, false, err
 		case found:
 			return proof, true, nil
 		}
@@ -115,7 +115,7 @@ func (db *Default) LastSuffrageProof() (base.SuffrageProof, bool, error) {
 
 	proof, found, err := db.perm.LastSuffrageProof()
 	if err != nil {
-		return nil, false, errors.Wrap(err, "")
+		return nil, false, err
 	}
 
 	return proof, found, nil
@@ -219,7 +219,7 @@ func (db *Default) State(key string) (base.State, bool, error) {
 	if err := db.dig(func(p isaac.PartialDatabase) (bool, error) {
 		switch st, found, err := p.State(key); {
 		case err != nil:
-			return false, errors.Wrap(err, "")
+			return false, err
 		case found:
 			_, _ = l.Set(func(old interface{}) (interface{}, error) {
 				switch {
@@ -258,7 +258,7 @@ func (db *Default) ExistsInStateOperation(h util.Hash) (bool, error) { //nolint:
 	if err := db.dig(func(p isaac.PartialDatabase) (bool, error) {
 		switch found, err := p.ExistsInStateOperation(h); {
 		case err != nil:
-			return false, errors.Wrap(err, "")
+			return false, err
 		case found:
 			_ = l.SetValue(true)
 
@@ -290,7 +290,7 @@ func (db *Default) ExistsKnownOperation(h util.Hash) (bool, error) { //nolint:du
 	if err := db.dig(func(p isaac.PartialDatabase) (bool, error) {
 		switch found, err := p.ExistsKnownOperation(h); {
 		case err != nil:
-			return false, errors.Wrap(err, "")
+			return false, err
 		case found:
 			_ = l.SetValue(true)
 
@@ -323,7 +323,7 @@ func (db *Default) BlockMap(height base.Height) (base.BlockMap, bool, error) {
 		if temp := db.findTemp(height); temp != nil {
 			m, err := temp.BlockMap()
 			if err != nil {
-				return nil, false, errors.Wrap(err, "")
+				return nil, false, err
 			}
 
 			return m, true, nil
@@ -332,14 +332,14 @@ func (db *Default) BlockMap(height base.Height) (base.BlockMap, bool, error) {
 
 	m, found, err := db.perm.BlockMap(height)
 
-	return m, found, errors.Wrap(err, "")
+	return m, found, err
 }
 
 func (db *Default) LastBlockMap() (base.BlockMap, bool, error) {
 	if temps := db.activeTemps(); len(temps) > 0 {
 		m, err := temps[0].BlockMap()
 		if err != nil {
-			return nil, false, errors.Wrap(err, "")
+			return nil, false, err
 		}
 
 		return m, true, nil
@@ -347,7 +347,7 @@ func (db *Default) LastBlockMap() (base.BlockMap, bool, error) {
 
 	m, found, err := db.perm.LastBlockMap()
 
-	return m, found, errors.Wrap(err, "")
+	return m, found, err
 }
 
 func (db *Default) NewBlockWriteDatabase(height base.Height) (isaac.BlockWriteDatabase, error) {
@@ -517,7 +517,7 @@ func (db *Default) dig(f func(isaac.PartialDatabase) (bool, error)) error {
 	case err == nil:
 	case errors.Is(err, context.Canceled):
 	default:
-		return errors.Wrap(err, "")
+		return err
 	}
 
 	return nil

@@ -453,7 +453,7 @@ func BatchWork(
 
 	if size <= limit {
 		if err := pref(ctx, size-1); err != nil {
-			return errors.Wrap(err, "")
+			return errors.WithMessage(err, "")
 		}
 
 		return RunErrgroupWorker(ctx, size, func(ctx context.Context, i, _ uint64) error {
@@ -470,13 +470,13 @@ func BatchWork(
 		}
 
 		if err := pref(ctx, end-1); err != nil {
-			return errors.Wrap(err, "")
+			return err
 		}
 
 		if err := RunErrgroupWorker(ctx, end-i, func(ctx context.Context, n, _ uint64) error {
 			return f(ctx, i+n, end-1)
 		}); err != nil {
-			return errors.Wrap(err, "")
+			return err
 		}
 
 		if end == size {
@@ -499,17 +499,13 @@ func RunErrgroupWorker(ctx context.Context, size uint64, f func(ctx context.Cont
 		if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
 			return f(ctx, i, jobid)
 		}); err != nil {
-			return errors.Wrap(err, "")
+			return err
 		}
 	}
 
 	worker.Done()
 
-	if err := worker.Wait(); err != nil {
-		return errors.Wrap(err, "")
-	}
-
-	return nil
+	return worker.Wait()
 }
 
 func RunErrgroupWorkerByChan(ctx context.Context, size int64, workch chan ContextWorkerCallback) error {
@@ -522,17 +518,13 @@ func RunErrgroupWorkerByChan(ctx context.Context, size int64, workch chan Contex
 		}
 
 		if err := worker.NewJob(f); err != nil {
-			return errors.Wrap(err, "")
+			return err
 		}
 	}
 
 	worker.Done()
 
-	if err := worker.Wait(); err != nil {
-		return errors.Wrap(err, "")
-	}
-
-	return nil
+	return worker.Wait()
 }
 
 func RunErrgroupWorkerByJobs(ctx context.Context, jobs ...ContextWorkerCallback) error {
@@ -541,15 +533,11 @@ func RunErrgroupWorkerByJobs(ctx context.Context, jobs ...ContextWorkerCallback)
 
 	for i := range jobs {
 		if err := worker.NewJob(jobs[i]); err != nil {
-			return errors.Wrap(err, "")
+			return err
 		}
 	}
 
 	worker.Done()
 
-	if err := worker.Wait(); err != nil {
-		return errors.Wrap(err, "")
-	}
-
-	return nil
+	return worker.Wait()
 }

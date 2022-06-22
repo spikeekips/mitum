@@ -60,7 +60,7 @@ func (g *Writer) Add(index uint64, n Node) error {
 
 func (g *Writer) Write(w NodeWrite) (err error) {
 	if _, err := generateNodesHash(g.nodes, w); err != nil {
-		return errors.Wrap(err, "failed to write Tree")
+		return errors.WithMessage(err, "failed to write Tree")
 	}
 
 	return nil
@@ -104,19 +104,19 @@ func generateNodeHash(index uint64, nodes []Node, w NodeWrite) (Node, error) {
 	case err == nil:
 	case errors.Is(err, noChildrenError):
 	default:
-		return nil, errors.Wrap(err, "")
+		return nil, err
 	}
 
 	switch h, err := nodeHash(n, children[0], children[1]); {
 	case err != nil:
-		return nil, errors.Wrap(err, "")
+		return nil, err
 	default:
 		n = n.SetHash(h)
 		nodes[index] = n
 	}
 
 	if err := w(index, nodes[index]); err != nil {
-		return nil, errors.Wrap(err, "")
+		return nil, err
 	}
 
 	return n, nil
@@ -128,7 +128,7 @@ func generateNodesHash(nodes []Node, w NodeWrite) ([]Node, error) {
 
 		n, err := generateNodeHash(index, nodes, w)
 		if err != nil {
-			return nil, errors.Wrap(err, "")
+			return nil, err
 		}
 
 		nodes[index] = n

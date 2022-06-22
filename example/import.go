@@ -28,35 +28,31 @@ type importCommand struct { //nolint:govet //...
 
 func (cmd *importCommand) Run() error {
 	if err := cmd.prepareEncoder(); err != nil {
-		return errors.Wrap(err, "")
+		return err
 	}
 
 	if err := cmd.prepareDesigns(); err != nil {
-		return errors.Wrap(err, "")
+		return err
 	}
 
 	if err := cmd.prepareLocal(); err != nil {
-		return errors.Wrap(err, "")
+		return err
 	}
 
 	if err := cmd.prepareDatabase(); err != nil {
-		return errors.Wrap(err, "")
+		return err
 	}
 
 	last, err := cmd.checkLocalFS()
 	if err != nil {
-		return errors.Wrap(err, "")
+		return err
 	}
 
 	if err := cmd.importBlocks(base.GenesisHeight, last); err != nil {
-		return errors.Wrap(err, "")
+		return err
 	}
 
-	if err := cmd.validateImported(last); err != nil {
-		return errors.Wrap(err, "")
-	}
-
-	return nil
+	return cmd.validateImported(last)
 }
 
 func (cmd *importCommand) prepareDatabase() error {
@@ -119,7 +115,7 @@ func (cmd *importCommand) importBlocks(from, to base.Height) error {
 		if err != nil {
 			i, err := isaacblock.NewLocalFSReaderFromHeight(cmd.From, height, cmd.enc)
 			if err != nil {
-				return nil, errors.Wrap(err, "")
+				return nil, err
 			}
 
 			_ = readercache.Set(height, i)
@@ -137,29 +133,29 @@ func (cmd *importCommand) importBlocks(from, to base.Height) error {
 		func(height base.Height) (base.BlockMap, bool, error) {
 			reader, err := getreader(height)
 			if err != nil {
-				return nil, false, errors.Wrap(err, "")
+				return nil, false, err
 			}
 
 			m, found, err := reader.BlockMap()
 
-			return m, found, errors.Wrap(err, "")
+			return m, found, err
 		},
 		func(
 			_ context.Context, height base.Height, item base.BlockMapItemType,
 		) (io.ReadCloser, func() error, bool, error) {
 			reader, err := getreader(height)
 			if err != nil {
-				return nil, nil, false, errors.Wrap(err, "")
+				return nil, nil, false, err
 			}
 
 			r, found, err := reader.Reader(item)
 
-			return r, func() error { return nil }, found, errors.Wrap(err, "")
+			return r, func() error { return nil }, found, err
 		},
 		func(height base.Height) (isaac.BlockWriteDatabase, func(context.Context) error, error) {
 			bwdb, err := cmd.db.NewBlockWriteDatabase(height)
 			if err != nil {
-				return nil, nil, errors.Wrap(err, "")
+				return nil, nil, err
 			}
 
 			return bwdb,
@@ -177,7 +173,7 @@ func (cmd *importCommand) importBlocks(from, to base.Height) error {
 				networkID,
 			)
 			if err != nil {
-				return nil, errors.Wrap(err, "")
+				return nil, err
 			}
 
 			return im, nil
@@ -185,7 +181,7 @@ func (cmd *importCommand) importBlocks(from, to base.Height) error {
 		func(reader isaac.BlockReader) error {
 			switch v, found, err := reader.Item(base.BlockMapItemTypeVoteproofs); {
 			case err != nil:
-				return errors.Wrap(err, "")
+				return err
 			case !found:
 				return errors.Errorf("voteproofs not found at last")
 			default:
@@ -194,7 +190,7 @@ func (cmd *importCommand) importBlocks(from, to base.Height) error {
 					vps[0].(base.INITVoteproof),
 					vps[1].(base.ACCEPTVoteproof),
 				); err != nil {
-					return errors.Wrap(err, "")
+					return err
 				}
 
 				return nil
@@ -253,17 +249,17 @@ func (cmd *importCommand) validateImportedBlockMaps(root string, last base.Heigh
 		func(_ context.Context, height base.Height) (base.BlockMap, error) {
 			reader, err := isaacblock.NewLocalFSReaderFromHeight(root, height, cmd.enc)
 			if err != nil {
-				return nil, errors.Wrap(err, "")
+				return nil, err
 			}
 
 			switch m, found, err := reader.BlockMap(); {
 			case err != nil:
-				return nil, errors.Wrap(err, "")
+				return nil, err
 			case !found:
 				return nil, util.ErrNotFound.Call()
 			default:
 				if err := m.IsValid(networkID); err != nil {
-					return nil, errors.Wrap(err, "")
+					return nil, err
 				}
 
 				return m, nil

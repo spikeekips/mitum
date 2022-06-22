@@ -42,7 +42,7 @@ func (t Tree) IsValid(b []byte) error {
 
 	if err := t.Traverse(func(index uint64, n Node) (bool, error) {
 		if err := n.IsValid(b); err != nil {
-			return false, errors.Wrap(err, "")
+			return false, err
 		}
 
 		children, err := childrenNodes(t.nodes, index)

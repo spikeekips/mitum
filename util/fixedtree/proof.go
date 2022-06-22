@@ -17,7 +17,7 @@ func NewProof(extracted []Node) Proof {
 func NewProofFromNodes(nodes []Node, key string) (p Proof, err error) {
 	extracted, err := ExtractProofMaterial(nodes, key)
 	if err != nil {
-		return p, errors.Wrap(err, "failed to ne wproof from nodes")
+		return p, errors.WithMessage(err, "failed to ne wproof from nodes")
 	}
 
 	return NewProof(extracted), nil

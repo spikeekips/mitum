@@ -313,7 +313,7 @@ func (st *States) exitAndEnter(sctx switchContext, current handler) (func(), fun
 	ndefer, err := next.enter(sctx)
 	if err != nil {
 		if isSwitchContextError(err) {
-			return nil, nil, errors.Wrap(err, "")
+			return nil, nil, err
 		}
 
 		return nil, nil, e(err, "failed to enter next state")

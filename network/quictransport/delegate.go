@@ -92,7 +92,7 @@ func (d *AliveDelegate) NotifyAlive(peer *memberlist.Node) error {
 	if err != nil {
 		d.Log().Debug().Interface("peer", peer).Err(err).Msg("invalid peer")
 
-		return errors.Wrap(err, "not allowed to be alive")
+		return errors.WithMessage(err, "not allowed to be alive")
 	}
 
 	l := d.Log().With().Object("node", node).Logger()
@@ -100,7 +100,7 @@ func (d *AliveDelegate) NotifyAlive(peer *memberlist.Node) error {
 	if err := d.allowf(node); err != nil {
 		l.Debug().Err(err).Msg("not allowed")
 
-		return errors.Wrap(err, "not allowed to be alive")
+		return errors.WithMessage(err, "not allowed to be alive")
 	}
 
 	d.storeconninfof(node)

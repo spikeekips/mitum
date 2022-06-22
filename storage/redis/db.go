@@ -22,7 +22,7 @@ func NewStorage(ctx context.Context, opt *redis.Options, prefix string) (*Storag
 	}
 
 	if err := st.connect(ctx, opt); err != nil {
-		return nil, errors.Wrap(err, "")
+		return nil, err
 	}
 
 	return st, nil
@@ -88,7 +88,7 @@ func (st *Storage) Set(ctx context.Context, key string, b []byte) error {
 
 	switch {
 	case r.Err() != nil:
-		return storage.ExecError.Wrapf(r.Err(), "failed to set from redis storage")
+		return storage.ExecError.Wrap(errors.Wrap(r.Err(), "failed to set from redis storage"))
 	default:
 		return nil
 	}
@@ -99,7 +99,7 @@ func (st *Storage) Exists(ctx context.Context, key string) (bool, error) {
 
 	switch {
 	case r.Err() != nil:
-		return false, storage.ExecError.Wrapf(r.Err(), "failed exists from redis storage")
+		return false, storage.ExecError.Wrap(errors.Wrap(r.Err(), "failed exists from redis storage"))
 	default:
 		return r.Val() == 1, nil
 	}
@@ -113,14 +113,14 @@ func (st *Storage) Clean(ctx context.Context) error {
 	for {
 		keys, c, err := st.client.Scan(ctx, cursor, st.prefix+"*", 333).Result() //nolint:gomnd // bulk size
 		if err != nil {
-			return e(err, "")
+			return e(errors.Wrap(err, ""), "")
 		}
 
 		cursor = c
 
 		if len(keys) > 0 {
 			if _, err := st.client.Del(ctx, keys...).Result(); err != nil {
-				return e(err, "")
+				return e(errors.Wrap(err, ""), "")
 			}
 		}
 
@@ -140,7 +140,7 @@ func (st *Storage) ZAddArgs(ctx context.Context, key string, args redis.ZAddArgs
 	}
 
 	if err := st.client.ZAddArgs(ctx, st.key(key), args).Err(); err != nil {
-		return storage.ExecError.Wrapf(err, "failed to ZAddArgs")
+		return storage.ExecError.Wrap(errors.Wrap(err, "failed to ZAddArgs"))
 	}
 
 	return nil
@@ -163,13 +163,13 @@ func (st *Storage) ZRangeArgs(ctx context.Context, z redis.ZRangeArgs, f func(st
 
 	sl, err := st.client.ZRangeArgs(ctx, z).Result()
 	if err != nil {
-		return storage.ExecError.Wrapf(err, "failed to ZRangeArgs")
+		return storage.ExecError.Wrap(errors.Wrap(err, "failed to ZRangeArgs"))
 	}
 
 	for i := range sl {
 		switch keep, err := f(st.unkey(sl[i])); {
 		case err != nil:
-			return errors.Wrap(err, "")
+			return err
 		case !keep:
 			return nil
 		}
