@@ -2,7 +2,6 @@ package main
 
 import (
 	"github.com/alecthomas/kong"
-	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/launch"
@@ -26,7 +25,11 @@ func main() {
 		Init           initCommand   `cmd:"" help:"init node"`
 		Import         importCommand `cmd:"" help:"import from block data"`
 		Run            runCommand    `cmd:"" help:"run node"`
-		Network        struct {      // revive:disable-line:nested-structs
+		Key            struct {      // revive:disable-line:nested-structs
+			New  keyNewCommand  `cmd:"" help:"generate new key"`
+			Load keyLoadCommand `cmd:"" help:"load key"`
+		} `cmd:"" help:"key"`
+		Network struct { // revive:disable-line:nested-structs
 			Client networkClientCommand `cmd:"" help:"network client"`
 		} `cmd:"" help:"network"`
 	}
@@ -49,7 +52,7 @@ func main() {
 	if err := func() error {
 		defer log.Info().Msg("stopped")
 
-		return errors.Wrap(kctx.Run(), "")
+		return kctx.Run()
 	}(); err != nil {
 		log.Error().Err(err).Msg("stopped by error")
 
