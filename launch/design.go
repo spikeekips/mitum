@@ -157,7 +157,6 @@ func (d *NodeDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 
 type NodeNetworkDesign struct {
 	Bind        *net.UDPAddr `yaml:"bind"`
-	Publish     string       `yaml:"publish"`
 	TLSInsecure bool         `yaml:"tls_insecure"`
 }
 
@@ -171,23 +170,11 @@ func (d *NodeNetworkDesign) IsValid([]byte) error {
 		return e.Errorf("invalid bind port")
 	}
 
-	if len(d.Publish) > 0 {
-		switch host, port, err := net.SplitHostPort(d.Publish); {
-		case err != nil:
-			return e.Wrapf(err, "invalid publish")
-		case len(host) < 1:
-			return e.Wrapf(err, "invalid publish; empty host")
-		case len(port) < 1:
-			return e.Wrapf(err, "invalid publish; empty port")
-		}
-	}
-
 	return nil
 }
 
 type NodeNetworkDesignYAMLMarshaler struct {
 	Bind        string `yaml:"bind,omitempty"`
-	Publish     string `yaml:"publish"`
 	TLSInsecure bool   `yaml:"tls_insecure"`
 }
 
@@ -200,7 +187,6 @@ func (d NodeNetworkDesign) MarshalYAML() (interface{}, error) {
 
 	return NodeNetworkDesignYAMLMarshaler{
 		Bind:        bind,
-		Publish:     d.Publish,
 		TLSInsecure: d.TLSInsecure,
 	}, nil
 }
@@ -217,13 +203,6 @@ func (y *NodeNetworkDesignYAMLMarshaler) Decode(*jsonenc.Encoder) (d NodeNetwork
 		d.Bind = addr
 	}
 
-	if s := strings.TrimSpace(y.Publish); len(s) > 0 {
-		if _, _, err := net.SplitHostPort(s); err != nil {
-			return d, e(err, "invalid publish")
-		}
-	}
-
-	d.Publish = y.Publish
 	d.TLSInsecure = y.TLSInsecure
 
 	return d, nil
