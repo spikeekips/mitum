@@ -21,7 +21,7 @@ var (
 )
 
 func main() {
-	// revive:disable:nested-structs
+	//revive:disable:nested-structs
 	var cli struct {
 		Key struct {
 			New  keyNewCommand  `cmd:"" help:"generate new key"`
@@ -35,7 +35,7 @@ func main() {
 		} `cmd:"" help:"network"`
 		Run runCommand `cmd:"" help:"run node"`
 	}
-	// revive:enable:nested-structs
+	//revive:enable:nested-structs
 
 	kctx := kong.Parse(&cli)
 

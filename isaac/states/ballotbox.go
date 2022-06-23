@@ -122,7 +122,8 @@ func (box *Ballotbox) vote(bl base.Ballot) (bool, func() base.Voteproof, error) 
 	case err != nil:
 		return false, nil, e(err, "")
 	case voted && validated:
-		if ok, found := isNewVoteproof(bl.Voteproof(), box.lastStagePoint(), box.threshold); ok && found {
+		ok, found := isNewVoteproof(bl.Voteproof(), box.lastStagePoint(), box.threshold)
+		if ok && found {
 			vp = bl.Voteproof()
 		}
 	}

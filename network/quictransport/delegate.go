@@ -18,20 +18,30 @@ type (
 )
 
 type Delegate struct {
-	local Node
+	local         Node
+	notifyMsgFunc func(b []byte)
 	*logging.Logging
 	qu *memberlist.TransmitLimitedQueue
 }
 
-func NewDelegate(local Node, numNodes func() int) *Delegate {
+func NewDelegate(
+	local Node,
+	numNodes func() int,
+	notifyMsgFunc func(b []byte),
+) *Delegate {
 	qu := &memberlist.TransmitLimitedQueue{NumNodes: numNodes, RetransmitMult: 2} //nolint:gomnd //...
+
+	if notifyMsgFunc == nil {
+		notifyMsgFunc = func([]byte) {} //revive:disable-line:modifies-parameter
+	}
 
 	return &Delegate{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", "memberlist-delegate")
 		}),
-		local: local,
-		qu:    qu,
+		local:         local,
+		qu:            qu,
+		notifyMsgFunc: notifyMsgFunc,
 	}
 }
 
@@ -41,6 +51,8 @@ func (d *Delegate) NodeMeta(int) []byte {
 
 func (d *Delegate) NotifyMsg(b []byte) {
 	d.Log().Trace().Int("message_length", len(b)).Str("msg", string(b)).Msg("user message received")
+
+	d.notifyMsgFunc(b)
 }
 
 func (d *Delegate) QueueBroadcast(b memberlist.Broadcast) {

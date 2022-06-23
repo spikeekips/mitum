@@ -28,25 +28,35 @@ type States struct {
 	vpch     chan base.Voteproof
 	handlers map[StateType]handler
 	*util.ContextDaemon
-	timers    *util.Timers
-	stateLock sync.RWMutex
+	timers              *util.Timers
+	broadcastBallotFunc func(base.Ballot) error
+	stateLock           sync.RWMutex
 }
 
-func NewStates(box *Ballotbox) *States {
+func NewStates(
+	box *Ballotbox,
+	lvps *LastVoteproofsHandler,
+	broadcastBallotFunc func(base.Ballot) error,
+) *States {
+	if lvps == nil {
+		lvps = NewLastVoteproofsHandler() //revive:disable-line:modifies-parameter
+	}
+
 	st := &States{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", "states")
 		}),
-		box:      box,
-		statech:  make(chan switchContext),
-		vpch:     make(chan base.Voteproof),
-		handlers: map[StateType]handler{},
-		cs:       nil,
+		box:                 box,
+		broadcastBallotFunc: broadcastBallotFunc,
+		statech:             make(chan switchContext),
+		vpch:                make(chan base.Voteproof),
+		handlers:            map[StateType]handler{},
+		cs:                  nil,
 		timers: util.NewTimers([]util.TimerID{
 			timerIDBroadcastINITBallot,
 			timerIDBroadcastACCEPTBallot,
 		}, false),
-		lvps: NewLastVoteproofsHandler(),
+		lvps: lvps,
 	}
 
 	st.ContextDaemon = util.NewContextDaemon(st.start)
@@ -402,10 +412,8 @@ func (st *States) stateSwitchContextLog(sctx switchContext, current handler) zer
 		Dict("next_state", switchContextLog(sctx)).Logger()
 }
 
-func (*States) broadcastBallot(base.Ballot) error {
-	// FIXME broadcast thru memberlist
-
-	return nil
+func (st *States) broadcastBallot(ballot base.Ballot) error {
+	return st.broadcastBallotFunc(ballot)
 }
 
 func (st *States) lastVoteproof() LastVoteproofs {

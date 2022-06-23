@@ -132,7 +132,7 @@ func (srv *Memberlist) Broadcast(b memberlist.Broadcast) {
 		return
 	}
 
-	srv.Log().Debug().Interface("broadcast", b).Msg("enqueue broadcast")
+	srv.Log().Trace().Interface("broadcast", b).Msg("enqueue broadcast")
 
 	srv.delegate.QueueBroadcast(b)
 }

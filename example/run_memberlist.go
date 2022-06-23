@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/spikeekips/mitum/base"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	"github.com/spikeekips/mitum/network/quictransport"
 )
@@ -35,7 +36,26 @@ func (cmd *runCommand) prepareMemberlist() error {
 	)
 	memberlistconfig.Transport = memberlisttransport
 
-	memberlistdelegate := quictransport.NewDelegate(memberlistnode, nil)
+	memberlistdelegate := quictransport.NewDelegate(memberlistnode, nil, func(b []byte) {
+		log.Trace().Str("message", string(b)).Msg("new incoming message")
+
+		i, err := cmd.enc.Decode(b) //nolint:govet //...
+		if err != nil {
+			log.Error().Err(err).Msg("failed to decode incoming message")
+
+			return
+		}
+
+		switch t := i.(type) {
+		case base.Ballot:
+			_, err := cmd.ballotbox.Vote(t)
+			if err != nil {
+				log.Error().Err(err).Interface("ballot", t).Msg("failed to vote")
+			}
+		default:
+			// NOTE ignore
+		}
+	})
 	memberlistconfig.Delegate = memberlistdelegate
 
 	memberlistalive := quictransport.NewAliveDelegate(
@@ -59,14 +79,14 @@ func (cmd *runCommand) prepareMemberlist() error {
 	memberlistconfig.Events = memberlistevents
 
 	cmd.handlers.Add(isaacnetwork.HandlerPrefixMemberlist, func(addr net.Addr, r io.Reader, w io.Writer) error {
-		var b []byte
-		if b, err = io.ReadAll(r); err != nil {
+		b, err := io.ReadAll(r) //nolint:govet //...
+		if err != nil {
 			log.Error().Err(err).Stringer("remote_address", addr).Msg("failed to read")
 
 			return errors.Wrap(err, "")
 		}
 
-		if err = memberlisttransport.ReceiveRaw(b, addr); err != nil {
+		if err := memberlisttransport.ReceiveRaw(b, addr); err != nil {
 			log.Error().Err(err).Stringer("remote_address", addr).Msg("invalid message received")
 
 			return err

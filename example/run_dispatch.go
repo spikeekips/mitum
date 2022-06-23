@@ -132,133 +132,82 @@ func (cmd *runCommand) newProposalProcessorFunc(enc encoder.Encoder) newProposal
 	}
 }
 
-func (cmd *runCommand) states() (*isaacstates.States, error) {
-	box := isaacstates.NewBallotbox(cmd.getSuffrage, cmd.nodePolicy.Threshold())
-	voteFunc := func(bl base.Ballot) (bool, error) {
-		voted, err := box.Vote(bl)
-		if err != nil {
-			return false, err
+func (cmd *runCommand) newSyncer(
+	lvps *isaacstates.LastVoteproofsHandler,
+) func(height base.Height) (isaac.Syncer, error) {
+	return func(height base.Height) (isaac.Syncer, error) {
+		e := util.StringErrorFunc("failed newSyncer")
+
+		// NOTE if no discoveries, moves to broken state
+		if len(cmd.SyncNode) < 1 {
+			return nil, e(isaacstates.ErrUnpromising.Errorf("syncer needs one or more SyncNode"), "")
 		}
 
-		return voted, nil
+		var lastsuffrageproof base.SuffrageProof
+
+		switch proof, found, err := cmd.db.LastSuffrageProof(); {
+		case err != nil:
+			return nil, e(err, "")
+		case found:
+			lastsuffrageproof = proof
+		}
+
+		var prev base.BlockMap
+
+		switch m, found, err := cmd.db.LastBlockMap(); {
+		case err != nil:
+			return nil, e(isaacstates.ErrUnpromising.Wrap(err), "")
+		case found:
+			prev = m
+		}
+
+		var tempsyncpool isaac.TempSyncPool
+
+		switch i, err := launch.NewTempSyncPoolDatabase(cmd.design.Storage.Base, height, cmd.encs, cmd.enc); {
+		case err != nil:
+			return nil, e(isaacstates.ErrUnpromising.Wrap(err), "")
+		default:
+			tempsyncpool = i
+		}
+
+		syncer, err := isaacstates.NewSyncer(
+			cmd.design.Storage.Base,
+			func(height base.Height) (isaac.BlockWriteDatabase, func(context.Context) error, error) {
+				bwdb, err := cmd.db.NewBlockWriteDatabase(height)
+				if err != nil {
+					return nil, nil, err
+				}
+
+				return bwdb,
+					func(ctx context.Context) error {
+						return launch.MergeBlockWriteToPermanentDatabase(ctx, bwdb, cmd.perm)
+					},
+					nil
+			},
+			func(root string, blockmap base.BlockMap, bwdb isaac.BlockWriteDatabase) (isaac.BlockImporter, error) {
+				return isaacblock.NewBlockImporter(
+					root,
+					cmd.encs,
+					blockmap,
+					bwdb,
+					networkID,
+				)
+			},
+			prev,
+			cmd.syncerLastBlockMapf(),
+			cmd.syncerBlockMapf(),
+			cmd.syncerBlockMapItemf(),
+			tempsyncpool,
+			cmd.setLastVoteproofsfFromBlockReader(lvps),
+		)
+		if err != nil {
+			return nil, e(err, "")
+		}
+
+		go cmd.newSyncerDeferred(height, syncer, lastsuffrageproof)
+
+		return syncer, nil
 	}
-
-	pps := isaac.NewProposalProcessors(cmd.newProposalProcessor, cmd.getProposal)
-	_ = pps.SetLogging(logging)
-
-	states := isaacstates.NewStates(box)
-	_ = states.SetLogging(logging)
-
-	whenNewBlockSaved := func(height base.Height) {
-		box.Count()
-	}
-
-	syncinghandler := isaacstates.NewSyncingHandler(cmd.local, cmd.nodePolicy, cmd.proposalSelector, cmd.newSyncer)
-	syncinghandler.SetWhenFinished(func(height base.Height) { // FIXME set later
-	})
-
-	states.
-		SetHandler(isaacstates.NewBrokenHandler(cmd.local, cmd.nodePolicy)).
-		SetHandler(isaacstates.NewStoppedHandler(cmd.local, cmd.nodePolicy)).
-		SetHandler(isaacstates.NewBootingHandler(cmd.local, cmd.nodePolicy, cmd.getLastManifest, cmd.getSuffrage)).
-		SetHandler(
-			isaacstates.NewJoiningHandler(
-				cmd.local, cmd.nodePolicy, cmd.proposalSelector, cmd.getLastManifest, cmd.getSuffrage, voteFunc,
-			),
-		).
-		SetHandler(
-			isaacstates.NewConsensusHandler(
-				cmd.local, cmd.nodePolicy, cmd.proposalSelector,
-				cmd.getManifest, cmd.getSuffrage, voteFunc, whenNewBlockSaved,
-				pps,
-			)).
-		SetHandler(syncinghandler)
-
-	// NOTE load last init, accept voteproof and last majority voteproof
-	switch ivp, avp, found, err := cmd.pool.LastVoteproofs(); {
-	case err != nil:
-		return nil, err
-	case !found:
-	default:
-		_ = states.LastVoteproofsHandler().Set(ivp)
-		_ = states.LastVoteproofsHandler().Set(avp)
-	}
-
-	return states, nil
-}
-
-func (cmd *runCommand) newSyncer(height base.Height) (isaac.Syncer, error) {
-	e := util.StringErrorFunc("failed newSyncer")
-
-	// NOTE if no discoveries, moves to broken state
-	if len(cmd.SyncNode) < 1 {
-		return nil, e(isaacstates.ErrUnpromising.Errorf("syncer needs one or more SyncNode"), "")
-	}
-
-	var lastsuffrageproof base.SuffrageProof
-
-	switch proof, found, err := cmd.db.LastSuffrageProof(); {
-	case err != nil:
-		return nil, e(err, "")
-	case found:
-		lastsuffrageproof = proof
-	}
-
-	var prev base.BlockMap
-
-	switch m, found, err := cmd.db.LastBlockMap(); {
-	case err != nil:
-		return nil, e(isaacstates.ErrUnpromising.Wrap(err), "")
-	case found:
-		prev = m
-	}
-
-	var tempsyncpool isaac.TempSyncPool
-
-	switch i, err := launch.NewTempSyncPoolDatabase(cmd.design.Storage.Base, height, cmd.encs, cmd.enc); {
-	case err != nil:
-		return nil, e(isaacstates.ErrUnpromising.Wrap(err), "")
-	default:
-		tempsyncpool = i
-	}
-
-	syncer, err := isaacstates.NewSyncer(
-		cmd.design.Storage.Base,
-		func(height base.Height) (isaac.BlockWriteDatabase, func(context.Context) error, error) {
-			bwdb, err := cmd.db.NewBlockWriteDatabase(height)
-			if err != nil {
-				return nil, nil, err
-			}
-
-			return bwdb,
-				func(ctx context.Context) error {
-					return launch.MergeBlockWriteToPermanentDatabase(ctx, bwdb, cmd.perm)
-				},
-				nil
-		},
-		func(root string, blockmap base.BlockMap, bwdb isaac.BlockWriteDatabase) (isaac.BlockImporter, error) {
-			return isaacblock.NewBlockImporter(
-				root,
-				cmd.encs,
-				blockmap,
-				bwdb,
-				networkID,
-			)
-		},
-		prev,
-		cmd.syncerLastBlockMapf(),
-		cmd.syncerBlockMapf(),
-		cmd.syncerBlockMapItemf(),
-		tempsyncpool,
-		cmd.setLastVoteproofsf(),
-	)
-	if err != nil {
-		return nil, e(err, "")
-	}
-
-	go cmd.newSyncerDeferred(height, syncer, lastsuffrageproof)
-
-	return syncer, nil
 }
 
 func (cmd *runCommand) newSyncerDeferred(
@@ -375,7 +324,9 @@ func (cmd *runCommand) syncerBlockMapItemf() isaacstates.SyncerBlockMapItemFunc 
 	}
 }
 
-func (cmd *runCommand) setLastVoteproofsf() func(isaac.BlockReader) error {
+func (cmd *runCommand) setLastVoteproofsfFromBlockReader(
+	lvps *isaacstates.LastVoteproofsHandler,
+) func(isaac.BlockReader) error {
 	return func(reader isaac.BlockReader) error {
 		switch v, found, err := reader.Item(base.BlockMapItemTypeVoteproofs); {
 		case err != nil:
@@ -383,13 +334,17 @@ func (cmd *runCommand) setLastVoteproofsf() func(isaac.BlockReader) error {
 		case !found:
 			return errors.Errorf("voteproofs not found at last")
 		default:
-			vps := v.([]base.Voteproof)           //nolint:forcetypeassert //...
-			if err := cmd.pool.SetLastVoteproofs( //nolint:forcetypeassert //...
-				vps[0].(base.INITVoteproof),
-				vps[1].(base.ACCEPTVoteproof),
-			); err != nil {
+			vps := v.([]base.Voteproof) //nolint:forcetypeassert //...
+
+			ivp := vps[0].(base.INITVoteproof)   //nolint:forcetypeassert //...
+			avp := vps[1].(base.ACCEPTVoteproof) //nolint:forcetypeassert //...
+
+			if err := cmd.pool.SetLastVoteproofs(ivp, avp); err != nil {
 				return err
 			}
+
+			_ = lvps.Set(ivp)
+			_ = lvps.Set(avp)
 
 			return nil
 		}

@@ -9,7 +9,6 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
-	"github.com/spikeekips/mitum/isaac"
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/launch"
@@ -56,22 +55,9 @@ func (cmd *runCommand) prepare() (func() error, error) {
 		stop = i
 	}
 
-	cmd.nodePolicy = isaac.DefaultNodePolicy(networkID)
-	log.Info().
-		Interface("node_policy", cmd.nodePolicy).
-		Msg("node policy loaded")
-
-	// FIXME implement isaacstates.NewSuffrageStateBuilder(cmd.nodePolicy.NetworkID(), )
-
-	cmd.getSuffrage = cmd.getSuffrageFunc()
-	// FIXME cmd.getSuffrageBooting   func(blockheight base.Height) (base.Suffrage, bool, error)
-	cmd.getManifest = cmd.getManifestFunc()
-	cmd.proposalSelector = cmd.proposalSelectorFunc()
-	cmd.getLastManifest = cmd.getLastManifestFunc()
-	cmd.newProposalProcessor = cmd.newProposalProcessorFunc(cmd.enc)
-	cmd.getProposal = cmd.getProposalFunc()
-
-	cmd.prepareSuffrageBuilder()
+	if err := cmd.prepareStates(); err != nil {
+		return nil, err
+	}
 
 	return stop, nil
 }

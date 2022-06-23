@@ -12,6 +12,7 @@ import (
 	"github.com/lucas-clemente/quic-go"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	"github.com/spikeekips/mitum/network/quicstream"
+	"github.com/spikeekips/mitum/network/quictransport"
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
@@ -70,4 +71,16 @@ func Handlers(handlers *isaacnetwork.QuicstreamHandlers) *quicstream.PrefixHandl
 		Add(isaacnetwork.HandlerPrefixBlockMapItem, handlers.BlockMapItem)
 
 	return prefix
+}
+
+func BroadcastThruMemberlist(memberlist *quictransport.Memberlist, id string, b []byte) error {
+	donech := make(chan struct{})
+
+	body := quictransport.NewBroadcast(b, id, donech)
+
+	memberlist.Broadcast(body)
+
+	<-donech
+
+	return nil
 }

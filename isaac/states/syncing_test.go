@@ -84,8 +84,6 @@ func (t *testSyncingHandler) TestExit() {
 		deferredexit, err := st.exit(nil)
 		t.NoError(err)
 		deferredexit()
-
-		t.Nil(st.syncer)
 	})
 
 	t.Run("error", func() {

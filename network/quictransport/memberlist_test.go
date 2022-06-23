@@ -47,7 +47,7 @@ func (t *testMemberlist) TestNew() {
 	local, err := NewNode(bind.String(), bind, meta)
 	t.NoError(err)
 
-	config.Delegate = NewDelegate(local, nil)
+	config.Delegate = NewDelegate(local, nil, nil)
 	config.Transport = &Transport{}
 	config.Alive = NewAliveDelegate(t.enc, local.UDPAddr(), nil)
 
@@ -111,7 +111,7 @@ func (t *testMemberlist) newServersForJoining(
 	local, err := NewNode(laddr.String(), laddr, meta)
 	t.NoError(err)
 
-	memberlistconfig.Delegate = NewDelegate(local, nil)
+	memberlistconfig.Delegate = NewDelegate(local, nil, nil)
 
 	srv, _ := NewMemberlist(local, t.enc, memberlistconfig, 3)
 

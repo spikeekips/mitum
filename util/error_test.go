@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/pkg/errors"
@@ -20,7 +21,7 @@ type testError struct {
 
 func (t *testError) TestFuncCaller() {
 	f := FuncCaller(2)
-	t.Equal("(*testError).TestFuncCaller:22", fmt.Sprintf("%n:%d", f, f))
+	t.Equal("(*testError).TestFuncCaller:23", fmt.Sprintf("%n:%d", f, f))
 
 	e := NewError("showme")
 	t.Contains(e.id, "(*testError).TestFuncCaller")
@@ -205,7 +206,7 @@ func (t *testError) checkStack(b []byte) bool {
 	t.True(ok)
 	t.NotNil(stacks)
 
-	var goexitfound bool
+	var end bool
 	for i := range stacks {
 		s := stacks[i]
 		sm := s.(map[string]interface{})
@@ -217,13 +218,13 @@ func (t *testError) checkStack(b []byte) bool {
 		k, ok := j.(string)
 		t.True(ok)
 
-		goexitfound = k == "goexit"
-		if goexitfound {
+		end = strings.Contains(k, "testing.go")
+		if end {
 			break
 		}
 	}
 
-	return goexitfound
+	return end
 }
 
 func (t *testError) setupLogging(out io.Writer) zerolog.Logger {
@@ -243,7 +244,7 @@ func (t *testError) TestPKGErrorStack() {
 	l.Error().Err(e).Msg("find")
 	t.T().Log(bf.String())
 
-	t.False(t.checkStack(bf.Bytes()))
+	t.True(t.checkStack(bf.Bytes()))
 }
 
 func (t *testError) TestErrorStack() {
@@ -255,7 +256,7 @@ func (t *testError) TestErrorStack() {
 	l.Error().Err(e).Msg("killme")
 	t.T().Log(bf.String())
 
-	t.False(t.checkStack(bf.Bytes()))
+	t.True(t.checkStack(bf.Bytes()))
 }
 
 func (t *testError) TestStringErrorFunc() {

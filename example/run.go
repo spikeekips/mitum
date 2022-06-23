@@ -21,7 +21,7 @@ type runCommand struct {
 	nodeInfo             launch.NodeInfo
 	db                   isaac.Database
 	perm                 isaac.PermanentDatabase
-	memberlist           *quictransport.Memberlist
+	states               *isaacstates.States
 	suffrageStateBuilder *isaacstates.SuffrageStateBuilder
 	proposalSelector     *isaac.BaseProposalSelector
 	pool                 *isaacdatabase.TempPool
@@ -30,14 +30,16 @@ type runCommand struct {
 	getLastManifest      func() (base.Manifest, bool, error)
 	getSuffrageBooting   func(blockheight base.Height) (base.Suffrage, bool, error)
 	quicstreamserver     *quicstream.Server
-	getProposal          func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error)
+	memberlist           *quictransport.Memberlist
 	getManifest          func(height base.Height) (base.Manifest, error)
 	client               *isaacnetwork.QuicstreamClient
 	handlers             *quicstream.PrefixHandler
+	ballotbox            *isaacstates.Ballotbox
+	getProposal          func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error)
 	baseNodeCommand
-	SyncNode    []launch.ConnInfoFlag `help:"node for syncing" placeholder:"ConnInfo"`
 	Discovery   []launch.ConnInfoFlag `help:"discoveries" placeholder:"ConnInfo"`
 	discoveries []quictransport.ConnInfo
+	SyncNode    []launch.ConnInfoFlag `help:"node for syncing" placeholder:"ConnInfo"`
 	nodePolicy  isaac.NodePolicy
 	Hold        bool `help:"hold consensus states"`
 }
@@ -65,28 +67,22 @@ func (cmd *runCommand) Run() error {
 		return err
 	}
 
-	var states *isaacstates.States
 	var statesch <-chan error = make(chan error)
 
 	if !cmd.Hold {
-		var err error
+		statesch = cmd.states.Wait(ctx)
+	}
 
-		states, err = cmd.states()
-		if err != nil {
-			return err
-		}
-
-		statesch = states.Wait(ctx)
+	if cmd.states != nil {
+		defer func() {
+			if err := cmd.states.Stop(); err != nil {
+				log.Error().Err(err).Msg("failed to stop states")
+			}
+		}()
 	}
 
 	select {
 	case <-ctx.Done(): // NOTE graceful stop
-		if states != nil {
-			if err := states.Stop(); err != nil {
-				log.Error().Err(err).Msg("failed to stop states")
-			}
-		}
-
 		return nil
 	case err := <-statesch:
 		return err

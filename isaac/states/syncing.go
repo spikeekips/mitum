@@ -96,8 +96,6 @@ func (st *SyncingHandler) exit(sctx switchContext) (func(), error) {
 		default:
 			return nil, e(err, "failed to stop syncer")
 		}
-
-		st.syncer = nil
 	}
 
 	deferred, err := st.baseHandler.exit(sctx)
@@ -129,7 +127,7 @@ func (st *SyncingHandler) checkFinished(vp base.Voteproof) (added bool, isfinish
 	top, isfinished := st.syncer.IsFinished()
 
 	switch {
-	case vp.Point().Height() <= top:
+	case vp.Point().Height() < top:
 		return false, isfinished, nil
 	case vp.Point().Stage() == base.StageINIT && vp.Point().Height() == top+1:
 		if !isfinished {
@@ -143,6 +141,10 @@ func (st *SyncingHandler) checkFinished(vp base.Voteproof) (added bool, isfinish
 
 		return false, isfinished,
 			newConsensusSwitchContext(StateSyncing, vp.(base.INITVoteproof)) //nolint:forcetypeassert //...
+	case isfinished && vp.Point().Stage() == base.StageACCEPT && vp.Point().Height() == top:
+		st.newStuckCancel(vp)
+
+		return false, isfinished, nil
 	default:
 		height := vp.Point().Height()
 		if vp.Point().Stage() == base.StageINIT {
@@ -188,19 +190,14 @@ end:
 				continue
 			}
 
-			var added, isfinished bool
-			if added, isfinished, err = st.checkFinished(lvp); err == nil {
-				if isfinished && !added && lvp.Point().Height() == top && lvp.Point().Stage() == base.StageACCEPT {
-					st.newStuckCancel(lvp)
-				}
-
+			if _, _, err = st.checkFinished(lvp); err == nil {
 				continue end
 			}
 		}
 
 		var sctx switchContext
 
-		if !errors.As(err, &sctx) {
+		if err != nil && !errors.As(err, &sctx) {
 			sctx = newBrokenSwitchContext(StateSyncing, err)
 		}
 
@@ -230,6 +227,8 @@ func (st *SyncingHandler) newStuckCancel(vp base.Voteproof) {
 	if st.stuckcancel != nil {
 		st.stuckcancel()
 	}
+
+	st.Log().Debug().Dur("wait", st.waitStuck).Msg("will wait for stucked")
 
 	ctx, cancel := context.WithTimeout(st.ctx, st.waitStuck)
 	st.stuckcancel = cancel

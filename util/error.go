@@ -61,20 +61,32 @@ func (er Error) Wrap(err error) Error {
 
 // Wrapf formats strings with error.
 func (er Error) Wrapf(err error, s string, a ...interface{}) Error {
+	extra := fmt.Sprintf(s, a...)
+
+	if len(er.extra) > 0 {
+		extra = er.extra + "; " + extra
+	}
+
 	return Error{
 		wrapped: err,
 		id:      er.id,
 		msg:     er.msg,
-		extra:   fmt.Sprintf(s, a...),
+		extra:   extra,
 	}
 }
 
 // Errorf formats strings. It does not support `%w` error formatting.
 func (er Error) Errorf(s string, a ...interface{}) Error {
+	extra := fmt.Sprintf(s, a...)
+
+	if len(er.extra) > 0 {
+		extra = er.extra + "; " + extra
+	}
+
 	return Error{
 		id:    er.id,
 		msg:   er.msg,
-		extra: fmt.Sprintf(s, a...),
+		extra: extra,
 		stack: er.setStack(),
 	}
 }
@@ -247,7 +259,7 @@ func ZerologMarshalStack(err error) interface{} {
 
 	st := sterr.StackTrace()
 	s := &state{}
-	out := make([]map[string]string, len(st)+1)
+	out := make([]map[string]string, len(st))
 
 	for i := range st {
 		frame := st[i]

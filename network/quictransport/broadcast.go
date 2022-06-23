@@ -30,8 +30,6 @@ func (b *Broadcast) Message() []byte {
 func (b *Broadcast) Finished() {
 	if b.notifych != nil {
 		go func() {
-			b.notifych <- struct{}{}
-
 			close(b.notifych)
 		}()
 	}
