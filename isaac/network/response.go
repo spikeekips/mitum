@@ -7,9 +7,47 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/network"
+	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
 )
+
+func ClientWrite(w io.Writer, prefix string, enchint hint.Hint, header []byte, body io.Reader) error {
+	if err := quicstream.WritePrefix(w, prefix); err != nil {
+		return err
+	}
+
+	if err := writeHint(w, enchint); err != nil {
+		return err
+	}
+
+	if err := writeHeader(w, header); err != nil {
+		return err
+	}
+
+	if body != nil {
+		if _, err := io.Copy(w, body); err != nil {
+			return errors.Wrap(err, "")
+		}
+	}
+
+	return nil
+}
+
+func HandlerReadHead(ctx context.Context, encs *encoder.Encoders, r io.Reader) (encoder.Encoder, []byte, error) {
+	enc, err := ReadEncoder(ctx, encs, r)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	b, err := readHeader(context.Background(), r)
+	if err != nil {
+		return enc, nil, err
+	}
+
+	return enc, b, nil
+}
 
 func readHint(ctx context.Context, r io.Reader) (ht hint.Hint, _ error) {
 	e := util.StringErrorFunc("failed to read hint")

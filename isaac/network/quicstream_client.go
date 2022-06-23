@@ -15,8 +15,9 @@ import (
 
 type QuicstreamClient struct {
 	*baseNetworkClient
-	client *quicstream.PoolClient
-	proto  string
+	client     *quicstream.PoolClient
+	quicconfig *quic.Config
+	proto      string
 }
 
 func NewQuicstreamClient(
@@ -30,6 +31,7 @@ func NewQuicstreamClient(
 		baseNetworkClient: newBaseNetworkClient(encs, enc, idleTimeout, nil),
 		client:            quicstream.NewPoolClient(),
 		proto:             proto,
+		quicconfig:        quicconfig,
 	}
 
 	c.baseNetworkClient.writef = func(
@@ -37,7 +39,7 @@ func NewQuicstreamClient(
 		ci quictransport.ConnInfo,
 		writef quicstream.ClientWriteFunc,
 	) (io.ReadCloser, func() error, error) {
-		r, err := c.client.Write(ctx, ci.UDPAddr(), writef, c.newClient(ci, quicconfig))
+		r, err := c.client.Write(ctx, ci.UDPAddr(), writef, c.NewClient(ci))
 		if err != nil {
 			return nil, nil, err
 		}
@@ -52,8 +54,12 @@ func NewQuicstreamClient(
 	return c
 }
 
-func (c *QuicstreamClient) newClient(
-	ci quictransport.ConnInfo, quicconfig *quic.Config,
+func (c *QuicstreamClient) PoolClient() *quicstream.PoolClient {
+	return c.client
+}
+
+func (c *QuicstreamClient) NewClient(
+	ci quictransport.ConnInfo,
 ) func(*net.UDPAddr) *quicstream.Client {
 	return func(*net.UDPAddr) *quicstream.Client {
 		return quicstream.NewClient(
@@ -62,7 +68,7 @@ func (c *QuicstreamClient) newClient(
 				InsecureSkipVerify: ci.TLSInsecure(), //nolint:gosec //...
 				NextProtos:         []string{c.proto},
 			},
-			quicconfig,
+			c.quicconfig,
 			nil,
 		)
 	}

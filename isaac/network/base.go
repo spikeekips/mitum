@@ -11,6 +11,7 @@ import (
 )
 
 var (
+	HandlerPrefixMemberlist        = "memberlist"
 	HandlerPrefixRequestProposal   = "request_proposal"
 	HandlerPrefixProposal          = "proposal"
 	HandlerPrefixLastSuffrageProof = "last_suffrage_proof"
@@ -36,13 +37,6 @@ func newBaseNetwork(
 		enc:         enc,
 		idleTimeout: idleTimeout,
 	}
-}
-
-func (c *baseNetwork) readEncoder(r io.Reader) (encoder.Encoder, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), c.idleTimeout)
-	defer cancel()
-
-	return ReadEncoder(ctx, c.encs, r)
 }
 
 func Response(w io.Writer, header isaac.NetworkHeader, body interface{}, enc encoder.Encoder) error {

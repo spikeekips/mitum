@@ -153,8 +153,14 @@ end:
 	return proof, found, nil
 }
 
+// FIXME cache result from storages
+
 func (db *Default) SuffrageProofByBlockHeight(height base.Height) (base.SuffrageProof, bool, error) {
 	e := util.StringErrorFunc("failed to find suffrage by SuffrageProof by block height")
+
+	if height < base.GenesisHeight {
+		return nil, false, errors.Errorf("wrong height; < 0")
+	}
 
 	temps := db.activeTemps()
 	if len(temps) > 0 && height > temps[0].Height() {

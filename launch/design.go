@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	DefaultNetworkBind     = &net.UDPAddr{IP: net.ParseIP("127.0.0.0"), Port: 4321} //nolint:gomnd //...
+	DefaultNetworkBind     = &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 4321} //nolint:gomnd //...
 	defaultStorageBase     string
 	DefaultStorageBase     string
 	DefaultStorageDatabase *url.URL
@@ -157,6 +157,7 @@ func (d *NodeDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 
 type NodeNetworkDesign struct {
 	Bind        *net.UDPAddr `yaml:"bind"`
+	Publish     *net.UDPAddr `yaml:"publish"`
 	TLSInsecure bool         `yaml:"tls_insecure"`
 }
 
@@ -170,23 +171,36 @@ func (d *NodeNetworkDesign) IsValid([]byte) error {
 		return e.Errorf("invalid bind port")
 	}
 
+	switch {
+	case d.Publish == nil:
+		d.Publish = &net.UDPAddr{IP: DefaultNetworkBind.IP, Port: d.Bind.Port}
+	case d.Publish.Port < 1:
+		return e.Errorf("invalid publish port")
+	}
+
 	return nil
 }
 
 type NodeNetworkDesignYAMLMarshaler struct {
 	Bind        string `yaml:"bind,omitempty"`
+	Publish     string `yaml:"publish"`
 	TLSInsecure bool   `yaml:"tls_insecure"`
 }
 
 func (d NodeNetworkDesign) MarshalYAML() (interface{}, error) {
-	var bind string
+	var bind, publish string
 
 	if d.Bind != nil {
 		bind = d.Bind.String()
 	}
 
+	if d.Publish != nil {
+		publish = d.Publish.String()
+	}
+
 	return NodeNetworkDesignYAMLMarshaler{
 		Bind:        bind,
+		Publish:     publish,
 		TLSInsecure: d.TLSInsecure,
 	}, nil
 }
@@ -201,6 +215,15 @@ func (y *NodeNetworkDesignYAMLMarshaler) Decode(*jsonenc.Encoder) (d NodeNetwork
 		}
 
 		d.Bind = addr
+	}
+
+	if s := strings.TrimSpace(y.Publish); len(s) > 0 {
+		addr, err := net.ResolveUDPAddr("udp", y.Publish)
+		if err != nil {
+			return d, e(err, "invalid bind")
+		}
+
+		d.Publish = addr
 	}
 
 	d.TLSInsecure = y.TLSInsecure

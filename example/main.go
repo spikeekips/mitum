@@ -21,19 +21,21 @@ var (
 )
 
 func main() {
-	var cli struct { //nolint:govet //...
-		launch.Logging `embed:"" prefix:"log."`
-		Init           initCommand   `cmd:"" help:"init node"`
-		Import         importCommand `cmd:"" help:"import from block data"`
-		Run            runCommand    `cmd:"" help:"run node"`
-		Key            struct {      // revive:disable-line:nested-structs
+	// revive:disable:nested-structs
+	var cli struct {
+		Key struct {
 			New  keyNewCommand  `cmd:"" help:"generate new key"`
 			Load keyLoadCommand `cmd:"" help:"load key"`
 		} `cmd:"" help:"key"`
-		Network struct { // revive:disable-line:nested-structs
+		Import         importCommand `cmd:"" help:"import from block data"`
+		Init           initCommand   `cmd:"" help:"init node"`
+		launch.Logging `embed:"" prefix:"log."`
+		Network        struct {
 			Client networkClientCommand `cmd:"" help:"network client"`
 		} `cmd:"" help:"network"`
+		Run runCommand `cmd:"" help:"run node"`
 	}
+	// revive:enable:nested-structs
 
 	kctx := kong.Parse(&cli)
 

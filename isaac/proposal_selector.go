@@ -188,6 +188,20 @@ func (p *BaseProposalSelector) findProposalFromProposer(
 	}
 }
 
+type FixedProposerSelector struct {
+	nodes []base.Node
+}
+
+func NewFixedProposerSelector(nodes []base.Node) FixedProposerSelector {
+	return FixedProposerSelector{nodes: nodes}
+}
+
+func (p FixedProposerSelector) Select(_ context.Context, point base.Point, _ []base.Node) (base.Node, error) {
+	sum := uint64(point.Height().Int64()) + point.Round().Uint64()
+
+	return p.nodes[int(sum%uint64(len(p.nodes)))], nil
+}
+
 type BlockBasedProposerSelector struct {
 	getManifestHash func(base.Height) (util.Hash, error)
 }
@@ -200,11 +214,7 @@ func NewBlockBasedProposerSelector(
 	}
 }
 
-func (p BlockBasedProposerSelector) Select(
-	_ context.Context,
-	point base.Point,
-	nodes []base.Node,
-) (base.Node, error) {
+func (p BlockBasedProposerSelector) Select(_ context.Context, point base.Point, nodes []base.Node) (base.Node, error) {
 	var manifest util.Hash
 
 	switch h, err := p.getManifestHash(point.Height() - 1); {

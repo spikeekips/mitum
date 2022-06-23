@@ -196,3 +196,39 @@ func (suf SuffrageCandidate) Start() base.Height {
 func (suf SuffrageCandidate) Deadline() base.Height {
 	return suf.deadline
 }
+
+func GetSuffrageFromDatabase(
+	db Database,
+	blockheight base.Height,
+) (base.Suffrage, bool, error) {
+	height := blockheight.Prev()
+
+	if height < base.GenesisHeight { // NOTE signer node of genesis suffrage proof will be used
+		proof, found, err := db.SuffrageProofByBlockHeight(base.GenesisHeight)
+
+		switch {
+		case err != nil:
+			return nil, false, err
+		case !found:
+			return nil, false, nil
+		default:
+			m := proof.Map()
+			suf, err := NewSuffrage([]base.Node{NewNode(m.Signer(), m.Node())})
+
+			return suf, true, err
+		}
+	}
+
+	proof, found, err := db.SuffrageProofByBlockHeight(height)
+
+	switch {
+	case err != nil:
+		return nil, false, err
+	case !found:
+		return nil, false, nil
+	default:
+		suf, err := proof.Suffrage()
+
+		return suf, true, err
+	}
+}

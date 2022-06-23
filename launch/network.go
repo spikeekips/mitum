@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/lucas-clemente/quic-go"
-	"github.com/spikeekips/mitum/isaac"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -18,7 +17,9 @@ import (
 
 var QuicStreamNetworkProto = "mitum-example-network"
 
-func NewNetworkClient(encs *encoder.Encoders, enc encoder.Encoder, idleTimeout time.Duration) isaac.NetworkClient {
+func NewNetworkClient(
+	encs *encoder.Encoders, enc encoder.Encoder, idleTimeout time.Duration,
+) *isaacnetwork.QuicstreamClient {
 	return isaacnetwork.NewQuicstreamClient(encs, enc, idleTimeout, QuicStreamNetworkProto, DefaultQuicConfig())
 }
 

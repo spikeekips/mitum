@@ -23,21 +23,7 @@ var (
 	handlerPrefixRequestExistsInStateOperation = "exists_instate_operation"
 )
 
-func (cmd *runCommand) prepareNetwork() error {
-	cmd.client = launch.NewNetworkClient(cmd.encs, cmd.enc, time.Second*2) //nolint:gomnd //...
-
-	cmd.quicstreamserver = quicstream.NewServer(
-		cmd.design.Network.Bind,
-		launch.GenerateNewTLSConfig(),
-		launch.DefaultQuicConfig(),
-		cmd.networkHandlers(),
-	)
-	_ = cmd.quicstreamserver.SetLogging(logging)
-
-	return nil
-}
-
-func (cmd *runCommand) networkHandlers() quicstream.Handler {
+func (cmd *runCommand) networkHandlers() *quicstream.PrefixHandler {
 	handlers := isaacnetwork.NewQuicstreamHandlers(
 		cmd.local,
 		cmd.encs,
@@ -105,7 +91,7 @@ func (cmd *runCommand) networkHandlers() quicstream.Handler {
 
 	cmd.addNetworkHandlers(prefix)
 
-	return prefix.Handler
+	return prefix
 }
 
 func (cmd *runCommand) addNetworkHandlers(prefix *quicstream.PrefixHandler) {
@@ -120,13 +106,13 @@ func (cmd *runCommand) networkHandlerState(_ net.Addr, r io.Reader, w io.Writer)
 	ctx, cancel := context.WithTimeout(context.Background(), networkHandlerIdleTimeout)
 	defer cancel()
 
-	enc, err := isaacnetwork.ReadEncoder(ctx, cmd.encs, r)
+	enc, hb, err := isaacnetwork.HandlerReadHead(ctx, cmd.encs, r)
 	if err != nil {
 		return e(err, "")
 	}
 
 	var body stateRequestHeader
-	if err = encoder.DecodeReader(enc, r, &body); err != nil {
+	if err = encoder.Decode(enc, hb, &body); err != nil {
 		return e(err, "")
 	}
 
@@ -150,13 +136,13 @@ func (cmd *runCommand) networkHandlerExistsInStateOperation(_ net.Addr, r io.Rea
 	ctx, cancel := context.WithTimeout(context.Background(), networkHandlerIdleTimeout)
 	defer cancel()
 
-	enc, err := isaacnetwork.ReadEncoder(ctx, cmd.encs, r)
+	enc, hb, err := isaacnetwork.HandlerReadHead(ctx, cmd.encs, r)
 	if err != nil {
 		return e(err, "")
 	}
 
 	var body existsInStateOperationRequestHeader
-	if err = encoder.DecodeReader(enc, r, &body); err != nil {
+	if err = encoder.Decode(enc, hb, &body); err != nil {
 		return e(err, "")
 	}
 

@@ -62,13 +62,13 @@ func (c *QuicstreamHandlers) ErrorHandler(_ net.Addr, _ io.Reader, w io.Writer, 
 func (c *QuicstreamHandlers) RequestProposal(_ net.Addr, r io.Reader, w io.Writer) error {
 	e := util.StringErrorFunc("failed to handle request proposal")
 
-	enc, err := c.readEncoder(r)
+	enc, hb, err := c.prehandle(r)
 	if err != nil {
 		return e(err, "")
 	}
 
 	var body RequestProposalRequestHeader
-	if err = encoder.DecodeReader(enc, r, &body); err != nil {
+	if err = encoder.Decode(enc, hb, &body); err != nil {
 		return e(err, "")
 	}
 
@@ -92,13 +92,13 @@ func (c *QuicstreamHandlers) RequestProposal(_ net.Addr, r io.Reader, w io.Write
 func (c *QuicstreamHandlers) Proposal(_ net.Addr, r io.Reader, w io.Writer) error {
 	e := util.StringErrorFunc("failed to handle get proposal")
 
-	enc, err := c.readEncoder(r)
+	enc, hb, err := c.prehandle(r)
 	if err != nil {
 		return e(err, "")
 	}
 
 	var body ProposalRequestHeader
-	if err = encoder.DecodeReader(enc, r, &body); err != nil {
+	if err = encoder.Decode(enc, hb, &body); err != nil {
 		return e(err, "")
 	}
 
@@ -120,13 +120,13 @@ func (c *QuicstreamHandlers) Proposal(_ net.Addr, r io.Reader, w io.Writer) erro
 func (c *QuicstreamHandlers) LastSuffrageProof(_ net.Addr, r io.Reader, w io.Writer) error {
 	e := util.StringErrorFunc("failed to handle get last suffrage proof")
 
-	enc, err := c.readEncoder(r)
+	enc, hb, err := c.prehandle(r)
 	if err != nil {
 		return e(err, "")
 	}
 
 	var body LastSuffrageProofRequestHeader
-	if err = encoder.DecodeReader(enc, r, &body); err != nil {
+	if err = encoder.Decode(enc, hb, &body); err != nil {
 		return e(err, "")
 	}
 
@@ -143,13 +143,13 @@ func (c *QuicstreamHandlers) LastSuffrageProof(_ net.Addr, r io.Reader, w io.Wri
 func (c *QuicstreamHandlers) SuffrageProof(_ net.Addr, r io.Reader, w io.Writer) error {
 	e := util.StringErrorFunc("failed to handle get suffrage proof")
 
-	enc, err := c.readEncoder(r)
+	enc, hb, err := c.prehandle(r)
 	if err != nil {
 		return e(err, "")
 	}
 
 	var body SuffrageProofRequestHeader
-	if err = encoder.DecodeReader(enc, r, &body); err != nil {
+	if err = encoder.Decode(enc, hb, &body); err != nil {
 		return e(err, "")
 	}
 
@@ -168,13 +168,13 @@ func (c *QuicstreamHandlers) SuffrageProof(_ net.Addr, r io.Reader, w io.Writer)
 func (c *QuicstreamHandlers) LastBlockMap(_ net.Addr, r io.Reader, w io.Writer) error { //nolint:dupl //...
 	e := util.StringErrorFunc("failed to handle request last BlockMap")
 
-	enc, err := c.readEncoder(r)
+	enc, hb, err := c.prehandle(r)
 	if err != nil {
 		return e(err, "")
 	}
 
 	var body LastBlockMapRequestHeader
-	if err = encoder.DecodeReader(enc, r, &body); err != nil {
+	if err = encoder.Decode(enc, hb, &body); err != nil {
 		return e(err, "")
 	}
 
@@ -195,13 +195,13 @@ func (c *QuicstreamHandlers) LastBlockMap(_ net.Addr, r io.Reader, w io.Writer) 
 func (c *QuicstreamHandlers) BlockMap(_ net.Addr, r io.Reader, w io.Writer) error { //nolint:dupl //...
 	e := util.StringErrorFunc("failed to handle request BlockMap")
 
-	enc, err := c.readEncoder(r)
+	enc, hb, err := c.prehandle(r)
 	if err != nil {
 		return e(err, "")
 	}
 
 	var body BlockMapRequestHeader
-	if err = encoder.DecodeReader(enc, r, &body); err != nil {
+	if err = encoder.Decode(enc, hb, &body); err != nil {
 		return e(err, "")
 	}
 
@@ -222,13 +222,13 @@ func (c *QuicstreamHandlers) BlockMap(_ net.Addr, r io.Reader, w io.Writer) erro
 func (c *QuicstreamHandlers) BlockMapItem(_ net.Addr, r io.Reader, w io.Writer) error {
 	e := util.StringErrorFunc("failed to handle request BlockMapItem")
 
-	enc, err := c.readEncoder(r)
+	enc, hb, err := c.prehandle(r)
 	if err != nil {
 		return e(err, "")
 	}
 
 	var body BlockMapItemRequestHeader
-	if err = encoder.DecodeReader(enc, r, &body); err != nil {
+	if err = encoder.Decode(enc, hb, &body); err != nil {
 		return e(err, "")
 	}
 
@@ -258,6 +258,13 @@ func (c *QuicstreamHandlers) BlockMapItem(_ net.Addr, r io.Reader, w io.Writer) 
 	}
 
 	return nil
+}
+
+func (c *QuicstreamHandlers) prehandle(r io.Reader) (encoder.Encoder, []byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.idleTimeout)
+	defer cancel()
+
+	return HandlerReadHead(ctx, c.encs, r)
 }
 
 func (c *QuicstreamHandlers) getOrCreateProposal(

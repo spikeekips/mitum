@@ -18,12 +18,12 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
-type importCommand struct { //nolint:govet //...
+type importCommand struct {
 	db   isaac.Database
 	perm isaac.PermanentDatabase
 	pool *isaacdatabase.TempPool
-	baseNodeCommand
 	From string `arg:"" name:"from directory" help:"block data directory to import" type:"existingdir"`
+	baseNodeCommand
 }
 
 func (cmd *importCommand) Run() error {

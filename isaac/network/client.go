@@ -290,24 +290,19 @@ func (c *baseNetworkClient) loadResponseHeader(
 ) (h isaac.NetworkResponseHeader, enc encoder.Encoder, _ error) {
 	e := util.StringErrorFunc("failed to load response header")
 
-	enc, err := c.readEncoder(r)
-	if err != nil {
-		return h, nil, e(err, "")
-	}
-
 	tctx, cancel := context.WithTimeout(ctx, c.idleTimeout)
 	defer cancel()
 
-	switch b, err := readHeader(tctx, r); {
-	case err != nil:
-		return h, nil, e(err, "")
-	default:
-		if err := encoder.Decode(enc, b, &h); err != nil {
-			return h, nil, e(err, "failed to read stream")
-		}
-
-		return h, enc, nil
+	enc, b, err := HandlerReadHead(tctx, c.encs, r)
+	if err != nil {
+		return nil, nil, err
 	}
+
+	if err := encoder.Decode(enc, b, &h); err != nil {
+		return h, nil, e(err, "failed to read stream")
+	}
+
+	return h, enc, nil
 }
 
 func (c *baseNetworkClient) write(
@@ -323,25 +318,7 @@ func (c *baseNetworkClient) write(
 	}
 
 	r, cancel, err := c.writef(ctx, ci, func(w io.Writer) error {
-		if err = quicstream.WritePrefix(w, header.HandlerPrefix()); err != nil {
-			return err
-		}
-
-		if err = writeHint(w, enc.Hint()); err != nil {
-			return err
-		}
-
-		if _, err = w.Write(b); err != nil {
-			return errors.Wrap(err, "")
-		}
-
-		if body != nil {
-			if _, err = io.Copy(w, body); err != nil {
-				return errors.Wrap(err, "")
-			}
-		}
-
-		return nil
+		return ClientWrite(w, header.HandlerPrefix(), enc.Hint(), b, body)
 	})
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "failed to write")

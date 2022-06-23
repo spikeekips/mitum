@@ -77,6 +77,10 @@ func (h Height) String() string {
 }
 
 func (h Height) Prev() Height {
+	return h - 1
+}
+
+func (h Height) SafePrev() Height {
 	if h <= GenesisHeight {
 		return GenesisHeight
 	}
@@ -179,7 +183,7 @@ func (p Point) PrevRound() Point {
 
 	switch {
 	case p.r == 0:
-		h = p.h.Prev()
+		h = p.h.SafePrev()
 		r = Round(0)
 	default:
 		h = p.h
