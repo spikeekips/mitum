@@ -13,13 +13,25 @@ type BrokenHandler struct {
 	*baseHandler
 }
 
-func NewBrokenHandler(
+type NewBrokenHandlerType struct {
+	*BrokenHandler
+}
+
+func NewNewBrokenHandlerType(
 	local base.LocalNode,
 	policy isaac.NodePolicy,
-) *BrokenHandler {
-	return &BrokenHandler{
-		baseHandler: newBaseHandler(StateBroken, local, policy, nil),
+) *NewBrokenHandlerType {
+	return &NewBrokenHandlerType{
+		BrokenHandler: &BrokenHandler{
+			baseHandler: newBaseHandler(StateBroken, local, policy, nil),
+		},
 	}
+}
+
+func (h *NewBrokenHandlerType) new() (handler, error) {
+	return &BrokenHandler{
+		baseHandler: h.baseHandler.new(),
+	}, nil
 }
 
 func (st *BrokenHandler) enter(i switchContext) (func(), error) {

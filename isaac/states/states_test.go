@@ -14,6 +14,19 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
+type dummyNewHandler struct {
+	ne func() (handler, error)
+	st func(*States)
+}
+
+func (h dummyNewHandler) new() (handler, error) {
+	return h.ne()
+}
+
+func (h dummyNewHandler) setStates(st *States) {
+	h.st(st)
+}
+
 func (st *States) newVoteproof(vp base.Voteproof) error {
 	current := st.current()
 	if current == nil {
@@ -34,7 +47,16 @@ func (st *States) newVoteproof(vp base.Voteproof) error {
 }
 
 func (st *States) setHandler(h handler) *States {
-	st.handlers[h.state()] = h
+	st.newHandlers[h.state()] = dummyNewHandler{
+		ne: func() (handler, error) {
+			return h, nil
+		},
+		st: func(st *States) {
+			if i, ok := (interface{})(h).(interface{ setStates(*States) }); ok {
+				i.setStates(st)
+			}
+		},
+	}
 
 	return st
 }
@@ -77,7 +99,8 @@ func (t *testStates) TestExit() {
 
 	_ = st.setHandler(newDummyStateHandler(StateJoining))
 
-	booting := st.handlers[StateBooting].(*dummyStateHandler)
+	handler, _ := st.newHandlers[StateBooting].new()
+	booting := handler.(*dummyStateHandler)
 
 	exitch := make(chan bool, 1)
 	_ = booting.setExit(func(switchContext) error {
@@ -246,7 +269,8 @@ func (t *testStates) TestNewStateWithWrongFrom() {
 	st, _ := t.booted()
 	defer st.Stop()
 
-	stopped := st.handlers[StateStopped].(*dummyStateHandler)
+	handler, _ := st.newHandlers[StateStopped].new()
+	stopped := handler.(*dummyStateHandler)
 
 	enterch := make(chan bool, 1)
 	_ = stopped.setEnter(func(switchContext) error {
@@ -386,7 +410,8 @@ func (t *testStates) TestSameCurrentWithNext() {
 	st, _ := t.booted()
 	defer st.Stop()
 
-	booting := st.handlers[StateBooting].(*dummyStateHandler)
+	handler, _ := st.newHandlers[StateBooting].new()
+	booting := handler.(*dummyStateHandler)
 
 	reenterch := make(chan bool, 1)
 	_ = booting.setEnter(func(switchContext) error {
@@ -413,7 +438,8 @@ func (t *testStates) TestSameCurrentWithNextWithoutVoteproof() {
 	st, _ := t.booted()
 	defer st.Stop()
 
-	booting := st.handlers[StateBooting].(*dummyStateHandler)
+	handler, _ := st.newHandlers[StateBooting].new()
+	booting := handler.(*dummyStateHandler)
 
 	reenterch := make(chan bool, 1)
 	_ = booting.setEnter(func(switchContext) error {
@@ -436,7 +462,8 @@ func (t *testStates) TestNewVoteproof() {
 	st, _ := t.booted()
 	defer st.Stop()
 
-	booting := st.handlers[StateBooting].(*dummyStateHandler)
+	handler, _ := st.newHandlers[StateBooting].new()
+	booting := handler.(*dummyStateHandler)
 
 	voteproofch := make(chan base.Voteproof, 1)
 	_ = booting.setNewVoteproof(func(vp base.Voteproof) error {
@@ -473,7 +500,8 @@ func (t *testStates) TestNewVoteproofSwitchState() {
 	}, nil)
 	_ = st.setHandler(joining)
 
-	booting := st.handlers[StateBooting].(*dummyStateHandler)
+	handler, _ := st.newHandlers[StateBooting].new()
+	booting := handler.(*dummyStateHandler)
 
 	voteproofch := make(chan base.Voteproof, 1)
 	_ = booting.setNewVoteproof(func(vp base.Voteproof) error {
@@ -508,7 +536,9 @@ func (t *testStates) TestCurrentIgnoresSwitchingState() {
 	defer st.Stop()
 
 	exitch := make(chan struct{}, 1)
-	booting := st.handlers[StateBooting].(*dummyStateHandler)
+
+	handler, _ := st.newHandlers[StateBooting].new()
+	booting := handler.(*dummyStateHandler)
 	_ = booting.setExit(func(switchContext) error {
 		exitch <- struct{}{}
 
@@ -552,7 +582,9 @@ func (t *testStates) TestStoppedByStateStopped() {
 	defer st.Stop()
 
 	exitch := make(chan struct{}, 1)
-	booting := st.handlers[StateBooting].(*dummyStateHandler)
+
+	handler, _ := st.newHandlers[StateBooting].new()
+	booting := handler.(*dummyStateHandler)
 	_ = booting.setExit(func(switchContext) error {
 		exitch <- struct{}{}
 

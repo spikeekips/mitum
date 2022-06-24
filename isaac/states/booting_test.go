@@ -23,7 +23,7 @@ func (t *testBootingHandler) newState() *BootingHandler {
 
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
-	st := NewBootingHandler(local, nodePolicy,
+	newhandler := NewNewBootingHandlerType(local, nodePolicy,
 		func() (base.Manifest, bool, error) {
 			return manifest, true, nil
 		},
@@ -31,6 +31,13 @@ func (t *testBootingHandler) newState() *BootingHandler {
 			return suf, true, nil
 		},
 	)
+
+	_ = (interface{})(newhandler).(newHandler)
+
+	i, err := newhandler.new()
+	t.NoError(err)
+
+	st := i.(*BootingHandler)
 
 	avp, _ := t.VoteproofsPair(point, point.NextHeight(), manifest.Hash(), nil, nil, nodes)
 	st.setLastVoteproofFunc(avp)

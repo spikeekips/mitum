@@ -21,32 +21,49 @@ type SyncingHandler struct {
 	newSyncer       func(base.Height) (isaac.Syncer, error)
 	stuckcancel     func()
 	whenFinishedf   func(base.Height)
+	getSuffrage     isaac.GetSuffrageByBlockHeight
 	waitStuck       time.Duration
 	finishedLock    sync.RWMutex
 	stuckcancellock sync.RWMutex
-	getSuffrage     isaac.GetSuffrageByBlockHeight
 }
 
-func NewSyncingHandler(
+type NewSyncingHandlerType struct {
+	*SyncingHandler
+}
+
+func NewNewSyncingHandlerType(
 	local base.LocalNode,
 	policy isaac.NodePolicy,
 	proposalSelector isaac.ProposalSelector,
 	newSyncer func(base.Height) (isaac.Syncer, error),
 	getSuffrage isaac.GetSuffrageByBlockHeight,
-) *SyncingHandler {
+) *NewSyncingHandlerType {
 	if getSuffrage == nil {
+		//revive:disable-next-line:modifies-parameter
 		getSuffrage = func(nextheight base.Height) (base.Suffrage, bool, error) {
 			return nil, false, errors.Errorf("empty getSuffrage")
 		}
 	}
 
-	return &SyncingHandler{
-		baseHandler:   newBaseHandler(StateSyncing, local, policy, proposalSelector),
-		newSyncer:     newSyncer,
-		waitStuck:     policy.IntervalBroadcastBallot()*2 + policy.WaitProcessingProposal(),
-		whenFinishedf: func(base.Height) {},
-		getSuffrage:   getSuffrage,
+	return &NewSyncingHandlerType{
+		SyncingHandler: &SyncingHandler{
+			baseHandler:   newBaseHandler(StateSyncing, local, policy, proposalSelector),
+			newSyncer:     newSyncer,
+			waitStuck:     policy.IntervalBroadcastBallot()*2 + policy.WaitProcessingProposal(),
+			whenFinishedf: func(base.Height) {},
+			getSuffrage:   getSuffrage,
+		},
 	}
+}
+
+func (h *NewSyncingHandlerType) new() (handler, error) {
+	return &SyncingHandler{
+		baseHandler:   h.baseHandler.new(),
+		newSyncer:     h.newSyncer,
+		waitStuck:     h.waitStuck,
+		whenFinishedf: h.whenFinishedf,
+		getSuffrage:   h.getSuffrage,
+	}, nil
 }
 
 func (st *SyncingHandler) enter(i switchContext) (func(), error) {

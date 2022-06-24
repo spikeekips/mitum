@@ -12,17 +12,31 @@ type BootingHandler struct {
 	getSuffrage  isaac.GetSuffrageByBlockHeight
 }
 
-func NewBootingHandler(
+type NewBootingHandlerType struct {
+	*BootingHandler
+}
+
+func NewNewBootingHandlerType(
 	local base.LocalNode,
 	policy isaac.NodePolicy,
 	lastManifest func() (base.Manifest, bool, error),
 	getSuffrage isaac.GetSuffrageByBlockHeight,
-) *BootingHandler {
-	return &BootingHandler{
-		baseHandler:  newBaseHandler(StateBooting, local, policy, nil),
-		lastManifest: lastManifest,
-		getSuffrage:  getSuffrage,
+) *NewBootingHandlerType {
+	return &NewBootingHandlerType{
+		BootingHandler: &BootingHandler{
+			baseHandler:  newBaseHandler(StateBooting, local, policy, nil),
+			lastManifest: lastManifest,
+			getSuffrage:  getSuffrage,
+		},
 	}
+}
+
+func (h *NewBootingHandlerType) new() (handler, error) {
+	return &BootingHandler{
+		baseHandler:  h.baseHandler.new(),
+		lastManifest: h.lastManifest,
+		getSuffrage:  h.getSuffrage,
+	}, nil
 }
 
 func (st *BootingHandler) enter(i switchContext) (func(), error) { //nolint:unparam //...

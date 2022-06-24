@@ -22,11 +22,11 @@ var (
 type States struct {
 	cs handler
 	*logging.Logging
-	box      *Ballotbox
-	lvps     *LastVoteproofsHandler
-	statech  chan switchContext
-	vpch     chan base.Voteproof
-	handlers map[StateType]handler
+	box         *Ballotbox
+	lvps        *LastVoteproofsHandler
+	statech     chan switchContext
+	vpch        chan base.Voteproof
+	newHandlers map[StateType]newHandler
 	*util.ContextDaemon
 	timers              *util.Timers
 	broadcastBallotFunc func(base.Ballot) error
@@ -50,7 +50,7 @@ func NewStates(
 		broadcastBallotFunc: broadcastBallotFunc,
 		statech:             make(chan switchContext),
 		vpch:                make(chan base.Voteproof),
-		handlers:            map[StateType]handler{},
+		newHandlers:         map[StateType]newHandler{},
 		cs:                  nil,
 		timers: util.NewTimers([]util.TimerID{
 			timerIDBroadcastINITBallot,
@@ -64,18 +64,18 @@ func NewStates(
 	return st
 }
 
-func (st *States) SetHandler(h handler) *States {
+func (st *States) SetHandler(state StateType, h newHandler) *States {
 	if st.ContextDaemon.IsStarted() {
-		panic("can not set state handler; already started")
+		panic("can not set state newHandler; already started")
 	}
 
-	if i, ok := h.(interface{ setStates(*States) }); ok {
+	if i, ok := (interface{})(h).(interface{ setStates(*States) }); ok {
 		i.setStates(st)
 	}
 
-	st.handlers[h.state()] = h
+	st.newHandlers[state] = h
 
-	if l, ok := h.(logging.SetLogging); ok {
+	if l, ok := (interface{})(h).(logging.SetLogging); ok {
 		_ = l.SetLogging(st.Logging)
 	}
 
@@ -83,8 +83,8 @@ func (st *States) SetHandler(h handler) *States {
 }
 
 func (st *States) SetLogging(l *logging.Logging) *logging.Logging {
-	for i := range st.handlers {
-		if j, ok := st.handlers[i].(logging.SetLogging); ok {
+	for i := range st.newHandlers {
+		if j, ok := (interface{})(st.newHandlers[i]).(logging.SetLogging); ok {
 			_ = j.SetLogging(l)
 		}
 	}
@@ -100,10 +100,15 @@ func (st *States) start(ctx context.Context) error {
 	defer st.Log().Debug().Msg("states stopped")
 
 	// NOTE set stopped as current
-	switch h, found := st.handlers[StateStopped]; {
+	switch newHandler, found := st.newHandlers[StateStopped]; {
 	case !found:
 		return errors.Errorf("failed to find stopped handler")
 	default:
+		h, err := newHandler.new()
+		if err != nil {
+			return errors.WithMessage(err, "failed to create stopped new handler")
+		}
+
 		if _, err := h.enter(nil); err != nil {
 			return errors.Errorf("failed to enter stopped handler")
 		}
@@ -121,7 +126,7 @@ func (st *States) start(ctx context.Context) error {
 	// NOTE exit current
 	switch current := st.current(); {
 	case current == nil:
-		return errors.WithStack(serr)
+		return serr
 	default:
 		e := util.StringErrorFunc("failed to exit current state")
 
@@ -163,13 +168,13 @@ func (st *States) startStatesSwitch(ctx context.Context) error {
 				st.Log().Error().Err(err).
 					Dict("voteproof", base.VoteproofLog(vp)).Msg("failed to handle voteproof")
 
-				return errors.WithStack(err)
+				return err
 			}
 		}
 
 		if sctx != nil {
 			if err := st.ensureSwitchState(sctx); err != nil {
-				return errors.WithStack(err)
+				return err
 			}
 		}
 	}
@@ -318,9 +323,12 @@ func (st *States) exitAndEnter(sctx switchContext, current handler) (func(), fun
 		}
 	}
 
-	next := st.handlers[sctx.next()]
+	nextHandler, err := st.newHandlers[sctx.next()].new()
+	if err != nil {
+		return nil, nil, e(err, "failed to create new handler, %q", sctx.next())
+	}
 
-	ndefer, err := next.enter(sctx)
+	ndefer, err = nextHandler.enter(sctx)
 	if err != nil {
 		if isSwitchContextError(err) {
 			return nil, nil, err
@@ -329,7 +337,7 @@ func (st *States) exitAndEnter(sctx switchContext, current handler) (func(), fun
 		return nil, nil, e(err, "failed to enter next state")
 	}
 
-	st.cs = next
+	st.cs = nextHandler
 
 	return cdefer, ndefer, nil
 }
@@ -387,12 +395,12 @@ func (st *States) checkStateSwitchContext(sctx switchContext, current handler) e
 	case from == StateEmpty:
 		from = current.state()
 	default:
-		if _, found := st.handlers[from]; !found {
+		if _, found := st.newHandlers[from]; !found {
 			return errors.Errorf("unknown from state, %q", from)
 		}
 	}
 
-	if _, found := st.handlers[sctx.next()]; !found {
+	if _, found := st.newHandlers[sctx.next()]; !found {
 		return errors.Errorf("unknown next state, %q", sctx.next())
 	}
 

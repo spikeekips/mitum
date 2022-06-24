@@ -44,13 +44,12 @@ func (cmd *runCommand) prepareStates() error {
 		lvps,
 		cmd.broadcastBallotFunc,
 	)
-	_ = states.SetLogging(logging)
 
 	whenNewBlockSaved := func(height base.Height) {
 		cmd.ballotbox.Count()
 	}
 
-	syncinghandler := isaacstates.NewSyncingHandler(
+	syncinghandler := isaacstates.NewNewSyncingHandlerType(
 		cmd.local, cmd.nodePolicy, cmd.proposalSelector, cmd.newSyncer(lvps), cmd.getSuffrage,
 	)
 	syncinghandler.SetWhenFinished(func(height base.Height) {
@@ -58,21 +57,28 @@ func (cmd *runCommand) prepareStates() error {
 	})
 
 	states.
-		SetHandler(isaacstates.NewBrokenHandler(cmd.local, cmd.nodePolicy)).
-		SetHandler(isaacstates.NewStoppedHandler(cmd.local, cmd.nodePolicy)).
-		SetHandler(isaacstates.NewBootingHandler(cmd.local, cmd.nodePolicy, cmd.getLastManifest, cmd.getSuffrage)).
+		SetHandler(isaacstates.StateBroken, isaacstates.NewNewBrokenHandlerType(cmd.local, cmd.nodePolicy)).
+		SetHandler(isaacstates.StateStopped, isaacstates.NewNewStoppedHandlerType(cmd.local, cmd.nodePolicy)).
 		SetHandler(
-			isaacstates.NewJoiningHandler(
+			isaacstates.StateBooting,
+			isaacstates.NewNewBootingHandlerType(cmd.local, cmd.nodePolicy, cmd.getLastManifest, cmd.getSuffrage),
+		).
+		SetHandler(
+			isaacstates.StateJoining,
+			isaacstates.NewNewJoiningHandlerType(
 				cmd.local, cmd.nodePolicy, cmd.proposalSelector, cmd.getLastManifest, cmd.getSuffrage, voteFunc,
 			),
 		).
 		SetHandler(
-			isaacstates.NewConsensusHandler(
+			isaacstates.StateConsensus,
+			isaacstates.NewNewConsensusHandlerType(
 				cmd.local, cmd.nodePolicy, cmd.proposalSelector,
 				cmd.getManifest, cmd.getSuffrage, voteFunc, whenNewBlockSaved,
 				pps,
 			)).
-		SetHandler(syncinghandler)
+		SetHandler(isaacstates.StateSyncing, syncinghandler)
+
+	_ = states.SetLogging(logging)
 
 	// NOTE load last init, accept voteproof and last majority voteproof
 	switch ivp, avp, found, err := cmd.pool.LastVoteproofs(); {

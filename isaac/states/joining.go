@@ -18,26 +18,41 @@ type JoiningHandler struct {
 	newvoteproofLock   sync.Mutex
 }
 
-func NewJoiningHandler(
+type NewJoiningHandlerType struct {
+	*JoiningHandler
+}
+
+func NewNewJoiningHandlerType(
 	local base.LocalNode,
 	policy isaac.NodePolicy,
 	proposalSelector isaac.ProposalSelector,
 	lastManifest func() (base.Manifest, bool, error),
 	getSuffrage isaac.GetSuffrageByBlockHeight,
 	voteFunc func(base.Ballot) (bool, error),
-) *JoiningHandler {
+) *NewJoiningHandlerType {
 	baseHandler := newBaseHandler(StateJoining, local, policy, proposalSelector)
 
 	if voteFunc != nil {
 		baseHandler.voteFunc = preventVotingWithEmptySuffrage(voteFunc, getSuffrage)
 	}
 
-	return &JoiningHandler{
-		baseHandler:        baseHandler,
-		lastManifest:       lastManifest,
-		waitFirstVoteproof: policy.IntervalBroadcastBallot()*2 + policy.WaitProcessingProposal(),
-		getSuffrage:        getSuffrage,
+	return &NewJoiningHandlerType{
+		JoiningHandler: &JoiningHandler{
+			baseHandler:        baseHandler,
+			lastManifest:       lastManifest,
+			waitFirstVoteproof: policy.IntervalBroadcastBallot()*2 + policy.WaitProcessingProposal(),
+			getSuffrage:        getSuffrage,
+		},
 	}
+}
+
+func (h *NewJoiningHandlerType) new() (handler, error) {
+	return &JoiningHandler{
+		baseHandler:        h.baseHandler.new(),
+		lastManifest:       h.lastManifest,
+		waitFirstVoteproof: h.waitFirstVoteproof,
+		getSuffrage:        h.getSuffrage,
+	}, nil
 }
 
 func (st *JoiningHandler) enter(i switchContext) (func(), error) {

@@ -18,7 +18,11 @@ type ConsensusHandler struct {
 	pps               *isaac.ProposalProcessors
 }
 
-func NewConsensusHandler(
+type NewConsensusHandlerType struct {
+	*ConsensusHandler
+}
+
+func NewNewConsensusHandlerType(
 	local base.LocalNode,
 	policy isaac.NodePolicy,
 	proposalSelector isaac.ProposalSelector,
@@ -27,20 +31,32 @@ func NewConsensusHandler(
 	voteFunc func(base.Ballot) (bool, error),
 	whenNewBlockSaved func(base.Height),
 	pps *isaac.ProposalProcessors,
-) *ConsensusHandler {
+) *NewConsensusHandlerType {
 	baseHandler := newBaseHandler(StateConsensus, local, policy, proposalSelector)
 
 	if voteFunc != nil {
 		baseHandler.voteFunc = preventVotingWithEmptySuffrage(voteFunc, getSuffrage)
 	}
 
-	return &ConsensusHandler{
-		baseHandler:       baseHandler,
-		getManifest:       getManifest,
-		getSuffrage:       getSuffrage,
-		whenNewBlockSaved: whenNewBlockSaved,
-		pps:               pps,
+	return &NewConsensusHandlerType{
+		ConsensusHandler: &ConsensusHandler{
+			baseHandler:       baseHandler,
+			getManifest:       getManifest,
+			getSuffrage:       getSuffrage,
+			whenNewBlockSaved: whenNewBlockSaved,
+			pps:               pps,
+		},
 	}
+}
+
+func (h *NewConsensusHandlerType) new() (handler, error) {
+	return &ConsensusHandler{
+		baseHandler:       h.baseHandler.new(),
+		getManifest:       h.getManifest,
+		getSuffrage:       h.getSuffrage,
+		whenNewBlockSaved: h.whenNewBlockSaved,
+		pps:               h.pps,
+	}, nil
 }
 
 func (st *ConsensusHandler) enter(i switchContext) (func(), error) {

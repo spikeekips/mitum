@@ -21,7 +21,7 @@ func (t *testSyncingHandler) newState(finishch chan base.Height) (*SyncingHandle
 	local := t.Local
 	policy := t.NodePolicy
 
-	st := NewSyncingHandler(
+	newhandler := NewNewSyncingHandlerType(
 		local,
 		policy,
 		nil,
@@ -35,18 +35,23 @@ func (t *testSyncingHandler) newState(finishch chan base.Height) (*SyncingHandle
 		},
 		nil,
 	)
-	_ = st.SetLogging(logging.TestNilLogging)
-	_ = st.setTimers(util.NewTimers([]util.TimerID{
+	_ = newhandler.SetLogging(logging.TestNilLogging)
+	_ = newhandler.setTimers(util.NewTimers([]util.TimerID{
 		timerIDBroadcastINITBallot,
 		timerIDBroadcastACCEPTBallot,
 	}, false))
 
-	st.broadcastBallotFunc = func(bl base.Ballot) error {
+	newhandler.broadcastBallotFunc = func(bl base.Ballot) error {
 		return nil
 	}
-	st.switchStateFunc = func(switchContext) error {
+	newhandler.switchStateFunc = func(switchContext) error {
 		return nil
 	}
+
+	i, err := newhandler.new()
+	t.NoError(err)
+
+	st := i.(*SyncingHandler)
 
 	return st, func() {
 		deferred, err := st.exit(nil)

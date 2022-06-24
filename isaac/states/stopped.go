@@ -9,11 +9,23 @@ type StoppedHandler struct {
 	*baseHandler
 }
 
-func NewStoppedHandler(
+type NewStoppedHandlerType struct {
+	*StoppedHandler
+}
+
+func NewNewStoppedHandlerType(
 	local base.LocalNode,
 	policy isaac.NodePolicy,
-) *StoppedHandler {
-	return &StoppedHandler{
-		baseHandler: newBaseHandler(StateStopped, local, policy, nil),
+) *NewStoppedHandlerType {
+	return &NewStoppedHandlerType{
+		StoppedHandler: &StoppedHandler{
+			baseHandler: newBaseHandler(StateStopped, local, policy, nil),
+		},
 	}
+}
+
+func (h *NewStoppedHandlerType) new() (handler, error) {
+	return &StoppedHandler{
+		baseHandler: h.baseHandler.new(),
+	}, nil
 }

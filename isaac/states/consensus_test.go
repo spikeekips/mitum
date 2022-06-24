@@ -22,7 +22,7 @@ func (t *baseTestConsensusHandler) newState(previous base.Manifest, suf base.Suf
 	local := t.Local
 	policy := t.NodePolicy
 
-	st := NewConsensusHandler(
+	newhandler := NewNewConsensusHandlerType(
 		local,
 		policy,
 		nil,
@@ -32,11 +32,16 @@ func (t *baseTestConsensusHandler) newState(previous base.Manifest, suf base.Suf
 		func(base.Height) {},
 		isaac.NewProposalProcessors(nil, nil),
 	)
-	_ = st.SetLogging(logging.TestNilLogging)
-	_ = st.setTimers(util.NewTimers([]util.TimerID{
+	_ = newhandler.SetLogging(logging.TestNilLogging)
+	_ = newhandler.setTimers(util.NewTimers([]util.TimerID{
 		timerIDBroadcastINITBallot,
 		timerIDBroadcastACCEPTBallot,
 	}, false))
+
+	i, err := newhandler.new()
+	t.NoError(err)
+
+	st := i.(*ConsensusHandler)
 
 	return st, func() {
 		deferred, err := st.exit(nil)
@@ -108,7 +113,7 @@ func (t *testConsensusHandler) TestNew() {
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
-	st := NewConsensusHandler(
+	newhandler := NewNewConsensusHandlerType(
 		t.Local,
 		t.NodePolicy,
 		nil,
@@ -120,7 +125,12 @@ func (t *testConsensusHandler) TestNew() {
 			return nil, util.ErrNotFound.Call()
 		}),
 	)
-	_ = st.SetLogging(logging.TestNilLogging)
+	_ = newhandler.SetLogging(logging.TestNilLogging)
+
+	i, err := newhandler.new()
+	t.NoError(err)
+
+	st := i.(*ConsensusHandler)
 
 	_, ok := (interface{})(st).(handler)
 	t.True(ok)

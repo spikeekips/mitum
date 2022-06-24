@@ -22,7 +22,7 @@ func (t *testJoiningHandler) newState(suf base.Suffrage) (*JoiningHandler, func(
 	local := t.Local
 	policy := t.NodePolicy
 
-	st := NewJoiningHandler(
+	newhandler := NewNewJoiningHandlerType(
 		local,
 		policy,
 		nil,
@@ -32,11 +32,16 @@ func (t *testJoiningHandler) newState(suf base.Suffrage) (*JoiningHandler, func(
 		func(base.Height) (base.Suffrage, bool, error) { return suf, true, nil },
 		func(base.Ballot) (bool, error) { return true, nil },
 	)
-	_ = st.SetLogging(logging.TestNilLogging)
-	_ = st.setTimers(util.NewTimers([]util.TimerID{
+	_ = newhandler.SetLogging(logging.TestNilLogging)
+	_ = newhandler.setTimers(util.NewTimers([]util.TimerID{
 		timerIDBroadcastINITBallot,
 		timerIDBroadcastACCEPTBallot,
 	}, false))
+
+	i, err := newhandler.new()
+	t.NoError(err)
+
+	st := i.(*JoiningHandler)
 
 	st.broadcastBallotFunc = func(bl base.Ballot) error {
 		return nil

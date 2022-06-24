@@ -34,9 +34,14 @@ func (s StateType) String() string {
 	return string(s)
 }
 
+type newHandler interface {
+	new() (handler, error)
+	setStates(*States)
+}
+
 type handler interface {
 	state() StateType
-	enter(switchContext) (func(), error)
+	enter(switchContext) (func(), error) // FIXME remove switchContext
 	exit(switchContext) (func(), error)
 	newVoteproof(base.Voteproof) error
 }

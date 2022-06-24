@@ -60,6 +60,23 @@ func newBaseHandler(
 	}
 }
 
+func (st *baseHandler) new() *baseHandler {
+	return &baseHandler{
+		Logging:              st.Logging,
+		local:                st.local,
+		stt:                  st.stt,
+		policy:               st.policy,
+		sts:                  st.sts,
+		timers:               st.timers,
+		broadcastBallotFunc:  st.broadcastBallotFunc,
+		lastVoteproofFunc:    st.lastVoteproofFunc,
+		proposalSelector:     st.proposalSelector,
+		setLastVoteproofFunc: st.setLastVoteproofFunc,
+		switchStateFunc:      st.switchStateFunc,
+		voteFunc:             st.voteFunc,
+	}
+}
+
 func (st *baseHandler) enter(switchContext) (func(), error) { //nolint:unparam //...
 	st.ctx, st.cancel = context.WithCancel(context.Background())
 
