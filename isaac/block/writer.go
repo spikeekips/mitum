@@ -12,7 +12,6 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/fixedtree"
-	"github.com/spikeekips/mitum/util/localtime"
 )
 
 type FSWriter interface {
@@ -329,7 +328,7 @@ func (w *Writer) Manifest(ctx context.Context, previous base.Manifest) (base.Man
 			w.opstreeroot,
 			ststreeroot,
 			suffrage,
-			localtime.UTCNow(), // FIXME w.proposal.ProposalFact().ProposedAt(),
+			w.proposal.ProposalFact().ProposedAt(),
 		)
 
 		if err := w.fswriter.SetManifest(ctx, w.manifest); err != nil {
