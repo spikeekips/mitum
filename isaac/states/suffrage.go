@@ -59,11 +59,16 @@ func (s *SuffrageStateBuilder) Build(ctx context.Context, localstate base.State)
 	var suf base.Suffrage
 	var last base.State
 
-	switch proof, found, err := s.lastSuffrageProof(ctx); {
+	switch proof, updated, err := s.lastSuffrageProof(ctx); {
 	case err != nil:
 		return nil, e(err, "")
-	case !found:
-		return nil, e(util.ErrNotFound.Call(), "last suffrage proof not found")
+	case !updated:
+		i, err := isaac.NewSuffrageFromState(localstate)
+		if err != nil {
+			return nil, e(err, "invalid localstate")
+		}
+
+		return i, nil
 	default:
 		if err := proof.IsValid(s.networkID); err != nil {
 			return nil, e(err, "")

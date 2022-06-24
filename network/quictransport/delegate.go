@@ -117,7 +117,7 @@ func (d *AliveDelegate) NotifyAlive(peer *memberlist.Node) error {
 
 	d.storeconninfof(node)
 
-	l.Debug().Msg("notified alive")
+	l.Trace().Msg("notified alive")
 
 	return nil
 }

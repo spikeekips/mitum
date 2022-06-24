@@ -10,8 +10,10 @@ import (
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/launch"
+	"github.com/spikeekips/mitum/network/quictransport"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
+	"github.com/spikeekips/mitum/util/valuehash"
 )
 
 func (cmd *runCommand) getSuffrageFunc() func(blockheight base.Height) (base.Suffrage, bool, error) {
@@ -90,15 +92,45 @@ func (cmd *runCommand) proposalSelectorFunc() *isaac.BaseProposalSelector {
 		//		}
 		//	},
 		//),
-		isaac.NewFixedProposerSelector([]base.Node{cmd.local}), // FIXME remove
+		isaac.NewFixedProposerSelector(func(_ base.Point, nodes []base.Node) (base.Node, error) { // FIXME remove
+			for i := range nodes {
+				n := nodes[i]
+				if n.Address().String() == "no0sas" {
+					return n, nil
+				}
+			}
+
+			return nil, errors.Errorf("no0sas not found")
+		}),
 		cmd.proposalMaker(),
 		cmd.getSuffrage,
 		func() []base.Address { return nil },
-		func(context.Context, base.Point, base.Address) (
-			base.ProposalSignedFact, error,
-		) {
+		func(ctx context.Context, point base.Point, proposer base.Address) (base.ProposalSignedFact, error) {
 			// FIXME set request
-			return nil, nil
+			var ci quictransport.ConnInfo
+			cmd.memberlist.Members(func(node quictransport.Node) bool {
+				if node.Node().Equal(proposer) {
+					ci = node
+
+					return false
+				}
+
+				return true
+			})
+
+			if ci == nil {
+				return nil, errors.Errorf("proposer not joined in memberlist")
+			}
+
+			sf, found, err := cmd.client.RequestProposal(ctx, ci, point, proposer)
+			switch {
+			case err != nil:
+				return nil, errors.WithMessage(err, "failed to get proposal from proposer")
+			case !found:
+				return nil, errors.Errorf("proposer can not make proposal")
+			default:
+				return sf, nil
+			}
 		},
 		cmd.pool,
 	)
@@ -264,7 +296,7 @@ func (cmd *runCommand) getProposalFunc() func(_ context.Context, facthash util.H
 
 func (cmd *runCommand) syncerLastBlockMapf() isaacstates.SyncerLastBlockMapFunc {
 	return func(ctx context.Context, manifest util.Hash) (_ base.BlockMap, updated bool, _ error) {
-		discovery := cmd.Discovery[0]
+		discovery := cmd.SyncNode[0]
 
 		ci, err := discovery.ConnInfo()
 		if err != nil {
@@ -349,4 +381,21 @@ func (cmd *runCommand) setLastVoteproofsfFromBlockReader(
 			return nil
 		}
 	}
+}
+
+func (cmd *runCommand) broadcastBallotFunc(ballot base.Ballot) error {
+	e := util.StringErrorFunc("failed to broadcast ballot")
+
+	b, err := cmd.enc.Marshal(ballot)
+	if err != nil {
+		return e(err, "")
+	}
+
+	id := valuehash.NewSHA256(ballot.HashBytes()).String()
+
+	if err := launch.BroadcastThruMemberlist(cmd.memberlist, id, b); err != nil {
+		return e(err, "")
+	}
+
+	return nil
 }

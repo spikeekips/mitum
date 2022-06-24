@@ -4,9 +4,6 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
-	"github.com/spikeekips/mitum/launch"
-	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/valuehash"
 )
 
 func (cmd *runCommand) prepareStates() error {
@@ -15,19 +12,19 @@ func (cmd *runCommand) prepareStates() error {
 		Interface("node_policy", cmd.nodePolicy).
 		Msg("node policy loaded")
 
-	// FIXME implement isaacstates.NewSuffrageStateBuilder(cmd.nodePolicy.NetworkID(), )
-
 	cmd.getSuffrage = cmd.getSuffrageFunc()
-	// FIXME cmd.getSuffrageBooting   func(blockheight base.Height) (base.Suffrage, bool, error)
+	// FIXME cmd.getSuffrageBooting   func(blockheight base.Height)
+	// (base.Suffrage, bool, error); use suffrageStateBuilder
 	cmd.getManifest = cmd.getManifestFunc()
 	cmd.proposalSelector = cmd.proposalSelectorFunc()
 	cmd.getLastManifest = cmd.getLastManifestFunc()
 	cmd.newProposalProcessor = cmd.newProposalProcessorFunc(cmd.enc)
 	cmd.getProposal = cmd.getProposalFunc()
 
-	cmd.prepareSuffrageBuilder()
+	cmd.prepareSuffrageStateBuilder()
 
 	cmd.ballotbox = isaacstates.NewBallotbox(cmd.getSuffrage, cmd.nodePolicy.Threshold())
+
 	voteFunc := func(bl base.Ballot) (bool, error) {
 		voted, err := cmd.ballotbox.Vote(bl)
 		if err != nil {
@@ -45,23 +42,8 @@ func (cmd *runCommand) prepareStates() error {
 	states := isaacstates.NewStates(
 		cmd.ballotbox,
 		lvps,
-		func(ballot base.Ballot) error {
-			e := util.StringErrorFunc("failed to broadcast ballot")
-
-			b, err := cmd.enc.Marshal(ballot)
-			if err != nil {
-				return e(err, "")
-			}
-
-			id := valuehash.NewSHA256(ballot.HashBytes()).String()
-
-			if err := launch.BroadcastThruMemberlist(cmd.memberlist, id, b); err != nil {
-				return e(err, "")
-			}
-
-			return nil
-		},
-	) // FIXME set broadcast ballot func
+		cmd.broadcastBallotFunc,
+	)
 	_ = states.SetLogging(logging)
 
 	whenNewBlockSaved := func(height base.Height) {
@@ -69,9 +51,10 @@ func (cmd *runCommand) prepareStates() error {
 	}
 
 	syncinghandler := isaacstates.NewSyncingHandler(
-		cmd.local, cmd.nodePolicy, cmd.proposalSelector, cmd.newSyncer(lvps),
+		cmd.local, cmd.nodePolicy, cmd.proposalSelector, cmd.newSyncer(lvps), cmd.getSuffrage,
 	)
-	syncinghandler.SetWhenFinished(func(height base.Height) { // FIXME set later
+	syncinghandler.SetWhenFinished(func(height base.Height) {
+		// FIXME set later
 	})
 
 	states.

@@ -162,7 +162,7 @@ func (cmd *runCommand) prepareNetwork() error {
 	return cmd.prepareMemberlist()
 }
 
-func (cmd *runCommand) prepareSuffrageBuilder() {
+func (cmd *runCommand) prepareSuffrageStateBuilder() {
 	var last util.Hash
 
 	cmd.suffrageStateBuilder = isaacstates.NewSuffrageStateBuilder(

@@ -160,6 +160,10 @@ func (vp INITVoteproof) IsValid(networkID []byte) error {
 }
 
 func (vp INITVoteproof) BallotMajority() base.INITBallotFact {
+	if vp.majority == nil {
+		return nil
+	}
+
 	return vp.majority.(base.INITBallotFact) //nolint:forcetypeassert //...
 }
 
@@ -196,6 +200,10 @@ func (vp ACCEPTVoteproof) IsValid(networkID []byte) error {
 }
 
 func (vp ACCEPTVoteproof) BallotMajority() base.ACCEPTBallotFact {
+	if vp.majority == nil {
+		return nil
+	}
+
 	return vp.majority.(base.ACCEPTBallotFact) //nolint:forcetypeassert //...
 }
 

@@ -33,6 +33,7 @@ func (t *testSyncingHandler) newState(finishch chan base.Height) (*SyncingHandle
 
 			return syncer, nil
 		},
+		nil,
 	)
 	_ = st.SetLogging(logging.TestNilLogging)
 	_ = st.setTimers(util.NewTimers([]util.TimerID{
@@ -293,6 +294,11 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 	t.Run("finished, but last init voteproof is higher", func() {
 		st, _ := t.newState(nil)
 
+		st.getSuffrage = func(h base.Height) (base.Suffrage, bool, error) {
+			suf, _ := isaac.NewSuffrage([]base.Node{t.Local})
+			return suf, true, nil
+		}
+
 		sctxch := make(chan switchContext, 1)
 		st.switchStateFunc = func(sctx switchContext) error {
 			sctxch <- sctx
@@ -359,6 +365,11 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 	t.Run("finished, but last accept voteproof higher", func() {
 		st, _ := t.newState(nil)
 
+		st.getSuffrage = func(h base.Height) (base.Suffrage, bool, error) {
+			suf, _ := isaac.NewSuffrage([]base.Node{t.Local})
+			return suf, true, nil
+		}
+
 		sctxch := make(chan switchContext, 1)
 		st.switchStateFunc = func(sctx switchContext) error {
 			sctxch <- sctx
@@ -392,6 +403,11 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 	t.Run("finished and expected last init voteproof", func() {
 		st, closef := t.newState(nil)
 		defer closef()
+
+		st.getSuffrage = func(h base.Height) (base.Suffrage, bool, error) {
+			suf, _ := isaac.NewSuffrage([]base.Node{t.Local})
+			return suf, true, nil
+		}
 
 		sctxch := make(chan switchContext, 1)
 		st.switchStateFunc = func(sctx switchContext) error {
@@ -431,6 +447,11 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 		st, closef := t.newState(nil)
 		defer closef()
 
+		st.getSuffrage = func(h base.Height) (base.Suffrage, bool, error) {
+			suf, _ := isaac.NewSuffrage([]base.Node{t.Local})
+			return suf, true, nil
+		}
+
 		sctxch := make(chan switchContext, 1)
 		st.switchStateFunc = func(sctx switchContext) error {
 			sctxch <- sctx
@@ -462,6 +483,45 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 			var jsctx joiningSwitchContext
 			t.True(errors.As(sctx, &jsctx))
 			base.EqualVoteproof(t.Assert(), avp, jsctx.vp)
+		}
+	})
+
+	t.Run("finished and expected last accept voteproof, but not in suffrage", func() {
+		st, closef := t.newState(nil)
+		defer closef()
+
+		st.getSuffrage = func(h base.Height) (base.Suffrage, bool, error) {
+			return nil, false, nil
+		}
+
+		sctxch := make(chan switchContext, 1)
+		st.switchStateFunc = func(sctx switchContext) error {
+			sctxch <- sctx
+
+			return nil
+		}
+
+		point := base.RawPoint(33, 2)
+		deferred, err := st.enter(newSyncingSwitchContext(StateJoining, point.Height()))
+		t.NoError(err)
+		deferred()
+
+		syncer := st.syncer.(*dummySyncer)
+
+		afact := t.NewACCEPTBallotFact(point, nil, nil)
+		avp, err := t.NewACCEPTVoteproof(afact, t.Local, []isaac.LocalNode{t.Local})
+		t.NoError(err)
+
+		st.setLastVoteproof(avp)
+
+		st.waitStuck = time.Millisecond * 100
+
+		syncer.finish(point.Height())
+
+		select {
+		case <-time.After(time.Second * 1):
+		case <-sctxch:
+			t.NoError(errors.Errorf("unexpected to switch joining state"))
 		}
 	})
 
@@ -502,6 +562,10 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 
 	t.Run("finished and expected last accept voteproof, with new voteproof", func() {
 		st, _ := t.newState(nil)
+		st.getSuffrage = func(h base.Height) (base.Suffrage, bool, error) {
+			suf, _ := isaac.NewSuffrage([]base.Node{t.Local})
+			return suf, true, nil
+		}
 
 		sctxch := make(chan switchContext, 1)
 		st.switchStateFunc = func(sctx switchContext) error {

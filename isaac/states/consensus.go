@@ -156,8 +156,6 @@ func (st *ConsensusHandler) processProposal(ivp base.INITVoteproof) {
 		return
 	}
 
-	l.Debug().Msg("proposal processed")
-
 	eavp := st.lastVoteproofs().ACCEPT()
 
 	initialWait := time.Nanosecond
@@ -455,7 +453,7 @@ func (st *ConsensusHandler) newINITVoteproofWithLastACCEPTVoteproof(
 			// NOTE local stored block is different with other nodes
 			l.Debug().
 				Stringer("previous_block", ivp.BallotMajority().PreviousBlock()).
-				Stringer("new_block", m.NewBlock()).
+				Interface("majority", m).
 				Msg("previous block does not match with last accept voteproof; moves to syncing")
 
 			return newSyncingSwitchContext(StateConsensus, ivp.Point().Height()-1)

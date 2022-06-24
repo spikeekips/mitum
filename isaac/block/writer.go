@@ -329,7 +329,7 @@ func (w *Writer) Manifest(ctx context.Context, previous base.Manifest) (base.Man
 			w.opstreeroot,
 			ststreeroot,
 			suffrage,
-			localtime.UTCNow(),
+			localtime.UTCNow(), // FIXME w.proposal.ProposalFact().ProposedAt(),
 		)
 
 		if err := w.fswriter.SetManifest(ctx, w.manifest); err != nil {

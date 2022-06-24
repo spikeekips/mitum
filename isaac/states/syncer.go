@@ -368,6 +368,8 @@ end:
 					return nil, errors.Errorf("already done by error")
 				}
 
+				top := s.top()
+
 				nctx, cancel := context.WithTimeout(ctx, s.lastBlockMapInterval)
 				defer cancel()
 
@@ -376,6 +378,10 @@ end:
 					s.Log().Error().Err(err).Msg("failed to update last BlockMap")
 					return nil, nil
 				case !updated:
+					go func() {
+						s.finishedch <- top
+					}()
+
 					return nil, nil
 				default:
 					_ = s.Add(m.Manifest().Height())

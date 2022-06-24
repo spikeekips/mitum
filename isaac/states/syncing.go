@@ -24,6 +24,7 @@ type SyncingHandler struct {
 	waitStuck       time.Duration
 	finishedLock    sync.RWMutex
 	stuckcancellock sync.RWMutex
+	getSuffrage     isaac.GetSuffrageByBlockHeight
 }
 
 func NewSyncingHandler(
@@ -31,12 +32,20 @@ func NewSyncingHandler(
 	policy isaac.NodePolicy,
 	proposalSelector isaac.ProposalSelector,
 	newSyncer func(base.Height) (isaac.Syncer, error),
+	getSuffrage isaac.GetSuffrageByBlockHeight,
 ) *SyncingHandler {
+	if getSuffrage == nil {
+		getSuffrage = func(nextheight base.Height) (base.Suffrage, bool, error) {
+			return nil, false, errors.Errorf("empty getSuffrage")
+		}
+	}
+
 	return &SyncingHandler{
 		baseHandler:   newBaseHandler(StateSyncing, local, policy, proposalSelector),
 		newSyncer:     newSyncer,
 		waitStuck:     policy.IntervalBroadcastBallot()*2 + policy.WaitProcessingProposal(),
 		whenFinishedf: func(base.Height) {},
+		getSuffrage:   getSuffrage,
 	}
 }
 
@@ -111,14 +120,18 @@ func (st *SyncingHandler) exit(sctx switchContext) (func(), error) {
 func (st *SyncingHandler) newVoteproof(vp base.Voteproof) error {
 	e := util.StringErrorFunc("failed to handle new voteproof")
 
-	if _, _, err := st.checkFinished(vp); err != nil {
+	if err := st.checkFinished(vp); err != nil {
 		return e(err, "")
 	}
 
 	return nil
 }
 
-func (st *SyncingHandler) checkFinished(vp base.Voteproof) (added bool, isfinished bool, _ error) {
+func (st *SyncingHandler) checkFinished(vp base.Voteproof) error {
+	if vp == nil {
+		return nil
+	}
+
 	st.finishedLock.Lock()
 	defer st.finishedLock.Unlock()
 
@@ -128,30 +141,32 @@ func (st *SyncingHandler) checkFinished(vp base.Voteproof) (added bool, isfinish
 
 	switch {
 	case vp.Point().Height() < top:
-		return false, isfinished, nil
+		return nil
 	case vp.Point().Stage() == base.StageINIT && vp.Point().Height() == top+1:
 		if !isfinished {
 			l.Debug().Msg("expected init voteproof found; but not yet finished")
 
-			return false, isfinished, nil
+			return nil
 		}
 
 		// NOTE expected init voteproof found, moves to consensus state
 		l.Debug().Msg("expected init voteproof found; moves to syncing state")
 
-		return false, isfinished,
-			newConsensusSwitchContext(StateSyncing, vp.(base.INITVoteproof)) //nolint:forcetypeassert //...
+		return newConsensusSwitchContext(
+			StateSyncing, vp.(base.INITVoteproof)) //nolint:forcetypeassert //...
 	case isfinished && vp.Point().Stage() == base.StageACCEPT && vp.Point().Height() == top:
 		st.newStuckCancel(vp)
 
-		return false, isfinished, nil
+		return nil
 	default:
 		height := vp.Point().Height()
 		if vp.Point().Stage() == base.StageINIT {
 			height--
 		}
 
-		return st.add(height), isfinished, nil
+		_ = st.add(height)
+
+		return nil
 	}
 }
 
@@ -181,16 +196,26 @@ end:
 		case top := <-sc.Finished():
 			st.Log().Debug().Interface("height", top).Msg("syncer finished")
 
+			switch suf, found, eerr := st.getSuffrage(top + 1); {
+			case eerr != nil:
+				st.Log().Error().Err(eerr).Msg("failed to get suffrage after syncer finished")
+
+				continue end
+			case !found:
+				st.Log().Error().Msg("suffrage not found after syncer finished")
+
+				continue end
+			case !suf.Exists(st.local.Address()): // NOTE if local is not in suffrage, keep syncing
+				st.Log().Debug().Msg("local is not in suffrage after syncer finished; keep syncing")
+
+				continue end
+			}
+
 			st.whenFinishedf(top)
 
 			st.cancelstuck()
 
-			lvp := st.lastVoteproofs().Cap()
-			if lvp == nil {
-				continue
-			}
-
-			if _, _, err = st.checkFinished(lvp); err == nil {
+			if err = st.checkFinished(st.lastVoteproofs().Cap()); err == nil {
 				continue end
 			}
 		}
