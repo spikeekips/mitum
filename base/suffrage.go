@@ -13,6 +13,17 @@ type Suffrage interface {
 	Len() int
 }
 
+func IsInSuffrage(suf Suffrage, node Node) (bool, error) {
+	switch {
+	case suf == nil:
+		return false, errors.Errorf("empty suffrage")
+	case node == nil:
+		return false, errors.Errorf("empty node")
+	default:
+		return suf.ExistsPublickey(node.Address(), node.Publickey()), nil
+	}
+}
+
 type SuffrageStateValue interface {
 	StateValue
 	Height() Height // NOTE not manifest height

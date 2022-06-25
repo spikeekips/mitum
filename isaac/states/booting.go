@@ -80,7 +80,7 @@ func (st *BootingHandler) enter(i switchContext) (func(), error) { //nolint:unpa
 		return nil, e(err, "")
 	case !found:
 		return nil, e(nil, "empty suffrage for last manifest, %d", manifest.Height())
-	case !suf.Exists(st.local.Address()):
+	case !suf.ExistsPublickey(st.local.Address(), st.local.Publickey()):
 		st.Log().Debug().Msg("local not in suffrage; moves to syncing")
 
 		return nil, newSyncingSwitchContext(StateEmpty, manifest.Height())

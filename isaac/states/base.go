@@ -258,7 +258,7 @@ func (st *baseHandler) prepareNextBlock(avp base.ACCEPTVoteproof, suf base.Suffr
 
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(avp)).Object("point", point).Logger()
 
-	switch ok, err := isInSuffrage(st.local.Address(), suf); {
+	switch ok, err := base.IsInSuffrage(suf, st.local); {
 	case err != nil:
 		l.Debug().Interface("height", point.Height()).Msg("empty suffrage of next block; moves to broken state")
 
@@ -305,17 +305,6 @@ func (st *baseHandler) prepareNextBlock(avp base.ACCEPTVoteproof, suf base.Suffr
 
 func (st *baseHandler) vote(bl base.Ballot) (bool, error) {
 	return st.voteFunc(bl)
-}
-
-func isInSuffrage(local base.Address, suf base.Suffrage) (bool, error) {
-	switch {
-	case suf == nil:
-		return false, errors.Errorf("empty suffrage")
-	case !suf.Exists(local):
-		return false, nil
-	default:
-		return true, nil
-	}
 }
 
 func preventVotingWithEmptySuffrage(

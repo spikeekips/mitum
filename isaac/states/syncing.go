@@ -222,7 +222,7 @@ end:
 				st.Log().Error().Msg("suffrage not found after syncer finished")
 
 				continue end
-			case !suf.Exists(st.local.Address()): // NOTE if local is not in suffrage, keep syncing
+			case !suf.ExistsPublickey(st.local.Address(), st.local.Publickey()): // NOTE if local is not in suffrage, keep syncing
 				st.Log().Debug().Msg("local is not in suffrage after syncer finished; keep syncing")
 
 				continue end

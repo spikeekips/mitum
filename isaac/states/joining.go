@@ -97,7 +97,7 @@ func (st *JoiningHandler) enter(i switchContext) (func(), error) {
 		case err != nil:
 			return nil, e(err, "")
 		case !found:
-		case !suf.Exists(st.local.Address()):
+		case !suf.ExistsPublickey(st.local.Address(), st.local.Publickey()):
 			st.Log().Debug().Msg("local not in suffrage; moves to syncing")
 
 			return nil, newSyncingSwitchContext(StateEmpty, m.Height())

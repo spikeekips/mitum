@@ -91,7 +91,7 @@ func (st *ConsensusHandler) enter(i switchContext) (func(), error) {
 		suf = m
 	}
 
-	switch ok, err := isInSuffrage(st.local.Address(), suf); {
+	switch ok, err := base.IsInSuffrage(suf, st.local); {
 	case err != nil:
 		return nil, e(err, "local not in suffrage for next block")
 	case !ok:
