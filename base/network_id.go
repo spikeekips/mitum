@@ -30,6 +30,10 @@ func (ni NetworkID) IsValid([]byte) error {
 }
 
 func (ni NetworkID) Equal(a NetworkID) bool {
+	if a == nil {
+		return false
+	}
+
 	return bytes.Equal([]byte(ni), []byte(a))
 }
 

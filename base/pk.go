@@ -54,6 +54,10 @@ func (sg Signature) IsValid([]byte) error {
 }
 
 func (sg Signature) Equal(b Signature) bool {
+	if b == nil {
+		return false
+	}
+
 	return bytes.Equal(sg, b)
 }
 
