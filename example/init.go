@@ -6,9 +6,9 @@ import (
 )
 
 type initCommand struct {
-	baseNodeCommand
 	GenesisDesign string `arg:"" name:"genesis design" help:"genesis design" type:"filepath"`
 	genesisDesign launch.GenesisDesign
+	baseNodeCommand
 }
 
 func (cmd *initCommand) Run() error {

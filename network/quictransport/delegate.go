@@ -1,8 +1,11 @@
 package quictransport
 
 import (
+	"math"
 	"net"
+	"time"
 
+	"github.com/bluele/gcache"
 	"github.com/hashicorp/memberlist"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -11,7 +14,7 @@ import (
 )
 
 type (
-	DelegateAllowFunc     func(Node) error
+	DelegateNodeFunc      func(Node) error
 	DelegateJoinedFunc    func(Node)
 	DelegateLeftFunc      func(Node)
 	DelegateStoreConnInfo func(ConnInfo)
@@ -72,26 +75,42 @@ func (*Delegate) MergeRemoteState([]byte, bool) {
 
 type AliveDelegate struct {
 	*logging.Logging
-	enc            encoder.Encoder
-	laddr          *net.UDPAddr
-	allowf         DelegateAllowFunc // NOTE allowf controls which node can be entered or not
-	storeconninfof DelegateStoreConnInfo
+	enc             encoder.Encoder
+	laddr           *net.UDPAddr
+	allowf          DelegateNodeFunc // NOTE allowf controls which node can be entered or not
+	storeconninfof  DelegateStoreConnInfo
+	challengef      DelegateNodeFunc
+	challengecache  gcache.Cache
+	challengeexpire time.Duration
 }
 
-func NewAliveDelegate(enc encoder.Encoder, laddr *net.UDPAddr, allowf DelegateAllowFunc) *AliveDelegate {
+func NewAliveDelegate(
+	enc encoder.Encoder,
+	laddr *net.UDPAddr,
+	challengef DelegateNodeFunc,
+	allowf DelegateNodeFunc,
+) *AliveDelegate {
 	nallowf := allowf
 	if nallowf == nil {
 		nallowf = func(Node) error { return errors.Errorf("all nodes not allowed") }
+	}
+
+	nchallengef := challengef
+	if nchallengef == nil {
+		nchallengef = func(Node) error { return errors.Errorf("failed to challenge") }
 	}
 
 	return &AliveDelegate{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", "memberlist-alive-delegate")
 		}),
-		enc:            enc,
-		laddr:          laddr,
-		allowf:         nallowf,
-		storeconninfof: func(ConnInfo) {},
+		enc:             enc,
+		laddr:           laddr,
+		challengef:      nchallengef,
+		allowf:          nallowf,
+		storeconninfof:  func(ConnInfo) {},
+		challengecache:  gcache.New(math.MaxInt16).LRU().Build(),
+		challengeexpire: time.Second * 30, //nolint:gomnd //...
 	}
 }
 
@@ -105,6 +124,24 @@ func (d *AliveDelegate) NotifyAlive(peer *memberlist.Node) error {
 		d.Log().Debug().Interface("peer", peer).Err(err).Msg("invalid peer")
 
 		return errors.WithMessage(err, "not allowed to be alive")
+	}
+
+	var willchallenge bool
+
+	switch i, err := d.challengecache.Get(node.Addr().String()); {
+	case err != nil && errors.Is(err, gcache.KeyNotFoundError):
+		// NOTE challenge with node publickey
+		willchallenge = true
+	default:
+		willchallenge = time.Now().After(i.(time.Time).Add(d.challengeexpire)) //nolint:forcetypeassert //...
+	}
+
+	if willchallenge {
+		if err := d.challengef(node); err != nil {
+			return errors.WithMessage(err, "failed to challenge")
+		}
+
+		_ = d.challengecache.SetWithExpire(node.Addr().String(), time.Now(), d.challengeexpire)
 	}
 
 	l := d.Log().With().Object("node", node).Logger()

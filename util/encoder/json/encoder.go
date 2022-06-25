@@ -295,5 +295,5 @@ func (enc *Encoder) poolSet(s string, v interface{}) {
 		return
 	}
 
-	enc.pool.Set(s, v)
+	enc.pool.Set(s, v, nil)
 }

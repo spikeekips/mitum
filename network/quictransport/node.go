@@ -163,15 +163,17 @@ func (n *BaseNode) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 }
 
 type NodeMeta struct {
-	node base.Address
+	node      base.Address
+	publickey base.Publickey
 	hint.BaseHinter
 	tlsinsecure bool
 }
 
-func NewNodeMeta(node base.Address, tlsinsecure bool) NodeMeta {
+func NewNodeMeta(node base.Address, publickey base.Publickey, tlsinsecure bool) NodeMeta {
 	return NodeMeta{
 		BaseHinter:  hint.NewBaseHinter(NodeMetaHint),
 		node:        node,
+		publickey:   publickey,
 		tlsinsecure: tlsinsecure,
 	}
 }
@@ -180,12 +182,17 @@ func (n NodeMeta) Node() base.Address {
 	return n.node
 }
 
+func (n NodeMeta) Publickey() base.Publickey {
+	return n.publickey
+}
+
 func (n NodeMeta) TLSInsecure() bool {
 	return n.tlsinsecure
 }
 
 type nodeMetaJSONMmarshaler struct {
-	Node base.Address `json:"node"`
+	Node      base.Address   `json:"node"`
+	Publickey base.Publickey `json:"publickey"`
 	hint.BaseHinter
 	TLSInsecure bool `json:"tls_insecure"`
 }
@@ -194,12 +201,14 @@ func (n NodeMeta) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(nodeMetaJSONMmarshaler{
 		BaseHinter:  n.BaseHinter,
 		Node:        n.node,
+		Publickey:   n.publickey,
 		TLSInsecure: n.tlsinsecure,
 	})
 }
 
 type nodeMetaJSONUnmarshaler struct {
 	Node        string `json:"node"`
+	Publickey   string `json:"publickey"`
 	TLSInsecure bool   `json:"tls_insecure"`
 }
 
@@ -216,6 +225,13 @@ func (n *NodeMeta) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "failed to decode node")
 	default:
 		n.node = i
+	}
+
+	switch i, err := base.DecodePublickeyFromString(u.Publickey, enc); {
+	case err != nil:
+		return e(err, "failed to decode publickey")
+	default:
+		n.publickey = i
 	}
 
 	n.tlsinsecure = u.TLSInsecure

@@ -7,13 +7,14 @@ import (
 )
 
 var (
-	RequestProposalRequestHeaderHint   = hint.MustNewHint("request-proposal-header-v0.0.1")
-	ProposalRequestHeaderHint          = hint.MustNewHint("proposal-header-v0.0.1")
-	LastSuffrageProofRequestHeaderHint = hint.MustNewHint("last-suffrage-proof-header-v0.0.1")
-	SuffrageProofRequestHeaderHint     = hint.MustNewHint("suffrage-proof-header-v0.0.1")
-	LastBlockMapRequestHeaderHint      = hint.MustNewHint("last-blockmap-header-v0.0.1")
-	BlockMapRequestHeaderHint          = hint.MustNewHint("blockmap-header-v0.0.1")
-	BlockMapItemRequestHeaderHint      = hint.MustNewHint("blockmap-item-header-v0.0.1")
+	RequestProposalRequestHeaderHint         = hint.MustNewHint("request-proposal-header-v0.0.1")
+	ProposalRequestHeaderHint                = hint.MustNewHint("proposal-header-v0.0.1")
+	LastSuffrageProofRequestHeaderHint       = hint.MustNewHint("last-suffrage-proof-header-v0.0.1")
+	SuffrageProofRequestHeaderHint           = hint.MustNewHint("suffrage-proof-header-v0.0.1")
+	LastBlockMapRequestHeaderHint            = hint.MustNewHint("last-blockmap-header-v0.0.1")
+	BlockMapRequestHeaderHint                = hint.MustNewHint("blockmap-header-v0.0.1")
+	BlockMapItemRequestHeaderHint            = hint.MustNewHint("blockmap-item-header-v0.0.1")
+	MemberlistNodeChallengeRequestHeaderHint = hint.MustNewHint("memberlist-node-challenge-header-v0.0.1")
 )
 
 var ResponseHeaderHint = hint.MustNewHint("response-header-v0.0.1")
@@ -41,6 +42,8 @@ func NewBaseHeader(ht hint.Hint) BaseHeader {
 		prefix = HandlerPrefixBlockMap
 	case BlockMapItemRequestHeaderHint.Type():
 		prefix = HandlerPrefixBlockMapItem
+	case MemberlistNodeChallengeRequestHeaderHint.Type():
+		prefix = HandlerPrefixMemberlistNodeChallenge
 	}
 
 	return BaseHeader{
@@ -256,7 +259,7 @@ func NewBlockMapItemRequestHeader(height base.Height, item base.BlockMapItemType
 }
 
 func (h BlockMapItemRequestHeader) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid LastBlockMapItemHeader")
+	e := util.StringErrorFunc("invalid BlockMapItemHeader")
 
 	if err := h.BaseHinter.IsValid(h.Hint().Type().Bytes()); err != nil {
 		return e(err, "")
@@ -275,6 +278,36 @@ func (h BlockMapItemRequestHeader) Height() base.Height {
 
 func (h BlockMapItemRequestHeader) Item() base.BlockMapItemType {
 	return h.item
+}
+
+type MemberlistNodeChallengeRequestHeader struct {
+	input []byte
+	BaseHeader
+}
+
+func NewMemberlistNodeChallengeRequestHeader(input []byte) MemberlistNodeChallengeRequestHeader {
+	return MemberlistNodeChallengeRequestHeader{
+		BaseHeader: NewBaseHeader(MemberlistNodeChallengeRequestHeaderHint),
+		input:      input,
+	}
+}
+
+func (h MemberlistNodeChallengeRequestHeader) IsValid([]byte) error {
+	e := util.StringErrorFunc("invalid MemberlistNodeChallengeHeader")
+
+	if err := h.BaseHinter.IsValid(h.Hint().Type().Bytes()); err != nil {
+		return e(err, "")
+	}
+
+	if len(h.input) < 1 {
+		return e(nil, "empty input")
+	}
+
+	return nil
+}
+
+func (h MemberlistNodeChallengeRequestHeader) Input() []byte {
+	return h.input
 }
 
 type ResponseHeader struct {

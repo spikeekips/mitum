@@ -48,7 +48,7 @@ func (db *MemTempSyncPool) SetBlockMap(m base.BlockMap) error {
 		return nil
 	}
 
-	db.LockedObjectPool.Set(m.Manifest().Height().String(), m)
+	db.LockedObjectPool.Set(m.Manifest().Height().String(), m, nil)
 
 	return nil
 }

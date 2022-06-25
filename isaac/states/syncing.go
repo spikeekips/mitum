@@ -207,9 +207,9 @@ end:
 		case <-sc.Done():
 			_ = st.syncer.Cancel()
 
-			err = sc.Err()
-
-			st.Log().Error().Err(err).Msg("syncer canceled by error")
+			if err = sc.Err(); err != nil {
+				st.Log().Error().Err(err).Msg("syncer canceled by error")
+			}
 		case top := <-sc.Finished():
 			st.Log().Debug().Interface("height", top).Msg("syncer finished")
 
@@ -222,7 +222,8 @@ end:
 				st.Log().Error().Msg("suffrage not found after syncer finished")
 
 				continue end
-			case !suf.ExistsPublickey(st.local.Address(), st.local.Publickey()): // NOTE if local is not in suffrage, keep syncing
+			case !suf.ExistsPublickey(st.local.Address(), st.local.Publickey()):
+				// NOTE if local is not in suffrage, keep syncing
 				st.Log().Debug().Msg("local is not in suffrage after syncer finished; keep syncing")
 
 				continue end

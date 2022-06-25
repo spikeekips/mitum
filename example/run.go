@@ -21,7 +21,7 @@ type runCommand struct {
 	nodeInfo             launch.NodeInfo
 	db                   isaac.Database
 	perm                 isaac.PermanentDatabase
-	states               *isaacstates.States
+	getProposal          func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error)
 	suffrageStateBuilder *isaacstates.SuffrageStateBuilder
 	proposalSelector     *isaac.BaseProposalSelector
 	pool                 *isaacdatabase.TempPool
@@ -29,19 +29,18 @@ type runCommand struct {
 	newProposalProcessor newProposalProcessorFunc
 	getLastManifest      func() (base.Manifest, bool, error)
 	getSuffrageBooting   func(blockheight base.Height) (base.Suffrage, bool, error)
-	quicstreamserver     *quicstream.Server
+	states               *isaacstates.States
 	memberlist           *quictransport.Memberlist
 	getManifest          func(height base.Height) (base.Manifest, error)
 	client               *isaacnetwork.QuicstreamClient
 	handlers             *quicstream.PrefixHandler
 	ballotbox            *isaacstates.Ballotbox
-	getProposal          func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error)
+	quicstreamserver     *quicstream.Server
+	Discovery            []launch.ConnInfoFlag `help:"discoveries" placeholder:"ConnInfo"`
+	discoveries          []quictransport.ConnInfo
+	SyncNode             []launch.ConnInfoFlag `help:"node for syncing" placeholder:"ConnInfo"`
 	baseNodeCommand
-	Discovery   []launch.ConnInfoFlag `help:"discoveries" placeholder:"ConnInfo"`
-	discoveries []quictransport.ConnInfo
-	SyncNode    []launch.ConnInfoFlag `help:"node for syncing" placeholder:"ConnInfo"`
-	nodePolicy  isaac.NodePolicy
-	Hold        bool `help:"hold consensus states"`
+	Hold bool `help:"hold consensus states"`
 }
 
 func (cmd *runCommand) Run() error {

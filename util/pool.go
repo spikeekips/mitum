@@ -10,7 +10,7 @@ import (
 type ObjectPool interface {
 	Exists(string) bool
 	Get(string) (interface{}, bool /* if found, true */)
-	Set(string, interface{})
+	Set(string, interface{}, *time.Duration)
 }
 
 type GCacheObjectPool struct {
@@ -70,6 +70,6 @@ func (po *LockedObjectPool) Get(key string) (interface{}, bool) {
 	return po.maps.Value(key)
 }
 
-func (po *LockedObjectPool) Set(key string, v interface{}) {
+func (po *LockedObjectPool) Set(key string, v interface{}, _ *time.Duration) {
 	_ = po.maps.SetValue(key, v)
 }

@@ -27,6 +27,8 @@ type Default struct {
 	sync.RWMutex
 }
 
+// FIXME cache result
+
 func NewDefault(
 	temproot string,
 	encs *encoder.Encoders,

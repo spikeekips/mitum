@@ -29,6 +29,7 @@ func (t *testMemberlist) SetupTest() {
 	t.enc = jsonenc.NewEncoder()
 
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: NodeHint, Instance: BaseNode{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: NodeMetaHint, Instance: NodeMeta{}}))
 }
@@ -43,13 +44,13 @@ func (t *testMemberlist) TestNew() {
 	bind := t.NewBind()
 	config := BasicMemberlistConfig(bind.String(), bind, bind)
 
-	meta := NewNodeMeta(base.RandomAddress(""), true)
+	meta := NewNodeMeta(base.RandomAddress(""), base.NewMPrivatekey().Publickey(), true)
 	local, err := NewNode(bind.String(), bind, meta)
 	t.NoError(err)
 
 	config.Delegate = NewDelegate(local, nil, nil)
 	config.Transport = &Transport{}
-	config.Alive = NewAliveDelegate(t.enc, local.UDPAddr(), nil)
+	config.Alive = NewAliveDelegate(t.enc, local.UDPAddr(), nil, nil)
 
 	srv, err := NewMemberlist(local, t.enc, config, 3)
 	t.NoError(err)
@@ -105,9 +106,9 @@ func (t *testMemberlist) newServersForJoining(
 	memberlistconfig := BasicMemberlistConfig(util.UUID().String(), laddr, laddr)
 	memberlistconfig.Transport = transport
 	memberlistconfig.Events = NewEventsDelegate(t.enc, whenJoined, whenLeft)
-	memberlistconfig.Alive = NewAliveDelegate(t.enc, laddr, func(Node) error { return nil })
+	memberlistconfig.Alive = NewAliveDelegate(t.enc, laddr, func(Node) error { return nil }, func(Node) error { return nil })
 
-	meta := NewNodeMeta(node, true)
+	meta := NewNodeMeta(node, base.NewMPrivatekey().Publickey(), true)
 	local, err := NewNode(laddr.String(), laddr, meta)
 	t.NoError(err)
 
@@ -256,6 +257,71 @@ func (t *testMemberlist) TestLocalJoinToRemote() {
 	}
 }
 
+func (t *testMemberlist) TestLocalJoinToRemoteButFailedToChallenge() {
+	lci := t.newConnInfo()
+	lnode := base.RandomAddress("")
+	rci := t.newConnInfo()
+	rnode := base.RandomAddress("")
+
+	rjoinedch := make(chan Node, 1)
+	lqsrv, lsrv := t.newServersForJoining(
+		lnode,
+		lci,
+		nil,
+		nil,
+	)
+
+	lsrv.mconfig.Alive = NewAliveDelegate(
+		t.enc,
+		lci.UDPAddr(),
+		func(node Node) error {
+			if isEqualAddress(node, rci) {
+				return errors.Errorf("failed to challenge")
+			}
+
+			return nil
+		},
+		func(node Node) error { return nil },
+	)
+	lsrv, _ = NewMemberlist(lsrv.local, t.enc, lsrv.mconfig, 3)
+
+	rqsrv, rsrv := t.newServersForJoining(
+		rnode,
+		rci,
+		func(node Node) {
+			if isEqualAddress(node, rci) {
+				return
+			}
+
+			rjoinedch <- node
+		},
+		nil,
+	)
+
+	t.NoError(lqsrv.Start())
+	t.NoError(rqsrv.Start())
+	defer lqsrv.Stop()
+	defer rqsrv.Stop()
+
+	t.NoError(lsrv.Start())
+	t.NoError(rsrv.Start())
+	defer lsrv.Stop()
+	defer rsrv.Stop()
+
+	<-time.After(time.Second)
+	t.NoError(lsrv.Join([]ConnInfo{rci}))
+
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("local failed to join"))
+	case node := <-rjoinedch:
+		t.True(isEqualAddress(lci, node))
+	}
+
+	t.Equal(1, lsrv.MembersLen())
+	t.Equal(2, rsrv.MembersLen())
+}
+
 func (t *testMemberlist) TestLocalJoinToRemoteButNotAllowed() {
 	lci := t.newConnInfo()
 	lnode := base.RandomAddress("")
@@ -273,6 +339,7 @@ func (t *testMemberlist) TestLocalJoinToRemoteButNotAllowed() {
 	lsrv.mconfig.Alive = NewAliveDelegate(
 		t.enc,
 		lci.UDPAddr(),
+		func(node Node) error { return nil },
 		func(node Node) error {
 			if isEqualAddress(node, rci) {
 				return errors.Errorf("remote disallowed")

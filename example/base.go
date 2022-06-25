@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
@@ -32,9 +33,10 @@ func (cmd *baseCommand) prepareEncoder() error {
 
 type baseNodeCommand struct {
 	baseCommand
-	local  base.LocalNode
-	Design string `arg:"" name:"node design" help:"node design" type:"filepath"`
-	design launch.NodeDesign
+	local      base.LocalNode
+	Design     string `arg:"" name:"node design" help:"node design" type:"filepath"`
+	design     launch.NodeDesign
+	nodePolicy isaac.NodePolicy
 }
 
 func (cmd *baseNodeCommand) prepareDesigns() error {
@@ -58,6 +60,11 @@ func (cmd *baseNodeCommand) prepareLocal() error {
 	}
 
 	cmd.local = local
+
+	cmd.nodePolicy = isaac.DefaultNodePolicy(networkID)
+	log.Info().
+		Interface("node_policy", cmd.nodePolicy).
+		Msg("node policy loaded")
 
 	return nil
 }

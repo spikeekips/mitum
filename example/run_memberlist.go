@@ -10,6 +10,7 @@ import (
 	"github.com/spikeekips/mitum/base"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	"github.com/spikeekips/mitum/network/quictransport"
+	"github.com/spikeekips/mitum/util"
 )
 
 func (cmd *runCommand) prepareMemberlist() error {
@@ -23,7 +24,7 @@ func (cmd *runCommand) prepareMemberlist() error {
 	memberlistnode, err := quictransport.NewNode(
 		cmd.local.Address().String(),
 		cmd.design.Network.Publish,
-		quictransport.NewNodeMeta(cmd.local.Address(), cmd.design.Network.TLSInsecure),
+		quictransport.NewNodeMeta(cmd.local.Address(), cmd.local.Publickey(), cmd.design.Network.TLSInsecure),
 	)
 	if err != nil {
 		return err
@@ -61,6 +62,7 @@ func (cmd *runCommand) prepareMemberlist() error {
 	memberlistalive := quictransport.NewAliveDelegate(
 		cmd.enc,
 		cmd.design.Network.Publish,
+		cmd.memberlistNodeChallengeFunc(),
 		cmd.memberlistAllowFunc(),
 	)
 	memberlistconfig.Alive = memberlistalive
@@ -141,7 +143,37 @@ func (cmd *runCommand) startMmemberlist(ctx context.Context) error {
 	}
 }
 
-func (cmd *runCommand) memberlistAllowFunc() func(quictransport.Node) error {
+func (cmd *runCommand) memberlistNodeChallengeFunc() func(quictransport.Node) error {
+	return func(node quictransport.Node) error {
+		e := util.StringErrorFunc("failed to challenge memberlist node")
+
+		pub := node.Meta().Publickey()
+
+		if err := util.CheckIsValid(nil, false, pub); err != nil {
+			return e(err, "invalid memberlist node publickey")
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*3) //nolint:gomnd //...
+		defer cancel()
+
+		input := util.UUID().Bytes()
+
+		sig, err := cmd.client.MemberlistNodeChallenge(ctx, node, input)
+		if err != nil {
+			return e(err, "")
+		}
+
+		if err := pub.Verify(util.ConcatBytesSlice(cmd.nodePolicy.NetworkID(), input), sig); err != nil {
+			return e(err, "")
+		}
+
+		return nil
+	}
+}
+
+func (*runCommand) memberlistAllowFunc() func(quictransport.Node) error {
+	// FIXME last suffrage from suffrageStateBuilder
+
 	return func(node quictransport.Node) error {
 		return nil // FIXME disallow by last suffrage nodes
 	}

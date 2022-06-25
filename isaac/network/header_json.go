@@ -314,6 +314,39 @@ func (h *BlockMapItemRequestHeader) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+type MemberlistNodeChallengeRequestHeaderJSONMarshaler struct {
+	Input []byte `json:"input"`
+}
+
+func (h MemberlistNodeChallengeRequestHeader) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(struct {
+		MemberlistNodeChallengeRequestHeaderJSONMarshaler
+		BaseHeader
+	}{
+		BaseHeader: h.BaseHeader,
+		MemberlistNodeChallengeRequestHeaderJSONMarshaler: MemberlistNodeChallengeRequestHeaderJSONMarshaler{
+			Input: h.input,
+		},
+	})
+}
+
+func (h *MemberlistNodeChallengeRequestHeader) UnmarshalJSON(b []byte) error {
+	e := util.StringErrorFunc("failed to unmarshal MemberlistNodeChallengeHeader")
+	var u MemberlistNodeChallengeRequestHeaderJSONMarshaler
+
+	if err := util.UnmarshalJSON(b, &u); err != nil {
+		return e(err, "")
+	}
+
+	if err := h.BaseHeader.unmarshalJSON(b); err != nil {
+		return e(err, "")
+	}
+
+	h.input = u.Input
+
+	return nil
+}
+
 type ResponseHeaderJSONMarshaler struct {
 	Error string `json:"error,omitempty"`
 	OK    bool   `json:"ok,omitempty"`

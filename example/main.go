@@ -27,13 +27,13 @@ func main() {
 			New  keyNewCommand  `cmd:"" help:"generate new key"`
 			Load keyLoadCommand `cmd:"" help:"load key"`
 		} `cmd:"" help:"key"`
-		Import         importCommand `cmd:"" help:"import from block data"`
-		Init           initCommand   `cmd:"" help:"init node"`
 		launch.Logging `embed:"" prefix:"log."`
 		Network        struct {
 			Client networkClientCommand `cmd:"" help:"network client"`
 		} `cmd:"" help:"network"`
-		Run runCommand `cmd:"" help:"run node"`
+		Import importCommand `cmd:"" help:"import from block data"`
+		Init   initCommand   `cmd:"" help:"init node"`
+		Run    runCommand    `cmd:"" help:"run node"`
 	}
 	//revive:enable:nested-structs
 

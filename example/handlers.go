@@ -26,6 +26,7 @@ var (
 func (cmd *runCommand) networkHandlers() *quicstream.PrefixHandler {
 	handlers := isaacnetwork.NewQuicstreamHandlers(
 		cmd.local,
+		cmd.nodePolicy,
 		cmd.encs,
 		cmd.enc,
 		networkHandlerIdleTimeout,

@@ -246,6 +246,47 @@ func (c *baseNetworkClient) BlockMapItem(
 	}
 }
 
+func (c *baseNetworkClient) MemberlistNodeChallenge(
+	ctx context.Context, ci quictransport.ConnInfo, input []byte,
+) (base.Signature, error) {
+	// NOTE the io.ReadCloser should be closed.
+
+	e := util.StringErrorFunc("failed to get BlockMap")
+
+	header := NewMemberlistNodeChallengeRequestHeader(input)
+
+	if err := header.IsValid(nil); err != nil {
+		return nil, e(err, "")
+	}
+
+	r, cancel, err := c.write(ctx, ci, c.enc, header, nil)
+	if err != nil {
+		return nil, e(err, "failed to send request")
+	}
+
+	defer func() {
+		_ = cancel()
+	}()
+
+	h, _, err := c.loadResponseHeader(ctx, r)
+
+	switch {
+	case err != nil:
+		return nil, e(err, "failed to read stream")
+	case h.Err() != nil:
+		return nil, e(h.Err(), "")
+	case !h.OK():
+		return nil, nil
+	default:
+		b, err := io.ReadAll(r)
+		if err != nil {
+			return nil, e(err, "")
+		}
+
+		return base.Signature(b), nil
+	}
+}
+
 func (c *baseNetworkClient) requestOK(
 	ctx context.Context,
 	ci quictransport.ConnInfo,

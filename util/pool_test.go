@@ -56,7 +56,7 @@ func (t *testLockedObjectPool) TestGetNotFound() {
 
 func (t *testLockedObjectPool) TestGet() {
 	p := NewLockedObjectPool()
-	p.Set("findme", "showme")
+	p.Set("findme", "showme", nil)
 
 	i, found := p.Get("findme")
 	t.True(found)

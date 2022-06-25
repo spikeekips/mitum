@@ -19,6 +19,7 @@ type NetworkClient interface {
 	LastBlockMap(_ context.Context, _ quictransport.ConnInfo, manifest util.Hash) (_ base.BlockMap, updated bool, _ error)
 	BlockMap(context.Context, quictransport.ConnInfo, base.Height) (_ base.BlockMap, updated bool, _ error)
 	BlockMapItem(context.Context, quictransport.ConnInfo, base.Height, base.BlockMapItemType) (io.ReadCloser, func() error, bool, error)
+	MemberlistNodeChallenge(_ context.Context, _ quictransport.ConnInfo, input []byte) (base.Signature, error)
 }
 
 // revive:enable:line-length-limit

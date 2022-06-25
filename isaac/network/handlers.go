@@ -23,10 +23,12 @@ type QuicstreamHandlers struct {
 	blockMapf          func(base.Height) (base.BlockMap, bool, error)
 	blockMapItemf      func(base.Height, base.BlockMapItemType) (io.ReadCloser, bool, error)
 	local              base.LocalNode
+	nodepolicy         isaac.NodePolicy
 }
 
-func NewQuicstreamHandlers(
+func NewQuicstreamHandlers( // revive:disable-line:argument-limit
 	local base.LocalNode,
+	nodepolicy isaac.NodePolicy,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
 	idleTimeout time.Duration,
@@ -41,6 +43,7 @@ func NewQuicstreamHandlers(
 	return &QuicstreamHandlers{
 		baseNetwork:        newBaseNetwork(encs, enc, idleTimeout),
 		local:              local,
+		nodepolicy:         nodepolicy,
 		pool:               pool,
 		proposalMaker:      proposalMaker,
 		lastSuffrageProoff: lastSuffrageProoff,
@@ -256,6 +259,39 @@ func (c *QuicstreamHandlers) BlockMapItem(_ net.Addr, r io.Reader, w io.Writer) 
 	if _, err := io.Copy(w, itemr); err != nil {
 		return e(err, "")
 	}
+
+	return nil
+}
+
+func (c *QuicstreamHandlers) MemberlistNodeChallenge(_ net.Addr, r io.Reader, w io.Writer) error {
+	e := util.StringErrorFunc("failed to handle memberlist node challenge")
+
+	enc, hb, err := c.prehandle(r)
+	if err != nil {
+		return e(err, "")
+	}
+
+	var body MemberlistNodeChallengeRequestHeader
+	if err = encoder.Decode(enc, hb, &body); err != nil {
+		return e(err, "")
+	}
+
+	if err = body.IsValid(nil); err != nil {
+		return e(err, "")
+	}
+
+	sig, err := c.local.Privatekey().Sign(util.ConcatBytesSlice(c.nodepolicy.NetworkID(), body.Input()))
+	if err != nil {
+		return e(err, "")
+	}
+
+	header := NewResponseHeader(true, nil)
+
+	if err := Response(w, header, nil, enc); err != nil {
+		return e(err, "")
+	}
+
+	_, _ = w.Write(sig)
 
 	return nil
 }

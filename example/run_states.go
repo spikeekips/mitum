@@ -7,11 +7,6 @@ import (
 )
 
 func (cmd *runCommand) prepareStates() error {
-	cmd.nodePolicy = isaac.DefaultNodePolicy(networkID)
-	log.Info().
-		Interface("node_policy", cmd.nodePolicy).
-		Msg("node policy loaded")
-
 	cmd.getSuffrage = cmd.getSuffrageFunc()
 	// FIXME cmd.getSuffrageBooting   func(blockheight base.Height)
 	// (base.Suffrage, bool, error); use suffrageStateBuilder
