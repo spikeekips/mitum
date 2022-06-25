@@ -25,7 +25,7 @@ func (t *testGCacheObjectPool) TestGetNotFound() {
 
 func (t *testGCacheObjectPool) TestGet() {
 	p := NewGCacheObjectPool(10)
-	p.Set("findme", "showme")
+	p.Set("findme", "showme", nil)
 
 	i, found := p.Get("findme")
 	t.True(found)

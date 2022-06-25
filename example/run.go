@@ -67,6 +67,10 @@ func (cmd *runCommand) Run() error {
 		return err
 	}
 
+	defer func() {
+		_ = cmd.memberlist.Stop()
+	}()
+
 	var statesch <-chan error = make(chan error)
 
 	if !cmd.Hold {

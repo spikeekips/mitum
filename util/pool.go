@@ -1,6 +1,8 @@
 package util
 
 import (
+	"time"
+
 	"github.com/bluele/gcache"
 	"github.com/pkg/errors"
 )
@@ -38,7 +40,13 @@ func (po *GCacheObjectPool) Get(key string) (interface{}, bool) {
 	return i, true
 }
 
-func (po *GCacheObjectPool) Set(key string, v interface{}) {
+func (po *GCacheObjectPool) Set(key string, v interface{}, expire *time.Duration) {
+	if expire != nil {
+		_ = po.cache.SetWithExpire(key, v, *expire)
+
+		return
+	}
+
 	_ = po.cache.Set(key, v)
 }
 

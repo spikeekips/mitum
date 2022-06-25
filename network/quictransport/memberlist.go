@@ -86,7 +86,7 @@ func (srv *Memberlist) Join(cis []ConnInfo) error {
 		ci := cis[i]
 
 		stringurls[i] = ci.UDPAddr().String()
-		srv.cicache.Set(ci.UDPAddr().String(), ci)
+		srv.cicache.Set(ci.UDPAddr().String(), ci, nil)
 	}
 
 	l := srv.Log().With().Strs("urls", stringurls).Logger()
@@ -188,7 +188,7 @@ func (srv *Memberlist) patchMemberlistConfig(config *memberlist.Config) error { 
 
 	if i, ok := config.Alive.(*AliveDelegate); ok {
 		i.storeconninfof = func(ci ConnInfo) {
-			srv.cicache.Set(ci.UDPAddr().String(), ci)
+			srv.cicache.Set(ci.UDPAddr().String(), ci, nil)
 		}
 
 		origallowf := i.allowf

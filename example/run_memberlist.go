@@ -61,16 +61,14 @@ func (cmd *runCommand) prepareMemberlist() error {
 	memberlistalive := quictransport.NewAliveDelegate(
 		cmd.enc,
 		cmd.design.Network.Publish,
-		func(quictransport.Node) error {
-			return nil // FIXME disallow by last suffrage nodes
-		},
+		cmd.memberlistAllowFunc(),
 	)
 	memberlistconfig.Alive = memberlistalive
 
 	memberlistevents := quictransport.NewEventsDelegate(
 		cmd.enc,
 		func(node quictransport.Node) {
-			log.Debug().Interface("node", node).Msg("new node joined")
+			log.Debug().Interface("node", node).Msg("new node found")
 		},
 		func(node quictransport.Node) {
 			log.Debug().Interface("node", node).Msg("node left")
@@ -140,5 +138,11 @@ func (cmd *runCommand) startMmemberlist(ctx context.Context) error {
 				return nil
 			}
 		}
+	}
+}
+
+func (cmd *runCommand) memberlistAllowFunc() func(quictransport.Node) error {
+	return func(node quictransport.Node) error {
+		return nil // FIXME disallow by last suffrage nodes
 	}
 }
