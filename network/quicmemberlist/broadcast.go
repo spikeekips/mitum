@@ -1,4 +1,4 @@
-package quictransport
+package quicmemberlist
 
 import (
 	"github.com/hashicorp/memberlist"

@@ -1,4 +1,4 @@
-package quictransport
+package quicstream
 
 import (
 	"testing"

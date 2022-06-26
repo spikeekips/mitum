@@ -1,4 +1,4 @@
-package quictransport
+package quicmemberlist
 
 import (
 	"context"
@@ -18,9 +18,9 @@ import (
 )
 
 type (
-	TransportDialFunc    func(context.Context, ConnInfo) (quic.EarlyConnection, error)
-	TransportWriteFunc   func(context.Context, ConnInfo, []byte) error
-	TransportGetConnInfo func(*net.UDPAddr) ConnInfo
+	TransportDialFunc    func(context.Context, quicstream.ConnInfo) (quic.EarlyConnection, error)
+	TransportWriteFunc   func(context.Context, quicstream.ConnInfo, []byte) error
+	TransportGetConnInfo func(*net.UDPAddr) quicstream.ConnInfo
 )
 
 type Transport struct {
@@ -43,7 +43,7 @@ func NewTransport(
 ) *Transport {
 	return &Transport{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
-			return zctx.Str("module", "memberlist-quictransport")
+			return zctx.Str("module", "memberlist-quicmemberlist")
 		}),
 		laddr:        laddr,
 		dialf:        dialf,
@@ -51,7 +51,7 @@ func NewTransport(
 		packetch:     make(chan *memberlist.Packet),
 		streamch:     make(chan net.Conn),
 		conns:        util.NewLockedMap(),
-		getconninfof: func(addr *net.UDPAddr) ConnInfo { return NewBaseConnInfo(addr, true) },
+		getconninfof: func(addr *net.UDPAddr) quicstream.ConnInfo { return quicstream.NewBaseConnInfo(addr, true) },
 	}
 }
 
@@ -59,7 +59,7 @@ func NewTransportWithQuicstream(
 	laddr *net.UDPAddr,
 	handlerPrefix string,
 	poolclient *quicstream.PoolClient,
-	newClient func(ConnInfo) func(*net.UDPAddr) *quicstream.Client,
+	newClient func(quicstream.ConnInfo) func(*net.UDPAddr) *quicstream.Client,
 ) *Transport {
 	makebody := func(b []byte) []byte {
 		return b
@@ -72,14 +72,14 @@ func NewTransportWithQuicstream(
 
 	return NewTransport(
 		laddr,
-		func(ctx context.Context, ci ConnInfo) (quic.EarlyConnection, error) {
+		func(ctx context.Context, ci quicstream.ConnInfo) (quic.EarlyConnection, error) {
 			return poolclient.Dial(
 				ctx,
 				ci.UDPAddr(),
 				newClient(ci),
 			)
 		},
-		func(ctx context.Context, ci ConnInfo, b []byte) error {
+		func(ctx context.Context, ci quicstream.ConnInfo, b []byte) error {
 			r, err := poolclient.Write(
 				ctx,
 				ci.UDPAddr(),

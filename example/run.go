@@ -12,8 +12,8 @@ import (
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/launch"
+	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/network/quicstream"
-	"github.com/spikeekips/mitum/network/quictransport"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -34,13 +34,13 @@ type runCommand struct { //nolint:govet //...
 	getLastManifest      func() (base.Manifest, bool, error)
 	getSuffrageBooting   func(blockheight base.Height) (base.Suffrage, bool, error)
 	states               *isaacstates.States
-	memberlist           *quictransport.Memberlist
+	memberlist           *quicmemberlist.Memberlist
 	getManifest          func(height base.Height) (base.Manifest, error)
 	client               *isaacnetwork.QuicstreamClient
 	handlers             *quicstream.PrefixHandler
 	ballotbox            *isaacstates.Ballotbox
 	quicstreamserver     *quicstream.Server
-	discoveries          []quictransport.ConnInfo
+	discoveries          []quicstream.ConnInfo
 }
 
 func (cmd *runCommand) Run() error {

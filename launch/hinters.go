@@ -7,7 +7,7 @@ import (
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	isaacoperation "github.com/spikeekips/mitum/isaac/operation"
-	"github.com/spikeekips/mitum/network/quictransport"
+	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/fixedtree"
 )
@@ -62,8 +62,8 @@ var Hinters = []encoder.DecodeDetail{
 	},
 	{Hint: isaacoperation.SuffrageJoinHint, Instance: base.BaseOperation{}},
 	{Hint: isaacoperation.SuffrageJoinPermissionFactHint, Instance: isaacoperation.SuffrageJoinPermissionFact{}},
-	{Hint: quictransport.NodeHint, Instance: quictransport.BaseNode{}},
-	{Hint: quictransport.NodeMetaHint, Instance: quictransport.NodeMeta{}},
+	{Hint: quicmemberlist.NodeHint, Instance: quicmemberlist.BaseNode{}},
+	{Hint: quicmemberlist.NodeMetaHint, Instance: quicmemberlist.NodeMeta{}},
 }
 
 var LoadOperationHinters = []encoder.DecodeDetail{} // FIXME apply to getOperation in ProposalProcessor

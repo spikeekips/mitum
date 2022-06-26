@@ -1,4 +1,4 @@
-package quictransport
+package quicmemberlist
 
 import (
 	"crypto/tls"
@@ -34,10 +34,10 @@ func (t *testMemberlist) SetupTest() {
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: NodeMetaHint, Instance: NodeMeta{}}))
 }
 
-func (t *testMemberlist) newConnInfo() ConnInfo {
+func (t *testMemberlist) newConnInfo() quicstream.ConnInfo {
 	addr := t.BaseTest.NewBind()
 
-	return NewBaseConnInfo(addr, true)
+	return quicstream.NewBaseConnInfo(addr, true)
 }
 
 func (t *testMemberlist) TestNew() {
@@ -61,7 +61,7 @@ func (t *testMemberlist) TestNew() {
 
 func (t *testMemberlist) newServersForJoining(
 	node base.Address,
-	ci ConnInfo,
+	ci quicstream.ConnInfo,
 	whenJoined DelegateJoinedFunc,
 	whenLeft DelegateLeftFunc,
 ) (*quicstream.Server, *Memberlist) {
@@ -73,7 +73,7 @@ func (t *testMemberlist) newServersForJoining(
 		laddr,
 		"",
 		poolclient,
-		func(ci ConnInfo) func(*net.UDPAddr) *quicstream.Client {
+		func(ci quicstream.ConnInfo) func(*net.UDPAddr) *quicstream.Client {
 			return func(*net.UDPAddr) *quicstream.Client {
 				return quicstream.NewClient(
 					ci.UDPAddr(),
@@ -208,7 +208,7 @@ func (t *testMemberlist) TestLocalJoinToRemote() {
 	defer rsrv.Stop()
 
 	<-time.After(time.Second)
-	t.NoError(lsrv.Join([]ConnInfo{rci}))
+	t.NoError(lsrv.Join([]quicstream.ConnInfo{rci}))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -309,7 +309,7 @@ func (t *testMemberlist) TestLocalJoinToRemoteButFailedToChallenge() {
 	defer rsrv.Stop()
 
 	<-time.After(time.Second)
-	t.NoError(lsrv.Join([]ConnInfo{rci}))
+	t.NoError(lsrv.Join([]quicstream.ConnInfo{rci}))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -374,7 +374,7 @@ func (t *testMemberlist) TestLocalJoinToRemoteButNotAllowed() {
 	defer rsrv.Stop()
 
 	<-time.After(time.Second)
-	t.NoError(lsrv.Join([]ConnInfo{rci}))
+	t.NoError(lsrv.Join([]quicstream.ConnInfo{rci}))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -439,7 +439,7 @@ func (t *testMemberlist) TestLocalLeave() {
 	defer rsrv.Stop()
 
 	<-time.After(time.Second)
-	t.NoError(lsrv.Join([]ConnInfo{rci}))
+	t.NoError(lsrv.Join([]quicstream.ConnInfo{rci}))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -525,7 +525,7 @@ func (t *testMemberlist) TestLocalShutdownAndLeave() {
 	defer rsrv.Stop()
 
 	<-time.After(time.Second)
-	t.NoError(lsrv.Join([]ConnInfo{rci}))
+	t.NoError(lsrv.Join([]quicstream.ConnInfo{rci}))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -626,7 +626,7 @@ func (t *testMemberlist) TestJoinMultipleNodeWithSameName() {
 
 	<-time.After(time.Second)
 	t.T().Logf("trying to join to remotes, %q, %q", rci0, rci1)
-	t.NoError(lsrv.Join([]ConnInfo{rci0, rci1}))
+	t.NoError(lsrv.Join([]quicstream.ConnInfo{rci0, rci1}))
 
 	err := <-alljoinedch
 	t.NoError(err)
@@ -676,7 +676,7 @@ func (t *testMemberlist) TestLocalOverMemberLimit() {
 	defer rsrv0.Stop()
 
 	<-time.After(time.Second)
-	t.NoError(lsrv.Join([]ConnInfo{rci0}))
+	t.NoError(lsrv.Join([]quicstream.ConnInfo{rci0}))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -705,7 +705,7 @@ func (t *testMemberlist) TestLocalOverMemberLimit() {
 	defer rsrv1.Stop()
 
 	<-time.After(time.Second)
-	t.NoError(rsrv1.Join([]ConnInfo{lci}))
+	t.NoError(rsrv1.Join([]quicstream.ConnInfo{lci}))
 
 	<-time.After(time.Second * 3)
 	t.Equal(2, lsrv.MembersLen())
@@ -729,7 +729,7 @@ func (t *testMemberlist) TestLocalOverMemberLimit() {
 func TestMemberlist(t *testing.T) {
 	defer goleak.VerifyNone(t,
 		goleak.IgnoreTopFunction("github.com/hashicorp/memberlist.(*Memberlist).probeNode"),
-		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/network/quictransport.(*Transport).receivePacket"),
+		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/network/quicmemberlist.(*Transport).receivePacket"),
 	)
 
 	suite.Run(t, new(testMemberlist))

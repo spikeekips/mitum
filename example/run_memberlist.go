@@ -9,35 +9,35 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
-	"github.com/spikeekips/mitum/network/quictransport"
+	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/util"
 )
 
 func (cmd *runCommand) prepareMemberlist() error {
-	memberlisttransport := quictransport.NewTransportWithQuicstream(
+	memberlisttransport := quicmemberlist.NewTransportWithQuicstream(
 		cmd.design.Network.Publish,
 		isaacnetwork.HandlerPrefixMemberlist,
 		cmd.client.PoolClient(),
 		cmd.client.NewClient,
 	)
 
-	memberlistnode, err := quictransport.NewNode(
+	memberlistnode, err := quicmemberlist.NewNode(
 		cmd.local.Address().String(),
 		cmd.design.Network.Publish,
-		quictransport.NewNodeMeta(cmd.local.Address(), cmd.local.Publickey(), cmd.design.Network.TLSInsecure),
+		quicmemberlist.NewNodeMeta(cmd.local.Address(), cmd.local.Publickey(), cmd.design.Network.TLSInsecure),
 	)
 	if err != nil {
 		return err
 	}
 
-	memberlistconfig := quictransport.BasicMemberlistConfig(
+	memberlistconfig := quicmemberlist.BasicMemberlistConfig(
 		cmd.nodeInfo.ID(),
 		cmd.design.Network.Bind,
 		cmd.design.Network.Publish,
 	)
 	memberlistconfig.Transport = memberlisttransport
 
-	memberlistdelegate := quictransport.NewDelegate(memberlistnode, nil, func(b []byte) {
+	memberlistdelegate := quicmemberlist.NewDelegate(memberlistnode, nil, func(b []byte) {
 		log.Trace().Str("message", string(b)).Msg("new incoming message")
 
 		i, err := cmd.enc.Decode(b) //nolint:govet //...
@@ -59,7 +59,7 @@ func (cmd *runCommand) prepareMemberlist() error {
 	})
 	memberlistconfig.Delegate = memberlistdelegate
 
-	memberlistalive := quictransport.NewAliveDelegate(
+	memberlistalive := quicmemberlist.NewAliveDelegate(
 		cmd.enc,
 		cmd.design.Network.Publish,
 		cmd.memberlistNodeChallengeFunc(),
@@ -67,12 +67,12 @@ func (cmd *runCommand) prepareMemberlist() error {
 	)
 	memberlistconfig.Alive = memberlistalive
 
-	memberlistevents := quictransport.NewEventsDelegate(
+	memberlistevents := quicmemberlist.NewEventsDelegate(
 		cmd.enc,
-		func(node quictransport.Node) {
+		func(node quicmemberlist.Node) {
 			log.Debug().Interface("node", node).Msg("new node found")
 		},
-		func(node quictransport.Node) {
+		func(node quicmemberlist.Node) {
 			log.Debug().Interface("node", node).Msg("node left")
 		},
 	)
@@ -95,7 +95,7 @@ func (cmd *runCommand) prepareMemberlist() error {
 		return nil
 	})
 
-	memberlist, err := quictransport.NewMemberlist(
+	memberlist, err := quicmemberlist.NewMemberlist(
 		memberlistnode,
 		cmd.enc,
 		memberlistconfig,
@@ -143,8 +143,8 @@ func (cmd *runCommand) startMmemberlist(ctx context.Context) error {
 	}
 }
 
-func (cmd *runCommand) memberlistNodeChallengeFunc() func(quictransport.Node) error {
-	return func(node quictransport.Node) error {
+func (cmd *runCommand) memberlistNodeChallengeFunc() func(quicmemberlist.Node) error {
+	return func(node quicmemberlist.Node) error {
 		e := util.StringErrorFunc("failed to challenge memberlist node")
 
 		pub := node.Meta().Publickey()
@@ -171,10 +171,10 @@ func (cmd *runCommand) memberlistNodeChallengeFunc() func(quictransport.Node) er
 	}
 }
 
-func (*runCommand) memberlistAllowFunc() func(quictransport.Node) error {
+func (*runCommand) memberlistAllowFunc() func(quicmemberlist.Node) error {
 	// FIXME last suffrage from suffrageStateBuilder
 
-	return func(node quictransport.Node) error {
+	return func(node quicmemberlist.Node) error {
 		return nil // FIXME disallow by last suffrage nodes
 	}
 }

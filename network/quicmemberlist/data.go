@@ -1,4 +1,4 @@
-package quictransport
+package quicmemberlist
 
 type rawDataType byte
 

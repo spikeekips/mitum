@@ -9,7 +9,6 @@ import (
 
 	"github.com/lucas-clemente/quic-go"
 	"github.com/spikeekips/mitum/network/quicstream"
-	"github.com/spikeekips/mitum/network/quictransport"
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
@@ -36,7 +35,7 @@ func NewQuicstreamClient(
 
 	c.baseNetworkClient.writef = func(
 		ctx context.Context,
-		ci quictransport.ConnInfo,
+		ci quicstream.ConnInfo,
 		writef quicstream.ClientWriteFunc,
 	) (io.ReadCloser, func() error, error) {
 		r, err := c.client.Write(ctx, ci.UDPAddr(), writef, c.NewClient(ci))
@@ -59,7 +58,7 @@ func (c *QuicstreamClient) PoolClient() *quicstream.PoolClient {
 }
 
 func (c *QuicstreamClient) NewClient(
-	ci quictransport.ConnInfo,
+	ci quicstream.ConnInfo,
 ) func(*net.UDPAddr) *quicstream.Client {
 	return func(*net.UDPAddr) *quicstream.Client {
 		return quicstream.NewClient(

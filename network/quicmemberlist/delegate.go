@@ -1,4 +1,4 @@
-package quictransport
+package quicmemberlist
 
 import (
 	"math"
@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/memberlist"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
+	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/logging"
 )
@@ -17,7 +18,7 @@ type (
 	DelegateNodeFunc      func(Node) error
 	DelegateJoinedFunc    func(Node)
 	DelegateLeftFunc      func(Node)
-	DelegateStoreConnInfo func(ConnInfo)
+	DelegateStoreConnInfo func(quicstream.ConnInfo)
 )
 
 type Delegate struct {
@@ -108,7 +109,7 @@ func NewAliveDelegate(
 		laddr:           laddr,
 		challengef:      nchallengef,
 		allowf:          nallowf,
-		storeconninfof:  func(ConnInfo) {},
+		storeconninfof:  func(quicstream.ConnInfo) {},
 		challengecache:  gcache.New(math.MaxInt16).LRU().Build(),
 		challengeexpire: time.Second * 30, //nolint:gomnd //...
 	}
@@ -253,7 +254,7 @@ func convertNetAddr(a interface{}) (net.Addr, error) {
 	switch t := a.(type) {
 	case Node:
 		return t.UDPAddr(), nil
-	case ConnInfo:
+	case quicstream.ConnInfo:
 		return t.UDPAddr(), nil
 	case *memberlist.Node:
 		return &net.UDPAddr{IP: t.Addr, Port: int(t.Port)}, nil

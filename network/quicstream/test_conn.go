@@ -1,7 +1,7 @@
 //go:build test
 // +build test
 
-package quictransport
+package quicstream
 
 import (
 	"net"

@@ -1,4 +1,4 @@
-package quictransport
+package quicmemberlist
 
 import (
 	"context"
@@ -14,6 +14,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/logging"
@@ -71,11 +72,11 @@ func (srv *Memberlist) Start() error {
 	return srv.ContextDaemon.Start()
 }
 
-func (srv *Memberlist) Join(cis []ConnInfo) error {
+func (srv *Memberlist) Join(cis []quicstream.ConnInfo) error {
 	e := util.StringErrorFunc("failed to join")
 
 	if _, found := util.CheckSliceDuplicated(cis, func(i interface{}) string {
-		return i.(ConnInfo).UDPAddr().String() //nolint:forcetypeassert // ...
+		return i.(quicstream.ConnInfo).UDPAddr().String() //nolint:forcetypeassert // ...
 	}); found {
 		return e(nil, "duplicated join url found")
 	}
@@ -165,15 +166,15 @@ func (srv *Memberlist) patchMemberlistConfig(config *memberlist.Config) error { 
 
 	switch i, ok := config.Transport.(*Transport); {
 	case !ok:
-		return errors.Errorf("transport should be *quictransport.Transport, not %T", config.Transport)
+		return errors.Errorf("transport should be *quicmemberlist.Transport, not %T", config.Transport)
 	default:
-		i.getconninfof = func(addr *net.UDPAddr) ConnInfo {
+		i.getconninfof = func(addr *net.UDPAddr) quicstream.ConnInfo {
 			j, found := srv.cicache.Get(addr.String())
 			if !found {
-				return NewBaseConnInfo(addr, true)
+				return quicstream.NewBaseConnInfo(addr, true)
 			}
 
-			return j.(ConnInfo) //nolint:forcetypeassert // ...
+			return j.(quicstream.ConnInfo) //nolint:forcetypeassert // ...
 		}
 	}
 
@@ -187,7 +188,7 @@ func (srv *Memberlist) patchMemberlistConfig(config *memberlist.Config) error { 
 	}
 
 	if i, ok := config.Alive.(*AliveDelegate); ok {
-		i.storeconninfof = func(ci ConnInfo) {
+		i.storeconninfof = func(ci quicstream.ConnInfo) {
 			srv.cicache.Set(ci.UDPAddr().String(), ci, nil)
 		}
 

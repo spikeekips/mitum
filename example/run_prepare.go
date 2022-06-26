@@ -13,7 +13,6 @@ import (
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/network/quicstream"
-	"github.com/spikeekips/mitum/network/quictransport"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -77,7 +76,7 @@ func (cmd *runCommand) prepareFlags() error {
 	switch {
 	case len(cmd.Discovery) < 1:
 	default:
-		cmd.discoveries = make([]quictransport.ConnInfo, len(cmd.Discovery))
+		cmd.discoveries = make([]quicstream.ConnInfo, len(cmd.Discovery))
 
 		for i := range cmd.Discovery {
 			ci, err := cmd.Discovery[i].ConnInfo()

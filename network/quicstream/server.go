@@ -70,6 +70,7 @@ func (srv *Server) accept(ctx context.Context, listener quic.EarlyListener) {
 	for {
 		session, err := listener.Accept(ctx)
 		if err != nil {
+			// FIXME support blacklist
 			switch {
 			case errors.Is(err, context.Canceled):
 			case err.Error() == "server closed":

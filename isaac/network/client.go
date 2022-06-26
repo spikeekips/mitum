@@ -9,14 +9,13 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/network/quicstream"
-	"github.com/spikeekips/mitum/network/quictransport"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
 type baseNetworkClientWriteFunc func(
 	ctx context.Context,
-	conninfo quictransport.ConnInfo,
+	conninfo quicstream.ConnInfo,
 	writef quicstream.ClientWriteFunc,
 ) (_ io.ReadCloser, cancel func() error, _ error)
 
@@ -39,7 +38,7 @@ func newBaseNetworkClient(
 
 func (c *baseNetworkClient) Request(
 	ctx context.Context,
-	ci quictransport.ConnInfo,
+	ci quicstream.ConnInfo,
 	header isaac.NetworkHeader,
 ) (
 	isaac.NetworkResponseHeader,
@@ -77,7 +76,7 @@ func (c *baseNetworkClient) Request(
 
 func (c *baseNetworkClient) RequestProposal(
 	ctx context.Context,
-	ci quictransport.ConnInfo,
+	ci quicstream.ConnInfo,
 	point base.Point,
 	proposer base.Address,
 ) (base.ProposalSignedFact, bool, error) {
@@ -120,7 +119,7 @@ func (c *baseNetworkClient) RequestProposal(
 
 func (c *baseNetworkClient) Proposal( //nolint:dupl //...
 	ctx context.Context,
-	ci quictransport.ConnInfo,
+	ci quicstream.ConnInfo,
 	pr util.Hash,
 ) (base.ProposalSignedFact, bool, error) {
 	e := util.StringErrorFunc("failed to get proposal")
@@ -161,7 +160,7 @@ func (c *baseNetworkClient) Proposal( //nolint:dupl //...
 }
 
 func (c *baseNetworkClient) LastSuffrageProof(
-	ctx context.Context, ci quictransport.ConnInfo, state util.Hash,
+	ctx context.Context, ci quicstream.ConnInfo, state util.Hash,
 ) (base.SuffrageProof, bool, error) {
 	header := NewLastSuffrageProofRequestHeader(state)
 
@@ -173,7 +172,7 @@ func (c *baseNetworkClient) LastSuffrageProof(
 }
 
 func (c *baseNetworkClient) SuffrageProof( //nolint:dupl //...
-	ctx context.Context, ci quictransport.ConnInfo, suffrageheight base.Height,
+	ctx context.Context, ci quicstream.ConnInfo, suffrageheight base.Height,
 ) (base.SuffrageProof, bool, error) {
 	header := NewSuffrageProofRequestHeader(suffrageheight)
 
@@ -185,7 +184,7 @@ func (c *baseNetworkClient) SuffrageProof( //nolint:dupl //...
 }
 
 func (c *baseNetworkClient) LastBlockMap( //nolint:dupl //...
-	ctx context.Context, ci quictransport.ConnInfo, manifest util.Hash,
+	ctx context.Context, ci quicstream.ConnInfo, manifest util.Hash,
 ) (base.BlockMap, bool, error) {
 	header := NewLastBlockMapRequestHeader(manifest)
 
@@ -197,7 +196,7 @@ func (c *baseNetworkClient) LastBlockMap( //nolint:dupl //...
 }
 
 func (c *baseNetworkClient) BlockMap( //nolint:dupl //...
-	ctx context.Context, ci quictransport.ConnInfo, height base.Height,
+	ctx context.Context, ci quicstream.ConnInfo, height base.Height,
 ) (base.BlockMap, bool, error) {
 	header := NewBlockMapRequestHeader(height)
 
@@ -209,7 +208,7 @@ func (c *baseNetworkClient) BlockMap( //nolint:dupl //...
 }
 
 func (c *baseNetworkClient) BlockMapItem(
-	ctx context.Context, ci quictransport.ConnInfo, height base.Height, item base.BlockMapItemType,
+	ctx context.Context, ci quicstream.ConnInfo, height base.Height, item base.BlockMapItemType,
 ) (_ io.ReadCloser, cancel func() error, found bool, _ error) {
 	// NOTE the io.ReadCloser should be closed.
 
@@ -247,7 +246,7 @@ func (c *baseNetworkClient) BlockMapItem(
 }
 
 func (c *baseNetworkClient) MemberlistNodeChallenge(
-	ctx context.Context, ci quictransport.ConnInfo, input []byte,
+	ctx context.Context, ci quicstream.ConnInfo, input []byte,
 ) (base.Signature, error) {
 	// NOTE the io.ReadCloser should be closed.
 
@@ -289,7 +288,7 @@ func (c *baseNetworkClient) MemberlistNodeChallenge(
 
 func (c *baseNetworkClient) requestOK(
 	ctx context.Context,
-	ci quictransport.ConnInfo,
+	ci quicstream.ConnInfo,
 	header isaac.NetworkHeader,
 	body io.Reader,
 	u interface{},
@@ -348,7 +347,7 @@ func (c *baseNetworkClient) loadResponseHeader(
 
 func (c *baseNetworkClient) write(
 	ctx context.Context,
-	ci quictransport.ConnInfo,
+	ci quicstream.ConnInfo,
 	enc encoder.Encoder,
 	header isaac.NetworkHeader,
 	body io.Reader,

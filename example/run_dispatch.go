@@ -10,7 +10,8 @@ import (
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/launch"
-	"github.com/spikeekips/mitum/network/quictransport"
+	"github.com/spikeekips/mitum/network/quicmemberlist"
+	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/valuehash"
@@ -112,8 +113,8 @@ func (cmd *runCommand) proposalSelectorFunc() *isaac.BaseProposalSelector {
 		func() []base.Address { return nil },
 		func(ctx context.Context, point base.Point, proposer base.Address) (base.ProposalSignedFact, error) {
 			// FIXME set request
-			var ci quictransport.ConnInfo
-			cmd.memberlist.Members(func(node quictransport.Node) bool {
+			var ci quicstream.ConnInfo
+			cmd.memberlist.Members(func(node quicmemberlist.Node) bool {
 				if node.Node().Equal(proposer) {
 					ci = node
 
@@ -345,6 +346,7 @@ func (cmd *runCommand) syncerBlockMapf() isaacstates.SyncerBlockMapFunc {
 }
 
 func (cmd *runCommand) syncerBlockMapItemf() isaacstates.SyncerBlockMapItemFunc {
+	// FIXME support remote item
 	return func(
 		ctx context.Context, height base.Height, item base.BlockMapItemType,
 	) (io.ReadCloser, func() error, bool, error) {

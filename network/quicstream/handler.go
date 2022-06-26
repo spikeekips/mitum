@@ -19,6 +19,7 @@ type (
 type PrefixHandler struct {
 	handlers     map[string]Handler
 	errorHandler ErrorHandler
+	// FIXME support rate limit
 }
 
 func NewPrefixHandler(errorHandler ErrorHandler) *PrefixHandler {

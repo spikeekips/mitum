@@ -10,7 +10,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/network"
-	"github.com/spikeekips/mitum/network/quictransport"
+	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -91,7 +91,7 @@ func (f AddressFlag) Address() base.Address {
 }
 
 type ConnInfoFlag struct {
-	ci          quictransport.ConnInfo
+	ci          quicstream.ConnInfo
 	addr        string
 	tlsinsecure bool
 }
@@ -114,9 +114,9 @@ func (f ConnInfoFlag) String() string {
 	return network.ConnInfoToString(f.addr, f.tlsinsecure)
 }
 
-func (f *ConnInfoFlag) ConnInfo() (quictransport.ConnInfo, error) {
+func (f *ConnInfoFlag) ConnInfo() (quicstream.ConnInfo, error) {
 	if f.ci == nil {
-		ci, err := quictransport.NewBaseConnInfoFromStringAddress(f.addr, f.tlsinsecure)
+		ci, err := quicstream.NewBaseConnInfoFromStringAddress(f.addr, f.tlsinsecure)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to convert to quic ConnInfo")
 		}
