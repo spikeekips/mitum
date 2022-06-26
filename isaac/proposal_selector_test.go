@@ -3,7 +3,9 @@ package isaac
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -95,8 +97,22 @@ func (t *testBaseProposalSelector) SetupTest() {
 	t.BaseTestBallots.SetupTest()
 }
 
+func (t *testBaseProposalSelector) newNodes(n int, extra ...base.Node) []base.Node {
+	nodes := make([]base.Node, n+1)
+
+	for i := range nodes {
+		nodes[i] = RandomLocalNode()
+	}
+
+	for i := range extra {
+		nodes[n+i] = extra[i]
+	}
+
+	return nodes
+}
+
 func (t *testBaseProposalSelector) TestNew() {
-	suf, nodes := NewTestSuffrage(2, t.Local)
+	nodes := t.newNodes(2, t.Local)
 
 	pool := newDummyProposalPool(10)
 	p := NewBaseProposalSelector(
@@ -108,11 +124,8 @@ func (t *testBaseProposalSelector) TestNew() {
 			},
 		),
 		NewProposalMaker(t.Local, t.NodePolicy, func(context.Context) ([]util.Hash, error) { return nil, nil }, pool),
-		func(base.Height) (base.Suffrage, bool, error) {
-			return suf, true, nil
-		},
-		func() []base.Address {
-			return nil
+		func(base.Height) ([]base.Node, bool, error) {
+			return nodes, true, nil
 		},
 		func(ctx context.Context, point base.Point, proposer base.Address) (base.ProposalSignedFact, error) {
 			for i := range nodes {
@@ -121,7 +134,7 @@ func (t *testBaseProposalSelector) TestNew() {
 					continue
 				}
 
-				return NewProposalMaker(n, t.NodePolicy, func(context.Context) ([]util.Hash, error) { return nil, nil }, pool).New(ctx, point)
+				return NewProposalMaker(n.(base.LocalNode), t.NodePolicy, func(context.Context) ([]util.Hash, error) { return nil, nil }, pool).New(ctx, point)
 			}
 
 			return nil, errors.Errorf("proposer not found in suffrage")
@@ -129,10 +142,7 @@ func (t *testBaseProposalSelector) TestNew() {
 		pool,
 	)
 
-	t.T().Logf("suffrage len: %d", suf.Len())
-	for i := range nodes {
-		t.T().Logf("suffrage node: %q", nodes[i].Address())
-	}
+	t.T().Logf("available nodes: %d", len(nodes))
 
 	point := base.RawPoint(66, 11)
 	pr, err := p.Select(context.Background(), point)
@@ -148,7 +158,7 @@ func (t *testBaseProposalSelector) TestNew() {
 }
 
 func (t *testBaseProposalSelector) TestOneNode() {
-	suf, _ := NewTestSuffrage(0, t.Local)
+	nodes := []base.Node{t.Local}
 
 	pool := newDummyProposalPool(10)
 	p := NewBaseProposalSelector(
@@ -160,11 +170,8 @@ func (t *testBaseProposalSelector) TestOneNode() {
 			},
 		),
 		NewProposalMaker(t.Local, t.NodePolicy, func(context.Context) ([]util.Hash, error) { return nil, nil }, pool),
-		func(base.Height) (base.Suffrage, bool, error) {
-			return suf, true, nil
-		},
-		func() []base.Address {
-			return nil
+		func(base.Height) ([]base.Node, bool, error) {
+			return nodes, true, nil
 		},
 		func(_ context.Context, point base.Point, proposer base.Address) (base.ProposalSignedFact, error) {
 			return nil, errors.Errorf("proposer not found in suffrage")
@@ -172,7 +179,7 @@ func (t *testBaseProposalSelector) TestOneNode() {
 		pool,
 	)
 
-	t.T().Logf("suffrage len: %d", suf.Len())
+	t.T().Logf("available nodes: %d", len(nodes))
 
 	point := base.RawPoint(66, 11)
 	pr, err := p.Select(context.Background(), point)
@@ -188,8 +195,6 @@ func (t *testBaseProposalSelector) TestOneNode() {
 }
 
 func (t *testBaseProposalSelector) TestUnknownSuffrage() {
-	suf, _ := NewTestSuffrage(2, t.Local)
-
 	pool := newDummyProposalPool(10)
 	p := NewBaseProposalSelector(
 		t.Local,
@@ -200,19 +205,14 @@ func (t *testBaseProposalSelector) TestUnknownSuffrage() {
 			},
 		),
 		NewProposalMaker(t.Local, t.NodePolicy, func(context.Context) ([]util.Hash, error) { return nil, nil }, pool),
-		func(base.Height) (base.Suffrage, bool, error) {
+		func(base.Height) ([]base.Node, bool, error) {
 			return nil, false, nil
-		},
-		func() []base.Address {
-			return nil
 		},
 		func(_ context.Context, point base.Point, proposer base.Address) (base.ProposalSignedFact, error) {
 			return nil, errors.Errorf("proposer not found in suffrage")
 		},
 		pool,
 	)
-
-	t.T().Logf("suffrage len: %d", suf.Len())
 
 	point := base.RawPoint(66, 11)
 	pr, err := p.Select(context.Background(), point)
@@ -222,7 +222,7 @@ func (t *testBaseProposalSelector) TestUnknownSuffrage() {
 }
 
 func (t *testBaseProposalSelector) TestUnknownManifestHash() {
-	suf, _ := NewTestSuffrage(2, t.Local)
+	nodes := t.newNodes(2, t.Local)
 
 	pool := newDummyProposalPool(10)
 	p := NewBaseProposalSelector(
@@ -234,11 +234,8 @@ func (t *testBaseProposalSelector) TestUnknownManifestHash() {
 			},
 		),
 		NewProposalMaker(t.Local, t.NodePolicy, func(context.Context) ([]util.Hash, error) { return nil, nil }, pool),
-		func(base.Height) (base.Suffrage, bool, error) {
-			return suf, true, nil
-		},
-		func() []base.Address {
-			return nil
+		func(base.Height) ([]base.Node, bool, error) {
+			return nodes, true, nil
 		},
 		func(_ context.Context, point base.Point, proposer base.Address) (base.ProposalSignedFact, error) {
 			return nil, errors.Errorf("proposer not found in suffrage")
@@ -246,7 +243,7 @@ func (t *testBaseProposalSelector) TestUnknownManifestHash() {
 		pool,
 	)
 
-	t.T().Logf("suffrage len: %d", suf.Len())
+	t.T().Logf("available nodes: %d", len(nodes))
 
 	point := base.RawPoint(66, 11)
 	pr, err := p.Select(context.Background(), point)
@@ -256,81 +253,32 @@ func (t *testBaseProposalSelector) TestUnknownManifestHash() {
 	t.ErrorContains(err, "hahaha")
 }
 
-func (t *testBaseProposalSelector) TestDeadNode() {
-	suf, nodes := NewTestSuffrage(2, t.Local)
+func (t *testBaseProposalSelector) TestFailedToReqeustByContext() {
+	nodes := t.newNodes(3)
+	sort.Slice(nodes, func(i, j int) bool {
+		return nodes[i].Address().String() < nodes[j].Address().String()
+	})
+
+	var touched int64
 
 	pool := newDummyProposalPool(10)
 	p := NewBaseProposalSelector(
 		t.Local,
 		t.NodePolicy,
-		NewBlockBasedProposerSelector(
-			func(base.Height) (util.Hash, error) {
-				return valuehash.NewBytes([]byte("abc")), nil
-			},
-		),
-		NewProposalMaker(t.Local, t.NodePolicy, func(context.Context) ([]util.Hash, error) { return nil, nil }, pool),
-		func(base.Height) (base.Suffrage, bool, error) {
-			return suf, true, nil
-		},
-		func() []base.Address {
-			return []base.Address{nodes[2].Address()}
-		},
-		func(ctx context.Context, point base.Point, proposer base.Address) (base.ProposalSignedFact, error) {
-			for i := range nodes {
-				n := nodes[i]
-				if !n.Address().Equal(proposer) {
-					continue
+		NewFixedProposerSelector(
+			func(base.Point, []base.Node) (base.Node, error) {
+				if atomic.LoadInt64(&touched) < 1 {
+					atomic.AddInt64(&touched, 1)
+
+					return nodes[2], nil
 				}
 
-				return NewProposalMaker(n, t.NodePolicy, func(context.Context) ([]util.Hash, error) { return nil, nil }, pool).New(ctx, point)
-			}
-
-			return nil, errors.Errorf("proposer not found in suffrage")
-		},
-		pool,
-	)
-
-	t.T().Logf("suffrage len: %d", suf.Len())
-	for i := range nodes {
-		t.T().Logf("suffrage node: %q", nodes[i].Address())
-	}
-
-	point := base.RawPoint(66, 11)
-	pr, err := p.Select(context.Background(), point)
-	t.NoError(err)
-	t.NotNil(pr)
-
-	t.NoError(pr.IsValid(t.NodePolicy.NetworkID()))
-
-	t.Equal(point, pr.Point())
-
-	for i := range nodes {
-		t.T().Logf("000suffrage node: %q", nodes[i].Address())
-	}
-
-	t.T().Logf("expected selected proposer: %q, but it's dead", nodes[2].Address())
-	t.T().Logf("selected proposer: %q", pr.ProposalFact().Proposer())
-	t.True(nodes[1].Address().Equal(pr.ProposalFact().Proposer()))
-}
-
-func (t *testBaseProposalSelector) TestFailedToReqeustByContext() {
-	suf, nodes := NewTestSuffrage(2, t.Local)
-
-	pool := newDummyProposalPool(10)
-	p := NewBaseProposalSelector(
-		t.Local,
-		t.NodePolicy,
-		NewBlockBasedProposerSelector(
-			func(base.Height) (util.Hash, error) {
-				return valuehash.NewBytes([]byte("abc")), nil
+				return nodes[1], nil
 			},
 		),
 		NewProposalMaker(t.Local, t.NodePolicy, func(context.Context) ([]util.Hash, error) { return nil, nil }, pool),
-		func(base.Height) (base.Suffrage, bool, error) {
-			return suf, true, nil
-		},
-		func() []base.Address {
-			return nil
+		func(base.Height) ([]base.Node, bool, error) {
+			return nodes, true, nil
 		},
 		func(ctx context.Context, point base.Point, proposer base.Address) (base.ProposalSignedFact, error) {
 			if proposer.Equal(nodes[2].Address()) {
@@ -343,7 +291,7 @@ func (t *testBaseProposalSelector) TestFailedToReqeustByContext() {
 					continue
 				}
 
-				return NewProposalMaker(n, t.NodePolicy, func(context.Context) ([]util.Hash, error) { return nil, nil }, pool).New(ctx, point)
+				return NewProposalMaker(n.(base.LocalNode), t.NodePolicy, func(context.Context) ([]util.Hash, error) { return nil, nil }, pool).New(ctx, point)
 			}
 
 			return nil, errors.Errorf("proposer not found in suffrage")
@@ -351,9 +299,9 @@ func (t *testBaseProposalSelector) TestFailedToReqeustByContext() {
 		pool,
 	)
 
-	t.T().Logf("suffrage len: %d", suf.Len())
+	t.T().Logf("available nodes: %d", len(nodes))
 	for i := range nodes {
-		t.T().Logf("suffrage node: %q", nodes[i].Address())
+		t.T().Logf("available node: %d, %v", i, nodes[i].Address())
 	}
 
 	point := base.RawPoint(66, 11)
@@ -371,7 +319,7 @@ func (t *testBaseProposalSelector) TestFailedToReqeustByContext() {
 }
 
 func (t *testBaseProposalSelector) TestAllFailedToReqeust() {
-	suf, nodes := NewTestSuffrage(3)
+	nodes := t.newNodes(3)
 
 	pool := newDummyProposalPool(10)
 	p := NewBaseProposalSelector(
@@ -383,11 +331,8 @@ func (t *testBaseProposalSelector) TestAllFailedToReqeust() {
 			},
 		),
 		NewProposalMaker(t.Local, t.NodePolicy, func(context.Context) ([]util.Hash, error) { return nil, nil }, pool),
-		func(base.Height) (base.Suffrage, bool, error) {
-			return suf, true, nil
-		},
-		func() []base.Address {
-			return nil
+		func(base.Height) ([]base.Node, bool, error) {
+			return nodes, true, nil
 		},
 		func(_ context.Context, point base.Point, proposer base.Address) (base.ProposalSignedFact, error) {
 			return nil, errors.Errorf("proposer not found in suffrage")
@@ -395,10 +340,7 @@ func (t *testBaseProposalSelector) TestAllFailedToReqeust() {
 		pool,
 	)
 
-	t.T().Logf("suffrage len: %d", suf.Len())
-	for i := range nodes {
-		t.T().Logf("suffrage node: %q", nodes[i].Address())
-	}
+	t.T().Logf("available nodes: %d", len(nodes))
 
 	point := base.RawPoint(66, 11)
 	pr, err := p.Select(context.Background(), point)
@@ -409,7 +351,7 @@ func (t *testBaseProposalSelector) TestAllFailedToReqeust() {
 }
 
 func (t *testBaseProposalSelector) TestContextCanceled() {
-	suf, nodes := NewTestSuffrage(3)
+	nodes := t.newNodes(3)
 
 	requestdelay := time.Second
 	_ = t.NodePolicy.SetTimeoutRequestProposal(time.Millisecond * 10)
@@ -424,11 +366,8 @@ func (t *testBaseProposalSelector) TestContextCanceled() {
 			},
 		),
 		NewProposalMaker(t.Local, t.NodePolicy, func(context.Context) ([]util.Hash, error) { return nil, nil }, pool),
-		func(base.Height) (base.Suffrage, bool, error) {
-			return suf, true, nil
-		},
-		func() []base.Address {
-			return nil
+		func(base.Height) ([]base.Node, bool, error) {
+			return nodes, true, nil
 		},
 		func(ctx context.Context, point base.Point, proposer base.Address) (base.ProposalSignedFact, error) {
 			done := make(chan struct{}, 1)
@@ -448,7 +387,7 @@ func (t *testBaseProposalSelector) TestContextCanceled() {
 						continue
 					}
 
-					pr, err = NewProposalMaker(n, t.NodePolicy, func(context.Context) ([]util.Hash, error) { return nil, nil }, pool).New(ctx, point)
+					pr, err = NewProposalMaker(n.(base.LocalNode), t.NodePolicy, func(context.Context) ([]util.Hash, error) { return nil, nil }, pool).New(ctx, point)
 
 					done <- struct{}{}
 
@@ -473,10 +412,7 @@ func (t *testBaseProposalSelector) TestContextCanceled() {
 		pool,
 	)
 
-	t.T().Logf("suffrage len: %d", suf.Len())
-	for i := range nodes {
-		t.T().Logf("suffrage node: %q", nodes[i].Address())
-	}
+	t.T().Logf("available nodes: %d", len(nodes))
 
 	point := base.RawPoint(66, 11)
 	pr, err := p.Select(context.Background(), point)
@@ -487,7 +423,7 @@ func (t *testBaseProposalSelector) TestContextCanceled() {
 }
 
 func (t *testBaseProposalSelector) TestMainContextCanceled() {
-	suf, nodes := NewTestSuffrage(3)
+	nodes := t.newNodes(3)
 
 	requestdelay := time.Second * 10
 	_ = t.NodePolicy.SetTimeoutRequestProposal(requestdelay * 2)
@@ -502,11 +438,8 @@ func (t *testBaseProposalSelector) TestMainContextCanceled() {
 			},
 		),
 		NewProposalMaker(t.Local, t.NodePolicy, func(context.Context) ([]util.Hash, error) { return nil, nil }, pool),
-		func(base.Height) (base.Suffrage, bool, error) {
-			return suf, true, nil
-		},
-		func() []base.Address {
-			return nil
+		func(base.Height) ([]base.Node, bool, error) {
+			return nodes, true, nil
 		},
 		func(ctx context.Context, point base.Point, proposer base.Address) (base.ProposalSignedFact, error) {
 			done := make(chan struct{}, 1)
@@ -522,7 +455,7 @@ func (t *testBaseProposalSelector) TestMainContextCanceled() {
 						continue
 					}
 
-					pr, err = NewProposalMaker(n, t.NodePolicy, func(context.Context) ([]util.Hash, error) { return nil, nil }, pool).New(ctx, point)
+					pr, err = NewProposalMaker(n.(base.LocalNode), t.NodePolicy, func(context.Context) ([]util.Hash, error) { return nil, nil }, pool).New(ctx, point)
 
 					done <- struct{}{}
 
@@ -547,10 +480,7 @@ func (t *testBaseProposalSelector) TestMainContextCanceled() {
 		pool,
 	)
 
-	t.T().Logf("suffrage len: %d", suf.Len())
-	for i := range nodes {
-		t.T().Logf("suffrage node: %q", nodes[i].Address())
-	}
+	t.T().Logf("available nodes: %d", len(nodes))
 
 	ctx, cancel := context.WithCancel(context.Background())
 

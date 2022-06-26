@@ -23,14 +23,13 @@ type ProposalSelector interface {
 }
 
 type BaseProposalSelector struct {
-	local            base.LocalNode
-	pool             ProposalPool
-	proposerSelector ProposerSelector
-	getLongDeadNodes func() []base.Address
-	maker            *ProposalMaker
-	getSuffrage      GetSuffrageByBlockHeight
-	request          func(context.Context, base.Point, base.Address) (base.ProposalSignedFact, error)
-	policy           NodePolicy
+	local             base.LocalNode
+	pool              ProposalPool
+	proposerSelector  ProposerSelector
+	maker             *ProposalMaker
+	getAvailableNodes func(base.Height) ([]base.Node, bool, error)
+	request           func(context.Context, base.Point, base.Address) (base.ProposalSignedFact, error)
+	policy            NodePolicy
 	sync.Mutex
 }
 
@@ -39,20 +38,18 @@ func NewBaseProposalSelector(
 	policy NodePolicy,
 	proposerSelector ProposerSelector,
 	maker *ProposalMaker,
-	getSuffrage GetSuffrageByBlockHeight,
-	getLongDeadNodes func() []base.Address,
+	getAvailableNodes func(base.Height) ([]base.Node, bool, error),
 	request func(context.Context, base.Point, base.Address) (base.ProposalSignedFact, error),
 	pool ProposalPool,
 ) *BaseProposalSelector {
 	return &BaseProposalSelector{
-		local:            local,
-		policy:           policy,
-		proposerSelector: proposerSelector,
-		maker:            maker,
-		getSuffrage:      getSuffrage,
-		getLongDeadNodes: getLongDeadNodes,
-		request:          request,
-		pool:             pool,
+		local:             local,
+		policy:            policy,
+		proposerSelector:  proposerSelector,
+		maker:             maker,
+		getAvailableNodes: getAvailableNodes,
+		request:           request,
+		pool:              pool,
 	}
 }
 
@@ -62,22 +59,22 @@ func (p *BaseProposalSelector) Select(ctx context.Context, point base.Point) (ba
 
 	e := util.StringErrorFunc("failed to select proposal")
 
-	var suf base.Suffrage
+	var nodes []base.Node
 
-	switch i, found, err := p.getSuffrage(point.Height()); {
+	switch i, found, err := p.getAvailableNodes(point.Height()); {
 	case err != nil:
 		return nil, e(err, "failed to get suffrage for height, %d", point.Height())
 	case !found:
 		return nil, e(nil, "suffrage not found for height, %d", point.Height())
 	default:
-		suf = i
+		nodes = i
 	}
 
-	switch n := suf.Len(); {
+	switch n := len(nodes); {
 	case n < 1:
 		return nil, errors.Errorf("empty suffrage nodes")
 	case n < 2: //nolint:gomnd //...
-		pr, err := p.findProposal(ctx, point, suf.Nodes()[0])
+		pr, err := p.findProposal(ctx, point, nodes[0])
 		if err != nil {
 			return nil, e(err, "")
 		}
@@ -85,14 +82,6 @@ func (p *BaseProposalSelector) Select(ctx context.Context, point base.Point) (ba
 		return pr, nil
 	}
 
-	sufnodes := suf.Nodes()
-	nodes := make([]base.Node, len(sufnodes))
-
-	for i := range nodes {
-		nodes[i] = sufnodes[i]
-	}
-
-	nodes = filterDeadNodes(nodes, p.getLongDeadNodes())
 	sort.Slice(nodes, func(i, j int) bool {
 		return nodes[i].Address().String() < nodes[j].Address().String()
 	})

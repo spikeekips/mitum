@@ -81,36 +81,71 @@ func (cmd *runCommand) proposalSelectorFunc() *isaac.BaseProposalSelector {
 	return isaac.NewBaseProposalSelector(
 		cmd.local,
 		cmd.nodePolicy,
-		//isaac.NewBlockBasedProposerSelector( FIXME use
-		//	func(height base.Height) (util.Hash, error) {
-		//		switch m, err := cmd.getManifest(height); {
-		//		case err != nil:
-		//			return nil, err
-		//		case m == nil:
-		//			return nil, nil
-		//		default:
-		//			return m.Hash(), nil
-		//		}
-		//	},
-		//),
-		isaac.NewFixedProposerSelector(func(_ base.Point, nodes []base.Node) (base.Node, error) { // FIXME remove
-			log.Debug().
-				Int("number_nodes", len(nodes)).
-				Interface("nodes", nodes).
-				Msg("selecting proposer from the given nodes")
-
-			for i := range nodes {
-				n := nodes[i]
-				if n.Address().String() == "no0sas" {
-					return n, nil
+		isaac.NewBlockBasedProposerSelector(
+			func(height base.Height) (util.Hash, error) {
+				switch m, err := cmd.getManifest(height); {
+				case err != nil:
+					return nil, err
+				case m == nil:
+					return nil, nil
+				default:
+					return m.Hash(), nil
 				}
+			},
+		),
+		// isaac.NewFixedProposerSelector(func(_ base.Point, nodes []base.Node) (base.Node, error) { // NOTE
+		// 	log.Debug().
+		// 		Int("number_nodes", len(nodes)).
+		// 		Interface("nodes", nodes).
+		// 		Msg("selecting proposer from the given nodes")
+
+		// 	for i := range nodes {
+		// 		n := nodes[i]
+		// 		if n.Address().String() == "no0sas" {
+		// 			return n, nil
+		// 		}
+		// 	}
+
+		// 	return nil, errors.Errorf("no0sas not found")
+		// }),
+		cmd.proposalMaker(),
+		func(height base.Height) ([]base.Node, bool, error) {
+			var suf base.Suffrage
+			switch i, found, err := cmd.getSuffrage(height); {
+			case err != nil:
+				return nil, false, err
+			case !found:
+				return nil, false, errors.Errorf("suffrage not found")
+			case i.Len() < 1:
+				return nil, false, errors.Errorf("empty suffrage nodes")
+			default:
+				suf = i
 			}
 
-			return nil, errors.Errorf("no0sas not found")
-		}),
-		cmd.proposalMaker(),
-		cmd.getSuffrage,
-		func() []base.Address { return nil },
+			switch {
+			case cmd.memberlist == nil:
+				return nil, false, errors.Errorf("nil memberlist")
+			case !cmd.memberlist.IsJoined():
+				return nil, false, errors.Errorf("memberlist; not yet joined")
+			}
+
+			var members []base.Node
+			cmd.memberlist.Members(func(node quicmemberlist.Node) bool {
+				if !suf.Exists(node.Node()) {
+					return true
+				}
+
+				members = append(members, isaac.NewNode(node.Meta().Publickey(), node.Node()))
+
+				return true
+			})
+
+			if len(members) < 1 {
+				return nil, false, nil
+			}
+
+			return members, true, nil
+		},
 		func(ctx context.Context, point base.Point, proposer base.Address) (base.ProposalSignedFact, error) {
 			// FIXME set request
 			var ci quicstream.ConnInfo
