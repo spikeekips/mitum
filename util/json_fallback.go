@@ -20,17 +20,17 @@ var indentjsoniterconfiged = jsoniter.Config{
 func marshalJSON(v interface{}) ([]byte, error) {
 	b, err := jsoniterconfiged.Marshal(v) //nolint:wrapcheck //...
 
-	return b, errors.Wrap(err, "")
+	return b, errors.WithStack(err)
 }
 
 func unmarshalJSON(b []byte, v interface{}) error {
 	err := jsoniterconfiged.Unmarshal(b, v) //nolint:wrapcheck //...
 
-	return errors.Wrap(err, "")
+	return errors.WithStack(err)
 }
 
 func marshalJSONIndent(i interface{}) ([]byte, error) {
 	b, err := indentjsoniterconfiged.MarshalIndent(i, "", "  ") //nolint:wrapcheck //...
 
-	return b, errors.Wrap(err, "")
+	return b, errors.WithStack(err)
 }

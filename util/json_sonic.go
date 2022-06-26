@@ -6,22 +6,23 @@ package util
 import (
 	"github.com/bytedance/sonic"
 	sonicencoder "github.com/bytedance/sonic/encoder"
+	"github.com/pkg/errors"
 )
 
 func marshalJSON(v interface{}) ([]byte, error) {
 	b, err := sonic.Marshal(v) //nolint:wrapcheck //...
 
-	return b, errors.Wrap(err, "")
+	return b, errors.WithStack(err)
 }
 
 func unmarshalJSON(b []byte, v interface{}) error {
 	err := sonic.Unmarshal(b, v) //nolint:wrapcheck //...
 
-	return errors.Wrap(err, "")
+	return errors.WithStack(err)
 }
 
 func marshalJSONIndent(i interface{}) ([]byte, error) {
 	b, err := sonicencoder.EncodeIndented(i, "", "  ", 0) //nolint:wrapcheck //...
 
-	return b, errors.Wrap(err, "")
+	return b, errors.WithStack(err)
 }

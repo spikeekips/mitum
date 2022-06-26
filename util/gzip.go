@@ -28,7 +28,7 @@ func (w *GzipWriter) Write(p []byte) (int, error) {
 
 func (w *GzipWriter) Close() error {
 	if err := w.gw.Close(); err != nil {
-		return errors.Wrap(err, "")
+		return errors.WithStack(err)
 	}
 
 	j, ok := w.Writer.(io.Closer)
@@ -37,7 +37,7 @@ func (w *GzipWriter) Close() error {
 	}
 
 	if err := j.Close(); err != nil {
-		return errors.Wrap(err, "")
+		return errors.WithStack(err)
 	}
 
 	return nil
@@ -52,7 +52,7 @@ type GzipReader struct {
 func NewGzipReader(f io.Reader) (*GzipReader, error) {
 	r, err := gzip.NewReader(f)
 	if err != nil {
-		return nil, errors.Wrap(err, "")
+		return nil, errors.WithStack(err)
 	}
 
 	return &GzipReader{Reader: f, gr: r}, nil
@@ -64,7 +64,7 @@ func (r *GzipReader) Read(p []byte) (int, error) {
 
 func (r *GzipReader) Close() error {
 	if err := r.gr.Close(); err != nil {
-		return errors.Wrap(err, "")
+		return errors.WithStack(err)
 	}
 
 	j, ok := r.Reader.(io.Closer)
@@ -73,7 +73,7 @@ func (r *GzipReader) Close() error {
 	}
 
 	if err := j.Close(); err != nil {
-		return errors.Wrap(err, "")
+		return errors.WithStack(err)
 	}
 
 	return nil

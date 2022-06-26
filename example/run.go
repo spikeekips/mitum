@@ -17,7 +17,11 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
-type runCommand struct {
+type runCommand struct { //nolint:govet //...
+	baseNodeCommand
+	Discovery            []launch.ConnInfoFlag `help:"discoveries" placeholder:"ConnInfo"`
+	SyncNode             []launch.ConnInfoFlag `help:"node for syncing" placeholder:"ConnInfo"`
+	Hold                 bool                  `help:"hold consensus states"`
 	nodeInfo             launch.NodeInfo
 	db                   isaac.Database
 	perm                 isaac.PermanentDatabase
@@ -36,11 +40,7 @@ type runCommand struct {
 	handlers             *quicstream.PrefixHandler
 	ballotbox            *isaacstates.Ballotbox
 	quicstreamserver     *quicstream.Server
-	Discovery            []launch.ConnInfoFlag `help:"discoveries" placeholder:"ConnInfo"`
 	discoveries          []quictransport.ConnInfo
-	SyncNode             []launch.ConnInfoFlag `help:"node for syncing" placeholder:"ConnInfo"`
-	baseNodeCommand
-	Hold bool `help:"hold consensus states"`
 }
 
 func (cmd *runCommand) Run() error {

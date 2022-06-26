@@ -171,7 +171,7 @@ func saveImporters(ctx context.Context, ims []isaac.BlockImporter, merge func(co
 		}
 	default:
 		if err := util.RunErrgroupWorker(ctx, uint64(len(ims)), func(ctx context.Context, i, _ uint64) error {
-			return errors.Wrap(ims[i].Save(ctx), "")
+			return ims[i].Save(ctx)
 		}); err != nil {
 			_ = cancelImporters(ctx, ims)
 
@@ -201,7 +201,7 @@ func cancelImporters(ctx context.Context, ims []isaac.BlockImporter) error {
 	}
 
 	if err := util.RunErrgroupWorker(ctx, uint64(len(ims)), func(ctx context.Context, i, _ uint64) error {
-		return errors.Wrap(ims[i].CancelImport(ctx), "")
+		return ims[i].CancelImport(ctx)
 	}); err != nil {
 		return e(err, "")
 	}

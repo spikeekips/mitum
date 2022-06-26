@@ -50,13 +50,13 @@ func newRWStorage(st leveldbStorage.Storage, f string) (*RWStorage, error) {
 }
 
 func (st *RWStorage) Put(k, b []byte, opt *leveldbOpt.WriteOptions) error {
-	return errors.Wrap(st.db.Put(k, b, opt), "")
+	return errors.WithStack(st.db.Put(k, b, opt))
 }
 
 func (st *RWStorage) Delete(k []byte, opt *leveldbOpt.WriteOptions) error {
-	return errors.Wrap(st.db.Delete(k, opt), "")
+	return errors.WithStack(st.db.Delete(k, opt))
 }
 
 func (st *RWStorage) Write(batch *leveldb.Batch, opt *leveldbOpt.WriteOptions) error {
-	return errors.Wrap(st.db.Write(batch, opt), "")
+	return errors.WithStack(st.db.Write(batch, opt))
 }

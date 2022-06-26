@@ -131,5 +131,5 @@ func (st *WriteStorage) Write() error {
 }
 
 func (st *WriteStorage) WriteBatch(batch *leveldb.Batch, wo *leveldbOpt.WriteOptions) error {
-	return errors.Wrap(st.db.Write(batch, wo), "")
+	return errors.WithStack(st.db.Write(batch, wo))
 }

@@ -148,7 +148,7 @@ func dial(
 ) (quic.EarlyConnection, error) {
 	c, err := quic.DialAddrEarlyContext(ctx, addr, tlsconfig, quicconfig)
 
-	return c, errors.Wrap(err, "")
+	return c, errors.WithStack(err)
 }
 
 func isNetworkError(err error) bool {
@@ -177,6 +177,6 @@ func DefaultClientWriteFunc(b []byte) ClientWriteFunc {
 	return func(w io.Writer) error {
 		_, err := w.Write(b)
 
-		return errors.Wrap(err, "")
+		return errors.WithStack(err)
 	}
 }

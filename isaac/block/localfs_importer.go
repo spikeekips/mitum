@@ -141,5 +141,5 @@ func (l *LocalFSImporter) Cancel() error {
 func (l *LocalFSImporter) newWriter(filename string) (io.WriteCloser, error) {
 	f, err := os.OpenFile(filepath.Join(l.temp, filename), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 
-	return f, errors.Wrap(err, "")
+	return f, errors.WithStack(err)
 }

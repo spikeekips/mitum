@@ -56,12 +56,12 @@ func (t *testQuicstreamHandlers) writef(prefix string, handler quicstream.Handle
 	return func(ctx context.Context, ci quictransport.ConnInfo, f quicstream.ClientWriteFunc) (io.ReadCloser, func() error, error) {
 		r := bytes.NewBuffer(nil)
 		if err := f(r); err != nil {
-			return nil, nil, errors.Wrap(err, "")
+			return nil, nil, errors.WithStack(err)
 		}
 
 		uprefix, err := quicstream.ReadPrefix(r)
 		if err != nil {
-			return nil, nil, errors.Wrap(err, "")
+			return nil, nil, errors.WithStack(err)
 		}
 
 		if !bytes.Equal(uprefix, quicstream.HashPrefix(prefix)) {

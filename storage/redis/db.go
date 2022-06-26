@@ -113,14 +113,14 @@ func (st *Storage) Clean(ctx context.Context) error {
 	for {
 		keys, c, err := st.client.Scan(ctx, cursor, st.prefix+"*", 333).Result() //nolint:gomnd // bulk size
 		if err != nil {
-			return e(errors.Wrap(err, ""), "")
+			return e(errors.WithStack(err), "")
 		}
 
 		cursor = c
 
 		if len(keys) > 0 {
 			if _, err := st.client.Del(ctx, keys...).Result(); err != nil {
-				return e(errors.Wrap(err, ""), "")
+				return e(errors.WithStack(err), "")
 			}
 		}
 

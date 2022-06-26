@@ -33,8 +33,8 @@ func (cmd *baseCommand) prepareEncoder() error {
 
 type baseNodeCommand struct {
 	baseCommand
-	local      base.LocalNode
 	Design     string `arg:"" name:"node design" help:"node design" type:"filepath"`
+	local      base.LocalNode
 	design     launch.NodeDesign
 	nodePolicy isaac.NodePolicy
 }

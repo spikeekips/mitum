@@ -314,7 +314,7 @@ func (st *States) exitAndEnter(sctx switchContext, current handler) (func(), fun
 			if errors.Is(err, ignoreSwithingStateError) {
 				l.Debug().Err(err).Msg("current state ignores switching state")
 
-				return nil, nil, errors.WithStack(err)
+				return nil, nil, err
 			}
 
 			st.cs = nil

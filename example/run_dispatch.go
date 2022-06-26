@@ -93,6 +93,11 @@ func (cmd *runCommand) proposalSelectorFunc() *isaac.BaseProposalSelector {
 		//	},
 		//),
 		isaac.NewFixedProposerSelector(func(_ base.Point, nodes []base.Node) (base.Node, error) { // FIXME remove
+			log.Debug().
+				Int("number_nodes", len(nodes)).
+				Interface("nodes", nodes).
+				Msg("selecting proposer from the given nodes")
+
 			for i := range nodes {
 				n := nodes[i]
 				if n.Address().String() == "no0sas" {

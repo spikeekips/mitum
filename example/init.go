@@ -5,10 +5,10 @@ import (
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 )
 
-type initCommand struct {
+type initCommand struct { //nolint:govet //...
+	baseNodeCommand
 	GenesisDesign string `arg:"" name:"genesis design" help:"genesis design" type:"filepath"`
 	genesisDesign launch.GenesisDesign
-	baseNodeCommand
 }
 
 func (cmd *initCommand) Run() error {

@@ -559,7 +559,7 @@ func (t *testConsensusHandler) TestWithBallotbox() {
 		t.T().Logf("voted: point=%q, node=%q, voted=%v error=%+v", bl.Point(), bl.SignedFact().Node(), voted, err)
 
 		if err != nil {
-			return false, errors.Wrap(err, "")
+			return false, errors.WithStack(err)
 		}
 
 		return voted, nil

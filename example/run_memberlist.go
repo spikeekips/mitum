@@ -83,7 +83,7 @@ func (cmd *runCommand) prepareMemberlist() error {
 		if err != nil {
 			log.Error().Err(err).Stringer("remote_address", addr).Msg("failed to read")
 
-			return errors.Wrap(err, "")
+			return errors.WithStack(err)
 		}
 
 		if err := memberlisttransport.ReceiveRaw(b, addr); err != nil {

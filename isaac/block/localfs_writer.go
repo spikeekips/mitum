@@ -502,7 +502,7 @@ func (w *LocalFSWriter) appendfile(f io.Writer, i interface{}) error {
 func (*LocalFSWriter) writefile(f io.Writer, b []byte) error {
 	_, err := f.Write(b)
 
-	return errors.Wrap(err, "")
+	return errors.WithStack(err)
 }
 
 func (w *LocalFSWriter) newChecksumWriter(t base.BlockMapItemType) (util.ChecksumWriter, error) {
@@ -571,7 +571,7 @@ func HeightFromDirectory(s string) (base.Height, error) {
 func FindHighestDirectory(root string) (highest string, found bool, _ error) {
 	abs, err := filepath.Abs(filepath.Clean(root))
 	if err != nil {
-		return "", false, errors.Wrap(err, "")
+		return "", false, errors.WithStack(err)
 	}
 
 	switch highest, found, err = findHighestDirectory(abs); {
@@ -589,7 +589,7 @@ func findHighestDirectory(root string) (string, bool, error) {
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		switch {
 		case err != nil:
-			return errors.Wrap(err, "")
+			return errors.WithStack(err)
 		case !info.IsDir():
 			return nil
 		}
@@ -599,7 +599,7 @@ func findHighestDirectory(root string) (string, bool, error) {
 
 		switch {
 		case err != nil:
-			return errors.Wrap(err, "")
+			return errors.WithStack(err)
 		default:
 			var foundsubs bool
 			filtered := util.FilterSlices(files, func(i interface{}) bool {
@@ -650,7 +650,7 @@ func findHighestDirectory(root string) (string, bool, error) {
 	case err == nil, errors.Is(err, util.ErrNotFound):
 		return highest, highest != "", nil
 	default:
-		return highest, false, errors.Wrap(err, "")
+		return highest, false, errors.WithStack(err)
 	}
 }
 

@@ -313,7 +313,7 @@ func (c *baseNetworkClient) requestOK(
 	case err != nil:
 		return false, errors.Wrap(err, "failed to read stream")
 	case h.Err() != nil:
-		return false, errors.Wrap(h.Err(), "")
+		return false, h.Err()
 	case !h.OK():
 		return false, nil
 	default:

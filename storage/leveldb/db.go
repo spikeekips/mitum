@@ -98,7 +98,7 @@ func (st *BaseStorage) close() error {
 	case errors.Is(err, leveldb.ErrClosed):
 		return nil
 	default:
-		return e(storage.InternalError.Wrap(errors.Wrap(err, "")), "")
+		return e(storage.InternalError.Wrap(errors.WithStack(err)), "")
 	}
 }
 

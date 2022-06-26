@@ -192,7 +192,7 @@ func LoadDatabase(
 		temproot, encs, enc, perm, func(height base.Height) (isaac.BlockWriteDatabase, error) {
 			newroot, eerr := isaacdatabase.NewTempDirectory(temproot, height)
 			if eerr != nil {
-				return nil, errors.Wrap(eerr, "")
+				return nil, eerr
 			}
 
 			return isaacdatabase.NewLeveldbBlockWrite(height, newroot, encs, enc)
@@ -456,7 +456,7 @@ func ValidateLocalFS(
 			case err != nil:
 				return err
 			case !found:
-				return errors.Wrap(util.ErrNotFound.Errorf("BlockMap not found"), "")
+				return util.ErrNotFound.Errorf("BlockMap not found")
 			case m.Manifest().Height() != height:
 				return errors.Wrap(util.ErrInvalid.Errorf(
 					"invalid BlockMap; wrong height; directory=%d manifest=%d", height, m.Manifest().Height()), "")

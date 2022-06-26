@@ -11,7 +11,7 @@ import (
 func ParseRFC3339(s string) (time.Time, error) {
 	t, err := time.Parse(time.RFC3339Nano, s)
 	if err != nil {
-		return time.Time{}, errors.Wrap(err, "")
+		return time.Time{}, errors.WithStack(err)
 	}
 
 	return t, nil

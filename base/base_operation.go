@@ -135,11 +135,11 @@ func (op *BaseOperation) sign(priv Privatekey, networkID NetworkID) error {
 }
 
 func (BaseOperation) PreProcess(context.Context, GetStateFunc) (OperationProcessReasonError, error) {
-	return nil, errors.Wrap(util.ErrNotImplemented, "")
+	return nil, errors.WithStack(util.ErrNotImplemented)
 }
 
 func (BaseOperation) Process(context.Context, GetStateFunc) ([]StateMergeValue, OperationProcessReasonError, error) {
-	return nil, nil, errors.Wrap(util.ErrNotImplemented, "")
+	return nil, nil, errors.WithStack(util.ErrNotImplemented)
 }
 
 func (op BaseOperation) hash() util.Hash {

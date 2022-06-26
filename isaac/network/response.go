@@ -28,7 +28,7 @@ func ClientWrite(w io.Writer, prefix string, enchint hint.Hint, header []byte, b
 
 	if body != nil {
 		if _, err := io.Copy(w, body); err != nil {
-			return errors.Wrap(err, "")
+			return errors.WithStack(err)
 		}
 	}
 
@@ -122,7 +122,7 @@ func writeHeader(w io.Writer, header []byte) error {
 func ensureWrite(w io.Writer, b []byte) (int, error) {
 	switch n, err := w.Write(b); {
 	case err != nil:
-		return n, errors.Wrap(err, "")
+		return n, errors.WithStack(err)
 	case n != len(b):
 		return n, errors.Errorf("failed to write")
 	default:

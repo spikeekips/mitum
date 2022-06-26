@@ -86,7 +86,7 @@ func NewTransportWithQuicstream(
 				func(w io.Writer) error {
 					_, err := w.Write(makebody(b))
 
-					return errors.Wrap(err, "")
+					return errors.WithStack(err)
 				},
 				newClient(ci),
 			)
@@ -312,7 +312,7 @@ func unmarshalMsg(b []byte) (rawDataType, net.Addr, []byte, error) {
 
 	addr, err := net.ResolveUDPAddr("udp", s)
 	if err != nil {
-		return noneDataType, nil, nil, errors.Wrap(err, "")
+		return noneDataType, nil, nil, errors.WithStack(err)
 	}
 
 	return rawDataType(dt), addr, b[200:], nil

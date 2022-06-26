@@ -26,7 +26,7 @@ func EnsureRead(ctx context.Context, r io.Reader, b []byte) (int, error) {
 			switch {
 			case err == nil:
 			case !errors.Is(err, io.EOF):
-				return n, errors.Wrap(err, "")
+				return n, errors.WithStack(err)
 			}
 
 			n += i
@@ -34,7 +34,7 @@ func EnsureRead(ctx context.Context, r io.Reader, b []byte) (int, error) {
 			copy(b[len(b)-len(l):], l)
 
 			if n == len(b) || errors.Is(err, io.EOF) {
-				return n, errors.Wrap(err, "")
+				return n, errors.WithStack(err)
 			}
 		}
 	}

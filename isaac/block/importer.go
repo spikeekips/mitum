@@ -204,7 +204,7 @@ func (im *BlockImporter) importItem(t base.BlockMapItemType, r io.Reader) error 
 		ierr = im.importVoteproofs(item, cr)
 	default:
 		if _, err := io.ReadAll(cr); err != nil {
-			return errors.Wrap(err, "")
+			return errors.WithStack(err)
 		}
 	}
 

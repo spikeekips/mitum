@@ -374,7 +374,7 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context) error 
 		return e(err, "")
 	}
 
-	return errors.Wrap(<-errch, "")
+	return <-errch
 }
 
 func (p *DefaultProposalProcessor) workOperation(

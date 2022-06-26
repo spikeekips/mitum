@@ -58,7 +58,7 @@ func (r *LocalFSReader) BlockMap() (base.BlockMap, bool, error) {
 
 		switch f, err := os.Open(filepath.Join(r.root, blockFSMapFilename(r.enc.Hint().Type().String()))); {
 		case err != nil:
-			return nil, errors.Wrap(err, "")
+			return nil, errors.WithStack(err)
 		default:
 			defer func() {
 				_ = f.Close()
@@ -66,7 +66,7 @@ func (r *LocalFSReader) BlockMap() (base.BlockMap, bool, error) {
 
 			i, err := io.ReadAll(f)
 			if err != nil {
-				return nil, errors.Wrap(err, "")
+				return nil, errors.WithStack(err)
 			}
 
 			b = i
@@ -232,7 +232,7 @@ func (r *LocalFSReader) Items(f func(base.BlockMapItem, interface{}, bool, error
 	case err != nil:
 		return err
 	case !found:
-		return errors.Wrap(util.ErrNotFound.Errorf("BlockMap not found"), "")
+		return util.ErrNotFound.Errorf("BlockMap not found")
 	default:
 		m = i
 	}

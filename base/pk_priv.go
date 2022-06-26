@@ -49,7 +49,7 @@ func NewMPrivatekeyFromSeed(s string) (MPrivatekey, error) {
 		bytes.NewReader([]byte(valuehash.NewSHA256([]byte(s)).String())),
 	)
 	if err != nil {
-		return MPrivatekey{}, errors.Wrap(err, "")
+		return MPrivatekey{}, errors.WithStack(err)
 	}
 
 	priv, _ := btcec.PrivKeyFromBytes(k.D.Bytes())

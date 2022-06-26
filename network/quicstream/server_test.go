@@ -108,7 +108,7 @@ func (t *testServer) TestSendTimeout() {
 		case <-time.After(time.Millisecond * 500):
 			_, err := w.Write(util.UUID().Bytes())
 
-			return errors.Wrap(err, "")
+			return errors.WithStack(err)
 		}
 	})
 	t.NoError(err)

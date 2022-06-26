@@ -43,7 +43,7 @@ func NewHashChecksumWriter(fname string, w io.WriteCloser, h hash.Hash) *HashChe
 
 func (w *HashChecksumWriter) Close() error {
 	if err := w.w.Close(); err != nil {
-		return errors.Wrap(err, "")
+		return errors.WithStack(err)
 	}
 
 	return nil
@@ -55,7 +55,7 @@ func (w *HashChecksumWriter) Write(b []byte) (int, error) {
 
 	n, err := w.m.Write(b)
 	if err != nil {
-		return 0, errors.Wrap(err, "")
+		return 0, errors.WithStack(err)
 	}
 
 	return n, nil
@@ -122,7 +122,7 @@ func NewHashChecksumReader(r io.ReadCloser, h hash.Hash) *HashChecksumReader {
 
 func (r *HashChecksumReader) Close() error {
 	if err := r.r.Close(); err != nil {
-		return errors.Wrap(err, "")
+		return errors.WithStack(err)
 	}
 
 	return nil
@@ -138,7 +138,7 @@ func (r *HashChecksumReader) Read(b []byte) (int, error) {
 	case err == nil:
 	case errors.Is(err, io.EOF):
 	default:
-		return 0, errors.Wrap(err, "")
+		return 0, errors.WithStack(err)
 	}
 
 	return n, err //nolint:wrapcheck // nil || io.EOF

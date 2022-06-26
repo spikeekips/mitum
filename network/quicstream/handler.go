@@ -100,7 +100,7 @@ func WritePrefix(w io.Writer, prefix string) error {
 
 	switch n, err := w.Write(b); {
 	case err != nil:
-		return errors.Wrap(err, "")
+		return errors.WithStack(err)
 	case n != len(b):
 		return errors.Errorf("not fully written")
 	default:

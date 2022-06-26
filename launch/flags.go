@@ -31,7 +31,7 @@ type LogLevel struct {
 func (f *LogLevel) UnmarshalText(b []byte) error {
 	l, err := zerolog.ParseLevel(string(b))
 	if err != nil {
-		return errors.Wrap(err, "")
+		return errors.WithStack(err)
 	}
 
 	f.level = l

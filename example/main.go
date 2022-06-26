@@ -22,18 +22,18 @@ var (
 
 func main() {
 	//revive:disable:nested-structs
-	var cli struct {
+	var cli struct { //nolint:govet //...
+		launch.Logging `embed:"" prefix:"log."`
+		Import         importCommand `cmd:"" help:"import from block data"`
+		Init           initCommand   `cmd:"" help:"init node"`
+		Run            runCommand    `cmd:"" help:"run node"`
+		Network        struct {
+			Client networkClientCommand `cmd:"" help:"network client"`
+		} `cmd:"" help:"network"`
 		Key struct {
 			New  keyNewCommand  `cmd:"" help:"generate new key"`
 			Load keyLoadCommand `cmd:"" help:"load key"`
 		} `cmd:"" help:"key"`
-		launch.Logging `embed:"" prefix:"log."`
-		Network        struct {
-			Client networkClientCommand `cmd:"" help:"network client"`
-		} `cmd:"" help:"network"`
-		Import importCommand `cmd:"" help:"import from block data"`
-		Init   initCommand   `cmd:"" help:"init node"`
-		Run    runCommand    `cmd:"" help:"run node"`
 	}
 	//revive:enable:nested-structs
 
@@ -55,7 +55,7 @@ func main() {
 	if err := func() error {
 		defer log.Info().Msg("stopped")
 
-		return errors.Wrap(kctx.Run(), "")
+		return errors.WithStack(kctx.Run())
 	}(); err != nil {
 		log.Error().Err(err).Msg("stopped by error")
 

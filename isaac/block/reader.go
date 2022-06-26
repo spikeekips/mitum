@@ -138,17 +138,17 @@ end:
 	for {
 		b, err := br.ReadBytes('\n')
 		if err != nil && !errors.Is(err, io.EOF) {
-			return errors.Wrap(err, "")
+			return errors.WithStack(err)
 		}
 
 		if len(b) > 0 {
 			v, eerr := decode(b)
 			if eerr != nil {
-				return errors.Wrap(eerr, "")
+				return errors.WithStack(eerr)
 			}
 
 			if eerr := callback(index, v); eerr != nil {
-				return errors.Wrap(eerr, "")
+				return eerr
 			}
 
 			index++
@@ -159,7 +159,7 @@ end:
 		case errors.Is(err, io.EOF):
 			break end
 		default:
-			return errors.Wrap(err, "")
+			return errors.WithStack(err)
 		}
 	}
 
@@ -191,7 +191,7 @@ func LoadRawItemsWithWorker(
 		return err
 	}
 
-	return errors.Wrap(<-errch, "")
+	return <-errch
 }
 
 func LoadTreeHint(br *bufio.Reader) (hint.Hint, error) {
@@ -201,7 +201,7 @@ end:
 
 		switch {
 		case err != nil:
-			return hint.Hint{}, errors.Wrap(err, "")
+			return hint.Hint{}, errors.WithStack(err)
 		case len(s) < 1:
 			continue end
 		}

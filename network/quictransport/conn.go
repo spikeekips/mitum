@@ -51,7 +51,7 @@ func (c *qconn) Read(b []byte) (int, error) {
 	if c.isclosed() {
 		n, err := c.r.Read(b)
 
-		return n, errors.Wrap(err, "")
+		return n, errors.WithStack(err)
 	}
 
 	var t time.Time
@@ -60,19 +60,19 @@ func (c *qconn) Read(b []byte) (int, error) {
 	case i == nil:
 		n, err := c.r.Read(b)
 
-		return n, errors.Wrap(err, "")
+		return n, errors.WithStack(err)
 	default:
 		t = i.(time.Time) //nolint:forcetypeassert // ...
 		if t.IsZero() {
 			n, err := c.r.Read(b)
 
-			return n, errors.Wrap(err, "")
+			return n, errors.WithStack(err)
 		}
 	}
 
 	dur := time.Until(t)
 	if dur < 1 {
-		return 0, errors.Wrap(context.DeadlineExceeded, "")
+		return 0, errors.WithStack(context.DeadlineExceeded)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), dur)
@@ -90,15 +90,15 @@ func (c *qconn) Read(b []byte) (int, error) {
 	case err == nil:
 		return n, nil
 	case errors.Is(err, context.DeadlineExceeded):
-		return n, errors.Wrap(os.ErrDeadlineExceeded, "")
+		return n, errors.WithStack(os.ErrDeadlineExceeded)
 	default:
-		return n, errors.Wrap(e, "")
+		return n, errors.WithStack(e)
 	}
 }
 
 func (c *qconn) Write(b []byte) (int, error) {
 	if c.isclosed() {
-		return 0, errors.Wrap(net.ErrClosed, "")
+		return 0, errors.WithStack(net.ErrClosed)
 	}
 
 	ctx := context.Background()
@@ -116,7 +116,7 @@ func (c *qconn) Write(b []byte) (int, error) {
 
 	dur := time.Until(t)
 	if dur < 1 {
-		return 0, errors.Wrap(context.DeadlineExceeded, "")
+		return 0, errors.WithStack(context.DeadlineExceeded)
 	}
 
 	var cancel func()
@@ -130,7 +130,7 @@ func (c *qconn) Write(b []byte) (int, error) {
 	case err == nil:
 		return n, nil
 	case errors.Is(err, context.DeadlineExceeded):
-		return n, errors.Wrap(os.ErrDeadlineExceeded, "")
+		return n, errors.WithStack(os.ErrDeadlineExceeded)
 	default:
 		return n, err
 	}
@@ -138,7 +138,7 @@ func (c *qconn) Write(b []byte) (int, error) {
 
 func (c *qconn) Close() error {
 	if c.isclosed() {
-		return errors.Wrap(net.ErrClosed, "")
+		return errors.WithStack(net.ErrClosed)
 	}
 
 	c.closeonce.Do(func() {

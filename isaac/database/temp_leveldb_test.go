@@ -20,7 +20,7 @@ func (db *TempLeveldb) States(f func(base.State) (bool, error)) error {
 		func(key []byte, raw []byte) (bool, error) {
 			var st base.State
 			if err := db.readHinter(raw, &st); err != nil {
-				return false, errors.Wrap(err, "")
+				return false, errors.WithStack(err)
 			}
 
 			return f(st)
