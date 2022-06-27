@@ -49,7 +49,7 @@ func NewMemberlist(
 		enc:            enc,
 		oneMemberLimit: oneMemberLimit,
 		members:        newMembersPool(),
-		cicache:        util.NewGCacheObjectPool(math.MaxInt),
+		cicache:        util.NewGCacheObjectPool(1 << 9),
 	}
 
 	if err := srv.patchMemberlistConfig(config); err != nil {

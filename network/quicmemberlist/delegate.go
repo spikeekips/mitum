@@ -1,7 +1,6 @@
 package quicmemberlist
 
 import (
-	"math"
 	"net"
 	"time"
 
@@ -110,7 +109,7 @@ func NewAliveDelegate(
 		challengef:      nchallengef,
 		allowf:          nallowf,
 		storeconninfof:  func(quicstream.ConnInfo) {},
-		challengecache:  gcache.New(math.MaxInt16).LRU().Build(),
+		challengecache:  gcache.New(1 << 9).LRU().Build(),
 		challengeexpire: time.Second * 30, //nolint:gomnd //...
 	}
 }

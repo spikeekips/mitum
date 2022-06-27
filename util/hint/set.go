@@ -20,7 +20,7 @@ func NewCompatibleSet() *CompatibleSet {
 		hints:         map[Type]map[uint64]Hint{},
 		typeheads:     map[Type]interface{}{},
 		typeheadhints: map[Type]Hint{},
-		cache:         gcache.New(100 * 100).LRU().Build(), //nolint:gomnd //...
+		cache:         gcache.New(1 << 10).LRU().Build(), //nolint:gomnd //...
 	}
 }
 

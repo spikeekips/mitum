@@ -22,7 +22,6 @@ var writeOptions = &leveldbOpt.Options{
 	ErrorIfMissing:         false,
 	NoWriteMerge:           true,
 	ReadOnly:               false,
-	WriteBuffer:            math.MaxInt32,
 }
 
 type WriteStorage struct {
