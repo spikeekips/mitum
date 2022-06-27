@@ -130,6 +130,10 @@ func (d *AliveDelegate) NotifyAlive(peer *memberlist.Node) error {
 		return err
 	}
 
+	if _, err := node.CheckPublishConnInfo(); err != nil {
+		return err
+	}
+
 	var willchallenge bool
 
 	switch i, err := d.challengecache.Get(node.Addr().String()); {

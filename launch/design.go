@@ -157,7 +157,7 @@ func (d *NodeDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 
 type NodeNetworkDesign struct {
 	Bind        *net.UDPAddr `yaml:"bind"`
-	Publish     *net.UDPAddr `yaml:"publish"`
+	Publish     *net.UDPAddr `yaml:"publish"` // FIXME allow to use string host
 	TLSInsecure bool         `yaml:"tls_insecure"`
 }
 
@@ -220,7 +220,7 @@ func (y *NodeNetworkDesignYAMLMarshaler) Decode(*jsonenc.Encoder) (d NodeNetwork
 	if s := strings.TrimSpace(y.Publish); len(s) > 0 {
 		addr, err := net.ResolveUDPAddr("udp", y.Publish)
 		if err != nil {
-			return d, e(err, "invalid bind")
+			return d, e(err, "invalid publish")
 		}
 
 		d.Publish = addr

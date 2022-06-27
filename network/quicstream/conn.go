@@ -80,3 +80,18 @@ func (c BaseConnInfo) MarshalZerologObject(e *zerolog.Event) {
 		Stringer("address", c.addr).
 		Bool("tls_insecure", c.tlsinsecure)
 }
+
+func EqualConnInfo(a, b ConnInfo) bool {
+	switch {
+	case a == nil, b == nil:
+		return false
+	case a.Addr() == nil, b.Addr() == nil:
+		return false
+	case a.TLSInsecure() != b.TLSInsecure():
+		return false
+	case a.Addr().String() != b.Addr().String():
+		return false
+	default:
+		return true
+	}
+}

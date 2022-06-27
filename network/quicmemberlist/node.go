@@ -28,6 +28,7 @@ type Node interface {
 	Name() string
 	Address() base.Address
 	Publickey() base.Publickey
+	PublishConnInfo() quicstream.ConnInfo
 	JoinedAt() time.Time
 	Meta() NodeMeta
 	MetaBytes() []byte
@@ -39,7 +40,8 @@ type BaseNode struct {
 	name     string
 	metab    []byte
 	hint.BaseHinter
-	meta NodeMeta
+	publishconninfo quicstream.ConnInfo
+	meta            NodeMeta
 }
 
 func NewNode(name string, addr *net.UDPAddr, meta NodeMeta) (BaseNode, error) {
@@ -141,6 +143,27 @@ func (n BaseNode) Publickey() base.Publickey {
 	return n.meta.Publickey()
 }
 
+func (n *BaseNode) CheckPublishConnInfo() (quicstream.ConnInfo, error) {
+	var err error
+
+	if n.publishconninfo == nil {
+		switch addr, eerr := net.ResolveUDPAddr("udp", n.meta.Publish()); {
+		case err != nil:
+			err = errors.Wrap(eerr, "invalid publish address")
+
+			n.publishconninfo = quicstream.NewBaseConnInfo(nil, false)
+		default:
+			n.publishconninfo = quicstream.NewBaseConnInfo(addr, n.meta.TLSInsecure())
+		}
+	}
+
+	return n.publishconninfo, err
+}
+
+func (n BaseNode) PublishConnInfo() quicstream.ConnInfo {
+	return n.publishconninfo
+}
+
 func (n BaseNode) MetaBytes() []byte {
 	return n.metab
 }
@@ -234,7 +257,7 @@ func (n NodeMeta) IsValid([]byte) error {
 
 			switch host, port, err := net.SplitHostPort(n.publish); {
 			case err != nil:
-				return err
+				return errors.WithStack(err)
 			case len(host) < 1:
 				return errors.Errorf("empty host")
 			case len(port) < 1:

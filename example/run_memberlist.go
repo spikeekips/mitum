@@ -10,6 +10,7 @@ import (
 	"github.com/spikeekips/mitum/base"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
+	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -27,7 +28,7 @@ func (cmd *runCommand) prepareMemberlist() error {
 		quicmemberlist.NewNodeMeta(
 			cmd.local.Address(),
 			cmd.local.Publickey(),
-			cmd.design.Network.Publish,
+			cmd.design.Network.Publish.String(),
 			cmd.design.Network.TLSInsecure,
 		),
 	)
@@ -163,11 +164,21 @@ func (cmd *runCommand) memberlistNodeChallengeFunc() func(quicmemberlist.Node) e
 
 		input := util.UUID().Bytes()
 
-		// FIXME challenge with publish address
-
 		sig, err := cmd.client.MemberlistNodeChallenge(ctx, node, input)
 		if err != nil {
 			return e(err, "")
+		}
+
+		// NOTE challenge with publish address
+		if pci := node.PublishConnInfo(); !quicstream.EqualConnInfo(node, pci) {
+			psig, err := cmd.client.MemberlistNodeChallenge(ctx, node.PublishConnInfo(), input)
+			if err != nil {
+				return e(err, "")
+			}
+
+			if !sig.Equal(psig) {
+				return e(nil, "publish address returns different signature")
+			}
 		}
 
 		if err := pub.Verify(util.ConcatBytesSlice(cmd.nodePolicy.NetworkID(), input), sig); err != nil {
