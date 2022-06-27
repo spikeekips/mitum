@@ -16,7 +16,7 @@ import (
 
 func (cmd *runCommand) prepareMemberlist() error {
 	memberlisttransport := quicmemberlist.NewTransportWithQuicstream(
-		cmd.design.Network.Publish,
+		cmd.design.Network.Publish(),
 		isaacnetwork.HandlerPrefixMemberlist,
 		cmd.client.PoolClient(),
 		cmd.client.NewClient,
@@ -24,11 +24,11 @@ func (cmd *runCommand) prepareMemberlist() error {
 
 	memberlistnode, err := quicmemberlist.NewNode(
 		cmd.local.Address().String(),
-		cmd.design.Network.Publish,
+		cmd.design.Network.Publish(),
 		quicmemberlist.NewNodeMeta(
 			cmd.local.Address(),
 			cmd.local.Publickey(),
-			cmd.design.Network.Publish.String(),
+			cmd.design.Network.PublishString,
 			cmd.design.Network.TLSInsecure,
 		),
 	)
@@ -39,7 +39,7 @@ func (cmd *runCommand) prepareMemberlist() error {
 	memberlistconfig := quicmemberlist.BasicMemberlistConfig(
 		cmd.nodeInfo.ID(),
 		cmd.design.Network.Bind,
-		cmd.design.Network.Publish,
+		cmd.design.Network.Publish(),
 	)
 	memberlistconfig.Transport = memberlisttransport
 
@@ -67,7 +67,7 @@ func (cmd *runCommand) prepareMemberlist() error {
 
 	memberlistalive := quicmemberlist.NewAliveDelegate(
 		cmd.enc,
-		cmd.design.Network.Publish,
+		cmd.design.Network.Publish(),
 		cmd.memberlistNodeChallengeFunc(),
 		cmd.memberlistAllowFunc(),
 	)

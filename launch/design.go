@@ -156,9 +156,10 @@ func (d *NodeDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 }
 
 type NodeNetworkDesign struct {
-	Bind        *net.UDPAddr `yaml:"bind"`
-	Publish     *net.UDPAddr `yaml:"publish"` // FIXME allow to use string host
-	TLSInsecure bool         `yaml:"tls_insecure"`
+	Bind          *net.UDPAddr `yaml:"bind"`
+	publish       *net.UDPAddr
+	PublishString string `yaml:"publish"` //nolint:tagliatelle //...
+	TLSInsecure   bool   `yaml:"tls_insecure"`
 }
 
 func (d *NodeNetworkDesign) IsValid([]byte) error {
@@ -172,13 +173,23 @@ func (d *NodeNetworkDesign) IsValid([]byte) error {
 	}
 
 	switch {
-	case d.Publish == nil:
-		d.Publish = &net.UDPAddr{IP: DefaultNetworkBind.IP, Port: d.Bind.Port}
-	case d.Publish.Port < 1:
-		return e.Errorf("invalid publish port")
+	case len(d.PublishString) < 1:
+		d.PublishString = DefaultNetworkBind.String()
+		d.publish = DefaultNetworkBind
+	default:
+		addr, err := net.ResolveUDPAddr("udp", d.PublishString)
+		if err != nil {
+			return e.Wrapf(err, "invalid publish")
+		}
+
+		d.publish = addr
 	}
 
 	return nil
+}
+
+func (d NodeNetworkDesign) Publish() *net.UDPAddr {
+	return d.publish
 }
 
 type NodeNetworkDesignYAMLMarshaler struct {
@@ -188,19 +199,15 @@ type NodeNetworkDesignYAMLMarshaler struct {
 }
 
 func (d NodeNetworkDesign) MarshalYAML() (interface{}, error) {
-	var bind, publish string
+	var bind string
 
 	if d.Bind != nil {
 		bind = d.Bind.String()
 	}
 
-	if d.Publish != nil {
-		publish = d.Publish.String()
-	}
-
 	return NodeNetworkDesignYAMLMarshaler{
 		Bind:        bind,
-		Publish:     publish,
+		Publish:     d.PublishString,
 		TLSInsecure: d.TLSInsecure,
 	}, nil
 }
@@ -217,14 +224,7 @@ func (y *NodeNetworkDesignYAMLMarshaler) Decode(*jsonenc.Encoder) (d NodeNetwork
 		d.Bind = addr
 	}
 
-	if s := strings.TrimSpace(y.Publish); len(s) > 0 {
-		addr, err := net.ResolveUDPAddr("udp", y.Publish)
-		if err != nil {
-			return d, e(err, "invalid publish")
-		}
-
-		d.Publish = addr
-	}
+	d.PublishString = y.Publish
 
 	d.TLSInsecure = y.TLSInsecure
 

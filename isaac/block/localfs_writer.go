@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"io/ioutil"
 	"math"
 	"os"
 	"path/filepath"
@@ -594,16 +593,15 @@ func findHighestDirectory(root string) (string, bool, error) {
 			return nil
 		}
 
-		files, err := ioutil.ReadDir(path) // FIXME use os.ReadDir
 		var names []string
 
-		switch {
+		switch files, err := os.ReadDir(path); {
 		case err != nil:
 			return errors.WithStack(err)
 		default:
 			var foundsubs bool
 			filtered := util.FilterSlices(files, func(i interface{}) bool {
-				f := i.(fs.FileInfo) //nolint:forcetypeassert //.
+				f := i.(fs.DirEntry) //nolint:forcetypeassert //.
 
 				switch {
 				case !f.IsDir(), !rHeightDirectory.MatchString(f.Name()):
@@ -625,7 +623,7 @@ func findHighestDirectory(root string) (string, bool, error) {
 
 			names = make([]string, len(filtered))
 			for i := range filtered {
-				names[i] = filtered[i].(fs.FileInfo).Name() //nolint:forcetypeassert //.
+				names[i] = filtered[i].(fs.DirEntry).Name() //nolint:forcetypeassert //.
 			}
 
 			sort.Slice(names, func(i, j int) bool {

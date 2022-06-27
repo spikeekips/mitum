@@ -130,10 +130,6 @@ func (d *AliveDelegate) NotifyAlive(peer *memberlist.Node) error {
 		return err
 	}
 
-	if _, err := node.CheckPublishConnInfo(); err != nil {
-		return err
-	}
-
 	var willchallenge bool
 
 	switch i, err := d.challengecache.Get(node.Addr().String()); {
@@ -145,6 +141,10 @@ func (d *AliveDelegate) NotifyAlive(peer *memberlist.Node) error {
 	}
 
 	if willchallenge {
+		if _, err := node.CheckPublishConnInfo(); err != nil {
+			return err
+		}
+
 		if err := d.challengef(node); err != nil {
 			return errors.WithMessage(err, "failed to challenge")
 		}

@@ -41,7 +41,7 @@ type newHandler interface {
 
 type handler interface {
 	state() StateType
-	enter(switchContext) (func(), error) // FIXME remove switchContext
+	enter(switchContext) (func(), error)
 	exit(switchContext) (func(), error)
 	newVoteproof(base.Voteproof) error
 }
