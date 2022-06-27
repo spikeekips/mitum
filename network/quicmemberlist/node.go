@@ -25,7 +25,8 @@ var (
 type Node interface {
 	quicstream.ConnInfo
 	Name() string
-	Node() base.Address
+	Address() base.Address
+	Publickey() base.Publickey
 	JoinedAt() time.Time
 	Meta() NodeMeta
 	MetaBytes() []byte
@@ -74,10 +75,6 @@ func (n BaseNode) Name() string {
 	return n.name
 }
 
-func (n BaseNode) Node() base.Address {
-	return n.meta.Node()
-}
-
 func (n BaseNode) Addr() net.Addr {
 	return n.addr
 }
@@ -98,6 +95,14 @@ func (n BaseNode) Meta() NodeMeta {
 	return n.meta
 }
 
+func (n BaseNode) Address() base.Address {
+	return n.meta.Address()
+}
+
+func (n BaseNode) Publickey() base.Publickey {
+	return n.meta.Publickey()
+}
+
 func (n BaseNode) MetaBytes() []byte {
 	return n.metab
 }
@@ -105,7 +110,7 @@ func (n BaseNode) MetaBytes() []byte {
 func (n BaseNode) MarshalZerologObject(e *zerolog.Event) {
 	e.
 		Str("name", n.name).
-		Stringer("node", n.meta.Node()).
+		Stringer("address", n.meta.Address()).
 		Stringer("address", n.addr).
 		Bool("tls_insecure", n.meta.TLSInsecure()).
 		Time("joined_at", n.joinedAt)
@@ -157,23 +162,23 @@ func (n *BaseNode) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 }
 
 type NodeMeta struct {
-	node      base.Address
+	address   base.Address
 	publickey base.Publickey
 	hint.BaseHinter
 	tlsinsecure bool
 }
 
-func NewNodeMeta(node base.Address, publickey base.Publickey, tlsinsecure bool) NodeMeta {
+func NewNodeMeta(address base.Address, publickey base.Publickey, tlsinsecure bool) NodeMeta {
 	return NodeMeta{
 		BaseHinter:  hint.NewBaseHinter(NodeMetaHint),
-		node:        node,
+		address:     address,
 		publickey:   publickey,
 		tlsinsecure: tlsinsecure,
 	}
 }
 
-func (n NodeMeta) Node() base.Address {
-	return n.node
+func (n NodeMeta) Address() base.Address {
+	return n.address
 }
 
 func (n NodeMeta) Publickey() base.Publickey {
@@ -185,7 +190,7 @@ func (n NodeMeta) TLSInsecure() bool {
 }
 
 type nodeMetaJSONMmarshaler struct {
-	Node      base.Address   `json:"node"`
+	Address   base.Address   `json:"address"`
 	Publickey base.Publickey `json:"publickey"`
 	hint.BaseHinter
 	TLSInsecure bool `json:"tls_insecure"`
@@ -194,14 +199,14 @@ type nodeMetaJSONMmarshaler struct {
 func (n NodeMeta) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(nodeMetaJSONMmarshaler{
 		BaseHinter:  n.BaseHinter,
-		Node:        n.node,
+		Address:     n.address,
 		Publickey:   n.publickey,
 		TLSInsecure: n.tlsinsecure,
 	})
 }
 
 type nodeMetaJSONUnmarshaler struct {
-	Node        string `json:"node"`
+	Address     string `json:"address"`
 	Publickey   string `json:"publickey"`
 	TLSInsecure bool   `json:"tls_insecure"`
 }
@@ -214,11 +219,11 @@ func (n *NodeMeta) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "")
 	}
 
-	switch i, err := base.DecodeAddress(u.Node, enc); {
+	switch i, err := base.DecodeAddress(u.Address, enc); {
 	case err != nil:
 		return e(err, "failed to decode node")
 	default:
-		n.node = i
+		n.address = i
 	}
 
 	switch i, err := base.DecodePublickeyFromString(u.Publickey, enc); {

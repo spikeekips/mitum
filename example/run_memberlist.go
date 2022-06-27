@@ -147,7 +147,7 @@ func (cmd *runCommand) memberlistNodeChallengeFunc() func(quicmemberlist.Node) e
 	return func(node quicmemberlist.Node) error {
 		e := util.StringErrorFunc("failed to challenge memberlist node")
 
-		pub := node.Meta().Publickey()
+		pub := node.Publickey()
 
 		if err := util.CheckIsValid(nil, false, pub); err != nil {
 			return e(err, "invalid memberlist node publickey")

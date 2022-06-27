@@ -49,7 +49,7 @@ func NewMemberlist(
 		enc:            enc,
 		oneMemberLimit: oneMemberLimit,
 		members:        newMembersPool(),
-		cicache:        util.NewGCacheObjectPool(1 << 9),
+		cicache:        util.NewGCacheObjectPool(1 << 9), //nolint:gomnd //...
 	}
 
 	if err := srv.patchMemberlistConfig(config); err != nil {
@@ -251,7 +251,7 @@ func (srv *Memberlist) whenLeft(node Node) {
 }
 
 func (srv *Memberlist) allowNode(node Node) error {
-	if srv.members.NodesLen(node.Node()) == srv.oneMemberLimit {
+	if srv.members.NodesLen(node.Address()) == srv.oneMemberLimit {
 		return errors.Errorf("over member limit; %q", node.Name())
 	}
 
@@ -357,7 +357,7 @@ func (m *membersPool) Set(node Node) bool {
 
 		var nodes []Node
 
-		switch i, f := m.nodes.Value(node.Node().String()); {
+		switch i, f := m.nodes.Value(node.Address().String()); {
 		case !f:
 		case util.IsNilLockedValue(i):
 		case i == nil:
@@ -366,7 +366,7 @@ func (m *membersPool) Set(node Node) bool {
 		}
 
 		nodes = append(nodes, node)
-		m.nodes.SetValue(node.Node().String(), nodes)
+		m.nodes.SetValue(node.Address().String(), nodes)
 
 		return node, nil
 	})
@@ -380,7 +380,7 @@ func (m *membersPool) Remove(k *net.UDPAddr) error {
 		case i == nil:
 		case util.IsNilLockedValue(i):
 		default:
-			_ = m.nodes.Remove(i.(Node).Node().String(), nil) //nolint:forcetypeassert // ...
+			_ = m.nodes.Remove(i.(Node).Address().String(), nil) //nolint:forcetypeassert // ...
 		}
 
 		return nil

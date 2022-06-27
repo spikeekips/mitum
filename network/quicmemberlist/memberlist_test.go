@@ -714,7 +714,7 @@ func (t *testMemberlist) TestLocalOverMemberLimit() {
 
 	var joinedremotes []Node
 	lsrv.Members(func(node Node) bool {
-		if node.Node().Equal(rnode) {
+		if node.Address().Equal(rnode) {
 			joinedremotes = append(joinedremotes, node)
 		}
 

@@ -109,8 +109,8 @@ func NewAliveDelegate(
 		challengef:      nchallengef,
 		allowf:          nallowf,
 		storeconninfof:  func(quicstream.ConnInfo) {},
-		challengecache:  gcache.New(1 << 9).LRU().Build(),
-		challengeexpire: time.Second * 30, //nolint:gomnd //...
+		challengecache:  gcache.New(1 << 9).LRU().Build(), //nolint:gomnd //...
+		challengeexpire: time.Second * 30,                 //nolint:gomnd //...
 	}
 }
 

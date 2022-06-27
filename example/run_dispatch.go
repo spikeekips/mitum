@@ -131,11 +131,11 @@ func (cmd *runCommand) proposalSelectorFunc() *isaac.BaseProposalSelector {
 
 			var members []base.Node
 			cmd.memberlist.Members(func(node quicmemberlist.Node) bool {
-				if !suf.Exists(node.Node()) {
+				if !suf.Exists(node.Address()) {
 					return true
 				}
 
-				members = append(members, isaac.NewNode(node.Meta().Publickey(), node.Node()))
+				members = append(members, isaac.NewNode(node.Publickey(), node.Address()))
 
 				return true
 			})
@@ -150,7 +150,7 @@ func (cmd *runCommand) proposalSelectorFunc() *isaac.BaseProposalSelector {
 			// FIXME set request
 			var ci quicstream.ConnInfo
 			cmd.memberlist.Members(func(node quicmemberlist.Node) bool {
-				if node.Node().Equal(proposer) {
+				if node.Address().Equal(proposer) {
 					ci = node
 
 					return false
