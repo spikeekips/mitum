@@ -23,6 +23,7 @@ var (
 )
 
 type Node interface {
+	util.IsValider
 	quicstream.ConnInfo
 	Name() string
 	Address() base.Address
@@ -69,6 +70,43 @@ func newNodeFromMemberlist(node *memberlist.Node, enc encoder.Encoder) (BaseNode
 	addr, _ := convertNetAddr(node)
 
 	return NewNode(node.Name, addr.(*net.UDPAddr), meta) //nolint:forcetypeassert // ...
+}
+
+func (n BaseNode) IsValid([]byte) error {
+	e := util.ErrInvalid.Errorf("invalid BaseNode")
+
+	if err := n.BaseHinter.IsValid(NodeHint.Type().Bytes()); err != nil {
+		return e.Wrap(err)
+	}
+
+	if err := util.CheckIsValid(nil, false,
+		util.DummyIsValider(func([]byte) error {
+			if n.joinedAt.IsZero() {
+				return errors.Errorf("empty joined at time")
+			}
+
+			return nil
+		}),
+		util.DummyIsValider(func([]byte) error {
+			if len(n.name) < 1 {
+				return errors.Errorf("empty name")
+			}
+
+			return nil
+		}),
+		util.DummyIsValider(func([]byte) error {
+			if len(n.metab) < 1 {
+				return errors.Errorf("empty meta")
+			}
+
+			return nil
+		}),
+		n.meta,
+	); err != nil {
+		return e.Wrap(err)
+	}
+
+	return nil
 }
 
 func (n BaseNode) Name() string {
@@ -164,17 +202,52 @@ func (n *BaseNode) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 type NodeMeta struct {
 	address   base.Address
 	publickey base.Publickey
+	publish   string
 	hint.BaseHinter
 	tlsinsecure bool
 }
 
-func NewNodeMeta(address base.Address, publickey base.Publickey, tlsinsecure bool) NodeMeta {
+func NewNodeMeta(address base.Address, publickey base.Publickey, publish string, tlsinsecure bool) NodeMeta {
 	return NodeMeta{
 		BaseHinter:  hint.NewBaseHinter(NodeMetaHint),
 		address:     address,
 		publickey:   publickey,
+		publish:     publish,
 		tlsinsecure: tlsinsecure,
 	}
+}
+
+func (n NodeMeta) IsValid([]byte) error {
+	e := util.ErrInvalid.Errorf("invalid NodeMeta")
+
+	if err := n.BaseHinter.IsValid(NodeMetaHint.Type().Bytes()); err != nil {
+		return e.Wrap(err)
+	}
+
+	if err := util.CheckIsValid(nil, false,
+		n.address,
+		n.publickey,
+		util.DummyIsValider(func([]byte) error {
+			if len(n.publish) < 1 {
+				return errors.Errorf("empty publish")
+			}
+
+			switch host, port, err := net.SplitHostPort(n.publish); {
+			case err != nil:
+				return err
+			case len(host) < 1:
+				return errors.Errorf("empty host")
+			case len(port) < 1:
+				return errors.Errorf("empty port")
+			}
+
+			return nil
+		}),
+	); err != nil {
+		return e.Wrap(err)
+	}
+
+	return nil
 }
 
 func (n NodeMeta) Address() base.Address {
@@ -185,6 +258,10 @@ func (n NodeMeta) Publickey() base.Publickey {
 	return n.publickey
 }
 
+func (n NodeMeta) Publish() string {
+	return n.publish
+}
+
 func (n NodeMeta) TLSInsecure() bool {
 	return n.tlsinsecure
 }
@@ -192,6 +269,7 @@ func (n NodeMeta) TLSInsecure() bool {
 type nodeMetaJSONMmarshaler struct {
 	Address   base.Address   `json:"address"`
 	Publickey base.Publickey `json:"publickey"`
+	Publish   string         `json:"publish"`
 	hint.BaseHinter
 	TLSInsecure bool `json:"tls_insecure"`
 }
@@ -201,6 +279,7 @@ func (n NodeMeta) MarshalJSON() ([]byte, error) {
 		BaseHinter:  n.BaseHinter,
 		Address:     n.address,
 		Publickey:   n.publickey,
+		Publish:     n.publish,
 		TLSInsecure: n.tlsinsecure,
 	})
 }
@@ -208,6 +287,7 @@ func (n NodeMeta) MarshalJSON() ([]byte, error) {
 type nodeMetaJSONUnmarshaler struct {
 	Address     string `json:"address"`
 	Publickey   string `json:"publickey"`
+	Publish     string `json:"publish"`
 	TLSInsecure bool   `json:"tls_insecure"`
 }
 
@@ -233,6 +313,7 @@ func (n *NodeMeta) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		n.publickey = i
 	}
 
+	n.publish = u.Publish
 	n.tlsinsecure = u.TLSInsecure
 
 	return nil

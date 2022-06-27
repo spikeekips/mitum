@@ -24,7 +24,12 @@ func (cmd *runCommand) prepareMemberlist() error {
 	memberlistnode, err := quicmemberlist.NewNode(
 		cmd.local.Address().String(),
 		cmd.design.Network.Publish,
-		quicmemberlist.NewNodeMeta(cmd.local.Address(), cmd.local.Publickey(), cmd.design.Network.TLSInsecure),
+		quicmemberlist.NewNodeMeta(
+			cmd.local.Address(),
+			cmd.local.Publickey(),
+			cmd.design.Network.Publish,
+			cmd.design.Network.TLSInsecure,
+		),
 	)
 	if err != nil {
 		return err
@@ -157,6 +162,8 @@ func (cmd *runCommand) memberlistNodeChallengeFunc() func(quicmemberlist.Node) e
 		defer cancel()
 
 		input := util.UUID().Bytes()
+
+		// FIXME challenge with publish address
 
 		sig, err := cmd.client.MemberlistNodeChallenge(ctx, node, input)
 		if err != nil {

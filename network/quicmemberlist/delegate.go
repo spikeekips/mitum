@@ -126,6 +126,10 @@ func (d *AliveDelegate) NotifyAlive(peer *memberlist.Node) error {
 		return errors.WithMessage(err, "not allowed to be alive")
 	}
 
+	if err := node.IsValid(nil); err != nil {
+		return err
+	}
+
 	var willchallenge bool
 
 	switch i, err := d.challengecache.Get(node.Addr().String()); {

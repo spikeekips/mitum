@@ -44,7 +44,7 @@ func (t *testMemberlist) TestNew() {
 	bind := t.NewBind()
 	config := BasicMemberlistConfig(bind.String(), bind, bind)
 
-	meta := NewNodeMeta(base.RandomAddress(""), base.NewMPrivatekey().Publickey(), true)
+	meta := NewNodeMeta(base.RandomAddress(""), base.NewMPrivatekey().Publickey(), "1.2.3.4:4321", true)
 	local, err := NewNode(bind.String(), bind, meta)
 	t.NoError(err)
 
@@ -108,7 +108,7 @@ func (t *testMemberlist) newServersForJoining(
 	memberlistconfig.Events = NewEventsDelegate(t.enc, whenJoined, whenLeft)
 	memberlistconfig.Alive = NewAliveDelegate(t.enc, laddr, func(Node) error { return nil }, func(Node) error { return nil })
 
-	meta := NewNodeMeta(node, base.NewMPrivatekey().Publickey(), true)
+	meta := NewNodeMeta(node, base.NewMPrivatekey().Publickey(), "1.2.3.4:4321", true)
 	local, err := NewNode(laddr.String(), laddr, meta)
 	t.NoError(err)
 
@@ -724,6 +724,76 @@ func (t *testMemberlist) TestLocalOverMemberLimit() {
 	t.Equal(2, lsrv.MembersLen())
 	t.Equal(1, len(joinedremotes))
 	t.True(isEqualAddress(rci0, joinedremotes[0].UDPAddr()))
+}
+
+func (t *testMemberlist) TestLocalJoinToRemoteWithInvalidNode() {
+	lci := t.newConnInfo()
+	lnode := base.RandomAddress("")
+	rci := t.newConnInfo()
+	rnode := base.RandomAddress("")
+
+	addrs := []*net.UDPAddr{lci.UDPAddr(), rci.UDPAddr()}
+	sort.Slice(addrs, func(i, j int) bool {
+		return strings.Compare(addrs[i].String(), addrs[j].String()) < 0
+	})
+
+	ljoinedch := make(chan Node, 1)
+	rjoinedch := make(chan Node, 1)
+	lqsrv, lsrv := t.newServersForJoining(
+		lnode,
+		lci,
+		func(node Node) {
+			if isEqualAddress(node, lci) {
+				return
+			}
+
+			ljoinedch <- node
+		},
+		nil,
+	)
+
+	rqsrv, rsrv := t.newServersForJoining(
+		rnode,
+		rci,
+		func(node Node) {
+			if isEqualAddress(node, rci) {
+				return
+			}
+
+			rjoinedch <- node
+		},
+		nil,
+	)
+
+	remotemeta := NewNodeMeta(rnode, base.NewMPrivatekey().Publickey(), "", true) // NOTE empty publish
+	remote, err := NewNode(rci.UDPAddr().String(), rci.UDPAddr(), remotemeta)
+	t.NoError(err)
+	err = remote.IsValid(nil)
+	t.Error(err)
+	t.True(errors.Is(err, util.ErrInvalid))
+	t.ErrorContains(err, "empty publish")
+
+	rdelegate := rsrv.mconfig.Delegate.(*Delegate)
+	rdelegate.local = remote
+
+	t.NoError(lqsrv.Start())
+	t.NoError(rqsrv.Start())
+	defer lqsrv.Stop()
+	defer rqsrv.Stop()
+
+	t.NoError(lsrv.Start())
+	t.NoError(rsrv.Start())
+	defer lsrv.Stop()
+	defer rsrv.Stop()
+
+	<-time.After(time.Second)
+	t.NoError(lsrv.Join([]quicstream.ConnInfo{rci}))
+
+	select {
+	case <-time.After(time.Second * 2):
+	case <-ljoinedch:
+		t.NoError(errors.Errorf("unexpected; local joined to remote"))
+	}
 }
 
 func TestMemberlist(t *testing.T) {
