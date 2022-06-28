@@ -248,9 +248,7 @@ func (c *baseNetworkClient) BlockMapItem(
 func (c *baseNetworkClient) MemberlistNodeChallenge(
 	ctx context.Context, ci quicstream.ConnInfo, input []byte,
 ) (base.Signature, error) {
-	// NOTE the io.ReadCloser should be closed.
-
-	e := util.StringErrorFunc("failed to get BlockMap")
+	e := util.StringErrorFunc("failed MemberlistNodeChallenge")
 
 	header := NewMemberlistNodeChallengeRequestHeader(input)
 

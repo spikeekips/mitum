@@ -20,6 +20,7 @@ type NetworkClient interface {
 	BlockMap(context.Context, quicstream.ConnInfo, base.Height) (_ base.BlockMap, updated bool, _ error)
 	BlockMapItem(context.Context, quicstream.ConnInfo, base.Height, base.BlockMapItemType) (io.ReadCloser, func() error, bool, error)
 	MemberlistNodeChallenge(_ context.Context, _ quicstream.ConnInfo, input []byte) (base.Signature, error)
+	SuffrageNodesConnInfo(_ context.Context, _ quicstream.ConnInfo) ([]quicstream.ConnInfo, error)
 }
 
 // revive:enable:line-length-limit

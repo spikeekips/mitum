@@ -73,7 +73,7 @@ func NewRequestProposalRequestHeader(point base.Point, proposer base.Address) Re
 func (h RequestProposalRequestHeader) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid RequestProposalHeader")
 
-	if err := h.BaseHinter.IsValid(h.Hint().Type().Bytes()); err != nil {
+	if err := h.BaseHinter.IsValid(RequestProposalRequestHeaderHint.Type().Bytes()); err != nil {
 		return e(err, "")
 	}
 
@@ -107,7 +107,7 @@ func NewProposalRequestHeader(proposal util.Hash) ProposalRequestHeader {
 func (h ProposalRequestHeader) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid ProposalHeader")
 
-	if err := h.BaseHinter.IsValid(h.Hint().Type().Bytes()); err != nil {
+	if err := h.BaseHinter.IsValid(ProposalRequestHeaderHint.Type().Bytes()); err != nil {
 		return e(err, "")
 	}
 
@@ -137,7 +137,7 @@ func NewLastSuffrageProofRequestHeader(state util.Hash) LastSuffrageProofRequest
 func (h LastSuffrageProofRequestHeader) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid LastSuffrageProofHeader")
 
-	if err := h.BaseHinter.IsValid(h.Hint().Type().Bytes()); err != nil {
+	if err := h.BaseHinter.IsValid(LastSuffrageProofRequestHeaderHint.Type().Bytes()); err != nil {
 		return e(err, "")
 	}
 
@@ -169,7 +169,7 @@ func NewSuffrageProofRequestHeader(suffrageheight base.Height) SuffrageProofRequ
 func (h SuffrageProofRequestHeader) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid SuffrageProofHeader")
 
-	if err := h.BaseHinter.IsValid(h.Hint().Type().Bytes()); err != nil {
+	if err := h.BaseHinter.IsValid(SuffrageProofRequestHeaderHint.Type().Bytes()); err != nil {
 		return e(err, "")
 	}
 
@@ -199,7 +199,7 @@ func NewLastBlockMapRequestHeader(manifest util.Hash) LastBlockMapRequestHeader 
 func (h LastBlockMapRequestHeader) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid LastLastBlockMapHeader")
 
-	if err := h.BaseHinter.IsValid(h.Hint().Type().Bytes()); err != nil {
+	if err := h.BaseHinter.IsValid(LastBlockMapRequestHeaderHint.Type().Bytes()); err != nil {
 		return e(err, "")
 	}
 
@@ -229,7 +229,7 @@ func NewBlockMapRequestHeader(height base.Height) BlockMapRequestHeader {
 func (h BlockMapRequestHeader) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid LastBlockMapHeader")
 
-	if err := h.BaseHinter.IsValid(h.Hint().Type().Bytes()); err != nil {
+	if err := h.BaseHinter.IsValid(BlockMapRequestHeaderHint.Type().Bytes()); err != nil {
 		return e(err, "")
 	}
 
@@ -261,7 +261,7 @@ func NewBlockMapItemRequestHeader(height base.Height, item base.BlockMapItemType
 func (h BlockMapItemRequestHeader) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid BlockMapItemHeader")
 
-	if err := h.BaseHinter.IsValid(h.Hint().Type().Bytes()); err != nil {
+	if err := h.BaseHinter.IsValid(BlockMapItemRequestHeaderHint.Type().Bytes()); err != nil {
 		return e(err, "")
 	}
 
@@ -295,7 +295,7 @@ func NewMemberlistNodeChallengeRequestHeader(input []byte) MemberlistNodeChallen
 func (h MemberlistNodeChallengeRequestHeader) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid MemberlistNodeChallengeHeader")
 
-	if err := h.BaseHinter.IsValid(h.Hint().Type().Bytes()); err != nil {
+	if err := h.BaseHinter.IsValid(MemberlistNodeChallengeRequestHeaderHint.Type().Bytes()); err != nil {
 		return e(err, "")
 	}
 

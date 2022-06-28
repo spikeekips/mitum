@@ -33,6 +33,8 @@ func (h *BaseHeader) unmarshalJSON(b []byte) error {
 		h.prefix = HandlerPrefixBlockMap
 	case BlockMapItemRequestHeaderHint.Type():
 		h.prefix = HandlerPrefixBlockMapItem
+	case MemberlistNodeChallengeRequestHeaderHint.Type():
+		h.prefix = HandlerPrefixMemberlistNodeChallenge
 	}
 
 	return nil

@@ -287,11 +287,9 @@ func (c *QuicstreamHandlers) MemberlistNodeChallenge(_ net.Addr, r io.Reader, w 
 
 	header := NewResponseHeader(true, nil)
 
-	if err := Response(w, header, nil, enc); err != nil {
+	if err := Response(w, header, sig, enc); err != nil {
 		return e(err, "")
 	}
-
-	_, _ = w.Write(sig)
 
 	return nil
 }

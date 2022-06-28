@@ -11,8 +11,6 @@ import (
 )
 
 var (
-	HandlerPrefixMemberlist              = "memberlist"
-	HandlerPrefixMemberlistNodeChallenge = "memberlist_node_challenge"
 	HandlerPrefixRequestProposal         = "request_proposal"
 	HandlerPrefixProposal                = "proposal"
 	HandlerPrefixLastSuffrageProof       = "last_suffrage_proof"
@@ -20,6 +18,8 @@ var (
 	HandlerPrefixLastBlockMap            = "last_blockmap"
 	HandlerPrefixBlockMap                = "blockmap"
 	HandlerPrefixBlockMapItem            = "blockmap_item"
+	HandlerPrefixMemberlist              = "memberlist"
+	HandlerPrefixMemberlistNodeChallenge = "memberlist_node_challenge"
 )
 
 type baseNetwork struct {
