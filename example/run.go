@@ -19,7 +19,7 @@ import (
 
 type runCommand struct { //nolint:govet //...
 	baseNodeCommand
-	Discovery            []launch.ConnInfoFlag `help:"discoveries" placeholder:"ConnInfo"`
+	MemberDiscovery      []launch.ConnInfoFlag `help:"member discovery" placeholder:"ConnInfo"`
 	SyncNode             []launch.ConnInfoFlag `help:"node for syncing" placeholder:"ConnInfo"`
 	Hold                 bool                  `help:"hold consensus states"`
 	nodeInfo             launch.NodeInfo

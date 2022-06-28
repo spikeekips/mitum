@@ -74,14 +74,14 @@ func (cmd *runCommand) prepareFlags() error {
 	}
 
 	switch {
-	case len(cmd.Discovery) < 1:
+	case len(cmd.MemberDiscovery) < 1:
 	default:
-		cmd.discoveries = make([]quicstream.ConnInfo, len(cmd.Discovery))
+		cmd.discoveries = make([]quicstream.ConnInfo, len(cmd.MemberDiscovery))
 
-		for i := range cmd.Discovery {
-			ci, err := cmd.Discovery[i].ConnInfo()
+		for i := range cmd.MemberDiscovery {
+			ci, err := cmd.MemberDiscovery[i].ConnInfo()
 			if err != nil {
-				return errors.WithMessagef(err, "invalid Discovery, %q", cmd.Discovery[i])
+				return errors.WithMessagef(err, "invalid member discovery, %q", cmd.MemberDiscovery[i])
 			}
 
 			cmd.discoveries[i] = ci

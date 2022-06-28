@@ -337,9 +337,9 @@ func (cmd *runCommand) getProposalFunc() func(_ context.Context, facthash util.H
 
 func (cmd *runCommand) syncerLastBlockMapf() isaacstates.SyncerLastBlockMapFunc {
 	return func(ctx context.Context, manifest util.Hash) (_ base.BlockMap, updated bool, _ error) {
-		discovery := cmd.SyncNode[0]
+		node := cmd.SyncNode[0]
 
-		ci, err := discovery.ConnInfo()
+		ci, err := node.ConnInfo()
 		if err != nil {
 			return nil, false, err
 		}
