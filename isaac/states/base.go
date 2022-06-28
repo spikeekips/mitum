@@ -268,7 +268,7 @@ func (st *baseHandler) prepareNextBlock(avp base.ACCEPTVoteproof, suf base.Suffr
 			Interface("height", point.Height()).
 			Msg("local is not in suffrage at next block; moves to syncing state")
 
-		return nil, newSyncingSwitchContext(StateConsensus, point.Height())
+		return nil, newSyncingSwitchContext(StateConsensus, avp.Point().Height())
 	}
 
 	// NOTE find next proposal

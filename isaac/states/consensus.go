@@ -661,6 +661,8 @@ func (st *ConsensusHandler) saveBlock(avp base.ACCEPTVoteproof) error {
 
 	ll.Debug().Msg("expected accept voteproof; trying to save proposal")
 
+	// FIXME when block saved, check local is in suffrage
+
 	switch err := st.pps.Save(context.Background(), facthash, avp); {
 	case err == nil:
 		ll.Debug().Msg("processed proposal saved; moves to next block")

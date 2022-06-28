@@ -778,13 +778,13 @@ func (t *testConsensusHandler) TestOutOfSuffrage() {
 	t.T().Log("wait to switch syncing state")
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait next init ballot"))
+		t.NoError(errors.Errorf("timeout to wait to switch state syncing"))
 
 		return
 	case sctx := <-sctxch:
 		var ssctx syncingSwitchContext
 		t.True(errors.As(sctx, &ssctx))
-		t.Equal(point.Height()+1, ssctx.height)
+		t.Equal(point.Height(), ssctx.height)
 	}
 }
 
