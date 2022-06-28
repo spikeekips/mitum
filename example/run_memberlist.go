@@ -68,7 +68,7 @@ func (cmd *runCommand) prepareMemberlist() error {
 	memberlistalive := quicmemberlist.NewAliveDelegate(
 		cmd.enc,
 		cmd.design.Network.Publish(),
-		cmd.memberlistNodeChallengeFunc(),
+		cmd.nodeChallengeFunc(),
 		cmd.memberlistAllowFunc(),
 	)
 	memberlistconfig.Alive = memberlistalive
@@ -149,7 +149,7 @@ func (cmd *runCommand) startMmemberlist(ctx context.Context) error {
 	}
 }
 
-func (cmd *runCommand) memberlistNodeChallengeFunc() func(quicmemberlist.Node) error {
+func (cmd *runCommand) nodeChallengeFunc() func(quicmemberlist.Node) error {
 	return func(node quicmemberlist.Node) error {
 		e := util.StringErrorFunc("failed to challenge memberlist node")
 
@@ -164,14 +164,14 @@ func (cmd *runCommand) memberlistNodeChallengeFunc() func(quicmemberlist.Node) e
 
 		input := util.UUID().Bytes()
 
-		sig, err := cmd.client.MemberlistNodeChallenge(ctx, node, input)
+		sig, err := cmd.client.NodeChallenge(ctx, node, input)
 		if err != nil {
 			return e(err, "")
 		}
 
 		// NOTE challenge with publish address
 		if pci := node.PublishConnInfo(); !quicstream.EqualConnInfo(node, pci) {
-			psig, err := cmd.client.MemberlistNodeChallenge(ctx, node.PublishConnInfo(), input)
+			psig, err := cmd.client.NodeChallenge(ctx, node.PublishConnInfo(), input)
 			if err != nil {
 				return e(err, "")
 			}

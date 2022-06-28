@@ -245,12 +245,12 @@ func (c *baseNetworkClient) BlockMapItem(
 	}
 }
 
-func (c *baseNetworkClient) MemberlistNodeChallenge(
+func (c *baseNetworkClient) NodeChallenge(
 	ctx context.Context, ci quicstream.ConnInfo, input []byte,
 ) (base.Signature, error) {
-	e := util.StringErrorFunc("failed MemberlistNodeChallenge")
+	e := util.StringErrorFunc("failed NodeChallenge")
 
-	header := NewMemberlistNodeChallengeRequestHeader(input)
+	header := NewNodeChallengeRequestHeader(input)
 
 	if err := header.IsValid(nil); err != nil {
 		return nil, e(err, "")

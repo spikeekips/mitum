@@ -33,8 +33,8 @@ func (h *BaseHeader) unmarshalJSON(b []byte) error {
 		h.prefix = HandlerPrefixBlockMap
 	case BlockMapItemRequestHeaderHint.Type():
 		h.prefix = HandlerPrefixBlockMapItem
-	case MemberlistNodeChallengeRequestHeaderHint.Type():
-		h.prefix = HandlerPrefixMemberlistNodeChallenge
+	case NodeChallengeRequestHeaderHint.Type():
+		h.prefix = HandlerPrefixNodeChallenge
 	}
 
 	return nil
@@ -316,25 +316,25 @@ func (h *BlockMapItemRequestHeader) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-type MemberlistNodeChallengeRequestHeaderJSONMarshaler struct {
+type NodeChallengeRequestHeaderJSONMarshaler struct {
 	Input []byte `json:"input"`
 }
 
-func (h MemberlistNodeChallengeRequestHeader) MarshalJSON() ([]byte, error) {
+func (h NodeChallengeRequestHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
-		MemberlistNodeChallengeRequestHeaderJSONMarshaler
+		NodeChallengeRequestHeaderJSONMarshaler
 		BaseHeader
 	}{
 		BaseHeader: h.BaseHeader,
-		MemberlistNodeChallengeRequestHeaderJSONMarshaler: MemberlistNodeChallengeRequestHeaderJSONMarshaler{
+		NodeChallengeRequestHeaderJSONMarshaler: NodeChallengeRequestHeaderJSONMarshaler{
 			Input: h.input,
 		},
 	})
 }
 
-func (h *MemberlistNodeChallengeRequestHeader) UnmarshalJSON(b []byte) error {
-	e := util.StringErrorFunc("failed to unmarshal MemberlistNodeChallengeHeader")
-	var u MemberlistNodeChallengeRequestHeaderJSONMarshaler
+func (h *NodeChallengeRequestHeader) UnmarshalJSON(b []byte) error {
+	e := util.StringErrorFunc("failed to unmarshal NodeChallengeHeader")
+	var u NodeChallengeRequestHeaderJSONMarshaler
 
 	if err := util.UnmarshalJSON(b, &u); err != nil {
 		return e(err, "")

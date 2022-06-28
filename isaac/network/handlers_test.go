@@ -39,7 +39,7 @@ func (t *testQuicstreamHandlers) SetupSuite() {
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: LastBlockMapRequestHeaderHint, Instance: LastBlockMapRequestHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: BlockMapRequestHeaderHint, Instance: BlockMapRequestHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: BlockMapItemRequestHeaderHint, Instance: BlockMapItemRequestHeader{}}))
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: MemberlistNodeChallengeRequestHeaderHint, Instance: MemberlistNodeChallengeRequestHeader{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: NodeChallengeRequestHeaderHint, Instance: NodeChallengeRequestHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageCandidateHint, Instance: isaac.SuffrageCandidate{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ResponseHeaderHint, Instance: ResponseHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: base.DummySuffrageProofHint, Instance: base.DummySuffrageProof{}}))
@@ -404,16 +404,16 @@ func (t *testQuicstreamHandlers) TestBlockMapItem() {
 	})
 }
 
-func (t *testQuicstreamHandlers) TestMemberlistNodeChallenge() {
+func (t *testQuicstreamHandlers) TestNodeChallenge() {
 	handlers := NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil)
 
 	ci := quicstream.NewBaseConnInfo(nil, true)
-	c := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixMemberlistNodeChallenge, handlers.MemberlistNodeChallenge))
+	c := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixNodeChallenge, handlers.NodeChallenge))
 
 	t.Run("ok", func() {
 		input := util.UUID().Bytes()
 
-		sig, err := c.MemberlistNodeChallenge(context.Background(), ci, input)
+		sig, err := c.NodeChallenge(context.Background(), ci, input)
 		t.NoError(err)
 		t.NotNil(sig)
 
@@ -421,7 +421,7 @@ func (t *testQuicstreamHandlers) TestMemberlistNodeChallenge() {
 	})
 
 	t.Run("empty input", func() {
-		sig, err := c.MemberlistNodeChallenge(context.Background(), ci, nil)
+		sig, err := c.NodeChallenge(context.Background(), ci, nil)
 		t.Error(err)
 		t.Nil(sig)
 

@@ -11,15 +11,15 @@ import (
 )
 
 var (
-	HandlerPrefixRequestProposal         = "request_proposal"
-	HandlerPrefixProposal                = "proposal"
-	HandlerPrefixLastSuffrageProof       = "last_suffrage_proof"
-	HandlerPrefixSuffrageProof           = "suffrage_proof"
-	HandlerPrefixLastBlockMap            = "last_blockmap"
-	HandlerPrefixBlockMap                = "blockmap"
-	HandlerPrefixBlockMapItem            = "blockmap_item"
-	HandlerPrefixMemberlist              = "memberlist"
-	HandlerPrefixMemberlistNodeChallenge = "memberlist_node_challenge"
+	HandlerPrefixRequestProposal   = "request_proposal"
+	HandlerPrefixProposal          = "proposal"
+	HandlerPrefixLastSuffrageProof = "last_suffrage_proof"
+	HandlerPrefixSuffrageProof     = "suffrage_proof"
+	HandlerPrefixLastBlockMap      = "last_blockmap"
+	HandlerPrefixBlockMap          = "blockmap"
+	HandlerPrefixBlockMapItem      = "blockmap_item"
+	HandlerPrefixMemberlist        = "memberlist"
+	HandlerPrefixNodeChallenge     = "node_challenge"
 )
 
 type baseNetwork struct {

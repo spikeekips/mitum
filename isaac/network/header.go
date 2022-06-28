@@ -7,14 +7,14 @@ import (
 )
 
 var (
-	RequestProposalRequestHeaderHint         = hint.MustNewHint("request-proposal-header-v0.0.1")
-	ProposalRequestHeaderHint                = hint.MustNewHint("proposal-header-v0.0.1")
-	LastSuffrageProofRequestHeaderHint       = hint.MustNewHint("last-suffrage-proof-header-v0.0.1")
-	SuffrageProofRequestHeaderHint           = hint.MustNewHint("suffrage-proof-header-v0.0.1")
-	LastBlockMapRequestHeaderHint            = hint.MustNewHint("last-blockmap-header-v0.0.1")
-	BlockMapRequestHeaderHint                = hint.MustNewHint("blockmap-header-v0.0.1")
-	BlockMapItemRequestHeaderHint            = hint.MustNewHint("blockmap-item-header-v0.0.1")
-	MemberlistNodeChallengeRequestHeaderHint = hint.MustNewHint("memberlist-node-challenge-header-v0.0.1")
+	RequestProposalRequestHeaderHint   = hint.MustNewHint("request-proposal-header-v0.0.1")
+	ProposalRequestHeaderHint          = hint.MustNewHint("proposal-header-v0.0.1")
+	LastSuffrageProofRequestHeaderHint = hint.MustNewHint("last-suffrage-proof-header-v0.0.1")
+	SuffrageProofRequestHeaderHint     = hint.MustNewHint("suffrage-proof-header-v0.0.1")
+	LastBlockMapRequestHeaderHint      = hint.MustNewHint("last-blockmap-header-v0.0.1")
+	BlockMapRequestHeaderHint          = hint.MustNewHint("blockmap-header-v0.0.1")
+	BlockMapItemRequestHeaderHint      = hint.MustNewHint("blockmap-item-header-v0.0.1")
+	NodeChallengeRequestHeaderHint     = hint.MustNewHint("node-challenge-header-v0.0.1")
 )
 
 var ResponseHeaderHint = hint.MustNewHint("response-header-v0.0.1")
@@ -42,8 +42,8 @@ func NewBaseHeader(ht hint.Hint) BaseHeader {
 		prefix = HandlerPrefixBlockMap
 	case BlockMapItemRequestHeaderHint.Type():
 		prefix = HandlerPrefixBlockMapItem
-	case MemberlistNodeChallengeRequestHeaderHint.Type():
-		prefix = HandlerPrefixMemberlistNodeChallenge
+	case NodeChallengeRequestHeaderHint.Type():
+		prefix = HandlerPrefixNodeChallenge
 	}
 
 	return BaseHeader{
@@ -280,22 +280,22 @@ func (h BlockMapItemRequestHeader) Item() base.BlockMapItemType {
 	return h.item
 }
 
-type MemberlistNodeChallengeRequestHeader struct {
+type NodeChallengeRequestHeader struct {
 	input []byte
 	BaseHeader
 }
 
-func NewMemberlistNodeChallengeRequestHeader(input []byte) MemberlistNodeChallengeRequestHeader {
-	return MemberlistNodeChallengeRequestHeader{
-		BaseHeader: NewBaseHeader(MemberlistNodeChallengeRequestHeaderHint),
+func NewNodeChallengeRequestHeader(input []byte) NodeChallengeRequestHeader {
+	return NodeChallengeRequestHeader{
+		BaseHeader: NewBaseHeader(NodeChallengeRequestHeaderHint),
 		input:      input,
 	}
 }
 
-func (h MemberlistNodeChallengeRequestHeader) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid MemberlistNodeChallengeHeader")
+func (h NodeChallengeRequestHeader) IsValid([]byte) error {
+	e := util.StringErrorFunc("invalid NodeChallengeHeader")
 
-	if err := h.BaseHinter.IsValid(MemberlistNodeChallengeRequestHeaderHint.Type().Bytes()); err != nil {
+	if err := h.BaseHinter.IsValid(NodeChallengeRequestHeaderHint.Type().Bytes()); err != nil {
 		return e(err, "")
 	}
 
@@ -306,7 +306,7 @@ func (h MemberlistNodeChallengeRequestHeader) IsValid([]byte) error {
 	return nil
 }
 
-func (h MemberlistNodeChallengeRequestHeader) Input() []byte {
+func (h NodeChallengeRequestHeader) Input() []byte {
 	return h.input
 }
 

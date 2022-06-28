@@ -263,15 +263,15 @@ func (c *QuicstreamHandlers) BlockMapItem(_ net.Addr, r io.Reader, w io.Writer) 
 	return nil
 }
 
-func (c *QuicstreamHandlers) MemberlistNodeChallenge(_ net.Addr, r io.Reader, w io.Writer) error {
-	e := util.StringErrorFunc("failed to handle memberlist node challenge")
+func (c *QuicstreamHandlers) NodeChallenge(_ net.Addr, r io.Reader, w io.Writer) error {
+	e := util.StringErrorFunc("failed to handle node challenge")
 
 	enc, hb, err := c.prehandle(r)
 	if err != nil {
 		return e(err, "")
 	}
 
-	var body MemberlistNodeChallengeRequestHeader
+	var body NodeChallengeRequestHeader
 	if err = encoder.Decode(enc, hb, &body); err != nil {
 		return e(err, "")
 	}

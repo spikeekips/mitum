@@ -69,7 +69,7 @@ func Handlers(handlers *isaacnetwork.QuicstreamHandlers) *quicstream.PrefixHandl
 		Add(isaacnetwork.HandlerPrefixLastBlockMap, handlers.LastBlockMap).
 		Add(isaacnetwork.HandlerPrefixBlockMap, handlers.BlockMap).
 		Add(isaacnetwork.HandlerPrefixBlockMapItem, handlers.BlockMapItem).
-		Add(isaacnetwork.HandlerPrefixMemberlistNodeChallenge, handlers.MemberlistNodeChallenge)
+		Add(isaacnetwork.HandlerPrefixNodeChallenge, handlers.NodeChallenge)
 
 	return prefix
 }
