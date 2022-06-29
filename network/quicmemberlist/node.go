@@ -111,6 +111,10 @@ func (n BaseNode) IsValid([]byte) error {
 	return nil
 }
 
+func (n BaseNode) String() string {
+	return n.publishconninfo.String()
+}
+
 func (n BaseNode) Name() string {
 	return n.name
 }

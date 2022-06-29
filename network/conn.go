@@ -4,7 +4,7 @@ import (
 	"strings"
 )
 
-func ParseInsecure(s string) (string, bool) {
+func ParseTLSInsecure(s string) (string, bool) {
 	switch i := strings.Index(s, "#"); {
 	case i < 0:
 		return s, false

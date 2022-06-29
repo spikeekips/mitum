@@ -1,6 +1,7 @@
 package quicstream
 
 import (
+	"fmt"
 	"net"
 
 	"github.com/pkg/errors"
@@ -10,6 +11,7 @@ import (
 )
 
 type ConnInfo interface {
+	fmt.Stringer
 	Addr() net.Addr
 	UDPAddr() *net.UDPAddr
 	TLSInsecure() bool
@@ -25,7 +27,7 @@ func NewBaseConnInfo(addr *net.UDPAddr, tlsinsecure bool) BaseConnInfo {
 }
 
 func NewBaseConnInfoFromString(s string) (BaseConnInfo, error) {
-	as, tlsinsecure := network.ParseInsecure(s)
+	as, tlsinsecure := network.ParseTLSInsecure(s)
 
 	return NewBaseConnInfoFromStringAddress(as, tlsinsecure)
 }

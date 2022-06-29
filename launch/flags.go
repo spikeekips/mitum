@@ -105,7 +105,7 @@ func (f *ConnInfoFlag) UnmarshalText(b []byte) error {
 		return e(err, "")
 	}
 
-	f.addr, f.tlsinsecure = network.ParseInsecure(s)
+	f.addr, f.tlsinsecure = network.ParseTLSInsecure(s)
 
 	return nil
 }
