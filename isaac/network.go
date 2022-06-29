@@ -19,8 +19,8 @@ type NetworkClient interface {
 	LastBlockMap(_ context.Context, _ quicstream.ConnInfo, manifest util.Hash) (_ base.BlockMap, updated bool, _ error)
 	BlockMap(context.Context, quicstream.ConnInfo, base.Height) (_ base.BlockMap, updated bool, _ error)
 	BlockMapItem(context.Context, quicstream.ConnInfo, base.Height, base.BlockMapItemType) (io.ReadCloser, func() error, bool, error)
-	NodeChallenge(_ context.Context, _ quicstream.ConnInfo, input []byte) (base.Signature, error)
-	SuffrageNodesConnInfo(_ context.Context, _ quicstream.ConnInfo) ([]quicstream.ConnInfo, error)
+	NodeChallenge(_ context.Context, _ quicstream.ConnInfo, _ base.NetworkID, _ base.Address, _ base.Publickey, input []byte) (base.Signature, error)
+	SuffrageNodeConnInfo(context.Context, quicstream.ConnInfo) ([]NodeConnInfo, error)
 }
 
 // revive:enable:line-length-limit
@@ -34,4 +34,9 @@ type NetworkResponseHeader interface {
 	NetworkHeader
 	Err() error
 	OK() bool
+}
+
+type NodeConnInfo interface {
+	base.Node
+	quicstream.ConnInfo
 }

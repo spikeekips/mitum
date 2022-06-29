@@ -1,20 +1,22 @@
 package isaacnetwork
 
 import (
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
 )
 
 var (
-	RequestProposalRequestHeaderHint   = hint.MustNewHint("request-proposal-header-v0.0.1")
-	ProposalRequestHeaderHint          = hint.MustNewHint("proposal-header-v0.0.1")
-	LastSuffrageProofRequestHeaderHint = hint.MustNewHint("last-suffrage-proof-header-v0.0.1")
-	SuffrageProofRequestHeaderHint     = hint.MustNewHint("suffrage-proof-header-v0.0.1")
-	LastBlockMapRequestHeaderHint      = hint.MustNewHint("last-blockmap-header-v0.0.1")
-	BlockMapRequestHeaderHint          = hint.MustNewHint("blockmap-header-v0.0.1")
-	BlockMapItemRequestHeaderHint      = hint.MustNewHint("blockmap-item-header-v0.0.1")
-	NodeChallengeRequestHeaderHint     = hint.MustNewHint("node-challenge-header-v0.0.1")
+	RequestProposalRequestHeaderHint      = hint.MustNewHint("request-proposal-header-v0.0.1")
+	ProposalRequestHeaderHint             = hint.MustNewHint("proposal-header-v0.0.1")
+	LastSuffrageProofRequestHeaderHint    = hint.MustNewHint("last-suffrage-proof-header-v0.0.1")
+	SuffrageProofRequestHeaderHint        = hint.MustNewHint("suffrage-proof-header-v0.0.1")
+	LastBlockMapRequestHeaderHint         = hint.MustNewHint("last-blockmap-header-v0.0.1")
+	BlockMapRequestHeaderHint             = hint.MustNewHint("blockmap-header-v0.0.1")
+	BlockMapItemRequestHeaderHint         = hint.MustNewHint("blockmap-item-header-v0.0.1")
+	NodeChallengeRequestHeaderHint        = hint.MustNewHint("node-challenge-header-v0.0.1")
+	SuffrageNodeConnInfoRequestHeaderHint = hint.MustNewHint("suffrage-node-conninfo-header-v0.0.1")
 )
 
 var ResponseHeaderHint = hint.MustNewHint("response-header-v0.0.1")
@@ -25,30 +27,9 @@ type BaseHeader struct {
 }
 
 func NewBaseHeader(ht hint.Hint) BaseHeader {
-	var prefix string
-
-	switch ht.Type() {
-	case RequestProposalRequestHeaderHint.Type():
-		prefix = HandlerPrefixRequestProposal
-	case ProposalRequestHeaderHint.Type():
-		prefix = HandlerPrefixProposal
-	case LastSuffrageProofRequestHeaderHint.Type():
-		prefix = HandlerPrefixLastSuffrageProof
-	case SuffrageProofRequestHeaderHint.Type():
-		prefix = HandlerPrefixSuffrageProof
-	case LastBlockMapRequestHeaderHint.Type():
-		prefix = HandlerPrefixLastBlockMap
-	case BlockMapRequestHeaderHint.Type():
-		prefix = HandlerPrefixBlockMap
-	case BlockMapItemRequestHeaderHint.Type():
-		prefix = HandlerPrefixBlockMapItem
-	case NodeChallengeRequestHeaderHint.Type():
-		prefix = HandlerPrefixNodeChallenge
-	}
-
 	return BaseHeader{
 		BaseHinter: hint.NewBaseHinter(ht),
-		prefix:     prefix,
+		prefix:     baseHeaderPrefixByHint(ht),
 	}
 }
 
@@ -310,6 +291,24 @@ func (h NodeChallengeRequestHeader) Input() []byte {
 	return h.input
 }
 
+type SuffrageNodeConnInfoRequestHeader struct {
+	BaseHeader
+}
+
+func NewSuffrageNodeConnInfoRequestHeader() SuffrageNodeConnInfoRequestHeader {
+	return SuffrageNodeConnInfoRequestHeader{
+		BaseHeader: NewBaseHeader(SuffrageNodeConnInfoRequestHeaderHint),
+	}
+}
+
+func (h SuffrageNodeConnInfoRequestHeader) IsValid([]byte) error {
+	if err := h.BaseHinter.IsValid(SuffrageNodeConnInfoRequestHeaderHint.Type().Bytes()); err != nil {
+		return errors.WithMessage(err, "invalid SuffrageNodeConnInfoHeader")
+	}
+
+	return nil
+}
+
 type ResponseHeader struct {
 	err error
 	BaseHeader
@@ -330,4 +329,29 @@ func (r ResponseHeader) OK() bool {
 
 func (r ResponseHeader) Err() error {
 	return r.err
+}
+
+func baseHeaderPrefixByHint(ht hint.Hint) string {
+	switch ht.Type() {
+	case RequestProposalRequestHeaderHint.Type():
+		return HandlerPrefixRequestProposal
+	case ProposalRequestHeaderHint.Type():
+		return HandlerPrefixProposal
+	case LastSuffrageProofRequestHeaderHint.Type():
+		return HandlerPrefixLastSuffrageProof
+	case SuffrageProofRequestHeaderHint.Type():
+		return HandlerPrefixSuffrageProof
+	case LastBlockMapRequestHeaderHint.Type():
+		return HandlerPrefixLastBlockMap
+	case BlockMapRequestHeaderHint.Type():
+		return HandlerPrefixBlockMap
+	case BlockMapItemRequestHeaderHint.Type():
+		return HandlerPrefixBlockMapItem
+	case NodeChallengeRequestHeaderHint.Type():
+		return HandlerPrefixNodeChallenge
+	case SuffrageNodeConnInfoRequestHeaderHint.Type():
+		return HandlerPrefixSuffrageNodeConnInfo
+	default:
+		return ""
+	}
 }

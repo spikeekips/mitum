@@ -86,6 +86,7 @@ func (cmd *runCommand) networkHandlers() *quicstream.PrefixHandler {
 
 			return reader.Reader(item)
 		},
+		nil, // FIXME implement
 	)
 
 	prefix := launch.Handlers(handlers)

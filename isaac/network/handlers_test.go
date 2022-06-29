@@ -43,6 +43,8 @@ func (t *testQuicstreamHandlers) SetupSuite() {
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageCandidateHint, Instance: isaac.SuffrageCandidate{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ResponseHeaderHint, Instance: ResponseHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: base.DummySuffrageProofHint, Instance: base.DummySuffrageProof{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: SuffrageNodeConnInfoRequestHeaderHint, Instance: SuffrageNodeConnInfoRequestHeader{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: BaseNodeConnInfoHint, Instance: BaseNodeConnInfo{}}))
 }
 
 func (t *testQuicstreamHandlers) TestClient() {
@@ -89,7 +91,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 		pool,
 	)
 
-	handlers := NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, pool, proposalMaker, nil, nil, nil, nil, nil)
+	handlers := NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, pool, proposalMaker, nil, nil, nil, nil, nil, nil)
 
 	ci := quicstream.NewBaseConnInfo(nil, true)
 	c := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixRequestProposal, handlers.RequestProposal))
@@ -134,7 +136,7 @@ func (t *testQuicstreamHandlers) TestProposal() {
 	_, err = pool.SetProposal(pr)
 	t.NoError(err)
 
-	handlers := NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, pool, proposalMaker, nil, nil, nil, nil, nil)
+	handlers := NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, pool, proposalMaker, nil, nil, nil, nil, nil, nil)
 
 	ci := quicstream.NewBaseConnInfo(nil, true)
 	c := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixProposal, handlers.Proposal))
@@ -167,7 +169,7 @@ func (t *testQuicstreamHandlers) TestProposal() {
 }
 
 func (t *testQuicstreamHandlers) TestLastSuffrageProof() {
-	handlers := NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil)
+	handlers := NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	ci := quicstream.NewBaseConnInfo(nil, true)
 	c := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixLastSuffrageProof, handlers.LastSuffrageProof))
@@ -209,7 +211,7 @@ func (t *testQuicstreamHandlers) TestLastSuffrageProof() {
 }
 
 func (t *testQuicstreamHandlers) TestSuffrageProof() {
-	handlers := NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil)
+	handlers := NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	ci := quicstream.NewBaseConnInfo(nil, true)
 	c := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixSuffrageProof, handlers.SuffrageProof))
@@ -250,7 +252,7 @@ func (t *testQuicstreamHandlers) TestSuffrageProof() {
 }
 
 func (t *testQuicstreamHandlers) TestLastBlockMap() {
-	handlers := NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil)
+	handlers := NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	ci := quicstream.NewBaseConnInfo(nil, true)
 	c := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixLastBlockMap, handlers.LastBlockMap))
@@ -306,7 +308,7 @@ func (t *testQuicstreamHandlers) TestLastBlockMap() {
 }
 
 func (t *testQuicstreamHandlers) TestBlockMap() {
-	handlers := NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil)
+	handlers := NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	ci := quicstream.NewBaseConnInfo(nil, true)
 	c := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixBlockMap, handlers.BlockMap))
@@ -356,7 +358,7 @@ func (t *testQuicstreamHandlers) TestBlockMap() {
 }
 
 func (t *testQuicstreamHandlers) TestBlockMapItem() {
-	handlers := NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil)
+	handlers := NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	ci := quicstream.NewBaseConnInfo(nil, true)
 	c := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixBlockMapItem, handlers.BlockMapItem))
@@ -405,7 +407,7 @@ func (t *testQuicstreamHandlers) TestBlockMapItem() {
 }
 
 func (t *testQuicstreamHandlers) TestNodeChallenge() {
-	handlers := NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil)
+	handlers := NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	ci := quicstream.NewBaseConnInfo(nil, true)
 	c := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixNodeChallenge, handlers.NodeChallenge))
@@ -413,15 +415,15 @@ func (t *testQuicstreamHandlers) TestNodeChallenge() {
 	t.Run("ok", func() {
 		input := util.UUID().Bytes()
 
-		sig, err := c.NodeChallenge(context.Background(), ci, input)
+		sig, err := c.NodeChallenge(context.Background(), ci, t.NodePolicy.NetworkID(), t.Local.Address(), t.Local.Publickey(), input)
 		t.NoError(err)
 		t.NotNil(sig)
 
-		t.NoError(t.Local.Publickey().Verify(util.ConcatBytesSlice(t.NodePolicy.NetworkID(), input), sig))
+		t.NoError(t.Local.Publickey().Verify(util.ConcatBytesSlice(t.Local.Address().Bytes(), t.NodePolicy.NetworkID(), input), sig))
 	})
 
 	t.Run("empty input", func() {
-		sig, err := c.NodeChallenge(context.Background(), ci, nil)
+		sig, err := c.NodeChallenge(context.Background(), ci, t.NodePolicy.NetworkID(), t.Local.Address(), t.Local.Publickey(), nil)
 		t.Error(err)
 		t.Nil(sig)
 
@@ -429,8 +431,47 @@ func (t *testQuicstreamHandlers) TestNodeChallenge() {
 	})
 }
 
+func (t *testQuicstreamHandlers) TestSuffrageNodeConnInfo() {
+	handlers := NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil, nil)
+
+	ci := quicstream.NewBaseConnInfo(nil, true)
+	c := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixSuffrageNodeConnInfo, handlers.SuffrageNodeConnInfo))
+
+	t.Run("empty", func() {
+		handlers.suffrageNodeConnInfof = func() ([]isaac.NodeConnInfo, error) {
+			return nil, nil
+		}
+
+		cis, err := c.SuffrageNodeConnInfo(context.Background(), ci)
+		t.NoError(err)
+		t.Equal(0, len(cis))
+	})
+
+	t.Run("ok", func() {
+		cis := make([]isaac.NodeConnInfo, 3)
+		for i := range cis {
+			cis[i] = NewBaseNodeConnInfo(base.RandomNode(), quicstream.RandomConnInfo())
+		}
+
+		handlers.suffrageNodeConnInfof = func() ([]isaac.NodeConnInfo, error) {
+			return cis, nil
+		}
+
+		ucis, err := c.SuffrageNodeConnInfo(context.Background(), ci)
+		t.NoError(err)
+		t.Equal(len(cis), len(ucis))
+
+		for i := range cis {
+			a := cis[i]
+			b := ucis[i]
+
+			t.Equal(a.HashBytes(), b.HashBytes())
+		}
+	})
+}
+
 func (t *testQuicstreamHandlers) TestRequest() {
-	handlers := NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil)
+	handlers := NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	ci := quicstream.NewBaseConnInfo(nil, true)
 	c := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixLastBlockMap, handlers.LastBlockMap))

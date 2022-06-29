@@ -130,9 +130,9 @@ func (t *testNodeNetworkDesign) TestIsValid() {
 
 	t.Run("ok", func() {
 		a := NodeNetworkDesign{
-			Bind:        addrport,
-			Publish:     publish,
-			TLSInsecure: true,
+			Bind:          addrport,
+			PublishString: publish.String(),
+			TLSInsecure:   true,
 		}
 
 		t.NoError(a.IsValid(nil))
@@ -143,9 +143,9 @@ func (t *testNodeNetworkDesign) TestIsValid() {
 		addrport.Port = 0
 
 		a := NodeNetworkDesign{
-			Bind:        addrport,
-			Publish:     publish,
-			TLSInsecure: true,
+			Bind:          addrport,
+			PublishString: publish.String(),
+			TLSInsecure:   true,
 		}
 
 		err := a.IsValid(nil)
@@ -157,9 +157,9 @@ func (t *testNodeNetworkDesign) TestIsValid() {
 		publish := mustResolveUDPAddr("4.3.2.1:1234")
 		publish.Port = 0
 		a := NodeNetworkDesign{
-			Bind:        addrport,
-			Publish:     publish,
-			TLSInsecure: true,
+			Bind:          addrport,
+			PublishString: publish.String(),
+			TLSInsecure:   true,
 		}
 
 		err := a.IsValid(nil)
@@ -169,14 +169,14 @@ func (t *testNodeNetworkDesign) TestIsValid() {
 
 	t.Run("empty publish", func() {
 		a := NodeNetworkDesign{
-			Bind:        addrport,
-			Publish:     nil,
-			TLSInsecure: true,
+			Bind:          addrport,
+			PublishString: "",
+			TLSInsecure:   true,
 		}
 
 		t.NoError(a.IsValid(nil))
-		t.NotNil(a.Publish)
-		t.Equal(DefaultNetworkBind.String(), a.Publish.String())
+		t.NotNil(a.publish)
+		t.Equal(DefaultNetworkBind.String(), a.publish.String())
 	})
 }
 
@@ -192,7 +192,7 @@ tls_insecure: true
 		t.NoError(a.DecodeYAML(b, t.enc))
 
 		t.Equal("0.0.0.0:1234", a.Bind.String())
-		t.Equal("1.2.3.4:4321", a.Publish.String())
+		t.Equal("1.2.3.4:4321", a.PublishString)
 		t.Equal(true, a.TLSInsecure)
 	})
 
@@ -206,7 +206,7 @@ tls_insecure: true
 		t.NoError(a.DecodeYAML(b, t.enc))
 
 		t.Nil(a.Bind)
-		t.Equal("1.2.3.4:4321", a.Publish.String())
+		t.Equal("1.2.3.4:4321", a.PublishString)
 		t.Equal(true, a.TLSInsecure)
 	})
 
@@ -220,7 +220,7 @@ tls_insecure: true
 		t.NoError(a.DecodeYAML(b, t.enc))
 
 		t.Equal("0.0.0.0:1234", a.Bind.String())
-		t.Nil(a.Publish)
+		t.Nil(a.publish)
 		t.Equal(true, a.TLSInsecure)
 	})
 
@@ -234,7 +234,7 @@ publish: 1.2.3.4:4321
 		t.NoError(a.DecodeYAML(b, t.enc))
 
 		t.Equal("0.0.0.0:1234", a.Bind.String())
-		t.Equal("1.2.3.4:4321", a.Publish.String())
+		t.Equal("1.2.3.4:4321", a.PublishString)
 		t.Equal(false, a.TLSInsecure)
 	})
 }
@@ -265,9 +265,9 @@ func (t *testNodeDesign) TestIsValid() {
 			Privatekey: base.NewMPrivatekey(),
 			NetworkID:  base.NetworkID(util.UUID().String()),
 			Network: NodeNetworkDesign{
-				Bind:        addrport,
-				Publish:     publish,
-				TLSInsecure: true,
+				Bind:          addrport,
+				PublishString: publish.String(),
+				TLSInsecure:   true,
 			},
 			Storage: NodeStorageDesign{
 				Base:     "/tmp/a/b/c",
@@ -288,7 +288,7 @@ func (t *testNodeDesign) TestIsValid() {
 		t.NoError(a.IsValid(nil))
 
 		t.Equal(DefaultNetworkBind, a.Network.Bind)
-		t.Equal(DefaultNetworkBind.String(), a.Network.Publish.String())
+		t.Equal(DefaultNetworkBind.String(), a.Network.PublishString)
 	})
 
 	t.Run("empty storage", func() {
@@ -297,9 +297,9 @@ func (t *testNodeDesign) TestIsValid() {
 			Privatekey: base.NewMPrivatekey(),
 			NetworkID:  base.NetworkID(util.UUID().String()),
 			Network: NodeNetworkDesign{
-				Bind:        addrport,
-				Publish:     publish,
-				TLSInsecure: true,
+				Bind:          addrport,
+				PublishString: publish.String(),
+				TLSInsecure:   true,
 			},
 		}
 
@@ -336,7 +336,7 @@ storage:
 		t.Equal("hehe 1 2 3 4", string(a.NetworkID))
 
 		t.Equal("0.0.0.0:1234", a.Network.Bind.String())
-		t.Equal("1.2.3.4:4321", a.Network.Publish.String())
+		t.Equal("1.2.3.4:4321", a.Network.PublishString)
 		t.Equal(true, a.Network.TLSInsecure)
 
 		t.Equal("/tmp/a/b/c", a.Storage.Base)
@@ -361,7 +361,7 @@ storage:
 		t.Equal("hehe 1 2 3 4", string(a.NetworkID))
 
 		t.Nil(a.Network.Bind)
-		t.Nil(a.Network.Publish)
+		t.Nil(a.Network.publish)
 		t.Equal(false, a.Network.TLSInsecure)
 
 		t.Equal("/tmp/a/b/c", a.Storage.Base)
@@ -387,7 +387,7 @@ network:
 		t.Equal("hehe 1 2 3 4", string(a.NetworkID))
 
 		t.Equal("0.0.0.0:1234", a.Network.Bind.String())
-		t.Equal("1.2.3.4:4321", a.Network.Publish.String())
+		t.Equal("1.2.3.4:4321", a.Network.PublishString)
 		t.Equal(true, a.Network.TLSInsecure)
 
 		t.Equal("", a.Storage.Base)
@@ -418,7 +418,7 @@ storage:
 		t.Equal("hehe 1 2 3 4", string(a.NetworkID))
 
 		t.Equal("0.0.0.0:1234", a.Network.Bind.String())
-		t.Equal("1.2.3.4:4321", a.Network.Publish.String())
+		t.Equal("1.2.3.4:4321", a.Network.PublishString)
 		t.Equal(true, a.Network.TLSInsecure)
 
 		t.Equal("/tmp/a/b/c", a.Storage.Base)
@@ -437,7 +437,7 @@ storage:
 		t.Equal("hehe 1 2 3 4", string(ua.NetworkID))
 
 		t.Equal("0.0.0.0:1234", ua.Network.Bind.String())
-		t.Equal("1.2.3.4:4321", ua.Network.Publish.String())
+		t.Equal("1.2.3.4:4321", ua.Network.PublishString)
 		t.Equal(true, ua.Network.TLSInsecure)
 
 		t.Equal("/tmp/a/b/c", ua.Storage.Base)

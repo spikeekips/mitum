@@ -18,24 +18,7 @@ func (h *BaseHeader) unmarshalJSON(b []byte) error {
 
 	h.BaseHinter = u
 
-	switch u.Hint().Type() {
-	case RequestProposalRequestHeaderHint.Type():
-		h.prefix = HandlerPrefixRequestProposal
-	case ProposalRequestHeaderHint.Type():
-		h.prefix = HandlerPrefixProposal
-	case LastSuffrageProofRequestHeaderHint.Type():
-		h.prefix = HandlerPrefixLastSuffrageProof
-	case SuffrageProofRequestHeaderHint.Type():
-		h.prefix = HandlerPrefixSuffrageProof
-	case LastBlockMapRequestHeaderHint.Type():
-		h.prefix = HandlerPrefixLastBlockMap
-	case BlockMapRequestHeaderHint.Type():
-		h.prefix = HandlerPrefixBlockMap
-	case BlockMapItemRequestHeaderHint.Type():
-		h.prefix = HandlerPrefixBlockMapItem
-	case NodeChallengeRequestHeaderHint.Type():
-		h.prefix = HandlerPrefixNodeChallenge
-	}
+	h.prefix = baseHeaderPrefixByHint(u.Hint())
 
 	return nil
 }
@@ -345,6 +328,14 @@ func (h *NodeChallengeRequestHeader) UnmarshalJSON(b []byte) error {
 	}
 
 	h.input = u.Input
+
+	return nil
+}
+
+func (h *SuffrageNodeConnInfoRequestHeader) UnmarshalJSON(b []byte) error {
+	if err := h.BaseHeader.unmarshalJSON(b); err != nil {
+		return errors.WithMessage(err, "failed to unmarshal SuffrageNodeConnInfoHeader")
+	}
 
 	return nil
 }

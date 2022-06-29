@@ -153,9 +153,7 @@ func (cmd *runCommand) nodeChallengeFunc() func(quicmemberlist.Node) error {
 	return func(node quicmemberlist.Node) error {
 		e := util.StringErrorFunc("failed to challenge memberlist node")
 
-		pub := node.Publickey()
-
-		if err := util.CheckIsValid(nil, false, pub); err != nil {
+		if err := util.CheckIsValid(nil, false, node.Publickey()); err != nil {
 			return e(err, "invalid memberlist node publickey")
 		}
 
@@ -164,14 +162,16 @@ func (cmd *runCommand) nodeChallengeFunc() func(quicmemberlist.Node) error {
 
 		input := util.UUID().Bytes()
 
-		sig, err := cmd.client.NodeChallenge(ctx, node, input)
+		sig, err := cmd.client.NodeChallenge(
+			ctx, node, cmd.nodePolicy.NetworkID(), node.Address(), node.Publickey(), input)
 		if err != nil {
 			return e(err, "")
 		}
 
 		// NOTE challenge with publish address
 		if pci := node.PublishConnInfo(); !quicstream.EqualConnInfo(node, pci) {
-			psig, err := cmd.client.NodeChallenge(ctx, node.PublishConnInfo(), input)
+			psig, err := cmd.client.NodeChallenge(ctx, node.PublishConnInfo(),
+				cmd.nodePolicy.NetworkID(), node.Address(), node.Publickey(), input)
 			if err != nil {
 				return e(err, "")
 			}
@@ -179,10 +179,6 @@ func (cmd *runCommand) nodeChallengeFunc() func(quicmemberlist.Node) error {
 			if !sig.Equal(psig) {
 				return e(nil, "publish address returns different signature")
 			}
-		}
-
-		if err := pub.Verify(util.ConcatBytesSlice(cmd.nodePolicy.NetworkID(), input), sig); err != nil {
-			return e(err, "")
 		}
 
 		return nil

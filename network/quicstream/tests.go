@@ -10,8 +10,10 @@ import (
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/binary"
 	"encoding/pem"
 	"io"
+	"math"
 	"math/big"
 	"net"
 	"sync"
@@ -194,4 +196,15 @@ func ReadAll(ctx context.Context, r io.ReadCloser) ([]byte, error) {
 
 		return b.Bytes(), nil
 	}
+}
+
+func RandomConnInfo() BaseConnInfo {
+	bip, _ := rand.Int(rand.Reader, big.NewInt(math.MaxUint32))
+	bport, _ := rand.Int(rand.Reader, big.NewInt(math.MaxUint16))
+
+	buf := make([]byte, 4)
+
+	binary.LittleEndian.PutUint32(buf, uint32(bip.Uint64()))
+
+	return NewBaseConnInfo(&net.UDPAddr{IP: net.IP(buf), Port: int(bport.Uint64())}, true)
 }

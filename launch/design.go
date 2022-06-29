@@ -178,8 +178,12 @@ func (d *NodeNetworkDesign) IsValid([]byte) error {
 		d.publish = DefaultNetworkBind
 	default:
 		addr, err := net.ResolveUDPAddr("udp", d.PublishString)
-		if err != nil {
+
+		switch {
+		case err != nil:
 			return e.Wrapf(err, "invalid publish")
+		case addr.Port < 1:
+			return e.Wrapf(err, "invalid publish port")
 		}
 
 		d.publish = addr

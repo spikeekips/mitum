@@ -39,6 +39,21 @@ func NewBaseConnInfoFromStringAddress(s string, tlsinsecure bool) (BaseConnInfo,
 	return NewBaseConnInfo(addr, tlsinsecure), nil
 }
 
+func (c BaseConnInfo) IsValid([]byte) error {
+	e := util.ErrInvalid.Errorf("invalid BaseConnInfo")
+
+	switch {
+	case c.addr == nil:
+		return e.Errorf("empty addr")
+	case c.addr.IP.Equal(net.IPv4zero), c.addr.IP.Equal(net.IPv6zero):
+		return e.Errorf("empty addr ip")
+	case c.addr.Port < 1:
+		return e.Errorf("empty addr port")
+	}
+
+	return nil
+}
+
 func (c BaseConnInfo) Addr() net.Addr {
 	return c.addr
 }

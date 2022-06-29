@@ -2,6 +2,7 @@ package isaacnetwork
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"time"
 
@@ -246,7 +247,9 @@ func (c *baseNetworkClient) BlockMapItem(
 }
 
 func (c *baseNetworkClient) NodeChallenge(
-	ctx context.Context, ci quicstream.ConnInfo, input []byte,
+	ctx context.Context, ci quicstream.ConnInfo,
+	networkID base.NetworkID,
+	node base.Address, pub base.Publickey, input []byte,
 ) (base.Signature, error) {
 	e := util.StringErrorFunc("failed NodeChallenge")
 
@@ -280,7 +283,70 @@ func (c *baseNetworkClient) NodeChallenge(
 			return nil, e(err, "")
 		}
 
-		return base.Signature(b), nil
+		var sig base.Signature
+		_ = c.enc.Unmarshal(b, &sig)
+
+		if err := pub.Verify(util.ConcatBytesSlice(
+			node.Bytes(),
+			networkID,
+			input,
+		), sig); err != nil {
+			return nil, e(err, "")
+		}
+
+		return sig, nil
+	}
+}
+
+func (c *baseNetworkClient) SuffrageNodeConnInfo(
+	ctx context.Context, ci quicstream.ConnInfo,
+) ([]isaac.NodeConnInfo, error) {
+	e := util.StringErrorFunc("failed SuffrageNodeConnInfo")
+
+	header := NewSuffrageNodeConnInfoRequestHeader()
+
+	if err := header.IsValid(nil); err != nil {
+		return nil, e(err, "")
+	}
+
+	r, cancel, err := c.write(ctx, ci, c.enc, header, nil)
+	if err != nil {
+		return nil, e(err, "failed to send request")
+	}
+
+	defer func() {
+		_ = cancel()
+	}()
+
+	h, _, err := c.loadResponseHeader(ctx, r)
+
+	switch {
+	case err != nil:
+		return nil, e(err, "failed to read stream")
+	case h.Err() != nil:
+		return nil, e(h.Err(), "")
+	case !h.OK():
+		return nil, nil
+	default:
+		b, err := io.ReadAll(r)
+		if err != nil {
+			return nil, e(err, "")
+		}
+
+		var u []json.RawMessage
+		if err := c.enc.Unmarshal(b, &u); err != nil {
+			return nil, e(err, "")
+		}
+
+		cis := make([]isaac.NodeConnInfo, len(u))
+
+		for i := range u {
+			if err := encoder.Decode(c.enc, u[i], &cis[i]); err != nil {
+				return nil, e(err, "")
+			}
+		}
+
+		return cis, nil
 	}
 }
 

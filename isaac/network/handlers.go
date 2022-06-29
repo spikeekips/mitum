@@ -16,14 +16,15 @@ import (
 type QuicstreamHandlers struct {
 	pool isaac.ProposalPool
 	*baseNetwork
-	proposalMaker      *isaac.ProposalMaker
-	lastSuffrageProoff func(suffragestate util.Hash) (base.SuffrageProof, bool, error)
-	suffrageProoff     func(base.Height) (base.SuffrageProof, bool, error)
-	lastBlockMapf      func(util.Hash) (base.BlockMap, bool, error)
-	blockMapf          func(base.Height) (base.BlockMap, bool, error)
-	blockMapItemf      func(base.Height, base.BlockMapItemType) (io.ReadCloser, bool, error)
-	local              base.LocalNode
-	nodepolicy         isaac.NodePolicy
+	proposalMaker         *isaac.ProposalMaker
+	lastSuffrageProoff    func(suffragestate util.Hash) (base.SuffrageProof, bool, error)
+	suffrageProoff        func(base.Height) (base.SuffrageProof, bool, error)
+	lastBlockMapf         func(util.Hash) (base.BlockMap, bool, error)
+	blockMapf             func(base.Height) (base.BlockMap, bool, error)
+	blockMapItemf         func(base.Height, base.BlockMapItemType) (io.ReadCloser, bool, error)
+	suffrageNodeConnInfof func() ([]isaac.NodeConnInfo, error)
+	local                 base.LocalNode
+	nodepolicy            isaac.NodePolicy
 }
 
 func NewQuicstreamHandlers( // revive:disable-line:argument-limit
@@ -39,18 +40,20 @@ func NewQuicstreamHandlers( // revive:disable-line:argument-limit
 	lastBlockMapf func(util.Hash) (base.BlockMap, bool, error),
 	blockMapf func(base.Height) (base.BlockMap, bool, error),
 	blockMapItemf func(base.Height, base.BlockMapItemType) (io.ReadCloser, bool, error),
+	suffrageNodeConnInfof func() ([]isaac.NodeConnInfo, error),
 ) *QuicstreamHandlers {
 	return &QuicstreamHandlers{
-		baseNetwork:        newBaseNetwork(encs, enc, idleTimeout),
-		local:              local,
-		nodepolicy:         nodepolicy,
-		pool:               pool,
-		proposalMaker:      proposalMaker,
-		lastSuffrageProoff: lastSuffrageProoff,
-		suffrageProoff:     suffrageProoff,
-		lastBlockMapf:      lastBlockMapf,
-		blockMapf:          blockMapf,
-		blockMapItemf:      blockMapItemf,
+		baseNetwork:           newBaseNetwork(encs, enc, idleTimeout),
+		local:                 local,
+		nodepolicy:            nodepolicy,
+		pool:                  pool,
+		proposalMaker:         proposalMaker,
+		lastSuffrageProoff:    lastSuffrageProoff,
+		suffrageProoff:        suffrageProoff,
+		lastBlockMapf:         lastBlockMapf,
+		blockMapf:             blockMapf,
+		blockMapItemf:         blockMapItemf,
+		suffrageNodeConnInfof: suffrageNodeConnInfof,
 	}
 }
 
@@ -264,7 +267,7 @@ func (c *QuicstreamHandlers) BlockMapItem(_ net.Addr, r io.Reader, w io.Writer) 
 }
 
 func (c *QuicstreamHandlers) NodeChallenge(_ net.Addr, r io.Reader, w io.Writer) error {
-	e := util.StringErrorFunc("failed to handle node challenge")
+	e := util.StringErrorFunc("failed to handle NodeChallenge")
 
 	enc, hb, err := c.prehandle(r)
 	if err != nil {
@@ -280,7 +283,11 @@ func (c *QuicstreamHandlers) NodeChallenge(_ net.Addr, r io.Reader, w io.Writer)
 		return e(err, "")
 	}
 
-	sig, err := c.local.Privatekey().Sign(util.ConcatBytesSlice(c.nodepolicy.NetworkID(), body.Input()))
+	sig, err := c.local.Privatekey().Sign(util.ConcatBytesSlice(
+		c.local.Address().Bytes(),
+		c.nodepolicy.NetworkID(),
+		body.Input(),
+	))
 	if err != nil {
 		return e(err, "")
 	}
@@ -288,6 +295,37 @@ func (c *QuicstreamHandlers) NodeChallenge(_ net.Addr, r io.Reader, w io.Writer)
 	header := NewResponseHeader(true, nil)
 
 	if err := Response(w, header, sig, enc); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
+func (c *QuicstreamHandlers) SuffrageNodeConnInfo(_ net.Addr, r io.Reader, w io.Writer) error {
+	e := util.StringErrorFunc("failed to handle SuffrageNodeConnInfo")
+
+	enc, hb, err := c.prehandle(r)
+	if err != nil {
+		return e(err, "")
+	}
+
+	var body SuffrageNodeConnInfoRequestHeader
+	if err = encoder.Decode(enc, hb, &body); err != nil {
+		return e(err, "")
+	}
+
+	if err = body.IsValid(nil); err != nil {
+		return e(err, "")
+	}
+
+	cis, err := c.suffrageNodeConnInfof()
+	if err != nil {
+		return e(err, "")
+	}
+
+	header := NewResponseHeader(true, nil)
+
+	if err := Response(w, header, cis, enc); err != nil {
 		return e(err, "")
 	}
 
