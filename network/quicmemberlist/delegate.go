@@ -121,7 +121,7 @@ func (d *AliveDelegate) NotifyAlive(peer *memberlist.Node) error {
 
 	node, err := newNodeFromMemberlist(peer, d.enc)
 	if err != nil {
-		d.Log().Debug().Interface("peer", peer).Err(err).Msg("invalid peer")
+		d.Log().Trace().Interface("peer", peer).Err(err).Msg("invalid peer")
 
 		return errors.WithMessage(err, "not allowed to be alive")
 	}
@@ -155,7 +155,7 @@ func (d *AliveDelegate) NotifyAlive(peer *memberlist.Node) error {
 	l := d.Log().With().Object("node", node).Logger()
 
 	if err := d.allowf(node); err != nil {
-		l.Debug().Err(err).Msg("not allowed")
+		l.Trace().Err(err).Msg("not allowed")
 
 		return errors.WithMessage(err, "not allowed to be alive")
 	}
@@ -202,7 +202,7 @@ func NewEventsDelegate(
 func (d *EventsDelegate) NotifyJoin(peer *memberlist.Node) {
 	node, err := newNodeFromMemberlist(peer, d.enc)
 	if err != nil {
-		d.Log().Error().Err(err).Interface("peer", peer).Msg("invalid peer")
+		d.Log().Trace().Err(err).Interface("peer", peer).Msg("invalid peer")
 
 		return
 	}
@@ -228,7 +228,7 @@ func (d *EventsDelegate) NotifyLeave(peer *memberlist.Node) {
 func (d *EventsDelegate) NotifyUpdate(peer *memberlist.Node) {
 	node, err := newNodeFromMemberlist(peer, d.enc)
 	if err != nil {
-		d.Log().Error().Err(err).Interface("peer", peer).Msg("invalid peer")
+		d.Log().Trace().Err(err).Interface("peer", peer).Msg("invalid peer")
 
 		return
 	}

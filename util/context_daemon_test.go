@@ -97,7 +97,7 @@ func (t *testContextDaemon) TestStartAgain() {
 	}
 
 	t.NoError(ed.Start())
-	<-time.After(time.Millisecond * 100)
+	<-time.After(time.Millisecond * 300)
 	t.True(ed.IsStarted())
 
 	t.NoError(ed.Stop())

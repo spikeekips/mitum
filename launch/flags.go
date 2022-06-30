@@ -2,7 +2,6 @@ package launch
 
 import (
 	"io"
-	"net"
 	"os"
 	"path/filepath"
 
@@ -101,7 +100,7 @@ func (f *ConnInfoFlag) UnmarshalText(b []byte) error {
 
 	s := string(b)
 
-	if _, _, err := net.SplitHostPort(s); err != nil {
+	if err := network.IsValidAddr(s); err != nil {
 		return e(err, "")
 	}
 

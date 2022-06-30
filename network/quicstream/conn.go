@@ -32,13 +32,19 @@ func NewBaseConnInfoFromString(s string) (BaseConnInfo, error) {
 	return NewBaseConnInfoFromStringAddress(as, tlsinsecure)
 }
 
-func NewBaseConnInfoFromStringAddress(s string, tlsinsecure bool) (BaseConnInfo, error) {
+func NewBaseConnInfoFromStringAddress(s string, tlsinsecure bool) (ci BaseConnInfo, _ error) {
 	addr, err := net.ResolveUDPAddr("udp", s)
-	if err != nil {
-		return BaseConnInfo{}, util.ErrInvalid.Wrap(errors.Wrap(err, "failed to parse BaseConnInfo"))
+	if err == nil {
+		return NewBaseConnInfo(addr, tlsinsecure), nil
 	}
 
-	return NewBaseConnInfo(addr, tlsinsecure), nil
+	var dnserr *net.DNSError
+
+	if errors.As(err, &dnserr) {
+		return ci, errors.Wrap(err, "failed to parse BaseConnInfo")
+	}
+
+	return ci, util.ErrInvalid.Wrap(errors.Wrap(err, "failed to parse BaseConnInfo"))
 }
 
 func (c BaseConnInfo) IsValid([]byte) error {

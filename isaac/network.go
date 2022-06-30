@@ -38,5 +38,5 @@ type NetworkResponseHeader interface {
 
 type NodeConnInfo interface {
 	base.Node
-	quicstream.ConnInfo
+	ConnInfo() (quicstream.ConnInfo, error)
 }

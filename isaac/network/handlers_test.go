@@ -448,24 +448,25 @@ func (t *testQuicstreamHandlers) TestSuffrageNodeConnInfo() {
 	})
 
 	t.Run("ok", func() {
-		cis := make([]isaac.NodeConnInfo, 3)
-		for i := range cis {
-			cis[i] = NewBaseNodeConnInfo(base.RandomNode(), quicstream.RandomConnInfo())
+		ncis := make([]isaac.NodeConnInfo, 3)
+		for i := range ncis {
+			ci := quicstream.RandomConnInfo()
+			ncis[i] = NewBaseNodeConnInfo(base.RandomNode(), ci.UDPAddr().String(), true)
 		}
 
 		handlers.suffrageNodeConnInfof = func() ([]isaac.NodeConnInfo, error) {
-			return cis, nil
+			return ncis, nil
 		}
 
-		ucis, err := c.SuffrageNodeConnInfo(context.Background(), ci)
+		uncis, err := c.SuffrageNodeConnInfo(context.Background(), ci)
 		t.NoError(err)
-		t.Equal(len(cis), len(ucis))
+		t.Equal(len(ncis), len(uncis))
 
-		for i := range cis {
-			a := cis[i]
-			b := ucis[i]
+		for i := range ncis {
+			a := ncis[i]
+			b := uncis[i]
 
-			t.Equal(a.HashBytes(), b.HashBytes())
+			t.True(base.IsEqualNode(a, b))
 		}
 	})
 }

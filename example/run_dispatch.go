@@ -441,3 +441,26 @@ func (cmd *runCommand) broadcastBallotFunc(ballot base.Ballot) error {
 
 	return nil
 }
+
+func (*runCommand) checkNodeConnInfoFunc(
+	exitch chan error,
+) func(called int64, ncis []isaac.NodeConnInfo, err error) {
+	return func(called int64, ncis []isaac.NodeConnInfo, err error) {
+		if called < 1 && err != nil {
+			log.Error().Err(err).
+				Int64("called", called).
+				Interface("node_conn_info", ncis).
+				Msg("failed to check node conninfo; will be stopped")
+
+			// FIXME if skip-initial-node-conninfo-check
+			exitch <- err
+
+			return
+		}
+
+		log.Debug().
+			Int64("called", called).
+			Interface("node_conn_info", ncis).
+			Msg("node conninfo checked")
+	}
+}

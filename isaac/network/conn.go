@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"time"
 
@@ -25,28 +26,30 @@ import (
 var BaseNodeConnInfoHint = hint.MustNewHint("node-conninfo-v0.0.1")
 
 type BaseNodeConnInfo struct {
-	quicstream.BaseConnInfo
+	addr string
 	base.BaseNode
+	tlsinsecure bool
 }
 
-func NewBaseNodeConnInfo(node base.BaseNode, ci quicstream.BaseConnInfo) BaseNodeConnInfo {
+func NewBaseNodeConnInfo(node base.BaseNode, addr string, tlsinsecure bool) BaseNodeConnInfo {
 	node.BaseHinter = node.BaseHinter.SetHint(BaseNodeConnInfoHint).(hint.BaseHinter) //nolint:forcetypeassert //...
 
 	return BaseNodeConnInfo{
-		BaseNode:     node,
-		BaseConnInfo: ci,
+		BaseNode:    node,
+		addr:        addr,
+		tlsinsecure: tlsinsecure,
 	}
 }
 
 func NewBaseNodeConnInfoFromQuicmemberlistNode(node quicmemberlist.Node) (nci BaseNodeConnInfo, _ error) {
-	publish := node.PublishConnInfo()
-	if publish == nil {
+	if s := node.PublishConnInfo(); s == nil {
 		return nci, errors.Errorf("empty publish conninfo")
 	}
 
 	return NewBaseNodeConnInfo(
 		isaac.NewNode(node.Publickey(), node.Address()),
-		quicstream.NewBaseConnInfo(publish.UDPAddr(), publish.TLSInsecure()),
+		node.Publish(),
+		node.TLSInsecure(),
 	), nil
 }
 
@@ -57,18 +60,15 @@ func (n BaseNodeConnInfo) IsValid([]byte) error {
 		return e.Wrap(err)
 	}
 
-	if err := n.BaseConnInfo.IsValid(nil); err != nil {
+	if err := network.IsValidAddr(n.addr); err != nil {
 		return e.Wrap(err)
 	}
 
 	return nil
 }
 
-func (n BaseNodeConnInfo) HashBytes() []byte {
-	return util.ConcatBytesSlice(
-		n.BaseNode.HashBytes(),
-		[]byte(n.BaseConnInfo.String()),
-	)
+func (n BaseNodeConnInfo) ConnInfo() (quicstream.ConnInfo, error) {
+	return quicstream.NewBaseConnInfoFromStringAddress(n.addr, n.tlsinsecure)
 }
 
 type baseConnInfoJSONMarshaler struct {
@@ -86,7 +86,7 @@ func (n BaseNodeConnInfo) MarshalJSON() ([]byte, error) {
 			BaseHinter: n.BaseHinter,
 		},
 		baseConnInfoJSONMarshaler: baseConnInfoJSONMarshaler{
-			ConnInfo: n.BaseConnInfo.String(),
+			ConnInfo: network.ConnInfoToString(n.addr, n.tlsinsecure),
 		},
 	})
 }
@@ -104,9 +104,7 @@ func (n *BaseNodeConnInfo) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "")
 	}
 
-	if err := n.BaseConnInfo.UnmarshalText([]byte(u.ConnInfo)); err != nil {
-		return e(err, "")
-	}
+	n.addr, n.tlsinsecure = network.ParseTLSInsecure(u.ConnInfo)
 
 	return nil
 }
@@ -118,11 +116,13 @@ type NodeConnInfoChecker struct {
 	*util.ContextDaemon
 	callback  func(called int64, _ []isaac.NodeConnInfo, _ error)
 	cis       []interface{}
+	local     base.Node
 	networkID base.NetworkID
 	interval  time.Duration
 }
 
 func NewNodeConnInfoChecker(
+	local base.Node,
 	networkID base.NetworkID,
 	client isaac.NetworkClient,
 	interval time.Duration,
@@ -134,11 +134,12 @@ func NewNodeConnInfoChecker(
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", "node-conninfo-checker")
 		}),
-		cis:       cis,
+		local:     local,
 		networkID: networkID,
 		client:    client,
 		interval:  interval,
 		enc:       enc,
+		cis:       cis,
 		callback:  callback,
 	}
 
@@ -148,7 +149,7 @@ func NewNodeConnInfoChecker(
 }
 
 func (c *NodeConnInfoChecker) start(ctx context.Context) error {
-	ticker := time.NewTicker(c.interval)
+	ticker := time.NewTicker(time.Millisecond)
 	defer ticker.Stop()
 
 	var called int64 = -1
@@ -160,6 +161,10 @@ end:
 			return ctx.Err()
 		case <-ticker.C:
 			called++
+
+			if called < 1 {
+				ticker.Reset(c.interval)
+			}
 
 			if len(c.cis) < 1 {
 				c.callback(called, nil, errors.Errorf("empty conninfo"))
@@ -209,14 +214,27 @@ func (c *NodeConnInfoChecker) check(ctx context.Context) ([]isaac.NodeConnInfo, 
 	}
 
 	var ncis []isaac.NodeConnInfo
+	// FIXME filter unreachables
 
 	for i := range nciss {
-		found := util.Filter2Slices(nciss[i], ncis, func(a, b interface{}) bool {
-			aci := a.(isaac.NodeConnInfo) //nolint:forcetypeassert //...
-			bci := b.(isaac.NodeConnInfo) //nolint:forcetypeassert //...
+		found := util.Filter2Slices(
+			util.FilterSlices(nciss[i], func(a interface{}) bool {
+				if a == nil {
+					return false
+				}
 
-			return aci.Address().Equal(bci.Address())
-		})
+				aci := a.(isaac.NodeConnInfo) //nolint:forcetypeassert //...
+
+				return !aci.Address().Equal(c.local.Address())
+			}),
+			ncis,
+			func(a, b interface{}) bool {
+				aci := a.(isaac.NodeConnInfo) //nolint:forcetypeassert //...
+
+				bci := b.(isaac.NodeConnInfo) //nolint:forcetypeassert //...
+
+				return aci.Address().Equal(bci.Address())
+			})
 		if len(found) < 1 {
 			continue
 		}
@@ -257,6 +275,10 @@ func (c *NodeConnInfoChecker) fetch(ctx context.Context, info interface{}) (ncis
 		return nil, nil
 	case 1:
 		if err := c.validate(ctx, ncis[0]); err != nil {
+			if errors.Is(err, errIgnoreNodeconnInfo) {
+				return nil, nil
+			}
+
 			return nil, e(err, "")
 		}
 
@@ -266,14 +288,26 @@ func (c *NodeConnInfoChecker) fetch(ctx context.Context, info interface{}) (ncis
 	worker := util.NewErrgroupWorker(ctx, int64(len(ncis)))
 	defer worker.Close()
 
+	filtered := make([]isaac.NodeConnInfo, len(ncis))
+
 	go func() {
 		defer worker.Done()
 
 		for i := range ncis {
+			i := i
 			nci := ncis[i]
 
-			if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
-				return c.validate(ctx, nci)
+			if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
+				switch err := c.validate(ctx, nci); {
+				case err == nil:
+				case errors.Is(err, errIgnoreNodeconnInfo):
+				default:
+					return err
+				}
+
+				filtered[i] = nci
+
+				return nil
 			}); err != nil {
 				return
 			}
@@ -284,7 +318,7 @@ func (c *NodeConnInfoChecker) fetch(ctx context.Context, info interface{}) (ncis
 		return nil, e(err, "")
 	}
 
-	return ncis, nil
+	return filtered, nil
 }
 
 func (c *NodeConnInfoChecker) fetchFromURL(ctx context.Context, u string) ([]isaac.NodeConnInfo, error) {
@@ -339,6 +373,8 @@ func (c *NodeConnInfoChecker) fetchFromURL(ctx context.Context, u string) ([]isa
 	return ncis, nil
 }
 
+var errIgnoreNodeconnInfo = util.NewError("ignore NodeConnInfo error")
+
 func (c *NodeConnInfoChecker) validate(ctx context.Context, nci isaac.NodeConnInfo) error {
 	e := util.StringErrorFunc("failed to fetch NodeConnInfo from node, %q", nci)
 
@@ -346,7 +382,17 @@ func (c *NodeConnInfoChecker) validate(ctx context.Context, nci isaac.NodeConnIn
 		return e(err, "")
 	}
 
-	_, err := c.client.NodeChallenge(ctx, nci, c.networkID, nci.Address(), nci.Publickey(), util.UUID().Bytes())
+	ci, err := nci.ConnInfo()
+
+	var dnserr *net.DNSError
+
+	switch {
+	case err == nil:
+	case errors.As(err, &dnserr):
+		return errIgnoreNodeconnInfo.Wrap(err)
+	}
+
+	_, err = c.client.NodeChallenge(ctx, ci, c.networkID, nci.Address(), nci.Publickey(), util.UUID().Bytes())
 	if errors.Is(err, base.SignatureVerificationError) {
 		// NOTE if NodeChallenge failed, it means the node can not handle
 		// it's online suffrage nodes properly. All NodeConnInfo of this

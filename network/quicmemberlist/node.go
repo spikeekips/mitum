@@ -9,6 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -28,6 +29,7 @@ type Node interface {
 	Name() string
 	Address() base.Address
 	Publickey() base.Publickey
+	Publish() string
 	PublishConnInfo() quicstream.ConnInfo
 	JoinedAt() time.Time
 	Meta() NodeMeta
@@ -147,6 +149,10 @@ func (n BaseNode) Publickey() base.Publickey {
 	return n.meta.Publickey()
 }
 
+func (n BaseNode) Publish() string {
+	return n.meta.Publish()
+}
+
 func (n *BaseNode) CheckPublishConnInfo() (quicstream.ConnInfo, error) {
 	var err error
 
@@ -255,20 +261,7 @@ func (n NodeMeta) IsValid([]byte) error {
 		n.address,
 		n.publickey,
 		util.DummyIsValider(func([]byte) error {
-			if len(n.publish) < 1 {
-				return errors.Errorf("empty publish")
-			}
-
-			switch host, port, err := net.SplitHostPort(n.publish); {
-			case err != nil:
-				return errors.WithStack(err)
-			case len(host) < 1:
-				return errors.Errorf("empty host")
-			case len(port) < 1:
-				return errors.Errorf("empty port")
-			}
-
-			return nil
+			return network.IsValidAddr(n.publish)
 		}),
 	); err != nil {
 		return e.Wrap(err)

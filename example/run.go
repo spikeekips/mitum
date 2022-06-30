@@ -5,7 +5,9 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
@@ -20,7 +22,7 @@ import (
 type runCommand struct { //nolint:govet //...
 	baseNodeCommand
 	MemberDiscovery      []launch.ConnInfoFlag `help:"member discovery" placeholder:"ConnInfo"`
-	SyncNode             []launch.ConnInfoFlag `help:"node for syncing" placeholder:"ConnInfo"`
+	SyncNode             []launch.ConnInfoFlag `help:"node for syncing" placeholder:"ConnInfo"` // FIXME remove
 	Hold                 bool                  `help:"hold consensus states"`
 	nodeInfo             launch.NodeInfo
 	db                   isaac.Database
@@ -70,15 +72,36 @@ func (cmd *runCommand) Run() error {
 		_ = cmd.memberlist.Stop()
 	}()
 
-	var statesch <-chan error = make(chan error)
+	exitch := make(chan error)
+
+	checker := isaacnetwork.NewNodeConnInfoChecker(
+		cmd.local,
+		cmd.nodePolicy.NetworkID(),
+		cmd.client,
+		time.Second*30, //nolint:gomnd //... // FIXME config
+		cmd.enc,
+		nil, // FIXME set cis
+		cmd.checkNodeConnInfoFunc(exitch),
+	)
+	_ = checker.SetLogging(logging)
+
+	if err := checker.Start(); err != nil {
+		return err
+	}
+
+	defer func() {
+		_ = checker.Stop()
+	}()
 
 	if !cmd.Hold {
-		statesch = cmd.states.Wait(ctx)
+		go func() {
+			exitch <- <-cmd.states.Wait(ctx)
+		}()
 	}
 
 	if cmd.states != nil {
 		defer func() {
-			if err := cmd.states.Stop(); err != nil {
+			if err := cmd.states.Stop(); err != nil && !errors.Is(err, util.ErrDaemonAlreadyStopped) {
 				log.Error().Err(err).Msg("failed to stop states")
 			}
 		}()
@@ -87,7 +110,7 @@ func (cmd *runCommand) Run() error {
 	select {
 	case <-ctx.Done(): // NOTE graceful stop
 		return nil
-	case err := <-statesch:
+	case err := <-exitch:
 		return err
 	}
 }
