@@ -42,7 +42,7 @@ func NewBaseNodeConnInfo(node base.BaseNode, addr string, tlsinsecure bool) Base
 }
 
 func NewBaseNodeConnInfoFromQuicmemberlistNode(node quicmemberlist.Node) (nci BaseNodeConnInfo, _ error) {
-	if s := node.PublishConnInfo(); s == nil {
+	if s := node.PublishConnInfo().Addr(); s == nil {
 		return nci, errors.Errorf("empty publish conninfo")
 	}
 
@@ -67,8 +67,8 @@ func (n BaseNodeConnInfo) IsValid([]byte) error {
 	return nil
 }
 
-func (n BaseNodeConnInfo) ConnInfo() (quicstream.ConnInfo, error) {
-	return quicstream.NewBaseConnInfoFromStringAddress(n.addr, n.tlsinsecure)
+func (n BaseNodeConnInfo) ConnInfo() (quicstream.UDPConnInfo, error) {
+	return quicstream.NewUDPConnInfoFromStringAddress(n.addr, n.tlsinsecure)
 }
 
 type baseConnInfoJSONMarshaler struct {
@@ -258,7 +258,7 @@ func (c *NodeConnInfoChecker) fetch(ctx context.Context, info interface{}) (ncis
 	switch t := info.(type) {
 	case isaac.NodeConnInfo:
 		ncis = []isaac.NodeConnInfo{t}
-	case quicstream.ConnInfo:
+	case quicstream.UDPConnInfo:
 		ncis, err = c.client.SuffrageNodeConnInfo(ctx, t)
 	case string:
 		ncis, err = c.fetchFromURL(ctx, t)

@@ -16,13 +16,13 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/encoder"
+	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/logging"
 )
 
 type Memberlist struct {
 	local Node
-	enc   encoder.Encoder
+	enc   *jsonenc.Encoder
 	*logging.Logging
 	*util.ContextDaemon
 	mconfig        *memberlist.Config
@@ -37,7 +37,7 @@ type Memberlist struct {
 
 func NewMemberlist(
 	local Node,
-	enc encoder.Encoder,
+	enc *jsonenc.Encoder,
 	config *memberlist.Config,
 	oneMemberLimit int,
 ) (*Memberlist, error) {
@@ -72,11 +72,11 @@ func (srv *Memberlist) Start() error {
 	return srv.ContextDaemon.Start()
 }
 
-func (srv *Memberlist) Join(cis []quicstream.ConnInfo) error {
+func (srv *Memberlist) Join(cis []quicstream.UDPConnInfo) error {
 	e := util.StringErrorFunc("failed to join")
 
 	if _, found := util.CheckSliceDuplicated(cis, func(i interface{}) string {
-		return i.(quicstream.ConnInfo).UDPAddr().String() //nolint:forcetypeassert // ...
+		return i.(quicstream.UDPConnInfo).UDPAddr().String() //nolint:forcetypeassert // ...
 	}); found {
 		return e(nil, "duplicated join url found")
 	}
@@ -168,13 +168,13 @@ func (srv *Memberlist) patchMemberlistConfig(config *memberlist.Config) error { 
 	case !ok:
 		return errors.Errorf("transport should be *quicmemberlist.Transport, not %T", config.Transport)
 	default:
-		i.getconninfof = func(addr *net.UDPAddr) quicstream.ConnInfo {
+		i.getconninfof = func(addr *net.UDPAddr) quicstream.UDPConnInfo {
 			j, found := srv.cicache.Get(addr.String())
 			if !found {
-				return quicstream.NewBaseConnInfo(addr, true)
+				return quicstream.NewUDPConnInfo(addr, true)
 			}
 
-			return j.(quicstream.ConnInfo) //nolint:forcetypeassert // ...
+			return j.(quicstream.UDPConnInfo) //nolint:forcetypeassert // ...
 		}
 	}
 
@@ -188,7 +188,7 @@ func (srv *Memberlist) patchMemberlistConfig(config *memberlist.Config) error { 
 	}
 
 	if i, ok := config.Alive.(*AliveDelegate); ok {
-		i.storeconninfof = func(ci quicstream.ConnInfo) {
+		i.storeconninfof = func(ci quicstream.UDPConnInfo) {
 			srv.cicache.Set(ci.UDPAddr().String(), ci, nil)
 		}
 

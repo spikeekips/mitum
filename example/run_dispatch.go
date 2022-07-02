@@ -148,7 +148,7 @@ func (cmd *runCommand) proposalSelectorFunc() *isaac.BaseProposalSelector {
 		},
 		func(ctx context.Context, point base.Point, proposer base.Address) (base.ProposalSignedFact, error) {
 			// FIXME set request
-			var ci quicstream.ConnInfo
+			var ci quicstream.UDPConnInfo
 			cmd.memberlist.Members(func(node quicmemberlist.Node) bool {
 				if node.Address().Equal(proposer) {
 					ci = node
@@ -159,7 +159,7 @@ func (cmd *runCommand) proposalSelectorFunc() *isaac.BaseProposalSelector {
 				return true
 			})
 
-			if ci == nil {
+			if ci.Addr() == nil {
 				return nil, errors.Errorf("proposer not joined in memberlist")
 			}
 

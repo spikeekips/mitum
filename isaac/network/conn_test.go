@@ -153,8 +153,8 @@ func (t *testNodeConnInfoChecker) SetupSuite() {
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: BaseNodeConnInfoHint, Instance: BaseNodeConnInfo{}}))
 }
 
-func (t *testNodeConnInfoChecker) clientWritef(handlers map[string]*QuicstreamHandlers) func(ctx context.Context, ci quicstream.ConnInfo, f quicstream.ClientWriteFunc) (io.ReadCloser, func() error, error) {
-	return func(ctx context.Context, ci quicstream.ConnInfo, f quicstream.ClientWriteFunc) (io.ReadCloser, func() error, error) {
+func (t *testNodeConnInfoChecker) clientWritef(handlers map[string]*QuicstreamHandlers) func(ctx context.Context, ci quicstream.UDPConnInfo, f quicstream.ClientWriteFunc) (io.ReadCloser, func() error, error) {
+	return func(ctx context.Context, ci quicstream.UDPConnInfo, f quicstream.ClientWriteFunc) (io.ReadCloser, func() error, error) {
 		r := bytes.NewBuffer(nil)
 		if err := f(r); err != nil {
 			return nil, nil, errors.WithStack(err)

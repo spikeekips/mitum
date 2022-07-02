@@ -18,9 +18,9 @@ import (
 )
 
 type (
-	TransportDialFunc    func(context.Context, quicstream.ConnInfo) (quic.EarlyConnection, error)
-	TransportWriteFunc   func(context.Context, quicstream.ConnInfo, []byte) error
-	TransportGetConnInfo func(*net.UDPAddr) quicstream.ConnInfo
+	TransportDialFunc    func(context.Context, quicstream.UDPConnInfo) (quic.EarlyConnection, error)
+	TransportWriteFunc   func(context.Context, quicstream.UDPConnInfo, []byte) error
+	TransportGetConnInfo func(*net.UDPAddr) quicstream.UDPConnInfo
 )
 
 type Transport struct {
@@ -51,7 +51,7 @@ func NewTransport(
 		packetch:     make(chan *memberlist.Packet),
 		streamch:     make(chan net.Conn),
 		conns:        util.NewLockedMap(),
-		getconninfof: func(addr *net.UDPAddr) quicstream.ConnInfo { return quicstream.NewBaseConnInfo(addr, true) },
+		getconninfof: func(addr *net.UDPAddr) quicstream.UDPConnInfo { return quicstream.NewUDPConnInfo(addr, true) },
 	}
 }
 
@@ -59,7 +59,7 @@ func NewTransportWithQuicstream(
 	laddr *net.UDPAddr,
 	handlerPrefix string,
 	poolclient *quicstream.PoolClient,
-	newClient func(quicstream.ConnInfo) func(*net.UDPAddr) *quicstream.Client,
+	newClient func(quicstream.UDPConnInfo) func(*net.UDPAddr) *quicstream.Client,
 ) *Transport {
 	makebody := func(b []byte) []byte {
 		return b
@@ -72,14 +72,14 @@ func NewTransportWithQuicstream(
 
 	return NewTransport(
 		laddr,
-		func(ctx context.Context, ci quicstream.ConnInfo) (quic.EarlyConnection, error) {
+		func(ctx context.Context, ci quicstream.UDPConnInfo) (quic.EarlyConnection, error) {
 			return poolclient.Dial(
 				ctx,
 				ci.UDPAddr(),
 				newClient(ci),
 			)
 		},
-		func(ctx context.Context, ci quicstream.ConnInfo, b []byte) error {
+		func(ctx context.Context, ci quicstream.UDPConnInfo, b []byte) error {
 			r, err := poolclient.Write(
 				ctx,
 				ci.UDPAddr(),

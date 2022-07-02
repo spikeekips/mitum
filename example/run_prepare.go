@@ -76,7 +76,7 @@ func (cmd *runCommand) prepareFlags() error {
 	switch {
 	case len(cmd.MemberDiscovery) < 1:
 	default:
-		cmd.discoveries = make([]quicstream.ConnInfo, len(cmd.MemberDiscovery))
+		cmd.discoveries = make([]quicstream.UDPConnInfo, len(cmd.MemberDiscovery))
 
 		for i := range cmd.MemberDiscovery {
 			ci, err := cmd.MemberDiscovery[i].ConnInfo()

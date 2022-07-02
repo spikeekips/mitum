@@ -35,7 +35,7 @@ func NewQuicstreamClient(
 
 	c.baseNetworkClient.writef = func(
 		ctx context.Context,
-		ci quicstream.ConnInfo,
+		ci quicstream.UDPConnInfo,
 		writef quicstream.ClientWriteFunc,
 	) (io.ReadCloser, func() error, error) {
 		r, err := c.client.Write(ctx, ci.UDPAddr(), writef, c.NewClient(ci))
@@ -58,7 +58,7 @@ func (c *QuicstreamClient) PoolClient() *quicstream.PoolClient {
 }
 
 func (c *QuicstreamClient) NewClient(
-	ci quicstream.ConnInfo,
+	ci quicstream.UDPConnInfo,
 ) func(*net.UDPAddr) *quicstream.Client {
 	return func(*net.UDPAddr) *quicstream.Client {
 		return quicstream.NewClient(

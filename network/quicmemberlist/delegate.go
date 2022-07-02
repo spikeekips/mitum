@@ -9,7 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/network/quicstream"
-	"github.com/spikeekips/mitum/util/encoder"
+	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/logging"
 )
 
@@ -17,7 +17,7 @@ type (
 	DelegateNodeFunc      func(Node) error
 	DelegateJoinedFunc    func(Node)
 	DelegateLeftFunc      func(Node)
-	DelegateStoreConnInfo func(quicstream.ConnInfo)
+	DelegateStoreConnInfo func(quicstream.UDPConnInfo)
 )
 
 type Delegate struct {
@@ -75,7 +75,7 @@ func (*Delegate) MergeRemoteState([]byte, bool) {
 
 type AliveDelegate struct {
 	*logging.Logging
-	enc             encoder.Encoder
+	enc             *jsonenc.Encoder
 	laddr           *net.UDPAddr
 	allowf          DelegateNodeFunc // NOTE allowf controls which node can be entered or not
 	storeconninfof  DelegateStoreConnInfo
@@ -85,7 +85,7 @@ type AliveDelegate struct {
 }
 
 func NewAliveDelegate(
-	enc encoder.Encoder,
+	enc *jsonenc.Encoder,
 	laddr *net.UDPAddr,
 	challengef DelegateNodeFunc,
 	allowf DelegateNodeFunc,
@@ -108,7 +108,7 @@ func NewAliveDelegate(
 		laddr:           laddr,
 		challengef:      nchallengef,
 		allowf:          nallowf,
-		storeconninfof:  func(quicstream.ConnInfo) {},
+		storeconninfof:  func(quicstream.UDPConnInfo) {},
 		challengecache:  gcache.New(1 << 9).LRU().Build(), //nolint:gomnd //...
 		challengeexpire: time.Second * 30,                 //nolint:gomnd //...
 	}
@@ -132,7 +132,8 @@ func (d *AliveDelegate) NotifyAlive(peer *memberlist.Node) error {
 
 	var willchallenge bool
 
-	switch i, err := d.challengecache.Get(node.Addr().String()); {
+	nodekey := node.UDPAddr().String()
+	switch i, err := d.challengecache.Get(nodekey); {
 	case err != nil && errors.Is(err, gcache.KeyNotFoundError):
 		// NOTE challenge with node publickey
 		willchallenge = true
@@ -141,7 +142,8 @@ func (d *AliveDelegate) NotifyAlive(peer *memberlist.Node) error {
 	}
 
 	if willchallenge {
-		if _, err := node.CheckPublishConnInfo(); err != nil {
+		publish := node.Publish()
+		if _, err := publish.UDPConnInfo(); err != nil {
 			return err
 		}
 
@@ -149,7 +151,7 @@ func (d *AliveDelegate) NotifyAlive(peer *memberlist.Node) error {
 			return errors.WithMessage(err, "failed to challenge")
 		}
 
-		_ = d.challengecache.SetWithExpire(node.Addr().String(), time.Now(), d.challengeexpire)
+		_ = d.challengecache.SetWithExpire(nodekey, time.Now(), d.challengeexpire)
 	}
 
 	l := d.Log().With().Object("node", node).Logger()
@@ -160,7 +162,7 @@ func (d *AliveDelegate) NotifyAlive(peer *memberlist.Node) error {
 		return errors.WithMessage(err, "not allowed to be alive")
 	}
 
-	d.storeconninfof(node)
+	d.storeconninfof(node.UDPConnInfo())
 
 	l.Trace().Msg("notified alive")
 
@@ -169,13 +171,13 @@ func (d *AliveDelegate) NotifyAlive(peer *memberlist.Node) error {
 
 type EventsDelegate struct {
 	*logging.Logging
-	enc     encoder.Encoder
+	enc     *jsonenc.Encoder
 	joinedf DelegateJoinedFunc
 	leftf   DelegateLeftFunc
 }
 
 func NewEventsDelegate(
-	enc encoder.Encoder,
+	enc *jsonenc.Encoder,
 	joinedf DelegateJoinedFunc,
 	leftf DelegateLeftFunc,
 ) *EventsDelegate {
@@ -261,7 +263,7 @@ func convertNetAddr(a interface{}) (net.Addr, error) {
 	switch t := a.(type) {
 	case Node:
 		return t.UDPAddr(), nil
-	case quicstream.ConnInfo:
+	case quicstream.UDPConnInfo:
 		return t.UDPAddr(), nil
 	case *memberlist.Node:
 		return &net.UDPAddr{IP: t.Addr, Port: int(t.Port)}, nil

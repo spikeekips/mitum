@@ -16,7 +16,7 @@ import (
 
 type baseNetworkClientWriteFunc func(
 	ctx context.Context,
-	conninfo quicstream.ConnInfo,
+	conninfo quicstream.UDPConnInfo,
 	writef quicstream.ClientWriteFunc,
 ) (_ io.ReadCloser, cancel func() error, _ error)
 
@@ -39,7 +39,7 @@ func newBaseNetworkClient(
 
 func (c *baseNetworkClient) Request(
 	ctx context.Context,
-	ci quicstream.ConnInfo,
+	ci quicstream.UDPConnInfo,
 	header isaac.NetworkHeader,
 ) (
 	isaac.NetworkResponseHeader,
@@ -77,7 +77,7 @@ func (c *baseNetworkClient) Request(
 
 func (c *baseNetworkClient) RequestProposal(
 	ctx context.Context,
-	ci quicstream.ConnInfo,
+	ci quicstream.UDPConnInfo,
 	point base.Point,
 	proposer base.Address,
 ) (base.ProposalSignedFact, bool, error) {
@@ -120,7 +120,7 @@ func (c *baseNetworkClient) RequestProposal(
 
 func (c *baseNetworkClient) Proposal( //nolint:dupl //...
 	ctx context.Context,
-	ci quicstream.ConnInfo,
+	ci quicstream.UDPConnInfo,
 	pr util.Hash,
 ) (base.ProposalSignedFact, bool, error) {
 	e := util.StringErrorFunc("failed to get proposal")
@@ -161,7 +161,7 @@ func (c *baseNetworkClient) Proposal( //nolint:dupl //...
 }
 
 func (c *baseNetworkClient) LastSuffrageProof(
-	ctx context.Context, ci quicstream.ConnInfo, state util.Hash,
+	ctx context.Context, ci quicstream.UDPConnInfo, state util.Hash,
 ) (base.SuffrageProof, bool, error) {
 	header := NewLastSuffrageProofRequestHeader(state)
 
@@ -173,7 +173,7 @@ func (c *baseNetworkClient) LastSuffrageProof(
 }
 
 func (c *baseNetworkClient) SuffrageProof( //nolint:dupl //...
-	ctx context.Context, ci quicstream.ConnInfo, suffrageheight base.Height,
+	ctx context.Context, ci quicstream.UDPConnInfo, suffrageheight base.Height,
 ) (base.SuffrageProof, bool, error) {
 	header := NewSuffrageProofRequestHeader(suffrageheight)
 
@@ -185,7 +185,7 @@ func (c *baseNetworkClient) SuffrageProof( //nolint:dupl //...
 }
 
 func (c *baseNetworkClient) LastBlockMap( //nolint:dupl //...
-	ctx context.Context, ci quicstream.ConnInfo, manifest util.Hash,
+	ctx context.Context, ci quicstream.UDPConnInfo, manifest util.Hash,
 ) (base.BlockMap, bool, error) {
 	header := NewLastBlockMapRequestHeader(manifest)
 
@@ -197,7 +197,7 @@ func (c *baseNetworkClient) LastBlockMap( //nolint:dupl //...
 }
 
 func (c *baseNetworkClient) BlockMap( //nolint:dupl //...
-	ctx context.Context, ci quicstream.ConnInfo, height base.Height,
+	ctx context.Context, ci quicstream.UDPConnInfo, height base.Height,
 ) (base.BlockMap, bool, error) {
 	header := NewBlockMapRequestHeader(height)
 
@@ -209,7 +209,7 @@ func (c *baseNetworkClient) BlockMap( //nolint:dupl //...
 }
 
 func (c *baseNetworkClient) BlockMapItem(
-	ctx context.Context, ci quicstream.ConnInfo, height base.Height, item base.BlockMapItemType,
+	ctx context.Context, ci quicstream.UDPConnInfo, height base.Height, item base.BlockMapItemType,
 ) (_ io.ReadCloser, cancel func() error, found bool, _ error) {
 	// NOTE the io.ReadCloser should be closed.
 
@@ -247,7 +247,7 @@ func (c *baseNetworkClient) BlockMapItem(
 }
 
 func (c *baseNetworkClient) NodeChallenge(
-	ctx context.Context, ci quicstream.ConnInfo,
+	ctx context.Context, ci quicstream.UDPConnInfo,
 	networkID base.NetworkID,
 	node base.Address, pub base.Publickey, input []byte,
 ) (base.Signature, error) {
@@ -299,7 +299,7 @@ func (c *baseNetworkClient) NodeChallenge(
 }
 
 func (c *baseNetworkClient) SuffrageNodeConnInfo(
-	ctx context.Context, ci quicstream.ConnInfo,
+	ctx context.Context, ci quicstream.UDPConnInfo,
 ) ([]isaac.NodeConnInfo, error) {
 	e := util.StringErrorFunc("failed SuffrageNodeConnInfo")
 
@@ -352,7 +352,7 @@ func (c *baseNetworkClient) SuffrageNodeConnInfo(
 
 func (c *baseNetworkClient) requestOK(
 	ctx context.Context,
-	ci quicstream.ConnInfo,
+	ci quicstream.UDPConnInfo,
 	header isaac.NetworkHeader,
 	body io.Reader,
 	u interface{},
@@ -411,7 +411,7 @@ func (c *baseNetworkClient) loadResponseHeader(
 
 func (c *baseNetworkClient) write(
 	ctx context.Context,
-	ci quicstream.ConnInfo,
+	ci quicstream.UDPConnInfo,
 	enc encoder.Encoder,
 	header isaac.NetworkHeader,
 	body io.Reader,

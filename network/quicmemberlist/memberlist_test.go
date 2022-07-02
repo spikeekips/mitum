@@ -21,7 +21,7 @@ import (
 
 type testMemberlist struct {
 	quicstream.BaseTest
-	enc encoder.Encoder
+	enc *jsonenc.Encoder
 }
 
 func (t *testMemberlist) SetupTest() {
@@ -31,21 +31,19 @@ func (t *testMemberlist) SetupTest() {
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: NodeHint, Instance: BaseNode{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: NodeMetaHint, Instance: NodeMeta{}}))
 }
 
-func (t *testMemberlist) newConnInfo() quicstream.ConnInfo {
+func (t *testMemberlist) newConnInfo() quicstream.UDPConnInfo {
 	addr := t.BaseTest.NewBind()
 
-	return quicstream.NewBaseConnInfo(addr, true)
+	return quicstream.NewUDPConnInfo(addr, true)
 }
 
 func (t *testMemberlist) TestNew() {
 	bind := t.NewBind()
 	config := BasicMemberlistConfig(bind.String(), bind, bind)
 
-	meta := NewNodeMeta(base.RandomAddress(""), base.NewMPrivatekey().Publickey(), "1.2.3.4:4321", true)
-	local, err := NewNode(bind.String(), bind, meta)
+	local, err := NewNode(bind.String(), bind, base.RandomAddress(""), base.NewMPrivatekey().Publickey(), "1.2.3.4:4321", true)
 	t.NoError(err)
 
 	config.Delegate = NewDelegate(local, nil, nil)
@@ -61,7 +59,7 @@ func (t *testMemberlist) TestNew() {
 
 func (t *testMemberlist) newServersForJoining(
 	node base.Address,
-	ci quicstream.ConnInfo,
+	ci quicstream.UDPConnInfo,
 	whenJoined DelegateJoinedFunc,
 	whenLeft DelegateLeftFunc,
 ) (*quicstream.Server, *Memberlist) {
@@ -73,7 +71,7 @@ func (t *testMemberlist) newServersForJoining(
 		laddr,
 		"",
 		poolclient,
-		func(ci quicstream.ConnInfo) func(*net.UDPAddr) *quicstream.Client {
+		func(ci quicstream.UDPConnInfo) func(*net.UDPAddr) *quicstream.Client {
 			return func(*net.UDPAddr) *quicstream.Client {
 				return quicstream.NewClient(
 					ci.UDPAddr(),
@@ -108,8 +106,7 @@ func (t *testMemberlist) newServersForJoining(
 	memberlistconfig.Events = NewEventsDelegate(t.enc, whenJoined, whenLeft)
 	memberlistconfig.Alive = NewAliveDelegate(t.enc, laddr, func(Node) error { return nil }, func(Node) error { return nil })
 
-	meta := NewNodeMeta(node, base.NewMPrivatekey().Publickey(), "1.2.3.4:4321", true)
-	local, err := NewNode(laddr.String(), laddr, meta)
+	local, err := NewNode(laddr.String(), laddr, node, base.NewMPrivatekey().Publickey(), "1.2.3.4:4321", true)
 	t.NoError(err)
 
 	memberlistconfig.Delegate = NewDelegate(local, nil, nil)
@@ -208,7 +205,7 @@ func (t *testMemberlist) TestLocalJoinToRemote() {
 	defer rsrv.Stop()
 
 	<-time.After(time.Second)
-	t.NoError(lsrv.Join([]quicstream.ConnInfo{rci}))
+	t.NoError(lsrv.Join([]quicstream.UDPConnInfo{rci}))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -309,7 +306,7 @@ func (t *testMemberlist) TestLocalJoinToRemoteButFailedToChallenge() {
 	defer rsrv.Stop()
 
 	<-time.After(time.Second)
-	t.NoError(lsrv.Join([]quicstream.ConnInfo{rci}))
+	t.NoError(lsrv.Join([]quicstream.UDPConnInfo{rci}))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -374,7 +371,7 @@ func (t *testMemberlist) TestLocalJoinToRemoteButNotAllowed() {
 	defer rsrv.Stop()
 
 	<-time.After(time.Second)
-	t.NoError(lsrv.Join([]quicstream.ConnInfo{rci}))
+	t.NoError(lsrv.Join([]quicstream.UDPConnInfo{rci}))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -439,7 +436,7 @@ func (t *testMemberlist) TestLocalLeave() {
 	defer rsrv.Stop()
 
 	<-time.After(time.Second)
-	t.NoError(lsrv.Join([]quicstream.ConnInfo{rci}))
+	t.NoError(lsrv.Join([]quicstream.UDPConnInfo{rci}))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -525,7 +522,7 @@ func (t *testMemberlist) TestLocalShutdownAndLeave() {
 	defer rsrv.Stop()
 
 	<-time.After(time.Second)
-	t.NoError(lsrv.Join([]quicstream.ConnInfo{rci}))
+	t.NoError(lsrv.Join([]quicstream.UDPConnInfo{rci}))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -626,7 +623,7 @@ func (t *testMemberlist) TestJoinMultipleNodeWithSameName() {
 
 	<-time.After(time.Second)
 	t.T().Logf("trying to join to remotes, %q, %q", rci0, rci1)
-	t.NoError(lsrv.Join([]quicstream.ConnInfo{rci0, rci1}))
+	t.NoError(lsrv.Join([]quicstream.UDPConnInfo{rci0, rci1}))
 
 	err := <-alljoinedch
 	t.NoError(err)
@@ -676,7 +673,7 @@ func (t *testMemberlist) TestLocalOverMemberLimit() {
 	defer rsrv0.Stop()
 
 	<-time.After(time.Second)
-	t.NoError(lsrv.Join([]quicstream.ConnInfo{rci0}))
+	t.NoError(lsrv.Join([]quicstream.UDPConnInfo{rci0}))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -705,7 +702,7 @@ func (t *testMemberlist) TestLocalOverMemberLimit() {
 	defer rsrv1.Stop()
 
 	<-time.After(time.Second)
-	t.NoError(rsrv1.Join([]quicstream.ConnInfo{lci}))
+	t.NoError(rsrv1.Join([]quicstream.UDPConnInfo{lci}))
 
 	<-time.After(time.Second * 3)
 	t.Equal(2, lsrv.MembersLen())
@@ -765,8 +762,7 @@ func (t *testMemberlist) TestLocalJoinToRemoteWithInvalidNode() {
 		nil,
 	)
 
-	remotemeta := NewNodeMeta(rnode, base.NewMPrivatekey().Publickey(), "", true) // NOTE empty publish
-	remote, err := NewNode(rci.UDPAddr().String(), rci.UDPAddr(), remotemeta)
+	remote, err := NewNode(rci.UDPAddr().String(), rci.UDPAddr(), rnode, base.NewMPrivatekey().Publickey(), "", true) // NOTE empty publish
 	t.NoError(err)
 	err = remote.IsValid(nil)
 	t.Error(err)
@@ -787,7 +783,7 @@ func (t *testMemberlist) TestLocalJoinToRemoteWithInvalidNode() {
 	defer rsrv.Stop()
 
 	<-time.After(time.Second)
-	t.NoError(lsrv.Join([]quicstream.ConnInfo{rci}))
+	t.NoError(lsrv.Join([]quicstream.UDPConnInfo{rci}))
 
 	select {
 	case <-time.After(time.Second * 2):

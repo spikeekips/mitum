@@ -42,7 +42,7 @@ type runCommand struct { //nolint:govet //...
 	handlers             *quicstream.PrefixHandler
 	ballotbox            *isaacstates.Ballotbox
 	quicstreamserver     *quicstream.Server
-	discoveries          []quicstream.ConnInfo
+	discoveries          []quicstream.UDPConnInfo
 }
 
 func (cmd *runCommand) Run() error {

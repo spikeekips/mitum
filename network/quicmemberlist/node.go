@@ -12,27 +12,22 @@ import (
 	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/localtime"
 )
 
-var (
-	NodeHint     = hint.MustNewHint("memberlist-node-v0.0.1")
-	NodeMetaHint = hint.MustNewHint("memberlist-node-meta-v0.0.1")
-)
+var NodeHint = hint.MustNewHint("memberlist-node-v0.0.1")
 
 type Node interface {
 	util.IsValider
-	quicstream.ConnInfo
+	UDPAddr() *net.UDPAddr
+	UDPConnInfo() quicstream.UDPConnInfo
 	Name() string
 	Address() base.Address
 	Publickey() base.Publickey
-	Publish() string
-	PublishConnInfo() quicstream.ConnInfo
+	Publish() NamedConnInfo
 	JoinedAt() time.Time
-	Meta() NodeMeta
 	MetaBytes() []byte
 }
 
@@ -42,11 +37,36 @@ type BaseNode struct {
 	name     string
 	metab    []byte
 	hint.BaseHinter
-	publishconninfo quicstream.ConnInfo
-	meta            NodeMeta
+	meta    nodeMeta
+	publish NamedConnInfo
 }
 
-func NewNode(name string, addr *net.UDPAddr, meta NodeMeta) (BaseNode, error) {
+func NewNode(
+	name string,
+	addr *net.UDPAddr,
+	address base.Address,
+	publickey base.Publickey,
+	publish string,
+	tlsinsecure bool,
+) (BaseNode, error) {
+	return newNodeWithMeta(name, addr, newNodeMeta(address, publickey, publish, tlsinsecure))
+}
+
+func newNodeFromMemberlist(node *memberlist.Node, enc *jsonenc.Encoder) (BaseNode, error) {
+	e := util.StringErrorFunc("failed to make Node from memberlist.Node")
+
+	var meta nodeMeta
+
+	if err := meta.DecodeJSON(node.Meta, enc); err != nil {
+		return BaseNode{}, e(err, "failed to decode NodeMeta")
+	}
+
+	addr, _ := convertNetAddr(node)
+
+	return newNodeWithMeta(node.Name, addr.(*net.UDPAddr), meta) //nolint:forcetypeassert // ...
+}
+
+func newNodeWithMeta(name string, addr *net.UDPAddr, meta nodeMeta) (BaseNode, error) {
 	metab, err := util.MarshalJSON(meta)
 	if err != nil {
 		return BaseNode{}, errors.WithMessage(err, "failed to create Node")
@@ -59,21 +79,8 @@ func NewNode(name string, addr *net.UDPAddr, meta NodeMeta) (BaseNode, error) {
 		joinedAt:   localtime.UTCNow(),
 		meta:       meta,
 		metab:      metab,
+		publish:    NewNamedConnInfo(meta.publish, meta.tlsinsecure),
 	}, nil
-}
-
-func newNodeFromMemberlist(node *memberlist.Node, enc encoder.Encoder) (BaseNode, error) {
-	e := util.StringErrorFunc("failed to make Node from memberlist.Node")
-
-	var meta NodeMeta
-
-	if err := encoder.Decode(enc, node.Meta, &meta); err != nil {
-		return BaseNode{}, e(err, "failed to decode NodeMeta")
-	}
-
-	addr, _ := convertNetAddr(node)
-
-	return NewNode(node.Name, addr.(*net.UDPAddr), meta) //nolint:forcetypeassert // ...
 }
 
 func (n BaseNode) IsValid([]byte) error {
@@ -84,6 +91,13 @@ func (n BaseNode) IsValid([]byte) error {
 	}
 
 	if err := util.CheckIsValid(nil, false,
+		util.DummyIsValider(func([]byte) error {
+			if n.addr.IP.IsUnspecified() {
+				return errors.Errorf("empty udp addr")
+			}
+
+			return nil
+		}),
 		util.DummyIsValider(func([]byte) error {
 			if n.joinedAt.IsZero() {
 				return errors.Errorf("empty joined at time")
@@ -114,64 +128,39 @@ func (n BaseNode) IsValid([]byte) error {
 }
 
 func (n BaseNode) String() string {
-	return n.publishconninfo.String()
+	return n.publish.String()
 }
 
 func (n BaseNode) Name() string {
 	return n.name
 }
 
-func (n BaseNode) Addr() net.Addr {
-	return n.addr
-}
-
 func (n BaseNode) UDPAddr() *net.UDPAddr {
 	return n.addr
 }
 
+func (n BaseNode) UDPConnInfo() quicstream.UDPConnInfo {
+	return quicstream.NewUDPConnInfo(n.addr, n.meta.tlsinsecure)
+}
+
 func (n BaseNode) TLSInsecure() bool {
-	return n.meta.TLSInsecure()
+	return n.meta.tlsinsecure
 }
 
 func (n BaseNode) JoinedAt() time.Time {
 	return n.joinedAt
 }
 
-func (n BaseNode) Meta() NodeMeta {
-	return n.meta
-}
-
 func (n BaseNode) Address() base.Address {
-	return n.meta.Address()
+	return n.meta.address
 }
 
 func (n BaseNode) Publickey() base.Publickey {
-	return n.meta.Publickey()
+	return n.meta.publickey
 }
 
-func (n BaseNode) Publish() string {
-	return n.meta.Publish()
-}
-
-func (n *BaseNode) CheckPublishConnInfo() (quicstream.ConnInfo, error) {
-	var err error
-
-	if n.publishconninfo == nil {
-		switch addr, eerr := net.ResolveUDPAddr("udp", n.meta.Publish()); {
-		case err != nil:
-			err = errors.Wrap(eerr, "invalid publish address")
-
-			n.publishconninfo = quicstream.NewBaseConnInfo(nil, false)
-		default:
-			n.publishconninfo = quicstream.NewBaseConnInfo(addr, n.meta.TLSInsecure())
-		}
-	}
-
-	return n.publishconninfo, err
-}
-
-func (n BaseNode) PublishConnInfo() quicstream.ConnInfo {
-	return n.publishconninfo
+func (n BaseNode) Publish() NamedConnInfo {
+	return n.publish
 }
 
 func (n BaseNode) MetaBytes() []byte {
@@ -181,9 +170,9 @@ func (n BaseNode) MetaBytes() []byte {
 func (n BaseNode) MarshalZerologObject(e *zerolog.Event) {
 	e.
 		Str("name", n.name).
-		Stringer("address", n.meta.Address()).
+		Stringer("address", n.meta.address).
 		Stringer("address", n.addr).
-		Bool("tls_insecure", n.meta.TLSInsecure()).
+		Bool("tls_insecure", n.meta.tlsinsecure).
 		Time("joined_at", n.joinedAt)
 }
 
@@ -192,12 +181,12 @@ func (n BaseNode) MarshalJSON() ([]byte, error) {
 		Name     string
 		Address  string
 		JoinedAt time.Time `json:"joined_at"`
-		Meta     NodeMeta
+		Meta     json.RawMessage
 	}{
 		Name:     n.name,
 		Address:  n.addr.String(),
 		JoinedAt: n.joinedAt,
-		Meta:     n.meta,
+		Meta:     n.metab,
 	})
 }
 
@@ -214,7 +203,7 @@ func (n *BaseNode) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "")
 	}
 
-	var meta NodeMeta
+	var meta nodeMeta
 	if err := meta.DecodeJSON(u.Meta, enc); err != nil {
 		return e(err, "failed to decode NodeMeta")
 	}
@@ -232,17 +221,15 @@ func (n *BaseNode) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	return nil
 }
 
-type NodeMeta struct {
-	address   base.Address
-	publickey base.Publickey
-	publish   string
-	hint.BaseHinter
+type nodeMeta struct {
+	address     base.Address
+	publickey   base.Publickey
+	publish     string
 	tlsinsecure bool
 }
 
-func NewNodeMeta(address base.Address, publickey base.Publickey, publish string, tlsinsecure bool) NodeMeta {
-	return NodeMeta{
-		BaseHinter:  hint.NewBaseHinter(NodeMetaHint),
+func newNodeMeta(address base.Address, publickey base.Publickey, publish string, tlsinsecure bool) nodeMeta {
+	return nodeMeta{
 		address:     address,
 		publickey:   publickey,
 		publish:     publish,
@@ -250,12 +237,8 @@ func NewNodeMeta(address base.Address, publickey base.Publickey, publish string,
 	}
 }
 
-func (n NodeMeta) IsValid([]byte) error {
+func (n nodeMeta) IsValid([]byte) error {
 	e := util.ErrInvalid.Errorf("invalid NodeMeta")
-
-	if err := n.BaseHinter.IsValid(NodeMetaHint.Type().Bytes()); err != nil {
-		return e.Wrap(err)
-	}
 
 	if err := util.CheckIsValid(nil, false,
 		n.address,
@@ -270,33 +253,15 @@ func (n NodeMeta) IsValid([]byte) error {
 	return nil
 }
 
-func (n NodeMeta) Address() base.Address {
-	return n.address
-}
-
-func (n NodeMeta) Publickey() base.Publickey {
-	return n.publickey
-}
-
-func (n NodeMeta) Publish() string {
-	return n.publish
-}
-
-func (n NodeMeta) TLSInsecure() bool {
-	return n.tlsinsecure
-}
-
 type nodeMetaJSONMmarshaler struct {
-	Address   base.Address   `json:"address"`
-	Publickey base.Publickey `json:"publickey"`
-	Publish   string         `json:"publish"`
-	hint.BaseHinter
-	TLSInsecure bool `json:"tls_insecure"`
+	Address     base.Address   `json:"address"`
+	Publickey   base.Publickey `json:"publickey"`
+	Publish     string         `json:"publish"`
+	TLSInsecure bool           `json:"tls_insecure"`
 }
 
-func (n NodeMeta) MarshalJSON() ([]byte, error) {
+func (n nodeMeta) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(nodeMetaJSONMmarshaler{
-		BaseHinter:  n.BaseHinter,
 		Address:     n.address,
 		Publickey:   n.publickey,
 		Publish:     n.publish,
@@ -311,7 +276,7 @@ type nodeMetaJSONUnmarshaler struct {
 	TLSInsecure bool   `json:"tls_insecure"`
 }
 
-func (n *NodeMeta) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (n *nodeMeta) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	e := util.StringErrorFunc("failed to decode NodeMta")
 
 	var u nodeMetaJSONUnmarshaler

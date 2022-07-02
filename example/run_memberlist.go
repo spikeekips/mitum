@@ -9,8 +9,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
+	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
-	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -25,12 +25,10 @@ func (cmd *runCommand) prepareMemberlist() error {
 	memberlistnode, err := quicmemberlist.NewNode(
 		cmd.local.Address().String(),
 		cmd.design.Network.Publish(),
-		quicmemberlist.NewNodeMeta(
-			cmd.local.Address(),
-			cmd.local.Publickey(),
-			cmd.design.Network.PublishString,
-			cmd.design.Network.TLSInsecure,
-		),
+		cmd.local.Address(),
+		cmd.local.Publickey(),
+		cmd.design.Network.PublishString,
+		cmd.design.Network.TLSInsecure,
 	)
 	if err != nil {
 		return err
@@ -169,7 +167,7 @@ func (cmd *runCommand) nodeChallengeFunc() func(quicmemberlist.Node) error {
 		}
 
 		// NOTE challenge with publish address
-		if pci := node.PublishConnInfo(); !quicstream.EqualConnInfo(node, pci) {
+		if pci := node.PublishConnInfo(); !network.EqualConnInfo(node, pci) {
 			psig, err := cmd.client.NodeChallenge(ctx, node.PublishConnInfo(),
 				cmd.nodePolicy.NetworkID(), node.Address(), node.Publickey(), input)
 			if err != nil {

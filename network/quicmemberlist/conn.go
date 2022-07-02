@@ -9,8 +9,88 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
+	"github.com/spikeekips/mitum/network"
+	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 )
+
+type NamedAddr struct {
+	addr string
+}
+
+func (a NamedAddr) Network() string {
+	return "udp"
+}
+
+func (a NamedAddr) String() string {
+	return a.addr
+}
+
+type NamedConnInfo struct {
+	addr        NamedAddr
+	udpconninfo quicstream.UDPConnInfo
+	tlsinsecure bool
+}
+
+func NewNamedConnInfo(addr string, tlsinsecure bool) NamedConnInfo {
+	return NamedConnInfo{
+		addr: NamedAddr{addr: addr}, tlsinsecure: tlsinsecure,
+	}
+}
+
+func (c *NamedConnInfo) UDPConnInfo() (ci quicstream.UDPConnInfo, _ error) {
+	udp, err := net.ResolveUDPAddr("udp", c.addr.String())
+	if err != nil {
+		return ci, errors.Wrap(err, "failed to resolve NamedConnInfo")
+	}
+
+	c.udpconninfo = quicstream.NewUDPConnInfo(udp, c.tlsinsecure)
+
+	return c.udpconninfo, nil
+}
+
+func (c NamedConnInfo) Addr() net.Addr {
+	return c.addr
+}
+
+func (c NamedConnInfo) TLSInsecure() bool {
+	return c.tlsinsecure
+}
+
+func (c NamedConnInfo) IsValid([]byte) error {
+	e := util.ErrInvalid.Errorf("invalid NamedConnInfo")
+
+	if err := network.IsValidAddr(c.addr.String()); err != nil {
+		return e.Wrap(err)
+	}
+
+	return nil
+}
+
+func (c NamedConnInfo) String() string {
+	return network.ConnInfoToString(c.addr.String(), c.tlsinsecure)
+}
+
+func (c NamedConnInfo) MarshalText() ([]byte, error) {
+	return []byte(c.String()), nil
+}
+
+func (c *NamedConnInfo) UnmarshalText(b []byte) error {
+	addr, tlsinsecure := network.ParseTLSInsecure(string(b))
+
+	c.addr = NamedAddr{addr: addr}
+	c.tlsinsecure = tlsinsecure
+
+	return nil
+}
+
+func (c NamedConnInfo) MarshalZerologObject(e *zerolog.Event) { // FIXME use network.ConnInfoLog
+	e.
+		Str("type", "namedconninfo").
+		Stringer("addr", c.addr).
+		Bool("tls_insecure", c.tlsinsecure)
+}
 
 type qconn struct {
 	laddr  net.Addr

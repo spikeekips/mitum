@@ -1,7 +1,6 @@
 package quicstream
 
 import (
-	"fmt"
 	"net"
 
 	"github.com/pkg/errors"
@@ -10,50 +9,47 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
-type ConnInfo interface {
-	fmt.Stringer
-	Addr() net.Addr
-	UDPAddr() *net.UDPAddr
-	TLSInsecure() bool
-}
-
-type BaseConnInfo struct {
+type UDPConnInfo struct {
 	addr        *net.UDPAddr
 	tlsinsecure bool
 }
 
-func NewBaseConnInfo(addr *net.UDPAddr, tlsinsecure bool) BaseConnInfo {
-	return BaseConnInfo{addr: addr, tlsinsecure: tlsinsecure}
+func NewUDPConnInfo(addr *net.UDPAddr, tlsinsecure bool) UDPConnInfo {
+	return UDPConnInfo{addr: addr, tlsinsecure: tlsinsecure}
 }
 
-func NewBaseConnInfoFromString(s string) (BaseConnInfo, error) {
+func NewUDPConnInfoFromString(s string) (UDPConnInfo, error) {
 	as, tlsinsecure := network.ParseTLSInsecure(s)
 
-	return NewBaseConnInfoFromStringAddress(as, tlsinsecure)
+	return NewUDPConnInfoFromStringAddress(as, tlsinsecure)
 }
 
-func NewBaseConnInfoFromStringAddress(s string, tlsinsecure bool) (ci BaseConnInfo, _ error) {
+func NewUDPConnInfoFromStringAddress(s string, tlsinsecure bool) (ci UDPConnInfo, _ error) {
 	addr, err := net.ResolveUDPAddr("udp", s)
 	if err == nil {
-		return NewBaseConnInfo(addr, tlsinsecure), nil
+		return NewUDPConnInfo(addr, tlsinsecure), nil
 	}
 
 	var dnserr *net.DNSError
 
 	if errors.As(err, &dnserr) {
-		return ci, errors.Wrap(err, "failed to parse BaseConnInfo")
+		return ci, errors.Wrap(err, "failed to parse UDPConnInfo")
 	}
 
-	return ci, util.ErrInvalid.Wrap(errors.Wrap(err, "failed to parse BaseConnInfo"))
+	return ci, util.ErrInvalid.Wrap(errors.Wrap(err, "failed to parse UDPConnInfo"))
 }
 
-func (c BaseConnInfo) IsValid([]byte) error {
-	e := util.ErrInvalid.Errorf("invalid BaseConnInfo")
+func (c UDPConnInfo) IsValid([]byte) error {
+	return c.isValid()
+}
+
+func (c UDPConnInfo) isValid() error {
+	e := util.ErrInvalid.Errorf("invalid UDPConnInfo")
 
 	switch {
 	case c.addr == nil:
 		return e.Errorf("empty addr")
-	case c.addr.IP.Equal(net.IPv4zero), c.addr.IP.Equal(net.IPv6zero):
+	case c.addr.IP.IsUnspecified():
 		return e.Errorf("empty addr ip")
 	case c.addr.Port < 1:
 		return e.Errorf("empty addr port")
@@ -62,19 +58,19 @@ func (c BaseConnInfo) IsValid([]byte) error {
 	return nil
 }
 
-func (c BaseConnInfo) Addr() net.Addr {
+func (c UDPConnInfo) Addr() net.Addr {
+	if c.isValid() != nil {
+		return nil
+	}
+
 	return c.addr
 }
 
-func (c BaseConnInfo) UDPAddr() *net.UDPAddr {
-	return c.addr
-}
-
-func (c BaseConnInfo) TLSInsecure() bool {
+func (c UDPConnInfo) TLSInsecure() bool {
 	return c.tlsinsecure
 }
 
-func (c BaseConnInfo) String() string {
+func (c UDPConnInfo) String() string {
 	var addr string
 	if c.addr != nil {
 		addr = c.addr.String()
@@ -83,14 +79,18 @@ func (c BaseConnInfo) String() string {
 	return network.ConnInfoToString(addr, c.tlsinsecure)
 }
 
-func (c BaseConnInfo) MarshalText() ([]byte, error) {
+func (c UDPConnInfo) UDPAddr() *net.UDPAddr {
+	return c.addr
+}
+
+func (c UDPConnInfo) MarshalText() ([]byte, error) {
 	return []byte(c.String()), nil
 }
 
-func (c *BaseConnInfo) UnmarshalText(b []byte) error {
-	ci, err := NewBaseConnInfoFromString(string(b))
+func (c *UDPConnInfo) UnmarshalText(b []byte) error {
+	ci, err := NewUDPConnInfoFromString(string(b))
 	if err != nil {
-		return errors.WithMessage(err, "failed to unmarshal BaseConnInfo")
+		return errors.WithMessage(err, "failed to unmarshal UDPConnInfo")
 	}
 
 	*c = ci
@@ -98,23 +98,9 @@ func (c *BaseConnInfo) UnmarshalText(b []byte) error {
 	return nil
 }
 
-func (c BaseConnInfo) MarshalZerologObject(e *zerolog.Event) {
+func (c UDPConnInfo) MarshalZerologObject(e *zerolog.Event) { // FIXME use network.ConnInfoLog
 	e.
-		Stringer("address", c.addr).
+		Str("type", "udpconninfo").
+		Stringer("addr", c.addr).
 		Bool("tls_insecure", c.tlsinsecure)
-}
-
-func EqualConnInfo(a, b ConnInfo) bool {
-	switch {
-	case a == nil, b == nil:
-		return false
-	case a.Addr() == nil, b.Addr() == nil:
-		return false
-	case a.TLSInsecure() != b.TLSInsecure():
-		return false
-	case a.Addr().String() != b.Addr().String():
-		return false
-	default:
-		return true
-	}
 }

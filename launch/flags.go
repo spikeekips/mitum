@@ -90,7 +90,7 @@ func (f AddressFlag) Address() base.Address {
 }
 
 type ConnInfoFlag struct {
-	ci          quicstream.ConnInfo
+	ci          quicstream.UDPConnInfo
 	addr        string
 	tlsinsecure bool
 }
@@ -113,11 +113,11 @@ func (f ConnInfoFlag) String() string {
 	return network.ConnInfoToString(f.addr, f.tlsinsecure)
 }
 
-func (f *ConnInfoFlag) ConnInfo() (quicstream.ConnInfo, error) {
-	if f.ci == nil {
-		ci, err := quicstream.NewBaseConnInfoFromStringAddress(f.addr, f.tlsinsecure)
+func (f *ConnInfoFlag) ConnInfo() (quicstream.UDPConnInfo, error) {
+	if f.ci.Addr() == nil {
+		ci, err := quicstream.NewUDPConnInfoFromStringAddress(f.addr, f.tlsinsecure)
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to convert to quic ConnInfo")
+			return quicstream.UDPConnInfo{}, errors.Wrap(err, "failed to convert to quic ConnInfo")
 		}
 
 		f.ci = ci

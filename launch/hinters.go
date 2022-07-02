@@ -63,7 +63,6 @@ var Hinters = []encoder.DecodeDetail{
 	{Hint: isaacoperation.SuffrageJoinHint, Instance: base.BaseOperation{}},
 	{Hint: isaacoperation.SuffrageJoinPermissionFactHint, Instance: isaacoperation.SuffrageJoinPermissionFact{}},
 	{Hint: quicmemberlist.NodeHint, Instance: quicmemberlist.BaseNode{}},
-	{Hint: quicmemberlist.NodeMetaHint, Instance: quicmemberlist.NodeMeta{}},
 }
 
 var LoadOperationHinters = []encoder.DecodeDetail{} // FIXME apply to getOperation in ProposalProcessor
