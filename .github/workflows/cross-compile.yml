@@ -4,20 +4,24 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go: [ "1.17.x" ]
+        go: [ "1.18.x" ]
     runs-on: ubuntu-latest
     name: "Cross Compilation (Go ${{matrix.go}})"
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-go@v2
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-go@v3
         with:
-          stable: '!contains(${{ matrix.go }}, "beta") && !contains(${{ matrix.go }}, "rc")'
           go-version: ${{ matrix.go }}
+          check-latest: true
+
       - name: Install build utils
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-multilib
+
       - name: Install dependencies
-        run: go build example/main.go
+        run: go mod tidy
+
       - name: Run cross compilation
-        run: .github/workflows/cross-compile.sh
+        run: bash .github/workflows/cross-compile.sh

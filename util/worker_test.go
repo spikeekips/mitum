@@ -555,7 +555,7 @@ func (t *testErrgroupWorker) TestError() {
 			}
 
 			select {
-			case <-time.After(time.Second):
+			case <-time.After(time.Second * 3):
 				atomic.AddUint64(&called, 1)
 			case <-ctx.Done():
 				return ctx.Err()

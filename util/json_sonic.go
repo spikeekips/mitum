@@ -1,4 +1,5 @@
-//go:build amd64
+//go:build (darwin || linux || windows) && amd64
+// +build darwin linux windows
 // +build amd64
 
 package util

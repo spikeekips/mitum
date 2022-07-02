@@ -1071,9 +1071,9 @@ func (t *testDefaultProposalProcessor) TestProcessButError() {
 
 	if errors.Is(err, context.Canceled) {
 		t.T().Logf("unexpected context canceled: %T %+v", err, err)
+	} else {
+		t.ErrorContains(err, fmt.Sprintf("findme: %q", ophs[1]))
 	}
-
-	t.ErrorContains(err, fmt.Sprintf("findme: %q", ophs[1]))
 }
 
 func (t *testDefaultProposalProcessor) TestProcessButErrorRetry() {

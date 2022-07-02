@@ -4,20 +4,30 @@ set -e
 
 GOVERSION=$(go version | cut -d " " -f 3 | cut -b 3-6)
 
-for dist in $(go tool dist list); do
+supported=( "android/arm64" "darwin/amd64" "darwin/arm64" "dragonfly/amd64" "freebsd/386" "freebsd/arm" "freebsd/arm64" "freebsd/amd64" "illumos/amd64" "linux/386" "linux/amd64" "linux/arm" "linux/arm64" "linux/mips" "linux/mips64" "linux/mips64le" "linux/mipsle" "linux/ppc64" "linux/ppc64le" "linux/riscv64" "linux/s390x" "netbsd/386" "netbsd/amd64" "netbsd/arm" "netbsd/arm64" "openbsd/386" "openbsd/amd64" "openbsd/arm" "openbsd/arm64" "solaris/amd64" "windows/386" "windows/amd64" "windows/arm" "windows/arm64" )
+
+races=( "linux/amd64" )
+
+for dist in ${supported[@]}; do
 	goos=$(echo $dist | cut -d "/" -f1)
 	goarch=$(echo $dist | cut -d "/" -f2)
 
-	if [[ "$goos" == "android" ]]; then continue; fi
-	# Go 1.14 lacks syscall.IPV6_RECVTCLASS
-	if [[ $GOVERSION == "1.14" && $goos == "darwin" && $goarch == "arm" ]]; then continue; fi
-	# darwin/arm64 requires Cgo for Go < 1.16
-	if [[ $GOVERSION != "1.16" && "$goos" == "darwin" && $goarch == "arm64" ]]; then continue; fi
-    # iOS builds require Cgo, see https://github.com/golang/go/issues/43343
-    # Cgo would then need a C cross compilation setup. Not worth the hassle.
-	if [[ "$goos" == "ios" ]]; then continue; fi
+	echo "$dist"
+
+    b=/tmp/main-${goos}-${goarch}
+	GOOS=$goos GOARCH=$goarch go build -o $b example/*.go
+
+	rm $b
+done
+
+for dist in ${races[@]}; do
+	goos=$(echo $dist | cut -d "/" -f1)
+	goarch=$(echo $dist | cut -d "/" -f2)
 
 	echo "$dist"
-	GOOS=$goos GOARCH=$goarch go build -o /tmp/main example/main.go
-	rm /tmp/main
+
+    b=/tmp/main-${goos}-${goarch}
+	GOOS=$goos GOARCH=$goarch go build -race -o $b example/*.go
+
+	rm $b
 done

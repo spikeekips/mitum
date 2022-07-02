@@ -5,15 +5,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go: [ "1.17.x", "1.18.x" ]
+        go: ["1.18.x" ]
     runs-on: ubuntu-latest
     name: "Lint (Go ${{matrix.go}})"
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-go@v2
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3
         with:
-          stable: '!contains(${{ matrix.go }}, "beta") && !contains(${{ matrix.go }}, "rc")'
           go-version: ${{ matrix.go }}
+          check-latest: true
 
       - name: Check that go.mod is tidied
         run: |
@@ -24,16 +24,17 @@ jobs:
           diff go.sum /tmp/go.sum.orig
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v2
+        uses: golangci/golangci-lint-action@v3
         with:
           version: v1.46.1
           args: -v
+          skip-pkg-cache: true
 
       - name: go vet
         run: |
-            go vet -tags 'test mongodb' ./...
+            go vet -tags 'test' ./...
 
       - name: staticcheck
         run: |
             go install honnef.co/go/tools/cmd/staticcheck@latest
-            staticcheck -tags 'test mongob' --ignoretests ./...
+            staticcheck -tags 'test' --ignoretests ./...
