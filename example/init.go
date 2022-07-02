@@ -2,7 +2,6 @@ package main
 
 import (
 	"github.com/spikeekips/mitum/launch"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 )
 
 type initCommand struct { //nolint:govet //...
@@ -69,8 +68,7 @@ func (cmd *initCommand) prepareDesigns() error {
 		return err
 	}
 
-	switch d, b, err := launch.GenesisDesignFromFile( //nolint:forcetypeassert //...
-		cmd.GenesisDesign, cmd.enc.(*jsonenc.Encoder)); {
+	switch d, b, err := launch.GenesisDesignFromFile(cmd.GenesisDesign, cmd.enc); {
 	case err != nil:
 		return err
 	default:

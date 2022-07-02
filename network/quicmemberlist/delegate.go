@@ -142,11 +142,6 @@ func (d *AliveDelegate) NotifyAlive(peer *memberlist.Node) error {
 	}
 
 	if willchallenge {
-		publish := node.Publish()
-		if _, err := publish.UDPConnInfo(); err != nil {
-			return err
-		}
-
 		if err := d.challengef(node); err != nil {
 			return errors.WithMessage(err, "failed to challenge")
 		}

@@ -151,7 +151,7 @@ func (cmd *runCommand) proposalSelectorFunc() *isaac.BaseProposalSelector {
 			var ci quicstream.UDPConnInfo
 			cmd.memberlist.Members(func(node quicmemberlist.Node) bool {
 				if node.Address().Equal(proposer) {
-					ci = node
+					ci = node.UDPConnInfo()
 
 					return false
 				}

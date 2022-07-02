@@ -44,7 +44,7 @@ func (t *testQuicstreamHandlers) SetupSuite() {
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ResponseHeaderHint, Instance: ResponseHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: base.DummySuffrageProofHint, Instance: base.DummySuffrageProof{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: SuffrageNodeConnInfoRequestHeaderHint, Instance: SuffrageNodeConnInfoRequestHeader{}}))
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: BaseNodeConnInfoHint, Instance: BaseNodeConnInfo{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: BaseNodeConnInfoHint, Instance: NodeConnInfo{}}))
 }
 
 func (t *testQuicstreamHandlers) TestClient() {
@@ -451,7 +451,7 @@ func (t *testQuicstreamHandlers) TestSuffrageNodeConnInfo() {
 		ncis := make([]isaac.NodeConnInfo, 3)
 		for i := range ncis {
 			ci := quicstream.RandomConnInfo()
-			ncis[i] = NewBaseNodeConnInfo(base.RandomNode(), ci.UDPAddr().String(), true)
+			ncis[i] = NewNodeConnInfo(base.RandomNode(), ci.UDPAddr().String(), true)
 		}
 
 		handlers.suffrageNodeConnInfof = func() ([]isaac.NodeConnInfo, error) {

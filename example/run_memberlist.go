@@ -151,6 +151,11 @@ func (cmd *runCommand) nodeChallengeFunc() func(quicmemberlist.Node) error {
 	return func(node quicmemberlist.Node) error {
 		e := util.StringErrorFunc("failed to challenge memberlist node")
 
+		ci, err := node.Publish().UDPConnInfo()
+		if err != nil {
+			return e(err, "invalid publish conninfo")
+		}
+
 		if err := util.CheckIsValid(nil, false, node.Publickey()); err != nil {
 			return e(err, "invalid memberlist node publickey")
 		}
@@ -161,14 +166,14 @@ func (cmd *runCommand) nodeChallengeFunc() func(quicmemberlist.Node) error {
 		input := util.UUID().Bytes()
 
 		sig, err := cmd.client.NodeChallenge(
-			ctx, node, cmd.nodePolicy.NetworkID(), node.Address(), node.Publickey(), input)
+			ctx, node.UDPConnInfo(), cmd.nodePolicy.NetworkID(), node.Address(), node.Publickey(), input)
 		if err != nil {
 			return e(err, "")
 		}
 
 		// NOTE challenge with publish address
-		if pci := node.PublishConnInfo(); !network.EqualConnInfo(node, pci) {
-			psig, err := cmd.client.NodeChallenge(ctx, node.PublishConnInfo(),
+		if !network.EqualConnInfo(node.UDPConnInfo(), ci) {
+			psig, err := cmd.client.NodeChallenge(ctx, ci,
 				cmd.nodePolicy.NetworkID(), node.Address(), node.Publickey(), input)
 			if err != nil {
 				return e(err, "")

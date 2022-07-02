@@ -25,59 +25,41 @@ import (
 
 var BaseNodeConnInfoHint = hint.MustNewHint("node-conninfo-v0.0.1")
 
-type BaseNodeConnInfo struct {
-	addr string
+type NodeConnInfo struct {
 	base.BaseNode
-	tlsinsecure bool
+	quicmemberlist.NamedConnInfo
 }
 
-func NewBaseNodeConnInfo(node base.BaseNode, addr string, tlsinsecure bool) BaseNodeConnInfo {
+func NewNodeConnInfo(node base.BaseNode, addr string, tlsinsecure bool) NodeConnInfo {
 	node.BaseHinter = node.BaseHinter.SetHint(BaseNodeConnInfoHint).(hint.BaseHinter) //nolint:forcetypeassert //...
 
-	return BaseNodeConnInfo{
-		BaseNode:    node,
-		addr:        addr,
-		tlsinsecure: tlsinsecure,
+	return NodeConnInfo{
+		BaseNode:      node,
+		NamedConnInfo: quicmemberlist.NewNamedConnInfo(addr, tlsinsecure),
 	}
 }
 
-func NewBaseNodeConnInfoFromQuicmemberlistNode(node quicmemberlist.Node) (nci BaseNodeConnInfo, _ error) {
-	if s := node.PublishConnInfo().Addr(); s == nil {
-		return nci, errors.Errorf("empty publish conninfo")
-	}
-
-	return NewBaseNodeConnInfo(
-		isaac.NewNode(node.Publickey(), node.Address()),
-		node.Publish(),
-		node.TLSInsecure(),
-	), nil
-}
-
-func (n BaseNodeConnInfo) IsValid([]byte) error {
+func (n NodeConnInfo) IsValid([]byte) error {
 	e := util.ErrInvalid.Errorf("invalid BaseNodeConnInfo")
 
 	if err := n.BaseNode.BaseHinter.IsValid(BaseNodeConnInfoHint.Type().Bytes()); err != nil {
 		return e.Wrap(err)
 	}
 
-	if err := network.IsValidAddr(n.addr); err != nil {
+	if err := n.NamedConnInfo.IsValid(nil); err != nil {
 		return e.Wrap(err)
 	}
 
 	return nil
 }
 
-func (n BaseNodeConnInfo) ConnInfo() (quicstream.UDPConnInfo, error) {
-	return quicstream.NewUDPConnInfoFromStringAddress(n.addr, n.tlsinsecure)
+type connInfoJSONMarshaler struct {
+	ConnInfo quicmemberlist.NamedConnInfo `json:"conn_info"`
 }
 
-type baseConnInfoJSONMarshaler struct {
-	ConnInfo string `json:"conn_info"`
-}
-
-func (n BaseNodeConnInfo) MarshalJSON() ([]byte, error) {
+func (n NodeConnInfo) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
-		baseConnInfoJSONMarshaler
+		connInfoJSONMarshaler
 		base.BaseNodeJSONMarshaler
 	}{
 		BaseNodeJSONMarshaler: base.BaseNodeJSONMarshaler{
@@ -85,26 +67,26 @@ func (n BaseNodeConnInfo) MarshalJSON() ([]byte, error) {
 			Publickey:  n.BaseNode.Publickey(),
 			BaseHinter: n.BaseHinter,
 		},
-		baseConnInfoJSONMarshaler: baseConnInfoJSONMarshaler{
-			ConnInfo: network.ConnInfoToString(n.addr, n.tlsinsecure),
+		connInfoJSONMarshaler: connInfoJSONMarshaler{
+			ConnInfo: n.NamedConnInfo,
 		},
 	})
 }
 
-func (n *BaseNodeConnInfo) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (n *NodeConnInfo) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	e := util.StringErrorFunc("failed to decode BaseNodeConnInfo")
 
 	if err := n.BaseNode.DecodeJSON(b, enc); err != nil {
 		return e(err, "")
 	}
 
-	var u baseConnInfoJSONMarshaler
+	var u connInfoJSONMarshaler
 
 	if err := util.UnmarshalJSON(b, &u); err != nil {
 		return e(err, "")
 	}
 
-	n.addr, n.tlsinsecure = network.ParseTLSInsecure(u.ConnInfo)
+	n.NamedConnInfo = u.ConnInfo
 
 	return nil
 }
@@ -223,15 +205,15 @@ func (c *NodeConnInfoChecker) check(ctx context.Context) ([]isaac.NodeConnInfo, 
 					return false
 				}
 
-				aci := a.(isaac.NodeConnInfo) //nolint:forcetypeassert //...
+				aci := a.(NodeConnInfo) //nolint:forcetypeassert //...
 
 				return !aci.Address().Equal(c.local.Address())
 			}),
 			ncis,
 			func(a, b interface{}) bool {
-				aci := a.(isaac.NodeConnInfo) //nolint:forcetypeassert //...
+				aci := a.(NodeConnInfo) //nolint:forcetypeassert //...
 
-				bci := b.(isaac.NodeConnInfo) //nolint:forcetypeassert //...
+				bci := b.(NodeConnInfo) //nolint:forcetypeassert //...
 
 				return aci.Address().Equal(bci.Address())
 			})
@@ -243,7 +225,7 @@ func (c *NodeConnInfoChecker) check(ctx context.Context) ([]isaac.NodeConnInfo, 
 		copy(dest, ncis)
 
 		for j := range found {
-			dest[len(ncis)+j] = found[j].(isaac.NodeConnInfo) //nolint:forcetypeassert //...
+			dest[len(ncis)+j] = found[j].(NodeConnInfo) //nolint:forcetypeassert //...
 		}
 
 		ncis = dest
@@ -256,7 +238,7 @@ func (c *NodeConnInfoChecker) fetch(ctx context.Context, info interface{}) (ncis
 	e := util.StringErrorFunc("failed to fetch NodeConnInfos")
 
 	switch t := info.(type) {
-	case isaac.NodeConnInfo:
+	case NodeConnInfo:
 		ncis = []isaac.NodeConnInfo{t}
 	case quicstream.UDPConnInfo:
 		ncis, err = c.client.SuffrageNodeConnInfo(ctx, t)
@@ -382,7 +364,7 @@ func (c *NodeConnInfoChecker) validate(ctx context.Context, nci isaac.NodeConnIn
 		return e(err, "")
 	}
 
-	ci, err := nci.ConnInfo()
+	ci, err := nci.UDPConnInfo()
 
 	var dnserr *net.DNSError
 

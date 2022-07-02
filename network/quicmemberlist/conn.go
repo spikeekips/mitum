@@ -29,7 +29,6 @@ func (a NamedAddr) String() string {
 
 type NamedConnInfo struct {
 	addr        NamedAddr
-	udpconninfo quicstream.UDPConnInfo
 	tlsinsecure bool
 }
 
@@ -39,15 +38,13 @@ func NewNamedConnInfo(addr string, tlsinsecure bool) NamedConnInfo {
 	}
 }
 
-func (c *NamedConnInfo) UDPConnInfo() (ci quicstream.UDPConnInfo, _ error) {
+func (c NamedConnInfo) UDPConnInfo() (ci quicstream.UDPConnInfo, _ error) {
 	udp, err := net.ResolveUDPAddr("udp", c.addr.String())
 	if err != nil {
 		return ci, errors.Wrap(err, "failed to resolve NamedConnInfo")
 	}
 
-	c.udpconninfo = quicstream.NewUDPConnInfo(udp, c.tlsinsecure)
-
-	return c.udpconninfo, nil
+	return quicstream.NewUDPConnInfo(udp, c.tlsinsecure), nil
 }
 
 func (c NamedConnInfo) Addr() net.Addr {

@@ -10,7 +10,7 @@ import (
 )
 
 type baseCommand struct {
-	enc  encoder.Encoder
+	enc  *jsonenc.Encoder
 	encs *encoder.Encoders
 }
 
@@ -40,8 +40,7 @@ type baseNodeCommand struct {
 }
 
 func (cmd *baseNodeCommand) prepareDesigns() error {
-	switch d, b, err := launch.NodeDesignFromFile( //nolint:forcetypeassert //...
-		cmd.Design, cmd.enc.(*jsonenc.Encoder)); {
+	switch d, b, err := launch.NodeDesignFromFile(cmd.Design, cmd.enc); {
 	case err != nil:
 		return err
 	default:

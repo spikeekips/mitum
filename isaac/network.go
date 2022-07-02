@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 )
@@ -38,5 +39,6 @@ type NetworkResponseHeader interface {
 
 type NodeConnInfo interface {
 	base.Node
-	ConnInfo() (quicstream.UDPConnInfo, error)
+	network.ConnInfo
+	UDPConnInfo() (quicstream.UDPConnInfo, error)
 }

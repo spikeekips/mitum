@@ -14,6 +14,7 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
+	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -29,20 +30,23 @@ type testNodeConnInfo struct {
 func (t *testNodeConnInfo) TestNew() {
 	node := base.NewBaseNode(isaac.NodeHint, base.NewMPrivatekey().Publickey(), base.RandomAddress("local-"))
 
-	nci := NewBaseNodeConnInfo(node, "127.0.0.1:1234", true)
+	nci := NewNodeConnInfo(node, "127.0.0.1:1234", true)
 
 	t.NoError(nci.IsValid(nil))
+
+	_ = (interface{})(nci).(base.Node)
+	_ = (interface{})(nci).(network.ConnInfo)
 }
 
 func (t *testNodeConnInfo) TestInvalid() {
 	t.Run("wrong ip", func() {
 		node := base.NewBaseNode(isaac.NodeHint, base.NewMPrivatekey().Publickey(), base.RandomAddress("local-"))
 
-		nci := NewBaseNodeConnInfo(node, "1.2.3.500:1234", true)
+		nci := NewNodeConnInfo(node, "1.2.3.500:1234", true)
 
 		t.NoError(nci.IsValid(nil))
 
-		_, err := nci.ConnInfo()
+		_, err := nci.UDPConnInfo()
 		t.Error(err)
 
 		var dnserr *net.DNSError
@@ -52,11 +56,11 @@ func (t *testNodeConnInfo) TestInvalid() {
 	t.Run("dns error", func() {
 		node := base.NewBaseNode(isaac.NodeHint, base.NewMPrivatekey().Publickey(), base.RandomAddress("local-"))
 
-		nci := NewBaseNodeConnInfo(node, "a.b.c.d:1234", true)
+		nci := NewNodeConnInfo(node, "a.b.c.d:1234", true)
 
 		t.NoError(nci.IsValid(nil))
 
-		_, err := nci.ConnInfo()
+		_, err := nci.UDPConnInfo()
 		t.Error(err)
 
 		var dnserr *net.DNSError
@@ -66,7 +70,7 @@ func (t *testNodeConnInfo) TestInvalid() {
 	t.Run("empty host", func() {
 		node := base.NewBaseNode(isaac.NodeHint, base.NewMPrivatekey().Publickey(), base.RandomAddress("local-"))
 
-		nci := NewBaseNodeConnInfo(node, ":1234", true)
+		nci := NewNodeConnInfo(node, ":1234", true)
 
 		err := nci.IsValid(nil)
 		t.Error(err)
@@ -76,7 +80,7 @@ func (t *testNodeConnInfo) TestInvalid() {
 	t.Run("empty port", func() {
 		node := base.NewBaseNode(isaac.NodeHint, base.NewMPrivatekey().Publickey(), base.RandomAddress("local-"))
 
-		nci := NewBaseNodeConnInfo(node, "a.b.c.d", true)
+		nci := NewNodeConnInfo(node, "a.b.c.d", true)
 
 		err := nci.IsValid(nil)
 		t.Error(err)
@@ -96,11 +100,11 @@ func TestBaseNodeConnInfoEncode(t *testing.T) {
 	tt.Encode = func() (interface{}, []byte) {
 		tt.NoError(enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
 		tt.NoError(enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
-		tt.NoError(enc.Add(encoder.DecodeDetail{Hint: BaseNodeConnInfoHint, Instance: BaseNodeConnInfo{}}))
+		tt.NoError(enc.Add(encoder.DecodeDetail{Hint: BaseNodeConnInfoHint, Instance: NodeConnInfo{}}))
 
 		node := base.RandomNode()
 
-		nc := NewBaseNodeConnInfo(node, "1.2.3.4:4321", true)
+		nc := NewNodeConnInfo(node, "1.2.3.4:4321", true)
 		_ = (interface{})(nc).(isaac.NodeConnInfo)
 
 		b, err := enc.Marshal(nc)
@@ -111,24 +115,19 @@ func TestBaseNodeConnInfoEncode(t *testing.T) {
 		return nc, b
 	}
 	tt.Decode = func(b []byte) interface{} {
-		var u BaseNodeConnInfo
+		var u NodeConnInfo
 
 		tt.NoError(encoder.Decode(enc, b, &u))
 
 		return u
 	}
 	tt.Compare = func(a interface{}, b interface{}) {
-		ap := a.(BaseNodeConnInfo)
-		bp := b.(BaseNodeConnInfo)
+		ap := a.(NodeConnInfo)
+		bp := b.(NodeConnInfo)
 
 		tt.True(base.IsEqualNode(ap, bp))
 
-		aci, err := ap.ConnInfo()
-		tt.NoError(err)
-		bci, err := bp.ConnInfo()
-		tt.NoError(err)
-
-		tt.Equal(aci.String(), bci.String())
+		tt.Equal(ap.String(), bp.String())
 	}
 
 	suite.Run(t, tt)
@@ -150,7 +149,7 @@ func (t *testNodeConnInfoChecker) SetupSuite() {
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: NodeChallengeRequestHeaderHint, Instance: NodeChallengeRequestHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ResponseHeaderHint, Instance: ResponseHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: SuffrageNodeConnInfoRequestHeaderHint, Instance: SuffrageNodeConnInfoRequestHeader{}}))
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: BaseNodeConnInfoHint, Instance: BaseNodeConnInfo{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: BaseNodeConnInfoHint, Instance: NodeConnInfo{}}))
 }
 
 func (t *testNodeConnInfoChecker) clientWritef(handlers map[string]*QuicstreamHandlers) func(ctx context.Context, ci quicstream.UDPConnInfo, f quicstream.ClientWriteFunc) (io.ReadCloser, func() error, error) {
@@ -197,7 +196,7 @@ func (t *testNodeConnInfoChecker) ncis(n int) ([]isaac.LocalNode, []isaac.NodeCo
 		ci := quicstream.RandomConnInfo()
 
 		locals[i] = local
-		ncis[i] = NewBaseNodeConnInfo(local.BaseNode, ci.UDPAddr().String(), ci.TLSInsecure())
+		ncis[i] = NewNodeConnInfo(local.BaseNode, ci.UDPAddr().String(), ci.TLSInsecure())
 	}
 
 	return locals, ncis
@@ -209,7 +208,7 @@ func (t *testNodeConnInfoChecker) handlers(n int) ([]isaac.NodeConnInfo, map[str
 	locals, ncis := t.ncis(n)
 
 	for i := range ncis {
-		ci, err := ncis[i].ConnInfo()
+		ci, err := ncis[i].UDPConnInfo()
 		t.NoError(err)
 
 		handlers[ci.String()] = NewQuicstreamHandlers(locals[i], t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil, nil)
@@ -225,7 +224,7 @@ func (t *testNodeConnInfoChecker) TestFetchFromNode() {
 		node := isaac.RandomLocalNode()
 		ci := quicstream.RandomConnInfo()
 
-		ncis = append(ncis, NewBaseNodeConnInfo(node.BaseNode, ci.UDPAddr().String(), ci.TLSInsecure()))
+		ncis = append(ncis, NewNodeConnInfo(node.BaseNode, ci.UDPAddr().String(), ci.TLSInsecure()))
 	}
 
 	local := isaac.RandomLocalNode()
@@ -249,12 +248,11 @@ func (t *testNodeConnInfoChecker) TestFetchFromNode() {
 	t.Equal(len(ncis), len(ucis))
 
 	for i := range ncis {
-		ac := ncis[i].(BaseNodeConnInfo)
-		bc := ucis[i].(BaseNodeConnInfo)
+		ac := ncis[i].(NodeConnInfo)
+		bc := ucis[i].(NodeConnInfo)
 
 		t.True(base.IsEqualNode(ac, bc))
-		t.Equal(ac.addr, bc.addr)
-		t.Equal(ac.tlsinsecure, bc.tlsinsecure)
+		t.Equal(ac.String(), bc.String())
 	}
 }
 
@@ -264,7 +262,7 @@ func (t *testNodeConnInfoChecker) TestFetchFromNodeButFailedToSignature() {
 	{ // NOTE add unknown node to []isaac.NodeConnInfo
 		node := isaac.RandomLocalNode()
 		ci := quicstream.RandomConnInfo()
-		ncis = append(ncis, NewBaseNodeConnInfo(node.BaseNode, ci.UDPAddr().String(), ci.TLSInsecure()))
+		ncis = append(ncis, NewNodeConnInfo(node.BaseNode, ci.UDPAddr().String(), ci.TLSInsecure()))
 
 		handlers[ci.String()] = NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil, nil)
 		// NOTE with t.Local insteadd of node
@@ -330,12 +328,11 @@ func (t *testNodeConnInfoChecker) TestFetchFromURL() {
 	t.Equal(len(ncis), len(ucis))
 
 	for i := range ncis {
-		ac := ncis[i].(BaseNodeConnInfo)
-		bc := ucis[i].(BaseNodeConnInfo)
+		ac := ncis[i].(NodeConnInfo)
+		bc := ucis[i].(NodeConnInfo)
 
 		t.True(base.IsEqualNode(ac, bc))
-		t.Equal(ac.addr, bc.addr)
-		t.Equal(ac.tlsinsecure, bc.tlsinsecure)
+		t.Equal(ac.String(), bc.String())
 	}
 }
 
@@ -348,7 +345,7 @@ func (t *testNodeConnInfoChecker) TestCheckSameResult() {
 		node := isaac.RandomLocalNode()
 		ci := quicstream.RandomConnInfo()
 
-		ncislocal = append(ncislocal, NewBaseNodeConnInfo(node.BaseNode, ci.UDPAddr().String(), ci.TLSInsecure()))
+		ncislocal = append(ncislocal, NewNodeConnInfo(node.BaseNode, ci.UDPAddr().String(), ci.TLSInsecure()))
 	}
 	ncis := make([]isaac.NodeConnInfo, len(ncislocal)+len(ncisurl)-1)
 	copy(ncis, ncislocal)
@@ -390,19 +387,18 @@ func (t *testNodeConnInfoChecker) TestCheckSameResult() {
 	t.Equal(len(ncis), len(ucis))
 
 	for i := range ncis {
-		ac := ncis[i].(BaseNodeConnInfo)
-		bc := ucis[i].(BaseNodeConnInfo)
+		ac := ncis[i].(NodeConnInfo)
+		bc := ucis[i].(NodeConnInfo)
 
 		t.True(base.IsEqualNode(ac, bc))
-		t.Equal(ac.addr, bc.addr)
-		t.Equal(ac.tlsinsecure, bc.tlsinsecure)
+		t.Equal(ac.String(), bc.String())
 	}
 }
 
 func (t *testNodeConnInfoChecker) TestCheckFilterLocal() {
 	ncis, handlers := t.handlers(3)
 
-	localci, err := ncis[1].ConnInfo()
+	localci, err := ncis[1].UDPConnInfo()
 	t.NoError(err)
 	local := handlers[localci.String()].local
 
@@ -410,7 +406,7 @@ func (t *testNodeConnInfoChecker) TestCheckFilterLocal() {
 		node := isaac.RandomLocalNode()
 		ci := quicstream.RandomConnInfo()
 
-		ncis = append(ncis, NewBaseNodeConnInfo(node.BaseNode, ci.UDPAddr().String(), ci.TLSInsecure()))
+		ncis = append(ncis, NewNodeConnInfo(node.BaseNode, ci.UDPAddr().String(), ci.TLSInsecure()))
 	}
 
 	handlers[localci.String()] = NewQuicstreamHandlers(local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil,
@@ -446,12 +442,11 @@ func (t *testNodeConnInfoChecker) TestCheckFilterLocal() {
 	t.Equal(len(nciswithoutlocal), len(ucis))
 
 	for i := range nciswithoutlocal {
-		ac := nciswithoutlocal[i].(BaseNodeConnInfo)
-		bc := ucis[i].(BaseNodeConnInfo)
+		ac := nciswithoutlocal[i].(NodeConnInfo)
+		bc := ucis[i].(NodeConnInfo)
 
 		t.True(base.IsEqualNode(ac, bc))
-		t.Equal(ac.addr, bc.addr)
-		t.Equal(ac.tlsinsecure, bc.tlsinsecure)
+		t.Equal(ac.String(), bc.String())
 	}
 }
 

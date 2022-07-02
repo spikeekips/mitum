@@ -6,7 +6,7 @@ import (
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 )
 
-func PrepareEncoders() (*encoder.Encoders, encoder.Encoder, error) {
+func PrepareEncoders() (*encoder.Encoders, *jsonenc.Encoder, error) {
 	e := util.StringErrorFunc("failed to prepare encoders")
 
 	encs := encoder.NewEncoders()
