@@ -3,6 +3,7 @@ package network
 import (
 	"fmt"
 	"net"
+	"net/url"
 	"strings"
 
 	"github.com/rs/zerolog"
@@ -16,13 +17,22 @@ type ConnInfo interface {
 	TLSInsecure() bool
 }
 
+func HasTLSInsecure(s string) bool {
+	v, err := url.ParseQuery(s)
+	if err != nil {
+		return false
+	}
+
+	return v.Has("tls_insecure")
+}
+
 func ParseTLSInsecure(s string) (string, bool) {
 	// FIXME parse url fragment
 	switch i := strings.Index(s, "#"); {
 	case i < 0:
 		return s, false
 	case len(s[i:]) > 0:
-		return s[:i], strings.ToLower(s[i+1:]) == "tls_insecure"
+		return s[:i], HasTLSInsecure(s[i+1:])
 	default:
 		return s[:i], false
 	}

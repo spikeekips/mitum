@@ -73,7 +73,7 @@ func (cmd *runCommand) Run() error {
 
 	exitch := make(chan error)
 
-	checker := isaacnetwork.NewNodeConnInfoChecker(
+	checker := isaacnetwork.NewTrustNodeChecker(
 		cmd.local,
 		cmd.nodePolicy.NetworkID(),
 		cmd.client,
