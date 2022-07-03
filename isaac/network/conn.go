@@ -26,8 +26,8 @@ import (
 var BaseNodeConnInfoHint = hint.MustNewHint("node-conninfo-v0.0.1")
 
 type NodeConnInfo struct {
-	base.BaseNode
 	quicmemberlist.NamedConnInfo
+	base.BaseNode
 }
 
 func NewNodeConnInfo(node base.BaseNode, addr string, tlsinsecure bool) NodeConnInfo {

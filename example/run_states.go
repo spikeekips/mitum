@@ -8,8 +8,6 @@ import (
 
 func (cmd *runCommand) prepareStates() error {
 	cmd.getSuffrage = cmd.getSuffrageFunc()
-	// FIXME cmd.getSuffrageBooting   func(blockheight base.Height)
-	// (base.Suffrage, bool, error); use suffrageStateBuilder
 	cmd.getManifest = cmd.getManifestFunc()
 	cmd.proposalSelector = cmd.proposalSelectorFunc()
 	cmd.getLastManifest = cmd.getLastManifestFunc()

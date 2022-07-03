@@ -35,10 +35,10 @@ type BaseNode struct {
 	joinedAt time.Time
 	addr     *net.UDPAddr
 	name     string
+	meta     nodeMeta
 	metab    []byte
+	publish  NamedConnInfo
 	hint.BaseHinter
-	meta    nodeMeta
-	publish NamedConnInfo
 }
 
 func NewNode(

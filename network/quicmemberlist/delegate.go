@@ -133,6 +133,7 @@ func (d *AliveDelegate) NotifyAlive(peer *memberlist.Node) error {
 	var willchallenge bool
 
 	nodekey := node.UDPAddr().String()
+
 	switch i, err := d.challengecache.Get(nodekey); {
 	case err != nil && errors.Is(err, gcache.KeyNotFoundError):
 		// NOTE challenge with node publickey

@@ -35,7 +35,7 @@ var DummySuffrageProofHint = hint.MustNewHint("dummy-suffrage-proof-v0.0.1")
 
 type DummySuffrageProof struct {
 	hint.BaseHinter
-	st State `json:"state"`
+	st State
 }
 
 var _ = (interface{})(DummySuffrageProof{}).(SuffrageProof)

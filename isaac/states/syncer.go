@@ -291,6 +291,7 @@ func (s *Syncer) prepareMaps(ctx context.Context, prev base.BlockMap, to base.He
 		uint64(s.batchlimit),
 		s.fetchMap,
 		func(m base.BlockMap) error {
+			// FIXME check voteproof first
 			if err := s.tempsyncpool.SetBlockMap(m); err != nil {
 				return err
 			}

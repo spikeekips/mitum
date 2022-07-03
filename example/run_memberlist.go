@@ -156,7 +156,7 @@ func (cmd *runCommand) nodeChallengeFunc() func(quicmemberlist.Node) error {
 			return e(err, "invalid publish conninfo")
 		}
 
-		if err := util.CheckIsValid(nil, false, node.Publickey()); err != nil {
+		if err = util.CheckIsValid(nil, false, node.Publickey()); err != nil {
 			return e(err, "invalid memberlist node publickey")
 		}
 

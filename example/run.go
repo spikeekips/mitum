@@ -34,7 +34,6 @@ type runCommand struct { //nolint:govet //...
 	getSuffrage          func(blockheight base.Height) (base.Suffrage, bool, error)
 	newProposalProcessor newProposalProcessorFunc
 	getLastManifest      func() (base.Manifest, bool, error)
-	getSuffrageBooting   func(blockheight base.Height) (base.Suffrage, bool, error)
 	states               *isaacstates.States
 	memberlist           *quicmemberlist.Memberlist
 	getManifest          func(height base.Height) (base.Manifest, error)

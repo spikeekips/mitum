@@ -19,7 +19,7 @@ type NamedAddr struct {
 	addr string
 }
 
-func (a NamedAddr) Network() string {
+func (NamedAddr) Network() string {
 	return "udp"
 }
 
