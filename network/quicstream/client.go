@@ -81,7 +81,7 @@ func (c *Client) Dial(ctx context.Context) (quic.EarlyConnection, error) {
 func (c *Client) Write(ctx context.Context, f ClientWriteFunc) (quic.Stream, error) {
 	r, err := c.write(ctx, f)
 	if err != nil {
-		if isNetworkError(err) {
+		if IsNetworkError(err) {
 			_ = c.session.Empty()
 		}
 
@@ -151,7 +151,7 @@ func dial(
 	return c, errors.WithStack(err)
 }
 
-func isNetworkError(err error) bool {
+func IsNetworkError(err error) bool {
 	if err == nil {
 		return false
 	}

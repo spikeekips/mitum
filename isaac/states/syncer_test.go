@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -443,6 +444,58 @@ func (t *testSyncer) TestFetchMaps() {
 			t.NoError(s.Err())
 		}
 	})
+
+	t.Run("fetch error; retry", func() {
+		to := base.Height(5)
+		maps := t.maps(base.GenesisHeight, to)
+
+		var called int64
+
+		s, err := NewSyncer(
+			t.Root,
+			func(base.Height) (_ isaac.BlockWriteDatabase, merge func(context.Context) error, _ error) {
+				return nil, func(context.Context) error { return nil }, nil
+			},
+			t.dummyNewBlockImporterFunc(),
+			maps[0],
+			nil,
+			func(_ context.Context, height base.Height) (base.BlockMap, bool, error) {
+				index := (height - base.GenesisHeight).Int64()
+				if index < 0 || index >= int64(len(maps)) {
+					return nil, false, nil
+				}
+
+				if index == 3 {
+					atomic.AddInt64(&called, 1)
+				}
+
+				if index == 3 && atomic.LoadInt64(&called) < 3 {
+					return nil, false, isaac.ErrRetrySyncSources.Errorf("hehehe")
+				}
+
+				return maps[index], true, nil
+			},
+			t.dummyBlockMapItemFunc(),
+			isaacdatabase.NewMemTempSyncPool(),
+			t.dummySetLastVoteproofs(),
+		)
+		t.NoError(err)
+		t.NoError(s.Start())
+		defer s.Cancel()
+
+		s.retryInterval = time.Millisecond * 10
+
+		t.True(s.Add(to))
+
+		select {
+		case <-time.After(time.Second * 3):
+			t.NoError(errors.Errorf("waits to be finished, but not"))
+		case height := <-s.Finished():
+			t.Equal(to, height)
+
+			t.True(atomic.LoadInt64(&called) > 2)
+		}
+	})
 }
 
 func (t *testSyncer) TestFetchBlockItem() {
@@ -475,6 +528,7 @@ func (t *testSyncer) TestFetchBlockItem() {
 	t.NoError(err)
 
 	s.batchlimit = 2
+
 	t.NoError(s.Start())
 	defer s.Cancel()
 

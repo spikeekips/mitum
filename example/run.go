@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -42,6 +41,8 @@ type runCommand struct { //nolint:govet //...
 	ballotbox            *isaacstates.Ballotbox
 	quicstreamserver     *quicstream.Server
 	discoveries          []quicstream.UDPConnInfo
+	syncSourceChecker    *isaacnetwork.SyncSourceChecker
+	syncSources          *util.Locked
 }
 
 func (cmd *runCommand) Run() error {
@@ -67,30 +68,16 @@ func (cmd *runCommand) Run() error {
 		return err
 	}
 
-	defer func() {
-		_ = cmd.memberlist.Stop()
-	}()
-
-	exitch := make(chan error)
-
-	checker := isaacnetwork.NewSyncSourceChecker(
-		cmd.local,
-		cmd.nodePolicy.NetworkID(),
-		cmd.client,
-		time.Second*30, //nolint:gomnd //... // FIXME config
-		cmd.enc,
-		nil, // FIXME set cis
-		cmd.checkNodeConnInfoFunc(exitch),
-	)
-	_ = checker.SetLogging(logging)
-
-	if err := checker.Start(); err != nil {
+	if err := cmd.syncSourceChecker.Start(); err != nil {
 		return err
 	}
 
 	defer func() {
-		_ = checker.Stop()
+		_ = cmd.syncSourceChecker.Stop()
+		_ = cmd.memberlist.Stop()
 	}()
+
+	exitch := make(chan error)
 
 	if !cmd.Hold {
 		go func() {

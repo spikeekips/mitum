@@ -3,6 +3,7 @@ package isaacstates
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -18,6 +19,7 @@ type SuffrageStateBuilder struct {
 	getSuffrageProof  func(_ context.Context, suffrageheight base.Height) (base.SuffrageProof, bool, error)
 	networkID         base.NetworkID
 	batchlimit        uint64
+	retryInterval     time.Duration
 }
 
 func NewSuffrageStateBuilder(
@@ -30,6 +32,7 @@ func NewSuffrageStateBuilder(
 		lastSuffrageProof: lastSuffrageProof,
 		getSuffrageProof:  getSuffrageProof,
 		batchlimit:        333, //nolint:gomnd //...
+		retryInterval:     time.Second * 3,
 	}
 }
 
@@ -59,7 +62,7 @@ func (s *SuffrageStateBuilder) Build(ctx context.Context, localstate base.State)
 	var suf base.Suffrage
 	var last base.State
 
-	switch proof, updated, err := s.lastSuffrageProof(ctx); {
+	switch proof, updated, err := s.retryLastSuffrageProof(ctx); {
 	case err != nil:
 		return nil, e(err, "")
 	case !updated:
@@ -134,7 +137,7 @@ func (s *SuffrageStateBuilder) buildBatch(
 		func(_ context.Context, i, last uint64) error {
 			height := base.Height(int64(i)) + from
 
-			proof, found, err := s.getSuffrageProof(ctx, height)
+			proof, found, err := s.retryGetSuffrageProof(ctx, height)
 
 			switch {
 			case err != nil:
@@ -206,4 +209,56 @@ func (*SuffrageStateBuilder) prove(
 	}
 
 	return nil
+}
+
+func (s *SuffrageStateBuilder) retryLastSuffrageProof(
+	ctx context.Context,
+) (proof base.SuffrageProof, found bool, _ error) {
+	if err := isaac.RetrySyncSource(
+		ctx,
+		func() (bool, error) {
+			i, j, err := s.lastSuffrageProof(ctx)
+
+			if err == nil {
+				proof = i
+				found = j
+
+				return false, nil
+			}
+
+			return false, err
+		},
+		-1,
+		s.retryInterval,
+	); err != nil {
+		return proof, false, err
+	}
+
+	return proof, found, nil
+}
+
+func (s *SuffrageStateBuilder) retryGetSuffrageProof(
+	ctx context.Context, height base.Height,
+) (proof base.SuffrageProof, found bool, _ error) {
+	if err := isaac.RetrySyncSource(
+		ctx,
+		func() (bool, error) {
+			i, j, err := s.getSuffrageProof(ctx, height)
+
+			if err == nil {
+				proof = i
+				found = j
+
+				return false, nil
+			}
+
+			return false, err
+		},
+		-1,
+		s.retryInterval,
+	); err != nil {
+		return proof, false, err
+	}
+
+	return proof, found, nil
 }

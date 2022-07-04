@@ -48,6 +48,8 @@ type Syncer struct {
 	root                  string
 	batchlimit            int64
 	lastBlockMapInterval  time.Duration
+	lastBlockMapTimeout   time.Duration
+	retryInterval         time.Duration
 	cancelonece           sync.Once
 }
 
@@ -105,6 +107,8 @@ func NewSyncer(
 		startsyncch:            make(chan base.Height),
 		setLastVoteproofsFunc:  setLastVoteproofsFunc,
 		lastBlockMapInterval:   time.Second * 2, //nolint:gomnd //...
+		lastBlockMapTimeout:    time.Second * 2, //nolint:gomnd //...
+		retryInterval:          time.Second * 3, //nolint:gomnd //...
 	}
 
 	s.ContextDaemon = util.NewContextDaemon(s.start)
@@ -235,11 +239,8 @@ func (s *Syncer) prevheight() base.Height {
 }
 
 func (s *Syncer) sync(ctx context.Context, prev base.BlockMap, to base.Height) { // revive:disable-line:import-shadowing
-	var err error
-	_, _ = s.doneerr.Set(func(i interface{}) (interface{}, error) {
-		var newprev base.BlockMap
-
-		newprev, err = s.doSync(ctx, prev, to)
+	err, _ := s.doneerr.Set(func(i interface{}) (interface{}, error) {
+		newprev, err := s.doSync(ctx, prev, to)
 		if err != nil {
 			return err, nil
 		}
@@ -312,7 +313,7 @@ func (s *Syncer) prepareMaps(ctx context.Context, prev base.BlockMap, to base.He
 func (s *Syncer) fetchMap(ctx context.Context, height base.Height) (base.BlockMap, error) {
 	e := util.StringErrorFunc("failed to fetch BlockMap")
 
-	switch m, found, err := s.blockMapf(ctx, height); {
+	switch m, found, err := s.retryBlockMap(ctx, height); {
 	case err != nil:
 		return nil, e(err, "")
 	case !found:
@@ -335,7 +336,7 @@ func (s *Syncer) syncBlocks(ctx context.Context, prev base.BlockMap, to base.Hei
 		from, to,
 		s.batchlimit,
 		s.tempsyncpool.BlockMap,
-		s.blockMapItemf,
+		s.retryBlockMapItem,
 		s.newBlockWriteDatabasef,
 		func(m base.BlockMap, bwdb isaac.BlockWriteDatabase) (isaac.BlockImporter, error) {
 			return s.newBlockImporter(s.root, m, bwdb)
@@ -371,12 +372,13 @@ end:
 
 				top := s.top()
 
-				nctx, cancel := context.WithTimeout(ctx, s.lastBlockMapInterval)
+				nctx, cancel := context.WithTimeout(ctx, s.lastBlockMapTimeout)
 				defer cancel()
 
-				switch m, updated, err := s.lastBlockMapf(nctx, last); {
+				switch m, updated, err := s.retryLastBlockMap(nctx, last); {
 				case err != nil:
 					s.Log().Error().Err(err).Msg("failed to update last BlockMap")
+
 					return nil, nil
 				case !updated:
 					go func() {
@@ -395,4 +397,78 @@ end:
 			}
 		}
 	}
+}
+
+func (s *Syncer) retryLastBlockMap(ctx context.Context, manifest util.Hash) (
+	m base.BlockMap, updated bool, _ error,
+) {
+	if err := isaac.RetrySyncSource(
+		ctx,
+		func() (bool, error) {
+			i, j, err := s.lastBlockMapf(ctx, manifest)
+			if err == nil {
+				m = i
+				updated = j
+
+				return false, nil
+			}
+
+			return false, err
+		},
+		-1, //nolint:gomnd // nolimit
+		s.retryInterval,
+	); err != nil {
+		return nil, false, err
+	}
+
+	return m, updated, nil
+}
+
+func (s *Syncer) retryBlockMap(ctx context.Context, height base.Height) (m base.BlockMap, found bool, _ error) {
+	if err := isaac.RetrySyncSource(
+		ctx,
+		func() (bool, error) {
+			i, j, err := s.blockMapf(ctx, height)
+			if err == nil {
+				m = i
+				found = j
+
+				return false, nil
+			}
+
+			return false, err
+		},
+		-1, //nolint:gomnd // nolimit
+		s.retryInterval,
+	); err != nil {
+		return nil, false, err
+	}
+
+	return m, found, nil
+}
+
+func (s *Syncer) retryBlockMapItem(
+	ctx context.Context, height base.Height, t base.BlockMapItemType,
+) (r io.ReadCloser, f func() error, found bool, _ error) {
+	if err := isaac.RetrySyncSource(
+		ctx,
+		func() (bool, error) {
+			i, j, k, err := s.blockMapItemf(ctx, height, t)
+			if err == nil {
+				r = i
+				f = j
+				found = k
+
+				return false, nil
+			}
+
+			return false, err
+		},
+		-1, //nolint:gomnd // nolimit
+		s.retryInterval,
+	); err != nil {
+		return nil, nil, false, err
+	}
+
+	return r, f, found, nil
 }

@@ -100,7 +100,7 @@ func (p *PoolClient) Write(
 }
 
 func (p *PoolClient) onerror(addr *net.UDPAddr, c *Client, err error) {
-	if !isNetworkError(err) {
+	if !IsNetworkError(err) {
 		return
 	}
 

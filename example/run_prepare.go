@@ -10,6 +10,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
+	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/network/quicstream"
@@ -47,6 +48,10 @@ func (cmd *runCommand) prepare() (func() error, error) {
 		return stop, e(err, "")
 	}
 
+	if err := cmd.prepareSyncSourceChecker(); err != nil {
+		return stop, e(err, "")
+	}
+
 	switch i, err := cmd.prepareProfiling(); {
 	case err != nil:
 		return stop, e(err, "")
@@ -57,6 +62,8 @@ func (cmd *runCommand) prepare() (func() error, error) {
 	if err := cmd.prepareStates(); err != nil {
 		return nil, err
 	}
+
+	cmd.syncSources = util.EmptyLocked()
 
 	return stop, nil
 }
@@ -203,4 +210,19 @@ func (cmd *runCommand) prepareSuffrageStateBuilder() {
 			return proof, found, err
 		},
 	)
+}
+
+func (cmd *runCommand) prepareSyncSourceChecker() error {
+	cmd.syncSourceChecker = isaacnetwork.NewSyncSourceChecker(
+		cmd.local,
+		cmd.nodePolicy.NetworkID(),
+		cmd.client,
+		time.Second*30, //nolint:gomnd //... // FIXME config
+		cmd.enc,
+		nil, // FIXME set cis
+		cmd.updateSyncSources,
+	)
+	_ = cmd.syncSourceChecker.SetLogging(logging)
+
+	return nil
 }

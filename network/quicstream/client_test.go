@@ -41,7 +41,7 @@ func (t *testClient) TestSessionRemove() {
 		_, err := client.Write(context.Background(), DefaultClientWriteFunc(util.UUID().Bytes()))
 		t.Error(err)
 
-		t.True(isNetworkError(err))
+		t.True(IsNetworkError(err))
 
 		i, isnil := client.session.Value()
 		t.True(isnil)
@@ -75,7 +75,7 @@ func (t *testClient) TestSessionRemove() {
 func (t *testClient) TestIsNetworkError() {
 	t.Run("not", func() {
 		err := errors.Errorf("showme")
-		t.False(isNetworkError(err))
+		t.False(IsNetworkError(err))
 	})
 
 	t.Run("quic.ApplicationError", func() {
@@ -85,7 +85,7 @@ func (t *testClient) TestIsNetworkError() {
 			ErrorMessage: "findme",
 		}
 
-		t.True(isNetworkError(err))
+		t.True(IsNetworkError(err))
 	})
 
 	t.Run("net.Error", func() {
@@ -94,7 +94,7 @@ func (t *testClient) TestIsNetworkError() {
 			Text: "b",
 		}
 
-		t.True(isNetworkError(err))
+		t.True(IsNetworkError(err))
 	})
 
 	t.Run("net.OpError", func() {
@@ -106,7 +106,7 @@ func (t *testClient) TestIsNetworkError() {
 			Err:    errors.Errorf("eatme"),
 		}
 
-		t.True(isNetworkError(err))
+		t.True(IsNetworkError(err))
 	})
 }
 
