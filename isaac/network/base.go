@@ -21,6 +21,7 @@ var (
 	HandlerPrefixMemberlist           = "memberlist"
 	HandlerPrefixNodeChallenge        = "node_challenge"
 	HandlerPrefixSuffrageNodeConnInfo = "suffrage_node_conninfo"
+	HandlerPrefixSyncSourceConnInfo   = "sync_source_conninfo"
 )
 
 type baseNetwork struct {

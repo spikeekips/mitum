@@ -21,26 +21,27 @@ import (
 	"go.uber.org/goleak"
 )
 
-type testTrustNodeChecker struct {
+type testSyncSourceChecker struct {
 	isaacdatabase.BaseTestDatabase
 	isaac.BaseTestBallots
 }
 
-func (t *testTrustNodeChecker) SetupTest() {
+func (t *testSyncSourceChecker) SetupTest() {
 	t.BaseTestDatabase.SetupTest()
 	t.BaseTestBallots.SetupTest()
 }
 
-func (t *testTrustNodeChecker) SetupSuite() {
+func (t *testSyncSourceChecker) SetupSuite() {
 	t.BaseTestDatabase.SetupSuite()
 
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: NodeChallengeRequestHeaderHint, Instance: NodeChallengeRequestHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ResponseHeaderHint, Instance: ResponseHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: SuffrageNodeConnInfoRequestHeaderHint, Instance: SuffrageNodeConnInfoRequestHeader{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: SyncSourceConnInfoRequestHeaderHint, Instance: SyncSourceConnInfoRequestHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: BaseNodeConnInfoHint, Instance: NodeConnInfo{}}))
 }
 
-func (t *testTrustNodeChecker) clientWritef(handlers map[string]*QuicstreamHandlers) func(ctx context.Context, ci quicstream.UDPConnInfo, f quicstream.ClientWriteFunc) (io.ReadCloser, func() error, error) {
+func (t *testSyncSourceChecker) clientWritef(handlers map[string]*QuicstreamHandlers) func(ctx context.Context, ci quicstream.UDPConnInfo, f quicstream.ClientWriteFunc) (io.ReadCloser, func() error, error) {
 	return func(ctx context.Context, ci quicstream.UDPConnInfo, f quicstream.ClientWriteFunc) (io.ReadCloser, func() error, error) {
 		r := bytes.NewBuffer(nil)
 		if err := f(r); err != nil {
@@ -61,6 +62,8 @@ func (t *testTrustNodeChecker) clientWritef(handlers map[string]*QuicstreamHandl
 		switch {
 		case bytes.Equal(uprefix, quicstream.HashPrefix(HandlerPrefixSuffrageNodeConnInfo)):
 			handler = handlers[ci.String()].SuffrageNodeConnInfo
+		case bytes.Equal(uprefix, quicstream.HashPrefix(HandlerPrefixSyncSourceConnInfo)):
+			handler = handlers[ci.String()].SyncSourceConnInfo
 		case bytes.Equal(uprefix, quicstream.HashPrefix(HandlerPrefixNodeChallenge)):
 			handler = handlers[ci.String()].NodeChallenge
 		default:
@@ -76,7 +79,7 @@ func (t *testTrustNodeChecker) clientWritef(handlers map[string]*QuicstreamHandl
 	}
 }
 
-func (t *testTrustNodeChecker) ncis(n int) ([]isaac.LocalNode, []isaac.NodeConnInfo) {
+func (t *testSyncSourceChecker) ncis(n int) ([]isaac.LocalNode, []isaac.NodeConnInfo) {
 	locals := make([]isaac.LocalNode, n)
 	ncis := make([]isaac.NodeConnInfo, n)
 	for i := range ncis {
@@ -90,7 +93,7 @@ func (t *testTrustNodeChecker) ncis(n int) ([]isaac.LocalNode, []isaac.NodeConnI
 	return locals, ncis
 }
 
-func (t *testTrustNodeChecker) handlers(n int) ([]isaac.NodeConnInfo, map[string]*QuicstreamHandlers) {
+func (t *testSyncSourceChecker) handlers(n int) ([]isaac.NodeConnInfo, map[string]*QuicstreamHandlers) {
 	handlers := map[string]*QuicstreamHandlers{}
 
 	locals, ncis := t.ncis(n)
@@ -99,13 +102,13 @@ func (t *testTrustNodeChecker) handlers(n int) ([]isaac.NodeConnInfo, map[string
 		ci, err := ncis[i].UDPConnInfo()
 		t.NoError(err)
 
-		handlers[ci.String()] = NewQuicstreamHandlers(locals[i], t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil, nil)
+		handlers[ci.String()] = NewQuicstreamHandlers(locals[i], t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	}
 
 	return ncis, handlers
 }
 
-func (t *testTrustNodeChecker) TestFetchFromNode() {
+func (t *testSyncSourceChecker) TestFetchFromSuffrageNodes() {
 	ncis, handlers := t.handlers(3)
 
 	{ // NOTE add unknown node to []isaac.NodeConnInfo
@@ -122,16 +125,16 @@ func (t *testTrustNodeChecker) TestFetchFromNode() {
 		func() ([]isaac.NodeConnInfo, error) {
 			return ncis, nil
 		},
-	)
+		nil)
 
 	client := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.clientWritef(handlers))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	checker := NewTrustNodeChecker(local, t.NodePolicy.NetworkID(), client, time.Second, t.Enc, nil, nil)
+	checker := NewSyncSourceChecker(local, t.NodePolicy.NetworkID(), client, time.Second, t.Enc, nil, nil)
 
-	ucis, err := checker.fetch(ctx, localci)
+	ucis, err := checker.fetch(ctx, SyncSource{Type: SyncSourceTypeSuffrageNodes, Source: localci})
 	t.NoError(err)
 	t.Equal(len(ncis), len(ucis))
 
@@ -144,7 +147,46 @@ func (t *testTrustNodeChecker) TestFetchFromNode() {
 	}
 }
 
-func (t *testTrustNodeChecker) TestFetchFromNodeButFailedToSignature() {
+func (t *testSyncSourceChecker) TestFetchFromSyncSources() {
+	ncis, handlers := t.handlers(3)
+
+	{ // NOTE add unknown node to []isaac.NodeConnInfo
+		node := isaac.RandomLocalNode()
+		ci := quicstream.RandomConnInfo()
+
+		ncis = append(ncis, NewNodeConnInfo(node.BaseNode, ci.UDPAddr().String(), ci.TLSInsecure()))
+	}
+
+	local := isaac.RandomLocalNode()
+	localci := quicstream.RandomConnInfo()
+
+	handlers[localci.String()] = NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil, nil,
+		func() ([]isaac.NodeConnInfo, error) {
+			return ncis, nil
+		},
+	)
+
+	client := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.clientWritef(handlers))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	checker := NewSyncSourceChecker(local, t.NodePolicy.NetworkID(), client, time.Second, t.Enc, nil, nil)
+
+	ucis, err := checker.fetch(ctx, SyncSource{Type: SyncSourceTypeSyncSources, Source: localci})
+	t.NoError(err)
+	t.Equal(len(ncis), len(ucis))
+
+	for i := range ncis {
+		ac := ncis[i].(NodeConnInfo)
+		bc := ucis[i].(NodeConnInfo)
+
+		t.True(base.IsEqualNode(ac, bc))
+		t.Equal(ac.String(), bc.String())
+	}
+}
+
+func (t *testSyncSourceChecker) TestFetchFromNodeButFailedToSignature() {
 	ncis, handlers := t.handlers(2)
 
 	{ // NOTE add unknown node to []isaac.NodeConnInfo
@@ -152,7 +194,7 @@ func (t *testTrustNodeChecker) TestFetchFromNodeButFailedToSignature() {
 		ci := quicstream.RandomConnInfo()
 		ncis = append(ncis, NewNodeConnInfo(node.BaseNode, ci.UDPAddr().String(), ci.TLSInsecure()))
 
-		handlers[ci.String()] = NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil, nil)
+		handlers[ci.String()] = NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 		// NOTE with t.Local insteadd of node
 	}
 
@@ -163,23 +205,23 @@ func (t *testTrustNodeChecker) TestFetchFromNodeButFailedToSignature() {
 		func() ([]isaac.NodeConnInfo, error) {
 			return ncis, nil
 		},
-	)
+		nil)
 
 	client := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.clientWritef(handlers))
 
-	checker := NewTrustNodeChecker(local, t.NodePolicy.NetworkID(), client, time.Second, t.Enc, nil, nil)
+	checker := NewSyncSourceChecker(local, t.NodePolicy.NetworkID(), client, time.Second, t.Enc, nil, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	ucis, err := checker.fetch(ctx, localci)
+	ucis, err := checker.fetch(ctx, SyncSource{Type: SyncSourceTypeSuffrageNodes, Source: localci})
 	t.Error(err)
 	t.Nil(ucis)
 
 	t.True(errors.Is(err, base.SignatureVerificationError))
 }
 
-func (t *testTrustNodeChecker) httpserver(handler http.HandlerFunc) *httptest.Server {
+func (t *testSyncSourceChecker) httpserver(handler http.HandlerFunc) *httptest.Server {
 	ts := httptest.NewUnstartedServer(handler)
 	ts.EnableHTTP2 = true
 	ts.StartTLS()
@@ -187,7 +229,7 @@ func (t *testTrustNodeChecker) httpserver(handler http.HandlerFunc) *httptest.Se
 	return ts
 }
 
-func (t *testTrustNodeChecker) TestFetchFromURL() {
+func (t *testSyncSourceChecker) TestFetchFromURL() {
 	ncis, handlers := t.handlers(2)
 
 	client := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.clientWritef(handlers))
@@ -205,7 +247,7 @@ func (t *testTrustNodeChecker) TestFetchFromURL() {
 	defer ts.Close()
 
 	local := isaac.RandomLocalNode()
-	checker := NewTrustNodeChecker(local, t.NodePolicy.NetworkID(), client, time.Second, t.Enc, nil, nil)
+	checker := NewSyncSourceChecker(local, t.NodePolicy.NetworkID(), client, time.Second, t.Enc, nil, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -213,7 +255,7 @@ func (t *testTrustNodeChecker) TestFetchFromURL() {
 	u, _ := url.Parse(ts.URL)
 	u.Fragment = "tls_insecure"
 
-	ucis, err := checker.fetch(ctx, u)
+	ucis, err := checker.fetch(ctx, SyncSource{Type: SyncSourceTypeURL, Source: u})
 	t.NoError(err)
 	t.NotNil(ucis)
 	t.Equal(len(ncis), len(ucis))
@@ -227,7 +269,7 @@ func (t *testTrustNodeChecker) TestFetchFromURL() {
 	}
 }
 
-func (t *testTrustNodeChecker) TestCheckSameResult() {
+func (t *testSyncSourceChecker) TestCheckSameResult() {
 	ncislocal, handlers := t.handlers(3)
 	_, ncisurl := t.ncis(3)
 	ncisurl = append(ncisurl, ncislocal[0]) // NOTE duplicated
@@ -248,7 +290,7 @@ func (t *testTrustNodeChecker) TestCheckSameResult() {
 		func() ([]isaac.NodeConnInfo, error) {
 			return ncislocal, nil
 		},
-	)
+		nil)
 
 	ts := t.httpserver(func(w http.ResponseWriter, r *http.Request) {
 		b, err := t.Enc.Marshal(ncisurl)
@@ -270,10 +312,13 @@ func (t *testTrustNodeChecker) TestCheckSameResult() {
 	u, _ := url.Parse(ts.URL)
 	u.Fragment = "tls_insecure"
 
-	cis := []interface{}{localci, u}
+	cis := []SyncSource{
+		{Type: SyncSourceTypeSuffrageNodes, Source: localci},
+		{Type: SyncSourceTypeURL, Source: u},
+	}
 
 	local := isaac.RandomLocalNode()
-	checker := NewTrustNodeChecker(local, t.NodePolicy.NetworkID(), client, time.Second, t.Enc, cis, nil)
+	checker := NewSyncSourceChecker(local, t.NodePolicy.NetworkID(), client, time.Second, t.Enc, cis, nil)
 
 	ucis, err := checker.check(ctx)
 	t.NoError(err)
@@ -289,7 +334,7 @@ func (t *testTrustNodeChecker) TestCheckSameResult() {
 	}
 }
 
-func (t *testTrustNodeChecker) TestCheckFilterLocal() {
+func (t *testSyncSourceChecker) TestCheckFilterLocal() {
 	ncis, handlers := t.handlers(3)
 
 	localci, err := ncis[1].UDPConnInfo()
@@ -307,16 +352,16 @@ func (t *testTrustNodeChecker) TestCheckFilterLocal() {
 		func() ([]isaac.NodeConnInfo, error) {
 			return ncis, nil
 		},
-	)
+		nil)
 
 	client := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.clientWritef(handlers))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	cis := []interface{}{localci}
+	cis := []SyncSource{{Type: SyncSourceTypeSuffrageNodes, Source: localci}}
 
-	checker := NewTrustNodeChecker(local, t.NodePolicy.NetworkID(), client, time.Second, t.Enc, cis, nil)
+	checker := NewSyncSourceChecker(local, t.NodePolicy.NetworkID(), client, time.Second, t.Enc, cis, nil)
 
 	ucis, err := checker.check(ctx)
 	t.NoError(err)
@@ -344,11 +389,11 @@ func (t *testTrustNodeChecker) TestCheckFilterLocal() {
 	}
 }
 
-func (t *testTrustNodeChecker) TestCalled() {
+func (t *testSyncSourceChecker) TestCalled() {
 	calledch := make(chan int64)
 
 	local := isaac.RandomLocalNode()
-	checker := NewTrustNodeChecker(local, t.NodePolicy.NetworkID(), nil, time.Millisecond*100, t.Enc, nil,
+	checker := NewSyncSourceChecker(local, t.NodePolicy.NetworkID(), nil, time.Millisecond*100, t.Enc, nil,
 		func(called int64, nics []isaac.NodeConnInfo, err error) {
 			calledch <- called
 		},
@@ -375,8 +420,8 @@ func (t *testTrustNodeChecker) TestCalled() {
 	}
 }
 
-func TestTrustNodeChecker(t *testing.T) {
+func TestSyncSourceChecker(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	suite.Run(t, new(testTrustNodeChecker))
+	suite.Run(t, new(testSyncSourceChecker))
 }

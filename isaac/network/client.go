@@ -303,51 +303,25 @@ func (c *baseNetworkClient) SuffrageNodeConnInfo(
 ) ([]isaac.NodeConnInfo, error) {
 	e := util.StringErrorFunc("failed SuffrageNodeConnInfo")
 
-	header := NewSuffrageNodeConnInfoRequestHeader()
-
-	if err := header.IsValid(nil); err != nil {
+	ncis, err := c.requestNodeConnInfos(ctx, ci, NewSuffrageNodeConnInfoRequestHeader())
+	if err != nil {
 		return nil, e(err, "")
 	}
 
-	r, cancel, err := c.write(ctx, ci, c.enc, header, nil)
+	return ncis, nil
+}
+
+func (c *baseNetworkClient) SyncSourceConnInfo(
+	ctx context.Context, ci quicstream.UDPConnInfo,
+) ([]isaac.NodeConnInfo, error) {
+	e := util.StringErrorFunc("failed SyncSourceConnInfo")
+
+	ncis, err := c.requestNodeConnInfos(ctx, ci, NewSyncSourceConnInfoRequestHeader())
 	if err != nil {
-		return nil, e(err, "failed to send request")
+		return nil, e(err, "")
 	}
 
-	defer func() {
-		_ = cancel()
-	}()
-
-	h, _, err := c.loadResponseHeader(ctx, r)
-
-	switch {
-	case err != nil:
-		return nil, e(err, "failed to read stream")
-	case h.Err() != nil:
-		return nil, e(h.Err(), "")
-	case !h.OK():
-		return nil, nil
-	default:
-		b, err := io.ReadAll(r)
-		if err != nil {
-			return nil, e(err, "")
-		}
-
-		var u []json.RawMessage
-		if err := c.enc.Unmarshal(b, &u); err != nil {
-			return nil, e(err, "")
-		}
-
-		cis := make([]isaac.NodeConnInfo, len(u))
-
-		for i := range u {
-			if err := encoder.Decode(c.enc, u[i], &cis[i]); err != nil {
-				return nil, e(err, "")
-			}
-		}
-
-		return cis, nil
-	}
+	return ncis, nil
 }
 
 func (c *baseNetworkClient) requestOK(
@@ -429,4 +403,54 @@ func (c *baseNetworkClient) write(
 	}
 
 	return r, cancel, nil
+}
+
+func (c *baseNetworkClient) requestNodeConnInfos(
+	ctx context.Context,
+	ci quicstream.UDPConnInfo,
+	header isaac.NetworkHeader,
+) ([]isaac.NodeConnInfo, error) {
+	if err := header.IsValid(nil); err != nil {
+		return nil, err
+	}
+
+	r, cancel, err := c.write(ctx, ci, c.enc, header, nil)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to send request")
+	}
+
+	defer func() {
+		_ = cancel()
+	}()
+
+	h, _, err := c.loadResponseHeader(ctx, r)
+
+	switch {
+	case err != nil:
+		return nil, errors.WithMessage(err, "failed to read stream")
+	case h.Err() != nil:
+		return nil, errors.WithStack(h.Err())
+	case !h.OK():
+		return nil, nil
+	default:
+		b, err := io.ReadAll(r)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+
+		var u []json.RawMessage
+		if err := c.enc.Unmarshal(b, &u); err != nil {
+			return nil, err
+		}
+
+		cis := make([]isaac.NodeConnInfo, len(u))
+
+		for i := range u {
+			if err := encoder.Decode(c.enc, u[i], &cis[i]); err != nil {
+				return nil, err
+			}
+		}
+
+		return cis, nil
+	}
 }

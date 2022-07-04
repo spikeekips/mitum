@@ -8,7 +8,9 @@ import (
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
+	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	isaacoperation "github.com/spikeekips/mitum/isaac/operation"
+	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
@@ -241,6 +243,129 @@ publish: 1.2.3.4:4321
 
 func TestNodeNetworkDesign(t *testing.T) {
 	suite.Run(t, new(testNodeNetworkDesign))
+}
+
+type testSyncSourceDesign struct {
+	suite.Suite
+	enc *jsonenc.Encoder
+}
+
+func (t *testSyncSourceDesign) SetupSuite() {
+	t.enc = jsonenc.NewEncoder()
+
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
+}
+
+func (t *testSyncSourceDesign) TestDecode() {
+	t.Run("ok: url", func() {
+		b := []byte(`
+https://a.b.c.d:1234#tls_insecure
+`)
+
+		var s SyncSourceDesign
+		t.NoError(s.DecodeYAML(b, t.enc))
+
+		t.NoError(s.IsValid(nil))
+		t.NoError(s.Source.IsValid(nil))
+
+		t.Equal(isaacnetwork.SyncSourceTypeURL, s.Source.Type)
+		t.Equal("https://a.b.c.d:1234#tls_insecure", s.Source.Source.(*url.URL).String())
+	})
+
+	t.Run("invalid: url", func() {
+		b := []byte(`
+https://
+`)
+
+		var s SyncSourceDesign
+		err := s.DecodeYAML(b, t.enc)
+		t.Error(err)
+		t.ErrorContains(err, "missing host")
+	})
+
+	t.Run("invalid type", func() {
+		b := []byte(`
+type: sync-source-node
+findme: https://a.b.c.d:1234#tls_insecure
+`)
+
+		var s SyncSourceDesign
+		err := s.DecodeYAML(b, t.enc)
+		t.Error(err)
+		t.ErrorContains(err, "failed to decode node")
+	})
+
+	t.Run("ok: NodeConnInfo", func() {
+		b := []byte(`
+type: sync-source-node
+address: showme-nodesas
+publickey: oxkQTcfKzrC67GE8ChZmZw8SBBBYefMp5859R2AZ8bB9mpu
+publish: a.b.c.d:1234
+tls_insecure: true
+`)
+
+		var s SyncSourceDesign
+		t.NoError(s.DecodeYAML(b, t.enc))
+
+		t.NoError(s.IsValid(nil))
+		t.NoError(s.Source.IsValid(nil))
+
+		t.Equal(isaacnetwork.SyncSourceTypeNode, s.Source.Type)
+
+		a, ok := (s.Source.Source).(isaac.NodeConnInfo)
+		t.True(ok)
+		t.Equal("showme-nodesas", a.Address().String())
+		t.Equal("oxkQTcfKzrC67GE8ChZmZw8SBBBYefMp5859R2AZ8bB9mpu", a.Publickey().String())
+		t.Equal("a.b.c.d:1234", a.Addr().String())
+		t.True(a.TLSInsecure())
+	})
+
+	t.Run("ok: SuffrageNode", func() {
+		b := []byte(`
+type: sync-source-suffrage-nodes
+publish: a.b.c.d:1234
+tls_insecure: true
+`)
+
+		var s SyncSourceDesign
+		t.NoError(s.DecodeYAML(b, t.enc))
+
+		t.NoError(s.IsValid(nil))
+		t.NoError(s.Source.IsValid(nil))
+
+		t.Equal(isaacnetwork.SyncSourceTypeSuffrageNodes, s.Source.Type)
+
+		a, ok := (s.Source.Source).(network.ConnInfo)
+		t.True(ok)
+		t.Equal("a.b.c.d:1234", a.Addr().String())
+		t.True(a.TLSInsecure())
+	})
+
+	t.Run("ok: SyncSource", func() {
+		b := []byte(`
+type: sync-source-sync-sources
+publish: a.b.c.d:1234
+tls_insecure: true
+`)
+
+		var s SyncSourceDesign
+		t.NoError(s.DecodeYAML(b, t.enc))
+
+		t.NoError(s.IsValid(nil))
+		t.NoError(s.Source.IsValid(nil))
+
+		t.Equal(isaacnetwork.SyncSourceTypeSyncSources, s.Source.Type)
+
+		a, ok := (s.Source.Source).(network.ConnInfo)
+		t.True(ok)
+		t.Equal("a.b.c.d:1234", a.Addr().String())
+		t.True(a.TLSInsecure())
+	})
+}
+
+func TestSyncSourceDesign(t *testing.T) {
+	suite.Run(t, new(testSyncSourceDesign))
 }
 
 type testNodeDesign struct {

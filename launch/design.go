@@ -7,7 +7,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
+	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
+	"github.com/spikeekips/mitum/network"
+	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
@@ -39,11 +44,12 @@ func init() {
 }
 
 type NodeDesign struct {
-	Address    base.Address
-	Privatekey base.Privatekey
-	Storage    NodeStorageDesign
-	Network    NodeNetworkDesign
-	NetworkID  base.NetworkID
+	Address     base.Address
+	Privatekey  base.Privatekey
+	Storage     NodeStorageDesign
+	Network     NodeNetworkDesign
+	NetworkID   base.NetworkID
+	SyncSources []SyncSourceDesign
 }
 
 func NodeDesignFromFile(f string, enc *jsonenc.Encoder) (d NodeDesign, _ []byte, _ error) {
@@ -84,23 +90,31 @@ func (d *NodeDesign) IsValid([]byte) error {
 		return e.Wrap(err)
 	}
 
+	for i := range d.SyncSources {
+		if err := d.SyncSources[i].IsValid(nil); err != nil {
+			return e.Wrap(err)
+		}
+	}
+
 	return nil
 }
 
 type NodeDesignYAMLUnmarshaler struct {
-	Storage    NodeStorageDesignYAMLMarshal   `yaml:"storage"`
-	Address    string                         `yaml:"address"`
-	Privatekey string                         `yaml:"privatekey"`
-	NetworkID  string                         `yaml:"network_id"`
-	Network    NodeNetworkDesignYAMLMarshaler `yaml:"network"`
+	Storage     NodeStorageDesignYAMLMarshal   `yaml:"storage"`
+	Address     string                         `yaml:"address"`
+	Privatekey  string                         `yaml:"privatekey"`
+	NetworkID   string                         `yaml:"network_id"`
+	Network     NodeNetworkDesignYAMLMarshaler `yaml:"network"`
+	SyncSources []interface{}                  `yaml:"sync_sources"`
 }
 
 type NodeDesignYAMLMarshaler struct {
-	Address    base.Address      `yaml:"address"`
-	Privatekey base.Privatekey   `yaml:"privatekey"`
-	Storage    NodeStorageDesign `yaml:"storage"`
-	NetworkID  string            `yaml:"network_id"`
-	Network    NodeNetworkDesign `yaml:"network"`
+	Address     base.Address       `yaml:"address"`
+	Privatekey  base.Privatekey    `yaml:"privatekey"`
+	Storage     NodeStorageDesign  `yaml:"storage"`
+	NetworkID   string             `yaml:"network_id"`
+	Network     NodeNetworkDesign  `yaml:"network"`
+	SyncSources []SyncSourceDesign `yaml:"sync_sources"`
 }
 
 func (d NodeDesign) MarshalYAML() (interface{}, error) {
@@ -150,6 +164,17 @@ func (d *NodeDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "")
 	default:
 		d.Storage = i
+	}
+
+	for i := range u.SyncSources {
+		j, err := yaml.Marshal(u.SyncSources[i])
+		if err != nil {
+			return e(err, "")
+		}
+
+		if err := d.SyncSources[i].DecodeYAML(j, enc); err != nil {
+			return e(err, "")
+		}
 	}
 
 	return nil
@@ -400,4 +425,165 @@ func (d *GenesisDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 	}
 
 	return nil
+}
+
+type SyncSourceDesign struct { // FIXME rename to SyncNodeDesign
+	Source isaacnetwork.SyncSource
+}
+
+func (d *SyncSourceDesign) IsValid([]byte) error {
+	if err := d.Source.IsValid(nil); err != nil {
+		return errors.WithMessage(err, "invalid SyncSourceDesign")
+	}
+
+	return nil
+}
+
+func (d *SyncSourceDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
+	e := util.StringErrorFunc("failed to decode SyncSourceDesign")
+
+	var v interface{}
+
+	if err := yaml.Unmarshal(b, &v); err != nil {
+		return e(err, "")
+	}
+
+	switch t := v.(type) {
+	case string:
+		i, err := d.decodeString(t)
+		if err != nil {
+			return e(err, "")
+		}
+
+		d.Source = i
+	case map[string]interface{}:
+		var ty string
+
+		switch i, found := t["type"]; {
+		case !found:
+			return e(nil, "missing type")
+		default:
+			j, ok := i.(string)
+			if !ok {
+				return e(nil, "type should be string, not %T", i)
+			}
+
+			ty = j
+		}
+
+		i, err := d.decodeYAMLMap(ty, b, enc)
+		if err != nil {
+			return e(err, "")
+		}
+
+		if err := i.IsValid(nil); err != nil {
+			return e(err, "")
+		}
+
+		d.Source = i
+	default:
+		return e(nil, "unsupported format found, %q", string(b))
+	}
+
+	return nil
+}
+
+func (SyncSourceDesign) decodeString(s string) (source isaacnetwork.SyncSource, _ error) {
+	u, err := url.Parse(s)
+	if err != nil {
+		return source, errors.Wrap(err, "failed to string for SyncSourceDesign")
+	}
+
+	switch {
+	case len(u.Scheme) < 1:
+		return source, errors.Errorf("missing scheme for SyncSourceDesign")
+	case len(u.Host) < 1:
+		return source, errors.Errorf("missing host for SyncSourceDesign")
+	case len(u.Port()) < 1:
+		return source, errors.Errorf("missing port for SyncSourceDesign")
+	default:
+		return isaacnetwork.SyncSource{Type: isaacnetwork.SyncSourceTypeURL, Source: u}, nil
+	}
+}
+
+func (d SyncSourceDesign) decodeYAMLMap(
+	t string, b []byte, enc *jsonenc.Encoder,
+) (source isaacnetwork.SyncSource, _ error) {
+	ty := isaacnetwork.SyncSourceType(t)
+
+	switch ty {
+	case isaacnetwork.SyncSourceTypeNode:
+		i, err := d.decodeYAMLNodeConnInfo(b, enc)
+		if err != nil {
+			return source, err
+		}
+
+		return isaacnetwork.SyncSource{Type: ty, Source: i}, nil
+	case isaacnetwork.SyncSourceTypeSuffrageNodes,
+		isaacnetwork.SyncSourceTypeSyncSources:
+		i, err := d.decodeYAMLConnInfo(b, enc)
+		if err != nil {
+			return source, err
+		}
+
+		return isaacnetwork.SyncSource{Type: ty, Source: i}, nil
+	default:
+		return source, errors.Errorf("unsupported type, %q", ty)
+	}
+}
+
+type syncSourceNodeUnmarshaler struct {
+	Address     string
+	Publickey   string
+	Publish     string `yaml:"publish"`
+	TLSInsecure bool   `yaml:"tls_insecure"`
+}
+
+func (SyncSourceDesign) decodeYAMLNodeConnInfo(b []byte, enc *jsonenc.Encoder) (isaac.NodeConnInfo, error) {
+	e := util.StringErrorFunc("failed to decode node of SyncSourceDesign")
+
+	var u syncSourceNodeUnmarshaler
+
+	if err := yaml.Unmarshal(b, &u); err != nil {
+		return nil, e(err, "")
+	}
+
+	address, err := base.DecodeAddress(u.Address, enc)
+	if err != nil {
+		return nil, e(err, "")
+	}
+
+	pub, err := base.DecodePublickeyFromString(u.Publickey, enc)
+	if err != nil {
+		return nil, e(err, "")
+	}
+
+	if err := network.IsValidAddr(u.Publish); err != nil {
+		return nil, e(err, "")
+	}
+
+	return isaacnetwork.NewNodeConnInfo(isaac.NewNode(pub, address), u.Publish, u.TLSInsecure), nil
+}
+
+type syncSourceConnInfoUnmarshaler struct {
+	Publish     string `yaml:"publish"`
+	TLSInsecure bool   `yaml:"tls_insecure"`
+}
+
+func (SyncSourceDesign) decodeYAMLConnInfo(
+	b []byte, _ *jsonenc.Encoder,
+) (ci quicmemberlist.NamedConnInfo, _ error) {
+	e := util.StringErrorFunc("failed to decode conninfo of SyncSourceDesign")
+
+	var u syncSourceConnInfoUnmarshaler
+
+	if err := yaml.Unmarshal(b, &u); err != nil {
+		return ci, e(err, "")
+	}
+
+	if err := network.IsValidAddr(u.Publish); err != nil {
+		return ci, e(err, "")
+	}
+
+	return quicmemberlist.NewNamedConnInfo(u.Publish, u.TLSInsecure), nil
 }

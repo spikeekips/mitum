@@ -22,6 +22,7 @@ type NetworkClient interface {
 	BlockMapItem(context.Context, quicstream.UDPConnInfo, base.Height, base.BlockMapItemType) (io.ReadCloser, func() error, bool, error)
 	NodeChallenge(_ context.Context, _ quicstream.UDPConnInfo, _ base.NetworkID, _ base.Address, _ base.Publickey, input []byte) (base.Signature, error)
 	SuffrageNodeConnInfo(context.Context, quicstream.UDPConnInfo) ([]NodeConnInfo, error)
+	SyncSourceConnInfo(context.Context, quicstream.UDPConnInfo) ([]NodeConnInfo, error)
 }
 
 // revive:enable:line-length-limit

@@ -23,6 +23,7 @@ type QuicstreamHandlers struct {
 	blockMapf             func(base.Height) (base.BlockMap, bool, error)
 	blockMapItemf         func(base.Height, base.BlockMapItemType) (io.ReadCloser, bool, error)
 	suffrageNodeConnInfof func() ([]isaac.NodeConnInfo, error)
+	syncSourceConnInfof   func() ([]isaac.NodeConnInfo, error)
 	local                 base.LocalNode
 	nodepolicy            isaac.NodePolicy
 }
@@ -41,6 +42,7 @@ func NewQuicstreamHandlers( // revive:disable-line:argument-limit
 	blockMapf func(base.Height) (base.BlockMap, bool, error),
 	blockMapItemf func(base.Height, base.BlockMapItemType) (io.ReadCloser, bool, error),
 	suffrageNodeConnInfof func() ([]isaac.NodeConnInfo, error),
+	syncSourceConnInfof func() ([]isaac.NodeConnInfo, error),
 ) *QuicstreamHandlers {
 	return &QuicstreamHandlers{
 		baseNetwork:           newBaseNetwork(encs, enc, idleTimeout),
@@ -54,6 +56,7 @@ func NewQuicstreamHandlers( // revive:disable-line:argument-limit
 		blockMapf:             blockMapf,
 		blockMapItemf:         blockMapItemf,
 		suffrageNodeConnInfof: suffrageNodeConnInfof,
+		syncSourceConnInfof:   syncSourceConnInfof,
 	}
 }
 
@@ -301,32 +304,21 @@ func (c *QuicstreamHandlers) NodeChallenge(_ net.Addr, r io.Reader, w io.Writer)
 	return nil
 }
 
-func (c *QuicstreamHandlers) SuffrageNodeConnInfo(_ net.Addr, r io.Reader, w io.Writer) error {
-	e := util.StringErrorFunc("failed to handle SuffrageNodeConnInfo")
-
-	enc, hb, err := c.prehandle(r)
-	if err != nil {
-		return e(err, "")
-	}
-
+func (c *QuicstreamHandlers) SuffrageNodeConnInfo(addr net.Addr, r io.Reader, w io.Writer) error {
 	var body SuffrageNodeConnInfoRequestHeader
-	if err = encoder.Decode(enc, hb, &body); err != nil {
-		return e(err, "")
+
+	if err := c.nodeConnInfos(addr, r, w, body, c.suffrageNodeConnInfof); err != nil {
+		return errors.WithMessage(err, "failed to handle SuffrageNodeConnInfo")
 	}
 
-	if err = body.IsValid(nil); err != nil {
-		return e(err, "")
-	}
+	return nil
+}
 
-	cis, err := c.suffrageNodeConnInfof()
-	if err != nil {
-		return e(err, "")
-	}
+func (c *QuicstreamHandlers) SyncSourceConnInfo(addr net.Addr, r io.Reader, w io.Writer) error {
+	var body SyncSourceConnInfoRequestHeader
 
-	header := NewResponseHeader(true, nil)
-
-	if err := Response(w, header, cis, enc); err != nil {
-		return e(err, "")
+	if err := c.nodeConnInfos(addr, r, w, body, c.syncSourceConnInfof); err != nil {
+		return errors.WithMessage(err, "failed to handle SyncSourceConnInfo")
 	}
 
 	return nil
@@ -361,4 +353,32 @@ func (c *QuicstreamHandlers) getOrCreateProposal(
 	default:
 		return pr, nil
 	}
+}
+
+func (c *QuicstreamHandlers) nodeConnInfos(
+	_ net.Addr, r io.Reader, w io.Writer,
+	body isaac.NetworkHeader,
+	f func() ([]isaac.NodeConnInfo, error),
+) error {
+	enc, hb, err := c.prehandle(r)
+	if err != nil {
+		return err
+	}
+
+	if err = encoder.Decode(enc, hb, &body); err != nil {
+		return err
+	}
+
+	if err = body.IsValid(nil); err != nil {
+		return err
+	}
+
+	cis, err := f()
+	if err != nil {
+		return err
+	}
+
+	header := NewResponseHeader(true, nil)
+
+	return Response(w, header, cis, enc)
 }

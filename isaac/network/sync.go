@@ -15,34 +15,98 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/network"
+	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/logging"
 )
 
-type TrustNodeChecker struct {
+type SyncSourceType string
+
+var (
+	SyncSourceTypeNode          SyncSourceType = "sync-source-node"
+	SyncSourceTypeSuffrageNodes SyncSourceType = "sync-source-suffrage-nodes"
+	SyncSourceTypeSyncSources   SyncSourceType = "sync-source-sync-sources"
+	SyncSourceTypeURL           SyncSourceType = "sync-source-url"
+)
+
+type SyncSource struct {
+	Source interface{}
+	Type   SyncSourceType
+}
+
+func (s SyncSource) IsValid([]byte) error {
+	e := util.ErrInvalid.Errorf("invalid SyncSource")
+
+	switch s.Type {
+	case SyncSourceTypeNode,
+		SyncSourceTypeSuffrageNodes,
+		SyncSourceTypeSyncSources,
+		SyncSourceTypeURL:
+	default:
+		return e.Errorf("unknown sync source type, %q", s.Type)
+	}
+
+	if s.Source == nil {
+		return e.Errorf("unknown sync source type, %q", s.Type)
+	}
+
+	switch s.Source.(type) {
+	case isaac.NodeConnInfo,
+		quicstream.UDPConnInfo,
+		quicmemberlist.NamedConnInfo,
+		*url.URL:
+	default:
+		return e.Errorf("unsupported source, %T", s.Source)
+	}
+
+	switch s.Source.(type) {
+	case isaac.NodeConnInfo:
+		if s.Type != SyncSourceTypeNode && s.Type != SyncSourceTypeSuffrageNodes &&
+			s.Type != SyncSourceTypeSyncSources {
+			return e.Errorf("invalid type for NodeConnInfo, %v", s.Type)
+		}
+	case quicstream.UDPConnInfo:
+		if s.Type != SyncSourceTypeSuffrageNodes && s.Type != SyncSourceTypeSyncSources {
+			return e.Errorf("invalid type for UDPConnInfo, %v", s.Type)
+		}
+	case quicmemberlist.NamedConnInfo:
+		if s.Type != SyncSourceTypeSuffrageNodes && s.Type != SyncSourceTypeSyncSources {
+			return e.Errorf("invalid type for NamedConnInfo, %v", s.Type)
+		}
+	case *url.URL:
+		if s.Type != SyncSourceTypeURL {
+			return e.Errorf("invalid type for url, %v", s.Type)
+		}
+	}
+
+	return nil
+}
+
+type SyncSourceChecker struct {
 	enc    encoder.Encoder
 	client isaac.NetworkClient
 	*logging.Logging
 	*util.ContextDaemon
 	callback  func(called int64, _ []isaac.NodeConnInfo, _ error)
-	cis       []interface{}
+	cis       []SyncSource // FIXME rename to tss
 	local     base.Node
 	networkID base.NetworkID
 	interval  time.Duration
 }
 
-func NewTrustNodeChecker(
+func NewSyncSourceChecker(
 	local base.Node,
 	networkID base.NetworkID,
 	client isaac.NetworkClient,
 	interval time.Duration,
 	enc encoder.Encoder,
-	cis []interface{},
+	cis []SyncSource,
 	callback func(called int64, _ []isaac.NodeConnInfo, _ error),
-) *TrustNodeChecker {
-	c := &TrustNodeChecker{
+) *SyncSourceChecker {
+	// NOTE SyncSources should be passed, IsValid()
+	c := &SyncSourceChecker{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", "node-conninfo-checker")
 		}),
@@ -60,7 +124,7 @@ func NewTrustNodeChecker(
 	return c
 }
 
-func (c *TrustNodeChecker) start(ctx context.Context) error {
+func (c *SyncSourceChecker) start(ctx context.Context) error {
 	ticker := time.NewTicker(time.Millisecond)
 	defer ticker.Stop()
 
@@ -79,7 +143,7 @@ end:
 			}
 
 			if len(c.cis) < 1 {
-				c.callback(called, nil, errors.Errorf("empty conninfo"))
+				c.callback(called, nil, errors.Errorf("empty SyncSource"))
 
 				continue end
 			}
@@ -91,7 +155,7 @@ end:
 	}
 }
 
-func (c *TrustNodeChecker) check(ctx context.Context) ([]isaac.NodeConnInfo, error) {
+func (c *SyncSourceChecker) check(ctx context.Context) ([]isaac.NodeConnInfo, error) {
 	e := util.StringErrorFunc("failed to fetch NodeConnInfo")
 
 	worker := util.NewDistributeWorker(ctx, int64(len(c.cis)), nil)
@@ -134,14 +198,14 @@ func (c *TrustNodeChecker) check(ctx context.Context) ([]isaac.NodeConnInfo, err
 					return false
 				}
 
-				aci := a.(NodeConnInfo) //nolint:forcetypeassert //...
+				aci := a.(isaac.NodeConnInfo) //nolint:forcetypeassert //...
 
 				return !aci.Address().Equal(c.local.Address())
 			}),
 			ncis,
 			func(a, b interface{}) bool {
-				aci := a.(NodeConnInfo) //nolint:forcetypeassert //...
-				bci := b.(NodeConnInfo) //nolint:forcetypeassert //...
+				aci := a.(isaac.NodeConnInfo) //nolint:forcetypeassert //...
+				bci := b.(isaac.NodeConnInfo) //nolint:forcetypeassert //...
 
 				return aci.Address().Equal(bci.Address())
 			})
@@ -153,7 +217,7 @@ func (c *TrustNodeChecker) check(ctx context.Context) ([]isaac.NodeConnInfo, err
 		copy(dest, ncis)
 
 		for j := range found {
-			dest[len(ncis)+j] = found[j].(NodeConnInfo) //nolint:forcetypeassert //...
+			dest[len(ncis)+j] = found[j].(isaac.NodeConnInfo) //nolint:forcetypeassert //...
 		}
 
 		ncis = dest
@@ -162,18 +226,20 @@ func (c *TrustNodeChecker) check(ctx context.Context) ([]isaac.NodeConnInfo, err
 	return ncis, nil
 }
 
-func (c *TrustNodeChecker) fetch(ctx context.Context, info interface{}) (ncis []isaac.NodeConnInfo, err error) {
+func (c *SyncSourceChecker) fetch(ctx context.Context, source SyncSource) (ncis []isaac.NodeConnInfo, err error) {
 	e := util.StringErrorFunc("failed to fetch NodeConnInfos")
 
-	switch t := info.(type) {
-	case NodeConnInfo:
-		ncis = []isaac.NodeConnInfo{t}
-	case quicstream.UDPConnInfo:
-		ncis, err = c.client.SuffrageNodeConnInfo(ctx, t)
-	case *url.URL:
-		ncis, err = c.fetchFromURL(ctx, t)
+	switch source.Type {
+	case SyncSourceTypeNode:
+		ncis = []isaac.NodeConnInfo{source.Source.(isaac.NodeConnInfo)} //nolint:forcetypeassert //...
+	case SyncSourceTypeSuffrageNodes:
+		ncis, err = c.fetchFromSuffrageNodes(ctx, source.Source)
+	case SyncSourceTypeSyncSources:
+		ncis, err = c.fetchFromSyncSources(ctx, source.Source)
+	case SyncSourceTypeURL:
+		ncis, err = c.fetchFromURL(ctx, source.Source.(*url.URL))
 	default:
-		return nil, e(nil, "unsupported info, %v", info)
+		return nil, e(nil, "unsupported source type, %q", source.Type)
 	}
 
 	if err != nil {
@@ -231,7 +297,29 @@ func (c *TrustNodeChecker) fetch(ctx context.Context, info interface{}) (ncis []
 	return filtered, nil
 }
 
-func (c *TrustNodeChecker) fetchFromURL(ctx context.Context, u *url.URL) ([]isaac.NodeConnInfo, error) {
+func (c *SyncSourceChecker) fetchFromSuffrageNodes(
+	ctx context.Context, source interface{},
+) (ncis []isaac.NodeConnInfo, _ error) {
+	ncis, err := c.fetchNodeConnInfos(ctx, source, c.client.SuffrageNodeConnInfo)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to fetch suffrage nodes")
+	}
+
+	return ncis, nil
+}
+
+func (c *SyncSourceChecker) fetchFromSyncSources(
+	ctx context.Context, source interface{},
+) (ncis []isaac.NodeConnInfo, _ error) {
+	ncis, err := c.fetchNodeConnInfos(ctx, source, c.client.SyncSourceConnInfo)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to fetch sync sources")
+	}
+
+	return ncis, nil
+}
+
+func (c *SyncSourceChecker) fetchFromURL(ctx context.Context, u *url.URL) ([]isaac.NodeConnInfo, error) {
 	e := util.StringErrorFunc("failed to fetch NodeConnInfo from url, %q", u)
 
 	httpclient := &http.Client{
@@ -283,7 +371,7 @@ func (c *TrustNodeChecker) fetchFromURL(ctx context.Context, u *url.URL) ([]isaa
 
 var errIgnoreNodeconnInfo = util.NewError("ignore NodeConnInfo error")
 
-func (c *TrustNodeChecker) validate(ctx context.Context, nci isaac.NodeConnInfo) error {
+func (c *SyncSourceChecker) validate(ctx context.Context, nci isaac.NodeConnInfo) error {
 	e := util.StringErrorFunc("failed to fetch NodeConnInfo from node, %q", nci)
 
 	if err := nci.IsValid(nil); err != nil {
@@ -309,4 +397,36 @@ func (c *TrustNodeChecker) validate(ctx context.Context, nci isaac.NodeConnInfo)
 	}
 
 	return nil
+}
+
+func (*SyncSourceChecker) fetchNodeConnInfos(
+	ctx context.Context, source interface{},
+	request func(context.Context, quicstream.UDPConnInfo) ([]isaac.NodeConnInfo, error),
+) (ncis []isaac.NodeConnInfo, _ error) {
+	var ci quicstream.UDPConnInfo
+
+	switch t := source.(type) {
+	case quicstream.UDPConnInfo:
+		ci = t
+	case isaac.NodeConnInfo, quicmemberlist.NamedConnInfo:
+		i := t.(interface { //nolint:forcetypeassert //...
+			UDPConnInfo() (quicstream.UDPConnInfo, error)
+		})
+
+		j, err := i.UDPConnInfo()
+		if err != nil {
+			return nil, err
+		}
+
+		ci = j
+	default:
+		return nil, errors.Errorf("unsupported source, %T", source)
+	}
+
+	ncis, err := request(ctx, ci)
+	if err != nil {
+		return nil, err
+	}
+
+	return ncis, nil
 }

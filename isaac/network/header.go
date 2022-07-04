@@ -17,6 +17,7 @@ var (
 	BlockMapItemRequestHeaderHint         = hint.MustNewHint("blockmap-item-header-v0.0.1")
 	NodeChallengeRequestHeaderHint        = hint.MustNewHint("node-challenge-header-v0.0.1")
 	SuffrageNodeConnInfoRequestHeaderHint = hint.MustNewHint("suffrage-node-conninfo-header-v0.0.1")
+	SyncSourceConnInfoRequestHeaderHint   = hint.MustNewHint("sync-source-conninfo-header-v0.0.1")
 )
 
 var ResponseHeaderHint = hint.MustNewHint("response-header-v0.0.1")
@@ -309,6 +310,24 @@ func (h SuffrageNodeConnInfoRequestHeader) IsValid([]byte) error {
 	return nil
 }
 
+type SyncSourceConnInfoRequestHeader struct {
+	BaseHeader
+}
+
+func NewSyncSourceConnInfoRequestHeader() SyncSourceConnInfoRequestHeader {
+	return SyncSourceConnInfoRequestHeader{
+		BaseHeader: NewBaseHeader(SyncSourceConnInfoRequestHeaderHint),
+	}
+}
+
+func (h SyncSourceConnInfoRequestHeader) IsValid([]byte) error {
+	if err := h.BaseHinter.IsValid(SyncSourceConnInfoRequestHeaderHint.Type().Bytes()); err != nil {
+		return errors.WithMessage(err, "invalid SyncSourceConnInfoHeader")
+	}
+
+	return nil
+}
+
 type ResponseHeader struct {
 	err error
 	BaseHeader
@@ -351,6 +370,8 @@ func baseHeaderPrefixByHint(ht hint.Hint) string {
 		return HandlerPrefixNodeChallenge
 	case SuffrageNodeConnInfoRequestHeaderHint.Type():
 		return HandlerPrefixSuffrageNodeConnInfo
+	case SyncSourceConnInfoRequestHeaderHint.Type():
+		return HandlerPrefixSyncSourceConnInfo
 	default:
 		return ""
 	}
