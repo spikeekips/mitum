@@ -8,7 +8,7 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 )
 
-var BaseNodeConnInfoHint = hint.MustNewHint("node-conninfo-v0.0.1")
+var NodeConnInfoHint = hint.MustNewHint("node-conninfo-v0.0.1")
 
 type NodeConnInfo struct {
 	quicmemberlist.NamedConnInfo
@@ -16,7 +16,7 @@ type NodeConnInfo struct {
 }
 
 func NewNodeConnInfo(node base.BaseNode, addr string, tlsinsecure bool) NodeConnInfo {
-	node.BaseHinter = node.BaseHinter.SetHint(BaseNodeConnInfoHint).(hint.BaseHinter) //nolint:forcetypeassert //...
+	node.BaseHinter = node.BaseHinter.SetHint(NodeConnInfoHint).(hint.BaseHinter) //nolint:forcetypeassert //...
 
 	return NodeConnInfo{
 		BaseNode:      node,
@@ -25,9 +25,13 @@ func NewNodeConnInfo(node base.BaseNode, addr string, tlsinsecure bool) NodeConn
 }
 
 func (n NodeConnInfo) IsValid([]byte) error {
-	e := util.ErrInvalid.Errorf("invalid BaseNodeConnInfo")
+	e := util.ErrInvalid.Errorf("invalid NodeConnInfo")
 
-	if err := n.BaseNode.BaseHinter.IsValid(BaseNodeConnInfoHint.Type().Bytes()); err != nil {
+	if err := n.BaseNode.BaseHinter.IsValid(NodeConnInfoHint.Type().Bytes()); err != nil {
+		return e.Wrap(err)
+	}
+
+	if err := n.BaseNode.IsValid(nil); err != nil {
 		return e.Wrap(err)
 	}
 
@@ -59,7 +63,7 @@ func (n NodeConnInfo) MarshalJSON() ([]byte, error) {
 }
 
 func (n *NodeConnInfo) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode BaseNodeConnInfo")
+	e := util.StringErrorFunc("failed to decode NodeConnInfo")
 
 	if err := n.BaseNode.DecodeJSON(b, enc); err != nil {
 		return e(err, "")

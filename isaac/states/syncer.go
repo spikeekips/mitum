@@ -49,7 +49,7 @@ type Syncer struct {
 	batchlimit            int64
 	lastBlockMapInterval  time.Duration
 	lastBlockMapTimeout   time.Duration
-	retryInterval         time.Duration
+	retryInterval         time.Duration // FIXME remove
 	cancelonece           sync.Once
 }
 
@@ -399,7 +399,7 @@ end:
 	}
 }
 
-func (s *Syncer) retryLastBlockMap(ctx context.Context, manifest util.Hash) (
+func (s *Syncer) retryLastBlockMap(ctx context.Context, manifest util.Hash) ( // FIXME remove
 	m base.BlockMap, updated bool, _ error,
 ) {
 	if err := isaac.RetrySyncSource(
@@ -424,7 +424,7 @@ func (s *Syncer) retryLastBlockMap(ctx context.Context, manifest util.Hash) (
 	return m, updated, nil
 }
 
-func (s *Syncer) retryBlockMap(ctx context.Context, height base.Height) (m base.BlockMap, found bool, _ error) {
+func (s *Syncer) retryBlockMap(ctx context.Context, height base.Height) (m base.BlockMap, found bool, _ error) { // FIXME remove
 	if err := isaac.RetrySyncSource(
 		ctx,
 		func() (bool, error) {
@@ -447,7 +447,7 @@ func (s *Syncer) retryBlockMap(ctx context.Context, height base.Height) (m base.
 	return m, found, nil
 }
 
-func (s *Syncer) retryBlockMapItem(
+func (s *Syncer) retryBlockMapItem( // FIXME remove
 	ctx context.Context, height base.Height, t base.BlockMapItemType,
 ) (r io.ReadCloser, f func() error, found bool, _ error) {
 	if err := isaac.RetrySyncSource(

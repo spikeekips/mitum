@@ -211,7 +211,7 @@ func (*SuffrageStateBuilder) prove(
 	return nil
 }
 
-func (s *SuffrageStateBuilder) retryLastSuffrageProof(
+func (s *SuffrageStateBuilder) retryLastSuffrageProof( // FIXME remove
 	ctx context.Context,
 ) (proof base.SuffrageProof, found bool, _ error) {
 	if err := isaac.RetrySyncSource(
@@ -237,7 +237,7 @@ func (s *SuffrageStateBuilder) retryLastSuffrageProof(
 	return proof, found, nil
 }
 
-func (s *SuffrageStateBuilder) retryGetSuffrageProof(
+func (s *SuffrageStateBuilder) retryGetSuffrageProof( // FIXME remove
 	ctx context.Context, height base.Height,
 ) (proof base.SuffrageProof, found bool, _ error) {
 	if err := isaac.RetrySyncSource(

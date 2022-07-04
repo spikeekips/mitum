@@ -38,7 +38,7 @@ func (t *testSyncSourceChecker) SetupSuite() {
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ResponseHeaderHint, Instance: ResponseHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: SuffrageNodeConnInfoRequestHeaderHint, Instance: SuffrageNodeConnInfoRequestHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: SyncSourceConnInfoRequestHeaderHint, Instance: SyncSourceConnInfoRequestHeader{}}))
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: BaseNodeConnInfoHint, Instance: NodeConnInfo{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: NodeConnInfoHint, Instance: NodeConnInfo{}}))
 }
 
 func (t *testSyncSourceChecker) clientWritef(handlers map[string]*QuicstreamHandlers) func(ctx context.Context, ci quicstream.UDPConnInfo, f quicstream.ClientWriteFunc) (io.ReadCloser, func() error, error) {

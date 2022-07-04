@@ -83,7 +83,7 @@ func TestNodeConnInfo(t *testing.T) {
 	suite.Run(t, new(testNodeConnInfo))
 }
 
-func TestBaseNodeConnInfoEncode(t *testing.T) {
+func TestNodeConnInfoEncode(t *testing.T) {
 	tt := new(encoder.BaseTestEncode)
 
 	enc := jsonenc.NewEncoder()
@@ -91,7 +91,7 @@ func TestBaseNodeConnInfoEncode(t *testing.T) {
 	tt.Encode = func() (interface{}, []byte) {
 		tt.NoError(enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
 		tt.NoError(enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
-		tt.NoError(enc.Add(encoder.DecodeDetail{Hint: BaseNodeConnInfoHint, Instance: NodeConnInfo{}}))
+		tt.NoError(enc.Add(encoder.DecodeDetail{Hint: NodeConnInfoHint, Instance: NodeConnInfo{}}))
 
 		node := base.RandomNode()
 

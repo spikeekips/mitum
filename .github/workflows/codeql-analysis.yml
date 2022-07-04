@@ -3,12 +3,10 @@ name: "CodeQL"
 on:
   push:
     branches:
-    - 'master'
-    - 'release-*'
+    - 'main'
   pull_request:
     branches:
-    - 'master'
-    - 'release-*'
+    - 'main'
   schedule:
     - cron: '30 17 * * 1,2,3,4,5'
 
@@ -24,7 +22,7 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
 
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v2
@@ -35,4 +33,4 @@ jobs:
       uses: github/codeql-action/autobuild@v2
 
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v1
+      uses: github/codeql-action/analyze@v2
