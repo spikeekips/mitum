@@ -436,6 +436,99 @@ func (t *testNodeDesign) TestIsValid() {
 			Path:   filepath.Join(defaultStorageBase, a.Address.String(), "perm"),
 		}).String(), a.Storage.Database.String())
 	})
+
+	t.Run("same sync_sources with address", func() {
+		address := base.RandomAddress("")
+
+		nci := isaacnetwork.NewNodeConnInfo(
+			isaac.NewNode(base.NewMPrivatekey().Publickey(), address),
+			publish.String(), true,
+		)
+
+		a := NodeDesign{
+			Address:    address,
+			Privatekey: base.NewMPrivatekey(),
+			NetworkID:  base.NetworkID(util.UUID().String()),
+			Network: NodeNetworkDesign{
+				Bind:          addrport,
+				PublishString: publish.String(),
+				TLSInsecure:   true,
+			},
+			Storage: NodeStorageDesign{
+				Base:     "/tmp/a/b/c",
+				Database: &url.URL{Scheme: LeveldbURIScheme, Path: "/a/b/c"},
+			},
+			SyncSources: []SyncSourceDesign{
+				{Source: isaacnetwork.SyncSource{Type: isaacnetwork.SyncSourceTypeURL, Source: &url.URL{Scheme: "https", Host: "a:1234"}}},
+				{Source: isaacnetwork.SyncSource{Type: isaacnetwork.SyncSourceTypeNode, Source: nci}},
+			},
+		}
+
+		err := a.IsValid(nil)
+		t.Error(err)
+		t.ErrorContains(err, "same node address with local")
+	})
+
+	t.Run("same sync_sources with publish", func() {
+		nci := isaacnetwork.NewNodeConnInfo(
+			isaac.NewNode(base.NewMPrivatekey().Publickey(), base.RandomAddress("")),
+			publish.String(), true,
+		)
+
+		a := NodeDesign{
+			Address:    base.RandomAddress(""),
+			Privatekey: base.NewMPrivatekey(),
+			NetworkID:  base.NetworkID(util.UUID().String()),
+			Network: NodeNetworkDesign{
+				Bind:          addrport,
+				PublishString: publish.String(),
+				TLSInsecure:   true,
+			},
+			Storage: NodeStorageDesign{
+				Base:     "/tmp/a/b/c",
+				Database: &url.URL{Scheme: LeveldbURIScheme, Path: "/a/b/c"},
+			},
+			SyncSources: []SyncSourceDesign{
+				{Source: isaacnetwork.SyncSource{Type: isaacnetwork.SyncSourceTypeNode, Source: nci}},
+			},
+		}
+
+		err := a.IsValid(nil)
+		t.Error(err)
+		t.ErrorContains(err, "sync source has same with publish address")
+	})
+
+	t.Run("same sync_sources with resolved publish", func() {
+		publishstring := "localhost:1234"
+		publish := mustResolveUDPAddr(publishstring)
+
+		nci := isaacnetwork.NewNodeConnInfo(
+			isaac.NewNode(base.NewMPrivatekey().Publickey(), base.RandomAddress("")),
+			publish.String(), true,
+		)
+
+		a := NodeDesign{
+			Address:    base.RandomAddress(""),
+			Privatekey: base.NewMPrivatekey(),
+			NetworkID:  base.NetworkID(util.UUID().String()),
+			Network: NodeNetworkDesign{
+				Bind:          addrport,
+				PublishString: publishstring,
+				TLSInsecure:   true,
+			},
+			Storage: NodeStorageDesign{
+				Base:     "/tmp/a/b/c",
+				Database: &url.URL{Scheme: LeveldbURIScheme, Path: "/a/b/c"},
+			},
+			SyncSources: []SyncSourceDesign{
+				{Source: isaacnetwork.SyncSource{Type: isaacnetwork.SyncSourceTypeNode, Source: nci}},
+			},
+		}
+
+		err := a.IsValid(nil)
+		t.Error(err)
+		t.ErrorContains(err, "sync source has same with publish resolved address")
+	})
 }
 
 func (t *testNodeDesign) TestDecode() {

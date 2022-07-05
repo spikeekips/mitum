@@ -459,21 +459,33 @@ func (t *testSyncer) TestFetchMaps() {
 			t.dummyNewBlockImporterFunc(),
 			maps[0],
 			nil,
-			func(_ context.Context, height base.Height) (base.BlockMap, bool, error) {
-				index := (height - base.GenesisHeight).Int64()
-				if index < 0 || index >= int64(len(maps)) {
-					return nil, false, nil
-				}
+			func(_ context.Context, height base.Height) (m base.BlockMap, found bool, _ error) {
+				err := util.Retry(
+					context.Background(),
+					func() (bool, error) {
+						index := (height - base.GenesisHeight).Int64()
+						if index < 0 || index >= int64(len(maps)) {
+							return false, nil
+						}
 
-				if index == 3 {
-					atomic.AddInt64(&called, 1)
-				}
+						if index == 3 {
+							atomic.AddInt64(&called, 1)
+						}
 
-				if index == 3 && atomic.LoadInt64(&called) < 3 {
-					return nil, false, isaac.ErrRetrySyncSources.Errorf("hehehe")
-				}
+						if index == 3 && atomic.LoadInt64(&called) < 3 {
+							return true, isaac.ErrRetrySyncSources.Errorf("hehehe")
+						}
 
-				return maps[index], true, nil
+						m = maps[index]
+						found = true
+
+						return false, nil
+					},
+					-1,
+					time.Millisecond*10,
+				)
+
+				return m, found, err
 			},
 			t.dummyBlockMapItemFunc(),
 			isaacdatabase.NewMemTempSyncPool(),
@@ -482,8 +494,6 @@ func (t *testSyncer) TestFetchMaps() {
 		t.NoError(err)
 		t.NoError(s.Start())
 		defer s.Cancel()
-
-		s.retryInterval = time.Millisecond * 10
 
 		t.True(s.Add(to))
 

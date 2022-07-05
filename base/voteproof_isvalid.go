@@ -45,17 +45,17 @@ func isValidVoteproof(vp Voteproof, networkID NetworkID) error {
 }
 
 func isValidVoteproofDuplicatedSignedNode(vp Voteproof) error {
-	if _, found := util.CheckSliceDuplicated(vp.SignedFacts(), func(i interface{}) string {
-		if i == nil {
-			return ""
-		}
+	facts := vp.SignedFacts()
 
-		j, ok := i.(BallotSignedFact)
-		if !ok || j.Node() == nil {
-			return ""
-		}
+	if _, found := util.CheckSliceDuplicated(facts, func(_ interface{}, i int) string {
+		fact := facts[i]
 
-		return j.Node().String()
+		switch {
+		case fact == nil, fact.Node() == nil:
+			return ""
+		default:
+			return fact.Node().String()
+		}
 	}); found {
 		return util.ErrInvalid.Errorf("duplicated node found in signedfacts of voteproof")
 	}

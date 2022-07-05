@@ -61,7 +61,7 @@ func (s SyncSource) IsValid([]byte) error {
 		return e.Errorf("unsupported source, %T", s.Source)
 	}
 
-	switch s.Source.(type) {
+	switch t := s.Source.(type) {
 	case isaac.NodeConnInfo:
 		if s.Type != SyncSourceTypeNode && s.Type != SyncSourceTypeSuffrageNodes &&
 			s.Type != SyncSourceTypeSyncSources {
@@ -79,6 +79,10 @@ func (s SyncSource) IsValid([]byte) error {
 		if s.Type != SyncSourceTypeURL {
 			return e.Errorf("invalid type for url, %v", s.Type)
 		}
+
+		if err := util.IsValidURL(t); err != nil {
+			return e.Wrap(err)
+		}
 	}
 
 	return nil
@@ -89,11 +93,12 @@ type SyncSourceChecker struct {
 	client isaac.NetworkClient
 	*logging.Logging
 	*util.ContextDaemon
-	callback  func(called int64, _ []isaac.NodeConnInfo, _ error)
-	cis       []SyncSource // FIXME rename to tss
-	local     base.Node
-	networkID base.NetworkID
-	interval  time.Duration
+	callback        func(called int64, _ []isaac.NodeConnInfo, _ error)
+	sources         []SyncSource
+	local           base.Node
+	networkID       base.NetworkID
+	interval        time.Duration
+	validateTimeout time.Duration
 }
 
 func NewSyncSourceChecker(
@@ -102,7 +107,7 @@ func NewSyncSourceChecker(
 	client isaac.NetworkClient,
 	interval time.Duration,
 	enc encoder.Encoder,
-	cis []SyncSource,
+	sources []SyncSource,
 	callback func(called int64, _ []isaac.NodeConnInfo, _ error),
 ) *SyncSourceChecker {
 	// NOTE SyncSources should be passed, IsValid()
@@ -110,13 +115,14 @@ func NewSyncSourceChecker(
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", "node-conninfo-checker")
 		}),
-		local:     local,
-		networkID: networkID,
-		client:    client,
-		interval:  interval,
-		enc:       enc,
-		cis:       cis,
-		callback:  callback,
+		local:           local,
+		networkID:       networkID,
+		client:          client,
+		interval:        interval,
+		enc:             enc,
+		sources:         sources,
+		callback:        callback,
+		validateTimeout: time.Second * 3, //nolint:gomnd //...
 	}
 
 	c.ContextDaemon = util.NewContextDaemon(c.start)
@@ -142,7 +148,7 @@ end:
 				ticker.Reset(c.interval)
 			}
 
-			if len(c.cis) < 1 {
+			if len(c.sources) < 1 {
 				c.callback(called, nil, errors.Errorf("empty SyncSource"))
 
 				continue end
@@ -158,17 +164,17 @@ end:
 func (c *SyncSourceChecker) check(ctx context.Context) ([]isaac.NodeConnInfo, error) {
 	e := util.StringErrorFunc("failed to fetch NodeConnInfo")
 
-	worker := util.NewDistributeWorker(ctx, int64(len(c.cis)), nil)
+	worker := util.NewDistributeWorker(ctx, int64(len(c.sources)), nil)
 	defer worker.Close()
 
-	nciss := make([][]isaac.NodeConnInfo, len(c.cis))
+	nciss := make([][]isaac.NodeConnInfo, len(c.sources))
 
 	go func() {
 		defer worker.Done()
 
-		for i := range c.cis {
+		for i := range c.sources {
 			i := i
-			ci := c.cis[i]
+			ci := c.sources[i]
 
 			if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
 				ncis, err := c.fetch(ctx, ci)
@@ -192,22 +198,23 @@ func (c *SyncSourceChecker) check(ctx context.Context) ([]isaac.NodeConnInfo, er
 	var ncis []isaac.NodeConnInfo
 
 	for i := range nciss {
+		ss := nciss[i]
+
 		found := util.Filter2Slices(
-			util.FilterSlices(nciss[i], func(a interface{}) bool {
-				if a == nil {
+			util.FilterSlices(ss, func(_ interface{}, j int) bool {
+				aci := ss[j]
+
+				if aci == nil {
 					return false
 				}
-
-				aci := a.(isaac.NodeConnInfo) //nolint:forcetypeassert //...
 
 				return !aci.Address().Equal(c.local.Address())
 			}),
 			ncis,
-			func(a, b interface{}) bool {
+			func(a, _ interface{}, _, j int) bool {
 				aci := a.(isaac.NodeConnInfo) //nolint:forcetypeassert //...
-				bci := b.(isaac.NodeConnInfo) //nolint:forcetypeassert //...
 
-				return aci.Address().Equal(bci.Address())
+				return aci.Address().Equal(ncis[j].Address())
 			})
 		if len(found) < 1 {
 			continue
@@ -388,7 +395,10 @@ func (c *SyncSourceChecker) validate(ctx context.Context, nci isaac.NodeConnInfo
 		return errIgnoreNodeconnInfo.Wrap(err)
 	}
 
-	_, err = c.client.NodeChallenge(ctx, ci, c.networkID, nci.Address(), nci.Publickey(), util.UUID().Bytes())
+	nctx, cancel := context.WithTimeout(ctx, c.validateTimeout)
+	defer cancel()
+
+	_, err = c.client.NodeChallenge(nctx, ci, c.networkID, nci.Address(), nci.Publickey(), util.UUID().Bytes())
 	if errors.Is(err, base.SignatureVerificationError) {
 		// NOTE if NodeChallenge failed, it means the node can not handle
 		// it's online suffrage nodes properly. All NodeConnInfo of this

@@ -283,8 +283,8 @@ func (p *ProposalMaker) New(ctx context.Context, point base.Point) (ProposalSign
 func filterDeadNodes(n []base.Node, b []base.Address) []base.Node {
 	l := util.Filter2Slices( // NOTE filter long dead nodes
 		n, b,
-		func(a, b interface{}) bool {
-			return a.(base.Node).Address().Equal(b.(base.Address)) //nolint:forcetypeassert //...
+		func(_, _ interface{}, i, j int) bool {
+			return n[i].Address().Equal(b[j])
 		},
 	)
 

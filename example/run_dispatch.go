@@ -211,11 +211,6 @@ func (cmd *runCommand) newSyncer(
 	return func(height base.Height) (isaac.Syncer, error) {
 		e := util.StringErrorFunc("failed newSyncer")
 
-		// NOTE if no discoveries, moves to broken state
-		if len(cmd.SyncNode) < 1 {
-			return nil, e(isaacstates.ErrUnpromising.Errorf("syncer needs one or more SyncNode"), "")
-		}
-
 		var lastsuffrageproof base.SuffrageProof
 
 		switch proof, found, err := cmd.db.LastSuffrageProof(); {
@@ -336,15 +331,10 @@ func (cmd *runCommand) getProposalFunc() func(_ context.Context, facthash util.H
 }
 
 func (cmd *runCommand) syncerLastBlockMapf() isaacstates.SyncerLastBlockMapFunc {
-	return func(ctx context.Context, manifest util.Hash) (_ base.BlockMap, updated bool, _ error) {
+	f := func(
+		ctx context.Context, manifest util.Hash, ci quicstream.UDPConnInfo,
+	) (_ base.BlockMap, updated bool, _ error) {
 		// FIXME sync nodes pool; if failed, selects next node
-		node := cmd.SyncNode[0]
-
-		ci, err := node.ConnInfo()
-		if err != nil {
-			return nil, false, err
-		}
-
 		switch m, updated, err := cmd.client.LastBlockMap(ctx, ci, manifest); {
 		case err != nil, !updated:
 			return m, updated, err
@@ -356,18 +346,37 @@ func (cmd *runCommand) syncerLastBlockMapf() isaacstates.SyncerLastBlockMapFunc 
 			return m, updated, nil
 		}
 	}
+
+	return func(ctx context.Context, manifest util.Hash) (m base.BlockMap, updated bool, _ error) {
+		err := cmd.syncSourcePool.Retry(
+			ctx,
+			func(nci isaac.NodeConnInfo) (bool, error) {
+				ci, err := nci.UDPConnInfo()
+				if err != nil {
+					return true, isaac.ErrRetrySyncSources.Wrap(err)
+				}
+
+				i, j, err := f(ctx, manifest, ci)
+				if err != nil {
+					return false, err
+				}
+
+				m = i
+				updated = j
+
+				return false, nil
+			},
+			-1, //nolint:gomnd // infinite loop
+			cmd.syncSourcesRetryInterval,
+		)
+
+		return m, updated, err
+	}
 }
 
 func (cmd *runCommand) syncerBlockMapf() isaacstates.SyncerBlockMapFunc {
-	return func(ctx context.Context, height base.Height) (base.BlockMap, bool, error) {
+	f := func(ctx context.Context, height base.Height, ci quicstream.UDPConnInfo) (base.BlockMap, bool, error) {
 		// FIXME use multiple discoveries
-		sn := cmd.SyncNode[0]
-
-		ci, err := sn.ConnInfo()
-		if err != nil {
-			return nil, false, err
-		}
-
 		switch m, found, err := cmd.client.BlockMap(ctx, ci, height); {
 		case err != nil, !found:
 			return m, found, err
@@ -379,23 +388,70 @@ func (cmd *runCommand) syncerBlockMapf() isaacstates.SyncerBlockMapFunc {
 			return m, found, nil
 		}
 	}
+
+	return func(ctx context.Context, height base.Height) (m base.BlockMap, found bool, _ error) {
+		err := cmd.syncSourcePool.Retry(
+			ctx,
+			func(nci isaac.NodeConnInfo) (bool, error) {
+				ci, err := nci.UDPConnInfo()
+				if err != nil {
+					return true, isaac.ErrRetrySyncSources.Wrap(err)
+				}
+
+				i, j, err := f(ctx, height, ci)
+				if err != nil {
+					return false, err
+				}
+
+				m = i
+				found = j
+
+				return false, nil
+			},
+			-1, //nolint:gomnd // infinite loop
+			cmd.syncSourcesRetryInterval,
+		)
+
+		return m, found, err
+	}
 }
 
 func (cmd *runCommand) syncerBlockMapItemf() isaacstates.SyncerBlockMapItemFunc {
 	// FIXME support remote item
-	return func(
-		ctx context.Context, height base.Height, item base.BlockMapItemType,
+	f := func(
+		ctx context.Context, height base.Height, item base.BlockMapItemType, ci quicstream.UDPConnInfo,
 	) (io.ReadCloser, func() error, bool, error) {
-		sn := cmd.SyncNode[0]
-
-		ci, err := sn.ConnInfo()
-		if err != nil {
-			return nil, nil, false, err
-		}
-
 		r, cancel, found, err := cmd.client.BlockMapItem(ctx, ci, height, item)
 
 		return r, cancel, found, err
+	}
+
+	return func(ctx context.Context, height base.Height, item base.BlockMapItemType,
+	) (reader io.ReadCloser, cancelf func() error, found bool, _ error) {
+		err := cmd.syncSourcePool.Retry(
+			ctx,
+			func(nci isaac.NodeConnInfo) (bool, error) {
+				ci, err := nci.UDPConnInfo()
+				if err != nil {
+					return true, isaac.ErrRetrySyncSources.Wrap(err)
+				}
+
+				i, j, k, err := f(ctx, height, item, ci)
+				if err != nil {
+					return false, err
+				}
+
+				reader = i
+				cancelf = j
+				found = k
+
+				return false, nil
+			},
+			-1, //nolint:gomnd // infinite loop
+			cmd.syncSourcesRetryInterval,
+		)
+
+		return reader, cancelf, found, err
 	}
 }
 
@@ -444,6 +500,9 @@ func (cmd *runCommand) broadcastBallotFunc(ballot base.Ballot) error {
 }
 
 func (cmd *runCommand) updateSyncSources(called int64, ncis []isaac.NodeConnInfo, err error) {
+	// FIXME include memberlist members
+	cmd.syncSourcePool.Update(ncis)
+
 	if err != nil {
 		log.Error().Err(err).
 			Interface("node_conn_info", ncis).
@@ -452,19 +511,86 @@ func (cmd *runCommand) updateSyncSources(called int64, ncis []isaac.NodeConnInfo
 		return
 	}
 
-	_ = cmd.syncSources.SetValue(ncis)
-
 	log.Debug().
 		Int64("called", called).
 		Interface("node_conn_info", ncis).
 		Msg("sync sources updated")
 }
 
-func (cmd *runCommand) latestSyncSources() []isaac.NodeConnInfo {
-	i, isnil := cmd.syncSources.Value()
-	if isnil {
-		return nil
+func (cmd *runCommand) getLastSuffrageProofFunc() func(context.Context) (base.SuffrageProof, bool, error) {
+	var last util.Hash
+
+	f := func(ctx context.Context, ci quicstream.UDPConnInfo) (base.SuffrageProof, bool, error) {
+		proof, updated, err := cmd.client.LastSuffrageProof(ctx, ci, last)
+
+		switch {
+		case err != nil:
+			return proof, updated, err
+		case !updated:
+			return proof, updated, nil
+		default:
+			if err := proof.IsValid(networkID); err != nil {
+				return nil, updated, err
+			}
+
+			last = proof.Map().Manifest().Suffrage()
+
+			return proof, updated, nil
+		}
 	}
 
-	return i.([]isaac.NodeConnInfo) //nolint:forcetypeassert //...
+	return func(ctx context.Context) (proof base.SuffrageProof, found bool, _ error) {
+		err := cmd.syncSourcePool.Retry(
+			ctx,
+			func(nci isaac.NodeConnInfo) (bool, error) {
+				ci, err := nci.UDPConnInfo()
+				if err != nil {
+					return true, isaac.ErrRetrySyncSources.Wrap(err)
+				}
+
+				i, j, err := f(ctx, ci)
+				if err != nil {
+					return false, err
+				}
+
+				proof = i
+				found = j
+
+				return false, nil
+			},
+			-1, //nolint:gomnd // infinite loop
+			cmd.syncSourcesRetryInterval,
+		)
+
+		return proof, found, err
+	}
+}
+
+func (cmd *runCommand) getSuffrageProofFunc() func(
+	ctx context.Context, suffrageheight base.Height) (base.SuffrageProof, bool, error) {
+	return func(ctx context.Context, suffrageheight base.Height) (proof base.SuffrageProof, found bool, _ error) {
+		err := cmd.syncSourcePool.Retry(
+			ctx,
+			func(nci isaac.NodeConnInfo) (bool, error) {
+				ci, err := nci.UDPConnInfo()
+				if err != nil {
+					return true, isaac.ErrRetrySyncSources.Wrap(err)
+				}
+
+				i, j, err := cmd.client.SuffrageProof(ctx, ci, suffrageheight)
+				if err != nil {
+					return false, err
+				}
+
+				proof = i
+				found = j
+
+				return false, nil
+			},
+			-1, //nolint:gomnd // infinite loop
+			cmd.syncSourcesRetryInterval,
+		)
+
+		return proof, found, err
+	}
 }

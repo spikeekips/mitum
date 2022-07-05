@@ -1,14 +1,13 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
@@ -63,23 +62,12 @@ func (cmd *runCommand) prepare() (func() error, error) {
 		return nil, err
 	}
 
-	cmd.syncSources = util.EmptyLocked()
+	cmd.syncSourcesRetryInterval = time.Second * 3 //nolint:gomnd //...
 
 	return stop, nil
 }
 
 func (cmd *runCommand) prepareFlags() error {
-	switch {
-	case len(cmd.SyncNode) < 1:
-		return errors.Errorf("empty SyncNode")
-	default:
-		for i := range cmd.SyncNode {
-			if _, err := cmd.SyncNode[i].ConnInfo(); err != nil {
-				return errors.WithMessagef(err, "invalid SyncNode, %q", cmd.SyncNode[i])
-			}
-		}
-	}
-
 	switch {
 	case len(cmd.MemberDiscovery) < 1:
 	default:
@@ -169,60 +157,38 @@ func (cmd *runCommand) prepareNetwork() error {
 }
 
 func (cmd *runCommand) prepareSuffrageStateBuilder() {
-	var last util.Hash
-
 	cmd.suffrageStateBuilder = isaacstates.NewSuffrageStateBuilder(
 		networkID,
-		func(ctx context.Context) (base.SuffrageProof, bool, error) {
-			sn := cmd.SyncNode[0] // FIXME use multiple sync nodes
-
-			ci, err := sn.ConnInfo()
-			if err != nil {
-				return nil, false, err
-			}
-
-			proof, updated, err := cmd.client.LastSuffrageProof(ctx, ci, last)
-			switch {
-			case err != nil:
-				return proof, updated, err
-			case !updated:
-				return proof, updated, nil
-			default:
-				if err := proof.IsValid(networkID); err != nil {
-					return nil, updated, err
-				}
-
-				last = proof.Map().Manifest().Suffrage()
-
-				return proof, updated, nil
-			}
-		},
-		func(ctx context.Context, suffrageheight base.Height) (base.SuffrageProof, bool, error) {
-			sn := cmd.SyncNode[0]
-
-			ci, err := sn.ConnInfo()
-			if err != nil {
-				return nil, false, err
-			}
-
-			proof, found, err := cmd.client.SuffrageProof(ctx, ci, suffrageheight)
-
-			return proof, found, err
-		},
+		cmd.getLastSuffrageProofFunc(),
+		cmd.getSuffrageProofFunc(),
 	)
 }
 
 func (cmd *runCommand) prepareSyncSourceChecker() error {
+	sources := make([]isaacnetwork.SyncSource, len(cmd.design.SyncSources))
+	for i := range cmd.design.SyncSources {
+		sources[i] = cmd.design.SyncSources[i].Source
+	}
+
+	switch {
+	case len(sources) < 1:
+		log.Warn().Msg("empty initial sync sources; connected memberlist members will be used")
+	default:
+		log.Debug().Interface("sync_sources", sources).Msg("initial sync sources found")
+	}
+
 	cmd.syncSourceChecker = isaacnetwork.NewSyncSourceChecker(
 		cmd.local,
 		cmd.nodePolicy.NetworkID(),
 		cmd.client,
 		time.Second*30, //nolint:gomnd //... // FIXME config
 		cmd.enc,
-		nil, // FIXME set cis
+		sources,
 		cmd.updateSyncSources,
 	)
 	_ = cmd.syncSourceChecker.SetLogging(logging)
+
+	cmd.syncSourcePool = isaac.NewSyncSourcePool(nil)
 
 	return nil
 }

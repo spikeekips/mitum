@@ -49,8 +49,9 @@ end:
 		}
 	}
 
-	if _, found := util.CheckSliceDuplicated(p.nodes, func(i interface{}) string {
-		n := i.(Node) //nolint:forcetypeassert //...
+	if _, found := util.CheckSliceDuplicated(p.nodes, func(_ interface{}, i int) string {
+		n := p.nodes[i]
+
 		if n.IsEmpty() {
 			return util.UUID().String()
 		}
@@ -60,8 +61,9 @@ end:
 		return errors.Errorf("duplicated key found")
 	}
 
-	if _, found := util.CheckSliceDuplicated(p.nodes, func(i interface{}) string {
-		n := i.(Node) //nolint:forcetypeassert //...
+	if _, found := util.CheckSliceDuplicated(p.nodes, func(_ interface{}, i int) string {
+		n := p.nodes[i]
+
 		if n.IsEmpty() {
 			return valuehash.Bytes(util.UUID().Bytes()).String()
 		}

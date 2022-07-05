@@ -45,18 +45,16 @@ func IsValidProposalFact(fact ProposalFact) error {
 	ops := fact.Operations()
 	vs := make([]util.IsValider, len(ops))
 
-	var c int
+	if _, found := util.CheckSliceDuplicated(ops, func(_ interface{}, i int) string {
+		op := ops[i]
 
-	if _, found := util.CheckSliceDuplicated(ops, func(i interface{}) string {
-		j, ok := i.(util.Hash)
-		if !ok {
+		if op == nil {
 			return ""
 		}
 
-		vs[c] = ops[c]
-		c++
+		vs[i] = ops[i]
 
-		return j.String()
+		return op.String()
 	}); found {
 		return util.ErrInvalid.Errorf("duplicated operation found")
 	}

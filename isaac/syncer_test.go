@@ -65,14 +65,14 @@ func (t *testSyncSourcePool) TestNew() {
 
 		p := NewSyncSourcePool(sources)
 
-		t.NotEmpty(p.id)
+		t.NotEmpty(p.sourcesid)
 		t.Equal(0, p.index)
 	})
 
 	t.Run("empty", func() {
 		p := NewSyncSourcePool(nil)
 
-		t.Empty(p.id)
+		t.Empty(p.sourcesid)
 		t.Equal(0, p.index)
 	})
 }
@@ -87,12 +87,12 @@ func (t *testSyncSourcePool) TestUpdate() {
 	}
 
 	p := NewSyncSourcePool(prevsources)
-	previd := p.id
+	previd := p.sourcesid
 
 	t.True(p.Update(newsources))
 	t.False(p.Update(newsources))
 
-	t.NotEqual(previd, p.id)
+	t.NotEqual(previd, p.sourcesid)
 }
 
 func (t *testSyncSourcePool) TestSameID() {
@@ -105,7 +105,7 @@ func (t *testSyncSourcePool) TestSameID() {
 	p0 := NewSyncSourcePool(sources)
 	p1 := NewSyncSourcePool(sources)
 
-	t.Equal(p0.id, p1.id)
+	t.Equal(p0.sourcesid, p1.sourcesid)
 }
 
 func (t *testSyncSourcePool) TestNext() {
@@ -170,7 +170,8 @@ func (t *testSyncSourcePool) TestNextPrevID() {
 		t.NotNil(next)
 		t.Equal(p.currentid, id)
 
-		next, id, err = p.Next(id)
+		next, _, err = p.Next(id)
+		t.NoError(err)
 
 		a := sources[1]
 
@@ -214,7 +215,7 @@ func (t *testSyncSourcePool) TestConcurrent() {
 	p := NewSyncSourcePool(sources)
 
 	t.NoError(util.RunErrgroupWorker(context.Background(), 333, func(_ context.Context, i uint64, _ uint64) error {
-		previd := p.ids[i%uint64(len(p.ids))]
+		previd := p.sourceids[i%uint64(len(p.sourceids))]
 		if i%15 == 0 {
 			previd = ""
 		}

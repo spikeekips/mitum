@@ -13,6 +13,7 @@ import (
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
+	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
@@ -91,8 +92,32 @@ func (d *NodeDesign) IsValid([]byte) error {
 	}
 
 	for i := range d.SyncSources {
-		if err := d.SyncSources[i].IsValid(nil); err != nil {
+		s := d.SyncSources[i]
+		if err := s.IsValid(nil); err != nil {
 			return e.Wrap(err)
+		}
+
+		var ci isaac.NodeConnInfo
+
+		switch t := s.Source.Source.(type) {
+		case isaac.NodeConnInfo:
+			if t.Address().Equal(d.Address) {
+				return e.Errorf("same node address with local")
+			}
+
+			ci = t
+		case quicstream.UDPConnInfo,
+			quicmemberlist.NamedConnInfo:
+			ci = t.(isaac.NodeConnInfo) //nolint:forcetypeassert //...
+		default:
+			continue
+		}
+
+		switch {
+		case ci.Addr().String() == d.Network.PublishString:
+			return e.Errorf("sync source has same with publish address")
+		case ci.Addr().String() == d.Network.publish.String():
+			return e.Errorf("sync source has same with publish resolved address")
 		}
 	}
 

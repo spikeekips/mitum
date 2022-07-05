@@ -14,7 +14,7 @@ func InStringSlice(n string, s []string) bool {
 	return false
 }
 
-func CheckSliceDuplicated(s interface{}, key func(interface{}) string) (map[string]interface{}, bool) {
+func CheckSliceDuplicated(s interface{}, keyf func(interface{}, int) string) (map[string]interface{}, bool) {
 	if s == nil {
 		return nil, false
 	}
@@ -31,7 +31,7 @@ func CheckSliceDuplicated(s interface{}, key func(interface{}) string) (map[stri
 		if sl[i] == nil {
 			k = ""
 		} else {
-			k = key(sl[i])
+			k = keyf(sl[i], i)
 		}
 
 		if _, found := m[k]; found {
@@ -44,7 +44,7 @@ func CheckSliceDuplicated(s interface{}, key func(interface{}) string) (map[stri
 	return m, false
 }
 
-func FilterSlices(a interface{}, f func(interface{}) bool) []interface{} {
+func FilterSlices(a interface{}, f func(interface{}, int) bool) []interface{} {
 	as := makeInterfaceSlice(a)
 	if as == nil {
 		return nil
@@ -54,7 +54,7 @@ func FilterSlices(a interface{}, f func(interface{}) bool) []interface{} {
 	var index int
 
 	for i := range as {
-		if !f(as[i]) {
+		if !f(as[i], i) {
 			continue
 		}
 
@@ -65,15 +65,15 @@ func FilterSlices(a interface{}, f func(interface{}) bool) []interface{} {
 	return ns[:index]
 }
 
-func Filter2Slices(a, b interface{}, f func(interface{}, interface{}) bool) []interface{} {
+func Filter2Slices(a, b interface{}, f func(interface{}, interface{}, int, int) bool) []interface{} {
 	as := makeInterfaceSlice(a)
-	if as == nil {
+	if as == nil || len(as) < 1 {
 		return nil
 	}
 
 	bs := makeInterfaceSlice(b)
-	if bs == nil {
-		return nil
+	if bs == nil || len(bs) < 1 {
+		return as
 	}
 
 	nb := make([]interface{}, len(as))
@@ -84,7 +84,7 @@ func Filter2Slices(a, b interface{}, f func(interface{}, interface{}) bool) []in
 		var found bool
 
 		for j := range bs {
-			if f(as[i], bs[j]) {
+			if f(as[i], bs[j], i, j) {
 				found = true
 
 				break

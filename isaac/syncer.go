@@ -27,33 +27,12 @@ type Syncer interface {
 	Cancel() error
 }
 
-func RetrySyncSource(ctx context.Context, f func() (bool, error), limit int, interval time.Duration) error {
-	// FIXME use SyncSourcePool.Retry
-	return util.Retry(
-		ctx,
-		func() (bool, error) {
-			keep, err := f()
-
-			switch {
-			case err == nil:
-			case errors.Is(err, ErrRetrySyncSources),
-				quicstream.IsNetworkError(err):
-				return true, nil
-			}
-
-			return keep, err
-		},
-		limit,
-		interval,
-	)
-}
-
 type SyncSourcePool struct {
 	current   NodeConnInfo
-	id        string
+	sourcesid string
 	currentid string
 	sources   []NodeConnInfo
-	ids       []string
+	sourceids []string
 	index     int
 	sync.RWMutex
 }
@@ -63,7 +42,7 @@ func NewSyncSourcePool(sources []NodeConnInfo) *SyncSourcePool {
 		sources: sources,
 	}
 
-	p.id, p.ids = p.makeid(sources)
+	p.sourcesid, p.sourceids = p.makeid(sources)
 
 	return p
 }
@@ -83,8 +62,11 @@ func (p *SyncSourcePool) Retry(
 			if errors.Is(err, ErrEmptySyncSources) {
 				return true, nil
 			}
-
 			lastid = id
+
+			if _, err = nci.UDPConnInfo(); err != nil {
+				return true, err
+			}
 
 			keep, err := f(nci)
 
@@ -107,58 +89,18 @@ func (p *SyncSourcePool) Update(sources []NodeConnInfo) bool {
 	defer p.Unlock()
 
 	id, ids := p.makeid(sources)
-	if id == p.id {
+	if id == p.sourcesid {
 		return false
 	}
 
 	p.sources = sources
-	p.id, p.ids = id, ids
+	p.sourcesid, p.sourceids = id, ids
 
 	p.index = 0
+	p.current = nil
+	p.currentid = ""
 
 	return true
-}
-
-func (*SyncSourcePool) makeid(sources []NodeConnInfo) (string, []string) {
-	if len(sources) < 1 {
-		return "", nil
-	}
-
-	gh := sha3.New256()
-
-	ids := make([]string, len(sources))
-
-	for i := range sources {
-		s := sources[i]
-
-		h := sha3.New256()
-		_, _ = h.Write(s.Address().Bytes())
-		_, _ = h.Write([]byte(s.String()))
-
-		var v valuehash.L32
-
-		h.Sum(v[:0])
-
-		ids[i] = v.String()
-		_, _ = gh.Write(v.Bytes())
-	}
-
-	var v valuehash.L32
-
-	gh.Sum(v[:0])
-
-	return v.String(), ids
-}
-
-func (p *SyncSourcePool) nextIndex() int {
-	switch {
-	case p.index == len(p.sources):
-		p.index = 1
-	default:
-		p.index++
-	}
-
-	return p.index - 1
 }
 
 func (p *SyncSourcePool) Next(previd string) (NodeConnInfo, string, error) {
@@ -177,7 +119,53 @@ func (p *SyncSourcePool) Next(previd string) (NodeConnInfo, string, error) {
 	index := p.nextIndex()
 
 	p.current = p.sources[index]
-	p.currentid = p.ids[index]
+	p.currentid = p.sourceids[index]
 
 	return p.current, p.currentid, nil
+}
+
+func (p *SyncSourcePool) makeid(sources []NodeConnInfo) (string, []string) {
+	if len(sources) < 1 {
+		return "", nil
+	}
+
+	gh := sha3.New256()
+
+	ids := make([]string, len(sources))
+
+	for i := range sources {
+		id := p.makesourceid(sources[i])
+		ids[i] = id
+
+		_, _ = gh.Write([]byte(id))
+	}
+
+	var v valuehash.L32
+
+	gh.Sum(v[:0])
+
+	return v.String(), ids
+}
+
+func (*SyncSourcePool) makesourceid(source NodeConnInfo) string {
+	h := sha3.New256()
+	_, _ = h.Write(source.Address().Bytes())
+	_, _ = h.Write([]byte(source.String()))
+
+	var v valuehash.L32
+
+	h.Sum(v[:0])
+
+	return v.String()
+}
+
+func (p *SyncSourcePool) nextIndex() int {
+	switch {
+	case p.index == len(p.sources):
+		p.index = 1
+	default:
+		p.index++
+	}
+
+	return p.index - 1
 }
