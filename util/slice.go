@@ -14,6 +14,25 @@ func InStringSlice(n string, s []string) bool {
 	return false
 }
 
+func InSlice(s interface{}, f func(interface{}, int) bool) int {
+	if s == nil {
+		return -1
+	}
+
+	sl := makeInterfaceSlice(s)
+	if sl == nil {
+		return -1
+	}
+
+	for i := range sl {
+		if f(sl[i], i) {
+			return i
+		}
+	}
+
+	return -1
+}
+
 func CheckSliceDuplicated(s interface{}, keyf func(interface{}, int) string) (map[string]interface{}, bool) {
 	if s == nil {
 		return nil, false

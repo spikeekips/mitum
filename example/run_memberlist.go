@@ -8,6 +8,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
@@ -75,9 +76,34 @@ func (cmd *runCommand) prepareMemberlist() error {
 		cmd.enc,
 		func(node quicmemberlist.Node) {
 			log.Debug().Interface("node", node).Msg("new node found")
+
+			if !node.Address().Equal(cmd.local.Address()) {
+				nci := isaacnetwork.NewNodeConnInfo(
+					isaac.NewNode(node.Publickey(), node.Address()),
+					node.Publish().Addr().String(),
+					node.Publish().TLSInsecure(),
+				)
+
+				added := cmd.syncSourcePool.Add(nci)
+
+				log.Debug().
+					Bool("added", added).
+					Interface("node_conn_info", nci).
+					Msg("new node added to SyncSourcePool")
+			}
 		},
 		func(node quicmemberlist.Node) {
 			log.Debug().Interface("node", node).Msg("node left")
+
+			if !node.Address().Equal(cmd.local.Address()) {
+				removed := cmd.syncSourcePool.Remove(node.Address(), node.Publish().String())
+
+				log.Debug().
+					Bool("removed", removed).
+					Interface("node", node.Address()).
+					Str("publish", node.Publish().String()).
+					Msg("node removed from SyncSourcePool")
+			}
 		},
 	)
 	memberlistconfig.Events = memberlistevents

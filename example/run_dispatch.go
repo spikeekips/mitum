@@ -501,7 +501,7 @@ func (cmd *runCommand) broadcastBallotFunc(ballot base.Ballot) error {
 
 func (cmd *runCommand) updateSyncSources(called int64, ncis []isaac.NodeConnInfo, err error) {
 	// FIXME include memberlist members
-	cmd.syncSourcePool.Update(ncis)
+	cmd.syncSourcePool.UpdateFixed(ncis)
 
 	if err != nil {
 		log.Error().Err(err).

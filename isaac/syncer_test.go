@@ -65,14 +65,14 @@ func (t *testSyncSourcePool) TestNew() {
 
 		p := NewSyncSourcePool(sources)
 
-		t.NotEmpty(p.sourcesid)
+		t.NotEmpty(p.sourceids)
 		t.Equal(0, p.index)
 	})
 
 	t.Run("empty", func() {
 		p := NewSyncSourcePool(nil)
 
-		t.Empty(p.sourcesid)
+		t.Empty(p.sourceids)
 		t.Equal(0, p.index)
 	})
 }
@@ -86,13 +86,232 @@ func (t *testSyncSourcePool) TestUpdate() {
 		newsources[i] = t.newnci()
 	}
 
-	p := NewSyncSourcePool(prevsources)
-	previd := p.sourcesid
+	t.Run("update", func() {
+		p := NewSyncSourcePool(prevsources)
+		previds := p.sourceids
 
-	t.True(p.Update(newsources))
-	t.False(p.Update(newsources))
+		t.True(p.UpdateFixed(newsources))
+		t.False(p.UpdateFixed(newsources))
+		t.True(p.UpdateFixed(prevsources))
 
-	t.NotEqual(previd, p.sourcesid)
+		t.Equal(previds, p.sourceids)
+	})
+
+	t.Run("update and reset", func() {
+		p := NewSyncSourcePool(prevsources)
+
+		t.True(p.UpdateFixed(newsources))
+
+		_, previd, err := p.Next("")
+		t.NoError(err)
+		t.Equal(p.sourceids[0], previd)
+
+		t.True(p.UpdateFixed(prevsources))
+
+		_, nextid, err := p.Next(previd)
+		t.NoError(err)
+		t.Equal(p.sourceids[0], nextid)
+	})
+
+	t.Run("update empty", func() {
+		p := NewSyncSourcePool(prevsources)
+
+		t.True(p.UpdateFixed(newsources))
+
+		_, previd, err := p.Next("")
+		t.NoError(err)
+		t.Equal(p.sourceids[0], previd)
+
+		t.True(p.UpdateFixed(nil))
+
+		_, _, err = p.Next(previd)
+		t.Error(err)
+		t.True(errors.Is(err, ErrEmptySyncSources))
+	})
+}
+
+func (t *testSyncSourcePool) TestAdd() {
+	sources := make([]NodeConnInfo, 3)
+
+	for i := range sources {
+		sources[i] = t.newnci()
+	}
+
+	t.Run("new", func() {
+		p := NewSyncSourcePool(sources)
+
+		prev := p.sources
+		previds := p.sourceids
+
+		added := t.newnci()
+		t.True(p.Add(added))
+
+		next := make([]NodeConnInfo, len(prev)+1)
+		copy(next, prev)
+		next[len(prev)] = added
+		nextids := make([]string, len(prev)+1)
+		copy(nextids, previds)
+		nextids[len(previds)] = p.makesourceid(added)
+
+		t.Equal(p.sources[len(p.sources)-1].String(), added.String())
+		t.Equal(nextids, p.sourceids)
+	})
+
+	t.Run("known", func() {
+		p := NewSyncSourcePool(sources)
+
+		prev := p.sources
+		previds := p.sourceids
+
+		t.False(p.Add(sources[1]))
+
+		t.Equal(len(p.sources), len(prev))
+		t.Equal(p.sources[len(p.sources)-1].String(), prev[len(prev)-1].String())
+		t.Equal(previds, p.sourceids)
+	})
+
+	t.Run("update", func() {
+		p := NewSyncSourcePool(sources)
+
+		prev := p.sources
+
+		newci := quicstream.RandomConnInfo()
+
+		added := sources[1]
+		added = newDummyNodeConnInfo(
+			added.Address(),
+			added.Publickey(),
+			newci.Addr().String(),
+			newci.TLSInsecure(),
+		)
+
+		t.True(p.Add(added))
+
+		t.Equal(len(p.sources), len(prev))
+
+		t.Equal(p.sources[1].String(), added.String())
+		t.Equal(p.sourceids[1], p.makesourceid(added))
+	})
+
+	t.Run("next and update", func() {
+		p := NewSyncSourcePool(sources)
+
+		_, previd, err := p.Next("")
+		t.NoError(err)
+		_, nextid, err := p.Next(previd)
+		t.NoError(err)
+		t.NotEqual(previd, nextid)
+
+		prev := p.sources
+
+		newci := quicstream.RandomConnInfo()
+
+		added := sources[1]
+		added = newDummyNodeConnInfo(
+			added.Address(),
+			added.Publickey(),
+			newci.Addr().String(),
+			newci.TLSInsecure(),
+		)
+
+		t.True(p.Add(added))
+
+		t.Equal(len(p.sources), len(prev))
+
+		t.Equal(p.sources[1].String(), added.String())
+		t.Equal(p.sourceids[1], p.makesourceid(added))
+
+		_, id, err := p.Next("")
+		t.NoError(err)
+
+		t.Equal(p.sourceids[0], id)
+	})
+}
+
+func (t *testSyncSourcePool) TestRemove() {
+	sources := make([]NodeConnInfo, 3)
+	for i := range sources {
+		sources[i] = t.newnci()
+	}
+
+	t.Run("ok", func() {
+		p := NewSyncSourcePool(sources)
+
+		added := make([]NodeConnInfo, 3)
+		for i := range added {
+			added[i] = t.newnci()
+		}
+
+		t.True(p.Add(added...))
+
+		prev := p.sources
+		previds := p.sourceids
+
+		i := added[0]
+		t.True(p.Remove(i.Address(), i.String()))
+
+		next := make([]NodeConnInfo, len(prev)-1)
+		copy(next, prev[:3])
+		copy(next[3:], prev[4:])
+
+		nextids := make([]string, len(prev)-1)
+		copy(nextids, previds[:3])
+		copy(nextids[3:], previds[4:])
+
+		t.Equal(len(prev)-1, len(p.sources))
+		t.Equal(nextids, p.sourceids)
+	})
+
+	t.Run("known but in fixed", func() {
+		p := NewSyncSourcePool(sources)
+
+		prev := p.sources
+		previds := p.sourceids
+		prevfixedlen := p.fixedlen
+
+		i := p.sources[1]
+		t.True(p.Remove(i.Address(), i.String()))
+
+		next := make([]NodeConnInfo, len(prev)-1)
+		copy(next, prev[:1])
+		copy(next[1:], prev[2:])
+
+		nextids := make([]string, len(prev)-1)
+		copy(nextids, previds[:1])
+		copy(nextids[1:], previds[2:])
+
+		t.Equal(len(prev)-1, len(p.sources))
+		t.Equal(nextids, p.sourceids)
+		t.Equal(prevfixedlen-1, p.fixedlen)
+	})
+
+	t.Run("ok, next and reset", func() {
+		p := NewSyncSourcePool(sources)
+
+		added := make([]NodeConnInfo, 3)
+		for i := range added {
+			added[i] = t.newnci()
+		}
+
+		t.True(p.Add(added...))
+
+		_, previd, err := p.Next("")
+		t.NoError(err)
+		_, previd, err = p.Next(previd)
+		t.NoError(err)
+		_, previd, err = p.Next(previd)
+		t.NoError(err)
+		_, previd, err = p.Next(previd)
+		t.NoError(err)
+
+		i := added[0]
+		t.True(p.Remove(i.Address(), i.String()))
+
+		_, previd, err = p.Next(previd)
+		t.NoError(err)
+
+		t.Equal(p.sourceids[2], previd)
+	})
 }
 
 func (t *testSyncSourcePool) TestSameID() {
@@ -105,7 +324,7 @@ func (t *testSyncSourcePool) TestSameID() {
 	p0 := NewSyncSourcePool(sources)
 	p1 := NewSyncSourcePool(sources)
 
-	t.Equal(p0.sourcesid, p1.sourcesid)
+	t.Equal(p0.sourceids, p1.sourceids)
 }
 
 func (t *testSyncSourcePool) TestNext() {
