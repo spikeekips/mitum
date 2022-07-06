@@ -35,6 +35,8 @@ func NewSuffrageStateBuilder(
 
 // Build builds latest suffrage states from localstate.
 func (s *SuffrageStateBuilder) Build(ctx context.Context, localstate base.State) (base.Suffrage, error) {
+	// FIXME keep latest suffrage state from local and remotes.
+
 	e := util.StringErrorFunc("failed to build suffrage states")
 
 	if s.batchlimit < 1 {

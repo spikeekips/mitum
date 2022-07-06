@@ -7,9 +7,11 @@ import (
 	"time"
 
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	"github.com/spikeekips/mitum/launch"
+	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/storage"
 	"github.com/spikeekips/mitum/util"
@@ -86,8 +88,56 @@ func (cmd *runCommand) networkHandlers() *quicstream.PrefixHandler {
 
 			return reader.Reader(item)
 		},
-		nil, // FIXME implement
-		nil, // FIXME implement
+		func() ([]isaac.NodeConnInfo, error) {
+			// FIXME cache result
+
+			var suf base.Suffrage
+
+			switch proof, found, err := cmd.db.LastSuffrageProof(); {
+			case err != nil:
+				return nil, err
+			case !found:
+				return nil, storage.NotFoundError.Errorf("last SuffrageProof not found")
+			default:
+				i, err := proof.Suffrage()
+				if err != nil {
+					return nil, err
+				}
+
+				suf = i
+			}
+
+			members := make([]isaac.NodeConnInfo, cmd.memberlist.MembersLen()*2)
+
+			var i int
+			cmd.memberlist.Members(func(node quicmemberlist.Node) bool {
+				if !suf.ExistsPublickey(node.Address(), node.Publickey()) {
+					return true
+				}
+
+				members[i] = isaacnetwork.NewNodeConnInfoFromMemberlistNode(node)
+				i++
+
+				return true
+			})
+
+			return members[:i], nil
+		},
+		func() ([]isaac.NodeConnInfo, error) {
+			// FIXME cache result
+
+			members := make([]isaac.NodeConnInfo, cmd.syncSourcePool.Len()*2)
+
+			var i int
+			cmd.syncSourcePool.Actives(func(nci isaac.NodeConnInfo) bool {
+				members[i] = nci
+				i++
+
+				return true
+			})
+
+			return members[:i], nil
+		},
 	)
 
 	prefix := launch.Handlers(handlers)

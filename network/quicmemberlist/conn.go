@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
@@ -80,13 +79,6 @@ func (c *NamedConnInfo) UnmarshalText(b []byte) error {
 	c.tlsinsecure = tlsinsecure
 
 	return nil
-}
-
-func (c NamedConnInfo) MarshalZerologObject(e *zerolog.Event) { // FIXME use network.ConnInfoLog
-	e.
-		Str("type", "namedconninfo").
-		Stringer("addr", c.addr).
-		Bool("tls_insecure", c.tlsinsecure)
 }
 
 type qconn struct {

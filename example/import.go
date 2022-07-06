@@ -296,5 +296,3 @@ func (cmd *importCommand) validateImportedBlocks(root string, last base.Height) 
 
 	return nil
 }
-
-// FIXME check SuffrageProof

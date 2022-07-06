@@ -27,7 +27,6 @@ func HasTLSInsecure(s string) bool {
 }
 
 func ParseTLSInsecure(s string) (string, bool) {
-	// FIXME parse url fragment
 	switch i := strings.Index(s, "#"); {
 	case i < 0:
 		return s, false
@@ -39,7 +38,6 @@ func ParseTLSInsecure(s string) (string, bool) {
 }
 
 func ConnInfoToString(addr string, tlsinsecure bool) string { // revive:disable-line:flag-parameter
-	// FIXME get ConnInfo
 	ti := ""
 	if tlsinsecure {
 		ti = "#tls_insecure"

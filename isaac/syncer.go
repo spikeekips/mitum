@@ -256,6 +256,32 @@ func (p *SyncSourcePool) Retry(
 	)
 }
 
+func (p *SyncSourcePool) Len() int {
+	p.RLock()
+	defer p.RUnlock()
+
+	return len(p.sources)
+}
+
+func (p *SyncSourcePool) Actives(f func(NodeConnInfo) bool) {
+	p.RLock()
+	defer p.RUnlock()
+
+	if len(p.sources) < 1 {
+		return
+	}
+
+	for i := range p.problems {
+		d := p.problems[i]
+
+		if d == nil || time.Since(*d) > p.renewTimeout {
+			if !f(p.sources[i]) {
+				return
+			}
+		}
+	}
+}
+
 func (p *SyncSourcePool) makeid(sources []NodeConnInfo) []string {
 	if len(sources) < 1 {
 		return nil

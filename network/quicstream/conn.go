@@ -4,7 +4,6 @@ import (
 	"net"
 
 	"github.com/pkg/errors"
-	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/util"
 )
@@ -96,11 +95,4 @@ func (c *UDPConnInfo) UnmarshalText(b []byte) error {
 	*c = ci
 
 	return nil
-}
-
-func (c UDPConnInfo) MarshalZerologObject(e *zerolog.Event) { // FIXME use network.ConnInfoLog
-	e.
-		Str("type", "udpconninfo").
-		Stringer("addr", c.addr).
-		Bool("tls_insecure", c.tlsinsecure)
 }

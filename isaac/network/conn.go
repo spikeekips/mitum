@@ -2,6 +2,7 @@ package isaacnetwork
 
 import (
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/util"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
@@ -22,6 +23,14 @@ func NewNodeConnInfo(node base.BaseNode, addr string, tlsinsecure bool) NodeConn
 		BaseNode:      node,
 		NamedConnInfo: quicmemberlist.NewNamedConnInfo(addr, tlsinsecure),
 	}
+}
+
+func NewNodeConnInfoFromMemberlistNode(node quicmemberlist.Node) NodeConnInfo {
+	return NewNodeConnInfo(
+		isaac.NewNode(node.Publickey(), node.Address()),
+		node.Publish().Addr().String(),
+		node.Publish().TLSInsecure(),
+	)
 }
 
 func (n NodeConnInfo) IsValid([]byte) error {

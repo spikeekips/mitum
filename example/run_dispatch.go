@@ -12,6 +12,7 @@ import (
 	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/network/quicstream"
+	"github.com/spikeekips/mitum/storage"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/valuehash"
@@ -151,8 +152,8 @@ func (cmd *runCommand) proposalSelectorFunc() *isaac.BaseProposalSelector {
 			return members, true, nil
 		},
 		func(ctx context.Context, point base.Point, proposer base.Address) (base.ProposalSignedFact, error) {
-			// FIXME set request
 			var ci quicstream.UDPConnInfo
+
 			cmd.memberlist.Members(func(node quicmemberlist.Node) bool {
 				if node.Address().Equal(proposer) {
 					ci = node.UDPConnInfo()
@@ -321,16 +322,58 @@ func (cmd *runCommand) newSyncerDeferred(
 }
 
 func (cmd *runCommand) getProposalFunc() func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error) {
-	return func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error) {
+	return func(ctx context.Context, facthash util.Hash) (base.ProposalSignedFact, error) {
 		switch pr, found, err := cmd.pool.Proposal(facthash); {
 		case err != nil:
 			return nil, err
-		case !found:
-			// FIXME if not found, request to remote node
-			return nil, nil
-		default:
+		case found:
 			return pr, nil
 		}
+
+		// NOTE if not found, request to remote node
+		worker := util.NewErrgroupWorker(ctx, 3) //nolint:gomnd //...
+		defer worker.Close()
+
+		prl := util.EmptyLocked()
+
+		go func() {
+			defer worker.Done()
+
+			cmd.memberlist.Members(func(node quicmemberlist.Node) bool {
+				ci := node.UDPConnInfo()
+
+				return worker.NewJob(func(ctx context.Context, _ uint64) error {
+					pr, found, err := cmd.client.Proposal(ctx, ci, facthash)
+					switch {
+					case err != nil:
+						return nil
+					case !found:
+						return nil
+					}
+
+					_, _ = prl.Set(func(i interface{}) (interface{}, error) {
+						if i != nil {
+							return i, nil
+						}
+
+						return pr, nil
+					})
+
+					return errors.Errorf("stop")
+				}) == nil
+			})
+		}()
+
+		if err := worker.Wait(); err != nil {
+			return nil, err
+		}
+
+		i, isnil := prl.Value()
+		if isnil {
+			return nil, storage.NotFoundError.Errorf("ProposalSignedFact not found")
+		}
+
+		return i.(base.ProposalSignedFact), nil //nolint:forcetypeassert //...
 	}
 }
 
@@ -338,7 +381,6 @@ func (cmd *runCommand) syncerLastBlockMapf() isaacstates.SyncerLastBlockMapFunc 
 	f := func(
 		ctx context.Context, manifest util.Hash, ci quicstream.UDPConnInfo,
 	) (_ base.BlockMap, updated bool, _ error) {
-		// FIXME sync nodes pool; if failed, selects next node
 		switch m, updated, err := cmd.client.LastBlockMap(ctx, ci, manifest); {
 		case err != nil, !updated:
 			return m, updated, err
@@ -403,7 +445,6 @@ func (cmd *runCommand) syncerLastBlockMapf() isaacstates.SyncerLastBlockMapFunc 
 
 func (cmd *runCommand) syncerBlockMapf() isaacstates.SyncerBlockMapFunc {
 	f := func(ctx context.Context, height base.Height, ci quicstream.UDPConnInfo) (base.BlockMap, bool, error) {
-		// FIXME use multiple discoveries
 		switch m, found, err := cmd.client.BlockMap(ctx, ci, height); {
 		case err != nil, !found:
 			return m, found, err
@@ -471,7 +512,7 @@ func (cmd *runCommand) syncerBlockMapf() isaacstates.SyncerBlockMapFunc {
 }
 
 func (cmd *runCommand) syncerBlockMapItemf() isaacstates.SyncerBlockMapItemFunc {
-	// FIXME support remote item
+	// FIXME support remote item like https or ftp?
 	f := func(
 		ctx context.Context, height base.Height, item base.BlockMapItemType, ci quicstream.UDPConnInfo,
 	) (io.ReadCloser, func() error, bool, error) {
@@ -582,7 +623,6 @@ func (cmd *runCommand) broadcastBallotFunc(ballot base.Ballot) error {
 }
 
 func (cmd *runCommand) updateSyncSources(called int64, ncis []isaac.NodeConnInfo, err error) {
-	// FIXME include memberlist members
 	cmd.syncSourcePool.UpdateFixed(ncis)
 
 	if err != nil {
@@ -606,7 +646,7 @@ func (cmd *runCommand) getLastSuffrageProofFunc() func(context.Context) (base.Su
 		var last util.Hash
 
 		if i, isnil := lastl.Value(); !isnil {
-			last = i.(util.Hash)
+			last = i.(util.Hash) //nolint:forcetypeassert //...
 		}
 
 		proof, updated, err := cmd.client.LastSuffrageProof(ctx, ci, last)

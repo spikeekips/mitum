@@ -456,7 +456,7 @@ func (d *GenesisDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 	return nil
 }
 
-type SyncSourceDesign struct { // FIXME rename to SyncNodeDesign
+type SyncSourceDesign struct {
 	Source isaacnetwork.SyncSource
 }
 

@@ -170,7 +170,7 @@ func (n BaseNode) MetaBytes() []byte {
 func (n BaseNode) MarshalZerologObject(e *zerolog.Event) {
 	e.
 		Str("name", n.name).
-		Stringer("address", n.meta.address).
+		Stringer("node", n.meta.address).
 		Stringer("address", n.addr).
 		Bool("tls_insecure", n.meta.tlsinsecure).
 		Time("joined_at", n.joinedAt)

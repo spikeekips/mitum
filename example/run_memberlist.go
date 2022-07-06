@@ -8,7 +8,6 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
-	"github.com/spikeekips/mitum/isaac"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
@@ -78,12 +77,7 @@ func (cmd *runCommand) prepareMemberlist() error {
 			log.Debug().Interface("node", node).Msg("new node found")
 
 			if !node.Address().Equal(cmd.local.Address()) {
-				nci := isaacnetwork.NewNodeConnInfo(
-					isaac.NewNode(node.Publickey(), node.Address()),
-					node.Publish().Addr().String(),
-					node.Publish().TLSInsecure(),
-				)
-
+				nci := isaacnetwork.NewNodeConnInfoFromMemberlistNode(node)
 				added := cmd.syncSourcePool.Add(nci)
 
 				log.Debug().

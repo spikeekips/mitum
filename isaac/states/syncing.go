@@ -85,7 +85,7 @@ func (st *SyncingHandler) enter(i switchContext) (func(), error) {
 	}
 
 	if sc == nil {
-		return nil, e(nil, "empty syncer") // FIXME remove; only for testing
+		return nil, e(nil, "empty syncer") // NOTE only for testing
 	}
 
 	if l, ok := sc.(logging.SetLogging); ok {
