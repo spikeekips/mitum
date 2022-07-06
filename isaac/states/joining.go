@@ -110,6 +110,9 @@ func (st *JoiningHandler) enter(i switchContext) (func(), error) {
 		manifest = m
 	}
 
+	// FIXME if not joined yet, join first
+	// FIXME if failed to join, back to syncing state
+
 	return func() {
 		deferred()
 
