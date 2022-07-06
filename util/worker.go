@@ -489,6 +489,27 @@ func BatchWork(
 	return nil
 }
 
+func RunDistributeWorker(
+	ctx context.Context, size uint64, errch chan error, f func(ctx context.Context, i, jobid uint64) error,
+) error {
+	worker := NewDistributeWorker(ctx, int64(size), errch)
+	defer worker.Close()
+
+	for i := uint64(0); i < size; i++ {
+		i := i
+
+		if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
+			return f(ctx, i, jobid)
+		}); err != nil {
+			return err
+		}
+	}
+
+	worker.Done()
+
+	return worker.Wait()
+}
+
 func RunErrgroupWorker(ctx context.Context, size uint64, f func(ctx context.Context, i, jobid uint64) error) error {
 	worker := NewErrgroupWorker(ctx, int64(size))
 	defer worker.Close()

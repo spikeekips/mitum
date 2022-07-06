@@ -88,7 +88,7 @@ func (cmd *runCommand) prepareMemberlist() error {
 
 				log.Debug().
 					Bool("added", added).
-					Interface("node_conn_info", nci).
+					Interface("node_conninfo", nci).
 					Msg("new node added to SyncSourcePool")
 			}
 		},

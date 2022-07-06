@@ -1,6 +1,7 @@
 package launch
 
 import (
+	"fmt"
 	"net"
 	"net/url"
 	"os"
@@ -22,6 +23,7 @@ import (
 
 var (
 	DefaultNetworkBind     = &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 4321} //nolint:gomnd //...
+	DefaultNetworkPublish  = &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 4321} //nolint:gomnd //...
 	defaultStorageBase     string
 	DefaultStorageBase     string
 	DefaultStorageDatabase *url.URL
@@ -191,6 +193,8 @@ func (d *NodeDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 		d.Storage = i
 	}
 
+	d.SyncSources = make([]SyncSourceDesign, len(u.SyncSources))
+
 	for i := range u.SyncSources {
 		j, err := yaml.Marshal(u.SyncSources[i])
 		if err != nil {
@@ -224,8 +228,8 @@ func (d *NodeNetworkDesign) IsValid([]byte) error {
 
 	switch {
 	case len(d.PublishString) < 1:
-		d.PublishString = DefaultNetworkBind.String()
-		d.publish = DefaultNetworkBind
+		d.PublishString = fmt.Sprintf("%s:%d", DefaultNetworkPublish.IP, d.Bind.Port)
+		d.publish = &net.UDPAddr{IP: DefaultNetworkPublish.IP, Port: d.Bind.Port}
 	default:
 		addr, err := net.ResolveUDPAddr("udp", d.PublishString)
 

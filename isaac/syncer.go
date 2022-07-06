@@ -2,6 +2,7 @@ package isaac
 
 import (
 	"context"
+	"net"
 	"sync"
 	"time"
 
@@ -28,61 +29,82 @@ type Syncer interface {
 }
 
 type SyncSourcePool struct {
-	current   NodeConnInfo
-	currentid string
 	sources   []NodeConnInfo
 	sourceids []string
-	index     int
+	problems  []*time.Time
 	sync.RWMutex
-	fixedlen int
+	fixedlen     int
+	renewTimeout time.Duration
 }
 
 func NewSyncSourcePool(fixed []NodeConnInfo) *SyncSourcePool {
 	p := &SyncSourcePool{
-		sources: fixed,
+		sources:      fixed,
+		renewTimeout: time.Second * 3, //nolint:gomnd //...
 	}
 
 	p.sourceids = p.makeid(fixed)
+	p.problems = make([]*time.Time, len(fixed))
 	p.fixedlen = len(fixed)
 
 	return p
 }
 
-func (p *SyncSourcePool) Retry(
-	ctx context.Context,
-	f func(NodeConnInfo) (bool, error),
-	limit int,
-	interval time.Duration,
-) error {
-	var lastid string
+func (p *SyncSourcePool) Pick() (NodeConnInfo, func(error), error) {
+	p.Lock()
+	defer p.Unlock()
 
-	return util.Retry(
-		ctx,
-		func() (bool, error) {
-			nci, id, err := p.Next(lastid)
-			if errors.Is(err, ErrEmptySyncSources) {
-				return true, nil
-			}
-			lastid = id
+	_, nci, report, err := p.pick(0)
 
-			if _, err = nci.UDPConnInfo(); err != nil {
-				return true, err
-			}
+	return nci, report, err
+}
 
-			keep, err := f(nci)
+func (p *SyncSourcePool) PickMultiple(n int) ([]NodeConnInfo, []func(error), error) {
+	switch {
+	case n < 1:
+		return nil, nil, errors.Errorf("zero")
+	case n == 1:
+		nci, report, err := p.Pick()
+		if err != nil {
+			return nil, nil, err
+		}
 
-			switch {
-			case err == nil:
-			case errors.Is(err, ErrRetrySyncSources),
-				quicstream.IsNetworkError(err):
-				return true, nil
-			}
+		return []NodeConnInfo{nci}, []func(error){report}, nil
+	}
 
-			return keep, err
-		},
-		limit,
-		interval,
-	)
+	p.Lock()
+	defer p.Unlock()
+
+	sources := make([]NodeConnInfo, n)
+	reports := make([]func(error), n)
+
+	var index int
+
+	var i int
+
+	for {
+		j, source, report, err := p.pick(index)
+		if err != nil {
+			break
+		}
+
+		sources[i] = source
+		reports[i] = report
+
+		i++
+
+		if i == n {
+			break
+		}
+
+		index = j + 1
+	}
+
+	if len(sources[:i]) < 1 {
+		return nil, nil, ErrEmptySyncSources.Call()
+	}
+
+	return sources[:i], reports[:i], nil
 }
 
 func (p *SyncSourcePool) UpdateFixed(fixed []NodeConnInfo) bool {
@@ -119,13 +141,13 @@ func (p *SyncSourcePool) UpdateFixed(fixed []NodeConnInfo) bool {
 	copy(ids, fixedids)
 	copy(ids[len(fixedids):], extraids)
 
+	problems := make([]*time.Time, len(fixed)+len(extras))
+	copy(problems[len(fixed):], p.problems[p.fixedlen:])
+
 	p.sources = sources
 	p.sourceids = ids
+	p.problems = problems
 	p.fixedlen = len(fixed)
-
-	p.index = 0
-	p.current = nil
-	p.currentid = ""
 
 	return true
 }
@@ -137,77 +159,28 @@ func (p *SyncSourcePool) Add(added ...NodeConnInfo) bool {
 	sourceids := make([]string, len(p.sourceids))
 	copy(sourceids, p.sourceids)
 
+	problems := make([]*time.Time, len(p.problems))
+	copy(problems, p.problems)
+
 	var updatedcount int
 
 	for i := range added {
 		var updated bool
-		var index int
 
-		sources, sourceids, index, updated = p.add(sources, sourceids, added[i])
+		sources, sourceids, problems, updated = p.add(sources, sourceids, problems, added[i])
 
 		if updated {
 			updatedcount++
-
-			if index == p.index-1 {
-				p.index -= 2
-				if p.index < 0 {
-					p.index = 0
-				}
-
-				p.currentid = ""
-				p.current = nil
-			}
 		}
 	}
 
 	if updatedcount > 0 {
 		p.sources = sources
 		p.sourceids = sourceids
+		p.problems = problems
 	}
 
 	return updatedcount > 0
-}
-
-func (p *SyncSourcePool) add(
-	sources []NodeConnInfo,
-	sourceids []string,
-	source NodeConnInfo,
-) ([]NodeConnInfo, []string, int, bool) {
-	var update bool
-
-	index := util.InSlice(sources, func(_ interface{}, i int) bool {
-		a := sources[i]
-
-		if !a.Address().Equal(source.Address()) {
-			return false
-		}
-
-		if a.String() != source.String() {
-			update = true
-		}
-
-		return true
-	})
-
-	switch {
-	case index < 0:
-		newsources := make([]NodeConnInfo, len(sources)+1)
-		copy(newsources, sources)
-		newsources[len(sources)] = source
-
-		newsourceids := make([]string, len(sourceids)+1)
-		copy(newsourceids, sourceids)
-		newsourceids[len(sources)] = p.makesourceid(source)
-
-		return newsources, newsourceids, len(sources), true
-	case update:
-		sources[index] = source
-		sourceids[index] = p.makesourceid(source)
-
-		return sources, sourceids, index, true
-	default:
-		return sources, sourceids, -1, false
-	}
 }
 
 func (p *SyncSourcePool) Remove(node base.Address, publish string) bool {
@@ -221,6 +194,10 @@ func (p *SyncSourcePool) Remove(node base.Address, publish string) bool {
 		}
 	})
 
+	if index < 0 {
+		return false
+	}
+
 	sources := make([]NodeConnInfo, len(p.sources)-1)
 	copy(sources, p.sources[:index])
 	copy(sources[index:], p.sources[index+1:])
@@ -229,45 +206,54 @@ func (p *SyncSourcePool) Remove(node base.Address, publish string) bool {
 	copy(sourceids, p.sourceids[:index])
 	copy(sourceids[index:], p.sourceids[index+1:])
 
+	problems := make([]*time.Time, len(p.problems)-1)
+	copy(problems, p.problems[:index])
+	copy(problems[index:], p.problems[index+1:])
+
 	p.sources = sources
 	p.sourceids = sourceids
+	p.problems = problems
 
 	if index < p.fixedlen {
 		p.fixedlen--
 	}
 
-	if index == p.index-1 {
-		p.index -= 2
-		if p.index < 0 {
-			p.index = 0
-		}
-
-		p.currentid = ""
-		p.current = nil
-	}
-
 	return true
 }
 
-func (p *SyncSourcePool) Next(previd string) (NodeConnInfo, string, error) {
-	p.Lock()
-	defer p.Unlock()
+func (p *SyncSourcePool) Retry(
+	ctx context.Context,
+	f func(NodeConnInfo) (bool, error),
+	limit int,
+	interval time.Duration,
+) error {
+	return util.Retry(
+		ctx,
+		func() (bool, error) {
+			nci, report, err := p.Pick()
+			if errors.Is(err, ErrEmptySyncSources) {
+				return true, nil
+			}
 
-	if len(p.sources) < 1 {
-		return nil, "", ErrEmptySyncSources.Call()
-	}
+			if _, err = nci.UDPConnInfo(); err != nil {
+				report(err)
 
-	// revive:disable-next-line:optimize-operands-order
-	if p.current != nil && (len(previd) < 1 || previd != p.currentid) {
-		return p.current, p.currentid, nil
-	}
+				return true, err
+			}
 
-	index := p.nextIndex()
+			keep, err := f(nci)
 
-	p.current = p.sources[index]
-	p.currentid = p.sourceids[index]
+			if isProblem(err) {
+				report(nil)
 
-	return p.current, p.currentid, nil
+				return true, nil
+			}
+
+			return keep, err
+		},
+		limit,
+		interval,
+	)
 }
 
 func (p *SyncSourcePool) makeid(sources []NodeConnInfo) []string {
@@ -297,13 +283,175 @@ func (*SyncSourcePool) makesourceid(source NodeConnInfo) string {
 	return v.String()
 }
 
-func (p *SyncSourcePool) nextIndex() int {
-	switch {
-	case p.index == len(p.sources):
-		p.index = 1
-	default:
-		p.index++
+func (p *SyncSourcePool) reportProblem(id string, err error) {
+	if err != nil && !isProblem(err) {
+		return
 	}
 
-	return p.index - 1
+	p.Lock()
+	defer p.Unlock()
+
+	for i := range p.sourceids {
+		if id == p.sourceids[i] {
+			now := time.Now()
+
+			p.problems[i] = &now
+
+			return
+		}
+	}
+}
+
+func (p *SyncSourcePool) add(
+	sources []NodeConnInfo,
+	sourceids []string,
+	problems []*time.Time,
+	source NodeConnInfo,
+) ([]NodeConnInfo, []string, []*time.Time, bool) {
+	var update bool
+
+	index := util.InSlice(sources, func(_ interface{}, i int) bool {
+		a := sources[i]
+
+		if !a.Address().Equal(source.Address()) {
+			return false
+		}
+
+		if a.String() != source.String() {
+			update = true
+		}
+
+		return true
+	})
+
+	switch {
+	case index < 0:
+		newsources := make([]NodeConnInfo, len(sources)+1)
+		copy(newsources, sources)
+		newsources[len(sources)] = source
+
+		newsourceids := make([]string, len(sourceids)+1)
+		copy(newsourceids, sourceids)
+		newsourceids[len(sources)] = p.makesourceid(source)
+
+		newproblems := make([]*time.Time, len(problems)+1)
+		copy(newproblems, problems)
+
+		return newsources, newsourceids, newproblems, true
+	case update:
+		sources[index] = source
+		sourceids[index] = p.makesourceid(source)
+		problems[index] = nil
+
+		return sources, sourceids, problems, true
+	default:
+		return sources, sourceids, problems, false
+	}
+}
+
+func (p *SyncSourcePool) pick(from int) (found int, _ NodeConnInfo, report func(error), _ error) {
+	switch {
+	case len(p.sources) < 1:
+		return -1, nil, nil, ErrEmptySyncSources.Call()
+	case from >= len(p.sources):
+		return -1, nil, nil, ErrEmptySyncSources.Call()
+	}
+
+	for i := range p.problems[from:] {
+		index := from + i
+		d := p.problems[index]
+
+		switch {
+		case d == nil:
+			return index, p.sources[index], func(err error) { p.reportProblem(p.sourceids[index], err) }, nil
+		case time.Since(*d) > p.renewTimeout:
+			p.problems[index] = nil
+
+			return index, p.sources[index], func(err error) { p.reportProblem(p.sourceids[index], err) }, nil
+		}
+	}
+
+	return -1, nil, nil, ErrEmptySyncSources.Call()
+}
+
+func DistributeWorkerWithSyncSourcePool(
+	ctx context.Context,
+	pool *SyncSourcePool,
+	picksize int,
+	semsize uint64,
+	errch chan error,
+	f func(ctx context.Context, i, jobid uint64, nci NodeConnInfo) error,
+) error {
+	ncis, reports, err := pool.PickMultiple(picksize)
+	if err != nil {
+		return err
+	}
+
+	return util.RunDistributeWorker(ctx, semsize, errch, func(ctx context.Context, i, jobid uint64) error {
+		index := i % uint64(len(ncis))
+		nci := ncis[index]
+
+		if _, err := nci.UDPConnInfo(); err != nil {
+			reports[index](err)
+
+			return err
+		}
+
+		err := f(ctx, i, jobid, nci)
+		if err != nil {
+			reports[index](err)
+		}
+
+		return err
+	})
+}
+
+func ErrGroupWorkerWithSyncSourcePool(
+	ctx context.Context,
+	pool *SyncSourcePool,
+	picksize int,
+	semsize uint64,
+	f func(ctx context.Context, i, jobid uint64, nci NodeConnInfo) error,
+) error {
+	ncis, reports, err := pool.PickMultiple(picksize)
+	if err != nil {
+		return err
+	}
+
+	return util.RunErrgroupWorker(ctx, semsize, func(ctx context.Context, i, jobid uint64) error {
+		index := i % uint64(len(ncis))
+		nci := ncis[index]
+
+		if _, err := nci.UDPConnInfo(); err != nil {
+			reports[index](err)
+
+			return nil
+		}
+
+		err := f(ctx, i, jobid, nci)
+		if err != nil {
+			reports[index](err)
+
+			if isProblem(err) {
+				err = nil
+			}
+		}
+
+		return err
+	})
+}
+
+func isProblem(err error) bool {
+	var dnserr *net.DNSError
+
+	switch {
+	case err == nil:
+		return false
+	case errors.Is(err, ErrRetrySyncSources),
+		quicstream.IsNetworkError(err),
+		errors.As(err, &dnserr):
+		return true
+	default:
+		return false
+	}
 }

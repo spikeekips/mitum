@@ -66,14 +66,12 @@ func (t *testSyncSourcePool) TestNew() {
 		p := NewSyncSourcePool(sources)
 
 		t.NotEmpty(p.sourceids)
-		t.Equal(0, p.index)
 	})
 
 	t.Run("empty", func() {
 		p := NewSyncSourcePool(nil)
 
 		t.Empty(p.sourceids)
-		t.Equal(0, p.index)
 	})
 }
 
@@ -102,15 +100,15 @@ func (t *testSyncSourcePool) TestUpdate() {
 
 		t.True(p.UpdateFixed(newsources))
 
-		_, previd, err := p.Next("")
+		nci, _, err := p.Pick()
 		t.NoError(err)
-		t.Equal(p.sourceids[0], previd)
+		t.Equal(p.sourceids[0], p.makesourceid(nci))
 
 		t.True(p.UpdateFixed(prevsources))
 
-		_, nextid, err := p.Next(previd)
+		nci, _, err = p.Pick()
 		t.NoError(err)
-		t.Equal(p.sourceids[0], nextid)
+		t.Equal(p.sourceids[0], p.makesourceid(nci))
 	})
 
 	t.Run("update empty", func() {
@@ -118,13 +116,13 @@ func (t *testSyncSourcePool) TestUpdate() {
 
 		t.True(p.UpdateFixed(newsources))
 
-		_, previd, err := p.Next("")
+		nci, _, err := p.Pick()
 		t.NoError(err)
-		t.Equal(p.sourceids[0], previd)
+		t.Equal(p.sourceids[0], p.makesourceid(nci))
 
 		t.True(p.UpdateFixed(nil))
 
-		_, _, err = p.Next(previd)
+		_, _, err = p.Pick()
 		t.Error(err)
 		t.True(errors.Is(err, ErrEmptySyncSources))
 	})
@@ -196,11 +194,13 @@ func (t *testSyncSourcePool) TestAdd() {
 	t.Run("next and update", func() {
 		p := NewSyncSourcePool(sources)
 
-		_, previd, err := p.Next("")
+		_, report, err := p.Pick()
 		t.NoError(err)
-		_, nextid, err := p.Next(previd)
+		report(nil)
+
+		nci, _, err := p.Pick()
 		t.NoError(err)
-		t.NotEqual(previd, nextid)
+		t.Equal(p.sourceids[1], p.makesourceid(nci))
 
 		prev := p.sources
 
@@ -221,10 +221,10 @@ func (t *testSyncSourcePool) TestAdd() {
 		t.Equal(p.sources[1].String(), added.String())
 		t.Equal(p.sourceids[1], p.makesourceid(added))
 
-		_, id, err := p.Next("")
+		nci, _, err = p.Pick()
 		t.NoError(err)
 
-		t.Equal(p.sourceids[0], id)
+		t.Equal(p.sourceids[1], p.makesourceid(nci))
 	})
 }
 
@@ -284,34 +284,6 @@ func (t *testSyncSourcePool) TestRemove() {
 		t.Equal(nextids, p.sourceids)
 		t.Equal(prevfixedlen-1, p.fixedlen)
 	})
-
-	t.Run("ok, next and reset", func() {
-		p := NewSyncSourcePool(sources)
-
-		added := make([]NodeConnInfo, 3)
-		for i := range added {
-			added[i] = t.newnci()
-		}
-
-		t.True(p.Add(added...))
-
-		_, previd, err := p.Next("")
-		t.NoError(err)
-		_, previd, err = p.Next(previd)
-		t.NoError(err)
-		_, previd, err = p.Next(previd)
-		t.NoError(err)
-		_, previd, err = p.Next(previd)
-		t.NoError(err)
-
-		i := added[0]
-		t.True(p.Remove(i.Address(), i.String()))
-
-		_, previd, err = p.Next(previd)
-		t.NoError(err)
-
-		t.Equal(p.sourceids[2], previd)
-	})
 }
 
 func (t *testSyncSourcePool) TestSameID() {
@@ -336,20 +308,19 @@ func (t *testSyncSourcePool) TestNext() {
 
 	p := NewSyncSourcePool(sources)
 
-	u := make([]NodeConnInfo, len(sources)*2)
+	uncis := make([]NodeConnInfo, len(sources))
 
-	var id string
-	for i := range make([]struct{}, len(sources)*2) {
-		s, j, err := p.Next(id)
+	for i := range make([]struct{}, len(sources)) {
+		nci, report, err := p.Pick()
 		t.NoError(err)
+		report(nil)
 
-		u[i] = s
-		id = j
+		uncis[i] = nci
 	}
 
-	for i := range u {
-		a := sources[i%len(sources)]
-		b := u[i]
+	for i := range uncis {
+		a := sources[i]
+		b := uncis[i]
 
 		t.True(a.Address().Equal(b.Address()))
 		t.True(a.Publickey().Equal(b.Publickey()))
@@ -357,67 +328,35 @@ func (t *testSyncSourcePool) TestNext() {
 	}
 }
 
-func (t *testSyncSourcePool) TestNextPrevID() {
+func (t *testSyncSourcePool) TestRenew() {
 	sources := make([]NodeConnInfo, 3)
 
 	for i := range sources {
 		sources[i] = t.newnci()
 	}
 
-	t.Run("empty id", func() {
-		p := NewSyncSourcePool(sources)
+	p := NewSyncSourcePool(sources)
 
-		next, id, err := p.Next("")
-		t.NoError(err)
-		t.NotEmpty(id)
-		t.NotNil(next)
-		t.Equal(p.currentid, id)
+	nci, report, err := p.Pick()
+	t.NoError(err)
+	report(nil)
+	t.Equal(p.sourceids[0], p.makesourceid(nci))
 
-		a := sources[0]
+	nci, _, err = p.Pick()
+	t.NoError(err)
+	t.Equal(p.sourceids[1], p.makesourceid(nci))
 
-		t.True(a.Address().Equal(next.Address()))
-		t.True(a.Publickey().Equal(next.Publickey()))
-		t.Equal(a.String(), next.String())
-	})
+	p.renewTimeout = time.Nanosecond
 
-	t.Run("empty id and next", func() {
-		p := NewSyncSourcePool(sources)
-
-		next, id, err := p.Next("")
-		t.NoError(err)
-		t.NotEmpty(id)
-		t.NotNil(next)
-		t.Equal(p.currentid, id)
-
-		next, _, err = p.Next(id)
-		t.NoError(err)
-
-		a := sources[1]
-
-		t.True(a.Address().Equal(next.Address()))
-		t.True(a.Publickey().Equal(next.Publickey()))
-		t.Equal(a.String(), next.String())
-	})
-
-	t.Run("same id", func() {
-		p := NewSyncSourcePool(sources)
-
-		_, id, _ := p.Next("")
-		t.Equal(p.currentid, id)
-
-		next0, _, _ := p.Next(id)
-		next1, _, _ := p.Next(id)
-
-		t.True(next0.Address().Equal(next1.Address()))
-		t.True(next0.Publickey().Equal(next1.Publickey()))
-		t.Equal(next0.String(), next1.String())
-	})
+	nci, _, err = p.Pick()
+	t.NoError(err)
+	t.Equal(p.sourceids[0], p.makesourceid(nci))
 }
 
 func (t *testSyncSourcePool) TestNextButEmpty() {
 	p := NewSyncSourcePool(nil)
 
-	next, id, err := p.Next("")
+	next, id, err := p.Pick()
 	t.Error(err)
 	t.True(errors.Is(err, ErrEmptySyncSources))
 	t.Nil(next)
@@ -432,23 +371,33 @@ func (t *testSyncSourcePool) TestConcurrent() {
 	}
 
 	p := NewSyncSourcePool(sources)
+	p.renewTimeout = time.Millisecond * 10
 
 	t.NoError(util.RunErrgroupWorker(context.Background(), 333, func(_ context.Context, i uint64, _ uint64) error {
-		previd := p.sourceids[i%uint64(len(p.sourceids))]
-		if i%15 == 0 {
-			previd = ""
+		if i%3 == 0 {
+			<-time.After(p.renewTimeout + 2)
 		}
 
-		next, id, err := p.Next(previd)
+		nci, report, err := p.Pick()
 
 		switch {
 		case err != nil:
+			if errors.Is(err, ErrEmptySyncSources) {
+				return nil
+			}
+
 			return err
-		case len(id) < 1:
-			return errors.Errorf("empty id")
-		case next == nil:
-			return errors.Errorf("empty next")
+		case report == nil:
+			return errors.Errorf("empty report")
+		case nci == nil:
+			return errors.Errorf("empty node conn info")
 		default:
+			t.T().Log("id", p.makesourceid(nci))
+
+			if i%3 == 0 {
+				report(nil)
+			}
+
 			return nil
 		}
 	}))
@@ -566,6 +515,67 @@ func (t *testSyncSourcePool) TestRetry() {
 		t.ErrorContains(err, "hihihi")
 
 		t.Equal(len(sources)+2, called)
+	})
+}
+
+func (t *testSyncSourcePool) TestPickMultiple() {
+	sources := make([]NodeConnInfo, 3)
+
+	for i := range sources {
+		sources[i] = t.newnci()
+	}
+
+	t.Run("zero", func() {
+		p := NewSyncSourcePool(sources)
+
+		_, _, err := p.PickMultiple(0)
+		t.Error(err)
+		t.ErrorContains(err, "zero")
+	})
+
+	t.Run("one", func() {
+		p := NewSyncSourcePool(sources)
+
+		ncis, _, err := p.PickMultiple(1)
+		t.NoError(err)
+		t.Equal(1, len(ncis))
+		t.Equal(p.sourceids[0], p.makesourceid(ncis[0]))
+	})
+
+	t.Run("two", func() {
+		p := NewSyncSourcePool(sources)
+
+		ncis, _, err := p.PickMultiple(2)
+		t.NoError(err)
+		t.Equal(2, len(ncis))
+
+		for i := range ncis {
+			t.Equal(p.sourceids[i], p.makesourceid(ncis[i]), i)
+		}
+	})
+
+	t.Run("all", func() {
+		p := NewSyncSourcePool(sources)
+
+		ncis, _, err := p.PickMultiple(len(sources))
+		t.NoError(err)
+		t.Equal(len(sources), len(ncis))
+
+		for i := range ncis {
+			t.Equal(p.sourceids[i], p.makesourceid(ncis[i]), i)
+		}
+	})
+
+	t.Run("over size", func() {
+		p := NewSyncSourcePool(sources)
+
+		ncis, _, err := p.PickMultiple(len(sources) + 100)
+		t.NoError(err)
+		t.Equal(len(sources), len(ncis))
+
+		for i := range ncis {
+			t.Equal(p.sourceids[i], p.makesourceid(ncis[i]), i)
+		}
 	})
 }
 

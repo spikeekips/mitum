@@ -125,7 +125,7 @@ func (srv *Memberlist) Members(f func(node Node) bool) {
 }
 
 func (srv *Memberlist) IsJoined() bool {
-	return srv.members.Len() > 1
+	return srv.members.Len() > 0
 }
 
 func (srv *Memberlist) Broadcast(b memberlist.Broadcast) {

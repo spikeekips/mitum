@@ -42,6 +42,10 @@ func (cmd *runCommand) proposalMaker() *isaac.ProposalMaker {
 		cmd.nodePolicy,
 		func(ctx context.Context) ([]util.Hash, error) {
 			policy := cmd.db.LastNetworkPolicy()
+			if policy == nil { // NOTE Usually it means empty block data
+				return nil, nil
+			}
+
 			n := policy.MaxOperationsInProposal()
 			if n < 1 {
 				return nil, nil
@@ -254,7 +258,7 @@ func (cmd *runCommand) newSyncer(
 			},
 			func(root string, blockmap base.BlockMap, bwdb isaac.BlockWriteDatabase) (isaac.BlockImporter, error) {
 				return isaacblock.NewBlockImporter(
-					root,
+					launch.LocalFSDataDirectory(root),
 					cmd.encs,
 					blockmap,
 					bwdb,
@@ -347,30 +351,53 @@ func (cmd *runCommand) syncerLastBlockMapf() isaacstates.SyncerLastBlockMapFunc 
 		}
 	}
 
-	return func(ctx context.Context, manifest util.Hash) (m base.BlockMap, updated bool, _ error) {
-		err := cmd.syncSourcePool.Retry(
+	return func(ctx context.Context, manifest util.Hash) (base.BlockMap, bool, error) {
+		ml := util.EmptyLocked()
+
+		numnodes := 3 // NOTE choose top 3 sync nodes
+
+		if err := isaac.DistributeWorkerWithSyncSourcePool(
 			ctx,
-			func(nci isaac.NodeConnInfo) (bool, error) {
+			cmd.syncSourcePool,
+			numnodes,
+			uint64(numnodes),
+			nil,
+			func(ctx context.Context, i, _ uint64, nci isaac.NodeConnInfo) error {
 				ci, err := nci.UDPConnInfo()
 				if err != nil {
-					return true, isaac.ErrRetrySyncSources.Wrap(err)
+					return err
 				}
 
-				i, j, err := f(ctx, manifest, ci)
-				if err != nil {
-					return false, err
+				m, updated, err := f(ctx, manifest, ci)
+				switch {
+				case err != nil:
+					return err
+				case !updated:
+					return nil
 				}
 
-				m = i
-				updated = j
+				_, err = ml.Set(func(v interface{}) (interface{}, error) {
+					switch {
+					case v == nil,
+						m.Manifest().Height() > v.(base.BlockMap).Manifest().Height(): //nolint:forcetypeassert //...
+						return m, nil
+					default:
+						return nil, util.ErrLockedSetIgnore.Errorf("old BlockMap")
+					}
+				})
 
-				return false, nil
+				return err
 			},
-			-1, //nolint:gomnd // infinite loop
-			cmd.syncSourcesRetryInterval,
-		)
+		); err != nil {
+			return nil, false, err
+		}
 
-		return m, updated, err
+		switch v, isnil := ml.Value(); {
+		case isnil:
+			return nil, false, nil
+		default:
+			return v.(base.BlockMap), true, nil //nolint:forcetypeassert //...
+		}
 	}
 }
 
@@ -390,25 +417,52 @@ func (cmd *runCommand) syncerBlockMapf() isaacstates.SyncerBlockMapFunc {
 	}
 
 	return func(ctx context.Context, height base.Height) (m base.BlockMap, found bool, _ error) {
-		err := cmd.syncSourcePool.Retry(
+		err := util.Retry(
 			ctx,
-			func(nci isaac.NodeConnInfo) (bool, error) {
-				ci, err := nci.UDPConnInfo()
-				if err != nil {
-					return true, isaac.ErrRetrySyncSources.Wrap(err)
+			func() (bool, error) {
+				numnodes := 3 // NOTE choose top 3 sync nodes
+				result := util.EmptyLocked()
+
+				_ = isaac.ErrGroupWorkerWithSyncSourcePool(
+					ctx,
+					cmd.syncSourcePool,
+					numnodes,
+					uint64(numnodes),
+					func(ctx context.Context, i, _ uint64, nci isaac.NodeConnInfo) error {
+						ci, err := nci.UDPConnInfo()
+						if err != nil {
+							return err
+						}
+
+						switch a, b, err := f(ctx, height, ci); {
+						case err != nil:
+							if quicstream.IsNetworkError(err) {
+								return err
+							}
+
+							return nil
+						case !b:
+							return nil
+						default:
+							_ = result.SetValue([2]interface{}{a, b})
+
+							return errors.Errorf("stop")
+						}
+					},
+				)
+
+				v, isnil := result.Value()
+				if isnil {
+					return true, nil
 				}
 
-				i, j, err := f(ctx, height, ci)
-				if err != nil {
-					return false, err
-				}
+				i := v.([2]interface{}) //nolint:forcetypeassert //...
 
-				m = i
-				found = j
+				m, found = i[0].(base.BlockMap), i[1].(bool) //nolint:forcetypeassert //...
 
 				return false, nil
 			},
-			-1, //nolint:gomnd // infinite loop
+			-1,
 			cmd.syncSourcesRetryInterval,
 		)
 
@@ -426,32 +480,60 @@ func (cmd *runCommand) syncerBlockMapItemf() isaacstates.SyncerBlockMapItemFunc 
 		return r, cancel, found, err
 	}
 
-	return func(ctx context.Context, height base.Height, item base.BlockMapItemType,
-	) (reader io.ReadCloser, cancelf func() error, found bool, _ error) {
-		err := cmd.syncSourcePool.Retry(
+	return func(ctx context.Context, height base.Height, item base.BlockMapItemType) (
+		reader io.ReadCloser, closef func() error, found bool, _ error,
+	) {
+		err := util.Retry(
 			ctx,
-			func(nci isaac.NodeConnInfo) (bool, error) {
-				ci, err := nci.UDPConnInfo()
-				if err != nil {
-					return true, isaac.ErrRetrySyncSources.Wrap(err)
+			func() (bool, error) {
+				numnodes := 3 // NOTE choose top 3 sync nodes
+				result := util.EmptyLocked()
+
+				_ = isaac.ErrGroupWorkerWithSyncSourcePool(
+					ctx,
+					cmd.syncSourcePool,
+					numnodes,
+					uint64(numnodes),
+					func(ctx context.Context, i, _ uint64, nci isaac.NodeConnInfo) error {
+						ci, err := nci.UDPConnInfo()
+						if err != nil {
+							return err
+						}
+
+						switch a, b, c, err := f(ctx, height, item, ci); {
+						case err != nil:
+							if quicstream.IsNetworkError(err) {
+								return err
+							}
+
+							return nil
+						case !c:
+							return nil
+						default:
+							_ = result.SetValue([3]interface{}{a, b, c})
+
+							return errors.Errorf("stop")
+						}
+					},
+				)
+
+				v, isnil := result.Value()
+				if isnil {
+					return true, nil
 				}
 
-				i, j, k, err := f(ctx, height, item, ci)
-				if err != nil {
-					return false, err
-				}
+				i := v.([3]interface{}) //nolint:forcetypeassert //...
 
-				reader = i
-				cancelf = j
-				found = k
+				reader, closef, found = i[0].(io.ReadCloser), //nolint:forcetypeassert //...
+					i[1].(func() error), i[2].(bool)
 
 				return false, nil
 			},
-			-1, //nolint:gomnd // infinite loop
+			-1,
 			cmd.syncSourcesRetryInterval,
 		)
 
-		return reader, cancelf, found, err
+		return reader, closef, found, err
 	}
 }
 
@@ -505,7 +587,7 @@ func (cmd *runCommand) updateSyncSources(called int64, ncis []isaac.NodeConnInfo
 
 	if err != nil {
 		log.Error().Err(err).
-			Interface("node_conn_info", ncis).
+			Interface("node_conninfo", ncis).
 			Msg("failed to check sync sources")
 
 		return
@@ -513,14 +595,20 @@ func (cmd *runCommand) updateSyncSources(called int64, ncis []isaac.NodeConnInfo
 
 	log.Debug().
 		Int64("called", called).
-		Interface("node_conn_info", ncis).
+		Interface("node_conninfo", ncis).
 		Msg("sync sources updated")
 }
 
 func (cmd *runCommand) getLastSuffrageProofFunc() func(context.Context) (base.SuffrageProof, bool, error) {
-	var last util.Hash
+	lastl := util.EmptyLocked()
 
 	f := func(ctx context.Context, ci quicstream.UDPConnInfo) (base.SuffrageProof, bool, error) {
+		var last util.Hash
+
+		if i, isnil := lastl.Value(); !isnil {
+			last = i.(util.Hash)
+		}
+
 		proof, updated, err := cmd.client.LastSuffrageProof(ctx, ci, last)
 
 		switch {
@@ -533,61 +621,117 @@ func (cmd *runCommand) getLastSuffrageProofFunc() func(context.Context) (base.Su
 				return nil, updated, err
 			}
 
-			last = proof.Map().Manifest().Suffrage()
+			_ = lastl.SetValue(proof.Map().Manifest().Suffrage())
 
 			return proof, updated, nil
 		}
 	}
 
 	return func(ctx context.Context) (proof base.SuffrageProof, found bool, _ error) {
-		err := cmd.syncSourcePool.Retry(
+		ml := util.EmptyLocked()
+
+		numnodes := 3 // NOTE choose top 3 sync nodes
+
+		if err := isaac.DistributeWorkerWithSyncSourcePool(
 			ctx,
-			func(nci isaac.NodeConnInfo) (bool, error) {
+			cmd.syncSourcePool,
+			numnodes,
+			uint64(numnodes),
+			nil,
+			func(ctx context.Context, i, _ uint64, nci isaac.NodeConnInfo) error {
 				ci, err := nci.UDPConnInfo()
 				if err != nil {
-					return true, isaac.ErrRetrySyncSources.Wrap(err)
+					return err
 				}
 
-				i, j, err := f(ctx, ci)
-				if err != nil {
-					return false, err
+				proof, updated, err := f(ctx, ci)
+				switch {
+				case err != nil:
+					return err
+				case !updated:
+					return nil
 				}
 
-				proof = i
-				found = j
+				_, err = ml.Set(func(v interface{}) (interface{}, error) {
+					switch {
+					case v == nil,
+						proof.Map().Manifest().Height() >
+							v.(base.SuffrageProof).Map().Manifest().Height(): //nolint:forcetypeassert //...
 
-				return false, nil
+						return proof, nil
+					default:
+						return nil, util.ErrLockedSetIgnore.Errorf("old SuffrageProof")
+					}
+				})
+
+				return err
 			},
-			-1, //nolint:gomnd // infinite loop
-			cmd.syncSourcesRetryInterval,
-		)
+		); err != nil {
+			return nil, false, err
+		}
 
-		return proof, found, err
+		switch v, isnil := ml.Value(); {
+		case isnil:
+			return nil, false, nil
+		default:
+			return v.(base.SuffrageProof), true, nil //nolint:forcetypeassert //...
+		}
 	}
 }
 
 func (cmd *runCommand) getSuffrageProofFunc() func(
 	ctx context.Context, suffrageheight base.Height) (base.SuffrageProof, bool, error) {
 	return func(ctx context.Context, suffrageheight base.Height) (proof base.SuffrageProof, found bool, _ error) {
-		err := cmd.syncSourcePool.Retry(
+		err := util.Retry(
 			ctx,
-			func(nci isaac.NodeConnInfo) (bool, error) {
-				ci, err := nci.UDPConnInfo()
-				if err != nil {
-					return true, isaac.ErrRetrySyncSources.Wrap(err)
+			func() (bool, error) {
+				numnodes := 3 // NOTE choose top 3 sync nodes
+				result := util.EmptyLocked()
+
+				_ = isaac.ErrGroupWorkerWithSyncSourcePool(
+					ctx,
+					cmd.syncSourcePool,
+					numnodes,
+					uint64(numnodes),
+					func(ctx context.Context, i, _ uint64, nci isaac.NodeConnInfo) error {
+						ci, err := nci.UDPConnInfo()
+						if err != nil {
+							return err
+						}
+
+						switch a, b, err := cmd.client.SuffrageProof(ctx, ci, suffrageheight); {
+						case err != nil:
+							if quicstream.IsNetworkError(err) {
+								return err
+							}
+
+							return nil
+						case !b:
+							return nil
+						default:
+							if err := a.IsValid(networkID); err != nil {
+								return nil
+							}
+
+							_ = result.SetValue([2]interface{}{a, b})
+
+							return errors.Errorf("stop")
+						}
+					},
+				)
+
+				v, isnil := result.Value()
+				if isnil {
+					return true, nil
 				}
 
-				i, j, err := cmd.client.SuffrageProof(ctx, ci, suffrageheight)
-				if err != nil {
-					return false, err
-				}
+				i := v.([2]interface{}) //nolint:forcetypeassert //...
 
-				proof = i
-				found = j
+				proof, found = i[0].(base.SuffrageProof), i[1].(bool) //nolint:forcetypeassert //...
 
 				return false, nil
 			},
-			-1, //nolint:gomnd // infinite loop
+			-1,
 			cmd.syncSourcesRetryInterval,
 		)
 
