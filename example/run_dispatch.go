@@ -56,10 +56,10 @@ func (cmd *runCommand) proposalMaker() *isaac.ProposalMaker {
 				ctx,
 				n,
 				func(facthash util.Hash) (bool, error) {
-					// FIXME if bad operation and it is failed to be processed;
+					// NOTE if bad operation and it is failed to be processed;
 					// it can be included in next proposal; it should be
 					// excluded.
-					// FIXME if operation has not enough fact signs, it will
+					// NOTE if operation has not enough fact signs, it will
 					// ignored. It must be filtered for not this kind of
 					// operations.
 					switch found, err := cmd.db.ExistsInStateOperation(facthash); {

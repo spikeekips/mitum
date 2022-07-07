@@ -67,7 +67,7 @@ func (fact SuffrageJoinPermissionFact) Candidate() base.Address {
 }
 
 func (fact SuffrageJoinPermissionFact) State() util.Hash {
-	// FIXME check state; it indicates that the candidate registered.
+	// FIXME check state; it indicates that the candidate is in state.
 	return fact.state
 }
 

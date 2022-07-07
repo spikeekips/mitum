@@ -168,18 +168,26 @@ func (db *TempPool) NewOperationHashes(
 	if err := db.st.Iter(
 		leveldbutil.BytesPrefix(leveldbKeyPrefixNewOperationOrdered),
 		func(_ []byte, b []byte) (bool, error) {
-			h := valuehash.Bytes(b)
+			var operationhash, facthash util.Hash
 
-			switch ok, err := nfilter(h); {
+			switch keys := splitLeveldbJoinedKeys(b); {
+			case len(keys) != 2: //nolint:gomnd //...
+				return false, errors.Errorf("invalid operation ordered key")
+			default:
+				operationhash = valuehash.Bytes(keys[0])
+				facthash = valuehash.Bytes(keys[1])
+			}
+
+			switch ok, err := nfilter(facthash); {
 			case err != nil:
 				return false, err
 			case !ok:
-				removes = append(removes, h)
+				removes = append(removes, facthash)
 
 				return true, nil
 			}
 
-			ops[i] = h
+			ops[i] = operationhash
 			i++
 
 			if i == limit {
@@ -202,8 +210,6 @@ func (db *TempPool) NewOperationHashes(
 			return nil, e(err, "")
 		}
 	}
-
-	// FIXME return operationhash, not facthash
 
 	return ops, nil
 }
@@ -229,9 +235,9 @@ func (db *TempPool) SetNewOperation(_ context.Context, op base.Operation) (bool,
 
 	batch := new(leveldb.Batch)
 	batch.Put(key, b)
-	batch.Put(orderedkey, facthash.Bytes())
+	batch.Put(orderedkey, joinLeveldbKeys(op.Hash().Bytes(), facthash.Bytes()))
 
-	batch.Put(leveldbNewOperationKeysKey(facthash), joinNewOperationLeveldbOrderedKeys(key, orderedkey))
+	batch.Put(leveldbNewOperationKeysKey(facthash), joinLeveldbKeys(key, orderedkey))
 
 	if err := db.st.Write(batch, nil); err != nil {
 		return false, e(err, "")
@@ -348,16 +354,16 @@ func (db *TempPool) removeNewOperations(ctx context.Context, facthashes []util.H
 				return nil
 			}
 
-			key, orderedkey, err := loadLeveldbNewOperationKeys(b)
-			if err != nil {
-				return err
+			switch keys := splitLeveldbJoinedKeys(b); {
+			case len(keys) != 2: //nolint:gomnd //...
+				return errors.Errorf("invalid joined key for operation")
+			default:
+				removekeysch <- infokey
+				removekeysch <- keys[0]
+				removekeysch <- keys[1]
+
+				return nil
 			}
-
-			removekeysch <- infokey
-			removekeysch <- key
-			removekeysch <- orderedkey
-
-			return nil
 		}); err != nil {
 			break
 		}
@@ -418,6 +424,6 @@ func newNewOperationLeveldbKeys(operationhash, facthash util.Hash) (key []byte, 
 	return leveldbNewOperationKey(operationhash), leveldbNewOperationOrderedKey(facthash)
 }
 
-func joinNewOperationLeveldbOrderedKeys(a, b []byte) []byte {
-	return bytes.Join([][]byte{a, b}, leveldbNewOperationOrderedKeysJoinSep)
+func joinLeveldbKeys(a ...[]byte) []byte {
+	return bytes.Join(a, leveldbKeysJoinSep)
 }

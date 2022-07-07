@@ -222,7 +222,7 @@ func (t *testNewOperationPool) TestNewOperationHashes() {
 		t.Equal(10, len(rops))
 
 		for i := range rops {
-			op := ops[i].Fact().Hash()
+			op := ops[i].Hash()
 			rop := rops[i]
 
 			t.True(op.Equal(rop), "op=%q rop=%q", op, rop)
@@ -235,7 +235,7 @@ func (t *testNewOperationPool) TestNewOperationHashes() {
 		t.Equal(len(ops), len(rops))
 
 		for i := range rops {
-			op := ops[i].Fact().Hash()
+			op := ops[i].Hash()
 			rop := rops[i]
 
 			t.True(op.Equal(rop), "op=%q rop=%q", op, rop)
@@ -256,7 +256,7 @@ func (t *testNewOperationPool) TestNewOperationHashes() {
 		t.Equal(len(ops)-1, len(rops))
 
 		for i := range rops {
-			op := ops[i].Fact().Hash()
+			op := ops[i].Hash()
 			rop := rops[i]
 
 			t.True(op.Equal(rop), "op=%q rop=%q", op, rop)
@@ -320,10 +320,10 @@ func (t *testNewOperationPool) TestRemoveNewOperations() {
 				break
 			}
 
-			op := ops[i].Fact().Hash()
+			op := ops[i].Hash()
 			rop := rops[j]
 
-			t.True(op.Equal(rop), "op=%q rop=%q", op, rop)
+			t.True(op.Equal(rop), "%d: op=%q rop=%q", i, op, rop)
 
 			j++
 		}

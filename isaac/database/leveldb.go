@@ -31,11 +31,7 @@ var (
 	leveldbKeySuffrageProof                 = []byte{0x00, 0x0c}
 	leveldbKeySuffrageProofByBlockHeight    = []byte{0x00, 0x0d}
 
-	leveldbNewOperationOrderedKeysJoinSep   = bytes.Repeat([]byte{0xff}, 10) //nolint:gomnd //...
-	leveldbNewOperationOrderedKeysJoinedSep = util.ConcatBytesSlice(
-		leveldbNewOperationOrderedKeysJoinSep,
-		leveldbKeyPrefixNewOperationOrdered,
-	)
+	leveldbKeysJoinSep = []byte("mitum-leveldb-sep")
 )
 
 type baseLeveldb struct {
@@ -217,17 +213,12 @@ func leveldbNewOperationKey(operationhash util.Hash) []byte {
 	return util.ConcatBytesSlice(leveldbKeyPrefixNewOperation, operationhash.Bytes())
 }
 
-func loadLeveldbNewOperationKeys(b []byte) (key []byte, orderedkey []byte, err error) {
+func splitLeveldbJoinedKeys(b []byte) [][]byte {
 	if b == nil {
-		return nil, nil, nil
+		return nil
 	}
 
-	i := bytes.LastIndex(b, leveldbNewOperationOrderedKeysJoinedSep)
-	if i < 0 {
-		return nil, nil, errors.Errorf("unknown NewOperations info key format")
-	}
-
-	return b[:i], b[i+len(leveldbNewOperationOrderedKeysJoinSep):], nil
+	return bytes.SplitN(b, leveldbKeysJoinSep, -1)
 }
 
 func leveldbTempSyncMapKey(height base.Height) []byte {
