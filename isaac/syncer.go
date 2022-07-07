@@ -130,8 +130,7 @@ func (p *SyncSourcePool) UpdateFixed(fixed []NodeConnInfo) bool {
 		}
 	}
 
-	extras := p.sources[p.fixedlen:]
-	extraids := p.sourceids[p.fixedlen:]
+	extras, extraids := p.filterExtras(fixedids)
 
 	sources := make([]NodeConnInfo, len(fixed)+len(extras))
 	copy(sources, fixed)
@@ -480,4 +479,53 @@ func isProblem(err error) bool {
 	default:
 		return false
 	}
+}
+
+func (p *SyncSourcePool) filterExtras(fixedids []string) ([]NodeConnInfo, []string) {
+	extras := p.sources[p.fixedlen:]
+	extraids := p.sourceids[p.fixedlen:]
+
+	var duplicated []int
+	newextraids := util.Filter2Slices(extraids, fixedids, func(_, _ interface{}, i, j int) bool {
+		if extraids[i] == fixedids[j] {
+			duplicated = append(duplicated, i)
+
+			return true
+		}
+
+		return false
+	})
+
+	if len(duplicated) < 1 {
+		return extras, extraids
+	}
+
+	newextras := make([]NodeConnInfo, len(extras)-len(duplicated))
+
+	var n int
+	for i := range extras {
+		var found bool
+
+		for j := range duplicated {
+			if i == duplicated[j] {
+				found = true
+
+				break
+			}
+		}
+
+		if found {
+			continue
+		}
+
+		newextras[n] = extras[i]
+		n++
+	}
+
+	extraids = make([]string, len(newextraids))
+	for i := range newextraids {
+		extraids[i] = newextraids[i].(string)
+	}
+
+	return newextras, extraids
 }

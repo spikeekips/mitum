@@ -280,9 +280,70 @@ func (t *testSyncSourcePool) TestRemove() {
 		copy(nextids, previds[:1])
 		copy(nextids[1:], previds[2:])
 
+		for i := range next {
+			a := next[i]
+			b := p.sources[i]
+
+			t.True(a.Address().Equal(b.Address()))
+			t.True(a.Publickey().Equal(b.Publickey()))
+			t.Equal(a.String(), b.String())
+		}
+
 		t.Equal(len(prev)-1, len(p.sources))
 		t.Equal(nextids, p.sourceids)
 		t.Equal(prevfixedlen-1, p.fixedlen)
+	})
+
+	t.Run("remove fixed and update fixed", func() {
+		p := NewSyncSourcePool(sources)
+
+		prev := p.sources
+		previds := p.sourceids
+		prevfixedlen := p.fixedlen
+
+		i := p.sources[1]
+		t.True(p.Remove(i.Address(), i.String()))
+
+		t.True(p.Add(i))
+
+		next := make([]NodeConnInfo, len(prev))
+		copy(next, prev[:1])
+		copy(next[1:], prev[2:])
+		next[len(prev)-1] = i
+
+		nextids := make([]string, len(prev))
+		copy(nextids, previds[:1])
+		copy(nextids[1:], previds[2:])
+		nextids[len(prev)-1] = p.makesourceid(i)
+
+		for i := range next {
+			a := next[i]
+			b := p.sources[i]
+
+			t.True(a.Address().Equal(b.Address()))
+			t.True(a.Publickey().Equal(b.Publickey()))
+			t.Equal(a.String(), b.String())
+		}
+
+		t.Equal(len(prev), len(p.sources))
+		t.Equal(nextids, p.sourceids)
+		t.Equal(prevfixedlen-1, p.fixedlen)
+
+		// NOTE update prev sources
+		t.True(p.UpdateFixed(prev))
+
+		for i := range next {
+			a := prev[i]
+			b := p.sources[i]
+
+			t.True(a.Address().Equal(b.Address()))
+			t.True(a.Publickey().Equal(b.Publickey()))
+			t.Equal(a.String(), b.String())
+		}
+
+		t.Equal(len(prev), len(p.sources))
+		t.Equal(previds, p.sourceids)
+		t.Equal(prevfixedlen, p.fixedlen)
 	})
 }
 

@@ -203,8 +203,8 @@ func (cmd *runCommand) newProposalProcessorFunc(enc encoder.Encoder) newProposal
 			launch.NewBlockWriterFunc(
 				cmd.local, networkID, launch.LocalFSDataDirectory(cmd.design.Storage.Base), enc, cmd.db),
 			cmd.db.State,
-			nil,
-			nil,
+			nil, // FIXME implement
+			nil, // FIXME implement
 			cmd.pool.SetLastVoteproofs,
 		)
 	}
