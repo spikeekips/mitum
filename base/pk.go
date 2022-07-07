@@ -112,6 +112,11 @@ func DecodePrivatekeyFromString(s string, enc encoder.Encoder) (Privatekey, erro
 }
 
 func DecodePublickeyFromString(s string, enc encoder.Encoder) (Publickey, error) {
+	cachekey := s + "/" + enc.Hint().String()
+	if i, found := objcache.Get(cachekey); found {
+		return i.(Publickey), nil //nolint:forcetypeassert //...
+	}
+
 	e := util.StringErrorFunc("failed to parse publickey")
 
 	i, err := decodePKKeyFromString(s, enc)
@@ -120,6 +125,8 @@ func DecodePublickeyFromString(s string, enc encoder.Encoder) (Publickey, error)
 	case err != nil:
 		return nil, e(err, "")
 	case i == nil:
+		objcache.Set(cachekey, nil, nil)
+
 		return nil, nil
 	}
 
@@ -127,6 +134,8 @@ func DecodePublickeyFromString(s string, enc encoder.Encoder) (Publickey, error)
 	if !ok {
 		return nil, e(nil, "failed to decode publickey; not Publickey, %T", i)
 	}
+
+	objcache.Set(cachekey, k, nil)
 
 	return k, nil
 }
