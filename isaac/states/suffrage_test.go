@@ -14,19 +14,20 @@ import (
 	"github.com/spikeekips/mitum/util/fixedtree"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/goleak"
 )
 
-type testSuffrageStateBuilder struct {
+type baseTestSuffrageStateBuilder struct {
 	isaac.BaseTestBallots
 	isaacdatabase.BaseTestDatabase
 }
 
-func (t *testSuffrageStateBuilder) SetupTest() {
+func (t *baseTestSuffrageStateBuilder) SetupTest() {
 	t.BaseTestBallots.SetupTest()
 	t.BaseTestDatabase.SetupTest()
 }
 
-func (t *testSuffrageStateBuilder) prepare(point base.Point, previous base.State, locals, newlocals []isaac.LocalNode) isaacblock.SuffrageProof {
+func (t *baseTestSuffrageStateBuilder) prepare(point base.Point, previous base.State, locals, newlocals []isaac.LocalNode) isaacblock.SuffrageProof {
 	newnodes := make([]base.Node, len(newlocals))
 	for i := range newnodes {
 		newnodes[i] = newlocals[i]
@@ -85,7 +86,7 @@ func (t *testSuffrageStateBuilder) prepare(point base.Point, previous base.State
 	return isaacblock.NewSuffrageProof(blockMap, newstate, proof, voteproof)
 }
 
-func (t *testSuffrageStateBuilder) newProofs(n int) map[base.Height]base.SuffrageProof {
+func (t *baseTestSuffrageStateBuilder) newProofs(n int) map[base.Height]base.SuffrageProof {
 	locals := []isaac.LocalNode{t.Local}
 
 	p := base.GenesisPoint
@@ -113,17 +114,24 @@ func (t *testSuffrageStateBuilder) newProofs(n int) map[base.Height]base.Suffrag
 	return proofs
 }
 
-func (t *testSuffrageStateBuilder) compareSuffrage(expectedstate base.State, suf base.Suffrage) {
+func (t *baseTestSuffrageStateBuilder) compareSuffrage(expectedstate, foundstate base.State) {
 	expected, err := isaac.NewSuffrageFromState(expectedstate)
 	t.NoError(err)
 
-	t.Equal(len(expected.Nodes()), len(suf.Nodes()))
+	found, err := isaac.NewSuffrageFromState(foundstate)
+	t.NoError(err)
+
+	t.Equal(len(expected.Nodes()), len(found.Nodes()))
 	for i := range expected.Nodes() {
 		a := expected.Nodes()[i]
 
-		t.True(suf.Exists(a.Address()))
-		t.True(suf.ExistsPublickey(a.Address(), a.Publickey()))
+		t.True(found.Exists(a.Address()))
+		t.True(found.ExistsPublickey(a.Address(), a.Publickey()))
 	}
+}
+
+type testSuffrageStateBuilder struct {
+	baseTestSuffrageStateBuilder
 }
 
 func (t *testSuffrageStateBuilder) TestBuildOneFromGenesis() {
@@ -154,11 +162,12 @@ func (t *testSuffrageStateBuilder) TestBuildOneFromGenesis() {
 	)
 	s.batchlimit = 3
 
-	suf, err := s.Build(context.Background(), nil)
+	proof, err := s.Build(context.Background(), nil)
 	t.NoError(err)
-	t.NotNil(suf)
+	t.NotNil(proof)
 
-	t.compareSuffrage(last.State(), suf)
+	t.True(base.IsEqualState(last.State(), proof.State()))
+	t.compareSuffrage(last.State(), proof.State())
 
 	sort.Slice(fetched, func(i, j int) bool {
 		return fetched[i] < fetched[j]
@@ -195,11 +204,12 @@ func (t *testSuffrageStateBuilder) TestBuildFromGenesis() {
 	)
 	s.batchlimit = 3
 
-	suf, err := s.Build(context.Background(), nil)
+	proof, err := s.Build(context.Background(), nil)
 	t.NoError(err)
-	t.NotNil(suf)
+	t.NotNil(proof)
 
-	t.compareSuffrage(last.State(), suf)
+	t.True(base.IsEqualState(last.State(), proof.State()))
+	t.compareSuffrage(last.State(), proof.State())
 
 	sort.Slice(fetched, func(i, j int) bool {
 		return fetched[i] < fetched[j]
@@ -238,11 +248,12 @@ func (t *testSuffrageStateBuilder) TestBuildNotFromGenesis() {
 	)
 	s.batchlimit = 3
 
-	suf, err := s.Build(context.Background(), proofs[localheight].State())
+	proof, err := s.Build(context.Background(), proofs[localheight].State())
 	t.NoError(err)
-	t.NotNil(suf)
+	t.NotNil(proof)
 
-	t.compareSuffrage(last.State(), suf)
+	t.True(base.IsEqualState(last.State(), proof.State()))
+	t.compareSuffrage(last.State(), proof.State())
 
 	sort.Slice(fetched, func(i, j int) bool {
 		return fetched[i] < fetched[j]
@@ -268,13 +279,97 @@ func (t *testSuffrageStateBuilder) TestBuildLastNotFromGenesis() {
 	)
 	s.batchlimit = 3
 
-	suf, err := s.Build(context.Background(), proofs[localheight].State())
+	proof, err := s.Build(context.Background(), proofs[localheight].State())
 	t.NoError(err)
-	t.NotNil(suf)
-
-	t.compareSuffrage(last.State(), suf)
+	t.Nil(proof)
 }
 
 func TestSuffrageStateBuilder(t *testing.T) {
 	suite.Run(t, new(testSuffrageStateBuilder))
+}
+
+type testLastSuffrageProofWatcher struct {
+	baseTestSuffrageStateBuilder
+}
+
+func (t *testLastSuffrageProofWatcher) TestLocalAhead() {
+	proofs := t.newProofs(2)
+
+	called := make(chan struct{}, 2)
+	u := NewLastSuffrageProofWatcher(
+		func() (base.SuffrageProof, bool, error) {
+			return proofs[1], true, nil
+		},
+		func(context.Context, base.State) (base.SuffrageProof, error) {
+			called <- struct{}{}
+
+			return proofs[0], nil
+		},
+	)
+	t.NoError(u.Start())
+	defer u.Stop()
+
+	<-called
+
+	proof, err := u.Last()
+	t.NoError(err)
+
+	base.EqualSuffrageProof(t.Assert(), proofs[1], proof)
+}
+
+func (t *testLastSuffrageProofWatcher) TestRemoteAhead() {
+	proofs := t.newProofs(2)
+
+	called := make(chan struct{}, 2)
+	u := NewLastSuffrageProofWatcher(
+		func() (base.SuffrageProof, bool, error) {
+			return proofs[0], true, nil
+		},
+		func(context.Context, base.State) (base.SuffrageProof, error) {
+			called <- struct{}{}
+
+			return proofs[1], nil
+		},
+	)
+	t.NoError(u.Start())
+	defer u.Stop()
+
+	<-called
+
+	proof, err := u.Last()
+	t.NoError(err)
+
+	base.EqualSuffrageProof(t.Assert(), proofs[1], proof)
+}
+
+func (t *testLastSuffrageProofWatcher) TestSameButLocalFirst() {
+	localproofs := t.newProofs(1)
+	remoteproofs := t.newProofs(1)
+
+	called := make(chan struct{}, 2)
+	u := NewLastSuffrageProofWatcher(
+		func() (base.SuffrageProof, bool, error) {
+			return localproofs[0], true, nil
+		},
+		func(context.Context, base.State) (base.SuffrageProof, error) {
+			called <- struct{}{}
+
+			return remoteproofs[0], nil
+		},
+	)
+	t.NoError(u.Start())
+	defer u.Stop()
+
+	<-called
+
+	proof, err := u.Last()
+	t.NoError(err)
+
+	base.EqualSuffrageProof(t.Assert(), localproofs[0], proof)
+}
+
+func TestLastSuffrageProofWatcher(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	suite.Run(t, new(testLastSuffrageProofWatcher))
 }

@@ -1,3 +1,6 @@
+//go:build test
+// +build test
+
 package base
 
 import (
@@ -119,4 +122,35 @@ func (p *DummySuffrageProof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	}
 
 	return nil
+}
+
+func EqualSuffrageProof(t *assert.Assertions, a, b SuffrageProof) {
+	ah := a.(hint.Hinter)
+	bh := b.(hint.Hinter)
+
+	t.True(ah.Hint().Equal(bh.Hint()))
+
+	t.Equal(a.SuffrageHeight(), b.SuffrageHeight())
+
+	EqualBlockMap(t, a.Map(), b.Map())
+	t.True(IsEqualState(a.State(), b.State()))
+
+	ap := a.Proof().Nodes()
+	bp := b.Proof().Nodes()
+	t.Equal(len(ap), len(bp))
+	for i := range ap {
+		t.True(ap[i].Equal(bp[i]))
+	}
+
+	asuf, err := a.Suffrage()
+	t.NoError(err)
+	bsuf, err := b.Suffrage()
+	t.NoError(err)
+
+	anodes := asuf.Nodes()
+	bnodes := bsuf.Nodes()
+	t.Equal(len(anodes), len(bnodes))
+	t.True(IsEqualNodes(anodes, bnodes))
+
+	EqualVoteproof(t, a.ACCEPTVoteproof(), b.ACCEPTVoteproof())
 }

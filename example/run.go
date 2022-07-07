@@ -27,7 +27,7 @@ type runCommand struct { //nolint:govet //...
 	db                       isaac.Database
 	perm                     isaac.PermanentDatabase
 	getProposal              func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error)
-	suffrageStateBuilder     *isaacstates.SuffrageStateBuilder
+	lastSuffrageProofWatcher *isaacstates.LastSuffrageProofWatcher
 	proposalSelector         *isaac.BaseProposalSelector
 	pool                     *isaacdatabase.TempPool
 	getSuffrage              func(blockheight base.Height) (base.Suffrage, bool, error)
@@ -73,8 +73,13 @@ func (cmd *runCommand) Run() error {
 		return err
 	}
 
+	if err := cmd.lastSuffrageProofWatcher.Start(); err != nil {
+		return err
+	}
+
 	defer func() {
 		_ = cmd.syncSourceChecker.Stop()
+		_ = cmd.lastSuffrageProofWatcher.Stop()
 		_ = cmd.memberlist.Stop()
 	}()
 

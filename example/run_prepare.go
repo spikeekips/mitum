@@ -156,11 +156,16 @@ func (cmd *runCommand) prepareNetwork() error {
 	return cmd.prepareMemberlist()
 }
 
-func (cmd *runCommand) prepareSuffrageStateBuilder() {
-	cmd.suffrageStateBuilder = isaacstates.NewSuffrageStateBuilder(
+func (cmd *runCommand) prepareLastSuffrageProofWatcher() {
+	builder := isaacstates.NewSuffrageStateBuilder(
 		networkID,
 		cmd.getLastSuffrageProofFunc(),
 		cmd.getSuffrageProofFunc(),
+	)
+
+	cmd.lastSuffrageProofWatcher = isaacstates.NewLastSuffrageProofWatcher(
+		cmd.db.LastSuffrageProof,
+		builder.Build,
 	)
 }
 

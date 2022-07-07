@@ -216,15 +216,6 @@ func (cmd *runCommand) newSyncer(
 	return func(height base.Height) (isaac.Syncer, error) {
 		e := util.StringErrorFunc("failed newSyncer")
 
-		var lastsuffrageproof base.SuffrageProof
-
-		switch proof, found, err := cmd.db.LastSuffrageProof(); {
-		case err != nil:
-			return nil, e(err, "")
-		case found:
-			lastsuffrageproof = proof
-		}
-
 		var prev base.BlockMap
 
 		switch m, found, err := cmd.db.LastBlockMap(); {
@@ -277,7 +268,7 @@ func (cmd *runCommand) newSyncer(
 			return nil, e(err, "")
 		}
 
-		go cmd.newSyncerDeferred(height, syncer, lastsuffrageproof)
+		go cmd.newSyncerDeferred(height, syncer)
 
 		return syncer, nil
 	}
@@ -286,23 +277,11 @@ func (cmd *runCommand) newSyncer(
 func (cmd *runCommand) newSyncerDeferred(
 	height base.Height,
 	syncer *isaacstates.Syncer,
-	lastsuffrageproof base.SuffrageProof,
 ) {
 	l := log.With().Str("module", "new-syncer").Logger()
 
 	if err := cmd.db.MergeAllPermanent(); err != nil {
 		l.Error().Err(err).Msg("failed to merge temps")
-
-		return
-	}
-
-	var lastsuffragestate base.State
-	if lastsuffrageproof != nil {
-		lastsuffragestate = lastsuffrageproof.State()
-	}
-
-	if _, err := cmd.suffrageStateBuilder.Build(context.Background(), lastsuffragestate); err != nil {
-		l.Error().Err(err).Msg("suffrage state builder failed")
 
 		return
 	}
@@ -639,7 +618,7 @@ func (cmd *runCommand) updateSyncSources(called int64, ncis []isaac.NodeConnInfo
 		Msg("sync sources updated")
 }
 
-func (cmd *runCommand) getLastSuffrageProofFunc() func(context.Context) (base.SuffrageProof, bool, error) {
+func (cmd *runCommand) getLastSuffrageProofFunc() isaacstates.GetLastSuffrageProofFromRemoteFunc {
 	lastl := util.EmptyLocked()
 
 	f := func(ctx context.Context, ci quicstream.UDPConnInfo) (base.SuffrageProof, bool, error) {
@@ -719,8 +698,7 @@ func (cmd *runCommand) getLastSuffrageProofFunc() func(context.Context) (base.Su
 	}
 }
 
-func (cmd *runCommand) getSuffrageProofFunc() func(
-	ctx context.Context, suffrageheight base.Height) (base.SuffrageProof, bool, error) {
+func (cmd *runCommand) getSuffrageProofFunc() isaacstates.GetSuffrageProofFromRemoteFunc {
 	return func(ctx context.Context, suffrageheight base.Height) (proof base.SuffrageProof, found bool, _ error) {
 		err := util.Retry(
 			ctx,

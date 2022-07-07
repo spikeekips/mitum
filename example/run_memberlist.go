@@ -208,10 +208,26 @@ func (cmd *runCommand) nodeChallengeFunc() func(quicmemberlist.Node) error {
 	}
 }
 
-func (*runCommand) memberlistAllowFunc() func(quicmemberlist.Node) error {
-	// FIXME last suffrage from suffrageStateBuilder
-
+func (cmd *runCommand) memberlistAllowFunc() func(quicmemberlist.Node) error {
 	return func(node quicmemberlist.Node) error {
-		return nil // FIXME disallow by last suffrage nodes
+		proof, err := cmd.lastSuffrageProofWatcher.Last()
+		if err != nil {
+			log.Error().Err(err).Msg("failed to get last suffrage proof; node will not be allowed")
+
+			return err
+		}
+
+		suf, err := proof.Suffrage()
+		if err != nil {
+			log.Error().Err(err).Msg("wrong last suffrage proof; node will not be allowed")
+
+			return err
+		}
+
+		if !suf.ExistsPublickey(node.Address(), node.Publickey()) {
+			return errors.Errorf("not in suffrage; not allowed")
+		}
+
+		return nil
 	}
 }

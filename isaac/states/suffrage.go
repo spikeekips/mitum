@@ -3,27 +3,36 @@ package isaacstates
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/logging"
+)
+
+type (
+	GetLastSuffrageProofFromRemoteFunc func(context.Context) (base.SuffrageProof, bool, error)
+	GetSuffrageProofFromRemoteFunc     func(_ context.Context, suffrageheight base.Height) (
+		base.SuffrageProof, bool, error)
 )
 
 // SuffrageStateBuilder tries to sync suffrage states from remote nodes. It will
 // rebuild the entire suffrage states history. SuffrageProof from getSuffrageProof
 // should be valid(IsValid()).
 type SuffrageStateBuilder struct {
-	lastSuffrageProof func(context.Context) (base.SuffrageProof, bool, error)
-	getSuffrageProof  func(_ context.Context, suffrageheight base.Height) (base.SuffrageProof, bool, error)
+	lastSuffrageProof GetLastSuffrageProofFromRemoteFunc
+	getSuffrageProof  GetSuffrageProofFromRemoteFunc
 	networkID         base.NetworkID
 	batchlimit        uint64
 }
 
 func NewSuffrageStateBuilder(
 	networkID base.NetworkID,
-	lastSuffrageProof func(context.Context) (base.SuffrageProof, bool, error),
-	getSuffrageProof func(context.Context, base.Height) (base.SuffrageProof, bool, error),
+	lastSuffrageProof GetLastSuffrageProofFromRemoteFunc,
+	getSuffrageProof GetSuffrageProofFromRemoteFunc,
 ) *SuffrageStateBuilder {
 	return &SuffrageStateBuilder{
 		networkID:         networkID,
@@ -34,7 +43,7 @@ func NewSuffrageStateBuilder(
 }
 
 // Build builds latest suffrage states from localstate.
-func (s *SuffrageStateBuilder) Build(ctx context.Context, localstate base.State) (base.Suffrage, error) {
+func (s *SuffrageStateBuilder) Build(ctx context.Context, localstate base.State) (base.SuffrageProof, error) {
 	// FIXME keep latest suffrage state from local and remotes.
 
 	e := util.StringErrorFunc("failed to build suffrage states")
@@ -44,33 +53,27 @@ func (s *SuffrageStateBuilder) Build(ctx context.Context, localstate base.State)
 	}
 
 	fromheight := base.GenesisHeight
-	var currentsuf base.Suffrage
 
 	if localstate != nil {
-		switch i, err := isaac.NewSuffrageFromState(localstate); {
-		case err != nil:
+		if _, err := isaac.NewSuffrageFromState(localstate); err != nil {
 			return nil, e(err, "invalid localstate")
-		default:
-			currentsuf = i
-
-			v, _ := base.LoadSuffrageState(localstate)
-			fromheight = v.Height() + 1
 		}
+
+		v, _ := base.LoadSuffrageState(localstate)
+		fromheight = v.Height() + 1
 	}
 
-	var suf base.Suffrage
-	var last base.State
+	var last base.SuffrageProof
 
 	switch proof, updated, err := s.lastSuffrageProof(ctx); {
 	case err != nil:
 		return nil, e(err, "")
 	case !updated:
-		i, err := isaac.NewSuffrageFromState(localstate)
-		if err != nil {
+		if _, err := isaac.NewSuffrageFromState(localstate); err != nil {
 			return nil, e(err, "invalid localstate")
 		}
 
-		return i, nil
+		return nil, nil
 	default:
 		if err := proof.IsValid(s.networkID); err != nil {
 			return nil, e(err, "")
@@ -78,30 +81,28 @@ func (s *SuffrageStateBuilder) Build(ctx context.Context, localstate base.State)
 
 		if localstate != nil {
 			if proof.State().Height() <= localstate.Height() {
-				return currentsuf, nil
+				return nil, nil
 			}
 
 			v, _ := base.LoadSuffrageState(localstate)
 
 			if proof.SuffrageHeight() <= v.Height() {
-				return currentsuf, nil
+				return nil, nil
 			}
 		}
 
-		i, err := isaac.NewSuffrageFromState(proof.State())
-		if err != nil {
+		if _, err := isaac.NewSuffrageFromState(proof.State()); err != nil {
 			return nil, e(err, "")
 		}
 
-		last = proof.State()
-		suf = i
+		last = proof
 	}
 
-	if err := s.buildBatch(ctx, localstate, last, fromheight); err != nil {
+	if err := s.buildBatch(ctx, localstate, last.State(), fromheight); err != nil {
 		return nil, e(err, "")
 	}
 
-	return suf, nil
+	return last, nil
 }
 
 func (s *SuffrageStateBuilder) buildBatch(
@@ -208,4 +209,122 @@ func (*SuffrageStateBuilder) prove(
 	}
 
 	return nil
+}
+
+type LastSuffrageProofWatcher struct {
+	*util.ContextDaemon
+	*logging.Logging
+	getFromLocal  func() (base.SuffrageProof, bool, error)
+	getFromRemote func(context.Context, base.State) (base.SuffrageProof, error)
+	last          *util.Locked
+	interval      time.Duration
+}
+
+func NewLastSuffrageProofWatcher(
+	getFromLocal func() (base.SuffrageProof, bool, error),
+	getFromRemote func(context.Context, base.State) (base.SuffrageProof, error),
+) *LastSuffrageProofWatcher {
+	u := &LastSuffrageProofWatcher{
+		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
+			return lctx.Str("module", "suffrage-state-updater")
+		}),
+		getFromLocal:  getFromLocal,
+		getFromRemote: getFromRemote,
+		interval:      time.Second * 3, //nolint:gomnd //...
+		last:          util.EmptyLocked(),
+	}
+
+	u.ContextDaemon = util.NewContextDaemon(u.start)
+
+	return u
+}
+
+func (u *LastSuffrageProofWatcher) Last() (base.SuffrageProof, error) {
+	e := util.StringErrorFunc("failed to get last suffrageproof")
+
+	var local base.SuffrageProof
+
+	switch proof, found, err := u.getFromLocal(); {
+	case err != nil:
+		return nil, e(err, "")
+	case found:
+		local = proof
+	}
+
+	switch i, isnil := u.last.Value(); {
+	case isnil:
+		return local, nil
+	default:
+		remote := i.(base.SuffrageProof) //nolint:forcetypeassert //...
+
+		// NOTE local proof will be used if same height
+		if remote.Map().Manifest().Height() > local.Map().Manifest().Height() {
+			return remote, nil
+		}
+
+		return local, nil
+	}
+}
+
+func (u *LastSuffrageProofWatcher) start(ctx context.Context) error {
+	if err := u.checkRemote(ctx); err != nil {
+		u.Log().Error().Err(err).Msg("failed to check remote")
+	}
+
+	ticker := time.NewTicker(u.interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			if err := u.checkRemote(ctx); err != nil {
+				u.Log().Error().Err(err).Msg("failed to check remote")
+			}
+		}
+	}
+}
+
+func (u *LastSuffrageProofWatcher) checkRemote(ctx context.Context) error {
+	var known base.State
+
+	if i, isnil := u.last.Value(); !isnil {
+		known = i.(base.SuffrageProof).State() //nolint:forcetypeassert //...
+	}
+
+	switch found, err := u.getFromRemote(ctx, known); {
+	case err != nil:
+		return err
+	case found == nil:
+		return nil
+	default:
+		if u.update(found) {
+			u.Log().Debug().Interface("proof", found).Msg("new suffrage proof found from remote")
+		}
+
+		return nil
+	}
+}
+
+func (u *LastSuffrageProofWatcher) update(proof base.SuffrageProof) bool {
+	var updated bool
+
+	_, _ = u.last.Set(func(i interface{}) (interface{}, error) {
+		if i == nil {
+			return proof, nil
+		}
+
+		old := i.(base.SuffrageProof) //nolint:forcetypeassert //...
+
+		if proof.Map().Manifest().Height() <= old.Map().Manifest().Height() {
+			return nil, util.ErrLockedSetIgnore.Errorf("old")
+		}
+
+		updated = true
+
+		return proof, nil
+	})
+
+	return updated
 }

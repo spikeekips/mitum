@@ -14,7 +14,7 @@ func (cmd *runCommand) prepareStates() error {
 	cmd.newProposalProcessor = cmd.newProposalProcessorFunc(cmd.enc)
 	cmd.getProposal = cmd.getProposalFunc()
 
-	cmd.prepareSuffrageStateBuilder()
+	cmd.prepareLastSuffrageProofWatcher()
 
 	cmd.ballotbox = isaacstates.NewBallotbox(cmd.getSuffrage, cmd.nodePolicy.Threshold())
 
