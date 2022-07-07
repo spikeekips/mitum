@@ -154,8 +154,6 @@ func (c *QuicstreamHandlers) RequestProposal(_ net.Addr, r io.Reader, w io.Write
 		return e(err, "")
 	}
 
-	// FIXME if point is too old, returns error
-
 	pr, err := c.getOrCreateProposal(header.point, header.proposer)
 
 	res := NewResponseHeader(pr != nil, err)
@@ -404,6 +402,17 @@ func (c *QuicstreamHandlers) getOrCreateProposal(
 	point base.Point,
 	proposer base.Address,
 ) (base.ProposalSignedFact, error) {
+	if c.lastBlockMapf != nil {
+		switch m, found, err := c.lastBlockMapf(nil); {
+		case err != nil:
+			return nil, err
+		case found:
+			if point.Height() < m.Manifest().Height()-1 {
+				return nil, errors.Errorf("too old; ignored")
+			}
+		}
+	}
+
 	switch pr, found, err := c.pool.ProposalByPoint(point, proposer); {
 	case err != nil:
 		return nil, err
