@@ -14,7 +14,8 @@ import (
 )
 
 type QuicstreamHandlers struct {
-	pool isaac.ProposalPool
+	pool   isaac.ProposalPool
+	oppool isaac.NewOperationPool
 	*baseNetwork
 	proposalMaker         *isaac.ProposalMaker
 	lastSuffrageProoff    func(suffragestate util.Hash) (base.SuffrageProof, bool, error)
@@ -35,6 +36,7 @@ func NewQuicstreamHandlers( // revive:disable-line:argument-limit
 	enc encoder.Encoder,
 	idleTimeout time.Duration,
 	pool isaac.ProposalPool,
+	oppool isaac.NewOperationPool,
 	proposalMaker *isaac.ProposalMaker,
 	lastSuffrageProoff func(util.Hash) (base.SuffrageProof, bool, error),
 	suffrageProoff func(base.Height) (base.SuffrageProof, bool, error),
@@ -49,6 +51,7 @@ func NewQuicstreamHandlers( // revive:disable-line:argument-limit
 		local:                 local,
 		nodepolicy:            nodepolicy,
 		pool:                  pool,
+		oppool:                oppool,
 		proposalMaker:         proposalMaker,
 		lastSuffrageProoff:    lastSuffrageProoff,
 		suffrageProoff:        suffrageProoff,
@@ -68,6 +71,45 @@ func (c *QuicstreamHandlers) ErrorHandler(_ net.Addr, _ io.Reader, w io.Writer, 
 	return nil
 }
 
+func (c *QuicstreamHandlers) NewOperation(_ net.Addr, r io.Reader, w io.Writer) error {
+	e := util.StringErrorFunc("failed to handle new operation")
+
+	enc, hb, err := c.prehandle(r)
+	if err != nil {
+		return e(err, "")
+	}
+
+	var header NewOperationRequestHeader
+	if err = encoder.Decode(enc, hb, &header); err != nil {
+		return e(err, "")
+	}
+
+	if err = header.IsValid(nil); err != nil {
+		return e(err, "")
+	}
+
+	body, err := io.ReadAll(r)
+	if err != nil {
+		return e(err, "")
+	}
+
+	var op base.Operation
+
+	if err = encoder.Decode(c.enc, body, &op); err != nil {
+		return e(err, "")
+	}
+
+	added, err := c.oppool.SetNewOperation(context.Background(), op)
+
+	res := NewResponseHeader(added, err)
+
+	if err := Response(w, res, nil, enc); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
 func (c *QuicstreamHandlers) RequestProposal(_ net.Addr, r io.Reader, w io.Writer) error {
 	e := util.StringErrorFunc("failed to handle request proposal")
 
@@ -76,22 +118,22 @@ func (c *QuicstreamHandlers) RequestProposal(_ net.Addr, r io.Reader, w io.Write
 		return e(err, "")
 	}
 
-	var body RequestProposalRequestHeader
-	if err = encoder.Decode(enc, hb, &body); err != nil {
+	var header RequestProposalRequestHeader
+	if err = encoder.Decode(enc, hb, &header); err != nil {
 		return e(err, "")
 	}
 
-	if err = body.IsValid(nil); err != nil {
+	if err = header.IsValid(nil); err != nil {
 		return e(err, "")
 	}
 
 	// FIXME if point is too old, returns error
 
-	pr, err := c.getOrCreateProposal(body.point, body.proposer)
+	pr, err := c.getOrCreateProposal(header.point, header.proposer)
 
-	header := NewResponseHeader(pr != nil, err)
+	res := NewResponseHeader(pr != nil, err)
 
-	if err := Response(w, header, pr, enc); err != nil {
+	if err := Response(w, res, pr, enc); err != nil {
 		return e(err, "")
 	}
 
@@ -106,20 +148,20 @@ func (c *QuicstreamHandlers) Proposal(_ net.Addr, r io.Reader, w io.Writer) erro
 		return e(err, "")
 	}
 
-	var body ProposalRequestHeader
-	if err = encoder.Decode(enc, hb, &body); err != nil {
+	var header ProposalRequestHeader
+	if err = encoder.Decode(enc, hb, &header); err != nil {
 		return e(err, "")
 	}
 
-	if err = body.IsValid(nil); err != nil {
+	if err = header.IsValid(nil); err != nil {
 		return e(err, "")
 	}
 
-	pr, found, err := c.pool.Proposal(body.proposal)
+	pr, found, err := c.pool.Proposal(header.proposal)
 
-	header := NewResponseHeader(found, err)
+	res := NewResponseHeader(found, err)
 
-	if err := Response(w, header, pr, enc); err != nil {
+	if err := Response(w, res, pr, enc); err != nil {
 		return e(err, "")
 	}
 
@@ -134,15 +176,15 @@ func (c *QuicstreamHandlers) LastSuffrageProof(_ net.Addr, r io.Reader, w io.Wri
 		return e(err, "")
 	}
 
-	var body LastSuffrageProofRequestHeader
-	if err = encoder.Decode(enc, hb, &body); err != nil {
+	var header LastSuffrageProofRequestHeader
+	if err = encoder.Decode(enc, hb, &header); err != nil {
 		return e(err, "")
 	}
 
-	proof, updated, err := c.lastSuffrageProoff(body.State())
-	header := NewResponseHeader(updated, err)
+	proof, updated, err := c.lastSuffrageProoff(header.State())
+	res := NewResponseHeader(updated, err)
 
-	if err := Response(w, header, proof, enc); err != nil {
+	if err := Response(w, res, proof, enc); err != nil {
 		return e(err, "")
 	}
 
@@ -157,15 +199,15 @@ func (c *QuicstreamHandlers) SuffrageProof(_ net.Addr, r io.Reader, w io.Writer)
 		return e(err, "")
 	}
 
-	var body SuffrageProofRequestHeader
-	if err = encoder.Decode(enc, hb, &body); err != nil {
+	var header SuffrageProofRequestHeader
+	if err = encoder.Decode(enc, hb, &header); err != nil {
 		return e(err, "")
 	}
 
-	proof, found, err := c.suffrageProoff(body.Height())
-	header := NewResponseHeader(found, err)
+	proof, found, err := c.suffrageProoff(header.Height())
+	res := NewResponseHeader(found, err)
 
-	if err := Response(w, header, proof, enc); err != nil {
+	if err := Response(w, res, proof, enc); err != nil {
 		return e(err, "")
 	}
 
@@ -182,19 +224,19 @@ func (c *QuicstreamHandlers) LastBlockMap(_ net.Addr, r io.Reader, w io.Writer) 
 		return e(err, "")
 	}
 
-	var body LastBlockMapRequestHeader
-	if err = encoder.Decode(enc, hb, &body); err != nil {
+	var header LastBlockMapRequestHeader
+	if err = encoder.Decode(enc, hb, &header); err != nil {
 		return e(err, "")
 	}
 
-	if err = body.IsValid(nil); err != nil {
+	if err = header.IsValid(nil); err != nil {
 		return e(err, "")
 	}
 
-	m, updated, err := c.lastBlockMapf(body.Manifest())
-	header := NewResponseHeader(updated, err)
+	m, updated, err := c.lastBlockMapf(header.Manifest())
+	res := NewResponseHeader(updated, err)
 
-	if err := Response(w, header, m, enc); err != nil {
+	if err := Response(w, res, m, enc); err != nil {
 		return e(err, "")
 	}
 
@@ -209,19 +251,19 @@ func (c *QuicstreamHandlers) BlockMap(_ net.Addr, r io.Reader, w io.Writer) erro
 		return e(err, "")
 	}
 
-	var body BlockMapRequestHeader
-	if err = encoder.Decode(enc, hb, &body); err != nil {
+	var header BlockMapRequestHeader
+	if err = encoder.Decode(enc, hb, &header); err != nil {
 		return e(err, "")
 	}
 
-	if err = body.IsValid(nil); err != nil {
+	if err = header.IsValid(nil); err != nil {
 		return e(err, "")
 	}
 
-	m, found, err := c.blockMapf(body.Height())
-	header := NewResponseHeader(found, err)
+	m, found, err := c.blockMapf(header.Height())
+	res := NewResponseHeader(found, err)
 
-	if err := Response(w, header, m, enc); err != nil {
+	if err := Response(w, res, m, enc); err != nil {
 		return e(err, "")
 	}
 
@@ -236,25 +278,25 @@ func (c *QuicstreamHandlers) BlockMapItem(_ net.Addr, r io.Reader, w io.Writer) 
 		return e(err, "")
 	}
 
-	var body BlockMapItemRequestHeader
-	if err = encoder.Decode(enc, hb, &body); err != nil {
+	var header BlockMapItemRequestHeader
+	if err = encoder.Decode(enc, hb, &header); err != nil {
 		return e(err, "")
 	}
 
-	if err = body.IsValid(nil); err != nil {
+	if err = header.IsValid(nil); err != nil {
 		return e(err, "")
 	}
 
-	itemr, found, err := c.blockMapItemf(body.Height(), body.Item())
+	itemr, found, err := c.blockMapItemf(header.Height(), header.Item())
 	if itemr != nil {
 		defer func() {
 			_ = itemr.Close()
 		}()
 	}
 
-	header := NewResponseHeader(found, err)
+	res := NewResponseHeader(found, err)
 
-	if err := Response(w, header, nil, enc); err != nil {
+	if err := Response(w, res, nil, enc); err != nil {
 		return e(err, "")
 	}
 
@@ -277,27 +319,27 @@ func (c *QuicstreamHandlers) NodeChallenge(_ net.Addr, r io.Reader, w io.Writer)
 		return e(err, "")
 	}
 
-	var body NodeChallengeRequestHeader
-	if err = encoder.Decode(enc, hb, &body); err != nil {
+	var header NodeChallengeRequestHeader
+	if err = encoder.Decode(enc, hb, &header); err != nil {
 		return e(err, "")
 	}
 
-	if err = body.IsValid(nil); err != nil {
+	if err = header.IsValid(nil); err != nil {
 		return e(err, "")
 	}
 
 	sig, err := c.local.Privatekey().Sign(util.ConcatBytesSlice(
 		c.local.Address().Bytes(),
 		c.nodepolicy.NetworkID(),
-		body.Input(),
+		header.Input(),
 	))
 	if err != nil {
 		return e(err, "")
 	}
 
-	header := NewResponseHeader(true, nil)
+	res := NewResponseHeader(true, nil)
 
-	if err := Response(w, header, sig, enc); err != nil {
+	if err := Response(w, res, sig, enc); err != nil {
 		return e(err, "")
 	}
 
@@ -305,9 +347,9 @@ func (c *QuicstreamHandlers) NodeChallenge(_ net.Addr, r io.Reader, w io.Writer)
 }
 
 func (c *QuicstreamHandlers) SuffrageNodeConnInfo(addr net.Addr, r io.Reader, w io.Writer) error {
-	var body SuffrageNodeConnInfoRequestHeader
+	var header SuffrageNodeConnInfoRequestHeader
 
-	if err := c.nodeConnInfos(addr, r, w, body, c.suffrageNodeConnInfof); err != nil {
+	if err := c.nodeConnInfos(addr, r, w, header, c.suffrageNodeConnInfof); err != nil {
 		return errors.WithMessage(err, "failed to handle SuffrageNodeConnInfo")
 	}
 
@@ -315,9 +357,9 @@ func (c *QuicstreamHandlers) SuffrageNodeConnInfo(addr net.Addr, r io.Reader, w 
 }
 
 func (c *QuicstreamHandlers) SyncSourceConnInfo(addr net.Addr, r io.Reader, w io.Writer) error {
-	var body SyncSourceConnInfoRequestHeader
+	var header SyncSourceConnInfoRequestHeader
 
-	if err := c.nodeConnInfos(addr, r, w, body, c.syncSourceConnInfof); err != nil {
+	if err := c.nodeConnInfos(addr, r, w, header, c.syncSourceConnInfof); err != nil {
 		return errors.WithMessage(err, "failed to handle SyncSourceConnInfo")
 	}
 
@@ -357,7 +399,7 @@ func (c *QuicstreamHandlers) getOrCreateProposal(
 
 func (c *QuicstreamHandlers) nodeConnInfos(
 	_ net.Addr, r io.Reader, w io.Writer,
-	body isaac.NetworkHeader,
+	header isaac.NetworkHeader,
 	f func() ([]isaac.NodeConnInfo, error),
 ) error {
 	enc, hb, err := c.prehandle(r)
@@ -365,11 +407,11 @@ func (c *QuicstreamHandlers) nodeConnInfos(
 		return err
 	}
 
-	if err = encoder.Decode(enc, hb, &body); err != nil {
+	if err = encoder.Decode(enc, hb, &header); err != nil {
 		return err
 	}
 
-	if err = body.IsValid(nil); err != nil {
+	if err = header.IsValid(nil); err != nil {
 		return err
 	}
 
@@ -378,7 +420,7 @@ func (c *QuicstreamHandlers) nodeConnInfos(
 		return err
 	}
 
-	header := NewResponseHeader(true, nil)
+	res := NewResponseHeader(true, nil)
 
-	return Response(w, header, cis, enc)
+	return Response(w, res, cis, enc)
 }

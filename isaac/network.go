@@ -13,6 +13,7 @@ import (
 // revive:disable:line-length-limit
 type NetworkClient interface {
 	Request(context.Context, quicstream.UDPConnInfo, NetworkHeader) (NetworkResponseHeader, interface{}, error)
+	NewOperation(context.Context, quicstream.UDPConnInfo, base.Operation) (bool, error)
 	RequestProposal(_ context.Context, connInfo quicstream.UDPConnInfo, point base.Point, propser base.Address) (base.ProposalSignedFact, bool, error)
 	Proposal(_ context.Context, connInfo quicstream.UDPConnInfo, facthash util.Hash) (base.ProposalSignedFact, bool, error)
 	LastSuffrageProof(_ context.Context, connInfo quicstream.UDPConnInfo, state util.Hash) (_ base.SuffrageProof, updated bool, _ error)

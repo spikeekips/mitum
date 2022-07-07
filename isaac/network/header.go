@@ -8,6 +8,7 @@ import (
 )
 
 var (
+	NewOperationRequestHeaderHint         = hint.MustNewHint("new-operation-header-v0.0.1")
 	RequestProposalRequestHeaderHint      = hint.MustNewHint("request-proposal-header-v0.0.1")
 	ProposalRequestHeaderHint             = hint.MustNewHint("proposal-header-v0.0.1")
 	LastSuffrageProofRequestHeaderHint    = hint.MustNewHint("last-suffrage-proof-header-v0.0.1")
@@ -36,6 +37,24 @@ func NewBaseHeader(ht hint.Hint) BaseHeader {
 
 func (h BaseHeader) HandlerPrefix() string {
 	return h.prefix
+}
+
+type NewOperationRequestHeader struct {
+	BaseHeader
+}
+
+func NewNewOperationRequestHeader() NewOperationRequestHeader {
+	return NewOperationRequestHeader{
+		BaseHeader: NewBaseHeader(NewOperationRequestHeaderHint),
+	}
+}
+
+func (h NewOperationRequestHeader) IsValid([]byte) error {
+	if err := h.BaseHinter.IsValid(NewOperationRequestHeaderHint.Type().Bytes()); err != nil {
+		return errors.WithMessage(err, "invalid NewOperationHeader")
+	}
+
+	return nil
 }
 
 type RequestProposalRequestHeader struct {
@@ -372,6 +391,8 @@ func baseHeaderPrefixByHint(ht hint.Hint) string {
 		return HandlerPrefixSuffrageNodeConnInfo
 	case SyncSourceConnInfoRequestHeaderHint.Type():
 		return HandlerPrefixSyncSourceConnInfo
+	case NewOperationRequestHeaderHint.Type():
+		return HandlerPrefixNewOperation
 	default:
 		return ""
 	}

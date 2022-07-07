@@ -1,6 +1,7 @@
 package isaacnetwork
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -72,6 +73,45 @@ func (c *baseNetworkClient) Request(
 		}
 
 		return h, u, nil
+	}
+}
+
+func (c *baseNetworkClient) NewOperation(
+	ctx context.Context,
+	ci quicstream.UDPConnInfo,
+	op base.Operation,
+) (bool, error) {
+	e := util.StringErrorFunc("failed to NewOperation")
+
+	b, err := c.enc.Marshal(op)
+	if err != nil {
+		return false, e(err, "")
+	}
+
+	header := NewNewOperationRequestHeader()
+
+	if err = header.IsValid(nil); err != nil {
+		return false, e(err, "")
+	}
+
+	r, cancel, err := c.write(ctx, ci, c.enc, header, bytes.NewBuffer(b))
+	if err != nil {
+		return false, e(err, "failed to send request")
+	}
+
+	defer func() {
+		_ = cancel()
+	}()
+
+	h, _, err := c.loadResponseHeader(ctx, r)
+
+	switch {
+	case err != nil:
+		return false, e(err, "failed to read stream")
+	case h.Err() != nil:
+		return false, e(h.Err(), "")
+	default:
+		return h.OK(), nil
 	}
 }
 

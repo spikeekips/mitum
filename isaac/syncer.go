@@ -503,6 +503,7 @@ func (p *SyncSourcePool) filterExtras(fixedids []string) ([]NodeConnInfo, []stri
 	newextras := make([]NodeConnInfo, len(extras)-len(duplicated))
 
 	var n int
+
 	for i := range extras {
 		var found bool
 
@@ -524,7 +525,7 @@ func (p *SyncSourcePool) filterExtras(fixedids []string) ([]NodeConnInfo, []stri
 
 	extraids = make([]string, len(newextraids))
 	for i := range newextraids {
-		extraids[i] = newextraids[i].(string)
+		extraids[i] = newextraids[i].(string) //nolint:forcetypeassert //...
 	}
 
 	return newextras, extraids

@@ -33,6 +33,7 @@ func (cmd *runCommand) networkHandlers() *quicstream.PrefixHandler {
 		cmd.enc,
 		networkHandlerIdleTimeout,
 		cmd.pool,
+		cmd.pool,
 		cmd.proposalMaker(),
 		func(last util.Hash) (base.SuffrageProof, bool, error) {
 			switch proof, found, err := cmd.db.LastSuffrageProof(); {

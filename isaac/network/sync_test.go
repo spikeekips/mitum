@@ -102,7 +102,7 @@ func (t *testSyncSourceChecker) handlers(n int) ([]isaac.NodeConnInfo, map[strin
 		ci, err := ncis[i].UDPConnInfo()
 		t.NoError(err)
 
-		handlers[ci.String()] = NewQuicstreamHandlers(locals[i], t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		handlers[ci.String()] = NewQuicstreamHandlers(locals[i], t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	}
 
 	return ncis, handlers
@@ -121,7 +121,7 @@ func (t *testSyncSourceChecker) TestFetchFromSuffrageNodes() {
 	local := isaac.RandomLocalNode()
 	localci := quicstream.RandomConnInfo()
 
-	handlers[localci.String()] = NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil,
+	handlers[localci.String()] = NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil, nil,
 		func() ([]isaac.NodeConnInfo, error) {
 			return ncis, nil
 		},
@@ -160,7 +160,7 @@ func (t *testSyncSourceChecker) TestFetchFromSyncSources() {
 	local := isaac.RandomLocalNode()
 	localci := quicstream.RandomConnInfo()
 
-	handlers[localci.String()] = NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil, nil,
+	handlers[localci.String()] = NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		func() ([]isaac.NodeConnInfo, error) {
 			return ncis, nil
 		},
@@ -194,14 +194,14 @@ func (t *testSyncSourceChecker) TestFetchFromNodeButFailedToSignature() {
 		ci := quicstream.RandomConnInfo()
 		ncis = append(ncis, NewNodeConnInfo(node.BaseNode, ci.UDPAddr().String(), ci.TLSInsecure()))
 
-		handlers[ci.String()] = NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		handlers[ci.String()] = NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 		// NOTE with t.Local insteadd of node
 	}
 
 	local := isaac.RandomLocalNode()
 	localci := quicstream.RandomConnInfo()
 
-	handlers[localci.String()] = NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil,
+	handlers[localci.String()] = NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil, nil,
 		func() ([]isaac.NodeConnInfo, error) {
 			return ncis, nil
 		},
@@ -286,7 +286,7 @@ func (t *testSyncSourceChecker) TestCheckSameResult() {
 
 	localci := quicstream.RandomConnInfo()
 
-	handlers[localci.String()] = NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil,
+	handlers[localci.String()] = NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil, nil,
 		func() ([]isaac.NodeConnInfo, error) {
 			return ncislocal, nil
 		},
@@ -348,7 +348,7 @@ func (t *testSyncSourceChecker) TestCheckFilterLocal() {
 		ncis = append(ncis, NewNodeConnInfo(node.BaseNode, ci.UDPAddr().String(), ci.TLSInsecure()))
 	}
 
-	handlers[localci.String()] = NewQuicstreamHandlers(local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil,
+	handlers[localci.String()] = NewQuicstreamHandlers(local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil, nil,
 		func() ([]isaac.NodeConnInfo, error) {
 			return ncis, nil
 		},
