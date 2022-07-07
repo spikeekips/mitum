@@ -2,10 +2,12 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/lucas-clemente/quic-go"
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/isaac"
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
@@ -145,10 +147,15 @@ func (cmd *runCommand) prepareNetwork() error {
 	cmd.client = launch.NewNetworkClient(cmd.encs, cmd.enc, time.Second*2) //nolint:gomnd //...
 	cmd.handlers = cmd.networkHandlers()
 
+	quicconfig := launch.DefaultQuicConfig()
+	quicconfig.AcceptToken = func(clientAddr net.Addr, token *quic.Token) bool {
+		return true // TODO NOTE handle blacklist
+	}
+
 	cmd.quicstreamserver = quicstream.NewServer(
 		cmd.design.Network.Bind,
 		launch.GenerateNewTLSConfig(),
-		launch.DefaultQuicConfig(),
+		quicconfig,
 		cmd.handlers.Handler,
 	)
 	_ = cmd.quicstreamserver.SetLogging(logging)
