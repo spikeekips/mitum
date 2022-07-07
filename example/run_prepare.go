@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/lucas-clemente/quic-go"
 	"github.com/pkg/errors"
+	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
@@ -173,6 +175,32 @@ func (cmd *runCommand) prepareLastSuffrageProofWatcher() {
 	cmd.lastSuffrageProofWatcher = isaacstates.NewLastSuffrageProofWatcher(
 		cmd.db.LastSuffrageProof,
 		builder.Build,
+		func(ctx context.Context, proof base.SuffrageProof) {
+			if len(cmd.discoveries) < 1 {
+				return
+			}
+
+			// FIXME join memberlist
+			_ = util.Retry(
+				ctx,
+				func() (bool, error) {
+					l := log.With().Interface("discoveries", cmd.discoveries).Logger()
+
+					switch err := cmd.memberlist.Join(cmd.discoveries); {
+					case err != nil:
+						l.Error().Err(err).Msg("trying to join to memberlist, but failed")
+
+						return true, err
+					default:
+						l.Debug().Msg("joined to memberlist")
+
+						return false, nil
+					}
+				},
+				3,             //nolint:gomnd //...
+				time.Second*3, //nolint:gomnd //...
+			)
+		},
 	)
 }
 

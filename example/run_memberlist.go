@@ -136,37 +136,6 @@ func (cmd *runCommand) prepareMemberlist() error {
 	return nil
 }
 
-func (cmd *runCommand) startMmemberlist(ctx context.Context) error {
-	if err := cmd.memberlist.Start(); err != nil {
-		return err
-	}
-
-	if len(cmd.discoveries) < 1 {
-		return nil
-	}
-
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-
-	log.Debug().Interface("discoveries", cmd.discoveries).Msg("trying to join")
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-			switch err := cmd.memberlist.Join(cmd.discoveries); {
-			case err != nil:
-				log.Error().Err(err).Msg("failed to join")
-			default:
-				log.Debug().Msg("joined")
-
-				return nil
-			}
-		}
-	}
-}
-
 func (cmd *runCommand) nodeChallengeFunc() func(quicmemberlist.Node) error {
 	return func(node quicmemberlist.Node) error {
 		e := util.StringErrorFunc("failed to challenge memberlist node")

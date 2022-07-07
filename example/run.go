@@ -65,8 +65,12 @@ func (cmd *runCommand) Run() error {
 		return err
 	}
 
-	if err := cmd.startMmemberlist(ctx); err != nil {
+	if err := cmd.memberlist.Start(); err != nil {
 		return err
+	}
+
+	if len(cmd.discoveries) < 1 {
+		log.Warn().Msg("empty discoveries; will wait to be joined by remote nodes")
 	}
 
 	if err := cmd.syncSourceChecker.Start(); err != nil {

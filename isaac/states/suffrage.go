@@ -214,6 +214,7 @@ type LastSuffrageProofWatcher struct {
 	*logging.Logging
 	getFromLocal  func() (base.SuffrageProof, bool, error)
 	getFromRemote func(context.Context, base.State) (base.SuffrageProof, error)
+	whenUpdated   func(context.Context, base.SuffrageProof)
 	last          *util.Locked
 	interval      time.Duration
 }
@@ -221,13 +222,19 @@ type LastSuffrageProofWatcher struct {
 func NewLastSuffrageProofWatcher(
 	getFromLocal func() (base.SuffrageProof, bool, error),
 	getFromRemote func(context.Context, base.State) (base.SuffrageProof, error),
+	whenUpdated func(context.Context, base.SuffrageProof),
 ) *LastSuffrageProofWatcher {
+	if whenUpdated == nil {
+		whenUpdated = func(context.Context, base.SuffrageProof) {} // revive:disable-line:modifies-parameter
+	}
+
 	u := &LastSuffrageProofWatcher{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", "suffrage-state-updater")
 		}),
 		getFromLocal:  getFromLocal,
 		getFromRemote: getFromRemote,
+		whenUpdated:   whenUpdated,
 		interval:      time.Second * 3, //nolint:gomnd //...
 		last:          util.EmptyLocked(),
 	}
@@ -265,9 +272,13 @@ func (u *LastSuffrageProofWatcher) Last() (base.SuffrageProof, error) {
 }
 
 func (u *LastSuffrageProofWatcher) start(ctx context.Context) error {
+	last := base.NilHeight // NOTE suffrage height
+
 	if err := u.checkRemote(ctx); err != nil {
 		u.Log().Error().Err(err).Msg("failed to check remote")
 	}
+
+	last = u.checkUpdated(ctx, last)
 
 	ticker := time.NewTicker(u.interval)
 	defer ticker.Stop()
@@ -280,6 +291,8 @@ func (u *LastSuffrageProofWatcher) start(ctx context.Context) error {
 			if err := u.checkRemote(ctx); err != nil {
 				u.Log().Error().Err(err).Msg("failed to check remote")
 			}
+
+			last = u.checkUpdated(ctx, last)
 		}
 	}
 }
@@ -291,14 +304,14 @@ func (u *LastSuffrageProofWatcher) checkRemote(ctx context.Context) error {
 		known = i.(base.SuffrageProof).State() //nolint:forcetypeassert //...
 	}
 
-	switch found, err := u.getFromRemote(ctx, known); {
+	switch proof, err := u.getFromRemote(ctx, known); {
 	case err != nil:
 		return err
-	case found == nil:
+	case proof == nil:
 		return nil
 	default:
-		if u.update(found) {
-			u.Log().Debug().Interface("proof", found).Msg("new suffrage proof found from remote")
+		if u.update(proof) {
+			u.Log().Debug().Interface("proof", proof).Msg("new suffrage proof found from remote")
 		}
 
 		return nil
@@ -325,4 +338,17 @@ func (u *LastSuffrageProofWatcher) update(proof base.SuffrageProof) bool {
 	})
 
 	return updated
+}
+
+func (u *LastSuffrageProofWatcher) checkUpdated(ctx context.Context, last base.Height) base.Height {
+	switch proof, err := u.Last(); {
+	case err != nil:
+		return last
+	case last >= proof.SuffrageHeight():
+		return last
+	default:
+		go u.whenUpdated(ctx, proof)
+
+		return proof.SuffrageHeight()
+	}
 }

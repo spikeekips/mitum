@@ -295,7 +295,9 @@ type testLastSuffrageProofWatcher struct {
 func (t *testLastSuffrageProofWatcher) TestLocalAhead() {
 	proofs := t.newProofs(2)
 
+	updatedch := make(chan struct{})
 	called := make(chan struct{}, 2)
+
 	u := NewLastSuffrageProofWatcher(
 		func() (base.SuffrageProof, bool, error) {
 			return proofs[1], true, nil
@@ -305,11 +307,15 @@ func (t *testLastSuffrageProofWatcher) TestLocalAhead() {
 
 			return proofs[0], nil
 		},
+		func(context.Context, base.SuffrageProof) {
+			updatedch <- struct{}{}
+		},
 	)
 	t.NoError(u.Start())
 	defer u.Stop()
 
 	<-called
+	<-updatedch
 
 	proof, err := u.Last()
 	t.NoError(err)
@@ -320,7 +326,9 @@ func (t *testLastSuffrageProofWatcher) TestLocalAhead() {
 func (t *testLastSuffrageProofWatcher) TestRemoteAhead() {
 	proofs := t.newProofs(2)
 
+	updatedch := make(chan struct{})
 	called := make(chan struct{}, 2)
+
 	u := NewLastSuffrageProofWatcher(
 		func() (base.SuffrageProof, bool, error) {
 			return proofs[0], true, nil
@@ -330,11 +338,15 @@ func (t *testLastSuffrageProofWatcher) TestRemoteAhead() {
 
 			return proofs[1], nil
 		},
+		func(context.Context, base.SuffrageProof) {
+			updatedch <- struct{}{}
+		},
 	)
 	t.NoError(u.Start())
 	defer u.Stop()
 
 	<-called
+	<-updatedch
 
 	proof, err := u.Last()
 	t.NoError(err)
@@ -346,7 +358,9 @@ func (t *testLastSuffrageProofWatcher) TestSameButLocalFirst() {
 	localproofs := t.newProofs(1)
 	remoteproofs := t.newProofs(1)
 
+	updatedch := make(chan struct{})
 	called := make(chan struct{}, 2)
+
 	u := NewLastSuffrageProofWatcher(
 		func() (base.SuffrageProof, bool, error) {
 			return localproofs[0], true, nil
@@ -356,11 +370,15 @@ func (t *testLastSuffrageProofWatcher) TestSameButLocalFirst() {
 
 			return remoteproofs[0], nil
 		},
+		func(context.Context, base.SuffrageProof) {
+			updatedch <- struct{}{}
+		},
 	)
 	t.NoError(u.Start())
 	defer u.Stop()
 
 	<-called
+	<-updatedch
 
 	proof, err := u.Last()
 	t.NoError(err)
