@@ -76,7 +76,19 @@ func (c *baseNetworkClient) Request(
 	}
 }
 
-func (c *baseNetworkClient) NewOperation(
+func (c *baseNetworkClient) Operation(
+	ctx context.Context, ci quicstream.UDPConnInfo, operationhash util.Hash,
+) (base.Operation, bool, error) {
+	header := NewOperationRequestHeader(operationhash)
+
+	var u base.Operation
+
+	found, err := c.requestOK(ctx, ci, header, nil, &u)
+
+	return u, found, errors.Wrap(err, "failed to get Operation")
+}
+
+func (c *baseNetworkClient) SendOperation(
 	ctx context.Context,
 	ci quicstream.UDPConnInfo,
 	op base.Operation,
@@ -88,7 +100,7 @@ func (c *baseNetworkClient) NewOperation(
 		return false, e(err, "")
 	}
 
-	header := NewNewOperationRequestHeader()
+	header := NewSendOperationRequestHeader()
 
 	if err = header.IsValid(nil); err != nil {
 		return false, e(err, "")

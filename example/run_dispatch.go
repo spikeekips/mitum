@@ -203,8 +203,8 @@ func (cmd *runCommand) newProposalProcessorFunc(enc encoder.Encoder) newProposal
 			launch.NewBlockWriterFunc(
 				cmd.local, networkID, launch.LocalFSDataDirectory(cmd.design.Storage.Base), enc, cmd.db),
 			cmd.db.State,
-			nil, // FIXME implement
-			nil, // FIXME implement
+			cmd.getProposalOperationFunc(proposal),
+			nil, // FIXME OperationProcessor implement
 			cmd.pool.SetLastVoteproofs,
 		)
 	}
@@ -429,10 +429,10 @@ func (cmd *runCommand) syncerBlockMapf() isaacstates.SyncerBlockMapFunc {
 			return m, found, err
 		default:
 			if err := m.IsValid(networkID); err != nil {
-				return m, found, err
+				return m, true, err
 			}
 
-			return m, found, nil
+			return m, true, nil
 		}
 	}
 
@@ -755,4 +755,135 @@ func (cmd *runCommand) getSuffrageProofFunc() isaacstates.GetSuffrageProofFromRe
 
 		return proof, found, err
 	}
+}
+
+func (cmd *runCommand) getProposalOperationFunc(
+	proposal base.ProposalSignedFact,
+) isaac.OperationProcessorGetOperationFunction {
+	return func(ctx context.Context, operationhash util.Hash) (base.Operation, error) {
+		var op base.Operation
+
+		switch i, found, err := cmd.getProposalOperationFromPool(ctx, operationhash); {
+		case err != nil:
+			return nil, err
+		case found:
+			op = i
+		}
+
+		if op == nil {
+			switch i, found, err := cmd.getProposalOperationFromRemote(ctx, proposal, operationhash); {
+			case err != nil:
+				return nil, err
+			case !found:
+				return nil, isaac.OperationNotFoundInProcessorError.Errorf("not found in remote")
+			default:
+				op = i
+			}
+		}
+
+		if err := op.IsValid(cmd.nodePolicy.NetworkID()); err != nil {
+			return nil, isaac.InvalidOperationInProcessorError.Errorf("invalid in pool")
+		}
+
+		switch found, err := cmd.db.ExistsInStateOperation(op.Fact().Hash()); {
+		case err != nil:
+			return nil, err
+		case found:
+			return nil, isaac.OperationAlreadyProcessedInProcessorError.Errorf("already processed in pool")
+		default:
+			return op, nil
+		}
+	}
+}
+
+func (cmd *runCommand) getProposalOperationFromPool(
+	ctx context.Context, operationhash util.Hash,
+) (base.Operation, bool, error) {
+	op, found, err := cmd.pool.NewOperation(ctx, operationhash)
+
+	switch {
+	case err != nil:
+		return nil, false, err
+	case !found:
+		return nil, false, nil
+	default:
+		return op, true, nil
+	}
+}
+
+func (cmd *runCommand) getProposalOperationFromRemote(
+	ctx context.Context, proposal base.ProposalSignedFact, operationhash util.Hash,
+) (base.Operation, bool, error) {
+	var proposernci isaac.NodeConnInfo
+
+	proposer := proposal.ProposalFact().Proposer()
+
+	cmd.syncSourcePool.Actives(func(nci isaac.NodeConnInfo) bool {
+		if !proposer.Equal(nci.Address()) {
+			return true
+		}
+
+		if _, err := nci.UDPConnInfo(); err == nil {
+			proposernci = nci
+		}
+
+		return false
+	})
+
+	if proposernci != nil {
+		ci, err := proposernci.UDPConnInfo()
+		if err == nil {
+			switch op, found, err := cmd.client.Operation(ctx, ci, operationhash); {
+			case err != nil:
+				return nil, false, err
+			case found:
+				return op, true, nil
+			}
+		}
+	}
+
+	if cmd.syncSourcePool.Len() < 1 {
+		return nil, false, nil
+	}
+
+	jobch := make(chan util.ContextWorkerCallback)
+
+	result := util.EmptyLocked()
+
+	go func() {
+		cmd.syncSourcePool.Actives(func(nci isaac.NodeConnInfo) bool {
+			if proposer.Equal(nci.Address()) {
+				return true
+			}
+
+			ci, err := nci.UDPConnInfo()
+			if err != nil {
+				return true
+			}
+
+			jobch <- func(ctx context.Context, jobid uint64) error {
+				switch op, found, err := cmd.client.Operation(ctx, ci, operationhash); {
+				case err != nil:
+					return nil
+				case !found:
+					return nil
+				default:
+					_ = result.SetValue(op)
+
+					return errors.Errorf("stop")
+				}
+			}
+
+			return true
+		})
+	}()
+
+	_ = util.RunErrgroupWorkerByChan(ctx, int64(cmd.syncSourcePool.Len()), jobch)
+
+	i, isnil := result.Value()
+	if isnil {
+		return nil, false, nil
+	}
+
+	return i.(base.Operation), true, nil //nolint:forcetypeassert //...
 }

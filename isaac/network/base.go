@@ -22,7 +22,8 @@ var (
 	HandlerPrefixNodeChallenge        = "node_challenge"
 	HandlerPrefixSuffrageNodeConnInfo = "suffrage_node_conninfo"
 	HandlerPrefixSyncSourceConnInfo   = "sync_source_conninfo"
-	HandlerPrefixNewOperation         = "new_operation"
+	HandlerPrefixOperation            = "operation"
+	HandlerPrefixSendOperation        = "send_operation"
 )
 
 type baseNetwork struct {

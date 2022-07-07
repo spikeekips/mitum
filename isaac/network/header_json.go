@@ -23,6 +23,44 @@ func (h *BaseHeader) unmarshalJSON(b []byte) error {
 	return nil
 }
 
+type operationRequestHeaderJSONMarshaler struct {
+	Operation util.Hash `json:"operation"`
+}
+
+func (h OperationRequestHeader) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(struct {
+		operationRequestHeaderJSONMarshaler
+		BaseHeader
+	}{
+		BaseHeader: h.BaseHeader,
+		operationRequestHeaderJSONMarshaler: operationRequestHeaderJSONMarshaler{
+			Operation: h.h,
+		},
+	})
+}
+
+type operationRequestHeaderJSONUnmarshaler struct {
+	Operation valuehash.HashDecoder `json:"operation"`
+}
+
+func (h *OperationRequestHeader) DecodeJSON(b []byte, _ *jsonenc.Encoder) error {
+	e := util.StringErrorFunc("failed to unmarshal OperationHeader")
+
+	var u operationRequestHeaderJSONUnmarshaler
+
+	if err := util.UnmarshalJSON(b, &u); err != nil {
+		return e(err, "")
+	}
+
+	if err := h.BaseHeader.unmarshalJSON(b); err != nil {
+		return e(err, "")
+	}
+
+	h.h = u.Operation.Hash()
+
+	return nil
+}
+
 type requestProposalRequestHeaderJSONMarshaler struct {
 	Proposer base.Address `json:"proposer"`
 	Point    base.Point   `json:"point"`

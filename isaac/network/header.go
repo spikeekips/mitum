@@ -8,7 +8,8 @@ import (
 )
 
 var (
-	NewOperationRequestHeaderHint         = hint.MustNewHint("new-operation-header-v0.0.1")
+	OperationRequestHeaderHint            = hint.MustNewHint("operation-header-v0.0.1")
+	SendOperationRequestHeaderHint        = hint.MustNewHint("new-operation-header-v0.0.1")
 	RequestProposalRequestHeaderHint      = hint.MustNewHint("request-proposal-header-v0.0.1")
 	ProposalRequestHeaderHint             = hint.MustNewHint("proposal-header-v0.0.1")
 	LastSuffrageProofRequestHeaderHint    = hint.MustNewHint("last-suffrage-proof-header-v0.0.1")
@@ -39,19 +40,49 @@ func (h BaseHeader) HandlerPrefix() string {
 	return h.prefix
 }
 
-type NewOperationRequestHeader struct {
+type OperationRequestHeader struct {
+	h util.Hash
 	BaseHeader
 }
 
-func NewNewOperationRequestHeader() NewOperationRequestHeader {
-	return NewOperationRequestHeader{
-		BaseHeader: NewBaseHeader(NewOperationRequestHeaderHint),
+func NewOperationRequestHeader(operationhash util.Hash) OperationRequestHeader {
+	return OperationRequestHeader{
+		BaseHeader: NewBaseHeader(OperationRequestHeaderHint),
+		h:          operationhash,
 	}
 }
 
-func (h NewOperationRequestHeader) IsValid([]byte) error {
-	if err := h.BaseHinter.IsValid(NewOperationRequestHeaderHint.Type().Bytes()); err != nil {
-		return errors.WithMessage(err, "invalid NewOperationHeader")
+func (h OperationRequestHeader) IsValid([]byte) error {
+	e := util.StringErrorFunc("invalid OperationHeader")
+
+	if err := h.BaseHinter.IsValid(OperationRequestHeaderHint.Type().Bytes()); err != nil {
+		return e(err, "")
+	}
+
+	if err := util.CheckIsValid(nil, false, h.h); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
+func (h OperationRequestHeader) Operation() util.Hash {
+	return h.h
+}
+
+type SendOperationRequestHeader struct {
+	BaseHeader
+}
+
+func NewSendOperationRequestHeader() SendOperationRequestHeader {
+	return SendOperationRequestHeader{
+		BaseHeader: NewBaseHeader(SendOperationRequestHeaderHint),
+	}
+}
+
+func (h SendOperationRequestHeader) IsValid([]byte) error {
+	if err := h.BaseHinter.IsValid(SendOperationRequestHeaderHint.Type().Bytes()); err != nil {
+		return errors.WithMessage(err, "invalid SendOperationHeader")
 	}
 
 	return nil
@@ -391,8 +422,10 @@ func baseHeaderPrefixByHint(ht hint.Hint) string {
 		return HandlerPrefixSuffrageNodeConnInfo
 	case SyncSourceConnInfoRequestHeaderHint.Type():
 		return HandlerPrefixSyncSourceConnInfo
-	case NewOperationRequestHeaderHint.Type():
-		return HandlerPrefixNewOperation
+	case OperationRequestHeaderHint.Type():
+		return HandlerPrefixOperation
+	case SendOperationRequestHeaderHint.Type():
+		return HandlerPrefixSendOperation
 	default:
 		return ""
 	}

@@ -32,7 +32,8 @@ func (t *testQuicstreamHandlers) SetupTest() {
 func (t *testQuicstreamHandlers) SetupSuite() {
 	t.BaseTestDatabase.SetupSuite()
 
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: NewOperationRequestHeaderHint, Instance: NewOperationRequestHeader{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: OperationRequestHeaderHint, Instance: OperationRequestHeader{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: SendOperationRequestHeaderHint, Instance: SendOperationRequestHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: RequestProposalRequestHeaderHint, Instance: RequestProposalRequestHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ProposalRequestHeaderHint, Instance: ProposalRequestHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: LastSuffrageProofRequestHeaderHint, Instance: LastSuffrageProofRequestHeader{}}))
@@ -82,7 +83,41 @@ func (t *testQuicstreamHandlers) writef(prefix string, handler quicstream.Handle
 	}
 }
 
-func (t *testQuicstreamHandlers) TestNewOperation() {
+func (t *testQuicstreamHandlers) TestOperation() {
+	fact := isaac.NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
+	op, err := isaac.NewDummyOperation(fact, t.Local.Privatekey(), t.NodePolicy.NetworkID())
+	t.NoError(err)
+
+	pool := t.NewPool()
+	defer pool.Close()
+
+	inserted, err := pool.SetNewOperation(context.Background(), op)
+	t.NoError(err)
+	t.True(inserted)
+
+	handlers := NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, pool, nil, nil, nil, nil, nil, nil, nil, nil)
+
+	ci := quicstream.NewUDPConnInfo(nil, true)
+	c := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixOperation, handlers.Operation))
+
+	t.Run("found", func() {
+		uop, found, err := c.Operation(context.Background(), ci, op.Hash())
+		t.NoError(err)
+		t.True(found)
+		t.NotNil(op)
+
+		base.EqualOperation(t.Assert(), op, uop)
+	})
+
+	t.Run("not found", func() {
+		op, found, err := c.Operation(context.Background(), ci, valuehash.RandomSHA256())
+		t.NoError(err)
+		t.False(found)
+		t.Nil(op)
+	})
+}
+
+func (t *testQuicstreamHandlers) TestSendOperation() {
 	fact := isaac.NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
 	op, err := isaac.NewDummyOperation(fact, t.Local.Privatekey(), t.NodePolicy.NetworkID())
 	t.NoError(err)
@@ -93,16 +128,16 @@ func (t *testQuicstreamHandlers) TestNewOperation() {
 	handlers := NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, pool, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	ci := quicstream.NewUDPConnInfo(nil, true)
-	c := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixNewOperation, handlers.NewOperation))
+	c := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixSendOperation, handlers.SendOperation))
 
 	t.Run("ok", func() {
-		updated, err := c.NewOperation(context.Background(), ci, op)
+		updated, err := c.SendOperation(context.Background(), ci, op)
 		t.NoError(err)
 		t.True(updated)
 	})
 
 	t.Run("already exists", func() {
-		updated, err := c.NewOperation(context.Background(), ci, op)
+		updated, err := c.SendOperation(context.Background(), ci, op)
 		t.NoError(err)
 		t.False(updated)
 	})

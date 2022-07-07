@@ -71,7 +71,34 @@ func (c *QuicstreamHandlers) ErrorHandler(_ net.Addr, _ io.Reader, w io.Writer, 
 	return nil
 }
 
-func (c *QuicstreamHandlers) NewOperation(_ net.Addr, r io.Reader, w io.Writer) error {
+func (c *QuicstreamHandlers) Operation(_ net.Addr, r io.Reader, w io.Writer) error { //nolint:dupl //...
+	e := util.StringErrorFunc("failed to handle request last BlockMap")
+
+	enc, hb, err := c.prehandle(r)
+	if err != nil {
+		return e(err, "")
+	}
+
+	var header OperationRequestHeader
+	if err = encoder.Decode(enc, hb, &header); err != nil {
+		return e(err, "")
+	}
+
+	if err = header.IsValid(nil); err != nil {
+		return e(err, "")
+	}
+
+	op, found, err := c.oppool.NewOperation(context.Background(), header.Operation())
+	res := NewResponseHeader(found, err)
+
+	if err := Response(w, res, op, enc); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
+func (c *QuicstreamHandlers) SendOperation(_ net.Addr, r io.Reader, w io.Writer) error {
 	e := util.StringErrorFunc("failed to handle new operation")
 
 	enc, hb, err := c.prehandle(r)
@@ -79,7 +106,7 @@ func (c *QuicstreamHandlers) NewOperation(_ net.Addr, r io.Reader, w io.Writer) 
 		return e(err, "")
 	}
 
-	var header NewOperationRequestHeader
+	var header SendOperationRequestHeader
 	if err = encoder.Decode(enc, hb, &header); err != nil {
 		return e(err, "")
 	}
