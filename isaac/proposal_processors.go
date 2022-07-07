@@ -24,7 +24,7 @@ type ProposalProcessors struct {
 	p ProposalProcessor
 	*logging.Logging
 	makenew       func(proposal base.ProposalSignedFact, previous base.Manifest) (ProposalProcessor, error)
-	getproposal   func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error)
+	getproposal   func(_ context.Context, operationhash util.Hash) (base.ProposalSignedFact, error)
 	retryinterval time.Duration
 	retrylimit    int
 	sync.RWMutex

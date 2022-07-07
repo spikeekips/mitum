@@ -131,10 +131,10 @@ func (db *TempPool) SetProposal(pr base.ProposalSignedFact) (bool, error) {
 	return true, nil
 }
 
-func (db *TempPool) NewOperation(_ context.Context, facthash util.Hash) (op base.Operation, found bool, _ error) {
+func (db *TempPool) NewOperation(_ context.Context, operationhash util.Hash) (op base.Operation, found bool, _ error) {
 	e := util.StringErrorFunc("failed to find operation")
 
-	switch b, found, err := db.st.Get(leveldbNewOperationKey(facthash)); {
+	switch b, found, err := db.st.Get(leveldbNewOperationKey(operationhash)); {
 	case err != nil:
 		return nil, false, e(err, "")
 	case !found:
@@ -203,6 +203,8 @@ func (db *TempPool) NewOperationHashes(
 		}
 	}
 
+	// FIXME return operationhash, not facthash
+
 	return ops, nil
 }
 
@@ -211,7 +213,7 @@ func (db *TempPool) SetNewOperation(_ context.Context, op base.Operation) (bool,
 
 	facthash := op.Fact().Hash()
 
-	key, orderedkey := newNewOperationLeveldbKeys(facthash)
+	key, orderedkey := newNewOperationLeveldbKeys(op.Hash(), facthash)
 
 	switch found, err := db.st.Exists(key); {
 	case err != nil:
@@ -412,8 +414,8 @@ func (db *TempPool) loadLastVoteproofs() error {
 	return nil
 }
 
-func newNewOperationLeveldbKeys(facthash util.Hash) (key []byte, orderedkey []byte) {
-	return leveldbNewOperationKey(facthash), leveldbNewOperationOrderedKey(facthash)
+func newNewOperationLeveldbKeys(operationhash, facthash util.Hash) (key []byte, orderedkey []byte) {
+	return leveldbNewOperationKey(operationhash), leveldbNewOperationOrderedKey(facthash)
 }
 
 func joinNewOperationLeveldbOrderedKeys(a, b []byte) []byte {

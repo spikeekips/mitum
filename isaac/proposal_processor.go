@@ -32,7 +32,7 @@ type (
 	// OperationNotFoundInProcessorError; it will be ignored.
 	// - if operation is known, return nil,
 	// OperationAlreadyProcessedInProcessorError; it will be ignored.
-	OperationProcessorGetOperationFunction func(context.Context, util.Hash) (base.Operation, error)
+	OperationProcessorGetOperationFunction func(_ context.Context, operationhash util.Hash) (base.Operation, error)
 	NewBlockWriterFunc                     func(base.ProposalSignedFact, base.GetStateFunc) (BlockWriter, error)
 )
 
@@ -263,7 +263,7 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) (err e
 			errors.Is(err, InvalidOperationInProcessorError),
 			errors.Is(err, OperationNotFoundInProcessorError),
 			errors.Is(err, OperationAlreadyProcessedInProcessorError):
-			p.Log().Debug().Err(err).Stringer("facthash", h).Msg("operation ignored")
+			p.Log().Debug().Err(err).Stringer("operation", h).Msg("operation ignored")
 
 			return nil
 		default:

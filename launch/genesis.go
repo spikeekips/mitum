@@ -188,7 +188,7 @@ func (g *GenesisBlockGenerator) newProposal(ops []util.Hash) error {
 	copy(nops[:len(ops)], ops)
 
 	for i := range g.ops {
-		nops[i+len(ops)] = g.ops[i].Fact().Hash()
+		nops[i+len(ops)] = g.ops[i].Hash()
 	}
 
 	fact := isaac.NewProposalFact(base.GenesisPoint, g.local.Address(), nops)
@@ -333,10 +333,10 @@ func (g *GenesisBlockGenerator) newProposalProcessor() (*isaac.DefaultProposalPr
 		func(key string) (base.State, bool, error) {
 			return nil, false, nil
 		},
-		func(_ context.Context, facthash util.Hash) (base.Operation, error) {
+		func(_ context.Context, operationhash util.Hash) (base.Operation, error) {
 			for i := range g.ops {
 				op := g.ops[i]
-				if facthash.Equal(op.Fact().Hash()) {
+				if operationhash.Equal(op.Hash()) {
 					return op, nil
 				}
 			}

@@ -10,7 +10,7 @@ type ProposalFact interface {
 	Fact
 	Point() Point
 	Proposer() Address
-	Operations() []util.Hash
+	Operations() []util.Hash // NOTE operation hash
 	ProposedAt() time.Time
 }
 

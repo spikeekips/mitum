@@ -185,7 +185,7 @@ func (t *testNewOperationPool) TestNewOperation() {
 		for i := range ops {
 			op := ops[i]
 
-			rop, found, err := pst.NewOperation(context.Background(), op.Fact().Hash())
+			rop, found, err := pst.NewOperation(context.Background(), op.Hash())
 			t.NoError(err)
 			t.True(found)
 			base.EqualOperation(t.Assert(), op, rop)

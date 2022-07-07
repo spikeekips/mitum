@@ -83,7 +83,7 @@ type ProposalPool interface {
 }
 
 type NewOperationPool interface {
-	NewOperation(_ context.Context, facthash util.Hash) (base.Operation, bool, error)
+	NewOperation(_ context.Context, operationhash util.Hash) (base.Operation, bool, error)
 	NewOperationHashes(
 		_ context.Context,
 		limit uint64,

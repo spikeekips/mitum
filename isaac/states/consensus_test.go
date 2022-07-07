@@ -2,7 +2,6 @@ package isaacstates
 
 import (
 	"context"
-	"sync"
 	"testing"
 	"time"
 
@@ -17,7 +16,6 @@ import (
 
 type baseTestConsensusHandler struct {
 	isaac.BaseTestBallots
-	logLock sync.Mutex
 }
 
 func (t *baseTestConsensusHandler) newState(previous base.Manifest, suf base.Suffrage) (*ConsensusHandler, func()) {
@@ -527,10 +525,6 @@ func (t *testConsensusHandler) TestWithBallotbox() {
 		i, _, _ := manifests.Get(height, func() (interface{}, error) {
 			manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
 
-			t.logLock.Lock()
-			defer t.logLock.Unlock()
-			t.T().Logf("new manifest processed: height=%d hash=%q proposal=%q", height, manifest.Hash(), manifest.Proposal())
-
 			return manifest, nil
 		})
 
@@ -553,11 +547,6 @@ func (t *testConsensusHandler) TestWithBallotbox() {
 
 	st.voteFunc = func(bl base.Ballot) (bool, error) {
 		voted, err := box.Vote(bl)
-
-		t.logLock.Lock()
-		defer t.logLock.Unlock()
-		t.T().Logf("voted: point=%q, node=%q, voted=%v error=%+v", bl.Point(), bl.SignedFact().Node(), voted, err)
-
 		if err != nil {
 			return false, errors.WithStack(err)
 		}
@@ -585,10 +574,6 @@ func (t *testConsensusHandler) TestWithBallotbox() {
 		case <-testctx.Done():
 			return nil, testctx.Err()
 		default:
-			t.logLock.Lock()
-			defer t.logLock.Unlock()
-			t.T().Logf("new proposal created: point=%q fact hash=%q", pr.Point(), pr.Fact().Hash())
-
 			return pr, nil
 		}
 	})
@@ -600,11 +585,7 @@ func (t *testConsensusHandler) TestWithBallotbox() {
 			case <-testctx.Done():
 				break end
 			case vp := <-box.Voteproof():
-				if err := st.newVoteproof(vp); err != nil {
-					t.logLock.Lock()
-					t.T().Logf("error: failed to new voteproof: %+v", err)
-					t.logLock.Unlock()
-				}
+				_ = st.newVoteproof(vp)
 			}
 		}
 	}()

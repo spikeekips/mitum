@@ -213,8 +213,8 @@ func leveldbNewOperationKeysKey(facthash util.Hash) []byte {
 	)
 }
 
-func leveldbNewOperationKey(facthash util.Hash) []byte {
-	return util.ConcatBytesSlice(leveldbKeyPrefixNewOperation, facthash.Bytes())
+func leveldbNewOperationKey(operationhash util.Hash) []byte {
+	return util.ConcatBytesSlice(leveldbKeyPrefixNewOperation, operationhash.Bytes())
 }
 
 func loadLeveldbNewOperationKeys(b []byte) (key []byte, orderedkey []byte, err error) {
