@@ -195,7 +195,6 @@ func (cmd *runCommand) prepareLastSuffrageProofWatcher() {
 				return
 			}
 
-			// FIXME join memberlist
 			_ = util.Retry(
 				ctx,
 				func() (bool, error) {

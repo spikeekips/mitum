@@ -31,7 +31,7 @@ type Memberlist struct {
 	members        *membersPool
 	cicache        *util.GCacheObjectPool
 	oneMemberLimit int
-	sync.Mutex
+	sync.RWMutex
 	joinedLock sync.RWMutex
 	isJoined   bool
 }
@@ -63,7 +63,7 @@ func NewMemberlist(
 }
 
 func (srv *Memberlist) Start() error {
-	m, err := memberlist.Create(srv.mconfig)
+	m, err := srv.createMemberlist()
 	if err != nil {
 		return errors.Wrap(err, "failed to create memberlist")
 	}
@@ -82,19 +82,48 @@ func (srv *Memberlist) Join(cis []quicstream.UDPConnInfo) error {
 		return e(nil, "duplicated join url found")
 	}
 
-	stringurls := make([]string, len(cis))
+	filtered := util.FilterSlices(cis, func(_ interface{}, i int) bool {
+		return cis[i].UDPAddr().String() != srv.local.UDPAddr().String()
+	})
 
-	for i := range cis {
-		ci := cis[i]
+	stringurls := make([]string, len(filtered))
+
+	for i := range filtered {
+		ci := filtered[i].(quicstream.UDPConnInfo) //nolint:forcetypeassert //...
 
 		stringurls[i] = ci.UDPAddr().String()
 		srv.cicache.Set(ci.UDPAddr().String(), ci, nil)
 	}
 
+	m, created, err := func() (*memberlist.Memberlist, bool, error) {
+		srv.Lock()
+		defer srv.Unlock()
+
+		if srv.m != nil {
+			return srv.m, false, nil
+		}
+
+		m, err := srv.createMemberlist()
+		if err != nil {
+			return nil, false, errors.Wrap(err, "failed to create memberlist")
+		}
+
+		srv.m = m
+
+		return srv.m, true, nil
+	}()
+	if err != nil {
+		return err
+	}
+
+	if created && len(stringurls) < 1 {
+		return nil
+	}
+
 	l := srv.Log().With().Strs("urls", stringurls).Logger()
 	l.Debug().Msg("trying to join")
 
-	switch joined, err := srv.m.Join(stringurls); {
+	switch joined, err := m.Join(stringurls); {
 	case err != nil:
 		l.Error().Err(err).Msg("failed to join")
 		return e(err, "")
@@ -110,11 +139,26 @@ func (srv *Memberlist) Join(cis []quicstream.UDPConnInfo) error {
 }
 
 func (srv *Memberlist) Leave(timeout time.Duration) error {
-	if err := srv.m.Leave(timeout); err != nil {
-		return errors.Wrap(err, "failed to leave")
+	srv.RLock()
+	defer srv.RUnlock()
+
+	if srv.m == nil {
+		return nil
 	}
 
 	srv.members.Clean()
+
+	if err := srv.m.Leave(timeout); err != nil {
+		srv.Log().Error().Err(err).Msg("failed to leave previous memberlist; ignored")
+	}
+
+	srv.whenLeft(srv.local)
+
+	if err := srv.m.Shutdown(); err != nil {
+		srv.Log().Error().Err(err).Msg("failed to shutdown previous memberlist; ignored")
+	}
+
+	srv.m = nil
 
 	return nil
 }
@@ -125,6 +169,16 @@ func (srv *Memberlist) MembersLen() int {
 
 func (srv *Memberlist) Members(f func(node Node) bool) {
 	srv.members.Traverse(f)
+}
+
+func (srv *Memberlist) Remotes(f func(node Node) bool) {
+	srv.members.Traverse(func(node Node) bool {
+		if srv.local.Name() == node.Name() {
+			return true
+		}
+
+		return f(node)
+	})
 }
 
 // IsJoined indicates whether local is joined in remote network. If no other
@@ -150,10 +204,25 @@ func (srv *Memberlist) start(ctx context.Context) error {
 	<-ctx.Done()
 
 	// NOTE leave before shutdown
-	_ = srv.m.Leave(time.Second * 3) //nolint:gomnd //...
+	if err := func() error {
+		srv.RLock()
+		defer srv.RUnlock()
 
-	if err := srv.m.Shutdown(); err != nil {
-		return errors.Wrap(err, "failed to shutdown memberlist")
+		if srv.m == nil {
+			return nil
+		}
+
+		if err := srv.m.Leave(time.Second * 3); err != nil { //nolint:gomnd //...
+			srv.Log().Error().Err(err).Msg("failed to leave; ignored")
+		}
+
+		if err := srv.m.Shutdown(); err != nil {
+			srv.Log().Error().Err(err).Msg("failed to shutdown memberlist; ignored")
+		}
+
+		return nil
+	}(); err != nil {
+		return errors.WithMessage(err, "failed to shutdown memberlist")
 	}
 
 	return ctx.Err()
@@ -289,6 +358,19 @@ func (srv *Memberlist) SetLogging(l *logging.Logging) *logging.Logging {
 	}
 
 	return srv.Logging.SetLogging(l)
+}
+
+func (srv *Memberlist) createMemberlist() (*memberlist.Memberlist, error) {
+	m, err := memberlist.Create(srv.mconfig)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create memberlist")
+	}
+
+	if i, ok := srv.mconfig.Transport.(*Transport); ok {
+		_ = i.Start()
+	}
+
+	return m, nil
 }
 
 func BasicMemberlistConfig(name string, bind, advertise *net.UDPAddr) *memberlist.Config {

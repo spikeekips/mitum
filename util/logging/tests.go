@@ -21,6 +21,6 @@ func init() {
 	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 
-	TestLogging = Setup(os.Stderr, zerolog.DebugLevel, "", false)
+	TestLogging = Setup(os.Stderr, zerolog.TraceLevel, "", false)
 	TestNilLogging = NewLogging(nil).SetLogger(zerolog.Nop())
 }

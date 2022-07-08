@@ -60,6 +60,7 @@ func (cmd *runCommand) prepareStates() error {
 			isaacstates.StateJoining,
 			isaacstates.NewNewJoiningHandlerType(
 				cmd.local, cmd.nodePolicy, cmd.proposalSelector, cmd.getLastManifest, cmd.getSuffrage, voteFunc,
+				cmd.joinMemberlistForJoiningState,
 			),
 		).
 		SetHandler(

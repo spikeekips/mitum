@@ -159,6 +159,15 @@ func (t *Transport) PacketCh() <-chan *memberlist.Packet {
 	return t.packetch
 }
 
+func (t *Transport) Start() error {
+	t.Lock()
+	defer t.Unlock()
+
+	t.shutdowned = false
+
+	return nil
+}
+
 func (t *Transport) Shutdown() error {
 	t.Lock()
 	defer t.Unlock()

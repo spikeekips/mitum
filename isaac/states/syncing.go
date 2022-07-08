@@ -108,6 +108,11 @@ func (st *SyncingHandler) enter(i switchContext) (func(), error) {
 func (st *SyncingHandler) exit(sctx switchContext) (func(), error) {
 	e := util.StringErrorFunc("failed to exit from syncing state")
 
+	deferred, err := st.baseHandler.exit(sctx)
+	if err != nil {
+		return nil, e(err, "")
+	}
+
 	st.cancelstuck()
 
 	if st.syncer != nil {
@@ -122,11 +127,6 @@ func (st *SyncingHandler) exit(sctx switchContext) (func(), error) {
 		default:
 			return nil, e(err, "failed to stop syncer")
 		}
-	}
-
-	deferred, err := st.baseHandler.exit(sctx)
-	if err != nil {
-		return nil, e(err, "")
 	}
 
 	return func() {

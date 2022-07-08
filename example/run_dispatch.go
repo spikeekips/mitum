@@ -891,3 +891,15 @@ func (cmd *runCommand) getProposalOperationFromRemote(
 
 	return i.(base.Operation), true, nil //nolint:forcetypeassert //...
 }
+
+func (cmd *runCommand) joinMemberlistForJoiningState() error {
+	if len(cmd.discoveries) < 1 {
+		return nil
+	}
+
+	if cmd.memberlist.IsJoined() {
+		return nil
+	}
+
+	return cmd.memberlist.Join(cmd.discoveries)
+}

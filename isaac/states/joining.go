@@ -13,6 +13,7 @@ import (
 type JoiningHandler struct {
 	*baseHandler
 	lastManifest       func() (base.Manifest, bool, error)
+	joinMemberlist     func() error
 	getSuffrage        isaac.GetSuffrageByBlockHeight
 	waitFirstVoteproof time.Duration
 	newvoteproofLock   sync.Mutex
@@ -29,6 +30,7 @@ func NewNewJoiningHandlerType(
 	lastManifest func() (base.Manifest, bool, error),
 	getSuffrage isaac.GetSuffrageByBlockHeight,
 	voteFunc func(base.Ballot) (bool, error),
+	joinMemberlist func() error,
 ) *NewJoiningHandlerType {
 	baseHandler := newBaseHandler(StateJoining, local, policy, proposalSelector)
 
@@ -42,6 +44,7 @@ func NewNewJoiningHandlerType(
 			lastManifest:       lastManifest,
 			waitFirstVoteproof: policy.IntervalBroadcastBallot()*2 + policy.WaitProcessingProposal(),
 			getSuffrage:        getSuffrage,
+			joinMemberlist:     joinMemberlist,
 		},
 	}
 }
@@ -52,6 +55,7 @@ func (h *NewJoiningHandlerType) new() (handler, error) {
 		lastManifest:       h.lastManifest,
 		waitFirstVoteproof: h.waitFirstVoteproof,
 		getSuffrage:        h.getSuffrage,
+		joinMemberlist:     h.joinMemberlist,
 	}, nil
 }
 
@@ -93,25 +97,32 @@ func (st *JoiningHandler) enter(i switchContext) (func(), error) {
 	case !found:
 		return nil, e(nil, "last manifest not found")
 	default:
-		switch suf, found, err := st.getSuffrage(m.Height() + 1); {
-		case err != nil:
-			return nil, e(err, "")
-		case !found:
-		case !suf.ExistsPublickey(st.local.Address(), st.local.Publickey()):
-			st.Log().Debug().Msg("local not in suffrage; moves to syncing")
-
-			return nil, newSyncingSwitchContext(StateEmpty, m.Height())
-		case suf.Len() < 2: //nolint:gomnd //...
-			st.Log().Debug().Msg("local alone in suffrage; will not wait new voteproof")
-
-			st.waitFirstVoteproof = 0
-		}
-
 		manifest = m
 	}
 
-	// FIXME if not joined yet, join first
-	// FIXME if failed to join, back to syncing state
+	switch suf, found, err := st.getSuffrage(manifest.Height() + 1); {
+	case err != nil:
+		return nil, e(err, "")
+	case !found:
+	case !suf.ExistsPublickey(st.local.Address(), st.local.Publickey()):
+		st.Log().Debug().Msg("local not in suffrage; moves to syncing")
+
+		return nil, newSyncingSwitchContext(StateEmpty, manifest.Height())
+	case suf.Len() < 2: //nolint:gomnd //...
+		st.Log().Debug().Msg("local alone in suffrage; will not wait new voteproof")
+
+		st.waitFirstVoteproof = 0
+	default:
+		// NOTE if not joined yet, join first
+		if err := st.joinMemberlist(); err != nil {
+			st.Log().Error().Err(err).Msg("failed to join memberlist; moves to syncing state")
+
+			// NOTE if failed to join, back to syncing state
+			return nil, newSyncingSwitchContext(StateEmpty, manifest.Height())
+		}
+
+		st.Log().Debug().Msg("joined to memberlist")
+	}
 
 	return func() {
 		deferred()

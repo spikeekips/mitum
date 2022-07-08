@@ -155,6 +155,72 @@ func (t *testMemberlist) TestLocalJoinAlone() {
 	t.True(isEqualAddress(lci, joined[0]))
 }
 
+func (t *testMemberlist) TestLocalJoinAloneAndRejoin() {
+	lci := t.newConnInfo()
+	lnode := base.RandomAddress("")
+
+	joinedch := make(chan Node, 1)
+	leftch := make(chan Node, 1)
+	quicstreamsrv, srv := t.newServersForJoining(
+		lnode,
+		lci,
+		func(node Node) {
+			joinedch <- node
+		},
+		func(node Node) {
+			leftch <- node
+		},
+	)
+
+	t.NoError(quicstreamsrv.Start())
+	defer quicstreamsrv.Stop()
+
+	t.NoError(srv.Start())
+	defer srv.Stop()
+
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("local failed to join"))
+	case node := <-joinedch:
+		t.True(isEqualAddress(lci, node))
+	}
+
+	t.Equal(1, srv.MembersLen())
+
+	var joined []Node
+	srv.Members(func(node Node) bool {
+		joined = append(joined, node)
+
+		return true
+	})
+	t.Equal(1, len(joined))
+	t.True(isEqualAddress(lci, joined[0]))
+
+	t.Run("leave", func() {
+		t.NoError(srv.Leave(time.Second * 10))
+
+		select {
+		case <-time.After(time.Second * 10):
+			t.NoError(errors.Errorf("local failed to left"))
+		case node := <-leftch:
+			t.True(isEqualAddress(lci, node))
+			t.Equal(0, srv.MembersLen())
+		}
+	})
+
+	t.Run("join again", func() {
+		t.NoError(srv.Join([]quicstream.UDPConnInfo{lci}))
+
+		select {
+		case <-time.After(time.Second * 2):
+			t.NoError(errors.Errorf("local failed to left"))
+		case node := <-joinedch:
+			t.True(isEqualAddress(lci, node))
+			t.Equal(1, srv.MembersLen())
+		}
+	})
+}
+
 func (t *testMemberlist) TestLocalJoinToRemote() {
 	lci := t.newConnInfo()
 	lnode := base.RandomAddress("")
@@ -390,11 +456,11 @@ func (t *testMemberlist) TestLocalLeave() {
 	rci := t.newConnInfo()
 	rnode := base.RandomAddress("")
 
-	ljoinedch := make(chan Node, 1)
-	rjoinedch := make(chan Node, 1)
+	ljoinedch := make(chan Node, 3)
+	rjoinedch := make(chan Node, 3)
 
-	lleftch := make(chan Node, 1)
-	rleftch := make(chan Node, 1)
+	lleftch := make(chan Node, 3)
+	rleftch := make(chan Node, 3)
 	lqsrv, lsrv := t.newServersForJoining(
 		lnode,
 		lci,
@@ -461,7 +527,7 @@ func (t *testMemberlist) TestLocalLeave() {
 		t.NoError(errors.Errorf("local failed to leave from local"))
 	case node := <-lleftch:
 		t.True(isEqualAddress(lci, node))
-		t.Equal(1, lsrv.MembersLen())
+		t.Equal(0, lsrv.MembersLen())
 	}
 
 	select {
@@ -471,6 +537,24 @@ func (t *testMemberlist) TestLocalLeave() {
 		t.True(isEqualAddress(lci, node))
 		t.Equal(1, rsrv.MembersLen())
 	}
+
+	t.Run("join again", func() {
+		t.NoError(lsrv.Join([]quicstream.UDPConnInfo{rci}))
+
+		select {
+		case <-time.After(time.Second * 2):
+			t.NoError(errors.Errorf("local failed to join to remote"))
+		case node := <-ljoinedch:
+			t.True(isEqualAddress(rci, node))
+		}
+
+		select {
+		case <-time.After(time.Second * 2):
+			t.NoError(errors.Errorf("remote failed to join to local"))
+		case node := <-rjoinedch:
+			t.True(isEqualAddress(lci, node))
+		}
+	})
 }
 
 func (t *testMemberlist) TestLocalShutdownAndLeave() {
