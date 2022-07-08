@@ -51,12 +51,12 @@ func (po *GCacheObjectPool) Set(key string, v interface{}, expire *time.Duration
 }
 
 type LockedObjectPool struct {
-	maps *LockedMap
+	maps *ShardedMap
 }
 
 func NewLockedObjectPool() *LockedObjectPool {
 	return &LockedObjectPool{
-		maps: NewLockedMap(),
+		maps: NewShardedMap(1 << 13), //nolint:gomnd //...
 	}
 }
 

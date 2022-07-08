@@ -30,7 +30,7 @@ type Transport struct {
 	dialf        TransportDialFunc
 	writef       TransportWriteFunc
 	packetch     chan *memberlist.Packet
-	conns        *util.LockedMap
+	conns        *util.ShardedMap
 	getconninfof TransportGetConnInfo
 	sync.RWMutex
 	shutdowned bool
@@ -50,7 +50,7 @@ func NewTransport(
 		writef:       writef,
 		packetch:     make(chan *memberlist.Packet),
 		streamch:     make(chan net.Conn),
-		conns:        util.NewLockedMap(),
+		conns:        util.NewShardedMap(1 << 9), //nolint:gomnd //...
 		getconninfof: func(addr *net.UDPAddr) quicstream.UDPConnInfo { return quicstream.NewUDPConnInfo(addr, true) },
 	}
 }

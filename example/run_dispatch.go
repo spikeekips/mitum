@@ -138,16 +138,21 @@ func (cmd *runCommand) proposalSelectorFunc() *isaac.BaseProposalSelector {
 				return nil, false, errors.Errorf("memberlist; not yet joined")
 			}
 
-			var members []base.Node
+			members := make([]base.Node, cmd.memberlist.MembersLen()*2)
+
+			var i int
 			cmd.memberlist.Members(func(node quicmemberlist.Node) bool {
 				if !suf.Exists(node.Address()) {
 					return true
 				}
 
-				members = append(members, isaac.NewNode(node.Publickey(), node.Address()))
+				members[i] = isaac.NewNode(node.Publickey(), node.Address())
+				i++
 
 				return true
 			})
+
+			members = members[:i]
 
 			if len(members) < 1 {
 				return nil, false, nil
@@ -322,7 +327,7 @@ func (cmd *runCommand) getProposalFunc() func(_ context.Context, facthash util.H
 		go func() {
 			defer worker.Done()
 
-			cmd.memberlist.Members(func(node quicmemberlist.Node) bool {
+			cmd.memberlist.Remotes(func(node quicmemberlist.Node) bool {
 				ci := node.UDPConnInfo()
 
 				return worker.NewJob(func(ctx context.Context, _ uint64) error {

@@ -111,7 +111,7 @@ func (cmd *runCommand) networkHandlers() *quicstream.PrefixHandler {
 			members := make([]isaac.NodeConnInfo, cmd.memberlist.MembersLen()*2)
 
 			var i int
-			cmd.memberlist.Members(func(node quicmemberlist.Node) bool {
+			cmd.memberlist.Remotes(func(node quicmemberlist.Node) bool {
 				if !suf.ExistsPublickey(node.Address(), node.Publickey()) {
 					return true
 				}
