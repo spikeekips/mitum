@@ -314,3 +314,27 @@ func ValidateVoteproofsWithManifest(vps []Voteproof, manifest Manifest) error {
 
 	return nil
 }
+
+func ValidateGenesisOperation(op Operation, networkID NetworkID, signer Publickey) error {
+	if err := op.IsValid(networkID); err != nil {
+		return err
+	}
+
+	signed := op.Signed()
+
+	var found bool
+
+	for i := range signed {
+		if signed[i].Signer().Equal(signer) {
+			found = true
+
+			break
+		}
+	}
+
+	if !found {
+		return util.ErrInvalid.Errorf("genesis block creator not signed genesis operation, %q", op.Hash())
+	}
+
+	return nil
+}

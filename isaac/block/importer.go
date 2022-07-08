@@ -251,13 +251,22 @@ func (im *BlockImporter) importOperations(item base.BlockMapItem, r io.Reader) e
 
 	var index uint64
 
+	validate := func(op base.Operation) error {
+		return op.IsValid(im.networkID)
+	}
+	if im.m.Manifest().Height() == base.GenesisHeight {
+		validate = func(op base.Operation) error {
+			return base.ValidateGenesisOperation(op, im.networkID, im.m.Signer())
+		}
+	}
+
 	if err := LoadRawItems(r, im.enc.Decode, func(_ uint64, v interface{}) error {
 		op, ok := v.(base.Operation)
 		if !ok {
 			return errors.Errorf("not Operation, %T", v)
 		}
 
-		if err := op.IsValid(im.networkID); err != nil {
+		if err := validate(op); err != nil {
 			return err
 		}
 

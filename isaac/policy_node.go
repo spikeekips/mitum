@@ -15,20 +15,22 @@ type NodePolicy struct {
 	networkID base.NetworkID
 	util.DefaultJSONMarshaled
 	hint.BaseHinter
-	threshold               base.Threshold
-	intervalBroadcastBallot time.Duration
-	waitProcessingProposal  time.Duration
-	timeoutRequestProposal  time.Duration
+	threshold                 base.Threshold
+	intervalBroadcastBallot   time.Duration
+	waitProcessingProposal    time.Duration
+	timeoutRequestProposal    time.Duration
+	syncSourceCheckerInterval time.Duration
 }
 
 func DefaultNodePolicy(networkID base.NetworkID) NodePolicy {
 	return NodePolicy{
-		BaseHinter:              hint.NewBaseHinter(NodePolicyHint),
-		networkID:               networkID,
-		threshold:               base.DefaultThreshold,
-		intervalBroadcastBallot: time.Second * 3, //nolint:gomnd //...
-		waitProcessingProposal:  time.Second * 3, //nolint:gomnd //...
-		timeoutRequestProposal:  time.Second * 3, //nolint:gomnd //...
+		BaseHinter:                hint.NewBaseHinter(NodePolicyHint),
+		networkID:                 networkID,
+		threshold:                 base.DefaultThreshold,
+		intervalBroadcastBallot:   time.Second * 3,  //nolint:gomnd //...
+		waitProcessingProposal:    time.Second * 3,  //nolint:gomnd //...
+		timeoutRequestProposal:    time.Second * 3,  //nolint:gomnd //...
+		syncSourceCheckerInterval: time.Second * 30, //nolint:gomnd //...
 	}
 }
 
@@ -57,6 +59,10 @@ func (p NodePolicy) IsValid(networkID []byte) error {
 
 	if p.timeoutRequestProposal < 0 {
 		return e(util.ErrInvalid.Errorf("wrong duration"), "invalid timeoutRequestProposal")
+	}
+
+	if p.syncSourceCheckerInterval < 0 {
+		return e(util.ErrInvalid.Errorf("wrong duration"), "invalid syncSourceCheckerInterval")
 	}
 
 	return nil
@@ -112,13 +118,24 @@ func (p *NodePolicy) SetTimeoutRequestProposal(d time.Duration) *NodePolicy {
 	return p
 }
 
+func (p NodePolicy) SyncSourceCheckerInterval() time.Duration {
+	return p.syncSourceCheckerInterval
+}
+
+func (p *NodePolicy) SetSyncSourceCheckerInterval(d time.Duration) *NodePolicy {
+	p.syncSourceCheckerInterval = d
+
+	return p
+}
+
 type nodePolicyJSONMarshaler struct {
 	NetworkID base.NetworkID `json:"network_id"`
 	hint.BaseHinter
-	Threshold               base.Threshold `json:"threshold"`
-	IntervalBroadcastBallot time.Duration  `json:"interval_broadcast_ballot"`
-	WaitProcessingProposal  time.Duration  `json:"wait_processing_proposal"`
-	TimeoutRequestProposal  time.Duration  `json:"timeout_request_proposal"`
+	Threshold                 base.Threshold `json:"threshold"`
+	IntervalBroadcastBallot   time.Duration  `json:"interval_broadcast_ballot"`
+	WaitProcessingProposal    time.Duration  `json:"wait_processing_proposal"`
+	TimeoutRequestProposal    time.Duration  `json:"timeout_request_proposal"`
+	SyncSourceCheckerInterval time.Duration  `json:"sync_source_checker_interval"`
 }
 
 func (p NodePolicy) MarshalJSON() ([]byte, error) {
@@ -133,11 +150,12 @@ func (p NodePolicy) MarshalJSON() ([]byte, error) {
 }
 
 type nodePolicyJSONUnmarshaler struct {
-	NetworkID               base.NetworkID `json:"network_id"`
-	Threshold               base.Threshold `json:"threshold"`
-	IntervalBroadcastBallot time.Duration  `json:"interval_broadcast_ballot"`
-	WaitProcessingProposal  time.Duration  `json:"wait_processing_proposal"`
-	TimeoutRequestProposal  time.Duration  `json:"timeout_request_proposal"`
+	NetworkID                 base.NetworkID `json:"network_id"`
+	Threshold                 base.Threshold `json:"threshold"`
+	IntervalBroadcastBallot   time.Duration  `json:"interval_broadcast_ballot"`
+	WaitProcessingProposal    time.Duration  `json:"wait_processing_proposal"`
+	TimeoutRequestProposal    time.Duration  `json:"timeout_request_proposal"`
+	SyncSourceCheckerInterval time.Duration  `json:"sync_source_checker_interval"`
 }
 
 func (p *NodePolicy) UnmarshalJSON(b []byte) error {
@@ -151,6 +169,7 @@ func (p *NodePolicy) UnmarshalJSON(b []byte) error {
 	p.intervalBroadcastBallot = u.IntervalBroadcastBallot
 	p.waitProcessingProposal = u.WaitProcessingProposal
 	p.timeoutRequestProposal = u.TimeoutRequestProposal
+	p.syncSourceCheckerInterval = u.SyncSourceCheckerInterval
 
 	return nil
 }

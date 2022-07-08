@@ -70,6 +70,7 @@ func NewGenesisNetworkPolicy(fact GenesisNetworkPolicyFact) GenesisNetworkPolicy
 
 func (op GenesisNetworkPolicy) IsValid(networkID []byte) error {
 	e := util.StringErrorFunc("invalid GenesisNetworkPolicy")
+
 	if err := op.BaseOperation.IsValid(networkID); err != nil {
 		return e(err, "")
 	}
@@ -77,8 +78,6 @@ func (op GenesisNetworkPolicy) IsValid(networkID []byte) error {
 	if len(op.Signed()) > 1 {
 		return e(util.ErrInvalid.Errorf("multiple signed found"), "")
 	}
-
-	// FIXME check signer should be genesis block creator
 
 	return nil
 }

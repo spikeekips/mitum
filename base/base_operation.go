@@ -48,43 +48,22 @@ func (op BaseOperation) HashBytes() []byte {
 }
 
 func (op BaseOperation) IsValid(networkID []byte) error {
-	e := util.StringErrorFunc("invalid BaseOperation")
+	e := util.ErrInvalid.Errorf("invalid BaseOperation")
 
 	if len(op.signed) < 1 {
-		return util.ErrInvalid.Errorf("empty signed")
+		return e.Errorf("empty signed")
 	}
 
-	vs := make([]util.IsValider, len(op.signed)+2)
-	vs[0] = op.h
-	vs[1] = op.fact
-
-	duplicated := map[string]struct{}{}
-
-	for i := range op.signed {
-		s := op.signed[i]
-		if s == nil {
-			return e(util.ErrInvalid.Errorf("empty signed found"), "")
-		}
-
-		if _, found := duplicated[s.Signer().String()]; found {
-			return e(util.ErrInvalid.Errorf("duplicated signed found"), "")
-		}
-
-		vs[i+2] = s
+	if err := util.CheckIsValid(networkID, false, op.h); err != nil {
+		return e.Wrap(err)
 	}
 
-	if err := util.CheckIsValid(networkID, false, vs...); err != nil {
-		return e(err, "")
-	}
-
-	for i := range op.signed {
-		if err := op.signed[i].Verify(networkID, op.fact.Hash().Bytes()); err != nil {
-			return e(util.ErrInvalid.Wrap(err), "")
-		}
+	if err := IsValidSignedFact(op, networkID); err != nil {
+		return e.Wrap(err)
 	}
 
 	if !op.h.Equal(op.hash()) {
-		return e(util.ErrInvalid.Errorf("hash does not match"), "")
+		return e.Errorf("hash does not match")
 	}
 
 	return nil

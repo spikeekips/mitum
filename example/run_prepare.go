@@ -235,7 +235,7 @@ func (cmd *runCommand) prepareSyncSourceChecker() error {
 		cmd.local,
 		cmd.nodePolicy.NetworkID(),
 		cmd.client,
-		time.Second*30, //nolint:gomnd //... // FIXME config
+		cmd.nodePolicy.SyncSourceCheckerInterval(),
 		cmd.enc,
 		sources,
 		cmd.updateSyncSources,
