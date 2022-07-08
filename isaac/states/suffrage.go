@@ -257,10 +257,14 @@ func (u *LastSuffrageProofWatcher) Last() (base.SuffrageProof, error) {
 	}
 
 	switch i, isnil := u.last.Value(); {
-	case isnil:
+	case isnil, i == nil:
 		return local, nil
 	default:
 		remote := i.(base.SuffrageProof) //nolint:forcetypeassert //...
+
+		if local == nil {
+			return remote, nil
+		}
 
 		// NOTE local proof will be used if same height
 		if remote.Map().Manifest().Height() > local.Map().Manifest().Height() {
@@ -343,6 +347,8 @@ func (u *LastSuffrageProofWatcher) update(proof base.SuffrageProof) bool {
 func (u *LastSuffrageProofWatcher) checkUpdated(ctx context.Context, last base.Height) base.Height {
 	switch proof, err := u.Last(); {
 	case err != nil:
+		return last
+	case proof == nil:
 		return last
 	case last >= proof.SuffrageHeight():
 		return last

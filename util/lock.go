@@ -232,6 +232,13 @@ func (l *LockedMap) Len() int {
 	return len(l.m)
 }
 
+func (l *LockedMap) Clean() {
+	l.Lock()
+	defer l.Unlock()
+
+	l.m = map[interface{}]interface{}{}
+}
+
 func IsNilLockedValue(i interface{}) bool {
 	_, ok := i.(NilLockedValue)
 
@@ -261,7 +268,15 @@ func (l *ShardedMap) Close() {
 	}
 
 	l.sharded = nil
-	l.length = 0
+	atomic.StoreInt64(&l.length, 0)
+}
+
+func (l *ShardedMap) Clean() {
+	for i := range l.sharded {
+		l.sharded[i].Clean()
+	}
+
+	atomic.StoreInt64(&l.length, 0)
 }
 
 func (l *ShardedMap) Exists(k string) bool {

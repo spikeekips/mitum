@@ -127,6 +127,10 @@ func (cmd *runCommand) proposalSelectorFunc() *isaac.BaseProposalSelector {
 				suf = i
 			}
 
+			if suf.Len() < 2 { //nolint:gomnd // only local
+				return []base.Node{cmd.local}, true, nil
+			}
+
 			switch {
 			case cmd.memberlist == nil:
 				return nil, false, errors.Errorf("nil memberlist")

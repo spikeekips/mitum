@@ -180,6 +180,21 @@ func (cmd *runCommand) prepareLastSuffrageProofWatcher() {
 				return
 			}
 
+			switch suf, err := proof.Suffrage(); {
+			case err != nil:
+				log.Error().Err(err).Msg("suffrage proof problem")
+
+				return
+			case !suf.ExistsPublickey(cmd.local.Address(), cmd.local.Publickey()):
+				log.Debug().Msg("local is not in suffrage; will leave from memberlist")
+
+				if err := cmd.memberlist.Leave(time.Second * 30); err != nil { //nolint:gomnd // long enough to leave
+					log.Error().Err(err).Msg("failed to leave from memberlist")
+				}
+
+				return
+			}
+
 			// FIXME join memberlist
 			_ = util.Retry(
 				ctx,

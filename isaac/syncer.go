@@ -60,20 +60,20 @@ func (p *SyncSourcePool) Pick() (NodeConnInfo, func(error), error) {
 }
 
 func (p *SyncSourcePool) PickMultiple(n int) ([]NodeConnInfo, []func(error), error) {
+	p.Lock()
+	defer p.Unlock()
+
 	switch {
 	case n < 1:
 		return nil, nil, errors.Errorf("zero")
 	case n == 1:
-		nci, report, err := p.Pick()
+		_, nci, report, err := p.pick(0)
 		if err != nil {
 			return nil, nil, err
 		}
 
 		return []NodeConnInfo{nci}, []func(error){report}, nil
 	}
-
-	p.Lock()
-	defer p.Unlock()
 
 	sources := make([]NodeConnInfo, n)
 	reports := make([]func(error), n)
@@ -152,6 +152,9 @@ func (p *SyncSourcePool) UpdateFixed(fixed []NodeConnInfo) bool {
 }
 
 func (p *SyncSourcePool) Add(added ...NodeConnInfo) bool {
+	p.Lock()
+	defer p.Unlock()
+
 	sources := make([]NodeConnInfo, len(p.sources))
 	copy(sources, p.sources)
 
@@ -183,6 +186,9 @@ func (p *SyncSourcePool) Add(added ...NodeConnInfo) bool {
 }
 
 func (p *SyncSourcePool) Remove(node base.Address, publish string) bool {
+	p.Lock()
+	defer p.Unlock()
+
 	index := util.InSlice(p.sources, func(_ interface{}, i int) bool {
 		switch {
 		case p.sources[i].Address().Equal(node) &&
@@ -386,13 +392,15 @@ func (p *SyncSourcePool) pick(from int) (found int, _ NodeConnInfo, report func(
 		index := from + i
 		d := p.problems[index]
 
+		id := p.sourceids[index]
+
 		switch {
 		case d == nil:
-			return index, p.sources[index], func(err error) { p.reportProblem(p.sourceids[index], err) }, nil
+			return index, p.sources[index], func(err error) { p.reportProblem(id, err) }, nil
 		case time.Since(*d) > p.renewTimeout:
 			p.problems[index] = nil
 
-			return index, p.sources[index], func(err error) { p.reportProblem(p.sourceids[index], err) }, nil
+			return index, p.sources[index], func(err error) { p.reportProblem(id, err) }, nil
 		}
 	}
 

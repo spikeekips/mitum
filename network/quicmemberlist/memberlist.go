@@ -32,7 +32,8 @@ type Memberlist struct {
 	cicache        *util.GCacheObjectPool
 	oneMemberLimit int
 	sync.Mutex
-	joinedLock sync.Mutex
+	joinedLock sync.RWMutex
+	isJoined   bool
 }
 
 func NewMemberlist(
@@ -113,6 +114,8 @@ func (srv *Memberlist) Leave(timeout time.Duration) error {
 		return errors.Wrap(err, "failed to leave")
 	}
 
+	srv.members.Clean()
+
 	return nil
 }
 
@@ -124,8 +127,13 @@ func (srv *Memberlist) Members(f func(node Node) bool) {
 	srv.members.Traverse(f)
 }
 
+// IsJoined indicates whether local is joined in remote network. If no other
+// remote nodes, IsJoined will be false.
 func (srv *Memberlist) IsJoined() bool {
-	return srv.members.Len() > 0
+	srv.joinedLock.RLock()
+	defer srv.joinedLock.RUnlock()
+
+	return srv.isJoined
 }
 
 func (srv *Memberlist) Broadcast(b memberlist.Broadcast) {
@@ -236,9 +244,13 @@ func (srv *Memberlist) whenJoined(node Node) {
 	srv.joinedLock.Lock()
 	defer srv.joinedLock.Unlock()
 
+	if !srv.isJoined && srv.local.Name() != node.Name() {
+		srv.isJoined = true
+	}
+
 	srv.members.Set(node)
 
-	srv.Log().Debug().Interface("node", node).Msg("node joined")
+	srv.Log().Debug().Bool("is_joined", srv.isJoined).Interface("node", node).Msg("node joined")
 }
 
 func (srv *Memberlist) whenLeft(node Node) {
@@ -247,7 +259,11 @@ func (srv *Memberlist) whenLeft(node Node) {
 
 	_ = srv.members.Remove(node.UDPAddr())
 
-	srv.Log().Debug().Interface("node", node).Msg("node left")
+	if srv.isJoined && srv.members.Len() < 2 && srv.members.Exists(srv.local.UDPAddr()) {
+		srv.isJoined = false
+	}
+
+	srv.Log().Debug().Bool("is_joined", srv.isJoined).Interface("node", node).Msg("node left")
 }
 
 func (srv *Memberlist) allowNode(node Node) error {
@@ -304,15 +320,20 @@ func BasicMemberlistConfig(name string, bind, advertise *net.UDPAddr) *memberlis
 }
 
 type membersPool struct {
-	addrs *util.LockedMap // noline:misspell
-	nodes *util.LockedMap // NOTE by node address
+	addrs *util.ShardedMap
+	nodes *util.ShardedMap // NOTE by node address
 }
 
 func newMembersPool() *membersPool {
 	return &membersPool{
-		addrs: util.NewLockedMap(),
-		nodes: util.NewLockedMap(),
+		addrs: util.NewShardedMap(1 << 9), //nolint:gomnd //...
+		nodes: util.NewShardedMap(1 << 9), //nolint:gomnd //...
 	}
+}
+
+func (m *membersPool) Clean() {
+	m.addrs.Clean()
+	m.nodes.Clean()
 }
 
 func (m *membersPool) Exists(k *net.UDPAddr) bool {
