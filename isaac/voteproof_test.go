@@ -376,8 +376,12 @@ func TestACCEPTVoteproofJSON(tt *testing.T) {
 			SetThreshold(base.Threshold(100)).
 			Finish()
 
+		t.NoError(avp.IsValid(t.networkID))
+
 		b, err := t.enc.Marshal(&avp)
 		t.NoError(err)
+
+		t.T().Log("marshaled:", string(b))
 
 		return avp, b
 	}
@@ -385,8 +389,10 @@ func TestACCEPTVoteproofJSON(tt *testing.T) {
 		i, err := t.enc.Decode(b)
 		t.NoError(err)
 
-		_, ok := i.(ACCEPTVoteproof)
+		avp, ok := i.(ACCEPTVoteproof)
 		t.True(ok)
+
+		t.NoError(avp.IsValid(t.networkID))
 
 		return i
 	}
