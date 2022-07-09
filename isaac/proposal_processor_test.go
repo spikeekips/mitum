@@ -300,8 +300,13 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsFailed() {
 	t.Error(err)
 	t.Nil(m)
 
-	t.True(errors.Is(err, util.ErrWrongType))
-	t.ErrorContains(err, "failed to collect operations")
+	switch {
+	case errors.Is(err, context.Canceled):
+	case errors.Is(err, util.ErrWrongType):
+		t.ErrorContains(err, "failed to collect operations")
+	default:
+		t.Error(errors.Errorf("unexpected error, %T", err))
+	}
 }
 
 func (t *testDefaultProposalProcessor) TestCollectOperationsFailedButIgnored() {

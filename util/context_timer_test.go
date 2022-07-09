@@ -42,11 +42,12 @@ func (t *testContextTimer) TestStart() {
 	t.NoError(ct.Start())
 	t.True(errors.Is(ct.Start(), ErrDaemonAlreadyStarted))
 
-	<-time.After(time.Millisecond * 50)
+	<-time.After(time.Millisecond * 100)
 
 	t.NoError(ct.Stop())
 
-	t.True(atomic.LoadInt64(&ticked) > 3)
+	i := atomic.LoadInt64(&ticked)
+	t.True(i > 3, "%d > 3", i)
 }
 
 func (t *testContextTimer) TestStop() {

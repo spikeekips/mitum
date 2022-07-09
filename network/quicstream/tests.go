@@ -199,12 +199,20 @@ func ReadAll(ctx context.Context, r io.ReadCloser) ([]byte, error) {
 }
 
 func RandomConnInfo() UDPConnInfo {
-	bip, _ := rand.Int(rand.Reader, big.NewInt(math.MaxUint32))
-	bport, _ := rand.Int(rand.Reader, big.NewInt(math.MaxUint16))
+	for {
+		bip, _ := rand.Int(rand.Reader, big.NewInt(math.MaxUint32))
+		bport, _ := rand.Int(rand.Reader, big.NewInt(math.MaxUint16))
 
-	buf := make([]byte, 4)
+		buf := make([]byte, 4)
 
-	binary.LittleEndian.PutUint32(buf, uint32(bip.Uint64()))
+		binary.LittleEndian.PutUint32(buf, uint32(bip.Uint64()))
 
-	return NewUDPConnInfo(&net.UDPAddr{IP: net.IP(buf), Port: int(bport.Uint64())}, true)
+		ci := NewUDPConnInfo(&net.UDPAddr{IP: net.IP(buf), Port: int(bport.Uint64())}, true)
+
+		if ci.isValid() != nil {
+			continue
+		}
+
+		return ci
+	}
 }
