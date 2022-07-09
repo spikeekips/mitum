@@ -529,25 +529,6 @@ func RunErrgroupWorker(ctx context.Context, size uint64, f func(ctx context.Cont
 	return worker.Wait()
 }
 
-func RunErrgroupWorkerByChan(ctx context.Context, size int64, workch chan ContextWorkerCallback) error {
-	worker := NewErrgroupWorker(ctx, size)
-	defer worker.Close()
-
-	for f := range workch {
-		if f == nil {
-			continue
-		}
-
-		if err := worker.NewJob(f); err != nil {
-			return err
-		}
-	}
-
-	worker.Done()
-
-	return worker.Wait()
-}
-
 func RunErrgroupWorkerByJobs(ctx context.Context, jobs ...ContextWorkerCallback) error {
 	worker := NewErrgroupWorker(ctx, int64(len(jobs)))
 	defer worker.Close()

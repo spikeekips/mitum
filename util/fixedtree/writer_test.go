@@ -19,6 +19,10 @@ func (t *testGenerator) TestNew() {
 	defer gworker.Close()
 
 	for size := uint64(1); size < 333; size++ {
+		if size%3 != 0 {
+			continue
+		}
+
 		size := size
 
 		t.NoError(gworker.NewJob(func(context.Context, uint64) error {

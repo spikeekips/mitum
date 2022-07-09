@@ -3,7 +3,6 @@ package isaacstates
 import (
 	"context"
 	"io"
-	"math"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -118,39 +117,47 @@ func importBlock(
 ) error {
 	e := util.StringErrorFunc("failed to import block, %d", height)
 
-	workch := make(chan util.ContextWorkerCallback)
+	var num int64
+	m.Items(func(base.BlockMapItem) bool {
+		num++
 
-	go func() {
-		defer close(workch)
+		return true
+	})
 
-		m.Items(func(item base.BlockMapItem) bool {
-			workch <- func(ctx context.Context, _ uint64) error {
-				switch r, cancel, found, err := blockMapItemf(ctx, height, item.Type()); {
-				case err != nil:
-					return err
-				case !found:
+	worker := util.NewErrgroupWorker(ctx, num)
+	defer worker.Close()
+
+	m.Items(func(item base.BlockMapItem) bool {
+		if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
+			switch r, cancel, found, err := blockMapItemf(ctx, height, item.Type()); {
+			case err != nil:
+				return err
+			case !found:
+				_ = cancel()
+
+				return e(util.ErrNotFound.Errorf("blockMapItem not found"), "")
+			default:
+				defer func() {
 					_ = cancel()
+					_ = r.Close()
+				}()
 
-					return e(util.ErrNotFound.Errorf("blockMapItem not found"), "")
-				default:
-					defer func() {
-						_ = cancel()
-						_ = r.Close()
-					}()
-
-					if err := im.WriteItem(item.Type(), r); err != nil {
-						return err
-					}
-
-					return nil
+				if err := im.WriteItem(item.Type(), r); err != nil {
+					return err
 				}
+
+				return nil
 			}
+		}); err != nil {
+			return false
+		}
 
-			return true
-		})
-	}()
+		return true
+	})
 
-	if err := util.RunErrgroupWorkerByChan(ctx, math.MaxInt8, workch); err != nil {
+	worker.Done()
+
+	if err := worker.Wait(); err != nil {
 		return e(err, "")
 	}
 

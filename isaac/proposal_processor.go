@@ -2,7 +2,6 @@ package isaac
 
 import (
 	"context"
-	"math"
 	"sync"
 	"time"
 
@@ -322,59 +321,56 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context) error 
 
 	ops := p.operations()
 
-	workch := make(chan util.ContextWorkerCallback)
+	worker := util.NewErrgroupWorker(wctx, int64(len(ops)))
+	defer worker.Close()
 
-	errch := make(chan error, 1)
+	gopsindex := -1
+	gvalidindex := -1
 
-	go func() {
-		errch <- util.RunErrgroupWorkerByChan(wctx, math.MaxInt8, workch)
-	}()
-
-	if err := func() error {
-		defer close(workch)
-
-		gopsindex := -1
-		gvalidindex := -1
-
-		for i := range ops {
-			op := ops[i]
-			if op == nil {
-				continue
-			}
-
-			gopsindex++
-			opsindex := gopsindex
-
-			if i, ok := op.(ReasonProcessedOperation); ok {
-				workch <- func(ctx context.Context, _ uint64) error {
-					return p.writer.SetProcessResult( //nolint:wrapcheck //...
-						ctx, uint64(opsindex), i.OperationHash(), i.FactHash(), false, i.Reason())
-				}
-
-				continue
-			}
-
-			gvalidindex++
-			validindex := gvalidindex
-
-			f, err := p.workOperation(wctx, uint64(opsindex), uint64(validindex), op)
-			if err != nil {
-				if !errors.Is(err, util.ErrWorkerCanceled) {
-					return e(err, "")
-				}
-
-				break
-			}
-
-			workch <- f
+	for i := range ops {
+		op := ops[i]
+		if op == nil {
+			continue
 		}
 
-		return nil
-	}(); err != nil {
+		gopsindex++
+		opsindex := gopsindex
+
+		if i, ok := op.(ReasonProcessedOperation); ok {
+			if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
+				return p.writer.SetProcessResult( //nolint:wrapcheck //...
+					ctx, uint64(opsindex), i.OperationHash(), i.FactHash(), false, i.Reason())
+			}); err != nil {
+				return e(err, "")
+			}
+
+			continue
+		}
+
+		gvalidindex++
+		validindex := gvalidindex
+
+		f, err := p.workOperation(wctx, uint64(opsindex), uint64(validindex), op)
+		if err != nil {
+			return e(err, "")
+		}
+
+		if f == nil {
+			continue
+		}
+
+		if err := worker.NewJob(f); err != nil {
+			return e(err, "")
+		}
+	}
+
+	worker.Done()
+
+	if err := worker.Wait(); err != nil {
 		return e(err, "")
 	}
 
-	return <-errch
+	return nil
 }
 
 func (p *DefaultProposalProcessor) workOperation(

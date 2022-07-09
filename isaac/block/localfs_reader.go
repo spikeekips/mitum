@@ -335,7 +335,7 @@ func (r *LocalFSReader) loadOperations( //nolint:dupl //...
 
 	ops := make([]base.Operation, item.Num())
 
-	if err := LoadRawItemsWithWorker(f, r.enc.Decode, func(index uint64, v interface{}) error {
+	if err := LoadRawItemsWithWorker(f, item.Num(), r.enc.Decode, func(index uint64, v interface{}) error {
 		op, ok := v.(base.Operation)
 		if !ok {
 			return errors.Errorf("not Operation, %T", v)
@@ -377,7 +377,7 @@ func (r *LocalFSReader) loadStates( //nolint:dupl //...
 
 	sts := make([]base.State, item.Num())
 
-	if err := LoadRawItemsWithWorker(f, r.enc.Decode, func(index uint64, v interface{}) error {
+	if err := LoadRawItemsWithWorker(f, item.Num(), r.enc.Decode, func(index uint64, v interface{}) error {
 		st, ok := v.(base.State)
 		if !ok {
 			return errors.Errorf("expected State, but %T", v)
@@ -430,7 +430,7 @@ func LoadVoteproofsFromReader(
 
 	vps := make([]base.Voteproof, 2)
 
-	if err := LoadRawItemsWithWorker(r, decode, func(_ uint64, v interface{}) error {
+	if err := LoadRawItemsWithWorker(r, 2, decode, func(_ uint64, v interface{}) error { //nolint:gomnd //...
 		switch t := v.(type) {
 		case base.INITVoteproof:
 			vps[0] = t

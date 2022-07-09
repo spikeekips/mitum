@@ -73,35 +73,36 @@ func (db *LeveldbBlockWrite) SetStates(sts []base.State) error {
 
 	e := util.StringErrorFunc("failed to set states in TempLeveldbDatabase")
 
-	workch := make(chan util.ContextWorkerCallback)
+	worker := util.NewErrgroupWorker(context.Background(), int64(len(sts)))
+	defer worker.Close()
 
-	go func() {
-		defer close(workch)
+	for i := range sts {
+		st := sts[i]
 
-		for i := range sts {
-			st := sts[i]
+		if err := worker.NewJob(func(context.Context, uint64) error {
+			if err := db.setState(st); err != nil {
+				return err
+			}
 
-			workch <- func(context.Context, uint64) error {
-				if err := db.setState(st); err != nil {
+			ops := st.Operations()
+
+			for j := range ops {
+				op := ops[j]
+
+				if err := db.st.Put(leveldbInStateOperationKey(op), op.Bytes(), nil); err != nil {
 					return err
 				}
-
-				ops := st.Operations()
-
-				for j := range ops {
-					op := ops[j]
-
-					if err := db.st.Put(leveldbInStateOperationKey(op), op.Bytes(), nil); err != nil {
-						return err
-					}
-				}
-
-				return nil
 			}
-		}
-	}()
 
-	if err := util.RunErrgroupWorkerByChan(context.Background(), math.MaxInt8, workch); err != nil {
+			return nil
+		}); err != nil {
+			return e(err, "")
+		}
+	}
+
+	worker.Done()
+
+	if err := worker.Wait(); err != nil {
 		return e(err, "")
 	}
 

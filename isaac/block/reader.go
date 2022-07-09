@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"io"
-	"math"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -102,6 +101,7 @@ func LoadTree(
 
 	if err := LoadRawItemsWithWorker(
 		br,
+		item.Num(),
 		func(b []byte) (interface{}, error) {
 			return unmarshalIndexedTreeNode(enc, b, ht)
 		},
@@ -168,30 +168,24 @@ end:
 
 func LoadRawItemsWithWorker(
 	f io.Reader,
+	num uint64,
 	decode func([]byte) (interface{}, error),
 	callback func(uint64, interface{}) error,
 ) error {
-	workch := make(chan util.ContextWorkerCallback)
+	worker := util.NewErrgroupWorker(context.Background(), int64(num))
+	defer worker.Close()
 
-	errch := make(chan error, 1)
-
-	go func() {
-		defer close(workch)
-
-		errch <- LoadRawItems(f, decode, func(index uint64, v interface{}) error {
-			workch <- func(ctx context.Context, _ uint64) error {
-				return callback(index, v)
-			}
-
-			return nil
+	if err := LoadRawItems(f, decode, func(index uint64, v interface{}) error {
+		return worker.NewJob(func(ctx context.Context, _ uint64) error {
+			return callback(index, v)
 		})
-	}()
-
-	if err := util.RunErrgroupWorkerByChan(context.Background(), math.MaxInt8, workch); err != nil {
+	}); err != nil {
 		return err
 	}
 
-	return <-errch
+	worker.Done()
+
+	return worker.Wait()
 }
 
 func LoadTreeHint(br *bufio.Reader) (hint.Hint, error) {

@@ -823,9 +823,82 @@ func (cmd *runCommand) getProposalOperationFromPool(
 func (cmd *runCommand) getProposalOperationFromRemote(
 	ctx context.Context, proposal base.ProposalSignedFact, operationhash util.Hash,
 ) (base.Operation, bool, error) {
-	var proposernci isaac.NodeConnInfo
+	if cmd.syncSourcePool.Len() < 1 {
+		return nil, false, nil
+	}
+
+	switch isproposer, op, found, err := cmd.getProposalOperationFromRemoteProposer(ctx, proposal, operationhash); {
+	case err != nil:
+		return nil, false, err
+	case !isproposer:
+	case !found:
+		// NOTE proposer proposed this operation, but it does not have? weired.
+	default:
+		return op, true, nil
+	}
 
 	proposer := proposal.ProposalFact().Proposer()
+	result := util.EmptyLocked()
+
+	worker := util.NewErrgroupWorker(ctx, int64(cmd.syncSourcePool.Len()))
+	defer worker.Close()
+
+	cmd.syncSourcePool.Actives(func(nci isaac.NodeConnInfo) bool {
+		if proposer.Equal(nci.Address()) {
+			return true
+		}
+
+		ci, err := nci.UDPConnInfo()
+		if err != nil {
+			return true
+		}
+
+		if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
+			_, err := result.Set(func(i interface{}) (interface{}, error) {
+				if i != nil {
+					return nil, util.ErrLockedSetIgnore.Call()
+				}
+
+				op, found, err := cmd.client.Operation(ctx, ci, operationhash)
+				if err == nil && found {
+					return op, nil
+				}
+
+				return nil, util.ErrLockedSetIgnore.Call()
+			})
+
+			if err == nil {
+				return errors.Errorf("stop")
+			}
+
+			return nil
+		}); err != nil {
+			return false
+		}
+
+		return true
+	})
+
+	worker.Done()
+
+	if err := worker.Wait(); err != nil {
+		return nil, false, err
+	}
+
+	i, isnil := result.Value()
+	if isnil {
+		return nil, false, nil
+	}
+
+	return i.(base.Operation), true, nil //nolint:forcetypeassert //...
+}
+
+func (cmd *runCommand) getProposalOperationFromRemoteProposer(
+	ctx context.Context, proposal base.ProposalSignedFact, operationhash util.Hash,
+) (bool, base.Operation, bool, error) {
+	proposer := proposal.ProposalFact().Proposer()
+
+	var proposernci isaac.NodeConnInfo
 
 	cmd.syncSourcePool.Actives(func(nci isaac.NodeConnInfo) bool {
 		if !proposer.Equal(nci.Address()) {
@@ -839,62 +912,23 @@ func (cmd *runCommand) getProposalOperationFromRemote(
 		return false
 	})
 
-	if proposernci != nil {
-		ci, err := proposernci.UDPConnInfo()
-		if err == nil {
-			switch op, found, err := cmd.client.Operation(ctx, ci, operationhash); {
-			case err != nil:
-				return nil, false, err
-			case found:
-				return op, true, nil
-			}
-		}
+	if proposernci == nil {
+		return false, nil, false, nil
 	}
 
-	if cmd.syncSourcePool.Len() < 1 {
-		return nil, false, nil
+	ci, err := proposernci.UDPConnInfo()
+	if err != nil {
+		return true, nil, false, err
 	}
 
-	jobch := make(chan util.ContextWorkerCallback)
-
-	result := util.EmptyLocked()
-
-	go func() {
-		cmd.syncSourcePool.Actives(func(nci isaac.NodeConnInfo) bool {
-			if proposer.Equal(nci.Address()) {
-				return true
-			}
-
-			ci, err := nci.UDPConnInfo()
-			if err != nil {
-				return true
-			}
-
-			jobch <- func(ctx context.Context, jobid uint64) error {
-				switch op, found, err := cmd.client.Operation(ctx, ci, operationhash); {
-				case err != nil:
-					return nil
-				case !found:
-					return nil
-				default:
-					_ = result.SetValue(op)
-
-					return errors.Errorf("stop")
-				}
-			}
-
-			return true
-		})
-	}()
-
-	_ = util.RunErrgroupWorkerByChan(ctx, int64(cmd.syncSourcePool.Len()), jobch)
-
-	i, isnil := result.Value()
-	if isnil {
-		return nil, false, nil
+	switch op, found, err := cmd.client.Operation(ctx, ci, operationhash); {
+	case err != nil:
+		return true, nil, false, err
+	case !found:
+		return true, nil, false, nil
+	default:
+		return true, op, true, nil
 	}
-
-	return i.(base.Operation), true, nil //nolint:forcetypeassert //...
 }
 
 func (cmd *runCommand) joinMemberlistForJoiningState() error {
