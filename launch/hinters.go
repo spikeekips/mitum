@@ -67,7 +67,7 @@ var Hinters = []encoder.DecodeDetail{
 	{Hint: quicmemberlist.NodeHint, Instance: quicmemberlist.BaseNode{}},
 }
 
-var LoadOperationHinters = []encoder.DecodeDetail{} // FIXME apply to getOperation in ProposalProcessor
+// FIXME set valid operation hinters for proposal processor.
 
 func LoadHinters(enc encoder.Encoder) error {
 	for i := range Hinters {

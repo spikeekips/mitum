@@ -791,14 +791,14 @@ func (cmd *runCommand) getProposalOperationFunc(
 		}
 
 		if err := op.IsValid(cmd.nodePolicy.NetworkID()); err != nil {
-			return nil, isaac.InvalidOperationInProcessorError.Errorf("invalid in pool")
+			return nil, isaac.InvalidOperationInProcessorError.Errorf("invalid operation")
 		}
 
 		switch found, err := cmd.db.ExistsInStateOperation(op.Fact().Hash()); {
 		case err != nil:
 			return nil, err
 		case found:
-			return nil, isaac.OperationAlreadyProcessedInProcessorError.Errorf("already processed in pool")
+			return nil, isaac.OperationAlreadyProcessedInProcessorError.Errorf("already processed")
 		default:
 			return op, nil
 		}
