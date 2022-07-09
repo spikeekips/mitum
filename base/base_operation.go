@@ -70,8 +70,13 @@ func (op BaseOperation) IsValid(networkID []byte) error {
 }
 
 func (op *BaseOperation) Sign(priv Privatekey, networkID NetworkID) error {
-	if err := op.sign(priv, networkID); err != nil {
+	switch index, signed, err := op.sign(priv, networkID); {
+	case err != nil:
 		return err
+	case index < 0:
+		op.signed = append(op.signed, signed)
+	default:
+		op.signed[index] = signed
 	}
 
 	op.h = op.hash()
@@ -79,10 +84,10 @@ func (op *BaseOperation) Sign(priv Privatekey, networkID NetworkID) error {
 	return nil
 }
 
-func (op *BaseOperation) sign(priv Privatekey, networkID NetworkID) error {
+func (op *BaseOperation) sign(priv Privatekey, networkID NetworkID) (found int, signed BaseSigned, _ error) {
 	e := util.StringErrorFunc("failed to sign BaseOperation")
 
-	found := -1
+	found = -1
 
 	for i := range op.signed {
 		s := op.signed[i]
@@ -99,18 +104,10 @@ func (op *BaseOperation) sign(priv Privatekey, networkID NetworkID) error {
 
 	newsigned, err := NewBaseSignedFromFact(priv, networkID, op.fact)
 	if err != nil {
-		return e(err, "")
+		return found, signed, e(err, "")
 	}
 
-	if found >= 0 {
-		op.signed[found] = newsigned
-
-		return nil
-	}
-
-	op.signed = append(op.signed, newsigned)
-
-	return nil
+	return found, newsigned, nil
 }
 
 func (BaseOperation) PreProcess(context.Context, GetStateFunc) (OperationProcessReasonError, error) {
@@ -123,4 +120,76 @@ func (BaseOperation) Process(context.Context, GetStateFunc) ([]StateMergeValue, 
 
 func (op BaseOperation) hash() util.Hash {
 	return valuehash.NewSHA256(op.HashBytes())
+}
+
+type BaseNodeOperation struct {
+	BaseOperation
+}
+
+func NewBaseNodeOperation(ht hint.Hint, fact Fact) BaseNodeOperation {
+	return BaseNodeOperation{
+		BaseOperation: NewBaseOperation(ht, fact),
+	}
+}
+
+func (op BaseNodeOperation) IsValid(networkID []byte) error {
+	e := util.ErrInvalid.Errorf("invalid BaseNodeOperation")
+
+	if err := op.BaseOperation.IsValid(networkID); err != nil {
+		return e.Wrap(err)
+	}
+
+	sfs := op.Signed()
+
+	if _, duplicated := util.CheckSliceDuplicated(sfs, func(_ interface{}, i int) string {
+		switch ns, ok := sfs[i].(NodeSigned); {
+		case !ok:
+			return ""
+		default:
+			return ns.Node().String() + "-" + ns.Signer().String()
+		}
+	}); duplicated {
+		return e.Errorf("duplicated signed found")
+	}
+
+	for i := range sfs {
+		if _, ok := sfs[i].(NodeSigned); !ok {
+			return e.Errorf("not NodeSigned, %T", sfs[i])
+		}
+	}
+
+	return nil
+}
+
+func (op *BaseNodeOperation) Sign(priv Privatekey, networkID NetworkID, node Address) error {
+	found := -1
+
+	for i := range op.signed {
+		s := op.signed[i]
+		if s == nil {
+			continue
+		}
+
+		if s.Signer().Equal(priv.Publickey()) {
+			found = i
+
+			break
+		}
+	}
+
+	ns, err := BaseNodeSignedFromFact(node, priv, networkID, op.fact)
+	if err != nil {
+		return err
+	}
+
+	switch {
+	case found < 0:
+		op.signed = append(op.signed, ns)
+	default:
+		op.signed[found] = ns
+	}
+
+	op.h = op.hash()
+
+	return nil
 }

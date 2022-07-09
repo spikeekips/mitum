@@ -146,6 +146,8 @@ func (fact SuffrageGenesisJoinPermissionFact) hash() util.Hash {
 	))
 }
 
+// FIXME SuffrageJoin should have BaseNodeOperation, not BaseOperation
+
 func NewSuffrageJoin(fact SuffrageJoinPermissionFact) base.BaseOperation {
 	return base.NewBaseOperation(SuffrageJoinHint, fact)
 }
@@ -162,13 +164,18 @@ func NewSuffrageGenesisJoin(fact SuffrageGenesisJoinPermissionFact) SuffrageGene
 }
 
 func (op SuffrageGenesisJoin) IsValid(networkID []byte) error {
-	e := util.StringErrorFunc("invalid SuffrageGenesisJoin")
+	e := util.ErrInvalid.Errorf("invalid SuffrageGenesisJoin")
+
 	if err := op.BaseOperation.IsValid(networkID); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if len(op.Signed()) > 1 {
-		return e(util.ErrInvalid.Errorf("multiple signed found"), "")
+		return e.Errorf("multiple signed found")
+	}
+
+	if _, ok := op.Fact().(SuffrageGenesisJoinPermissionFact); !ok {
+		return e.Errorf("not SuffrageGenesisJoinPermissionFact, %T", op.Fact())
 	}
 
 	return nil

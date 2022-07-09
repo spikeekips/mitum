@@ -69,14 +69,18 @@ func NewGenesisNetworkPolicy(fact GenesisNetworkPolicyFact) GenesisNetworkPolicy
 }
 
 func (op GenesisNetworkPolicy) IsValid(networkID []byte) error {
-	e := util.StringErrorFunc("invalid GenesisNetworkPolicy")
+	e := util.ErrInvalid.Errorf("invalid GenesisNetworkPolicy")
 
 	if err := op.BaseOperation.IsValid(networkID); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if len(op.Signed()) > 1 {
-		return e(util.ErrInvalid.Errorf("multiple signed found"), "")
+		return e.Errorf("multiple signed found")
+	}
+
+	if _, ok := op.Fact().(GenesisNetworkPolicyFact); !ok {
+		return e.Errorf("not GenesisNetworkPolicyFact, %T", op.Fact())
 	}
 
 	return nil

@@ -49,13 +49,13 @@ func IsValidFact(fact Fact, b []byte) error {
 func IsValidSignedFact(sf SignedFact, networkID []byte) error {
 	e := util.ErrInvalid.Errorf("invalid SignedFact")
 
-	bs := make([]util.IsValider, len(sf.Signed())+1)
-	bs[0] = sf.Fact()
-
 	sfs := sf.Signed()
 	if len(sfs) < 1 {
 		return e.Errorf("empty SignedFact")
 	}
+
+	bs := make([]util.IsValider, len(sf.Signed())+1)
+	bs[0] = sf.Fact()
 
 	for i := range sfs {
 		bs[i+1] = sfs[i]
@@ -65,16 +65,12 @@ func IsValidSignedFact(sf SignedFact, networkID []byte) error {
 		return e.Wrapf(err, "invalid SignedFact")
 	}
 
+	// NOTE caller should check the duplication of Signeds
+
 	for i := range sfs {
 		if err := sfs[i].Verify(networkID, sf.Fact().Hash().Bytes()); err != nil {
 			return e.Wrapf(err, "failed to verify signed")
 		}
-	}
-
-	if _, found := util.CheckSliceDuplicated(sfs, func(_ interface{}, i int) string {
-		return sfs[i].Signer().String()
-	}); found {
-		return e.Errorf("duplicated signed found")
 	}
 
 	return nil

@@ -26,6 +26,18 @@ func (op dummyOperation) Process(context.Context, GetStateFunc) ([]StateMergeVal
 	return nil, nil, nil
 }
 
+type dummyNodeOperation struct {
+	BaseNodeOperation
+}
+
+func (op dummyNodeOperation) PreProcess(context.Context, GetStateFunc) (OperationProcessReasonError, error) {
+	return nil, nil
+}
+
+func (op dummyNodeOperation) Process(context.Context, GetStateFunc) ([]StateMergeValue, OperationProcessReasonError, error) {
+	return nil, nil, nil
+}
+
 type testBaseOperation struct {
 	suite.Suite
 	priv      Privatekey
@@ -55,7 +67,7 @@ func (t *testBaseOperation) newSignedOperation() dummyOperation {
 func (t *testBaseOperation) TestNew() {
 	op := t.newSignedOperation()
 
-	t.Run("invalid network di", func() {
+	t.Run("invalid network id", func() {
 		err := op.IsValid(util.UUID().Bytes())
 		t.Error(err)
 		t.True(errors.Is(err, SignatureVerificationError))
@@ -110,15 +122,6 @@ func (t *testBaseOperation) TestIsValid() {
 		t.Error(err)
 		t.True(errors.Is(err, SignatureVerificationError))
 	})
-
-	t.Run("duplicated signed", func() {
-		op := t.newSignedOperation()
-		op.signed = []Signed{op.signed[0], op.signed[0]}
-
-		err := op.IsValid(util.UUID().Bytes())
-		t.Error(err)
-		t.True(errors.Is(err, SignatureVerificationError))
-	})
 }
 
 func (t *testBaseOperation) TestSign() {
@@ -163,6 +166,146 @@ func TestBaseOperation(t *testing.T) {
 	suite.Run(t, new(testBaseOperation))
 }
 
+type testBaseNodeOperation struct {
+	suite.Suite
+	priv      Privatekey
+	networkID NetworkID
+}
+
+func (t *testBaseNodeOperation) SetupSuite() {
+	t.priv = NewMPrivatekey()
+	t.networkID = util.UUID().Bytes()
+}
+
+func (t *testBaseNodeOperation) newOperation() dummyNodeOperation {
+	ht := hint.MustNewHint(util.UUID().String() + "-v0.0.3")
+
+	fact := NewDummyFact(util.UUID().Bytes(), util.UUID().String())
+
+	return dummyNodeOperation{BaseNodeOperation: NewBaseNodeOperation(ht, fact)}
+}
+
+func (t *testBaseNodeOperation) newSignedOperation(node Address) dummyNodeOperation {
+	op := t.newOperation()
+	t.NoError(op.Sign(t.priv, t.networkID, node))
+
+	return op
+}
+
+func (t *testBaseNodeOperation) TestNew() {
+	op := t.newSignedOperation(RandomAddress(""))
+
+	t.Run("invalid network id", func() {
+		err := op.IsValid(util.UUID().Bytes())
+		t.Error(err)
+		t.True(errors.Is(err, SignatureVerificationError))
+	})
+
+	_ = (interface{})(op).(Operation)
+}
+
+func (t *testBaseNodeOperation) TestIsValid() {
+	t.Run("valid", func() {
+		op := t.newSignedOperation(RandomAddress(""))
+
+		t.NoError(op.IsValid(t.networkID))
+	})
+
+	t.Run("wrong hash", func() {
+		op := t.newSignedOperation(RandomAddress(""))
+		op.h = valuehash.RandomSHA256()
+
+		err := op.IsValid(t.networkID)
+		t.Error(err)
+		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorContains(err, "hash does not match")
+	})
+
+	t.Run("invalid fact", func() {
+		op := t.newSignedOperation(RandomAddress(""))
+
+		fact := op.fact.(DummyFact)
+		fact.h = valuehash.RandomSHA256()
+		op.fact = fact
+
+		err := op.IsValid(util.UUID().Bytes())
+		t.Error(err)
+		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorContains(err, "hash does not match")
+	})
+
+	t.Run("empty Signeds", func() {
+		op := t.newOperation()
+
+		err := op.IsValid(util.UUID().Bytes())
+		t.Error(err)
+		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorContains(err, "empty signed")
+	})
+
+	t.Run("invalid network id", func() {
+		op := t.newSignedOperation(RandomAddress(""))
+
+		err := op.IsValid(util.UUID().Bytes())
+		t.Error(err)
+		t.True(errors.Is(err, SignatureVerificationError))
+	})
+
+	t.Run("duplicated signed", func() {
+		op := t.newSignedOperation(RandomAddress(""))
+		op.signed = []Signed{op.signed[0], op.signed[0]}
+		op.h = op.hash()
+
+		err := op.IsValid(t.networkID)
+		t.Error(err)
+		t.ErrorContains(err, "duplicated signed found")
+	})
+}
+
+func (t *testBaseNodeOperation) TestSign() {
+	node := RandomAddress("")
+
+	t.Run("sign in not signed", func() {
+		op := t.newOperation()
+
+		t.NoError(op.Sign(t.priv, t.networkID, node))
+
+		t.Equal(1, len(op.signed))
+	})
+
+	t.Run("duplicated sign", func() {
+		op := t.newOperation()
+
+		t.NoError(op.Sign(t.priv, t.networkID, node))
+
+		oldsigned := op.signed[0]
+
+		<-time.After(time.Millisecond * 100)
+		t.NoError(op.Sign(t.priv, t.networkID, node))
+
+		newsigned := op.signed[0]
+
+		t.True(oldsigned.Signer().Equal(newsigned.Signer()))
+		t.NotEqual(oldsigned.Signature(), newsigned.Signature())
+		t.NotEqual(oldsigned.SignedAt(), newsigned.SignedAt())
+	})
+
+	t.Run("new sign", func() {
+		op := t.newOperation()
+
+		t.NoError(op.Sign(t.priv, t.networkID, node))
+
+		priv := NewMPrivatekey()
+		t.NoError(op.Sign(priv, t.networkID, node))
+
+		t.Equal(2, len(op.signed))
+	})
+}
+
+func TestBaseNodeOperation(t *testing.T) {
+	suite.Run(t, new(testBaseNodeOperation))
+}
+
 func TestBaseOperationEncode(tt *testing.T) {
 	t := new(encoder.BaseTestEncode)
 
@@ -201,6 +344,56 @@ func TestBaseOperationEncode(tt *testing.T) {
 		ao, ok := a.(BaseOperation)
 		t.True(ok)
 		bo, ok := b.(BaseOperation)
+		t.True(ok)
+
+		t.NoError(bo.IsValid(networkID))
+
+		EqualFact(t.Assert(), ao.Fact(), bo.Fact())
+		EqualSigneds(t.Assert(), ao.Signed(), bo.Signed())
+	}
+
+	suite.Run(tt, t)
+}
+
+func TestBaseNodeOperationEncode(tt *testing.T) {
+	t := new(encoder.BaseTestEncode)
+
+	enc := jsonenc.NewEncoder()
+
+	ht := hint.MustNewHint(util.UUID().String() + "-v0.0.3")
+	networkID := NetworkID(util.UUID().Bytes())
+
+	t.Encode = func() (interface{}, []byte) {
+		fact := NewDummyFact(util.UUID().Bytes(), util.UUID().String())
+
+		op := NewBaseNodeOperation(ht, fact)
+		t.NoError(op.Sign(NewMPrivatekey(), networkID, RandomAddress("")))
+
+		b, err := enc.Marshal(op)
+		t.NoError(err)
+
+		t.T().Log("marshaled:", string(b))
+
+		return op, b
+	}
+	t.Decode = func(b []byte) interface{} {
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: StringAddressHint, Instance: StringAddress{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: MPublickeyHint, Instance: MPublickey{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: DummyFactHint, Instance: DummyFact{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: ht, Instance: BaseNodeOperation{}}))
+
+		i, err := enc.Decode(b)
+		t.NoError(err)
+
+		_, ok := i.(BaseNodeOperation)
+		t.True(ok)
+
+		return i
+	}
+	t.Compare = func(a, b interface{}) {
+		ao, ok := a.(BaseNodeOperation)
+		t.True(ok)
+		bo, ok := b.(BaseNodeOperation)
 		t.True(ok)
 
 		t.NoError(bo.IsValid(networkID))
