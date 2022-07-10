@@ -230,6 +230,7 @@ func (s SuffrageCandidateStateValue) HashBytes() []byte {
 
 func (s SuffrageCandidateStateValue) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid SuffrageCandidateStateValue")
+
 	if err := s.BaseHinter.IsValid(SuffrageCandidateStateValueHint.Type().Bytes()); err != nil {
 		return e(err, "")
 	}
@@ -237,7 +238,7 @@ func (s SuffrageCandidateStateValue) IsValid([]byte) error {
 	vs := make([]util.IsValider, len(s.nodes))
 
 	for i := range s.nodes {
-		vs[i+1] = s.nodes[i]
+		vs[i] = s.nodes[i]
 	}
 
 	if err := util.CheckIsValid(nil, false, vs...); err != nil {

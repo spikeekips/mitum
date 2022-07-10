@@ -77,13 +77,19 @@ func NewSuffrageJoinProcessor(
 		}
 	}
 
+	// revive:disable:modifies-parameter
 	if preProcessConstraintFunc == nil {
-		p.preProcessConstraintFunc = base.EmptyOperationProcessorProcessFunc
+		preProcessConstraintFunc = base.EmptyOperationProcessorProcessFunc
 	}
 
+	p.preProcessConstraintFunc = preProcessConstraintFunc
+
 	if processConstraintFunc == nil {
-		p.processConstraintFunc = base.EmptyOperationProcessorProcessFunc
+		processConstraintFunc = base.EmptyOperationProcessorProcessFunc
 	}
+
+	p.processConstraintFunc = processConstraintFunc
+	// revive:enable:modifies-parameter
 
 	return p, nil
 }

@@ -142,6 +142,7 @@ func (op BaseNodeOperation) IsValid(networkID []byte) error {
 	sfs := op.Signed()
 
 	var duplicatederr error
+
 	switch _, duplicated := util.CheckSliceDuplicated(sfs, func(_ interface{}, i int) string {
 		if duplicatederr != nil {
 			return ""

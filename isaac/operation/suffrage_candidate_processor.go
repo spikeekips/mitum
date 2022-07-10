@@ -12,13 +12,13 @@ import (
 )
 
 type SuffrageCandidateProcessor struct {
-	height                   base.Height
+	merger                   *SuffrageCandiateStateValueMerger
 	preProcessConstraintFunc base.OperationProcessorProcessFunc
 	processConstraintFunc    base.OperationProcessorProcessFunc
 	suffrages                map[string]base.Node
 	existings                map[string]base.SuffrageCandidate
-	preprocessed             map[string]struct{}
-	merger                   *SuffrageCandiateStateValueMerger
+	preprocessed             map[string]struct{} // revive:disable-line:nested-structs
+	height                   base.Height
 	startheight              base.Height
 	deadlineheight           base.Height
 }
@@ -28,6 +28,7 @@ func NewSuffrageCandidateProcessor(
 	getStateFunc base.GetStateFunc,
 	preProcessConstraintFunc base.OperationProcessorProcessFunc,
 	processConstraintFunc base.OperationProcessorProcessFunc,
+	lifespan base.Height,
 ) (*SuffrageCandidateProcessor, error) {
 	e := util.StringErrorFunc("failed to create new SuffrageCandidateProcessor")
 
@@ -36,7 +37,7 @@ func NewSuffrageCandidateProcessor(
 		existings:      map[string]base.SuffrageCandidate{},
 		preprocessed:   map[string]struct{}{},
 		startheight:    height + 1,
-		deadlineheight: height + 1 + 50, // FIXME from network policy
+		deadlineheight: height + 1 + lifespan, // FIXME from network policy
 	}
 
 	switch i, found, err := getStateFunc(isaac.SuffrageStateKey); {
@@ -70,25 +71,36 @@ func NewSuffrageCandidateProcessor(
 
 		for i := range nodes {
 			n := nodes[i]
+
+			if height > n.Deadline() {
+				continue
+			}
+
 			p.existings[n.Address().String()] = n
 		}
-
 	}
 
 	p.merger = NewSuffrageCandiateStateValueMerger(height, st)
 
+	// revive:disable:modifies-parameter
 	if preProcessConstraintFunc == nil {
-		p.preProcessConstraintFunc = base.EmptyOperationProcessorProcessFunc
+		preProcessConstraintFunc = base.EmptyOperationProcessorProcessFunc
 	}
 
+	p.preProcessConstraintFunc = preProcessConstraintFunc
+
 	if processConstraintFunc == nil {
-		p.processConstraintFunc = base.EmptyOperationProcessorProcessFunc
+		processConstraintFunc = base.EmptyOperationProcessorProcessFunc
 	}
+
+	p.processConstraintFunc = processConstraintFunc
+	// revive:enable:modifies-parameter
 
 	return p, nil
 }
 
-func (p *SuffrageCandidateProcessor) PreProcess(ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (
+func (p *SuffrageCandidateProcessor) PreProcess(
+	ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (
 	base.OperationProcessReasonError, error,
 ) {
 	e := util.StringErrorFunc("failed to preprocess for SuffrageCandidate")
@@ -96,7 +108,7 @@ func (p *SuffrageCandidateProcessor) PreProcess(ctx context.Context, op base.Ope
 	fact := op.Fact().(SuffrageCandidateFact) //nolint:forcetypeassert //...
 
 	if _, found := p.preprocessed[fact.Address().String()]; found {
-		return base.NewBaseOperationProcessReasonError("candidate already pre-processed, %q", fact.Address()), nil
+		return base.NewBaseOperationProcessReasonError("candidate already preprocessed, %q", fact.Address()), nil
 	}
 
 	if _, found := p.suffrages[fact.Address().String()]; found {
@@ -105,12 +117,11 @@ func (p *SuffrageCandidateProcessor) PreProcess(ctx context.Context, op base.Ope
 
 	switch record, found := p.existings[fact.Address().String()]; {
 	case !found:
+		p.preprocessed[fact.Address().String()] = struct{}{}
 	case p.height <= record.Deadline():
 		p.preprocessed[fact.Address().String()] = struct{}{}
 
 		return base.NewBaseOperationProcessReasonError("already candidate up to, %d", record.Deadline()), nil
-	default:
-		p.preprocessed[fact.Address().String()] = struct{}{}
 	}
 
 	switch reasonerr, err := p.preProcessConstraintFunc(ctx, op, getStateFunc); {
@@ -123,7 +134,7 @@ func (p *SuffrageCandidateProcessor) PreProcess(ctx context.Context, op base.Ope
 	return nil, nil
 }
 
-func (p *SuffrageCandidateProcessor) Process(ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (
+func (p *SuffrageCandidateProcessor) Process(_ context.Context, op base.Operation, _ base.GetStateFunc) (
 	[]base.StateMergeValue, base.OperationProcessReasonError, error,
 ) {
 	fact := op.Fact().(SuffrageCandidateFact) //nolint:forcetypeassert //...
@@ -158,7 +169,7 @@ func NewSuffrageCandiateStateValueMerger(height base.Height, st base.State) *Suf
 
 	if st != nil {
 		if v := st.Value(); v != nil {
-			s.olds = v.(base.SuffrageCandidateStateValue).Nodes()
+			s.olds = v.(base.SuffrageCandidateStateValue).Nodes() //nolint:forcetypeassert //...
 		}
 	}
 
@@ -214,12 +225,12 @@ func (s *SuffrageCandiateStateValueMerger) close() (base.StateValue, error) {
 		})
 
 		switch {
-		case len(filtered) < 0:
+		case len(filtered) < 1:
 			olds = nil
 		default:
-			olds := make([]base.SuffrageCandidate, len(filtered))
+			olds = make([]base.SuffrageCandidate, len(filtered))
 			for i := range filtered {
-				olds[i] = filtered[i].(base.SuffrageCandidate)
+				olds[i] = filtered[i].(base.SuffrageCandidate) //nolint:forcetypeassert //...
 			}
 		}
 	}

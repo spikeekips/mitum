@@ -209,16 +209,17 @@ type BaseStateValueMerger struct {
 	State
 	value  StateValue
 	nst    State
+	key    string
 	ops    []util.Hash
 	height Height
-	key    string
 	sync.RWMutex
 }
 
 func NewBaseStateValueMerger(height Height, key string, st State) *BaseStateValueMerger {
 	var value StateValue
+
 	if st != nil {
-		key = st.Key()
+		key = st.Key() // revive:disable-line:modifies-parameter
 		value = st.Value()
 	}
 

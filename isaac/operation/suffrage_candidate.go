@@ -89,6 +89,7 @@ func (op SuffrageCandidate) IsValid(networkID []byte) error {
 	}
 
 	var foundsigner bool
+
 	for i := range sfs {
 		ns := sfs[i].(base.NodeSigned) //nolint:forcetypeassert //...
 

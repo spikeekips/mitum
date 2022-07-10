@@ -452,6 +452,7 @@ func (cmd *runCommand) syncerBlockMapf() isaacstates.SyncerBlockMapFunc {
 				numnodes := 3 // NOTE choose top 3 sync nodes
 				result := util.EmptyLocked()
 
+				// FIXME if different maps found, follow sync source order
 				_ = isaac.ErrGroupWorkerWithSyncSourcePool(
 					ctx,
 					cmd.syncSourcePool,
