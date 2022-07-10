@@ -83,31 +83,33 @@ func (op SuffrageCandidate) IsValid(networkID []byte) error {
 
 	sfs := op.Signed()
 
-	if _, duplicated := util.CheckSliceDuplicated(sfs, func(_ interface{}, i int) string {
-		ns := sfs[i].(base.NodeSigned) //nolint:forcetypeassert //...
-
-		return ns.Node().String() + "-" + ns.Signer().String()
-	}); duplicated {
-		return e.Errorf("duplicated signed found")
-	}
-
 	fact, ok := op.Fact().(SuffrageCandidateFact)
 	if !ok {
 		return e.Errorf("not SuffrageCandidateFact, %T", op.Fact())
 	}
 
+	var foundsigner bool
 	for i := range sfs {
 		ns := sfs[i].(base.NodeSigned) //nolint:forcetypeassert //...
 
-		if !ns.Node().Equal(fact.Address()) {
+		switch {
+		case !ns.Node().Equal(fact.Address()):
 			continue
+		case !ns.Signer().Equal(fact.Publickey()):
+			return e.Errorf("not signed by candidate")
 		}
+
+		foundsigner = true
 
 		if err := sfs[i].Verify(networkID, op.Fact().Hash().Bytes()); err != nil {
 			return e.Wrapf(err, "failed to verify signed by Candidate")
 		}
 
 		break
+	}
+
+	if !foundsigner {
+		return e.Errorf("not signed by candidate")
 	}
 
 	return nil

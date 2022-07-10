@@ -89,3 +89,38 @@ func (suf *SuffrageCandidate) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 
 	return nil
 }
+
+type suffrageCandidateStateValueJSONMarshaler struct {
+	Nodes []base.SuffrageCandidate `json:"nodes"`
+	hint.BaseHinter
+}
+
+func (s SuffrageCandidateStateValue) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(suffrageCandidateStateValueJSONMarshaler{
+		BaseHinter: s.BaseHinter,
+		Nodes:      s.nodes,
+	})
+}
+
+type suffrageCandidateStateValueJSONUnmarshaler struct {
+	Nodes []json.RawMessage `json:"nodes"`
+}
+
+func (s *SuffrageCandidateStateValue) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+	e := util.StringErrorFunc("failed to decode SuffrageCandidateStateValue")
+
+	var u suffrageCandidateStateValueJSONUnmarshaler
+	if err := enc.Unmarshal(b, &u); err != nil {
+		return e(err, "")
+	}
+
+	s.nodes = make([]base.SuffrageCandidate, len(u.Nodes))
+
+	for i := range u.Nodes {
+		if err := encoder.Decode(enc, u.Nodes[i], &s.nodes[i]); err != nil {
+			return e(err, "")
+		}
+	}
+
+	return nil
+}

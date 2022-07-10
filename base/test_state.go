@@ -8,15 +8,6 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 )
 
-func (s *BaseStateValueMerger) SetValue(value StateValue) State {
-	s.Lock()
-	defer s.Unlock()
-
-	s.value = value
-
-	return s
-}
-
 func (s *BaseState) SetOperations(ops []util.Hash) BaseState {
 	s.ops = ops
 

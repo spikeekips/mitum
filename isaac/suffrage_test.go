@@ -56,6 +56,53 @@ func TestSuffrageStateValueJSON(tt *testing.T) {
 	suite.Run(tt, t)
 }
 
+func TestSuffrageCandidateStateValueJSON(tt *testing.T) {
+	t := new(encoder.BaseTestEncode)
+
+	enc := jsonenc.NewEncoder()
+
+	t.Encode = func() (interface{}, []byte) {
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: NodeHint, Instance: base.BaseNode{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: SuffrageCandidateHint, Instance: SuffrageCandidate{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: SuffrageCandidateStateValueHint, Instance: SuffrageCandidateStateValue{}}))
+
+		nodes := make([]base.SuffrageCandidate, 3)
+		for i := range nodes {
+			nodes[i] = NewSuffrageCandidate(RandomLocalNode(), base.Height(33), base.Height(55))
+		}
+
+		stv := NewSuffrageCandidateStateValue(nodes)
+
+		b, err := util.MarshalJSON(&stv)
+		t.NoError(err)
+
+		t.T().Log("marshaled:", string(b))
+
+		return stv, b
+	}
+
+	t.Decode = func(b []byte) interface{} {
+		i, err := enc.Decode(b)
+		t.NoError(err)
+
+		u, ok := i.(SuffrageCandidateStateValue)
+		t.True(ok)
+
+		return u
+	}
+	t.Compare = func(a, b interface{}) {
+		av := a.(SuffrageCandidateStateValue)
+		bv := b.(SuffrageCandidateStateValue)
+
+		t.True(av.Hint().Equal(bv.Hint()))
+		t.True(base.IsEqualStateValue(av, bv))
+	}
+
+	suite.Run(tt, t)
+}
+
 func TestSuffrageCandidateJSON(tt *testing.T) {
 	t := new(encoder.BaseTestEncode)
 

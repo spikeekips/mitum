@@ -1,6 +1,7 @@
 package isaacoperation
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/spikeekips/mitum/base"
@@ -110,4 +111,48 @@ func TestSuffrageCandidateEncode(tt *testing.T) {
 	}
 
 	suite.Run(tt, t)
+}
+
+type testSuffrageCandiate struct {
+	suite.Suite
+}
+
+func (t *testSuffrageCandiate) TestSign() {
+	priv := base.NewMPrivatekey()
+
+	fact := NewSuffrageCandidateFact(util.UUID().Bytes(), base.RandomAddress(""), priv.Publickey())
+
+	t.Run("by candidate", func() {
+		op := NewSuffrageCandidate(fact)
+
+		t.NoError(op.Sign(priv, nil, fact.Address()))
+
+		t.NoError(op.IsValid(nil))
+	})
+
+	t.Run("not by candidate address", func() {
+		op := NewSuffrageCandidate(fact)
+
+		t.NoError(op.Sign(priv, nil, base.RandomAddress("")))
+
+		err := op.IsValid(nil)
+		t.Error(err)
+		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorContains(err, "not signed by candidate")
+	})
+
+	t.Run("not by candidate publickey", func() {
+		op := NewSuffrageCandidate(fact)
+
+		t.NoError(op.Sign(base.NewMPrivatekey(), nil, fact.Address()))
+
+		err := op.IsValid(nil)
+		t.Error(err)
+		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorContains(err, "not signed by candidate")
+	})
+}
+
+func TestSuffrageCandiate(t *testing.T) {
+	suite.Run(t, new(testSuffrageCandiate))
 }

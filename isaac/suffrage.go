@@ -7,8 +7,9 @@ import (
 )
 
 var (
-	SuffrageStateValueHint = hint.MustNewHint("suffrage-state-value-v0.0.1")
-	SuffrageCandidateHint  = hint.MustNewHint("suffrage-candidate-v0.0.1")
+	SuffrageStateValueHint          = hint.MustNewHint("suffrage-state-value-v0.0.1")
+	SuffrageCandidateStateValueHint = hint.MustNewHint("suffrage-candidate-state-value-v0.0.1")
+	SuffrageCandidateHint           = hint.MustNewHint("suffrage-candidate-v0.0.1")
 )
 
 var (
@@ -178,12 +179,12 @@ func (suf SuffrageCandidate) IsValid([]byte) error {
 		return e(err, "")
 	}
 
-	if err := suf.Node.IsValid(nil); err != nil {
-		return e(err, "")
-	}
-
 	if suf.start >= suf.deadline {
 		return e(util.ErrInvalid.Errorf("start >= deadline"), "")
+	}
+
+	if err := suf.Node.IsValid(nil); err != nil {
+		return e(err, "")
 	}
 
 	return nil
@@ -195,6 +196,59 @@ func (suf SuffrageCandidate) Start() base.Height {
 
 func (suf SuffrageCandidate) Deadline() base.Height {
 	return suf.deadline
+}
+
+func (suf SuffrageCandidate) HashBytes() []byte {
+	return util.ConcatByters(
+		util.DummyByter(suf.Node.HashBytes),
+		suf.start,
+		suf.deadline,
+	)
+}
+
+type SuffrageCandidateStateValue struct {
+	nodes []base.SuffrageCandidate
+	hint.BaseHinter
+}
+
+func NewSuffrageCandidateStateValue(nodes []base.SuffrageCandidate) SuffrageCandidateStateValue {
+	return SuffrageCandidateStateValue{
+		BaseHinter: hint.NewBaseHinter(SuffrageCandidateStateValueHint),
+		nodes:      nodes,
+	}
+}
+
+func (s SuffrageCandidateStateValue) HashBytes() []byte {
+	n := make([]util.Byter, len(s.nodes))
+
+	for i := range s.nodes {
+		n[i] = util.DummyByter(s.nodes[i].HashBytes)
+	}
+
+	return util.ConcatByters(n...)
+}
+
+func (s SuffrageCandidateStateValue) IsValid([]byte) error {
+	e := util.StringErrorFunc("invalid SuffrageCandidateStateValue")
+	if err := s.BaseHinter.IsValid(SuffrageCandidateStateValueHint.Type().Bytes()); err != nil {
+		return e(err, "")
+	}
+
+	vs := make([]util.IsValider, len(s.nodes))
+
+	for i := range s.nodes {
+		vs[i+1] = s.nodes[i]
+	}
+
+	if err := util.CheckIsValid(nil, false, vs...); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
+func (s SuffrageCandidateStateValue) Nodes() []base.SuffrageCandidate {
+	return s.nodes
 }
 
 func GetSuffrageFromDatabase(

@@ -31,6 +31,12 @@ type Operation interface {
 
 type OperationProcessorProcessFunc func(context.Context, Operation, GetStateFunc) (OperationProcessReasonError, error)
 
+var EmptyOperationProcessorProcessFunc = func(context.Context, Operation, GetStateFunc) (
+	OperationProcessReasonError, error,
+) {
+	return nil, nil
+}
+
 type OperationProcessor interface {
 	PreProcess(context.Context, Operation, GetStateFunc) (OperationProcessReasonError, error)
 	Process(context.Context, Operation, GetStateFunc) ([]StateMergeValue, OperationProcessReasonError, error)

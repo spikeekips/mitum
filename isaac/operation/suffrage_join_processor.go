@@ -78,19 +78,11 @@ func NewSuffrageJoinProcessor(
 	}
 
 	if preProcessConstraintFunc == nil {
-		p.preProcessConstraintFunc = func(context.Context, base.Operation, base.GetStateFunc) (
-			base.OperationProcessReasonError, error,
-		) {
-			return nil, nil
-		}
+		p.preProcessConstraintFunc = base.EmptyOperationProcessorProcessFunc
 	}
 
 	if processConstraintFunc == nil {
-		p.processConstraintFunc = func(context.Context, base.Operation, base.GetStateFunc) (
-			base.OperationProcessReasonError, error,
-		) {
-			return nil, nil
-		}
+		p.processConstraintFunc = base.EmptyOperationProcessorProcessFunc
 	}
 
 	return p, nil

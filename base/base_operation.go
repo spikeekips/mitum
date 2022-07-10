@@ -141,14 +141,24 @@ func (op BaseNodeOperation) IsValid(networkID []byte) error {
 
 	sfs := op.Signed()
 
-	if _, duplicated := util.CheckSliceDuplicated(sfs, func(_ interface{}, i int) string {
+	var duplicatederr error
+	switch _, duplicated := util.CheckSliceDuplicated(sfs, func(_ interface{}, i int) string {
+		if duplicatederr != nil {
+			return ""
+		}
+
 		switch ns, ok := sfs[i].(NodeSigned); {
 		case !ok:
+			duplicatederr = errors.Errorf("not NodeSigned, %T", sfs[i])
+
 			return ""
 		default:
 			return ns.Node().String() + "-" + ns.Signer().String()
 		}
-	}); duplicated {
+	}); {
+	case duplicatederr != nil:
+		return e.Wrap(duplicatederr)
+	case duplicated:
 		return e.Errorf("duplicated signed found")
 	}
 

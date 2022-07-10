@@ -211,12 +211,14 @@ type BaseStateValueMerger struct {
 	nst    State
 	ops    []util.Hash
 	height Height
+	key    string
 	sync.RWMutex
 }
 
-func NewBaseStateValueMerger(height Height, st State) *BaseStateValueMerger {
+func NewBaseStateValueMerger(height Height, key string, st State) *BaseStateValueMerger {
 	var value StateValue
 	if st != nil {
+		key = st.Key()
 		value = st.Value()
 	}
 
@@ -224,6 +226,7 @@ func NewBaseStateValueMerger(height Height, st State) *BaseStateValueMerger {
 		State:  st,
 		height: height,
 		value:  value,
+		key:    key,
 	}
 }
 
@@ -264,6 +267,13 @@ func (s *BaseStateValueMerger) Value() StateValue {
 	return s.nst.Value()
 }
 
+func (s *BaseStateValueMerger) SetValue(v StateValue) {
+	s.Lock()
+	defer s.Unlock()
+
+	s.value = v
+}
+
 func (s *BaseStateValueMerger) Operations() []util.Hash {
 	s.RLock()
 	defer s.RUnlock()
@@ -286,7 +296,7 @@ func (s *BaseStateValueMerger) Close() error {
 	s.Lock()
 	defer s.Unlock()
 
-	e := util.StringErrorFunc("failed to close")
+	e := util.StringErrorFunc("failed to close BaseStateValueMerger")
 
 	if s.value == nil {
 		return e(nil, "empty value")
@@ -301,7 +311,7 @@ func (s *BaseStateValueMerger) Close() error {
 		previous = s.State.Hash()
 	}
 
-	s.nst = NewBaseState(s.height, s.Key(), s.value, previous, s.ops)
+	s.nst = NewBaseState(s.height, s.key, s.value, previous, s.ops)
 
 	return nil
 }
@@ -356,7 +366,7 @@ func (v BaseStateMergeValue) defaultMerger(height Height, st State) StateValueMe
 		nst = NewBaseState(NilHeight, v.key, nil, nil, nil)
 	}
 
-	return NewBaseStateValueMerger(height, nst)
+	return NewBaseStateValueMerger(height, nst.Key(), nst)
 }
 
 func DecodeStateValue(b []byte, enc encoder.Encoder) (StateValue, error) {

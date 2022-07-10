@@ -44,7 +44,7 @@ func (s dummySimpleStateValue) Merger(height Height, st State) StateValueMerger 
 		st = newDummyState(NilHeight, s.K, nil, nil)
 	}
 
-	return newDummySimpleStateValueMerger(height, st)
+	return newDummySimpleStateValueMerger(height, s.K, st)
 }
 
 type dummyState struct {
@@ -63,9 +63,9 @@ type dummySimpleStateValueMerger struct {
 	S int64
 }
 
-func newDummySimpleStateValueMerger(height Height, st State) *dummySimpleStateValueMerger {
+func newDummySimpleStateValueMerger(height Height, key string, st State) *dummySimpleStateValueMerger {
 	return &dummySimpleStateValueMerger{
-		BaseStateValueMerger: NewBaseStateValueMerger(height, st),
+		BaseStateValueMerger: NewBaseStateValueMerger(height, key, st),
 	}
 }
 
