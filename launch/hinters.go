@@ -61,11 +61,11 @@ var Hinters = []encoder.DecodeDetail{
 	{Hint: isaacoperation.SuffrageCandidateHint, Instance: isaacoperation.SuffrageCandidate{}},
 	{Hint: isaacoperation.SuffrageGenesisJoinHint, Instance: isaacoperation.SuffrageGenesisJoin{}},
 	{
-		Hint:     isaacoperation.SuffrageGenesisJoinPermissionFactHint,
-		Instance: isaacoperation.SuffrageGenesisJoinPermissionFact{},
+		Hint:     isaacoperation.SuffrageGenesisJoinFactHint,
+		Instance: isaacoperation.SuffrageGenesisJoinFact{},
 	},
 	{Hint: isaacoperation.SuffrageJoinHint, Instance: base.BaseOperation{}},
-	{Hint: isaacoperation.SuffrageJoinPermissionFactHint, Instance: isaacoperation.SuffrageJoinPermissionFact{}},
+	{Hint: isaacoperation.SuffrageJoinFactHint, Instance: isaacoperation.SuffrageJoinFact{}},
 	{Hint: quicmemberlist.NodeHint, Instance: quicmemberlist.BaseNode{}},
 }
 

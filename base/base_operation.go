@@ -154,7 +154,7 @@ func (op BaseNodeOperation) IsValid(networkID []byte) error {
 
 			return ""
 		default:
-			return ns.Node().String() + "-" + ns.Signer().String()
+			return ns.Node().String()
 		}
 	}); {
 	case duplicatederr != nil:
@@ -203,4 +203,15 @@ func (op *BaseNodeOperation) Sign(priv Privatekey, networkID NetworkID, node Add
 	op.h = op.hash()
 
 	return nil
+}
+
+func (op *BaseNodeOperation) NodeSigned() []NodeSigned {
+	ss := op.Signed()
+	signeds := make([]NodeSigned, len(ss))
+
+	for i := range ss {
+		signeds[i] = ss[i].(NodeSigned) //nolint:forcetypeassert //...
+	}
+
+	return signeds
 }

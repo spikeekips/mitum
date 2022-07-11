@@ -680,14 +680,14 @@ func (t *testGenesisOpertionsDesign) SetupSuite() {
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: isaac.NodeHint, Instance: base.BaseNode{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: isaac.NetworkPolicyHint, Instance: isaac.NetworkPolicy{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: isaacoperation.SuffrageGenesisJoinPermissionFactHint, Instance: isaacoperation.SuffrageGenesisJoinPermissionFact{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: isaacoperation.SuffrageGenesisJoinFactHint, Instance: isaacoperation.SuffrageGenesisJoinFact{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: isaacoperation.GenesisNetworkPolicyFactHint, Instance: isaacoperation.GenesisNetworkPolicyFact{}}))
 
 	t.networkID = base.NetworkID(util.UUID().Bytes())
 }
 
-func (t *testGenesisOpertionsDesign) newSuffrageGenesisJoinPermissionFact() isaacoperation.SuffrageGenesisJoinPermissionFact {
-	return isaacoperation.NewSuffrageGenesisJoinPermissionFact(
+func (t *testGenesisOpertionsDesign) newSuffrageGenesisJoinFact() isaacoperation.SuffrageGenesisJoinFact {
+	return isaacoperation.NewSuffrageGenesisJoinFact(
 		[]base.Node{
 			isaac.NewNode(base.NewMPrivatekey().Publickey(), base.RandomAddress("")),
 		},
@@ -703,7 +703,7 @@ func (t *testGenesisOpertionsDesign) newGenesisNetworkPolicyFact() isaacoperatio
 }
 
 func (t *testGenesisOpertionsDesign) TestDecode() {
-	suffact := t.newSuffrageGenesisJoinPermissionFact()
+	suffact := t.newSuffrageGenesisJoinFact()
 	policyfact := t.newGenesisNetworkPolicyFact()
 
 	g := GenesisDesign{Facts: []base.Fact{suffact, policyfact}}
@@ -731,7 +731,7 @@ func (t *testGenesisOpertionsDesign) TestDecode() {
 	var u GenesisDesign
 	t.NoError(u.DecodeYAML(b, t.enc))
 
-	usuffact := u.Facts[0].(isaacoperation.SuffrageGenesisJoinPermissionFact)
+	usuffact := u.Facts[0].(isaacoperation.SuffrageGenesisJoinFact)
 	t.Nil(usuffact.Hash())
 	t.Empty(usuffact.Token())
 

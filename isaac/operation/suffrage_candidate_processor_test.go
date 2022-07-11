@@ -13,16 +13,16 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type testSuffrageCandiateProcessor struct {
+type testSuffrageCandidateProcessor struct {
 	suite.Suite
 	networkID base.NetworkID
 }
 
-func (t *testSuffrageCandiateProcessor) SetupTest() {
+func (t *testSuffrageCandidateProcessor) SetupTest() {
 	t.networkID = util.UUID().Bytes()
 }
 
-func (t *testSuffrageCandiateProcessor) TestNewCandidateFromEmpty() {
+func (t *testSuffrageCandidateProcessor) TestNewCandidateFromEmpty() {
 	getStateFunc := func(string) (base.State, bool, error) {
 		return nil, false, nil // NOTE no existing state
 	}
@@ -84,7 +84,7 @@ func (t *testSuffrageCandiateProcessor) TestNewCandidateFromEmpty() {
 	})
 }
 
-func (t *testSuffrageCandiateProcessor) TestNewCandidate() {
+func (t *testSuffrageCandidateProcessor) TestNewCandidate() {
 	c := isaac.NewSuffrageCandidate(
 		base.RandomNode(),
 		base.Height(33),
@@ -167,7 +167,7 @@ func (t *testSuffrageCandiateProcessor) TestNewCandidate() {
 	})
 }
 
-func (t *testSuffrageCandiateProcessor) TestPreProcess() {
+func (t *testSuffrageCandidateProcessor) TestPreProcess() {
 	height := base.Height(33)
 
 	getStateFunc := func(key string) (base.State, bool, error) {
@@ -351,7 +351,7 @@ func (t *testSuffrageCandiateProcessor) TestPreProcess() {
 	})
 }
 
-func (t *testSuffrageCandiateProcessor) TestProcess() {
+func (t *testSuffrageCandidateProcessor) TestProcess() {
 	height := base.Height(33)
 
 	getStateFunc := func(key string) (base.State, bool, error) {
@@ -396,7 +396,7 @@ func (t *testSuffrageCandiateProcessor) TestProcess() {
 	})
 }
 
-func (t *testSuffrageCandiateProcessor) TestProcessConcurrent() {
+func (t *testSuffrageCandidateProcessor) TestProcessConcurrent() {
 	height := base.Height(33)
 
 	getStateFunc := func(key string) (base.State, bool, error) {
@@ -502,6 +502,6 @@ func (t *testSuffrageCandiateProcessor) TestProcessConcurrent() {
 	}
 }
 
-func TestSuffrageCandiateProcessor(t *testing.T) {
-	suite.Run(t, new(testSuffrageCandiateProcessor))
+func TestSuffrageCandidateProcessor(t *testing.T) {
+	suite.Run(t, new(testSuffrageCandidateProcessor))
 }

@@ -3,6 +3,7 @@ package isaacoperation
 import (
 	"context"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
@@ -13,12 +14,10 @@ type SuffrageJoinProcessor struct {
 	sufstv                   base.SuffrageStateValue
 	sufcstv                  base.SuffrageCandidateStateValue
 	sufst                    base.State
-	candidateInfo            base.SuffrageCandidate
 	candidates               map[string]base.SuffrageCandidate
 	processConstraintFunc    base.OperationProcessorProcessFunc
-	suffrage                 map[string]base.Node
+	suffrage                 base.Suffrage
 	preProcessConstraintFunc base.OperationProcessorProcessFunc
-	pubs                     []base.Publickey
 	height                   base.Height
 	threshold                base.Threshold
 }
@@ -35,28 +34,24 @@ func NewSuffrageJoinProcessor(
 	p := &SuffrageJoinProcessor{
 		height:     height,
 		threshold:  threshold,
-		suffrage:   map[string]base.Node{},
 		candidates: map[string]base.SuffrageCandidate{},
 	}
 
 	switch i, found, err := getStateFunc(isaac.SuffrageStateKey); {
 	case err != nil:
 		return nil, e(err, "")
-	case !found:
-	case i == nil:
+	case !found, i == nil:
 		return nil, e(isaac.StopProcessingRetryError.Errorf("empty state returned"), "")
 	default:
 		p.sufst = i
 		p.sufstv = i.Value().(base.SuffrageStateValue) //nolint:forcetypeassert //...
 
-		sufnodes := p.sufstv.Nodes()
-		p.pubs = make([]base.Publickey, len(sufnodes))
-
-		for i := range sufnodes {
-			n := sufnodes[i]
-			p.suffrage[n.Address().String()] = n
-			p.pubs[i] = n.Publickey()
+		suf, err := isaac.NewSuffrageFromState(i)
+		if err != nil {
+			return nil, e(isaac.StopProcessingRetryError.Errorf("failed to get suffrage from state"), "")
 		}
+
+		p.suffrage = suf
 	}
 
 	switch i, found, err := getStateFunc(isaac.SuffrageCandidateStateKey); {
@@ -99,24 +94,42 @@ func (p *SuffrageJoinProcessor) PreProcess(ctx context.Context, op base.Operatio
 ) {
 	e := util.StringErrorFunc("failed to preprocess for SuffrageJoin")
 
-	if err := base.CheckFactSignsByPubs(p.pubs, p.threshold, op.Signed()); err != nil {
-		return base.NewBaseOperationProcessReasonError("not enough signs"), nil
+	if p.sufcst == nil {
+		return nil, e(nil, "no existing candidates")
 	}
 
-	fact := op.Fact().(SuffrageJoinPermissionFact) //nolint:forcetypeassert //...
-
-	n := fact.Candidate().String()
-	if _, found := p.suffrage[n]; found {
-		return base.NewBaseOperationProcessReasonError("candidate, %q already in suffrage", n), nil
+	noop, ok := op.(base.BaseNodeOperation)
+	if !ok {
+		return nil, e(nil, "not BaseNodeOperation, %T", op)
 	}
 
-	switch i, found := p.candidates[n]; {
+	fact := op.Fact().(SuffrageJoinFact) //nolint:forcetypeassert //...
+	n := fact.Candidate()
+
+	var info base.SuffrageCandidate
+
+	switch i, found := p.candidates[n.String()]; {
 	case !found:
-		return base.NewBaseOperationProcessReasonError("candidate, %q not in candidates", n), nil
+		return base.NewBaseOperationProcessReasonError("candidate not in candidates, %q", n), nil
 	case i.Deadline() < p.height:
-		return base.NewBaseOperationProcessReasonError("candidate, %q expired", n), nil
+		return base.NewBaseOperationProcessReasonError("candidate expired, %q", n), nil
 	default:
-		p.candidateInfo = i
+		info = i
+	}
+
+	switch node, err := p.findCandidateFromSigned(op); {
+	case err != nil:
+		return base.NewBaseOperationProcessReasonError(err.Error()), nil
+	case !node.Publickey().Equal(info.Publickey()):
+		return base.NewBaseOperationProcessReasonError("not signed by candidate key"), nil
+	}
+
+	if p.suffrage.Exists(n) {
+		return base.NewBaseOperationProcessReasonError("candidate already in suffrage, %q", n), nil
+	}
+
+	if err := base.CheckFactSignsBySuffrage(p.suffrage, p.threshold, noop.NodeSigned()); err != nil {
+		return base.NewBaseOperationProcessReasonError("not enough signs"), nil
 	}
 
 	switch reasonerr, err := p.preProcessConstraintFunc(ctx, op, getStateFunc); {
@@ -134,11 +147,15 @@ func (p *SuffrageJoinProcessor) Process(ctx context.Context, op base.Operation, 
 ) {
 	e := util.StringErrorFunc("failed to process for SuffrageJoin")
 
+	fact := op.Fact().(SuffrageJoinFact) //nolint:forcetypeassert //...
+
+	info := p.candidates[fact.Candidate().String()]
+
 	if p.sufst == nil {
 		return []base.StateMergeValue{
 			base.NewBaseStateMergeValue(
 				isaac.SuffrageStateKey,
-				isaac.NewSuffrageStateValue(base.GenesisHeight, []base.Node{p.candidateInfo}),
+				isaac.NewSuffrageStateValue(base.GenesisHeight, []base.Node{info}),
 				nil,
 			),
 		}, nil, nil
@@ -151,9 +168,11 @@ func (p *SuffrageJoinProcessor) Process(ctx context.Context, op base.Operation, 
 		return nil, reasonerr, nil
 	}
 
+	// FIXME remove canidadte from candidate state value
+
 	members := p.sufstv.Nodes()
 	newmembers := make([]base.Node, len(members)+1)
-	newmembers[len(members)] = isaac.NewNode(p.candidateInfo.Publickey(), p.candidateInfo.Address())
+	newmembers[len(members)] = isaac.NewNode(info.Publickey(), info.Address())
 
 	return []base.StateMergeValue{
 		base.NewBaseStateMergeValue(
@@ -162,4 +181,25 @@ func (p *SuffrageJoinProcessor) Process(ctx context.Context, op base.Operation, 
 			nil,
 		),
 	}, nil, nil
+}
+
+func (*SuffrageJoinProcessor) findCandidateFromSigned(op base.Operation) (base.Node, error) {
+	fact, ok := op.Fact().(SuffrageJoinFact)
+	if !ok {
+		return nil, errors.Errorf("not SuffrageJoinFact, %T", op.Fact())
+	}
+
+	sfs := op.Signed()
+
+	for i := range sfs {
+		ns := sfs[i].(base.NodeSigned) //nolint:forcetypeassert //...
+
+		if !ns.Node().Equal(fact.Candidate()) {
+			continue
+		}
+
+		return isaac.NewNode(ns.Signer(), ns.Node()), nil
+	}
+
+	return nil, errors.Errorf("not signed by Join")
 }

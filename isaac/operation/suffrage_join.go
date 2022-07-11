@@ -12,29 +12,29 @@ import (
 )
 
 var (
-	SuffrageJoinPermissionFactHint        = hint.MustNewHint("suffrage-join-permission-fact-v0.0.1")
-	SuffrageJoinHint                      = hint.MustNewHint("suffrage-join-operation-v0.0.1")
-	SuffrageGenesisJoinPermissionFactHint = hint.MustNewHint("suffrage-genesis-join-permission-fact-v0.0.1")
-	SuffrageGenesisJoinHint               = hint.MustNewHint("suffrage-genesis-join-operation-v0.0.1")
+	SuffrageJoinFactHint        = hint.MustNewHint("suffrage-join-fact-v0.0.1")
+	SuffrageJoinHint            = hint.MustNewHint("suffrage-join-operation-v0.0.1")
+	SuffrageGenesisJoinFactHint = hint.MustNewHint("suffrage-genesis-join-fact-v0.0.1")
+	SuffrageGenesisJoinHint     = hint.MustNewHint("suffrage-genesis-join-operation-v0.0.1")
 )
 
-type SuffrageJoinPermissionFact struct {
+type SuffrageJoinFact struct {
 	candidate base.Address
 	state     util.Hash
 	base.BaseFact
 }
 
-func NewSuffrageJoinPermissionFact(
+func NewSuffrageJoinFact(
 	candidate base.Address,
 	state util.Hash,
-) SuffrageJoinPermissionFact {
+) SuffrageJoinFact {
 	var t base.Token
 	if state != nil {
 		t = base.Token(state.Bytes())
 	}
 
-	fact := SuffrageJoinPermissionFact{
-		BaseFact:  base.NewBaseFact(SuffrageJoinPermissionFactHint, t),
+	fact := SuffrageJoinFact{
+		BaseFact:  base.NewBaseFact(SuffrageJoinFactHint, t),
 		candidate: candidate,
 		state:     state,
 	}
@@ -44,8 +44,8 @@ func NewSuffrageJoinPermissionFact(
 	return fact
 }
 
-func (fact SuffrageJoinPermissionFact) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid SuffrageJoinPermissionFact")
+func (fact SuffrageJoinFact) IsValid([]byte) error {
+	e := util.StringErrorFunc("invalid SuffrageJoinFact")
 
 	if err := util.CheckIsValid(nil, false, fact.BaseFact, fact.candidate, fact.state); err != nil {
 		return e(err, "")
@@ -62,16 +62,16 @@ func (fact SuffrageJoinPermissionFact) IsValid([]byte) error {
 	return nil
 }
 
-func (fact SuffrageJoinPermissionFact) Candidate() base.Address {
+func (fact SuffrageJoinFact) Candidate() base.Address {
 	return fact.candidate
 }
 
-func (fact SuffrageJoinPermissionFact) State() util.Hash {
+func (fact SuffrageJoinFact) State() util.Hash {
 	// FIXME check state; it indicates that the candidate is in state.
 	return fact.state
 }
 
-func (fact SuffrageJoinPermissionFact) hash() util.Hash {
+func (fact SuffrageJoinFact) hash() util.Hash {
 	return valuehash.NewSHA256(util.ConcatByters(
 		util.BytesToByter(fact.Token()),
 		fact.candidate,
@@ -79,17 +79,17 @@ func (fact SuffrageJoinPermissionFact) hash() util.Hash {
 	))
 }
 
-type SuffrageGenesisJoinPermissionFact struct {
+type SuffrageGenesisJoinFact struct {
 	nodes []base.Node
 	base.BaseFact
 }
 
-func NewSuffrageGenesisJoinPermissionFact(
+func NewSuffrageGenesisJoinFact(
 	nodes []base.Node,
 	networkID base.NetworkID,
-) SuffrageGenesisJoinPermissionFact {
-	fact := SuffrageGenesisJoinPermissionFact{
-		BaseFact: base.NewBaseFact(SuffrageGenesisJoinPermissionFactHint, base.Token(networkID)),
+) SuffrageGenesisJoinFact {
+	fact := SuffrageGenesisJoinFact{
+		BaseFact: base.NewBaseFact(SuffrageGenesisJoinFactHint, base.Token(networkID)),
 		nodes:    nodes,
 	}
 
@@ -98,8 +98,8 @@ func NewSuffrageGenesisJoinPermissionFact(
 	return fact
 }
 
-func (fact SuffrageGenesisJoinPermissionFact) IsValid(networkID []byte) error {
-	e := util.ErrInvalid.Errorf("invalid SuffrageGenesisJoinPermissionFact")
+func (fact SuffrageGenesisJoinFact) IsValid(networkID []byte) error {
+	e := util.ErrInvalid.Errorf("invalid SuffrageGenesisJoinFact")
 
 	if len(fact.nodes) < 1 {
 		return e.Errorf("empty nodes")
@@ -127,11 +127,11 @@ func (fact SuffrageGenesisJoinPermissionFact) IsValid(networkID []byte) error {
 	return nil
 }
 
-func (fact SuffrageGenesisJoinPermissionFact) Nodes() []base.Node {
+func (fact SuffrageGenesisJoinFact) Nodes() []base.Node {
 	return fact.nodes
 }
 
-func (fact SuffrageGenesisJoinPermissionFact) hash() util.Hash {
+func (fact SuffrageGenesisJoinFact) hash() util.Hash {
 	return valuehash.NewSHA256(util.ConcatByters(
 		util.BytesToByter(fact.Token()),
 		util.DummyByter(func() []byte {
@@ -147,9 +147,49 @@ func (fact SuffrageGenesisJoinPermissionFact) hash() util.Hash {
 }
 
 // FIXME SuffrageJoin should have BaseNodeOperation, not BaseOperation
+type SuffrageJoin struct {
+	base.BaseNodeOperation
+}
 
-func NewSuffrageJoin(fact SuffrageJoinPermissionFact) base.BaseOperation {
-	return base.NewBaseOperation(SuffrageJoinHint, fact)
+func NewSuffrageJoin(fact SuffrageJoinFact) SuffrageJoin {
+	return SuffrageJoin{
+		BaseNodeOperation: base.NewBaseNodeOperation(SuffrageJoinHint, fact),
+	}
+}
+
+func (op SuffrageJoin) IsValid(networkID []byte) error {
+	e := util.ErrInvalid.Errorf("invalid SuffrageJoin")
+
+	if err := op.BaseNodeOperation.IsValid(networkID); err != nil {
+		return e.Wrap(err)
+	}
+
+	fact, ok := op.Fact().(SuffrageJoinFact)
+	if !ok {
+		return e.Errorf("not SuffrageJoinFact, %T", op.Fact())
+	}
+
+	var foundsigner bool
+
+	sfs := op.Signed()
+
+	for i := range sfs {
+		ns := sfs[i].(base.NodeSigned) //nolint:forcetypeassert //...
+
+		if !ns.Node().Equal(fact.Candidate()) {
+			continue
+		}
+
+		foundsigner = true
+
+		break
+	}
+
+	if !foundsigner {
+		return e.Errorf("not signed by candidate")
+	}
+
+	return nil
 }
 
 // SuffrageGenesisJoin is only for used for genesis block
@@ -157,7 +197,7 @@ type SuffrageGenesisJoin struct {
 	base.BaseOperation
 }
 
-func NewSuffrageGenesisJoin(fact SuffrageGenesisJoinPermissionFact) SuffrageGenesisJoin {
+func NewSuffrageGenesisJoin(fact SuffrageGenesisJoinFact) SuffrageGenesisJoin {
 	return SuffrageGenesisJoin{
 		BaseOperation: base.NewBaseOperation(SuffrageGenesisJoinHint, fact),
 	}
@@ -174,8 +214,8 @@ func (op SuffrageGenesisJoin) IsValid(networkID []byte) error {
 		return e.Errorf("multiple signed found")
 	}
 
-	if _, ok := op.Fact().(SuffrageGenesisJoinPermissionFact); !ok {
-		return e.Errorf("not SuffrageGenesisJoinPermissionFact, %T", op.Fact())
+	if _, ok := op.Fact().(SuffrageGenesisJoinFact); !ok {
+		return e.Errorf("not SuffrageGenesisJoinFact, %T", op.Fact())
 	}
 
 	return nil
@@ -188,7 +228,7 @@ func (SuffrageGenesisJoin) PreProcess(context.Context, base.GetStateFunc) (base.
 func (op SuffrageGenesisJoin) Process(context.Context, base.GetStateFunc) (
 	[]base.StateMergeValue, base.OperationProcessReasonError, error,
 ) {
-	fact := op.Fact().(SuffrageGenesisJoinPermissionFact) //nolint:forcetypeassert //...
+	fact := op.Fact().(SuffrageGenesisJoinFact) //nolint:forcetypeassert //...
 
 	return []base.StateMergeValue{
 		base.NewBaseStateMergeValue(

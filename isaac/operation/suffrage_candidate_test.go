@@ -113,11 +113,11 @@ func TestSuffrageCandidateEncode(tt *testing.T) {
 	suite.Run(tt, t)
 }
 
-type testSuffrageCandiate struct {
+type testSuffrageCandidate struct {
 	suite.Suite
 }
 
-func (t *testSuffrageCandiate) TestSign() {
+func (t *testSuffrageCandidate) TestSign() {
 	priv := base.NewMPrivatekey()
 
 	fact := NewSuffrageCandidateFact(util.UUID().Bytes(), base.RandomAddress(""), priv.Publickey())
@@ -153,6 +153,6 @@ func (t *testSuffrageCandiate) TestSign() {
 	})
 }
 
-func TestSuffrageCandiate(t *testing.T) {
-	suite.Run(t, new(testSuffrageCandiate))
+func TestSuffrageCandidate(t *testing.T) {
+	suite.Run(t, new(testSuffrageCandidate))
 }

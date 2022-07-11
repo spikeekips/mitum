@@ -159,20 +159,18 @@ func (si BaseNodeSigned) Verify(networkID NetworkID, b []byte) error {
 	return si.BaseSigned.Verify(networkID, util.ConcatByters(si.node, util.BytesToByter(b)))
 }
 
-func CheckFactSignsByPubs(pubs []Publickey, threshold Threshold, signs []Signed) error {
+func CheckFactSignsBySuffrage(suf Suffrage, threshold Threshold, signs []NodeSigned) error {
 	var signed float64
 
 	for i := range signs {
-		for j := range pubs {
-			if signs[i].Signer().Equal(pubs[j]) {
-				signed++
+		s := signs[i]
 
-				break
-			}
+		if suf.ExistsPublickey(s.Node(), s.Signer()) {
+			signed++
 		}
 	}
 
-	if (signed/float64(len(pubs)))*100 < threshold.Float64() {
+	if (signed/float64(suf.Len()))*100 < threshold.Float64() {
 		return errors.Errorf("not enough signs")
 	}
 

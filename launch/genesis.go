@@ -109,7 +109,7 @@ func (g *GenesisBlockGenerator) generateOperations() error {
 		}
 
 		switch ht := hinter.Hint(); ht {
-		case isaacoperation.SuffrageGenesisJoinPermissionFactHint:
+		case isaacoperation.SuffrageGenesisJoinFactHint:
 			if _, found := types[ht.String()]; found {
 				return errors.Errorf("multiple join operation found")
 			}
@@ -136,12 +136,12 @@ func (g *GenesisBlockGenerator) generateOperations() error {
 func (g *GenesisBlockGenerator) joinOperation(i base.Fact) (base.Operation, error) {
 	e := util.StringErrorFunc("failed to make join operation")
 
-	basefact, ok := i.(isaacoperation.SuffrageGenesisJoinPermissionFact)
+	basefact, ok := i.(isaacoperation.SuffrageGenesisJoinFact)
 	if !ok {
-		return nil, e(nil, "expected SuffrageGenesisJoinPermissionFact, not %T", i)
+		return nil, e(nil, "expected SuffrageGenesisJoinFact, not %T", i)
 	}
 
-	fact := isaacoperation.NewSuffrageGenesisJoinPermissionFact(basefact.Nodes(), g.networkID)
+	fact := isaacoperation.NewSuffrageGenesisJoinFact(basefact.Nodes(), g.networkID)
 
 	if err := fact.IsValid(g.networkID); err != nil {
 		return nil, e(err, "")

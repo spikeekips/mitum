@@ -12,7 +12,7 @@ import (
 )
 
 type SuffrageCandidateProcessor struct {
-	merger                   *SuffrageCandiateStateValueMerger
+	merger                   *SuffrageCandidateStateValueMerger
 	preProcessConstraintFunc base.OperationProcessorProcessFunc
 	processConstraintFunc    base.OperationProcessorProcessFunc
 	suffrages                map[string]base.Node
@@ -80,7 +80,7 @@ func NewSuffrageCandidateProcessor(
 		}
 	}
 
-	p.merger = NewSuffrageCandiateStateValueMerger(height, st)
+	p.merger = NewSuffrageCandidateStateValueMerger(height, st)
 
 	// revive:disable:modifies-parameter
 	if preProcessConstraintFunc == nil {
@@ -156,14 +156,14 @@ func (p *SuffrageCandidateProcessor) Process(_ context.Context, op base.Operatio
 	}, nil, nil
 }
 
-type SuffrageCandiateStateValueMerger struct {
+type SuffrageCandidateStateValueMerger struct {
 	*base.BaseStateValueMerger
 	olds  []base.SuffrageCandidate
 	nodes []base.SuffrageCandidate
 }
 
-func NewSuffrageCandiateStateValueMerger(height base.Height, st base.State) *SuffrageCandiateStateValueMerger {
-	s := &SuffrageCandiateStateValueMerger{
+func NewSuffrageCandidateStateValueMerger(height base.Height, st base.State) *SuffrageCandidateStateValueMerger {
+	s := &SuffrageCandidateStateValueMerger{
 		BaseStateValueMerger: base.NewBaseStateValueMerger(height, isaac.SuffrageCandidateStateKey, st),
 	}
 
@@ -176,7 +176,7 @@ func NewSuffrageCandiateStateValueMerger(height base.Height, st base.State) *Suf
 	return s
 }
 
-func (s *SuffrageCandiateStateValueMerger) Merge(value base.StateValue, ops []util.Hash) error {
+func (s *SuffrageCandidateStateValueMerger) Merge(value base.StateValue, ops []util.Hash) error {
 	mergevalue, ok := value.(base.StateMergeValue)
 	if !ok {
 		return errors.Errorf("not StateMergeValue, %T", value)
@@ -197,10 +197,10 @@ func (s *SuffrageCandiateStateValueMerger) Merge(value base.StateValue, ops []ut
 	return nil
 }
 
-func (s *SuffrageCandiateStateValueMerger) Close() error {
+func (s *SuffrageCandidateStateValueMerger) Close() error {
 	newvalue, err := s.close()
 	if err != nil {
-		return errors.WithMessage(err, "failed to close SuffrageCandiateStateValueMerger")
+		return errors.WithMessage(err, "failed to close SuffrageCandidateStateValueMerger")
 	}
 
 	s.BaseStateValueMerger.SetValue(newvalue)
@@ -208,12 +208,12 @@ func (s *SuffrageCandiateStateValueMerger) Close() error {
 	return s.BaseStateValueMerger.Close()
 }
 
-func (s *SuffrageCandiateStateValueMerger) close() (base.StateValue, error) {
+func (s *SuffrageCandidateStateValueMerger) close() (base.StateValue, error) {
 	s.Lock()
 	defer s.Unlock()
 
 	if len(s.nodes) < 1 {
-		return nil, errors.Errorf("empty new candiates")
+		return nil, errors.Errorf("empty new candidates")
 	}
 
 	olds := s.olds
