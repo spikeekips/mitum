@@ -20,13 +20,13 @@ type testSuffrageJoinFact struct {
 }
 
 func (t *testSuffrageJoinFact) TestNew() {
-	fact := NewSuffrageJoinFact(base.RandomAddress(""), valuehash.RandomSHA256())
+	fact := NewSuffrageJoinFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(33))
 	t.NoError(fact.IsValid(nil))
 }
 
 func (t *testSuffrageJoinFact) TestIsValid() {
 	t.Run("invalid BaseFact", func() {
-		fact := NewSuffrageJoinFact(base.RandomAddress(""), valuehash.RandomSHA256())
+		fact := NewSuffrageJoinFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(33))
 		fact.SetToken(nil)
 
 		err := fact.IsValid(nil)
@@ -36,7 +36,7 @@ func (t *testSuffrageJoinFact) TestIsValid() {
 	})
 
 	t.Run("empty candidate", func() {
-		fact := NewSuffrageJoinFact(nil, valuehash.RandomSHA256())
+		fact := NewSuffrageJoinFact(util.UUID().Bytes(), nil, base.Height(33))
 		err := fact.IsValid(nil)
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
@@ -45,34 +45,23 @@ func (t *testSuffrageJoinFact) TestIsValid() {
 
 	t.Run("bad candidate", func() {
 		addr := base.NewStringAddress(strings.Repeat("a", base.MinAddressSize-base.AddressTypeSize-1))
-		fact := NewSuffrageJoinFact(addr, valuehash.RandomSHA256())
+		fact := NewSuffrageJoinFact(util.UUID().Bytes(), addr, base.Height(33))
 		err := fact.IsValid(nil)
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "invalid SuffrageJoin")
 	})
 
-	t.Run("empty state", func() {
-		fact := NewSuffrageJoinFact(base.RandomAddress(""), nil)
+	t.Run("empty height", func() {
+		fact := NewSuffrageJoinFact(util.UUID().Bytes(), base.RandomAddress(""), base.NilHeight)
 		err := fact.IsValid(nil)
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "invalid SuffrageJoin")
-	})
-
-	t.Run("token == state", func() {
-		fact := NewSuffrageJoinFact(base.RandomAddress(""), valuehash.RandomSHA256())
-		fact.SetToken(valuehash.RandomSHA256().Bytes())
-
-		err := fact.IsValid(nil)
-		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
-		t.ErrorContains(err, "invalid SuffrageJoin")
-		t.ErrorContains(err, "wrong token")
 	})
 
 	t.Run("wrong hash", func() {
-		fact := NewSuffrageJoinFact(base.RandomAddress(""), valuehash.RandomSHA256())
+		fact := NewSuffrageJoinFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(33))
 		fact.SetHash(valuehash.NewBytes(util.UUID().Bytes()))
 
 		err := fact.IsValid(nil)
@@ -92,7 +81,7 @@ func TestSuffrageJoinFactEncode(tt *testing.T) {
 	enc := jsonenc.NewEncoder()
 
 	t.Encode = func() (interface{}, []byte) {
-		fact := NewSuffrageJoinFact(base.RandomAddress(""), valuehash.RandomSHA256())
+		fact := NewSuffrageJoinFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(33))
 
 		b, err := enc.Marshal(fact)
 		t.NoError(err)
@@ -136,7 +125,7 @@ func (t *testSuffrageJoin) TestIsValid() {
 	networkID := util.UUID().Bytes()
 
 	t.Run("ok", func() {
-		fact := NewSuffrageJoinFact(base.RandomAddress(""), valuehash.RandomSHA256())
+		fact := NewSuffrageJoinFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(33))
 		op := NewSuffrageJoin(fact)
 		t.NoError(op.Sign(priv, networkID, fact.Candidate()))
 
@@ -144,7 +133,7 @@ func (t *testSuffrageJoin) TestIsValid() {
 	})
 
 	t.Run("different network id", func() {
-		fact := NewSuffrageJoinFact(base.RandomAddress(""), valuehash.RandomSHA256())
+		fact := NewSuffrageJoinFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(33))
 		op := NewSuffrageJoin(fact)
 		t.NoError(op.Sign(priv, networkID, fact.Candidate()))
 
@@ -154,7 +143,7 @@ func (t *testSuffrageJoin) TestIsValid() {
 	})
 
 	t.Run("different node", func() {
-		fact := NewSuffrageJoinFact(base.RandomAddress(""), valuehash.RandomSHA256())
+		fact := NewSuffrageJoinFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(33))
 		op := NewSuffrageJoin(fact)
 		t.NoError(op.Sign(priv, networkID, base.RandomAddress("")))
 
@@ -175,7 +164,7 @@ func TestSuffrageJoinEncode(tt *testing.T) {
 	networkID := util.UUID().Bytes()
 
 	t.Encode = func() (interface{}, []byte) {
-		fact := NewSuffrageJoinFact(base.RandomAddress(""), valuehash.RandomSHA256())
+		fact := NewSuffrageJoinFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(33))
 		op := NewSuffrageJoin(fact)
 		t.NoError(op.Sign(base.NewMPrivatekey(), networkID, fact.Candidate()))
 

@@ -124,6 +124,8 @@ func (p *SuffrageJoinProcessor) PreProcess(ctx context.Context, op base.Operatio
 	switch i, found := p.candidates[n.String()]; {
 	case !found:
 		return base.NewBaseOperationProcessReasonError("candidate not in candidates, %q", n), nil
+	case fact.StartHeight() != i.Start():
+		return base.NewBaseOperationProcessReasonError("start height does not match"), nil
 	case i.Deadline() < p.height:
 		return base.NewBaseOperationProcessReasonError("candidate expired, %q", n), nil
 	default:

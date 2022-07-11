@@ -7,12 +7,11 @@ import (
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
-	"github.com/spikeekips/mitum/util/valuehash"
 )
 
 type SuffrageJoinFactJSONMarshaler struct {
-	Candidate base.Address `json:"candidate"`
-	State     util.Hash    `json:"state"`
+	Candidate   base.Address `json:"candidate"`
+	StartHeight base.Height  `json:"start_height"`
 	base.BaseFactJSONMarshaler
 }
 
@@ -20,13 +19,13 @@ func (fact SuffrageJoinFact) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(SuffrageJoinFactJSONMarshaler{
 		BaseFactJSONMarshaler: fact.BaseFact.JSONMarshaler(),
 		Candidate:             fact.candidate,
-		State:                 fact.state,
+		StartHeight:           fact.startHeight,
 	})
 }
 
 type SuffrageJoinFactJSONUnmarshaler struct {
-	Candidate string                `json:"candidate"`
-	State     valuehash.HashDecoder `json:"state"`
+	Candidate   string      `json:"candidate"`
+	StartHeight base.Height `json:"start_height"`
 	base.BaseFactJSONUnmarshaler
 }
 
@@ -47,7 +46,7 @@ func (fact *SuffrageJoinFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		fact.candidate = i
 	}
 
-	fact.state = u.State.Hash()
+	fact.startHeight = u.StartHeight
 
 	return nil
 }

@@ -19,24 +19,20 @@ var (
 )
 
 type SuffrageJoinFact struct {
-	candidate base.Address
-	state     util.Hash
+	candidate   base.Address
+	startHeight base.Height
 	base.BaseFact
 }
 
 func NewSuffrageJoinFact(
+	token base.Token,
 	candidate base.Address,
-	state util.Hash,
+	startHeight base.Height,
 ) SuffrageJoinFact {
-	var t base.Token
-	if state != nil {
-		t = base.Token(state.Bytes())
-	}
-
 	fact := SuffrageJoinFact{
-		BaseFact:  base.NewBaseFact(SuffrageJoinFactHint, t),
-		candidate: candidate,
-		state:     state,
+		BaseFact:    base.NewBaseFact(SuffrageJoinFactHint, token),
+		candidate:   candidate,
+		startHeight: startHeight,
 	}
 
 	fact.SetHash(fact.hash())
@@ -47,12 +43,8 @@ func NewSuffrageJoinFact(
 func (fact SuffrageJoinFact) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid SuffrageJoinFact")
 
-	if err := util.CheckIsValid(nil, false, fact.BaseFact, fact.candidate, fact.state); err != nil {
+	if err := util.CheckIsValid(nil, false, fact.BaseFact, fact.candidate, fact.startHeight); err != nil {
 		return e(err, "")
-	}
-
-	if !valuehash.Bytes(fact.BaseFact.Token()).Equal(fact.state) {
-		return e(util.ErrInvalid.Errorf("wrong token"), "")
 	}
 
 	if !fact.Hash().Equal(fact.hash()) {
@@ -66,16 +58,15 @@ func (fact SuffrageJoinFact) Candidate() base.Address {
 	return fact.candidate
 }
 
-func (fact SuffrageJoinFact) State() util.Hash {
-	// FIXME check state; it indicates that the candidate is in state.
-	return fact.state
+func (fact SuffrageJoinFact) StartHeight() base.Height {
+	return fact.startHeight
 }
 
 func (fact SuffrageJoinFact) hash() util.Hash {
 	return valuehash.NewSHA256(util.ConcatByters(
 		util.BytesToByter(fact.Token()),
 		fact.candidate,
-		fact.state,
+		fact.startHeight,
 	))
 }
 
