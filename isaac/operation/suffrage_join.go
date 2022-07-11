@@ -19,9 +19,9 @@ var (
 )
 
 type SuffrageJoinFact struct {
-	candidate   base.Address
-	startHeight base.Height
+	candidate base.Address
 	base.BaseFact
+	startHeight base.Height
 }
 
 func NewSuffrageJoinFact(

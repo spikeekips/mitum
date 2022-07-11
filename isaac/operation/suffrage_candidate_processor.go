@@ -36,7 +36,7 @@ func NewSuffrageCandidateProcessor(
 		existings:      map[string]base.SuffrageCandidate{},
 		preprocessed:   map[string]struct{}{},
 		startheight:    height + 1,
-		deadlineheight: height + 1 + lifespan, // FIXME from network policy
+		deadlineheight: height + 1 + lifespan, // FIXME SuffrageCandidateLifespan of network policy
 	}
 
 	switch i, found, err := getStateFunc(isaac.SuffrageStateKey); {

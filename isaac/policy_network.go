@@ -12,30 +12,43 @@ var (
 	NetworkPolicyStateValueHint = hint.MustNewHint("network-policy-state-value-v0.0.1")
 
 	DefaultMaxOperationsInProposal uint64 = 333
+
+	// NOTE suffrage candidate can be approved within lifespan height; almost 15
+	// days(based on 5 second for one block)
+	DefaultSuffrageCandidateLifespan base.Height = 1 << 18
 )
 
 type NetworkPolicy struct {
 	util.DefaultJSONMarshaled
 	hint.BaseHinter
-	maxOperationsInProposal uint64
+	maxOperationsInProposal   uint64
+	suffrageCandidateLifespan base.Height
 }
 
 func DefaultNetworkPolicy() NetworkPolicy {
 	return NetworkPolicy{
-		BaseHinter:              hint.NewBaseHinter(NetworkPolicyHint),
-		maxOperationsInProposal: DefaultMaxOperationsInProposal,
+		BaseHinter:                hint.NewBaseHinter(NetworkPolicyHint),
+		maxOperationsInProposal:   DefaultMaxOperationsInProposal,
+		suffrageCandidateLifespan: DefaultSuffrageCandidateLifespan,
 	}
 }
 
 func (p NetworkPolicy) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid NetworkPolicy")
+	e := util.ErrInvalid.Errorf("invalid NetworkPolicy")
 
 	if err := p.BaseHinter.IsValid(NetworkPolicyHint.Type().Bytes()); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if p.maxOperationsInProposal < 1 {
-		return e(util.ErrInvalid.Errorf("under zero maxOperationsInProposal"), "")
+		return e.Errorf("under zero maxOperationsInProposal")
+	}
+
+	switch err := p.suffrageCandidateLifespan.IsValid(nil); {
+	case err != nil:
+		return e.Wrapf(err, "invalid SuffrageCandidateLifespan")
+	case p.suffrageCandidateLifespan <= base.GenesisHeight:
+		return e.Errorf("zero SuffrageCandidateLifespan")
 	}
 
 	return nil
@@ -49,26 +62,27 @@ func (p NetworkPolicy) MaxOperationsInProposal() uint64 {
 	return p.maxOperationsInProposal
 }
 
-func (p *NetworkPolicy) SetMaxOperationsInProposal(i uint64) *NetworkPolicy {
-	p.maxOperationsInProposal = i
-
-	return p
+func (p NetworkPolicy) SuffrageCandidateLifespan() base.Height {
+	return p.suffrageCandidateLifespan
 }
 
 type networkPolicyJSONMarshaler struct {
 	hint.BaseHinter
-	MaxOperationsInProposal uint64 `json:"max_operations_in_proposal"`
+	MaxOperationsInProposal   uint64      `json:"max_operations_in_proposal"`
+	SuffrageCandidateLifespan base.Height `json:"suffrage_candidate_lifespan"`
 }
 
 func (p NetworkPolicy) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(networkPolicyJSONMarshaler{
-		BaseHinter:              p.BaseHinter,
-		MaxOperationsInProposal: p.maxOperationsInProposal,
+		BaseHinter:                p.BaseHinter,
+		MaxOperationsInProposal:   p.maxOperationsInProposal,
+		SuffrageCandidateLifespan: p.suffrageCandidateLifespan,
 	})
 }
 
 type networkPolicyJSONUnmarshaler struct {
-	MaxOperationsInProposal uint64 `json:"max_operations_in_proposal"`
+	MaxOperationsInProposal   uint64      `json:"max_operations_in_proposal"`
+	SuffrageCandidateLifespan base.Height `json:"suffrage_candidate_lifespan"`
 }
 
 func (p *NetworkPolicy) UnmarshalJSON(b []byte) error {
@@ -78,6 +92,7 @@ func (p *NetworkPolicy) UnmarshalJSON(b []byte) error {
 	}
 
 	p.maxOperationsInProposal = u.MaxOperationsInProposal
+	p.suffrageCandidateLifespan = u.SuffrageCandidateLifespan
 
 	return nil
 }

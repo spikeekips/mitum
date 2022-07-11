@@ -10,9 +10,9 @@ import (
 )
 
 type SuffrageJoinFactJSONMarshaler struct {
-	Candidate   base.Address `json:"candidate"`
-	StartHeight base.Height  `json:"start_height"`
+	Candidate base.Address `json:"candidate"`
 	base.BaseFactJSONMarshaler
+	StartHeight base.Height `json:"start_height"`
 }
 
 func (fact SuffrageJoinFact) MarshalJSON() ([]byte, error) {
@@ -24,9 +24,9 @@ func (fact SuffrageJoinFact) MarshalJSON() ([]byte, error) {
 }
 
 type SuffrageJoinFactJSONUnmarshaler struct {
-	Candidate   string      `json:"candidate"`
-	StartHeight base.Height `json:"start_height"`
+	Candidate string `json:"candidate"`
 	base.BaseFactJSONUnmarshaler
+	StartHeight base.Height `json:"start_height"`
 }
 
 func (fact *SuffrageJoinFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
