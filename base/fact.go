@@ -20,6 +20,11 @@ type SignedFact interface {
 	Signed() []Signed
 }
 
+type NodeSignedFact interface {
+	SignedFact
+	NodeSigned() []NodeSigned
+}
+
 type Token []byte
 
 func (t Token) IsValid([]byte) error {

@@ -211,7 +211,12 @@ func (w *Writer) closeStateValues(ctx context.Context) error {
 
 			if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
 				nst, err := w.closeStateValue(tg, st, index)
-				if err != nil {
+
+				switch {
+				case err == nil:
+				case errors.Is(err, isaac.ErrIgnoreStateValue):
+					return nil
+				default:
 					return err
 				}
 

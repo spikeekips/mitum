@@ -205,7 +205,7 @@ func (op *BaseNodeOperation) Sign(priv Privatekey, networkID NetworkID, node Add
 	return nil
 }
 
-func (op *BaseNodeOperation) NodeSigned() []NodeSigned {
+func (op BaseNodeOperation) NodeSigned() []NodeSigned {
 	ss := op.Signed()
 	signeds := make([]NodeSigned, len(ss))
 

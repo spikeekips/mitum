@@ -12,7 +12,6 @@ import (
 )
 
 type SuffrageCandidateProcessor struct {
-	merger                   *SuffrageCandidateStateValueMerger
 	preProcessConstraintFunc base.OperationProcessorProcessFunc
 	processConstraintFunc    base.OperationProcessorProcessFunc
 	suffrages                map[string]base.Node
@@ -57,14 +56,11 @@ func NewSuffrageCandidateProcessor(
 		}
 	}
 
-	var st base.State
-
 	switch i, found, err := getStateFunc(isaac.SuffrageCandidateStateKey); {
 	case err != nil:
 		return nil, e(err, "")
 	case !found:
 	case i != nil:
-		st = i
 		sufcstv := i.Value().(base.SuffrageCandidateStateValue) //nolint:forcetypeassert //...
 
 		nodes := sufcstv.Nodes()
@@ -79,8 +75,6 @@ func NewSuffrageCandidateProcessor(
 			p.existings[n.Address().String()] = n
 		}
 	}
-
-	p.merger = NewSuffrageCandidateStateValueMerger(height, st)
 
 	// revive:disable:modifies-parameter
 	if preProcessConstraintFunc == nil {
@@ -134,9 +128,18 @@ func (p *SuffrageCandidateProcessor) PreProcess(
 	return nil, nil
 }
 
-func (p *SuffrageCandidateProcessor) Process(_ context.Context, op base.Operation, _ base.GetStateFunc) (
+func (p *SuffrageCandidateProcessor) Process(ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (
 	[]base.StateMergeValue, base.OperationProcessReasonError, error,
 ) {
+	e := util.StringErrorFunc("failed to process for SuffrageCandidate")
+
+	switch reasonerr, err := p.processConstraintFunc(ctx, op, getStateFunc); {
+	case err != nil:
+		return nil, nil, e(err, "")
+	case reasonerr != nil:
+		return nil, reasonerr, nil
+	}
+
 	fact := op.Fact().(SuffrageCandidateFact) //nolint:forcetypeassert //...
 
 	node := isaac.NewSuffrageCandidate(
@@ -149,8 +152,8 @@ func (p *SuffrageCandidateProcessor) Process(_ context.Context, op base.Operatio
 		base.NewBaseStateMergeValue(
 			isaac.SuffrageCandidateStateKey,
 			isaac.NewSuffrageCandidateStateValue([]base.SuffrageCandidate{node}),
-			func(base.Height, base.State) base.StateValueMerger {
-				return p.merger
+			func(height base.Height, st base.State) base.StateValueMerger {
+				return NewSuffrageCandidateStateValueMerger(height, st)
 			},
 		),
 	}, nil, nil
@@ -158,8 +161,9 @@ func (p *SuffrageCandidateProcessor) Process(_ context.Context, op base.Operatio
 
 type SuffrageCandidateStateValueMerger struct {
 	*base.BaseStateValueMerger
-	olds  []base.SuffrageCandidate
-	nodes []base.SuffrageCandidate
+	existings []base.SuffrageCandidate
+	added     []base.SuffrageCandidate
+	removes   []base.Address
 }
 
 func NewSuffrageCandidateStateValueMerger(height base.Height, st base.State) *SuffrageCandidateStateValueMerger {
@@ -169,7 +173,7 @@ func NewSuffrageCandidateStateValueMerger(height base.Height, st base.State) *Su
 
 	if st != nil {
 		if v := st.Value(); v != nil {
-			s.olds = v.(base.SuffrageCandidateStateValue).Nodes() //nolint:forcetypeassert //...
+			s.existings = v.(base.SuffrageCandidateStateValue).Nodes() //nolint:forcetypeassert //...
 		}
 	}
 
@@ -182,15 +186,17 @@ func (s *SuffrageCandidateStateValueMerger) Merge(value base.StateValue, ops []u
 		return errors.Errorf("not StateMergeValue, %T", value)
 	}
 
-	v, ok := mergevalue.Value().(base.SuffrageCandidateStateValue)
-	if !ok {
-		return errors.Errorf("not SuffrageCandidateStateValue, %T", value)
-	}
-
 	s.Lock()
 	defer s.Unlock()
 
-	s.nodes = append(s.nodes, v.Nodes()...)
+	switch t := mergevalue.Value().(type) {
+	case isaac.SuffrageCandidateStateValue:
+		s.added = append(s.added, t.Nodes()...)
+	case isaac.SuffrageRemoveCandidateStateValue:
+		s.removes = append(s.removes, t.Nodes()...)
+	default:
+		return errors.Errorf("unknown SuffrageCandidateStateValue, %T", value)
+	}
 
 	s.AddOperations(ops)
 
@@ -212,36 +218,48 @@ func (s *SuffrageCandidateStateValueMerger) close() (base.StateValue, error) {
 	s.Lock()
 	defer s.Unlock()
 
-	if len(s.nodes) < 1 {
-		return nil, errors.Errorf("empty new candidates")
+	if len(s.removes) < 1 && len(s.added) < 1 {
+		return nil, isaac.ErrIgnoreStateValue.Errorf("empty newly added or removes nodes")
 	}
 
-	olds := s.olds
+	convert := func(j []interface{}) []base.SuffrageCandidate {
+		if len(j) < 1 {
+			return nil
+		}
 
-	if len(olds) > 0 {
-		// NOTE filter new nodes
-		filtered := util.Filter2Slices(s.olds, s.nodes, func(_, _ interface{}, i, j int) bool {
-			return s.olds[i].Address().Equal(s.nodes[j].Address())
+		n := make([]base.SuffrageCandidate, len(j))
+		for i := range j {
+			n[i] = j[i].(base.SuffrageCandidate) //nolint:forcetypeassert //...
+		}
+
+		return n
+	}
+
+	existings := s.existings
+	if len(s.removes) > 0 {
+		filtered := util.Filter2Slices(existings, s.removes, func(_, _ interface{}, i, j int) bool {
+			return existings[i].Address().Equal(s.removes[j])
 		})
 
-		switch {
-		case len(filtered) < 1:
-			olds = nil
-		default:
-			olds = make([]base.SuffrageCandidate, len(filtered))
-			for i := range filtered {
-				olds[i] = filtered[i].(base.SuffrageCandidate) //nolint:forcetypeassert //...
-			}
-		}
+		existings = convert(filtered)
 	}
 
-	sort.Slice(s.nodes, func(i, j int) bool { // NOTE sort by address
-		return strings.Compare(s.nodes[i].Address().String(), s.nodes[j].Address().String()) < 0
+	if len(s.added) > 0 {
+		// NOTE filter new nodes
+		filtered := util.Filter2Slices(existings, s.added, func(_, _ interface{}, i, j int) bool {
+			return s.existings[i].Address().Equal(s.added[j].Address())
+		})
+
+		existings = convert(filtered)
+	}
+
+	sort.Slice(s.added, func(i, j int) bool { // NOTE sort by address
+		return strings.Compare(s.added[i].Address().String(), s.added[j].Address().String()) < 0
 	})
 
-	newnodes := make([]base.SuffrageCandidate, len(olds)+len(s.nodes))
-	copy(newnodes, olds)
-	copy(newnodes[len(olds):], s.nodes)
+	newnodes := make([]base.SuffrageCandidate, len(existings)+len(s.added))
+	copy(newnodes, existings)
+	copy(newnodes[len(existings):], s.added)
 
 	return isaac.NewSuffrageCandidateStateValue(newnodes), nil
 }

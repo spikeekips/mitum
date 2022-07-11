@@ -18,6 +18,7 @@ var (
 	OperationNotFoundInProcessorError         = util.NewError("operation not found")
 	OperationAlreadyProcessedInProcessorError = util.NewError("operation already processed")
 	StopProcessingRetryError                  = util.NewError("stop processing retrying")
+	ErrIgnoreStateValue                       = util.NewError("ignore state value")
 )
 
 type (

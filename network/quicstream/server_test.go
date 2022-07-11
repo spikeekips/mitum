@@ -185,7 +185,12 @@ func (t *testServer) TestResponseContextTimeout() {
 	defer tcancel()
 
 	r, err := client.Write(tctx, DefaultClientWriteFunc(util.UUID().Bytes()))
-	t.NoError(err)
+	switch {
+	case err == nil:
+	case errors.Is(err, context.DeadlineExceeded):
+		return
+	}
+
 	defer r.Close()
 
 	_, err = ReadAll(tctx, r)

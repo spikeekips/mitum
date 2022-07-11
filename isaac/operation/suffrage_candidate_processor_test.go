@@ -4,6 +4,7 @@ import (
 	"context"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/spikeekips/mitum/base"
@@ -15,10 +16,12 @@ import (
 
 type testSuffrageCandidateProcessor struct {
 	suite.Suite
+	priv      base.Privatekey
 	networkID base.NetworkID
 }
 
 func (t *testSuffrageCandidateProcessor) SetupTest() {
+	t.priv = base.NewMPrivatekey()
 	t.networkID = util.UUID().Bytes()
 }
 
@@ -37,11 +40,10 @@ func (t *testSuffrageCandidateProcessor) TestNewCandidateFromEmpty() {
 	)
 	t.NoError(err)
 
-	priv := base.NewMPrivatekey()
 	candidate := base.RandomAddress("")
 
-	op := NewSuffrageCandidate(NewSuffrageCandidateFact(util.UUID().Bytes(), candidate, priv.Publickey()))
-	t.NoError(op.Sign(priv, t.networkID, candidate))
+	op := NewSuffrageCandidate(NewSuffrageCandidateFact(util.UUID().Bytes(), candidate, t.priv.Publickey()))
+	t.NoError(op.Sign(t.priv, t.networkID, candidate))
 
 	reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
 	t.NoError(err)
@@ -52,19 +54,21 @@ func (t *testSuffrageCandidateProcessor) TestNewCandidateFromEmpty() {
 	t.Nil(reason)
 	t.NotEmpty(mergevalues)
 
+	merger := mergevalues[0].Merger(height, nil)
+
 	for i := range mergevalues {
-		t.NoError(pp.merger.Merge(mergevalues[i], []util.Hash{op.Hash()}))
+		t.NoError(merger.Merge(mergevalues[i], []util.Hash{op.Hash()}))
 	}
 
-	t.NoError(pp.merger.Close())
+	t.NoError(merger.Close())
 
-	t.NotNil(pp.merger.Hash())
-	t.Equal(height, pp.merger.Height())
-	t.Nil(pp.merger.Previous())
-	t.Equal(1, len(pp.merger.Operations()))
-	t.True(op.Hash().Equal(pp.merger.Operations()[0]))
+	t.NotNil(merger.Hash())
+	t.Equal(height, merger.Height())
+	t.Nil(merger.Previous())
+	t.Equal(1, len(merger.Operations()))
+	t.True(op.Hash().Equal(merger.Operations()[0]))
 
-	v := pp.merger.Value()
+	v := merger.Value()
 	t.NotNil(v)
 
 	cv := v.(base.SuffrageCandidateStateValue)
@@ -74,10 +78,10 @@ func (t *testSuffrageCandidateProcessor) TestNewCandidateFromEmpty() {
 
 	cvn := cv.Nodes()[0]
 	t.True(candidate.Equal(cvn.Address()))
-	t.True(priv.Publickey().Equal(cvn.Publickey()))
+	t.True(t.priv.Publickey().Equal(cvn.Publickey()))
 
 	t.Run("marshal", func() {
-		b, err := util.MarshalJSON(pp.merger)
+		b, err := util.MarshalJSON(merger)
 		t.NoError(err)
 
 		t.T().Log("marshaled", string(b))
@@ -118,11 +122,10 @@ func (t *testSuffrageCandidateProcessor) TestNewCandidate() {
 	)
 	t.NoError(err)
 
-	priv := base.NewMPrivatekey()
 	candidate := base.RandomAddress("")
 
-	op := NewSuffrageCandidate(NewSuffrageCandidateFact(util.UUID().Bytes(), candidate, priv.Publickey()))
-	t.NoError(op.Sign(priv, t.networkID, candidate))
+	op := NewSuffrageCandidate(NewSuffrageCandidateFact(util.UUID().Bytes(), candidate, t.priv.Publickey()))
+	t.NoError(op.Sign(t.priv, t.networkID, candidate))
 
 	reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
 	t.NoError(err)
@@ -133,21 +136,21 @@ func (t *testSuffrageCandidateProcessor) TestNewCandidate() {
 	t.Nil(reason)
 	t.NotEmpty(mergevalues)
 
+	merger := mergevalues[0].Merger(height, st)
+
 	for i := range mergevalues {
-		t.NoError(pp.merger.Merge(mergevalues[i], []util.Hash{op.Hash()}))
+		t.NoError(merger.Merge(mergevalues[i], []util.Hash{op.Hash()}))
 	}
 
-	t.NoError(pp.merger.Close())
+	t.NoError(merger.Close())
 
-	t.NoError(pp.merger.Close())
+	t.NotNil(merger.Hash())
+	t.Equal(height, merger.Height())
+	t.True(st.Hash().Equal(merger.Previous()))
+	t.Equal(1, len(merger.Operations()))
+	t.True(op.Hash().Equal(merger.Operations()[0]))
 
-	t.NotNil(pp.merger.Hash())
-	t.Equal(height, pp.merger.Height())
-	t.True(st.Hash().Equal(pp.merger.Previous()))
-	t.Equal(1, len(pp.merger.Operations()))
-	t.True(op.Hash().Equal(pp.merger.Operations()[0]))
-
-	v := pp.merger.Value()
+	v := merger.Value()
 	t.NotNil(v)
 
 	ucv := v.(base.SuffrageCandidateStateValue)
@@ -157,10 +160,10 @@ func (t *testSuffrageCandidateProcessor) TestNewCandidate() {
 
 	cvn := ucv.Nodes()[1] // NOTE newly added
 	t.True(candidate.Equal(cvn.Address()))
-	t.True(priv.Publickey().Equal(cvn.Publickey()))
+	t.True(t.priv.Publickey().Equal(cvn.Publickey()))
 
 	t.Run("marshal", func() {
-		b, err := util.MarshalJSON(pp.merger)
+		b, err := util.MarshalJSON(merger)
 		t.NoError(err)
 
 		t.T().Log("marshaled", string(b))
@@ -174,11 +177,10 @@ func (t *testSuffrageCandidateProcessor) TestPreProcess() {
 		return nil, false, nil
 	}
 
-	priv := base.NewMPrivatekey()
 	candidate := base.RandomAddress("")
 
-	op := NewSuffrageCandidate(NewSuffrageCandidateFact(util.UUID().Bytes(), candidate, priv.Publickey()))
-	t.NoError(op.Sign(priv, t.networkID, candidate))
+	op := NewSuffrageCandidate(NewSuffrageCandidateFact(util.UUID().Bytes(), candidate, t.priv.Publickey()))
+	t.NoError(op.Sign(t.priv, t.networkID, candidate))
 
 	t.Run("already processed", func() {
 		pp, err := NewSuffrageCandidateProcessor(
@@ -195,8 +197,8 @@ func (t *testSuffrageCandidateProcessor) TestPreProcess() {
 		t.Nil(reason)
 
 		// NOTE with same candidate
-		opsame := NewSuffrageCandidate(NewSuffrageCandidateFact(util.UUID().Bytes(), candidate, priv.Publickey()))
-		t.NoError(opsame.Sign(priv, t.networkID, candidate))
+		opsame := NewSuffrageCandidate(NewSuffrageCandidateFact(util.UUID().Bytes(), candidate, t.priv.Publickey()))
+		t.NoError(opsame.Sign(t.priv, t.networkID, candidate))
 
 		reason, err = pp.PreProcess(context.Background(), opsame, getStateFunc)
 		t.NoError(err)
@@ -242,8 +244,8 @@ func (t *testSuffrageCandidateProcessor) TestPreProcess() {
 		t.Nil(reason)
 
 		// NOTE with same candidate
-		opsame := NewSuffrageCandidate(NewSuffrageCandidateFact(util.UUID().Bytes(), candidate, priv.Publickey()))
-		t.NoError(opsame.Sign(priv, t.networkID, candidate))
+		opsame := NewSuffrageCandidate(NewSuffrageCandidateFact(util.UUID().Bytes(), candidate, t.priv.Publickey()))
+		t.NoError(opsame.Sign(t.priv, t.networkID, candidate))
 
 		reason, err = pp.PreProcess(context.Background(), opsame, getStateFunc)
 		t.NoError(err)
@@ -253,7 +255,7 @@ func (t *testSuffrageCandidateProcessor) TestPreProcess() {
 
 	t.Run("already candidate", func() {
 		c := isaac.NewSuffrageCandidate(
-			isaac.NewNode(priv.Publickey(), candidate),
+			isaac.NewNode(t.priv.Publickey(), candidate),
 			height,
 			height+1,
 		)
@@ -292,7 +294,7 @@ func (t *testSuffrageCandidateProcessor) TestPreProcess() {
 
 	t.Run("already candidate, but old", func() {
 		c := isaac.NewSuffrageCandidate(
-			isaac.NewNode(priv.Publickey(), candidate),
+			isaac.NewNode(t.priv.Publickey(), candidate),
 			height-3,
 			height-1,
 		)
@@ -358,11 +360,10 @@ func (t *testSuffrageCandidateProcessor) TestProcess() {
 		return nil, false, nil
 	}
 
-	priv := base.NewMPrivatekey()
 	candidate := base.RandomAddress("")
 
-	op := NewSuffrageCandidate(NewSuffrageCandidateFact(util.UUID().Bytes(), candidate, priv.Publickey()))
-	t.NoError(op.Sign(priv, t.networkID, candidate))
+	op := NewSuffrageCandidate(NewSuffrageCandidateFact(util.UUID().Bytes(), candidate, t.priv.Publickey()))
+	t.NoError(op.Sign(t.priv, t.networkID, candidate))
 
 	lifespan := base.Height(50)
 
@@ -390,7 +391,7 @@ func (t *testSuffrageCandidateProcessor) TestProcess() {
 
 		node := cv.Nodes()[0]
 		t.True(candidate.Equal(node.Address()))
-		t.True(priv.Publickey().Equal(node.Publickey()))
+		t.True(t.priv.Publickey().Equal(node.Publickey()))
 		t.Equal(height+1, node.Start())
 		t.Equal(height+1+lifespan, node.Deadline())
 	})
@@ -421,6 +422,29 @@ func (t *testSuffrageCandidateProcessor) TestProcessConcurrent() {
 	nodes := make([]base.Node, len(privs))
 	ops := make([]base.Operation, len(privs))
 
+	var merger base.StateValueMerger
+
+	var mergelock sync.Mutex
+	merge := func(values []base.StateMergeValue, op util.Hash) error {
+		if len(values) < 1 {
+			return nil
+		}
+
+		mergelock.Lock()
+		if merger == nil {
+			merger = values[0].Merger(height, nil)
+		}
+		mergelock.Unlock()
+
+		for i := range values {
+			if err := merger.Merge(values[i], []util.Hash{op}); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+
 	for i := range privs {
 		i := i
 
@@ -447,9 +471,7 @@ func (t *testSuffrageCandidateProcessor) TestProcessConcurrent() {
 				return reason
 			}
 
-			for i := range values {
-				t.NoError(pp.merger.Merge(values[i], []util.Hash{op.Hash()}))
-			}
+			t.NoError(merge(values, op.Hash()))
 
 			return nil
 		}))
@@ -458,24 +480,24 @@ func (t *testSuffrageCandidateProcessor) TestProcessConcurrent() {
 	worker.Done()
 	t.NoError(worker.Wait())
 
-	t.NoError(pp.merger.Close())
+	t.NoError(merger.Close())
 
-	t.NotNil(pp.merger.Hash())
-	t.Equal(height, pp.merger.Height())
-	t.Nil(pp.merger.Previous())
-	t.Equal(len(ops), len(pp.merger.Operations()))
+	t.NotNil(merger.Hash())
+	t.Equal(height, merger.Height())
+	t.Nil(merger.Previous())
+	t.Equal(len(ops), len(merger.Operations()))
 
 	sort.Slice(ops, func(i, j int) bool {
 		return strings.Compare(ops[i].Hash().String(), ops[j].Hash().String()) < 0
 	})
 
-	mops := pp.merger.Operations()
+	mops := merger.Operations()
 
 	for i := range ops {
 		t.True(ops[i].Hash().Equal(mops[i]))
 	}
 
-	v := pp.merger.Value()
+	v := merger.Value()
 	t.NotNil(v)
 
 	cv := v.(base.SuffrageCandidateStateValue)
