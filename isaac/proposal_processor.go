@@ -53,7 +53,7 @@ type DefaultProposalProcessor struct {
 	getOperation          OperationProcessorGetOperationFunction
 	*logging.Logging
 	setLastVoteproofsFunc func(base.INITVoteproof, base.ACCEPTVoteproof) error
-	oprs                  *util.LockedMap
+	oprs                  *util.ShardedMap
 	cancel                func()
 	ops                   []base.Operation
 	retrylimit            int
@@ -89,9 +89,9 @@ func NewDefaultProposalProcessor(
 		setLastVoteproofsFunc: setLastVoteproofsFunc,
 		ops:                   make([]base.Operation, len(proposal.ProposalFact().Operations())),
 		cancel:                func() {},
-		oprs:                  util.NewLockedMap(),
-		retrylimit:            15,                     //nolint:gomnd //...
-		retryinterval:         time.Millisecond * 600, //nolint:gomnd //...
+		oprs:                  util.NewShardedMap(1 << 5), // nolint:gomnd //...
+		retrylimit:            15,                         //nolint:gomnd //...
+		retryinterval:         time.Millisecond * 600,     //nolint:gomnd //...
 	}, nil
 }
 
