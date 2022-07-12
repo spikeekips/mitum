@@ -595,7 +595,7 @@ func (t *testQuicstreamHandlers) TestRequest() {
 		}
 
 		header := NewLastBlockMapRequestHeader(nil)
-		response, v, err := c.Request(context.Background(), ci, header)
+		response, v, err := c.Request(context.Background(), ci, header, nil)
 		t.NoError(err)
 
 		t.NoError(response.Err())
@@ -613,7 +613,7 @@ func (t *testQuicstreamHandlers) TestRequest() {
 		}
 
 		header := NewLastBlockMapRequestHeader(nil)
-		response, _, err := c.Request(context.Background(), ci, header)
+		response, _, err := c.Request(context.Background(), ci, header, nil)
 		t.NoError(err)
 
 		t.Error(response.Err())

@@ -36,6 +36,10 @@ func (op BaseOperation) Fact() Fact {
 	return op.fact
 }
 
+func (op *BaseOperation) SetFact(fact Fact) {
+	op.fact = fact
+}
+
 func (op BaseOperation) HashBytes() []byte {
 	bs := make([]util.Byter, len(op.signed)+1)
 	bs[0] = op.fact.Hash()

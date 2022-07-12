@@ -31,6 +31,12 @@ func (fact BaseFact) Token() Token {
 	return fact.t
 }
 
+func (fact *BaseFact) SetToken(t Token) error {
+	fact.t = t
+
+	return nil
+}
+
 func (fact BaseFact) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid BaseFact")
 

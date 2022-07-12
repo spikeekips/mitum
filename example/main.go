@@ -33,6 +33,7 @@ func main() {
 		Key struct {
 			New  keyNewCommand  `cmd:"" help:"generate new key"`
 			Load keyLoadCommand `cmd:"" help:"load key"`
+			Sign keySignCommand `cmd:"" help:"sign"`
 		} `cmd:"" help:"key"`
 	}
 	//revive:enable:nested-structs

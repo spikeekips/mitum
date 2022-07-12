@@ -148,6 +148,28 @@ func NewSuffrageJoin(fact SuffrageJoinFact) SuffrageJoin {
 	}
 }
 
+func (op *SuffrageJoin) HashSign(priv base.Privatekey, networkID base.NetworkID, node base.Address) error {
+	fact := op.Fact().(SuffrageJoinFact) //nolint:forcetypeassert //...
+
+	fact.SetHash(fact.hash())
+
+	op.BaseNodeOperation.SetFact(fact)
+
+	return op.Sign(priv, networkID, node)
+}
+
+func (op *SuffrageJoin) SetToken(t base.Token) error {
+	fact := op.Fact().(SuffrageJoinFact) //nolint:forcetypeassert //...
+
+	if err := fact.SetToken(t); err != nil {
+		return err
+	}
+
+	op.BaseNodeOperation.SetFact(fact)
+
+	return nil
+}
+
 func (op SuffrageJoin) IsValid(networkID []byte) error {
 	e := util.ErrInvalid.Errorf("invalid SuffrageJoin")
 

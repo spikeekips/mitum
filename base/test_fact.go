@@ -10,10 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func (fact *BaseFact) SetToken(t Token) {
-	fact.t = t
-}
-
 var DummyFactHint = hint.MustNewHint("dummyfact-v1.2.3")
 
 type DummyFact struct {

@@ -15,7 +15,12 @@ import (
 	"github.com/spikeekips/mitum/util/valuehash"
 )
 
-var headerExamples = map[string]isaac.NetworkHeader{}
+var (
+	headerExamples     = map[string]isaac.NetworkHeader{}
+	headerExamplesDesc = map[string]string{
+		isaacnetwork.HandlerPrefixSendOperation: `$ cmd <header> --body=<json body>`,
+	}
+)
 
 func init() {
 	headerExamples = map[string]isaac.NetworkHeader{
@@ -32,6 +37,12 @@ func init() {
 		isaacnetwork.HandlerPrefixBlockMap: isaacnetwork.NewBlockMapRequestHeader(base.Height(33)), //nolint:gomnd //...
 		isaacnetwork.HandlerPrefixBlockMapItem: isaacnetwork.NewBlockMapItemRequestHeader(
 			base.Height(33), base.BlockMapItemTypeOperations), //nolint:gomnd //...
+		isaacnetwork.HandlerPrefixNodeChallenge:        isaacnetwork.NewNodeChallengeRequestHeader(util.UUID().Bytes()),
+		isaacnetwork.HandlerPrefixSuffrageNodeConnInfo: isaacnetwork.NewSuffrageNodeConnInfoRequestHeader(),
+		isaacnetwork.HandlerPrefixSyncSourceConnInfo:   isaacnetwork.NewSyncSourceConnInfoRequestHeader(),
+		isaacnetwork.HandlerPrefixOperation: isaacnetwork.NewOperationRequestHeader(
+			valuehash.RandomSHA256()),
+		isaacnetwork.HandlerPrefixSendOperation:    isaacnetwork.NewSendOperationRequestHeader(),
 		handlerPrefixRequestState:                  newStateRequestHeader(isaac.SuffrageStateKey),
 		handlerPrefixRequestExistsInStateOperation: newExistsInStateOperationRequestHeader(valuehash.RandomSHA256()),
 	}
@@ -39,9 +50,10 @@ func init() {
 
 type networkClientCommand struct { //nolint:govet //...
 	baseCommand
-	Header  string              `arg:"" help:"json header"`
+	Header  string              `arg:"" help:"json header; 'example' will print example headers"`
 	Remote  launch.ConnInfoFlag `arg:"" help:"remote" placeholder:"ConnInfo" default:"localhost:4321"`
 	Timeout time.Duration       `help:"timeout" placeholder:"duration" default:"10s"`
+	Body    *os.File            `help:"body" type:"existingfile"`
 }
 
 func (cmd *networkClientCommand) Run() error {
@@ -64,7 +76,9 @@ func (cmd *networkClientCommand) Run() error {
 				return err
 			}
 
-			_, _ = fmt.Fprintf(os.Stdout, " - %s:\n%s\n", desc, string(b))
+			help := headerExamplesDesc[desc]
+			_, _ = fmt.Fprintf(os.Stdout, "- %s: %s\n", desc, help)
+			_, _ = fmt.Fprintln(os.Stdout, "   ", string(b))
 		}
 
 		_, _ = fmt.Fprintln(os.Stdout, "\n* see isaac/network/header.go")
@@ -87,7 +101,7 @@ func (cmd *networkClientCommand) Run() error {
 	ctx, cancel := context.WithTimeout(context.Background(), cmd.Timeout)
 	defer cancel()
 
-	response, v, err := client.Request(ctx, ci, header)
+	response, v, err := client.Request(ctx, ci, header, cmd.Body)
 
 	b, err := util.MarshalJSON(map[string]interface{}{
 		"response": response,

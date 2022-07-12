@@ -31,8 +31,6 @@ type SuffrageStateValue interface {
 	Suffrage() (Suffrage, error)
 }
 
-// FIXME if new suffrage node from candidate, update SuffrageCandidateStateValue
-
 type SuffrageCandidate interface {
 	util.HashByter
 	util.IsValider

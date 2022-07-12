@@ -27,6 +27,10 @@ type NodeSignedFact interface {
 
 type Token []byte
 
+type TokenSetter interface {
+	SetToken(Token) error
+}
+
 func (t Token) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid Token")
 

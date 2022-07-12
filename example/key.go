@@ -2,11 +2,14 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
+	"reflect"
 	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
 )
@@ -140,6 +143,175 @@ func (cmd *keyLoadCommand) Run() error {
 		_, _ = fmt.Fprintln(os.Stdout, string(b))
 
 		return nil
+	}
+
+	return nil
+}
+
+type keySignCommand struct {
+	baseCommand
+	KeyString string             `arg:"" name:"privatekey" help:"privatekey string"`
+	NetworkID string             `arg:"" name:"network-id" help:"network-id"`
+	Body      *os.File           `arg:"" help:"body"`
+	Node      launch.AddressFlag `help:"node address"`
+	Token     string             `help:"set fact token"`
+	priv      base.Privatekey
+	networkID base.NetworkID
+}
+
+func (cmd *keySignCommand) Run() error {
+	log.Debug().
+		Str("privatekey", cmd.KeyString).
+		Str("network_id", cmd.NetworkID).
+		Stringer("node", cmd.Node.Address()).
+		Str("token", cmd.Token).
+		Msg("flags")
+
+	defer func() {
+		_ = cmd.Body.Close()
+	}()
+
+	if err := cmd.prepare(); err != nil {
+		return err
+	}
+
+	var elem, ptr interface{}
+
+	switch i, j, err := cmd.loadBody(); {
+	case err != nil:
+		return err
+	default:
+		elem = i
+		ptr = j
+	}
+
+	switch ptr.(type) {
+	case base.NodeHashSigner, base.NodeSigner:
+		if cmd.Node.Address() == nil {
+			return errors.Errorf("--node is missing")
+		}
+	}
+
+	if err := util.InterfaceSetValue(elem, ptr); err != nil {
+		return err
+	}
+
+	switch {
+	case len(cmd.Token) < 1:
+		log.Debug().Msg("token not updated")
+	default:
+		if i, ok := ptr.(base.TokenSetter); ok {
+			if err := i.SetToken(base.Token([]byte(cmd.Token))); err != nil {
+				return err
+			}
+
+			log.Debug().Str("new_token", cmd.Token).Msg("token updated")
+		}
+	}
+
+	if err := cmd.sign(ptr); err != nil {
+		return err
+	}
+
+	log.Debug().Msg("successfully signed")
+
+	b, err := util.MarshalJSONIndent(ptr)
+	if err != nil {
+		return err
+	}
+
+	_, _ = fmt.Fprintln(os.Stdout, string(b))
+
+	return nil
+}
+
+func (cmd *keySignCommand) prepare() error {
+	if err := cmd.prepareEncoder(); err != nil {
+		return err
+	}
+
+	switch key, err := base.DecodePrivatekeyFromString(cmd.KeyString, cmd.enc); {
+	case err != nil:
+		return err
+	default:
+		if err := key.IsValid(nil); err != nil {
+			return err
+		}
+
+		cmd.priv = key
+	}
+
+	cmd.networkID = base.NetworkID([]byte(cmd.NetworkID))
+
+	return cmd.networkID.IsValid(nil)
+}
+
+func (cmd *keySignCommand) loadBody() (interface{}, interface{}, error) {
+	var body []byte
+
+	switch i, err := io.ReadAll(cmd.Body); {
+	case err != nil:
+		return nil, nil, errors.WithStack(err)
+	default:
+		body = i
+	}
+
+	var u map[string]interface{}
+	if err := util.UnmarshalJSON(body, &u); err != nil {
+		return nil, nil, err
+	}
+
+	switch i, err := util.MarshalJSONIndent(u); {
+	case err != nil:
+		return nil, nil, err
+	default:
+		_, _ = fmt.Fprintln(os.Stderr, string(i))
+	}
+
+	log.Debug().Str("raw_body", string(body)).Msg("read body")
+
+	elem, err := cmd.enc.Decode(body)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	log.Debug().Str("body_type", fmt.Sprintf("%T", elem)).Msg("body loaded")
+
+	return elem, reflect.New(reflect.ValueOf(elem).Type()).Interface(), nil
+}
+
+func (cmd *keySignCommand) sign(ptr interface{}) error {
+	var sign func() error
+
+	switch t := ptr.(type) {
+	case base.NodeHashSigner:
+		sign = func() error {
+			return t.HashSign(cmd.priv, cmd.networkID, cmd.Node.Address())
+		}
+	case base.NodeSigner:
+		sign = func() error {
+			return t.Sign(cmd.priv, cmd.networkID, cmd.Node.Address())
+		}
+	case base.HashSigner:
+		sign = func() error {
+			return t.HashSign(cmd.priv, cmd.networkID)
+		}
+	case base.Signer:
+		sign = func() error {
+			return t.Sign(cmd.priv, cmd.networkID)
+		}
+	default:
+		return errors.Errorf("it's not Signer, %T", ptr)
+	}
+
+	if err := sign(); err != nil {
+		return err
+	}
+
+	if i, ok := ptr.(util.IsValider); ok {
+		if err := i.IsValid(cmd.networkID); err != nil {
+			return err
+		}
 	}
 
 	return nil

@@ -8,6 +8,7 @@ type NetworkPolicy interface {
 	util.IsValider
 	util.HashByter
 	MaxOperationsInProposal() uint64
+	SuffrageCandidateLifespan() Height
 }
 
 type NodePolicy interface {

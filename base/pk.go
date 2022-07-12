@@ -13,6 +13,22 @@ const PKKeyTypeSize = 3
 
 var SignatureVerificationError = util.NewError("signature verification failed")
 
+type Signer interface {
+	Sign(Privatekey, NetworkID /* additional info */) error
+}
+
+type HashSigner interface {
+	HashSign(Privatekey, NetworkID) error
+}
+
+type NodeSigner interface {
+	Sign(Privatekey, NetworkID, Address) error
+}
+
+type NodeHashSigner interface {
+	HashSign(Privatekey, NetworkID, Address) error
+}
+
 type PKKey interface {
 	fmt.Stringer
 	util.Byter
@@ -29,10 +45,6 @@ type Privatekey interface {
 type Publickey interface {
 	PKKey
 	Verify([]byte, Signature) error
-}
-
-type Signer interface {
-	Sign(Privatekey, []byte /* additional info */) error
 }
 
 type Signature []byte

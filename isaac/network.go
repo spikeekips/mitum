@@ -12,7 +12,7 @@ import (
 
 // revive:disable:line-length-limit
 type NetworkClient interface {
-	Request(context.Context, quicstream.UDPConnInfo, NetworkHeader) (NetworkResponseHeader, interface{}, error)
+	Request(context.Context, quicstream.UDPConnInfo, NetworkHeader, io.Reader) (NetworkResponseHeader, interface{}, error)
 	Operation(_ context.Context, _ quicstream.UDPConnInfo, operationhash util.Hash) (base.Operation, bool, error)
 	SendOperation(context.Context, quicstream.UDPConnInfo, base.Operation) (bool, error)
 	RequestProposal(_ context.Context, connInfo quicstream.UDPConnInfo, point base.Point, propser base.Address) (base.ProposalSignedFact, bool, error)

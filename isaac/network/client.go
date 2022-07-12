@@ -42,6 +42,7 @@ func (c *baseNetworkClient) Request(
 	ctx context.Context,
 	ci quicstream.UDPConnInfo,
 	header isaac.NetworkHeader,
+	body io.Reader,
 ) (
 	isaac.NetworkResponseHeader,
 	interface{},
@@ -49,7 +50,7 @@ func (c *baseNetworkClient) Request(
 ) {
 	e := util.StringErrorFunc("failed to request")
 
-	r, cancel, err := c.write(ctx, ci, c.enc, header, nil)
+	r, cancel, err := c.write(ctx, ci, c.enc, header, body)
 	if err != nil {
 		return nil, false, e(err, "failed to send request")
 	}
