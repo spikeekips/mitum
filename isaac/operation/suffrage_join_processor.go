@@ -171,8 +171,6 @@ func (p *SuffrageJoinProcessor) Process(ctx context.Context, op base.Operation, 
 
 	member := p.candidates[fact.Candidate().String()]
 
-	// FIXME remove canidadte from candidate state value
-
 	return []base.StateMergeValue{
 		base.NewBaseStateMergeValue(
 			isaac.SuffrageCandidateStateKey,

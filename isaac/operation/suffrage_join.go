@@ -137,7 +137,6 @@ func (fact SuffrageGenesisJoinFact) hash() util.Hash {
 	))
 }
 
-// FIXME SuffrageJoin should have BaseNodeOperation, not BaseOperation
 type SuffrageJoin struct {
 	base.BaseNodeOperation
 }
@@ -234,8 +233,17 @@ func (op SuffrageGenesisJoin) IsValid(networkID []byte) error {
 	return nil
 }
 
-func (SuffrageGenesisJoin) PreProcess(context.Context, base.GetStateFunc) (base.OperationProcessReasonError, error) {
-	return nil, nil
+func (SuffrageGenesisJoin) PreProcess(
+	_ context.Context, getStateFunc base.GetStateFunc,
+) (base.OperationProcessReasonError, error) {
+	switch _, found, err := getStateFunc(isaac.SuffrageStateKey); {
+	case err != nil:
+		return base.NewBaseOperationProcessReasonError("failed to check suffrage state: %w", err), nil
+	case found:
+		return base.NewBaseOperationProcessReasonError("suffrage state already exists"), nil
+	default:
+		return nil, nil
+	}
 }
 
 func (op SuffrageGenesisJoin) Process(context.Context, base.GetStateFunc) (

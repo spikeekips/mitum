@@ -8,6 +8,7 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
+	isaacoperation "github.com/spikeekips/mitum/isaac/operation"
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
@@ -15,6 +16,7 @@ import (
 	"github.com/spikeekips/mitum/storage"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
+	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
 )
 
@@ -203,6 +205,8 @@ func (cmd *runCommand) getLastManifestFunc() func() (base.Manifest, bool, error)
 }
 
 func (cmd *runCommand) newProposalProcessorFunc(enc encoder.Encoder) newProposalProcessorFunc {
+	set := cmd.operationProcessorsMap()
+
 	return func(proposal base.ProposalSignedFact, previous base.Manifest) (
 		isaac.ProposalProcessor, error,
 	) {
@@ -213,7 +217,16 @@ func (cmd *runCommand) newProposalProcessorFunc(enc encoder.Encoder) newProposal
 				cmd.local, networkID, launch.LocalFSDataDirectory(cmd.design.Storage.Base), enc, cmd.db),
 			cmd.db.State,
 			cmd.getProposalOperationFunc(proposal),
-			nil, // FIXME OperationProcessor implement
+			func(height base.Height, ht hint.Hint) (base.OperationProcessor, error) {
+				v := set.Find(ht)
+				if v == nil {
+					return nil, nil
+				}
+
+				f := v.(func(height base.Height) (base.OperationProcessor, error)) //nolint:forcetypeassert //...
+
+				return f(height)
+			},
 			cmd.pool.SetLastVoteproofs,
 		)
 	}
@@ -942,4 +955,40 @@ func (cmd *runCommand) joinMemberlistForJoiningState() error {
 	}
 
 	return cmd.memberlist.Join(cmd.discoveries)
+}
+
+func (cmd *runCommand) operationProcessorsMap() *hint.CompatibleSet {
+	set := hint.NewCompatibleSet()
+
+	_ = set.Add(isaacoperation.SuffrageCandidateHint, func(height base.Height) (base.OperationProcessor, error) {
+		policy := cmd.db.LastNetworkPolicy()
+		if policy == nil { // NOTE Usually it means empty block data
+			return nil, nil
+		}
+
+		return isaacoperation.NewSuffrageCandidateProcessor(
+			height,
+			cmd.db.State,
+			nil,
+			nil,
+			policy.SuffrageCandidateLifespan(),
+		)
+	})
+
+	_ = set.Add(isaacoperation.SuffrageJoinHint, func(height base.Height) (base.OperationProcessor, error) {
+		policy := cmd.db.LastNetworkPolicy()
+		if policy == nil { // NOTE Usually it means empty block data
+			return nil, nil
+		}
+
+		return isaacoperation.NewSuffrageJoinProcessor(
+			height,
+			cmd.nodePolicy.Threshold(),
+			cmd.db.State,
+			nil,
+			nil,
+		)
+	})
+
+	return set
 }

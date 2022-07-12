@@ -245,7 +245,7 @@ func (t *testDefaultProposalProcessor) TestCollectOperations() {
 
 		return op, nil
 	},
-		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) { return nil, false, nil },
+		func(base.Height, hint.Hint) (base.OperationProcessor, error) { return nil, nil },
 		nil,
 	)
 
@@ -338,7 +338,7 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsFailedButIgnored() {
 
 		return op, nil
 	},
-		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) { return nil, false, nil },
+		func(base.Height, hint.Hint) (base.OperationProcessor, error) { return nil, nil },
 		nil,
 	)
 
@@ -393,7 +393,7 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsInvalidError() {
 
 		return op, nil
 	},
-		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) { return nil, false, nil },
+		func(base.Height, hint.Hint) (base.OperationProcessor, error) { return nil, nil },
 		nil,
 	)
 
@@ -440,12 +440,12 @@ func (t *testDefaultProposalProcessor) TestPreProcessButFailedToGetOperationProc
 
 		return op, nil
 	},
-		func(_ base.Height, ht hint.Hint) (base.OperationProcessor, bool, error) {
+		func(_ base.Height, ht hint.Hint) (base.OperationProcessor, error) {
 			if !ht.IsCompatible(DummyOperationHint) {
-				return nil, false, nil
+				return nil, nil
 			}
 
-			return nil, false, errors.Errorf("hehehe")
+			return nil, errors.Errorf("hehehe")
 		},
 		nil,
 	)
@@ -477,9 +477,9 @@ func (t *testDefaultProposalProcessor) TestPreProcessWithOperationProcessor() {
 
 		return op, nil
 	},
-		func(_ base.Height, ht hint.Hint) (base.OperationProcessor, bool, error) {
+		func(_ base.Height, ht hint.Hint) (base.OperationProcessor, error) {
 			if !ht.IsCompatible(DummyOperationHint) {
-				return nil, false, nil
+				return nil, nil
 			}
 
 			return &DummyOperationProcessor{
@@ -495,7 +495,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessWithOperationProcessor() {
 				process: func(_ context.Context, op base.Operation, _ base.GetStateFunc) ([]base.StateMergeValue, base.OperationProcessReasonError, error) {
 					return []base.StateMergeValue{sts[op.Fact().Hash().String()]}, nil, nil
 				},
-			}, true, nil
+			}, nil
 		},
 		nil,
 	)
@@ -575,7 +575,7 @@ func (t *testDefaultProposalProcessor) TestPreProcess() {
 
 		return op, nil
 	},
-		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) { return nil, false, nil },
+		func(base.Height, hint.Hint) (base.OperationProcessor, error) { return nil, nil },
 		nil,
 	)
 
@@ -649,7 +649,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessButError() {
 
 		return op, nil
 	},
-		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) { return nil, false, nil },
+		func(base.Height, hint.Hint) (base.OperationProcessor, error) { return nil, nil },
 		nil,
 	)
 	opp.retrylimit = 1
@@ -698,7 +698,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessButWithOperationReasonError
 
 		return op, nil
 	},
-		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) { return nil, false, nil },
+		func(base.Height, hint.Hint) (base.OperationProcessor, error) { return nil, nil },
 		nil,
 	)
 	opp.retrylimit = 1
@@ -758,7 +758,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessButErrorRetry() {
 
 		return op, nil
 	},
-		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) { return nil, false, nil },
+		func(base.Height, hint.Hint) (base.OperationProcessor, error) { return nil, nil },
 		nil,
 	)
 	opp.retrylimit = 3
@@ -820,7 +820,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessContextCancel() {
 
 		return op, nil
 	},
-		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) { return nil, false, nil },
+		func(base.Height, hint.Hint) (base.OperationProcessor, error) { return nil, nil },
 		nil,
 	)
 	opp.retrylimit = 1
@@ -891,7 +891,7 @@ func (t *testDefaultProposalProcessor) TestProcess() {
 
 		return op, nil
 	},
-		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) { return nil, false, nil },
+		func(base.Height, hint.Hint) (base.OperationProcessor, error) { return nil, nil },
 		nil,
 	)
 
@@ -973,9 +973,9 @@ func (t *testDefaultProposalProcessor) TestProcessWithOperationProcessor() {
 
 		return op, nil
 	},
-		func(_ base.Height, ht hint.Hint) (base.OperationProcessor, bool, error) {
+		func(_ base.Height, ht hint.Hint) (base.OperationProcessor, error) {
 			if !ht.IsCompatible(DummyOperationHint) {
-				return nil, false, nil
+				return nil, nil
 			}
 
 			return &DummyOperationProcessor{
@@ -991,7 +991,7 @@ func (t *testDefaultProposalProcessor) TestProcessWithOperationProcessor() {
 						return nil, base.ErrNotChangedOperationProcessReason, nil
 					}
 				},
-			}, true, nil
+			}, nil
 		},
 		nil,
 	)
@@ -1064,7 +1064,7 @@ func (t *testDefaultProposalProcessor) TestProcessButError() {
 
 		return op, nil
 	},
-		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) { return nil, false, nil },
+		func(base.Height, hint.Hint) (base.OperationProcessor, error) { return nil, nil },
 		nil,
 	)
 	opp.retrylimit = 1
@@ -1114,7 +1114,7 @@ func (t *testDefaultProposalProcessor) TestProcessButErrorRetry() {
 
 		return op, nil
 	},
-		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) { return nil, false, nil },
+		func(base.Height, hint.Hint) (base.OperationProcessor, error) { return nil, nil },
 		nil,
 	)
 	opp.retrylimit = 3
@@ -1158,7 +1158,7 @@ func (t *testDefaultProposalProcessor) TestProcessButSetStatesErrorRetry() {
 
 		return op, nil
 	},
-		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) { return nil, false, nil },
+		func(base.Height, hint.Hint) (base.OperationProcessor, error) { return nil, nil },
 		nil,
 	)
 	opp.retrylimit = 2
@@ -1222,7 +1222,7 @@ func (t *testDefaultProposalProcessor) TestProcessContextCancel() {
 
 		return op, nil
 	},
-		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) { return nil, false, nil },
+		func(base.Height, hint.Hint) (base.OperationProcessor, error) { return nil, nil },
 		nil,
 	)
 	opp.retrylimit = 1
@@ -1296,7 +1296,7 @@ func (t *testDefaultProposalProcessor) TestProcessCancel() {
 
 		return op, nil
 	},
-		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) { return nil, false, nil },
+		func(base.Height, hint.Hint) (base.OperationProcessor, error) { return nil, nil },
 		nil,
 	)
 	opp.retrylimit = 1
@@ -1351,7 +1351,7 @@ func (t *testDefaultProposalProcessor) TestSave() {
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		return ops[facthash.String()], nil
 	},
-		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) { return nil, false, nil },
+		func(base.Height, hint.Hint) (base.OperationProcessor, error) { return nil, nil },
 		setLastVoteproofsFunc,
 	)
 
@@ -1401,7 +1401,7 @@ func (t *testDefaultProposalProcessor) TestSaveFailed() {
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		return ops[facthash.String()], nil
 	},
-		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) { return nil, false, nil },
+		func(base.Height, hint.Hint) (base.OperationProcessor, error) { return nil, nil },
 		nil,
 	)
 	opp.retrylimit = 2

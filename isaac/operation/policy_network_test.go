@@ -149,7 +149,7 @@ func (t *testGenesisNetworkPolicy) TestPreProcess() {
 	op := NewGenesisNetworkPolicy(fact)
 	t.NoError(op.Sign(t.priv, t.networkID))
 
-	reason, err := op.PreProcess(context.Background(), nil)
+	reason, err := op.PreProcess(context.Background(), base.NilGetState)
 	t.NoError(err)
 	t.Nil(reason)
 }

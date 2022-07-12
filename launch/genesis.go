@@ -343,8 +343,8 @@ func (g *GenesisBlockGenerator) newProposalProcessor() (*isaac.DefaultProposalPr
 
 			return nil, util.ErrNotFound.Errorf("operation not found")
 		},
-		func(base.Height, hint.Hint) (base.OperationProcessor, bool, error) {
-			return nil, false, nil
+		func(base.Height, hint.Hint) (base.OperationProcessor, error) {
+			return nil, nil
 		},
 		g.pool.SetLastVoteproofs,
 	)

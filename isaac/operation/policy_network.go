@@ -86,10 +86,17 @@ func (op GenesisNetworkPolicy) IsValid(networkID []byte) error {
 	return nil
 }
 
-func (GenesisNetworkPolicy) PreProcess(context.Context, base.GetStateFunc) (
+func (GenesisNetworkPolicy) PreProcess(_ context.Context, getStateFunc base.GetStateFunc) (
 	base.OperationProcessReasonError, error,
 ) {
-	return nil, nil
+	switch _, found, err := getStateFunc(isaac.NetworkPolicyStateKey); {
+	case err != nil:
+		return base.NewBaseOperationProcessReasonError("failed to check network policy state: %w", err), nil
+	case found:
+		return base.NewBaseOperationProcessReasonError("network policy state already exists"), nil
+	default:
+		return nil, nil
+	}
 }
 
 func (op GenesisNetworkPolicy) Process(context.Context, base.GetStateFunc) (

@@ -407,7 +407,7 @@ func (t *testSuffrageGenesisJoin) TestPreProcess() {
 	op := NewSuffrageGenesisJoin(fact)
 	t.NoError(op.Sign(t.priv, t.networkID))
 
-	reason, err := op.PreProcess(context.Background(), nil)
+	reason, err := op.PreProcess(context.Background(), base.NilGetState)
 	t.NoError(err)
 	t.Nil(reason)
 }

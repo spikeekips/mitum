@@ -22,7 +22,7 @@ var (
 )
 
 type (
-	NewOperationProcessorFunction func(base.Height, hint.Hint) (base.OperationProcessor, bool, error)
+	NewOperationProcessorFunction func(base.Height, hint.Hint) (base.OperationProcessor, error)
 
 	// OperationProcessorGetOperationFunction works,
 	// - if operation is invalid, getOperation should return nil,
@@ -541,28 +541,17 @@ func (p *DefaultProposalProcessor) getOperationProcessor(ctx context.Context, ht
 ) {
 	j, _, err := p.oprs.Get(ht.String(), func() (interface{}, error) {
 		var opp base.OperationProcessor
-		var found bool
 		if err := p.retry(ctx, func() (bool, error) {
-			switch i, ok, err := p.newOperationProcessor(p.proposal.Point().Height(), ht); {
-			case err != nil:
+			i, err := p.newOperationProcessor(p.proposal.Point().Height(), ht)
+			if err != nil {
 				return true, err
-			case !ok:
-				opp = nil
-				found = false
-
-				return false, nil
-			default:
-				opp = i
-				found = true
-
-				return false, nil
 			}
+
+			opp = i
+
+			return false, nil
 		}); err != nil {
 			return util.NilLockedValue{}, err
-		}
-
-		if !found {
-			return util.NilLockedValue{}, nil
 		}
 
 		return opp, nil
@@ -571,7 +560,7 @@ func (p *DefaultProposalProcessor) getOperationProcessor(ctx context.Context, ht
 		return nil, false, errors.Wrap(err, "failed to get OperationProcessor")
 	}
 
-	if util.IsNilLockedValue(j) {
+	if j == nil {
 		return nil, false, nil
 	}
 

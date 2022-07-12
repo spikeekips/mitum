@@ -179,6 +179,8 @@ func (cmd *runCommand) nodeChallengeFunc() func(quicmemberlist.Node) error {
 
 func (cmd *runCommand) memberlistAllowFunc() func(quicmemberlist.Node) error {
 	return func(node quicmemberlist.Node) error {
+		// FIXME include candidates
+
 		proof, err := cmd.lastSuffrageProofWatcher.Last()
 		if err != nil {
 			log.Error().Err(err).Msg("failed to get last suffrage proof; node will not be allowed")
