@@ -16,3 +16,9 @@ func (p *NetworkPolicy) SetSuffrageCandidateLifespan(i base.Height) *NetworkPoli
 
 	return p
 }
+
+func (p *NetworkPolicy) SetSuffrageCandidateLimiterRule(i base.SuffrageCandidateLimiterRule) *NetworkPolicy {
+	p.suffrageCandidateLimiterRule = i
+
+	return p
+}

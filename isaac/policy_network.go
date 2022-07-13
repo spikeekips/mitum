@@ -1,9 +1,12 @@
 package isaac
 
 import (
-	"github.com/pkg/errors"
+	"encoding/json"
+
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
+	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
 )
 
@@ -19,6 +22,7 @@ var (
 )
 
 type NetworkPolicy struct {
+	suffrageCandidateLimiterRule base.SuffrageCandidateLimiterRule
 	util.DefaultJSONMarshaled
 	hint.BaseHinter
 	maxOperationsInProposal   uint64
@@ -27,9 +31,10 @@ type NetworkPolicy struct {
 
 func DefaultNetworkPolicy() NetworkPolicy {
 	return NetworkPolicy{
-		BaseHinter:                hint.NewBaseHinter(NetworkPolicyHint),
-		maxOperationsInProposal:   DefaultMaxOperationsInProposal,
-		suffrageCandidateLifespan: DefaultSuffrageCandidateLifespan,
+		BaseHinter:                   hint.NewBaseHinter(NetworkPolicyHint),
+		maxOperationsInProposal:      DefaultMaxOperationsInProposal,
+		suffrageCandidateLifespan:    DefaultSuffrageCandidateLifespan,
+		suffrageCandidateLimiterRule: NewFixedSuffrageCandidateLimiterRule(1),
 	}
 }
 
@@ -51,11 +56,19 @@ func (p NetworkPolicy) IsValid([]byte) error {
 		return e.Errorf("zero SuffrageCandidateLifespan")
 	}
 
+	if p.suffrageCandidateLimiterRule == nil {
+		return e.Errorf("empty SuffrageCandidateLimiterRule")
+	}
+
 	return nil
 }
 
 func (p NetworkPolicy) HashBytes() []byte {
-	return util.Uint64ToBytes(p.maxOperationsInProposal)
+	return util.ConcatBytesSlice(
+		util.Uint64ToBytes(p.maxOperationsInProposal),
+		p.suffrageCandidateLifespan.Bytes(),
+		p.suffrageCandidateLimiterRule.HashBytes(),
+	)
 }
 
 func (p NetworkPolicy) MaxOperationsInProposal() uint64 {
@@ -66,7 +79,13 @@ func (p NetworkPolicy) SuffrageCandidateLifespan() base.Height {
 	return p.suffrageCandidateLifespan
 }
 
+func (p NetworkPolicy) SuffrageCandidateLimiterRule() base.SuffrageCandidateLimiterRule {
+	return p.suffrageCandidateLimiterRule
+}
+
 type networkPolicyJSONMarshaler struct {
+	// revive:disable-next-line:line-length-limit
+	SuffrageCandidateLimiterRule base.SuffrageCandidateLimiterRule `json:"suffrage_candidate_limiter"` //nolint:tagliatelle //...
 	hint.BaseHinter
 	MaxOperationsInProposal   uint64      `json:"max_operations_in_proposal"`
 	SuffrageCandidateLifespan base.Height `json:"suffrage_candidate_lifespan"`
@@ -74,25 +93,35 @@ type networkPolicyJSONMarshaler struct {
 
 func (p NetworkPolicy) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(networkPolicyJSONMarshaler{
-		BaseHinter:                p.BaseHinter,
-		MaxOperationsInProposal:   p.maxOperationsInProposal,
-		SuffrageCandidateLifespan: p.suffrageCandidateLifespan,
+		BaseHinter:                   p.BaseHinter,
+		MaxOperationsInProposal:      p.maxOperationsInProposal,
+		SuffrageCandidateLifespan:    p.suffrageCandidateLifespan,
+		SuffrageCandidateLimiterRule: p.suffrageCandidateLimiterRule,
 	})
 }
 
 type networkPolicyJSONUnmarshaler struct {
-	MaxOperationsInProposal   uint64      `json:"max_operations_in_proposal"`
-	SuffrageCandidateLifespan base.Height `json:"suffrage_candidate_lifespan"`
+	SuffrageCandidateLimiterRule json.RawMessage `json:"suffrage_candidate_limiter"` //nolint:tagliatelle //...
+	MaxOperationsInProposal      uint64          `json:"max_operations_in_proposal"`
+	SuffrageCandidateLifespan    base.Height     `json:"suffrage_candidate_lifespan"`
 }
 
-func (p *NetworkPolicy) UnmarshalJSON(b []byte) error {
+func (p *NetworkPolicy) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+	e := util.StringErrorFunc("failed to unmarshal NetworkPolicy")
+
 	var u networkPolicyJSONUnmarshaler
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return errors.Wrap(err, "failed to unmarshal NetworkPolicy")
+		return e(err, "")
 	}
 
 	p.maxOperationsInProposal = u.MaxOperationsInProposal
 	p.suffrageCandidateLifespan = u.SuffrageCandidateLifespan
+
+	// FIXME set SuffrageCandidateLimiter
+
+	if err := encoder.Decode(enc, u.SuffrageCandidateLimiterRule, &p.suffrageCandidateLimiterRule); err != nil {
+		return e(err, "")
+	}
 
 	return nil
 }

@@ -282,6 +282,20 @@ func (t *testNewOperationPool) TestNewOperationHashes() {
 		t.Nil(op)
 	})
 
+	t.Run("filter error", func() {
+		filter := func(facthash util.Hash, _ isaac.PoolOperationHeader) (bool, error) {
+			if facthash.Equal(ops[31].Fact().Hash()) {
+				return false, errors.Errorf("findme")
+			}
+
+			return true, nil
+		}
+
+		_, err := pst.NewOperationHashes(context.Background(), 100, filter)
+		t.Error(err)
+		t.ErrorContains(err, "findme")
+	})
+
 	t.Run("filter by header", func() {
 		filter := func(_ util.Hash, header isaac.PoolOperationHeader) (bool, error) {
 			// NOTE filter non-anotherDummyOperationFactHint
@@ -303,20 +317,6 @@ func (t *testNewOperationPool) TestNewOperationHashes() {
 
 			t.True(op.Equal(rop), "op=%q rop=%q", op, rop)
 		}
-	})
-
-	t.Run("filter error", func() {
-		filter := func(facthash util.Hash, header isaac.PoolOperationHeader) (bool, error) {
-			if facthash.Equal(ops[31].Fact().Hash()) {
-				return false, errors.Errorf("findme")
-			}
-
-			return true, nil
-		}
-
-		_, err := pst.NewOperationHashes(context.Background(), 100, filter)
-		t.Error(err)
-		t.ErrorContains(err, "findme")
 	})
 }
 

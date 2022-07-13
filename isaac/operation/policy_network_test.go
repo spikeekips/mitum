@@ -19,7 +19,6 @@ type testGenesisNetworkPolicyFact struct {
 
 func (t *testGenesisNetworkPolicyFact) TestNew() {
 	policy := isaac.DefaultNetworkPolicy()
-	policy.SetMaxOperationsInProposal(33)
 
 	fact := NewGenesisNetworkPolicyFact(policy)
 	t.NoError(fact.IsValid(nil))
@@ -36,7 +35,6 @@ func TestGenesisNetworkPolicyFactEncode(tt *testing.T) {
 
 	t.Encode = func() (interface{}, []byte) {
 		policy := isaac.DefaultNetworkPolicy()
-		policy.SetMaxOperationsInProposal(33)
 
 		fact := NewGenesisNetworkPolicyFact(policy)
 
@@ -49,6 +47,7 @@ func TestGenesisNetworkPolicyFactEncode(tt *testing.T) {
 	}
 	t.Decode = func(b []byte) interface{} {
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: isaac.NetworkPolicyHint, Instance: isaac.NetworkPolicy{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: isaac.FixedSuffrageCandidateLimiterRuleHint, Instance: isaac.FixedSuffrageCandidateLimiterRule{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: GenesisNetworkPolicyFactHint, Instance: GenesisNetworkPolicyFact{}}))
 
 		i, err := enc.Decode(b)

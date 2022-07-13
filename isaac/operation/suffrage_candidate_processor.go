@@ -29,7 +29,8 @@ func NewSuffrageCandidateProcessor(
 ) (*SuffrageCandidateProcessor, error) {
 	e := util.StringErrorFunc("failed to create new SuffrageCandidateProcessor")
 
-	b, err := base.NewBaseOperationProcessor(height, getStateFunc, newPreProcessConstraintFunc, newProcessConstraintFunc)
+	b, err := base.NewBaseOperationProcessor(
+		height, getStateFunc, newPreProcessConstraintFunc, newProcessConstraintFunc)
 	if err != nil {
 		return nil, e(err, "")
 	}

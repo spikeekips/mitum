@@ -26,6 +26,7 @@ var Hinters = []encoder.DecodeDetail{
 	{Hint: isaac.ACCEPTBallotHint, Instance: isaac.ACCEPTBallot{}},
 	{Hint: isaac.ACCEPTBallotSignedFactHint, Instance: isaac.ACCEPTBallotSignedFact{}},
 	{Hint: isaac.ACCEPTVoteproofHint, Instance: isaac.ACCEPTVoteproof{}},
+	{Hint: isaac.FixedSuffrageCandidateLimiterRuleHint, Instance: isaac.FixedSuffrageCandidateLimiterRule{}},
 	{Hint: isaac.INITBallotFactHint, Instance: isaac.INITBallotFact{}},
 	{Hint: isaac.INITBallotHint, Instance: isaac.INITBallot{}},
 	{Hint: isaac.INITBallotSignedFactHint, Instance: isaac.INITBallotSignedFact{}},

@@ -335,10 +335,10 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context) error 
 			continue
 		}
 
-		if rop, ok := op.(ReasonProcessedOperation); ok {
-			gopsindex++
-			opsindex := gopsindex
+		gopsindex++
+		opsindex := gopsindex
 
+		if rop, ok := op.(ReasonProcessedOperation); ok {
 			if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
 				return p.writer.SetProcessResult( //nolint:wrapcheck //...
 					ctx, uint64(opsindex), rop.OperationHash(), rop.FactHash(), false, rop.Reason())
@@ -351,11 +351,10 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context) error 
 		case err != nil:
 			return e(err, "failed to pre process operation")
 		case !passed:
+			gopsindex--
+
 			continue
 		case reasonerr != nil:
-			gopsindex++
-			opsindex := gopsindex
-
 			if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
 				return p.writer.SetProcessResult(
 					ctx, uint64(opsindex), op.Hash(), op.Fact().Hash(), false, reasonerr,
@@ -366,9 +365,6 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context) error 
 
 			continue
 		}
-
-		gopsindex++
-		opsindex := gopsindex
 
 		gvalidindex++
 		validindex := gvalidindex

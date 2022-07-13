@@ -287,7 +287,7 @@ func newOperationHeader(op base.Operation) [300]byte {
 }
 
 func loadNewOperationHeader(b []byte) (header PoolOperationHeader, left []byte) {
-	if len(b) < 300 {
+	if len(b) < 300 { //nolint:gomnd //...
 		return header, b
 	}
 

@@ -2,6 +2,7 @@ package base
 
 import (
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/hint"
 )
 
 type NetworkPolicy interface {
@@ -9,6 +10,7 @@ type NetworkPolicy interface {
 	util.HashByter
 	MaxOperationsInProposal() uint64
 	SuffrageCandidateLifespan() Height
+	SuffrageCandidateLimiterRule() SuffrageCandidateLimiterRule
 }
 
 type NodePolicy interface {
@@ -30,4 +32,10 @@ func IsNetworkPolicyState(st State) bool {
 	_, ok := st.Value().(NetworkPolicyStateValue)
 
 	return ok
+}
+
+type SuffrageCandidateLimiterRule interface {
+	hint.Hinter
+	util.IsValider
+	util.HashByter
 }

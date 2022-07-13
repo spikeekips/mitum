@@ -1,15 +1,17 @@
 package isaac
 
 import (
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
 )
 
 var (
-	SuffrageStateValueHint          = hint.MustNewHint("suffrage-state-value-v0.0.1")
-	SuffrageCandidateStateValueHint = hint.MustNewHint("suffrage-candidate-state-value-v0.0.1")
-	SuffrageCandidateHint           = hint.MustNewHint("suffrage-candidate-v0.0.1")
+	SuffrageStateValueHint                = hint.MustNewHint("suffrage-state-value-v0.0.1")
+	SuffrageCandidateStateValueHint       = hint.MustNewHint("suffrage-candidate-state-value-v0.0.1")
+	SuffrageCandidateHint                 = hint.MustNewHint("suffrage-candidate-v0.0.1")
+	FixedSuffrageCandidateLimiterRuleHint = hint.MustNewHint("fixed-suffrage-candidate-limiter-rule-v0.0.1")
 )
 
 var (
@@ -317,4 +319,64 @@ func GetSuffrageFromDatabase(
 
 		return suf, true, err
 	}
+}
+
+type FixedSuffrageCandidateLimiterRule struct {
+	hint.BaseHinter
+	limit uint64
+}
+
+func NewFixedSuffrageCandidateLimiterRule(limit uint64) FixedSuffrageCandidateLimiterRule {
+	return FixedSuffrageCandidateLimiterRule{
+		BaseHinter: hint.NewBaseHinter(FixedSuffrageCandidateLimiterRuleHint),
+		limit:      limit,
+	}
+}
+
+func (l FixedSuffrageCandidateLimiterRule) IsValid([]byte) error {
+	e := util.ErrInvalid.Errorf("invalid FixedSuffrageCandidateLimiterRule")
+
+	if err := l.BaseHinter.IsValid(FixedSuffrageCandidateLimiterRuleHint.Type().Bytes()); err != nil {
+		return e.Wrap(err)
+	}
+
+	return nil
+}
+
+func (l FixedSuffrageCandidateLimiterRule) Limit() uint64 {
+	return l.limit
+}
+
+func (l FixedSuffrageCandidateLimiterRule) HashBytes() []byte {
+	return util.ConcatBytesSlice(
+		l.Hint().Bytes(),
+		util.Uint64ToBytes(l.limit),
+	)
+}
+
+type fixedSuffrageCandidateLimiterRuleJSONMarshaler struct {
+	hint.BaseHinter
+	Limit uint64 `json:"limit"`
+}
+type fixedSuffrageCandidateLimiterRuleJSONUnmarshaler struct {
+	Limit uint64 `json:"limit"`
+}
+
+func (l FixedSuffrageCandidateLimiterRule) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(fixedSuffrageCandidateLimiterRuleJSONMarshaler{
+		BaseHinter: l.BaseHinter,
+		Limit:      l.limit,
+	})
+}
+
+func (l *FixedSuffrageCandidateLimiterRule) UnmarshalJSON(b []byte) error {
+	var u fixedSuffrageCandidateLimiterRuleJSONUnmarshaler
+
+	if err := util.UnmarshalJSON(b, &u); err != nil {
+		return errors.WithMessage(err, "failed to unmarshal FixedSuffrageCandidateLimiterRule")
+	}
+
+	l.limit = u.Limit
+
+	return nil
 }

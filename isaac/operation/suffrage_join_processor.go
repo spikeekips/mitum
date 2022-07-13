@@ -30,7 +30,8 @@ func NewSuffrageJoinProcessor(
 ) (*SuffrageJoinProcessor, error) {
 	e := util.StringErrorFunc("failed to create new SuffrageJoinProcessor")
 
-	b, err := base.NewBaseOperationProcessor(height, getStateFunc, newPreProcessConstraintFunc, newProcessConstraintFunc)
+	b, err := base.NewBaseOperationProcessor(
+		height, getStateFunc, newPreProcessConstraintFunc, newProcessConstraintFunc)
 	if err != nil {
 		return nil, e(err, "")
 	}

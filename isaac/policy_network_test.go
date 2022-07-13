@@ -26,6 +26,7 @@ func (t *testNetworkPolicy) TestIsValid() {
 	t.Run("wrong MaxOperationsInProposal", func() {
 		p := DefaultNetworkPolicy()
 		p.SetMaxOperationsInProposal(0)
+		p.SetSuffrageCandidateLimiterRule(NewFixedSuffrageCandidateLimiterRule(33))
 
 		err := p.IsValid(nil)
 		t.Error(err)
@@ -44,10 +45,13 @@ func TestNetworkPolicyJSON(tt *testing.T) {
 	enc := jsonenc.NewEncoder()
 
 	t.Encode = func() (interface{}, []byte) {
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: FixedSuffrageCandidateLimiterRuleHint, Instance: FixedSuffrageCandidateLimiterRule{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: NetworkPolicyHint, Instance: NetworkPolicy{}}))
 
 		p := DefaultNetworkPolicy()
 		p.SetMaxOperationsInProposal(99)
+		p.SetSuffrageCandidateLifespan(88)
+		p.SetSuffrageCandidateLimiterRule(NewFixedSuffrageCandidateLimiterRule(77))
 
 		b, err := util.MarshalJSON(&p)
 		t.NoError(err)
@@ -70,6 +74,18 @@ func TestNetworkPolicyJSON(tt *testing.T) {
 
 		t.True(ap.Hint().Equal(bp.Hint()))
 		t.Equal(ap.maxOperationsInProposal, bp.maxOperationsInProposal)
+		t.Equal(ap.suffrageCandidateLifespan, bp.suffrageCandidateLifespan)
+
+		ar := ap.SuffrageCandidateLimiterRule()
+		br := ap.SuffrageCandidateLimiterRule()
+		t.NotNil(ar)
+		t.NotNil(br)
+
+		t.Equal(ar.Hint(), br.Hint())
+
+		arf := ar.(FixedSuffrageCandidateLimiterRule)
+		brf := br.(FixedSuffrageCandidateLimiterRule)
+		t.Equal(arf.Limit(), brf.Limit())
 	}
 
 	suite.Run(tt, t)
