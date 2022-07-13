@@ -8,9 +8,12 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
+	"github.com/spikeekips/mitum/util/hint"
+	"github.com/spikeekips/mitum/util/localtime"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/syndtr/goleveldb/leveldb"
 	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
@@ -151,7 +154,7 @@ func (db *TempPool) NewOperation(_ context.Context, operationhash util.Hash) (op
 func (db *TempPool) NewOperationHashes(
 	ctx context.Context,
 	limit uint64,
-	filter func(facthash util.Hash) (bool, error),
+	filter func(facthash util.Hash, _ isaac.PoolOperationHeader) (bool, error),
 ) ([]util.Hash, error) {
 	e := util.StringErrorFunc("failed to find new operations")
 
@@ -160,7 +163,7 @@ func (db *TempPool) NewOperationHashes(
 
 	nfilter := filter
 	if nfilter == nil {
-		nfilter = func(facthash util.Hash) (bool, error) { return true, nil }
+		nfilter = func(facthash util.Hash, _ isaac.PoolOperationHeader) (bool, error) { return true, nil }
 	}
 
 	var i uint64
@@ -168,9 +171,11 @@ func (db *TempPool) NewOperationHashes(
 	if err := db.st.Iter(
 		leveldbutil.BytesPrefix(leveldbKeyPrefixNewOperationOrdered),
 		func(_ []byte, b []byte) (bool, error) {
+			h, left := loadNewOperationHeader(b)
+
 			var operationhash, facthash util.Hash
 
-			switch keys := splitLeveldbJoinedKeys(b); {
+			switch keys := splitLeveldbJoinedKeys(left); {
 			case len(keys) != 2: //nolint:gomnd //...
 				return false, errors.Errorf("invalid operation ordered key")
 			default:
@@ -178,7 +183,7 @@ func (db *TempPool) NewOperationHashes(
 				facthash = valuehash.Bytes(keys[1])
 			}
 
-			switch ok, err := nfilter(facthash); {
+			switch ok, err := nfilter(facthash, h); {
 			case err != nil:
 				return false, err
 			case !ok:
@@ -234,8 +239,11 @@ func (db *TempPool) SetNewOperation(_ context.Context, op base.Operation) (bool,
 	}
 
 	batch := new(leveldb.Batch)
+
+	h := newOperationHeader(op)
+
 	batch.Put(key, b)
-	batch.Put(orderedkey, joinLeveldbKeys(op.Hash().Bytes(), facthash.Bytes()))
+	batch.Put(orderedkey, util.ConcatBytesSlice(h[:], joinLeveldbKeys(op.Hash().Bytes(), facthash.Bytes())))
 
 	batch.Put(leveldbNewOperationKeysKey(facthash), joinLeveldbKeys(key, orderedkey))
 
@@ -244,6 +252,50 @@ func (db *TempPool) SetNewOperation(_ context.Context, op base.Operation) (bool,
 	}
 
 	return true, nil
+}
+
+type PoolOperationHeader struct {
+	version   byte
+	addedAt   [10]byte
+	hintBytes [289]byte
+}
+
+func (h PoolOperationHeader) Version() byte {
+	return h.version
+}
+
+func (h PoolOperationHeader) AddedAt() []byte {
+	return h.addedAt[:]
+}
+
+func (h PoolOperationHeader) HintBytes() []byte {
+	return h.hintBytes[:]
+}
+
+func newOperationHeader(op base.Operation) [300]byte {
+	b := [300]byte{}
+
+	b[0] = 0x01 // NOTE header version(1)
+
+	copy(b[1:11], util.Int64ToBytes(localtime.UTCNow().UnixNano())) // NOTE added timestamp(10)
+
+	if i, ok := op.Fact().(hint.Hinter); ok {
+		copy(b[11:], i.Hint().Bytes())
+	}
+
+	return b
+}
+
+func loadNewOperationHeader(b []byte) (header PoolOperationHeader, left []byte) {
+	if len(b) < 300 {
+		return header, b
+	}
+
+	header.version = b[0]
+	copy(header.addedAt[:], b[1:])
+	copy(header.hintBytes[:], b[11:])
+
+	return header, b[300:]
 }
 
 func (db *TempPool) RemoveNewOperations(ctx context.Context, facthashes []util.Hash) error {

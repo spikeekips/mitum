@@ -82,12 +82,18 @@ type ProposalPool interface {
 	SetProposal(pr base.ProposalSignedFact) (bool, error)
 }
 
+type PoolOperationHeader interface {
+	Version() byte
+	AddedAt() []byte
+	HintBytes() []byte
+}
+
 type NewOperationPool interface {
 	NewOperation(_ context.Context, operationhash util.Hash) (base.Operation, bool, error)
 	NewOperationHashes(
 		_ context.Context,
 		limit uint64,
-		filter func(facthash util.Hash) (ok bool, err error),
+		filter func(facthash util.Hash, _ PoolOperationHeader) (ok bool, err error),
 	) ([]util.Hash, error)
 	SetNewOperation(context.Context, base.Operation) (bool, error)
 	RemoveNewOperations(context.Context, []util.Hash) error

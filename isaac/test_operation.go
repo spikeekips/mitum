@@ -10,6 +10,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
@@ -21,6 +22,7 @@ var (
 )
 
 type DummyOperationFact struct {
+	hint.BaseHinter
 	h     util.Hash
 	token base.Token
 	v     util.Byter
@@ -28,16 +30,13 @@ type DummyOperationFact struct {
 
 func NewDummyOperationFact(token base.Token, v util.Byter) DummyOperationFact {
 	fact := DummyOperationFact{
-		token: token,
-		v:     v,
+		BaseHinter: hint.NewBaseHinter(DummyOperationFactHint),
+		token:      token,
+		v:          v,
 	}
 	fact.h = fact.generateHash()
 
 	return fact
-}
-
-func (fact DummyOperationFact) Hint() hint.Hint {
-	return DummyOperationFactHint
 }
 
 func (fact DummyOperationFact) IsValid([]byte) error {
@@ -60,25 +59,29 @@ func (fact DummyOperationFact) Token() base.Token {
 	return fact.token
 }
 
+func (fact *DummyOperationFact) UpdateHint(ht hint.Hint) {
+	fact.BaseHinter = fact.BaseHinter.SetHint(ht).(hint.BaseHinter)
+}
+
 func (fact DummyOperationFact) generateHash() util.Hash {
 	return valuehash.NewSHA256(util.ConcatByters(fact.v, util.BytesToByter(fact.token)))
 }
 
 func (fact DummyOperationFact) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
-		hint.HintedJSONHead
+		hint.BaseHinter
 		H     util.Hash
 		Token base.Token
 		V     []byte
 	}{
-		HintedJSONHead: hint.NewHintedJSONHead(fact.Hint()),
-		H:              fact.h,
-		Token:          fact.token,
-		V:              fact.v.Bytes(),
+		BaseHinter: fact.BaseHinter,
+		H:          fact.h,
+		Token:      fact.token,
+		V:          fact.v.Bytes(),
 	})
 }
 
-func (fact *DummyOperationFact) UnmarshalJSON(b []byte) error {
+func (fact *DummyOperationFact) DecodeJSON(b []byte, _ *jsonenc.Encoder) error {
 	var u struct {
 		H     valuehash.HashDecoder
 		Token base.Token
@@ -162,7 +165,7 @@ func (op DummyOperation) MarshalJSON() ([]byte, error) {
 func (op *DummyOperation) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	var u struct {
 		H      valuehash.HashDecoder
-		Fact   DummyOperationFact
+		Fact   json.RawMessage
 		Signed json.RawMessage
 	}
 	if err := enc.Unmarshal(b, &u); err != nil {
@@ -170,7 +173,10 @@ func (op *DummyOperation) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	}
 
 	op.h = u.H.Hash()
-	op.fact = u.Fact
+
+	if err := encoder.Decode(enc, u.Fact, &op.fact); err != nil {
+		return err
+	}
 
 	var bs base.BaseSigned
 	switch err := bs.DecodeJSON(u.Signed, enc); {

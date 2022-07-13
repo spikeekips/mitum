@@ -1,6 +1,7 @@
 package isaacdatabase
 
 import (
+	"bytes"
 	"context"
 	"testing"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
+	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 )
@@ -204,12 +206,23 @@ func (t *testNewOperationPool) TestNewOperationHashes() {
 	pst := t.NewPool()
 	defer pst.Close()
 
+	anotherDummyOperationFactHint := hint.MustNewHint("another-dummy-operation-fact-v0.0.1")
+	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: anotherDummyOperationFactHint, Instance: isaac.DummyOperationFact{}}))
+
 	ops := make([]base.Operation, 33)
+	var anothers []base.Operation
 	for i := range ops {
 		fact := isaac.NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
+		if i%10 == 0 {
+			fact.UpdateHint(anotherDummyOperationFactHint)
+		}
+
 		op, _ := isaac.NewDummyOperation(fact, t.local.Privatekey(), t.networkID)
 
 		ops[i] = op
+		if i%10 == 0 {
+			anothers = append(anothers, op)
+		}
 
 		added, err := pst.SetNewOperation(context.Background(), op)
 		t.NoError(err)
@@ -243,7 +256,7 @@ func (t *testNewOperationPool) TestNewOperationHashes() {
 	})
 
 	t.Run("filter", func() {
-		filter := func(facthash util.Hash) (bool, error) {
+		filter := func(facthash util.Hash, header isaac.PoolOperationHeader) (bool, error) {
 			if facthash.Equal(ops[32].Fact().Hash()) {
 				return false, nil
 			}
@@ -269,8 +282,31 @@ func (t *testNewOperationPool) TestNewOperationHashes() {
 		t.Nil(op)
 	})
 
+	t.Run("filter by header", func() {
+		filter := func(_ util.Hash, header isaac.PoolOperationHeader) (bool, error) {
+			// NOTE filter non-anotherDummyOperationFactHint
+			isanother := bytes.HasPrefix(
+				header.HintBytes(),
+				anotherDummyOperationFactHint.Bytes(),
+			)
+
+			return isanother, nil
+		}
+
+		rops, err := pst.NewOperationHashes(context.Background(), 100, filter)
+		t.NoError(err)
+		t.Equal(len(anothers), len(rops))
+
+		for i := range rops {
+			op := anothers[i].Hash()
+			rop := rops[i]
+
+			t.True(op.Equal(rop), "op=%q rop=%q", op, rop)
+		}
+	})
+
 	t.Run("filter error", func() {
-		filter := func(facthash util.Hash) (bool, error) {
+		filter := func(facthash util.Hash, header isaac.PoolOperationHeader) (bool, error) {
 			if facthash.Equal(ops[31].Fact().Hash()) {
 				return false, errors.Errorf("findme")
 			}
