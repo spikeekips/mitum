@@ -12,31 +12,34 @@ import (
 )
 
 type SuffrageJoinProcessor struct {
-	sufcst                   base.State
-	sufstv                   base.SuffrageStateValue
-	suffrage                 base.Suffrage
-	candidates               map[string]base.SuffrageCandidate
-	processConstraintFunc    base.OperationProcessorProcessFunc
-	preProcessConstraintFunc base.OperationProcessorProcessFunc
-	preprocessed             map[string]struct{} //revive:disable-line:nested-structs
-	height                   base.Height
-	threshold                base.Threshold
+	*base.BaseOperationProcessor
+	sufcst       base.State
+	sufstv       base.SuffrageStateValue
+	suffrage     base.Suffrage
+	candidates   map[string]base.SuffrageCandidate
+	preprocessed map[string]struct{} //revive:disable-line:nested-structs
+	threshold    base.Threshold
 }
 
 func NewSuffrageJoinProcessor(
 	height base.Height,
 	threshold base.Threshold,
 	getStateFunc base.GetStateFunc,
-	preProcessConstraintFunc base.OperationProcessorProcessFunc,
-	processConstraintFunc base.OperationProcessorProcessFunc,
+	newPreProcessConstraintFunc base.NewOperationProcessorProcessFunc,
+	newProcessConstraintFunc base.NewOperationProcessorProcessFunc,
 ) (*SuffrageJoinProcessor, error) {
 	e := util.StringErrorFunc("failed to create new SuffrageJoinProcessor")
 
+	b, err := base.NewBaseOperationProcessor(height, getStateFunc, newPreProcessConstraintFunc, newProcessConstraintFunc)
+	if err != nil {
+		return nil, e(err, "")
+	}
+
 	p := &SuffrageJoinProcessor{
-		height:       height,
-		threshold:    threshold,
-		candidates:   map[string]base.SuffrageCandidate{},
-		preprocessed: map[string]struct{}{},
+		BaseOperationProcessor: b,
+		threshold:              threshold,
+		candidates:             map[string]base.SuffrageCandidate{},
+		preprocessed:           map[string]struct{}{},
 	}
 
 	switch i, found, err := getStateFunc(isaac.SuffrageStateKey); {
@@ -77,20 +80,6 @@ func NewSuffrageJoinProcessor(
 		}
 	}
 
-	// revive:disable:modifies-parameter
-	if preProcessConstraintFunc == nil {
-		preProcessConstraintFunc = base.EmptyOperationProcessorProcessFunc
-	}
-
-	p.preProcessConstraintFunc = preProcessConstraintFunc
-
-	if processConstraintFunc == nil {
-		processConstraintFunc = base.EmptyOperationProcessorProcessFunc
-	}
-
-	p.processConstraintFunc = processConstraintFunc
-	// revive:enable:modifies-parameter
-
 	return p, nil
 }
 
@@ -126,7 +115,7 @@ func (p *SuffrageJoinProcessor) PreProcess(ctx context.Context, op base.Operatio
 		return base.NewBaseOperationProcessReasonError("candidate not in candidates, %q", n), nil
 	case fact.StartHeight() != i.Start():
 		return base.NewBaseOperationProcessReasonError("start height does not match"), nil
-	case i.Deadline() < p.height:
+	case i.Deadline() < p.Height():
 		return base.NewBaseOperationProcessReasonError("candidate expired, %q", n), nil
 	default:
 		info = i
@@ -139,7 +128,7 @@ func (p *SuffrageJoinProcessor) PreProcess(ctx context.Context, op base.Operatio
 		return base.NewBaseOperationProcessReasonError("not signed by candidate key"), nil
 	}
 
-	switch reasonerr, err := p.preProcessConstraintFunc(ctx, op, getStateFunc); {
+	switch reasonerr, err := p.PreProcessConstraintFunc(ctx, op, getStateFunc); {
 	case err != nil:
 		return nil, e(err, "")
 	case reasonerr != nil:
@@ -160,7 +149,7 @@ func (p *SuffrageJoinProcessor) Process(ctx context.Context, op base.Operation, 
 ) {
 	e := util.StringErrorFunc("failed to process for SuffrageJoin")
 
-	switch reasonerr, err := p.processConstraintFunc(ctx, op, getStateFunc); {
+	switch reasonerr, err := p.ProcessConstraintFunc(ctx, op, getStateFunc); {
 	case err != nil:
 		return nil, nil, e(err, "")
 	case reasonerr != nil:

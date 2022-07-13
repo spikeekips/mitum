@@ -299,6 +299,34 @@ func (t *testSuffrageJoinProcessor) TestStartHeightMismatch() {
 	t.ErrorContains(reason, "start height does not match")
 }
 
+func (t *testSuffrageJoinProcessor) TestPreProcessConstaint() {
+	height := base.Height(33)
+
+	_, _, existingnodepriv, existingnode, candidatenode, getStateFunc := t.prepare(height)
+
+	pp, err := NewSuffrageJoinProcessor(
+		height,
+		67,
+		getStateFunc,
+		func(base.Height, base.GetStateFunc) (base.OperationProcessorProcessFunc, error) {
+			return func(context.Context, base.Operation, base.GetStateFunc) (base.OperationProcessReasonError, error) {
+				return base.NewBaseOperationProcessReasonError("hehehe"), nil
+			}, nil
+		},
+		nil,
+	)
+	t.NoError(err)
+
+	op := NewSuffrageJoin(NewSuffrageJoinFact(util.UUID().Bytes(), candidatenode.Address(), height+1))
+	t.NoError(op.Sign(t.priv, t.networkID, candidatenode.Address()))
+	t.NoError(op.Sign(existingnodepriv, t.networkID, existingnode.Address()))
+
+	reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
+	t.NoError(err)
+	t.NotNil(reason)
+	t.ErrorContains(reason, "hehehe")
+}
+
 func (t *testSuffrageJoinProcessor) TestNotSignedByCandidate() {
 	height := base.Height(33)
 

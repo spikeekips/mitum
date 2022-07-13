@@ -12,14 +12,12 @@ import (
 )
 
 type SuffrageCandidateProcessor struct {
-	preProcessConstraintFunc base.OperationProcessorProcessFunc
-	processConstraintFunc    base.OperationProcessorProcessFunc
-	suffrages                map[string]base.Node
-	existings                map[string]base.SuffrageCandidate
-	preprocessed             map[string]struct{} // revive:disable-line:nested-structs
-	height                   base.Height
-	startheight              base.Height
-	deadlineheight           base.Height
+	*base.BaseOperationProcessor
+	suffrages      map[string]base.Node
+	existings      map[string]base.SuffrageCandidate
+	preprocessed   map[string]struct{} // revive:disable-line:nested-structs
+	startheight    base.Height
+	deadlineheight base.Height
 }
 
 func NewSuffrageCandidateProcessor(
@@ -31,40 +29,17 @@ func NewSuffrageCandidateProcessor(
 ) (*SuffrageCandidateProcessor, error) {
 	e := util.StringErrorFunc("failed to create new SuffrageCandidateProcessor")
 
-	var preconstraint, constraint base.OperationProcessorProcessFunc
-
-	switch {
-	case newPreProcessConstraintFunc == nil:
-		preconstraint = base.EmptyOperationProcessorProcessFunc
-	default:
-		i, err := newPreProcessConstraintFunc(height, getStateFunc)
-		if err != nil {
-			return nil, e(err, "")
-		}
-
-		preconstraint = i
-	}
-
-	switch {
-	case newProcessConstraintFunc == nil:
-		constraint = base.EmptyOperationProcessorProcessFunc
-	default:
-		i, err := newProcessConstraintFunc(height, getStateFunc)
-		if err != nil {
-			return nil, e(err, "")
-		}
-
-		constraint = i
+	b, err := base.NewBaseOperationProcessor(height, getStateFunc, newPreProcessConstraintFunc, newProcessConstraintFunc)
+	if err != nil {
+		return nil, e(err, "")
 	}
 
 	p := &SuffrageCandidateProcessor{
-		height:                   height,
-		preProcessConstraintFunc: preconstraint,
-		processConstraintFunc:    constraint,
-		existings:                map[string]base.SuffrageCandidate{},
-		preprocessed:             map[string]struct{}{},
-		startheight:              height + 1,
-		deadlineheight:           height + 1 + lifespan,
+		BaseOperationProcessor: b,
+		existings:              map[string]base.SuffrageCandidate{},
+		preprocessed:           map[string]struct{}{},
+		startheight:            height + 1,
+		deadlineheight:         height + 1 + lifespan,
 	}
 
 	switch i, found, err := getStateFunc(isaac.SuffrageStateKey); {
@@ -126,13 +101,13 @@ func (p *SuffrageCandidateProcessor) PreProcess(
 	switch record, found := p.existings[fact.Address().String()]; {
 	case !found:
 		p.preprocessed[fact.Address().String()] = struct{}{}
-	case p.height <= record.Deadline():
+	case p.Height() <= record.Deadline():
 		p.preprocessed[fact.Address().String()] = struct{}{}
 
 		return base.NewBaseOperationProcessReasonError("already candidate up to, %d", record.Deadline()), nil
 	}
 
-	switch reasonerr, err := p.preProcessConstraintFunc(ctx, op, getStateFunc); {
+	switch reasonerr, err := p.PreProcessConstraintFunc(ctx, op, getStateFunc); {
 	case err != nil:
 		return nil, e(err, "")
 	case reasonerr != nil:
@@ -147,7 +122,7 @@ func (p *SuffrageCandidateProcessor) Process(ctx context.Context, op base.Operat
 ) {
 	e := util.StringErrorFunc("failed to process for SuffrageCandidate")
 
-	switch reasonerr, err := p.processConstraintFunc(ctx, op, getStateFunc); {
+	switch reasonerr, err := p.ProcessConstraintFunc(ctx, op, getStateFunc); {
 	case err != nil:
 		return nil, nil, e(err, "")
 	case reasonerr != nil:

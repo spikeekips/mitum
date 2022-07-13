@@ -223,3 +223,52 @@ func ParseTreeNodeOperationKey(s string) (util.Hash, bool) {
 
 	return valuehash.NewBytesFromString(k), !notInState
 }
+
+type BaseOperationProcessor struct {
+	PreProcessConstraintFunc OperationProcessorProcessFunc
+	ProcessConstraintFunc    OperationProcessorProcessFunc
+	height                   Height
+}
+
+func NewBaseOperationProcessor(
+	height Height,
+	getStateFunc GetStateFunc,
+	newPreProcessConstraintFunc NewOperationProcessorProcessFunc,
+	newProcessConstraintFunc NewOperationProcessorProcessFunc,
+) (*BaseOperationProcessor, error) {
+	e := util.StringErrorFunc("failed to create new BaseOperationProcessor")
+
+	p := &BaseOperationProcessor{
+		height: height,
+	}
+
+	switch {
+	case newPreProcessConstraintFunc == nil:
+		p.PreProcessConstraintFunc = EmptyOperationProcessorProcessFunc
+	default:
+		i, err := newPreProcessConstraintFunc(height, getStateFunc)
+		if err != nil {
+			return nil, e(err, "")
+		}
+
+		p.PreProcessConstraintFunc = i
+	}
+
+	switch {
+	case newProcessConstraintFunc == nil:
+		p.ProcessConstraintFunc = EmptyOperationProcessorProcessFunc
+	default:
+		i, err := newProcessConstraintFunc(height, getStateFunc)
+		if err != nil {
+			return nil, e(err, "")
+		}
+
+		p.ProcessConstraintFunc = i
+	}
+
+	return p, nil
+}
+
+func (p *BaseOperationProcessor) Height() Height {
+	return p.height
+}
