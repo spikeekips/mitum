@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"io"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -17,7 +19,15 @@ import (
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
+	"github.com/spikeekips/mitum/util/localtime"
 	"github.com/spikeekips/mitum/util/valuehash"
+)
+
+var (
+	genesisNetworkPolicyFactHintBytes = isaacoperation.GenesisNetworkPolicyFactHint.Bytes()
+	suffrageGenesisJoinFactHintBytes  = isaacoperation.SuffrageGenesisJoinFactHint.Bytes()
+	suffrageCandidateFactHintBytes    = isaacoperation.SuffrageCandidateFactHint.Bytes()
+	suffrageJoinFactHintBytes         = isaacoperation.SuffrageJoinFactHint.Bytes()
 )
 
 func (cmd *runCommand) getSuffrageFunc() func(blockheight base.Height) (base.Suffrage, bool, error) {
@@ -54,10 +64,19 @@ func (cmd *runCommand) proposalMaker() *isaac.ProposalMaker {
 				return nil, nil
 			}
 
+			validtime := localtime.UTCNow().Add(time.Hour * -1).UnixNano() // FIXME config
+
 			hs, err := cmd.pool.NewOperationHashes(
 				ctx,
 				n,
-				func(facthash util.Hash) (bool, error) {
+				func(facthash util.Hash, header isaac.PoolOperationHeader) (bool, error) {
+					// NOTE filter genesis operations
+					switch ht := header.HintBytes(); {
+					case bytes.HasPrefix(ht, genesisNetworkPolicyFactHintBytes),
+						bytes.HasPrefix(ht, suffrageGenesisJoinFactHintBytes):
+						return false, nil
+					}
+
 					// NOTE if bad operation and it is failed to be processed;
 					// it can be included in next proposal; it should be
 					// excluded.
@@ -67,8 +86,22 @@ func (cmd *runCommand) proposalMaker() *isaac.ProposalMaker {
 					switch found, err := cmd.db.ExistsInStateOperation(facthash); {
 					case err != nil:
 						return false, err
-					case !found:
+					case found:
 						return false, nil
+					}
+
+					// FIXME filter by PoolOperationHeader
+					switch ht := header.HintBytes(); {
+					case bytes.HasPrefix(ht, suffrageCandidateFactHintBytes),
+						bytes.HasPrefix(ht, suffrageJoinFactHintBytes):
+						addedat, err := util.BytesToInt64(header.AddedAt())
+						if err != nil {
+							return false, nil
+						}
+
+						if addedat < validtime {
+							return false, nil
+						}
 					}
 
 					return true, nil
