@@ -969,7 +969,7 @@ func (cmd *runCommand) operationProcessorsMap() *hint.CompatibleSet {
 		return isaacoperation.NewSuffrageCandidateProcessor(
 			height,
 			cmd.db.State,
-			nil,
+			cmd.newSuffrageCandidateLimiterFunc,
 			nil,
 			policy.SuffrageCandidateLifespan(),
 		)
@@ -991,4 +991,12 @@ func (cmd *runCommand) operationProcessorsMap() *hint.CompatibleSet {
 	})
 
 	return set
+}
+
+func (cmd *runCommand) newSuffrageCandidateLimiterFunc(
+	height base.Height, getStateFunc base.GetStateFunc,
+) (base.OperationProcessorProcessFunc, error) {
+	return func(_ context.Context, op base.Operation, _ base.GetStateFunc) (base.OperationProcessReasonError, error) {
+		return nil, nil
+	}, nil
 }

@@ -255,7 +255,7 @@ func (t *testDefaultProposalProcessor) TestCollectOperations() {
 
 	for i := range ophs {
 		a := ops[ophs[i].String()]
-		b := opp.ops[i]
+		b := opp.cops[i]
 
 		t.NotNil(a)
 		t.NotNil(b)
@@ -347,7 +347,7 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsFailedButIgnored() {
 	t.NotNil(m)
 
 	for i := range ophs {
-		b := opp.ops[i]
+		b := opp.cops[i]
 		if i == 1 || i == 2 {
 			continue
 		}
@@ -401,10 +401,10 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsInvalidError() {
 	t.NoError(err)
 	t.NotNil(m)
 
-	t.Equal(4, len(opp.ops))
+	t.Equal(4, len(opp.cops))
 
 	for i := range ophs {
-		b := opp.ops[i]
+		b := opp.cops[i]
 		if i == 1 {
 			t.Nil(b)
 
@@ -455,6 +455,70 @@ func (t *testDefaultProposalProcessor) TestPreProcessButFailedToGetOperationProc
 	_, err := opp.Process(context.Background(), nil)
 	t.Error(err)
 	t.ErrorContains(err, "hehehe")
+}
+
+func (t *testDefaultProposalProcessor) TestPreProcessButErrSuspendOperation() {
+	point := base.RawPoint(33, 44)
+
+	ophs, ops, sts := t.prepareOperations(point.Height()-1, 4)
+
+	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), ophs))
+
+	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
+	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+	writer, newwriterf := t.newBlockWriter()
+	writer.manifest = manifest
+
+	suspended := ophs[1]
+
+	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
+		op, found := ops[facthash.String()]
+		if !found {
+			return nil, OperationNotFoundInProcessorError.Call()
+		}
+
+		return op, nil
+	},
+		func(_ base.Height, ht hint.Hint) (base.OperationProcessor, error) {
+			if !ht.IsCompatible(DummyOperationHint) {
+				return nil, nil
+			}
+
+			return &DummyOperationProcessor{
+				preprocess: func(_ context.Context, op base.Operation, _ base.GetStateFunc) (base.OperationProcessReasonError, error) {
+					if op.Fact().Hash().Equal(suspended) {
+						return nil, ErrSuspendOperation.Errorf("hohoho")
+					}
+
+					return nil, nil
+				},
+				process: func(_ context.Context, op base.Operation, _ base.GetStateFunc) ([]base.StateMergeValue, base.OperationProcessReasonError, error) {
+					return []base.StateMergeValue{sts[op.Fact().Hash().String()]}, nil, nil
+				},
+			}, nil
+		},
+		nil,
+	)
+
+	m, err := opp.Process(context.Background(), nil)
+	t.NoError(err)
+	t.NotNil(m)
+
+	t.Equal(len(ophs), writer.opstreeg.Len())
+	t.Equal(3, len(writer.ops))
+	t.Equal(3, writer.sts.Len())
+
+	t.NoError(writer.opstreeg.Write(func(i uint64, node fixedtree.Node) error {
+		b, err := util.MarshalJSON(node)
+		if err != nil {
+			return err
+		}
+
+		t.T().Log("operation tree node:", i, string(b))
+
+		return nil
+	}))
+	t.Equal(3, writer.opstreeg.Len())
 }
 
 func (t *testDefaultProposalProcessor) TestPreProcessWithOperationProcessor() {

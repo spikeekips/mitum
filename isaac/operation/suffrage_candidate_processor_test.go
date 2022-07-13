@@ -338,8 +338,10 @@ func (t *testSuffrageCandidateProcessor) TestPreProcess() {
 		pp, err := NewSuffrageCandidateProcessor(
 			height,
 			getStateFunc,
-			func(context.Context, base.Operation, base.GetStateFunc) (base.OperationProcessReasonError, error) {
-				return base.NewBaseOperationProcessReasonError("hehehe"), nil
+			func(base.Height, base.GetStateFunc) (base.OperationProcessorProcessFunc, error) {
+				return func(context.Context, base.Operation, base.GetStateFunc) (base.OperationProcessReasonError, error) {
+					return base.NewBaseOperationProcessReasonError("hehehe"), nil
+				}, nil
 			},
 			nil,
 			50,

@@ -25,18 +25,46 @@ type SuffrageCandidateProcessor struct {
 func NewSuffrageCandidateProcessor(
 	height base.Height,
 	getStateFunc base.GetStateFunc,
-	preProcessConstraintFunc base.OperationProcessorProcessFunc,
-	processConstraintFunc base.OperationProcessorProcessFunc,
+	newPreProcessConstraintFunc base.NewOperationProcessorProcessFunc,
+	newProcessConstraintFunc base.NewOperationProcessorProcessFunc,
 	lifespan base.Height,
 ) (*SuffrageCandidateProcessor, error) {
 	e := util.StringErrorFunc("failed to create new SuffrageCandidateProcessor")
 
+	var preconstraint, constraint base.OperationProcessorProcessFunc
+
+	switch {
+	case newPreProcessConstraintFunc == nil:
+		preconstraint = base.EmptyOperationProcessorProcessFunc
+	default:
+		i, err := newPreProcessConstraintFunc(height, getStateFunc)
+		if err != nil {
+			return nil, e(err, "")
+		}
+
+		preconstraint = i
+	}
+
+	switch {
+	case newProcessConstraintFunc == nil:
+		constraint = base.EmptyOperationProcessorProcessFunc
+	default:
+		i, err := newProcessConstraintFunc(height, getStateFunc)
+		if err != nil {
+			return nil, e(err, "")
+		}
+
+		constraint = i
+	}
+
 	p := &SuffrageCandidateProcessor{
-		height:         height,
-		existings:      map[string]base.SuffrageCandidate{},
-		preprocessed:   map[string]struct{}{},
-		startheight:    height + 1,
-		deadlineheight: height + 1 + lifespan,
+		height:                   height,
+		preProcessConstraintFunc: preconstraint,
+		processConstraintFunc:    constraint,
+		existings:                map[string]base.SuffrageCandidate{},
+		preprocessed:             map[string]struct{}{},
+		startheight:              height + 1,
+		deadlineheight:           height + 1 + lifespan,
 	}
 
 	switch i, found, err := getStateFunc(isaac.SuffrageStateKey); {
@@ -75,20 +103,6 @@ func NewSuffrageCandidateProcessor(
 			p.existings[n.Address().String()] = n
 		}
 	}
-
-	// revive:disable:modifies-parameter
-	if preProcessConstraintFunc == nil {
-		preProcessConstraintFunc = base.EmptyOperationProcessorProcessFunc
-	}
-
-	p.preProcessConstraintFunc = preProcessConstraintFunc
-
-	if processConstraintFunc == nil {
-		processConstraintFunc = base.EmptyOperationProcessorProcessFunc
-	}
-
-	p.processConstraintFunc = processConstraintFunc
-	// revive:enable:modifies-parameter
 
 	return p, nil
 }

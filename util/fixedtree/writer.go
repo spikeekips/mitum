@@ -37,10 +37,16 @@ func (g *Writer) Hint() hint.Hint {
 }
 
 func (g *Writer) Len() int {
+	g.RLock()
+	defer g.RUnlock()
+
 	return len(g.nodes)
 }
 
 func (g *Writer) Root() util.Hash {
+	g.RLock()
+	defer g.RUnlock()
+
 	if len(g.nodes) < 1 {
 		return nil
 	}
@@ -59,6 +65,11 @@ func (g *Writer) Add(index uint64, n Node) error {
 }
 
 func (g *Writer) Write(w NodeWrite) (err error) {
+	g.shrinkNodes()
+
+	g.RLock()
+	defer g.RUnlock()
+
 	if _, err := generateNodesHash(g.nodes, w); err != nil {
 		return errors.WithMessage(err, "failed to write Tree")
 	}
@@ -67,10 +78,18 @@ func (g *Writer) Write(w NodeWrite) (err error) {
 }
 
 func (g *Writer) Tree() (Tree, error) {
+	g.shrinkNodes()
+
+	g.RLock()
+	defer g.RUnlock()
+
 	return NewTree(g.ht, g.nodes)
 }
 
 func (g *Writer) Traverse(f func(index uint64, node Node) (bool, error)) error {
+	g.RLock()
+	defer g.RUnlock()
+
 	for i := range g.nodes {
 		n := g.nodes[i]
 		if n == nil {
@@ -86,6 +105,30 @@ func (g *Writer) Traverse(f func(index uint64, node Node) (bool, error)) error {
 	}
 
 	return nil
+}
+
+func (g *Writer) shrinkNodes() {
+	g.Lock()
+	defer g.Unlock()
+
+	if len(g.nodes) < 1 {
+		return
+	}
+
+	var n int64 = -1
+
+	for i := range g.nodes {
+		n = int64(len(g.nodes) - i)
+		if g.nodes[n-1] != nil {
+			break
+		}
+	}
+
+	if int64(len(g.nodes)) == n {
+		return
+	}
+
+	g.nodes = g.nodes[:n]
 }
 
 func generateNodeHash(index uint64, nodes []Node, w NodeWrite) (Node, error) {

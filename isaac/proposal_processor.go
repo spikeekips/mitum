@@ -19,6 +19,7 @@ var (
 	OperationAlreadyProcessedInProcessorError = util.NewError("operation already processed")
 	StopProcessingRetryError                  = util.NewError("stop processing retrying")
 	ErrIgnoreStateValue                       = util.NewError("ignore state value")
+	ErrSuspendOperation                       = util.NewError("suspend operation")
 )
 
 type (
@@ -55,7 +56,7 @@ type DefaultProposalProcessor struct {
 	setLastVoteproofsFunc func(base.INITVoteproof, base.ACCEPTVoteproof) error
 	oprs                  *util.ShardedMap
 	cancel                func()
-	ops                   []base.Operation
+	cops                  []base.Operation
 	retrylimit            int
 	retryinterval         time.Duration
 	opslock               sync.RWMutex
@@ -87,7 +88,7 @@ func NewDefaultProposalProcessor(
 		getOperation:          getOperation,
 		newOperationProcessor: newOperationProcessor,
 		setLastVoteproofsFunc: setLastVoteproofsFunc,
-		ops:                   make([]base.Operation, len(proposal.ProposalFact().Operations())),
+		cops:                  make([]base.Operation, len(proposal.ProposalFact().Operations())),
 		cancel:                func() {},
 		oprs:                  util.NewShardedMap(1 << 5), //nolint:gomnd //...
 		retrylimit:            15,                         //nolint:gomnd //...
@@ -99,18 +100,18 @@ func (p *DefaultProposalProcessor) Proposal() base.ProposalSignedFact {
 	return p.proposal
 }
 
-func (p *DefaultProposalProcessor) operations() []base.Operation {
+func (p *DefaultProposalProcessor) collected() []base.Operation {
 	p.opslock.RLock()
 	defer p.opslock.RUnlock()
 
-	return p.ops
+	return p.cops
 }
 
 func (p *DefaultProposalProcessor) setOperation(index int, op base.Operation) {
 	p.opslock.Lock()
 	defer p.opslock.Unlock()
 
-	p.ops[index] = op
+	p.cops[index] = op
 }
 
 func (p *DefaultProposalProcessor) Process(ctx context.Context, vp base.INITVoteproof) (base.Manifest, error) {
@@ -224,10 +225,10 @@ func (p *DefaultProposalProcessor) process(ctx context.Context, vp base.INITVote
 	switch err := p.collectOperations(ctx); {
 	case err != nil:
 		return e(err, "failed to collect operations")
-	case len(p.operations()) < 1:
+	case len(p.collected()) < 1:
 		return nil
 	default:
-		p.writer.SetOperationsSize(uint64(len(p.operations())))
+		p.writer.SetOperationsSize(uint64(len(p.collected())))
 	}
 
 	if err := p.processOperations(ctx); err != nil {
@@ -320,27 +321,45 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context) error 
 
 	defer done()
 
-	ops := p.operations()
+	cops := p.collected()
 
-	worker := util.NewErrgroupWorker(wctx, int64(len(ops)))
+	worker := util.NewErrgroupWorker(wctx, int64(len(cops)))
 	defer worker.Close()
 
 	gopsindex := -1
 	gvalidindex := -1
 
-	for i := range ops {
-		op := ops[i]
+	for i := range cops {
+		op := cops[i]
 		if op == nil {
 			continue
 		}
 
-		gopsindex++
-		opsindex := gopsindex
+		if rop, ok := op.(ReasonProcessedOperation); ok {
+			gopsindex++
+			opsindex := gopsindex
 
-		if i, ok := op.(ReasonProcessedOperation); ok {
 			if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
 				return p.writer.SetProcessResult( //nolint:wrapcheck //...
-					ctx, uint64(opsindex), i.OperationHash(), i.FactHash(), false, i.Reason())
+					ctx, uint64(opsindex), rop.OperationHash(), rop.FactHash(), false, rop.Reason())
+			}); err != nil {
+				return e(err, "")
+			}
+		}
+
+		switch reasonerr, passed, err := p.doPreProcessOperation(ctx, op); {
+		case err != nil:
+			return e(err, "failed to pre process operation")
+		case !passed:
+			continue
+		case reasonerr != nil:
+			gopsindex++
+			opsindex := gopsindex
+
+			if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
+				return p.writer.SetProcessResult(
+					ctx, uint64(opsindex), op.Hash(), op.Fact().Hash(), false, reasonerr,
+				)
 			}); err != nil {
 				return e(err, "")
 			}
@@ -348,19 +367,15 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context) error 
 			continue
 		}
 
+		gopsindex++
+		opsindex := gopsindex
+
 		gvalidindex++
 		validindex := gvalidindex
 
-		f, err := p.workOperation(wctx, uint64(opsindex), uint64(validindex), op)
-		if err != nil {
-			return e(err, "")
-		}
-
-		if f == nil {
-			continue
-		}
-
-		if err := worker.NewJob(f); err != nil {
+		if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
+			return p.doProcessOperation(ctx, uint64(opsindex), uint64(validindex), op)
+		}); err != nil {
 			return e(err, "")
 		}
 	}
@@ -374,34 +389,12 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context) error 
 	return nil
 }
 
-func (p *DefaultProposalProcessor) workOperation(
-	ctx context.Context,
-	// worker *util.ErrgroupWorker,
-	opsindex, validindex uint64,
-	op base.Operation,
-) (util.ContextWorkerCallback, error) {
-	e := util.StringErrorFunc("failed to process operation, %q", op.Fact().Hash())
-
-	switch passed, err := p.doPreProcessOperation(ctx, opsindex, op); {
-	case err != nil:
-		return nil, e(err, "failed to pre process operation")
-	case !passed:
-		return nil, nil
-	}
-
-	return func(ctx context.Context, _ uint64) error {
-		return p.doProcessOperation(ctx, opsindex, validindex, op)
-	}, nil
-}
-
 func (p *DefaultProposalProcessor) doPreProcessOperation(
-	ctx context.Context, opsindex uint64, op base.Operation,
-) (bool, error) {
-	e := util.StringErrorFunc("failed to pre process operation, %q", op.Fact().Hash())
-
+	ctx context.Context, op base.Operation,
+) (base.OperationProcessReasonError, bool, error) {
 	var errorreason base.OperationProcessReasonError
 
-	if err := p.retry(ctx, func() (bool, error) {
+	err := p.retry(ctx, func() (bool, error) {
 		f, err := p.getPreProcessor(ctx, op)
 
 		switch {
@@ -416,22 +409,18 @@ func (p *DefaultProposalProcessor) doPreProcessOperation(
 			errorreason = i
 
 			return false, nil
+		case errors.Is(err, ErrSuspendOperation):
+			return false, err
 		default:
 			return true, err
 		}
-	}); err != nil {
-		return false, e(err, "")
+	})
+
+	if errors.Is(err, ErrSuspendOperation) {
+		return nil, false, nil
 	}
 
-	if errorreason != nil {
-		if err := p.writer.SetProcessResult(
-			ctx, opsindex, op.Hash(), op.Fact().Hash(), false, errorreason,
-		); err != nil {
-			return false, e(err, "")
-		}
-	}
-
-	return errorreason == nil, nil
+	return errorreason, true, err
 }
 
 func (p *DefaultProposalProcessor) doProcessOperation(

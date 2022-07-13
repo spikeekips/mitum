@@ -29,7 +29,10 @@ type Operation interface {
 	Process(context.Context, GetStateFunc) ([]StateMergeValue, OperationProcessReasonError, error)
 }
 
-type OperationProcessorProcessFunc func(context.Context, Operation, GetStateFunc) (OperationProcessReasonError, error)
+type (
+	OperationProcessorProcessFunc    func(context.Context, Operation, GetStateFunc) (OperationProcessReasonError, error)
+	NewOperationProcessorProcessFunc func(Height, GetStateFunc) (OperationProcessorProcessFunc, error)
+)
 
 var EmptyOperationProcessorProcessFunc = func(context.Context, Operation, GetStateFunc) (
 	OperationProcessReasonError, error,
