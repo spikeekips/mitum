@@ -65,13 +65,13 @@ func (t *testContextTimer) TestStop() {
 	t.NoError(ct.Start())
 	t.True(errors.Is(ct.Start(), ErrDaemonAlreadyStarted))
 
-	<-time.After(time.Millisecond * 40)
+	<-time.After(time.Second * 2)
 	ct.Stop()
 	tickedStopped := atomic.LoadInt64(&ticked)
 
-	<-time.After(time.Millisecond * 30)
-	t.True(tickedStopped >= 3)
-	t.True(tickedStopped <= atomic.LoadInt64(&ticked))
+	<-time.After(time.Second * 2)
+	t.True(tickedStopped >= 3, tickedStopped)
+	t.True(tickedStopped <= atomic.LoadInt64(&ticked), tickedStopped)
 	t.False(ct.IsStarted())
 }
 

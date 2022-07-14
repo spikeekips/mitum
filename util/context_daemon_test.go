@@ -77,8 +77,11 @@ func (t *testContextDaemon) TestStop() {
 }
 
 func (t *testContextDaemon) TestStartAgain() {
+	startedch := make(chan struct{}, 1)
 	resultchan := make(chan error, 1)
 	ed := NewContextDaemon(func(ctx context.Context) error {
+		startedch <- struct{}{}
+
 		<-ctx.Done()
 
 		resultchan <- nil
@@ -97,13 +100,13 @@ func (t *testContextDaemon) TestStartAgain() {
 	}
 
 	t.NoError(ed.Start())
-	<-time.After(time.Millisecond * 300)
+	<-startedch
 	t.True(ed.IsStarted())
 
 	t.NoError(ed.Stop())
 
 	select {
-	case <-time.After(time.Second):
+	case <-time.After(time.Second * 3):
 		t.NoError(errors.Errorf("wait to stop, but failed"))
 		return
 	case <-resultchan:

@@ -745,7 +745,7 @@ func (t *testConsensusHandler) TestOutOfSuffrage() {
 	deferred()
 
 	avp, _ := t.VoteproofsPair(point, point.NextHeight(), manifest.Hash(), t.PRPool.Hash(point), t.PRPool.Hash(point.NextHeight()), nodes)
-	t.NoError(st.newVoteproof(avp))
+	t.NoError(st.newVoteproof(avp), "%+v", err)
 
 	t.T().Log("wait new block saved")
 	select {
