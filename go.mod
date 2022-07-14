@@ -23,6 +23,7 @@ require (
 	github.com/satori/go.uuid v1.2.0
 	github.com/stretchr/testify v1.7.2
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
+	github.com/zeebo/assert v1.1.0
 	github.com/zeebo/blake3 v0.2.3
 	go.uber.org/goleak v1.1.12
 	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e

@@ -86,3 +86,5 @@ type SuffrageProof interface {
 	SuffrageHeight() Height
 	Prove(previousState State) error
 }
+
+type SuffrageCandidateLimiter func() (uint64, error)
