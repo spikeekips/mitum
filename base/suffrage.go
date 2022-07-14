@@ -87,4 +87,7 @@ type SuffrageProof interface {
 	Prove(previousState State) error
 }
 
-type SuffrageCandidateLimiter func() (uint64, error)
+type (
+	SuffrageCandidateLimiterFunc func(rule SuffrageCandidateLimiterRule) (SuffrageCandidateLimiter, error)
+	SuffrageCandidateLimiter     func() (uint64, error)
+)

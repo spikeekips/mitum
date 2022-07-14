@@ -60,6 +60,10 @@ func (p NetworkPolicy) IsValid([]byte) error {
 		return e.Errorf("empty SuffrageCandidateLimiterRule")
 	}
 
+	if err := p.suffrageCandidateLimiterRule.IsValid(nil); err != nil {
+		return e.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -114,14 +118,12 @@ func (p *NetworkPolicy) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "")
 	}
 
-	p.maxOperationsInProposal = u.MaxOperationsInProposal
-	p.suffrageCandidateLifespan = u.SuffrageCandidateLifespan
-
-	// FIXME set SuffrageCandidateLimiter
-
 	if err := encoder.Decode(enc, u.SuffrageCandidateLimiterRule, &p.suffrageCandidateLimiterRule); err != nil {
 		return e(err, "")
 	}
+
+	p.maxOperationsInProposal = u.MaxOperationsInProposal
+	p.suffrageCandidateLifespan = u.SuffrageCandidateLifespan
 
 	return nil
 }

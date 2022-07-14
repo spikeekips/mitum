@@ -111,14 +111,14 @@ func NewCandidatesOfMajoritySuffrageCandidateLimiterRule(
 		return 0, errors.WithMessage(err, "failed to get the number of candiates for majority suffrage limiter")
 	}
 
-	if s < 4 {
+	if s < 4 { //nolint:gomnd //...
 		return 1, nil
 	}
 
 	var nm uint64
 
 	switch f := uint64(math.Floor(float64(s-1) / 3)); {
-	case f < 2:
+	case f < 2: //nolint:gomnd //...
 		nm = s
 	default:
 		a := uint64(math.Floor(float64(s-f) * ratio)) // NOTE 20% from fail node

@@ -18,6 +18,7 @@ import (
 	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/hint"
 )
 
 func (cmd *runCommand) prepare() (func() error, error) {
@@ -52,6 +53,10 @@ func (cmd *runCommand) prepare() (func() error, error) {
 	}
 
 	if err := cmd.prepareSyncSourceChecker(); err != nil {
+		return stop, e(err, "")
+	}
+
+	if err := cmd.prepareSufrage(); err != nil {
 		return stop, e(err, "")
 	}
 
@@ -243,6 +248,60 @@ func (cmd *runCommand) prepareSyncSourceChecker() error {
 	_ = cmd.syncSourceChecker.SetLogging(logging)
 
 	cmd.syncSourcePool = isaac.NewSyncSourcePool(nil)
+
+	return nil
+}
+
+func (cmd *runCommand) prepareSufrage() error {
+	set := hint.NewCompatibleSet()
+	if err := set.Add(
+		isaac.FixedSuffrageCandidateLimiterRuleHint,
+		func(rule base.SuffrageCandidateLimiterRule) (base.SuffrageCandidateLimiter, error) {
+			i, ok := rule.(isaac.FixedSuffrageCandidateLimiterRule)
+			if !ok {
+				return nil, errors.Errorf("expected FixedSuffrageCandidateLimiterRule, not %T", rule)
+			}
+
+			return isaac.NewFixedSuffrageCandidateLimiter(i), nil
+		},
+	); err != nil {
+		return err
+	}
+
+	if err := set.Add(
+		isaac.MajoritySuffrageCandidateLimiterRuleHint,
+		func(rule base.SuffrageCandidateLimiterRule) (base.SuffrageCandidateLimiter, error) {
+			i, ok := rule.(isaac.MajoritySuffrageCandidateLimiterRule)
+			if !ok {
+				return nil, errors.Errorf("expected MajoritySuffrageCandidateLimiterRule, not %T", rule)
+			}
+
+			proof, found, err := cmd.db.LastSuffrageProof()
+
+			switch {
+			case err != nil:
+				return nil, errors.WithMessagef(err, "failed to get last suffrage for MajoritySuffrageCandidateLimiter")
+			case !found:
+				return nil, errors.Errorf("last suffrage not found for MajoritySuffrageCandidateLimiter")
+			}
+
+			suf, err := proof.Suffrage()
+			if err != nil {
+				return nil, errors.WithMessagef(err, "failed to get suffrage for MajoritySuffrageCandidateLimiter")
+			}
+
+			return isaac.NewMajoritySuffrageCandidateLimiter(
+				i,
+				func() (uint64, error) {
+					return uint64(suf.Len()), nil
+				},
+			), nil
+		},
+	); err != nil {
+		return err
+	}
+
+	cmd.suffrageCandidateLimiterSet = set
 
 	return nil
 }

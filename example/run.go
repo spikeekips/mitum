@@ -17,33 +17,35 @@ import (
 	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/hint"
 )
 
 type runCommand struct { //nolint:govet //...
 	baseNodeCommand
-	Discovery                []launch.ConnInfoFlag `help:"member discovery" placeholder:"ConnInfo"`
-	Hold                     bool                  `help:"hold consensus states"`
-	nodeInfo                 launch.NodeInfo
-	db                       isaac.Database
-	perm                     isaac.PermanentDatabase
-	getProposal              func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error)
-	lastSuffrageProofWatcher *isaacstates.LastSuffrageProofWatcher
-	proposalSelector         *isaac.BaseProposalSelector
-	pool                     *isaacdatabase.TempPool
-	getSuffrage              func(blockheight base.Height) (base.Suffrage, bool, error)
-	newProposalProcessor     newProposalProcessorFunc
-	getLastManifest          func() (base.Manifest, bool, error)
-	states                   *isaacstates.States
-	memberlist               *quicmemberlist.Memberlist
-	getManifest              func(height base.Height) (base.Manifest, error)
-	client                   *isaacnetwork.QuicstreamClient
-	handlers                 *quicstream.PrefixHandler
-	ballotbox                *isaacstates.Ballotbox
-	quicstreamserver         *quicstream.Server
-	discoveries              []quicstream.UDPConnInfo
-	syncSourceChecker        *isaacnetwork.SyncSourceChecker
-	syncSourcePool           *isaac.SyncSourcePool
-	syncSourcesRetryInterval time.Duration
+	Discovery                   []launch.ConnInfoFlag `help:"member discovery" placeholder:"ConnInfo"`
+	Hold                        bool                  `help:"hold consensus states"`
+	nodeInfo                    launch.NodeInfo
+	db                          isaac.Database
+	perm                        isaac.PermanentDatabase
+	getProposal                 func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error)
+	lastSuffrageProofWatcher    *isaacstates.LastSuffrageProofWatcher
+	proposalSelector            *isaac.BaseProposalSelector
+	pool                        *isaacdatabase.TempPool
+	getSuffrage                 func(blockheight base.Height) (base.Suffrage, bool, error)
+	newProposalProcessor        newProposalProcessorFunc
+	getLastManifest             func() (base.Manifest, bool, error)
+	states                      *isaacstates.States
+	memberlist                  *quicmemberlist.Memberlist
+	getManifest                 func(height base.Height) (base.Manifest, error)
+	client                      *isaacnetwork.QuicstreamClient
+	handlers                    *quicstream.PrefixHandler
+	ballotbox                   *isaacstates.Ballotbox
+	quicstreamserver            *quicstream.Server
+	discoveries                 []quicstream.UDPConnInfo
+	syncSourceChecker           *isaacnetwork.SyncSourceChecker
+	syncSourcePool              *isaac.SyncSourcePool
+	syncSourcesRetryInterval    time.Duration
+	suffrageCandidateLimiterSet *hint.CompatibleSet
 }
 
 func (cmd *runCommand) Run() error {

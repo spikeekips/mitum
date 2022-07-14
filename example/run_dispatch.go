@@ -90,7 +90,7 @@ func (cmd *runCommand) proposalMaker() *isaac.ProposalMaker {
 						return false, nil
 					}
 
-					// FIXME filter by PoolOperationHeader
+					// NOTE filter by PoolOperationHeader
 					switch ht := header.HintBytes(); {
 					case bytes.HasPrefix(ht, suffrageCandidateFactHintBytes),
 						bytes.HasPrefix(ht, suffrageJoinFactHintBytes):
@@ -1029,7 +1029,81 @@ func (cmd *runCommand) operationProcessorsMap() *hint.CompatibleSet {
 func (cmd *runCommand) newSuffrageCandidateLimiterFunc(
 	height base.Height, getStateFunc base.GetStateFunc,
 ) (base.OperationProcessorProcessFunc, error) {
+	e := util.StringErrorFunc("failed to get SuffrageCandidateLimiterFunc")
+
+	limiter, err := cmd.loadSuffrageCandidateLimiter()
+	if err != nil {
+		return nil, e(err, "")
+	}
+
+	limit, err := limiter()
+	if err != nil {
+		return nil, e(err, "")
+	}
+
+	var existings uint64
+
+	switch i, found, err := getStateFunc(isaac.SuffrageCandidateStateKey); {
+	case err != nil:
+		return nil, e(err, "")
+	case !found:
+	case i != nil:
+		nodes := i.Value().(base.SuffrageCandidateStateValue).Nodes() //nolint:forcetypeassert //...
+
+		for i := range nodes {
+			if height > nodes[i].Deadline() {
+				continue
+			}
+
+			existings++
+		}
+	}
+
+	if existings >= limit {
+		return func(
+			_ context.Context, op base.Operation, _ base.GetStateFunc,
+		) (base.OperationProcessReasonError, error) {
+			return base.NewBaseOperationProcessReasonError("reached limit, %d", limit), nil
+		}, nil
+	}
+
+	var counted uint64
+
 	return func(_ context.Context, op base.Operation, _ base.GetStateFunc) (base.OperationProcessReasonError, error) {
+		if counted >= limit-existings {
+			return base.NewBaseOperationProcessReasonError("reached limit, %d", limit), nil
+		}
+
+		counted++
+
 		return nil, nil
 	}, nil
+}
+
+func (cmd *runCommand) loadSuffrageCandidateLimiter() (base.SuffrageCandidateLimiter, error) {
+	e := util.StringErrorFunc("failed to load SuffrageCandidateLimiter")
+
+	policy := cmd.db.LastNetworkPolicy()
+
+	if policy == nil {
+		return nil, e(nil, "empty network policy")
+	}
+
+	rule := policy.SuffrageCandidateLimiterRule()
+
+	if policy == nil {
+		return nil, e(nil, "empty rule")
+	}
+
+	i := cmd.suffrageCandidateLimiterSet.Find(rule.Hint())
+	if i == nil {
+		return nil, e(nil, "unknown limiter rule, %q", rule.Hint())
+	}
+
+	f, ok := i.(base.SuffrageCandidateLimiterFunc)
+	if !ok {
+		return nil, errors.Errorf("expected SuffrageCandidateLimiterFunc, not %T", i)
+	}
+
+	return f(rule)
 }
