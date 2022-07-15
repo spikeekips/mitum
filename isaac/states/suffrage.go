@@ -209,7 +209,7 @@ func (*SuffrageStateBuilder) prove(
 	return nil
 }
 
-type LastSuffrageProofWatcher struct {
+type LastSuffrageProofWatcher struct { // FIXME rename to LastConsensusNodesWatcher
 	*util.ContextDaemon
 	*logging.Logging
 	getFromLocal  func() (base.SuffrageProof, bool, error)

@@ -13,6 +13,10 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
+func (st *SyncingHandler) setWaitStuck(t time.Duration) {
+	st.waitStuckInterval.SetValue(t)
+}
+
 type testSyncingHandler struct {
 	isaac.BaseTestBallots
 }
@@ -477,7 +481,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 
 		st.setLastVoteproof(avp)
 
-		st.waitStuck = time.Millisecond * 100
+		st.setWaitStuck(time.Millisecond * 100)
 
 		syncer.finish(point.Height())
 
@@ -519,7 +523,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 
 		st.setLastVoteproof(avp)
 
-		st.waitStuck = time.Millisecond * 100
+		st.setWaitStuck(time.Millisecond * 100)
 
 		syncer.finish(point.Height())
 
@@ -553,7 +557,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 
 		st.setLastVoteproof(avp)
 
-		st.waitStuck = time.Second
+		st.setWaitStuck(time.Second)
 
 		syncer.finish(point.Height())
 		syncer.Add(point.NextHeight().Height())
@@ -592,7 +596,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 
 		st.setLastVoteproof(avp)
 
-		st.waitStuck = time.Second
+		st.setWaitStuck(time.Second)
 
 		syncer.finish(point.Height())
 		syncer.Add(point.NextHeight().Height())
@@ -600,7 +604,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 		newavp, err := t.NewACCEPTVoteproof(t.NewACCEPTBallotFact(point.NextHeight(), nil, nil), t.Local, []isaac.LocalNode{t.Local})
 		t.NoError(err)
 
-		st.waitStuck = time.Millisecond * 100
+		st.setWaitStuck(time.Millisecond * 100)
 
 		st.setLastVoteproof(newavp)
 		syncer.finish(newavp.Point().Height())

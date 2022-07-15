@@ -198,6 +198,7 @@ func (cmd *runCommand) memberlistAllowFunc() func(quicmemberlist.Node) error {
 			return nil
 		}
 
+		// FIXME last candidates from remote
 		switch candidates, err := isaac.LastCandidatesFromState(proof.Map().Manifest().Height(), cmd.db.State); {
 		case err != nil:
 			return err

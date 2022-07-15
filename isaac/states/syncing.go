@@ -18,13 +18,13 @@ var SyncerCanNotCancelError = util.NewError("can not cancel syncer")
 type SyncingHandler struct {
 	syncer isaac.Syncer
 	*baseHandler
-	newSyncer       func(base.Height) (isaac.Syncer, error)
-	stuckcancel     func()
-	whenFinishedf   func(base.Height)
-	getSuffrage     isaac.GetSuffrageByBlockHeight
-	waitStuck       time.Duration
-	finishedLock    sync.RWMutex
-	stuckcancellock sync.RWMutex
+	newSyncer         func(base.Height) (isaac.Syncer, error)
+	stuckcancel       func()
+	whenFinishedf     func(base.Height)
+	getSuffrage       isaac.GetSuffrageByBlockHeight
+	waitStuckInterval *util.Locked
+	finishedLock      sync.RWMutex
+	stuckcancellock   sync.RWMutex
 }
 
 type NewSyncingHandlerType struct {
@@ -47,22 +47,22 @@ func NewNewSyncingHandlerType(
 
 	return &NewSyncingHandlerType{
 		SyncingHandler: &SyncingHandler{
-			baseHandler:   newBaseHandler(StateSyncing, local, policy, proposalSelector),
-			newSyncer:     newSyncer,
-			waitStuck:     policy.IntervalBroadcastBallot()*2 + policy.WaitProcessingProposal(),
-			whenFinishedf: func(base.Height) {},
-			getSuffrage:   getSuffrage,
+			baseHandler:       newBaseHandler(StateSyncing, local, policy, proposalSelector),
+			newSyncer:         newSyncer,
+			waitStuckInterval: util.NewLocked(policy.IntervalBroadcastBallot()*2 + policy.WaitProcessingProposal()),
+			whenFinishedf:     func(base.Height) {},
+			getSuffrage:       getSuffrage,
 		},
 	}
 }
 
 func (h *NewSyncingHandlerType) new() (handler, error) {
 	return &SyncingHandler{
-		baseHandler:   h.baseHandler.new(),
-		newSyncer:     h.newSyncer,
-		waitStuck:     h.waitStuck,
-		whenFinishedf: h.whenFinishedf,
-		getSuffrage:   h.getSuffrage,
+		baseHandler:       h.baseHandler.new(),
+		newSyncer:         h.newSyncer,
+		waitStuckInterval: h.waitStuckInterval,
+		whenFinishedf:     h.whenFinishedf,
+		getSuffrage:       h.getSuffrage,
 	}, nil
 }
 
@@ -271,9 +271,9 @@ func (st *SyncingHandler) newStuckCancel(vp base.Voteproof) {
 		st.stuckcancel()
 	}
 
-	st.Log().Debug().Dur("wait", st.waitStuck).Msg("will wait for stucked")
+	st.Log().Debug().Dur("wait", st.waitStuck()).Msg("will wait for stucked")
 
-	ctx, cancel := context.WithTimeout(st.ctx, st.waitStuck)
+	ctx, cancel := context.WithTimeout(st.ctx, st.waitStuck())
 	st.stuckcancel = cancel
 
 	go func() {
@@ -291,7 +291,7 @@ func (st *SyncingHandler) newStuckCancel(vp base.Voteproof) {
 			return
 		}
 
-		st.Log().Debug().Dur("wait", st.waitStuck).Msg("stuck accept voteproof found; moves to joining state")
+		st.Log().Debug().Dur("wait", st.waitStuck()).Msg("stuck accept voteproof found; moves to joining state")
 
 		// NOTE no more valid voteproof received, moves to joining state
 		go st.switchState(newJoiningSwitchContext(StateSyncing, vp))
@@ -300,6 +300,12 @@ func (st *SyncingHandler) newStuckCancel(vp base.Voteproof) {
 
 func (st *SyncingHandler) SetWhenFinished(f func(base.Height)) {
 	st.whenFinishedf = f
+}
+
+func (st *SyncingHandler) waitStuck() time.Duration {
+	i, _ := st.waitStuckInterval.Value()
+
+	return i.(time.Duration) //nolint:forcetypeassert //...
 }
 
 type syncingSwitchContext struct { //nolint:errname //...
