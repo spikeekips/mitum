@@ -12,11 +12,11 @@ import (
 
 type JoiningHandler struct {
 	*baseHandler
-	lastManifest       func() (base.Manifest, bool, error)
-	joinMemberlist     func() error
-	getSuffrage        isaac.GetSuffrageByBlockHeight
-	waitFirstVoteproof time.Duration
-	newvoteproofLock   sync.Mutex
+	lastManifest         func() (base.Manifest, bool, error)
+	joinMemberlist       func() error
+	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc
+	waitFirstVoteproof   time.Duration
+	newvoteproofLock     sync.Mutex
 }
 
 type NewJoiningHandlerType struct {
@@ -28,34 +28,34 @@ func NewNewJoiningHandlerType(
 	policy isaac.NodePolicy,
 	proposalSelector isaac.ProposalSelector,
 	lastManifest func() (base.Manifest, bool, error),
-	getSuffrage isaac.GetSuffrageByBlockHeight,
+	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc,
 	voteFunc func(base.Ballot) (bool, error),
 	joinMemberlist func() error,
 ) *NewJoiningHandlerType {
 	baseHandler := newBaseHandler(StateJoining, local, policy, proposalSelector)
 
 	if voteFunc != nil {
-		baseHandler.voteFunc = preventVotingWithEmptySuffrage(voteFunc, getSuffrage)
+		baseHandler.voteFunc = preventVotingWithEmptySuffrage(voteFunc, local, nodeInConsensusNodes)
 	}
 
 	return &NewJoiningHandlerType{
 		JoiningHandler: &JoiningHandler{
-			baseHandler:        baseHandler,
-			lastManifest:       lastManifest,
-			waitFirstVoteproof: policy.IntervalBroadcastBallot()*2 + policy.WaitProcessingProposal(),
-			getSuffrage:        getSuffrage,
-			joinMemberlist:     joinMemberlist,
+			baseHandler:          baseHandler,
+			lastManifest:         lastManifest,
+			waitFirstVoteproof:   policy.IntervalBroadcastBallot()*2 + policy.WaitProcessingProposal(),
+			nodeInConsensusNodes: nodeInConsensusNodes,
+			joinMemberlist:       joinMemberlist,
 		},
 	}
 }
 
 func (h *NewJoiningHandlerType) new() (handler, error) {
 	return &JoiningHandler{
-		baseHandler:        h.baseHandler.new(),
-		lastManifest:       h.lastManifest,
-		waitFirstVoteproof: h.waitFirstVoteproof,
-		getSuffrage:        h.getSuffrage,
-		joinMemberlist:     h.joinMemberlist,
+		baseHandler:          h.baseHandler.new(),
+		lastManifest:         h.lastManifest,
+		waitFirstVoteproof:   h.waitFirstVoteproof,
+		nodeInConsensusNodes: h.nodeInConsensusNodes,
+		joinMemberlist:       h.joinMemberlist,
 	}, nil
 }
 
@@ -100,16 +100,17 @@ func (st *JoiningHandler) enter(i switchContext) (func(), error) {
 		manifest = m
 	}
 
-	switch suf, found, err := st.getSuffrage(manifest.Height() + 1); {
+	switch suf, found, err := st.nodeInConsensusNodes(st.local, manifest.Height()+1); {
 	case err != nil:
 		return nil, e(err, "")
+	case suf == nil:
+		return nil, newBrokenSwitchContext(StateJoining, errors.Errorf("empty suffrage"))
 	case !found:
-	case !suf.ExistsPublickey(st.local.Address(), st.local.Publickey()):
-		st.Log().Debug().Msg("local not in suffrage; moves to syncing")
+		st.Log().Debug().Msg("local not in consensus nodes; moves to syncing")
 
 		return nil, newSyncingSwitchContext(StateEmpty, manifest.Height())
 	case suf.Len() < 2: //nolint:gomnd //...
-		st.Log().Debug().Msg("local alone in suffrage; will not wait new voteproof")
+		st.Log().Debug().Msg("local alone in consensus nodes; will not wait new voteproof")
 
 		st.waitFirstVoteproof = 0
 	default:
@@ -362,21 +363,10 @@ func (st *JoiningHandler) nextBlock(avp base.ACCEPTVoteproof) {
 
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(avp)).Object("point", point).Logger()
 
-	var suf base.Suffrage
-
-	switch i, found, err := st.getSuffrage(point.Height()); {
-	case err != nil, !found:
-		go st.switchState(newBrokenSwitchContext(StateJoining, err))
-
-		return
-	default:
-		suf = i
-	}
-
 	var sctx switchContext
 	var bl base.INITBallot
 
-	switch i, err := st.prepareNextBlock(avp, suf); {
+	switch i, err := st.prepareNextBlock(avp, st.nodeInConsensusNodes); {
 	case err == nil:
 		if i == nil {
 			return

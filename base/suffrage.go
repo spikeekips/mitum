@@ -13,7 +13,7 @@ type Suffrage interface {
 	Len() int
 }
 
-func IsInSuffrage(suf Suffrage, node Node) (bool, error) {
+func IsInSuffrage(suf Suffrage, node Node) (bool, error) { // FIXME remove
 	switch {
 	case suf == nil:
 		return false, errors.Errorf("empty suffrage")

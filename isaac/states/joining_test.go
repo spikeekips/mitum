@@ -29,7 +29,9 @@ func (t *testJoiningHandler) newState(suf base.Suffrage) (*JoiningHandler, func(
 		func() (base.Manifest, bool, error) {
 			return nil, false, errors.Errorf("empty manifest")
 		},
-		func(base.Height) (base.Suffrage, bool, error) { return suf, true, nil },
+		func(base.Node, base.Height) (base.Suffrage, bool, error) {
+			return suf, suf.ExistsPublickey(local.Address(), local.Publickey()), nil
+		},
 		func(base.Ballot) (bool, error) { return true, nil },
 		func() error { return nil },
 	)

@@ -60,21 +60,13 @@ func NewSuffrageCandidateProcessor(
 		}
 	}
 
-	switch i, found, err := getStateFunc(isaac.SuffrageCandidateStateKey); {
+	switch candidates, err := isaac.LastCandidatesFromState(height, getStateFunc); {
 	case err != nil:
 		return nil, e(err, "")
-	case !found:
-	case i != nil:
-		sufcstv := i.Value().(base.SuffrageCandidateStateValue) //nolint:forcetypeassert //...
-
-		nodes := sufcstv.Nodes()
-
-		for i := range nodes {
-			n := nodes[i]
-
-			if height > n.Deadline() {
-				continue
-			}
+	case candidates == nil:
+	default:
+		for i := range candidates {
+			n := candidates[i]
 
 			p.existings[n.Address().String()] = n
 		}

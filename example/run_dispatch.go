@@ -36,6 +36,10 @@ func (cmd *runCommand) getSuffrageFunc() func(blockheight base.Height) (base.Suf
 	}
 }
 
+func (cmd *runCommand) nodeInConsensusNodesFunc() isaac.NodeInConsensusNodesFunc {
+	return isaac.NewNodeInConsensusNodesFunc(cmd.getSuffrage)
+}
+
 func (cmd *runCommand) getManifestFunc() func(height base.Height) (base.Manifest, error) {
 	return func(height base.Height) (base.Manifest, error) {
 		switch m, found, err := cmd.db.BlockMap(height); {
@@ -1043,20 +1047,11 @@ func (cmd *runCommand) newSuffrageCandidateLimiterFunc(
 
 	var existings uint64
 
-	switch i, found, err := getStateFunc(isaac.SuffrageCandidateStateKey); {
+	switch i, err := isaac.LastCandidatesFromState(height, getStateFunc); {
 	case err != nil:
 		return nil, e(err, "")
-	case !found:
-	case i != nil:
-		nodes := i.Value().(base.SuffrageCandidateStateValue).Nodes() //nolint:forcetypeassert //...
-
-		for i := range nodes {
-			if height > nodes[i].Deadline() {
-				continue
-			}
-
-			existings++
-		}
+	default:
+		existings = uint64(len(i))
 	}
 
 	if existings >= limit {

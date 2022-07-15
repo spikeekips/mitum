@@ -13,7 +13,6 @@ import (
 
 type SuffrageJoinProcessor struct {
 	*base.BaseOperationProcessor
-	sufcst       base.State
 	sufstv       base.SuffrageStateValue
 	suffrage     base.Suffrage
 	candidates   map[string]base.SuffrageCandidate
@@ -59,23 +58,13 @@ func NewSuffrageJoinProcessor(
 		p.suffrage = suf
 	}
 
-	switch i, found, err := getStateFunc(isaac.SuffrageCandidateStateKey); {
+	switch candidates, err := isaac.LastCandidatesFromState(height, getStateFunc); {
 	case err != nil:
 		return nil, e(err, "")
-	case !found:
-	case i == nil:
-		return nil, e(isaac.StopProcessingRetryError.Errorf("empty state returned"), "")
+	case candidates == nil:
 	default:
-		p.sufcst = i
-
-		sufcnodes := i.Value().(base.SuffrageCandidateStateValue).Nodes() //nolint:forcetypeassert //...
-
-		for i := range sufcnodes {
-			n := sufcnodes[i]
-
-			if height > n.Deadline() {
-				continue
-			}
+		for i := range candidates {
+			n := candidates[i]
 
 			p.candidates[n.Address().String()] = n
 		}
@@ -87,7 +76,7 @@ func NewSuffrageJoinProcessor(
 func (p *SuffrageJoinProcessor) PreProcess(ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (
 	base.OperationProcessReasonError, error,
 ) {
-	if p.sufcst == nil {
+	if len(p.candidates) < 1 {
 		return base.NewBaseOperationProcessReasonError("not candidate"), nil
 	}
 

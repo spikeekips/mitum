@@ -8,8 +8,8 @@ import (
 
 type BootingHandler struct {
 	*baseHandler
-	lastManifest func() (base.Manifest, bool, error)
-	getSuffrage  isaac.GetSuffrageByBlockHeight
+	lastManifest         func() (base.Manifest, bool, error)
+	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc
 }
 
 type NewBootingHandlerType struct {
@@ -20,22 +20,22 @@ func NewNewBootingHandlerType(
 	local base.LocalNode,
 	policy isaac.NodePolicy,
 	lastManifest func() (base.Manifest, bool, error),
-	getSuffrage isaac.GetSuffrageByBlockHeight,
+	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc,
 ) *NewBootingHandlerType {
 	return &NewBootingHandlerType{
 		BootingHandler: &BootingHandler{
-			baseHandler:  newBaseHandler(StateBooting, local, policy, nil),
-			lastManifest: lastManifest,
-			getSuffrage:  getSuffrage,
+			baseHandler:          newBaseHandler(StateBooting, local, policy, nil),
+			lastManifest:         lastManifest,
+			nodeInConsensusNodes: nodeInConsensusNodes,
 		},
 	}
 }
 
 func (h *NewBootingHandlerType) new() (handler, error) {
 	return &BootingHandler{
-		baseHandler:  h.baseHandler.new(),
-		lastManifest: h.lastManifest,
-		getSuffrage:  h.getSuffrage,
+		baseHandler:          h.baseHandler.new(),
+		lastManifest:         h.lastManifest,
+		nodeInConsensusNodes: h.nodeInConsensusNodes,
 	}, nil
 }
 
@@ -73,15 +73,14 @@ func (st *BootingHandler) enter(i switchContext) (func(), error) { //nolint:unpa
 		}
 	}
 
-	// FIXME if node is candidate, moves to joining
 	// NOTE if node not in suffrage, moves to syncing
-	switch suf, found, err := st.getSuffrage(manifest.Height() + 1); {
+	switch suf, found, err := st.nodeInConsensusNodes(st.local, manifest.Height()+1); {
 	case err != nil:
 		return nil, e(err, "")
+	case suf == nil || suf.Len() < 1:
+		return nil, e(nil, "empty suffrage for last manifest, %d", manifest.Height()+1)
 	case !found:
-		return nil, e(nil, "empty suffrage for last manifest, %d", manifest.Height())
-	case !suf.ExistsPublickey(st.local.Address(), st.local.Publickey()):
-		st.Log().Debug().Msg("local not in suffrage; moves to syncing")
+		st.Log().Debug().Msg("local not in consensus node; moves to syncing")
 
 		return nil, newSyncingSwitchContext(StateEmpty, manifest.Height())
 	}

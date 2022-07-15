@@ -251,19 +251,23 @@ func (st *baseHandler) prepareNextRound(vp base.Voteproof, prevBlock util.Hash) 
 	return isaac.NewINITBallot(vp, sf), nil
 }
 
-func (st *baseHandler) prepareNextBlock(avp base.ACCEPTVoteproof, suf base.Suffrage) (base.INITBallot, error) {
+func (st *baseHandler) prepareNextBlock(
+	avp base.ACCEPTVoteproof, nodeInConsensusNodesFunc isaac.NodeInConsensusNodesFunc,
+) (base.INITBallot, error) {
 	e := util.StringErrorFunc("failed to prepare next block")
 
 	point := avp.Point().Point.NextHeight()
 
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(avp)).Object("point", point).Logger()
 
-	switch ok, err := base.IsInSuffrage(suf, st.local); {
+	switch suf, found, err := nodeInConsensusNodesFunc(st.local, point.Height()); {
 	case err != nil:
+		return nil, newBrokenSwitchContext(st.stt, err)
+	case suf == nil || suf.Len() < 1:
 		l.Debug().Interface("height", point.Height()).Msg("empty suffrage of next block; moves to broken state")
 
-		return nil, e(err, "local not in suffrage for next block")
-	case !ok:
+		return nil, newBrokenSwitchContext(st.stt, util.ErrNotFound.Errorf("empty suffrage"))
+	case !found:
 		l.Debug().
 			Interface("height", point.Height()).
 			Msg("local is not in suffrage at next block; moves to syncing state")
@@ -309,18 +313,19 @@ func (st *baseHandler) vote(bl base.Ballot) (bool, error) {
 
 func preventVotingWithEmptySuffrage(
 	voteFunc func(base.Ballot) (bool, error),
-	getSuffrage isaac.GetSuffrageByBlockHeight,
+	node base.Node,
+	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc,
 ) func(base.Ballot) (bool, error) {
 	return func(bl base.Ballot) (bool, error) {
 		e := util.StringErrorFunc("failed to vote")
 
-		switch suf, found, err := getSuffrage(bl.Point().Height()); {
+		switch suf, found, err := nodeInConsensusNodes(node, bl.Point().Height()); {
 		case err != nil:
 			return false, e(err, "failed to get suffrage for ballot")
+		case suf == nil || len(suf.Nodes()) < 1:
+			return false, e(nil, "empty suffrage")
 		case !found:
-			return false, e(nil, "suffrage not found for ballot")
-		case len(suf.Nodes()) < 1:
-			return false, e(nil, "empty suffrage found for ballot")
+			return false, e(nil, "node not in consensus nodes for ballot")
 		default:
 			return voteFunc(bl)
 		}

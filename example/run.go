@@ -46,6 +46,7 @@ type runCommand struct { //nolint:govet //...
 	syncSourcePool              *isaac.SyncSourcePool
 	syncSourcesRetryInterval    time.Duration
 	suffrageCandidateLimiterSet *hint.CompatibleSet
+	nodeInConsensusNodes        isaac.NodeInConsensusNodesFunc
 }
 
 func (cmd *runCommand) Run() error {

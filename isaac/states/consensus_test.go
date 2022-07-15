@@ -27,7 +27,9 @@ func (t *baseTestConsensusHandler) newState(previous base.Manifest, suf base.Suf
 		policy,
 		nil,
 		func(base.Height) (base.Manifest, error) { return previous, nil },
-		func(base.Height) (base.Suffrage, bool, error) { return suf, true, nil },
+		func(base.Node, base.Height) (base.Suffrage, bool, error) {
+			return suf, suf.ExistsPublickey(local.Address(), local.Publickey()), nil
+		},
 		func(base.Ballot) (bool, error) { return true, nil },
 		func(base.Height) {},
 		isaac.NewProposalProcessors(nil, nil),
@@ -118,7 +120,7 @@ func (t *testConsensusHandler) TestNew() {
 		t.NodePolicy,
 		nil,
 		func(base.Height) (base.Manifest, error) { return previous, nil },
-		func(base.Height) (base.Suffrage, bool, error) { return suf, true, nil },
+		func(base.Node, base.Height) (base.Suffrage, bool, error) { return suf, true, nil },
 		func(base.Ballot) (bool, error) { return true, nil },
 		nil,
 		isaac.NewProposalProcessors(nil, func(context.Context, util.Hash) (base.ProposalSignedFact, error) {
@@ -629,7 +631,7 @@ func (t *testConsensusHandler) TestEmptySuffrageNextBlock() {
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
 
-	st.getSuffrage = func(height base.Height) (base.Suffrage, bool, error) {
+	st.nodeInConsensusNodes = func(_ base.Node, height base.Height) (base.Suffrage, bool, error) {
 		switch {
 		case height <= point.Height():
 			return suf, true, nil
@@ -704,12 +706,12 @@ func (t *testConsensusHandler) TestOutOfSuffrage() {
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
 
-	st.getSuffrage = func(height base.Height) (base.Suffrage, bool, error) {
+	st.nodeInConsensusNodes = func(_ base.Node, height base.Height) (base.Suffrage, bool, error) {
 		if height == point.Height() {
 			return suf, true, nil
 		}
 
-		return newsuf, true, nil
+		return newsuf, newsuf.ExistsPublickey(t.Local.Address(), t.Local.Publickey()), nil
 	}
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
@@ -775,7 +777,7 @@ func (t *testConsensusHandler) TestEnterButEmptySuffrage() {
 
 	st, closefunc, _, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
-	st.getSuffrage = func(base.Height) (base.Suffrage, bool, error) {
+	st.nodeInConsensusNodes = func(base.Node, base.Height) (base.Suffrage, bool, error) {
 		return nil, false, nil
 	}
 
@@ -790,7 +792,7 @@ func (t *testConsensusHandler) TestEnterButEmptySuffrage() {
 
 	_, err := st.enter(sctx)
 	t.Error(err)
-	t.ErrorContains(err, "suffrage not found of init voteproof")
+	t.ErrorContains(err, "empty suffrage of init voteproof")
 }
 
 func (t *testConsensusHandler) TestEnterButNotInSuffrage() {

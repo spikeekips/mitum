@@ -13,6 +13,7 @@ func (cmd *runCommand) prepareStates() error {
 	cmd.getLastManifest = cmd.getLastManifestFunc()
 	cmd.newProposalProcessor = cmd.newProposalProcessorFunc(cmd.enc)
 	cmd.getProposal = cmd.getProposalFunc()
+	cmd.nodeInConsensusNodes = cmd.nodeInConsensusNodesFunc()
 
 	cmd.prepareLastSuffrageProofWatcher()
 
@@ -54,20 +55,21 @@ func (cmd *runCommand) prepareStates() error {
 		SetHandler(isaacstates.StateStopped, isaacstates.NewNewStoppedHandlerType(cmd.local, cmd.nodePolicy)).
 		SetHandler(
 			isaacstates.StateBooting,
-			isaacstates.NewNewBootingHandlerType(cmd.local, cmd.nodePolicy, cmd.getLastManifest, cmd.getSuffrage),
+			isaacstates.NewNewBootingHandlerType(cmd.local, cmd.nodePolicy,
+				cmd.getLastManifest, cmd.nodeInConsensusNodes),
 		).
 		SetHandler(
 			isaacstates.StateJoining,
 			isaacstates.NewNewJoiningHandlerType(
-				cmd.local, cmd.nodePolicy, cmd.proposalSelector, cmd.getLastManifest, cmd.getSuffrage, voteFunc,
-				cmd.joinMemberlistForJoiningState,
+				cmd.local, cmd.nodePolicy, cmd.proposalSelector, cmd.getLastManifest, cmd.nodeInConsensusNodes,
+				voteFunc, cmd.joinMemberlistForJoiningState,
 			),
 		).
 		SetHandler(
 			isaacstates.StateConsensus,
 			isaacstates.NewNewConsensusHandlerType(
 				cmd.local, cmd.nodePolicy, cmd.proposalSelector,
-				cmd.getManifest, cmd.getSuffrage, voteFunc, whenNewBlockSaved,
+				cmd.getManifest, cmd.nodeInConsensusNodes, voteFunc, whenNewBlockSaved,
 				pps,
 			)).
 		SetHandler(isaacstates.StateSyncing, syncinghandler)

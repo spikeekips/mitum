@@ -318,3 +318,46 @@ func GetSuffrageFromDatabase(
 		return suf, true, err
 	}
 }
+
+func LastCandidatesFromState(height base.Height, getStateFunc base.GetStateFunc) ([]base.SuffrageCandidate, error) {
+	st, found, err := getStateFunc(SuffrageCandidateStateKey)
+
+	switch {
+	case err != nil:
+		return nil, err
+	case !found || st == nil:
+		return nil, nil
+	}
+
+	nodes := st.Value().(base.SuffrageCandidateStateValue).Nodes() //nolint:forcetypeassert //...
+
+	filtered := util.FilterSlices(nodes, func(_ interface{}, i int) bool {
+		return height <= nodes[i].Deadline()
+	})
+
+	if len(filtered) < 1 {
+		return nil, nil
+	}
+
+	candidates := make([]base.SuffrageCandidate, len(filtered))
+	for i := range filtered {
+		candidates[i] = filtered[i].(base.SuffrageCandidate) //nolint:forcetypeassert //...
+	}
+
+	return candidates, nil
+}
+
+type NodeInConsensusNodesFunc func(base.Node, base.Height) (base.Suffrage, bool, error)
+
+func NewNodeInConsensusNodesFunc(getSuffrage GetSuffrageByBlockHeight) NodeInConsensusNodesFunc {
+	return func(node base.Node, height base.Height) (base.Suffrage, bool, error) {
+		switch suf, found, err := getSuffrage(height); {
+		case err != nil:
+			return nil, false, err
+		case !found:
+			return nil, false, nil
+		default:
+			return suf, suf.ExistsPublickey(node.Address(), node.Publickey()), nil
+		}
+	}
+}

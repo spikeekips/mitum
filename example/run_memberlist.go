@@ -8,6 +8,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
@@ -179,8 +180,6 @@ func (cmd *runCommand) nodeChallengeFunc() func(quicmemberlist.Node) error {
 
 func (cmd *runCommand) memberlistAllowFunc() func(quicmemberlist.Node) error {
 	return func(node quicmemberlist.Node) error {
-		// FIXME include candidates
-
 		proof, err := cmd.lastSuffrageProofWatcher.Last()
 		if err != nil {
 			log.Error().Err(err).Msg("failed to get last suffrage proof; node will not be allowed")
@@ -195,10 +194,23 @@ func (cmd *runCommand) memberlistAllowFunc() func(quicmemberlist.Node) error {
 			return err
 		}
 
-		if !suf.ExistsPublickey(node.Address(), node.Publickey()) {
-			return errors.Errorf("not in suffrage; not allowed")
+		if suf.ExistsPublickey(node.Address(), node.Publickey()) {
+			return nil
 		}
 
-		return nil
+		switch candidates, err := isaac.LastCandidatesFromState(proof.Map().Manifest().Height(), cmd.db.State); {
+		case err != nil:
+			return err
+		default:
+			for i := range candidates {
+				n := candidates[i]
+
+				if n.Address().Equal(node.Address()) && n.Publickey().Equal(node.Publickey()) {
+					return nil
+				}
+			}
+		}
+
+		return errors.Errorf("not in suffrage or candidates; not allowed")
 	}
 }

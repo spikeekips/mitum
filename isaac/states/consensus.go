@@ -12,10 +12,10 @@ import (
 
 type ConsensusHandler struct {
 	*baseHandler
-	getManifest       func(base.Height) (base.Manifest, error)
-	getSuffrage       isaac.GetSuffrageByBlockHeight
-	whenNewBlockSaved func(base.Height)
-	pps               *isaac.ProposalProcessors
+	getManifest          func(base.Height) (base.Manifest, error)
+	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc
+	whenNewBlockSaved    func(base.Height)
+	pps                  *isaac.ProposalProcessors
 }
 
 type NewConsensusHandlerType struct {
@@ -27,7 +27,7 @@ func NewNewConsensusHandlerType(
 	policy isaac.NodePolicy,
 	proposalSelector isaac.ProposalSelector,
 	getManifest func(base.Height) (base.Manifest, error),
-	getSuffrage isaac.GetSuffrageByBlockHeight,
+	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc,
 	voteFunc func(base.Ballot) (bool, error),
 	whenNewBlockSaved func(base.Height),
 	pps *isaac.ProposalProcessors,
@@ -35,27 +35,27 @@ func NewNewConsensusHandlerType(
 	baseHandler := newBaseHandler(StateConsensus, local, policy, proposalSelector)
 
 	if voteFunc != nil {
-		baseHandler.voteFunc = preventVotingWithEmptySuffrage(voteFunc, getSuffrage)
+		baseHandler.voteFunc = preventVotingWithEmptySuffrage(voteFunc, local, nodeInConsensusNodes)
 	}
 
 	return &NewConsensusHandlerType{
 		ConsensusHandler: &ConsensusHandler{
-			baseHandler:       baseHandler,
-			getManifest:       getManifest,
-			getSuffrage:       getSuffrage,
-			whenNewBlockSaved: whenNewBlockSaved,
-			pps:               pps,
+			baseHandler:          baseHandler,
+			getManifest:          getManifest,
+			nodeInConsensusNodes: nodeInConsensusNodes,
+			whenNewBlockSaved:    whenNewBlockSaved,
+			pps:                  pps,
 		},
 	}
 }
 
 func (h *NewConsensusHandlerType) new() (handler, error) {
 	return &ConsensusHandler{
-		baseHandler:       h.baseHandler.new(),
-		getManifest:       h.getManifest,
-		getSuffrage:       h.getSuffrage,
-		whenNewBlockSaved: h.whenNewBlockSaved,
-		pps:               h.pps,
+		baseHandler:          h.baseHandler.new(),
+		getManifest:          h.getManifest,
+		nodeInConsensusNodes: h.nodeInConsensusNodes,
+		whenNewBlockSaved:    h.whenNewBlockSaved,
+		pps:                  h.pps,
 	}, nil
 }
 
@@ -80,25 +80,16 @@ func (st *ConsensusHandler) enter(i switchContext) (func(), error) {
 		sctx = j
 	}
 
-	var suf base.Suffrage
-
-	switch m, found, err := st.getSuffrage(sctx.ivp.Point().Height()); {
+	switch suf, found, err := st.nodeInConsensusNodes(st.local, sctx.ivp.Point().Height()); {
 	case err != nil:
-		return nil, e(err, "local not in suffrage for next block")
+		return nil, e(err, "")
+	case suf == nil || suf.Len() < 1:
+		return nil, e(nil, "empty suffrage of init voteproof")
 	case !found:
-		return nil, e(nil, "suffrage not found of init voteproof")
-	default:
-		suf = m
-	}
-
-	switch ok, err := base.IsInSuffrage(suf, st.local); {
-	case err != nil:
-		return nil, e(err, "local not in suffrage for next block")
-	case !ok:
 		st.Log().Debug().
 			Dict("state_context", switchContextLog(sctx)).
 			Interface("height", sctx.ivp.Point().Height()).
-			Msg("local is not in suffrage at entering consensus state; moves to syncing state")
+			Msg("local is not in consensus nodes at entering consensus state; moves to syncing state")
 
 		return nil, newSyncingSwitchContext(StateEmpty, sctx.ivp.Point().Height())
 	}
@@ -590,25 +581,10 @@ func (st *ConsensusHandler) nextBlock(avp base.ACCEPTVoteproof) {
 
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(avp)).Object("point", point).Logger()
 
-	var suf base.Suffrage
-
-	switch i, found, err := st.getSuffrage(point.Height()); {
-	case err != nil:
-		go st.switchState(newBrokenSwitchContext(StateConsensus, err))
-
-		return
-	case !found:
-		go st.switchState(newBrokenSwitchContext(StateConsensus, util.ErrNotFound.Errorf("empty suffrage")))
-
-		return
-	default:
-		suf = i
-	}
-
 	var sctx switchContext
 	var bl base.INITBallot
 
-	switch i, err := st.prepareNextBlock(avp, suf); {
+	switch i, err := st.prepareNextBlock(avp, st.nodeInConsensusNodes); {
 	case err == nil:
 		if i == nil {
 			return
