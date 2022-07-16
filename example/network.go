@@ -43,8 +43,8 @@ func init() {
 		isaacnetwork.HandlerPrefixOperation: isaacnetwork.NewOperationRequestHeader(
 			valuehash.RandomSHA256()),
 		isaacnetwork.HandlerPrefixSendOperation:    isaacnetwork.NewSendOperationRequestHeader(),
-		handlerPrefixRequestState:                  newStateRequestHeader(isaac.SuffrageStateKey),
-		handlerPrefixRequestExistsInStateOperation: newExistsInStateOperationRequestHeader(valuehash.RandomSHA256()),
+		HandlerPrefixRequestState:                  NewStateRequestHeader(isaac.SuffrageStateKey),
+		HandlerPrefixRequestExistsInStateOperation: NewExistsInStateOperationRequestHeader(valuehash.RandomSHA256()),
 	}
 }
 

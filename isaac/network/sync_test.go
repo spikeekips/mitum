@@ -102,7 +102,7 @@ func (t *testSyncSourceChecker) handlers(n int) ([]isaac.NodeConnInfo, map[strin
 		ci, err := ncis[i].UDPConnInfo()
 		t.NoError(err)
 
-		handlers[ci.String()] = NewQuicstreamHandlers(locals[i], t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		handlers[ci.String()] = newQuicstreamHandlers(locals[i], t.NodePolicy, t.Encs, t.Enc, time.Second)
 	}
 
 	return ncis, handlers
@@ -121,11 +121,10 @@ func (t *testSyncSourceChecker) TestFetchFromSuffrageNodes() {
 	local := isaac.RandomLocalNode()
 	localci := quicstream.RandomConnInfo()
 
-	handlers[localci.String()] = NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil, nil,
-		func() ([]isaac.NodeConnInfo, error) {
-			return ncis, nil
-		},
-		nil)
+	handlers[localci.String()] = newQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second)
+	handlers[localci.String()].suffrageNodeConnInfof = func() ([]isaac.NodeConnInfo, error) {
+		return ncis, nil
+	}
 
 	client := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.clientWritef(handlers))
 
@@ -160,11 +159,10 @@ func (t *testSyncSourceChecker) TestFetchFromSyncSources() {
 	local := isaac.RandomLocalNode()
 	localci := quicstream.RandomConnInfo()
 
-	handlers[localci.String()] = NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		func() ([]isaac.NodeConnInfo, error) {
-			return ncis, nil
-		},
-	)
+	handlers[localci.String()] = newQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second)
+	handlers[localci.String()].syncSourceConnInfof = func() ([]isaac.NodeConnInfo, error) {
+		return ncis, nil
+	}
 
 	client := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.clientWritef(handlers))
 
@@ -194,18 +192,17 @@ func (t *testSyncSourceChecker) TestFetchFromNodeButFailedToSignature() {
 		ci := quicstream.RandomConnInfo()
 		ncis = append(ncis, NewNodeConnInfo(node.BaseNode, ci.UDPAddr().String(), ci.TLSInsecure()))
 
-		handlers[ci.String()] = NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		handlers[ci.String()] = newQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second)
 		// NOTE with t.Local insteadd of node
 	}
 
 	local := isaac.RandomLocalNode()
 	localci := quicstream.RandomConnInfo()
 
-	handlers[localci.String()] = NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil, nil,
-		func() ([]isaac.NodeConnInfo, error) {
-			return ncis, nil
-		},
-		nil)
+	handlers[localci.String()] = newQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second)
+	handlers[localci.String()].suffrageNodeConnInfof = func() ([]isaac.NodeConnInfo, error) {
+		return ncis, nil
+	}
 
 	client := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.clientWritef(handlers))
 
@@ -286,11 +283,10 @@ func (t *testSyncSourceChecker) TestCheckSameResult() {
 
 	localci := quicstream.RandomConnInfo()
 
-	handlers[localci.String()] = NewQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil, nil,
-		func() ([]isaac.NodeConnInfo, error) {
-			return ncislocal, nil
-		},
-		nil)
+	handlers[localci.String()] = newQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second)
+	handlers[localci.String()].suffrageNodeConnInfof = func() ([]isaac.NodeConnInfo, error) {
+		return ncislocal, nil
+	}
 
 	ts := t.httpserver(func(w http.ResponseWriter, r *http.Request) {
 		b, err := t.Enc.Marshal(ncisurl)
@@ -348,11 +344,10 @@ func (t *testSyncSourceChecker) TestCheckFilterLocal() {
 		ncis = append(ncis, NewNodeConnInfo(node.BaseNode, ci.UDPAddr().String(), ci.TLSInsecure()))
 	}
 
-	handlers[localci.String()] = NewQuicstreamHandlers(local, t.NodePolicy, t.Encs, t.Enc, time.Second, nil, nil, nil, nil, nil, nil, nil, nil,
-		func() ([]isaac.NodeConnInfo, error) {
-			return ncis, nil
-		},
-		nil)
+	handlers[localci.String()] = newQuicstreamHandlers(local, t.NodePolicy, t.Encs, t.Enc, time.Second)
+	handlers[localci.String()].suffrageNodeConnInfof = func() ([]isaac.NodeConnInfo, error) {
+		return ncis, nil
+	}
 
 	client := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.clientWritef(handlers))
 

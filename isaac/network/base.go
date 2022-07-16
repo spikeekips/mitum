@@ -11,19 +11,21 @@ import (
 )
 
 var (
-	HandlerPrefixRequestProposal      = "request_proposal"
-	HandlerPrefixProposal             = "proposal"
-	HandlerPrefixLastSuffrageProof    = "last_suffrage_proof"
-	HandlerPrefixSuffrageProof        = "suffrage_proof"
-	HandlerPrefixLastBlockMap         = "last_blockmap"
-	HandlerPrefixBlockMap             = "blockmap"
-	HandlerPrefixBlockMapItem         = "blockmap_item"
-	HandlerPrefixMemberlist           = "memberlist"
-	HandlerPrefixNodeChallenge        = "node_challenge"
-	HandlerPrefixSuffrageNodeConnInfo = "suffrage_node_conninfo"
-	HandlerPrefixSyncSourceConnInfo   = "sync_source_conninfo"
-	HandlerPrefixOperation            = "operation"
-	HandlerPrefixSendOperation        = "send_operation"
+	HandlerPrefixRequestProposal        = "request_proposal"
+	HandlerPrefixProposal               = "proposal"
+	HandlerPrefixLastSuffrageProof      = "last_suffrage_proof"
+	HandlerPrefixSuffrageProof          = "suffrage_proof"
+	HandlerPrefixLastBlockMap           = "last_blockmap"
+	HandlerPrefixBlockMap               = "blockmap"
+	HandlerPrefixBlockMapItem           = "blockmap_item"
+	HandlerPrefixMemberlist             = "memberlist"
+	HandlerPrefixNodeChallenge          = "node_challenge"
+	HandlerPrefixSuffrageNodeConnInfo   = "suffrage_node_conninfo"
+	HandlerPrefixSyncSourceConnInfo     = "sync_source_conninfo"
+	HandlerPrefixOperation              = "operation"
+	HandlerPrefixSendOperation          = "send_operation"
+	HandlerPrefixState                  = "state"
+	HandlerPrefixExistsInStateOperation = "exists_instate_operation"
 )
 
 type baseNetwork struct {

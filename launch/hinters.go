@@ -56,6 +56,11 @@ var Hinters = []encoder.DecodeDetail{
 	{Hint: isaacnetwork.ResponseHeaderHint, Instance: isaacnetwork.ResponseHeader{}},
 	{Hint: isaacnetwork.SendOperationRequestHeaderHint, Instance: isaacnetwork.SendOperationRequestHeader{}},
 	{Hint: isaacnetwork.SuffrageProofRequestHeaderHint, Instance: isaacnetwork.SuffrageProofRequestHeader{}},
+	{Hint: isaacnetwork.StateRequestHeaderHint, Instance: isaacnetwork.StateRequestHeader{}},
+	{
+		Hint:     isaacnetwork.ExistsInStateOperationRequestHeaderHint,
+		Instance: isaacnetwork.ExistsInStateOperationRequestHeader{},
+	},
 	{Hint: isaacoperation.GenesisNetworkPolicyFactHint, Instance: isaacoperation.GenesisNetworkPolicyFact{}},
 	{Hint: isaacoperation.GenesisNetworkPolicyHint, Instance: isaacoperation.GenesisNetworkPolicy{}},
 	{Hint: isaacoperation.SuffrageCandidateFactHint, Instance: isaacoperation.SuffrageCandidateFact{}},

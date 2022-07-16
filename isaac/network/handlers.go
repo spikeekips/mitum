@@ -17,16 +17,18 @@ type QuicstreamHandlers struct {
 	pool   isaac.ProposalPool
 	oppool isaac.NewOperationPool
 	*baseNetwork
-	proposalMaker         *isaac.ProposalMaker
-	lastSuffrageProoff    func(suffragestate util.Hash) (base.SuffrageProof, bool, error)
-	suffrageProoff        func(base.Height) (base.SuffrageProof, bool, error)
-	lastBlockMapf         func(util.Hash) (base.BlockMap, bool, error)
-	blockMapf             func(base.Height) (base.BlockMap, bool, error)
-	blockMapItemf         func(base.Height, base.BlockMapItemType) (io.ReadCloser, bool, error)
-	suffrageNodeConnInfof func() ([]isaac.NodeConnInfo, error)
-	syncSourceConnInfof   func() ([]isaac.NodeConnInfo, error)
-	local                 base.LocalNode
-	nodepolicy            isaac.NodePolicy
+	proposalMaker           *isaac.ProposalMaker
+	lastSuffrageProoff      func(suffragestate util.Hash) (base.SuffrageProof, bool, error)
+	suffrageProoff          func(base.Height) (base.SuffrageProof, bool, error)
+	lastBlockMapf           func(util.Hash) (base.BlockMap, bool, error)
+	blockMapf               func(base.Height) (base.BlockMap, bool, error)
+	blockMapItemf           func(base.Height, base.BlockMapItemType) (io.ReadCloser, bool, error)
+	suffrageNodeConnInfof   func() ([]isaac.NodeConnInfo, error)
+	syncSourceConnInfof     func() ([]isaac.NodeConnInfo, error)
+	statef                  func(string) (base.State, bool, error)
+	existsInStateOperationf func(util.Hash) (bool, error)
+	local                   base.LocalNode
+	nodepolicy              isaac.NodePolicy
 }
 
 func NewQuicstreamHandlers( // revive:disable-line:argument-limit
@@ -45,21 +47,25 @@ func NewQuicstreamHandlers( // revive:disable-line:argument-limit
 	blockMapItemf func(base.Height, base.BlockMapItemType) (io.ReadCloser, bool, error),
 	suffrageNodeConnInfof func() ([]isaac.NodeConnInfo, error),
 	syncSourceConnInfof func() ([]isaac.NodeConnInfo, error),
+	statef func(string) (base.State, bool, error),
+	existsInStateOperationf func(util.Hash) (bool, error),
 ) *QuicstreamHandlers {
 	return &QuicstreamHandlers{
-		baseNetwork:           newBaseNetwork(encs, enc, idleTimeout),
-		local:                 local,
-		nodepolicy:            nodepolicy,
-		pool:                  pool,
-		oppool:                oppool,
-		proposalMaker:         proposalMaker,
-		lastSuffrageProoff:    lastSuffrageProoff,
-		suffrageProoff:        suffrageProoff,
-		lastBlockMapf:         lastBlockMapf,
-		blockMapf:             blockMapf,
-		blockMapItemf:         blockMapItemf,
-		suffrageNodeConnInfof: suffrageNodeConnInfof,
-		syncSourceConnInfof:   syncSourceConnInfof,
+		baseNetwork:             newBaseNetwork(encs, enc, idleTimeout),
+		local:                   local,
+		nodepolicy:              nodepolicy,
+		pool:                    pool,
+		oppool:                  oppool,
+		proposalMaker:           proposalMaker,
+		lastSuffrageProoff:      lastSuffrageProoff,
+		suffrageProoff:          suffrageProoff,
+		lastBlockMapf:           lastBlockMapf,
+		blockMapf:               blockMapf,
+		blockMapItemf:           blockMapItemf,
+		suffrageNodeConnInfof:   suffrageNodeConnInfof,
+		syncSourceConnInfof:     syncSourceConnInfof,
+		statef:                  statef,
+		existsInStateOperationf: existsInStateOperationf,
 	}
 }
 
@@ -386,6 +392,68 @@ func (c *QuicstreamHandlers) SyncSourceConnInfo(addr net.Addr, r io.Reader, w io
 
 	if err := c.nodeConnInfos(addr, r, w, header, c.syncSourceConnInfof); err != nil {
 		return errors.WithMessage(err, "failed to handle SyncSourceConnInfo")
+	}
+
+	return nil
+}
+
+func (c *QuicstreamHandlers) State(_ net.Addr, r io.Reader, w io.Writer) error {
+	e := util.StringErrorFunc("failed to handle get state by key")
+
+	enc, hb, err := c.prehandle(r)
+	if err != nil {
+		return e(err, "")
+	}
+
+	var header StateRequestHeader
+	if err = encoder.Decode(enc, hb, &header); err != nil {
+		return e(err, "")
+	}
+
+	if err = header.IsValid(nil); err != nil {
+		return e(err, "")
+	}
+
+	st, found, err := c.statef(header.Key())
+	res := NewResponseHeader(found, err)
+
+	if found && header.Hash() != nil && st.Hash().Equal(header.Hash()) {
+		if err := Response(w, res, nil, enc); err != nil {
+			return e(err, "")
+		}
+
+		return nil
+	}
+
+	if err := Response(w, res, st, enc); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
+func (c *QuicstreamHandlers) ExistsInStateOperation(_ net.Addr, r io.Reader, w io.Writer) error {
+	e := util.StringErrorFunc("failed to handle exists instate operation")
+
+	enc, hb, err := c.prehandle(r)
+	if err != nil {
+		return e(err, "")
+	}
+
+	var body ExistsInStateOperationRequestHeader
+	if err = encoder.Decode(enc, hb, &body); err != nil {
+		return e(err, "")
+	}
+
+	if err = body.IsValid(nil); err != nil {
+		return e(err, "")
+	}
+
+	found, err := c.existsInStateOperationf(body.facthash)
+	header := NewResponseHeader(found, err)
+
+	if err := Response(w, header, nil, enc); err != nil {
+		return e(err, "")
 	}
 
 	return nil

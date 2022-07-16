@@ -1,9 +1,7 @@
 package main
 
 import (
-	"context"
 	"io"
-	"net"
 	"time"
 
 	"github.com/spikeekips/mitum/base"
@@ -21,8 +19,8 @@ import (
 var networkHandlerIdleTimeout = time.Second * 10
 
 var (
-	handlerPrefixRequestState                  = "state"
-	handlerPrefixRequestExistsInStateOperation = "exists_instate_operation"
+	HandlerPrefixRequestState                  = "state"
+	HandlerPrefixRequestExistsInStateOperation = "exists_instate_operation"
 )
 
 func (cmd *runCommand) networkHandlers() *quicstream.PrefixHandler {
@@ -139,77 +137,11 @@ func (cmd *runCommand) networkHandlers() *quicstream.PrefixHandler {
 
 			return members[:i], nil
 		},
+		cmd.db.State,
+		cmd.db.ExistsInStateOperation,
 	)
 
 	prefix := launch.Handlers(handlers)
 
-	cmd.addNetworkHandlers(prefix)
-
 	return prefix
-}
-
-func (cmd *runCommand) addNetworkHandlers(prefix *quicstream.PrefixHandler) {
-	prefix.
-		Add(handlerPrefixRequestState, cmd.networkHandlerState).
-		Add(handlerPrefixRequestExistsInStateOperation, cmd.networkHandlerExistsInStateOperation)
-}
-
-func (cmd *runCommand) networkHandlerState(_ net.Addr, r io.Reader, w io.Writer) error {
-	e := util.StringErrorFunc("failed to handle get state by key")
-
-	ctx, cancel := context.WithTimeout(context.Background(), networkHandlerIdleTimeout)
-	defer cancel()
-
-	enc, hb, err := isaacnetwork.HandlerReadHead(ctx, cmd.encs, r)
-	if err != nil {
-		return e(err, "")
-	}
-
-	var body stateRequestHeader
-	if err = encoder.Decode(enc, hb, &body); err != nil {
-		return e(err, "")
-	}
-
-	if err = body.IsValid(nil); err != nil {
-		return e(err, "")
-	}
-
-	st, found, err := cmd.db.State(body.key)
-	header := isaacnetwork.NewResponseHeader(found, err)
-
-	if err := isaacnetwork.Response(w, header, st, enc); err != nil {
-		return e(err, "")
-	}
-
-	return nil
-}
-
-func (cmd *runCommand) networkHandlerExistsInStateOperation(_ net.Addr, r io.Reader, w io.Writer) error {
-	e := util.StringErrorFunc("failed to handle exists instate operation")
-
-	ctx, cancel := context.WithTimeout(context.Background(), networkHandlerIdleTimeout)
-	defer cancel()
-
-	enc, hb, err := isaacnetwork.HandlerReadHead(ctx, cmd.encs, r)
-	if err != nil {
-		return e(err, "")
-	}
-
-	var body existsInStateOperationRequestHeader
-	if err = encoder.Decode(enc, hb, &body); err != nil {
-		return e(err, "")
-	}
-
-	if err = body.IsValid(nil); err != nil {
-		return e(err, "")
-	}
-
-	found, err := cmd.db.ExistsInStateOperation(body.op)
-	header := isaacnetwork.NewResponseHeader(found, err)
-
-	if err := isaacnetwork.Response(w, header, nil, enc); err != nil {
-		return e(err, "")
-	}
-
-	return nil
 }

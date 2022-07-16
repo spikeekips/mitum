@@ -25,6 +25,8 @@ type NetworkClient interface {
 	NodeChallenge(_ context.Context, _ quicstream.UDPConnInfo, _ base.NetworkID, _ base.Address, _ base.Publickey, input []byte) (base.Signature, error)
 	SuffrageNodeConnInfo(context.Context, quicstream.UDPConnInfo) ([]NodeConnInfo, error)
 	SyncSourceConnInfo(context.Context, quicstream.UDPConnInfo) ([]NodeConnInfo, error)
+	State(_ context.Context, _ quicstream.UDPConnInfo, key string, _ util.Hash) (base.State, bool, error)
+	ExistsInStateOperation(_ context.Context, _ quicstream.UDPConnInfo, facthash util.Hash) (bool, error)
 }
 
 // revive:enable:line-length-limit

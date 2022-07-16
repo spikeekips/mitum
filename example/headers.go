@@ -8,23 +8,23 @@ import (
 )
 
 var (
-	stateRequestHeaderHint                  = hint.MustNewHint("state-header-v0.0.1")
-	existsInStateOperationRequestHeaderHint = hint.MustNewHint("exists-instate-operation-header-v0.0.1")
+	StateRequestHeaderHint                  = hint.MustNewHint("state-header-v0.0.1")
+	ExistsInStateOperationRequestHeaderHint = hint.MustNewHint("exists-instate-operation-header-v0.0.1")
 )
 
-type stateRequestHeader struct {
+type StateRequestHeader struct {
 	key string
 	isaacnetwork.BaseHeader
 }
 
-func newStateRequestHeader(key string) stateRequestHeader {
-	return stateRequestHeader{
-		BaseHeader: isaacnetwork.NewBaseHeader(stateRequestHeaderHint),
+func NewStateRequestHeader(key string) StateRequestHeader {
+	return StateRequestHeader{
+		BaseHeader: isaacnetwork.NewBaseHeader(StateRequestHeaderHint),
 		key:        key,
 	}
 }
 
-func (h stateRequestHeader) IsValid([]byte) error {
+func (h StateRequestHeader) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid stateHeader")
 
 	if err := h.BaseHinter.IsValid(h.Hint().Type().Bytes()); err != nil {
@@ -38,15 +38,15 @@ func (h stateRequestHeader) IsValid([]byte) error {
 	return nil
 }
 
-func (stateRequestHeader) HandlerPrefix() string {
-	return handlerPrefixRequestState
+func (StateRequestHeader) HandlerPrefix() string {
+	return HandlerPrefixRequestState
 }
 
 type stateRequestHeaderJSONMarshaler struct {
 	Key string `json:"key"`
 }
 
-func (h stateRequestHeader) MarshalJSON() ([]byte, error) {
+func (h StateRequestHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
 		stateRequestHeaderJSONMarshaler
 		isaacnetwork.BaseHeader
@@ -58,7 +58,7 @@ func (h stateRequestHeader) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (h *stateRequestHeader) UnmarshalJSON(b []byte) error {
+func (h *StateRequestHeader) UnmarshalJSON(b []byte) error {
 	e := util.StringErrorFunc("failed to unmarshal stateRequestHeader")
 
 	var u stateRequestHeaderJSONMarshaler
@@ -72,19 +72,19 @@ func (h *stateRequestHeader) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-type existsInStateOperationRequestHeader struct {
+type ExistsInStateOperationRequestHeader struct {
 	op util.Hash
 	isaacnetwork.BaseHeader
 }
 
-func newExistsInStateOperationRequestHeader(op util.Hash) existsInStateOperationRequestHeader {
-	return existsInStateOperationRequestHeader{
-		BaseHeader: isaacnetwork.NewBaseHeader(existsInStateOperationRequestHeaderHint),
+func NewExistsInStateOperationRequestHeader(op util.Hash) ExistsInStateOperationRequestHeader {
+	return ExistsInStateOperationRequestHeader{
+		BaseHeader: isaacnetwork.NewBaseHeader(ExistsInStateOperationRequestHeaderHint),
 		op:         op,
 	}
 }
 
-func (h existsInStateOperationRequestHeader) IsValid([]byte) error {
+func (h ExistsInStateOperationRequestHeader) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid existsInStateOperationHeader")
 
 	if err := h.BaseHinter.IsValid(h.Hint().Type().Bytes()); err != nil {
@@ -102,15 +102,15 @@ func (h existsInStateOperationRequestHeader) IsValid([]byte) error {
 	return nil
 }
 
-func (existsInStateOperationRequestHeader) HandlerPrefix() string {
-	return handlerPrefixRequestExistsInStateOperation
+func (ExistsInStateOperationRequestHeader) HandlerPrefix() string {
+	return HandlerPrefixRequestExistsInStateOperation
 }
 
 type existsInStateOperationRequestHeaderJSONMarshaler struct {
 	OP util.Hash `json:"op"`
 }
 
-func (h existsInStateOperationRequestHeader) MarshalJSON() ([]byte, error) {
+func (h ExistsInStateOperationRequestHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
 		existsInStateOperationRequestHeaderJSONMarshaler
 		isaacnetwork.BaseHeader
@@ -122,7 +122,7 @@ func (h existsInStateOperationRequestHeader) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (h *existsInStateOperationRequestHeader) UnmarshalJSON(b []byte) error {
+func (h *ExistsInStateOperationRequestHeader) UnmarshalJSON(b []byte) error {
 	e := util.StringErrorFunc("failed to unmarshal existsInStateOperationRequestHeader")
 
 	var u struct {

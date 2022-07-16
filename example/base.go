@@ -23,9 +23,9 @@ func (cmd *baseCommand) prepareEncoder() error {
 		cmd.enc = enc
 	}
 
-	_ = cmd.enc.Add(encoder.DecodeDetail{Hint: stateRequestHeaderHint, Instance: stateRequestHeader{}})
+	_ = cmd.enc.Add(encoder.DecodeDetail{Hint: StateRequestHeaderHint, Instance: StateRequestHeader{}})
 	_ = cmd.enc.Add(encoder.DecodeDetail{
-		Hint: existsInStateOperationRequestHeaderHint, Instance: existsInStateOperationRequestHeader{},
+		Hint: ExistsInStateOperationRequestHeaderHint, Instance: ExistsInStateOperationRequestHeader{},
 	})
 
 	return nil

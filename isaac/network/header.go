@@ -8,18 +8,20 @@ import (
 )
 
 var (
-	OperationRequestHeaderHint            = hint.MustNewHint("operation-header-v0.0.1")
-	SendOperationRequestHeaderHint        = hint.MustNewHint("new-operation-header-v0.0.1")
-	RequestProposalRequestHeaderHint      = hint.MustNewHint("request-proposal-header-v0.0.1")
-	ProposalRequestHeaderHint             = hint.MustNewHint("proposal-header-v0.0.1")
-	LastSuffrageProofRequestHeaderHint    = hint.MustNewHint("last-suffrage-proof-header-v0.0.1")
-	SuffrageProofRequestHeaderHint        = hint.MustNewHint("suffrage-proof-header-v0.0.1")
-	LastBlockMapRequestHeaderHint         = hint.MustNewHint("last-blockmap-header-v0.0.1")
-	BlockMapRequestHeaderHint             = hint.MustNewHint("blockmap-header-v0.0.1")
-	BlockMapItemRequestHeaderHint         = hint.MustNewHint("blockmap-item-header-v0.0.1")
-	NodeChallengeRequestHeaderHint        = hint.MustNewHint("node-challenge-header-v0.0.1")
-	SuffrageNodeConnInfoRequestHeaderHint = hint.MustNewHint("suffrage-node-conninfo-header-v0.0.1")
-	SyncSourceConnInfoRequestHeaderHint   = hint.MustNewHint("sync-source-conninfo-header-v0.0.1")
+	OperationRequestHeaderHint              = hint.MustNewHint("operation-header-v0.0.1")
+	SendOperationRequestHeaderHint          = hint.MustNewHint("new-operation-header-v0.0.1")
+	RequestProposalRequestHeaderHint        = hint.MustNewHint("request-proposal-header-v0.0.1")
+	ProposalRequestHeaderHint               = hint.MustNewHint("proposal-header-v0.0.1")
+	LastSuffrageProofRequestHeaderHint      = hint.MustNewHint("last-suffrage-proof-header-v0.0.1")
+	SuffrageProofRequestHeaderHint          = hint.MustNewHint("suffrage-proof-header-v0.0.1")
+	LastBlockMapRequestHeaderHint           = hint.MustNewHint("last-blockmap-header-v0.0.1")
+	BlockMapRequestHeaderHint               = hint.MustNewHint("blockmap-header-v0.0.1")
+	BlockMapItemRequestHeaderHint           = hint.MustNewHint("blockmap-item-header-v0.0.1")
+	NodeChallengeRequestHeaderHint          = hint.MustNewHint("node-challenge-header-v0.0.1")
+	SuffrageNodeConnInfoRequestHeaderHint   = hint.MustNewHint("suffrage-node-conninfo-header-v0.0.1")
+	SyncSourceConnInfoRequestHeaderHint     = hint.MustNewHint("sync-source-conninfo-header-v0.0.1")
+	StateRequestHeaderHint                  = hint.MustNewHint("state-header-v0.0.1")
+	ExistsInStateOperationRequestHeaderHint = hint.MustNewHint("exists-instate-operation-header-v0.0.1")
 )
 
 var ResponseHeaderHint = hint.MustNewHint("response-header-v0.0.1")
@@ -378,6 +380,86 @@ func (h SyncSourceConnInfoRequestHeader) IsValid([]byte) error {
 	return nil
 }
 
+type StateRequestHeader struct {
+	key string
+	h   util.Hash
+	BaseHeader
+}
+
+func NewStateRequestHeader(key string, h util.Hash) StateRequestHeader {
+	return StateRequestHeader{
+		BaseHeader: NewBaseHeader(StateRequestHeaderHint),
+		key:        key,
+		h:          h,
+	}
+}
+
+func (h StateRequestHeader) IsValid([]byte) error {
+	e := util.StringErrorFunc("invalid stateHeader")
+
+	if err := h.BaseHinter.IsValid(h.Hint().Type().Bytes()); err != nil {
+		return e(err, "")
+	}
+
+	if len(h.key) < 1 {
+		return e(nil, "empty state key")
+	}
+
+	if h.h != nil {
+		if err := h.h.IsValid(nil); err != nil {
+			return e(err, "invalid state hash")
+		}
+	}
+
+	return nil
+}
+
+func (StateRequestHeader) HandlerPrefix() string {
+	return HandlerPrefixState
+}
+
+func (h StateRequestHeader) Key() string {
+	return h.key
+}
+
+func (h StateRequestHeader) Hash() util.Hash {
+	return h.h
+}
+
+type ExistsInStateOperationRequestHeader struct {
+	facthash util.Hash
+	BaseHeader
+}
+
+func NewExistsInStateOperationRequestHeader(facthash util.Hash) ExistsInStateOperationRequestHeader {
+	return ExistsInStateOperationRequestHeader{
+		BaseHeader: NewBaseHeader(ExistsInStateOperationRequestHeaderHint),
+		facthash:   facthash,
+	}
+}
+
+func (h ExistsInStateOperationRequestHeader) IsValid([]byte) error {
+	e := util.StringErrorFunc("invalid existsInStateOperationHeader")
+
+	if err := h.BaseHinter.IsValid(h.Hint().Type().Bytes()); err != nil {
+		return e(err, "")
+	}
+
+	if h.facthash == nil {
+		return e(nil, "empty operation fact hash")
+	}
+
+	if err := h.facthash.IsValid(nil); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
+func (ExistsInStateOperationRequestHeader) HandlerPrefix() string {
+	return HandlerPrefixExistsInStateOperation
+}
+
 type ResponseHeader struct {
 	err error
 	BaseHeader
@@ -426,6 +508,10 @@ func baseHeaderPrefixByHint(ht hint.Hint) string {
 		return HandlerPrefixOperation
 	case SendOperationRequestHeaderHint.Type():
 		return HandlerPrefixSendOperation
+	case StateRequestHeaderHint.Type():
+		return HandlerPrefixState
+	case ExistsInStateOperationRequestHeaderHint.Type():
+		return HandlerPrefixExistsInStateOperation
 	default:
 		return ""
 	}

@@ -378,6 +378,76 @@ func (h *SuffrageNodeConnInfoRequestHeader) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+type stateRequestHeaderJSONMarshaler struct {
+	Hash util.Hash `json:"hash"`
+	Key  string    `json:"key"`
+}
+
+func (h StateRequestHeader) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(struct {
+		stateRequestHeaderJSONMarshaler
+		BaseHeader
+	}{
+		BaseHeader: h.BaseHeader,
+		stateRequestHeaderJSONMarshaler: stateRequestHeaderJSONMarshaler{
+			Key:  h.key,
+			Hash: h.h,
+		},
+	})
+}
+
+type stateRequestHeaderJSONUnmarshaler struct {
+	Hash valuehash.HashDecoder `json:"hash"`
+	Key  string                `json:"key"`
+}
+
+func (h *StateRequestHeader) UnmarshalJSON(b []byte) error {
+	e := util.StringErrorFunc("failed to unmarshal stateRequestHeader")
+
+	var u stateRequestHeaderJSONUnmarshaler
+
+	if err := util.UnmarshalJSON(b, &u); err != nil {
+		return e(err, "")
+	}
+
+	h.key = u.Key
+	h.h = u.Hash.Hash()
+
+	return nil
+}
+
+type existsInStateOperationRequestHeaderJSONMarshaler struct {
+	Fact util.Hash `json:"fact"`
+}
+
+func (h ExistsInStateOperationRequestHeader) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(struct {
+		existsInStateOperationRequestHeaderJSONMarshaler
+		BaseHeader
+	}{
+		BaseHeader: h.BaseHeader,
+		existsInStateOperationRequestHeaderJSONMarshaler: existsInStateOperationRequestHeaderJSONMarshaler{
+			Fact: h.facthash,
+		},
+	})
+}
+
+func (h *ExistsInStateOperationRequestHeader) UnmarshalJSON(b []byte) error {
+	e := util.StringErrorFunc("failed to unmarshal existsInStateOperationRequestHeader")
+
+	var u struct {
+		Fact valuehash.HashDecoder `json:"fact"`
+	}
+
+	if err := util.UnmarshalJSON(b, &u); err != nil {
+		return e(err, "")
+	}
+
+	h.facthash = u.Fact.Hash()
+
+	return nil
+}
+
 type ResponseHeaderJSONMarshaler struct {
 	Error string `json:"error,omitempty"`
 	OK    bool   `json:"ok,omitempty"`

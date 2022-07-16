@@ -86,7 +86,7 @@ func (c *baseNetworkClient) Operation(
 
 	found, err := c.requestOK(ctx, ci, header, nil, &u)
 
-	return u, found, errors.Wrap(err, "failed to get Operation")
+	return u, found, errors.WithMessage(err, "failed to get Operation")
 }
 
 func (c *baseNetworkClient) SendOperation(
@@ -222,7 +222,7 @@ func (c *baseNetworkClient) LastSuffrageProof(
 
 	found, err := c.requestOK(ctx, ci, header, nil, &u)
 
-	return u, found, errors.Wrap(err, "failed to get last SuffrageProof")
+	return u, found, errors.WithMessage(err, "failed to get last SuffrageProof")
 }
 
 func (c *baseNetworkClient) SuffrageProof( //nolint:dupl //...
@@ -234,7 +234,7 @@ func (c *baseNetworkClient) SuffrageProof( //nolint:dupl //...
 
 	found, err := c.requestOK(ctx, ci, header, nil, &u)
 
-	return u, found, errors.Wrap(err, "failed to get SuffrageProof")
+	return u, found, errors.WithMessage(err, "failed to get SuffrageProof")
 }
 
 func (c *baseNetworkClient) LastBlockMap( //nolint:dupl //...
@@ -246,7 +246,7 @@ func (c *baseNetworkClient) LastBlockMap( //nolint:dupl //...
 
 	found, err := c.requestOK(ctx, ci, header, nil, &u)
 
-	return u, found, errors.Wrap(err, "failed to get last BlockMap")
+	return u, found, errors.WithMessage(err, "failed to get last BlockMap")
 }
 
 func (c *baseNetworkClient) BlockMap( //nolint:dupl //...
@@ -258,7 +258,7 @@ func (c *baseNetworkClient) BlockMap( //nolint:dupl //...
 
 	found, err := c.requestOK(ctx, ci, header, nil, &u)
 
-	return u, found, errors.Wrap(err, "failed to get BlockMap")
+	return u, found, errors.WithMessage(err, "failed to get BlockMap")
 }
 
 func (c *baseNetworkClient) BlockMapItem(
@@ -377,6 +377,28 @@ func (c *baseNetworkClient) SyncSourceConnInfo(
 	return ncis, nil
 }
 
+func (c *baseNetworkClient) State(
+	ctx context.Context, ci quicstream.UDPConnInfo, key string, h util.Hash,
+) (base.State, bool, error) {
+	header := NewStateRequestHeader(key, h)
+
+	var st base.State
+
+	found, err := c.requestOK(ctx, ci, header, nil, &st)
+
+	return st, found, errors.WithMessage(err, "failed State")
+}
+
+func (c *baseNetworkClient) ExistsInStateOperation(
+	ctx context.Context, ci quicstream.UDPConnInfo, facthash util.Hash,
+) (bool, error) {
+	header := NewExistsInStateOperationRequestHeader(facthash)
+
+	found, err := c.requestOK(ctx, ci, header, nil, nil)
+
+	return found, errors.WithMessage(err, "failed ExistsInStateOperation")
+}
+
 func (c *baseNetworkClient) requestOK(
 	ctx context.Context,
 	ci quicstream.UDPConnInfo,
@@ -390,7 +412,7 @@ func (c *baseNetworkClient) requestOK(
 
 	r, cancel, err := c.write(ctx, ci, c.enc, header, body)
 	if err != nil {
-		return false, errors.Wrap(err, "failed to send request")
+		return false, errors.WithMessage(err, "failed to send request")
 	}
 
 	defer func() {
@@ -401,9 +423,11 @@ func (c *baseNetworkClient) requestOK(
 
 	switch {
 	case err != nil:
-		return false, errors.Wrap(err, "failed to read stream")
+		return false, errors.WithMessage(err, "failed to read stream")
 	case h.Err() != nil:
 		return false, h.Err()
+	case u == nil:
+		return h.OK(), nil
 	case !h.OK():
 		return false, nil
 	default:
@@ -452,7 +476,7 @@ func (c *baseNetworkClient) write(
 		return ClientWrite(w, header.HandlerPrefix(), enc.Hint(), b, body)
 	})
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to write")
+		return nil, nil, errors.WithMessage(err, "failed to write")
 	}
 
 	return r, cancel, nil
