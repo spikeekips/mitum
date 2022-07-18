@@ -502,7 +502,6 @@ func (cmd *runCommand) syncerBlockMapf() isaacstates.SyncerBlockMapFunc {
 				numnodes := 3 // NOTE choose top 3 sync nodes
 				result := util.EmptyLocked()
 
-				// FIXME if different maps found, follow sync source order
 				_ = isaac.ErrGroupWorkerWithSyncSourcePool(
 					ctx,
 					cmd.syncSourcePool,
@@ -678,7 +677,7 @@ func (cmd *runCommand) updateSyncSources(called int64, ncis []isaac.NodeConnInfo
 		Msg("sync sources updated")
 }
 
-func (cmd *runCommand) getLastSuffrageProofFunc() isaacstates.GetLastSuffrageProofFromRemoteFunc {
+func (cmd *runCommand) getLastSuffrageProofFunc() isaac.GetLastSuffrageProofFromRemoteFunc {
 	lastl := util.EmptyLocked()
 
 	f := func(ctx context.Context, ci quicstream.UDPConnInfo) (base.SuffrageProof, bool, error) {
@@ -758,7 +757,80 @@ func (cmd *runCommand) getLastSuffrageProofFunc() isaacstates.GetLastSuffragePro
 	}
 }
 
-func (cmd *runCommand) getSuffrageProofFunc() isaacstates.GetSuffrageProofFromRemoteFunc {
+func (cmd *runCommand) getLastSuffrageCandidateFunc() isaac.GetLastSuffrageCandidateStateRemoteFunc {
+	lastl := util.EmptyLocked()
+
+	f := func(ctx context.Context, ci quicstream.UDPConnInfo) (base.State, bool, error) {
+		var last util.Hash
+
+		if i, isnil := lastl.Value(); !isnil {
+			last = i.(util.Hash) //nolint:forcetypeassert //...
+		}
+
+		st, found, err := cmd.client.State(ctx, ci, isaac.SuffrageCandidateStateKey, last)
+
+		switch {
+		case err != nil, !found, st == nil:
+			return st, found, err
+		default:
+			if err := st.IsValid(nil); err != nil {
+				return nil, false, err
+			}
+
+			_ = lastl.SetValue(st.Hash())
+
+			return st, true, nil
+		}
+	}
+
+	return func(ctx context.Context) (base.State, bool, error) {
+		ml := util.EmptyLocked()
+
+		numnodes := 3 // NOTE choose top 3 sync nodes
+
+		if err := isaac.DistributeWorkerWithSyncSourcePool(
+			ctx,
+			cmd.syncSourcePool,
+			numnodes,
+			uint64(numnodes),
+			nil,
+			func(ctx context.Context, i, _ uint64, nci isaac.NodeConnInfo) error {
+				ci, err := nci.UDPConnInfo()
+				if err != nil {
+					return err
+				}
+
+				st, found, err := f(ctx, ci)
+				switch {
+				case err != nil, !found, st == nil:
+					return err
+				}
+
+				_, err = ml.Set(func(v interface{}) (interface{}, error) {
+					switch {
+					case v == nil, st.Height() > v.(base.State).Height(): //nolint:forcetypeassert //...
+						return st, nil
+					default:
+						return nil, util.ErrLockedSetIgnore.Errorf("old SuffrageProof")
+					}
+				})
+
+				return err
+			},
+		); err != nil {
+			return nil, false, err
+		}
+
+		switch v, isnil := ml.Value(); {
+		case isnil, v == nil:
+			return nil, false, nil
+		default:
+			return v.(base.State), true, nil //nolint:forcetypeassert //...
+		}
+	}
+}
+
+func (cmd *runCommand) getSuffrageProofFunc() isaac.GetSuffrageProofFromRemoteFunc {
 	return func(ctx context.Context, suffrageheight base.Height) (proof base.SuffrageProof, found bool, _ error) {
 		err := util.Retry(
 			ctx,

@@ -14,7 +14,6 @@ import (
 	"github.com/spikeekips/mitum/util/fixedtree"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
-	"go.uber.org/goleak"
 )
 
 type baseTestSuffrageStateBuilder struct {
@@ -134,14 +133,32 @@ type testSuffrageStateBuilder struct {
 	baseTestSuffrageStateBuilder
 }
 
+func (t *testSuffrageStateBuilder) candidateState(height base.Height, n int) base.State {
+	candidates := make([]base.SuffrageCandidate, n)
+	for i := range candidates {
+		candidates[i] = isaac.NewSuffrageCandidate(base.RandomNode(), height+1, height+3)
+	}
+
+	v := isaac.NewSuffrageCandidateStateValue(candidates)
+	return base.NewBaseState(
+		height,
+		isaac.SuffrageCandidateStateKey,
+		v,
+		nil,
+		[]util.Hash{valuehash.RandomSHA256()},
+	)
+}
+
 func (t *testSuffrageStateBuilder) TestBuildOneFromGenesis() {
 	proofs := t.newProofs(1)
 	last := proofs[0]
 
+	cst := t.candidateState(base.Height(33), 1)
+
 	expected := []base.Height{0}
 	var fetched []base.Height
 
-	s := NewSuffrageStateBuilder(
+	s := isaac.NewSuffrageStateBuilder(
 		t.NodePolicy.NetworkID(),
 		func(context.Context) (base.SuffrageProof, bool, error) {
 			return proofs[last.State().Height()], true, nil
@@ -159,14 +176,19 @@ func (t *testSuffrageStateBuilder) TestBuildOneFromGenesis() {
 
 			return proof, found, nil
 		},
+		func(context.Context) (base.State, bool, error) {
+			return cst, true, nil
+		},
 	)
-	s.batchlimit = 3
+	s.SetBatchLimit(3)
 
-	proof, err := s.Build(context.Background(), nil)
+	proof, st, err := s.Build(context.Background(), nil)
 	t.NoError(err)
 	t.NotNil(proof)
+	t.NotNil(st)
 
 	t.True(base.IsEqualState(last.State(), proof.State()))
+	t.True(base.IsEqualState(cst, st))
 	t.compareSuffrage(last.State(), proof.State())
 
 	sort.Slice(fetched, func(i, j int) bool {
@@ -183,7 +205,7 @@ func (t *testSuffrageStateBuilder) TestBuildFromGenesis() {
 	expected := []base.Height{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}
 	fetched := make([]base.Height, len(expected))
 
-	s := NewSuffrageStateBuilder(
+	s := isaac.NewSuffrageStateBuilder(
 		t.NodePolicy.NetworkID(),
 		func(context.Context) (base.SuffrageProof, bool, error) {
 			return proofs[last.State().Height()], true, nil
@@ -201,10 +223,11 @@ func (t *testSuffrageStateBuilder) TestBuildFromGenesis() {
 
 			return proof, found, nil
 		},
+		func(context.Context) (base.State, bool, error) { return nil, false, nil },
 	)
-	s.batchlimit = 3
+	s.SetBatchLimit(3)
 
-	proof, err := s.Build(context.Background(), nil)
+	proof, _, err := s.Build(context.Background(), nil)
 	t.NoError(err)
 	t.NotNil(proof)
 
@@ -227,7 +250,7 @@ func (t *testSuffrageStateBuilder) TestBuildNotFromGenesis() {
 	expected := []base.Height{4, 5, 6, 7, 8, 9, 10, 11, 12, 13}
 	fetched := make([]base.Height, len(expected))
 
-	s := NewSuffrageStateBuilder(
+	s := isaac.NewSuffrageStateBuilder(
 		t.NodePolicy.NetworkID(),
 		func(context.Context) (base.SuffrageProof, bool, error) {
 			return proofs[last.State().Height()], true, nil
@@ -245,10 +268,11 @@ func (t *testSuffrageStateBuilder) TestBuildNotFromGenesis() {
 
 			return proof, found, nil
 		},
+		func(context.Context) (base.State, bool, error) { return nil, false, nil },
 	)
-	s.batchlimit = 3
+	s.SetBatchLimit(3)
 
-	proof, err := s.Build(context.Background(), proofs[localheight].State())
+	proof, _, err := s.Build(context.Background(), proofs[localheight].State())
 	t.NoError(err)
 	t.NotNil(proof)
 
@@ -268,7 +292,7 @@ func (t *testSuffrageStateBuilder) TestBuildLastNotFromGenesis() {
 
 	localheight := base.Height(13)
 
-	s := NewSuffrageStateBuilder(
+	s := isaac.NewSuffrageStateBuilder(
 		t.NodePolicy.NetworkID(),
 		func(context.Context) (base.SuffrageProof, bool, error) {
 			return proofs[last.State().Height()], true, nil
@@ -276,118 +300,15 @@ func (t *testSuffrageStateBuilder) TestBuildLastNotFromGenesis() {
 		func(_ context.Context, height base.Height) (base.SuffrageProof, bool, error) {
 			return nil, false, errors.Errorf("invalid height request, %d", height)
 		},
+		func(context.Context) (base.State, bool, error) { return nil, false, nil },
 	)
-	s.batchlimit = 3
+	s.SetBatchLimit(3)
 
-	proof, err := s.Build(context.Background(), proofs[localheight].State())
+	proof, _, err := s.Build(context.Background(), proofs[localheight].State())
 	t.NoError(err)
 	t.Nil(proof)
 }
 
 func TestSuffrageStateBuilder(t *testing.T) {
 	suite.Run(t, new(testSuffrageStateBuilder))
-}
-
-type testLastSuffrageProofWatcher struct {
-	baseTestSuffrageStateBuilder
-}
-
-func (t *testLastSuffrageProofWatcher) TestLocalAhead() {
-	proofs := t.newProofs(2)
-
-	updatedch := make(chan struct{})
-	called := make(chan struct{}, 2)
-
-	u := NewLastSuffrageProofWatcher(
-		func() (base.SuffrageProof, bool, error) {
-			return proofs[1], true, nil
-		},
-		func(context.Context, base.State) (base.SuffrageProof, error) {
-			called <- struct{}{}
-
-			return proofs[0], nil
-		},
-		func(context.Context, base.SuffrageProof) {
-			updatedch <- struct{}{}
-		},
-	)
-	t.NoError(u.Start())
-	defer u.Stop()
-
-	<-called
-	<-updatedch
-
-	proof, err := u.Last()
-	t.NoError(err)
-
-	base.EqualSuffrageProof(t.Assert(), proofs[1], proof)
-}
-
-func (t *testLastSuffrageProofWatcher) TestRemoteAhead() {
-	proofs := t.newProofs(2)
-
-	updatedch := make(chan struct{})
-	called := make(chan struct{}, 2)
-
-	u := NewLastSuffrageProofWatcher(
-		func() (base.SuffrageProof, bool, error) {
-			return proofs[0], true, nil
-		},
-		func(context.Context, base.State) (base.SuffrageProof, error) {
-			called <- struct{}{}
-
-			return proofs[1], nil
-		},
-		func(context.Context, base.SuffrageProof) {
-			updatedch <- struct{}{}
-		},
-	)
-	t.NoError(u.Start())
-	defer u.Stop()
-
-	<-called
-	<-updatedch
-
-	proof, err := u.Last()
-	t.NoError(err)
-
-	base.EqualSuffrageProof(t.Assert(), proofs[1], proof)
-}
-
-func (t *testLastSuffrageProofWatcher) TestSameButLocalFirst() {
-	localproofs := t.newProofs(1)
-	remoteproofs := t.newProofs(1)
-
-	updatedch := make(chan struct{})
-	called := make(chan struct{}, 2)
-
-	u := NewLastSuffrageProofWatcher(
-		func() (base.SuffrageProof, bool, error) {
-			return localproofs[0], true, nil
-		},
-		func(context.Context, base.State) (base.SuffrageProof, error) {
-			called <- struct{}{}
-
-			return remoteproofs[0], nil
-		},
-		func(context.Context, base.SuffrageProof) {
-			updatedch <- struct{}{}
-		},
-	)
-	t.NoError(u.Start())
-	defer u.Stop()
-
-	<-called
-	<-updatedch
-
-	proof, err := u.Last()
-	t.NoError(err)
-
-	base.EqualSuffrageProof(t.Assert(), localproofs[0], proof)
-}
-
-func TestLastSuffrageProofWatcher(t *testing.T) {
-	defer goleak.VerifyNone(t)
-
-	suite.Run(t, new(testLastSuffrageProofWatcher))
 }

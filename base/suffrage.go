@@ -13,17 +13,6 @@ type Suffrage interface {
 	Len() int
 }
 
-func IsInSuffrage(suf Suffrage, node Node) (bool, error) { // FIXME remove
-	switch {
-	case suf == nil:
-		return false, errors.Errorf("empty suffrage")
-	case node == nil:
-		return false, errors.Errorf("empty node")
-	default:
-		return suf.ExistsPublickey(node.Address(), node.Publickey()), nil
-	}
-}
-
 type SuffrageStateValue interface {
 	StateValue
 	Height() Height // NOTE not manifest height
@@ -54,6 +43,22 @@ func InterfaceIsSuffrageState(i interface{}) (State, error) {
 		}
 
 		return st, nil
+	}
+}
+
+func LoadNodesFromSuffrageCandidateState(st State) ([]SuffrageCandidate, error) {
+	switch v := st.Value(); {
+	case st == nil:
+		return nil, nil
+	case v == nil:
+		return nil, errors.Errorf("empty value of state of SuffrageCandidate")
+	default:
+		i, ok := v.(SuffrageCandidateStateValue)
+		if !ok {
+			return nil, errors.Errorf("expected SuffrageCandidateStateValue, not %T", v)
+		}
+
+		return i.Nodes(), nil
 	}
 }
 

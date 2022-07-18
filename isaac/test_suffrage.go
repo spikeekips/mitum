@@ -43,3 +43,7 @@ func NewTestSuffrage(n int, extras ...LocalNode) (Suffrage, []LocalNode) {
 
 	return suf, locals
 }
+
+func (s *SuffrageStateBuilder) SetBatchLimit(i uint64) {
+	s.batchlimit = i
+}

@@ -14,7 +14,6 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
-	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
@@ -156,7 +155,7 @@ func (cmd *runCommand) prepareNetwork() error {
 
 	quicconfig := launch.DefaultQuicConfig()
 	quicconfig.AcceptToken = func(clientAddr net.Addr, token *quic.Token) bool {
-		return true // TODO NOTE handle blacklist
+		return true // FIXME NOTE handle blacklist
 	}
 
 	cmd.quicstreamserver = quicstream.NewServer(
@@ -171,16 +170,29 @@ func (cmd *runCommand) prepareNetwork() error {
 }
 
 func (cmd *runCommand) prepareLastSuffrageProofWatcher() {
-	builder := isaacstates.NewSuffrageStateBuilder(
+	builder := isaac.NewSuffrageStateBuilder(
 		networkID,
 		cmd.getLastSuffrageProofFunc(),
 		cmd.getSuffrageProofFunc(),
+		cmd.getLastSuffrageCandidateFunc(),
 	)
 
-	cmd.lastSuffrageProofWatcher = isaacstates.NewLastSuffrageProofWatcher(
-		cmd.db.LastSuffrageProof,
+	cmd.lastSuffrageProofWatcher = isaac.NewLastConsensusNodesWatcher(
+		func() (base.SuffrageProof, base.State, bool, error) {
+			proof, found, err := cmd.db.LastSuffrageProof()
+			if err != nil {
+				return nil, nil, false, err
+			}
+
+			st, _, err := cmd.db.State(isaac.SuffrageCandidateStateKey)
+			if err != nil {
+				return nil, nil, false, err
+			}
+
+			return proof, st, found, nil
+		},
 		builder.Build,
-		func(ctx context.Context, proof base.SuffrageProof) {
+		func(ctx context.Context, proof base.SuffrageProof, _ base.State) {
 			if len(cmd.discoveries) < 1 {
 				return
 			}

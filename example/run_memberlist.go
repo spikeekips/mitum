@@ -8,7 +8,6 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
-	"github.com/spikeekips/mitum/isaac"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
@@ -180,7 +179,7 @@ func (cmd *runCommand) nodeChallengeFunc() func(quicmemberlist.Node) error {
 
 func (cmd *runCommand) memberlistAllowFunc() func(quicmemberlist.Node) error {
 	return func(node quicmemberlist.Node) error {
-		proof, err := cmd.lastSuffrageProofWatcher.Last()
+		proof, st, err := cmd.lastSuffrageProofWatcher.Last()
 		if err != nil {
 			log.Error().Err(err).Msg("failed to get last suffrage proof; node will not be allowed")
 
@@ -198,11 +197,12 @@ func (cmd *runCommand) memberlistAllowFunc() func(quicmemberlist.Node) error {
 			return nil
 		}
 
-		// FIXME last candidates from remote
-		switch candidates, err := isaac.LastCandidatesFromState(proof.Map().Manifest().Height(), cmd.db.State); {
-		case err != nil:
-			return err
-		default:
+		if st != nil {
+			candidates, err := base.LoadNodesFromSuffrageCandidateState(st)
+			if err != nil {
+				return err
+			}
+
 			for i := range candidates {
 				n := candidates[i]
 
