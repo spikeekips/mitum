@@ -3,10 +3,13 @@ package base
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/suite"
 )
 
-func TestFindMajority(t *testing.T) {
+func TestFindMajority(tt *testing.T) {
+	t := new(suite.Suite)
+	t.SetT(tt)
+
 	cases := []struct {
 		name      string
 		quorum    uint
@@ -97,17 +100,17 @@ func TestFindMajority(t *testing.T) {
 	for i, c := range cases {
 		i := i
 		c := c
-		t.Run(
-			c.name,
-			func(*testing.T) {
-				result := FindMajority(c.quorum, c.threshold, c.set...)
-				assert.Equal(t, c.expected, result, "%d: %v; %v != %v", i, c.name, c.expected, result)
-			},
-		)
+		t.Run(c.name, func() {
+			result := FindMajority(c.quorum, c.threshold, c.set...)
+			t.Equal(c.expected, result, "%d: %v; %v != %v", i, c.name, c.expected, result)
+		})
 	}
 }
 
-func TestFindVoteResult(t *testing.T) {
+func TestFindVoteResult(tt *testing.T) {
+	t := new(suite.Suite)
+	t.SetT(tt)
+
 	cases := []struct {
 		name      string
 		quorum    uint
@@ -142,13 +145,10 @@ func TestFindVoteResult(t *testing.T) {
 	for i, c := range cases {
 		i := i
 		c := c
-		t.Run(
-			c.name,
-			func(*testing.T) {
-				result, key := FindVoteResult(c.quorum, c.threshold, c.s)
-				assert.Equal(t, c.expected, key, "%d: %v; %v != %v", i, c.name, c.expected, key)
-				assert.Equal(t, c.result, result, "%d: %v; %v != %v", i, c.name, c.expected, result)
-			},
-		)
+		t.Run(c.name, func() {
+			result, key := FindVoteResult(c.quorum, c.threshold, c.s)
+			t.Equal(c.expected, key, "%d: %v; %v != %v", i, c.name, c.expected, key)
+			t.Equal(c.result, result, "%d: %v; %v != %v", i, c.name, c.expected, result)
+		})
 	}
 }

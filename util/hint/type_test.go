@@ -8,11 +8,10 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type testType struct {
-	suite.Suite
-}
+func TestTypeIsValid(tt *testing.T) {
+	t := new(suite.Suite)
+	t.SetT(tt)
 
-func (t *testType) TestIsValid() {
 	cases := []struct {
 		name string
 		s    string
@@ -36,29 +35,22 @@ func (t *testType) TestIsValid() {
 	for i, c := range cases {
 		i := i
 		c := c
-		t.Run(
-			c.name,
-			func() {
-				ty := Type(c.s)
-				err := ty.IsValid(nil)
-				if len(c.err) > 0 {
-					if err == nil {
-						t.NoError(errors.Errorf("expected %q, but nil error", c.err), "%d: %v", i, c.name)
-
-						return
-					}
-
-					t.ErrorContains(err, c.err, "%d: %v", i, c.name)
-				} else if err != nil {
-					t.NoError(errors.Errorf("expected nil error, but %+v", err), "%d: %v", i, c.name)
+		t.Run(c.name, func() {
+			ty := Type(c.s)
+			err := ty.IsValid(nil)
+			if len(c.err) > 0 {
+				if err == nil {
+					t.NoError(errors.Errorf("expected %q, but nil error", c.err), "%d: %v", i, c.name)
 
 					return
 				}
-			},
-		)
-	}
-}
 
-func TestType(t *testing.T) {
-	suite.Run(t, new(testType))
+				t.ErrorContains(err, c.err, "%d: %v", i, c.name)
+			} else if err != nil {
+				t.NoError(errors.Errorf("expected nil error, but %+v", err), "%d: %v", i, c.name)
+
+				return
+			}
+		})
+	}
 }

@@ -56,12 +56,16 @@ func (l FixedSuffrageCandidateLimiterRule) HashBytes() []byte {
 type MajoritySuffrageCandidateLimiterRule struct {
 	hint.BaseHinter
 	ratio float64
+	min   uint64
+	max   uint64 // NOTE max < 1 means nolimit
 }
 
-func NewMajoritySuffrageCandidateLimiterRule(ratio float64) MajoritySuffrageCandidateLimiterRule {
+func NewMajoritySuffrageCandidateLimiterRule(ratio float64, min, max uint64) MajoritySuffrageCandidateLimiterRule {
 	return MajoritySuffrageCandidateLimiterRule{
 		BaseHinter: hint.NewBaseHinter(MajoritySuffrageCandidateLimiterRuleHint),
 		ratio:      ratio,
+		min:        min,
+		max:        max,
 	}
 }
 
@@ -70,7 +74,19 @@ func NewMajoritySuffrageCandidateLimiter(
 	getSuffrage func() (uint64, error),
 ) base.SuffrageCandidateLimiter {
 	return func() (uint64, error) {
-		return NewCandidatesOfMajoritySuffrageCandidateLimiterRule(rule.ratio, getSuffrage)
+		i, err := NewCandidatesOfMajoritySuffrageCandidateLimiterRule(rule.ratio, getSuffrage)
+		if err != nil {
+			return 0, err
+		}
+
+		switch {
+		case rule.min > 0 && i < rule.min:
+			return rule.min, nil
+		case rule.max > 0 && i > rule.max:
+			return rule.max, nil
+		default:
+			return i, nil
+		}
 	}
 }
 
@@ -90,6 +106,14 @@ func (l MajoritySuffrageCandidateLimiterRule) IsValid([]byte) error {
 
 func (l MajoritySuffrageCandidateLimiterRule) Ratio() float64 {
 	return l.ratio
+}
+
+func (l MajoritySuffrageCandidateLimiterRule) Min() uint64 {
+	return l.min
+}
+
+func (l MajoritySuffrageCandidateLimiterRule) Max() uint64 {
+	return l.max
 }
 
 func (l MajoritySuffrageCandidateLimiterRule) HashBytes() []byte {

@@ -7,11 +7,10 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type testCheckSliceDuplicated struct {
-	suite.Suite
-}
+func TestCheckSliceDuplicated(tt *testing.T) {
+	t := new(suite.Suite)
+	t.SetT(tt)
 
-func (t *testCheckSliceDuplicated) TestCases() {
 	var nilslice []int
 
 	cases := []struct {
@@ -47,16 +46,9 @@ func (t *testCheckSliceDuplicated) TestCases() {
 	for i, c := range cases {
 		i := i
 		c := c
-		t.Run(
-			c.name,
-			func() {
-				_, isduplicated := CheckSliceDuplicated(c.s, c.k)
-				t.Equal(c.expected, isduplicated, "%d(%q): %v", i, c.name, c.s)
-			},
-		)
+		t.Run(c.name, func() {
+			_, isduplicated := CheckSliceDuplicated(c.s, c.k)
+			t.Equal(c.expected, isduplicated, "%d(%q): %v", i, c.name, c.s)
+		})
 	}
-}
-
-func TestCheckSliceDuplicated(t *testing.T) {
-	suite.Run(t, new(testCheckSliceDuplicated))
 }

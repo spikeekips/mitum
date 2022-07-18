@@ -24,7 +24,7 @@ func (t *testHint) TestNew() {
 	t.Equal("showme-v1.2.3+compatible", ht.String())
 }
 
-func (t *testType) TestParse() {
+func (t *testHint) TestParse() {
 	cases := []struct {
 		name     string
 		s        string
@@ -72,7 +72,7 @@ func (t *testType) TestParse() {
 	}
 }
 
-func (t *testType) TestCompatible() {
+func (t *testHint) TestCompatible() {
 	cases := []struct {
 		name string
 		a    string
@@ -107,7 +107,7 @@ func (t *testType) TestCompatible() {
 	}
 }
 
-func (t *testType) TestEncodeJSON() {
+func (t *testHint) TestEncodeJSON() {
 	ht, err := ParseHint("showme-v1.2.3+compatible")
 	t.NoError(err)
 

@@ -36,15 +36,22 @@ func (l *FixedSuffrageCandidateLimiterRule) UnmarshalJSON(b []byte) error {
 type majoritySuffrageCandidateLimiterRuleJSONMarshaler struct {
 	hint.BaseHinter
 	Ratio float64 `json:"ratio"`
+	Min   uint64  `json:"min"`
+	Max   uint64  `json:"max"`
 }
+
 type majoritySuffrageCandidateLimiterRuleJSONUnmarshaler struct {
 	Ratio float64 `json:"ratio"`
+	Min   uint64  `json:"min"`
+	Max   uint64  `json:"max"`
 }
 
 func (l MajoritySuffrageCandidateLimiterRule) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(majoritySuffrageCandidateLimiterRuleJSONMarshaler{
 		BaseHinter: l.BaseHinter,
 		Ratio:      l.ratio,
+		Min:        l.min,
+		Max:        l.max,
 	})
 }
 
@@ -56,6 +63,8 @@ func (l *MajoritySuffrageCandidateLimiterRule) UnmarshalJSON(b []byte) error {
 	}
 
 	l.ratio = u.Ratio
+	l.min = u.Min
+	l.max = u.Max
 
 	return nil
 }

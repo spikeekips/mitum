@@ -59,7 +59,7 @@ func TestMajoritySuffrageCandidateLimiterRuleJSON(tt *testing.T) {
 	t.Encode = func() (interface{}, []byte) {
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: MajoritySuffrageCandidateLimiterRuleHint, Instance: MajoritySuffrageCandidateLimiterRule{}}))
 
-		l := NewMajoritySuffrageCandidateLimiterRule(0.5)
+		l := NewMajoritySuffrageCandidateLimiterRule(0.5, 3, 33)
 
 		b, err := util.MarshalJSON(&l)
 		t.NoError(err)
@@ -86,6 +86,8 @@ func TestMajoritySuffrageCandidateLimiterRuleJSON(tt *testing.T) {
 
 		t.True(av.Hint().Equal(bv.Hint()))
 		t.Equal(av.Ratio(), bv.Ratio())
+		t.Equal(av.Min(), bv.Min())
+		t.Equal(av.Max(), bv.Max())
 	}
 
 	suite.Run(tt, t)
@@ -103,23 +105,74 @@ func TestNewCandidatesOfMajoritySuffrageCandidateLimiterRule(t *testing.T) {
 	}
 }
 
-func TestNewCandidatesOfMajoritySuffrageCandidateLimiterRuleInvalidRatio(t *testing.T) {
-	a, err := NewCandidatesOfMajoritySuffrageCandidateLimiterRule(0.2, func() (uint64, error) { return 1, nil })
-	assert.NoError(t, err)
-	assert.True(t, a > 0)
+func TestMajoritySuffrageCandidateLimiter(tt *testing.T) {
+	t := new(suite.Suite)
+	t.SetT(tt)
 
-	// under zero
-	_, err = NewCandidatesOfMajoritySuffrageCandidateLimiterRule(-0.2, func() (uint64, error) { return 1, nil })
-	assert.Error(t, err)
-	assert.ErrorContains(t, err, "invalid ratio")
+	t.Run("min", func() {
+		rule := NewMajoritySuffrageCandidateLimiterRule(0, 3, 4)
 
-	// over one
-	_, err = NewCandidatesOfMajoritySuffrageCandidateLimiterRule(1.1, func() (uint64, error) { return 1, nil })
-	assert.Error(t, err)
-	assert.ErrorContains(t, err, "invalid ratio")
+		f := NewMajoritySuffrageCandidateLimiter(rule, func() (uint64, error) { return 46, nil })
+		i, err := f()
+		t.NoError(err)
+		t.Equal(uint64(3), i)
+	})
+
+	t.Run("no min", func() {
+		rule := NewMajoritySuffrageCandidateLimiterRule(0, 0, 4)
+
+		f := NewMajoritySuffrageCandidateLimiter(rule, func() (uint64, error) { return 46, nil })
+		i, err := f()
+		t.NoError(err)
+		t.Equal(uint64(0), i)
+	})
+
+	t.Run("max", func() {
+		rule := NewMajoritySuffrageCandidateLimiterRule(1, 3, 4)
+
+		f := NewMajoritySuffrageCandidateLimiter(rule, func() (uint64, error) { return 46, nil })
+		i, err := f()
+		t.NoError(err)
+		t.Equal(uint64(4), i)
+	})
+
+	t.Run("no max", func() {
+		rule := NewMajoritySuffrageCandidateLimiterRule(1, 3, 0)
+
+		f := NewMajoritySuffrageCandidateLimiter(rule, func() (uint64, error) { return 46, nil })
+		i, err := f()
+		t.NoError(err)
+		t.Equal(uint64(46), i)
+	})
 }
 
-func TestNewCandidatesOfMajoritySuffrageCandidateLimiterRuleCases(t *testing.T) {
+func TestNewCandidatesOfMajoritySuffrageCandidateLimiterRuleInvalidRatio(tt *testing.T) {
+	t := new(suite.Suite)
+	t.SetT(tt)
+
+	t.Run("1", func() {
+		a, err := NewCandidatesOfMajoritySuffrageCandidateLimiterRule(0.2, func() (uint64, error) { return 1, nil })
+		t.NoError(err)
+		t.True(a > 0)
+	})
+
+	t.Run("under zero", func() {
+		_, err := NewCandidatesOfMajoritySuffrageCandidateLimiterRule(-0.2, func() (uint64, error) { return 1, nil })
+		t.Error(err)
+		t.ErrorContains(err, "invalid ratio")
+	})
+
+	t.Run("over one", func() {
+		_, err := NewCandidatesOfMajoritySuffrageCandidateLimiterRule(1.1, func() (uint64, error) { return 1, nil })
+		t.Error(err)
+		t.ErrorContains(err, "invalid ratio")
+	})
+}
+
+func TestNewCandidatesOfMajoritySuffrageCandidateLimiterRuleCases(tt *testing.T) {
+	t := new(suite.Suite)
+	t.SetT(tt)
+
 	cases := []struct {
 		name     string
 		s        uint64
@@ -144,9 +197,11 @@ func TestNewCandidatesOfMajoritySuffrageCandidateLimiterRuleCases(t *testing.T) 
 	}
 
 	for i, c := range cases {
-		a, err := NewCandidatesOfMajoritySuffrageCandidateLimiterRule(c.ratio, func() (uint64, error) { return c.s, nil })
-		assert.NoError(t, err)
+		t.Run(c.name, func() {
+			a, err := NewCandidatesOfMajoritySuffrageCandidateLimiterRule(c.ratio, func() (uint64, error) { return c.s, nil })
+			t.NoError(err)
 
-		assert.Equal(t, c.expected, a, "%d: %v; expected=%d new=%d", i, c.name, c.expected, a)
+			t.Equal(c.expected, a, "%d: %v; expected=%d new=%d", i, c.name, c.expected, a)
+		})
 	}
 }

@@ -5,9 +5,13 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/suite"
 )
 
-func TestThreshold(t *testing.T) {
+func TestThreshold(tt *testing.T) {
+	t := new(suite.Suite)
+	t.SetT(tt)
+
 	cases := []struct {
 		name      string
 		quorum    uint
@@ -80,25 +84,22 @@ func TestThreshold(t *testing.T) {
 	for i, c := range cases {
 		i := i
 		c := c
-		t.Run(
-			c.name,
-			func(*testing.T) {
-				tr := Threshold(c.threshold)
-				err := tr.IsValid(nil)
-				if len(c.err) > 0 {
-					if err == nil {
-						assert.Error(t, errors.Errorf("expected error: %s, but nothing happened", c.err), "%d: %v", i, c.name)
-						return
-					}
-
-					assert.ErrorContains(t, err, c.err, "%d: %v", i, c.name)
+		t.Run(c.name, func() {
+			tr := Threshold(c.threshold)
+			err := tr.IsValid(nil)
+			if len(c.err) > 0 {
+				if err == nil {
+					t.Error(errors.Errorf("expected error: %s, but nothing happened", c.err), "%d: %v", i, c.name)
 					return
 				}
 
-				th := tr.Threshold(c.quorum)
-				assert.Equal(t, c.expected, th, "%d: %v; %v != %v", i, c.name, c.expected, th)
-			},
-		)
+				t.ErrorContains(err, c.err, "%d: %v", i, c.name)
+				return
+			}
+
+			th := tr.Threshold(c.quorum)
+			t.Equal(c.expected, th, "%d: %v; %v != %v", i, c.name, c.expected, th)
+		})
 	}
 }
 
