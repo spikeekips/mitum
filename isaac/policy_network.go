@@ -68,10 +68,16 @@ func (p NetworkPolicy) IsValid([]byte) error {
 }
 
 func (p NetworkPolicy) HashBytes() []byte {
+	var rule []byte
+
+	if p.suffrageCandidateLimiterRule != nil {
+		rule = p.suffrageCandidateLimiterRule.HashBytes()
+	}
+
 	return util.ConcatBytesSlice(
 		util.Uint64ToBytes(p.maxOperationsInProposal),
 		p.suffrageCandidateLifespan.Bytes(),
-		p.suffrageCandidateLimiterRule.HashBytes(),
+		rule,
 	)
 }
 
