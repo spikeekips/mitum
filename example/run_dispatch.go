@@ -745,6 +745,10 @@ func (cmd *runCommand) getLastSuffrageProofFunc() isaac.GetLastSuffrageProofFrom
 				return err
 			},
 		); err != nil {
+			if errors.Is(err, isaac.ErrEmptySyncSources) {
+				return nil, false, nil
+			}
+
 			return nil, false, err
 		}
 

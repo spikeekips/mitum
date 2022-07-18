@@ -69,8 +69,10 @@ func (s *SuffrageStateBuilder) Build(
 	case err != nil:
 		return nil, nil, e(err, "")
 	case !updated:
-		if _, err := NewSuffrageFromState(localstate); err != nil {
-			return nil, nil, e(err, "invalid localstate")
+		if localstate != nil {
+			if _, err := NewSuffrageFromState(localstate); err != nil {
+				return nil, nil, e(err, "invalid localstate")
+			}
 		}
 
 		return nil, nil, nil
