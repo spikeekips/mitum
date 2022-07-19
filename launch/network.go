@@ -70,6 +70,10 @@ func Handlers(handlers *isaacnetwork.QuicstreamHandlers) *quicstream.PrefixHandl
 		Add(isaacnetwork.HandlerPrefixBlockMap, handlers.BlockMap).
 		Add(isaacnetwork.HandlerPrefixBlockMapItem, handlers.BlockMapItem).
 		Add(isaacnetwork.HandlerPrefixNodeChallenge, handlers.NodeChallenge).
+		Add(isaacnetwork.HandlerPrefixSuffrageNodeConnInfo, handlers.SuffrageNodeConnInfo).
+		Add(isaacnetwork.HandlerPrefixSyncSourceConnInfo, handlers.SyncSourceConnInfo).
+		Add(isaacnetwork.HandlerPrefixOperation, handlers.Operation).
+		Add(isaacnetwork.HandlerPrefixSendOperation, handlers.SendOperation).
 		Add(isaacnetwork.HandlerPrefixState, handlers.State).
 		Add(isaacnetwork.HandlerPrefixExistsInStateOperation, handlers.ExistsInStateOperation)
 
