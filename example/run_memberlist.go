@@ -23,7 +23,7 @@ func (cmd *runCommand) prepareMemberlist() error {
 	)
 
 	memberlistnode, err := quicmemberlist.NewNode(
-		cmd.local.Address().String(),
+		cmd.nodeInfo.ID(),
 		cmd.design.Network.Publish(),
 		cmd.local.Address(),
 		cmd.local.Publickey(),
