@@ -194,9 +194,13 @@ func (cmd *runCommand) proposalSelectorFunc() *isaac.BaseProposalSelector {
 
 			switch {
 			case cmd.memberlist == nil:
-				return nil, false, errors.Errorf("nil memberlist")
+				log.Debug().Msg("tried to make proposal, but empty memberlist")
+
+				return nil, false, isaac.ErrEmptyAvailableNodes.Errorf("nil memberlist")
 			case !cmd.memberlist.IsJoined():
-				return nil, false, errors.Errorf("memberlist; not yet joined")
+				log.Debug().Msg("tried to make proposal, but memberlist, not yet joined")
+
+				return nil, false, isaac.ErrEmptyAvailableNodes.Errorf("memberlist, not yet joined")
 			}
 
 			members := make([]base.Node, cmd.memberlist.MembersLen()*2)
@@ -216,7 +220,7 @@ func (cmd *runCommand) proposalSelectorFunc() *isaac.BaseProposalSelector {
 			members = members[:i]
 
 			if len(members) < 1 {
-				return nil, false, nil
+				return nil, false, isaac.ErrEmptyAvailableNodes.Errorf("no alive members")
 			}
 
 			return members, true, nil

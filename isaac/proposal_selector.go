@@ -12,7 +12,10 @@ import (
 	"github.com/spikeekips/mitum/util/logging"
 )
 
-var failedToRequestProposalToNodeError = util.NewError("failed to request proposal to node")
+var (
+	failedToRequestProposalToNodeError = util.NewError("failed to request proposal to node")
+	ErrEmptyAvailableNodes             = util.NewError("empty available nodes for new proposal")
+)
 
 // ProposerSelector selects proposer between suffrage nodes
 type ProposerSelector interface {
@@ -65,7 +68,11 @@ func (p *BaseProposalSelector) Select(ctx context.Context, point base.Point) (ba
 
 	switch i, found, err := p.getAvailableNodes(point.Height()); {
 	case err != nil:
-		return nil, e(err, "failed to get suffrage for height, %d", point.Height())
+		if !errors.Is(err, ErrEmptyAvailableNodes) {
+			return nil, e(err, "failed to get suffrage for height, %d", point.Height())
+		}
+
+		nodes = []base.Node{p.local}
 	case !found:
 		return nil, e(nil, "suffrage not found for height, %d", point.Height())
 	default:
