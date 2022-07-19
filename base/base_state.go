@@ -242,6 +242,10 @@ func (s *BaseStateValueMerger) Hash() util.Hash {
 	return s.nst.Hash()
 }
 
+func (s *BaseStateValueMerger) Key() string {
+	return s.key
+}
+
 func (s *BaseStateValueMerger) Height() Height {
 	return s.height
 }
