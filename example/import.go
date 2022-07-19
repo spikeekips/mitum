@@ -67,7 +67,7 @@ func (cmd *importCommand) prepareDatabase() error {
 	}
 
 	nodeinfo, err := launch.CreateLocalFS(
-		launch.CreateDefaultNodeInfo(networkID, version), cmd.design.Storage.Base, cmd.enc)
+		launch.CreateDefaultNodeInfo(cmd.nodePolicy.NetworkID(), version), cmd.design.Storage.Base, cmd.enc)
 	if err != nil {
 		return e(err, "")
 	}
@@ -90,7 +90,7 @@ func (cmd *importCommand) prepareDatabase() error {
 func (cmd *importCommand) checkLocalFS() (last base.Height, _ error) {
 	e := util.StringErrorFunc("failed to check localfs")
 
-	last, err := launch.FindLastHeightFromLocalFS(cmd.From, cmd.enc, networkID)
+	last, err := launch.FindLastHeightFromLocalFS(cmd.From, cmd.enc, cmd.nodePolicy.NetworkID())
 	if err != nil {
 		return last, e(err, "")
 	}
@@ -170,7 +170,7 @@ func (cmd *importCommand) importBlocks(from, to base.Height) error {
 				cmd.encs,
 				m,
 				bwdb,
-				networkID,
+				cmd.nodePolicy.NetworkID(),
 			)
 			if err != nil {
 				return nil, err
@@ -258,7 +258,7 @@ func (cmd *importCommand) validateImportedBlockMaps(root string, last base.Heigh
 			case !found:
 				return nil, util.ErrNotFound.Call()
 			default:
-				if err := m.IsValid(networkID); err != nil {
+				if err := m.IsValid(cmd.nodePolicy.NetworkID()); err != nil {
 					return nil, err
 				}
 
@@ -288,7 +288,7 @@ func (cmd *importCommand) validateImportedBlocks(root string, last base.Height) 
 			return nil
 		},
 		func(_ context.Context, i, _ uint64) error {
-			return launch.ValidateBlockFromLocalFS(base.Height(int64(i)), root, cmd.enc, networkID, cmd.perm)
+			return launch.ValidateBlockFromLocalFS(base.Height(int64(i)), root, cmd.enc, cmd.nodePolicy.NetworkID(), cmd.perm)
 		},
 	); err != nil {
 		return e(err, "")

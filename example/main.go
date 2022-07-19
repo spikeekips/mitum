@@ -4,16 +4,12 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
-	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/util"
 	mitumlogging "github.com/spikeekips/mitum/util/logging"
 )
 
-var (
-	version   = util.MustNewVersion("v0.0.1")
-	networkID = base.NetworkID([]byte("mitum-example-node"))
-)
+var version = util.MustNewVersion("v0.0.1")
 
 var (
 	logging *mitumlogging.Logging

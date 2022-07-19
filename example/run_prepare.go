@@ -97,7 +97,7 @@ func (cmd *runCommand) prepareFlags() error {
 func (cmd *runCommand) prepareDatabase() error {
 	e := util.StringErrorFunc("failed to prepare database")
 
-	nodeinfo, err := launch.CheckLocalFS(networkID, cmd.design.Storage.Base, cmd.enc)
+	nodeinfo, err := launch.CheckLocalFS(cmd.nodePolicy.NetworkID(), cmd.design.Storage.Base, cmd.enc)
 
 	switch {
 	case err == nil:
@@ -114,7 +114,7 @@ func (cmd *runCommand) prepareDatabase() error {
 		}
 
 		nodeinfo, err = launch.CreateLocalFS(
-			launch.CreateDefaultNodeInfo(networkID, version), cmd.design.Storage.Base, cmd.enc)
+			launch.CreateDefaultNodeInfo(cmd.nodePolicy.NetworkID(), version), cmd.design.Storage.Base, cmd.enc)
 		if err != nil {
 			return e(err, "")
 		}
@@ -171,7 +171,7 @@ func (cmd *runCommand) prepareNetwork() error {
 
 func (cmd *runCommand) prepareLastSuffrageProofWatcher() {
 	builder := isaac.NewSuffrageStateBuilder(
-		networkID,
+		cmd.nodePolicy.NetworkID(),
 		cmd.getLastSuffrageProofFunc(),
 		cmd.getSuffrageProofFunc(),
 		cmd.getLastSuffrageCandidateFunc(),
@@ -268,21 +268,21 @@ func (cmd *runCommand) prepareSufrage() error {
 	set := hint.NewCompatibleSet()
 	if err := set.Add(
 		isaac.FixedSuffrageCandidateLimiterRuleHint,
-		func(rule base.SuffrageCandidateLimiterRule) (base.SuffrageCandidateLimiter, error) {
+		base.SuffrageCandidateLimiterFunc(func(rule base.SuffrageCandidateLimiterRule) (base.SuffrageCandidateLimiter, error) {
 			i, ok := rule.(isaac.FixedSuffrageCandidateLimiterRule)
 			if !ok {
 				return nil, errors.Errorf("expected FixedSuffrageCandidateLimiterRule, not %T", rule)
 			}
 
 			return isaac.NewFixedSuffrageCandidateLimiter(i), nil
-		},
+		}),
 	); err != nil {
 		return err
 	}
 
 	if err := set.Add(
 		isaac.MajoritySuffrageCandidateLimiterRuleHint,
-		func(rule base.SuffrageCandidateLimiterRule) (base.SuffrageCandidateLimiter, error) {
+		base.SuffrageCandidateLimiterFunc(func(rule base.SuffrageCandidateLimiterRule) (base.SuffrageCandidateLimiter, error) {
 			i, ok := rule.(isaac.MajoritySuffrageCandidateLimiterRule)
 			if !ok {
 				return nil, errors.Errorf("expected MajoritySuffrageCandidateLimiterRule, not %T", rule)
@@ -308,7 +308,7 @@ func (cmd *runCommand) prepareSufrage() error {
 					return uint64(suf.Len()), nil
 				},
 			), nil
-		},
+		}),
 	); err != nil {
 		return err
 	}

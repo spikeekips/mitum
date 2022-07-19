@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
@@ -53,7 +54,7 @@ type networkClientCommand struct { //nolint:govet //...
 	Header  string              `arg:"" help:"json header; 'example' will print example headers"`
 	Remote  launch.ConnInfoFlag `arg:"" help:"remote" placeholder:"ConnInfo" default:"localhost:4321"`
 	Timeout time.Duration       `help:"timeout" placeholder:"duration" default:"10s"`
-	Body    *os.File            `help:"body" type:"existingfile"`
+	Body    *os.File            `help:"body"`
 }
 
 func (cmd *networkClientCommand) Run() error {
@@ -62,6 +63,16 @@ func (cmd *networkClientCommand) Run() error {
 		Stringer("timeout", cmd.Timeout).
 		Str("header", cmd.Header).
 		Msg("flags")
+
+	var body io.Reader
+
+	if cmd.Body != nil {
+		body = cmd.Body
+
+		defer func() {
+			_ = cmd.Body.Close()
+		}()
+	}
 
 	if err := cmd.prepareEncoder(); err != nil {
 		return err
@@ -101,12 +112,17 @@ func (cmd *networkClientCommand) Run() error {
 	ctx, cancel := context.WithTimeout(context.Background(), cmd.Timeout)
 	defer cancel()
 
-	response, v, err := client.Request(ctx, ci, header, cmd.Body)
+	response, v, err := client.Request(ctx, ci, header, body)
+
+	var errstring string
+	if err != nil {
+		errstring = err.Error()
+	}
 
 	b, err := util.MarshalJSON(map[string]interface{}{
 		"response": response,
 		"v":        v,
-		"error":    err,
+		"error":    errstring,
 	})
 	if err != nil {
 		return err

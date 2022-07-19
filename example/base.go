@@ -60,7 +60,13 @@ func (cmd *baseNodeCommand) prepareLocal() error {
 
 	cmd.local = local
 
-	cmd.nodePolicy = isaac.DefaultNodePolicy(networkID)
+	nodePolicy, err := launch.NodePolicyFromDesign(cmd.design)
+	if err != nil {
+		return errors.Wrap(err, "failed to prepare node policy")
+	}
+
+	cmd.nodePolicy = nodePolicy
+
 	log.Info().
 		Interface("node_policy", cmd.nodePolicy).
 		Msg("node policy loaded")

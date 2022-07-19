@@ -122,6 +122,10 @@ func (cmd *runCommand) proposalMaker() *isaac.ProposalMaker {
 }
 
 func (cmd *runCommand) proposalSelectorFunc() *isaac.BaseProposalSelector {
+	proposalMaker := cmd.proposalMaker()
+
+	_ = proposalMaker.SetLogging(logging)
+
 	return isaac.NewBaseProposalSelector(
 		cmd.local,
 		cmd.nodePolicy,
@@ -152,7 +156,7 @@ func (cmd *runCommand) proposalSelectorFunc() *isaac.BaseProposalSelector {
 
 		// 	return nil, errors.Errorf("no0sas not found")
 		// }),
-		cmd.proposalMaker(),
+		proposalMaker,
 		func(height base.Height) ([]base.Node, bool, error) {
 			var suf base.Suffrage
 			switch i, found, err := cmd.getSuffrage(height); {
@@ -251,7 +255,7 @@ func (cmd *runCommand) newProposalProcessorFunc(enc encoder.Encoder) newProposal
 			proposal,
 			previous,
 			launch.NewBlockWriterFunc(
-				cmd.local, networkID, launch.LocalFSDataDirectory(cmd.design.Storage.Base), enc, cmd.db),
+				cmd.local, cmd.nodePolicy.NetworkID(), launch.LocalFSDataDirectory(cmd.design.Storage.Base), enc, cmd.db),
 			cmd.db.State,
 			cmd.getProposalOperationFunc(proposal),
 			func(height base.Height, ht hint.Hint) (base.OperationProcessor, error) {
@@ -313,7 +317,7 @@ func (cmd *runCommand) newSyncer(
 					cmd.encs,
 					blockmap,
 					bwdb,
-					networkID,
+					cmd.nodePolicy.NetworkID(),
 				)
 			},
 			prev,
@@ -423,7 +427,7 @@ func (cmd *runCommand) syncerLastBlockMapf() isaacstates.SyncerLastBlockMapFunc 
 		case err != nil, !updated:
 			return m, updated, err
 		default:
-			if err := m.IsValid(networkID); err != nil {
+			if err := m.IsValid(cmd.nodePolicy.NetworkID()); err != nil {
 				return m, updated, err
 			}
 
@@ -487,7 +491,7 @@ func (cmd *runCommand) syncerBlockMapf() isaacstates.SyncerBlockMapFunc {
 		case err != nil, !found:
 			return m, found, err
 		default:
-			if err := m.IsValid(networkID); err != nil {
+			if err := m.IsValid(cmd.nodePolicy.NetworkID()); err != nil {
 				return m, true, err
 			}
 
@@ -695,7 +699,7 @@ func (cmd *runCommand) getLastSuffrageProofFunc() isaac.GetLastSuffrageProofFrom
 		case !updated:
 			return proof, updated, nil
 		default:
-			if err := proof.IsValid(networkID); err != nil {
+			if err := proof.IsValid(cmd.nodePolicy.NetworkID()); err != nil {
 				return nil, updated, err
 			}
 
@@ -863,7 +867,7 @@ func (cmd *runCommand) getSuffrageProofFunc() isaac.GetSuffrageProofFromRemoteFu
 						case !b:
 							return nil
 						default:
-							if err := a.IsValid(networkID); err != nil {
+							if err := a.IsValid(cmd.nodePolicy.NetworkID()); err != nil {
 								return nil
 							}
 
@@ -918,7 +922,7 @@ func (cmd *runCommand) getProposalOperationFunc(
 		}
 
 		if err := op.IsValid(cmd.nodePolicy.NetworkID()); err != nil {
-			return nil, isaac.InvalidOperationInProcessorError.Errorf("invalid operation")
+			return nil, isaac.InvalidOperationInProcessorError.Wrap(err)
 		}
 
 		switch found, err := cmd.db.ExistsInStateOperation(op.Fact().Hash()); {

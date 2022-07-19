@@ -32,7 +32,7 @@ func (cmd *initCommand) Run() error {
 	}
 
 	nodeinfo, err := launch.CreateLocalFS(
-		launch.CreateDefaultNodeInfo(networkID, version), cmd.design.Storage.Base, cmd.enc)
+		launch.CreateDefaultNodeInfo(cmd.nodePolicy.NetworkID(), version), cmd.design.Storage.Base, cmd.enc)
 	if err != nil {
 		return err
 	}
@@ -47,7 +47,7 @@ func (cmd *initCommand) Run() error {
 
 	g := launch.NewGenesisBlockGenerator(
 		cmd.local,
-		networkID,
+		cmd.nodePolicy.NetworkID(),
 		cmd.enc,
 		db,
 		pool,
