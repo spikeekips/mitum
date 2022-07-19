@@ -40,6 +40,7 @@ var Hinters = []encoder.DecodeDetail{
 	{Hint: isaac.ProposalSignedFactHint, Instance: isaac.ProposalSignedFact{}},
 	{Hint: isaac.SuffrageCandidateHint, Instance: isaac.SuffrageCandidate{}},
 	{Hint: isaac.SuffrageStateValueHint, Instance: isaac.SuffrageStateValue{}},
+	{Hint: isaac.SuffrageCandidateStateValueHint, Instance: isaac.SuffrageCandidateStateValue{}},
 	{Hint: isaacblock.BlockMapHint, Instance: isaacblock.BlockMap{}},
 	{Hint: isaacblock.SuffrageProofHint, Instance: isaacblock.SuffrageProof{}},
 	{Hint: isaacnetwork.BlockMapRequestHeaderHint, Instance: isaacnetwork.BlockMapRequestHeader{}},
@@ -70,7 +71,7 @@ var Hinters = []encoder.DecodeDetail{
 		Hint:     isaacoperation.SuffrageGenesisJoinFactHint,
 		Instance: isaacoperation.SuffrageGenesisJoinFact{},
 	},
-	{Hint: isaacoperation.SuffrageJoinHint, Instance: base.BaseOperation{}},
+	{Hint: isaacoperation.SuffrageJoinHint, Instance: isaacoperation.SuffrageJoin{}},
 	{Hint: isaacoperation.SuffrageJoinFactHint, Instance: isaacoperation.SuffrageJoinFact{}},
 	{Hint: quicmemberlist.NodeHint, Instance: quicmemberlist.BaseNode{}},
 }

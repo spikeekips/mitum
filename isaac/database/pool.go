@@ -154,7 +154,7 @@ func (db *TempPool) NewOperation(_ context.Context, operationhash util.Hash) (op
 func (db *TempPool) NewOperationHashes(
 	ctx context.Context,
 	limit uint64,
-	filter func(facthash util.Hash, _ isaac.PoolOperationHeader) (bool, error),
+	filter func(operationhash, facthash util.Hash, _ isaac.PoolOperationHeader) (bool, error),
 ) ([]util.Hash, error) {
 	e := util.StringErrorFunc("failed to find new operations")
 
@@ -163,7 +163,7 @@ func (db *TempPool) NewOperationHashes(
 
 	nfilter := filter
 	if nfilter == nil {
-		nfilter = func(facthash util.Hash, _ isaac.PoolOperationHeader) (bool, error) { return true, nil }
+		nfilter = func(operations, facthash util.Hash, _ isaac.PoolOperationHeader) (bool, error) { return true, nil }
 	}
 
 	var i uint64
@@ -183,7 +183,7 @@ func (db *TempPool) NewOperationHashes(
 				facthash = valuehash.Bytes(keys[1])
 			}
 
-			switch ok, err := nfilter(facthash, h); {
+			switch ok, err := nfilter(operationhash, facthash, h); {
 			case err != nil:
 				return false, err
 			case !ok:

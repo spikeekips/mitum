@@ -93,7 +93,7 @@ type NewOperationPool interface {
 	NewOperationHashes(
 		_ context.Context,
 		limit uint64,
-		filter func(facthash util.Hash, _ PoolOperationHeader) (ok bool, err error),
+		filter func(operationhash, facthash util.Hash, _ PoolOperationHeader) (ok bool, err error),
 	) ([]util.Hash, error)
 	SetNewOperation(context.Context, base.Operation) (bool, error)
 	RemoveNewOperations(context.Context, []util.Hash) error

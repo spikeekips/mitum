@@ -275,6 +275,10 @@ func (cmd *keySignCommand) loadBody() (interface{}, interface{}, error) {
 		return nil, nil, err
 	}
 
+	if elem == nil {
+		return nil, nil, errors.Errorf("failed to load body")
+	}
+
 	log.Debug().Str("body_type", fmt.Sprintf("%T", elem)).Msg("body loaded")
 
 	return elem, reflect.New(reflect.ValueOf(elem).Type()).Interface(), nil

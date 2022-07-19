@@ -241,6 +241,8 @@ func (p *DefaultProposalProcessor) process(ctx context.Context, vp base.INITVote
 func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) (err error) {
 	e := util.StringErrorFunc("failed to collect operations")
 
+	p.Log().Debug().Int("operations", len(p.proposal.ProposalFact().Operations())).Msg("collecting operations")
+
 	if len(p.proposal.ProposalFact().Operations()) < 1 {
 		return nil
 	}
@@ -257,6 +259,8 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) (err e
 	if err := util.RunErrgroupWorker(wctx, uint64(len(ophs)), func(ctx context.Context, i, _ uint64) error {
 		h := ophs[i]
 		op, err := p.collectOperation(ctx, h)
+
+		p.Log().Trace().Stringer("operation", h).Err(err).Msg("operation collected")
 
 		switch {
 		case err == nil:
@@ -322,6 +326,8 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context) error 
 	defer done()
 
 	cops := p.collected()
+
+	p.Log().Debug().Int("operations", len(cops)).Msg("trying to process operations")
 
 	worker := util.NewErrgroupWorker(wctx, int64(len(cops)))
 	defer worker.Close()

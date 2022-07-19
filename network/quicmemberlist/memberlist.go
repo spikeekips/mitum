@@ -197,6 +197,10 @@ func (srv *Memberlist) Broadcast(b memberlist.Broadcast) {
 
 	srv.Log().Trace().Interface("broadcast", b).Msg("enqueue broadcast")
 
+	if !srv.IsJoined() {
+		return
+	}
+
 	srv.delegate.QueueBroadcast(b)
 }
 

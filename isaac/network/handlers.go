@@ -132,6 +132,14 @@ func (c *QuicstreamHandlers) SendOperation(_ net.Addr, r io.Reader, w io.Writer)
 		return e(err, "")
 	}
 
+	if op == nil {
+		return e(nil, "empty body")
+	}
+
+	if err := op.IsValid(c.nodepolicy.NetworkID()); err != nil {
+		return e(err, "")
+	}
+
 	added, err := c.oppool.SetNewOperation(context.Background(), op)
 
 	res := NewResponseHeader(added, err)

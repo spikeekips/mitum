@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/alecthomas/kong"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -44,7 +47,23 @@ func main() {
 	logging = l
 
 	log = mitumlogging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
-		return lctx.Str("module", "main")
+		var name string
+
+		if len(kctx.Path) > 0 {
+			for i := range kctx.Path {
+				j := len(kctx.Path) - i - 1
+				n := kctx.Path[j].Node()
+				if n == nil {
+					continue
+				}
+
+				name = "-" + strings.Replace(n.Path(), " ", "-", -1)
+
+				break
+			}
+		}
+
+		return lctx.Str("module", fmt.Sprintf("main%s", name))
 	}).SetLogging(logging).Log()
 
 	log.Info().Str("command", kctx.Command()).Msg("start command")

@@ -73,11 +73,29 @@ func (cmd *runCommand) proposalMaker() *isaac.ProposalMaker {
 			hs, err := cmd.pool.NewOperationHashes(
 				ctx,
 				n,
-				func(facthash util.Hash, header isaac.PoolOperationHeader) (bool, error) {
+				func(operationhash, facthash util.Hash, header isaac.PoolOperationHeader) (bool, error) {
 					// NOTE filter genesis operations
 					switch ht := header.HintBytes(); {
 					case bytes.HasPrefix(ht, genesisNetworkPolicyFactHintBytes),
 						bytes.HasPrefix(ht, suffrageGenesisJoinFactHintBytes):
+						return false, nil
+					}
+
+					switch found, err := cmd.db.ExistsKnownOperation(operationhash); {
+					case err != nil:
+						return false, err
+					case found:
+						log.Trace().Stringer("operation", operationhash).Msg("already processed; known operation")
+
+						return false, nil
+					}
+
+					switch found, err := cmd.db.ExistsInStateOperation(facthash); {
+					case err != nil:
+						return false, err
+					case found:
+						log.Trace().Stringer("operation", facthash).Msg("already processed; in state")
+
 						return false, nil
 					}
 
