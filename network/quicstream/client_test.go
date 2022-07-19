@@ -67,6 +67,8 @@ func (t *testClient) TestSessionRemove() {
 	defer newsrv.Stop()
 
 	t.Run("send again after restarting", func() {
+		<-time.After(time.Second * 3) // NOTE for slow machine like github actions
+
 		_, err := client.Write(context.Background(), DefaultClientWriteFunc(util.UUID().Bytes()))
 		t.NoError(err)
 	})
