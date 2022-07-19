@@ -38,6 +38,7 @@ func NewSuffrageCandidateProcessor(
 	p := &SuffrageCandidateProcessor{
 		BaseOperationProcessor: b,
 		existings:              map[string]base.SuffrageCandidate{},
+		suffrages:              map[string]base.Node{},
 		preprocessed:           map[string]struct{}{},
 		startheight:            height + 1,
 		deadlineheight:         height + 1 + lifespan,
@@ -163,15 +164,10 @@ func NewSuffrageCandidateStateValueMerger(height base.Height, st base.State) *Su
 }
 
 func (s *SuffrageCandidateStateValueMerger) Merge(value base.StateValue, ops []util.Hash) error {
-	mergevalue, ok := value.(base.StateMergeValue)
-	if !ok {
-		return errors.Errorf("not StateMergeValue, %T", value)
-	}
-
 	s.Lock()
 	defer s.Unlock()
 
-	switch t := mergevalue.Value().(type) {
+	switch t := value.(type) {
 	case isaac.SuffrageCandidateStateValue:
 		s.added = append(s.added, t.Nodes()...)
 	case isaac.SuffrageRemoveCandidateStateValue:

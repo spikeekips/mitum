@@ -206,14 +206,9 @@ func NewSuffrageJoinStateValueMerger(height base.Height, st base.State) *Suffrag
 }
 
 func (s *SuffrageJoinStateValueMerger) Merge(value base.StateValue, ops []util.Hash) error {
-	mergevalue, ok := value.(base.StateMergeValue)
+	v, ok := value.(base.SuffrageStateValue)
 	if !ok {
-		return errors.Errorf("not StateMergeValue, %T", value)
-	}
-
-	v, ok := mergevalue.Value().(base.SuffrageStateValue)
-	if !ok {
-		return errors.Errorf("not SuffrageStateValue, %T", mergevalue.Value())
+		return errors.Errorf("not SuffrageStateValue, %T", value)
 	}
 
 	s.Lock()
