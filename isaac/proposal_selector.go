@@ -6,8 +6,10 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/logging"
 )
 
 var failedToRequestProposalToNodeError = util.NewError("failed to request proposal to node")
@@ -234,6 +236,7 @@ func (p BlockBasedProposerSelector) Select(_ context.Context, point base.Point, 
 }
 
 type ProposalMaker struct {
+	*logging.Logging
 	local         base.LocalNode
 	policy        base.NodePolicy
 	pool          ProposalPool
@@ -249,6 +252,9 @@ func NewProposalMaker(
 	pool ProposalPool,
 ) *ProposalMaker {
 	return &ProposalMaker{
+		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
+			return lctx.Str("module", "proposal-maker")
+		}),
 		local:         local,
 		policy:        policy,
 		getOperations: getOperations,
@@ -265,6 +271,10 @@ func (p *ProposalMaker) New(ctx context.Context, point base.Point) (ProposalSign
 	ops, err := p.getOperations(ctx)
 	if err != nil {
 		return ProposalSignedFact{}, e(err, "failed to get operations")
+	}
+
+	for i := range ops {
+		p.Log().Trace().Stringer("operation", ops[i]).Msg("new operation for proposal maker")
 	}
 
 	fact := NewProposalFact(point, p.local.Address(), ops)

@@ -93,6 +93,6 @@ type SuffrageProof interface {
 }
 
 type (
-	SuffrageCandidateLimiterFunc func(rule SuffrageCandidateLimiterRule) (SuffrageCandidateLimiter, error)
+	SuffrageCandidateLimiterFunc func(SuffrageCandidateLimiterRule) (SuffrageCandidateLimiter, error)
 	SuffrageCandidateLimiter     func() (uint64, error)
 )
