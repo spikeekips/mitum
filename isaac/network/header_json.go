@@ -61,6 +61,14 @@ func (h *OperationRequestHeader) DecodeJSON(b []byte, _ *jsonenc.Encoder) error 
 	return nil
 }
 
+func (h *SendOperationRequestHeader) UnmarshalJSON(b []byte) error {
+	if err := h.BaseHeader.unmarshalJSON(b); err != nil {
+		return errors.WithMessage(err, "failed to unmarshal SendOperationRequestHeader")
+	}
+
+	return nil
+}
+
 type requestProposalRequestHeaderJSONMarshaler struct {
 	Proposer base.Address `json:"proposer"`
 	Point    base.Point   `json:"point"`
@@ -373,6 +381,14 @@ func (h *NodeChallengeRequestHeader) UnmarshalJSON(b []byte) error {
 func (h *SuffrageNodeConnInfoRequestHeader) UnmarshalJSON(b []byte) error {
 	if err := h.BaseHeader.unmarshalJSON(b); err != nil {
 		return errors.WithMessage(err, "failed to unmarshal SuffrageNodeConnInfoHeader")
+	}
+
+	return nil
+}
+
+func (h *SyncSourceConnInfoRequestHeader) UnmarshalJSON(b []byte) error {
+	if err := h.BaseHeader.unmarshalJSON(b); err != nil {
+		return errors.WithMessage(err, "failed to unmarshal SyncSourceConnInfoRequestHeader")
 	}
 
 	return nil

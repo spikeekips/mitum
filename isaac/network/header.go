@@ -9,7 +9,7 @@ import (
 
 var (
 	OperationRequestHeaderHint              = hint.MustNewHint("operation-header-v0.0.1")
-	SendOperationRequestHeaderHint          = hint.MustNewHint("new-operation-header-v0.0.1")
+	SendOperationRequestHeaderHint          = hint.MustNewHint("send-operation-header-v0.0.1")
 	RequestProposalRequestHeaderHint        = hint.MustNewHint("request-proposal-header-v0.0.1")
 	ProposalRequestHeaderHint               = hint.MustNewHint("proposal-header-v0.0.1")
 	LastSuffrageProofRequestHeaderHint      = hint.MustNewHint("last-suffrage-proof-header-v0.0.1")
