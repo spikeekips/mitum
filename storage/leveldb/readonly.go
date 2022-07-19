@@ -8,6 +8,7 @@ import (
 	"github.com/spikeekips/mitum/storage"
 	"github.com/spikeekips/mitum/util"
 	"github.com/syndtr/goleveldb/leveldb"
+	leveldbfilter "github.com/syndtr/goleveldb/leveldb/filter"
 	leveldbOpt "github.com/syndtr/goleveldb/leveldb/opt"
 	leveldbStorage "github.com/syndtr/goleveldb/leveldb/storage"
 )
@@ -21,6 +22,8 @@ var readonlyDBOOptions = &leveldbOpt.Options{
 	ErrorIfMissing:         true,
 	NoWriteMerge:           true,
 	ReadOnly:               true,
+	NoSync:                 true,
+	Filter:                 leveldbfilter.NewBloomFilter(1 << 13),
 }
 
 type ReadonlyStorage struct {

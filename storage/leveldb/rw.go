@@ -7,6 +7,7 @@ import (
 	"github.com/spikeekips/mitum/storage"
 	"github.com/spikeekips/mitum/util"
 	"github.com/syndtr/goleveldb/leveldb"
+	leveldbfilter "github.com/syndtr/goleveldb/leveldb/filter"
 	leveldbOpt "github.com/syndtr/goleveldb/leveldb/opt"
 	leveldbStorage "github.com/syndtr/goleveldb/leveldb/storage"
 )
@@ -15,6 +16,9 @@ var rwDBOOptions = &leveldbOpt.Options{
 	ErrorIfExist:   false,
 	ErrorIfMissing: false,
 	// WriteBuffer:    math.MaxInt32,
+	NoSync:              true,
+	Filter:              leveldbfilter.NewBloomFilter(1 << 13),
+	CompactionTableSize: 128 * leveldbOpt.MiB,
 }
 
 type RWStorage struct {

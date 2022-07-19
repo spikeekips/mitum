@@ -9,6 +9,7 @@ import (
 	"github.com/spikeekips/mitum/storage"
 	"github.com/spikeekips/mitum/util"
 	"github.com/syndtr/goleveldb/leveldb"
+	leveldbfilter "github.com/syndtr/goleveldb/leveldb/filter"
 	leveldbOpt "github.com/syndtr/goleveldb/leveldb/opt"
 	leveldbStorage "github.com/syndtr/goleveldb/leveldb/storage"
 )
@@ -22,6 +23,9 @@ var writeOptions = &leveldbOpt.Options{
 	ErrorIfMissing:         false,
 	NoWriteMerge:           true,
 	ReadOnly:               false,
+	NoSync:                 true,
+	Filter:                 leveldbfilter.NewBloomFilter(1 << 13),
+	CompactionTableSize:    128 * leveldbOpt.MiB,
 }
 
 type WriteStorage struct {
