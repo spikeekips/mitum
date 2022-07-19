@@ -268,7 +268,9 @@ func (cmd *runCommand) prepareSufrage() error {
 	set := hint.NewCompatibleSet()
 	if err := set.Add(
 		isaac.FixedSuffrageCandidateLimiterRuleHint,
-		base.SuffrageCandidateLimiterFunc(func(rule base.SuffrageCandidateLimiterRule) (base.SuffrageCandidateLimiter, error) {
+		base.SuffrageCandidateLimiterFunc(func(
+			rule base.SuffrageCandidateLimiterRule,
+		) (base.SuffrageCandidateLimiter, error) {
 			i, ok := rule.(isaac.FixedSuffrageCandidateLimiterRule)
 			if !ok {
 				return nil, errors.Errorf("expected FixedSuffrageCandidateLimiterRule, not %T", rule)
@@ -282,7 +284,9 @@ func (cmd *runCommand) prepareSufrage() error {
 
 	if err := set.Add(
 		isaac.MajoritySuffrageCandidateLimiterRuleHint,
-		base.SuffrageCandidateLimiterFunc(func(rule base.SuffrageCandidateLimiterRule) (base.SuffrageCandidateLimiter, error) {
+		base.SuffrageCandidateLimiterFunc(func(
+			rule base.SuffrageCandidateLimiterRule,
+		) (base.SuffrageCandidateLimiter, error) {
 			i, ok := rule.(isaac.MajoritySuffrageCandidateLimiterRule)
 			if !ok {
 				return nil, errors.Errorf("expected MajoritySuffrageCandidateLimiterRule, not %T", rule)

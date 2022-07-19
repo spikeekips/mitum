@@ -288,7 +288,8 @@ func (cmd *importCommand) validateImportedBlocks(root string, last base.Height) 
 			return nil
 		},
 		func(_ context.Context, i, _ uint64) error {
-			return launch.ValidateBlockFromLocalFS(base.Height(int64(i)), root, cmd.enc, cmd.nodePolicy.NetworkID(), cmd.perm)
+			return launch.ValidateBlockFromLocalFS(
+				base.Height(int64(i)), root, cmd.enc, cmd.nodePolicy.NetworkID(), cmd.perm)
 		},
 	); err != nil {
 		return e(err, "")

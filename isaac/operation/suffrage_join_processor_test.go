@@ -126,7 +126,7 @@ func (t *testSuffrageJoinProcessor) TestNew() {
 			mergers[v.Key()] = merger
 		}
 
-		merger.Merge(v, []util.Hash{op.Hash()})
+		merger.Merge(v.Value(), []util.Hash{op.Hash()})
 	}
 
 	for _, merger := range mergers {

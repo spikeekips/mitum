@@ -57,7 +57,7 @@ func (t *testSuffrageCandidateProcessor) TestNewCandidateFromEmpty() {
 	merger := mergevalues[0].Merger(height, nil)
 
 	for i := range mergevalues {
-		t.NoError(merger.Merge(mergevalues[i], []util.Hash{op.Hash()}))
+		t.NoError(merger.Merge(mergevalues[i].Value(), []util.Hash{op.Hash()}))
 	}
 
 	t.NoError(merger.Close())
@@ -139,7 +139,7 @@ func (t *testSuffrageCandidateProcessor) TestNewCandidate() {
 	merger := mergevalues[0].Merger(height, st)
 
 	for i := range mergevalues {
-		t.NoError(merger.Merge(mergevalues[i], []util.Hash{op.Hash()}))
+		t.NoError(merger.Merge(mergevalues[i].Value(), []util.Hash{op.Hash()}))
 	}
 
 	t.NoError(merger.Close())
@@ -439,7 +439,7 @@ func (t *testSuffrageCandidateProcessor) TestProcessConcurrent() {
 		mergelock.Unlock()
 
 		for i := range values {
-			if err := merger.Merge(values[i], []util.Hash{op}); err != nil {
+			if err := merger.Merge(values[i].Value(), []util.Hash{op}); err != nil {
 				return err
 			}
 		}

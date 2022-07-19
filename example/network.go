@@ -11,6 +11,7 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	"github.com/spikeekips/mitum/launch"
+	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/valuehash"
@@ -55,29 +56,11 @@ type networkClientCommand struct { //nolint:govet //...
 	Remote  launch.ConnInfoFlag `arg:"" help:"remote" placeholder:"ConnInfo" default:"localhost:4321"`
 	Timeout time.Duration       `help:"timeout" placeholder:"duration" default:"10s"`
 	Body    *os.File            `help:"body"`
+	body    io.Reader
+	remote  quicstream.UDPConnInfo
 }
 
 func (cmd *networkClientCommand) Run() error {
-	log.Debug().
-		Stringer("remote", cmd.Remote).
-		Stringer("timeout", cmd.Timeout).
-		Str("header", cmd.Header).
-		Msg("flags")
-
-	var body io.Reader
-
-	if cmd.Body != nil {
-		body = cmd.Body
-
-		defer func() {
-			_ = cmd.Body.Close()
-		}()
-	}
-
-	if err := cmd.prepareEncoder(); err != nil {
-		return err
-	}
-
 	if cmd.Header == "example" {
 		_, _ = fmt.Fprintln(os.Stdout, "example headers:")
 
@@ -97,13 +80,19 @@ func (cmd *networkClientCommand) Run() error {
 		return nil
 	}
 
-	ci, err := cmd.Remote.ConnInfo()
-	if err != nil {
+	if err := cmd.prepare(); err != nil {
 		return err
 	}
 
+	log.Debug().
+		Stringer("remote", cmd.Remote).
+		Stringer("timeout", cmd.Timeout).
+		Str("header", cmd.Header).
+		Bool("has_body", cmd.body != nil).
+		Msg("flags")
+
 	var header isaac.NetworkHeader
-	if err = encoder.Decode(cmd.enc, []byte(cmd.Header), &header); err != nil {
+	if err := encoder.Decode(cmd.enc, []byte(cmd.Header), &header); err != nil {
 		return err
 	}
 
@@ -112,7 +101,7 @@ func (cmd *networkClientCommand) Run() error {
 	ctx, cancel := context.WithTimeout(context.Background(), cmd.Timeout)
 	defer cancel()
 
-	response, v, err := client.Request(ctx, ci, header, body)
+	response, v, err := client.Request(ctx, cmd.remote, header, cmd.body)
 
 	var errstring string
 	if err != nil {
@@ -129,6 +118,25 @@ func (cmd *networkClientCommand) Run() error {
 	}
 
 	_, _ = fmt.Fprintln(os.Stdout, string(b))
+
+	return nil
+}
+
+func (cmd *networkClientCommand) prepare() error {
+	if cmd.Body != nil {
+		cmd.body = cmd.Body
+	}
+
+	if err := cmd.prepareEncoder(); err != nil {
+		return err
+	}
+
+	ci, err := cmd.Remote.ConnInfo()
+	if err != nil {
+		return err
+	}
+
+	cmd.remote = ci
 
 	return nil
 }

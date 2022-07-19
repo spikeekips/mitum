@@ -255,7 +255,12 @@ func (cmd *runCommand) newProposalProcessorFunc(enc encoder.Encoder) newProposal
 			proposal,
 			previous,
 			launch.NewBlockWriterFunc(
-				cmd.local, cmd.nodePolicy.NetworkID(), launch.LocalFSDataDirectory(cmd.design.Storage.Base), enc, cmd.db),
+				cmd.local,
+				cmd.nodePolicy.NetworkID(),
+				launch.LocalFSDataDirectory(cmd.design.Storage.Base),
+				enc,
+				cmd.db,
+			),
 			cmd.db.State,
 			cmd.getProposalOperationFunc(proposal),
 			func(height base.Height, ht hint.Hint) (base.OperationProcessor, error) {
