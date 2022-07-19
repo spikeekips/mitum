@@ -256,7 +256,7 @@ func (t *testNewOperationPool) TestNewOperationHashes() {
 	})
 
 	t.Run("filter", func() {
-		filter := func(facthash util.Hash, header isaac.PoolOperationHeader) (bool, error) {
+		filter := func(_, facthash util.Hash, header isaac.PoolOperationHeader) (bool, error) {
 			if facthash.Equal(ops[32].Fact().Hash()) {
 				return false, nil
 			}
@@ -283,7 +283,7 @@ func (t *testNewOperationPool) TestNewOperationHashes() {
 	})
 
 	t.Run("filter error", func() {
-		filter := func(facthash util.Hash, _ isaac.PoolOperationHeader) (bool, error) {
+		filter := func(_, facthash util.Hash, _ isaac.PoolOperationHeader) (bool, error) {
 			if facthash.Equal(ops[31].Fact().Hash()) {
 				return false, errors.Errorf("findme")
 			}
@@ -297,7 +297,7 @@ func (t *testNewOperationPool) TestNewOperationHashes() {
 	})
 
 	t.Run("filter by header", func() {
-		filter := func(_ util.Hash, header isaac.PoolOperationHeader) (bool, error) {
+		filter := func(_, _ util.Hash, header isaac.PoolOperationHeader) (bool, error) {
 			// NOTE filter non-anotherDummyOperationFactHint
 			isanother := bytes.HasPrefix(
 				header.HintBytes(),

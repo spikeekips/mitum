@@ -136,7 +136,7 @@ func (c *QuicstreamHandlers) SendOperation(_ net.Addr, r io.Reader, w io.Writer)
 		return e(nil, "empty body")
 	}
 
-	if err := op.IsValid(c.nodepolicy.NetworkID()); err != nil {
+	if err = op.IsValid(c.nodepolicy.NetworkID()); err != nil {
 		return e(err, "")
 	}
 

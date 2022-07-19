@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
@@ -133,7 +134,7 @@ func (cmd *networkClientCommand) prepare() error {
 		buf := bytes.NewBuffer(nil)
 
 		if _, err := io.Copy(buf, cmd.Body); err != nil {
-			return err
+			return errors.Wrap(err, "")
 		}
 
 		cmd.body = buf
@@ -164,12 +165,12 @@ func (cmd *networkClientCommand) dryRun(header isaac.NetworkHeader) error {
 	if cmd.body != nil {
 		raw, err := io.ReadAll(cmd.body)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "")
 		}
 
 		var u interface{}
 
-		if err := util.UnmarshalJSON(raw, &u); err != nil {
+		if err = util.UnmarshalJSON(raw, &u); err != nil {
 			return err
 		}
 
