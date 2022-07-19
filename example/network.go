@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -56,6 +57,7 @@ type networkClientCommand struct { //nolint:govet //...
 	Remote  launch.ConnInfoFlag `arg:"" help:"remote" placeholder:"ConnInfo" default:"localhost:4321"`
 	Timeout time.Duration       `help:"timeout" placeholder:"duration" default:"10s"`
 	Body    *os.File            `help:"body"`
+	DryRun  bool                `name:"dry-run" help:"don't send"`
 	body    io.Reader
 	remote  quicstream.UDPConnInfo
 }
@@ -96,6 +98,10 @@ func (cmd *networkClientCommand) Run() error {
 		return err
 	}
 
+	if cmd.DryRun {
+		return cmd.dryRun(header)
+	}
+
 	client := launch.NewNetworkClient(cmd.encs, cmd.enc, cmd.Timeout) //nolint:gomnd //...
 
 	ctx, cancel := context.WithTimeout(context.Background(), cmd.Timeout)
@@ -124,7 +130,13 @@ func (cmd *networkClientCommand) Run() error {
 
 func (cmd *networkClientCommand) prepare() error {
 	if cmd.Body != nil {
-		cmd.body = cmd.Body
+		buf := bytes.NewBuffer(nil)
+
+		if _, err := io.Copy(buf, cmd.Body); err != nil {
+			return err
+		}
+
+		cmd.body = buf
 	}
 
 	if err := cmd.prepareEncoder(); err != nil {
@@ -137,6 +149,37 @@ func (cmd *networkClientCommand) prepare() error {
 	}
 
 	cmd.remote = ci
+
+	return nil
+}
+
+func (cmd *networkClientCommand) dryRun(header isaac.NetworkHeader) error {
+	hb, err := util.MarshalJSONIndent(header)
+	if err != nil {
+		return err
+	}
+
+	_, _ = fmt.Fprintf(os.Stdout, "header: %s\n", string(hb))
+
+	if cmd.body != nil {
+		raw, err := io.ReadAll(cmd.body)
+		if err != nil {
+			return err
+		}
+
+		var u interface{}
+
+		if err := util.UnmarshalJSON(raw, &u); err != nil {
+			return err
+		}
+
+		bb, err := util.MarshalJSONIndent(u)
+		if err != nil {
+			return err
+		}
+
+		_, _ = fmt.Fprintf(os.Stdout, "body: %s\n", string(bb))
+	}
 
 	return nil
 }
