@@ -294,9 +294,8 @@ func (t *testBallotbox) TestUnknownSuffrageNode() {
 
 	bl := t.initBallot(unknown, suf.Locals(), point, prev, valuehash.RandomSHA256())
 	voted, err := box.Vote(bl)
-	t.Error(err)
+	t.NoError(err)
 	t.False(voted)
-	t.ErrorContains(err, "ballot not in suffrage")
 }
 
 func (t *testBallotbox) TestNilSuffrage() {

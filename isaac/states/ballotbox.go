@@ -394,8 +394,11 @@ func (vr *voterecords) vote(bl base.Ballot) (voted bool, validated bool, err err
 		return true, false, nil
 	}
 
-	if err := isValidBallotWithSuffrage(bl, vr.getSuffrageFunc, vr.isValidVoteproofWithSuffrage); err != nil {
+	switch isvalid, err := isValidBallotWithSuffrage(bl, vr.getSuffrageFunc, vr.isValidVoteproofWithSuffrage); {
+	case err != nil:
 		return false, false, e(err, "")
+	case !isvalid:
+		return false, false, nil
 	}
 
 	vr.voted[node] = bl
@@ -427,7 +430,12 @@ func (vr *voterecords) count(lastStagePoint base.StagePoint) []base.Voteproof {
 	if len(vr.ballots) > 0 {
 		for i := range vr.ballots {
 			bl := vr.ballots[i]
-			if err := isValidBallotWithSuffrage(bl, vr.getSuffrageFunc, vr.isValidVoteproofWithSuffrage); err != nil {
+
+			switch isvalid, err := isValidBallotWithSuffrage(bl, vr.getSuffrageFunc, vr.isValidVoteproofWithSuffrage); {
+			case err != nil:
+				continue
+
+			case !isvalid:
 				delete(vr.ballots, i)
 
 				continue
@@ -619,25 +627,26 @@ func isValidBallotWithSuffrage(
 	bl base.Ballot,
 	getSuffrage isaac.GetSuffrageByBlockHeight,
 	checkValid func(base.Voteproof, base.Suffrage) error,
-) error {
+) (bool, error) {
 	e := util.StringErrorFunc("invalid signed facts in ballot with suffrage")
 
 	switch suf, found, err := getSuffrage(bl.Point().Height()); {
 	case err != nil:
-		return e(util.ErrInvalid.Wrap(err), "")
+		return false, e(util.ErrInvalid.Wrap(err), "")
 	case !found:
-		return e(util.ErrInvalid.Errorf("suffrage not found"), "")
+		return false, nil
 	case !suf.Exists(bl.SignedFact().Node()):
-		return e(util.ErrInvalid.Errorf("ballot not in suffrage"), "")
+		// NOTE ballot not in suffrage
+		return false, nil
 	case !suf.ExistsPublickey(bl.SignedFact().Node(), bl.SignedFact().Signer()):
-		return e(util.ErrInvalid.Errorf("wrong publickey"), "")
+		return false, nil
 	}
 
 	if err := isValidVoteproofWithSuffrage(bl.Voteproof(), getSuffrage, checkValid); err != nil {
-		return e(err, "")
+		return false, nil
 	}
 
-	return nil
+	return true, nil
 }
 
 func isValidVoteproofWithSuffrage(
