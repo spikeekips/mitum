@@ -75,6 +75,15 @@ func (u *LastConsensusNodesWatcher) Last() (base.SuffrageProof, base.State, erro
 	}
 }
 
+func (u *LastConsensusNodesWatcher) Exists(node base.Node) (base.Suffrage, bool, error) {
+	proof, st, err := u.Last()
+	if err != nil {
+		return nil, false, err
+	}
+
+	return IsNodeInLastConsensusNodes(node, proof, st)
+}
+
 func (u *LastConsensusNodesWatcher) lastValue() (base.SuffrageProof, base.State) {
 	i, isnil := u.last.Value()
 	if isnil || i == nil {
@@ -194,4 +203,34 @@ func (u *LastConsensusNodesWatcher) checkUpdated(ctx context.Context, last base.
 
 		return height
 	}
+}
+
+func IsNodeInLastConsensusNodes(node base.Node, proof base.SuffrageProof, st base.State) (base.Suffrage, bool, error) {
+	suf, err := proof.Suffrage()
+	if err != nil {
+		return nil, false, err
+	}
+
+	if suf.ExistsPublickey(node.Address(), node.Publickey()) {
+		return suf, true, nil
+	}
+
+	if st == nil {
+		return suf, false, nil
+	}
+
+	candidates, err := base.LoadNodesFromSuffrageCandidateState(st)
+	if err != nil {
+		return suf, false, err
+	}
+
+	for i := range candidates {
+		n := candidates[i]
+
+		if n.Address().Equal(node.Address()) && n.Publickey().Equal(node.Publickey()) {
+			return suf, true, nil
+		}
+	}
+
+	return suf, false, nil
 }

@@ -192,18 +192,18 @@ func (cmd *runCommand) prepareLastSuffrageProofWatcher() {
 			return proof, st, found, nil
 		},
 		builder.Build,
-		func(ctx context.Context, proof base.SuffrageProof, _ base.State) {
+		func(ctx context.Context, proof base.SuffrageProof, st base.State) {
 			if len(cmd.discoveries) < 1 {
 				return
 			}
 
-			switch suf, err := proof.Suffrage(); {
+			switch _, found, err := isaac.IsNodeInLastConsensusNodes(cmd.local, proof, st); {
 			case err != nil:
-				log.Error().Err(err).Msg("suffrage proof problem")
+				log.Error().Err(err).Msg("failed to check node in consensus nodes")
 
 				return
-			case !suf.ExistsPublickey(cmd.local.Address(), cmd.local.Publickey()):
-				log.Debug().Msg("local is not in suffrage; will leave from memberlist")
+			case !found:
+				log.Debug().Msg("local is not in consensus nodes; will leave from memberlist")
 
 				if err := cmd.memberlist.Leave(time.Second * 30); err != nil { //nolint:gomnd // long enough to leave
 					log.Error().Err(err).Msg("failed to leave from memberlist")

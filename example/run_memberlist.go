@@ -8,6 +8,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
@@ -181,37 +182,22 @@ func (cmd *runCommand) memberlistAllowFunc() func(quicmemberlist.Node) error {
 	return func(node quicmemberlist.Node) error {
 		proof, st, err := cmd.lastSuffrageProofWatcher.Last()
 		if err != nil {
-			log.Error().Err(err).Msg("failed to get last suffrage proof; node will not be allowed")
+			log.Error().Err(err).Msg("failed to check last consensus nodes; node will not be allowed")
 
 			return err
 		}
 
-		suf, err := proof.Suffrage()
-		if err != nil {
-			log.Error().Err(err).Msg("wrong last suffrage proof; node will not be allowed")
+		switch _, found, err := isaac.IsNodeInLastConsensusNodes(node, proof, st); {
+		case err != nil:
+			log.Error().Err(err).Msg("failed to check node in consensus nodes; node will not be allowed")
 
 			return err
-		}
+		case !found:
+			log.Error().Err(err).Msg("node not in consensus nodes; node will not be allowed")
 
-		if suf.ExistsPublickey(node.Address(), node.Publickey()) {
+			return util.ErrNotFound.Errorf("node not in consensus nodes")
+		default:
 			return nil
 		}
-
-		if st != nil {
-			candidates, err := base.LoadNodesFromSuffrageCandidateState(st)
-			if err != nil {
-				return err
-			}
-
-			for i := range candidates {
-				n := candidates[i]
-
-				if n.Address().Equal(node.Address()) && n.Publickey().Equal(node.Publickey()) {
-					return nil
-				}
-			}
-		}
-
-		return errors.Errorf("not in suffrage or candidates; not allowed")
 	}
 }
