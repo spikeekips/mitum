@@ -29,6 +29,7 @@ type Node interface {
 	Publish() NamedConnInfo
 	JoinedAt() time.Time
 	MetaBytes() []byte
+	HashBytes() []byte
 }
 
 type BaseNode struct {
@@ -165,6 +166,10 @@ func (n BaseNode) Publish() NamedConnInfo {
 
 func (n BaseNode) MetaBytes() []byte {
 	return n.metab
+}
+
+func (n BaseNode) HashBytes() []byte {
+	return util.ConcatByters(n.meta.address, n.meta.publickey)
 }
 
 func (n BaseNode) MarshalZerologObject(e *zerolog.Event) {
