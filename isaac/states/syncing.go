@@ -213,20 +213,17 @@ end:
 		case top := <-sc.Finished():
 			st.Log().Debug().Interface("height", top).Msg("syncer finished")
 
-			switch suf, found, eerr := st.nodeInConsensusNodes(st.local, top+1); {
+			switch _, found, eerr := st.nodeInConsensusNodes(st.local, top+1); {
 			case eerr != nil:
-				st.Log().Error().Err(eerr).Msg("failed to get suffrage after syncer finished")
+				st.Log().Error().Err(eerr).Msg("failed to get consensus nodes after syncer finished")
 
 				continue end
 			case !found:
-				st.Log().Error().Msg("suffrage not found after syncer finished")
+				st.Log().Debug().Msg("local is not in consensus nodes after syncer finished; keep syncing")
 
 				continue end
-			case !suf.ExistsPublickey(st.local.Address(), st.local.Publickey()):
-				// NOTE if local is not in suffrage, keep syncing
-				st.Log().Debug().Msg("local is not in suffrage after syncer finished; keep syncing")
-
-				continue end
+			default:
+				st.Log().Debug().Msg("local is in consensus nodes after syncer finished")
 			}
 
 			st.whenFinishedf(top)
