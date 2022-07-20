@@ -18,13 +18,13 @@ var SyncerCanNotCancelError = util.NewError("can not cancel syncer")
 type SyncingHandler struct {
 	syncer isaac.Syncer
 	*baseHandler
-	newSyncer         func(base.Height) (isaac.Syncer, error)
-	stuckcancel       func()
-	whenFinishedf     func(base.Height)
-	getSuffrage       isaac.GetSuffrageByBlockHeight
-	waitStuckInterval *util.Locked
-	finishedLock      sync.RWMutex
-	stuckcancellock   sync.RWMutex
+	newSyncer            func(base.Height) (isaac.Syncer, error)
+	stuckcancel          func()
+	whenFinishedf        func(base.Height)
+	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc
+	waitStuckInterval    *util.Locked
+	finishedLock         sync.RWMutex
+	stuckcancellock      sync.RWMutex
 }
 
 type NewSyncingHandlerType struct {
@@ -36,33 +36,33 @@ func NewNewSyncingHandlerType(
 	policy isaac.NodePolicy,
 	proposalSelector isaac.ProposalSelector,
 	newSyncer func(base.Height) (isaac.Syncer, error),
-	getSuffrage isaac.GetSuffrageByBlockHeight,
+	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc,
 ) *NewSyncingHandlerType {
-	if getSuffrage == nil {
+	if nodeInConsensusNodes == nil {
 		//revive:disable-next-line:modifies-parameter
-		getSuffrage = func(nextheight base.Height) (base.Suffrage, bool, error) {
-			return nil, false, errors.Errorf("empty getSuffrage")
+		nodeInConsensusNodes = func(base.Node, base.Height) (base.Suffrage, bool, error) {
+			return nil, false, errors.Errorf("empty consensus node")
 		}
 	}
 
 	return &NewSyncingHandlerType{
 		SyncingHandler: &SyncingHandler{
-			baseHandler:       newBaseHandler(StateSyncing, local, policy, proposalSelector),
-			newSyncer:         newSyncer,
-			waitStuckInterval: util.NewLocked(policy.IntervalBroadcastBallot()*2 + policy.WaitProcessingProposal()),
-			whenFinishedf:     func(base.Height) {},
-			getSuffrage:       getSuffrage,
+			baseHandler:          newBaseHandler(StateSyncing, local, policy, proposalSelector),
+			newSyncer:            newSyncer,
+			waitStuckInterval:    util.NewLocked(policy.IntervalBroadcastBallot()*2 + policy.WaitProcessingProposal()),
+			whenFinishedf:        func(base.Height) {},
+			nodeInConsensusNodes: nodeInConsensusNodes,
 		},
 	}
 }
 
 func (h *NewSyncingHandlerType) new() (handler, error) {
 	return &SyncingHandler{
-		baseHandler:       h.baseHandler.new(),
-		newSyncer:         h.newSyncer,
-		waitStuckInterval: h.waitStuckInterval,
-		whenFinishedf:     h.whenFinishedf,
-		getSuffrage:       h.getSuffrage,
+		baseHandler:          h.baseHandler.new(),
+		newSyncer:            h.newSyncer,
+		waitStuckInterval:    h.waitStuckInterval,
+		whenFinishedf:        h.whenFinishedf,
+		nodeInConsensusNodes: h.nodeInConsensusNodes,
 	}, nil
 }
 
@@ -213,7 +213,7 @@ end:
 		case top := <-sc.Finished():
 			st.Log().Debug().Interface("height", top).Msg("syncer finished")
 
-			switch suf, found, eerr := st.getSuffrage(top + 1); {
+			switch suf, found, eerr := st.nodeInConsensusNodes(st.local, top+1); {
 			case eerr != nil:
 				st.Log().Error().Err(eerr).Msg("failed to get suffrage after syncer finished")
 

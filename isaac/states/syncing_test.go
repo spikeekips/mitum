@@ -303,7 +303,7 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 	t.Run("finished, but last init voteproof is higher", func() {
 		st, _ := t.newState(nil)
 
-		st.getSuffrage = func(h base.Height) (base.Suffrage, bool, error) {
+		st.nodeInConsensusNodes = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
 			suf, _ := isaac.NewSuffrage([]base.Node{t.Local})
 			return suf, true, nil
 		}
@@ -374,7 +374,7 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 	t.Run("finished, but last accept voteproof higher", func() {
 		st, _ := t.newState(nil)
 
-		st.getSuffrage = func(h base.Height) (base.Suffrage, bool, error) {
+		st.nodeInConsensusNodes = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
 			suf, _ := isaac.NewSuffrage([]base.Node{t.Local})
 			return suf, true, nil
 		}
@@ -413,7 +413,7 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 		st, closef := t.newState(nil)
 		defer closef()
 
-		st.getSuffrage = func(h base.Height) (base.Suffrage, bool, error) {
+		st.nodeInConsensusNodes = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
 			suf, _ := isaac.NewSuffrage([]base.Node{t.Local})
 			return suf, true, nil
 		}
@@ -456,7 +456,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 		st, closef := t.newState(nil)
 		defer closef()
 
-		st.getSuffrage = func(h base.Height) (base.Suffrage, bool, error) {
+		st.nodeInConsensusNodes = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
 			suf, _ := isaac.NewSuffrage([]base.Node{t.Local})
 			return suf, true, nil
 		}
@@ -499,7 +499,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 		st, closef := t.newState(nil)
 		defer closef()
 
-		st.getSuffrage = func(h base.Height) (base.Suffrage, bool, error) {
+		st.nodeInConsensusNodes = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
 			return nil, false, nil
 		}
 
@@ -571,7 +571,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 
 	t.Run("finished and expected last accept voteproof, with new voteproof", func() {
 		st, _ := t.newState(nil)
-		st.getSuffrage = func(h base.Height) (base.Suffrage, bool, error) {
+		st.nodeInConsensusNodes = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
 			suf, _ := isaac.NewSuffrage([]base.Node{t.Local})
 			return suf, true, nil
 		}

@@ -44,7 +44,7 @@ func (cmd *runCommand) prepareStates() error {
 	}
 
 	syncinghandler := isaacstates.NewNewSyncingHandlerType(
-		cmd.local, cmd.nodePolicy, cmd.proposalSelector, cmd.newSyncer(lvps), cmd.getSuffrage,
+		cmd.local, cmd.nodePolicy, cmd.proposalSelector, cmd.newSyncer(lvps), cmd.nodeInConsensusNodes,
 	)
 	syncinghandler.SetWhenFinished(func(base.Height) {
 		cmd.ballotbox.Count()

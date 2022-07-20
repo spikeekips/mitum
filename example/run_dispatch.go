@@ -30,14 +30,43 @@ var (
 	suffrageJoinFactHintBytes         = isaacoperation.SuffrageJoinFactHint.Bytes()
 )
 
-func (cmd *runCommand) getSuffrageFunc() func(blockheight base.Height) (base.Suffrage, bool, error) {
+func (cmd *runCommand) getSuffrageFunc() isaac.GetSuffrageByBlockHeight {
 	return func(blockheight base.Height) (base.Suffrage, bool, error) {
 		return isaac.GetSuffrageFromDatabase(cmd.db, blockheight)
 	}
 }
 
 func (cmd *runCommand) nodeInConsensusNodesFunc() isaac.NodeInConsensusNodesFunc {
-	return isaac.NewNodeInConsensusNodesFunc(cmd.getSuffrage)
+	return func(node base.Node, height base.Height) (base.Suffrage, bool, error) {
+		suf, found, err := cmd.getSuffrage(height)
+
+		switch {
+		case err != nil:
+			return nil, false, err
+		case !found:
+			return nil, false, nil
+		case suf.ExistsPublickey(node.Address(), node.Publickey()):
+			return suf, true, nil
+		}
+
+		candidates, err := isaac.LastCandidatesFromState(height, cmd.db.State)
+		if err != nil {
+			return nil, false, err
+		}
+
+		for i := range candidates {
+			c := candidates[i]
+
+			switch {
+			case !node.Address().Equal(c.Address()):
+			case !node.Publickey().Equal(c.Publickey()):
+			default:
+				return suf, true, nil
+			}
+		}
+
+		return suf, false, nil
+	}
 }
 
 func (cmd *runCommand) getManifestFunc() func(height base.Height) (base.Manifest, error) {

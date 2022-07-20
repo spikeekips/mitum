@@ -115,8 +115,8 @@ func (u *LastConsensusNodesWatcher) start(ctx context.Context) error {
 func (u *LastConsensusNodesWatcher) checkRemote(ctx context.Context) error {
 	var known base.State
 
-	if i, isnil := u.last.Value(); !isnil {
-		known = i.(base.SuffrageProof).State() //nolint:forcetypeassert //...
+	if suf, _ := u.lastValue(); suf != nil {
+		known = suf.State()
 	}
 
 	switch proof, candidates, err := u.getFromRemote(ctx, known); {

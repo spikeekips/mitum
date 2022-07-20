@@ -348,16 +348,3 @@ func LastCandidatesFromState(height base.Height, getStateFunc base.GetStateFunc)
 }
 
 type NodeInConsensusNodesFunc func(base.Node, base.Height) (base.Suffrage, bool, error)
-
-func NewNodeInConsensusNodesFunc(getSuffrage GetSuffrageByBlockHeight) NodeInConsensusNodesFunc {
-	return func(node base.Node, height base.Height) (base.Suffrage, bool, error) {
-		switch suf, found, err := getSuffrage(height); {
-		case err != nil:
-			return nil, false, err
-		case !found:
-			return nil, false, nil
-		default:
-			return suf, suf.ExistsPublickey(node.Address(), node.Publickey()), nil
-		}
-	}
-}
