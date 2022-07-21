@@ -101,19 +101,26 @@ func (db *TempPool) SetProposal(pr base.ProposalSignedFact) (bool, error) {
 	batch := new(leveldb.Batch)
 
 	// NOTE remove old proposals
-	top := leveldbProposalPointKey(pr.ProposalFact().Point().PrevHeight(), nil)
+	cleanpoint := pr.ProposalFact().Point().
+		PrevHeight().
+		PrevHeight().
+		PrevHeight()
 
-	if err := db.st.Iter(leveldbutil.BytesPrefix(leveldbKeyPrefixProposalByPoint), func(key, b []byte) (bool, error) {
-		if bytes.Compare(key[:len(top)], top) > 0 {
-			return false, nil
+	if cleanpoint.Height() > base.NilHeight {
+		top := leveldbProposalPointKey(cleanpoint, nil)
+
+		if err := db.st.Iter(leveldbutil.BytesPrefix(leveldbKeyPrefixProposalByPoint), func(key, b []byte) (bool, error) {
+			if bytes.Compare(key[:len(top)], top) > 0 {
+				return false, nil
+			}
+
+			batch.Delete(key)
+			batch.Delete(leveldbProposalKey(valuehash.Bytes(b)))
+
+			return true, nil
+		}, true); err != nil {
+			return false, e(err, "failed to find old proposals")
 		}
-
-		batch.Delete(key)
-		batch.Delete(leveldbProposalKey(valuehash.Bytes(b)))
-
-		return true, nil
-	}, true); err != nil {
-		return false, e(err, "failed to find old proposals")
 	}
 
 	b, err := db.marshal(pr)
