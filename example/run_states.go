@@ -40,6 +40,17 @@ func (cmd *runCommand) prepareStates() error {
 	)
 
 	whenNewBlockSaved := func(height base.Height) {
+		l := log.With().Interface("height", height).Logger()
+		l.Debug().Msg("new block saved")
+
+		if height == cmd.Hold.Height() {
+			l.Debug().Msg("will be stopped by hold")
+
+			cmd.exitf()
+
+			return
+		}
+
 		cmd.ballotbox.Count()
 	}
 

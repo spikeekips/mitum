@@ -125,3 +125,42 @@ func (f *ConnInfoFlag) ConnInfo() (quicstream.UDPConnInfo, error) {
 
 	return f.ci, nil
 }
+
+type HeightFlag struct {
+	height *base.Height
+}
+
+func (f *HeightFlag) UnmarshalText(b []byte) error {
+	e := util.StringErrorFunc("failed to parse address flag")
+
+	if len(b) < 1 {
+		f.height = &base.NilHeight
+
+		return nil
+	}
+
+	height, err := base.NewHeightFromString(string(b))
+	if err != nil {
+		return e(err, "")
+	}
+
+	f.height = &height
+
+	return nil
+}
+
+func (f *HeightFlag) IsSet() bool {
+	if f.height == nil {
+		return false
+	}
+
+	return *f.height >= base.NilHeight
+}
+
+func (f *HeightFlag) Height() base.Height {
+	if f.height == nil {
+		return base.NilHeight - 1
+	}
+
+	return *f.height
+}

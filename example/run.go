@@ -23,7 +23,7 @@ import (
 type runCommand struct { //nolint:govet //...
 	baseNodeCommand
 	Discovery                   []launch.ConnInfoFlag `help:"member discovery" placeholder:"ConnInfo"`
-	Hold                        bool                  `help:"hold consensus states"`
+	Hold                        launch.HeightFlag     `help:"hold consensus states"`
 	nodeInfo                    launch.NodeInfo
 	db                          isaac.Database
 	perm                        isaac.PermanentDatabase
@@ -47,6 +47,7 @@ type runCommand struct { //nolint:govet //...
 	syncSourcesRetryInterval    time.Duration
 	suffrageCandidateLimiterSet *hint.CompatibleSet
 	nodeInConsensusNodes        isaac.NodeInConsensusNodesFunc
+	exitf                       func()
 }
 
 func (cmd *runCommand) Run() error {
@@ -59,7 +60,10 @@ func (cmd *runCommand) Run() error {
 		}()
 	}
 
-	log.Debug().Msg("node started")
+	log.Debug().
+		Interface("discovery", cmd.Discovery).
+		Interface("hold", cmd.Hold.Height()).
+		Msg("node started")
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -92,7 +96,26 @@ func (cmd *runCommand) Run() error {
 
 	exitch := make(chan error)
 
-	if !cmd.Hold {
+	cmd.exitf = func() {
+		exitch <- nil
+	}
+
+	var holded bool
+	switch {
+	case !cmd.Hold.IsSet():
+	case cmd.Hold.Height() < base.GenesisHeight:
+		holded = true
+	default:
+		switch m, found, err := cmd.db.LastBlockMap(); {
+		case err != nil:
+			return err
+		case !found:
+		case cmd.Hold.Height() <= m.Manifest().Height():
+			holded = true
+		}
+	}
+
+	if !holded {
 		go func() {
 			exitch <- <-cmd.states.Wait(ctx)
 		}()
