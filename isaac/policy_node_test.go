@@ -66,9 +66,9 @@ func (t *testNodePolicy) TestIsValid() {
 		t.ErrorContains(err, "wrong duration")
 	})
 
-	t.Run("wrong waitProcessingProposal", func() {
+	t.Run("wrong waitPreparingINITBallot", func() {
 		p := DefaultNodePolicy(networkID)
-		p.SetWaitProcessingProposal(-1)
+		p.SetWaitPreparingINITBallot(-1)
 
 		err := p.IsValid(networkID)
 		t.Error(err)
@@ -126,7 +126,7 @@ func TestNodePolicyJSON(tt *testing.T) {
 		t.True(ap.networkID.Equal(bp.networkID))
 		t.Equal(ap.threshold, bp.threshold)
 		t.Equal(ap.intervalBroadcastBallot, bp.intervalBroadcastBallot)
-		t.Equal(ap.waitProcessingProposal, bp.waitProcessingProposal)
+		t.Equal(ap.waitPreparingINITBallot, bp.waitPreparingINITBallot)
 		t.Equal(ap.timeoutRequestProposal, bp.timeoutRequestProposal)
 	}
 

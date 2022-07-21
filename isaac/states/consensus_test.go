@@ -115,6 +115,11 @@ func (t *testConsensusHandler) TestNew() {
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
+	pps := isaac.NewProposalProcessors(nil, func(context.Context, util.Hash) (base.ProposalSignedFact, error) {
+		return nil, util.ErrNotFound.Call()
+	})
+	pps.SetRetry(time.Nanosecond, 1)
+
 	newhandler := NewNewConsensusHandlerType(
 		t.Local,
 		t.NodePolicy,
@@ -123,9 +128,7 @@ func (t *testConsensusHandler) TestNew() {
 		func(base.Node, base.Height) (base.Suffrage, bool, error) { return suf, true, nil },
 		func(base.Ballot) (bool, error) { return true, nil },
 		nil,
-		isaac.NewProposalProcessors(nil, func(context.Context, util.Hash) (base.ProposalSignedFact, error) {
-			return nil, util.ErrNotFound.Call()
-		}),
+		pps,
 	)
 	_ = newhandler.SetLogging(logging.TestNilLogging)
 
@@ -155,9 +158,9 @@ func (t *testConsensusHandler) TestNew() {
 
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
-	deferred, err := st.enter(sctx)
-	t.NoError(err)
-	deferred()
+	_, err = st.enter(sctx)
+	t.Error(err)
+	t.ErrorContains(err, "failed to get proposal fact")
 }
 
 func (t *testConsensusHandler) TestInvalidVoteproofs() {
@@ -202,9 +205,9 @@ func (t *testConsensusHandler) TestInvalidVoteproofs() {
 
 		sctx := newConsensusSwitchContext(StateJoining, ivp)
 
-		deferred, err := st.enter(sctx)
-		t.NotNil(deferred)
-		t.NoError(err)
+		_, err := st.enter(sctx)
+		t.Error(err)
+		t.ErrorContains(err, "empty majority")
 	})
 }
 
@@ -310,29 +313,15 @@ func (t *testConsensusHandler) TestFailedProcessingProposalFetchFactFailed() {
 	})
 	st.pps.SetRetryLimit(1).SetRetryInterval(1)
 
-	sctxch := make(chan switchContext, 1)
-	st.switchStateFunc = func(sctx switchContext) error {
-		sctxch <- sctx
+	_, err := st.enter(newConsensusSwitchContext(StateJoining, ivp))
+	t.Error(err)
 
-		return nil
-	}
+	var sctx switchContext
+	t.True(errors.As(err, &sctx))
 
-	sctx := newConsensusSwitchContext(StateJoining, ivp)
-
-	deferred, err := st.enter(sctx)
-	t.NoError(err)
-	deferred()
-
-	select {
-	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait switch context"))
-
-		return
-	case sctx := <-sctxch:
-		t.Equal(StateConsensus, sctx.from())
-		t.Equal(StateBroken, sctx.next())
-		t.ErrorContains(sctx, "failed to get proposal fact")
-	}
+	t.Equal(StateConsensus, sctx.from())
+	t.Equal(StateBroken, sctx.next())
+	t.ErrorContains(sctx, "failed to get proposal fact")
 }
 
 func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailed() {
@@ -356,29 +345,15 @@ func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailed() {
 		return t.PRPool.ByHash(facthash)
 	})
 
-	sctxch := make(chan switchContext, 1)
-	st.switchStateFunc = func(sctx switchContext) error {
-		sctxch <- sctx
+	_, err := st.enter(newConsensusSwitchContext(StateJoining, ivp))
+	t.Error(err)
 
-		return nil
-	}
+	var sctx switchContext
+	t.True(errors.As(err, &sctx))
 
-	sctx := newConsensusSwitchContext(StateJoining, ivp)
-
-	deferred, err := st.enter(sctx)
-	t.NoError(err)
-	deferred()
-
-	select {
-	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait switch context"))
-
-		return
-	case sctx := <-sctxch:
-		t.Equal(StateConsensus, sctx.from())
-		t.Equal(StateBroken, sctx.next())
-		t.ErrorContains(sctx, "hahaha")
-	}
+	t.Equal(StateConsensus, sctx.from())
+	t.Equal(StateBroken, sctx.next())
+	t.ErrorContains(sctx, "hahaha")
 }
 
 func (t *testConsensusHandler) TestProcessingProposalWithACCEPTVoteproof() {
@@ -480,21 +455,13 @@ func (t *testConsensusHandler) TestProcessingProposalWithWrongNewBlockACCEPTVote
 		return nil
 	}
 
-	sctx := newConsensusSwitchContext(StateJoining, ivp)
+	_, err := st.enter(newConsensusSwitchContext(StateJoining, ivp))
+	t.Error(err)
 
-	deferred, err := st.enter(sctx)
-	t.NoError(err)
-	deferred()
+	var ssctx syncingSwitchContext
+	t.True(errors.As(err, &ssctx))
 
-	select {
-	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait to switch syncing state"))
-	case nsctx := <-sctxch:
-		var ssctx syncingSwitchContext
-		t.True(errors.As(nsctx, &ssctx))
-
-		t.Equal(avp.Point().Height(), ssctx.height)
-	}
+	t.Equal(avp.Point().Height(), ssctx.height)
 
 	t.Nil(st.pps.Processor())
 }
@@ -520,7 +487,7 @@ func (t *testConsensusHandler) TestWithBallotbox() {
 		closef()
 	}()
 
-	st.policy.SetWaitProcessingProposal(time.Millisecond * 100)
+	st.policy = *t.NodePolicy.SetWaitPreparingINITBallot(time.Nanosecond)
 
 	manifests := util.NewLockedMap()
 	getmanifest := func(height base.Height) base.Manifest {

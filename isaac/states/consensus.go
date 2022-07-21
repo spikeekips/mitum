@@ -76,6 +76,8 @@ func (st *ConsensusHandler) enter(i switchContext) (func(), error) {
 		return nil, e(nil, "invalid stateSwitchContext, empty init voteproof")
 	case j.ivp.Result() != base.VoteResultMajority:
 		return nil, e(nil, "invalid stateSwitchContext, wrong vote result of init voteproof, %q", j.ivp.Result())
+	case j.ivp.Majority() == nil:
+		return nil, e(nil, "invalid stateSwitchContext, empty majority of init voteproof")
 	default:
 		sctx = j
 	}
@@ -295,7 +297,7 @@ func (st *ConsensusHandler) prepareINITBallot(bl base.INITBallot, initialWait ti
 func (st *ConsensusHandler) prepareACCEPTBallot(
 	ivp base.INITVoteproof,
 	manifest base.Manifest,
-	initialWait time.Duration, // FIXME remove
+	initialWait time.Duration,
 ) error {
 	e := util.StringErrorFunc("failed to prepare accept ballot")
 
@@ -564,8 +566,8 @@ func (st *ConsensusHandler) nextRound(vp base.Voteproof, lvps LastVoteproofs) {
 	}
 
 	initialWait := time.Nanosecond
-	if d := time.Since(started); d < st.policy.WaitProcessingProposal() {
-		initialWait = st.policy.WaitProcessingProposal() - d
+	if d := time.Since(started); d < st.policy.WaitPreparingINITBallot() {
+		initialWait = st.policy.WaitPreparingINITBallot() - d
 	}
 
 	if err := st.prepareINITBallot(bl, initialWait, []util.TimerID{timerIDBroadcastINITBallot}); err != nil {
@@ -607,8 +609,8 @@ func (st *ConsensusHandler) nextBlock(avp base.ACCEPTVoteproof) {
 	}
 
 	initialWait := time.Nanosecond
-	if d := time.Since(started); d < st.policy.WaitProcessingProposal() {
-		initialWait = st.policy.WaitProcessingProposal() - d
+	if d := time.Since(started); d < st.policy.WaitPreparingINITBallot() {
+		initialWait = st.policy.WaitPreparingINITBallot() - d
 	}
 
 	if err := st.prepareINITBallot(bl, initialWait, []util.TimerID{

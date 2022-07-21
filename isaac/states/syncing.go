@@ -49,7 +49,7 @@ func NewNewSyncingHandlerType(
 		SyncingHandler: &SyncingHandler{
 			baseHandler:          newBaseHandler(StateSyncing, local, policy, proposalSelector),
 			newSyncer:            newSyncer,
-			waitStuckInterval:    util.NewLocked(policy.IntervalBroadcastBallot()*2 + policy.WaitProcessingProposal()),
+			waitStuckInterval:    util.NewLocked(policy.IntervalBroadcastBallot()*2 + policy.WaitPreparingINITBallot()),
 			whenFinishedf:        func(base.Height) {},
 			nodeInConsensusNodes: nodeInConsensusNodes,
 		},

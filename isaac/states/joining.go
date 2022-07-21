@@ -42,7 +42,7 @@ func NewNewJoiningHandlerType(
 		JoiningHandler: &JoiningHandler{
 			baseHandler:          baseHandler,
 			lastManifest:         lastManifest,
-			waitFirstVoteproof:   policy.IntervalBroadcastBallot()*2 + policy.WaitProcessingProposal(),
+			waitFirstVoteproof:   policy.IntervalBroadcastBallot()*2 + policy.WaitPreparingINITBallot(),
 			nodeInConsensusNodes: nodeInConsensusNodes,
 			joinMemberlist:       joinMemberlist,
 		},

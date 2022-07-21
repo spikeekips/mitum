@@ -26,6 +26,8 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestExpected() {
 	defer closefunc()
 	st.SetLogging(logging.TestNilLogging)
 
+	st.policy = *t.NodePolicy.SetWaitPreparingINITBallot(time.Nanosecond)
+
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
 		return manifest, nil
@@ -91,8 +93,14 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestOld() {
 	point := base.RawPoint(33, 44)
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
-	st, closefunc, _, ivp := t.newStateWithINITVoteproof(point, suf)
+	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
+
+	st.policy = *t.NodePolicy.SetWaitPreparingINITBallot(time.Nanosecond)
+
+	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
+		return base.NewDummyManifest(point.Height(), valuehash.RandomSHA256()), nil
+	}
 
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
@@ -110,8 +118,14 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestHiger() {
 	point := base.RawPoint(33, 44)
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
-	st, closefunc, _, ivp := t.newStateWithINITVoteproof(point, suf)
+	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
+
+	st.policy = *t.NodePolicy.SetWaitPreparingINITBallot(time.Nanosecond)
+
+	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
+		return base.NewDummyManifest(point.Height(), valuehash.RandomSHA256()), nil
+	}
 
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
@@ -133,8 +147,14 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestDraw() {
 	point := base.RawPoint(33, 44)
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
-	st, closefunc, _, ivp := t.newStateWithINITVoteproof(point, suf)
+	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
+
+	st.policy = *t.NodePolicy.SetWaitPreparingINITBallot(time.Nanosecond)
+
+	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
+		return base.NewDummyManifest(point.Height(), valuehash.RandomSHA256()), nil
+	}
 
 	nextpr := t.PRPool.Get(point.NextRound())
 
@@ -311,8 +331,14 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestHigherAndDraw() {
 	point := base.RawPoint(33, 44)
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
-	st, closefunc, _, ivp := t.newStateWithINITVoteproof(point, suf)
+	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
+
+	st.policy = *t.NodePolicy.SetWaitPreparingINITBallot(time.Nanosecond)
+
+	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
+		return base.NewDummyManifest(point.Height(), valuehash.RandomSHA256()), nil
+	}
 
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
@@ -337,8 +363,14 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestHigherRoundDraw() {
 	point := base.RawPoint(33, 44)
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
-	st, closefunc, _, ivp := t.newStateWithINITVoteproof(point, suf)
+	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
+
+	st.policy = *t.NodePolicy.SetWaitPreparingINITBallot(time.Nanosecond)
+
+	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
+		return base.NewDummyManifest(point.Height(), valuehash.RandomSHA256()), nil
+	}
 
 	nextpr := t.PRPool.Get(point.NextRound().NextRound().NextRound())
 
@@ -447,8 +479,14 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndHigherHeight
 	point := base.RawPoint(33, 44)
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
-	st, closefunc, _, ivp := t.newStateWithINITVoteproof(point, suf)
+	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
+
+	st.policy = *t.NodePolicy.SetWaitPreparingINITBallot(time.Nanosecond)
+
+	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
+		return base.NewDummyManifest(point.Height(), valuehash.RandomSHA256()), nil
+	}
 
 	_ = t.PRPool.Get(point.NextRound())
 
@@ -506,8 +544,14 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndHigherRound(
 	point := base.RawPoint(33, 44)
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
-	st, closefunc, _, ivp := t.newStateWithINITVoteproof(point, suf)
+	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
+
+	st.policy = *t.NodePolicy.SetWaitPreparingINITBallot(time.Nanosecond)
+
+	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
+		return base.NewDummyManifest(point.Height(), valuehash.RandomSHA256()), nil
+	}
 
 	_ = t.PRPool.Get(point.NextRound())
 
@@ -565,8 +609,14 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndDrawAgain() 
 	point := base.RawPoint(33, 44)
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
-	st, closefunc, _, ivp := t.newStateWithINITVoteproof(point, suf)
+	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
+
+	st.policy = *t.NodePolicy.SetWaitPreparingINITBallot(time.Nanosecond)
+
+	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
+		return base.NewDummyManifest(point.Height(), valuehash.RandomSHA256()), nil
+	}
 
 	_ = t.PRPool.Get(point.NextRound())
 	nextpr := t.PRPool.Get(point.NextRound().NextRound())

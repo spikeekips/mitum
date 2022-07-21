@@ -4,8 +4,6 @@
 package isaac
 
 import (
-	"time"
-
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/valuehash"
@@ -23,7 +21,6 @@ func (t *BaseTestBallots) SetupTest() {
 	local := RandomLocalNode()
 	nodePolicy := DefaultNodePolicy(base.RandomNetworkID())
 	nodePolicy.SetThreshold(base.Threshold(100))
-	nodePolicy.SetWaitProcessingProposal(time.Nanosecond)
 
 	t.Local = local
 	t.NodePolicy = nodePolicy

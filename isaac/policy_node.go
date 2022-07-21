@@ -17,7 +17,7 @@ type NodePolicy struct {
 	hint.BaseHinter
 	threshold                 base.Threshold
 	intervalBroadcastBallot   time.Duration
-	waitProcessingProposal    time.Duration
+	waitPreparingINITBallot   time.Duration
 	timeoutRequestProposal    time.Duration
 	syncSourceCheckerInterval time.Duration
 }
@@ -28,7 +28,7 @@ func DefaultNodePolicy(networkID base.NetworkID) NodePolicy {
 		networkID:                 networkID,
 		threshold:                 base.DefaultThreshold,
 		intervalBroadcastBallot:   time.Second * 3,  //nolint:gomnd //...
-		waitProcessingProposal:    time.Second * 5,  //nolint:gomnd //...
+		waitPreparingINITBallot:   time.Second * 5,  //nolint:gomnd //...
 		timeoutRequestProposal:    time.Second * 3,  //nolint:gomnd //...
 		syncSourceCheckerInterval: time.Second * 30, //nolint:gomnd //...
 	}
@@ -53,8 +53,8 @@ func (p NodePolicy) IsValid(networkID []byte) error {
 		return e(util.ErrInvalid.Errorf("wrong duration"), "invalid intervalBroadcastBallot")
 	}
 
-	if p.waitProcessingProposal < 0 {
-		return e(util.ErrInvalid.Errorf("wrong duration"), "invalid waitProcessingProposal")
+	if p.waitPreparingINITBallot < 0 {
+		return e(util.ErrInvalid.Errorf("wrong duration"), "invalid waitPreparingINITBallot")
 	}
 
 	if p.timeoutRequestProposal < 0 {
@@ -98,12 +98,12 @@ func (p *NodePolicy) SetIntervalBroadcastBallot(d time.Duration) *NodePolicy {
 	return p
 }
 
-func (p NodePolicy) WaitProcessingProposal() time.Duration { // FIXME remove
-	return p.waitProcessingProposal
+func (p NodePolicy) WaitPreparingINITBallot() time.Duration {
+	return p.waitPreparingINITBallot
 }
 
-func (p *NodePolicy) SetWaitProcessingProposal(d time.Duration) *NodePolicy {
-	p.waitProcessingProposal = d
+func (p *NodePolicy) SetWaitPreparingINITBallot(d time.Duration) *NodePolicy {
+	p.waitPreparingINITBallot = d
 
 	return p
 }
@@ -133,7 +133,7 @@ type nodePolicyJSONMarshaler struct {
 	hint.BaseHinter
 	Threshold                 base.Threshold `json:"threshold"`
 	IntervalBroadcastBallot   time.Duration  `json:"interval_broadcast_ballot"`
-	WaitProcessingProposal    time.Duration  `json:"wait_processing_proposal"`
+	WaitPreparingINITBallot   time.Duration  `json:"wait_preparing_init_ballot"`
 	TimeoutRequestProposal    time.Duration  `json:"timeout_request_proposal"`
 	SyncSourceCheckerInterval time.Duration  `json:"sync_source_checker_interval"`
 }
@@ -144,7 +144,7 @@ func (p NodePolicy) MarshalJSON() ([]byte, error) {
 		NetworkID:               p.networkID,
 		Threshold:               p.threshold,
 		IntervalBroadcastBallot: p.intervalBroadcastBallot,
-		WaitProcessingProposal:  p.waitProcessingProposal,
+		WaitPreparingINITBallot: p.waitPreparingINITBallot,
 		TimeoutRequestProposal:  p.timeoutRequestProposal,
 	})
 }
@@ -153,7 +153,7 @@ type nodePolicyJSONUnmarshaler struct {
 	NetworkID                 base.NetworkID `json:"network_id"`
 	Threshold                 base.Threshold `json:"threshold"`
 	IntervalBroadcastBallot   time.Duration  `json:"interval_broadcast_ballot"`
-	WaitProcessingProposal    time.Duration  `json:"wait_processing_proposal"`
+	WaitPreparingINITBallot   time.Duration  `json:"wait_preparing_init_ballot"`
 	TimeoutRequestProposal    time.Duration  `json:"timeout_request_proposal"`
 	SyncSourceCheckerInterval time.Duration  `json:"sync_source_checker_interval"`
 }
@@ -167,7 +167,7 @@ func (p *NodePolicy) UnmarshalJSON(b []byte) error {
 	p.networkID = u.NetworkID
 	p.threshold = u.Threshold
 	p.intervalBroadcastBallot = u.IntervalBroadcastBallot
-	p.waitProcessingProposal = u.WaitProcessingProposal
+	p.waitPreparingINITBallot = u.WaitPreparingINITBallot
 	p.timeoutRequestProposal = u.TimeoutRequestProposal
 	p.syncSourceCheckerInterval = u.SyncSourceCheckerInterval
 
