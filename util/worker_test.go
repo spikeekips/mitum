@@ -461,7 +461,7 @@ func (t *testDistributeWorker) TestLazyCancel() {
 
 	err := wk.Wait()
 	t.NotNil(err)
-	t.True(errors.Is(err, ErrWorkerCanceled))
+	t.True(errors.Is(err, ErrWorkerContextCanceled))
 
 	t.True(atomic.LoadUint64(&canceled) < l)
 

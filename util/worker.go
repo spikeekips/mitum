@@ -59,7 +59,7 @@ type (
 	ContextWorkerCallback func(ctx context.Context, jobid uint64) error
 )
 
-var ErrWorkerCanceled = NewError("context canceled in worker")
+var ErrWorkerContextCanceled = NewError("context canceled in worker")
 
 type ParallelWorker struct {
 	jobChan     chan interface{}
@@ -207,7 +207,7 @@ func (wk *BaseSemWorker) NewJob(callback ContextWorkerCallback) error {
 	if err := wk.Sem.Acquire(wk.Ctx, 1); err != nil {
 		wk.Cancel()
 
-		return ErrWorkerCanceled.Wrap(err)
+		return ErrWorkerContextCanceled.Wrap(err)
 	}
 
 	ctx, cancel := context.WithCancel(wk.Ctx)
@@ -262,7 +262,7 @@ func (wk *BaseSemWorker) wait() error {
 		case <-time.After(timeout):
 			cancel()
 
-			errch <- ErrWorkerCanceled.Call()
+			errch <- ErrWorkerContextCanceled.Call()
 		case err := <-donech:
 			errch <- err
 		}
@@ -397,7 +397,7 @@ func (wk *ErrgroupWorker) Wait() error {
 		switch {
 		case errors.Is(err, context.Canceled):
 			berr = err
-		case errors.Is(err, ErrWorkerCanceled):
+		case errors.Is(err, ErrWorkerContextCanceled):
 			return context.Canceled
 		default:
 			return err
