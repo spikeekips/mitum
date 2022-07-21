@@ -28,7 +28,7 @@ func DefaultNodePolicy(networkID base.NetworkID) NodePolicy {
 		networkID:                 networkID,
 		threshold:                 base.DefaultThreshold,
 		intervalBroadcastBallot:   time.Second * 3,  //nolint:gomnd //...
-		waitProcessingProposal:    time.Second * 3,  //nolint:gomnd //...
+		waitProcessingProposal:    time.Second * 5,  //nolint:gomnd //...
 		timeoutRequestProposal:    time.Second * 3,  //nolint:gomnd //...
 		syncSourceCheckerInterval: time.Second * 30, //nolint:gomnd //...
 	}
@@ -98,7 +98,7 @@ func (p *NodePolicy) SetIntervalBroadcastBallot(d time.Duration) *NodePolicy {
 	return p
 }
 
-func (p NodePolicy) WaitProcessingProposal() time.Duration {
+func (p NodePolicy) WaitProcessingProposal() time.Duration { // FIXME remove
 	return p.waitProcessingProposal
 }
 

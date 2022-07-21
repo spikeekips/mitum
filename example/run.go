@@ -47,7 +47,7 @@ type runCommand struct { //nolint:govet //...
 	syncSourcesRetryInterval    time.Duration
 	suffrageCandidateLimiterSet *hint.CompatibleSet
 	nodeInConsensusNodes        isaac.NodeInConsensusNodesFunc
-	exitf                       func()
+	exitf                       func(error)
 }
 
 func (cmd *runCommand) Run() error {
@@ -96,38 +96,16 @@ func (cmd *runCommand) Run() error {
 
 	exitch := make(chan error)
 
-	cmd.exitf = func() {
-		exitch <- nil
+	cmd.exitf = func(err error) {
+		exitch <- err
 	}
 
-	var holded bool
-	switch {
-	case !cmd.Hold.IsSet():
-	case cmd.Hold.Height() < base.GenesisHeight:
-		holded = true
-	default:
-		switch m, found, err := cmd.db.LastBlockMap(); {
-		case err != nil:
-			return err
-		case !found:
-		case cmd.Hold.Height() <= m.Manifest().Height():
-			holded = true
-		}
+	deferf, err := cmd.startStates(ctx)
+	if err != nil {
+		return err
 	}
 
-	if !holded {
-		go func() {
-			exitch <- <-cmd.states.Wait(ctx)
-		}()
-	}
-
-	if cmd.states != nil {
-		defer func() {
-			if err := cmd.states.Stop(); err != nil && !errors.Is(err, util.ErrDaemonAlreadyStopped) {
-				log.Error().Err(err).Msg("failed to stop states")
-			}
-		}()
-	}
+	defer deferf()
 
 	select {
 	case <-ctx.Done(): // NOTE graceful stop
@@ -135,4 +113,34 @@ func (cmd *runCommand) Run() error {
 	case err := <-exitch:
 		return err
 	}
+}
+
+func (cmd *runCommand) startStates(ctx context.Context) (func(), error) {
+	var holded bool
+
+	switch {
+	case !cmd.Hold.IsSet():
+	case cmd.Hold.Height() < base.GenesisHeight:
+		holded = true
+	default:
+		switch m, found, err := cmd.db.LastBlockMap(); {
+		case err != nil:
+			return func() {}, err
+		case !found:
+		case cmd.Hold.Height() <= m.Manifest().Height():
+			holded = true
+		}
+	}
+
+	if holded {
+		return func() {}, nil
+	}
+
+	go cmd.exitf(<-cmd.states.Wait(ctx))
+
+	return func() {
+		if err := cmd.states.Stop(); err != nil && !errors.Is(err, util.ErrDaemonAlreadyStopped) {
+			log.Error().Err(err).Msg("failed to stop states")
+		}
+	}, nil
 }

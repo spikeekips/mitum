@@ -92,7 +92,7 @@ func (pps *ProposalProcessors) Save(ctx context.Context, facthash util.Hash, avp
 
 	switch {
 	case pps.p == nil:
-		l.Debug().Msg("proposal processor not found")
+		l.Debug().Err(errors.Errorf("showme")).Msg("proposal processor not found")
 
 		return e(NotProposalProcessorProcessedError.Call(), "")
 	case !pps.p.Proposal().Fact().Hash().Equal(facthash):
@@ -103,6 +103,8 @@ func (pps *ProposalProcessors) Save(ctx context.Context, facthash util.Hash, avp
 
 	switch err := pps.p.Save(ctx, avp); {
 	case err == nil:
+		l.Debug().Msg("proposal processed and saved")
+
 		return nil
 	case errors.Is(err, context.Canceled):
 		return e(NotProposalProcessorProcessedError.Call(), "")

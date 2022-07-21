@@ -137,6 +137,10 @@ func (st *SyncingHandler) exit(sctx switchContext) (func(), error) {
 func (st *SyncingHandler) newVoteproof(vp base.Voteproof) error {
 	e := util.StringErrorFunc("failed to handle new voteproof")
 
+	if _, v := st.baseHandler.setNewVoteproof(vp); v == nil {
+		return nil
+	}
+
 	if err := st.checkFinished(vp); err != nil {
 		return e(err, "")
 	}
@@ -167,7 +171,7 @@ func (st *SyncingHandler) checkFinished(vp base.Voteproof) error {
 		}
 
 		// NOTE expected init voteproof found, moves to consensus state
-		l.Debug().Msg("expected init voteproof found; moves to syncing state")
+		l.Debug().Msg("expected init voteproof found; moves to consensus state")
 
 		return newConsensusSwitchContext(
 			StateSyncing, vp.(base.INITVoteproof)) //nolint:forcetypeassert //...
@@ -177,6 +181,7 @@ func (st *SyncingHandler) checkFinished(vp base.Voteproof) error {
 		return nil
 	default:
 		height := vp.Point().Height()
+
 		if vp.Point().Stage() == base.StageINIT {
 			height--
 		}

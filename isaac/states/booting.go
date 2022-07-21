@@ -67,7 +67,10 @@ func (st *BootingHandler) enter(i switchContext) (func(), error) { //nolint:unpa
 		return nil, e(nil, "empty last accept voteproof")
 	default:
 		if err := compareManifestWithACCEPTVoteproof(manifest, avp); err != nil {
-			st.Log().Debug().Msg("manifest and last accept voteproof do not match")
+			st.Log().Debug().
+				Interface("voteproof", avp).
+				Interface("manifest", manifest).
+				Msg("manifest and last accept voteproof do not match")
 
 			return nil, e(err, "")
 		}

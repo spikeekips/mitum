@@ -39,21 +39,6 @@ func (cmd *runCommand) prepareStates() error {
 		cmd.broadcastBallotFunc,
 	)
 
-	whenNewBlockSaved := func(height base.Height) {
-		l := log.With().Interface("height", height).Logger()
-		l.Debug().Msg("new block saved")
-
-		if height == cmd.Hold.Height() {
-			l.Debug().Msg("will be stopped by hold")
-
-			cmd.exitf()
-
-			return
-		}
-
-		cmd.ballotbox.Count()
-	}
-
 	syncinghandler := isaacstates.NewNewSyncingHandlerType(
 		cmd.local, cmd.nodePolicy, cmd.proposalSelector, cmd.newSyncer(lvps), cmd.nodeInConsensusNodes,
 	)
@@ -80,7 +65,7 @@ func (cmd *runCommand) prepareStates() error {
 			isaacstates.StateConsensus,
 			isaacstates.NewNewConsensusHandlerType(
 				cmd.local, cmd.nodePolicy, cmd.proposalSelector,
-				cmd.getManifest, cmd.nodeInConsensusNodes, voteFunc, whenNewBlockSaved,
+				cmd.getManifest, cmd.nodeInConsensusNodes, voteFunc, cmd.whenNewBlockSaved,
 				pps,
 			)).
 		SetHandler(isaacstates.StateSyncing, syncinghandler)

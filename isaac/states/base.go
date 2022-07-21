@@ -210,8 +210,8 @@ func (st *baseHandler) broadcastBallot(
 	return nil
 }
 
-func (st *baseHandler) broadcastINITBallot(bl base.Ballot) error {
-	return st.broadcastBallot(bl, timerIDBroadcastINITBallot, 0)
+func (st *baseHandler) broadcastINITBallot(bl base.Ballot, initialWait time.Duration) error {
+	return st.broadcastBallot(bl, timerIDBroadcastINITBallot, initialWait)
 }
 
 func (st *baseHandler) broadcastACCEPTBallot(bl base.Ballot, initialWait time.Duration) error {

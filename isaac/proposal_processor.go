@@ -176,7 +176,7 @@ func (p *DefaultProposalProcessor) save(ctx context.Context, acceptVoteproof bas
 		}
 	}
 
-	p.Log().Info().Interface("blockmap", m).Msg("new block saved")
+	p.Log().Info().Interface("blockmap", m).Msg("new block saved in proposal processor")
 
 	p.close()
 
