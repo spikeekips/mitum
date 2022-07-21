@@ -429,7 +429,7 @@ func (cmd *runCommand) getProposalFunc() func(_ context.Context, facthash util.H
 		}
 
 		// NOTE if not found, request to remote node
-		worker := util.NewErrgroupWorker(ctx, 3) //nolint:gomnd //...
+		worker := util.NewErrgroupWorker(ctx, int64(cmd.memberlist.MembersLen()))
 		defer worker.Close()
 
 		prl := util.EmptyLocked()
@@ -462,16 +462,18 @@ func (cmd *runCommand) getProposalFunc() func(_ context.Context, facthash util.H
 			})
 		}()
 
-		if err := worker.Wait(); err != nil {
-			return nil, err
-		}
+		err := worker.Wait()
 
-		i, isnil := prl.Value()
-		if isnil {
+		switch i, isnil := prl.Value(); {
+		case isnil:
+			if err != nil {
+				return nil, err
+			}
+
 			return nil, storage.NotFoundError.Errorf("ProposalSignedFact not found")
+		default:
+			return i.(base.ProposalSignedFact), nil //nolint:forcetypeassert //...
 		}
-
-		return i.(base.ProposalSignedFact), nil //nolint:forcetypeassert //...
 	}
 }
 
@@ -1068,13 +1070,11 @@ func (cmd *runCommand) getProposalOperationFromRemote(
 
 	worker.Done()
 
-	if err := worker.Wait(); err != nil {
-		return nil, false, err
-	}
+	err := worker.Wait()
 
 	i, isnil := result.Value()
 	if isnil {
-		return nil, false, nil
+		return nil, false, err
 	}
 
 	return i.(base.Operation), true, nil //nolint:forcetypeassert //...
