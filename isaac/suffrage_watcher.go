@@ -92,7 +92,18 @@ func (u *LastConsensusNodesWatcher) lastValue() (base.SuffrageProof, base.State)
 
 	j := i.([2]interface{}) //nolint:forcetypeassert //...
 
-	return j[0].(base.SuffrageProof), j[1].(base.State) //nolint:forcetypeassert //...
+	var proof base.SuffrageProof
+	var st base.State
+
+	if j[0] != nil {
+		proof = j[0].(base.SuffrageProof) //nolint:forcetypeassert //...
+	}
+
+	if j[1] != nil {
+		st = j[1].(base.State) //nolint:forcetypeassert //...
+	}
+
+	return proof, st
 }
 
 func (u *LastConsensusNodesWatcher) start(ctx context.Context) error {
