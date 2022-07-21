@@ -171,14 +171,15 @@ func (t *testContextDaemon) TestStopInGoroutine() {
 		return nil
 	})
 
+	t.NoError(ed.Start())
+
 	var wg sync.WaitGroup
 	wg.Add(4)
 	for i := 0; i < 4; i++ {
 		func() {
 			defer wg.Done()
 
-			t.NoError(ed.Start())
-			t.NoError(ed.Stop())
+			_ = ed.Stop()
 		}()
 	}
 	wg.Wait()

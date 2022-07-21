@@ -28,6 +28,8 @@ func (t *testClient) TestSessionRemove() {
 		HandshakeIdleTimeout: time.Millisecond * 100,
 	}
 
+	<-time.After(time.Second * 3) // NOTE for slow machine like github actions
+
 	_, err := client.Write(context.Background(), DefaultClientWriteFunc(util.UUID().Bytes()))
 	t.NoError(err)
 
@@ -38,6 +40,8 @@ func (t *testClient) TestSessionRemove() {
 	t.NoError(srv.Stop())
 
 	t.Run("send after stopped", func() {
+		<-time.After(time.Second * 3) // NOTE for slow machine like github actions
+
 		_, err := client.Write(context.Background(), DefaultClientWriteFunc(util.UUID().Bytes()))
 		t.Error(err)
 
