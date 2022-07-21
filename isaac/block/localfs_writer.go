@@ -204,6 +204,9 @@ func (w *LocalFSWriter) SetManifest(_ context.Context, m base.Manifest) error {
 }
 
 func (w *LocalFSWriter) SetINITVoteproof(_ context.Context, vp base.INITVoteproof) error {
+	w.Lock()
+	defer w.Unlock()
+
 	w.vps[0] = vp
 	if w.vps[1] == nil {
 		return nil
@@ -217,6 +220,9 @@ func (w *LocalFSWriter) SetINITVoteproof(_ context.Context, vp base.INITVoteproo
 }
 
 func (w *LocalFSWriter) SetACCEPTVoteproof(_ context.Context, vp base.ACCEPTVoteproof) error {
+	w.Lock()
+	defer w.Unlock()
+
 	w.vps[1] = vp
 	if w.vps[0] == nil {
 		return nil
