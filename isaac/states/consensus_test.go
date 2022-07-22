@@ -109,7 +109,7 @@ type testConsensusHandler struct {
 	baseTestConsensusHandler
 }
 
-func (t *testConsensusHandler) TestNew() {
+func (t *testConsensusHandler) TestFailedToFetchProposal() {
 	point := base.RawPoint(33, 0)
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
@@ -118,7 +118,7 @@ func (t *testConsensusHandler) TestNew() {
 	pps := isaac.NewProposalProcessors(nil, func(context.Context, util.Hash) (base.ProposalSignedFact, error) {
 		return nil, util.ErrNotFound.Call()
 	})
-	pps.SetRetry(time.Nanosecond, 1)
+	pps.SetRetryLimit(1).SetRetryInterval(1)
 
 	newhandler := NewNewConsensusHandlerType(
 		t.Local,
@@ -156,11 +156,38 @@ func (t *testConsensusHandler) TestNew() {
 	_, ivp := t.VoteproofsPair(point.PrevHeight(), point, nil, nil, nil, nodes)
 	t.True(st.setLastVoteproof(ivp))
 
+	ballotch := make(chan base.Ballot, 1)
+	st.broadcastBallotFunc = func(bl base.Ballot) error {
+		ballotch <- bl
+
+		return nil
+	}
+
+	prpool := t.PRPool
+	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
+		return prpool.Get(p), nil
+	})
+	st.policy = *t.NodePolicy.SetWaitPreparingINITBallot(time.Nanosecond)
+
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
 	_, err = st.enter(sctx)
-	t.Error(err)
-	t.ErrorContains(err, "failed to get proposal fact")
+	t.NoError(err)
+
+	t.Run("moves to next round", func() {
+		select {
+		case <-time.After(time.Second * 2):
+			t.NoError(errors.Errorf("timeout to wait next round init ballot"))
+
+			return
+		case bl := <-ballotch:
+			t.NoError(bl.IsValid(t.NodePolicy.NetworkID()))
+			ibl, ok := bl.(base.INITBallot)
+			t.True(ok)
+
+			t.Equal(ivp.Point().NextRound(), ibl.Point().Point)
+		}
+	})
 }
 
 func (t *testConsensusHandler) TestInvalidVoteproofs() {
@@ -299,29 +326,6 @@ func (t *testConsensusHandler) TestProcessingProposalAfterEntered() {
 		t.Equal(ivp.Point().Point, abl.Point().Point)
 		t.True(ivp.BallotMajority().Proposal().Equal(abl.BallotSignedFact().BallotFact().Proposal()))
 	}
-}
-
-func (t *testConsensusHandler) TestFailedProcessingProposalFetchFactFailed() {
-	point := base.RawPoint(33, 44)
-	suf, _ := isaac.NewTestSuffrage(1, t.Local)
-
-	st, closefunc, _, ivp := t.newStateWithINITVoteproof(point, suf)
-	defer closefunc()
-
-	st.pps.SetGetProposal(func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error) {
-		return nil, util.ErrNotFound.Errorf("fact not found")
-	})
-	st.pps.SetRetryLimit(1).SetRetryInterval(1)
-
-	_, err := st.enter(newConsensusSwitchContext(StateJoining, ivp))
-	t.Error(err)
-
-	var sctx switchContext
-	t.True(errors.As(err, &sctx))
-
-	t.Equal(StateConsensus, sctx.from())
-	t.Equal(StateBroken, sctx.next())
-	t.ErrorContains(sctx, "failed to get proposal fact")
 }
 
 func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailed() {

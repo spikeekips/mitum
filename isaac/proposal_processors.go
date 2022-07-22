@@ -246,11 +246,12 @@ func (pps *ProposalProcessors) newProcessor(
 	// NOTE fetch proposal fact
 	fact, err := pps.fetchFact(ctx, facthash)
 
+	// NOTE if failed to get fact, returns NotProposalProcessorProcessedError
 	switch {
 	case err != nil:
-		return nil, e(err, "failed to get proposal fact")
+		return nil, e(NotProposalProcessorProcessedError.Wrap(err), "failed to get proposal fact")
 	case fact == nil:
-		return nil, e(util.ErrNotFound.Call(), "failed to get proposal fact; empty fact")
+		return nil, e(NotProposalProcessorProcessedError.Call(), "failed to get proposal fact; empty fact")
 	}
 
 	if err := util.Retry(ctx, func() (bool, error) {

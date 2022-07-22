@@ -60,8 +60,6 @@ func checkINITVoteproofInINITBallot(bl INITBallot, vp INITVoteproof) error {
 	case !vp.Point().Point.NextRound().Equal(bl.Point().Point):
 		return e(util.ErrInvalid.Errorf(
 			"next round not match; ballot(%q) == voteproof(%q)", bl.Point(), vp.Point()), "")
-	case vp.Result() != VoteResultDraw:
-		return e(util.ErrInvalid.Errorf("wrong vote result of init voteproof; %q", vp.Result()), "")
 	}
 
 	return nil

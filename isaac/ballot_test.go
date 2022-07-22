@@ -158,34 +158,6 @@ func (t *testBaseINITBallotWithVoteproof) TestValidINITVoteproofNone0Round() {
 	t.NoError(bl.IsValid(t.networkID))
 }
 
-func (t *testBaseINITBallotWithVoteproof) TestWrongResultINITVoteproofNone0Round() {
-	node := base.RandomAddress("")
-
-	ifact := NewINITBallotFact(base.RawPoint(44, 55), valuehash.RandomSHA256(), valuehash.RandomSHA256())
-
-	isignedFact := NewINITBallotSignedFact(node, ifact)
-
-	t.NoError(isignedFact.Sign(t.priv, t.networkID))
-
-	ivp := NewINITVoteproof(ifact.Point().Point)
-	ivp.SetResult(base.VoteResultMajority).
-		SetMajority(ifact).
-		SetSignedFacts([]base.BallotSignedFact{isignedFact}).
-		SetThreshold(base.Threshold(100)).
-		Finish()
-
-	fact := NewINITBallotFact(base.NewPoint(ifact.Point().Height(), ifact.Point().Round()+1), valuehash.RandomSHA256(), valuehash.RandomSHA256())
-
-	signedFact := NewINITBallotSignedFact(base.RandomAddress(""), fact)
-
-	t.NoError(signedFact.Sign(t.priv, t.networkID))
-
-	bl := NewINITBallot(ivp, signedFact)
-
-	err := bl.IsValid(t.networkID)
-	t.ErrorContains(err, "wrong vote result of init voteproof")
-}
-
 func (t *testBaseINITBallotWithVoteproof) TestWrongHeightINITVoteproofNone0Round() {
 	node := base.RandomAddress("")
 

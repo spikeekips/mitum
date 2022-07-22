@@ -165,18 +165,22 @@ func (st *ConsensusHandler) processProposal(ivp base.INITVoteproof) (func(contex
 	var process isaac.ProcessorProcessFunc
 
 	switch i, err := st.processProposalInternal(ivp); {
-	case err != nil:
-		err = e(err, "")
+	case err == nil:
+		process = i
+	case errors.Is(err, isaac.NotProposalProcessorProcessedError):
+		go st.nextRound(ivp, ivp.BallotMajority().PreviousBlock())
 
-		l.Error().Err(err).Msg("failed to process proposal; moves to broken state")
-
-		return nil, newBrokenSwitchContext(StateConsensus, err)
+		return nil, nil
 	case i == nil:
 		l.Debug().Msg("failed to process proposal; empty manifest; ignore")
 
 		return nil, nil
 	default:
-		process = i
+		err = e(err, "")
+
+		l.Error().Err(err).Msg("failed to process proposal; moves to broken state")
+
+		return nil, newBrokenSwitchContext(StateConsensus, err)
 	}
 
 	return func(ctx context.Context) error {
@@ -465,16 +469,18 @@ func (st *ConsensusHandler) newINITVoteproofWithLastINITVoteproof(
 			return newSyncingSwitchContext(StateConsensus, ivp.Point().Height()-1)
 		}
 
-		process, err := st.processProposal(ivp)
-		if err != nil {
+		switch process, err := st.processProposal(ivp); {
+		case err != nil:
 			return err
+		case process == nil:
+			return nil
+		default:
+			return process(st.ctx)
 		}
-
-		return process(st.ctx)
 	default:
 		l.Debug().Msg("new init voteproof draw; moves to next round")
 
-		go st.nextRound(ivp, lvps)
+		go st.nextRound(ivp, lvps.PreviousBlockForNextRound(ivp))
 
 		return nil
 	}
@@ -498,7 +504,7 @@ func (st *ConsensusHandler) newINITVoteproofWithLastACCEPTVoteproof(
 	case ivp.Result() == base.VoteResultDraw:
 		l.Debug().Msg("new init voteproof draw; moves to next round")
 
-		go st.nextRound(ivp, lvps)
+		go st.nextRound(ivp, lvps.PreviousBlockForNextRound(ivp))
 
 		return nil
 	default:
@@ -513,12 +519,14 @@ func (st *ConsensusHandler) newINITVoteproofWithLastACCEPTVoteproof(
 		}
 	}
 
-	process, err := st.processProposal(ivp)
-	if err != nil {
+	switch process, err := st.processProposal(ivp); {
+	case err != nil:
 		return err
+	case process == nil:
+		return nil
+	default:
+		return process(st.ctx)
 	}
-
-	return process(st.ctx)
 }
 
 func (st *ConsensusHandler) newACCEPTVoteproofWithLastINITVoteproof(
@@ -534,12 +542,12 @@ func (st *ConsensusHandler) newACCEPTVoteproofWithLastINITVoteproof(
 			return err
 		}
 
-		go st.nextRound(avp, lvps)
+		go st.nextRound(avp, lvps.PreviousBlockForNextRound(avp))
 
 		return nil
 	case avp.Point().Height() > livp.Point().Height():
 	case avp.Result() == base.VoteResultDraw:
-		go st.nextRound(avp, lvps)
+		go st.nextRound(avp, lvps.PreviousBlockForNextRound(avp))
 
 		return nil
 	}
@@ -564,7 +572,7 @@ func (st *ConsensusHandler) newACCEPTVoteproofWithLastACCEPTVoteproof(
 	case avp.Result() == base.VoteResultDraw:
 		l.Debug().Msg("new accept voteproof draw; moves to next round")
 
-		go st.nextRound(avp, lvps)
+		go st.nextRound(avp, lvps.PreviousBlockForNextRound(avp))
 
 		return nil
 	default:
@@ -572,13 +580,12 @@ func (st *ConsensusHandler) newACCEPTVoteproofWithLastACCEPTVoteproof(
 	}
 }
 
-func (st *ConsensusHandler) nextRound(vp base.Voteproof, lvps LastVoteproofs) {
+func (st *ConsensusHandler) nextRound(vp base.Voteproof, previousBlock util.Hash) {
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(vp)).Logger()
 
 	started := time.Now()
 
-	prevBlock := lvps.PreviousBlockForNextRound(vp)
-	if prevBlock == nil {
+	if previousBlock == nil {
 		l.Debug().Msg("failed to find previous block from last voteproofs; ignore to move next round")
 
 		return
@@ -587,7 +594,7 @@ func (st *ConsensusHandler) nextRound(vp base.Voteproof, lvps LastVoteproofs) {
 	var sctx switchContext
 	var bl base.INITBallot
 
-	switch i, err := st.prepareNextRound(vp, prevBlock); {
+	switch i, err := st.prepareNextRound(vp, previousBlock); {
 	case err == nil:
 		if i == nil {
 			return

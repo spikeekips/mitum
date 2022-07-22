@@ -28,7 +28,7 @@ func StartProfile(cpu, mem string) (func() error, error) {
 		return nil, e(err, "could not create memory profile")
 	}
 
-	if err := pprof.WriteHeapProfile(memf); err != nil {
+	if err := pprof.WriteHeapProfile(memf); err != nil { // FIXME
 		defer func() {
 			_ = memf.Close()
 		}()
