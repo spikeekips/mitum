@@ -82,7 +82,7 @@ func (st *ConsensusHandler) enter(i switchContext) (func(), error) {
 		sctx = j
 	}
 
-	switch suf, found, err := st.nodeInConsensusNodes(st.local, sctx.ivp.Point().Height()); {
+	switch suf, found, err := st.nodeInConsensusNodes(st.local, sctx.ivp.Point().Height()); { //nolint:govet //...
 	case err != nil:
 		return nil, e(err, "")
 	case suf == nil || suf.Len() < 1:
@@ -682,6 +682,10 @@ func (st *ConsensusHandler) saveBlock(avp base.ACCEPTVoteproof) (bool, error) {
 		go st.nextBlock(avp)
 
 		return true, nil
+	case errors.Is(err, isaac.ErrProcessorAlreadySaved):
+		l.Debug().Msg("already saved")
+
+		return false, nil
 	case errors.Is(err, isaac.NotProposalProcessorProcessedError):
 		l.Debug().Msg("no processed proposal; moves to syncing state")
 

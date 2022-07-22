@@ -99,7 +99,7 @@ func NewSyncer(
 		tempsyncpool:           tempsyncpool,
 		batchlimit:             333, //nolint:gomnd // big enough size
 		finishedch:             make(chan base.Height),
-		donech:                 make(chan struct{}),
+		donech:                 make(chan struct{}, 2),
 		doneerr:                util.EmptyLocked(),
 		topvalue:               util.NewLocked(prevheight),
 		isdonevalue:            &atomic.Value{},
@@ -179,7 +179,7 @@ func (s *Syncer) Cancel() error {
 		_, _ = s.doneerr.Set(func(i interface{}) (interface{}, error) {
 			s.isdonevalue.Store(true)
 
-			close(s.donech)
+			// close(s.donech)
 
 			err = s.ContextDaemon.Stop()
 

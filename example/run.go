@@ -109,12 +109,14 @@ func (cmd *runCommand) Run() error {
 	case <-ctx.Done(): // NOTE graceful stop
 		defer deferf()
 
-		return nil
+		return ctx.Err()
 	case err := <-exitch:
 		if errors.Is(err, errHoldStop) {
 			deferf()
 
-			select {}
+			<-ctx.Done()
+
+			return ctx.Err()
 		}
 
 		defer deferf()

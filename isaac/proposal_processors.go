@@ -30,6 +30,7 @@ type ProposalProcessors struct {
 	retryinterval time.Duration
 	retrylimit    int
 	sync.RWMutex
+	previousSaved base.Height
 }
 
 func NewProposalProcessors(
@@ -46,6 +47,7 @@ func NewProposalProcessors(
 		// cycle.
 		retrylimit:    15,                     //nolint:gomnd //...
 		retryinterval: time.Millisecond * 600, //nolint:gomnd //...
+		previousSaved: base.NilHeight,
 	}
 }
 
@@ -96,7 +98,13 @@ func (pps *ProposalProcessors) Save(ctx context.Context, facthash util.Hash, avp
 
 	switch {
 	case pps.p == nil:
-		l.Debug().Err(errors.Errorf("showme")).Msg("proposal processor not found")
+		if pps.previousSaved == avp.Point().Height() {
+			l.Debug().Msg("already saved")
+
+			return ErrProcessorAlreadySaved.Call()
+		}
+
+		l.Debug().Msg("proposal processor not found")
 
 		return e(NotProposalProcessorProcessedError.Call(), "")
 	case !pps.p.Proposal().Fact().Hash().Equal(facthash):
@@ -108,6 +116,8 @@ func (pps *ProposalProcessors) Save(ctx context.Context, facthash util.Hash, avp
 	switch err := pps.p.Save(ctx, avp); {
 	case err == nil:
 		l.Debug().Msg("proposal processed and saved")
+
+		pps.previousSaved = avp.Point().Height()
 
 		return nil
 	case errors.Is(err, context.Canceled):

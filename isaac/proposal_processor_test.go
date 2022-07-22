@@ -1486,6 +1486,63 @@ func (t *testDefaultProposalProcessor) TestSaveFailed() {
 	t.ErrorContains(err, "killme")
 }
 
+func (t *testDefaultProposalProcessor) TestSaveAgain() {
+	point := base.RawPoint(33, 44)
+
+	ophs, ops, _ := t.prepareOperations(point.Height()-1, 4)
+
+	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), ophs))
+
+	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
+	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+	writer, newwriterf := t.newBlockWriter()
+	writer.manifest = manifest
+
+	savech := make(chan struct{}, 1)
+	writer.savef = func(_ context.Context) (base.BlockMap, error) {
+		savech <- struct{}{}
+
+		return nil, nil
+	}
+
+	setLastVoteproofsFunc := func(ivp base.INITVoteproof, avp base.ACCEPTVoteproof) error {
+		return nil
+	}
+
+	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
+		return ops[facthash.String()], nil
+	},
+		func(base.Height, hint.Hint) (base.OperationProcessor, error) { return nil, nil },
+		setLastVoteproofsFunc,
+	)
+
+	ifact := t.NewINITBallotFact(point.NextHeight(), previous.Hash(), pr.Fact().Hash())
+	ivp, err := t.NewINITVoteproof(ifact, t.Local, []LocalNode{t.Local})
+	t.NoError(err)
+
+	m, err := opp.Process(context.Background(), ivp)
+	t.NoError(err)
+	t.NotNil(m)
+
+	t.Equal(4, writer.sts.Len())
+
+	afact := t.NewACCEPTBallotFact(point.NextHeight(), nil, nil)
+	avp, err := t.NewACCEPTVoteproof(afact, t.Local, []LocalNode{t.Local})
+	t.NoError(err)
+
+	t.NoError(opp.Save(context.Background(), avp))
+
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("failed to wait to save"))
+	case <-savech:
+	}
+
+	err = opp.Save(context.Background(), avp)
+	t.Error(err)
+	t.True(errors.Is(err, ErrProcessorAlreadySaved))
+}
+
 func TestDefaultProposalProcessor(t *testing.T) {
 	defer goleak.VerifyNone(t)
 

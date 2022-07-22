@@ -20,6 +20,7 @@ var (
 	StopProcessingRetryError                  = util.NewError("stop processing retrying")
 	ErrIgnoreStateValue                       = util.NewError("ignore state value")
 	ErrSuspendOperation                       = util.NewError("suspend operation")
+	ErrProcessorAlreadySaved                  = util.NewError("processor already saved")
 )
 
 type (
@@ -61,6 +62,7 @@ type DefaultProposalProcessor struct {
 	retryinterval         time.Duration
 	opslock               sync.RWMutex
 	sync.RWMutex
+	issaved bool
 }
 
 func NewDefaultProposalProcessor(
@@ -134,10 +136,15 @@ func (p *DefaultProposalProcessor) Process(ctx context.Context, vp base.INITVote
 }
 
 func (p *DefaultProposalProcessor) Save(ctx context.Context, avp base.ACCEPTVoteproof) error {
+	p.Lock()
+	defer p.Unlock()
+
 	if err := util.Retry(ctx, func() (bool, error) {
 		switch err := p.save(ctx, avp); {
 		case err == nil:
 			return false, nil
+		case errors.Is(err, ErrProcessorAlreadySaved):
+			return false, err
 		case errors.Is(err, StopProcessingRetryError):
 			return false, err
 		default:
@@ -153,8 +160,9 @@ func (p *DefaultProposalProcessor) Save(ctx context.Context, avp base.ACCEPTVote
 }
 
 func (p *DefaultProposalProcessor) save(ctx context.Context, acceptVoteproof base.ACCEPTVoteproof) error {
-	p.Lock()
-	defer p.Unlock()
+	if p.issaved {
+		return ErrProcessorAlreadySaved.Call()
+	}
 
 	e := util.StringErrorFunc("failed to save")
 	if p.proposal == nil {
@@ -179,6 +187,7 @@ func (p *DefaultProposalProcessor) save(ctx context.Context, acceptVoteproof bas
 	p.Log().Info().Interface("blockmap", m).Msg("new block saved in proposal processor")
 
 	p.close()
+	p.issaved = true
 
 	return nil
 }
