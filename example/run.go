@@ -105,15 +105,25 @@ func (cmd *runCommand) Run() error {
 		return err
 	}
 
-	defer deferf()
-
 	select {
 	case <-ctx.Done(): // NOTE graceful stop
+		defer deferf()
+
 		return nil
 	case err := <-exitch:
+		if errors.Is(err, errHoldStop) {
+			deferf()
+
+			select {}
+		}
+
+		defer deferf()
+
 		return err
 	}
 }
+
+var errHoldStop = util.NewError("hold stop")
 
 func (cmd *runCommand) startStates(ctx context.Context) (func(), error) {
 	var holded bool
@@ -136,11 +146,17 @@ func (cmd *runCommand) startStates(ctx context.Context) (func(), error) {
 		return func() {}, nil
 	}
 
-	go cmd.exitf(<-cmd.states.Wait(ctx))
+	go func() {
+		cmd.exitf(<-cmd.states.Wait(ctx))
+	}()
 
 	return func() {
 		if err := cmd.states.Stop(); err != nil && !errors.Is(err, util.ErrDaemonAlreadyStopped) {
 			log.Error().Err(err).Msg("failed to stop states")
+
+			return
 		}
+
+		log.Debug().Msg("states stopped")
 	}, nil
 }
