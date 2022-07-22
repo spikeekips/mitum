@@ -15,66 +15,54 @@ type testGenerator struct {
 }
 
 func (t *testGenerator) TestNew() {
-	gworker := util.NewErrgroupWorker(context.Background(), math.MaxInt32)
-	defer gworker.Close()
-
-	for size := uint64(1); size < 333; size++ {
+	for size := uint64(1); size < 1333; size++ {
 		if size%3 != 0 {
 			continue
 		}
 
-		size := size
+		nodes := t.nodesWithoutHash(int(size))
 
-		t.NoError(gworker.NewJob(func(context.Context, uint64) error {
-			nodes := t.nodesWithoutHash(int(size))
+		started := time.Now()
 
-			started := time.Now()
+		g, err := NewWriter(t.ht, size)
+		t.NoError(err)
 
-			g, err := NewWriter(t.ht, size)
-			t.NoError(err)
+		worker := util.NewErrgroupWorker(context.Background(), math.MaxInt32)
+		defer worker.Close()
 
-			worker := util.NewErrgroupWorker(context.Background(), math.MaxInt32)
-			defer worker.Close()
+		for i := range nodes {
+			i := i
 
-			for i := range nodes {
-				i := i
-
-				t.NoError(worker.NewJob(func(context.Context, uint64) error {
-					return g.Add(uint64(i), nodes[i].(BaseNode))
-				}))
-			}
-			worker.Done()
-
-			t.NoError(worker.Wait())
-
-			totalelapsed := time.Since(started)
-
-			treestarted := time.Now()
-			generated := make([]Node, len(nodes))
-			t.NoError(g.Write(func(index uint64, n Node) error {
-				generated[index] = n
-
-				return nil
+			t.NoError(worker.NewJob(func(context.Context, uint64) error {
+				return g.Add(uint64(i), nodes[i].(BaseNode))
 			}))
+		}
+		worker.Done()
 
-			t.T().Logf("size-%d: total=%v tree=%v", size, totalelapsed, time.Since(treestarted))
+		t.NoError(worker.Wait())
 
-			newtr, err := NewTree(t.ht, generated)
-			t.NoError(err)
-			t.NoError(newtr.IsValid(nil))
+		totalelapsed := time.Since(started)
 
-			newtr.Traverse(func(index uint64, a Node) (bool, error) {
-				t.True(a.Equal(generated[index]))
-
-				return true, nil
-			})
+		treestarted := time.Now()
+		generated := make([]Node, len(nodes))
+		t.NoError(g.Write(func(index uint64, n Node) error {
+			generated[index] = n
 
 			return nil
 		}))
-	}
 
-	gworker.Done()
-	t.NoError(gworker.Wait())
+		t.T().Logf("size-%d: total=%v tree=%v", size, totalelapsed, time.Since(treestarted))
+
+		newtr, err := NewTree(t.ht, generated)
+		t.NoError(err)
+		t.NoError(newtr.IsValid(nil))
+
+		newtr.Traverse(func(index uint64, a Node) (bool, error) {
+			t.True(a.Equal(generated[index]))
+
+			return true, nil
+		})
+	}
 }
 
 func (t *testGenerator) TestZeroSize() {
