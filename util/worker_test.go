@@ -626,7 +626,8 @@ func (t *testErrgroupWorker) TestDeadlineError() {
 	}()
 
 	err := wk.Wait()
-	t.True(errors.Is(err, context.DeadlineExceeded))
+	t.Error(err)
+	t.True(errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded))
 
 	c := atomic.LoadUint64(&called)
 	t.T().Logf("called: %d", c)
