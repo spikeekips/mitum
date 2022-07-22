@@ -48,7 +48,11 @@ func (t *testProposalProcessors) TestProcess() {
 	facthash := pr.Fact().Hash()
 
 	t.T().Log("process")
-	rmanifest, err := pps.Process(context.Background(), facthash, previous, nil)
+	processf, err := pps.Process(context.Background(), facthash, previous, nil)
+	t.NoError(err)
+	t.NotNil(processf)
+
+	rmanifest, err := processf(context.Background())
 	t.NoError(err)
 
 	base.EqualManifest(t.Assert(), manifest, rmanifest)
@@ -103,7 +107,11 @@ func (t *testProposalProcessors) TestAlreadyProcessing() {
 	facthash := pr.Fact().Hash()
 
 	t.T().Log("process")
-	_, err := pps.Process(context.Background(), facthash, previous, nil)
+	processf, err := pps.Process(context.Background(), facthash, previous, nil)
+	t.NoError(err)
+	t.NotNil(processf)
+
+	_, err = processf(context.Background())
 	t.NoError(err)
 
 	select {
@@ -113,8 +121,9 @@ func (t *testProposalProcessors) TestAlreadyProcessing() {
 	}
 
 	t.T().Log("try process again")
-	_, err = pps.Process(context.Background(), facthash, previous, nil)
+	bprocessf, err := pps.Process(context.Background(), facthash, previous, nil)
 	t.NoError(err)
+	t.Nil(bprocessf)
 
 	t.NotNil(pps.Processor())
 	t.True(pr.Fact().Hash().Equal(pps.Processor().Proposal().Fact().Hash()))
@@ -153,7 +162,10 @@ func (t *testProposalProcessors) TestCancelPrevious() {
 
 	t.T().Log("process")
 	go func() {
-		_, err := pps.Process(context.Background(), pr.Fact().Hash(), previous, nil)
+		processf, err := pps.Process(context.Background(), pr.Fact().Hash(), previous, nil)
+		t.NoError(err)
+
+		_, err = processf(context.Background())
 		t.NoError(err)
 	}()
 
@@ -186,8 +198,10 @@ func (t *testProposalProcessors) TestFailedToFetchFact() {
 	pps.retryinterval = 1
 
 	t.T().Log("process")
-	_, err := pps.Process(context.Background(), valuehash.RandomSHA256(), nil, nil)
+	processf, err := pps.Process(context.Background(), valuehash.RandomSHA256(), nil, nil)
 	t.Error(err)
+	t.Nil(processf)
+
 	t.True(errors.Is(err, util.ErrNotFound))
 	t.ErrorContains(err, "hehehe")
 }
@@ -203,8 +217,10 @@ func (t *testProposalProcessors) TestFailedToFetchFactCanceled() {
 	pps.retryinterval = 1
 
 	t.T().Log("process")
-	_, err := pps.Process(context.Background(), valuehash.RandomSHA256(), nil, nil)
+	processf, err := pps.Process(context.Background(), valuehash.RandomSHA256(), nil, nil)
 	t.Error(err)
+	t.Nil(processf)
+
 	t.True(errors.Is(err, context.Canceled))
 	t.ErrorContains(err, "canceled")
 }
@@ -276,8 +292,10 @@ func (t *testProposalProcessors) TestProcessError() {
 	facthash := pr.Fact().Hash()
 
 	t.T().Log("process")
-	_, err := pps.Process(context.Background(), facthash, previous, nil)
+	processf, err := pps.Process(context.Background(), facthash, previous, nil)
+	t.NoError(err)
 
+	_, err = processf(context.Background())
 	t.Error(err)
 	t.ErrorContains(err, "hihihi")
 }
@@ -304,7 +322,10 @@ func (t *testProposalProcessors) TestProcessIgnoreError() {
 	facthash := pr.Fact().Hash()
 
 	t.T().Log("process")
-	rmanifest, err := pps.Process(context.Background(), facthash, previous, nil)
+	processf, err := pps.Process(context.Background(), facthash, previous, nil)
+	t.NoError(err)
+
+	rmanifest, err := processf(context.Background())
 	t.NoError(err)
 	t.Nil(rmanifest)
 }
@@ -331,7 +352,11 @@ func (t *testProposalProcessors) TestProcessContextCanceled() {
 	facthash := pr.Fact().Hash()
 
 	t.T().Log("process")
-	rmanifest, err := pps.Process(context.Background(), facthash, previous, nil)
+	processf, err := pps.Process(context.Background(), facthash, previous, nil)
+	t.NoError(err)
+
+	rmanifest, err := processf(context.Background())
+	t.Error(err)
 
 	t.True(errors.Is(err, context.Canceled))
 	t.Nil(rmanifest)
@@ -365,7 +390,11 @@ func (t *testProposalProcessors) TestSaveError() {
 	facthash := pr.Fact().Hash()
 
 	t.T().Log("process")
-	rmanifest, err := pps.Process(context.Background(), facthash, previous, nil)
+	processf, err := pps.Process(context.Background(), facthash, previous, nil)
+	t.NoError(err)
+	t.NotNil(processf)
+
+	rmanifest, err := processf(context.Background())
 	t.NoError(err)
 
 	base.EqualManifest(t.Assert(), manifest, rmanifest)

@@ -89,7 +89,7 @@ func (t *testPool) TestCleanOldProposals() {
 
 	point := base.RawPoint(33, 44)
 
-	oldpr := t.NewProposal(t.Local, t.NewProposalFact(point.PrevHeight(), t.Local, []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}))
+	oldpr := t.NewProposal(t.Local, t.NewProposalFact(point.PrevHeight().PrevHeight().PrevHeight(), t.Local, []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}))
 
 	issaved, err := pst.SetProposal(oldpr)
 	t.NoError(err)

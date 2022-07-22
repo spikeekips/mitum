@@ -20,6 +20,8 @@ var (
 	NotProposalProcessorProcessedError = util.NewError("proposal processor not processed")
 )
 
+type ProcessorProcessFunc func(context.Context) (base.Manifest, error)
+
 type ProposalProcessors struct {
 	p ProposalProcessor
 	*logging.Logging
@@ -59,7 +61,7 @@ func (pps *ProposalProcessors) Process(
 	facthash util.Hash,
 	previous base.Manifest,
 	ivp base.INITVoteproof,
-) (base.Manifest, error) {
+) (ProcessorProcessFunc, error) {
 	l := pps.Log().With().Stringer("fact", facthash).Logger()
 
 	e := util.StringErrorFunc("failed to process proposal, %q", facthash)
@@ -72,7 +74,9 @@ func (pps *ProposalProcessors) Process(
 	case p == nil:
 		return nil, nil
 	default:
-		return pps.runProcessor(ctx, p, ivp)
+		return func(ctx context.Context) (base.Manifest, error) {
+			return pps.runProcessor(ctx, p, ivp)
+		}, nil
 	}
 }
 

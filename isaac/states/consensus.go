@@ -96,12 +96,25 @@ func (st *ConsensusHandler) enter(i switchContext) (func(), error) {
 		return nil, newSyncingSwitchContext(StateEmpty, sctx.ivp.Point().Height())
 	}
 
-	if err := st.processProposal(sctx.ivp); err != nil {
+	process, err := st.processProposal(sctx.ivp)
+	if err != nil {
 		return nil, e(err, "")
 	}
 
 	return func() {
 		deferred()
+
+		if process != nil {
+			var sctx switchContext
+
+			switch err := process(st.ctx); {
+			case err == nil:
+			case errors.As(err, &sctx):
+				go st.switchState(sctx)
+			default:
+				go st.switchState(newBrokenSwitchContext(StateConsensus, err))
+			}
+		}
 	}, nil
 }
 
@@ -142,60 +155,69 @@ func (st *ConsensusHandler) exit(sctx switchContext) (func(), error) {
 	}, nil
 }
 
-func (st *ConsensusHandler) processProposal(ivp base.INITVoteproof) error {
+func (st *ConsensusHandler) processProposal(ivp base.INITVoteproof) (func(context.Context) error, error) {
 	facthash := ivp.BallotMajority().Proposal()
 	l := st.Log().With().Stringer("fact", facthash).Logger()
 	l.Debug().Msg("trying to process proposal")
 
 	e := util.StringErrorFunc("failed to process proposal")
 
-	manifest, err := st.processProposalInternal(ivp)
+	var process isaac.ProcessorProcessFunc
 
-	switch {
+	switch i, err := st.processProposalInternal(ivp); {
 	case err != nil:
 		err = e(err, "")
 
 		l.Error().Err(err).Msg("failed to process proposal; moves to broken state")
 
-		return newBrokenSwitchContext(StateConsensus, err)
-	case manifest == nil:
+		return nil, newBrokenSwitchContext(StateConsensus, err)
+	case i == nil:
 		l.Debug().Msg("failed to process proposal; empty manifest; ignore")
 
-		return nil
-	}
-
-	eavp := st.lastVoteproofs().ACCEPT()
-
-	if err := st.prepareACCEPTBallot(ivp, manifest, time.Nanosecond); err != nil {
-		l.Error().Err(err).Msg("failed to prepare accept ballot")
-
-		return e(err, "")
-	}
-
-	if eavp == nil || !eavp.Point().Point.Equal(ivp.Point().Point) {
-		return nil
-	}
-
-	ll := l.With().Dict("accept_voteproof", base.VoteproofLog(eavp)).Logger()
-
-	var sctx switchContext
-
-	switch saved, err := st.handleACCEPTVoteproofAfterProcessingProposal(manifest, eavp); {
-	case saved:
-		ll.Debug().Msg("new block saved by accept voteproof after processing proposal")
-	case err == nil:
-		return nil
-	case errors.As(err, &sctx):
+		return nil, nil
 	default:
-		ll.Error().Err(err).Msg("failed to save new block by accept voteproof after processing proposal")
-
-		sctx = newBrokenSwitchContext(StateConsensus, errors.Wrap(err, "failed to save proposal"))
+		process = i
 	}
 
-	return sctx
+	return func(ctx context.Context) error {
+		manifest, err := process(ctx)
+		if err != nil {
+			return e(err, "")
+		}
+
+		eavp := st.lastVoteproofs().ACCEPT()
+
+		if err := st.prepareACCEPTBallot(ivp, manifest, time.Nanosecond); err != nil {
+			l.Error().Err(err).Msg("failed to prepare accept ballot")
+
+			return e(err, "")
+		}
+
+		if eavp == nil || !eavp.Point().Point.Equal(ivp.Point().Point) {
+			return nil
+		}
+
+		ll := l.With().Dict("accept_voteproof", base.VoteproofLog(eavp)).Logger()
+
+		var sctx switchContext
+
+		switch saved, err := st.handleACCEPTVoteproofAfterProcessingProposal(manifest, eavp); {
+		case saved:
+			ll.Debug().Msg("new block saved by accept voteproof after processing proposal")
+		case err == nil:
+			return nil
+		case errors.As(err, &sctx):
+		default:
+			ll.Error().Err(err).Msg("failed to save new block by accept voteproof after processing proposal")
+
+			sctx = newBrokenSwitchContext(StateConsensus, errors.Wrap(err, "failed to save proposal"))
+		}
+
+		return sctx
+	}, nil
 }
 
-func (st *ConsensusHandler) processProposalInternal(ivp base.INITVoteproof) (base.Manifest, error) {
+func (st *ConsensusHandler) processProposalInternal(ivp base.INITVoteproof) (isaac.ProcessorProcessFunc, error) {
 	e := util.StringErrorFunc("failed to process proposal")
 
 	facthash := ivp.BallotMajority().Proposal()
@@ -209,25 +231,34 @@ func (st *ConsensusHandler) processProposalInternal(ivp base.INITVoteproof) (bas
 		previous = m
 	}
 
-	switch manifest, err := st.pps.Process(st.ctx, facthash, previous, ivp); {
+	switch process, err := st.pps.Process(st.ctx, facthash, previous, ivp); {
 	case err != nil:
-		st.Log().Error().Err(err).Msg("failed to process proposal")
-
-		if errors.Is(err, context.Canceled) {
-			return nil, nil
-		}
-
-		if err0 := st.pps.Cancel(); err0 != nil {
-			return nil, e(err0, "failed to cancel proposal processors")
-		}
-
-		return nil, err
-	case manifest == nil:
+		return nil, e(err, "")
+	case process == nil:
 		return nil, nil
 	default:
-		st.Log().Debug().Msg("proposal processed")
+		return func(ctx context.Context) (base.Manifest, error) {
+			switch manifest, err := process(ctx); {
+			case err != nil:
+				st.Log().Error().Err(err).Msg("failed to process proposal")
 
-		return manifest, nil
+				if errors.Is(err, context.Canceled) {
+					return nil, nil
+				}
+
+				if err0 := st.pps.Cancel(); err0 != nil {
+					return nil, e(err0, "failed to cancel proposal processors")
+				}
+
+				return nil, err
+			case manifest == nil:
+				return nil, nil
+			default:
+				st.Log().Debug().Msg("proposal processed")
+
+				return manifest, nil
+			}
+		}, nil
 	}
 }
 
@@ -434,7 +465,12 @@ func (st *ConsensusHandler) newINITVoteproofWithLastINITVoteproof(
 			return newSyncingSwitchContext(StateConsensus, ivp.Point().Height()-1)
 		}
 
-		return st.processProposal(ivp)
+		process, err := st.processProposal(ivp)
+		if err != nil {
+			return err
+		}
+
+		return process(st.ctx)
 	default:
 		l.Debug().Msg("new init voteproof draw; moves to next round")
 
@@ -477,7 +513,12 @@ func (st *ConsensusHandler) newINITVoteproofWithLastACCEPTVoteproof(
 		}
 	}
 
-	return st.processProposal(ivp)
+	process, err := st.processProposal(ivp)
+	if err != nil {
+		return err
+	}
+
+	return process(st.ctx)
 }
 
 func (st *ConsensusHandler) newACCEPTVoteproofWithLastINITVoteproof(

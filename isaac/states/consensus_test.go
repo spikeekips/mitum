@@ -345,15 +345,26 @@ func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailed() {
 		return t.PRPool.ByHash(facthash)
 	})
 
-	_, err := st.enter(newConsensusSwitchContext(StateJoining, ivp))
-	t.Error(err)
+	sctxch := make(chan switchContext, 1)
+	st.switchStateFunc = func(sctx switchContext) error {
+		sctxch <- sctx
+		return nil
+	}
 
-	var sctx switchContext
-	t.True(errors.As(err, &sctx))
+	deferred, err := st.enter(newConsensusSwitchContext(StateJoining, ivp))
+	t.NoError(err)
+	deferred()
 
-	t.Equal(StateConsensus, sctx.from())
-	t.Equal(StateBroken, sctx.next())
-	t.ErrorContains(sctx, "hahaha")
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("timeout to wait switch context"))
+
+		return
+	case sctx := <-sctxch:
+		t.Equal(StateConsensus, sctx.from())
+		t.Equal(StateBroken, sctx.next())
+		t.ErrorContains(sctx, "hahaha")
+	}
 }
 
 func (t *testConsensusHandler) TestProcessingProposalWithACCEPTVoteproof() {
@@ -455,15 +466,21 @@ func (t *testConsensusHandler) TestProcessingProposalWithWrongNewBlockACCEPTVote
 		return nil
 	}
 
-	_, err := st.enter(newConsensusSwitchContext(StateJoining, ivp))
-	t.Error(err)
+	deferred, err := st.enter(newConsensusSwitchContext(StateJoining, ivp))
+	t.NoError(err)
+	deferred()
 
-	var ssctx syncingSwitchContext
-	t.True(errors.As(err, &ssctx))
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("timeout to wait to switch syncing state"))
+	case err := <-sctxch:
+		var ssctx syncingSwitchContext
+		t.True(errors.As(err, &ssctx))
 
-	t.Equal(avp.Point().Height(), ssctx.height)
+		t.Equal(avp.Point().Height(), ssctx.height)
 
-	t.Nil(st.pps.Processor())
+		t.Nil(st.pps.Processor())
+	}
 }
 
 func (t *testConsensusHandler) TestWithBallotbox() {

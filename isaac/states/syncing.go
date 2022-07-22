@@ -141,16 +141,16 @@ func (st *SyncingHandler) newVoteproof(vp base.Voteproof) error {
 		return nil
 	}
 
-	if err := st.checkFinished(vp); err != nil {
+	if _, err := st.checkFinished(vp); err != nil {
 		return e(err, "")
 	}
 
 	return nil
 }
 
-func (st *SyncingHandler) checkFinished(vp base.Voteproof) error {
+func (st *SyncingHandler) checkFinished(vp base.Voteproof) (inconsensusnodes bool, _ error) {
 	if vp == nil {
-		return nil
+		return false, nil
 	}
 
 	st.finishedLock.Lock()
@@ -158,37 +158,50 @@ func (st *SyncingHandler) checkFinished(vp base.Voteproof) error {
 
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(vp)).Logger()
 
+	height := vp.Point().Height()
+
+	if vp.Point().Stage() == base.StageINIT {
+		height--
+	}
+
+	_ = st.add(height)
+
 	top, isfinished := st.syncer.IsFinished()
+
+	switch _, found, err := st.nodeInConsensusNodes(st.local, top+1); {
+	case err != nil:
+		st.Log().Error().Err(err).Msg("failed to get consensus nodes after syncer finished")
+
+		return false, err
+	case !found:
+		st.Log().Debug().Msg("local is not in consensus nodes after syncer finished; keep syncing")
+
+		return false, nil
+	default:
+		st.Log().Debug().Msg("local is in consensus nodes after syncer finished")
+	}
 
 	switch {
 	case vp.Point().Height() < top:
-		return nil
+		return true, nil
 	case vp.Point().Stage() == base.StageINIT && vp.Point().Height() == top+1:
 		if !isfinished {
 			l.Debug().Msg("expected init voteproof found; but not yet finished")
 
-			return nil
+			return true, nil
 		}
 
 		// NOTE expected init voteproof found, moves to consensus state
 		l.Debug().Msg("expected init voteproof found; moves to consensus state")
 
-		return newConsensusSwitchContext(
+		return true, newConsensusSwitchContext(
 			StateSyncing, vp.(base.INITVoteproof)) //nolint:forcetypeassert //...
 	case isfinished && vp.Point().Stage() == base.StageACCEPT && vp.Point().Height() == top:
 		st.newStuckCancel(vp)
 
-		return nil
+		return true, nil
 	default:
-		height := vp.Point().Height()
-
-		if vp.Point().Stage() == base.StageINIT {
-			height--
-		}
-
-		_ = st.add(height)
-
-		return nil
+		return true, nil
 	}
 }
 
@@ -218,24 +231,17 @@ end:
 		case top := <-sc.Finished():
 			st.Log().Debug().Interface("height", top).Msg("syncer finished")
 
-			switch _, found, eerr := st.nodeInConsensusNodes(st.local, top+1); {
-			case eerr != nil:
-				st.Log().Error().Err(eerr).Msg("failed to get consensus nodes after syncer finished")
+			st.whenFinishedf(top)
 
-				continue end
-			case !found:
-				st.Log().Debug().Msg("local is not in consensus nodes after syncer finished; keep syncing")
+			var inconsensusnodes bool
+
+			switch inconsensusnodes, err = st.checkFinished(st.lastVoteproofs().Cap()); {
+			case err != nil:
+			case !inconsensusnodes:
+				st.cancelstuck()
 
 				continue end
 			default:
-				st.Log().Debug().Msg("local is in consensus nodes after syncer finished")
-			}
-
-			st.whenFinishedf(top)
-
-			st.cancelstuck()
-
-			if err = st.checkFinished(st.lastVoteproofs().Cap()); err == nil {
 				continue end
 			}
 		}
