@@ -32,8 +32,8 @@ type DefaultNodeInfo struct {
 	lastStartedAt time.Time
 	id            string
 	networkID     base.NetworkID
-	version       util.Version
 	hint.BaseHinter
+	version util.Version
 }
 
 func NewDefaultNodeInfo(id string, networkID base.NetworkID, version util.Version) DefaultNodeInfo {
@@ -115,8 +115,8 @@ type defaultNodeInfoJSONMarshaler struct {
 	CreatedAt     localtime.Time `json:"created_at"`
 	NetworkID     base.NetworkID `json:"network_id"`
 	LastStartedAt localtime.Time `json:"last_started_at"`
-	Version       util.Version   `json:"version"`
 	hint.BaseHinter
+	Version util.Version `json:"version"`
 }
 
 func (info DefaultNodeInfo) MarshalJSON() ([]byte, error) {

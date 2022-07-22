@@ -248,7 +248,6 @@ type ProposalMaker struct {
 	policy        base.NodePolicy
 	pool          ProposalPool
 	getOperations func(context.Context) ([]util.Hash, error)
-	// FIXME filter invalid operations
 	sync.Mutex
 }
 

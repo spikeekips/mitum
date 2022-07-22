@@ -1,6 +1,8 @@
 package launch
 
 import (
+	"bytes"
+
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
@@ -65,18 +67,19 @@ var Hinters = []encoder.DecodeDetail{
 	{Hint: isaacoperation.GenesisNetworkPolicyFactHint, Instance: isaacoperation.GenesisNetworkPolicyFact{}},
 	{Hint: isaacoperation.GenesisNetworkPolicyHint, Instance: isaacoperation.GenesisNetworkPolicy{}},
 	{Hint: isaacoperation.SuffrageCandidateFactHint, Instance: isaacoperation.SuffrageCandidateFact{}},
-	{Hint: isaacoperation.SuffrageCandidateHint, Instance: isaacoperation.SuffrageCandidate{}},
 	{Hint: isaacoperation.SuffrageGenesisJoinHint, Instance: isaacoperation.SuffrageGenesisJoin{}},
 	{
 		Hint:     isaacoperation.SuffrageGenesisJoinFactHint,
 		Instance: isaacoperation.SuffrageGenesisJoinFact{},
 	},
-	{Hint: isaacoperation.SuffrageJoinHint, Instance: isaacoperation.SuffrageJoin{}},
 	{Hint: isaacoperation.SuffrageJoinFactHint, Instance: isaacoperation.SuffrageJoinFact{}},
 	{Hint: quicmemberlist.NodeHint, Instance: quicmemberlist.BaseNode{}},
 }
 
-// FIXME set valid operation hinters for proposal processor.
+var SupportedProposalOperationHinters = []encoder.DecodeDetail{
+	{Hint: isaacoperation.SuffrageCandidateHint, Instance: isaacoperation.SuffrageCandidate{}},
+	{Hint: isaacoperation.SuffrageJoinHint, Instance: isaacoperation.SuffrageJoin{}},
+}
 
 func LoadHinters(enc encoder.Encoder) error {
 	for i := range Hinters {
@@ -85,5 +88,29 @@ func LoadHinters(enc encoder.Encoder) error {
 		}
 	}
 
+	for i := range SupportedProposalOperationHinters {
+		if err := enc.Add(Hinters[i]); err != nil {
+			return errors.Wrap(err, "failed to add to encoder")
+		}
+	}
+
 	return nil
+}
+
+func IsSupportedProposalOperationHintFunc() func(hintbytes []byte) bool {
+	supportedProposalOperationHintersBytes := make([][]byte, len(SupportedProposalOperationHinters))
+
+	for i := range SupportedProposalOperationHinters {
+		supportedProposalOperationHintersBytes[i] = SupportedProposalOperationHinters[i].Hint.Bytes()
+	}
+
+	return func(b []byte) bool {
+		for i := range supportedProposalOperationHintersBytes {
+			if bytes.HasPrefix(b, supportedProposalOperationHintersBytes[i]) {
+				return true
+			}
+		}
+
+		return false
+	}
 }

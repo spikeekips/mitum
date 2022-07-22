@@ -100,6 +100,7 @@ func (fact *DummyOperationFact) DecodeJSON(b []byte, _ *jsonenc.Encoder) error {
 }
 
 type DummyOperation struct {
+	hint.BaseHinter
 	h          util.Hash
 	fact       DummyOperationFact
 	signed     base.BaseSigned
@@ -117,11 +118,10 @@ func NewDummyOperation(fact DummyOperationFact, priv base.Privatekey, networkID 
 		return DummyOperation{}, errors.Wrap(err, "failed to sign DummyOperation")
 	}
 
-	return DummyOperation{h: valuehash.RandomSHA256(), fact: fact, signed: signed}, nil
-}
-
-func (op DummyOperation) Hint() hint.Hint {
-	return DummyOperationHint
+	return DummyOperation{
+		BaseHinter: hint.NewBaseHinter(DummyOperationHint),
+		h:          valuehash.RandomSHA256(), fact: fact, signed: signed,
+	}, nil
 }
 
 func (op DummyOperation) Hash() util.Hash {

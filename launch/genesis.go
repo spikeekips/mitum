@@ -108,14 +108,14 @@ func (g *GenesisBlockGenerator) generateOperations() error {
 			return errors.Errorf("fact does not support Hinter")
 		}
 
-		switch ht := hinter.Hint(); ht {
-		case isaacoperation.SuffrageGenesisJoinFactHint:
+		switch ht := hinter.Hint(); {
+		case ht.IsCompatible(isaacoperation.SuffrageGenesisJoinFactHint):
 			if _, found := types[ht.String()]; found {
 				return errors.Errorf("multiple join operation found")
 			}
 
 			g.ops[i], err = g.joinOperation(fact)
-		case isaacoperation.GenesisNetworkPolicyFactHint:
+		case ht.IsCompatible(isaacoperation.GenesisNetworkPolicyFactHint):
 			if _, found := types[ht.String()]; found {
 				return errors.Errorf("multiple network policy operation found")
 			}

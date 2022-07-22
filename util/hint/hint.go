@@ -21,11 +21,15 @@ type Hinter interface {
 
 type Hint struct {
 	t Type
+	s string
+	b []byte
 	v util.Version
 }
 
 func NewHint(t Type, v util.Version) Hint {
-	return Hint{t: t, v: v}
+	s := hintString(t, v)
+
+	return Hint{t: t, v: v, s: s, b: []byte(s)}
 }
 
 // EnsureParseHint tries to parse hint string, but skips to check IsValid().
@@ -76,6 +80,10 @@ func (ht Hint) IsValid([]byte) error {
 		return util.ErrInvalid.Errorf("too long version in hint, %d > %d", l, MaxVersionLength)
 	}
 
+	if len(ht.s) < 1 || len(ht.b) < 1 {
+		return util.ErrInvalid.Errorf("empty string or bytes")
+	}
+
 	return nil
 }
 
@@ -88,11 +96,11 @@ func (ht Hint) Version() util.Version {
 }
 
 func (ht Hint) Bytes() []byte {
-	return []byte(ht.String())
+	return ht.b
 }
 
 func (ht Hint) String() string {
-	return fmt.Sprintf("%s-%s", ht.t, ht.v)
+	return ht.s
 }
 
 func (ht Hint) Equal(b Hint) bool {
@@ -114,11 +122,15 @@ func (ht Hint) IsEmpty() bool {
 }
 
 func (ht Hint) MarshalText() ([]byte, error) {
-	return []byte(ht.String()), nil
+	return ht.b, nil
 }
 
 func (ht *Hint) UnmarshalText(b []byte) error {
 	*ht = EnsureParseHint(string(b))
 
 	return nil
+}
+
+func hintString(t Type, v util.Version) string {
+	return fmt.Sprintf("%s-%s", t, v)
 }

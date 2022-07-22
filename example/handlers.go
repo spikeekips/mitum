@@ -24,6 +24,8 @@ var (
 )
 
 func (cmd *runCommand) networkHandlers() *quicstream.PrefixHandler {
+	operationfilterf := launch.IsSupportedProposalOperationHintFunc()
+
 	handlers := isaacnetwork.NewQuicstreamHandlers(
 		cmd.local,
 		cmd.nodePolicy,
@@ -139,6 +141,9 @@ func (cmd *runCommand) networkHandlers() *quicstream.PrefixHandler {
 		},
 		cmd.db.State,
 		cmd.db.ExistsInStateOperation,
+		func(op base.Operation) bool {
+			return operationfilterf(op.Hint().Bytes())
+		},
 	)
 
 	prefix := launch.Handlers(handlers)

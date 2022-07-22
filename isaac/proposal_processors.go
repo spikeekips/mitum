@@ -76,8 +76,35 @@ func (pps *ProposalProcessors) Process(
 	case p == nil:
 		return nil, nil
 	default:
+		ch := make(chan [2]interface{}, 1)
+
+		go func() {
+			m, err := pps.runProcessor(ctx, p, ivp)
+
+			ch <- [2]interface{}{m, err}
+		}()
+
 		return func(ctx context.Context) (base.Manifest, error) {
-			return pps.runProcessor(ctx, p, ivp)
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case i := <-ch:
+				j, k := i[0], i[1]
+
+				var err error
+
+				if k != nil {
+					err = k.(error) //nolint:forcetypeassert //...
+				}
+
+				var m base.Manifest
+
+				if j != nil {
+					m = j.(base.Manifest) //nolint:forcetypeassert //...
+				}
+
+				return m, err
+			}
 		}, nil
 	}
 }

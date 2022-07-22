@@ -27,6 +27,7 @@ type QuicstreamHandlers struct {
 	syncSourceConnInfof     func() ([]isaac.NodeConnInfo, error)
 	statef                  func(string) (base.State, bool, error)
 	existsInStateOperationf func(util.Hash) (bool, error)
+	filterSendOperationf    func(base.Operation) bool
 	local                   base.LocalNode
 	nodepolicy              isaac.NodePolicy
 }
@@ -49,6 +50,7 @@ func NewQuicstreamHandlers( // revive:disable-line:argument-limit
 	syncSourceConnInfof func() ([]isaac.NodeConnInfo, error),
 	statef func(string) (base.State, bool, error),
 	existsInStateOperationf func(util.Hash) (bool, error),
+	filterSendOperationf func(base.Operation) bool,
 ) *QuicstreamHandlers {
 	return &QuicstreamHandlers{
 		baseNetwork:             newBaseNetwork(encs, enc, idleTimeout),
@@ -66,6 +68,7 @@ func NewQuicstreamHandlers( // revive:disable-line:argument-limit
 		syncSourceConnInfof:     syncSourceConnInfof,
 		statef:                  statef,
 		existsInStateOperationf: existsInStateOperationf,
+		filterSendOperationf:    filterSendOperationf,
 	}
 }
 
@@ -138,6 +141,10 @@ func (c *QuicstreamHandlers) SendOperation(_ net.Addr, r io.Reader, w io.Writer)
 
 	if err = op.IsValid(c.nodepolicy.NetworkID()); err != nil {
 		return e(err, "")
+	}
+
+	if !c.filterSendOperationf(op) {
+		return e(nil, "not supported operation, %q", op.Hint())
 	}
 
 	added, err := c.oppool.SetNewOperation(context.Background(), op)

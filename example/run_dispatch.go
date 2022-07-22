@@ -24,10 +24,8 @@ import (
 )
 
 var (
-	genesisNetworkPolicyFactHintBytes = isaacoperation.GenesisNetworkPolicyFactHint.Bytes()
-	suffrageGenesisJoinFactHintBytes  = isaacoperation.SuffrageGenesisJoinFactHint.Bytes()
-	suffrageCandidateFactHintBytes    = isaacoperation.SuffrageCandidateFactHint.Bytes()
-	suffrageJoinFactHintBytes         = isaacoperation.SuffrageJoinFactHint.Bytes()
+	suffrageCandidateHintBytes = isaacoperation.SuffrageCandidateHint.Bytes()
+	suffrageJoinHintBytes      = isaacoperation.SuffrageJoinHint.Bytes()
 )
 
 func (cmd *runCommand) getSuffrageFunc() isaac.GetSuffrageByBlockHeight {
@@ -83,6 +81,8 @@ func (cmd *runCommand) getManifestFunc() func(height base.Height) (base.Manifest
 }
 
 func (cmd *runCommand) proposalMaker() *isaac.ProposalMaker {
+	operationfilterf := launch.IsSupportedProposalOperationHintFunc()
+
 	return isaac.NewProposalMaker(
 		cmd.local,
 		cmd.nodePolicy,
@@ -104,9 +104,7 @@ func (cmd *runCommand) proposalMaker() *isaac.ProposalMaker {
 				n,
 				func(operationhash, facthash util.Hash, header isaac.PoolOperationHeader) (bool, error) {
 					// NOTE filter genesis operations
-					switch ht := header.HintBytes(); {
-					case bytes.HasPrefix(ht, genesisNetworkPolicyFactHintBytes),
-						bytes.HasPrefix(ht, suffrageGenesisJoinFactHintBytes):
+					if !operationfilterf(header.HintBytes()) {
 						return false, nil
 					}
 
@@ -143,8 +141,8 @@ func (cmd *runCommand) proposalMaker() *isaac.ProposalMaker {
 
 					// NOTE filter by PoolOperationHeader
 					switch ht := header.HintBytes(); {
-					case bytes.HasPrefix(ht, suffrageCandidateFactHintBytes),
-						bytes.HasPrefix(ht, suffrageJoinFactHintBytes):
+					case bytes.HasPrefix(ht, suffrageCandidateHintBytes),
+						bytes.HasPrefix(ht, suffrageJoinHintBytes):
 						addedat, err := util.BytesToInt64(header.AddedAt())
 						if err != nil {
 							return false, nil
@@ -193,14 +191,14 @@ func (cmd *runCommand) proposalSelectorFunc() *isaac.BaseProposalSelector {
 		// 		Int("number_nodes", len(nodes)).
 		// 		Interface("nodes", nodes).
 		// 		Msg("selecting proposer from the given nodes")
-
+		//
 		// 	for i := range nodes {
 		// 		n := nodes[i]
 		// 		if n.Address().String() == "no0sas" {
 		// 			return n, nil
 		// 		}
 		// 	}
-
+		//
 		// 	return nil, errors.Errorf("no0sas not found")
 		// }),
 		proposalMaker,

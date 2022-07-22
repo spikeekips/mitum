@@ -189,6 +189,7 @@ func (t *testQuicstreamHandlers) TestSendOperation() {
 	defer pool.Close()
 
 	handlers := newQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second)
+	handlers.filterSendOperationf = func(base.Operation) bool { return true }
 	handlers.oppool = pool
 
 	ci := quicstream.NewUDPConnInfo(nil, true)
@@ -204,6 +205,15 @@ func (t *testQuicstreamHandlers) TestSendOperation() {
 		updated, err := c.SendOperation(context.Background(), ci, op)
 		t.NoError(err)
 		t.False(updated)
+	})
+
+	t.Run("filtered", func() {
+		handlers.filterSendOperationf = func(base.Operation) bool { return false }
+
+		updated, err := c.SendOperation(context.Background(), ci, op)
+		t.Error(err)
+		t.False(updated)
+		t.ErrorContains(err, "not supported operation")
 	})
 }
 

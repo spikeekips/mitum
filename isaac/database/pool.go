@@ -287,7 +287,7 @@ func newOperationHeader(op base.Operation) [300]byte {
 
 	copy(b[1:11], util.Int64ToBytes(localtime.UTCNow().UnixNano())) // NOTE added timestamp(10)
 
-	if i, ok := op.Fact().(hint.Hinter); ok {
+	if i, ok := op.(hint.Hinter); ok {
 		copy(b[11:], i.Hint().Bytes())
 	}
 
