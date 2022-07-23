@@ -163,10 +163,14 @@ func (t *testProposalProcessors) TestCancelPrevious() {
 	t.T().Log("process")
 	go func() {
 		processf, err := pps.Process(context.Background(), pr.Fact().Hash(), previous, nil)
-		t.NoError(err)
+		if err != nil {
+			panic(err)
+		}
 
 		_, err = processf(context.Background())
-		t.NoError(err)
+		if err != nil {
+			panic(err)
+		}
 	}()
 
 	select {

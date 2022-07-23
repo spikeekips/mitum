@@ -13,9 +13,8 @@ import (
 )
 
 var rwDBOOptions = &leveldbOpt.Options{
-	ErrorIfExist:   false,
-	ErrorIfMissing: false,
-	// WriteBuffer:    math.MaxInt32,
+	ErrorIfExist:        false,
+	ErrorIfMissing:      false,
 	NoSync:              true,
 	Filter:              leveldbfilter.NewBloomFilter(1 << 13),
 	CompactionTableSize: 128 * leveldbOpt.MiB,
