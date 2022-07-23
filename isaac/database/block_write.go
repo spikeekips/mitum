@@ -56,6 +56,23 @@ func newLeveldbBlockWrite(
 	}
 }
 
+func (db *LeveldbBlockWrite) Close() error {
+	if err := db.baseLeveldb.Close(); err != nil {
+		return err
+	}
+
+	db.Lock()
+	defer db.Unlock()
+
+	db.mp = nil
+	db.sufst = nil
+	db.policy = nil
+	db.proof = nil
+	db.laststates = nil
+
+	return nil
+}
+
 func (db *LeveldbBlockWrite) Cancel() error {
 	db.laststates.Close()
 

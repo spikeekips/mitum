@@ -172,6 +172,8 @@ func (pps *ProposalProcessors) close() error {
 		return nil
 	}
 
+	_ = pps.p.Cancel()
+
 	pps.p = nil
 
 	return nil

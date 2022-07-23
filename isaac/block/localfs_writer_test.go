@@ -190,11 +190,11 @@ func (t *testLocalFSWriter) TestSave() {
 	t.NoError(fs.SetINITVoteproof(context.Background(), ivp))
 	t.NoError(fs.SetACCEPTVoteproof(context.Background(), avp))
 
+	newroot := filepath.Join(fs.root, fs.heightbase)
+
 	m, err := fs.Save(context.Background())
 	t.NoError(err)
 	t.NotNil(m)
-
-	newroot := filepath.Join(fs.root, fs.heightbase)
 
 	{
 		t.walkDirectory(newroot)
@@ -252,7 +252,7 @@ func (t *testLocalFSWriter) TestSave() {
 		um, ok := hinter.(base.BlockMap)
 		t.True(ok)
 
-		base.EqualBlockMap(t.Assert(), fs.m, um)
+		base.EqualBlockMap(t.Assert(), m, um)
 	})
 }
 

@@ -196,11 +196,13 @@ func (p *DefaultProposalProcessor) Cancel() error {
 	p.Lock()
 	defer p.Unlock()
 
-	p.close()
-
-	if err := p.writer.Cancel(); err != nil {
-		return errors.Wrap(err, "failed to cancel DefaultProposalProcessor")
+	if p.writer != nil {
+		if err := p.writer.Cancel(); err != nil {
+			return errors.Wrap(err, "failed to cancel DefaultProposalProcessor")
+		}
 	}
+
+	p.close()
 
 	return nil
 }
@@ -211,6 +213,18 @@ func (p *DefaultProposalProcessor) close() {
 	}
 
 	p.cancel()
+
+	p.writer = nil
+	p.ivp = nil
+	p.proposal = nil
+	p.previous = nil
+	p.newOperationProcessor = nil
+	p.getStateFunc = nil
+	p.getOperation = nil
+	p.setLastVoteproofsFunc = nil
+	p.oprs = nil
+	p.cancel = nil
+	p.cops = nil
 }
 
 func (p *DefaultProposalProcessor) isCanceled() bool {
@@ -531,8 +545,10 @@ func (p *DefaultProposalProcessor) getProcessor(ctx context.Context, op base.Ope
 		}, nil
 	}
 
+	getStateFunc := p.getStateFunc
+
 	return func(ctx context.Context) ([]base.StateMergeValue, base.OperationProcessReasonError, error) {
-		return op.Process(ctx, p.getStateFunc) //nolint:wrapcheck //...
+		return op.Process(ctx, getStateFunc) //nolint:wrapcheck //...
 	}, nil
 }
 

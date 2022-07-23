@@ -192,6 +192,9 @@ func (t *testLocalFSReader) TestNew() {
 
 	point := base.RawPoint(33, 44)
 	fs, _, _, _, _, _, _ := t.preparefs(point)
+
+	root := filepath.Join(fs.root, fs.heightbase)
+
 	_, err := fs.Save(ctx)
 	t.NoError(err)
 
@@ -201,7 +204,7 @@ func (t *testLocalFSReader) TestNew() {
 
 	_ = (interface{})(r).(isaac.BlockReader)
 
-	t.Equal(filepath.Join(fs.root, fs.heightbase), r.root)
+	t.Equal(root, r.root)
 }
 
 func (t *testLocalFSReader) TestMap() {

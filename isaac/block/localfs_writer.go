@@ -337,7 +337,13 @@ func (w *LocalFSWriter) save(context.Context) (base.BlockMap, error) {
 		return nil, e(err, "")
 	}
 
-	return w.m, nil
+	m := w.m
+
+	if err := w.close(); err != nil {
+		return nil, e(err, "")
+	}
+
+	return m, nil
 }
 
 func (w *LocalFSWriter) Cancel() error {
@@ -346,20 +352,32 @@ func (w *LocalFSWriter) Cancel() error {
 
 	if w.opsf != nil {
 		_ = w.opsf.Close()
-		w.opsf = nil
 	}
 
 	if w.stsf != nil {
 		_ = w.stsf.Close()
-		w.stsf = nil
 	}
-
-	w.lenops = 0
 
 	e := util.StringErrorFunc("failed to cancel fs writer")
 	if err := os.RemoveAll(w.temp); err != nil {
 		return e(err, "failed to remove temp directory")
 	}
+
+	return w.close()
+}
+
+func (w *LocalFSWriter) close() error {
+	w.vps = [2]base.Voteproof{}
+	w.local = nil
+	w.opsf = nil
+	w.stsf = nil
+	w.enc = nil
+	w.root = ""
+	w.id = ""
+	w.heightbase = ""
+	w.temp = ""
+	w.m = BlockMap{}
+	w.lenops = 0
 
 	return nil
 }

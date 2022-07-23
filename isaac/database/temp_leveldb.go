@@ -104,6 +104,22 @@ func newTempLeveldbFromBlockWriteStorage(wst *LeveldbBlockWrite) (*TempLeveldb, 
 	}, nil
 }
 
+func (db *TempLeveldb) Close() error {
+	if err := db.baseLeveldb.Close(); err != nil {
+		return err
+	}
+
+	db.Lock()
+	defer db.Unlock()
+
+	db.mp = nil
+	db.sufst = nil
+	db.policy = nil
+	db.proof = nil
+
+	return nil
+}
+
 func (db *TempLeveldb) Height() base.Height {
 	if db.mp == nil {
 		return base.NilHeight

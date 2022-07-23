@@ -399,6 +399,10 @@ func (w *Writer) Save(ctx context.Context) (base.BlockMap, error) {
 		return nil, e(err, "")
 	}
 
+	if err := w.close(); err != nil {
+		return nil, e(err, "")
+	}
+
 	return m, nil
 }
 
@@ -414,6 +418,22 @@ func (w *Writer) Cancel() error {
 	if err := w.db.Cancel(); err != nil {
 		return e(err, "")
 	}
+
+	return w.close()
+}
+
+func (w *Writer) close() error {
+	w.manifest = nil
+	w.proposal = nil
+	w.opstreeroot = nil
+	w.db = nil
+	w.fswriter = nil
+	w.avp = nil
+	w.mergeDatabase = nil
+	w.opstreeg = nil
+	w.getStateFunc = nil
+	w.states = nil
+	w.ststree = fixedtree.Tree{}
 
 	return nil
 }

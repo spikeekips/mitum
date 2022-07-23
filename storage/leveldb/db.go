@@ -84,6 +84,10 @@ func (st *BaseStorage) Remove() error {
 func (st *BaseStorage) close() error {
 	e := util.StringErrorFunc("failed to close leveldb")
 
+	if st.str == nil {
+		return nil
+	}
+
 	switch err := st.str.Close(); {
 	case err == nil:
 	case errors.Is(err, leveldbStorage.ErrClosed):
@@ -94,6 +98,9 @@ func (st *BaseStorage) close() error {
 
 	switch err := st.db.Close(); {
 	case err == nil:
+		st.str = nil
+		st.db = nil
+
 		return nil
 	case errors.Is(err, leveldb.ErrClosed):
 		return nil

@@ -62,6 +62,8 @@ func (db *baseLeveldb) Close() error {
 		return errors.Wrap(err, "failed to close baseDatabase")
 	}
 
+	db.st = nil
+
 	return nil
 }
 

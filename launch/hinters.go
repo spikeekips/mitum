@@ -77,7 +77,7 @@ var Hinters = []encoder.DecodeDetail{
 	{Hint: quicmemberlist.NodeHint, Instance: quicmemberlist.BaseNode{}},
 }
 
-var SupportedProposalOperationFactHinters = []encoder.DecodeDetail{ // FIXME use fact
+var SupportedProposalOperationFactHinters = []encoder.DecodeDetail{
 	{Hint: isaacoperation.SuffrageCandidateFactHint, Instance: isaacoperation.SuffrageCandidateFact{}},
 	{Hint: isaacoperation.SuffrageJoinFactHint, Instance: isaacoperation.SuffrageJoinFact{}},
 }
