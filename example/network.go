@@ -49,6 +49,8 @@ func init() {
 		isaacnetwork.HandlerPrefixSendOperation:    isaacnetwork.NewSendOperationRequestHeader(),
 		HandlerPrefixRequestState:                  NewStateRequestHeader(isaac.SuffrageStateKey),
 		HandlerPrefixRequestExistsInStateOperation: NewExistsInStateOperationRequestHeader(valuehash.RandomSHA256()),
+		launch.HandlerPrefixPprof: launch.NewPprofRequestHeader(
+			"heap", 5), //nolint:gomnd //...
 	}
 }
 
@@ -103,28 +105,50 @@ func (cmd *networkClientCommand) Run() error {
 		return cmd.dryRun(header)
 	}
 
+	return cmd.response(header)
+}
+
+func (cmd *networkClientCommand) response(header isaac.NetworkHeader) error {
 	client := launch.NewNetworkClient(cmd.encs, cmd.enc, cmd.Timeout) //nolint:gomnd //...
 
-	ctx, cancel := context.WithTimeout(context.Background(), cmd.Timeout)
-	defer cancel()
+	response, v, cancel, err := client.Request(context.Background(), cmd.remote, header, cmd.body)
 
-	response, v, err := client.Request(ctx, cmd.remote, header, cmd.body)
+	switch {
+	case err != nil:
+		log.Error().Err(err).Interface("response", response).Msg("got respond")
 
-	var errstring string
-	if err != nil {
-		errstring = err.Error()
-	}
+		return err
+	case response.Err() != nil:
+		log.Error().Err(err).Interface("response", response).Msg("got respond")
 
-	b, err := util.MarshalJSON(map[string]interface{}{
-		"response": response,
-		"v":        v,
-		"error":    errstring,
-	})
-	if err != nil {
 		return err
 	}
 
-	_, _ = fmt.Fprintln(os.Stdout, string(b))
+	defer func() {
+		_ = cancel()
+	}()
+
+	log.Info().Interface("response", response).Msg("got respond")
+
+	switch response.Type() {
+	case isaac.NetworkResponseHinterContentType:
+		b, err := util.MarshalJSONIndent(v)
+		if err != nil {
+			return err
+		}
+
+		_, _ = fmt.Fprintln(os.Stdout, string(b))
+	case isaac.NetworkResponseRawContentType:
+		r, ok := v.(io.Reader)
+		if !ok {
+			return errors.Errorf("expected io.Reader, but %T", v)
+		}
+
+		_, err := io.Copy(os.Stdout, r)
+		if err != nil {
+			return errors.Wrap(err, "")
+		}
+	}
 
 	return nil
 }
@@ -150,6 +174,10 @@ func (cmd *networkClientCommand) prepare() error {
 	}
 
 	cmd.remote = ci
+
+	if cmd.Timeout < 1 {
+		cmd.Timeout = time.Second * 5 //nolint:gomnd //...
+	}
 
 	return nil
 }

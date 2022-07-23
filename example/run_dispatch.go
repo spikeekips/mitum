@@ -81,7 +81,7 @@ func (cmd *runCommand) getManifestFunc() func(height base.Height) (base.Manifest
 }
 
 func (cmd *runCommand) proposalMaker() *isaac.ProposalMaker {
-	operationfilterf := launch.IsSupportedProposalOperationHintFunc()
+	operationfilterf := launch.IsSupportedProposalOperationFactHintFunc()
 
 	return isaac.NewProposalMaker(
 		cmd.local,

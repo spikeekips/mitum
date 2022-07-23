@@ -13,7 +13,7 @@ import (
 )
 
 type QuicstreamClient struct {
-	*baseNetworkClient
+	*BaseNetworkClient
 	client     *quicstream.PoolClient
 	quicconfig *quic.Config
 	proto      string
@@ -27,13 +27,13 @@ func NewQuicstreamClient(
 	quicconfig *quic.Config,
 ) *QuicstreamClient {
 	c := &QuicstreamClient{
-		baseNetworkClient: newBaseNetworkClient(encs, enc, idleTimeout, nil),
+		BaseNetworkClient: NewBaseNetworkClient(encs, enc, idleTimeout, nil),
 		client:            quicstream.NewPoolClient(),
 		proto:             proto,
 		quicconfig:        quicconfig,
 	}
 
-	c.baseNetworkClient.writef = func(
+	c.BaseNetworkClient.writef = func(
 		ctx context.Context,
 		ci quicstream.UDPConnInfo,
 		writef quicstream.ClientWriteFunc,

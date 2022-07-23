@@ -3,6 +3,7 @@ package isaacnetwork
 import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
 )
@@ -461,7 +462,8 @@ func (ExistsInStateOperationRequestHeader) HandlerPrefix() string {
 }
 
 type ResponseHeader struct {
-	err error
+	ctype isaac.NetworkResponseContentType
+	err   error
 	BaseHeader
 	ok bool
 }
@@ -474,12 +476,25 @@ func NewResponseHeader(ok bool, err error) ResponseHeader {
 	}
 }
 
+func NewResponseHeaderWithType(ok bool, err error, ctype isaac.NetworkResponseContentType) ResponseHeader {
+	return ResponseHeader{
+		BaseHeader: NewBaseHeader(ResponseHeaderHint),
+		ok:         ok,
+		err:        err,
+		ctype:      ctype,
+	}
+}
+
 func (r ResponseHeader) OK() bool {
 	return r.ok
 }
 
 func (r ResponseHeader) Err() error {
 	return r.err
+}
+
+func (r ResponseHeader) Type() isaac.NetworkResponseContentType {
+	return r.ctype
 }
 
 func baseHeaderPrefixByHint(ht hint.Hint) string {

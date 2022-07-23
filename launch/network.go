@@ -59,7 +59,7 @@ func DefaultQuicConfig() *quic.Config {
 	}
 }
 
-func Handlers(handlers *isaacnetwork.QuicstreamHandlers) *quicstream.PrefixHandler {
+func Handlers(encs *encoder.Encoders, handlers *isaacnetwork.QuicstreamHandlers) *quicstream.PrefixHandler {
 	prefix := quicstream.NewPrefixHandler(handlers.ErrorHandler)
 	prefix.
 		Add(isaacnetwork.HandlerPrefixRequestProposal, handlers.RequestProposal).
@@ -75,7 +75,8 @@ func Handlers(handlers *isaacnetwork.QuicstreamHandlers) *quicstream.PrefixHandl
 		Add(isaacnetwork.HandlerPrefixOperation, handlers.Operation).
 		Add(isaacnetwork.HandlerPrefixSendOperation, handlers.SendOperation).
 		Add(isaacnetwork.HandlerPrefixState, handlers.State).
-		Add(isaacnetwork.HandlerPrefixExistsInStateOperation, handlers.ExistsInStateOperation)
+		Add(isaacnetwork.HandlerPrefixExistsInStateOperation, handlers.ExistsInStateOperation).
+		Add(HandlerPrefixPprof, NetworkHandlerPprofFunc(encs))
 
 	return prefix
 }

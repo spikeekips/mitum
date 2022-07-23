@@ -3,6 +3,7 @@ package isaacnetwork
 import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
@@ -465,8 +466,9 @@ func (h *ExistsInStateOperationRequestHeader) UnmarshalJSON(b []byte) error {
 }
 
 type ResponseHeaderJSONMarshaler struct {
-	Error string `json:"error,omitempty"`
-	OK    bool   `json:"ok,omitempty"`
+	Type  isaac.NetworkResponseContentType `json:"type,omitempty"`
+	Error string                           `json:"error,omitempty"`
+	OK    bool                             `json:"ok,omitempty"`
 }
 
 func (r ResponseHeader) MarshalJSON() ([]byte, error) {
@@ -483,6 +485,7 @@ func (r ResponseHeader) MarshalJSON() ([]byte, error) {
 		ResponseHeaderJSONMarshaler: ResponseHeaderJSONMarshaler{
 			OK:    r.ok,
 			Error: err,
+			Type:  r.ctype,
 		},
 	})
 }
@@ -495,6 +498,7 @@ func (r *ResponseHeader) UnmarshalJSON(b []byte) error {
 	}
 
 	r.ok = u.OK
+	r.ctype = u.Type
 
 	if len(u.Error) > 0 {
 		r.err = errors.Errorf(u.Error)

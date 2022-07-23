@@ -2,10 +2,8 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/lucas-clemente/quic-go"
@@ -57,13 +55,6 @@ func (cmd *runCommand) prepare() (func() error, error) {
 
 	if err := cmd.prepareSufrage(); err != nil {
 		return stop, e(err, "")
-	}
-
-	switch i, err := cmd.prepareProfiling(); {
-	case err != nil:
-		return stop, e(err, "")
-	default:
-		stop = i
 	}
 
 	if err := cmd.prepareStates(); err != nil {
@@ -140,13 +131,6 @@ func (cmd *runCommand) prepareDatabase() error {
 	cmd.pool = pool
 
 	return nil
-}
-
-func (cmd *runCommand) prepareProfiling() (func() error, error) {
-	return launch.StartProfile(
-		filepath.Join(cmd.design.Storage.Base, fmt.Sprintf("cpu-%s.pprof", util.ULID().String())),
-		filepath.Join(cmd.design.Storage.Base, fmt.Sprintf("mem-%s.pprof", util.ULID().String())),
-	)
 }
 
 func (cmd *runCommand) prepareNetwork() error {

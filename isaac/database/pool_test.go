@@ -206,24 +206,19 @@ func (t *testNewOperationPool) TestNewOperationHashes() {
 	pst := t.NewPool()
 	defer pst.Close()
 
-	anotherDummyOperationHint := hint.MustNewHint("another-dummy-operation-v0.0.1")
-	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: anotherDummyOperationHint, Instance: isaac.DummyOperation{}}))
+	anotherDummyOperationFactHint := hint.MustNewHint("another-dummy-fact-v0.0.1")
+	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: anotherDummyOperationFactHint, Instance: isaac.DummyOperationFact{}}))
 
 	ops := make([]base.Operation, 33)
 	var anothers []base.Operation
 	for i := range ops {
 		fact := isaac.NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
 
-		var op base.Operation
-
 		if i%10 == 0 {
-			i, _ := isaac.NewDummyOperation(fact, t.local.Privatekey(), t.networkID)
-			i.BaseHinter = i.BaseHinter.SetHint(anotherDummyOperationHint).(hint.BaseHinter)
-
-			op = i
-		} else {
-			op, _ = isaac.NewDummyOperation(fact, t.local.Privatekey(), t.networkID)
+			fact.UpdateHint(anotherDummyOperationFactHint)
 		}
+
+		op, _ := isaac.NewDummyOperation(fact, t.local.Privatekey(), t.networkID)
 
 		ops[i] = op
 		if i%10 == 0 {
@@ -305,12 +300,10 @@ func (t *testNewOperationPool) TestNewOperationHashes() {
 	t.Run("filter by header", func() {
 		filter := func(_, _ util.Hash, header isaac.PoolOperationHeader) (bool, error) {
 			// NOTE filter non-anotherDummyOperationFactHint
-			isanother := bytes.HasPrefix(
+			return bytes.HasPrefix(
 				header.HintBytes(),
-				anotherDummyOperationHint.Bytes(),
-			)
-
-			return isanother, nil
+				anotherDummyOperationFactHint.Bytes(),
+			), nil
 		}
 
 		rops, err := pst.NewOperationHashes(context.Background(), 100, filter)

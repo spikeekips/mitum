@@ -126,7 +126,7 @@ func (t *testSyncSourceChecker) TestFetchFromSuffrageNodes() {
 		return ncis, nil
 	}
 
-	client := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.clientWritef(handlers))
+	client := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.clientWritef(handlers))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -164,7 +164,7 @@ func (t *testSyncSourceChecker) TestFetchFromSyncSources() {
 		return ncis, nil
 	}
 
-	client := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.clientWritef(handlers))
+	client := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.clientWritef(handlers))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -204,7 +204,7 @@ func (t *testSyncSourceChecker) TestFetchFromNodeButFailedToSignature() {
 		return ncis, nil
 	}
 
-	client := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.clientWritef(handlers))
+	client := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.clientWritef(handlers))
 
 	checker := NewSyncSourceChecker(local, t.NodePolicy.NetworkID(), client, time.Second, t.Enc, nil, nil)
 
@@ -229,7 +229,7 @@ func (t *testSyncSourceChecker) httpserver(handler http.HandlerFunc) *httptest.S
 func (t *testSyncSourceChecker) TestFetchFromURL() {
 	ncis, handlers := t.handlers(2)
 
-	client := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.clientWritef(handlers))
+	client := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.clientWritef(handlers))
 
 	ts := t.httpserver(func(w http.ResponseWriter, r *http.Request) {
 		b, err := t.Enc.Marshal(ncis)
@@ -300,7 +300,7 @@ func (t *testSyncSourceChecker) TestCheckSameResult() {
 	})
 	defer ts.Close()
 
-	client := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.clientWritef(handlers))
+	client := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.clientWritef(handlers))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -349,7 +349,7 @@ func (t *testSyncSourceChecker) TestCheckFilterLocal() {
 		return ncis, nil
 	}
 
-	client := newBaseNetworkClient(t.Encs, t.Enc, time.Second, t.clientWritef(handlers))
+	client := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.clientWritef(handlers))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

@@ -15,69 +15,79 @@ import (
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
-type baseNetworkClientWriteFunc func(
+type BaseNetworkClientWriteFunc func(
 	ctx context.Context,
 	conninfo quicstream.UDPConnInfo,
 	writef quicstream.ClientWriteFunc,
 ) (_ io.ReadCloser, cancel func() error, _ error)
 
-type baseNetworkClient struct {
+type BaseNetworkClient struct {
 	*baseNetwork
-	writef baseNetworkClientWriteFunc
+	writef BaseNetworkClientWriteFunc
 }
 
-func newBaseNetworkClient(
+func NewBaseNetworkClient(
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
 	idleTimeout time.Duration,
-	writef baseNetworkClientWriteFunc,
-) *baseNetworkClient {
-	return &baseNetworkClient{
+	writef BaseNetworkClientWriteFunc,
+) *BaseNetworkClient {
+	return &BaseNetworkClient{
 		baseNetwork: newBaseNetwork(encs, enc, idleTimeout),
 		writef:      writef,
 	}
 }
 
-func (c *baseNetworkClient) Request(
+func (c *BaseNetworkClient) Request(
 	ctx context.Context,
 	ci quicstream.UDPConnInfo,
 	header isaac.NetworkHeader,
 	body io.Reader,
 ) (
-	isaac.NetworkResponseHeader,
-	interface{},
-	error,
+	_ isaac.NetworkResponseHeader,
+	_ interface{},
+	cancel func() error,
+	_ error,
 ) {
 	e := util.StringErrorFunc("failed to request")
 
-	r, cancel, err := c.write(ctx, ci, c.enc, header, body)
-	if err != nil {
-		return nil, false, e(err, "failed to send request")
-	}
+	cancel = func() error { return nil }
 
-	defer func() {
-		_ = cancel()
-	}()
+	r, cancelf, err := c.write(ctx, ci, c.enc, header, body)
+	if err != nil {
+		return nil, nil, cancel, e(err, "failed to send request")
+	}
 
 	h, enc, err := c.loadResponseHeader(ctx, r)
 
 	switch {
 	case err != nil:
-		return h, nil, e(err, "failed to read stream")
+		return h, nil, cancel, e(err, "failed to read stream")
 	case h.Err() != nil, !h.OK():
-		return h, nil, nil
-	default:
+		return h, nil, cancel, nil
+	}
+
+	switch h.Type() {
+	case isaac.NetworkResponseHinterContentType:
+		defer func() {
+			_ = cancelf()
+		}()
+
 		var u interface{}
 
 		if err := encoder.DecodeReader(enc, r, &u); err != nil {
-			return h, nil, e(err, "")
+			return h, nil, cancel, e(err, "")
 		}
 
-		return h, u, nil
+		return h, u, cancel, nil
+	case isaac.NetworkResponseRawContentType:
+		return h, r, cancelf, nil
+	default:
+		return nil, nil, cancel, errors.Errorf("unknown content type, %q", h.Type())
 	}
 }
 
-func (c *baseNetworkClient) Operation(
+func (c *BaseNetworkClient) Operation(
 	ctx context.Context, ci quicstream.UDPConnInfo, operationhash util.Hash,
 ) (base.Operation, bool, error) {
 	header := NewOperationRequestHeader(operationhash)
@@ -89,7 +99,7 @@ func (c *baseNetworkClient) Operation(
 	return u, found, errors.WithMessage(err, "failed to get Operation")
 }
 
-func (c *baseNetworkClient) SendOperation(
+func (c *BaseNetworkClient) SendOperation(
 	ctx context.Context,
 	ci quicstream.UDPConnInfo,
 	op base.Operation,
@@ -128,7 +138,7 @@ func (c *baseNetworkClient) SendOperation(
 	}
 }
 
-func (c *baseNetworkClient) RequestProposal(
+func (c *BaseNetworkClient) RequestProposal(
 	ctx context.Context,
 	ci quicstream.UDPConnInfo,
 	point base.Point,
@@ -171,7 +181,7 @@ func (c *baseNetworkClient) RequestProposal(
 	}
 }
 
-func (c *baseNetworkClient) Proposal( //nolint:dupl //...
+func (c *BaseNetworkClient) Proposal( //nolint:dupl //...
 	ctx context.Context,
 	ci quicstream.UDPConnInfo,
 	pr util.Hash,
@@ -213,7 +223,7 @@ func (c *baseNetworkClient) Proposal( //nolint:dupl //...
 	}
 }
 
-func (c *baseNetworkClient) LastSuffrageProof(
+func (c *BaseNetworkClient) LastSuffrageProof(
 	ctx context.Context, ci quicstream.UDPConnInfo, state util.Hash,
 ) (base.SuffrageProof, bool, error) {
 	header := NewLastSuffrageProofRequestHeader(state)
@@ -225,7 +235,7 @@ func (c *baseNetworkClient) LastSuffrageProof(
 	return u, found, errors.WithMessage(err, "failed to get last SuffrageProof")
 }
 
-func (c *baseNetworkClient) SuffrageProof( //nolint:dupl //...
+func (c *BaseNetworkClient) SuffrageProof( //nolint:dupl //...
 	ctx context.Context, ci quicstream.UDPConnInfo, suffrageheight base.Height,
 ) (base.SuffrageProof, bool, error) {
 	header := NewSuffrageProofRequestHeader(suffrageheight)
@@ -237,7 +247,7 @@ func (c *baseNetworkClient) SuffrageProof( //nolint:dupl //...
 	return u, found, errors.WithMessage(err, "failed to get SuffrageProof")
 }
 
-func (c *baseNetworkClient) LastBlockMap( //nolint:dupl //...
+func (c *BaseNetworkClient) LastBlockMap( //nolint:dupl //...
 	ctx context.Context, ci quicstream.UDPConnInfo, manifest util.Hash,
 ) (base.BlockMap, bool, error) {
 	header := NewLastBlockMapRequestHeader(manifest)
@@ -249,7 +259,7 @@ func (c *baseNetworkClient) LastBlockMap( //nolint:dupl //...
 	return u, found, errors.WithMessage(err, "failed to get last BlockMap")
 }
 
-func (c *baseNetworkClient) BlockMap( //nolint:dupl //...
+func (c *BaseNetworkClient) BlockMap( //nolint:dupl //...
 	ctx context.Context, ci quicstream.UDPConnInfo, height base.Height,
 ) (base.BlockMap, bool, error) {
 	header := NewBlockMapRequestHeader(height)
@@ -261,7 +271,7 @@ func (c *baseNetworkClient) BlockMap( //nolint:dupl //...
 	return u, found, errors.WithMessage(err, "failed to get BlockMap")
 }
 
-func (c *baseNetworkClient) BlockMapItem(
+func (c *BaseNetworkClient) BlockMapItem(
 	ctx context.Context, ci quicstream.UDPConnInfo, height base.Height, item base.BlockMapItemType,
 ) (_ io.ReadCloser, cancel func() error, found bool, _ error) {
 	// NOTE the io.ReadCloser should be closed.
@@ -299,7 +309,7 @@ func (c *baseNetworkClient) BlockMapItem(
 	}
 }
 
-func (c *baseNetworkClient) NodeChallenge(
+func (c *BaseNetworkClient) NodeChallenge(
 	ctx context.Context, ci quicstream.UDPConnInfo,
 	networkID base.NetworkID,
 	node base.Address, pub base.Publickey, input []byte,
@@ -351,7 +361,7 @@ func (c *baseNetworkClient) NodeChallenge(
 	}
 }
 
-func (c *baseNetworkClient) SuffrageNodeConnInfo(
+func (c *BaseNetworkClient) SuffrageNodeConnInfo(
 	ctx context.Context, ci quicstream.UDPConnInfo,
 ) ([]isaac.NodeConnInfo, error) {
 	e := util.StringErrorFunc("failed SuffrageNodeConnInfo")
@@ -364,7 +374,7 @@ func (c *baseNetworkClient) SuffrageNodeConnInfo(
 	return ncis, nil
 }
 
-func (c *baseNetworkClient) SyncSourceConnInfo(
+func (c *BaseNetworkClient) SyncSourceConnInfo(
 	ctx context.Context, ci quicstream.UDPConnInfo,
 ) ([]isaac.NodeConnInfo, error) {
 	e := util.StringErrorFunc("failed SyncSourceConnInfo")
@@ -377,7 +387,7 @@ func (c *baseNetworkClient) SyncSourceConnInfo(
 	return ncis, nil
 }
 
-func (c *baseNetworkClient) State(
+func (c *BaseNetworkClient) State(
 	ctx context.Context, ci quicstream.UDPConnInfo, key string, h util.Hash,
 ) (base.State, bool, error) {
 	header := NewStateRequestHeader(key, h)
@@ -389,7 +399,7 @@ func (c *baseNetworkClient) State(
 	return st, found, errors.WithMessage(err, "failed State")
 }
 
-func (c *baseNetworkClient) ExistsInStateOperation(
+func (c *BaseNetworkClient) ExistsInStateOperation(
 	ctx context.Context, ci quicstream.UDPConnInfo, facthash util.Hash,
 ) (bool, error) {
 	header := NewExistsInStateOperationRequestHeader(facthash)
@@ -399,7 +409,7 @@ func (c *baseNetworkClient) ExistsInStateOperation(
 	return found, errors.WithMessage(err, "failed ExistsInStateOperation")
 }
 
-func (c *baseNetworkClient) requestOK(
+func (c *BaseNetworkClient) requestOK(
 	ctx context.Context,
 	ci quicstream.UDPConnInfo,
 	header isaac.NetworkHeader,
@@ -439,7 +449,7 @@ func (c *baseNetworkClient) requestOK(
 	}
 }
 
-func (c *baseNetworkClient) loadResponseHeader(
+func (c *BaseNetworkClient) loadResponseHeader(
 	ctx context.Context,
 	r io.ReadCloser,
 ) (h isaac.NetworkResponseHeader, enc encoder.Encoder, _ error) {
@@ -460,7 +470,7 @@ func (c *baseNetworkClient) loadResponseHeader(
 	return h, enc, nil
 }
 
-func (c *baseNetworkClient) write(
+func (c *BaseNetworkClient) write(
 	ctx context.Context,
 	ci quicstream.UDPConnInfo,
 	enc encoder.Encoder,
@@ -482,7 +492,7 @@ func (c *baseNetworkClient) write(
 	return r, cancel, nil
 }
 
-func (c *baseNetworkClient) requestNodeConnInfos(
+func (c *BaseNetworkClient) requestNodeConnInfos(
 	ctx context.Context,
 	ci quicstream.UDPConnInfo,
 	header isaac.NetworkHeader,

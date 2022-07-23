@@ -66,19 +66,20 @@ var Hinters = []encoder.DecodeDetail{
 	},
 	{Hint: isaacoperation.GenesisNetworkPolicyFactHint, Instance: isaacoperation.GenesisNetworkPolicyFact{}},
 	{Hint: isaacoperation.GenesisNetworkPolicyHint, Instance: isaacoperation.GenesisNetworkPolicy{}},
-	{Hint: isaacoperation.SuffrageCandidateFactHint, Instance: isaacoperation.SuffrageCandidateFact{}},
+	{Hint: isaacoperation.SuffrageCandidateHint, Instance: isaacoperation.SuffrageCandidate{}},
 	{Hint: isaacoperation.SuffrageGenesisJoinHint, Instance: isaacoperation.SuffrageGenesisJoin{}},
+	{Hint: isaacoperation.SuffrageJoinHint, Instance: isaacoperation.SuffrageJoin{}},
 	{
 		Hint:     isaacoperation.SuffrageGenesisJoinFactHint,
 		Instance: isaacoperation.SuffrageGenesisJoinFact{},
 	},
-	{Hint: isaacoperation.SuffrageJoinFactHint, Instance: isaacoperation.SuffrageJoinFact{}},
+	{Hint: PprofRequestHeaderHint, Instance: PprofRequestHeader{}},
 	{Hint: quicmemberlist.NodeHint, Instance: quicmemberlist.BaseNode{}},
 }
 
-var SupportedProposalOperationHinters = []encoder.DecodeDetail{
-	{Hint: isaacoperation.SuffrageCandidateHint, Instance: isaacoperation.SuffrageCandidate{}},
-	{Hint: isaacoperation.SuffrageJoinHint, Instance: isaacoperation.SuffrageJoin{}},
+var SupportedProposalOperationFactHinters = []encoder.DecodeDetail{ // FIXME use fact
+	{Hint: isaacoperation.SuffrageCandidateFactHint, Instance: isaacoperation.SuffrageCandidateFact{}},
+	{Hint: isaacoperation.SuffrageJoinFactHint, Instance: isaacoperation.SuffrageJoinFact{}},
 }
 
 func LoadHinters(enc encoder.Encoder) error {
@@ -88,8 +89,8 @@ func LoadHinters(enc encoder.Encoder) error {
 		}
 	}
 
-	for i := range SupportedProposalOperationHinters {
-		if err := enc.Add(Hinters[i]); err != nil {
+	for i := range SupportedProposalOperationFactHinters {
+		if err := enc.Add(SupportedProposalOperationFactHinters[i]); err != nil {
 			return errors.Wrap(err, "failed to add to encoder")
 		}
 	}
@@ -97,16 +98,16 @@ func LoadHinters(enc encoder.Encoder) error {
 	return nil
 }
 
-func IsSupportedProposalOperationHintFunc() func(hintbytes []byte) bool {
-	supportedProposalOperationHintersBytes := make([][]byte, len(SupportedProposalOperationHinters))
+func IsSupportedProposalOperationFactHintFunc() func(hintbytes []byte) bool {
+	supportedProposalOperationFactHintersBytes := make([][]byte, len(SupportedProposalOperationFactHinters))
 
-	for i := range SupportedProposalOperationHinters {
-		supportedProposalOperationHintersBytes[i] = SupportedProposalOperationHinters[i].Hint.Bytes()
+	for i := range SupportedProposalOperationFactHinters {
+		supportedProposalOperationFactHintersBytes[i] = SupportedProposalOperationFactHinters[i].Hint.Bytes()
 	}
 
 	return func(b []byte) bool {
-		for i := range supportedProposalOperationHintersBytes {
-			if bytes.HasPrefix(b, supportedProposalOperationHintersBytes[i]) {
+		for i := range supportedProposalOperationFactHintersBytes {
+			if bytes.HasPrefix(b, supportedProposalOperationFactHintersBytes[i]) {
 				return true
 			}
 		}
