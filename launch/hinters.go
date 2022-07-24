@@ -12,6 +12,7 @@ import (
 	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/fixedtree"
+	"github.com/spikeekips/mitum/util/hint"
 )
 
 var Hinters = []encoder.DecodeDetail{
@@ -99,17 +100,24 @@ func LoadHinters(enc encoder.Encoder) error {
 }
 
 func IsSupportedProposalOperationFactHintFunc() func(hintbytes []byte) bool {
-	supportedProposalOperationFactHintersBytes := make([][]byte, len(SupportedProposalOperationFactHinters))
+	supportedProposalOperationFactTypeHintersBytes := make([][]byte, len(SupportedProposalOperationFactHinters))
 
 	for i := range SupportedProposalOperationFactHinters {
-		supportedProposalOperationFactHintersBytes[i] = SupportedProposalOperationFactHinters[i].Hint.Bytes()
+		supportedProposalOperationFactTypeHintersBytes[i] = SupportedProposalOperationFactHinters[i].Hint.Type().Bytes()
 	}
 
 	return func(b []byte) bool {
-		for i := range supportedProposalOperationFactHintersBytes {
-			if bytes.HasPrefix(b, supportedProposalOperationFactHintersBytes[i]) {
-				return true
+		for i := range supportedProposalOperationFactTypeHintersBytes {
+			if !bytes.HasPrefix(b, supportedProposalOperationFactTypeHintersBytes[i]) {
+				continue
 			}
+
+			ht, err := hint.ParseHint(string(b))
+			if err != nil {
+				return false
+			}
+
+			return ht.IsCompatible(SupportedProposalOperationFactHinters[i].Hint)
 		}
 
 		return false

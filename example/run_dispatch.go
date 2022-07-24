@@ -24,8 +24,8 @@ import (
 )
 
 var (
-	suffrageCandidateHintBytes = isaacoperation.SuffrageCandidateHint.Bytes()
-	suffrageJoinHintBytes      = isaacoperation.SuffrageJoinHint.Bytes()
+	suffrageCandidateFactHintTypeBytes = isaacoperation.SuffrageCandidateFactHint.Type().Bytes()
+	suffrageJoinFactHintTypeBytes      = isaacoperation.SuffrageJoinFactHint.Type().Bytes()
 )
 
 func (cmd *runCommand) getSuffrageFunc() isaac.GetSuffrageByBlockHeight {
@@ -97,8 +97,6 @@ func (cmd *runCommand) proposalMaker() *isaac.ProposalMaker {
 				return nil, nil
 			}
 
-			validtime := localtime.UTCNow().Add(time.Hour * -1).UnixNano() // FIXME config
-
 			hs, err := cmd.pool.NewOperationHashes(
 				ctx,
 				n,
@@ -139,18 +137,22 @@ func (cmd *runCommand) proposalMaker() *isaac.ProposalMaker {
 						return false, nil
 					}
 
-					// NOTE filter by PoolOperationHeader
-					switch ht := header.HintBytes(); {
-					case bytes.HasPrefix(ht, suffrageCandidateHintBytes),
-						bytes.HasPrefix(ht, suffrageJoinHintBytes):
-						addedat, err := util.BytesToInt64(header.AddedAt())
-						if err != nil {
-							return false, nil
-						}
+					addedat, err := util.BytesToInt64(header.AddedAt())
+					if err != nil {
+						return false, nil
+					}
 
-						if addedat < validtime {
-							return false, nil
-						}
+					var expire time.Duration
+					switch ht := header.HintBytes(); {
+					case bytes.HasPrefix(ht, suffrageCandidateFactHintTypeBytes),
+						bytes.HasPrefix(ht, suffrageJoinFactHintTypeBytes):
+						expire = cmd.nodePolicy.ValidProposalSuffrageOperationsExpire()
+					default:
+						expire = cmd.nodePolicy.ValidProposalOperationExpire()
+					}
+
+					if addedat < localtime.UTCNow().Add(expire*-1).UnixNano() {
+						return false, nil
 					}
 
 					return true, nil

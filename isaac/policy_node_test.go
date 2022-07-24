@@ -128,6 +128,9 @@ func TestNodePolicyJSON(tt *testing.T) {
 		t.Equal(ap.intervalBroadcastBallot, bp.intervalBroadcastBallot)
 		t.Equal(ap.waitPreparingINITBallot, bp.waitPreparingINITBallot)
 		t.Equal(ap.timeoutRequestProposal, bp.timeoutRequestProposal)
+		t.Equal(ap.syncSourceCheckerInterval, bp.syncSourceCheckerInterval)
+		t.Equal(ap.validProposalOperationExpire, bp.validProposalOperationExpire)
+		t.Equal(ap.validProposalSuffrageOperationsExpire, bp.validProposalSuffrageOperationsExpire)
 	}
 
 	suite.Run(tt, t)

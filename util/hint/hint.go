@@ -109,12 +109,12 @@ func (ht Hint) Equal(b Hint) bool {
 
 // IsCompatible checks whether target is compatible with source. Obviously, Type
 // should be same and version is compatible.
-func (ht Hint) IsCompatible(b Hint) bool {
-	if ht.t != b.t {
+func (ht Hint) IsCompatible(target Hint) bool {
+	if ht.t != target.t {
 		return false
 	}
 
-	return ht.v.IsCompatible(b.v)
+	return ht.v.IsCompatible(target.v)
 }
 
 func (ht Hint) IsEmpty() bool {
