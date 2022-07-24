@@ -191,11 +191,12 @@ func (srv *Memberlist) IsJoined() bool {
 }
 
 func (srv *Memberlist) Broadcast(b memberlist.Broadcast) {
-	if srv.delegate == nil {
-		return
-	}
+	switch {
+	case srv.delegate != nil:
+	case srv.IsJoined():
+	default:
+		b.Finished()
 
-	if !srv.IsJoined() {
 		return
 	}
 
