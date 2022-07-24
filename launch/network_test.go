@@ -61,7 +61,7 @@ func (t *testPprofHandler) TestRequest() {
 	c := isaacnetwork.NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(remote, HandlerPrefixPprof, handler))
 
 	t.Run("ok", func() {
-		header := NewPprofRequestHeader("heap", 1)
+		header := NewPprofRequestHeader("heap", 1, true)
 		response, i, cancel, err := c.Request(context.Background(), ci, header, nil)
 		t.NoError(err)
 		defer cancel()
@@ -80,7 +80,7 @@ func (t *testPprofHandler) TestRequest() {
 	})
 
 	t.Run("unknown label", func() {
-		header := NewPprofRequestHeader("heap0", 1)
+		header := NewPprofRequestHeader("heap0", 1, true)
 		response, i, _, err := c.Request(context.Background(), ci, header, nil)
 		t.Error(err)
 		t.Nil(response)

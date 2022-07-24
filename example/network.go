@@ -50,7 +50,7 @@ func init() {
 		HandlerPrefixRequestState:                  NewStateRequestHeader(isaac.SuffrageStateKey),
 		HandlerPrefixRequestExistsInStateOperation: NewExistsInStateOperationRequestHeader(valuehash.RandomSHA256()),
 		launch.HandlerPrefixPprof: launch.NewPprofRequestHeader(
-			"heap", 5), //nolint:gomnd //...
+			"heap", 5, true), //nolint:gomnd //...
 	}
 }
 

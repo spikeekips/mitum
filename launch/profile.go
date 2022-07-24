@@ -76,10 +76,16 @@ func NetworkHandlerPprofFunc(encs *encoder.Encoders) quicstream.Handler {
 			return e(err, "")
 		}
 
+		gc := "0"
+		if header.GC() {
+			gc = "1"
+		}
+
 		req.URL = &url.URL{
 			Host: "localhost",
 			RawQuery: url.Values{
 				"seconds": []string{strconv.FormatUint(header.Seconds(), 10)},
+				"gc":      []string{gc},
 			}.Encode(),
 		}
 
@@ -99,13 +105,15 @@ type PprofRequestHeader struct {
 	label string
 	isaacnetwork.BaseHeader
 	seconds uint64
+	gc      bool
 }
 
-func NewPprofRequestHeader(label string, seconds uint64) PprofRequestHeader {
+func NewPprofRequestHeader(label string, seconds uint64, gc bool) PprofRequestHeader {
 	return PprofRequestHeader{
 		BaseHeader: isaacnetwork.NewBaseHeader(PprofRequestHeaderHint),
 		label:      label,
 		seconds:    seconds,
+		gc:         gc,
 	}
 }
 
@@ -143,9 +151,14 @@ func (h PprofRequestHeader) Seconds() uint64 {
 	return h.seconds
 }
 
+func (h PprofRequestHeader) GC() bool {
+	return h.gc
+}
+
 type pprofRequestHeaderJSONMarshaler struct {
 	Label   string `json:"label"`
 	Seconds uint64 `json:"seconds"`
+	GC      bool   `json:"gc"`
 }
 
 func (h PprofRequestHeader) MarshalJSON() ([]byte, error) {
@@ -157,6 +170,7 @@ func (h PprofRequestHeader) MarshalJSON() ([]byte, error) {
 		pprofRequestHeaderJSONMarshaler: pprofRequestHeaderJSONMarshaler{
 			Label:   h.label,
 			Seconds: h.seconds,
+			GC:      h.gc,
 		},
 	})
 }
@@ -180,6 +194,7 @@ func (h *PprofRequestHeader) UnmarshalJSON(b []byte) error {
 
 	h.label = u.Label
 	h.seconds = u.Seconds
+	h.gc = u.GC
 
 	return nil
 }
