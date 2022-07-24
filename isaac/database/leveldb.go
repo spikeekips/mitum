@@ -62,9 +62,15 @@ func (db *baseLeveldb) Close() error {
 		return errors.Wrap(err, "failed to close baseDatabase")
 	}
 
-	db.st = nil
+	db.clean()
 
 	return nil
+}
+
+func (db *baseLeveldb) clean() {
+	db.st = nil
+	db.encs = nil
+	db.enc = nil
 }
 
 func (db *baseLeveldb) Remove() error {

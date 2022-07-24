@@ -57,6 +57,10 @@ func newLeveldbBlockWrite(
 }
 
 func (db *LeveldbBlockWrite) Close() error {
+	if db.baseLeveldb == nil {
+		return nil
+	}
+
 	if err := db.baseLeveldb.Close(); err != nil {
 		return err
 	}
@@ -64,13 +68,21 @@ func (db *LeveldbBlockWrite) Close() error {
 	db.Lock()
 	defer db.Unlock()
 
+	db.baseLeveldb.clean()
+	db.baseLeveldb = nil
+
+	db.clean()
+
+	return nil
+}
+
+func (db *LeveldbBlockWrite) clean() {
+	db.st = nil
 	db.mp = nil
 	db.sufst = nil
 	db.policy = nil
 	db.proof = nil
 	db.laststates = nil
-
-	return nil
 }
 
 func (db *LeveldbBlockWrite) Cancel() error {
@@ -265,7 +277,14 @@ func (db *LeveldbBlockWrite) TempDatabase() (isaac.TempDatabase, error) {
 		return nil, e(err, "")
 	}
 
-	return newTempLeveldbFromBlockWriteStorage(db)
+	temp, err := newTempLeveldbFromBlockWriteStorage(db)
+	if err != nil {
+		return nil, err
+	}
+
+	db.clean()
+
+	return temp, nil
 }
 
 func (db *LeveldbBlockWrite) setState(st base.State) error {
