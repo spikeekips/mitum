@@ -73,3 +73,9 @@ func (po *LockedObjectPool) Get(key string) (interface{}, bool) {
 func (po *LockedObjectPool) Set(key string, v interface{}, _ *time.Duration) {
 	_ = po.maps.SetValue(key, v)
 }
+
+func (po *LockedObjectPool) Close() error {
+	po.maps.Close()
+
+	return nil
+}

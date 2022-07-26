@@ -10,7 +10,10 @@ import (
 	uuid "github.com/satori/go.uuid"
 )
 
-var ulidpool = NewULIDPool()
+var (
+	ulidpool = NewULIDPool()
+	ULIDLen  = len([]byte(ULID().String()))
+)
 
 func UUID() uuid.UUID {
 	return uuid.NewV4()

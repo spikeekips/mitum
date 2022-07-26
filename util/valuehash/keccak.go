@@ -5,8 +5,8 @@ import (
 )
 
 const (
-	sha256Size int = 32
-	sha512Size int = 64
+	SHA256Size int = 32
+	SHA512Size int = 64
 )
 
 func NewSHA512(b []byte) L64 {

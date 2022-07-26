@@ -26,7 +26,7 @@ func RandomSHA512() util.Hash {
 //
 // * 52 is max valid length of prefix
 func RandomSHA256WithPrefix(prefix []byte) util.Hash {
-	lh := util.Int64ToBytes(int64(sha256Size))
+	lh := util.Int64ToBytes(int64(SHA256Size))
 	lp := util.Int64ToBytes(int64(len(prefix)))
 
 	return NewBytes(util.ConcatBytesSlice(lh, lp, RandomSHA256().Bytes(), prefix))
@@ -38,7 +38,7 @@ func RandomSHA256WithPrefix(prefix []byte) util.Hash {
 //
 // * 20 is max valid length of prefix
 func RandomSHA512WithPrefix(prefix []byte) util.Hash {
-	lh := util.Int64ToBytes(int64(sha512Size))
+	lh := util.Int64ToBytes(int64(SHA512Size))
 	lp := util.Int64ToBytes(int64(len(prefix)))
 
 	return NewBytes(util.ConcatBytesSlice(lh, lp, RandomSHA512().Bytes(), prefix))

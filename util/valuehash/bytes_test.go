@@ -86,7 +86,7 @@ func (t *testBytes) TestSHA256WithPrefix() {
 		lp, err := util.BytesToInt64(bh[8:16])
 		t.NoError(err)
 
-		t.Equal(int64(sha256Size), lh)
+		t.Equal(int64(SHA256Size), lh)
 		t.Equal(int64(len(prefix)), lp)
 
 		pb := bh[16+lh:]
@@ -116,7 +116,7 @@ func (t *testBytes) TestSHA512WithPrefix() {
 		lp, err := util.BytesToInt64(bh[8:16])
 		t.NoError(err)
 
-		t.Equal(int64(sha512Size), lh)
+		t.Equal(int64(SHA512Size), lh)
 		t.Equal(int64(len(prefix)), lp)
 
 		pb := bh[16+lh:]
