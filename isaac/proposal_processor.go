@@ -222,7 +222,10 @@ func (p *DefaultProposalProcessor) close() {
 	p.getStateFunc = nil
 	p.getOperation = nil
 	p.setLastVoteproofsFunc = nil
-	p.oprs = nil
+	if p.oprs != nil {
+		p.oprs.Close()
+		p.oprs = nil
+	}
 	p.cancel = nil
 	p.cops = nil
 }

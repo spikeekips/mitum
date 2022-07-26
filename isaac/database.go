@@ -58,7 +58,7 @@ type BlockWriteDatabase interface {
 	SetSuffrageProof(base.SuffrageProof) error
 	SuffrageState() base.State
 	NetworkPolicy() base.NetworkPolicy
-	Write() error // FIXME remove
+	Write() error
 	TempDatabase() (TempDatabase, error)
 }
 
