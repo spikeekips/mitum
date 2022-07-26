@@ -54,7 +54,7 @@ func (t *testLoadPermanentDatabase) TestXXX() {
 		t.Run(
 			c.name,
 			func() {
-				perm, err := LoadPermanentDatabase(c.uri, util.UUID().String(), encs, enc)
+				_, perm, err := LoadPermanentDatabase(c.uri, util.UUID().String(), encs, enc)
 				switch {
 				case len(c.err) > 0:
 					if err == nil {

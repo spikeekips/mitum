@@ -8,12 +8,32 @@ import (
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
-	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
+	leveldbstorage2 "github.com/spikeekips/mitum/storage/leveldb2"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/valuehash"
 )
+
+func (db *LeveldbBlockWrite) DeepClose() error {
+	if err := db.Close(); err != nil {
+		return err
+	}
+
+	if err := db.baseLeveldb.st.RawStorage().Close(); err != nil {
+		return err
+	}
+
+	return db.baseLeveldb.Close()
+}
+
+func (db *TempPool) DeepClose() error {
+	if err := db.baseLeveldb.st.RawStorage().Close(); err != nil {
+		return err
+	}
+
+	return db.Close()
+}
 
 type BaseTestDatabase struct {
 	Root string
@@ -56,34 +76,14 @@ func (t *BaseTestDatabase) TearDownTest() {
 }
 
 func (t *BaseTestDatabase) NewLeveldbBlockWriteDatabase(height base.Height) *LeveldbBlockWrite {
-	st, err := NewLeveldbBlockWrite(height, t.Root, t.Encs, t.Enc)
-	t.noerror(err)
-
-	return st
-}
-
-func (t *BaseTestDatabase) NewMemLeveldbBlockWriteDatabase(height base.Height) *LeveldbBlockWrite {
-	st := leveldbstorage.NewMemWriteStorage()
-	return newLeveldbBlockWrite(st, height, t.Encs, t.Enc)
-}
-
-func (t *BaseTestDatabase) NewMemLeveldbPermanentDatabase() *LeveldbPermanent {
-	st := leveldbstorage.NewMemWriteStorage()
-	db, err := newLeveldbPermanent(st, t.Encs, t.Enc)
-	t.noerror(err)
-
-	return db
-}
-
-func (t *BaseTestDatabase) NewMemLeveldbTempSyncPool() *LeveldbTempSyncPool {
-	st := leveldbstorage.NewMemWriteStorage()
-	return newLeveldbTempSyncPool(st, t.Encs, t.Enc)
+	mst := leveldbstorage2.NewMemStorage()
+	return NewLeveldbBlockWrite(height, mst, t.Encs, t.Enc)
 }
 
 func (t *BaseTestDatabase) NewPool() *TempPool {
-	st := leveldbstorage.NewMemRWStorage()
+	mst := leveldbstorage2.NewMemStorage()
 
-	db, err := newTempPool(st, t.Encs, t.Enc)
+	db, err := newTempPool(mst, t.Encs, t.Enc)
 	t.noerror(err)
 
 	return db

@@ -39,8 +39,8 @@ type testQuicstreamHandlers struct {
 }
 
 func (t *testQuicstreamHandlers) SetupTest() {
-	t.BaseTestDatabase.SetupTest()
 	t.BaseTestBallots.SetupTest()
+	t.BaseTestDatabase.SetupTest()
 }
 
 func (t *testQuicstreamHandlers) SetupSuite() {
@@ -151,7 +151,7 @@ func (t *testQuicstreamHandlers) TestOperation() {
 	t.NoError(err)
 
 	pool := t.NewPool()
-	defer pool.Close()
+	defer pool.DeepClose()
 
 	inserted, err := pool.SetNewOperation(context.Background(), op)
 	t.NoError(err)
@@ -186,7 +186,7 @@ func (t *testQuicstreamHandlers) TestSendOperation() {
 	t.NoError(err)
 
 	pool := t.NewPool()
-	defer pool.Close()
+	defer pool.DeepClose()
 
 	handlers := newQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second)
 	handlers.filterSendOperationf = func(base.Operation) bool { return true }
@@ -219,7 +219,7 @@ func (t *testQuicstreamHandlers) TestSendOperation() {
 
 func (t *testQuicstreamHandlers) TestRequestProposal() {
 	pool := t.NewPool()
-	defer pool.Close()
+	defer pool.DeepClose()
 
 	proposalMaker := isaac.NewProposalMaker(
 		t.Local,
@@ -260,7 +260,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 
 func (t *testQuicstreamHandlers) TestProposal() {
 	pool := t.NewPool()
-	defer pool.Close()
+	defer pool.DeepClose()
 
 	proposalMaker := isaac.NewProposalMaker(
 		t.Local,

@@ -16,18 +16,17 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
+	leveldbstorage2 "github.com/spikeekips/mitum/storage/leveldb2"
 	redisstorage "github.com/spikeekips/mitum/storage/redis"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/fixedtree"
+	leveldbStorage "github.com/syndtr/goleveldb/leveldb/storage"
 )
 
 var (
-	LocalFSPermDirectoryName = "perm"
-	LocalFSTempDirectoryName = "temp"
-	LocalFSDataDirectoryName = "data"
-	LocalFSPoolDirectoryName = "pool"
-
+	LocalFSDataDirectoryName2          = "data"
+	LocalFSDatabaseDirectoryName2      = "db"
 	RedisPermanentDatabasePrefixFormat = "mitum-%s"
 	LeveldbURIScheme                   = "leveldb"
 )
@@ -40,7 +39,7 @@ func CleanStorage(permuri, root string, encs *encoder.Encoders, enc encoder.Enco
 		return e(err, "")
 	case !found:
 	default:
-		perm, err := LoadPermanentDatabase(permuri, nodeinfo.ID(), encs, enc)
+		_, perm, err := LoadPermanentDatabase(permuri, nodeinfo.ID(), encs, enc)
 		if err == nil {
 			if err := perm.Clean(); err != nil {
 				return e(err, "")
@@ -50,6 +49,23 @@ func CleanStorage(permuri, root string, encs *encoder.Encoders, enc encoder.Enco
 
 	if err := RemoveLocalFS(root); err != nil {
 		return e(err, "")
+	}
+
+	return nil
+}
+
+func RemoveLocalFS(root string) error {
+	knowns := map[string]struct{}{
+		LocalFSDataDirectoryName2:     {},
+		LocalFSDatabaseDirectoryName2: {},
+	}
+
+	if err := util.CleanDirectory(root, func(name string) bool {
+		_, found := knowns[name]
+
+		return found
+	}); err != nil {
+		return errors.Wrap(err, "failed to remove localfs")
 	}
 
 	return nil
@@ -71,11 +87,10 @@ func CreateLocalFS(newinfo NodeInfo, root string, enc encoder.Encoder) (NodeInfo
 		return nil, e(err, "")
 	}
 
-	temproot := LocalFSTempDirectory(root)
-	poolroot := LocalFSPoolDirectory(root)
-	dataroot := LocalFSDataDirectory(root)
-
-	for _, i := range []string{temproot, poolroot, dataroot} {
+	for _, i := range []string{
+		LocalFSDataDirectory(root),
+		LocalFSDatabaseDirectory(root),
+	} {
 		switch fi, err := os.Stat(i); {
 		case err == nil:
 			if !fi.IsDir() {
@@ -124,11 +139,10 @@ func CheckLocalFS(networkID base.NetworkID, root string, enc encoder.Encoder) (N
 		return nil, e(err, "")
 	}
 
-	temproot := LocalFSTempDirectory(root)
-	poolroot := LocalFSPoolDirectory(root)
-	dataroot := LocalFSDataDirectory(root)
-
-	for _, i := range []string{temproot, poolroot, dataroot} {
+	for _, i := range []string{
+		LocalFSDataDirectory(root),
+		LocalFSDatabaseDirectory(root),
+	} {
 		switch fi, err := os.Stat(i); {
 		case err == nil:
 			if !fi.IsDir() {
@@ -151,109 +165,80 @@ func CheckLocalFS(networkID base.NetworkID, root string, enc encoder.Encoder) (N
 	}
 }
 
-// RemoveLocalFS removes basic directories and files except perm and nodeinfo
-// file.
-func RemoveLocalFS(root string) error {
-	knowns := map[string]struct{}{
-		LocalFSTempDirectoryName: {},
-		LocalFSPoolDirectoryName: {},
-		LocalFSDataDirectoryName: {},
-	}
-
-	if err := util.CleanDirectory(root, func(name string) bool {
-		_, found := knowns[name]
-
-		return found
-	}); err != nil {
-		return errors.Wrap(err, "failed to remove localfs")
-	}
-
-	return nil
-}
-
 func LoadDatabase(
 	nodeinfo NodeInfo,
 	permuri string,
-	localfsroot string,
+	root string,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
-) (*isaacdatabase.Default, isaac.PermanentDatabase, *isaacdatabase.TempPool, error) {
+) (
+	*leveldbstorage2.Storage,
+	*isaacdatabase.Center,
+	isaac.PermanentDatabase,
+	*isaacdatabase.TempPool,
+	error,
+) {
 	e := util.StringErrorFunc("failed to prepare database")
 
-	perm, err := LoadPermanentDatabase(permuri, nodeinfo.ID(), encs, enc)
-	if err != nil {
-		return nil, nil, nil, e(err, "")
-	}
+	st, perm, err := LoadPermanentDatabase(permuri, nodeinfo.ID(), encs, enc)
 
-	temproot := LocalFSTempDirectory(localfsroot)
-	poolroot := LocalFSPoolDirectory(localfsroot)
+	switch {
+	case err != nil:
+		return nil, nil, nil, nil, e(err, "")
+	case st == nil:
+		var str leveldbStorage.Storage
 
-	db, err := isaacdatabase.NewDefault(
-		temproot, encs, enc, perm, func(height base.Height) (isaac.BlockWriteDatabase, error) {
-			newroot, eerr := isaacdatabase.NewTempDirectory(temproot, height)
-			if eerr != nil {
-				return nil, eerr
-			}
+		str, err = leveldbStorage.OpenFile(LocalFSDatabaseDirectory(root), false)
+		if err != nil {
+			return nil, nil, nil, nil, e(err, "")
+		}
 
-			return isaacdatabase.NewLeveldbBlockWrite(height, newroot, encs, enc)
-		})
-	if err != nil {
-		return nil, nil, nil, e(err, "")
-	}
-
-	if err = CleanTempSyncPoolDatabase(localfsroot); err != nil {
-		return nil, nil, nil, e(err, "")
-	}
-
-	if err = db.MergeAllPermanent(); err != nil {
-		return nil, nil, nil, e(err, "")
-	}
-
-	pool, err := isaacdatabase.NewTempPool(poolroot, encs, enc)
-	if err != nil {
-		return nil, nil, nil, e(err, "")
-	}
-
-	return db, perm, pool, nil
-}
-
-func CleanTempSyncPoolDatabase(localfsroot string) error {
-	e := util.StringErrorFunc("failed to clean syncpool database directories")
-
-	temproot := LocalFSTempDirectory(localfsroot)
-
-	matches, err := filepath.Glob(filepath.Join(filepath.Clean(temproot), "syncpool-*"))
-	if err != nil {
-		return e(err, "")
-	}
-
-	for i := range matches {
-		if err := os.RemoveAll(matches[i]); err != nil {
-			return e(err, "")
+		st, err = leveldbstorage2.NewStorage(str, nil)
+		if err != nil {
+			return nil, nil, nil, nil, e(err, "")
 		}
 	}
 
-	return nil
-}
-
-func NewTempSyncPoolDatabase(
-	localfsroot string, height base.Height, encs *encoder.Encoders, enc encoder.Encoder,
-) (isaac.TempSyncPool, error) {
-	temproot := LocalFSTempDirectory(localfsroot)
-
-	root := isaacdatabase.NewSyncPoolDirectory(temproot, height)
-
-	syncpool, err := isaacdatabase.NewLeveldbTempSyncPool(root, encs, enc)
+	db, err := isaacdatabase.NewCenter(
+		st,
+		encs,
+		enc,
+		perm,
+		func(height base.Height) (isaac.BlockWriteDatabase, error) {
+			return isaacdatabase.NewLeveldbBlockWrite(height, st, encs, enc), nil
+		},
+	)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create new TempSyncPool")
+		return nil, nil, nil, nil, e(err, "")
 	}
 
-	return syncpool, nil
+	if err = isaacdatabase.CleanSyncPool(st); err != nil {
+		return nil, nil, nil, nil, e(err, "")
+	}
+
+	if err = db.MergeAllPermanent(); err != nil {
+		return nil, nil, nil, nil, e(err, "")
+	}
+
+	pool, err := isaacdatabase.NewTempPool(st, encs, enc)
+	if err != nil {
+		return nil, nil, nil, nil, e(err, "")
+	}
+
+	return st, db, perm, pool, nil
+}
+
+func LocalFSDataDirectory(root string) string {
+	return filepath.Join(root, LocalFSDataDirectoryName2)
+}
+
+func LocalFSDatabaseDirectory(root string) string {
+	return filepath.Join(root, LocalFSDatabaseDirectoryName2)
 }
 
 func LoadPermanentDatabase(
 	uri, id string, encs *encoder.Encoders, enc encoder.Encoder,
-) (isaac.PermanentDatabase, error) {
+) (*leveldbstorage2.Storage, isaac.PermanentDatabase, error) {
 	e := util.StringErrorFunc("failed to load PermanentDatabase")
 
 	u, err := url.Parse(uri)
@@ -262,7 +247,7 @@ func LoadPermanentDatabase(
 
 	switch {
 	case err != nil:
-		return nil, e(err, "")
+		return nil, nil, e(err, "")
 	case len(u.Scheme) < 1, strings.EqualFold(u.Scheme, LeveldbURIScheme):
 		dbtype = LeveldbURIScheme
 	default:
@@ -279,15 +264,25 @@ func LoadPermanentDatabase(
 	switch {
 	case dbtype == LeveldbURIScheme:
 		if len(u.Path) < 1 {
-			return nil, e(nil, "empty path")
+			return nil, nil, e(nil, "empty path")
 		}
 
-		perm, err := isaacdatabase.NewLeveldbPermanent(u.Path, encs, enc)
+		str, err := leveldbStorage.OpenFile(u.Path, false)
 		if err != nil {
-			return nil, e(err, "")
+			return nil, nil, e(err, "")
 		}
 
-		return perm, nil
+		st, err := leveldbstorage2.NewStorage(str, nil)
+		if err != nil {
+			return nil, nil, e(err, "")
+		}
+
+		perm, err := isaacdatabase.NewLeveldbPermanent(st, encs, enc)
+		if err != nil {
+			return nil, nil, e(err, "")
+		}
+
+		return st, perm, nil
 	case dbtype == "redis":
 		if strings.Contains(u.Scheme, "+") {
 			u.Scheme = network
@@ -299,55 +294,13 @@ func LoadPermanentDatabase(
 
 		perm, err := loadRedisPermanentDatabase(u.String(), id, encs, enc)
 		if err != nil {
-			return nil, e(err, "failed to create redis PermanentDatabase")
+			return nil, nil, e(err, "failed to create redis PermanentDatabase")
 		}
 
-		return perm, nil
+		return nil, perm, nil
 	default:
-		return nil, e(nil, "unsupported database type, %q", dbtype)
+		return nil, nil, e(nil, "unsupported database type, %q", dbtype)
 	}
-}
-
-func loadRedisPermanentDatabase(uri, id string, encs *encoder.Encoders, enc encoder.Encoder) (
-	*isaacdatabase.RedisPermanent, error,
-) {
-	e := util.StringErrorFunc("failed to load redis PermanentDatabase")
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2) //nolint:gomnd //...
-	defer cancel()
-
-	option, err := redis.ParseURL(uri)
-	if err != nil {
-		return nil, e(err, "invalid redis url")
-	}
-
-	st, err := redisstorage.NewStorage(ctx, option, fmt.Sprintf(RedisPermanentDatabasePrefixFormat, id))
-	if err != nil {
-		return nil, e(err, "failed to create redis storage")
-	}
-
-	perm, err := isaacdatabase.NewRedisPermanent(st, encs, enc)
-	if err != nil {
-		return nil, e(err, "")
-	}
-
-	return perm, nil
-}
-
-func LocalFSPermDatabaseURI(root string) string {
-	return LeveldbURIScheme + "//" + filepath.Join(root, LocalFSPermDirectoryName)
-}
-
-func LocalFSTempDirectory(root string) string {
-	return filepath.Join(root, LocalFSTempDirectoryName)
-}
-
-func LocalFSDataDirectory(root string) string {
-	return filepath.Join(root, LocalFSDataDirectoryName)
-}
-
-func LocalFSPoolDirectory(root string) string {
-	return filepath.Join(root, LocalFSPoolDirectoryName)
 }
 
 func MergeBlockWriteToPermanentDatabase(
@@ -661,4 +614,30 @@ func ValidateStatesOfBlock(
 	}
 
 	return nil
+}
+
+func loadRedisPermanentDatabase(uri, id string, encs *encoder.Encoders, enc encoder.Encoder) (
+	*isaacdatabase.RedisPermanent, error,
+) {
+	e := util.StringErrorFunc("failed to load redis PermanentDatabase")
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2) //nolint:gomnd //...
+	defer cancel()
+
+	option, err := redis.ParseURL(uri)
+	if err != nil {
+		return nil, e(err, "invalid redis url")
+	}
+
+	st, err := redisstorage.NewStorage(ctx, option, fmt.Sprintf(RedisPermanentDatabasePrefixFormat, id))
+	if err != nil {
+		return nil, e(err, "failed to create redis storage")
+	}
+
+	perm, err := isaacdatabase.NewRedisPermanent(st, encs, enc)
+	if err != nil {
+		return nil, e(err, "")
+	}
+
+	return perm, nil
 }

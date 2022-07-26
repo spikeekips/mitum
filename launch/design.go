@@ -22,11 +22,10 @@ import (
 )
 
 var (
-	DefaultNetworkBind     = &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 4321} //nolint:gomnd //...
-	DefaultNetworkPublish  = &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 4321} //nolint:gomnd //...
-	defaultStorageBase     string
-	DefaultStorageBase     string
-	DefaultStorageDatabase *url.URL
+	DefaultNetworkBind                  = &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 4321} //nolint:gomnd //...
+	DefaultNetworkPublish               = &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 4321} //nolint:gomnd //...
+	DefaultStorageBase                  string
+	DefaultStorageDatabaseDirectoryName = "db"
 )
 
 func init() {
@@ -35,14 +34,12 @@ func init() {
 		if err != nil {
 			panic(err)
 		}
-
-		defaultStorageBase = filepath.Join(a, "tmp", "mitum")
-
-		DefaultStorageBase = defaultStorageBase
-		DefaultStorageDatabase = &url.URL{
-			Scheme: LeveldbURIScheme,
-			Path:   filepath.Join(defaultStorageBase, "perm"),
+		a, err = filepath.Abs(a)
+		if err != nil {
+			panic(err)
 		}
+
+		DefaultStorageBase = filepath.Join(a, "tmp", "mitum")
 	}
 }
 
@@ -321,20 +318,8 @@ type NodeStorageDesignYAMLMarshal struct {
 func (d *NodeStorageDesign) IsValid([]byte) error {
 	e := util.ErrInvalid.Errorf("invalid NodeStorageDesign")
 
-	if len(d.Base) < 1 {
-		d.Base = DefaultStorageBase
-	}
-
-	switch i, err := filepath.Abs(d.Base); {
-	case err != nil:
-		return e.Wrap(err)
-	default:
-		d.Base = i
-	}
-
 	switch {
 	case d.Database == nil:
-		d.Database = DefaultStorageDatabase
 	case len(d.Database.Scheme) < 1:
 		return e.Errorf("wrong database; empty scheme")
 	}
@@ -343,15 +328,20 @@ func (d *NodeStorageDesign) IsValid([]byte) error {
 }
 
 func (d *NodeStorageDesign) Patch(node base.Address) error {
-	if d.Base == DefaultStorageBase {
-		d.Base = filepath.Join(defaultStorageBase, node.String())
+	switch {
+	case len(d.Base) < 1:
+		d.Base = filepath.Join(DefaultStorageBase, node.String())
+	default:
+		switch i, err := filepath.Abs(d.Base); {
+		case err != nil:
+			return errors.Wrapf(err, "invalid base directory, %q", d.Base)
+		default:
+			d.Base = i
+		}
 	}
 
-	if d.Database.String() == DefaultStorageDatabase.String() {
-		d.Database = &url.URL{
-			Scheme: LeveldbURIScheme,
-			Path:   filepath.Join(defaultStorageBase, node.String(), "perm"),
-		}
+	if d.Database == nil {
+		d.Database = defaultDatabaseURL(d.Base)
 	}
 
 	return nil
@@ -615,4 +605,11 @@ func (SyncSourceDesign) decodeYAMLConnInfo(
 	}
 
 	return quicmemberlist.NewNamedConnInfo(u.Publish, u.TLSInsecure), nil
+}
+
+func defaultDatabaseURL(root string) *url.URL {
+	return &url.URL{
+		Scheme: LeveldbURIScheme,
+		Path:   filepath.Join(root, DefaultStorageDatabaseDirectoryName),
+	}
 }

@@ -72,7 +72,7 @@ func (cmd *importCommand) prepareDatabase() error {
 		return e(err, "")
 	}
 
-	db, perm, pool, err := launch.LoadDatabase(
+	_, db, perm, pool, err := launch.LoadDatabase(
 		nodeinfo, cmd.design.Storage.Database.String(), cmd.design.Storage.Base, cmd.encs, cmd.enc)
 	if err != nil {
 		return e(err, "")

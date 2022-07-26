@@ -37,7 +37,7 @@ func (cmd *initCommand) Run() error {
 		return err
 	}
 
-	db, _, pool, err := launch.LoadDatabase(
+	_, db, _, pool, err := launch.LoadDatabase(
 		nodeinfo, cmd.design.Storage.Database.String(), cmd.design.Storage.Base, cmd.encs, cmd.enc)
 	if err != nil {
 		return err

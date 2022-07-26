@@ -1,13 +1,13 @@
 package isaacdatabase
 
 import (
-	"os"
+	"bytes"
+	"sort"
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
-	"github.com/spikeekips/mitum/storage"
+	leveldbstorage2 "github.com/spikeekips/mitum/storage/leveldb2"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
@@ -20,35 +20,56 @@ type testLeveldbBlockWrite struct {
 
 func (t *testLeveldbBlockWrite) SetupTest() {
 	t.BaseTestBallots.SetupTest()
-	t.BaseTestDatabase.SetupTest()
 }
 
 func (t *testLeveldbBlockWrite) TestNew() {
 	t.Run("valid", func() {
-		wst, err := NewLeveldbBlockWrite(base.Height(33), t.Root, t.Encs, t.Enc)
-		t.NoError(err)
+		mst := leveldbstorage2.NewMemStorage()
+		wst := NewLeveldbBlockWrite(base.Height(33), mst, t.Encs, t.Enc)
 
 		_ = (interface{})(wst).(isaac.BlockWriteDatabase)
 	})
+}
 
-	t.Run("root exists", func() {
-		_, err := NewLeveldbBlockWrite(base.Height(33), t.Root, t.Encs, t.Enc)
-		t.Error(err)
-		t.ErrorContains(err, "failed batch leveldb storage")
+func (t *testLeveldbBlockWrite) Test2Writers() {
+	height := base.Height(33)
+
+	wsts := make([]*LeveldbBlockWrite, 33)
+	sorted := make([]*LeveldbBlockWrite, 33)
+
+	for i := range wsts {
+		wst := t.NewLeveldbBlockWriteDatabase(height)
+		wsts[i] = wst
+		sorted[i] = wst
+	}
+
+	_, duplicated := util.CheckSliceDuplicated(wsts, func(_ interface{}, i int) string {
+		return string(wsts[i].st.Prefix())
 	})
+	t.False(duplicated)
+
+	sort.Slice(sorted, func(i, j int) bool {
+		return bytes.Compare(sorted[i].st.Prefix(), sorted[j].st.Prefix()) < 0
+	})
+
+	for i := range wsts {
+		a := wsts[i]
+		b := sorted[i]
+
+		t.Equal(a.st.Prefix(), b.st.Prefix())
+	}
 }
 
 func (t *testLeveldbBlockWrite) TestSetBlockMap() {
 	height := base.Height(33)
 
-	wst := t.NewMemLeveldbBlockWriteDatabase(height)
+	wst := t.NewLeveldbBlockWriteDatabase(height)
 	defer wst.Close()
+	defer wst.baseLeveldb.Close()
 
 	manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
 	mp := base.NewDummyBlockMap(manifest)
 	t.NoError(wst.SetBlockMap(mp))
-
-	t.NoError(wst.Write())
 
 	rst, err := wst.TempDatabase()
 	t.NoError(err)
@@ -74,13 +95,13 @@ func (t *testLeveldbBlockWrite) TestSetStates() {
 
 	manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
 
-	wst := t.NewMemLeveldbBlockWriteDatabase(height)
+	wst := t.NewLeveldbBlockWriteDatabase(height)
 	defer wst.Close()
+	defer wst.baseLeveldb.Close()
 
 	mp := base.NewDummyBlockMap(manifest)
 	t.NoError(wst.SetBlockMap(mp))
 	t.NoError(wst.SetStates(stts))
-	t.NoError(wst.Write())
 
 	rst, err := wst.TempDatabase()
 	t.NoError(err)
@@ -136,8 +157,9 @@ func (t *testLeveldbBlockWrite) TestSetStates() {
 }
 
 func (t *testLeveldbBlockWrite) TestSetOperations() {
-	wst := t.NewMemLeveldbBlockWriteDatabase(base.Height(33))
+	wst := t.NewLeveldbBlockWriteDatabase(base.Height(33))
 	defer wst.Close()
+	defer wst.baseLeveldb.Close()
 
 	ops := make([]util.Hash, 33)
 	for i := range ops {
@@ -149,7 +171,6 @@ func (t *testLeveldbBlockWrite) TestSetOperations() {
 	manifest := base.NewDummyManifest(base.Height(33), valuehash.RandomSHA256())
 	mp := base.NewDummyBlockMap(manifest)
 	t.NoError(wst.SetBlockMap(mp))
-	t.NoError(wst.Write())
 
 	rst, err := wst.TempDatabase()
 	t.NoError(err)
@@ -171,30 +192,6 @@ func (t *testLeveldbBlockWrite) TestSetOperations() {
 		t.NoError(err)
 		t.False(found)
 	})
-}
-
-func (t *testLeveldbBlockWrite) TestRemove() {
-	height := base.Height(33)
-
-	wst := t.NewLeveldbBlockWriteDatabase(height)
-	defer wst.Close()
-
-	t.T().Log("check root directory created")
-	fi, err := os.Stat(t.Root)
-	t.NoError(err)
-	t.True(fi.IsDir())
-
-	t.NoError(wst.Write())
-
-	t.NoError(wst.Remove())
-
-	t.T().Log("check root directory removed")
-	_, err = os.Stat(t.Root)
-	t.True(os.IsNotExist(err))
-
-	t.T().Log("remove again")
-	err = wst.Remove()
-	t.True(errors.Is(err, storage.InternalError))
 }
 
 func TestLeveldbBlockWrite(t *testing.T) {

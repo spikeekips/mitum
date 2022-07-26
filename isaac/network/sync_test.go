@@ -27,8 +27,8 @@ type testSyncSourceChecker struct {
 }
 
 func (t *testSyncSourceChecker) SetupTest() {
-	t.BaseTestDatabase.SetupTest()
 	t.BaseTestBallots.SetupTest()
+	t.BaseTestDatabase.SetupTest()
 }
 
 func (t *testSyncSourceChecker) SetupSuite() {

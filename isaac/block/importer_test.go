@@ -37,8 +37,8 @@ func (t *testBlockImporter) TestNew() {
 	point := base.RawPoint(33, 44)
 	m := t.prepare(point)
 
-	bwdb := t.NewMemLeveldbBlockWriteDatabase(point.Height())
-	defer bwdb.Close()
+	bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
+	defer bwdb.DeepClose()
 
 	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.NodePolicy.NetworkID())
 	t.NoError(err)
@@ -50,8 +50,8 @@ func (t *testBlockImporter) TestWriteMap() {
 	point := base.RawPoint(33, 44)
 	m := t.prepare(point)
 
-	bwdb := t.NewMemLeveldbBlockWriteDatabase(point.Height())
-	defer bwdb.Close()
+	bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
+	defer bwdb.DeepClose()
 
 	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.NodePolicy.NetworkID())
 	t.NoError(err)
@@ -82,8 +82,8 @@ func (t *testBlockImporter) TestWriteProposal() {
 	point := base.RawPoint(33, 44)
 	m := t.prepare(point)
 
-	bwdb := t.NewMemLeveldbBlockWriteDatabase(point.Height())
-	defer bwdb.Close()
+	bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
+	defer bwdb.DeepClose()
 
 	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.NodePolicy.NetworkID())
 	t.NoError(err)
@@ -138,8 +138,8 @@ func (t *testBlockImporter) TestWriteOperations() {
 	point := base.RawPoint(33, 44)
 	m := t.prepare(point)
 
-	bwdb := t.NewMemLeveldbBlockWriteDatabase(point.Height())
-	defer bwdb.Close()
+	bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
+	defer bwdb.DeepClose()
 
 	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.NodePolicy.NetworkID())
 	t.NoError(err)
@@ -208,8 +208,8 @@ func (t *testBlockImporter) TestWriteOperationsTree() {
 	point := base.RawPoint(33, 44)
 	m := t.prepare(point)
 
-	bwdb := t.NewMemLeveldbBlockWriteDatabase(point.Height())
-	defer bwdb.Close()
+	bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
+	defer bwdb.DeepClose()
 
 	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.NodePolicy.NetworkID())
 	t.NoError(err)
@@ -270,8 +270,8 @@ func (t *testBlockImporter) TestWriteVoteproofs() {
 	point := base.RawPoint(33, 44)
 	m := t.prepare(point)
 
-	bwdb := t.NewMemLeveldbBlockWriteDatabase(point.Height())
-	defer bwdb.Close()
+	bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
+	defer bwdb.DeepClose()
 
 	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.NodePolicy.NetworkID())
 	t.NoError(err)
@@ -328,8 +328,8 @@ func (t *testBlockImporter) TestWriteStates() {
 	point := base.RawPoint(33, 44)
 	m := t.prepare(point)
 
-	bwdb := t.NewMemLeveldbBlockWriteDatabase(point.Height())
-	defer bwdb.Close()
+	bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
+	defer bwdb.DeepClose()
 
 	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.NodePolicy.NetworkID())
 	t.NoError(err)
@@ -402,8 +402,8 @@ func (t *testBlockImporter) TestWriteStatesTree() {
 	point := base.RawPoint(33, 44)
 	m := t.prepare(point)
 
-	bwdb := t.NewMemLeveldbBlockWriteDatabase(point.Height())
-	defer bwdb.Close()
+	bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
+	defer bwdb.DeepClose()
 
 	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.NodePolicy.NetworkID())
 	t.NoError(err)
@@ -467,8 +467,8 @@ func (t *testBlockImporter) TestSave() {
 	reader, err := NewLocalFSReaderFromHeight(t.Root, point.Height(), t.Enc)
 	t.NoError(err)
 
-	bwdb := t.NewMemLeveldbBlockWriteDatabase(point.Height())
-	defer bwdb.Close()
+	bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
+	defer bwdb.DeepClose()
 
 	newroot := filepath.Join(t.Root, "save")
 
@@ -522,8 +522,8 @@ func (t *testBlockImporter) TestCancelImport() {
 	newroot := filepath.Join(t.Root, "save")
 
 	t.Run("cancel before save", func() {
-		bwdb := t.NewMemLeveldbBlockWriteDatabase(point.Height())
-		defer bwdb.Close()
+		bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
+		defer bwdb.DeepClose()
 
 		im, err := NewBlockImporter(newroot, t.Encs, m, bwdb, t.NodePolicy.NetworkID())
 		t.NoError(err)
@@ -531,8 +531,8 @@ func (t *testBlockImporter) TestCancelImport() {
 		t.NoError(im.CancelImport(context.Background()))
 	})
 
-	bwdb := t.NewMemLeveldbBlockWriteDatabase(point.Height())
-	defer bwdb.Close()
+	bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
+	defer bwdb.DeepClose()
 
 	im, err := NewBlockImporter(newroot, t.Encs, m, bwdb, t.NodePolicy.NetworkID())
 	t.NoError(err)

@@ -9,11 +9,18 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
-	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
+	leveldbstorage2 "github.com/spikeekips/mitum/storage/leveldb2"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/localtime"
 	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
+)
+
+var (
+	leveldbLabelBlockWrite = []byte("block_write")
+	leveldbLabelPermanent  = []byte("permanent")
+	leveldbLabelPool       = []byte("pool")
+	leveldbLabelSyncPool   = []byte("sync_pool")
 )
 
 var (
@@ -35,22 +42,19 @@ var (
 )
 
 type baseLeveldb struct {
-	st leveldbstorage.ReadStorage
+	st *leveldbstorage2.PrefixStorage
 	*baseDatabase
 	sync.Mutex
 }
 
 func newBaseLeveldb(
-	st leveldbstorage.ReadStorage,
+	st *leveldbstorage2.PrefixStorage,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
 ) *baseLeveldb {
 	return &baseLeveldb{
-		baseDatabase: newBaseDatabase(
-			encs,
-			enc,
-		),
-		st: st,
+		baseDatabase: newBaseDatabase(encs, enc),
+		st:           st,
 	}
 }
 
@@ -71,21 +75,6 @@ func (db *baseLeveldb) clean() {
 	db.st = nil
 	db.encs = nil
 	db.enc = nil
-}
-
-func (db *baseLeveldb) Remove() error {
-	db.Lock()
-	defer db.Unlock()
-
-	if err := db.st.Close(); err != nil {
-		return errors.Wrap(err, "failed to close baseDatabase")
-	}
-
-	if err := db.st.Remove(); err != nil {
-		return errors.Wrap(err, "failed to remove baseDatabase")
-	}
-
-	return nil
 }
 
 func (db *baseLeveldb) existsInStateOperation(h util.Hash) (bool, error) {

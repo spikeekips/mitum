@@ -85,9 +85,26 @@ func (t *testNodeStorageDesign) TestIsValid() {
 		}
 
 		t.NoError(a.IsValid(nil))
+		t.Empty(a.Base)
 
-		t.Equal(DefaultStorageBase, a.Base)
+		node := base.RandomAddress("")
+		t.NoError(a.Patch(node))
+
 		t.Equal(LeveldbURIScheme+"://"+"/a/b/c", a.Database.String())
+	})
+
+	t.Run("patched", func() {
+		a := NodeStorageDesign{}
+
+		t.NoError(a.IsValid(nil))
+		t.Empty(a.Base)
+		t.Nil(a.Database)
+
+		node := base.RandomAddress("")
+		t.NoError(a.Patch(node))
+
+		t.Equal(filepath.Join(DefaultStorageBase, node.String()), a.Base)
+		t.Equal(defaultDatabaseURL(a.Base), a.Database)
 	})
 
 	t.Run("empty database", func() {
@@ -98,7 +115,7 @@ func (t *testNodeStorageDesign) TestIsValid() {
 		t.NoError(a.IsValid(nil))
 
 		t.Equal("/tmp/a/b/c", a.Base)
-		t.Equal(DefaultStorageDatabase.String(), a.Database.String())
+		t.Nil(a.Database)
 	})
 
 	t.Run("invalid database", func() {
@@ -433,7 +450,7 @@ func (t *testNodeDesign) TestIsValid() {
 		t.Equal(DefaultStorageBase+"/"+a.Address.String(), a.Storage.Base)
 		t.Equal((&url.URL{
 			Scheme: LeveldbURIScheme,
-			Path:   filepath.Join(defaultStorageBase, a.Address.String(), "perm"),
+			Path:   filepath.Join(DefaultStorageBase, a.Address.String(), DefaultStorageDatabaseDirectoryName),
 		}).String(), a.Storage.Database.String())
 	})
 

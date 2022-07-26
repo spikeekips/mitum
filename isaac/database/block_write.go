@@ -1,52 +1,46 @@
 package isaacdatabase
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"math"
+	"strconv"
+	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/storage"
-	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
+	leveldbstorage2 "github.com/spikeekips/mitum/storage/leveldb2"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
+	"github.com/spikeekips/mitum/util/valuehash"
+	"github.com/syndtr/goleveldb/leveldb"
+	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
 
 type LeveldbBlockWrite struct {
 	*baseLeveldb
-	st         *leveldbstorage.WriteStorage
 	mp         *util.Locked
 	sufst      *util.Locked
 	policy     *util.Locked
 	proof      *util.Locked
 	laststates *util.ShardedMap
 	height     base.Height
+	sync.Mutex
 }
 
 func NewLeveldbBlockWrite(
 	height base.Height,
-	f string,
-	encs *encoder.Encoders,
-	enc encoder.Encoder,
-) (*LeveldbBlockWrite, error) {
-	st, err := leveldbstorage.NewWriteStorage(f)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed new TempLeveldbDatabase")
-	}
-
-	return newLeveldbBlockWrite(st, height, encs, enc), nil
-}
-
-func newLeveldbBlockWrite(
-	st *leveldbstorage.WriteStorage,
-	height base.Height,
+	st *leveldbstorage2.Storage,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
 ) *LeveldbBlockWrite {
+	pst := leveldbstorage2.NewPrefixStorage(st, newPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, height))
+
 	return &LeveldbBlockWrite{
-		baseLeveldb: newBaseLeveldb(st, encs, enc),
-		st:          st,
+		baseLeveldb: newBaseLeveldb(pst, encs, enc),
 		height:      height,
 		mp:          util.EmptyLocked(),
 		sufst:       util.EmptyLocked(),
@@ -57,40 +51,48 @@ func newLeveldbBlockWrite(
 }
 
 func (db *LeveldbBlockWrite) Close() error {
-	if db.baseLeveldb == nil {
-		return nil
-	}
-
-	if err := db.baseLeveldb.Close(); err != nil {
-		return err
-	}
-
 	db.Lock()
 	defer db.Unlock()
 
-	db.baseLeveldb.clean()
-	db.baseLeveldb = nil
+	if db.mp == nil {
+		return nil
+	}
 
 	db.clean()
 
 	return nil
 }
 
+func (db *LeveldbBlockWrite) Write() error {
+	db.Lock()
+	defer db.Unlock()
+
+	db.laststates.Close()
+
+	return nil
+}
+
 func (db *LeveldbBlockWrite) clean() {
-	db.st = nil
 	db.mp = nil
 	db.sufst = nil
 	db.policy = nil
 	db.proof = nil
-	db.laststates = nil
+
+	if db.laststates != nil {
+		db.laststates.Close()
+		db.laststates = nil
+	}
 }
 
 func (db *LeveldbBlockWrite) Cancel() error {
-	db.laststates.Close()
+	db.Lock()
+	defer db.Unlock()
 
-	if err := db.Remove(); err != nil {
-		return errors.Wrap(err, "failed to cancel TempLeveldbDatabase")
+	if db.mp == nil {
+		return nil
 	}
+
+	db.clean()
 
 	return nil
 }
@@ -252,37 +254,31 @@ func (db *LeveldbBlockWrite) SetSuffrageProof(proof base.SuffrageProof) error {
 	return nil
 }
 
-func (db *LeveldbBlockWrite) Write() error {
-	db.Lock()
-	defer db.Unlock()
-
-	db.laststates.Close()
-
-	if err := db.st.Write(); err != nil {
-		return errors.Wrap(err, "failed to write to TempLeveldbDatabase")
-	}
-
-	return nil
-}
-
 func (db *LeveldbBlockWrite) TempDatabase() (isaac.TempDatabase, error) {
-	db.Lock()
-	defer db.Unlock()
-
-	db.laststates.Close()
-
 	e := util.StringErrorFunc("failed to make TempDatabase from BlockWriteDatabase")
 
-	if _, err := db.BlockMap(); err != nil {
+	temp, err := func() (isaac.TempDatabase, error) {
+		db.Lock()
+		defer db.Unlock()
+
+		if _, err := db.BlockMap(); err != nil {
+			return nil, err
+		}
+
+		temp, err := newTempLeveldbFromBlockWriteStorage(db)
+		if err != nil {
+			return nil, err
+		}
+
+		return temp, nil
+	}()
+	if err != nil {
 		return nil, e(err, "")
 	}
 
-	temp, err := newTempLeveldbFromBlockWriteStorage(db)
-	if err != nil {
-		return nil, err
+	if err := db.Close(); err != nil {
+		return nil, e(err, "")
 	}
-
-	db.clean()
 
 	return temp, nil
 }
@@ -336,4 +332,126 @@ func (*LeveldbBlockWrite) updateLockedStates(st base.State, locked *util.Locked)
 
 		return st, nil
 	})
+}
+
+var (
+	prefixStoragePrefixByHeightLength int = valuehash.SHA256Size + 21 + util.ULIDLen // len(ULID.String())
+	emptyULID                             = bytes.Repeat([]byte{0x00}, util.ULIDLen)
+)
+
+func newPrefixStoragePrefixByHeight(label []byte, height base.Height) []byte {
+	return util.ConcatBytesSlice(
+		leveldbstorage2.HashPrefix(label),
+		[]byte(fmt.Sprintf("%021d", height)),
+		[]byte(util.ULID().String()),
+	)
+}
+
+func emptyPrefixStoragePrefixByHeight(label []byte, height base.Height) []byte {
+	return util.ConcatBytesSlice(
+		leveldbstorage2.HashPrefix(label),
+		[]byte(fmt.Sprintf("%021d", height)),
+		emptyULID,
+	)
+}
+
+func prefixStoragePrefixFromKey(b []byte) ([]byte, error) {
+	e := util.StringErrorFunc("failed to parse prefix of PrefixStorage from key")
+
+	if len(b) < prefixStoragePrefixByHeightLength {
+		return nil, e(nil, "wrong key of prefix storage prefix")
+	}
+
+	return b[:prefixStoragePrefixByHeightLength], nil
+}
+
+func HeightFromPrefixStoragePrefix(b []byte) (base.Height, error) {
+	e := util.StringErrorFunc("failed to parse height from PrefixStoragePrefix")
+
+	if len(b) < prefixStoragePrefixByHeightLength {
+		return base.NilHeight, e(nil, "wrong key of prefix storage prefix")
+	}
+
+	s := b[valuehash.SHA256Size : valuehash.SHA256Size+21]
+
+	d, err := strconv.ParseInt(string(s), 10, 64)
+	if err != nil {
+		return base.NilHeight, e(err, "")
+	}
+
+	return base.Height(d), nil
+}
+
+func cleanOneHeight(st *leveldbstorage2.Storage, height base.Height, prefix []byte) error {
+	e := util.StringErrorFunc("failed to clean one height")
+
+	batch := &leveldb.Batch{}
+	defer batch.Reset()
+
+	r := &leveldbutil.Range{
+		Start: emptyPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, height),
+		Limit: prefix,
+	}
+
+	if _, err := leveldbstorage2.BatchRemove(st, r, 333); err != nil { //nolint:gomnd //...
+		return e(err, "")
+	}
+
+	r = leveldbutil.BytesPrefix(prefix)
+	r.Start = r.Limit
+	r.Limit = emptyPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, height+1)
+
+	if _, err := leveldbstorage2.BatchRemove(st, r, 333); err != nil { //nolint:gomnd //...
+		return e(err, "")
+	}
+
+	return nil
+}
+
+func removeHeight(st *leveldbstorage2.Storage, height base.Height) error { //nolint:deadcode,unused //...
+	batch := &leveldb.Batch{}
+	defer batch.Reset()
+
+	r := &leveldbutil.Range{
+		Start: emptyPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, height),
+		Limit: emptyPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, height+1),
+	}
+
+	if _, err := leveldbstorage2.BatchRemove(st, r, 333); err != nil { //nolint:gomnd //...
+		return errors.WithMessage(err, "failed to remove height")
+	}
+
+	return nil
+}
+
+// removeHigherHeights removes all the BlockWrite labeled data higher than
+// height; including height
+func removeHigherHeights(st *leveldbstorage2.Storage, height base.Height) error {
+	batch := &leveldb.Batch{}
+	defer batch.Reset()
+
+	r := leveldbutil.BytesPrefix(leveldbstorage2.HashPrefix(leveldbLabelBlockWrite))
+	r.Start = emptyPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, height)
+
+	if _, err := leveldbstorage2.BatchRemove(st, r, 333); err != nil { //nolint:gomnd //...
+		return errors.WithMessage(err, "failed to remove higher heights")
+	}
+
+	return nil
+}
+
+// removeLowerHeights removes all the BlockWrite labeled data lower than height;
+// except height
+func removeLowerHeights(st *leveldbstorage2.Storage, height base.Height) error {
+	batch := &leveldb.Batch{}
+	defer batch.Reset()
+
+	r := leveldbutil.BytesPrefix(leveldbstorage2.HashPrefix(leveldbLabelBlockWrite))
+	r.Limit = emptyPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, height)
+
+	if _, err := leveldbstorage2.BatchRemove(st, r, 333); err != nil { //nolint:gomnd //...
+		return errors.WithMessage(err, "failed to remove lower heights")
+	}
+
+	return nil
 }

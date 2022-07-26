@@ -8,42 +8,36 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/storage"
-	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
+	leveldbstorage2 "github.com/spikeekips/mitum/storage/leveldb2"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	"github.com/syndtr/goleveldb/leveldb"
 	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
 
 type LeveldbPermanent struct {
 	*basePermanent
 	*baseLeveldb
-	st         *leveldbstorage.WriteStorage
 	batchlimit int
 }
 
 func NewLeveldbPermanent(
-	f string,
+	st *leveldbstorage2.Storage,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
 ) (*LeveldbPermanent, error) {
-	st, err := leveldbstorage.NewWriteStorage(f)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed new LeveldbPermanentDatabase")
-	}
-
 	return newLeveldbPermanent(st, encs, enc)
 }
 
 func newLeveldbPermanent(
-	st *leveldbstorage.WriteStorage,
+	st *leveldbstorage2.Storage,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
 ) (*LeveldbPermanent, error) {
+	pst := leveldbstorage2.NewPrefixStorage(st, leveldbstorage2.HashPrefix(leveldbLabelPermanent))
+
 	db := &LeveldbPermanent{
 		basePermanent: newBasePermanent(),
-		baseLeveldb:   newBaseLeveldb(st, encs, enc),
-		st:            st,
+		baseLeveldb:   newBaseLeveldb(pst, encs, enc),
 		batchlimit:    333, //nolint:gomnd //...
 	}
 
@@ -63,8 +57,10 @@ func newLeveldbPermanent(
 }
 
 func (db *LeveldbPermanent) Clean() error {
-	if err := db.st.Remove(); err != nil {
-		return errors.Wrap(err, "failed to clean leveldb PermanentDatabase")
+	r := leveldbutil.BytesPrefix(db.st.Prefix())
+
+	if _, err := leveldbstorage2.BatchRemove(db.st.Storage, r, 333); err != nil { //nolint:gomnd //...
+		return errors.WithMessage(err, "failed to clean leveldb PermanentDatabase")
 	}
 
 	return db.basePermanent.Clean()
@@ -204,19 +200,20 @@ func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, te
 	worker := util.NewErrgroupWorker(ctx, math.MaxInt8)
 	defer worker.Close()
 
-	batch := &leveldb.Batch{}
+	batch := db.st.NewBatch()
+	defer batch.Reset()
 
 	if err := temp.st.Iter(nil, func(k, v []byte) (bool, error) {
 		if batch.Len() == db.batchlimit {
 			b := batch
 
 			if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
-				return db.st.WriteBatch(b, nil)
+				return db.st.Batch(b, nil)
 			}); err != nil {
 				return false, err
 			}
 
-			batch = &leveldb.Batch{}
+			batch = temp.st.NewBatch()
 		}
 
 		batch.Put(k, v)
@@ -228,7 +225,7 @@ func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, te
 
 	if batch.Len() > 0 {
 		if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
-			return db.st.WriteBatch(batch, nil)
+			return db.st.Batch(batch, nil)
 		}); err != nil {
 			return e(err, "")
 		}

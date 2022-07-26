@@ -5,7 +5,7 @@ import (
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
-	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
+	leveldbstorage2 "github.com/spikeekips/mitum/storage/leveldb2"
 	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
 )
@@ -17,7 +17,7 @@ type testLeveldbPermanent struct {
 func TestLeveldbPermanent(tt *testing.T) {
 	t := new(testLeveldbPermanent)
 	t.newDB = func() isaac.PermanentDatabase {
-		st := leveldbstorage.NewMemWriteStorage()
+		st := leveldbstorage2.NewMemStorage()
 		db, err := newLeveldbPermanent(st, t.Encs, t.Enc)
 		t.NoError(err)
 
@@ -25,7 +25,7 @@ func TestLeveldbPermanent(tt *testing.T) {
 	}
 
 	t.newFromDB = func(db isaac.PermanentDatabase) (isaac.PermanentDatabase, error) {
-		return newLeveldbPermanent(db.(*LeveldbPermanent).st, t.Encs, t.Enc)
+		return newLeveldbPermanent(db.(*LeveldbPermanent).st.RawStorage(), t.Encs, t.Enc)
 	}
 
 	t.setState = func(perm isaac.PermanentDatabase, st base.State) error {

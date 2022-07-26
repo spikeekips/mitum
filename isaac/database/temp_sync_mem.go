@@ -57,6 +57,12 @@ func (db *MemTempSyncPool) Close() error {
 	db.Lock()
 	defer db.Unlock()
 
+	if db.LockedObjectPool == nil {
+		return nil
+	}
+
+	_ = db.LockedObjectPool.Close()
+
 	db.LockedObjectPool = nil
 
 	return nil

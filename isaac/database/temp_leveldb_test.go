@@ -7,7 +7,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
-	"github.com/spikeekips/mitum/storage"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
@@ -40,7 +39,6 @@ type testTempLeveldb struct {
 
 func (t *testTempLeveldb) SetupTest() {
 	t.BaseTestBallots.SetupTest()
-	t.BaseTestDatabase.SetupTest()
 }
 
 func (t *testTempLeveldb) TestLoad() {
@@ -71,7 +69,7 @@ func (t *testTempLeveldb) TestLoad() {
 
 	t.NoError(wst.Close())
 
-	rst, err := NewTempLeveldb(t.Root, t.Encs, t.Enc)
+	rst, err := NewTempLeveldbFromPrefix(wst.st.RawStorage(), wst.st.Prefix(), t.Encs, t.Enc)
 	t.NoError(err)
 	defer rst.Remove()
 
@@ -155,8 +153,7 @@ func (t *testTempLeveldb) TestLoad() {
 	})
 
 	t.Run("remove again", func() {
-		err := rst.Remove()
-		t.True(errors.Is(err, storage.InternalError))
+		t.NoError(rst.Remove())
 	})
 }
 

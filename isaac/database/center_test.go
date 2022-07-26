@@ -1,4 +1,4 @@
-package isaacdatabase2
+package isaacdatabase
 
 import (
 	"context"
@@ -85,16 +85,17 @@ func (db *DummyPermanentDatabase) MergeTempDatabase(_ context.Context, temp isaa
 	return db.mergeTempDatabasef(temp)
 }
 
-type testDefaultWithPermanent struct {
+type testCenterWithPermanent struct {
 	isaac.BaseTestBallots
 	BaseTestDatabase
 }
 
-func (t *testDefaultWithPermanent) SetupTest() {
+func (t *testCenterWithPermanent) SetupTest() {
 	t.BaseTestBallots.SetupTest()
+	t.BaseTestDatabase.SetupTest()
 }
 
-func (t *testDefaultWithPermanent) TestMap() {
+func (t *testCenterWithPermanent) TestMap() {
 	manifest := base.NewDummyManifest(base.Height(33), valuehash.RandomSHA256())
 	mp := base.NewDummyBlockMap(manifest)
 
@@ -111,7 +112,7 @@ func (t *testDefaultWithPermanent) TestMap() {
 		},
 	}
 
-	db, err := NewDefault(leveldbstorage2.NewMemStorage(), t.Encs, t.Enc, perm, nil)
+	db, err := NewCenter(leveldbstorage2.NewMemStorage(), t.Encs, t.Enc, perm, nil)
 	t.NoError(err)
 
 	_ = (interface{})(db).(isaac.Database)
@@ -139,13 +140,13 @@ func (t *testDefaultWithPermanent) TestMap() {
 	})
 }
 
-func (t *testDefaultWithPermanent) TestLastMap() {
+func (t *testCenterWithPermanent) TestLastMap() {
 	manifest := base.NewDummyManifest(base.Height(33), valuehash.RandomSHA256())
 	mp := base.NewDummyBlockMap(manifest)
 
 	perm := &DummyPermanentDatabase{}
 
-	db, err := NewDefault(leveldbstorage2.NewMemStorage(), t.Encs, t.Enc, perm, nil)
+	db, err := NewCenter(leveldbstorage2.NewMemStorage(), t.Encs, t.Enc, perm, nil)
 	t.NoError(err)
 
 	t.Run("found", func() {
@@ -183,7 +184,7 @@ func (t *testDefaultWithPermanent) TestLastMap() {
 	})
 }
 
-func (t *testDefaultWithPermanent) TestSuffrageProof() {
+func (t *testCenterWithPermanent) TestSuffrageProof() {
 	suffrageheight := base.Height(66)
 
 	_, nodes := t.Locals(1)
@@ -203,7 +204,7 @@ func (t *testDefaultWithPermanent) TestSuffrageProof() {
 		},
 	}
 
-	db, err := NewDefault(leveldbstorage2.NewMemStorage(), t.Encs, t.Enc, perm, nil)
+	db, err := NewCenter(leveldbstorage2.NewMemStorage(), t.Encs, t.Enc, perm, nil)
 	t.NoError(err)
 
 	t.Run("found SuffrageProof", func() {
@@ -229,7 +230,7 @@ func (t *testDefaultWithPermanent) TestSuffrageProof() {
 	})
 }
 
-func (t *testDefaultWithPermanent) TestSuffrageProofByBlockHeight() {
+func (t *testCenterWithPermanent) TestSuffrageProofByBlockHeight() {
 	height := base.Height(66)
 
 	_, nodes := t.Locals(1)
@@ -249,7 +250,7 @@ func (t *testDefaultWithPermanent) TestSuffrageProofByBlockHeight() {
 		},
 	}
 
-	db, err := NewDefault(leveldbstorage2.NewMemStorage(), t.Encs, t.Enc, perm, nil)
+	db, err := NewCenter(leveldbstorage2.NewMemStorage(), t.Encs, t.Enc, perm, nil)
 	t.NoError(err)
 
 	t.Run("found SuffrageProof", func() {
@@ -275,14 +276,14 @@ func (t *testDefaultWithPermanent) TestSuffrageProofByBlockHeight() {
 	})
 }
 
-func (t *testDefaultWithPermanent) TestLastSuffrageProof() {
+func (t *testCenterWithPermanent) TestLastSuffrageProof() {
 	_, nodes := t.Locals(1)
 	sufst, _ := t.SuffrageState(base.Height(77), base.Height(66), nodes)
 	proof := NewDummySuffrageProof(sufst)
 
 	perm := &DummyPermanentDatabase{}
 
-	db, err := NewDefault(leveldbstorage2.NewMemStorage(), t.Encs, t.Enc, perm, nil)
+	db, err := NewCenter(leveldbstorage2.NewMemStorage(), t.Encs, t.Enc, perm, nil)
 	t.NoError(err)
 
 	t.Run("found", func() {
@@ -320,10 +321,10 @@ func (t *testDefaultWithPermanent) TestLastSuffrageProof() {
 	})
 }
 
-func (t *testDefaultWithPermanent) TestLastNetworkPolicy() {
+func (t *testCenterWithPermanent) TestLastNetworkPolicy() {
 	perm := &DummyPermanentDatabase{}
 
-	db, err := NewDefault(leveldbstorage2.NewMemStorage(), t.Encs, t.Enc, perm, nil)
+	db, err := NewCenter(leveldbstorage2.NewMemStorage(), t.Encs, t.Enc, perm, nil)
 	t.NoError(err)
 
 	policy := isaac.DefaultNetworkPolicy()
@@ -347,7 +348,7 @@ func (t *testDefaultWithPermanent) TestLastNetworkPolicy() {
 	})
 }
 
-func (t *testDefaultWithPermanent) TestState() {
+func (t *testCenterWithPermanent) TestState() {
 	st := t.States(base.Height(33), 1)[0]
 
 	errkey := util.UUID().String()
@@ -364,7 +365,7 @@ func (t *testDefaultWithPermanent) TestState() {
 		},
 	}
 
-	db, err := NewDefault(leveldbstorage2.NewMemStorage(), t.Encs, t.Enc, perm, nil)
+	db, err := NewCenter(leveldbstorage2.NewMemStorage(), t.Encs, t.Enc, perm, nil)
 	t.NoError(err)
 
 	t.Run("found", func() {
@@ -390,7 +391,7 @@ func (t *testDefaultWithPermanent) TestState() {
 	})
 }
 
-func (t *testDefaultWithPermanent) TestExistsInStateOperation() {
+func (t *testCenterWithPermanent) TestExistsInStateOperation() {
 	op := valuehash.RandomSHA256()
 	errop := valuehash.RandomSHA256()
 
@@ -407,7 +408,7 @@ func (t *testDefaultWithPermanent) TestExistsInStateOperation() {
 		},
 	}
 
-	db, err := NewDefault(leveldbstorage2.NewMemStorage(), t.Encs, t.Enc, perm, nil)
+	db, err := NewCenter(leveldbstorage2.NewMemStorage(), t.Encs, t.Enc, perm, nil)
 	t.NoError(err)
 
 	t.Run("found", func() {
@@ -430,7 +431,7 @@ func (t *testDefaultWithPermanent) TestExistsInStateOperation() {
 	})
 }
 
-func (t *testDefaultWithPermanent) TestExistsKnownOperation() {
+func (t *testCenterWithPermanent) TestExistsKnownOperation() {
 	op := valuehash.RandomSHA256()
 	errop := valuehash.RandomSHA256()
 
@@ -447,7 +448,7 @@ func (t *testDefaultWithPermanent) TestExistsKnownOperation() {
 		},
 	}
 
-	db, err := NewDefault(leveldbstorage2.NewMemStorage(), t.Encs, t.Enc, perm, nil)
+	db, err := NewCenter(leveldbstorage2.NewMemStorage(), t.Encs, t.Enc, perm, nil)
 	t.NoError(err)
 
 	t.Run("found", func() {
@@ -470,20 +471,21 @@ func (t *testDefaultWithPermanent) TestExistsKnownOperation() {
 	})
 }
 
-func TestDefaultWithPermanent(t *testing.T) {
-	suite.Run(t, new(testDefaultWithPermanent))
+func TestCenterWithPermanent(t *testing.T) {
+	suite.Run(t, new(testCenterWithPermanent))
 }
 
-type testDefaultBlockWrite struct {
+type testCenterBlockWrite struct {
 	isaac.BaseTestBallots
 	BaseTestDatabase
 }
 
-func (t *testDefaultBlockWrite) SetupTest() {
+func (t *testCenterBlockWrite) SetupTest() {
 	t.BaseTestBallots.SetupTest()
+	t.BaseTestDatabase.SetupTest()
 }
 
-func (t *testDefaultBlockWrite) TestMerge() {
+func (t *testCenterBlockWrite) TestMerge() {
 	height := base.Height(33)
 	_, nodes := t.Locals(3)
 
@@ -539,7 +541,7 @@ func (t *testDefaultBlockWrite) TestMerge() {
 	}
 
 	st := leveldbstorage2.NewMemStorage()
-	db, err := NewDefault(st, t.Encs, t.Enc, perm, func(h base.Height) (isaac.BlockWriteDatabase, error) {
+	db, err := NewCenter(st, t.Encs, t.Enc, perm, func(h base.Height) (isaac.BlockWriteDatabase, error) {
 		return NewLeveldbBlockWrite(h, st, t.Encs, t.Enc), nil
 	})
 	t.NoError(err)
@@ -672,7 +674,7 @@ func (t *testDefaultBlockWrite) TestMerge() {
 	})
 }
 
-func (t *testDefaultBlockWrite) TestFindState() {
+func (t *testCenterBlockWrite) TestFindState() {
 	baseheight := base.Height(33)
 
 	manifest := base.NewDummyManifest(baseheight, valuehash.RandomSHA256())
@@ -687,7 +689,7 @@ func (t *testDefaultBlockWrite) TestFindState() {
 	}
 
 	st := leveldbstorage2.NewMemStorage()
-	db, err := NewDefault(st, t.Encs, t.Enc, perm, func(height base.Height) (isaac.BlockWriteDatabase, error) {
+	db, err := NewCenter(st, t.Encs, t.Enc, perm, func(height base.Height) (isaac.BlockWriteDatabase, error) {
 		return NewLeveldbBlockWrite(height, st, t.Encs, t.Enc), nil
 	})
 	t.NoError(err)
@@ -736,7 +738,7 @@ func (t *testDefaultBlockWrite) TestFindState() {
 	})
 }
 
-func (t *testDefaultBlockWrite) TestInvalidMerge() {
+func (t *testCenterBlockWrite) TestInvalidMerge() {
 	height := base.Height(33)
 
 	perm := &DummyPermanentDatabase{
@@ -747,7 +749,7 @@ func (t *testDefaultBlockWrite) TestInvalidMerge() {
 	}
 
 	st := leveldbstorage2.NewMemStorage()
-	db, err := NewDefault(st, t.Encs, t.Enc, perm, func(h base.Height) (isaac.BlockWriteDatabase, error) {
+	db, err := NewCenter(st, t.Encs, t.Enc, perm, func(h base.Height) (isaac.BlockWriteDatabase, error) {
 		return NewLeveldbBlockWrite(h, st, t.Encs, t.Enc), nil
 	})
 	t.NoError(err)
@@ -783,7 +785,7 @@ func (t *testDefaultBlockWrite) TestInvalidMerge() {
 	})
 }
 
-func (t *testDefaultBlockWrite) TestMergePermanent() {
+func (t *testCenterBlockWrite) TestMergePermanent() {
 	baseheight := base.Height(33)
 
 	lmanifest := base.NewDummyManifest(baseheight, valuehash.RandomSHA256())
@@ -818,7 +820,7 @@ func (t *testDefaultBlockWrite) TestMergePermanent() {
 	}
 
 	st := leveldbstorage2.NewMemStorage()
-	db, err := NewDefault(st, t.Encs, t.Enc, perm, func(h base.Height) (isaac.BlockWriteDatabase, error) {
+	db, err := NewCenter(st, t.Encs, t.Enc, perm, func(h base.Height) (isaac.BlockWriteDatabase, error) {
 		return NewLeveldbBlockWrite(h, st, t.Encs, t.Enc), nil
 	})
 	t.NoError(err)
@@ -903,20 +905,21 @@ func (t *testDefaultBlockWrite) TestMergePermanent() {
 	}
 }
 
-func TestDefaultBlockWrite(t *testing.T) {
-	suite.Run(t, new(testDefaultBlockWrite))
+func TestCenterBlockWrite(t *testing.T) {
+	suite.Run(t, new(testCenterBlockWrite))
 }
 
-type testDefaultLoad struct {
+type testCenterLoad struct {
 	isaac.BaseTestBallots
 	BaseTestDatabase
 }
 
-func (t *testDefaultLoad) SetupTest() {
+func (t *testCenterLoad) SetupTest() {
 	t.BaseTestBallots.SetupTest()
+	t.BaseTestDatabase.SetupTest()
 }
 
-func (t *testDefaultLoad) TestLoadTempDatabases() {
+func (t *testCenterLoad) TestLoadTempDatabases() {
 	baseheight := base.Height(33)
 
 	basemanifest := base.NewDummyManifest(baseheight, valuehash.RandomSHA256())
@@ -928,7 +931,7 @@ func (t *testDefaultLoad) TestLoadTempDatabases() {
 	}
 
 	st := leveldbstorage2.NewMemStorage()
-	db, err := NewDefault(st, t.Encs, t.Enc, perm, func(height base.Height) (isaac.BlockWriteDatabase, error) {
+	db, err := NewCenter(st, t.Encs, t.Enc, perm, func(height base.Height) (isaac.BlockWriteDatabase, error) {
 		return NewLeveldbBlockWrite(height, st, t.Encs, t.Enc), nil
 	})
 	t.NoError(err)
@@ -986,7 +989,7 @@ func (t *testDefaultLoad) TestLoadTempDatabases() {
 		base.EqualBlockMap(t.Assert(), expected, tm)
 	}
 
-	newdb, err := NewDefault(st, t.Encs, t.Enc, perm, nil)
+	newdb, err := NewCenter(st, t.Encs, t.Enc, perm, nil)
 	t.NoError(err)
 
 	actives := newdb.activeTemps()
@@ -1007,7 +1010,7 @@ func (t *testDefaultLoad) TestLoadTempDatabases() {
 	}
 }
 
-func (t *testDefaultLoad) TestLoadTempDatabasesButMissing() {
+func (t *testCenterLoad) TestLoadTempDatabasesButMissing() {
 	baseheight := base.Height(33)
 
 	basemanifest := base.NewDummyManifest(baseheight, valuehash.RandomSHA256())
@@ -1019,7 +1022,7 @@ func (t *testDefaultLoad) TestLoadTempDatabasesButMissing() {
 	}
 
 	st := leveldbstorage2.NewMemStorage()
-	db, err := NewDefault(st, t.Encs, t.Enc, perm, func(height base.Height) (isaac.BlockWriteDatabase, error) {
+	db, err := NewCenter(st, t.Encs, t.Enc, perm, func(height base.Height) (isaac.BlockWriteDatabase, error) {
 		return NewLeveldbBlockWrite(height, st, t.Encs, t.Enc), nil
 	})
 	t.NoError(err)
@@ -1082,6 +1085,6 @@ func (t *testDefaultLoad) TestLoadTempDatabasesButMissing() {
 	t.True(highercount < 1)
 }
 
-func TestDefaultLoad(t *testing.T) {
-	suite.Run(t, new(testDefaultLoad))
+func TestCenterLoad(t *testing.T) {
+	suite.Run(t, new(testCenterLoad))
 }

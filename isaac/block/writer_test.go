@@ -20,8 +20,8 @@ type testWriter struct {
 
 func (t *testWriter) TestNew() {
 	height := base.Height(33)
-	db := t.NewMemLeveldbBlockWriteDatabase(height)
-	defer db.Close()
+	db := t.NewLeveldbBlockWriteDatabase(height)
+	defer db.DeepClose()
 
 	fswriter := &DummyBlockFSWriter{}
 	writer := NewWriter(nil, nil, db, func(isaac.BlockWriteDatabase) error {
@@ -47,8 +47,8 @@ func (t *testWriter) TestNew() {
 func (t *testWriter) TestSetOperations() {
 	point := base.RawPoint(33, 44)
 
-	db := t.NewMemLeveldbBlockWriteDatabase(point.Height())
-	defer db.Close()
+	db := t.NewLeveldbBlockWriteDatabase(point.Height())
+	defer db.DeepClose()
 
 	fswriter := &DummyBlockFSWriter{}
 
@@ -117,8 +117,8 @@ func (t *testWriter) TestSetOperations() {
 func (t *testWriter) TestSetStates() {
 	point := base.RawPoint(33, 44)
 
-	db := t.NewMemLeveldbBlockWriteDatabase(point.Height())
-	defer db.Close()
+	db := t.NewLeveldbBlockWriteDatabase(point.Height())
+	defer db.DeepClose()
 
 	fswriter := &DummyBlockFSWriter{}
 
@@ -188,8 +188,8 @@ func (t *testWriter) TestSetStates() {
 func (t *testWriter) TestSetStatesAndClose() {
 	point := base.RawPoint(33, 44)
 
-	db := t.NewMemLeveldbBlockWriteDatabase(point.Height())
-	defer db.Close()
+	db := t.NewLeveldbBlockWriteDatabase(point.Height())
+	defer db.DeepClose()
 
 	fswriter := &DummyBlockFSWriter{}
 
@@ -282,8 +282,8 @@ func (t *testWriter) TestSetStatesAndClose() {
 func (t *testWriter) TestManifest() {
 	point := base.RawPoint(33, 44)
 
-	db := t.NewMemLeveldbBlockWriteDatabase(point.Height())
-	defer db.Close()
+	db := t.NewLeveldbBlockWriteDatabase(point.Height())
+	defer db.DeepClose()
 
 	fswriter := &DummyBlockFSWriter{}
 

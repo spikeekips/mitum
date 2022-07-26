@@ -1,4 +1,4 @@
-package isaacdatabase2
+package isaacdatabase
 
 import (
 	"context"
@@ -17,7 +17,7 @@ import (
 	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
 
-type Default struct {
+type Center struct {
 	enc                   encoder.Encoder
 	perm                  isaac.PermanentDatabase
 	newBlockWriteDatabase func(base.Height) (isaac.BlockWriteDatabase, error)
@@ -32,16 +32,16 @@ type Default struct {
 
 // FIXME cache result
 
-func NewDefault(
+func NewCenter(
 	st *leveldbstorage2.Storage,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
 	perm isaac.PermanentDatabase,
 	newBlockWriteDatabase func(base.Height) (isaac.BlockWriteDatabase, error),
-) (*Default, error) {
-	db := &Default{
+) (*Center, error) {
+	db := &Center{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
-			return lctx.Str("module", "default-database")
+			return lctx.Str("module", "center-database")
 		}),
 		encs:                  encs,
 		enc:                   enc,
@@ -59,7 +59,7 @@ func NewDefault(
 	return db, nil
 }
 
-func (db *Default) SetLogging(l *logging.Logging) *logging.Logging {
+func (db *Center) SetLogging(l *logging.Logging) *logging.Logging {
 	if i, ok := db.perm.(logging.SetLogging); ok {
 		_ = i.SetLogging(l)
 	}
@@ -67,7 +67,7 @@ func (db *Default) SetLogging(l *logging.Logging) *logging.Logging {
 	return db.Logging.SetLogging(l)
 }
 
-func (db *Default) Close() error {
+func (db *Center) Close() error {
 	e := util.StringErrorFunc("failed to close database")
 
 	for i := range db.temps {
@@ -83,8 +83,8 @@ func (db *Default) Close() error {
 	return nil
 }
 
-func (db *Default) load(st *leveldbstorage2.Storage) error {
-	e := util.StringErrorFunc("failed to load temps to DefaultDatabase")
+func (db *Center) load(st *leveldbstorage2.Storage) error {
+	e := util.StringErrorFunc("failed to load temps to CenterDatabase")
 
 	var last base.Height
 
@@ -106,7 +106,7 @@ func (db *Default) load(st *leveldbstorage2.Storage) error {
 	return nil
 }
 
-func (db *Default) LastSuffrageProof() (base.SuffrageProof, bool, error) {
+func (db *Center) LastSuffrageProof() (base.SuffrageProof, bool, error) {
 	temps := db.activeTemps()
 
 	for i := range temps {
@@ -126,7 +126,7 @@ func (db *Default) LastSuffrageProof() (base.SuffrageProof, bool, error) {
 	return proof, found, nil
 }
 
-func (db *Default) SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof, bool, error) {
+func (db *Center) SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof, bool, error) {
 	e := util.StringErrorFunc("failed to find SuffrageProof by suffrage height")
 
 	temps := db.activeTemps()
@@ -160,7 +160,7 @@ end:
 
 // FIXME cache result from storages
 
-func (db *Default) SuffrageProofByBlockHeight(height base.Height) (base.SuffrageProof, bool, error) {
+func (db *Center) SuffrageProofByBlockHeight(height base.Height) (base.SuffrageProof, bool, error) {
 	e := util.StringErrorFunc("failed to find suffrage by SuffrageProof by block height")
 
 	if height < base.GenesisHeight {
@@ -210,7 +210,7 @@ func (db *Default) SuffrageProofByBlockHeight(height base.Height) (base.Suffrage
 	return proof, found, nil
 }
 
-func (db *Default) LastNetworkPolicy() base.NetworkPolicy {
+func (db *Center) LastNetworkPolicy() base.NetworkPolicy {
 	temps := db.activeTemps()
 
 	for i := range temps {
@@ -222,7 +222,7 @@ func (db *Default) LastNetworkPolicy() base.NetworkPolicy {
 	return db.perm.LastNetworkPolicy()
 }
 
-func (db *Default) State(key string) (base.State, bool, error) {
+func (db *Center) State(key string) (base.State, bool, error) {
 	e := util.StringErrorFunc("failed to find State")
 
 	l := util.EmptyLocked()
@@ -261,7 +261,7 @@ func (db *Default) State(key string) (base.State, bool, error) {
 	return st, found, nil
 }
 
-func (db *Default) ExistsInStateOperation(h util.Hash) (bool, error) { //nolint:dupl //...
+func (db *Center) ExistsInStateOperation(h util.Hash) (bool, error) { //nolint:dupl //...
 	e := util.StringErrorFunc("failed to check operation")
 
 	l := util.NewLocked(false)
@@ -293,7 +293,7 @@ func (db *Default) ExistsInStateOperation(h util.Hash) (bool, error) { //nolint:
 	return found, nil
 }
 
-func (db *Default) ExistsKnownOperation(h util.Hash) (bool, error) { //nolint:dupl //...
+func (db *Center) ExistsKnownOperation(h util.Hash) (bool, error) { //nolint:dupl //...
 	e := util.StringErrorFunc("failed to check operation")
 
 	l := util.NewLocked(false)
@@ -325,7 +325,7 @@ func (db *Default) ExistsKnownOperation(h util.Hash) (bool, error) { //nolint:du
 	return found, nil
 }
 
-func (db *Default) BlockMap(height base.Height) (base.BlockMap, bool, error) {
+func (db *Center) BlockMap(height base.Height) (base.BlockMap, bool, error) {
 	switch temps := db.activeTemps(); {
 	case len(temps) < 1:
 	case temps[0].Height() > height:
@@ -346,7 +346,7 @@ func (db *Default) BlockMap(height base.Height) (base.BlockMap, bool, error) {
 	return m, found, err
 }
 
-func (db *Default) LastBlockMap() (base.BlockMap, bool, error) {
+func (db *Center) LastBlockMap() (base.BlockMap, bool, error) {
 	if temps := db.activeTemps(); len(temps) > 0 {
 		m, err := temps[0].BlockMap()
 		if err != nil {
@@ -361,11 +361,11 @@ func (db *Default) LastBlockMap() (base.BlockMap, bool, error) {
 	return m, found, err
 }
 
-func (db *Default) NewBlockWriteDatabase(height base.Height) (isaac.BlockWriteDatabase, error) {
+func (db *Center) NewBlockWriteDatabase(height base.Height) (isaac.BlockWriteDatabase, error) {
 	return db.newBlockWriteDatabase(height)
 }
 
-func (db *Default) MergeBlockWriteDatabase(w isaac.BlockWriteDatabase) error {
+func (db *Center) MergeBlockWriteDatabase(w isaac.BlockWriteDatabase) error {
 	db.Lock()
 	defer db.Unlock()
 
@@ -408,7 +408,7 @@ func (db *Default) MergeBlockWriteDatabase(w isaac.BlockWriteDatabase) error {
 	return nil
 }
 
-func (db *Default) MergeAllPermanent() error {
+func (db *Center) MergeAllPermanent() error {
 	e := util.StringErrorFunc("failed to merge all temps to permanent")
 
 	for len(db.activeTemps()) > 0 {
@@ -424,14 +424,14 @@ func (db *Default) MergeAllPermanent() error {
 	return nil
 }
 
-func (db *Default) activeTemps() []isaac.TempDatabase {
+func (db *Center) activeTemps() []isaac.TempDatabase {
 	db.RLock()
 	defer db.RUnlock()
 
 	return db.temps
 }
 
-func (db *Default) removeTemp(temp isaac.TempDatabase) error {
+func (db *Center) removeTemp(temp isaac.TempDatabase) error {
 	db.Lock()
 	defer db.Unlock()
 
@@ -473,7 +473,7 @@ func (db *Default) removeTemp(temp isaac.TempDatabase) error {
 	return nil
 }
 
-func (db *Default) findTemp(height base.Height) isaac.TempDatabase {
+func (db *Center) findTemp(height base.Height) isaac.TempDatabase {
 	db.RLock()
 	defer db.RUnlock()
 
@@ -489,7 +489,7 @@ func (db *Default) findTemp(height base.Height) isaac.TempDatabase {
 	return nil
 }
 
-func (db *Default) dig(f func(isaac.PartialDatabase) (bool, error)) error {
+func (db *Center) dig(f func(isaac.PartialDatabase) (bool, error)) error {
 	temps := db.activeTemps()
 	partials := make([]isaac.PartialDatabase, len(temps)+1)
 
@@ -534,7 +534,7 @@ func (db *Default) dig(f func(isaac.PartialDatabase) (bool, error)) error {
 	return nil
 }
 
-func (db *Default) start(ctx context.Context) error {
+func (db *Center) start(ctx context.Context) error {
 	ticker := time.NewTicker(db.mergeInterval)
 	defer ticker.Stop()
 
@@ -561,7 +561,7 @@ end:
 	}
 }
 
-func (db *Default) mergePermanent(ctx context.Context) error {
+func (db *Center) mergePermanent(ctx context.Context) error {
 	e := util.StringErrorFunc("failed to merge to permanent database")
 
 	temps := db.activeTemps()
@@ -583,13 +583,13 @@ func (db *Default) mergePermanent(ctx context.Context) error {
 	return nil
 }
 
-func (db *Default) cleanRemoved(limit int) error {
+func (db *Center) cleanRemoved(limit int) error {
 	db.Lock()
 	defer db.Unlock()
 
 	if len(db.removed) <= limit {
 		// NOTE last limit temp databases will be kept for safe concurreny
-		// access from DefaultDatabase.
+		// access from CenterDatabase.
 		return nil
 	}
 

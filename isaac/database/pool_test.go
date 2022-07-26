@@ -22,7 +22,6 @@ type testPool struct {
 
 func (t *testPool) SetupTest() {
 	t.BaseTestBallots.SetupTest()
-	t.BaseTestDatabase.SetupTest()
 }
 
 func (t *testPool) TestNew() {
@@ -162,7 +161,6 @@ func (t *testNewOperationPool) SetupSuite() {
 
 func (t *testNewOperationPool) SetupTest() {
 	t.BaseTestBallots.SetupTest()
-	t.BaseTestDatabase.SetupTest()
 }
 
 func (t *testNewOperationPool) TestNewOperation() {

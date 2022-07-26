@@ -114,7 +114,6 @@ func (t *testCommonPermanent) SetupSuite() {
 
 func (t *testCommonPermanent) SetupTest() {
 	t.BaseTestBallots.SetupTest()
-	t.BaseTestDatabase.SetupTest()
 }
 
 func (t *testCommonPermanent) setMap(db isaac.PermanentDatabase, mp base.BlockMap) {
@@ -229,7 +228,7 @@ func (t *testCommonPermanent) TestLoad() {
 
 	proof := NewDummySuffrageProof(sufst)
 
-	wst := t.NewMemLeveldbBlockWriteDatabase(height)
+	wst := t.NewLeveldbBlockWriteDatabase(height)
 	t.NoError(wst.SetBlockMap(mp))
 	t.NoError(wst.SetStates(stts))
 	t.NoError(wst.SetOperations(ops))
@@ -298,7 +297,7 @@ func (t *testCommonPermanent) TestMergeTempDatabase() {
 
 	proof := NewDummySuffrageProof(sufst)
 
-	wst := t.NewMemLeveldbBlockWriteDatabase(height)
+	wst := t.NewLeveldbBlockWriteDatabase(height)
 	t.NoError(wst.SetBlockMap(mp))
 	t.NoError(wst.SetStates(stts))
 	t.NoError(wst.SetOperations(ops))

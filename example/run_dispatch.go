@@ -10,6 +10,7 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
+	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
 	isaacoperation "github.com/spikeekips/mitum/isaac/operation"
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/launch"
@@ -346,7 +347,7 @@ func (cmd *runCommand) newSyncer(
 
 		var tempsyncpool isaac.TempSyncPool
 
-		switch i, err := launch.NewTempSyncPoolDatabase(cmd.design.Storage.Base, height, cmd.encs, cmd.enc); {
+		switch i, err := isaacdatabase.NewLeveldbTempSyncPool(height, cmd.st, cmd.encs, cmd.enc); {
 		case err != nil:
 			return nil, e(isaacstates.ErrUnpromising.Wrap(err), "")
 		default:

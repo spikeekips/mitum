@@ -113,7 +113,7 @@ func (cmd *runCommand) prepareDatabase() error {
 		return e(err, "")
 	}
 
-	db, perm, pool, err := launch.LoadDatabase(
+	st, db, perm, pool, err := launch.LoadDatabase(
 		nodeinfo, cmd.design.Storage.Database.String(), cmd.design.Storage.Base, cmd.encs, cmd.enc)
 	if err != nil {
 		return e(err, "")
@@ -125,6 +125,7 @@ func (cmd *runCommand) prepareDatabase() error {
 		return e(err, "")
 	}
 
+	cmd.st = st
 	cmd.nodeInfo = nodeinfo
 	cmd.db = db
 	cmd.perm = perm

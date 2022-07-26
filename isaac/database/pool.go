@@ -9,35 +9,29 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
-	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
+	leveldbstorage2 "github.com/spikeekips/mitum/storage/leveldb2"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/localtime"
 	"github.com/spikeekips/mitum/util/valuehash"
-	"github.com/syndtr/goleveldb/leveldb"
 	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
 
 type TempPool struct {
 	*baseLeveldb
-	st             *leveldbstorage.RWStorage
 	lastvoteproofs *util.Locked
 }
 
-func NewTempPool(f string, encs *encoder.Encoders, enc encoder.Encoder) (*TempPool, error) {
-	st, err := leveldbstorage.NewRWStorage(f)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed new TempPoolDatabase")
-	}
-
+func NewTempPool(st *leveldbstorage2.Storage, encs *encoder.Encoders, enc encoder.Encoder) (*TempPool, error) {
 	return newTempPool(st, encs, enc)
 }
 
-func newTempPool(st *leveldbstorage.RWStorage, encs *encoder.Encoders, enc encoder.Encoder) (*TempPool, error) {
+func newTempPool(st *leveldbstorage2.Storage, encs *encoder.Encoders, enc encoder.Encoder) (*TempPool, error) {
+	pst := leveldbstorage2.NewPrefixStorage(st, leveldbstorage2.HashPrefix(leveldbLabelPool))
+
 	db := &TempPool{
-		baseLeveldb:    newBaseLeveldb(st, encs, enc),
-		st:             st,
+		baseLeveldb:    newBaseLeveldb(pst, encs, enc),
 		lastvoteproofs: util.EmptyLocked(),
 	}
 
@@ -98,7 +92,8 @@ func (db *TempPool) SetProposal(pr base.ProposalSignedFact) (bool, error) {
 		return false, nil
 	}
 
-	batch := new(leveldb.Batch)
+	batch := db.st.NewBatch()
+	defer batch.Reset()
 
 	// NOTE remove old proposals
 	cleanpoint := pr.ProposalFact().Point().
@@ -135,7 +130,7 @@ func (db *TempPool) SetProposal(pr base.ProposalSignedFact) (bool, error) {
 		pr.Fact().Hash().Bytes(),
 	)
 
-	if err := db.st.Write(batch, nil); err != nil {
+	if err := db.st.Batch(batch, nil); err != nil {
 		return false, e(err, "")
 	}
 
@@ -246,7 +241,8 @@ func (db *TempPool) SetNewOperation(_ context.Context, op base.Operation) (bool,
 		return false, e(err, "failed to marshal operation")
 	}
 
-	batch := new(leveldb.Batch)
+	batch := db.st.NewBatch()
+	defer batch.Reset()
 
 	h := newOperationHeader(op)
 
@@ -255,7 +251,7 @@ func (db *TempPool) SetNewOperation(_ context.Context, op base.Operation) (bool,
 
 	batch.Put(leveldbNewOperationKeysKey(facthash), joinLeveldbKeys(key, orderedkey))
 
-	if err := db.st.Write(batch, nil); err != nil {
+	if err := db.st.Batch(batch, nil); err != nil {
 		return false, e(err, "")
 	}
 
@@ -385,7 +381,8 @@ func (db *TempPool) removeNewOperations(ctx context.Context, facthashes []util.H
 	worker := util.NewErrgroupWorker(ctx, math.MaxInt8)
 	defer worker.Close()
 
-	batch := new(leveldb.Batch)
+	batch := db.st.NewBatch()
+	defer batch.Reset()
 
 	removekeysch := make(chan []byte)
 	donech := make(chan struct{})
@@ -438,7 +435,7 @@ func (db *TempPool) removeNewOperations(ctx context.Context, facthashes []util.H
 	close(removekeysch)
 	<-donech
 
-	return db.st.Write(batch, nil)
+	return db.st.Batch(batch, nil)
 }
 
 func (db *TempPool) loadLastVoteproofs() error {

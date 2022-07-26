@@ -3,36 +3,35 @@ package isaacdatabase
 import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
-	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
+	leveldbstorage2 "github.com/spikeekips/mitum/storage/leveldb2"
+	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
+	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
 
 type LeveldbTempSyncPool struct {
 	*baseLeveldb
-	st *leveldbstorage.WriteStorage
 }
 
 func NewLeveldbTempSyncPool(
-	f string,
+	height base.Height,
+	st *leveldbstorage2.Storage,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
 ) (*LeveldbTempSyncPool, error) {
-	st, err := leveldbstorage.NewWriteStorage(f)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed new LeveldbTempSyncPool")
-	}
-
-	return newLeveldbTempSyncPool(st, encs, enc), nil
+	return newLeveldbTempSyncPool(height, st, encs, enc), nil
 }
 
 func newLeveldbTempSyncPool(
-	st *leveldbstorage.WriteStorage,
+	height base.Height,
+	st *leveldbstorage2.Storage,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
 ) *LeveldbTempSyncPool {
+	pst := leveldbstorage2.NewPrefixStorage(st, newPrefixStoragePrefixByHeight(leveldbLabelSyncPool, height))
+
 	return &LeveldbTempSyncPool{
-		baseLeveldb: newBaseLeveldb(st, encs, enc),
-		st:          st,
+		baseLeveldb: newBaseLeveldb(pst, encs, enc),
 	}
 }
 
@@ -60,14 +59,28 @@ func (db *LeveldbTempSyncPool) SetBlockMap(m base.BlockMap) error {
 	return db.st.Put(leveldbTempSyncMapKey(m.Manifest().Height()), b, nil)
 }
 
-func (db *LeveldbTempSyncPool) Close() error {
-	if err := db.Remove(); err != nil {
-		return errors.Wrap(err, "failed to cancel LeveldbTempSyncPool")
+func (db *LeveldbTempSyncPool) Cancel() error {
+	e := util.StringErrorFunc("failed to cancel temp sync pool")
+
+	r := leveldbutil.BytesPrefix(db.st.Prefix())
+
+	if _, err := leveldbstorage2.BatchRemove(db.st.Storage, r, 333); err != nil { //nolint:gomnd //...
+		return e(err, "")
+	}
+
+	if err := db.Close(); err != nil {
+		return e(err, "")
 	}
 
 	return nil
 }
 
-func (db *LeveldbTempSyncPool) Cancel() error {
-	return db.Close()
+func CleanSyncPool(st *leveldbstorage2.Storage) error {
+	r := leveldbutil.BytesPrefix(leveldbstorage2.HashPrefix(leveldbLabelSyncPool))
+
+	if _, err := leveldbstorage2.BatchRemove(st, r, 333); err != nil { //nolint:gomnd //...
+		return errors.WithMessage(err, "failed to clean syncpool database")
+	}
+
+	return nil
 }
