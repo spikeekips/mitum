@@ -37,11 +37,31 @@ func DecodeAddress(s string, enc encoder.Encoder) (Address, error) {
 		return nil, nil
 	}
 
-	cachekey := s + "/" + enc.Hint().String()
-	if i, found := objcache.Get(cachekey); found {
+	switch i, found := objcache.Get(s); {
+	case !found:
+	case i == nil:
+		return nil, nil
+	default:
+		if err, ok := i.(error); ok {
+			return nil, err
+		}
+
 		return i.(Address), nil //nolint:forcetypeassert //...
 	}
 
+	ad, err := decodeAddress(s, enc)
+	if err != nil {
+		objcache.Set(s, err, nil)
+
+		return nil, err
+	}
+
+	objcache.Set(s, ad, nil)
+
+	return ad, nil
+}
+
+func decodeAddress(s string, enc encoder.Encoder) (Address, error) {
 	e := util.StringErrorFunc("failed to parse address")
 
 	i, err := enc.DecodeWithFixedHintType(s, AddressTypeSize)
@@ -50,17 +70,13 @@ func DecodeAddress(s string, enc encoder.Encoder) (Address, error) {
 	case err != nil:
 		return nil, e(err, "failed to decode address")
 	case i == nil:
-		objcache.Set(cachekey, nil, nil)
-
 		return nil, nil
+	default:
+		ad, ok := i.(Address)
+		if !ok {
+			return nil, e(nil, "failed to decode address; not Address, %T", i)
+		}
+
+		return ad, nil
 	}
-
-	ad, ok := i.(Address)
-	if !ok {
-		return nil, e(nil, "failed to decode address; not Address, %T", i)
-	}
-
-	objcache.Set(cachekey, ad, nil)
-
-	return ad, nil
 }

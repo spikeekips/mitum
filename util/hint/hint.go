@@ -1,6 +1,7 @@
 package hint
 
 import (
+	"bytes"
 	"fmt"
 	"regexp"
 	"strings"
@@ -14,6 +15,12 @@ var (
 	MaxHintLength    = MaxTypeLength + MaxVersionLength + 1
 	regVersion       = regexp.MustCompile(`\-v\d+`)
 )
+
+var hintcache *util.GCacheObjectPool
+
+func init() {
+	hintcache = util.NewGCacheObjectPool(1 << 13) //nolint:gomnd //...
+}
 
 type Hinter interface {
 	Hint() Hint
@@ -44,7 +51,41 @@ func EnsureParseHint(s string) Hint {
 
 // ParseHint tries to parse hint string and also checks IsValid().
 func ParseHint(s string) (Hint, error) {
-	ns := strings.TrimSpace(s)
+	switch i, found := hintcache.Get(s); {
+	case !found:
+	default:
+		if err, ok := i.(error); ok {
+			return Hint{}, err
+		}
+
+		return *i.(*Hint), nil //nolint:forcetypeassert //...
+	}
+
+	ht, err := parseHint(s)
+	if err != nil {
+		hintcache.Set(s, err, nil)
+
+		return Hint{}, err
+	}
+
+	hintcache.Set(s, &ht, nil)
+
+	return ht, nil
+}
+
+func parseHint(s string) (Hint, error) {
+	e := util.ErrInvalid.Errorf("invalid hint string")
+
+	var ns string
+
+	switch b := []byte(s); {
+	case len(b) < 1:
+		return Hint{}, e.Errorf("empty hint string")
+	default:
+		ns = string(bytes.TrimRight(b, "\x00"))
+	}
+
+	ns = strings.TrimSpace(ns)
 
 	if l := regVersion.FindStringIndex(ns); len(l) < 1 {
 		return Hint{}, util.ErrInvalid.Errorf("invalid hint string, %q", ns)

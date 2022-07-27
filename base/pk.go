@@ -104,6 +104,10 @@ func decodePKKeyFromString(s string, enc encoder.Encoder) (PKKey, error) {
 }
 
 func DecodePrivatekeyFromString(s string, enc encoder.Encoder) (Privatekey, error) {
+	if len(s) < 1 {
+		return nil, nil
+	}
+
 	e := util.StringErrorFunc("failed to parse privatekey")
 
 	i, err := decodePKKeyFromString(s, enc)
@@ -124,11 +128,35 @@ func DecodePrivatekeyFromString(s string, enc encoder.Encoder) (Privatekey, erro
 }
 
 func DecodePublickeyFromString(s string, enc encoder.Encoder) (Publickey, error) {
-	cachekey := s + "/" + enc.Hint().String()
-	if i, found := objcache.Get(cachekey); found {
+	if len(s) < 1 {
+		return nil, nil
+	}
+
+	switch i, found := objcache.Get(s); {
+	case !found:
+	case i == nil:
+		return nil, nil
+	default:
+		if err, ok := i.(error); ok {
+			return nil, err
+		}
+
 		return i.(Publickey), nil //nolint:forcetypeassert //...
 	}
 
+	pub, err := decodePublickeyFromString(s, enc)
+	if err != nil {
+		objcache.Set(s, err, nil)
+
+		return nil, err
+	}
+
+	objcache.Set(s, pub, nil)
+
+	return pub, nil
+}
+
+func decodePublickeyFromString(s string, enc encoder.Encoder) (Publickey, error) {
 	e := util.StringErrorFunc("failed to parse publickey")
 
 	i, err := decodePKKeyFromString(s, enc)
@@ -137,17 +165,13 @@ func DecodePublickeyFromString(s string, enc encoder.Encoder) (Publickey, error)
 	case err != nil:
 		return nil, e(err, "")
 	case i == nil:
-		objcache.Set(cachekey, nil, nil)
-
 		return nil, nil
+	default:
+		k, ok := i.(Publickey)
+		if !ok {
+			return nil, e(nil, "failed to decode publickey; not Publickey, %T", i)
+		}
+
+		return k, nil
 	}
-
-	k, ok := i.(Publickey)
-	if !ok {
-		return nil, e(nil, "failed to decode publickey; not Publickey, %T", i)
-	}
-
-	objcache.Set(cachekey, k, nil)
-
-	return k, nil
 }

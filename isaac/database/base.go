@@ -1,8 +1,6 @@
 package isaacdatabase
 
 import (
-	"bytes"
-
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
@@ -72,7 +70,7 @@ func (*baseDatabase) readHint(b []byte) (hint.Hint, []byte, error) {
 		return hint.Hint{}, nil, errors.Errorf("none hinted string; too short")
 	}
 
-	ht, err := hint.ParseHint(string(bytes.TrimRight(b[:hint.MaxHintLength], "\x00")))
+	ht, err := hint.ParseHint(string(b[:hint.MaxHintLength]))
 	if err != nil {
 		return hint.Hint{}, nil, err
 	}

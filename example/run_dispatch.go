@@ -1254,3 +1254,16 @@ func (cmd *runCommand) whenNewBlockSaved(height base.Height) {
 
 	cmd.ballotbox.Count()
 }
+
+func (*runCommand) newOperationFilter() func(base.Operation) bool {
+	operationfilterf := launch.IsSupportedProposalOperationFactHintFunc()
+
+	return func(op base.Operation) bool {
+		hinter, ok := op.Fact().(hint.Hinter)
+		if !ok {
+			return false
+		}
+
+		return operationfilterf(hinter.Hint().Bytes())
+	}
+}

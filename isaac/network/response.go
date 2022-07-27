@@ -1,7 +1,6 @@
 package isaacnetwork
 
 import (
-	"bytes"
 	"context"
 	"io"
 
@@ -57,7 +56,7 @@ func readHint(ctx context.Context, r io.Reader) (ht hint.Hint, _ error) {
 		return ht, e(err, "")
 	}
 
-	ht, err := hint.ParseHint(string(bytes.TrimRight(b[:hint.MaxHintLength], "\x00")))
+	ht, err := hint.ParseHint(string(b))
 	if err != nil {
 		return ht, e(err, "")
 	}
