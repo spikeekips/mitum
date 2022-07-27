@@ -319,32 +319,59 @@ func GetSuffrageFromDatabase(
 	}
 }
 
-func LastCandidatesFromState(height base.Height, getStateFunc base.GetStateFunc) ([]base.SuffrageCandidate, error) {
+func FilterCandidates(height base.Height, candidates []base.SuffrageCandidate) []base.SuffrageCandidate {
+	n := util.FilterSlices(candidates, func(_ interface{}, i int) bool {
+		return candidates[i].Deadline() >= height
+	})
+
+	if n == nil {
+		return nil
+	}
+
+	c := make([]base.SuffrageCandidate, len(n))
+	for i := range n {
+		c[i] = n[i].(base.SuffrageCandidate) //nolint:forcetypeassert //...
+	}
+
+	return c
+}
+
+func LastCandidatesFromState(
+	height base.Height, getStateFunc base.GetStateFunc,
+) (base.Height, []base.SuffrageCandidate, error) {
 	st, found, err := getStateFunc(SuffrageCandidateStateKey)
 
 	switch {
 	case err != nil:
-		return nil, err
+		return base.NilHeight, nil, err
 	case !found || st == nil:
-		return nil, nil
+		return base.NilHeight, nil, nil
 	}
 
 	nodes := st.Value().(base.SuffrageCandidateStateValue).Nodes() //nolint:forcetypeassert //...
 
-	filtered := util.FilterSlices(nodes, func(_ interface{}, i int) bool {
-		return height <= nodes[i].Deadline()
-	})
+	filtered := FilterCandidates(height, nodes)
 
 	if len(filtered) < 1 {
-		return nil, nil
+		return st.Height(), nil, nil
 	}
 
-	candidates := make([]base.SuffrageCandidate, len(filtered))
-	for i := range filtered {
-		candidates[i] = filtered[i].(base.SuffrageCandidate) //nolint:forcetypeassert //...
+	return st.Height(), filtered, nil
+}
+
+func InCandidates(node base.Node, candidates []base.SuffrageCandidate) bool {
+	for i := range candidates {
+		c := candidates[i]
+
+		switch {
+		case !node.Address().Equal(c.Address()):
+		case !node.Publickey().Equal(c.Publickey()):
+		default:
+			return true
+		}
 	}
 
-	return candidates, nil
+	return false
 }
 
 type NodeInConsensusNodesFunc func(base.Node, base.Height) (base.Suffrage, bool, error)

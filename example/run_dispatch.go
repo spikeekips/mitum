@@ -36,6 +36,66 @@ func (cmd *runCommand) getSuffrageFunc() isaac.GetSuffrageByBlockHeight {
 }
 
 func (cmd *runCommand) nodeInConsensusNodesFunc() isaac.NodeInConsensusNodesFunc {
+	lastcandidateslocked := util.EmptyLocked()
+	prevcandidateslocked := util.EmptyLocked()
+
+	getCandidates := func(height base.Height) ([]base.SuffrageCandidate, []base.SuffrageCandidate, error) {
+		var prevcandidates []base.SuffrageCandidate
+		var lastcandidates []base.SuffrageCandidate
+		var cerr error
+
+		_, _ = lastcandidateslocked.Set(func(i interface{}) (interface{}, error) {
+			var lastheight base.Height
+			var last []base.SuffrageCandidate
+			var prev []base.SuffrageCandidate
+
+			if i != nil {
+				j := i.([2]interface{}) //nolint:forcetypeassert //...
+
+				lastheight = j[0].(base.Height)                                        //nolint:forcetypeassert //...
+				last = isaac.FilterCandidates(height, j[1].([]base.SuffrageCandidate)) //nolint:forcetypeassert //...
+			}
+
+			stheight, c, err := isaac.LastCandidatesFromState(height, cmd.db.State)
+			if err != nil {
+				cerr = err
+
+				return nil, err
+			}
+
+			switch j, isnil := prevcandidateslocked.Value(); {
+			case isnil, j == nil:
+			default:
+				j := i.([2]interface{}) //nolint:forcetypeassert //...
+
+				prev = isaac.FilterCandidates(height, j[1].([]base.SuffrageCandidate)) //nolint:forcetypeassert //...
+			}
+
+			if stheight == lastheight {
+				prevcandidates = prev
+				lastcandidates = last
+
+				return nil, errors.Errorf("stop")
+			}
+
+			prevcandidates = last
+			lastcandidates = c
+
+			_ = prevcandidateslocked.SetValue([2]interface{}{
+				lastheight,
+				last,
+			})
+
+			return [2]interface{}{stheight, c}, nil
+		})
+
+		if cerr != nil {
+			return nil, nil, cerr
+		}
+
+		return prevcandidates, lastcandidates, nil
+	}
+
 	return func(node base.Node, height base.Height) (base.Suffrage, bool, error) {
 		suf, found, err := cmd.getSuffrage(height)
 
@@ -48,20 +108,17 @@ func (cmd *runCommand) nodeInConsensusNodesFunc() isaac.NodeInConsensusNodesFunc
 			return suf, true, nil
 		}
 
-		candidates, err := isaac.LastCandidatesFromState(height, cmd.db.State)
+		prev, last, err := getCandidates(height)
 		if err != nil {
 			return nil, false, err
 		}
 
-		for i := range candidates {
-			c := candidates[i]
+		if isaac.InCandidates(node, last) {
+			return suf, true, nil
+		}
 
-			switch {
-			case !node.Address().Equal(c.Address()):
-			case !node.Publickey().Equal(c.Publickey()):
-			default:
-				return suf, true, nil
-			}
+		if isaac.InCandidates(node, prev) {
+			return suf, true, nil
 		}
 
 		return suf, false, nil
@@ -1184,7 +1241,7 @@ func (cmd *runCommand) newSuffrageCandidateLimiterFunc(
 
 	var existings uint64
 
-	switch i, err := isaac.LastCandidatesFromState(height, getStateFunc); {
+	switch _, i, err := isaac.LastCandidatesFromState(height, getStateFunc); {
 	case err != nil:
 		return nil, e(err, "")
 	default:

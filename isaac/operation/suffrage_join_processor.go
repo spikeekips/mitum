@@ -58,7 +58,7 @@ func NewSuffrageJoinProcessor(
 		p.suffrage = suf
 	}
 
-	switch candidates, err := isaac.LastCandidatesFromState(height, getStateFunc); {
+	switch _, candidates, err := isaac.LastCandidatesFromState(height, getStateFunc); {
 	case err != nil:
 		return nil, e(err, "")
 	case candidates == nil:

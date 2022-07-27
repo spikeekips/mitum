@@ -97,7 +97,7 @@ func (srv *Server) handleSession(ctx context.Context, session quic.EarlyConnecti
 			case errors.As(err, &nerr) && nerr.Timeout():
 				errcode = 0x402
 
-				srv.Log().Debug().Err(err).Msg("failed to accept stream; timeout")
+				srv.Log().Trace().Err(err).Msg("failed to accept stream; timeout")
 			default:
 				errcode = 0x403
 

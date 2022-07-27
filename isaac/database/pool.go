@@ -161,15 +161,16 @@ func (db *TempPool) NewOperationHashes(
 ) ([]util.Hash, error) {
 	e := util.StringErrorFunc("failed to find new operations")
 
-	ops := make([]util.Hash, limit)
-	var removes []util.Hash
-
 	nfilter := filter
 	if nfilter == nil {
-		nfilter = func(operations, facthash util.Hash, _ isaac.PoolOperationHeader) (bool, error) { return true, nil }
+		nfilter = func(util.Hash, util.Hash, isaac.PoolOperationHeader) (bool, error) { return true, nil }
 	}
 
-	var i uint64
+	ops := make([]util.Hash, limit)
+	removes := make([]util.Hash, limit)
+
+	var opsindex uint64
+	var removeindex uint64
 
 	if err := db.st.Iter(
 		leveldbutil.BytesPrefix(leveldbKeyPrefixNewOperationOrdered),
@@ -190,15 +191,16 @@ func (db *TempPool) NewOperationHashes(
 			case err != nil:
 				return false, err
 			case !ok:
-				removes = append(removes, facthash)
+				removes[removeindex] = facthash
+				removeindex++
 
 				return true, nil
 			}
 
-			ops[i] = operationhash
-			i++
+			ops[opsindex] = operationhash
+			opsindex++
 
-			if i == limit {
+			if opsindex == limit {
 				return false, nil
 			}
 
@@ -209,17 +211,13 @@ func (db *TempPool) NewOperationHashes(
 		return nil, e(err, "")
 	}
 
-	if i < limit {
-		ops = ops[:i]
-	}
+	// FIXME instead of really remove them, moves data to another place with
+	// remove datetime.
+	// if err := db.RemoveNewOperations(ctx, removes[:removeindex]); err != nil {
+	// 	return nil, e(err, "")
+	// }
 
-	if len(removes) > 0 {
-		if err := db.RemoveNewOperations(ctx, removes); err != nil {
-			return nil, e(err, "")
-		}
-	}
-
-	return ops, nil
+	return ops[:opsindex], nil
 }
 
 func (db *TempPool) SetNewOperation(_ context.Context, op base.Operation) (bool, error) {
@@ -303,81 +301,10 @@ func loadNewOperationHeader(b []byte) (header PoolOperationHeader, left []byte) 
 }
 
 func (db *TempPool) RemoveNewOperations(ctx context.Context, facthashes []util.Hash) error {
-	e := util.StringErrorFunc("failed to remove NewOperations")
-
-	hs := make([]util.Hash, 3333)
-
-	for i := range facthashes {
-		hs[i%len(hs)] = facthashes[i]
-
-		if i == len(hs)-1 {
-			if err := db.removeNewOperations(ctx, hs); err != nil {
-				return e(err, "")
-			}
-
-			hs = nil
-		}
+	if len(facthashes) < 1 {
+		return nil
 	}
 
-	if len(facthashes)%len(hs) > 0 {
-		if err := db.removeNewOperations(ctx, hs); err != nil {
-			return e(err, "")
-		}
-	}
-
-	return nil
-}
-
-func (db *TempPool) LastVoteproofs() (base.INITVoteproof, base.ACCEPTVoteproof, bool, error) {
-	switch i, _ := db.lastvoteproofs.Value(); {
-	case i == nil:
-		return nil, nil, false, nil
-	default:
-		j, ok := i.([2]base.Voteproof)
-		if !ok {
-			return nil, nil, false, errors.Errorf("invalid last voteproofs")
-		}
-
-		return j[0].(base.INITVoteproof), j[1].(base.ACCEPTVoteproof), true, nil //nolint:forcetypeassert //...
-	}
-}
-
-func (db *TempPool) SetLastVoteproofs(ivp base.INITVoteproof, avp base.ACCEPTVoteproof) error {
-	e := util.StringErrorFunc("failed to set last voteproofs")
-
-	if !ivp.Point().Point.Equal(avp.Point().Point) {
-		return e(nil, "voteproofs should have same point")
-	}
-
-	if _, err := db.lastvoteproofs.Set(func(i interface{}) (interface{}, error) {
-		var old [2]base.Voteproof
-		if i != nil {
-			old = i.([2]base.Voteproof) //nolint:forcetypeassert //...
-
-			if ivp.Point().Compare(old[0].Point()) < 1 {
-				return nil, util.ErrLockedSetIgnore.Call()
-			}
-		}
-
-		vps := [2]base.Voteproof{ivp, avp}
-		b, err := db.marshal(vps)
-		if err != nil {
-			return nil, err
-		}
-
-		if err := db.st.Put(leveldbKeyLastVoteproofs, b, nil); err != nil {
-			return nil, err
-		}
-
-		return vps, nil
-	}); err != nil {
-		return e(err, "failed to set last voteproofs")
-	}
-
-	return nil
-}
-
-func (db *TempPool) removeNewOperations(ctx context.Context, facthashes []util.Hash) error {
 	worker := util.NewErrgroupWorker(ctx, math.MaxInt8)
 	defer worker.Close()
 
@@ -436,6 +363,55 @@ func (db *TempPool) removeNewOperations(ctx context.Context, facthashes []util.H
 	<-donech
 
 	return db.st.Batch(batch, nil)
+}
+
+func (db *TempPool) LastVoteproofs() (base.INITVoteproof, base.ACCEPTVoteproof, bool, error) {
+	switch i, _ := db.lastvoteproofs.Value(); {
+	case i == nil:
+		return nil, nil, false, nil
+	default:
+		j, ok := i.([2]base.Voteproof)
+		if !ok {
+			return nil, nil, false, errors.Errorf("invalid last voteproofs")
+		}
+
+		return j[0].(base.INITVoteproof), j[1].(base.ACCEPTVoteproof), true, nil //nolint:forcetypeassert //...
+	}
+}
+
+func (db *TempPool) SetLastVoteproofs(ivp base.INITVoteproof, avp base.ACCEPTVoteproof) error {
+	e := util.StringErrorFunc("failed to set last voteproofs")
+
+	if !ivp.Point().Point.Equal(avp.Point().Point) {
+		return e(nil, "voteproofs should have same point")
+	}
+
+	if _, err := db.lastvoteproofs.Set(func(i interface{}) (interface{}, error) {
+		var old [2]base.Voteproof
+		if i != nil {
+			old = i.([2]base.Voteproof) //nolint:forcetypeassert //...
+
+			if ivp.Point().Compare(old[0].Point()) < 1 {
+				return nil, util.ErrLockedSetIgnore.Call()
+			}
+		}
+
+		vps := [2]base.Voteproof{ivp, avp}
+		b, err := db.marshal(vps)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := db.st.Put(leveldbKeyLastVoteproofs, b, nil); err != nil {
+			return nil, err
+		}
+
+		return vps, nil
+	}); err != nil {
+		return e(err, "failed to set last voteproofs")
+	}
+
+	return nil
 }
 
 func (db *TempPool) loadLastVoteproofs() error {

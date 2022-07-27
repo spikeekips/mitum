@@ -599,11 +599,13 @@ func (db *Center) cleanRemoved(limit int) error {
 	copy(removed, db.removed[1:])
 	db.removed = removed
 
+	height := temp.Height()
+
 	if err := temp.Remove(); err != nil {
 		return errors.Wrap(err, "failed to clean removed")
 	}
 
-	db.Log().Debug().Interface("height", temp.Height()).Msg("temp database removed")
+	db.Log().Debug().Interface("height", height).Msg("temp database removed")
 
 	return nil
 }

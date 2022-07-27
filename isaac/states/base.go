@@ -264,15 +264,17 @@ func (st *baseHandler) prepareNextBlock(
 	case err != nil:
 		return nil, newBrokenSwitchContext(st.stt, err)
 	case suf == nil || suf.Len() < 1:
-		l.Debug().Interface("height", point.Height()).Msg("empty suffrage of next block; moves to broken state")
+		l.Debug().Msg("empty suffrage of next block; moves to broken state")
 
 		return nil, newBrokenSwitchContext(st.stt, util.ErrNotFound.Errorf("empty suffrage"))
 	case !found:
-		l.Debug().
-			Interface("height", point.Height()).
-			Msg("local is not in suffrage at next block; moves to syncing state")
+		l.Debug().Msg("local is not in consensus nodes at next block; moves to syncing state")
 
 		return nil, newSyncingSwitchContext(StateConsensus, avp.Point().Height())
+	case suf.ExistsPublickey(st.local.Address(), st.local.Publickey()):
+		l.Debug().Msg("local is in consensus nodes and in suffrage")
+	default:
+		l.Debug().Msg("local is in consensus nodes, but not in suffrage")
 	}
 
 	// NOTE find next proposal
@@ -325,7 +327,7 @@ func preventVotingWithEmptySuffrage(
 		case suf == nil || len(suf.Nodes()) < 1:
 			return false, e(nil, "empty suffrage")
 		case !found:
-			return false, e(nil, "node not in consensus nodes for ballot")
+			return false, e(nil, "node not in consensus nodes for ballot; %q", bl.Point())
 		default:
 			return voteFunc(bl)
 		}

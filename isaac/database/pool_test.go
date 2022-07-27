@@ -275,7 +275,7 @@ func (t *testNewOperationPool) TestNewOperationHashes() {
 		}
 
 		// NOTE ops[32] was removed
-		op, found, err := pst.NewOperation(context.Background(), ops[32].Fact().Hash())
+		op, found, err := pst.NewOperation(context.Background(), ops[32].Hash())
 		t.NoError(err)
 		t.False(found)
 		t.Nil(op)
