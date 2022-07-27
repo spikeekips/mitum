@@ -62,6 +62,10 @@ func (db *baseLeveldb) Close() error {
 	db.Lock()
 	defer db.Unlock()
 
+	if db.st == nil {
+		return nil
+	}
+
 	if err := db.st.Close(); err != nil {
 		return errors.Wrap(err, "failed to close baseDatabase")
 	}

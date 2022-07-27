@@ -62,9 +62,20 @@ func (db *LeveldbTempSyncPool) SetBlockMap(m base.BlockMap) error {
 func (db *LeveldbTempSyncPool) Cancel() error {
 	e := util.StringErrorFunc("failed to cancel temp sync pool")
 
-	r := leveldbutil.BytesPrefix(db.st.Prefix())
+	if err := func() error {
+		db.Lock()
+		defer db.Unlock()
 
-	if _, err := leveldbstorage2.BatchRemove(db.st.Storage, r, 333); err != nil { //nolint:gomnd //...
+		if db.st == nil {
+			return nil
+		}
+
+		r := leveldbutil.BytesPrefix(db.st.Prefix())
+
+		_, err := leveldbstorage2.BatchRemove(db.st.Storage, r, 333) //nolint:gomnd //...
+
+		return err
+	}(); err != nil {
 		return e(err, "")
 	}
 

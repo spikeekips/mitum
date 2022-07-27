@@ -62,7 +62,8 @@ type DefaultProposalProcessor struct {
 	retryinterval         time.Duration
 	opslock               sync.RWMutex
 	sync.RWMutex
-	issaved bool
+	cancellock sync.RWMutex
+	issaved    bool
 }
 
 func NewDefaultProposalProcessor(
@@ -117,15 +118,23 @@ func (p *DefaultProposalProcessor) setOperation(index int, op base.Operation) {
 }
 
 func (p *DefaultProposalProcessor) Process(ctx context.Context, vp base.INITVoteproof) (base.Manifest, error) {
+	p.Lock()
+	defer p.Unlock()
+
+	wctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	p.updateCancel(cancel)
+
 	e := util.StringErrorFunc("failed to process proposal")
 
 	p.ivp = vp
 
-	if err := p.process(ctx, vp); err != nil {
+	if err := p.process(wctx, vp); err != nil {
 		return nil, e(err, "failed to process operations")
 	}
 
-	manifest, err := p.writer.Manifest(ctx, p.previous)
+	manifest, err := p.writer.Manifest(wctx, p.previous)
 	if err != nil {
 		return nil, e(err, "")
 	}
@@ -139,8 +148,13 @@ func (p *DefaultProposalProcessor) Save(ctx context.Context, avp base.ACCEPTVote
 	p.Lock()
 	defer p.Unlock()
 
-	if err := util.Retry(ctx, func() (bool, error) {
-		switch err := p.save(ctx, avp); {
+	wctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	p.updateCancel(cancel)
+
+	if err := util.Retry(wctx, func() (bool, error) {
+		switch err := p.save(wctx, avp); {
 		case err == nil:
 			return false, nil
 		case errors.Is(err, ErrProcessorAlreadySaved):
@@ -165,7 +179,7 @@ func (p *DefaultProposalProcessor) save(ctx context.Context, acceptVoteproof bas
 	}
 
 	e := util.StringErrorFunc("failed to save")
-	if p.proposal == nil {
+	if p.isCanceled() {
 		return e(context.Canceled, "")
 	}
 
@@ -193,6 +207,22 @@ func (p *DefaultProposalProcessor) save(ctx context.Context, acceptVoteproof bas
 }
 
 func (p *DefaultProposalProcessor) Cancel() error {
+	if !func() bool {
+		p.cancellock.Lock()
+		defer p.cancellock.Unlock()
+
+		if p.cancel == nil {
+			return false
+		}
+
+		p.cancel()
+		p.cancel = nil
+
+		return true
+	}() {
+		return nil
+	}
+
 	p.Lock()
 	defer p.Unlock()
 
@@ -208,33 +238,44 @@ func (p *DefaultProposalProcessor) Cancel() error {
 }
 
 func (p *DefaultProposalProcessor) close() {
-	if p.proposal == nil {
-		return
-	}
-
-	p.cancel()
-
 	p.writer = nil
 	p.ivp = nil
 	p.proposal = nil
 	p.previous = nil
 	p.newOperationProcessor = nil
-	p.getStateFunc = nil
+	// p.getStateFunc = nil
 	p.getOperation = nil
 	p.setLastVoteproofsFunc = nil
+
 	if p.oprs != nil {
 		p.oprs.Close()
 		p.oprs = nil
 	}
-	p.cancel = nil
+
 	p.cops = nil
 }
 
-func (p *DefaultProposalProcessor) isCanceled() bool {
-	p.RLock()
-	defer p.RUnlock()
+func (p *DefaultProposalProcessor) updateCancel(f func()) {
+	p.cancellock.Lock()
+	defer p.cancellock.Unlock()
 
-	return p.proposal == nil
+	if p.cancel == nil {
+		return
+	}
+
+	cancel := p.cancel
+
+	p.cancel = func() {
+		cancel()
+		f()
+	}
+}
+
+func (p *DefaultProposalProcessor) isCanceled() bool {
+	p.cancellock.RLock()
+	defer p.cancellock.RUnlock()
+
+	return p.cancel == nil
 }
 
 func (p *DefaultProposalProcessor) process(ctx context.Context, vp base.INITVoteproof) error {
@@ -515,9 +556,6 @@ func (p *DefaultProposalProcessor) getPreProcessor(ctx context.Context, op base.
 	func(context.Context) (base.OperationProcessReasonError, error),
 	error,
 ) {
-	p.RLock()
-	defer p.RUnlock()
-
 	switch opp, found, err := p.getOperationProcessor(ctx, op.Hint()); {
 	case err != nil:
 		return nil, errors.Wrap(err, "failed to get OperationProcessor for PreProcess")
@@ -536,9 +574,6 @@ func (p *DefaultProposalProcessor) getProcessor(ctx context.Context, op base.Ope
 	func(context.Context) ([]base.StateMergeValue, base.OperationProcessReasonError, error),
 	error,
 ) {
-	p.RLock()
-	defer p.RUnlock()
-
 	switch opp, found, err := p.getOperationProcessor(ctx, op.Hint()); {
 	case err != nil:
 		return nil, errors.Wrap(err, "failed to get OperationProcessor for Process")
@@ -591,10 +626,7 @@ func (p *DefaultProposalProcessor) wait(ctx context.Context) (
 	func(),
 	error,
 ) {
-	p.Lock()
-	defer p.Unlock()
-
-	if p.proposal == nil {
+	if p.isCanceled() {
 		return context.TODO(), nil, context.Canceled
 	}
 
@@ -603,13 +635,14 @@ func (p *DefaultProposalProcessor) wait(ctx context.Context) (
 	donech := make(chan struct{}, 1)
 
 	var cancelonce sync.Once
-	p.cancel = func() {
+
+	p.updateCancel(func() {
 		cancelonce.Do(func() {
 			cancel()
 
 			<-donech
 		})
-	}
+	})
 
 	return wctx, func() {
 		donech <- struct{}{}

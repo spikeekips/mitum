@@ -64,49 +64,59 @@ func (pps *ProposalProcessors) Process(
 	previous base.Manifest,
 	ivp base.INITVoteproof,
 ) (ProcessorProcessFunc, error) {
+	pps.Lock()
+
 	l := pps.Log().With().Stringer("fact", facthash).Logger()
 
 	e := util.StringErrorFunc("failed to process proposal, %q", facthash)
 
-	switch p, err := pps.newProcessor(ctx, facthash, previous); {
+	p, err := pps.newProcessor(ctx, facthash, previous)
+
+	switch {
 	case err != nil:
+		pps.Unlock()
+
 		l.Error().Err(err).Msg("failed to process proposal")
 
 		return nil, e(err, "")
 	case p == nil:
+		pps.Unlock()
+
 		return nil, nil
-	default:
-		ch := make(chan [2]interface{}, 1)
-
-		go func() {
-			m, err := pps.runProcessor(ctx, p, ivp)
-
-			ch <- [2]interface{}{m, err}
-		}()
-
-		return func(ctx context.Context) (base.Manifest, error) {
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case i := <-ch:
-				j, k := i[0], i[1]
-
-				var err error
-
-				if k != nil {
-					err = k.(error) //nolint:forcetypeassert //...
-				}
-
-				var m base.Manifest
-
-				if j != nil {
-					m = j.(base.Manifest) //nolint:forcetypeassert //...
-				}
-
-				return m, err
-			}
-		}, nil
 	}
+
+	ch := make(chan [2]interface{}, 1)
+
+	go func() {
+		defer pps.Unlock()
+
+		m, err := pps.runProcessor(ctx, p, ivp)
+
+		ch <- [2]interface{}{m, err}
+	}()
+
+	return func(ctx context.Context) (base.Manifest, error) {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case i := <-ch:
+			j, k := i[0], i[1]
+
+			var err error
+
+			if k != nil {
+				err = k.(error) //nolint:forcetypeassert //...
+			}
+
+			var m base.Manifest
+
+			if j != nil {
+				m = j.(base.Manifest) //nolint:forcetypeassert //...
+			}
+
+			return m, err
+		}
+	}, nil
 }
 
 func (pps *ProposalProcessors) Save(ctx context.Context, facthash util.Hash, avp base.ACCEPTVoteproof) error {
@@ -220,9 +230,6 @@ func (pps *ProposalProcessors) fetchFact(ctx context.Context, facthash util.Hash
 func (pps *ProposalProcessors) newProcessor(
 	ctx context.Context, facthash util.Hash, previous base.Manifest,
 ) (ProposalProcessor, error) {
-	pps.Lock()
-	defer pps.Unlock()
-
 	e := util.StringErrorFunc("failed new processor, %q", facthash)
 
 	l := pps.Log().With().Stringer("fact", facthash).Logger()
