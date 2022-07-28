@@ -57,10 +57,13 @@ func (cmd *runCommand) nodeInConsensusNodesFunc() isaac.NodeInConsensusNodesFunc
 			}
 
 			stheight, c, err := isaac.LastCandidatesFromState(height, cmd.db.State)
-			if err != nil {
+			switch {
+			case err != nil:
 				cerr = err
 
 				return nil, err
+			case c == nil, stheight < base.GenesisHeight:
+				return nil, errors.Errorf("stop")
 			}
 
 			switch j, isnil := prevcandidateslocked.Value(); {
@@ -68,7 +71,7 @@ func (cmd *runCommand) nodeInConsensusNodesFunc() isaac.NodeInConsensusNodesFunc
 			default:
 				j := i.([2]interface{}) //nolint:forcetypeassert //...
 
-				prev = isaac.FilterCandidates(height, j[1].([]base.SuffrageCandidate)) //nolint:forcetypeassert //...
+				prev = isaac.FilterCandidates(height-1, j[1].([]base.SuffrageCandidate)) //nolint:forcetypeassert //...
 			}
 
 			if stheight == lastheight {

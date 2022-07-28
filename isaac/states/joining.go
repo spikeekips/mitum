@@ -330,12 +330,20 @@ func (st *JoiningHandler) nextRound(vp base.Voteproof, prevBlock util.Hash) {
 	default:
 		l.Debug().Err(err).Msg("failed to prepare next round; moves to broken state")
 
-		go st.switchState(newBrokenSwitchContext(StateConsensus, err))
+		go st.switchState(newBrokenSwitchContext(StateJoining, err))
 
 		return
 	}
 
-	if _, err := st.vote(bl); err != nil {
+	switch _, err := st.vote(bl); {
+	case err == nil:
+	case errors.Is(err, errNotInConsensusNodes):
+		l.Error().Err(err).Msg("failed to vote init ballot for next round; moves to syncing state")
+
+		go st.switchState(newSyncingSwitchContext(StateJoining, vp.Point().Height()-1))
+
+		return
+	default:
 		l.Error().Err(err).Msg("failed to vote init ballot for next round; moves to broken state")
 
 		go st.switchState(newBrokenSwitchContext(StateJoining, err))
@@ -385,7 +393,15 @@ func (st *JoiningHandler) nextBlock(avp base.ACCEPTVoteproof) {
 		return
 	}
 
-	if _, err := st.vote(bl); err != nil {
+	switch _, err := st.vote(bl); {
+	case err == nil:
+	case errors.Is(err, errNotInConsensusNodes):
+		l.Error().Err(err).Msg("failed to vote init ballot for next round; moves to syncing state")
+
+		go st.switchState(newSyncingSwitchContext(StateJoining, avp.Point().Height()-1))
+
+		return
+	default:
 		l.Error().Err(err).Msg("failed to vote init ballot for next block; moves to broken")
 
 		go st.switchState(newBrokenSwitchContext(StateJoining, err))

@@ -604,6 +604,66 @@ func (t *testJoiningHandler) TestLastACCEPTVoteproofNextRound() {
 	}
 }
 
+func (t *testJoiningHandler) TestINITVoteproofNextRoundButNotInConsensusNodes() {
+	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
+
+	st, closef := t.newState(suf)
+	defer closef()
+
+	point := base.RawPoint(33, 0)
+	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+
+	st.lastManifest = func() (base.Manifest, bool, error) {
+		return manifest, true, nil
+	}
+
+	ballotch := make(chan base.Ballot, 1)
+	st.voteFunc = func(bl base.Ballot) (bool, error) {
+		return false, errNotInConsensusNodes.Errorf("hehehe")
+	}
+
+	switchch := make(chan switchContext, 1)
+	st.switchStateFunc = func(sctx switchContext) error {
+		switchch <- sctx
+
+		return nil
+	}
+
+	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			return t.PRPool.Get(p), nil
+		}
+	})
+
+	sctx := newJoiningSwitchContext(StateBooting, nil)
+
+	deferred, err := st.enter(sctx)
+	t.NoError(err)
+	deferred()
+
+	_, ivp := t.VoteproofsPair(point, point.NextHeight(), manifest.Hash(), nil, nil, nodes)
+	ivp.SetResult(base.VoteResultDraw)
+
+	t.NoError(st.newVoteproof(ivp))
+
+	t.T().Log("wait next round init ballot")
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("timeout to wait next round init ballot"))
+
+		return
+	case <-ballotch:
+		t.NoError(errors.Errorf("unexpected next round init ballot"))
+	case sctx := <-switchch:
+		var ssctx syncingSwitchContext
+		t.True(errors.As(sctx, &ssctx))
+		t.Equal(ivp.Point().Height()-1, ssctx.height)
+	}
+}
+
 func TestJoiningHandler(t *testing.T) {
 	suite.Run(t, new(testJoiningHandler))
 }

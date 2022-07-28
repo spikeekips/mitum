@@ -213,9 +213,9 @@ func (db *TempPool) NewOperationHashes(
 
 	// FIXME instead of really remove them, moves data to another place with
 	// remove datetime.
-	// if err := db.RemoveNewOperations(ctx, removes[:removeindex]); err != nil {
-	// 	return nil, e(err, "")
-	// }
+	if err := db.RemoveNewOperations(ctx, removes[:removeindex]); err != nil {
+		return nil, e(err, "")
+	}
 
 	return ops[:opsindex], nil
 }

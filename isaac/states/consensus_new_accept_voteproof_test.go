@@ -89,6 +89,99 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestExpected() {
 	}
 }
 
+func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestNotInConsensus() {
+	point := base.RawPoint(33, 44)
+	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
+
+	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
+	defer closefunc()
+	st.SetLogging(logging.TestNilLogging)
+
+	st.policy = *t.NodePolicy.SetWaitPreparingINITBallot(time.Nanosecond)
+
+	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
+		return manifest, nil
+	}
+	savedch := make(chan base.ACCEPTVoteproof, 1)
+	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) error {
+		savedch <- avp
+		return nil
+	}
+
+	ballotch := make(chan base.Ballot, 1)
+	st.broadcastBallotFunc = func(bl base.Ballot) error {
+		if bl.Point().Point.Equal(point.NextHeight()) {
+			ballotch <- bl
+		}
+
+		return nil
+	}
+
+	st.voteFunc = func(bl base.Ballot) (bool, error) {
+		return false, errNotInConsensusNodes.Errorf("hehehe")
+	}
+
+	sctxch := make(chan switchContext, 1)
+	st.switchStateFunc = func(sctx switchContext) error {
+		sctxch <- sctx
+
+		return nil
+	}
+
+	nextpr := t.PRPool.Get(point.NextHeight())
+
+	sctx := newConsensusSwitchContext(StateJoining, ivp)
+
+	deferred, err := st.enter(sctx)
+	t.NoError(err)
+	deferred()
+
+	fact := t.PRPool.GetFact(point)
+	nextavp, _ := t.VoteproofsPair(point, point.NextHeight(), manifest.Hash(), fact.Hash(), nil, nodes)
+	t.NoError(st.newVoteproof(nextavp))
+
+	t.T().Log("wait new block saved")
+	var avp base.ACCEPTVoteproof
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("timeout to wait save proposal processor"))
+
+		return
+	case avp = <-savedch:
+		base.EqualVoteproof(t.Assert(), nextavp, avp)
+		base.EqualVoteproof(t.Assert(), avp, st.lastVoteproofs().ACCEPT())
+	}
+
+	t.T().Log("wait next init ballot")
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("timeout to wait next init ballot"))
+
+		return
+	case bl := <-ballotch:
+		t.Equal(point.NextHeight(), bl.Point().Point)
+
+		rbl, ok := bl.(base.INITBallot)
+		t.True(ok)
+
+		rfact := rbl.BallotSignedFact().BallotFact()
+		t.Equal(avp.BallotMajority().NewBlock(), rfact.PreviousBlock())
+		t.True(nextpr.Fact().Hash().Equal(rfact.Proposal()))
+	}
+
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("timeout to wait to switch syncing state"))
+
+		return
+	case sctx := <-sctxch:
+		var ssctx syncingSwitchContext
+		t.True(errors.As(sctx, &ssctx))
+		t.Equal(nextavp.Point().Height()-1, ssctx.height)
+	}
+}
+
 func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestOld() {
 	point := base.RawPoint(33, 44)
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)

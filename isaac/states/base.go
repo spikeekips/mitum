@@ -313,6 +313,8 @@ func (st *baseHandler) vote(bl base.Ballot) (bool, error) {
 	return st.voteFunc(bl)
 }
 
+var errNotInConsensusNodes = util.NewError("failed to vote; local not in consensus nodes")
+
 func preventVotingWithEmptySuffrage(
 	voteFunc func(base.Ballot) (bool, error),
 	node base.Node,
@@ -327,7 +329,7 @@ func preventVotingWithEmptySuffrage(
 		case suf == nil || len(suf.Nodes()) < 1:
 			return false, e(nil, "empty suffrage")
 		case !found:
-			return false, e(nil, "node not in consensus nodes for ballot; %q", bl.Point())
+			return false, e(errNotInConsensusNodes.Errorf("ballot=%q", bl.Point()), "")
 		default:
 			return voteFunc(bl)
 		}
