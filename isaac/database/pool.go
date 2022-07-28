@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"math"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -20,7 +21,11 @@ import (
 
 type TempPool struct {
 	*baseLeveldb
-	lastvoteproofs *util.Locked
+	*util.ContextDaemon
+	whenNewOperationsremoved          func(int, error)
+	lastvoteproofs                    *util.Locked
+	cleanRemovedNewOperationsInterval time.Duration
+	cleanRemovedNewOperationsDeep     base.Height
 }
 
 func NewTempPool(st *leveldbstorage2.Storage, encs *encoder.Encoders, enc encoder.Encoder) (*TempPool, error) {
@@ -31,15 +36,34 @@ func newTempPool(st *leveldbstorage2.Storage, encs *encoder.Encoders, enc encode
 	pst := leveldbstorage2.NewPrefixStorage(st, leveldbstorage2.HashPrefix(leveldbLabelPool))
 
 	db := &TempPool{
-		baseLeveldb:    newBaseLeveldb(pst, encs, enc),
-		lastvoteproofs: util.EmptyLocked(),
+		baseLeveldb:                       newBaseLeveldb(pst, encs, enc),
+		lastvoteproofs:                    util.EmptyLocked(),
+		cleanRemovedNewOperationsInterval: time.Minute * 33, //nolint:gomnd //...
+		cleanRemovedNewOperationsDeep:     3,                //nolint:gomnd //...
+		whenNewOperationsremoved:          func(int, error) {},
 	}
 
 	if err := db.loadLastVoteproofs(); err != nil {
 		return nil, errors.Wrap(err, "failed newTempPool")
 	}
 
+	db.ContextDaemon = util.NewContextDaemon(db.startClean)
+
 	return db, nil
+}
+
+func (db *TempPool) Close() error {
+	e := util.StringErrorFunc("failed to close TempPool")
+
+	if err := db.Stop(); err != nil {
+		return e(err, "")
+	}
+
+	if err := db.baseLeveldb.Close(); err != nil {
+		return e(err, "")
+	}
+
+	return nil
 }
 
 func (db *TempPool) Proposal(h util.Hash) (pr base.ProposalSignedFact, found bool, _ error) {
@@ -156,6 +180,7 @@ func (db *TempPool) NewOperation(_ context.Context, operationhash util.Hash) (op
 
 func (db *TempPool) NewOperationHashes(
 	ctx context.Context,
+	height base.Height,
 	limit uint64,
 	filter func(operationhash, facthash util.Hash, _ isaac.PoolOperationHeader) (bool, error),
 ) ([]util.Hash, error) {
@@ -175,7 +200,7 @@ func (db *TempPool) NewOperationHashes(
 	if err := db.st.Iter(
 		leveldbutil.BytesPrefix(leveldbKeyPrefixNewOperationOrdered),
 		func(_ []byte, b []byte) (bool, error) {
-			h, left := loadNewOperationHeader(b)
+			h, left := loadPoolOperationHeader(b)
 
 			var operationhash, facthash util.Hash
 
@@ -191,7 +216,7 @@ func (db *TempPool) NewOperationHashes(
 			case err != nil:
 				return false, err
 			case !ok:
-				removes[removeindex] = facthash
+				removes[removeindex] = operationhash
 				removeindex++
 
 				return true, nil
@@ -213,7 +238,7 @@ func (db *TempPool) NewOperationHashes(
 
 	// FIXME instead of really remove them, moves data to another place with
 	// remove datetime.
-	if err := db.RemoveNewOperations(ctx, removes[:removeindex]); err != nil {
+	if err := db.setRemoveNewOperations(ctx, height, removes[:removeindex]); err != nil {
 		return nil, e(err, "")
 	}
 
@@ -223,9 +248,10 @@ func (db *TempPool) NewOperationHashes(
 func (db *TempPool) SetNewOperation(_ context.Context, op base.Operation) (bool, error) {
 	e := util.StringErrorFunc("failed to put operation")
 
+	oph := op.Hash()
 	facthash := op.Fact().Hash()
 
-	key, orderedkey := newNewOperationLeveldbKeys(op.Hash(), facthash)
+	key, orderedkey := newNewOperationLeveldbKeys(op.Hash())
 
 	switch found, err := db.st.Exists(key); {
 	case err != nil:
@@ -242,12 +268,11 @@ func (db *TempPool) SetNewOperation(_ context.Context, op base.Operation) (bool,
 	batch := db.st.NewBatch()
 	defer batch.Reset()
 
-	h := newOperationHeader(op)
+	h := newPoolOperationHeader(op)
 
 	batch.Put(key, b)
-	batch.Put(orderedkey, util.ConcatBytesSlice(h[:], joinLeveldbKeys(op.Hash().Bytes(), facthash.Bytes())))
-
-	batch.Put(leveldbNewOperationKeysKey(facthash), joinLeveldbKeys(key, orderedkey))
+	batch.Put(orderedkey, util.ConcatBytesSlice(h[:], joinLeveldbKeys(oph.Bytes(), facthash.Bytes())))
+	batch.Put(leveldbNewOperationKeysKey(oph), joinLeveldbKeys(key, orderedkey))
 
 	if err := db.st.Batch(batch, nil); err != nil {
 		return false, e(err, "")
@@ -274,7 +299,7 @@ func (h PoolOperationHeader) HintBytes() []byte {
 	return h.hintBytes[:]
 }
 
-func newOperationHeader(op base.Operation) [300]byte {
+func newPoolOperationHeader(op base.Operation) [300]byte {
 	b := [300]byte{}
 
 	b[0] = 0x01 // NOTE header version(1)
@@ -288,7 +313,7 @@ func newOperationHeader(op base.Operation) [300]byte {
 	return b
 }
 
-func loadNewOperationHeader(b []byte) (header PoolOperationHeader, left []byte) {
+func loadPoolOperationHeader(b []byte) (header PoolOperationHeader, left []byte) {
 	if len(b) < 300 { //nolint:gomnd //...
 		return header, b
 	}
@@ -300,8 +325,8 @@ func loadNewOperationHeader(b []byte) (header PoolOperationHeader, left []byte) 
 	return header, b[300:]
 }
 
-func (db *TempPool) RemoveNewOperations(ctx context.Context, facthashes []util.Hash) error {
-	if len(facthashes) < 1 {
+func (db *TempPool) setRemoveNewOperations(ctx context.Context, height base.Height, operationhashes []util.Hash) error {
+	if len(operationhashes) < 1 {
 		return nil
 	}
 
@@ -311,19 +336,19 @@ func (db *TempPool) RemoveNewOperations(ctx context.Context, facthashes []util.H
 	batch := db.st.NewBatch()
 	defer batch.Reset()
 
-	removekeysch := make(chan []byte)
+	batchch := make(chan func(bt *leveldbstorage2.PrefixStorageBatch))
 	donech := make(chan struct{})
 
 	go func() {
-		for i := range removekeysch {
-			batch.Delete(i)
+		for i := range batchch {
+			i(batch)
 		}
 
 		donech <- struct{}{}
 	}()
 
-	for i := range facthashes {
-		h := facthashes[i]
+	for i := range operationhashes {
+		h := operationhashes[i]
 		if h == nil {
 			break
 		}
@@ -342,9 +367,11 @@ func (db *TempPool) RemoveNewOperations(ctx context.Context, facthashes []util.H
 			case len(keys) != 2: //nolint:gomnd //...
 				return errors.Errorf("invalid joined key for operation")
 			default:
-				removekeysch <- infokey
-				removekeysch <- keys[0]
-				removekeysch <- keys[1]
+				batchch <- func(bt *leveldbstorage2.PrefixStorageBatch) {
+					batch.Delete(infokey)
+					batch.Delete(keys[1])
+					batch.Put(leveldbRemovedNewOperationKey(height, h), h.Bytes())
+				}
 
 				return nil
 			}
@@ -359,8 +386,12 @@ func (db *TempPool) RemoveNewOperations(ctx context.Context, facthashes []util.H
 		return err
 	}
 
-	close(removekeysch)
+	close(batchch)
 	<-donech
+
+	if batch.Len() < 1 {
+		return nil
+	}
 
 	return db.st.Batch(batch, nil)
 }
@@ -453,8 +484,100 @@ func (db *TempPool) loadLastVoteproofs() error {
 	return nil
 }
 
-func newNewOperationLeveldbKeys(operationhash, facthash util.Hash) (key []byte, orderedkey []byte) {
-	return leveldbNewOperationKey(operationhash), leveldbNewOperationOrderedKey(facthash)
+func (db *TempPool) startClean(ctx context.Context) error {
+	if db.st == nil {
+		return errors.Errorf("already closed")
+	}
+
+	ticker := time.NewTicker(db.cleanRemovedNewOperationsInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			removed, err := db.cleanRemovedNewOperations()
+			if removed > 0 || err != nil {
+				db.whenNewOperationsremoved(removed, err)
+			}
+		}
+	}
+}
+
+func (db *TempPool) cleanRemovedNewOperations() (int, error) {
+	var removed int
+
+	top := base.NilHeight
+
+	_ = db.st.Iter(
+		leveldbutil.BytesPrefix(leveldbKeyPrefixRemovedNewOperation),
+		func(key, _ []byte) (bool, error) {
+			i, err := heightFromleveldbKey(key, leveldbKeyPrefixRemovedNewOperation)
+			if err != nil {
+				return true, nil
+			}
+
+			top = i
+
+			return false, nil
+		},
+		false,
+	)
+
+	if top-3 < base.GenesisHeight {
+		return removed, nil
+	}
+
+	height := top
+
+	for range make([]int, db.cleanRemovedNewOperationsDeep.Int64()-1) {
+		height = height.SafePrev()
+	}
+
+	batch := db.st.NewBatch()
+	defer batch.Reset()
+
+	r := &leveldbutil.Range{Limit: leveldbRemovedNewOperationPrefixWithHeight(height)}
+	start := leveldbKeyPrefixRemovedNewOperation
+
+	for {
+		r.Start = start
+
+		_ = db.st.Iter(
+			r,
+			func(key, b []byte) (bool, error) {
+				if batch.Len() >= 333 { //nolint:gomnd //...
+					start = key
+
+					return false, nil
+				}
+
+				batch.Delete(key)
+				batch.Delete(leveldbNewOperationKey(valuehash.NewBytes(b)))
+				removed++
+
+				return false, nil
+			},
+			true,
+		)
+
+		if batch.Len() < 1 {
+			break
+		}
+
+		if err := db.st.Batch(batch, nil); err != nil {
+			break
+		}
+
+		batch.Reset()
+	}
+
+	return removed, nil
+}
+
+func newNewOperationLeveldbKeys(operationhash util.Hash) (key []byte, orderedkey []byte) {
+	return leveldbNewOperationKey(operationhash), leveldbNewOperationOrderedKey(operationhash)
 }
 
 func joinLeveldbKeys(a ...[]byte) []byte {

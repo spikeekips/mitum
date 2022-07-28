@@ -3,7 +3,9 @@ package isaacdatabase
 import (
 	"bytes"
 	"context"
+	"sort"
 	"testing"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -13,6 +15,7 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
+	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
 
 type testPool struct {
@@ -229,7 +232,7 @@ func (t *testNewOperationPool) TestNewOperationHashes() {
 	}
 
 	t.Run("limit 10", func() {
-		rops, err := pst.NewOperationHashes(context.Background(), 10, nil)
+		rops, err := pst.NewOperationHashes(context.Background(), base.Height(33), 10, nil)
 		t.NoError(err)
 		t.Equal(10, len(rops))
 
@@ -242,7 +245,7 @@ func (t *testNewOperationPool) TestNewOperationHashes() {
 	})
 
 	t.Run("over 33", func() {
-		rops, err := pst.NewOperationHashes(context.Background(), 100, nil)
+		rops, err := pst.NewOperationHashes(context.Background(), base.Height(33), 100, nil)
 		t.NoError(err)
 		t.Equal(len(ops), len(rops))
 
@@ -263,7 +266,7 @@ func (t *testNewOperationPool) TestNewOperationHashes() {
 			return true, nil
 		}
 
-		rops, err := pst.NewOperationHashes(context.Background(), 100, filter)
+		rops, err := pst.NewOperationHashes(context.Background(), base.Height(33), 100, filter)
 		t.NoError(err)
 		t.Equal(len(ops)-1, len(rops))
 
@@ -273,12 +276,6 @@ func (t *testNewOperationPool) TestNewOperationHashes() {
 
 			t.True(op.Equal(rop), "op=%q rop=%q", op, rop)
 		}
-
-		// NOTE ops[32] was removed
-		op, found, err := pst.NewOperation(context.Background(), ops[32].Hash())
-		t.NoError(err)
-		t.False(found)
-		t.Nil(op)
 	})
 
 	t.Run("filter error", func() {
@@ -290,7 +287,7 @@ func (t *testNewOperationPool) TestNewOperationHashes() {
 			return true, nil
 		}
 
-		_, err := pst.NewOperationHashes(context.Background(), 100, filter)
+		_, err := pst.NewOperationHashes(context.Background(), base.Height(33), 100, filter)
 		t.Error(err)
 		t.ErrorContains(err, "findme")
 	})
@@ -304,7 +301,7 @@ func (t *testNewOperationPool) TestNewOperationHashes() {
 			), nil
 		}
 
-		rops, err := pst.NewOperationHashes(context.Background(), 100, filter)
+		rops, err := pst.NewOperationHashes(context.Background(), base.Height(33), 100, filter)
 		t.NoError(err)
 		t.Equal(len(anothers), len(rops))
 
@@ -329,7 +326,7 @@ func (t *testNewOperationPool) TestRemoveNewOperations() {
 
 		ops[i] = op
 		if i%3 == 0 {
-			removes = append(removes, fact.Hash())
+			removes = append(removes, op.Hash())
 		}
 
 		added, err := pst.SetNewOperation(context.Background(), op)
@@ -337,10 +334,10 @@ func (t *testNewOperationPool) TestRemoveNewOperations() {
 		t.True(added)
 	}
 
-	t.NoError(pst.RemoveNewOperations(context.Background(), removes))
+	t.NoError(pst.setRemoveNewOperations(context.Background(), base.Height(33), removes))
 
 	t.Run("all", func() {
-		rops, err := pst.NewOperationHashes(context.Background(), 100, nil)
+		rops, err := pst.NewOperationHashes(context.Background(), base.Height(33), 100, nil)
 		t.NoError(err)
 		t.Equal(len(ops)-len(removes), len(rops))
 
@@ -362,14 +359,299 @@ func (t *testNewOperationPool) TestRemoveNewOperations() {
 		}
 	})
 
-	for i := range removes {
-		h := removes[i]
+	t.Run("set removed, but still exists", func() {
+		for i := range removes {
+			h := removes[i]
 
-		op, found, err := pst.NewOperation(context.Background(), h)
+			op, found, err := pst.NewOperation(context.Background(), h)
+			t.NoError(err)
+			t.True(found)
+			t.NotNil(op)
+		}
+	})
+}
+
+func (t *testNewOperationPool) TestCleanNewOperations() {
+	pst := t.NewPool()
+	defer pst.Close()
+
+	ops := make([]base.Operation, 33)
+	for i := range ops {
+		fact := isaac.NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
+
+		op, _ := isaac.NewDummyOperation(fact, t.local.Privatekey(), t.networkID)
+
+		ops[i] = op
+
+		added, err := pst.SetNewOperation(context.Background(), op)
 		t.NoError(err)
-		t.False(found)
-		t.Nil(op)
+		t.True(added)
 	}
+
+	startheight := base.Height(3)
+
+	filtered369 := []util.Hash{
+		ops[3].Hash(),
+		ops[6].Hash(),
+		ops[9].Hash(),
+	}
+
+	filterf := func(hs []util.Hash) func(util.Hash, util.Hash, isaac.PoolOperationHeader) (bool, error) {
+		return func(oph, _ util.Hash, _ isaac.PoolOperationHeader) (bool, error) {
+			for i := range hs {
+				if oph.Equal(hs[i]) {
+					return false, nil
+				}
+			}
+
+			return true, nil
+		}
+	}
+
+	sort.Slice(filtered369, func(i, j int) bool {
+		return bytes.Compare(filtered369[i].Bytes(), filtered369[j].Bytes()) < 0
+	})
+
+	t.Run("filter 3", func() {
+		rops, err := pst.NewOperationHashes(context.Background(), startheight, uint64(len(ops)), filterf(filtered369))
+		t.NoError(err)
+		t.Equal(len(ops)-len(filtered369), len(rops))
+
+		var ropsindex int
+
+		for i := range ops {
+			op := ops[i].Hash()
+
+			var found bool
+			for i := range filtered369 {
+				if op.Equal(filtered369[i]) {
+					found = true
+					break
+				}
+			}
+
+			if found {
+				continue
+			}
+
+			rop := rops[ropsindex]
+			ropsindex++
+
+			t.True(op.Equal(rop), "op=%q rop=%q", op, rop)
+		}
+
+		t.T().Log("exists in NewOperation")
+
+		for i := range ops {
+			h := ops[i].Hash()
+
+			op, found, err := pst.NewOperation(context.Background(), h)
+			t.NoError(err)
+			t.True(found)
+			t.True(h.Equal(op.Hash()))
+		}
+	})
+
+	t.Run("filtered in removed", func() {
+		var removed []util.Hash
+
+		pst.st.Iter(
+			leveldbutil.BytesPrefix(leveldbKeyPrefixRemovedNewOperation),
+			func(_, b []byte) (bool, error) {
+				removed = append(removed, valuehash.NewBytes(b))
+
+				return true, nil
+			},
+			true,
+		)
+
+		sort.Slice(removed, func(i, j int) bool {
+			return bytes.Compare(removed[i].Bytes(), removed[j].Bytes()) < 0
+		})
+
+		t.Equal(len(filtered369), len(removed))
+
+		for i := range removed {
+			a := filtered369[i]
+			b := removed[i]
+
+			t.True(a.Equal(b))
+		}
+	})
+
+	t.Run("clean filtered; deep=1; not removed", func() {
+		pst.cleanRemovedNewOperationsDeep = 1
+
+		removed, err := pst.cleanRemovedNewOperations()
+		t.NoError(err)
+		t.Equal(0, removed)
+	})
+
+	filtered12 := []util.Hash{
+		ops[12].Hash(),
+	}
+
+	t.Run("clean filtered; deep=1; fetch once with higher height", func() {
+		rops, err := pst.NewOperationHashes(context.Background(), startheight+1, uint64(len(ops)), filterf(filtered12))
+		t.NoError(err)
+		t.Equal(len(ops)-len(filtered369)-len(filtered12), len(rops))
+
+		pst.cleanRemovedNewOperationsDeep = 1
+
+		removed, err := pst.cleanRemovedNewOperations()
+		t.NoError(err)
+		t.Equal(len(filtered369), removed)
+	})
+
+	t.Run("check left in new operations", func() {
+		var left int
+		pst.st.Iter(
+			leveldbutil.BytesPrefix(leveldbKeyPrefixNewOperation),
+			func(key, _ []byte) (bool, error) {
+				left++
+
+				return true, nil
+			},
+			true,
+		)
+
+		t.Equal(len(ops)-len(filtered369), left)
+	})
+
+	t.Run("check left in new operations ordered", func() {
+		var left int
+		pst.st.Iter(
+			leveldbutil.BytesPrefix(leveldbKeyPrefixNewOperationOrdered),
+			func(key, _ []byte) (bool, error) {
+				left++
+
+				return true, nil
+			},
+			true,
+		)
+
+		t.Equal(len(ops)-len(filtered369)-len(filtered12), left)
+	})
+
+	t.Run("check left in new operations keys key", func() {
+		var left int
+		pst.st.Iter(
+			leveldbutil.BytesPrefix(leveldbKeyPrefixNewOperationOrderedKeys),
+			func(key, _ []byte) (bool, error) {
+				left++
+
+				return true, nil
+			},
+			true,
+		)
+
+		t.Equal(len(ops)-len(filtered369)-len(filtered12), left)
+	})
+
+	t.Run("check left in new operations removed", func() {
+		var left int
+		pst.st.Iter(
+			leveldbutil.BytesPrefix(leveldbKeyPrefixRemovedNewOperation),
+			func(key, _ []byte) (bool, error) {
+				left++
+
+				return true, nil
+			},
+			true,
+		)
+
+		t.Equal(len(filtered12), left)
+	})
+}
+
+func (t *testNewOperationPool) TestPeriodicCleanNewOperations() {
+	pst := t.NewPool()
+	defer pst.Close()
+
+	ops := make([]base.Operation, 33)
+	for i := range ops {
+		fact := isaac.NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
+
+		op, _ := isaac.NewDummyOperation(fact, t.local.Privatekey(), t.networkID)
+
+		ops[i] = op
+
+		added, err := pst.SetNewOperation(context.Background(), op)
+		t.NoError(err)
+		t.True(added)
+	}
+
+	filtered3 := []util.Hash{
+		ops[3].Hash(),
+		ops[6].Hash(),
+		ops[9].Hash(),
+	}
+
+	filtered4 := []util.Hash{
+		ops[4].Hash(),
+		ops[7].Hash(),
+		ops[10].Hash(),
+	}
+
+	filtered5 := []util.Hash{
+		ops[5].Hash(),
+		ops[8].Hash(),
+		ops[11].Hash(),
+	}
+
+	filterf := func(hs []util.Hash) func(util.Hash, util.Hash, isaac.PoolOperationHeader) (bool, error) {
+		return func(oph, _ util.Hash, _ isaac.PoolOperationHeader) (bool, error) {
+			for i := range hs {
+				if oph.Equal(hs[i]) {
+					return false, nil
+				}
+			}
+
+			return true, nil
+		}
+	}
+
+	t.Run("filter3", func() {
+		rops, err := pst.NewOperationHashes(context.Background(), base.Height(3), uint64(len(ops)), filterf(filtered3))
+		t.NoError(err)
+		t.Equal(len(ops)-len(filtered3), len(rops))
+	})
+
+	t.Run("filter4", func() {
+		rops, err := pst.NewOperationHashes(context.Background(), base.Height(4), uint64(len(ops)), filterf(filtered4))
+		t.NoError(err)
+		t.Equal(len(ops)-len(filtered3)-len(filtered4), len(rops))
+	})
+
+	pst.cleanRemovedNewOperationsInterval = time.Millisecond * 10
+	pst.cleanRemovedNewOperationsDeep = 1
+
+	removedch := make(chan int)
+	pst.whenNewOperationsremoved = func(removed int, _ error) {
+		removedch <- removed
+	}
+
+	t.NoError(pst.Start())
+
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("wait filtered3 removed, but nothing happened"))
+	case removed := <-removedch:
+		t.Equal(len(filtered3), removed)
+	}
+
+	t.Run("filter5", func() {
+		rops, err := pst.NewOperationHashes(context.Background(), base.Height(5), uint64(len(ops)), filterf(filtered5))
+		t.NoError(err)
+		t.Equal(len(ops)-len(filtered3)-len(filtered4)-len(filtered5), len(rops))
+
+		select {
+		case <-time.After(time.Second * 2):
+			t.NoError(errors.Errorf("wait filtered4 removed, but nothing happened"))
+		case removed := <-removedch:
+			t.Equal(len(filtered4), removed)
+		}
+	})
 }
 
 func (t *testNewOperationPool) TestLastVoteproofs() {

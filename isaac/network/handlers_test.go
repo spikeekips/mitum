@@ -224,7 +224,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 	proposalMaker := isaac.NewProposalMaker(
 		t.Local,
 		t.NodePolicy,
-		func(context.Context) ([]util.Hash, error) {
+		func(context.Context, base.Height) ([]util.Hash, error) {
 			return []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}, nil
 		},
 		pool,
@@ -246,6 +246,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 		t.Equal(point, pr.Point())
 		t.True(t.Local.Address().Equal(pr.ProposalFact().Proposer()))
 		t.NoError(base.IsValidProposalSignedFact(pr, t.NodePolicy.NetworkID()))
+		t.NotEmpty(pr.ProposalFact().Operations())
 	})
 
 	t.Run("local is not proposer", func() {
@@ -253,8 +254,43 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 		proposer := base.RandomAddress("")
 		pr, found, err := c.RequestProposal(context.Background(), ci, point, proposer)
 		t.NoError(err)
+		t.True(found)
+		t.NotNil(pr)
+		t.Empty(pr.ProposalFact().Operations())
+	})
+
+	t.Run("too high height", func() {
+		handlers.lastBlockMapf = func(util.Hash) (base.BlockMap, bool, error) {
+			m := base.NewDummyManifest(base.Height(22), valuehash.RandomSHA256())
+			mp := base.NewDummyBlockMap(m)
+
+			return mp, true, nil
+		}
+
+		point := base.RawPoint(33, 1)
+		proposer := base.RandomAddress("")
+		pr, found, err := c.RequestProposal(context.Background(), ci, point, proposer)
+		t.NoError(err)
+		t.True(found)
+		t.NotNil(pr)
+		t.Empty(pr.ProposalFact().Operations())
+	})
+
+	t.Run("too low height", func() {
+		handlers.lastBlockMapf = func(util.Hash) (base.BlockMap, bool, error) {
+			m := base.NewDummyManifest(base.Height(44), valuehash.RandomSHA256())
+			mp := base.NewDummyBlockMap(m)
+
+			return mp, true, nil
+		}
+
+		point := base.RawPoint(33, 1)
+		proposer := base.RandomAddress("")
+		pr, found, err := c.RequestProposal(context.Background(), ci, point, proposer)
+		t.Error(err)
 		t.False(found)
 		t.Nil(pr)
+		t.ErrorContains(err, "too old")
 	})
 }
 
@@ -265,7 +301,7 @@ func (t *testQuicstreamHandlers) TestProposal() {
 	proposalMaker := isaac.NewProposalMaker(
 		t.Local,
 		t.NodePolicy,
-		func(context.Context) ([]util.Hash, error) {
+		func(context.Context, base.Height) ([]util.Hash, error) {
 			return []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}, nil
 		},
 		pool,

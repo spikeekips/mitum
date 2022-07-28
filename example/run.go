@@ -74,6 +74,10 @@ func (cmd *runCommand) Run() error {
 		return err
 	}
 
+	if err := cmd.pool.Start(); err != nil {
+		return err
+	}
+
 	if err := cmd.memberlist.Start(); err != nil {
 		return err
 	}

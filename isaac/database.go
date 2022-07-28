@@ -92,11 +92,11 @@ type NewOperationPool interface {
 	NewOperation(_ context.Context, operationhash util.Hash) (base.Operation, bool, error)
 	NewOperationHashes(
 		_ context.Context,
+		_ base.Height,
 		limit uint64,
 		filter func(operationhash, facthash util.Hash, _ PoolOperationHeader) (ok bool, err error),
 	) ([]util.Hash, error)
 	SetNewOperation(context.Context, base.Operation) (bool, error)
-	RemoveNewOperations(context.Context, []util.Hash) error
 }
 
 type VoteproofsPool interface {

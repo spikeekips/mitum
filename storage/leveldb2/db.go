@@ -175,13 +175,13 @@ func BatchRemove(st *Storage, r *leveldbutil.Range, limit int) (int, error) {
 		if err := st.Iter(
 			r,
 			func(key, _ []byte) (bool, error) {
-				batch.Delete(key)
-
 				if batch.Len() == limit {
 					start = key
 
 					return false, nil
 				}
+
+				batch.Delete(key)
 
 				return true, nil
 			},

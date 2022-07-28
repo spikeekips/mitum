@@ -489,10 +489,11 @@ func (c *QuicstreamHandlers) getOrCreateProposal(
 		switch m, found, err := c.lastBlockMapf(nil); {
 		case err != nil:
 			return nil, err
-		case found:
-			if point.Height() < m.Manifest().Height()-1 {
-				return nil, errors.Errorf("too old; ignored")
-			}
+		case !found:
+		case point.Height() < m.Manifest().Height()-1:
+			return nil, errors.Errorf("too old; ignored")
+		case point.Height() > m.Manifest().Height(): // NOTE empty proposal for unreachable point
+			return c.proposalMaker.Empty(context.Background(), point)
 		}
 	}
 
@@ -504,16 +505,10 @@ func (c *QuicstreamHandlers) getOrCreateProposal(
 	}
 
 	if !proposer.Equal(c.local.Address()) {
-		return nil, nil
+		return c.proposalMaker.Empty(context.Background(), point)
 	}
 
-	// NOTE if proposer is local, create new one
-	switch pr, err := c.proposalMaker.New(context.Background(), point); {
-	case err != nil:
-		return nil, err
-	default:
-		return pr, nil
-	}
+	return c.proposalMaker.New(context.Background(), point)
 }
 
 func (c *QuicstreamHandlers) nodeConnInfos(

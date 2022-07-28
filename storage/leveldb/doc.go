@@ -1,4 +1,4 @@
 /*
 Package leveldbstorage is leveldb storage.
 */
-package leveldbstorage
+package leveldbstorage // FIXME remove

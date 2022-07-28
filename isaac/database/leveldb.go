@@ -33,10 +33,11 @@ var (
 	leveldbKeyPrefixNewOperation            = []byte{0x00, 0x07}
 	leveldbKeyPrefixNewOperationOrdered     = []byte{0x00, 0x08}
 	leveldbKeyPrefixNewOperationOrderedKeys = []byte{0x00, 0x09}
-	leveldbKeyLastVoteproofs                = []byte{0x00, 0x0a}
-	leveldbKeyTempSyncMap                   = []byte{0x00, 0x0b}
-	leveldbKeySuffrageProof                 = []byte{0x00, 0x0c}
-	leveldbKeySuffrageProofByBlockHeight    = []byte{0x00, 0x0d}
+	leveldbKeyPrefixRemovedNewOperation     = []byte{0x00, 0x0a}
+	leveldbKeyLastVoteproofs                = []byte{0x00, 0x0b}
+	leveldbKeyTempSyncMap                   = []byte{0x00, 0x0c}
+	leveldbKeySuffrageProof                 = []byte{0x00, 0x0d}
+	leveldbKeySuffrageProofByBlockHeight    = []byte{0x00, 0x0e}
 
 	leveldbKeysJoinSep = []byte("mitum-leveldb-sep")
 )
@@ -195,23 +196,37 @@ func leveldbBlockMapKey(height base.Height) []byte {
 	)
 }
 
-func leveldbNewOperationOrderedKey(facthash util.Hash) []byte {
+func leveldbNewOperationOrderedKey(operationhash util.Hash) []byte {
 	return util.ConcatBytesSlice(
 		leveldbKeyPrefixNewOperationOrdered,
 		[]byte(util.RFC3339(localtime.UTCNow())),
-		facthash.Bytes(),
+		operationhash.Bytes(),
 	)
 }
 
-func leveldbNewOperationKeysKey(facthash util.Hash) []byte {
+func leveldbNewOperationKeysKey(operationhash util.Hash) []byte {
 	return util.ConcatBytesSlice(
 		leveldbKeyPrefixNewOperationOrderedKeys,
-		facthash.Bytes(),
+		operationhash.Bytes(),
 	)
 }
 
 func leveldbNewOperationKey(operationhash util.Hash) []byte {
 	return util.ConcatBytesSlice(leveldbKeyPrefixNewOperation, operationhash.Bytes())
+}
+
+func leveldbRemovedNewOperationPrefixWithHeight(height base.Height) []byte {
+	return util.ConcatBytesSlice(
+		leveldbKeyPrefixRemovedNewOperation,
+		[]byte(fmt.Sprintf("%021d", height)),
+	)
+}
+
+func leveldbRemovedNewOperationKey(height base.Height, operationhash util.Hash) []byte {
+	return util.ConcatBytesSlice(
+		leveldbRemovedNewOperationPrefixWithHeight(height),
+		operationhash.Bytes(),
+	)
 }
 
 func splitLeveldbJoinedKeys(b []byte) [][]byte {
@@ -250,7 +265,7 @@ func heightFromleveldbKey(b, prefix []byte) (base.Height, error) {
 		return base.NilHeight, e(nil, "too short")
 	}
 
-	d, err := strconv.ParseInt(string(b[len(prefix):]), 10, 64)
+	d, err := strconv.ParseInt(string(b[len(prefix):len(prefix)+21]), 10, 64)
 	if err != nil {
 		return base.NilHeight, e(err, "")
 	}

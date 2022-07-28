@@ -247,14 +247,14 @@ type ProposalMaker struct {
 	local         base.LocalNode
 	policy        base.NodePolicy
 	pool          ProposalPool
-	getOperations func(context.Context) ([]util.Hash, error)
+	getOperations func(context.Context, base.Height) ([]util.Hash, error)
 	sync.Mutex
 }
 
 func NewProposalMaker(
 	local base.LocalNode,
 	policy base.NodePolicy,
-	getOperations func(context.Context) ([]util.Hash, error),
+	getOperations func(context.Context, base.Height) ([]util.Hash, error),
 	pool ProposalPool,
 ) *ProposalMaker {
 	return &ProposalMaker{
@@ -268,30 +268,53 @@ func NewProposalMaker(
 	}
 }
 
-func (p *ProposalMaker) New(ctx context.Context, point base.Point) (ProposalSignedFact, error) {
+func (p *ProposalMaker) Empty(_ context.Context, point base.Point) (pr ProposalSignedFact, err error) {
+	p.Lock()
+	defer p.Unlock()
+
+	pr, err = p.makeProposal(point, nil)
+	if err != nil {
+		return pr, errors.WithMessagef(err, "failed to make empty proposal, %q", point)
+	}
+
+	return pr, nil
+}
+
+func (p *ProposalMaker) New(ctx context.Context, point base.Point) (sf ProposalSignedFact, _ error) {
 	p.Lock()
 	defer p.Unlock()
 
 	e := util.StringErrorFunc("failed to make proposal, %q", point)
 
-	ops, err := p.getOperations(ctx)
+	ops, err := p.getOperations(ctx, point.Height())
 	if err != nil {
-		return ProposalSignedFact{}, e(err, "failed to get operations")
+		return sf, e(err, "failed to get operations")
 	}
 
-	for i := range ops {
-		p.Log().Trace().Stringer("operation", ops[i]).Msg("new operation for proposal maker")
+	p.Log().Trace().Func(func(e *zerolog.Event) {
+		for i := range ops {
+			e.Stringer("operation", ops[i])
+		}
+	}).Msg("new operation for proposal maker")
+
+	pr, err := p.makeProposal(point, ops)
+	if err != nil {
+		return sf, e(err, "")
 	}
 
+	return pr, nil
+}
+
+func (p *ProposalMaker) makeProposal(point base.Point, ops []util.Hash) (sf ProposalSignedFact, _ error) {
 	fact := NewProposalFact(point, p.local.Address(), ops)
 
 	signedFact := NewProposalSignedFact(fact)
 	if err := signedFact.Sign(p.local.Privatekey(), p.policy.NetworkID()); err != nil {
-		return ProposalSignedFact{}, e(err, "")
+		return sf, err
 	}
 
 	if _, err := p.pool.SetProposal(signedFact); err != nil {
-		return ProposalSignedFact{}, e(err, "")
+		return sf, err
 	}
 
 	return signedFact, nil

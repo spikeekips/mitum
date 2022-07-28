@@ -147,7 +147,7 @@ func (cmd *runCommand) proposalMaker() *isaac.ProposalMaker {
 	return isaac.NewProposalMaker(
 		cmd.local,
 		cmd.nodePolicy,
-		func(ctx context.Context) ([]util.Hash, error) {
+		func(ctx context.Context, height base.Height) ([]util.Hash, error) {
 			policy := cmd.db.LastNetworkPolicy()
 			if policy == nil { // NOTE Usually it means empty block data
 				return nil, nil
@@ -160,6 +160,7 @@ func (cmd *runCommand) proposalMaker() *isaac.ProposalMaker {
 
 			hs, err := cmd.pool.NewOperationHashes(
 				ctx,
+				height,
 				n,
 				func(operationhash, facthash util.Hash, header isaac.PoolOperationHeader) (bool, error) {
 					// NOTE filter genesis operations
