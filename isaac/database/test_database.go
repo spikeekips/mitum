@@ -8,7 +8,7 @@ import (
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
-	leveldbstorage2 "github.com/spikeekips/mitum/storage/leveldb2"
+	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
@@ -76,12 +76,12 @@ func (t *BaseTestDatabase) TearDownTest() {
 }
 
 func (t *BaseTestDatabase) NewLeveldbBlockWriteDatabase(height base.Height) *LeveldbBlockWrite {
-	mst := leveldbstorage2.NewMemStorage()
+	mst := leveldbstorage.NewMemStorage()
 	return NewLeveldbBlockWrite(height, mst, t.Encs, t.Enc)
 }
 
 func (t *BaseTestDatabase) NewPool() *TempPool {
-	mst := leveldbstorage2.NewMemStorage()
+	mst := leveldbstorage.NewMemStorage()
 
 	db, err := newTempPool(mst, t.Encs, t.Enc)
 	t.noerror(err)

@@ -7,7 +7,7 @@ import (
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
-	leveldbstorage2 "github.com/spikeekips/mitum/storage/leveldb2"
+	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
@@ -24,7 +24,7 @@ func (t *testLeveldbBlockWrite) SetupTest() {
 
 func (t *testLeveldbBlockWrite) TestNew() {
 	t.Run("valid", func() {
-		mst := leveldbstorage2.NewMemStorage()
+		mst := leveldbstorage.NewMemStorage()
 		wst := NewLeveldbBlockWrite(base.Height(33), mst, t.Encs, t.Enc)
 
 		_ = (interface{})(wst).(isaac.BlockWriteDatabase)

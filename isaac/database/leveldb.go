@@ -9,7 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
-	leveldbstorage2 "github.com/spikeekips/mitum/storage/leveldb2"
+	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/localtime"
@@ -43,13 +43,13 @@ var (
 )
 
 type baseLeveldb struct {
-	st *leveldbstorage2.PrefixStorage
+	st *leveldbstorage.PrefixStorage
 	*baseDatabase
 	sync.Mutex
 }
 
 func newBaseLeveldb(
-	st *leveldbstorage2.PrefixStorage,
+	st *leveldbstorage.PrefixStorage,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
 ) *baseLeveldb {

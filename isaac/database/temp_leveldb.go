@@ -4,7 +4,7 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/storage"
-	leveldbstorage2 "github.com/spikeekips/mitum/storage/leveldb2"
+	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 )
@@ -18,12 +18,12 @@ type TempLeveldb struct {
 }
 
 func NewTempLeveldbFromPrefix(
-	st *leveldbstorage2.Storage,
+	st *leveldbstorage.Storage,
 	prefix []byte,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
 ) (*TempLeveldb, error) {
-	pst := leveldbstorage2.NewPrefixStorage(st, prefix)
+	pst := leveldbstorage.NewPrefixStorage(st, prefix)
 
 	db := &TempLeveldb{
 		baseLeveldb: newBaseLeveldb(pst, encs, enc),

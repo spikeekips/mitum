@@ -16,7 +16,7 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
-	leveldbstorage2 "github.com/spikeekips/mitum/storage/leveldb2"
+	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	redisstorage "github.com/spikeekips/mitum/storage/redis"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -172,7 +172,7 @@ func LoadDatabase(
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
 ) (
-	*leveldbstorage2.Storage,
+	*leveldbstorage.Storage,
 	*isaacdatabase.Center,
 	isaac.PermanentDatabase,
 	*isaacdatabase.TempPool,
@@ -193,7 +193,7 @@ func LoadDatabase(
 			return nil, nil, nil, nil, e(err, "")
 		}
 
-		st, err = leveldbstorage2.NewStorage(str, nil)
+		st, err = leveldbstorage.NewStorage(str, nil)
 		if err != nil {
 			return nil, nil, nil, nil, e(err, "")
 		}
@@ -238,7 +238,7 @@ func LocalFSDatabaseDirectory(root string) string {
 
 func LoadPermanentDatabase(
 	uri, id string, encs *encoder.Encoders, enc encoder.Encoder,
-) (*leveldbstorage2.Storage, isaac.PermanentDatabase, error) {
+) (*leveldbstorage.Storage, isaac.PermanentDatabase, error) {
 	e := util.StringErrorFunc("failed to load PermanentDatabase")
 
 	u, err := url.Parse(uri)
@@ -272,7 +272,7 @@ func LoadPermanentDatabase(
 			return nil, nil, e(err, "")
 		}
 
-		st, err := leveldbstorage2.NewStorage(str, nil)
+		st, err := leveldbstorage.NewStorage(str, nil)
 		if err != nil {
 			return nil, nil, e(err, "")
 		}

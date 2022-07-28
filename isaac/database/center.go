@@ -10,7 +10,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
-	leveldbstorage2 "github.com/spikeekips/mitum/storage/leveldb2"
+	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/logging"
@@ -33,7 +33,7 @@ type Center struct {
 // FIXME cache result
 
 func NewCenter(
-	st *leveldbstorage2.Storage,
+	st *leveldbstorage.Storage,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
 	perm isaac.PermanentDatabase,
@@ -83,7 +83,7 @@ func (db *Center) Close() error {
 	return nil
 }
 
-func (db *Center) load(st *leveldbstorage2.Storage) error {
+func (db *Center) load(st *leveldbstorage.Storage) error {
 	e := util.StringErrorFunc("failed to load temps to CenterDatabase")
 
 	var last base.Height
@@ -611,7 +611,7 @@ func (db *Center) cleanRemoved(limit int) error {
 }
 
 func loadTemps( // revive:disable-line:flag-parameter
-	st *leveldbstorage2.Storage,
+	st *leveldbstorage.Storage,
 	minHeight base.Height,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,

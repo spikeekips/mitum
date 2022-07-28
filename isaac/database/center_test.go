@@ -8,7 +8,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
-	leveldbstorage2 "github.com/spikeekips/mitum/storage/leveldb2"
+	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
@@ -112,7 +112,7 @@ func (t *testCenterWithPermanent) TestMap() {
 		},
 	}
 
-	db, err := NewCenter(leveldbstorage2.NewMemStorage(), t.Encs, t.Enc, perm, nil)
+	db, err := NewCenter(leveldbstorage.NewMemStorage(), t.Encs, t.Enc, perm, nil)
 	t.NoError(err)
 
 	_ = (interface{})(db).(isaac.Database)
@@ -146,7 +146,7 @@ func (t *testCenterWithPermanent) TestLastMap() {
 
 	perm := &DummyPermanentDatabase{}
 
-	db, err := NewCenter(leveldbstorage2.NewMemStorage(), t.Encs, t.Enc, perm, nil)
+	db, err := NewCenter(leveldbstorage.NewMemStorage(), t.Encs, t.Enc, perm, nil)
 	t.NoError(err)
 
 	t.Run("found", func() {
@@ -204,7 +204,7 @@ func (t *testCenterWithPermanent) TestSuffrageProof() {
 		},
 	}
 
-	db, err := NewCenter(leveldbstorage2.NewMemStorage(), t.Encs, t.Enc, perm, nil)
+	db, err := NewCenter(leveldbstorage.NewMemStorage(), t.Encs, t.Enc, perm, nil)
 	t.NoError(err)
 
 	t.Run("found SuffrageProof", func() {
@@ -250,7 +250,7 @@ func (t *testCenterWithPermanent) TestSuffrageProofByBlockHeight() {
 		},
 	}
 
-	db, err := NewCenter(leveldbstorage2.NewMemStorage(), t.Encs, t.Enc, perm, nil)
+	db, err := NewCenter(leveldbstorage.NewMemStorage(), t.Encs, t.Enc, perm, nil)
 	t.NoError(err)
 
 	t.Run("found SuffrageProof", func() {
@@ -283,7 +283,7 @@ func (t *testCenterWithPermanent) TestLastSuffrageProof() {
 
 	perm := &DummyPermanentDatabase{}
 
-	db, err := NewCenter(leveldbstorage2.NewMemStorage(), t.Encs, t.Enc, perm, nil)
+	db, err := NewCenter(leveldbstorage.NewMemStorage(), t.Encs, t.Enc, perm, nil)
 	t.NoError(err)
 
 	t.Run("found", func() {
@@ -324,7 +324,7 @@ func (t *testCenterWithPermanent) TestLastSuffrageProof() {
 func (t *testCenterWithPermanent) TestLastNetworkPolicy() {
 	perm := &DummyPermanentDatabase{}
 
-	db, err := NewCenter(leveldbstorage2.NewMemStorage(), t.Encs, t.Enc, perm, nil)
+	db, err := NewCenter(leveldbstorage.NewMemStorage(), t.Encs, t.Enc, perm, nil)
 	t.NoError(err)
 
 	policy := isaac.DefaultNetworkPolicy()
@@ -365,7 +365,7 @@ func (t *testCenterWithPermanent) TestState() {
 		},
 	}
 
-	db, err := NewCenter(leveldbstorage2.NewMemStorage(), t.Encs, t.Enc, perm, nil)
+	db, err := NewCenter(leveldbstorage.NewMemStorage(), t.Encs, t.Enc, perm, nil)
 	t.NoError(err)
 
 	t.Run("found", func() {
@@ -408,7 +408,7 @@ func (t *testCenterWithPermanent) TestExistsInStateOperation() {
 		},
 	}
 
-	db, err := NewCenter(leveldbstorage2.NewMemStorage(), t.Encs, t.Enc, perm, nil)
+	db, err := NewCenter(leveldbstorage.NewMemStorage(), t.Encs, t.Enc, perm, nil)
 	t.NoError(err)
 
 	t.Run("found", func() {
@@ -448,7 +448,7 @@ func (t *testCenterWithPermanent) TestExistsKnownOperation() {
 		},
 	}
 
-	db, err := NewCenter(leveldbstorage2.NewMemStorage(), t.Encs, t.Enc, perm, nil)
+	db, err := NewCenter(leveldbstorage.NewMemStorage(), t.Encs, t.Enc, perm, nil)
 	t.NoError(err)
 
 	t.Run("found", func() {
@@ -540,7 +540,7 @@ func (t *testCenterBlockWrite) TestMerge() {
 		},
 	}
 
-	st := leveldbstorage2.NewMemStorage()
+	st := leveldbstorage.NewMemStorage()
 	db, err := NewCenter(st, t.Encs, t.Enc, perm, func(h base.Height) (isaac.BlockWriteDatabase, error) {
 		return NewLeveldbBlockWrite(h, st, t.Encs, t.Enc), nil
 	})
@@ -688,7 +688,7 @@ func (t *testCenterBlockWrite) TestFindState() {
 		},
 	}
 
-	st := leveldbstorage2.NewMemStorage()
+	st := leveldbstorage.NewMemStorage()
 	db, err := NewCenter(st, t.Encs, t.Enc, perm, func(height base.Height) (isaac.BlockWriteDatabase, error) {
 		return NewLeveldbBlockWrite(height, st, t.Encs, t.Enc), nil
 	})
@@ -748,7 +748,7 @@ func (t *testCenterBlockWrite) TestInvalidMerge() {
 		},
 	}
 
-	st := leveldbstorage2.NewMemStorage()
+	st := leveldbstorage.NewMemStorage()
 	db, err := NewCenter(st, t.Encs, t.Enc, perm, func(h base.Height) (isaac.BlockWriteDatabase, error) {
 		return NewLeveldbBlockWrite(h, st, t.Encs, t.Enc), nil
 	})
@@ -819,7 +819,7 @@ func (t *testCenterBlockWrite) TestMergePermanent() {
 		},
 	}
 
-	st := leveldbstorage2.NewMemStorage()
+	st := leveldbstorage.NewMemStorage()
 	db, err := NewCenter(st, t.Encs, t.Enc, perm, func(h base.Height) (isaac.BlockWriteDatabase, error) {
 		return NewLeveldbBlockWrite(h, st, t.Encs, t.Enc), nil
 	})
@@ -930,7 +930,7 @@ func (t *testCenterLoad) TestLoadTempDatabases() {
 		},
 	}
 
-	st := leveldbstorage2.NewMemStorage()
+	st := leveldbstorage.NewMemStorage()
 	db, err := NewCenter(st, t.Encs, t.Enc, perm, func(height base.Height) (isaac.BlockWriteDatabase, error) {
 		return NewLeveldbBlockWrite(height, st, t.Encs, t.Enc), nil
 	})
@@ -1021,7 +1021,7 @@ func (t *testCenterLoad) TestLoadTempDatabasesButMissing() {
 		},
 	}
 
-	st := leveldbstorage2.NewMemStorage()
+	st := leveldbstorage.NewMemStorage()
 	db, err := NewCenter(st, t.Encs, t.Enc, perm, func(height base.Height) (isaac.BlockWriteDatabase, error) {
 		return NewLeveldbBlockWrite(height, st, t.Encs, t.Enc), nil
 	})
@@ -1069,7 +1069,7 @@ func (t *testCenterLoad) TestLoadTempDatabasesButMissing() {
 
 	// NOTE higher data will be removed
 
-	r := leveldbutil.BytesPrefix(leveldbstorage2.HashPrefix(leveldbLabelBlockWrite))
+	r := leveldbutil.BytesPrefix(leveldbstorage.HashPrefix(leveldbLabelBlockWrite))
 	r.Start = emptyPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, last.Height()+2)
 
 	var highercount int

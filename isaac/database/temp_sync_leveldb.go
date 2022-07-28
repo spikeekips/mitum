@@ -3,7 +3,7 @@ package isaacdatabase
 import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
-	leveldbstorage2 "github.com/spikeekips/mitum/storage/leveldb2"
+	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
@@ -15,7 +15,7 @@ type LeveldbTempSyncPool struct {
 
 func NewLeveldbTempSyncPool(
 	height base.Height,
-	st *leveldbstorage2.Storage,
+	st *leveldbstorage.Storage,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
 ) (*LeveldbTempSyncPool, error) {
@@ -24,11 +24,11 @@ func NewLeveldbTempSyncPool(
 
 func newLeveldbTempSyncPool(
 	height base.Height,
-	st *leveldbstorage2.Storage,
+	st *leveldbstorage.Storage,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
 ) *LeveldbTempSyncPool {
-	pst := leveldbstorage2.NewPrefixStorage(st, newPrefixStoragePrefixByHeight(leveldbLabelSyncPool, height))
+	pst := leveldbstorage.NewPrefixStorage(st, newPrefixStoragePrefixByHeight(leveldbLabelSyncPool, height))
 
 	return &LeveldbTempSyncPool{
 		baseLeveldb: newBaseLeveldb(pst, encs, enc),
@@ -72,7 +72,7 @@ func (db *LeveldbTempSyncPool) Cancel() error {
 
 		r := leveldbutil.BytesPrefix(db.st.Prefix())
 
-		_, err := leveldbstorage2.BatchRemove(db.st.Storage, r, 333) //nolint:gomnd //...
+		_, err := leveldbstorage.BatchRemove(db.st.Storage, r, 333) //nolint:gomnd //...
 
 		return err
 	}(); err != nil {
@@ -86,10 +86,10 @@ func (db *LeveldbTempSyncPool) Cancel() error {
 	return nil
 }
 
-func CleanSyncPool(st *leveldbstorage2.Storage) error {
-	r := leveldbutil.BytesPrefix(leveldbstorage2.HashPrefix(leveldbLabelSyncPool))
+func CleanSyncPool(st *leveldbstorage.Storage) error {
+	r := leveldbutil.BytesPrefix(leveldbstorage.HashPrefix(leveldbLabelSyncPool))
 
-	if _, err := leveldbstorage2.BatchRemove(st, r, 333); err != nil { //nolint:gomnd //...
+	if _, err := leveldbstorage.BatchRemove(st, r, 333); err != nil { //nolint:gomnd //...
 		return errors.WithMessage(err, "failed to clean syncpool database")
 	}
 

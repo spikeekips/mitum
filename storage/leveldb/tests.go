@@ -4,23 +4,29 @@
 package leveldbstorage
 
 import (
+	"github.com/pkg/errors"
 	leveldbStorage "github.com/syndtr/goleveldb/leveldb/storage"
 )
 
-func NewMemWriteStorage() *WriteStorage {
-	st, _ := newWriteStorage(leveldbStorage.NewMemStorage(), "")
+func NewMemStorage() *Storage {
+	st, err := NewStorage(leveldbStorage.NewMemStorage(), nil)
+	if err != nil {
+		panic(errors.Wrap(err, ""))
+	}
 
 	return st
 }
 
-func NewMemReadonlyStorage() *ReadonlyStorage {
-	st, _ := newReadonlyStorage(leveldbStorage.NewMemStorage(), "")
+func NewFSStorage(f string) *Storage {
+	str, err := leveldbStorage.OpenFile(f, false)
+	if err != nil {
+		panic(errors.Wrap(err, ""))
+	}
 
-	return st
-}
-
-func NewMemRWStorage() *RWStorage {
-	st, _ := newRWStorage(leveldbStorage.NewMemStorage(), "")
+	st, err := NewStorage(str, nil)
+	if err != nil {
+		panic(errors.Wrap(err, ""))
+	}
 
 	return st
 }

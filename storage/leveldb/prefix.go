@@ -1,4 +1,4 @@
-package leveldbstorage2
+package leveldbstorage
 
 import (
 	"sync"

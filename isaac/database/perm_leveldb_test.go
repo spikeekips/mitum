@@ -5,7 +5,7 @@ import (
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
-	leveldbstorage2 "github.com/spikeekips/mitum/storage/leveldb2"
+	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
 )
@@ -17,7 +17,7 @@ type testLeveldbPermanent struct {
 func TestLeveldbPermanent(tt *testing.T) {
 	t := new(testLeveldbPermanent)
 	t.newDB = func() isaac.PermanentDatabase {
-		st := leveldbstorage2.NewMemStorage()
+		st := leveldbstorage.NewMemStorage()
 		db, err := newLeveldbPermanent(st, t.Encs, t.Enc)
 		t.NoError(err)
 

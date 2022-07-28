@@ -10,7 +10,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
-	leveldbstorage2 "github.com/spikeekips/mitum/storage/leveldb2"
+	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
@@ -28,12 +28,12 @@ type TempPool struct {
 	cleanRemovedNewOperationsDeep     base.Height
 }
 
-func NewTempPool(st *leveldbstorage2.Storage, encs *encoder.Encoders, enc encoder.Encoder) (*TempPool, error) {
+func NewTempPool(st *leveldbstorage.Storage, encs *encoder.Encoders, enc encoder.Encoder) (*TempPool, error) {
 	return newTempPool(st, encs, enc)
 }
 
-func newTempPool(st *leveldbstorage2.Storage, encs *encoder.Encoders, enc encoder.Encoder) (*TempPool, error) {
-	pst := leveldbstorage2.NewPrefixStorage(st, leveldbstorage2.HashPrefix(leveldbLabelPool))
+func newTempPool(st *leveldbstorage.Storage, encs *encoder.Encoders, enc encoder.Encoder) (*TempPool, error) {
+	pst := leveldbstorage.NewPrefixStorage(st, leveldbstorage.HashPrefix(leveldbLabelPool))
 
 	db := &TempPool{
 		baseLeveldb:                       newBaseLeveldb(pst, encs, enc),
@@ -334,7 +334,7 @@ func (db *TempPool) setRemoveNewOperations(ctx context.Context, height base.Heig
 	batch := db.st.NewBatch()
 	defer batch.Reset()
 
-	batchch := make(chan func(bt *leveldbstorage2.PrefixStorageBatch))
+	batchch := make(chan func(bt *leveldbstorage.PrefixStorageBatch))
 	donech := make(chan struct{})
 
 	go func() {
@@ -365,7 +365,7 @@ func (db *TempPool) setRemoveNewOperations(ctx context.Context, height base.Heig
 			case len(keys) != 2: //nolint:gomnd //...
 				return errors.Errorf("invalid joined key for operation")
 			default:
-				batchch <- func(bt *leveldbstorage2.PrefixStorageBatch) {
+				batchch <- func(bt *leveldbstorage.PrefixStorageBatch) {
 					batch.Delete(infokey)
 					batch.Delete(keys[1])
 					batch.Put(leveldbRemovedNewOperationKey(height, h), h.Bytes())

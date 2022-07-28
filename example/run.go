@@ -16,7 +16,7 @@ import (
 	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/network/quicstream"
-	leveldbstorage2 "github.com/spikeekips/mitum/storage/leveldb2"
+	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
 )
@@ -49,7 +49,7 @@ type runCommand struct { //nolint:govet //...
 	suffrageCandidateLimiterSet *hint.CompatibleSet
 	nodeInConsensusNodes        isaac.NodeInConsensusNodesFunc
 	exitf                       func(error)
-	st                          *leveldbstorage2.Storage
+	st                          *leveldbstorage.Storage
 	proposalMaker               *isaac.ProposalMaker
 }
 

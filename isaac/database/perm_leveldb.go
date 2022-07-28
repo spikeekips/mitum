@@ -8,7 +8,7 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/storage"
-	leveldbstorage2 "github.com/spikeekips/mitum/storage/leveldb2"
+	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
@@ -21,7 +21,7 @@ type LeveldbPermanent struct {
 }
 
 func NewLeveldbPermanent(
-	st *leveldbstorage2.Storage,
+	st *leveldbstorage.Storage,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
 ) (*LeveldbPermanent, error) {
@@ -29,11 +29,11 @@ func NewLeveldbPermanent(
 }
 
 func newLeveldbPermanent(
-	st *leveldbstorage2.Storage,
+	st *leveldbstorage.Storage,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
 ) (*LeveldbPermanent, error) {
-	pst := leveldbstorage2.NewPrefixStorage(st, leveldbstorage2.HashPrefix(leveldbLabelPermanent))
+	pst := leveldbstorage.NewPrefixStorage(st, leveldbstorage.HashPrefix(leveldbLabelPermanent))
 
 	db := &LeveldbPermanent{
 		basePermanent: newBasePermanent(),
@@ -59,7 +59,7 @@ func newLeveldbPermanent(
 func (db *LeveldbPermanent) Clean() error {
 	r := leveldbutil.BytesPrefix(db.st.Prefix())
 
-	if _, err := leveldbstorage2.BatchRemove(db.st.Storage, r, 333); err != nil { //nolint:gomnd //...
+	if _, err := leveldbstorage.BatchRemove(db.st.Storage, r, 333); err != nil { //nolint:gomnd //...
 		return errors.WithMessage(err, "failed to clean leveldb PermanentDatabase")
 	}
 

@@ -1,8 +1,6 @@
 package leveldbstorage
 
 import (
-	"os"
-	"path/filepath"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -14,81 +12,32 @@ import (
 	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
 
-type ReadStorage interface {
-	Close() error
-	Remove() error
-	Get(key []byte) ([]byte, bool, error)
-	Exists(key []byte) (bool, error)
-	Iter(
-		r *leveldbutil.Range,
-		callback func(key []byte, raw []byte) (bool, error),
-		sort bool,
-	) error
-}
-
-type BaseStorage struct {
+type Storage struct {
 	str leveldbStorage.Storage
 	db  *leveldb.DB
-	f   string
 	sync.Mutex
 }
 
-func newBaseStorage(f string, str leveldbStorage.Storage, opt *leveldbOpt.Options) (*BaseStorage, error) {
+func NewStorage(str leveldbStorage.Storage, opt *leveldbOpt.Options) (*Storage, error) {
 	db, err := leveldb.Open(str, opt)
 	if err != nil {
 		return nil, storage.ConnectionError.Wrapf(err, "failed to open leveldb")
 	}
 
-	return &BaseStorage{f: f, db: db, str: str}, nil
+	return &Storage{db: db, str: str}, nil
 }
 
-func (st *BaseStorage) Root() string {
-	return st.f
-}
-
-func (st *BaseStorage) Close() error {
+func (st *Storage) Close() error {
 	st.Lock()
 	defer st.Unlock()
 
-	return st.close()
-}
-
-func (st *BaseStorage) Remove() error {
-	st.Lock()
-	defer st.Unlock()
-
-	e := util.StringErrorFunc("failed to remove leveldb")
-
-	if err := st.close(); err != nil {
-		return e(storage.InternalError.Wrap(err), "")
-	}
-
-	if len(st.f) > 0 {
-		switch fi, err := os.Stat(st.f); {
-		case err == nil && !fi.IsDir():
-			return e(storage.InternalError.Errorf("not directory"), "")
-		case os.IsNotExist(err):
-			return e(storage.InternalError.Wrap(err), "")
-		case err != nil:
-			return e(storage.InternalError.Wrap(err), "")
-		default:
-			if err := os.RemoveAll(filepath.Clean(st.f)); err != nil {
-				return e(err, "failed to remove files of leveldb")
-			}
-		}
-	}
-
-	return nil
-}
-
-func (st *BaseStorage) close() error {
 	e := util.StringErrorFunc("failed to close leveldb")
 
 	if st.str == nil {
 		return nil
 	}
 
-	switch err := st.str.Close(); {
+	switch err := st.db.Close(); {
 	case err == nil:
 	case errors.Is(err, leveldbStorage.ErrClosed):
 		return nil
@@ -96,7 +45,7 @@ func (st *BaseStorage) close() error {
 		return e(storage.InternalError.Wrapf(err, ""), "failed to close storage")
 	}
 
-	switch err := st.db.Close(); {
+	switch err := st.str.Close(); {
 	case err == nil:
 		st.str = nil
 		st.db = nil
@@ -109,7 +58,7 @@ func (st *BaseStorage) close() error {
 	}
 }
 
-func (st *BaseStorage) Get(key []byte) ([]byte, bool, error) {
+func (st *Storage) Get(key []byte) ([]byte, bool, error) {
 	switch b, err := st.db.Get(key, nil); {
 	case err == nil:
 		return b, true, nil
@@ -120,7 +69,7 @@ func (st *BaseStorage) Get(key []byte) ([]byte, bool, error) {
 	}
 }
 
-func (st *BaseStorage) Exists(key []byte) (bool, error) {
+func (st *Storage) Exists(key []byte) (bool, error) {
 	switch b, err := st.db.Has(key, nil); {
 	case err == nil:
 		return b, nil
@@ -129,7 +78,7 @@ func (st *BaseStorage) Exists(key []byte) (bool, error) {
 	}
 }
 
-func (st *BaseStorage) Iter(
+func (st *Storage) Iter(
 	r *leveldbutil.Range,
 	callback func(key []byte, raw []byte) (bool, error),
 	sort bool,
@@ -168,4 +117,91 @@ end:
 	}
 
 	return nil
+}
+
+func (st *Storage) Put(k, b []byte, opt *leveldbOpt.WriteOptions) error {
+	if err := st.db.Put(k, b, opt); err != nil {
+		return storage.ExecError.Wrap(errors.Wrap(err, "failed to put"))
+	}
+
+	return nil
+}
+
+func (st *Storage) Delete(k []byte, opt *leveldbOpt.WriteOptions) error {
+	if err := st.db.Delete(k, opt); err != nil {
+		return storage.ExecError.Wrap(errors.Wrap(err, "failed to delete"))
+	}
+
+	return nil
+}
+
+func (st *Storage) Batch(batch *leveldb.Batch, wo *leveldbOpt.WriteOptions) error {
+	return errors.WithStack(st.db.Write(batch, wo))
+}
+
+func (st *Storage) Clean() error {
+	batch := &leveldb.Batch{}
+	defer batch.Reset()
+
+	if _, err := BatchRemove(st, nil, 333); err != nil { //nolint:gomnd //...
+		return err
+	}
+
+	return nil
+}
+
+func copyBytes(b []byte) []byte {
+	n := make([]byte, len(b))
+	copy(n, b)
+
+	return n
+}
+
+func BatchRemove(st *Storage, r *leveldbutil.Range, limit int) (int, error) {
+	var removed int
+
+	batch := &leveldb.Batch{}
+	defer batch.Reset()
+
+	if r == nil {
+		r = &leveldbutil.Range{}
+	}
+
+	start := r.Start
+
+	for {
+		r.Start = start
+
+		if err := st.Iter(
+			r,
+			func(key, _ []byte) (bool, error) {
+				if batch.Len() == limit {
+					start = key
+
+					return false, nil
+				}
+
+				batch.Delete(key)
+
+				return true, nil
+			},
+			true,
+		); err != nil {
+			return removed, err
+		}
+
+		if batch.Len() < 1 {
+			break
+		}
+
+		if err := st.Batch(batch, nil); err != nil {
+			return removed, err
+		}
+
+		removed += batch.Len()
+
+		batch.Reset()
+	}
+
+	return removed, nil
 }
