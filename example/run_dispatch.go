@@ -141,7 +141,7 @@ func (cmd *runCommand) getManifestFunc() func(height base.Height) (base.Manifest
 	}
 }
 
-func (cmd *runCommand) proposalMaker() *isaac.ProposalMaker {
+func (cmd *runCommand) prepareProposalMaker() *isaac.ProposalMaker {
 	operationfilterf := launch.IsSupportedProposalOperationFactHintFunc()
 
 	return isaac.NewProposalMaker(
@@ -231,10 +231,6 @@ func (cmd *runCommand) proposalMaker() *isaac.ProposalMaker {
 }
 
 func (cmd *runCommand) proposalSelectorFunc() *isaac.BaseProposalSelector {
-	proposalMaker := cmd.proposalMaker()
-
-	_ = proposalMaker.SetLogging(logging)
-
 	return isaac.NewBaseProposalSelector(
 		cmd.local,
 		cmd.nodePolicy,
@@ -265,7 +261,7 @@ func (cmd *runCommand) proposalSelectorFunc() *isaac.BaseProposalSelector {
 		//
 		// 	return nil, errors.Errorf("no0sas not found")
 		// }),
-		proposalMaker,
+		cmd.proposalMaker,
 		func(height base.Height) ([]base.Node, bool, error) {
 			var suf base.Suffrage
 			switch i, found, err := cmd.getSuffrage(height); {

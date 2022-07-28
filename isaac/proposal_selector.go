@@ -107,7 +107,7 @@ func (p *BaseProposalSelector) Select(ctx context.Context, point base.Point) (ba
 		case errors.Is(err, failedToRequestProposalToNodeError):
 			// NOTE if failed to request to remote node, remove the node from
 			// candidates.
-			nodes = filterDeadNodes(nodes, []base.Address{proposer.Address()})
+			nodes = p.filterDeadNodes(nodes, []base.Address{proposer.Address()})
 			if len(nodes) < 1 {
 				return nil, e(err, "no valid nodes left")
 			}
@@ -136,12 +136,10 @@ func (p *BaseProposalSelector) findProposal(
 		return nil, e(err, "")
 	}
 
-	if !pr.Signed()[0].Signer().Equal(proposer.Publickey()) {
-		return nil, e(nil, "proposal not signed by proposer")
-	}
-
-	if _, err := p.pool.SetProposal(pr); err != nil {
-		return nil, e(err, "")
+	if !proposer.Address().Equal(p.local.Address()) {
+		if !pr.Signed()[0].Signer().Equal(proposer.Publickey()) {
+			return nil, e(nil, "proposal not signed by proposer")
+		}
 	}
 
 	return pr, nil
@@ -182,8 +180,29 @@ func (p *BaseProposalSelector) findProposalFromProposer(
 			return nil, failedToRequestProposalToNodeError.Errorf("remote node, %q", proposer)
 		}
 
+		if _, err := p.pool.SetProposal(pr); err != nil {
+			return nil, err
+		}
+
 		return pr, nil
 	}
+}
+
+func (*BaseProposalSelector) filterDeadNodes(n []base.Node, b []base.Address) []base.Node {
+	l := util.Filter2Slices( // NOTE filter long dead nodes
+		n, b,
+		func(_, _ interface{}, i, j int) bool {
+			return n[i].Address().Equal(b[j])
+		},
+	)
+
+	m := make([]base.Node, len(l))
+
+	for i := range l {
+		m[i] = l[i].(base.Node) //nolint:forcetypeassert //...
+	}
+
+	return m
 }
 
 type FuncProposerSelector struct {
@@ -268,27 +287,43 @@ func NewProposalMaker(
 	}
 }
 
-func (p *ProposalMaker) Empty(_ context.Context, point base.Point) (pr ProposalSignedFact, err error) {
+func (p *ProposalMaker) Empty(_ context.Context, point base.Point) (base.ProposalSignedFact, error) {
 	p.Lock()
 	defer p.Unlock()
 
-	pr, err = p.makeProposal(point, nil)
+	e := util.StringErrorFunc("failed to make empty proposal")
+
+	switch pr, found, err := p.pool.ProposalByPoint(point, p.local.Address()); {
+	case err != nil:
+		return nil, e(err, "")
+	case found:
+		return pr, nil
+	}
+
+	pr, err := p.makeProposal(point, nil)
 	if err != nil {
-		return pr, errors.WithMessagef(err, "failed to make empty proposal, %q", point)
+		return nil, e(err, "failed to make empty proposal, %q", point)
 	}
 
 	return pr, nil
 }
 
-func (p *ProposalMaker) New(ctx context.Context, point base.Point) (sf ProposalSignedFact, _ error) {
+func (p *ProposalMaker) New(ctx context.Context, point base.Point) (base.ProposalSignedFact, error) {
 	p.Lock()
 	defer p.Unlock()
 
 	e := util.StringErrorFunc("failed to make proposal, %q", point)
 
+	switch pr, found, err := p.pool.ProposalByPoint(point, p.local.Address()); {
+	case err != nil:
+		return nil, e(err, "")
+	case found:
+		return pr, nil
+	}
+
 	ops, err := p.getOperations(ctx, point.Height())
 	if err != nil {
-		return sf, e(err, "failed to get operations")
+		return nil, e(err, "failed to get operations")
 	}
 
 	p.Log().Trace().Func(func(e *zerolog.Event) {
@@ -299,7 +334,7 @@ func (p *ProposalMaker) New(ctx context.Context, point base.Point) (sf ProposalS
 
 	pr, err := p.makeProposal(point, ops)
 	if err != nil {
-		return sf, e(err, "")
+		return nil, e(err, "")
 	}
 
 	return pr, nil
@@ -318,21 +353,4 @@ func (p *ProposalMaker) makeProposal(point base.Point, ops []util.Hash) (sf Prop
 	}
 
 	return signedFact, nil
-}
-
-func filterDeadNodes(n []base.Node, b []base.Address) []base.Node {
-	l := util.Filter2Slices( // NOTE filter long dead nodes
-		n, b,
-		func(_, _ interface{}, i, j int) bool {
-			return n[i].Address().Equal(b[j])
-		},
-	)
-
-	m := make([]base.Node, len(l))
-
-	for i := range l {
-		m[i] = l[i].(base.Node) //nolint:forcetypeassert //...
-	}
-
-	return m
 }

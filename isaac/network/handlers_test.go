@@ -250,7 +250,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 	})
 
 	t.Run("local is not proposer", func() {
-		point := base.RawPoint(33, 1)
+		point := base.RawPoint(33, 2)
 		proposer := base.RandomAddress("")
 		pr, found, err := c.RequestProposal(context.Background(), ci, point, proposer)
 		t.NoError(err)
@@ -267,7 +267,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 			return mp, true, nil
 		}
 
-		point := base.RawPoint(33, 1)
+		point := base.RawPoint(33, 3)
 		proposer := base.RandomAddress("")
 		pr, found, err := c.RequestProposal(context.Background(), ci, point, proposer)
 		t.NoError(err)
@@ -284,7 +284,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 			return mp, true, nil
 		}
 
-		point := base.RawPoint(33, 1)
+		point := base.RawPoint(33, 4)
 		proposer := base.RandomAddress("")
 		pr, found, err := c.RequestProposal(context.Background(), ci, point, proposer)
 		t.Error(err)

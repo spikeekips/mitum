@@ -50,6 +50,7 @@ type runCommand struct { //nolint:govet //...
 	nodeInConsensusNodes        isaac.NodeInConsensusNodesFunc
 	exitf                       func(error)
 	st                          *leveldbstorage2.Storage
+	proposalMaker               *isaac.ProposalMaker
 }
 
 func (cmd *runCommand) Run() error {

@@ -45,6 +45,9 @@ func (cmd *runCommand) prepare() (func() error, error) {
 		return stop, e(err, "")
 	}
 
+	cmd.proposalMaker = cmd.prepareProposalMaker()
+	_ = cmd.proposalMaker.SetLogging(logging)
+
 	if err := cmd.prepareNetwork(); err != nil {
 		return stop, e(err, "")
 	}
@@ -53,7 +56,7 @@ func (cmd *runCommand) prepare() (func() error, error) {
 		return stop, e(err, "")
 	}
 
-	if err := cmd.prepareSufrage(); err != nil {
+	if err := cmd.prepareSuffrage(); err != nil {
 		return stop, e(err, "")
 	}
 
@@ -249,7 +252,7 @@ func (cmd *runCommand) prepareSyncSourceChecker() error {
 	return nil
 }
 
-func (cmd *runCommand) prepareSufrage() error {
+func (cmd *runCommand) prepareSuffrage() error {
 	set := hint.NewCompatibleSet()
 	if err := set.Add(
 		isaac.FixedSuffrageCandidateLimiterRuleHint,

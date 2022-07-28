@@ -34,7 +34,7 @@ func (cmd *runCommand) networkHandlers() *quicstream.PrefixHandler {
 		networkHandlerIdleTimeout,
 		cmd.pool,
 		cmd.pool,
-		cmd.proposalMaker(),
+		cmd.proposalMaker,
 		func(last util.Hash) (base.SuffrageProof, bool, error) {
 			switch proof, found, err := cmd.db.LastSuffrageProof(); {
 			case err != nil:

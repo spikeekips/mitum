@@ -236,8 +236,6 @@ func (db *TempPool) NewOperationHashes(
 		return nil, e(err, "")
 	}
 
-	// FIXME instead of really remove them, moves data to another place with
-	// remove datetime.
 	if err := db.setRemoveNewOperations(ctx, height, removes[:removeindex]); err != nil {
 		return nil, e(err, "")
 	}
