@@ -74,7 +74,7 @@ func (srv *Server) accept(ctx context.Context, listener quic.EarlyListener) {
 			case errors.Is(err, context.Canceled):
 			case err.Error() == "server closed":
 			default:
-				srv.Log().Error().Err(err).Msg("failed to accept")
+				srv.Log().Trace().Err(err).Msg("failed to accept")
 			}
 
 			return
@@ -101,7 +101,7 @@ func (srv *Server) handleSession(ctx context.Context, session quic.EarlyConnecti
 			default:
 				errcode = 0x403
 
-				srv.Log().Error().Err(err).Msg("failed to accept stream")
+				srv.Log().Trace().Err(err).Msg("failed to accept stream")
 			}
 
 			_ = session.CloseWithError(errcode, err.Error())
@@ -129,6 +129,6 @@ func (srv *Server) handleStream(ctx context.Context, remoteAddr net.Addr, stream
 		stream.CancelRead(errcode)
 		stream.CancelWrite(errcode)
 
-		srv.Log().Error().Err(err).Msg("failed to handle stream")
+		srv.Log().Trace().Err(err).Msg("failed to handle stream")
 	}
 }
