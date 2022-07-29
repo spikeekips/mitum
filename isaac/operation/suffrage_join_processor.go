@@ -167,7 +167,7 @@ func (p *SuffrageJoinProcessor) Process(ctx context.Context, op base.Operation, 
 	return []base.StateMergeValue{
 		base.NewBaseStateMergeValue(
 			isaac.SuffrageCandidateStateKey,
-			isaac.NewSuffrageRemoveCandidateStateValue([]base.Address{member.Address()}),
+			newSuffrageRemoveCandidateStateValue([]base.Address{member.Address()}),
 			func(height base.Height, st base.State) base.StateValueMerger {
 				return NewSuffrageCandidatesStateValueMerger(height, st)
 			},

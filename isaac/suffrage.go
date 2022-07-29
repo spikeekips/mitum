@@ -291,37 +291,6 @@ func (s SuffrageCandidatesStateValue) Nodes() []base.SuffrageCandidateStateValue
 	return s.nodes
 }
 
-type SuffrageRemoveCandidateStateValue struct {
-	nodes []base.Address
-}
-
-func NewSuffrageRemoveCandidateStateValue(nodes []base.Address) SuffrageRemoveCandidateStateValue {
-	return SuffrageRemoveCandidateStateValue{
-		nodes: nodes,
-	}
-}
-
-func (SuffrageRemoveCandidateStateValue) HashBytes() []byte {
-	return nil
-}
-
-func (s SuffrageRemoveCandidateStateValue) IsValid([]byte) error {
-	vs := make([]util.IsValider, len(s.nodes))
-	for i := range s.nodes {
-		vs[i] = s.nodes[i]
-	}
-
-	if err := util.CheckIsValid(nil, false, vs...); err != nil {
-		return util.ErrInvalid.Wrapf(err, "invalid SuffrageRemoveCandidateStateValue")
-	}
-
-	return nil
-}
-
-func (s SuffrageRemoveCandidateStateValue) Nodes() []base.Address {
-	return s.nodes
-}
-
 func GetSuffrageFromDatabase(
 	db Database,
 	blockheight base.Height,

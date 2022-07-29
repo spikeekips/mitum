@@ -184,7 +184,7 @@ func (s *SuffrageCandidatesStateValueMerger) Merge(value base.StateValue, ops []
 	switch t := value.(type) {
 	case isaac.SuffrageCandidatesStateValue:
 		s.added = append(s.added, t.Nodes()...)
-	case isaac.SuffrageRemoveCandidateStateValue:
+	case suffrageRemoveCandidateStateValue:
 		s.removes = append(s.removes, t.Nodes()...)
 	default:
 		return errors.Errorf("unknown SuffrageCandidatesStateValue, %T", value)
@@ -254,4 +254,35 @@ func (s *SuffrageCandidatesStateValueMerger) close() (base.StateValue, error) {
 	copy(newnodes[len(existings):], s.added)
 
 	return isaac.NewSuffrageCandidatesStateValue(newnodes), nil
+}
+
+type suffrageRemoveCandidateStateValue struct {
+	nodes []base.Address
+}
+
+func newSuffrageRemoveCandidateStateValue(nodes []base.Address) suffrageRemoveCandidateStateValue {
+	return suffrageRemoveCandidateStateValue{
+		nodes: nodes,
+	}
+}
+
+func (suffrageRemoveCandidateStateValue) HashBytes() []byte {
+	return nil
+}
+
+func (s suffrageRemoveCandidateStateValue) IsValid([]byte) error {
+	vs := make([]util.IsValider, len(s.nodes))
+	for i := range s.nodes {
+		vs[i] = s.nodes[i]
+	}
+
+	if err := util.CheckIsValid(nil, false, vs...); err != nil {
+		return util.ErrInvalid.Wrapf(err, "invalid suffrageRemoveCandidateStateValue")
+	}
+
+	return nil
+}
+
+func (s suffrageRemoveCandidateStateValue) Nodes() []base.Address {
+	return s.nodes
 }
