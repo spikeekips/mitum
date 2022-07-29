@@ -59,7 +59,7 @@ func (t *testSuffrageProof) prepare(point base.Point) {
 
 	var suffrageheight base.Height
 	if t.previous != nil {
-		suffrageheight = t.previous.Value().(base.SuffrageStateValue).Height() + 1
+		suffrageheight = t.previous.Value().(base.SuffrageNodesStateValue).Height() + 1
 	}
 
 	current, _ := t.SuffrageState(t.point.Height(), suffrageheight, t.nodes)
@@ -173,7 +173,7 @@ func (t *testSuffrageProof) TestInvalid() {
 		err := p.IsValid(t.NodePolicy.NetworkID())
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
-		t.ErrorContains(err, "expected SuffrageStateValue")
+		t.ErrorContains(err, "expected SuffrageNodesStateValue")
 	})
 
 	t.Run("height not match", func() {
@@ -273,7 +273,7 @@ func (t *testSuffrageProof) TestEncode() {
 		{Hint: base.StringAddressHint, Instance: base.StringAddress{}},
 		{Hint: base.DummyManifestHint, Instance: base.DummyManifest{}},
 		{Hint: base.BaseStateHint, Instance: base.BaseState{}},
-		{Hint: isaac.SuffrageStateValueHint, Instance: isaac.SuffrageStateValue{}},
+		{Hint: isaac.SuffrageNodesStateValueHint, Instance: isaac.SuffrageNodesStateValue{}},
 		{Hint: isaac.NodeHint, Instance: base.BaseNode{}},
 		{Hint: isaac.ACCEPTVoteproofHint, Instance: isaac.ACCEPTVoteproof{}},
 		{Hint: isaac.ACCEPTBallotSignedFactHint, Instance: isaac.ACCEPTBallotSignedFact{}},

@@ -166,10 +166,10 @@ func (t *BaseTestBallots) VoteproofsPair(prevpoint, point base.Point, prev, pr, 
 	return avp, ivp
 }
 
-func (t *BaseTestBallots) SuffrageState(height, sufheight base.Height, nodes []base.Node) (base.State, base.SuffrageStateValue) {
-	sv := NewSuffrageStateValue(sufheight, nodes)
+func (t *BaseTestBallots) SuffrageState(height, sufheight base.Height, nodes []base.Node) (base.State, base.SuffrageNodesStateValue) {
+	sv := NewSuffrageNodesStateValue(sufheight, nodes)
 
-	_ = (interface{})(sv).(base.SuffrageStateValue)
+	_ = (interface{})(sv).(base.SuffrageNodesStateValue)
 
 	st := base.NewBaseState(
 		height,

@@ -20,7 +20,7 @@ type Manifest interface {
 	Proposal() util.Hash       // NOTE proposal fact hash
 	OperationsTree() util.Hash // NOTE operations tree root hash
 	StatesTree() util.Hash     // NOTE states tree root hash
-	Suffrage() util.Hash       // NOTE state hash of newly updated SuffrageStateValue
+	Suffrage() util.Hash       // NOTE state hash of newly updated SuffrageNodesStateValue
 	ProposedAt() time.Time     // NOTE Proposal proposed time
 }
 

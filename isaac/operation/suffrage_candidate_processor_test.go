@@ -71,7 +71,7 @@ func (t *testSuffrageCandidateProcessor) TestNewCandidateFromEmpty() {
 	v := merger.Value()
 	t.NotNil(v)
 
-	cv := v.(base.SuffrageCandidateStateValue)
+	cv := v.(base.SuffrageCandidatesStateValue)
 	t.NotNil(cv)
 
 	t.Equal(1, len(cv.Nodes()))
@@ -89,13 +89,13 @@ func (t *testSuffrageCandidateProcessor) TestNewCandidateFromEmpty() {
 }
 
 func (t *testSuffrageCandidateProcessor) TestNewCandidate() {
-	c := isaac.NewSuffrageCandidate(
+	c := isaac.NewSuffrageCandidateStateValue(
 		base.RandomNode(),
 		base.Height(33),
 		base.Height(55),
 	)
 
-	cv := isaac.NewSuffrageCandidateStateValue([]base.SuffrageCandidate{c})
+	cv := isaac.NewSuffrageCandidatesStateValue([]base.SuffrageCandidateStateValue{c})
 	st := base.NewBaseState(
 		c.Start()-1,
 		isaac.SuffrageCandidateStateKey,
@@ -153,7 +153,7 @@ func (t *testSuffrageCandidateProcessor) TestNewCandidate() {
 	v := merger.Value()
 	t.NotNil(v)
 
-	ucv := v.(base.SuffrageCandidateStateValue)
+	ucv := v.(base.SuffrageCandidatesStateValue)
 	t.NotNil(ucv)
 
 	t.Equal(2, len(ucv.Nodes()))
@@ -207,13 +207,13 @@ func (t *testSuffrageCandidateProcessor) TestPreProcess() {
 	})
 
 	t.Run("already processed with old state", func() {
-		c := isaac.NewSuffrageCandidate(
+		c := isaac.NewSuffrageCandidateStateValue(
 			base.RandomNode(),
 			height,
 			height+1,
 		)
 
-		cv := isaac.NewSuffrageCandidateStateValue([]base.SuffrageCandidate{c})
+		cv := isaac.NewSuffrageCandidatesStateValue([]base.SuffrageCandidateStateValue{c})
 		st := base.NewBaseState(
 			c.Start()-1,
 			isaac.SuffrageCandidateStateKey,
@@ -254,13 +254,13 @@ func (t *testSuffrageCandidateProcessor) TestPreProcess() {
 	})
 
 	t.Run("already candidate", func() {
-		c := isaac.NewSuffrageCandidate(
+		c := isaac.NewSuffrageCandidateStateValue(
 			isaac.NewNode(t.priv.Publickey(), candidate),
 			height,
 			height+1,
 		)
 
-		cv := isaac.NewSuffrageCandidateStateValue([]base.SuffrageCandidate{c})
+		cv := isaac.NewSuffrageCandidatesStateValue([]base.SuffrageCandidateStateValue{c})
 		st := base.NewBaseState(
 			c.Start()-1,
 			isaac.SuffrageCandidateStateKey,
@@ -293,13 +293,13 @@ func (t *testSuffrageCandidateProcessor) TestPreProcess() {
 	})
 
 	t.Run("already candidate, but old", func() {
-		c := isaac.NewSuffrageCandidate(
+		c := isaac.NewSuffrageCandidateStateValue(
 			isaac.NewNode(t.priv.Publickey(), candidate),
 			height-3,
 			height-1,
 		)
 
-		cv := isaac.NewSuffrageCandidateStateValue([]base.SuffrageCandidate{c})
+		cv := isaac.NewSuffrageCandidatesStateValue([]base.SuffrageCandidateStateValue{c})
 		st := base.NewBaseState(
 			c.Start()-1,
 			isaac.SuffrageCandidateStateKey,
@@ -387,7 +387,7 @@ func (t *testSuffrageCandidateProcessor) TestProcess() {
 		i := values[0]
 		t.Equal(isaac.SuffrageCandidateStateKey, i.Key())
 
-		cv := i.Value().(isaac.SuffrageCandidateStateValue)
+		cv := i.Value().(isaac.SuffrageCandidatesStateValue)
 		t.NoError(cv.IsValid(nil))
 		t.Equal(1, len(cv.Nodes()))
 
@@ -502,7 +502,7 @@ func (t *testSuffrageCandidateProcessor) TestProcessConcurrent() {
 	v := merger.Value()
 	t.NotNil(v)
 
-	cv := v.(base.SuffrageCandidateStateValue)
+	cv := v.(base.SuffrageCandidatesStateValue)
 	t.NotNil(cv)
 
 	t.Equal(len(privs), len(cv.Nodes()))

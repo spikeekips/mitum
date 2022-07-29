@@ -6,21 +6,21 @@ import (
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 )
 
-type SuffrageCandidateFactJSONMarshaler struct {
+type suffrageCandidateFactJSONMarshaler struct {
 	Address   base.Address   `json:"address"`
 	Publickey base.Publickey `json:"publickey"`
 	base.BaseFactJSONMarshaler
 }
 
 func (fact SuffrageCandidateFact) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(SuffrageCandidateFactJSONMarshaler{
+	return util.MarshalJSON(suffrageCandidateFactJSONMarshaler{
 		BaseFactJSONMarshaler: fact.BaseFact.JSONMarshaler(),
 		Address:               fact.address,
 		Publickey:             fact.publickey,
 	})
 }
 
-type SuffrageCandidateFactJSONUnmarshaler struct {
+type suffrageCandidateFactJSONUnmarshaler struct {
 	Address   string `json:"address"`
 	Publickey string `json:"publickey"`
 	base.BaseFactJSONUnmarshaler
@@ -29,7 +29,7 @@ type SuffrageCandidateFactJSONUnmarshaler struct {
 func (fact *SuffrageCandidateFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	e := util.StringErrorFunc("failed to decode SuffrageCandidateFact")
 
-	var u SuffrageCandidateFactJSONUnmarshaler
+	var u suffrageCandidateFactJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
 		return e(err, "")
 	}

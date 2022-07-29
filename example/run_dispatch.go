@@ -39,21 +39,24 @@ func (cmd *runCommand) nodeInConsensusNodesFunc() isaac.NodeInConsensusNodesFunc
 	lastcandidateslocked := util.EmptyLocked()
 	prevcandidateslocked := util.EmptyLocked()
 
-	getCandidates := func(height base.Height) ([]base.SuffrageCandidate, []base.SuffrageCandidate, error) {
-		var prevcandidates []base.SuffrageCandidate
-		var lastcandidates []base.SuffrageCandidate
+	getCandidates := func(height base.Height) (
+		[]base.SuffrageCandidateStateValue, []base.SuffrageCandidateStateValue, error,
+	) {
+		var prevcandidates []base.SuffrageCandidateStateValue
+		var lastcandidates []base.SuffrageCandidateStateValue
 		var cerr error
 
 		_, _ = lastcandidateslocked.Set(func(i interface{}) (interface{}, error) {
 			var lastheight base.Height
-			var last []base.SuffrageCandidate
-			var prev []base.SuffrageCandidate
+			var last []base.SuffrageCandidateStateValue
+			var prev []base.SuffrageCandidateStateValue
 
 			if i != nil {
 				j := i.([2]interface{}) //nolint:forcetypeassert //...
 
-				lastheight = j[0].(base.Height)                                        //nolint:forcetypeassert //...
-				last = isaac.FilterCandidates(height, j[1].([]base.SuffrageCandidate)) //nolint:forcetypeassert //...
+				lastheight = j[0].(base.Height) //nolint:forcetypeassert //...
+				last = isaac.FilterCandidates(  //nolint:forcetypeassert //...
+					height, j[1].([]base.SuffrageCandidateStateValue))
 			}
 
 			stheight, c, err := isaac.LastCandidatesFromState(height, cmd.db.State)
@@ -71,7 +74,8 @@ func (cmd *runCommand) nodeInConsensusNodesFunc() isaac.NodeInConsensusNodesFunc
 			default:
 				j := i.([2]interface{}) //nolint:forcetypeassert //...
 
-				prev = isaac.FilterCandidates(height-1, j[1].([]base.SuffrageCandidate)) //nolint:forcetypeassert //...
+				prev = isaac.FilterCandidates( //nolint:forcetypeassert //...
+					height-1, j[1].([]base.SuffrageCandidateStateValue))
 			}
 
 			if stheight == lastheight {

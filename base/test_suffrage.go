@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func EqualSuffrageCandidate(t *assert.Assertions, a, b SuffrageCandidate) {
+func EqualSuffrageCandidateStateValue(t *assert.Assertions, a, b SuffrageCandidateStateValue) {
 	switch {
 	case a == nil && b == nil:
 		return

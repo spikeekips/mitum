@@ -28,7 +28,7 @@ func (t *testSuffrageJoinProcessor) prepare(height base.Height) (
 	candidatest base.BaseState,
 	existingnodepriv base.Privatekey,
 	existingnode base.Node,
-	candidatenode base.SuffrageCandidate,
+	candidatenode base.SuffrageCandidateStateValue,
 	getStateFunc base.GetStateFunc,
 ) {
 	suffrageheight := base.Height(22)
@@ -39,20 +39,20 @@ func (t *testSuffrageJoinProcessor) prepare(height base.Height) (
 	suffragest = base.NewBaseState(
 		height-1,
 		isaac.SuffrageStateKey,
-		isaac.NewSuffrageStateValue(suffrageheight, []base.Node{existingnode}),
+		isaac.NewSuffrageNodesStateValue(suffrageheight, []base.Node{existingnode}),
 		valuehash.RandomSHA256(),
 		[]util.Hash{valuehash.RandomSHA256()},
 	)
 
 	candidate := base.RandomAddress("")
 
-	candidatenode = isaac.NewSuffrageCandidate(
+	candidatenode = isaac.NewSuffrageCandidateStateValue(
 		isaac.NewNode(t.priv.Publickey(), candidate),
 		height+1,
 		height+2,
 	)
 
-	cv := isaac.NewSuffrageCandidateStateValue([]base.SuffrageCandidate{candidatenode})
+	cv := isaac.NewSuffrageCandidatesStateValue([]base.SuffrageCandidateStateValue{candidatenode})
 
 	candidatest = base.NewBaseState(
 		candidatenode.Start()-1,
@@ -151,7 +151,7 @@ func (t *testSuffrageJoinProcessor) TestNew() {
 
 	t.Run("empty candidate", func() {
 		merger := mergers[isaac.SuffrageCandidateStateKey]
-		ucv := merger.Value().(base.SuffrageCandidateStateValue)
+		ucv := merger.Value().(base.SuffrageCandidatesStateValue)
 		t.NotNil(ucv)
 
 		t.Equal(0, len(ucv.Nodes()))
@@ -159,7 +159,7 @@ func (t *testSuffrageJoinProcessor) TestNew() {
 
 	t.Run("new joined suffrage node", func() {
 		merger := mergers[isaac.SuffrageStateKey]
-		uv := merger.Value().(base.SuffrageStateValue)
+		uv := merger.Value().(base.SuffrageNodesStateValue)
 		t.NotNil(uv)
 
 		t.Equal(2, len(uv.Nodes()))

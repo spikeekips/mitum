@@ -10,29 +10,29 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 )
 
-type suffrageStateValueJSONMarshaler struct {
+type suffrageNodesStateValueJSONMarshaler struct {
 	Nodes []base.Node `json:"nodes"`
 	hint.BaseHinter
 	Height base.Height `json:"height"`
 }
 
-func (s SuffrageStateValue) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(suffrageStateValueJSONMarshaler{
+func (s SuffrageNodesStateValue) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(suffrageNodesStateValueJSONMarshaler{
 		BaseHinter: s.BaseHinter,
 		Height:     s.height,
 		Nodes:      s.nodes,
 	})
 }
 
-type suffrageStateValueJSONUnmarshaler struct {
+type suffrageNodesStateValueJSONUnmarshaler struct {
 	Nodes  []json.RawMessage  `json:"nodes"`
 	Height base.HeightDecoder `json:"height"`
 }
 
-func (s *SuffrageStateValue) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode SuffrageStateValue")
+func (s *SuffrageNodesStateValue) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+	e := util.StringErrorFunc("failed to decode SuffrageNodesStateValue")
 
-	var u suffrageStateValueJSONUnmarshaler
+	var u suffrageNodesStateValueJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
 		return e(err, "")
 	}
@@ -57,7 +57,7 @@ type SuffrageCandidateJSONMarshaler struct {
 	Deadline base.Height `json:"deadline"`
 }
 
-func (suf SuffrageCandidate) MarshalJSON() ([]byte, error) {
+func (suf SuffrageCandidateStateValue) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(SuffrageCandidateJSONMarshaler{
 		BaseHinter: suf.BaseHinter,
 		Node:       suf.Node,
@@ -72,8 +72,8 @@ type SuffrageCandidateJSONUnmarshaler struct {
 	Deadline base.HeightDecoder `json:"deadline"`
 }
 
-func (suf *SuffrageCandidate) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode SuffrageCandidate")
+func (suf *SuffrageCandidateStateValue) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+	e := util.StringErrorFunc("failed to decode SuffrageCandidateStateValue")
 
 	var u SuffrageCandidateJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
@@ -90,31 +90,31 @@ func (suf *SuffrageCandidate) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	return nil
 }
 
-type suffrageCandidateStateValueJSONMarshaler struct {
-	Nodes []base.SuffrageCandidate `json:"nodes"`
+type suffrageCandidatesStateValueJSONMarshaler struct {
+	Nodes []base.SuffrageCandidateStateValue `json:"nodes"`
 	hint.BaseHinter
 }
 
-func (s SuffrageCandidateStateValue) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(suffrageCandidateStateValueJSONMarshaler{
+func (s SuffrageCandidatesStateValue) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(suffrageCandidatesStateValueJSONMarshaler{
 		BaseHinter: s.BaseHinter,
 		Nodes:      s.nodes,
 	})
 }
 
-type suffrageCandidateStateValueJSONUnmarshaler struct {
+type suffrageCandidatesStateValueJSONUnmarshaler struct {
 	Nodes []json.RawMessage `json:"nodes"`
 }
 
-func (s *SuffrageCandidateStateValue) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode SuffrageCandidateStateValue")
+func (s *SuffrageCandidatesStateValue) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+	e := util.StringErrorFunc("failed to decode SuffrageCandidatesStateValue")
 
-	var u suffrageCandidateStateValueJSONUnmarshaler
+	var u suffrageCandidatesStateValueJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
 		return e(err, "")
 	}
 
-	s.nodes = make([]base.SuffrageCandidate, len(u.Nodes))
+	s.nodes = make([]base.SuffrageCandidateStateValue, len(u.Nodes))
 
 	for i := range u.Nodes {
 		if err := encoder.Decode(enc, u.Nodes[i], &s.nodes[i]); err != nil {

@@ -108,7 +108,7 @@ func (t *testLeveldbBlockWrite) TestSetStates() {
 
 	t.Run("check suffrage", func() {
 		h := rst.SuffrageHeight()
-		t.Equal(h, sufst.Value().(base.SuffrageStateValue).Height())
+		t.Equal(h, sufst.Value().(base.SuffrageNodesStateValue).Height())
 	})
 
 	t.Run("check network policy", func() {

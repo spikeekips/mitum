@@ -13,9 +13,9 @@ import (
 
 type SuffrageJoinProcessor struct {
 	*base.BaseOperationProcessor
-	sufstv       base.SuffrageStateValue
+	sufstv       base.SuffrageNodesStateValue
 	suffrage     base.Suffrage
-	candidates   map[string]base.SuffrageCandidate
+	candidates   map[string]base.SuffrageCandidateStateValue
 	preprocessed map[string]struct{} //revive:disable-line:nested-structs
 	threshold    base.Threshold
 }
@@ -38,7 +38,7 @@ func NewSuffrageJoinProcessor(
 	p := &SuffrageJoinProcessor{
 		BaseOperationProcessor: b,
 		threshold:              threshold,
-		candidates:             map[string]base.SuffrageCandidate{},
+		candidates:             map[string]base.SuffrageCandidateStateValue{},
 		preprocessed:           map[string]struct{}{},
 	}
 
@@ -48,7 +48,7 @@ func NewSuffrageJoinProcessor(
 	case !found, i == nil:
 		return nil, e(isaac.StopProcessingRetryError.Errorf("empty state returned"), "")
 	default:
-		p.sufstv = i.Value().(base.SuffrageStateValue) //nolint:forcetypeassert //...
+		p.sufstv = i.Value().(base.SuffrageNodesStateValue) //nolint:forcetypeassert //...
 
 		suf, err := p.sufstv.Suffrage()
 		if err != nil {
@@ -112,7 +112,7 @@ func (p *SuffrageJoinProcessor) PreProcess(ctx context.Context, op base.Operatio
 		return base.NewBaseOperationProcessReasonError("candidate already in suffrage, %q", n), nil
 	}
 
-	var info base.SuffrageCandidate
+	var info base.SuffrageCandidateStateValue
 
 	switch i, found := p.candidates[n.String()]; {
 	case !found:
@@ -170,12 +170,12 @@ func (p *SuffrageJoinProcessor) Process(ctx context.Context, op base.Operation, 
 			isaac.SuffrageCandidateStateKey,
 			isaac.NewSuffrageRemoveCandidateStateValue([]base.Address{member.Address()}),
 			func(height base.Height, st base.State) base.StateValueMerger {
-				return NewSuffrageCandidateStateValueMerger(height, st)
+				return NewSuffrageCandidatesStateValueMerger(height, st)
 			},
 		),
 		base.NewBaseStateMergeValue(
 			isaac.SuffrageStateKey,
-			isaac.NewSuffrageStateValue(p.sufstv.Height()+1, []base.Node{node}),
+			isaac.NewSuffrageNodesStateValue(p.sufstv.Height()+1, []base.Node{node}),
 			func(height base.Height, st base.State) base.StateValueMerger {
 				return NewSuffrageJoinStateValueMerger(height, st)
 			},
@@ -215,15 +215,15 @@ func NewSuffrageJoinStateValueMerger(height base.Height, st base.State) *Suffrag
 		BaseStateValueMerger: base.NewBaseStateValueMerger(height, isaac.SuffrageStateKey, st),
 	}
 
-	s.existings = st.Value().(base.SuffrageStateValue).Nodes() //nolint:forcetypeassert //...
+	s.existings = st.Value().(base.SuffrageNodesStateValue).Nodes() //nolint:forcetypeassert //...
 
 	return s
 }
 
 func (s *SuffrageJoinStateValueMerger) Merge(value base.StateValue, ops []util.Hash) error {
-	v, ok := value.(base.SuffrageStateValue)
+	v, ok := value.(base.SuffrageNodesStateValue)
 	if !ok {
-		return errors.Errorf("not SuffrageStateValue, %T", value)
+		return errors.Errorf("not SuffrageNodesStateValue, %T", value)
 	}
 
 	s.Lock()
@@ -263,5 +263,5 @@ func (s *SuffrageJoinStateValueMerger) close() (base.StateValue, error) {
 	copy(newnodes, s.existings)
 	copy(newnodes[len(s.existings):], s.added)
 
-	return isaac.NewSuffrageStateValue(s.Height(), newnodes), nil
+	return isaac.NewSuffrageNodesStateValue(s.Height(), newnodes), nil
 }

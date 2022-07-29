@@ -13,14 +13,14 @@ type Suffrage interface {
 	Len() int
 }
 
-type SuffrageStateValue interface {
+type SuffrageNodesStateValue interface {
 	StateValue
 	Height() Height // NOTE not manifest height
 	Nodes() []Node
 	Suffrage() (Suffrage, error)
 }
 
-type SuffrageCandidate interface {
+type SuffrageCandidateStateValue interface {
 	util.HashByter
 	util.IsValider
 	Node
@@ -28,9 +28,9 @@ type SuffrageCandidate interface {
 	Deadline() Height
 }
 
-type SuffrageCandidateStateValue interface {
+type SuffrageCandidatesStateValue interface {
 	StateValue
-	Nodes() []SuffrageCandidate
+	Nodes() []SuffrageCandidateStateValue
 }
 
 func InterfaceIsSuffrageState(i interface{}) (State, error) {
@@ -46,16 +46,16 @@ func InterfaceIsSuffrageState(i interface{}) (State, error) {
 	}
 }
 
-func LoadNodesFromSuffrageCandidateState(st State) ([]SuffrageCandidate, error) {
+func LoadNodesFromSuffrageCandidateState(st State) ([]SuffrageCandidateStateValue, error) {
 	switch v := st.Value(); {
 	case st == nil:
 		return nil, nil
 	case v == nil:
-		return nil, errors.Errorf("empty value of state of SuffrageCandidate")
+		return nil, errors.Errorf("empty value of state of SuffrageCandidateStateValue")
 	default:
-		i, ok := v.(SuffrageCandidateStateValue)
+		i, ok := v.(SuffrageCandidatesStateValue)
 		if !ok {
-			return nil, errors.Errorf("expected SuffrageCandidateStateValue, not %T", v)
+			return nil, errors.Errorf("expected SuffrageCandidatesStateValue, not %T", v)
 		}
 
 		return i.Nodes(), nil
@@ -68,14 +68,14 @@ func IsSuffrageState(st State) bool {
 	return err == nil
 }
 
-func LoadSuffrageState(st State) (SuffrageStateValue, error) {
+func LoadSuffrageState(st State) (SuffrageNodesStateValue, error) {
 	if st == nil || st.Value() == nil {
 		return nil, errors.Errorf("empty state")
 	}
 
-	j, ok := st.Value().(SuffrageStateValue)
+	j, ok := st.Value().(SuffrageNodesStateValue)
 	if !ok {
-		return nil, errors.Errorf("expected SuffrageStateValue, but %T", st.Value())
+		return nil, errors.Errorf("expected SuffrageNodesStateValue, but %T", st.Value())
 	}
 
 	return j, nil

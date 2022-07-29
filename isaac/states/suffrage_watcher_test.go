@@ -22,20 +22,20 @@ func (t *testLastSuffrageProofWatcher) TestLocalAhead() {
 	localproof := proofs[1]
 	remoteproof := proofs[0]
 
-	localcandidates := []base.SuffrageCandidate{
-		isaac.NewSuffrageCandidate(
+	localcandidates := []base.SuffrageCandidateStateValue{
+		isaac.NewSuffrageCandidateStateValue(
 			base.RandomNode(),
 			localproof.Map().Manifest().Height()+1,
 			localproof.Map().Manifest().Height()+3,
 		),
-		isaac.NewSuffrageCandidate(
+		isaac.NewSuffrageCandidateStateValue(
 			base.RandomNode(),
 			localproof.Map().Manifest().Height()+1,
 			localproof.Map().Manifest().Height()+5,
 		),
 	}
 
-	localstv := isaac.NewSuffrageCandidateStateValue(localcandidates)
+	localstv := isaac.NewSuffrageCandidatesStateValue(localcandidates)
 	localcandidatest := base.NewBaseState(
 		localproof.Map().Manifest().Height(),
 		isaac.SuffrageCandidateStateKey,
@@ -44,8 +44,8 @@ func (t *testLastSuffrageProofWatcher) TestLocalAhead() {
 		[]util.Hash{valuehash.RandomSHA256()},
 	)
 
-	remotestv := isaac.NewSuffrageCandidateStateValue([]base.SuffrageCandidate{
-		isaac.NewSuffrageCandidate(
+	remotestv := isaac.NewSuffrageCandidatesStateValue([]base.SuffrageCandidateStateValue{
+		isaac.NewSuffrageCandidateStateValue(
 			base.RandomNode(),
 			remoteproof.Map().Manifest().Height()+1,
 			remoteproof.Map().Manifest().Height()+3,
@@ -86,11 +86,11 @@ func (t *testLastSuffrageProofWatcher) TestLocalAhead() {
 
 	base.EqualSuffrageProof(t.Assert(), localproof, proof)
 
-	nodes := candidatest.Value().(base.SuffrageCandidateStateValue).Nodes()
+	nodes := candidatest.Value().(base.SuffrageCandidatesStateValue).Nodes()
 	t.Equal(len(localcandidates), len(nodes))
 
 	for i := range localcandidates {
-		base.EqualSuffrageCandidate(t.Assert(), localcandidates[i], nodes[i])
+		base.EqualSuffrageCandidateStateValue(t.Assert(), localcandidates[i], nodes[i])
 	}
 }
 
@@ -100,8 +100,8 @@ func (t *testLastSuffrageProofWatcher) TestRemoteAhead() {
 	localproof := proofs[0]
 	remoteproof := proofs[1]
 
-	localstv := isaac.NewSuffrageCandidateStateValue([]base.SuffrageCandidate{
-		isaac.NewSuffrageCandidate(
+	localstv := isaac.NewSuffrageCandidatesStateValue([]base.SuffrageCandidateStateValue{
+		isaac.NewSuffrageCandidateStateValue(
 			base.RandomNode(),
 			localproof.Map().Manifest().Height()+1,
 			localproof.Map().Manifest().Height()+3,
@@ -115,20 +115,20 @@ func (t *testLastSuffrageProofWatcher) TestRemoteAhead() {
 		[]util.Hash{valuehash.RandomSHA256()},
 	)
 
-	remotecandidates := []base.SuffrageCandidate{
-		isaac.NewSuffrageCandidate(
+	remotecandidates := []base.SuffrageCandidateStateValue{
+		isaac.NewSuffrageCandidateStateValue(
 			base.RandomNode(),
 			localproof.Map().Manifest().Height()+1,
 			localproof.Map().Manifest().Height()+3,
 		),
-		isaac.NewSuffrageCandidate(
+		isaac.NewSuffrageCandidateStateValue(
 			base.RandomNode(),
 			localproof.Map().Manifest().Height()+1,
 			localproof.Map().Manifest().Height()+5,
 		),
 	}
 
-	remotestv := isaac.NewSuffrageCandidateStateValue(remotecandidates)
+	remotestv := isaac.NewSuffrageCandidatesStateValue(remotecandidates)
 	remotecandidatest := base.NewBaseState(
 		remoteproof.Map().Manifest().Height(),
 		isaac.SuffrageCandidateStateKey,
@@ -164,11 +164,11 @@ func (t *testLastSuffrageProofWatcher) TestRemoteAhead() {
 
 	base.EqualSuffrageProof(t.Assert(), remoteproof, proof)
 
-	nodes := candidatest.Value().(base.SuffrageCandidateStateValue).Nodes()
+	nodes := candidatest.Value().(base.SuffrageCandidatesStateValue).Nodes()
 	t.Equal(len(remotecandidates), len(nodes))
 
 	for i := range remotecandidates {
-		base.EqualSuffrageCandidate(t.Assert(), remotecandidates[i], nodes[i])
+		base.EqualSuffrageCandidateStateValue(t.Assert(), remotecandidates[i], nodes[i])
 	}
 }
 
@@ -179,20 +179,20 @@ func (t *testLastSuffrageProofWatcher) TestSameButLocalFirst() {
 	localproof := localproofs[1]
 	remoteproof := remoteproofs[1]
 
-	localcandidates := []base.SuffrageCandidate{
-		isaac.NewSuffrageCandidate(
+	localcandidates := []base.SuffrageCandidateStateValue{
+		isaac.NewSuffrageCandidateStateValue(
 			base.RandomNode(),
 			localproof.Map().Manifest().Height()+1,
 			localproof.Map().Manifest().Height()+3,
 		),
-		isaac.NewSuffrageCandidate(
+		isaac.NewSuffrageCandidateStateValue(
 			base.RandomNode(),
 			localproof.Map().Manifest().Height()+1,
 			localproof.Map().Manifest().Height()+5,
 		),
 	}
 
-	localstv := isaac.NewSuffrageCandidateStateValue(localcandidates)
+	localstv := isaac.NewSuffrageCandidatesStateValue(localcandidates)
 	localcandidatest := base.NewBaseState(
 		localproof.Map().Manifest().Height(),
 		isaac.SuffrageCandidateStateKey,
@@ -201,8 +201,8 @@ func (t *testLastSuffrageProofWatcher) TestSameButLocalFirst() {
 		[]util.Hash{valuehash.RandomSHA256()},
 	)
 
-	remotestv := isaac.NewSuffrageCandidateStateValue([]base.SuffrageCandidate{
-		isaac.NewSuffrageCandidate(
+	remotestv := isaac.NewSuffrageCandidatesStateValue([]base.SuffrageCandidateStateValue{
+		isaac.NewSuffrageCandidateStateValue(
 			base.RandomNode(),
 			remoteproof.Map().Manifest().Height()+1,
 			remoteproof.Map().Manifest().Height()+3,
@@ -243,11 +243,11 @@ func (t *testLastSuffrageProofWatcher) TestSameButLocalFirst() {
 
 	base.EqualSuffrageProof(t.Assert(), localproof, proof)
 
-	nodes := candidatest.Value().(base.SuffrageCandidateStateValue).Nodes()
+	nodes := candidatest.Value().(base.SuffrageCandidatesStateValue).Nodes()
 	t.Equal(len(localcandidates), len(nodes))
 
 	for i := range localcandidates {
-		base.EqualSuffrageCandidate(t.Assert(), localcandidates[i], nodes[i])
+		base.EqualSuffrageCandidateStateValue(t.Assert(), localcandidates[i], nodes[i])
 	}
 }
 

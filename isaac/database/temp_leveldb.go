@@ -127,7 +127,7 @@ func (db *TempLeveldb) SuffrageHeight() base.Height {
 		return base.NilHeight
 	}
 
-	return db.sufst.Value().(base.SuffrageStateValue).Height() //nolint:forcetypeassert //...
+	return db.sufst.Value().(base.SuffrageNodesStateValue).Height() //nolint:forcetypeassert //...
 }
 
 func (db *TempLeveldb) BlockMap() (base.BlockMap, error) {

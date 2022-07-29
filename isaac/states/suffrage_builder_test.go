@@ -49,7 +49,7 @@ func (t *baseTestSuffrageStateBuilder) prepare(point base.Point, previous base.S
 
 	var suffrageheight base.Height
 	if previous != nil {
-		suffrageheight = previous.Value().(base.SuffrageStateValue).Height() + 1
+		suffrageheight = previous.Value().(base.SuffrageNodesStateValue).Height() + 1
 	}
 
 	newstate, _ := t.SuffrageState(point.Height(), suffrageheight, newnodes)
@@ -134,12 +134,12 @@ type testSuffrageStateBuilder struct {
 }
 
 func (t *testSuffrageStateBuilder) candidateState(height base.Height, n int) base.State {
-	candidates := make([]base.SuffrageCandidate, n)
+	candidates := make([]base.SuffrageCandidateStateValue, n)
 	for i := range candidates {
-		candidates[i] = isaac.NewSuffrageCandidate(base.RandomNode(), height+1, height+3)
+		candidates[i] = isaac.NewSuffrageCandidateStateValue(base.RandomNode(), height+1, height+3)
 	}
 
-	v := isaac.NewSuffrageCandidateStateValue(candidates)
+	v := isaac.NewSuffrageCandidatesStateValue(candidates)
 	return base.NewBaseState(
 		height,
 		isaac.SuffrageCandidateStateKey,
