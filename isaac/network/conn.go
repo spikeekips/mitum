@@ -59,11 +59,12 @@ func (n NodeConnInfo) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
 		connInfoJSONMarshaler
 		base.BaseNodeJSONMarshaler
+		hint.BaseHinter
 	}{
+		BaseHinter: n.BaseHinter,
 		BaseNodeJSONMarshaler: base.BaseNodeJSONMarshaler{
-			Address:    n.BaseNode.Address(),
-			Publickey:  n.BaseNode.Publickey(),
-			BaseHinter: n.BaseHinter,
+			Address:   n.BaseNode.Address(),
+			Publickey: n.BaseNode.Publickey(),
 		},
 		connInfoJSONMarshaler: connInfoJSONMarshaler{
 			ConnInfo: n.NamedConnInfo,

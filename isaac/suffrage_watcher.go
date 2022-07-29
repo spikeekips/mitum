@@ -230,7 +230,7 @@ func IsNodeInLastConsensusNodes(node base.Node, proof base.SuffrageProof, st bas
 		return suf, false, nil
 	}
 
-	candidates, err := base.LoadNodesFromSuffrageCandidateState(st)
+	candidates, err := base.LoadNodesFromSuffrageCandidatesState(st)
 	if err != nil {
 		return suf, false, err
 	}

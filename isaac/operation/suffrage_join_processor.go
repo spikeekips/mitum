@@ -163,7 +163,6 @@ func (p *SuffrageJoinProcessor) Process(ctx context.Context, op base.Operation, 
 	fact := op.Fact().(SuffrageJoinFact) //nolint:forcetypeassert //...
 
 	member := p.candidates[fact.Candidate().String()]
-	node := isaac.NewNode(member.Publickey(), member.Address())
 
 	return []base.StateMergeValue{
 		base.NewBaseStateMergeValue(
@@ -175,7 +174,7 @@ func (p *SuffrageJoinProcessor) Process(ctx context.Context, op base.Operation, 
 		),
 		base.NewBaseStateMergeValue(
 			isaac.SuffrageStateKey,
-			isaac.NewSuffrageNodesStateValue(p.sufstv.Height()+1, []base.Node{node}),
+			newSuffrageAddNodeStateValue(p.sufstv.Height()+1, []base.Node{member}),
 			func(height base.Height, st base.State) base.StateValueMerger {
 				return NewSuffrageJoinStateValueMerger(height, st)
 			},
@@ -206,7 +205,7 @@ func (*SuffrageJoinProcessor) findCandidateFromSigned(op base.Operation) (base.N
 
 type SuffrageJoinStateValueMerger struct {
 	*base.BaseStateValueMerger
-	existings []base.Node
+	existings []base.SuffrageNodeStateValue
 	added     []base.Node
 }
 
@@ -221,15 +220,15 @@ func NewSuffrageJoinStateValueMerger(height base.Height, st base.State) *Suffrag
 }
 
 func (s *SuffrageJoinStateValueMerger) Merge(value base.StateValue, ops []util.Hash) error {
-	v, ok := value.(base.SuffrageNodesStateValue)
+	v, ok := value.(suffrageAddNodeStateValue)
 	if !ok {
-		return errors.Errorf("not SuffrageNodesStateValue, %T", value)
+		return errors.Errorf("not suffrageAddNodeStateValue, %T", value)
 	}
 
 	s.Lock()
 	defer s.Unlock()
 
-	s.added = append(s.added, v.Nodes()...)
+	s.added = append(s.added, v.nodes...)
 
 	s.AddOperations(ops)
 
@@ -259,9 +258,50 @@ func (s *SuffrageJoinStateValueMerger) close() (base.StateValue, error) {
 		return strings.Compare(s.added[i].Address().String(), s.added[j].Address().String()) < 0
 	})
 
-	newnodes := make([]base.Node, len(s.existings)+len(s.added))
+	newnodes := make([]base.SuffrageNodeStateValue, len(s.existings)+len(s.added))
 	copy(newnodes, s.existings)
-	copy(newnodes[len(s.existings):], s.added)
+
+	for i := range s.added {
+		newnodes[len(s.existings)+i] = isaac.NewSuffrageNodeStateValue(s.added[i], s.Height()+1)
+	}
 
 	return isaac.NewSuffrageNodesStateValue(s.Height(), newnodes), nil
+}
+
+type suffrageAddNodeStateValue struct {
+	nodes          []base.Node
+	suffrageheight base.Height
+}
+
+func newSuffrageAddNodeStateValue(suffrageheight base.Height, nodes []base.Node) suffrageAddNodeStateValue {
+	return suffrageAddNodeStateValue{
+		nodes:          nodes,
+		suffrageheight: suffrageheight,
+	}
+}
+
+func (s suffrageAddNodeStateValue) IsValid([]byte) error {
+	vs := make([]util.IsValider, len(s.nodes)+1)
+	vs[0] = s.suffrageheight
+
+	for i := range vs {
+		vs[i+1] = s.nodes[i]
+	}
+
+	if err := util.CheckIsValid(nil, false, vs...); err != nil {
+		return util.ErrInvalid.Errorf("invalie suffrageAddNodeStateValue")
+	}
+
+	return nil
+}
+
+func (s suffrageAddNodeStateValue) HashBytes() []byte {
+	bs := make([]util.Byter, len(s.nodes)+1)
+	bs[0] = util.DummyByter(s.suffrageheight.Bytes)
+
+	for i := range s.nodes {
+		bs[i+1] = util.DummyByter(s.nodes[i].HashBytes)
+	}
+
+	return util.ConcatByters(bs...)
 }

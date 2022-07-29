@@ -27,19 +27,19 @@ func (t *testSuffrageJoinProcessor) prepare(height base.Height) (
 	suffragest base.BaseState,
 	candidatest base.BaseState,
 	existingnodepriv base.Privatekey,
-	existingnode base.Node,
+	existingnode base.SuffrageNodeStateValue,
 	candidatenode base.SuffrageCandidateStateValue,
 	getStateFunc base.GetStateFunc,
 ) {
 	suffrageheight := base.Height(22)
 
 	existingnodepriv = base.NewMPrivatekey()
-	existingnode = isaac.NewNode(existingnodepriv.Publickey(), base.RandomAddress(""))
+	existingnode = isaac.NewSuffrageNodeStateValue(isaac.NewNode(existingnodepriv.Publickey(), base.RandomAddress("")), base.GenesisHeight+1)
 
 	suffragest = base.NewBaseState(
 		height-1,
 		isaac.SuffrageStateKey,
-		isaac.NewSuffrageNodesStateValue(suffrageheight, []base.Node{existingnode}),
+		isaac.NewSuffrageNodesStateValue(suffrageheight, []base.SuffrageNodeStateValue{existingnode}),
 		valuehash.RandomSHA256(),
 		[]util.Hash{valuehash.RandomSHA256()},
 	)

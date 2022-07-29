@@ -426,7 +426,13 @@ func (t *testSuffrageGenesisJoin) TestProcess() {
 	value := values[0]
 	t.Equal(isaac.SuffrageStateKey, value.Key())
 
-	expected := isaac.NewSuffrageNodesStateValue(base.GenesisHeight, fact.Nodes())
+	fnodes := fact.Nodes()
+	nodes := make([]base.SuffrageNodeStateValue, len(fnodes))
+	for i := range fnodes {
+		nodes[i] = isaac.NewSuffrageNodeStateValue(fnodes[i], base.GenesisHeight+1)
+	}
+
+	expected := isaac.NewSuffrageNodesStateValue(base.GenesisHeight, nodes)
 
 	t.True(base.IsEqualStateValue(expected, value.Value()))
 }

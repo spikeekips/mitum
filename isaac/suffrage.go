@@ -7,9 +7,10 @@ import (
 )
 
 var (
-	SuffrageNodesStateValueHint      = hint.MustNewHint("suffrage-state-value-v0.0.1")
-	SuffrageCandidatesStateValueHint = hint.MustNewHint("suffrage-candidate-state-value-v0.0.1")
-	SuffrageCandidateHint            = hint.MustNewHint("suffrage-candidate-v0.0.1")
+	SuffrageNodeStateValueHint       = hint.MustNewHint("suffrage-node-state-value-v0.0.1")
+	SuffrageNodesStateValueHint      = hint.MustNewHint("suffrage-nodes-state-value-v0.0.1")
+	SuffrageCandidateStateValueHint  = hint.MustNewHint("suffrage-candidate-state-value-v0.0.1")
+	SuffrageCandidatesStateValueHint = hint.MustNewHint("suffrage-candidates-state-value-v0.0.1")
 )
 
 var (
@@ -25,22 +26,13 @@ type Suffrage struct {
 	ns []base.Node
 }
 
-func NewSuffrageFromState(st base.State) (suf Suffrage, _ error) {
-	switch v, err := base.LoadSuffrageState(st); {
+func NewSuffrageFromState(st base.State) (suf base.Suffrage, _ error) {
+	switch v, err := base.LoadSuffrageNodesStateValue(st); {
 	case err != nil:
 		return suf, err
 	default:
-		return NewSuffrageFromStateValue(v)
+		return v.Suffrage()
 	}
-}
-
-func NewSuffrageFromStateValue(v base.SuffrageNodesStateValue) (suf Suffrage, _ error) {
-	i, err := NewSuffrage(v.Nodes())
-	if err != nil {
-		return suf, err
-	}
-
-	return i, nil
 }
 
 func NewSuffrage(nodes []base.Node) (Suffrage, error) {
@@ -95,13 +87,55 @@ func (suf Suffrage) Len() int {
 	return len(suf.ns)
 }
 
+type SuffrageNodeStateValue struct {
+	base.Node
+	hint.BaseHinter
+	start base.Height
+}
+
+func NewSuffrageNodeStateValue(node base.Node, start base.Height) SuffrageNodeStateValue {
+	return SuffrageNodeStateValue{
+		BaseHinter: hint.NewBaseHinter(SuffrageNodeStateValueHint),
+		Node:       node,
+		start:      start,
+	}
+}
+
+func (s SuffrageNodeStateValue) Start() base.Height {
+	return s.start
+}
+
+func (s SuffrageNodeStateValue) Hint() hint.Hint {
+	return s.BaseHinter.Hint()
+}
+
+func (s SuffrageNodeStateValue) IsValid([]byte) error {
+	e := util.ErrInvalid.Errorf("invalie SuffrageNodeStateValue")
+
+	if err := s.BaseHinter.IsValid(SuffrageNodeStateValueHint.Type().Bytes()); err != nil {
+		return e.Wrap(err)
+	}
+
+	if err := util.CheckIsValid(nil, false, s.Node, s.start); err != nil {
+		return e.Wrap(err)
+	}
+
+	return nil
+}
+
+func (s SuffrageNodeStateValue) HashBytes() []byte {
+	return util.ConcatBytesSlice(s.Node.HashBytes(), s.start.Bytes())
+}
+
 type SuffrageNodesStateValue struct {
-	nodes []base.Node
+	nodes []base.SuffrageNodeStateValue
 	hint.BaseHinter
 	height base.Height
 }
 
-func NewSuffrageNodesStateValue(suffrageheight base.Height, nodes []base.Node) SuffrageNodesStateValue {
+func NewSuffrageNodesStateValue(
+	suffrageheight base.Height, nodes []base.SuffrageNodeStateValue,
+) SuffrageNodesStateValue {
 	return SuffrageNodesStateValue{
 		BaseHinter: hint.NewBaseHinter(SuffrageNodesStateValueHint),
 		height:     suffrageheight,
@@ -148,12 +182,17 @@ func (s SuffrageNodesStateValue) Height() base.Height {
 	return s.height
 }
 
-func (s SuffrageNodesStateValue) Nodes() []base.Node {
+func (s SuffrageNodesStateValue) Nodes() []base.SuffrageNodeStateValue {
 	return s.nodes
 }
 
 func (s SuffrageNodesStateValue) Suffrage() (base.Suffrage, error) {
-	return NewSuffrage(s.nodes)
+	nodes := make([]base.Node, len(s.nodes))
+	for i := range s.nodes {
+		nodes[i] = s.nodes[i]
+	}
+
+	return NewSuffrage(nodes)
 }
 
 type SuffrageCandidateStateValue struct {
@@ -165,7 +204,7 @@ type SuffrageCandidateStateValue struct {
 
 func NewSuffrageCandidateStateValue(node base.Node, start, deadline base.Height) SuffrageCandidateStateValue {
 	return SuffrageCandidateStateValue{
-		BaseHinter: hint.NewBaseHinter(SuffrageCandidateHint),
+		BaseHinter: hint.NewBaseHinter(SuffrageCandidateStateValueHint),
 		Node:       node,
 		start:      start,
 		deadline:   deadline,
@@ -175,7 +214,7 @@ func NewSuffrageCandidateStateValue(node base.Node, start, deadline base.Height)
 func (suf SuffrageCandidateStateValue) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid SuffrageCandidateStateValue")
 
-	if err := suf.BaseHinter.IsValid(SuffrageCandidateHint.Type().Bytes()); err != nil {
+	if err := suf.BaseHinter.IsValid(SuffrageCandidateStateValueHint.Type().Bytes()); err != nil {
 		return e(err, "")
 	}
 
@@ -319,7 +358,9 @@ func GetSuffrageFromDatabase(
 	}
 }
 
-func FilterCandidates(height base.Height, candidates []base.SuffrageCandidateStateValue) []base.SuffrageCandidateStateValue {
+func FilterCandidates(
+	height base.Height, candidates []base.SuffrageCandidateStateValue,
+) []base.SuffrageCandidateStateValue {
 	n := util.FilterSlices(candidates, func(_ interface{}, i int) bool {
 		return candidates[i].Deadline() >= height
 	})

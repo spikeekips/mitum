@@ -296,7 +296,7 @@ func (db *LeveldbBlockWrite) setState(st base.State) error {
 	}
 
 	switch {
-	case base.IsSuffrageState(st) && st.Key() == isaac.SuffrageStateKey:
+	case base.IsSuffrageNodesState(st) && st.Key() == isaac.SuffrageStateKey:
 		db.updateLockedStates(st, db.sufst)
 	case base.IsNetworkPolicyState(st) && st.Key() == isaac.NetworkPolicyStateKey:
 		db.updateLockedStates(st, db.policy)

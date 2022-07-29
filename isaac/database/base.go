@@ -94,7 +94,7 @@ func (db *baseDatabase) decodeSuffrage(b []byte) (base.State, error) {
 		return nil, e(err, "failed to load suffrage state")
 	}
 
-	if !base.IsSuffrageState(st) {
+	if !base.IsSuffrageNodesState(st) {
 		return nil, errors.Errorf("not suffrage state")
 	}
 

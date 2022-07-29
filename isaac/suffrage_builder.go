@@ -59,7 +59,7 @@ func (s *SuffrageStateBuilder) Build(
 			return nil, nil, e(err, "invalid localstate")
 		}
 
-		v, _ := base.LoadSuffrageState(localstate)
+		v, _ := base.LoadSuffrageNodesStateValue(localstate)
 		fromheight = v.Height() + 1
 	}
 
@@ -86,7 +86,7 @@ func (s *SuffrageStateBuilder) Build(
 				return nil, nil, nil
 			}
 
-			v, _ := base.LoadSuffrageState(localstate)
+			v, _ := base.LoadSuffrageNodesStateValue(localstate)
 
 			if proof.SuffrageHeight() <= v.Height() {
 				return nil, nil, nil
@@ -117,7 +117,7 @@ func (s *SuffrageStateBuilder) buildBatch(
 ) error {
 	e := util.StringErrorFunc("failed to build by batch")
 
-	lastv, _ := base.LoadSuffrageState(last)
+	lastv, _ := base.LoadSuffrageNodesStateValue(last)
 	lastheight := lastv.Height()
 
 	newprev := localstate
@@ -183,7 +183,7 @@ func (*SuffrageStateBuilder) prove(
 	prevheight := base.NilHeight
 
 	if previous != nil {
-		i, _ := base.LoadSuffrageState(previous)
+		i, _ := base.LoadSuffrageNodesStateValue(previous)
 		prevheight = i.Height()
 	}
 

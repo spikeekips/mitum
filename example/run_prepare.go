@@ -143,7 +143,7 @@ func (cmd *runCommand) prepareNetwork() error {
 
 	quicconfig := launch.DefaultQuicConfig()
 	quicconfig.AcceptToken = func(clientAddr net.Addr, token *quic.Token) bool {
-		return true // FIXME NOTE handle blacklist
+		return true // FIXME NOTE manage blacklist
 	}
 
 	cmd.quicstreamserver = quicstream.NewServer(

@@ -46,14 +46,18 @@ func (n BaseNode) HashBytes() []byte {
 type BaseNodeJSONMarshaler struct {
 	Address   Address   `json:"address"`
 	Publickey Publickey `json:"publickey"`
-	hint.BaseHinter
 }
 
 func (n BaseNode) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(BaseNodeJSONMarshaler{
+	return util.MarshalJSON(struct {
+		BaseNodeJSONMarshaler
+		hint.BaseHinter
+	}{
 		BaseHinter: n.BaseHinter,
-		Address:    n.addr,
-		Publickey:  n.pub,
+		BaseNodeJSONMarshaler: BaseNodeJSONMarshaler{
+			Address:   n.addr,
+			Publickey: n.pub,
+		},
 	})
 }
 

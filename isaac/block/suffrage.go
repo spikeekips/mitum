@@ -80,7 +80,7 @@ func (s SuffrageProof) Suffrage() (base.Suffrage, error) {
 }
 
 func (s SuffrageProof) SuffrageHeight() base.Height {
-	i, err := base.LoadSuffrageState(s.st)
+	i, err := base.LoadSuffrageNodesStateValue(s.st)
 	if err != nil {
 		return base.NilHeight
 	}
@@ -115,8 +115,8 @@ func (s SuffrageProof) Prove(previousState base.State) error {
 			return e(err, "")
 		}
 
-		previous, _ := base.LoadSuffrageState(previousState)
-		current, _ := base.LoadSuffrageState(s.st)
+		previous, _ := base.LoadSuffrageNodesStateValue(previousState)
+		current, _ := base.LoadSuffrageNodesStateValue(s.st)
 
 		if current.Height() != previous.Height()+1 {
 			return e(nil, "invalid previous state value; not +1")

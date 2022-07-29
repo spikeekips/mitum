@@ -78,7 +78,7 @@ func (db *LeveldbPermanent) SuffrageProof(suffrageHeight base.Height) (base.Suff
 		return nil, false, nil
 	}
 
-	stv, err := base.LoadSuffrageState(proof.State())
+	stv, err := base.LoadSuffrageNodesStateValue(proof.State())
 	if err != nil {
 		return nil, false, e(err, "")
 	}

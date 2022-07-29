@@ -321,7 +321,7 @@ func (im *BlockImporter) importStates(item base.BlockMapItem, r io.Reader) error
 			return err
 		}
 
-		if base.IsSuffrageState(st) {
+		if base.IsSuffrageNodesState(st) {
 			im.sufst = st
 		}
 

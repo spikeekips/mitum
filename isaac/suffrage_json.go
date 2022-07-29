@@ -10,8 +10,50 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 )
 
+type suffrageNodeStateValueJSONMarshaler struct {
+	Start base.Height `json:"start"`
+}
+
+func (s SuffrageNodeStateValue) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(struct {
+		base.BaseNodeJSONMarshaler
+		hint.BaseHinter
+		suffrageNodeStateValueJSONMarshaler
+	}{
+		BaseHinter: s.BaseHinter,
+		BaseNodeJSONMarshaler: base.BaseNodeJSONMarshaler{
+			Address:   s.Address(),
+			Publickey: s.Publickey(),
+		},
+		suffrageNodeStateValueJSONMarshaler: suffrageNodeStateValueJSONMarshaler{
+			Start: s.start,
+		},
+	})
+}
+
+func (s *SuffrageNodeStateValue) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+	e := util.StringErrorFunc("failed to decode SuffrageNodeStateValue")
+
+	var u suffrageNodeStateValueJSONMarshaler
+	if err := enc.Unmarshal(b, &u); err != nil {
+		return e(err, "")
+	}
+
+	s.start = u.Start
+
+	var ub base.BaseNode
+
+	if err := ub.DecodeJSON(b, enc); err != nil {
+		return e(err, "")
+	}
+
+	s.Node = ub
+
+	return nil
+}
+
 type suffrageNodesStateValueJSONMarshaler struct {
-	Nodes []base.Node `json:"nodes"`
+	Nodes []base.SuffrageNodeStateValue `json:"nodes"`
 	hint.BaseHinter
 	Height base.Height `json:"height"`
 }
@@ -37,7 +79,7 @@ func (s *SuffrageNodesStateValue) DecodeJSON(b []byte, enc *jsonenc.Encoder) err
 		return e(err, "")
 	}
 
-	s.nodes = make([]base.Node, len(u.Nodes))
+	s.nodes = make([]base.SuffrageNodeStateValue, len(u.Nodes))
 
 	for i := range u.Nodes {
 		if err := encoder.Decode(enc, u.Nodes[i], &s.nodes[i]); err != nil {

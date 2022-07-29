@@ -10,6 +10,47 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
+func TestSuffrageNodeStateValueJSON(tt *testing.T) {
+	t := new(encoder.BaseTestEncode)
+
+	enc := jsonenc.NewEncoder()
+
+	t.Encode = func() (interface{}, []byte) {
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: NodeHint, Instance: base.BaseNode{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: SuffrageNodeStateValueHint, Instance: SuffrageNodeStateValue{}}))
+
+		stv := NewSuffrageNodeStateValue(RandomLocalNode(), base.Height(33))
+
+		b, err := util.MarshalJSON(&stv)
+		t.NoError(err)
+
+		t.T().Log("marshaled:", string(b))
+
+		return stv, b
+	}
+
+	t.Decode = func(b []byte) interface{} {
+		i, err := enc.Decode(b)
+		t.NoError(err)
+
+		u, ok := i.(SuffrageNodeStateValue)
+		t.True(ok)
+
+		return u
+	}
+	t.Compare = func(a, b interface{}) {
+		av := a.(SuffrageNodeStateValue)
+		bv := b.(SuffrageNodeStateValue)
+
+		t.True(av.Hint().Equal(bv.Hint()))
+		t.True(base.IsEqualStateValue(av, bv))
+	}
+
+	suite.Run(tt, t)
+}
+
 func TestSuffrageNodesStateValueJSON(tt *testing.T) {
 	t := new(encoder.BaseTestEncode)
 
@@ -20,10 +61,11 @@ func TestSuffrageNodesStateValueJSON(tt *testing.T) {
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: NodeHint, Instance: base.BaseNode{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: SuffrageNodesStateValueHint, Instance: SuffrageNodesStateValue{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: SuffrageNodeStateValueHint, Instance: SuffrageNodeStateValue{}}))
 
-		nodes := make([]base.Node, 3)
+		nodes := make([]base.SuffrageNodeStateValue, 3)
 		for i := range nodes {
-			nodes[i] = RandomLocalNode()
+			nodes[i] = NewSuffrageNodeStateValue(RandomLocalNode(), base.Height(33))
 		}
 
 		stv := NewSuffrageNodesStateValue(base.Height(33), nodes)
@@ -65,7 +107,7 @@ func TestSuffrageCandidatesStateValueJSON(tt *testing.T) {
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: NodeHint, Instance: base.BaseNode{}}))
-		t.NoError(enc.Add(encoder.DecodeDetail{Hint: SuffrageCandidateHint, Instance: SuffrageCandidateStateValue{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: SuffrageCandidateStateValueHint, Instance: SuffrageCandidateStateValue{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: SuffrageCandidatesStateValueHint, Instance: SuffrageCandidatesStateValue{}}))
 
 		nodes := make([]base.SuffrageCandidateStateValue, 3)
@@ -112,7 +154,7 @@ func TestSuffrageCandidateJSON(tt *testing.T) {
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: NodeHint, Instance: base.BaseNode{}}))
-		t.NoError(enc.Add(encoder.DecodeDetail{Hint: SuffrageCandidateHint, Instance: SuffrageCandidateStateValue{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: SuffrageCandidateStateValueHint, Instance: SuffrageCandidateStateValue{}}))
 
 		stv := NewSuffrageCandidateStateValue(RandomLocalNode(), base.Height(33), base.Height(55))
 

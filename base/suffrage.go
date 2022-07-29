@@ -13,16 +13,19 @@ type Suffrage interface {
 	Len() int
 }
 
+type SuffrageNodeStateValue interface {
+	Node
+	Start() Height
+}
+
 type SuffrageNodesStateValue interface {
 	StateValue
 	Height() Height // NOTE not manifest height
-	Nodes() []Node
+	Nodes() []SuffrageNodeStateValue
 	Suffrage() (Suffrage, error)
 }
 
 type SuffrageCandidateStateValue interface {
-	util.HashByter
-	util.IsValider
 	Node
 	Start() Height
 	Deadline() Height
@@ -33,12 +36,12 @@ type SuffrageCandidatesStateValue interface {
 	Nodes() []SuffrageCandidateStateValue
 }
 
-func InterfaceIsSuffrageState(i interface{}) (State, error) {
+func InterfaceIsSuffrageNodesState(i interface{}) (State, error) {
 	switch st, ok := i.(State); {
 	case !ok:
 		return nil, errors.Errorf("not suffrage state: %T", i)
 	default:
-		if _, err := LoadSuffrageState(st); err != nil {
+		if _, err := LoadSuffrageNodesStateValue(st); err != nil {
 			return nil, err
 		}
 
@@ -46,7 +49,7 @@ func InterfaceIsSuffrageState(i interface{}) (State, error) {
 	}
 }
 
-func LoadNodesFromSuffrageCandidateState(st State) ([]SuffrageCandidateStateValue, error) {
+func LoadNodesFromSuffrageCandidatesState(st State) ([]SuffrageCandidateStateValue, error) {
 	switch v := st.Value(); {
 	case st == nil:
 		return nil, nil
@@ -62,13 +65,13 @@ func LoadNodesFromSuffrageCandidateState(st State) ([]SuffrageCandidateStateValu
 	}
 }
 
-func IsSuffrageState(st State) bool {
-	_, err := LoadSuffrageState(st)
+func IsSuffrageNodesState(st State) bool {
+	_, err := LoadSuffrageNodesStateValue(st)
 
 	return err == nil
 }
 
-func LoadSuffrageState(st State) (SuffrageNodesStateValue, error) {
+func LoadSuffrageNodesStateValue(st State) (SuffrageNodesStateValue, error) {
 	if st == nil || st.Value() == nil {
 		return nil, errors.Errorf("empty state")
 	}

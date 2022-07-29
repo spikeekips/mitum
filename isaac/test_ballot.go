@@ -167,7 +167,12 @@ func (t *BaseTestBallots) VoteproofsPair(prevpoint, point base.Point, prev, pr, 
 }
 
 func (t *BaseTestBallots) SuffrageState(height, sufheight base.Height, nodes []base.Node) (base.State, base.SuffrageNodesStateValue) {
-	sv := NewSuffrageNodesStateValue(sufheight, nodes)
+	sufnodes := make([]base.SuffrageNodeStateValue, len(nodes))
+	for i := range nodes {
+		sufnodes[i] = NewSuffrageNodeStateValue(nodes[i], height)
+	}
+
+	sv := NewSuffrageNodesStateValue(sufheight, sufnodes)
 
 	_ = (interface{})(sv).(base.SuffrageNodesStateValue)
 

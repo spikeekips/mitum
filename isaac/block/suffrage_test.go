@@ -273,6 +273,7 @@ func (t *testSuffrageProof) TestEncode() {
 		{Hint: base.StringAddressHint, Instance: base.StringAddress{}},
 		{Hint: base.DummyManifestHint, Instance: base.DummyManifest{}},
 		{Hint: base.BaseStateHint, Instance: base.BaseState{}},
+		{Hint: isaac.SuffrageNodeStateValueHint, Instance: isaac.SuffrageNodeStateValue{}},
 		{Hint: isaac.SuffrageNodesStateValueHint, Instance: isaac.SuffrageNodesStateValue{}},
 		{Hint: isaac.NodeHint, Instance: base.BaseNode{}},
 		{Hint: isaac.ACCEPTVoteproofHint, Instance: isaac.ACCEPTVoteproof{}},

@@ -251,10 +251,17 @@ func (op SuffrageGenesisJoin) Process(context.Context, base.GetStateFunc) (
 ) {
 	fact := op.Fact().(SuffrageGenesisJoinFact) //nolint:forcetypeassert //...
 
+	fnodes := fact.Nodes()
+	nodes := make([]base.SuffrageNodeStateValue, len(fnodes))
+
+	for i := range fnodes {
+		nodes[i] = isaac.NewSuffrageNodeStateValue(fnodes[i], base.GenesisHeight+1)
+	}
+
 	return []base.StateMergeValue{
 		base.NewBaseStateMergeValue(
 			isaac.SuffrageStateKey,
-			isaac.NewSuffrageNodesStateValue(base.GenesisHeight, fact.Nodes()),
+			isaac.NewSuffrageNodesStateValue(base.GenesisHeight, nodes),
 			nil,
 		),
 	}, nil, nil
