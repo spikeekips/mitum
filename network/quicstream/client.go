@@ -60,6 +60,19 @@ func NewClient(
 	}
 }
 
+func (c *Client) Close() error {
+	session := c.Session()
+	if session == nil {
+		return nil
+	}
+
+	if err := session.CloseWithError(0x100, ""); err != nil { //nolint:gomnd // errorNoError
+		return errors.Wrap(err, "failed to close client")
+	}
+
+	return nil
+}
+
 func (c *Client) Session() quic.EarlyConnection {
 	i, _ := c.session.Value()
 	if i == nil {

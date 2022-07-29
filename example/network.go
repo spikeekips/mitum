@@ -110,6 +110,11 @@ func (cmd *networkClientCommand) Run() error {
 
 func (cmd *networkClientCommand) response(header isaac.NetworkHeader) error {
 	client := launch.NewNetworkClient(cmd.encs, cmd.enc, cmd.Timeout) //nolint:gomnd //...
+	defer func() {
+		if err := client.Close(); err != nil {
+			log.Error().Err(err).Msg("failed to close client")
+		}
+	}()
 
 	response, v, cancel, err := client.Request(context.Background(), cmd.remote, header, cmd.body)
 

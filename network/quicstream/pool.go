@@ -23,6 +23,59 @@ func NewPoolClient() *PoolClient {
 	}
 }
 
+func (p *PoolClient) Close() error {
+	e := util.StringErrorFunc("failed to close PoolClient")
+
+	switch {
+	case p.clients.Len() < 1:
+		return nil
+	case p.clients.Len() < 2: //nolint:gomnd //...
+		var err error
+
+		p.clients.Traverse(func(_, i interface{}) bool {
+			item := i.(*poolClientItem) //nolint:forcetypeassert //...
+			err = item.client.Close()
+
+			return true
+		})
+
+		if err != nil {
+			return e(err, "")
+		}
+
+		return nil
+	}
+
+	worker := util.NewErrgroupWorker(context.Background(), int64(p.clients.Len()))
+	defer worker.Close()
+
+	var cerr error
+
+	p.clients.Traverse(func(_, i interface{}) bool {
+		item := i.(*poolClientItem) //nolint:forcetypeassert //...
+
+		cerr = worker.NewJob(func(context.Context, uint64) error {
+			cerr = item.client.Close()
+
+			return nil
+		})
+
+		return true
+	})
+
+	worker.Done()
+
+	if err := worker.Wait(); err != nil {
+		return e(err, "")
+	}
+
+	if cerr != nil {
+		return e(cerr, "")
+	}
+
+	return nil
+}
+
 func (p *PoolClient) Dial(
 	ctx context.Context,
 	addr *net.UDPAddr,

@@ -53,6 +53,10 @@ func NewQuicstreamClient(
 	return c
 }
 
+func (c *QuicstreamClient) Close() error {
+	return c.client.Close()
+}
+
 func (c *QuicstreamClient) PoolClient() *quicstream.PoolClient {
 	return c.client
 }

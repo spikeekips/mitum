@@ -17,6 +17,42 @@ type testClient struct {
 	BaseTest
 }
 
+func (t *testClient) TestSessionClose() {
+	srv := t.NewDefaultServer()
+
+	t.NoError(srv.Start())
+	defer srv.Stop()
+
+	client := t.NewClient(t.Bind)
+	client.quicconfig = &quic.Config{
+		HandshakeIdleTimeout: time.Millisecond * 100,
+	}
+
+	<-time.After(time.Second * 3) // NOTE for slow machine like github actions
+
+	_, err := client.Write(context.Background(), DefaultClientWriteFunc(util.UUID().Bytes()))
+	t.NoError(err)
+
+	i, isnil := client.session.Value()
+	t.False(isnil)
+	t.NotNil(i)
+
+	t.Run("ok", func() {
+		<-time.After(time.Second * 3) // NOTE for slow machine like github actions
+
+		_, err := client.Write(context.Background(), DefaultClientWriteFunc(util.UUID().Bytes()))
+		t.NoError(err)
+	})
+
+	t.Run("send after close", func() {
+		t.NoError(client.Close())
+
+		_, err := client.Write(context.Background(), DefaultClientWriteFunc(util.UUID().Bytes()))
+		t.Error(err)
+		t.True(IsNetworkError(err))
+	})
+}
+
 func (t *testClient) TestSessionRemove() {
 	srv := t.NewDefaultServer()
 

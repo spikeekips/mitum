@@ -49,6 +49,51 @@ func (t *testPool) TestWrite() {
 	t.True(p.clients.Exists(t.Bind.String()))
 }
 
+func (t *testPool) TestClose() {
+	srv := t.NewDefaultServer()
+
+	t.NoError(srv.Start())
+	defer srv.Stop()
+
+	p := NewPoolClient()
+
+	b := util.UUID().Bytes()
+
+	t.Run("ok", func() {
+		r, err := p.Write(
+			context.Background(),
+			t.Bind,
+			DefaultClientWriteFunc(b),
+			func(addr *net.UDPAddr) *Client {
+				client := t.NewClient(addr)
+				client.quicconfig = &quic.Config{
+					HandshakeIdleTimeout: time.Millisecond * 100,
+				}
+
+				return client
+			},
+		)
+		t.NoError(err)
+
+		rb, err := ReadAll(context.Background(), r)
+		t.NoError(err)
+		t.Equal(b, rb)
+	})
+
+	t.Run("write after close", func() {
+		t.NoError(p.Close())
+
+		_, err := p.Write(
+			context.Background(),
+			t.Bind,
+			DefaultClientWriteFunc(b),
+			nil,
+		)
+		t.Error(err)
+		t.True(IsNetworkError(err))
+	})
+}
+
 func (t *testPool) TestSend() {
 	srv := t.NewDefaultServer()
 
