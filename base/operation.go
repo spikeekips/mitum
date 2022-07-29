@@ -43,6 +43,7 @@ var EmptyOperationProcessorProcessFunc = func(context.Context, Operation, GetSta
 type OperationProcessor interface {
 	PreProcess(context.Context, Operation, GetStateFunc) (OperationProcessReasonError, error)
 	Process(context.Context, Operation, GetStateFunc) ([]StateMergeValue, OperationProcessReasonError, error)
+	Close() error
 }
 
 type OperationFixedtreeNode struct {
@@ -267,6 +268,14 @@ func NewBaseOperationProcessor(
 	}
 
 	return p, nil
+}
+
+func (p *BaseOperationProcessor) Close() error {
+	p.PreProcessConstraintFunc = nil
+	p.ProcessConstraintFunc = nil
+	p.height = NilHeight
+
+	return nil
 }
 
 func (p *BaseOperationProcessor) Height() Height {

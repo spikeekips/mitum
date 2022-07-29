@@ -76,6 +76,20 @@ func NewSuffrageCandidateProcessor(
 	return p, nil
 }
 
+func (p *SuffrageCandidateProcessor) Close() error {
+	if err := p.BaseOperationProcessor.Close(); err != nil {
+		return err
+	}
+
+	p.suffrages = nil
+	p.existings = nil
+	p.preprocessed = nil
+	p.startheight = base.NilHeight
+	p.deadlineheight = base.NilHeight
+
+	return nil
+}
+
 func (p *SuffrageCandidateProcessor) PreProcess(
 	ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (
 	base.OperationProcessReasonError, error,

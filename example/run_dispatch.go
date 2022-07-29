@@ -1312,15 +1312,43 @@ func (cmd *runCommand) whenNewBlockSaved(height base.Height) {
 	cmd.ballotbox.Count()
 }
 
-func (*runCommand) newOperationFilter() func(base.Operation) bool {
+func (cmd *runCommand) newOperationFilter() func(base.Operation) (bool, error) {
 	operationfilterf := launch.IsSupportedProposalOperationFactHintFunc()
+	oprs := cmd.operationProcessorsMap()
 
-	return func(op base.Operation) bool {
-		hinter, ok := op.Fact().(hint.Hinter)
-		if !ok {
-			return false
+	return func(op base.Operation) (bool, error) {
+		switch hinter, ok := op.Fact().(hint.Hinter); {
+		case !ok:
+			return false, nil
+		case !operationfilterf(hinter.Hint().Bytes()):
+			return false, nil
 		}
 
-		return operationfilterf(hinter.Hint().Bytes())
+		var height base.Height
+
+		switch m, found, err := cmd.db.LastBlockMap(); {
+		case err != nil:
+			return false, err
+		case !found:
+			return true, nil
+		default:
+			height = m.Manifest().Height()
+		}
+
+		f, closef, err := launch.OperationPreProcess(oprs, op, height)
+		if err != nil {
+			return false, err
+		}
+
+		defer func() {
+			_ = closef()
+		}()
+
+		reason, err := f(context.Background(), cmd.db.State)
+		if err != nil {
+			return false, err
+		}
+
+		return reason == nil, reason
 	}
 }

@@ -73,6 +73,20 @@ func NewSuffrageJoinProcessor(
 	return p, nil
 }
 
+func (p *SuffrageJoinProcessor) Close() error {
+	if err := p.BaseOperationProcessor.Close(); err != nil {
+		return err
+	}
+
+	p.sufstv = nil
+	p.suffrage = nil
+	p.candidates = nil
+	p.preprocessed = nil
+	p.threshold = 0
+
+	return nil
+}
+
 func (p *SuffrageJoinProcessor) PreProcess(ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (
 	base.OperationProcessReasonError, error,
 ) {

@@ -14,6 +14,7 @@ import (
 )
 
 var (
+	ErrOperationInProcessorNotFound           = util.NewError("operation processor not found")
 	InvalidOperationInProcessorError          = util.NewError("invalid operation")
 	OperationNotFoundInProcessorError         = util.NewError("operation not found")
 	OperationAlreadyProcessedInProcessorError = util.NewError("operation already processed")
@@ -248,6 +249,14 @@ func (p *DefaultProposalProcessor) close() {
 	p.setLastVoteproofsFunc = nil
 
 	if p.oprs != nil {
+		p.oprs.Traverse(func(key interface{}, i interface{}) bool {
+			opp := i.(base.OperationProcessor) //nolint:forcetypeassert //...
+
+			_ = opp.Close()
+
+			return true
+		})
+
 		p.oprs.Close()
 		p.oprs = nil
 	}
@@ -593,8 +602,9 @@ func (p *DefaultProposalProcessor) getProcessor(ctx context.Context, op base.Ope
 func (p *DefaultProposalProcessor) getOperationProcessor(ctx context.Context, ht hint.Hint) (
 	base.OperationProcessor, bool, error,
 ) {
-	j, _, err := p.oprs.Get(ht.String(), func() (interface{}, error) {
+	i, _, err := p.oprs.Get(ht.String(), func() (interface{}, error) {
 		var opp base.OperationProcessor
+
 		if err := p.retry(ctx, func() (bool, error) {
 			i, err := p.newOperationProcessor(p.proposal.Point().Height(), ht)
 			if err != nil {
@@ -605,20 +615,24 @@ func (p *DefaultProposalProcessor) getOperationProcessor(ctx context.Context, ht
 
 			return false, nil
 		}); err != nil {
-			return util.NilLockedValue{}, err
+			return nil, err
+		}
+
+		if opp == nil {
+			return nil, ErrOperationInProcessorNotFound.Call()
 		}
 
 		return opp, nil
 	})
-	if err != nil {
+
+	switch {
+	case err == nil:
+		return i.(base.OperationProcessor), true, nil //nolint:forcetypeassert //...
+	case errors.Is(err, ErrOperationInProcessorNotFound):
+		return nil, false, nil
+	default:
 		return nil, false, errors.Wrap(err, "failed to get OperationProcessor")
 	}
-
-	if j == nil {
-		return nil, false, nil
-	}
-
-	return j.(base.OperationProcessor), true, nil //nolint:forcetypeassert //...
 }
 
 func (p *DefaultProposalProcessor) wait(ctx context.Context) (

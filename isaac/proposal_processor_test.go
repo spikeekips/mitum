@@ -132,6 +132,10 @@ type DummyOperationProcessor struct {
 	process    func(context.Context, base.Operation, base.GetStateFunc) ([]base.StateMergeValue, base.OperationProcessReasonError, error)
 }
 
+func (*DummyOperationProcessor) Close() error {
+	return nil
+}
+
 func (p *DummyOperationProcessor) PreProcess(ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (base.OperationProcessReasonError, error) {
 	if p.preprocess == nil {
 		return base.NewBaseOperationProcessReasonError("nil preprocess"), nil
@@ -1369,8 +1373,9 @@ func (t *testDefaultProposalProcessor) TestProcessCancel() {
 	donech := make(chan error)
 	go func() {
 		m, err := opp.Process(context.Background(), nil)
-		t.Error(err)
-		t.Nil(m)
+		if m != nil {
+			panic("not nil")
+		}
 
 		donech <- err
 	}()
