@@ -17,7 +17,6 @@ type baseVoteproofJSONMarshaler struct {
 	FinishedAt time.Time `json:"finished_at"`
 	Majority   util.Hash `json:"majority"` // NOTE fact hash of majority BallotSignedFact
 	hint.BaseHinter
-	Result      base.VoteResult         `json:"result"`
 	ID          string                  `json:"id"`
 	SignedFacts []base.BallotSignedFact `json:"signed_facts"`
 	Point       base.StagePoint         `json:"point"`
@@ -35,7 +34,6 @@ func (vp baseVoteproof) MarshalJSON() ([]byte, error) {
 		FinishedAt:  vp.finishedAt,
 		Majority:    majority,
 		Point:       vp.point,
-		Result:      vp.result,
 		Threshold:   vp.threshold,
 		SignedFacts: vp.sfs,
 		ID:          vp.id,
@@ -44,7 +42,6 @@ func (vp baseVoteproof) MarshalJSON() ([]byte, error) {
 
 type baseVoteproofJSONUnmarshaler struct {
 	FinishedAt  localtime.Time        `json:"finished_at"`
-	Result      base.VoteResult       `json:"result"`
 	ID          string                `json:"id"`
 	Majority    valuehash.HashDecoder `json:"majority"`
 	SignedFacts []json.RawMessage     `json:"signed_facts"`
@@ -83,7 +80,6 @@ func (vp *baseVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	vp.threshold = u.Threshold
 	vp.finishedAt = u.FinishedAt.Time
 	vp.point = u.Point
-	vp.result = u.Result
 	vp.id = u.ID
 
 	return nil

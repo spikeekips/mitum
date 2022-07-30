@@ -19,8 +19,7 @@ type baseVoteproof struct {
 	finishedAt time.Time
 	majority   base.BallotFact
 	hint.BaseHinter
-	result base.VoteResult
-	id     string
+	id string
 	util.DefaultJSONMarshaled
 	sfs       []base.BallotSignedFact
 	point     base.StagePoint
@@ -46,7 +45,7 @@ func (baseVoteproof) IsValid([]byte) error {
 }
 
 func (vp baseVoteproof) HashBytes() []byte {
-	bs := make([]util.Byter, len(vp.sfs)+6)
+	bs := make([]util.Byter, len(vp.sfs)+4)
 	bs[0] = util.DummyByter(func() []byte {
 		if vp.majority == nil {
 			return nil
@@ -55,13 +54,12 @@ func (vp baseVoteproof) HashBytes() []byte {
 		return vp.majority.Hash().Bytes()
 	})
 	bs[1] = vp.point
-	bs[2] = vp.result
-	bs[4] = vp.threshold
-	bs[5] = localtime.New(vp.finishedAt)
+	bs[2] = vp.threshold
+	bs[3] = localtime.New(vp.finishedAt)
 
 	for i := range vp.sfs {
 		v := vp.sfs[i]
-		bs[6+i] = util.DummyByter(func() []byte {
+		bs[4+i] = util.DummyByter(func() []byte {
 			return v.HashBytes()
 		})
 	}
@@ -100,17 +98,14 @@ func (vp *baseVoteproof) SetPoint(p base.StagePoint) *baseVoteproof {
 }
 
 func (vp baseVoteproof) Result() base.VoteResult {
-	return vp.result
-}
-
-func (vp *baseVoteproof) SetResult(r base.VoteResult) *baseVoteproof {
-	vp.result = r
-
-	if r == base.VoteResultDraw {
-		vp.majority = nil
+	switch {
+	case vp.finishedAt.IsZero():
+		return base.VoteResultNotYet
+	case vp.majority != nil:
+		return base.VoteResultMajority
+	default:
+		return base.VoteResultDraw
 	}
-
-	return vp
 }
 
 func (vp baseVoteproof) Threshold() base.Threshold {

@@ -227,7 +227,7 @@ func (g *GenesisBlockGenerator) initVoetproof() error {
 	}
 
 	vp := isaac.NewINITVoteproof(fact.Point().Point)
-	vp.SetResult(base.VoteResultMajority).
+	vp.
 		SetMajority(fact).
 		SetSignedFacts([]base.BallotSignedFact{sf}).
 		SetThreshold(base.MaxThreshold).
@@ -262,7 +262,7 @@ func (g *GenesisBlockGenerator) acceptVoteproof(proposal, newblock util.Hash) er
 	}
 
 	vp := isaac.NewACCEPTVoteproof(fact.Point().Point)
-	vp.SetResult(base.VoteResultMajority).
+	vp.
 		SetMajority(fact).
 		SetSignedFacts([]base.BallotSignedFact{sf}).
 		SetThreshold(base.MaxThreshold).

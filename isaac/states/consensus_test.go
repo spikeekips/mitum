@@ -234,7 +234,7 @@ func (t *testConsensusHandler) TestInvalidVoteproofs() {
 
 		_, err := st.enter(sctx)
 		t.Error(err)
-		t.ErrorContains(err, "empty majority")
+		t.ErrorContains(err, "wrong vote result")
 	})
 }
 

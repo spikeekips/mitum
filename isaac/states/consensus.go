@@ -76,8 +76,6 @@ func (st *ConsensusHandler) enter(i switchContext) (func(), error) {
 		return nil, e(nil, "invalid stateSwitchContext, empty init voteproof")
 	case j.ivp.Result() != base.VoteResultMajority:
 		return nil, e(nil, "invalid stateSwitchContext, wrong vote result of init voteproof, %q", j.ivp.Result())
-	case j.ivp.Majority() == nil:
-		return nil, e(nil, "invalid stateSwitchContext, empty majority of init voteproof")
 	default:
 		sctx = j
 	}

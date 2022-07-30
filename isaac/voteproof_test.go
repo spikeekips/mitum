@@ -40,6 +40,14 @@ func (t *testBaseVoteproof) validVoteproof() INITVoteproof {
 	return ivp
 }
 
+func (t *testBaseVoteproof) TestSetResult() { // FIXME remove
+	ivp := t.validVoteproof()
+
+	vp := (interface{})(ivp).(base.Voteproof)
+
+	t.NoError(vp.IsValid(t.networkID))
+}
+
 func (t *testBaseVoteproof) TestNewINIT() {
 	ivp := t.validVoteproof()
 
@@ -68,7 +76,7 @@ func (t *testBaseVoteproof) TestInvalidStage() {
 
 func (t *testBaseVoteproof) TestInvalidVoteResult() {
 	ivp := t.validVoteproof()
-	ivp.SetResult(base.VoteResultNotYet).Finish()
+	ivp.SetResult(base.VoteResultNotYet)
 
 	err := ivp.IsValid(t.networkID)
 	t.Error(err)
@@ -82,8 +90,7 @@ func (t *testBaseVoteproof) TestZeroFinishedAt() {
 
 	err := ivp.IsValid(t.networkID)
 	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
-	t.ErrorContains(err, "zero finished time")
+	t.ErrorContains(err, "not yet finished")
 }
 
 func (t *testBaseVoteproof) TestEmptySignedFacts() {
@@ -98,23 +105,12 @@ func (t *testBaseVoteproof) TestEmptySignedFacts() {
 
 func (t *testBaseVoteproof) TestNilMajority() {
 	ivp := t.validVoteproof()
-	ivp.SetMajority(nil).Finish()
+	ivp.SetMajority(nil)
 
 	err := ivp.IsValid(t.networkID)
-	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
-	t.ErrorContains(err, "empty majority")
-}
+	t.NoError(err)
 
-func (t *testBaseVoteproof) TestNotNilMajorityOfDraw() {
-	ivp := t.validVoteproof()
-	m := ivp.Majority()
-	ivp.SetResult(base.VoteResultDraw).SetMajority(m).Finish()
-
-	err := ivp.IsValid(t.networkID)
-	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
-	t.ErrorContains(err, "empty majority")
+	t.Equal(base.VoteResultDraw, ivp.Result())
 }
 
 func (t *testBaseVoteproof) TestInvalidPoint() {

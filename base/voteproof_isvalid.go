@@ -14,8 +14,6 @@ func isValidVoteproof(vp Voteproof, networkID NetworkID) error {
 		return e(util.ErrInvalid.Errorf("wrong stage, %q for Voteproof", vp.Point().Stage()), "")
 	case vp.Result() == VoteResultNotYet:
 		return e(util.ErrInvalid.Errorf("not yet finished"), "")
-	case vp.FinishedAt().IsZero():
-		return e(util.ErrInvalid.Errorf("draw, but zero finished time"), "")
 	case len(vp.SignedFacts()) < 1:
 		return e(util.ErrInvalid.Errorf("empty signed facts"), "")
 	}

@@ -529,18 +529,17 @@ func (vr *voterecords) countFromBallots() base.Voteproof {
 
 	vr.f = true
 
-	return vr.newVoteproof(result, vr.sfs, majority)
+	return vr.newVoteproof(vr.sfs, majority)
 }
 
 func (vr *voterecords) newVoteproof(
-	result base.VoteResult,
 	sfs []base.BallotSignedFact,
 	majority base.BallotFact,
 ) base.Voteproof {
 	switch vr.stagepoint.Stage() {
 	case base.StageINIT:
 		vp := isaac.NewINITVoteproof(vr.stagepoint.Point)
-		_ = vp.SetResult(result).
+		_ = vp.
 			SetSignedFacts(sfs).
 			SetMajority(majority).
 			SetThreshold(vr.threshold).
@@ -549,7 +548,7 @@ func (vr *voterecords) newVoteproof(
 		return vp
 	case base.StageACCEPT:
 		vp := isaac.NewACCEPTVoteproof(vr.stagepoint.Point)
-		_ = vp.SetResult(result).
+		_ = vp.
 			SetSignedFacts(sfs).
 			SetMajority(majority).
 			SetThreshold(vr.threshold).
