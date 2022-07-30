@@ -46,7 +46,7 @@ func NewSuffrageJoinProcessor(
 	case err != nil:
 		return nil, e(err, "")
 	case !found, i == nil:
-		return nil, e(isaac.StopProcessingRetryError.Errorf("empty state returned"), "")
+		return nil, e(isaac.StopProcessingRetryError.Errorf("empty state"), "")
 	default:
 		p.sufstv = i.Value().(base.SuffrageNodesStateValue) //nolint:forcetypeassert //...
 
@@ -117,8 +117,8 @@ func (p *SuffrageJoinProcessor) PreProcess(ctx context.Context, op base.Operatio
 	switch i, found := p.candidates[n.String()]; {
 	case !found:
 		return base.NewBaseOperationProcessReasonError("candidate not in candidates, %q", n), nil
-	case fact.StartHeight() != i.Start():
-		return base.NewBaseOperationProcessReasonError("start height does not match"), nil
+	case fact.Start() != i.Start():
+		return base.NewBaseOperationProcessReasonError("start does not match"), nil
 	case i.Deadline() < p.Height():
 		return base.NewBaseOperationProcessReasonError("candidate expired, %q", n), nil
 	default:
@@ -174,7 +174,7 @@ func (p *SuffrageJoinProcessor) Process(ctx context.Context, op base.Operation, 
 		),
 		base.NewBaseStateMergeValue(
 			isaac.SuffrageStateKey,
-			newSuffrageAddNodeStateValue(p.sufstv.Height()+1, []base.Node{member}),
+			newSuffrageJoinNodeStateValue([]base.Node{member}),
 			func(height base.Height, st base.State) base.StateValueMerger {
 				return NewSuffrageJoinStateValueMerger(height, st)
 			},
@@ -206,7 +206,8 @@ func (*SuffrageJoinProcessor) findCandidateFromSigned(op base.Operation) (base.N
 type SuffrageJoinStateValueMerger struct {
 	*base.BaseStateValueMerger
 	existings []base.SuffrageNodeStateValue
-	added     []base.Node
+	joined    []base.Node
+	disjoined []base.Address
 }
 
 func NewSuffrageJoinStateValueMerger(height base.Height, st base.State) *SuffrageJoinStateValueMerger {
@@ -220,15 +221,17 @@ func NewSuffrageJoinStateValueMerger(height base.Height, st base.State) *Suffrag
 }
 
 func (s *SuffrageJoinStateValueMerger) Merge(value base.StateValue, ops []util.Hash) error {
-	v, ok := value.(suffrageAddNodeStateValue)
-	if !ok {
-		return errors.Errorf("not suffrageAddNodeStateValue, %T", value)
-	}
-
 	s.Lock()
 	defer s.Unlock()
 
-	s.added = append(s.added, v.nodes...)
+	switch t := value.(type) {
+	case suffrageJoinNodeStateValue:
+		s.joined = append(s.joined, t.nodes...)
+	case suffrageDisjoinNodeStateValue:
+		s.disjoined = append(s.disjoined, t.nodes...)
+	default:
+		return errors.Errorf("unsupported suffrage state value, %T", value)
+	}
 
 	s.AddOperations(ops)
 
@@ -250,57 +253,64 @@ func (s *SuffrageJoinStateValueMerger) close() (base.StateValue, error) {
 	s.Lock()
 	defer s.Unlock()
 
-	if len(s.added) < 1 {
-		return nil, isaac.ErrIgnoreStateValue.Errorf("empty newly added nodes")
+	existings := s.existings
+
+	if len(s.disjoined) > 0 {
+		filtered := util.Filter2Slices(s.existings, s.disjoined, func(_, _ interface{}, i, j int) bool {
+			return s.existings[i].Address().Equal(s.disjoined[j])
+		})
+
+		existings = make([]base.SuffrageNodeStateValue, len(existings)-len(s.disjoined))
+		for i := range filtered {
+			existings[i] = filtered[i].(base.SuffrageNodeStateValue) //nolint:forcetypeassert //...
+		}
 	}
 
-	sort.Slice(s.added, func(i, j int) bool { // NOTE sort by address
-		return strings.Compare(s.added[i].Address().String(), s.added[j].Address().String()) < 0
-	})
+	if len(s.joined) > 0 {
+		sort.Slice(s.joined, func(i, j int) bool { // NOTE sort by address
+			return strings.Compare(s.joined[i].Address().String(), s.joined[j].Address().String()) < 0
+		})
+	}
 
-	newnodes := make([]base.SuffrageNodeStateValue, len(s.existings)+len(s.added))
-	copy(newnodes, s.existings)
+	newnodes := make([]base.SuffrageNodeStateValue, len(existings)+len(s.joined))
+	copy(newnodes, existings)
 
-	for i := range s.added {
-		newnodes[len(s.existings)+i] = isaac.NewSuffrageNodeStateValue(s.added[i], s.Height()+1)
+	for i := range s.joined {
+		newnodes[len(existings)+i] = isaac.NewSuffrageNodeStateValue(s.joined[i], s.Height()+1)
 	}
 
 	return isaac.NewSuffrageNodesStateValue(s.Height(), newnodes), nil
 }
 
-type suffrageAddNodeStateValue struct {
-	nodes          []base.Node
-	suffrageheight base.Height
+type suffrageJoinNodeStateValue struct {
+	nodes []base.Node
 }
 
-func newSuffrageAddNodeStateValue(suffrageheight base.Height, nodes []base.Node) suffrageAddNodeStateValue {
-	return suffrageAddNodeStateValue{
-		nodes:          nodes,
-		suffrageheight: suffrageheight,
+func newSuffrageJoinNodeStateValue(nodes []base.Node) suffrageJoinNodeStateValue {
+	return suffrageJoinNodeStateValue{
+		nodes: nodes,
 	}
 }
 
-func (s suffrageAddNodeStateValue) IsValid([]byte) error {
-	vs := make([]util.IsValider, len(s.nodes)+1)
-	vs[0] = s.suffrageheight
+func (s suffrageJoinNodeStateValue) IsValid([]byte) error {
+	vs := make([]util.IsValider, len(s.nodes))
 
 	for i := range vs {
-		vs[i+1] = s.nodes[i]
+		vs[i] = s.nodes[i]
 	}
 
 	if err := util.CheckIsValid(nil, false, vs...); err != nil {
-		return util.ErrInvalid.Errorf("invalie suffrageAddNodeStateValue")
+		return util.ErrInvalid.Errorf("invalie suffrageJoinNodeStateValue")
 	}
 
 	return nil
 }
 
-func (s suffrageAddNodeStateValue) HashBytes() []byte {
-	bs := make([]util.Byter, len(s.nodes)+1)
-	bs[0] = util.DummyByter(s.suffrageheight.Bytes)
+func (s suffrageJoinNodeStateValue) HashBytes() []byte {
+	bs := make([]util.Byter, len(s.nodes))
 
 	for i := range s.nodes {
-		bs[i+1] = util.DummyByter(s.nodes[i].HashBytes)
+		bs[i] = util.DummyByter(s.nodes[i].HashBytes)
 	}
 
 	return util.ConcatByters(bs...)

@@ -21,18 +21,18 @@ var (
 type SuffrageJoinFact struct {
 	candidate base.Address
 	base.BaseFact
-	startHeight base.Height
+	start base.Height
 }
 
 func NewSuffrageJoinFact(
 	token base.Token,
 	candidate base.Address,
-	startHeight base.Height,
+	start base.Height,
 ) SuffrageJoinFact {
 	fact := SuffrageJoinFact{
-		BaseFact:    base.NewBaseFact(SuffrageJoinFactHint, token),
-		candidate:   candidate,
-		startHeight: startHeight,
+		BaseFact:  base.NewBaseFact(SuffrageJoinFactHint, token),
+		candidate: candidate,
+		start:     start,
 	}
 
 	fact.SetHash(fact.hash())
@@ -43,7 +43,7 @@ func NewSuffrageJoinFact(
 func (fact SuffrageJoinFact) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid SuffrageJoinFact")
 
-	if err := util.CheckIsValid(nil, false, fact.BaseFact, fact.candidate, fact.startHeight); err != nil {
+	if err := util.CheckIsValid(nil, false, fact.BaseFact, fact.candidate, fact.start); err != nil {
 		return e(err, "")
 	}
 
@@ -58,15 +58,15 @@ func (fact SuffrageJoinFact) Candidate() base.Address {
 	return fact.candidate
 }
 
-func (fact SuffrageJoinFact) StartHeight() base.Height {
-	return fact.startHeight
+func (fact SuffrageJoinFact) Start() base.Height {
+	return fact.start
 }
 
 func (fact SuffrageJoinFact) hash() util.Hash {
 	return valuehash.NewSHA256(util.ConcatByters(
 		util.BytesToByter(fact.Token()),
 		fact.candidate,
-		fact.startHeight,
+		fact.start,
 	))
 }
 

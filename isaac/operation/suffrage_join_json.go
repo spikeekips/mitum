@@ -9,21 +9,21 @@ import (
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 )
 
-type SuffrageJoinFactJSONMarshaler struct {
+type suffrageJoinFactJSONMarshaler struct {
 	Candidate base.Address `json:"candidate"`
 	base.BaseFactJSONMarshaler
 	StartHeight base.Height `json:"start_height"`
 }
 
 func (fact SuffrageJoinFact) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(SuffrageJoinFactJSONMarshaler{
+	return util.MarshalJSON(suffrageJoinFactJSONMarshaler{
 		BaseFactJSONMarshaler: fact.BaseFact.JSONMarshaler(),
 		Candidate:             fact.candidate,
-		StartHeight:           fact.startHeight,
+		StartHeight:           fact.start,
 	})
 }
 
-type SuffrageJoinFactJSONUnmarshaler struct {
+type suffrageJoinFactJSONUnmarshaler struct {
 	Candidate string `json:"candidate"`
 	base.BaseFactJSONUnmarshaler
 	StartHeight base.Height `json:"start_height"`
@@ -32,7 +32,7 @@ type SuffrageJoinFactJSONUnmarshaler struct {
 func (fact *SuffrageJoinFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	e := util.StringErrorFunc("failed to decode SuffrageJoinFact")
 
-	var u SuffrageJoinFactJSONUnmarshaler
+	var u suffrageJoinFactJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
 		return e(err, "")
 	}
@@ -46,24 +46,24 @@ func (fact *SuffrageJoinFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		fact.candidate = i
 	}
 
-	fact.startHeight = u.StartHeight
+	fact.start = u.StartHeight
 
 	return nil
 }
 
-type SuffrageGenesisJoinFactJSONMarshaler struct {
+type suffrageGenesisJoinFactJSONMarshaler struct {
 	Nodes []base.Node `json:"nodes"`
 	base.BaseFactJSONMarshaler
 }
 
 func (fact SuffrageGenesisJoinFact) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(SuffrageGenesisJoinFactJSONMarshaler{
+	return util.MarshalJSON(suffrageGenesisJoinFactJSONMarshaler{
 		BaseFactJSONMarshaler: fact.BaseFact.JSONMarshaler(),
 		Nodes:                 fact.nodes,
 	})
 }
 
-type SuffrageGenesisJoinFactJSONUnmarshaler struct {
+type suffrageGenesisJoinFactJSONUnmarshaler struct {
 	Nodes []json.RawMessage `json:"nodes"`
 	base.BaseFactJSONUnmarshaler
 }
@@ -71,7 +71,7 @@ type SuffrageGenesisJoinFactJSONUnmarshaler struct {
 func (fact *SuffrageGenesisJoinFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	e := util.StringErrorFunc("failed to decode SuffrageGenesisJoinFact")
 
-	var u SuffrageGenesisJoinFactJSONUnmarshaler
+	var u suffrageGenesisJoinFactJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
 		return e(err, "")
 	}

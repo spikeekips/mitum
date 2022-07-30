@@ -192,7 +192,7 @@ func (t *testSuffrageJoinProcessor) TestFromEmptyState() {
 		nil,
 	)
 	t.Error(err)
-	t.ErrorContains(err, "empty state returned")
+	t.ErrorContains(err, "empty state")
 	t.True(errors.Is(err, isaac.StopProcessingRetryError))
 }
 
@@ -296,7 +296,7 @@ func (t *testSuffrageJoinProcessor) TestStartHeightMismatch() {
 	reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
 	t.NoError(err)
 	t.NotNil(reason)
-	t.ErrorContains(reason, "start height does not match")
+	t.ErrorContains(reason, "start does not match")
 }
 
 func (t *testSuffrageJoinProcessor) TestPreProcessConstaint() {
