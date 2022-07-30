@@ -13,6 +13,8 @@ import (
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
+// FIXME add node info
+
 type QuicstreamHandlers struct {
 	pool   isaac.ProposalPool
 	oppool isaac.NewOperationPool
@@ -74,6 +76,7 @@ func NewQuicstreamHandlers( // revive:disable-line:argument-limit
 
 func (c *QuicstreamHandlers) ErrorHandler(_ net.Addr, _ io.Reader, w io.Writer, err error) error {
 	if e := c.response(w, NewResponseHeader(false, err), nil); e != nil {
+		// FIXME hide detailed internal error like network error or storage error
 		return errors.Wrap(e, "failed to response error response")
 	}
 
@@ -151,23 +154,8 @@ func (c *QuicstreamHandlers) SendOperation(_ net.Addr, r io.Reader, w io.Writer)
 		}
 	}
 
-	switch passed, err := c.filterSendOperationf(op); {
-	case err != nil:
-		var reason base.OperationProcessReasonError
-
-		if errors.As(err, &reason) {
-			err = reason
-		}
-
-		res := NewResponseHeader(false, err)
-
-		if err := c.response(w, res, nil); err != nil {
-			return e(err, "")
-		}
-
-		return nil
-	case !passed:
-		return e(nil, "filtered")
+	if err := c.filterNewOperation(op); err != nil {
+		return e(err, "")
 	}
 
 	added, err := c.oppool.SetNewOperation(context.Background(), op)
@@ -564,4 +552,28 @@ func (c *QuicstreamHandlers) nodeConnInfos(
 
 func (c *QuicstreamHandlers) response(w io.Writer, header isaac.NetworkHeader, body interface{}) error {
 	return Response(w, header, body, c.enc)
+}
+
+func (c *QuicstreamHandlers) filterNewOperation(op base.Operation) error {
+	switch found, err := c.existsInStateOperationf(op.Fact().Hash()); {
+	case err != nil:
+		return err
+	case found:
+		return util.ErrFound.Errorf("already in state")
+	}
+
+	switch passed, err := c.filterSendOperationf(op); {
+	case err != nil:
+		var reason base.OperationProcessReasonError
+
+		if errors.As(err, &reason) {
+			err = reason
+		}
+
+		return err
+	case !passed:
+		return errors.Errorf("filtered")
+	default:
+		return nil
+	}
 }

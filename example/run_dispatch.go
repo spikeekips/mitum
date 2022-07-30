@@ -1222,6 +1222,15 @@ func (cmd *runCommand) operationProcessorsMap() *hint.CompatibleSet {
 		)
 	})
 
+	_ = set.Add(isaacoperation.SuffrageDisjoinHint, func(height base.Height) (base.OperationProcessor, error) {
+		return isaacoperation.NewSuffrageDisjoinProcessor(
+			height,
+			cmd.db.State,
+			nil,
+			nil,
+		)
+	})
+
 	return set
 }
 

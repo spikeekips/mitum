@@ -189,6 +189,7 @@ func (t *testQuicstreamHandlers) TestSendOperation() {
 	defer pool.DeepClose()
 
 	handlers := newQuicstreamHandlers(t.Local, t.NodePolicy, t.Encs, t.Enc, time.Second)
+	handlers.existsInStateOperationf = func(util.Hash) (bool, error) { return false, nil }
 	handlers.filterSendOperationf = func(base.Operation) (bool, error) { return true, nil }
 	handlers.oppool = pool
 
