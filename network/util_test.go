@@ -13,7 +13,7 @@ import (
 )
 
 type notEOFReader struct {
-	sync.Mutex
+	l    sync.Mutex
 	r    *bytes.Buffer
 	done bool
 }
@@ -25,15 +25,15 @@ func newNotEOFReader(b []byte) *notEOFReader {
 }
 
 func (r *notEOFReader) Done() {
-	r.Lock()
-	defer r.Unlock()
+	r.l.Lock()
+	defer r.l.Unlock()
 
 	r.done = true
 }
 
 func (r *notEOFReader) Read(p []byte) (int, error) {
-	r.Lock()
-	defer r.Unlock()
+	r.l.Lock()
+	defer r.l.Unlock()
 
 	<-time.After(time.Millisecond * 33)
 
@@ -55,8 +55,8 @@ func (r *notEOFReader) Read(p []byte) (int, error) {
 }
 
 func (r *notEOFReader) Write(b []byte) (int, error) {
-	r.Lock()
-	defer r.Unlock()
+	r.l.Lock()
+	defer r.l.Unlock()
 
 	return r.r.Write(b)
 }

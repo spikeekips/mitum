@@ -31,9 +31,9 @@ type Memberlist struct {
 	members        *membersPool
 	cicache        *util.GCacheObjectPool
 	oneMemberLimit int
-	sync.RWMutex
-	joinedLock sync.RWMutex
-	isJoined   bool
+	l              sync.RWMutex
+	joinedLock     sync.RWMutex
+	isJoined       bool
 }
 
 func NewMemberlist(
@@ -96,8 +96,8 @@ func (srv *Memberlist) Join(cis []quicstream.UDPConnInfo) error {
 	}
 
 	m, created, err := func() (*memberlist.Memberlist, bool, error) {
-		srv.Lock()
-		defer srv.Unlock()
+		srv.l.Lock()
+		defer srv.l.Unlock()
 
 		if srv.m != nil {
 			return srv.m, false, nil
@@ -139,8 +139,8 @@ func (srv *Memberlist) Join(cis []quicstream.UDPConnInfo) error {
 }
 
 func (srv *Memberlist) Leave(timeout time.Duration) error {
-	srv.RLock()
-	defer srv.RUnlock()
+	srv.l.RLock()
+	defer srv.l.RUnlock()
 
 	if srv.m == nil {
 		return nil
@@ -210,8 +210,8 @@ func (srv *Memberlist) start(ctx context.Context) error {
 
 	// NOTE leave before shutdown
 	if err := func() error {
-		srv.RLock()
-		defer srv.RUnlock()
+		srv.l.RLock()
+		defer srv.l.RUnlock()
 
 		if srv.m == nil {
 			return nil
