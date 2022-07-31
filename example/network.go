@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -24,6 +26,7 @@ var (
 	headerExamplesDesc = map[string]string{
 		isaacnetwork.HandlerPrefixSendOperation: `$ cmd <header> --body=<json body>`,
 	}
+	headerExamplesKeys []string
 )
 
 func init() {
@@ -55,6 +58,19 @@ func init() {
 		launch.HandlerPrefixPprof: launch.NewPprofRequestHeader(
 			"heap", 5, true), //nolint:gomnd //...
 	}
+
+	headerExamplesKeys = make([]string, len(headerExamples))
+
+	var i int
+
+	for k := range headerExamples {
+		headerExamplesKeys[i] = k
+		i++
+	}
+
+	sort.Slice(headerExamplesKeys, func(i, j int) bool {
+		return strings.Compare(headerExamplesKeys[i], headerExamplesKeys[j]) < 0
+	})
 }
 
 type networkClientCommand struct { //nolint:govet //...
@@ -72,14 +88,16 @@ func (cmd *networkClientCommand) Run() error {
 	if cmd.Header == "example" {
 		_, _ = fmt.Fprintln(os.Stdout, "example headers:")
 
-		for desc := range headerExamples {
-			b, err := util.MarshalJSON(headerExamples[desc])
+		for i := range headerExamplesKeys {
+			k := headerExamplesKeys[i]
+
+			b, err := util.MarshalJSON(headerExamples[k])
 			if err != nil {
 				return err
 			}
 
-			help := headerExamplesDesc[desc]
-			_, _ = fmt.Fprintf(os.Stdout, "- %s: %s\n", desc, help)
+			help := headerExamplesDesc[k]
+			_, _ = fmt.Fprintf(os.Stdout, "- %s: %s\n", k, help)
 			_, _ = fmt.Fprintln(os.Stdout, "   ", string(b))
 		}
 
