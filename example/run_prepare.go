@@ -42,7 +42,7 @@ func (cmd *runCommand) prepare() (func() error, error) {
 	cmd.nodeinfo = isaacnetwork.NewNodeInfoUpdater(cmd.local, version)
 	_ = cmd.nodeinfo.SetConsensusState(isaacstates.StateBooting)
 	_ = cmd.nodeinfo.SetConnInfo(network.ConnInfoToString(
-		cmd.design.Network.Publish().String(),
+		cmd.design.Network.PublishString,
 		cmd.design.Network.TLSInsecure,
 	))
 	_ = cmd.nodeinfo.SetNodePolicy(cmd.nodePolicy)
