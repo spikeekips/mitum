@@ -4,6 +4,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
+	"github.com/spikeekips/mitum/network/quicstream"
+	"github.com/spikeekips/mitum/storage"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
 )
@@ -462,6 +464,10 @@ func (ExistsInStateOperationRequestHeader) HandlerPrefix() string {
 	return HandlerPrefixExistsInStateOperation
 }
 
+func (h ExistsInStateOperationRequestHeader) FactHash() util.Hash {
+	return h.facthash
+}
+
 type NodeInfoRequestHeader struct {
 	BaseHeader
 }
@@ -488,10 +494,20 @@ type ResponseHeader struct {
 }
 
 func NewResponseHeader(ok bool, err error) ResponseHeader {
+	// NOTE detailed internal error like network error or storage error will be
+	// hidden
+	ierr := err
+
+	switch {
+	case err == nil:
+	case storage.IsStorageError(err), quicstream.IsNetworkError(err):
+		ierr = util.ErrInternal.Call()
+	}
+
 	return ResponseHeader{
 		BaseHeader: NewBaseHeader(ResponseHeaderHint),
 		ok:         ok,
-		err:        err,
+		err:        ierr,
 	}
 }
 

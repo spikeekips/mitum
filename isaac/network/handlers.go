@@ -18,8 +18,6 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
-// FIXME add node info
-
 type QuicstreamHandlers struct {
 	pool   isaac.ProposalPool
 	oppool isaac.NewOperationPool
@@ -90,7 +88,6 @@ func NewQuicstreamHandlers( // revive:disable-line:argument-limit
 
 func (c *QuicstreamHandlers) ErrorHandler(_ net.Addr, _ io.Reader, w io.Writer, err error) error {
 	if e := c.response(w, NewResponseHeader(false, err), nil); e != nil {
-		// FIXME hide detailed internal error like network error or storage error
 		return errors.Wrap(e, "failed to response error response")
 	}
 
@@ -114,8 +111,27 @@ func (c *QuicstreamHandlers) Operation(_ net.Addr, r io.Reader, w io.Writer) err
 		return e(err, "")
 	}
 
-	op, found, err := c.oppool.NewOperation(context.Background(), header.Operation())
-	res := NewResponseHeader(found, err)
+	i, err, _ := c.sg.Do(HandlerPrefixOperation+header.Operation().String(), func() (interface{}, error) {
+		op, found, oerr := c.oppool.NewOperation(context.Background(), header.Operation())
+
+		return [2]interface{}{op, found}, oerr
+	})
+
+	if err != nil {
+		return e(err, "")
+	}
+
+	j := i.([2]interface{}) //nolint:forcetypeassert //...
+
+	var op base.Operation
+
+	if j[0] != nil {
+		op = j[0].(base.Operation) //nolint:forcetypeassert //...
+	}
+
+	found := j[1].(bool) //nolint:forcetypeassert //...
+
+	res := NewResponseHeader(found, nil)
 
 	if err := c.response(w, res, op); err != nil {
 		return e(err, "")
@@ -200,9 +216,17 @@ func (c *QuicstreamHandlers) RequestProposal(_ net.Addr, r io.Reader, w io.Write
 		return e(err, "")
 	}
 
-	pr, err := c.getOrCreateProposal(header.point, header.proposer)
+	i, err, _ := c.sg.Do(HandlerPrefixRequestProposal+header.Proposer().String(), func() (interface{}, error) {
+		return c.getOrCreateProposal(header.point, header.Proposer())
+	})
 
-	res := NewResponseHeader(pr != nil, err)
+	if err != nil {
+		return e(err, "")
+	}
+
+	pr := i.(base.ProposalSignedFact) //nolint:forcetypeassert //...
+
+	res := NewResponseHeader(pr != nil, nil)
 
 	if err := c.response(w, res, pr); err != nil {
 		return e(err, "")
@@ -228,9 +252,27 @@ func (c *QuicstreamHandlers) Proposal(_ net.Addr, r io.Reader, w io.Writer) erro
 		return e(err, "")
 	}
 
-	pr, found, err := c.pool.Proposal(header.proposal)
+	i, err, _ := c.sg.Do(HandlerPrefixProposal+header.Proposal().String(), func() (interface{}, error) {
+		pr, found, oerr := c.pool.Proposal(header.Proposal())
 
-	res := NewResponseHeader(found, err)
+		return [2]interface{}{pr, found}, oerr
+	})
+
+	if err != nil {
+		return e(err, "")
+	}
+
+	j := i.([2]interface{}) //nolint:forcetypeassert //...
+
+	var pr base.ProposalSignedFact
+
+	if j[0] != nil {
+		pr = j[0].(base.ProposalSignedFact) //nolint:forcetypeassert //...
+	}
+
+	found := j[1].(bool) //nolint:forcetypeassert //...
+
+	res := NewResponseHeader(found, nil)
 
 	if err := c.response(w, res, pr); err != nil {
 		return e(err, "")
@@ -252,8 +294,32 @@ func (c *QuicstreamHandlers) LastSuffrageProof(_ net.Addr, r io.Reader, w io.Wri
 		return e(err, "")
 	}
 
-	proof, updated, err := c.lastSuffrageProoff(header.State())
-	res := NewResponseHeader(updated, err)
+	sgkey := HandlerPrefixLastSuffrageProof
+	if header.State() != nil {
+		sgkey += header.State().String()
+	}
+
+	i, err, _ := c.sg.Do(sgkey, func() (interface{}, error) {
+		proof, updated, oerr := c.lastSuffrageProoff(header.State())
+
+		return [2]interface{}{proof, updated}, oerr
+	})
+
+	if err != nil {
+		return e(err, "")
+	}
+
+	j := i.([2]interface{}) //nolint:forcetypeassert //...
+
+	var proof base.SuffrageProof
+
+	if j[0] != nil {
+		proof = j[0].(base.SuffrageProof) //nolint:forcetypeassert //...
+	}
+
+	updated := j[1].(bool) //nolint:forcetypeassert //...
+
+	res := NewResponseHeader(updated, nil)
 
 	if err := c.response(w, res, proof); err != nil {
 		return e(err, "")
@@ -275,8 +341,27 @@ func (c *QuicstreamHandlers) SuffrageProof(_ net.Addr, r io.Reader, w io.Writer)
 		return e(err, "")
 	}
 
-	proof, found, err := c.suffrageProoff(header.Height())
-	res := NewResponseHeader(found, err)
+	i, err, _ := c.sg.Do(HandlerPrefixSuffrageProof+header.Height().String(), func() (interface{}, error) {
+		proof, found, oerr := c.suffrageProoff(header.Height())
+
+		return [2]interface{}{proof, found}, oerr
+	})
+
+	if err != nil {
+		return e(err, "")
+	}
+
+	j := i.([2]interface{}) //nolint:forcetypeassert //...
+
+	var proof base.SuffrageProof
+
+	if j[0] != nil {
+		proof = j[0].(base.SuffrageProof) //nolint:forcetypeassert //...
+	}
+
+	found := j[1].(bool) //nolint:forcetypeassert //...
+
+	res := NewResponseHeader(found, nil)
 
 	if err := c.response(w, res, proof); err != nil {
 		return e(err, "")
@@ -304,8 +389,33 @@ func (c *QuicstreamHandlers) LastBlockMap(_ net.Addr, r io.Reader, w io.Writer) 
 		return e(err, "")
 	}
 
-	m, updated, err := c.lastBlockMapf(header.Manifest())
-	res := NewResponseHeader(updated, err)
+	sgkey := HandlerPrefixLastBlockMap
+
+	if header.Manifest() != nil {
+		sgkey += header.Manifest().String()
+	}
+
+	i, err, _ := c.sg.Do(sgkey, func() (interface{}, error) {
+		m, updated, oerr := c.lastBlockMapf(header.Manifest())
+
+		return [2]interface{}{m, updated}, oerr
+	})
+
+	if err != nil {
+		return e(err, "")
+	}
+
+	j := i.([2]interface{}) //nolint:forcetypeassert //...
+
+	var m base.BlockMap
+
+	if j[0] != nil {
+		m = j[0].(base.BlockMap) //nolint:forcetypeassert //...
+	}
+
+	updated := j[1].(bool) //nolint:forcetypeassert //...
+
+	res := NewResponseHeader(updated, nil)
 
 	if err := c.response(w, res, m); err != nil {
 		return e(err, "")
@@ -331,8 +441,27 @@ func (c *QuicstreamHandlers) BlockMap(_ net.Addr, r io.Reader, w io.Writer) erro
 		return e(err, "")
 	}
 
-	m, found, err := c.blockMapf(header.Height())
-	res := NewResponseHeader(found, err)
+	i, err, _ := c.sg.Do(HandlerPrefixBlockMap+header.Height().String(), func() (interface{}, error) {
+		m, found, oerr := c.blockMapf(header.Height())
+
+		return [2]interface{}{m, found}, oerr
+	})
+
+	if err != nil {
+		return e(err, "")
+	}
+
+	j := i.([2]interface{}) //nolint:forcetypeassert //...
+
+	var m base.BlockMap
+
+	if j[0] != nil {
+		m = j[0].(base.BlockMap) //nolint:forcetypeassert //...
+	}
+
+	found := j[1].(bool) //nolint:forcetypeassert //...
+
+	res := NewResponseHeader(found, nil)
 
 	if err := c.response(w, res, m); err != nil {
 		return e(err, "")
@@ -399,14 +528,19 @@ func (c *QuicstreamHandlers) NodeChallenge(_ net.Addr, r io.Reader, w io.Writer)
 		return e(err, "")
 	}
 
-	sig, err := c.local.Privatekey().Sign(util.ConcatBytesSlice(
-		c.local.Address().Bytes(),
-		c.nodepolicy.NetworkID(),
-		header.Input(),
-	))
+	i, err, _ := c.sg.Do(HandlerPrefixNodeChallenge+string(header.Input()), func() (interface{}, error) {
+		return c.local.Privatekey().Sign(util.ConcatBytesSlice(
+			c.local.Address().Bytes(),
+			c.nodepolicy.NetworkID(),
+			header.Input(),
+		))
+	})
+
 	if err != nil {
 		return e(err, "")
 	}
+
+	sig := i.(base.Signature) //nolint:forcetypeassert //...
 
 	res := NewResponseHeader(true, nil)
 
@@ -454,8 +588,27 @@ func (c *QuicstreamHandlers) State(_ net.Addr, r io.Reader, w io.Writer) error {
 		return e(err, "")
 	}
 
-	st, found, err := c.statef(header.Key())
-	res := NewResponseHeader(found, err)
+	i, err, _ := c.sg.Do(HandlerPrefixState+header.Key(), func() (interface{}, error) {
+		st, found, oerr := c.statef(header.Key())
+
+		return [2]interface{}{st, found}, oerr
+	})
+
+	if err != nil {
+		return e(err, "")
+	}
+
+	j := i.([2]interface{}) //nolint:forcetypeassert //...
+
+	var st base.State
+
+	if j[0] != nil {
+		st = j[0].(base.State) //nolint:forcetypeassert //...
+	}
+
+	found := j[1].(bool) //nolint:forcetypeassert //...
+
+	res := NewResponseHeader(found, nil)
 
 	if found && header.Hash() != nil && st.Hash().Equal(header.Hash()) {
 		if err := c.response(w, res, nil); err != nil {
@@ -480,19 +633,26 @@ func (c *QuicstreamHandlers) ExistsInStateOperation(_ net.Addr, r io.Reader, w i
 		return e(err, "")
 	}
 
-	var body ExistsInStateOperationRequestHeader
-	if err = encoder.Decode(enc, hb, &body); err != nil {
+	var header ExistsInStateOperationRequestHeader
+	if err = encoder.Decode(enc, hb, &header); err != nil {
 		return e(err, "")
 	}
 
-	if err = body.IsValid(nil); err != nil {
+	if err = header.IsValid(nil); err != nil {
 		return e(err, "")
 	}
 
-	found, err := c.existsInStateOperationf(body.facthash)
-	header := NewResponseHeader(found, err)
+	i, err, _ := c.sg.Do(HandlerPrefixExistsInStateOperation+header.FactHash().String(), func() (interface{}, error) {
+		return c.existsInStateOperationf(header.FactHash())
+	})
 
-	if err := c.response(w, header, nil); err != nil {
+	if err != nil {
+		return e(err, "")
+	}
+
+	res := NewResponseHeader(i.(bool), nil) //nolint:forcetypeassert //...
+
+	if err := c.response(w, res, nil); err != nil {
 		return e(err, "")
 	}
 
@@ -507,20 +667,32 @@ func (c *QuicstreamHandlers) NodeInfo(_ net.Addr, r io.Reader, w io.Writer) erro
 		return e(err, "")
 	}
 
-	var body NodeInfoRequestHeader
-	if err = encoder.Decode(enc, hb, &body); err != nil {
+	var header NodeInfoRequestHeader
+	if err = encoder.Decode(enc, hb, &header); err != nil {
 		return e(err, "")
 	}
 
-	if err = body.IsValid(nil); err != nil {
+	if err = header.IsValid(nil); err != nil {
 		return e(err, "")
 	}
 
-	b, err := c.getNodeInfo()
+	i, err, _ := c.sg.Do(HandlerPrefixNodeInfo, func() (interface{}, error) {
+		return c.getNodeInfo()
+	})
 
-	header := NewResponseHeader(err == nil, err)
+	if err != nil {
+		return e(err, "")
+	}
 
-	if err := c.response(w, header, json.RawMessage(b)); err != nil {
+	var b json.RawMessage
+
+	if i != nil {
+		b = json.RawMessage(i.([]byte)) //nolint:forcetypeassert //...
+	}
+
+	res := NewResponseHeader(true, nil)
+
+	if err := c.response(w, res, b); err != nil {
 		return e(err, "")
 	}
 
@@ -582,9 +754,18 @@ func (c *QuicstreamHandlers) nodeConnInfos(
 		return err
 	}
 
-	cis, err := f()
+	i, err, _ := c.sg.Do("node_conn_infos", func() (interface{}, error) {
+		return f()
+	})
+
 	if err != nil {
-		return err
+		return errors.Wrap(err, "")
+	}
+
+	var cis []isaac.NodeConnInfo
+
+	if i != nil {
+		cis = i.([]isaac.NodeConnInfo) //nolint:forcetypeassert //...
 	}
 
 	res := NewResponseHeader(true, nil)
@@ -637,29 +818,21 @@ func (c *QuicstreamHandlers) getNodeInfoFunc() func() ([]byte, error) {
 	}
 
 	return func() ([]byte, error) {
-		i, err, _ := c.sg.Do(HandlerPrefixNodeInfo, func() (interface{}, error) {
-			if c.nodeinfo.ID() == lastid {
-				return updateUptime(lastb), nil
-			}
-
-			jm := c.nodeinfo.NodeInfo().JSONMarshaler()
-			jm.Local.Uptime = string(uptimet)
-
-			b, err := c.enc.Marshal(jm)
-			if err != nil {
-				return nil, err
-			}
-
-			lastid = c.nodeinfo.ID()
-			lastb = b
-
-			return updateUptime(b), nil
-		})
-
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to do node info handler")
+		if c.nodeinfo.ID() == lastid {
+			return updateUptime(lastb), nil
 		}
 
-		return i.([]byte), nil //nolint:forcetypeassert //...
+		jm := c.nodeinfo.NodeInfo().JSONMarshaler()
+		jm.Local.Uptime = string(uptimet)
+
+		b, err := c.enc.Marshal(jm)
+		if err != nil {
+			return nil, err
+		}
+
+		lastid = c.nodeinfo.ID()
+		lastb = b
+
+		return updateUptime(b), nil
 	}
 }

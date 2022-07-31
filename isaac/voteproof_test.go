@@ -40,14 +40,6 @@ func (t *testBaseVoteproof) validVoteproof() INITVoteproof {
 	return ivp
 }
 
-func (t *testBaseVoteproof) TestSetResult() { // FIXME remove
-	ivp := t.validVoteproof()
-
-	vp := (interface{})(ivp).(base.Voteproof)
-
-	t.NoError(vp.IsValid(t.networkID))
-}
-
 func (t *testBaseVoteproof) TestNewINIT() {
 	ivp := t.validVoteproof()
 

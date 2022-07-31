@@ -70,8 +70,6 @@ func (cmd *runCommand) networkHandlers() *quicstream.PrefixHandler {
 				enc = cmd.encs.Find(m.Encoder())
 			}
 
-			// FIXME use cache with singleflight
-
 			reader, err := isaacblock.NewLocalFSReaderFromHeight(
 				launch.LocalFSDataDirectory(cmd.design.Storage.Base), height, enc,
 			)
