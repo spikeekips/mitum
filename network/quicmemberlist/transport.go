@@ -125,7 +125,7 @@ func (t *Transport) DialAddressTimeout(addr memberlist.Address, timeout time.Dur
 	ci := t.getconninfof(raddr)
 
 	if _, err := t.dialf(ctx, ci); err != nil {
-		l.Error().Err(err).Interface("conninfo", ci).Msg("failed to dial")
+		l.Error().Err(err).Interface("conn_info", ci).Msg("failed to dial")
 
 		return nil, &net.OpError{
 			Net: "tcp", Op: "dial",

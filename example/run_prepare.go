@@ -12,7 +12,9 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
+	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/launch"
+	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
@@ -36,6 +38,14 @@ func (cmd *runCommand) prepare() (func() error, error) {
 	if err := cmd.prepareLocal(); err != nil {
 		return stop, e(err, "")
 	}
+
+	cmd.nodeinfo = isaacnetwork.NewNodeInfoUpdater(cmd.local, version)
+	_ = cmd.nodeinfo.SetConsensusState(isaacstates.StateBooting)
+	_ = cmd.nodeinfo.SetConnInfo(network.ConnInfoToString(
+		cmd.design.Network.Publish().String(),
+		cmd.design.Network.TLSInsecure,
+	))
+	_ = cmd.nodeinfo.SetNodePolicy(cmd.nodePolicy)
 
 	if err := cmd.prepareFlags(); err != nil {
 		return stop, e(err, "")
@@ -133,6 +143,9 @@ func (cmd *runCommand) prepareDatabase() error {
 	cmd.db = db
 	cmd.perm = perm
 	cmd.pool = pool
+
+	// NOTE update node info
+	cmd.updateNodeInfoWithNewBlock()
 
 	return nil
 }

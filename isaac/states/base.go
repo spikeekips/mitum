@@ -19,6 +19,7 @@ type baseHandler struct {
 	ctx              context.Context //nolint:containedctx //...
 	proposalSelector isaac.ProposalSelector
 	*logging.Logging
+	policy               *isaac.NodePolicy
 	setLastVoteproofFunc func(base.Voteproof) bool
 	cancel               func()
 	lastVoteproofFunc    func() LastVoteproofs
@@ -28,13 +29,12 @@ type baseHandler struct {
 	broadcastBallotFunc  func(base.Ballot) error
 	voteFunc             func(base.Ballot) (bool, error)
 	stt                  StateType
-	policy               isaac.NodePolicy
 }
 
 func newBaseHandler(
 	state StateType,
 	local base.LocalNode,
-	policy isaac.NodePolicy,
+	policy *isaac.NodePolicy,
 	proposalSelector isaac.ProposalSelector,
 ) *baseHandler {
 	lvps := NewLastVoteproofsHandler()

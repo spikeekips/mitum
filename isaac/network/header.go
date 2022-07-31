@@ -23,6 +23,7 @@ var (
 	SyncSourceConnInfoRequestHeaderHint     = hint.MustNewHint("sync-source-conninfo-header-v0.0.1")
 	StateRequestHeaderHint                  = hint.MustNewHint("state-header-v0.0.1")
 	ExistsInStateOperationRequestHeaderHint = hint.MustNewHint("exists-instate-operation-header-v0.0.1")
+	NodeInfoRequestHeaderHint               = hint.MustNewHint("node-info-header-v0.0.1")
 )
 
 var ResponseHeaderHint = hint.MustNewHint("response-header-v0.0.1")
@@ -461,6 +462,24 @@ func (ExistsInStateOperationRequestHeader) HandlerPrefix() string {
 	return HandlerPrefixExistsInStateOperation
 }
 
+type NodeInfoRequestHeader struct {
+	BaseHeader
+}
+
+func NewNodeInfoRequestHeader() NodeInfoRequestHeader {
+	return NodeInfoRequestHeader{
+		BaseHeader: NewBaseHeader(NodeInfoRequestHeaderHint),
+	}
+}
+
+func (h NodeInfoRequestHeader) IsValid([]byte) error {
+	if err := h.BaseHinter.IsValid(NodeInfoRequestHeaderHint.Type().Bytes()); err != nil {
+		return errors.WithMessage(err, "invalid NodeInfoHeader")
+	}
+
+	return nil
+}
+
 type ResponseHeader struct {
 	ctype isaac.NetworkResponseContentType
 	err   error
@@ -527,6 +546,8 @@ func baseHeaderPrefixByHint(ht hint.Hint) string {
 		return HandlerPrefixState
 	case ExistsInStateOperationRequestHeaderHint.Type():
 		return HandlerPrefixExistsInStateOperation
+	case NodeInfoRequestHeaderHint.Type():
+		return HandlerPrefixNodeInfo
 	default:
 		return ""
 	}

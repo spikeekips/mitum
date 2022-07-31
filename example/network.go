@@ -46,9 +46,12 @@ func init() {
 		isaacnetwork.HandlerPrefixSyncSourceConnInfo:   isaacnetwork.NewSyncSourceConnInfoRequestHeader(),
 		isaacnetwork.HandlerPrefixOperation: isaacnetwork.NewOperationRequestHeader(
 			valuehash.RandomSHA256()),
-		isaacnetwork.HandlerPrefixSendOperation:    isaacnetwork.NewSendOperationRequestHeader(),
-		HandlerPrefixRequestState:                  NewStateRequestHeader(isaac.SuffrageStateKey),
-		HandlerPrefixRequestExistsInStateOperation: NewExistsInStateOperationRequestHeader(valuehash.RandomSHA256()),
+		isaacnetwork.HandlerPrefixSendOperation: isaacnetwork.NewSendOperationRequestHeader(),
+		isaacnetwork.HandlerPrefixState: isaacnetwork.NewStateRequestHeader(
+			isaac.SuffrageStateKey, valuehash.RandomSHA256()),
+		isaacnetwork.HandlerPrefixExistsInStateOperation: isaacnetwork.NewExistsInStateOperationRequestHeader(
+			valuehash.RandomSHA256()),
+		isaacnetwork.HandlerPrefixNodeInfo: isaacnetwork.NewNodeInfoRequestHeader(),
 		launch.HandlerPrefixPprof: launch.NewPprofRequestHeader(
 			"heap", 5, true), //nolint:gomnd //...
 	}

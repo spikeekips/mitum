@@ -30,6 +30,7 @@ type States struct {
 	*util.ContextDaemon
 	timers              *util.Timers
 	broadcastBallotFunc func(base.Ballot) error
+	whenStateSwitched   func(from StateType, next StateType)
 	stateLock           sync.RWMutex
 }
 
@@ -56,7 +57,8 @@ func NewStates(
 			timerIDBroadcastINITBallot,
 			timerIDBroadcastACCEPTBallot,
 		}, false),
-		lvps: lvps,
+		lvps:              lvps,
+		whenStateSwitched: func(StateType, StateType) {},
 	}
 
 	st.ContextDaemon = util.NewContextDaemon(st.start)
@@ -90,6 +92,10 @@ func (st *States) SetLogging(l *logging.Logging) *logging.Logging {
 	}
 
 	return st.Logging.SetLogging(l)
+}
+
+func (st *States) SetWhenStateSwitched(f func(StateType, StateType)) {
+	st.whenStateSwitched = f
 }
 
 func (st *States) LastVoteproofsHandler() *LastVoteproofsHandler {
@@ -285,6 +291,8 @@ func (st *States) switchState(sctx switchContext) error {
 	st.callDeferStates(cdefer, ndefer)
 
 	l.Debug().Msg("state switched")
+
+	go st.whenStateSwitched(sctx.from(), sctx.next())
 
 	return nil
 }

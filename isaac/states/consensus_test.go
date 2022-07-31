@@ -167,7 +167,7 @@ func (t *testConsensusHandler) TestFailedToFetchProposal() {
 	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
 		return prpool.Get(p), nil
 	})
-	st.policy = *t.NodePolicy.SetWaitPreparingINITBallot(time.Nanosecond)
+	st.policy = t.NodePolicy.SetWaitPreparingINITBallot(time.Nanosecond)
 
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
@@ -508,7 +508,7 @@ func (t *testConsensusHandler) TestWithBallotbox() {
 		closef()
 	}()
 
-	st.policy = *t.NodePolicy.SetWaitPreparingINITBallot(time.Nanosecond)
+	st.policy = t.NodePolicy.SetWaitPreparingINITBallot(time.Nanosecond)
 
 	manifests := util.NewLockedMap()
 	getmanifest := func(height base.Height) base.Manifest {

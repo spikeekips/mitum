@@ -23,20 +23,15 @@ func (cmd *baseCommand) prepareEncoder() error {
 		cmd.enc = enc
 	}
 
-	_ = cmd.enc.Add(encoder.DecodeDetail{Hint: StateRequestHeaderHint, Instance: StateRequestHeader{}})
-	_ = cmd.enc.Add(encoder.DecodeDetail{
-		Hint: ExistsInStateOperationRequestHeaderHint, Instance: ExistsInStateOperationRequestHeader{},
-	})
-
 	return nil
 }
 
 type baseNodeCommand struct {
 	baseCommand
+	nodePolicy *isaac.NodePolicy
 	Design     string `arg:"" name:"node design" help:"node design" type:"filepath"`
 	local      base.LocalNode
 	design     launch.NodeDesign
-	nodePolicy isaac.NodePolicy
 }
 
 func (cmd *baseNodeCommand) prepareDesigns() error {

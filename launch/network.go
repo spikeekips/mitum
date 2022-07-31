@@ -76,6 +76,7 @@ func Handlers(encs *encoder.Encoders, handlers *isaacnetwork.QuicstreamHandlers)
 		Add(isaacnetwork.HandlerPrefixSendOperation, handlers.SendOperation).
 		Add(isaacnetwork.HandlerPrefixState, handlers.State).
 		Add(isaacnetwork.HandlerPrefixExistsInStateOperation, handlers.ExistsInStateOperation).
+		Add(isaacnetwork.HandlerPrefixNodeInfo, handlers.NodeInfo).
 		Add(HandlerPrefixPprof, NetworkHandlerPprofFunc(encs))
 
 	return prefix

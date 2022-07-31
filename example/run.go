@@ -51,6 +51,7 @@ type runCommand struct { //nolint:govet //...
 	exitf                       func(error)
 	st                          *leveldbstorage.Storage
 	proposalMaker               *isaac.ProposalMaker
+	nodeinfo                    *isaacnetwork.NodeInfoUpdater
 }
 
 func (cmd *runCommand) Run() error {

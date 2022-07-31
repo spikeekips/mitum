@@ -25,3 +25,21 @@ func EqualNetworkPolicy(t *assert.Assertions, a, b NetworkPolicy) {
 
 	t.Equal(a.HashBytes(), b.HashBytes())
 }
+
+func EqualNodePolicy(t *assert.Assertions, a, b NodePolicy) {
+	switch {
+	case a == nil && b == nil:
+		return
+	case a == nil || b == nil:
+		t.NoError(errors.Errorf("empty"))
+
+		return
+	}
+
+	aht := a.(hint.Hinter).Hint()
+	bht := b.(hint.Hinter).Hint()
+	t.True(aht.Equal(bht), "Hint does not match")
+
+	t.Equal(a.NetworkID(), b.NetworkID())
+	t.Equal(a.Threshold(), b.Threshold())
+}

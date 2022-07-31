@@ -25,7 +25,7 @@ type NewJoiningHandlerType struct {
 
 func NewNewJoiningHandlerType(
 	local base.LocalNode,
-	policy isaac.NodePolicy,
+	policy *isaac.NodePolicy,
 	proposalSelector isaac.ProposalSelector,
 	lastManifest func() (base.Manifest, bool, error),
 	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc,

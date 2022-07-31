@@ -21,7 +21,7 @@ import (
 
 func newQuicstreamHandlers( // revive:disable-line:argument-limit
 	local base.LocalNode,
-	nodepolicy isaac.NodePolicy,
+	nodepolicy *isaac.NodePolicy,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
 	idleTimeout time.Duration,

@@ -24,7 +24,7 @@ type NewConsensusHandlerType struct {
 
 func NewNewConsensusHandlerType(
 	local base.LocalNode,
-	policy isaac.NodePolicy,
+	policy *isaac.NodePolicy,
 	proposalSelector isaac.ProposalSelector,
 	getManifest func(base.Height) (base.Manifest, error),
 	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc,

@@ -18,7 +18,7 @@ type NewBootingHandlerType struct {
 
 func NewNewBootingHandlerType(
 	local base.LocalNode,
-	policy isaac.NodePolicy,
+	policy *isaac.NodePolicy,
 	lastManifest func() (base.Manifest, bool, error),
 	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc,
 ) *NewBootingHandlerType {

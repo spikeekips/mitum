@@ -33,7 +33,7 @@ type NewSyncingHandlerType struct {
 
 func NewNewSyncingHandlerType(
 	local base.LocalNode,
-	policy isaac.NodePolicy,
+	policy *isaac.NodePolicy,
 	proposalSelector isaac.ProposalSelector,
 	newSyncer func(base.Height) (isaac.Syncer, error),
 	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc,

@@ -38,6 +38,7 @@ func (cmd *runCommand) prepareStates() error {
 		lvps,
 		cmd.broadcastBallotFunc,
 	)
+	states.SetWhenStateSwitched(cmd.whenStateSwitched)
 
 	syncinghandler := isaacstates.NewNewSyncingHandlerType(
 		cmd.local, cmd.nodePolicy, cmd.proposalSelector, cmd.newSyncer(lvps), cmd.nodeInConsensusNodes,

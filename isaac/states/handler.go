@@ -34,6 +34,22 @@ func (s StateType) String() string {
 	return string(s)
 }
 
+func (s StateType) IsValid([]byte) error {
+	switch s {
+	case StateEmpty,
+		StateStopped,
+		StateBooting,
+		StateJoining,
+		StateConsensus,
+		StateSyncing,
+		StateHandover,
+		StateBroken:
+		return nil
+	default:
+		return util.ErrInvalid.Errorf("unknown StateType, %q", s)
+	}
+}
+
 type newHandler interface {
 	new() (handler, error)
 	setStates(*States)

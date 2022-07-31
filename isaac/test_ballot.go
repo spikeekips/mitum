@@ -13,7 +13,7 @@ import (
 type BaseTestBallots struct {
 	suite.Suite
 	Local      LocalNode
-	NodePolicy NodePolicy
+	NodePolicy *NodePolicy
 	PRPool     *proposalPool
 }
 

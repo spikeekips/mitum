@@ -34,13 +34,13 @@ type BaseProposalSelector struct {
 	maker             *ProposalMaker
 	getAvailableNodes func(base.Height) ([]base.Node, bool, error)
 	request           func(context.Context, base.Point, base.Address) (base.ProposalSignedFact, error)
-	policy            NodePolicy
+	policy            *NodePolicy
 	sync.Mutex
 }
 
 func NewBaseProposalSelector(
 	local base.LocalNode,
-	policy NodePolicy,
+	policy *NodePolicy,
 	proposerSelector ProposerSelector,
 	maker *ProposalMaker,
 	getAvailableNodes func(base.Height) ([]base.Node, bool, error),

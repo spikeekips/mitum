@@ -19,7 +19,7 @@ type NewBrokenHandlerType struct {
 
 func NewNewBrokenHandlerType(
 	local base.LocalNode,
-	policy isaac.NodePolicy,
+	policy *isaac.NodePolicy,
 ) *NewBrokenHandlerType {
 	return &NewBrokenHandlerType{
 		BrokenHandler: &BrokenHandler{

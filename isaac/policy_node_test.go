@@ -110,17 +110,14 @@ func TestNodePolicyJSON(tt *testing.T) {
 	}
 
 	t.Decode = func(b []byte) interface{} {
-		i, err := enc.Decode(b)
-		t.NoError(err)
+		var p NodePolicy
+		t.NoError(enc.Unmarshal(b, &p))
 
-		u, ok := i.(NodePolicy)
-		t.True(ok)
-
-		return u
+		return &p
 	}
 	t.Compare = func(a, b interface{}) {
-		ap := a.(NodePolicy)
-		bp := b.(NodePolicy)
+		ap := a.(*NodePolicy)
+		bp := b.(*NodePolicy)
 
 		t.True(ap.Hint().Equal(bp.Hint()))
 		t.True(ap.networkID.Equal(bp.networkID))

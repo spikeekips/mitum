@@ -465,6 +465,14 @@ func (h *ExistsInStateOperationRequestHeader) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+func (h *NodeInfoRequestHeader) UnmarshalJSON(b []byte) error {
+	if err := h.BaseHeader.unmarshalJSON(b); err != nil {
+		return errors.WithMessage(err, "failed to unmarshal NodeInfoHeader")
+	}
+
+	return nil
+}
+
 type ResponseHeaderJSONMarshaler struct {
 	Type  isaac.NetworkResponseContentType `json:"type,omitempty"`
 	Error string                           `json:"error,omitempty"`

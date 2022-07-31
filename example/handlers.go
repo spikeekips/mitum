@@ -18,11 +18,6 @@ import (
 
 var networkHandlerIdleTimeout = time.Second * 10
 
-var (
-	HandlerPrefixRequestState                  = "state"
-	HandlerPrefixRequestExistsInStateOperation = "exists_instate_operation"
-)
-
 func (cmd *runCommand) networkHandlers() *quicstream.PrefixHandler {
 	operationfilterf := cmd.newOperationFilter()
 
@@ -142,6 +137,7 @@ func (cmd *runCommand) networkHandlers() *quicstream.PrefixHandler {
 		cmd.db.State,
 		cmd.db.ExistsInStateOperation,
 		operationfilterf,
+		cmd.nodeinfo,
 	)
 
 	prefix := launch.Handlers(cmd.encs, handlers)

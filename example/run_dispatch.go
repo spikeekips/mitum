@@ -1307,6 +1307,10 @@ func (cmd *runCommand) loadSuffrageCandidateLimiter() (base.SuffrageCandidateLim
 	return f(rule)
 }
 
+func (cmd *runCommand) whenStateSwitched(_, next isaacstates.StateType) {
+	_ = cmd.nodeinfo.SetConsensusState(next)
+}
+
 func (cmd *runCommand) whenNewBlockSaved(height base.Height) {
 	l := log.With().Interface("height", height).Logger()
 	l.Debug().Msg("new block saved")
@@ -1320,6 +1324,42 @@ func (cmd *runCommand) whenNewBlockSaved(height base.Height) {
 	}
 
 	cmd.ballotbox.Count()
+
+	cmd.updateNodeInfoWithNewBlock()
+}
+
+func (cmd *runCommand) updateNodeInfoWithNewBlock() {
+	// NOTE update nodeinfo
+	switch m, found, err := cmd.db.LastBlockMap(); {
+	case err != nil:
+		log.Error().Err(err).Msg("failed to update node info")
+
+		return
+	case !found:
+		log.Error().Msg("failed to update node info; last BlockMap not found")
+
+		return
+	case !cmd.nodeinfo.SetLastManifest(m.Manifest()):
+		return
+	}
+
+	switch proof, found, err := cmd.db.LastSuffrageProof(); {
+	case err != nil:
+		log.Error().Msg("failed to update node info; last SuffrageProof not found")
+
+		return
+	case found && cmd.nodeinfo.SetSuffrageHeight(proof.SuffrageHeight()):
+		suf, err := proof.Suffrage()
+		if err != nil {
+			log.Error().Msg("failed to update node info; failed suffrage from proof")
+
+			return
+		}
+
+		_ = cmd.nodeinfo.SetConsensusNodes(suf.Nodes())
+	}
+
+	_ = cmd.nodeinfo.SetNetworkPolicy(cmd.db.LastNetworkPolicy())
 }
 
 func (cmd *runCommand) newOperationFilter() func(base.Operation) (bool, error) {

@@ -1,7 +1,10 @@
 package isaacnetwork
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 	"time"
@@ -11,6 +14,8 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
+	"github.com/spikeekips/mitum/util/localtime"
+	"golang.org/x/sync/singleflight"
 )
 
 // FIXME add node info
@@ -31,12 +36,15 @@ type QuicstreamHandlers struct {
 	existsInStateOperationf func(util.Hash) (bool, error)
 	filterSendOperationf    func(base.Operation) (bool, error)
 	local                   base.LocalNode
-	nodepolicy              isaac.NodePolicy
+	nodepolicy              *isaac.NodePolicy
+	nodeinfo                *NodeInfoUpdater
+	getNodeInfo             func() ([]byte, error)
+	sg                      singleflight.Group
 }
 
 func NewQuicstreamHandlers( // revive:disable-line:argument-limit
 	local base.LocalNode,
-	nodepolicy isaac.NodePolicy,
+	nodepolicy *isaac.NodePolicy,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
 	idleTimeout time.Duration,
@@ -53,8 +61,9 @@ func NewQuicstreamHandlers( // revive:disable-line:argument-limit
 	statef func(string) (base.State, bool, error),
 	existsInStateOperationf func(util.Hash) (bool, error),
 	filterSendOperationf func(base.Operation) (bool, error),
+	nodeinfo *NodeInfoUpdater,
 ) *QuicstreamHandlers {
-	return &QuicstreamHandlers{
+	handlers := &QuicstreamHandlers{
 		baseNetwork:             newBaseNetwork(encs, enc, idleTimeout),
 		local:                   local,
 		nodepolicy:              nodepolicy,
@@ -71,7 +80,12 @@ func NewQuicstreamHandlers( // revive:disable-line:argument-limit
 		statef:                  statef,
 		existsInStateOperationf: existsInStateOperationf,
 		filterSendOperationf:    filterSendOperationf,
+		nodeinfo:                nodeinfo,
 	}
+
+	handlers.getNodeInfo = handlers.getNodeInfoFunc()
+
+	return handlers
 }
 
 func (c *QuicstreamHandlers) ErrorHandler(_ net.Addr, _ io.Reader, w io.Writer, err error) error {
@@ -485,6 +499,34 @@ func (c *QuicstreamHandlers) ExistsInStateOperation(_ net.Addr, r io.Reader, w i
 	return nil
 }
 
+func (c *QuicstreamHandlers) NodeInfo(_ net.Addr, r io.Reader, w io.Writer) error {
+	e := util.StringErrorFunc("failed to handle node info")
+
+	enc, hb, err := c.prehandle(r)
+	if err != nil {
+		return e(err, "")
+	}
+
+	var body NodeInfoRequestHeader
+	if err = encoder.Decode(enc, hb, &body); err != nil {
+		return e(err, "")
+	}
+
+	if err = body.IsValid(nil); err != nil {
+		return e(err, "")
+	}
+
+	b, err := c.getNodeInfo()
+
+	header := NewResponseHeader(err == nil, err)
+
+	if err := c.response(w, header, json.RawMessage(b)); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
 func (c *QuicstreamHandlers) prehandle(r io.Reader) (encoder.Encoder, []byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.idleTimeout)
 	defer cancel()
@@ -575,5 +617,49 @@ func (c *QuicstreamHandlers) filterNewOperation(op base.Operation) error {
 		return errors.Errorf("filtered")
 	default:
 		return nil
+	}
+}
+
+func (c *QuicstreamHandlers) getNodeInfoFunc() func() ([]byte, error) {
+	var lastid string
+	var lastb []byte
+
+	startedAt := c.nodeinfo.StartedAt()
+
+	uptimet := []byte("<uptime>")
+	updateUptime := func(b []byte) []byte {
+		return bytes.Replace(
+			b,
+			uptimet,
+			[]byte(fmt.Sprintf("%0.3f", localtime.UTCNow().Sub(startedAt).Seconds())),
+			1,
+		)
+	}
+
+	return func() ([]byte, error) {
+		i, err, _ := c.sg.Do(HandlerPrefixNodeInfo, func() (interface{}, error) {
+			if c.nodeinfo.ID() == lastid {
+				return updateUptime(lastb), nil
+			}
+
+			jm := c.nodeinfo.NodeInfo().JSONMarshaler()
+			jm.Local.Uptime = string(uptimet)
+
+			b, err := c.enc.Marshal(jm)
+			if err != nil {
+				return nil, err
+			}
+
+			lastid = c.nodeinfo.ID()
+			lastb = b
+
+			return updateUptime(b), nil
+		})
+
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to do node info handler")
+		}
+
+		return i.([]byte), nil //nolint:forcetypeassert //...
 	}
 }
