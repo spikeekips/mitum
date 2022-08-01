@@ -5,16 +5,19 @@ import (
 	"math"
 
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/storage"
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
+	"github.com/spikeekips/mitum/util/logging"
 	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
 
 type LeveldbPermanent struct {
+	*logging.Logging
 	*basePermanent
 	*baseLeveldb
 	batchlimit int
@@ -36,6 +39,9 @@ func newLeveldbPermanent(
 	pst := leveldbstorage.NewPrefixStorage(st, leveldbLabelPermanent)
 
 	db := &LeveldbPermanent{
+		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
+			return lctx.Str("module", "leveldb-permanent-database")
+		}),
 		basePermanent: newBasePermanent(),
 		baseLeveldb:   newBaseLeveldb(pst, encs, enc),
 		batchlimit:    333, //nolint:gomnd //...
@@ -234,6 +240,8 @@ func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, te
 	}
 
 	_ = db.updateLast(temp.mp, temp.proof, temp.policy)
+
+	db.Log().Info().Interface("blockmap", temp.mp).Msg("new block merged")
 
 	return nil
 }

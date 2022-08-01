@@ -411,7 +411,7 @@ func (wk *ErrgroupWorker) Wait() error {
 
 	switch {
 	case werr != nil:
-		return werr
+		return errors.Wrap(werr, "")
 	default:
 		return berr
 	}

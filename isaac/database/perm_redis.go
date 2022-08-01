@@ -321,6 +321,8 @@ func (db *RedisPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp
 
 	_ = db.updateLast(temp.mp, temp.proof, temp.policy)
 
+	db.Log().Info().Interface("blockmap", temp.mp).Msg("new block merged")
+
 	return nil
 }
 
@@ -436,8 +438,6 @@ func (db *RedisPermanent) mergeBlockMapTempDatabaseFromLeveldb(
 			if err := db.st.Set(ctx, key, b); err != nil {
 				return false, errors.Wrap(err, "failed to set blockmap")
 			}
-
-			db.Log().Info().Interface("height", height).Msg("new block merged")
 
 			return true, nil
 		}, true)
