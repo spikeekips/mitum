@@ -219,7 +219,7 @@ func (st *baseHandler) broadcastACCEPTBallot(bl base.Ballot, initialWait time.Du
 }
 
 func (st *baseHandler) prepareNextRound(vp base.Voteproof, prevBlock util.Hash) (base.INITBallot, error) {
-	l := st.Log().With().Dict("voteproof", base.VoteproofLog(vp)).Logger()
+	l := st.Log().With().Dict("voteproof", base.VoteproofLog(vp)).Logger() //nolint:goconst //...
 
 	point := vp.Point().Point.NextRound()
 

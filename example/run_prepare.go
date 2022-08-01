@@ -211,6 +211,8 @@ func (cmd *runCommand) prepareLastSuffrageProofWatcher() {
 				}
 
 				return
+			case cmd.memberlist.IsJoined():
+				return
 			}
 
 			_ = util.Retry(

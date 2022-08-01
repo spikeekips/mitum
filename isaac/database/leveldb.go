@@ -17,27 +17,27 @@ import (
 )
 
 var (
-	leveldbLabelBlockWrite = []byte("block_write")
-	leveldbLabelPermanent  = []byte("permanent")
-	leveldbLabelPool       = []byte("pool")
-	leveldbLabelSyncPool   = []byte("sync_pool")
+	leveldbLabelBlockWrite = []byte{0x01, 0x01}
+	leveldbLabelPermanent  = []byte{0x01, 0x02}
+	leveldbLabelPool       = []byte{0x01, 0x03}
+	leveldbLabelSyncPool   = []byte{0x01, 0x04}
 )
 
 var (
-	leveldbKeyPrefixState                   = []byte{0x00, 0x01}
-	leveldbKeyPrefixInStateOperation        = []byte{0x00, 0x02}
-	leveldbKeyPrefixKnownOperation          = []byte{0x00, 0x03}
-	leveldbKeyPrefixProposal                = []byte{0x00, 0x04}
-	leveldbKeyPrefixProposalByPoint         = []byte{0x00, 0x05}
-	leveldbKeyPrefixBlockMap                = []byte{0x00, 0x06}
-	leveldbKeyPrefixNewOperation            = []byte{0x00, 0x07}
-	leveldbKeyPrefixNewOperationOrdered     = []byte{0x00, 0x08}
-	leveldbKeyPrefixNewOperationOrderedKeys = []byte{0x00, 0x09}
-	leveldbKeyPrefixRemovedNewOperation     = []byte{0x00, 0x0a}
-	leveldbKeyLastVoteproofs                = []byte{0x00, 0x0b}
-	leveldbKeyTempSyncMap                   = []byte{0x00, 0x0c}
-	leveldbKeySuffrageProof                 = []byte{0x00, 0x0d}
-	leveldbKeySuffrageProofByBlockHeight    = []byte{0x00, 0x0e}
+	leveldbKeyPrefixState                   = []byte{0x02, 0x01}
+	leveldbKeyPrefixInStateOperation        = []byte{0x02, 0x02}
+	leveldbKeyPrefixKnownOperation          = []byte{0x02, 0x03}
+	leveldbKeyPrefixProposal                = []byte{0x02, 0x04}
+	leveldbKeyPrefixProposalByPoint         = []byte{0x02, 0x05}
+	leveldbKeyPrefixBlockMap                = []byte{0x02, 0x06}
+	leveldbKeyPrefixNewOperation            = []byte{0x02, 0x07}
+	leveldbKeyPrefixNewOperationOrdered     = []byte{0x02, 0x08}
+	leveldbKeyPrefixNewOperationOrderedKeys = []byte{0x02, 0x09}
+	leveldbKeyPrefixRemovedNewOperation     = []byte{0x02, 0x0a}
+	leveldbKeyLastVoteproofs                = []byte{0x02, 0x0b}
+	leveldbKeyTempSyncMap                   = []byte{0x02, 0x0c}
+	leveldbKeySuffrageProof                 = []byte{0x02, 0x0d}
+	leveldbKeySuffrageProofByBlockHeight    = []byte{0x02, 0x0e}
 
 	leveldbKeysJoinSep = []byte("mitum-leveldb-sep")
 )

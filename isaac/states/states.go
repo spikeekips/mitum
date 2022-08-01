@@ -370,8 +370,10 @@ func (st *States) newState(sctx switchContext) error {
 	return nil
 }
 
-func (*States) voteproofToCurrent(vp base.Voteproof, current handler) error {
+func (st *States) voteproofToCurrent(vp base.Voteproof, current handler) error {
 	e := util.StringErrorFunc("failed to send voteproof to current")
+
+	st.Log().Debug().Interface("voteproof", vp).Msg("new voteproof")
 
 	if err := current.newVoteproof(vp); err != nil {
 		return e(err, "")

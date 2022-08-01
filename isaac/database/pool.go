@@ -33,7 +33,7 @@ func NewTempPool(st *leveldbstorage.Storage, encs *encoder.Encoders, enc encoder
 }
 
 func newTempPool(st *leveldbstorage.Storage, encs *encoder.Encoders, enc encoder.Encoder) (*TempPool, error) {
-	pst := leveldbstorage.NewPrefixStorage(st, leveldbstorage.HashPrefix(leveldbLabelPool))
+	pst := leveldbstorage.NewPrefixStorage(st, leveldbLabelPool)
 
 	db := &TempPool{
 		baseLeveldb:                       newBaseLeveldb(pst, encs, enc),

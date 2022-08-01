@@ -33,7 +33,7 @@ func newLeveldbPermanent(
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
 ) (*LeveldbPermanent, error) {
-	pst := leveldbstorage.NewPrefixStorage(st, leveldbstorage.HashPrefix(leveldbLabelPermanent))
+	pst := leveldbstorage.NewPrefixStorage(st, leveldbLabelPermanent)
 
 	db := &LeveldbPermanent{
 		basePermanent: newBasePermanent(),
@@ -118,20 +118,16 @@ func (db *LeveldbPermanent) SuffrageProofByBlockHeight(height base.Height) (base
 		return proof, true, nil
 	}
 
-	switch b, found, err := db.st.Get(leveldbSuffrageProofByBlockHeightKey(height)); {
-	case err != nil:
-		return nil, false, e(err, "")
-	case !found:
-		return nil, false, nil
-	default:
-		var proof base.SuffrageProof
+	r := leveldbutil.BytesPrefix(leveldbKeySuffrageProofByBlockHeight)
+	r.Limit = leveldbSuffrageProofByBlockHeightKey(height + 1)
 
-		if err := db.readHinter(b, &proof); err != nil {
-			return nil, false, e(err, "")
-		}
+	var proof base.SuffrageProof
 
-		return proof, true, nil
-	}
+	err := db.st.Iter(r, func(_, b []byte) (bool, error) {
+		return false, db.readHinter(b, &proof)
+	}, false)
+
+	return proof, proof != nil, err
 }
 
 func (db *LeveldbPermanent) State(key string) (base.State, bool, error) {
@@ -213,7 +209,7 @@ func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, te
 				return false, err
 			}
 
-			batch = temp.st.NewBatch()
+			batch = db.st.NewBatch()
 		}
 
 		batch.Put(k, v)

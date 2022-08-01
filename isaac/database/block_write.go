@@ -15,7 +15,6 @@ import (
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/syndtr/goleveldb/leveldb"
 	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
@@ -335,13 +334,13 @@ func (*LeveldbBlockWrite) updateLockedStates(st base.State, locked *util.Locked)
 }
 
 var (
-	prefixStoragePrefixByHeightLength int = valuehash.SHA256Size + 21 + util.ULIDLen // len(ULID.String())
+	prefixStoragePrefixByHeightLength int = 23 + util.ULIDLen // len(label) + 21 + len(ULID.String())
 	emptyULID                             = bytes.Repeat([]byte{0x00}, util.ULIDLen)
 )
 
 func newPrefixStoragePrefixByHeight(label []byte, height base.Height) []byte {
 	return util.ConcatBytesSlice(
-		leveldbstorage.HashPrefix(label),
+		label,
 		[]byte(fmt.Sprintf("%021d", height)),
 		[]byte(util.ULID().String()),
 	)
@@ -349,7 +348,7 @@ func newPrefixStoragePrefixByHeight(label []byte, height base.Height) []byte {
 
 func emptyPrefixStoragePrefixByHeight(label []byte, height base.Height) []byte {
 	return util.ConcatBytesSlice(
-		leveldbstorage.HashPrefix(label),
+		label,
 		[]byte(fmt.Sprintf("%021d", height)),
 		emptyULID,
 	)
@@ -372,7 +371,7 @@ func HeightFromPrefixStoragePrefix(b []byte) (base.Height, error) {
 		return base.NilHeight, e(nil, "wrong key of prefix storage prefix")
 	}
 
-	s := b[valuehash.SHA256Size : valuehash.SHA256Size+21]
+	s := b[2:23]
 
 	d, err := strconv.ParseInt(string(s), 10, 64)
 	if err != nil {
@@ -430,7 +429,7 @@ func removeHigherHeights(st *leveldbstorage.Storage, height base.Height) error {
 	batch := &leveldb.Batch{}
 	defer batch.Reset()
 
-	r := leveldbutil.BytesPrefix(leveldbstorage.HashPrefix(leveldbLabelBlockWrite))
+	r := leveldbutil.BytesPrefix(leveldbLabelBlockWrite)
 	r.Start = emptyPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, height)
 
 	if _, err := leveldbstorage.BatchRemove(st, r, 333); err != nil { //nolint:gomnd //...
@@ -446,7 +445,7 @@ func removeLowerHeights(st *leveldbstorage.Storage, height base.Height) error {
 	batch := &leveldb.Batch{}
 	defer batch.Reset()
 
-	r := leveldbutil.BytesPrefix(leveldbstorage.HashPrefix(leveldbLabelBlockWrite))
+	r := leveldbutil.BytesPrefix(leveldbLabelBlockWrite)
 	r.Limit = emptyPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, height)
 
 	if _, err := leveldbstorage.BatchRemove(st, r, 333); err != nil { //nolint:gomnd //...

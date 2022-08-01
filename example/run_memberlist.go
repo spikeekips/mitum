@@ -43,23 +43,23 @@ func (cmd *runCommand) prepareMemberlist() error {
 	memberlistconfig.Transport = memberlisttransport
 
 	memberlistdelegate := quicmemberlist.NewDelegate(memberlistnode, nil, func(b []byte) {
-		log.Trace().Str("message", string(b)).Msg("new incoming message")
-
 		i, err := cmd.enc.Decode(b) //nolint:govet //...
 		if err != nil {
-			log.Error().Err(err).Msg("failed to decode incoming message")
+			log.Error().Err(err).Str("message", string(b)).Msg("failed to decode incoming message")
 
 			return
 		}
 
 		switch t := i.(type) {
 		case base.Ballot:
+			log.Trace().Interface("ballot", i).Msg("new incoming message")
+
 			_, err := cmd.ballotbox.Vote(t)
 			if err != nil {
 				log.Error().Err(err).Interface("ballot", t).Msg("failed to vote")
 			}
 		default:
-			// NOTE ignore
+			log.Trace().Interface("message", i).Msgf("new incoming message; ignored; but unknown, %T", t)
 		}
 	})
 	memberlistconfig.Delegate = memberlistdelegate

@@ -25,8 +25,8 @@ import (
 )
 
 var (
-	LocalFSDataDirectoryName2          = "data"
-	LocalFSDatabaseDirectoryName2      = "db"
+	LocalFSDataDirectoryName           = "data"
+	LocalFSDatabaseDirectoryName       = "db"
 	RedisPermanentDatabasePrefixFormat = "mitum-%s"
 	LeveldbURIScheme                   = "leveldb"
 )
@@ -39,7 +39,7 @@ func CleanStorage(permuri, root string, encs *encoder.Encoders, enc encoder.Enco
 		return e(err, "")
 	case !found:
 	default:
-		_, perm, err := LoadPermanentDatabase(permuri, nodeinfo.ID(), encs, enc)
+		_, perm, err := LoadPermanentDatabase(permuri, nodeinfo.ID(), encs, enc, root)
 		if err == nil {
 			if err := perm.Clean(); err != nil {
 				return e(err, "")
@@ -56,8 +56,8 @@ func CleanStorage(permuri, root string, encs *encoder.Encoders, enc encoder.Enco
 
 func RemoveLocalFS(root string) error {
 	knowns := map[string]struct{}{
-		LocalFSDataDirectoryName2:     {},
-		LocalFSDatabaseDirectoryName2: {},
+		LocalFSDataDirectoryName:     {},
+		LocalFSDatabaseDirectoryName: {},
 	}
 
 	if err := util.CleanDirectory(root, func(name string) bool {
@@ -180,7 +180,7 @@ func LoadDatabase(
 ) {
 	e := util.StringErrorFunc("failed to prepare database")
 
-	st, perm, err := LoadPermanentDatabase(permuri, nodeinfo.ID(), encs, enc)
+	st, perm, err := LoadPermanentDatabase(permuri, nodeinfo.ID(), encs, enc, root)
 
 	switch {
 	case err != nil:
@@ -229,15 +229,15 @@ func LoadDatabase(
 }
 
 func LocalFSDataDirectory(root string) string {
-	return filepath.Join(root, LocalFSDataDirectoryName2)
+	return filepath.Join(root, LocalFSDataDirectoryName)
 }
 
 func LocalFSDatabaseDirectory(root string) string {
-	return filepath.Join(root, LocalFSDatabaseDirectoryName2)
+	return filepath.Join(root, LocalFSDatabaseDirectoryName)
 }
 
 func LoadPermanentDatabase(
-	uri, id string, encs *encoder.Encoders, enc encoder.Encoder,
+	uri, id string, encs *encoder.Encoders, enc encoder.Encoder, root string,
 ) (*leveldbstorage.Storage, isaac.PermanentDatabase, error) {
 	e := util.StringErrorFunc("failed to load PermanentDatabase")
 
@@ -264,7 +264,7 @@ func LoadPermanentDatabase(
 	switch {
 	case dbtype == LeveldbURIScheme:
 		if len(u.Path) < 1 {
-			return nil, nil, e(nil, "empty path")
+			u.Path = LocalFSDatabaseDirectory(root)
 		}
 
 		str, err := leveldbStorage.OpenFile(u.Path, false)

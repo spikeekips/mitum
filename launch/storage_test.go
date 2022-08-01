@@ -39,8 +39,8 @@ func (t *testLoadPermanentDatabase) TestXXX() {
 		err  string
 	}{
 		{name: "leveldb: ok", uri: newleveldbroot()},
-		{name: "leveldb: empty", uri: "", err: "empty path"},
-		{name: "leveldb: empty path", uri: "leveldb://", err: "empty path"},
+		{name: "leveldb: empty", uri: ""},
+		{name: "leveldb: empty path", uri: "leveldb://"},
 		{name: "redis: ok", uri: "redis://"},
 		{name: "redis: with redis", uri: "redis+redis://"},
 		{name: "redis: with empty network", uri: "redis+://"},
@@ -54,7 +54,11 @@ func (t *testLoadPermanentDatabase) TestXXX() {
 		t.Run(
 			c.name,
 			func() {
-				_, perm, err := LoadPermanentDatabase(c.uri, util.UUID().String(), encs, enc)
+				st, perm, err := LoadPermanentDatabase(c.uri, util.UUID().String(), encs, enc, root)
+				if st != nil {
+					defer st.Close()
+				}
+
 				switch {
 				case len(c.err) > 0:
 					if err == nil {

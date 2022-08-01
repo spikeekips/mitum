@@ -1069,7 +1069,7 @@ func (t *testCenterLoad) TestLoadTempDatabasesButMissing() {
 
 	// NOTE higher data will be removed
 
-	r := leveldbutil.BytesPrefix(leveldbstorage.HashPrefix(leveldbLabelBlockWrite))
+	r := leveldbutil.BytesPrefix(leveldbLabelBlockWrite)
 	r.Start = emptyPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, last.Height()+2)
 
 	var highercount int
