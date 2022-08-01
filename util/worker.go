@@ -237,7 +237,7 @@ func (wk *BaseSemWorker) wait() error {
 	ctx := wk.Ctx
 	cancel := wk.Cancel
 
-	errch := make(chan error, 1)
+	var werr error
 
 	wk.runonce.Do(func() {
 		timeout := <-wk.donech
@@ -253,7 +253,7 @@ func (wk *BaseSemWorker) wait() error {
 		}()
 
 		if timeout < 1 {
-			errch <- <-donech
+			werr = <-donech
 
 			return
 		}
@@ -262,13 +262,12 @@ func (wk *BaseSemWorker) wait() error {
 		case <-time.After(timeout):
 			cancel()
 
-			errch <- ErrWorkerContextCanceled.Call()
-		case err := <-donech:
-			errch <- err
+			werr = ErrWorkerContextCanceled.Call()
+		case werr = <-donech:
 		}
 	})
 
-	return <-errch
+	return werr
 }
 
 func (wk *BaseSemWorker) WaitChan() chan error {
@@ -404,17 +403,17 @@ func (wk *ErrgroupWorker) Wait() error {
 		}
 	}
 
-	errch := make(chan error, 1)
+	var werr error
 
 	wk.doneonce.Do(func() {
-		errch <- wk.eg.Wait()
+		werr = wk.eg.Wait()
 	})
 
-	switch err := <-errch; {
-	case err == nil:
-		return berr
+	switch {
+	case werr != nil:
+		return werr
 	default:
-		return err
+		return berr
 	}
 }
 

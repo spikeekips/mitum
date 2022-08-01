@@ -589,20 +589,16 @@ func (t *testErrgroupWorker) TestError() {
 }
 
 func (t *testErrgroupWorker) TestDeadlineError() {
-	var l uint64 = 10
+	var l int64 = 10
 
 	var called uint64
-	callback := func(j interface{}) ContextWorkerCallback {
-		return func(ctx context.Context, i uint64) error {
-			if j == nil {
-				return nil
-			}
-
+	callback := func() ContextWorkerCallback {
+		return func(ctx context.Context, _ uint64) error {
 			select {
-			case <-time.After(time.Millisecond * 900):
-				atomic.AddUint64(&called, 1)
 			case <-ctx.Done():
 				return ctx.Err()
+			case <-time.After(time.Millisecond * 900):
+				atomic.AddUint64(&called, 1)
 			}
 
 			return nil
@@ -612,12 +608,12 @@ func (t *testErrgroupWorker) TestDeadlineError() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
 	defer cancel()
 
-	wk := NewErrgroupWorker(ctx, int64(l))
+	wk := NewErrgroupWorker(ctx, l)
 	defer wk.Close()
 
 	go func() {
-		for i := uint64(0); i < l; i++ {
-			if err := wk.NewJob(callback(i)); err != nil {
+		for i := int64(0); i < l; i++ {
+			if err := wk.NewJob(callback()); err != nil {
 				break
 			}
 		}
