@@ -217,6 +217,10 @@ func (u *LastConsensusNodesWatcher) checkUpdated(ctx context.Context, last base.
 }
 
 func IsNodeInLastConsensusNodes(node base.Node, proof base.SuffrageProof, st base.State) (base.Suffrage, bool, error) {
+	if proof == nil {
+		return nil, false, nil
+	}
+
 	suf, err := proof.Suffrage()
 	if err != nil {
 		return nil, false, err
