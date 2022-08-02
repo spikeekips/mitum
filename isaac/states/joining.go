@@ -116,10 +116,7 @@ func (st *JoiningHandler) enter(i switchContext) (func(), error) {
 	default:
 		// NOTE if not joined yet, join first
 		if err := st.joinMemberlist(); err != nil {
-			st.Log().Error().Err(err).Msg("failed to join memberlist; moves to syncing state")
-
-			// NOTE if failed to join, back to syncing state
-			return nil, newSyncingSwitchContext(StateEmpty, manifest.Height())
+			st.Log().Error().Err(err).Msg("failed to join memberlist; ignored")
 		}
 
 		st.Log().Debug().Msg("joined to memberlist")
