@@ -85,6 +85,16 @@ func (t *testNodePolicy) TestIsValid() {
 		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "wrong duration")
 	})
+
+	t.Run("wrong maxOperationSize", func() {
+		p := DefaultNodePolicy(networkID)
+		p.SetMaxOperationSize(0)
+
+		err := p.IsValid(networkID)
+		t.Error(err)
+		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorContains(err, "wrong maxOperationSize")
+	})
 }
 
 func TestNodePolicy(t *testing.T) {
@@ -128,6 +138,7 @@ func TestNodePolicyJSON(tt *testing.T) {
 		t.Equal(ap.syncSourceCheckerInterval, bp.syncSourceCheckerInterval)
 		t.Equal(ap.validProposalOperationExpire, bp.validProposalOperationExpire)
 		t.Equal(ap.validProposalSuffrageOperationsExpire, bp.validProposalSuffrageOperationsExpire)
+		t.Equal(ap.maxOperationSize, bp.maxOperationSize)
 	}
 
 	suite.Run(tt, t)

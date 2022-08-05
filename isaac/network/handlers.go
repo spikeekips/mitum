@@ -141,8 +141,6 @@ func (c *QuicstreamHandlers) Operation(_ net.Addr, r io.Reader, w io.Writer) err
 }
 
 func (c *QuicstreamHandlers) SendOperation(_ net.Addr, r io.Reader, w io.Writer) error {
-	// FIXME limit body size
-
 	e := util.StringErrorFunc("failed to handle new operation")
 
 	var enc encoder.Encoder
@@ -172,6 +170,8 @@ func (c *QuicstreamHandlers) SendOperation(_ net.Addr, r io.Reader, w io.Writer)
 	switch body, err := io.ReadAll(r); {
 	case err != nil:
 		return e(err, "")
+	case uint64(len(body)) > c.nodepolicy.MaxOperationSize():
+		return e(nil, "too big size; >= %d", c.nodepolicy.MaxOperationSize())
 	default:
 		if err := encoder.Decode(enc, body, &op); err != nil {
 			return e(err, "")

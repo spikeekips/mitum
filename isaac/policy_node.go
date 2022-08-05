@@ -24,6 +24,7 @@ type NodePolicy struct {
 	syncSourceCheckerInterval             time.Duration
 	validProposalOperationExpire          time.Duration
 	validProposalSuffrageOperationsExpire time.Duration
+	maxOperationSize                      uint64
 	sync.RWMutex
 }
 
@@ -39,6 +40,7 @@ func DefaultNodePolicy(networkID base.NetworkID) *NodePolicy {
 		syncSourceCheckerInterval:             time.Second * 30, //nolint:gomnd //...
 		validProposalOperationExpire:          time.Hour * 24,   //nolint:gomnd //...
 		validProposalSuffrageOperationsExpire: time.Hour * 2,    //nolint:gomnd //...
+		maxOperationSize:                      1 << 10,          //nolint:gomnd //...
 	}
 }
 
@@ -83,6 +85,10 @@ func (p *NodePolicy) IsValid(networkID []byte) error {
 
 	if p.validProposalSuffrageOperationsExpire < 0 {
 		return e.Errorf("wrong duration; invalid validProposalSuffrageOperationsExpire")
+	}
+
+	if p.maxOperationSize < 1 {
+		return e.Errorf("wrong maxOperationSize")
 	}
 
 	return nil
@@ -272,6 +278,28 @@ func (p *NodePolicy) SetValidProposalSuffrageOperationsExpire(d time.Duration) *
 	return p
 }
 
+func (p *NodePolicy) MaxOperationSize() uint64 {
+	p.RLock()
+	defer p.RUnlock()
+
+	return p.maxOperationSize
+}
+
+func (p *NodePolicy) SetMaxOperationSize(s uint64) *NodePolicy {
+	p.Lock()
+	defer p.Unlock()
+
+	if p.maxOperationSize == s {
+		return p
+	}
+
+	p.maxOperationSize = s
+
+	p.id = util.UUID().String()
+
+	return p
+}
+
 type nodePolicyJSONMarshaler struct {
 	NetworkID base.NetworkID `json:"network_id"`
 	hint.BaseHinter
@@ -282,6 +310,7 @@ type nodePolicyJSONMarshaler struct {
 	SyncSourceCheckerInterval             time.Duration  `json:"sync_source_checker_interval"`
 	ValidProposalOperationExpire          time.Duration  `json:"valid_proposal_operation_expire"`
 	ValidProposalSuffrageOperationsExpire time.Duration  `json:"valid_proposal_suffrage_operations_expire"`
+	MaxOperationSize                      uint64         `json:"max_operation_size"`
 }
 
 func (p *NodePolicy) MarshalJSON() ([]byte, error) {
@@ -295,6 +324,7 @@ func (p *NodePolicy) MarshalJSON() ([]byte, error) {
 		SyncSourceCheckerInterval:             p.syncSourceCheckerInterval,
 		ValidProposalOperationExpire:          p.validProposalOperationExpire,
 		ValidProposalSuffrageOperationsExpire: p.validProposalSuffrageOperationsExpire,
+		MaxOperationSize:                      p.maxOperationSize,
 	})
 }
 
@@ -308,6 +338,7 @@ type nodePolicyJSONUnmarshaler struct {
 	SyncSourceCheckerInterval             time.Duration  `json:"sync_source_checker_interval"`
 	ValidProposalOperationExpire          time.Duration  `json:"valid_proposal_operation_expire"`
 	ValidProposalSuffrageOperationsExpire time.Duration  `json:"valid_proposal_suffrage_operations_expire"`
+	MaxOperationSize                      uint64         `json:"max_operation_size"`
 }
 
 func (p *NodePolicy) UnmarshalJSON(b []byte) error {
@@ -326,6 +357,7 @@ func (p *NodePolicy) UnmarshalJSON(b []byte) error {
 	p.syncSourceCheckerInterval = u.SyncSourceCheckerInterval
 	p.validProposalOperationExpire = u.ValidProposalOperationExpire
 	p.validProposalSuffrageOperationsExpire = u.ValidProposalSuffrageOperationsExpire
+	p.maxOperationSize = u.MaxOperationSize
 
 	return nil
 }
