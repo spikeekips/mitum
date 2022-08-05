@@ -27,6 +27,7 @@ type NetworkPolicy struct {
 	hint.BaseHinter
 	maxOperationsInProposal   uint64
 	suffrageCandidateLifespan base.Height
+	// FIXME maxSuffrageSize   uint64
 }
 
 func DefaultNetworkPolicy() NetworkPolicy {

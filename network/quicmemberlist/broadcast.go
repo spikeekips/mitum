@@ -1,14 +1,17 @@
 package quicmemberlist
 
 import (
+	"sync"
+
 	"github.com/hashicorp/memberlist"
 	"github.com/rs/zerolog"
 )
 
 type Broadcast struct {
-	notifych chan struct{} // revive:disable-line:nested-structs
-	id       string
-	b        []byte
+	notifych     chan struct{} // revive:disable-line:nested-structs
+	id           string
+	b            []byte
+	finishedonce sync.Once
 }
 
 func NewBroadcast(b []byte, id string, notifych chan struct{}) *Broadcast {
@@ -28,11 +31,13 @@ func (b *Broadcast) Message() []byte {
 }
 
 func (b *Broadcast) Finished() {
-	if b.notifych != nil {
-		go func() {
-			close(b.notifych)
-		}()
-	}
+	b.finishedonce.Do(func() {
+		if b.notifych == nil {
+			return
+		}
+
+		close(b.notifych)
+	})
 }
 
 func (*Broadcast) UniqueBroadcast() {}

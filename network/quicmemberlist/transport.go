@@ -80,8 +80,11 @@ func NewTransportWithQuicstream(
 			)
 		},
 		func(ctx context.Context, ci quicstream.UDPConnInfo, b []byte) error {
+			tctx, cancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
+			defer cancel()
+
 			r, err := poolclient.Write(
-				ctx,
+				tctx,
 				ci.UDPAddr(),
 				func(w io.Writer) error {
 					_, err := w.Write(makebody(b))
@@ -129,7 +132,7 @@ func (t *Transport) DialAddressTimeout(addr memberlist.Address, timeout time.Dur
 
 		return nil, &net.OpError{
 			Net: "tcp", Op: "dial",
-			Err: errors.Errorf("failed to dial"),
+			Err: errors.WithMessagef(err, "failed to dial"),
 		}
 	}
 
@@ -209,7 +212,7 @@ func (t *Transport) WriteToAddress(b []byte, addr memberlist.Address) (time.Time
 	if err := t.writef(context.Background(), ci, marshalMsg(packetDataType, t.laddr, b)); err != nil {
 		return time.Time{}, &net.OpError{
 			Net: "udp", Op: "write",
-			Err: errors.Errorf("failed to write"),
+			Err: errors.WithMessagef(err, "failed to write"),
 		}
 	}
 
@@ -249,10 +252,22 @@ func (t *Transport) receivePacket(b []byte, raddr net.Addr) {
 		return
 	}
 
-	t.packetch <- &memberlist.Packet{
-		Buf:       b,
-		From:      raddr,
-		Timestamp: time.Now(),
+	donech := make(chan struct{})
+
+	go func() {
+		t.packetch <- &memberlist.Packet{
+			Buf:       b,
+			From:      raddr,
+			Timestamp: time.Now(),
+		}
+
+		donech <- struct{}{}
+	}()
+
+	select {
+	case <-time.After(time.Second * 2):
+		t.Log().Warn().Msg("receive packet blocked")
+	case <-donech:
 	}
 }
 

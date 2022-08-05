@@ -70,4 +70,4 @@ require (
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 )
 
-replace github.com/hashicorp/memberlist => github.com/spikeekips/memberlist v0.0.0-20220322022538-c65862450c13
+replace github.com/hashicorp/memberlist => github.com/spikeekips/memberlist v0.0.0-20220805045452-fff3e593b7ea

@@ -82,14 +82,19 @@ func Handlers(encs *encoder.Encoders, handlers *isaacnetwork.QuicstreamHandlers)
 	return prefix
 }
 
-func BroadcastThruMemberlist(memberlist *quicmemberlist.Memberlist, id string, b []byte) error {
-	donech := make(chan struct{})
-
-	body := quicmemberlist.NewBroadcast(b, id, donech)
+func BroadcastThruMemberlist(
+	memberlist *quicmemberlist.Memberlist,
+	id string,
+	b []byte,
+	notifych chan struct{},
+) error {
+	body := quicmemberlist.NewBroadcast(b, id, notifych)
 
 	memberlist.Broadcast(body)
 
-	<-donech
+	if notifych != nil {
+		<-notifych
+	}
 
 	return nil
 }

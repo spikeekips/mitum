@@ -774,7 +774,7 @@ func (cmd *runCommand) broadcastBallotFunc(ballot base.Ballot) error {
 
 	id := valuehash.NewSHA256(ballot.HashBytes()).String()
 
-	if err := launch.BroadcastThruMemberlist(cmd.memberlist, id, b); err != nil {
+	if err := launch.BroadcastThruMemberlist(cmd.memberlist, id, b, nil); err != nil {
 		return e(err, "")
 	}
 

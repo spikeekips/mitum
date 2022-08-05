@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"io"
+	stdlog "log"
 	"net"
+	"os"
 	"time"
 
 	"github.com/pkg/errors"
@@ -40,6 +42,7 @@ func (cmd *runCommand) prepareMemberlist() error {
 		cmd.design.Network.Bind,
 		cmd.design.Network.Publish(),
 	)
+	memberlistconfig.Logger = stdlog.New(os.Stderr, "memberlist", stdlog.LstdFlags) // FIXME remove
 	memberlistconfig.Transport = memberlisttransport
 
 	memberlistdelegate := quicmemberlist.NewDelegate(memberlistnode, nil, func(b []byte) {

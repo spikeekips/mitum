@@ -141,6 +141,8 @@ func (c *QuicstreamHandlers) Operation(_ net.Addr, r io.Reader, w io.Writer) err
 }
 
 func (c *QuicstreamHandlers) SendOperation(_ net.Addr, r io.Reader, w io.Writer) error {
+	// FIXME limit body size
+
 	e := util.StringErrorFunc("failed to handle new operation")
 
 	var enc encoder.Encoder
