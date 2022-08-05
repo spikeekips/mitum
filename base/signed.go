@@ -45,7 +45,7 @@ func NewBaseSignedFromFact(priv Privatekey, networkID NetworkID, fact Fact) (Bas
 }
 
 func NewBaseSignedFromBytes(priv Privatekey, networkID NetworkID, b []byte) (BaseSigned, error) {
-	now := localtime.New(localtime.Now())
+	now := localtime.New(localtime.UTCNow())
 
 	sig, err := priv.Sign(util.ConcatBytesSlice(networkID, b, now.Bytes()))
 	if err != nil {
