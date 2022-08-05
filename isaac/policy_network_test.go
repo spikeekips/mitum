@@ -75,6 +75,7 @@ func TestNetworkPolicyJSON(tt *testing.T) {
 		t.True(ap.Hint().Equal(bp.Hint()))
 		t.Equal(ap.maxOperationsInProposal, bp.maxOperationsInProposal)
 		t.Equal(ap.suffrageCandidateLifespan, bp.suffrageCandidateLifespan)
+		t.Equal(ap.maxSuffrageSize, bp.maxSuffrageSize)
 
 		ar := ap.SuffrageCandidateLimiterRule()
 		br := ap.SuffrageCandidateLimiterRule()

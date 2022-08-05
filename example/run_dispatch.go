@@ -1239,14 +1239,25 @@ func (cmd *runCommand) newSuffrageCandidateLimiterFunc(
 ) (base.OperationProcessorProcessFunc, error) {
 	e := util.StringErrorFunc("failed to get SuffrageCandidateLimiterFunc")
 
-	limiter, err := cmd.loadSuffrageCandidateLimiter()
-	if err != nil {
-		return nil, e(err, "")
+	policy := cmd.db.LastNetworkPolicy()
+	if policy == nil {
+		return nil, e(nil, "empty network policy")
 	}
 
-	limit, err := limiter()
-	if err != nil {
-		return nil, e(err, "")
+	var suf base.Suffrage
+
+	switch proof, found, err := cmd.db.LastSuffrageProof(); {
+	case err != nil:
+		return nil, e(err, "failed to get last suffrage")
+	case !found:
+		return nil, e(nil, "last suffrage not found")
+	default:
+		i, err := proof.Suffrage()
+		if err != nil {
+			return nil, e(err, "failed to get suffrage")
+		}
+
+		suf = i
 	}
 
 	var existings uint64
@@ -1258,7 +1269,28 @@ func (cmd *runCommand) newSuffrageCandidateLimiterFunc(
 		existings = uint64(len(i))
 	}
 
-	if existings >= limit {
+	limiter, err := cmd.loadSuffrageCandidateLimiter(policy)
+	if err != nil {
+		return nil, e(err, "")
+	}
+
+	limit, err := limiter()
+	if err != nil {
+		return nil, e(err, "")
+	}
+
+	switch {
+	case existings >= policy.MaxSuffrageSize():
+		return func(
+			_ context.Context, op base.Operation, _ base.GetStateFunc,
+		) (base.OperationProcessReasonError, error) {
+			return base.NewBaseOperationProcessReasonError("reached limit, %d", policy.MaxSuffrageSize()), nil
+		}, nil
+	case limit > policy.MaxSuffrageSize()-uint64(suf.Len()):
+		limit = policy.MaxSuffrageSize() - uint64(suf.Len())
+	}
+
+	if limit < 1 {
 		return func(
 			_ context.Context, op base.Operation, _ base.GetStateFunc,
 		) (base.OperationProcessReasonError, error) {
@@ -1269,7 +1301,7 @@ func (cmd *runCommand) newSuffrageCandidateLimiterFunc(
 	var counted uint64
 
 	return func(_ context.Context, op base.Operation, _ base.GetStateFunc) (base.OperationProcessReasonError, error) {
-		if counted >= limit-existings {
+		if counted >= limit {
 			return base.NewBaseOperationProcessReasonError("reached limit, %d", limit), nil
 		}
 
@@ -1279,20 +1311,10 @@ func (cmd *runCommand) newSuffrageCandidateLimiterFunc(
 	}, nil
 }
 
-func (cmd *runCommand) loadSuffrageCandidateLimiter() (base.SuffrageCandidateLimiter, error) {
+func (cmd *runCommand) loadSuffrageCandidateLimiter(policy base.NetworkPolicy) (base.SuffrageCandidateLimiter, error) {
 	e := util.StringErrorFunc("failed to load SuffrageCandidateLimiter")
 
-	policy := cmd.db.LastNetworkPolicy()
-
-	if policy == nil {
-		return nil, e(nil, "empty network policy")
-	}
-
 	rule := policy.SuffrageCandidateLimiterRule()
-
-	if policy == nil {
-		return nil, e(nil, "empty rule")
-	}
 
 	i := cmd.suffrageCandidateLimiterSet.Find(rule.Hint())
 	if i == nil {

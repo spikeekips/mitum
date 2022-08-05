@@ -15,6 +15,7 @@ var (
 	NetworkPolicyStateValueHint = hint.MustNewHint("network-policy-state-value-v0.0.1")
 
 	DefaultMaxOperationsInProposal uint64 = 333
+	DefaultMaxSuffrageSize         uint64 = 33
 
 	// NOTE suffrage candidate can be approved within lifespan height; almost 15
 	// days(based on 5 second for one block)
@@ -27,7 +28,7 @@ type NetworkPolicy struct {
 	hint.BaseHinter
 	maxOperationsInProposal   uint64
 	suffrageCandidateLifespan base.Height
-	// FIXME maxSuffrageSize   uint64
+	maxSuffrageSize           uint64
 }
 
 func DefaultNetworkPolicy() NetworkPolicy {
@@ -36,6 +37,7 @@ func DefaultNetworkPolicy() NetworkPolicy {
 		maxOperationsInProposal:      DefaultMaxOperationsInProposal,
 		suffrageCandidateLifespan:    DefaultSuffrageCandidateLifespan,
 		suffrageCandidateLimiterRule: NewFixedSuffrageCandidateLimiterRule(1),
+		maxSuffrageSize:              DefaultMaxSuffrageSize,
 	}
 }
 
@@ -48,6 +50,10 @@ func (p NetworkPolicy) IsValid([]byte) error {
 
 	if p.maxOperationsInProposal < 1 {
 		return e.Errorf("under zero maxOperationsInProposal")
+	}
+
+	if p.maxSuffrageSize < 1 {
+		return e.Errorf("under zero maxSuffrageSize")
 	}
 
 	switch err := p.suffrageCandidateLifespan.IsValid(nil); {
@@ -78,6 +84,7 @@ func (p NetworkPolicy) HashBytes() []byte {
 	return util.ConcatBytesSlice(
 		util.Uint64ToBytes(p.maxOperationsInProposal),
 		p.suffrageCandidateLifespan.Bytes(),
+		util.Uint64ToBytes(p.maxSuffrageSize),
 		rule,
 	)
 }
@@ -94,12 +101,17 @@ func (p NetworkPolicy) SuffrageCandidateLimiterRule() base.SuffrageCandidateLimi
 	return p.suffrageCandidateLimiterRule
 }
 
+func (p NetworkPolicy) MaxSuffrageSize() uint64 {
+	return p.maxSuffrageSize
+}
+
 type networkPolicyJSONMarshaler struct {
 	// revive:disable-next-line:line-length-limit
 	SuffrageCandidateLimiterRule base.SuffrageCandidateLimiterRule `json:"suffrage_candidate_limiter"` //nolint:tagliatelle //...
 	hint.BaseHinter
 	MaxOperationsInProposal   uint64      `json:"max_operations_in_proposal"`
 	SuffrageCandidateLifespan base.Height `json:"suffrage_candidate_lifespan"`
+	MaxSuffrageSize           uint64      `json:"max_suffrage_size"`
 }
 
 func (p NetworkPolicy) MarshalJSON() ([]byte, error) {
@@ -108,6 +120,7 @@ func (p NetworkPolicy) MarshalJSON() ([]byte, error) {
 		MaxOperationsInProposal:      p.maxOperationsInProposal,
 		SuffrageCandidateLifespan:    p.suffrageCandidateLifespan,
 		SuffrageCandidateLimiterRule: p.suffrageCandidateLimiterRule,
+		MaxSuffrageSize:              p.maxSuffrageSize,
 	})
 }
 
@@ -115,6 +128,7 @@ type networkPolicyJSONUnmarshaler struct {
 	SuffrageCandidateLimiterRule json.RawMessage `json:"suffrage_candidate_limiter"` //nolint:tagliatelle //...
 	MaxOperationsInProposal      uint64          `json:"max_operations_in_proposal"`
 	SuffrageCandidateLifespan    base.Height     `json:"suffrage_candidate_lifespan"`
+	MaxSuffrageSize              uint64          `json:"max_suffrage_size"`
 }
 
 func (p *NetworkPolicy) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
@@ -131,6 +145,7 @@ func (p *NetworkPolicy) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 
 	p.maxOperationsInProposal = u.MaxOperationsInProposal
 	p.suffrageCandidateLifespan = u.SuffrageCandidateLifespan
+	p.maxSuffrageSize = u.MaxSuffrageSize
 
 	return nil
 }

@@ -11,6 +11,7 @@ type NetworkPolicy interface {
 	MaxOperationsInProposal() uint64
 	SuffrageCandidateLifespan() Height
 	SuffrageCandidateLimiterRule() SuffrageCandidateLimiterRule
+	MaxSuffrageSize() uint64
 }
 
 type NodePolicy interface {
