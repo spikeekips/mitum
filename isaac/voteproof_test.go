@@ -312,23 +312,29 @@ func TestINITVoteproofJSON(tt *testing.T) {
 	t := testBaseVoteproofEncode()
 
 	t.Encode = func() (interface{}, []byte) {
-		node := base.RandomAddress("")
+		point := base.RawPoint(32, 44)
 
-		ifact := NewINITBallotFact(base.RawPoint(32, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256())
+		sfs := make([]base.BallotSignedFact, 2)
+		for i := range sfs {
+			node := RandomLocalNode()
+			fact := NewINITBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256())
+			sf := NewINITBallotSignedFact(node.Address(), fact)
+			t.NoError(sf.Sign(node.Privatekey(), t.networkID))
 
-		isignedFact := NewINITBallotSignedFact(node, ifact)
+			sfs[i] = sf
+		}
 
-		t.NoError(isignedFact.Sign(t.priv, t.networkID))
-
-		ivp := NewINITVoteproof(ifact.Point().Point)
+		ivp := NewINITVoteproof(point)
 		ivp.SetResult(base.VoteResultMajority).
-			SetMajority(ifact).
-			SetSignedFacts([]base.BallotSignedFact{isignedFact}).
+			SetMajority(sfs[0].Fact().(base.BallotFact)).
+			SetSignedFacts(sfs).
 			SetThreshold(base.Threshold(100)).
 			Finish()
 
 		b, err := t.enc.Marshal(&ivp)
 		t.NoError(err)
+
+		t.T().Log("marshaled:", string(b))
 
 		return ivp, b
 	}
