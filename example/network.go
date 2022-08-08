@@ -75,8 +75,8 @@ func init() {
 
 type networkClientCommand struct { //nolint:govet //...
 	baseCommand
-	Header  string              `arg:"" help:"json header; 'example' will print example headers"`
-	Remote  launch.ConnInfoFlag `arg:"" help:"remote" placeholder:"ConnInfo" default:"localhost:4321"`
+	Header  string              `arg:"" help:"request header; 'example' will print example headers"`
+	Remote  launch.ConnInfoFlag `arg:"" help:"remote node conn info" placeholder:"ConnInfo" default:"localhost:4321"`
 	Timeout time.Duration       `help:"timeout" placeholder:"duration" default:"10s"`
 	Body    *os.File            `help:"body"`
 	DryRun  bool                `name:"dry-run" help:"don't send"`
