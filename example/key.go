@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -14,17 +15,17 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 )
 
-type keyNewCommand struct {
+type KeyNewCommand struct {
 	baseCommand
 	Seed string `arg:"" name:"seed" optional:"" help:"seed for generating key"`
 }
 
-func (cmd *keyNewCommand) Run() error {
+func (cmd *KeyNewCommand) Run(pctx context.Context) error {
 	log.Log().Debug().
 		Str("seed", cmd.Seed).
 		Msg("flags")
 
-	if err := cmd.prepareEncoder(); err != nil {
+	if _, err := cmd.prepare(pctx); err != nil {
 		return err
 	}
 
@@ -73,17 +74,17 @@ func (cmd *keyNewCommand) Run() error {
 	return nil
 }
 
-type keyLoadCommand struct {
+type KeyLoadCommand struct {
 	baseCommand
 	KeyString string `arg:"" name:"key string" help:"key string"`
 }
 
-func (cmd *keyLoadCommand) Run() error {
+func (cmd *KeyLoadCommand) Run(pctx context.Context) error {
 	log.Log().Debug().
 		Str("key_string", cmd.KeyString).
 		Msg("flags")
 
-	if err := cmd.prepareEncoder(); err != nil {
+	if _, err := cmd.prepare(pctx); err != nil {
 		return err
 	}
 
@@ -148,7 +149,7 @@ func (cmd *keyLoadCommand) Run() error {
 	return nil
 }
 
-type keySignCommand struct {
+type KeySignCommand struct {
 	baseCommand
 	KeyString string             `arg:"" name:"privatekey" help:"privatekey string"`
 	NetworkID string             `arg:"" name:"network-id" help:"network-id"`
@@ -159,7 +160,7 @@ type keySignCommand struct {
 	networkID base.NetworkID
 }
 
-func (cmd *keySignCommand) Run() error {
+func (cmd *KeySignCommand) Run(pctx context.Context) error {
 	log.Log().Debug().
 		Str("privatekey", cmd.KeyString).
 		Str("network_id", cmd.NetworkID).
@@ -171,7 +172,7 @@ func (cmd *keySignCommand) Run() error {
 		_ = cmd.Body.Close()
 	}()
 
-	if err := cmd.prepare(); err != nil {
+	if err := cmd.prepare(pctx); err != nil {
 		return err
 	}
 
@@ -225,8 +226,8 @@ func (cmd *keySignCommand) Run() error {
 	return nil
 }
 
-func (cmd *keySignCommand) prepare() error {
-	if err := cmd.prepareEncoder(); err != nil {
+func (cmd *KeySignCommand) prepare(pctx context.Context) error {
+	if _, err := cmd.baseCommand.prepare(pctx); err != nil {
 		return err
 	}
 
@@ -246,7 +247,7 @@ func (cmd *keySignCommand) prepare() error {
 	return cmd.networkID.IsValid(nil)
 }
 
-func (cmd *keySignCommand) loadBody() (interface{}, interface{}, error) {
+func (cmd *KeySignCommand) loadBody() (interface{}, interface{}, error) {
 	var body []byte
 
 	switch i, err := io.ReadAll(cmd.Body); {
@@ -284,7 +285,7 @@ func (cmd *keySignCommand) loadBody() (interface{}, interface{}, error) {
 	return elem, reflect.New(reflect.ValueOf(elem).Type()).Interface(), nil
 }
 
-func (cmd *keySignCommand) sign(ptr interface{}) error {
+func (cmd *KeySignCommand) sign(ptr interface{}) error {
 	var sign func() error
 
 	switch t := ptr.(type) {

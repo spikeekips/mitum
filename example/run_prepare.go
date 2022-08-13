@@ -27,8 +27,12 @@ func (cmd *runCommand) prepare() (func() error, error) {
 
 	e := util.StringErrorFunc("failed to prepare")
 
-	if err := cmd.prepareEncoder(); err != nil {
+	switch encs, enc, err := launch.PrepareEncoders(); {
+	case err != nil:
 		return stop, e(err, "")
+	default:
+		cmd.encs = encs
+		cmd.enc = enc
 	}
 
 	if err := cmd.prepareDesigns(); err != nil {

@@ -27,20 +27,23 @@ func init() {
 	}
 }
 
+//revive:disable:nested-structs
 var CLI struct { //nolint:govet //...
 	launch2.BaseFlags
 	Import ImportCommand `cmd:"" help:"import from block data"`
 	Init   INITCommand   `cmd:"" help:"init node"`
-	//Run     RunCommand    `cmd:"" help:"run node"`
-	//Network struct {
-	//	Client NetworkClientCommand `cmd:"" help:"network client"`
-	//} `cmd:"" help:"network"`
-	//Key struct {
-	//	New  KeyNewCommand  `cmd:"" help:"generate new key"`
-	//	Load KeyLoadCommand `cmd:"" help:"load key"`
-	//	Sign KeySignCommand `cmd:"" help:"sign"`
-	//} `cmd:"" help:"key"`
+	// Run     RunCommand    `cmd:"" help:"run node"`
+	Network struct {
+		Client NetworkClientCommand `cmd:"" help:"network client"`
+	} `cmd:"" help:"network"`
+	Key struct {
+		New  KeyNewCommand  `cmd:"" help:"generate new key"`
+		Load KeyLoadCommand `cmd:"" help:"load key"`
+		Sign KeySignCommand `cmd:"" help:"sign"`
+	} `cmd:"" help:"key"`
 }
+
+//revive:enable:nested-structs
 
 func main() {
 	kctx := kong.Parse(&CLI)

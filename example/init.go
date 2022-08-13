@@ -19,15 +19,17 @@ func (cmd *INITCommand) Run(pctx context.Context) error {
 		return err
 	}
 
-	pctx = context.WithValue(pctx, launch2.DesignFileContextKey, cmd.Design)
-	pctx = context.WithValue(pctx, launch2.GenesisDesignFileContextKey, cmd.GenesisDesign)
+	pctx = context.WithValue(pctx, //revive:disable-line:modifies-parameter
+		launch2.DesignFileContextKey, cmd.Design)
+	pctx = context.WithValue(pctx, //revive:disable-line:modifies-parameter
+		launch2.GenesisDesignFileContextKey, cmd.GenesisDesign)
 
 	pps := launch2.DefaultINITPS()
 	_ = pps.SetLogging(log)
 
 	log.Log().Debug().Interface("process", pps.Verbose()).Msg("process ready")
 
-	pctx, err := pps.Run(pctx)
+	pctx, err := pps.Run(pctx) //revive:disable-line:modifies-parameter
 	defer func() {
 		log.Log().Debug().Interface("process", pps.Verbose()).Msg("process will be closed")
 

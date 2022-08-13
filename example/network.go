@@ -73,7 +73,7 @@ func init() {
 	})
 }
 
-type networkClientCommand struct { //nolint:govet //...
+type NetworkClientCommand struct { //nolint:govet //...
 	baseCommand
 	Header  string              `arg:"" help:"request header; 'example' will print example headers"`
 	Remote  launch.ConnInfoFlag `arg:"" help:"remote node conn info" placeholder:"ConnInfo" default:"localhost:4321"`
@@ -84,7 +84,7 @@ type networkClientCommand struct { //nolint:govet //...
 	remote  quicstream.UDPConnInfo
 }
 
-func (cmd *networkClientCommand) Run() error {
+func (cmd *NetworkClientCommand) Run(pctx context.Context) error {
 	if cmd.Header == "example" {
 		_, _ = fmt.Fprintln(os.Stdout, "example headers:")
 
@@ -106,11 +106,11 @@ func (cmd *networkClientCommand) Run() error {
 		return nil
 	}
 
-	if err := cmd.prepare(); err != nil {
+	if err := cmd.prepare(pctx); err != nil {
 		return err
 	}
 
-	log.Log().Debug().
+	cmd.log.Debug().
 		Stringer("remote", cmd.Remote).
 		Stringer("timeout", cmd.Timeout).
 		Str("header", cmd.Header).
@@ -129,11 +129,11 @@ func (cmd *networkClientCommand) Run() error {
 	return cmd.response(header)
 }
 
-func (cmd *networkClientCommand) response(header isaac.NetworkHeader) error {
+func (cmd *NetworkClientCommand) response(header isaac.NetworkHeader) error {
 	client := launch.NewNetworkClient(cmd.encs, cmd.enc, cmd.Timeout) //nolint:gomnd //...
 	defer func() {
 		if err := client.Close(); err != nil {
-			log.Log().Error().Err(err).Msg("failed to close client")
+			cmd.log.Error().Err(err).Msg("failed to close client")
 		}
 	}()
 
@@ -141,11 +141,11 @@ func (cmd *networkClientCommand) response(header isaac.NetworkHeader) error {
 
 	switch {
 	case err != nil:
-		log.Log().Error().Err(err).Interface("response", response).Msg("got respond")
+		cmd.log.Error().Err(err).Interface("response", response).Msg("got respond")
 
 		return err
 	case response.Err() != nil:
-		log.Log().Error().Err(err).Interface("response", response).Msg("got respond")
+		cmd.log.Error().Err(err).Interface("response", response).Msg("got respond")
 
 		return err
 	}
@@ -154,7 +154,7 @@ func (cmd *networkClientCommand) response(header isaac.NetworkHeader) error {
 		_ = cancel()
 	}()
 
-	log.Log().Info().Interface("response", response).Msg("got respond")
+	cmd.log.Info().Interface("response", response).Msg("got respond")
 
 	switch response.Type() {
 	case isaac.NetworkResponseHinterContentType:
@@ -179,7 +179,11 @@ func (cmd *networkClientCommand) response(header isaac.NetworkHeader) error {
 	return nil
 }
 
-func (cmd *networkClientCommand) prepare() error {
+func (cmd *NetworkClientCommand) prepare(pctx context.Context) error {
+	if _, err := cmd.baseCommand.prepare(pctx); err != nil {
+		return err
+	}
+
 	if cmd.Body != nil {
 		buf := bytes.NewBuffer(nil)
 
@@ -188,10 +192,6 @@ func (cmd *networkClientCommand) prepare() error {
 		}
 
 		cmd.body = buf
-	}
-
-	if err := cmd.prepareEncoder(); err != nil {
-		return err
 	}
 
 	ci, err := cmd.Remote.ConnInfo()
@@ -208,7 +208,7 @@ func (cmd *networkClientCommand) prepare() error {
 	return nil
 }
 
-func (cmd *networkClientCommand) dryRun(header isaac.NetworkHeader) error {
+func (cmd *NetworkClientCommand) dryRun(header isaac.NetworkHeader) error {
 	hb, err := util.MarshalJSONIndent(header)
 	if err != nil {
 		return err

@@ -29,7 +29,7 @@ func (cmd *ImportCommand) Run(pctx context.Context) error {
 		return err
 	}
 
-	pctx = context.WithValue(pctx, launch2.DesignFileContextKey, cmd.Design)
+	pctx = context.WithValue(pctx, launch2.DesignFileContextKey, cmd.Design) //revive:disable-line:modifies-parameter
 
 	pps := launch2.DefaultINITPS()
 	_ = pps.SetLogging(log)
@@ -44,7 +44,7 @@ func (cmd *ImportCommand) Run(pctx context.Context) error {
 
 	log.Log().Debug().Interface("process", pps.Verbose()).Msg("process ready")
 
-	pctx, err := pps.Run(pctx)
+	pctx, err := pps.Run(pctx) //revive:disable-line:modifies-parameter
 	defer func() {
 		log.Log().Debug().Interface("process", pps.Verbose()).Msg("process will be closed")
 
@@ -72,6 +72,7 @@ func (cmd *ImportCommand) importBlocks(ctx context.Context) (context.Context, er
 	var db isaac.Database
 	var perm isaac.PermanentDatabase
 	var pool *isaacdatabase.TempPool
+
 	if err := ps.LoadsFromContextOK(ctx,
 		launch2.EncodersContextKey, &encs,
 		launch2.EncoderContextKey, &enc,
