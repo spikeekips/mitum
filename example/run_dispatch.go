@@ -173,7 +173,7 @@ func (cmd *runCommand) prepareProposalMaker() *isaac.ProposalMaker {
 					case err != nil:
 						return false, err
 					case found:
-						log.Trace().Stringer("operation", operationhash).Msg("already processed; known operation")
+						log.Log().Trace().Stringer("operation", operationhash).Msg("already processed; known operation")
 
 						return false, nil
 					}
@@ -182,7 +182,7 @@ func (cmd *runCommand) prepareProposalMaker() *isaac.ProposalMaker {
 					case err != nil:
 						return false, err
 					case found:
-						log.Trace().Stringer("operation", facthash).Msg("already processed; in state")
+						log.Log().Trace().Stringer("operation", facthash).Msg("already processed; in state")
 
 						return false, nil
 					}
@@ -248,7 +248,7 @@ func (cmd *runCommand) proposalSelectorFunc() *isaac.BaseProposalSelector {
 			},
 		),
 		// isaac.NewFixedProposerSelector(func(_ base.Point, nodes []base.Node) (base.Node, error) { // NOTE
-		// 	log.Debug().
+		// 	log.Log().Debug().
 		// 		Int("number_nodes", len(nodes)).
 		// 		Interface("nodes", nodes).
 		// 		Msg("selecting proposer from the given nodes")
@@ -282,11 +282,11 @@ func (cmd *runCommand) proposalSelectorFunc() *isaac.BaseProposalSelector {
 
 			switch {
 			case cmd.memberlist == nil:
-				log.Debug().Msg("tried to make proposal, but empty memberlist")
+				log.Log().Debug().Msg("tried to make proposal, but empty memberlist")
 
 				return nil, false, isaac.ErrEmptyAvailableNodes.Errorf("nil memberlist")
 			case !cmd.memberlist.IsJoined():
-				log.Debug().Msg("tried to make proposal, but memberlist, not yet joined")
+				log.Log().Debug().Msg("tried to make proposal, but memberlist, not yet joined")
 
 				return nil, false, isaac.ErrEmptyAvailableNodes.Errorf("memberlist, not yet joined")
 			}
@@ -456,7 +456,7 @@ func (cmd *runCommand) newSyncerDeferred(
 	height base.Height,
 	syncer *isaacstates.Syncer,
 ) {
-	l := log.With().Str("module", "new-syncer").Logger()
+	l := log.Log().With().Str("module", "new-syncer").Logger()
 
 	if err := cmd.db.MergeAllPermanent(); err != nil {
 		l.Error().Err(err).Msg("failed to merge temps")
@@ -464,7 +464,7 @@ func (cmd *runCommand) newSyncerDeferred(
 		return
 	}
 
-	log.Debug().Msg("SuffrageProofs built")
+	log.Log().Debug().Msg("SuffrageProofs built")
 
 	err := syncer.Start()
 	if err != nil {
@@ -785,14 +785,14 @@ func (cmd *runCommand) updateSyncSources(called int64, ncis []isaac.NodeConnInfo
 	cmd.syncSourcePool.UpdateFixed(ncis)
 
 	if err != nil {
-		log.Error().Err(err).
+		log.Log().Error().Err(err).
 			Interface("node_conninfo", ncis).
 			Msg("failed to check sync sources")
 
 		return
 	}
 
-	log.Debug().
+	log.Log().Debug().
 		Int64("called", called).
 		Interface("node_conninfo", ncis).
 		Msg("sync sources updated")
@@ -1334,7 +1334,7 @@ func (cmd *runCommand) whenStateSwitched(_, next isaacstates.StateType) {
 }
 
 func (cmd *runCommand) whenNewBlockSaved(height base.Height) {
-	l := log.With().Interface("height", height).Logger()
+	l := log.Log().With().Interface("height", height).Logger()
 	l.Debug().Msg("new block saved")
 
 	if cmd.Hold.IsSet() && height == cmd.Hold.Height() {
@@ -1354,11 +1354,11 @@ func (cmd *runCommand) updateNodeInfoWithNewBlock() {
 	// NOTE update nodeinfo
 	switch m, found, err := cmd.db.LastBlockMap(); {
 	case err != nil:
-		log.Error().Err(err).Msg("failed to update node info")
+		log.Log().Error().Err(err).Msg("failed to update node info")
 
 		return
 	case !found:
-		log.Error().Msg("failed to update node info; last BlockMap not found")
+		log.Log().Error().Msg("failed to update node info; last BlockMap not found")
 
 		return
 	case !cmd.nodeinfo.SetLastManifest(m.Manifest()):
@@ -1367,13 +1367,13 @@ func (cmd *runCommand) updateNodeInfoWithNewBlock() {
 
 	switch proof, found, err := cmd.db.LastSuffrageProof(); {
 	case err != nil:
-		log.Error().Msg("failed to update node info; last SuffrageProof not found")
+		log.Log().Error().Msg("failed to update node info; last SuffrageProof not found")
 
 		return
 	case found && cmd.nodeinfo.SetSuffrageHeight(proof.SuffrageHeight()):
 		suf, err := proof.Suffrage()
 		if err != nil {
-			log.Error().Msg("failed to update node info; failed suffrage from proof")
+			log.Log().Error().Msg("failed to update node info; failed suffrage from proof")
 
 			return
 		}

@@ -20,7 +20,7 @@ type keyNewCommand struct {
 }
 
 func (cmd *keyNewCommand) Run() error {
-	log.Debug().
+	log.Log().Debug().
 		Str("seed", cmd.Seed).
 		Msg("flags")
 
@@ -33,7 +33,7 @@ func (cmd *keyNewCommand) Run() error {
 	switch {
 	case len(cmd.Seed) > 0:
 		if len(strings.TrimSpace(cmd.Seed)) < 1 {
-			log.Warn().Msg("seed consists with empty spaces")
+			log.Log().Warn().Msg("seed consists with empty spaces")
 		}
 
 		i, err := base.NewMPrivatekeyFromSeed(cmd.Seed)
@@ -79,7 +79,7 @@ type keyLoadCommand struct {
 }
 
 func (cmd *keyLoadCommand) Run() error {
-	log.Debug().
+	log.Log().Debug().
 		Str("key_string", cmd.KeyString).
 		Msg("flags")
 
@@ -160,7 +160,7 @@ type keySignCommand struct {
 }
 
 func (cmd *keySignCommand) Run() error {
-	log.Debug().
+	log.Log().Debug().
 		Str("privatekey", cmd.KeyString).
 		Str("network_id", cmd.NetworkID).
 		Stringer("node", cmd.Node.Address()).
@@ -198,14 +198,14 @@ func (cmd *keySignCommand) Run() error {
 
 	switch {
 	case len(cmd.Token) < 1:
-		log.Debug().Msg("token not updated")
+		log.Log().Debug().Msg("token not updated")
 	default:
 		if i, ok := ptr.(base.TokenSetter); ok {
 			if err := i.SetToken(base.Token([]byte(cmd.Token))); err != nil {
 				return err
 			}
 
-			log.Debug().Str("new_token", cmd.Token).Msg("token updated")
+			log.Log().Debug().Str("new_token", cmd.Token).Msg("token updated")
 		}
 	}
 
@@ -213,7 +213,7 @@ func (cmd *keySignCommand) Run() error {
 		return err
 	}
 
-	log.Debug().Msg("successfully signed")
+	log.Log().Debug().Msg("successfully signed")
 
 	b, err := util.MarshalJSONIndent(ptr)
 	if err != nil {
@@ -268,7 +268,7 @@ func (cmd *keySignCommand) loadBody() (interface{}, interface{}, error) {
 		_, _ = fmt.Fprintln(os.Stderr, string(i))
 	}
 
-	log.Debug().Str("raw_body", string(body)).Msg("read body")
+	log.Log().Debug().Str("raw_body", string(body)).Msg("read body")
 
 	elem, err := cmd.enc.Decode(body)
 	if err != nil {
@@ -279,7 +279,7 @@ func (cmd *keySignCommand) loadBody() (interface{}, interface{}, error) {
 		return nil, nil, errors.Errorf("failed to load body")
 	}
 
-	log.Debug().Str("body_type", fmt.Sprintf("%T", elem)).Msg("body loaded")
+	log.Log().Debug().Str("body_type", fmt.Sprintf("%T", elem)).Msg("body loaded")
 
 	return elem, reflect.New(reflect.ValueOf(elem).Type()).Interface(), nil
 }

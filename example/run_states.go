@@ -29,7 +29,7 @@ func (cmd *runCommand) prepareStates() error {
 	}
 
 	pps := isaac.NewProposalProcessors(cmd.newProposalProcessor, cmd.getProposal)
-	_ = pps.SetLogging(logging)
+	_ = pps.SetLogging(log)
 
 	lvps := isaacstates.NewLastVoteproofsHandler()
 
@@ -71,7 +71,7 @@ func (cmd *runCommand) prepareStates() error {
 			)).
 		SetHandler(isaacstates.StateSyncing, syncinghandler)
 
-	_ = states.SetLogging(logging)
+	_ = states.SetLogging(log)
 
 	// NOTE load last init, accept voteproof and last majority voteproof
 	switch ivp, avp, found, err := cmd.pool.LastVoteproofs(); {

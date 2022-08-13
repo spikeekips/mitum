@@ -56,7 +56,7 @@ func (cmd *runCommand) prepare() (func() error, error) {
 	}
 
 	cmd.proposalMaker = cmd.prepareProposalMaker()
-	_ = cmd.proposalMaker.SetLogging(logging)
+	_ = cmd.proposalMaker.SetLogging(log)
 
 	if err := cmd.prepareNetwork(); err != nil {
 		return stop, e(err, "")
@@ -132,7 +132,7 @@ func (cmd *runCommand) prepareDatabase() error {
 		return e(err, "")
 	}
 
-	_ = db.SetLogging(logging)
+	_ = db.SetLogging(log)
 
 	if err := db.Start(); err != nil {
 		return e(err, "")
@@ -165,7 +165,7 @@ func (cmd *runCommand) prepareNetwork() error {
 		quicconfig,
 		cmd.handlers.Handler,
 	)
-	_ = cmd.quicstreamserver.SetLogging(logging)
+	_ = cmd.quicstreamserver.SetLogging(log)
 
 	return cmd.prepareMemberlist()
 }
@@ -200,14 +200,14 @@ func (cmd *runCommand) prepareLastSuffrageProofWatcher() {
 
 			switch _, found, err := isaac.IsNodeInLastConsensusNodes(cmd.local, proof, st); {
 			case err != nil:
-				log.Error().Err(err).Msg("failed to check node in consensus nodes")
+				log.Log().Error().Err(err).Msg("failed to check node in consensus nodes")
 
 				return
 			case !found:
-				log.Debug().Msg("local is not in consensus nodes; will leave from memberlist")
+				log.Log().Debug().Msg("local is not in consensus nodes; will leave from memberlist")
 
 				if err := cmd.memberlist.Leave(time.Second * 30); err != nil { //nolint:gomnd // long enough to leave
-					log.Error().Err(err).Msg("failed to leave from memberlist")
+					log.Log().Error().Err(err).Msg("failed to leave from memberlist")
 				}
 
 				return
@@ -218,7 +218,7 @@ func (cmd *runCommand) prepareLastSuffrageProofWatcher() {
 			_ = util.Retry(
 				ctx,
 				func() (bool, error) {
-					l := log.With().Interface("discoveries", cmd.discoveries).Logger()
+					l := log.Log().With().Interface("discoveries", cmd.discoveries).Logger()
 
 					switch err := cmd.memberlist.Join(cmd.discoveries); {
 					case err != nil:
@@ -246,9 +246,9 @@ func (cmd *runCommand) prepareSyncSourceChecker() error {
 
 	switch {
 	case len(sources) < 1:
-		log.Warn().Msg("empty initial sync sources; connected memberlist members will be used")
+		log.Log().Warn().Msg("empty initial sync sources; connected memberlist members will be used")
 	default:
-		log.Debug().Interface("sync_sources", sources).Msg("initial sync sources found")
+		log.Log().Debug().Interface("sync_sources", sources).Msg("initial sync sources found")
 	}
 
 	cmd.syncSourceChecker = isaacnetwork.NewSyncSourceChecker(
@@ -260,7 +260,7 @@ func (cmd *runCommand) prepareSyncSourceChecker() error {
 		sources,
 		cmd.updateSyncSources,
 	)
-	_ = cmd.syncSourceChecker.SetLogging(logging)
+	_ = cmd.syncSourceChecker.SetLogging(log)
 
 	cmd.syncSourcePool = isaac.NewSyncSourcePool(nil)
 

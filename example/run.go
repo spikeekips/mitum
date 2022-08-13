@@ -64,7 +64,7 @@ func (cmd *runCommand) Run() error {
 		}()
 	}
 
-	log.Debug().
+	log.Log().Debug().
 		Interface("discovery", cmd.Discovery).
 		Interface("hold", cmd.Hold.Height()).
 		Msg("node started")
@@ -85,7 +85,7 @@ func (cmd *runCommand) Run() error {
 	}
 
 	if len(cmd.discoveries) < 1 {
-		log.Warn().Msg("empty discoveries; will wait to be joined by remote nodes")
+		log.Log().Warn().Msg("empty discoveries; will wait to be joined by remote nodes")
 	}
 
 	if err := cmd.syncSourceChecker.Start(); err != nil {
@@ -162,11 +162,11 @@ func (cmd *runCommand) startStates(ctx context.Context) (func(), error) {
 
 	return func() {
 		if err := cmd.states.Stop(); err != nil && !errors.Is(err, util.ErrDaemonAlreadyStopped) {
-			log.Error().Err(err).Msg("failed to stop states")
+			log.Log().Error().Err(err).Msg("failed to stop states")
 
 			return
 		}
 
-		log.Debug().Msg("states stopped")
+		log.Log().Debug().Msg("states stopped")
 	}, nil
 }

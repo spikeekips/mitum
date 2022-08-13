@@ -2,211 +2,122 @@ package main
 
 import (
 	"context"
-	"io"
-	"math"
 	"path/filepath"
-	"sync"
 
-	"github.com/bluele/gcache"
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
-	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/launch"
+	"github.com/spikeekips/mitum/launch2"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
+	"github.com/spikeekips/mitum/util/logging"
+	"github.com/spikeekips/mitum/util/ps"
 )
 
-type importCommand struct { //nolint:govet //...
-	baseNodeCommand
-	From string `arg:"" name:"from directory" help:"block data directory to import" type:"existingdir"`
-	db   isaac.Database
-	perm isaac.PermanentDatabase
-	pool *isaacdatabase.TempPool
+var pnameImportBlocks = ps.PName("import-blocks")
+
+type ImportCommand struct {
+	Design string `arg:"" name:"node design" help:"node design" type:"filepath"`
+	From   string `arg:"" name:"from directory" help:"block data directory to import" type:"existingdir"`
 }
 
-func (cmd *importCommand) Run() error {
-	if err := cmd.prepareEncoder(); err != nil {
+func (cmd *ImportCommand) Run(pctx context.Context) error {
+	var log *logging.Logging
+	if err := ps.LoadFromContextOK(pctx, launch2.LoggingContextKey, &log); err != nil {
 		return err
 	}
 
-	if err := cmd.prepareDesigns(); err != nil {
-		return err
-	}
+	pctx = context.WithValue(pctx, launch2.DesignFileContextKey, cmd.Design)
 
-	if err := cmd.prepareLocal(); err != nil {
-		return err
-	}
+	pps := launch2.DefaultINITPS()
+	_ = pps.SetLogging(log)
 
-	if err := cmd.prepareDatabase(); err != nil {
-		return err
-	}
+	_ = pps.POK(launch2.PNameDesign).
+		PostRemoveOK(launch2.PNameGenesisDesign)
 
-	last, err := cmd.checkLocalFS()
-	if err != nil {
-		return err
-	}
+	_ = pps.
+		RemoveOK(launch2.PNameGenerateGenesis)
 
-	if err := cmd.importBlocks(base.GenesisHeight, last); err != nil {
-		return err
-	}
+	_ = pps.AddOK(pnameImportBlocks, cmd.importBlocks, nil, launch2.PNameStorage)
 
-	return cmd.validateImported(last)
+	log.Log().Debug().Interface("process", pps.Verbose()).Msg("process ready")
+
+	pctx, err := pps.Run(pctx)
+	defer func() {
+		log.Log().Debug().Interface("process", pps.Verbose()).Msg("process will be closed")
+
+		if _, err = pps.Close(pctx); err != nil {
+			log.Log().Error().Err(err).Msg("failed to close")
+		}
+	}()
+
+	return err
 }
 
-func (cmd *importCommand) prepareDatabase() error {
-	e := util.StringErrorFunc("failed to prepare database")
-
-	if err := launch.CleanStorage(
-		cmd.design.Storage.Database.String(),
-		cmd.design.Storage.Base,
-		cmd.encs, cmd.enc,
-	); err != nil {
-		return e(err, "")
-	}
-
-	nodeinfo, err := launch.CreateLocalFS(
-		launch.CreateDefaultNodeInfo(cmd.nodePolicy.NetworkID(), version), cmd.design.Storage.Base, cmd.enc)
-	if err != nil {
-		return e(err, "")
-	}
-
-	_, db, perm, pool, err := launch.LoadDatabase(
-		nodeinfo, cmd.design.Storage.Database.String(), cmd.design.Storage.Base, cmd.encs, cmd.enc)
-	if err != nil {
-		return e(err, "")
-	}
-
-	_ = db.SetLogging(logging)
-
-	cmd.db = db
-	cmd.perm = perm
-	cmd.pool = pool
-
-	return nil
-}
-
-func (cmd *importCommand) checkLocalFS() (last base.Height, _ error) {
-	e := util.StringErrorFunc("failed to check localfs")
-
-	last, err := launch.FindLastHeightFromLocalFS(cmd.From, cmd.enc, cmd.nodePolicy.NetworkID())
-	if err != nil {
-		return last, e(err, "")
-	}
-
-	if err := launch.ValidateLocalFS(cmd.From, cmd.enc, last); err != nil {
-		return last, e(err, "")
-	}
-
-	return last, nil
-}
-
-func (cmd *importCommand) importBlocks(from, to base.Height) error {
+func (cmd *ImportCommand) importBlocks(ctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to import blocks")
 
-	readercache := gcache.New(math.MaxInt).LRU().Build()
-	var readerLock sync.Mutex
-	getreader := func(height base.Height) (isaac.BlockReader, error) {
-		readerLock.Lock()
-		defer readerLock.Unlock()
-
-		reader, err := readercache.Get(height)
-		if err != nil {
-			i, err := isaacblock.NewLocalFSReaderFromHeight(cmd.From, height, cmd.enc)
-			if err != nil {
-				return nil, err
-			}
-
-			_ = readercache.Set(height, i)
-
-			reader = i
-		}
-
-		return reader.(isaac.BlockReader), nil //nolint:forcetypeassert //...
+	last, err := launch2.LastHeightOfLocalFS(ctx, cmd.From)
+	if err != nil {
+		return ctx, e(err, "")
 	}
 
-	if err := isaacstates.ImportBlocks(
-		context.Background(),
-		from, to,
-		333, //nolint:gomnd //...
-		func(height base.Height) (base.BlockMap, bool, error) {
-			reader, err := getreader(height)
-			if err != nil {
-				return nil, false, err
-			}
-
-			m, found, err := reader.BlockMap()
-
-			return m, found, err
-		},
-		func(
-			_ context.Context, height base.Height, item base.BlockMapItemType,
-		) (io.ReadCloser, func() error, bool, error) {
-			reader, err := getreader(height)
-			if err != nil {
-				return nil, nil, false, err
-			}
-
-			r, found, err := reader.Reader(item)
-
-			return r, func() error { return nil }, found, err
-		},
-		func(height base.Height) (isaac.BlockWriteDatabase, func(context.Context) error, error) {
-			bwdb, err := cmd.db.NewBlockWriteDatabase(height)
-			if err != nil {
-				return nil, nil, err
-			}
-
-			return bwdb,
-				func(ctx context.Context) error {
-					return launch.MergeBlockWriteToPermanentDatabase(ctx, bwdb, cmd.perm)
-				},
-				nil
-		},
-		func(m base.BlockMap, bwdb isaac.BlockWriteDatabase) (isaac.BlockImporter, error) {
-			im, err := isaacblock.NewBlockImporter(
-				launch.LocalFSDataDirectory(cmd.design.Storage.Base),
-				cmd.encs,
-				m,
-				bwdb,
-				cmd.nodePolicy.NetworkID(),
-			)
-			if err != nil {
-				return nil, err
-			}
-
-			return im, nil
-		},
-		func(reader isaac.BlockReader) error {
-			switch v, found, err := reader.Item(base.BlockMapItemTypeVoteproofs); {
-			case err != nil:
-				return err
-			case !found:
-				return errors.Errorf("voteproofs not found at last")
-			default:
-				vps := v.([]base.Voteproof)           //nolint:forcetypeassert //...
-				if err := cmd.pool.SetLastVoteproofs( //nolint:forcetypeassert //...
-					vps[0].(base.INITVoteproof),
-					vps[1].(base.ACCEPTVoteproof),
-				); err != nil {
-					return err
-				}
-
-				return nil
-			}
-		},
+	var encs *encoder.Encoders
+	var enc encoder.Encoder
+	var design launch.NodeDesign
+	var local base.LocalNode
+	var policy *isaac.NodePolicy
+	var db isaac.Database
+	var perm isaac.PermanentDatabase
+	var pool *isaacdatabase.TempPool
+	if err := ps.LoadsFromContextOK(ctx,
+		launch2.EncodersContextKey, &encs,
+		launch2.EncoderContextKey, &enc,
+		launch2.DesignContextKey, &design,
+		launch2.LocalContextKey, &local,
+		launch2.NodePolicyContextKey, &policy,
+		launch2.CenterDatabaseContextKey, &db,
+		launch2.PermanentDatabaseContextKey, &perm,
+		launch2.PoolDatabaseContextKey, &pool,
 	); err != nil {
-		return e(err, "")
+		return ctx, e(err, "")
 	}
 
-	return nil
+	if err := launch2.ImportBlocks(
+		cmd.From,
+		design.Storage.Base,
+		base.GenesisHeight,
+		last,
+		encs,
+		enc,
+		db,
+		perm,
+		pool,
+		policy,
+	); err != nil {
+		return ctx, e(err, "")
+	}
+
+	if err := cmd.validateImported(last, enc, design, policy, db, perm); err != nil {
+		return ctx, e(err, "")
+	}
+
+	return ctx, nil
 }
 
-func (cmd *importCommand) validateImported(last base.Height) error {
+func (cmd *ImportCommand) validateImported(
+	last base.Height,
+	enc encoder.Encoder,
+	design launch.NodeDesign,
+	policy *isaac.NodePolicy,
+	db isaac.Database,
+	perm isaac.PermanentDatabase,
+) error {
 	e := util.StringErrorFunc("failed to validate imported")
 
-	root := launch.LocalFSDataDirectory(cmd.design.Storage.Base)
+	root := launch.LocalFSDataDirectory(design.Storage.Base)
 
 	switch h, found, err := isaacblock.FindHighestDirectory(root); {
 	case err != nil:
@@ -227,18 +138,23 @@ func (cmd *importCommand) validateImported(last base.Height) error {
 		}
 	}
 
-	if err := cmd.validateImportedBlockMaps(root, last); err != nil {
+	if err := cmd.validateImportedBlockMaps(root, last, enc, policy); err != nil {
 		return e(err, "")
 	}
 
-	if err := cmd.validateImportedBlocks(root, last); err != nil {
+	if err := cmd.validateImportedBlocks(root, last, enc, policy, perm); err != nil {
 		return e(err, "")
 	}
 
 	return nil
 }
 
-func (cmd *importCommand) validateImportedBlockMaps(root string, last base.Height) error {
+func (cmd *ImportCommand) validateImportedBlockMaps(
+	root string,
+	last base.Height,
+	enc encoder.Encoder,
+	policy *isaac.NodePolicy,
+) error {
 	e := util.StringErrorFunc("failed to validate imported BlockMaps")
 
 	if err := base.BatchValidateMaps(
@@ -247,7 +163,7 @@ func (cmd *importCommand) validateImportedBlockMaps(root string, last base.Heigh
 		last,
 		333, //nolint:gomnd //...
 		func(_ context.Context, height base.Height) (base.BlockMap, error) {
-			reader, err := isaacblock.NewLocalFSReaderFromHeight(root, height, cmd.enc)
+			reader, err := isaacblock.NewLocalFSReaderFromHeight(root, height, enc)
 			if err != nil {
 				return nil, err
 			}
@@ -258,7 +174,7 @@ func (cmd *importCommand) validateImportedBlockMaps(root string, last base.Heigh
 			case !found:
 				return nil, util.ErrNotFound.Call()
 			default:
-				if err := m.IsValid(cmd.nodePolicy.NetworkID()); err != nil {
+				if err := m.IsValid(policy.NetworkID()); err != nil {
 					return nil, err
 				}
 
@@ -272,12 +188,18 @@ func (cmd *importCommand) validateImportedBlockMaps(root string, last base.Heigh
 		return e(err, "")
 	}
 
-	log.Debug().Msg("imported BlockMaps validated")
+	log.Log().Debug().Msg("imported BlockMaps validated")
 
 	return nil
 }
 
-func (cmd *importCommand) validateImportedBlocks(root string, last base.Height) error {
+func (cmd *ImportCommand) validateImportedBlocks(
+	root string,
+	last base.Height,
+	enc encoder.Encoder,
+	policy *isaac.NodePolicy,
+	perm isaac.PermanentDatabase,
+) error {
 	e := util.StringErrorFunc("failed to validate imported blocks")
 
 	if err := util.BatchWork(
@@ -289,7 +211,7 @@ func (cmd *importCommand) validateImportedBlocks(root string, last base.Height) 
 		},
 		func(_ context.Context, i, _ uint64) error {
 			return launch.ValidateBlockFromLocalFS(
-				base.Height(int64(i)), root, cmd.enc, cmd.nodePolicy.NetworkID(), cmd.perm)
+				base.Height(int64(i)), root, enc, policy.NetworkID(), perm)
 		},
 	); err != nil {
 		return e(err, "")

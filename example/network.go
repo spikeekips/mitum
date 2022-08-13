@@ -110,7 +110,7 @@ func (cmd *networkClientCommand) Run() error {
 		return err
 	}
 
-	log.Debug().
+	log.Log().Debug().
 		Stringer("remote", cmd.Remote).
 		Stringer("timeout", cmd.Timeout).
 		Str("header", cmd.Header).
@@ -133,7 +133,7 @@ func (cmd *networkClientCommand) response(header isaac.NetworkHeader) error {
 	client := launch.NewNetworkClient(cmd.encs, cmd.enc, cmd.Timeout) //nolint:gomnd //...
 	defer func() {
 		if err := client.Close(); err != nil {
-			log.Error().Err(err).Msg("failed to close client")
+			log.Log().Error().Err(err).Msg("failed to close client")
 		}
 	}()
 
@@ -141,11 +141,11 @@ func (cmd *networkClientCommand) response(header isaac.NetworkHeader) error {
 
 	switch {
 	case err != nil:
-		log.Error().Err(err).Interface("response", response).Msg("got respond")
+		log.Log().Error().Err(err).Interface("response", response).Msg("got respond")
 
 		return err
 	case response.Err() != nil:
-		log.Error().Err(err).Interface("response", response).Msg("got respond")
+		log.Log().Error().Err(err).Interface("response", response).Msg("got respond")
 
 		return err
 	}
@@ -154,7 +154,7 @@ func (cmd *networkClientCommand) response(header isaac.NetworkHeader) error {
 		_ = cancel()
 	}()
 
-	log.Info().Interface("response", response).Msg("got respond")
+	log.Log().Info().Interface("response", response).Msg("got respond")
 
 	switch response.Type() {
 	case isaac.NetworkResponseHinterContentType:

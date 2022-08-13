@@ -46,21 +46,21 @@ func (cmd *runCommand) prepareMemberlist() error {
 	memberlistdelegate := quicmemberlist.NewDelegate(memberlistnode, nil, func(b []byte) {
 		i, err := cmd.enc.Decode(b) //nolint:govet //...
 		if err != nil {
-			log.Error().Err(err).Str("message", string(b)).Msg("failed to decode incoming message")
+			log.Log().Error().Err(err).Str("message", string(b)).Msg("failed to decode incoming message")
 
 			return
 		}
 
 		switch t := i.(type) {
 		case base.Ballot:
-			log.Trace().Interface("ballot", i).Msg("new incoming message")
+			log.Log().Trace().Interface("ballot", i).Msg("new incoming message")
 
 			_, err := cmd.ballotbox.Vote(t)
 			if err != nil {
-				log.Error().Err(err).Interface("ballot", t).Msg("failed to vote")
+				log.Log().Error().Err(err).Interface("ballot", t).Msg("failed to vote")
 			}
 		default:
-			log.Trace().Interface("message", i).Msgf("new incoming message; ignored; but unknown, %T", t)
+			log.Log().Trace().Interface("message", i).Msgf("new incoming message; ignored; but unknown, %T", t)
 		}
 	})
 	memberlistconfig.Delegate = memberlistdelegate
@@ -76,25 +76,25 @@ func (cmd *runCommand) prepareMemberlist() error {
 	memberlistevents := quicmemberlist.NewEventsDelegate(
 		cmd.enc,
 		func(node quicmemberlist.Node) {
-			log.Debug().Interface("node", node).Msg("new node found")
+			log.Log().Debug().Interface("node", node).Msg("new node found")
 
 			if !node.Address().Equal(cmd.local.Address()) {
 				nci := isaacnetwork.NewNodeConnInfoFromMemberlistNode(node)
 				added := cmd.syncSourcePool.Add(nci)
 
-				log.Debug().
+				log.Log().Debug().
 					Bool("added", added).
 					Interface("node_conninfo", nci).
 					Msg("new node added to SyncSourcePool")
 			}
 		},
 		func(node quicmemberlist.Node) {
-			log.Debug().Interface("node", node).Msg("node left")
+			log.Log().Debug().Interface("node", node).Msg("node left")
 
 			if !node.Address().Equal(cmd.local.Address()) {
 				removed := cmd.syncSourcePool.Remove(node.Address(), node.Publish().String())
 
-				log.Debug().
+				log.Log().Debug().
 					Bool("removed", removed).
 					Interface("node", node.Address()).
 					Str("publish", node.Publish().String()).
@@ -107,13 +107,13 @@ func (cmd *runCommand) prepareMemberlist() error {
 	cmd.handlers.Add(isaacnetwork.HandlerPrefixMemberlist, func(addr net.Addr, r io.Reader, w io.Writer) error {
 		b, err := io.ReadAll(r) //nolint:govet //...
 		if err != nil {
-			log.Error().Err(err).Stringer("remote_address", addr).Msg("failed to read")
+			log.Log().Error().Err(err).Stringer("remote_address", addr).Msg("failed to read")
 
 			return errors.WithStack(err)
 		}
 
 		if err := memberlisttransport.ReceiveRaw(b, addr); err != nil {
-			log.Error().Err(err).Stringer("remote_address", addr).Msg("invalid message received")
+			log.Log().Error().Err(err).Stringer("remote_address", addr).Msg("invalid message received")
 
 			return err
 		}
@@ -131,7 +131,7 @@ func (cmd *runCommand) prepareMemberlist() error {
 		return err
 	}
 
-	_ = memberlist.SetLogging(logging)
+	_ = memberlist.SetLogging(log)
 
 	cmd.memberlist = memberlist
 
@@ -183,18 +183,18 @@ func (cmd *runCommand) memberlistAllowFunc() func(quicmemberlist.Node) error {
 	return func(node quicmemberlist.Node) error {
 		proof, st, err := cmd.lastSuffrageProofWatcher.Last()
 		if err != nil {
-			log.Error().Err(err).Msg("failed to check last consensus nodes; node will not be allowed")
+			log.Log().Error().Err(err).Msg("failed to check last consensus nodes; node will not be allowed")
 
 			return err
 		}
 
 		switch _, found, err := isaac.IsNodeInLastConsensusNodes(node, proof, st); {
 		case err != nil:
-			log.Error().Err(err).Msg("failed to check node in consensus nodes; node will not be allowed")
+			log.Log().Error().Err(err).Msg("failed to check node in consensus nodes; node will not be allowed")
 
 			return err
 		case !found:
-			log.Error().Err(err).Msg("node not in consensus nodes; node will not be allowed")
+			log.Log().Error().Err(err).Msg("node not in consensus nodes; node will not be allowed")
 
 			return util.ErrNotFound.Errorf("node not in consensus nodes")
 		default:

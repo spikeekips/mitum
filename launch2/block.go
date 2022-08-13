@@ -1,0 +1,128 @@
+package launch2
+
+import (
+	"context"
+	"io"
+	"math"
+	"sync"
+
+	"github.com/bluele/gcache"
+	"github.com/pkg/errors"
+	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
+	isaacblock "github.com/spikeekips/mitum/isaac/block"
+	isaacstates "github.com/spikeekips/mitum/isaac/states"
+	"github.com/spikeekips/mitum/launch"
+	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
+)
+
+func ImportBlocks(
+	from, root string,
+	fromHeight, toHeight base.Height,
+	encs *encoder.Encoders,
+	enc encoder.Encoder,
+	db isaac.Database,
+	perm isaac.PermanentDatabase,
+	pool isaac.VoteproofsPool,
+	policy base.NodePolicy,
+) error {
+	e := util.StringErrorFunc("failed to import blocks")
+
+	readercache := gcache.New(math.MaxInt).LRU().Build()
+	var readerLock sync.Mutex
+	getreader := func(height base.Height) (isaac.BlockReader, error) {
+		readerLock.Lock()
+		defer readerLock.Unlock()
+
+		reader, err := readercache.Get(height)
+		if err != nil {
+			i, err := isaacblock.NewLocalFSReaderFromHeight(from, height, enc)
+			if err != nil {
+				return nil, err
+			}
+
+			_ = readercache.Set(height, i)
+
+			reader = i
+		}
+
+		return reader.(isaac.BlockReader), nil //nolint:forcetypeassert //...
+	}
+
+	if err := isaacstates.ImportBlocks(
+		context.Background(),
+		fromHeight, toHeight,
+		333, //nolint:gomnd //...
+		func(height base.Height) (base.BlockMap, bool, error) {
+			reader, err := getreader(height)
+			if err != nil {
+				return nil, false, err
+			}
+
+			m, found, err := reader.BlockMap()
+
+			return m, found, err
+		},
+		func(
+			_ context.Context, height base.Height, item base.BlockMapItemType,
+		) (io.ReadCloser, func() error, bool, error) {
+			reader, err := getreader(height)
+			if err != nil {
+				return nil, nil, false, err
+			}
+
+			r, found, err := reader.Reader(item)
+
+			return r, func() error { return nil }, found, err
+		},
+		func(height base.Height) (isaac.BlockWriteDatabase, func(context.Context) error, error) {
+			bwdb, err := db.NewBlockWriteDatabase(height)
+			if err != nil {
+				return nil, nil, err
+			}
+
+			return bwdb,
+				func(ctx context.Context) error {
+					return launch.MergeBlockWriteToPermanentDatabase(ctx, bwdb, perm)
+				},
+				nil
+		},
+		func(m base.BlockMap, bwdb isaac.BlockWriteDatabase) (isaac.BlockImporter, error) {
+			im, err := isaacblock.NewBlockImporter(
+				launch.LocalFSDataDirectory(root),
+				encs,
+				m,
+				bwdb,
+				policy.NetworkID(),
+			)
+			if err != nil {
+				return nil, err
+			}
+
+			return im, nil
+		},
+		func(reader isaac.BlockReader) error {
+			switch v, found, err := reader.Item(base.BlockMapItemTypeVoteproofs); {
+			case err != nil:
+				return err
+			case !found:
+				return errors.Errorf("voteproofs not found at last")
+			default:
+				vps := v.([]base.Voteproof)       //nolint:forcetypeassert //...
+				if err := pool.SetLastVoteproofs( //nolint:forcetypeassert //...
+					vps[0].(base.INITVoteproof),
+					vps[1].(base.ACCEPTVoteproof),
+				); err != nil {
+					return err
+				}
+
+				return nil
+			}
+		},
+	); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}

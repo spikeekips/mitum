@@ -39,7 +39,7 @@ func (cmd *baseNodeCommand) prepareDesigns() error {
 	case err != nil:
 		return err
 	default:
-		log.Debug().Interface("design", d).Str("design_file", string(b)).Msg("design loaded")
+		log.Log().Debug().Interface("design", d).Str("design_file", string(b)).Msg("design loaded")
 
 		cmd.design = d
 	}
@@ -62,7 +62,7 @@ func (cmd *baseNodeCommand) prepareLocal() error {
 
 	cmd.nodePolicy = nodePolicy
 
-	log.Info().
+	log.Log().Info().
 		Interface("node_policy", cmd.nodePolicy).
 		Msg("node policy loaded")
 

@@ -11,6 +11,12 @@ import (
 	"github.com/spikeekips/mitum/util/logging"
 )
 
+var (
+	PNameINIT  = PName("init")
+	EmptyPINIT = NewP(EmptyFunc, EmptyFunc)
+	EmptyFunc  = func(ctx context.Context) (context.Context, error) { return ctx, nil }
+)
+
 type ContextKey string
 
 type Func func(context.Context) (context.Context, error)
@@ -41,6 +47,10 @@ func (h *hooks) Verbose() []PName {
 }
 
 func (h *hooks) run(ctx context.Context) (context.Context, error) {
+	if len(h.l) < 1 {
+		return ctx, nil
+	}
+
 	var err error
 
 	for i := range h.l {
@@ -374,7 +384,7 @@ func NewPS() *PS {
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", "ps")
 		}),
-		m: map[PName]*P{},
+		m: map[PName]*P{PNameINIT: EmptyPINIT},
 	}
 }
 
@@ -530,6 +540,19 @@ func (ps *PS) AddP(name PName, p *P) bool {
 }
 
 func (ps *PS) Add(name PName, run, close Func, requires ...PName) bool {
+	if name != PNameINIT {
+		switch {
+		case len(requires) < 1:
+			requires = []PName{PNameINIT} //revive:disable-line:modifies-parameter
+		case util.InSlice(requires, func(_ interface{}, i int) bool { return requires[i] == PNameINIT }) < 1:
+			n := make([]PName, len(requires)+1)
+			n[0] = PNameINIT
+			copy(n[1:], requires)
+
+			requires = n //revive:disable-line:modifies-parameter
+		}
+	}
+
 	_, exists := ps.m[name]
 
 	p := NewP(run, close, requires...)
@@ -634,6 +657,44 @@ func LoadFromContextOK(ctx context.Context, key ContextKey, v interface{}) error
 func LoadFromContext(ctx context.Context, key ContextKey, v interface{}) error {
 	if err := util.InterfaceSetValue(ctx.Value(key), v); err != nil {
 		return errors.WithMessagef(err, "failed to load value from context, %q", key)
+	}
+
+	return nil
+}
+
+func LoadsFromContextOK(ctx context.Context, a ...interface{}) error {
+	return loadsFromContext(ctx, LoadFromContextOK, a...)
+}
+
+func LoadsFromContext(ctx context.Context, a ...interface{}) error {
+	return loadsFromContext(ctx, LoadFromContext, a...)
+}
+
+func loadsFromContext(
+	ctx context.Context,
+	load func(context.Context, ContextKey, interface{}) error,
+	a ...interface{},
+) error {
+	switch {
+	case len(a) < 1:
+		return nil
+	case len(a)%2 != 0:
+		return errors.Errorf("should be, [key value] pairs")
+	}
+
+	for i := 0; i < len(a)/2; i++ {
+		b := a[i*2]
+
+		k, ok := b.(ContextKey)
+		if !ok {
+			return errors.Errorf("expected ContextKey, not %T", b)
+		}
+
+		v := a[i*2+1]
+
+		if err := load(ctx, k, v); err != nil {
+			return err
+		}
 	}
 
 	return nil

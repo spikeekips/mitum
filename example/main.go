@@ -1,79 +1,78 @@
 package main
 
 import (
-	"fmt"
-	"strings"
+	"context"
 
 	"github.com/alecthomas/kong"
 	"github.com/pkg/errors"
-	"github.com/rs/zerolog"
-	"github.com/spikeekips/mitum/launch"
+	"github.com/spikeekips/mitum/launch2"
 	"github.com/spikeekips/mitum/util"
-	mitumlogging "github.com/spikeekips/mitum/util/logging"
+	"github.com/spikeekips/mitum/util/logging"
+	"github.com/spikeekips/mitum/util/ps"
 )
-
-var version = util.MustNewVersion("v0.0.1")
 
 var (
-	logging *mitumlogging.Logging
-	log     *zerolog.Logger
+	Version = "v0.0.1"
+	version util.Version
 )
 
-func main() {
-	//revive:disable:nested-structs
-	var cli struct { //nolint:govet //...
-		launch.Logging `embed:"" prefix:"log."`
-		Import         importCommand `cmd:"" help:"import from block data"`
-		Init           initCommand   `cmd:"" help:"init node"`
-		Run            runCommand    `cmd:"" help:"run node"`
-		Network        struct {
-			Client networkClientCommand `cmd:"" help:"network client"`
-		} `cmd:"" help:"network"`
-		Key struct {
-			New  keyNewCommand  `cmd:"" help:"generate new key"`
-			Load keyLoadCommand `cmd:"" help:"load key"`
-			Sign keySignCommand `cmd:"" help:"sign"`
-		} `cmd:"" help:"key"`
+var log *logging.Logging // FIXME remove
+
+func init() {
+	if len(Version) > 0 {
+		v, err := util.ParseVersion(Version)
+		if err == nil {
+			version = v
+		}
 	}
-	//revive:enable:nested-structs
+}
 
-	kctx := kong.Parse(&cli)
+var CLI struct { //nolint:govet //...
+	launch2.BaseFlags
+	Import ImportCommand `cmd:"" help:"import from block data"`
+	Init   INITCommand   `cmd:"" help:"init node"`
+	//Run     RunCommand    `cmd:"" help:"run node"`
+	//Network struct {
+	//	Client NetworkClientCommand `cmd:"" help:"network client"`
+	//} `cmd:"" help:"network"`
+	//Key struct {
+	//	New  KeyNewCommand  `cmd:"" help:"generate new key"`
+	//	Load KeyLoadCommand `cmd:"" help:"load key"`
+	//	Sign KeySignCommand `cmd:"" help:"sign"`
+	//} `cmd:"" help:"key"`
+}
 
-	l, err := launch.SetupLoggingFromFlags(cli.Logging)
-	if err != nil {
+func main() {
+	kctx := kong.Parse(&CLI)
+
+	pctx := context.Background()
+	pctx = context.WithValue(pctx, launch2.VersionContextKey, version)
+	pctx = context.WithValue(pctx, launch2.FlagsContextKey, CLI.BaseFlags)
+	pctx = context.WithValue(pctx, launch2.KongContextContextKey, kctx)
+
+	pss := launch2.DefaultMainPS()
+
+	switch i, err := pss.Run(pctx); {
+	case err != nil:
+		kctx.FatalIfErrorf(err)
+	default:
+		pctx = i
+
+		kctx = kong.Parse(&CLI, kong.BindTo(pctx, (*context.Context)(nil)))
+	}
+
+	if err := ps.LoadFromContextOK(pctx, launch2.LoggingContextKey, &log); err != nil {
 		kctx.FatalIfErrorf(err)
 	}
 
-	logging = l
-
-	log = mitumlogging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
-		var name string
-
-		if len(kctx.Path) > 0 {
-			for i := range kctx.Path {
-				j := len(kctx.Path) - i - 1
-				n := kctx.Path[j].Node()
-				if n == nil {
-					continue
-				}
-
-				name = "-" + strings.Replace(n.Path(), " ", "-", -1)
-
-				break
-			}
-		}
-
-		return lctx.Str("module", fmt.Sprintf("main%s", name))
-	}).SetLogging(logging).Log()
-
-	log.Info().Str("command", kctx.Command()).Msg("start command")
+	log.Log().Debug().Interface("main_process", pss.Verbose()).Msg("processed")
 
 	if err := func() error {
-		defer log.Info().Msg("stopped")
+		defer log.Log().Debug().Msg("stopped")
 
-		return errors.WithStack(kctx.Run())
+		return errors.WithStack(kctx.Run(pctx))
 	}(); err != nil {
-		log.Error().Err(err).Msg("stopped by error")
+		log.Log().Error().Err(err).Msg("stopped by error")
 
 		kctx.FatalIfErrorf(err)
 	}

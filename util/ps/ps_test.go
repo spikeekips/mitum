@@ -423,7 +423,7 @@ func (t *testPS) TestRun() {
 
 		rcalled := rctx.Value(ContextKey("called"))
 		t.Equal([]string{"a-run"}, rcalled)
-		t.Equal([]PName{"a", "b"}, ps.runs)
+		t.Equal([]PName{PNameINIT, "a", "b"}, ps.runs)
 
 		rctx, err = ps.Close(rctx)
 		t.NoError(err)
@@ -457,7 +457,7 @@ func (t *testPS) TestVerbose() {
 		t.True(ps.Add("a", t.calledfunc("a-run"), nil))
 
 		names := ps.Verbose()
-		t.Equal([]PName{"a:run", "b:run", "c:run"}, names)
+		t.Equal([]PName{PNameINIT + ":run", "a:run", "b:run", "c:run"}, names)
 	})
 
 	t.Run("pre post", func() {
@@ -483,7 +483,7 @@ func (t *testPS) TestVerbose() {
 		c.PostAdd("cc", t.emptyfunc())
 
 		names := ps.Verbose()
-		t.Equal([]PName{"aa:pre", "ab:pre", "a:run", "ac:post", "ba:pre", "bb:pre", "b:run", "bc:post", "ca:pre", "cb:pre", "c:run", "cc:post"}, names)
+		t.Equal([]PName{PNameINIT + ":run", "aa:pre", "ab:pre", "a:run", "ac:post", "ba:pre", "bb:pre", "b:run", "bc:post", "ca:pre", "cb:pre", "c:run", "cc:post"}, names)
 	})
 }
 

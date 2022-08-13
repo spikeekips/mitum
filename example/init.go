@@ -1,81 +1,40 @@
 package main
 
 import (
-	"github.com/spikeekips/mitum/launch"
+	"context"
+
+	"github.com/spikeekips/mitum/launch2"
+	"github.com/spikeekips/mitum/util/logging"
+	"github.com/spikeekips/mitum/util/ps"
 )
 
-type initCommand struct { //nolint:govet //...
-	baseNodeCommand
+type INITCommand struct {
+	Design        string `arg:"" name:"node design" help:"node design" type:"filepath"`
 	GenesisDesign string `arg:"" name:"genesis design" help:"genesis design" type:"filepath"`
-	genesisDesign launch.GenesisDesign
 }
 
-func (cmd *initCommand) Run() error {
-	if err := cmd.prepareEncoder(); err != nil {
+func (cmd *INITCommand) Run(pctx context.Context) error {
+	var log *logging.Logging
+	if err := ps.LoadFromContextOK(pctx, launch2.LoggingContextKey, &log); err != nil {
 		return err
 	}
 
-	if err := cmd.prepareDesigns(); err != nil {
-		return err
-	}
+	pctx = context.WithValue(pctx, launch2.DesignFileContextKey, cmd.Design)
+	pctx = context.WithValue(pctx, launch2.GenesisDesignFileContextKey, cmd.GenesisDesign)
 
-	if err := cmd.prepareLocal(); err != nil {
-		return err
-	}
+	pps := launch2.DefaultINITPS()
+	_ = pps.SetLogging(log)
 
-	if err := launch.CleanStorage(
-		cmd.design.Storage.Database.String(),
-		cmd.design.Storage.Base,
-		cmd.encs, cmd.enc,
-	); err != nil {
-		return err
-	}
+	log.Log().Debug().Interface("process", pps.Verbose()).Msg("process ready")
 
-	nodeinfo, err := launch.CreateLocalFS(
-		launch.CreateDefaultNodeInfo(cmd.nodePolicy.NetworkID(), version), cmd.design.Storage.Base, cmd.enc)
-	if err != nil {
-		return err
-	}
+	pctx, err := pps.Run(pctx)
+	defer func() {
+		log.Log().Debug().Interface("process", pps.Verbose()).Msg("process will be closed")
 
-	_, db, _, pool, err := launch.LoadDatabase(
-		nodeinfo, cmd.design.Storage.Database.String(), cmd.design.Storage.Base, cmd.encs, cmd.enc)
-	if err != nil {
-		return err
-	}
+		if _, err = pps.Close(pctx); err != nil {
+			log.Log().Error().Err(err).Msg("failed to close")
+		}
+	}()
 
-	_ = db.SetLogging(logging)
-
-	g := launch.NewGenesisBlockGenerator(
-		cmd.local,
-		cmd.nodePolicy.NetworkID(),
-		cmd.enc,
-		db,
-		pool,
-		launch.LocalFSDataDirectory(cmd.design.Storage.Base),
-		cmd.genesisDesign.Facts,
-	)
-	_ = g.SetLogging(logging)
-
-	if _, err := g.Generate(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (cmd *initCommand) prepareDesigns() error {
-	if err := cmd.baseNodeCommand.prepareDesigns(); err != nil {
-		return err
-	}
-
-	switch d, b, err := launch.GenesisDesignFromFile(cmd.GenesisDesign, cmd.enc); {
-	case err != nil:
-		return err
-	default:
-		log.Debug().Interface("design", d).Str("design_file", string(b)).Msg("genesis design loaded")
-
-		cmd.genesisDesign = d
-	}
-
-	return nil
+	return err
 }
