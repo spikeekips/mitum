@@ -3,6 +3,7 @@ package launch2
 import (
 	"context"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
@@ -15,6 +16,7 @@ import (
 
 var (
 	PNameSyncSourceChecker      = ps.PName("sync-source-checker")
+	PNameStartSyncSourceChecker = ps.PName("start-sync-source-checker")
 	SyncSourceCheckerContextKey = ps.ContextKey("sync-source-checker")
 	SyncSourcePoolContextKey    = ps.ContextKey("sync-source-pool")
 )
@@ -84,6 +86,32 @@ func PSyncSourceChecker(ctx context.Context) (context.Context, error) {
 		SyncSourceCheckerContextKey, syncSourceChecker)
 	ctx = context.WithValue(ctx, //revive:disable-line:modifies-parameter
 		SyncSourcePoolContextKey, syncSourcePool)
+
+	return ctx, nil
+}
+
+func PStartSyncSourceChecker(ctx context.Context) (context.Context, error) {
+	var syncSourceChecker *isaacnetwork.SyncSourceChecker
+	if err := ps.LoadsFromContextOK(ctx,
+		SyncSourceCheckerContextKey, &syncSourceChecker,
+	); err != nil {
+		return ctx, err
+	}
+
+	return ctx, syncSourceChecker.Start()
+}
+
+func PCloseSyncSourceChecker(ctx context.Context) (context.Context, error) {
+	var syncSourceChecker *isaacnetwork.SyncSourceChecker
+	if err := ps.LoadsFromContext(ctx,
+		SyncSourceCheckerContextKey, &syncSourceChecker,
+	); err != nil {
+		return ctx, err
+	}
+
+	if err := syncSourceChecker.Stop(); err != nil && !errors.Is(err, util.ErrDaemonAlreadyStopped) {
+		return ctx, err
+	}
 
 	return ctx, nil
 }

@@ -21,7 +21,7 @@ type KeyNewCommand struct {
 }
 
 func (cmd *KeyNewCommand) Run(pctx context.Context) error {
-	log.Log().Debug().
+	cmd.log.Debug().
 		Str("seed", cmd.Seed).
 		Msg("flags")
 
@@ -34,7 +34,7 @@ func (cmd *KeyNewCommand) Run(pctx context.Context) error {
 	switch {
 	case len(cmd.Seed) > 0:
 		if len(strings.TrimSpace(cmd.Seed)) < 1 {
-			log.Log().Warn().Msg("seed consists with empty spaces")
+			cmd.log.Warn().Msg("seed consists with empty spaces")
 		}
 
 		i, err := base.NewMPrivatekeyFromSeed(cmd.Seed)
@@ -80,7 +80,7 @@ type KeyLoadCommand struct {
 }
 
 func (cmd *KeyLoadCommand) Run(pctx context.Context) error {
-	log.Log().Debug().
+	cmd.log.Debug().
 		Str("key_string", cmd.KeyString).
 		Msg("flags")
 
@@ -161,7 +161,7 @@ type KeySignCommand struct {
 }
 
 func (cmd *KeySignCommand) Run(pctx context.Context) error {
-	log.Log().Debug().
+	cmd.log.Debug().
 		Str("privatekey", cmd.KeyString).
 		Str("network_id", cmd.NetworkID).
 		Stringer("node", cmd.Node.Address()).
@@ -199,14 +199,14 @@ func (cmd *KeySignCommand) Run(pctx context.Context) error {
 
 	switch {
 	case len(cmd.Token) < 1:
-		log.Log().Debug().Msg("token not updated")
+		cmd.log.Debug().Msg("token not updated")
 	default:
 		if i, ok := ptr.(base.TokenSetter); ok {
 			if err := i.SetToken(base.Token([]byte(cmd.Token))); err != nil {
 				return err
 			}
 
-			log.Log().Debug().Str("new_token", cmd.Token).Msg("token updated")
+			cmd.log.Debug().Str("new_token", cmd.Token).Msg("token updated")
 		}
 	}
 
@@ -214,7 +214,7 @@ func (cmd *KeySignCommand) Run(pctx context.Context) error {
 		return err
 	}
 
-	log.Log().Debug().Msg("successfully signed")
+	cmd.log.Debug().Msg("successfully signed")
 
 	b, err := util.MarshalJSONIndent(ptr)
 	if err != nil {
@@ -269,7 +269,7 @@ func (cmd *KeySignCommand) loadBody() (interface{}, interface{}, error) {
 		_, _ = fmt.Fprintln(os.Stderr, string(i))
 	}
 
-	log.Log().Debug().Str("raw_body", string(body)).Msg("read body")
+	cmd.log.Debug().Str("raw_body", string(body)).Msg("read body")
 
 	elem, err := cmd.enc.Decode(body)
 	if err != nil {
@@ -280,7 +280,7 @@ func (cmd *KeySignCommand) loadBody() (interface{}, interface{}, error) {
 		return nil, nil, errors.Errorf("failed to load body")
 	}
 
-	log.Log().Debug().Str("body_type", fmt.Sprintf("%T", elem)).Msg("body loaded")
+	cmd.log.Debug().Str("body_type", fmt.Sprintf("%T", elem)).Msg("body loaded")
 
 	return elem, reflect.New(reflect.ValueOf(elem).Type()).Interface(), nil
 }

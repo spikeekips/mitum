@@ -41,7 +41,7 @@ func PProposalProcessors(ctx context.Context) (context.Context, error) {
 	pps := isaac.NewProposalProcessors(newProposalProcessorf, getProposalf)
 	_ = pps.SetLogging(log)
 
-	ctx = context.WithValue(ctx, ProposalProcessorsContextKey, pps)
+	ctx = context.WithValue(ctx, ProposalProcessorsContextKey, pps) //revive:disable-line:modifies-parameter
 
 	return ctx, nil
 }
@@ -266,7 +266,7 @@ func getProposalOperationFromPoolFunc(pctx context.Context) (
 	}, nil
 }
 
-func getProposalOperationFromRemoteFunc(pctx context.Context) (
+func getProposalOperationFromRemoteFunc(pctx context.Context) ( //nolint:gocognit //...
 	func(context.Context, base.ProposalSignedFact, util.Hash) (base.Operation, bool, error),
 	error,
 ) {
@@ -285,7 +285,9 @@ func getProposalOperationFromRemoteFunc(pctx context.Context) (
 		return nil, err
 	}
 
-	return func(ctx context.Context, proposal base.ProposalSignedFact, operationhash util.Hash) (base.Operation, bool, error) {
+	return func(
+		ctx context.Context, proposal base.ProposalSignedFact, operationhash util.Hash,
+	) (base.Operation, bool, error) {
 		if syncSourcePool.Len() < 1 {
 			return nil, false, nil
 		}
@@ -369,7 +371,9 @@ func getProposalOperationFromRemoteProposerFunc(pctx context.Context) (
 		return nil, err
 	}
 
-	return func(ctx context.Context, proposal base.ProposalSignedFact, operationhash util.Hash) (bool, base.Operation, bool, error) {
+	return func(
+		ctx context.Context, proposal base.ProposalSignedFact, operationhash util.Hash,
+	) (bool, base.Operation, bool, error) {
 		proposer := proposal.ProposalFact().Proposer()
 
 		var proposernci isaac.NodeConnInfo

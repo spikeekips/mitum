@@ -17,16 +17,17 @@ import (
 )
 
 var (
-	PNamePrepareSuffrageCandidateLimiterSet          = ps.PName("prepare-suffrage-candidate-limiter-set")
+	PNameSuffrageCandidateLimiterSet                 = ps.PName("suffrage-candidate-limiter-set")
 	PNamePatchLastSuffrageProofWatcherWithMemberlist = ps.PName("patch-last-suffrage-proof-watcher-with-memberlist")
 	PNameLastSuffrageProofWatcher                    = ps.PName("last-suffrage-proof-watcher")
+	PNameStartLastSuffrageProofWatcher               = ps.PName("start-last-suffrage-proof-watcher")
 	PNameNodeInConsensusNodesFunc                    = ps.PName("node-in-consensus-nodes-func")
 	SuffrageCandidateLimiterSetContextKey            = ps.ContextKey("suffrage-candidate-limiter-set")
 	LastSuffrageProofWatcherContextKey               = ps.ContextKey("last-suffrage-proof-watcher")
 	NodeInConsensusNodesFuncContextKey               = ps.ContextKey("node-in-consensus-nodes-func")
 )
 
-func PPrepareSuffrageCandidateLimiterSet(ctx context.Context) (context.Context, error) {
+func PSuffrageCandidateLimiterSet(ctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to prepare SuffrageCandidateLimiterSet")
 
 	var db isaac.Database
@@ -282,7 +283,7 @@ func PNodeInConsensusNodesFunc(ctx context.Context) (context.Context, error) {
 		return suf, false, nil
 	}
 
-	ctx = context.WithValue(ctx, NodeInConsensusNodesFuncContextKey, f)
+	ctx = context.WithValue(ctx, NodeInConsensusNodesFuncContextKey, f) //revive:disable-line:modifies-parameter
 
 	return ctx, nil
 }
@@ -428,7 +429,9 @@ func GetLastSuffrageProofFunc(ctx context.Context) (isaac.GetLastSuffrageProofFr
 	}, nil
 }
 
-func GetSuffrageProofFunc(ctx context.Context) (isaac.GetSuffrageProofFromRemoteFunc, error) { //revive:disable-line:cognitive-complexity
+func GetSuffrageProofFunc(ctx context.Context) ( //revive:disable-line:cognitive-complexity
+	isaac.GetSuffrageProofFromRemoteFunc, error,
+) {
 	var policy base.NodePolicy
 	var client *isaacnetwork.QuicstreamClient
 	var syncSourcePool *isaac.SyncSourcePool
@@ -694,4 +697,28 @@ func NewSuffrageCandidateLimiterFunc(ctx context.Context) ( //revive:disable-lin
 			return nil, nil
 		}, nil
 	}, nil
+}
+
+func PStartLastSuffrageProofWatcher(ctx context.Context) (context.Context, error) {
+	var watcher *isaac.LastConsensusNodesWatcher
+	if err := ps.LoadFromContextOK(ctx, LastSuffrageProofWatcherContextKey, &watcher); err != nil {
+		return ctx, err
+	}
+
+	return ctx, watcher.Start()
+}
+
+func PCloseLastSuffrageProofWatcher(ctx context.Context) (context.Context, error) {
+	var watcher *isaac.LastConsensusNodesWatcher
+	if err := ps.LoadFromContext(ctx, LastSuffrageProofWatcherContextKey, &watcher); err != nil {
+		return ctx, err
+	}
+
+	if watcher != nil {
+		if err := watcher.Stop(); err != nil && !errors.Is(err, util.ErrDaemonAlreadyStopped) {
+			return ctx, err
+		}
+	}
+
+	return ctx, nil
 }

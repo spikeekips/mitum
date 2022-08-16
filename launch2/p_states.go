@@ -24,15 +24,17 @@ import (
 )
 
 var (
-	PNameStates                     = ps.PName("states")
-	PNameBallotbox                  = ps.PName("ballotbox")
-	PNameProposalProcessors         = ps.PName("proposal-processors")
-	PNameStatesSetHandlers          = ps.PName("states-set-handlers")
-	BallotboxContextKey             = ps.ContextKey("ballotbox")
-	StatesContextKey                = ps.ContextKey("states")
-	ProposalProcessorsContextKey    = ps.ContextKey("proposal-processors")
-	ProposalSelectorContextKey      = ps.ContextKey("proposal-selector")
-	LastVoteproofsHandlerContextKey = ps.ContextKey("last-voteproofs-handler")
+	PNameStatesReady                        = ps.PName("states-ready")
+	PNameStates                             = ps.PName("states")
+	PNameBallotbox                          = ps.PName("ballotbox")
+	PNameProposalProcessors                 = ps.PName("proposal-processors")
+	PNameStatesSetHandlers                  = ps.PName("states-set-handlers")
+	BallotboxContextKey                     = ps.ContextKey("ballotbox")
+	StatesContextKey                        = ps.ContextKey("states")
+	ProposalProcessorsContextKey            = ps.ContextKey("proposal-processors")
+	ProposalSelectorContextKey              = ps.ContextKey("proposal-selector")
+	LastVoteproofsHandlerContextKey         = ps.ContextKey("last-voteproofs-handler")
+	WhenNewBlockSavedInStatesFuncContextKey = ps.ContextKey("when-new-block-saved-in-states-func")
 )
 
 func PBallotbox(ctx context.Context) (context.Context, error) {
@@ -81,17 +83,17 @@ func PStates(ctx context.Context) (context.Context, error) {
 		ballotbox,
 		lvps,
 		func(ballot base.Ballot) error {
-			e := util.StringErrorFunc("failed to broadcast ballot")
+			ee := util.StringErrorFunc("failed to broadcast ballot")
 
 			b, err := enc.Marshal(ballot)
 			if err != nil {
-				return e(err, "")
+				return ee(err, "")
 			}
 
 			id := valuehash.NewSHA256(ballot.HashBytes()).String()
 
 			if err := BroadcastThruMemberlist(memberlist, id, b, nil); err != nil {
-				return e(err, "")
+				return ee(err, "")
 			}
 
 			return nil
@@ -103,18 +105,31 @@ func PStates(ctx context.Context) (context.Context, error) {
 		return ctx, e(err, "")
 	}
 
+	//revive:disable:modifies-parameter
 	ctx = context.WithValue(ctx, LastVoteproofsHandlerContextKey, lvps)
 	ctx = context.WithValue(ctx, StatesContextKey, states)
 	ctx = context.WithValue(ctx, ProposalSelectorContextKey, proposalSelector)
+	//revive:enable:modifies-parameter
 
 	return ctx, nil
 }
 
 func PCloseStates(ctx context.Context) (context.Context, error) {
+	var states *isaacstates.States
+	if err := ps.LoadFromContext(ctx, StatesContextKey, &states); err != nil {
+		return ctx, err
+	}
+
+	if states != nil {
+		if err := states.Stop(); err != nil && !errors.Is(err, util.ErrDaemonAlreadyStopped) {
+			return ctx, err
+		}
+	}
+
 	return ctx, nil
 }
 
-func PStatesSetHandlers(ctx context.Context) (context.Context, error) {
+func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive:disable-line:function-length
 	e := util.StringErrorFunc("failed to set states handler")
 
 	var log *logging.Logging
@@ -181,6 +196,15 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) {
 		ballotbox.Count()
 	})
 
+	var whenNewBlockSavedInStatesf func(base.Height)
+
+	switch err := ps.LoadFromContext(ctx, WhenNewBlockSavedInStatesFuncContextKey, &whenNewBlockSavedInStatesf); {
+	case err != nil:
+		return ctx, e(err, "")
+	case whenNewBlockSavedInStatesf == nil:
+		whenNewBlockSavedInStatesf = WhenNewBlockSavedInStatesFunc(ballotbox, db, nodeinfo)
+	}
+
 	states.
 		SetHandler(isaacstates.StateBroken, isaacstates.NewNewBrokenHandlerType(local, policy)).
 		SetHandler(isaacstates.StateStopped, isaacstates.NewNewStoppedHandlerType(local, policy)).
@@ -200,7 +224,7 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) {
 			isaacstates.StateConsensus,
 			isaacstates.NewNewConsensusHandlerType(
 				local, policy, proposalSelector,
-				getManifestf, nodeInConsensusNodesf, voteFunc, whenNewBlockSavedInStates(ballotbox, db, nodeinfo),
+				getManifestf, nodeInConsensusNodesf, voteFunc, whenNewBlockSavedInStatesf,
 				pps,
 			)).
 		SetHandler(isaacstates.StateSyncing, syncinghandler)
@@ -425,7 +449,9 @@ func syncerLastBlockMapFunc(pctx context.Context) (isaacstates.SyncerLastBlockMa
 	}, nil
 }
 
-func syncerBlockMapFunc(pctx context.Context) (isaacstates.SyncerBlockMapFunc, error) {
+func syncerBlockMapFunc(pctx context.Context) ( //revive:disable-line:cognitive-complexity
+	isaacstates.SyncerBlockMapFunc, error,
+) {
 	var client *isaacnetwork.QuicstreamClient
 	var policy base.NodePolicy
 	var syncSourcePool *isaac.SyncSourcePool
@@ -504,7 +530,7 @@ func syncerBlockMapFunc(pctx context.Context) (isaacstates.SyncerBlockMapFunc, e
 				return false, nil
 			},
 			-1,
-			time.Second*3, // FIXME config
+			time.Second*3, //nolint:gomnd //... // FIXME config
 		)
 
 		return m, found, err
@@ -592,7 +618,7 @@ func syncerBlockMapItemFunc(pctx context.Context) (isaacstates.SyncerBlockMapIte
 				return false, nil
 			},
 			-1,
-			time.Second*3, // FIXME config
+			time.Second*3, //nolint:gomnd //... // FIXME config
 		)
 
 		return reader, closef, found, err
@@ -686,28 +712,16 @@ func getManifestFunc(db isaac.Database) func(height base.Height) (base.Manifest,
 	}
 }
 
-func whenNewBlockSavedInStates(
+func WhenNewBlockSavedInStatesFunc(
 	ballotbox *isaacstates.Ballotbox,
 	db isaac.Database,
 	nodeinfo *isaacnetwork.NodeInfoUpdater,
 ) func(base.Height) {
 	return func(height base.Height) {
-		/* FIXME set later in run command
-		l := log.Log().With().Interface("height", height).Logger()
-		l.Debug().Msg("new block saved")
-
-		if cmd.Hold.IsSet() && height == cmd.Hold.Height() {
-			l.Debug().Msg("will be stopped by hold")
-
-			cmd.exitf(errHoldStop.Call())
-
-			return
-		}
-		*/
-
 		ballotbox.Count()
 
-		UpdateNodeInfoWithNewBlock(db, nodeinfo)
+		// FIXME update nodeinfo in client
+		_ = UpdateNodeInfoWithNewBlock(db, nodeinfo)
 	}
 }
 

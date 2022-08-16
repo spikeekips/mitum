@@ -9,11 +9,25 @@ func DefaultRunPS() *ps.PS {
 		AddOK(PNameEncoder, PEncoder, nil).
 		AddOK(PNameDesign, PDesign, nil, PNameEncoder).
 		AddOK(PNameLocal, PLocal, nil, PNameDesign).
-		AddOK(PNameStorage, PStorage, PCloseStorage, PNameLocal).
+		AddOK(PNameStorage, PStorage, nil, PNameLocal).
 		AddOK(PNameProposalMaker, PProposalMaker, nil, PNameStorage).
-		AddOK(PNameNetwork, PNetwork, PCloseNetwork, PNameStorage).
-		AddOK(PNamePrepareMemberlist, PPrepareMemberlist, PCloseMemberlist, PNameNetwork).
-		AddOK(PNameStates, PStates, PCloseStates, PNamePrepareMemberlist)
+		AddOK(PNameNetwork, PNetwork, nil, PNameStorage).
+		AddOK(PNameMemberlist, PMemberlist, nil, PNameNetwork).
+		AddOK(PNameStartNetwork, PStartNetwork, PCloseNetwork, PNameStates).
+		AddOK(PNameStartStorage, PStartStorage, PCloseStorage, PNameStartNetwork).
+		AddOK(PNameStartMemberlist, PStartMemberlist, PCloseMemberlist, PNameStartNetwork).
+		AddOK(PNameStartSyncSourceChecker, PStartSyncSourceChecker, PCloseSyncSourceChecker, PNameStartNetwork).
+		AddOK(PNameStartLastSuffrageProofWatcher,
+			PStartLastSuffrageProofWatcher, PCloseLastSuffrageProofWatcher, PNameStartNetwork).
+		AddOK(PNameStates, PStates, nil, PNameNetwork).
+		AddOK(PNameStatesReady, nil, PCloseStates,
+			PNameStartStorage,
+			PNameStartSyncSourceChecker,
+			PNameStartLastSuffrageProofWatcher,
+			PNameStartMemberlist,
+			PNameStartNetwork,
+			PNameStates,
+		)
 
 	_ = pps.POK(PNameEncoder).
 		PostAddOK(PNameAddHinters, PAddHinters)
@@ -31,9 +45,9 @@ func DefaultRunPS() *ps.PS {
 	_ = pps.POK(PNameNetwork).
 		PreAddOK(PNameQuicstreamClient, PQuicstreamClient).
 		PostAddOK(PNameSyncSourceChecker, PSyncSourceChecker).
-		PostAddOK(PNamePrepareSuffrageCandidateLimiterSet, PPrepareSuffrageCandidateLimiterSet)
+		PostAddOK(PNameSuffrageCandidateLimiterSet, PSuffrageCandidateLimiterSet)
 
-	_ = pps.POK(PNamePrepareMemberlist).
+	_ = pps.POK(PNameMemberlist).
 		PreAddOK(PNameLastSuffrageProofWatcher, PLastSuffrageProofWatcher).
 		PostAddOK(PNamePatchLastSuffrageProofWatcherWithMemberlist, PPatchLastSuffrageProofWatcherWithMemberlist)
 

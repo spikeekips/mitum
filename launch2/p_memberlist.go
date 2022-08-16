@@ -24,11 +24,12 @@ import (
 )
 
 var (
-	PNamePrepareMemberlist = ps.PName("prepare-memberlist")
-	MemberlistContextKey   = ps.ContextKey("memberlist")
+	PNameMemberlist      = ps.PName("memberlist")
+	PNameStartMemberlist = ps.PName("start-memberlist")
+	MemberlistContextKey = ps.ContextKey("memberlist")
 )
 
-func PPrepareMemberlist(ctx context.Context) (context.Context, error) {
+func PMemberlist(ctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to prepare memberlist")
 
 	var log *logging.Logging
@@ -68,24 +69,24 @@ func PPrepareMemberlist(ctx context.Context) (context.Context, error) {
 	return ctx, nil
 }
 
-func PCloseMemberlist(ctx context.Context) (context.Context, error) {
-	var log *logging.Logging
-	if err := ps.LoadFromContextOK(ctx,
-		LoggingContextKey, &log,
-	); err != nil {
+func PStartMemberlist(ctx context.Context) (context.Context, error) {
+	var m *quicmemberlist.Memberlist
+	if err := ps.LoadFromContextOK(ctx, MemberlistContextKey, &m); err != nil {
 		return ctx, err
 	}
 
+	return ctx, m.Start()
+}
+
+func PCloseMemberlist(ctx context.Context) (context.Context, error) {
 	var m *quicmemberlist.Memberlist
-	if err := ps.LoadsFromContext(ctx,
-		MemberlistContextKey, &m,
-	); err != nil {
+	if err := ps.LoadFromContext(ctx, MemberlistContextKey, &m); err != nil {
 		return ctx, err
 	}
 
 	if m != nil {
-		if err := m.Stop(); err != nil {
-			log.Log().Error().Err(err).Msg("failed to stop memberlist")
+		if err := m.Stop(); err != nil && !errors.Is(err, util.ErrDaemonAlreadyStopped) {
+			return ctx, err
 		}
 	}
 

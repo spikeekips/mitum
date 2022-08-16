@@ -70,11 +70,12 @@ func (db *Center) SetLogging(l *logging.Logging) *logging.Logging {
 func (db *Center) Close() error {
 	e := util.StringErrorFunc("failed to close database")
 
-	for i := range db.temps {
-		if err := db.temps[i].Close(); err != nil {
-			return e(err, "failed to close temp")
-		}
-	}
+	// NOTE don't close temps
+	//for i := range db.temps {
+	//	if err := db.temps[i].Close(); err != nil {
+	//		return e(err, "failed to close temp")
+	//	}
+	//}
 
 	if err := db.perm.Close(); err != nil {
 		return e(err, "failed to close PermanentDatabase")
@@ -428,7 +429,10 @@ func (db *Center) activeTemps() []isaac.TempDatabase {
 	db.RLock()
 	defer db.RUnlock()
 
-	return db.temps
+	temps := make([]isaac.TempDatabase, len(db.temps))
+	copy(temps, db.temps)
+
+	return temps
 }
 
 func (db *Center) removeTemp(temp isaac.TempDatabase) error {

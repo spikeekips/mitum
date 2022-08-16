@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 
+	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
@@ -18,9 +19,10 @@ import (
 
 var pnameImportBlocks = ps.PName("import-blocks")
 
-type ImportCommand struct {
+type ImportCommand struct { //nolint:govet //...
 	Design string `arg:"" name:"node design" help:"node design" type:"filepath"`
 	From   string `arg:"" name:"from directory" help:"block data directory to import" type:"existingdir"`
+	log    *zerolog.Logger
 }
 
 func (cmd *ImportCommand) Run(pctx context.Context) error {
@@ -28,6 +30,8 @@ func (cmd *ImportCommand) Run(pctx context.Context) error {
 	if err := ps.LoadFromContextOK(pctx, launch2.LoggingContextKey, &log); err != nil {
 		return err
 	}
+
+	cmd.log = log.Log()
 
 	pctx = context.WithValue(pctx, launch2.DesignFileContextKey, cmd.Design) //revive:disable-line:modifies-parameter
 
@@ -42,14 +46,14 @@ func (cmd *ImportCommand) Run(pctx context.Context) error {
 
 	_ = pps.AddOK(pnameImportBlocks, cmd.importBlocks, nil, launch2.PNameStorage)
 
-	log.Log().Debug().Interface("process", pps.Verbose()).Msg("process ready")
+	cmd.log.Debug().Interface("process", pps.Verbose()).Msg("process ready")
 
 	pctx, err := pps.Run(pctx) //revive:disable-line:modifies-parameter
 	defer func() {
-		log.Log().Debug().Interface("process", pps.Verbose()).Msg("process will be closed")
+		cmd.log.Debug().Interface("process", pps.Verbose()).Msg("process will be closed")
 
 		if _, err = pps.Close(pctx); err != nil {
-			log.Log().Error().Err(err).Msg("failed to close")
+			cmd.log.Error().Err(err).Msg("failed to close")
 		}
 	}()
 
@@ -101,7 +105,7 @@ func (cmd *ImportCommand) importBlocks(ctx context.Context) (context.Context, er
 		return ctx, e(err, "")
 	}
 
-	if err := cmd.validateImported(last, enc, design, policy, db, perm); err != nil {
+	if err := cmd.validateImported(last, enc, design, policy, perm); err != nil {
 		return ctx, e(err, "")
 	}
 
@@ -113,7 +117,6 @@ func (cmd *ImportCommand) validateImported(
 	enc encoder.Encoder,
 	design launch.NodeDesign,
 	policy *isaac.NodePolicy,
-	db isaac.Database,
 	perm isaac.PermanentDatabase,
 ) error {
 	e := util.StringErrorFunc("failed to validate imported")
@@ -189,12 +192,12 @@ func (cmd *ImportCommand) validateImportedBlockMaps(
 		return e(err, "")
 	}
 
-	log.Log().Debug().Msg("imported BlockMaps validated")
+	cmd.log.Debug().Msg("imported BlockMaps validated")
 
 	return nil
 }
 
-func (cmd *ImportCommand) validateImportedBlocks(
+func (*ImportCommand) validateImportedBlocks(
 	root string,
 	last base.Height,
 	enc encoder.Encoder,

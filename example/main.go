@@ -16,8 +16,6 @@ var (
 	version util.Version
 )
 
-var log *logging.Logging // FIXME remove
-
 func init() {
 	if len(Version) > 0 {
 		v, err := util.ParseVersion(Version)
@@ -64,6 +62,7 @@ func main() {
 		kctx = kong.Parse(&CLI, kong.BindTo(pctx, (*context.Context)(nil)))
 	}
 
+	var log *logging.Logging
 	if err := ps.LoadFromContextOK(pctx, launch2.LoggingContextKey, &log); err != nil {
 		kctx.FatalIfErrorf(err)
 	}

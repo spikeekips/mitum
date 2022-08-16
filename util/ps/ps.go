@@ -655,7 +655,12 @@ func LoadFromContextOK(ctx context.Context, key ContextKey, v interface{}) error
 }
 
 func LoadFromContext(ctx context.Context, key ContextKey, v interface{}) error {
-	if err := util.InterfaceSetValue(ctx.Value(key), v); err != nil {
+	i := ctx.Value(key)
+	if i == nil {
+		return nil
+	}
+
+	if err := util.InterfaceSetValue(i, v); err != nil {
 		return errors.WithMessagef(err, "failed to load value from context, %q", key)
 	}
 

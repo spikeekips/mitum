@@ -32,6 +32,7 @@ import (
 
 var (
 	PNameStorage                = ps.PName("storage")
+	PNameStartStorage           = ps.PName("start-storage")
 	PNameCheckLeveldbStorage    = ps.PName("check-leveldb-storage")
 	PNameCleanStorage           = ps.PName("clean-storage")
 	PNameCreateLocalFS          = ps.PName("create-localfs")
@@ -53,30 +54,84 @@ func PStorage(ctx context.Context) (context.Context, error) {
 	return ctx, nil
 }
 
+func PStartStorage(ctx context.Context) (context.Context, error) {
+	var log *logging.Logging
+	if err := ps.LoadFromContextOK(ctx, LoggingContextKey, &log); err != nil {
+		return ctx, nil
+	}
+
+	var starters []func()
+
+	load := func(name string, key ps.ContextKey, v interface{}) bool {
+		switch err := ps.LoadFromContext(ctx, key, v); {
+		case err != nil:
+			return false
+		case v == nil:
+			return false
+		}
+
+		d, ok := reflect.ValueOf(v).Elem().Interface().(util.Daemon)
+		if ok {
+			starters = append(starters, func() {
+				if err := d.Start(); err != nil {
+					log.Log().Error().Err(err).Msgf("failed to start %s", name)
+				}
+			})
+		}
+
+		return true
+	}
+
+	var st *leveldbstorage.Storage
+	_ = load("leveldb storage", LeveldbStorageContextKey, &st)
+
+	var pool *isaacdatabase.TempPool
+	_ = load("pool database", PoolDatabaseContextKey, &pool)
+
+	var perm isaac.PermanentDatabase
+	_ = load("permanent database", PermanentDatabaseContextKey, &perm)
+
+	var db isaac.Database
+	_ = load("center database", CenterDatabaseContextKey, &db)
+
+	for i := range starters {
+		starters[i]()
+	}
+
+	return ctx, nil
+}
+
 func PCloseStorage(ctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	if err := ps.LoadFromContextOK(ctx, LoggingContextKey, &log); err != nil {
 		return ctx, nil
 	}
 
-	var closefs []func()
+	var closers []func()
+	var stoppers []func()
 
-	defer func() {
-		for i := range closefs {
-			closefs[i]()
-		}
-	}()
-
-	add := func(name string, key ps.ContextKey, v interface{}) bool {
-		if err := ps.LoadFromContextOK(ctx, key, v); err != nil {
+	load := func(name string, key ps.ContextKey, v interface{}) bool {
+		switch err := ps.LoadFromContext(ctx, key, v); {
+		case err != nil:
+			return false
+		case v == nil:
 			return false
 		}
 
 		closer, ok := reflect.ValueOf(v).Elem().Interface().(io.Closer)
 		if ok {
-			closefs = append(closefs, func() {
+			closers = append(closers, func() {
 				if err := closer.Close(); err != nil {
 					log.Log().Error().Err(err).Msgf("failed to close %s", name)
+				}
+			})
+		}
+
+		d, ok := reflect.ValueOf(v).Elem().Interface().(util.Daemon)
+		if ok {
+			stoppers = append(stoppers, func() {
+				if err := d.Stop(); err != nil {
+					log.Log().Error().Err(err).Msgf("failed to stop %s", name)
 				}
 			})
 		}
@@ -85,18 +140,23 @@ func PCloseStorage(ctx context.Context) (context.Context, error) {
 	}
 
 	var db isaac.Database
-	if !add("center database", CenterDatabaseContextKey, &db) {
-		return ctx, nil
-	}
+	_ = load("center database", CenterDatabaseContextKey, &db)
+
+	var pool *isaacdatabase.TempPool
+	_ = load("pool database", PoolDatabaseContextKey, &pool)
 
 	var perm isaac.PermanentDatabase
-	if !add("permanent database", PermanentDatabaseContextKey, &perm) {
-		return ctx, nil
-	}
+	_ = load("permanent database", PermanentDatabaseContextKey, &perm)
 
 	var st *leveldbstorage.Storage
-	if !add("leveldb storage", LeveldbStorageContextKey, &st) {
-		return ctx, nil
+	_ = load("leveldb storage", LeveldbStorageContextKey, &st)
+
+	for i := range stoppers {
+		stoppers[len(stoppers)-i-1]()
+	}
+
+	for i := range closers {
+		closers[i]()
 	}
 
 	return ctx, nil

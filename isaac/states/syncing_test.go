@@ -740,6 +740,9 @@ func newDummySyncer(ch chan base.Height, donech chan struct{}) *dummySyncer {
 	}
 }
 
+func (s *dummySyncer) Start() error { return nil }
+func (s *dummySyncer) Stop() error  { return nil }
+
 func (s *dummySyncer) Top() base.Height {
 	s.RLock()
 	defer s.RUnlock()

@@ -25,6 +25,7 @@ import (
 
 var (
 	PNameNetwork                 = ps.PName("network")
+	PNameStartNetwork            = ps.PName("start-network")
 	PNameQuicstreamClient        = ps.PName("network-client")
 	QuicstreamClientContextKey   = ps.ContextKey("network-client")
 	QuicstreamServerContextKey   = ps.ContextKey("quicstream-server")
@@ -91,20 +92,24 @@ func PNetwork(ctx context.Context) (context.Context, error) {
 	return ctx, nil
 }
 
-func PCloseNetwork(ctx context.Context) (context.Context, error) {
-	var log *logging.Logging
-	if err := ps.LoadFromContextOK(ctx, LoggingContextKey, &log); err != nil {
+func PStartNetwork(ctx context.Context) (context.Context, error) {
+	var server *quicstream.Server
+	if err := ps.LoadFromContextOK(ctx, QuicstreamServerContextKey, &server); err != nil {
 		return ctx, err
 	}
 
+	return ctx, server.Start()
+}
+
+func PCloseNetwork(ctx context.Context) (context.Context, error) {
 	var server *quicstream.Server
 	if err := ps.LoadFromContext(ctx, QuicstreamServerContextKey, &server); err != nil {
 		return ctx, err
 	}
 
 	if server != nil {
-		if err := server.Stop(); err != nil {
-			log.Log().Error().Err(err).Msg("failed to stop network server")
+		if err := server.Stop(); err != nil && !errors.Is(err, util.ErrDaemonAlreadyStopped) {
+			return ctx, err
 		}
 	}
 
