@@ -58,7 +58,7 @@ func ImportBlocks(
 
 			return nil
 		},
-		func(ctx context.Context, i, _ uint64) error {
+		func(ctx context.Context, i, end uint64) error {
 			height := from + base.Height(int64(i))
 
 			m, found, err := blockMapf(height)

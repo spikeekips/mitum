@@ -27,6 +27,10 @@ func NewStorage(str leveldbStorage.Storage, opt *leveldbOpt.Options) (*Storage, 
 	return &Storage{db: db, str: str}, nil
 }
 
+func (st *Storage) DB() *leveldb.DB {
+	return st.db
+}
+
 func (st *Storage) Close() error {
 	st.Lock()
 	defer st.Unlock()

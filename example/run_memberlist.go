@@ -15,7 +15,7 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
-func (cmd *runCommand) prepareMemberlist() error {
+func (cmd *RunCommand) prepareMemberlist() error {
 	memberlisttransport := quicmemberlist.NewTransportWithQuicstream(
 		cmd.design.Network.Publish(),
 		isaacnetwork.HandlerPrefixMemberlist,
@@ -138,7 +138,7 @@ func (cmd *runCommand) prepareMemberlist() error {
 	return nil
 }
 
-func (cmd *runCommand) nodeChallengeFunc() func(quicmemberlist.Node) error {
+func (cmd *RunCommand) nodeChallengeFunc() func(quicmemberlist.Node) error {
 	return func(node quicmemberlist.Node) error {
 		e := util.StringErrorFunc("failed to challenge memberlist node")
 
@@ -179,7 +179,7 @@ func (cmd *runCommand) nodeChallengeFunc() func(quicmemberlist.Node) error {
 	}
 }
 
-func (cmd *runCommand) memberlistAllowFunc() func(quicmemberlist.Node) error {
+func (cmd *RunCommand) memberlistAllowFunc() func(quicmemberlist.Node) error {
 	return func(node quicmemberlist.Node) error {
 		proof, st, err := cmd.lastSuffrageProofWatcher.Last()
 		if err != nil {

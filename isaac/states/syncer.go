@@ -97,7 +97,7 @@ func NewSyncer(
 		blockMapf:              blockMapf,
 		blockMapItemf:          blockMapItemf,
 		tempsyncpool:           tempsyncpool,
-		batchlimit:             333, //nolint:gomnd // big enough size
+		batchlimit:             33, //nolint:gomnd // big enough size
 		finishedch:             make(chan base.Height),
 		donech:                 make(chan struct{}, 2),
 		doneerr:                util.EmptyLocked(),

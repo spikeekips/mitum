@@ -1,10 +1,8 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"io"
-	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -20,7 +18,6 @@ import (
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
-	"github.com/spikeekips/mitum/util/localtime"
 	"github.com/spikeekips/mitum/util/valuehash"
 )
 
@@ -29,13 +26,13 @@ var (
 	suffrageJoinFactHintTypeBytes      = isaacoperation.SuffrageJoinFactHint.Type().Bytes()
 )
 
-func (cmd *runCommand) getSuffrageFunc() isaac.GetSuffrageByBlockHeight {
+func (cmd *RunCommand) getSuffrageFunc() isaac.GetSuffrageByBlockHeight {
 	return func(blockheight base.Height) (base.Suffrage, bool, error) {
 		return isaac.GetSuffrageFromDatabase(cmd.db, blockheight)
 	}
 }
 
-func (cmd *runCommand) nodeInConsensusNodesFunc() isaac.NodeInConsensusNodesFunc {
+func (cmd *RunCommand) nodeInConsensusNodesFunc() isaac.NodeInConsensusNodesFunc {
 	lastcandidateslocked := util.EmptyLocked()
 	prevcandidateslocked := util.EmptyLocked()
 
@@ -129,7 +126,7 @@ func (cmd *runCommand) nodeInConsensusNodesFunc() isaac.NodeInConsensusNodesFunc
 	}
 }
 
-func (cmd *runCommand) getManifestFunc() func(height base.Height) (base.Manifest, error) {
+func (cmd *RunCommand) getManifestFunc() func(height base.Height) (base.Manifest, error) {
 	return func(height base.Height) (base.Manifest, error) {
 		switch m, found, err := cmd.db.BlockMap(height); {
 		case err != nil:
@@ -142,96 +139,7 @@ func (cmd *runCommand) getManifestFunc() func(height base.Height) (base.Manifest
 	}
 }
 
-func (cmd *runCommand) prepareProposalMaker() *isaac.ProposalMaker {
-	operationfilterf := launch.IsSupportedProposalOperationFactHintFunc()
-
-	return isaac.NewProposalMaker(
-		cmd.local,
-		cmd.nodePolicy,
-		func(ctx context.Context, height base.Height) ([]util.Hash, error) {
-			policy := cmd.db.LastNetworkPolicy()
-			if policy == nil { // NOTE Usually it means empty block data
-				return nil, nil
-			}
-
-			n := policy.MaxOperationsInProposal()
-			if n < 1 {
-				return nil, nil
-			}
-
-			hs, err := cmd.pool.NewOperationHashes(
-				ctx,
-				height,
-				n,
-				func(operationhash, facthash util.Hash, header isaac.PoolOperationHeader) (bool, error) {
-					// NOTE filter genesis operations
-					if !operationfilterf(header.HintBytes()) {
-						return false, nil
-					}
-
-					switch found, err := cmd.db.ExistsKnownOperation(operationhash); {
-					case err != nil:
-						return false, err
-					case found:
-						log.Log().Trace().Stringer("operation", operationhash).Msg("already processed; known operation")
-
-						return false, nil
-					}
-
-					switch found, err := cmd.db.ExistsInStateOperation(facthash); {
-					case err != nil:
-						return false, err
-					case found:
-						log.Log().Trace().Stringer("operation", facthash).Msg("already processed; in state")
-
-						return false, nil
-					}
-
-					// NOTE if bad operation and it is failed to be processed;
-					// it can be included in next proposal; it should be
-					// excluded.
-					// NOTE if operation has not enough fact signs, it will
-					// ignored. It must be filtered for not this kind of
-					// operations.
-					switch found, err := cmd.db.ExistsInStateOperation(facthash); {
-					case err != nil:
-						return false, err
-					case found:
-						return false, nil
-					}
-
-					addedat, err := util.BytesToInt64(header.AddedAt())
-					if err != nil {
-						return false, nil
-					}
-
-					var expire time.Duration
-					switch ht := header.HintBytes(); {
-					case bytes.HasPrefix(ht, suffrageCandidateFactHintTypeBytes),
-						bytes.HasPrefix(ht, suffrageJoinFactHintTypeBytes):
-						expire = cmd.nodePolicy.ValidProposalSuffrageOperationsExpire()
-					default:
-						expire = cmd.nodePolicy.ValidProposalOperationExpire()
-					}
-
-					if addedat < localtime.UTCNow().Add(expire*-1).UnixNano() {
-						return false, nil
-					}
-
-					return true, nil
-				},
-			)
-			if err != nil {
-				return nil, err
-			}
-
-			return hs, nil
-		},
-		cmd.pool,
-	)
-}
-
-func (cmd *runCommand) proposalSelectorFunc() *isaac.BaseProposalSelector {
+func (cmd *RunCommand) proposalSelectorFunc() *isaac.BaseProposalSelector {
 	return isaac.NewBaseProposalSelector(
 		cmd.local,
 		cmd.nodePolicy,
@@ -344,7 +252,7 @@ func (cmd *runCommand) proposalSelectorFunc() *isaac.BaseProposalSelector {
 	)
 }
 
-func (cmd *runCommand) getLastManifestFunc() func() (base.Manifest, bool, error) {
+func (cmd *RunCommand) getLastManifestFunc() func() (base.Manifest, bool, error) {
 	return func() (base.Manifest, bool, error) {
 		switch m, found, err := cmd.db.LastBlockMap(); {
 		case err != nil || !found:
@@ -355,7 +263,7 @@ func (cmd *runCommand) getLastManifestFunc() func() (base.Manifest, bool, error)
 	}
 }
 
-func (cmd *runCommand) newProposalProcessorFunc(enc encoder.Encoder) newProposalProcessorFunc {
+func (cmd *RunCommand) newProposalProcessorFunc(enc encoder.Encoder) newProposalProcessorFunc {
 	set := cmd.operationProcessorsMap()
 
 	return func(proposal base.ProposalSignedFact, previous base.Manifest) (
@@ -388,7 +296,7 @@ func (cmd *runCommand) newProposalProcessorFunc(enc encoder.Encoder) newProposal
 	}
 }
 
-func (cmd *runCommand) newSyncer(
+func (cmd *RunCommand) newSyncer(
 	lvps *isaacstates.LastVoteproofsHandler,
 ) func(height base.Height) (isaac.Syncer, error) {
 	return func(height base.Height) (isaac.Syncer, error) {
@@ -452,7 +360,7 @@ func (cmd *runCommand) newSyncer(
 	}
 }
 
-func (cmd *runCommand) newSyncerDeferred(
+func (cmd *RunCommand) newSyncerDeferred(
 	height base.Height,
 	syncer *isaacstates.Syncer,
 ) {
@@ -478,7 +386,7 @@ func (cmd *runCommand) newSyncerDeferred(
 	l.Debug().Interface("height", height).Msg("new syncer created")
 }
 
-func (cmd *runCommand) getProposalFunc() func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error) {
+func (cmd *RunCommand) getProposalFunc() func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error) {
 	return func(ctx context.Context, facthash util.Hash) (base.ProposalSignedFact, error) {
 		switch pr, found, err := cmd.pool.Proposal(facthash); {
 		case err != nil:
@@ -536,7 +444,7 @@ func (cmd *runCommand) getProposalFunc() func(_ context.Context, facthash util.H
 	}
 }
 
-func (cmd *runCommand) syncerLastBlockMapf() isaacstates.SyncerLastBlockMapFunc {
+func (cmd *RunCommand) syncerLastBlockMapf() isaacstates.SyncerLastBlockMapFunc {
 	f := func(
 		ctx context.Context, manifest util.Hash, ci quicstream.UDPConnInfo,
 	) (_ base.BlockMap, updated bool, _ error) {
@@ -602,7 +510,7 @@ func (cmd *runCommand) syncerLastBlockMapf() isaacstates.SyncerLastBlockMapFunc 
 	}
 }
 
-func (cmd *runCommand) syncerBlockMapf() isaacstates.SyncerBlockMapFunc {
+func (cmd *RunCommand) syncerBlockMapf() isaacstates.SyncerBlockMapFunc {
 	f := func(ctx context.Context, height base.Height, ci quicstream.UDPConnInfo) (base.BlockMap, bool, error) {
 		switch m, found, err := cmd.client.BlockMap(ctx, ci, height); {
 		case err != nil, !found:
@@ -644,7 +552,13 @@ func (cmd *runCommand) syncerBlockMapf() isaacstates.SyncerBlockMapFunc {
 						case !b:
 							return nil
 						default:
-							_ = result.SetValue([2]interface{}{a, b})
+							_, _ = result.Set(func(i interface{}) (interface{}, error) {
+								if i != nil {
+									return nil, errors.Errorf("already set")
+								}
+
+								return [2]interface{}{a, b}, nil
+							})
 
 							return errors.Errorf("stop")
 						}
@@ -670,7 +584,7 @@ func (cmd *runCommand) syncerBlockMapf() isaacstates.SyncerBlockMapFunc {
 	}
 }
 
-func (cmd *runCommand) syncerBlockMapItemf() isaacstates.SyncerBlockMapItemFunc {
+func (cmd *RunCommand) syncerBlockMapItemf() isaacstates.SyncerBlockMapItemFunc {
 	// FIXME support remote item like https or ftp?
 	f := func(
 		ctx context.Context, height base.Height, item base.BlockMapItemType, ci quicstream.UDPConnInfo,
@@ -710,7 +624,16 @@ func (cmd *runCommand) syncerBlockMapItemf() isaacstates.SyncerBlockMapItemFunc 
 						case !c:
 							return nil
 						default:
-							_ = result.SetValue([3]interface{}{a, b, c})
+							_, _ = result.Set(func(i interface{}) (interface{}, error) {
+								if i != nil {
+									_ = a.Close()
+									_ = b()
+
+									return nil, errors.Errorf("already set")
+								}
+
+								return [3]interface{}{a, b, c}, nil
+							})
 
 							return errors.Errorf("stop")
 						}
@@ -737,7 +660,7 @@ func (cmd *runCommand) syncerBlockMapItemf() isaacstates.SyncerBlockMapItemFunc 
 	}
 }
 
-func (cmd *runCommand) setLastVoteproofsfFromBlockReader(
+func (cmd *RunCommand) setLastVoteproofsfFromBlockReader(
 	lvps *isaacstates.LastVoteproofsHandler,
 ) func(isaac.BlockReader) error {
 	return func(reader isaac.BlockReader) error {
@@ -764,7 +687,7 @@ func (cmd *runCommand) setLastVoteproofsfFromBlockReader(
 	}
 }
 
-func (cmd *runCommand) broadcastBallotFunc(ballot base.Ballot) error {
+func (cmd *RunCommand) broadcastBallotFunc(ballot base.Ballot) error {
 	e := util.StringErrorFunc("failed to broadcast ballot")
 
 	b, err := cmd.enc.Marshal(ballot)
@@ -781,7 +704,7 @@ func (cmd *runCommand) broadcastBallotFunc(ballot base.Ballot) error {
 	return nil
 }
 
-func (cmd *runCommand) updateSyncSources(called int64, ncis []isaac.NodeConnInfo, err error) {
+func (cmd *RunCommand) updateSyncSources(called int64, ncis []isaac.NodeConnInfo, err error) {
 	cmd.syncSourcePool.UpdateFixed(ncis)
 
 	if err != nil {
@@ -798,7 +721,7 @@ func (cmd *runCommand) updateSyncSources(called int64, ncis []isaac.NodeConnInfo
 		Msg("sync sources updated")
 }
 
-func (cmd *runCommand) getLastSuffrageProofFunc() isaac.GetLastSuffrageProofFromRemoteFunc {
+func (cmd *RunCommand) getLastSuffrageProofFunc() isaac.GetLastSuffrageProofFromRemoteFunc {
 	lastl := util.EmptyLocked()
 
 	f := func(ctx context.Context, ci quicstream.UDPConnInfo) (base.SuffrageProof, bool, error) {
@@ -882,7 +805,7 @@ func (cmd *runCommand) getLastSuffrageProofFunc() isaac.GetLastSuffrageProofFrom
 	}
 }
 
-func (cmd *runCommand) getLastSuffrageCandidateFunc() isaac.GetLastSuffrageCandidateStateRemoteFunc {
+func (cmd *RunCommand) getLastSuffrageCandidateFunc() isaac.GetLastSuffrageCandidateStateRemoteFunc {
 	lastl := util.EmptyLocked()
 
 	f := func(ctx context.Context, ci quicstream.UDPConnInfo) (base.State, bool, error) {
@@ -955,7 +878,7 @@ func (cmd *runCommand) getLastSuffrageCandidateFunc() isaac.GetLastSuffrageCandi
 	}
 }
 
-func (cmd *runCommand) getSuffrageProofFunc() isaac.GetSuffrageProofFromRemoteFunc {
+func (cmd *RunCommand) getSuffrageProofFunc() isaac.GetSuffrageProofFromRemoteFunc {
 	return func(ctx context.Context, suffrageheight base.Height) (proof base.SuffrageProof, found bool, _ error) {
 		err := util.Retry(
 			ctx,
@@ -988,7 +911,13 @@ func (cmd *runCommand) getSuffrageProofFunc() isaac.GetSuffrageProofFromRemoteFu
 								return nil
 							}
 
-							_ = result.SetValue([2]interface{}{a, b})
+							_, _ = result.Set(func(i interface{}) (interface{}, error) {
+								if i != nil {
+									return nil, errors.Errorf("already set")
+								}
+
+								return [2]interface{}{a, b}, nil
+							})
 
 							return errors.Errorf("stop")
 						}
@@ -1014,7 +943,7 @@ func (cmd *runCommand) getSuffrageProofFunc() isaac.GetSuffrageProofFromRemoteFu
 	}
 }
 
-func (cmd *runCommand) getProposalOperationFunc(
+func (cmd *RunCommand) getProposalOperationFunc(
 	proposal base.ProposalSignedFact,
 ) isaac.OperationProcessorGetOperationFunction {
 	return func(ctx context.Context, operationhash util.Hash) (base.Operation, error) {
@@ -1053,7 +982,7 @@ func (cmd *runCommand) getProposalOperationFunc(
 	}
 }
 
-func (cmd *runCommand) getProposalOperationFromPool(
+func (cmd *RunCommand) getProposalOperationFromPool(
 	ctx context.Context, operationhash util.Hash,
 ) (base.Operation, bool, error) {
 	op, found, err := cmd.pool.NewOperation(ctx, operationhash)
@@ -1068,7 +997,7 @@ func (cmd *runCommand) getProposalOperationFromPool(
 	}
 }
 
-func (cmd *runCommand) getProposalOperationFromRemote(
+func (cmd *RunCommand) getProposalOperationFromRemote(
 	ctx context.Context, proposal base.ProposalSignedFact, operationhash util.Hash,
 ) (base.Operation, bool, error) {
 	if cmd.syncSourcePool.Len() < 1 {
@@ -1139,7 +1068,7 @@ func (cmd *runCommand) getProposalOperationFromRemote(
 	return i.(base.Operation), true, nil //nolint:forcetypeassert //...
 }
 
-func (cmd *runCommand) getProposalOperationFromRemoteProposer(
+func (cmd *RunCommand) getProposalOperationFromRemoteProposer(
 	ctx context.Context, proposal base.ProposalSignedFact, operationhash util.Hash,
 ) (bool, base.Operation, bool, error) {
 	proposer := proposal.ProposalFact().Proposer()
@@ -1177,7 +1106,7 @@ func (cmd *runCommand) getProposalOperationFromRemoteProposer(
 	}
 }
 
-func (cmd *runCommand) joinMemberlistForJoiningState() error {
+func (cmd *RunCommand) joinMemberlistForJoiningState() error {
 	if len(cmd.discoveries) < 1 {
 		return nil
 	}
@@ -1189,7 +1118,7 @@ func (cmd *runCommand) joinMemberlistForJoiningState() error {
 	return cmd.memberlist.Join(cmd.discoveries)
 }
 
-func (cmd *runCommand) operationProcessorsMap() *hint.CompatibleSet {
+func (cmd *RunCommand) operationProcessorsMap() *hint.CompatibleSet {
 	set := hint.NewCompatibleSet()
 
 	_ = set.Add(isaacoperation.SuffrageCandidateHint, func(height base.Height) (base.OperationProcessor, error) {
@@ -1234,7 +1163,7 @@ func (cmd *runCommand) operationProcessorsMap() *hint.CompatibleSet {
 	return set
 }
 
-func (cmd *runCommand) newSuffrageCandidateLimiterFunc(
+func (cmd *RunCommand) newSuffrageCandidateLimiterFunc(
 	height base.Height, getStateFunc base.GetStateFunc,
 ) (base.OperationProcessorProcessFunc, error) {
 	e := util.StringErrorFunc("failed to get SuffrageCandidateLimiterFunc")
@@ -1311,7 +1240,7 @@ func (cmd *runCommand) newSuffrageCandidateLimiterFunc(
 	}, nil
 }
 
-func (cmd *runCommand) loadSuffrageCandidateLimiter(policy base.NetworkPolicy) (base.SuffrageCandidateLimiter, error) {
+func (cmd *RunCommand) loadSuffrageCandidateLimiter(policy base.NetworkPolicy) (base.SuffrageCandidateLimiter, error) {
 	e := util.StringErrorFunc("failed to load SuffrageCandidateLimiter")
 
 	rule := policy.SuffrageCandidateLimiterRule()
@@ -1329,11 +1258,11 @@ func (cmd *runCommand) loadSuffrageCandidateLimiter(policy base.NetworkPolicy) (
 	return f(rule)
 }
 
-func (cmd *runCommand) whenStateSwitched(_, next isaacstates.StateType) {
+func (cmd *RunCommand) whenStateSwitched(_, next isaacstates.StateType) {
 	_ = cmd.nodeinfo.SetConsensusState(next)
 }
 
-func (cmd *runCommand) whenNewBlockSaved(height base.Height) {
+func (cmd *RunCommand) whenNewBlockSaved(height base.Height) {
 	l := log.Log().With().Interface("height", height).Logger()
 	l.Debug().Msg("new block saved")
 
@@ -1350,7 +1279,7 @@ func (cmd *runCommand) whenNewBlockSaved(height base.Height) {
 	cmd.updateNodeInfoWithNewBlock()
 }
 
-func (cmd *runCommand) updateNodeInfoWithNewBlock() {
+func (cmd *RunCommand) updateNodeInfoWithNewBlock() {
 	// NOTE update nodeinfo
 	switch m, found, err := cmd.db.LastBlockMap(); {
 	case err != nil:
@@ -1384,7 +1313,7 @@ func (cmd *runCommand) updateNodeInfoWithNewBlock() {
 	_ = cmd.nodeinfo.SetNetworkPolicy(cmd.db.LastNetworkPolicy())
 }
 
-func (cmd *runCommand) newOperationFilter() func(base.Operation) (bool, error) {
+func (cmd *RunCommand) newOperationFilter() func(base.Operation) (bool, error) {
 	operationfilterf := launch.IsSupportedProposalOperationFactHintFunc()
 	oprs := cmd.operationProcessorsMap()
 

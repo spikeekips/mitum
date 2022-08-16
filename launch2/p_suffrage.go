@@ -1,0 +1,588 @@
+package launch2
+
+import (
+	"context"
+	"time"
+
+	"github.com/pkg/errors"
+	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
+	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
+	"github.com/spikeekips/mitum/network/quicmemberlist"
+	"github.com/spikeekips/mitum/network/quicstream"
+	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/hint"
+	"github.com/spikeekips/mitum/util/logging"
+	"github.com/spikeekips/mitum/util/ps"
+)
+
+var (
+	PNamePrepareSuffrageCandidateLimiterSet          = ps.PName("prepare-suffrage-candidate-limiter-set")
+	PNamePatchLastSuffrageProofWatcherWithMemberlist = ps.PName("patch-last-suffrage-proof-watcher-with-memberlist")
+	PNameLastSuffrageProofWatcher                    = ps.PName("last-suffrage-proof-watcher")
+	SuffrageCandidateLimiterSetContextKey            = ps.ContextKey("suffrage-candidate-limiter-set")
+	LastSuffrageProofWatcherContextKey               = ps.ContextKey("last-suffrage-proof-watcher")
+)
+
+func PPrepareSuffrageCandidateLimiterSet(ctx context.Context) (context.Context, error) {
+	e := util.StringErrorFunc("failed to prepare SuffrageCandidateLimiterSet")
+
+	var db isaac.Database
+	if err := ps.LoadsFromContext(ctx,
+		CenterDatabaseContextKey, &db,
+	); err != nil {
+		return ctx, e(err, "")
+	}
+
+	set := hint.NewCompatibleSet()
+
+	if err := set.Add(
+		isaac.FixedSuffrageCandidateLimiterRuleHint,
+		base.SuffrageCandidateLimiterFunc(FixedSuffrageCandidateLimiterFunc()),
+	); err != nil {
+		return ctx, e(err, "")
+	}
+
+	if err := set.Add(
+		isaac.MajoritySuffrageCandidateLimiterRuleHint,
+		base.SuffrageCandidateLimiterFunc(MajoritySuffrageCandidateLimiterFunc(db)),
+	); err != nil {
+		return ctx, e(err, "")
+	}
+
+	ctx = context.WithValue(ctx, SuffrageCandidateLimiterSetContextKey, set) //revive:disable-line:modifies-parameter
+
+	return ctx, nil
+}
+
+func PLastSuffrageProofWatcher(ctx context.Context) (context.Context, error) {
+	var local base.LocalNode
+	var policy base.NodePolicy
+	var discoveries []quicstream.UDPConnInfo
+	var db isaac.Database
+
+	if err := ps.LoadsFromContext(ctx,
+		LocalContextKey, &local,
+		NodePolicyContextKey, &policy,
+		DiscoveryContextKey, &discoveries,
+		CenterDatabaseContextKey, &db,
+	); err != nil {
+		return ctx, err
+	}
+
+	getLastSuffrageProoff, err := GetLastSuffrageProofFunc(ctx)
+	if err != nil {
+		return ctx, err
+	}
+
+	getSuffrageProoff, err := GetSuffrageProofFunc(ctx)
+	if err != nil {
+		return ctx, err
+	}
+
+	getLastSuffrageCandidatef, err := GetLastSuffrageCandidateFunc(ctx)
+	if err != nil {
+		return ctx, err
+	}
+
+	builder := isaac.NewSuffrageStateBuilder(
+		policy.NetworkID(),
+		getLastSuffrageProoff,
+		getSuffrageProoff,
+		getLastSuffrageCandidatef,
+	)
+
+	watcher := isaac.NewLastConsensusNodesWatcher(
+		func() (base.SuffrageProof, base.State, bool, error) {
+			proof, found, err := db.LastSuffrageProof()
+			if err != nil {
+				return nil, nil, false, err
+			}
+
+			st, _, err := db.State(isaac.SuffrageCandidateStateKey)
+			if err != nil {
+				return nil, nil, false, err
+			}
+
+			return proof, st, found, nil
+		},
+		builder.Build,
+		nil,
+	)
+
+	ctx = context.WithValue(ctx, LastSuffrageProofWatcherContextKey, watcher) //revive:disable-line:modifies-parameter
+
+	return ctx, nil
+}
+
+func PPatchLastSuffrageProofWatcherWithMemberlist(ctx context.Context) (context.Context, error) {
+	var log *logging.Logging
+	var local base.LocalNode
+	var discoveries []quicstream.UDPConnInfo
+	var watcher *isaac.LastConsensusNodesWatcher
+	var memberlist *quicmemberlist.Memberlist
+
+	if err := ps.LoadsFromContext(ctx,
+		LoggingContextKey, &log,
+		LocalContextKey, &local,
+		DiscoveryContextKey, &discoveries,
+		LastSuffrageProofWatcherContextKey, &watcher,
+		MemberlistContextKey, &memberlist,
+	); err != nil {
+		return ctx, err
+	}
+
+	watcher.SetWhenUpdated(func(ctx context.Context, proof base.SuffrageProof, st base.State) {
+		if len(discoveries) < 1 {
+			return
+		}
+
+		switch _, found, err := isaac.IsNodeInLastConsensusNodes(local, proof, st); {
+		case err != nil:
+			log.Log().Error().Err(err).Msg("failed to check node in consensus nodes")
+
+			return
+		case !found:
+			log.Log().Debug().Msg("local is not in consensus nodes; will leave from memberlist")
+
+			if err := memberlist.Leave(time.Second * 30); err != nil { //nolint:gomnd // long enough to leave
+				log.Log().Error().Err(err).Msg("failed to leave from memberlist")
+			}
+
+			return
+		case memberlist.IsJoined():
+			return
+		}
+
+		_ = util.Retry(
+			ctx,
+			func() (bool, error) {
+				l := log.Log().With().Interface("discoveries", discoveries).Logger()
+
+				switch err := memberlist.Join(discoveries); {
+				case err != nil:
+					l.Error().Err(err).Msg("trying to join to memberlist, but failed")
+
+					return true, err
+				default:
+					l.Debug().Msg("joined to memberlist")
+
+					return false, nil
+				}
+			},
+			3,             //nolint:gomnd //...
+			time.Second*3, //nolint:gomnd //...
+		)
+	})
+
+	return ctx, nil
+}
+
+func FixedSuffrageCandidateLimiterFunc() func(
+	base.SuffrageCandidateLimiterRule,
+) (base.SuffrageCandidateLimiter, error) {
+	return func(rule base.SuffrageCandidateLimiterRule) (base.SuffrageCandidateLimiter, error) {
+		i, ok := rule.(isaac.FixedSuffrageCandidateLimiterRule)
+		if !ok {
+			return nil, errors.Errorf("expected FixedSuffrageCandidateLimiterRule, not %T", rule)
+		}
+
+		return isaac.NewFixedSuffrageCandidateLimiter(i), nil
+	}
+}
+
+func MajoritySuffrageCandidateLimiterFunc(
+	db isaac.Database,
+) func(base.SuffrageCandidateLimiterRule) (base.SuffrageCandidateLimiter, error) {
+	return func(rule base.SuffrageCandidateLimiterRule) (base.SuffrageCandidateLimiter, error) {
+		i, ok := rule.(isaac.MajoritySuffrageCandidateLimiterRule)
+		if !ok {
+			return nil, errors.Errorf("expected MajoritySuffrageCandidateLimiterRule, not %T", rule)
+		}
+
+		proof, found, err := db.LastSuffrageProof()
+
+		switch {
+		case err != nil:
+			return nil, errors.WithMessagef(err, "failed to get last suffrage for MajoritySuffrageCandidateLimiter")
+		case !found:
+			return nil, errors.Errorf("last suffrage not found for MajoritySuffrageCandidateLimiter")
+		}
+
+		suf, err := proof.Suffrage()
+		if err != nil {
+			return nil, errors.WithMessagef(err, "failed to get suffrage for MajoritySuffrageCandidateLimiter")
+		}
+
+		return isaac.NewMajoritySuffrageCandidateLimiter(
+			i,
+			func() (uint64, error) {
+				return uint64(suf.Len()), nil
+			},
+		), nil
+	}
+}
+
+func GetLastSuffrageProofFunc(ctx context.Context) (isaac.GetLastSuffrageProofFromRemoteFunc, error) {
+	var policy base.NodePolicy
+	var client *isaacnetwork.QuicstreamClient
+	var syncSourcePool *isaac.SyncSourcePool
+
+	if err := ps.LoadsFromContext(ctx,
+		QuicstreamClientContextKey, &client,
+		NodePolicyContextKey, &policy,
+		SyncSourcePoolContextKey, &syncSourcePool,
+	); err != nil {
+		return nil, err
+	}
+
+	lastl := util.EmptyLocked()
+
+	f := func(ctx context.Context, ci quicstream.UDPConnInfo) (base.SuffrageProof, bool, error) {
+		var last util.Hash
+
+		if i, isnil := lastl.Value(); !isnil {
+			last = i.(util.Hash) //nolint:forcetypeassert //...
+		}
+
+		proof, updated, err := client.LastSuffrageProof(ctx, ci, last)
+
+		switch {
+		case err != nil:
+			return proof, updated, err
+		case !updated:
+			return proof, updated, nil
+		default:
+			if err := proof.IsValid(policy.NetworkID()); err != nil {
+				return nil, updated, err
+			}
+
+			_ = lastl.SetValue(proof.Map().Manifest().Suffrage())
+
+			return proof, updated, nil
+		}
+	}
+
+	return func(ctx context.Context) (proof base.SuffrageProof, found bool, _ error) {
+		ml := util.EmptyLocked()
+
+		numnodes := 3 // NOTE choose top 3 sync nodes
+
+		if err := isaac.DistributeWorkerWithSyncSourcePool(
+			ctx,
+			syncSourcePool,
+			numnodes,
+			uint64(numnodes),
+			nil,
+			func(ctx context.Context, i, _ uint64, nci isaac.NodeConnInfo) error {
+				ci, err := nci.UDPConnInfo()
+				if err != nil {
+					return err
+				}
+
+				proof, updated, err := f(ctx, ci)
+				switch {
+				case err != nil:
+					return err
+				case !updated:
+					return nil
+				}
+
+				_, err = ml.Set(func(v interface{}) (interface{}, error) {
+					switch {
+					case v == nil,
+						proof.Map().Manifest().Height() >
+							v.(base.SuffrageProof).Map().Manifest().Height(): //nolint:forcetypeassert //...
+
+						return proof, nil
+					default:
+						return nil, util.ErrLockedSetIgnore.Errorf("old SuffrageProof")
+					}
+				})
+
+				return err
+			},
+		); err != nil {
+			if errors.Is(err, isaac.ErrEmptySyncSources) {
+				return nil, false, nil
+			}
+
+			return nil, false, err
+		}
+
+		switch v, isnil := ml.Value(); {
+		case isnil:
+			return nil, false, nil
+		default:
+			return v.(base.SuffrageProof), true, nil //nolint:forcetypeassert //...
+		}
+	}, nil
+}
+
+func GetSuffrageProofFunc(ctx context.Context) (isaac.GetSuffrageProofFromRemoteFunc, error) { //revive:disable-line:cognitive-complexity
+	var policy base.NodePolicy
+	var client *isaacnetwork.QuicstreamClient
+	var syncSourcePool *isaac.SyncSourcePool
+
+	if err := ps.LoadsFromContext(ctx,
+		QuicstreamClientContextKey, &client,
+		NodePolicyContextKey, &policy,
+		SyncSourcePoolContextKey, &syncSourcePool,
+	); err != nil {
+		return nil, err
+	}
+
+	return func(ctx context.Context, suffrageheight base.Height) (proof base.SuffrageProof, found bool, _ error) {
+		err := util.Retry(
+			ctx,
+			func() (bool, error) {
+				numnodes := 3 // NOTE choose top 3 sync nodes
+				result := util.EmptyLocked()
+
+				_ = isaac.ErrGroupWorkerWithSyncSourcePool(
+					ctx,
+					syncSourcePool,
+					numnodes,
+					uint64(numnodes),
+					func(ctx context.Context, i, _ uint64, nci isaac.NodeConnInfo) error {
+						ci, err := nci.UDPConnInfo()
+						if err != nil {
+							return err
+						}
+
+						switch a, b, err := client.SuffrageProof(ctx, ci, suffrageheight); {
+						case err != nil:
+							if quicstream.IsNetworkError(err) {
+								return err
+							}
+
+							return nil
+						case !b:
+							return nil
+						default:
+							if err := a.IsValid(policy.NetworkID()); err != nil {
+								return nil
+							}
+
+							_, _ = result.Set(func(i interface{}) (interface{}, error) {
+								if i != nil {
+									return nil, errors.Errorf("already set")
+								}
+
+								return [2]interface{}{a, b}, nil
+							})
+
+							return errors.Errorf("stop")
+						}
+					},
+				)
+
+				v, isnil := result.Value()
+				if isnil {
+					return true, nil
+				}
+
+				i := v.([2]interface{}) //nolint:forcetypeassert //...
+
+				proof, found = i[0].(base.SuffrageProof), i[1].(bool) //nolint:forcetypeassert //...
+
+				return false, nil
+			},
+			-1,
+			time.Second*3, //nolint:gomnd //... // FIXME config
+		)
+
+		return proof, found, err
+	}, nil
+}
+
+func GetLastSuffrageCandidateFunc(ctx context.Context) (isaac.GetLastSuffrageCandidateStateRemoteFunc, error) {
+	var client *isaacnetwork.QuicstreamClient
+	var syncSourcePool *isaac.SyncSourcePool
+
+	if err := ps.LoadsFromContext(ctx,
+		QuicstreamClientContextKey, &client,
+		SyncSourcePoolContextKey, &syncSourcePool,
+	); err != nil {
+		return nil, err
+	}
+
+	lastl := util.EmptyLocked()
+
+	f := func(ctx context.Context, ci quicstream.UDPConnInfo) (base.State, bool, error) {
+		var last util.Hash
+
+		if i, isnil := lastl.Value(); !isnil {
+			last = i.(util.Hash) //nolint:forcetypeassert //...
+		}
+
+		st, found, err := client.State(ctx, ci, isaac.SuffrageCandidateStateKey, last)
+
+		switch {
+		case err != nil, !found, st == nil:
+			return st, found, err
+		default:
+			if err := st.IsValid(nil); err != nil {
+				return nil, false, err
+			}
+
+			_ = lastl.SetValue(st.Hash())
+
+			return st, true, nil
+		}
+	}
+
+	return func(ctx context.Context) (base.State, bool, error) {
+		ml := util.EmptyLocked()
+
+		numnodes := 3 // NOTE choose top 3 sync nodes
+
+		if err := isaac.DistributeWorkerWithSyncSourcePool(
+			ctx,
+			syncSourcePool,
+			numnodes,
+			uint64(numnodes),
+			nil,
+			func(ctx context.Context, i, _ uint64, nci isaac.NodeConnInfo) error {
+				ci, err := nci.UDPConnInfo()
+				if err != nil {
+					return err
+				}
+
+				st, found, err := f(ctx, ci)
+				switch {
+				case err != nil, !found, st == nil:
+					return err
+				}
+
+				_, err = ml.Set(func(v interface{}) (interface{}, error) {
+					switch {
+					case v == nil, st.Height() > v.(base.State).Height(): //nolint:forcetypeassert //...
+						return st, nil
+					default:
+						return nil, util.ErrLockedSetIgnore.Errorf("old SuffrageProof")
+					}
+				})
+
+				return err
+			},
+		); err != nil {
+			return nil, false, err
+		}
+
+		switch v, isnil := ml.Value(); {
+		case isnil, v == nil:
+			return nil, false, nil
+		default:
+			return v.(base.State), true, nil //nolint:forcetypeassert //...
+		}
+	}, nil
+}
+
+func NewSuffrageCandidateLimiterFunc(ctx context.Context) ( //revive:disable-line:cognitive-complexity
+	func(base.Height, base.GetStateFunc) (base.OperationProcessorProcessFunc, error),
+	error,
+) {
+	var db isaac.Database
+	var limiterset *hint.CompatibleSet
+
+	if err := ps.LoadsFromContext(ctx,
+		CenterDatabaseContextKey, &db,
+		SuffrageCandidateLimiterSetContextKey, &limiterset,
+	); err != nil {
+		return nil, err
+	}
+
+	return func(height base.Height, getStateFunc base.GetStateFunc) (base.OperationProcessorProcessFunc, error) {
+		e := util.StringErrorFunc("failed to get SuffrageCandidateLimiterFunc")
+
+		policy := db.LastNetworkPolicy()
+		if policy == nil {
+			return nil, e(nil, "empty network policy")
+		}
+
+		var suf base.Suffrage
+
+		switch proof, found, err := db.LastSuffrageProof(); {
+		case err != nil:
+			return nil, e(err, "failed to get last suffrage")
+		case !found:
+			return nil, e(nil, "last suffrage not found")
+		default:
+			i, err := proof.Suffrage()
+			if err != nil {
+				return nil, e(err, "failed to get suffrage")
+			}
+
+			suf = i
+		}
+
+		var existings uint64
+
+		switch _, i, err := isaac.LastCandidatesFromState(height, getStateFunc); {
+		case err != nil:
+			return nil, e(err, "")
+		default:
+			existings = uint64(len(i))
+		}
+
+		rule := policy.SuffrageCandidateLimiterRule()
+
+		var limit uint64
+
+		switch i := limiterset.Find(rule.Hint()); {
+		case i == nil:
+			return nil, e(nil, "unknown limiter rule, %q", rule.Hint())
+		default:
+			f, ok := i.(base.SuffrageCandidateLimiterFunc)
+			if !ok {
+				return nil, e(nil, "expected SuffrageCandidateLimiterFunc, not %T", i)
+			}
+
+			limiter, err := f(rule)
+			if err != nil {
+				return nil, e(err, "")
+			}
+
+			j, err := limiter()
+			if err != nil {
+				return nil, e(err, "")
+			}
+
+			limit = j
+		}
+
+		switch {
+		case existings >= policy.MaxSuffrageSize():
+			return func(
+				_ context.Context, op base.Operation, _ base.GetStateFunc,
+			) (base.OperationProcessReasonError, error) {
+				return base.NewBaseOperationProcessReasonError("reached limit, %d", policy.MaxSuffrageSize()), nil
+			}, nil
+		case limit > policy.MaxSuffrageSize()-uint64(suf.Len()):
+			limit = policy.MaxSuffrageSize() - uint64(suf.Len())
+		}
+
+		if limit < 1 {
+			return func(
+				_ context.Context, op base.Operation, _ base.GetStateFunc,
+			) (base.OperationProcessReasonError, error) {
+				return base.NewBaseOperationProcessReasonError("reached limit, %d", limit), nil
+			}, nil
+		}
+
+		var counted uint64
+
+		return func(
+			_ context.Context, op base.Operation, _ base.GetStateFunc,
+		) (base.OperationProcessReasonError, error) {
+			if counted >= limit {
+				return base.NewBaseOperationProcessReasonError("reached limit, %d", limit), nil
+			}
+
+			counted++
+
+			return nil, nil
+		}, nil
+	}, nil
+}

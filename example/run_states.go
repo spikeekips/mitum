@@ -6,7 +6,7 @@ import (
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
 )
 
-func (cmd *runCommand) prepareStates() error {
+func (cmd *RunCommand) prepareStates() error {
 	cmd.getSuffrage = cmd.getSuffrageFunc()
 	cmd.getManifest = cmd.getManifestFunc()
 	cmd.proposalSelector = cmd.proposalSelectorFunc()
@@ -17,7 +17,7 @@ func (cmd *runCommand) prepareStates() error {
 
 	cmd.prepareLastSuffrageProofWatcher()
 
-	cmd.ballotbox = isaacstates.NewBallotbox(cmd.getSuffrage, cmd.nodePolicy.Threshold())
+	// cmd.ballotbox = isaacstates.NewBallotbox(cmd.getSuffrage, cmd.nodePolicy.Threshold())
 
 	voteFunc := func(bl base.Ballot) (bool, error) {
 		voted, err := cmd.ballotbox.Vote(bl)
@@ -42,6 +42,7 @@ func (cmd *runCommand) prepareStates() error {
 
 	syncinghandler := isaacstates.NewNewSyncingHandlerType(
 		cmd.local, cmd.nodePolicy, cmd.proposalSelector, cmd.newSyncer(lvps), cmd.nodeInConsensusNodes,
+		cmd.joinMemberlistForJoiningState,
 	)
 	syncinghandler.SetWhenFinished(func(base.Height) {
 		cmd.ballotbox.Count()

@@ -14,18 +14,21 @@ import (
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/launch"
+	"github.com/spikeekips/mitum/launch2"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/network/quicstream"
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
+	"github.com/spikeekips/mitum/util/logging"
+	"github.com/spikeekips/mitum/util/ps"
 )
 
-type runCommand struct { //nolint:govet //...
+type RunCommand struct { //nolint:govet //...
 	baseNodeCommand
 	Discovery                   []launch.ConnInfoFlag `help:"member discovery" placeholder:"ConnInfo"`
 	Hold                        launch.HeightFlag     `help:"hold consensus states"`
-	nodeInfo                    launch.NodeInfo
+	nodeInfo                    launch2.NodeInfo
 	db                          isaac.Database
 	perm                        isaac.PermanentDatabase
 	getProposal                 func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error)
@@ -54,8 +57,38 @@ type runCommand struct { //nolint:govet //...
 	nodeinfo                    *isaacnetwork.NodeInfoUpdater
 }
 
-func (cmd *runCommand) Run() error {
-	switch stop, err := cmd.prepare(); {
+func (cmd *RunCommand) Run(pctx context.Context) error {
+	var log *logging.Logging
+	if err := ps.LoadFromContextOK(pctx, launch2.LoggingContextKey, &log); err != nil {
+		return err
+	}
+
+	//revive:disable:modifies-parameter
+	pctx = context.WithValue(pctx,
+		launch2.DesignFileContextKey, cmd.Design)
+	pctx = context.WithValue(pctx,
+		launch2.DiscoveryFlagContextKey, cmd.Discovery)
+	//revive:enable:modifies-parameter
+
+	pps := launch2.DefaultRunPS()
+	_ = pps.SetLogging(log)
+
+	log.Log().Debug().Interface("process", pps.Verbose()).Msg("process ready")
+
+	pctx, err := pps.Run(pctx) //revive:disable-line:modifies-parameter
+	defer func() {
+		log.Log().Debug().Interface("process", pps.Verbose()).Msg("process will be closed")
+
+		if _, err = pps.Close(pctx); err != nil {
+			log.Log().Error().Err(err).Msg("failed to close")
+		}
+	}()
+
+	if err != nil {
+		return err
+	}
+
+	switch stop, err := cmd.prepare(pctx); {
 	case err != nil:
 		return err
 	default:
@@ -135,7 +168,7 @@ func (cmd *runCommand) Run() error {
 
 var errHoldStop = util.NewError("hold stop")
 
-func (cmd *runCommand) startStates(ctx context.Context) (func(), error) {
+func (cmd *RunCommand) startStates(ctx context.Context) (func(), error) {
 	var holded bool
 
 	switch {

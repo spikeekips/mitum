@@ -328,7 +328,7 @@ func (db *Center) ExistsKnownOperation(h util.Hash) (bool, error) { //nolint:dup
 func (db *Center) BlockMap(height base.Height) (base.BlockMap, bool, error) {
 	switch temps := db.activeTemps(); {
 	case len(temps) < 1:
-	case temps[0].Height() > height:
+	case temps[0].Height() < height:
 		return nil, false, nil
 	default:
 		if temp := db.findTemp(height); temp != nil {

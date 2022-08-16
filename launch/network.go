@@ -19,7 +19,9 @@ import (
 var QuicStreamNetworkProto = "mitum-example-network"
 
 func NewNetworkClient(
-	encs *encoder.Encoders, enc encoder.Encoder, idleTimeout time.Duration,
+	encs *encoder.Encoders,
+	enc encoder.Encoder,
+	idleTimeout time.Duration,
 ) *isaacnetwork.QuicstreamClient {
 	return isaacnetwork.NewQuicstreamClient(encs, enc, idleTimeout, QuicStreamNetworkProto, DefaultQuicConfig())
 }

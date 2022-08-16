@@ -30,9 +30,9 @@ func init() {
 //revive:disable:nested-structs
 var CLI struct { //nolint:govet //...
 	launch2.BaseFlags
-	Import ImportCommand `cmd:"" help:"import from block data"`
-	Init   INITCommand   `cmd:"" help:"init node"`
-	// Run     RunCommand    `cmd:"" help:"run node"`
+	Import  ImportCommand `cmd:"" help:"import from block data"`
+	Init    INITCommand   `cmd:"" help:"init node"`
+	Run     RunCommand    `cmd:"" help:"run node"`
 	Network struct {
 		Client NetworkClientCommand `cmd:"" help:"network client"`
 	} `cmd:"" help:"network"`

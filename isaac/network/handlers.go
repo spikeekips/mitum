@@ -18,7 +18,7 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
-type QuicstreamHandlers struct {
+type QuicstreamHandlers struct { // FIXME remove
 	pool   isaac.ProposalPool
 	oppool isaac.NewOperationPool
 	*baseNetwork
@@ -41,6 +41,7 @@ type QuicstreamHandlers struct {
 }
 
 func NewQuicstreamHandlers( // revive:disable-line:argument-limit
+	// FIXME remove
 	local base.LocalNode,
 	nodepolicy *isaac.NodePolicy,
 	encs *encoder.Encoders,

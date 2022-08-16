@@ -2,179 +2,96 @@ package main
 
 import (
 	"context"
-	"net"
-	"os"
 	"time"
 
-	"github.com/lucas-clemente/quic-go"
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
-	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
-	isaacstates "github.com/spikeekips/mitum/isaac/states"
-	"github.com/spikeekips/mitum/launch"
-	"github.com/spikeekips/mitum/network"
-	"github.com/spikeekips/mitum/network/quicstream"
+	"github.com/spikeekips/mitum/launch2"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
+	"github.com/spikeekips/mitum/util/ps"
 )
 
-func (cmd *runCommand) prepare() (func() error, error) {
+func (cmd *RunCommand) prepare(pctx context.Context) (func() error, error) {
 	stop := func() error {
 		return nil
 	}
 
 	e := util.StringErrorFunc("failed to prepare")
 
-	switch encs, enc, err := launch.PrepareEncoders(); {
-	case err != nil:
-		return stop, e(err, "")
-	default:
-		cmd.encs = encs
-		cmd.enc = enc
-	}
-
-	if err := cmd.prepareDesigns(); err != nil {
-		return stop, e(err, "")
-	}
-
-	if err := cmd.prepareLocal(); err != nil {
-		return stop, e(err, "")
-	}
-
-	cmd.nodeinfo = isaacnetwork.NewNodeInfoUpdater(cmd.local, version)
-	_ = cmd.nodeinfo.SetConsensusState(isaacstates.StateBooting)
-	_ = cmd.nodeinfo.SetConnInfo(network.ConnInfoToString(
-		cmd.design.Network.PublishString,
-		cmd.design.Network.TLSInsecure,
-	))
-	_ = cmd.nodeinfo.SetNodePolicy(cmd.nodePolicy)
-
-	if err := cmd.prepareFlags(); err != nil {
-		return stop, e(err, "")
-	}
-
-	if err := cmd.prepareDatabase(); err != nil {
+	if err := ps.LoadsFromContext(pctx,
+		launch2.EncodersContextKey, &cmd.encs,
+		launch2.EncoderContextKey, &cmd.enc,
+		launch2.DesignContextKey, &cmd.design,
+		launch2.LocalContextKey, &cmd.local,
+		launch2.NodePolicyContextKey, &cmd.nodePolicy,
+		launch2.DiscoveryContextKey, &cmd.discoveries,
+		launch2.NodeInfoContextKey, &cmd.nodeinfo,
+		launch2.FSNodeInfoContextKey, &cmd.nodeInfo,
+		launch2.LeveldbStorageContextKey, &cmd.st,
+		launch2.CenterDatabaseContextKey, &cmd.db,
+		launch2.PermanentDatabaseContextKey, &cmd.perm,
+		launch2.PoolDatabaseContextKey, &cmd.pool,
+		launch2.ProposalMakerContextKey, &cmd.proposalMaker,
+		launch2.QuicstreamClientContextKey, &cmd.client,
+		launch2.QuicstreamHandlersContextKey, &cmd.handlers,
+		launch2.QuicstreamServerContextKey, &cmd.quicstreamserver,
+		launch2.SyncSourceCheckerContextKey, &cmd.syncSourceChecker,
+		launch2.SyncSourcePoolContextKey, &cmd.syncSourcePool,
+		launch2.SuffrageCandidateLimiterSetContextKey, &cmd.suffrageCandidateLimiterSet,
+		launch2.LastSuffrageProofWatcherContextKey, &cmd.lastSuffrageProofWatcher,
+		launch2.MemberlistContextKey, &cmd.memberlist,
+		launch2.BallotboxContextKey, &cmd.ballotbox,
+	); err != nil {
 		return stop, e(err, "")
 	}
 
-	cmd.proposalMaker = cmd.prepareProposalMaker()
-	_ = cmd.proposalMaker.SetLogging(log)
+	//if err := cmd.prepareSyncSourceChecker(); err != nil {
+	//	return stop, e(err, "")
+	//}
 
-	if err := cmd.prepareNetwork(); err != nil {
-		return stop, e(err, "")
-	}
-
-	if err := cmd.prepareSyncSourceChecker(); err != nil {
-		return stop, e(err, "")
-	}
-
-	if err := cmd.prepareSuffrage(); err != nil {
-		return stop, e(err, "")
-	}
+	//if err := cmd.prepareSuffrage(); err != nil {
+	//	return stop, e(err, "")
+	//}
 
 	if err := cmd.prepareStates(); err != nil {
-		return nil, err
+		return stop, err
 	}
+
+	//if err := cmd.prepareNetwork(); err != nil {
+	//	return stop, e(err, "")
+	//}
 
 	cmd.syncSourcesRetryInterval = time.Second * 3 //nolint:gomnd //...
 
 	return stop, nil
 }
 
-func (cmd *runCommand) prepareFlags() error {
-	switch {
-	case len(cmd.Discovery) < 1:
-	default:
-		cmd.discoveries = make([]quicstream.UDPConnInfo, len(cmd.Discovery))
+func (cmd *RunCommand) prepareNetwork() error {
+	// cmd.client = launch.NewNetworkClient(cmd.encs, cmd.enc, time.Second*2) //nolint:gomnd //...
+	// cmd.handlers = cmd.networkHandlers()
+	// cmd.networkHandlers()
 
-		for i := range cmd.Discovery {
-			ci, err := cmd.Discovery[i].ConnInfo()
-			if err != nil {
-				return errors.WithMessagef(err, "invalid member discovery, %q", cmd.Discovery[i])
-			}
+	//quicconfig := launch.DefaultQuicConfig()
+	//quicconfig.AcceptToken = func(clientAddr net.Addr, token *quic.Token) bool {
+	//	return true // FIXME NOTE manage blacklist
+	//}
+	//
+	//cmd.quicstreamserver = quicstream.NewServer(
+	//	cmd.design.Network.Bind,
+	//	launch.GenerateNewTLSConfig(),
+	//	quicconfig,
+	//	cmd.handlers.Handler,
+	//)
+	//_ = cmd.quicstreamserver.SetLogging(log)
 
-			cmd.discoveries[i] = ci
-		}
-	}
-
+	// return cmd.prepareMemberlist()
 	return nil
 }
 
-func (cmd *runCommand) prepareDatabase() error {
-	e := util.StringErrorFunc("failed to prepare database")
-
-	nodeinfo, err := launch.CheckLocalFS(cmd.nodePolicy.NetworkID(), cmd.design.Storage.Base, cmd.enc)
-
-	switch {
-	case err == nil:
-		if err = isaacblock.CleanBlockTempDirectory(launch.LocalFSDataDirectory(cmd.design.Storage.Base)); err != nil {
-			return e(err, "")
-		}
-	case errors.Is(err, os.ErrNotExist):
-		if err = launch.CleanStorage(
-			cmd.design.Storage.Database.String(),
-			cmd.design.Storage.Base,
-			cmd.encs, cmd.enc,
-		); err != nil {
-			return e(err, "")
-		}
-
-		nodeinfo, err = launch.CreateLocalFS(
-			launch.CreateDefaultNodeInfo(cmd.nodePolicy.NetworkID(), version), cmd.design.Storage.Base, cmd.enc)
-		if err != nil {
-			return e(err, "")
-		}
-	default:
-		return e(err, "")
-	}
-
-	st, db, perm, pool, err := launch.LoadDatabase(
-		nodeinfo, cmd.design.Storage.Database.String(), cmd.design.Storage.Base, cmd.encs, cmd.enc)
-	if err != nil {
-		return e(err, "")
-	}
-
-	_ = db.SetLogging(log)
-
-	if err := db.Start(); err != nil {
-		return e(err, "")
-	}
-
-	cmd.st = st
-	cmd.nodeInfo = nodeinfo
-	cmd.db = db
-	cmd.perm = perm
-	cmd.pool = pool
-
-	// NOTE update node info
-	cmd.updateNodeInfoWithNewBlock()
-
-	return nil
-}
-
-func (cmd *runCommand) prepareNetwork() error {
-	cmd.client = launch.NewNetworkClient(cmd.encs, cmd.enc, time.Second*2) //nolint:gomnd //...
-	cmd.handlers = cmd.networkHandlers()
-
-	quicconfig := launch.DefaultQuicConfig()
-	quicconfig.AcceptToken = func(clientAddr net.Addr, token *quic.Token) bool {
-		return true // FIXME NOTE manage blacklist
-	}
-
-	cmd.quicstreamserver = quicstream.NewServer(
-		cmd.design.Network.Bind,
-		launch.GenerateNewTLSConfig(),
-		quicconfig,
-		cmd.handlers.Handler,
-	)
-	_ = cmd.quicstreamserver.SetLogging(log)
-
-	return cmd.prepareMemberlist()
-}
-
-func (cmd *runCommand) prepareLastSuffrageProofWatcher() {
+func (cmd *RunCommand) prepareLastSuffrageProofWatcher() {
 	builder := isaac.NewSuffrageStateBuilder(
 		cmd.nodePolicy.NetworkID(),
 		cmd.getLastSuffrageProofFunc(),
@@ -242,7 +159,7 @@ func (cmd *runCommand) prepareLastSuffrageProofWatcher() {
 	)
 }
 
-func (cmd *runCommand) prepareSyncSourceChecker() error {
+func (cmd *RunCommand) prepareSyncSourceChecker() error {
 	sources := make([]isaacnetwork.SyncSource, len(cmd.design.SyncSources))
 	for i := range cmd.design.SyncSources {
 		sources[i] = cmd.design.SyncSources[i].Source
@@ -271,7 +188,7 @@ func (cmd *runCommand) prepareSyncSourceChecker() error {
 	return nil
 }
 
-func (cmd *runCommand) prepareSuffrage() error {
+func (cmd *RunCommand) prepareSuffrage() error {
 	set := hint.NewCompatibleSet()
 	if err := set.Add(
 		isaac.FixedSuffrageCandidateLimiterRuleHint,

@@ -20,6 +20,7 @@ var (
 )
 
 type Syncer interface {
+	util.Daemon
 	Add(base.Height) bool
 	Finished() <-chan base.Height
 	Done() <-chan struct{} // revive:disable-line:nested-structs
@@ -420,6 +421,10 @@ func DistributeWorkerWithSyncSourcePool(
 		return err
 	}
 
+	if n := uint64(len(ncis)); n < semsize {
+		semsize = n //revive:disable-line:modifies-parameter
+	}
+
 	return util.RunDistributeWorker(ctx, semsize, errch, func(ctx context.Context, i, jobid uint64) error {
 		index := i % uint64(len(ncis))
 		nci := ncis[index]
@@ -449,6 +454,10 @@ func ErrGroupWorkerWithSyncSourcePool(
 	ncis, reports, err := pool.PickMultiple(picksize)
 	if err != nil {
 		return err
+	}
+
+	if n := uint64(len(ncis)); n < semsize {
+		semsize = n //revive:disable-line:modifies-parameter
 	}
 
 	return util.RunErrgroupWorker(ctx, semsize, func(ctx context.Context, i, jobid uint64) error {

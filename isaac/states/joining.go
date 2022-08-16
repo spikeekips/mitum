@@ -115,6 +115,7 @@ func (st *JoiningHandler) enter(i switchContext) (func(), error) {
 		st.waitFirstVoteproof = 0
 	default:
 		// NOTE if not joined yet, join first
+		// FIXME if failed to join, retry
 		if err := st.joinMemberlist(); err != nil {
 			st.Log().Error().Err(err).Msg("failed to join memberlist; ignored")
 		}

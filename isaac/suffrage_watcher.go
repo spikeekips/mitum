@@ -25,21 +25,17 @@ func NewLastConsensusNodesWatcher(
 	getFromRemote func(context.Context, base.State) (base.SuffrageProof, base.State, error),
 	whenUpdated func(context.Context, base.SuffrageProof, base.State),
 ) *LastConsensusNodesWatcher {
-	if whenUpdated == nil {
-		whenUpdated = func(context.Context, base.SuffrageProof, base.State) {} // revive:disable-line:modifies-parameter
-	}
-
 	u := &LastConsensusNodesWatcher{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", "suffrage-state-updater")
 		}),
 		getFromLocal:  getFromLocal,
 		getFromRemote: getFromRemote,
-		whenUpdated:   whenUpdated,
 		interval:      time.Second * 3, //nolint:gomnd //...
 		last:          util.EmptyLocked(),
 	}
 
+	u.SetWhenUpdated(whenUpdated)
 	u.ContextDaemon = util.NewContextDaemon(u.start)
 
 	return u
@@ -82,6 +78,16 @@ func (u *LastConsensusNodesWatcher) Exists(node base.Node) (base.Suffrage, bool,
 	}
 
 	return IsNodeInLastConsensusNodes(node, proof, st)
+}
+
+func (u *LastConsensusNodesWatcher) SetWhenUpdated(
+	whenUpdated func(context.Context, base.SuffrageProof, base.State),
+) {
+	if whenUpdated == nil {
+		whenUpdated = func(context.Context, base.SuffrageProof, base.State) {} // revive:disable-line:modifies-parameter
+	}
+
+	u.whenUpdated = whenUpdated
 }
 
 func (u *LastConsensusNodesWatcher) lastValue() (base.SuffrageProof, base.State) {

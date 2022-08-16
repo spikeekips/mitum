@@ -21,6 +21,7 @@ type SyncingHandler struct {
 	newSyncer            func(base.Height) (isaac.Syncer, error)
 	stuckcancel          func()
 	whenFinishedf        func(base.Height)
+	joinMemberlist       func() error
 	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc
 	waitStuckInterval    *util.Locked
 	finishedLock         sync.RWMutex
@@ -37,6 +38,7 @@ func NewNewSyncingHandlerType(
 	proposalSelector isaac.ProposalSelector,
 	newSyncer func(base.Height) (isaac.Syncer, error),
 	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc,
+	joinMemberlist func() error,
 ) *NewSyncingHandlerType {
 	if nodeInConsensusNodes == nil {
 		//revive:disable-next-line:modifies-parameter
@@ -52,6 +54,7 @@ func NewNewSyncingHandlerType(
 			waitStuckInterval:    util.NewLocked(policy.IntervalBroadcastBallot()*2 + policy.WaitPreparingINITBallot()),
 			whenFinishedf:        func(base.Height) {},
 			nodeInConsensusNodes: nodeInConsensusNodes,
+			joinMemberlist:       joinMemberlist,
 		},
 	}
 }
@@ -63,6 +66,7 @@ func (h *NewSyncingHandlerType) new() (handler, error) {
 		waitStuckInterval:    h.waitStuckInterval,
 		whenFinishedf:        h.whenFinishedf,
 		nodeInConsensusNodes: h.nodeInConsensusNodes,
+		joinMemberlist:       h.joinMemberlist,
 	}, nil
 }
 
@@ -90,6 +94,10 @@ func (st *SyncingHandler) enter(i switchContext) (func(), error) {
 
 	if l, ok := sc.(logging.SetLogging); ok {
 		_ = l.SetLogging(st.Logging)
+	}
+
+	if err := sc.Start(); err != nil {
+		return nil, e(err, "")
 	}
 
 	st.syncer = sc
@@ -178,7 +186,14 @@ func (st *SyncingHandler) checkFinished(vp base.Voteproof) (inconsensusnodes boo
 
 		return false, nil
 	default:
-		st.Log().Debug().Msg("local is in consensus nodes after syncer finished")
+		go func() {
+			switch err := st.joinMemberlist(); {
+			case err != nil:
+				st.Log().Debug().Msg("local is in consensus nodes after syncer finished; but failed to join memberlist")
+			default:
+				st.Log().Debug().Msg("local is in consensus nodes after syncer finished; joined memberlist")
+			}
+		}()
 	}
 
 	switch {

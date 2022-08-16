@@ -38,6 +38,7 @@ func (t *testSyncingHandler) newState(finishch chan base.Height) (*SyncingHandle
 			return syncer, nil
 		},
 		nil,
+		func() error { return nil },
 	)
 	_ = newhandler.SetLogging(logging.TestNilLogging)
 	_ = newhandler.setTimers(util.NewTimers([]util.TimerID{
