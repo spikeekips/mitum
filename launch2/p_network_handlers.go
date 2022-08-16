@@ -46,7 +46,7 @@ func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 	var handlers *quicstream.PrefixHandler
 	var nodeinfo *isaacnetwork.NodeInfoUpdater
 
-	if err := ps.LoadsFromContext(ctx,
+	if err := ps.LoadsFromContextOK(ctx,
 		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
 		DesignContextKey, &design,
@@ -184,7 +184,7 @@ func POperationProcessorsMap(ctx context.Context) (context.Context, error) {
 	var nodepolicy *isaac.NodePolicy
 	var db isaac.Database
 
-	if err := ps.LoadsFromContext(ctx,
+	if err := ps.LoadsFromContextOK(ctx,
 		NodePolicyContextKey, &nodepolicy,
 		CenterDatabaseContextKey, &db,
 	); err != nil {
@@ -249,7 +249,7 @@ func sendOperationFilterFunc(ctx context.Context) (
 	var db isaac.Database
 	var oprs *hint.CompatibleSet
 
-	if err := ps.LoadsFromContext(ctx,
+	if err := ps.LoadsFromContextOK(ctx,
 		CenterDatabaseContextKey, &db,
 		OperationProcessorsMapContextKey, &oprs,
 	); err != nil {

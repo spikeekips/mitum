@@ -20,15 +20,17 @@ var (
 	PNamePrepareSuffrageCandidateLimiterSet          = ps.PName("prepare-suffrage-candidate-limiter-set")
 	PNamePatchLastSuffrageProofWatcherWithMemberlist = ps.PName("patch-last-suffrage-proof-watcher-with-memberlist")
 	PNameLastSuffrageProofWatcher                    = ps.PName("last-suffrage-proof-watcher")
+	PNameNodeInConsensusNodesFunc                    = ps.PName("node-in-consensus-nodes-func")
 	SuffrageCandidateLimiterSetContextKey            = ps.ContextKey("suffrage-candidate-limiter-set")
 	LastSuffrageProofWatcherContextKey               = ps.ContextKey("last-suffrage-proof-watcher")
+	NodeInConsensusNodesFuncContextKey               = ps.ContextKey("node-in-consensus-nodes-func")
 )
 
 func PPrepareSuffrageCandidateLimiterSet(ctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to prepare SuffrageCandidateLimiterSet")
 
 	var db isaac.Database
-	if err := ps.LoadsFromContext(ctx,
+	if err := ps.LoadsFromContextOK(ctx,
 		CenterDatabaseContextKey, &db,
 	); err != nil {
 		return ctx, e(err, "")
@@ -61,7 +63,7 @@ func PLastSuffrageProofWatcher(ctx context.Context) (context.Context, error) {
 	var discoveries []quicstream.UDPConnInfo
 	var db isaac.Database
 
-	if err := ps.LoadsFromContext(ctx,
+	if err := ps.LoadsFromContextOK(ctx,
 		LocalContextKey, &local,
 		NodePolicyContextKey, &policy,
 		DiscoveryContextKey, &discoveries,
@@ -122,7 +124,7 @@ func PPatchLastSuffrageProofWatcherWithMemberlist(ctx context.Context) (context.
 	var watcher *isaac.LastConsensusNodesWatcher
 	var memberlist *quicmemberlist.Memberlist
 
-	if err := ps.LoadsFromContext(ctx,
+	if err := ps.LoadsFromContextOK(ctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
 		DiscoveryContextKey, &discoveries,
@@ -178,6 +180,113 @@ func PPatchLastSuffrageProofWatcherWithMemberlist(ctx context.Context) (context.
 	return ctx, nil
 }
 
+func PNodeInConsensusNodesFunc(ctx context.Context) (context.Context, error) {
+	e := util.StringErrorFunc("failed NodeInConsensusNodesFunc")
+
+	var db isaac.Database
+	if err := ps.LoadsFromContextOK(ctx,
+		CenterDatabaseContextKey, &db,
+	); err != nil {
+		return ctx, e(err, "")
+	}
+
+	lastcandidateslocked := util.EmptyLocked()
+	prevcandidateslocked := util.EmptyLocked()
+
+	getCandidates := func(height base.Height) (
+		[]base.SuffrageCandidateStateValue, []base.SuffrageCandidateStateValue, error,
+	) {
+		var prevcandidates []base.SuffrageCandidateStateValue
+		var lastcandidates []base.SuffrageCandidateStateValue
+		var cerr error
+
+		_, _ = lastcandidateslocked.Set(func(i interface{}) (interface{}, error) {
+			var lastheight base.Height
+			var last []base.SuffrageCandidateStateValue
+			var prev []base.SuffrageCandidateStateValue
+
+			if i != nil {
+				j := i.([2]interface{}) //nolint:forcetypeassert //...
+
+				lastheight = j[0].(base.Height) //nolint:forcetypeassert //...
+				last = isaac.FilterCandidates(  //nolint:forcetypeassert //...
+					height, j[1].([]base.SuffrageCandidateStateValue))
+			}
+
+			stheight, c, err := isaac.LastCandidatesFromState(height, db.State)
+			if err != nil {
+				cerr = err
+
+				return nil, err
+			}
+
+			switch j, isnil := prevcandidateslocked.Value(); {
+			case isnil, j == nil:
+			default:
+				j := i.([2]interface{}) //nolint:forcetypeassert //...
+
+				prev = isaac.FilterCandidates( //nolint:forcetypeassert //...
+					height-1, j[1].([]base.SuffrageCandidateStateValue))
+			}
+
+			if stheight == lastheight {
+				prevcandidates = prev
+				lastcandidates = last
+
+				return nil, errors.Errorf("stop")
+			}
+
+			prevcandidates = last
+			lastcandidates = c
+
+			_ = prevcandidateslocked.SetValue([2]interface{}{
+				lastheight,
+				last,
+			})
+
+			return [2]interface{}{stheight, c}, nil
+		})
+
+		if cerr != nil {
+			return nil, nil, cerr
+		}
+
+		return prevcandidates, lastcandidates, nil
+	}
+
+	f := func(node base.Node, height base.Height) (base.Suffrage, bool, error) {
+		suf, found, err := isaac.GetSuffrageFromDatabase(db, height)
+
+		switch {
+		case err != nil:
+			return nil, false, err
+		case !found:
+			return nil, false, nil
+		case suf.ExistsPublickey(node.Address(), node.Publickey()):
+			return suf, true, nil
+		}
+
+		prev, last, err := getCandidates(height)
+		if err != nil {
+			return nil, false, err
+		}
+
+		if isaac.InCandidates(node, last) {
+			return suf, true, nil
+		}
+
+		if isaac.InCandidates(node, prev) {
+			return suf, true, nil
+		}
+
+		return suf, false, nil
+	}
+
+	ctx = context.WithValue(ctx, NodeInConsensusNodesFuncContextKey, f)
+
+	return ctx, nil
+}
+
 func FixedSuffrageCandidateLimiterFunc() func(
 	base.SuffrageCandidateLimiterRule,
 ) (base.SuffrageCandidateLimiter, error) {
@@ -228,7 +337,7 @@ func GetLastSuffrageProofFunc(ctx context.Context) (isaac.GetLastSuffrageProofFr
 	var client *isaacnetwork.QuicstreamClient
 	var syncSourcePool *isaac.SyncSourcePool
 
-	if err := ps.LoadsFromContext(ctx,
+	if err := ps.LoadsFromContextOK(ctx,
 		QuicstreamClientContextKey, &client,
 		NodePolicyContextKey, &policy,
 		SyncSourcePoolContextKey, &syncSourcePool,
@@ -324,7 +433,7 @@ func GetSuffrageProofFunc(ctx context.Context) (isaac.GetSuffrageProofFromRemote
 	var client *isaacnetwork.QuicstreamClient
 	var syncSourcePool *isaac.SyncSourcePool
 
-	if err := ps.LoadsFromContext(ctx,
+	if err := ps.LoadsFromContextOK(ctx,
 		QuicstreamClientContextKey, &client,
 		NodePolicyContextKey, &policy,
 		SyncSourcePoolContextKey, &syncSourcePool,
@@ -400,7 +509,7 @@ func GetLastSuffrageCandidateFunc(ctx context.Context) (isaac.GetLastSuffrageCan
 	var client *isaacnetwork.QuicstreamClient
 	var syncSourcePool *isaac.SyncSourcePool
 
-	if err := ps.LoadsFromContext(ctx,
+	if err := ps.LoadsFromContextOK(ctx,
 		QuicstreamClientContextKey, &client,
 		SyncSourcePoolContextKey, &syncSourcePool,
 	); err != nil {
@@ -486,7 +595,7 @@ func NewSuffrageCandidateLimiterFunc(ctx context.Context) ( //revive:disable-lin
 	var db isaac.Database
 	var limiterset *hint.CompatibleSet
 
-	if err := ps.LoadsFromContext(ctx,
+	if err := ps.LoadsFromContextOK(ctx,
 		CenterDatabaseContextKey, &db,
 		SuffrageCandidateLimiterSetContextKey, &limiterset,
 	); err != nil {

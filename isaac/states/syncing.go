@@ -96,10 +96,6 @@ func (st *SyncingHandler) enter(i switchContext) (func(), error) {
 		_ = l.SetLogging(st.Logging)
 	}
 
-	if err := sc.Start(); err != nil {
-		return nil, e(err, "")
-	}
-
 	st.syncer = sc
 
 	if err := st.timers.StopTimersAll(); err != nil {

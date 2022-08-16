@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -17,44 +16,16 @@ import (
 	"github.com/spikeekips/mitum/launch2"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/network/quicstream"
-	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/ps"
 )
 
 type RunCommand struct { //nolint:govet //...
 	baseNodeCommand
-	Discovery                   []launch.ConnInfoFlag `help:"member discovery" placeholder:"ConnInfo"`
-	Hold                        launch.HeightFlag     `help:"hold consensus states"`
-	nodeInfo                    launch2.NodeInfo
-	db                          isaac.Database
-	perm                        isaac.PermanentDatabase
-	getProposal                 func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error)
-	lastSuffrageProofWatcher    *isaac.LastConsensusNodesWatcher
-	proposalSelector            *isaac.BaseProposalSelector
-	pool                        *isaacdatabase.TempPool
-	getSuffrage                 func(blockheight base.Height) (base.Suffrage, bool, error)
-	newProposalProcessor        newProposalProcessorFunc
-	getLastManifest             func() (base.Manifest, bool, error)
-	states                      *isaacstates.States
-	memberlist                  *quicmemberlist.Memberlist
-	getManifest                 func(height base.Height) (base.Manifest, error)
-	client                      *isaacnetwork.QuicstreamClient
-	handlers                    *quicstream.PrefixHandler
-	ballotbox                   *isaacstates.Ballotbox
-	quicstreamserver            *quicstream.Server
-	discoveries                 []quicstream.UDPConnInfo
-	syncSourceChecker           *isaacnetwork.SyncSourceChecker
-	syncSourcePool              *isaac.SyncSourcePool
-	syncSourcesRetryInterval    time.Duration
-	suffrageCandidateLimiterSet *hint.CompatibleSet
-	nodeInConsensusNodes        isaac.NodeInConsensusNodesFunc
-	exitf                       func(error)
-	st                          *leveldbstorage.Storage
-	proposalMaker               *isaac.ProposalMaker
-	nodeinfo                    *isaacnetwork.NodeInfoUpdater
+	Discovery []launch.ConnInfoFlag `help:"member discovery" placeholder:"ConnInfo"`
+	Hold      launch.HeightFlag     `help:"hold consensus states"`
+	exitf     func(error)
 }
 
 func (cmd *RunCommand) Run(pctx context.Context) error {
@@ -88,51 +59,63 @@ func (cmd *RunCommand) Run(pctx context.Context) error {
 		return err
 	}
 
-	switch stop, err := cmd.prepare(pctx); {
-	case err != nil:
-		return err
-	default:
-		defer func() {
-			_ = stop()
-		}()
-	}
-
 	log.Log().Debug().
 		Interface("discovery", cmd.Discovery).
 		Interface("hold", cmd.Hold.Height()).
 		Msg("node started")
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-
-	if err := cmd.quicstreamserver.Start(); err != nil {
+	var db isaac.Database
+	var discoveries []quicstream.UDPConnInfo
+	var quicstreamserver *quicstream.Server
+	var pool *isaacdatabase.TempPool
+	var memberlist *quicmemberlist.Memberlist
+	var syncSourceChecker *isaacnetwork.SyncSourceChecker
+	var lastSuffrageProofWatcher *isaac.LastConsensusNodesWatcher
+	var states *isaacstates.States
+	if err := ps.LoadsFromContextOK(pctx,
+		launch2.CenterDatabaseContextKey, &db,
+		launch2.DiscoveryContextKey, &discoveries,
+		launch2.QuicstreamServerContextKey, &quicstreamserver,
+		launch2.PoolDatabaseContextKey, &pool,
+		launch2.StatesContextKey, &states,
+		launch2.MemberlistContextKey, &memberlist,
+		launch2.SyncSourceCheckerContextKey, &syncSourceChecker,
+		launch2.LastSuffrageProofWatcherContextKey, &lastSuffrageProofWatcher,
+	); err != nil {
 		return err
 	}
 
-	if err := cmd.pool.Start(); err != nil {
-		return err
-	}
-
-	if err := cmd.memberlist.Start(); err != nil {
-		return err
-	}
-
-	if len(cmd.discoveries) < 1 {
+	if len(discoveries) < 1 {
 		log.Log().Warn().Msg("empty discoveries; will wait to be joined by remote nodes")
 	}
 
-	if err := cmd.syncSourceChecker.Start(); err != nil {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	if err := quicstreamserver.Start(); err != nil {
 		return err
 	}
 
-	if err := cmd.lastSuffrageProofWatcher.Start(); err != nil {
+	if err := pool.Start(); err != nil {
+		return err
+	}
+
+	if err := memberlist.Start(); err != nil {
+		return err
+	}
+
+	if err := syncSourceChecker.Start(); err != nil {
+		return err
+	}
+
+	if err := lastSuffrageProofWatcher.Start(); err != nil {
 		return err
 	}
 
 	defer func() {
-		_ = cmd.syncSourceChecker.Stop()
-		_ = cmd.lastSuffrageProofWatcher.Stop()
-		_ = cmd.memberlist.Stop()
+		_ = syncSourceChecker.Stop()
+		_ = lastSuffrageProofWatcher.Stop()
+		_ = memberlist.Stop()
 	}()
 
 	exitch := make(chan error)
@@ -141,7 +124,7 @@ func (cmd *RunCommand) Run(pctx context.Context) error {
 		exitch <- err
 	}
 
-	deferf, err := cmd.startStates(ctx)
+	deferf, err := cmd.startStates(ctx, states, db)
 	if err != nil {
 		return err
 	}
@@ -168,7 +151,11 @@ func (cmd *RunCommand) Run(pctx context.Context) error {
 
 var errHoldStop = util.NewError("hold stop")
 
-func (cmd *RunCommand) startStates(ctx context.Context) (func(), error) {
+func (cmd *RunCommand) startStates(
+	ctx context.Context,
+	states *isaacstates.States,
+	db isaac.Database,
+) (func(), error) {
 	var holded bool
 
 	switch {
@@ -176,7 +163,7 @@ func (cmd *RunCommand) startStates(ctx context.Context) (func(), error) {
 	case cmd.Hold.Height() < base.GenesisHeight:
 		holded = true
 	default:
-		switch m, found, err := cmd.db.LastBlockMap(); {
+		switch m, found, err := db.LastBlockMap(); {
 		case err != nil:
 			return func() {}, err
 		case !found:
@@ -190,11 +177,11 @@ func (cmd *RunCommand) startStates(ctx context.Context) (func(), error) {
 	}
 
 	go func() {
-		cmd.exitf(<-cmd.states.Wait(ctx))
+		cmd.exitf(<-states.Wait(ctx))
 	}()
 
 	return func() {
-		if err := cmd.states.Stop(); err != nil && !errors.Is(err, util.ErrDaemonAlreadyStopped) {
+		if err := states.Stop(); err != nil && !errors.Is(err, util.ErrDaemonAlreadyStopped) {
 			log.Log().Error().Err(err).Msg("failed to stop states")
 
 			return

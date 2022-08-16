@@ -34,7 +34,7 @@ func PProposalMaker(ctx context.Context) (context.Context, error) {
 	var policy base.NodePolicy
 	var pool *isaacdatabase.TempPool
 
-	if err := ps.LoadsFromContext(ctx,
+	if err := ps.LoadsFromContextOK(ctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
 		NodePolicyContextKey, &policy,
@@ -72,7 +72,7 @@ func proposalMakderGetOperationsFunc(ctx context.Context) (
 	var db isaac.Database
 	var pool *isaacdatabase.TempPool
 
-	if err := ps.LoadsFromContext(ctx,
+	if err := ps.LoadsFromContextOK(ctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
 		NodePolicyContextKey, &nodepolicy,

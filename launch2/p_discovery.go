@@ -19,7 +19,7 @@ func PDiscoveryFlag(ctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to prepare discovery flag")
 
 	var flag []launch.ConnInfoFlag
-	if err := ps.LoadsFromContext(ctx,
+	if err := ps.LoadsFromContextOK(ctx,
 		DiscoveryFlagContextKey, &flag,
 	); err != nil {
 		return ctx, e(err, "")

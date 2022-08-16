@@ -29,7 +29,7 @@ func PSyncSourceChecker(ctx context.Context) (context.Context, error) {
 	var policy *isaac.NodePolicy
 	var client *isaacnetwork.QuicstreamClient
 
-	if err := ps.LoadsFromContext(ctx,
+	if err := ps.LoadsFromContextOK(ctx,
 		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
 		DesignContextKey, &design,

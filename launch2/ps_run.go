@@ -39,7 +39,10 @@ func DefaultRunPS() *ps.PS {
 
 	_ = pps.POK(PNameStates).
 		PreAddOK(PNameOperationProcessorsMap, POperationProcessorsMap).
-		PreAddOK(PNameNetworkHandlers, PNetworkHandlers)
+		PreAddOK(PNameNetworkHandlers, PNetworkHandlers).
+		PreAddOK(PNameNodeInConsensusNodesFunc, PNodeInConsensusNodesFunc).
+		PreAddOK(PNameProposalProcessors, PProposalProcessors).
+		PostAddOK(PNameStatesSetHandlers, PStatesSetHandlers)
 
 	return pps
 }

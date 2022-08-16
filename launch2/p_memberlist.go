@@ -34,7 +34,7 @@ func PPrepareMemberlist(ctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var enc *jsonenc.Encoder
 
-	if err := ps.LoadsFromContext(ctx,
+	if err := ps.LoadsFromContextOK(ctx,
 		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
 	); err != nil {
@@ -97,7 +97,7 @@ func memberlistLocalNode(ctx context.Context) (quicmemberlist.Node, error) {
 	var local base.LocalNode
 	var fsnodeinfo NodeInfo
 
-	if err := ps.LoadsFromContext(ctx,
+	if err := ps.LoadsFromContextOK(ctx,
 		DesignContextKey, &design,
 		LocalContextKey, &local,
 		FSNodeInfoContextKey, &fsnodeinfo,
@@ -124,7 +124,7 @@ func memberlistConfig(ctx context.Context, localnode quicmemberlist.Node) (*memb
 	var local base.LocalNode
 	var syncSourcePool *isaac.SyncSourcePool
 
-	if err := ps.LoadsFromContext(ctx,
+	if err := ps.LoadsFromContextOK(ctx,
 		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
 		DesignContextKey, &design,
@@ -206,7 +206,7 @@ func memberlistTransport(ctx context.Context) (*quicmemberlist.Transport, error)
 	var syncSourcePool *isaac.SyncSourcePool
 	var handlers *quicstream.PrefixHandler
 
-	if err := ps.LoadsFromContext(ctx,
+	if err := ps.LoadsFromContextOK(ctx,
 		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
 		DesignContextKey, &design,
@@ -253,7 +253,7 @@ func memberlistDelegate(ctx context.Context, localnode quicmemberlist.Node) (*qu
 	var enc encoder.Encoder
 	var ballotbox *isaacstates.Ballotbox
 
-	if err := ps.LoadsFromContext(ctx,
+	if err := ps.LoadsFromContextOK(ctx,
 		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
 		BallotboxContextKey, &ballotbox,
@@ -287,7 +287,7 @@ func memberlistAlive(ctx context.Context) (*quicmemberlist.AliveDelegate, error)
 	var design launch.NodeDesign
 	var enc *jsonenc.Encoder
 
-	if err := ps.LoadsFromContext(ctx,
+	if err := ps.LoadsFromContextOK(ctx,
 		DesignContextKey, &design,
 		EncoderContextKey, &enc,
 	); err != nil {
@@ -319,7 +319,7 @@ func nodeChallengeFunc(pctx context.Context) (
 	var policy base.NodePolicy
 	var client *isaacnetwork.QuicstreamClient
 
-	if err := ps.LoadsFromContext(pctx,
+	if err := ps.LoadsFromContextOK(pctx,
 		NodePolicyContextKey, &policy,
 		QuicstreamClientContextKey, &client,
 	); err != nil {
@@ -373,7 +373,7 @@ func memberlistAllowFunc(ctx context.Context) (
 	var log *logging.Logging
 	var watcher *isaac.LastConsensusNodesWatcher
 
-	if err := ps.LoadsFromContext(ctx,
+	if err := ps.LoadsFromContextOK(ctx,
 		LoggingContextKey, &log,
 		LastSuffrageProofWatcherContextKey, &watcher,
 	); err != nil {

@@ -36,7 +36,7 @@ func PQuicstreamClient(ctx context.Context) (context.Context, error) {
 	var enc encoder.Encoder
 	var policy base.NodePolicy
 
-	if err := ps.LoadsFromContext(ctx,
+	if err := ps.LoadsFromContextOK(ctx,
 		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
 		NodePolicyContextKey, &policy,
@@ -60,7 +60,7 @@ func PNetwork(ctx context.Context) (context.Context, error) {
 	var design launch.NodeDesign
 	var policy base.NodePolicy
 
-	if err := ps.LoadsFromContext(ctx,
+	if err := ps.LoadsFromContextOK(ctx,
 		LoggingContextKey, &log,
 		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
