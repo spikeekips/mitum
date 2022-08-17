@@ -882,6 +882,7 @@ func TestMemberlist(t *testing.T) {
 		goleak.IgnoreTopFunction("sync.runtime_SemacquireMutex"),
 		goleak.IgnoreTopFunction("github.com/hashicorp/memberlist.(*Memberlist).probeNode"),
 		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/network/quicmemberlist.(*Transport).receivePacket"),
+		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/network/quicmemberlist.(*Transport).receivePacket.func1"),
 	)
 
 	suite.Run(t, new(testMemberlist))
