@@ -24,8 +24,8 @@ import (
 )
 
 var (
-	PNameNetworkHandlers             = ps.PName("network-handlers")
-	PNameOperationProcessorsMap      = ps.PName("operation-processors-map")
+	PNameNetworkHandlers             = ps.Name("network-handlers")
+	PNameOperationProcessorsMap      = ps.Name("operation-processors-map")
 	OperationProcessorsMapContextKey = ps.ContextKey("operation-processors-map")
 )
 

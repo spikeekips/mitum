@@ -23,11 +23,11 @@ import (
 )
 
 var (
-	PNameStatesReady                        = ps.PName("states-ready")
-	PNameStates                             = ps.PName("states")
-	PNameBallotbox                          = ps.PName("ballotbox")
-	PNameProposalProcessors                 = ps.PName("proposal-processors")
-	PNameStatesSetHandlers                  = ps.PName("states-set-handlers")
+	PNameStatesReady                        = ps.Name("states-ready")
+	PNameStates                             = ps.Name("states")
+	PNameBallotbox                          = ps.Name("ballotbox")
+	PNameProposalProcessors                 = ps.Name("proposal-processors")
+	PNameStatesSetHandlers                  = ps.Name("states-set-handlers")
 	BallotboxContextKey                     = ps.ContextKey("ballotbox")
 	StatesContextKey                        = ps.ContextKey("states")
 	ProposalProcessorsContextKey            = ps.ContextKey("proposal-processors")

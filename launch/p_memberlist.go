@@ -23,8 +23,8 @@ import (
 )
 
 var (
-	PNameMemberlist      = ps.PName("memberlist")
-	PNameStartMemberlist = ps.PName("start-memberlist")
+	PNameMemberlist      = ps.Name("memberlist")
+	PNameStartMemberlist = ps.Name("start-memberlist")
 	MemberlistContextKey = ps.ContextKey("memberlist")
 )
 

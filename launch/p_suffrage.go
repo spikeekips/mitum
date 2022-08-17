@@ -17,11 +17,11 @@ import (
 )
 
 var (
-	PNameSuffrageCandidateLimiterSet                 = ps.PName("suffrage-candidate-limiter-set")
-	PNamePatchLastSuffrageProofWatcherWithMemberlist = ps.PName("patch-last-suffrage-proof-watcher-with-memberlist")
-	PNameLastSuffrageProofWatcher                    = ps.PName("last-suffrage-proof-watcher")
-	PNameStartLastSuffrageProofWatcher               = ps.PName("start-last-suffrage-proof-watcher")
-	PNameNodeInConsensusNodesFunc                    = ps.PName("node-in-consensus-nodes-func")
+	PNameSuffrageCandidateLimiterSet                 = ps.Name("suffrage-candidate-limiter-set")
+	PNamePatchLastSuffrageProofWatcherWithMemberlist = ps.Name("patch-last-suffrage-proof-watcher-with-memberlist")
+	PNameLastSuffrageProofWatcher                    = ps.Name("last-suffrage-proof-watcher")
+	PNameStartLastSuffrageProofWatcher               = ps.Name("start-last-suffrage-proof-watcher")
+	PNameNodeInConsensusNodesFunc                    = ps.Name("node-in-consensus-nodes-func")
 	SuffrageCandidateLimiterSetContextKey            = ps.ContextKey("suffrage-candidate-limiter-set")
 	LastSuffrageProofWatcherContextKey               = ps.ContextKey("last-suffrage-proof-watcher")
 	NodeInConsensusNodesFuncContextKey               = ps.ContextKey("node-in-consensus-nodes-func")

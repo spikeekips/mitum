@@ -14,8 +14,8 @@ import (
 )
 
 var (
-	PNameSyncSourceChecker      = ps.PName("sync-source-checker")
-	PNameStartSyncSourceChecker = ps.PName("start-sync-source-checker")
+	PNameSyncSourceChecker      = ps.Name("sync-source-checker")
+	PNameStartSyncSourceChecker = ps.Name("start-sync-source-checker")
 	SyncSourceCheckerContextKey = ps.ContextKey("sync-source-checker")
 	SyncSourcePoolContextKey    = ps.ContextKey("sync-source-pool")
 )

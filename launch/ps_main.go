@@ -12,8 +12,8 @@ import (
 )
 
 var (
-	PNameLogging        = ps.PName("logging")
-	PNameLoggingWithCli = ps.PName("logging-cli")
+	PNameLogging        = ps.Name("logging")
+	PNameLoggingWithCli = ps.Name("logging-cli")
 )
 
 var (
@@ -27,9 +27,9 @@ func DefaultMainPS() *ps.PS {
 	ips := ps.NewPS()
 
 	_ = ips.
-		AddOK(ps.PNameINIT, PINIT, nil)
+		AddOK(ps.NameINIT, PINIT, nil)
 
-	_ = ips.POK(ps.PNameINIT).
+	_ = ips.POK(ps.NameINIT).
 		PostAddOK(PNameLogging, PLogging).
 		PostAddOK(PNameLoggingWithCli, PLoggingWithCli)
 

@@ -12,7 +12,7 @@ import (
 	"github.com/spikeekips/mitum/util/ps"
 )
 
-var PNameGenerateGenesis = ps.PName("generate-genesis")
+var PNameGenerateGenesis = ps.Name("generate-genesis")
 
 func PGenerateGenesis(ctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to generate genesis block")

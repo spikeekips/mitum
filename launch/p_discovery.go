@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	PNameDiscoveryFlag      = ps.PName("discovery-flag")
+	PNameDiscoveryFlag      = ps.Name("discovery-flag")
 	DiscoveryFlagContextKey = ps.ContextKey("discovery-flag")
 	DiscoveryContextKey     = ps.ContextKey("discovery")
 )

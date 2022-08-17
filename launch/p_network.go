@@ -23,9 +23,9 @@ import (
 )
 
 var (
-	PNameNetwork                 = ps.PName("network")
-	PNameStartNetwork            = ps.PName("start-network")
-	PNameQuicstreamClient        = ps.PName("network-client")
+	PNameNetwork                 = ps.Name("network")
+	PNameStartNetwork            = ps.Name("start-network")
+	PNameQuicstreamClient        = ps.Name("network-client")
 	QuicstreamClientContextKey   = ps.ContextKey("network-client")
 	QuicstreamServerContextKey   = ps.ContextKey("quicstream-server")
 	QuicstreamHandlersContextKey = ps.ContextKey("quicstream-handlers")

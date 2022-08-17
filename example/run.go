@@ -20,7 +20,7 @@ import (
 )
 
 type RunCommand struct { //nolint:govet //...
-	Design    string                 `arg:"" name:"node design" help:"node design" type:"filepath"`
+	Design    string                `arg:"" name:"node design" help:"node design" type:"filepath"`
 	Discovery []launch.ConnInfoFlag `help:"member discovery" placeholder:"ConnInfo"`
 	Hold      launch.HeightFlag     `help:"hold consensus states"`
 	exitf     func(error)
@@ -145,7 +145,7 @@ func (cmd *RunCommand) run(pctx context.Context) error {
 	}
 }
 
-var pNameWhenNewBlockSavedInStatesFunc = ps.PName("when-new-block-saved-in-states-func")
+var pNameWhenNewBlockSavedInStatesFunc = ps.Name("when-new-block-saved-in-states-func")
 
 func (cmd *RunCommand) pWhenNewBlockSavedInStatesFunc(pctx context.Context) (context.Context, error) {
 	var log *logging.Logging

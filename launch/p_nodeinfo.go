@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	PNameNodeInfo      = ps.PName("nodeinfo")
+	PNameNodeInfo      = ps.Name("nodeinfo")
 	NodeInfoContextKey = ps.ContextKey("nodeinfo")
 )
 

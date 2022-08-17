@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	PNameLocal           = ps.PName("local")
+	PNameLocal           = ps.Name("local")
 	LocalContextKey      = ps.ContextKey("local")
 	NodePolicyContextKey = ps.ContextKey("node-policy")
 )

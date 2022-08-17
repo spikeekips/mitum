@@ -155,11 +155,11 @@ func (cmd *KeyLoadCommand) Run(pctx context.Context) error {
 
 type KeySignCommand struct {
 	baseCommand
-	KeyString string              `arg:"" name:"privatekey" help:"privatekey string"`
-	NetworkID string              `arg:"" name:"network-id" help:"network-id"`
-	Body      *os.File            `arg:"" help:"body"`
+	KeyString string             `arg:"" name:"privatekey" help:"privatekey string"`
+	NetworkID string             `arg:"" name:"network-id" help:"network-id"`
+	Body      *os.File           `arg:"" help:"body"`
 	Node      launch.AddressFlag `help:"node address"`
-	Token     string              `help:"set fact token"`
+	Token     string             `help:"set fact token"`
 	priv      base.Privatekey
 	networkID base.NetworkID
 }

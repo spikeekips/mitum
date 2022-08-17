@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	PNameINIT  = PName("init")
+	NameINIT   = Name("init")
 	EmptyPINIT = NewP(EmptyFunc, EmptyFunc)
 	EmptyFunc  = func(ctx context.Context) (context.Context, error) { return ctx, nil }
 )
@@ -21,16 +21,16 @@ type ContextKey string
 
 type Func func(context.Context) (context.Context, error)
 
-type PName string // FIXME rename to Name
+type Name string
 
-func (p PName) String() string {
+func (p Name) String() string {
 	return string(p)
 }
 
 type hooks struct {
 	*logging.Logging
-	names map[PName]Func
-	l     []PName
+	names map[Name]Func
+	l     []Name
 }
 
 func newHooks(name string) *hooks {
@@ -38,11 +38,11 @@ func newHooks(name string) *hooks {
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", name)
 		}),
-		names: map[PName]Func{},
+		names: map[Name]Func{},
 	}
 }
 
-func (h *hooks) Verbose() []PName {
+func (h *hooks) Verbose() []Name {
 	return h.l
 }
 
@@ -74,7 +74,7 @@ func (h *hooks) run(ctx context.Context) (context.Context, error) {
 	return ctx, nil
 }
 
-func (h *hooks) add(name PName, i Func) bool {
+func (h *hooks) add(name Name, i Func) bool {
 	if i == nil {
 		return false
 	}
@@ -90,7 +90,7 @@ func (h *hooks) add(name PName, i Func) bool {
 	return true
 }
 
-func (h *hooks) before(name PName, i Func, before PName) bool {
+func (h *hooks) before(name Name, i Func, before Name) bool {
 	if i == nil {
 		return false
 	}
@@ -105,7 +105,7 @@ func (h *hooks) before(name PName, i Func, before PName) bool {
 
 	h.names[name] = i
 
-	hooks := make([]PName, len(h.l)+1)
+	hooks := make([]Name, len(h.l)+1)
 
 	var j int
 
@@ -124,7 +124,7 @@ func (h *hooks) before(name PName, i Func, before PName) bool {
 	return true
 }
 
-func (h *hooks) after(name PName, i Func, after PName) bool {
+func (h *hooks) after(name Name, i Func, after Name) bool {
 	if i == nil {
 		return false
 	}
@@ -139,7 +139,7 @@ func (h *hooks) after(name PName, i Func, after PName) bool {
 
 	h.names[name] = i
 
-	hooks := make([]PName, len(h.l)+1)
+	hooks := make([]Name, len(h.l)+1)
 
 	var j int
 	for j = range h.l {
@@ -160,14 +160,14 @@ func (h *hooks) after(name PName, i Func, after PName) bool {
 	return true
 }
 
-func (h *hooks) remove(name PName) bool {
+func (h *hooks) remove(name Name) bool {
 	if _, found := h.names[name]; !found {
 		return false
 	}
 
 	delete(h.names, name)
 
-	hooks := make([]PName, len(h.l)-1)
+	hooks := make([]Name, len(h.l)-1)
 
 	var i int
 
@@ -193,10 +193,10 @@ type P struct {
 	closef   Func
 	pre      *hooks
 	post     *hooks
-	requires []PName
+	requires []Name
 }
 
-func NewP(run, closef Func, requires ...PName) *P {
+func NewP(run, closef Func, requires ...Name) *P {
 	id := util.UUID()
 
 	return &P{
@@ -218,12 +218,12 @@ func (p *P) SetLogging(l *logging.Logging) *logging.Logging {
 	return p.Logging.SetLogging(l)
 }
 
-func (p *P) Requires() []PName {
+func (p *P) Requires() []Name {
 	return p.requires
 }
 
-func (p *P) Verbose(name PName) []PName {
-	names := make([]PName, len(p.pre.Verbose())+len(p.post.Verbose())+1)
+func (p *P) Verbose(name Name) []Name {
+	names := make([]Name, len(p.pre.Verbose())+len(p.post.Verbose())+1)
 
 	pre := p.pre.Verbose()
 
@@ -293,81 +293,81 @@ func (p *P) Close(ctx context.Context) (context.Context, error) {
 	return ctx, nil
 }
 
-func (p *P) PreAdd(name PName, i Func) bool {
+func (p *P) PreAdd(name Name, i Func) bool {
 	return p.pre.add(name, i)
 }
 
-func (p *P) PreBefore(name PName, i Func, before PName) bool {
+func (p *P) PreBefore(name Name, i Func, before Name) bool {
 	return p.pre.before(name, i, before)
 }
 
-func (p *P) PreAfter(name PName, i Func, after PName) bool {
+func (p *P) PreAfter(name Name, i Func, after Name) bool {
 	return p.pre.after(name, i, after)
 }
 
-func (p *P) PreRemove(name PName) bool {
+func (p *P) PreRemove(name Name) bool {
 	return p.pre.remove(name)
 }
 
-func (p *P) PostAdd(name PName, i Func) bool {
+func (p *P) PostAdd(name Name, i Func) bool {
 	return p.post.add(name, i)
 }
 
-func (p *P) PostBefore(name PName, i Func, before PName) bool {
+func (p *P) PostBefore(name Name, i Func, before Name) bool {
 	return p.post.before(name, i, before)
 }
 
-func (p *P) PostAfter(name PName, i Func, after PName) bool {
+func (p *P) PostAfter(name Name, i Func, after Name) bool {
 	return p.post.after(name, i, after)
 }
 
-func (p *P) PostRemove(name PName) bool {
+func (p *P) PostRemove(name Name) bool {
 	return p.post.remove(name)
 }
 
-func (p *P) PreAddOK(name PName, i Func) *P {
+func (p *P) PreAddOK(name Name, i Func) *P {
 	_ = p.PreAdd(name, i)
 
 	return p
 }
 
-func (p *P) PreBeforeOK(name PName, i Func, before PName) *P {
+func (p *P) PreBeforeOK(name Name, i Func, before Name) *P {
 	_ = p.PreBefore(name, i, before)
 
 	return p
 }
 
-func (p *P) PreAfterOK(name PName, i Func, after PName) *P {
+func (p *P) PreAfterOK(name Name, i Func, after Name) *P {
 	_ = p.PreAfter(name, i, after)
 
 	return p
 }
 
-func (p *P) PreRemoveOK(name PName) *P {
+func (p *P) PreRemoveOK(name Name) *P {
 	_ = p.PreRemove(name)
 
 	return p
 }
 
-func (p *P) PostAddOK(name PName, i Func) *P {
+func (p *P) PostAddOK(name Name, i Func) *P {
 	_ = p.PostAdd(name, i)
 
 	return p
 }
 
-func (p *P) PostBeforeOK(name PName, i Func, before PName) *P {
+func (p *P) PostBeforeOK(name Name, i Func, before Name) *P {
 	_ = p.PostBefore(name, i, before)
 
 	return p
 }
 
-func (p *P) PostAfterOK(name PName, i Func, after PName) *P {
+func (p *P) PostAfterOK(name Name, i Func, after Name) *P {
 	_ = p.PostAfter(name, i, after)
 
 	return p
 }
 
-func (p *P) PostRemoveOK(name PName) *P {
+func (p *P) PostRemoveOK(name Name) *P {
 	_ = p.PostRemove(name)
 
 	return p
@@ -375,8 +375,8 @@ func (p *P) PostRemoveOK(name PName) *P {
 
 type PS struct {
 	*logging.Logging
-	m    map[PName]*P
-	runs []PName
+	m    map[Name]*P
+	runs []Name
 }
 
 func NewPS() *PS {
@@ -384,7 +384,7 @@ func NewPS() *PS {
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", "ps")
 		}),
-		m: map[PName]*P{PNameINIT: EmptyPINIT},
+		m: map[Name]*P{NameINIT: EmptyPINIT},
 	}
 }
 
@@ -396,17 +396,17 @@ func (ps *PS) SetLogging(l *logging.Logging) *logging.Logging {
 	return ps.Logging.SetLogging(l)
 }
 
-func (ps *PS) Verbose() []PName {
-	called := map[PName]struct{}{}
+func (ps *PS) Verbose() []Name {
+	called := map[Name]struct{}{}
 
-	var f func(name PName) []PName
+	var f func(name Name) []Name
 
-	f = func(name PName) []PName {
+	f = func(name Name) []Name {
 		if _, found := called[name]; found {
 			return nil
 		}
 
-		var names []PName
+		var names []Name
 
 		p, found := ps.m[name]
 		if !found {
@@ -416,7 +416,7 @@ func (ps *PS) Verbose() []PName {
 		for i := range p.requires {
 			rnames := f(p.requires[i])
 
-			nm := make([]PName, len(names)+len(rnames))
+			nm := make([]Name, len(names)+len(rnames))
 			copy(nm, names)
 			copy(nm[len(names):], rnames)
 
@@ -425,7 +425,7 @@ func (ps *PS) Verbose() []PName {
 
 		cnames := p.Verbose(name)
 
-		nm := make([]PName, len(names)+len(cnames))
+		nm := make([]Name, len(names)+len(cnames))
 		copy(nm, names)
 		copy(nm[len(names):], cnames)
 
@@ -438,12 +438,12 @@ func (ps *PS) Verbose() []PName {
 
 	psnames := ps.names()
 
-	var names []PName
+	var names []Name
 
 	for i := range psnames {
 		cnames := f(psnames[i])
 
-		nm := make([]PName, len(names)+len(cnames))
+		nm := make([]Name, len(names)+len(cnames))
 		copy(nm, names)
 		copy(nm[len(names):], cnames)
 
@@ -453,8 +453,8 @@ func (ps *PS) Verbose() []PName {
 	return names
 }
 
-func (ps *PS) CloseVerbose() []PName {
-	names := make([]PName, len(ps.runs))
+func (ps *PS) CloseVerbose() []Name {
+	names := make([]Name, len(ps.runs))
 
 	var i int
 
@@ -471,11 +471,11 @@ func (ps *PS) CloseVerbose() []PName {
 	return names[:i]
 }
 
-func (ps *PS) POK(name PName) *P {
+func (ps *PS) POK(name Name) *P {
 	return ps.m[name]
 }
 
-func (ps *PS) P(name PName) (*P, bool) {
+func (ps *PS) P(name Name) (*P, bool) {
 	i, found := ps.m[name]
 
 	return i, found
@@ -530,7 +530,7 @@ func (ps *PS) Close(ctx context.Context) (context.Context, error) {
 	return ctx, nil
 }
 
-func (ps *PS) AddP(name PName, p *P) bool {
+func (ps *PS) AddP(name Name, p *P) bool {
 	_, exists := ps.m[name]
 
 	ps.m[name] = p
@@ -539,14 +539,14 @@ func (ps *PS) AddP(name PName, p *P) bool {
 	return !exists
 }
 
-func (ps *PS) Add(name PName, run, close Func, requires ...PName) bool {
-	if name != PNameINIT {
+func (ps *PS) Add(name Name, run, close Func, requires ...Name) bool {
+	if name != NameINIT {
 		switch {
 		case len(requires) < 1:
-			requires = []PName{PNameINIT} //revive:disable-line:modifies-parameter
-		case util.InSlice(requires, func(_ interface{}, i int) bool { return requires[i] == PNameINIT }) < 1:
-			n := make([]PName, len(requires)+1)
-			n[0] = PNameINIT
+			requires = []Name{NameINIT} //revive:disable-line:modifies-parameter
+		case util.InSlice(requires, func(_ interface{}, i int) bool { return requires[i] == NameINIT }) < 1:
+			n := make([]Name, len(requires)+1)
+			n[0] = NameINIT
 			copy(n[1:], requires)
 
 			requires = n //revive:disable-line:modifies-parameter
@@ -563,7 +563,7 @@ func (ps *PS) Add(name PName, run, close Func, requires ...PName) bool {
 	return !exists
 }
 
-func (ps *PS) Remove(name PName) bool {
+func (ps *PS) Remove(name Name) bool {
 	if _, found := ps.m[name]; !found {
 		return false
 	}
@@ -573,20 +573,20 @@ func (ps *PS) Remove(name PName) bool {
 	return true
 }
 
-func (ps *PS) AddOK(name PName, run, close Func, requires ...PName) *PS {
+func (ps *PS) AddOK(name Name, run, close Func, requires ...Name) *PS {
 	_ = ps.Add(name, run, close, requires...)
 
 	return ps
 }
 
-func (ps *PS) RemoveOK(name PName) *PS {
+func (ps *PS) RemoveOK(name Name) *PS {
 	_ = ps.Remove(name)
 
 	return ps
 }
 
-func (ps *PS) names() []PName {
-	names := make([]PName, len(ps.m))
+func (ps *PS) names() []Name {
+	names := make([]Name, len(ps.m))
 
 	var i int
 
@@ -602,7 +602,7 @@ func (ps *PS) names() []PName {
 	return names
 }
 
-func (ps *PS) run(ctx context.Context, name PName, p *P) (context.Context, error) {
+func (ps *PS) run(ctx context.Context, name Name, p *P) (context.Context, error) {
 	for i := range ps.runs {
 		if ps.runs[i] == name {
 			return ctx, nil

@@ -16,7 +16,7 @@ type QuicstreamClient struct {
 	*BaseNetworkClient
 	client     *quicstream.PoolClient
 	quicconfig *quic.Config
-	proto      string // FIXME remove
+	proto      string
 }
 
 func NewQuicstreamClient(

@@ -398,8 +398,8 @@ func (c *SyncSourceChecker) validate(ctx context.Context, nci isaac.NodeConnInfo
 	nctx, cancel := context.WithTimeout(ctx, c.validateTimeout)
 	defer cancel()
 
-	_, err = c.client.NodeChallenge(nctx, ci, c.networkID, nci.Address(), nci.Publickey(), util.UUID().Bytes())
-	switch {
+	switch _, err = c.client.NodeChallenge(
+		nctx, ci, c.networkID, nci.Address(), nci.Publickey(), util.UUID().Bytes()); {
 	case err == nil:
 		return nil
 	case errors.Is(err, base.SignatureVerificationError):

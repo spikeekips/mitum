@@ -75,12 +75,12 @@ func init() {
 
 type NetworkClientCommand struct { //nolint:govet //...
 	baseCommand
-	NetworkID string               `arg:"" name:"network-id" help:"network-id"`
-	Header    string               `arg:"" help:"request header; 'example' will print example headers"`
+	NetworkID string              `arg:"" name:"network-id" help:"network-id"`
+	Header    string              `arg:"" help:"request header; 'example' will print example headers"`
 	Remote    launch.ConnInfoFlag `arg:"" help:"remote node conn info" placeholder:"ConnInfo" default:"localhost:4321"`
-	Timeout   time.Duration        `help:"timeout" placeholder:"duration" default:"10s"`
-	Body      *os.File             `help:"body"`
-	DryRun    bool                 `name:"dry-run" help:"don't send"`
+	Timeout   time.Duration       `help:"timeout" placeholder:"duration" default:"10s"`
+	Body      *os.File            `help:"body"`
+	DryRun    bool                `name:"dry-run" help:"don't send"`
 	body      io.Reader
 	remote    quicstream.UDPConnInfo
 }

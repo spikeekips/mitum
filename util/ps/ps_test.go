@@ -63,7 +63,7 @@ func (t *testHooks) TestAdd() {
 		t.Equal(2, len(h.l))
 		t.Equal(2, len(h.names))
 
-		t.Equal([]PName{"showme", "findme"}, h.l)
+		t.Equal([]Name{"showme", "findme"}, h.l)
 	})
 }
 
@@ -83,7 +83,7 @@ func (t *testHooks) TestRemove() {
 		t.False(h.remove("findme"))
 		t.Equal(1, len(h.l))
 		t.Equal(1, len(h.names))
-		t.Equal([]PName{"showme"}, h.l)
+		t.Equal([]Name{"showme"}, h.l)
 
 		_, found := h.names["findme"]
 		t.False(found)
@@ -110,7 +110,7 @@ func (t *testHooks) TestBefore() {
 		t.True(h.add("showme", t.emptyfunc()))
 		t.True(h.before("findme", t.emptyfunc(), "showme"))
 
-		t.Equal([]PName{"findme", "showme"}, h.l)
+		t.Equal([]Name{"findme", "showme"}, h.l)
 	})
 
 	t.Run("before nil", func() {
@@ -120,7 +120,7 @@ func (t *testHooks) TestBefore() {
 	t.Run("before again", func() {
 		t.False(h.before("findme", t.emptyfunc(), "showme"))
 
-		t.Equal([]PName{"findme", "showme"}, h.l)
+		t.Equal([]Name{"findme", "showme"}, h.l)
 	})
 }
 
@@ -135,7 +135,7 @@ func (t *testHooks) TestAfter() {
 		t.True(h.add("showme", t.emptyfunc()))
 		t.True(h.after("findme", t.emptyfunc(), "showme"))
 
-		t.Equal([]PName{"showme", "findme"}, h.l)
+		t.Equal([]Name{"showme", "findme"}, h.l)
 	})
 
 	t.Run("after nil", func() {
@@ -145,7 +145,7 @@ func (t *testHooks) TestAfter() {
 	t.Run("after again", func() {
 		t.False(h.after("findme", t.emptyfunc(), "showme"))
 
-		t.Equal([]PName{"showme", "findme"}, h.l)
+		t.Equal([]Name{"showme", "findme"}, h.l)
 	})
 }
 
@@ -175,7 +175,7 @@ type testP struct {
 
 func (t *testP) TestAdd() {
 	p := NewP(t.emptyfunc(), t.emptyfunc(), "a", "b", "c")
-	t.Equal([]PName{"a", "b", "c"}, p.Requires())
+	t.Equal([]Name{"a", "b", "c"}, p.Requires())
 }
 
 func (t *testP) TestPreAdd() {
@@ -191,7 +191,7 @@ func (t *testP) TestPreAdd() {
 
 	t.True(p.PreAdd("findme", t.emptyfunc()))
 
-	t.Equal([]PName{"showme", "findme"}, p.pre.l)
+	t.Equal([]Name{"showme", "findme"}, p.pre.l)
 }
 
 func (t *testP) TestPreBefore() {
@@ -202,7 +202,7 @@ func (t *testP) TestPreBefore() {
 	t.True(p.PreBefore("showme", t.emptyfunc(), "findme"))
 	t.False(p.PreBefore("showme", t.emptyfunc(), "findme"))
 
-	t.Equal([]PName{"showme", "findme"}, p.pre.l)
+	t.Equal([]Name{"showme", "findme"}, p.pre.l)
 }
 
 func (t *testP) TestPreAfter() {
@@ -213,7 +213,7 @@ func (t *testP) TestPreAfter() {
 	t.True(p.PreAfter("findme", t.emptyfunc(), "showme"))
 	t.False(p.PreAfter("findme", t.emptyfunc(), "showme"))
 
-	t.Equal([]PName{"showme", "findme"}, p.pre.l)
+	t.Equal([]Name{"showme", "findme"}, p.pre.l)
 }
 
 func (t *testP) TestPreRemove() {
@@ -224,11 +224,11 @@ func (t *testP) TestPreRemove() {
 
 	t.True(p.PreRemove("findme"))
 	t.False(p.PreRemove("findme"))
-	t.Equal([]PName{"showme"}, p.pre.l)
+	t.Equal([]Name{"showme"}, p.pre.l)
 
 	t.True(p.PreRemove("showme"))
 	t.False(p.PreRemove("showme"))
-	t.Equal([]PName{}, p.pre.l)
+	t.Equal([]Name{}, p.pre.l)
 }
 
 func (t *testP) TestPostAdd() {
@@ -244,7 +244,7 @@ func (t *testP) TestPostAdd() {
 
 	t.True(p.PostAdd("findme", t.emptyfunc()))
 
-	t.Equal([]PName{"showme", "findme"}, p.post.l)
+	t.Equal([]Name{"showme", "findme"}, p.post.l)
 }
 
 func (t *testP) TestPostBefore() {
@@ -255,7 +255,7 @@ func (t *testP) TestPostBefore() {
 	t.True(p.PostBefore("showme", t.emptyfunc(), "findme"))
 	t.False(p.PostBefore("showme", t.emptyfunc(), "findme"))
 
-	t.Equal([]PName{"showme", "findme"}, p.post.l)
+	t.Equal([]Name{"showme", "findme"}, p.post.l)
 }
 
 func (t *testP) TestPostAfter() {
@@ -266,7 +266,7 @@ func (t *testP) TestPostAfter() {
 	t.True(p.PostAfter("findme", t.emptyfunc(), "showme"))
 	t.False(p.PostAfter("findme", t.emptyfunc(), "showme"))
 
-	t.Equal([]PName{"showme", "findme"}, p.post.l)
+	t.Equal([]Name{"showme", "findme"}, p.post.l)
 }
 
 func (t *testP) TestPostRemove() {
@@ -277,11 +277,11 @@ func (t *testP) TestPostRemove() {
 
 	t.True(p.PostRemove("findme"))
 	t.False(p.PostRemove("findme"))
-	t.Equal([]PName{"showme"}, p.post.l)
+	t.Equal([]Name{"showme"}, p.post.l)
 
 	t.True(p.PostRemove("showme"))
 	t.False(p.PostRemove("showme"))
-	t.Equal([]PName{}, p.post.l)
+	t.Equal([]Name{}, p.post.l)
 }
 
 func (t *testP) TestRun() {
@@ -423,7 +423,7 @@ func (t *testPS) TestRun() {
 
 		rcalled := rctx.Value(ContextKey("called"))
 		t.Equal([]string{"a-run"}, rcalled)
-		t.Equal([]PName{PNameINIT, "a", "b"}, ps.runs)
+		t.Equal([]Name{NameINIT, "a", "b"}, ps.runs)
 
 		rctx, err = ps.Close(rctx)
 		t.NoError(err)
@@ -457,7 +457,7 @@ func (t *testPS) TestVerbose() {
 		t.True(ps.Add("a", t.calledfunc("a-run"), nil))
 
 		names := ps.Verbose()
-		t.Equal([]PName{PNameINIT + ":run", "a:run", "b:run", "c:run"}, names)
+		t.Equal([]Name{NameINIT + ":run", "a:run", "b:run", "c:run"}, names)
 	})
 
 	t.Run("pre post", func() {
@@ -483,7 +483,7 @@ func (t *testPS) TestVerbose() {
 		c.PostAdd("cc", t.emptyfunc())
 
 		names := ps.Verbose()
-		t.Equal([]PName{PNameINIT + ":run", "aa:pre", "ab:pre", "a:run", "ac:post", "ba:pre", "bb:pre", "b:run", "bc:post", "ca:pre", "cb:pre", "c:run", "cc:post"}, names)
+		t.Equal([]Name{NameINIT + ":run", "aa:pre", "ab:pre", "a:run", "ac:post", "ba:pre", "bb:pre", "b:run", "bc:post", "ca:pre", "cb:pre", "c:run", "cc:post"}, names)
 	})
 }
 

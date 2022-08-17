@@ -16,7 +16,7 @@ import (
 	"github.com/spikeekips/mitum/util/ps"
 )
 
-var pnameImportBlocks = ps.PName("import-blocks")
+var pnameImportBlocks = ps.Name("import-blocks")
 
 type ImportCommand struct { //nolint:govet //...
 	Design string `arg:"" name:"node design" help:"node design" type:"filepath"`

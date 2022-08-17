@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	PNameDesign                 = ps.PName("design")
-	PNameGenesisDesign          = ps.PName("genesis-design")
+	PNameDesign                 = ps.Name("design")
+	PNameGenesisDesign          = ps.Name("genesis-design")
 	DesignFileContextKey        = ps.ContextKey("design-file")
 	GenesisDesignFileContextKey = ps.ContextKey("genesis-design-file")
 	DesignContextKey            = ps.ContextKey("design")

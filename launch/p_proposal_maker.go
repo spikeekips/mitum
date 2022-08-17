@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	PNameProposalMaker      = ps.PName("proposal-maker")
+	PNameProposalMaker      = ps.Name("proposal-maker")
 	ProposalMakerContextKey = ps.ContextKey("proposal-maker")
 )
 

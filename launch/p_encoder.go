@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	PNameEncoder       = ps.PName("encoder")
-	PNameAddHinters    = ps.PName("add-hinters")
+	PNameEncoder       = ps.Name("encoder")
+	PNameAddHinters    = ps.Name("add-hinters")
 	EncodersContextKey = ps.ContextKey("encoders")
 	EncoderContextKey  = ps.ContextKey("encoder")
 )
