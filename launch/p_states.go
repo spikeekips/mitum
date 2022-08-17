@@ -719,7 +719,6 @@ func WhenNewBlockSavedInStatesFunc(
 	return func(height base.Height) {
 		ballotbox.Count()
 
-		// FIXME update nodeinfo in client
 		_ = UpdateNodeInfoWithNewBlock(db, nodeinfo)
 	}
 }

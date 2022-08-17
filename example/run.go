@@ -163,7 +163,7 @@ func (cmd *RunCommand) pWhenNewBlockSavedInStatesFunc(pctx context.Context) (con
 	}
 
 	f := func(height base.Height) {
-		launch.WhenNewBlockSavedInStatesFunc(ballotbox, db, nodeinfo)
+		launch.WhenNewBlockSavedInStatesFunc(ballotbox, db, nodeinfo)(height)
 
 		l := log.Log().With().Interface("height", height).Logger()
 		l.Debug().Msg("new block saved")
