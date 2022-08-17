@@ -568,7 +568,7 @@ func QuicstreamHandlerNodeChallenge(
 	encs *encoder.Encoders,
 	idleTimeout time.Duration,
 	local base.LocalNode,
-	policy *isaac.NodePolicy,
+	policy base.NodePolicy,
 ) quicstream.Handler {
 	var sg singleflight.Group
 

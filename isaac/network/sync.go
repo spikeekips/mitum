@@ -399,14 +399,17 @@ func (c *SyncSourceChecker) validate(ctx context.Context, nci isaac.NodeConnInfo
 	defer cancel()
 
 	_, err = c.client.NodeChallenge(nctx, ci, c.networkID, nci.Address(), nci.Publickey(), util.UUID().Bytes())
-	if errors.Is(err, base.SignatureVerificationError) {
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, base.SignatureVerificationError):
 		// NOTE if NodeChallenge failed, it means the node can not handle
 		// it's online suffrage nodes properly. All NodeConnInfo of this
 		// node is ignored.
 		return e(err, "")
+	default:
+		return errIgnoreNodeconnInfo.Wrap(err)
 	}
-
-	return nil
 }
 
 func (*SyncSourceChecker) fetchNodeConnInfos(

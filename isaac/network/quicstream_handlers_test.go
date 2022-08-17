@@ -19,20 +19,6 @@ import (
 	"go.uber.org/goleak"
 )
 
-func newQuicstreamHandlers( // revive:disable-line:argument-limit
-	local base.LocalNode,
-	nodepolicy *isaac.NodePolicy,
-	encs *encoder.Encoders,
-	enc encoder.Encoder,
-	idleTimeout time.Duration,
-) *QuicstreamHandlers {
-	return &QuicstreamHandlers{
-		baseNetwork: newBaseNetwork(encs, enc, idleTimeout),
-		local:       local,
-		nodepolicy:  nodepolicy,
-	}
-}
-
 type testQuicstreamHandlers struct {
 	isaacdatabase.BaseTestDatabase
 	isaac.BaseTestBallots
