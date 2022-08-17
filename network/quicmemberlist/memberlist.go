@@ -25,32 +25,32 @@ type Memberlist struct {
 	enc   *jsonenc.Encoder
 	*logging.Logging
 	*util.ContextDaemon
-	mconfig        *memberlist.Config
-	m              *memberlist.Memberlist
-	delegate       *Delegate
-	members        *membersPool
-	cicache        *util.GCacheObjectPool
-	oneMemberLimit int
-	l              sync.RWMutex
-	joinedLock     sync.RWMutex
-	isJoined       bool
+	mconfig         *memberlist.Config
+	m               *memberlist.Memberlist
+	delegate        *Delegate
+	members         *membersPool
+	cicache         *util.GCacheObjectPool
+	sameMemberLimit uint64 // NOTE 0 means no additional same member
+	l               sync.RWMutex
+	joinedLock      sync.RWMutex
+	isJoined        bool
 }
 
 func NewMemberlist(
 	local Node,
 	enc *jsonenc.Encoder,
 	config *memberlist.Config,
-	oneMemberLimit int,
+	sameMemberLimit uint64,
 ) (*Memberlist, error) {
 	srv := &Memberlist{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", "memberlist").Str("name", config.Name)
 		}),
-		local:          local,
-		enc:            enc,
-		oneMemberLimit: oneMemberLimit,
-		members:        newMembersPool(),
-		cicache:        util.NewGCacheObjectPool(1 << 9), //nolint:gomnd //...
+		local:           local,
+		enc:             enc,
+		sameMemberLimit: sameMemberLimit,
+		members:         newMembersPool(),
+		cicache:         util.NewGCacheObjectPool(1 << 9), //nolint:gomnd //...
 	}
 
 	if err := srv.patchMemberlistConfig(config); err != nil {
@@ -341,7 +341,9 @@ func (srv *Memberlist) whenLeft(node Node) {
 }
 
 func (srv *Memberlist) allowNode(node Node) error {
-	if srv.members.NodesLen(node.Address()) == srv.oneMemberLimit {
+	switch n := srv.members.NodesLen(node.Address()); {
+	case n < 1:
+	case uint64(n-1) == srv.sameMemberLimit:
 		return errors.Errorf("over member limit; %q", node.Name())
 	}
 

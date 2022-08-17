@@ -112,9 +112,12 @@ func TestNodePolicyJSON(tt *testing.T) {
 		p := DefaultNodePolicy(util.UUID().Bytes())
 		p.SetThreshold(base.Threshold(77.7))
 		p.SetIntervalBroadcastBallot(time.Second * 33)
+		p.SetSameMemberLimit(99)
 
 		b, err := util.MarshalJSON(&p)
 		t.NoError(err)
+
+		t.T().Log("marshaled:", string(b))
 
 		return p, b
 	}
@@ -139,6 +142,7 @@ func TestNodePolicyJSON(tt *testing.T) {
 		t.Equal(ap.validProposalOperationExpire, bp.validProposalOperationExpire)
 		t.Equal(ap.validProposalSuffrageOperationsExpire, bp.validProposalSuffrageOperationsExpire)
 		t.Equal(ap.maxOperationSize, bp.maxOperationSize)
+		t.Equal(ap.sameMemberLimit, bp.sameMemberLimit)
 	}
 
 	suite.Run(tt, t)

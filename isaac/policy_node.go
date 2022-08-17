@@ -25,6 +25,7 @@ type NodePolicy struct {
 	validProposalOperationExpire          time.Duration
 	validProposalSuffrageOperationsExpire time.Duration
 	maxOperationSize                      uint64
+	sameMemberLimit                       uint64
 	sync.RWMutex
 }
 
@@ -41,6 +42,7 @@ func DefaultNodePolicy(networkID base.NetworkID) *NodePolicy {
 		validProposalOperationExpire:          time.Hour * 24,   //nolint:gomnd //...
 		validProposalSuffrageOperationsExpire: time.Hour * 2,    //nolint:gomnd //...
 		maxOperationSize:                      1 << 10,          //nolint:gomnd //...
+		sameMemberLimit:                       3,                //nolint:gomnd //...
 	}
 }
 
@@ -300,6 +302,28 @@ func (p *NodePolicy) SetMaxOperationSize(s uint64) *NodePolicy {
 	return p
 }
 
+func (p *NodePolicy) SameMemberLimit() uint64 {
+	p.RLock()
+	defer p.RUnlock()
+
+	return p.sameMemberLimit
+}
+
+func (p *NodePolicy) SetSameMemberLimit(s uint64) *NodePolicy {
+	p.Lock()
+	defer p.Unlock()
+
+	if p.sameMemberLimit == s {
+		return p
+	}
+
+	p.sameMemberLimit = s
+
+	p.id = util.UUID().String()
+
+	return p
+}
+
 type nodePolicyJSONMarshaler struct {
 	NetworkID base.NetworkID `json:"network_id"`
 	hint.BaseHinter
@@ -311,6 +335,7 @@ type nodePolicyJSONMarshaler struct {
 	ValidProposalOperationExpire          time.Duration  `json:"valid_proposal_operation_expire"`
 	ValidProposalSuffrageOperationsExpire time.Duration  `json:"valid_proposal_suffrage_operations_expire"`
 	MaxOperationSize                      uint64         `json:"max_operation_size"`
+	SameMemberLimit                       uint64         `json:"same_member_limit"`
 }
 
 func (p *NodePolicy) MarshalJSON() ([]byte, error) {
@@ -325,6 +350,7 @@ func (p *NodePolicy) MarshalJSON() ([]byte, error) {
 		ValidProposalOperationExpire:          p.validProposalOperationExpire,
 		ValidProposalSuffrageOperationsExpire: p.validProposalSuffrageOperationsExpire,
 		MaxOperationSize:                      p.maxOperationSize,
+		SameMemberLimit:                       p.sameMemberLimit,
 	})
 }
 
@@ -339,6 +365,7 @@ type nodePolicyJSONUnmarshaler struct {
 	ValidProposalOperationExpire          time.Duration  `json:"valid_proposal_operation_expire"`
 	ValidProposalSuffrageOperationsExpire time.Duration  `json:"valid_proposal_suffrage_operations_expire"`
 	MaxOperationSize                      uint64         `json:"max_operation_size"`
+	SameMemberLimit                       uint64         `json:"same_member_limit"`
 }
 
 func (p *NodePolicy) UnmarshalJSON(b []byte) error {
@@ -358,6 +385,7 @@ func (p *NodePolicy) UnmarshalJSON(b []byte) error {
 	p.validProposalOperationExpire = u.ValidProposalOperationExpire
 	p.validProposalSuffrageOperationsExpire = u.ValidProposalSuffrageOperationsExpire
 	p.maxOperationSize = u.MaxOperationSize
+	p.sameMemberLimit = u.SameMemberLimit
 
 	return nil
 }

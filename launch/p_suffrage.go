@@ -173,8 +173,8 @@ func PPatchLastSuffrageProofWatcherWithMemberlist(ctx context.Context) (context.
 					return false, nil
 				}
 			},
-			3,             //nolint:gomnd //...
-			time.Second*3, //nolint:gomnd //...
+			333, //nolint:gomnd // long enough
+			time.Second,
 		)
 	})
 
@@ -501,7 +501,7 @@ func GetSuffrageProofFunc(ctx context.Context) ( //revive:disable-line:cognitive
 				return false, nil
 			},
 			-1,
-			time.Second*3, //nolint:gomnd //... // FIXME config
+			time.Second,
 		)
 
 		return proof, found, err

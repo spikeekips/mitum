@@ -657,7 +657,7 @@ func (t *testMemberlist) TestJoinMultipleNodeWithSameName() {
 		nil,
 	)
 
-	lsrv.oneMemberLimit = 3
+	lsrv.sameMemberLimit = 3
 
 	rqsrv0, rsrv0 := t.newServersForJoining(rnode, rci0, nil, nil)
 	rqsrv1, rsrv1 := t.newServersForJoining(rnode, rci1, nil, nil)
@@ -737,7 +737,7 @@ func (t *testMemberlist) TestLocalOverMemberLimit() {
 		nil,
 	)
 
-	lsrv.oneMemberLimit = 1 // NOTE only allow 1 member in node name
+	lsrv.sameMemberLimit = 0 // NOTE only allow 1 member in node name
 
 	rqsrv0, rsrv0 := t.newServersForJoining(
 		rnode,

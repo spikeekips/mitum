@@ -33,10 +33,12 @@ func PMemberlist(ctx context.Context) (context.Context, error) {
 
 	var log *logging.Logging
 	var enc *jsonenc.Encoder
+	var policy *isaac.NodePolicy
 
 	if err := ps.LoadsFromContextOK(ctx,
 		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
+		NodePolicyContextKey, &policy,
 	); err != nil {
 		return ctx, e(err, "")
 	}
@@ -55,7 +57,7 @@ func PMemberlist(ctx context.Context) (context.Context, error) {
 		localnode,
 		enc,
 		config,
-		3, //nolint:gomnd //... // FIXME config
+		policy.SameMemberLimit(),
 	)
 	if err != nil {
 		return ctx, e(err, "")

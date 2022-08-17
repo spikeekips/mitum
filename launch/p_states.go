@@ -529,7 +529,7 @@ func syncerBlockMapFunc(pctx context.Context) ( //revive:disable-line:cognitive-
 				return false, nil
 			},
 			-1,
-			time.Second*3, //nolint:gomnd //... // FIXME config
+			time.Second,
 		)
 
 		return m, found, err
@@ -617,7 +617,7 @@ func syncerBlockMapItemFunc(pctx context.Context) (isaacstates.SyncerBlockMapIte
 				return false, nil
 			},
 			-1,
-			time.Second*3, //nolint:gomnd //... // FIXME config
+			time.Second,
 		)
 
 		return reader, closef, found, err
