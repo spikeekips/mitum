@@ -80,7 +80,7 @@ var Hinters = []encoder.DecodeDetail{
 		Hint:     isaacoperation.SuffrageGenesisJoinFactHint,
 		Instance: isaacoperation.SuffrageGenesisJoinFact{},
 	},
-	{Hint: PprofRequestHeaderHint, Instance: PprofRequestHeader{}},
+	// FIXME uncomment {Hint: PprofRequestHeaderHint, Instance: PprofRequestHeader{}},
 	{Hint: quicmemberlist.NodeHint, Instance: quicmemberlist.BaseNode{}},
 }
 

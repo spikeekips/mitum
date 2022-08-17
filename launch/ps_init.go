@@ -1,4 +1,4 @@
-package launch2
+package launch
 
 import "github.com/spikeekips/mitum/util/ps"
 

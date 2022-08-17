@@ -1,4 +1,4 @@
-package launch2
+package launch
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
-	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/storage"
@@ -51,7 +50,7 @@ func newProposalProcessorFunc(pctx context.Context) (
 	error,
 ) {
 	var enc encoder.Encoder
-	var design launch.NodeDesign
+	var design NodeDesign
 	var local base.LocalNode
 	var policy base.NodePolicy
 	var db isaac.Database
@@ -81,7 +80,7 @@ func newProposalProcessorFunc(pctx context.Context) (
 		return isaac.NewDefaultProposalProcessor(
 			proposal,
 			previous,
-			launch.NewBlockWriterFunc(
+			NewBlockWriterFunc(
 				local,
 				policy.NetworkID(),
 				LocalFSDataDirectory(design.Storage.Base),

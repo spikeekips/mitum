@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 
-	"github.com/spikeekips/mitum/launch2"
+	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/ps"
 )
@@ -15,16 +15,16 @@ type INITCommand struct {
 
 func (cmd *INITCommand) Run(pctx context.Context) error {
 	var log *logging.Logging
-	if err := ps.LoadFromContextOK(pctx, launch2.LoggingContextKey, &log); err != nil {
+	if err := ps.LoadFromContextOK(pctx, launch.LoggingContextKey, &log); err != nil {
 		return err
 	}
 
 	pctx = context.WithValue(pctx, //revive:disable-line:modifies-parameter
-		launch2.DesignFileContextKey, cmd.Design)
+		launch.DesignFileContextKey, cmd.Design)
 	pctx = context.WithValue(pctx, //revive:disable-line:modifies-parameter
-		launch2.GenesisDesignFileContextKey, cmd.GenesisDesign)
+		launch.GenesisDesignFileContextKey, cmd.GenesisDesign)
 
-	pps := launch2.DefaultINITPS()
+	pps := launch.DefaultINITPS()
 	_ = pps.SetLogging(log)
 
 	log.Log().Debug().Interface("process", pps.Verbose()).Msg("process ready")

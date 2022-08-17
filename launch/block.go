@@ -1,4 +1,4 @@
-package launch2
+package launch
 
 import (
 	"context"
@@ -12,7 +12,6 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
-	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 )
@@ -84,13 +83,13 @@ func ImportBlocks(
 
 			return bwdb,
 				func(ctx context.Context) error {
-					return launch.MergeBlockWriteToPermanentDatabase(ctx, bwdb, perm)
+					return MergeBlockWriteToPermanentDatabase(ctx, bwdb, perm)
 				},
 				nil
 		},
 		func(m base.BlockMap, bwdb isaac.BlockWriteDatabase) (isaac.BlockImporter, error) {
 			im, err := isaacblock.NewBlockImporter(
-				launch.LocalFSDataDirectory(root),
+				LocalFSDataDirectory(root),
 				encs,
 				m,
 				bwdb,
@@ -125,4 +124,55 @@ func ImportBlocks(
 	}
 
 	return nil
+}
+
+func MergeBlockWriteToPermanentDatabase(
+	ctx context.Context, bwdb isaac.BlockWriteDatabase, perm isaac.PermanentDatabase,
+) error {
+	e := util.StringErrorFunc("failed to merge BlockWriter")
+
+	temp, err := bwdb.TempDatabase()
+	if err != nil {
+		return e(err, "")
+	}
+
+	if err := perm.MergeTempDatabase(ctx, temp); err != nil {
+		return e(err, "")
+	}
+
+	if err := temp.Remove(); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
+func NewBlockWriterFunc(
+	local base.LocalNode,
+	networkID base.NetworkID,
+	dataroot string,
+	enc encoder.Encoder,
+	db isaac.Database,
+) isaac.NewBlockWriterFunc {
+	return func(proposal base.ProposalSignedFact, getStateFunc base.GetStateFunc) (isaac.BlockWriter, error) {
+		e := util.StringErrorFunc("failed to crete BlockWriter")
+
+		dbw, err := db.NewBlockWriteDatabase(proposal.Point().Height())
+		if err != nil {
+			return nil, e(err, "")
+		}
+
+		fswriter, err := isaacblock.NewLocalFSWriter(
+			dataroot,
+			proposal.Point().Height(),
+			enc,
+			local,
+			networkID,
+		)
+		if err != nil {
+			return nil, e(err, "")
+		}
+
+		return isaacblock.NewWriter(proposal, getStateFunc, dbw, db.MergeBlockWriteDatabase, fswriter), nil
+	}
 }

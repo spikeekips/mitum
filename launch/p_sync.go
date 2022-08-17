@@ -1,4 +1,4 @@
-package launch2
+package launch
 
 import (
 	"context"
@@ -7,7 +7,6 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
-	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/logging"
@@ -26,7 +25,7 @@ func PSyncSourceChecker(ctx context.Context) (context.Context, error) {
 
 	var log *logging.Logging
 	var enc encoder.Encoder
-	var design launch.NodeDesign
+	var design NodeDesign
 	var local base.LocalNode
 	var policy *isaac.NodePolicy
 	var client *isaacnetwork.QuicstreamClient

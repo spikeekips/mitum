@@ -15,7 +15,6 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	"github.com/spikeekips/mitum/launch"
-	"github.com/spikeekips/mitum/launch2"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -76,12 +75,12 @@ func init() {
 
 type NetworkClientCommand struct { //nolint:govet //...
 	baseCommand
-	NetworkID string              `arg:"" name:"network-id" help:"network-id"`
-	Header    string              `arg:"" help:"request header; 'example' will print example headers"`
+	NetworkID string               `arg:"" name:"network-id" help:"network-id"`
+	Header    string               `arg:"" help:"request header; 'example' will print example headers"`
 	Remote    launch.ConnInfoFlag `arg:"" help:"remote node conn info" placeholder:"ConnInfo" default:"localhost:4321"`
-	Timeout   time.Duration       `help:"timeout" placeholder:"duration" default:"10s"`
-	Body      *os.File            `help:"body"`
-	DryRun    bool                `name:"dry-run" help:"don't send"`
+	Timeout   time.Duration        `help:"timeout" placeholder:"duration" default:"10s"`
+	Body      *os.File             `help:"body"`
+	DryRun    bool                 `name:"dry-run" help:"don't send"`
 	body      io.Reader
 	remote    quicstream.UDPConnInfo
 }
@@ -133,7 +132,7 @@ func (cmd *NetworkClientCommand) Run(pctx context.Context) error {
 }
 
 func (cmd *NetworkClientCommand) response(header isaac.NetworkHeader) error {
-	client := launch2.NewNetworkClient( //nolint:gomnd //...
+	client := launch.NewNetworkClient( //nolint:gomnd //...
 		cmd.encs, cmd.enc, cmd.Timeout,
 		base.NetworkID([]byte(cmd.NetworkID)),
 	)

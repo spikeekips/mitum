@@ -1,4 +1,4 @@
-package launch2
+package launch
 
 import (
 	"bytes"
@@ -9,7 +9,6 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
 	isaacoperation "github.com/spikeekips/mitum/isaac/operation"
-	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/localtime"
 	"github.com/spikeekips/mitum/util/logging"
@@ -82,7 +81,7 @@ func proposalMakderGetOperationsFunc(ctx context.Context) (
 		return nil, err
 	}
 
-	operationfilterf := launch.IsSupportedProposalOperationFactHintFunc()
+	operationfilterf := IsSupportedProposalOperationFactHintFunc()
 
 	return func(ctx context.Context, height base.Height) ([]util.Hash, error) {
 		policy := db.LastNetworkPolicy()

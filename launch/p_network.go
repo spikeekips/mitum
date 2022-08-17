@@ -1,4 +1,4 @@
-package launch2
+package launch
 
 import (
 	"context"
@@ -15,7 +15,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
-	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -58,7 +57,7 @@ func PNetwork(ctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
-	var design launch.NodeDesign
+	var design NodeDesign
 	var policy base.NodePolicy
 
 	if err := ps.LoadsFromContextOK(ctx,

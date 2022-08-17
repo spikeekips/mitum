@@ -1,4 +1,4 @@
-package launch2
+package launch
 
 import (
 	"bytes"
@@ -13,7 +13,6 @@ import (
 	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	isaacoperation "github.com/spikeekips/mitum/isaac/operation"
-	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/storage"
@@ -35,7 +34,7 @@ func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
-	var design launch.NodeDesign
+	var design NodeDesign
 	var local base.LocalNode
 	var policy *isaac.NodePolicy
 	var db isaac.Database
@@ -175,7 +174,7 @@ func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 		Add(isaacnetwork.HandlerPrefixNodeInfo,
 			isaacnetwork.QuicstreamHandlerNodeInfo(encs, idletimeout, quicstreamHandlerGetNodeInfoFunc(enc, nodeinfo)),
 		).
-		Add(launch.HandlerPrefixPprof, launch.NetworkHandlerPprofFunc(encs))
+		Add(HandlerPrefixPprof, NetworkHandlerPprofFunc(encs))
 
 	return ctx, nil
 }
@@ -277,7 +276,7 @@ func sendOperationFilterFunc(ctx context.Context) (
 			height = m.Manifest().Height()
 		}
 
-		f, closef, err := launch.OperationPreProcess(oprs, op, height)
+		f, closef, err := OperationPreProcess(oprs, op, height)
 		if err != nil {
 			return false, err
 		}
@@ -389,5 +388,31 @@ func quicstreamHandlerGetNodeInfoFunc(
 		lastb = b
 
 		return updateUptime(b), nil
+	}
+}
+
+func OperationPreProcess(
+	oprs *hint.CompatibleSet,
+	op base.Operation,
+	height base.Height,
+) (
+	preprocess func(context.Context, base.GetStateFunc) (base.OperationProcessReasonError, error),
+	cancelf func() error,
+	_ error,
+) {
+	v := oprs.Find(op.Hint())
+	if v == nil {
+		return op.PreProcess, func() error { return nil }, nil
+	}
+
+	f := v.(func(height base.Height) (base.OperationProcessor, error)) //nolint:forcetypeassert //...
+
+	switch opp, err := f(height); {
+	case err != nil:
+		return nil, nil, err
+	default:
+		return func(ctx context.Context, getStateFunc base.GetStateFunc) (base.OperationProcessReasonError, error) {
+			return opp.PreProcess(ctx, op, getStateFunc)
+		}, opp.Close, nil
 	}
 }

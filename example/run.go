@@ -13,7 +13,6 @@ import (
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/launch"
-	"github.com/spikeekips/mitum/launch2"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
@@ -21,7 +20,7 @@ import (
 )
 
 type RunCommand struct { //nolint:govet //...
-	Design    string                `arg:"" name:"node design" help:"node design" type:"filepath"`
+	Design    string                 `arg:"" name:"node design" help:"node design" type:"filepath"`
 	Discovery []launch.ConnInfoFlag `help:"member discovery" placeholder:"ConnInfo"`
 	Hold      launch.HeightFlag     `help:"hold consensus states"`
 	exitf     func(error)
@@ -30,7 +29,7 @@ type RunCommand struct { //nolint:govet //...
 
 func (cmd *RunCommand) Run(pctx context.Context) error {
 	var log *logging.Logging
-	if err := ps.LoadFromContextOK(pctx, launch2.LoggingContextKey, &log); err != nil {
+	if err := ps.LoadFromContextOK(pctx, launch.LoggingContextKey, &log); err != nil {
 		return err
 	}
 
@@ -38,14 +37,14 @@ func (cmd *RunCommand) Run(pctx context.Context) error {
 
 	//revive:disable:modifies-parameter
 	pctx = context.WithValue(pctx,
-		launch2.DesignFileContextKey, cmd.Design)
+		launch.DesignFileContextKey, cmd.Design)
 	pctx = context.WithValue(pctx,
-		launch2.DiscoveryFlagContextKey, cmd.Discovery)
+		launch.DiscoveryFlagContextKey, cmd.Discovery)
 	//revive:enable:modifies-parameter
 
-	pps := launch2.DefaultRunPS()
+	pps := launch.DefaultRunPS()
 
-	_ = pps.POK(launch2.PNameStates).PreAddOK(pNameWhenNewBlockSavedInStatesFunc, cmd.pWhenNewBlockSavedInStatesFunc)
+	_ = pps.POK(launch.PNameStates).PreAddOK(pNameWhenNewBlockSavedInStatesFunc, cmd.pWhenNewBlockSavedInStatesFunc)
 
 	_ = pps.SetLogging(log)
 
@@ -80,9 +79,9 @@ func (cmd *RunCommand) run(pctx context.Context) error {
 	var states *isaacstates.States
 
 	if err := ps.LoadsFromContextOK(pctx,
-		launch2.CenterDatabaseContextKey, &db,
-		launch2.DiscoveryContextKey, &discoveries,
-		launch2.StatesContextKey, &states,
+		launch.CenterDatabaseContextKey, &db,
+		launch.DiscoveryContextKey, &discoveries,
+		launch.StatesContextKey, &states,
 	); err != nil {
 		return err
 	}
@@ -155,16 +154,16 @@ func (cmd *RunCommand) pWhenNewBlockSavedInStatesFunc(pctx context.Context) (con
 	var nodeinfo *isaacnetwork.NodeInfoUpdater
 
 	if err := ps.LoadsFromContextOK(pctx,
-		launch2.LoggingContextKey, &log,
-		launch2.CenterDatabaseContextKey, &db,
-		launch2.BallotboxContextKey, &ballotbox,
-		launch2.NodeInfoContextKey, &nodeinfo,
+		launch.LoggingContextKey, &log,
+		launch.CenterDatabaseContextKey, &db,
+		launch.BallotboxContextKey, &ballotbox,
+		launch.NodeInfoContextKey, &nodeinfo,
 	); err != nil {
 		return pctx, err
 	}
 
 	f := func(height base.Height) {
-		launch2.WhenNewBlockSavedInStatesFunc(ballotbox, db, nodeinfo)
+		launch.WhenNewBlockSavedInStatesFunc(ballotbox, db, nodeinfo)
 
 		l := log.Log().With().Interface("height", height).Logger()
 		l.Debug().Msg("new block saved")
@@ -179,7 +178,7 @@ func (cmd *RunCommand) pWhenNewBlockSavedInStatesFunc(pctx context.Context) (con
 	}
 
 	//revive:disable-next-line:modifies-parameter
-	pctx = context.WithValue(pctx, launch2.WhenNewBlockSavedInStatesFuncContextKey, f)
+	pctx = context.WithValue(pctx, launch.WhenNewBlockSavedInStatesFuncContextKey, f)
 
 	return pctx, nil
 }

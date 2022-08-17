@@ -1,4 +1,4 @@
-package launch2
+package launch
 
 import (
 	"context"
@@ -18,7 +18,6 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
-	"github.com/spikeekips/mitum/launch"
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	redisstorage "github.com/spikeekips/mitum/storage/redis"
 	"github.com/spikeekips/mitum/util"
@@ -46,8 +45,10 @@ var (
 )
 
 var (
-	LocalFSDataDirectoryName     = "data"
-	LocalFSDatabaseDirectoryName = "db"
+	LocalFSDataDirectoryName           = "data"
+	LocalFSDatabaseDirectoryName       = "db"
+	LeveldbURIScheme                   = "leveldb"
+	RedisPermanentDatabasePrefixFormat = "mitum-%s"
 )
 
 func PStorage(ctx context.Context) (context.Context, error) {
@@ -187,7 +188,7 @@ func PCheckLeveldbStorage(ctx context.Context) (context.Context, error) {
 func PCleanStorage(ctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to clean storage")
 
-	var design launch.NodeDesign
+	var design NodeDesign
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
 
@@ -209,7 +210,7 @@ func PCleanStorage(ctx context.Context) (context.Context, error) {
 func PCreateLocalFS(ctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to create localfs")
 
-	var design launch.NodeDesign
+	var design NodeDesign
 	var enc encoder.Encoder
 	var policy *isaac.NodePolicy
 	var version util.Version
@@ -238,7 +239,7 @@ func PCheckLocalFS(ctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to check localfs")
 
 	var version util.Version
-	var design launch.NodeDesign
+	var design NodeDesign
 	var policy *isaac.NodePolicy
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
@@ -288,7 +289,7 @@ func PLoadDatabase(ctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to load database")
 
 	var log *logging.Logging
-	var design launch.NodeDesign
+	var design NodeDesign
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
 	var fsnodeinfo NodeInfo
@@ -357,8 +358,8 @@ func LoadPermanentDatabase(
 	switch {
 	case err != nil:
 		return nil, nil, e(err, "")
-	case len(u.Scheme) < 1, strings.EqualFold(u.Scheme, launch.LeveldbURIScheme):
-		dbtype = launch.LeveldbURIScheme
+	case len(u.Scheme) < 1, strings.EqualFold(u.Scheme, LeveldbURIScheme):
+		dbtype = LeveldbURIScheme
 	default:
 		u.Scheme = strings.ToLower(u.Scheme)
 
@@ -371,9 +372,9 @@ func LoadPermanentDatabase(
 	}
 
 	switch {
-	case dbtype == launch.LeveldbURIScheme:
+	case dbtype == LeveldbURIScheme:
 		if len(u.Path) < 1 {
-			u.Path = launch.LocalFSDatabaseDirectory(root)
+			u.Path = LocalFSDatabaseDirectory(root)
 		}
 
 		str, err := leveldbStorage.OpenFile(u.Path, false)
@@ -441,8 +442,8 @@ func CleanStorage(
 
 func RemoveLocalFS(root string) error {
 	knowns := map[string]struct{}{
-		launch.LocalFSDataDirectoryName:     {},
-		launch.LocalFSDatabaseDirectoryName: {},
+		LocalFSDataDirectoryName:     {},
+		LocalFSDatabaseDirectoryName: {},
 	}
 
 	if err := util.CleanDirectory(root, func(name string) bool {
@@ -525,7 +526,7 @@ func loadRedisPermanentDatabase(uri, id string, encs *encoder.Encoders, enc enco
 		return nil, e(err, "invalid redis url")
 	}
 
-	st, err := redisstorage.NewStorage(ctx, option, fmt.Sprintf(launch.RedisPermanentDatabasePrefixFormat, id))
+	st, err := redisstorage.NewStorage(ctx, option, fmt.Sprintf(RedisPermanentDatabasePrefixFormat, id))
 	if err != nil {
 		return nil, e(err, "failed to create redis storage")
 	}

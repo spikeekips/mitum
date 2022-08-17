@@ -349,33 +349,3 @@ func (g *GenesisBlockGenerator) newProposalProcessor() (*isaac.DefaultProposalPr
 		g.pool.SetLastVoteproofs,
 	)
 }
-
-func NewBlockWriterFunc(
-	local base.LocalNode,
-	networkID base.NetworkID,
-	dataroot string,
-	enc encoder.Encoder,
-	db isaac.Database,
-) isaac.NewBlockWriterFunc {
-	return func(proposal base.ProposalSignedFact, getStateFunc base.GetStateFunc) (isaac.BlockWriter, error) {
-		e := util.StringErrorFunc("failed to crete BlockWriter")
-
-		dbw, err := db.NewBlockWriteDatabase(proposal.Point().Height())
-		if err != nil {
-			return nil, e(err, "")
-		}
-
-		fswriter, err := isaacblock.NewLocalFSWriter(
-			dataroot,
-			proposal.Point().Height(),
-			enc,
-			local,
-			networkID,
-		)
-		if err != nil {
-			return nil, e(err, "")
-		}
-
-		return isaacblock.NewWriter(proposal, getStateFunc, dbw, db.MergeBlockWriteDatabase, fswriter), nil
-	}
-}

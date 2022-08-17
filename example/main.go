@@ -5,7 +5,7 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/pkg/errors"
-	"github.com/spikeekips/mitum/launch2"
+	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/ps"
@@ -27,7 +27,7 @@ func init() {
 
 //revive:disable:nested-structs
 var CLI struct { //nolint:govet //...
-	launch2.BaseFlags
+	launch.BaseFlags
 	Import  ImportCommand `cmd:"" help:"import from block data"`
 	Init    INITCommand   `cmd:"" help:"init node"`
 	Run     RunCommand    `cmd:"" help:"run node"`
@@ -47,11 +47,11 @@ func main() {
 	kctx := kong.Parse(&CLI)
 
 	pctx := context.Background()
-	pctx = context.WithValue(pctx, launch2.VersionContextKey, version)
-	pctx = context.WithValue(pctx, launch2.FlagsContextKey, CLI.BaseFlags)
-	pctx = context.WithValue(pctx, launch2.KongContextContextKey, kctx)
+	pctx = context.WithValue(pctx, launch.VersionContextKey, version)
+	pctx = context.WithValue(pctx, launch.FlagsContextKey, CLI.BaseFlags)
+	pctx = context.WithValue(pctx, launch.KongContextContextKey, kctx)
 
-	pss := launch2.DefaultMainPS()
+	pss := launch.DefaultMainPS()
 
 	switch i, err := pss.Run(pctx); {
 	case err != nil:
@@ -63,7 +63,7 @@ func main() {
 	}
 
 	var log *logging.Logging
-	if err := ps.LoadFromContextOK(pctx, launch2.LoggingContextKey, &log); err != nil {
+	if err := ps.LoadFromContextOK(pctx, launch.LoggingContextKey, &log); err != nil {
 		kctx.FatalIfErrorf(err)
 	}
 

@@ -1,4 +1,4 @@
-package launch2
+package launch
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
-	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
@@ -27,7 +26,7 @@ func PNodeInfo(ctx context.Context) (context.Context, error) {
 	var version util.Version
 	var local base.LocalNode
 	var policy *isaac.NodePolicy
-	var design launch.NodeDesign
+	var design NodeDesign
 	var db isaac.Database
 
 	if err := ps.LoadsFromContextOK(ctx,

@@ -1,4 +1,4 @@
-package launch2
+package launch
 
 import (
 	"context"
@@ -12,7 +12,6 @@ import (
 	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
-	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/network/quicstream"
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
@@ -267,7 +266,7 @@ func newSyncerFunc(pctx context.Context, lvps *isaacstates.LastVoteproofsHandler
 ) {
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
-	var design launch.NodeDesign
+	var design NodeDesign
 	var policy base.NodePolicy
 	var st *leveldbstorage.Storage
 	var perm isaac.PermanentDatabase
@@ -341,13 +340,13 @@ func newSyncerFunc(pctx context.Context, lvps *isaacstates.LastVoteproofsHandler
 
 				return bwdb,
 					func(ctx context.Context) error {
-						return launch.MergeBlockWriteToPermanentDatabase(ctx, bwdb, perm)
+						return MergeBlockWriteToPermanentDatabase(ctx, bwdb, perm)
 					},
 					nil
 			},
 			func(root string, blockmap base.BlockMap, bwdb isaac.BlockWriteDatabase) (isaac.BlockImporter, error) {
 				return isaacblock.NewBlockImporter(
-					launch.LocalFSDataDirectory(root),
+					LocalFSDataDirectory(root),
 					encs,
 					blockmap,
 					bwdb,

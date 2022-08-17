@@ -1,4 +1,4 @@
-package launch2
+package launch
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
-	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/logging"
@@ -19,8 +18,8 @@ func PGenerateGenesis(ctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to generate genesis block")
 
 	var log *logging.Logging
-	var design launch.NodeDesign
-	var genesisDesign launch.GenesisDesign
+	var design NodeDesign
+	var genesisDesign GenesisDesign
 	var enc encoder.Encoder
 	var local base.LocalNode
 	var policy *isaac.NodePolicy
@@ -40,7 +39,7 @@ func PGenerateGenesis(ctx context.Context) (context.Context, error) {
 		return ctx, e(err, "")
 	}
 
-	g := launch.NewGenesisBlockGenerator(
+	g := NewGenesisBlockGenerator(
 		local,
 		policy.NetworkID(),
 		enc,

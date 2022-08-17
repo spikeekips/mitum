@@ -1,9 +1,8 @@
-package launch2
+package launch
 
 import (
 	"context"
 
-	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/ps"
@@ -18,7 +17,7 @@ var (
 func PDiscoveryFlag(ctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to prepare discovery flag")
 
-	var flag []launch.ConnInfoFlag
+	var flag []ConnInfoFlag
 	if err := ps.LoadsFromContextOK(ctx,
 		DiscoveryFlagContextKey, &flag,
 	); err != nil {

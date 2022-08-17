@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/rs/zerolog"
-	"github.com/spikeekips/mitum/launch2"
+	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/logging"
@@ -21,13 +21,13 @@ func (cmd *baseCommand) prepare(pctx context.Context) (context.Context, error) {
 	pps := ps.NewPS()
 
 	_ = pps.
-		AddOK(launch2.PNameEncoder, launch2.PEncoder, nil)
+		AddOK(launch.PNameEncoder, launch.PEncoder, nil)
 
-	_ = pps.POK(launch2.PNameEncoder).
-		PostAddOK(launch2.PNameAddHinters, launch2.PAddHinters)
+	_ = pps.POK(launch.PNameEncoder).
+		PostAddOK(launch.PNameAddHinters, launch.PAddHinters)
 
 	var log *logging.Logging
-	if err := ps.LoadFromContextOK(pctx, launch2.LoggingContextKey, &log); err != nil {
+	if err := ps.LoadFromContextOK(pctx, launch.LoggingContextKey, &log); err != nil {
 		return pctx, err
 	}
 
@@ -39,7 +39,7 @@ func (cmd *baseCommand) prepare(pctx context.Context) (context.Context, error) {
 	}
 
 	return pctx, ps.LoadsFromContextOK(pctx,
-		launch2.EncodersContextKey, &cmd.encs,
-		launch2.EncoderContextKey, &cmd.enc,
+		launch.EncodersContextKey, &cmd.encs,
+		launch.EncoderContextKey, &cmd.enc,
 	)
 }

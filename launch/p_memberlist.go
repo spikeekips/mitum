@@ -1,4 +1,4 @@
-package launch2
+package launch
 
 import (
 	"context"
@@ -12,7 +12,6 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
-	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/network/quicstream"
@@ -94,7 +93,7 @@ func PCloseMemberlist(ctx context.Context) (context.Context, error) {
 }
 
 func memberlistLocalNode(ctx context.Context) (quicmemberlist.Node, error) {
-	var design launch.NodeDesign
+	var design NodeDesign
 	var local base.LocalNode
 	var fsnodeinfo NodeInfo
 
@@ -119,7 +118,7 @@ func memberlistLocalNode(ctx context.Context) (quicmemberlist.Node, error) {
 func memberlistConfig(ctx context.Context, localnode quicmemberlist.Node) (*memberlist.Config, error) {
 	var log *logging.Logging
 	var enc *jsonenc.Encoder
-	var design launch.NodeDesign
+	var design NodeDesign
 	var fsnodeinfo NodeInfo
 	var client *isaacnetwork.QuicstreamClient
 	var local base.LocalNode
@@ -200,7 +199,7 @@ func memberlistConfig(ctx context.Context, localnode quicmemberlist.Node) (*memb
 func memberlistTransport(ctx context.Context) (*quicmemberlist.Transport, error) {
 	var log *logging.Logging
 	var enc encoder.Encoder
-	var design launch.NodeDesign
+	var design NodeDesign
 	var fsnodeinfo NodeInfo
 	var client *isaacnetwork.QuicstreamClient
 	var local base.LocalNode
@@ -285,7 +284,7 @@ func memberlistDelegate(ctx context.Context, localnode quicmemberlist.Node) (*qu
 }
 
 func memberlistAlive(ctx context.Context) (*quicmemberlist.AliveDelegate, error) {
-	var design launch.NodeDesign
+	var design NodeDesign
 	var enc *jsonenc.Encoder
 
 	if err := ps.LoadsFromContextOK(ctx,

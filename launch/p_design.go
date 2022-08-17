@@ -1,9 +1,8 @@
-package launch2
+package launch
 
 import (
 	"context"
 
-	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/util"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/logging"
@@ -34,7 +33,7 @@ func PDesign(ctx context.Context) (context.Context, error) {
 		return ctx, e(err, "")
 	}
 
-	switch d, b, err := launch.NodeDesignFromFile(designfile, enc); {
+	switch d, b, err := NodeDesignFromFile(designfile, enc); {
 	case err != nil:
 		return ctx, e(err, "")
 	default:
@@ -64,7 +63,7 @@ func PGenesisDesign(ctx context.Context) (context.Context, error) {
 		return ctx, e(err, "")
 	}
 
-	switch d, b, err := launch.GenesisDesignFromFile(designfile, enc); {
+	switch d, b, err := GenesisDesignFromFile(designfile, enc); {
 	case err != nil:
 		return ctx, e(err, "")
 	default:

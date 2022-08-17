@@ -10,7 +10,6 @@ import (
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
 	"github.com/spikeekips/mitum/launch"
-	"github.com/spikeekips/mitum/launch2"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/logging"
@@ -27,24 +26,24 @@ type ImportCommand struct { //nolint:govet //...
 
 func (cmd *ImportCommand) Run(pctx context.Context) error {
 	var log *logging.Logging
-	if err := ps.LoadFromContextOK(pctx, launch2.LoggingContextKey, &log); err != nil {
+	if err := ps.LoadFromContextOK(pctx, launch.LoggingContextKey, &log); err != nil {
 		return err
 	}
 
 	cmd.log = log.Log()
 
-	pctx = context.WithValue(pctx, launch2.DesignFileContextKey, cmd.Design) //revive:disable-line:modifies-parameter
+	pctx = context.WithValue(pctx, launch.DesignFileContextKey, cmd.Design) //revive:disable-line:modifies-parameter
 
-	pps := launch2.DefaultINITPS()
+	pps := launch.DefaultINITPS()
 	_ = pps.SetLogging(log)
 
-	_ = pps.POK(launch2.PNameDesign).
-		PostRemoveOK(launch2.PNameGenesisDesign)
+	_ = pps.POK(launch.PNameDesign).
+		PostRemoveOK(launch.PNameGenesisDesign)
 
 	_ = pps.
-		RemoveOK(launch2.PNameGenerateGenesis)
+		RemoveOK(launch.PNameGenerateGenesis)
 
-	_ = pps.AddOK(pnameImportBlocks, cmd.importBlocks, nil, launch2.PNameStorage)
+	_ = pps.AddOK(pnameImportBlocks, cmd.importBlocks, nil, launch.PNameStorage)
 
 	cmd.log.Debug().Interface("process", pps.Verbose()).Msg("process ready")
 
@@ -63,7 +62,7 @@ func (cmd *ImportCommand) Run(pctx context.Context) error {
 func (cmd *ImportCommand) importBlocks(ctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to import blocks")
 
-	last, err := launch2.LastHeightOfLocalFS(ctx, cmd.From)
+	last, err := launch.LastHeightOfLocalFS(ctx, cmd.From)
 	if err != nil {
 		return ctx, e(err, "")
 	}
@@ -78,19 +77,19 @@ func (cmd *ImportCommand) importBlocks(ctx context.Context) (context.Context, er
 	var pool *isaacdatabase.TempPool
 
 	if err := ps.LoadsFromContextOK(ctx,
-		launch2.EncodersContextKey, &encs,
-		launch2.EncoderContextKey, &enc,
-		launch2.DesignContextKey, &design,
-		launch2.LocalContextKey, &local,
-		launch2.NodePolicyContextKey, &policy,
-		launch2.CenterDatabaseContextKey, &db,
-		launch2.PermanentDatabaseContextKey, &perm,
-		launch2.PoolDatabaseContextKey, &pool,
+		launch.EncodersContextKey, &encs,
+		launch.EncoderContextKey, &enc,
+		launch.DesignContextKey, &design,
+		launch.LocalContextKey, &local,
+		launch.NodePolicyContextKey, &policy,
+		launch.CenterDatabaseContextKey, &db,
+		launch.PermanentDatabaseContextKey, &perm,
+		launch.PoolDatabaseContextKey, &pool,
 	); err != nil {
 		return ctx, e(err, "")
 	}
 
-	if err := launch2.ImportBlocks(
+	if err := launch.ImportBlocks(
 		cmd.From,
 		design.Storage.Base,
 		base.GenesisHeight,
