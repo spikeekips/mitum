@@ -122,7 +122,7 @@ func (cmd *NetworkClientCommand) Run(pctx context.Context) error {
 
 	var header isaac.NetworkHeader
 	if err := encoder.Decode(cmd.enc, []byte(cmd.Header), &header); err != nil {
-		return err
+		return errors.WithMessage(err, "failed to load header")
 	}
 
 	if cmd.DryRun {

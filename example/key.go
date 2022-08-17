@@ -21,6 +21,10 @@ type KeyNewCommand struct {
 }
 
 func (cmd *KeyNewCommand) Run(pctx context.Context) error {
+	if _, err := cmd.prepare(pctx); err != nil {
+		return err
+	}
+
 	cmd.log.Debug().
 		Str("seed", cmd.Seed).
 		Msg("flags")
@@ -80,13 +84,13 @@ type KeyLoadCommand struct {
 }
 
 func (cmd *KeyLoadCommand) Run(pctx context.Context) error {
-	cmd.log.Debug().
-		Str("key_string", cmd.KeyString).
-		Msg("flags")
-
 	if _, err := cmd.prepare(pctx); err != nil {
 		return err
 	}
+
+	cmd.log.Debug().
+		Str("key_string", cmd.KeyString).
+		Msg("flags")
 
 	if len(cmd.KeyString) < 1 {
 		return errors.Errorf("empty key string")
@@ -161,6 +165,10 @@ type KeySignCommand struct {
 }
 
 func (cmd *KeySignCommand) Run(pctx context.Context) error {
+	if err := cmd.prepare(pctx); err != nil {
+		return err
+	}
+
 	cmd.log.Debug().
 		Str("privatekey", cmd.KeyString).
 		Str("network_id", cmd.NetworkID).
@@ -171,10 +179,6 @@ func (cmd *KeySignCommand) Run(pctx context.Context) error {
 	defer func() {
 		_ = cmd.Body.Close()
 	}()
-
-	if err := cmd.prepare(pctx); err != nil {
-		return err
-	}
 
 	var elem, ptr interface{}
 
