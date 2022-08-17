@@ -597,7 +597,7 @@ func (t *testErrgroupWorker) TestDeadlineError() {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
-			case <-time.After(time.Millisecond * 900):
+			case <-time.After(time.Second * 10):
 				atomic.AddUint64(&called, 1)
 			}
 
