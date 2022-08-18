@@ -1,6 +1,7 @@
 package isaacstates
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -13,7 +14,8 @@ import (
 type JoiningHandler struct {
 	*baseHandler
 	lastManifest         func() (base.Manifest, bool, error)
-	joinMemberlist       func() error
+	joinMemberlistf      func(context.Context, base.Suffrage) error
+	leaveMemberlistf     func(time.Duration) error
 	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc
 	waitFirstVoteproof   time.Duration
 	newvoteproofLock     sync.Mutex
@@ -30,7 +32,8 @@ func NewNewJoiningHandlerType(
 	lastManifest func() (base.Manifest, bool, error),
 	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc,
 	voteFunc func(base.Ballot) (bool, error),
-	joinMemberlist func() error,
+	joinMemberlistf func(context.Context, base.Suffrage) error,
+	leaveMemberlistf func(time.Duration) error,
 ) *NewJoiningHandlerType {
 	baseHandler := newBaseHandler(StateJoining, local, policy, proposalSelector)
 
@@ -44,7 +47,8 @@ func NewNewJoiningHandlerType(
 			lastManifest:         lastManifest,
 			waitFirstVoteproof:   policy.IntervalBroadcastBallot()*2 + policy.WaitPreparingINITBallot(),
 			nodeInConsensusNodes: nodeInConsensusNodes,
-			joinMemberlist:       joinMemberlist,
+			joinMemberlistf:      joinMemberlistf,
+			leaveMemberlistf:     leaveMemberlistf,
 		},
 	}
 }
@@ -55,7 +59,8 @@ func (h *NewJoiningHandlerType) new() (handler, error) {
 		lastManifest:         h.lastManifest,
 		waitFirstVoteproof:   h.waitFirstVoteproof,
 		nodeInConsensusNodes: h.nodeInConsensusNodes,
-		joinMemberlist:       h.joinMemberlist,
+		joinMemberlistf:      h.joinMemberlistf,
+		leaveMemberlistf:     h.leaveMemberlistf,
 	}, nil
 }
 
@@ -106,21 +111,24 @@ func (st *JoiningHandler) enter(i switchContext) (func(), error) {
 	case suf == nil:
 		return nil, newBrokenSwitchContext(StateJoining, errors.Errorf("empty suffrage"))
 	case !found:
+		if err := st.leaveMemberlistf(time.Second); err != nil {
+			st.Log().Error().Err(err).Msg("failed to leave memberilst; ignored")
+		}
+
 		st.Log().Debug().Msg("local not in consensus nodes; moves to syncing")
 
 		return nil, newSyncingSwitchContext(StateEmpty, manifest.Height())
-	case suf.Len() < 2: //nolint:gomnd //...
+	case suf.Exists(st.local.Address()) && suf.Len() < 2: //nolint:gomnd // local is alone in suffrage node
 		st.Log().Debug().Msg("local alone in consensus nodes; will not wait new voteproof")
 
 		st.waitFirstVoteproof = 0
 	default:
-		// NOTE if not joined yet, join first
-		// FIXME if failed to join, retry
-		if err := st.joinMemberlist(); err != nil {
-			st.Log().Error().Err(err).Msg("failed to join memberlist; ignored")
+		switch err := st.joinMemberlist(suf); {
+		case err != nil:
+			st.Log().Error().Err(err).Msg("failed to join memberlist")
+		default:
+			st.Log().Debug().Msg("joined to memberlist")
 		}
-
-		st.Log().Debug().Msg("joined to memberlist")
 	}
 
 	return func() {
@@ -422,6 +430,25 @@ func (st *JoiningHandler) nextBlock(avp base.ACCEPTVoteproof) {
 	}
 
 	l.Debug().Interface("ballot", bl).Msg("next init ballot broadcasted")
+}
+
+func (st *JoiningHandler) joinMemberlist(suf base.Suffrage) error {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-st.ctx.Done():
+			return st.ctx.Err()
+		case <-ticker.C:
+			switch err := st.joinMemberlistf(st.ctx, suf); {
+			case err == nil:
+				return nil
+			case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
+				return nil
+			}
+		}
+	}
 }
 
 type joiningSwitchContext struct {

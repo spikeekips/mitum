@@ -20,6 +20,8 @@ import (
 	"github.com/spikeekips/mitum/util/logging"
 )
 
+var ErrNotYetJoined = util.NewError("not yet joined")
+
 type Memberlist struct {
 	local Node
 	enc   *jsonenc.Encoder
@@ -34,6 +36,7 @@ type Memberlist struct {
 	l               sync.RWMutex
 	joinedLock      sync.RWMutex
 	isJoined        bool
+	isjoining       bool
 }
 
 func NewMemberlist(
@@ -79,23 +82,23 @@ func (srv *Memberlist) Join(cis []quicstream.UDPConnInfo) error {
 	if _, found := util.CheckSliceDuplicated(cis, func(_ interface{}, i int) string {
 		return cis[i].UDPAddr().String()
 	}); found {
-		return e(nil, "duplicated join url found")
+		return e(nil, "duplicated conninfo found")
 	}
 
 	filtered := util.FilterSlices(cis, func(_ interface{}, i int) bool {
 		return cis[i].UDPAddr().String() != srv.local.UDPAddr().String()
 	})
 
-	stringurls := make([]string, len(filtered))
+	fcis := make([]string, len(filtered))
 
 	for i := range filtered {
 		ci := filtered[i].(quicstream.UDPConnInfo) //nolint:forcetypeassert //...
 
-		stringurls[i] = ci.UDPAddr().String()
+		fcis[i] = ci.UDPAddr().String()
 		srv.cicache.Set(ci.UDPAddr().String(), ci, nil)
 	}
 
-	m, created, err := func() (*memberlist.Memberlist, bool, error) {
+	_, created, err := func() (*memberlist.Memberlist, bool, error) {
 		srv.l.Lock()
 		defer srv.l.Unlock()
 
@@ -116,26 +119,63 @@ func (srv *Memberlist) Join(cis []quicstream.UDPConnInfo) error {
 		return err
 	}
 
-	if created && len(stringurls) < 1 {
+	if created && len(fcis) < 1 {
 		return nil
 	}
 
-	l := srv.Log().With().Strs("urls", stringurls).Logger()
-	l.Debug().Msg("trying to join")
+	if func() bool {
+		srv.l.RLock()
+		defer srv.l.RUnlock()
 
-	switch joined, err := m.Join(stringurls); {
-	case err != nil:
-		l.Error().Err(err).Msg("failed to join")
-		return e(err, "")
-	case joined < 1:
-		l.Debug().Msg("did not join to any nodes")
-
-		return e(nil, "nothing joined")
+		return srv.isjoining
+	}() {
+		return nil
 	}
 
-	l.Debug().Msg("joined")
+	return srv.join(fcis)
+}
 
-	return nil
+func (srv *Memberlist) EnsureJoin(cis []quicstream.UDPConnInfo) error {
+	if srv.IsJoined() {
+		return nil
+	}
+
+	return srv.Join(cis)
+}
+
+func (srv *Memberlist) join(cis []string) error {
+	e := util.StringErrorFunc("failed to join")
+
+	srv.l.Lock()
+	srv.isjoining = true
+	srv.l.Unlock()
+
+	defer func() {
+		srv.l.Lock()
+		defer srv.l.Unlock()
+
+		srv.isjoining = false
+	}()
+
+	srv.l.Lock()
+	defer srv.l.Unlock()
+	l := srv.Log().With().Strs("cis", cis).Logger()
+	l.Debug().Msg("trying to join")
+
+	switch joined, err := srv.m.Join(cis); {
+	case err != nil:
+		l.Error().Err(err).Msg("failed to join")
+
+		return e(err, "")
+	case joined < 1, !srv.IsJoined():
+		l.Debug().Msg("did not join to any nodes")
+
+		return e(ErrNotYetJoined.Call(), "")
+	default:
+		l.Debug().Msg("joined")
+
+		return nil
+	}
 }
 
 func (srv *Memberlist) Leave(timeout time.Duration) error {

@@ -175,7 +175,12 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 		return ctx, e(err, "")
 	}
 
-	joinMemberlistForJoiningStatef, err := joinMemberlistForJoiningStateFunc(ctx)
+	joinMemberlistForStateHandlerf, err := joinMemberlistForStateHandlerFunc(ctx)
+	if err != nil {
+		return ctx, e(err, "")
+	}
+
+	leaveMemberlistForStateHandlerf, err := leaveMemberlistForStateHandlerFunc(ctx)
 	if err != nil {
 		return ctx, e(err, "")
 	}
@@ -189,7 +194,8 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 
 	syncinghandler := isaacstates.NewNewSyncingHandlerType(
 		local, policy, proposalSelector, newsyncerf, nodeInConsensusNodesf,
-		joinMemberlistForJoiningStatef,
+		joinMemberlistForStateHandlerf,
+		leaveMemberlistForStateHandlerf,
 	)
 	syncinghandler.SetWhenFinished(func(base.Height) {
 		ballotbox.Count()
@@ -216,7 +222,7 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 			isaacstates.StateJoining,
 			isaacstates.NewNewJoiningHandlerType(
 				local, policy, proposalSelector, getLastManifestf, nodeInConsensusNodesf,
-				voteFunc, joinMemberlistForJoiningStatef,
+				voteFunc, joinMemberlistForStateHandlerf, leaveMemberlistForStateHandlerf,
 			),
 		).
 		SetHandler(
@@ -660,30 +666,62 @@ func setLastVoteproofsfFromBlockReaderFunc(
 	}, nil
 }
 
-func joinMemberlistForJoiningStateFunc(pctx context.Context) (
-	func() error,
+func joinMemberlistForStateHandlerFunc(pctx context.Context) (
+	func(context.Context, base.Suffrage) error,
 	error,
 ) {
 	var discoveries []quicstream.UDPConnInfo
-	var memberlist *quicmemberlist.Memberlist
+	var m *quicmemberlist.Memberlist
 
 	if err := ps.LoadsFromContextOK(pctx,
 		DiscoveryContextKey, &discoveries,
-		MemberlistContextKey, &memberlist,
+		MemberlistContextKey, &m,
 	); err != nil {
 		return nil, err
 	}
 
-	return func() error {
+	return func(ctx context.Context, suf base.Suffrage) error {
 		if len(discoveries) < 1 {
 			return nil
 		}
 
-		if memberlist.IsJoined() {
+		if m.IsJoined() {
 			return nil
 		}
 
-		return memberlist.Join(discoveries)
+		return util.Retry(
+			ctx,
+			func() (bool, error) {
+				if err := m.EnsureJoin(discoveries); err != nil {
+					if !errors.Is(err, quicmemberlist.ErrNotYetJoined) {
+						return false, err
+					}
+				}
+
+				return !m.IsJoined(), nil // NOTE keep trying until joined to remotes
+			},
+			-1,
+			time.Second,
+		)
+	}, nil
+}
+
+func leaveMemberlistForStateHandlerFunc(pctx context.Context) (
+	func(time.Duration) error,
+	error,
+) {
+	var m *quicmemberlist.Memberlist
+	if err := ps.LoadFromContextOK(pctx, MemberlistContextKey, &m); err != nil {
+		return nil, err
+	}
+
+	return func(timeout time.Duration) error {
+		switch {
+		case m.MembersLen() < 1:
+			return nil
+		default:
+			return m.Leave(timeout)
+		}
 	}, nil
 }
 

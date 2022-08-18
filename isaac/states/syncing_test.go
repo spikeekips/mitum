@@ -1,6 +1,7 @@
 package isaacstates
 
 import (
+	"context"
 	"sync"
 	"testing"
 	"time"
@@ -38,7 +39,8 @@ func (t *testSyncingHandler) newState(finishch chan base.Height) (*SyncingHandle
 			return syncer, nil
 		},
 		nil,
-		func() error { return nil },
+		func(context.Context, base.Suffrage) error { return nil },
+		func(time.Duration) error { return nil },
 	)
 	_ = newhandler.SetLogging(logging.TestNilLogging)
 	_ = newhandler.setTimers(util.NewTimers([]util.TimerID{
@@ -553,7 +555,9 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 		defer closef()
 
 		st.nodeInConsensusNodes = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
-			return nil, false, nil
+			suf, _ := isaac.NewSuffrage([]base.Node{base.RandomNode()})
+
+			return suf, false, nil
 		}
 
 		sctxch := make(chan switchContext, 1)
@@ -582,8 +586,8 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 
 		select {
 		case <-time.After(time.Second * 1):
-		case <-sctxch:
-			t.NoError(errors.Errorf("unexpected to switch joining state"))
+		case sctx := <-sctxch:
+			t.NoError(errors.Errorf("unexpected to switch state, %v", sctx.next()))
 		}
 	})
 

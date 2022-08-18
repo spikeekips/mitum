@@ -101,13 +101,13 @@ func (t *testMemberlist) newServersForJoining(
 
 	quicstreamsrv := quicstream.NewServer(laddr, tlsconfig, nil, handler)
 
-	memberlistconfig := BasicMemberlistConfig(util.UUID().String(), laddr, laddr)
+	local, err := NewNode(laddr.String(), laddr, node, base.NewMPrivatekey().Publickey(), "1.2.3.4:4321", true)
+	t.NoError(err)
+
+	memberlistconfig := BasicMemberlistConfig(local.Name(), laddr, laddr)
 	memberlistconfig.Transport = transport
 	memberlistconfig.Events = NewEventsDelegate(t.enc, whenJoined, whenLeft)
 	memberlistconfig.Alive = NewAliveDelegate(t.enc, laddr, func(Node) error { return nil }, func(Node) error { return nil })
-
-	local, err := NewNode(laddr.String(), laddr, node, base.NewMPrivatekey().Publickey(), "1.2.3.4:4321", true)
-	t.NoError(err)
 
 	memberlistconfig.Delegate = NewDelegate(local, nil, nil)
 
@@ -372,7 +372,9 @@ func (t *testMemberlist) TestLocalJoinToRemoteButFailedToChallenge() {
 	defer rsrv.Stop()
 
 	<-time.After(time.Second)
-	t.NoError(lsrv.Join([]quicstream.UDPConnInfo{rci}))
+	err := lsrv.Join([]quicstream.UDPConnInfo{rci})
+	t.Error(err)
+	t.True(errors.Is(err, ErrNotYetJoined))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -437,7 +439,9 @@ func (t *testMemberlist) TestLocalJoinToRemoteButNotAllowed() {
 	defer rsrv.Stop()
 
 	<-time.After(time.Second)
-	t.NoError(lsrv.Join([]quicstream.UDPConnInfo{rci}))
+	err := lsrv.Join([]quicstream.UDPConnInfo{rci})
+	t.Error(err)
+	t.True(errors.Is(err, ErrNotYetJoined))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -867,13 +871,43 @@ func (t *testMemberlist) TestLocalJoinToRemoteWithInvalidNode() {
 	defer rsrv.Stop()
 
 	<-time.After(time.Second)
-	t.NoError(lsrv.Join([]quicstream.UDPConnInfo{rci}))
+	err = lsrv.Join([]quicstream.UDPConnInfo{rci})
+	t.Error(err)
+	t.True(errors.Is(err, ErrNotYetJoined))
 
 	select {
 	case <-time.After(time.Second * 2):
 	case <-ljoinedch:
 		t.NoError(errors.Errorf("unexpected; local joined to remote"))
 	}
+}
+
+func (t *testMemberlist) TestJoinWithDeadNode() {
+	lci := t.newConnInfo()
+	lnode := base.RandomAddress("")
+	rci := t.newConnInfo()
+
+	addrs := []*net.UDPAddr{lci.UDPAddr(), rci.UDPAddr()}
+	sort.Slice(addrs, func(i, j int) bool {
+		return strings.Compare(addrs[i].String(), addrs[j].String()) < 0
+	})
+
+	lqsrv, lsrv := t.newServersForJoining(
+		lnode,
+		lci,
+		func(node Node) {},
+		nil,
+	)
+
+	t.NoError(lqsrv.Start())
+	defer lqsrv.Stop()
+
+	t.NoError(lsrv.Start())
+	defer lsrv.Stop()
+
+	err := lsrv.Join([]quicstream.UDPConnInfo{rci})
+	t.Error(err)
+	t.False(errors.Is(err, ErrNotYetJoined))
 }
 
 func TestMemberlist(t *testing.T) {

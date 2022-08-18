@@ -156,7 +156,7 @@ func memberlistConfig(ctx context.Context, localnode quicmemberlist.Node) (*memb
 	}
 
 	config := quicmemberlist.BasicMemberlistConfig(
-		fsnodeinfo.ID(),
+		localnode.Name(),
 		design.Network.Bind,
 		design.Network.Publish(),
 	)

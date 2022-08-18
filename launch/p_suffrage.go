@@ -136,46 +136,7 @@ func PPatchLastSuffrageProofWatcherWithMemberlist(ctx context.Context) (context.
 	}
 
 	watcher.SetWhenUpdated(func(ctx context.Context, proof base.SuffrageProof, st base.State) {
-		if len(discoveries) < 1 {
-			return
-		}
-
-		switch _, found, err := isaac.IsNodeInLastConsensusNodes(local, proof, st); {
-		case err != nil:
-			log.Log().Error().Err(err).Msg("failed to check node in consensus nodes")
-
-			return
-		case !found:
-			log.Log().Debug().Msg("local is not in consensus nodes; will leave from memberlist")
-
-			if err := memberlist.Leave(time.Second * 30); err != nil { //nolint:gomnd // long enough to leave
-				log.Log().Error().Err(err).Msg("failed to leave from memberlist")
-			}
-
-			return
-		case memberlist.IsJoined():
-			return
-		}
-
-		_ = util.Retry(
-			ctx,
-			func() (bool, error) {
-				l := log.Log().With().Interface("discoveries", discoveries).Logger()
-
-				switch err := memberlist.Join(discoveries); {
-				case err != nil:
-					l.Error().Err(err).Msg("trying to join to memberlist, but failed")
-
-					return true, err
-				default:
-					l.Debug().Msg("joined to memberlist")
-
-					return false, nil
-				}
-			},
-			333, //nolint:gomnd // long enough
-			time.Second,
-		)
+		// NOTE set blank
 	})
 
 	return ctx, nil

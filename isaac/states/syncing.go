@@ -21,7 +21,8 @@ type SyncingHandler struct {
 	newSyncer            func(base.Height) (isaac.Syncer, error)
 	stuckcancel          func()
 	whenFinishedf        func(base.Height)
-	joinMemberlist       func() error
+	joinMemberlistf      func(context.Context, base.Suffrage) error
+	leaveMemberlistf     func(time.Duration) error
 	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc
 	waitStuckInterval    *util.Locked
 	finishedLock         sync.RWMutex
@@ -38,7 +39,8 @@ func NewNewSyncingHandlerType(
 	proposalSelector isaac.ProposalSelector,
 	newSyncer func(base.Height) (isaac.Syncer, error),
 	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc,
-	joinMemberlist func() error,
+	joinMemberlistf func(context.Context, base.Suffrage) error,
+	leaveMemberlistf func(time.Duration) error,
 ) *NewSyncingHandlerType {
 	if nodeInConsensusNodes == nil {
 		//revive:disable-next-line:modifies-parameter
@@ -54,7 +56,8 @@ func NewNewSyncingHandlerType(
 			waitStuckInterval:    util.NewLocked(policy.IntervalBroadcastBallot()*2 + policy.WaitPreparingINITBallot()),
 			whenFinishedf:        func(base.Height) {},
 			nodeInConsensusNodes: nodeInConsensusNodes,
-			joinMemberlist:       joinMemberlist,
+			joinMemberlistf:      joinMemberlistf,
+			leaveMemberlistf:     leaveMemberlistf,
 		},
 	}
 }
@@ -66,7 +69,8 @@ func (h *NewSyncingHandlerType) new() (handler, error) {
 		waitStuckInterval:    h.waitStuckInterval,
 		whenFinishedf:        h.whenFinishedf,
 		nodeInConsensusNodes: h.nodeInConsensusNodes,
-		joinMemberlist:       h.joinMemberlist,
+		joinMemberlistf:      h.joinMemberlistf,
+		leaveMemberlistf:     h.leaveMemberlistf,
 	}, nil
 }
 
@@ -152,7 +156,7 @@ func (st *SyncingHandler) newVoteproof(vp base.Voteproof) error {
 	return nil
 }
 
-func (st *SyncingHandler) checkFinished(vp base.Voteproof) (inconsensusnodes bool, _ error) {
+func (st *SyncingHandler) checkFinished(vp base.Voteproof) (done bool, _ error) {
 	if vp == nil {
 		return false, nil
 	}
@@ -172,24 +176,11 @@ func (st *SyncingHandler) checkFinished(vp base.Voteproof) (inconsensusnodes boo
 
 	top, isfinished := st.syncer.IsFinished()
 
-	switch _, found, err := st.nodeInConsensusNodes(st.local, top+1); {
-	case err != nil:
-		st.Log().Error().Err(err).Msg("failed to get consensus nodes after syncer finished")
-
-		return false, err
-	case !found:
-		st.Log().Debug().Msg("local is not in consensus nodes after syncer finished; keep syncing")
-
-		return false, nil
-	default:
-		go func() {
-			switch err := st.joinMemberlist(); {
-			case err != nil:
-				st.Log().Debug().Msg("local is in consensus nodes after syncer finished; but failed to join memberlist")
-			default:
-				st.Log().Debug().Msg("local is in consensus nodes after syncer finished; joined memberlist")
-			}
-		}()
+	if isfinished {
+		joined, err := st.checkAndJoinMemberlist(top + 1)
+		if err != nil || !joined {
+			return false, err
+		}
 	}
 
 	switch {
@@ -244,11 +235,10 @@ end:
 
 			st.whenFinishedf(top)
 
-			var inconsensusnodes bool
-
-			switch inconsensusnodes, err = st.checkFinished(st.lastVoteproofs().Cap()); {
+			var done bool
+			switch done, err = st.checkFinished(st.lastVoteproofs().Cap()); {
 			case err != nil:
-			case !inconsensusnodes:
+			case !done:
 				st.cancelstuck()
 
 				continue end
@@ -325,6 +315,39 @@ func (st *SyncingHandler) waitStuck() time.Duration {
 	i, _ := st.waitStuckInterval.Value()
 
 	return i.(time.Duration) //nolint:forcetypeassert //...
+}
+
+func (st *SyncingHandler) checkAndJoinMemberlist(height base.Height) (joined bool, _ error) {
+	switch suf, found, err := st.nodeInConsensusNodes(st.local, height); {
+	case err != nil:
+		st.Log().Error().Err(err).Msg("failed to get consensus nodes after syncer finished")
+
+		return false, err
+	case suf == nil:
+		return false, newBrokenSwitchContext(StateSyncing, errors.Errorf("empty suffrage"))
+	case !found:
+		if err := st.leaveMemberlistf(time.Second); err != nil {
+			st.Log().Error().Err(err).Msg("failed to leave memberilst; ignored")
+		}
+
+		st.Log().Debug().Msg("local is not in consensus nodes after syncer finished; keep syncing")
+
+		return false, nil
+	case suf.Exists(st.local.Address()) && suf.Len() < 2: //nolint:gomnd // local is alone in suffrage node
+	default:
+		ctx, cancel := context.WithTimeout(st.ctx, time.Second*10) //nolint:gomnd //...
+		defer cancel()
+
+		if err := st.joinMemberlistf(ctx, suf); err != nil {
+			st.Log().Debug().Msg("local is in consensus nodes after syncer finished; but failed to join memberlist")
+
+			return false, nil
+		}
+
+		st.Log().Debug().Msg("local is in consensus nodes after syncer finished; joined memberlist")
+	}
+
+	return true, nil
 }
 
 type syncingSwitchContext struct { //nolint:errname //...
