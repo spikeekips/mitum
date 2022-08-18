@@ -18,13 +18,13 @@ type NewBootingHandlerType struct {
 
 func NewNewBootingHandlerType(
 	local base.LocalNode,
-	policy *isaac.NodePolicy,
+	params *isaac.LocalParams,
 	lastManifest func() (base.Manifest, bool, error),
 	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc,
 ) *NewBootingHandlerType {
 	return &NewBootingHandlerType{
 		BootingHandler: &BootingHandler{
-			baseHandler:          newBaseHandler(StateBooting, local, policy, nil),
+			baseHandler:          newBaseHandler(StateBooting, local, params, nil),
 			lastManifest:         lastManifest,
 			nodeInConsensusNodes: nodeInConsensusNodes,
 		},

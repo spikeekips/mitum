@@ -12,22 +12,22 @@ import (
 
 type BaseTestBallots struct {
 	suite.Suite
-	Local      LocalNode
-	NodePolicy *NodePolicy
-	PRPool     *proposalPool
+	Local       LocalNode
+	LocalParams *LocalParams
+	PRPool      *proposalPool
 }
 
 func (t *BaseTestBallots) SetupTest() {
 	local := RandomLocalNode()
-	nodePolicy := DefaultNodePolicy(base.RandomNetworkID())
-	nodePolicy.SetThreshold(base.Threshold(100))
+	params := DefaultLocalParams(base.RandomNetworkID())
+	params.SetThreshold(base.Threshold(100))
 
 	t.Local = local
-	t.NodePolicy = nodePolicy
+	t.LocalParams = params
 
 	t.PRPool = newProposalPool(func(point base.Point) base.ProposalSignedFact {
 		fs := NewProposalSignedFact(NewProposalFact(point, local.Address(), []util.Hash{valuehash.RandomSHA256()}))
-		_ = fs.Sign(local.Privatekey(), nodePolicy.NetworkID())
+		_ = fs.Sign(local.Privatekey(), params.NetworkID())
 
 		return fs
 	})
@@ -59,7 +59,7 @@ func (t *BaseTestBallots) NewProposalFact(point base.Point, local LocalNode, ops
 
 func (t *BaseTestBallots) NewProposal(local LocalNode, fact ProposalFact) ProposalSignedFact {
 	fs := NewProposalSignedFact(fact)
-	t.NoError(fs.Sign(local.Privatekey(), t.NodePolicy.NetworkID()))
+	t.NoError(fs.Sign(local.Privatekey(), t.LocalParams.NetworkID()))
 
 	return fs
 }
@@ -81,7 +81,7 @@ func (t *BaseTestBallots) NewINITVoteproof(
 	for i := range suffrage {
 		n := suffrage[i]
 		fs := NewINITBallotSignedFact(n.Address(), fact)
-		if err := fs.Sign(n.Privatekey(), t.NodePolicy.NetworkID()); err != nil {
+		if err := fs.Sign(n.Privatekey(), t.LocalParams.NetworkID()); err != nil {
 			return INITVoteproof{}, err
 		}
 
@@ -92,7 +92,7 @@ func (t *BaseTestBallots) NewINITVoteproof(
 	vp.SetResult(base.VoteResultMajority).
 		SetMajority(fact).
 		SetSignedFacts(sfs).
-		SetThreshold(t.NodePolicy.Threshold()).
+		SetThreshold(t.LocalParams.Threshold()).
 		Finish()
 
 	return vp, nil
@@ -115,7 +115,7 @@ func (t *BaseTestBallots) NewACCEPTVoteproof(
 	for i := range suffrage {
 		n := suffrage[i]
 		fs := NewACCEPTBallotSignedFact(n.Address(), fact)
-		if err := fs.Sign(n.Privatekey(), t.NodePolicy.NetworkID()); err != nil {
+		if err := fs.Sign(n.Privatekey(), t.LocalParams.NetworkID()); err != nil {
 			return ACCEPTVoteproof{}, err
 		}
 
@@ -126,7 +126,7 @@ func (t *BaseTestBallots) NewACCEPTVoteproof(
 	vp.SetResult(base.VoteResultMajority).
 		SetMajority(fact).
 		SetSignedFacts(sfs).
-		SetThreshold(t.NodePolicy.Threshold()).
+		SetThreshold(t.LocalParams.Threshold()).
 		Finish()
 
 	return vp, nil

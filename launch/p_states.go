@@ -38,11 +38,11 @@ var (
 )
 
 func PBallotbox(ctx context.Context) (context.Context, error) {
-	var policy base.NodePolicy
+	var params base.LocalParams
 	var db isaac.Database
 
 	if err := ps.LoadsFromContextOK(ctx,
-		NodePolicyContextKey, &policy,
+		LocalParamsContextKey, &params,
 		CenterDatabaseContextKey, &db,
 	); err != nil {
 		return ctx, err
@@ -52,7 +52,7 @@ func PBallotbox(ctx context.Context) (context.Context, error) {
 		func(blockheight base.Height) (base.Suffrage, bool, error) {
 			return isaac.GetSuffrageFromDatabase(db, blockheight)
 		},
-		policy.Threshold(),
+		params.Threshold(),
 	)
 
 	ctx = context.WithValue(ctx, BallotboxContextKey, ballotbox) //revive:disable-line:modifies-parameter
@@ -134,7 +134,7 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 
 	var log *logging.Logging
 	var local base.LocalNode
-	var policy *isaac.NodePolicy
+	var params *isaac.LocalParams
 	var db isaac.Database
 	var states *isaacstates.States
 	var nodeinfo *isaacnetwork.NodeInfoUpdater
@@ -148,7 +148,7 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 	if err := ps.LoadsFromContextOK(ctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
-		NodePolicyContextKey, &policy,
+		LocalParamsContextKey, &params,
 		CenterDatabaseContextKey, &db,
 		StatesContextKey, &states,
 		NodeInfoContextKey, &nodeinfo,
@@ -201,7 +201,7 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 		whenNewBlockSavedInConsensusStatef = WhenNewBlockSavedInConsensusStateFunc(ballotbox, db, nodeinfo)
 	}
 
-	newsyncerf, err := newSyncerFunc(ctx, policy, db, lvps, whenNewBlockSavedInSyncingStatef)
+	newsyncerf, err := newSyncerFunc(ctx, params, db, lvps, whenNewBlockSavedInSyncingStatef)
 	if err != nil {
 		return ctx, e(err, "")
 	}
@@ -214,7 +214,7 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 	})
 
 	syncinghandler := isaacstates.NewNewSyncingHandlerType(
-		local, policy, proposalSelector, newsyncerf, nodeInConsensusNodesf,
+		local, params, proposalSelector, newsyncerf, nodeInConsensusNodesf,
 		joinMemberlistForStateHandlerf,
 		leaveMemberlistForStateHandlerf,
 		whenNewBlockSavedInSyncingStatef,
@@ -224,24 +224,24 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 	})
 
 	states.
-		SetHandler(isaacstates.StateBroken, isaacstates.NewNewBrokenHandlerType(local, policy)).
-		SetHandler(isaacstates.StateStopped, isaacstates.NewNewStoppedHandlerType(local, policy)).
+		SetHandler(isaacstates.StateBroken, isaacstates.NewNewBrokenHandlerType(local, params)).
+		SetHandler(isaacstates.StateStopped, isaacstates.NewNewStoppedHandlerType(local, params)).
 		SetHandler(
 			isaacstates.StateBooting,
-			isaacstates.NewNewBootingHandlerType(local, policy,
+			isaacstates.NewNewBootingHandlerType(local, params,
 				getLastManifestf, nodeInConsensusNodesf),
 		).
 		SetHandler(
 			isaacstates.StateJoining,
 			isaacstates.NewNewJoiningHandlerType(
-				local, policy, proposalSelector, getLastManifestf, nodeInConsensusNodesf,
+				local, params, proposalSelector, getLastManifestf, nodeInConsensusNodesf,
 				voteFunc, joinMemberlistForStateHandlerf, leaveMemberlistForStateHandlerf,
 			),
 		).
 		SetHandler(
 			isaacstates.StateConsensus,
 			isaacstates.NewNewConsensusHandlerType(
-				local, policy, proposalSelector,
+				local, params, proposalSelector,
 				getManifestf, nodeInConsensusNodesf, voteFunc, whenNewBlockSavedInConsensusStatef,
 				pps,
 			)).
@@ -281,7 +281,7 @@ func BroadcastThruMemberlist(
 
 func newSyncerFunc(
 	pctx context.Context,
-	policy *isaac.NodePolicy,
+	params *isaac.LocalParams,
 	db isaac.Database,
 	lvps *isaacstates.LastVoteproofsHandler,
 	whenNewBlockSavedInSyncingStatef func(base.Height),
@@ -377,7 +377,7 @@ func newSyncerFunc(
 					encs,
 					blockmap,
 					bwdb,
-					policy.NetworkID(),
+					params.NetworkID(),
 				)
 			},
 			prev,
@@ -399,12 +399,12 @@ func newSyncerFunc(
 
 func syncerLastBlockMapFunc(pctx context.Context) (isaacstates.SyncerLastBlockMapFunc, error) {
 	var client *isaacnetwork.QuicstreamClient
-	var policy base.NodePolicy
+	var params base.LocalParams
 	var syncSourcePool *isaac.SyncSourcePool
 
 	if err := ps.LoadsFromContextOK(pctx,
 		QuicstreamClientContextKey, &client,
-		NodePolicyContextKey, &policy,
+		LocalParamsContextKey, &params,
 		SyncSourcePoolContextKey, &syncSourcePool,
 	); err != nil {
 		return nil, err
@@ -417,7 +417,7 @@ func syncerLastBlockMapFunc(pctx context.Context) (isaacstates.SyncerLastBlockMa
 		case err != nil, !updated:
 			return m, updated, err
 		default:
-			if err := m.IsValid(policy.NetworkID()); err != nil {
+			if err := m.IsValid(params.NetworkID()); err != nil {
 				return m, updated, err
 			}
 
@@ -479,12 +479,12 @@ func syncerBlockMapFunc(pctx context.Context) ( //revive:disable-line:cognitive-
 	isaacstates.SyncerBlockMapFunc, error,
 ) {
 	var client *isaacnetwork.QuicstreamClient
-	var policy base.NodePolicy
+	var params base.LocalParams
 	var syncSourcePool *isaac.SyncSourcePool
 
 	if err := ps.LoadsFromContextOK(pctx,
 		QuicstreamClientContextKey, &client,
-		NodePolicyContextKey, &policy,
+		LocalParamsContextKey, &params,
 		SyncSourcePoolContextKey, &syncSourcePool,
 	); err != nil {
 		return nil, err
@@ -495,7 +495,7 @@ func syncerBlockMapFunc(pctx context.Context) ( //revive:disable-line:cognitive-
 		case err != nil, !found:
 			return m, found, err
 		default:
-			if err := m.IsValid(policy.NetworkID()); err != nil {
+			if err := m.IsValid(params.NetworkID()); err != nil {
 				return m, true, err
 			}
 
@@ -565,12 +565,12 @@ func syncerBlockMapFunc(pctx context.Context) ( //revive:disable-line:cognitive-
 
 func syncerBlockMapItemFunc(pctx context.Context) (isaacstates.SyncerBlockMapItemFunc, error) {
 	var client *isaacnetwork.QuicstreamClient
-	var policy base.NodePolicy
+	var params base.LocalParams
 	var syncSourcePool *isaac.SyncSourcePool
 
 	if err := ps.LoadsFromContextOK(pctx,
 		QuicstreamClientContextKey, &client,
-		NodePolicyContextKey, &policy,
+		LocalParamsContextKey, &params,
 		SyncSourcePoolContextKey, &syncSourcePool,
 	); err != nil {
 		return nil, err

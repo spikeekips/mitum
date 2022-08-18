@@ -12,24 +12,24 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type testNodePolicy struct {
+type testLocalParams struct {
 	suite.Suite
 }
 
-func (t *testNodePolicy) TestNew() {
+func (t *testLocalParams) TestNew() {
 	networkID := base.RandomNetworkID()
 
-	p := DefaultNodePolicy(networkID)
+	p := DefaultLocalParams(networkID)
 	t.NoError(p.IsValid(networkID))
 
-	_ = (interface{})(p).(base.NodePolicy)
+	_ = (interface{})(p).(base.LocalParams)
 }
 
-func (t *testNodePolicy) TestIsValid() {
+func (t *testLocalParams) TestIsValid() {
 	networkID := base.RandomNetworkID()
 
 	t.Run("network id does not match", func() {
-		p := DefaultNodePolicy(networkID)
+		p := DefaultLocalParams(networkID)
 		err := p.IsValid(base.RandomNetworkID())
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
@@ -39,7 +39,7 @@ func (t *testNodePolicy) TestIsValid() {
 	t.Run("wrong network id", func() {
 		wrongnetworkID := make([]byte, base.MaxNetworkIDLength+1)
 
-		p := DefaultNodePolicy(wrongnetworkID)
+		p := DefaultLocalParams(wrongnetworkID)
 		err := p.IsValid(wrongnetworkID)
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
@@ -47,7 +47,7 @@ func (t *testNodePolicy) TestIsValid() {
 	})
 
 	t.Run("wrong threshold", func() {
-		p := DefaultNodePolicy(networkID)
+		p := DefaultLocalParams(networkID)
 		p.SetThreshold(33)
 
 		err := p.IsValid(networkID)
@@ -57,7 +57,7 @@ func (t *testNodePolicy) TestIsValid() {
 	})
 
 	t.Run("wrong intervalBroadcastBallot", func() {
-		p := DefaultNodePolicy(networkID)
+		p := DefaultLocalParams(networkID)
 		p.SetIntervalBroadcastBallot(-1)
 
 		err := p.IsValid(networkID)
@@ -67,7 +67,7 @@ func (t *testNodePolicy) TestIsValid() {
 	})
 
 	t.Run("wrong waitPreparingINITBallot", func() {
-		p := DefaultNodePolicy(networkID)
+		p := DefaultLocalParams(networkID)
 		p.SetWaitPreparingINITBallot(-1)
 
 		err := p.IsValid(networkID)
@@ -77,7 +77,7 @@ func (t *testNodePolicy) TestIsValid() {
 	})
 
 	t.Run("wrong timeoutRequestProposal", func() {
-		p := DefaultNodePolicy(networkID)
+		p := DefaultLocalParams(networkID)
 		p.SetTimeoutRequestProposal(-1)
 
 		err := p.IsValid(networkID)
@@ -87,7 +87,7 @@ func (t *testNodePolicy) TestIsValid() {
 	})
 
 	t.Run("wrong maxOperationSize", func() {
-		p := DefaultNodePolicy(networkID)
+		p := DefaultLocalParams(networkID)
 		p.SetMaxOperationSize(0)
 
 		err := p.IsValid(networkID)
@@ -97,19 +97,19 @@ func (t *testNodePolicy) TestIsValid() {
 	})
 }
 
-func TestNodePolicy(t *testing.T) {
-	suite.Run(t, new(testNodePolicy))
+func TestLocalParams(t *testing.T) {
+	suite.Run(t, new(testLocalParams))
 }
 
-func TestNodePolicyJSON(tt *testing.T) {
+func TestLocalParamsJSON(tt *testing.T) {
 	t := new(encoder.BaseTestEncode)
 
 	enc := jsonenc.NewEncoder()
 
 	t.Encode = func() (interface{}, []byte) {
-		t.NoError(enc.Add(encoder.DecodeDetail{Hint: NodePolicyHint, Instance: NodePolicy{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: LocalParamsHint, Instance: LocalParams{}}))
 
-		p := DefaultNodePolicy(util.UUID().Bytes())
+		p := DefaultLocalParams(util.UUID().Bytes())
 		p.SetThreshold(base.Threshold(77.7))
 		p.SetIntervalBroadcastBallot(time.Second * 33)
 		p.SetSameMemberLimit(99)
@@ -123,14 +123,14 @@ func TestNodePolicyJSON(tt *testing.T) {
 	}
 
 	t.Decode = func(b []byte) interface{} {
-		var p NodePolicy
+		var p LocalParams
 		t.NoError(enc.Unmarshal(b, &p))
 
 		return &p
 	}
 	t.Compare = func(a, b interface{}) {
-		ap := a.(*NodePolicy)
-		bp := b.(*NodePolicy)
+		ap := a.(*LocalParams)
+		bp := b.(*LocalParams)
 
 		t.True(ap.Hint().Equal(bp.Hint()))
 		t.True(ap.networkID.Equal(bp.networkID))
@@ -146,4 +146,67 @@ func TestNodePolicyJSON(tt *testing.T) {
 	}
 
 	suite.Run(tt, t)
+}
+
+func TestLocalParamsJSONMissing(tt *testing.T) {
+	t := new(encoder.BaseTestEncode)
+	t.SetT(tt)
+
+	enc := jsonenc.NewEncoder()
+
+	t.NoError(enc.Add(encoder.DecodeDetail{Hint: LocalParamsHint, Instance: LocalParams{}}))
+
+	p := DefaultLocalParams(util.UUID().Bytes())
+	p.SetThreshold(p.Threshold() + 3)
+	p.SetIntervalBroadcastBallot(p.IntervalBroadcastBallot() + 3)
+	p.SetWaitPreparingINITBallot(p.WaitPreparingINITBallot() + 3)
+	p.SetTimeoutRequestProposal(p.TimeoutRequestProposal() + 3)
+	p.SetSyncSourceCheckerInterval(p.SyncSourceCheckerInterval() + 3)
+	p.SetValidProposalOperationExpire(p.ValidProposalOperationExpire() + 3)
+	p.SetValidProposalSuffrageOperationsExpire(p.ValidProposalSuffrageOperationsExpire() + 3)
+	p.SetMaxOperationSize(p.MaxOperationSize() + 3)
+	p.SetSameMemberLimit(p.SameMemberLimit() + 3)
+
+	b, err := util.MarshalJSON(&p)
+	t.NoError(err)
+
+	t.T().Log("marshaled:", string(b))
+
+	var m map[string]interface{}
+	t.NoError(util.UnmarshalJSON(b, &m))
+
+	for key := range m {
+		if key == "_hint" {
+			continue
+		}
+
+		nm := map[string]interface{}{}
+		for i := range m {
+			nm[i] = m[i]
+		}
+
+		delete(nm, key)
+
+		mb, err := util.MarshalJSON(nm)
+		t.NoError(err)
+
+		var np LocalParams
+		t.NoError(enc.Unmarshal(mb, &np))
+
+		ub, err := util.MarshalJSON(&np)
+		t.NoError(err)
+
+		var um map[string]interface{}
+		t.NoError(util.UnmarshalJSON(ub, &um))
+
+		for i := range m {
+			if i == key {
+				t.Empty(um[i])
+
+				continue
+			}
+
+			t.Equal(nm[i], um[i], "%s: %v != %v", key, nm[i], um[i])
+		}
+	}
 }

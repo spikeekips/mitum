@@ -71,7 +71,7 @@ func (cmd *ImportCommand) importBlocks(ctx context.Context) (context.Context, er
 	var enc encoder.Encoder
 	var design launch.NodeDesign
 	var local base.LocalNode
-	var policy *isaac.NodePolicy
+	var params *isaac.LocalParams
 	var db isaac.Database
 	var perm isaac.PermanentDatabase
 	var pool *isaacdatabase.TempPool
@@ -81,7 +81,7 @@ func (cmd *ImportCommand) importBlocks(ctx context.Context) (context.Context, er
 		launch.EncoderContextKey, &enc,
 		launch.DesignContextKey, &design,
 		launch.LocalContextKey, &local,
-		launch.NodePolicyContextKey, &policy,
+		launch.LocalParamsContextKey, &params,
 		launch.CenterDatabaseContextKey, &db,
 		launch.PermanentDatabaseContextKey, &perm,
 		launch.PoolDatabaseContextKey, &pool,
@@ -99,12 +99,12 @@ func (cmd *ImportCommand) importBlocks(ctx context.Context) (context.Context, er
 		db,
 		perm,
 		pool,
-		policy,
+		params,
 	); err != nil {
 		return ctx, e(err, "")
 	}
 
-	if err := cmd.validateImported(last, enc, design, policy, perm); err != nil {
+	if err := cmd.validateImported(last, enc, design, params, perm); err != nil {
 		return ctx, e(err, "")
 	}
 
@@ -115,7 +115,7 @@ func (cmd *ImportCommand) validateImported(
 	last base.Height,
 	enc encoder.Encoder,
 	design launch.NodeDesign,
-	policy *isaac.NodePolicy,
+	params *isaac.LocalParams,
 	perm isaac.PermanentDatabase,
 ) error {
 	e := util.StringErrorFunc("failed to validate imported")
@@ -141,11 +141,11 @@ func (cmd *ImportCommand) validateImported(
 		}
 	}
 
-	if err := cmd.validateImportedBlockMaps(root, last, enc, policy); err != nil {
+	if err := cmd.validateImportedBlockMaps(root, last, enc, params); err != nil {
 		return e(err, "")
 	}
 
-	if err := cmd.validateImportedBlocks(root, last, enc, policy, perm); err != nil {
+	if err := cmd.validateImportedBlocks(root, last, enc, params, perm); err != nil {
 		return e(err, "")
 	}
 
@@ -156,7 +156,7 @@ func (cmd *ImportCommand) validateImportedBlockMaps(
 	root string,
 	last base.Height,
 	enc encoder.Encoder,
-	policy *isaac.NodePolicy,
+	params *isaac.LocalParams,
 ) error {
 	e := util.StringErrorFunc("failed to validate imported BlockMaps")
 
@@ -177,7 +177,7 @@ func (cmd *ImportCommand) validateImportedBlockMaps(
 			case !found:
 				return nil, util.ErrNotFound.Call()
 			default:
-				if err := m.IsValid(policy.NetworkID()); err != nil {
+				if err := m.IsValid(params.NetworkID()); err != nil {
 					return nil, err
 				}
 
@@ -200,7 +200,7 @@ func (*ImportCommand) validateImportedBlocks(
 	root string,
 	last base.Height,
 	enc encoder.Encoder,
-	policy *isaac.NodePolicy,
+	params *isaac.LocalParams,
 	perm isaac.PermanentDatabase,
 ) error {
 	e := util.StringErrorFunc("failed to validate imported blocks")
@@ -214,7 +214,7 @@ func (*ImportCommand) validateImportedBlocks(
 		},
 		func(_ context.Context, i, _ uint64) error {
 			return launch.ValidateBlockFromLocalFS(
-				base.Height(int64(i)), root, enc, policy.NetworkID(), perm)
+				base.Height(int64(i)), root, enc, params.NetworkID(), perm)
 		},
 	); err != nil {
 		return e(err, "")

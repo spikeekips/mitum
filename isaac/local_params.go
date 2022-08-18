@@ -1,6 +1,7 @@
 package isaac
 
 import (
+	"reflect"
 	"sync"
 	"time"
 
@@ -10,9 +11,9 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 )
 
-var NodePolicyHint = hint.MustNewHint("node-policy-v0.0.1")
+var LocalParamsHint = hint.MustNewHint("local-params-v0.0.1")
 
-type NodePolicy struct {
+type LocalParams struct {
 	id        string
 	networkID base.NetworkID
 	util.DefaultJSONMarshaled
@@ -29,10 +30,10 @@ type NodePolicy struct {
 	sync.RWMutex
 }
 
-func DefaultNodePolicy(networkID base.NetworkID) *NodePolicy {
-	return &NodePolicy{
+func DefaultLocalParams(networkID base.NetworkID) *LocalParams {
+	return &LocalParams{
 		id:                                    util.UUID().String(),
-		BaseHinter:                            hint.NewBaseHinter(NodePolicyHint),
+		BaseHinter:                            hint.NewBaseHinter(LocalParamsHint),
 		networkID:                             networkID,
 		threshold:                             base.DefaultThreshold,
 		intervalBroadcastBallot:               time.Second * 3,  //nolint:gomnd //...
@@ -46,14 +47,14 @@ func DefaultNodePolicy(networkID base.NetworkID) *NodePolicy {
 	}
 }
 
-func (p *NodePolicy) IsValid(networkID []byte) error {
-	e := util.ErrInvalid.Errorf("invalid NodePolicy")
+func (p *LocalParams) IsValid(networkID []byte) error {
+	e := util.ErrInvalid.Errorf("invalid LocalParams")
 
 	if len(p.id) < 1 {
 		return e.Errorf("empty id")
 	}
 
-	if err := p.BaseHinter.IsValid(NodePolicyHint.Type().Bytes()); err != nil {
+	if err := p.BaseHinter.IsValid(LocalParamsHint.Type().Bytes()); err != nil {
 		return e.Wrap(err)
 	}
 
@@ -96,21 +97,21 @@ func (p *NodePolicy) IsValid(networkID []byte) error {
 	return nil
 }
 
-func (p *NodePolicy) ID() string {
+func (p *LocalParams) ID() string {
 	p.RLock()
 	defer p.RUnlock()
 
 	return p.id
 }
 
-func (p *NodePolicy) NetworkID() base.NetworkID {
+func (p *LocalParams) NetworkID() base.NetworkID {
 	p.RLock()
 	defer p.RUnlock()
 
 	return p.networkID
 }
 
-func (p *NodePolicy) SetNetworkID(n base.NetworkID) *NodePolicy {
+func (p *LocalParams) SetNetworkID(n base.NetworkID) *LocalParams {
 	p.Lock()
 	defer p.Unlock()
 
@@ -126,14 +127,14 @@ func (p *NodePolicy) SetNetworkID(n base.NetworkID) *NodePolicy {
 	}
 }
 
-func (p *NodePolicy) Threshold() base.Threshold {
+func (p *LocalParams) Threshold() base.Threshold {
 	p.RLock()
 	defer p.RUnlock()
 
 	return p.threshold
 }
 
-func (p *NodePolicy) SetThreshold(t base.Threshold) *NodePolicy {
+func (p *LocalParams) SetThreshold(t base.Threshold) *LocalParams {
 	p.Lock()
 	defer p.Unlock()
 
@@ -148,14 +149,14 @@ func (p *NodePolicy) SetThreshold(t base.Threshold) *NodePolicy {
 	return p
 }
 
-func (p *NodePolicy) IntervalBroadcastBallot() time.Duration {
+func (p *LocalParams) IntervalBroadcastBallot() time.Duration {
 	p.RLock()
 	defer p.RUnlock()
 
 	return p.intervalBroadcastBallot
 }
 
-func (p *NodePolicy) SetIntervalBroadcastBallot(d time.Duration) *NodePolicy {
+func (p *LocalParams) SetIntervalBroadcastBallot(d time.Duration) *LocalParams {
 	p.Lock()
 	defer p.Unlock()
 
@@ -170,14 +171,14 @@ func (p *NodePolicy) SetIntervalBroadcastBallot(d time.Duration) *NodePolicy {
 	return p
 }
 
-func (p *NodePolicy) WaitPreparingINITBallot() time.Duration {
+func (p *LocalParams) WaitPreparingINITBallot() time.Duration {
 	p.RLock()
 	defer p.RUnlock()
 
 	return p.waitPreparingINITBallot
 }
 
-func (p *NodePolicy) SetWaitPreparingINITBallot(d time.Duration) *NodePolicy {
+func (p *LocalParams) SetWaitPreparingINITBallot(d time.Duration) *LocalParams {
 	p.Lock()
 	defer p.Unlock()
 
@@ -192,14 +193,14 @@ func (p *NodePolicy) SetWaitPreparingINITBallot(d time.Duration) *NodePolicy {
 	return p
 }
 
-func (p *NodePolicy) TimeoutRequestProposal() time.Duration {
+func (p *LocalParams) TimeoutRequestProposal() time.Duration {
 	p.RLock()
 	defer p.RUnlock()
 
 	return p.timeoutRequestProposal
 }
 
-func (p *NodePolicy) SetTimeoutRequestProposal(d time.Duration) *NodePolicy {
+func (p *LocalParams) SetTimeoutRequestProposal(d time.Duration) *LocalParams {
 	p.Lock()
 	defer p.Unlock()
 
@@ -214,14 +215,14 @@ func (p *NodePolicy) SetTimeoutRequestProposal(d time.Duration) *NodePolicy {
 	return p
 }
 
-func (p *NodePolicy) SyncSourceCheckerInterval() time.Duration {
+func (p *LocalParams) SyncSourceCheckerInterval() time.Duration {
 	p.RLock()
 	defer p.RUnlock()
 
 	return p.syncSourceCheckerInterval
 }
 
-func (p *NodePolicy) SetSyncSourceCheckerInterval(d time.Duration) *NodePolicy {
+func (p *LocalParams) SetSyncSourceCheckerInterval(d time.Duration) *LocalParams {
 	p.Lock()
 	defer p.Unlock()
 
@@ -236,14 +237,14 @@ func (p *NodePolicy) SetSyncSourceCheckerInterval(d time.Duration) *NodePolicy {
 	return p
 }
 
-func (p *NodePolicy) ValidProposalOperationExpire() time.Duration {
+func (p *LocalParams) ValidProposalOperationExpire() time.Duration {
 	p.RLock()
 	defer p.RUnlock()
 
 	return p.validProposalOperationExpire
 }
 
-func (p *NodePolicy) SetValidProposalOperationExpire(d time.Duration) *NodePolicy {
+func (p *LocalParams) SetValidProposalOperationExpire(d time.Duration) *LocalParams {
 	p.Lock()
 	defer p.Unlock()
 
@@ -258,14 +259,14 @@ func (p *NodePolicy) SetValidProposalOperationExpire(d time.Duration) *NodePolic
 	return p
 }
 
-func (p *NodePolicy) ValidProposalSuffrageOperationsExpire() time.Duration {
+func (p *LocalParams) ValidProposalSuffrageOperationsExpire() time.Duration {
 	p.RLock()
 	defer p.RUnlock()
 
 	return p.validProposalSuffrageOperationsExpire
 }
 
-func (p *NodePolicy) SetValidProposalSuffrageOperationsExpire(d time.Duration) *NodePolicy {
+func (p *LocalParams) SetValidProposalSuffrageOperationsExpire(d time.Duration) *LocalParams {
 	p.Lock()
 	defer p.Unlock()
 
@@ -280,14 +281,14 @@ func (p *NodePolicy) SetValidProposalSuffrageOperationsExpire(d time.Duration) *
 	return p
 }
 
-func (p *NodePolicy) MaxOperationSize() uint64 {
+func (p *LocalParams) MaxOperationSize() uint64 {
 	p.RLock()
 	defer p.RUnlock()
 
 	return p.maxOperationSize
 }
 
-func (p *NodePolicy) SetMaxOperationSize(s uint64) *NodePolicy {
+func (p *LocalParams) SetMaxOperationSize(s uint64) *LocalParams {
 	p.Lock()
 	defer p.Unlock()
 
@@ -302,14 +303,14 @@ func (p *NodePolicy) SetMaxOperationSize(s uint64) *NodePolicy {
 	return p
 }
 
-func (p *NodePolicy) SameMemberLimit() uint64 {
+func (p *LocalParams) SameMemberLimit() uint64 {
 	p.RLock()
 	defer p.RUnlock()
 
 	return p.sameMemberLimit
 }
 
-func (p *NodePolicy) SetSameMemberLimit(s uint64) *NodePolicy {
+func (p *LocalParams) SetSameMemberLimit(s uint64) *LocalParams {
 	p.Lock()
 	defer p.Unlock()
 
@@ -324,22 +325,22 @@ func (p *NodePolicy) SetSameMemberLimit(s uint64) *NodePolicy {
 	return p
 }
 
-type nodePolicyJSONMarshaler struct {
-	NetworkID base.NetworkID `json:"network_id"`
+type localParamsJSONMarshaler struct {
+	NetworkID base.NetworkID `json:"network_id,omitempty"`
 	hint.BaseHinter
-	Threshold                             base.Threshold `json:"threshold"`
-	IntervalBroadcastBallot               time.Duration  `json:"interval_broadcast_ballot"`
-	WaitPreparingINITBallot               time.Duration  `json:"wait_preparing_init_ballot"`
-	TimeoutRequestProposal                time.Duration  `json:"timeout_request_proposal"`
-	SyncSourceCheckerInterval             time.Duration  `json:"sync_source_checker_interval"`
-	ValidProposalOperationExpire          time.Duration  `json:"valid_proposal_operation_expire"`
-	ValidProposalSuffrageOperationsExpire time.Duration  `json:"valid_proposal_suffrage_operations_expire"`
-	MaxOperationSize                      uint64         `json:"max_operation_size"`
-	SameMemberLimit                       uint64         `json:"same_member_limit"`
+	Threshold                             base.Threshold `json:"threshold,omitempty"`
+	IntervalBroadcastBallot               time.Duration  `json:"interval_broadcast_ballot,omitempty"`
+	WaitPreparingINITBallot               time.Duration  `json:"wait_preparing_init_ballot,omitempty"`
+	TimeoutRequestProposal                time.Duration  `json:"timeout_request_proposal,omitempty"`
+	SyncSourceCheckerInterval             time.Duration  `json:"sync_source_checker_interval,omitempty"`
+	ValidProposalOperationExpire          time.Duration  `json:"valid_proposal_operation_expire,omitempty"`
+	ValidProposalSuffrageOperationsExpire time.Duration  `json:"valid_proposal_suffrage_operations_expire,omitempty"`
+	MaxOperationSize                      uint64         `json:"max_operation_size,omitempty"`
+	SameMemberLimit                       uint64         `json:"same_member_limit,omitempty"`
 }
 
-func (p *NodePolicy) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(nodePolicyJSONMarshaler{
+func (p *LocalParams) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(localParamsJSONMarshaler{
 		BaseHinter:                            p.BaseHinter,
 		NetworkID:                             p.networkID,
 		Threshold:                             p.threshold,
@@ -354,38 +355,56 @@ func (p *NodePolicy) MarshalJSON() ([]byte, error) {
 	})
 }
 
-type nodePolicyJSONUnmarshaler struct {
-	NetworkID base.NetworkID `json:"network_id"`
+type localParamsJSONUnmarshaler struct {
+	NetworkID                             *base.NetworkID `json:"network_id"`
+	Threshold                             *base.Threshold `json:"threshold"`
+	IntervalBroadcastBallot               *time.Duration  `json:"interval_broadcast_ballot"`
+	WaitPreparingINITBallot               *time.Duration  `json:"wait_preparing_init_ballot"`
+	TimeoutRequestProposal                *time.Duration  `json:"timeout_request_proposal"`
+	SyncSourceCheckerInterval             *time.Duration  `json:"sync_source_checker_interval"`
+	ValidProposalOperationExpire          *time.Duration  `json:"valid_proposal_operation_expire"`
+	ValidProposalSuffrageOperationsExpire *time.Duration  `json:"valid_proposal_suffrage_operations_expire"`
+	MaxOperationSize                      *uint64         `json:"max_operation_size"`
+	SameMemberLimit                       *uint64         `json:"same_member_limit"`
 	hint.BaseHinter
-	Threshold                             base.Threshold `json:"threshold"`
-	IntervalBroadcastBallot               time.Duration  `json:"interval_broadcast_ballot"`
-	WaitPreparingINITBallot               time.Duration  `json:"wait_preparing_init_ballot"`
-	TimeoutRequestProposal                time.Duration  `json:"timeout_request_proposal"`
-	SyncSourceCheckerInterval             time.Duration  `json:"sync_source_checker_interval"`
-	ValidProposalOperationExpire          time.Duration  `json:"valid_proposal_operation_expire"`
-	ValidProposalSuffrageOperationsExpire time.Duration  `json:"valid_proposal_suffrage_operations_expire"`
-	MaxOperationSize                      uint64         `json:"max_operation_size"`
-	SameMemberLimit                       uint64         `json:"same_member_limit"`
 }
 
-func (p *NodePolicy) UnmarshalJSON(b []byte) error {
-	var u nodePolicyJSONUnmarshaler
+func (p *LocalParams) UnmarshalJSON(b []byte) error {
+	var u localParamsJSONUnmarshaler
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return errors.Wrap(err, "failed to unmarshal NodePolicy")
+		return errors.Wrap(err, "failed to unmarshal LocalParams")
+	}
+
+	set := func(v, target interface{}) error {
+		if reflect.ValueOf(v).IsZero() {
+			return nil
+		}
+
+		return util.InterfaceSetValue(reflect.ValueOf(v).Elem().Interface(), target)
 	}
 
 	p.BaseHinter = u.BaseHinter
+
+	args := [][2]interface{}{
+		{u.NetworkID, &p.networkID},
+		{u.Threshold, &p.threshold},
+		{u.IntervalBroadcastBallot, &p.intervalBroadcastBallot},
+		{u.WaitPreparingINITBallot, &p.waitPreparingINITBallot},
+		{u.TimeoutRequestProposal, &p.timeoutRequestProposal},
+		{u.SyncSourceCheckerInterval, &p.syncSourceCheckerInterval},
+		{u.ValidProposalOperationExpire, &p.validProposalOperationExpire},
+		{u.ValidProposalSuffrageOperationsExpire, &p.validProposalSuffrageOperationsExpire},
+		{u.MaxOperationSize, &p.maxOperationSize},
+		{u.SameMemberLimit, &p.sameMemberLimit},
+	}
+
+	for i := range args {
+		if err := set(args[i][0], args[i][1]); err != nil {
+			return err
+		}
+	}
+
 	p.id = util.UUID().String()
-	p.networkID = u.NetworkID
-	p.threshold = u.Threshold
-	p.intervalBroadcastBallot = u.IntervalBroadcastBallot
-	p.waitPreparingINITBallot = u.WaitPreparingINITBallot
-	p.timeoutRequestProposal = u.TimeoutRequestProposal
-	p.syncSourceCheckerInterval = u.SyncSourceCheckerInterval
-	p.validProposalOperationExpire = u.ValidProposalOperationExpire
-	p.validProposalSuffrageOperationsExpire = u.ValidProposalSuffrageOperationsExpire
-	p.maxOperationSize = u.MaxOperationSize
-	p.sameMemberLimit = u.SameMemberLimit
 
 	return nil
 }

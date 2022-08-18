@@ -81,7 +81,7 @@ func QuicstreamHandlerOperation(
 func QuicstreamHandlerSendOperation(
 	encs *encoder.Encoders,
 	idleTimeout time.Duration,
-	policy *isaac.NodePolicy,
+	params *isaac.LocalParams,
 	oppool isaac.NewOperationPool,
 	existsInStateOperationf func(util.Hash) (bool, error),
 	filterSendOperationf func(base.Operation) (bool, error),
@@ -140,8 +140,8 @@ func QuicstreamHandlerSendOperation(
 		switch body, err := io.ReadAll(r); {
 		case err != nil:
 			return e(err, "")
-		case uint64(len(body)) > policy.MaxOperationSize():
-			return e(nil, "too big size; >= %d", policy.MaxOperationSize())
+		case uint64(len(body)) > params.MaxOperationSize():
+			return e(nil, "too big size; >= %d", params.MaxOperationSize())
 		default:
 			if err := encoder.Decode(enc, body, &op); err != nil {
 				return e(err, "")
@@ -151,7 +151,7 @@ func QuicstreamHandlerSendOperation(
 				return e(nil, "empty body")
 			}
 
-			if err := op.IsValid(policy.NetworkID()); err != nil {
+			if err := op.IsValid(params.NetworkID()); err != nil {
 				return e(err, "")
 			}
 		}
@@ -568,7 +568,7 @@ func QuicstreamHandlerNodeChallenge(
 	encs *encoder.Encoders,
 	idleTimeout time.Duration,
 	local base.LocalNode,
-	policy base.NodePolicy,
+	params base.LocalParams,
 ) quicstream.Handler {
 	var sg singleflight.Group
 
@@ -592,7 +592,7 @@ func QuicstreamHandlerNodeChallenge(
 		i, err, _ := sg.Do(HandlerPrefixNodeChallenge+string(header.Input()), func() (interface{}, error) {
 			return local.Privatekey().Sign(util.ConcatBytesSlice(
 				local.Address().Bytes(),
-				policy.NetworkID(),
+				params.NetworkID(),
 				header.Input(),
 			))
 		})

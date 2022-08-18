@@ -30,13 +30,13 @@ func PProposalMaker(ctx context.Context) (context.Context, error) {
 
 	var log *logging.Logging
 	var local base.LocalNode
-	var policy base.NodePolicy
+	var params base.LocalParams
 	var pool *isaacdatabase.TempPool
 
 	if err := ps.LoadsFromContextOK(ctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
-		NodePolicyContextKey, &policy,
+		LocalParamsContextKey, &params,
 		PoolDatabaseContextKey, &pool,
 	); err != nil {
 		return ctx, e(err, "")
@@ -49,7 +49,7 @@ func PProposalMaker(ctx context.Context) (context.Context, error) {
 
 	pm := isaac.NewProposalMaker(
 		local,
-		policy,
+		params,
 		opf,
 		pool,
 	)
@@ -67,14 +67,14 @@ func proposalMakderGetOperationsFunc(ctx context.Context) (
 ) {
 	var log *logging.Logging
 	var local base.LocalNode
-	var nodepolicy *isaac.NodePolicy
+	var params *isaac.LocalParams
 	var db isaac.Database
 	var pool *isaacdatabase.TempPool
 
 	if err := ps.LoadsFromContextOK(ctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
-		NodePolicyContextKey, &nodepolicy,
+		LocalParamsContextKey, &params,
 		CenterDatabaseContextKey, &db,
 		PoolDatabaseContextKey, &pool,
 	); err != nil {
@@ -144,9 +144,9 @@ func proposalMakderGetOperationsFunc(ctx context.Context) (
 				switch ht := header.HintBytes(); {
 				case bytes.HasPrefix(ht, suffrageCandidateFactHintTypeBytes),
 					bytes.HasPrefix(ht, suffrageJoinFactHintTypeBytes):
-					expire = nodepolicy.ValidProposalSuffrageOperationsExpire()
+					expire = params.ValidProposalSuffrageOperationsExpire()
 				default:
-					expire = nodepolicy.ValidProposalOperationExpire()
+					expire = params.ValidProposalOperationExpire()
 				}
 
 				if addedat < localtime.UTCNow().Add(expire*-1).UnixNano() {

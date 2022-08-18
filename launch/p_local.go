@@ -11,9 +11,9 @@ import (
 )
 
 var (
-	PNameLocal           = ps.Name("local")
-	LocalContextKey      = ps.ContextKey("local")
-	NodePolicyContextKey = ps.ContextKey("node-policy")
+	PNameLocal            = ps.Name("local")
+	LocalContextKey       = ps.ContextKey("local")
+	LocalParamsContextKey = ps.ContextKey("local-params")
 )
 
 func PLocal(ctx context.Context) (context.Context, error) {
@@ -38,14 +38,14 @@ func PLocal(ctx context.Context) (context.Context, error) {
 
 	ctx = context.WithValue(ctx, LocalContextKey, local) //revive:disable-line:modifies-parameter
 
-	nodepolicy, err := NodePolicyFromDesign(design)
+	params, err := LocalParamsFromDesign(design)
 	if err != nil {
 		return ctx, e(err, "")
 	}
 
-	ctx = context.WithValue(ctx, NodePolicyContextKey, nodepolicy) //revive:disable-line:modifies-parameter
+	ctx = context.WithValue(ctx, LocalParamsContextKey, params) //revive:disable-line:modifies-parameter
 
-	log.Log().Info().Interface("node_policy", nodepolicy).Msg("node policy loaded")
+	log.Log().Info().Interface("local_params", params).Msg("local params loaded")
 
 	return ctx, nil
 }
@@ -60,6 +60,6 @@ func LocalFromDesign(design NodeDesign) (base.LocalNode, error) {
 	return local, nil
 }
 
-func NodePolicyFromDesign(design NodeDesign) (*isaac.NodePolicy, error) {
-	return isaac.DefaultNodePolicy(design.NetworkID), nil
+func LocalParamsFromDesign(design NodeDesign) (*isaac.LocalParams, error) {
+	return isaac.DefaultLocalParams(design.NetworkID), nil
 }

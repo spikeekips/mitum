@@ -212,20 +212,20 @@ func PCreateLocalFS(ctx context.Context) (context.Context, error) {
 
 	var design NodeDesign
 	var enc encoder.Encoder
-	var policy *isaac.NodePolicy
+	var params *isaac.LocalParams
 	var version util.Version
 
 	if err := ps.LoadsFromContextOK(ctx,
 		DesignContextKey, &design,
 		EncoderContextKey, &enc,
-		NodePolicyContextKey, &policy,
+		LocalParamsContextKey, &params,
 		VersionContextKey, &version,
 	); err != nil {
 		return ctx, e(err, "")
 	}
 
 	fsnodeinfo, err := CreateLocalFS(
-		CreateDefaultNodeInfo(policy.NetworkID(), version), design.Storage.Base, enc)
+		CreateDefaultNodeInfo(params.NetworkID(), version), design.Storage.Base, enc)
 	if err != nil {
 		return ctx, e(err, "")
 	}
@@ -240,7 +240,7 @@ func PCheckLocalFS(ctx context.Context) (context.Context, error) {
 
 	var version util.Version
 	var design NodeDesign
-	var policy *isaac.NodePolicy
+	var params *isaac.LocalParams
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
 
@@ -249,12 +249,12 @@ func PCheckLocalFS(ctx context.Context) (context.Context, error) {
 		DesignContextKey, &design,
 		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
-		NodePolicyContextKey, &policy,
+		LocalParamsContextKey, &params,
 	); err != nil {
 		return ctx, e(err, "")
 	}
 
-	fsnodeinfo, err := CheckLocalFS(policy.NetworkID(), design.Storage.Base, enc)
+	fsnodeinfo, err := CheckLocalFS(params.NetworkID(), design.Storage.Base, enc)
 
 	switch {
 	case err == nil:
@@ -272,7 +272,7 @@ func PCheckLocalFS(ctx context.Context) (context.Context, error) {
 		}
 
 		fsnodeinfo, err = CreateLocalFS(
-			CreateDefaultNodeInfo(policy.NetworkID(), version), design.Storage.Base, enc)
+			CreateDefaultNodeInfo(params.NetworkID(), version), design.Storage.Base, enc)
 		if err != nil {
 			return ctx, e(err, "")
 		}
@@ -325,16 +325,16 @@ func LastHeightOfLocalFS(ctx context.Context, from string) (last base.Height, _ 
 	e := util.StringErrorFunc("failed to find last height from localfs")
 
 	var enc encoder.Encoder
-	var policy *isaac.NodePolicy
+	var params *isaac.LocalParams
 
 	if err := ps.LoadsFromContextOK(ctx,
 		EncoderContextKey, &enc,
-		NodePolicyContextKey, &policy,
+		LocalParamsContextKey, &params,
 	); err != nil {
 		return last, e(err, "")
 	}
 
-	last, err := FindLastHeightFromLocalFS(from, enc, policy.NetworkID())
+	last, err := FindLastHeightFromLocalFS(from, enc, params.NetworkID())
 	if err != nil {
 		return last, e(err, "")
 	}

@@ -19,7 +19,7 @@ type baseHandler struct {
 	ctx              context.Context //nolint:containedctx //...
 	proposalSelector isaac.ProposalSelector
 	*logging.Logging
-	policy               *isaac.NodePolicy
+	params               *isaac.LocalParams
 	setLastVoteproofFunc func(base.Voteproof) bool
 	cancel               func()
 	lastVoteproofFunc    func() LastVoteproofs
@@ -34,7 +34,7 @@ type baseHandler struct {
 func newBaseHandler(
 	state StateType,
 	local base.LocalNode,
-	policy *isaac.NodePolicy,
+	params *isaac.LocalParams,
 	proposalSelector isaac.ProposalSelector,
 ) *baseHandler {
 	lvps := NewLastVoteproofsHandler()
@@ -45,7 +45,7 @@ func newBaseHandler(
 		}),
 		stt:              state,
 		local:            local,
-		policy:           policy,
+		params:           params,
 		proposalSelector: proposalSelector,
 		broadcastBallotFunc: func(base.Ballot) error {
 			return nil
@@ -65,7 +65,7 @@ func (st *baseHandler) new() *baseHandler {
 		Logging:              st.Logging,
 		local:                st.local,
 		stt:                  st.stt,
-		policy:               st.policy,
+		params:               st.params,
 		sts:                  st.sts,
 		timers:               st.timers,
 		broadcastBallotFunc:  st.broadcastBallotFunc,
@@ -187,7 +187,7 @@ func (st *baseHandler) broadcastBallot(
 
 	ct := util.NewContextTimer(
 		timerid,
-		st.policy.IntervalBroadcastBallot(),
+		st.params.IntervalBroadcastBallot(),
 		func(int) (bool, error) {
 			if err := st.broadcastBallotFunc(bl); err != nil {
 				l.Error().Err(err).Msg("failed to broadcast ballot; keep going")
@@ -244,7 +244,7 @@ func (st *baseHandler) prepareNextRound(vp base.Voteproof, prevBlock util.Hash) 
 	)
 	sf := isaac.NewINITBallotSignedFact(st.local.Address(), fact)
 
-	if err := sf.Sign(st.local.Privatekey(), st.policy.NetworkID()); err != nil {
+	if err := sf.Sign(st.local.Privatekey(), st.params.NetworkID()); err != nil {
 		return nil, newBrokenSwitchContext(st.stt, e(err, "failed to make next round init ballot"))
 	}
 
@@ -302,7 +302,7 @@ func (st *baseHandler) prepareNextBlock(
 	)
 	sf := isaac.NewINITBallotSignedFact(st.local.Address(), fact)
 
-	if err := sf.Sign(st.local.Privatekey(), st.policy.NetworkID()); err != nil {
+	if err := sf.Sign(st.local.Privatekey(), st.params.NetworkID()); err != nil {
 		return nil, e(err, "failed to make next init ballot")
 	}
 

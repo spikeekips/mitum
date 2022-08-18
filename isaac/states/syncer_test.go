@@ -61,7 +61,7 @@ func (t *testSyncer) maps(from, to base.Height) []base.BlockMap {
 
 	var previous, previousSuffrage util.Hash
 	for i := from; i <= to; i++ {
-		m, err := newTestBlockMap(i, previous, previousSuffrage, t.Local, t.NodePolicy.NetworkID())
+		m, err := newTestBlockMap(i, previous, previousSuffrage, t.Local, t.LocalParams.NetworkID())
 		t.NoError(err)
 
 		maps[(i - from).Int64()] = m

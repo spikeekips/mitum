@@ -16,12 +16,12 @@ import (
 )
 
 type NodeInfoLocalJSONMarshaler struct {
-	Address   base.Address      `json:"address"`
-	Publickey base.Publickey    `json:"publickey"`
-	Policy    *isaac.NodePolicy `json:"policy"`
-	ConnInfo  string            `json:"conn_info"`
-	Uptime    string            `json:"uptime"`
-	Version   util.Version      `json:"version"`
+	Address     base.Address       `json:"address"`
+	Publickey   base.Publickey     `json:"publickey"`
+	LocalParams *isaac.LocalParams `json:"local_parameters"` //nolint:tagliatelle //...
+	ConnInfo    string             `json:"conn_info"`
+	Uptime      string             `json:"uptime"`
+	Version     util.Version       `json:"version"`
 }
 
 type NodeInfoSuffrageJSONMarshaler struct {
@@ -46,12 +46,12 @@ func (info NodeInfo) JSONMarshaler() NodeInfoJSONMarshaler {
 	return NodeInfoJSONMarshaler{
 		BaseHinter: info.BaseHinter,
 		Local: NodeInfoLocalJSONMarshaler{
-			Address:   info.address,
-			Publickey: info.publickey,
-			Policy:    info.nodePolicy,
-			ConnInfo:  info.connInfo,
-			Version:   info.version,
-			Uptime:    fmt.Sprintf("%0.3f", info.uptime.Seconds()),
+			Address:     info.address,
+			Publickey:   info.publickey,
+			LocalParams: info.localParams,
+			ConnInfo:    info.connInfo,
+			Version:     info.version,
+			Uptime:      fmt.Sprintf("%0.3f", info.uptime.Seconds()),
 		},
 		Consensus: NodeInfoConsensusJSONMarshaler{
 			State: info.consensusState,
@@ -77,12 +77,12 @@ type nodeInfoJSONUnmarshaler struct {
 }
 
 type nodeInfoLocalJSONUnmarshaler struct {
-	Address   string          `json:"address"`
-	Publickey string          `json:"publickey"`
-	ConnInfo  string          `json:"conn_info"`
-	Uptime    string          `json:"uptime"`
-	Policy    json.RawMessage `json:"policy"`
-	Version   util.Version    `json:"version"`
+	Address     string          `json:"address"`
+	Publickey   string          `json:"publickey"`
+	ConnInfo    string          `json:"conn_info"`
+	Uptime      string          `json:"uptime"`
+	LocalParams json.RawMessage `json:"local_parameters"` //nolint:tagliatelle //...
+	Version     util.Version    `json:"version"`
 }
 
 type nodeInfoConsensusJSONUnmarshaler struct {
@@ -119,13 +119,13 @@ func (info *NodeInfo) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		info.publickey = i
 	}
 
-	var nodePolicy isaac.NodePolicy
+	var params isaac.LocalParams
 
-	if err := encoder.Decode(enc, u.Local.Policy, &nodePolicy); err != nil {
+	if err := encoder.Decode(enc, u.Local.LocalParams, &params); err != nil {
 		return e(err, "")
 	}
 
-	info.nodePolicy = &nodePolicy
+	info.localParams = &params
 
 	info.connInfo = u.Local.ConnInfo
 	info.version = u.Local.Version

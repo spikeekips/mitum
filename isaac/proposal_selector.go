@@ -34,13 +34,13 @@ type BaseProposalSelector struct {
 	maker             *ProposalMaker
 	getAvailableNodes func(base.Height) ([]base.Node, bool, error)
 	request           func(context.Context, base.Point, base.Address) (base.ProposalSignedFact, error)
-	policy            *NodePolicy
+	params            *LocalParams
 	sync.Mutex
 }
 
 func NewBaseProposalSelector(
 	local base.LocalNode,
-	policy *NodePolicy,
+	params *LocalParams,
 	proposerSelector ProposerSelector,
 	maker *ProposalMaker,
 	getAvailableNodes func(base.Height) ([]base.Node, bool, error),
@@ -49,7 +49,7 @@ func NewBaseProposalSelector(
 ) *BaseProposalSelector {
 	return &BaseProposalSelector{
 		local:             local,
-		policy:            policy,
+		params:            params,
 		proposerSelector:  proposerSelector,
 		maker:             maker,
 		getAvailableNodes: getAvailableNodes,
@@ -159,7 +159,7 @@ func (p *BaseProposalSelector) findProposalFromProposer(
 	var err error
 
 	done := make(chan struct{}, 1)
-	rctx, cancel := context.WithTimeout(ctx, p.policy.TimeoutRequestProposal())
+	rctx, cancel := context.WithTimeout(ctx, p.params.TimeoutRequestProposal())
 
 	go func() {
 		defer cancel()
@@ -264,7 +264,7 @@ func (p BlockBasedProposerSelector) Select(_ context.Context, point base.Point, 
 type ProposalMaker struct {
 	*logging.Logging
 	local         base.LocalNode
-	policy        base.NodePolicy
+	params        base.LocalParams
 	pool          ProposalPool
 	getOperations func(context.Context, base.Height) ([]util.Hash, error)
 	sync.Mutex
@@ -272,7 +272,7 @@ type ProposalMaker struct {
 
 func NewProposalMaker(
 	local base.LocalNode,
-	policy base.NodePolicy,
+	params base.LocalParams,
 	getOperations func(context.Context, base.Height) ([]util.Hash, error),
 	pool ProposalPool,
 ) *ProposalMaker {
@@ -281,7 +281,7 @@ func NewProposalMaker(
 			return lctx.Str("module", "proposal-maker")
 		}),
 		local:         local,
-		policy:        policy,
+		params:        params,
 		getOperations: getOperations,
 		pool:          pool,
 	}
@@ -344,7 +344,7 @@ func (p *ProposalMaker) makeProposal(point base.Point, ops []util.Hash) (sf Prop
 	fact := NewProposalFact(point, p.local.Address(), ops)
 
 	signedFact := NewProposalSignedFact(fact)
-	if err := signedFact.Sign(p.local.Privatekey(), p.policy.NetworkID()); err != nil {
+	if err := signedFact.Sign(p.local.Privatekey(), p.params.NetworkID()); err != nil {
 		return sf, err
 	}
 

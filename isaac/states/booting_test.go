@@ -16,14 +16,14 @@ type testBootingHandler struct {
 
 func (t *testBootingHandler) newState() *BootingHandler {
 	local := t.Local
-	nodePolicy := t.NodePolicy
+	params := t.LocalParams
 
 	point := base.RawPoint(33, 0)
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
-	newhandler := NewNewBootingHandlerType(local, nodePolicy,
+	newhandler := NewNewBootingHandlerType(local, params,
 		func() (base.Manifest, bool, error) {
 			return manifest, true, nil
 		},

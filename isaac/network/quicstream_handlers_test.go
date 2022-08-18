@@ -136,7 +136,7 @@ func (t *testQuicstreamHandlers) TestRequest() {
 
 func (t *testQuicstreamHandlers) TestOperation() {
 	fact := isaac.NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
-	op, err := isaac.NewDummyOperation(fact, t.Local.Privatekey(), t.NodePolicy.NetworkID())
+	op, err := isaac.NewDummyOperation(fact, t.Local.Privatekey(), t.LocalParams.NetworkID())
 	t.NoError(err)
 
 	pool := t.NewPool()
@@ -170,13 +170,13 @@ func (t *testQuicstreamHandlers) TestOperation() {
 
 func (t *testQuicstreamHandlers) TestSendOperation() {
 	fact := isaac.NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
-	op, err := isaac.NewDummyOperation(fact, t.Local.Privatekey(), t.NodePolicy.NetworkID())
+	op, err := isaac.NewDummyOperation(fact, t.Local.Privatekey(), t.LocalParams.NetworkID())
 	t.NoError(err)
 
 	pool := t.NewPool()
 	defer pool.DeepClose()
 
-	handler := QuicstreamHandlerSendOperation(t.Encs, time.Second, t.NodePolicy, pool,
+	handler := QuicstreamHandlerSendOperation(t.Encs, time.Second, t.LocalParams, pool,
 		func(util.Hash) (bool, error) { return false, nil },
 		func(base.Operation) (bool, error) { return true, nil },
 	)
@@ -197,7 +197,7 @@ func (t *testQuicstreamHandlers) TestSendOperation() {
 	})
 
 	t.Run("filtered", func() {
-		handler := QuicstreamHandlerSendOperation(t.Encs, time.Second, t.NodePolicy, pool,
+		handler := QuicstreamHandlerSendOperation(t.Encs, time.Second, t.LocalParams, pool,
 			func(util.Hash) (bool, error) { return false, nil },
 			func(base.Operation) (bool, error) { return false, nil },
 		)
@@ -216,7 +216,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 
 	proposalMaker := isaac.NewProposalMaker(
 		t.Local,
-		t.NodePolicy,
+		t.LocalParams,
 		func(context.Context, base.Height) ([]util.Hash, error) {
 			return []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}, nil
 		},
@@ -238,7 +238,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 
 		t.Equal(point, pr.Point())
 		t.True(t.Local.Address().Equal(pr.ProposalFact().Proposer()))
-		t.NoError(base.IsValidProposalSignedFact(pr, t.NodePolicy.NetworkID()))
+		t.NoError(base.IsValidProposalSignedFact(pr, t.LocalParams.NetworkID()))
 		t.NotEmpty(pr.ProposalFact().Operations())
 	})
 
@@ -299,7 +299,7 @@ func (t *testQuicstreamHandlers) TestProposal() {
 
 	proposalMaker := isaac.NewProposalMaker(
 		t.Local,
-		t.NodePolicy,
+		t.LocalParams,
 		func(context.Context, base.Height) ([]util.Hash, error) {
 			return []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}, nil
 		},
@@ -324,7 +324,7 @@ func (t *testQuicstreamHandlers) TestProposal() {
 
 		t.Equal(point, pr.Point())
 		t.True(t.Local.Address().Equal(pr.ProposalFact().Proposer()))
-		t.NoError(base.IsValidProposalSignedFact(pr, t.NodePolicy.NetworkID()))
+		t.NoError(base.IsValidProposalSignedFact(pr, t.LocalParams.NetworkID()))
 	})
 
 	t.Run("unknown", func() {
@@ -603,7 +603,7 @@ func (t *testQuicstreamHandlers) TestBlockMapItem() {
 }
 
 func (t *testQuicstreamHandlers) TestNodeChallenge() {
-	handler := QuicstreamHandlerNodeChallenge(t.Encs, time.Second, t.Local, t.NodePolicy)
+	handler := QuicstreamHandlerNodeChallenge(t.Encs, time.Second, t.Local, t.LocalParams)
 
 	ci := quicstream.NewUDPConnInfo(nil, true)
 	c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixNodeChallenge, handler))
@@ -611,15 +611,15 @@ func (t *testQuicstreamHandlers) TestNodeChallenge() {
 	t.Run("ok", func() {
 		input := util.UUID().Bytes()
 
-		sig, err := c.NodeChallenge(context.Background(), ci, t.NodePolicy.NetworkID(), t.Local.Address(), t.Local.Publickey(), input)
+		sig, err := c.NodeChallenge(context.Background(), ci, t.LocalParams.NetworkID(), t.Local.Address(), t.Local.Publickey(), input)
 		t.NoError(err)
 		t.NotNil(sig)
 
-		t.NoError(t.Local.Publickey().Verify(util.ConcatBytesSlice(t.Local.Address().Bytes(), t.NodePolicy.NetworkID(), input), sig))
+		t.NoError(t.Local.Publickey().Verify(util.ConcatBytesSlice(t.Local.Address().Bytes(), t.LocalParams.NetworkID(), input), sig))
 	})
 
 	t.Run("empty input", func() {
-		sig, err := c.NodeChallenge(context.Background(), ci, t.NodePolicy.NetworkID(), t.Local.Address(), t.Local.Publickey(), nil)
+		sig, err := c.NodeChallenge(context.Background(), ci, t.LocalParams.NetworkID(), t.Local.Address(), t.Local.Publickey(), nil)
 		t.Error(err)
 		t.Nil(sig)
 

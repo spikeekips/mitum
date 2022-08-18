@@ -24,7 +24,7 @@ func ImportBlocks(
 	db isaac.Database,
 	perm isaac.PermanentDatabase,
 	pool isaac.VoteproofsPool,
-	policy base.NodePolicy,
+	params base.LocalParams,
 ) error {
 	e := util.StringErrorFunc("failed to import blocks")
 
@@ -93,7 +93,7 @@ func ImportBlocks(
 				encs,
 				m,
 				bwdb,
-				policy.NetworkID(),
+				params.NetworkID(),
 			)
 			if err != nil {
 				return nil, err

@@ -25,7 +25,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestHigherHeight() {
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
 
-	st.policy = t.NodePolicy.SetWaitPreparingINITBallot(time.Nanosecond)
+	st.params = t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
 
 	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
 		return base.NewDummyManifest(point.Height(), valuehash.RandomSHA256()), nil
@@ -83,7 +83,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestNextRoundButAlreadyFini
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
 
-	st.policy = t.NodePolicy.SetWaitPreparingINITBallot(time.Nanosecond)
+	st.params = t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
 
 	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
 		return base.NewDummyManifest(point.Height(), valuehash.RandomSHA256()), nil
@@ -136,7 +136,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBeforePreviousBlock
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
 
-	st.policy = t.NodePolicy.SetWaitPreparingINITBallot(time.Nanosecond)
+	st.params = t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
@@ -226,7 +226,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBefore() {
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
 
-	st.policy = t.NodePolicy.SetWaitPreparingINITBallot(time.Nanosecond)
+	st.params = t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
@@ -323,7 +323,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawAndDrawAgain() {
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
 
-	st.policy = t.NodePolicy.SetWaitPreparingINITBallot(time.Nanosecond)
+	st.params = t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {

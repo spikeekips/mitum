@@ -21,7 +21,7 @@ type NodeInfo struct {
 	publickey      base.Publickey
 	lastManifest   base.Manifest
 	networkPolicy  base.NetworkPolicy
-	nodePolicy     *isaac.NodePolicy
+	localParams    *isaac.LocalParams
 	connInfo       string
 	consensusState isaacstates.StateType
 	consensusNodes []base.Node
@@ -39,7 +39,7 @@ func (info NodeInfo) IsValid(networkID base.NetworkID) error {
 		info.lastManifest,
 		info.suffrageHeight,
 		info.networkPolicy,
-		info.nodePolicy,
+		info.localParams,
 		util.DummyIsValider(func([]byte) error {
 			if len(info.connInfo) < 1 {
 				return errors.Errorf("empty conn info")
@@ -91,8 +91,8 @@ func (info NodeInfo) NetworkPolicy() base.NetworkPolicy {
 	return info.networkPolicy
 }
 
-func (info NodeInfo) NodePolicy() *isaac.NodePolicy {
-	return info.nodePolicy
+func (info NodeInfo) LocalParams() *isaac.LocalParams {
+	return info.localParams
 }
 
 func (info NodeInfo) ConnInfo() string {
@@ -212,17 +212,17 @@ func (info *NodeInfoUpdater) SetNetworkPolicy(p base.NetworkPolicy) bool {
 	return true
 }
 
-func (info *NodeInfoUpdater) SetNodePolicy(p *isaac.NodePolicy) bool {
+func (info *NodeInfoUpdater) SetLocalParams(p *isaac.LocalParams) bool {
 	info.Lock()
 	defer info.Unlock()
 
 	switch {
-	case info.n.nodePolicy == nil, p == nil:
-	case info.n.nodePolicy.ID() == p.ID():
+	case info.n.localParams == nil, p == nil:
+	case info.n.localParams.ID() == p.ID():
 		return false
 	}
 
-	info.n.nodePolicy = p
+	info.n.localParams = p
 	info.id = util.UUID().String()
 
 	return true

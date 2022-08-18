@@ -44,7 +44,7 @@ func (t *testSyncSourceChecker) SetupSuite() {
 
 type handlers struct {
 	local                 base.LocalNode
-	nodepolicy            base.NodePolicy
+	localParams           base.LocalParams
 	encs                  *encoder.Encoders
 	idletimeout           time.Duration
 	suffrageNodeConnInfof func() ([]isaac.NodeConnInfo, error)
@@ -60,7 +60,7 @@ func (h *handlers) SyncSourceConnInfo(addr net.Addr, r io.Reader, w io.Writer) e
 }
 
 func (h *handlers) NodeChallenge(addr net.Addr, r io.Reader, w io.Writer) error {
-	return QuicstreamHandlerNodeChallenge(h.encs, h.idletimeout, h.local, h.nodepolicy)(addr, r, w)
+	return QuicstreamHandlerNodeChallenge(h.encs, h.idletimeout, h.local, h.localParams)(addr, r, w)
 }
 
 func (t *testSyncSourceChecker) clientWritef(handlersmap map[string]*handlers) func(ctx context.Context, ci quicstream.UDPConnInfo, f quicstream.ClientWriteFunc) (io.ReadCloser, func() error, error) {
@@ -124,7 +124,7 @@ func (t *testSyncSourceChecker) handlers(n int) ([]isaac.NodeConnInfo, map[strin
 		ci, err := ncis[i].UDPConnInfo()
 		t.NoError(err)
 
-		handlersmap[ci.String()] = &handlers{nodepolicy: t.NodePolicy, local: locals[i], encs: t.Encs, idletimeout: time.Second}
+		handlersmap[ci.String()] = &handlers{localParams: t.LocalParams, local: locals[i], encs: t.Encs, idletimeout: time.Second}
 	}
 
 	return ncis, handlersmap
@@ -143,7 +143,7 @@ func (t *testSyncSourceChecker) TestFetchFromSuffrageNodes() {
 	local := isaac.RandomLocalNode()
 	localci := quicstream.RandomConnInfo()
 
-	handlersmap[localci.String()] = &handlers{local: t.Local, nodepolicy: t.NodePolicy, encs: t.Encs, idletimeout: time.Second}
+	handlersmap[localci.String()] = &handlers{local: t.Local, localParams: t.LocalParams, encs: t.Encs, idletimeout: time.Second}
 	handlersmap[localci.String()].suffrageNodeConnInfof = func() ([]isaac.NodeConnInfo, error) {
 		return ncis, nil
 	}
@@ -153,7 +153,7 @@ func (t *testSyncSourceChecker) TestFetchFromSuffrageNodes() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	checker := NewSyncSourceChecker(local, t.NodePolicy.NetworkID(), client, time.Second, t.Enc, nil, nil)
+	checker := NewSyncSourceChecker(local, t.LocalParams.NetworkID(), client, time.Second, t.Enc, nil, nil)
 
 	ucis, err := checker.fetch(ctx, SyncSource{Type: SyncSourceTypeSuffrageNodes, Source: localci})
 	t.NoError(err)
@@ -181,7 +181,7 @@ func (t *testSyncSourceChecker) TestFetchFromSyncSources() {
 	local := isaac.RandomLocalNode()
 	localci := quicstream.RandomConnInfo()
 
-	handlersmap[localci.String()] = &handlers{local: t.Local, nodepolicy: t.NodePolicy, encs: t.Encs, idletimeout: time.Second}
+	handlersmap[localci.String()] = &handlers{local: t.Local, localParams: t.LocalParams, encs: t.Encs, idletimeout: time.Second}
 	handlersmap[localci.String()].syncSourceConnInfof = func() ([]isaac.NodeConnInfo, error) {
 		return ncis, nil
 	}
@@ -191,7 +191,7 @@ func (t *testSyncSourceChecker) TestFetchFromSyncSources() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	checker := NewSyncSourceChecker(local, t.NodePolicy.NetworkID(), client, time.Second, t.Enc, nil, nil)
+	checker := NewSyncSourceChecker(local, t.LocalParams.NetworkID(), client, time.Second, t.Enc, nil, nil)
 
 	ucis, err := checker.fetch(ctx, SyncSource{Type: SyncSourceTypeSyncSources, Source: localci})
 	t.NoError(err)
@@ -214,21 +214,21 @@ func (t *testSyncSourceChecker) TestFetchFromNodeButFailedToSignature() {
 		ci := quicstream.RandomConnInfo()
 		ncis = append(ncis, NewNodeConnInfo(node.BaseNode, ci.UDPAddr().String(), ci.TLSInsecure()))
 
-		handlersmap[ci.String()] = &handlers{local: t.Local, nodepolicy: t.NodePolicy, encs: t.Encs, idletimeout: time.Second}
+		handlersmap[ci.String()] = &handlers{local: t.Local, localParams: t.LocalParams, encs: t.Encs, idletimeout: time.Second}
 		// NOTE with t.Local instead of node
 	}
 
 	local := isaac.RandomLocalNode()
 	localci := quicstream.RandomConnInfo()
 
-	handlersmap[localci.String()] = &handlers{local: t.Local, nodepolicy: t.NodePolicy, encs: t.Encs, idletimeout: time.Second}
+	handlersmap[localci.String()] = &handlers{local: t.Local, localParams: t.LocalParams, encs: t.Encs, idletimeout: time.Second}
 	handlersmap[localci.String()].suffrageNodeConnInfof = func() ([]isaac.NodeConnInfo, error) {
 		return ncis, nil
 	}
 
 	client := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.clientWritef(handlersmap))
 
-	checker := NewSyncSourceChecker(local, t.NodePolicy.NetworkID(), client, time.Second, t.Enc, nil, nil)
+	checker := NewSyncSourceChecker(local, t.LocalParams.NetworkID(), client, time.Second, t.Enc, nil, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -266,7 +266,7 @@ func (t *testSyncSourceChecker) TestFetchFromURL() {
 	defer ts.Close()
 
 	local := isaac.RandomLocalNode()
-	checker := NewSyncSourceChecker(local, t.NodePolicy.NetworkID(), client, time.Second, t.Enc, nil, nil)
+	checker := NewSyncSourceChecker(local, t.LocalParams.NetworkID(), client, time.Second, t.Enc, nil, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -305,7 +305,7 @@ func (t *testSyncSourceChecker) TestCheckSameResult() {
 
 	localci := quicstream.RandomConnInfo()
 
-	handlersmap[localci.String()] = &handlers{local: t.Local, nodepolicy: t.NodePolicy, encs: t.Encs, idletimeout: time.Second}
+	handlersmap[localci.String()] = &handlers{local: t.Local, localParams: t.LocalParams, encs: t.Encs, idletimeout: time.Second}
 	handlersmap[localci.String()].suffrageNodeConnInfof = func() ([]isaac.NodeConnInfo, error) {
 		return ncislocal, nil
 	}
@@ -336,7 +336,7 @@ func (t *testSyncSourceChecker) TestCheckSameResult() {
 	}
 
 	local := isaac.RandomLocalNode()
-	checker := NewSyncSourceChecker(local, t.NodePolicy.NetworkID(), client, time.Second, t.Enc, cis, nil)
+	checker := NewSyncSourceChecker(local, t.LocalParams.NetworkID(), client, time.Second, t.Enc, cis, nil)
 
 	ucis, err := checker.check(ctx)
 	t.NoError(err)
@@ -366,7 +366,7 @@ func (t *testSyncSourceChecker) TestCheckFilterLocal() {
 		ncis = append(ncis, NewNodeConnInfo(node.BaseNode, ci.UDPAddr().String(), ci.TLSInsecure()))
 	}
 
-	handlersmap[localci.String()] = &handlers{local: local, nodepolicy: t.NodePolicy, encs: t.Encs, idletimeout: time.Second}
+	handlersmap[localci.String()] = &handlers{local: local, localParams: t.LocalParams, encs: t.Encs, idletimeout: time.Second}
 	handlersmap[localci.String()].suffrageNodeConnInfof = func() ([]isaac.NodeConnInfo, error) {
 		return ncis, nil
 	}
@@ -378,7 +378,7 @@ func (t *testSyncSourceChecker) TestCheckFilterLocal() {
 
 	cis := []SyncSource{{Type: SyncSourceTypeSuffrageNodes, Source: localci}}
 
-	checker := NewSyncSourceChecker(local, t.NodePolicy.NetworkID(), client, time.Second, t.Enc, cis, nil)
+	checker := NewSyncSourceChecker(local, t.LocalParams.NetworkID(), client, time.Second, t.Enc, cis, nil)
 
 	ucis, err := checker.check(ctx)
 	t.NoError(err)
@@ -408,7 +408,7 @@ func (t *testSyncSourceChecker) TestCalled() {
 	calledch := make(chan int64)
 
 	local := isaac.RandomLocalNode()
-	checker := NewSyncSourceChecker(local, t.NodePolicy.NetworkID(), nil, time.Millisecond*100, t.Enc, nil,
+	checker := NewSyncSourceChecker(local, t.LocalParams.NetworkID(), nil, time.Millisecond*100, t.Enc, nil,
 		func(called int64, nics []isaac.NodeConnInfo, err error) {
 			calledch <- called
 		},

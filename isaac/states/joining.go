@@ -27,7 +27,7 @@ type NewJoiningHandlerType struct {
 
 func NewNewJoiningHandlerType(
 	local base.LocalNode,
-	policy *isaac.NodePolicy,
+	params *isaac.LocalParams,
 	proposalSelector isaac.ProposalSelector,
 	lastManifest func() (base.Manifest, bool, error),
 	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc,
@@ -35,7 +35,7 @@ func NewNewJoiningHandlerType(
 	joinMemberlistf func(context.Context, base.Suffrage) error,
 	leaveMemberlistf func(time.Duration) error,
 ) *NewJoiningHandlerType {
-	baseHandler := newBaseHandler(StateJoining, local, policy, proposalSelector)
+	baseHandler := newBaseHandler(StateJoining, local, params, proposalSelector)
 
 	if voteFunc != nil {
 		baseHandler.voteFunc = preventVotingWithEmptySuffrage(voteFunc, local, nodeInConsensusNodes)
@@ -45,7 +45,7 @@ func NewNewJoiningHandlerType(
 		JoiningHandler: &JoiningHandler{
 			baseHandler:          baseHandler,
 			lastManifest:         lastManifest,
-			waitFirstVoteproof:   policy.IntervalBroadcastBallot()*2 + policy.WaitPreparingINITBallot(),
+			waitFirstVoteproof:   params.IntervalBroadcastBallot()*2 + params.WaitPreparingINITBallot(),
 			nodeInConsensusNodes: nodeInConsensusNodes,
 			joinMemberlistf:      joinMemberlistf,
 			leaveMemberlistf:     leaveMemberlistf,

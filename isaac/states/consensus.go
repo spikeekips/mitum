@@ -24,7 +24,7 @@ type NewConsensusHandlerType struct {
 
 func NewNewConsensusHandlerType(
 	local base.LocalNode,
-	policy *isaac.NodePolicy,
+	params *isaac.LocalParams,
 	proposalSelector isaac.ProposalSelector,
 	getManifest func(base.Height) (base.Manifest, error),
 	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc,
@@ -32,7 +32,7 @@ func NewNewConsensusHandlerType(
 	whenNewBlockSaved func(base.Height),
 	pps *isaac.ProposalProcessors,
 ) *NewConsensusHandlerType {
-	baseHandler := newBaseHandler(StateConsensus, local, policy, proposalSelector)
+	baseHandler := newBaseHandler(StateConsensus, local, params, proposalSelector)
 
 	if voteFunc != nil {
 		baseHandler.voteFunc = preventVotingWithEmptySuffrage(voteFunc, local, nodeInConsensusNodes)
@@ -343,7 +343,7 @@ func (st *ConsensusHandler) prepareACCEPTBallot(
 	afact := isaac.NewACCEPTBallotFact(ivp.Point().Point, ivp.BallotMajority().Proposal(), manifest.Hash())
 	signedFact := isaac.NewACCEPTBallotSignedFact(st.local.Address(), afact)
 
-	if err := signedFact.Sign(st.local.Privatekey(), st.policy.NetworkID()); err != nil {
+	if err := signedFact.Sign(st.local.Privatekey(), st.params.NetworkID()); err != nil {
 		return e(err, "")
 	}
 
@@ -624,8 +624,8 @@ func (st *ConsensusHandler) nextRound(vp base.Voteproof, previousBlock util.Hash
 	}
 
 	initialWait := time.Nanosecond
-	if d := time.Since(started); d < st.policy.WaitPreparingINITBallot() {
-		initialWait = st.policy.WaitPreparingINITBallot() - d
+	if d := time.Since(started); d < st.params.WaitPreparingINITBallot() {
+		initialWait = st.params.WaitPreparingINITBallot() - d
 	}
 
 	if err := st.prepareINITBallot(bl, initialWait, []util.TimerID{timerIDBroadcastINITBallot}); err != nil {
@@ -667,8 +667,8 @@ func (st *ConsensusHandler) nextBlock(avp base.ACCEPTVoteproof) {
 	}
 
 	initialWait := time.Nanosecond
-	if d := time.Since(started); d < st.policy.WaitPreparingINITBallot() {
-		initialWait = st.policy.WaitPreparingINITBallot() - d
+	if d := time.Since(started); d < st.params.WaitPreparingINITBallot() {
+		initialWait = st.params.WaitPreparingINITBallot() - d
 	}
 
 	if err := st.prepareINITBallot(bl, initialWait, []util.TimerID{

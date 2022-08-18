@@ -60,13 +60,13 @@ func PSuffrageCandidateLimiterSet(ctx context.Context) (context.Context, error) 
 
 func PLastSuffrageProofWatcher(ctx context.Context) (context.Context, error) {
 	var local base.LocalNode
-	var policy base.NodePolicy
+	var params base.LocalParams
 	var discoveries []quicstream.UDPConnInfo
 	var db isaac.Database
 
 	if err := ps.LoadsFromContextOK(ctx,
 		LocalContextKey, &local,
-		NodePolicyContextKey, &policy,
+		LocalParamsContextKey, &params,
 		DiscoveryContextKey, &discoveries,
 		CenterDatabaseContextKey, &db,
 	); err != nil {
@@ -89,7 +89,7 @@ func PLastSuffrageProofWatcher(ctx context.Context) (context.Context, error) {
 	}
 
 	builder := isaac.NewSuffrageStateBuilder(
-		policy.NetworkID(),
+		params.NetworkID(),
 		getLastSuffrageProoff,
 		getSuffrageProoff,
 		getLastSuffrageCandidatef,
@@ -295,13 +295,13 @@ func MajoritySuffrageCandidateLimiterFunc(
 }
 
 func GetLastSuffrageProofFunc(ctx context.Context) (isaac.GetLastSuffrageProofFromRemoteFunc, error) {
-	var policy base.NodePolicy
+	var params base.LocalParams
 	var client *isaacnetwork.QuicstreamClient
 	var syncSourcePool *isaac.SyncSourcePool
 
 	if err := ps.LoadsFromContextOK(ctx,
 		QuicstreamClientContextKey, &client,
-		NodePolicyContextKey, &policy,
+		LocalParamsContextKey, &params,
 		SyncSourcePoolContextKey, &syncSourcePool,
 	); err != nil {
 		return nil, err
@@ -324,7 +324,7 @@ func GetLastSuffrageProofFunc(ctx context.Context) (isaac.GetLastSuffrageProofFr
 		case !updated:
 			return proof, updated, nil
 		default:
-			if err := proof.IsValid(policy.NetworkID()); err != nil {
+			if err := proof.IsValid(params.NetworkID()); err != nil {
 				return nil, updated, err
 			}
 
@@ -393,13 +393,13 @@ func GetLastSuffrageProofFunc(ctx context.Context) (isaac.GetLastSuffrageProofFr
 func GetSuffrageProofFunc(ctx context.Context) ( //revive:disable-line:cognitive-complexity
 	isaac.GetSuffrageProofFromRemoteFunc, error,
 ) {
-	var policy base.NodePolicy
+	var params base.LocalParams
 	var client *isaacnetwork.QuicstreamClient
 	var syncSourcePool *isaac.SyncSourcePool
 
 	if err := ps.LoadsFromContextOK(ctx,
 		QuicstreamClientContextKey, &client,
-		NodePolicyContextKey, &policy,
+		LocalParamsContextKey, &params,
 		SyncSourcePoolContextKey, &syncSourcePool,
 	); err != nil {
 		return nil, err
@@ -433,7 +433,7 @@ func GetSuffrageProofFunc(ctx context.Context) ( //revive:disable-line:cognitive
 						case !b:
 							return nil
 						default:
-							if err := a.IsValid(policy.NetworkID()); err != nil {
+							if err := a.IsValid(params.NetworkID()); err != nil {
 								return nil
 							}
 

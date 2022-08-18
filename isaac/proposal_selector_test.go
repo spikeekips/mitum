@@ -117,13 +117,13 @@ func (t *testBaseProposalSelector) TestNew() {
 	pool := newDummyProposalPool(10)
 	p := NewBaseProposalSelector(
 		t.Local,
-		t.NodePolicy,
+		t.LocalParams,
 		NewBlockBasedProposerSelector(
 			func(base.Height) (util.Hash, error) {
 				return valuehash.NewBytes([]byte("abc")), nil
 			},
 		),
-		NewProposalMaker(t.Local, t.NodePolicy, func(context.Context, base.Height) ([]util.Hash, error) { return nil, nil }, pool),
+		NewProposalMaker(t.Local, t.LocalParams, func(context.Context, base.Height) ([]util.Hash, error) { return nil, nil }, pool),
 		func(base.Height) ([]base.Node, bool, error) {
 			return nodes, true, nil
 		},
@@ -134,7 +134,7 @@ func (t *testBaseProposalSelector) TestNew() {
 					continue
 				}
 
-				return NewProposalMaker(n.(base.LocalNode), t.NodePolicy, func(context.Context, base.Height) ([]util.Hash, error) { return nil, nil }, pool).New(ctx, point)
+				return NewProposalMaker(n.(base.LocalNode), t.LocalParams, func(context.Context, base.Height) ([]util.Hash, error) { return nil, nil }, pool).New(ctx, point)
 			}
 
 			return nil, errors.Errorf("proposer not found in suffrage")
@@ -149,7 +149,7 @@ func (t *testBaseProposalSelector) TestNew() {
 	t.NoError(err)
 	t.NotNil(pr)
 
-	t.NoError(pr.IsValid(t.NodePolicy.NetworkID()))
+	t.NoError(pr.IsValid(t.LocalParams.NetworkID()))
 
 	t.Equal(point, pr.Point())
 
@@ -163,13 +163,13 @@ func (t *testBaseProposalSelector) TestOneNode() {
 	pool := newDummyProposalPool(10)
 	p := NewBaseProposalSelector(
 		t.Local,
-		t.NodePolicy,
+		t.LocalParams,
 		NewBlockBasedProposerSelector(
 			func(base.Height) (util.Hash, error) {
 				return valuehash.RandomSHA512(), nil
 			},
 		),
-		NewProposalMaker(t.Local, t.NodePolicy, func(context.Context, base.Height) ([]util.Hash, error) { return nil, nil }, pool),
+		NewProposalMaker(t.Local, t.LocalParams, func(context.Context, base.Height) ([]util.Hash, error) { return nil, nil }, pool),
 		func(base.Height) ([]base.Node, bool, error) {
 			return nodes, true, nil
 		},
@@ -186,7 +186,7 @@ func (t *testBaseProposalSelector) TestOneNode() {
 	t.NoError(err)
 	t.NotNil(pr)
 
-	t.NoError(pr.IsValid(t.NodePolicy.NetworkID()))
+	t.NoError(pr.IsValid(t.LocalParams.NetworkID()))
 
 	t.Equal(point, pr.Point())
 
@@ -198,13 +198,13 @@ func (t *testBaseProposalSelector) TestUnknownSuffrage() {
 	pool := newDummyProposalPool(10)
 	p := NewBaseProposalSelector(
 		t.Local,
-		t.NodePolicy,
+		t.LocalParams,
 		NewBlockBasedProposerSelector(
 			func(base.Height) (util.Hash, error) {
 				return valuehash.RandomSHA512(), nil
 			},
 		),
-		NewProposalMaker(t.Local, t.NodePolicy, func(context.Context, base.Height) ([]util.Hash, error) { return nil, nil }, pool),
+		NewProposalMaker(t.Local, t.LocalParams, func(context.Context, base.Height) ([]util.Hash, error) { return nil, nil }, pool),
 		func(base.Height) ([]base.Node, bool, error) {
 			return nil, false, nil
 		},
@@ -227,13 +227,13 @@ func (t *testBaseProposalSelector) TestUnknownManifestHash() {
 	pool := newDummyProposalPool(10)
 	p := NewBaseProposalSelector(
 		t.Local,
-		t.NodePolicy,
+		t.LocalParams,
 		NewBlockBasedProposerSelector(
 			func(base.Height) (util.Hash, error) {
 				return nil, util.ErrNotFound.Errorf("hahaha")
 			},
 		),
-		NewProposalMaker(t.Local, t.NodePolicy, func(context.Context, base.Height) ([]util.Hash, error) { return nil, nil }, pool),
+		NewProposalMaker(t.Local, t.LocalParams, func(context.Context, base.Height) ([]util.Hash, error) { return nil, nil }, pool),
 		func(base.Height) ([]base.Node, bool, error) {
 			return nodes, true, nil
 		},
@@ -264,7 +264,7 @@ func (t *testBaseProposalSelector) TestFailedToReqeustByContext() {
 	pool := newDummyProposalPool(10)
 	p := NewBaseProposalSelector(
 		t.Local,
-		t.NodePolicy,
+		t.LocalParams,
 		NewFixedProposerSelector(
 			func(base.Point, []base.Node) (base.Node, error) {
 				if atomic.LoadInt64(&touched) < 1 {
@@ -276,7 +276,7 @@ func (t *testBaseProposalSelector) TestFailedToReqeustByContext() {
 				return nodes[1], nil
 			},
 		),
-		NewProposalMaker(t.Local, t.NodePolicy, func(context.Context, base.Height) ([]util.Hash, error) { return nil, nil }, pool),
+		NewProposalMaker(t.Local, t.LocalParams, func(context.Context, base.Height) ([]util.Hash, error) { return nil, nil }, pool),
 		func(base.Height) ([]base.Node, bool, error) {
 			return nodes, true, nil
 		},
@@ -291,7 +291,7 @@ func (t *testBaseProposalSelector) TestFailedToReqeustByContext() {
 					continue
 				}
 
-				return NewProposalMaker(n.(base.LocalNode), t.NodePolicy, func(context.Context, base.Height) ([]util.Hash, error) { return nil, nil }, pool).New(ctx, point)
+				return NewProposalMaker(n.(base.LocalNode), t.LocalParams, func(context.Context, base.Height) ([]util.Hash, error) { return nil, nil }, pool).New(ctx, point)
 			}
 
 			return nil, errors.Errorf("proposer not found in suffrage")
@@ -309,7 +309,7 @@ func (t *testBaseProposalSelector) TestFailedToReqeustByContext() {
 	t.NoError(err)
 	t.NotNil(pr)
 
-	t.NoError(pr.IsValid(t.NodePolicy.NetworkID()))
+	t.NoError(pr.IsValid(t.LocalParams.NetworkID()))
 
 	t.Equal(point, pr.Point())
 
@@ -324,13 +324,13 @@ func (t *testBaseProposalSelector) TestAllFailedToReqeust() {
 	pool := newDummyProposalPool(10)
 	p := NewBaseProposalSelector(
 		t.Local,
-		t.NodePolicy,
+		t.LocalParams,
 		NewBlockBasedProposerSelector(
 			func(base.Height) (util.Hash, error) {
 				return valuehash.NewBytes([]byte("abc")), nil
 			},
 		),
-		NewProposalMaker(t.Local, t.NodePolicy, func(context.Context, base.Height) ([]util.Hash, error) { return nil, nil }, pool),
+		NewProposalMaker(t.Local, t.LocalParams, func(context.Context, base.Height) ([]util.Hash, error) { return nil, nil }, pool),
 		func(base.Height) ([]base.Node, bool, error) {
 			return nodes, true, nil
 		},
@@ -354,18 +354,18 @@ func (t *testBaseProposalSelector) TestContextCanceled() {
 	nodes := t.newNodes(3)
 
 	requestdelay := time.Second
-	_ = t.NodePolicy.SetTimeoutRequestProposal(time.Millisecond * 10)
+	_ = t.LocalParams.SetTimeoutRequestProposal(time.Millisecond * 10)
 
 	pool := newDummyProposalPool(10)
 	p := NewBaseProposalSelector(
 		t.Local,
-		t.NodePolicy,
+		t.LocalParams,
 		NewBlockBasedProposerSelector(
 			func(base.Height) (util.Hash, error) {
 				return valuehash.NewBytes([]byte("abc")), nil
 			},
 		),
-		NewProposalMaker(t.Local, t.NodePolicy, func(context.Context, base.Height) ([]util.Hash, error) { return nil, nil }, pool),
+		NewProposalMaker(t.Local, t.LocalParams, func(context.Context, base.Height) ([]util.Hash, error) { return nil, nil }, pool),
 		func(base.Height) ([]base.Node, bool, error) {
 			return nodes, true, nil
 		},
@@ -387,7 +387,7 @@ func (t *testBaseProposalSelector) TestContextCanceled() {
 						continue
 					}
 
-					pr, err = NewProposalMaker(n.(base.LocalNode), t.NodePolicy, func(context.Context, base.Height) ([]util.Hash, error) { return nil, nil }, pool).New(ctx, point)
+					pr, err = NewProposalMaker(n.(base.LocalNode), t.LocalParams, func(context.Context, base.Height) ([]util.Hash, error) { return nil, nil }, pool).New(ctx, point)
 
 					done <- struct{}{}
 
@@ -426,18 +426,18 @@ func (t *testBaseProposalSelector) TestMainContextCanceled() {
 	nodes := t.newNodes(3)
 
 	requestdelay := time.Second * 10
-	_ = t.NodePolicy.SetTimeoutRequestProposal(requestdelay * 2)
+	_ = t.LocalParams.SetTimeoutRequestProposal(requestdelay * 2)
 
 	pool := newDummyProposalPool(10)
 	p := NewBaseProposalSelector(
 		t.Local,
-		t.NodePolicy,
+		t.LocalParams,
 		NewBlockBasedProposerSelector(
 			func(base.Height) (util.Hash, error) {
 				return valuehash.NewBytes([]byte("abc")), nil
 			},
 		),
-		NewProposalMaker(t.Local, t.NodePolicy, func(context.Context, base.Height) ([]util.Hash, error) { return nil, nil }, pool),
+		NewProposalMaker(t.Local, t.LocalParams, func(context.Context, base.Height) ([]util.Hash, error) { return nil, nil }, pool),
 		func(base.Height) ([]base.Node, bool, error) {
 			return nodes, true, nil
 		},
@@ -455,7 +455,7 @@ func (t *testBaseProposalSelector) TestMainContextCanceled() {
 						continue
 					}
 
-					pr, err = NewProposalMaker(n.(base.LocalNode), t.NodePolicy, func(context.Context, base.Height) ([]util.Hash, error) { return nil, nil }, pool).New(ctx, point)
+					pr, err = NewProposalMaker(n.(base.LocalNode), t.LocalParams, func(context.Context, base.Height) ([]util.Hash, error) { return nil, nil }, pool).New(ctx, point)
 
 					done <- struct{}{}
 

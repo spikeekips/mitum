@@ -25,7 +25,7 @@ func PNodeInfo(ctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var version util.Version
 	var local base.LocalNode
-	var policy *isaac.NodePolicy
+	var params *isaac.LocalParams
 	var design NodeDesign
 	var db isaac.Database
 
@@ -34,7 +34,7 @@ func PNodeInfo(ctx context.Context) (context.Context, error) {
 		VersionContextKey, &version,
 		DesignContextKey, &design,
 		LocalContextKey, &local,
-		NodePolicyContextKey, &policy,
+		LocalParamsContextKey, &params,
 		CenterDatabaseContextKey, &db,
 	); err != nil {
 		return ctx, e(err, "")
@@ -46,7 +46,7 @@ func PNodeInfo(ctx context.Context) (context.Context, error) {
 		design.Network.PublishString,
 		design.Network.TLSInsecure,
 	))
-	_ = nodeinfo.SetNodePolicy(policy)
+	_ = nodeinfo.SetLocalParams(params)
 
 	ctx = context.WithValue(ctx, NodeInfoContextKey, nodeinfo) //revive:disable-line:modifies-parameter
 

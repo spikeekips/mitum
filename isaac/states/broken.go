@@ -19,11 +19,11 @@ type NewBrokenHandlerType struct {
 
 func NewNewBrokenHandlerType(
 	local base.LocalNode,
-	policy *isaac.NodePolicy,
+	params *isaac.LocalParams,
 ) *NewBrokenHandlerType {
 	return &NewBrokenHandlerType{
 		BrokenHandler: &BrokenHandler{
-			baseHandler: newBaseHandler(StateBroken, local, policy, nil),
+			baseHandler: newBaseHandler(StateBroken, local, params, nil),
 		},
 	}
 }

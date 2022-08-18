@@ -44,7 +44,7 @@ func (t *baseTestSuffrageStateBuilder) prepare(point base.Point, previous base.S
 		previoushash = previous.Hash()
 	}
 
-	blockMap, err := newTestBlockMap(point.Height(), nil, previoushash, t.Local, t.NodePolicy.NetworkID())
+	blockMap, err := newTestBlockMap(point.Height(), nil, previoushash, t.Local, t.LocalParams.NetworkID())
 	t.NoError(err)
 
 	var suffrageheight base.Height
@@ -159,7 +159,7 @@ func (t *testSuffrageStateBuilder) TestBuildOneFromGenesis() {
 	var fetched []base.Height
 
 	s := isaac.NewSuffrageStateBuilder(
-		t.NodePolicy.NetworkID(),
+		t.LocalParams.NetworkID(),
 		func(context.Context) (base.SuffrageProof, bool, error) {
 			return proofs[last.State().Height()], true, nil
 		},
@@ -206,7 +206,7 @@ func (t *testSuffrageStateBuilder) TestBuildFromGenesis() {
 	fetched := make([]base.Height, len(expected))
 
 	s := isaac.NewSuffrageStateBuilder(
-		t.NodePolicy.NetworkID(),
+		t.LocalParams.NetworkID(),
 		func(context.Context) (base.SuffrageProof, bool, error) {
 			return proofs[last.State().Height()], true, nil
 		},
@@ -251,7 +251,7 @@ func (t *testSuffrageStateBuilder) TestBuildNotFromGenesis() {
 	fetched := make([]base.Height, len(expected))
 
 	s := isaac.NewSuffrageStateBuilder(
-		t.NodePolicy.NetworkID(),
+		t.LocalParams.NetworkID(),
 		func(context.Context) (base.SuffrageProof, bool, error) {
 			return proofs[last.State().Height()], true, nil
 		},
@@ -293,7 +293,7 @@ func (t *testSuffrageStateBuilder) TestBuildLastNotFromGenesis() {
 	localheight := base.Height(13)
 
 	s := isaac.NewSuffrageStateBuilder(
-		t.NodePolicy.NetworkID(),
+		t.LocalParams.NetworkID(),
 		func(context.Context) (base.SuffrageProof, bool, error) {
 			return proofs[last.State().Height()], true, nil
 		},

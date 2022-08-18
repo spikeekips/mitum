@@ -36,7 +36,7 @@ func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 	var enc encoder.Encoder
 	var design NodeDesign
 	var local base.LocalNode
-	var policy *isaac.NodePolicy
+	var params *isaac.LocalParams
 	var db isaac.Database
 	var pool *isaacdatabase.TempPool
 	var proposalMaker *isaac.ProposalMaker
@@ -50,7 +50,7 @@ func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 		EncoderContextKey, &enc,
 		DesignContextKey, &design,
 		LocalContextKey, &local,
-		NodePolicyContextKey, &policy,
+		LocalParamsContextKey, &params,
 		CenterDatabaseContextKey, &db,
 		PoolDatabaseContextKey, &pool,
 		ProposalMakerContextKey, &proposalMaker,
@@ -75,7 +75,7 @@ func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 		Add(isaacnetwork.HandlerPrefixOperation, isaacnetwork.QuicstreamHandlerOperation(encs, idletimeout, pool)).
 		Add(isaacnetwork.HandlerPrefixSendOperation,
 			isaacnetwork.QuicstreamHandlerSendOperation(
-				encs, idletimeout, policy, pool, db.ExistsInStateOperation, sendOperationFilterf),
+				encs, idletimeout, params, pool, db.ExistsInStateOperation, sendOperationFilterf),
 		).
 		Add(isaacnetwork.HandlerPrefixRequestProposal,
 			isaacnetwork.QuicstreamHandlerRequestProposal(encs, idletimeout,
@@ -141,7 +141,7 @@ func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 			),
 		).
 		Add(isaacnetwork.HandlerPrefixNodeChallenge,
-			isaacnetwork.QuicstreamHandlerNodeChallenge(encs, idletimeout, local, policy),
+			isaacnetwork.QuicstreamHandlerNodeChallenge(encs, idletimeout, local, params),
 		).
 		Add(isaacnetwork.HandlerPrefixSuffrageNodeConnInfo,
 			isaacnetwork.QuicstreamHandlerSuffrageNodeConnInfo(encs, idletimeout, suffrageNodeConnInfof),
@@ -180,11 +180,11 @@ func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 }
 
 func POperationProcessorsMap(ctx context.Context) (context.Context, error) {
-	var nodepolicy *isaac.NodePolicy
+	var params *isaac.LocalParams
 	var db isaac.Database
 
 	if err := ps.LoadsFromContextOK(ctx,
-		NodePolicyContextKey, &nodepolicy,
+		LocalParamsContextKey, &params,
 		CenterDatabaseContextKey, &db,
 	); err != nil {
 		return ctx, err
@@ -220,7 +220,7 @@ func POperationProcessorsMap(ctx context.Context) (context.Context, error) {
 
 		return isaacoperation.NewSuffrageJoinProcessor(
 			height,
-			nodepolicy.Threshold(),
+			params.Threshold(),
 			db.State,
 			nil,
 			nil,

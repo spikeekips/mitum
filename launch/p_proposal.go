@@ -52,7 +52,7 @@ func newProposalProcessorFunc(pctx context.Context) (
 	var enc encoder.Encoder
 	var design NodeDesign
 	var local base.LocalNode
-	var policy base.NodePolicy
+	var params base.LocalParams
 	var db isaac.Database
 	var pool *isaacdatabase.TempPool
 	var oprs *hint.CompatibleSet
@@ -61,7 +61,7 @@ func newProposalProcessorFunc(pctx context.Context) (
 		EncoderContextKey, &enc,
 		DesignContextKey, &design,
 		LocalContextKey, &local,
-		NodePolicyContextKey, &policy,
+		LocalParamsContextKey, &params,
 		CenterDatabaseContextKey, &db,
 		PoolDatabaseContextKey, &pool,
 		OperationProcessorsMapContextKey, &oprs,
@@ -82,7 +82,7 @@ func newProposalProcessorFunc(pctx context.Context) (
 			previous,
 			NewBlockWriterFunc(
 				local,
-				policy.NetworkID(),
+				params.NetworkID(),
 				LocalFSDataDirectory(design.Storage.Base),
 				enc,
 				db,
@@ -181,11 +181,11 @@ func getProposalOperationFunc(pctx context.Context) (
 	func(base.ProposalSignedFact) isaac.OperationProcessorGetOperationFunction,
 	error,
 ) {
-	var policy base.NodePolicy
+	var params base.LocalParams
 	var db isaac.Database
 
 	if err := ps.LoadsFromContextOK(pctx,
-		NodePolicyContextKey, &policy,
+		LocalParamsContextKey, &params,
 		CenterDatabaseContextKey, &db,
 	); err != nil {
 		return nil, err
@@ -223,7 +223,7 @@ func getProposalOperationFunc(pctx context.Context) (
 				}
 			}
 
-			if err := op.IsValid(policy.NetworkID()); err != nil {
+			if err := op.IsValid(params.NetworkID()); err != nil {
 				return nil, isaac.InvalidOperationInProcessorError.Wrap(err)
 			}
 
@@ -412,7 +412,7 @@ func getProposalOperationFromRemoteProposerFunc(pctx context.Context) (
 func NewProposalSelector(pctx context.Context) (*isaac.BaseProposalSelector, error) {
 	var log *logging.Logging
 	var local base.LocalNode
-	var policy *isaac.NodePolicy
+	var params *isaac.LocalParams
 	var db isaac.Database
 	var pool *isaacdatabase.TempPool
 	var proposalMaker *isaac.ProposalMaker
@@ -422,7 +422,7 @@ func NewProposalSelector(pctx context.Context) (*isaac.BaseProposalSelector, err
 	if err := ps.LoadsFromContextOK(pctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
-		NodePolicyContextKey, &policy,
+		LocalParamsContextKey, &params,
 		CenterDatabaseContextKey, &db,
 		PoolDatabaseContextKey, &pool,
 		ProposalMakerContextKey, &proposalMaker,
@@ -434,7 +434,7 @@ func NewProposalSelector(pctx context.Context) (*isaac.BaseProposalSelector, err
 
 	return isaac.NewBaseProposalSelector(
 		local,
-		policy,
+		params,
 		isaac.NewBlockBasedProposerSelector(
 			func(height base.Height) (util.Hash, error) {
 				switch m, found, err := db.BlockMap(height); {

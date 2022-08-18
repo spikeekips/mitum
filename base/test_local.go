@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func EqualNetworkPolicy(t *assert.Assertions, a, b NetworkPolicy) {
+func EqualLocalParams(t *assert.Assertions, a, b LocalParams) {
 	switch {
 	case a == nil && b == nil:
 		return
@@ -23,5 +23,6 @@ func EqualNetworkPolicy(t *assert.Assertions, a, b NetworkPolicy) {
 	bht := b.(hint.Hinter).Hint()
 	t.True(aht.Equal(bht), "Hint does not match")
 
-	t.Equal(a.HashBytes(), b.HashBytes())
+	t.Equal(a.NetworkID(), b.NetworkID())
+	t.Equal(a.Threshold(), b.Threshold())
 }

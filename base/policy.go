@@ -14,12 +14,6 @@ type NetworkPolicy interface {
 	MaxSuffrageSize() uint64
 }
 
-type NodePolicy interface {
-	util.IsValider
-	NetworkID() NetworkID
-	Threshold() Threshold
-}
-
 type NetworkPolicyStateValue interface {
 	StateValue
 	Policy() NetworkPolicy

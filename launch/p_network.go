@@ -34,17 +34,17 @@ var (
 func PQuicstreamClient(ctx context.Context) (context.Context, error) {
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
-	var policy base.NodePolicy
+	var params base.LocalParams
 
 	if err := ps.LoadsFromContextOK(ctx,
 		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
-		NodePolicyContextKey, &policy,
+		LocalParamsContextKey, &params,
 	); err != nil {
 		return ctx, errors.WithMessage(err, "failed network client")
 	}
 
-	client := NewNetworkClient(encs, enc, time.Second*2, policy.NetworkID()) //nolint:gomnd //...
+	client := NewNetworkClient(encs, enc, time.Second*2, params.NetworkID()) //nolint:gomnd //...
 
 	ctx = context.WithValue(ctx, QuicstreamClientContextKey, client) //revive:disable-line:modifies-parameter
 
@@ -58,14 +58,14 @@ func PNetwork(ctx context.Context) (context.Context, error) {
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
 	var design NodeDesign
-	var policy base.NodePolicy
+	var params base.LocalParams
 
 	if err := ps.LoadsFromContextOK(ctx,
 		LoggingContextKey, &log,
 		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
 		DesignContextKey, &design,
-		NodePolicyContextKey, &policy,
+		LocalParamsContextKey, &params,
 	); err != nil {
 		return ctx, e(err, "")
 	}
@@ -79,7 +79,7 @@ func PNetwork(ctx context.Context) (context.Context, error) {
 
 	server := quicstream.NewServer(
 		design.Network.Bind,
-		GenerateNewTLSConfig(policy.NetworkID()),
+		GenerateNewTLSConfig(params.NetworkID()),
 		quicconfig,
 		handlers.Handler,
 	)

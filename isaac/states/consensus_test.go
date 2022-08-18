@@ -20,11 +20,11 @@ type baseTestConsensusHandler struct {
 
 func (t *baseTestConsensusHandler) newState(previous base.Manifest, suf base.Suffrage) (*ConsensusHandler, func()) {
 	local := t.Local
-	policy := t.NodePolicy
+	params := t.LocalParams
 
 	newhandler := NewNewConsensusHandlerType(
 		local,
-		policy,
+		params,
 		nil,
 		func(base.Height) (base.Manifest, error) { return previous, nil },
 		func(base.Node, base.Height) (base.Suffrage, bool, error) {
@@ -122,7 +122,7 @@ func (t *testConsensusHandler) TestFailedToFetchProposal() {
 
 	newhandler := NewNewConsensusHandlerType(
 		t.Local,
-		t.NodePolicy,
+		t.LocalParams,
 		nil,
 		func(base.Height) (base.Manifest, error) { return previous, nil },
 		func(base.Node, base.Height) (base.Suffrage, bool, error) { return suf, true, nil },
@@ -167,7 +167,7 @@ func (t *testConsensusHandler) TestFailedToFetchProposal() {
 	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
 		return prpool.Get(p), nil
 	})
-	st.policy = t.NodePolicy.SetWaitPreparingINITBallot(time.Nanosecond)
+	st.params = t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
 
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
@@ -181,7 +181,7 @@ func (t *testConsensusHandler) TestFailedToFetchProposal() {
 
 			return
 		case bl := <-ballotch:
-			t.NoError(bl.IsValid(t.NodePolicy.NetworkID()))
+			t.NoError(bl.IsValid(t.LocalParams.NetworkID()))
 			ibl, ok := bl.(base.INITBallot)
 			t.True(ok)
 
@@ -269,7 +269,7 @@ func (t *testConsensusHandler) TestExit() {
 
 		return
 	case bl := <-ballotch:
-		t.NoError(bl.IsValid(t.NodePolicy.NetworkID()))
+		t.NoError(bl.IsValid(t.LocalParams.NetworkID()))
 
 		abl, ok := bl.(base.ACCEPTBallot)
 		t.True(ok)
@@ -318,7 +318,7 @@ func (t *testConsensusHandler) TestProcessingProposalAfterEntered() {
 
 		return
 	case bl := <-ballotch:
-		t.NoError(bl.IsValid(t.NodePolicy.NetworkID()))
+		t.NoError(bl.IsValid(t.LocalParams.NetworkID()))
 
 		abl, ok := bl.(base.ACCEPTBallot)
 		t.True(ok)
@@ -508,7 +508,7 @@ func (t *testConsensusHandler) TestWithBallotbox() {
 		closef()
 	}()
 
-	st.policy = t.NodePolicy.SetWaitPreparingINITBallot(time.Nanosecond)
+	st.params = t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
 
 	manifests := util.NewLockedMap()
 	getmanifest := func(height base.Height) base.Manifest {

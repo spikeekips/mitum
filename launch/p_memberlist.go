@@ -33,12 +33,12 @@ func PMemberlist(ctx context.Context) (context.Context, error) {
 
 	var log *logging.Logging
 	var enc *jsonenc.Encoder
-	var policy *isaac.NodePolicy
+	var params *isaac.LocalParams
 
 	if err := ps.LoadsFromContextOK(ctx,
 		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
-		NodePolicyContextKey, &policy,
+		LocalParamsContextKey, &params,
 	); err != nil {
 		return ctx, e(err, "")
 	}
@@ -57,7 +57,7 @@ func PMemberlist(ctx context.Context) (context.Context, error) {
 		localnode,
 		enc,
 		config,
-		policy.SameMemberLimit(),
+		params.SameMemberLimit(),
 	)
 	if err != nil {
 		return ctx, e(err, "")
@@ -318,11 +318,11 @@ func nodeChallengeFunc(pctx context.Context) (
 	func(quicmemberlist.Node) error,
 	error,
 ) {
-	var policy base.NodePolicy
+	var params base.LocalParams
 	var client *isaacnetwork.QuicstreamClient
 
 	if err := ps.LoadsFromContextOK(pctx,
-		NodePolicyContextKey, &policy,
+		LocalParamsContextKey, &params,
 		QuicstreamClientContextKey, &client,
 	); err != nil {
 		return nil, err
@@ -346,7 +346,7 @@ func nodeChallengeFunc(pctx context.Context) (
 		input := util.UUID().Bytes()
 
 		sig, err := client.NodeChallenge(
-			ctx, node.UDPConnInfo(), policy.NetworkID(), node.Address(), node.Publickey(), input)
+			ctx, node.UDPConnInfo(), params.NetworkID(), node.Address(), node.Publickey(), input)
 		if err != nil {
 			return err
 		}
@@ -354,7 +354,7 @@ func nodeChallengeFunc(pctx context.Context) (
 		// NOTE challenge with publish address
 		if !network.EqualConnInfo(node.UDPConnInfo(), ci) {
 			psig, err := client.NodeChallenge(ctx, ci,
-				policy.NetworkID(), node.Address(), node.Publickey(), input)
+				params.NetworkID(), node.Address(), node.Publickey(), input)
 			if err != nil {
 				return err
 			}

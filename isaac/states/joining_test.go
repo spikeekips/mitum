@@ -20,11 +20,11 @@ type testJoiningHandler struct {
 
 func (t *testJoiningHandler) newState(suf base.Suffrage) (*JoiningHandler, func()) {
 	local := t.Local
-	policy := t.NodePolicy
+	params := t.LocalParams
 
 	newhandler := NewNewJoiningHandlerType(
 		local,
-		policy,
+		params,
 		nil,
 		func() (base.Manifest, bool, error) {
 			return nil, false, errors.Errorf("empty manifest")

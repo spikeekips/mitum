@@ -27,7 +27,7 @@ func PSyncSourceChecker(ctx context.Context) (context.Context, error) {
 	var enc encoder.Encoder
 	var design NodeDesign
 	var local base.LocalNode
-	var policy *isaac.NodePolicy
+	var params *isaac.LocalParams
 	var client *isaacnetwork.QuicstreamClient
 
 	if err := ps.LoadsFromContextOK(ctx,
@@ -35,7 +35,7 @@ func PSyncSourceChecker(ctx context.Context) (context.Context, error) {
 		EncoderContextKey, &enc,
 		DesignContextKey, &design,
 		LocalContextKey, &local,
-		NodePolicyContextKey, &policy,
+		LocalParamsContextKey, &params,
 		QuicstreamClientContextKey, &client,
 	); err != nil {
 		return ctx, e(err, "")
@@ -57,9 +57,9 @@ func PSyncSourceChecker(ctx context.Context) (context.Context, error) {
 
 	syncSourceChecker := isaacnetwork.NewSyncSourceChecker(
 		local,
-		policy.NetworkID(),
+		params.NetworkID(),
 		client,
-		policy.SyncSourceCheckerInterval(),
+		params.SyncSourceCheckerInterval(),
 		enc,
 		sources,
 		func(called int64, ncis []isaac.NodeConnInfo, err error) {

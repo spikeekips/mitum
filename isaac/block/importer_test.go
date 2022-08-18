@@ -40,7 +40,7 @@ func (t *testBlockImporter) TestNew() {
 	bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
 	defer bwdb.DeepClose()
 
-	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.NodePolicy.NetworkID())
+	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.LocalParams.NetworkID())
 	t.NoError(err)
 
 	_ = (interface{})(im).(isaac.BlockImporter)
@@ -53,7 +53,7 @@ func (t *testBlockImporter) TestWriteMap() {
 	bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
 	defer bwdb.DeepClose()
 
-	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.NodePolicy.NetworkID())
+	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.LocalParams.NetworkID())
 	t.NoError(err)
 
 	reader, err := NewLocalFSReader(im.localfs.temp, t.Enc)
@@ -85,7 +85,7 @@ func (t *testBlockImporter) TestWriteProposal() {
 	bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
 	defer bwdb.DeepClose()
 
-	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.NodePolicy.NetworkID())
+	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.LocalParams.NetworkID())
 	t.NoError(err)
 	im.batchlimit = 2
 
@@ -141,7 +141,7 @@ func (t *testBlockImporter) TestWriteOperations() {
 	bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
 	defer bwdb.DeepClose()
 
-	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.NodePolicy.NetworkID())
+	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.LocalParams.NetworkID())
 	t.NoError(err)
 	im.batchlimit = 2
 
@@ -211,7 +211,7 @@ func (t *testBlockImporter) TestWriteOperationsTree() {
 	bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
 	defer bwdb.DeepClose()
 
-	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.NodePolicy.NetworkID())
+	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.LocalParams.NetworkID())
 	t.NoError(err)
 	im.batchlimit = 2
 
@@ -273,7 +273,7 @@ func (t *testBlockImporter) TestWriteVoteproofs() {
 	bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
 	defer bwdb.DeepClose()
 
-	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.NodePolicy.NetworkID())
+	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.LocalParams.NetworkID())
 	t.NoError(err)
 	im.batchlimit = 2
 
@@ -331,7 +331,7 @@ func (t *testBlockImporter) TestWriteStates() {
 	bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
 	defer bwdb.DeepClose()
 
-	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.NodePolicy.NetworkID())
+	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.LocalParams.NetworkID())
 	t.NoError(err)
 	im.batchlimit = 2
 
@@ -405,7 +405,7 @@ func (t *testBlockImporter) TestWriteStatesTree() {
 	bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
 	defer bwdb.DeepClose()
 
-	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.NodePolicy.NetworkID())
+	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.LocalParams.NetworkID())
 	t.NoError(err)
 	im.batchlimit = 2
 
@@ -472,7 +472,7 @@ func (t *testBlockImporter) TestSave() {
 
 	newroot := filepath.Join(t.Root, "save")
 
-	im, err := NewBlockImporter(newroot, t.Encs, m, bwdb, t.NodePolicy.NetworkID())
+	im, err := NewBlockImporter(newroot, t.Encs, m, bwdb, t.LocalParams.NetworkID())
 	t.NoError(err)
 
 	m.Items(func(item base.BlockMapItem) bool {
@@ -525,7 +525,7 @@ func (t *testBlockImporter) TestCancelImport() {
 		bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
 		defer bwdb.DeepClose()
 
-		im, err := NewBlockImporter(newroot, t.Encs, m, bwdb, t.NodePolicy.NetworkID())
+		im, err := NewBlockImporter(newroot, t.Encs, m, bwdb, t.LocalParams.NetworkID())
 		t.NoError(err)
 
 		t.NoError(im.CancelImport(context.Background()))
@@ -534,7 +534,7 @@ func (t *testBlockImporter) TestCancelImport() {
 	bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
 	defer bwdb.DeepClose()
 
-	im, err := NewBlockImporter(newroot, t.Encs, m, bwdb, t.NodePolicy.NetworkID())
+	im, err := NewBlockImporter(newroot, t.Encs, m, bwdb, t.LocalParams.NetworkID())
 	t.NoError(err)
 
 	m.Items(func(item base.BlockMapItem) bool {

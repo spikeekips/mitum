@@ -24,11 +24,11 @@ type testSyncingHandler struct {
 
 func (t *testSyncingHandler) newState(finishch chan base.Height) (*SyncingHandler, func()) {
 	local := t.Local
-	policy := t.NodePolicy
+	params := t.LocalParams
 
 	newhandler := NewNewSyncingHandlerType(
 		local,
-		policy,
+		params,
 		nil,
 		func(height base.Height) (isaac.Syncer, error) {
 			syncer := newDummySyncer(finishch, nil)

@@ -118,7 +118,7 @@ func (t *testSuffrageProof) newmap(height base.Height, local base.LocalNode) Blo
 	}
 
 	m.SetManifest(manifest)
-	t.NoError(m.Sign(local.Address(), local.Privatekey(), t.NodePolicy.NetworkID()))
+	t.NoError(m.Sign(local.Address(), local.Privatekey(), t.LocalParams.NetworkID()))
 
 	return m
 }
@@ -128,7 +128,7 @@ func (t *testSuffrageProof) TestInvalid() {
 
 	t.Run("ok", func() {
 		p := NewSuffrageProof(t.blockMap, t.current, t.proof, t.voteproof)
-		t.NoError(p.IsValid(t.NodePolicy.NetworkID()))
+		t.NoError(p.IsValid(t.LocalParams.NetworkID()))
 
 		_ = (interface{})(p).(base.SuffrageProof)
 	})
@@ -137,7 +137,7 @@ func (t *testSuffrageProof) TestInvalid() {
 		p := NewSuffrageProof(t.blockMap, t.current, t.proof, t.voteproof)
 		p.BaseHinter = hint.NewBaseHinter(hint.MustNewHint("findme-v0.0.1"))
 
-		err := p.IsValid(t.NodePolicy.NetworkID())
+		err := p.IsValid(t.LocalParams.NetworkID())
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "type does not match")
@@ -146,7 +146,7 @@ func (t *testSuffrageProof) TestInvalid() {
 	t.Run("nil map", func() {
 		p := NewSuffrageProof(nil, t.current, t.proof, t.voteproof)
 
-		err := p.IsValid(t.NodePolicy.NetworkID())
+		err := p.IsValid(t.LocalParams.NetworkID())
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
 	})
@@ -154,7 +154,7 @@ func (t *testSuffrageProof) TestInvalid() {
 	t.Run("nil state", func() {
 		p := NewSuffrageProof(t.blockMap, nil, t.proof, t.voteproof)
 
-		err := p.IsValid(t.NodePolicy.NetworkID())
+		err := p.IsValid(t.LocalParams.NetworkID())
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
 	})
@@ -162,7 +162,7 @@ func (t *testSuffrageProof) TestInvalid() {
 	t.Run("nil voteproof", func() {
 		p := NewSuffrageProof(t.blockMap, t.current, t.proof, nil)
 
-		err := p.IsValid(t.NodePolicy.NetworkID())
+		err := p.IsValid(t.LocalParams.NetworkID())
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
 	})
@@ -170,7 +170,7 @@ func (t *testSuffrageProof) TestInvalid() {
 	t.Run("wrong suffrage state", func() {
 		p := NewSuffrageProof(t.blockMap, t.states[0], t.proof, t.voteproof)
 
-		err := p.IsValid(t.NodePolicy.NetworkID())
+		err := p.IsValid(t.LocalParams.NetworkID())
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "expected SuffrageNodesStateValue")
@@ -187,7 +187,7 @@ func (t *testSuffrageProof) TestInvalid() {
 
 		p := NewSuffrageProof(t.blockMap, current, t.proof, t.voteproof)
 
-		err := p.IsValid(t.NodePolicy.NetworkID())
+		err := p.IsValid(t.LocalParams.NetworkID())
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "state height does not match with manifest")
@@ -202,7 +202,7 @@ func (t *testSuffrageProof) TestInvalid() {
 
 		p := NewSuffrageProof(t.blockMap, t.current, t.proof, avp)
 
-		err = p.IsValid(t.NodePolicy.NetworkID())
+		err = p.IsValid(t.LocalParams.NetworkID())
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "accept voteproof is not majority")
@@ -311,7 +311,7 @@ func (t *testSuffrageProof) TestEncode() {
 		bh, ok := b.(SuffrageProof)
 		t.True(ok)
 
-		t.NoError(bh.IsValid(t.NodePolicy.NetworkID()))
+		t.NoError(bh.IsValid(t.LocalParams.NetworkID()))
 
 		t.True(ah.Hint().Equal(bh.Hint()))
 		base.EqualBlockMap(t.Assert(), ah.m, bh.m)
