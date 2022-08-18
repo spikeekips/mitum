@@ -99,7 +99,7 @@ func (l *LocalFSImporter) Save() error {
 	switch err := os.MkdirAll(filepath.Dir(d), 0o700); {
 	case err == nil:
 	case os.IsExist(err):
-	case err != nil:
+	default:
 		return e(err, "failed to create height parent directory")
 	}
 

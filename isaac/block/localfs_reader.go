@@ -133,14 +133,11 @@ func (r *LocalFSReader) Reader(t base.BlockMapItemType) (io.ReadCloser, bool, er
 
 	_ = r.readersl.SetValue(t, err)
 
-	switch {
-	case err == nil:
-		return f, true, nil
-	case os.IsNotExist(err):
+	if os.IsNotExist(err) {
 		return nil, false, nil
-	default:
-		return nil, false, e(err, "")
 	}
+
+	return nil, false, e(err, "")
 }
 
 func (r *LocalFSReader) ChecksumReader(t base.BlockMapItemType) (util.ChecksumReader, bool, error) {

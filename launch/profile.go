@@ -71,7 +71,7 @@ func NetworkHandlerPprofFunc(encs *encoder.Encoders) quicstream.Handler {
 			return e(err, "")
 		}
 
-		req, err := http.NewRequest("GET", "", nil)
+		req, err := http.NewRequest(http.MethodGet, "", nil)
 		if err != nil {
 			return e(err, "")
 		}

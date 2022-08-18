@@ -282,7 +282,7 @@ func (t *Transport) receiveStream(b []byte, raddr net.Addr) {
 	switch {
 	case i != nil:
 		conn = i.(*qconn) //nolint:forcetypeassert // ...
-	case i == nil:
+	default:
 		conn = t.newConn(raddr.(*net.UDPAddr)) //nolint:forcetypeassert // ...
 	}
 

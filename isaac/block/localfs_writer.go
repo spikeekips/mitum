@@ -329,7 +329,7 @@ func (w *LocalFSWriter) save(context.Context) (base.BlockMap, error) {
 	switch err := os.MkdirAll(filepath.Dir(heightdirectory), 0o700); {
 	case err == nil:
 	case os.IsExist(err):
-	case err != nil:
+	default:
 		return nil, e(err, "failed to create height parent directory")
 	}
 

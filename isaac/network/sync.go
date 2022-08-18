@@ -337,7 +337,7 @@ func (c *SyncSourceChecker) fetchFromURL(ctx context.Context, u *url.URL) ([]isa
 		},
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, nil // NOTE ignore network error
 	}

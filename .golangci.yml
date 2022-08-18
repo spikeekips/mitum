@@ -1569,6 +1569,7 @@ linters:
     - execinquery
     - lll
     - gochecknoinits
+    - nosnakecase
 
   # Enable presets.
   # https://golangci-lint.run/usage/linters
