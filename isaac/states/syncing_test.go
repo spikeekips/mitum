@@ -41,6 +41,7 @@ func (t *testSyncingHandler) newState(finishch chan base.Height) (*SyncingHandle
 		nil,
 		func(context.Context, base.Suffrage) error { return nil },
 		func(time.Duration) error { return nil },
+		func(base.Height) {},
 	)
 	_ = newhandler.SetLogging(logging.TestNilLogging)
 	_ = newhandler.setTimers(util.NewTimers([]util.TimerID{
@@ -472,6 +473,11 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 			return suf, true, nil
 		}
 
+		finishedheightch := make(chan base.Height)
+		st.whenNewBlockSaved = func(height base.Height) {
+			finishedheightch <- height
+		}
+
 		sctxch := make(chan switchContext, 1)
 		st.switchStateFunc = func(sctx switchContext) error {
 			sctxch <- sctx
@@ -493,6 +499,13 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 		st.setLastVoteproof(ivp)
 
 		syncer.finish(point.Height())
+
+		select {
+		case <-time.After(time.Second * 1):
+			t.NoError(errors.Errorf("timeout to wait finished height"))
+		case height := <-finishedheightch:
+			t.Equal(point.Height(), height)
+		}
 
 		select {
 		case <-time.After(time.Second * 1):

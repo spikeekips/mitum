@@ -23,6 +23,7 @@ type SyncingHandler struct {
 	whenFinishedf        func(base.Height)
 	joinMemberlistf      func(context.Context, base.Suffrage) error
 	leaveMemberlistf     func(time.Duration) error
+	whenNewBlockSaved    func(base.Height)
 	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc
 	waitStuckInterval    *util.Locked
 	finishedLock         sync.RWMutex
@@ -41,12 +42,18 @@ func NewNewSyncingHandlerType(
 	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc,
 	joinMemberlistf func(context.Context, base.Suffrage) error,
 	leaveMemberlistf func(time.Duration) error,
+	whenNewBlockSaved func(base.Height),
 ) *NewSyncingHandlerType {
 	if nodeInConsensusNodes == nil {
 		//revive:disable-next-line:modifies-parameter
 		nodeInConsensusNodes = func(base.Node, base.Height) (base.Suffrage, bool, error) {
 			return nil, false, errors.Errorf("empty consensus node")
 		}
+	}
+
+	if whenNewBlockSaved == nil {
+		//revive:disable-next-line:modifies-parameter
+		whenNewBlockSaved = func(base.Height) {}
 	}
 
 	return &NewSyncingHandlerType{
@@ -58,6 +65,7 @@ func NewNewSyncingHandlerType(
 			nodeInConsensusNodes: nodeInConsensusNodes,
 			joinMemberlistf:      joinMemberlistf,
 			leaveMemberlistf:     leaveMemberlistf,
+			whenNewBlockSaved:    whenNewBlockSaved,
 		},
 	}
 }
@@ -71,6 +79,7 @@ func (h *NewSyncingHandlerType) new() (handler, error) {
 		nodeInConsensusNodes: h.nodeInConsensusNodes,
 		joinMemberlistf:      h.joinMemberlistf,
 		leaveMemberlistf:     h.leaveMemberlistf,
+		whenNewBlockSaved:    h.whenNewBlockSaved,
 	}, nil
 }
 
@@ -177,6 +186,8 @@ func (st *SyncingHandler) checkFinished(vp base.Voteproof) (done bool, _ error) 
 	top, isfinished := st.syncer.IsFinished()
 
 	if isfinished {
+		go st.whenNewBlockSaved(top)
+
 		joined, err := st.checkAndJoinMemberlist(top + 1)
 		if err != nil || !joined {
 			return false, err

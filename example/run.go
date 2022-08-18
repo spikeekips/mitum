@@ -44,7 +44,8 @@ func (cmd *RunCommand) Run(pctx context.Context) error {
 
 	pps := launch.DefaultRunPS()
 
-	_ = pps.POK(launch.PNameStates).PreAddOK(pNameWhenNewBlockSavedInStatesFunc, cmd.pWhenNewBlockSavedInStatesFunc)
+	_ = pps.POK(launch.PNameStates).PreAddOK(
+		pNameWhenNewBlockSavedInConsensusStateFunc, cmd.pWhenNewBlockSavedInConsensusStateFunc)
 
 	_ = pps.SetLogging(log)
 
@@ -145,9 +146,9 @@ func (cmd *RunCommand) run(pctx context.Context) error {
 	}
 }
 
-var pNameWhenNewBlockSavedInStatesFunc = ps.Name("when-new-block-saved-in-states-func")
+var pNameWhenNewBlockSavedInConsensusStateFunc = ps.Name("when-new-block-saved-in-consensus-state-func")
 
-func (cmd *RunCommand) pWhenNewBlockSavedInStatesFunc(pctx context.Context) (context.Context, error) {
+func (cmd *RunCommand) pWhenNewBlockSavedInConsensusStateFunc(pctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var db isaac.Database
 	var ballotbox *isaacstates.Ballotbox
@@ -163,7 +164,7 @@ func (cmd *RunCommand) pWhenNewBlockSavedInStatesFunc(pctx context.Context) (con
 	}
 
 	f := func(height base.Height) {
-		launch.WhenNewBlockSavedInStatesFunc(ballotbox, db, nodeinfo)(height)
+		launch.WhenNewBlockSavedInConsensusStateFunc(ballotbox, db, nodeinfo)(height)
 
 		l := log.Log().With().Interface("height", height).Logger()
 		l.Debug().Msg("new block saved")
@@ -178,7 +179,7 @@ func (cmd *RunCommand) pWhenNewBlockSavedInStatesFunc(pctx context.Context) (con
 	}
 
 	//revive:disable-next-line:modifies-parameter
-	pctx = context.WithValue(pctx, launch.WhenNewBlockSavedInStatesFuncContextKey, f)
+	pctx = context.WithValue(pctx, launch.WhenNewBlockSavedInConsensusStateFuncContextKey, f)
 
 	return pctx, nil
 }

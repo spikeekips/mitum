@@ -23,17 +23,18 @@ import (
 )
 
 var (
-	PNameStatesReady                        = ps.Name("states-ready")
-	PNameStates                             = ps.Name("states")
-	PNameBallotbox                          = ps.Name("ballotbox")
-	PNameProposalProcessors                 = ps.Name("proposal-processors")
-	PNameStatesSetHandlers                  = ps.Name("states-set-handlers")
-	BallotboxContextKey                     = ps.ContextKey("ballotbox")
-	StatesContextKey                        = ps.ContextKey("states")
-	ProposalProcessorsContextKey            = ps.ContextKey("proposal-processors")
-	ProposalSelectorContextKey              = ps.ContextKey("proposal-selector")
-	LastVoteproofsHandlerContextKey         = ps.ContextKey("last-voteproofs-handler")
-	WhenNewBlockSavedInStatesFuncContextKey = ps.ContextKey("when-new-block-saved-in-states-func")
+	PNameStatesReady                                = ps.Name("states-ready")
+	PNameStates                                     = ps.Name("states")
+	PNameBallotbox                                  = ps.Name("ballotbox")
+	PNameProposalProcessors                         = ps.Name("proposal-processors")
+	PNameStatesSetHandlers                          = ps.Name("states-set-handlers")
+	BallotboxContextKey                             = ps.ContextKey("ballotbox")
+	StatesContextKey                                = ps.ContextKey("states")
+	ProposalProcessorsContextKey                    = ps.ContextKey("proposal-processors")
+	ProposalSelectorContextKey                      = ps.ContextKey("proposal-selector")
+	LastVoteproofsHandlerContextKey                 = ps.ContextKey("last-voteproofs-handler")
+	WhenNewBlockSavedInSyncingStateFuncContextKey   = ps.ContextKey("when-new-block-saved-in-syncing-state-func")
+	WhenNewBlockSavedInConsensusStateFuncContextKey = ps.ContextKey("when-new-block-saved-in-consensus-state-func")
 )
 
 func PBallotbox(ctx context.Context) (context.Context, error) {
@@ -170,17 +171,37 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 		return voted, nil
 	}
 
-	newsyncerf, err := newSyncerFunc(ctx, lvps)
-	if err != nil {
-		return ctx, e(err, "")
-	}
-
 	joinMemberlistForStateHandlerf, err := joinMemberlistForStateHandlerFunc(ctx)
 	if err != nil {
 		return ctx, e(err, "")
 	}
 
 	leaveMemberlistForStateHandlerf, err := leaveMemberlistForStateHandlerFunc(ctx)
+	if err != nil {
+		return ctx, e(err, "")
+	}
+
+	var whenNewBlockSavedInSyncingStatef func(base.Height)
+
+	switch err = ps.LoadFromContext(
+		ctx, WhenNewBlockSavedInSyncingStateFuncContextKey, &whenNewBlockSavedInSyncingStatef); {
+	case err != nil:
+		return ctx, e(err, "")
+	case whenNewBlockSavedInSyncingStatef == nil:
+		whenNewBlockSavedInSyncingStatef = WhenNewBlockSavedInSyncingStateFunc(db, nodeinfo)
+	}
+
+	var whenNewBlockSavedInConsensusStatef func(base.Height)
+
+	switch err = ps.LoadFromContext(
+		ctx, WhenNewBlockSavedInConsensusStateFuncContextKey, &whenNewBlockSavedInConsensusStatef); {
+	case err != nil:
+		return ctx, e(err, "")
+	case whenNewBlockSavedInConsensusStatef == nil:
+		whenNewBlockSavedInConsensusStatef = WhenNewBlockSavedInConsensusStateFunc(ballotbox, db, nodeinfo)
+	}
+
+	newsyncerf, err := newSyncerFunc(ctx, policy, db, lvps, whenNewBlockSavedInSyncingStatef)
 	if err != nil {
 		return ctx, e(err, "")
 	}
@@ -196,19 +217,11 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 		local, policy, proposalSelector, newsyncerf, nodeInConsensusNodesf,
 		joinMemberlistForStateHandlerf,
 		leaveMemberlistForStateHandlerf,
+		whenNewBlockSavedInSyncingStatef,
 	)
 	syncinghandler.SetWhenFinished(func(base.Height) {
 		ballotbox.Count()
 	})
-
-	var whenNewBlockSavedInStatesf func(base.Height)
-
-	switch err := ps.LoadFromContext(ctx, WhenNewBlockSavedInStatesFuncContextKey, &whenNewBlockSavedInStatesf); {
-	case err != nil:
-		return ctx, e(err, "")
-	case whenNewBlockSavedInStatesf == nil:
-		whenNewBlockSavedInStatesf = WhenNewBlockSavedInStatesFunc(ballotbox, db, nodeinfo)
-	}
 
 	states.
 		SetHandler(isaacstates.StateBroken, isaacstates.NewNewBrokenHandlerType(local, policy)).
@@ -229,7 +242,7 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 			isaacstates.StateConsensus,
 			isaacstates.NewNewConsensusHandlerType(
 				local, policy, proposalSelector,
-				getManifestf, nodeInConsensusNodesf, voteFunc, whenNewBlockSavedInStatesf,
+				getManifestf, nodeInConsensusNodesf, voteFunc, whenNewBlockSavedInConsensusStatef,
 				pps,
 			)).
 		SetHandler(isaacstates.StateSyncing, syncinghandler)
@@ -266,25 +279,27 @@ func BroadcastThruMemberlist(
 	return nil
 }
 
-func newSyncerFunc(pctx context.Context, lvps *isaacstates.LastVoteproofsHandler) (
+func newSyncerFunc(
+	pctx context.Context,
+	policy *isaac.NodePolicy,
+	db isaac.Database,
+	lvps *isaacstates.LastVoteproofsHandler,
+	whenNewBlockSavedInSyncingStatef func(base.Height),
+) (
 	func(height base.Height) (isaac.Syncer, error),
 	error,
 ) {
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
 	var design NodeDesign
-	var policy base.NodePolicy
 	var st *leveldbstorage.Storage
 	var perm isaac.PermanentDatabase
-	var db isaac.Database
 
 	if err := ps.LoadsFromContextOK(pctx,
 		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
 		DesignContextKey, &design,
 		LeveldbStorageContextKey, &st,
-		NodePolicyContextKey, &policy,
-		CenterDatabaseContextKey, &db,
 		PermanentDatabaseContextKey, &perm,
 	); err != nil {
 		return nil, err
@@ -346,7 +361,13 @@ func newSyncerFunc(pctx context.Context, lvps *isaacstates.LastVoteproofsHandler
 
 				return bwdb,
 					func(ctx context.Context) error {
-						return MergeBlockWriteToPermanentDatabase(ctx, bwdb, perm)
+						if err := MergeBlockWriteToPermanentDatabase(ctx, bwdb, perm); err != nil {
+							return err
+						}
+
+						whenNewBlockSavedInSyncingStatef(height)
+
+						return nil
 					},
 					nil
 			},
@@ -749,7 +770,16 @@ func getManifestFunc(db isaac.Database) func(height base.Height) (base.Manifest,
 	}
 }
 
-func WhenNewBlockSavedInStatesFunc(
+func WhenNewBlockSavedInSyncingStateFunc(
+	db isaac.Database,
+	nodeinfo *isaacnetwork.NodeInfoUpdater,
+) func(base.Height) {
+	return func(height base.Height) {
+		_ = UpdateNodeInfoWithNewBlock(db, nodeinfo)
+	}
+}
+
+func WhenNewBlockSavedInConsensusStateFunc(
 	ballotbox *isaacstates.Ballotbox,
 	db isaac.Database,
 	nodeinfo *isaacnetwork.NodeInfoUpdater,
