@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"os"
 
 	"github.com/alecthomas/kong"
 	"github.com/pkg/errors"
@@ -16,17 +18,8 @@ var (
 	version util.Version
 )
 
-func init() {
-	if len(Version) > 0 {
-		v, err := util.ParseVersion(Version)
-		if err == nil {
-			version = v
-		}
-	}
-}
-
-//revive:disable:nested-structs
 var CLI struct { //nolint:govet //...
+	//revive:disable:nested-structs
 	launch.BaseFlags
 	Import  ImportCommand `cmd:"" help:"import from block data"`
 	Init    INITCommand   `cmd:"" help:"init node"`
@@ -39,12 +32,22 @@ var CLI struct { //nolint:govet //...
 		Load KeyLoadCommand `cmd:"" help:"load key"`
 		Sign KeySignCommand `cmd:"" help:"sign"`
 	} `cmd:"" help:"key"`
+	Version struct{} `cmd:"" help:"version"`
+	//revive:enable:nested-structs
 }
-
-//revive:enable:nested-structs
 
 func main() {
 	kctx := kong.Parse(&CLI)
+
+	if err := checkVersion(); err != nil {
+		kctx.FatalIfErrorf(err)
+	}
+
+	if kctx.Command() == "version" {
+		_, _ = fmt.Fprintln(os.Stdout, version)
+
+		return
+	}
 
 	pctx := context.Background()
 	pctx = context.WithValue(pctx, launch.VersionContextKey, version)
@@ -78,4 +81,23 @@ func main() {
 
 		kctx.FatalIfErrorf(err)
 	}
+}
+
+func checkVersion() error {
+	if len(Version) < 1 {
+		return errors.Errorf("empty version")
+	}
+
+	v, err := util.ParseVersion(Version)
+	if err != nil {
+		return err
+	}
+
+	if err := v.IsValid(nil); err != nil {
+		return err
+	}
+
+	version = v
+
+	return nil
 }
