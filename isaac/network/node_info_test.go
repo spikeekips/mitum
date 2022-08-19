@@ -46,7 +46,7 @@ func TestNodeInfoEncode(tt *testing.T) {
 	networkID := util.UUID().Bytes()
 
 	t.Encode = func() (interface{}, []byte) {
-		info := NewNodeInfoUpdater(base.RandomNode(), util.MustNewVersion("v1.2.3"))
+		info := NewNodeInfoUpdater(networkID, base.RandomNode(), util.MustNewVersion("v1.2.3"))
 		info.startedAt = time.Now().Add(((time.Hour + time.Nanosecond*33) * -1))
 		info.SetLastManifest(base.NewDummyManifest(base.Height(33), valuehash.RandomSHA256()))
 		info.SetSuffrageHeight(base.Height(44))

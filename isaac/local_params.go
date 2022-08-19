@@ -30,6 +30,14 @@ type LocalParams struct {
 	sync.RWMutex
 }
 
+func NewLocalParams(networkID base.NetworkID) *LocalParams {
+	return &LocalParams{
+		id:         util.UUID().String(),
+		BaseHinter: hint.NewBaseHinter(LocalParamsHint),
+		networkID:  networkID,
+	}
+}
+
 func DefaultLocalParams(networkID base.NetworkID) *LocalParams {
 	return &LocalParams{
 		id:                                    util.UUID().String(),
@@ -115,16 +123,15 @@ func (p *LocalParams) SetNetworkID(n base.NetworkID) *LocalParams {
 	p.Lock()
 	defer p.Unlock()
 
-	switch {
-	case p.networkID == nil, n == nil:
-		return p
-	default:
-		p.networkID = n
-
-		p.id = util.UUID().String()
-
+	if n == nil {
 		return p
 	}
+
+	p.networkID = n
+
+	p.id = util.UUID().String()
+
+	return p
 }
 
 func (p *LocalParams) Threshold() base.Threshold {
@@ -326,46 +333,43 @@ func (p *LocalParams) SetSameMemberLimit(s uint64) *LocalParams {
 }
 
 type localParamsJSONMarshaler struct {
-	NetworkID base.NetworkID `json:"network_id,omitempty"`
 	hint.BaseHinter
-	Threshold                             base.Threshold `json:"threshold,omitempty"`
-	IntervalBroadcastBallot               time.Duration  `json:"interval_broadcast_ballot,omitempty"`
-	WaitPreparingINITBallot               time.Duration  `json:"wait_preparing_init_ballot,omitempty"`
-	TimeoutRequestProposal                time.Duration  `json:"timeout_request_proposal,omitempty"`
-	SyncSourceCheckerInterval             time.Duration  `json:"sync_source_checker_interval,omitempty"`
-	ValidProposalOperationExpire          time.Duration  `json:"valid_proposal_operation_expire,omitempty"`
-	ValidProposalSuffrageOperationsExpire time.Duration  `json:"valid_proposal_suffrage_operations_expire,omitempty"`
-	MaxOperationSize                      uint64         `json:"max_operation_size,omitempty"`
-	SameMemberLimit                       uint64         `json:"same_member_limit,omitempty"`
+	Threshold                             base.Threshold            `json:"threshold,omitempty"`
+	IntervalBroadcastBallot               util.ReadableJSONDuration `json:"interval_broadcast_ballot,omitempty"`
+	WaitPreparingINITBallot               util.ReadableJSONDuration `json:"wait_preparing_init_ballot,omitempty"`
+	TimeoutRequestProposal                util.ReadableJSONDuration `json:"timeout_request_proposal,omitempty"`
+	SyncSourceCheckerInterval             util.ReadableJSONDuration `json:"sync_source_checker_interval,omitempty"`
+	ValidProposalOperationExpire          util.ReadableJSONDuration `json:"valid_proposal_operation_expire,omitempty"`
+	ValidProposalSuffrageOperationsExpire util.ReadableJSONDuration `json:"valid_proposal_suffrage_operations_expire,omitempty"` //revive:disable-line:line-length-limit
+	MaxOperationSize                      uint64                    `json:"max_operation_size,omitempty"`
+	SameMemberLimit                       uint64                    `json:"same_member_limit,omitempty"`
 }
 
 func (p *LocalParams) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(localParamsJSONMarshaler{
 		BaseHinter:                            p.BaseHinter,
-		NetworkID:                             p.networkID,
 		Threshold:                             p.threshold,
-		IntervalBroadcastBallot:               p.intervalBroadcastBallot,
-		WaitPreparingINITBallot:               p.waitPreparingINITBallot,
-		TimeoutRequestProposal:                p.timeoutRequestProposal,
-		SyncSourceCheckerInterval:             p.syncSourceCheckerInterval,
-		ValidProposalOperationExpire:          p.validProposalOperationExpire,
-		ValidProposalSuffrageOperationsExpire: p.validProposalSuffrageOperationsExpire,
+		IntervalBroadcastBallot:               util.ReadableJSONDuration(p.intervalBroadcastBallot),
+		WaitPreparingINITBallot:               util.ReadableJSONDuration(p.waitPreparingINITBallot),
+		TimeoutRequestProposal:                util.ReadableJSONDuration(p.timeoutRequestProposal),
+		SyncSourceCheckerInterval:             util.ReadableJSONDuration(p.syncSourceCheckerInterval),
+		ValidProposalOperationExpire:          util.ReadableJSONDuration(p.validProposalOperationExpire),
+		ValidProposalSuffrageOperationsExpire: util.ReadableJSONDuration(p.validProposalSuffrageOperationsExpire),
 		MaxOperationSize:                      p.maxOperationSize,
 		SameMemberLimit:                       p.sameMemberLimit,
 	})
 }
 
 type localParamsJSONUnmarshaler struct {
-	NetworkID                             *base.NetworkID `json:"network_id"`
-	Threshold                             *base.Threshold `json:"threshold"`
-	IntervalBroadcastBallot               *time.Duration  `json:"interval_broadcast_ballot"`
-	WaitPreparingINITBallot               *time.Duration  `json:"wait_preparing_init_ballot"`
-	TimeoutRequestProposal                *time.Duration  `json:"timeout_request_proposal"`
-	SyncSourceCheckerInterval             *time.Duration  `json:"sync_source_checker_interval"`
-	ValidProposalOperationExpire          *time.Duration  `json:"valid_proposal_operation_expire"`
-	ValidProposalSuffrageOperationsExpire *time.Duration  `json:"valid_proposal_suffrage_operations_expire"`
-	MaxOperationSize                      *uint64         `json:"max_operation_size"`
-	SameMemberLimit                       *uint64         `json:"same_member_limit"`
+	Threshold                             interface{}                `json:"threshold"`
+	IntervalBroadcastBallot               *util.ReadableJSONDuration `json:"interval_broadcast_ballot"`
+	WaitPreparingINITBallot               *util.ReadableJSONDuration `json:"wait_preparing_init_ballot"`
+	TimeoutRequestProposal                *util.ReadableJSONDuration `json:"timeout_request_proposal"`
+	SyncSourceCheckerInterval             *util.ReadableJSONDuration `json:"sync_source_checker_interval"`
+	ValidProposalOperationExpire          *util.ReadableJSONDuration `json:"valid_proposal_operation_expire"`
+	ValidProposalSuffrageOperationsExpire *util.ReadableJSONDuration `json:"valid_proposal_suffrage_operations_expire"`
+	MaxOperationSize                      *uint64                    `json:"max_operation_size"`
+	SameMemberLimit                       *uint64                    `json:"same_member_limit"`
 	hint.BaseHinter
 }
 
@@ -375,33 +379,53 @@ func (p *LocalParams) UnmarshalJSON(b []byte) error {
 		return errors.Wrap(err, "failed to unmarshal LocalParams")
 	}
 
-	set := func(v, target interface{}) error {
-		if reflect.ValueOf(v).IsZero() {
-			return nil
-		}
-
-		return util.InterfaceSetValue(reflect.ValueOf(v).Elem().Interface(), target)
-	}
-
 	p.BaseHinter = u.BaseHinter
 
 	args := [][2]interface{}{
-		{u.NetworkID, &p.networkID},
-		{u.Threshold, &p.threshold},
+		{u.MaxOperationSize, &p.maxOperationSize},
+		{u.SameMemberLimit, &p.sameMemberLimit},
+	}
+
+	for i := range args {
+		if reflect.ValueOf(args[i][0]).IsZero() {
+			continue
+		}
+
+		if err := util.InterfaceSetValue(reflect.ValueOf(args[i][0]).Elem().Interface(), args[i][1]); err != nil {
+			return err
+		}
+	}
+
+	durargs := [][2]interface{}{
 		{u.IntervalBroadcastBallot, &p.intervalBroadcastBallot},
 		{u.WaitPreparingINITBallot, &p.waitPreparingINITBallot},
 		{u.TimeoutRequestProposal, &p.timeoutRequestProposal},
 		{u.SyncSourceCheckerInterval, &p.syncSourceCheckerInterval},
 		{u.ValidProposalOperationExpire, &p.validProposalOperationExpire},
 		{u.ValidProposalSuffrageOperationsExpire, &p.validProposalSuffrageOperationsExpire},
-		{u.MaxOperationSize, &p.maxOperationSize},
-		{u.SameMemberLimit, &p.sameMemberLimit},
 	}
 
-	for i := range args {
-		if err := set(args[i][0], args[i][1]); err != nil {
+	for i := range durargs {
+		v := durargs[i][0].(*util.ReadableJSONDuration) //nolint:forcetypeassert //...
+
+		if reflect.ValueOf(v).IsZero() {
+			continue
+		}
+
+		if err := util.InterfaceSetValue(time.Duration(*v), durargs[i][1]); err != nil {
 			return err
 		}
+	}
+
+	switch t := u.Threshold.(type) {
+	case string:
+		if err := p.threshold.UnmarshalText([]byte(t)); err != nil {
+			return err
+		}
+	case float64:
+		p.threshold = base.Threshold(t)
+	case int64:
+		p.threshold = base.Threshold(float64(t))
 	}
 
 	p.id = util.UUID().String()

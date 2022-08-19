@@ -104,12 +104,13 @@ func TestLocalParams(t *testing.T) {
 func TestLocalParamsJSON(tt *testing.T) {
 	t := new(encoder.BaseTestEncode)
 
+	networkID := util.UUID().Bytes()
 	enc := jsonenc.NewEncoder()
 
 	t.Encode = func() (interface{}, []byte) {
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: LocalParamsHint, Instance: LocalParams{}}))
 
-		p := DefaultLocalParams(util.UUID().Bytes())
+		p := DefaultLocalParams(networkID)
 		p.SetThreshold(base.Threshold(77.7))
 		p.SetIntervalBroadcastBallot(time.Second * 33)
 		p.SetSameMemberLimit(99)
@@ -123,10 +124,10 @@ func TestLocalParamsJSON(tt *testing.T) {
 	}
 
 	t.Decode = func(b []byte) interface{} {
-		var p LocalParams
-		t.NoError(enc.Unmarshal(b, &p))
+		p := NewLocalParams(networkID)
+		t.NoError(enc.Unmarshal(b, p))
 
-		return &p
+		return p
 	}
 	t.Compare = func(a, b interface{}) {
 		ap := a.(*LocalParams)

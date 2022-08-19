@@ -17,6 +17,7 @@ import (
 var NodeInfoHint = hint.MustNewHint("node-info-v0.0.1")
 
 type NodeInfo struct {
+	networkID      base.NetworkID
 	address        base.Address
 	publickey      base.Publickey
 	lastManifest   base.Manifest
@@ -118,10 +119,11 @@ type NodeInfoUpdater struct {
 	sync.RWMutex
 }
 
-func NewNodeInfoUpdater(local base.Node, version util.Version) *NodeInfoUpdater {
+func NewNodeInfoUpdater(networkID base.NetworkID, local base.Node, version util.Version) *NodeInfoUpdater {
 	return &NodeInfoUpdater{
 		n: NodeInfo{
 			BaseHinter:     hint.NewBaseHinter(NodeInfoHint),
+			networkID:      networkID,
 			address:        local.Address(),
 			publickey:      local.Publickey(),
 			suffrageHeight: base.NilHeight,
@@ -223,6 +225,7 @@ func (info *NodeInfoUpdater) SetLocalParams(p *isaac.LocalParams) bool {
 	}
 
 	info.n.localParams = p
+	info.n.networkID = p.NetworkID()
 	info.id = util.UUID().String()
 
 	return true

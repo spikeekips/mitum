@@ -1,6 +1,11 @@
 package util
 
-import "bytes"
+import (
+	"bytes"
+	"time"
+
+	"github.com/pkg/errors"
+)
 
 var nullJSONBytes = []byte("null")
 
@@ -93,4 +98,33 @@ func MustMarshalJSONIndentString(i interface{}) string {
 	}
 
 	return string(b)
+}
+
+type ReadableJSONDuration time.Duration
+
+func (d ReadableJSONDuration) MarshalText() ([]byte, error) {
+	return []byte(time.Duration(d).String()), nil
+}
+
+func (d *ReadableJSONDuration) UnmarshalJSON(b []byte) error {
+	var i interface{}
+	if err := UnmarshalJSON(b, &i); err != nil {
+		return err
+	}
+
+	switch t := i.(type) {
+	case int64:
+		*d = ReadableJSONDuration(time.Duration(t))
+	case string:
+		j, err := time.ParseDuration(t)
+		if err != nil {
+			return errors.Wrap(err, "failed to unmarshal ReadableJSONDuration")
+		}
+
+		*d = ReadableJSONDuration(j)
+	default:
+		return errors.Errorf("unknown duration format, %q", string(b))
+	}
+
+	return nil
 }

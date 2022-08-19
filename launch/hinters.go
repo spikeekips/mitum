@@ -38,7 +38,7 @@ var Hinters = []encoder.DecodeDetail{
 	{Hint: isaac.NetworkPolicyHint, Instance: isaac.NetworkPolicy{}},
 	{Hint: isaac.NetworkPolicyStateValueHint, Instance: isaac.NetworkPolicyStateValue{}},
 	{Hint: isaac.NodeHint, Instance: base.BaseNode{}},
-	{Hint: isaac.LocalParamsHint, Instance: isaac.LocalParams{}},
+	{Hint: isaac.LocalParamsHint, Instance: &isaac.LocalParams{}},
 	{Hint: isaac.ProposalFactHint, Instance: isaac.ProposalFact{}},
 	{Hint: isaac.ProposalSignedFactHint, Instance: isaac.ProposalSignedFact{}},
 	{Hint: isaac.SuffrageCandidateStateValueHint, Instance: isaac.SuffrageCandidateStateValue{}},

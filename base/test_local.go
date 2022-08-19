@@ -21,7 +21,7 @@ func EqualLocalParams(t *assert.Assertions, a, b LocalParams) {
 
 	aht := a.(hint.Hinter).Hint()
 	bht := b.(hint.Hinter).Hint()
-	t.True(aht.Equal(bht), "Hint does not match")
+	t.True(aht.Equal(bht), "Hint does not match: %q != %q", aht, bht)
 
 	t.Equal(a.NetworkID(), b.NetworkID())
 	t.Equal(a.Threshold(), b.Threshold())

@@ -18,7 +18,7 @@ import (
 type NodeInfoLocalJSONMarshaler struct {
 	Address     base.Address       `json:"address"`
 	Publickey   base.Publickey     `json:"publickey"`
-	LocalParams *isaac.LocalParams `json:"local_parameters"` //nolint:tagliatelle //...
+	LocalParams *isaac.LocalParams `json:"parameters"` //nolint:tagliatelle //...
 	ConnInfo    string             `json:"conn_info"`
 	Uptime      string             `json:"uptime"`
 	Version     util.Version       `json:"version"`
@@ -35,6 +35,7 @@ type NodeInfoConsensusJSONMarshaler struct {
 }
 
 type NodeInfoJSONMarshaler struct {
+	NetworkID     base.NetworkID                 `json:"network_id"`
 	LastManifest  base.Manifest                  `json:"last_manifest"`
 	NetworkPolicy base.NetworkPolicy             `json:"network_policy"`
 	Local         NodeInfoLocalJSONMarshaler     `json:"local"`
@@ -45,6 +46,7 @@ type NodeInfoJSONMarshaler struct {
 func (info NodeInfo) JSONMarshaler() NodeInfoJSONMarshaler {
 	return NodeInfoJSONMarshaler{
 		BaseHinter: info.BaseHinter,
+		NetworkID:  info.networkID,
 		Local: NodeInfoLocalJSONMarshaler{
 			Address:     info.address,
 			Publickey:   info.publickey,
@@ -70,6 +72,7 @@ func (info NodeInfo) MarshalJSON() ([]byte, error) {
 }
 
 type nodeInfoJSONUnmarshaler struct {
+	NetworkID     base.NetworkID                   `json:"network_id"`
 	LastManifest  json.RawMessage                  `json:"last_manifest"`
 	NetworkPolicy json.RawMessage                  `json:"network_policy"`
 	Consensus     nodeInfoConsensusJSONUnmarshaler `json:"consensus"`
@@ -81,7 +84,7 @@ type nodeInfoLocalJSONUnmarshaler struct {
 	Publickey   string          `json:"publickey"`
 	ConnInfo    string          `json:"conn_info"`
 	Uptime      string          `json:"uptime"`
-	LocalParams json.RawMessage `json:"local_parameters"` //nolint:tagliatelle //...
+	LocalParams json.RawMessage `json:"parameters"` //nolint:tagliatelle //...
 	Version     util.Version    `json:"version"`
 }
 
@@ -104,6 +107,8 @@ func (info *NodeInfo) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "")
 	}
 
+	info.networkID = u.NetworkID
+
 	// NOTE local
 	switch i, err := base.DecodeAddress(u.Local.Address, enc); {
 	case err != nil:
@@ -119,13 +124,15 @@ func (info *NodeInfo) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		info.publickey = i
 	}
 
-	var params isaac.LocalParams
+	params := isaac.NewLocalParams(info.networkID)
 
-	if err := encoder.Decode(enc, u.Local.LocalParams, &params); err != nil {
+	if err := encoder.Decode(enc, u.Local.LocalParams, params); err != nil {
 		return e(err, "")
 	}
 
-	info.localParams = &params
+	_ = params.SetNetworkID(info.networkID)
+
+	info.localParams = params
 
 	info.connInfo = u.Local.ConnInfo
 	info.version = u.Local.Version

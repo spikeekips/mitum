@@ -18,6 +18,7 @@ import (
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
+	"github.com/spikeekips/mitum/util/hint"
 	"gopkg.in/yaml.v3"
 )
 
@@ -49,6 +50,7 @@ type NodeDesign struct {
 	Storage     NodeStorageDesign
 	Network     NodeNetworkDesign
 	NetworkID   base.NetworkID
+	LocalParams *isaac.LocalParams
 	SyncSources []SyncSourceDesign
 }
 
@@ -86,10 +88,6 @@ func (d *NodeDesign) IsValid([]byte) error {
 		return e.Wrap(err)
 	}
 
-	if err := d.Storage.Patch(d.Address); err != nil {
-		return e.Wrap(err)
-	}
-
 	for i := range d.SyncSources {
 		s := d.SyncSources[i]
 		if err := s.IsValid(nil); err != nil {
@@ -120,16 +118,20 @@ func (d *NodeDesign) IsValid([]byte) error {
 		}
 	}
 
-	return nil
-}
+	switch {
+	case d.LocalParams == nil:
+		d.LocalParams = isaac.DefaultLocalParams(d.NetworkID)
+	default:
+		if err := d.LocalParams.IsValid(d.NetworkID); err != nil {
+			return e.Wrap(err)
+		}
+	}
 
-type NodeDesignYAMLUnmarshaler struct {
-	Storage     NodeStorageDesignYAMLMarshal   `yaml:"storage"`
-	Address     string                         `yaml:"address"`
-	Privatekey  string                         `yaml:"privatekey"`
-	NetworkID   string                         `yaml:"network_id"`
-	Network     NodeNetworkDesignYAMLMarshaler `yaml:"network"`
-	SyncSources []interface{}                  `yaml:"sync_sources"`
+	if err := d.Storage.Patch(d.Address); err != nil {
+		return e.Wrap(err)
+	}
+
+	return nil
 }
 
 type NodeDesignYAMLMarshaler struct {
@@ -138,16 +140,28 @@ type NodeDesignYAMLMarshaler struct {
 	Storage     NodeStorageDesign  `yaml:"storage"`
 	NetworkID   string             `yaml:"network_id"`
 	Network     NodeNetworkDesign  `yaml:"network"`
+	LocalParams *isaac.LocalParams `yaml:"parameters"` //nolint:tagliatelle //...
 	SyncSources []SyncSourceDesign `yaml:"sync_sources"`
+}
+
+type NodeDesignYAMLUnmarshaler struct {
+	Storage     NodeStorageDesignYAMLMarshal   `yaml:"storage"`
+	Address     string                         `yaml:"address"`
+	Privatekey  string                         `yaml:"privatekey"`
+	NetworkID   string                         `yaml:"network_id"`
+	LocalParams map[string]interface{}         `yaml:"parameters"` //nolint:tagliatelle //...
+	Network     NodeNetworkDesignYAMLMarshaler `yaml:"network"`
+	SyncSources []interface{}                  `yaml:"sync_sources"`
 }
 
 func (d NodeDesign) MarshalYAML() (interface{}, error) {
 	return NodeDesignYAMLMarshaler{
-		Address:    d.Address,
-		Privatekey: d.Privatekey,
-		NetworkID:  string(d.NetworkID),
-		Network:    d.Network,
-		Storage:    d.Storage,
+		Address:     d.Address,
+		Privatekey:  d.Privatekey,
+		NetworkID:   string(d.NetworkID),
+		Network:     d.Network,
+		Storage:     d.Storage,
+		LocalParams: d.LocalParams,
 	}, nil
 }
 
@@ -201,6 +215,19 @@ func (d *NodeDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 		if err := d.SyncSources[i].DecodeYAML(j, enc); err != nil {
 			return e(err, "")
 		}
+	}
+
+	d.LocalParams = isaac.DefaultLocalParams(d.NetworkID)
+
+	switch lb, err := util.MarshalJSON(u.LocalParams); {
+	case err != nil:
+		return e(err, "")
+	default:
+		if err := util.UnmarshalJSON(lb, d.LocalParams); err != nil {
+			return e(err, "")
+		}
+
+		d.LocalParams.BaseHinter = hint.NewBaseHinter(isaac.LocalParamsHint)
 	}
 
 	return nil

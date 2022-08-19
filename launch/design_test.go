@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
@@ -401,11 +402,13 @@ func (t *testNodeDesign) TestIsValid() {
 	addrport := mustResolveUDPAddr("1.2.3.4:4321")
 	publish := mustResolveUDPAddr("4.3.2.1:1234")
 
+	networkID := base.NetworkID(util.UUID().String())
+
 	t.Run("ok", func() {
 		a := NodeDesign{
 			Address:    base.RandomAddress(""),
 			Privatekey: base.NewMPrivatekey(),
-			NetworkID:  base.NetworkID(util.UUID().String()),
+			NetworkID:  networkID,
 			Network: NodeNetworkDesign{
 				Bind:          addrport,
 				PublishString: publish.String(),
@@ -415,6 +418,7 @@ func (t *testNodeDesign) TestIsValid() {
 				Base:     "/tmp/a/b/c",
 				Database: &url.URL{Scheme: LeveldbURIScheme, Path: "/a/b/c"},
 			},
+			LocalParams: isaac.DefaultLocalParams(networkID),
 		}
 
 		t.NoError(a.IsValid(nil))
@@ -627,6 +631,46 @@ network:
 
 		t.Equal("", a.Storage.Base)
 		t.Nil(a.Storage.Database)
+	})
+
+	t.Run("missing local params", func() {
+		b := []byte(`
+address: no0sas
+privatekey: 9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr
+network_id: hehe 1 2 3 4
+network:
+  bind: 0.0.0.0:1234
+  publish: 1.2.3.4:4321
+  tls_insecure: true
+storage:
+  base: /tmp/a/b/c
+  database: redis://
+parameters:
+  threshold: 77.7
+  wait_preparing_init_ballot: 10s
+  valid_proposal_operation_expire: 11s
+`)
+
+		var a NodeDesign
+		t.NoError(a.DecodeYAML(b, t.enc))
+
+		t.Equal("no0sas", a.Address.String())
+		t.Equal("9gKYPx4FSXbL65d2efDUMjKtaagMsNSinF9u5FMBKD7bmpr", a.Privatekey.String())
+		t.Equal("hehe 1 2 3 4", string(a.NetworkID))
+
+		t.Equal("0.0.0.0:1234", a.Network.Bind.String())
+		t.Equal("1.2.3.4:4321", a.Network.PublishString)
+		t.Equal(true, a.Network.TLSInsecure)
+
+		t.Equal("/tmp/a/b/c", a.Storage.Base)
+		t.Equal("redis:", a.Storage.Database.String())
+
+		params := isaac.DefaultLocalParams(a.NetworkID)
+		params.SetThreshold(77.7)
+		params.SetWaitPreparingINITBallot(time.Second * 10)
+		params.SetValidProposalOperationExpire(time.Second * 11)
+
+		isaac.EqualLocalParams(t.Assert(), params, a.LocalParams)
 	})
 }
 

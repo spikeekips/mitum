@@ -36,16 +36,8 @@ func PLocal(ctx context.Context) (context.Context, error) {
 
 	log.Log().Info().Interface("local", local).Msg("local loaded")
 
-	ctx = context.WithValue(ctx, LocalContextKey, local) //revive:disable-line:modifies-parameter
-
-	params, err := LocalParamsFromDesign(design)
-	if err != nil {
-		return ctx, e(err, "")
-	}
-
-	ctx = context.WithValue(ctx, LocalParamsContextKey, params) //revive:disable-line:modifies-parameter
-
-	log.Log().Info().Interface("local_params", params).Msg("local params loaded")
+	ctx = context.WithValue(ctx, LocalContextKey, local)                    //revive:disable-line:modifies-parameter
+	ctx = context.WithValue(ctx, LocalParamsContextKey, design.LocalParams) //revive:disable-line:modifies-parameter
 
 	return ctx, nil
 }
@@ -58,8 +50,4 @@ func LocalFromDesign(design NodeDesign) (base.LocalNode, error) {
 	}
 
 	return local, nil
-}
-
-func LocalParamsFromDesign(design NodeDesign) (*isaac.LocalParams, error) {
-	return isaac.DefaultLocalParams(design.NetworkID), nil
 }

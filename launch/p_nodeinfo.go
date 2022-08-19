@@ -40,7 +40,7 @@ func PNodeInfo(ctx context.Context) (context.Context, error) {
 		return ctx, e(err, "")
 	}
 
-	nodeinfo := isaacnetwork.NewNodeInfoUpdater(local, version)
+	nodeinfo := isaacnetwork.NewNodeInfoUpdater(design.NetworkID, local, version)
 	_ = nodeinfo.SetConsensusState(isaacstates.StateBooting)
 	_ = nodeinfo.SetConnInfo(network.ConnInfoToString(
 		design.Network.PublishString,
