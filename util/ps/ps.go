@@ -248,22 +248,16 @@ func (p *P) Run(ctx context.Context) (context.Context, error) {
 	var err error
 
 	if ctx, err = p.pre.run(ctx); err != nil { //revive:disable-line:modifies-parameter
-		p.Log().Error().Err(err).Msg("failed to run pre")
-
 		return ctx, err
 	}
 
 	if p.run != nil {
 		if ctx, err = p.run(ctx); err != nil { //revive:disable-line:modifies-parameter
-			p.Log().Error().Err(err).Msg("failed to run")
-
 			return ctx, err
 		}
 	}
 
 	if ctx, err = p.post.run(ctx); err != nil { //revive:disable-line:modifies-parameter
-		p.Log().Error().Err(err).Msg("failed to run post")
-
 		return ctx, err
 	}
 
