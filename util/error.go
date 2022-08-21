@@ -224,7 +224,12 @@ func StringErrorFunc(m string, a ...interface{}) func(error, string, ...interfac
 			return errors.Errorf(f+s, a...)
 		}
 
-		return errors.WithMessage(err, fmt.Sprintf(f+s, a...))
+		switch _, ok := err.(stackTracer); { //nolint:errorlint //...
+		case ok:
+			return errors.WithMessage(err, fmt.Sprintf(f+s, a...))
+		default:
+			return errors.Wrap(err, fmt.Sprintf(f+s, a...))
+		}
 	}
 }
 
@@ -236,10 +241,6 @@ func FuncCaller(skip int) errors.Frame {
 }
 
 func ZerologMarshalStack(err error) interface{} {
-	type stackTracer interface {
-		StackTrace() errors.StackTrace
-	}
-
 	var sterr stackTracer
 
 	if !errors.As(err, &sterr) {
