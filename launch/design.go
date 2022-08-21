@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
@@ -639,4 +640,15 @@ func defaultDatabaseURL(root string) *url.URL {
 		Scheme: LeveldbURIScheme,
 		Path:   filepath.Join(root, DefaultStorageDatabaseDirectoryName),
 	}
+}
+
+func (d NodeDesign) MarshalZerologObject(e *zerolog.Event) {
+	e.
+		Interface("address", d.Address).
+		Interface("privatekey*", d.Privatekey.Publickey()).
+		Interface("storage", d.Storage).
+		Interface("network_id", d.NetworkID).
+		Interface("network", d.Network).
+		Interface("parameters", d.LocalParams).
+		Interface("sync_sources", d.SyncSources)
 }

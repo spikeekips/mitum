@@ -33,11 +33,11 @@ func PDesign(ctx context.Context) (context.Context, error) {
 		return ctx, e(err, "")
 	}
 
-	switch d, b, err := NodeDesignFromFile(designfile, enc); {
+	switch d, _, err := NodeDesignFromFile(designfile, enc); {
 	case err != nil:
 		return ctx, e(err, "")
 	default:
-		log.Log().Debug().Interface("design", d).Str("design_file", string(b)).Msg("design loaded")
+		log.Log().Debug().Object("design", d).Msg("design loaded")
 
 		ctx = context.WithValue(ctx, DesignContextKey, d) //revive:disable-line:modifies-parameter
 	}
