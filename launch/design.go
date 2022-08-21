@@ -1,6 +1,7 @@
 package launch
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/url"
@@ -8,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	vault "github.com/hashicorp/vault/api"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
@@ -64,10 +66,6 @@ func NodeDesignFromFile(f string, enc *jsonenc.Encoder) (d NodeDesign, _ []byte,
 	}
 
 	if err := d.DecodeYAML(b, enc); err != nil {
-		return d, b, e(err, "")
-	}
-
-	if err := d.IsValid(nil); err != nil {
 		return d, b, e(err, "")
 	}
 
@@ -643,12 +641,47 @@ func defaultDatabaseURL(root string) *url.URL {
 }
 
 func (d NodeDesign) MarshalZerologObject(e *zerolog.Event) {
+	var priv base.Publickey
+	if d.Privatekey != nil {
+		priv = d.Privatekey.Publickey()
+	}
+
 	e.
 		Interface("address", d.Address).
-		Interface("privatekey*", d.Privatekey.Publickey()).
+		Interface("privatekey*", priv).
 		Interface("storage", d.Storage).
 		Interface("network_id", d.NetworkID).
 		Interface("network", d.Network).
 		Interface("parameters", d.LocalParams).
 		Interface("sync_sources", d.SyncSources)
+}
+
+func loadPrivatekeyFromVault(path string, enc *jsonenc.Encoder) (base.Privatekey, error) {
+	e := util.StringErrorFunc("failed to load privatekey from vault")
+
+	config := vault.DefaultConfig()
+
+	client, err := vault.NewClient(config)
+	if err != nil {
+		return nil, e(err, "failed to create vault client")
+	}
+
+	secret, err := client.KVv2("secret").Get(context.Background(), path)
+	if err != nil {
+		return nil, e(err, "failed to read secret")
+	}
+
+	i := secret.Data["string"]
+
+	privs, ok := i.(string)
+	if !ok {
+		return nil, e(nil, "failed to read secret; expected string but %T", i)
+	}
+
+	switch priv, err := base.DecodePrivatekeyFromString(privs, enc); {
+	case err != nil:
+		return nil, e(err, "invalid privatekey")
+	default:
+		return priv, nil
+	}
 }

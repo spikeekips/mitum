@@ -11,6 +11,7 @@ import (
 type INITCommand struct {
 	Design        string `arg:"" name:"node design" help:"node design" type:"filepath"`
 	GenesisDesign string `arg:"" name:"genesis design" help:"genesis design" type:"filepath"`
+	Vault         string `name:"vault" help:"privatekey path of vault"`
 }
 
 func (cmd *INITCommand) Run(pctx context.Context) error {
@@ -19,10 +20,11 @@ func (cmd *INITCommand) Run(pctx context.Context) error {
 		return err
 	}
 
-	pctx = context.WithValue(pctx, //revive:disable-line:modifies-parameter
-		launch.DesignFileContextKey, cmd.Design)
-	pctx = context.WithValue(pctx, //revive:disable-line:modifies-parameter
-		launch.GenesisDesignFileContextKey, cmd.GenesisDesign)
+	//revive:disable:modifies-parameter
+	pctx = context.WithValue(pctx, launch.DesignFileContextKey, cmd.Design)
+	pctx = context.WithValue(pctx, launch.GenesisDesignFileContextKey, cmd.GenesisDesign)
+	pctx = context.WithValue(pctx, launch.VaultContextKey, cmd.Vault)
+	//revive:enable:modifies-parameter
 
 	pps := launch.DefaultINITPS()
 	_ = pps.SetLogging(log)

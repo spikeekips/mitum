@@ -21,6 +21,7 @@ import (
 
 type RunCommand struct { //nolint:govet //...
 	Design    string                `arg:"" name:"node design" help:"node design" type:"filepath"`
+	Vault     string                `name:"vault" help:"privatekey path of vault"`
 	Discovery []launch.ConnInfoFlag `help:"member discovery" placeholder:"ConnInfo"`
 	Hold      launch.HeightFlag     `help:"hold consensus states"`
 	exitf     func(error)
@@ -36,10 +37,9 @@ func (cmd *RunCommand) Run(pctx context.Context) error {
 	cmd.log = log.Log()
 
 	//revive:disable:modifies-parameter
-	pctx = context.WithValue(pctx,
-		launch.DesignFileContextKey, cmd.Design)
-	pctx = context.WithValue(pctx,
-		launch.DiscoveryFlagContextKey, cmd.Discovery)
+	pctx = context.WithValue(pctx, launch.DesignFileContextKey, cmd.Design)
+	pctx = context.WithValue(pctx, launch.DiscoveryFlagContextKey, cmd.Discovery)
+	pctx = context.WithValue(pctx, launch.VaultContextKey, cmd.Vault)
 	//revive:enable:modifies-parameter
 
 	pps := launch.DefaultRunPS()
