@@ -9,9 +9,9 @@ import (
 )
 
 type INITCommand struct {
-	Design        string `arg:"" name:"node design" help:"node design" type:"filepath"`
 	GenesisDesign string `arg:"" name:"genesis design" help:"genesis design" type:"filepath"`
 	Vault         string `name:"vault" help:"privatekey path of vault"`
+	launch.DesignFlag
 }
 
 func (cmd *INITCommand) Run(pctx context.Context) error {
@@ -21,7 +21,7 @@ func (cmd *INITCommand) Run(pctx context.Context) error {
 	}
 
 	//revive:disable:modifies-parameter
-	pctx = context.WithValue(pctx, launch.DesignFileContextKey, cmd.Design)
+	pctx = context.WithValue(pctx, launch.DesignFlagContextKey, cmd.DesignFlag)
 	pctx = context.WithValue(pctx, launch.GenesisDesignFileContextKey, cmd.GenesisDesign)
 	pctx = context.WithValue(pctx, launch.VaultContextKey, cmd.Vault)
 	//revive:enable:modifies-parameter

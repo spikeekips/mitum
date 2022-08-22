@@ -1,6 +1,9 @@
 package launch
 
 import (
+	"net/url"
+	"strings"
+
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/network"
@@ -111,4 +114,70 @@ func (f *HeightFlag) Height() base.Height {
 	}
 
 	return *f.height
+}
+
+var DefaultDesignURI = "./config.yml"
+
+// DesignFlag is the flag for loading design from various locations. Only one
+// location is allowed. For example,
+// - "--design=./no0sas.yml", or
+// - "--design=https://a.b.c.d/no0sas.yml", or
+// - "--design=consul://a.b.c.d:8500/no0sas/design", or
+// - "--design=consul:///no0sas/design": If address not set, the environment variables of
+// consul will be used.
+type DesignFlag struct {
+	//revive:disable:line-length-limit
+	URI                 DesignURIFlag `name:"design" help:"design uri; 'file:///config.yml', 'https://a.b.c.d/config.yml'" group:"design" default:"${design_uri}"`
+	DesignURIProperties `embed:"" prefix:"design."`
+	//revive:enable:line-length-limit
+}
+
+func (f DesignFlag) Scheme() string {
+	return f.URI.scheme
+}
+
+func (f DesignFlag) URL() *url.URL {
+	return f.URI.loc
+}
+
+func (f DesignFlag) Properties() DesignURIProperties {
+	return f.DesignURIProperties
+}
+
+type DesignURIFlag struct {
+	loc    *url.URL
+	scheme string
+}
+
+func (f *DesignURIFlag) UnmarshalText(b []byte) error {
+	e := util.StringErrorFunc("failed to design flag")
+
+	s := string(b)
+
+	u, err := url.Parse(s)
+	if err != nil {
+		return e(err, "")
+	}
+
+	switch scheme := u.Scheme; strings.ToLower(scheme) {
+	case "", "file": // NOTE file
+		f.scheme = "file"
+		f.loc = u
+	case "http", "https":
+		f.scheme = scheme
+		f.loc = u
+	case "consul":
+		if len(u.Path) < 1 {
+			return e(nil, "empty key for consul")
+		}
+
+		f.scheme = scheme
+		f.loc = u
+	}
+
+	return nil
+}
+
+type DesignURIProperties struct {
+	HTTPSTLSInsecure bool `name:"https.tls_insecure" negatable:"" help:"https tls insecure" group:"design"`
 }

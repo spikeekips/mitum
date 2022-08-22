@@ -13,14 +13,15 @@ var (
 	PNameDesign                 = ps.Name("design")
 	PNameCheckDesign            = ps.Name("check-design")
 	PNameGenesisDesign          = ps.Name("genesis-design")
-	DesignFileContextKey        = ps.ContextKey("design-file")
+	DesignFileContextKey        = ps.ContextKey("design-file") // FIXME remove
+	DesignFlagContextKey        = ps.ContextKey("design-flag")
 	GenesisDesignFileContextKey = ps.ContextKey("genesis-design-file")
 	DesignContextKey            = ps.ContextKey("design")
 	GenesisDesignContextKey     = ps.ContextKey("genesis-design")
 	VaultContextKey             = ps.ContextKey("vault")
 )
 
-func PDesign(ctx context.Context) (context.Context, error) {
+func PDesign(ctx context.Context) (context.Context, error) { // FIXME remove
 	e := util.StringErrorFunc("failed to load design")
 
 	var log *logging.Logging
@@ -47,6 +48,69 @@ func PDesign(ctx context.Context) (context.Context, error) {
 
 		log.Log().Debug().Object("design", design).Msg("design loaded")
 	}
+
+	if len(privfromvault) > 0 {
+		priv, err := loadPrivatekeyFromVault(privfromvault, enc)
+		if err != nil {
+			return ctx, e(err, "")
+		}
+
+		log.Log().Debug().Interface("privatekey", priv.Publickey()).Msg("privatekey loaded from vault")
+
+		design.Privatekey = priv
+	}
+
+	ctx = context.WithValue(ctx, DesignContextKey, design) //revive:disable-line:modifies-parameter
+
+	return ctx, nil
+}
+
+func PLoadDesign(ctx context.Context) (context.Context, error) {
+	e := util.StringErrorFunc("failed to load design")
+
+	var log *logging.Logging
+	var flag DesignFlag
+	var enc *jsonenc.Encoder
+	var privfromvault string
+
+	if err := ps.LoadsFromContextOK(ctx,
+		LoggingContextKey, &log,
+		DesignFlagContextKey, &flag,
+		EncoderContextKey, &enc,
+		VaultContextKey, &privfromvault,
+	); err != nil {
+		return ctx, e(err, "")
+	}
+
+	var design NodeDesign
+
+	switch flag.Scheme() {
+	case "file":
+		switch d, _, err := NodeDesignFromFile(flag.URL().Path, enc); {
+		case err != nil:
+			return ctx, e(err, "")
+		default:
+			design = d
+		}
+	case "http", "https":
+		switch d, err := NodeDesignFromHTTP(flag.URL().String(), flag.Properties().HTTPSTLSInsecure, enc); {
+		case err != nil:
+			return ctx, e(err, "")
+		default:
+			design = d
+		}
+	case "consul":
+		switch d, err := NodeDesignFromConsul(flag.URL().Host, flag.URL().Path, enc); {
+		case err != nil:
+			return ctx, e(err, "")
+		default:
+			design = d
+		}
+	default:
+		return ctx, e(nil, "unknown design uri, %q", flag.URL())
+	}
+
+	log.Log().Debug().Object("design", design).Msg("design loaded")
 
 	if len(privfromvault) > 0 {
 		priv, err := loadPrivatekeyFromVault(privfromvault, enc)
@@ -112,6 +176,8 @@ func PCheckDesign(ctx context.Context) (context.Context, error) {
 	}
 
 	log.Log().Debug().Object("design", design).Msg("design checked")
+
+	ctx = context.WithValue(ctx, DesignContextKey, design) //revive:disable-line:modifies-parameter
 
 	return ctx, nil
 }

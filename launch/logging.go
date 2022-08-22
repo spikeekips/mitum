@@ -19,10 +19,12 @@ func init() { //nolint:gochecknoinits //...
 
 // revive:disable:line-length-limit
 type LoggingFlags struct {
-	Out        LogOutFlag   `name:"out" default:"stderr" help:"log output file: {stdout, stderr, <file>}" group:"logging"`
-	Format     string       `enum:"json, terminal" default:"terminal" help:"log format: {${enum}}" group:"logging"`
-	Level      LogLevelFlag `name:"level" default:"debug" help:"log level: {trace, debug, info, warn, error}" group:"logging"`
-	ForceColor bool         `name:"force-color" negatable:"" help:"log force color" group:"logging"`
+	//revive:disable:struct-tag
+	Out        LogOutFlag   `name:"out" default:"${log_out}" help:"log output file: {stdout, stderr, <file>}" group:"logging"`
+	Format     string       `enum:"json, terminal" default:"${log_format}" help:"log format: {${enum}}" group:"logging"`
+	Level      LogLevelFlag `name:"level" default:"${log_level}" help:"log level: {trace, debug, info, warn, error}" group:"logging"`
+	ForceColor bool         `name:"force-color" default:"${log_force_color}" negatable:"" help:"log force color" group:"logging"`
+	//revive:enable:struct-tag
 }
 
 // revive:enable:line-length-limit

@@ -13,6 +13,7 @@ require (
 	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce
 	github.com/bytedance/sonic v1.3.5
 	github.com/go-redis/redis/v8 v8.11.5
+	github.com/hashicorp/consul/api v1.14.0
 	github.com/hashicorp/memberlist v0.4.0
 	github.com/hashicorp/vault/api v1.7.2
 	github.com/json-iterator/go v1.1.12
@@ -42,7 +43,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.1.0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
-	github.com/fatih/color v1.7.0 // indirect
+	github.com/fatih/color v1.9.0 // indirect
 	github.com/fsnotify/fsnotify v1.5.4 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20210107165309-348f09dbbbc0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
@@ -65,10 +66,10 @@ require (
 	github.com/hashicorp/go-version v1.2.0 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
+	github.com/hashicorp/serf v0.9.7 // indirect
 	github.com/hashicorp/vault/sdk v0.5.1 // indirect
 	github.com/hashicorp/yamux v0.0.0-20180604194846-3520598351bb // indirect
 	github.com/klauspost/cpuid/v2 v2.1.0 // indirect
-	github.com/kr/pretty v0.2.1 // indirect
 	github.com/marten-seemann/qtls-go1-16 v0.1.5 // indirect
 	github.com/marten-seemann/qtls-go1-17 v0.1.2 // indirect
 	github.com/marten-seemann/qtls-go1-18 v0.1.2 // indirect

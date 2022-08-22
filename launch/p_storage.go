@@ -122,7 +122,8 @@ func PCloseStorage(ctx context.Context) (context.Context, error) {
 		closer, ok := reflect.ValueOf(v).Elem().Interface().(io.Closer)
 		if ok {
 			closers = append(closers, func() {
-				if err := closer.Close(); err != nil {
+				err := closer.Close()
+				if err != nil && !errors.Is(err, util.ErrDaemonAlreadyStopped) {
 					log.Log().Error().Err(err).Msgf("failed to close %s", name)
 				}
 			})
@@ -131,7 +132,8 @@ func PCloseStorage(ctx context.Context) (context.Context, error) {
 		d, ok := reflect.ValueOf(v).Elem().Interface().(util.Daemon)
 		if ok {
 			stoppers = append(stoppers, func() {
-				if err := d.Stop(); err != nil {
+				err := d.Stop()
+				if err != nil && !errors.Is(err, util.ErrDaemonAlreadyStopped) {
 					log.Log().Error().Err(err).Msgf("failed to stop %s", name)
 				}
 			})

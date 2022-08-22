@@ -36,8 +36,16 @@ var CLI struct { //nolint:govet //...
 	//revive:enable:nested-structs
 }
 
+var flagDefaults = kong.Vars{
+	"log_out":         "stderr",
+	"log_format":      "terminal",
+	"log_level":       "debug",
+	"log_force_color": "false",
+	"design_uri":      launch.DefaultDesignURI,
+}
+
 func main() {
-	kctx := kong.Parse(&CLI)
+	kctx := kong.Parse(&CLI, flagDefaults)
 
 	if err := checkVersion(); err != nil {
 		kctx.FatalIfErrorf(err)
@@ -62,7 +70,11 @@ func main() {
 	default:
 		pctx = i
 
-		kctx = kong.Parse(&CLI, kong.BindTo(pctx, (*context.Context)(nil)))
+		kctx = kong.Parse(
+			&CLI,
+			kong.BindTo(pctx, (*context.Context)(nil)),
+			flagDefaults,
+		)
 	}
 
 	var log *logging.Logging

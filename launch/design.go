@@ -2,13 +2,17 @@ package launch
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
+	"io"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 
+	consulapi "github.com/hashicorp/consul/api"
 	vault "github.com/hashicorp/vault/api"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -70,6 +74,72 @@ func NodeDesignFromFile(f string, enc *jsonenc.Encoder) (d NodeDesign, _ []byte,
 	}
 
 	return d, b, nil
+}
+
+func NodeDesignFromHTTP(u string, tlsInsecure bool, enc *jsonenc.Encoder) (design NodeDesign, _ error) {
+	e := util.StringErrorFunc("failed to load NodeDesign thru http")
+
+	httpclient := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: tlsInsecure,
+			},
+		},
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, u, nil)
+	if err != nil {
+		return design, e(err, "")
+	}
+
+	res, err := httpclient.Do(req)
+	if err != nil {
+		return design, e(err, "")
+	}
+
+	b, err := io.ReadAll(res.Body)
+	if err != nil {
+		return design, e(err, "")
+	}
+
+	defer func() {
+		_ = res.Body.Close()
+	}()
+
+	if res.StatusCode != http.StatusOK {
+		return design, e(nil, "design not found")
+	}
+
+	if err := design.DecodeYAML(b, enc); err != nil {
+		return design, e(err, "")
+	}
+
+	return design, nil
+}
+
+func NodeDesignFromConsul(addr, key string, enc *jsonenc.Encoder) (design NodeDesign, _ error) {
+	e := util.StringErrorFunc("failed to load NodeDesign thru consul")
+
+	config := consulapi.DefaultConfig()
+	if len(addr) > 0 {
+		config.Address = addr
+	}
+
+	client, err := consulapi.NewClient(config)
+	if err != nil {
+		return design, e(err, "")
+	}
+
+	switch v, _, err := client.KV().Get(key, nil); {
+	case err != nil:
+		return design, e(err, "")
+	default:
+		if err := design.DecodeYAML(v.Value, enc); err != nil {
+			return design, e(err, "")
+		}
+
+		return design, nil
+	}
 }
 
 func (d *NodeDesign) IsValid([]byte) error {

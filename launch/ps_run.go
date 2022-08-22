@@ -7,7 +7,7 @@ func DefaultRunPS() *ps.PS {
 
 	_ = pps.
 		AddOK(PNameEncoder, PEncoder, nil).
-		AddOK(PNameDesign, PDesign, nil, PNameEncoder).
+		AddOK(PNameDesign, PLoadDesign, nil, PNameEncoder).
 		AddOK(PNameLocal, PLocal, nil, PNameDesign).
 		AddOK(PNameStorage, PStorage, nil, PNameLocal).
 		AddOK(PNameProposalMaker, PProposalMaker, nil, PNameStorage).
@@ -28,6 +28,8 @@ func DefaultRunPS() *ps.PS {
 			PNameStartNetwork,
 			PNameStates,
 		)
+
+	// FIXME watch node design parameters from consul
 
 	_ = pps.POK(PNameEncoder).
 		PostAddOK(PNameAddHinters, PAddHinters)
