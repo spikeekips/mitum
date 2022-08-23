@@ -38,13 +38,9 @@ var (
 )
 
 func PBallotbox(ctx context.Context) (context.Context, error) {
-	var params base.LocalParams
 	var db isaac.Database
 
-	if err := ps.LoadsFromContextOK(ctx,
-		LocalParamsContextKey, &params,
-		CenterDatabaseContextKey, &db,
-	); err != nil {
+	if err := ps.LoadsFromContextOK(ctx, CenterDatabaseContextKey, &db); err != nil {
 		return ctx, err
 	}
 
@@ -52,7 +48,6 @@ func PBallotbox(ctx context.Context) (context.Context, error) {
 		func(blockheight base.Height) (base.Suffrage, bool, error) {
 			return isaac.GetSuffrageFromDatabase(db, blockheight)
 		},
-		params.Threshold(),
 	)
 
 	ctx = context.WithValue(ctx, BallotboxContextKey, ballotbox) //revive:disable-line:modifies-parameter
@@ -163,7 +158,7 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 	}
 
 	voteFunc := func(bl base.Ballot) (bool, error) {
-		voted, err := ballotbox.Vote(bl)
+		voted, err := ballotbox.Vote(bl, params.Threshold())
 		if err != nil {
 			return false, err
 		}
@@ -198,7 +193,7 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 	case err != nil:
 		return ctx, e(err, "")
 	case whenNewBlockSavedInConsensusStatef == nil:
-		whenNewBlockSavedInConsensusStatef = WhenNewBlockSavedInConsensusStateFunc(ballotbox, db, nodeinfo)
+		whenNewBlockSavedInConsensusStatef = WhenNewBlockSavedInConsensusStateFunc(params, ballotbox, db, nodeinfo)
 	}
 
 	newsyncerf, err := newSyncerFunc(ctx, params, db, lvps, whenNewBlockSavedInSyncingStatef)
@@ -220,7 +215,7 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 		whenNewBlockSavedInSyncingStatef,
 	)
 	syncinghandler.SetWhenFinished(func(base.Height) {
-		ballotbox.Count()
+		ballotbox.Count(params.Threshold())
 	})
 
 	states.
@@ -780,12 +775,13 @@ func WhenNewBlockSavedInSyncingStateFunc(
 }
 
 func WhenNewBlockSavedInConsensusStateFunc(
+	params *isaac.LocalParams,
 	ballotbox *isaacstates.Ballotbox,
 	db isaac.Database,
 	nodeinfo *isaacnetwork.NodeInfoUpdater,
 ) func(base.Height) {
 	return func(height base.Height) {
-		ballotbox.Count()
+		ballotbox.Count(params.Threshold())
 
 		_ = UpdateNodeInfoWithNewBlock(db, nodeinfo)
 	}

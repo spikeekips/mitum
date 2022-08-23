@@ -491,11 +491,11 @@ func (t *testConsensusHandler) TestWithBallotbox() {
 	point := base.RawPoint(33, 44)
 	suf, _ := isaac.NewTestSuffrage(0, t.Local)
 
+	th := base.Threshold(100)
 	box := NewBallotbox(
 		func(base.Height) (base.Suffrage, bool, error) {
 			return suf, true, nil
 		},
-		base.Threshold(100),
 	)
 
 	testctx, testdone := context.WithCancel(context.Background())
@@ -536,7 +536,7 @@ func (t *testConsensusHandler) TestWithBallotbox() {
 	}
 
 	st.voteFunc = func(bl base.Ballot) (bool, error) {
-		voted, err := box.Vote(bl)
+		voted, err := box.Vote(bl, th)
 		if err != nil {
 			return false, errors.WithStack(err)
 		}

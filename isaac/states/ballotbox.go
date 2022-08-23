@@ -18,18 +18,15 @@ type Ballotbox struct {
 	vpch                         chan base.Voteproof
 	lsp                          *util.Locked
 	removed                      []*voterecords
-	threshold                    base.Threshold
 	vrsLock                      sync.RWMutex
 	countLock                    sync.Mutex
 }
 
 func NewBallotbox(
 	getSuffrage isaac.GetSuffrageByBlockHeight,
-	threshold base.Threshold,
 ) *Ballotbox {
 	return &Ballotbox{
 		getSuffrage:                  getSuffrage,
-		threshold:                    threshold,
 		vrs:                          map[string]*voterecords{},
 		vpch:                         make(chan base.Voteproof, math.MaxUint16),
 		lsp:                          util.NewLocked(base.ZeroStagePoint),
@@ -37,11 +34,11 @@ func NewBallotbox(
 	}
 }
 
-func (box *Ballotbox) Vote(bl base.Ballot) (bool, error) {
+func (box *Ballotbox) Vote(bl base.Ballot, threshold base.Threshold) (bool, error) {
 	box.vrsLock.Lock()
 	defer box.vrsLock.Unlock()
 
-	voted, callback, err := box.vote(bl)
+	voted, callback, err := box.vote(bl, threshold)
 	if err != nil {
 		return false, err
 	}
@@ -64,7 +61,7 @@ func (box *Ballotbox) Voteproof() <-chan base.Voteproof {
 }
 
 // Count should be called for checking next voteproofs after new block saved.
-func (box *Ballotbox) Count() {
+func (box *Ballotbox) Count(threshold base.Threshold) {
 	box.countLock.Lock()
 	defer box.countLock.Unlock()
 
@@ -72,7 +69,7 @@ func (box *Ballotbox) Count() {
 
 	for i := range rvrs {
 		vr := rvrs[len(rvrs)-i-1]
-		if vp := box.count(vr, vr.stagepoint); vp != nil {
+		if vp := box.count(vr, vr.stagepoint, threshold); vp != nil {
 			break
 		}
 	}
@@ -83,17 +80,19 @@ func (box *Ballotbox) Count() {
 			break
 		}
 
-		_ = box.count(vr, vr.stagepoint)
+		_ = box.count(vr, vr.stagepoint, threshold)
 	}
 
 	box.clean()
 }
 
-func (box *Ballotbox) countWithVoterecords(vr *voterecords, stagepoint base.StagePoint) base.Voteproof {
+func (box *Ballotbox) countWithVoterecords(
+	vr *voterecords, stagepoint base.StagePoint, threshold base.Threshold,
+) base.Voteproof {
 	box.countLock.Lock()
 	defer box.countLock.Unlock()
 
-	vp := box.count(vr, stagepoint)
+	vp := box.count(vr, stagepoint, threshold)
 
 	box.clean()
 
@@ -106,7 +105,7 @@ func (box *Ballotbox) filterNewBallot(bl base.Ballot) bool {
 	return lsp.IsZero() || bl.Point().Compare(lsp) > 0
 }
 
-func (box *Ballotbox) vote(bl base.Ballot) (bool, func() base.Voteproof, error) {
+func (box *Ballotbox) vote(bl base.Ballot, threshold base.Threshold) (bool, func() base.Voteproof, error) {
 	e := util.StringErrorFunc("failed to vote")
 
 	if !box.filterNewBallot(bl) {
@@ -122,7 +121,7 @@ func (box *Ballotbox) vote(bl base.Ballot) (bool, func() base.Voteproof, error) 
 	case err != nil:
 		return false, nil, e(err, "")
 	case voted && validated:
-		ok, found := isNewVoteproof(bl.Voteproof(), box.lastStagePoint(), box.threshold)
+		ok, found := isNewVoteproof(bl.Voteproof(), box.lastStagePoint(), threshold)
 		if ok && found {
 			vp = bl.Voteproof()
 		}
@@ -134,7 +133,7 @@ func (box *Ballotbox) vote(bl base.Ballot) (bool, func() base.Voteproof, error) 
 				box.vpch <- vp
 			}
 
-			return box.countWithVoterecords(vr, bl.Point())
+			return box.countWithVoterecords(vr, bl.Point(), threshold)
 		},
 		nil
 }
@@ -157,7 +156,7 @@ func (box *Ballotbox) newVoterecords(bl base.Ballot) *voterecords {
 		return vr
 	}
 
-	vr := newVoterecords(stagepoint, box.isValidVoteproofWithSuffrage, box.getSuffrage, box.threshold)
+	vr := newVoterecords(stagepoint, box.isValidVoteproofWithSuffrage, box.getSuffrage)
 	box.vrs[stagepoint.String()] = vr
 
 	return vr
@@ -183,7 +182,7 @@ func (box *Ballotbox) setLastStagePoint(p base.StagePoint) bool {
 	return err == nil
 }
 
-func (box *Ballotbox) count(vr *voterecords, stagepoint base.StagePoint) base.Voteproof {
+func (box *Ballotbox) count(vr *voterecords, stagepoint base.StagePoint, threshold base.Threshold) base.Voteproof {
 	if stagepoint.IsZero() {
 		return nil
 	}
@@ -201,7 +200,7 @@ func (box *Ballotbox) count(vr *voterecords, stagepoint base.StagePoint) base.Vo
 		return nil
 	}
 
-	vps := vr.count(box.lastStagePoint())
+	vps := vr.count(box.lastStagePoint(), threshold)
 	if len(vps) < 1 {
 		return nil
 	}
@@ -341,7 +340,6 @@ type voterecords struct {
 	set                          []string
 	sfs                          []base.BallotSignedFact
 	stagepoint                   base.StagePoint
-	threshold                    base.Threshold
 	sync.RWMutex
 	f bool
 }
@@ -350,14 +348,12 @@ func newVoterecords(
 	stagepoint base.StagePoint,
 	isValidVoteproofWithSuffrage func(base.Voteproof, base.Suffrage) error,
 	getSuffrageFunc isaac.GetSuffrageByBlockHeight,
-	threshold base.Threshold,
 ) *voterecords {
 	vr := voterecordsPool.Get().(*voterecords) //nolint:forcetypeassert //...
 
 	vr.stagepoint = stagepoint
 	vr.isValidVoteproofWithSuffrage = isValidVoteproofWithSuffrage
 	vr.getSuffrageFunc = getSuffrageFunc
-	vr.threshold = threshold
 	vr.voted = map[string]base.Ballot{}
 	vr.m = map[string]base.BallotFact{}
 	vr.set = nil
@@ -414,7 +410,7 @@ func (vr *voterecords) finished() bool {
 	return vr.f
 }
 
-func (vr *voterecords) count(lastStagePoint base.StagePoint) []base.Voteproof {
+func (vr *voterecords) count(lastStagePoint base.StagePoint, threshold base.Threshold) []base.Voteproof {
 	vr.Lock()
 	defer vr.Unlock()
 
@@ -444,7 +440,7 @@ func (vr *voterecords) count(lastStagePoint base.StagePoint) []base.Voteproof {
 			vr.voted[bl.SignedFact().Node().String()] = bl
 
 			if !vpchecked {
-				ok, found := isNewVoteproof(bl.Voteproof(), lastStagePoint, vr.threshold)
+				ok, found := isNewVoteproof(bl.Voteproof(), lastStagePoint, threshold)
 				if ok && found {
 					digged = bl.Voteproof()
 				}
@@ -461,14 +457,14 @@ func (vr *voterecords) count(lastStagePoint base.StagePoint) []base.Voteproof {
 		vps = append(vps, digged)
 	}
 
-	if vp := vr.countFromBallots(); vp != nil {
+	if vp := vr.countFromBallots(threshold); vp != nil {
 		vps = append(vps, vp)
 	}
 
 	return vps
 }
 
-func (vr *voterecords) countFromBallots() base.Voteproof {
+func (vr *voterecords) countFromBallots(threshold base.Threshold) base.Voteproof {
 	// NOTE if finished, return nil
 	switch {
 	case vr.f:
@@ -512,12 +508,12 @@ func (vr *voterecords) countFromBallots() base.Voteproof {
 	vr.set = append(vr.set, set...)
 	vr.sfs = append(vr.sfs, sfs...)
 
-	if uint(len(vr.set)) < vr.threshold.Threshold(uint(suf.Len())) {
+	if uint(len(vr.set)) < threshold.Threshold(uint(suf.Len())) {
 		return nil
 	}
 
 	var majority base.BallotFact
-	result, majoritykey := vr.threshold.VoteResult(uint(suf.Len()), vr.set)
+	result, majoritykey := threshold.VoteResult(uint(suf.Len()), vr.set)
 
 	switch result {
 	case base.VoteResultDraw:
@@ -529,12 +525,13 @@ func (vr *voterecords) countFromBallots() base.Voteproof {
 
 	vr.f = true
 
-	return vr.newVoteproof(vr.sfs, majority)
+	return vr.newVoteproof(vr.sfs, majority, threshold)
 }
 
 func (vr *voterecords) newVoteproof(
 	sfs []base.BallotSignedFact,
 	majority base.BallotFact,
+	threshold base.Threshold,
 ) base.Voteproof {
 	switch vr.stagepoint.Stage() {
 	case base.StageINIT:
@@ -542,7 +539,7 @@ func (vr *voterecords) newVoteproof(
 		_ = vp.
 			SetSignedFacts(sfs).
 			SetMajority(majority).
-			SetThreshold(vr.threshold).
+			SetThreshold(threshold).
 			Finish()
 
 		return vp
@@ -551,7 +548,7 @@ func (vr *voterecords) newVoteproof(
 		_ = vp.
 			SetSignedFacts(sfs).
 			SetMajority(majority).
-			SetThreshold(vr.threshold).
+			SetThreshold(threshold).
 			Finish()
 
 		return vp
@@ -601,7 +598,6 @@ var voterecordsPoolPut = func(vr *voterecords) {
 	vr.stagepoint = base.ZeroStagePoint
 	vr.isValidVoteproofWithSuffrage = nil
 	vr.getSuffrageFunc = nil
-	vr.threshold = base.Threshold(-1)
 	vr.voted = nil
 	vr.set = nil
 	vr.m = nil

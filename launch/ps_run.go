@@ -29,8 +29,6 @@ func DefaultRunPS() *ps.PS {
 			PNameStates,
 		)
 
-	// FIXME watch node design parameters from consul
-
 	_ = pps.POK(PNameEncoder).
 		PostAddOK(PNameAddHinters, PAddHinters)
 
@@ -61,7 +59,8 @@ func DefaultRunPS() *ps.PS {
 		PreAddOK(PNameNetworkHandlers, PNetworkHandlers).
 		PreAddOK(PNameNodeInConsensusNodesFunc, PNodeInConsensusNodesFunc).
 		PreAddOK(PNameProposalProcessors, PProposalProcessors).
-		PostAddOK(PNameStatesSetHandlers, PStatesSetHandlers)
+		PostAddOK(PNameStatesSetHandlers, PStatesSetHandlers).
+		PostAddOK(PNameWatchDesign, PWatchDesign)
 
 	return pps
 }

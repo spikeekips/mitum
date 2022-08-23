@@ -153,12 +153,14 @@ var pNameWhenNewBlockSavedInConsensusStateFunc = ps.Name("when-new-block-saved-i
 func (cmd *RunCommand) pWhenNewBlockSavedInConsensusStateFunc(pctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var db isaac.Database
+	var params *isaac.LocalParams
 	var ballotbox *isaacstates.Ballotbox
 	var nodeinfo *isaacnetwork.NodeInfoUpdater
 
 	if err := ps.LoadsFromContextOK(pctx,
 		launch.LoggingContextKey, &log,
 		launch.CenterDatabaseContextKey, &db,
+		launch.LocalParamsContextKey, &params,
 		launch.BallotboxContextKey, &ballotbox,
 		launch.NodeInfoContextKey, &nodeinfo,
 	); err != nil {
@@ -166,7 +168,7 @@ func (cmd *RunCommand) pWhenNewBlockSavedInConsensusStateFunc(pctx context.Conte
 	}
 
 	f := func(height base.Height) {
-		launch.WhenNewBlockSavedInConsensusStateFunc(ballotbox, db, nodeinfo)(height)
+		launch.WhenNewBlockSavedInConsensusStateFunc(params, ballotbox, db, nodeinfo)(height)
 
 		l := log.Log().With().Interface("height", height).Logger()
 		l.Debug().Msg("new block saved")

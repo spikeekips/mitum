@@ -36,8 +36,7 @@ func PLocal(ctx context.Context) (context.Context, error) {
 
 	log.Log().Info().Interface("local", local).Msg("local loaded")
 
-	ctx = context.WithValue(ctx, LocalContextKey, local)                    //revive:disable-line:modifies-parameter
-	ctx = context.WithValue(ctx, LocalParamsContextKey, design.LocalParams) //revive:disable-line:modifies-parameter
+	ctx = context.WithValue(ctx, LocalContextKey, local) //revive:disable-line:modifies-parameter
 
 	return ctx, nil
 }

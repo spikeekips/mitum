@@ -253,11 +253,13 @@ func memberlistTransport(ctx context.Context) (*quicmemberlist.Transport, error)
 func memberlistDelegate(ctx context.Context, localnode quicmemberlist.Node) (*quicmemberlist.Delegate, error) {
 	var log *logging.Logging
 	var enc encoder.Encoder
+	var params *isaac.LocalParams
 	var ballotbox *isaacstates.Ballotbox
 
 	if err := ps.LoadsFromContextOK(ctx,
 		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
+		LocalParamsContextKey, &params,
 		BallotboxContextKey, &ballotbox,
 	); err != nil {
 		return nil, err
@@ -275,7 +277,7 @@ func memberlistDelegate(ctx context.Context, localnode quicmemberlist.Node) (*qu
 		case base.Ballot:
 			log.Log().Trace().Interface("ballot", i).Msg("new incoming message")
 
-			_, err := ballotbox.Vote(t)
+			_, err := ballotbox.Vote(t, params.Threshold())
 			if err != nil {
 				log.Log().Error().Err(err).Interface("ballot", t).Msg("failed to vote")
 			}

@@ -120,12 +120,7 @@ func NodeDesignFromHTTP(u string, tlsInsecure bool, enc *jsonenc.Encoder) (desig
 func NodeDesignFromConsul(addr, key string, enc *jsonenc.Encoder) (design NodeDesign, _ error) {
 	e := util.StringErrorFunc("failed to load NodeDesign thru consul")
 
-	config := consulapi.DefaultConfig()
-	if len(addr) > 0 {
-		config.Address = addr
-	}
-
-	client, err := consulapi.NewClient(config)
+	client, err := consulClient(addr)
 	if err != nil {
 		return design, e(err, "")
 	}
@@ -754,4 +749,18 @@ func loadPrivatekeyFromVault(path string, enc *jsonenc.Encoder) (base.Privatekey
 	default:
 		return priv, nil
 	}
+}
+
+func consulClient(addr string) (*consulapi.Client, error) {
+	config := consulapi.DefaultConfig()
+	if len(addr) > 0 {
+		config.Address = addr
+	}
+
+	client, err := consulapi.NewClient(config)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create new consul api Client")
+	}
+
+	return client, nil
 }

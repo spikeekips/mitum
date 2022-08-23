@@ -1,6 +1,7 @@
 package util
 
 import (
+	"strconv"
 	"strings"
 	"time"
 
@@ -51,4 +52,18 @@ func TimeString(t time.Time) string {
 
 func TimeEqual(a, b time.Time) bool {
 	return NormalizeTime(a).Equal(NormalizeTime(b))
+}
+
+func ParseDuration(s string) (time.Duration, error) {
+	d, err := time.ParseDuration(s)
+	if err == nil {
+		return d, nil
+	}
+
+	i, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return 0, errors.Wrap(err, "failed to parse duration")
+	}
+
+	return time.Duration(i), nil
 }
