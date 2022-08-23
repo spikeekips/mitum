@@ -2,6 +2,7 @@ package launch
 
 import (
 	"context"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -141,7 +142,10 @@ func getProposalFunc(pctx context.Context) (
 				ci := node.UDPConnInfo()
 
 				return worker.NewJob(func(ctx context.Context, _ uint64) error {
-					pr, found, err := client.Proposal(ctx, ci, facthash)
+					cctx, cancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
+					defer cancel()
+
+					pr, found, err := client.Proposal(cctx, ci, facthash)
 					switch {
 					case err != nil:
 						return nil
@@ -323,7 +327,10 @@ func getProposalOperationFromRemoteFunc(pctx context.Context) ( //nolint:gocogni
 						return nil, util.ErrLockedSetIgnore.Call()
 					}
 
-					op, found, err := client.Operation(ctx, ci, operationhash)
+					cctx, cancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
+					defer cancel()
+
+					op, found, err := client.Operation(cctx, ci, operationhash)
 					if err == nil && found {
 						return op, nil
 					}
@@ -398,7 +405,10 @@ func getProposalOperationFromRemoteProposerFunc(pctx context.Context) (
 			return true, nil, false, err
 		}
 
-		switch op, found, err := client.Operation(ctx, ci, operationhash); {
+		cctx, cancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
+		defer cancel()
+
+		switch op, found, err := client.Operation(cctx, ci, operationhash); {
 		case err != nil:
 			return true, nil, false, err
 		case !found:
@@ -531,7 +541,10 @@ func NewProposalSelector(pctx context.Context) (*isaac.BaseProposalSelector, err
 				return nil, errors.Errorf("proposer not joined in memberlist")
 			}
 
-			sf, found, err := client.RequestProposal(ctx, ci, point, proposer)
+			cctx, cancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
+			defer cancel()
+
+			sf, found, err := client.RequestProposal(cctx, ci, point, proposer)
 			switch {
 			case err != nil:
 				return nil, errors.WithMessage(err, "failed to get proposal from proposer")

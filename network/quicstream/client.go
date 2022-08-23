@@ -107,12 +107,15 @@ func (c *Client) Write(ctx context.Context, f ClientWriteFunc) (quic.Stream, err
 func (c *Client) write(ctx context.Context, f ClientWriteFunc) (quic.Stream, error) {
 	e := util.StringErrorFunc("failed to write")
 
-	session, err := c.dial(ctx)
+	cctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	session, err := c.dial(cctx)
 	if err != nil {
 		return nil, e(err, "")
 	}
 
-	stream, err := session.OpenStreamSync(ctx)
+	stream, err := session.OpenStreamSync(cctx)
 	if err != nil {
 		return nil, e(err, "failed to open stream")
 	}

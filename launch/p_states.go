@@ -408,7 +408,10 @@ func syncerLastBlockMapFunc(pctx context.Context) (isaacstates.SyncerLastBlockMa
 	f := func(
 		ctx context.Context, manifest util.Hash, ci quicstream.UDPConnInfo,
 	) (_ base.BlockMap, updated bool, _ error) {
-		switch m, updated, err := client.LastBlockMap(ctx, ci, manifest); {
+		cctx, cancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
+		defer cancel()
+
+		switch m, updated, err := client.LastBlockMap(cctx, ci, manifest); {
 		case err != nil, !updated:
 			return m, updated, err
 		default:
@@ -449,6 +452,7 @@ func syncerLastBlockMapFunc(pctx context.Context) (isaacstates.SyncerLastBlockMa
 					switch {
 					case v == nil,
 						m.Manifest().Height() > v.(base.BlockMap).Manifest().Height(): //nolint:forcetypeassert //...
+
 						return m, nil
 					default:
 						return nil, util.ErrLockedSetIgnore.Errorf("old BlockMap")
@@ -486,7 +490,10 @@ func syncerBlockMapFunc(pctx context.Context) ( //revive:disable-line:cognitive-
 	}
 
 	f := func(ctx context.Context, height base.Height, ci quicstream.UDPConnInfo) (base.BlockMap, bool, error) {
-		switch m, found, err := client.BlockMap(ctx, ci, height); {
+		cctx, cancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
+		defer cancel()
+
+		switch m, found, err := client.BlockMap(cctx, ci, height); {
 		case err != nil, !found:
 			return m, found, err
 		default:
@@ -575,7 +582,10 @@ func syncerBlockMapItemFunc(pctx context.Context) (isaacstates.SyncerBlockMapIte
 	f := func(
 		ctx context.Context, height base.Height, item base.BlockMapItemType, ci quicstream.UDPConnInfo,
 	) (io.ReadCloser, func() error, bool, error) {
-		r, cancel, found, err := client.BlockMapItem(ctx, ci, height, item)
+		cctx, ctxcancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
+		defer ctxcancel()
+
+		r, cancel, found, err := client.BlockMapItem(cctx, ci, height, item)
 
 		return r, cancel, found, err
 	}

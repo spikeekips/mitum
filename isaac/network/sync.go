@@ -395,11 +395,11 @@ func (c *SyncSourceChecker) validate(ctx context.Context, nci isaac.NodeConnInfo
 		return errIgnoreNodeconnInfo.Wrap(err)
 	}
 
-	nctx, cancel := context.WithTimeout(ctx, c.validateTimeout)
+	cctx, cancel := context.WithTimeout(ctx, c.validateTimeout)
 	defer cancel()
 
 	switch _, err = c.client.NodeChallenge(
-		nctx, ci, c.networkID, nci.Address(), nci.Publickey(), util.UUID().Bytes()); {
+		cctx, ci, c.networkID, nci.Address(), nci.Publickey(), util.UUID().Bytes()); {
 	case err == nil:
 		return nil
 	case errors.Is(err, base.SignatureVerificationError):
@@ -412,7 +412,7 @@ func (c *SyncSourceChecker) validate(ctx context.Context, nci isaac.NodeConnInfo
 	}
 }
 
-func (*SyncSourceChecker) fetchNodeConnInfos(
+func (c *SyncSourceChecker) fetchNodeConnInfos(
 	ctx context.Context, source interface{},
 	request func(context.Context, quicstream.UDPConnInfo) ([]isaac.NodeConnInfo, error),
 ) (ncis []isaac.NodeConnInfo, _ error) {
@@ -436,7 +436,10 @@ func (*SyncSourceChecker) fetchNodeConnInfos(
 		return nil, errors.Errorf("unsupported source, %T", source)
 	}
 
-	ncis, err := request(ctx, ci)
+	cctx, cancel := context.WithTimeout(ctx, c.validateTimeout)
+	defer cancel()
+
+	ncis, err := request(cctx, ci)
 	if err != nil {
 		return nil, err
 	}

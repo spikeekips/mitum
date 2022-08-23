@@ -342,19 +342,24 @@ func nodeChallengeFunc(pctx context.Context) (
 			return errors.WithMessage(err, "invalid memberlist node publickey")
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*3) //nolint:gomnd //...
-		defer cancel()
-
 		input := util.UUID().Bytes()
 
-		sig, err := client.NodeChallenge(
-			ctx, node.UDPConnInfo(), params.NetworkID(), node.Address(), node.Publickey(), input)
+		sig, err := func() (base.Signature, error) {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*2) //nolint:gomnd //...
+			defer cancel()
+
+			return client.NodeChallenge(
+				ctx, node.UDPConnInfo(), params.NetworkID(), node.Address(), node.Publickey(), input)
+		}()
 		if err != nil {
 			return err
 		}
 
 		// NOTE challenge with publish address
 		if !network.EqualConnInfo(node.UDPConnInfo(), ci) {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*2) //nolint:gomnd //...
+			defer cancel()
+
 			psig, err := client.NodeChallenge(ctx, ci,
 				params.NetworkID(), node.Address(), node.Publickey(), input)
 			if err != nil {

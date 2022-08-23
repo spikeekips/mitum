@@ -47,7 +47,6 @@ func (cmd *RunCommand) Run(pctx context.Context) error {
 
 	pps := launch.DefaultRunPS()
 
-	_ = pps.ReplaceOK(launch.PNameStates, cmd.pStates, nil, launch.PNameNetwork)
 	_ = pps.POK(launch.PNameStorage).PostAddOK(ps.Name("check-hold"), cmd.pCheckHold)
 	_ = pps.POK(launch.PNameStates).PreAddOK(
 		ps.Name("when-new-block-saved-in-consensus-state-func"), cmd.pWhenNewBlockSavedInConsensusStateFunc)
@@ -182,14 +181,6 @@ func (cmd *RunCommand) pWhenNewBlockSavedInConsensusStateFunc(pctx context.Conte
 	pctx = context.WithValue(pctx, launch.WhenNewBlockSavedInConsensusStateFuncContextKey, f)
 
 	return pctx, nil
-}
-
-func (cmd *RunCommand) pStates(pctx context.Context) (context.Context, error) {
-	if cmd.holded {
-		return pctx, ps.ErrIgnoreLeft.Errorf("holded")
-	}
-
-	return launch.PStates(pctx)
 }
 
 func (cmd *RunCommand) pCheckHold(pctx context.Context) (context.Context, error) {

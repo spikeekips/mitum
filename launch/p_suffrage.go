@@ -316,7 +316,10 @@ func GetLastSuffrageProofFunc(ctx context.Context) (isaac.GetLastSuffrageProofFr
 			last = i.(util.Hash) //nolint:forcetypeassert //...
 		}
 
-		proof, updated, err := client.LastSuffrageProof(ctx, ci, last)
+		cctx, cancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
+		defer cancel()
+
+		proof, updated, err := client.LastSuffrageProof(cctx, ci, last)
 
 		switch {
 		case err != nil:
@@ -423,7 +426,10 @@ func GetSuffrageProofFunc(ctx context.Context) ( //revive:disable-line:cognitive
 							return err
 						}
 
-						switch a, b, err := client.SuffrageProof(ctx, ci, suffrageheight); {
+						cctx, cancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
+						defer cancel()
+
+						switch a, b, err := client.SuffrageProof(cctx, ci, suffrageheight); {
 						case err != nil:
 							if quicstream.IsNetworkError(err) {
 								return err
@@ -489,7 +495,10 @@ func GetLastSuffrageCandidateFunc(ctx context.Context) (isaac.GetLastSuffrageCan
 			last = i.(util.Hash) //nolint:forcetypeassert //...
 		}
 
-		st, found, err := client.State(ctx, ci, isaac.SuffrageCandidateStateKey, last)
+		cctx, cancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
+		defer cancel()
+
+		st, found, err := client.State(cctx, ci, isaac.SuffrageCandidateStateKey, last)
 
 		switch {
 		case err != nil, !found, st == nil:
