@@ -58,7 +58,6 @@ func NewTransport(
 func NewTransportWithQuicstream(
 	laddr *net.UDPAddr,
 	handlerPrefix string,
-	poolclient *quicstream.PoolClient,
 	newClient func(quicstream.UDPConnInfo) func(*net.UDPAddr) *quicstream.Client,
 ) *Transport {
 	makebody := func(b []byte) []byte {
@@ -69,6 +68,8 @@ func NewTransportWithQuicstream(
 			return quicstream.BodyWithPrefix(handlerPrefix, b)
 		}
 	}
+
+	poolclient := quicstream.NewPoolClient()
 
 	return NewTransport(
 		laddr,

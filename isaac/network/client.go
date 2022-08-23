@@ -38,6 +38,13 @@ func NewBaseNetworkClient(
 	}
 }
 
+func (c *BaseNetworkClient) NewClient() *BaseNetworkClient {
+	return &BaseNetworkClient{
+		baseNetwork: newBaseNetwork(c.encs, c.enc, c.idleTimeout),
+		writef:      c.writef,
+	}
+}
+
 func (c *BaseNetworkClient) Request(
 	ctx context.Context,
 	ci quicstream.UDPConnInfo,

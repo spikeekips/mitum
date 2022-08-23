@@ -16,6 +16,8 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
+// FIXME rate limit
+
 func QuicstreamErrorHandler(enc encoder.Encoder) quicstream.ErrorHandler {
 	return func(_ net.Addr, _ io.Reader, w io.Writer, err error) error {
 		if err = Response(w, NewResponseHeader(false, err), nil, enc); err != nil {

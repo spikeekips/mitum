@@ -252,7 +252,9 @@ func (t *testLastSuffrageProofWatcher) TestSameButLocalFirst() {
 }
 
 func TestLastSuffrageProofWatcher(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	defer goleak.VerifyNone(t,
+		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/isaac/states.(*testNewINITOnACCEPTVoteproofConsensusHandler).TestNotInConsensusNodes.func4"),
+	)
 
 	suite.Run(t, new(testLastSuffrageProofWatcher))
 }

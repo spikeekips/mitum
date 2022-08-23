@@ -64,13 +64,11 @@ func (t *testMemberlist) newServersForJoining(
 	whenLeft DelegateLeftFunc,
 ) (*quicstream.Server, *Memberlist) {
 	tlsconfig := t.NewTLSConfig(t.Proto)
-	poolclient := quicstream.NewPoolClient()
 
 	laddr := ci.UDPAddr()
 	transport := NewTransportWithQuicstream(
 		laddr,
 		"",
-		poolclient,
 		func(ci quicstream.UDPConnInfo) func(*net.UDPAddr) *quicstream.Client {
 			return func(*net.UDPAddr) *quicstream.Client {
 				return quicstream.NewClient(

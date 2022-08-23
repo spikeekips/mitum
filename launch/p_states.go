@@ -287,31 +287,20 @@ func newSyncerFunc(
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
 	var design NodeDesign
+	var client *isaacnetwork.QuicstreamClient
 	var st *leveldbstorage.Storage
 	var perm isaac.PermanentDatabase
+	var syncSourcePool *isaac.SyncSourcePool
 
 	if err := ps.LoadsFromContextOK(pctx,
 		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
 		DesignContextKey, &design,
+		QuicstreamClientContextKey, &client,
 		LeveldbStorageContextKey, &st,
 		PermanentDatabaseContextKey, &perm,
+		SyncSourcePoolContextKey, &syncSourcePool,
 	); err != nil {
-		return nil, err
-	}
-
-	syncerLastBlockMapf, err := syncerLastBlockMapFunc(pctx)
-	if err != nil {
-		return nil, err
-	}
-
-	syncerBlockMapf, err := syncerBlockMapFunc(pctx)
-	if err != nil {
-		return nil, err
-	}
-
-	syncerBlockMapItemf, err := syncerBlockMapItemFunc(pctx)
-	if err != nil {
 		return nil, err
 	}
 
@@ -346,6 +335,8 @@ func newSyncerFunc(
 			tempsyncpool = i
 		}
 
+		newclient := client.Clone()
+
 		syncer, err := isaacstates.NewSyncer(
 			design.Storage.Base,
 			func(height base.Height) (isaac.BlockWriteDatabase, func(context.Context) error, error) {
@@ -376,11 +367,14 @@ func newSyncerFunc(
 				)
 			},
 			prev,
-			syncerLastBlockMapf,
-			syncerBlockMapf,
-			syncerBlockMapItemf,
+			syncerLastBlockMapFunc(newclient, params, syncSourcePool),
+			syncerBlockMapFunc(newclient, params, syncSourcePool),
+			syncerBlockMapItemFunc(newclient, syncSourcePool),
 			tempsyncpool,
 			setLastVoteproofsfFromBlockReaderf,
+			func() error {
+				return newclient.Close()
+			},
 		)
 		if err != nil {
 			return nil, e(err, "")
@@ -392,19 +386,11 @@ func newSyncerFunc(
 	}, nil
 }
 
-func syncerLastBlockMapFunc(pctx context.Context) (isaacstates.SyncerLastBlockMapFunc, error) {
-	var client *isaacnetwork.QuicstreamClient
-	var params base.LocalParams
-	var syncSourcePool *isaac.SyncSourcePool
-
-	if err := ps.LoadsFromContextOK(pctx,
-		QuicstreamClientContextKey, &client,
-		LocalParamsContextKey, &params,
-		SyncSourcePoolContextKey, &syncSourcePool,
-	); err != nil {
-		return nil, err
-	}
-
+func syncerLastBlockMapFunc(
+	client *isaacnetwork.QuicstreamClient,
+	params base.LocalParams,
+	syncSourcePool *isaac.SyncSourcePool,
+) isaacstates.SyncerLastBlockMapFunc {
 	f := func(
 		ctx context.Context, manifest util.Hash, ci quicstream.UDPConnInfo,
 	) (_ base.BlockMap, updated bool, _ error) {
@@ -471,24 +457,14 @@ func syncerLastBlockMapFunc(pctx context.Context) (isaacstates.SyncerLastBlockMa
 		default:
 			return v.(base.BlockMap), true, nil //nolint:forcetypeassert //...
 		}
-	}, nil
+	}
 }
 
-func syncerBlockMapFunc(pctx context.Context) ( //revive:disable-line:cognitive-complexity
-	isaacstates.SyncerBlockMapFunc, error,
-) {
-	var client *isaacnetwork.QuicstreamClient
-	var params base.LocalParams
-	var syncSourcePool *isaac.SyncSourcePool
-
-	if err := ps.LoadsFromContextOK(pctx,
-		QuicstreamClientContextKey, &client,
-		LocalParamsContextKey, &params,
-		SyncSourcePoolContextKey, &syncSourcePool,
-	); err != nil {
-		return nil, err
-	}
-
+func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
+	client *isaacnetwork.QuicstreamClient,
+	params base.LocalParams,
+	syncSourcePool *isaac.SyncSourcePool,
+) isaacstates.SyncerBlockMapFunc {
 	f := func(ctx context.Context, height base.Height, ci quicstream.UDPConnInfo) (base.BlockMap, bool, error) {
 		cctx, cancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
 		defer cancel()
@@ -562,22 +538,13 @@ func syncerBlockMapFunc(pctx context.Context) ( //revive:disable-line:cognitive-
 		)
 
 		return m, found, err
-	}, nil
+	}
 }
 
-func syncerBlockMapItemFunc(pctx context.Context) (isaacstates.SyncerBlockMapItemFunc, error) {
-	var client *isaacnetwork.QuicstreamClient
-	var params base.LocalParams
-	var syncSourcePool *isaac.SyncSourcePool
-
-	if err := ps.LoadsFromContextOK(pctx,
-		QuicstreamClientContextKey, &client,
-		LocalParamsContextKey, &params,
-		SyncSourcePoolContextKey, &syncSourcePool,
-	); err != nil {
-		return nil, err
-	}
-
+func syncerBlockMapItemFunc(
+	client *isaacnetwork.QuicstreamClient,
+	syncSourcePool *isaac.SyncSourcePool,
+) isaacstates.SyncerBlockMapItemFunc {
 	// FIXME support remote item like https or ftp?
 	f := func(
 		ctx context.Context, height base.Height, item base.BlockMapItemType, ci quicstream.UDPConnInfo,
@@ -653,7 +620,7 @@ func syncerBlockMapItemFunc(pctx context.Context) (isaacstates.SyncerBlockMapIte
 		)
 
 		return reader, closef, found, err
-	}, nil
+	}
 }
 
 func setLastVoteproofsfFromBlockReaderFunc(
@@ -803,6 +770,7 @@ func newSyncerDeferredFunc(pctx context.Context, db isaac.Database) (
 ) {
 	var log *logging.Logging
 
+	// FIXME LoadsFromContextOK -> LoadFromContextOK
 	if err := ps.LoadsFromContextOK(pctx, LoggingContextKey, &log); err != nil {
 		return nil, err
 	}

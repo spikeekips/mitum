@@ -44,6 +44,7 @@ type Syncer struct {
 	doneerr               *util.Locked
 	topvalue              *util.Locked
 	setLastVoteproofsFunc func(isaac.BlockReader) error
+	whenStoppedf          func() error
 	lastBlockMapf         SyncerLastBlockMapFunc
 	root                  string
 	batchlimit            int64
@@ -61,7 +62,8 @@ func NewSyncer(
 	blockMapf SyncerBlockMapFunc,
 	blockMapItemf SyncerBlockMapItemFunc,
 	tempsyncpool isaac.TempSyncPool,
-	setLastVoteproofsFunc func(isaac.BlockReader) error,
+	setLastVoteproofsf func(isaac.BlockReader) error,
+	whenStoppedf func() error,
 ) (*Syncer, error) {
 	e := util.StringErrorFunc("failed NewSyncer")
 
@@ -85,6 +87,10 @@ func NewSyncer(
 		prevheight = prev.Manifest().Height()
 	}
 
+	if whenStoppedf == nil {
+		whenStoppedf = func() error { return nil } //revive:disable-line:modifies-parameter
+	}
+
 	s := &Syncer{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", "syncer")
@@ -104,7 +110,8 @@ func NewSyncer(
 		topvalue:               util.NewLocked(prevheight),
 		isdonevalue:            &atomic.Value{},
 		startsyncch:            make(chan base.Height),
-		setLastVoteproofsFunc:  setLastVoteproofsFunc,
+		setLastVoteproofsFunc:  setLastVoteproofsf,
+		whenStoppedf:           whenStoppedf,
 		lastBlockMapInterval:   time.Second * 2, //nolint:gomnd //...
 		lastBlockMapTimeout:    time.Second * 2, //nolint:gomnd //...
 	}
@@ -172,6 +179,8 @@ func (s *Syncer) IsFinished() (base.Height, bool) {
 func (s *Syncer) Cancel() error {
 	var err error
 	s.cancelonece.Do(func() {
+		err = s.ContextDaemon.Stop()
+
 		defer func() {
 			_ = s.tempsyncpool.Cancel()
 		}()
@@ -180,8 +189,6 @@ func (s *Syncer) Cancel() error {
 			s.isdonevalue.Store(true)
 
 			// close(s.donech)
-
-			err = s.ContextDaemon.Stop()
 
 			return i, nil
 		})
@@ -197,10 +204,15 @@ func (s *Syncer) start(ctx context.Context) error {
 
 	go s.updateLastBlockMap(ctx)
 
+	var err error
+
+end:
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			err = ctx.Err()
+
+			break end
 		case height := <-s.startsyncch:
 			prev := s.prev()
 			if prev != nil && height <= prev.Manifest().Height() {
@@ -210,6 +222,15 @@ func (s *Syncer) start(ctx context.Context) error {
 			go s.sync(ctx, prev, height)
 		}
 	}
+
+	switch serr := s.whenStoppedf(); {
+	case err == nil,
+		errors.Is(err, context.Canceled),
+		errors.Is(err, context.DeadlineExceeded):
+		err = serr
+	}
+
+	return err
 }
 
 func (s *Syncer) top() base.Height {
@@ -290,6 +311,10 @@ func (s *Syncer) prepareMaps(ctx context.Context, prev base.BlockMap, to base.He
 		uint64(s.batchlimit),
 		s.fetchMap,
 		func(m base.BlockMap) error {
+			if h := m.Manifest().Height(); h%100 == 0 || h == to {
+				s.Log().Debug().Interface("height", h).Msg("blockmap prepared")
+			}
+
 			if err := s.tempsyncpool.SetBlockMap(m); err != nil {
 				return err
 			}

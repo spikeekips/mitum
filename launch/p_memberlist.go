@@ -226,8 +226,7 @@ func memberlistTransport(ctx context.Context) (*quicmemberlist.Transport, error)
 	transport := quicmemberlist.NewTransportWithQuicstream(
 		design.Network.Publish(),
 		isaacnetwork.HandlerPrefixMemberlist,
-		client.PoolClient(),
-		client.NewClient,
+		client.NewQuicstreamClient,
 	)
 
 	_ = handlers.Add(isaacnetwork.HandlerPrefixMemberlist, func(addr net.Addr, r io.Reader, w io.Writer) error {
