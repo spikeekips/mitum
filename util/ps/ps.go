@@ -12,9 +12,10 @@ import (
 )
 
 var (
-	NameINIT   = Name("init")
-	EmptyPINIT = NewP(EmptyFunc, EmptyFunc)
-	EmptyFunc  = func(ctx context.Context) (context.Context, error) { return ctx, nil }
+	NameINIT      = Name("init")
+	EmptyPINIT    = NewP(EmptyFunc, EmptyFunc)
+	EmptyFunc     = func(ctx context.Context) (context.Context, error) { return ctx, nil }
+	ErrIgnoreLeft = util.NewError("ignore left")
 )
 
 type ContextKey string
@@ -287,6 +288,11 @@ func (p *P) Close(ctx context.Context) (context.Context, error) {
 	return ctx, nil
 }
 
+func (p *P) CopyHooks(b *P) {
+	p.pre = b.pre
+	p.post = b.post
+}
+
 func (p *P) PreAdd(name Name, i Func) bool {
 	return p.pre.add(name, i)
 }
@@ -489,7 +495,11 @@ func (ps *PS) Run(ctx context.Context) (context.Context, error) {
 	for i := range names {
 		name := names[i]
 
-		if ctx, err = ps.run(ctx, name, ps.m[name]); err != nil { //revive:disable-line:modifies-parameter
+		switch ctx, err = ps.run(ctx, name, ps.m[name]); { //revive:disable-line:modifies-parameter
+		case err == nil:
+		case errors.Is(err, ErrIgnoreLeft):
+			return ctx, nil
+		default:
 			return ctx, err
 		}
 	}
@@ -534,6 +544,24 @@ func (ps *PS) AddP(name Name, p *P) bool {
 }
 
 func (ps *PS) Add(name Name, run, close Func, requires ...Name) bool {
+	_, added := ps.add(name, run, close, requires...)
+
+	return added
+}
+
+func (ps *PS) Replace(name Name, run, close Func, requires ...Name) bool {
+	exists, found := ps.m[name]
+
+	p, added := ps.add(name, run, close, requires...)
+
+	if found && exists != nil {
+		p.CopyHooks(exists)
+	}
+
+	return added
+}
+
+func (ps *PS) add(name Name, run, close Func, requires ...Name) (*P, bool) {
 	if name != NameINIT {
 		switch {
 		case len(requires) < 1:
@@ -547,14 +575,14 @@ func (ps *PS) Add(name Name, run, close Func, requires ...Name) bool {
 		}
 	}
 
-	_, exists := ps.m[name]
-
 	p := NewP(run, close, requires...)
 	_ = p.SetLogging(ps.Logging)
 
+	_, found := ps.m[name]
+
 	ps.m[name] = p
 
-	return !exists
+	return p, !found
 }
 
 func (ps *PS) Remove(name Name) bool {
@@ -565,6 +593,12 @@ func (ps *PS) Remove(name Name) bool {
 	delete(ps.m, name)
 
 	return true
+}
+
+func (ps *PS) ReplaceOK(name Name, run, close Func, requires ...Name) *PS {
+	_ = ps.Replace(name, run, close, requires...)
+
+	return ps
 }
 
 func (ps *PS) AddOK(name Name, run, close Func, requires ...Name) *PS {
@@ -630,7 +664,9 @@ func (ps *PS) run(ctx context.Context, name Name, p *P) (context.Context, error)
 	l.Debug().Interface("requires", p.Requires()).Msg("start to run")
 
 	if ctx, err = p.Run(ctx); err != nil { //revive:disable-line:modifies-parameter
-		l.Error().Err(err).Msg("failed to run")
+		if !errors.Is(err, ErrIgnoreLeft) {
+			l.Error().Err(err).Msg("failed to run")
+		}
 
 		return ctx, err
 	}

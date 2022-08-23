@@ -28,6 +28,7 @@ type RunCommand struct { //nolint:govet //...
 	Hold      launch.HeightFlag     `help:"hold consensus states"`
 	exitf     func(error)
 	log       *zerolog.Logger
+	holded    bool
 }
 
 func (cmd *RunCommand) Run(pctx context.Context) error {
@@ -46,8 +47,10 @@ func (cmd *RunCommand) Run(pctx context.Context) error {
 
 	pps := launch.DefaultRunPS()
 
+	_ = pps.ReplaceOK(launch.PNameStates, cmd.pStates, nil, launch.PNameNetwork)
+	_ = pps.POK(launch.PNameStorage).PostAddOK(ps.Name("check-hold"), cmd.pCheckHold)
 	_ = pps.POK(launch.PNameStates).PreAddOK(
-		pNameWhenNewBlockSavedInConsensusStateFunc, cmd.pWhenNewBlockSavedInConsensusStateFunc)
+		ps.Name("when-new-block-saved-in-consensus-state-func"), cmd.pWhenNewBlockSavedInConsensusStateFunc)
 
 	_ = pps.SetLogging(log)
 
@@ -77,22 +80,6 @@ func (cmd *RunCommand) Run(pctx context.Context) error {
 var errHoldStop = util.NewError("hold stop")
 
 func (cmd *RunCommand) run(pctx context.Context) error {
-	var db isaac.Database
-	var discoveries []quicstream.UDPConnInfo
-	var states *isaacstates.States
-
-	if err := ps.LoadsFromContextOK(pctx,
-		launch.CenterDatabaseContextKey, &db,
-		launch.DiscoveryContextKey, &discoveries,
-		launch.StatesContextKey, &states,
-	); err != nil {
-		return err
-	}
-
-	if len(discoveries) < 1 {
-		cmd.log.Warn().Msg("empty discoveries; will wait to be joined by remote nodes")
-	}
-
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -102,36 +89,15 @@ func (cmd *RunCommand) run(pctx context.Context) error {
 		exitch <- err
 	}
 
-	var holded bool
+	stopstates := func() {}
 
-	switch {
-	case !cmd.Hold.IsSet():
-	case cmd.Hold.Height() < base.GenesisHeight:
-		holded = true
-	default:
-		switch m, found, err := db.LastBlockMap(); {
-		case err != nil:
+	if !cmd.holded {
+		deferred, err := cmd.runStates(ctx, pctx)
+		if err != nil {
 			return err
-		case !found:
-		case cmd.Hold.Height() <= m.Manifest().Height():
-			holded = true
 		}
-	}
 
-	go func() {
-		cmd.exitf(<-states.Wait(ctx))
-	}()
-
-	if !holded {
-		defer func() {
-			if err := states.Stop(); err != nil && !errors.Is(err, util.ErrDaemonAlreadyStopped) {
-				cmd.log.Error().Err(err).Msg("failed to stop states")
-
-				return
-			}
-
-			cmd.log.Debug().Msg("states stopped")
-		}()
+		stopstates = deferred
 	}
 
 	select {
@@ -139,6 +105,8 @@ func (cmd *RunCommand) run(pctx context.Context) error {
 		return ctx.Err()
 	case err := <-exitch:
 		if errors.Is(err, errHoldStop) {
+			stopstates()
+
 			<-ctx.Done()
 
 			return ctx.Err()
@@ -148,7 +116,35 @@ func (cmd *RunCommand) run(pctx context.Context) error {
 	}
 }
 
-var pNameWhenNewBlockSavedInConsensusStateFunc = ps.Name("when-new-block-saved-in-consensus-state-func")
+func (cmd *RunCommand) runStates(ctx, pctx context.Context) (func(), error) {
+	var discoveries []quicstream.UDPConnInfo
+	var states *isaacstates.States
+
+	if err := ps.LoadsFromContextOK(pctx,
+		launch.DiscoveryContextKey, &discoveries,
+		launch.StatesContextKey, &states,
+	); err != nil {
+		return nil, err
+	}
+
+	if len(discoveries) < 1 {
+		cmd.log.Warn().Msg("empty discoveries; will wait to be joined by remote nodes")
+	}
+
+	go func() {
+		cmd.exitf(<-states.Wait(ctx))
+	}()
+
+	return func() {
+		if err := states.Stop(); err != nil && !errors.Is(err, util.ErrDaemonAlreadyStopped) {
+			cmd.log.Error().Err(err).Msg("failed to stop states")
+
+			return
+		}
+
+		cmd.log.Debug().Msg("states stopped")
+	}, nil
+}
 
 func (cmd *RunCommand) pWhenNewBlockSavedInConsensusStateFunc(pctx context.Context) (context.Context, error) {
 	var log *logging.Logging
@@ -184,6 +180,37 @@ func (cmd *RunCommand) pWhenNewBlockSavedInConsensusStateFunc(pctx context.Conte
 
 	//revive:disable-next-line:modifies-parameter
 	pctx = context.WithValue(pctx, launch.WhenNewBlockSavedInConsensusStateFuncContextKey, f)
+
+	return pctx, nil
+}
+
+func (cmd *RunCommand) pStates(pctx context.Context) (context.Context, error) {
+	if cmd.holded {
+		return pctx, ps.ErrIgnoreLeft.Errorf("holded")
+	}
+
+	return launch.PStates(pctx)
+}
+
+func (cmd *RunCommand) pCheckHold(pctx context.Context) (context.Context, error) {
+	var db isaac.Database
+	if err := ps.LoadFromContextOK(pctx, launch.CenterDatabaseContextKey, &db); err != nil {
+		return pctx, err
+	}
+
+	switch {
+	case !cmd.Hold.IsSet():
+	case cmd.Hold.Height() < base.GenesisHeight:
+		cmd.holded = true
+	default:
+		switch m, found, err := db.LastBlockMap(); {
+		case err != nil:
+			return pctx, err
+		case !found:
+		case cmd.Hold.Height() <= m.Manifest().Height():
+			cmd.holded = true
+		}
+	}
 
 	return pctx, nil
 }

@@ -448,6 +448,31 @@ func (t *testPS) TestRun() {
 	})
 }
 
+func (t *testPS) TestRunIgnoreLeft() {
+	ps := NewPS()
+
+	bcalledfunc := t.calledfunc("b-run")
+	brun := func(ctx context.Context) (context.Context, error) {
+		ctx, _ = bcalledfunc(ctx)
+
+		return ctx, ErrIgnoreLeft.Call()
+	}
+
+	t.True(ps.Add("c", t.calledfunc("c-run"), t.calledfunc("c-close")))
+	t.True(ps.Add("b", brun, t.calledfunc("b-close")))
+	t.True(ps.Add("a", t.calledfunc("a-run"), t.calledfunc("a-close")))
+
+	ctx := context.Background()
+
+	t.Run("run", func() {
+		rctx, err := ps.Run(ctx)
+		t.NoError(err)
+
+		rcalled := rctx.Value(ContextKey("called"))
+		t.Equal([]string{"a-run", "b-run"}, rcalled)
+	})
+}
+
 func (t *testPS) TestVerbose() {
 	t.Run("no pre post", func() {
 		ps := NewPS()
