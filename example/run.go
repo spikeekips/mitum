@@ -136,7 +136,7 @@ func (cmd *RunCommand) runStates(ctx, pctx context.Context) (func(), error) {
 	}()
 
 	return func() {
-		if err := states.Stop(); err != nil && !errors.Is(err, util.ErrDaemonAlreadyStopped) {
+		if err := states.Hold(); err != nil && !errors.Is(err, util.ErrDaemonAlreadyStopped) {
 			cmd.log.Error().Err(err).Msg("failed to stop states")
 
 			return

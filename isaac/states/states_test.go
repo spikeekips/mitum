@@ -372,7 +372,8 @@ func (t *testStates) TestExitCurrentWhenStopped() {
 	case <-time.After(time.Second * 3):
 		t.NoError(errors.Errorf("failed to exit from joining"))
 	case <-exitch:
-		t.Nil(st.current())
+		t.NotNil(st.current())
+		t.Equal(StateStopped, st.current().state())
 	}
 }
 
@@ -610,7 +611,7 @@ func (t *testStates) TestStoppedByStateStopped() {
 	t.Error(err)
 	t.ErrorContains(err, "something wrong")
 
-	t.Nil(st.current())
+	t.Equal(StateStopped, st.current().state())
 	t.False(st.IsStarted())
 }
 

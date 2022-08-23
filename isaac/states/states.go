@@ -102,6 +102,17 @@ func (st *States) LastVoteproofsHandler() *LastVoteproofsHandler {
 	return st.lvps
 }
 
+func (st *States) Hold() error {
+	current := st.current()
+	if current == nil {
+		return nil
+	}
+
+	st.Log().Debug().Msg("states holded")
+
+	return st.switchState(newStoppedSwitchContext(current.state(), nil))
+}
+
 func (st *States) start(ctx context.Context) error {
 	defer st.Log().Debug().Msg("states stopped")
 
@@ -134,16 +145,9 @@ func (st *States) start(ctx context.Context) error {
 	case current == nil:
 		return serr
 	default:
-		e := util.StringErrorFunc("failed to exit current state")
-
-		deferred, err := current.exit(nil)
-		if err != nil {
-			return e(err, "failed to exit current")
+		if err := st.switchState(newStoppedSwitchContext(current.state(), serr)); err != nil {
+			st.Log().Error().Err(err).Msg("failed to switch to stopped; ignored")
 		}
-
-		st.callDeferStates(deferred, nil)
-
-		st.setCurrent(nil)
 	}
 
 	return serr
@@ -195,13 +199,6 @@ func (st *States) current() handler {
 	defer st.stateLock.RUnlock()
 
 	return st.cs
-}
-
-func (st *States) setCurrent(cs handler) {
-	st.stateLock.Lock()
-	defer st.stateLock.Unlock()
-
-	st.cs = cs
 }
 
 func (st *States) ensureSwitchState(sctx switchContext) error {
@@ -272,6 +269,14 @@ func (st *States) switchState(sctx switchContext) error {
 	current := st.current()
 	l := st.stateSwitchContextLog(sctx, current)
 
+	if current.state() == StateStopped {
+		switch sctx.next() {
+		case StateBooting, StateBroken:
+		default:
+			return ignoreSwithingStateError.Errorf("state stopped, next should be StateBooting or StateBroken")
+		}
+	}
+
 	cdefer, ndefer, err := st.exitAndEnter(sctx, current)
 	if err != nil {
 		switch {
@@ -339,6 +344,8 @@ func (st *States) exitAndEnter(sctx switchContext, current handler) (func(), fun
 	ndefer, err = nextHandler.enter(sctx)
 	if err != nil {
 		if isSwitchContextError(err) {
+			st.cs = nextHandler
+
 			return nil, nil, err
 		}
 

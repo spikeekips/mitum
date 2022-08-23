@@ -29,3 +29,7 @@ func (h *NewStoppedHandlerType) new() (handler, error) {
 		baseHandler: h.baseHandler.new(),
 	}, nil
 }
+
+func newStoppedSwitchContext(from StateType, err error) baseErrorSwitchContext {
+	return newBaseErrorSwitchContext(from, StateStopped, err)
+}
