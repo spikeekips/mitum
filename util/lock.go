@@ -264,6 +264,9 @@ func NewShardedMap(size int64) *ShardedMap {
 }
 
 func (l *ShardedMap) Close() {
+	l.Lock()
+	defer l.Unlock()
+
 	for i := range l.sharded {
 		l.sharded[i].Close()
 	}

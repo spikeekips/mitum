@@ -43,12 +43,14 @@ func PMemberlist(ctx context.Context) (context.Context, error) {
 		return ctx, e(err, "")
 	}
 
+	poolclient := quicstream.NewPoolClient()
+
 	localnode, err := memberlistLocalNode(ctx)
 	if err != nil {
 		return ctx, e(err, "")
 	}
 
-	config, err := memberlistConfig(ctx, localnode)
+	config, err := memberlistConfig(ctx, localnode, poolclient)
 	if err != nil {
 		return ctx, e(err, "")
 	}
@@ -117,7 +119,11 @@ func memberlistLocalNode(ctx context.Context) (quicmemberlist.Node, error) {
 	)
 }
 
-func memberlistConfig(ctx context.Context, localnode quicmemberlist.Node) (*memberlist.Config, error) {
+func memberlistConfig(
+	ctx context.Context,
+	localnode quicmemberlist.Node,
+	poolclient *quicstream.PoolClient,
+) (*memberlist.Config, error) {
 	var log *logging.Logging
 	var enc *jsonenc.Encoder
 	var design NodeDesign
@@ -140,7 +146,7 @@ func memberlistConfig(ctx context.Context, localnode quicmemberlist.Node) (*memb
 		return nil, err
 	}
 
-	transport, err := memberlistTransport(ctx)
+	transport, err := memberlistTransport(ctx, poolclient)
 	if err != nil {
 		return nil, err
 	}
@@ -168,13 +174,28 @@ func memberlistConfig(ctx context.Context, localnode quicmemberlist.Node) (*memb
 	config.Events = quicmemberlist.NewEventsDelegate(
 		enc,
 		func(node quicmemberlist.Node) {
-			log.Log().Debug().Interface("node", node).Msg("new node found")
+			l := log.Log().With().Interface("node", node).Logger()
+
+			l.Debug().Msg("new node found")
+
+			cctx, cancel := context.WithTimeout(
+				context.Background(), time.Second*5) //nolint:gomnd //....
+			defer cancel()
+
+			c := client.NewQuicstreamClient(node.UDPConnInfo())(node.UDPAddr())
+			if _, err := c.Dial(cctx); err != nil {
+				l.Error().Err(err).Msg("new node joined, but failed to dial")
+
+				return
+			}
+
+			poolclient.Add(node.UDPAddr(), c)
 
 			if !node.Address().Equal(local.Address()) {
 				nci := isaacnetwork.NewNodeConnInfoFromMemberlistNode(node)
 				added := syncSourcePool.Add(nci)
 
-				log.Log().Debug().
+				l.Debug().
 					Bool("added", added).
 					Interface("node_conninfo", nci).
 					Msg("new node added to SyncSourcePool")
@@ -182,6 +203,8 @@ func memberlistConfig(ctx context.Context, localnode quicmemberlist.Node) (*memb
 		},
 		func(node quicmemberlist.Node) {
 			log.Log().Debug().Interface("node", node).Msg("node left")
+
+			poolclient.Remove(node.UDPAddr())
 
 			if !node.Address().Equal(local.Address()) {
 				removed := syncSourcePool.Remove(node.Address(), node.Publish().String())
@@ -198,7 +221,10 @@ func memberlistConfig(ctx context.Context, localnode quicmemberlist.Node) (*memb
 	return config, nil
 }
 
-func memberlistTransport(ctx context.Context) (*quicmemberlist.Transport, error) {
+func memberlistTransport(
+	ctx context.Context,
+	poolclient *quicstream.PoolClient,
+) (*quicmemberlist.Transport, error) {
 	var log *logging.Logging
 	var enc encoder.Encoder
 	var design NodeDesign
@@ -226,6 +252,7 @@ func memberlistTransport(ctx context.Context) (*quicmemberlist.Transport, error)
 	transport := quicmemberlist.NewTransportWithQuicstream(
 		design.Network.Publish(),
 		isaacnetwork.HandlerPrefixMemberlist,
+		poolclient,
 		client.NewQuicstreamClient,
 	)
 

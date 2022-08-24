@@ -58,6 +58,7 @@ func NewTransport(
 func NewTransportWithQuicstream(
 	laddr *net.UDPAddr,
 	handlerPrefix string,
+	poolclient *quicstream.PoolClient,
 	newClient func(quicstream.UDPConnInfo) func(*net.UDPAddr) *quicstream.Client,
 ) *Transport {
 	makebody := func(b []byte) []byte {
@@ -69,36 +70,36 @@ func NewTransportWithQuicstream(
 		}
 	}
 
-	poolclient := quicstream.NewPoolClient()
-
 	return NewTransport(
 		laddr,
 		func(ctx context.Context, ci quicstream.UDPConnInfo) (quic.EarlyConnection, error) {
-			return poolclient.Dial(
-				ctx,
-				ci.UDPAddr(),
-				newClient(ci),
-			)
+			client, closef := getclient(poolclient, newClient, ci)
+			defer closef()
+
+			return client.Dial(ctx)
 		},
 		func(ctx context.Context, ci quicstream.UDPConnInfo, b []byte) error {
-			tctx, cancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
+			client, closef := getclient(poolclient, newClient, ci)
+			defer func() {
+				closef()
+			}()
+
+			cctx, cancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
 			defer cancel()
 
-			r, err := poolclient.Write(
-				tctx,
-				ci.UDPAddr(),
+			r, err := client.Write(
+				cctx,
 				func(w io.Writer) error {
 					_, err := w.Write(makebody(b))
 
 					return errors.WithStack(err)
 				},
-				newClient(ci),
 			)
 			if err != nil {
 				return err
 			}
 
-			r.CancelRead(0)
+			_, _ = io.ReadAll(r)
 
 			return nil
 		},
@@ -315,6 +316,31 @@ func (t *Transport) newConn(raddr *net.UDPAddr) *qconn {
 	t.conns.SetValue(raddr.String(), conn)
 
 	return conn
+}
+
+func getclient(
+	poolclient *quicstream.PoolClient,
+	newClient func(quicstream.UDPConnInfo) func(*net.UDPAddr) *quicstream.Client,
+	ci quicstream.UDPConnInfo,
+) (*quicstream.Client, func()) {
+	switch client, found := poolclient.Client(ci.UDPAddr()); {
+	case !found:
+		client = newClient(ci)(ci.UDPAddr())
+
+		return client, func() {
+			_ = client.Close()
+		}
+	case client.Session() == nil:
+		_ = poolclient.Remove(ci.UDPAddr())
+
+		client = newClient(ci)(ci.UDPAddr())
+
+		return client, func() {
+			_ = client.Close()
+		}
+	default:
+		return client, func() {}
+	}
 }
 
 func marshalMsg(t rawDataType, addr net.Addr, b []byte) []byte {

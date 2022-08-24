@@ -92,6 +92,17 @@ func (p *PoolClient) Remove(addr *net.UDPAddr) bool {
 	return found
 }
 
+func (p *PoolClient) Client(addr *net.UDPAddr) (*Client, bool) {
+	switch i, found := p.clients.Value(addr.String()); {
+	case !found:
+		return nil, false
+	case i == nil, util.IsNilLockedValue(i):
+		return nil, false
+	default:
+		return i.(*Client), true //nolint:forcetypeassert //...
+	}
+}
+
 func (p *PoolClient) Dial(
 	ctx context.Context,
 	addr *net.UDPAddr,
@@ -122,7 +133,7 @@ func (p *PoolClient) Dial(
 	if client == nil {
 		return nil, &net.OpError{
 			Net: "udp", Op: "dial",
-			Err: errors.Errorf("already closed"),
+			Err: errors.Errorf("already closed"), // FIXME use net.ErrClosed
 		}
 	}
 
