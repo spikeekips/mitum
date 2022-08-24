@@ -160,6 +160,7 @@ func (cmd *NetworkClientCommand) response(header isaac.NetworkHeader) error {
 	}()
 
 	cmd.log.Info().Interface("response", response).Msg("got respond")
+	cmd.log.Trace().Interface("response", response).Interface("body", v).Msg("got respond")
 
 	switch response.Type() {
 	case isaac.NetworkResponseHinterContentType:
