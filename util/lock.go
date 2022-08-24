@@ -248,6 +248,7 @@ func IsNilLockedValue(i interface{}) bool {
 type ShardedMap struct {
 	sharded []*LockedMap
 	length  int64
+	sync.Mutex
 }
 
 func NewShardedMap(size int64) *ShardedMap {
@@ -280,15 +281,30 @@ func (l *ShardedMap) Clean() {
 }
 
 func (l *ShardedMap) Exists(k string) bool {
-	return l.sharded[l.fnv(k)].Exists(k)
+	i := l.fnv(k)
+	if i < 0 {
+		return false
+	}
+
+	return l.sharded[i].Exists(k)
 }
 
 func (l *ShardedMap) Value(k string) (interface{}, bool) {
-	return l.sharded[l.fnv(k)].Value(k)
+	i := l.fnv(k)
+	if i < 0 {
+		return nil, false
+	}
+
+	return l.sharded[i].Value(k)
 }
 
 func (l *ShardedMap) SetValue(k string, v interface{}) bool {
-	found := l.sharded[l.fnv(k)].SetValue(k, v)
+	i := l.fnv(k)
+	if i < 0 {
+		return false
+	}
+
+	found := l.sharded[i].SetValue(k, v)
 
 	if !found {
 		atomic.AddInt64(&l.length, 1)
@@ -298,11 +314,21 @@ func (l *ShardedMap) SetValue(k string, v interface{}) bool {
 }
 
 func (l *ShardedMap) Get(k string, f func() (interface{}, error)) (v interface{}, found bool, _ error) {
-	return l.sharded[l.fnv(k)].Get(k, f)
+	i := l.fnv(k)
+	if i < 0 {
+		return nil, false, nil
+	}
+
+	return l.sharded[i].Get(k, f)
 }
 
 func (l *ShardedMap) Set(k string, f func(interface{}) (interface{}, error)) (interface{}, error) {
-	return l.sharded[l.fnv(k)].Set(k, func(i interface{}) (interface{}, error) {
+	i := l.fnv(k)
+	if i < 0 {
+		return nil, nil
+	}
+
+	return l.sharded[i].Set(k, func(i interface{}) (interface{}, error) {
 		v, err := f(i)
 		if err != nil {
 			return v, err
@@ -319,15 +345,20 @@ func (l *ShardedMap) Set(k string, f func(interface{}) (interface{}, error)) (in
 func (l *ShardedMap) RemoveValue(k string) {
 	found := l.Exists(k)
 
-	l.sharded[l.fnv(k)].RemoveValue(k)
-
 	if found {
+		l.sharded[l.fnv(k)].RemoveValue(k)
+
 		atomic.AddInt64(&l.length, -1)
 	}
 }
 
 func (l *ShardedMap) Remove(k string, f func(interface{}) error) error {
-	return l.sharded[l.fnv(k)].Remove(k, func(i interface{}) error {
+	i := l.fnv(k)
+	if i < 0 {
+		return nil
+	}
+
+	return l.sharded[i].Remove(k, func(i interface{}) error {
 		if f != nil {
 			if err := f(i); err != nil {
 				return err
@@ -358,6 +389,13 @@ const (
 )
 
 func (l *ShardedMap) fnv(k string) int64 {
+	l.Lock()
+	defer l.Unlock()
+
+	if len(l.sharded) < 1 {
+		return -1
+	}
+
 	h := shardedseed
 
 	kl := len(k)

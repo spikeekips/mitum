@@ -61,16 +61,20 @@ func NewClient(
 }
 
 func (c *Client) Close() error {
-	session := c.Session()
-	if session == nil {
-		return nil
-	}
+	_, err := c.session.Set(func(i interface{}) (interface{}, error) {
+		if i == nil {
+			return nil, nil
+		}
 
-	if err := session.CloseWithError(0x100, ""); err != nil { //nolint:gomnd // errorNoError
-		return errors.Wrap(err, "failed to close client")
-	}
+		if err := i.(quic.EarlyConnection). //nolint:forcetypeassert //...
+							CloseWithError(0x100, ""); err != nil { //nolint:gomnd // errorNoError
+			return nil, errors.Wrap(err, "failed to close client")
+		}
 
-	return nil
+		return nil, nil
+	})
+
+	return err
 }
 
 func (c *Client) Session() quic.EarlyConnection {
@@ -149,11 +153,18 @@ func (c *Client) dial(ctx context.Context) (quic.EarlyConnection, error) {
 
 		return i, nil
 	})
-	if err != nil {
-		return nil, e(err, "")
-	}
 
-	return i.(quic.EarlyConnection), nil //nolint:forcetypeassert // ...
+	switch {
+	case err != nil:
+		return nil, e(err, "")
+	case i == nil:
+		return nil, &net.OpError{
+			Net: "udp", Op: "dial",
+			Err: errors.Errorf("already closed"),
+		}
+	default:
+		return i.(quic.EarlyConnection), nil //nolint:forcetypeassert // ...
+	}
 }
 
 func dial(

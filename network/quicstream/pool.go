@@ -26,6 +26,8 @@ func NewPoolClient() *PoolClient {
 func (p *PoolClient) Close() error {
 	e := util.StringErrorFunc("failed to close PoolClient")
 
+	defer p.clients.Close()
+
 	switch {
 	case p.clients.Len() < 1:
 		return nil
@@ -76,6 +78,20 @@ func (p *PoolClient) Close() error {
 	return nil
 }
 
+func (p *PoolClient) Add(addr *net.UDPAddr, client *Client) bool {
+	return !p.clients.SetValue(addr.String(), client)
+}
+
+func (p *PoolClient) Remove(addr *net.UDPAddr) bool {
+	found := p.clients.Exists(addr.String())
+
+	if found {
+		p.clients.RemoveValue(addr.String())
+	}
+
+	return found
+}
+
 func (p *PoolClient) Dial(
 	ctx context.Context,
 	addr *net.UDPAddr,
@@ -103,8 +119,23 @@ func (p *PoolClient) Dial(
 		}, nil
 	})
 
+	if client == nil {
+		return nil, &net.OpError{
+			Net: "udp", Op: "dial",
+			Err: errors.Errorf("already closed"),
+		}
+	}
+
 	if found {
-		return client.Session(), nil
+		session := client.Session()
+		if session == nil {
+			return nil, &net.OpError{
+				Net: "udp", Op: "dial",
+				Err: errors.Errorf("already closed"),
+			}
+		}
+
+		return session, nil
 	}
 
 	session, err := client.Dial(ctx)
@@ -142,6 +173,13 @@ func (p *PoolClient) Write(
 		}, nil
 	})
 
+	if client == nil {
+		return nil, &net.OpError{
+			Net: "udp", Op: "dial",
+			Err: errors.Errorf("already closed"),
+		}
+	}
+
 	r, err := client.Write(ctx, f)
 	if err != nil {
 		go p.onerror(addr, client, err)
@@ -150,31 +188,6 @@ func (p *PoolClient) Write(
 	}
 
 	return r, nil
-}
-
-func (p *PoolClient) onerror(addr *net.UDPAddr, c *Client, err error) {
-	if !IsNetworkError(err) {
-		return
-	}
-
-	var client *Client
-
-	switch i, found := p.clients.Value(addr.String()); {
-	case !found:
-		return
-	default:
-		client = i.(*poolClientItem).client //nolint:forcetypeassert // ...
-	}
-
-	if client.id != c.id {
-		return
-	}
-
-	_ = p.clients.Remove(addr.String(), nil)
-
-	if p.onerrorf != nil {
-		p.onerrorf(addr, c, err)
-	}
 }
 
 func (p *PoolClient) Clean(cleanDuration time.Duration) int {
@@ -200,6 +213,33 @@ func (p *PoolClient) Clean(cleanDuration time.Duration) int {
 	}
 
 	return n
+}
+
+func (p *PoolClient) onerror(addr *net.UDPAddr, c *Client, err error) {
+	if !IsNetworkError(err) {
+		return
+	}
+
+	var client *Client
+
+	switch i, found := p.clients.Value(addr.String()); {
+	case !found:
+		return
+	case i == nil:
+		return
+	default:
+		client = i.(*poolClientItem).client //nolint:forcetypeassert // ...
+	}
+
+	if client.id != c.id {
+		return
+	}
+
+	_ = p.clients.Remove(addr.String(), nil)
+
+	if p.onerrorf != nil {
+		p.onerrorf(addr, c, err)
+	}
 }
 
 type poolClientItem struct {
