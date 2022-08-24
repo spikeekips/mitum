@@ -131,19 +131,13 @@ func (p *PoolClient) Dial(
 	})
 
 	if client == nil {
-		return nil, &net.OpError{
-			Net: "udp", Op: "dial",
-			Err: errors.Errorf("already closed"), // FIXME use net.ErrClosed
-		}
+		return nil, net.ErrClosed
 	}
 
 	if found {
 		session := client.Session()
 		if session == nil {
-			return nil, &net.OpError{
-				Net: "udp", Op: "dial",
-				Err: errors.Errorf("already closed"),
-			}
+			return nil, net.ErrClosed
 		}
 
 		return session, nil
@@ -185,10 +179,7 @@ func (p *PoolClient) Write(
 	})
 
 	if client == nil {
-		return nil, &net.OpError{
-			Net: "udp", Op: "dial",
-			Err: errors.Errorf("already closed"),
-		}
+		return nil, net.ErrClosed
 	}
 
 	r, err := client.Write(ctx, f)
