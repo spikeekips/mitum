@@ -49,7 +49,7 @@ func (s SyncSource) IsValid([]byte) error {
 	}
 
 	if s.Source == nil {
-		return e.Errorf("unknown sync source type, %q", s.Type)
+		return e.Errorf("empty source")
 	}
 
 	switch s.Source.(type) {
@@ -94,7 +94,7 @@ type SyncSourceChecker struct {
 	*logging.Logging
 	*util.ContextDaemon
 	callback        func(called int64, _ []isaac.NodeConnInfo, _ error)
-	sources         []SyncSource
+	sourceslocked   *util.Locked
 	local           base.Node
 	networkID       base.NetworkID
 	interval        time.Duration
@@ -120,7 +120,7 @@ func NewSyncSourceChecker(
 		client:          client,
 		interval:        interval,
 		enc:             enc,
-		sources:         sources,
+		sourceslocked:   util.NewLocked(sources),
 		callback:        callback,
 		validateTimeout: time.Second * 3, //nolint:gomnd //...
 	}
@@ -148,33 +148,44 @@ end:
 				ticker.Reset(c.interval)
 			}
 
-			if len(c.sources) < 1 {
+			sources := c.Sources()
+			if len(sources) < 1 {
+				c.Log().Debug().Msg("empty SyncSource")
+
 				c.callback(called, nil, errors.Errorf("empty SyncSource"))
 
 				continue end
 			}
 
-			ncis, err := c.check(ctx)
+			c.Log().Debug().Interface("sources", sources).Msg("trying to check sync sources")
+
+			ncis, err := c.check(ctx, sources)
+			switch {
+			case err != nil:
+				c.Log().Error().Err(err).Msg("failed to check sync sources")
+			default:
+				c.Log().Debug().Interface("sources", ncis).Msg("sync sources checked")
+			}
 
 			c.callback(called, ncis, err)
 		}
 	}
 }
 
-func (c *SyncSourceChecker) check(ctx context.Context) ([]isaac.NodeConnInfo, error) {
+func (c *SyncSourceChecker) check(ctx context.Context, sources []SyncSource) ([]isaac.NodeConnInfo, error) {
 	e := util.StringErrorFunc("failed to fetch NodeConnInfo")
 
-	worker := util.NewDistributeWorker(ctx, int64(len(c.sources)), nil)
+	worker := util.NewDistributeWorker(ctx, int64(len(sources)), nil)
 	defer worker.Close()
 
-	nciss := make([][]isaac.NodeConnInfo, len(c.sources))
+	nciss := make([][]isaac.NodeConnInfo, len(sources))
 
 	go func() {
 		defer worker.Done()
 
-		for i := range c.sources {
+		for i := range sources {
 			i := i
-			ci := c.sources[i]
+			ci := sources[i]
 
 			if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
 				ncis, err := c.fetch(ctx, ci)
@@ -445,4 +456,17 @@ func (c *SyncSourceChecker) fetchNodeConnInfos(
 	}
 
 	return ncis, nil
+}
+
+func (c *SyncSourceChecker) Sources() []SyncSource {
+	switch i, isnil := c.sourceslocked.Value(); {
+	case isnil, i == nil:
+		return nil
+	default:
+		return i.([]SyncSource) //nolint:forcetypeassert //...
+	}
+}
+
+func (c *SyncSourceChecker) UpdateSources(cis []SyncSource) {
+	c.sourceslocked.SetValue(cis)
 }

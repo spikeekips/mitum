@@ -9,6 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
+	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	"github.com/spikeekips/mitum/util"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/logging"
@@ -254,28 +255,35 @@ func consulWatch(
 
 func watchUpdateFuncs(ctx context.Context) (map[string]func(string) error, error) {
 	var log *logging.Logging
+	var enc *jsonenc.Encoder
+	var design NodeDesign
 	var params *isaac.LocalParams
+	var syncSourceChecker *isaacnetwork.SyncSourceChecker
 
 	if err := ps.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
+		EncoderContextKey, &enc,
+		DesignContextKey, &design,
 		LocalParamsContextKey, &params,
+		SyncSourceCheckerContextKey, &syncSourceChecker,
 	); err != nil {
 		return nil, err
 	}
 
+	//revive:disable:line-length-limit
 	updaters := map[string]func(string) error{
-		"parameters/threshold":                    updateLocalParamThreshold(params, log),
-		"parameters/interval_broadcast_ballot":    updateLocalParamIntervalBroadcastBallot(params, log),
-		"parameters/wait_preparing_init_ballot":   updateLocalParamWaitPreparingINITBallot(params, log),
-		"parameters/timeout_request_proposal":     updateLocalParamTimeoutRequestProposal(params, log),
-		"parameters/sync_source_checker_interval": updateLocalParamSyncSourceCheckerInterval(params, log),
-		"parameters/valid_proposal_operation_expire": updateLocalParamValidProposalOperationExpire(
-			params, log),
-		"parameters/valid_proposal_suffrage_operations_expire": updateLocalParamValidProposalSuffrageOperationsExpire(
-			params, log),
-		"parameters/max_operation_size": updateLocalParamMaxOperationSize(params, log),
-		"parameters/same_member_limit":  updateLocalParamSameMemberLimit(params, log),
+		"parameters/threshold":                                 updateLocalParamThreshold(params, log),
+		"parameters/interval_broadcast_ballot":                 updateLocalParamIntervalBroadcastBallot(params, log),
+		"parameters/wait_preparing_init_ballot":                updateLocalParamWaitPreparingINITBallot(params, log),
+		"parameters/timeout_request_proposal":                  updateLocalParamTimeoutRequestProposal(params, log),
+		"parameters/sync_source_checker_interval":              updateLocalParamSyncSourceCheckerInterval(params, log),
+		"parameters/valid_proposal_operation_expire":           updateLocalParamValidProposalOperationExpire(params, log),
+		"parameters/valid_proposal_suffrage_operations_expire": updateLocalParamValidProposalSuffrageOperationsExpire(params, log),
+		"parameters/max_operation_size":                        updateLocalParamMaxOperationSize(params, log),
+		"parameters/same_member_limit":                         updateLocalParamSameMemberLimit(params, log),
+		"sync_sources":                                         updateSyncSources(enc, design, syncSourceChecker, log),
 	}
+	//revive:enable:line-length-limit
 
 	return updaters, nil
 }
@@ -548,6 +556,42 @@ func updateLocalParamSameMemberLimit(
 			Interface("prev", prev).
 			Interface("updated", params.SameMemberLimit()).
 			Msg("local parameter updated")
+
+		return nil
+	}
+}
+
+func updateSyncSources(
+	enc *jsonenc.Encoder,
+	design NodeDesign,
+	syncSourceChecker *isaacnetwork.SyncSourceChecker,
+	log *logging.Logging,
+) func(string) error {
+	return func(s string) error {
+		e := util.StringErrorFunc("failed to update sync source")
+
+		var sources SyncSourcesDesign
+		if err := sources.DecodeYAML([]byte(s), enc); err != nil {
+			return e(err, "")
+		}
+
+		if err := IsValidSyncSourcesDesign(
+			sources,
+			design.Address,
+			design.Network.PublishString,
+			design.Network.publish.String(),
+		); err != nil {
+			return e(err, "")
+		}
+
+		prev := syncSourceChecker.Sources()
+		syncSourceChecker.UpdateSources(sources)
+
+		log.Log().Debug().
+			Str("key", "sync_sources").
+			Interface("prev", prev).
+			Interface("updated", sources).
+			Msg("sync sources updated")
 
 		return nil
 	}

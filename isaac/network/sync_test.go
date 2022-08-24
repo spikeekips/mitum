@@ -338,7 +338,7 @@ func (t *testSyncSourceChecker) TestCheckSameResult() {
 	local := isaac.RandomLocalNode()
 	checker := NewSyncSourceChecker(local, t.LocalParams.NetworkID(), client, time.Second, t.Enc, cis, nil)
 
-	ucis, err := checker.check(ctx)
+	ucis, err := checker.check(ctx, cis)
 	t.NoError(err)
 	t.NotNil(ucis)
 	t.Equal(len(ncis), len(ucis))
@@ -380,7 +380,7 @@ func (t *testSyncSourceChecker) TestCheckFilterLocal() {
 
 	checker := NewSyncSourceChecker(local, t.LocalParams.NetworkID(), client, time.Second, t.Enc, cis, nil)
 
-	ucis, err := checker.check(ctx)
+	ucis, err := checker.check(ctx, cis)
 	t.NoError(err)
 	t.NotNil(ucis)
 
