@@ -26,7 +26,7 @@ func PGenerateGenesis(ctx context.Context) (context.Context, error) {
 	var db isaac.Database
 	var pool *isaacdatabase.TempPool
 
-	if err := ps.LoadsFromContextOK(ctx,
+	if err := ps.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		DesignContextKey, &design,
 		GenesisDesignContextKey, &genesisDesign,

@@ -35,7 +35,7 @@ func PMemberlist(ctx context.Context) (context.Context, error) {
 	var enc *jsonenc.Encoder
 	var params *isaac.LocalParams
 
-	if err := ps.LoadsFromContextOK(ctx,
+	if err := ps.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
 		LocalParamsContextKey, &params,
@@ -101,7 +101,7 @@ func memberlistLocalNode(ctx context.Context) (quicmemberlist.Node, error) {
 	var local base.LocalNode
 	var fsnodeinfo NodeInfo
 
-	if err := ps.LoadsFromContextOK(ctx,
+	if err := ps.LoadFromContextOK(ctx,
 		DesignContextKey, &design,
 		LocalContextKey, &local,
 		FSNodeInfoContextKey, &fsnodeinfo,
@@ -132,7 +132,7 @@ func memberlistConfig(
 	var local base.LocalNode
 	var syncSourcePool *isaac.SyncSourcePool
 
-	if err := ps.LoadsFromContextOK(ctx,
+	if err := ps.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
 		DesignContextKey, &design,
@@ -234,7 +234,7 @@ func memberlistTransport(
 	var syncSourcePool *isaac.SyncSourcePool
 	var handlers *quicstream.PrefixHandler
 
-	if err := ps.LoadsFromContextOK(ctx,
+	if err := ps.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
 		DesignContextKey, &design,
@@ -282,7 +282,7 @@ func memberlistDelegate(ctx context.Context, localnode quicmemberlist.Node) (*qu
 	var params *isaac.LocalParams
 	var ballotbox *isaacstates.Ballotbox
 
-	if err := ps.LoadsFromContextOK(ctx,
+	if err := ps.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
 		LocalParamsContextKey, &params,
@@ -317,7 +317,7 @@ func memberlistAlive(ctx context.Context) (*quicmemberlist.AliveDelegate, error)
 	var design NodeDesign
 	var enc *jsonenc.Encoder
 
-	if err := ps.LoadsFromContextOK(ctx,
+	if err := ps.LoadFromContextOK(ctx,
 		DesignContextKey, &design,
 		EncoderContextKey, &enc,
 	); err != nil {
@@ -349,7 +349,7 @@ func nodeChallengeFunc(pctx context.Context) (
 	var params base.LocalParams
 	var client *isaacnetwork.QuicstreamClient
 
-	if err := ps.LoadsFromContextOK(pctx,
+	if err := ps.LoadFromContextOK(pctx,
 		LocalParamsContextKey, &params,
 		QuicstreamClientContextKey, &client,
 	); err != nil {
@@ -408,7 +408,7 @@ func memberlistAllowFunc(ctx context.Context) (
 	var log *logging.Logging
 	var watcher *isaac.LastConsensusNodesWatcher
 
-	if err := ps.LoadsFromContextOK(ctx,
+	if err := ps.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		LastSuffrageProofWatcherContextKey, &watcher,
 	); err != nil {

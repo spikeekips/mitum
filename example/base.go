@@ -38,7 +38,7 @@ func (cmd *baseCommand) prepare(pctx context.Context) (context.Context, error) {
 		return pctx, err
 	}
 
-	return pctx, ps.LoadsFromContextOK(pctx,
+	return pctx, ps.LoadFromContextOK(pctx,
 		launch.EncodersContextKey, &cmd.encs,
 		launch.EncoderContextKey, &cmd.enc,
 	)

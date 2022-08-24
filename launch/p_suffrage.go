@@ -62,7 +62,7 @@ func PLastSuffrageProofWatcher(ctx context.Context) (context.Context, error) {
 	var discoveries []quicstream.UDPConnInfo
 	var db isaac.Database
 
-	if err := ps.LoadsFromContextOK(ctx,
+	if err := ps.LoadFromContextOK(ctx,
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
 		DiscoveryContextKey, &discoveries,
@@ -123,7 +123,7 @@ func PPatchLastSuffrageProofWatcherWithMemberlist(ctx context.Context) (context.
 	var watcher *isaac.LastConsensusNodesWatcher
 	var memberlist *quicmemberlist.Memberlist
 
-	if err := ps.LoadsFromContextOK(ctx,
+	if err := ps.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
 		DiscoveryContextKey, &discoveries,
@@ -295,7 +295,7 @@ func GetLastSuffrageProofFunc(ctx context.Context) (isaac.GetLastSuffrageProofFr
 	var client *isaacnetwork.QuicstreamClient
 	var syncSourcePool *isaac.SyncSourcePool
 
-	if err := ps.LoadsFromContextOK(ctx,
+	if err := ps.LoadFromContextOK(ctx,
 		QuicstreamClientContextKey, &client,
 		LocalParamsContextKey, &params,
 		SyncSourcePoolContextKey, &syncSourcePool,
@@ -396,7 +396,7 @@ func GetSuffrageProofFunc(ctx context.Context) ( //revive:disable-line:cognitive
 	var client *isaacnetwork.QuicstreamClient
 	var syncSourcePool *isaac.SyncSourcePool
 
-	if err := ps.LoadsFromContextOK(ctx,
+	if err := ps.LoadFromContextOK(ctx,
 		QuicstreamClientContextKey, &client,
 		LocalParamsContextKey, &params,
 		SyncSourcePoolContextKey, &syncSourcePool,
@@ -475,7 +475,7 @@ func GetLastSuffrageCandidateFunc(ctx context.Context) (isaac.GetLastSuffrageCan
 	var client *isaacnetwork.QuicstreamClient
 	var syncSourcePool *isaac.SyncSourcePool
 
-	if err := ps.LoadsFromContextOK(ctx,
+	if err := ps.LoadFromContextOK(ctx,
 		QuicstreamClientContextKey, &client,
 		SyncSourcePoolContextKey, &syncSourcePool,
 	); err != nil {
@@ -564,7 +564,7 @@ func NewSuffrageCandidateLimiterFunc(ctx context.Context) ( //revive:disable-lin
 	var db isaac.Database
 	var limiterset *hint.CompatibleSet
 
-	if err := ps.LoadsFromContextOK(ctx,
+	if err := ps.LoadFromContextOK(ctx,
 		CenterDatabaseContextKey, &db,
 		SuffrageCandidateLimiterSetContextKey, &limiterset,
 	); err != nil {

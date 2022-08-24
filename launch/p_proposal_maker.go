@@ -33,7 +33,7 @@ func PProposalMaker(ctx context.Context) (context.Context, error) {
 	var params base.LocalParams
 	var pool *isaacdatabase.TempPool
 
-	if err := ps.LoadsFromContextOK(ctx,
+	if err := ps.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
@@ -71,7 +71,7 @@ func proposalMakderGetOperationsFunc(ctx context.Context) (
 	var db isaac.Database
 	var pool *isaacdatabase.TempPool
 
-	if err := ps.LoadsFromContextOK(ctx,
+	if err := ps.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,

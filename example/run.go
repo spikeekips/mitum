@@ -119,7 +119,7 @@ func (cmd *RunCommand) runStates(ctx, pctx context.Context) (func(), error) {
 	var discoveries []quicstream.UDPConnInfo
 	var states *isaacstates.States
 
-	if err := ps.LoadsFromContextOK(pctx,
+	if err := ps.LoadFromContextOK(pctx,
 		launch.DiscoveryContextKey, &discoveries,
 		launch.StatesContextKey, &states,
 	); err != nil {
@@ -152,7 +152,7 @@ func (cmd *RunCommand) pWhenNewBlockSavedInConsensusStateFunc(pctx context.Conte
 	var ballotbox *isaacstates.Ballotbox
 	var nodeinfo *isaacnetwork.NodeInfoUpdater
 
-	if err := ps.LoadsFromContextOK(pctx,
+	if err := ps.LoadFromContextOK(pctx,
 		launch.LoggingContextKey, &log,
 		launch.CenterDatabaseContextKey, &db,
 		launch.LocalParamsContextKey, &params,

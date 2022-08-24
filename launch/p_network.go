@@ -36,7 +36,7 @@ func PQuicstreamClient(ctx context.Context) (context.Context, error) {
 	var enc encoder.Encoder
 	var params base.LocalParams
 
-	if err := ps.LoadsFromContextOK(ctx,
+	if err := ps.LoadFromContextOK(ctx,
 		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
 		LocalParamsContextKey, &params,
@@ -60,7 +60,7 @@ func PNetwork(ctx context.Context) (context.Context, error) {
 	var design NodeDesign
 	var params base.LocalParams
 
-	if err := ps.LoadsFromContextOK(ctx,
+	if err := ps.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,

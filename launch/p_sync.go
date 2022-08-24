@@ -30,7 +30,7 @@ func PSyncSourceChecker(ctx context.Context) (context.Context, error) {
 	var params *isaac.LocalParams
 	var client *isaacnetwork.QuicstreamClient
 
-	if err := ps.LoadsFromContextOK(ctx,
+	if err := ps.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
 		DesignContextKey, &design,
@@ -100,7 +100,7 @@ func PStartSyncSourceChecker(ctx context.Context) (context.Context, error) {
 
 func PCloseSyncSourceChecker(ctx context.Context) (context.Context, error) {
 	var syncSourceChecker *isaacnetwork.SyncSourceChecker
-	if err := ps.LoadsFromContext(ctx,
+	if err := ps.LoadFromContext(ctx,
 		SyncSourceCheckerContextKey, &syncSourceChecker,
 	); err != nil {
 		return ctx, err

@@ -63,7 +63,7 @@ func PStates(ctx context.Context) (context.Context, error) {
 	var pps *isaac.ProposalProcessors
 	var memberlist *quicmemberlist.Memberlist
 
-	if err := ps.LoadsFromContextOK(ctx,
+	if err := ps.LoadFromContextOK(ctx,
 		EncoderContextKey, &enc,
 		BallotboxContextKey, &ballotbox,
 		ProposalProcessorsContextKey, &pps,
@@ -140,7 +140,7 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 	var lvps *isaacstates.LastVoteproofsHandler
 	var pps *isaac.ProposalProcessors
 
-	if err := ps.LoadsFromContextOK(ctx,
+	if err := ps.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
@@ -292,7 +292,7 @@ func newSyncerFunc(
 	var perm isaac.PermanentDatabase
 	var syncSourcePool *isaac.SyncSourcePool
 
-	if err := ps.LoadsFromContextOK(pctx,
+	if err := ps.LoadFromContextOK(pctx,
 		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
 		DesignContextKey, &design,
@@ -664,7 +664,7 @@ func joinMemberlistForStateHandlerFunc(pctx context.Context) (
 	var discoveries []quicstream.UDPConnInfo
 	var m *quicmemberlist.Memberlist
 
-	if err := ps.LoadsFromContextOK(pctx,
+	if err := ps.LoadFromContextOK(pctx,
 		DiscoveryContextKey, &discoveries,
 		MemberlistContextKey, &m,
 	); err != nil {

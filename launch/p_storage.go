@@ -194,7 +194,7 @@ func PCleanStorage(ctx context.Context) (context.Context, error) {
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
 
-	if err := ps.LoadsFromContextOK(ctx,
+	if err := ps.LoadFromContextOK(ctx,
 		DesignContextKey, &design,
 		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
@@ -217,7 +217,7 @@ func PCreateLocalFS(ctx context.Context) (context.Context, error) {
 	var params *isaac.LocalParams
 	var version util.Version
 
-	if err := ps.LoadsFromContextOK(ctx,
+	if err := ps.LoadFromContextOK(ctx,
 		DesignContextKey, &design,
 		EncoderContextKey, &enc,
 		LocalParamsContextKey, &params,
@@ -246,7 +246,7 @@ func PCheckLocalFS(ctx context.Context) (context.Context, error) {
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
 
-	if err := ps.LoadsFromContextOK(ctx,
+	if err := ps.LoadFromContextOK(ctx,
 		VersionContextKey, &version,
 		DesignContextKey, &design,
 		EncodersContextKey, &encs,
@@ -296,7 +296,7 @@ func PLoadDatabase(ctx context.Context) (context.Context, error) {
 	var enc encoder.Encoder
 	var fsnodeinfo NodeInfo
 
-	if err := ps.LoadsFromContextOK(ctx,
+	if err := ps.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		DesignContextKey, &design,
 		EncodersContextKey, &encs,
@@ -329,7 +329,7 @@ func LastHeightOfLocalFS(ctx context.Context, from string) (last base.Height, _ 
 	var enc encoder.Encoder
 	var params *isaac.LocalParams
 
-	if err := ps.LoadsFromContextOK(ctx,
+	if err := ps.LoadFromContextOK(ctx,
 		EncoderContextKey, &enc,
 		LocalParamsContextKey, &params,
 	); err != nil {

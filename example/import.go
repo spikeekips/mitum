@@ -80,7 +80,7 @@ func (cmd *ImportCommand) importBlocks(ctx context.Context) (context.Context, er
 	var perm isaac.PermanentDatabase
 	var pool *isaacdatabase.TempPool
 
-	if err := ps.LoadsFromContextOK(ctx,
+	if err := ps.LoadFromContextOK(ctx,
 		launch.EncodersContextKey, &encs,
 		launch.EncoderContextKey, &enc,
 		launch.DesignContextKey, &design,

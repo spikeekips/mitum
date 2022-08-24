@@ -35,7 +35,7 @@ func PLoadDesign(ctx context.Context) (context.Context, error) {
 	var enc *jsonenc.Encoder
 	var privfromvault string
 
-	if err := ps.LoadsFromContextOK(ctx,
+	if err := ps.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		DesignFlagContextKey, &flag,
 		EncoderContextKey, &enc,
@@ -127,7 +127,7 @@ func PCheckDesign(ctx context.Context) (context.Context, error) {
 	var flag DesignFlag
 	var design NodeDesign
 
-	if err := ps.LoadsFromContextOK(ctx,
+	if err := ps.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		DesignFlagContextKey, &flag,
 		DesignContextKey, &design,
@@ -159,7 +159,7 @@ func PWatchDesign(ctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var flag DesignFlag
 
-	if err := ps.LoadsFromContextOK(ctx,
+	if err := ps.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		DesignFlagContextKey, &flag,
 	); err != nil {
@@ -199,7 +199,7 @@ func consulWatch(
 	var log *logging.Logging
 	var flag DesignFlag
 
-	if err := ps.LoadsFromContextOK(ctx,
+	if err := ps.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		DesignFlagContextKey, &flag,
 	); err != nil {
@@ -256,7 +256,7 @@ func watchUpdateFuncs(ctx context.Context) (map[string]func(string) error, error
 	var log *logging.Logging
 	var params *isaac.LocalParams
 
-	if err := ps.LoadsFromContextOK(ctx,
+	if err := ps.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		LocalParamsContextKey, &params,
 	); err != nil {

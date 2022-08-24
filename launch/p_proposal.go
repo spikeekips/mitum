@@ -56,7 +56,7 @@ func newProposalProcessorFunc(pctx context.Context) (
 	var pool *isaacdatabase.TempPool
 	var oprs *hint.CompatibleSet
 
-	if err := ps.LoadsFromContextOK(pctx,
+	if err := ps.LoadFromContextOK(pctx,
 		EncoderContextKey, &enc,
 		DesignContextKey, &design,
 		LocalContextKey, &local,
@@ -111,7 +111,7 @@ func getProposalFunc(pctx context.Context) (
 	var client *isaacnetwork.QuicstreamClient
 	var memberlist *quicmemberlist.Memberlist
 
-	if err := ps.LoadsFromContextOK(pctx,
+	if err := ps.LoadFromContextOK(pctx,
 		PoolDatabaseContextKey, &pool,
 		QuicstreamClientContextKey, &client,
 		MemberlistContextKey, &memberlist,
@@ -186,7 +186,7 @@ func getProposalOperationFunc(pctx context.Context) (
 	var params base.LocalParams
 	var db isaac.Database
 
-	if err := ps.LoadsFromContextOK(pctx,
+	if err := ps.LoadFromContextOK(pctx,
 		LocalParamsContextKey, &params,
 		CenterDatabaseContextKey, &db,
 	); err != nil {
@@ -272,7 +272,7 @@ func getProposalOperationFromRemoteFunc(pctx context.Context) ( //nolint:gocogni
 	var client *isaacnetwork.QuicstreamClient
 	var syncSourcePool *isaac.SyncSourcePool
 
-	if err := ps.LoadsFromContextOK(pctx,
+	if err := ps.LoadFromContextOK(pctx,
 		QuicstreamClientContextKey, &client,
 		SyncSourcePoolContextKey, &syncSourcePool,
 	); err != nil {
@@ -366,7 +366,7 @@ func getProposalOperationFromRemoteProposerFunc(pctx context.Context) (
 	var client *isaacnetwork.QuicstreamClient
 	var syncSourcePool *isaac.SyncSourcePool
 
-	if err := ps.LoadsFromContextOK(pctx,
+	if err := ps.LoadFromContextOK(pctx,
 		QuicstreamClientContextKey, &client,
 		SyncSourcePoolContextKey, &syncSourcePool,
 	); err != nil {
@@ -425,7 +425,7 @@ func NewProposalSelector(pctx context.Context) (*isaac.BaseProposalSelector, err
 	var memberlist *quicmemberlist.Memberlist
 	var client *isaacnetwork.QuicstreamClient
 
-	if err := ps.LoadsFromContextOK(pctx,
+	if err := ps.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,

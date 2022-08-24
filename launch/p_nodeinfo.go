@@ -29,7 +29,7 @@ func PNodeInfo(ctx context.Context) (context.Context, error) {
 	var design NodeDesign
 	var db isaac.Database
 
-	if err := ps.LoadsFromContextOK(ctx,
+	if err := ps.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		VersionContextKey, &version,
 		DesignContextKey, &design,
