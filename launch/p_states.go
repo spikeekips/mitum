@@ -40,7 +40,7 @@ var (
 func PBallotbox(ctx context.Context) (context.Context, error) {
 	var db isaac.Database
 
-	if err := ps.LoadsFromContextOK(ctx, CenterDatabaseContextKey, &db); err != nil {
+	if err := ps.LoadFromContextOK(ctx, CenterDatabaseContextKey, &db); err != nil {
 		return ctx, err
 	}
 
@@ -629,9 +629,7 @@ func setLastVoteproofsfFromBlockReaderFunc(
 ) (func(isaac.BlockReader) error, error) {
 	var pool *isaacdatabase.TempPool
 
-	if err := ps.LoadsFromContextOK(pctx,
-		PoolDatabaseContextKey, &pool,
-	); err != nil {
+	if err := ps.LoadFromContextOK(pctx, PoolDatabaseContextKey, &pool); err != nil {
 		return nil, err
 	}
 
@@ -770,8 +768,7 @@ func newSyncerDeferredFunc(pctx context.Context, db isaac.Database) (
 ) {
 	var log *logging.Logging
 
-	// FIXME LoadsFromContextOK -> LoadFromContextOK
-	if err := ps.LoadsFromContextOK(pctx, LoggingContextKey, &log); err != nil {
+	if err := ps.LoadFromContextOK(pctx, LoggingContextKey, &log); err != nil {
 		return nil, err
 	}
 

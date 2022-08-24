@@ -31,9 +31,7 @@ func PSuffrageCandidateLimiterSet(ctx context.Context) (context.Context, error) 
 	e := util.StringErrorFunc("failed to prepare SuffrageCandidateLimiterSet")
 
 	var db isaac.Database
-	if err := ps.LoadsFromContextOK(ctx,
-		CenterDatabaseContextKey, &db,
-	); err != nil {
+	if err := ps.LoadFromContextOK(ctx, CenterDatabaseContextKey, &db); err != nil {
 		return ctx, e(err, "")
 	}
 
@@ -146,9 +144,7 @@ func PNodeInConsensusNodesFunc(ctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed NodeInConsensusNodesFunc")
 
 	var db isaac.Database
-	if err := ps.LoadsFromContextOK(ctx,
-		CenterDatabaseContextKey, &db,
-	); err != nil {
+	if err := ps.LoadFromContextOK(ctx, CenterDatabaseContextKey, &db); err != nil {
 		return ctx, e(err, "")
 	}
 

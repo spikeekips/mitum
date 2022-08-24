@@ -25,7 +25,7 @@ func PLocal(ctx context.Context) (context.Context, error) {
 	}
 
 	var design NodeDesign
-	if err := ps.LoadsFromContextOK(ctx, DesignContextKey, &design); err != nil {
+	if err := ps.LoadFromContextOK(ctx, DesignContextKey, &design); err != nil {
 		return ctx, e(err, "")
 	}
 

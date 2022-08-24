@@ -22,9 +22,7 @@ import (
 func PProposalProcessors(ctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 
-	if err := ps.LoadsFromContextOK(ctx,
-		LoggingContextKey, &log,
-	); err != nil {
+	if err := ps.LoadFromContextOK(ctx, LoggingContextKey, &log); err != nil {
 		return ctx, err
 	}
 
@@ -249,9 +247,7 @@ func getProposalOperationFromPoolFunc(pctx context.Context) (
 ) {
 	var pool *isaacdatabase.TempPool
 
-	if err := ps.LoadsFromContextOK(pctx,
-		PoolDatabaseContextKey, &pool,
-	); err != nil {
+	if err := ps.LoadFromContextOK(pctx, PoolDatabaseContextKey, &pool); err != nil {
 		return nil, err
 	}
 
