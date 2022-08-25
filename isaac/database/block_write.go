@@ -310,8 +310,8 @@ func (db *LeveldbBlockWrite) setState(st base.State) error {
 
 func (db *LeveldbBlockWrite) isLastStates(st base.State) bool {
 	var islast bool
-	_, _ = db.laststates.Set(st.Key(), func(i interface{}) (interface{}, error) {
-		if !util.IsNilLockedValue(i) && st.Height() <= i.(base.Height) { //nolint:forcetypeassert //...
+	_, _ = db.laststates.Set(st.Key(), func(found bool, i interface{}) (interface{}, error) {
+		if found && i != nil && st.Height() <= i.(base.Height) { //nolint:forcetypeassert //...
 			return nil, errors.Errorf("old")
 		}
 

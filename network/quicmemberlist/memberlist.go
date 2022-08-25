@@ -497,15 +497,10 @@ func (m *membersPool) NodesLen(node base.Address) int {
 
 func (m *membersPool) Set(node Node) bool {
 	var found bool
-	_, _ = m.addrs.Set(nodeid(node.UDPAddr()), func(i interface{}) (interface{}, error) {
-		switch {
-		case i == nil:
-		case util.IsNilLockedValue(i):
-		default:
-			found = true
-		}
-
+	_, _ = m.addrs.Set(nodeid(node.UDPAddr()), func(addrfound bool, _ interface{}) (interface{}, error) {
 		var nodes []Node
+
+		found = addrfound
 
 		switch i, f := m.nodes.Value(node.Address().String()); {
 		case !f:

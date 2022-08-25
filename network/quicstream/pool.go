@@ -110,8 +110,8 @@ func (p *PoolClient) Dial(
 ) (quic.EarlyConnection, error) {
 	var found bool
 	var client *Client
-	_, _ = p.clients.Set(addr.String(), func(i interface{}) (interface{}, error) {
-		if !util.IsNilLockedValue(i) {
+	_, _ = p.clients.Set(addr.String(), func(clientfound bool, i interface{}) (interface{}, error) {
+		if clientfound && i != nil {
 			item := i.(*poolClientItem) //nolint:forcetypeassert // ...
 			item.accessed = time.Now()
 
@@ -160,8 +160,8 @@ func (p *PoolClient) Write(
 	newClient func(*net.UDPAddr) *Client,
 ) (quic.Stream, error) {
 	var client *Client
-	_, _ = p.clients.Set(addr.String(), func(i interface{}) (interface{}, error) {
-		if !util.IsNilLockedValue(i) {
+	_, _ = p.clients.Set(addr.String(), func(found bool, i interface{}) (interface{}, error) {
+		if found && i != nil {
 			item := i.(*poolClientItem) //nolint:forcetypeassert // ...
 			item.accessed = time.Now()
 

@@ -113,8 +113,8 @@ func (t *testShardedMap) TestSet() {
 		k := UUID().String()
 		v := UUID().String()
 
-		rv, err := m.Set(k, func(i interface{}) (interface{}, error) {
-			t.True(IsNilLockedValue(i))
+		rv, err := m.Set(k, func(found bool, i interface{}) (interface{}, error) {
+			t.False(found)
 
 			return v, nil
 		})
@@ -132,8 +132,8 @@ func (t *testShardedMap) TestSet() {
 
 		t.False(m.SetValue(k, v))
 
-		rv, err := m.Set(k, func(i interface{}) (interface{}, error) {
-			t.False(IsNilLockedValue(i))
+		rv, err := m.Set(k, func(found bool, i interface{}) (interface{}, error) {
+			t.True(found)
 			t.Equal(v, i)
 
 			return newv, nil

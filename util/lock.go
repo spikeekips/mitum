@@ -149,7 +149,7 @@ func (l *LockedMap) SetValue(k, v interface{}) bool {
 	return found
 }
 
-func (l *LockedMap) Get(k interface{}, f func() (interface{}, error)) (v interface{}, found bool, _ error) {
+func (l *LockedMap) Get(k interface{}, create func() (interface{}, error)) (v interface{}, found bool, _ error) {
 	l.Lock()
 	defer l.Unlock()
 
@@ -157,7 +157,7 @@ func (l *LockedMap) Get(k interface{}, f func() (interface{}, error)) (v interfa
 		return i, true, nil
 	}
 
-	switch i, err := f(); {
+	switch i, err := create(); {
 	case err != nil:
 		return nil, false, err
 	default:
@@ -166,16 +166,13 @@ func (l *LockedMap) Get(k interface{}, f func() (interface{}, error)) (v interfa
 	}
 }
 
-func (l *LockedMap) Set(k interface{}, f func(interface{}) (interface{}, error)) (interface{}, error) {
+func (l *LockedMap) Set(k interface{}, f func(bool, interface{}) (interface{}, error)) (interface{}, error) {
 	l.Lock()
 	defer l.Unlock()
 
-	var i interface{} = NilLockedValue{}
-	if j, found := l.m[k]; found {
-		i = j
-	}
+	i, found := l.m[k]
 
-	switch j, err := f(i); {
+	switch j, err := f(found, i); {
 	case err == nil:
 		l.m[k] = j
 
@@ -316,28 +313,28 @@ func (l *ShardedMap) SetValue(k string, v interface{}) bool {
 	return found
 }
 
-func (l *ShardedMap) Get(k string, f func() (interface{}, error)) (v interface{}, found bool, _ error) {
+func (l *ShardedMap) Get(k string, create func() (interface{}, error)) (v interface{}, found bool, _ error) {
 	i := l.fnv(k)
 	if i < 0 {
 		return nil, false, nil
 	}
 
-	return l.sharded[i].Get(k, f)
+	return l.sharded[i].Get(k, create)
 }
 
-func (l *ShardedMap) Set(k string, f func(interface{}) (interface{}, error)) (interface{}, error) {
+func (l *ShardedMap) Set(k string, f func(bool, interface{}) (interface{}, error)) (interface{}, error) {
 	i := l.fnv(k)
 	if i < 0 {
 		return nil, nil
 	}
 
-	return l.sharded[i].Set(k, func(i interface{}) (interface{}, error) {
-		v, err := f(i)
+	return l.sharded[i].Set(k, func(found bool, i interface{}) (interface{}, error) {
+		v, err := f(found, i)
 		if err != nil {
 			return v, err
 		}
 
-		if IsNilLockedValue(i) {
+		if !found {
 			atomic.AddInt64(&l.length, 1)
 		}
 
