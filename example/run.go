@@ -13,13 +13,10 @@ import (
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/launch"
-	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/ps"
 )
-
-// FIXME Discovery from consul
 
 type RunCommand struct { //nolint:govet //...
 	launch.DesignFlag
@@ -116,7 +113,7 @@ func (cmd *RunCommand) run(pctx context.Context) error {
 }
 
 func (cmd *RunCommand) runStates(ctx, pctx context.Context) (func(), error) {
-	var discoveries []quicstream.UDPConnInfo
+	var discoveries *util.Locked
 	var states *isaacstates.States
 
 	if err := ps.LoadFromContextOK(pctx,
@@ -126,7 +123,7 @@ func (cmd *RunCommand) runStates(ctx, pctx context.Context) (func(), error) {
 		return nil, err
 	}
 
-	if len(discoveries) < 1 {
+	if dis := launch.GetDiscoveriesFromLocked(discoveries); len(dis) < 1 {
 		cmd.log.Warn().Msg("empty discoveries; will wait to be joined by remote nodes")
 	}
 

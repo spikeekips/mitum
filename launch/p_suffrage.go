@@ -59,13 +59,11 @@ func PSuffrageCandidateLimiterSet(ctx context.Context) (context.Context, error) 
 func PLastSuffrageProofWatcher(ctx context.Context) (context.Context, error) {
 	var local base.LocalNode
 	var params base.LocalParams
-	var discoveries []quicstream.UDPConnInfo
 	var db isaac.Database
 
 	if err := ps.LoadFromContextOK(ctx,
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
-		DiscoveryContextKey, &discoveries,
 		CenterDatabaseContextKey, &db,
 	); err != nil {
 		return ctx, err
@@ -119,14 +117,12 @@ func PLastSuffrageProofWatcher(ctx context.Context) (context.Context, error) {
 func PPatchLastSuffrageProofWatcherWithMemberlist(ctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var local base.LocalNode
-	var discoveries []quicstream.UDPConnInfo
 	var watcher *isaac.LastConsensusNodesWatcher
 	var memberlist *quicmemberlist.Memberlist
 
 	if err := ps.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
-		DiscoveryContextKey, &discoveries,
 		LastSuffrageProofWatcherContextKey, &watcher,
 		MemberlistContextKey, &memberlist,
 	); err != nil {

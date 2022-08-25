@@ -661,7 +661,7 @@ func joinMemberlistForStateHandlerFunc(pctx context.Context) (
 	func(context.Context, base.Suffrage) error,
 	error,
 ) {
-	var discoveries []quicstream.UDPConnInfo
+	var discoveries *util.Locked
 	var m *quicmemberlist.Memberlist
 
 	if err := ps.LoadFromContextOK(pctx,
@@ -672,7 +672,9 @@ func joinMemberlistForStateHandlerFunc(pctx context.Context) (
 	}
 
 	return func(ctx context.Context, suf base.Suffrage) error {
-		if len(discoveries) < 1 {
+		dis := GetDiscoveriesFromLocked(discoveries)
+
+		if len(dis) < 1 {
 			return nil
 		}
 
@@ -683,7 +685,12 @@ func joinMemberlistForStateHandlerFunc(pctx context.Context) (
 		return util.Retry(
 			ctx,
 			func() (bool, error) {
-				if err := m.EnsureJoin(discoveries); err != nil {
+				dis = GetDiscoveriesFromLocked(discoveries)
+				if len(dis) < 1 {
+					return false, nil
+				}
+
+				if err := m.EnsureJoin(dis); err != nil {
 					if !errors.Is(err, quicmemberlist.ErrNotYetJoined) {
 						return false, err
 					}

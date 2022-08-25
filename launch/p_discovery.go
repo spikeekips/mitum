@@ -22,10 +22,10 @@ func PDiscoveryFlag(ctx context.Context) (context.Context, error) {
 		return ctx, e(err, "")
 	}
 
-	var discoveries []quicstream.UDPConnInfo
+	discoveries := util.EmptyLocked()
 
 	if len(flag) > 0 {
-		discoveries = make([]quicstream.UDPConnInfo, len(flag))
+		v := make([]quicstream.UDPConnInfo, len(flag))
 
 		for i := range flag {
 			ci, err := flag[i].ConnInfo()
@@ -33,11 +33,22 @@ func PDiscoveryFlag(ctx context.Context) (context.Context, error) {
 				return ctx, e(err, "invalid member discovery, %q", flag[i])
 			}
 
-			discoveries[i] = ci
+			v[i] = ci
 		}
+
+		_ = discoveries.SetValue(v)
 	}
 
 	ctx = context.WithValue(ctx, DiscoveryContextKey, discoveries) //revive:disable-line:modifies-parameter
 
 	return ctx, nil
+}
+
+func GetDiscoveriesFromLocked(l *util.Locked) []quicstream.UDPConnInfo {
+	switch i, isnil := l.Value(); {
+	case isnil, i == nil:
+		return nil
+	default:
+		return i.([]quicstream.UDPConnInfo) //nolint:forcetypeassert //...
+	}
 }
