@@ -23,9 +23,12 @@ import (
 )
 
 var (
-	PNameMemberlist      = ps.Name("memberlist")
-	PNameStartMemberlist = ps.Name("start-memberlist")
-	MemberlistContextKey = ps.ContextKey("memberlist")
+	PNameMemberlist                     = ps.Name("memberlist")
+	PNameStartMemberlist                = ps.Name("start-memberlist")
+	PNameLongRunningMemberlistJoin      = ps.Name("long-running-memberlist-join")
+	MemberlistContextKey                = ps.ContextKey("memberlist")
+	LongRunningMemberlistJoinContextKey = ps.ContextKey("long-running-memberlist-join")
+	EventOnEmptyMembers                 = ps.ContextKey("event-on-empty-members")
 )
 
 func PMemberlist(ctx context.Context) (context.Context, error) {
@@ -67,7 +70,22 @@ func PMemberlist(ctx context.Context) (context.Context, error) {
 
 	_ = m.SetLogging(log)
 
-	ctx = context.WithValue(ctx, MemberlistContextKey, m) //revive:disable-line:modifies-parameter
+	pps := ps.NewPS("event-on-empty-members")
+
+	m.SetWhenLeftFunc(func(quicmemberlist.Node) {
+		if m.IsJoined() {
+			return
+		}
+
+		if _, err := pps.Run(context.Background()); err != nil {
+			log.Log().Error().Err(err).Msg("failed to run onEmptyMembers")
+		}
+	})
+
+	//revive:disable:modifies-parameter
+	ctx = context.WithValue(ctx, MemberlistContextKey, m)
+	ctx = context.WithValue(ctx, EventOnEmptyMembers, pps)
+	//revive:enable:modifies-parameter
 
 	return ctx, nil
 }
@@ -92,6 +110,27 @@ func PCloseMemberlist(ctx context.Context) (context.Context, error) {
 			return ctx, err
 		}
 	}
+
+	return ctx, nil
+}
+
+func PLongRunningMemberlistJoin(ctx context.Context) (context.Context, error) {
+	var discoveries *util.Locked
+	var m *quicmemberlist.Memberlist
+
+	if err := ps.LoadFromContextOK(ctx,
+		DiscoveryContextKey, &discoveries,
+		MemberlistContextKey, &m,
+	); err != nil {
+		return nil, err
+	}
+
+	l := NewLongRunningMemberlistJoin(
+		ensureJoinMemberlist(discoveries, m),
+		m.IsJoined,
+	)
+
+	ctx = context.WithValue(ctx, LongRunningMemberlistJoinContextKey, l) //revive:disable-line:modifies-parameter
 
 	return ctx, nil
 }
@@ -205,16 +244,6 @@ func memberlistConfig(
 			log.Log().Debug().Interface("node", node).Msg("node left")
 
 			poolclient.Remove(node.UDPAddr())
-
-			if !node.Address().Equal(local.Address()) {
-				removed := syncSourcePool.Remove(node.Address(), node.Publish().String())
-
-				log.Log().Debug().
-					Bool("removed", removed).
-					Interface("node", node.Address()).
-					Str("publish", node.Publish().String()).
-					Msg("node removed from SyncSourcePool")
-			}
 		},
 	)
 
@@ -436,4 +465,134 @@ func memberlistAllowFunc(ctx context.Context) (
 			return nil
 		}
 	}, nil
+}
+
+type LongRunningMemberlistJoin struct {
+	ensureJoin    func() error // NOTE use EnsureJoin()
+	isJoined      func() bool
+	cancelrunning *util.Locked
+	donech        *util.Locked
+	doneerr       *util.Locked
+	interval      time.Duration
+}
+
+func NewLongRunningMemberlistJoin(
+	ensureJoin func() error,
+	isJoined func() bool,
+) *LongRunningMemberlistJoin {
+	return &LongRunningMemberlistJoin{
+		ensureJoin:    ensureJoin,
+		isJoined:      isJoined,
+		cancelrunning: util.EmptyLocked(),
+		donech:        util.EmptyLocked(),
+		doneerr:       util.EmptyLocked(),
+		interval:      time.Second * 3, //nolint:gomnd //...
+	}
+}
+
+func (l *LongRunningMemberlistJoin) Join() (<-chan error, error) {
+	var donech chan struct{}
+
+	_, _ = l.cancelrunning.Set(func(i interface{}) (interface{}, error) {
+		if i != nil {
+			switch c, isnil := l.donech.Value(); {
+			case isnil, c == nil:
+				i.(context.CancelFunc)() //nolint:forcetypeassert //...
+			default:
+				donech = c.(chan struct{}) //nolint:forcetypeassert //...
+
+				return nil, util.ErrLockedSetIgnore.Call()
+			}
+		}
+
+		_ = l.doneerr.SetValue(nil)
+
+		switch i, isnil := l.donech.Value(); {
+		case isnil, i == nil:
+			donech = make(chan struct{})
+
+			_ = l.donech.SetValue(donech)
+		default:
+			donech = i.(chan struct{}) //nolint:forcetypeassert //...
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+
+		go func() {
+			err := util.Retry(ctx,
+				func() (bool, error) {
+					switch err := l.ensureJoin(); {
+					case err == nil:
+						return false, nil
+					case !l.isJoined():
+						return true, nil
+					default:
+						return true, err
+					}
+				},
+				-1,
+				l.interval,
+			)
+
+			_ = l.doneerr.SetValue(err)
+
+			switch j, isnil := l.donech.Value(); {
+			case isnil, j == nil:
+			default:
+				close(donech)
+				_ = l.donech.SetValue(nil)
+			}
+		}()
+
+		return cancel, nil
+	})
+
+	ch := make(chan error)
+
+	go func() {
+		defer close(ch)
+
+		<-donech
+
+		switch i, isnil := l.doneerr.Value(); {
+		case isnil, i == nil:
+			ch <- nil
+		default:
+			ch <- i.(error) //nolint:forcetypeassert //...
+		}
+	}()
+
+	return ch, nil
+}
+
+func (l *LongRunningMemberlistJoin) Cancel() bool {
+	_, _ = l.cancelrunning.Set(func(i interface{}) (interface{}, error) {
+		if i == nil {
+			return nil, nil
+		}
+
+		_ = l.doneerr.SetValue(context.Canceled)
+
+		i.(context.CancelFunc)() //nolint:forcetypeassert //...
+
+		return nil, nil
+	})
+
+	return true
+}
+
+func ensureJoinMemberlist(discoveries *util.Locked, m *quicmemberlist.Memberlist) func() error {
+	return func() error {
+		dis := GetDiscoveriesFromLocked(discoveries)
+
+		if len(dis) < 1 {
+			return errors.Errorf("empty discovery")
+		}
+
+		if m.IsJoined() {
+			return nil
+		}
+
+		return m.EnsureJoin(dis)
+	}
 }

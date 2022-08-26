@@ -98,6 +98,15 @@ func (st *States) SetWhenStateSwitched(f func(StateType, StateType)) {
 	st.whenStateSwitched = f
 }
 
+func (st *States) OnEmptyMembers() {
+	current := st.current()
+	if current == nil {
+		return
+	}
+
+	current.onEmptyMembers()
+}
+
 func (st *States) LastVoteproofsHandler() *LastVoteproofsHandler {
 	return st.lvps
 }

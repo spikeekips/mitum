@@ -51,7 +51,7 @@ func (l *Locked) SetValue(i interface{}) *Locked {
 	return l
 }
 
-func (l *Locked) Get(f func() (interface{}, error)) (interface{}, error) {
+func (l *Locked) Get(create func() (interface{}, error)) (interface{}, error) {
 	l.Lock()
 	defer l.Unlock()
 
@@ -59,7 +59,7 @@ func (l *Locked) Get(f func() (interface{}, error)) (interface{}, error) {
 		return l.value, nil
 	}
 
-	switch i, err := f(); {
+	switch i, err := create(); {
 	case err != nil:
 		return nil, err
 	default:

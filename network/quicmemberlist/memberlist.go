@@ -27,6 +27,7 @@ type Memberlist struct {
 	enc   *jsonenc.Encoder
 	*logging.Logging
 	*util.ContextDaemon
+	whenLeftf       func(Node)
 	mconfig         *memberlist.Config
 	m               *memberlist.Memberlist
 	delegate        *Delegate
@@ -54,6 +55,7 @@ func NewMemberlist(
 		sameMemberLimit: sameMemberLimit,
 		members:         newMembersPool(),
 		cicache:         util.NewGCacheObjectPool(1 << 9), //nolint:gomnd //...
+		whenLeftf:       func(Node) {},
 	}
 
 	if err := srv.patchMemberlistConfig(config); err != nil {
@@ -265,6 +267,10 @@ func (srv *Memberlist) start(ctx context.Context) error {
 			srv.Log().Error().Err(err).Msg("failed to shutdown memberlist; ignored")
 		}
 
+		if err := srv.mconfig.Transport.Shutdown(); err != nil {
+			srv.Log().Error().Err(err).Msg("failed to shutdown memberlist transport; ignored")
+		}
+
 		return nil
 	}(); err != nil {
 		return errors.WithMessage(err, "failed to shutdown memberlist")
@@ -368,16 +374,28 @@ func (srv *Memberlist) whenJoined(node Node) {
 }
 
 func (srv *Memberlist) whenLeft(node Node) {
-	srv.joinedLock.Lock()
-	defer srv.joinedLock.Unlock()
+	func() {
+		srv.joinedLock.Lock()
+		defer srv.joinedLock.Unlock()
 
-	_ = srv.members.Remove(node.UDPAddr())
+		_ = srv.members.Remove(node.UDPAddr())
 
-	if srv.isJoined && srv.members.Len() < 2 && srv.members.Exists(srv.local.UDPAddr()) {
-		srv.isJoined = false
-	}
+		switch {
+		case srv.isJoined:
+		case srv.members.Len() < 1:
+			srv.isJoined = false
+		case srv.members.Len() < 2 && srv.members.Exists(srv.local.UDPAddr()):
+			srv.isJoined = false
+		}
 
-	srv.Log().Debug().Bool("is_joined", srv.isJoined).Interface("node", node).Msg("node left")
+		srv.Log().Debug().Bool("is_joined", srv.isJoined).Interface("node", node).Msg("node left")
+	}()
+
+	srv.whenLeftf(node)
+}
+
+func (srv *Memberlist) SetWhenLeftFunc(f func(Node)) {
+	srv.whenLeftf = f
 }
 
 func (srv *Memberlist) allowNode(node Node) error {

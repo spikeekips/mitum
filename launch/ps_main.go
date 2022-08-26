@@ -24,7 +24,7 @@ var (
 )
 
 func DefaultMainPS() *ps.PS {
-	ips := ps.NewPS()
+	ips := ps.NewPS("cmd-main")
 
 	_ = ips.
 		AddOK(ps.NameINIT, PINIT, nil)

@@ -670,6 +670,8 @@ func (st *dummyStateHandler) newVoteproof(vp base.Voteproof) error {
 	return st.newVoteprooff(vp)
 }
 
+func (st *dummyStateHandler) onEmptyMembers() {}
+
 func (st *dummyStateHandler) setEnter(f func(switchContext) error, d func()) *dummyStateHandler {
 	st.enterf = f
 	st.enterdefer = d

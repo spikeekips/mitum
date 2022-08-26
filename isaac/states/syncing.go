@@ -350,7 +350,8 @@ func (st *SyncingHandler) checkAndJoinMemberlist(height base.Height) (joined boo
 		defer cancel()
 
 		if err := st.joinMemberlistf(ctx, suf); err != nil {
-			st.Log().Debug().Msg("local is in consensus nodes after syncer finished; but failed to join memberlist")
+			st.Log().Debug().Err(err).
+				Msg("local is in consensus nodes after syncer finished; but failed to join memberlist")
 
 			return false, nil
 		}

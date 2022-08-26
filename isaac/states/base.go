@@ -28,6 +28,7 @@ type baseHandler struct {
 	switchStateFunc      func(switchContext) error
 	broadcastBallotFunc  func(base.Ballot) error
 	voteFunc             func(base.Ballot) (bool, error)
+	onEmptyMembersf      func()
 	stt                  StateType
 }
 
@@ -56,7 +57,8 @@ func newBaseHandler(
 		setLastVoteproofFunc: func(vp base.Voteproof) bool {
 			return lvps.Set(vp)
 		},
-		voteFunc: func(base.Ballot) (bool, error) { return false, errors.Errorf("not voted") },
+		voteFunc:        func(base.Ballot) (bool, error) { return false, errors.Errorf("not voted") },
+		onEmptyMembersf: func() {},
 	}
 }
 
@@ -91,6 +93,14 @@ func (st *baseHandler) exit(switchContext) (func(), error) { //nolint:unparam //
 
 func (*baseHandler) newVoteproof(base.Voteproof) error {
 	return nil
+}
+
+func (st *baseHandler) onEmptyMembers() {
+	st.onEmptyMembersf()
+}
+
+func (st *baseHandler) SetOnEmptyMembers(f func()) {
+	st.onEmptyMembersf = f
 }
 
 func (st *baseHandler) state() StateType {

@@ -18,7 +18,7 @@ type baseCommand struct {
 }
 
 func (cmd *baseCommand) prepare(pctx context.Context) (context.Context, error) {
-	pps := ps.NewPS()
+	pps := ps.NewPS("cmd")
 
 	_ = pps.
 		AddOK(launch.PNameEncoder, launch.PEncoder, nil)

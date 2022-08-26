@@ -346,7 +346,7 @@ type testPS struct {
 }
 
 func (t *testPS) TestNew() {
-	ps := NewPS()
+	ps := NewPS("ps")
 
 	t.Run("P; not found", func() {
 		p, found := ps.P("showme")
@@ -364,7 +364,7 @@ func (t *testPS) TestNew() {
 }
 
 func (t *testPS) TestAdd() {
-	ps := NewPS()
+	ps := NewPS("ps")
 
 	t.Run("add", func() {
 		t.True(ps.Add("showme", nil, nil))
@@ -376,7 +376,7 @@ func (t *testPS) TestAdd() {
 }
 
 func (t *testPS) TestRemove() {
-	ps := NewPS()
+	ps := NewPS("ps")
 
 	t.True(ps.Add("showme", nil, nil))
 
@@ -390,7 +390,7 @@ func (t *testPS) TestRemove() {
 }
 
 func (t *testPS) TestRun() {
-	ps := NewPS()
+	ps := NewPS("ps")
 
 	t.True(ps.Add("c", t.calledfunc("c-run"), t.calledfunc("c-close")))
 	t.True(ps.Add("b", t.calledfunc("b-run"), t.calledfunc("b-close")))
@@ -407,8 +407,6 @@ func (t *testPS) TestRun() {
 	})
 
 	t.Run("run with error", func() {
-		ps.Reset()
-
 		t.False(ps.Add(
 			"b",
 			func(ctx context.Context) (context.Context, error) {
@@ -433,8 +431,6 @@ func (t *testPS) TestRun() {
 	})
 
 	t.Run("close", func() {
-		ps.Reset()
-
 		t.False(ps.Add("b", t.calledfunc("b-run"), t.calledfunc("b-close")))
 
 		rctx, err := ps.Run(ctx)
@@ -449,7 +445,7 @@ func (t *testPS) TestRun() {
 }
 
 func (t *testPS) TestRunIgnoreLeft() {
-	ps := NewPS()
+	ps := NewPS("ps")
 
 	bcalledfunc := t.calledfunc("b-run")
 	brun := func(ctx context.Context) (context.Context, error) {
@@ -475,7 +471,7 @@ func (t *testPS) TestRunIgnoreLeft() {
 
 func (t *testPS) TestVerbose() {
 	t.Run("no pre post", func() {
-		ps := NewPS()
+		ps := NewPS("ps")
 
 		t.True(ps.Add("c", t.calledfunc("c-run"), nil))
 		t.True(ps.Add("b", t.calledfunc("b-run"), nil))
@@ -486,7 +482,7 @@ func (t *testPS) TestVerbose() {
 	})
 
 	t.Run("pre post", func() {
-		ps := NewPS()
+		ps := NewPS("ps")
 
 		t.True(ps.Add("a", t.calledfunc("a-run"), nil))
 		t.True(ps.Add("b", t.calledfunc("b-run"), nil))

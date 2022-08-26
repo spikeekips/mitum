@@ -60,6 +60,7 @@ type handler interface {
 	enter(switchContext) (func(), error)
 	exit(switchContext) (func(), error)
 	newVoteproof(base.Voteproof) error
+	onEmptyMembers()
 }
 
 func handlerLog(st handler) fmt.Stringer {

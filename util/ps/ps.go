@@ -4,6 +4,7 @@ import (
 	"context"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -377,12 +378,13 @@ type PS struct {
 	*logging.Logging
 	m    map[Name]*P
 	runs []Name
+	sync.Mutex
 }
 
-func NewPS() *PS {
+func NewPS(name string) *PS {
 	return &PS{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
-			return zctx.Str("module", "ps")
+			return zctx.Str("module", "ps-"+name)
 		}),
 		m: map[Name]*P{NameINIT: EmptyPINIT},
 	}
@@ -481,11 +483,12 @@ func (ps *PS) P(name Name) (*P, bool) {
 	return i, found
 }
 
-func (ps *PS) Reset() {
-	ps.runs = nil
-}
-
 func (ps *PS) Run(ctx context.Context) (context.Context, error) {
+	ps.Lock()
+	defer ps.Unlock()
+
+	ps.runs = nil
+
 	ps.Log().Debug().Msg("start to run")
 
 	names := ps.names()

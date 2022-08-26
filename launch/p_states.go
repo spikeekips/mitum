@@ -171,6 +171,11 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 		return ctx, e(err, "")
 	}
 
+	joinMemberlistForJoiningeHandlerf, err := joinMemberlistForJoiningeHandlerFunc(ctx)
+	if err != nil {
+		return ctx, e(err, "")
+	}
+
 	leaveMemberlistForStateHandlerf, err := leaveMemberlistForStateHandlerFunc(ctx)
 	if err != nil {
 		return ctx, e(err, "")
@@ -196,6 +201,11 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 		whenNewBlockSavedInConsensusStatef = WhenNewBlockSavedInConsensusStateFunc(params, ballotbox, db, nodeinfo)
 	}
 
+	onEmptyMembersf, err := onEmptyMembersStateHandlerFunc(ctx, states)
+	if err != nil {
+		return ctx, e(err, "")
+	}
+
 	newsyncerf, err := newSyncerFunc(ctx, params, db, lvps, whenNewBlockSavedInSyncingStatef)
 	if err != nil {
 		return ctx, e(err, "")
@@ -218,6 +228,20 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 		ballotbox.Count(params.Threshold())
 	})
 
+	consensusHandler := isaacstates.NewNewConsensusHandlerType(
+		local, params, proposalSelector,
+		getManifestf, nodeInConsensusNodesf, voteFunc, whenNewBlockSavedInConsensusStatef,
+		pps,
+	)
+
+	consensusHandler.SetOnEmptyMembers(onEmptyMembersf)
+
+	joiningHandler := isaacstates.NewNewJoiningHandlerType(
+		local, params, proposalSelector, getLastManifestf, nodeInConsensusNodesf,
+		voteFunc, joinMemberlistForJoiningeHandlerf, leaveMemberlistForStateHandlerf,
+	)
+	joiningHandler.SetOnEmptyMembers(onEmptyMembersf)
+
 	states.
 		SetHandler(isaacstates.StateBroken, isaacstates.NewNewBrokenHandlerType(local, params)).
 		SetHandler(isaacstates.StateStopped, isaacstates.NewNewStoppedHandlerType(local, params)).
@@ -226,20 +250,8 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 			isaacstates.NewNewBootingHandlerType(local, params,
 				getLastManifestf, nodeInConsensusNodesf),
 		).
-		SetHandler(
-			isaacstates.StateJoining,
-			isaacstates.NewNewJoiningHandlerType(
-				local, params, proposalSelector, getLastManifestf, nodeInConsensusNodesf,
-				voteFunc, joinMemberlistForStateHandlerf, leaveMemberlistForStateHandlerf,
-			),
-		).
-		SetHandler(
-			isaacstates.StateConsensus,
-			isaacstates.NewNewConsensusHandlerType(
-				local, params, proposalSelector,
-				getManifestf, nodeInConsensusNodesf, voteFunc, whenNewBlockSavedInConsensusStatef,
-				pps,
-			)).
+		SetHandler(isaacstates.StateJoining, joiningHandler).
+		SetHandler(isaacstates.StateConsensus, consensusHandler).
 		SetHandler(isaacstates.StateSyncing, syncinghandler)
 
 	_ = states.SetLogging(log)
@@ -661,46 +673,45 @@ func joinMemberlistForStateHandlerFunc(pctx context.Context) (
 	func(context.Context, base.Suffrage) error,
 	error,
 ) {
-	var discoveries *util.Locked
-	var m *quicmemberlist.Memberlist
-
-	if err := ps.LoadFromContextOK(pctx,
-		DiscoveryContextKey, &discoveries,
-		MemberlistContextKey, &m,
-	); err != nil {
+	var long *LongRunningMemberlistJoin
+	if err := ps.LoadFromContextOK(pctx, LongRunningMemberlistJoinContextKey, &long); err != nil {
 		return nil, err
 	}
 
-	return func(ctx context.Context, suf base.Suffrage) error {
-		dis := GetDiscoveriesFromLocked(discoveries)
-
-		if len(dis) < 1 {
-			return nil
+	return func(ctx context.Context, _ base.Suffrage) error {
+		donech, err := long.Join()
+		if err != nil {
+			return errors.WithMessage(err, "failed to join")
 		}
 
-		if m.IsJoined() {
+		select {
+		case <-ctx.Done():
+			return errors.Wrap(ctx.Err(), "failed to join")
+		case err := <-donech:
+			if err != nil {
+				return errors.WithMessage(err, "failed to join")
+			}
+
 			return nil
 		}
+	}, nil
+}
 
-		return util.Retry(
-			ctx,
-			func() (bool, error) {
-				dis = GetDiscoveriesFromLocked(discoveries)
-				if len(dis) < 1 {
-					return false, nil
-				}
+func joinMemberlistForJoiningeHandlerFunc(pctx context.Context) (
+	func(context.Context, base.Suffrage) error,
+	error,
+) {
+	var long *LongRunningMemberlistJoin
+	if err := ps.LoadFromContextOK(pctx, LongRunningMemberlistJoinContextKey, &long); err != nil {
+		return nil, err
+	}
 
-				if err := m.EnsureJoin(dis); err != nil {
-					if !errors.Is(err, quicmemberlist.ErrNotYetJoined) {
-						return false, err
-					}
-				}
+	return func(ctx context.Context, _ base.Suffrage) error {
+		if _, err := long.Join(); err != nil {
+			return errors.WithMessage(err, "failed to join")
+		}
 
-				return !m.IsJoined(), nil // NOTE keep trying until joined to remotes
-			},
-			-1,
-			time.Second,
-		)
+		return nil
 	}, nil
 }
 
@@ -708,12 +719,19 @@ func leaveMemberlistForStateHandlerFunc(pctx context.Context) (
 	func(time.Duration) error,
 	error,
 ) {
+	var long *LongRunningMemberlistJoin
 	var m *quicmemberlist.Memberlist
-	if err := ps.LoadFromContextOK(pctx, MemberlistContextKey, &m); err != nil {
+
+	if err := ps.LoadFromContextOK(pctx,
+		MemberlistContextKey, &m,
+		LongRunningMemberlistJoinContextKey, &long,
+	); err != nil {
 		return nil, err
 	}
 
 	return func(timeout time.Duration) error {
+		_ = long.Cancel()
+
 		switch {
 		case m.MembersLen() < 1:
 			return nil
@@ -800,5 +818,37 @@ func newSyncerDeferredFunc(pctx context.Context, db isaac.Database) (
 		_ = syncer.Add(height)
 
 		l.Debug().Interface("height", height).Msg("new syncer created")
+	}, nil
+}
+
+func onEmptyMembersStateHandlerFunc(
+	pctx context.Context,
+	states *isaacstates.States,
+) (func(), error) {
+	var log *logging.Logging
+	var pps *ps.PS
+	var long *LongRunningMemberlistJoin
+
+	if err := ps.LoadFromContextOK(pctx,
+		LoggingContextKey, &log,
+		EventOnEmptyMembers, &pps,
+		LongRunningMemberlistJoinContextKey, &long,
+	); err != nil {
+		return nil, err
+	}
+
+	_ = pps.Add("in-state-handler", func(ctx context.Context) (context.Context, error) {
+		switch _, err := long.Join(); {
+		case err != nil:
+			log.Log().Error().Err(err).Msg("failed to LongRunningMemberlistJoin")
+		default:
+			log.Log().Error().Err(err).Msg("start LongRunningMemberlistJoin")
+		}
+
+		return ctx, nil
+	}, nil)
+
+	return func() {
+		states.OnEmptyMembers()
 	}, nil
 }

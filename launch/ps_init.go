@@ -3,7 +3,7 @@ package launch
 import "github.com/spikeekips/mitum/util/ps"
 
 func DefaultINITPS() *ps.PS {
-	pps := ps.NewPS()
+	pps := ps.NewPS("cmd-init")
 
 	_ = pps.
 		AddOK(PNameEncoder, PEncoder, nil).

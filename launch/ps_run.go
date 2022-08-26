@@ -3,7 +3,7 @@ package launch
 import "github.com/spikeekips/mitum/util/ps"
 
 func DefaultRunPS() *ps.PS {
-	pps := ps.NewPS()
+	pps := ps.NewPS("cmd-run")
 
 	_ = pps.
 		AddOK(PNameEncoder, PEncoder, nil).
@@ -52,7 +52,8 @@ func DefaultRunPS() *ps.PS {
 
 	_ = pps.POK(PNameMemberlist).
 		PreAddOK(PNameLastSuffrageProofWatcher, PLastSuffrageProofWatcher).
-		PostAddOK(PNamePatchLastSuffrageProofWatcherWithMemberlist, PPatchLastSuffrageProofWatcherWithMemberlist)
+		PostAddOK(PNamePatchLastSuffrageProofWatcherWithMemberlist, PPatchLastSuffrageProofWatcherWithMemberlist).
+		PostAddOK(PNameLongRunningMemberlistJoin, PLongRunningMemberlistJoin)
 
 	_ = pps.POK(PNameStates).
 		PreAddOK(PNameOperationProcessorsMap, POperationProcessorsMap).
