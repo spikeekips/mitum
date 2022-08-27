@@ -165,16 +165,14 @@ func (st *baseHandler) setStates(sts *States) {
 	}
 }
 
-func (st *baseHandler) setNewVoteproof(vp base.Voteproof) (LastVoteproofs, base.Voteproof) {
+func (st *baseHandler) setNewVoteproof(vp base.Voteproof) (LastVoteproofs, base.Voteproof, bool) {
 	lvps := st.lastVoteproofs()
 
 	if st.sts == nil && !lvps.IsNew(vp) {
-		return LastVoteproofs{}, nil
+		return LastVoteproofs{}, nil, false
 	}
 
-	_ = st.setLastVoteproof(vp)
-
-	return lvps, vp
+	return lvps, vp, st.setLastVoteproof(vp)
 }
 
 func (st *baseHandler) broadcastBallot(

@@ -154,7 +154,7 @@ func (st *SyncingHandler) exit(sctx switchContext) (func(), error) {
 func (st *SyncingHandler) newVoteproof(vp base.Voteproof) error {
 	e := util.StringErrorFunc("failed to handle new voteproof")
 
-	if _, v := st.baseHandler.setNewVoteproof(vp); v == nil {
+	if _, v, isnew := st.baseHandler.setNewVoteproof(vp); v == nil || !isnew {
 		return nil
 	}
 
@@ -329,19 +329,21 @@ func (st *SyncingHandler) waitStuck() time.Duration {
 }
 
 func (st *SyncingHandler) checkAndJoinMemberlist(height base.Height) (joined bool, _ error) {
+	l := st.Log().With().Interface("height", height).Logger()
+
 	switch suf, found, err := st.nodeInConsensusNodes(st.local, height); {
 	case err != nil:
-		st.Log().Error().Err(err).Msg("failed to get consensus nodes after syncer finished")
+		l.Error().Err(err).Msg("failed to get consensus nodes after syncer finished")
 
 		return false, err
 	case suf == nil:
 		return false, newBrokenSwitchContext(StateSyncing, errors.Errorf("empty suffrage"))
 	case !found:
 		if err := st.leaveMemberlistf(time.Second); err != nil {
-			st.Log().Error().Err(err).Msg("failed to leave memberilst; ignored")
+			l.Error().Err(err).Msg("failed to leave memberilst; ignored")
 		}
 
-		st.Log().Debug().Msg("local is not in consensus nodes after syncer finished; keep syncing")
+		l.Debug().Msg("local is not in consensus nodes after syncer finished; keep syncing")
 
 		return false, nil
 	case suf.Exists(st.local.Address()) && suf.Len() < 2: //nolint:gomnd // local is alone in suffrage node
@@ -350,13 +352,13 @@ func (st *SyncingHandler) checkAndJoinMemberlist(height base.Height) (joined boo
 		defer cancel()
 
 		if err := st.joinMemberlistf(ctx, suf); err != nil {
-			st.Log().Debug().Err(err).
+			l.Debug().Err(err).
 				Msg("local is in consensus nodes after syncer finished; but failed to join memberlist")
 
 			return false, nil
 		}
 
-		st.Log().Debug().Msg("local is in consensus nodes after syncer finished; joined memberlist")
+		l.Debug().Msg("local is in consensus nodes after syncer finished; joined memberlist")
 	}
 
 	return true, nil

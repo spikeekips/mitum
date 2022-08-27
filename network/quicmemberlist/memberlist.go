@@ -37,7 +37,6 @@ type Memberlist struct {
 	l               sync.RWMutex
 	joinedLock      sync.RWMutex
 	isJoined        bool
-	isjoining       bool
 }
 
 func NewMemberlist(
@@ -125,15 +124,6 @@ func (srv *Memberlist) Join(cis []quicstream.UDPConnInfo) error {
 		return nil
 	}
 
-	if func() bool {
-		srv.l.RLock()
-		defer srv.l.RUnlock()
-
-		return srv.isjoining
-	}() {
-		return nil
-	}
-
 	return srv.join(fcis)
 }
 
@@ -149,18 +139,8 @@ func (srv *Memberlist) join(cis []string) error {
 	e := util.StringErrorFunc("failed to join")
 
 	srv.l.Lock()
-	srv.isjoining = true
-	srv.l.Unlock()
-
-	defer func() {
-		srv.l.Lock()
-		defer srv.l.Unlock()
-
-		srv.isjoining = false
-	}()
-
-	srv.l.Lock()
 	defer srv.l.Unlock()
+
 	l := srv.Log().With().Strs("cis", cis).Logger()
 	l.Debug().Msg("trying to join")
 
@@ -181,28 +161,32 @@ func (srv *Memberlist) join(cis []string) error {
 }
 
 func (srv *Memberlist) Leave(timeout time.Duration) error {
-	srv.l.RLock()
-	defer srv.l.RUnlock()
+	err := func() error {
+		srv.l.Lock()
+		defer srv.l.Unlock()
 
-	if srv.m == nil {
+		if srv.m == nil {
+			return nil
+		}
+
+		srv.members.Clean()
+
+		if err := srv.m.Leave(timeout); err != nil {
+			srv.Log().Error().Err(err).Msg("failed to leave previous memberlist; ignored")
+		}
+
+		if err := srv.m.Shutdown(); err != nil {
+			srv.Log().Error().Err(err).Msg("failed to shutdown previous memberlist; ignored")
+		}
+
+		srv.m = nil
+
 		return nil
-	}
-
-	srv.members.Clean()
-
-	if err := srv.m.Leave(timeout); err != nil {
-		srv.Log().Error().Err(err).Msg("failed to leave previous memberlist; ignored")
-	}
+	}()
 
 	srv.whenLeft(srv.local)
 
-	if err := srv.m.Shutdown(); err != nil {
-		srv.Log().Error().Err(err).Msg("failed to shutdown previous memberlist; ignored")
-	}
-
-	srv.m = nil
-
-	return nil
+	return err
 }
 
 func (srv *Memberlist) MembersLen() int {

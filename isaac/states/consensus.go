@@ -382,8 +382,8 @@ func (st *ConsensusHandler) prepareACCEPTBallot(
 func (st *ConsensusHandler) newVoteproof(vp base.Voteproof) error {
 	var lvps LastVoteproofs
 
-	switch i, v := st.baseHandler.setNewVoteproof(vp); {
-	case v == nil:
+	switch i, v, isnew := st.baseHandler.setNewVoteproof(vp); {
+	case v == nil, !isnew:
 		return nil
 	default:
 		lvps = i

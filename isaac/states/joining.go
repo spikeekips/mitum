@@ -174,11 +174,13 @@ func (st *JoiningHandler) newVoteproof(vp base.Voteproof) error {
 	st.newvoteproofLock.Lock()
 	defer st.newvoteproofLock.Unlock()
 
+	if _, _, isnew := st.baseHandler.setNewVoteproof(vp); !isnew {
+		return nil
+	}
+
 	e := util.StringErrorFunc("failed to handle new voteproof")
 
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(vp)).Logger()
-
-	_, _ = st.baseHandler.setNewVoteproof(vp)
 
 	var manifest base.Manifest
 

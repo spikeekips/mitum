@@ -181,6 +181,11 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 		return ctx, e(err, "")
 	}
 
+	leaveMemberlistForSyncingHandlerf, err := leaveMemberlistForSyncingHandlerFunc(ctx)
+	if err != nil {
+		return ctx, e(err, "")
+	}
+
 	var whenNewBlockSavedInSyncingStatef func(base.Height)
 
 	switch err = ps.LoadFromContext(
@@ -221,7 +226,7 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 	syncinghandler := isaacstates.NewNewSyncingHandlerType(
 		local, params, proposalSelector, newsyncerf, nodeInConsensusNodesf,
 		joinMemberlistForStateHandlerf,
-		leaveMemberlistForStateHandlerf,
+		leaveMemberlistForSyncingHandlerf,
 		whenNewBlockSavedInSyncingStatef,
 	)
 	syncinghandler.SetWhenFinished(func(base.Height) {
@@ -738,6 +743,22 @@ func leaveMemberlistForStateHandlerFunc(pctx context.Context) (
 		default:
 			return m.Leave(timeout)
 		}
+	}, nil
+}
+
+func leaveMemberlistForSyncingHandlerFunc(pctx context.Context) (
+	func(time.Duration) error,
+	error,
+) {
+	var long *LongRunningMemberlistJoin
+	if err := ps.LoadFromContextOK(pctx, LongRunningMemberlistJoinContextKey, &long); err != nil {
+		return nil, err
+	}
+
+	return func(timeout time.Duration) error {
+		_ = long.Cancel()
+
+		return nil
 	}, nil
 }
 
