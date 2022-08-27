@@ -49,10 +49,6 @@ func (db *baseDatabase) readEncoder(b []byte) (encoder.Encoder, []byte, error) {
 }
 
 func (db *baseDatabase) readHinter(b []byte, v interface{}) error {
-	if b == nil {
-		return nil
-	}
-
 	switch enc, raw, err := db.readEncoder(b); {
 	case err != nil:
 		return err

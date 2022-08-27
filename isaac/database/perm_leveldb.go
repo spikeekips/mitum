@@ -101,6 +101,8 @@ func (db *LeveldbPermanent) SuffrageProof(suffrageHeight base.Height) (base.Suff
 		return nil, false, e(err, "")
 	case !found:
 		return nil, false, nil
+	case len(b) < 1:
+		return nil, false, nil
 	default:
 		var proof base.SuffrageProof
 
@@ -164,6 +166,8 @@ func (db *LeveldbPermanent) BlockMap(height base.Height) (m base.BlockMap, found
 	case err != nil:
 		return nil, false, e(err, "")
 	case !found:
+		return nil, false, nil
+	case len(b) < 1:
 		return nil, false, nil
 	default:
 		if err := db.readHinter(b, &m); err != nil {

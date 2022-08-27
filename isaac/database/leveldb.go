@@ -108,6 +108,8 @@ func (db *baseLeveldb) state(key string) (st base.State, found bool, _ error) {
 		return nil, false, e(err, "")
 	case !found:
 		return nil, false, nil
+	case len(b) < 1:
+		return nil, false, nil
 	default:
 		if err := db.readHinter(b, &st); err != nil {
 			return nil, false, e(err, "")
@@ -144,6 +146,8 @@ func (db *baseLeveldb) loadNetworkPolicy() (base.NetworkPolicy, bool, error) {
 	case err != nil:
 		return nil, false, e(err, "")
 	case !found:
+		return nil, false, nil
+	case len(b) < 1:
 		return nil, false, nil
 	}
 

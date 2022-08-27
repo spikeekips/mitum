@@ -124,6 +124,8 @@ func (db *RedisPermanent) SuffrageProof(suffrageHeight base.Height) (base.Suffra
 		return nil, false, err
 	case !found:
 		return nil, false, nil
+	case len(b) < 1:
+		return nil, false, nil
 	default:
 		var proof base.SuffrageProof
 
@@ -177,6 +179,8 @@ func (db *RedisPermanent) SuffrageProofByBlockHeight(height base.Height) (base.S
 		return nil, false, err
 	case !found:
 		return nil, false, nil
+	case len(b) < 1:
+		return nil, false, nil
 	default:
 		var proof base.SuffrageProof
 
@@ -195,6 +199,8 @@ func (db *RedisPermanent) State(key string) (st base.State, found bool, _ error)
 	case err != nil:
 		return nil, false, e(err, "")
 	case !found:
+		return nil, false, nil
+	case len(b) < 1:
 		return nil, false, nil
 	default:
 		if err := db.readHinter(b, &st); err != nil {
@@ -243,6 +249,8 @@ func (db *RedisPermanent) BlockMap(height base.Height) (m base.BlockMap, found b
 	case err != nil:
 		return nil, false, e(err, "")
 	case !found:
+		return nil, false, nil
+	case len(b) < 1:
 		return nil, false, nil
 	default:
 		if err := db.readHinter(b, &m); err != nil {

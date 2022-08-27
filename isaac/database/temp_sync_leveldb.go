@@ -41,6 +41,8 @@ func (db *LeveldbTempSyncPool) BlockMap(height base.Height) (m base.BlockMap, fo
 		return nil, false, err
 	case !found:
 		return nil, false, nil
+	case len(b) < 1:
+		return nil, false, nil
 	default:
 		if err := db.readHinter(b, &m); err != nil {
 			return nil, false, err
