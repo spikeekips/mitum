@@ -171,12 +171,16 @@ func (st *JoiningHandler) exit(sctx switchContext) (func(), error) {
 }
 
 func (st *JoiningHandler) newVoteproof(vp base.Voteproof) error {
-	st.newvoteproofLock.Lock()
-	defer st.newvoteproofLock.Unlock()
-
 	if _, _, isnew := st.baseHandler.setNewVoteproof(vp); !isnew {
 		return nil
 	}
+
+	return st.handleNewVoteproof(vp)
+}
+
+func (st *JoiningHandler) handleNewVoteproof(vp base.Voteproof) error {
+	st.newvoteproofLock.Lock()
+	defer st.newvoteproofLock.Unlock()
 
 	e := util.StringErrorFunc("failed to handle new voteproof")
 
@@ -308,7 +312,7 @@ func (st *JoiningHandler) firstVoteproof(lvp base.Voteproof, manifest base.Manif
 
 	var dsctx switchContext
 
-	switch err := st.newVoteproof(lvp); {
+	switch err := st.handleNewVoteproof(lvp); {
 	case err == nil:
 	case !errors.As(err, &dsctx):
 		st.Log().Error().Err(err).Dict("voteproof", base.VoteproofLog(lvp)).
