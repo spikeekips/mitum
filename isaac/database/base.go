@@ -33,8 +33,6 @@ func (db *baseDatabase) marshal(i interface{}) ([]byte, error) {
 }
 
 func (db *baseDatabase) readEncoder(b []byte) (encoder.Encoder, []byte, error) {
-	var ht hint.Hint
-
 	ht, raw, err := db.readHint(b)
 	if err != nil {
 		return nil, nil, err
@@ -61,14 +59,14 @@ func (db *baseDatabase) readHinter(b []byte, v interface{}) error {
 	}
 }
 
-func (*baseDatabase) readHint(b []byte) (hint.Hint, []byte, error) {
+func (*baseDatabase) readHint(b []byte) (ht hint.Hint, raw []byte, err error) {
 	if len(b) < hint.MaxHintLength {
-		return hint.Hint{}, nil, errors.Errorf("none hinted string; too short")
+		return ht, nil, errors.Errorf("none hinted string; too short")
 	}
 
-	ht, err := hint.ParseHint(string(b[:hint.MaxHintLength]))
+	ht, err = hint.ParseHint(string(b[:hint.MaxHintLength]))
 	if err != nil {
-		return hint.Hint{}, nil, err
+		return ht, nil, err
 	}
 
 	return ht, b[hint.MaxHintLength:], nil

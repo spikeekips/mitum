@@ -188,21 +188,21 @@ func LoadRawItemsWithWorker(
 	return worker.Wait()
 }
 
-func LoadTreeHint(br *bufio.Reader) (hint.Hint, error) {
+func LoadTreeHint(br *bufio.Reader) (ht hint.Hint, _ error) {
 end:
 	for {
 		s, err := br.ReadString('\n')
 
 		switch {
 		case err != nil:
-			return hint.Hint{}, errors.WithStack(err)
+			return ht, errors.WithStack(err)
 		case len(s) < 1:
 			continue end
 		}
 
-		ht, err := hint.ParseHint(s)
+		ht, err = hint.ParseHint(s)
 		if err != nil {
-			return hint.Hint{}, errors.Wrap(err, "failed to load tree hint")
+			return ht, errors.Wrap(err, "failed to load tree hint")
 		}
 
 		return ht, nil

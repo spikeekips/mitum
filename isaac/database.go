@@ -5,7 +5,6 @@ import (
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/hint"
 )
 
 // Database serves BlockMapItem like blockmap, states and operations from
@@ -110,21 +109,4 @@ type TempSyncPool interface {
 	SetBlockMap(base.BlockMap) error
 	Cancel() error
 	Close() error
-}
-
-type BytesRecord struct {
-	b   []byte
-	enc hint.Hint
-}
-
-func NewBytesRecord(enc hint.Hint, b []byte) BytesRecord {
-	return BytesRecord{enc: enc, b: b}
-}
-
-func (r BytesRecord) Encoder() hint.Hint {
-	return r.enc
-}
-
-func (r BytesRecord) Bytes() []byte {
-	return r.b
 }
