@@ -76,11 +76,13 @@ func (l *Locked) Set(f func(bool, interface{}) (interface{}, error)) (interface{
 	defer l.Unlock()
 
 	i := l.value
-	if IsNilLockedValue(l.value) {
+
+	isnil := IsNilLockedValue(l.value)
+	if isnil {
 		i = nil
 	}
 
-	switch j, err := f(IsNilLockedValue(l.value), i); {
+	switch j, err := f(isnil, i); {
 	case err == nil:
 		l.value = j
 
@@ -182,8 +184,9 @@ func (l *LockedMap) RemoveValue(k interface{}) bool {
 	defer l.Unlock()
 
 	_, found := l.m[k]
-
-	delete(l.m, k)
+	if found {
+		delete(l.m, k)
+	}
 
 	return found
 }
@@ -231,12 +234,6 @@ func (l *LockedMap) Empty() {
 	defer l.Unlock()
 
 	l.m = map[interface{}]interface{}{}
-}
-
-func IsNilLockedValue(i interface{}) bool { // FIXME unexport
-	_, ok := i.(NilLockedValue)
-
-	return ok
 }
 
 type ShardedMap struct {
@@ -399,4 +396,10 @@ func (l *ShardedMap) fnv(k string) int64 {
 	}
 
 	return int64(h) % int64(len(l.sharded))
+}
+
+func IsNilLockedValue(i interface{}) bool { // FIXME unexport
+	_, ok := i.(NilLockedValue)
+
+	return ok
 }

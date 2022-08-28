@@ -90,7 +90,7 @@ func (p *PoolClient) Client(addr *net.UDPAddr) (*Client, bool) {
 	switch i, found := p.clients.Value(addr.String()); {
 	case !found:
 		return nil, false
-	case i == nil, util.IsNilLockedValue(i):
+	case i == nil:
 		return nil, false
 	default:
 		return i.(*Client), true //nolint:forcetypeassert //...

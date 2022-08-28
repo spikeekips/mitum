@@ -24,12 +24,10 @@ func (m BlockMap) MarshalJSON() ([]byte, error) {
 	items := map[base.BlockMapItemType]base.BlockMapItem{}
 
 	m.m.Traverse(func(_, v interface{}) bool {
-		if util.IsNilLockedValue(v) {
-			return true
+		if v != nil {
+			i := v.(BlockMapItem) //nolint:forcetypeassert //...
+			items[i.Type()] = i
 		}
-
-		i := v.(BlockMapItem) //nolint:forcetypeassert //...
-		items[i.Type()] = i
 
 		return true
 	})

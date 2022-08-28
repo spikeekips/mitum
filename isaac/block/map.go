@@ -62,15 +62,10 @@ func (m BlockMap) IsValid(b []byte) error {
 	vs := make([]util.IsValider, m.m.Len())
 	var i int
 	m.m.Traverse(func(_, v interface{}) bool {
-		switch {
-		case v == nil:
-			return true
-		case util.IsNilLockedValue(v):
-			return true
+		if v != nil {
+			vs[i] = v.(BlockMapItem) //nolint:forcetypeassert //...
+			i++
 		}
-
-		vs[i] = v.(BlockMapItem) //nolint:forcetypeassert //...
-		i++
 
 		return true
 	})
@@ -108,8 +103,6 @@ func (m BlockMap) Item(t base.BlockMapItemType) (base.BlockMapItem, bool) {
 		return nil, false
 	case i == nil:
 		return nil, false
-	case util.IsNilLockedValue(i):
-		return nil, false
 	default:
 		return i.(BlockMapItem), true //nolint:forcetypeassert //...
 	}
@@ -129,10 +122,7 @@ func (m *BlockMap) SetItem(item base.BlockMapItem) error {
 
 func (m BlockMap) Items(f func(base.BlockMapItem) bool) {
 	m.m.Traverse(func(_, v interface{}) bool {
-		switch {
-		case v == nil:
-			return true
-		case util.IsNilLockedValue(v):
+		if v == nil {
 			return true
 		}
 
@@ -157,8 +147,6 @@ func (m BlockMap) checkItems() error {
 		case !found:
 			return false
 		case i == nil:
-			return false
-		case util.IsNilLockedValue(i):
 			return false
 		default:
 			return true
@@ -197,17 +185,12 @@ func (m BlockMap) signedBytes() []byte {
 
 	var i int
 	m.m.Traverse(func(_, v interface{}) bool {
-		switch {
-		case v == nil:
-			return true
-		case util.IsNilLockedValue(v):
-			return true
+		if v != nil {
+			// NOTE only checksum and num will be included in signature
+			item := v.(BlockMapItem) //nolint:forcetypeassert //...
+			ts[i] = util.ConcatBytesSlice([]byte(item.Checksum()), util.Uint64ToBytes(item.Num()))
+			i++
 		}
-
-		// NOTE only checksum and num will be included in signature
-		item := v.(BlockMapItem) //nolint:forcetypeassert //...
-		ts[i] = util.ConcatBytesSlice([]byte(item.Checksum()), util.Uint64ToBytes(item.Num()))
-		i++
 
 		return true
 	})

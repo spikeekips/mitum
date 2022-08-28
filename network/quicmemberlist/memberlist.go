@@ -477,8 +477,6 @@ func (m *membersPool) Get(k *net.UDPAddr) (Node, bool) {
 	switch i, found := m.addrs.Value(nodeid(k)); {
 	case !found:
 		return nil, false
-	case util.IsNilLockedValue(i):
-		return nil, false
 	case i == nil:
 		return nil, true
 	default:
@@ -489,8 +487,6 @@ func (m *membersPool) Get(k *net.UDPAddr) (Node, bool) {
 func (m *membersPool) NodesLen(node base.Address) int {
 	switch i, found := m.nodes.Value(node.String()); {
 	case !found:
-		return 0
-	case util.IsNilLockedValue(i):
 		return 0
 	case i == nil:
 		return 0
@@ -508,7 +504,6 @@ func (m *membersPool) Set(node Node) bool {
 
 		switch i, f := m.nodes.Value(node.Address().String()); {
 		case !f:
-		case util.IsNilLockedValue(i):
 		case i == nil:
 		default:
 			nodes = i.([]Node) //nolint:forcetypeassert // ...

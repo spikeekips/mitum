@@ -913,11 +913,7 @@ func (t *testMemberlist) TestJoinWithDeadNode() {
 
 func TestMemberlist(t *testing.T) {
 	defer goleak.VerifyNone(t,
-		goleak.IgnoreTopFunction("internal/poll.runtime_pollWait"),
-		goleak.IgnoreTopFunction("sync.runtime_SemacquireMutex"),
-		goleak.IgnoreTopFunction("github.com/hashicorp/memberlist.(*Memberlist).probeNode"),
-		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/network/quicmemberlist.(*Transport).receivePacket"),
-		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/network/quicmemberlist.(*Transport).receivePacket.func1"),
+		goleak.IgnoreCurrent(),
 	)
 
 	suite.Run(t, new(testMemberlist))
