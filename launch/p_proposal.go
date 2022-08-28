@@ -166,8 +166,8 @@ func getProposalFunc(pctx context.Context) (
 
 		err := worker.Wait()
 
-		switch i, isnil := prl.Value(); {
-		case isnil:
+		switch i, _ := prl.Value(); {
+		case i == nil:
 			if err != nil {
 				return nil, err
 			}
@@ -350,8 +350,8 @@ func getProposalOperationFromRemoteFunc(pctx context.Context) ( //nolint:gocogni
 
 		err := worker.Wait()
 
-		i, isnil := result.Value()
-		if isnil {
+		i, _ := result.Value()
+		if i == nil {
 			return nil, false, err
 		}
 

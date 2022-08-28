@@ -174,8 +174,8 @@ func PNodeInConsensusNodesFunc(ctx context.Context) (context.Context, error) {
 				return nil, err
 			}
 
-			switch j, isnil := prevcandidateslocked.Value(); {
-			case isnil, j == nil:
+			switch j, _ := prevcandidateslocked.Value(); {
+			case j == nil:
 			default:
 				j := i.([2]interface{}) //nolint:forcetypeassert //...
 
@@ -304,7 +304,7 @@ func GetLastSuffrageProofFunc(ctx context.Context) (isaac.GetLastSuffrageProofFr
 	f := func(ctx context.Context, ci quicstream.UDPConnInfo) (base.SuffrageProof, bool, error) {
 		var last util.Hash
 
-		if i, isnil := lastl.Value(); !isnil {
+		if i, _ := lastl.Value(); i != nil {
 			last = i.(util.Hash) //nolint:forcetypeassert //...
 		}
 
@@ -376,8 +376,8 @@ func GetLastSuffrageProofFunc(ctx context.Context) (isaac.GetLastSuffrageProofFr
 			return nil, false, err
 		}
 
-		switch v, isnil := ml.Value(); {
-		case isnil:
+		switch v, _ := ml.Value(); {
+		case v == nil:
 			return nil, false, nil
 		default:
 			return v.(base.SuffrageProof), true, nil //nolint:forcetypeassert //...
@@ -448,8 +448,8 @@ func GetSuffrageProofFunc(ctx context.Context) ( //revive:disable-line:cognitive
 					},
 				)
 
-				v, isnil := result.Value()
-				if isnil {
+				v, _ := result.Value()
+				if v == nil {
 					return true, nil
 				}
 
@@ -483,7 +483,7 @@ func GetLastSuffrageCandidateFunc(ctx context.Context) (isaac.GetLastSuffrageCan
 	f := func(ctx context.Context, ci quicstream.UDPConnInfo) (base.State, bool, error) {
 		var last util.Hash
 
-		if i, isnil := lastl.Value(); !isnil {
+		if i, _ := lastl.Value(); i != nil {
 			last = i.(util.Hash) //nolint:forcetypeassert //...
 		}
 
@@ -544,8 +544,8 @@ func GetLastSuffrageCandidateFunc(ctx context.Context) (isaac.GetLastSuffrageCan
 			return nil, false, err
 		}
 
-		switch v, isnil := ml.Value(); {
-		case isnil, v == nil:
+		switch v, _ := ml.Value(); {
+		case v == nil:
 			return nil, false, nil
 		default:
 			return v.(base.State), true, nil //nolint:forcetypeassert //...

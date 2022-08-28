@@ -24,13 +24,6 @@ func NewLocked(i interface{}) *Locked {
 	return &Locked{value: i}
 }
 
-func (l *Locked) RawValue() (v interface{}) {
-	l.RLock()
-	defer l.RUnlock()
-
-	return l.value
-}
-
 func (l *Locked) Value() (v interface{}, isnil bool) {
 	l.RLock()
 	defer l.RUnlock()

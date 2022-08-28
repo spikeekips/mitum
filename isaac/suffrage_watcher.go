@@ -91,8 +91,8 @@ func (u *LastConsensusNodesWatcher) SetWhenUpdated(
 }
 
 func (u *LastConsensusNodesWatcher) lastValue() (base.SuffrageProof, base.State) {
-	i, isnil := u.last.Value()
-	if isnil || i == nil {
+	i, _ := u.last.Value()
+	if i == nil {
 		return nil, nil
 	}
 

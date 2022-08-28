@@ -459,8 +459,8 @@ func (c *SyncSourceChecker) fetchNodeConnInfos(
 }
 
 func (c *SyncSourceChecker) Sources() []SyncSource {
-	switch i, isnil := c.sourceslocked.Value(); {
-	case isnil, i == nil:
+	switch i, _ := c.sourceslocked.Value(); {
+	case i == nil:
 		return nil
 	default:
 		return i.([]SyncSource) //nolint:forcetypeassert //...

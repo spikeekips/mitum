@@ -468,8 +468,8 @@ func syncerLastBlockMapFunc(
 			return nil, false, err
 		}
 
-		switch v, isnil := ml.Value(); {
-		case isnil:
+		switch v, _ := ml.Value(); {
+		case v == nil:
 			return nil, false, nil
 		default:
 			return v.(base.BlockMap), true, nil //nolint:forcetypeassert //...
@@ -539,8 +539,8 @@ func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
 					},
 				)
 
-				v, isnil := result.Value()
-				if isnil {
+				v, _ := result.Value()
+				if v == nil {
 					return true, nil
 				}
 
@@ -620,8 +620,8 @@ func syncerBlockMapItemFunc(
 					},
 				)
 
-				v, isnil := result.Value()
-				if isnil {
+				v, _ := result.Value()
+				if v == nil {
 					return true, nil
 				}
 

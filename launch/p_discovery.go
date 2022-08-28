@@ -45,8 +45,8 @@ func PDiscoveryFlag(ctx context.Context) (context.Context, error) {
 }
 
 func GetDiscoveriesFromLocked(l *util.Locked) []quicstream.UDPConnInfo {
-	switch i, isnil := l.Value(); {
-	case isnil, i == nil:
+	switch i, _ := l.Value(); {
+	case i == nil:
 		return nil
 	default:
 		return i.([]quicstream.UDPConnInfo) //nolint:forcetypeassert //...

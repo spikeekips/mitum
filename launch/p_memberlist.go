@@ -495,8 +495,8 @@ func (l *LongRunningMemberlistJoin) Join() (<-chan error, error) {
 
 	_, _ = l.cancelrunning.Set(func(i interface{}) (interface{}, error) {
 		if i != nil {
-			switch c, isnil := l.donech.Value(); {
-			case isnil, c == nil:
+			switch c, _ := l.donech.Value(); {
+			case c == nil:
 				i.(context.CancelFunc)() //nolint:forcetypeassert //...
 			default:
 				donech = c.(chan struct{}) //nolint:forcetypeassert //...
@@ -507,8 +507,8 @@ func (l *LongRunningMemberlistJoin) Join() (<-chan error, error) {
 
 		_ = l.doneerr.SetValue(nil)
 
-		switch i, isnil := l.donech.Value(); {
-		case isnil, i == nil:
+		switch i, _ := l.donech.Value(); {
+		case i == nil:
 			donech = make(chan struct{})
 
 			_ = l.donech.SetValue(donech)
@@ -536,8 +536,8 @@ func (l *LongRunningMemberlistJoin) Join() (<-chan error, error) {
 
 			_ = l.doneerr.SetValue(err)
 
-			switch j, isnil := l.donech.Value(); {
-			case isnil, j == nil:
+			switch j, _ := l.donech.Value(); {
+			case j == nil:
 			default:
 				close(donech)
 				_ = l.donech.SetValue(nil)
@@ -554,8 +554,8 @@ func (l *LongRunningMemberlistJoin) Join() (<-chan error, error) {
 
 		<-donech
 
-		switch i, isnil := l.doneerr.Value(); {
-		case isnil, i == nil:
+		switch i, _ := l.doneerr.Value(); {
+		case i == nil:
 			ch <- nil
 		default:
 			ch <- i.(error) //nolint:forcetypeassert //...
