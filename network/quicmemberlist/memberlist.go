@@ -169,7 +169,7 @@ func (srv *Memberlist) Leave(timeout time.Duration) error {
 			return nil
 		}
 
-		srv.members.Clean()
+		srv.members.Empty()
 
 		if err := srv.m.Leave(timeout); err != nil {
 			srv.Log().Error().Err(err).Msg("failed to leave previous memberlist; ignored")
@@ -464,9 +464,9 @@ func newMembersPool() *membersPool {
 	}
 }
 
-func (m *membersPool) Clean() {
-	m.addrs.Clean()
-	m.nodes.Clean()
+func (m *membersPool) Empty() {
+	m.addrs.Empty()
+	m.nodes.Empty()
 }
 
 func (m *membersPool) Exists(k *net.UDPAddr) bool {

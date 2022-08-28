@@ -222,7 +222,7 @@ func (l *LockedMap) Len() int {
 	return len(l.m)
 }
 
-func (l *LockedMap) Clean() {
+func (l *LockedMap) Empty() {
 	l.Lock()
 	defer l.Unlock()
 
@@ -265,9 +265,9 @@ func (l *ShardedMap) Close() {
 	atomic.StoreInt64(&l.length, 0)
 }
 
-func (l *ShardedMap) Clean() {
+func (l *ShardedMap) Empty() {
 	for i := range l.sharded {
-		l.sharded[i].Clean()
+		l.sharded[i].Empty()
 	}
 
 	atomic.StoreInt64(&l.length, 0)
