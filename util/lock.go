@@ -28,7 +28,7 @@ func (l *Locked) Value() (v interface{}, isnil bool) {
 	l.RLock()
 	defer l.RUnlock()
 
-	if IsNilLockedValue(l.value) {
+	if isNilLockedValue(l.value) {
 		return nil, true
 	}
 
@@ -48,7 +48,7 @@ func (l *Locked) Get(create func() (interface{}, error)) (interface{}, error) {
 	l.Lock()
 	defer l.Unlock()
 
-	if !IsNilLockedValue(l.value) {
+	if !isNilLockedValue(l.value) {
 		return l.value, nil
 	}
 
@@ -77,7 +77,7 @@ func (l *Locked) Set(f func(bool, interface{}) (interface{}, error)) (interface{
 
 	i := l.value
 
-	isnil := IsNilLockedValue(l.value)
+	isnil := isNilLockedValue(l.value)
 	if isnil {
 		i = nil
 	}
@@ -293,16 +293,12 @@ func (l *ShardedMap) Value(k string) (interface{}, bool) {
 }
 
 func (l *ShardedMap) SetValue(k string, v interface{}) bool {
-	i := l.fnv(k)
-	if i < 0 {
-		return false
-	}
+	var found bool
+	_, _ = l.Set(k, func(i bool, _ interface{}) (interface{}, error) {
+		found = i
 
-	found := l.sharded[i].SetValue(k, v)
-
-	if !found {
-		atomic.AddInt64(&l.length, 1)
-	}
+		return v, nil
+	})
 
 	return found
 }
@@ -398,7 +394,7 @@ func (l *ShardedMap) fnv(k string) int64 {
 	return int64(h) % int64(len(l.sharded))
 }
 
-func IsNilLockedValue(i interface{}) bool { // FIXME unexport
+func isNilLockedValue(i interface{}) bool { // FIXME unexport
 	_, ok := i.(NilLockedValue)
 
 	return ok
