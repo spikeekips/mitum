@@ -176,11 +176,13 @@ func (t *testShardedMap) TestRemove() {
 
 		k := UUID().String()
 
-		t.NoError(m.Remove(k, func(i interface{}) error {
+		removed, err := m.Remove(k, func(i interface{}) error {
 			t.True(IsNilLockedValue(i))
 
 			return nil
-		}))
+		})
+		t.NoError(err)
+		t.False(removed)
 
 		t.Equal(0, m.Len())
 		t.False(m.Exists(k))
@@ -196,12 +198,14 @@ func (t *testShardedMap) TestRemove() {
 		t.True(m.Exists(k))
 		t.Equal(1, m.Len())
 
-		t.NoError(m.Remove(k, func(i interface{}) error {
+		removed, err := m.Remove(k, func(i interface{}) error {
 			t.False(IsNilLockedValue(i))
 			t.Equal(v, i)
 
 			return nil
-		}))
+		})
+		t.NoError(err)
+		t.True(removed)
 
 		t.False(m.Exists(k))
 	})

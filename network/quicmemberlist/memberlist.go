@@ -358,11 +358,11 @@ func (srv *Memberlist) whenJoined(node Node) {
 }
 
 func (srv *Memberlist) whenLeft(node Node) {
-	func() {
+	if func() bool {
 		srv.joinedLock.Lock()
 		defer srv.joinedLock.Unlock()
 
-		_ = srv.members.Remove(node.UDPAddr())
+		removed, _ := srv.members.Remove(node.UDPAddr())
 
 		switch {
 		case srv.isJoined:
@@ -373,9 +373,11 @@ func (srv *Memberlist) whenLeft(node Node) {
 		}
 
 		srv.Log().Debug().Bool("is_joined", srv.isJoined).Interface("node", node).Msg("node left")
-	}()
 
-	srv.whenLeftf(node)
+		return removed
+	}() {
+		srv.whenLeftf(node)
+	}
 }
 
 func (srv *Memberlist) SetWhenLeftFunc(f func(Node)) {
@@ -521,19 +523,12 @@ func (m *membersPool) Set(node Node) bool {
 	return found
 }
 
-func (m *membersPool) Remove(k *net.UDPAddr) error {
-	_ = m.addrs.Remove(nodeid(k), func(i interface{}) error {
-		switch {
-		case i == nil:
-		case util.IsNilLockedValue(i):
-		default:
-			_ = m.nodes.Remove(i.(Node).Address().String(), nil) //nolint:forcetypeassert // ...
-		}
+func (m *membersPool) Remove(k *net.UDPAddr) (bool, error) {
+	return m.addrs.Remove(nodeid(k), func(i interface{}) error {
+		_, _ = m.nodes.Remove(i.(Node).Address().String(), nil) //nolint:forcetypeassert // ...
 
 		return nil
 	})
-
-	return nil
 }
 
 func (m *membersPool) Len() int {

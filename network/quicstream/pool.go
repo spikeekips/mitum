@@ -211,7 +211,7 @@ func (p *PoolClient) Clean(cleanDuration time.Duration) int {
 	}
 
 	for i := range removeds[:n] {
-		_ = p.clients.Remove(removeds[i], nil)
+		_, _ = p.clients.Remove(removeds[i], nil)
 	}
 
 	return n
@@ -237,7 +237,7 @@ func (p *PoolClient) onerror(addr *net.UDPAddr, c *Client, err error) {
 		return
 	}
 
-	_ = p.clients.Remove(addr.String(), nil)
+	_, _ = p.clients.Remove(addr.String(), nil)
 
 	if p.onerrorf != nil {
 		p.onerrorf(addr, c, err)

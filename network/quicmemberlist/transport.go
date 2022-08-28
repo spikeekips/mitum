@@ -309,7 +309,7 @@ func (t *Transport) newConn(raddr *net.UDPAddr) *qconn {
 			return n, err
 		},
 		func() {
-			_ = t.conns.Remove(raddr.String(), nil)
+			_, _ = t.conns.Remove(raddr.String(), nil)
 		},
 	)
 
