@@ -48,7 +48,7 @@ func (db *basePermanent) LastNetworkPolicy() base.NetworkPolicy {
 }
 
 func (db *basePermanent) Clean() error {
-	_, _ = db.mp.Set(func(interface{}) (interface{}, error) {
+	_, _ = db.mp.Set(func(bool, interface{}) (interface{}, error) {
 		db.policy.SetValue(util.NilLockedValue{})
 		db.proof.SetValue(util.NilLockedValue{})
 
@@ -61,7 +61,7 @@ func (db *basePermanent) Clean() error {
 func (db *basePermanent) updateLast(
 	mp base.BlockMap, proof base.SuffrageProof, policy base.NetworkPolicy,
 ) (updated bool) {
-	_, err := db.mp.Set(func(i interface{}) (interface{}, error) {
+	_, err := db.mp.Set(func(_ bool, i interface{}) (interface{}, error) {
 		if i != nil {
 			old := i.(base.BlockMap) //nolint:forcetypeassert //...
 

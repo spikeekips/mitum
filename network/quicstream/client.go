@@ -61,7 +61,7 @@ func NewClient(
 }
 
 func (c *Client) Close() error {
-	_, err := c.session.Set(func(i interface{}) (interface{}, error) {
+	_, err := c.session.Set(func(_ bool, i interface{}) (interface{}, error) {
 		if i == nil {
 			return nil, nil
 		}

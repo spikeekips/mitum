@@ -154,7 +154,7 @@ func PNodeInConsensusNodesFunc(ctx context.Context) (context.Context, error) {
 		var lastcandidates []base.SuffrageCandidateStateValue
 		var cerr error
 
-		_, _ = lastcandidateslocked.Set(func(i interface{}) (interface{}, error) {
+		_, _ = lastcandidateslocked.Set(func(_ bool, i interface{}) (interface{}, error) {
 			var lastheight base.Height
 			var last []base.SuffrageCandidateStateValue
 			var prev []base.SuffrageCandidateStateValue
@@ -354,7 +354,7 @@ func GetLastSuffrageProofFunc(ctx context.Context) (isaac.GetLastSuffrageProofFr
 					return nil
 				}
 
-				_, err = ml.Set(func(v interface{}) (interface{}, error) {
+				_, err = ml.Set(func(_ bool, v interface{}) (interface{}, error) {
 					switch {
 					case v == nil,
 						proof.Map().Manifest().Height() >
@@ -435,7 +435,7 @@ func GetSuffrageProofFunc(ctx context.Context) ( //revive:disable-line:cognitive
 								return nil
 							}
 
-							_, _ = result.Set(func(i interface{}) (interface{}, error) {
+							_, _ = result.Set(func(_ bool, i interface{}) (interface{}, error) {
 								if i != nil {
 									return nil, errors.Errorf("already set")
 								}
@@ -529,7 +529,7 @@ func GetLastSuffrageCandidateFunc(ctx context.Context) (isaac.GetLastSuffrageCan
 					return err
 				}
 
-				_, err = ml.Set(func(v interface{}) (interface{}, error) {
+				_, err = ml.Set(func(_ bool, v interface{}) (interface{}, error) {
 					switch {
 					case v == nil, st.Height() > v.(base.State).Height(): //nolint:forcetypeassert //...
 						return st, nil

@@ -233,7 +233,7 @@ func (db *Center) State(key string) (base.State, bool, error) {
 		case err != nil:
 			return false, err
 		case found:
-			_, _ = l.Set(func(old interface{}) (interface{}, error) {
+			_, _ = l.Set(func(_ bool, old interface{}) (interface{}, error) {
 				switch {
 				case old == nil:
 					return st, nil

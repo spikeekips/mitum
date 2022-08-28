@@ -493,7 +493,7 @@ func NewLongRunningMemberlistJoin(
 func (l *LongRunningMemberlistJoin) Join() (<-chan error, error) {
 	var donech chan struct{}
 
-	_, _ = l.cancelrunning.Set(func(i interface{}) (interface{}, error) {
+	_, _ = l.cancelrunning.Set(func(_ bool, i interface{}) (interface{}, error) {
 		if i != nil {
 			switch c, _ := l.donech.Value(); {
 			case c == nil:
@@ -566,7 +566,7 @@ func (l *LongRunningMemberlistJoin) Join() (<-chan error, error) {
 }
 
 func (l *LongRunningMemberlistJoin) Cancel() bool {
-	_, _ = l.cancelrunning.Set(func(i interface{}) (interface{}, error) {
+	_, _ = l.cancelrunning.Set(func(_ bool, i interface{}) (interface{}, error) {
 		if i == nil {
 			return nil, nil
 		}

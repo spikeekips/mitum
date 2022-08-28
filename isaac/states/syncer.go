@@ -128,7 +128,7 @@ func (s *Syncer) Add(height base.Height) bool {
 
 	var startsync bool
 
-	if _, err := s.topvalue.Set(func(i interface{}) (interface{}, error) {
+	if _, err := s.topvalue.Set(func(_ bool, i interface{}) (interface{}, error) {
 		top := i.(base.Height) //nolint:forcetypeassert //...
 		synced := s.prevheight()
 
@@ -185,7 +185,7 @@ func (s *Syncer) Cancel() error {
 			_ = s.tempsyncpool.Cancel()
 		}()
 
-		_, _ = s.doneerr.Set(func(i interface{}) (interface{}, error) {
+		_, _ = s.doneerr.Set(func(_ bool, i interface{}) (interface{}, error) {
 			s.isdonevalue.Store(true)
 
 			// close(s.donech)
@@ -258,7 +258,7 @@ func (s *Syncer) prevheight() base.Height {
 }
 
 func (s *Syncer) sync(ctx context.Context, prev base.BlockMap, to base.Height) { // revive:disable-line:import-shadowing
-	err, _ := s.doneerr.Set(func(i interface{}) (interface{}, error) {
+	err, _ := s.doneerr.Set(func(bool, interface{}) (interface{}, error) {
 		newprev, err := s.doSync(ctx, prev, to)
 		if err != nil {
 			return err, nil
@@ -387,7 +387,7 @@ end:
 		case <-ctx.Done():
 			break end
 		case <-ticker.C:
-			_, err := s.doneerr.Set(func(i interface{}) (interface{}, error) {
+			_, err := s.doneerr.Set(func(_ bool, i interface{}) (interface{}, error) {
 				if i != nil {
 					return nil, errors.Errorf("already done by error")
 				}

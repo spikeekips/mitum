@@ -451,7 +451,7 @@ func syncerLastBlockMapFunc(
 					return nil
 				}
 
-				_, err = ml.Set(func(v interface{}) (interface{}, error) {
+				_, err = ml.Set(func(_ bool, v interface{}) (interface{}, error) {
 					switch {
 					case v == nil,
 						m.Manifest().Height() > v.(base.BlockMap).Manifest().Height(): //nolint:forcetypeassert //...
@@ -526,7 +526,7 @@ func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
 						case !b:
 							return nil
 						default:
-							_, _ = result.Set(func(i interface{}) (interface{}, error) {
+							_, _ = result.Set(func(_ bool, i interface{}) (interface{}, error) {
 								if i != nil {
 									return nil, errors.Errorf("already set")
 								}
@@ -604,7 +604,7 @@ func syncerBlockMapItemFunc(
 						case !c:
 							return nil
 						default:
-							_, _ = result.Set(func(i interface{}) (interface{}, error) {
+							_, _ = result.Set(func(_ bool, i interface{}) (interface{}, error) {
 								if i != nil {
 									_ = a.Close()
 									_ = b()

@@ -151,7 +151,7 @@ func getProposalFunc(pctx context.Context) (
 						return nil
 					}
 
-					_, _ = prl.Set(func(i interface{}) (interface{}, error) {
+					_, _ = prl.Set(func(_ bool, i interface{}) (interface{}, error) {
 						if i != nil {
 							return i, nil
 						}
@@ -318,7 +318,7 @@ func getProposalOperationFromRemoteFunc(pctx context.Context) ( //nolint:gocogni
 			}
 
 			if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
-				_, err := result.Set(func(i interface{}) (interface{}, error) {
+				_, err := result.Set(func(_ bool, i interface{}) (interface{}, error) {
 					if i != nil {
 						return nil, util.ErrLockedSetIgnore.Call()
 					}

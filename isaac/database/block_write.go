@@ -185,7 +185,7 @@ func (db *LeveldbBlockWrite) BlockMap() (base.BlockMap, error) {
 }
 
 func (db *LeveldbBlockWrite) SetBlockMap(m base.BlockMap) error {
-	if _, err := db.mp.Set(func(i interface{}) (interface{}, error) {
+	if _, err := db.mp.Set(func(_ bool, i interface{}) (interface{}, error) {
 		b, err := db.marshal(m)
 		if err != nil {
 			return nil, err
@@ -226,7 +226,7 @@ func (db *LeveldbBlockWrite) NetworkPolicy() base.NetworkPolicy {
 }
 
 func (db *LeveldbBlockWrite) SetSuffrageProof(proof base.SuffrageProof) error {
-	if _, err := db.proof.Set(func(i interface{}) (interface{}, error) {
+	if _, err := db.proof.Set(func(_ bool, i interface{}) (interface{}, error) {
 		b, err := db.marshal(proof)
 		if err != nil {
 			return nil, err
@@ -324,7 +324,7 @@ func (db *LeveldbBlockWrite) isLastStates(st base.State) bool {
 }
 
 func (*LeveldbBlockWrite) updateLockedStates(st base.State, locked *util.Locked) {
-	_, _ = locked.Set(func(i interface{}) (interface{}, error) {
+	_, _ = locked.Set(func(_ bool, i interface{}) (interface{}, error) {
 		if i != nil && st.Height() <= i.(base.State).Height() { //nolint:forcetypeassert //...
 			return i, nil
 		}

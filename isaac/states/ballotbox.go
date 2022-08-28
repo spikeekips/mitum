@@ -169,7 +169,7 @@ func (box *Ballotbox) lastStagePoint() base.StagePoint {
 }
 
 func (box *Ballotbox) setLastStagePoint(p base.StagePoint) bool {
-	_, err := box.lsp.Set(func(i interface{}) (interface{}, error) {
+	_, err := box.lsp.Set(func(_ bool, i interface{}) (interface{}, error) {
 		lsp := i.(base.StagePoint) //nolint:forcetypeassert //...
 
 		if lsp.Compare(p) >= 0 {
@@ -558,7 +558,7 @@ func (vr *voterecords) newVoteproof(
 }
 
 func (vr *voterecords) getSuffrage() (base.Suffrage, bool, error) {
-	i, err := vr.suf.Set(func(i interface{}) (interface{}, error) {
+	i, err := vr.suf.Set(func(_ bool, i interface{}) (interface{}, error) {
 		if i != nil {
 			return i, util.ErrFound.Call()
 		}

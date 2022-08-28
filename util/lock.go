@@ -71,7 +71,7 @@ func (l *Locked) Empty() *Locked {
 	return l
 }
 
-func (l *Locked) Set(f func(interface{}) (interface{}, error)) (interface{}, error) {
+func (l *Locked) Set(f func(bool, interface{}) (interface{}, error)) (interface{}, error) {
 	l.Lock()
 	defer l.Unlock()
 
@@ -80,7 +80,7 @@ func (l *Locked) Set(f func(interface{}) (interface{}, error)) (interface{}, err
 		i = nil
 	}
 
-	switch j, err := f(i); {
+	switch j, err := f(IsNilLockedValue(l.value), i); {
 	case err == nil:
 		l.value = j
 
@@ -229,7 +229,7 @@ func (l *LockedMap) Clean() {
 	l.m = map[interface{}]interface{}{}
 }
 
-func IsNilLockedValue(i interface{}) bool {
+func IsNilLockedValue(i interface{}) bool { // FIXME unexport
 	_, ok := i.(NilLockedValue)
 
 	return ok

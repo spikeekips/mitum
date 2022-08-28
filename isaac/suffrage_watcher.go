@@ -185,7 +185,7 @@ func (u *LastConsensusNodesWatcher) compare(
 func (u *LastConsensusNodesWatcher) update(proof base.SuffrageProof, candidates base.State) bool {
 	var updated bool
 
-	_, _ = u.last.Set(func(i interface{}) (interface{}, error) {
+	_, _ = u.last.Set(func(_ bool, i interface{}) (interface{}, error) {
 		if i == nil {
 			return [2]interface{}{proof, candidates}, nil
 		}
