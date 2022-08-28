@@ -177,23 +177,27 @@ func (l *LockedMap) Set(k interface{}, f func(bool, interface{}) (interface{}, e
 	}
 }
 
-func (l *LockedMap) RemoveValue(k interface{}) {
+func (l *LockedMap) RemoveValue(k interface{}) bool {
 	l.Lock()
 	defer l.Unlock()
 
+	_, found := l.m[k]
+
 	delete(l.m, k)
+
+	return found
 }
 
 func (l *LockedMap) Remove(k interface{}, f func(interface{}) error) (bool, error) {
 	l.Lock()
 	defer l.Unlock()
 
-	if f != nil {
-		i, found := l.m[k]
-		if !found {
-			return false, nil
-		}
+	i, found := l.m[k]
+	if !found {
+		return false, nil
+	}
 
+	if f != nil {
 		if err := f(i); err != nil {
 			return true, err
 		}
@@ -335,14 +339,13 @@ func (l *ShardedMap) Set(k string, f func(bool, interface{}) (interface{}, error
 	})
 }
 
-func (l *ShardedMap) RemoveValue(k string) {
-	found := l.Exists(k)
-
-	if found {
-		l.sharded[l.fnv(k)].RemoveValue(k)
-
+func (l *ShardedMap) RemoveValue(k string) bool {
+	removed := l.sharded[l.fnv(k)].RemoveValue(k)
+	if removed {
 		atomic.AddInt64(&l.length, -1)
 	}
+
+	return removed
 }
 
 func (l *ShardedMap) Remove(k string, f func(interface{}) error) (bool, error) {

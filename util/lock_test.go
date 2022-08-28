@@ -150,7 +150,7 @@ func (t *testShardedMap) TestRemoveValue() {
 
 		k := UUID().String()
 
-		m.RemoveValue(k)
+		t.False(m.RemoveValue(k))
 		t.False(m.Exists(k))
 		t.Equal(0, m.Len())
 	})
@@ -164,7 +164,7 @@ func (t *testShardedMap) TestRemoveValue() {
 		t.False(m.SetValue(k, v))
 		t.True(m.Exists(k))
 
-		m.RemoveValue(k)
+		t.True(m.RemoveValue(k))
 		t.False(m.Exists(k))
 		t.Equal(0, m.Len())
 	})

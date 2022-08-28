@@ -83,13 +83,7 @@ func (p *PoolClient) Add(addr *net.UDPAddr, client *Client) bool {
 }
 
 func (p *PoolClient) Remove(addr *net.UDPAddr) bool {
-	found := p.clients.Exists(addr.String())
-
-	if found {
-		p.clients.RemoveValue(addr.String())
-	}
-
-	return found
+	return p.clients.RemoveValue(addr.String())
 }
 
 func (p *PoolClient) Client(addr *net.UDPAddr) (*Client, bool) {
