@@ -12,6 +12,7 @@ import (
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
+	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/logging"
 	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
@@ -106,7 +107,7 @@ func (db *LeveldbPermanent) SuffrageProof(suffrageHeight base.Height) (base.Suff
 	default:
 		var proof base.SuffrageProof
 
-		if err := db.readHinter(b, &proof); err != nil {
+		if _, err := db.readHinter(b, &proof); err != nil {
 			return nil, false, e(err, "")
 		}
 
@@ -132,7 +133,8 @@ func (db *LeveldbPermanent) SuffrageProofByBlockHeight(height base.Height) (base
 	var proof base.SuffrageProof
 
 	err := db.st.Iter(r, func(_, b []byte) (bool, error) {
-		return false, db.readHinter(b, &proof)
+		_, err := db.readHinter(b, &proof)
+		return false, err
 	}, false)
 
 	return proof, proof != nil, err
@@ -140,6 +142,10 @@ func (db *LeveldbPermanent) SuffrageProofByBlockHeight(height base.Height) (base
 
 func (db *LeveldbPermanent) State(key string) (base.State, bool, error) {
 	return db.state(key)
+}
+
+func (db *LeveldbPermanent) StateBytes(key string) (enchint hint.Hint, meta, body []byte, found bool, err error) {
+	return db.stateBytes(key)
 }
 
 func (db *LeveldbPermanent) ExistsInStateOperation(h util.Hash) (bool, error) {
@@ -170,7 +176,7 @@ func (db *LeveldbPermanent) BlockMap(height base.Height) (m base.BlockMap, found
 	case len(b) < 1:
 		return nil, false, nil
 	default:
-		if err := db.readHinter(b, &m); err != nil {
+		if _, err := db.readHinter(b, &m); err != nil {
 			return nil, false, e(err, "")
 		}
 
@@ -271,7 +277,8 @@ func (db *LeveldbPermanent) loadLastSuffrageProof() error {
 	if err := db.st.Iter(
 		leveldbutil.BytesPrefix(leveldbKeySuffrageProof),
 		func(_, b []byte) (bool, error) {
-			return false, db.readHinter(b, &proof)
+			_, err := db.readHinter(b, &proof)
+			return false, err
 		},
 		false,
 	); err != nil {

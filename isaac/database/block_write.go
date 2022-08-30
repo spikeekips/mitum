@@ -186,7 +186,7 @@ func (db *LeveldbBlockWrite) BlockMap() (base.BlockMap, error) {
 
 func (db *LeveldbBlockWrite) SetBlockMap(m base.BlockMap) error {
 	if _, err := db.mp.Set(func(_ bool, i interface{}) (interface{}, error) {
-		b, err := db.marshal(m)
+		b, err := db.marshal(m, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -227,7 +227,7 @@ func (db *LeveldbBlockWrite) NetworkPolicy() base.NetworkPolicy {
 
 func (db *LeveldbBlockWrite) SetSuffrageProof(proof base.SuffrageProof) error {
 	if _, err := db.proof.Set(func(_ bool, i interface{}) (interface{}, error) {
-		b, err := db.marshal(proof)
+		b, err := db.marshal(proof, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -289,7 +289,9 @@ func (db *LeveldbBlockWrite) setState(st base.State) error {
 		return nil
 	}
 
-	b, err := db.marshal(st)
+	meta := NewStateRecordMeta(st.Hash())
+
+	b, err := db.marshal(st, meta)
 	if err != nil {
 		return errors.Wrap(err, "failed to set state")
 	}

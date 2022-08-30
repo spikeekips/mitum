@@ -7,6 +7,7 @@ import (
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
+	"github.com/spikeekips/mitum/util/hint"
 )
 
 type TempLeveldb struct {
@@ -154,6 +155,10 @@ func (db *TempLeveldb) State(key string) (base.State, bool, error) {
 	return db.state(key)
 }
 
+func (db *TempLeveldb) StateBytes(key string) (enchint hint.Hint, meta, body []byte, found bool, err error) {
+	return db.stateBytes(key)
+}
+
 func (db *TempLeveldb) ExistsInStateOperation(h util.Hash) (bool, error) {
 	return db.existsInStateOperation(h)
 }
@@ -206,7 +211,7 @@ func (db *TempLeveldb) loadSuffrageProof() error {
 	default:
 		var proof base.SuffrageProof
 
-		if err := db.readHinter(b, &proof); err != nil {
+		if _, err := db.readHinter(b, &proof); err != nil {
 			return e(err, "")
 		}
 

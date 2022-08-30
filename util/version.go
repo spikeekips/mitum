@@ -8,6 +8,8 @@ import (
 	stdsemver "golang.org/x/mod/semver"
 )
 
+var MinVersionLength = 2
+
 type Version struct {
 	s          string
 	prerelease string
@@ -73,7 +75,7 @@ func (v Version) String() string { return v.s }
 
 func (v Version) IsValid([]byte) error {
 	switch s := strings.TrimSpace(v.s); {
-	case len(s) < 2: //nolint:gomnd //...
+	case len(s) < MinVersionLength:
 		return ErrInvalid.Errorf("empty version string")
 	case !strings.HasPrefix(s, "v"):
 		return ErrInvalid.Errorf("invalid version string, %q", s)

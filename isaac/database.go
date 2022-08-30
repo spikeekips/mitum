@@ -5,6 +5,7 @@ import (
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/hint"
 )
 
 // Database serves BlockMapItem like blockmap, states and operations from
@@ -20,6 +21,7 @@ type Database interface {
 	SuffrageProofByBlockHeight(blockheight base.Height) (base.SuffrageProof, bool, error)
 	LastNetworkPolicy() base.NetworkPolicy
 	State(key string) (base.State, bool, error)
+	StateBytes(key string) (hint.Hint, []byte, []byte, bool, error)
 	// ExistsInStateOperation has only operation facts, which is in state
 	ExistsInStateOperation(operationFactHash util.Hash) (bool, error)
 	// NOTE ExistsKnownOperation has the known operation hashes
@@ -29,8 +31,9 @@ type Database interface {
 	MergeAllPermanent() error
 }
 
-type PartialDatabase interface {
+type BaseDatabase interface {
 	State(key string) (base.State, bool, error)
+	StateBytes(key string) (hint.Hint, []byte, []byte, bool, error)
 	ExistsInStateOperation(operationFactHash util.Hash) (bool, error)
 	ExistsKnownOperation(operationHash util.Hash) (bool, error)
 }
@@ -38,10 +41,10 @@ type PartialDatabase interface {
 // TempDatabase is the temporary database; it contains only blockmap and
 // others of one block for storing BlockMapItem fast.
 type TempDatabase interface {
-	PartialDatabase
+	BaseDatabase
+	Height() base.Height
 	Close() error
 	Remove() error
-	Height() base.Height
 	BlockMap() (base.BlockMap, error)
 	SuffrageHeight() base.Height
 	SuffrageProof() (base.SuffrageProof, bool, error)
@@ -64,7 +67,7 @@ type BlockWriteDatabase interface {
 
 // PermanentDatabase stores BlockMapItem permanently.
 type PermanentDatabase interface {
-	PartialDatabase
+	BaseDatabase
 	Close() error
 	Clean() error
 	LastBlockMap() (base.BlockMap, bool, error)

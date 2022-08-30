@@ -1,5 +1,11 @@
 package util
 
+import (
+	"io"
+
+	"github.com/pkg/errors"
+)
+
 type Byter interface {
 	Bytes() []byte
 }
@@ -56,4 +62,43 @@ func ConcatBytesSlice(sl ...[]byte) []byte {
 	}
 
 	return n
+}
+
+func LengthedBytes(w io.Writer, b []byte) error { // FIXME set to network handler
+	e := StringErrorFunc("failed to write LengthedBytes")
+
+	i := uint64(len(b))
+
+	if _, err := w.Write(Uint64ToBytes(i)); err != nil {
+		return e(err, "")
+	}
+
+	if i < 1 {
+		return nil
+	}
+
+	if _, err := w.Write(b); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
+func ReadLengthedBytes(b []byte) (_ []byte, left []byte, _ error) {
+	i := uint64(len(b))
+
+	if i < 8 { //nolint:gomnd //...
+		return nil, nil, errors.Errorf("wrong format; missing length part")
+	}
+
+	j, err := BytesToUint64(b[:8])
+	if err != nil {
+		return nil, nil, errors.Errorf("wrong format; invalid length part")
+	}
+
+	if i-8 < j {
+		return nil, nil, errors.Errorf("wrong format; left not enough")
+	}
+
+	return b[8 : j+8], b[j+8:], nil
 }

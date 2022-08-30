@@ -15,6 +15,7 @@ import (
 	redisstorage "github.com/spikeekips/mitum/storage/redis"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
+	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/valuehash"
 	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
@@ -129,7 +130,7 @@ func (db *RedisPermanent) SuffrageProof(suffrageHeight base.Height) (base.Suffra
 	default:
 		var proof base.SuffrageProof
 
-		if err := db.readHinter(b, &proof); err != nil {
+		if _, err := db.readHinter(b, &proof); err != nil {
 			return nil, false, e(err, "")
 		}
 
@@ -184,7 +185,7 @@ func (db *RedisPermanent) SuffrageProofByBlockHeight(height base.Height) (base.S
 	default:
 		var proof base.SuffrageProof
 
-		if err := db.readHinter(b, &proof); err != nil {
+		if _, err := db.readHinter(b, &proof); err != nil {
 			return nil, false, e(err, "")
 		}
 
@@ -195,19 +196,35 @@ func (db *RedisPermanent) SuffrageProofByBlockHeight(height base.Height) (base.S
 func (db *RedisPermanent) State(key string) (st base.State, found bool, _ error) {
 	e := util.StringErrorFunc("failed to get state")
 
-	switch b, found, err := db.st.Get(context.Background(), redisStateKey(key)); {
+	switch enchint, _, b, found, err := db.StateBytes(key); {
 	case err != nil:
 		return nil, false, e(err, "")
 	case !found:
 		return nil, false, nil
-	case len(b) < 1:
-		return nil, false, nil
 	default:
-		if err := db.readHinter(b, &st); err != nil {
+		if err := db.readHinterWithEncoder(enchint, b, &st); err != nil {
 			return nil, false, e(err, "")
 		}
 
 		return st, true, nil
+	}
+}
+
+func (db *RedisPermanent) StateBytes(key string) (enchint hint.Hint, meta []byte, b []byte, found bool, err error) {
+	e := util.StringErrorFunc("failed to get state bytes")
+
+	switch b, found, err := db.st.Get(context.Background(), redisStateKey(key)); {
+	case err != nil:
+		return enchint, nil, nil, false, e(err, "")
+	case !found, len(b) < 1:
+		return enchint, nil, nil, false, nil
+	default:
+		enchint, meta, b, err = db.readHeader(b)
+		if err != nil {
+			return enchint, nil, nil, false, e(err, "")
+		}
+
+		return enchint, meta, b, true, nil
 	}
 }
 
@@ -253,7 +270,7 @@ func (db *RedisPermanent) BlockMap(height base.Height) (m base.BlockMap, found b
 	case len(b) < 1:
 		return nil, false, nil
 	default:
-		if err := db.readHinter(b, &m); err != nil {
+		if _, err := db.readHinter(b, &m); err != nil {
 			return nil, false, e(err, "")
 		}
 
@@ -464,7 +481,7 @@ func (db *RedisPermanent) loadLastBlockMap() error {
 	default:
 		var m base.BlockMap
 
-		if err := db.readHinter(b, &m); err != nil {
+		if _, err := db.readHinter(b, &m); err != nil {
 			return e(err, "")
 		}
 
@@ -491,7 +508,7 @@ func (db *RedisPermanent) loadLastSuffrageProof() error {
 	default:
 		var proof base.SuffrageProof
 
-		if err := db.readHinter(b, &proof); err != nil {
+		if _, err := db.readHinter(b, &proof); err != nil {
 			return e(err, "")
 		}
 

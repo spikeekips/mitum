@@ -7,6 +7,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+// FIXME stream encoder
+
 var nullJSONBytes = []byte("null")
 
 type JSONMarshaled interface {

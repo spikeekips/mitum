@@ -12,6 +12,7 @@ import (
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
+	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/localtime"
 	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
@@ -103,19 +104,48 @@ func (db *baseLeveldb) existsKnownOperation(h util.Hash) (bool, error) {
 func (db *baseLeveldb) state(key string) (st base.State, found bool, _ error) {
 	e := util.StringErrorFunc("failed to get state")
 
-	switch b, found, err := db.st.Get(leveldbStateKey(key)); {
+	switch enchint, _, b, found, err := db.stateBytes(key); {
 	case err != nil:
 		return nil, false, e(err, "")
+	case !found:
+		return nil, false, nil
+	default:
+		if err := db.readHinterWithEncoder(enchint, b, &st); err != nil {
+			return nil, false, e(err, "")
+		}
+
+		return st, true, nil
+	}
+}
+
+func (db *baseLeveldb) stateBytes(key string) (enchint hint.Hint, meta []byte, b []byte, found bool, err error) {
+	e := util.StringErrorFunc("failed to get state bytes")
+
+	switch b, found, err = db.stateFromDB(key); {
+	case err != nil:
+		return enchint, nil, nil, false, e(err, "")
+	case !found:
+		return enchint, nil, nil, false, nil
+	default:
+		enchint, meta, b, err = db.readHeader(b)
+		if err != nil {
+			return enchint, nil, nil, false, e(err, "")
+		}
+
+		return enchint, meta, b, true, nil
+	}
+}
+
+func (db *baseLeveldb) stateFromDB(key string) (_ []byte, found bool, _ error) {
+	switch b, found, err := db.st.Get(leveldbStateKey(key)); {
+	case err != nil:
+		return nil, false, err
 	case !found:
 		return nil, false, nil
 	case len(b) < 1:
 		return nil, false, nil
 	default:
-		if err := db.readHinter(b, &st); err != nil {
-			return nil, false, e(err, "")
-		}
-
-		return st, true, nil
+		return b, true, nil
 	}
 }
 
@@ -127,7 +157,8 @@ func (db *baseLeveldb) loadLastBlockMap() (base.BlockMap, error) {
 	if err := db.st.Iter(
 		leveldbutil.BytesPrefix(leveldbKeyPrefixBlockMap),
 		func(_, b []byte) (bool, error) {
-			return false, db.readHinter(b, &m)
+			_, err := db.readHinter(b, &m)
+			return false, err
 		},
 		false,
 	); err != nil {
@@ -152,7 +183,7 @@ func (db *baseLeveldb) loadNetworkPolicy() (base.NetworkPolicy, bool, error) {
 	}
 
 	var st base.State
-	if err := db.readHinter(b, &st); err != nil {
+	if _, err := db.readHinter(b, &st); err != nil {
 		return nil, true, e(err, "")
 	}
 

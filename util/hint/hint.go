@@ -13,6 +13,7 @@ import (
 var (
 	MaxVersionLength = 20
 	MaxHintLength    = MaxTypeLength + MaxVersionLength + 1
+	MinHintLength    = MinTypeLength + util.MinVersionLength + 1
 	regVersion       = regexp.MustCompile(`\-v\d+`)
 )
 
@@ -79,8 +80,8 @@ func parseHint(s string) (Hint, error) {
 	var ns string
 
 	switch b := []byte(s); {
-	case len(b) < 1:
-		return Hint{}, e.Errorf("empty hint string")
+	case len(b) < MinHintLength:
+		return Hint{}, e.Errorf("too short hint string")
 	default:
 		ns = string(bytes.TrimRight(b, "\x00"))
 	}

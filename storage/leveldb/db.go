@@ -106,7 +106,7 @@ func (st *Storage) Iter(
 
 end:
 	for {
-		switch keep, err := callback(copyBytes(iter.Key()), copyBytes(iter.Value())); {
+		switch keep, err := callback(copyBytes(iter.Key()), copyBytes(iter.Value())); { // FIXME remove copyBytes
 		case err != nil:
 			return err
 		case !keep:

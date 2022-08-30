@@ -13,6 +13,7 @@ import (
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
+	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/logging"
 	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
@@ -228,24 +229,15 @@ func (db *Center) State(key string) (base.State, bool, error) {
 
 	l := util.EmptyLocked()
 
-	if err := db.dig(func(p isaac.PartialDatabase) (bool, error) {
+	if err := db.state(key, func(key string, p isaac.TempDatabase) (bool, error) {
 		switch st, found, err := p.State(key); {
-		case err != nil:
+		case err != nil, !found:
 			return false, err
-		case found:
-			_, _ = l.Set(func(_ bool, old interface{}) (interface{}, error) {
-				switch {
-				case old == nil:
-					return st, nil
-				case st.Height() > old.(base.State).Height(): //nolint:forcetypeassert //...
-					return st, nil
-				default:
-					return nil, errors.Errorf("old")
-				}
-			})
-		}
+		default:
+			_ = l.SetValue(st)
 
-		return true, nil
+			return true, nil
+		}
 	}); err != nil {
 		return nil, false, e(err, "")
 	}
@@ -262,12 +254,68 @@ func (db *Center) State(key string) (base.State, bool, error) {
 	return st, found, nil
 }
 
+func (db *Center) StateBytes(key string) (ht hint.Hint, _, _ []byte, _ bool, _ error) {
+	e := util.StringErrorFunc("failed to find state bytes")
+
+	l := util.EmptyLocked()
+
+	if err := db.state(key, func(key string, p isaac.TempDatabase) (bool, error) {
+		switch enchint, meta, body, found, err := p.StateBytes(key); {
+		case err != nil, !found:
+			return false, err
+		default:
+			_ = l.SetValue([3]interface{}{enchint, meta, body})
+
+			return true, nil
+		}
+	}); err != nil {
+		return ht, nil, nil, false, e(err, "")
+	}
+
+	if i, _ := l.Value(); i != nil {
+		j := i.([3]interface{})                                          //nolint:forcetypeassert //...
+		return j[0].(hint.Hint), j[1].([]byte), j[2].([]byte), true, nil //nolint:forcetypeassert //...
+	}
+
+	enchint, meta, body, found, err := db.perm.StateBytes(key)
+	if err != nil {
+		return ht, nil, nil, false, e(err, "")
+	}
+
+	return enchint, meta, body, found, nil
+}
+
+func (db *Center) state(key string, f func(string, isaac.TempDatabase) (bool, error)) error {
+	l := util.EmptyLocked()
+
+	return db.dig(func(p isaac.TempDatabase) (bool, error) {
+		if _, err := l.Set(func(_ bool, old interface{}) (interface{}, error) {
+			if old != nil && p.Height() <= old.(base.Height) { //nolint:forcetypeassert //...
+				return nil, util.ErrLockedSetIgnore.Errorf("old")
+			}
+
+			switch found, err := f(key, p); {
+			case err != nil:
+				return nil, err
+			case found:
+				return p.Height(), nil
+			default:
+				return nil, util.ErrLockedSetIgnore.Errorf("not found")
+			}
+		}); err != nil {
+			return false, err
+		}
+
+		return true, nil
+	})
+}
+
 func (db *Center) ExistsInStateOperation(h util.Hash) (bool, error) { //nolint:dupl //...
 	e := util.StringErrorFunc("failed to check operation")
 
-	l := util.NewLocked(false)
+	l := util.EmptyLocked()
 
-	if err := db.dig(func(p isaac.PartialDatabase) (bool, error) {
+	if err := db.dig(func(p isaac.TempDatabase) (bool, error) {
 		switch found, err := p.ExistsInStateOperation(h); {
 		case err != nil:
 			return false, err
@@ -297,9 +345,9 @@ func (db *Center) ExistsInStateOperation(h util.Hash) (bool, error) { //nolint:d
 func (db *Center) ExistsKnownOperation(h util.Hash) (bool, error) { //nolint:dupl //...
 	e := util.StringErrorFunc("failed to check operation")
 
-	l := util.NewLocked(false)
+	l := util.EmptyLocked()
 
-	if err := db.dig(func(p isaac.PartialDatabase) (bool, error) {
+	if err := db.dig(func(p isaac.TempDatabase) (bool, error) {
 		switch found, err := p.ExistsKnownOperation(h); {
 		case err != nil:
 			return false, err
@@ -493,24 +541,17 @@ func (db *Center) findTemp(height base.Height) isaac.TempDatabase {
 	return nil
 }
 
-func (db *Center) dig(f func(isaac.PartialDatabase) (bool, error)) error {
+func (db *Center) dig(f func(isaac.TempDatabase) (bool, error)) error {
 	temps := db.activeTemps()
-	partials := make([]isaac.PartialDatabase, len(temps)+1)
-
-	for i := range temps {
-		partials[i] = temps[i]
-	}
-
-	partials[len(temps)] = db.perm
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	worker := util.NewErrgroupWorker(ctx, int64(len(partials)))
+	worker := util.NewErrgroupWorker(ctx, int64(len(temps)))
 	defer worker.Close()
 
-	for i := range partials {
-		p := partials[i]
+	for i := range temps {
+		p := temps[i]
 
 		if err := worker.NewJob(func(context.Context, uint64) error {
 			switch keep, err := f(p); {

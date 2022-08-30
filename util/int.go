@@ -20,7 +20,7 @@ func BytesToInt64(b []byte) (int64, error) {
 	buf := bytes.NewReader(b)
 
 	if err := binary.Read(buf, binary.LittleEndian, &i); err != nil {
-		return 0, errors.Wrap(err, "failed BytesToInt64")
+		return 0, errors.Wrap(err, "failed invalid int64 bytes")
 	}
 
 	return i, nil
@@ -38,7 +38,7 @@ func BytesToUint64(b []byte) (uint64, error) {
 	buf := bytes.NewReader(b)
 
 	if err := binary.Read(buf, binary.LittleEndian, &i); err != nil {
-		return 0, errors.Wrap(err, "failed BytesToUint64")
+		return 0, errors.Wrap(err, "invalid uint64 bytes")
 	}
 
 	return i, nil

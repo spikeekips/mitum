@@ -77,7 +77,7 @@ func (db *TempPool) Proposal(h util.Hash) (pr base.ProposalSignedFact, found boo
 	case len(b) < 1:
 		return nil, false, nil
 	default:
-		if err := db.readHinter(b, &pr); err != nil {
+		if _, err := db.readHinter(b, &pr); err != nil {
 			return nil, false, e(err, "")
 		}
 
@@ -145,7 +145,7 @@ func (db *TempPool) SetProposal(pr base.ProposalSignedFact) (bool, error) {
 		}
 	}
 
-	b, err := db.marshal(pr)
+	b, err := db.marshal(pr, nil)
 	if err != nil {
 		return false, e(err, "failed to marshal proposal")
 	}
@@ -174,7 +174,7 @@ func (db *TempPool) NewOperation(_ context.Context, operationhash util.Hash) (op
 	case len(b) < 1:
 		return nil, false, nil
 	default:
-		if err := db.readHinter(b, &op); err != nil {
+		if _, err := db.readHinter(b, &op); err != nil {
 			return nil, false, e(err, "")
 		}
 
@@ -262,7 +262,7 @@ func (db *TempPool) SetNewOperation(_ context.Context, op base.Operation) (bool,
 		return false, nil
 	}
 
-	b, err := db.marshal(op)
+	b, err := db.marshal(op, nil)
 	if err != nil {
 		return false, e(err, "failed to marshal operation")
 	}
@@ -430,7 +430,7 @@ func (db *TempPool) SetLastVoteproofs(ivp base.INITVoteproof, avp base.ACCEPTVot
 		}
 
 		vps := [2]base.Voteproof{ivp, avp}
-		b, err := db.marshal(vps)
+		b, err := db.marshal(vps, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -459,7 +459,7 @@ func (db *TempPool) loadLastVoteproofs() error {
 		return nil
 	}
 
-	enc, raw, err := db.readEncoder(b)
+	enc, _, raw, err := db.readEncoder(b)
 	if err != nil {
 		return e(err, "")
 	}

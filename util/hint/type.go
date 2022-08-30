@@ -8,15 +8,15 @@ import (
 
 var (
 	reTypeAllowedChars           = regexp.MustCompile(`^[a-z0-9][a-z0-9\-_\+]*[a-z0-9]$`)
-	minTypeLength, MaxTypeLength = 2, 100
+	MinTypeLength, MaxTypeLength = 2, 100
 )
 
 type Type string // revive:disable-line:redefines-builtin-id
 
 func (t Type) IsValid([]byte) error {
 	switch n := len(t); {
-	case n < minTypeLength:
-		return util.ErrInvalid.Errorf("too short Type; %q >= %d", t, minTypeLength)
+	case n < MinTypeLength:
+		return util.ErrInvalid.Errorf("too short Type; %q >= %d", t, MinTypeLength)
 	case n > MaxTypeLength:
 		return util.ErrInvalid.Errorf("too long Type; %q < %d", t, MaxTypeLength)
 	}

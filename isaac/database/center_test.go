@@ -10,6 +10,7 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
@@ -21,6 +22,7 @@ type DummyPermanentDatabase struct {
 	suffrageproofbyblockheightf func(base.Height) (base.SuffrageProof, bool, error)
 	lastSuffrageprooff          func() (base.SuffrageProof, bool, error)
 	statef                      func(key string) (base.State, bool, error)
+	statebytesf                 func(key string) (hint.Hint, []byte, []byte, bool, error)
 	existsInStateOperationf     func(facthash util.Hash) (bool, error)
 	existsKnownOperationf       func(operationHash util.Hash) (bool, error)
 	mapf                        func(height base.Height) (base.BlockMap, bool, error)
@@ -51,6 +53,10 @@ func (db *DummyPermanentDatabase) LastSuffrageProof() (base.SuffrageProof, bool,
 
 func (db *DummyPermanentDatabase) State(key string) (base.State, bool, error) {
 	return db.statef(key)
+}
+
+func (db *DummyPermanentDatabase) StateBytes(key string) (hint.Hint, []byte, []byte, bool, error) {
+	return db.statebytesf(key)
 }
 
 func (db *DummyPermanentDatabase) ExistsInStateOperation(facthash util.Hash) (bool, error) {

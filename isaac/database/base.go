@@ -1,11 +1,15 @@
 package isaacdatabase
 
 import (
+	"bytes"
+	"io"
+
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
+	"github.com/spikeekips/mitum/util/valuehash"
 )
 
 type baseDatabase struct {
@@ -23,60 +27,95 @@ func newBaseDatabase(
 	}
 }
 
-func (db *baseDatabase) marshal(i interface{}) ([]byte, error) {
+func (db *baseDatabase) marshal(i interface{}, meta util.Byter) ([]byte, error) {
+	w := bytes.NewBuffer(nil)
+
+	if err := db.writeHeader(w, meta); err != nil {
+		return nil, err
+	}
+
 	b, err := db.enc.Marshal(i)
 	if err != nil {
 		return nil, err
 	}
 
-	return db.marshalWithEncoder(b), nil
+	if _, err := w.Write(b); err != nil {
+		return nil, errors.Wrap(err, "")
+	}
+
+	return w.Bytes(), nil
 }
 
-func (db *baseDatabase) readEncoder(b []byte) (encoder.Encoder, []byte, error) {
-	ht, raw, err := db.readHint(b)
+func (db *baseDatabase) readEncoder(b []byte) (enc encoder.Encoder, meta []byte, raw []byte, err error) {
+	var ht hint.Hint
+
+	ht, meta, raw, err = db.readHeader(b)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	switch enc := db.encs.Find(ht); {
+	switch enc = db.encs.Find(ht); {
 	case enc == nil:
-		return nil, nil, util.ErrNotFound.Errorf("encoder not found for %q", ht)
+		return nil, nil, nil, util.ErrNotFound.Errorf("encoder not found for %q", ht)
 	default:
-		return enc, raw, nil
+		return enc, meta, raw, nil
 	}
 }
 
-func (db *baseDatabase) readHinter(b []byte, v interface{}) error {
-	switch enc, raw, err := db.readEncoder(b); {
+func (db *baseDatabase) readHinter(b []byte, v interface{}) ([]byte, error) {
+	switch enc, meta, raw, err := db.readEncoder(b); {
 	case err != nil:
-		return err
+		return nil, err
 	default:
 		if err := encoder.Decode(enc, raw, v); err != nil {
-			return err
+			return nil, err
 		}
 
-		return nil
+		return meta, nil
 	}
 }
 
-func (*baseDatabase) readHint(b []byte) (ht hint.Hint, raw []byte, err error) {
-	if len(b) < hint.MaxHintLength {
-		return ht, nil, errors.Errorf("none hinted string; too short")
+func (db *baseDatabase) readHinterWithEncoder(enchint hint.Hint, b []byte, v interface{}) error {
+	enc := db.encs.Find(enchint)
+	if enc == nil {
+		return util.ErrNotFound.Errorf("encoder not found for %q", enchint)
 	}
 
-	ht, err = hint.ParseHint(string(b[:hint.MaxHintLength]))
+	return encoder.Decode(enc, b, v)
+}
+
+func (db *baseDatabase) writeHeader(w io.Writer, meta util.Byter) error {
+	if err := util.LengthedBytes(w, db.enc.Hint().Bytes()); err != nil {
+		return err
+	}
+
+	var metab []byte
+	if meta != nil {
+		metab = meta.Bytes()
+	}
+
+	return util.LengthedBytes(w, metab)
+}
+
+func (*baseDatabase) readHeader(b []byte) (ht hint.Hint, meta []byte, raw []byte, err error) {
+	e := util.StringErrorFunc("failed to read hint")
+
+	htb, left, err := util.ReadLengthedBytes(b)
 	if err != nil {
-		return ht, nil, err
+		return ht, nil, nil, e(err, "")
 	}
 
-	return ht, b[hint.MaxHintLength:], nil
-}
+	ht, err = hint.ParseHint(string(htb))
+	if err != nil {
+		return ht, nil, nil, e(err, "")
+	}
 
-func (db *baseDatabase) marshalWithEncoder(b []byte) []byte {
-	h := make([]byte, hint.MaxHintLength)
-	copy(h, db.enc.Hint().Bytes())
+	meta, left, err = util.ReadLengthedBytes(left)
+	if err != nil {
+		return ht, nil, nil, e(err, "")
+	}
 
-	return util.ConcatBytesSlice(h, b)
+	return ht, meta, left, nil
 }
 
 func (db *baseDatabase) decodeSuffrage(b []byte) (base.State, error) {
@@ -84,7 +123,7 @@ func (db *baseDatabase) decodeSuffrage(b []byte) (base.State, error) {
 
 	var st base.State
 
-	if err := db.readHinter(b, &st); err != nil {
+	if _, err := db.readHinter(b, &st); err != nil {
 		return nil, e(err, "failed to load suffrage state")
 	}
 
@@ -93,4 +132,76 @@ func (db *baseDatabase) decodeSuffrage(b []byte) (base.State, error) {
 	}
 
 	return st, nil
+}
+
+func NewRecordMeta(version byte, m [][]byte) ([]byte, error) {
+	e := util.StringErrorFunc("failed RecordMeta")
+
+	w := bytes.NewBuffer(nil)
+
+	if err := util.LengthedBytes(w, []byte{version}); err != nil {
+		return nil, e(err, "")
+	}
+
+	for i := range m {
+		if err := util.LengthedBytes(w, m[i]); err != nil {
+			return nil, e(err, "")
+		}
+	}
+
+	return w.Bytes(), nil
+}
+
+func ReadRecordMetaFromBytes(b []byte) (version byte, m [][]byte, _ error) {
+	e := util.StringErrorFunc("failed RecordMeta from bytes")
+
+	var left []byte
+
+	switch i, j, err := util.ReadLengthedBytes(b); {
+	case err != nil:
+		return version, nil, e(err, "wrong version")
+	case len(i) < 1:
+		return version, nil, e(err, "empty version")
+	default:
+		version = i[0]
+
+		left = j
+	}
+
+	for len(left) > 0 {
+		j, k, err := util.ReadLengthedBytes(left)
+		if err != nil {
+			return version, nil, e(err, "")
+		}
+
+		m = append(m, j)
+
+		left = k
+	}
+
+	return version, m, nil
+}
+
+func NewStateRecordMeta(h util.Hash) util.Byter {
+	b, _ := NewRecordMeta(0x01, [][]byte{h.Bytes()}) //nolint:gomnd //...
+
+	return util.BytesToByter(b)
+}
+
+func ReadStateRecordMeta(b []byte) (util.Hash, error) {
+	e := util.StringErrorFunc("failed to read state record meta")
+
+	switch _, m, err := ReadRecordMetaFromBytes(b); {
+	case err != nil:
+		return nil, e(err, "")
+	case len(m) < 1:
+		return nil, e(nil, "empty state hash")
+	default:
+		h := valuehash.NewBytes(m[0])
+		if err := h.IsValid(nil); err != nil {
+			return nil, e(err, "")
+		}
+
+		return h, nil
+	}
 }
