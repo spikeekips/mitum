@@ -36,17 +36,19 @@ func QuicstreamHandlerOperation(
 	idleTimeout time.Duration,
 	oppool isaac.NewOperationPool,
 ) quicstream.Handler {
-	return boolQUICstreamHandler(encs, idleTimeout, OperationRequestHeader{},
+	return boolBytesQUICstreamHandler(encs, idleTimeout, OperationRequestHeader{},
 		func(header isaac.NetworkHeader) string {
 			h := header.(OperationRequestHeader) //nolint:forcetypeassert //...
 
 			return HandlerPrefixOperation + h.Operation().String()
 		},
 
-		func(header isaac.NetworkHeader) (interface{}, bool, error) {
+		func(header isaac.NetworkHeader) (enchint hint.Hint, body []byte, found bool, err error) {
 			h := header.(OperationRequestHeader) //nolint:forcetypeassert //...
 
-			return oppool.NewOperation(context.Background(), h.Operation())
+			enchint, _, body, found, err = oppool.NewOperationBytes(context.Background(), h.Operation())
+
+			return enchint, body, found, err
 		},
 	)
 }
@@ -188,22 +190,24 @@ func QuicstreamHandlerProposal(
 	idleTimeout time.Duration,
 	pool isaac.ProposalPool,
 ) quicstream.Handler {
-	return boolQUICstreamHandler(encs, idleTimeout, ProposalRequestHeader{},
+	return boolBytesQUICstreamHandler(encs, idleTimeout, ProposalRequestHeader{},
 		func(header isaac.NetworkHeader) string {
 			h := header.(ProposalRequestHeader) //nolint:forcetypeassert //...
 
 			return HandlerPrefixProposal + h.Proposal().String()
 		},
 
-		func(header isaac.NetworkHeader) (interface{}, bool, error) {
+		func(header isaac.NetworkHeader) (enchint hint.Hint, body []byte, found bool, err error) {
 			h := header.(ProposalRequestHeader) //nolint:forcetypeassert //...
 
-			return pool.Proposal(h.Proposal())
+			enchint, _, body, found, err = pool.ProposalBytes(h.Proposal())
+
+			return enchint, body, found, err
 		},
 	)
 }
 
-func QuicstreamHandlerLastSuffrageProof(
+func QuicstreamHandlerLastSuffrageProof( // FIXME use bytes
 	encs *encoder.Encoders,
 	idleTimeout time.Duration,
 	lastSuffrageProoff func(suffragestate util.Hash) (base.SuffrageProof, bool, error),

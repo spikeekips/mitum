@@ -81,6 +81,7 @@ type PermanentDatabase interface {
 
 type ProposalPool interface {
 	Proposal(util.Hash) (base.ProposalSignedFact, bool, error)
+	ProposalBytes(util.Hash) (hint.Hint, []byte, []byte, bool, error)
 	ProposalByPoint(base.Point, base.Address) (base.ProposalSignedFact, bool, error)
 	SetProposal(pr base.ProposalSignedFact) (bool, error)
 }
@@ -93,6 +94,7 @@ type PoolOperationHeader interface {
 
 type NewOperationPool interface {
 	NewOperation(_ context.Context, operationhash util.Hash) (base.Operation, bool, error)
+	NewOperationBytes(_ context.Context, operationhash util.Hash) (hint.Hint, []byte, []byte, bool, error)
 	NewOperationHashes(
 		_ context.Context,
 		_ base.Height,

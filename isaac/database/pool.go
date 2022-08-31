@@ -85,10 +85,11 @@ func (db *TempPool) Proposal(h util.Hash) (pr base.ProposalSignedFact, found boo
 	}
 }
 
-func (db *TempPool) ProposalByPoint(
-	point base.Point,
-	proposer base.Address,
-) (base.ProposalSignedFact, bool, error) {
+func (db *TempPool) ProposalBytes(h util.Hash) (enchint hint.Hint, meta, body []byte, found bool, _ error) {
+	return db.getRecordBytes(leveldbProposalKey(h), db.st.Get)
+}
+
+func (db *TempPool) ProposalByPoint(point base.Point, proposer base.Address) (base.ProposalSignedFact, bool, error) {
 	e := util.StringErrorFunc("failed to find proposal by point")
 
 	switch b, found, err := db.st.Get(leveldbProposalPointKey(point, proposer)); {
@@ -180,6 +181,10 @@ func (db *TempPool) NewOperation(_ context.Context, operationhash util.Hash) (op
 
 		return op, true, nil
 	}
+}
+
+func (db *TempPool) NewOperationBytes(_ context.Context, operationhash util.Hash) (enchint hint.Hint, meta, body []byte, found bool, _ error) {
+	return db.getRecordBytes(leveldbNewOperationKey(operationhash), db.st.Get)
 }
 
 func (db *TempPool) NewOperationHashes(
