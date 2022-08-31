@@ -913,7 +913,7 @@ func (t *testMemberlist) TestJoinWithDeadNode() {
 
 func TestMemberlist(t *testing.T) {
 	defer goleak.VerifyNone(t,
-		goleak.IgnoreCurrent(),
+		goleak.IgnoreTopFunction("github.com/lucas-clemente/quic-go.(*client).dial"),
 	)
 
 	suite.Run(t, new(testMemberlist))

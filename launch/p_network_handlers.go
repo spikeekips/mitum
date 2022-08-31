@@ -166,7 +166,7 @@ func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 			),
 		).
 		Add(isaacnetwork.HandlerPrefixState,
-			isaacnetwork.QuicstreamHandlerState(encs, idletimeout, db.State),
+			isaacnetwork.QuicstreamHandlerState(encs, idletimeout, db.StateBytes),
 		).
 		Add(isaacnetwork.HandlerPrefixExistsInStateOperation,
 			isaacnetwork.QuicstreamHandlerExistsInStateOperation(encs, idletimeout, db.ExistsInStateOperation),

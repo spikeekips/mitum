@@ -14,6 +14,7 @@ import (
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
+	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
@@ -723,16 +724,16 @@ func (t *testQuicstreamHandlers) TestState() {
 		[]util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()},
 	)
 
+	stb, err := t.Enc.Marshal(st)
+	t.NoError(err)
+	meta := isaacdatabase.NewStateRecordMeta(st.Hash())
+
 	ci := quicstream.NewUDPConnInfo(nil, true)
 
 	t.Run("ok", func() {
 		handler := QuicstreamHandlerState(t.Encs, time.Second,
-			func(key string) (base.State, bool, error) {
-				if key == st.Key() {
-					return st, true, nil
-				}
-
-				return nil, false, nil
+			func(key string) (hint.Hint, []byte, []byte, bool, error) {
+				return t.Enc.Hint(), meta.Bytes(), stb, true, nil
 			},
 		)
 		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixState, handler))
@@ -745,12 +746,12 @@ func (t *testQuicstreamHandlers) TestState() {
 
 	t.Run("ok with hash", func() {
 		handler := QuicstreamHandlerState(t.Encs, time.Second,
-			func(key string) (base.State, bool, error) {
+			func(key string) (hint.Hint, []byte, []byte, bool, error) {
 				if key == st.Key() {
-					return st, true, nil
+					return t.Enc.Hint(), meta.Bytes(), stb, true, nil
 				}
 
-				return nil, false, nil
+				return hint.Hint{}, nil, nil, false, nil
 			},
 		)
 		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixState, handler))
@@ -763,8 +764,8 @@ func (t *testQuicstreamHandlers) TestState() {
 
 	t.Run("not found", func() {
 		handler := QuicstreamHandlerState(t.Encs, time.Second,
-			func(key string) (base.State, bool, error) {
-				return nil, false, nil
+			func(key string) (hint.Hint, []byte, []byte, bool, error) {
+				return hint.Hint{}, nil, nil, false, nil
 			},
 		)
 		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixState, handler))
@@ -777,8 +778,8 @@ func (t *testQuicstreamHandlers) TestState() {
 
 	t.Run("error", func() {
 		handler := QuicstreamHandlerState(t.Encs, time.Second,
-			func(key string) (base.State, bool, error) {
-				return nil, false, errors.Errorf("hehehe")
+			func(key string) (hint.Hint, []byte, []byte, bool, error) {
+				return hint.Hint{}, nil, nil, false, errors.Errorf("hehehe")
 			},
 		)
 		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixState, handler))

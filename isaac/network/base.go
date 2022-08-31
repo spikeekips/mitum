@@ -87,6 +87,35 @@ func Response(w io.Writer, header isaac.NetworkHeader, body interface{}, enc enc
 	return nil
 }
 
+func ResponseBytes(w io.Writer, header isaac.NetworkHeader, body []byte, enc encoder.Encoder) error {
+	e := util.StringErrorFunc("failed to write response")
+
+	if err := writeHint(w, enc.Hint()); err != nil {
+		return e(err, "")
+	}
+
+	var headerb []byte
+
+	if header != nil {
+		i, err := enc.Marshal(header)
+		if err != nil {
+			return e(err, "")
+		}
+
+		headerb = i
+	}
+
+	if err := writeHeader(w, headerb); err != nil {
+		return e(err, "")
+	}
+
+	if _, err := ensureWrite(w, body); err != nil {
+		return e(err, "failed to write body")
+	}
+
+	return nil
+}
+
 func ReadEncoder(ctx context.Context, encs *encoder.Encoders, r io.Reader) (encoder.Encoder, error) {
 	e := util.StringErrorFunc("failed to read encoder")
 

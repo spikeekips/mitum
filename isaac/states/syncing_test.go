@@ -640,8 +640,8 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 
 		select {
 		case <-time.After(time.Second * 2):
-		case <-sctxch:
-			t.NoError(errors.Errorf("unexpected; switched another state"))
+		case sctx := <-sctxch:
+			t.NoError(errors.Errorf("unexpected; switched another state: %s -> %s, %+v", sctx.from(), sctx.next(), sctx.Error()))
 		}
 	})
 
