@@ -76,43 +76,30 @@ func (db *LeveldbPermanent) Clean() error {
 func (db *LeveldbPermanent) SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof, bool, error) {
 	e := util.StringErrorFunc("failed to get suffrageproof by height")
 
-	proof, found, err := db.LastSuffrageProof()
-
-	switch {
+	switch proof, found, err := db.LastSuffrageProof(); {
 	case err != nil:
 		return nil, false, e(err, "")
 	case !found:
-		return nil, false, nil
-	}
-
-	stv, err := base.LoadSuffrageNodesStateValue(proof.State())
-	if err != nil {
-		return nil, false, e(err, "")
-	}
-
-	switch {
-	case suffrageHeight > stv.Height():
-		return nil, false, nil
-	case suffrageHeight == stv.Height():
-		return proof, true, nil
-	}
-
-	switch b, found, err := db.st.Get(leveldbSuffrageProofKey(suffrageHeight)); {
-	case err != nil:
-		return nil, false, e(err, "")
-	case !found:
-		return nil, false, nil
-	case len(b) < 1:
 		return nil, false, nil
 	default:
-		var proof base.SuffrageProof
-
-		if _, err := db.readHinter(b, &proof); err != nil {
+		stv, err := base.LoadSuffrageNodesStateValue(proof.State())
+		if err != nil {
 			return nil, false, e(err, "")
 		}
 
-		return proof, true, nil
+		switch {
+		case suffrageHeight > stv.Height():
+			return nil, false, nil
+		case suffrageHeight == stv.Height():
+			return proof, true, nil
+		}
 	}
+
+	var proof base.SuffrageProof
+
+	found, err := db.getRecord(leveldbSuffrageProofKey(suffrageHeight), db.st.Get, &proof)
+
+	return proof, found, err
 }
 
 func (db *LeveldbPermanent) SuffrageProofByBlockHeight(height base.Height) (base.SuffrageProof, bool, error) {
@@ -127,25 +114,39 @@ func (db *LeveldbPermanent) SuffrageProofByBlockHeight(height base.Height) (base
 		return proof, true, nil
 	}
 
-	r := leveldbutil.BytesPrefix(leveldbKeySuffrageProofByBlockHeight)
-	r.Limit = leveldbSuffrageProofByBlockHeightKey(height + 1)
-
 	var proof base.SuffrageProof
 
-	err := db.st.Iter(r, func(_, b []byte) (bool, error) {
-		_, err := db.readHinter(b, &proof)
-		return false, err
-	}, false)
+	found, err := db.getRecord(nil,
+		func([]byte) ([]byte, bool, error) {
+			r := leveldbutil.BytesPrefix(leveldbKeySuffrageProofByBlockHeight)
+			r.Limit = leveldbSuffrageProofByBlockHeightKey(height + 1)
 
-	return proof, proof != nil, err
+			var body []byte
+
+			err := db.st.Iter(r, func(_, b []byte) (bool, error) {
+				body = b
+
+				return false, nil
+			}, false)
+			if err != nil {
+				return nil, false, err
+			}
+
+			return body, body != nil, nil
+		},
+		&proof)
+
+	return proof, found, err
 }
 
-func (db *LeveldbPermanent) State(key string) (base.State, bool, error) {
-	return db.state(key)
+func (db *LeveldbPermanent) State(key string) (st base.State, found bool, err error) {
+	found, err = db.getRecord(leveldbStateKey(key), db.st.Get, &st)
+
+	return st, found, err
 }
 
 func (db *LeveldbPermanent) StateBytes(key string) (enchint hint.Hint, meta, body []byte, found bool, err error) {
-	return db.stateBytes(key)
+	return db.getRecordBytes(leveldbStateKey(key), db.st.Get)
 }
 
 func (db *LeveldbPermanent) ExistsInStateOperation(h util.Hash) (bool, error) {
@@ -156,7 +157,7 @@ func (db *LeveldbPermanent) ExistsKnownOperation(h util.Hash) (bool, error) {
 	return db.existsKnownOperation(h)
 }
 
-func (db *LeveldbPermanent) BlockMap(height base.Height) (m base.BlockMap, found bool, _ error) {
+func (db *LeveldbPermanent) BlockMap(height base.Height) (m base.BlockMap, _ bool, _ error) {
 	e := util.StringErrorFunc("failed to load blockmap")
 
 	switch i, found, err := db.LastBlockMap(); {
@@ -168,20 +169,9 @@ func (db *LeveldbPermanent) BlockMap(height base.Height) (m base.BlockMap, found
 		return i, true, nil
 	}
 
-	switch b, found, err := db.st.Get(leveldbBlockMapKey(height)); {
-	case err != nil:
-		return nil, false, e(err, "")
-	case !found:
-		return nil, false, nil
-	case len(b) < 1:
-		return nil, false, nil
-	default:
-		if _, err := db.readHinter(b, &m); err != nil {
-			return nil, false, e(err, "")
-		}
+	found, err := db.getRecord(leveldbBlockMapKey(height), db.st.Get, &m)
 
-		return m, true, nil
-	}
+	return m, found, err
 }
 
 func (db *LeveldbPermanent) MergeTempDatabase(ctx context.Context, temp isaac.TempDatabase) error {

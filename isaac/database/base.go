@@ -134,6 +134,50 @@ func (db *baseDatabase) decodeSuffrage(b []byte) (base.State, error) {
 	return st, nil
 }
 
+func (db *baseDatabase) getRecord(
+	key []byte,
+	f func(key []byte) ([]byte, bool, error),
+	v interface{},
+) (bool, error) {
+	var body []byte
+
+	switch b, found, err := f(key); {
+	case err != nil:
+		return false, err
+	case !found:
+		return false, nil
+	default:
+		body = b
+	}
+
+	enchint, _, b, err := db.readHeader(body)
+	if err != nil {
+		return true, err
+	}
+
+	if err := db.readHinterWithEncoder(enchint, b, v); err != nil {
+		return true, err
+	}
+
+	return true, nil
+}
+
+func (db *baseDatabase) getRecordBytes(
+	key []byte,
+	f func(key []byte) ([]byte, bool, error),
+) (enchint hint.Hint, meta, body []byte, found bool, err error) {
+	switch b, found, err := f(key); {
+	case err != nil:
+		return enchint, nil, nil, false, err
+	case !found:
+		return enchint, nil, nil, false, nil
+	default:
+		enchint, meta, b, err = db.readHeader(b)
+
+		return enchint, meta, b, found, err
+	}
+}
+
 func NewRecordMeta(version byte, m [][]byte) ([]byte, error) {
 	e := util.StringErrorFunc("failed RecordMeta")
 

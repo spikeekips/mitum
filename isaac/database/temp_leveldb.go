@@ -151,12 +151,14 @@ func (db *TempLeveldb) NetworkPolicy() base.NetworkPolicy {
 	return db.policy
 }
 
-func (db *TempLeveldb) State(key string) (base.State, bool, error) {
-	return db.state(key)
+func (db *TempLeveldb) State(key string) (st base.State, found bool, err error) {
+	found, err = db.getRecord(leveldbStateKey(key), db.st.Get, &st)
+
+	return st, found, err
 }
 
 func (db *TempLeveldb) StateBytes(key string) (enchint hint.Hint, meta, body []byte, found bool, err error) {
-	return db.stateBytes(key)
+	return db.getRecordBytes(leveldbStateKey(key), db.st.Get)
 }
 
 func (db *TempLeveldb) ExistsInStateOperation(h util.Hash) (bool, error) {

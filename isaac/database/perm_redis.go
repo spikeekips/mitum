@@ -99,43 +99,30 @@ func (db *RedisPermanent) Clean() error {
 func (db *RedisPermanent) SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof, bool, error) {
 	e := util.StringErrorFunc("failed to get suffrageproof by height")
 
-	proof, found, err := db.LastSuffrageProof()
-
-	switch {
+	switch proof, found, err := db.LastSuffrageProof(); {
 	case err != nil:
 		return nil, false, e(err, "")
 	case !found:
-		return nil, false, nil
-	}
-
-	stv, err := base.LoadSuffrageNodesStateValue(proof.State())
-	if err != nil {
-		return nil, false, e(err, "")
-	}
-
-	switch {
-	case suffrageHeight > stv.Height():
-		return nil, false, nil
-	case suffrageHeight == stv.Height():
-		return proof, true, nil
-	}
-
-	switch b, found, err := db.st.Get(context.Background(), redisSuffrageProofKey(suffrageHeight)); {
-	case err != nil:
-		return nil, false, err
-	case !found:
-		return nil, false, nil
-	case len(b) < 1:
 		return nil, false, nil
 	default:
-		var proof base.SuffrageProof
-
-		if _, err := db.readHinter(b, &proof); err != nil {
+		stv, err := base.LoadSuffrageNodesStateValue(proof.State())
+		if err != nil {
 			return nil, false, e(err, "")
 		}
 
-		return proof, true, nil
+		switch {
+		case suffrageHeight > stv.Height():
+			return nil, false, nil
+		case suffrageHeight == stv.Height():
+			return proof, true, nil
+		}
 	}
+
+	var proof base.SuffrageProof
+
+	found, err := db.getRecord(context.Background(), redisSuffrageProofKey(suffrageHeight), db.st.Get, &proof)
+
+	return proof, found, err
 }
 
 func (db *RedisPermanent) SuffrageProofByBlockHeight(height base.Height) (base.SuffrageProof, bool, error) {
@@ -175,57 +162,21 @@ func (db *RedisPermanent) SuffrageProofByBlockHeight(height base.Height) (base.S
 		return nil, false, nil
 	}
 
-	switch b, found, err := db.st.Get(context.Background(), key); {
-	case err != nil:
-		return nil, false, err
-	case !found:
-		return nil, false, nil
-	case len(b) < 1:
-		return nil, false, nil
-	default:
-		var proof base.SuffrageProof
+	var proof base.SuffrageProof
 
-		if _, err := db.readHinter(b, &proof); err != nil {
-			return nil, false, e(err, "")
-		}
+	found, err := db.getRecord(context.Background(), key, db.st.Get, &proof)
 
-		return proof, true, nil
-	}
+	return proof, found, err
 }
 
 func (db *RedisPermanent) State(key string) (st base.State, found bool, _ error) {
-	e := util.StringErrorFunc("failed to get state")
+	found, err := db.getRecord(context.Background(), redisStateKey(key), db.st.Get, &st)
 
-	switch enchint, _, b, found, err := db.StateBytes(key); {
-	case err != nil:
-		return nil, false, e(err, "")
-	case !found:
-		return nil, false, nil
-	default:
-		if err := db.readHinterWithEncoder(enchint, b, &st); err != nil {
-			return nil, false, e(err, "")
-		}
-
-		return st, true, nil
-	}
+	return st, found, err
 }
 
 func (db *RedisPermanent) StateBytes(key string) (enchint hint.Hint, meta []byte, b []byte, found bool, err error) {
-	e := util.StringErrorFunc("failed to get state bytes")
-
-	switch b, found, err := db.st.Get(context.Background(), redisStateKey(key)); {
-	case err != nil:
-		return enchint, nil, nil, false, e(err, "")
-	case !found, len(b) < 1:
-		return enchint, nil, nil, false, nil
-	default:
-		enchint, meta, b, err = db.readHeader(b)
-		if err != nil {
-			return enchint, nil, nil, false, e(err, "")
-		}
-
-		return enchint, meta, b, true, nil
-	}
+	return db.getRecordBytes(context.Background(), redisStateKey(key), db.st.Get)
 }
 
 func (db *RedisPermanent) ExistsInStateOperation(h util.Hash) (bool, error) {
@@ -250,7 +201,7 @@ func (db *RedisPermanent) ExistsKnownOperation(h util.Hash) (bool, error) {
 	}
 }
 
-func (db *RedisPermanent) BlockMap(height base.Height) (m base.BlockMap, found bool, _ error) {
+func (db *RedisPermanent) BlockMap(height base.Height) (m base.BlockMap, _ bool, _ error) {
 	e := util.StringErrorFunc("failed to load blockmap")
 
 	switch i, found, err := db.LastBlockMap(); {
@@ -262,20 +213,9 @@ func (db *RedisPermanent) BlockMap(height base.Height) (m base.BlockMap, found b
 		return i, true, nil
 	}
 
-	switch b, found, err := db.st.Get(context.Background(), redisBlockMapKey(height)); {
-	case err != nil:
-		return nil, false, e(err, "")
-	case !found:
-		return nil, false, nil
-	case len(b) < 1:
-		return nil, false, nil
-	default:
-		if _, err := db.readHinter(b, &m); err != nil {
-			return nil, false, e(err, "")
-		}
+	found, err := db.getRecord(context.Background(), redisBlockMapKey(height), db.st.Get, &m)
 
-		return m, true, nil
-	}
+	return m, found, err
 }
 
 func (db *RedisPermanent) MergeTempDatabase(ctx context.Context, temp isaac.TempDatabase) error {
@@ -571,6 +511,34 @@ func (db *RedisPermanent) loadLast(zkey, begin, end string) ([]byte, bool, error
 	default:
 		return b, true, nil
 	}
+}
+
+func (db *RedisPermanent) getRecord(
+	ctx context.Context,
+	key string,
+	f func(_ context.Context, key string) ([]byte, bool, error),
+	v interface{},
+) (bool, error) {
+	return db.baseDatabase.getRecord(
+		[]byte(key),
+		func([]byte) ([]byte, bool, error) {
+			return f(ctx, key)
+		},
+		v,
+	)
+}
+
+func (db *RedisPermanent) getRecordBytes(
+	ctx context.Context,
+	key string,
+	f func(_ context.Context, key string) ([]byte, bool, error),
+) (enchint hint.Hint, meta, body []byte, found bool, err error) {
+	return db.baseDatabase.getRecordBytes(
+		[]byte(key),
+		func([]byte) ([]byte, bool, error) {
+			return f(ctx, key)
+		},
+	)
 }
 
 func redisStateKey(key string) string {
