@@ -52,6 +52,20 @@ func (db *DummyPermanentDatabase) LastSuffrageProof() (base.SuffrageProof, bool,
 	return db.lastSuffrageprooff()
 }
 
+func (db *DummyPermanentDatabase) LastSuffrageProofBytes() (hint.Hint, []byte, []byte, bool, error) {
+	proof, found, err := db.lastSuffrageprooff()
+	if err != nil || !found {
+		return hint.Hint{}, nil, nil, found, err
+	}
+
+	b, err := util.MarshalJSON(proof)
+	if err != nil {
+		return hint.Hint{}, nil, nil, found, err
+	}
+
+	return jsonenc.JSONEncoderHint, NewHashRecordMeta(proof.Map().Manifest().Suffrage()).Bytes(), b, true, nil
+}
+
 func (db *DummyPermanentDatabase) State(key string) (base.State, bool, error) {
 	return db.statef(key)
 }

@@ -87,16 +87,23 @@ func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 		).
 		Add(isaacnetwork.HandlerPrefixLastSuffrageProof,
 			isaacnetwork.QuicstreamHandlerLastSuffrageProof(encs, idletimeout,
-				func(last util.Hash) (base.SuffrageProof, bool, error) {
-					switch proof, found, err := db.LastSuffrageProof(); {
+				func(last util.Hash) (hint.Hint, []byte, []byte, bool, error) {
+					enchint, metabytes, body, found, err := db.LastSuffrageProofBytes()
+
+					switch {
 					case err != nil:
-						return nil, false, err
+						return enchint, nil, nil, false, err
 					case !found:
-						return nil, false, storage.NotFoundError.Errorf("last SuffrageProof not found")
-					case last != nil && last.Equal(proof.Map().Manifest().Suffrage()):
-						return nil, false, nil
+						return enchint, nil, nil, false, storage.NotFoundError.Errorf("last SuffrageProof not found")
+					}
+
+					switch h, err := isaacdatabase.ReadHashRecordMeta(metabytes); {
+					case err != nil:
+						return enchint, nil, nil, true, err
+					case last != nil && last.Equal(h):
+						return enchint, nil, nil, false, nil
 					default:
-						return proof, true, nil
+						return enchint, metabytes, body, true, nil
 					}
 				},
 			),

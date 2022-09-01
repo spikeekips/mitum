@@ -128,6 +128,21 @@ func (db *Center) LastSuffrageProof() (base.SuffrageProof, bool, error) {
 	return proof, found, nil
 }
 
+func (db *Center) LastSuffrageProofBytes() (enchint hint.Hint, meta, body []byte, found bool, err error) {
+	temps := db.activeTemps()
+
+	for i := range temps {
+		switch enchint, meta, body, found, err := temps[i].SuffrageProofBytes(); {
+		case err != nil:
+			return enchint, nil, nil, false, err
+		case found:
+			return enchint, meta, body, found, nil
+		}
+	}
+
+	return db.perm.LastSuffrageProofBytes()
+}
+
 func (db *Center) SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof, bool, error) {
 	e := util.StringErrorFunc("failed to find SuffrageProof by suffrage height")
 

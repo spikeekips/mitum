@@ -60,7 +60,25 @@ func (db *basePermanent) LastSuffrageProof() (base.SuffrageProof, bool, error) {
 	case i == nil:
 		return nil, false, nil
 	default:
-		return i.(base.SuffrageProof), true, nil //nolint:forcetypeassert //...
+		j := i.([3]interface{})                     //nolint:forcetypeassert //...
+		return j[0].(base.SuffrageProof), true, nil //nolint:forcetypeassert //...
+	}
+}
+
+func (db *basePermanent) LastSuffrageProofBytes() (enchint hint.Hint, meta, body []byte, found bool, err error) {
+	switch i, _ := db.lenc.Value(); {
+	case i == nil:
+		return enchint, nil, nil, false, nil
+	default:
+		enchint = i.(hint.Hint) //nolint:forcetypeassert //...
+	}
+
+	switch i, _ := db.proof.Value(); {
+	case i == nil:
+		return enchint, nil, nil, false, nil
+	default:
+		j := i.([3]interface{})                                 //nolint:forcetypeassert //...
+		return enchint, j[1].([]byte), j[2].([]byte), true, nil //nolint:forcetypeassert //...
 	}
 }
 
@@ -86,9 +104,8 @@ func (db *basePermanent) Clean() error {
 
 func (db *basePermanent) updateLast(
 	lenc hint.Hint,
-	mp base.BlockMap,
-	mmeta, mpb []byte,
-	proof base.SuffrageProof,
+	mp base.BlockMap, mpmeta, mpbody []byte,
+	proof base.SuffrageProof, proofmeta, proofbody []byte,
 	policy base.NetworkPolicy,
 ) (updated bool) {
 	_, err := db.mp.Set(func(_ bool, i interface{}) (interface{}, error) {
@@ -103,14 +120,14 @@ func (db *basePermanent) updateLast(
 		_ = db.lenc.SetValue(lenc)
 
 		if proof != nil {
-			_ = db.proof.SetValue(proof)
+			_ = db.proof.SetValue([3]interface{}{proof, proofmeta, proofbody})
 		}
 
 		if policy != nil {
 			_ = db.policy.SetValue(policy)
 		}
 
-		return [3]interface{}{mp, mmeta, mpb}, nil
+		return [3]interface{}{mp, mpmeta, mpbody}, nil
 	})
 
 	return err == nil

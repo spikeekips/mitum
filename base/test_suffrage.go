@@ -147,10 +147,15 @@ func EqualSuffrageProof(t *assert.Assertions, a, b SuffrageProof) {
 	bsuf, err := b.Suffrage()
 	t.NoError(err)
 
-	anodes := asuf.Nodes()
-	bnodes := bsuf.Nodes()
-	t.Equal(len(anodes), len(bnodes))
-	t.True(IsEqualNodes(anodes, bnodes))
+	switch {
+	case asuf == nil && bsuf == nil:
+	default:
+		anodes := asuf.Nodes()
+		bnodes := bsuf.Nodes()
+		t.Equal(len(anodes), len(bnodes))
+		t.True(IsEqualNodes(anodes, bnodes))
+
+	}
 
 	EqualVoteproof(t, a.ACCEPTVoteproof(), b.ACCEPTVoteproof())
 }

@@ -9,16 +9,19 @@ import (
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
+	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
 
 type TempLeveldb struct {
 	*baseLeveldb
-	mp     base.BlockMap // NOTE last blockmap
-	sufst  base.State    // NOTE last suffrage state
-	policy base.NetworkPolicy
-	proof  base.SuffrageProof
-	mpmeta []byte // NOTE last blockmap bytes
-	mpb    []byte // NOTE last blockmap bytes
+	mp        base.BlockMap // NOTE last blockmap
+	sufst     base.State    // NOTE last suffrage state
+	policy    base.NetworkPolicy
+	proof     base.SuffrageProof
+	proofmeta []byte
+	proofbody []byte
+	mpmeta    []byte // NOTE last blockmap bytes
+	mpbody    []byte // NOTE last blockmap bytes
 }
 
 func NewTempLeveldbFromPrefix(
@@ -67,22 +70,28 @@ func newTempLeveldbFromBlockWriteStorage(wst *LeveldbBlockWrite) (*TempLeveldb, 
 		mpb = j
 	}
 
+	var proof base.SuffrageProof
+	var proofmeta, proofbody []byte
+
+	if i, meta, j := wst.proofs(); i != nil {
+		proof = i
+		proofmeta = meta
+		proofbody = j
+	}
+
 	sufst := wst.SuffrageState()
 	policy := wst.NetworkPolicy()
-
-	var proof base.SuffrageProof
-	if i, _ := wst.proof.Value(); i != nil {
-		proof = i.(base.SuffrageProof) //nolint:forcetypeassert //...
-	}
 
 	return &TempLeveldb{
 		baseLeveldb: wst.baseLeveldb,
 		mp:          mp,
 		mpmeta:      mpmeta,
-		mpb:         mpb,
+		mpbody:      mpb,
 		sufst:       sufst,
 		policy:      policy,
 		proof:       proof,
+		proofmeta:   proofmeta,
+		proofbody:   proofbody,
 	}, nil
 }
 
@@ -119,10 +128,12 @@ func (db *TempLeveldb) Remove() error {
 func (db *TempLeveldb) clean() {
 	db.mp = nil
 	db.mpmeta = nil
-	db.mpb = nil
+	db.mpbody = nil
 	db.sufst = nil
 	db.policy = nil
 	db.proof = nil
+	db.proofmeta = nil
+	db.proofbody = nil
 }
 
 func (db *TempLeveldb) Height() base.Height {
@@ -150,7 +161,7 @@ func (db *TempLeveldb) BlockMap() (base.BlockMap, error) {
 }
 
 func (db *TempLeveldb) BlockMapBytes() (enchint hint.Hint, meta, body []byte, _ error) {
-	return db.enc.Hint(), db.mpmeta, db.mpb, nil //nolint:forcetypeassert //...
+	return db.enc.Hint(), db.mpmeta, db.mpbody, nil //nolint:forcetypeassert //...
 }
 
 func (db *TempLeveldb) SuffrageProof() (base.SuffrageProof, bool, error) {
@@ -159,6 +170,14 @@ func (db *TempLeveldb) SuffrageProof() (base.SuffrageProof, bool, error) {
 	}
 
 	return db.proof, true, nil
+}
+
+func (db *TempLeveldb) SuffrageProofBytes() (enchint hint.Hint, meta, body []byte, found bool, err error) {
+	if db.proof == nil {
+		return enchint, nil, nil, false, nil
+	}
+
+	return db.enc.Hint(), db.proofmeta, db.proofbody, true, nil
 }
 
 func (db *TempLeveldb) NetworkPolicy() base.NetworkPolicy {
@@ -198,7 +217,7 @@ func (db *TempLeveldb) loadLastBlockMap() error {
 		db.enc = enc
 		db.mp = m
 		db.mpmeta = meta
-		db.mpb = body
+		db.mpbody = body
 
 		return nil
 	}
@@ -227,22 +246,31 @@ func (db *TempLeveldb) loadSuffrageState() error {
 func (db *TempLeveldb) loadSuffrageProof() error {
 	e := util.StringErrorFunc("failed to load SuffrageProof")
 
-	switch b, found, err := db.st.Get(leveldbKeySuffrageProof); {
-	case err != nil:
+	if err := db.st.Iter(
+		leveldbutil.BytesPrefix(leveldbKeySuffrageProof),
+		func(_ []byte, b []byte) (bool, error) {
+			enchint, meta, body, err := db.readHeader(b)
+			if err != nil {
+				return false, err
+			}
+
+			var proof base.SuffrageProof
+			if err := db.readHinterWithEncoder(enchint, body, &proof); err != nil {
+				return false, err
+			}
+
+			db.proof = proof
+			db.proofmeta = meta
+			db.proofbody = body
+
+			return false, nil
+		},
+		false,
+	); err != nil {
 		return e(err, "")
-	case !found:
-		return nil
-	default:
-		var proof base.SuffrageProof
-
-		if _, err := db.readHinter(b, &proof); err != nil {
-			return e(err, "")
-		}
-
-		db.proof = proof
-
-		return nil
 	}
+
+	return nil
 }
 
 func (db *TempLeveldb) loadNetworkPolicy() error {

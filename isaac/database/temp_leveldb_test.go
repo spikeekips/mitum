@@ -61,10 +61,13 @@ func (t *testTempLeveldb) TestLoad() {
 		ops[i] = valuehash.RandomSHA256()
 	}
 
+	proof := NewDummySuffrageProof(sufst)
+
 	wst := t.NewLeveldbBlockWriteDatabase(height)
 	t.NoError(wst.SetBlockMap(mp))
 	t.NoError(wst.SetStates(stts))
 	t.NoError(wst.SetOperations(ops))
+	t.NoError(wst.SetSuffrageProof(proof))
 	t.NoError(wst.Write())
 
 	var mpmeta, mpb []byte
@@ -76,6 +79,8 @@ func (t *testTempLeveldb) TestLoad() {
 		mpmeta = j[1].([]byte)
 		mpb = j[2].([]byte)
 	}
+
+	_, proofmeta, proofbody := wst.proofs()
 
 	t.NoError(wst.Close())
 
@@ -96,6 +101,21 @@ func (t *testTempLeveldb) TestLoad() {
 		t.Equal(t.Enc.Hint(), ht)
 		t.Equal(mpmeta, meta)
 		t.Equal(mpb, rb)
+	})
+
+	t.Run("check suffrage proof", func() {
+		rproof, found, err := rst.SuffrageProof()
+		t.NoError(err)
+		t.True(found)
+
+		base.EqualSuffrageProof(t.Assert(), proof, rproof)
+
+		enchint, meta, body, found, err := rst.SuffrageProofBytes()
+		t.NoError(err)
+		t.True(found)
+		t.Equal(t.Enc.Hint(), enchint)
+		t.Equal(proofmeta, meta)
+		t.Equal(proofbody, body)
 	})
 
 	t.Run("check last suffrage", func() {

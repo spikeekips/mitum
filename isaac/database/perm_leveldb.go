@@ -239,7 +239,12 @@ func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, te
 		return e(err, "")
 	}
 
-	_ = db.updateLast(temp.enc.Hint(), temp.mp, temp.mpmeta, temp.mpb, temp.proof, temp.policy)
+	_ = db.updateLast(
+		temp.enc.Hint(),
+		temp.mp, temp.mpmeta, temp.mpbody,
+		temp.proof, temp.proofmeta, temp.proofbody,
+		temp.policy,
+	)
 
 	db.Log().Info().Interface("blockmap", temp.mp).Msg("new block merged")
 
@@ -247,14 +252,14 @@ func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, te
 }
 
 func (db *LeveldbPermanent) loadLastBlockMap() error {
-	switch m, enchint, meta, mb, err := db.baseLeveldb.loadLastBlockMap(); {
+	switch m, enchint, meta, body, err := db.baseLeveldb.loadLastBlockMap(); {
 	case err != nil:
 		return err
 	case m == nil:
 		return nil
 	default:
 		_ = db.lenc.SetValue(enchint)
-		_ = db.mp.SetValue([3]interface{}{m, meta, mb})
+		_ = db.mp.SetValue([3]interface{}{m, meta, body})
 
 		return nil
 	}
@@ -265,18 +270,27 @@ func (db *LeveldbPermanent) loadLastSuffrageProof() error {
 
 	var proof base.SuffrageProof
 
+	var enchint hint.Hint
+	var meta, body []byte
+
 	if err := db.st.Iter(
 		leveldbutil.BytesPrefix(leveldbKeySuffrageProof),
 		func(_, b []byte) (bool, error) {
-			_, err := db.readHinter(b, &proof)
-			return false, err
+			var err error
+
+			enchint, meta, body, err = db.readHeader(b)
+			if err != nil {
+				return false, err
+			}
+
+			return false, db.readHinterWithEncoder(enchint, body, &proof)
 		},
 		false,
 	); err != nil {
 		return e(err, "")
 	}
 
-	_ = db.proof.SetValue(proof)
+	_ = db.proof.SetValue([3]interface{}{proof, meta, body})
 
 	return nil
 }

@@ -2,101 +2,12 @@ package isaacdatabase
 
 import (
 	"context"
-	"encoding/json"
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/encoder"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
-	"github.com/spikeekips/mitum/util/fixedtree"
-	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
-	"github.com/stretchr/testify/assert"
 )
-
-var DummySuffrageProofHint = hint.MustNewHint("dummy-suffrage-proof-v0.0.1")
-
-type DummySuffrageProof struct {
-	hint.BaseHinter
-	ID string
-	ST base.State
-	MP base.BlockMap
-}
-
-func NewDummySuffrageProof(st base.State) DummySuffrageProof {
-	return DummySuffrageProof{
-		BaseHinter: hint.NewBaseHinter(DummySuffrageProofHint),
-		ID:         util.UUID().String(),
-		ST:         st,
-		MP:         base.NewDummyBlockMap(base.NewDummyManifest(st.Height(), valuehash.RandomSHA256())),
-	}
-}
-
-func (proof DummySuffrageProof) IsValid([]byte) error {
-	return nil
-}
-
-func (proof DummySuffrageProof) Map() base.BlockMap {
-	return proof.MP
-}
-
-func (proof DummySuffrageProof) State() base.State {
-	return proof.ST
-}
-
-func (proof DummySuffrageProof) ACCEPTVoteproof() base.ACCEPTVoteproof {
-	return nil
-}
-
-func (proof DummySuffrageProof) Proof() fixedtree.Proof {
-	return fixedtree.Proof{}
-}
-
-func (proof DummySuffrageProof) Suffrage() (base.Suffrage, error) {
-	return nil, nil
-}
-
-func (proof DummySuffrageProof) SuffrageHeight() base.Height {
-	return base.NilHeight
-}
-
-func (proof DummySuffrageProof) Prove(previousState base.State) error {
-	return nil
-}
-
-func (proof *DummySuffrageProof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	var u struct {
-		ID string
-		ST json.RawMessage
-		MP json.RawMessage
-	}
-	if err := enc.Unmarshal(b, &u); err != nil {
-		return err
-	}
-
-	proof.ID = u.ID
-
-	if err := encoder.Decode(enc, u.ST, &proof.ST); err != nil {
-		return err
-	}
-
-	if err := encoder.Decode(enc, u.MP, &proof.MP); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func IsEqualDummySuffrageProof(t *assert.Assertions, a, b base.SuffrageProof) {
-	ap, ok := a.(DummySuffrageProof)
-	t.True(ok)
-
-	bp, ok := b.(DummySuffrageProof)
-	t.True(ok)
-
-	t.Equal(ap.ID, bp.ID)
-}
 
 type testCommonPermanent struct {
 	isaac.BaseTestBallots
@@ -104,12 +15,6 @@ type testCommonPermanent struct {
 	newDB     func() isaac.PermanentDatabase
 	newFromDB func(isaac.PermanentDatabase) (isaac.PermanentDatabase, error)
 	setState  func(isaac.PermanentDatabase, base.State) error
-}
-
-func (t *testCommonPermanent) SetupSuite() {
-	t.BaseTestDatabase.SetupSuite()
-
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: DummySuffrageProofHint, Instance: DummySuffrageProof{}}))
 }
 
 func (t *testCommonPermanent) SetupTest() {
@@ -139,11 +44,18 @@ func (t *testCommonPermanent) setMap(db isaac.PermanentDatabase, mp base.BlockMa
 }
 
 func (t *testCommonPermanent) setSuffrageProof(db isaac.PermanentDatabase, proof base.SuffrageProof) {
-	switch t := db.(type) {
+	b, err := t.Enc.Marshal(proof)
+	if err != nil {
+		panic(err)
+	}
+
+	v := [3]interface{}{proof, NewHashRecordMeta(proof.Map().Manifest().Suffrage()).Bytes(), b}
+
+	switch dbt := db.(type) {
 	case *LeveldbPermanent:
-		_ = t.proof.SetValue(proof)
+		_ = dbt.proof.SetValue(v)
 	case *RedisPermanent:
-		_ = t.proof.SetValue(proof)
+		_ = dbt.proof.SetValue(v)
 	default:
 		panic("unknown PermanentDatabase")
 	}

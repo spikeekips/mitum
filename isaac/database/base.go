@@ -62,7 +62,7 @@ func (db *baseDatabase) readEncoder(b []byte) (enc encoder.Encoder, meta, body [
 	}
 }
 
-func (db *baseDatabase) readHinter(b []byte, v interface{}) ([]byte, error) {
+func (db *baseDatabase) readHinter(b []byte, v interface{}) ([]byte, error) { // FIXME remove []byte from returns
 	switch enc, meta, body, err := db.readEncoder(b); {
 	case err != nil:
 		return nil, err
@@ -227,7 +227,12 @@ func ReadRecordMetaFromBytes(b []byte) (version byte, m [][]byte, _ error) {
 }
 
 func NewHashRecordMeta(h util.Hash) util.Byter {
-	b, _ := NewRecordMeta(0x01, [][]byte{h.Bytes()}) //nolint:gomnd //...
+	var hb []byte
+	if h != nil {
+		hb = h.Bytes()
+	}
+
+	b, _ := NewRecordMeta(0x01, [][]byte{hb}) //nolint:gomnd //...
 
 	return util.BytesToByter(b)
 }

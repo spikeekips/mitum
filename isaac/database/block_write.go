@@ -204,7 +204,7 @@ func (db *LeveldbBlockWrite) SetBlockMap(m base.BlockMap) error {
 
 		meta := NewHashRecordMeta(m.Manifest().Hash())
 
-		b, mb, err := db.marshal(m, meta)
+		b, body, err := db.marshal(m, meta)
 		if err != nil {
 			return nil, err
 		}
@@ -213,7 +213,7 @@ func (db *LeveldbBlockWrite) SetBlockMap(m base.BlockMap) error {
 			return nil, err
 		}
 
-		return [3]interface{}{m, meta.Bytes(), mb}, nil
+		return [3]interface{}{m, meta.Bytes(), body}, nil
 	}); err != nil {
 		return errors.Wrap(err, "failed to set blockmap")
 	}
@@ -241,7 +241,15 @@ func (db *LeveldbBlockWrite) NetworkPolicy() base.NetworkPolicy {
 
 func (db *LeveldbBlockWrite) SetSuffrageProof(proof base.SuffrageProof) error {
 	if _, err := db.proof.Set(func(_ bool, i interface{}) (interface{}, error) {
-		b, _, err := db.marshal(proof, nil)
+		switch {
+		case i == nil:
+		case proof.SuffrageHeight() <= i.(base.SuffrageProof).SuffrageHeight(): //nolint:forcetypeassert //...
+			return nil, util.ErrLockedSetIgnore.Call()
+		}
+
+		meta := NewHashRecordMeta(proof.Map().Manifest().Suffrage())
+
+		b, body, err := db.marshal(proof, meta)
 		if err != nil {
 			return nil, err
 		}
@@ -254,12 +262,7 @@ func (db *LeveldbBlockWrite) SetSuffrageProof(proof base.SuffrageProof) error {
 			return nil, err
 		}
 
-		if i != nil && proof.SuffrageHeight() <=
-			i.(base.SuffrageProof).SuffrageHeight() { //nolint:forcetypeassert //...
-			return i, nil
-		}
-
-		return proof, nil
+		return [3]interface{}{proof, meta.Bytes(), body}, nil
 	}); err != nil {
 		return errors.Wrap(err, "failed to set SuffrageProof")
 	}
@@ -304,6 +307,17 @@ func (db *LeveldbBlockWrite) blockmaps() (base.BlockMap, []byte, []byte) {
 		j := i.([3]interface{}) //nolint:forcetypeassert //...
 
 		return j[0].(base.BlockMap), j[1].([]byte), j[2].([]byte) //nolint:forcetypeassert //...
+	}
+}
+
+func (db *LeveldbBlockWrite) proofs() (base.SuffrageProof, []byte, []byte) {
+	switch i, _ := db.proof.Value(); {
+	case i == nil:
+		return nil, nil, nil
+	default:
+		j := i.([3]interface{}) //nolint:forcetypeassert //...
+
+		return j[0].(base.SuffrageProof), j[1].([]byte), j[2].([]byte) //nolint:forcetypeassert //...
 	}
 }
 

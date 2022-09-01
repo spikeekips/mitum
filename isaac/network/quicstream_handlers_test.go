@@ -353,12 +353,17 @@ func (t *testQuicstreamHandlers) TestLastSuffrageProof() {
 	proof = proof.SetState(st)
 
 	handler := QuicstreamHandlerLastSuffrageProof(t.Encs, time.Second,
-		func(h util.Hash) (base.SuffrageProof, bool, error) {
+		func(h util.Hash) (hint.Hint, []byte, []byte, bool, error) {
 			if h != nil && h.Equal(st.Hash()) {
-				return nil, false, nil
+				return hint.Hint{}, nil, nil, false, nil
 			}
 
-			return proof, true, nil
+			b, err := t.Enc.Marshal(proof)
+			if err != nil {
+				return hint.Hint{}, nil, nil, false, err
+			}
+
+			return t.Enc.Hint(), nil, b, true, nil
 		},
 	)
 

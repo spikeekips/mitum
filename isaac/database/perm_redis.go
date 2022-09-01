@@ -284,7 +284,12 @@ func (db *RedisPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp
 		return e(err, "")
 	}
 
-	_ = db.updateLast(temp.enc.Hint(), temp.mp, temp.mpmeta, temp.mpb, temp.proof, temp.policy)
+	_ = db.updateLast(
+		temp.enc.Hint(),
+		temp.mp, temp.mpmeta, temp.mpbody,
+		temp.proof, temp.proofmeta, temp.proofbody,
+		temp.policy,
+	)
 
 	db.Log().Info().Interface("blockmap", temp.mp).Msg("new block merged")
 
@@ -454,11 +459,16 @@ func (db *RedisPermanent) loadLastSuffrageProof() error {
 	default:
 		var proof base.SuffrageProof
 
-		if _, err := db.readHinter(b, &proof); err != nil {
+		enchint, meta, body, err := db.readHeader(b)
+		if err != nil {
 			return e(err, "")
 		}
 
-		_ = db.proof.SetValue(proof)
+		if err := db.readHinterWithEncoder(enchint, body, &proof); err != nil {
+			return e(err, "")
+		}
+
+		_ = db.proof.SetValue([3]interface{}{proof, meta, body})
 
 		return nil
 	}
