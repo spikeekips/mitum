@@ -410,6 +410,16 @@ func (db *Center) LastBlockMap() (base.BlockMap, bool, error) {
 	return m, found, err
 }
 
+func (db *Center) LastBlockMapBytes() (enchint hint.Hint, meta, body []byte, found bool, err error) {
+	if temps := db.activeTemps(); len(temps) > 0 {
+		enchint, meta, body, err = temps[0].BlockMapBytes()
+
+		return enchint, meta, body, err != nil, err
+	}
+
+	return db.perm.LastBlockMapBytes()
+}
+
 func (db *Center) NewBlockWriteDatabase(height base.Height) (isaac.BlockWriteDatabase, error) {
 	return db.newBlockWriteDatabase(height)
 }

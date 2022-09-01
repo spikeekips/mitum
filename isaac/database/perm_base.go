@@ -4,16 +4,24 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
+	"github.com/spikeekips/mitum/util/hint"
 )
 
 type basePermanent struct {
+	encs   *encoder.Encoders
+	enc    encoder.Encoder
+	lenc   *util.Locked // NOTE last blockmap
 	mp     *util.Locked // NOTE last blockmap
 	policy *util.Locked // NOTE last NetworkPolicy
 	proof  *util.Locked // NOTE last SuffrageProof
 }
 
-func newBasePermanent() *basePermanent {
+func newBasePermanent(encs *encoder.Encoders, enc encoder.Encoder) *basePermanent {
 	return &basePermanent{
+		encs:   encs,
+		enc:    enc,
+		lenc:   util.EmptyLocked(),
 		mp:     util.EmptyLocked(),
 		policy: util.EmptyLocked(),
 		proof:  util.EmptyLocked(),
@@ -25,7 +33,25 @@ func (db *basePermanent) LastBlockMap() (base.BlockMap, bool, error) {
 	case i == nil:
 		return nil, false, nil
 	default:
-		return i.(base.BlockMap), true, nil //nolint:forcetypeassert //...
+		j := i.([3]interface{})                //nolint:forcetypeassert //...
+		return j[0].(base.BlockMap), true, nil //nolint:forcetypeassert //...
+	}
+}
+
+func (db *basePermanent) LastBlockMapBytes() (enchint hint.Hint, meta, body []byte, found bool, err error) {
+	switch i, _ := db.lenc.Value(); {
+	case i == nil:
+		return enchint, nil, nil, false, nil
+	default:
+		enchint = i.(hint.Hint) //nolint:forcetypeassert //...
+	}
+
+	switch i, _ := db.mp.Value(); {
+	case i == nil:
+		return enchint, nil, nil, false, nil
+	default:
+		j := i.([3]interface{})                                 //nolint:forcetypeassert //...
+		return enchint, j[1].([]byte), j[2].([]byte), true, nil //nolint:forcetypeassert //...
 	}
 }
 
@@ -59,7 +85,11 @@ func (db *basePermanent) Clean() error {
 }
 
 func (db *basePermanent) updateLast(
-	mp base.BlockMap, proof base.SuffrageProof, policy base.NetworkPolicy,
+	lenc hint.Hint,
+	mp base.BlockMap,
+	mmeta, mpb []byte,
+	proof base.SuffrageProof,
+	policy base.NetworkPolicy,
 ) (updated bool) {
 	_, err := db.mp.Set(func(_ bool, i interface{}) (interface{}, error) {
 		if i != nil {
@@ -70,6 +100,8 @@ func (db *basePermanent) updateLast(
 			}
 		}
 
+		_ = db.lenc.SetValue(lenc)
+
 		if proof != nil {
 			_ = db.proof.SetValue(proof)
 		}
@@ -78,7 +110,7 @@ func (db *basePermanent) updateLast(
 			_ = db.policy.SetValue(policy)
 		}
 
-		return mp, nil
+		return [3]interface{}{mp, mmeta, mpb}, nil
 	})
 
 	return err == nil

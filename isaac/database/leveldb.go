@@ -12,6 +12,7 @@ import (
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
+	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/localtime"
 	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
@@ -100,23 +101,29 @@ func (db *baseLeveldb) existsKnownOperation(h util.Hash) (bool, error) {
 	}
 }
 
-func (db *baseLeveldb) loadLastBlockMap() (base.BlockMap, error) {
+func (db *baseLeveldb) loadLastBlockMap() (m base.BlockMap, enchint hint.Hint, meta []byte, body []byte, err error) {
 	e := util.StringErrorFunc("failed to load last blockmap")
 
-	var m base.BlockMap
-
-	if err := db.st.Iter(
+	if err = db.st.Iter(
 		leveldbutil.BytesPrefix(leveldbKeyPrefixBlockMap),
 		func(_, b []byte) (bool, error) {
-			_, err := db.readHinter(b, &m)
-			return false, err
+			enchint, meta, body, err = db.readHeader(b)
+			if err != nil {
+				return false, err
+			}
+
+			if err = db.readHinterWithEncoder(enchint, body, &m); err != nil {
+				return false, err
+			}
+
+			return false, nil
 		},
 		false,
 	); err != nil {
-		return nil, e(err, "")
+		return nil, enchint, nil, nil, e(err, "")
 	}
 
-	return m, nil
+	return m, enchint, meta, body, nil
 }
 
 func (db *baseLeveldb) loadNetworkPolicy() (base.NetworkPolicy, bool, error) {

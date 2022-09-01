@@ -136,14 +136,14 @@ func QuicstreamHandlerRequestProposal(
 	local base.LocalNode,
 	pool isaac.ProposalPool,
 	proposalMaker *isaac.ProposalMaker,
-	lastBlockMapf func(util.Hash) (base.BlockMap, bool, error),
+	lastBlockMapf func() (base.BlockMap, bool, error),
 ) quicstream.Handler {
 	getOrCreateProposal := func(
 		point base.Point,
 		proposer base.Address,
 	) (base.ProposalSignedFact, error) {
 		if lastBlockMapf != nil {
-			switch m, found, err := lastBlockMapf(nil); {
+			switch m, found, err := lastBlockMapf(); {
 			case err != nil:
 				return nil, err
 			case !found:
@@ -256,9 +256,9 @@ func QuicstreamHandlerSuffrageProof(
 func QuicstreamHandlerLastBlockMap(
 	encs *encoder.Encoders,
 	idleTimeout time.Duration,
-	lastBlockMapf func(util.Hash) (base.BlockMap, bool, error),
+	lastBlockMapf func(util.Hash) (hint.Hint, []byte, []byte, bool, error),
 ) quicstream.Handler {
-	return boolQUICstreamHandler(encs, idleTimeout, LastBlockMapRequestHeader{},
+	return boolBytesQUICstreamHandler(encs, idleTimeout, LastBlockMapRequestHeader{},
 		func(header isaac.NetworkHeader) string {
 			sgkey := HandlerPrefixLastBlockMap
 
@@ -271,10 +271,12 @@ func QuicstreamHandlerLastBlockMap(
 			return sgkey
 		},
 
-		func(header isaac.NetworkHeader) (interface{}, bool, error) {
+		func(header isaac.NetworkHeader) (hint.Hint, []byte, bool, error) {
 			h := header.(LastBlockMapRequestHeader) //nolint:forcetypeassert //...
 
-			return lastBlockMapf(h.Manifest())
+			enchint, _, body, found, err := lastBlockMapf(h.Manifest())
+
+			return enchint, body, found, err
 		},
 	)
 }
@@ -439,7 +441,7 @@ func QuicstreamHandlerState(
 			}
 
 			if found && h.Hash() != nil {
-				mh, err := isaacdatabase.ReadStateRecordMeta(meta)
+				mh, err := isaacdatabase.ReadHashRecordMeta(meta)
 				if err != nil {
 					return enchint, nil, found, err
 				}

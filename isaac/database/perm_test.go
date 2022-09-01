@@ -116,15 +116,26 @@ func (t *testCommonPermanent) SetupTest() {
 	t.BaseTestBallots.SetupTest()
 }
 
-func (t *testCommonPermanent) setMap(db isaac.PermanentDatabase, mp base.BlockMap) {
-	switch t := db.(type) {
+func (t *testCommonPermanent) setMap(db isaac.PermanentDatabase, mp base.BlockMap) []byte {
+	b, err := t.Enc.Marshal(mp)
+	if err != nil {
+		panic(err)
+	}
+
+	v := [3]interface{}{mp, NewHashRecordMeta(mp.Manifest().Hash()).Bytes(), b}
+
+	switch dbt := db.(type) {
 	case *LeveldbPermanent:
-		_ = t.mp.SetValue(mp)
+		_ = dbt.lenc.SetValue(t.Enc.Hint())
+		_ = dbt.mp.SetValue(v)
 	case *RedisPermanent:
-		_ = t.mp.SetValue(mp)
+		_ = dbt.lenc.SetValue(t.Enc.Hint())
+		_ = dbt.mp.SetValue(v)
 	default:
 		panic("unknown PermanentDatabase")
 	}
+
+	return b
 }
 
 func (t *testCommonPermanent) setSuffrageProof(db isaac.PermanentDatabase, proof base.SuffrageProof) {
@@ -169,9 +180,16 @@ func (t *testCommonPermanent) TestLastMap() {
 		t.NoError(err)
 		t.False(found)
 		t.Nil(rm)
+
+		_, meta, b, found, err := db.LastBlockMapBytes()
+		t.NoError(err)
+		t.False(found)
+		t.Nil(meta)
+		t.Nil(b)
 	})
 
-	t.setMap(db, mp)
+	mpmeta := NewHashRecordMeta(mp.Manifest().Hash())
+	mpb := t.setMap(db, mp)
 
 	t.Run("none-empty blockmap", func() {
 		rm, found, err := db.LastBlockMap()
@@ -179,6 +197,13 @@ func (t *testCommonPermanent) TestLastMap() {
 		t.True(found)
 
 		base.EqualBlockMap(t.Assert(), mp, rm)
+
+		enchint, meta, b, found, err := db.LastBlockMapBytes()
+		t.NoError(err)
+		t.True(found)
+		t.Equal(t.Enc.Hint(), enchint)
+		t.Equal(mpmeta.Bytes(), meta)
+		t.Equal(mpb, b)
 	})
 }
 

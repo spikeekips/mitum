@@ -15,6 +15,7 @@ import (
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
+	"github.com/spikeekips/mitum/util/hint"
 	"github.com/syndtr/goleveldb/leveldb"
 	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
@@ -176,17 +177,34 @@ func (db *LeveldbBlockWrite) SetOperations(ops []util.Hash) error {
 }
 
 func (db *LeveldbBlockWrite) BlockMap() (base.BlockMap, error) {
-	switch i, _ := db.mp.Value(); {
+	switch i, _, _ := db.blockmaps(); {
 	case i == nil:
 		return nil, storage.NotFoundError.Errorf("empty blockmap")
 	default:
-		return i.(base.BlockMap), nil //nolint:forcetypeassert //...
+		return i, nil
+	}
+}
+
+func (db *LeveldbBlockWrite) BlockMapBytes() (enchint hint.Hint, meta, body []byte, err error) {
+	switch _, meta, i := db.blockmaps(); {
+	case i == nil:
+		return enchint, nil, nil, storage.NotFoundError.Errorf("empty blockmap")
+	default:
+		return db.enc.Hint(), meta, i, nil //nolint:forcetypeassert //...
 	}
 }
 
 func (db *LeveldbBlockWrite) SetBlockMap(m base.BlockMap) error {
 	if _, err := db.mp.Set(func(_ bool, i interface{}) (interface{}, error) {
-		b, err := db.marshal(m, nil)
+		switch {
+		case i == nil:
+		case m.Manifest().Height() <= i.(base.BlockMap).Manifest().Height(): //nolint:forcetypeassert //...
+			return nil, util.ErrLockedSetIgnore.Call()
+		}
+
+		meta := NewHashRecordMeta(m.Manifest().Hash())
+
+		b, mb, err := db.marshal(m, meta)
 		if err != nil {
 			return nil, err
 		}
@@ -195,11 +213,7 @@ func (db *LeveldbBlockWrite) SetBlockMap(m base.BlockMap) error {
 			return nil, err
 		}
 
-		if i != nil && m.Manifest().Height() <= i.(base.BlockMap).Manifest().Height() { //nolint:forcetypeassert //...
-			return i, nil
-		}
-
-		return m, nil
+		return [3]interface{}{m, meta.Bytes(), mb}, nil
 	}); err != nil {
 		return errors.Wrap(err, "failed to set blockmap")
 	}
@@ -227,7 +241,7 @@ func (db *LeveldbBlockWrite) NetworkPolicy() base.NetworkPolicy {
 
 func (db *LeveldbBlockWrite) SetSuffrageProof(proof base.SuffrageProof) error {
 	if _, err := db.proof.Set(func(_ bool, i interface{}) (interface{}, error) {
-		b, err := db.marshal(proof, nil)
+		b, _, err := db.marshal(proof, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -282,6 +296,17 @@ func (db *LeveldbBlockWrite) TempDatabase() (isaac.TempDatabase, error) {
 	return temp, nil
 }
 
+func (db *LeveldbBlockWrite) blockmaps() (base.BlockMap, []byte, []byte) {
+	switch i, _ := db.mp.Value(); {
+	case i == nil:
+		return nil, nil, nil
+	default:
+		j := i.([3]interface{}) //nolint:forcetypeassert //...
+
+		return j[0].(base.BlockMap), j[1].([]byte), j[2].([]byte) //nolint:forcetypeassert //...
+	}
+}
+
 func (db *LeveldbBlockWrite) setState(st base.State) error {
 	e := util.StringErrorFunc("failed to set state")
 
@@ -289,9 +314,9 @@ func (db *LeveldbBlockWrite) setState(st base.State) error {
 		return nil
 	}
 
-	meta := NewStateRecordMeta(st.Hash())
+	meta := NewHashRecordMeta(st.Hash())
 
-	b, err := db.marshal(st, meta)
+	b, _, err := db.marshal(st, meta)
 	if err != nil {
 		return errors.Wrap(err, "failed to set state")
 	}

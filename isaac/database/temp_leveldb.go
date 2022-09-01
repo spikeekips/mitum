@@ -1,6 +1,7 @@
 package isaacdatabase
 
 import (
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/storage"
@@ -16,6 +17,8 @@ type TempLeveldb struct {
 	sufst  base.State    // NOTE last suffrage state
 	policy base.NetworkPolicy
 	proof  base.SuffrageProof
+	mpmeta []byte // NOTE last blockmap bytes
+	mpb    []byte // NOTE last blockmap bytes
 }
 
 func NewTempLeveldbFromPrefix(
@@ -53,12 +56,15 @@ func newTempLeveldbFromBlockWriteStorage(wst *LeveldbBlockWrite) (*TempLeveldb, 
 	e := util.StringErrorFunc("failed new TempLeveldbDatabase from TempLeveldbDatabase")
 
 	var mp base.BlockMap
+	var mpmeta, mpb []byte
 
-	switch i, err := wst.BlockMap(); {
-	case err != nil:
-		return nil, e(err, "")
+	switch i, meta, j := wst.blockmaps(); {
+	case i == nil:
+		return nil, e(nil, "empty blockmap")
 	default:
 		mp = i
+		mpmeta = meta
+		mpb = j
 	}
 
 	sufst := wst.SuffrageState()
@@ -72,6 +78,8 @@ func newTempLeveldbFromBlockWriteStorage(wst *LeveldbBlockWrite) (*TempLeveldb, 
 	return &TempLeveldb{
 		baseLeveldb: wst.baseLeveldb,
 		mp:          mp,
+		mpmeta:      mpmeta,
+		mpb:         mpb,
 		sufst:       sufst,
 		policy:      policy,
 		proof:       proof,
@@ -110,6 +118,8 @@ func (db *TempLeveldb) Remove() error {
 
 func (db *TempLeveldb) clean() {
 	db.mp = nil
+	db.mpmeta = nil
+	db.mpb = nil
 	db.sufst = nil
 	db.policy = nil
 	db.proof = nil
@@ -137,6 +147,10 @@ func (db *TempLeveldb) BlockMap() (base.BlockMap, error) {
 	}
 
 	return db.mp, nil
+}
+
+func (db *TempLeveldb) BlockMapBytes() (enchint hint.Hint, meta, body []byte, _ error) {
+	return db.enc.Hint(), db.mpmeta, db.mpb, nil //nolint:forcetypeassert //...
 }
 
 func (db *TempLeveldb) SuffrageProof() (base.SuffrageProof, bool, error) {
@@ -170,13 +184,21 @@ func (db *TempLeveldb) ExistsKnownOperation(h util.Hash) (bool, error) {
 }
 
 func (db *TempLeveldb) loadLastBlockMap() error {
-	switch m, err := db.baseLeveldb.loadLastBlockMap(); {
+	switch m, enchint, meta, body, err := db.baseLeveldb.loadLastBlockMap(); {
 	case err != nil:
 		return err
 	case m == nil:
 		return util.ErrNotFound.Errorf("last BlockMap not found")
 	default:
+		enc := db.encs.Find(enchint)
+		if enc == nil {
+			return errors.Errorf("encoder not found, %q", enchint)
+		}
+
+		db.enc = enc
 		db.mp = m
+		db.mpmeta = meta
+		db.mpb = body
 
 		return nil
 	}

@@ -43,7 +43,7 @@ func newLeveldbPermanent(
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", "leveldb-permanent-database")
 		}),
-		basePermanent: newBasePermanent(),
+		basePermanent: newBasePermanent(encs, enc),
 		baseLeveldb:   newBaseLeveldb(pst, encs, enc),
 		batchlimit:    333, //nolint:gomnd //...
 	}
@@ -239,7 +239,7 @@ func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, te
 		return e(err, "")
 	}
 
-	_ = db.updateLast(temp.mp, temp.proof, temp.policy)
+	_ = db.updateLast(temp.enc.Hint(), temp.mp, temp.mpmeta, temp.mpb, temp.proof, temp.policy)
 
 	db.Log().Info().Interface("blockmap", temp.mp).Msg("new block merged")
 
@@ -247,13 +247,14 @@ func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, te
 }
 
 func (db *LeveldbPermanent) loadLastBlockMap() error {
-	switch m, err := db.baseLeveldb.loadLastBlockMap(); {
+	switch m, enchint, meta, mb, err := db.baseLeveldb.loadLastBlockMap(); {
 	case err != nil:
 		return err
 	case m == nil:
 		return nil
 	default:
-		_ = db.mp.SetValue(m)
+		_ = db.lenc.SetValue(enchint)
+		_ = db.mp.SetValue([3]interface{}{m, meta, mb})
 
 		return nil
 	}

@@ -10,6 +10,7 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
+	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
@@ -77,6 +78,24 @@ func (db *DummyPermanentDatabase) LastBlockMap() (base.BlockMap, bool, error) {
 	}
 
 	return db.lastMapf()
+}
+
+func (db *DummyPermanentDatabase) LastBlockMapBytes() (hint.Hint, []byte, []byte, bool, error) {
+	if db.lastMapf == nil {
+		return hint.Hint{}, nil, nil, false, nil
+	}
+
+	m, found, err := db.lastMapf()
+	if err != nil || !found {
+		return hint.Hint{}, nil, nil, found, err
+	}
+
+	b, err := util.MarshalJSON(m)
+	if err != nil {
+		return hint.Hint{}, nil, nil, found, err
+	}
+
+	return jsonenc.JSONEncoderHint, NewHashRecordMeta(m.Manifest().Hash()).Bytes(), b, true, nil
 }
 
 func (db *DummyPermanentDatabase) LastNetworkPolicy() base.NetworkPolicy {

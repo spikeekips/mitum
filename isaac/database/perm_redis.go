@@ -61,7 +61,7 @@ func NewRedisPermanent(
 			encs,
 			enc,
 		),
-		basePermanent: newBasePermanent(),
+		basePermanent: newBasePermanent(encs, enc),
 		st:            st,
 	}
 
@@ -175,7 +175,7 @@ func (db *RedisPermanent) State(key string) (st base.State, found bool, _ error)
 	return st, found, err
 }
 
-func (db *RedisPermanent) StateBytes(key string) (enchint hint.Hint, meta []byte, b []byte, found bool, err error) {
+func (db *RedisPermanent) StateBytes(key string) (enchint hint.Hint, meta, body []byte, found bool, err error) {
 	return db.getRecordBytes(context.Background(), redisStateKey(key), db.st.Get)
 }
 
@@ -284,7 +284,7 @@ func (db *RedisPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp
 		return e(err, "")
 	}
 
-	_ = db.updateLast(temp.mp, temp.proof, temp.policy)
+	_ = db.updateLast(temp.enc.Hint(), temp.mp, temp.mpmeta, temp.mpb, temp.proof, temp.policy)
 
 	db.Log().Info().Interface("blockmap", temp.mp).Msg("new block merged")
 
@@ -421,11 +421,17 @@ func (db *RedisPermanent) loadLastBlockMap() error {
 	default:
 		var m base.BlockMap
 
-		if _, err := db.readHinter(b, &m); err != nil {
+		enchint, meta, body, err := db.readHeader(b)
+		if err != nil {
 			return e(err, "")
 		}
 
-		_ = db.mp.SetValue(m)
+		if err := db.readHinterWithEncoder(enchint, body, &m); err != nil {
+			return e(err, "")
+		}
+
+		_ = db.lenc.SetValue(enchint)
+		_ = db.mp.SetValue([3]interface{}{m, meta, body})
 	}
 
 	return nil

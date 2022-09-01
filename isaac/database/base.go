@@ -27,29 +27,29 @@ func newBaseDatabase(
 	}
 }
 
-func (db *baseDatabase) marshal(i interface{}, meta util.Byter) ([]byte, error) {
+func (db *baseDatabase) marshal(i interface{}, meta util.Byter) ([]byte, []byte, error) {
 	w := bytes.NewBuffer(nil)
 
 	if err := db.writeHeader(w, meta); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	b, err := db.enc.Marshal(i)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if _, err := w.Write(b); err != nil {
-		return nil, errors.Wrap(err, "")
+		return nil, nil, errors.Wrap(err, "")
 	}
 
-	return w.Bytes(), nil
+	return w.Bytes(), b, nil
 }
 
-func (db *baseDatabase) readEncoder(b []byte) (enc encoder.Encoder, meta []byte, raw []byte, err error) {
+func (db *baseDatabase) readEncoder(b []byte) (enc encoder.Encoder, meta, body []byte, err error) {
 	var ht hint.Hint
 
-	ht, meta, raw, err = db.readHeader(b)
+	ht, meta, body, err = db.readHeader(b)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -58,16 +58,16 @@ func (db *baseDatabase) readEncoder(b []byte) (enc encoder.Encoder, meta []byte,
 	case enc == nil:
 		return nil, nil, nil, util.ErrNotFound.Errorf("encoder not found for %q", ht)
 	default:
-		return enc, meta, raw, nil
+		return enc, meta, body, nil
 	}
 }
 
 func (db *baseDatabase) readHinter(b []byte, v interface{}) ([]byte, error) {
-	switch enc, meta, raw, err := db.readEncoder(b); {
+	switch enc, meta, body, err := db.readEncoder(b); {
 	case err != nil:
 		return nil, err
 	default:
-		if err := encoder.Decode(enc, raw, v); err != nil {
+		if err := encoder.Decode(enc, body, v); err != nil {
 			return nil, err
 		}
 
@@ -97,7 +97,7 @@ func (db *baseDatabase) writeHeader(w io.Writer, meta util.Byter) error {
 	return util.LengthedBytes(w, metab)
 }
 
-func (*baseDatabase) readHeader(b []byte) (ht hint.Hint, meta []byte, raw []byte, err error) {
+func (*baseDatabase) readHeader(b []byte) (ht hint.Hint, meta, body []byte, err error) {
 	e := util.StringErrorFunc("failed to read hint")
 
 	htb, left, err := util.ReadLengthedBytes(b)
@@ -226,13 +226,13 @@ func ReadRecordMetaFromBytes(b []byte) (version byte, m [][]byte, _ error) {
 	return version, m, nil
 }
 
-func NewStateRecordMeta(h util.Hash) util.Byter {
+func NewHashRecordMeta(h util.Hash) util.Byter {
 	b, _ := NewRecordMeta(0x01, [][]byte{h.Bytes()}) //nolint:gomnd //...
 
 	return util.BytesToByter(b)
 }
 
-func ReadStateRecordMeta(b []byte) (util.Hash, error) {
+func ReadHashRecordMeta(b []byte) (util.Hash, error) {
 	e := util.StringErrorFunc("failed to read state record meta")
 
 	switch _, m, err := ReadRecordMetaFromBytes(b); {

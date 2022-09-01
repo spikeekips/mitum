@@ -79,7 +79,7 @@ func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 		).
 		Add(isaacnetwork.HandlerPrefixRequestProposal,
 			isaacnetwork.QuicstreamHandlerRequestProposal(encs, idletimeout,
-				local, pool, proposalMaker, lastBlockMapf,
+				local, pool, proposalMaker, db.LastBlockMap,
 			),
 		).
 		Add(isaacnetwork.HandlerPrefixProposal,
@@ -296,17 +296,24 @@ func sendOperationFilterFunc(ctx context.Context) (
 
 func quicstreamHandlerLastBlockMapFunc(
 	db isaac.Database,
-) func(last util.Hash) (base.BlockMap, bool, error) {
-	return func(last util.Hash) (base.BlockMap, bool, error) {
-		switch m, found, err := db.LastBlockMap(); {
+) func(last util.Hash) (hint.Hint, []byte, []byte, bool, error) {
+	return func(last util.Hash) (hint.Hint, []byte, []byte, bool, error) {
+		enchint, metabytes, body, found, err := db.LastBlockMapBytes()
+
+		switch {
 		case err != nil:
-			return nil, false, err
+			return enchint, nil, nil, false, err
 		case !found:
-			return nil, false, storage.NotFoundError.Errorf("last BlockMap not found")
-		case last != nil && last.Equal(m.Manifest().Hash()):
-			return nil, false, nil
+			return enchint, nil, nil, false, storage.NotFoundError.Errorf("last BlockMap not found")
+		}
+
+		switch h, err := isaacdatabase.ReadHashRecordMeta(metabytes); {
+		case err != nil:
+			return enchint, nil, nil, false, storage.NotFoundError.Errorf("last BlockMap not found")
+		case last != nil && last.Equal(h): // FIXME set hash in meta
+			return enchint, nil, nil, false, nil
 		default:
-			return m, true, nil
+			return enchint, metabytes, body, true, nil
 		}
 	}
 }

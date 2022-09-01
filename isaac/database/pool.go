@@ -146,7 +146,7 @@ func (db *TempPool) SetProposal(pr base.ProposalSignedFact) (bool, error) {
 		}
 	}
 
-	b, err := db.marshal(pr, nil)
+	b, _, err := db.marshal(pr, nil)
 	if err != nil {
 		return false, e(err, "failed to marshal proposal")
 	}
@@ -183,7 +183,9 @@ func (db *TempPool) NewOperation(_ context.Context, operationhash util.Hash) (op
 	}
 }
 
-func (db *TempPool) NewOperationBytes(_ context.Context, operationhash util.Hash) (enchint hint.Hint, meta, body []byte, found bool, _ error) {
+func (db *TempPool) NewOperationBytes(_ context.Context, operationhash util.Hash) (
+	enchint hint.Hint, meta, body []byte, found bool, _ error,
+) {
 	return db.getRecordBytes(leveldbNewOperationKey(operationhash), db.st.Get)
 }
 
@@ -267,7 +269,7 @@ func (db *TempPool) SetNewOperation(_ context.Context, op base.Operation) (bool,
 		return false, nil
 	}
 
-	b, err := db.marshal(op, nil)
+	b, _, err := db.marshal(op, nil)
 	if err != nil {
 		return false, e(err, "failed to marshal operation")
 	}
@@ -435,7 +437,7 @@ func (db *TempPool) SetLastVoteproofs(ivp base.INITVoteproof, avp base.ACCEPTVot
 		}
 
 		vps := [2]base.Voteproof{ivp, avp}
-		b, err := db.marshal(vps, nil)
+		b, _, err := db.marshal(vps, nil)
 		if err != nil {
 			return nil, err
 		}

@@ -53,7 +53,7 @@ func (db *LeveldbTempSyncPool) BlockMap(height base.Height) (m base.BlockMap, fo
 }
 
 func (db *LeveldbTempSyncPool) SetBlockMap(m base.BlockMap) error {
-	b, err := db.marshal(m, nil)
+	b, _, err := db.marshal(m, nil)
 	if err != nil {
 		return err
 	}

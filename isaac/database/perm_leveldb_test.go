@@ -33,7 +33,7 @@ func TestLeveldbPermanent(tt *testing.T) {
 
 		e := util.StringErrorFunc("failed to set state")
 
-		b, err := db.marshal(st, nil)
+		b, _, err := db.marshal(st, nil)
 		if err != nil {
 			return e(err, "")
 		}

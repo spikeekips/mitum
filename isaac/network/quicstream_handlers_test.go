@@ -95,13 +95,15 @@ func (t *testQuicstreamHandlers) TestRequest() {
 	t.Run("ok", func() {
 		m := base.NewDummyManifest(base.Height(33), valuehash.RandomSHA256())
 		mp := base.NewDummyBlockMap(m)
+		mpb, err := t.Enc.Marshal(mp)
+		t.NoError(err)
 
-		handler := QuicstreamHandlerLastBlockMap(t.Encs, time.Second, func(manifest util.Hash) (base.BlockMap, bool, error) {
+		handler := QuicstreamHandlerLastBlockMap(t.Encs, time.Second, func(manifest util.Hash) (hint.Hint, []byte, []byte, bool, error) {
 			if manifest != nil && manifest.Equal(m.Hash()) {
-				return nil, false, nil
+				return hint.Hint{}, nil, nil, false, nil
 			}
 
-			return mp, true, nil
+			return t.Enc.Hint(), nil, mpb, true, nil
 		})
 		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixLastBlockMap, handler))
 
@@ -119,8 +121,8 @@ func (t *testQuicstreamHandlers) TestRequest() {
 	})
 
 	t.Run("error", func() {
-		handler := QuicstreamHandlerLastBlockMap(t.Encs, time.Second, func(manifest util.Hash) (base.BlockMap, bool, error) {
-			return nil, false, errors.Errorf("hehehe")
+		handler := QuicstreamHandlerLastBlockMap(t.Encs, time.Second, func(manifest util.Hash) (hint.Hint, []byte, []byte, bool, error) {
+			return hint.Hint{}, nil, nil, false, errors.Errorf("hehehe")
 		})
 
 		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixLastBlockMap, handler))
@@ -225,7 +227,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 	)
 
 	handler := QuicstreamHandlerRequestProposal(t.Encs, time.Second, t.Local, pool, proposalMaker,
-		func(util.Hash) (base.BlockMap, bool, error) { return nil, false, nil },
+		func() (base.BlockMap, bool, error) { return nil, false, nil },
 	)
 
 	ci := quicstream.NewUDPConnInfo(nil, true)
@@ -255,7 +257,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 
 	t.Run("too high height", func() {
 		handler := QuicstreamHandlerRequestProposal(t.Encs, time.Second, t.Local, pool, proposalMaker,
-			func(util.Hash) (base.BlockMap, bool, error) {
+			func() (base.BlockMap, bool, error) {
 				m := base.NewDummyManifest(base.Height(22), valuehash.RandomSHA256())
 				mp := base.NewDummyBlockMap(m)
 
@@ -275,7 +277,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 
 	t.Run("too low height", func() {
 		handler := QuicstreamHandlerRequestProposal(t.Encs, time.Second, t.Local, pool, proposalMaker,
-			func(util.Hash) (base.BlockMap, bool, error) {
+			func() (base.BlockMap, bool, error) {
 				m := base.NewDummyManifest(base.Height(44), valuehash.RandomSHA256())
 				mp := base.NewDummyBlockMap(m)
 
@@ -439,14 +441,16 @@ func (t *testQuicstreamHandlers) TestLastBlockMap() {
 	t.Run("nil and updated", func() {
 		m := base.NewDummyManifest(base.Height(33), valuehash.RandomSHA256())
 		mp := base.NewDummyBlockMap(m)
+		mpb, err := t.Enc.Marshal(mp)
+		t.NoError(err)
 
 		handler := QuicstreamHandlerLastBlockMap(t.Encs, time.Second,
-			func(manifest util.Hash) (base.BlockMap, bool, error) {
+			func(manifest util.Hash) (hint.Hint, []byte, []byte, bool, error) {
 				if manifest != nil && manifest.Equal(m.Hash()) {
-					return nil, false, nil
+					return hint.Hint{}, nil, nil, false, nil
 				}
 
-				return mp, true, nil
+				return t.Enc.Hint(), nil, mpb, true, nil
 			},
 		)
 		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixLastBlockMap, handler))
@@ -462,14 +466,16 @@ func (t *testQuicstreamHandlers) TestLastBlockMap() {
 	t.Run("not nil and not updated", func() {
 		m := base.NewDummyManifest(base.Height(33), valuehash.RandomSHA256())
 		mp := base.NewDummyBlockMap(m)
+		mpb, err := t.Enc.Marshal(mp)
+		t.NoError(err)
 
 		handler := QuicstreamHandlerLastBlockMap(t.Encs, time.Second,
-			func(manifest util.Hash) (base.BlockMap, bool, error) {
+			func(manifest util.Hash) (hint.Hint, []byte, []byte, bool, error) {
 				if manifest != nil && manifest.Equal(m.Hash()) {
-					return nil, false, nil
+					return hint.Hint{}, nil, nil, false, nil
 				}
 
-				return mp, true, nil
+				return t.Enc.Hint(), nil, mpb, true, nil
 			},
 		)
 		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixLastBlockMap, handler))
@@ -482,8 +488,8 @@ func (t *testQuicstreamHandlers) TestLastBlockMap() {
 
 	t.Run("not found", func() {
 		handler := QuicstreamHandlerLastBlockMap(t.Encs, time.Second,
-			func(manifest util.Hash) (base.BlockMap, bool, error) {
-				return nil, false, nil
+			func(manifest util.Hash) (hint.Hint, []byte, []byte, bool, error) {
+				return hint.Hint{}, nil, nil, false, nil
 			},
 		)
 		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixLastBlockMap, handler))
@@ -726,7 +732,7 @@ func (t *testQuicstreamHandlers) TestState() {
 
 	stb, err := t.Enc.Marshal(st)
 	t.NoError(err)
-	meta := isaacdatabase.NewStateRecordMeta(st.Hash())
+	meta := isaacdatabase.NewHashRecordMeta(st.Hash())
 
 	ci := quicstream.NewUDPConnInfo(nil, true)
 

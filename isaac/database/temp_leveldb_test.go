@@ -67,6 +67,16 @@ func (t *testTempLeveldb) TestLoad() {
 	t.NoError(wst.SetOperations(ops))
 	t.NoError(wst.Write())
 
+	var mpmeta, mpb []byte
+	{
+		i, _ := wst.mp.Value()
+		t.NotNil(i)
+
+		j := i.([3]interface{})
+		mpmeta = j[1].([]byte)
+		mpb = j[2].([]byte)
+	}
+
 	t.NoError(wst.Close())
 
 	rst, err := NewTempLeveldbFromPrefix(wst.st.RawStorage(), wst.st.Prefix(), t.Encs, t.Enc)
@@ -80,6 +90,12 @@ func (t *testTempLeveldb) TestLoad() {
 		t.NoError(err)
 
 		base.EqualBlockMap(t.Assert(), mp, rm)
+
+		ht, meta, rb, err := rst.BlockMapBytes()
+		t.NoError(err)
+		t.Equal(t.Enc.Hint(), ht)
+		t.Equal(mpmeta, meta)
+		t.Equal(mpb, rb)
 	})
 
 	t.Run("check last suffrage", func() {
