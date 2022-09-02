@@ -204,7 +204,7 @@ func QuicstreamHandlerProposal(
 	)
 }
 
-func QuicstreamHandlerLastSuffrageProof( // FIXME use bytes
+func QuicstreamHandlerLastSuffrageProof(
 	encs *encoder.Encoders,
 	idleTimeout time.Duration,
 	lastSuffrageProoff func(suffragestate util.Hash) (hint.Hint, []byte, []byte, bool, error),
@@ -592,7 +592,7 @@ func quicstreamHandlerNodeConnInfos(
 	}
 }
 
-func boolQUICstreamHandler( // FIXME remove
+func boolQUICstreamHandler(
 	encs *encoder.Encoders,
 	idleTimeout time.Duration,
 	header isaac.NetworkHeader,

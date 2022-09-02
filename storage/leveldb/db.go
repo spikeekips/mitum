@@ -106,7 +106,7 @@ func (st *Storage) Iter(
 
 end:
 	for {
-		switch keep, err := callback(copyBytes(iter.Key()), copyBytes(iter.Value())); { // FIXME remove copyBytes
+		switch keep, err := callback(copyBytes(iter.Key()), copyBytes(iter.Value())); {
 		case err != nil:
 			return err
 		case !keep:
@@ -152,13 +152,6 @@ func (st *Storage) Clean() error {
 	}
 
 	return nil
-}
-
-func copyBytes(b []byte) []byte {
-	n := make([]byte, len(b))
-	copy(n, b)
-
-	return n
 }
 
 func BatchRemove(st *Storage, r *leveldbutil.Range, limit int) (int, error) {
@@ -208,4 +201,11 @@ func BatchRemove(st *Storage, r *leveldbutil.Range, limit int) (int, error) {
 	}
 
 	return removed, nil
+}
+
+func copyBytes(b []byte) []byte {
+	n := make([]byte, len(b))
+	copy(n, b)
+
+	return n
 }

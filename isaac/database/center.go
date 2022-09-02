@@ -161,7 +161,9 @@ func (db *Center) SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof,
 	return proof, found, nil
 }
 
-func (db *Center) SuffrageProofBytes(suffrageHeight base.Height) (enchint hint.Hint, meta, body []byte, found bool, err error) {
+func (db *Center) SuffrageProofBytes(suffrageHeight base.Height) (
+	enchint hint.Hint, meta, body []byte, found bool, err error,
+) {
 	e := util.StringErrorFunc("failed to find SuffrageProof by suffrage height")
 
 	var temp isaac.TempDatabase

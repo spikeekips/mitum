@@ -140,7 +140,7 @@ func (db *baseLeveldb) loadNetworkPolicy() (base.NetworkPolicy, bool, error) {
 	}
 
 	var st base.State
-	if _, err := db.readHinter(b, &st); err != nil {
+	if err := db.readHinter(b, &st); err != nil {
 		return nil, true, e(err, "")
 	}
 

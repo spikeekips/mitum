@@ -62,16 +62,12 @@ func (db *baseDatabase) readEncoder(b []byte) (enc encoder.Encoder, meta, body [
 	}
 }
 
-func (db *baseDatabase) readHinter(b []byte, v interface{}) ([]byte, error) { // FIXME remove []byte from returns
-	switch enc, meta, body, err := db.readEncoder(b); {
+func (db *baseDatabase) readHinter(b []byte, v interface{}) error {
+	switch enc, _, body, err := db.readEncoder(b); {
 	case err != nil:
-		return nil, err
+		return err
 	default:
-		if err := encoder.Decode(enc, body, v); err != nil {
-			return nil, err
-		}
-
-		return meta, nil
+		return encoder.Decode(enc, body, v)
 	}
 }
 
@@ -123,7 +119,7 @@ func (db *baseDatabase) decodeSuffrage(b []byte) (base.State, error) {
 
 	var st base.State
 
-	if _, err := db.readHinter(b, &st); err != nil {
+	if err := db.readHinter(b, &st); err != nil {
 		return nil, e(err, "failed to load suffrage state")
 	}
 

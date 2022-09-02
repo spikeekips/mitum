@@ -72,7 +72,7 @@ func (db *TempPool) Proposal(h util.Hash) (pr base.ProposalSignedFact, found boo
 	case len(b) < 1:
 		return nil, false, nil
 	default:
-		if _, err := db.readHinter(b, &pr); err != nil {
+		if err := db.readHinter(b, &pr); err != nil {
 			return nil, false, e(err, "")
 		}
 
@@ -170,7 +170,7 @@ func (db *TempPool) NewOperation(_ context.Context, operationhash util.Hash) (op
 	case len(b) < 1:
 		return nil, false, nil
 	default:
-		if _, err := db.readHinter(b, &op); err != nil {
+		if err := db.readHinter(b, &op); err != nil {
 			return nil, false, e(err, "")
 		}
 

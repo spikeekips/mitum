@@ -394,7 +394,7 @@ func (l *ShardedMap) fnv(k string) int64 {
 	return int64(h) % int64(len(l.sharded))
 }
 
-func isNilLockedValue(i interface{}) bool { // FIXME unexport
+func isNilLockedValue(i interface{}) bool {
 	_, ok := i.(NilLockedValue)
 
 	return ok
