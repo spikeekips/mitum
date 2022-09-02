@@ -405,9 +405,26 @@ func (db *Center) BlockMap(height base.Height) (base.BlockMap, bool, error) {
 		}
 	}
 
-	m, found, err := db.perm.BlockMap(height)
+	return db.perm.BlockMap(height)
+}
 
-	return m, found, err
+func (db *Center) BlockMapBytes(height base.Height) (enchint hint.Hint, meta, body []byte, found bool, err error) {
+	switch temps := db.activeTemps(); {
+	case len(temps) < 1:
+	case temps[0].Height() < height:
+		return enchint, nil, nil, false, nil
+	default:
+		if temp := db.findTemp(height); temp != nil {
+			enchint, meta, body, err := temp.BlockMapBytes()
+			if err != nil {
+				return enchint, nil, nil, false, err
+			}
+
+			return enchint, meta, body, found, err
+		}
+	}
+
+	return db.perm.BlockMapBytes(height)
 }
 
 func (db *Center) LastBlockMap() (base.BlockMap, bool, error) {
@@ -420,9 +437,7 @@ func (db *Center) LastBlockMap() (base.BlockMap, bool, error) {
 		return m, true, nil
 	}
 
-	m, found, err := db.perm.LastBlockMap()
-
-	return m, found, err
+	return db.perm.LastBlockMap()
 }
 
 func (db *Center) LastBlockMapBytes() (enchint hint.Hint, meta, body []byte, found bool, err error) {

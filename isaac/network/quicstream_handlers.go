@@ -42,7 +42,6 @@ func QuicstreamHandlerOperation(
 
 			return HandlerPrefixOperation + h.Operation().String()
 		},
-
 		func(header isaac.NetworkHeader) (enchint hint.Hint, body []byte, found bool, err error) {
 			h := header.(OperationRequestHeader) //nolint:forcetypeassert //...
 
@@ -174,7 +173,6 @@ func QuicstreamHandlerRequestProposal(
 
 			return HandlerPrefixRequestProposal + h.Proposer().String()
 		},
-
 		func(header isaac.NetworkHeader) (interface{}, bool, error) {
 			h := header.(RequestProposalRequestHeader) //nolint:forcetypeassert //...
 
@@ -196,7 +194,6 @@ func QuicstreamHandlerProposal(
 
 			return HandlerPrefixProposal + h.Proposal().String()
 		},
-
 		func(header isaac.NetworkHeader) (enchint hint.Hint, body []byte, found bool, err error) {
 			h := header.(ProposalRequestHeader) //nolint:forcetypeassert //...
 
@@ -222,7 +219,6 @@ func QuicstreamHandlerLastSuffrageProof( // FIXME use bytes
 
 			return sgkey
 		},
-
 		func(header isaac.NetworkHeader) (hint.Hint, []byte, bool, error) {
 			h := header.(LastSuffrageProofRequestHeader) //nolint:forcetypeassert //...
 
@@ -244,7 +240,6 @@ func QuicstreamHandlerSuffrageProof(
 
 			return HandlerPrefixSuffrageProof + h.Height().String()
 		},
-
 		func(header isaac.NetworkHeader) (interface{}, bool, error) {
 			h := header.(SuffrageProofRequestHeader) //nolint:forcetypeassert //...
 
@@ -272,7 +267,6 @@ func QuicstreamHandlerLastBlockMap(
 
 			return sgkey
 		},
-
 		func(header isaac.NetworkHeader) (hint.Hint, []byte, bool, error) {
 			h := header.(LastBlockMapRequestHeader) //nolint:forcetypeassert //...
 
@@ -286,19 +280,20 @@ func QuicstreamHandlerLastBlockMap(
 func QuicstreamHandlerBlockMap(
 	encs *encoder.Encoders,
 	idleTimeout time.Duration,
-	blockMapf func(base.Height) (base.BlockMap, bool, error),
+	blockMapf func(base.Height) (hint.Hint, []byte, []byte, bool, error),
 ) quicstream.Handler {
-	return boolQUICstreamHandler(encs, idleTimeout, BlockMapRequestHeader{},
+	return boolBytesQUICstreamHandler(encs, idleTimeout, BlockMapRequestHeader{},
 		func(header isaac.NetworkHeader) string {
 			h := header.(BlockMapRequestHeader) //nolint:forcetypeassert //...
 
 			return HandlerPrefixBlockMap + h.Height().String()
 		},
-
-		func(header isaac.NetworkHeader) (interface{}, bool, error) {
+		func(header isaac.NetworkHeader) (hint.Hint, []byte, bool, error) {
 			h := header.(BlockMapRequestHeader) //nolint:forcetypeassert //...
 
-			return blockMapf(h.Height())
+			enchint, _, body, found, err := blockMapf(h.Height())
+
+			return enchint, body, found, err
 		},
 	)
 }

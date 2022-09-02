@@ -512,14 +512,16 @@ func (t *testQuicstreamHandlers) TestBlockMap() {
 	t.Run("found", func() {
 		m := base.NewDummyManifest(base.Height(33), valuehash.RandomSHA256())
 		mp := base.NewDummyBlockMap(m)
+		mpb, err := t.Enc.Marshal(mp)
+		t.NoError(err)
 
 		handler := QuicstreamHandlerBlockMap(t.Encs, time.Second,
-			func(height base.Height) (base.BlockMap, bool, error) {
+			func(height base.Height) (hint.Hint, []byte, []byte, bool, error) {
 				if height != m.Height() {
-					return nil, false, nil
+					return hint.Hint{}, nil, nil, false, nil
 				}
 
-				return mp, true, nil
+				return t.Enc.Hint(), nil, mpb, true, nil
 			},
 		)
 		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixBlockMap, handler))
@@ -534,8 +536,8 @@ func (t *testQuicstreamHandlers) TestBlockMap() {
 
 	t.Run("not found", func() {
 		handler := QuicstreamHandlerBlockMap(t.Encs, time.Second,
-			func(height base.Height) (base.BlockMap, bool, error) {
-				return nil, false, nil
+			func(height base.Height) (hint.Hint, []byte, []byte, bool, error) {
+				return hint.Hint{}, nil, nil, false, nil
 			},
 		)
 		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixBlockMap, handler))
@@ -548,8 +550,8 @@ func (t *testQuicstreamHandlers) TestBlockMap() {
 
 	t.Run("error", func() {
 		handler := QuicstreamHandlerBlockMap(t.Encs, time.Second,
-			func(height base.Height) (base.BlockMap, bool, error) {
-				return nil, false, errors.Errorf("hehehe")
+			func(height base.Height) (hint.Hint, []byte, []byte, bool, error) {
+				return hint.Hint{}, nil, nil, false, errors.Errorf("hehehe")
 			},
 		)
 		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixBlockMap, handler))

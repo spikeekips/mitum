@@ -86,6 +86,20 @@ func (db *DummyPermanentDatabase) BlockMap(height base.Height) (base.BlockMap, b
 	return db.mapf(height)
 }
 
+func (db *DummyPermanentDatabase) BlockMapBytes(height base.Height) (hint.Hint, []byte, []byte, bool, error) {
+	m, found, err := db.mapf(height)
+	if err != nil || !found {
+		return hint.Hint{}, nil, nil, found, err
+	}
+
+	b, err := util.MarshalJSON(m)
+	if err != nil {
+		return hint.Hint{}, nil, nil, found, err
+	}
+
+	return jsonenc.JSONEncoderHint, nil, b, true, nil
+}
+
 func (db *DummyPermanentDatabase) LastBlockMap() (base.BlockMap, bool, error) {
 	if db.lastMapf == nil {
 		return nil, false, nil
@@ -161,6 +175,12 @@ func (t *testCenterWithPermanent) TestMap() {
 		t.NoError(err)
 		t.True(found)
 		base.EqualBlockMap(t.Assert(), mp, rm)
+
+		enchint, _, body, found, err := db.BlockMapBytes(manifest.Height())
+		t.NoError(err)
+		t.True(found)
+		t.Equal(t.Enc.Hint(), enchint)
+		t.NotNil(body)
 	})
 
 	t.Run("not found", func() {
@@ -168,6 +188,11 @@ func (t *testCenterWithPermanent) TestMap() {
 		t.NoError(err)
 		t.False(found)
 		t.Nil(rm)
+
+		_, _, body, found, err := db.BlockMapBytes(manifest.Height() + 1)
+		t.NoError(err)
+		t.False(found)
+		t.Nil(body)
 	})
 
 	t.Run("error", func() {

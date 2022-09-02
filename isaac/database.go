@@ -15,6 +15,7 @@ type Database interface {
 	util.Daemon
 	Close() error
 	BlockMap(height base.Height) (base.BlockMap, bool, error)
+	BlockMapBytes(base.Height) (hint.Hint, []byte, []byte, bool, error)
 	LastBlockMap() (base.BlockMap, bool, error)
 	LastBlockMapBytes() (hint.Hint, []byte, []byte, bool, error)
 	LastSuffrageProof() (base.SuffrageProof, bool, error)
@@ -81,6 +82,7 @@ type PermanentDatabase interface {
 	SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof, bool, error)
 	SuffrageProofByBlockHeight(blockheight base.Height) (base.SuffrageProof, bool, error)
 	BlockMap(base.Height) (base.BlockMap, bool, error)
+	BlockMapBytes(base.Height) (hint.Hint, []byte, []byte, bool, error)
 	LastNetworkPolicy() base.NetworkPolicy
 	MergeTempDatabase(context.Context, TempDatabase) error
 }

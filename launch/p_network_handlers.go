@@ -115,7 +115,7 @@ func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 			isaacnetwork.QuicstreamHandlerLastBlockMap(encs, idletimeout, lastBlockMapf),
 		).
 		Add(isaacnetwork.HandlerPrefixBlockMap,
-			isaacnetwork.QuicstreamHandlerBlockMap(encs, idletimeout, db.BlockMap),
+			isaacnetwork.QuicstreamHandlerBlockMap(encs, idletimeout, db.BlockMapBytes),
 		).
 		Add(isaacnetwork.HandlerPrefixBlockMapItem,
 			isaacnetwork.QuicstreamHandlerBlockMapItem(encs, idletimeout, idletimeout*2, //nolint:gomnd //...

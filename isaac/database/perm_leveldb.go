@@ -174,6 +174,21 @@ func (db *LeveldbPermanent) BlockMap(height base.Height) (m base.BlockMap, _ boo
 	return m, found, err
 }
 
+func (db *LeveldbPermanent) BlockMapBytes(height base.Height) (enchint hint.Hint, meta, body []byte, found bool, err error) {
+	e := util.StringErrorFunc("failed to load blockmap bytes")
+
+	switch i, found, err := db.LastBlockMap(); {
+	case err != nil:
+		return enchint, nil, nil, false, e(err, "")
+	case !found:
+		return enchint, nil, nil, false, nil
+	case found && i.Manifest().Height() == height:
+		return db.LastBlockMapBytes()
+	}
+
+	return db.getRecordBytes(leveldbBlockMapKey(height), db.st.Get)
+}
+
 func (db *LeveldbPermanent) MergeTempDatabase(ctx context.Context, temp isaac.TempDatabase) error {
 	db.Lock()
 	defer db.Unlock()
