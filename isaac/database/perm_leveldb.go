@@ -76,30 +76,33 @@ func (db *LeveldbPermanent) Clean() error {
 func (db *LeveldbPermanent) SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof, bool, error) {
 	e := util.StringErrorFunc("failed to get suffrageproof by height")
 
-	switch proof, found, err := db.LastSuffrageProof(); {
+	switch proof, found, err := compareWithLastSuffrageProof(suffrageHeight, db.LastSuffrageProof); {
 	case err != nil:
 		return nil, false, e(err, "")
-	case !found:
-		return nil, false, nil
+	case found:
+		return proof, true, nil
 	default:
-		stv, err := base.LoadSuffrageNodesStateValue(proof.State())
-		if err != nil {
-			return nil, false, e(err, "")
-		}
+		var proof base.SuffrageProof
 
-		switch {
-		case suffrageHeight > stv.Height():
-			return nil, false, nil
-		case suffrageHeight == stv.Height():
-			return proof, true, nil
-		}
+		found, err := db.getRecord(leveldbSuffrageProofKey(suffrageHeight), db.st.Get, &proof)
+
+		return proof, found, err
 	}
+}
 
-	var proof base.SuffrageProof
+func (db *LeveldbPermanent) SuffrageProofBytes(suffrageHeight base.Height) (
+	enchint hint.Hint, meta, body []byte, found bool, err error,
+) {
+	e := util.StringErrorFunc("failed to get suffrageproof by height")
 
-	found, err := db.getRecord(leveldbSuffrageProofKey(suffrageHeight), db.st.Get, &proof)
-
-	return proof, found, err
+	switch _, found, err := compareWithLastSuffrageProof(suffrageHeight, db.LastSuffrageProof); {
+	case err != nil:
+		return enchint, nil, nil, false, e(err, "")
+	case found:
+		return db.LastSuffrageProofBytes()
+	default:
+		return db.getRecordBytes(leveldbSuffrageProofKey(suffrageHeight), db.st.Get)
+	}
 }
 
 func (db *LeveldbPermanent) SuffrageProofByBlockHeight(height base.Height) (base.SuffrageProof, bool, error) {
@@ -174,7 +177,9 @@ func (db *LeveldbPermanent) BlockMap(height base.Height) (m base.BlockMap, _ boo
 	return m, found, err
 }
 
-func (db *LeveldbPermanent) BlockMapBytes(height base.Height) (enchint hint.Hint, meta, body []byte, found bool, err error) {
+func (db *LeveldbPermanent) BlockMapBytes(height base.Height) (
+	enchint hint.Hint, meta, body []byte, found bool, err error,
+) {
 	e := util.StringErrorFunc("failed to load blockmap bytes")
 
 	switch i, found, err := db.LastBlockMap(); {
@@ -305,7 +310,9 @@ func (db *LeveldbPermanent) loadLastSuffrageProof() error {
 		return e(err, "")
 	}
 
-	_ = db.proof.SetValue([3]interface{}{proof, meta, body})
+	if proof != nil {
+		_ = db.proof.SetValue([3]interface{}{proof, meta, body})
+	}
 
 	return nil
 }
@@ -320,5 +327,33 @@ func (db *LeveldbPermanent) loadNetworkPolicy() error {
 		_ = db.policy.SetValue(policy)
 
 		return nil
+	}
+}
+
+func compareWithLastSuffrageProof(
+	suffrageHeight base.Height,
+	last func() (base.SuffrageProof, bool, error),
+) (base.SuffrageProof, bool, error) {
+	proof, found, err := last()
+
+	switch {
+	case err != nil:
+		return nil, false, err
+	case !found:
+		return nil, false, nil
+	}
+
+	stv, err := base.LoadSuffrageNodesStateValue(proof.State())
+	if err != nil {
+		return nil, false, err
+	}
+
+	switch {
+	case suffrageHeight > stv.Height():
+		return nil, false, nil
+	case suffrageHeight == stv.Height():
+		return proof, true, nil
+	default:
+		return nil, false, nil
 	}
 }

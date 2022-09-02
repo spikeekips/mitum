@@ -16,7 +16,6 @@ import (
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/stretchr/testify/suite"
-	"go.uber.org/goleak"
 )
 
 type testMemberlist struct {
@@ -912,9 +911,5 @@ func (t *testMemberlist) TestJoinWithDeadNode() {
 }
 
 func TestMemberlist(t *testing.T) {
-	defer goleak.VerifyNone(t,
-		goleak.IgnoreTopFunction("github.com/lucas-clemente/quic-go.(*client).dial"),
-	)
-
 	suite.Run(t, new(testMemberlist))
 }

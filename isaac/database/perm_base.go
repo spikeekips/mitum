@@ -110,7 +110,7 @@ func (db *basePermanent) updateLast(
 ) (updated bool) {
 	_, err := db.mp.Set(func(_ bool, i interface{}) (interface{}, error) {
 		if i != nil {
-			old := i.(base.BlockMap) //nolint:forcetypeassert //...
+			old := i.([3]interface{})[0].(base.BlockMap) //nolint:forcetypeassert //...
 
 			if mp.Manifest().Height() <= old.Manifest().Height() {
 				return nil, errors.Errorf("old")

@@ -232,18 +232,20 @@ func QuicstreamHandlerLastSuffrageProof( // FIXME use bytes
 func QuicstreamHandlerSuffrageProof(
 	encs *encoder.Encoders,
 	idleTimeout time.Duration,
-	suffrageProoff func(base.Height) (base.SuffrageProof, bool, error),
+	suffrageProoff func(base.Height) (hint.Hint, []byte, []byte, bool, error),
 ) quicstream.Handler {
-	return boolQUICstreamHandler(encs, idleTimeout, SuffrageProofRequestHeader{},
+	return boolBytesQUICstreamHandler(encs, idleTimeout, SuffrageProofRequestHeader{},
 		func(header isaac.NetworkHeader) string {
 			h := header.(SuffrageProofRequestHeader) //nolint:forcetypeassert //...
 
 			return HandlerPrefixSuffrageProof + h.Height().String()
 		},
-		func(header isaac.NetworkHeader) (interface{}, bool, error) {
+		func(header isaac.NetworkHeader) (hint.Hint, []byte, bool, error) {
 			h := header.(SuffrageProofRequestHeader) //nolint:forcetypeassert //...
 
-			return suffrageProoff(h.Height())
+			enchint, _, body, found, err := suffrageProoff(h.Height())
+
+			return enchint, body, found, err
 		},
 	)
 }

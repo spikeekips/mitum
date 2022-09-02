@@ -21,6 +21,7 @@ type Database interface {
 	LastSuffrageProof() (base.SuffrageProof, bool, error)
 	LastSuffrageProofBytes() (hint.Hint, []byte, []byte, bool, error)
 	SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof, bool, error)
+	SuffrageProofBytes(suffrageHeight base.Height) (hint.Hint, []byte, []byte, bool, error)
 	SuffrageProofByBlockHeight(blockheight base.Height) (base.SuffrageProof, bool, error)
 	LastNetworkPolicy() base.NetworkPolicy
 	State(key string) (base.State, bool, error)
@@ -80,6 +81,7 @@ type PermanentDatabase interface {
 	LastSuffrageProof() (base.SuffrageProof, bool, error)
 	LastSuffrageProofBytes() (hint.Hint, []byte, []byte, bool, error)
 	SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof, bool, error)
+	SuffrageProofBytes(suffrageHeight base.Height) (hint.Hint, []byte, []byte, bool, error)
 	SuffrageProofByBlockHeight(blockheight base.Height) (base.SuffrageProof, bool, error)
 	BlockMap(base.Height) (base.BlockMap, bool, error)
 	BlockMapBytes(base.Height) (hint.Hint, []byte, []byte, bool, error)

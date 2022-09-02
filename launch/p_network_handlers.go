@@ -109,7 +109,7 @@ func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 			),
 		).
 		Add(isaacnetwork.HandlerPrefixSuffrageProof,
-			isaacnetwork.QuicstreamHandlerSuffrageProof(encs, idletimeout, db.SuffrageProof),
+			isaacnetwork.QuicstreamHandlerSuffrageProof(encs, idletimeout, db.SuffrageProofBytes),
 		).
 		Add(isaacnetwork.HandlerPrefixLastBlockMap,
 			isaacnetwork.QuicstreamHandlerLastBlockMap(encs, idletimeout, lastBlockMapf),

@@ -146,25 +146,11 @@ func (db *Center) LastSuffrageProofBytes() (enchint hint.Hint, meta, body []byte
 func (db *Center) SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof, bool, error) {
 	e := util.StringErrorFunc("failed to find SuffrageProof by suffrage height")
 
-	temps := db.activeTemps()
-
-end:
-	for i := range temps {
-		temp := temps[i]
-
-		switch sh := temp.SuffrageHeight(); {
-		case sh == base.NilHeight:
-			continue end
-		case sh > suffrageHeight:
-			continue end
-		}
-
-		switch j, found, err := temp.SuffrageProof(); {
-		case err != nil:
-			return nil, false, e(err, "")
-		case found:
-			return j, true, nil
-		}
+	switch _, proof, found, err := db.suffrageProofInTemps(suffrageHeight); {
+	case err != nil:
+		return nil, false, e(err, "")
+	case found:
+		return proof, true, nil
 	}
 
 	proof, found, err := db.perm.SuffrageProof(suffrageHeight)
@@ -173,6 +159,31 @@ end:
 	}
 
 	return proof, found, nil
+}
+
+func (db *Center) SuffrageProofBytes(suffrageHeight base.Height) (enchint hint.Hint, meta, body []byte, found bool, err error) {
+	e := util.StringErrorFunc("failed to find SuffrageProof by suffrage height")
+
+	var temp isaac.TempDatabase
+
+	switch temp, _, found, err = db.suffrageProofInTemps(suffrageHeight); {
+	case err != nil:
+		return enchint, nil, nil, false, e(err, "")
+	case found:
+		switch enchint, meta, body, found, err = temp.SuffrageProofBytes(); {
+		case err != nil:
+			return enchint, nil, nil, false, e(err, "")
+		case found:
+			return enchint, meta, body, found, nil
+		}
+	}
+
+	enchint, meta, body, found, err = db.perm.SuffrageProofBytes(suffrageHeight)
+	if err != nil {
+		return enchint, nil, nil, false, e(err, "")
+	}
+
+	return enchint, meta, body, found, nil
 }
 
 // FIXME cache result from storages
@@ -782,4 +793,31 @@ end:
 	})
 
 	return temps, nil
+}
+
+func (db *Center) suffrageProofInTemps(suffrageHeight base.Height) (
+	isaac.TempDatabase, base.SuffrageProof, bool, error,
+) {
+	temps := db.activeTemps()
+
+end:
+	for i := range temps {
+		temp := temps[i]
+
+		switch sh := temp.SuffrageHeight(); {
+		case sh == base.NilHeight:
+			continue end
+		case sh > suffrageHeight:
+			continue end
+		}
+
+		switch j, found, err := temp.SuffrageProof(); {
+		case err != nil:
+			return nil, nil, false, err
+		case found:
+			return temp, j, true, nil
+		}
+	}
+
+	return nil, nil, false, nil
 }

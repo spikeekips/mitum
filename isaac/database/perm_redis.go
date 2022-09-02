@@ -99,30 +99,33 @@ func (db *RedisPermanent) Clean() error {
 func (db *RedisPermanent) SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof, bool, error) {
 	e := util.StringErrorFunc("failed to get suffrageproof by height")
 
-	switch proof, found, err := db.LastSuffrageProof(); {
+	switch proof, found, err := compareWithLastSuffrageProof(suffrageHeight, db.LastSuffrageProof); {
 	case err != nil:
 		return nil, false, e(err, "")
-	case !found:
-		return nil, false, nil
+	case found:
+		return proof, true, nil
 	default:
-		stv, err := base.LoadSuffrageNodesStateValue(proof.State())
-		if err != nil {
-			return nil, false, e(err, "")
-		}
+		var proof base.SuffrageProof
 
-		switch {
-		case suffrageHeight > stv.Height():
-			return nil, false, nil
-		case suffrageHeight == stv.Height():
-			return proof, true, nil
-		}
+		found, err := db.getRecord(context.Background(), redisSuffrageProofKey(suffrageHeight), db.st.Get, &proof)
+
+		return proof, found, err
 	}
+}
 
-	var proof base.SuffrageProof
+func (db *RedisPermanent) SuffrageProofBytes(suffrageHeight base.Height) (
+	enchint hint.Hint, meta, body []byte, found bool, err error,
+) {
+	e := util.StringErrorFunc("failed to get suffrageproof by height")
 
-	found, err := db.getRecord(context.Background(), redisSuffrageProofKey(suffrageHeight), db.st.Get, &proof)
-
-	return proof, found, err
+	switch _, found, err := compareWithLastSuffrageProof(suffrageHeight, db.LastSuffrageProof); {
+	case err != nil:
+		return enchint, nil, nil, false, e(err, "")
+	case found:
+		return db.LastSuffrageProofBytes()
+	default:
+		return db.getRecordBytes(context.Background(), redisSuffrageProofKey(suffrageHeight), db.st.Get)
+	}
 }
 
 func (db *RedisPermanent) SuffrageProofByBlockHeight(height base.Height) (base.SuffrageProof, bool, error) {
@@ -218,7 +221,9 @@ func (db *RedisPermanent) BlockMap(height base.Height) (m base.BlockMap, _ bool,
 	return m, found, err
 }
 
-func (db *RedisPermanent) BlockMapBytes(height base.Height) (enchint hint.Hint, meta, body []byte, found bool, err error) {
+func (db *RedisPermanent) BlockMapBytes(height base.Height) (
+	enchint hint.Hint, meta, body []byte, found bool, err error,
+) {
 	e := util.StringErrorFunc("failed to load blockmap bytes")
 
 	switch i, found, err := db.LastBlockMap(); {

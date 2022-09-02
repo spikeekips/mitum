@@ -404,13 +404,16 @@ func (t *testQuicstreamHandlers) TestSuffrageProof() {
 		proof := base.NewDummySuffrageProof()
 		proof = proof.SetState(st)
 
+		proofb, err := t.Enc.Marshal(proof)
+		t.NoError(err)
+
 		handler := QuicstreamHandlerSuffrageProof(t.Encs, time.Second,
-			func(h base.Height) (base.SuffrageProof, bool, error) {
+			func(h base.Height) (hint.Hint, []byte, []byte, bool, error) {
 				if h != suffrageheight {
-					return nil, false, nil
+					return hint.Hint{}, nil, nil, false, nil
 				}
 
-				return proof, true, nil
+				return t.Enc.Hint(), nil, proofb, true, nil
 			},
 		)
 
@@ -426,8 +429,8 @@ func (t *testQuicstreamHandlers) TestSuffrageProof() {
 
 	t.Run("not found", func() {
 		handler := QuicstreamHandlerSuffrageProof(t.Encs, time.Second,
-			func(h base.Height) (base.SuffrageProof, bool, error) {
-				return nil, false, nil
+			func(h base.Height) (hint.Hint, []byte, []byte, bool, error) {
+				return hint.Hint{}, nil, nil, false, nil
 			},
 		)
 

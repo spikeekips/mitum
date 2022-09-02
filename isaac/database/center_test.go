@@ -44,6 +44,20 @@ func (db *DummyPermanentDatabase) SuffrageProof(h base.Height) (base.SuffragePro
 	return db.suffrageprooff(h)
 }
 
+func (db *DummyPermanentDatabase) SuffrageProofBytes(h base.Height) (hint.Hint, []byte, []byte, bool, error) {
+	proof, found, err := db.SuffrageProof(h)
+	if err != nil || !found {
+		return hint.Hint{}, nil, nil, found, err
+	}
+
+	b, err := util.MarshalJSON(proof)
+	if err != nil {
+		return hint.Hint{}, nil, nil, found, err
+	}
+
+	return jsonenc.JSONEncoderHint, NewHashRecordMeta(proof.Map().Manifest().Suffrage()).Bytes(), b, true, nil
+}
+
 func (db *DummyPermanentDatabase) SuffrageProofByBlockHeight(h base.Height) (base.SuffrageProof, bool, error) {
 	return db.suffrageproofbyblockheightf(h)
 }
@@ -276,6 +290,12 @@ func (t *testCenterWithPermanent) TestSuffrageProof() {
 		t.NoError(err)
 		t.True(found)
 		t.Equal(proof, rproof)
+
+		enchint, _, body, found, err := db.SuffrageProofBytes(suffrageheight)
+		t.NoError(err)
+		t.True(found)
+		t.Equal(t.Enc.Hint(), enchint)
+		t.NotNil(body)
 	})
 
 	t.Run("not found SuffrageProof", func() {
@@ -283,6 +303,10 @@ func (t *testCenterWithPermanent) TestSuffrageProof() {
 		t.NoError(err)
 		t.False(found)
 		t.Nil(rproof)
+
+		_, _, _, found, err = db.SuffrageProofBytes(suffrageheight + 1)
+		t.NoError(err)
+		t.False(found)
 	})
 
 	t.Run("error SuffrageProof", func() {

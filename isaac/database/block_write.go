@@ -196,10 +196,11 @@ func (db *LeveldbBlockWrite) BlockMapBytes() (enchint hint.Hint, meta, body []by
 
 func (db *LeveldbBlockWrite) SetBlockMap(m base.BlockMap) error {
 	if _, err := db.mp.Set(func(_ bool, i interface{}) (interface{}, error) {
-		switch {
-		case i == nil:
-		case m.Manifest().Height() <= i.(base.BlockMap).Manifest().Height(): //nolint:forcetypeassert //...
-			return nil, util.ErrLockedSetIgnore.Call()
+		if i != nil {
+			j := i.([3]interface{})                                                //nolint:forcetypeassert //...
+			if m.Manifest().Height() <= j[0].(base.BlockMap).Manifest().Height() { //nolint:forcetypeassert //...
+				return nil, util.ErrLockedSetIgnore.Call()
+			}
 		}
 
 		meta := NewHashRecordMeta(m.Manifest().Hash())
