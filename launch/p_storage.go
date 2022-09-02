@@ -33,6 +33,7 @@ var (
 	PNameStorage                = ps.Name("storage")
 	PNameStartStorage           = ps.Name("start-storage")
 	PNameCheckLeveldbStorage    = ps.Name("check-leveldb-storage")
+	PNameCheckPoolDatabase      = ps.Name("check-pool-database")
 	PNameCleanStorage           = ps.Name("clean-storage")
 	PNameCreateLocalFS          = ps.Name("create-localfs")
 	PNameCheckLocalFS           = ps.Name("check-localfs")
@@ -183,6 +184,82 @@ func PCheckLeveldbStorage(ctx context.Context) (context.Context, error) {
 	}
 
 	log.Log().Debug().Msg("leveldb storage compacted")
+
+	return ctx, nil
+}
+
+func PCheckPoolDatabase(ctx context.Context) (context.Context, error) {
+	e := util.StringErrorFunc("failed to check pool database")
+
+	var design NodeDesign
+	var encs *encoder.Encoders
+	var center isaac.Database
+	var pool *isaacdatabase.TempPool
+
+	if err := ps.LoadFromContextOK(ctx,
+		DesignContextKey, &design,
+		EncodersContextKey, &encs,
+		CenterDatabaseContextKey, &center,
+		PoolDatabaseContextKey,
+		&pool,
+	); err != nil {
+		return ctx, e(err, "")
+	}
+
+	var manifest base.Manifest
+	var enc encoder.Encoder
+
+	switch m, found, err := center.LastBlockMap(); {
+	case err != nil:
+		return ctx, e(err, "")
+	case !found:
+		if err := pool.SetLastVoteproofs(nil, nil); err != nil {
+			return ctx, e(err, "")
+		}
+
+		return ctx, nil
+	default:
+		enc = encs.Find(m.Encoder())
+		if enc == nil {
+			return ctx, e(nil, "encoder of last blockmap not found")
+		}
+
+		manifest = m.Manifest()
+	}
+
+	switch i, err := compareLastVoteproofsWithManifest(ctx, pool, manifest); {
+	case err != nil:
+		return ctx, e(err, "")
+	case !i:
+		return ctx, nil
+	}
+
+	reader, err := isaacblock.NewLocalFSReaderFromHeight(
+		LocalFSDataDirectory(design.Storage.Base), manifest.Height(), enc,
+	)
+	if err != nil {
+		return ctx, e(err, "")
+	}
+
+	defer func() {
+		_ = reader.Close()
+	}()
+
+	switch v, found, err := reader.Item(base.BlockMapItemTypeVoteproofs); {
+	case err != nil:
+		return ctx, e(err, "")
+	case !found:
+		return ctx, e(nil, "last voteproofs not found in localfs")
+	default:
+		vps := v.([]base.Voteproof) //nolint:forcetypeassert //...
+
+		ivp := vps[0].(base.INITVoteproof)   //nolint:forcetypeassert //...
+		avp := vps[1].(base.ACCEPTVoteproof) //nolint:forcetypeassert //...
+
+		if err := pool.SetLastVoteproofs(ivp, avp); err != nil {
+			return ctx, e(err, "")
+		}
+	}
 
 	return ctx, nil
 }
@@ -940,4 +1017,40 @@ func ValidateStatesOfBlock(
 	}
 
 	return nil
+}
+
+func compareLastVoteproofsWithManifest(
+	ctx context.Context,
+	pool *isaacdatabase.TempPool,
+	manifest base.Manifest,
+) (update bool, err error) {
+	var log *logging.Logging
+
+	if err := ps.LoadFromContextOK(ctx, LoggingContextKey, &log); err != nil {
+		return false, err
+	}
+
+	switch _, avp, found, err := pool.LastVoteproofs(); {
+	case err != nil:
+		return false, err
+	case !found:
+		return true, nil
+	default:
+		switch {
+		case manifest.Height() != avp.Point().Height():
+			log.Log().Error().
+				Interface("manifest", manifest.Height()).Interface("accept_voteproof", avp.Point().Height()).
+				Msg("last manifest and last accept voteproof; height does not match")
+
+			return true, nil
+		case !manifest.Hash().Equal(avp.BallotMajority().NewBlock()):
+			log.Log().Error().
+				Stringer("manifest", manifest.Hash()).Stringer("accept_voteproof", avp.BallotMajority().NewBlock()).
+				Msg("last manifest and last accept voteproof; hash does not match")
+
+			return true, nil
+		default:
+			return false, nil
+		}
+	}
 }

@@ -131,6 +131,9 @@ func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 						return nil, false, e(storage.NotFoundError.Errorf("BlockMap not found"), "")
 					default:
 						menc = encs.Find(m.Encoder())
+						if menc == nil {
+							return nil, false, e(storage.NotFoundError.Errorf("encoder of BlockMap not found"), "")
+						}
 					}
 
 					reader, err := isaacblock.NewLocalFSReaderFromHeight(

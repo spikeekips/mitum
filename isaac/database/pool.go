@@ -3,7 +3,6 @@ package isaacdatabase
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"math"
 	"time"
 
@@ -41,10 +40,6 @@ func newTempPool(st *leveldbstorage.Storage, encs *encoder.Encoders, enc encoder
 		cleanRemovedNewOperationsInterval: time.Minute * 33, //nolint:gomnd //...
 		cleanRemovedNewOperationsDeep:     3,                //nolint:gomnd //...
 		whenNewOperationsremoved:          func(int, error) {},
-	}
-
-	if err := db.loadLastVoteproofs(); err != nil {
-		return nil, errors.Wrap(err, "failed newTempPool")
 	}
 
 	db.ContextDaemon = util.NewContextDaemon(db.startClean)
@@ -422,7 +417,12 @@ func (db *TempPool) LastVoteproofs() (base.INITVoteproof, base.ACCEPTVoteproof, 
 func (db *TempPool) SetLastVoteproofs(ivp base.INITVoteproof, avp base.ACCEPTVoteproof) error {
 	e := util.StringErrorFunc("failed to set last voteproofs")
 
-	if !ivp.Point().Point.Equal(avp.Point().Point) {
+	switch {
+	case ivp == nil || avp == nil:
+		_ = db.lastvoteproofs.Empty()
+
+		return nil
+	case !ivp.Point().Point.Equal(avp.Point().Point):
 		return e(nil, "voteproofs should have same point")
 	}
 
@@ -436,59 +436,10 @@ func (db *TempPool) SetLastVoteproofs(ivp base.INITVoteproof, avp base.ACCEPTVot
 			}
 		}
 
-		vps := [2]base.Voteproof{ivp, avp}
-		b, _, err := db.marshal(vps, nil)
-		if err != nil {
-			return nil, err
-		}
-
-		if err := db.st.Put(leveldbKeyLastVoteproofs, b, nil); err != nil {
-			return nil, err
-		}
-
-		return vps, nil
+		return [2]base.Voteproof{ivp, avp}, nil
 	}); err != nil {
 		return e(err, "failed to set last voteproofs")
 	}
-
-	return nil
-}
-
-func (db *TempPool) loadLastVoteproofs() error {
-	e := util.StringErrorFunc("failed to load last voteproofs")
-
-	b, found, err := db.st.Get(leveldbKeyLastVoteproofs)
-
-	switch {
-	case err != nil:
-		return e(err, "")
-	case !found:
-		return nil
-	}
-
-	enc, _, raw, err := db.readEncoder(b)
-	if err != nil {
-		return e(err, "")
-	}
-
-	var u [2]json.RawMessage
-	if err := enc.Unmarshal(raw, &u); err != nil {
-		return e(err, "")
-	}
-
-	var ivp base.INITVoteproof
-
-	if err := encoder.Decode(enc, u[0], &ivp); err != nil {
-		return e(err, "")
-	}
-
-	var avp base.ACCEPTVoteproof
-
-	if err := encoder.Decode(enc, u[1], &avp); err != nil {
-		return e(err, "")
-	}
-
-	_ = db.lastvoteproofs.SetValue([2]base.Voteproof{ivp, avp})
 
 	return nil
 }

@@ -35,7 +35,6 @@ var (
 	leveldbKeyPrefixNewOperationOrdered     = []byte{0x02, 0x08}
 	leveldbKeyPrefixNewOperationOrderedKeys = []byte{0x02, 0x09}
 	leveldbKeyPrefixRemovedNewOperation     = []byte{0x02, 0x0a}
-	leveldbKeyLastVoteproofs                = []byte{0x02, 0x0b}
 	leveldbKeyTempSyncMap                   = []byte{0x02, 0x0c}
 	leveldbKeySuffrageProof                 = []byte{0x02, 0x0d}
 	leveldbKeySuffrageProofByBlockHeight    = []byte{0x02, 0x0e}
