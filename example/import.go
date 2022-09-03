@@ -8,7 +8,6 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
-	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
 	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -78,7 +77,6 @@ func (cmd *ImportCommand) importBlocks(ctx context.Context) (context.Context, er
 	var params *isaac.LocalParams
 	var db isaac.Database
 	var perm isaac.PermanentDatabase
-	var pool *isaacdatabase.TempPool
 
 	if err := ps.LoadFromContextOK(ctx,
 		launch.EncodersContextKey, &encs,
@@ -88,7 +86,6 @@ func (cmd *ImportCommand) importBlocks(ctx context.Context) (context.Context, er
 		launch.LocalParamsContextKey, &params,
 		launch.CenterDatabaseContextKey, &db,
 		launch.PermanentDatabaseContextKey, &perm,
-		launch.PoolDatabaseContextKey, &pool,
 	); err != nil {
 		return ctx, e(err, "")
 	}
@@ -102,7 +99,6 @@ func (cmd *ImportCommand) importBlocks(ctx context.Context) (context.Context, er
 		enc,
 		db,
 		perm,
-		pool,
 		params,
 	); err != nil {
 		return ctx, e(err, "")

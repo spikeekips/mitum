@@ -32,7 +32,6 @@ var (
 	StatesContextKey                                = ps.ContextKey("states")
 	ProposalProcessorsContextKey                    = ps.ContextKey("proposal-processors")
 	ProposalSelectorContextKey                      = ps.ContextKey("proposal-selector")
-	LastVoteproofsHandlerContextKey                 = ps.ContextKey("last-voteproofs-handler")
 	WhenNewBlockSavedInSyncingStateFuncContextKey   = ps.ContextKey("when-new-block-saved-in-syncing-state-func")
 	WhenNewBlockSavedInConsensusStateFuncContextKey = ps.ContextKey("when-new-block-saved-in-consensus-state-func")
 )
@@ -62,17 +61,17 @@ func PStates(ctx context.Context) (context.Context, error) {
 	var ballotbox *isaacstates.Ballotbox
 	var pps *isaac.ProposalProcessors
 	var memberlist *quicmemberlist.Memberlist
+	var lvps *isaacstates.LastVoteproofsHandler
 
 	if err := ps.LoadFromContextOK(ctx,
 		EncoderContextKey, &enc,
 		BallotboxContextKey, &ballotbox,
 		ProposalProcessorsContextKey, &pps,
 		MemberlistContextKey, &memberlist,
+		LastVoteproofsHandlerContextKey, &lvps,
 	); err != nil {
 		return ctx, e(err, "")
 	}
-
-	lvps := isaacstates.NewLastVoteproofsHandler()
 
 	states := isaacstates.NewStates(
 		ballotbox,
@@ -101,7 +100,6 @@ func PStates(ctx context.Context) (context.Context, error) {
 	}
 
 	//revive:disable:modifies-parameter
-	ctx = context.WithValue(ctx, LastVoteproofsHandlerContextKey, lvps)
 	ctx = context.WithValue(ctx, StatesContextKey, states)
 	ctx = context.WithValue(ctx, ProposalSelectorContextKey, proposalSelector)
 	//revive:enable:modifies-parameter
@@ -261,16 +259,6 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 
 	_ = states.SetLogging(log)
 
-	// NOTE load last init, accept voteproof and last majority voteproof
-	switch ivp, avp, found, err := pool.LastVoteproofs(); {
-	case err != nil:
-		return ctx, e(err, "")
-	case !found:
-	default:
-		_ = states.LastVoteproofsHandler().Set(ivp)
-		_ = states.LastVoteproofsHandler().Set(avp)
-	}
-
 	return ctx, nil
 }
 
@@ -321,7 +309,7 @@ func newSyncerFunc(
 		return nil, err
 	}
 
-	setLastVoteproofsfFromBlockReaderf, err := setLastVoteproofsfFromBlockReaderFunc(pctx, lvps)
+	setLastVoteproofsfFromBlockReaderf, err := setLastVoteproofsfFromBlockReaderFunc(lvps)
 	if err != nil {
 		return nil, err
 	}
@@ -641,15 +629,8 @@ func syncerBlockMapItemFunc(
 }
 
 func setLastVoteproofsfFromBlockReaderFunc(
-	pctx context.Context,
 	lvps *isaacstates.LastVoteproofsHandler,
 ) (func(isaac.BlockReader) error, error) {
-	var pool *isaacdatabase.TempPool
-
-	if err := ps.LoadFromContextOK(pctx, PoolDatabaseContextKey, &pool); err != nil {
-		return nil, err
-	}
-
 	return func(reader isaac.BlockReader) error {
 		switch v, found, err := reader.Item(base.BlockMapItemTypeVoteproofs); {
 		case err != nil:
@@ -659,15 +640,8 @@ func setLastVoteproofsfFromBlockReaderFunc(
 		default:
 			vps := v.([]base.Voteproof) //nolint:forcetypeassert //...
 
-			ivp := vps[0].(base.INITVoteproof)   //nolint:forcetypeassert //...
-			avp := vps[1].(base.ACCEPTVoteproof) //nolint:forcetypeassert //...
-
-			if err := pool.SetLastVoteproofs(ivp, avp); err != nil {
-				return err
-			}
-
-			_ = lvps.Set(ivp)
-			_ = lvps.Set(avp)
+			_ = lvps.Set(vps[0].(base.INITVoteproof))   //nolint:forcetypeassert //...
+			_ = lvps.Set(vps[1].(base.ACCEPTVoteproof)) //nolint:forcetypeassert //...
 
 			return nil
 		}

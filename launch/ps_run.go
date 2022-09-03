@@ -42,7 +42,7 @@ func DefaultRunPS() *ps.PS {
 		PreAddOK(PNameCheckLocalFS, PCheckLocalFS).
 		PreAddOK(PNameLoadDatabase, PLoadDatabase).
 		PostAddOK(PNameCheckLeveldbStorage, PCheckLeveldbStorage).
-		PostAddOK(PNameCheckPoolDatabase, PCheckPoolDatabase).
+		PostAddOK(PNameCheckLoadFromDatabase, PLoadFromDatabase).
 		PostAddOK(PNameNodeInfo, PNodeInfo).
 		PostAddOK(PNameBallotbox, PBallotbox)
 

@@ -114,11 +114,6 @@ type NewOperationPool interface {
 	SetNewOperation(context.Context, base.Operation) (bool, error)
 }
 
-type VoteproofsPool interface {
-	LastVoteproofs() (base.INITVoteproof, base.ACCEPTVoteproof, bool, error)
-	SetLastVoteproofs(base.INITVoteproof, base.ACCEPTVoteproof) error
-}
-
 type TempSyncPool interface {
 	BlockMap(base.Height) (base.BlockMap, bool, error)
 	SetBlockMap(base.BlockMap) error

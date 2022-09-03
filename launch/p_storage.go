@@ -18,6 +18,7 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
+	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	redisstorage "github.com/spikeekips/mitum/storage/redis"
 	"github.com/spikeekips/mitum/util"
@@ -30,19 +31,20 @@ import (
 )
 
 var (
-	PNameStorage                = ps.Name("storage")
-	PNameStartStorage           = ps.Name("start-storage")
-	PNameCheckLeveldbStorage    = ps.Name("check-leveldb-storage")
-	PNameCheckPoolDatabase      = ps.Name("check-pool-database")
-	PNameCleanStorage           = ps.Name("clean-storage")
-	PNameCreateLocalFS          = ps.Name("create-localfs")
-	PNameCheckLocalFS           = ps.Name("check-localfs")
-	PNameLoadDatabase           = ps.Name("load-database")
-	FSNodeInfoContextKey        = ps.ContextKey("fs-node-info")
-	LeveldbStorageContextKey    = ps.ContextKey("leveldb-storage")
-	CenterDatabaseContextKey    = ps.ContextKey("center-database")
-	PermanentDatabaseContextKey = ps.ContextKey("permanent-database")
-	PoolDatabaseContextKey      = ps.ContextKey("pool-database")
+	PNameStorage                    = ps.Name("storage")
+	PNameStartStorage               = ps.Name("start-storage")
+	PNameCheckLeveldbStorage        = ps.Name("check-leveldb-storage")
+	PNameCheckLoadFromDatabase      = ps.Name("load-from-database")
+	PNameCleanStorage               = ps.Name("clean-storage")
+	PNameCreateLocalFS              = ps.Name("create-localfs")
+	PNameCheckLocalFS               = ps.Name("check-localfs")
+	PNameLoadDatabase               = ps.Name("load-database")
+	FSNodeInfoContextKey            = ps.ContextKey("fs-node-info")
+	LeveldbStorageContextKey        = ps.ContextKey("leveldb-storage")
+	CenterDatabaseContextKey        = ps.ContextKey("center-database")
+	PermanentDatabaseContextKey     = ps.ContextKey("permanent-database")
+	PoolDatabaseContextKey          = ps.ContextKey("pool-database")
+	LastVoteproofsHandlerContextKey = ps.ContextKey("last-voteproofs-handler")
 )
 
 var (
@@ -188,23 +190,24 @@ func PCheckLeveldbStorage(ctx context.Context) (context.Context, error) {
 	return ctx, nil
 }
 
-func PCheckPoolDatabase(ctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("failed to check pool database")
+func PLoadFromDatabase(ctx context.Context) (context.Context, error) {
+	e := util.StringErrorFunc("failed to load some stuffs from database")
 
 	var design NodeDesign
 	var encs *encoder.Encoders
 	var center isaac.Database
-	var pool *isaacdatabase.TempPool
 
 	if err := ps.LoadFromContextOK(ctx,
 		DesignContextKey, &design,
 		EncodersContextKey, &encs,
 		CenterDatabaseContextKey, &center,
-		PoolDatabaseContextKey,
-		&pool,
 	); err != nil {
 		return ctx, e(err, "")
 	}
+
+	// NOTE load from last voteproofs
+	lvps := isaacstates.NewLastVoteproofsHandler()
+	ctx = context.WithValue(ctx, LastVoteproofsHandlerContextKey, lvps) //revive:disable-line:modifies-parameter
 
 	var manifest base.Manifest
 	var enc encoder.Encoder
@@ -213,10 +216,6 @@ func PCheckPoolDatabase(ctx context.Context) (context.Context, error) {
 	case err != nil:
 		return ctx, e(err, "")
 	case !found:
-		if err := pool.SetLastVoteproofs(nil, nil); err != nil {
-			return ctx, e(err, "")
-		}
-
 		return ctx, nil
 	default:
 		enc = encs.Find(m.Encoder())
@@ -225,13 +224,6 @@ func PCheckPoolDatabase(ctx context.Context) (context.Context, error) {
 		}
 
 		manifest = m.Manifest()
-	}
-
-	switch i, err := compareLastVoteproofsWithManifest(ctx, pool, manifest); {
-	case err != nil:
-		return ctx, e(err, "")
-	case !i:
-		return ctx, nil
 	}
 
 	reader, err := isaacblock.NewLocalFSReaderFromHeight(
@@ -253,12 +245,8 @@ func PCheckPoolDatabase(ctx context.Context) (context.Context, error) {
 	default:
 		vps := v.([]base.Voteproof) //nolint:forcetypeassert //...
 
-		ivp := vps[0].(base.INITVoteproof)   //nolint:forcetypeassert //...
-		avp := vps[1].(base.ACCEPTVoteproof) //nolint:forcetypeassert //...
-
-		if err := pool.SetLastVoteproofs(ivp, avp); err != nil {
-			return ctx, e(err, "")
-		}
+		lvps.Set(vps[0].(base.INITVoteproof))   //nolint:forcetypeassert //...
+		lvps.Set(vps[1].(base.ACCEPTVoteproof)) //nolint:forcetypeassert //...
 	}
 
 	return ctx, nil
@@ -1017,40 +1005,4 @@ func ValidateStatesOfBlock(
 	}
 
 	return nil
-}
-
-func compareLastVoteproofsWithManifest(
-	ctx context.Context,
-	pool *isaacdatabase.TempPool,
-	manifest base.Manifest,
-) (update bool, err error) {
-	var log *logging.Logging
-
-	if err := ps.LoadFromContextOK(ctx, LoggingContextKey, &log); err != nil {
-		return false, err
-	}
-
-	switch _, avp, found, err := pool.LastVoteproofs(); {
-	case err != nil:
-		return false, err
-	case !found:
-		return true, nil
-	default:
-		switch {
-		case manifest.Height() != avp.Point().Height():
-			log.Log().Error().
-				Interface("manifest", manifest.Height()).Interface("accept_voteproof", avp.Point().Height()).
-				Msg("last manifest and last accept voteproof; height does not match")
-
-			return true, nil
-		case !manifest.Hash().Equal(avp.BallotMajority().NewBlock()):
-			log.Log().Error().
-				Stringer("manifest", manifest.Hash()).Stringer("accept_voteproof", avp.BallotMajority().NewBlock()).
-				Msg("last manifest and last accept voteproof; hash does not match")
-
-			return true, nil
-		default:
-			return false, nil
-		}
-	}
 }

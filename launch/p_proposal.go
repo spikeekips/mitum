@@ -53,7 +53,6 @@ func newProposalProcessorFunc(pctx context.Context) (
 	var local base.LocalNode
 	var params base.LocalParams
 	var db isaac.Database
-	var pool *isaacdatabase.TempPool
 	var oprs *hint.CompatibleSet
 
 	if err := ps.LoadFromContextOK(pctx,
@@ -62,7 +61,6 @@ func newProposalProcessorFunc(pctx context.Context) (
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
 		CenterDatabaseContextKey, &db,
-		PoolDatabaseContextKey, &pool,
 		OperationProcessorsMapContextKey, &oprs,
 	); err != nil {
 		return nil, err
@@ -98,7 +96,6 @@ func newProposalProcessorFunc(pctx context.Context) (
 
 				return f(height)
 			},
-			pool.SetLastVoteproofs,
 		)
 	}, nil
 }

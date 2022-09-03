@@ -99,7 +99,7 @@ func ImportBlocks(
 	switch reader, err := lastim.Reader(); {
 	case err != nil:
 		return e(err, "")
-	default:
+	case setLastVoteproofsFunc != nil:
 		if err := setLastVoteproofsFunc(reader); err != nil {
 			return e(err, "")
 		}

@@ -55,13 +55,12 @@ type DefaultProposalProcessor struct {
 	getStateFunc          base.GetStateFunc
 	getOperation          OperationProcessorGetOperationFunction
 	*logging.Logging
-	setLastVoteproofsFunc func(base.INITVoteproof, base.ACCEPTVoteproof) error
-	oprs                  *util.ShardedMap
-	cancel                func()
-	cops                  []base.Operation
-	retrylimit            int
-	retryinterval         time.Duration
-	opslock               sync.RWMutex
+	oprs          *util.ShardedMap
+	cancel        func()
+	cops          []base.Operation
+	retrylimit    int
+	retryinterval time.Duration
+	opslock       sync.RWMutex
 	sync.RWMutex
 	cancellock sync.RWMutex
 	issaved    bool
@@ -74,7 +73,6 @@ func NewDefaultProposalProcessor(
 	getStateFunc base.GetStateFunc,
 	getOperation OperationProcessorGetOperationFunction,
 	newOperationProcessor NewOperationProcessorFunction,
-	setLastVoteproofsFunc func(base.INITVoteproof, base.ACCEPTVoteproof) error,
 ) (*DefaultProposalProcessor, error) {
 	writer, err := newWriter(proposal, getStateFunc)
 	if err != nil {
@@ -91,7 +89,6 @@ func NewDefaultProposalProcessor(
 		getStateFunc:          getStateFunc,
 		getOperation:          getOperation,
 		newOperationProcessor: newOperationProcessor,
-		setLastVoteproofsFunc: setLastVoteproofsFunc,
 		cops:                  make([]base.Operation, len(proposal.ProposalFact().Operations())),
 		cancel:                func() {},
 		oprs:                  util.NewShardedMap(1 << 5), //nolint:gomnd //...
@@ -193,12 +190,6 @@ func (p *DefaultProposalProcessor) save(ctx context.Context, acceptVoteproof bas
 		return e(err, "")
 	}
 
-	if p.setLastVoteproofsFunc != nil {
-		if err := p.setLastVoteproofsFunc(p.ivp, acceptVoteproof); err != nil {
-			return e(err, "failed to save last voteproofs")
-		}
-	}
-
 	p.Log().Info().Interface("blockmap", m).Msg("new block saved in proposal processor")
 
 	p.close()
@@ -246,7 +237,6 @@ func (p *DefaultProposalProcessor) close() {
 	p.newOperationProcessor = nil
 	// p.getStateFunc = nil
 	p.getOperation = nil
-	p.setLastVoteproofsFunc = nil
 
 	if p.oprs != nil {
 		p.oprs.Traverse(func(key interface{}, i interface{}) bool {

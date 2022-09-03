@@ -19,7 +19,6 @@ type GenesisBlockGenerator struct {
 	local    base.LocalNode
 	enc      encoder.Encoder
 	db       isaac.Database
-	pool     isaac.VoteproofsPool
 	proposal base.ProposalSignedFact
 	ivp      base.INITVoteproof
 	avp      base.ACCEPTVoteproof
@@ -35,7 +34,6 @@ func NewGenesisBlockGenerator(
 	networkID base.NetworkID,
 	enc encoder.Encoder,
 	db isaac.Database,
-	pool isaac.VoteproofsPool,
 	dataroot string,
 	facts []base.Fact,
 ) *GenesisBlockGenerator {
@@ -47,7 +45,6 @@ func NewGenesisBlockGenerator(
 		networkID: networkID,
 		enc:       enc,
 		db:        db,
-		pool:      pool,
 		dataroot:  dataroot,
 		facts:     facts,
 	}
@@ -346,6 +343,5 @@ func (g *GenesisBlockGenerator) newProposalProcessor() (*isaac.DefaultProposalPr
 		func(base.Height, hint.Hint) (base.OperationProcessor, error) {
 			return nil, nil
 		},
-		g.pool.SetLastVoteproofs,
 	)
 }

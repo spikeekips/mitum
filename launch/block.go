@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"github.com/bluele/gcache"
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
@@ -23,7 +22,6 @@ func ImportBlocks(
 	enc encoder.Encoder,
 	db isaac.Database,
 	perm isaac.PermanentDatabase,
-	pool isaac.VoteproofsPool,
 	params base.LocalParams,
 ) error {
 	e := util.StringErrorFunc("failed to import blocks")
@@ -101,24 +99,7 @@ func ImportBlocks(
 
 			return im, nil
 		},
-		func(reader isaac.BlockReader) error {
-			switch v, found, err := reader.Item(base.BlockMapItemTypeVoteproofs); {
-			case err != nil:
-				return err
-			case !found:
-				return errors.Errorf("voteproofs not found at last")
-			default:
-				vps := v.([]base.Voteproof)       //nolint:forcetypeassert //...
-				if err := pool.SetLastVoteproofs( //nolint:forcetypeassert //...
-					vps[0].(base.INITVoteproof),
-					vps[1].(base.ACCEPTVoteproof),
-				); err != nil {
-					return err
-				}
-
-				return nil
-			}
-		},
+		nil,
 	); err != nil {
 		return e(err, "")
 	}

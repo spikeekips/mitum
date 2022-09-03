@@ -5,7 +5,6 @@ import (
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
-	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/logging"
@@ -24,7 +23,6 @@ func PGenerateGenesis(ctx context.Context) (context.Context, error) {
 	var local base.LocalNode
 	var params *isaac.LocalParams
 	var db isaac.Database
-	var pool *isaacdatabase.TempPool
 
 	if err := ps.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
@@ -34,7 +32,6 @@ func PGenerateGenesis(ctx context.Context) (context.Context, error) {
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
 		CenterDatabaseContextKey, &db,
-		PoolDatabaseContextKey, &pool,
 	); err != nil {
 		return ctx, e(err, "")
 	}
@@ -44,7 +41,6 @@ func PGenerateGenesis(ctx context.Context) (context.Context, error) {
 		params.NetworkID(),
 		enc,
 		db,
-		pool,
 		LocalFSDataDirectory(design.Storage.Base),
 		genesisDesign.Facts,
 	)
