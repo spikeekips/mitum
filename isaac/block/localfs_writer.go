@@ -768,6 +768,7 @@ func unmarshalIndexedTreeNode(enc encoder.Encoder, b []byte, ht hint.Hint) (in i
 	e := util.StringErrorFunc("failed to unmarshal indexed tree node")
 
 	bf := bytes.NewBuffer(b)
+	defer bf.Reset()
 
 	switch i, err := bf.ReadBytes(','); {
 	case err != nil:

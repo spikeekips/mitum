@@ -53,7 +53,10 @@ func (l *LocalFSImporter) WriteMap(m base.BlockMap) error {
 	case err != nil:
 		return e(err, "")
 	default:
-		r = bytes.NewBuffer(b)
+		buf := bytes.NewBuffer(b)
+		defer buf.Reset()
+
+		r = buf
 	}
 
 	w, err := l.newWriter(blockFSMapFilename(l.enc.Hint().Type().String()))

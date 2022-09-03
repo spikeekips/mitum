@@ -1,7 +1,6 @@
 package launch
 
 import (
-	"bytes"
 	"context"
 	"time"
 
@@ -18,11 +17,6 @@ import (
 var (
 	PNameProposalMaker      = ps.Name("proposal-maker")
 	ProposalMakerContextKey = ps.ContextKey("proposal-maker")
-)
-
-var (
-	suffrageCandidateFactHintTypeBytes = isaacoperation.SuffrageCandidateFactHint.Type().Bytes()
-	suffrageJoinFactHintTypeBytes      = isaacoperation.SuffrageJoinFactHint.Type().Bytes()
 )
 
 func PProposalMaker(ctx context.Context) (context.Context, error) {
@@ -98,26 +92,28 @@ func proposalMakderGetOperationsFunc(ctx context.Context) (
 			ctx,
 			height,
 			n,
-			func(operationhash, facthash util.Hash, header isaac.PoolOperationHeader) (bool, error) {
+			func(meta isaac.PoolOperationRecordMeta) (bool, error) {
 				// NOTE filter genesis operations
-				if !operationfilterf(header.HintBytes()) {
+				if !operationfilterf(meta.Hint()) {
 					return false, nil
 				}
 
-				switch found, err := db.ExistsKnownOperation(operationhash); {
+				switch found, err := db.ExistsKnownOperation(meta.Operation()); {
 				case err != nil:
 					return false, err
 				case found:
-					log.Log().Trace().Stringer("operation", operationhash).Msg("already processed; known operation")
+					log.Log().Trace().
+						Stringer("operation", meta.Operation()).
+						Msg("already processed; known operation")
 
 					return false, nil
 				}
 
-				switch found, err := db.ExistsInStateOperation(facthash); {
+				switch found, err := db.ExistsInStateOperation(meta.Fact()); {
 				case err != nil:
 					return false, err
 				case found:
-					log.Log().Trace().Stringer("operation", facthash).Msg("already processed; in state")
+					log.Log().Trace().Stringer("operation", meta.Fact()).Msg("already processed; in state")
 
 					return false, nil
 				}
@@ -128,28 +124,23 @@ func proposalMakderGetOperationsFunc(ctx context.Context) (
 				// NOTE if operation has not enough fact signs, it will
 				// ignored. It must be filtered for not this kind of
 				// operations.
-				switch found, err := db.ExistsInStateOperation(facthash); {
+				switch found, err := db.ExistsInStateOperation(meta.Fact()); {
 				case err != nil:
 					return false, err
 				case found:
 					return false, nil
 				}
 
-				addedat, err := util.BytesToInt64(header.AddedAt())
-				if err != nil {
-					return false, nil
-				}
-
 				var expire time.Duration
-				switch ht := header.HintBytes(); {
-				case bytes.HasPrefix(ht, suffrageCandidateFactHintTypeBytes),
-					bytes.HasPrefix(ht, suffrageJoinFactHintTypeBytes):
+				switch ht := meta.Hint(); {
+				case ht.Type() == isaacoperation.SuffrageCandidateFactHint.Type(),
+					ht.Type() == isaacoperation.SuffrageJoinFactHint.Type():
 					expire = params.ValidProposalSuffrageOperationsExpire()
 				default:
 					expire = params.ValidProposalOperationExpire()
 				}
 
-				if addedat < localtime.UTCNow().Add(expire*-1).UnixNano() {
+				if localtime.UTCNow().After(meta.AddedAt().Add(expire)) {
 					return false, nil
 				}
 

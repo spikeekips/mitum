@@ -1,7 +1,6 @@
 package isaacdatabase
 
 import (
-	"bytes"
 	"fmt"
 	"strconv"
 	"sync"
@@ -38,8 +37,6 @@ var (
 	leveldbKeyTempSyncMap                   = []byte{0x02, 0x0c}
 	leveldbKeySuffrageProof                 = []byte{0x02, 0x0d}
 	leveldbKeySuffrageProofByBlockHeight    = []byte{0x02, 0x0e}
-
-	leveldbKeysJoinSep = []byte("mitum-leveldb-sep")
 )
 
 type baseLeveldb struct {
@@ -219,14 +216,6 @@ func leveldbRemovedNewOperationKey(height base.Height, operationhash util.Hash) 
 		leveldbRemovedNewOperationPrefixWithHeight(height),
 		operationhash.Bytes(),
 	)
-}
-
-func splitLeveldbJoinedKeys(b []byte) [][]byte {
-	if b == nil {
-		return nil
-	}
-
-	return bytes.SplitN(b, leveldbKeysJoinSep, -1)
 }
 
 func leveldbTempSyncMapKey(height base.Height) []byte {

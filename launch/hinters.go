@@ -1,8 +1,6 @@
 package launch
 
 import (
-	"bytes"
-
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
@@ -106,25 +104,15 @@ func LoadHinters(enc encoder.Encoder) error {
 	return nil
 }
 
-func IsSupportedProposalOperationFactHintFunc() func(hintbytes []byte) bool {
-	supportedProposalOperationFactTypeHintersBytes := make([][]byte, len(SupportedProposalOperationFactHinters))
-
-	for i := range SupportedProposalOperationFactHinters {
-		supportedProposalOperationFactTypeHintersBytes[i] = SupportedProposalOperationFactHinters[i].Hint.Type().Bytes()
-	}
-
-	return func(b []byte) bool {
-		for i := range supportedProposalOperationFactTypeHintersBytes {
-			if !bytes.HasPrefix(b, supportedProposalOperationFactTypeHintersBytes[i]) {
+func IsSupportedProposalOperationFactHintFunc() func(hint.Hint) bool {
+	return func(ht hint.Hint) bool {
+		for i := range SupportedProposalOperationFactHinters {
+			s := SupportedProposalOperationFactHinters[i].Hint
+			if ht.Type() != s.Type() {
 				continue
 			}
 
-			ht, err := hint.ParseHint(string(b))
-			if err != nil {
-				return false
-			}
-
-			return ht.IsCompatible(SupportedProposalOperationFactHinters[i].Hint)
+			return ht.IsCompatible(s)
 		}
 
 		return false

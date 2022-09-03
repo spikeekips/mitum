@@ -2,6 +2,7 @@ package isaac
 
 import (
 	"context"
+	"time"
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
@@ -96,10 +97,12 @@ type ProposalPool interface {
 	SetProposal(pr base.ProposalSignedFact) (bool, error)
 }
 
-type PoolOperationHeader interface {
+type PoolOperationRecordMeta interface {
 	Version() byte
-	AddedAt() []byte
-	HintBytes() []byte
+	AddedAt() time.Time
+	Hint() hint.Hint
+	Operation() util.Hash
+	Fact() util.Hash
 }
 
 type NewOperationPool interface {
@@ -109,7 +112,7 @@ type NewOperationPool interface {
 		_ context.Context,
 		_ base.Height,
 		limit uint64,
-		filter func(operationhash, facthash util.Hash, _ PoolOperationHeader) (ok bool, err error),
+		filter func(PoolOperationRecordMeta) (ok bool, err error),
 	) ([]util.Hash, error)
 	SetNewOperation(context.Context, base.Operation) (bool, error)
 }

@@ -16,7 +16,7 @@ func (t *testRecordMeta) TestBytes() {
 		b, err := NewRecordMeta(0x00, nil)
 		t.NoError(err)
 
-		v, m, err := ReadRecordMetaFromBytes(b)
+		v, m, _, err := ReadRecordMetaFromBytes(b)
 		t.NoError(err)
 		t.Equal(byte(0x00), v)
 		t.Equal(0, len(m))
@@ -28,7 +28,7 @@ func (t *testRecordMeta) TestBytes() {
 		b, err := NewRecordMeta(0x00, m)
 		t.NoError(err)
 
-		v, rm, err := ReadRecordMetaFromBytes(b)
+		v, rm, _, err := ReadRecordMetaFromBytes(b)
 		t.NoError(err)
 		t.Equal(byte(0x00), v)
 		t.Equal(len(m), len(rm))
@@ -41,7 +41,7 @@ func (t *testRecordMeta) TestBytes() {
 		b, err := NewRecordMeta(0x03, m)
 		t.NoError(err)
 
-		v, rm, err := ReadRecordMetaFromBytes(b)
+		v, rm, _, err := ReadRecordMetaFromBytes(b)
 		t.NoError(err)
 		t.Equal(byte(0x03), v)
 		t.Equal(len(m), len(rm))

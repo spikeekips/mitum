@@ -188,47 +188,44 @@ func (db *TempPool) NewOperationHashes(
 	ctx context.Context,
 	height base.Height,
 	limit uint64,
-	filter func(operationhash, facthash util.Hash, _ isaac.PoolOperationHeader) (bool, error),
+	filter func(isaac.PoolOperationRecordMeta) (bool, error),
 ) ([]util.Hash, error) {
 	e := util.StringErrorFunc("failed to find new operations")
 
 	nfilter := filter
 	if nfilter == nil {
-		nfilter = func(util.Hash, util.Hash, isaac.PoolOperationHeader) (bool, error) { return true, nil }
+		nfilter = func(isaac.PoolOperationRecordMeta) (bool, error) { return true, nil }
 	}
 
 	ops := make([]util.Hash, limit)
-	removes := make([]util.Hash, limit)
+	removeordereds := make([][]byte, limit)
+	removeops := make([]util.Hash, limit)
 
 	var opsindex uint64
-	var removeindex uint64
+	var removeorderedsindex, removeopsindex uint64
 
 	if err := db.st.Iter(
 		leveldbutil.BytesPrefix(leveldbKeyPrefixNewOperationOrdered),
-		func(_ []byte, b []byte) (bool, error) {
-			h, left := loadPoolOperationHeader(b)
-
-			var operationhash, facthash util.Hash
-
-			switch keys := splitLeveldbJoinedKeys(left); {
-			case len(keys) != 2: //nolint:gomnd //...
-				return false, errors.Errorf("invalid operation ordered key")
-			default:
-				operationhash = valuehash.Bytes(keys[0])
-				facthash = valuehash.Bytes(keys[1])
-			}
-
-			switch ok, err := nfilter(operationhash, facthash, h); {
-			case err != nil:
-				return false, err
-			case !ok:
-				removes[removeindex] = operationhash
-				removeindex++
+		func(k []byte, b []byte) (bool, error) {
+			meta, err := ReadPoolOperationRecordMeta(b)
+			if err != nil {
+				removeordereds[removeorderedsindex] = k
+				removeorderedsindex++
 
 				return true, nil
 			}
 
-			ops[opsindex] = operationhash
+			switch ok, err := nfilter(meta); {
+			case err != nil:
+				return false, err
+			case !ok:
+				removeops[removeopsindex] = meta.Operation()
+				removeopsindex++
+
+				return true, nil
+			}
+
+			ops[opsindex] = meta.Operation()
 			opsindex++
 
 			if opsindex == limit {
@@ -242,7 +239,11 @@ func (db *TempPool) NewOperationHashes(
 		return nil, e(err, "")
 	}
 
-	if err := db.setRemoveNewOperations(ctx, height, removes[:removeindex]); err != nil {
+	if err := db.removeNewOperationOrdereds(removeordereds[:removeorderedsindex]); err != nil {
+		return nil, e(err, "")
+	}
+
+	if err := db.setRemoveNewOperations(ctx, height, removeops[:removeopsindex]); err != nil {
 		return nil, e(err, "")
 	}
 
@@ -253,7 +254,6 @@ func (db *TempPool) SetNewOperation(_ context.Context, op base.Operation) (bool,
 	e := util.StringErrorFunc("failed to put operation")
 
 	oph := op.Hash()
-	facthash := op.Fact().Hash()
 
 	key, orderedkey := newNewOperationLeveldbKeys(op.Hash())
 
@@ -272,11 +272,10 @@ func (db *TempPool) SetNewOperation(_ context.Context, op base.Operation) (bool,
 	batch := db.st.NewBatch()
 	defer batch.Reset()
 
-	h := newPoolOperationHeader(op)
-
 	batch.Put(key, b)
-	batch.Put(orderedkey, util.ConcatBytesSlice(h[:], joinLeveldbKeys(oph.Bytes(), facthash.Bytes())))
-	batch.Put(leveldbNewOperationKeysKey(oph), joinLeveldbKeys(key, orderedkey))
+
+	batch.Put(orderedkey, NewPoolOperationRecordMeta(op).Bytes())
+	batch.Put(leveldbNewOperationKeysKey(oph), orderedkey)
 
 	if err := db.st.Batch(batch, nil); err != nil {
 		return false, e(err, "")
@@ -285,48 +284,17 @@ func (db *TempPool) SetNewOperation(_ context.Context, op base.Operation) (bool,
 	return true, nil
 }
 
-type PoolOperationHeader struct {
-	version   byte
-	addedAt   [10]byte
-	hintBytes [289]byte
-}
-
-func (h PoolOperationHeader) Version() byte {
-	return h.version
-}
-
-func (h PoolOperationHeader) AddedAt() []byte {
-	return h.addedAt[:]
-}
-
-func (h PoolOperationHeader) HintBytes() []byte {
-	return h.hintBytes[:]
-}
-
-func newPoolOperationHeader(op base.Operation) [300]byte {
-	b := [300]byte{}
-
-	b[0] = 0x01 // NOTE header version(1)
-
-	copy(b[1:11], util.Int64ToBytes(localtime.UTCNow().UnixNano())) // NOTE added timestamp(10)
-
-	if i, ok := op.Fact().(hint.Hinter); ok {
-		copy(b[11:], i.Hint().Bytes())
+func (db *TempPool) removeNewOperationOrdereds(keys [][]byte) error {
+	if len(keys) < 1 {
+		return nil
 	}
 
-	return b
-}
-
-func loadPoolOperationHeader(b []byte) (header PoolOperationHeader, left []byte) {
-	if len(b) < 300 { //nolint:gomnd //...
-		return header, b
+	batch := db.st.NewBatch()
+	for i := range keys {
+		batch.Delete(keys[i])
 	}
 
-	header.version = b[0]
-	copy(header.addedAt[:], b[1:])
-	copy(header.hintBytes[:], b[11:])
-
-	return header, b[300:]
+	return db.st.Batch(batch, nil)
 }
 
 func (db *TempPool) setRemoveNewOperations(ctx context.Context, height base.Height, operationhashes []util.Hash) error {
@@ -359,22 +327,16 @@ func (db *TempPool) setRemoveNewOperations(ctx context.Context, height base.Heig
 
 		if err := worker.NewJob(func(context.Context, uint64) error {
 			infokey := leveldbNewOperationKeysKey(h)
-			b, found, err := db.st.Get(infokey)
-			switch {
+			switch orderedkey, found, err := db.st.Get(infokey); {
 			case err != nil:
 				return err
 			case !found:
 				return nil
-			}
-
-			switch keys := splitLeveldbJoinedKeys(b); {
-			case len(keys) != 2: //nolint:gomnd //...
-				return errors.Errorf("invalid joined key for operation")
 			default:
 				batchch <- func(bt *leveldbstorage.PrefixStorageBatch) {
-					batch.Delete(infokey)
-					batch.Delete(keys[1])
-					batch.Put(leveldbRemovedNewOperationKey(height, h), h.Bytes())
+					bt.Delete(infokey)
+					bt.Delete(orderedkey)
+					bt.Put(leveldbRemovedNewOperationKey(height, h), h.Bytes())
 				}
 
 				return nil
@@ -540,6 +502,79 @@ func newNewOperationLeveldbKeys(operationhash util.Hash) (key []byte, orderedkey
 	return leveldbNewOperationKey(operationhash), leveldbNewOperationOrderedKey(operationhash)
 }
 
-func joinLeveldbKeys(a ...[]byte) []byte {
-	return bytes.Join(a, leveldbKeysJoinSep)
+type PoolOperationRecordMeta struct { // FIXME rename to PoolOperationRecordMeta
+	addedAt  time.Time
+	ophash   util.Hash
+	facthash util.Hash
+	ht       hint.Hint
+	version  byte
+}
+
+func NewPoolOperationRecordMeta(op base.Operation) util.Byter {
+	var htb []byte
+	if i, ok := op.Fact().(hint.Hinter); ok {
+		htb = i.Hint().Bytes()
+	}
+
+	b, _ := NewRecordMeta(0x01, [][]byte{ //nolint:gomnd //...
+		util.Int64ToBytes(localtime.UTCNow().UnixNano()), // NOTE added UTC timestamp(10)
+		htb,
+		op.Hash().Bytes(),
+		op.Fact().Hash().Bytes(),
+	}) //nolint:gomnd //...
+
+	return util.BytesToByter(b)
+}
+
+func ReadPoolOperationRecordMeta(b []byte) (meta PoolOperationRecordMeta, _ error) {
+	e := util.StringErrorFunc("failed to read pool operation record meta")
+
+	var m [][]byte
+
+	switch v, i, _, err := ReadRecordMetaFromBytes(b); {
+	case err != nil:
+		return meta, e(err, "")
+	case len(i) != 4: //nolint:gomnd //...
+		return meta, e(nil, "wrong pool operation meta")
+	default:
+		meta.version = v
+		m = i
+	}
+
+	nsec, err := util.BytesToInt64(m[0])
+	if err != nil {
+		return meta, e(nil, "wrong added at time")
+	}
+
+	meta.addedAt = time.Unix(0, nsec)
+
+	meta.ht, err = hint.ParseHint(string(m[1]))
+	if err != nil {
+		return meta, e(nil, "wrong hint")
+	}
+
+	meta.ophash = valuehash.Bytes(m[2])
+	meta.facthash = valuehash.Bytes(m[3])
+
+	return meta, nil
+}
+
+func (h PoolOperationRecordMeta) Version() byte {
+	return h.version
+}
+
+func (h PoolOperationRecordMeta) AddedAt() time.Time {
+	return h.addedAt
+}
+
+func (h PoolOperationRecordMeta) Hint() hint.Hint {
+	return h.ht
+}
+
+func (h PoolOperationRecordMeta) Operation() util.Hash {
+	return h.ophash
+}
+
+func (h PoolOperationRecordMeta) Fact() util.Hash {
+	return h.facthash
 }

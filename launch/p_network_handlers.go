@@ -271,7 +271,7 @@ func sendOperationFilterFunc(ctx context.Context) (
 		switch hinter, ok := op.Fact().(hint.Hinter); {
 		case !ok:
 			return false, nil
-		case !operationfilterf(hinter.Hint().Bytes()):
+		case !operationfilterf(hinter.Hint()):
 			return false, nil
 		}
 

@@ -257,8 +257,8 @@ func (t *testNewOperationPool) TestNewOperationHashes() {
 	})
 
 	t.Run("filter", func() {
-		filter := func(_, facthash util.Hash, header isaac.PoolOperationHeader) (bool, error) {
-			if facthash.Equal(ops[32].Fact().Hash()) {
+		filter := func(header isaac.PoolOperationRecordMeta) (bool, error) {
+			if header.Fact().Equal(ops[32].Fact().Hash()) {
 				return false, nil
 			}
 
@@ -278,8 +278,8 @@ func (t *testNewOperationPool) TestNewOperationHashes() {
 	})
 
 	t.Run("filter error", func() {
-		filter := func(_, facthash util.Hash, _ isaac.PoolOperationHeader) (bool, error) {
-			if facthash.Equal(ops[31].Fact().Hash()) {
+		filter := func(header isaac.PoolOperationRecordMeta) (bool, error) {
+			if header.Fact().Equal(ops[31].Fact().Hash()) {
 				return false, errors.Errorf("findme")
 			}
 
@@ -292,12 +292,9 @@ func (t *testNewOperationPool) TestNewOperationHashes() {
 	})
 
 	t.Run("filter by header", func() {
-		filter := func(_, _ util.Hash, header isaac.PoolOperationHeader) (bool, error) {
+		filter := func(header isaac.PoolOperationRecordMeta) (bool, error) {
 			// NOTE filter non-anotherDummyOperationFactHint
-			return bytes.HasPrefix(
-				header.HintBytes(),
-				anotherDummyOperationFactHint.Bytes(),
-			), nil
+			return header.Hint().Type() == anotherDummyOperationFactHint.Type(), nil
 		}
 
 		rops, err := pst.NewOperationHashes(context.Background(), base.Height(33), 100, filter)
@@ -395,10 +392,10 @@ func (t *testNewOperationPool) TestCleanNewOperations() {
 		ops[9].Hash(),
 	}
 
-	filterf := func(hs []util.Hash) func(util.Hash, util.Hash, isaac.PoolOperationHeader) (bool, error) {
-		return func(oph, _ util.Hash, _ isaac.PoolOperationHeader) (bool, error) {
+	filterf := func(hs []util.Hash) func(isaac.PoolOperationRecordMeta) (bool, error) {
+		return func(header isaac.PoolOperationRecordMeta) (bool, error) {
 			for i := range hs {
-				if oph.Equal(hs[i]) {
+				if header.Operation().Equal(hs[i]) {
 					return false, nil
 				}
 			}
@@ -598,10 +595,10 @@ func (t *testNewOperationPool) TestPeriodicCleanNewOperations() {
 		ops[11].Hash(),
 	}
 
-	filterf := func(hs []util.Hash) func(util.Hash, util.Hash, isaac.PoolOperationHeader) (bool, error) {
-		return func(oph, _ util.Hash, _ isaac.PoolOperationHeader) (bool, error) {
+	filterf := func(hs []util.Hash) func(isaac.PoolOperationRecordMeta) (bool, error) {
+		return func(h isaac.PoolOperationRecordMeta) (bool, error) {
 			for i := range hs {
-				if oph.Equal(hs[i]) {
+				if h.Operation().Equal(hs[i]) {
 					return false, nil
 				}
 			}

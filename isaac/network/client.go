@@ -124,7 +124,10 @@ func (c *BaseNetworkClient) SendOperation(
 		return false, e(err, "")
 	}
 
-	r, cancel, err := c.write(ctx, ci, c.enc, header, bytes.NewBuffer(b))
+	buf := bytes.NewBuffer(b)
+	defer buf.Reset()
+
+	r, cancel, err := c.write(ctx, ci, c.enc, header, buf)
 	if err != nil {
 		return false, e(err, "failed to send request")
 	}
