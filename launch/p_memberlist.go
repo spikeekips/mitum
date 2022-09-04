@@ -507,14 +507,9 @@ func (l *LongRunningMemberlistJoin) Join() (<-chan error, error) {
 
 		_ = l.doneerr.SetValue(nil)
 
-		switch i, _ := l.donech.Value(); {
-		case i == nil:
-			donech = make(chan struct{})
+		donech = make(chan struct{})
 
-			_ = l.donech.SetValue(donech)
-		default:
-			donech = i.(chan struct{}) //nolint:forcetypeassert //...
-		}
+		_ = l.donech.SetValue(donech)
 
 		ctx, cancel := context.WithCancel(context.Background())
 
