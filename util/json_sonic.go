@@ -5,7 +5,10 @@
 package util
 
 import (
+	"io"
+
 	"github.com/bytedance/sonic"
+	sonicdecoder "github.com/bytedance/sonic/decoder"
 	sonicencoder "github.com/bytedance/sonic/encoder"
 	"github.com/pkg/errors"
 )
@@ -33,5 +36,5 @@ func newJSONStreamEncoder(w io.Writer) StreamEncoder {
 }
 
 func newJSONStreamDecoder(r io.Reader) StreamDecoder {
-	return sonicencoder.NewStreamDecoder(r)
+	return sonicdecoder.NewStreamDecoder(r)
 }

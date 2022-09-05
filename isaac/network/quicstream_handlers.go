@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/bluele/gcache"
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
@@ -564,6 +565,8 @@ func quicstreamHandlerNodeConnInfos(
 	header isaac.NetworkHeader,
 	f func() ([]isaac.NodeConnInfo, error),
 ) quicstream.Handler {
+	cache := gcache.New(2).LRU().Build() //nolint:gomnd //...
+
 	var sg singleflight.Group
 
 	return func(_ net.Addr, r io.Reader, w io.Writer) error {
@@ -575,7 +578,25 @@ func quicstreamHandlerNodeConnInfos(
 		}
 
 		i, err, _ := sg.Do("node_conn_infos", func() (interface{}, error) {
-			return f()
+			var cis []isaac.NodeConnInfo
+
+			switch j, eerr := cache.Get("node_conn_infos"); {
+			case eerr == nil:
+				if j != nil {
+					cis = j.([]isaac.NodeConnInfo) //nolint:forcetypeassert //...
+				}
+			default:
+				k, eerr := f()
+				if eerr != nil {
+					return nil, eerr
+				}
+
+				_ = cache.SetWithExpire("node_conn_infos", j, time.Second*3) //nolint:gomnd //...
+
+				cis = k
+			}
+
+			return cis, nil
 		})
 
 		if err != nil {

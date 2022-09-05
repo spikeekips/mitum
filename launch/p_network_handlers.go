@@ -159,8 +159,6 @@ func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 		Add(isaacnetwork.HandlerPrefixSyncSourceConnInfo,
 			isaacnetwork.QuicstreamHandlerSyncSourceConnInfo(encs, idletimeout,
 				func() ([]isaac.NodeConnInfo, error) {
-					// FIXME cache result
-
 					members := make([]isaac.NodeConnInfo, syncSourcePool.Len()*2)
 
 					var i int
@@ -333,8 +331,6 @@ func quicstreamHandlerSuffrageNodeConnInfoFunc(
 	memberlist *quicmemberlist.Memberlist,
 ) func() ([]isaac.NodeConnInfo, error) {
 	return func() ([]isaac.NodeConnInfo, error) {
-		// FIXME cache result
-
 		var suf base.Suffrage
 
 		switch proof, found, err := db.LastSuffrageProof(); {
