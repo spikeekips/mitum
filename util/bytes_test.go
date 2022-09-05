@@ -153,3 +153,49 @@ func (t *testLengthedBytes) TestRead() {
 func TestLengthedBytes(t *testing.T) {
 	suite.Run(t, new(testLengthedBytes))
 }
+
+type testLengthedBytesSlice struct {
+	suite.Suite
+}
+
+func (t *testLengthedBytesSlice) TestBytes() {
+	t.Run("empty", func() {
+		b, err := NewLengthedBytesSlice(0x00, nil)
+		t.NoError(err)
+
+		v, m, _, err := ReadLengthedBytesSlice(b)
+		t.NoError(err)
+		t.Equal(byte(0x00), v)
+		t.Equal(0, len(m))
+	})
+
+	t.Run("1 data", func() {
+		m := [][]byte{UUID().Bytes()}
+
+		b, err := NewLengthedBytesSlice(0x00, m)
+		t.NoError(err)
+
+		v, rm, _, err := ReadLengthedBytesSlice(b)
+		t.NoError(err)
+		t.Equal(byte(0x00), v)
+		t.Equal(len(m), len(rm))
+		t.Equal(m, rm)
+	})
+
+	t.Run("over 1 data", func() {
+		m := [][]byte{UUID().Bytes(), UUID().Bytes(), UUID().Bytes()}
+
+		b, err := NewLengthedBytesSlice(0x03, m)
+		t.NoError(err)
+
+		v, rm, _, err := ReadLengthedBytesSlice(b)
+		t.NoError(err)
+		t.Equal(byte(0x03), v)
+		t.Equal(len(m), len(rm))
+		t.Equal(m, rm)
+	})
+}
+
+func TestLengthedBytesSlice(t *testing.T) {
+	suite.Run(t, new(testLengthedBytesSlice))
+}

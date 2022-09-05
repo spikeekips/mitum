@@ -24,6 +24,14 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
+func HashPrefix(prefix string) []byte {
+	return hashPrefix(prefix)
+}
+
+func ReadPrefix(r io.Reader) ([]byte, error) {
+	return readPrefix(r)
+}
+
 type BaseTest struct {
 	sync.Mutex
 	suite.Suite

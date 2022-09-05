@@ -1,6 +1,7 @@
 package quicstream
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"math"
@@ -15,6 +16,16 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 )
+
+func bodyWithPrefix(prefix string, b []byte) []byte {
+	w := bytes.NewBuffer(nil)
+	defer w.Reset()
+
+	_ = WritePrefix(w, prefix)
+	_, _ = w.Write(b)
+
+	return w.Bytes()
+}
 
 type testServer struct {
 	BaseTest
@@ -282,7 +293,7 @@ func (t *testServer) TestPrefixHandler() {
 		defer cancel()
 
 		b := util.UUID().Bytes()
-		r, err := client.Write(ctx, DefaultClientWriteFunc(BodyWithPrefix("findme", b)))
+		r, err := client.Write(ctx, DefaultClientWriteFunc(bodyWithPrefix("findme", b)))
 		t.NoError(err)
 		defer r.Close()
 
@@ -296,7 +307,7 @@ func (t *testServer) TestPrefixHandler() {
 		defer cancel()
 
 		b := util.UUID().Bytes()
-		r, err := client.Write(ctx, DefaultClientWriteFunc(BodyWithPrefix("showme", b)))
+		r, err := client.Write(ctx, DefaultClientWriteFunc(bodyWithPrefix("showme", b)))
 		t.NoError(err)
 		defer r.Close()
 
@@ -310,7 +321,7 @@ func (t *testServer) TestPrefixHandler() {
 		defer cancel()
 
 		b := util.UUID().Bytes()
-		r, err := client.Write(ctx, DefaultClientWriteFunc(BodyWithPrefix("unknown", b)))
+		r, err := client.Write(ctx, DefaultClientWriteFunc(bodyWithPrefix("unknown", b)))
 		t.NoError(err)
 		defer r.Close()
 

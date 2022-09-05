@@ -80,7 +80,7 @@ func (t *testQuicstreamHandlers) writef(prefix string, handler quicstream.Handle
 		w := bytes.NewBuffer(nil)
 
 		if err := handler(nil, r, w); err != nil {
-			if e := Response(w, NewResponseHeader(false, err), nil, t.Enc); e != nil {
+			if e := WriteResponse(w, NewResponseHeader(false, err), nil, t.Enc); e != nil {
 				return io.NopCloser(w), func() error { return nil }, errors.Wrap(e, "failed to response error response")
 			}
 		}

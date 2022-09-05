@@ -178,7 +178,7 @@ func (cmd *NetworkClientCommand) response(header isaac.NetworkHeader) error {
 
 		_, err := io.Copy(os.Stdout, r)
 		if err != nil {
-			return errors.Wrap(err, "")
+			return errors.WithStack(err)
 		}
 	}
 
@@ -194,7 +194,7 @@ func (cmd *NetworkClientCommand) prepare(pctx context.Context) error {
 		buf := bytes.NewBuffer(nil)
 
 		if _, err := io.Copy(buf, cmd.Body); err != nil {
-			return errors.Wrap(err, "")
+			return errors.WithStack(err)
 		}
 
 		cmd.body = buf
@@ -225,7 +225,7 @@ func (cmd *NetworkClientCommand) dryRun(header isaac.NetworkHeader) error {
 	if cmd.body != nil {
 		raw, err := io.ReadAll(cmd.body)
 		if err != nil {
-			return errors.Wrap(err, "")
+			return errors.WithStack(err)
 		}
 
 		var u interface{}

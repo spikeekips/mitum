@@ -61,12 +61,20 @@ func NewTransportWithQuicstream(
 	poolclient *quicstream.PoolClient,
 	newClient func(quicstream.UDPConnInfo) func(*net.UDPAddr) *quicstream.Client,
 ) *Transport {
-	makebody := func(b []byte) []byte {
-		return b
+	makebody := func(w io.Writer, b []byte) error {
+		_, err := w.Write(b)
+
+		return errors.WithStack(err)
 	}
 	if len(handlerPrefix) > 0 {
-		makebody = func(b []byte) []byte {
-			return quicstream.BodyWithPrefix(handlerPrefix, b)
+		makebody = func(w io.Writer, b []byte) error {
+			if err := quicstream.WritePrefix(w, handlerPrefix); err != nil {
+				return err
+			}
+
+			_, err := w.Write(b)
+
+			return errors.WithStack(err)
 		}
 	}
 
@@ -90,7 +98,7 @@ func NewTransportWithQuicstream(
 			r, err := client.Write(
 				cctx,
 				func(w io.Writer) error {
-					_, err := w.Write(makebody(b))
+					err := makebody(w, b)
 
 					return errors.WithStack(err)
 				},

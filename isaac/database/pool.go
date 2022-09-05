@@ -516,7 +516,7 @@ func NewPoolOperationRecordMeta(op base.Operation) util.Byter {
 		htb = i.Hint().Bytes()
 	}
 
-	b, _ := NewRecordMeta(0x01, [][]byte{ //nolint:gomnd //...
+	b, _ := util.NewLengthedBytesSlice(0x01, [][]byte{ //nolint:gomnd //...
 		util.Int64ToBytes(localtime.UTCNow().UnixNano()), // NOTE added UTC timestamp(10)
 		htb,
 		op.Hash().Bytes(),
@@ -531,7 +531,7 @@ func ReadPoolOperationRecordMeta(b []byte) (meta PoolOperationRecordMeta, _ erro
 
 	var m [][]byte
 
-	switch v, i, _, err := ReadRecordMetaFromBytes(b); {
+	switch v, i, _, err := util.ReadLengthedBytesSlice(b); {
 	case err != nil:
 		return meta, e(err, "")
 	case len(i) != 4: //nolint:gomnd //...

@@ -81,7 +81,7 @@ func consulWatch(
 
 	wp, err := consulwatch.Parse(consulparams)
 	if err != nil {
-		return nil, errors.Wrap(err, "")
+		return nil, errors.WithStack(err)
 	}
 
 	watchUpdateFromConsulf := watchUpdateFromConsulFunc(prefix, updatef)
@@ -113,7 +113,7 @@ func consulWatch(
 		defer wp.Stop()
 
 		if err := wp.Run(flag.URL().Host); err != nil {
-			return errors.Wrap(err, "")
+			return errors.WithStack(err)
 		}
 
 		return nil

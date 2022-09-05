@@ -41,7 +41,7 @@ func (db *baseDatabase) marshal(i interface{}, meta util.Byter) ([]byte, []byte,
 	}
 
 	if _, err := w.Write(b); err != nil {
-		return nil, nil, errors.Wrap(err, "")
+		return nil, nil, errors.WithStack(err)
 	}
 
 	return w.Bytes(), b, nil
@@ -175,77 +175,13 @@ func (db *baseDatabase) getRecordBytes(
 	}
 }
 
-func NewRecordMeta(version byte, m [][]byte) ([]byte, error) {
-	e := util.StringErrorFunc("failed RecordMeta")
-
-	w := bytes.NewBuffer(nil)
-	defer w.Reset()
-
-	if err := util.LengthedBytes(w, []byte{version}); err != nil {
-		return nil, e(err, "")
-	}
-
-	if _, err := w.Write(util.Uint64ToBytes(uint64(len(m)))); err != nil {
-		return nil, e(err, "")
-	}
-
-	for i := range m {
-		if err := util.LengthedBytes(w, m[i]); err != nil {
-			return nil, e(err, "")
-		}
-	}
-
-	return w.Bytes(), nil
-}
-
-func ReadRecordMetaFromBytes(b []byte) (version byte, m [][]byte, left []byte, _ error) {
-	e := util.StringErrorFunc("failed RecordMeta from bytes")
-
-	switch i, j, err := util.ReadLengthedBytes(b); {
-	case err != nil:
-		return version, nil, nil, e(err, "wrong version")
-	case len(i) < 1:
-		return version, nil, nil, e(err, "empty version")
-	default:
-		version = i[0]
-
-		left = j
-	}
-
-	if len(left) < 8 { //nolint:gomnd //...
-		return version, nil, nil, e(nil, "empty m length")
-	}
-
-	switch k, err := util.BytesToUint64(left[:8]); {
-	case err != nil:
-		return version, nil, nil, e(err, "wrong m length")
-	default:
-		m = make([][]byte, k)
-
-		left = left[8:]
-	}
-
-	for i := range m {
-		j, k, err := util.ReadLengthedBytes(left)
-		if err != nil {
-			return version, nil, nil, e(err, "")
-		}
-
-		m[i] = j
-
-		left = k
-	}
-
-	return version, m, left, nil
-}
-
 func NewHashRecordMeta(h util.Hash) util.Byter {
 	var hb []byte
 	if h != nil {
 		hb = h.Bytes()
 	}
 
-	b, _ := NewRecordMeta(0x01, [][]byte{hb}) //nolint:gomnd //...
+	b, _ := util.NewLengthedBytesSlice(0x01, [][]byte{hb}) //nolint:gomnd //...
 
 	return util.BytesToByter(b)
 }
@@ -253,7 +189,7 @@ func NewHashRecordMeta(h util.Hash) util.Byter {
 func ReadHashRecordMeta(b []byte) (util.Hash, error) {
 	e := util.StringErrorFunc("failed to read state record meta")
 
-	switch _, m, _, err := ReadRecordMetaFromBytes(b); {
+	switch _, m, _, err := util.ReadLengthedBytesSlice(b); {
 	case err != nil:
 		return nil, e(err, "")
 	case len(m) < 1:

@@ -23,7 +23,7 @@ import (
 
 func QuicstreamErrorHandler(enc encoder.Encoder) quicstream.ErrorHandler {
 	return func(_ net.Addr, _ io.Reader, w io.Writer, err error) error {
-		if err = Response(w, NewResponseHeader(false, err), nil, enc); err != nil {
+		if err = WriteResponse(w, NewResponseHeader(false, err), nil, enc); err != nil {
 			return errors.WithMessage(err, "failed to response error response")
 		}
 
@@ -121,7 +121,7 @@ func QuicstreamHandlerSendOperation(
 
 		added, err := oppool.SetNewOperation(context.Background(), op)
 
-		if err = Response(w, NewResponseHeader(added, err), nil, enc); err != nil {
+		if err = WriteResponse(w, NewResponseHeader(added, err), nil, enc); err != nil {
 			return e(err, "")
 		}
 
@@ -323,7 +323,7 @@ func QuicstreamHandlerBlockMapItem(
 			}()
 		}
 
-		if err = Response(w, NewResponseHeader(found, err), nil, enc); err != nil {
+		if err = WriteResponse(w, NewResponseHeader(found, err), nil, enc); err != nil {
 			return e(err, "")
 		}
 
@@ -379,7 +379,7 @@ func QuicstreamHandlerNodeChallenge(
 
 		sig := i.(base.Signature) //nolint:forcetypeassert //...
 
-		if err := Response(w, NewResponseHeader(true, nil), sig, enc); err != nil {
+		if err := WriteResponse(w, NewResponseHeader(true, nil), sig, enc); err != nil {
 			return e(err, "")
 		}
 
@@ -480,7 +480,7 @@ func QuicstreamHandlerExistsInStateOperation(
 			return e(err, "")
 		}
 
-		if err := Response(w, //nolint:forcetypeassert //...
+		if err := WriteResponse(w, //nolint:forcetypeassert //...
 			NewResponseHeader(i.(bool), nil), nil, enc); err != nil {
 			return e(err, "")
 		}
@@ -520,7 +520,7 @@ func QuicstreamHandlerNodeInfo(
 			b = json.RawMessage(i.([]byte)) //nolint:forcetypeassert //...
 		}
 
-		if err := Response(w, NewResponseHeader(true, nil), b, enc); err != nil {
+		if err := WriteResponse(w, NewResponseHeader(true, nil), b, enc); err != nil {
 			return e(err, "")
 		}
 
@@ -579,7 +579,7 @@ func quicstreamHandlerNodeConnInfos(
 		})
 
 		if err != nil {
-			return errors.Wrap(err, "")
+			return errors.WithStack(err)
 		}
 
 		var cis []isaac.NodeConnInfo
@@ -588,7 +588,7 @@ func quicstreamHandlerNodeConnInfos(
 			cis = i.([]isaac.NodeConnInfo) //nolint:forcetypeassert //...
 		}
 
-		return Response(w, NewResponseHeader(true, nil), cis, enc)
+		return WriteResponse(w, NewResponseHeader(true, nil), cis, enc)
 	}
 }
 
@@ -621,12 +621,12 @@ func boolQUICstreamHandler(
 			return [2]interface{}{j, bo}, oerr
 		})
 		if err != nil {
-			return errors.Wrap(err, "")
+			return errors.WithStack(err)
 		}
 
 		j := i.([2]interface{}) //nolint:forcetypeassert //...
 
-		return Response(w, NewResponseHeader( //nolint:forcetypeassert //...
+		return WriteResponse(w, NewResponseHeader( //nolint:forcetypeassert //...
 			j[1].(bool), nil), j[0], enc) //nolint:forcetypeassert //...
 	}
 }
@@ -660,7 +660,7 @@ func boolBytesQUICstreamHandler(
 			return [3]interface{}{ht, b, found}, oerr
 		})
 		if err != nil {
-			return errors.Wrap(err, "")
+			return errors.WithStack(err)
 		}
 
 		var body []byte
@@ -679,6 +679,6 @@ func boolBytesQUICstreamHandler(
 			}
 		}
 
-		return ResponseBytes(w, NewResponseHeader(found, nil), body, enc)
+		return WriteResponseBytes(w, NewResponseHeader(found, nil), body, enc)
 	}
 }

@@ -4,12 +4,9 @@ import (
 	"io"
 	"net"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/valuehash"
 )
-
-const handlerPrefixSize = 32
 
 type (
 	Handler      func(net.Addr, io.Reader, io.Writer) error
@@ -50,7 +47,7 @@ func (h *PrefixHandler) Handler(addr net.Addr, r io.Reader, w io.Writer) error {
 }
 
 func (h *PrefixHandler) Add(prefix string, handler Handler) *PrefixHandler {
-	h.handlers[string(HashPrefix(prefix))] = handler
+	h.handlers[string(hashPrefix(prefix))] = handler
 
 	return h
 }
@@ -58,7 +55,7 @@ func (h *PrefixHandler) Add(prefix string, handler Handler) *PrefixHandler {
 func (h *PrefixHandler) loadHandler(r io.Reader) (Handler, error) {
 	e := util.StringErrorFunc("failed to load handler")
 
-	prefix, err := ReadPrefix(r)
+	prefix, err := readPrefix(r)
 	if err != nil {
 		return nil, e(err, "")
 	}
@@ -71,40 +68,14 @@ func (h *PrefixHandler) loadHandler(r io.Reader) (Handler, error) {
 	return handler, nil
 }
 
-func HashPrefix(prefix string) []byte {
+func hashPrefix(prefix string) []byte {
 	return valuehash.NewSHA256([]byte(prefix)).Bytes()
 }
 
-func BodyWithPrefix(prefix string, b []byte) []byte {
-	n := make([]byte, len(b)+handlerPrefixSize)
-	copy(n[:handlerPrefixSize], HashPrefix(prefix))
-	copy(n[handlerPrefixSize:], b)
-
-	return n
-}
-
-func ReadPrefix(r io.Reader) ([]byte, error) {
-	p := make([]byte, handlerPrefixSize)
-
-	switch n, err := r.Read(p); {
-	case err != nil:
-		return nil, errors.Wrap(err, "failed to read handler prefix")
-	case n < handlerPrefixSize:
-		return nil, errors.Errorf("too short prefix")
-	default:
-		return p, nil
-	}
+func readPrefix(r io.Reader) ([]byte, error) {
+	return util.ReadLengthedBytesFromReader(r)
 }
 
 func WritePrefix(w io.Writer, prefix string) error {
-	b := HashPrefix(prefix)
-
-	switch n, err := w.Write(b); {
-	case err != nil:
-		return errors.WithStack(err)
-	case n != len(b):
-		return errors.Errorf("not fully written")
-	default:
-		return nil
-	}
+	return util.LengthedBytes(w, hashPrefix(prefix))
 }

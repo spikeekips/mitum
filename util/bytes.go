@@ -1,6 +1,7 @@
 package util
 
 import (
+	"bytes"
 	"io"
 
 	"github.com/pkg/errors"
@@ -64,7 +65,35 @@ func ConcatBytesSlice(sl ...[]byte) []byte {
 	return n
 }
 
-func LengthedBytes(w io.Writer, b []byte) error { // FIXME set to network handler
+func EnsureRead(r io.Reader, b []byte) (int, error) {
+	if len(b) < 1 {
+		return 0, nil
+	}
+
+	var n int
+
+	for {
+		l := make([]byte, len(b)-n)
+
+		i, err := r.Read(l)
+
+		switch {
+		case err == nil:
+		case !errors.Is(err, io.EOF):
+			return n, errors.WithStack(err)
+		}
+
+		n += i
+
+		copy(b[len(b)-len(l):], l)
+
+		if n == len(b) || errors.Is(err, io.EOF) {
+			return n, errors.WithStack(err)
+		}
+	}
+}
+
+func LengthedBytes(w io.Writer, b []byte) error {
 	e := StringErrorFunc("failed to write LengthedBytes")
 
 	i := uint64(len(b))
@@ -101,4 +130,94 @@ func ReadLengthedBytes(b []byte) (_ []byte, left []byte, _ error) {
 	}
 
 	return b[8 : j+8], b[j+8:], nil
+}
+
+func ReadLengthedBytesFromReader(r io.Reader) ([]byte, error) {
+	p := make([]byte, 8)
+
+	if _, err := EnsureRead(r, p); err != nil {
+		return nil, err
+	}
+
+	n, err := BytesToUint64(p)
+	if err != nil {
+		return nil, err
+	}
+
+	p = make([]byte, n)
+	_, err = EnsureRead(r, p)
+
+	return p, err
+}
+
+func NewLengthedBytesSlice(version byte, m [][]byte) ([]byte, error) {
+	w := bytes.NewBuffer(nil)
+	defer w.Reset()
+
+	if err := WriteLengthedBytesSlice(w, version, m); err != nil {
+		return nil, err
+	}
+
+	return w.Bytes(), nil
+}
+
+func WriteLengthedBytesSlice(w io.Writer, version byte, m [][]byte) error {
+	e := StringErrorFunc("failed RecordMeta")
+
+	if err := LengthedBytes(w, []byte{version}); err != nil {
+		return e(err, "")
+	}
+
+	if _, err := w.Write(Uint64ToBytes(uint64(len(m)))); err != nil {
+		return e(err, "")
+	}
+
+	for i := range m {
+		if err := LengthedBytes(w, m[i]); err != nil {
+			return e(err, "")
+		}
+	}
+
+	return nil
+}
+
+func ReadLengthedBytesSlice(b []byte) (version byte, m [][]byte, left []byte, _ error) {
+	e := StringErrorFunc("failed RecordMeta from bytes")
+
+	switch i, j, err := ReadLengthedBytes(b); {
+	case err != nil:
+		return version, nil, nil, e(err, "wrong version")
+	case len(i) < 1:
+		return version, nil, nil, e(err, "empty version")
+	default:
+		version = i[0]
+
+		left = j
+	}
+
+	if len(left) < 8 { //nolint:gomnd //...
+		return version, nil, nil, e(nil, "empty m length")
+	}
+
+	switch k, err := BytesToUint64(left[:8]); {
+	case err != nil:
+		return version, nil, nil, e(err, "wrong m length")
+	default:
+		m = make([][]byte, k)
+
+		left = left[8:]
+	}
+
+	for i := range m {
+		j, k, err := ReadLengthedBytes(left)
+		if err != nil {
+			return version, nil, nil, e(err, "")
+		}
+
+		m[i] = j
+
+		left = k
+	}
+
+	return version, m, left, nil
 }

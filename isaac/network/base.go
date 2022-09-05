@@ -47,7 +47,7 @@ func newBaseNetwork(
 	}
 }
 
-func Response(w io.Writer, header isaac.NetworkHeader, body interface{}, enc encoder.Encoder) error {
+func WriteResponse(w io.Writer, header isaac.NetworkHeader, body interface{}, enc encoder.Encoder) error {
 	e := util.StringErrorFunc("failed to write response")
 
 	var b []byte
@@ -87,7 +87,7 @@ func Response(w io.Writer, header isaac.NetworkHeader, body interface{}, enc enc
 	return nil
 }
 
-func ResponseBytes(w io.Writer, header isaac.NetworkHeader, body []byte, enc encoder.Encoder) error {
+func WriteResponseBytes(w io.Writer, header isaac.NetworkHeader, body []byte, enc encoder.Encoder) error {
 	e := util.StringErrorFunc("failed to write response")
 
 	if err := writeHint(w, enc.Hint()); err != nil {

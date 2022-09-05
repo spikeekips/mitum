@@ -11,7 +11,7 @@ import (
 func NewMemStorage() *Storage {
 	st, err := NewStorage(leveldbStorage.NewMemStorage(), nil)
 	if err != nil {
-		panic(errors.Wrap(err, ""))
+		panic(errors.WithStack(err))
 	}
 
 	return st
@@ -20,12 +20,12 @@ func NewMemStorage() *Storage {
 func NewFSStorage(f string) *Storage {
 	str, err := leveldbStorage.OpenFile(f, false)
 	if err != nil {
-		panic(errors.Wrap(err, ""))
+		panic(errors.WithStack(err))
 	}
 
 	st, err := NewStorage(str, nil)
 	if err != nil {
-		panic(errors.Wrap(err, ""))
+		panic(errors.WithStack(err))
 	}
 
 	return st

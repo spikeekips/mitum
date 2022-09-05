@@ -37,7 +37,7 @@ func (dummyResponseWriter) Header() http.Header {
 func (w dummyResponseWriter) Write(b []byte) (int, error) {
 	i, err := w.w.Write(b)
 	if err != nil {
-		return i, errors.Wrap(err, "")
+		return i, errors.WithStack(err)
 	}
 
 	return i, nil
@@ -91,7 +91,7 @@ func NetworkHandlerPprofFunc(encs *encoder.Encoders) quicstream.Handler {
 
 		res := isaacnetwork.NewResponseHeaderWithType(true, nil, isaac.NetworkResponseRawContentType)
 
-		if err := isaacnetwork.Response(w, res, nil, enc); err != nil {
+		if err := isaacnetwork.WriteResponse(w, res, nil, enc); err != nil {
 			return e(err, "")
 		}
 
