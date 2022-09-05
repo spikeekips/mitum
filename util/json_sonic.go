@@ -27,3 +27,11 @@ func marshalJSONIndent(i interface{}) ([]byte, error) {
 
 	return b, errors.WithStack(err)
 }
+
+func newJSONStreamEncoder(w io.Writer) StreamEncoder {
+	return sonicencoder.NewStreamEncoder(w)
+}
+
+func newJSONStreamDecoder(r io.Reader) StreamDecoder {
+	return sonicencoder.NewStreamDecoder(r)
+}

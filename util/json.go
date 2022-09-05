@@ -2,6 +2,7 @@ package util
 
 import (
 	"bytes"
+	"io"
 	"time"
 
 	"github.com/pkg/errors"
@@ -98,6 +99,22 @@ func MustMarshalJSONIndentString(i interface{}) string {
 	}
 
 	return string(b)
+}
+
+type StreamEncoder interface {
+	Encode(interface{}) error
+}
+
+type StreamDecoder interface {
+	Decode(interface{}) error
+}
+
+func NewJSONStreamEncoder(w io.Writer) StreamEncoder {
+	return newJSONStreamEncoder(w)
+}
+
+func NewJSONStreamDecoder(r io.Reader) StreamDecoder {
+	return newJSONStreamDecoder(r)
 }
 
 type ReadableJSONDuration time.Duration

@@ -502,7 +502,7 @@ func newNewOperationLeveldbKeys(operationhash util.Hash) (key []byte, orderedkey
 	return leveldbNewOperationKey(operationhash), leveldbNewOperationOrderedKey(operationhash)
 }
 
-type PoolOperationRecordMeta struct { // FIXME rename to PoolOperationRecordMeta
+type PoolOperationRecordMeta struct {
 	addedAt  time.Time
 	ophash   util.Hash
 	facthash util.Hash

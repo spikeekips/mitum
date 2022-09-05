@@ -3,6 +3,7 @@ package jsonenc
 import (
 	"encoding"
 	"encoding/json"
+	"io"
 	"reflect"
 
 	"github.com/pkg/errors"
@@ -61,6 +62,14 @@ func (*Encoder) Marshal(v interface{}) ([]byte, error) {
 
 func (*Encoder) Unmarshal(b []byte, v interface{}) error {
 	return util.UnmarshalJSON(b, v)
+}
+
+func (*Encoder) StreamEncoder(w io.Writer) util.StreamEncoder {
+	return util.NewJSONStreamEncoder(w)
+}
+
+func (*Encoder) StreamDecoder(r io.Reader) util.StreamDecoder {
+	return util.NewJSONStreamDecoder(r)
 }
 
 func (enc *Encoder) Decode(b []byte) (interface{}, error) {

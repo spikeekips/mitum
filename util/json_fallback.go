@@ -5,6 +5,7 @@ package util
 
 import (
 	"encoding/json"
+	"io"
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/pkg/errors"
@@ -31,4 +32,12 @@ func marshalJSONIndent(i interface{}) ([]byte, error) {
 	b, err := json.MarshalIndent(i, "", "  ")
 
 	return b, errors.WithStack(err)
+}
+
+func newJSONStreamEncoder(w io.Writer) StreamEncoder {
+	return jsoniter.NewEncoder(w)
+}
+
+func newJSONStreamDecoder(r io.Reader) StreamDecoder {
+	return jsoniter.NewDecoder(r)
 }

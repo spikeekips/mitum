@@ -601,7 +601,7 @@ func (t *testQuicstreamHandlers) TestBlockMapItem() {
 		t.NoError(err)
 		cancel()
 
-		t.Equal(body, rb)
+		t.Equal(body, rb, "%q != %q", string(body), string(rb))
 	})
 
 	t.Run("unknown item", func() {

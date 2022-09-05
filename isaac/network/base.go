@@ -50,17 +50,6 @@ func newBaseNetwork(
 func WriteResponse(w io.Writer, header isaac.NetworkHeader, body interface{}, enc encoder.Encoder) error {
 	e := util.StringErrorFunc("failed to write response")
 
-	var b []byte
-
-	if body != nil {
-		i, err := enc.Marshal(body)
-		if err != nil {
-			return e(err, "")
-		}
-
-		b = i
-	}
-
 	if err := writeHint(w, enc.Hint()); err != nil {
 		return e(err, "")
 	}
@@ -80,8 +69,10 @@ func WriteResponse(w io.Writer, header isaac.NetworkHeader, body interface{}, en
 		return e(err, "")
 	}
 
-	if _, err := ensureWrite(w, b); err != nil {
-		return e(err, "failed to write body")
+	if body != nil {
+		if err := enc.StreamEncoder(w).Encode(body); err != nil {
+			return e(err, "failed to write body")
+		}
 	}
 
 	return nil

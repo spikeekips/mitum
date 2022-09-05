@@ -31,8 +31,6 @@ type Center struct {
 	sync.RWMutex
 }
 
-// FIXME cache result
-
 func NewCenter(
 	st *leveldbstorage.Storage,
 	encs *encoder.Encoders,
@@ -187,8 +185,6 @@ func (db *Center) SuffrageProofBytes(suffrageHeight base.Height) (
 
 	return enchint, meta, body, found, nil
 }
-
-// FIXME cache result from storages
 
 func (db *Center) SuffrageProofByBlockHeight(height base.Height) (base.SuffrageProof, bool, error) {
 	e := util.StringErrorFunc("failed to find suffrage by SuffrageProof by block height")
