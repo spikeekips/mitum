@@ -99,22 +99,22 @@ func (srv *Memberlist) Join(cis []quicstream.UDPConnInfo) error {
 		srv.cicache.Set(ci.UDPAddr().String(), ci, nil)
 	}
 
-	_, created, err := func() (*memberlist.Memberlist, bool, error) {
+	created, err := func() (bool, error) {
 		srv.l.Lock()
 		defer srv.l.Unlock()
 
 		if srv.m != nil {
-			return srv.m, false, nil
+			return false, nil
 		}
 
 		m, err := srv.createMemberlist()
 		if err != nil {
-			return nil, false, errors.Wrap(err, "failed to create memberlist")
+			return false, errors.Wrap(err, "failed to create memberlist")
 		}
 
 		srv.m = m
 
-		return srv.m, true, nil
+		return true, nil
 	}()
 	if err != nil {
 		return err

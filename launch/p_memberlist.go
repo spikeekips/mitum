@@ -507,13 +507,19 @@ func (l *LongRunningMemberlistJoin) Join() (<-chan error, error) {
 
 		_ = l.doneerr.SetValue(nil)
 
-		donech = make(chan struct{})
-
-		_ = l.donech.SetValue(donech)
+		ldonech := make(chan struct{})
+		donech = ldonech
+		_ = l.donech.SetValue(ldonech)
 
 		ctx, cancel := context.WithCancel(context.Background())
 
 		go func() {
+			defer func() {
+				cancel()
+
+				_ = l.cancelrunning.Empty()
+			}()
+
 			err := util.Retry(ctx,
 				func() (bool, error) {
 					switch err := l.ensureJoin(); {
@@ -529,14 +535,10 @@ func (l *LongRunningMemberlistJoin) Join() (<-chan error, error) {
 				l.interval,
 			)
 
-			_ = l.doneerr.SetValue(err)
+			close(ldonech)
 
-			switch j, _ := l.donech.Value(); {
-			case j == nil:
-			default:
-				close(donech)
-				_ = l.donech.SetValue(nil)
-			}
+			_ = l.doneerr.SetValue(err)
+			_ = l.donech.SetValue(nil)
 		}()
 
 		return cancel, nil
