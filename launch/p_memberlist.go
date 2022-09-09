@@ -472,7 +472,6 @@ type LongRunningMemberlistJoin struct {
 	isJoined      func() bool
 	cancelrunning *util.Locked
 	donech        *util.Locked
-	doneerr       *util.Locked
 	interval      time.Duration
 }
 
@@ -485,12 +484,15 @@ func NewLongRunningMemberlistJoin(
 		isJoined:      isJoined,
 		cancelrunning: util.EmptyLocked(),
 		donech:        util.EmptyLocked(),
-		doneerr:       util.EmptyLocked(),
 		interval:      time.Second * 3, //nolint:gomnd //...
 	}
 }
 
-func (l *LongRunningMemberlistJoin) Join() (<-chan error, error) {
+func (l *LongRunningMemberlistJoin) Join() <-chan struct{} {
+	if l.isJoined() {
+		return nil
+	}
+
 	var donech chan struct{}
 
 	_, _ = l.cancelrunning.Set(func(_ bool, i interface{}) (interface{}, error) {
@@ -505,8 +507,6 @@ func (l *LongRunningMemberlistJoin) Join() (<-chan error, error) {
 			}
 		}
 
-		_ = l.doneerr.SetValue(nil)
-
 		ldonech := make(chan struct{})
 		donech = ldonech
 		_ = l.donech.SetValue(ldonech)
@@ -520,15 +520,13 @@ func (l *LongRunningMemberlistJoin) Join() (<-chan error, error) {
 				_ = l.cancelrunning.Empty()
 			}()
 
-			err := util.Retry(ctx,
+			_ = util.Retry(ctx,
 				func() (bool, error) {
-					switch err := l.ensureJoin(); {
-					case err == nil:
-						return false, nil
-					case !l.isJoined():
-						return true, nil
-					default:
+					switch err := l.ensureJoin(); { // FIXME return bool, err
+					case err != nil, !l.isJoined():
 						return true, err
+					default:
+						return false, err
 					}
 				},
 				-1,
@@ -537,29 +535,13 @@ func (l *LongRunningMemberlistJoin) Join() (<-chan error, error) {
 
 			close(ldonech)
 
-			_ = l.doneerr.SetValue(err)
 			_ = l.donech.SetValue(nil)
 		}()
 
 		return cancel, nil
 	})
 
-	ch := make(chan error)
-
-	go func() {
-		defer close(ch)
-
-		<-donech
-
-		switch i, _ := l.doneerr.Value(); {
-		case i == nil:
-			ch <- nil
-		default:
-			ch <- i.(error) //nolint:forcetypeassert //...
-		}
-	}()
-
-	return ch, nil
+	return donech
 }
 
 func (l *LongRunningMemberlistJoin) Cancel() bool {
@@ -567,8 +549,6 @@ func (l *LongRunningMemberlistJoin) Cancel() bool {
 		if i == nil {
 			return nil, nil
 		}
-
-		_ = l.doneerr.SetValue(context.Canceled)
 
 		i.(context.CancelFunc)() //nolint:forcetypeassert //...
 
@@ -590,6 +570,6 @@ func ensureJoinMemberlist(discoveries *util.Locked, m *quicmemberlist.Memberlist
 			return nil
 		}
 
-		return m.EnsureJoin(dis)
+		return m.Join(dis)
 	}
 }

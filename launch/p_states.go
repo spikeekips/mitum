@@ -658,19 +658,15 @@ func joinMemberlistForStateHandlerFunc(pctx context.Context) (
 	}
 
 	return func(ctx context.Context, _ base.Suffrage) error {
-		donech, err := long.Join()
-		if err != nil {
-			return errors.WithMessage(err, "failed to join")
+		donech := long.Join()
+		if donech == nil {
+			return nil
 		}
 
 		select {
 		case <-ctx.Done():
 			return errors.Wrap(ctx.Err(), "failed to join")
-		case err := <-donech:
-			if err != nil {
-				return errors.WithMessage(err, "failed to join")
-			}
-
+		case <-donech:
 			return nil
 		}
 	}, nil
@@ -686,9 +682,7 @@ func joinMemberlistForJoiningeHandlerFunc(pctx context.Context) (
 	}
 
 	return func(ctx context.Context, _ base.Suffrage) error {
-		if _, err := long.Join(); err != nil {
-			return errors.WithMessage(err, "failed to join")
-		}
+		_ = long.Join()
 
 		return nil
 	}, nil
@@ -833,12 +827,8 @@ func onEmptyMembersStateHandlerFunc(
 	}
 
 	_ = pps.Add("in-state-handler", func(ctx context.Context) (context.Context, error) {
-		switch _, err := long.Join(); {
-		case err != nil:
-			log.Log().Error().Err(err).Msg("failed to LongRunningMemberlistJoin")
-		default:
-			log.Log().Error().Err(err).Msg("start LongRunningMemberlistJoin")
-		}
+		_ = long.Join()
+		log.Log().Debug().Msg("start LongRunningMemberlistJoin")
 
 		return ctx, nil
 	}, nil)

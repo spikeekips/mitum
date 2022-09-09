@@ -127,14 +127,6 @@ func (srv *Memberlist) Join(cis []quicstream.UDPConnInfo) error {
 	return srv.join(fcis)
 }
 
-func (srv *Memberlist) EnsureJoin(cis []quicstream.UDPConnInfo) error {
-	if srv.IsJoined() {
-		return nil
-	}
-
-	return srv.Join(cis)
-}
-
 func (srv *Memberlist) join(cis []string) error {
 	e := util.StringErrorFunc("failed to join")
 
@@ -234,15 +226,17 @@ func (srv *Memberlist) Broadcast(b memberlist.Broadcast) {
 func (srv *Memberlist) start(ctx context.Context) error {
 	<-ctx.Done()
 
-	// NOTE leave before shutdown
 	if err := func() error {
-		srv.l.RLock()
-		defer srv.l.RUnlock()
+		if !func() bool {
+			srv.l.RLock()
+			defer srv.l.RUnlock()
 
-		if srv.m == nil {
+			return srv.m != nil
+		}() {
 			return nil
 		}
 
+		// NOTE leave before shutdown
 		if err := srv.m.Leave(time.Second * 3); err != nil { //nolint:gomnd //...
 			srv.Log().Error().Err(err).Msg("failed to leave; ignored")
 		}
@@ -365,7 +359,7 @@ func (srv *Memberlist) whenLeft(node Node) {
 		removed, _ := srv.members.Remove(node.UDPAddr())
 
 		switch {
-		case srv.isJoined:
+		case !srv.isJoined:
 		case srv.members.Len() < 1:
 			srv.isJoined = false
 		case srv.members.Len() < 2 && srv.members.Exists(srv.local.UDPAddr()):

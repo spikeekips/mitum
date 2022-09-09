@@ -1,7 +1,6 @@
 package launch
 
 import (
-	"context"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -32,10 +31,8 @@ func (t *testLongRunningMemberlistJoin) TestJoin() {
 	)
 	l.interval = time.Millisecond * 300
 
-	ch0, err := l.Join()
-	t.NoError(err)
-	ch1, err := l.Join()
-	t.NoError(err)
+	ch0 := l.Join()
+	ch1 := l.Join()
 
 	t.Run("check done channels not closed", func() {
 		select {
@@ -57,15 +54,13 @@ func (t *testLongRunningMemberlistJoin) TestJoin() {
 		select {
 		case <-time.After(time.Second * 2):
 			t.NoError(errors.Errorf("wait to done ch0, but failed"))
-		case err := <-ch0:
-			t.NoError(err)
+		case <-ch0:
 		}
 
 		select {
 		case <-time.After(time.Second * 2):
 			t.NoError(errors.Errorf("wait to done ch1, but failed"))
-		case err := <-ch1:
-			t.NoError(err)
+		case <-ch1:
 		}
 	})
 }
@@ -81,16 +76,14 @@ func (t *testLongRunningMemberlistJoin) TestCancel() {
 	)
 	l.interval = time.Millisecond * 300
 
-	ch, err := l.Join()
-	t.NoError(err)
+	ch := l.Join()
 
 	t.True(l.Cancel())
 
 	select {
 	case <-time.After(time.Second * 1):
 		t.NoError(errors.Errorf("wait to done, but failed"))
-	case err := <-ch:
-		t.True(errors.Is(err, context.Canceled))
+	case <-ch:
 	}
 }
 

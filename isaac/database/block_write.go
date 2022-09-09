@@ -391,7 +391,7 @@ func newPrefixStoragePrefixByHeight(label []byte, height base.Height) []byte {
 func emptyPrefixStoragePrefixByHeight(label []byte, height base.Height) []byte {
 	return util.ConcatBytesSlice(
 		label,
-		[]byte(fmt.Sprintf("%021d", height)),
+		[]byte(fmt.Sprintf("%021d", height)), // FIXME use Uint64ToBytes; it's length is constant
 		emptyULID,
 	)
 }
