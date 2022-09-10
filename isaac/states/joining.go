@@ -349,7 +349,7 @@ func (st *JoiningHandler) nextRound(vp base.Voteproof, prevBlock util.Hash) {
 
 	switch _, err := st.vote(bl); {
 	case err == nil:
-	case errors.Is(err, errNotInConsensusNodes):
+	case errors.Is(err, errFailedToVoteNotInConsensus):
 		l.Error().Err(err).Msg("failed to vote init ballot for next round; moves to syncing state")
 
 		go st.switchState(newSyncingSwitchContext(StateJoining, vp.Point().Height()-1))
@@ -407,7 +407,7 @@ func (st *JoiningHandler) nextBlock(avp base.ACCEPTVoteproof) {
 
 	switch _, err := st.vote(bl); {
 	case err == nil:
-	case errors.Is(err, errNotInConsensusNodes):
+	case errors.Is(err, errFailedToVoteNotInConsensus):
 		l.Error().Err(err).Msg("failed to vote init ballot for next round; moves to syncing state")
 
 		go st.switchState(newSyncingSwitchContext(StateJoining, avp.Point().Height()-1))

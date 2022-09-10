@@ -7,22 +7,22 @@ import (
 )
 
 var (
-	ConnectionError = util.NewError("storage connection error")
-	InternalError   = util.NewError("storage internal error")
-	ExecError       = util.NewError("failed to execute storage")
-	NotFoundError   = util.NewError("not found")
-	FoundError      = util.NewError("found")
+	ErrConnection = util.NewError("storage connection error")
+	ErrInternal   = util.NewError("storage internal error")
+	ErrExec       = util.NewError("failed to execute storage")
+	ErrNotFound   = util.NewError("not found")
+	ErrFound      = util.NewError("found")
 )
 
 func IsStorageError(err error) bool {
 	switch {
 	case err == nil:
 		return false
-	case errors.Is(err, InternalError),
-		errors.Is(err, ConnectionError),
-		errors.Is(err, ExecError),
-		errors.Is(err, NotFoundError),
-		errors.Is(err, FoundError):
+	case errors.Is(err, ErrInternal),
+		errors.Is(err, ErrConnection),
+		errors.Is(err, ErrExec),
+		errors.Is(err, ErrNotFound),
+		errors.Is(err, ErrFound):
 		return true
 	default:
 		return false

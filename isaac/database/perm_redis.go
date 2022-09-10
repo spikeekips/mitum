@@ -260,7 +260,7 @@ func (db *RedisPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp
 	e := util.StringErrorFunc("failed to merge LeveldbTempDatabase")
 
 	if temp.mp == nil {
-		return e(storage.NotFoundError.Errorf("blockmap not found in LeveldbTempDatabase"), "")
+		return e(storage.ErrNotFound.Errorf("blockmap not found in LeveldbTempDatabase"), "")
 	}
 
 	if err := util.RunErrgroupWorkerByJobs(

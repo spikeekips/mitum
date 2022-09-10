@@ -83,7 +83,7 @@ func (t *testPrefixStorage) TestClose() {
 		found, err := pst.Exists(util.UUID().Bytes())
 		t.False(found)
 		t.Error(err)
-		t.True(errors.Is(err, storage.InternalError))
+		t.True(errors.Is(err, storage.ErrInternal))
 		t.ErrorContains(err, "already closed")
 	})
 
@@ -243,7 +243,7 @@ func (t *testPrefixStorage) TestPut() {
 	t.Run("nil key", func() {
 		err := pst.Put(nil, nil, nil)
 		t.Error(err)
-		t.True(errors.Is(err, storage.InternalError))
+		t.True(errors.Is(err, storage.ErrInternal))
 	})
 }
 

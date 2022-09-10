@@ -94,7 +94,7 @@ func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 					case err != nil:
 						return enchint, nil, nil, false, err
 					case !found:
-						return enchint, nil, nil, false, storage.NotFoundError.Errorf("last SuffrageProof not found")
+						return enchint, nil, nil, false, storage.ErrNotFound.Errorf("last SuffrageProof not found")
 					}
 
 					switch h, err := isaacdatabase.ReadHashRecordMeta(metabytes); {
@@ -128,11 +128,11 @@ func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 					case err != nil:
 						return nil, false, e(err, "")
 					case !found:
-						return nil, false, e(storage.NotFoundError.Errorf("BlockMap not found"), "")
+						return nil, false, e(storage.ErrNotFound.Errorf("BlockMap not found"), "")
 					default:
 						menc = encs.Find(m.Encoder())
 						if menc == nil {
-							return nil, false, e(storage.NotFoundError.Errorf("encoder of BlockMap not found"), "")
+							return nil, false, e(storage.ErrNotFound.Errorf("encoder of BlockMap not found"), "")
 						}
 					}
 
@@ -312,12 +312,12 @@ func quicstreamHandlerLastBlockMapFunc(
 		case err != nil:
 			return enchint, nil, nil, false, err
 		case !found:
-			return enchint, nil, nil, false, storage.NotFoundError.Errorf("last BlockMap not found")
+			return enchint, nil, nil, false, storage.ErrNotFound.Errorf("last BlockMap not found")
 		}
 
 		switch h, err := isaacdatabase.ReadHashRecordMeta(metabytes); {
 		case err != nil:
-			return enchint, nil, nil, false, storage.NotFoundError.Errorf("last BlockMap not found")
+			return enchint, nil, nil, false, storage.ErrNotFound.Errorf("last BlockMap not found")
 		case last != nil && last.Equal(h):
 			return enchint, nil, nil, false, nil
 		default:
@@ -337,7 +337,7 @@ func quicstreamHandlerSuffrageNodeConnInfoFunc(
 		case err != nil:
 			return nil, err
 		case !found:
-			return nil, storage.NotFoundError.Errorf("last SuffrageProof not found")
+			return nil, storage.ErrNotFound.Errorf("last SuffrageProof not found")
 		default:
 			i, err := proof.Suffrage()
 			if err != nil {

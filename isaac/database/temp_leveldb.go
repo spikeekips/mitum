@@ -154,7 +154,7 @@ func (db *TempLeveldb) SuffrageHeight() base.Height {
 
 func (db *TempLeveldb) BlockMap() (base.BlockMap, error) {
 	if db.mp == nil {
-		return nil, storage.NotFoundError.Errorf("blockmap not found")
+		return nil, storage.ErrNotFound.Errorf("blockmap not found")
 	}
 
 	return db.mp, nil

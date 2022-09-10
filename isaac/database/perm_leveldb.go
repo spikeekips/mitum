@@ -216,7 +216,7 @@ func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, te
 	e := util.StringErrorFunc("failed to merge LeveldbTempDatabase")
 
 	if temp.mp == nil {
-		return e(storage.NotFoundError.Errorf("blockmap not found in LeveldbTempDatabase"), "")
+		return e(storage.ErrNotFound.Errorf("blockmap not found in LeveldbTempDatabase"), "")
 	}
 
 	worker := util.NewErrgroupWorker(ctx, math.MaxInt8)

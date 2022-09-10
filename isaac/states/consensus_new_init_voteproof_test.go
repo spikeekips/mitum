@@ -666,7 +666,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestNotInConsensusNodes()
 	}
 
 	st.voteFunc = func(bl base.Ballot) (bool, error) {
-		return false, errNotInConsensusNodes.Errorf("hehehe")
+		return false, errFailedToVoteNotInConsensus.Errorf("hehehe")
 	}
 
 	prpool := t.PRPool

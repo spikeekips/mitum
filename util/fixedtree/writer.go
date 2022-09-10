@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	noParentError   = util.NewError("no parent")
+	noParentError   = util.NewError("no parent") // FIXME rename to errXXX
 	noChildrenError = util.NewError("no children")
 )
 

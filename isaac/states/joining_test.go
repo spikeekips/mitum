@@ -620,7 +620,7 @@ func (t *testJoiningHandler) TestINITVoteproofNextRoundButNotInConsensusNodes() 
 
 	ballotch := make(chan base.Ballot, 1)
 	st.voteFunc = func(bl base.Ballot) (bool, error) {
-		return false, errNotInConsensusNodes.Errorf("hehehe")
+		return false, errFailedToVoteNotInConsensus.Errorf("hehehe")
 	}
 
 	switchch := make(chan switchContext, 1)

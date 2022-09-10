@@ -177,7 +177,7 @@ func (db *LeveldbBlockWrite) SetOperations(ops []util.Hash) error {
 func (db *LeveldbBlockWrite) BlockMap() (base.BlockMap, error) {
 	switch i, _, _ := db.blockmaps(); {
 	case i == nil:
-		return nil, storage.NotFoundError.Errorf("empty blockmap")
+		return nil, storage.ErrNotFound.Errorf("empty blockmap")
 	default:
 		return i, nil
 	}
@@ -186,7 +186,7 @@ func (db *LeveldbBlockWrite) BlockMap() (base.BlockMap, error) {
 func (db *LeveldbBlockWrite) BlockMapBytes() (enchint hint.Hint, meta, body []byte, err error) {
 	switch _, meta, i := db.blockmaps(); {
 	case i == nil:
-		return enchint, nil, nil, storage.NotFoundError.Errorf("empty blockmap")
+		return enchint, nil, nil, storage.ErrNotFound.Errorf("empty blockmap")
 	default:
 		return db.enc.Hint(), meta, i, nil //nolint:forcetypeassert //...
 	}

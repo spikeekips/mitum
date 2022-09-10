@@ -169,7 +169,7 @@ func getProposalFunc(pctx context.Context) (
 				return nil, err
 			}
 
-			return nil, storage.NotFoundError.Errorf("ProposalSignedFact not found")
+			return nil, storage.ErrNotFound.Errorf("ProposalSignedFact not found")
 		default:
 			return i.(base.ProposalSignedFact), nil //nolint:forcetypeassert //...
 		}

@@ -34,7 +34,7 @@ func (t *testRedisStorage) TestNew() {
 		st, err := NewStorage(context.Background(), &redis.Options{Addr: util.UUID().String()}, "test")
 		t.Error(err)
 		t.Nil(st)
-		t.True(errors.Is(err, storage.ConnectionError))
+		t.True(errors.Is(err, storage.ErrConnection))
 		t.ErrorContains(err, "failed to connect to redis server")
 	})
 }
@@ -54,7 +54,7 @@ func (t *testRedisStorage) TestClose() {
 	t.Run("close again", func() {
 		err := st.Close()
 		t.Error(err)
-		t.True(errors.Is(err, storage.InternalError))
+		t.True(errors.Is(err, storage.ErrInternal))
 		t.ErrorContains(err, "failed to close redis client")
 	})
 
@@ -62,7 +62,7 @@ func (t *testRedisStorage) TestClose() {
 		_, found, err := st.Get(context.Background(), util.UUID().String())
 		t.Error(err)
 		t.False(found)
-		t.True(errors.Is(err, storage.ExecError))
+		t.True(errors.Is(err, storage.ErrExec))
 		t.ErrorContains(err, "failed to get")
 	})
 

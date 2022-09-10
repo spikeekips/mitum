@@ -20,7 +20,7 @@ import (
 	"github.com/spikeekips/mitum/util/logging"
 )
 
-var ErrNotYetJoined = util.NewError("not yet joined")
+var ErrNotYetJoined = util.NewError("not yet joined") // FIXME remove
 
 type Memberlist struct {
 	local Node

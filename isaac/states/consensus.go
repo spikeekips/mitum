@@ -315,7 +315,7 @@ func (st *ConsensusHandler) prepareINITBallot(bl base.INITBallot, initialWait ti
 
 		switch _, err := st.vote(bl); {
 		case err == nil:
-		case errors.Is(err, errNotInConsensusNodes):
+		case errors.Is(err, errFailedToVoteNotInConsensus):
 			st.Log().Debug().Err(err).Msg("failed to vote init ballot; moves to syncing state")
 
 			go st.switchState(newSyncingSwitchContext(StateConsensus, bl.Point().Height()-1))
@@ -354,7 +354,7 @@ func (st *ConsensusHandler) prepareACCEPTBallot(
 
 		switch _, err := st.vote(bl); {
 		case err == nil:
-		case errors.Is(err, errNotInConsensusNodes):
+		case errors.Is(err, errFailedToVoteNotInConsensus):
 			st.Log().Debug().Err(err).Msg("failed to vote init ballot; moves to syncing state")
 
 			go st.switchState(newSyncingSwitchContext(StateConsensus, ivp.Point().Height()-1))
