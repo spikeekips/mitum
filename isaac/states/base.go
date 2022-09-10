@@ -344,11 +344,10 @@ func preventVotingWithEmptySuffrage(
 			return false, e(errFailedToVoteNotInConsensus.Errorf("ballot=%q", bl.Point()), "")
 		}
 
-		switch {
-		case err != nil && !errors.Is(err, storage.ErrNotFound):
-			return false, e(err, "failed to get suffrage for ballot")
-		default:
-			return voteFunc(bl)
+		if err != nil && !errors.Is(err, storage.ErrNotFound) {
+			return false, e(err, "")
 		}
+
+		return voteFunc(bl)
 	}
 }

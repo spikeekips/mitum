@@ -106,34 +106,8 @@ func (st *JoiningHandler) enter(i switchContext) (func(), error) {
 		manifest = m
 	}
 
-	switch suf, found, err := st.nodeInConsensusNodes(st.local, manifest.Height()+1); {
-	case errors.Is(err, storage.ErrNotFound):
-		st.Log().Debug().Interface("height", manifest.Height()+1).Msg("suffrage not found; moves to syncing")
-
-		return nil, newSyncingSwitchContext(StateEmpty, manifest.Height())
-	case err != nil:
+	if err := st.checkSuffrage(manifest.Height()); err != nil {
 		return nil, e(err, "")
-	case suf == nil:
-		return nil, newBrokenSwitchContext(StateJoining, errors.Errorf("empty suffrage"))
-	case !found:
-		if err := st.leaveMemberlistf(time.Second); err != nil {
-			st.Log().Error().Err(err).Msg("failed to leave memberilst; ignored")
-		}
-
-		st.Log().Debug().Msg("local not in consensus nodes; moves to syncing")
-
-		return nil, newSyncingSwitchContext(StateEmpty, manifest.Height())
-	case suf.Exists(st.local.Address()) && suf.Len() < 2: //nolint:gomnd // local is alone in suffrage node
-		st.Log().Debug().Msg("local alone in consensus nodes; will not wait new voteproof")
-
-		st.waitFirstVoteproof = 0
-	default:
-		switch err := st.joinMemberlist(suf); {
-		case err != nil:
-			st.Log().Error().Err(err).Msg("failed to join memberlist")
-		default:
-			st.Log().Debug().Msg("joined to memberlist")
-		}
 	}
 
 	return func() {
@@ -273,6 +247,46 @@ func (st *JoiningHandler) newACCEPTVoteproof(avp base.ACCEPTVoteproof, manifest 
 
 		go st.nextRound(avp, manifest.Hash())
 
+		return nil
+	}
+}
+
+func (st *JoiningHandler) checkSuffrage(height base.Height) error {
+	suf, found, err := st.nodeInConsensusNodes(st.local, height+1)
+
+	switch {
+	case err != nil:
+	case suf == nil:
+		return newBrokenSwitchContext(StateJoining, errors.Errorf("empty suffrage"))
+	case !found:
+		if err := st.leaveMemberlistf(time.Second); err != nil {
+			st.Log().Error().Err(err).Msg("failed to leave memberilst; ignored")
+		}
+
+		st.Log().Debug().Msg("local not in consensus nodes; moves to syncing")
+
+		return newSyncingSwitchContext(StateEmpty, height)
+	case suf.Exists(st.local.Address()) && suf.Len() < 2: //nolint:gomnd // local is alone in suffrage node
+		st.Log().Debug().Msg("local alone in consensus nodes; will not wait new voteproof")
+
+		st.waitFirstVoteproof = 0
+	default:
+		switch err := st.joinMemberlist(suf); {
+		case err != nil:
+			st.Log().Error().Err(err).Msg("failed to join memberlist")
+		default:
+			st.Log().Debug().Msg("joined to memberlist")
+		}
+	}
+
+	switch {
+	case errors.Is(err, storage.ErrNotFound):
+		st.Log().Debug().Interface("height", height+1).Msg("suffrage not found; moves to syncing")
+
+		return newSyncingSwitchContext(StateEmpty, height)
+	case err != nil:
+		return err
+	default:
 		return nil
 	}
 }
