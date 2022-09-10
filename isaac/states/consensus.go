@@ -136,29 +136,7 @@ func (st *ConsensusHandler) exit(sctx switchContext) (func(), error) {
 		return nil, e(err, "failed to cancel proposal processors")
 	}
 
-	return func() {
-		deferred()
-
-		var timers []util.TimerID
-
-		if sctx != nil {
-			switch sctx.next() { //nolint:exhaustive //...
-			case StateJoining, StateHandover:
-				timers = []util.TimerID{timerIDBroadcastINITBallot, timerIDBroadcastACCEPTBallot}
-			}
-		}
-
-		if len(timers) < 1 {
-			if err := st.timers.StopTimersAll(); err != nil {
-				st.Log().Error().Err(err).Msg("failed to stop timers; ignore")
-			}
-		} else if err := st.timers.StartTimers([]util.TimerID{
-			timerIDBroadcastINITBallot,
-			timerIDBroadcastACCEPTBallot,
-		}, true); err != nil {
-			st.Log().Error().Err(err).Msg("failed to start timers; ignore")
-		}
-	}, nil
+	return deferred, nil
 }
 
 func (st *ConsensusHandler) processProposal(ivp base.INITVoteproof) (func(context.Context) error, error) {

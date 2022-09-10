@@ -78,10 +78,6 @@ func (st *JoiningHandler) enter(i switchContext) (func(), error) {
 		return nil, e(nil, "invalid stateSwitchContext, not for joining state; %T", i)
 	}
 
-	if err := st.timers.StopTimersAll(); err != nil {
-		return nil, e(err, "")
-	}
-
 	vp := jctx.vp
 	lvp := st.lastVoteproofs().Cap()
 
@@ -112,6 +108,10 @@ func (st *JoiningHandler) enter(i switchContext) (func(), error) {
 
 	return func() {
 		deferred()
+
+		if err := st.timers.StopTimersAll(); err != nil {
+			st.Log().Error().Err(err).Msg("failed to stop all timers")
+		}
 
 		go st.firstVoteproof(vp, manifest)
 	}, nil

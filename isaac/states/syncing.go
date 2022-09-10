@@ -115,22 +115,29 @@ func (st *SyncingHandler) enter(i switchContext) (func(), error) {
 	return func() {
 		deferred()
 
+		l := st.Log().With().Dict("state", switchContextLog(sctx)).Logger()
+
 		// NOTE if syncing is switched from consensus state, the other nodes can
 		// not get the last INIT ballot.
 		switch sctx.from() {
 		case StateConsensus:
 			go func() {
-				<-time.After(st.params.WaitPreparingINITBallot())
+				wait := st.params.WaitPreparingINITBallot() * 2 //nolint:gomnd //...
+				l.Debug().Dur("wait", wait).Msg("timers will be stopped")
+
+				<-time.After(wait)
 
 				if st.sts.Current() == StateSyncing {
+					l.Debug().Msg("timers stopped")
+
 					if err := st.timers.StopTimersAll(); err != nil {
-						st.Log().Error().Err(err).Msg("failed to stop all timers")
+						l.Error().Err(err).Msg("failed to stop all timers")
 					}
 				}
 			}()
 		default:
 			if err := st.timers.StopTimersAll(); err != nil {
-				st.Log().Error().Err(err).Msg("failed to stop all timers")
+				l.Error().Err(err).Msg("failed to stop all timers")
 			}
 		}
 	}, nil

@@ -42,12 +42,12 @@ func (st *BrokenHandler) enter(i switchContext) (func(), error) {
 		return nil, e(err, "")
 	}
 
-	ectx, ok := i.(baseErrorSwitchContext)
+	sctx, ok := i.(baseErrorSwitchContext)
 	if !ok {
 		return nil, e(nil, "invalid stateSwitchContext, not for broken state; %T", i)
 	}
 
-	switch err := ectx.Unwrap(); {
+	switch err := sctx.Unwrap(); {
 	case err == nil:
 	case errors.Is(err, ErrUnpromising):
 		return nil, e(err, "")
@@ -55,6 +55,10 @@ func (st *BrokenHandler) enter(i switchContext) (func(), error) {
 
 	return func() {
 		deferred()
+
+		if err := st.timers.StopTimersAll(); err != nil {
+			st.Log().Error().Err(err).Msg("failed to stop all timers")
+		}
 	}, nil
 }
 

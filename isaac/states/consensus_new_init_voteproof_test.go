@@ -525,12 +525,13 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestHigherHeight() {
 		return nil
 	}
 
+	prpool := t.PRPool
 	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		default:
-			return t.PRPool.Get(p), nil
+			return prpool.Get(p), nil
 		}
 	})
 
