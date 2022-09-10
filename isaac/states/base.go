@@ -10,6 +10,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
+	"github.com/spikeekips/mitum/storage"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 )
@@ -269,6 +270,8 @@ func (st *baseHandler) prepareNextBlock(
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(avp)).Object("point", point).Logger()
 
 	switch suf, found, err := nodeInConsensusNodesFunc(st.local, point.Height()); {
+	case errors.Is(err, storage.ErrNotFound):
+		return nil, newSyncingSwitchContext(StateConsensus, avp.Point().Height())
 	case err != nil:
 		return nil, newBrokenSwitchContext(st.stt, err)
 	case suf == nil || suf.Len() < 1:
@@ -321,7 +324,7 @@ func (st *baseHandler) vote(bl base.Ballot) (bool, error) {
 	return st.voteFunc(bl)
 }
 
-var errNotInConsensusNodes = util.NewError("failed to vote; local not in consensus nodes")
+var errFailedToVoteNotInConsensus = util.NewError("failed to vote; local not in consensus nodes")
 
 func preventVotingWithEmptySuffrage(
 	voteFunc func(base.Ballot) (bool, error),
@@ -331,13 +334,19 @@ func preventVotingWithEmptySuffrage(
 	return func(bl base.Ballot) (bool, error) {
 		e := util.StringErrorFunc("failed to vote")
 
-		switch suf, found, err := nodeInConsensusNodes(node, bl.Point().Height()); {
+		suf, found, err := nodeInConsensusNodes(node, bl.Point().Height())
+
+		switch {
 		case err != nil:
-			return false, e(err, "failed to get suffrage for ballot")
 		case suf == nil || len(suf.Nodes()) < 1:
 			return false, e(nil, "empty suffrage")
 		case !found:
-			return false, e(errNotInConsensusNodes.Errorf("ballot=%q", bl.Point()), "")
+			return false, e(errFailedToVoteNotInConsensus.Errorf("ballot=%q", bl.Point()), "")
+		}
+
+		switch {
+		case err != nil && !errors.Is(err, storage.ErrNotFound):
+			return false, e(err, "failed to get suffrage for ballot")
 		default:
 			return voteFunc(bl)
 		}

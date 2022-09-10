@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
+	"github.com/spikeekips/mitum/storage"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -81,6 +82,13 @@ func (st *ConsensusHandler) enter(i switchContext) (func(), error) {
 	}
 
 	switch suf, found, err := st.nodeInConsensusNodes(st.local, sctx.ivp.Point().Height()); { //nolint:govet //...
+	case errors.Is(err, storage.ErrNotFound):
+		st.Log().Debug().
+			Dict("state_context", switchContextLog(sctx)).
+			Interface("height", sctx.ivp.Point().Height()).
+			Msg("suffrage not found at entering consensus state; moves to syncing state")
+
+		return nil, newSyncingSwitchContext(StateEmpty, sctx.ivp.Point().Height())
 	case err != nil:
 		return nil, e(err, "")
 	case suf == nil || suf.Len() < 1:

@@ -9,6 +9,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
+	"github.com/spikeekips/mitum/storage"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 )
@@ -332,6 +333,10 @@ func (st *SyncingHandler) checkAndJoinMemberlist(height base.Height) (joined boo
 	l := st.Log().With().Interface("height", height).Logger()
 
 	switch suf, found, err := st.nodeInConsensusNodes(st.local, height); {
+	case errors.Is(err, storage.ErrNotFound):
+		l.Debug().Interface("height", height).Msg("suffrage not found after syncer finished")
+
+		return false, nil
 	case err != nil:
 		l.Error().Err(err).Msg("failed to get consensus nodes after syncer finished")
 

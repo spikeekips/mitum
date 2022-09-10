@@ -2,6 +2,7 @@ package isaac
 
 import (
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/storage"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
 )
@@ -304,7 +305,7 @@ func GetSuffrageFromDatabase(
 		case err != nil:
 			return nil, false, err
 		case !found:
-			return nil, false, nil
+			return nil, false, storage.ErrNotFound.Errorf("suffrage not found")
 		default:
 			m := proof.Map()
 			suf, err := NewSuffrage([]base.Node{NewNode(m.Signer(), m.Node())})

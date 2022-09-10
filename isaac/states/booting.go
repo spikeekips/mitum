@@ -1,8 +1,10 @@
 package isaacstates
 
 import (
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
+	"github.com/spikeekips/mitum/storage"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -78,6 +80,10 @@ func (st *BootingHandler) enter(i switchContext) (func(), error) { //nolint:unpa
 
 	// NOTE if node not in suffrage, moves to syncing
 	switch suf, found, err := st.nodeInConsensusNodes(st.local, manifest.Height()+1); {
+	case errors.Is(err, storage.ErrNotFound):
+		st.Log().Debug().Interface("height", manifest.Height()+1).Msg("suffrage not found; moves to syncing")
+
+		return nil, newSyncingSwitchContext(StateEmpty, manifest.Height())
 	case err != nil:
 		return nil, e(err, "")
 	case suf == nil || suf.Len() < 1:
