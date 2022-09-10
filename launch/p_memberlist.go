@@ -468,7 +468,7 @@ func memberlistAllowFunc(ctx context.Context) (
 }
 
 type LongRunningMemberlistJoin struct {
-	ensureJoin    func() error // NOTE use EnsureJoin()
+	ensureJoin    func() (bool, error)
 	isJoined      func() bool
 	cancelrunning *util.Locked
 	donech        *util.Locked
@@ -476,7 +476,7 @@ type LongRunningMemberlistJoin struct {
 }
 
 func NewLongRunningMemberlistJoin(
-	ensureJoin func() error,
+	ensureJoin func() (bool, error),
 	isJoined func() bool,
 ) *LongRunningMemberlistJoin {
 	return &LongRunningMemberlistJoin{
@@ -522,12 +522,9 @@ func (l *LongRunningMemberlistJoin) Join() <-chan struct{} {
 
 			_ = util.Retry(ctx,
 				func() (bool, error) {
-					switch err := l.ensureJoin(); { // FIXME return bool, err
-					case err != nil, !l.isJoined():
-						return true, err
-					default:
-						return false, err
-					}
+					isjoined, err := l.ensureJoin()
+
+					return !isjoined, err
 				},
 				-1,
 				l.interval,
@@ -558,18 +555,20 @@ func (l *LongRunningMemberlistJoin) Cancel() bool {
 	return true
 }
 
-func ensureJoinMemberlist(discoveries *util.Locked, m *quicmemberlist.Memberlist) func() error {
-	return func() error {
+func ensureJoinMemberlist(discoveries *util.Locked, m *quicmemberlist.Memberlist) func() (bool, error) {
+	return func() (bool, error) {
 		dis := GetDiscoveriesFromLocked(discoveries)
 
 		if len(dis) < 1 {
-			return errors.Errorf("empty discovery")
+			return false, errors.Errorf("empty discovery")
 		}
 
 		if m.IsJoined() {
-			return nil
+			return true, nil
 		}
 
-		return m.Join(dis)
+		err := m.Join(dis)
+
+		return m.IsJoined(), err
 	}
 }

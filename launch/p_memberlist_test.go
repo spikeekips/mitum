@@ -18,12 +18,12 @@ func (t *testLongRunningMemberlistJoin) TestJoin() {
 	var joined int64
 
 	l := NewLongRunningMemberlistJoin(
-		func() error {
+		func() (bool, error) {
 			if atomic.LoadInt64(&joined) > 0 {
-				return nil
+				return true, nil
 			}
 
-			return errors.Errorf("heheheh")
+			return false, errors.Errorf("heheheh")
 		},
 		func() bool {
 			return atomic.LoadInt64(&joined) > 0
@@ -67,8 +67,8 @@ func (t *testLongRunningMemberlistJoin) TestJoin() {
 
 func (t *testLongRunningMemberlistJoin) TestCancel() {
 	l := NewLongRunningMemberlistJoin(
-		func() error {
-			return errors.Errorf("heheheh")
+		func() (bool, error) {
+			return false, errors.Errorf("heheheh")
 		},
 		func() bool {
 			return false
