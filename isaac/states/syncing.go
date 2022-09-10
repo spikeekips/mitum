@@ -96,29 +96,42 @@ func (st *SyncingHandler) enter(i switchContext) (func(), error) {
 		return nil, e(nil, "invalid stateSwitchContext, not for syncing state; %T", i)
 	}
 
-	sc, err := st.newSyncer(sctx.height)
-	if err != nil {
+	switch sc, err := st.newSyncer(sctx.height); {
+	case err != nil:
 		return nil, e(err, "")
-	}
-
-	if sc == nil {
+	case sc == nil:
 		return nil, e(nil, "empty syncer") // NOTE only for testing
+	default:
+		if l, ok := sc.(logging.SetLogging); ok {
+			_ = l.SetLogging(st.Logging)
+		}
+
+		st.syncer = sc
 	}
 
-	if l, ok := sc.(logging.SetLogging); ok {
-		_ = l.SetLogging(st.Logging)
-	}
-
-	st.syncer = sc
-
-	if err := st.timers.StopTimersAll(); err != nil {
-		return nil, e(err, "")
-	}
-
-	go st.finished(sc)
+	go st.finishing(st.syncer)
 
 	return func() {
 		deferred()
+
+		// NOTE if syncing is switched from consensus state, the other nodes can
+		// not get the last INIT ballot.
+		switch sctx.from() {
+		case StateConsensus:
+			go func() {
+				<-time.After(st.params.WaitPreparingINITBallot())
+
+				if st.sts.Current() == StateSyncing {
+					if err := st.timers.StopTimersAll(); err != nil {
+						st.Log().Error().Err(err).Msg("failed to stop all timers")
+					}
+				}
+			}()
+		default:
+			if err := st.timers.StopTimersAll(); err != nil {
+				st.Log().Error().Err(err).Msg("failed to stop all timers")
+			}
+		}
 	}, nil
 }
 
@@ -144,6 +157,10 @@ func (st *SyncingHandler) exit(sctx switchContext) (func(), error) {
 		default:
 			return nil, e(err, "failed to stop syncer")
 		}
+	}
+
+	if err := st.timers.StopTimersAll(); err != nil {
+		st.Log().Error().Err(err).Msg("failed to stop all timers")
 	}
 
 	return func() {
@@ -228,7 +245,7 @@ func (st *SyncingHandler) add(h base.Height) bool {
 	return st.syncer.Add(h)
 }
 
-func (st *SyncingHandler) finished(sc isaac.Syncer) {
+func (st *SyncingHandler) finishing(sc isaac.Syncer) {
 end:
 	for {
 		var err error
