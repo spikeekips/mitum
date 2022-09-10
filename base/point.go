@@ -43,7 +43,7 @@ func NewHeightFromString(s string) (Height, error) {
 }
 
 func NewHeightFromBytes(b []byte) (Height, error) {
-	i, err := util.BytesToInt64(b)
+	i, err := util.BigBytesToInt64(b)
 	if err != nil {
 		return NilHeight, errors.Wrap(err, "failed to NewHeightFromBytes")
 	}
@@ -69,7 +69,7 @@ func (h Height) Int64() int64 {
 }
 
 func (h Height) Bytes() []byte {
-	return util.Int64ToBytes(int64(h))
+	return util.Int64ToBigBytes(int64(h))
 }
 
 func (h Height) String() string {

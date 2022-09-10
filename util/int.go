@@ -8,22 +8,39 @@ import (
 	"github.com/pkg/errors"
 )
 
-func Int64ToBytes(i int64) []byte {
+func int64ToBytes(i int64, endian binary.ByteOrder) []byte {
 	b := new(bytes.Buffer)
-	_ = binary.Write(b, binary.LittleEndian, i)
+
+	_ = binary.Write(b, endian, i)
 
 	return b.Bytes()
 }
 
-func BytesToInt64(b []byte) (int64, error) {
+func Int64ToBytes(i int64) []byte {
+	return int64ToBytes(i, binary.LittleEndian)
+}
+
+func Int64ToBigBytes(i int64) []byte {
+	return int64ToBytes(i, binary.BigEndian)
+}
+
+func bytesToInt64(b []byte, endian binary.ByteOrder) (int64, error) {
 	var i int64
 	buf := bytes.NewReader(b)
 
-	if err := binary.Read(buf, binary.LittleEndian, &i); err != nil {
+	if err := binary.Read(buf, endian, &i); err != nil {
 		return 0, errors.Wrap(err, "failed invalid int64 bytes")
 	}
 
 	return i, nil
+}
+
+func BytesToInt64(b []byte) (int64, error) {
+	return bytesToInt64(b, binary.LittleEndian)
+}
+
+func BigBytesToInt64(b []byte) (int64, error) {
+	return bytesToInt64(b, binary.BigEndian)
 }
 
 func Uint64ToBytes(i uint64) []byte {
