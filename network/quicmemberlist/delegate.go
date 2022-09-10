@@ -73,6 +73,10 @@ func (*Delegate) LocalState(bool) []byte {
 func (*Delegate) MergeRemoteState([]byte, bool) {
 }
 
+func (d *Delegate) resetBroadcastQueue() {
+	d.qu.Reset()
+}
+
 type AliveDelegate struct {
 	*logging.Logging
 	enc             *jsonenc.Encoder

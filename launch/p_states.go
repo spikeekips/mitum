@@ -268,13 +268,19 @@ func BroadcastThruMemberlist(
 	b []byte,
 	notifych chan struct{},
 ) error {
+	defer func() {
+		if notifych != nil {
+			<-notifych
+		}
+	}()
+
+	if !memberlist.IsJoined() {
+		return nil
+	}
+
 	body := quicmemberlist.NewBroadcast(b, id, notifych)
 
 	memberlist.Broadcast(body)
-
-	if notifych != nil {
-		<-notifych
-	}
 
 	return nil
 }

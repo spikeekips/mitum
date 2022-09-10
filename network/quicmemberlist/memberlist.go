@@ -346,6 +346,10 @@ func (srv *Memberlist) whenJoined(node Node) {
 		srv.isJoined = true
 	}
 
+	if !srv.isJoined {
+		srv.delegate.resetBroadcastQueue()
+	}
+
 	srv.members.Set(node)
 
 	srv.Log().Debug().Bool("is_joined", srv.isJoined).Interface("node", node).Msg("node joined")
@@ -364,6 +368,10 @@ func (srv *Memberlist) whenLeft(node Node) {
 			srv.isJoined = false
 		case srv.members.Len() < 2 && srv.members.Exists(srv.local.UDPAddr()):
 			srv.isJoined = false
+		}
+
+		if !srv.isJoined {
+			srv.delegate.resetBroadcastQueue()
 		}
 
 		srv.Log().Debug().Bool("is_joined", srv.isJoined).Interface("node", node).Msg("node left")
