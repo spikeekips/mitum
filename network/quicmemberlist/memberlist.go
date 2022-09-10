@@ -20,8 +20,6 @@ import (
 	"github.com/spikeekips/mitum/util/logging"
 )
 
-var ErrNotYetJoined = util.NewError("not yet joined") // FIXME remove
-
 type Memberlist struct {
 	local Node
 	enc   *jsonenc.Encoder
@@ -124,32 +122,19 @@ func (srv *Memberlist) Join(cis []quicstream.UDPConnInfo) error {
 		return nil
 	}
 
-	return srv.join(fcis)
-}
-
-func (srv *Memberlist) join(cis []string) error {
-	e := util.StringErrorFunc("failed to join")
+	l := srv.Log().With().Strs("cis", fcis).Logger()
+	l.Debug().Msg("trying to join")
 
 	srv.l.Lock()
 	defer srv.l.Unlock()
 
-	l := srv.Log().With().Strs("cis", cis).Logger()
-	l.Debug().Msg("trying to join")
-
-	switch joined, err := srv.m.Join(cis); {
-	case err != nil:
+	if _, err := srv.m.Join(fcis); err != nil {
 		l.Error().Err(err).Msg("failed to join")
 
-		return e(err, "")
-	case joined < 1, !srv.IsJoined():
-		l.Debug().Msg("did not join to any nodes")
-
-		return e(ErrNotYetJoined.Call(), "")
-	default:
-		l.Debug().Msg("joined")
-
-		return nil
+		return err
 	}
+
+	return nil
 }
 
 func (srv *Memberlist) Leave(timeout time.Duration) error {

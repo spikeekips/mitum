@@ -373,8 +373,7 @@ func (t *testMemberlist) TestLocalJoinToRemoteButFailedToChallenge() {
 
 	<-time.After(time.Second)
 	err := lsrv.Join([]quicstream.UDPConnInfo{rci})
-	t.Error(err)
-	t.True(errors.Is(err, ErrNotYetJoined))
+	t.NoError(err)
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -440,8 +439,7 @@ func (t *testMemberlist) TestLocalJoinToRemoteButNotAllowed() {
 
 	<-time.After(time.Second)
 	err := lsrv.Join([]quicstream.UDPConnInfo{rci})
-	t.Error(err)
-	t.True(errors.Is(err, ErrNotYetJoined))
+	t.NoError(err)
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -872,8 +870,7 @@ func (t *testMemberlist) TestLocalJoinToRemoteWithInvalidNode() {
 
 	<-time.After(time.Second)
 	err = lsrv.Join([]quicstream.UDPConnInfo{rci})
-	t.Error(err)
-	t.True(errors.Is(err, ErrNotYetJoined))
+	t.NoError(err)
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -907,7 +904,6 @@ func (t *testMemberlist) TestJoinWithDeadNode() {
 
 	err := lsrv.Join([]quicstream.UDPConnInfo{rci})
 	t.Error(err)
-	t.False(errors.Is(err, ErrNotYetJoined))
 }
 
 func TestMemberlist(t *testing.T) {
