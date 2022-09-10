@@ -14,14 +14,14 @@ import (
 )
 
 var (
-	ErrOperationInProcessorNotFound           = util.NewError("operation processor not found")
-	InvalidOperationInProcessorError          = util.NewError("invalid operation")
-	OperationNotFoundInProcessorError         = util.NewError("operation not found")
-	OperationAlreadyProcessedInProcessorError = util.NewError("operation already processed")
-	StopProcessingRetryError                  = util.NewError("stop processing retrying")
-	ErrIgnoreStateValue                       = util.NewError("ignore state value")
-	ErrSuspendOperation                       = util.NewError("suspend operation")
-	ErrProcessorAlreadySaved                  = util.NewError("processor already saved")
+	ErrOperationInProcessorNotFound         = util.NewError("operation processor not found")
+	ErrInvalidOperationInProcessor          = util.NewError("invalid operation")
+	ErrOperationNotFoundInProcessor         = util.NewError("operation not found")
+	ErrOperationAlreadyProcessedInProcessor = util.NewError("operation already processed")
+	ErrStopProcessingRetry                  = util.NewError("stop processing retrying")
+	ErrIgnoreStateValue                     = util.NewError("ignore state value")
+	ErrSuspendOperation                     = util.NewError("suspend operation")
+	ErrProcessorAlreadySaved                = util.NewError("processor already saved")
 )
 
 type (
@@ -157,7 +157,7 @@ func (p *DefaultProposalProcessor) Save(ctx context.Context, avp base.ACCEPTVote
 			return false, nil
 		case errors.Is(err, ErrProcessorAlreadySaved):
 			return false, err
-		case errors.Is(err, StopProcessingRetryError):
+		case errors.Is(err, ErrStopProcessingRetry):
 			return false, err
 		default:
 			p.Log().Error().Err(err).Msg("failed to save; will retry")
@@ -331,9 +331,9 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) (err e
 		switch {
 		case err == nil:
 		case errors.Is(err, util.ErrInvalid),
-			errors.Is(err, InvalidOperationInProcessorError),
-			errors.Is(err, OperationNotFoundInProcessorError),
-			errors.Is(err, OperationAlreadyProcessedInProcessorError):
+			errors.Is(err, ErrInvalidOperationInProcessor),
+			errors.Is(err, ErrOperationNotFoundInProcessor),
+			errors.Is(err, ErrOperationAlreadyProcessedInProcessor):
 			p.Log().Debug().Err(err).Stringer("operation", h).Msg("operation ignored")
 
 			return nil
@@ -363,9 +363,9 @@ func (p *DefaultProposalProcessor) collectOperation(ctx context.Context, h util.
 
 			return false, nil
 		case errors.Is(err, util.ErrInvalid),
-			errors.Is(err, InvalidOperationInProcessorError),
-			errors.Is(err, OperationNotFoundInProcessorError),
-			errors.Is(err, OperationAlreadyProcessedInProcessorError):
+			errors.Is(err, ErrInvalidOperationInProcessor),
+			errors.Is(err, ErrOperationNotFoundInProcessor),
+			errors.Is(err, ErrOperationAlreadyProcessedInProcessor):
 			return false, err
 		default:
 			return true, err
@@ -375,7 +375,7 @@ func (p *DefaultProposalProcessor) collectOperation(ctx context.Context, h util.
 	}
 
 	if op == nil {
-		return nil, OperationNotFoundInProcessorError.Errorf("empty operation")
+		return nil, ErrOperationNotFoundInProcessor.Errorf("empty operation")
 	}
 
 	return op, nil
@@ -656,7 +656,7 @@ func (p *DefaultProposalProcessor) wait(ctx context.Context) (
 func (p *DefaultProposalProcessor) retry(ctx context.Context, f func() (bool, error)) error {
 	return util.Retry(ctx, func() (bool, error) {
 		keep, err := f()
-		if errors.Is(err, StopProcessingRetryError) {
+		if errors.Is(err, ErrStopProcessingRetry) {
 			return false, err
 		}
 

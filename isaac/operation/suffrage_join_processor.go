@@ -46,13 +46,13 @@ func NewSuffrageJoinProcessor(
 	case err != nil:
 		return nil, e(err, "")
 	case !found, i == nil:
-		return nil, e(isaac.StopProcessingRetryError.Errorf("empty state"), "")
+		return nil, e(isaac.ErrStopProcessingRetry.Errorf("empty state"), "")
 	default:
 		p.sufstv = i.Value().(base.SuffrageNodesStateValue) //nolint:forcetypeassert //...
 
 		suf, err := p.sufstv.Suffrage()
 		if err != nil {
-			return nil, e(isaac.StopProcessingRetryError.Errorf("failed to get suffrage from state"), "")
+			return nil, e(isaac.ErrStopProcessingRetry.Errorf("failed to get suffrage from state"), "")
 		}
 
 		p.suffrage = suf

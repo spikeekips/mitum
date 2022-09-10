@@ -93,7 +93,7 @@ func (k MPublickey) Verify(input []byte, sig Signature) error {
 	}
 
 	if !bsig.Verify(chainhash.DoubleHashB(input), k.k) {
-		return SignatureVerificationError.Call()
+		return ErrSignatureVerification.Call()
 	}
 
 	return nil

@@ -216,21 +216,21 @@ func getProposalOperationFunc(pctx context.Context) (
 				case err != nil:
 					return nil, err
 				case !found:
-					return nil, isaac.OperationNotFoundInProcessorError.Errorf("not found in remote")
+					return nil, isaac.ErrOperationNotFoundInProcessor.Errorf("not found in remote")
 				default:
 					op = i
 				}
 			}
 
 			if err := op.IsValid(params.NetworkID()); err != nil {
-				return nil, isaac.InvalidOperationInProcessorError.Wrap(err)
+				return nil, isaac.ErrInvalidOperationInProcessor.Wrap(err)
 			}
 
 			switch found, err := db.ExistsInStateOperation(op.Fact().Hash()); {
 			case err != nil:
 				return nil, err
 			case found:
-				return nil, isaac.OperationAlreadyProcessedInProcessorError.Errorf("already processed")
+				return nil, isaac.ErrOperationAlreadyProcessedInProcessor.Errorf("already processed")
 			default:
 				return op, nil
 			}

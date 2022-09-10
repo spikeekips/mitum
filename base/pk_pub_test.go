@@ -101,7 +101,7 @@ func (t *testMPublickey) TestSign() {
 	{ // different input
 		err = priv.Publickey().Verify([]byte("findme"), sig)
 		t.Error(err)
-		t.True(errors.Is(err, SignatureVerificationError))
+		t.True(errors.Is(err, ErrSignatureVerification))
 	}
 
 	{ // wrong signature
@@ -111,13 +111,13 @@ func (t *testMPublickey) TestSign() {
 
 		err = priv.Publickey().Verify(input, sig)
 		t.Error(err)
-		t.True(errors.Is(err, SignatureVerificationError))
+		t.True(errors.Is(err, ErrSignatureVerification))
 	}
 
 	{ // different publickey
 		err = NewMPrivatekey().Publickey().Verify(input, sig)
 		t.Error(err)
-		t.True(errors.Is(err, SignatureVerificationError))
+		t.True(errors.Is(err, ErrSignatureVerification))
 	}
 }
 

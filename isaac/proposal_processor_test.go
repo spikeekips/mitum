@@ -244,7 +244,7 @@ func (t *testDefaultProposalProcessor) TestCollectOperations() {
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
 		if !found {
-			return nil, OperationNotFoundInProcessorError.Errorf("operation not found")
+			return nil, ErrOperationNotFoundInProcessor.Errorf("operation not found")
 		}
 
 		return op, nil
@@ -282,7 +282,7 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsFailed() {
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
 		if !found {
-			return nil, OperationNotFoundInProcessorError.Errorf("operation not found")
+			return nil, ErrOperationNotFoundInProcessor.Errorf("operation not found")
 		}
 
 		switch {
@@ -331,11 +331,11 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsFailedButIgnored() {
 
 		switch {
 		case facthash.Equal(ophs[1]):
-			return nil, InvalidOperationInProcessorError.Call()
+			return nil, ErrInvalidOperationInProcessor.Call()
 		case facthash.Equal(ophs[2]):
 			return nil, util.ErrInvalid.Call()
 		case facthash.Equal(ophs[3]):
-			return nil, OperationNotFoundInProcessorError.Call()
+			return nil, ErrOperationNotFoundInProcessor.Call()
 		}
 
 		return op, nil
@@ -387,9 +387,9 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsInvalidError() {
 
 		switch {
 		case facthash.Equal(ophs[1]):
-			return nil, OperationAlreadyProcessedInProcessorError.Errorf("already processed in previous")
+			return nil, ErrOperationAlreadyProcessedInProcessor.Errorf("already processed in previous")
 		case facthash.Equal(ophs[3]):
-			return nil, InvalidOperationInProcessorError.Errorf("hehehe")
+			return nil, ErrInvalidOperationInProcessor.Errorf("hehehe")
 		}
 
 		return op, nil
@@ -435,7 +435,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessButFailedToGetOperationProc
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
 		if !found {
-			return nil, OperationNotFoundInProcessorError.Call()
+			return nil, ErrOperationNotFoundInProcessor.Call()
 		}
 
 		return op, nil
@@ -473,7 +473,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessButErrSuspendOperation() {
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
 		if !found {
-			return nil, OperationNotFoundInProcessorError.Call()
+			return nil, ErrOperationNotFoundInProcessor.Call()
 		}
 
 		return op, nil
@@ -534,7 +534,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessWithOperationProcessor() {
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
 		if !found {
-			return nil, OperationNotFoundInProcessorError.Call()
+			return nil, ErrOperationNotFoundInProcessor.Call()
 		}
 
 		return op, nil
@@ -627,11 +627,11 @@ func (t *testDefaultProposalProcessor) TestPreProcess() {
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
 		if !found {
-			return nil, OperationNotFoundInProcessorError.Errorf("operation not found")
+			return nil, ErrOperationNotFoundInProcessor.Errorf("operation not found")
 		}
 
 		if facthash.Equal(ophs[3]) {
-			return nil, InvalidOperationInProcessorError.Call()
+			return nil, ErrInvalidOperationInProcessor.Call()
 		}
 
 		return op, nil
@@ -704,7 +704,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessButError() {
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
 		if !found {
-			return nil, OperationNotFoundInProcessorError.Call()
+			return nil, ErrOperationNotFoundInProcessor.Call()
 		}
 
 		return op, nil
@@ -752,7 +752,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessButWithOperationReasonError
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
 		if !found {
-			return nil, OperationNotFoundInProcessorError.Call()
+			return nil, ErrOperationNotFoundInProcessor.Call()
 		}
 
 		return op, nil
@@ -811,7 +811,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessButErrorRetry() {
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
 		if !found {
-			return nil, OperationNotFoundInProcessorError.Call()
+			return nil, ErrOperationNotFoundInProcessor.Call()
 		}
 
 		return op, nil
@@ -872,7 +872,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessContextCancel() {
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
 		if !found {
-			return nil, OperationNotFoundInProcessorError.Errorf("operation not found")
+			return nil, ErrOperationNotFoundInProcessor.Errorf("operation not found")
 		}
 
 		return op, nil
@@ -942,7 +942,7 @@ func (t *testDefaultProposalProcessor) TestProcess() {
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
 		if !found {
-			return nil, OperationNotFoundInProcessorError.Call()
+			return nil, ErrOperationNotFoundInProcessor.Call()
 		}
 
 		return op, nil
@@ -1023,7 +1023,7 @@ func (t *testDefaultProposalProcessor) TestProcessWithOperationProcessor() {
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
 		if !found {
-			return nil, OperationNotFoundInProcessorError.Call()
+			return nil, ErrOperationNotFoundInProcessor.Call()
 		}
 
 		return op, nil
@@ -1162,7 +1162,7 @@ func (t *testDefaultProposalProcessor) TestProcessButErrorRetry() {
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
 		if !found {
-			return nil, OperationNotFoundInProcessorError.Call()
+			return nil, ErrOperationNotFoundInProcessor.Call()
 		}
 
 		return op, nil
@@ -1205,7 +1205,7 @@ func (t *testDefaultProposalProcessor) TestProcessButSetStatesErrorRetry() {
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
 		if !found {
-			return nil, OperationNotFoundInProcessorError.Call()
+			return nil, ErrOperationNotFoundInProcessor.Call()
 		}
 
 		return op, nil
@@ -1268,7 +1268,7 @@ func (t *testDefaultProposalProcessor) TestProcessContextCancel() {
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
 		if !found {
-			return nil, OperationNotFoundInProcessorError.Call()
+			return nil, ErrOperationNotFoundInProcessor.Call()
 		}
 
 		return op, nil
@@ -1341,7 +1341,7 @@ func (t *testDefaultProposalProcessor) TestProcessCancel() {
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
 		if !found {
-			return nil, OperationNotFoundInProcessorError.Call()
+			return nil, ErrOperationNotFoundInProcessor.Call()
 		}
 
 		return op, nil

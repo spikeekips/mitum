@@ -193,7 +193,7 @@ func (t *testSuffrageJoinProcessor) TestFromEmptyState() {
 	)
 	t.Error(err)
 	t.ErrorContains(err, "empty state")
-	t.True(errors.Is(err, isaac.StopProcessingRetryError))
+	t.True(errors.Is(err, isaac.ErrStopProcessingRetry))
 }
 
 func (t *testSuffrageJoinProcessor) TestFromEmptyCandidateState() {

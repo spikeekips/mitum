@@ -139,7 +139,7 @@ func (t *testSuffrageJoin) TestIsValid() {
 
 		err := op.IsValid(util.UUID().Bytes())
 		t.Error(err)
-		t.True(errors.Is(err, base.SignatureVerificationError))
+		t.True(errors.Is(err, base.ErrSignatureVerification))
 	})
 
 	t.Run("different node", func() {

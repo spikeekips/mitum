@@ -13,8 +13,8 @@ import (
 )
 
 var (
-	failedToRequestProposalToNodeError = util.NewError("failed to request proposal to node")
-	ErrEmptyAvailableNodes             = util.NewError("empty available nodes for new proposal")
+	errFailedToRequestProposalToNode = util.NewError("failed to request proposal to node")
+	ErrEmptyAvailableNodes           = util.NewError("empty available nodes for new proposal")
 )
 
 // ProposerSelector selects proposer between suffrage nodes
@@ -104,7 +104,7 @@ func (p *BaseProposalSelector) Select(ctx context.Context, point base.Point) (ba
 		switch pr, err := p.findProposal(ctx, point, proposer); {
 		case err == nil:
 			return pr, nil
-		case errors.Is(err, failedToRequestProposalToNodeError):
+		case errors.Is(err, errFailedToRequestProposalToNode):
 			// NOTE if failed to request to remote node, remove the node from
 			// candidates.
 			nodes = p.filterDeadNodes(nodes, []base.Address{proposer.Address()})
@@ -177,7 +177,7 @@ func (p *BaseProposalSelector) findProposalFromProposer(
 		<-done
 
 		if err != nil || errors.Is(rctx.Err(), context.DeadlineExceeded) {
-			return nil, failedToRequestProposalToNodeError.Errorf("remote node, %q", proposer)
+			return nil, errFailedToRequestProposalToNode.Errorf("remote node, %q", proposer)
 		}
 
 		if _, err := p.pool.SetProposal(pr); err != nil {

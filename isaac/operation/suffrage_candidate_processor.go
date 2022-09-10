@@ -49,7 +49,7 @@ func NewSuffrageCandidateProcessor(
 		return nil, e(err, "")
 	case !found:
 	case i == nil:
-		return nil, e(isaac.StopProcessingRetryError.Errorf("empty state returned"), "")
+		return nil, e(isaac.ErrStopProcessingRetry.Errorf("empty state returned"), "")
 	default:
 		sufstv := i.Value().(base.SuffrageNodesStateValue) //nolint:forcetypeassert //...
 

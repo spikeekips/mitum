@@ -12,12 +12,12 @@ import (
 	"github.com/spikeekips/mitum/util/logging"
 )
 
-// IgnoreErrorProposalProcessorError ignores error from proposalProcessor, it means
-// not IgnoreErrorProposalProcessorError from proposalProcessor will break
+// ErrIgnoreErrorProposalProcessor ignores error from proposalProcessor, it means
+// not ErrIgnoreErrorProposalProcessor from proposalProcessor will break
 // consensus.
 var (
-	IgnoreErrorProposalProcessorError  = util.NewError("proposal processor somthing wrong; ignore")
-	NotProposalProcessorProcessedError = util.NewError("proposal processor not processed")
+	ErrIgnoreErrorProposalProcessor  = util.NewError("proposal processor somthing wrong; ignore")
+	ErrNotProposalProcessorProcessed = util.NewError("proposal processor not processed")
 )
 
 type ProcessorProcessFunc func(context.Context) (base.Manifest, error)
@@ -143,11 +143,11 @@ func (pps *ProposalProcessors) Save(ctx context.Context, facthash util.Hash, avp
 
 		l.Debug().Msg("proposal processor not found")
 
-		return e(NotProposalProcessorProcessedError.Call(), "")
+		return e(ErrNotProposalProcessorProcessed.Call(), "")
 	case !pps.p.Proposal().Fact().Hash().Equal(facthash):
 		l.Debug().Msg("proposal processor not found")
 
-		return e(NotProposalProcessorProcessedError.Call(), "")
+		return e(ErrNotProposalProcessorProcessed.Call(), "")
 	}
 
 	switch err := pps.p.Save(ctx, avp); {
@@ -158,7 +158,7 @@ func (pps *ProposalProcessors) Save(ctx context.Context, facthash util.Hash, avp
 
 		return nil
 	case errors.Is(err, context.Canceled):
-		return e(NotProposalProcessorProcessedError.Call(), "")
+		return e(ErrNotProposalProcessorProcessed.Call(), "")
 	default:
 		return e(err, "")
 	}
@@ -258,9 +258,9 @@ func (pps *ProposalProcessors) newProcessor(
 	// NOTE if failed to get fact, returns NotProposalProcessorProcessedError
 	switch {
 	case err != nil:
-		return nil, e(NotProposalProcessorProcessedError.Wrap(err), "failed to get proposal fact")
+		return nil, e(ErrNotProposalProcessorProcessed.Wrap(err), "failed to get proposal fact")
 	case fact == nil:
-		return nil, e(NotProposalProcessorProcessedError.Call(), "failed to get proposal fact; empty fact")
+		return nil, e(ErrNotProposalProcessorProcessed.Call(), "failed to get proposal fact; empty fact")
 	}
 
 	if err := util.Retry(ctx, func() (bool, error) {
@@ -291,7 +291,7 @@ func (*ProposalProcessors) runProcessor(
 	switch {
 	case err == nil:
 		return manifest, nil
-	case errors.Is(err, IgnoreErrorProposalProcessorError):
+	case errors.Is(err, ErrIgnoreErrorProposalProcessor):
 		return nil, nil
 	default:
 		if e := p.Cancel(); e != nil {

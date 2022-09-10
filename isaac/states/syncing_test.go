@@ -130,13 +130,13 @@ func (t *testSyncingHandler) TestExit() {
 
 		syncer := st.syncer.(*dummySyncer)
 		syncer.cancelf = func() error {
-			return SyncerCanNotCancelError.Call()
+			return ErrSyncerCanNotCancel.Call()
 		}
 
 		deferredexit, err := st.exit(nil)
 		t.Nil(deferredexit)
 		t.Error(err)
-		t.True(errors.Is(err, ignoreSwithingStateError))
+		t.True(errors.Is(err, ErrIgnoreSwithingState))
 	})
 }
 

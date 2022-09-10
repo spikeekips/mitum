@@ -131,7 +131,7 @@ func (srv *Memberlist) Join(cis []quicstream.UDPConnInfo) error {
 	if _, err := srv.m.Join(fcis); err != nil {
 		l.Error().Err(err).Msg("failed to join")
 
-		return err
+		return e(err, "")
 	}
 
 	return nil

@@ -9,8 +9,8 @@ import (
 )
 
 var (
-	noParentError   = util.NewError("no parent") // FIXME rename to errXXX
-	noChildrenError = util.NewError("no children")
+	errNoParent   = util.NewError("no parent")
+	errNoChildren = util.NewError("no children")
 )
 
 type NodeWrite func(uint64, Node) error
@@ -145,7 +145,7 @@ func generateNodeHash(index uint64, nodes []Node, w NodeWrite) (Node, error) {
 
 	switch {
 	case err == nil:
-	case errors.Is(err, noChildrenError):
+	case errors.Is(err, errNoChildren):
 	default:
 		return nil, err
 	}

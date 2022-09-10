@@ -205,7 +205,7 @@ end:
 				c[1] = EmptyBaseNode()
 			}
 			extracted[(i*2)+1] = c[1] //nolint:gomnd //...
-		case errors.Is(err, noChildrenError):
+		case errors.Is(err, errNoChildren):
 			if l != index {
 				return nil, e(err, "")
 			}
@@ -220,7 +220,7 @@ end:
 		switch j, err := parent(l); {
 		case err == nil:
 			l = j
-		case errors.Is(err, noParentError):
+		case errors.Is(err, errNoParent):
 			extracted[len(extracted)-1] = nodes[l]
 
 			break end

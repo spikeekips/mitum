@@ -259,8 +259,8 @@ func (st *JoiningHandler) checkSuffrage(height base.Height) error {
 	case suf == nil:
 		return newBrokenSwitchContext(StateJoining, errors.Errorf("empty suffrage"))
 	case !found:
-		if err := st.leaveMemberlistf(time.Second); err != nil {
-			st.Log().Error().Err(err).Msg("failed to leave memberilst; ignored")
+		if lerr := st.leaveMemberlistf(time.Second); lerr != nil {
+			st.Log().Error().Err(lerr).Msg("failed to leave memberilst; ignored")
 		}
 
 		st.Log().Debug().Msg("local not in consensus nodes; moves to syncing")
@@ -271,9 +271,9 @@ func (st *JoiningHandler) checkSuffrage(height base.Height) error {
 
 		st.waitFirstVoteproof = 0
 	default:
-		switch err := st.joinMemberlist(suf); {
-		case err != nil:
-			st.Log().Error().Err(err).Msg("failed to join memberlist")
+		switch jerr := st.joinMemberlist(suf); {
+		case jerr != nil:
+			st.Log().Error().Err(jerr).Msg("failed to join memberlist")
 		default:
 			st.Log().Debug().Msg("joined to memberlist")
 		}

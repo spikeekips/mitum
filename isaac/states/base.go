@@ -132,7 +132,7 @@ func (st *baseHandler) switchState(sctx switchContext) {
 	switch err := st.switchStateFunc(nsctx); {
 	case err == nil:
 		l.Debug().Msg("state switched")
-	case errors.Is(err, ignoreSwithingStateError):
+	case errors.Is(err, ErrIgnoreSwithingState):
 		l.Error().Err(err).Msg("failed to switch state; ignore")
 	case nsctx.next() == StateBroken:
 		l.Error().Err(err).Msg("failed to switch state; panic")

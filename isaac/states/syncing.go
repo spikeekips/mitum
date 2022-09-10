@@ -14,7 +14,7 @@ import (
 	"github.com/spikeekips/mitum/util/logging"
 )
 
-var SyncerCanNotCancelError = util.NewError("can not cancel syncer")
+var ErrSyncerCanNotCancel = util.NewError("can not cancel syncer")
 
 type SyncingHandler struct {
 	syncer isaac.Syncer
@@ -148,13 +148,13 @@ func (st *SyncingHandler) exit(sctx switchContext) (func(), error) {
 
 	if st.syncer != nil {
 		if _, isfinished := st.syncer.IsFinished(); !isfinished {
-			return nil, ignoreSwithingStateError.Errorf("syncer not yet finished")
+			return nil, ErrIgnoreSwithingState.Errorf("syncer not yet finished")
 		}
 
 		switch err := st.syncer.Cancel(); {
 		case err == nil:
-		case errors.Is(err, SyncerCanNotCancelError):
-			return nil, ignoreSwithingStateError.Wrap(err)
+		case errors.Is(err, ErrSyncerCanNotCancel):
+			return nil, ErrIgnoreSwithingState.Wrap(err)
 		default:
 			return nil, e(err, "failed to stop syncer")
 		}

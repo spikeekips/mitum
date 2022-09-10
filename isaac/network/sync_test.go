@@ -237,7 +237,7 @@ func (t *testSyncSourceChecker) TestFetchFromNodeButFailedToSignature() {
 	t.Error(err)
 	t.Nil(ucis)
 
-	t.True(errors.Is(err, base.SignatureVerificationError))
+	t.True(errors.Is(err, base.ErrSignatureVerification))
 }
 
 func (t *testSyncSourceChecker) httpserver(handler http.HandlerFunc) *httptest.Server {

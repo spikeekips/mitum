@@ -70,7 +70,7 @@ func (t *testBaseOperation) TestNew() {
 	t.Run("invalid network id", func() {
 		err := op.IsValid(util.UUID().Bytes())
 		t.Error(err)
-		t.True(errors.Is(err, SignatureVerificationError))
+		t.True(errors.Is(err, ErrSignatureVerification))
 	})
 
 	_ = (interface{})(op).(Operation)
@@ -120,7 +120,7 @@ func (t *testBaseOperation) TestIsValid() {
 
 		err := op.IsValid(util.UUID().Bytes())
 		t.Error(err)
-		t.True(errors.Is(err, SignatureVerificationError))
+		t.True(errors.Is(err, ErrSignatureVerification))
 	})
 }
 
@@ -198,7 +198,7 @@ func (t *testBaseNodeOperation) TestNew() {
 	t.Run("invalid network id", func() {
 		err := op.IsValid(util.UUID().Bytes())
 		t.Error(err)
-		t.True(errors.Is(err, SignatureVerificationError))
+		t.True(errors.Is(err, ErrSignatureVerification))
 	})
 
 	_ = (interface{})(op).(Operation)
@@ -248,7 +248,7 @@ func (t *testBaseNodeOperation) TestIsValid() {
 
 		err := op.IsValid(util.UUID().Bytes())
 		t.Error(err)
-		t.True(errors.Is(err, SignatureVerificationError))
+		t.True(errors.Is(err, ErrSignatureVerification))
 	})
 
 	t.Run("duplicated signed", func() {

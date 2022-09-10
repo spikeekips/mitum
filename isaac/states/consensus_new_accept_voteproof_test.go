@@ -357,7 +357,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestNotProposalProcessorP
 
 	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) error {
 		if avp.Point().Point.Equal(point) {
-			return isaac.NotProposalProcessorProcessedError.Errorf("hehehe")
+			return isaac.ErrNotProposalProcessorProcessed.Errorf("hehehe")
 		}
 
 		return nil

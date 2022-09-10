@@ -11,7 +11,7 @@ import (
 
 const PKKeyTypeSize = 3
 
-var SignatureVerificationError = util.NewError("signature verification failed")
+var ErrSignatureVerification = util.NewError("signature verification failed")
 
 type Signer interface {
 	Sign(Privatekey, NetworkID /* additional info */) error

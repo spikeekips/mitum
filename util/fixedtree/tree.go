@@ -49,7 +49,7 @@ func (t Tree) IsValid(b []byte) error {
 
 		switch {
 		case err == nil:
-		case errors.Is(err, noChildrenError):
+		case errors.Is(err, errNoChildren):
 		default:
 			return false, util.ErrInvalid.Wrap(err)
 		}
@@ -161,7 +161,7 @@ func children(size int, index uint64) (c [2]uint64, err error) {
 
 	switch i := nextFirst + pos*2; { //nolint:gomnd //...
 	case i >= uint64(size):
-		return c, noChildrenError.Call()
+		return c, errNoChildren.Call()
 	default:
 		c[0] = i
 	}
@@ -174,7 +174,7 @@ func children(size int, index uint64) (c [2]uint64, err error) {
 func parent(index uint64) (uint64, error) {
 	height := indexHeight(index)
 	if height == 0 {
-		return 0, noParentError.Call()
+		return 0, errNoParent.Call()
 	}
 
 	currentFirst := uint64(math.Pow(2, float64(height)) - 1)

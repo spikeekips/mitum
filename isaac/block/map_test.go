@@ -142,7 +142,7 @@ func (t *testBlockMap) TestInvalid() {
 
 		err := m.IsValid(util.UUID().Bytes())
 		t.True(errors.Is(err, util.ErrInvalid))
-		t.True(errors.Is(err, base.SignatureVerificationError))
+		t.True(errors.Is(err, base.ErrSignatureVerification))
 	})
 }
 

@@ -78,7 +78,7 @@ func (t *testSigned) TestSignedAndVerify() {
 
 	err = s.Verify(nil, util.UUID().Bytes())
 	t.Error(err)
-	t.True(errors.Is(err, SignatureVerificationError))
+	t.True(errors.Is(err, ErrSignatureVerification))
 }
 
 func TestSigned(t *testing.T) {
@@ -154,11 +154,11 @@ func (t *testNodeSigned) TestSignedAndVerify() {
 
 	err = s.BaseSigned.Verify(nil, input)
 	t.Error(err)
-	t.True(errors.Is(err, SignatureVerificationError))
+	t.True(errors.Is(err, ErrSignatureVerification))
 
 	err = s.Verify(nil, util.UUID().Bytes())
 	t.Error(err)
-	t.True(errors.Is(err, SignatureVerificationError))
+	t.True(errors.Is(err, ErrSignatureVerification))
 }
 
 func TestNodeSigned(t *testing.T) {

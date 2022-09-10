@@ -173,7 +173,7 @@ func (st *ConsensusHandler) processProposal(ivp base.INITVoteproof) (func(contex
 	switch i, err := st.processProposalInternal(ivp); {
 	case err == nil:
 		process = i
-	case errors.Is(err, isaac.NotProposalProcessorProcessedError):
+	case errors.Is(err, isaac.ErrNotProposalProcessorProcessed):
 		go st.nextRound(ivp, ivp.BallotMajority().PreviousBlock())
 
 		return nil, nil
@@ -711,7 +711,7 @@ func (st *ConsensusHandler) saveBlock(avp base.ACCEPTVoteproof) (bool, error) {
 		l.Debug().Msg("already saved")
 
 		return false, nil
-	case errors.Is(err, isaac.NotProposalProcessorProcessedError):
+	case errors.Is(err, isaac.ErrNotProposalProcessorProcessed):
 		l.Debug().Msg("no processed proposal; moves to syncing state")
 
 		return false, newSyncingSwitchContext(StateConsensus, avp.Point().Height())
