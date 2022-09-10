@@ -1,8 +1,6 @@
 package isaacdatabase
 
 import (
-	"fmt"
-	"strconv"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -172,7 +170,9 @@ func leveldbProposalPointKey(point base.Point, proposer base.Address) []byte {
 
 	return util.ConcatBytesSlice(
 		leveldbKeyPrefixProposalByPoint,
-		[]byte(fmt.Sprintf("%021d-%021d", point.Height(), point.Round())),
+		point.Height().Bytes(),
+		[]byte("-"),
+		point.Round().Bytes(),
 		[]byte("-"),
 		b,
 	)
@@ -181,7 +181,7 @@ func leveldbProposalPointKey(point base.Point, proposer base.Address) []byte {
 func leveldbBlockMapKey(height base.Height) []byte {
 	return util.ConcatBytesSlice(
 		leveldbKeyPrefixBlockMap,
-		[]byte(fmt.Sprintf("%021d", height)),
+		height.Bytes(),
 	)
 }
 
@@ -207,7 +207,7 @@ func leveldbNewOperationKey(operationhash util.Hash) []byte {
 func leveldbRemovedNewOperationPrefixWithHeight(height base.Height) []byte {
 	return util.ConcatBytesSlice(
 		leveldbKeyPrefixRemovedNewOperation,
-		[]byte(fmt.Sprintf("%021d", height)),
+		height.Bytes(),
 	)
 }
 
@@ -221,35 +221,35 @@ func leveldbRemovedNewOperationKey(height base.Height, operationhash util.Hash) 
 func leveldbTempSyncMapKey(height base.Height) []byte {
 	return util.ConcatBytesSlice(
 		leveldbKeyTempSyncMap,
-		[]byte(fmt.Sprintf("%021d", height)),
+		height.Bytes(),
 	)
 }
 
 func leveldbSuffrageProofKey(suffrageheight base.Height) []byte {
 	return util.ConcatBytesSlice(
 		leveldbKeySuffrageProof,
-		[]byte(fmt.Sprintf("%021d", suffrageheight)),
+		suffrageheight.Bytes(),
 	)
 }
 
 func leveldbSuffrageProofByBlockHeightKey(height base.Height) []byte {
 	return util.ConcatBytesSlice(
 		leveldbKeySuffrageProofByBlockHeight,
-		[]byte(fmt.Sprintf("%021d", height)),
+		height.Bytes(),
 	)
 }
 
 func heightFromleveldbKey(b, prefix []byte) (base.Height, error) {
 	e := util.StringErrorFunc("failed to parse height from leveldbBlockMapKey")
 
-	if len(b) < len(prefix)+21 {
+	if len(b) < len(prefix)+8 {
 		return base.NilHeight, e(nil, "too short")
 	}
 
-	d, err := strconv.ParseInt(string(b[len(prefix):len(prefix)+21]), 10, 64)
+	h, err := base.ParseHeightBytes(b[len(prefix) : len(prefix)+8])
 	if err != nil {
 		return base.NilHeight, e(err, "")
 	}
 
-	return base.Height(d), nil
+	return h, nil
 }

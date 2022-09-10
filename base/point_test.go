@@ -33,6 +33,22 @@ func (t *testHeight) TestInvalid() {
 	t.True(errors.Is(err, util.ErrInvalid))
 }
 
+func (t *testHeight) TestString() {
+	h := Height(333)
+
+	t.Run("String()", func() {
+		rh, err := ParseHeightString(h.String())
+		t.NoError(err)
+		t.Equal(h, rh)
+	})
+
+	t.Run("FixedString()", func() {
+		rh, err := ParseHeightString(h.FixedString())
+		t.NoError(err)
+		t.Equal(h, rh)
+	})
+}
+
 func TestHeight(t *testing.T) {
 	suite.Run(t, new(testHeight))
 }

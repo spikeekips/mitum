@@ -24,7 +24,7 @@ var zeroPrefixHeightString = regexp.MustCompile(`^[0]+`)
 // Height stands for height of Block
 type Height int64
 
-func NewHeightFromString(s string) (Height, error) {
+func ParseHeightString(s string) (Height, error) {
 	n := s
 	if strings.HasPrefix(n, "0") {
 		n = zeroPrefixHeightString.ReplaceAllString(n, "")
@@ -42,7 +42,7 @@ func NewHeightFromString(s string) (Height, error) {
 	return Height(i), nil
 }
 
-func NewHeightFromBytes(b []byte) (Height, error) {
+func ParseHeightBytes(b []byte) (Height, error) {
 	i, err := util.BigBytesToInt64(b)
 	if err != nil {
 		return NilHeight, errors.Wrap(err, "failed to NewHeightFromBytes")
@@ -76,6 +76,10 @@ func (h Height) String() string {
 	return fmt.Sprintf("%d", h)
 }
 
+func (h Height) FixedString() string {
+	return fmt.Sprintf("%021d", h)
+}
+
 func (h Height) Prev() Height {
 	return h - 1
 }
@@ -95,7 +99,7 @@ func (r Round) Uint64() uint64 {
 }
 
 func (r Round) Bytes() []byte {
-	return util.Uint64ToBytes(uint64(r))
+	return util.Uint64ToBigBytes(uint64(r))
 }
 
 func (r Round) Prev() Round {

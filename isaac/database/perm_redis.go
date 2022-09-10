@@ -578,15 +578,15 @@ func (db *RedisPermanent) getRecordBytes(
 }
 
 func redisStateKey(key string) string {
-	return fmt.Sprintf("%s-%s", redisStateKeyPrerfix, key)
+	return redisStateKeyPrerfix + "-" + key
 }
 
 func redisInStateOperationKey(h util.Hash) string {
-	return fmt.Sprintf("%s-%s", redisInStateOperationKeyPrerfix, h.String())
+	return redisInStateOperationKeyPrerfix + "-" + h.String()
 }
 
 func redisKnownOperationKey(h util.Hash) string {
-	return fmt.Sprintf("%s-%s", redisKnownOperationKeyPrerfix, h.String())
+	return redisKnownOperationKeyPrerfix + "-" + h.String()
 }
 
 func redisStateKeyFromLeveldb(b []byte) string {
@@ -594,13 +594,13 @@ func redisStateKeyFromLeveldb(b []byte) string {
 }
 
 func redisBlockMapKey(height base.Height) string {
-	return fmt.Sprintf("%s-%021d", redisBlockMapKeyPrefix, height)
+	return redisBlockMapKeyPrefix + "-" + height.FixedString()
 }
 
 func redisSuffrageProofKey(suffrageheight base.Height) string {
-	return fmt.Sprintf("%s-%021d", redisSuffrageProofPrefix, suffrageheight)
+	return redisSuffrageProofPrefix + "-" + suffrageheight.FixedString()
 }
 
 func redisSuffrageProofByBlockHeightKey(height base.Height) string {
-	return fmt.Sprintf("%s-%021d", redisSuffrageProofByBlockHeightPrefix, height)
+	return redisSuffrageProofByBlockHeightPrefix + "-" + height.FixedString()
 }

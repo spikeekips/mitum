@@ -90,7 +90,7 @@ func (f *HeightFlag) UnmarshalText(b []byte) error {
 		return nil
 	}
 
-	height, err := base.NewHeightFromString(string(b))
+	height, err := base.ParseHeightString(string(b))
 	if err != nil {
 		return e(err, "")
 	}

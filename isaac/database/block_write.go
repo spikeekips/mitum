@@ -3,9 +3,7 @@ package isaacdatabase
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"math"
-	"strconv"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -376,24 +374,16 @@ func (*LeveldbBlockWrite) updateLockedStates(st base.State, locked *util.Locked)
 }
 
 var (
-	prefixStoragePrefixByHeightLength int = 23 + util.ULIDLen // len(label) + 21 + len(ULID.String())
+	prefixStoragePrefixByHeightLength int = 10 + util.ULIDLen // len(label) + len(int64 bytes) + len(ULID.String())
 	emptyULID                             = bytes.Repeat([]byte{0x00}, util.ULIDLen)
 )
 
 func newPrefixStoragePrefixByHeight(label []byte, height base.Height) []byte {
-	return util.ConcatBytesSlice(
-		label,
-		[]byte(fmt.Sprintf("%021d", height)),
-		[]byte(util.ULID().String()),
-	)
+	return util.ConcatBytesSlice(label, height.Bytes(), []byte(util.ULID().String()))
 }
 
 func emptyPrefixStoragePrefixByHeight(label []byte, height base.Height) []byte {
-	return util.ConcatBytesSlice(
-		label,
-		[]byte(fmt.Sprintf("%021d", height)), // FIXME use Uint64ToBytes; it's length is constant
-		emptyULID,
-	)
+	return util.ConcatBytesSlice(label, height.Bytes(), emptyULID)
 }
 
 func prefixStoragePrefixFromKey(b []byte) ([]byte, error) {
@@ -413,14 +403,12 @@ func HeightFromPrefixStoragePrefix(b []byte) (base.Height, error) {
 		return base.NilHeight, e(nil, "wrong key of prefix storage prefix")
 	}
 
-	s := b[2:23]
-
-	d, err := strconv.ParseInt(string(s), 10, 64)
+	h, err := base.ParseHeightBytes(b[2:10])
 	if err != nil {
 		return base.NilHeight, e(err, "")
 	}
 
-	return base.Height(d), nil
+	return h, nil
 }
 
 func cleanOneHeight(st *leveldbstorage.Storage, height base.Height, prefix []byte) error {

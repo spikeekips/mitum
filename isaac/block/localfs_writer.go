@@ -583,7 +583,7 @@ func HeightDirectory(height base.Height) string {
 func HeightFromDirectory(s string) (base.Height, error) {
 	hs := strings.Replace(s, "/", "", -1)
 
-	h, err := base.NewHeightFromString(hs)
+	h, err := base.ParseHeightString(hs)
 	if err != nil {
 		return base.NilHeight, err
 	}

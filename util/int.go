@@ -44,8 +44,16 @@ func BigBytesToInt64(b []byte) (int64, error) {
 }
 
 func Uint64ToBytes(i uint64) []byte {
+	return uint64ToBytes(i, binary.LittleEndian)
+}
+
+func Uint64ToBigBytes(i uint64) []byte {
+	return uint64ToBytes(i, binary.LittleEndian)
+}
+
+func uint64ToBytes(i uint64, endian binary.ByteOrder) []byte {
 	b := new(bytes.Buffer)
-	_ = binary.Write(b, binary.LittleEndian, i)
+	_ = binary.Write(b, endian, i)
 
 	return b.Bytes()
 }
