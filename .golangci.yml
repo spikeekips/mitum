@@ -1056,7 +1056,7 @@ linters-settings:
       # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#empty-lines
       - name: empty-lines
         severity: warning
-        disabled: false
+        disabled: true
       # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#error-naming
       - name: error-naming
         severity: warning

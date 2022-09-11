@@ -11,7 +11,7 @@ import (
 )
 
 // revive:disable:line-length-limit
-type NetworkClient interface {
+type NetworkClient interface { //nolint:interfacebloat //..
 	Request(context.Context, quicstream.UDPConnInfo, NetworkHeader, io.Reader) (NetworkResponseHeader, interface{}, func() error, error)
 	Operation(_ context.Context, _ quicstream.UDPConnInfo, operationhash util.Hash) (base.Operation, bool, error)
 	SendOperation(context.Context, quicstream.UDPConnInfo, base.Operation) (bool, error)

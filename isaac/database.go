@@ -12,7 +12,7 @@ import (
 // Database serves BlockMapItem like blockmap, states and operations from
 // TempDatabases and PermanentDatabase. It has several TempDatabases and one
 // PermanentDatabase.
-type Database interface {
+type Database interface { //nolint:interfacebloat //..
 	util.Daemon
 	Close() error
 	BlockMap(height base.Height) (base.BlockMap, bool, error)
@@ -58,7 +58,7 @@ type TempDatabase interface {
 	NetworkPolicy() base.NetworkPolicy
 }
 
-type BlockWriteDatabase interface {
+type BlockWriteDatabase interface { //nolint:interfacebloat //..
 	Close() error
 	Cancel() error
 	BlockMap() (base.BlockMap, error)
@@ -73,7 +73,7 @@ type BlockWriteDatabase interface {
 }
 
 // PermanentDatabase stores BlockMapItem permanently.
-type PermanentDatabase interface {
+type PermanentDatabase interface { //nolint:interfacebloat //..
 	BaseDatabase
 	Close() error
 	Clean() error

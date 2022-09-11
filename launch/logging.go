@@ -14,7 +14,7 @@ import (
 
 func init() { //nolint:gochecknoinits //...
 	zerolog.TimeFieldFormat = time.RFC3339Nano
-	zerolog.ErrorStackMarshaler = util.ZerologMarshalStack
+	zerolog.ErrorStackMarshaler = util.ZerologMarshalStack //nolint:reassign //...
 }
 
 // revive:disable:line-length-limit

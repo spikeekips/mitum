@@ -7,7 +7,7 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 )
 
-type Encoder interface {
+type Encoder interface { //nolint:interfacebloat //...
 	hint.Hinter
 	Add(DecodeDetail) error
 	AddHinter(hint.Hinter) error
