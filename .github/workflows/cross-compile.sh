@@ -43,7 +43,6 @@ supported=(
 
 races=(
     "linux/amd64"
-    "linux/arm64"
 )
 
 for dist in ${supported[@]}; do
