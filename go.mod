@@ -13,6 +13,7 @@ require (
 	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce
 	github.com/bytedance/sonic v1.3.5
 	github.com/go-redis/redis/v8 v8.11.5
+	github.com/gofrs/uuid v4.3.0+incompatible
 	github.com/hashicorp/consul/api v1.14.0
 	github.com/hashicorp/memberlist v0.4.0
 	github.com/hashicorp/vault/api v1.7.2
@@ -22,7 +23,6 @@ require (
 	github.com/oklog/ulid v1.3.1
 	github.com/pkg/errors v0.9.1
 	github.com/rs/zerolog v1.27.0
-	github.com/satori/go.uuid v1.2.0
 	github.com/stretchr/testify v1.8.0
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	github.com/zeebo/blake3 v0.2.3

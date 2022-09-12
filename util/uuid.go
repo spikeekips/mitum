@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gofrs/uuid"
 	"github.com/oklog/ulid"
-	uuid "github.com/satori/go.uuid"
 )
 
 var (
@@ -16,7 +16,11 @@ var (
 )
 
 func UUID() uuid.UUID {
-	return uuid.NewV4()
+	for {
+		if i, err := uuid.NewV4(); err == nil {
+			return i
+		}
+	}
 }
 
 type ULIDPool struct {
