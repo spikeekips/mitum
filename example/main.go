@@ -14,8 +14,11 @@ import (
 )
 
 var (
-	Version = "v0.0.1"
-	version util.Version
+	Version   = "v0.0.1"
+	BuildTime = "-"
+	GitBranch = "master"
+	GitCommit = "-"
+	version   util.Version
 )
 
 var CLI struct { //nolint:govet //...
@@ -52,7 +55,7 @@ func main() {
 	}
 
 	if kctx.Command() == "version" {
-		_, _ = fmt.Fprintln(os.Stdout, version)
+		showVersion()
 
 		return
 	}
@@ -112,4 +115,12 @@ func checkVersion() error {
 	version = v
 
 	return nil
+}
+
+func showVersion() {
+	_, _ = fmt.Fprintf(os.Stdout, `version: %s
+ branch: %s
+ commit: %s
+  build: %s
+`, version, GitBranch, GitCommit, BuildTime)
 }
