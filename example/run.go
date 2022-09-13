@@ -2,10 +2,13 @@ package main
 
 import (
 	"context"
+	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/arl/statsviz"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
@@ -23,6 +26,7 @@ type RunCommand struct { //nolint:govet //...
 	Vault     string                `name:"vault" help:"privatekey path of vault"`
 	Discovery []launch.ConnInfoFlag `help:"member discovery" placeholder:"ConnInfo"`
 	Hold      launch.HeightFlag     `help:"hold consensus states"`
+	HTTPState string                `name:"http-state" help:"runtime statistics thru https" placeholder:"bind address"`
 	exitf     func(error)
 	log       *zerolog.Logger
 	holded    bool
@@ -35,6 +39,12 @@ func (cmd *RunCommand) Run(pctx context.Context) error {
 	}
 
 	cmd.log = log.Log()
+
+	if len(cmd.HTTPState) > 0 {
+		if err := cmd.runHTTPState(cmd.HTTPState); err != nil {
+			return errors.Wrap(err, "failed to run http state")
+		}
+	}
 
 	//revive:disable:modifies-parameter
 	pctx = context.WithValue(pctx, launch.DesignFlagContextKey, cmd.DesignFlag)
@@ -201,4 +211,24 @@ func (cmd *RunCommand) pCheckHold(pctx context.Context) (context.Context, error)
 	}
 
 	return pctx, nil
+}
+
+func (cmd *RunCommand) runHTTPState(bind string) error {
+	addr, err := net.ResolveTCPAddr("tcp", bind)
+	if err != nil {
+		return errors.Wrap(err, "failed to parse --http-state")
+	}
+
+	mux := http.NewServeMux()
+	if err := statsviz.Register(mux); err != nil {
+		return errors.Wrap(err, "failed to register statsviz for http-state")
+	}
+
+	cmd.log.Debug().Stringer("bind", addr).Msg("statsviz started")
+
+	go func() {
+		_ = http.ListenAndServe(addr.String(), mux)
+	}()
+
+	return nil
 }
