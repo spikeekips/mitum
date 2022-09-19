@@ -102,7 +102,7 @@ func (t *testBaseSeal) TestEmptyBody() {
 	t.ErrorContains(err, "empty body in BaseSeal")
 }
 
-func (t *testBaseSeal) TestWithoutSigned() {
+func (t *testBaseSeal) TestWithoutSigns() {
 	ht := hint.MustNewHint("dummy-seal-v3.2.1")
 
 	bodies := []SealBody{
@@ -155,7 +155,7 @@ func (t *testDummySeal) TestEmptyBody() {
 	t.ErrorContains(err, "empty body in BaseSeal")
 }
 
-func (t *testDummySeal) TestWithoutSigned() {
+func (t *testDummySeal) TestWithoutSigns() {
 	bodies := []SealBody{
 		dummySealBody{A: util.UUID().String()},
 		dummySealBody{A: util.UUID().String()},
@@ -216,7 +216,7 @@ func testDummySealEncode() *baseTestDummySealEncode {
 		t.True(ok)
 
 		t.NoError(bs.IsValid(t.networkID))
-		t.True(bs.Signed().Signer().Equal(t.priv.Publickey()))
+		t.True(bs.Signs().Signer().Equal(t.priv.Publickey()))
 
 		EqualSeal(t.Assert(), as, bs)
 

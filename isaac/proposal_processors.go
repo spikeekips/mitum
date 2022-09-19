@@ -25,8 +25,8 @@ type ProcessorProcessFunc func(context.Context) (base.Manifest, error)
 type ProposalProcessors struct {
 	p ProposalProcessor
 	*logging.Logging
-	makenew       func(proposal base.ProposalSignedFact, previous base.Manifest) (ProposalProcessor, error)
-	getproposal   func(_ context.Context, operationhash util.Hash) (base.ProposalSignedFact, error)
+	makenew       func(proposal base.ProposalSignFact, previous base.Manifest) (ProposalProcessor, error)
+	getproposal   func(_ context.Context, operationhash util.Hash) (base.ProposalSignFact, error)
 	retryinterval time.Duration
 	retrylimit    int
 	sync.RWMutex
@@ -34,8 +34,8 @@ type ProposalProcessors struct {
 }
 
 func NewProposalProcessors(
-	makenew func(base.ProposalSignedFact, base.Manifest) (ProposalProcessor, error),
-	getproposal func(context.Context, util.Hash) (base.ProposalSignedFact, error),
+	makenew func(base.ProposalSignFact, base.Manifest) (ProposalProcessor, error),
+	getproposal func(context.Context, util.Hash) (base.ProposalSignFact, error),
 ) *ProposalProcessors {
 	return &ProposalProcessors{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
@@ -201,10 +201,10 @@ func (pps *ProposalProcessors) SetRetryInterval(i time.Duration) *ProposalProces
 	return pps
 }
 
-func (pps *ProposalProcessors) fetchFact(ctx context.Context, facthash util.Hash) (base.ProposalSignedFact, error) {
+func (pps *ProposalProcessors) fetchFact(ctx context.Context, facthash util.Hash) (base.ProposalSignFact, error) {
 	e := util.StringErrorFunc("failed to fetch fact")
 
-	var pr base.ProposalSignedFact
+	var pr base.ProposalSignFact
 
 	err := util.Retry(
 		ctx,

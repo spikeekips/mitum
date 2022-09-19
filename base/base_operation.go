@@ -11,9 +11,9 @@ import (
 
 // BaseOperation is basic form to make new Operation.
 type BaseOperation struct {
-	h      util.Hash
-	fact   Fact
-	signed []Signed
+	h     util.Hash
+	fact  Fact
+	signs []Sign
 	hint.BaseHinter
 }
 
@@ -28,8 +28,8 @@ func (op BaseOperation) Hash() util.Hash {
 	return op.h
 }
 
-func (op BaseOperation) Signed() []Signed {
-	return op.signed
+func (op BaseOperation) Signs() []Sign {
+	return op.signs
 }
 
 func (op BaseOperation) Fact() Fact {
@@ -41,11 +41,11 @@ func (op *BaseOperation) SetFact(fact Fact) {
 }
 
 func (op BaseOperation) HashBytes() []byte {
-	bs := make([]util.Byter, len(op.signed)+1)
+	bs := make([]util.Byter, len(op.signs)+1)
 	bs[0] = op.fact.Hash()
 
-	for i := range op.signed {
-		bs[i+1] = op.signed[i]
+	for i := range op.signs {
+		bs[i+1] = op.signs[i]
 	}
 
 	return util.ConcatByters(bs...)
@@ -54,15 +54,15 @@ func (op BaseOperation) HashBytes() []byte {
 func (op BaseOperation) IsValid(networkID []byte) error {
 	e := util.ErrInvalid.Errorf("invalid BaseOperation")
 
-	if len(op.signed) < 1 {
-		return e.Errorf("empty signed")
+	if len(op.signs) < 1 {
+		return e.Errorf("empty signs")
 	}
 
 	if err := util.CheckIsValid(networkID, false, op.h); err != nil {
 		return e.Wrap(err)
 	}
 
-	if err := IsValidSignedFact(op, networkID); err != nil {
+	if err := IsValidSignFact(op, networkID); err != nil {
 		return e.Wrap(err)
 	}
 
@@ -74,13 +74,13 @@ func (op BaseOperation) IsValid(networkID []byte) error {
 }
 
 func (op *BaseOperation) Sign(priv Privatekey, networkID NetworkID) error {
-	switch index, signed, err := op.sign(priv, networkID); {
+	switch index, sign, err := op.sign(priv, networkID); {
 	case err != nil:
 		return err
 	case index < 0:
-		op.signed = append(op.signed, signed)
+		op.signs = append(op.signs, sign)
 	default:
-		op.signed[index] = signed
+		op.signs[index] = sign
 	}
 
 	op.h = op.hash()
@@ -88,13 +88,13 @@ func (op *BaseOperation) Sign(priv Privatekey, networkID NetworkID) error {
 	return nil
 }
 
-func (op *BaseOperation) sign(priv Privatekey, networkID NetworkID) (found int, signed BaseSigned, _ error) {
+func (op *BaseOperation) sign(priv Privatekey, networkID NetworkID) (found int, sign BaseSign, _ error) {
 	e := util.StringErrorFunc("failed to sign BaseOperation")
 
 	found = -1
 
-	for i := range op.signed {
-		s := op.signed[i]
+	for i := range op.signs {
+		s := op.signs[i]
 		if s == nil {
 			continue
 		}
@@ -106,12 +106,12 @@ func (op *BaseOperation) sign(priv Privatekey, networkID NetworkID) (found int, 
 		}
 	}
 
-	newsigned, err := NewBaseSignedFromFact(priv, networkID, op.fact)
+	newsign, err := NewBaseSignFromFact(priv, networkID, op.fact)
 	if err != nil {
-		return found, signed, e(err, "")
+		return found, sign, e(err, "")
 	}
 
-	return found, newsigned, nil
+	return found, newsign, nil
 }
 
 func (BaseOperation) PreProcess(context.Context, GetStateFunc) (OperationProcessReasonError, error) {
@@ -143,7 +143,7 @@ func (op BaseNodeOperation) IsValid(networkID []byte) error {
 		return e.Wrap(err)
 	}
 
-	sfs := op.Signed()
+	sfs := op.Signs()
 
 	var duplicatederr error
 
@@ -152,9 +152,9 @@ func (op BaseNodeOperation) IsValid(networkID []byte) error {
 			return ""
 		}
 
-		switch ns, ok := sfs[i].(NodeSigned); {
+		switch ns, ok := sfs[i].(NodeSign); {
 		case !ok:
-			duplicatederr = errors.Errorf("not NodeSigned, %T", sfs[i])
+			duplicatederr = errors.Errorf("not NodeSign, %T", sfs[i])
 
 			return ""
 		default:
@@ -164,12 +164,12 @@ func (op BaseNodeOperation) IsValid(networkID []byte) error {
 	case duplicatederr != nil:
 		return e.Wrap(duplicatederr)
 	case duplicated:
-		return e.Errorf("duplicated signed found")
+		return e.Errorf("duplicated signs found")
 	}
 
 	for i := range sfs {
-		if _, ok := sfs[i].(NodeSigned); !ok {
-			return e.Errorf("not NodeSigned, %T", sfs[i])
+		if _, ok := sfs[i].(NodeSign); !ok {
+			return e.Errorf("not NodeSign, %T", sfs[i])
 		}
 	}
 
@@ -179,8 +179,8 @@ func (op BaseNodeOperation) IsValid(networkID []byte) error {
 func (op *BaseNodeOperation) Sign(priv Privatekey, networkID NetworkID, node Address) error {
 	found := -1
 
-	for i := range op.signed {
-		s := op.signed[i]
+	for i := range op.signs {
+		s := op.signs[i]
 		if s == nil {
 			continue
 		}
@@ -192,16 +192,16 @@ func (op *BaseNodeOperation) Sign(priv Privatekey, networkID NetworkID, node Add
 		}
 	}
 
-	ns, err := BaseNodeSignedFromFact(node, priv, networkID, op.fact)
+	ns, err := BaseNodeSignFromFact(node, priv, networkID, op.fact)
 	if err != nil {
 		return err
 	}
 
 	switch {
 	case found < 0:
-		op.signed = append(op.signed, ns)
+		op.signs = append(op.signs, ns)
 	default:
-		op.signed[found] = ns
+		op.signs[found] = ns
 	}
 
 	op.h = op.hash()
@@ -209,13 +209,13 @@ func (op *BaseNodeOperation) Sign(priv Privatekey, networkID NetworkID, node Add
 	return nil
 }
 
-func (op BaseNodeOperation) NodeSigned() []NodeSigned {
-	ss := op.Signed()
-	signeds := make([]NodeSigned, len(ss))
+func (op BaseNodeOperation) NodeSigns() []NodeSign {
+	ss := op.Signs()
+	signs := make([]NodeSign, len(ss))
 
 	for i := range ss {
-		signeds[i] = ss[i].(NodeSigned) //nolint:forcetypeassert //...
+		signs[i] = ss[i].(NodeSign) //nolint:forcetypeassert //...
 	}
 
-	return signeds
+	return signs
 }

@@ -24,7 +24,7 @@ type ProposerSelector interface {
 
 // ProposalSelector fetchs proposal from selected proposer
 type ProposalSelector interface {
-	Select(context.Context, base.Point) (base.ProposalSignedFact, error)
+	Select(context.Context, base.Point) (base.ProposalSignFact, error)
 }
 
 type BaseProposalSelector struct {
@@ -33,7 +33,7 @@ type BaseProposalSelector struct {
 	proposerSelector  ProposerSelector
 	maker             *ProposalMaker
 	getAvailableNodes func(base.Height) ([]base.Node, bool, error)
-	request           func(context.Context, base.Point, base.Address) (base.ProposalSignedFact, error)
+	request           func(context.Context, base.Point, base.Address) (base.ProposalSignFact, error)
 	params            *LocalParams
 	sync.Mutex
 }
@@ -44,7 +44,7 @@ func NewBaseProposalSelector(
 	proposerSelector ProposerSelector,
 	maker *ProposalMaker,
 	getAvailableNodes func(base.Height) ([]base.Node, bool, error),
-	request func(context.Context, base.Point, base.Address) (base.ProposalSignedFact, error),
+	request func(context.Context, base.Point, base.Address) (base.ProposalSignFact, error),
 	pool ProposalPool,
 ) *BaseProposalSelector {
 	return &BaseProposalSelector{
@@ -58,7 +58,7 @@ func NewBaseProposalSelector(
 	}
 }
 
-func (p *BaseProposalSelector) Select(ctx context.Context, point base.Point) (base.ProposalSignedFact, error) {
+func (p *BaseProposalSelector) Select(ctx context.Context, point base.Point) (base.ProposalSignFact, error) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -121,7 +121,7 @@ func (p *BaseProposalSelector) findProposal(
 	ctx context.Context,
 	point base.Point,
 	proposer base.Node,
-) (base.ProposalSignedFact, error) {
+) (base.ProposalSignFact, error) {
 	e := util.StringErrorFunc("failed to find proposal")
 
 	switch pr, found, err := p.pool.ProposalByPoint(point, proposer.Address()); {
@@ -137,7 +137,7 @@ func (p *BaseProposalSelector) findProposal(
 	}
 
 	if !proposer.Address().Equal(p.local.Address()) {
-		if !pr.Signed()[0].Signer().Equal(proposer.Publickey()) {
+		if !pr.Signs()[0].Signer().Equal(proposer.Publickey()) {
 			return nil, e(nil, "proposal not signed by proposer")
 		}
 	}
@@ -149,13 +149,13 @@ func (p *BaseProposalSelector) findProposalFromProposer(
 	ctx context.Context,
 	point base.Point,
 	proposer base.Address,
-) (base.ProposalSignedFact, error) {
+) (base.ProposalSignFact, error) {
 	if proposer.Equal(p.local.Address()) {
 		return p.maker.New(ctx, point)
 	}
 
 	// NOTE if not found in local, request to proposer node
-	var pr base.ProposalSignedFact
+	var pr base.ProposalSignFact
 	var err error
 
 	done := make(chan struct{}, 1)
@@ -287,7 +287,7 @@ func NewProposalMaker(
 	}
 }
 
-func (p *ProposalMaker) Empty(_ context.Context, point base.Point) (base.ProposalSignedFact, error) {
+func (p *ProposalMaker) Empty(_ context.Context, point base.Point) (base.ProposalSignFact, error) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -308,7 +308,7 @@ func (p *ProposalMaker) Empty(_ context.Context, point base.Point) (base.Proposa
 	return pr, nil
 }
 
-func (p *ProposalMaker) New(ctx context.Context, point base.Point) (base.ProposalSignedFact, error) {
+func (p *ProposalMaker) New(ctx context.Context, point base.Point) (base.ProposalSignFact, error) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -340,17 +340,17 @@ func (p *ProposalMaker) New(ctx context.Context, point base.Point) (base.Proposa
 	return pr, nil
 }
 
-func (p *ProposalMaker) makeProposal(point base.Point, ops []util.Hash) (sf ProposalSignedFact, _ error) {
+func (p *ProposalMaker) makeProposal(point base.Point, ops []util.Hash) (sf ProposalSignFact, _ error) {
 	fact := NewProposalFact(point, p.local.Address(), ops)
 
-	signedFact := NewProposalSignedFact(fact)
-	if err := signedFact.Sign(p.local.Privatekey(), p.params.NetworkID()); err != nil {
+	signfact := NewProposalSignFact(fact)
+	if err := signfact.Sign(p.local.Privatekey(), p.params.NetworkID()); err != nil {
 		return sf, err
 	}
 
-	if _, err := p.pool.SetProposal(signedFact); err != nil {
+	if _, err := p.pool.SetProposal(signfact); err != nil {
 		return sf, err
 	}
 
-	return signedFact, nil
+	return signfact, nil
 }

@@ -75,8 +75,8 @@ func (op GenesisNetworkPolicy) IsValid(networkID []byte) error {
 		return e.Wrap(err)
 	}
 
-	if len(op.Signed()) > 1 {
-		return e.Errorf("multiple signed found")
+	if len(op.Signs()) > 1 {
+		return e.Errorf("multiple signs found")
 	}
 
 	if _, ok := op.Fact().(GenesisNetworkPolicyFact); !ok {

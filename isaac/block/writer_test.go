@@ -59,7 +59,7 @@ func (t *testWriter) TestSetOperations() {
 		facts[i] = valuehash.RandomSHA256()
 	}
 
-	pr := isaac.NewProposalSignedFact(isaac.NewProposalFact(point, t.Local.Address(), facts))
+	pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), facts))
 	_ = pr.Sign(t.Local.Privatekey(), t.LocalParams.NetworkID())
 
 	writer := NewWriter(pr, nil, db, func(isaac.BlockWriteDatabase) error { return nil }, fswriter)
@@ -144,7 +144,7 @@ func (t *testWriter) TestSetStates() {
 		states[i] = stvs
 	}
 
-	pr := isaac.NewProposalSignedFact(isaac.NewProposalFact(point, t.Local.Address(), ophs))
+	pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), ophs))
 	_ = pr.Sign(t.Local.Privatekey(), t.LocalParams.NetworkID())
 
 	writer := NewWriter(pr, base.NilGetState, db, func(isaac.BlockWriteDatabase) error { return nil }, fswriter)
@@ -243,7 +243,7 @@ func (t *testWriter) TestSetStatesAndClose() {
 		states[len(ops)-1] = []base.StateMergeValue{base.NewBaseStateMergeValue(sufst.Key(), sufst.Value(), nil)}
 	}
 
-	pr := isaac.NewProposalSignedFact(isaac.NewProposalFact(point, t.Local.Address(), facts))
+	pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), facts))
 	_ = pr.Sign(t.Local.Privatekey(), t.LocalParams.NetworkID())
 
 	writer := NewWriter(pr, base.NilGetState, db, func(isaac.BlockWriteDatabase) error { return nil }, fswriter)
@@ -299,7 +299,7 @@ func (t *testWriter) TestManifest() {
 		ops[i] = valuehash.RandomSHA256()
 	}
 
-	pr := isaac.NewProposalSignedFact(isaac.NewProposalFact(point, t.Local.Address(), ops))
+	pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), ops))
 	_ = pr.Sign(t.Local.Privatekey(), t.LocalParams.NetworkID())
 
 	writer := NewWriter(pr, nil, db, func(isaac.BlockWriteDatabase) error {

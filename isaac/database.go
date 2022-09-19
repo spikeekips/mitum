@@ -91,10 +91,10 @@ type PermanentDatabase interface { //nolint:interfacebloat //..
 }
 
 type ProposalPool interface {
-	Proposal(util.Hash) (base.ProposalSignedFact, bool, error)
+	Proposal(util.Hash) (base.ProposalSignFact, bool, error)
 	ProposalBytes(util.Hash) (hint.Hint, []byte, []byte, bool, error)
-	ProposalByPoint(base.Point, base.Address) (base.ProposalSignedFact, bool, error)
-	SetProposal(pr base.ProposalSignedFact) (bool, error)
+	ProposalByPoint(base.Point, base.Address) (base.ProposalSignFact, bool, error)
+	SetProposal(pr base.ProposalSignFact) (bool, error)
 }
 
 type PoolOperationRecordMeta interface {

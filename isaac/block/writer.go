@@ -15,7 +15,7 @@ import (
 )
 
 type FSWriter interface {
-	SetProposal(context.Context, base.ProposalSignedFact) error
+	SetProposal(context.Context, base.ProposalSignFact) error
 	SetOperation(context.Context, uint64, base.Operation) error
 	SetOperationsTree(context.Context, *fixedtree.Writer) error
 	SetState(context.Context, uint64, base.State) error
@@ -29,7 +29,7 @@ type FSWriter interface {
 
 type Writer struct {
 	manifest      base.Manifest
-	proposal      base.ProposalSignedFact
+	proposal      base.ProposalSignFact
 	opstreeroot   util.Hash
 	db            isaac.BlockWriteDatabase
 	fswriter      FSWriter
@@ -43,7 +43,7 @@ type Writer struct {
 }
 
 func NewWriter(
-	proposal base.ProposalSignedFact,
+	proposal base.ProposalSignFact,
 	getStateFunc base.GetStateFunc,
 	db isaac.BlockWriteDatabase,
 	mergeDatabase func(isaac.BlockWriteDatabase) error,

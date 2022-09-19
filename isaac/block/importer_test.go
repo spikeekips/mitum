@@ -96,7 +96,7 @@ func (t *testBlockImporter) TestWriteProposal() {
 	t.NoError(err)
 	t.True(found)
 
-	pr := i.(base.ProposalSignedFact)
+	pr := i.(base.ProposalSignFact)
 
 	r, found, err := reader.Reader(base.BlockMapItemTypeProposal)
 	t.NoError(err)
@@ -121,10 +121,10 @@ func (t *testBlockImporter) TestWriteProposal() {
 		t.NoError(err)
 		t.True(found)
 
-		rpr, ok := i.(base.ProposalSignedFact)
+		rpr, ok := i.(base.ProposalSignFact)
 		t.True(ok)
 
-		base.EqualProposalSignedFact(t.Assert(), pr, rpr)
+		base.EqualProposalSignFact(t.Assert(), pr, rpr)
 
 		cr, found, err := tempreader.ChecksumReader(base.BlockMapItemTypeProposal)
 		t.NoError(err)

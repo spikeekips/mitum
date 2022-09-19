@@ -10,15 +10,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func EqualSigneds(t *assert.Assertions, a, b []Signed) {
+func EqualSigns(t *assert.Assertions, a, b []Sign) {
 	t.Equal(len(a), len(b))
 
 	for i := range a {
-		EqualSigned(t, a[i], b[i])
+		EqualSign(t, a[i], b[i])
 	}
 }
 
-func EqualSigned(t *assert.Assertions, a, b Signed) {
+func EqualSign(t *assert.Assertions, a, b Sign) {
 	t.True(bytes.Equal(a.Bytes(), b.Bytes()))
 	t.True(a.Signer().Equal(b.Signer()))
 	t.True(a.Signature().Equal(b.Signature()))

@@ -12,9 +12,9 @@ import (
 )
 
 type BaseOperationJSONMarshaler struct {
-	Hash   util.Hash `json:"hash"`
-	Fact   Fact      `json:"fact"`
-	Signed []Signed  `json:"signed"`
+	Hash  util.Hash `json:"hash"`
+	Fact  Fact      `json:"fact"`
+	Signs []Sign    `json:"signs"`
 	hint.BaseHinter
 }
 
@@ -23,7 +23,7 @@ func (op BaseOperation) JSONMarshaler() BaseOperationJSONMarshaler {
 		BaseHinter: op.BaseHinter,
 		Hash:       op.h,
 		Fact:       op.fact,
-		Signed:     op.signed,
+		Signs:      op.signs,
 	}
 }
 
@@ -32,9 +32,9 @@ func (op BaseOperation) MarshalJSON() ([]byte, error) {
 }
 
 type BaseOperationJSONUnmarshaler struct {
-	Hash   valuehash.HashDecoder `json:"hash"`
-	Fact   json.RawMessage       `json:"fact"`
-	Signed []json.RawMessage     `json:"signed"`
+	Hash  valuehash.HashDecoder `json:"hash"`
+	Fact  json.RawMessage       `json:"fact"`
+	Signs []json.RawMessage     `json:"signs"`
 }
 
 func (op *BaseOperation) decodeJSON(b []byte, enc *jsonenc.Encoder, u *BaseOperationJSONUnmarshaler) error {
@@ -60,15 +60,15 @@ func (op *BaseOperation) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "")
 	}
 
-	op.signed = make([]Signed, len(u.Signed))
+	op.signs = make([]Sign, len(u.Signs))
 
-	for i := range u.Signed {
-		var ub BaseSigned
-		if err := ub.DecodeJSON(u.Signed[i], enc); err != nil {
-			return e(err, "failed to decode signed")
+	for i := range u.Signs {
+		var ub BaseSign
+		if err := ub.DecodeJSON(u.Signs[i], enc); err != nil {
+			return e(err, "failed to decode sign")
 		}
 
-		op.signed[i] = ub
+		op.signs[i] = ub
 	}
 
 	return nil
@@ -87,15 +87,15 @@ func (op *BaseNodeOperation) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "")
 	}
 
-	op.signed = make([]Signed, len(u.Signed))
+	op.signs = make([]Sign, len(u.Signs))
 
-	for i := range u.Signed {
-		var ub BaseNodeSigned
-		if err := ub.DecodeJSON(u.Signed[i], enc); err != nil {
-			return e(err, "failed to decode signed")
+	for i := range u.Signs {
+		var ub BaseNodeSign
+		if err := ub.DecodeJSON(u.Signs[i], enc); err != nil {
+			return e(err, "failed to decode sign")
 		}
 
-		op.signed[i] = ub
+		op.signs[i] = ub
 	}
 
 	return nil

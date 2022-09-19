@@ -21,7 +21,7 @@ import (
 type DummyBlockWriter struct {
 	sync.RWMutex
 	getStateFunc base.GetStateFunc
-	proposal     base.ProposalSignedFact
+	proposal     base.ProposalSignFact
 	manifest     base.Manifest
 	manifesterr  error
 	opstreeg     *fixedtree.Writer
@@ -31,7 +31,7 @@ type DummyBlockWriter struct {
 	savef        func(context.Context) (base.BlockMap, error)
 }
 
-func NewDummyBlockWriter(proposal base.ProposalSignedFact, getStateFunc base.GetStateFunc) *DummyBlockWriter {
+func NewDummyBlockWriter(proposal base.ProposalSignFact, getStateFunc base.GetStateFunc) *DummyBlockWriter {
 	return &DummyBlockWriter{
 		proposal:     proposal,
 		getStateFunc: getStateFunc,
@@ -156,8 +156,8 @@ type testDefaultProposalProcessor struct {
 	BaseTestBallots
 }
 
-func (t *testDefaultProposalProcessor) newproposal(fact ProposalFact) base.ProposalSignedFact {
-	fs := NewProposalSignedFact(fact)
+func (t *testDefaultProposalProcessor) newproposal(fact ProposalFact) base.ProposalSignFact {
+	fs := NewProposalSignFact(fact)
 	_ = fs.Sign(t.Local.Privatekey(), t.LocalParams.NetworkID())
 
 	return fs
@@ -205,7 +205,7 @@ func (t *testDefaultProposalProcessor) newBlockWriter() (
 ) {
 	writer := NewDummyBlockWriter(nil, base.NilGetState)
 
-	return writer, func(proposal base.ProposalSignedFact, getStateFunc base.GetStateFunc) (BlockWriter, error) {
+	return writer, func(proposal base.ProposalSignFact, getStateFunc base.GetStateFunc) (BlockWriter, error) {
 		writer.proposal = proposal
 
 		if getStateFunc != nil {
@@ -226,7 +226,7 @@ func (t *testDefaultProposalProcessor) TestNew() {
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, nil, nil)
 	_ = (interface{})(opp).(ProposalProcessor)
 
-	base.EqualProposalSignedFact(t.Assert(), pr, opp.Proposal())
+	base.EqualProposalSignFact(t.Assert(), pr, opp.Proposal())
 }
 
 func (t *testDefaultProposalProcessor) TestCollectOperations() {
@@ -263,7 +263,7 @@ func (t *testDefaultProposalProcessor) TestCollectOperations() {
 		t.NotNil(a)
 		t.NotNil(b)
 
-		base.EqualSignedFact(t.Assert(), a, b)
+		base.EqualSignFact(t.Assert(), a, b)
 	}
 }
 
@@ -363,7 +363,7 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsFailedButIgnored() {
 		t.NotNil(a)
 		t.NotNil(b)
 
-		base.EqualSignedFact(t.Assert(), a, b)
+		base.EqualSignFact(t.Assert(), a, b)
 	}
 }
 
@@ -419,7 +419,7 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsInvalidError() {
 		t.NotNil(a)
 		t.NotNil(b)
 
-		base.EqualSignedFact(t.Assert(), a, b)
+		base.EqualSignFact(t.Assert(), a, b)
 	}
 }
 

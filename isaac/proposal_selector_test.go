@@ -32,7 +32,7 @@ func newDummyProposalPool(size int) *dummyProposalPool {
 	}
 }
 
-func (p *dummyProposalPool) Proposal(facthash util.Hash) (base.ProposalSignedFact, bool, error) {
+func (p *dummyProposalPool) Proposal(facthash util.Hash) (base.ProposalSignFact, bool, error) {
 	p.RLock()
 	defer p.RUnlock()
 
@@ -56,7 +56,7 @@ func (p *dummyProposalPool) ProposalBytes(facthash util.Hash) (hint.Hint, []byte
 	return jsonenc.JSONEncoderHint, nil, b, true, nil
 }
 
-func (p *dummyProposalPool) ProposalByPoint(point base.Point, proposer base.Address) (base.ProposalSignedFact, bool, error) {
+func (p *dummyProposalPool) ProposalByPoint(point base.Point, proposer base.Address) (base.ProposalSignFact, bool, error) {
 	p.RLock()
 	defer p.RUnlock()
 
@@ -72,7 +72,7 @@ func (p *dummyProposalPool) ProposalByPoint(point base.Point, proposer base.Addr
 	}
 }
 
-func (p *dummyProposalPool) SetProposal(pr base.ProposalSignedFact) (bool, error) {
+func (p *dummyProposalPool) SetProposal(pr base.ProposalSignFact) (bool, error) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -87,7 +87,7 @@ func (p *dummyProposalPool) SetProposal(pr base.ProposalSignedFact) (bool, error
 	return true, nil
 }
 
-func (p *dummyProposalPool) get(facthash string) (base.ProposalSignedFact, bool, error) {
+func (p *dummyProposalPool) get(facthash string) (base.ProposalSignFact, bool, error) {
 	switch i, err := p.facthashs.Get(facthash); {
 	case errors.Is(err, gcache.KeyNotFoundError):
 		return nil, false, nil
@@ -96,7 +96,7 @@ func (p *dummyProposalPool) get(facthash string) (base.ProposalSignedFact, bool,
 	case i == nil:
 		return nil, false, nil
 	default:
-		return i.(base.ProposalSignedFact), true, nil
+		return i.(base.ProposalSignFact), true, nil
 	}
 }
 
@@ -146,7 +146,7 @@ func (t *testBaseProposalSelector) TestNew() {
 		func(base.Height) ([]base.Node, bool, error) {
 			return nodes, true, nil
 		},
-		func(ctx context.Context, point base.Point, proposer base.Address) (base.ProposalSignedFact, error) {
+		func(ctx context.Context, point base.Point, proposer base.Address) (base.ProposalSignFact, error) {
 			for i := range nodes {
 				n := nodes[i]
 				if !n.Address().Equal(proposer) {
@@ -192,7 +192,7 @@ func (t *testBaseProposalSelector) TestOneNode() {
 		func(base.Height) ([]base.Node, bool, error) {
 			return nodes, true, nil
 		},
-		func(_ context.Context, point base.Point, proposer base.Address) (base.ProposalSignedFact, error) {
+		func(_ context.Context, point base.Point, proposer base.Address) (base.ProposalSignFact, error) {
 			return nil, errors.Errorf("proposer not found in suffrage")
 		},
 		pool,
@@ -227,7 +227,7 @@ func (t *testBaseProposalSelector) TestUnknownSuffrage() {
 		func(base.Height) ([]base.Node, bool, error) {
 			return nil, false, nil
 		},
-		func(_ context.Context, point base.Point, proposer base.Address) (base.ProposalSignedFact, error) {
+		func(_ context.Context, point base.Point, proposer base.Address) (base.ProposalSignFact, error) {
 			return nil, errors.Errorf("proposer not found in suffrage")
 		},
 		pool,
@@ -256,7 +256,7 @@ func (t *testBaseProposalSelector) TestUnknownManifestHash() {
 		func(base.Height) ([]base.Node, bool, error) {
 			return nodes, true, nil
 		},
-		func(_ context.Context, point base.Point, proposer base.Address) (base.ProposalSignedFact, error) {
+		func(_ context.Context, point base.Point, proposer base.Address) (base.ProposalSignFact, error) {
 			return nil, errors.Errorf("proposer not found in suffrage")
 		},
 		pool,
@@ -299,7 +299,7 @@ func (t *testBaseProposalSelector) TestFailedToReqeustByContext() {
 		func(base.Height) ([]base.Node, bool, error) {
 			return nodes, true, nil
 		},
-		func(ctx context.Context, point base.Point, proposer base.Address) (base.ProposalSignedFact, error) {
+		func(ctx context.Context, point base.Point, proposer base.Address) (base.ProposalSignFact, error) {
 			if proposer.Equal(nodes[2].Address()) {
 				return nil, context.Canceled
 			}
@@ -353,7 +353,7 @@ func (t *testBaseProposalSelector) TestAllFailedToReqeust() {
 		func(base.Height) ([]base.Node, bool, error) {
 			return nodes, true, nil
 		},
-		func(_ context.Context, point base.Point, proposer base.Address) (base.ProposalSignedFact, error) {
+		func(_ context.Context, point base.Point, proposer base.Address) (base.ProposalSignFact, error) {
 			return nil, errors.Errorf("proposer not found in suffrage")
 		},
 		pool,
@@ -388,10 +388,10 @@ func (t *testBaseProposalSelector) TestContextCanceled() {
 		func(base.Height) ([]base.Node, bool, error) {
 			return nodes, true, nil
 		},
-		func(ctx context.Context, point base.Point, proposer base.Address) (base.ProposalSignedFact, error) {
+		func(ctx context.Context, point base.Point, proposer base.Address) (base.ProposalSignFact, error) {
 			done := make(chan struct{}, 1)
 
-			var pr base.ProposalSignedFact
+			var pr base.ProposalSignFact
 			var err error
 			go func() {
 				select {
@@ -460,10 +460,10 @@ func (t *testBaseProposalSelector) TestMainContextCanceled() {
 		func(base.Height) ([]base.Node, bool, error) {
 			return nodes, true, nil
 		},
-		func(ctx context.Context, point base.Point, proposer base.Address) (base.ProposalSignedFact, error) {
+		func(ctx context.Context, point base.Point, proposer base.Address) (base.ProposalSignFact, error) {
 			done := make(chan struct{}, 1)
 
-			var pr base.ProposalSignedFact
+			var pr base.ProposalSignFact
 			var err error
 			go func() {
 				<-time.After(requestdelay)
@@ -507,7 +507,7 @@ func (t *testBaseProposalSelector) TestMainContextCanceled() {
 
 	done := make(chan struct{}, 1)
 
-	var pr base.ProposalSignedFact
+	var pr base.ProposalSignFact
 	var err error
 	go func() {
 		pr, err = p.Select(ctx, point)

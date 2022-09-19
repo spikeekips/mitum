@@ -277,7 +277,7 @@ func (t *testSuffrageProof) TestEncode() {
 		{Hint: isaac.SuffrageNodesStateValueHint, Instance: isaac.SuffrageNodesStateValue{}},
 		{Hint: isaac.NodeHint, Instance: base.BaseNode{}},
 		{Hint: isaac.ACCEPTVoteproofHint, Instance: isaac.ACCEPTVoteproof{}},
-		{Hint: isaac.ACCEPTBallotSignedFactHint, Instance: isaac.ACCEPTBallotSignedFact{}},
+		{Hint: isaac.ACCEPTBallotSignFactHint, Instance: isaac.ACCEPTBallotSignFact{}},
 		{Hint: isaac.ACCEPTBallotFactHint, Instance: isaac.ACCEPTBallotFact{}},
 		{Hint: SuffrageProofHint, Instance: SuffrageProof{}},
 	}

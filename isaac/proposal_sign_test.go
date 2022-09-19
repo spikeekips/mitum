@@ -12,25 +12,25 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type testProposalSignedFact struct {
+type testProposalSignFact struct {
 	suite.Suite
 	priv      base.Privatekey
 	networkID base.NetworkID
 }
 
-func (t *testProposalSignedFact) SetupTest() {
+func (t *testProposalSignFact) SetupTest() {
 	t.priv = base.NewMPrivatekey()
 	t.networkID = base.NetworkID(util.UUID().Bytes())
 }
 
-func (t *testProposalSignedFact) signedFact() ProposalSignedFact {
+func (t *testProposalSignFact) signfact() ProposalSignFact {
 	fact := NewProposalFact(
 		base.RawPoint(33, 44),
 		base.RandomAddress("pr"),
 		[]util.Hash{valuehash.RandomSHA256()},
 	)
 
-	sf := NewProposalSignedFact(
+	sf := NewProposalSignFact(
 		fact,
 	)
 	t.NoError(sf.Sign(t.priv, t.networkID))
@@ -38,26 +38,26 @@ func (t *testProposalSignedFact) signedFact() ProposalSignedFact {
 	return sf
 }
 
-func (t *testProposalSignedFact) TestNew() {
-	sf := t.signedFact()
+func (t *testProposalSignFact) TestNew() {
+	sf := t.signfact()
 
-	_ = (interface{})(sf).(base.ProposalSignedFact)
+	_ = (interface{})(sf).(base.ProposalSignFact)
 
 	t.NoError(sf.IsValid(t.networkID))
 }
 
-func (t *testProposalSignedFact) TestEmptySigned() {
-	sf := t.signedFact()
+func (t *testProposalSignFact) TestEmptySigns() {
+	sf := t.signfact()
 
-	sf.signed = base.BaseSigned{}
+	sf.sign = base.BaseSign{}
 
 	err := sf.IsValid(t.networkID)
 	t.Error(err)
 	t.True(errors.Is(err, util.ErrInvalid))
 }
 
-func (t *testProposalSignedFact) TestWrongFact() {
-	sf := t.signedFact()
+func (t *testProposalSignFact) TestWrongFact() {
+	sf := t.signfact()
 
 	sf.fact = NewProposalFact(
 		base.RawPoint(33, 44),
@@ -70,11 +70,11 @@ func (t *testProposalSignedFact) TestWrongFact() {
 	t.True(errors.Is(err, util.ErrInvalid))
 }
 
-func TestProposalSignedFact(tt *testing.T) {
-	suite.Run(tt, new(testProposalSignedFact))
+func TestProposalSignFact(tt *testing.T) {
+	suite.Run(tt, new(testProposalSignFact))
 }
 
-func TestProposalSignedFactJSON(tt *testing.T) {
+func TestProposalSignFactJSON(tt *testing.T) {
 	t := new(encoder.BaseTestEncode)
 
 	enc := jsonenc.NewEncoder()
@@ -85,13 +85,13 @@ func TestProposalSignedFactJSON(tt *testing.T) {
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: ProposalFactHint, Instance: ProposalFact{}}))
-		t.NoError(enc.Add(encoder.DecodeDetail{Hint: ProposalSignedFactHint, Instance: ProposalSignedFact{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: ProposalSignFactHint, Instance: ProposalSignFact{}}))
 
 		fact := NewProposalFact(base.RawPoint(33, 44),
 			base.RandomAddress("pr"),
 			[]util.Hash{valuehash.RandomSHA256()},
 		)
-		sf := NewProposalSignedFact(
+		sf := NewProposalSignFact(
 			fact,
 		)
 		t.NoError(sf.Sign(priv, networkID))
@@ -106,19 +106,19 @@ func TestProposalSignedFactJSON(tt *testing.T) {
 		i, err := enc.Decode(b)
 		t.NoError(err)
 
-		sf, ok := i.(ProposalSignedFact)
+		sf, ok := i.(ProposalSignFact)
 		t.True(ok)
 		t.NoError(sf.IsValid(networkID))
 
 		return i
 	}
 	t.Compare = func(a, b interface{}) {
-		as, ok := a.(ProposalSignedFact)
+		as, ok := a.(ProposalSignFact)
 		t.True(ok)
-		bs, ok := b.(ProposalSignedFact)
+		bs, ok := b.(ProposalSignFact)
 		t.True(ok)
 
-		base.EqualProposalSignedFact(t.Assert(), as, bs)
+		base.EqualProposalSignFact(t.Assert(), as, bs)
 	}
 
 	suite.Run(tt, t)

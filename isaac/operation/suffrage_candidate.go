@@ -81,7 +81,7 @@ func (op SuffrageCandidate) IsValid(networkID []byte) error {
 		return e.Wrap(err)
 	}
 
-	sfs := op.Signed()
+	sfs := op.Signs()
 
 	fact, ok := op.Fact().(SuffrageCandidateFact)
 	if !ok {
@@ -91,7 +91,7 @@ func (op SuffrageCandidate) IsValid(networkID []byte) error {
 	var foundsigner bool
 
 	for i := range sfs {
-		ns := sfs[i].(base.NodeSigned) //nolint:forcetypeassert //...
+		ns := sfs[i].(base.NodeSign) //nolint:forcetypeassert //...
 
 		switch {
 		case !ns.Node().Equal(fact.Address()):
@@ -103,7 +103,7 @@ func (op SuffrageCandidate) IsValid(networkID []byte) error {
 		foundsigner = true
 
 		if err := sfs[i].Verify(networkID, op.Fact().Hash().Bytes()); err != nil {
-			return e.Wrapf(err, "failed to verify signed by Candidate")
+			return e.Wrapf(err, "failed to verify sign by Candidate")
 		}
 
 		break

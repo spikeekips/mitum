@@ -6,34 +6,34 @@ import (
 	"github.com/spikeekips/mitum/util/localtime"
 )
 
-type BaseSignedJSONMarshaler struct {
+type BaseSignJSONMarshaler struct {
 	SignedAt  localtime.Time `json:"signed_at"`
 	Signer    Publickey      `json:"signer"`
 	Signature Signature      `json:"signature"`
 }
 
-func (si BaseSigned) JSONMarshaler() BaseSignedJSONMarshaler {
-	return BaseSignedJSONMarshaler{
+func (si BaseSign) JSONMarshaler() BaseSignJSONMarshaler {
+	return BaseSignJSONMarshaler{
 		Signer:    si.signer,
 		Signature: si.signature,
 		SignedAt:  localtime.New(si.signedAt),
 	}
 }
 
-func (si BaseSigned) MarshalJSON() ([]byte, error) {
+func (si BaseSign) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(si.JSONMarshaler())
 }
 
-type baseSignedJSONUnmarshaler struct {
+type baseSignJSONUnmarshaler struct {
 	SignedAt  localtime.Time `json:"signed_at"`
 	Signer    string         `json:"signer"`
 	Signature Signature      `json:"signature"`
 }
 
-func (si *BaseSigned) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (si *BaseSign) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	e := util.StringErrorFunc("faied to decode BaseSign")
 
-	var u baseSignedJSONUnmarshaler
+	var u baseSignJSONUnmarshaler
 	if err := util.UnmarshalJSON(b, &u); err != nil {
 		return e(err, "")
 	}
@@ -50,30 +50,30 @@ func (si *BaseSigned) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	return nil
 }
 
-type BaseNodeSignedJSONMarshaler struct {
+type BaseNodeSignJSONMarshaler struct {
 	Node Address `json:"node"`
-	BaseSignedJSONMarshaler
+	BaseSignJSONMarshaler
 }
 
-func (si BaseNodeSigned) JSONMarshaler() BaseNodeSignedJSONMarshaler {
-	return BaseNodeSignedJSONMarshaler{
-		BaseSignedJSONMarshaler: si.BaseSigned.JSONMarshaler(),
-		Node:                    si.node,
+func (si BaseNodeSign) JSONMarshaler() BaseNodeSignJSONMarshaler {
+	return BaseNodeSignJSONMarshaler{
+		BaseSignJSONMarshaler: si.BaseSign.JSONMarshaler(),
+		Node:                  si.node,
 	}
 }
 
-func (si BaseNodeSigned) MarshalJSON() ([]byte, error) {
+func (si BaseNodeSign) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(si.JSONMarshaler())
 }
 
-type baseNodeSignedJSONUnmarshaler struct {
+type baseNodeSignJSONUnmarshaler struct {
 	Node string `json:"node"`
 }
 
-func (si *BaseNodeSigned) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode BaseNodeSigned")
+func (si *BaseNodeSign) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+	e := util.StringErrorFunc("failed to decode BaseNodeSign")
 
-	var u baseNodeSignedJSONUnmarshaler
+	var u baseNodeSignJSONUnmarshaler
 	if err := util.UnmarshalJSON(b, &u); err != nil {
 		return e(err, "")
 	}
@@ -85,7 +85,7 @@ func (si *BaseNodeSigned) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		si.node = ad
 	}
 
-	if err := si.BaseSigned.DecodeJSON(b, enc); err != nil {
+	if err := si.BaseSign.DecodeJSON(b, enc); err != nil {
 		return e(err, "")
 	}
 

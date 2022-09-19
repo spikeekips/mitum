@@ -43,7 +43,7 @@ func NewLocalFSImporter(root string, enc encoder.Encoder, m base.BlockMap) (*Loc
 	}, nil
 }
 
-// WriteMap writes BlockMap; BlockMap should be already signed.
+// WriteMap writes BlockMap; BlockMap should be already sign.
 func (l *LocalFSImporter) WriteMap(m base.BlockMap) error {
 	e := util.StringErrorFunc("failed to write map to localfs")
 

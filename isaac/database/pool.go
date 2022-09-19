@@ -61,7 +61,7 @@ func (db *TempPool) Close() error {
 	return nil
 }
 
-func (db *TempPool) Proposal(h util.Hash) (pr base.ProposalSignedFact, found bool, _ error) {
+func (db *TempPool) Proposal(h util.Hash) (pr base.ProposalSignFact, found bool, _ error) {
 	e := util.StringErrorFunc("failed to find proposal by hash")
 
 	switch b, found, err := db.st.Get(leveldbProposalKey(h)); {
@@ -84,7 +84,7 @@ func (db *TempPool) ProposalBytes(h util.Hash) (enchint hint.Hint, meta, body []
 	return db.getRecordBytes(leveldbProposalKey(h), db.st.Get)
 }
 
-func (db *TempPool) ProposalByPoint(point base.Point, proposer base.Address) (base.ProposalSignedFact, bool, error) {
+func (db *TempPool) ProposalByPoint(point base.Point, proposer base.Address) (base.ProposalSignFact, bool, error) {
 	e := util.StringErrorFunc("failed to find proposal by point")
 
 	switch b, found, err := db.st.Get(leveldbProposalPointKey(point, proposer)); {
@@ -102,7 +102,7 @@ func (db *TempPool) ProposalByPoint(point base.Point, proposer base.Address) (ba
 	}
 }
 
-func (db *TempPool) SetProposal(pr base.ProposalSignedFact) (bool, error) {
+func (db *TempPool) SetProposal(pr base.ProposalSignFact) (bool, error) {
 	e := util.StringErrorFunc("failed to put proposal")
 
 	key := leveldbProposalKey(pr.Fact().Hash())

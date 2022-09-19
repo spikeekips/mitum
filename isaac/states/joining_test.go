@@ -265,7 +265,7 @@ func (t *testJoiningHandler) TestFirstVoteproof() {
 	}
 	st.waitFirstVoteproof = 1
 
-	st.proposalSelector = isaac.DummyProposalSelector(func(_ context.Context, p base.Point) (base.ProposalSignedFact, error) {
+	st.proposalSelector = isaac.DummyProposalSelector(func(_ context.Context, p base.Point) (base.ProposalSignFact, error) {
 		return prpool.Get(p), nil
 	})
 
@@ -294,7 +294,7 @@ func (t *testJoiningHandler) TestFirstVoteproof() {
 		rbl, ok := bl.(base.INITBallot)
 		t.True(ok)
 
-		t.True(manifest.Hash().Equal(rbl.BallotSignedFact().BallotFact().PreviousBlock()))
+		t.True(manifest.Hash().Equal(rbl.BallotSignFact().BallotFact().PreviousBlock()))
 	}
 }
 
@@ -393,7 +393,7 @@ func (t *testJoiningHandler) TestINITVoteproofNextRound() {
 		return true, nil
 	}
 
-	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
+	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -425,7 +425,7 @@ func (t *testJoiningHandler) TestINITVoteproofNextRound() {
 		rbl, ok := bl.(base.INITBallot)
 		t.True(ok)
 
-		t.True(manifest.Hash().Equal(rbl.BallotSignedFact().BallotFact().PreviousBlock()))
+		t.True(manifest.Hash().Equal(rbl.BallotSignFact().BallotFact().PreviousBlock()))
 	}
 }
 
@@ -451,7 +451,7 @@ func (t *testJoiningHandler) TestACCEPTVoteproofNextRound() {
 		return true, nil
 	}
 
-	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
+	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -483,7 +483,7 @@ func (t *testJoiningHandler) TestACCEPTVoteproofNextRound() {
 		rbl, ok := bl.(base.INITBallot)
 		t.True(ok)
 
-		t.True(manifest.Hash().Equal(rbl.BallotSignedFact().BallotFact().PreviousBlock()))
+		t.True(manifest.Hash().Equal(rbl.BallotSignFact().BallotFact().PreviousBlock()))
 	}
 }
 
@@ -511,7 +511,7 @@ func (t *testJoiningHandler) TestLastINITVoteproofNextRound() {
 		return true, nil
 	}
 
-	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
+	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -542,7 +542,7 @@ func (t *testJoiningHandler) TestLastINITVoteproofNextRound() {
 		rbl, ok := bl.(base.INITBallot)
 		t.True(ok)
 
-		t.True(manifest.Hash().Equal(rbl.BallotSignedFact().BallotFact().PreviousBlock()))
+		t.True(manifest.Hash().Equal(rbl.BallotSignFact().BallotFact().PreviousBlock()))
 	}
 }
 
@@ -570,7 +570,7 @@ func (t *testJoiningHandler) TestLastACCEPTVoteproofNextRound() {
 		return true, nil
 	}
 
-	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
+	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -601,7 +601,7 @@ func (t *testJoiningHandler) TestLastACCEPTVoteproofNextRound() {
 		rbl, ok := bl.(base.INITBallot)
 		t.True(ok)
 
-		t.True(manifest.Hash().Equal(rbl.BallotSignedFact().BallotFact().PreviousBlock()))
+		t.True(manifest.Hash().Equal(rbl.BallotSignFact().BallotFact().PreviousBlock()))
 	}
 }
 
@@ -630,7 +630,7 @@ func (t *testJoiningHandler) TestINITVoteproofNextRoundButNotInConsensusNodes() 
 		return nil
 	}
 
-	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
+	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()

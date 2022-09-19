@@ -14,7 +14,7 @@ import (
 type blockMapJSONMarshaler struct {
 	Manifest base.Manifest                               `json:"manifest"`
 	Items    map[base.BlockMapItemType]base.BlockMapItem `json:"items"`
-	base.BaseNodeSignedJSONMarshaler
+	base.BaseNodeSignJSONMarshaler
 	hint.BaseHinter
 	Writer  hint.Hint `json:"writer"`
 	Encoder hint.Hint `json:"encoder"`
@@ -33,12 +33,12 @@ func (m BlockMap) MarshalJSON() ([]byte, error) {
 	})
 
 	return util.MarshalJSON(blockMapJSONMarshaler{
-		BaseHinter:                  m.BaseHinter,
-		BaseNodeSignedJSONMarshaler: m.BaseNodeSigned.JSONMarshaler(),
-		Writer:                      m.writer,
-		Encoder:                     m.encoder,
-		Manifest:                    m.manifest,
-		Items:                       items,
+		BaseHinter:                m.BaseHinter,
+		BaseNodeSignJSONMarshaler: m.BaseNodeSign.JSONMarshaler(),
+		Writer:                    m.writer,
+		Encoder:                   m.encoder,
+		Manifest:                  m.manifest,
+		Items:                     items,
 	})
 }
 
@@ -57,7 +57,7 @@ func (m *BlockMap) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "")
 	}
 
-	if err := m.BaseNodeSigned.DecodeJSON(b, enc); err != nil {
+	if err := m.BaseNodeSign.DecodeJSON(b, enc); err != nil {
 		return e(err, "")
 	}
 

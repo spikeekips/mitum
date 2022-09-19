@@ -338,7 +338,7 @@ type voterecords struct {
 	voted                        map[string]base.Ballot
 	suf                          *util.Locked
 	set                          []string
-	sfs                          []base.BallotSignedFact
+	sfs                          []base.BallotSignFact
 	stagepoint                   base.StagePoint
 	sync.RWMutex
 	f bool
@@ -370,7 +370,7 @@ func (vr *voterecords) vote(bl base.Ballot) (voted bool, validated bool, err err
 	vr.Lock()
 	defer vr.Unlock()
 
-	node := bl.SignedFact().Node().String()
+	node := bl.SignFact().Node().String()
 	if _, found := vr.nodes[node]; found {
 		return false, false, nil
 	}
@@ -437,7 +437,7 @@ func (vr *voterecords) count(lastStagePoint base.StagePoint, threshold base.Thre
 				continue
 			}
 
-			vr.voted[bl.SignedFact().Node().String()] = bl
+			vr.voted[bl.SignFact().Node().String()] = bl
 
 			if !vpchecked {
 				ok, found := isNewVoteproof(bl.Voteproof(), lastStagePoint, threshold)
@@ -482,15 +482,15 @@ func (vr *voterecords) countFromBallots(threshold base.Threshold) base.Voteproof
 		suf = i
 	}
 
-	collectedsfs := make([]base.BallotSignedFact, len(vr.voted))
+	collectedsfs := make([]base.BallotSignFact, len(vr.voted))
 	var i int
 
 	for k := range vr.voted {
-		collectedsfs[i] = vr.voted[k].SignedFact()
+		collectedsfs[i] = vr.voted[k].SignFact()
 		i++
 	}
 
-	set, sfs, m, err := base.CountBallotSignedFacts(collectedsfs)
+	set, sfs, m, err := base.CountBallotSignFacts(collectedsfs)
 	if err != nil {
 		return nil
 	}
@@ -529,7 +529,7 @@ func (vr *voterecords) countFromBallots(threshold base.Threshold) base.Voteproof
 }
 
 func (vr *voterecords) newVoteproof(
-	sfs []base.BallotSignedFact,
+	sfs []base.BallotSignFact,
 	majority base.BallotFact,
 	threshold base.Threshold,
 ) base.Voteproof {
@@ -537,7 +537,7 @@ func (vr *voterecords) newVoteproof(
 	case base.StageINIT:
 		vp := isaac.NewINITVoteproof(vr.stagepoint.Point)
 		_ = vp.
-			SetSignedFacts(sfs).
+			SetSignFacts(sfs).
 			SetMajority(majority).
 			SetThreshold(threshold).
 			Finish()
@@ -546,7 +546,7 @@ func (vr *voterecords) newVoteproof(
 	case base.StageACCEPT:
 		vp := isaac.NewACCEPTVoteproof(vr.stagepoint.Point)
 		_ = vp.
-			SetSignedFacts(sfs).
+			SetSignFacts(sfs).
 			SetMajority(majority).
 			SetThreshold(threshold).
 			Finish()
@@ -623,17 +623,17 @@ func isValidBallotWithSuffrage(
 	getSuffrage isaac.GetSuffrageByBlockHeight,
 	checkValid func(base.Voteproof, base.Suffrage) error,
 ) (bool, error) {
-	e := util.StringErrorFunc("invalid signed facts in ballot with suffrage")
+	e := util.StringErrorFunc("invalid sign facts in ballot with suffrage")
 
 	switch suf, found, err := getSuffrage(bl.Point().Height()); {
 	case err != nil:
 		return false, e(util.ErrInvalid.Wrap(err), "")
 	case !found:
 		return false, nil
-	case !suf.Exists(bl.SignedFact().Node()):
+	case !suf.Exists(bl.SignFact().Node()):
 		// NOTE ballot not in suffrage
 		return false, nil
-	case !suf.ExistsPublickey(bl.SignedFact().Node(), bl.SignedFact().Signer()):
+	case !suf.ExistsPublickey(bl.SignFact().Node(), bl.SignFact().Signer()):
 		return false, nil
 	}
 
@@ -649,7 +649,7 @@ func isValidVoteproofWithSuffrage(
 	getSuffrage isaac.GetSuffrageByBlockHeight,
 	checkValid func(base.Voteproof, base.Suffrage) error,
 ) error {
-	e := util.StringErrorFunc("invalid signed facts in voteproof with suffrage")
+	e := util.StringErrorFunc("invalid sign facts in voteproof with suffrage")
 
 	switch suf, found, err := getSuffrage(vp.Point().Height()); {
 	case err != nil:

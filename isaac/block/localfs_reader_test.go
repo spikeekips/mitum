@@ -42,8 +42,8 @@ func (t *testBaseLocalBlockFS) SetupSuite() {
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: base.StateFixedtreeHint, Instance: fixedtree.BaseNode{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.INITBallotFactHint, Instance: isaac.INITBallotFact{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.ACCEPTBallotFactHint, Instance: isaac.ACCEPTBallotFact{}}))
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.INITBallotSignedFactHint, Instance: isaac.INITBallotSignedFact{}}))
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.ACCEPTBallotSignedFactHint, Instance: isaac.ACCEPTBallotSignedFact{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.INITBallotSignFactHint, Instance: isaac.INITBallotSignFact{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.ACCEPTBallotSignFactHint, Instance: isaac.ACCEPTBallotSignFact{}}))
 }
 
 func (t *testBaseLocalBlockFS) SetupTest() {
@@ -109,7 +109,7 @@ func (t *testBaseLocalBlockFS) walkDirectory(root string, a ...any) {
 
 func (t *testBaseLocalBlockFS) preparefs(point base.Point) (
 	*LocalFSWriter,
-	base.ProposalSignedFact,
+	base.ProposalSignFact,
 	[]base.Operation,
 	fixedtree.Tree,
 	[]base.State,
@@ -126,7 +126,7 @@ func (t *testBaseLocalBlockFS) preparefs(point base.Point) (
 	t.NoError(fs.SetManifest(ctx, manifest))
 
 	// NOTE set proposal
-	pr := isaac.NewProposalSignedFact(isaac.NewProposalFact(point, t.Local.Address(), []util.Hash{valuehash.RandomSHA256()}))
+	pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), []util.Hash{valuehash.RandomSHA256()}))
 	_ = pr.Sign(t.Local.Privatekey(), t.LocalParams.NetworkID())
 	t.NoError(fs.SetProposal(ctx, pr))
 
@@ -277,7 +277,7 @@ func (t *testLocalFSReader) TestReader() {
 		hinter, err := t.Enc.Decode(b)
 		t.NoError(err)
 
-		_ = hinter.(base.ProposalSignedFact)
+		_ = hinter.(base.ProposalSignFact)
 	})
 
 	t.Run("known, but not found", func() {
@@ -346,7 +346,7 @@ func (t *testLocalFSReader) TestChecksumReader() {
 		hinter, err := t.Enc.Decode(b)
 		t.NoError(err)
 
-		_ = hinter.(base.ProposalSignedFact)
+		_ = hinter.(base.ProposalSignFact)
 	})
 
 	t.Run("known, but not found", func() {
@@ -402,10 +402,10 @@ func (t *testLocalFSReader) TestItem() {
 		t.True(found)
 		t.NotNil(v)
 
-		upr, ok := v.(base.ProposalSignedFact)
+		upr, ok := v.(base.ProposalSignFact)
 		t.True(ok)
 
-		base.EqualProposalSignedFact(t.Assert(), pr, upr)
+		base.EqualProposalSignFact(t.Assert(), pr, upr)
 	})
 
 	t.Run("operations", func() {
@@ -536,10 +536,10 @@ func (t *testLocalFSReader) TestWrongChecksum() {
 		t.True(found)
 		t.NotNil(v)
 
-		upr, ok := v.(base.ProposalSignedFact)
+		upr, ok := v.(base.ProposalSignFact)
 		t.True(ok)
 
-		base.EqualProposalSignedFact(t.Assert(), pr, upr)
+		base.EqualProposalSignFact(t.Assert(), pr, upr)
 	})
 
 	// NOTE modify proposal.json

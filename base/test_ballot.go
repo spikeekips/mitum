@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func EqualBallotSignedFact(t *assert.Assertions, a, b BallotSignedFact) {
+func EqualBallotSignFact(t *assert.Assertions, a, b BallotSignFact) {
 	switch {
 	case a == nil && b == nil:
 		return
@@ -19,7 +19,7 @@ func EqualBallotSignedFact(t *assert.Assertions, a, b BallotSignedFact) {
 		return
 	}
 
-	EqualSignedFact(t, a, b)
+	EqualSignFact(t, a, b)
 
 	aht := a.(hint.Hinter).Hint()
 	bht := b.(hint.Hinter).Hint()
@@ -29,12 +29,12 @@ func EqualBallotSignedFact(t *assert.Assertions, a, b BallotSignedFact) {
 
 	var af, bf BallotFact
 	switch at := a.(type) {
-	case INITBallotSignedFact:
+	case INITBallotSignFact:
 		af = at.BallotFact()
-		bf = b.(INITBallotSignedFact).BallotFact()
-	case ACCEPTBallotSignedFact:
+		bf = b.(INITBallotSignFact).BallotFact()
+	case ACCEPTBallotSignFact:
 		af = at.BallotFact()
-		bf = b.(ACCEPTBallotSignedFact).BallotFact()
+		bf = b.(ACCEPTBallotSignFact).BallotFact()
 	}
 
 	EqualBallotFact(t, af, bf)
@@ -76,6 +76,6 @@ func EqualBallot(t *assert.Assertions, a, b Ballot) {
 	t.Equal(a.HashBytes(), b.HashBytes())
 	t.Equal(a.Point(), b.Point())
 
-	EqualBallotSignedFact(t, a.SignedFact(), b.SignedFact())
+	EqualBallotSignFact(t, a.SignFact(), b.SignFact())
 	EqualVoteproof(t, a.Voteproof(), b.Voteproof())
 }

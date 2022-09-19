@@ -12,25 +12,25 @@ import (
 )
 
 type baseSealJSONMarshaler struct {
-	Hash   util.Hash  `json:"hash"`
-	Signed BaseSigned `json:"signed"`
-	Body   []SealBody `json:"body"`
+	Hash util.Hash  `json:"hash"`
+	Sign BaseSign   `json:"sign"`
+	Body []SealBody `json:"body"`
 	hint.BaseHinter
 }
 
 func (sl BaseSeal) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(baseSealJSONMarshaler{
 		BaseHinter: sl.BaseHinter,
-		Signed:     sl.signed,
+		Sign:       sl.sign,
 		Hash:       sl.h,
 		Body:       sl.body,
 	})
 }
 
 type baseSealJSONUnmarshaler struct {
-	Hash   valuehash.HashDecoder `json:"hash"`
-	Signed json.RawMessage       `json:"signed"`
-	Body   []json.RawMessage     `json:"body"`
+	Hash valuehash.HashDecoder `json:"hash"`
+	Sign json.RawMessage       `json:"sign"`
+	Body []json.RawMessage     `json:"body"`
 }
 
 func (sl *BaseSeal) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
@@ -41,8 +41,8 @@ func (sl *BaseSeal) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "")
 	}
 
-	var us BaseSigned
-	if err := us.DecodeJSON(u.Signed, enc); err != nil {
+	var us BaseSign
+	if err := us.DecodeJSON(u.Sign, enc); err != nil {
 		return e(err, "")
 	}
 
@@ -55,7 +55,7 @@ func (sl *BaseSeal) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	}
 
 	sl.h = u.Hash.Hash()
-	sl.signed = us
+	sl.sign = us
 
 	return nil
 }

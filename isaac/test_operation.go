@@ -103,13 +103,13 @@ type DummyOperation struct {
 	hint.BaseHinter
 	h          util.Hash
 	fact       DummyOperationFact
-	signed     base.BaseSigned
+	sign       base.BaseSign
 	preprocess func(context.Context, base.GetStateFunc) (base.OperationProcessReasonError, error)
 	process    func(context.Context, base.GetStateFunc) ([]base.StateMergeValue, base.OperationProcessReasonError, error)
 }
 
 func NewDummyOperation(fact DummyOperationFact, priv base.Privatekey, networkID base.NetworkID) (DummyOperation, error) {
-	signed, err := base.NewBaseSignedFromFact(
+	sign, err := base.NewBaseSignFromFact(
 		priv,
 		networkID,
 		fact,
@@ -120,7 +120,7 @@ func NewDummyOperation(fact DummyOperationFact, priv base.Privatekey, networkID 
 
 	return DummyOperation{
 		BaseHinter: hint.NewBaseHinter(DummyOperationHint),
-		h:          valuehash.RandomSHA256(), fact: fact, signed: signed,
+		h:          valuehash.RandomSHA256(), fact: fact, sign: sign,
 	}, nil
 }
 
@@ -128,8 +128,8 @@ func (op DummyOperation) Hash() util.Hash {
 	return op.h
 }
 
-func (op DummyOperation) Signed() []base.Signed {
-	return []base.Signed{op.signed}
+func (op DummyOperation) Signs() []base.Sign {
+	return []base.Sign{op.sign}
 }
 
 func (op DummyOperation) Fact() base.Fact {
@@ -151,22 +151,22 @@ func (op DummyOperation) IsValid([]byte) error {
 func (op DummyOperation) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
 		hint.HintedJSONHead
-		H      util.Hash
-		Fact   DummyOperationFact
-		Signed base.BaseSigned
+		H    util.Hash
+		Fact DummyOperationFact
+		Sign base.BaseSign
 	}{
 		HintedJSONHead: hint.NewHintedJSONHead(op.Hint()),
 		H:              op.h,
 		Fact:           op.fact,
-		Signed:         op.signed,
+		Sign:           op.sign,
 	})
 }
 
 func (op *DummyOperation) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	var u struct {
-		H      valuehash.HashDecoder
-		Fact   json.RawMessage
-		Signed json.RawMessage
+		H    valuehash.HashDecoder
+		Fact json.RawMessage
+		Sign json.RawMessage
 	}
 	if err := enc.Unmarshal(b, &u); err != nil {
 		return err
@@ -178,12 +178,12 @@ func (op *DummyOperation) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return err
 	}
 
-	var bs base.BaseSigned
-	switch err := bs.DecodeJSON(u.Signed, enc); {
+	var bs base.BaseSign
+	switch err := bs.DecodeJSON(u.Sign, enc); {
 	case err != nil:
 		return err
 	default:
-		op.signed = bs
+		op.sign = bs
 	}
 
 	return nil

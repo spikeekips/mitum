@@ -14,20 +14,20 @@ type Voteproof interface {
 	Result() VoteResult
 	Threshold() Threshold
 	Majority() BallotFact
-	SignedFacts() []BallotSignedFact
+	SignFacts() []BallotSignFact
 	ID() string // NOTE ID is only unique in local machine
 }
 
 type INITVoteproof interface {
 	Voteproof
 	BallotMajority() INITBallotFact
-	BallotSignedFacts() []INITBallotSignedFact
+	BallotSignFacts() []INITBallotSignFact
 }
 
 type ACCEPTVoteproof interface {
 	Voteproof
 	BallotMajority() ACCEPTBallotFact
-	BallotSignedFacts() []ACCEPTBallotSignedFact
+	BallotSignFacts() []ACCEPTBallotSignFact
 }
 
 func EnsureINITVoteproof(vp Voteproof) (INITVoteproof, error) {

@@ -12,17 +12,17 @@ var (
 )
 
 type baseBallot struct {
-	vp         base.Voteproof
-	signedFact base.BallotSignedFact
+	vp       base.Voteproof
+	signFact base.BallotSignFact
 	util.DefaultJSONMarshaled
 	hint.BaseHinter
 }
 
-func newBaseBallot(ht hint.Hint, vp base.Voteproof, signedFact base.BallotSignedFact) baseBallot {
+func newBaseBallot(ht hint.Hint, vp base.Voteproof, signFact base.BallotSignFact) baseBallot {
 	return baseBallot{
 		BaseHinter: hint.NewBaseHinter(ht),
 		vp:         vp,
-		signedFact: signedFact,
+		signFact:   signFact,
 	}
 }
 
@@ -35,8 +35,8 @@ func (bl baseBallot) Point() base.StagePoint {
 	return bf.Point()
 }
 
-func (bl baseBallot) SignedFact() base.BallotSignedFact {
-	return bl.signedFact
+func (bl baseBallot) SignFact() base.BallotSignFact {
+	return bl.signFact
 }
 
 func (bl baseBallot) Voteproof() base.Voteproof {
@@ -62,21 +62,21 @@ func (bl baseBallot) HashBytes() []byte {
 			return bl.vp.HashBytes()
 		}),
 		util.DummyByter(func() []byte {
-			if bl.signedFact == nil {
+			if bl.signFact == nil {
 				return nil
 			}
 
-			return bl.signedFact.HashBytes()
+			return bl.signFact.HashBytes()
 		}),
 	)
 }
 
 func (bl baseBallot) ballotFact() base.BallotFact {
-	if bl.signedFact == nil || bl.signedFact.Fact() == nil {
+	if bl.signFact == nil || bl.signFact.Fact() == nil {
 		return nil
 	}
 
-	bf, ok := bl.signedFact.Fact().(base.BallotFact)
+	bf, ok := bl.signFact.Fact().(base.BallotFact)
 	if !ok {
 		return nil
 	}
@@ -87,16 +87,16 @@ func (bl baseBallot) ballotFact() base.BallotFact {
 func (bl *baseBallot) Sign(priv base.Privatekey, networkID base.NetworkID) error {
 	e := util.StringErrorFunc("failed to sign ballot")
 
-	signer, ok := bl.signedFact.(base.Signer)
+	signer, ok := bl.signFact.(base.Signer)
 	if !ok {
-		return e(nil, "invalid signed fact; missing Sign()")
+		return e(nil, "invalid sign fact; missing Sign()")
 	}
 
 	if err := signer.Sign(priv, networkID); err != nil {
 		return e(err, "")
 	}
 
-	bl.signedFact = signer.(base.BallotSignedFact) //nolint:forcetypeassert //...
+	bl.signFact = signer.(base.BallotSignFact) //nolint:forcetypeassert //...
 
 	return nil
 }
@@ -107,10 +107,10 @@ type INITBallot struct {
 
 func NewINITBallot(
 	vp base.Voteproof,
-	signedFact INITBallotSignedFact,
+	signfact INITBallotSignFact,
 ) INITBallot {
 	return INITBallot{
-		baseBallot: newBaseBallot(INITBallotHint, vp, signedFact),
+		baseBallot: newBaseBallot(INITBallotHint, vp, signfact),
 	}
 }
 
@@ -126,12 +126,12 @@ func (bl INITBallot) IsValid(networkID []byte) error {
 	return nil
 }
 
-func (bl INITBallot) BallotSignedFact() base.INITBallotSignedFact {
-	if bl.signedFact == nil {
+func (bl INITBallot) BallotSignFact() base.INITBallotSignFact {
+	if bl.signFact == nil {
 		return nil
 	}
 
-	return bl.signedFact.(base.INITBallotSignedFact) //nolint:forcetypeassert //...
+	return bl.signFact.(base.INITBallotSignFact) //nolint:forcetypeassert //...
 }
 
 type ACCEPTBallot struct {
@@ -140,10 +140,10 @@ type ACCEPTBallot struct {
 
 func NewACCEPTBallot(
 	ivp base.INITVoteproof,
-	signedFact ACCEPTBallotSignedFact,
+	signfact ACCEPTBallotSignFact,
 ) ACCEPTBallot {
 	return ACCEPTBallot{
-		baseBallot: newBaseBallot(ACCEPTBallotHint, ivp, signedFact),
+		baseBallot: newBaseBallot(ACCEPTBallotHint, ivp, signfact),
 	}
 }
 
@@ -159,10 +159,10 @@ func (bl ACCEPTBallot) IsValid(networkID []byte) error {
 	return nil
 }
 
-func (bl ACCEPTBallot) BallotSignedFact() base.ACCEPTBallotSignedFact {
-	if bl.signedFact == nil {
+func (bl ACCEPTBallot) BallotSignFact() base.ACCEPTBallotSignFact {
+	if bl.signFact == nil {
 		return nil
 	}
 
-	return bl.signedFact.(base.ACCEPTBallotSignedFact) //nolint:forcetypeassert //...
+	return bl.signFact.(base.ACCEPTBallotSignFact) //nolint:forcetypeassert //...
 }

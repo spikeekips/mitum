@@ -21,7 +21,7 @@ type baseVoteproof struct {
 	hint.BaseHinter
 	id string
 	util.DefaultJSONMarshaled
-	sfs       []base.BallotSignedFact
+	sfs       []base.BallotSignFact
 	point     base.StagePoint
 	threshold base.Threshold
 }
@@ -118,11 +118,11 @@ func (vp *baseVoteproof) SetThreshold(s base.Threshold) *baseVoteproof {
 	return vp
 }
 
-func (vp baseVoteproof) SignedFacts() []base.BallotSignedFact {
+func (vp baseVoteproof) SignFacts() []base.BallotSignFact {
 	return vp.sfs
 }
 
-func (vp *baseVoteproof) SetSignedFacts(sfs []base.BallotSignedFact) *baseVoteproof {
+func (vp *baseVoteproof) SetSignFacts(sfs []base.BallotSignFact) *baseVoteproof {
 	vp.sfs = sfs
 
 	return vp
@@ -162,11 +162,11 @@ func (vp INITVoteproof) BallotMajority() base.INITBallotFact {
 	return vp.majority.(base.INITBallotFact) //nolint:forcetypeassert //...
 }
 
-func (vp INITVoteproof) BallotSignedFacts() []base.INITBallotSignedFact {
-	vs := make([]base.INITBallotSignedFact, len(vp.sfs))
+func (vp INITVoteproof) BallotSignFacts() []base.INITBallotSignFact {
+	vs := make([]base.INITBallotSignFact, len(vp.sfs))
 
 	for i := range vp.sfs {
-		vs[i] = vp.sfs[i].(base.INITBallotSignedFact) //nolint:forcetypeassert //...
+		vs[i] = vp.sfs[i].(base.INITBallotSignFact) //nolint:forcetypeassert //...
 	}
 
 	return vs
@@ -202,11 +202,11 @@ func (vp ACCEPTVoteproof) BallotMajority() base.ACCEPTBallotFact {
 	return vp.majority.(base.ACCEPTBallotFact) //nolint:forcetypeassert //...
 }
 
-func (vp ACCEPTVoteproof) BallotSignedFacts() []base.ACCEPTBallotSignedFact {
-	vs := make([]base.ACCEPTBallotSignedFact, len(vp.sfs))
+func (vp ACCEPTVoteproof) BallotSignFacts() []base.ACCEPTBallotSignFact {
+	vs := make([]base.ACCEPTBallotSignFact, len(vp.sfs))
 
 	for i := range vp.sfs {
-		vs[i] = vp.sfs[i].(base.ACCEPTBallotSignedFact) //nolint:forcetypeassert //...
+		vs[i] = vp.sfs[i].(base.ACCEPTBallotSignFact) //nolint:forcetypeassert //...
 	}
 
 	return vs

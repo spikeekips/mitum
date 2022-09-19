@@ -25,7 +25,7 @@ type Manifest interface {
 }
 
 type BlockMap interface {
-	NodeSigned
+	NodeSign
 	Manifest() Manifest
 	Item(BlockMapItemType) (BlockMapItem, bool)
 	Items(func(BlockMapItem) bool)
@@ -187,7 +187,7 @@ func ValidateMaps(m BlockMap, maps []BlockMap, previous BlockMap) error {
 	return nil
 }
 
-func ValidateProposalWithManifest(proposal ProposalSignedFact, manifest Manifest) error {
+func ValidateProposalWithManifest(proposal ProposalSignFact, manifest Manifest) error {
 	e := util.StringErrorFunc("invalid proposal by manifest")
 
 	switch {
@@ -320,12 +320,12 @@ func ValidateGenesisOperation(op Operation, networkID NetworkID, signer Publicke
 		return err
 	}
 
-	signed := op.Signed()
+	signs := op.Signs()
 
 	var found bool
 
-	for i := range signed {
-		if signed[i].Signer().Equal(signer) {
+	for i := range signs {
+		if signs[i].Signer().Equal(signer) {
 			found = true
 
 			break
@@ -333,7 +333,7 @@ func ValidateGenesisOperation(op Operation, networkID NetworkID, signer Publicke
 	}
 
 	if !found {
-		return util.ErrInvalid.Errorf("genesis block creator not signed genesis operation, %q", op.Hash())
+		return util.ErrInvalid.Errorf("genesis block creator not signs genesis operation, %q", op.Hash())
 	}
 
 	return nil

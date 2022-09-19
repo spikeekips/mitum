@@ -70,7 +70,7 @@ func (t *baseTestConsensusHandler) newStateWithINITVoteproof(point base.Point, s
 	}
 
 	st.pps.SetMakeNew(pp.Make)
-	st.pps.SetGetProposal(func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error) {
+	st.pps.SetGetProposal(func(_ context.Context, facthash util.Hash) (base.ProposalSignFact, error) {
 		return prpool.ByHash(facthash)
 	})
 
@@ -80,7 +80,7 @@ func (t *baseTestConsensusHandler) newStateWithINITVoteproof(point base.Point, s
 	st.switchStateFunc = func(switchContext) error {
 		return nil
 	}
-	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
+	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -115,7 +115,7 @@ func (t *testConsensusHandler) TestFailedToFetchProposal() {
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
-	pps := isaac.NewProposalProcessors(nil, func(context.Context, util.Hash) (base.ProposalSignedFact, error) {
+	pps := isaac.NewProposalProcessors(nil, func(context.Context, util.Hash) (base.ProposalSignFact, error) {
 		return nil, util.ErrNotFound.Call()
 	})
 	pps.SetRetryLimit(1).SetRetryInterval(1)
@@ -164,7 +164,7 @@ func (t *testConsensusHandler) TestFailedToFetchProposal() {
 	}
 
 	prpool := t.PRPool
-	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
+	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
 		return prpool.Get(p), nil
 	})
 	st.params = t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
@@ -275,7 +275,7 @@ func (t *testConsensusHandler) TestExit() {
 		t.True(ok)
 
 		t.Equal(ivp.Point().Point, abl.Point().Point)
-		t.True(ivp.BallotMajority().Proposal().Equal(abl.BallotSignedFact().BallotFact().Proposal()))
+		t.True(ivp.BallotMajority().Proposal().Equal(abl.BallotSignFact().BallotFact().Proposal()))
 	}
 
 	t.NotNil(st.pps.Processor())
@@ -324,7 +324,7 @@ func (t *testConsensusHandler) TestProcessingProposalAfterEntered() {
 		t.True(ok)
 
 		t.Equal(ivp.Point().Point, abl.Point().Point)
-		t.True(ivp.BallotMajority().Proposal().Equal(abl.BallotSignedFact().BallotFact().Proposal()))
+		t.True(ivp.BallotMajority().Proposal().Equal(abl.BallotSignFact().BallotFact().Proposal()))
 	}
 }
 
@@ -340,7 +340,7 @@ func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailed() {
 	}
 
 	var i int
-	st.pps.SetGetProposal(func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error) {
+	st.pps.SetGetProposal(func(_ context.Context, facthash util.Hash) (base.ProposalSignFact, error) {
 		if i < 1 {
 			i++
 			return nil, errors.Errorf("findme")
@@ -545,8 +545,8 @@ func (t *testConsensusHandler) TestWithBallotbox() {
 	}
 
 	prpool := t.PRPool
-	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
-		var pr base.ProposalSignedFact
+	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
+		var pr base.ProposalSignFact
 
 		select {
 		case <-ctx.Done():
@@ -638,7 +638,7 @@ func (t *testConsensusHandler) TestEmptySuffrageNextBlock() {
 		return nil
 	}
 
-	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
+	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -712,7 +712,7 @@ func (t *testConsensusHandler) TestOutOfSuffrage() {
 		return nil
 	}
 
-	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
+	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()

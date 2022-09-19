@@ -14,10 +14,10 @@ type ProposalFact interface {
 	ProposedAt() time.Time
 }
 
-type ProposalSignedFact interface {
+type ProposalSignFact interface {
 	util.HashByter
 	util.IsValider
-	SignedFact
+	SignFact
 	Point() Point
 	ProposalFact() ProposalFact
 }
@@ -66,10 +66,10 @@ func IsValidProposalFact(fact ProposalFact) error {
 	return nil
 }
 
-func IsValidProposalSignedFact(sf ProposalSignedFact, networkID []byte) error {
-	e := util.StringErrorFunc("invalid ProposalSignedFact")
+func IsValidProposalSignFact(sf ProposalSignFact, networkID []byte) error {
+	e := util.StringErrorFunc("invalid ProposalSignFact")
 
-	if err := IsValidSignedFact(sf, networkID); err != nil {
+	if err := IsValidSignFact(sf, networkID); err != nil {
 		return e(err, "")
 	}
 

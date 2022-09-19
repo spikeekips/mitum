@@ -97,9 +97,9 @@ func EqualFact(t *assert.Assertions, a, b Fact) {
 	t.Equal(a.Token(), b.Token())
 }
 
-func EqualSignedFact(t *assert.Assertions, a, b SignedFact) {
+func EqualSignFact(t *assert.Assertions, a, b SignFact) {
 	t.Equal(a.HashBytes(), b.HashBytes())
 
 	EqualFact(t, a.Fact(), b.Fact())
-	EqualSigneds(t, a.Signed(), b.Signed())
+	EqualSigns(t, a.Signs(), b.Signs())
 }

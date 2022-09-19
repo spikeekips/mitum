@@ -224,20 +224,20 @@ var (
 )
 
 type DummyBlockMap struct {
-	BaseNodeSigned
+	BaseNodeSign
 	M Manifest
 }
 
 func NewDummyBlockMap(manifest Manifest) DummyBlockMap {
-	signed, _ := BaseNodeSignedFromBytes(
+	sign, _ := BaseNodeSignFromBytes(
 		RandomAddress(""),
 		NewMPrivatekey(),
 		util.UUID().Bytes(),
 		nil,
 	)
 	return DummyBlockMap{
-		BaseNodeSigned: signed,
-		M:              manifest,
+		BaseNodeSign: sign,
+		M:            manifest,
 	}
 }
 
@@ -275,11 +275,11 @@ func (m DummyBlockMap) IsValid([]byte) error {
 func (m DummyBlockMap) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
 		hint.HintedJSONHead
-		B BaseNodeSigned
+		B BaseNodeSign
 		M Manifest
 	}{
 		HintedJSONHead: hint.NewHintedJSONHead(m.Hint()),
-		B:              m.BaseNodeSigned,
+		B:              m.BaseNodeSign,
 		M:              m.M,
 	})
 }
@@ -294,7 +294,7 @@ func (m *DummyBlockMap) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return err
 	}
 
-	if err := m.BaseSigned.DecodeJSON(u.B, enc); err != nil {
+	if err := m.BaseSign.DecodeJSON(u.B, enc); err != nil {
 		return err
 	}
 

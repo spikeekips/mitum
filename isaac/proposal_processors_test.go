@@ -40,7 +40,7 @@ func (t *testProposalProcessors) TestProcess() {
 
 	pps := NewProposalProcessors(
 		pp.Make,
-		func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error) {
+		func(_ context.Context, facthash util.Hash) (base.ProposalSignFact, error) {
 			return t.PRPool.ByHash(facthash)
 		},
 	)
@@ -98,7 +98,7 @@ func (t *testProposalProcessors) TestAlreadyProcessing() {
 
 	pps := NewProposalProcessors(
 		pp.Make,
-		func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error) {
+		func(_ context.Context, facthash util.Hash) (base.ProposalSignFact, error) {
 			return t.PRPool.ByHash(facthash)
 		},
 	)
@@ -155,7 +155,7 @@ func (t *testProposalProcessors) TestCancelPrevious() {
 
 	pps := NewProposalProcessors(
 		pp.Make,
-		func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error) {
+		func(_ context.Context, facthash util.Hash) (base.ProposalSignFact, error) {
 			return t.PRPool.ByHash(facthash)
 		},
 	)
@@ -194,7 +194,7 @@ func (t *testProposalProcessors) TestCancelPrevious() {
 func (t *testProposalProcessors) TestFailedToFetchFact() {
 	pps := NewProposalProcessors(
 		NewDummyProposalProcessor().Make,
-		func(context.Context, util.Hash) (base.ProposalSignedFact, error) {
+		func(context.Context, util.Hash) (base.ProposalSignFact, error) {
 			return nil, util.ErrNotFound.Errorf("hehehe")
 		},
 	)
@@ -213,7 +213,7 @@ func (t *testProposalProcessors) TestFailedToFetchFact() {
 func (t *testProposalProcessors) TestFailedToFetchFactCanceled() {
 	pps := NewProposalProcessors(
 		NewDummyProposalProcessor().Make,
-		func(context.Context, util.Hash) (base.ProposalSignedFact, error) {
+		func(context.Context, util.Hash) (base.ProposalSignFact, error) {
 			return nil, context.Canceled
 		},
 	)
@@ -233,7 +233,7 @@ func (t *testProposalProcessors) TestRetryFetchFact() {
 	var try int64
 	pps := NewProposalProcessors(
 		NewDummyProposalProcessor().Make,
-		func(context.Context, util.Hash) (base.ProposalSignedFact, error) {
+		func(context.Context, util.Hash) (base.ProposalSignFact, error) {
 			if atomic.LoadInt64(&try) > 2 {
 				return nil, context.Canceled
 			}
@@ -259,7 +259,7 @@ func (t *testProposalProcessors) TestRetryFetchFactOverLimit() {
 	var try int64
 	pps := NewProposalProcessors(
 		NewDummyProposalProcessor().Make,
-		func(context.Context, util.Hash) (base.ProposalSignedFact, error) {
+		func(context.Context, util.Hash) (base.ProposalSignFact, error) {
 			atomic.AddInt64(&try, 1)
 
 			return nil, errors.Errorf("findme")
@@ -288,7 +288,7 @@ func (t *testProposalProcessors) TestProcessError() {
 
 	pps := NewProposalProcessors(
 		pp.Make,
-		func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error) {
+		func(_ context.Context, facthash util.Hash) (base.ProposalSignFact, error) {
 			return t.PRPool.ByHash(facthash)
 		},
 	)
@@ -318,7 +318,7 @@ func (t *testProposalProcessors) TestProcessIgnoreError() {
 
 	pps := NewProposalProcessors(
 		pp.Make,
-		func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error) {
+		func(_ context.Context, facthash util.Hash) (base.ProposalSignFact, error) {
 			return t.PRPool.ByHash(facthash)
 		},
 	)
@@ -348,7 +348,7 @@ func (t *testProposalProcessors) TestProcessContextCanceled() {
 
 	pps := NewProposalProcessors(
 		pp.Make,
-		func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error) {
+		func(_ context.Context, facthash util.Hash) (base.ProposalSignFact, error) {
 			return t.PRPool.ByHash(facthash)
 		},
 	)
@@ -386,7 +386,7 @@ func (t *testProposalProcessors) TestSaveError() {
 
 	pps := NewProposalProcessors(
 		pp.Make,
-		func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error) {
+		func(_ context.Context, facthash util.Hash) (base.ProposalSignFact, error) {
 			return t.PRPool.ByHash(facthash)
 		},
 	)

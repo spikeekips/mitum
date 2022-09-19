@@ -42,10 +42,10 @@ func (t *testBallotbox) SetupSuite() {
 func (t *testBallotbox) initBallot(node isaac.LocalNode, nodes []isaac.LocalNode, point base.Point, prev, proposal util.Hash) isaac.INITBallot {
 	afact := isaac.NewACCEPTBallotFact(point.PrevHeight(), valuehash.RandomSHA256(), prev)
 
-	asfs := make([]base.BallotSignedFact, len(nodes))
+	asfs := make([]base.BallotSignFact, len(nodes))
 	for i := range nodes {
 		n := nodes[i]
-		sf := isaac.NewACCEPTBallotSignedFact(n.Address(), afact)
+		sf := isaac.NewACCEPTBallotSignFact(n.Address(), afact)
 		t.NoError(sf.Sign(n.Privatekey(), t.networkID))
 		asfs[i] = sf
 	}
@@ -53,16 +53,16 @@ func (t *testBallotbox) initBallot(node isaac.LocalNode, nodes []isaac.LocalNode
 	avp := isaac.NewACCEPTVoteproof(afact.Point().Point)
 	avp.SetResult(base.VoteResultMajority).
 		SetMajority(afact).
-		SetSignedFacts(asfs).
+		SetSignFacts(asfs).
 		SetThreshold(base.Threshold(100)).
 		Finish()
 
 	fact := isaac.NewINITBallotFact(point, prev, proposal)
 
-	signedFact := isaac.NewINITBallotSignedFact(node.Address(), fact)
-	t.NoError(signedFact.Sign(node.Privatekey(), t.networkID))
+	signfact := isaac.NewINITBallotSignFact(node.Address(), fact)
+	t.NoError(signfact.Sign(node.Privatekey(), t.networkID))
 
-	return isaac.NewINITBallot(avp, signedFact)
+	return isaac.NewINITBallot(avp, signfact)
 }
 
 func (t *testBallotbox) acceptBallot(node isaac.LocalNode, nodes []isaac.LocalNode, point base.Point, pr, block util.Hash) isaac.ACCEPTBallot {
@@ -70,10 +70,10 @@ func (t *testBallotbox) acceptBallot(node isaac.LocalNode, nodes []isaac.LocalNo
 
 	ifact := isaac.NewINITBallotFact(point, prev, pr)
 
-	isfs := make([]base.BallotSignedFact, len(nodes))
+	isfs := make([]base.BallotSignFact, len(nodes))
 	for i := range nodes {
 		n := nodes[i]
-		sf := isaac.NewINITBallotSignedFact(n.Address(), ifact)
+		sf := isaac.NewINITBallotSignFact(n.Address(), ifact)
 		t.NoError(sf.Sign(n.Privatekey(), t.networkID))
 		isfs[i] = sf
 	}
@@ -81,17 +81,17 @@ func (t *testBallotbox) acceptBallot(node isaac.LocalNode, nodes []isaac.LocalNo
 	ivp := isaac.NewINITVoteproof(ifact.Point().Point)
 	ivp.SetResult(base.VoteResultMajority).
 		SetMajority(ifact).
-		SetSignedFacts(isfs).
+		SetSignFacts(isfs).
 		SetThreshold(base.Threshold(100)).
 		Finish()
 
 	fact := isaac.NewACCEPTBallotFact(point, pr, block)
 
-	signedFact := isaac.NewACCEPTBallotSignedFact(node.Address(), fact)
+	signfact := isaac.NewACCEPTBallotSignFact(node.Address(), fact)
 
-	t.NoError(signedFact.Sign(node.Privatekey(), t.networkID))
+	t.NoError(signfact.Sign(node.Privatekey(), t.networkID))
 
-	return isaac.NewACCEPTBallot(ivp, signedFact)
+	return isaac.NewACCEPTBallot(ivp, signfact)
 }
 
 func (t *testBallotbox) compareStagePoint(a base.StagePoint, i interface{}) {
@@ -106,7 +106,7 @@ func (t *testBallotbox) compareStagePoint(a base.StagePoint, i interface{}) {
 	t.Equal(0, a.Compare(b))
 }
 
-func (t *testBallotbox) TestVoteINITBallotSignedFact() {
+func (t *testBallotbox) TestVoteINITBallotSignFact() {
 	suf, nodes := isaac.NewTestSuffrage(1)
 	th := base.Threshold(100)
 
@@ -135,18 +135,18 @@ func (t *testBallotbox) TestVoteINITBallotSignedFact() {
 		t.Equal(point, vp.Point().Point)
 		t.Equal(th, vp.Threshold())
 
-		base.EqualBallotFact(t.Assert(), bl.SignedFact().Fact().(base.BallotFact), vp.Majority())
+		base.EqualBallotFact(t.Assert(), bl.SignFact().Fact().(base.BallotFact), vp.Majority())
 		t.Equal(base.VoteResultMajority, vp.Result())
 
 		t.True(time.Since(vp.FinishedAt()) < time.Millisecond*800)
-		t.Equal(1, len(vp.SignedFacts()))
-		base.EqualBallotSignedFact(t.Assert(), bl.SignedFact(), vp.SignedFacts()[0])
+		t.Equal(1, len(vp.SignFacts()))
+		base.EqualBallotSignFact(t.Assert(), bl.SignFact(), vp.SignFacts()[0])
 
 		t.compareStagePoint(box.lastStagePoint(), vp)
 	}
 }
 
-func (t *testBallotbox) TestVoteACCEPTBallotSignedFact() {
+func (t *testBallotbox) TestVoteACCEPTBallotSignFact() {
 	suf, nodes := isaac.NewTestSuffrage(1)
 	th := base.Threshold(100)
 
@@ -177,12 +177,12 @@ func (t *testBallotbox) TestVoteACCEPTBallotSignedFact() {
 		t.Equal(base.StageACCEPT, vp.Point().Stage())
 		t.Equal(th, vp.Threshold())
 
-		base.EqualBallotFact(t.Assert(), bl.SignedFact().Fact().(base.BallotFact), vp.Majority())
+		base.EqualBallotFact(t.Assert(), bl.SignFact().Fact().(base.BallotFact), vp.Majority())
 		t.Equal(base.VoteResultMajority, vp.Result())
 
 		t.True(time.Since(vp.FinishedAt()) < time.Millisecond*800)
-		t.Equal(1, len(vp.SignedFacts()))
-		base.EqualBallotSignedFact(t.Assert(), bl.SignedFact(), vp.SignedFacts()[0])
+		t.Equal(1, len(vp.SignFacts()))
+		base.EqualBallotSignFact(t.Assert(), bl.SignFact(), vp.SignFacts()[0])
 
 		t.compareStagePoint(box.lastStagePoint(), vp)
 	}
@@ -230,7 +230,7 @@ func (t *testBallotbox) TestVoteSamePointAndStageWithLastVoteproof() {
 	t.False(voted)
 }
 
-func (t *testBallotbox) TestOldBallotSignedFact() {
+func (t *testBallotbox) TestOldBallotSignFact() {
 	suf, nodes := isaac.NewTestSuffrage(2)
 	th := base.Threshold(100)
 
@@ -360,12 +360,12 @@ func (t *testBallotbox) TestNilSuffrageCount() {
 		t.Equal(base.StageINIT, vp.Point().Stage())
 		t.Equal(th, vp.Threshold())
 
-		base.EqualBallotFact(t.Assert(), bl.SignedFact().Fact().(base.BallotFact), vp.Majority())
+		base.EqualBallotFact(t.Assert(), bl.SignFact().Fact().(base.BallotFact), vp.Majority())
 		t.Equal(base.VoteResultMajority, vp.Result())
 
 		t.True(time.Since(vp.FinishedAt()) < time.Millisecond*800)
-		t.Equal(1, len(vp.SignedFacts()))
-		base.EqualBallotSignedFact(t.Assert(), bl.SignedFact(), vp.SignedFacts()[0])
+		t.Equal(1, len(vp.SignFacts()))
+		base.EqualBallotSignFact(t.Assert(), bl.SignFact(), vp.SignFacts()[0])
 
 		t.compareStagePoint(box.lastStagePoint(), vp)
 	}

@@ -26,12 +26,12 @@ func EqualVoteproof(t *assert.Assertions, a, b Voteproof) {
 
 	EqualBallotFact(t, a.Majority(), b.Majority())
 
-	t.Equal(len(a.SignedFacts()), len(b.SignedFacts()))
+	t.Equal(len(a.SignFacts()), len(b.SignFacts()))
 
-	as := a.SignedFacts()
-	bs := b.SignedFacts()
+	as := a.SignFacts()
+	bs := b.SignFacts()
 	for i := range as {
-		EqualBallotSignedFact(t, as[i], bs[i])
+		EqualBallotSignFact(t, as[i], bs[i])
 	}
 
 	t.Equal(a.Threshold(), b.Threshold())

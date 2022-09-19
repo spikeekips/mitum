@@ -83,7 +83,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestExpected() {
 		rbl, ok := bl.(base.INITBallot)
 		t.True(ok)
 
-		rfact := rbl.BallotSignedFact().BallotFact()
+		rfact := rbl.BallotSignFact().BallotFact()
 		t.Equal(avp.BallotMajority().NewBlock(), rfact.PreviousBlock())
 		t.True(nextpr.Fact().Hash().Equal(rfact.Proposal()))
 	}
@@ -165,7 +165,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestNotInConsensus() {
 		rbl, ok := bl.(base.INITBallot)
 		t.True(ok)
 
-		rfact := rbl.BallotSignedFact().BallotFact()
+		rfact := rbl.BallotSignFact().BallotFact()
 		t.Equal(avp.BallotMajority().NewBlock(), rfact.PreviousBlock())
 		t.True(nextpr.Fact().Hash().Equal(rfact.Proposal()))
 	}
@@ -288,7 +288,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestDraw() {
 		rbl, ok := bl.(base.INITBallot)
 		t.True(ok)
 
-		rfact := rbl.BallotSignedFact().BallotFact()
+		rfact := rbl.BallotSignFact().BallotFact()
 		t.Equal(ivp.BallotMajority().PreviousBlock(), rfact.PreviousBlock())
 		t.True(nextpr.Fact().Hash().Equal(rfact.Proposal()))
 	}
@@ -306,7 +306,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestDrawFailedProposalSel
 		return manifest, nil
 	}
 
-	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, point base.Point) (base.ProposalSignedFact, error) {
+	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, point base.Point) (base.ProposalSignFact, error) {
 		return nil, errors.Errorf("hahaha")
 	})
 
@@ -504,7 +504,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestHigherRoundDraw() {
 		rbl, ok := bl.(base.INITBallot)
 		t.True(ok)
 
-		rfact := rbl.BallotSignedFact().BallotFact()
+		rfact := rbl.BallotSignFact().BallotFact()
 		t.Equal(ivp.BallotMajority().PreviousBlock(), rfact.PreviousBlock())
 		t.True(nextpr.Fact().Hash().Equal(rfact.Proposal()))
 	}
@@ -584,7 +584,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndHigherHeight
 	_ = t.PRPool.Get(point.NextRound())
 
 	nextprch := make(chan base.Point, 1)
-	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
+	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -649,7 +649,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndHigherRound(
 	_ = t.PRPool.Get(point.NextRound())
 
 	nextprch := make(chan base.Point, 1)
-	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
+	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -715,7 +715,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndDrawAgain() 
 	nextpr := t.PRPool.Get(point.NextRound().NextRound())
 
 	newprch := make(chan base.Point, 1)
-	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignedFact, error) {
+	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -783,7 +783,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndDrawAgain() 
 
 		t.Equal(nextpr.Point(), bl.Point().Point)
 
-		rfact := rbl.BallotSignedFact().BallotFact()
+		rfact := rbl.BallotSignFact().BallotFact()
 		t.True(nextpr.Fact().Hash().Equal(rfact.Proposal()))
 	}
 }

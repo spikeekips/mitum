@@ -14,15 +14,15 @@ type Fact interface {
 	Token() Token
 }
 
-type SignedFact interface {
+type SignFact interface {
 	util.HashByter
 	Fact() Fact
-	Signed() []Signed
+	Signs() []Sign
 }
 
-type NodeSignedFact interface {
-	SignedFact
-	NodeSigned() []NodeSigned
+type NodeSignFact interface {
+	SignFact
+	NodeSigns() []NodeSign
 }
 
 type Token []byte
@@ -55,15 +55,15 @@ func IsValidFact(fact Fact, b []byte) error {
 	return nil
 }
 
-func IsValidSignedFact(sf SignedFact, networkID []byte) error {
-	e := util.ErrInvalid.Errorf("invalid SignedFact")
+func IsValidSignFact(sf SignFact, networkID []byte) error {
+	e := util.ErrInvalid.Errorf("invalid SignFact")
 
-	sfs := sf.Signed()
+	sfs := sf.Signs()
 	if len(sfs) < 1 {
-		return e.Errorf("empty SignedFact")
+		return e.Errorf("empty signs")
 	}
 
-	bs := make([]util.IsValider, len(sf.Signed())+1)
+	bs := make([]util.IsValider, len(sf.Signs())+1)
 	bs[0] = sf.Fact()
 
 	for i := range sfs {
@@ -71,14 +71,14 @@ func IsValidSignedFact(sf SignedFact, networkID []byte) error {
 	}
 
 	if err := util.CheckIsValid(networkID, false, bs...); err != nil {
-		return e.Wrapf(err, "invalid SignedFact")
+		return e.Wrapf(err, "invalid SignFact")
 	}
 
-	// NOTE caller should check the duplication of Signeds
+	// NOTE caller should check the duplication of Signs
 
 	for i := range sfs {
 		if err := sfs[i].Verify(networkID, sf.Fact().Hash().Bytes()); err != nil {
-			return e.Wrapf(err, "failed to verify signed")
+			return e.Wrapf(err, "failed to verify sign")
 		}
 	}
 

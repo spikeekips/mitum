@@ -11,16 +11,16 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
-func (pps *ProposalProcessors) SetMakeNew(f func(proposal base.ProposalSignedFact, previous base.Manifest) (ProposalProcessor, error)) {
+func (pps *ProposalProcessors) SetMakeNew(f func(proposal base.ProposalSignFact, previous base.Manifest) (ProposalProcessor, error)) {
 	pps.makenew = f
 }
 
-func (pps *ProposalProcessors) SetGetProposal(f func(_ context.Context, facthash util.Hash) (base.ProposalSignedFact, error)) {
+func (pps *ProposalProcessors) SetGetProposal(f func(_ context.Context, facthash util.Hash) (base.ProposalSignFact, error)) {
 	pps.getproposal = f
 }
 
 type DummyProposalProcessor struct {
-	proposal   base.ProposalSignedFact
+	proposal   base.ProposalSignFact
 	previous   base.Manifest
 	Processerr func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error)
 	Saveerr    func(context.Context, base.ACCEPTVoteproof) error
@@ -31,7 +31,7 @@ func NewDummyProposalProcessor() *DummyProposalProcessor {
 	return &DummyProposalProcessor{}
 }
 
-func (p *DummyProposalProcessor) Make(proposal base.ProposalSignedFact, previous base.Manifest) (ProposalProcessor, error) {
+func (p *DummyProposalProcessor) Make(proposal base.ProposalSignFact, previous base.Manifest) (ProposalProcessor, error) {
 	return DummyProposalProcessor{
 		proposal:   proposal,
 		previous:   previous,
@@ -65,12 +65,12 @@ func (p DummyProposalProcessor) Cancel() error {
 	return nil
 }
 
-func (p DummyProposalProcessor) Proposal() base.ProposalSignedFact {
+func (p DummyProposalProcessor) Proposal() base.ProposalSignFact {
 	return p.proposal
 }
 
-type DummyProposalSelector func(context.Context, base.Point) (base.ProposalSignedFact, error)
+type DummyProposalSelector func(context.Context, base.Point) (base.ProposalSignFact, error)
 
-func (ps DummyProposalSelector) Select(ctx context.Context, point base.Point) (base.ProposalSignedFact, error) {
+func (ps DummyProposalSelector) Select(ctx context.Context, point base.Point) (base.ProposalSignFact, error) {
 	return ps(ctx, point)
 }

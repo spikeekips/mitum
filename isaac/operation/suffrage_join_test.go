@@ -385,12 +385,12 @@ func (t *testSuffrageGenesisJoin) TestIsValid() {
 		t.NoError(op.Sign(t.priv, t.networkID))
 		t.NoError(op.Sign(base.NewMPrivatekey(), t.networkID))
 
-		t.Equal(2, len(op.Signed()))
+		t.Equal(2, len(op.Signs()))
 
 		err := op.IsValid(t.networkID)
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
-		t.ErrorContains(err, "multiple signed found")
+		t.ErrorContains(err, "multiple signs found")
 	})
 
 	t.Run("signer does not match with node publickey", func() {

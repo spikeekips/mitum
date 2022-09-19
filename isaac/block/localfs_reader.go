@@ -295,7 +295,7 @@ func (r *LocalFSReader) item(t base.BlockMapItemType) (interface{}, bool, error)
 func (r *LocalFSReader) loadItem(item base.BlockMapItem, f io.Reader) (interface{}, error) {
 	switch item.Type() {
 	case base.BlockMapItemTypeProposal:
-		var u base.ProposalSignedFact
+		var u base.ProposalSignFact
 		if err := encoder.DecodeReader(r.enc, f, &u); err != nil {
 			return nil, err
 		}

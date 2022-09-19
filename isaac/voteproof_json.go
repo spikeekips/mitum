@@ -15,12 +15,12 @@ import (
 
 type baseVoteproofJSONMarshaler struct {
 	FinishedAt time.Time `json:"finished_at"`
-	Majority   util.Hash `json:"majority"` // NOTE fact hash of majority BallotSignedFact
+	Majority   util.Hash `json:"majority"` // NOTE fact hash of majority BallotSignFact
 	hint.BaseHinter
-	ID          string                  `json:"id"`
-	SignedFacts []base.BallotSignedFact `json:"signed_facts"`
-	Point       base.StagePoint         `json:"point"`
-	Threshold   base.Threshold          `json:"threshold"`
+	ID        string                `json:"id"`
+	SignFacts []base.BallotSignFact `json:"sign_facts"`
+	Point     base.StagePoint       `json:"point"`
+	Threshold base.Threshold        `json:"threshold"`
 }
 
 func (vp baseVoteproof) MarshalJSON() ([]byte, error) {
@@ -30,23 +30,23 @@ func (vp baseVoteproof) MarshalJSON() ([]byte, error) {
 	}
 
 	return util.MarshalJSON(baseVoteproofJSONMarshaler{
-		BaseHinter:  vp.BaseHinter,
-		FinishedAt:  vp.finishedAt,
-		Majority:    majority,
-		Point:       vp.point,
-		Threshold:   vp.threshold,
-		SignedFacts: vp.sfs,
-		ID:          vp.id,
+		BaseHinter: vp.BaseHinter,
+		FinishedAt: vp.finishedAt,
+		Majority:   majority,
+		Point:      vp.point,
+		Threshold:  vp.threshold,
+		SignFacts:  vp.sfs,
+		ID:         vp.id,
 	})
 }
 
 type baseVoteproofJSONUnmarshaler struct {
-	FinishedAt  localtime.Time        `json:"finished_at"`
-	ID          string                `json:"id"`
-	Majority    valuehash.HashDecoder `json:"majority"`
-	SignedFacts []json.RawMessage     `json:"signed_facts"`
-	Point       base.StagePoint       `json:"point"`
-	Threshold   base.Threshold        `json:"threshold"`
+	FinishedAt localtime.Time        `json:"finished_at"`
+	ID         string                `json:"id"`
+	Majority   valuehash.HashDecoder `json:"majority"`
+	SignFacts  []json.RawMessage     `json:"sign_facts"`
+	Point      base.StagePoint       `json:"point"`
+	Threshold  base.Threshold        `json:"threshold"`
 }
 
 func (vp *baseVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
@@ -59,16 +59,16 @@ func (vp *baseVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 
 	majority := u.Majority.Hash()
 
-	vp.sfs = make([]base.BallotSignedFact, len(u.SignedFacts))
+	vp.sfs = make([]base.BallotSignFact, len(u.SignFacts))
 
-	for i := range u.SignedFacts {
-		if err := encoder.Decode(enc, u.SignedFacts[i], &vp.sfs[i]); err != nil {
+	for i := range u.SignFacts {
+		if err := encoder.Decode(enc, u.SignFacts[i], &vp.sfs[i]); err != nil {
 			return e(err, "")
 		}
 
 		sfs := vp.sfs[i]
 
-		if majority != nil { // NOTE find in SignedFacts
+		if majority != nil { // NOTE find in SignFacts
 			if sfs.Fact().Hash().Equal(majority) {
 				if fact, ok := sfs.Fact().(base.BallotFact); ok {
 					vp.majority = fact

@@ -108,10 +108,10 @@ func (op SuffrageDisjoin) IsValid(networkID []byte) error {
 		return e.Errorf("not SuffrageDisjoinFact, %T", op.Fact())
 	}
 
-	switch sfs := op.Signed(); {
+	switch sfs := op.Signs(); {
 	case len(sfs) > 1:
-		return e.Errorf("multiple signed found")
-	case !sfs[0].(base.NodeSigned).Node().Equal(fact.Node()): //nolint:forcetypeassert //...
+		return e.Errorf("multiple signs found")
+	case !sfs[0].(base.NodeSign).Node().Equal(fact.Node()): //nolint:forcetypeassert //...
 		return e.Errorf("not signed by node")
 	}
 

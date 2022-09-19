@@ -7,7 +7,7 @@ import (
 type Seal interface {
 	util.IsValider
 	util.Hasher
-	Signed() Signed
+	Signs() Sign
 	Body() []SealBody
 }
 

@@ -327,13 +327,13 @@ func (st *ConsensusHandler) prepareACCEPTBallot(
 	e := util.StringErrorFunc("failed to prepare accept ballot")
 
 	afact := isaac.NewACCEPTBallotFact(ivp.Point().Point, ivp.BallotMajority().Proposal(), manifest.Hash())
-	signedFact := isaac.NewACCEPTBallotSignedFact(st.local.Address(), afact)
+	signfact := isaac.NewACCEPTBallotSignFact(st.local.Address(), afact)
 
-	if err := signedFact.Sign(st.local.Privatekey(), st.params.NetworkID()); err != nil {
+	if err := signfact.Sign(st.local.Privatekey(), st.params.NetworkID()); err != nil {
 		return e(err, "")
 	}
 
-	bl := isaac.NewACCEPTBallot(ivp, signedFact)
+	bl := isaac.NewACCEPTBallot(ivp, signfact)
 
 	go func() {
 		<-time.After(initialWait)

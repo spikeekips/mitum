@@ -19,7 +19,7 @@ type GenesisBlockGenerator struct {
 	local    base.LocalNode
 	enc      encoder.Encoder
 	db       isaac.Database
-	proposal base.ProposalSignedFact
+	proposal base.ProposalSignFact
 	ivp      base.INITVoteproof
 	avp      base.ACCEPTVoteproof
 	*logging.Logging
@@ -189,19 +189,19 @@ func (g *GenesisBlockGenerator) newProposal(ops []util.Hash) error {
 	}
 
 	fact := isaac.NewProposalFact(base.GenesisPoint, g.local.Address(), nops)
-	signed := isaac.NewProposalSignedFact(fact)
+	sign := isaac.NewProposalSignFact(fact)
 
-	if err := signed.Sign(g.local.Privatekey(), g.networkID); err != nil {
+	if err := sign.Sign(g.local.Privatekey(), g.networkID); err != nil {
 		return e(err, "")
 	}
 
-	if err := signed.IsValid(g.networkID); err != nil {
+	if err := sign.IsValid(g.networkID); err != nil {
 		return e(err, "")
 	}
 
-	g.proposal = signed
+	g.proposal = sign
 
-	g.Log().Debug().Interface("proposal", signed).Msg("proposal created for genesis")
+	g.Log().Debug().Interface("proposal", sign).Msg("proposal created for genesis")
 
 	return nil
 }
@@ -214,7 +214,7 @@ func (g *GenesisBlockGenerator) initVoetproof() error {
 		return e(err, "")
 	}
 
-	sf := isaac.NewINITBallotSignedFact(g.local.Address(), fact)
+	sf := isaac.NewINITBallotSignFact(g.local.Address(), fact)
 	if err := sf.Sign(g.local.Privatekey(), g.networkID); err != nil {
 		return e(err, "")
 	}
@@ -226,7 +226,7 @@ func (g *GenesisBlockGenerator) initVoetproof() error {
 	vp := isaac.NewINITVoteproof(fact.Point().Point)
 	vp.
 		SetMajority(fact).
-		SetSignedFacts([]base.BallotSignedFact{sf}).
+		SetSignFacts([]base.BallotSignFact{sf}).
 		SetThreshold(base.MaxThreshold).
 		Finish()
 
@@ -249,7 +249,7 @@ func (g *GenesisBlockGenerator) acceptVoteproof(proposal, newblock util.Hash) er
 		return e(err, "")
 	}
 
-	sf := isaac.NewACCEPTBallotSignedFact(g.local.Address(), fact)
+	sf := isaac.NewACCEPTBallotSignFact(g.local.Address(), fact)
 	if err := sf.Sign(g.local.Privatekey(), g.networkID); err != nil {
 		return e(err, "")
 	}
@@ -261,7 +261,7 @@ func (g *GenesisBlockGenerator) acceptVoteproof(proposal, newblock util.Hash) er
 	vp := isaac.NewACCEPTVoteproof(fact.Point().Point)
 	vp.
 		SetMajority(fact).
-		SetSignedFacts([]base.BallotSignedFact{sf}).
+		SetSignFacts([]base.BallotSignFact{sf}).
 		SetThreshold(base.MaxThreshold).
 		Finish()
 

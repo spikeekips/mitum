@@ -18,7 +18,7 @@ func EqualOperation(t *assert.Assertions, a, b Operation) {
 		return
 	}
 
-	EqualSignedFact(t, a, b)
+	EqualSignFact(t, a, b)
 
 	t.True(a.Hint().Equal(b.Hint()))
 

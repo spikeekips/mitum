@@ -120,7 +120,7 @@ func NewLocalFSWriter(
 	return w, nil
 }
 
-func (w *LocalFSWriter) SetProposal(_ context.Context, pr base.ProposalSignedFact) error {
+func (w *LocalFSWriter) SetProposal(_ context.Context, pr base.ProposalSignFact) error {
 	if err := w.writeItem(base.BlockMapItemTypeProposal, pr); err != nil {
 		return errors.Wrap(err, "failed to set proposal in fs writer")
 	}

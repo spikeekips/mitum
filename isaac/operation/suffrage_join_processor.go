@@ -96,9 +96,9 @@ func (p *SuffrageJoinProcessor) PreProcess(ctx context.Context, op base.Operatio
 
 	e := util.StringErrorFunc("failed to preprocess for SuffrageJoin")
 
-	noop, ok := op.(base.NodeSignedFact)
+	noop, ok := op.(base.NodeSignFact)
 	if !ok {
-		return nil, e(nil, "not NodeSignedFact, %T", op)
+		return nil, e(nil, "not NodeSignFact, %T", op)
 	}
 
 	fact := op.Fact().(SuffrageJoinFact) //nolint:forcetypeassert //...
@@ -125,7 +125,7 @@ func (p *SuffrageJoinProcessor) PreProcess(ctx context.Context, op base.Operatio
 		info = i
 	}
 
-	switch node, err := p.findCandidateFromSigned(op); {
+	switch node, err := p.findCandidateFromSigns(op); {
 	case err != nil:
 		return base.NewBaseOperationProcessReasonError(err.Error()), nil
 	case !node.Publickey().Equal(info.Publickey()):
@@ -139,7 +139,7 @@ func (p *SuffrageJoinProcessor) PreProcess(ctx context.Context, op base.Operatio
 		return reasonerr, nil
 	}
 
-	if err := base.CheckFactSignsBySuffrage(p.suffrage, p.threshold, noop.NodeSigned()); err != nil {
+	if err := base.CheckFactSignsBySuffrage(p.suffrage, p.threshold, noop.NodeSigns()); err != nil {
 		return base.NewBaseOperationProcessReasonError("not enough signs"), nil
 	}
 
@@ -182,16 +182,16 @@ func (p *SuffrageJoinProcessor) Process(ctx context.Context, op base.Operation, 
 	}, nil, nil
 }
 
-func (*SuffrageJoinProcessor) findCandidateFromSigned(op base.Operation) (base.Node, error) {
+func (*SuffrageJoinProcessor) findCandidateFromSigns(op base.Operation) (base.Node, error) {
 	fact, ok := op.Fact().(SuffrageJoinFact)
 	if !ok {
 		return nil, errors.Errorf("not SuffrageJoinFact, %T", op.Fact())
 	}
 
-	sfs := op.Signed()
+	sfs := op.Signs()
 
 	for i := range sfs {
-		ns := sfs[i].(base.NodeSigned) //nolint:forcetypeassert //...
+		ns := sfs[i].(base.NodeSign) //nolint:forcetypeassert //...
 
 		if !ns.Node().Equal(fact.Candidate()) {
 			continue

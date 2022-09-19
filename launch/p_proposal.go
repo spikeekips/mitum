@@ -45,7 +45,7 @@ func PProposalProcessors(ctx context.Context) (context.Context, error) {
 }
 
 func newProposalProcessorFunc(pctx context.Context) (
-	func(base.ProposalSignedFact, base.Manifest) (isaac.ProposalProcessor, error),
+	func(base.ProposalSignFact, base.Manifest) (isaac.ProposalProcessor, error),
 	error,
 ) {
 	var enc encoder.Encoder
@@ -71,7 +71,7 @@ func newProposalProcessorFunc(pctx context.Context) (
 		return nil, err
 	}
 
-	return func(proposal base.ProposalSignedFact, previous base.Manifest) (
+	return func(proposal base.ProposalSignFact, previous base.Manifest) (
 		isaac.ProposalProcessor, error,
 	) {
 		return isaac.NewDefaultProposalProcessor(
@@ -101,7 +101,7 @@ func newProposalProcessorFunc(pctx context.Context) (
 }
 
 func getProposalFunc(pctx context.Context) (
-	func(context.Context, util.Hash) (base.ProposalSignedFact, error),
+	func(context.Context, util.Hash) (base.ProposalSignFact, error),
 	error,
 ) {
 	var pool *isaacdatabase.TempPool
@@ -116,7 +116,7 @@ func getProposalFunc(pctx context.Context) (
 		return nil, err
 	}
 
-	return func(ctx context.Context, facthash util.Hash) (base.ProposalSignedFact, error) {
+	return func(ctx context.Context, facthash util.Hash) (base.ProposalSignFact, error) {
 		switch pr, found, err := pool.Proposal(facthash); {
 		case err != nil:
 			return nil, err
@@ -169,15 +169,15 @@ func getProposalFunc(pctx context.Context) (
 				return nil, err
 			}
 
-			return nil, storage.ErrNotFound.Errorf("ProposalSignedFact not found")
+			return nil, storage.ErrNotFound.Errorf("ProposalSignFact not found")
 		default:
-			return i.(base.ProposalSignedFact), nil //nolint:forcetypeassert //...
+			return i.(base.ProposalSignFact), nil //nolint:forcetypeassert //...
 		}
 	}, nil
 }
 
 func getProposalOperationFunc(pctx context.Context) (
-	func(base.ProposalSignedFact) isaac.OperationProcessorGetOperationFunction,
+	func(base.ProposalSignFact) isaac.OperationProcessorGetOperationFunction,
 	error,
 ) {
 	var params base.LocalParams
@@ -200,7 +200,7 @@ func getProposalOperationFunc(pctx context.Context) (
 		return nil, err
 	}
 
-	return func(proposal base.ProposalSignedFact) isaac.OperationProcessorGetOperationFunction {
+	return func(proposal base.ProposalSignFact) isaac.OperationProcessorGetOperationFunction {
 		return func(ctx context.Context, operationhash util.Hash) (base.Operation, error) {
 			var op base.Operation
 
@@ -263,7 +263,7 @@ func getProposalOperationFromPoolFunc(pctx context.Context) (
 }
 
 func getProposalOperationFromRemoteFunc(pctx context.Context) ( //nolint:gocognit //...
-	func(context.Context, base.ProposalSignedFact, util.Hash) (base.Operation, bool, error),
+	func(context.Context, base.ProposalSignFact, util.Hash) (base.Operation, bool, error),
 	error,
 ) {
 	var client *isaacnetwork.QuicstreamClient
@@ -282,7 +282,7 @@ func getProposalOperationFromRemoteFunc(pctx context.Context) ( //nolint:gocogni
 	}
 
 	return func(
-		ctx context.Context, proposal base.ProposalSignedFact, operationhash util.Hash,
+		ctx context.Context, proposal base.ProposalSignFact, operationhash util.Hash,
 	) (base.Operation, bool, error) {
 		if syncSourcePool.Len() < 1 {
 			return nil, false, nil
@@ -357,7 +357,7 @@ func getProposalOperationFromRemoteFunc(pctx context.Context) ( //nolint:gocogni
 }
 
 func getProposalOperationFromRemoteProposerFunc(pctx context.Context) (
-	func(context.Context, base.ProposalSignedFact, util.Hash) (bool, base.Operation, bool, error),
+	func(context.Context, base.ProposalSignFact, util.Hash) (bool, base.Operation, bool, error),
 	error,
 ) {
 	var client *isaacnetwork.QuicstreamClient
@@ -371,7 +371,7 @@ func getProposalOperationFromRemoteProposerFunc(pctx context.Context) (
 	}
 
 	return func(
-		ctx context.Context, proposal base.ProposalSignedFact, operationhash util.Hash,
+		ctx context.Context, proposal base.ProposalSignFact, operationhash util.Hash,
 	) (bool, base.Operation, bool, error) {
 		proposer := proposal.ProposalFact().Proposer()
 
@@ -517,7 +517,7 @@ func NewProposalSelector(pctx context.Context) (*isaac.BaseProposalSelector, err
 
 			return members, true, nil
 		},
-		func(ctx context.Context, point base.Point, proposer base.Address) (base.ProposalSignedFact, error) {
+		func(ctx context.Context, point base.Point, proposer base.Address) (base.ProposalSignFact, error) {
 			var ci quicstream.UDPConnInfo
 
 			memberlist.Members(func(node quicmemberlist.Node) bool {

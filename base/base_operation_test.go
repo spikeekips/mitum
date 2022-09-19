@@ -106,13 +106,13 @@ func (t *testBaseOperation) TestIsValid() {
 		t.ErrorContains(err, "hash does not match")
 	})
 
-	t.Run("empty Signeds", func() {
+	t.Run("empty signs", func() {
 		op := t.newOperation()
 
 		err := op.IsValid(util.UUID().Bytes())
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
-		t.ErrorContains(err, "empty signed")
+		t.ErrorContains(err, "empty signs")
 	})
 
 	t.Run("invalid network id", func() {
@@ -125,12 +125,12 @@ func (t *testBaseOperation) TestIsValid() {
 }
 
 func (t *testBaseOperation) TestSign() {
-	t.Run("sign in not signed", func() {
+	t.Run("sign in not sign", func() {
 		op := t.newOperation()
 
 		t.NoError(op.Sign(t.priv, t.networkID))
 
-		t.Equal(1, len(op.signed))
+		t.Equal(1, len(op.signs))
 	})
 
 	t.Run("duplicated sign", func() {
@@ -138,16 +138,16 @@ func (t *testBaseOperation) TestSign() {
 
 		t.NoError(op.Sign(t.priv, t.networkID))
 
-		oldsigned := op.signed[0]
+		oldsign := op.signs[0]
 
 		<-time.After(time.Millisecond * 100)
 		t.NoError(op.Sign(t.priv, t.networkID))
 
-		newsigned := op.signed[0]
+		newsign := op.signs[0]
 
-		t.True(oldsigned.Signer().Equal(newsigned.Signer()))
-		t.NotEqual(oldsigned.Signature(), newsigned.Signature())
-		t.NotEqual(oldsigned.SignedAt(), newsigned.SignedAt())
+		t.True(oldsign.Signer().Equal(newsign.Signer()))
+		t.NotEqual(oldsign.Signature(), newsign.Signature())
+		t.NotEqual(oldsign.SignedAt(), newsign.SignedAt())
 	})
 
 	t.Run("new sign", func() {
@@ -158,7 +158,7 @@ func (t *testBaseOperation) TestSign() {
 		priv := NewMPrivatekey()
 		t.NoError(op.Sign(priv, t.networkID))
 
-		t.Equal(2, len(op.signed))
+		t.Equal(2, len(op.signs))
 	})
 }
 
@@ -234,13 +234,13 @@ func (t *testBaseNodeOperation) TestIsValid() {
 		t.ErrorContains(err, "hash does not match")
 	})
 
-	t.Run("empty Signeds", func() {
+	t.Run("empty signs", func() {
 		op := t.newOperation()
 
 		err := op.IsValid(util.UUID().Bytes())
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
-		t.ErrorContains(err, "empty signed")
+		t.ErrorContains(err, "empty signs")
 	})
 
 	t.Run("invalid network id", func() {
@@ -251,26 +251,26 @@ func (t *testBaseNodeOperation) TestIsValid() {
 		t.True(errors.Is(err, ErrSignatureVerification))
 	})
 
-	t.Run("duplicated signed", func() {
+	t.Run("duplicated sign", func() {
 		op := t.newSignedOperation(RandomAddress(""))
-		op.signed = []Signed{op.signed[0], op.signed[0]}
+		op.signs = []Sign{op.signs[0], op.signs[0]}
 		op.h = op.hash()
 
 		err := op.IsValid(t.networkID)
 		t.Error(err)
-		t.ErrorContains(err, "duplicated signed found")
+		t.ErrorContains(err, "duplicated signs found")
 	})
 }
 
 func (t *testBaseNodeOperation) TestSign() {
 	node := RandomAddress("")
 
-	t.Run("sign in not signed", func() {
+	t.Run("sign in not sign", func() {
 		op := t.newOperation()
 
 		t.NoError(op.Sign(t.priv, t.networkID, node))
 
-		t.Equal(1, len(op.signed))
+		t.Equal(1, len(op.signs))
 	})
 
 	t.Run("duplicated sign", func() {
@@ -278,16 +278,16 @@ func (t *testBaseNodeOperation) TestSign() {
 
 		t.NoError(op.Sign(t.priv, t.networkID, node))
 
-		oldsigned := op.signed[0]
+		oldsign := op.signs[0]
 
 		<-time.After(time.Millisecond * 100)
 		t.NoError(op.Sign(t.priv, t.networkID, node))
 
-		newsigned := op.signed[0]
+		newsign := op.signs[0]
 
-		t.True(oldsigned.Signer().Equal(newsigned.Signer()))
-		t.NotEqual(oldsigned.Signature(), newsigned.Signature())
-		t.NotEqual(oldsigned.SignedAt(), newsigned.SignedAt())
+		t.True(oldsign.Signer().Equal(newsign.Signer()))
+		t.NotEqual(oldsign.Signature(), newsign.Signature())
+		t.NotEqual(oldsign.SignedAt(), newsign.SignedAt())
 	})
 
 	t.Run("new sign", func() {
@@ -298,7 +298,7 @@ func (t *testBaseNodeOperation) TestSign() {
 		priv := NewMPrivatekey()
 		t.NoError(op.Sign(priv, t.networkID, node))
 
-		t.Equal(2, len(op.signed))
+		t.Equal(2, len(op.signs))
 	})
 }
 
@@ -349,7 +349,7 @@ func TestBaseOperationEncode(tt *testing.T) {
 		t.NoError(bo.IsValid(networkID))
 
 		EqualFact(t.Assert(), ao.Fact(), bo.Fact())
-		EqualSigneds(t.Assert(), ao.Signed(), bo.Signed())
+		EqualSigns(t.Assert(), ao.Signs(), bo.Signs())
 	}
 
 	suite.Run(tt, t)
@@ -399,7 +399,7 @@ func TestBaseNodeOperationEncode(tt *testing.T) {
 		t.NoError(bo.IsValid(networkID))
 
 		EqualFact(t.Assert(), ao.Fact(), bo.Fact())
-		EqualSigneds(t.Assert(), ao.Signed(), bo.Signed())
+		EqualSigns(t.Assert(), ao.Signs(), bo.Signs())
 	}
 
 	suite.Run(tt, t)

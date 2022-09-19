@@ -141,7 +141,7 @@ func QuicstreamHandlerRequestProposal(
 	getOrCreateProposal := func(
 		point base.Point,
 		proposer base.Address,
-	) (base.ProposalSignedFact, error) {
+	) (base.ProposalSignFact, error) {
 		if lastBlockMapf != nil {
 			switch m, found, err := lastBlockMapf(); {
 			case err != nil:

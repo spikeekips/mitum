@@ -881,7 +881,7 @@ func ValidateBlockFromLocalFS(
 
 		switch item.Type() {
 		case base.BlockMapItemTypeProposal:
-			pr := i.(base.ProposalSignedFact) //nolint:forcetypeassert //...
+			pr := i.(base.ProposalSignFact) //nolint:forcetypeassert //...
 
 			if err := pr.IsValid(networkID); err != nil {
 				readererr = err

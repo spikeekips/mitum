@@ -150,7 +150,7 @@ func (t *testSuffrageDisjoin) TestIsValid() {
 		t.ErrorContains(err, "not signed by node")
 	})
 
-	t.Run("multiple signed", func() {
+	t.Run("multiple sign", func() {
 		fact := NewSuffrageDisjoinFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(33))
 		op := NewSuffrageDisjoin(fact)
 		t.NoError(op.Sign(priv, networkID, fact.Node()))
@@ -160,7 +160,7 @@ func (t *testSuffrageDisjoin) TestIsValid() {
 		err := op.IsValid(networkID)
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
-		t.ErrorContains(err, "multiple signed found")
+		t.ErrorContains(err, "multiple signs found")
 	})
 }
 

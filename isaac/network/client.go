@@ -153,7 +153,7 @@ func (c *BaseNetworkClient) RequestProposal(
 	ci quicstream.UDPConnInfo,
 	point base.Point,
 	proposer base.Address,
-) (base.ProposalSignedFact, bool, error) {
+) (base.ProposalSignFact, bool, error) {
 	e := util.StringErrorFunc("failed to request proposal")
 
 	header := NewRequestProposalRequestHeader(point, proposer)
@@ -181,7 +181,7 @@ func (c *BaseNetworkClient) RequestProposal(
 	case !h.OK():
 		return nil, false, nil
 	default:
-		var u base.ProposalSignedFact
+		var u base.ProposalSignFact
 
 		if err := encoder.DecodeReader(enc, r, &u); err != nil {
 			return nil, false, e(err, "")
@@ -195,7 +195,7 @@ func (c *BaseNetworkClient) Proposal( //nolint:dupl //...
 	ctx context.Context,
 	ci quicstream.UDPConnInfo,
 	pr util.Hash,
-) (base.ProposalSignedFact, bool, error) {
+) (base.ProposalSignFact, bool, error) {
 	e := util.StringErrorFunc("failed to get proposal")
 
 	header := NewProposalRequestHeader(pr)
@@ -223,7 +223,7 @@ func (c *BaseNetworkClient) Proposal( //nolint:dupl //...
 	case !h.OK():
 		return nil, false, nil
 	default:
-		var u base.ProposalSignedFact
+		var u base.ProposalSignFact
 
 		if err := encoder.DecodeReader(enc, r, &u); err != nil {
 			return nil, false, e(err, "")

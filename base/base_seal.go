@@ -8,9 +8,9 @@ import (
 )
 
 type BaseSeal struct {
-	h      util.Hash
-	signed BaseSigned
-	body   []SealBody
+	h    util.Hash
+	sign BaseSign
+	body []SealBody
 	hint.BaseHinter
 }
 
@@ -25,8 +25,8 @@ func (sl BaseSeal) Hash() util.Hash {
 	return sl.h
 }
 
-func (sl BaseSeal) Signed() Signed {
-	return sl.signed
+func (sl BaseSeal) Signs() Sign {
+	return sl.sign
 }
 
 func (sl BaseSeal) Body() []SealBody {
@@ -44,7 +44,7 @@ func (sl BaseSeal) IsValid(networkID []byte) error {
 	// hint.Type.
 	c := make([]util.IsValider, len(sl.body)+2)
 	c[0] = sl.h
-	c[1] = sl.signed
+	c[1] = sl.sign
 
 	for i := range sl.body {
 		c[2+i] = sl.body[i]
@@ -55,7 +55,7 @@ func (sl BaseSeal) IsValid(networkID []byte) error {
 	}
 
 	// NOTE check sign with body hash
-	if err := sl.signed.Verify(networkID, sl.signedHashBytes()); err != nil {
+	if err := sl.sign.Verify(networkID, sl.signedHashBytes()); err != nil {
 		return e(util.ErrInvalid.Wrap(err), "")
 	}
 
@@ -63,15 +63,15 @@ func (sl BaseSeal) IsValid(networkID []byte) error {
 }
 
 func (sl *BaseSeal) Sign(priv Privatekey, networkID []byte) error {
-	sign, err := NewBaseSignedFromBytes(priv, networkID, sl.signedHashBytes())
+	sign, err := NewBaseSignFromBytes(priv, networkID, sl.signedHashBytes())
 	if err != nil {
 		return errors.Wrap(err, "failed to sign BaseSeal")
 	}
 
-	sl.signed = sign
+	sl.sign = sign
 
 	// NOTE update  hash
-	sl.h = valuehash.NewSHA256(util.ConcatByters(sl.BaseHinter, sl.signed))
+	sl.h = valuehash.NewSHA256(util.ConcatByters(sl.BaseHinter, sl.sign))
 
 	return nil
 }

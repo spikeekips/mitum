@@ -187,7 +187,7 @@ func (st *baseHandler) broadcastBallot(
 	}
 
 	l := st.Log().With().
-		Stringer("ballot_hash", bl.SignedFact().Fact().Hash()).
+		Stringer("ballot_hash", bl.SignFact().Fact().Hash()).
 		Dur("initial_wait", iw).
 		Logger()
 	l.Debug().Interface("ballot", bl).Object("point", bl.Point()).Msg("trying to broadcast ballot")
@@ -251,7 +251,7 @@ func (st *baseHandler) prepareNextRound(vp base.Voteproof, prevBlock util.Hash) 
 		prevBlock,
 		pr.Fact().Hash(),
 	)
-	sf := isaac.NewINITBallotSignedFact(st.local.Address(), fact)
+	sf := isaac.NewINITBallotSignFact(st.local.Address(), fact)
 
 	if err := sf.Sign(st.local.Privatekey(), st.params.NetworkID()); err != nil {
 		return nil, newBrokenSwitchContext(st.stt, e(err, "failed to make next round init ballot"))
@@ -311,7 +311,7 @@ func (st *baseHandler) prepareNextBlock(
 		avp.BallotMajority().NewBlock(),
 		pr.Fact().Hash(),
 	)
-	sf := isaac.NewINITBallotSignedFact(st.local.Address(), fact)
+	sf := isaac.NewINITBallotSignFact(st.local.Address(), fact)
 
 	if err := sf.Sign(st.local.Privatekey(), st.params.NetworkID()); err != nil {
 		return nil, e(err, "failed to make next init ballot")

@@ -30,7 +30,7 @@ var BlockDirectoryHeightFormat = "%021s"
 type BlockMap struct {
 	manifest base.Manifest
 	m        *util.LockedMap
-	base.BaseNodeSigned
+	base.BaseNodeSign
 	hint.BaseHinter
 	writer  hint.Hint
 	encoder hint.Hint
@@ -51,7 +51,7 @@ func (m BlockMap) IsValid(b []byte) error {
 		return e(err, "")
 	}
 
-	if err := util.CheckIsValid(nil, false, m.writer, m.encoder, m.manifest, m.BaseNodeSigned); err != nil {
+	if err := util.CheckIsValid(nil, false, m.writer, m.encoder, m.manifest, m.BaseNodeSign); err != nil {
 		return e(err, "")
 	}
 
@@ -74,7 +74,7 @@ func (m BlockMap) IsValid(b []byte) error {
 		return e(err, "invalid item found")
 	}
 
-	if err := m.BaseNodeSigned.Verify(b, m.signedBytes()); err != nil {
+	if err := m.BaseNodeSign.Verify(b, m.signedBytes()); err != nil {
 		return e(util.ErrInvalid.Wrap(err), "")
 	}
 
@@ -131,12 +131,12 @@ func (m BlockMap) Items(f func(base.BlockMapItem) bool) {
 }
 
 func (m *BlockMap) Sign(node base.Address, priv base.Privatekey, networkID base.NetworkID) error {
-	sign, err := base.BaseNodeSignedFromBytes(node, priv, networkID, m.signedBytes())
+	sign, err := base.BaseNodeSignFromBytes(node, priv, networkID, m.signedBytes())
 	if err != nil {
 		return errors.Wrap(err, "failed to sign blockmap")
 	}
 
-	m.BaseNodeSigned = sign
+	m.BaseNodeSign = sign
 
 	return nil
 }

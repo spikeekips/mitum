@@ -218,7 +218,7 @@ func (cmd *KeySignCommand) Run(pctx context.Context) error {
 		return err
 	}
 
-	cmd.log.Debug().Msg("successfully signed")
+	cmd.log.Debug().Msg("successfully sign")
 
 	b, err := util.MarshalJSONIndent(ptr)
 	if err != nil {

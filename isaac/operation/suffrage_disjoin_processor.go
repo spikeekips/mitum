@@ -72,11 +72,11 @@ func (p *SuffrageDisjoinProcessor) PreProcess(ctx context.Context, op base.Opera
 
 	var signer base.Publickey
 
-	switch sf, ok := op.(base.NodeSignedFact); {
+	switch sf, ok := op.(base.NodeSignFact); {
 	case !ok:
-		return nil, e(nil, "not NodeSignedFact, %T", op)
+		return nil, e(nil, "not NodeSignFact, %T", op)
 	default:
-		signer = sf.NodeSigned()[0].Signer()
+		signer = sf.NodeSigns()[0].Signer()
 	}
 
 	fact := op.Fact().(SuffrageDisjoinFact) //nolint:forcetypeassert //...

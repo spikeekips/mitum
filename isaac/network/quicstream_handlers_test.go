@@ -241,7 +241,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 
 		t.Equal(point, pr.Point())
 		t.True(t.Local.Address().Equal(pr.ProposalFact().Proposer()))
-		t.NoError(base.IsValidProposalSignedFact(pr, t.LocalParams.NetworkID()))
+		t.NoError(base.IsValidProposalSignFact(pr, t.LocalParams.NetworkID()))
 		t.NotEmpty(pr.ProposalFact().Operations())
 	})
 
@@ -327,7 +327,7 @@ func (t *testQuicstreamHandlers) TestProposal() {
 
 		t.Equal(point, pr.Point())
 		t.True(t.Local.Address().Equal(pr.ProposalFact().Proposer()))
-		t.NoError(base.IsValidProposalSignedFact(pr, t.LocalParams.NetworkID()))
+		t.NoError(base.IsValidProposalSignFact(pr, t.LocalParams.NetworkID()))
 	})
 
 	t.Run("unknown", func() {

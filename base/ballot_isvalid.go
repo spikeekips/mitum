@@ -9,7 +9,7 @@ func IsValidBallot(bl Ballot, networkID []byte) error {
 
 	if err := util.CheckIsValid(networkID, false,
 		bl.Voteproof(),
-		bl.SignedFact(),
+		bl.SignFact(),
 	); err != nil {
 		return e(err, "")
 	}
@@ -23,8 +23,8 @@ func IsValidINITBallot(bl INITBallot, networkID []byte) error {
 		return e(err, "")
 	}
 
-	if _, ok := bl.SignedFact().(INITBallotSignedFact); !ok {
-		return e(util.ErrInvalid.Errorf("INITBallotSignedFact expected, not %T", bl.SignedFact()), "")
+	if _, ok := bl.SignFact().(INITBallotSignFact); !ok {
+		return e(util.ErrInvalid.Errorf("INITBallotSignFact expected, not %T", bl.SignFact()), "")
 	}
 
 	switch bl.Voteproof().Point().Stage() { //nolint:exhaustive // state already checked
@@ -70,7 +70,7 @@ func checkACCEPTVoteproofInINITBallot(bl INITBallot, vp ACCEPTVoteproof) error {
 
 	switch {
 	case vp.Result() == VoteResultMajority:
-		fact := bl.BallotSignedFact().BallotFact()
+		fact := bl.BallotSignFact().BallotFact()
 		if !fact.PreviousBlock().Equal(vp.BallotMajority().NewBlock()) {
 			return e(util.ErrInvalid.Errorf("block does not match, ballot(%q) != voteproof(%q)",
 				fact.PreviousBlock(),
@@ -110,8 +110,8 @@ func IsValidACCEPTBallot(bl ACCEPTBallot, networkID []byte) error {
 		return e(err, "")
 	}
 
-	if _, ok := bl.SignedFact().(ACCEPTBallotSignedFact); !ok {
-		return util.ErrInvalid.Errorf("ACCEPTBallotSignedFact expected, not %T", bl.SignedFact())
+	if _, ok := bl.SignFact().(ACCEPTBallotSignFact); !ok {
+		return util.ErrInvalid.Errorf("ACCEPTBallotSignFact expected, not %T", bl.SignFact())
 	}
 
 	ivp, ok := bl.Voteproof().(INITVoteproof)
@@ -177,9 +177,9 @@ func IsValidACCEPTBallotFact(fact ACCEPTBallotFact) error {
 	return nil
 }
 
-func IsValidBallotSignedFact(sf BallotSignedFact, networkID []byte) error {
-	e := util.StringErrorFunc("invalid BallotSignedFact")
-	if err := IsValidSignedFact(sf, networkID); err != nil {
+func IsValidBallotSignFact(sf BallotSignFact, networkID []byte) error {
+	e := util.StringErrorFunc("invalid BallotSignFact")
+	if err := IsValidSignFact(sf, networkID); err != nil {
 		return e(err, "")
 	}
 
@@ -192,10 +192,10 @@ func IsValidBallotSignedFact(sf BallotSignedFact, networkID []byte) error {
 	return nil
 }
 
-func IsValidINITBallotSignedFact(sf BallotSignedFact, networkID []byte) error {
-	e := util.StringErrorFunc("invalid INITBallotSignedFact")
+func IsValidINITBallotSignFact(sf BallotSignFact, networkID []byte) error {
+	e := util.StringErrorFunc("invalid INITBallotSignFact")
 
-	if err := IsValidBallotSignedFact(sf, networkID); err != nil {
+	if err := IsValidBallotSignFact(sf, networkID); err != nil {
 		return e(err, "")
 	}
 
@@ -206,10 +206,10 @@ func IsValidINITBallotSignedFact(sf BallotSignedFact, networkID []byte) error {
 	return nil
 }
 
-func IsValidACCEPTBallotSignedFact(sf BallotSignedFact, networkID []byte) error {
-	e := util.StringErrorFunc("invalid ACCEPTBallotSignedFact")
+func IsValidACCEPTBallotSignFact(sf BallotSignFact, networkID []byte) error {
+	e := util.StringErrorFunc("invalid ACCEPTBallotSignFact")
 
-	if err := IsValidBallotSignedFact(sf, networkID); err != nil {
+	if err := IsValidBallotSignFact(sf, networkID); err != nil {
 		return e(err, "")
 	}
 

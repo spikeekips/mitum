@@ -36,11 +36,11 @@ type (
 	// - if operation is known, return nil,
 	// OperationAlreadyProcessedInProcessorError; it will be ignored.
 	OperationProcessorGetOperationFunction func(_ context.Context, operationhash util.Hash) (base.Operation, error)
-	NewBlockWriterFunc                     func(base.ProposalSignedFact, base.GetStateFunc) (BlockWriter, error)
+	NewBlockWriterFunc                     func(base.ProposalSignFact, base.GetStateFunc) (BlockWriter, error)
 )
 
 type ProposalProcessor interface {
-	Proposal() base.ProposalSignedFact
+	Proposal() base.ProposalSignFact
 	Process(context.Context, base.INITVoteproof) (base.Manifest, error)
 	Save(context.Context, base.ACCEPTVoteproof) error
 	Cancel() error
@@ -49,7 +49,7 @@ type ProposalProcessor interface {
 type DefaultProposalProcessor struct {
 	writer                BlockWriter
 	ivp                   base.INITVoteproof
-	proposal              base.ProposalSignedFact
+	proposal              base.ProposalSignFact
 	previous              base.Manifest
 	newOperationProcessor NewOperationProcessorFunction
 	getStateFunc          base.GetStateFunc
@@ -67,7 +67,7 @@ type DefaultProposalProcessor struct {
 }
 
 func NewDefaultProposalProcessor(
-	proposal base.ProposalSignedFact,
+	proposal base.ProposalSignFact,
 	previous base.Manifest,
 	newWriter NewBlockWriterFunc,
 	getStateFunc base.GetStateFunc,
@@ -97,7 +97,7 @@ func NewDefaultProposalProcessor(
 	}, nil
 }
 
-func (p *DefaultProposalProcessor) Proposal() base.ProposalSignedFact {
+func (p *DefaultProposalProcessor) Proposal() base.ProposalSignFact {
 	return p.proposal
 }
 

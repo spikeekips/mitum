@@ -10,10 +10,10 @@ type BallotFact interface {
 	Point() StagePoint
 }
 
-type BallotSignedFact interface {
+type BallotSignFact interface {
 	util.HashByter
 	util.IsValider
-	SignedFact
+	SignFact
 	Node() Address
 	Signer() Publickey
 }
@@ -21,7 +21,7 @@ type BallotSignedFact interface {
 type Ballot interface {
 	SealBody
 	Point() StagePoint
-	SignedFact() BallotSignedFact
+	SignFact() BallotSignFact
 	Voteproof() Voteproof
 }
 
@@ -37,29 +37,29 @@ type ACCEPTBallotFact interface {
 	NewBlock() util.Hash
 }
 
-type INITBallotSignedFact interface {
-	BallotSignedFact
+type INITBallotSignFact interface {
+	BallotSignFact
 	BallotFact() INITBallotFact
 }
 
-type ACCEPTBallotSignedFact interface {
-	BallotSignedFact
+type ACCEPTBallotSignFact interface {
+	BallotSignFact
 	BallotFact() ACCEPTBallotFact
 }
 
 type INITBallot interface {
 	Ballot
-	BallotSignedFact() INITBallotSignedFact
+	BallotSignFact() INITBallotSignFact
 }
 
 type ACCEPTBallot interface {
 	Ballot
-	BallotSignedFact() ACCEPTBallotSignedFact
+	BallotSignFact() ACCEPTBallotSignFact
 }
 
-func CountBallotSignedFacts(allsfs []BallotSignedFact) (
+func CountBallotSignFacts(allsfs []BallotSignFact) (
 	set []string,
-	sfs []BallotSignedFact,
+	sfs []BallotSignFact,
 	m map[string]BallotFact,
 	err error,
 ) {
@@ -68,7 +68,7 @@ func CountBallotSignedFacts(allsfs []BallotSignedFact) (
 	}
 
 	set = make([]string, len(allsfs))
-	sfs = make([]BallotSignedFact, len(allsfs))
+	sfs = make([]BallotSignFact, len(allsfs))
 	m = map[string]BallotFact{}
 
 	for i := range allsfs {

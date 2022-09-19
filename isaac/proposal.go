@@ -12,8 +12,8 @@ import (
 )
 
 var (
-	ProposalFactHint       = hint.MustNewHint("proposal-fact-v0.0.1")
-	ProposalSignedFactHint = hint.MustNewHint("proposal-signed-fact-v0.0.1")
+	ProposalFactHint     = hint.MustNewHint("proposal-fact-v0.0.1")
+	ProposalSignFactHint = hint.MustNewHint("proposal-sign-fact-v0.0.1")
 )
 
 type ProposalFact struct {
@@ -86,37 +86,37 @@ func (fact ProposalFact) generateHash() util.Hash {
 	return valuehash.NewSHA256(util.ConcatByters(bs...))
 }
 
-type ProposalSignedFact struct {
-	fact   base.ProposalFact
-	signed base.BaseSigned
+type ProposalSignFact struct {
+	fact base.ProposalFact
+	sign base.BaseSign
 	util.DefaultJSONMarshaled
 	hint.BaseHinter
 }
 
-func NewProposalSignedFact(fact ProposalFact) ProposalSignedFact {
-	return ProposalSignedFact{
-		BaseHinter: hint.NewBaseHinter(ProposalSignedFactHint),
+func NewProposalSignFact(fact ProposalFact) ProposalSignFact {
+	return ProposalSignFact{
+		BaseHinter: hint.NewBaseHinter(ProposalSignFactHint),
 		fact:       fact,
 	}
 }
 
-func (sf ProposalSignedFact) IsValid(networkID []byte) error {
-	if err := base.IsValidProposalSignedFact(sf, networkID); err != nil {
-		return util.ErrInvalid.Wrapf(err, "invalid ProposalSignedFact")
+func (sf ProposalSignFact) IsValid(networkID []byte) error {
+	if err := base.IsValidProposalSignFact(sf, networkID); err != nil {
+		return util.ErrInvalid.Wrapf(err, "invalid ProposalSignFact")
 	}
 
 	return nil
 }
 
-func (sf ProposalSignedFact) Fact() base.Fact {
+func (sf ProposalSignFact) Fact() base.Fact {
 	return sf.fact
 }
 
-func (sf ProposalSignedFact) ProposalFact() base.ProposalFact {
+func (sf ProposalSignFact) ProposalFact() base.ProposalFact {
 	return sf.fact
 }
 
-func (sf ProposalSignedFact) Point() base.Point {
+func (sf ProposalSignFact) Point() base.Point {
 	if sf.fact == nil {
 		return base.ZeroPoint
 	}
@@ -124,25 +124,25 @@ func (sf ProposalSignedFact) Point() base.Point {
 	return sf.fact.Point()
 }
 
-func (sf ProposalSignedFact) Signed() []base.Signed {
-	return []base.Signed{sf.signed}
+func (sf ProposalSignFact) Signs() []base.Sign {
+	return []base.Sign{sf.sign}
 }
 
-func (sf ProposalSignedFact) HashBytes() []byte {
-	return util.ConcatByters(sf.BaseHinter, sf.signed)
+func (sf ProposalSignFact) HashBytes() []byte {
+	return util.ConcatByters(sf.BaseHinter, sf.sign)
 }
 
-func (sf *ProposalSignedFact) Sign(priv base.Privatekey, networkID base.NetworkID) error {
-	signed, err := base.NewBaseSignedFromFact(
+func (sf *ProposalSignFact) Sign(priv base.Privatekey, networkID base.NetworkID) error {
+	sign, err := base.NewBaseSignFromFact(
 		priv,
 		networkID,
 		sf.fact,
 	)
 	if err != nil {
-		return errors.Wrap(err, "failed to sign ProposalSignedFact")
+		return errors.Wrap(err, "failed to sign ProposalSignFact")
 	}
 
-	sf.signed = signed
+	sf.sign = sign
 
 	return nil
 }

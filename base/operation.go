@@ -24,7 +24,7 @@ type Operation interface {
 	hint.Hinter
 	util.IsValider
 	util.Hasher
-	SignedFact
+	SignFact
 	PreProcess(context.Context, GetStateFunc) (OperationProcessReasonError, error)
 	Process(context.Context, GetStateFunc) ([]StateMergeValue, OperationProcessReasonError, error)
 }

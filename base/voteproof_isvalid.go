@@ -14,12 +14,12 @@ func isValidVoteproof(vp Voteproof, networkID NetworkID) error {
 		return e(util.ErrInvalid.Errorf("wrong stage, %q for Voteproof", vp.Point().Stage()), "")
 	case vp.Result() == VoteResultNotYet:
 		return e(util.ErrInvalid.Errorf("not yet finished"), "")
-	case len(vp.SignedFacts()) < 1:
-		return e(util.ErrInvalid.Errorf("empty signed facts"), "")
+	case len(vp.SignFacts()) < 1:
+		return e(util.ErrInvalid.Errorf("empty sign facts"), "")
 	}
 
-	// NOTE check duplicated signed node in SignedFacts
-	if err := isValidVoteproofDuplicatedSignedNode(vp); err != nil {
+	// NOTE check duplicated sign node in SignFacts
+	if err := isValidVoteproofDuplicatedSignNode(vp); err != nil {
 		return e(err, "")
 	}
 
@@ -35,15 +35,15 @@ func isValidVoteproof(vp Voteproof, networkID NetworkID) error {
 		return e(err, "")
 	}
 
-	if err := isValidVoteproofSignedFacts(vp, networkID); err != nil {
+	if err := isValidVoteproofSignFacts(vp, networkID); err != nil {
 		return e(err, "")
 	}
 
 	return nil
 }
 
-func isValidVoteproofDuplicatedSignedNode(vp Voteproof) error {
-	facts := vp.SignedFacts()
+func isValidVoteproofDuplicatedSignNode(vp Voteproof) error {
+	facts := vp.SignFacts()
 
 	if _, found := util.CheckSliceDuplicated(facts, func(_ interface{}, i int) string {
 		fact := facts[i]
@@ -55,7 +55,7 @@ func isValidVoteproofDuplicatedSignedNode(vp Voteproof) error {
 			return fact.Node().String()
 		}
 	}); found {
-		return util.ErrInvalid.Errorf("duplicated node found in signedfacts of voteproof")
+		return util.ErrInvalid.Errorf("duplicated node found in SignFacts of voteproof")
 	}
 
 	return nil
@@ -82,32 +82,32 @@ func isValidVoteproofVoteResult(vp Voteproof, networkID NetworkID) error {
 	return nil
 }
 
-func isValidVoteproofSignedFacts(vp Voteproof, networkID NetworkID) error {
+func isValidVoteproofSignFacts(vp Voteproof, networkID NetworkID) error {
 	var majority util.Hash
 	if vp.Majority() != nil {
 		majority = vp.Majority().Hash()
 	}
 
-	vs := vp.SignedFacts()
+	vs := vp.SignFacts()
 	bs := make([]util.IsValider, len(vs))
 
 	for i := range vs {
 		i := i
 		bs[i] = util.DummyIsValider(func([]byte) error {
 			if vs[i] == nil {
-				return util.ErrInvalid.Errorf("nil signed fact found")
+				return util.ErrInvalid.Errorf("nil sign fact found")
 			}
 
 			if err := vs[i].IsValid(networkID); err != nil {
 				return err
 			}
 
-			return isValidSignedFactInVoteproof(vp, vs[i])
+			return isValidSignFactInVoteproof(vp, vs[i])
 		})
 	}
 
 	if err := util.CheckIsValid(networkID, false, bs...); err != nil {
-		return util.ErrInvalid.Wrapf(err, "invalid signed facts")
+		return util.ErrInvalid.Wrapf(err, "invalid sign facts")
 	}
 
 	if majority != nil {
@@ -127,7 +127,7 @@ func isValidVoteproofSignedFacts(vp Voteproof, networkID NetworkID) error {
 		}
 
 		if !foundMajority {
-			return util.ErrInvalid.Errorf("majoirty not found in signed facts")
+			return util.ErrInvalid.Errorf("majoirty not found in sign facts")
 		}
 	}
 
@@ -174,8 +174,8 @@ func isValidFactInVoteproof(vp Voteproof, fact BallotFact) error {
 	return nil
 }
 
-func isValidSignedFactInVoteproof(vp Voteproof, sf BallotSignedFact) error {
-	e := util.StringErrorFunc("invalid signed fact in voteproof")
+func isValidSignFactInVoteproof(vp Voteproof, sf BallotSignFact) error {
+	e := util.StringErrorFunc("invalid sign fact in voteproof")
 
 	if err := isValidFactInVoteproof( //nolint:forcetypeassert // already checked
 		vp, sf.Fact().(BallotFact)); err != nil {
@@ -186,9 +186,9 @@ func isValidSignedFactInVoteproof(vp Voteproof, sf BallotSignedFact) error {
 }
 
 func IsValidVoteproofWithSuffrage(vp Voteproof, suf Suffrage) error {
-	e := util.StringErrorFunc("invalid signed facts in voteproof with suffrage")
+	e := util.StringErrorFunc("invalid sign facts in voteproof with suffrage")
 
-	sfs := vp.SignedFacts()
+	sfs := vp.SignFacts()
 
 	for i := range sfs {
 		n := sfs[i]
@@ -201,7 +201,7 @@ func IsValidVoteproofWithSuffrage(vp Voteproof, suf Suffrage) error {
 		}
 	}
 
-	set, _, m, err := CountBallotSignedFacts(sfs)
+	set, _, m, err := CountBallotSignFacts(sfs)
 	if err != nil {
 		return e(util.ErrInvalid.Wrap(err), "")
 	}

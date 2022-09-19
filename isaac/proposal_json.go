@@ -68,30 +68,30 @@ func (fact *ProposalFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	return nil
 }
 
-type proposalSignedFactJSONMarshaler struct {
-	Fact   base.ProposalFact `json:"fact"`
-	Signed base.BaseSigned   `json:"signed"`
+type proposalSignFactJSONMarshaler struct {
+	Fact base.ProposalFact `json:"fact"`
+	Sign base.BaseSign     `json:"sign"`
 	hint.BaseHinter
 }
 
-type proposalSignedFactJSONUnmarshaler struct {
-	Fact   json.RawMessage `json:"fact"`
-	Signed json.RawMessage `json:"signed"`
+type proposalSignFactJSONUnmarshaler struct {
+	Fact json.RawMessage `json:"fact"`
+	Sign json.RawMessage `json:"sign"`
 	hint.BaseHinter
 }
 
-func (sf ProposalSignedFact) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(proposalSignedFactJSONMarshaler{
+func (sf ProposalSignFact) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(proposalSignFactJSONMarshaler{
 		BaseHinter: sf.BaseHinter,
 		Fact:       sf.fact,
-		Signed:     sf.signed,
+		Sign:       sf.sign,
 	})
 }
 
-func (sf *ProposalSignedFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode proposalSignedFact")
+func (sf *ProposalSignFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+	e := util.StringErrorFunc("failed to decode proposalSignFact")
 
-	var u proposalSignedFactJSONUnmarshaler
+	var u proposalSignFactJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
 		return e(err, "")
 	}
@@ -100,8 +100,8 @@ func (sf *ProposalSignedFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "failed to decode fact")
 	}
 
-	if err := sf.signed.DecodeJSON(u.Signed, enc); err != nil {
-		return e(err, "failed to decode signed")
+	if err := sf.sign.DecodeJSON(u.Sign, enc); err != nil {
+		return e(err, "failed to decode sign")
 	}
 
 	return nil

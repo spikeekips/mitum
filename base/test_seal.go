@@ -15,7 +15,7 @@ func EqualSeal(t *assert.Assertions, a, b Seal) {
 	bht := b.(hint.Hinter).Hint()
 	t.True(aht.Equal(bht), "Hint does not match")
 
-	EqualSigned(t, a.Signed(), b.Signed())
+	EqualSign(t, a.Signs(), b.Signs())
 
 	abs := a.Body()
 	bbs := b.Body()

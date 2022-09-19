@@ -25,8 +25,8 @@ func (t *BaseTestBallots) SetupTest() {
 	t.Local = local
 	t.LocalParams = params
 
-	t.PRPool = newProposalPool(func(point base.Point) base.ProposalSignedFact {
-		fs := NewProposalSignedFact(NewProposalFact(point, local.Address(), []util.Hash{valuehash.RandomSHA256()}))
+	t.PRPool = newProposalPool(func(point base.Point) base.ProposalSignFact {
+		fs := NewProposalSignFact(NewProposalFact(point, local.Address(), []util.Hash{valuehash.RandomSHA256()}))
 		_ = fs.Sign(local.Privatekey(), params.NetworkID())
 
 		return fs
@@ -57,8 +57,8 @@ func (t *BaseTestBallots) NewProposalFact(point base.Point, local LocalNode, ops
 	return NewProposalFact(point, local.Address(), ops)
 }
 
-func (t *BaseTestBallots) NewProposal(local LocalNode, fact ProposalFact) ProposalSignedFact {
-	fs := NewProposalSignedFact(fact)
+func (t *BaseTestBallots) NewProposal(local LocalNode, fact ProposalFact) ProposalSignFact {
+	fs := NewProposalSignFact(fact)
 	t.NoError(fs.Sign(local.Privatekey(), t.LocalParams.NetworkID()))
 
 	return fs
@@ -77,10 +77,10 @@ func (t *BaseTestBallots) NewINITVoteproof(
 		}
 	}
 
-	sfs := make([]base.BallotSignedFact, len(suffrage))
+	sfs := make([]base.BallotSignFact, len(suffrage))
 	for i := range suffrage {
 		n := suffrage[i]
-		fs := NewINITBallotSignedFact(n.Address(), fact)
+		fs := NewINITBallotSignFact(n.Address(), fact)
 		if err := fs.Sign(n.Privatekey(), t.LocalParams.NetworkID()); err != nil {
 			return INITVoteproof{}, err
 		}
@@ -91,7 +91,7 @@ func (t *BaseTestBallots) NewINITVoteproof(
 	vp := NewINITVoteproof(fact.Point().Point)
 	vp.SetResult(base.VoteResultMajority).
 		SetMajority(fact).
-		SetSignedFacts(sfs).
+		SetSignFacts(sfs).
 		SetThreshold(t.LocalParams.Threshold()).
 		Finish()
 
@@ -111,10 +111,10 @@ func (t *BaseTestBallots) NewACCEPTVoteproof(
 		}
 	}
 
-	sfs := make([]base.BallotSignedFact, len(suffrage))
+	sfs := make([]base.BallotSignFact, len(suffrage))
 	for i := range suffrage {
 		n := suffrage[i]
-		fs := NewACCEPTBallotSignedFact(n.Address(), fact)
+		fs := NewACCEPTBallotSignFact(n.Address(), fact)
 		if err := fs.Sign(n.Privatekey(), t.LocalParams.NetworkID()); err != nil {
 			return ACCEPTVoteproof{}, err
 		}
@@ -125,7 +125,7 @@ func (t *BaseTestBallots) NewACCEPTVoteproof(
 	vp := NewACCEPTVoteproof(fact.Point().Point)
 	vp.SetResult(base.VoteResultMajority).
 		SetMajority(fact).
-		SetSignedFacts(sfs).
+		SetSignFacts(sfs).
 		SetThreshold(t.LocalParams.Threshold()).
 		Finish()
 
@@ -206,11 +206,11 @@ func (t *BaseTestBallots) NetworkPolicyState(height base.Height, policy NetworkP
 
 type proposalPool struct {
 	*util.LockedMap
-	newproposal func(base.Point) base.ProposalSignedFact
+	newproposal func(base.Point) base.ProposalSignFact
 }
 
 func newProposalPool(
-	newproposal func(base.Point) base.ProposalSignedFact,
+	newproposal func(base.Point) base.ProposalSignFact,
 ) *proposalPool {
 	return &proposalPool{
 		LockedMap:   util.NewLockedMap(),
@@ -222,31 +222,31 @@ func (p *proposalPool) Hash(point base.Point) util.Hash {
 	return p.Get(point).Fact().Hash()
 }
 
-func (p *proposalPool) Get(point base.Point) base.ProposalSignedFact {
+func (p *proposalPool) Get(point base.Point) base.ProposalSignFact {
 	i, _, _ := p.LockedMap.Get(point.String(), func() (interface{}, error) {
 		return p.newproposal(point), nil
 	})
 
-	return i.(base.ProposalSignedFact)
+	return i.(base.ProposalSignFact)
 }
 
 func (p *proposalPool) GetFact(point base.Point) base.ProposalFact {
 	return p.Get(point).ProposalFact()
 }
 
-func (p *proposalPool) ByPoint(point base.Point) base.ProposalSignedFact {
+func (p *proposalPool) ByPoint(point base.Point) base.ProposalSignFact {
 	switch i, found := p.Value(point.String()); {
 	case !found:
 		return nil
 	default:
-		return i.(base.ProposalSignedFact)
+		return i.(base.ProposalSignFact)
 	}
 }
 
-func (p *proposalPool) ByHash(h util.Hash) (base.ProposalSignedFact, error) {
-	var pr base.ProposalSignedFact
+func (p *proposalPool) ByHash(h util.Hash) (base.ProposalSignFact, error) {
+	var pr base.ProposalSignFact
 	p.Traverse(func(_, v interface{}) bool {
-		if i := v.(base.ProposalSignedFact); i.Fact().Hash().Equal(h) {
+		if i := v.(base.ProposalSignFact); i.Fact().Hash().Equal(h) {
 			pr = i
 
 			return false

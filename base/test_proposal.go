@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func EqualProposalSignedFact(t *assert.Assertions, a, b ProposalSignedFact) {
+func EqualProposalSignFact(t *assert.Assertions, a, b ProposalSignFact) {
 	switch {
 	case a == nil && b == nil:
 		return
@@ -20,7 +20,7 @@ func EqualProposalSignedFact(t *assert.Assertions, a, b ProposalSignedFact) {
 		return
 	}
 
-	EqualSignedFact(t, a, b)
+	EqualSignFact(t, a, b)
 
 	aht := a.(hint.Hinter).Hint()
 	bht := b.(hint.Hinter).Hint()
