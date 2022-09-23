@@ -73,7 +73,7 @@ func PNetwork(ctx context.Context) (context.Context, error) {
 	handlers := quicstream.NewPrefixHandler(isaacnetwork.QuicstreamErrorHandler(enc))
 
 	quicconfig := DefaultQuicConfig()
-	quicconfig.AcceptToken = func(remote net.Addr, token *quic.Token) bool {
+	quicconfig.RequireAddressValidation = func(net.Addr) bool {
 		return true // FIXME NOTE manage blacklist
 	}
 
