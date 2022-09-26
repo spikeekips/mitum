@@ -271,12 +271,7 @@ func (suffrageRemoveCandidateStateValue) HashBytes() []byte {
 }
 
 func (s suffrageRemoveCandidateStateValue) IsValid([]byte) error {
-	vs := make([]util.IsValider, len(s.nodes))
-	for i := range s.nodes {
-		vs[i] = s.nodes[i]
-	}
-
-	if err := util.CheckIsValid(nil, false, vs...); err != nil {
+	if err := util.CheckIsValidersT(nil, false, s.nodes...); err != nil {
 		return util.ErrInvalid.Wrapf(err, "invalid suffrageRemoveCandidateStateValue")
 	}
 

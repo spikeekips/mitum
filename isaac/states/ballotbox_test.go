@@ -57,7 +57,7 @@ func (t *testBallotbox) initBallot(node isaac.LocalNode, nodes []isaac.LocalNode
 		SetThreshold(base.Threshold(100)).
 		Finish()
 
-	fact := isaac.NewINITBallotFact(point, prev, proposal)
+	fact := isaac.NewINITBallotFact(point, prev, proposal, nil)
 
 	signfact := isaac.NewINITBallotSignFact(node.Address(), fact)
 	t.NoError(signfact.Sign(node.Privatekey(), t.networkID))
@@ -68,7 +68,7 @@ func (t *testBallotbox) initBallot(node isaac.LocalNode, nodes []isaac.LocalNode
 func (t *testBallotbox) acceptBallot(node isaac.LocalNode, nodes []isaac.LocalNode, point base.Point, pr, block util.Hash) isaac.ACCEPTBallot {
 	prev := valuehash.RandomSHA256()
 
-	ifact := isaac.NewINITBallotFact(point, prev, pr)
+	ifact := isaac.NewINITBallotFact(point, prev, pr, nil)
 
 	isfs := make([]base.BallotSignFact, len(nodes))
 	for i := range nodes {

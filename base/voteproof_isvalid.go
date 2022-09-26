@@ -23,7 +23,7 @@ func isValidVoteproof(vp Voteproof, networkID NetworkID) error {
 		return e(err, "")
 	}
 
-	if err := util.CheckIsValid(networkID, false,
+	if err := util.CheckIsValiders(networkID, false,
 		vp.Point(),
 		vp.Result(),
 		vp.Threshold(),
@@ -106,7 +106,7 @@ func isValidVoteproofSignFacts(vp Voteproof, networkID NetworkID) error {
 		})
 	}
 
-	if err := util.CheckIsValid(networkID, false, bs...); err != nil {
+	if err := util.CheckIsValiders(networkID, false, bs...); err != nil {
 		return util.ErrInvalid.Wrapf(err, "invalid sign facts")
 	}
 

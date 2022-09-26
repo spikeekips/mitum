@@ -67,7 +67,7 @@ func (s BaseState) IsValid([]byte) error {
 		vs[i+5] = s.ops[i]
 	}
 
-	if err := util.CheckIsValid(nil, false, vs...); err != nil {
+	if err := util.CheckIsValiders(nil, false, vs...); err != nil {
 		return e(err, "")
 	}
 

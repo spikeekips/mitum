@@ -28,7 +28,7 @@ func IsValidProposalFact(fact ProposalFact) error {
 		return e(err, "")
 	}
 
-	if err := util.CheckIsValid(nil, false,
+	if err := util.CheckIsValiders(nil, false,
 		fact.Point(),
 		fact.Proposer(),
 		util.DummyIsValider(func([]byte) error {
@@ -43,7 +43,6 @@ func IsValidProposalFact(fact ProposalFact) error {
 	}
 
 	ops := fact.Operations()
-	vs := make([]util.IsValider, len(ops))
 
 	if _, found := util.CheckSliceDuplicated(ops, func(_ interface{}, i int) string {
 		op := ops[i]
@@ -52,14 +51,12 @@ func IsValidProposalFact(fact ProposalFact) error {
 			return ""
 		}
 
-		vs[i] = ops[i]
-
 		return op.String()
 	}); found {
 		return util.ErrInvalid.Errorf("duplicated operation found")
 	}
 
-	if err := util.CheckIsValid(nil, false, vs...); err != nil {
+	if err := util.CheckIsValidersT(nil, false, fact.Operations()...); err != nil {
 		return e(err, "")
 	}
 

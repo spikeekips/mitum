@@ -37,7 +37,7 @@ func NewSuffrageDisjoinFact(
 func (fact SuffrageDisjoinFact) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid SuffrageDisjoinFact")
 
-	if err := util.CheckIsValid(nil, false, fact.BaseFact, fact.node, fact.start); err != nil {
+	if err := util.CheckIsValiders(nil, false, fact.BaseFact, fact.node, fact.start); err != nil {
 		return e(err, "")
 	}
 

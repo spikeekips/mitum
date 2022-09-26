@@ -60,7 +60,7 @@ func (s SuffrageNodeStateValue) IsValid([]byte) error {
 		return e.Wrap(err)
 	}
 
-	if err := util.CheckIsValid(nil, false, s.Node, s.start); err != nil {
+	if err := util.CheckIsValiders(nil, false, s.Node, s.start); err != nil {
 		return e.Wrap(err)
 	}
 
@@ -115,7 +115,7 @@ func (s SuffrageNodesStateValue) IsValid([]byte) error {
 		vs[i+1] = s.nodes[i]
 	}
 
-	if err := util.CheckIsValid(nil, false, vs...); err != nil {
+	if err := util.CheckIsValiders(nil, false, vs...); err != nil {
 		return e(err, "")
 	}
 
@@ -218,13 +218,7 @@ func (s SuffrageCandidatesStateValue) IsValid([]byte) error {
 		return e(err, "")
 	}
 
-	vs := make([]util.IsValider, len(s.nodes))
-
-	for i := range s.nodes {
-		vs[i] = s.nodes[i]
-	}
-
-	if err := util.CheckIsValid(nil, false, vs...); err != nil {
+	if err := util.CheckIsValidersT(nil, false, s.nodes...); err != nil {
 		return e(err, "")
 	}
 

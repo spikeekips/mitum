@@ -24,7 +24,7 @@ func NewBaseNode(ht hint.Hint, pub Publickey, addr Address) BaseNode {
 }
 
 func (n BaseNode) IsValid([]byte) error {
-	if err := util.CheckIsValid(nil, false, n.addr, n.pub); err != nil {
+	if err := util.CheckIsValiders(nil, false, n.addr, n.pub); err != nil {
 		return errors.Wrap(err, "invalid RemoteNode")
 	}
 

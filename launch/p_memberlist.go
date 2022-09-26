@@ -393,7 +393,7 @@ func nodeChallengeFunc(pctx context.Context) (
 			return errors.WithMessage(err, "invalid publish conninfo")
 		}
 
-		if err = util.CheckIsValid(nil, false, node.Publickey()); err != nil {
+		if err = util.CheckIsValiders(nil, false, node.Publickey()); err != nil {
 			return errors.WithMessage(err, "invalid memberlist node publickey")
 		}
 

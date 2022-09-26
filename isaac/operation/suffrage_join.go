@@ -43,7 +43,7 @@ func NewSuffrageJoinFact(
 func (fact SuffrageJoinFact) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid SuffrageJoinFact")
 
-	if err := util.CheckIsValid(nil, false, fact.BaseFact, fact.candidate, fact.start); err != nil {
+	if err := util.CheckIsValiders(nil, false, fact.BaseFact, fact.candidate, fact.start); err != nil {
 		return e(err, "")
 	}
 
@@ -103,7 +103,7 @@ func (fact SuffrageGenesisJoinFact) IsValid(networkID []byte) error {
 		vs[i+1] = fact.nodes[i]
 	}
 
-	if err := util.CheckIsValid(nil, false, vs...); err != nil {
+	if err := util.CheckIsValiders(nil, false, vs...); err != nil {
 		return e.Wrap(err)
 	}
 

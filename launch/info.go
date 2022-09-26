@@ -91,7 +91,7 @@ func (info DefaultNodeInfo) IsValid([]byte) error {
 		return e(err, "")
 	}
 
-	if err := util.CheckIsValid(nil, false, info.networkID, info.version); err != nil {
+	if err := util.CheckIsValiders(nil, false, info.networkID, info.version); err != nil {
 		return e(err, "")
 	}
 

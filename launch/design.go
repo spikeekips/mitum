@@ -139,7 +139,7 @@ func NodeDesignFromConsul(addr, key string, enc *jsonenc.Encoder) (design NodeDe
 func (d *NodeDesign) IsValid([]byte) error {
 	e := util.ErrInvalid.Errorf("invalid NodeDesign")
 
-	if err := util.CheckIsValid(nil, false, d.Address, d.Privatekey, d.NetworkID); err != nil {
+	if err := util.CheckIsValiders(nil, false, d.Address, d.Privatekey, d.NetworkID); err != nil {
 		return e.Wrap(err)
 	}
 

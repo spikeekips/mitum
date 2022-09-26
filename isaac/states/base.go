@@ -250,6 +250,7 @@ func (st *baseHandler) prepareNextRound(vp base.Voteproof, prevBlock util.Hash) 
 		point,
 		prevBlock,
 		pr.Fact().Hash(),
+		nil,
 	)
 	sf := isaac.NewINITBallotSignFact(st.local.Address(), fact)
 
@@ -310,6 +311,7 @@ func (st *baseHandler) prepareNextBlock(
 		point,
 		avp.BallotMajority().NewBlock(),
 		pr.Fact().Hash(),
+		nil,
 	)
 	sf := isaac.NewINITBallotSignFact(st.local.Address(), fact)
 

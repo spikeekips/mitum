@@ -33,7 +33,7 @@ func (fact DummyFact) Hint() hint.Hint {
 }
 
 func (fact DummyFact) IsValid([]byte) error {
-	if err := util.CheckIsValid(nil, false, fact.h, fact.token); err != nil {
+	if err := util.CheckIsValiders(nil, false, fact.h, fact.token); err != nil {
 		return util.ErrInvalid.Wrapf(err, "invalid DummyFact")
 	}
 

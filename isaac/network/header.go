@@ -65,7 +65,7 @@ func (h OperationRequestHeader) IsValid([]byte) error {
 		return e(err, "")
 	}
 
-	if err := util.CheckIsValid(nil, false, h.h); err != nil {
+	if err := util.CheckIsValiders(nil, false, h.h); err != nil {
 		return e(err, "")
 	}
 
@@ -115,7 +115,7 @@ func (h RequestProposalRequestHeader) IsValid([]byte) error {
 		return e(err, "")
 	}
 
-	if err := util.CheckIsValid(nil, false, h.point, h.proposer); err != nil {
+	if err := util.CheckIsValiders(nil, false, h.point, h.proposer); err != nil {
 		return e(err, "")
 	}
 
@@ -149,7 +149,7 @@ func (h ProposalRequestHeader) IsValid([]byte) error {
 		return e(err, "")
 	}
 
-	if err := util.CheckIsValid(nil, false, h.proposal); err != nil {
+	if err := util.CheckIsValiders(nil, false, h.proposal); err != nil {
 		return e(err, "")
 	}
 
@@ -211,7 +211,7 @@ func (h SuffrageProofRequestHeader) IsValid([]byte) error {
 		return e(err, "")
 	}
 
-	if err := util.CheckIsValid(nil, false, h.suffrageheight); err != nil {
+	if err := util.CheckIsValiders(nil, false, h.suffrageheight); err != nil {
 		return e(err, "")
 	}
 
@@ -241,7 +241,7 @@ func (h LastBlockMapRequestHeader) IsValid([]byte) error {
 		return e(err, "")
 	}
 
-	if err := util.CheckIsValid(nil, true, h.manifest); err != nil {
+	if err := util.CheckIsValiders(nil, true, h.manifest); err != nil {
 		return e(err, "")
 	}
 
@@ -271,7 +271,7 @@ func (h BlockMapRequestHeader) IsValid([]byte) error {
 		return e(err, "")
 	}
 
-	if err := util.CheckIsValid(nil, false, h.height); err != nil {
+	if err := util.CheckIsValiders(nil, false, h.height); err != nil {
 		return e(err, "")
 	}
 
@@ -303,7 +303,7 @@ func (h BlockMapItemRequestHeader) IsValid([]byte) error {
 		return e(err, "")
 	}
 
-	if err := util.CheckIsValid(nil, false, h.height, h.item); err != nil {
+	if err := util.CheckIsValiders(nil, false, h.height, h.item); err != nil {
 		return e(err, "")
 	}
 

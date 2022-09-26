@@ -209,7 +209,7 @@ func (g *GenesisBlockGenerator) newProposal(ops []util.Hash) error {
 func (g *GenesisBlockGenerator) initVoetproof() error {
 	e := util.StringErrorFunc("failed to make genesis init voteproof")
 
-	fact := isaac.NewINITBallotFact(base.GenesisPoint, nil, g.proposal.Fact().Hash())
+	fact := isaac.NewINITBallotFact(base.GenesisPoint, nil, g.proposal.Fact().Hash(), nil)
 	if err := fact.IsValid(nil); err != nil {
 		return e(err, "")
 	}

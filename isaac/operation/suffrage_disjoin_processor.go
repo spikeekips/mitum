@@ -143,13 +143,7 @@ func newSuffrageDisjoinNodeStateValue(nodes []base.Address) suffrageDisjoinNodeS
 }
 
 func (s suffrageDisjoinNodeStateValue) IsValid([]byte) error {
-	vs := make([]util.IsValider, len(s.nodes))
-
-	for i := range vs {
-		vs[i] = s.nodes[i]
-	}
-
-	if err := util.CheckIsValid(nil, false, vs...); err != nil {
+	if err := util.CheckIsValidersT(nil, false, s.nodes...); err != nil {
 		return util.ErrInvalid.Errorf("invalie suffrageDisjoinNodeStateValue")
 	}
 

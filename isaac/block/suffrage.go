@@ -40,7 +40,7 @@ func (s SuffrageProof) IsValid(b []byte) error {
 		return e(err, "")
 	}
 
-	if err := util.CheckIsValid(b, false, s.m, s.st, s.proof, s.voteproof); err != nil {
+	if err := util.CheckIsValiders(b, false, s.m, s.st, s.proof, s.voteproof); err != nil {
 		return e(err, "")
 	}
 

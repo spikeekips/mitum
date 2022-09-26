@@ -173,7 +173,7 @@ func (s NetworkPolicyStateValue) IsValid([]byte) error {
 		return e(err, "")
 	}
 
-	if err := util.CheckIsValid(nil, false, s.policy); err != nil {
+	if err := util.CheckIsValiders(nil, false, s.policy); err != nil {
 		return e(err, "")
 	}
 

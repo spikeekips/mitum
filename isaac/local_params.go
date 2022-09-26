@@ -70,7 +70,7 @@ func (p *LocalParams) IsValid(networkID []byte) error {
 		return e.Errorf("network id does not match")
 	}
 
-	if err := util.CheckIsValid(networkID, false, p.networkID, p.threshold); err != nil {
+	if err := util.CheckIsValiders(networkID, false, p.networkID, p.threshold); err != nil {
 		return e.Wrap(err)
 	}
 

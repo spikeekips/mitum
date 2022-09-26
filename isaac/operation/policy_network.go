@@ -35,7 +35,7 @@ func NewGenesisNetworkPolicyFact(policy base.NetworkPolicy) GenesisNetworkPolicy
 func (fact GenesisNetworkPolicyFact) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid GenesisNetworkPolicyFact")
 
-	if err := util.CheckIsValid(nil, false, fact.BaseFact, fact.policy); err != nil {
+	if err := util.CheckIsValiders(nil, false, fact.BaseFact, fact.policy); err != nil {
 		return e(err, "")
 	}
 

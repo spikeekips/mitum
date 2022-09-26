@@ -26,6 +26,21 @@ func ConcatByters(bs ...Byter) []byte {
 	return ConcatBytesSlice(b...)
 }
 
+func ConcatBytersT[T Byter](bs ...T) []byte {
+	b := make([][]byte, len(bs))
+
+	for i := range bs {
+		j := bs[i]
+		if (interface{})(j) == nil {
+			continue
+		}
+
+		b[i] = j.Bytes()
+	}
+
+	return ConcatBytesSlice(b...)
+}
+
 type BytesToByter []byte
 
 func (b BytesToByter) Bytes() []byte {

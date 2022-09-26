@@ -37,7 +37,7 @@ func NewSuffrageCandidateFact(
 func (fact SuffrageCandidateFact) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid SuffrageCandidateFact")
 
-	if err := util.CheckIsValid(nil, false, fact.BaseFact, fact.address, fact.publickey); err != nil {
+	if err := util.CheckIsValiders(nil, false, fact.BaseFact, fact.address, fact.publickey); err != nil {
 		return e(err, "")
 	}
 

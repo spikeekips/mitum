@@ -80,7 +80,7 @@ func (si BaseSign) Bytes() []byte {
 }
 
 func (si BaseSign) IsValid([]byte) error {
-	if err := util.CheckIsValid(nil, false,
+	if err := util.CheckIsValiders(nil, false,
 		si.signer,
 		si.signature,
 		util.DummyIsValider(func([]byte) error {
@@ -152,7 +152,7 @@ func (si BaseNodeSign) Bytes() []byte {
 func (si BaseNodeSign) IsValid([]byte) error {
 	e := util.StringErrorFunc("invalid BaseNodeSign")
 
-	if err := util.CheckIsValid(nil, false, si.node); err != nil {
+	if err := util.CheckIsValiders(nil, false, si.node); err != nil {
 		return e(err, "invalid node")
 	}
 

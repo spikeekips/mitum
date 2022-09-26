@@ -7,7 +7,7 @@ import (
 func IsValidBallot(bl Ballot, networkID []byte) error {
 	e := util.StringErrorFunc("invalid Ballot")
 
-	if err := util.CheckIsValid(networkID, false,
+	if err := util.CheckIsValiders(networkID, false,
 		bl.Voteproof(),
 		bl.SignFact(),
 	); err != nil {
@@ -145,7 +145,7 @@ func IsValidINITBallotFact(fact INITBallotFact) error {
 		return e(err, "")
 	}
 
-	if err := util.CheckIsValid(nil, false,
+	if err := util.CheckIsValiders(nil, false,
 		util.DummyIsValider(func(b []byte) error {
 			if fact.Point().Point.Equal(GenesisPoint) {
 				return nil
@@ -167,7 +167,7 @@ func IsValidACCEPTBallotFact(fact ACCEPTBallotFact) error {
 		return e(err, "")
 	}
 
-	if err := util.CheckIsValid(nil, false,
+	if err := util.CheckIsValiders(nil, false,
 		fact.Proposal(),
 		fact.NewBlock(),
 	); err != nil {
@@ -183,9 +183,7 @@ func IsValidBallotSignFact(sf BallotSignFact, networkID []byte) error {
 		return e(err, "")
 	}
 
-	if err := util.CheckIsValid(nil, false,
-		sf.Node(),
-	); err != nil {
+	if err := util.CheckIsValiders(nil, false, sf.Node()); err != nil {
 		return e(err, "")
 	}
 

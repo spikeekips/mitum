@@ -56,7 +56,7 @@ func (m Manifest) IsValid([]byte) error {
 		return e(err, "")
 	}
 
-	if err := util.CheckIsValid(nil, false,
+	if err := util.CheckIsValiders(nil, false,
 		m.height,
 		m.proposal,
 		util.DummyIsValider(func([]byte) error {
@@ -71,12 +71,12 @@ func (m Manifest) IsValid([]byte) error {
 	}
 
 	if m.height != base.GenesisHeight {
-		if err := util.CheckIsValid(nil, false, m.previous); err != nil {
+		if err := util.CheckIsValiders(nil, false, m.previous); err != nil {
 			return e(err, "")
 		}
 	}
 
-	if err := util.CheckIsValid(nil, true,
+	if err := util.CheckIsValiders(nil, true,
 		m.operationsTree,
 		m.statesTree,
 		m.suffrage,

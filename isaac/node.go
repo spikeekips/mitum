@@ -26,7 +26,7 @@ func NewLocalNode(priv base.Privatekey, addr base.Address) LocalNode {
 }
 
 func (n LocalNode) IsValid([]byte) error {
-	if err := util.CheckIsValid(nil, false, n.BaseNode, n.priv); err != nil {
+	if err := util.CheckIsValiders(nil, false, n.BaseNode, n.priv); err != nil {
 		return errors.Wrap(err, "invalid LocalNode")
 	}
 

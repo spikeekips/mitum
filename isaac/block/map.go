@@ -51,7 +51,7 @@ func (m BlockMap) IsValid(b []byte) error {
 		return e(err, "")
 	}
 
-	if err := util.CheckIsValid(nil, false, m.writer, m.encoder, m.manifest, m.BaseNodeSign); err != nil {
+	if err := util.CheckIsValiders(nil, false, m.writer, m.encoder, m.manifest, m.BaseNodeSign); err != nil {
 		return e(err, "")
 	}
 
@@ -70,7 +70,7 @@ func (m BlockMap) IsValid(b []byte) error {
 		return true
 	})
 
-	if err := util.CheckIsValid(nil, true, vs...); err != nil {
+	if err := util.CheckIsValidersT(nil, true, vs...); err != nil {
 		return e(err, "invalid item found")
 	}
 

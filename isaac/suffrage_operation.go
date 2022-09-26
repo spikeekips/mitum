@@ -21,7 +21,7 @@ type SuffrageWithdrawFact struct {
 func NewSuffrageWithdrawFact(
 	token base.Token,
 	node base.Address,
-	start base.Height,
+	start base.Height, // FIXME check start height is behind last block
 ) SuffrageWithdrawFact {
 	fact := SuffrageWithdrawFact{
 		BaseFact: base.NewBaseFact(SuffrageWithdrawFactHint, token),
@@ -41,7 +41,7 @@ func (fact SuffrageWithdrawFact) IsValid([]byte) error {
 		return e(util.ErrInvalid.Errorf("invalid start height; should be over genesis height"), "")
 	}
 
-	if err := util.CheckIsValid(nil, false, fact.BaseFact, fact.node); err != nil {
+	if err := util.CheckIsValiders(nil, false, fact.BaseFact, fact.node); err != nil {
 		return e(err, "")
 	}
 

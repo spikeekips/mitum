@@ -50,7 +50,7 @@ func (sl BaseSeal) IsValid(networkID []byte) error {
 		c[2+i] = sl.body[i]
 	}
 
-	if err := util.CheckIsValid(nil, false, c...); err != nil {
+	if err := util.CheckIsValiders(nil, false, c...); err != nil {
 		return e(util.ErrInvalid.Wrap(err), "")
 	}
 

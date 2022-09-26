@@ -53,7 +53,7 @@ func (t Token) IsValid([]byte) error {
 }
 
 func IsValidFact(fact Fact, b []byte) error {
-	if err := util.CheckIsValid(b, false,
+	if err := util.CheckIsValiders(b, false,
 		fact.Hash(),
 		fact.Token(),
 	); err != nil {
@@ -78,7 +78,7 @@ func IsValidSignFact(sf SignFact, networkID []byte) error {
 		bs[i+1] = sfs[i]
 	}
 
-	if err := util.CheckIsValid(networkID, false, bs...); err != nil {
+	if err := util.CheckIsValiders(networkID, false, bs...); err != nil {
 		return e.Wrapf(err, "invalid SignFact")
 	}
 

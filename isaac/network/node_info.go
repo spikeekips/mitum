@@ -35,7 +35,7 @@ type NodeInfo struct {
 func (info NodeInfo) IsValid(networkID base.NetworkID) error {
 	e := util.ErrInvalid.Errorf("invalid NodeInfo")
 
-	if err := util.CheckIsValid(networkID, false,
+	if err := util.CheckIsValiders(networkID, false,
 		info.consensusState,
 		info.lastManifest,
 		info.suffrageHeight,
@@ -60,12 +60,7 @@ func (info NodeInfo) IsValid(networkID base.NetworkID) error {
 		return e.Wrap(err)
 	}
 
-	consensusNodes := make([]util.IsValider, len(info.consensusNodes))
-	for i := range consensusNodes {
-		consensusNodes[i] = info.consensusNodes[i]
-	}
-
-	if err := util.CheckIsValid(nil, false, consensusNodes...); err != nil {
+	if err := util.CheckIsValidersT(nil, false, info.consensusNodes...); err != nil {
 		return e.Wrap(err)
 	}
 

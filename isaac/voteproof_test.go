@@ -25,7 +25,7 @@ func (t *testBaseVoteproof) SetupTest() {
 }
 
 func (t *testBaseVoteproof) validVoteproof() INITVoteproof {
-	ifact := NewINITBallotFact(base.RawPoint(33, 55), valuehash.RandomSHA256(), valuehash.RandomSHA256())
+	ifact := NewINITBallotFact(base.RawPoint(33, 55), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
 
 	isignfact := NewINITBallotSignFact(t.local.Address(), ifact)
 	t.NoError(isignfact.Sign(t.local.Privatekey(), t.networkID))
@@ -137,7 +137,7 @@ func (t *testBaseVoteproof) TestDuplicatedNodeInSignFact() {
 func (t *testBaseVoteproof) TestInvalidSignFact() {
 	ivp := t.validVoteproof()
 
-	ifact := NewINITBallotFact(base.RawPoint(33, 55), valuehash.RandomSHA256(), valuehash.RandomSHA256())
+	ifact := NewINITBallotFact(base.RawPoint(33, 55), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
 
 	isignfact := NewINITBallotSignFact(base.RandomAddress(""), ifact)
 	t.NoError(isignfact.Sign(t.local.Privatekey(), util.UUID().Bytes())) // wrong network id
@@ -153,9 +153,9 @@ func (t *testBaseVoteproof) TestInvalidSignFact() {
 func (t *testBaseVoteproof) TestWrongPointOfSignFact() {
 	ivp := t.validVoteproof()
 
-	ifact := NewINITBallotFact(base.RawPoint(33, 55), valuehash.RandomSHA256(), valuehash.RandomSHA256())
+	ifact := NewINITBallotFact(base.RawPoint(33, 55), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
 
-	wfact := NewINITBallotFact(base.RawPoint(34, 55), valuehash.RandomSHA256(), valuehash.RandomSHA256())
+	wfact := NewINITBallotFact(base.RawPoint(34, 55), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
 
 	isignfact := NewINITBallotSignFact(base.RandomAddress(""), ifact)
 	t.NoError(isignfact.Sign(t.local.Privatekey(), t.networkID))
@@ -175,7 +175,7 @@ func (t *testBaseVoteproof) TestWrongPointOfSignFact() {
 func (t *testBaseVoteproof) TestWrongPointOfMajority() {
 	ivp := t.validVoteproof()
 
-	ifact := NewINITBallotFact(base.NewPoint(ivp.Point().Height()+1, ivp.Point().Round()), valuehash.RandomSHA256(), valuehash.RandomSHA256())
+	ifact := NewINITBallotFact(base.NewPoint(ivp.Point().Height()+1, ivp.Point().Round()), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
 
 	isignfact := NewINITBallotSignFact(base.RandomAddress(""), ifact)
 
@@ -193,7 +193,7 @@ func (t *testBaseVoteproof) TestWrongPointOfMajority() {
 func (t *testBaseVoteproof) TestMajorityNotFoundInSignFacts() {
 	ivp := t.validVoteproof()
 
-	fact := NewINITBallotFact(base.RawPoint(33, 55), valuehash.RandomSHA256(), valuehash.RandomSHA256())
+	fact := NewINITBallotFact(base.RawPoint(33, 55), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
 
 	ivp.SetMajority(fact).Finish()
 
@@ -209,7 +209,7 @@ func (t *testBaseVoteproof) TestWrongMajorityWithSuffrage() {
 
 	ivp := t.validVoteproof()
 
-	fact := NewINITBallotFact(base.RawPoint(33, 55), valuehash.RandomSHA256(), valuehash.RandomSHA256())
+	fact := NewINITBallotFact(base.RawPoint(33, 55), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
 
 	newsignfact := func(node LocalNode) INITBallotSignFact {
 		signfact := NewINITBallotSignFact(node.Address(), fact)
@@ -317,7 +317,7 @@ func TestINITVoteproofJSON(tt *testing.T) {
 		sfs := make([]base.BallotSignFact, 2)
 		for i := range sfs {
 			node := RandomLocalNode()
-			fact := NewINITBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256())
+			fact := NewINITBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
 			sf := NewINITBallotSignFact(node.Address(), fact)
 			t.NoError(sf.Sign(node.Privatekey(), t.networkID))
 

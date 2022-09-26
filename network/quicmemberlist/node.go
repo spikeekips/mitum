@@ -91,7 +91,7 @@ func (n BaseNode) IsValid([]byte) error {
 		return e.Wrap(err)
 	}
 
-	if err := util.CheckIsValid(nil, false,
+	if err := util.CheckIsValiders(nil, false,
 		util.DummyIsValider(func([]byte) error {
 			if n.addr.IP.IsUnspecified() {
 				return errors.Errorf("empty udp addr")
@@ -245,7 +245,7 @@ func newNodeMeta(address base.Address, publickey base.Publickey, publish string,
 func (n nodeMeta) IsValid([]byte) error {
 	e := util.ErrInvalid.Errorf("invalid NodeMeta")
 
-	if err := util.CheckIsValid(nil, false,
+	if err := util.CheckIsValiders(nil, false,
 		n.address,
 		n.publickey,
 		util.DummyIsValider(func([]byte) error {

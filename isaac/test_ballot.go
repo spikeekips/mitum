@@ -40,7 +40,7 @@ func (t *BaseTestBallots) NewINITBallotFact(point base.Point, prev, pr util.Hash
 	if pr == nil {
 		pr = valuehash.RandomSHA256()
 	}
-	return NewINITBallotFact(point, prev, pr)
+	return NewINITBallotFact(point, prev, pr, nil)
 }
 
 func (t *BaseTestBallots) NewACCEPTBallotFact(point base.Point, pr, block util.Hash) ACCEPTBallotFact {

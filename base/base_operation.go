@@ -58,7 +58,7 @@ func (op BaseOperation) IsValid(networkID []byte) error {
 		return e.Errorf("empty signs")
 	}
 
-	if err := util.CheckIsValid(networkID, false, op.h); err != nil {
+	if err := util.CheckIsValiders(networkID, false, op.h); err != nil {
 		return e.Wrap(err)
 	}
 
