@@ -11,8 +11,8 @@ func (p *NetworkPolicy) SetMaxOperationsInProposal(i uint64) *NetworkPolicy {
 	return p
 }
 
-func (p *NetworkPolicy) SetSuffrageCandidateLifespan(i base.Height) *NetworkPolicy {
-	p.suffrageCandidateLifespan = i
+func (p *NetworkPolicy) SetSuffrageCandidateLifeSpan(i base.Height) *NetworkPolicy {
+	p.suffrageCandidateLifeSpan = i
 
 	return p
 }

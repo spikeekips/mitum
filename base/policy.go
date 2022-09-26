@@ -9,7 +9,7 @@ type NetworkPolicy interface {
 	util.IsValider
 	util.HashByter
 	MaxOperationsInProposal() uint64
-	SuffrageCandidateLifespan() Height
+	SuffrageCandidateLifeSpan() Height
 	SuffrageCandidateLimiterRule() SuffrageCandidateLimiterRule
 	MaxSuffrageSize() uint64
 }

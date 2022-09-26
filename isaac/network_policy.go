@@ -19,7 +19,7 @@ var (
 
 	// NOTE suffrage candidate can be approved within lifespan height; almost 15
 	// days(based on 5 second for one block)
-	DefaultSuffrageCandidateLifespan base.Height = 1 << 18
+	DefaultSuffrageCandidateLifeSpan base.Height = 1 << 18
 )
 
 type NetworkPolicy struct {
@@ -27,7 +27,7 @@ type NetworkPolicy struct {
 	util.DefaultJSONMarshaled
 	hint.BaseHinter
 	maxOperationsInProposal   uint64
-	suffrageCandidateLifespan base.Height
+	suffrageCandidateLifeSpan base.Height
 	maxSuffrageSize           uint64
 }
 
@@ -35,7 +35,7 @@ func DefaultNetworkPolicy() NetworkPolicy {
 	return NetworkPolicy{
 		BaseHinter:                   hint.NewBaseHinter(NetworkPolicyHint),
 		maxOperationsInProposal:      DefaultMaxOperationsInProposal,
-		suffrageCandidateLifespan:    DefaultSuffrageCandidateLifespan,
+		suffrageCandidateLifeSpan:    DefaultSuffrageCandidateLifeSpan,
 		suffrageCandidateLimiterRule: NewFixedSuffrageCandidateLimiterRule(1),
 		maxSuffrageSize:              DefaultMaxSuffrageSize,
 	}
@@ -56,11 +56,11 @@ func (p NetworkPolicy) IsValid([]byte) error {
 		return e.Errorf("under zero maxSuffrageSize")
 	}
 
-	switch err := p.suffrageCandidateLifespan.IsValid(nil); {
+	switch err := p.suffrageCandidateLifeSpan.IsValid(nil); {
 	case err != nil:
-		return e.Wrapf(err, "invalid SuffrageCandidateLifespan")
-	case p.suffrageCandidateLifespan <= base.GenesisHeight:
-		return e.Errorf("zero SuffrageCandidateLifespan")
+		return e.Wrapf(err, "invalid SuffrageCandidateLifeSpan")
+	case p.suffrageCandidateLifeSpan <= base.GenesisHeight:
+		return e.Errorf("zero SuffrageCandidateLifeSpan")
 	}
 
 	if p.suffrageCandidateLimiterRule == nil {
@@ -83,7 +83,7 @@ func (p NetworkPolicy) HashBytes() []byte {
 
 	return util.ConcatBytesSlice(
 		util.Uint64ToBytes(p.maxOperationsInProposal),
-		p.suffrageCandidateLifespan.Bytes(),
+		p.suffrageCandidateLifeSpan.Bytes(),
 		util.Uint64ToBytes(p.maxSuffrageSize),
 		rule,
 	)
@@ -93,8 +93,8 @@ func (p NetworkPolicy) MaxOperationsInProposal() uint64 {
 	return p.maxOperationsInProposal
 }
 
-func (p NetworkPolicy) SuffrageCandidateLifespan() base.Height {
-	return p.suffrageCandidateLifespan
+func (p NetworkPolicy) SuffrageCandidateLifeSpan() base.Height {
+	return p.suffrageCandidateLifeSpan
 }
 
 func (p NetworkPolicy) SuffrageCandidateLimiterRule() base.SuffrageCandidateLimiterRule {
@@ -110,7 +110,7 @@ type networkPolicyJSONMarshaler struct {
 	SuffrageCandidateLimiterRule base.SuffrageCandidateLimiterRule `json:"suffrage_candidate_limiter"` //nolint:tagliatelle //...
 	hint.BaseHinter
 	MaxOperationsInProposal   uint64      `json:"max_operations_in_proposal"`
-	SuffrageCandidateLifespan base.Height `json:"suffrage_candidate_lifespan"`
+	SuffrageCandidateLifeSpan base.Height `json:"suffrage_candidate_life_span"`
 	MaxSuffrageSize           uint64      `json:"max_suffrage_size"`
 }
 
@@ -118,7 +118,7 @@ func (p NetworkPolicy) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(networkPolicyJSONMarshaler{
 		BaseHinter:                   p.BaseHinter,
 		MaxOperationsInProposal:      p.maxOperationsInProposal,
-		SuffrageCandidateLifespan:    p.suffrageCandidateLifespan,
+		SuffrageCandidateLifeSpan:    p.suffrageCandidateLifeSpan,
 		SuffrageCandidateLimiterRule: p.suffrageCandidateLimiterRule,
 		MaxSuffrageSize:              p.maxSuffrageSize,
 	})
@@ -127,7 +127,7 @@ func (p NetworkPolicy) MarshalJSON() ([]byte, error) {
 type networkPolicyJSONUnmarshaler struct {
 	SuffrageCandidateLimiterRule json.RawMessage `json:"suffrage_candidate_limiter"` //nolint:tagliatelle //...
 	MaxOperationsInProposal      uint64          `json:"max_operations_in_proposal"`
-	SuffrageCandidateLifespan    base.Height     `json:"suffrage_candidate_lifespan"`
+	SuffrageCandidateLifeSpan    base.Height     `json:"suffrage_candidate_life_span"`
 	MaxSuffrageSize              uint64          `json:"max_suffrage_size"`
 }
 
@@ -144,7 +144,7 @@ func (p *NetworkPolicy) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	}
 
 	p.maxOperationsInProposal = u.MaxOperationsInProposal
-	p.suffrageCandidateLifespan = u.SuffrageCandidateLifespan
+	p.suffrageCandidateLifeSpan = u.SuffrageCandidateLifeSpan
 	p.maxSuffrageSize = u.MaxSuffrageSize
 
 	return nil
