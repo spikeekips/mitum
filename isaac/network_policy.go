@@ -29,6 +29,7 @@ type NetworkPolicy struct {
 	maxOperationsInProposal   uint64
 	suffrageCandidateLifeSpan base.Height
 	maxSuffrageSize           uint64
+	// FIXME add suffrageWithdrawLifeSpan base.Height
 }
 
 func DefaultNetworkPolicy() NetworkPolicy {

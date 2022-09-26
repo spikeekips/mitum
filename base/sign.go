@@ -8,6 +8,14 @@ import (
 	"github.com/spikeekips/mitum/util/localtime"
 )
 
+type Signer interface {
+	Sign(Privatekey, NetworkID /* or with additional data */) error
+}
+
+type NodeSigner interface {
+	NodeSign(Privatekey, NetworkID, Address) error
+}
+
 type Sign interface {
 	util.Byter
 	util.IsValider

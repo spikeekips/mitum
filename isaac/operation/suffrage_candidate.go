@@ -116,16 +116,6 @@ func (op SuffrageCandidate) IsValid(networkID []byte) error {
 	return nil
 }
 
-func (op *SuffrageCandidate) HashSign(priv base.Privatekey, networkID base.NetworkID, node base.Address) error {
-	fact := op.Fact().(SuffrageCandidateFact) //nolint:forcetypeassert //...
-
-	fact.SetHash(fact.hash())
-
-	op.BaseNodeOperation.SetFact(fact)
-
-	return op.Sign(priv, networkID, node)
-}
-
 func (op *SuffrageCandidate) SetToken(t base.Token) error {
 	fact := op.Fact().(SuffrageCandidateFact) //nolint:forcetypeassert //...
 

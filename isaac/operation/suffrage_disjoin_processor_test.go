@@ -74,7 +74,7 @@ func (t *testSuffrageDisjoinProcessor) TestNew() {
 	t.NoError(err)
 
 	op := NewSuffrageDisjoin(NewSuffrageDisjoinFact(util.UUID().Bytes(), local.Address(), height))
-	t.NoError(op.Sign(local.Privatekey(), t.networkID, local.Address()))
+	t.NoError(op.NodeSign(local.Privatekey(), t.networkID, local.Address()))
 
 	reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
 	t.NoError(err)
@@ -177,14 +177,14 @@ func (t *testSuffrageDisjoinProcessor) TestPreProcessed() {
 	local := nodes[1]
 
 	op := NewSuffrageDisjoin(NewSuffrageDisjoinFact(util.UUID().Bytes(), local.Address(), height))
-	t.NoError(op.Sign(local.Privatekey(), t.networkID, local.Address()))
+	t.NoError(op.NodeSign(local.Privatekey(), t.networkID, local.Address()))
 
 	reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
 	t.NoError(err)
 	t.Nil(reason)
 
 	anotherop := NewSuffrageDisjoin(NewSuffrageDisjoinFact(util.UUID().Bytes(), local.Address(), height))
-	t.NoError(anotherop.Sign(base.NewMPrivatekey(), t.networkID, local.Address()))
+	t.NoError(anotherop.NodeSign(base.NewMPrivatekey(), t.networkID, local.Address()))
 
 	reason, err = pp.PreProcess(context.Background(), anotherop, getStateFunc)
 	t.NoError(err)
@@ -208,7 +208,7 @@ func (t *testSuffrageDisjoinProcessor) TestStartHeightMismatch() {
 	local := nodes[1]
 
 	op := NewSuffrageDisjoin(NewSuffrageDisjoinFact(util.UUID().Bytes(), local.Address(), height+1))
-	t.NoError(op.Sign(local.Privatekey(), t.networkID, local.Address()))
+	t.NoError(op.NodeSign(local.Privatekey(), t.networkID, local.Address()))
 
 	reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
 	t.NoError(err)
@@ -236,7 +236,7 @@ func (t *testSuffrageDisjoinProcessor) TestPreProcessConstaint() {
 	local := nodes[1]
 
 	op := NewSuffrageDisjoin(NewSuffrageDisjoinFact(util.UUID().Bytes(), local.Address(), height))
-	t.NoError(op.Sign(local.Privatekey(), t.networkID, local.Address()))
+	t.NoError(op.NodeSign(local.Privatekey(), t.networkID, local.Address()))
 
 	reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
 	t.NoError(err)
@@ -260,7 +260,7 @@ func (t *testSuffrageDisjoinProcessor) TestNotSignedByCandidate() {
 	local := nodes[1]
 
 	op := NewSuffrageDisjoin(NewSuffrageDisjoinFact(util.UUID().Bytes(), local.Address(), height))
-	t.NoError(op.Sign(base.NewMPrivatekey(), t.networkID, local.Address()))
+	t.NoError(op.NodeSign(base.NewMPrivatekey(), t.networkID, local.Address()))
 
 	reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
 	t.NoError(err)
@@ -283,7 +283,7 @@ func (t *testSuffrageDisjoinProcessor) TestNotSuffrage() {
 
 	unknown := base.RandomAddress("")
 	op := NewSuffrageDisjoin(NewSuffrageDisjoinFact(util.UUID().Bytes(), unknown, height))
-	t.NoError(op.Sign(base.NewMPrivatekey(), t.networkID, unknown))
+	t.NoError(op.NodeSign(base.NewMPrivatekey(), t.networkID, unknown))
 
 	reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
 	t.NoError(err)

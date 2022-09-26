@@ -91,8 +91,8 @@ func (t *testSuffrageJoinProcessor) TestNew() {
 	t.NoError(err)
 
 	op := NewSuffrageJoin(NewSuffrageJoinFact(util.UUID().Bytes(), candidatenode.Address(), height+1))
-	t.NoError(op.Sign(t.priv, t.networkID, candidatenode.Address()))
-	t.NoError(op.Sign(existingnodepriv, t.networkID, existingnode.Address()))
+	t.NoError(op.NodeSign(t.priv, t.networkID, candidatenode.Address()))
+	t.NoError(op.NodeSign(existingnodepriv, t.networkID, existingnode.Address()))
 
 	reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
 	t.NoError(err)
@@ -222,8 +222,8 @@ func (t *testSuffrageJoinProcessor) TestFromEmptyCandidateState() {
 	candidate := base.RandomAddress("")
 
 	op := NewSuffrageJoin(NewSuffrageJoinFact(util.UUID().Bytes(), candidate, height+1))
-	t.NoError(op.Sign(t.priv, t.networkID, candidate))
-	t.NoError(op.Sign(existingnodepriv, t.networkID, existingnode.Address()))
+	t.NoError(op.NodeSign(t.priv, t.networkID, candidate))
+	t.NoError(op.NodeSign(existingnodepriv, t.networkID, existingnode.Address()))
 
 	reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
 	t.NoError(err)
@@ -258,16 +258,16 @@ func (t *testSuffrageJoinProcessor) TestPreProcessed() {
 	t.NoError(err)
 
 	op := NewSuffrageJoin(NewSuffrageJoinFact(util.UUID().Bytes(), candidatenode.Address(), height+1))
-	t.NoError(op.Sign(t.priv, t.networkID, candidatenode.Address()))
-	t.NoError(op.Sign(existingnodepriv, t.networkID, existingnode.Address()))
+	t.NoError(op.NodeSign(t.priv, t.networkID, candidatenode.Address()))
+	t.NoError(op.NodeSign(existingnodepriv, t.networkID, existingnode.Address()))
 
 	reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
 	t.NoError(err)
 	t.Nil(reason)
 
 	anotherop := NewSuffrageJoin(NewSuffrageJoinFact(util.UUID().Bytes(), candidatenode.Address(), height+1))
-	t.NoError(anotherop.Sign(base.NewMPrivatekey(), t.networkID, candidatenode.Address()))
-	t.NoError(anotherop.Sign(existingnodepriv, t.networkID, existingnode.Address()))
+	t.NoError(anotherop.NodeSign(base.NewMPrivatekey(), t.networkID, candidatenode.Address()))
+	t.NoError(anotherop.NodeSign(existingnodepriv, t.networkID, existingnode.Address()))
 
 	reason, err = pp.PreProcess(context.Background(), anotherop, getStateFunc)
 	t.NoError(err)
@@ -290,8 +290,8 @@ func (t *testSuffrageJoinProcessor) TestStartHeightMismatch() {
 	t.NoError(err)
 
 	op := NewSuffrageJoin(NewSuffrageJoinFact(util.UUID().Bytes(), candidatenode.Address(), height))
-	t.NoError(op.Sign(t.priv, t.networkID, candidatenode.Address()))
-	t.NoError(op.Sign(existingnodepriv, t.networkID, existingnode.Address()))
+	t.NoError(op.NodeSign(t.priv, t.networkID, candidatenode.Address()))
+	t.NoError(op.NodeSign(existingnodepriv, t.networkID, existingnode.Address()))
 
 	reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
 	t.NoError(err)
@@ -318,8 +318,8 @@ func (t *testSuffrageJoinProcessor) TestPreProcessConstaint() {
 	t.NoError(err)
 
 	op := NewSuffrageJoin(NewSuffrageJoinFact(util.UUID().Bytes(), candidatenode.Address(), height+1))
-	t.NoError(op.Sign(t.priv, t.networkID, candidatenode.Address()))
-	t.NoError(op.Sign(existingnodepriv, t.networkID, existingnode.Address()))
+	t.NoError(op.NodeSign(t.priv, t.networkID, candidatenode.Address()))
+	t.NoError(op.NodeSign(existingnodepriv, t.networkID, existingnode.Address()))
 
 	reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
 	t.NoError(err)
@@ -342,8 +342,8 @@ func (t *testSuffrageJoinProcessor) TestNotSignedByCandidate() {
 	t.NoError(err)
 
 	op := NewSuffrageJoin(NewSuffrageJoinFact(util.UUID().Bytes(), candidatenode.Address(), height+1))
-	t.NoError(op.Sign(base.NewMPrivatekey(), t.networkID, candidatenode.Address()))
-	t.NoError(op.Sign(existingnodepriv, t.networkID, existingnode.Address()))
+	t.NoError(op.NodeSign(base.NewMPrivatekey(), t.networkID, candidatenode.Address()))
+	t.NoError(op.NodeSign(existingnodepriv, t.networkID, existingnode.Address()))
 
 	reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
 	t.NoError(err)
@@ -367,8 +367,8 @@ func (t *testSuffrageJoinProcessor) TestNotCandidate() {
 
 	unknown := base.RandomAddress("")
 	op := NewSuffrageJoin(NewSuffrageJoinFact(util.UUID().Bytes(), unknown, height+1))
-	t.NoError(op.Sign(existingnodepriv, t.networkID, existingnode.Address()))
-	t.NoError(op.Sign(base.NewMPrivatekey(), t.networkID, unknown))
+	t.NoError(op.NodeSign(existingnodepriv, t.networkID, existingnode.Address()))
+	t.NoError(op.NodeSign(base.NewMPrivatekey(), t.networkID, unknown))
 
 	reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
 	t.NoError(err)
@@ -402,7 +402,7 @@ func (t *testSuffrageJoinProcessor) TestAlreadyInSuffrage() {
 	t.NoError(err)
 
 	op := NewSuffrageJoin(NewSuffrageJoinFact(util.UUID().Bytes(), existingnode.Address(), height+1))
-	t.NoError(op.Sign(existingnodepriv, t.networkID, existingnode.Address()))
+	t.NoError(op.NodeSign(existingnodepriv, t.networkID, existingnode.Address()))
 
 	reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
 	t.NoError(err)
@@ -425,7 +425,7 @@ func (t *testSuffrageJoinProcessor) TestNotEnoughSign() {
 	t.NoError(err)
 
 	op := NewSuffrageJoin(NewSuffrageJoinFact(util.UUID().Bytes(), candidatenode.Address(), height+1))
-	t.NoError(op.Sign(t.priv, t.networkID, candidatenode.Address()))
+	t.NoError(op.NodeSign(t.priv, t.networkID, candidatenode.Address()))
 
 	reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
 	t.NoError(err)

@@ -14,6 +14,10 @@ type Fact interface {
 	Token() Token
 }
 
+type Facter interface {
+	Fact() Fact
+}
+
 type SignFact interface {
 	util.HashByter
 	Fact() Fact
@@ -26,6 +30,10 @@ type NodeSignFact interface {
 }
 
 type Token []byte
+
+type Tokener interface {
+	Token() Token
+}
 
 type TokenSetter interface {
 	SetToken(Token) error

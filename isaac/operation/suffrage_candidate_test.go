@@ -79,7 +79,7 @@ func TestSuffrageCandidateEncode(tt *testing.T) {
 		)
 
 		op := NewSuffrageCandidate(fact)
-		t.NoError(op.Sign(priv, networkID, fact.Address()))
+		t.NoError(op.NodeSign(priv, networkID, fact.Address()))
 
 		t.NoError(op.IsValid(networkID))
 
@@ -125,7 +125,7 @@ func (t *testSuffrageCandidate) TestSign() {
 	t.Run("by candidate", func() {
 		op := NewSuffrageCandidate(fact)
 
-		t.NoError(op.Sign(priv, nil, fact.Address()))
+		t.NoError(op.NodeSign(priv, nil, fact.Address()))
 
 		t.NoError(op.IsValid(nil))
 	})
@@ -133,7 +133,7 @@ func (t *testSuffrageCandidate) TestSign() {
 	t.Run("not by candidate address", func() {
 		op := NewSuffrageCandidate(fact)
 
-		t.NoError(op.Sign(priv, nil, base.RandomAddress("")))
+		t.NoError(op.NodeSign(priv, nil, base.RandomAddress("")))
 
 		err := op.IsValid(nil)
 		t.Error(err)
@@ -144,7 +144,7 @@ func (t *testSuffrageCandidate) TestSign() {
 	t.Run("not by candidate publickey", func() {
 		op := NewSuffrageCandidate(fact)
 
-		t.NoError(op.Sign(base.NewMPrivatekey(), nil, fact.Address()))
+		t.NoError(op.NodeSign(base.NewMPrivatekey(), nil, fact.Address()))
 
 		err := op.IsValid(nil)
 		t.Error(err)

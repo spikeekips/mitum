@@ -127,7 +127,7 @@ func (t *testSuffrageJoin) TestIsValid() {
 	t.Run("ok", func() {
 		fact := NewSuffrageJoinFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(33))
 		op := NewSuffrageJoin(fact)
-		t.NoError(op.Sign(priv, networkID, fact.Candidate()))
+		t.NoError(op.NodeSign(priv, networkID, fact.Candidate()))
 
 		t.NoError(op.IsValid(networkID))
 	})
@@ -135,7 +135,7 @@ func (t *testSuffrageJoin) TestIsValid() {
 	t.Run("different network id", func() {
 		fact := NewSuffrageJoinFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(33))
 		op := NewSuffrageJoin(fact)
-		t.NoError(op.Sign(priv, networkID, fact.Candidate()))
+		t.NoError(op.NodeSign(priv, networkID, fact.Candidate()))
 
 		err := op.IsValid(util.UUID().Bytes())
 		t.Error(err)
@@ -145,7 +145,7 @@ func (t *testSuffrageJoin) TestIsValid() {
 	t.Run("different node", func() {
 		fact := NewSuffrageJoinFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(33))
 		op := NewSuffrageJoin(fact)
-		t.NoError(op.Sign(priv, networkID, base.RandomAddress("")))
+		t.NoError(op.NodeSign(priv, networkID, base.RandomAddress("")))
 
 		err := op.IsValid(networkID)
 		t.Error(err)
@@ -166,7 +166,7 @@ func TestSuffrageJoinEncode(tt *testing.T) {
 	t.Encode = func() (interface{}, []byte) {
 		fact := NewSuffrageJoinFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(33))
 		op := NewSuffrageJoin(fact)
-		t.NoError(op.Sign(base.NewMPrivatekey(), networkID, fact.Candidate()))
+		t.NoError(op.NodeSign(base.NewMPrivatekey(), networkID, fact.Candidate()))
 
 		t.NoError(op.IsValid(networkID))
 

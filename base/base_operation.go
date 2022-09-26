@@ -176,16 +176,16 @@ func (op BaseNodeOperation) IsValid(networkID []byte) error {
 	return nil
 }
 
-func (op *BaseNodeOperation) Sign(priv Privatekey, networkID NetworkID, node Address) error {
+func (op *BaseNodeOperation) NodeSign(priv Privatekey, networkID NetworkID, node Address) error {
 	found := -1
 
 	for i := range op.signs {
-		s := op.signs[i]
+		s := op.signs[i].(NodeSign) //nolint:forcetypeassert //...
 		if s == nil {
 			continue
 		}
 
-		if s.Signer().Equal(priv.Publickey()) {
+		if s.Node().Equal(node) {
 			found = i
 
 			break

@@ -43,7 +43,7 @@ func (t *testSuffrageCandidateProcessor) TestNewCandidateFromEmpty() {
 	candidate := base.RandomAddress("")
 
 	op := NewSuffrageCandidate(NewSuffrageCandidateFact(util.UUID().Bytes(), candidate, t.priv.Publickey()))
-	t.NoError(op.Sign(t.priv, t.networkID, candidate))
+	t.NoError(op.NodeSign(t.priv, t.networkID, candidate))
 
 	reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
 	t.NoError(err)
@@ -125,7 +125,7 @@ func (t *testSuffrageCandidateProcessor) TestNewCandidate() {
 	candidate := base.RandomAddress("")
 
 	op := NewSuffrageCandidate(NewSuffrageCandidateFact(util.UUID().Bytes(), candidate, t.priv.Publickey()))
-	t.NoError(op.Sign(t.priv, t.networkID, candidate))
+	t.NoError(op.NodeSign(t.priv, t.networkID, candidate))
 
 	reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
 	t.NoError(err)
@@ -180,7 +180,7 @@ func (t *testSuffrageCandidateProcessor) TestPreProcess() {
 	candidate := base.RandomAddress("")
 
 	op := NewSuffrageCandidate(NewSuffrageCandidateFact(util.UUID().Bytes(), candidate, t.priv.Publickey()))
-	t.NoError(op.Sign(t.priv, t.networkID, candidate))
+	t.NoError(op.NodeSign(t.priv, t.networkID, candidate))
 
 	t.Run("already processed", func() {
 		pp, err := NewSuffrageCandidateProcessor(
@@ -198,7 +198,7 @@ func (t *testSuffrageCandidateProcessor) TestPreProcess() {
 
 		// NOTE with same candidate
 		opsame := NewSuffrageCandidate(NewSuffrageCandidateFact(util.UUID().Bytes(), candidate, t.priv.Publickey()))
-		t.NoError(opsame.Sign(t.priv, t.networkID, candidate))
+		t.NoError(opsame.NodeSign(t.priv, t.networkID, candidate))
 
 		reason, err = pp.PreProcess(context.Background(), opsame, getStateFunc)
 		t.NoError(err)
@@ -245,7 +245,7 @@ func (t *testSuffrageCandidateProcessor) TestPreProcess() {
 
 		// NOTE with same candidate
 		opsame := NewSuffrageCandidate(NewSuffrageCandidateFact(util.UUID().Bytes(), candidate, t.priv.Publickey()))
-		t.NoError(opsame.Sign(t.priv, t.networkID, candidate))
+		t.NoError(opsame.NodeSign(t.priv, t.networkID, candidate))
 
 		reason, err = pp.PreProcess(context.Background(), opsame, getStateFunc)
 		t.NoError(err)
@@ -365,7 +365,7 @@ func (t *testSuffrageCandidateProcessor) TestProcess() {
 	candidate := base.RandomAddress("")
 
 	op := NewSuffrageCandidate(NewSuffrageCandidateFact(util.UUID().Bytes(), candidate, t.priv.Publickey()))
-	t.NoError(op.Sign(t.priv, t.networkID, candidate))
+	t.NoError(op.NodeSign(t.priv, t.networkID, candidate))
 
 	lifespan := base.Height(50)
 
@@ -458,7 +458,7 @@ func (t *testSuffrageCandidateProcessor) TestProcessConcurrent() {
 
 		t.NoError(worker.NewJob(func(context.Context, uint64) error {
 			op := NewSuffrageCandidate(NewSuffrageCandidateFact(util.UUID().Bytes(), address, priv.Publickey()))
-			if err := op.Sign(priv, t.networkID, address); err != nil {
+			if err := op.NodeSign(priv, t.networkID, address); err != nil {
 				return err
 			}
 

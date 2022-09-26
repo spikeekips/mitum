@@ -187,7 +187,7 @@ func (t *testBaseNodeOperation) newOperation() dummyNodeOperation {
 
 func (t *testBaseNodeOperation) newSignedOperation(node Address) dummyNodeOperation {
 	op := t.newOperation()
-	t.NoError(op.Sign(t.priv, t.networkID, node))
+	t.NoError(op.NodeSign(t.priv, t.networkID, node))
 
 	return op
 }
@@ -268,7 +268,7 @@ func (t *testBaseNodeOperation) TestSign() {
 	t.Run("sign in not sign", func() {
 		op := t.newOperation()
 
-		t.NoError(op.Sign(t.priv, t.networkID, node))
+		t.NoError(op.NodeSign(t.priv, t.networkID, node))
 
 		t.Equal(1, len(op.signs))
 	})
@@ -276,12 +276,12 @@ func (t *testBaseNodeOperation) TestSign() {
 	t.Run("duplicated sign", func() {
 		op := t.newOperation()
 
-		t.NoError(op.Sign(t.priv, t.networkID, node))
+		t.NoError(op.NodeSign(t.priv, t.networkID, node))
 
 		oldsign := op.signs[0]
 
 		<-time.After(time.Millisecond * 100)
-		t.NoError(op.Sign(t.priv, t.networkID, node))
+		t.NoError(op.NodeSign(t.priv, t.networkID, node))
 
 		newsign := op.signs[0]
 
@@ -293,10 +293,10 @@ func (t *testBaseNodeOperation) TestSign() {
 	t.Run("new sign", func() {
 		op := t.newOperation()
 
-		t.NoError(op.Sign(t.priv, t.networkID, node))
+		t.NoError(op.NodeSign(t.priv, t.networkID, node))
 
 		priv := NewMPrivatekey()
-		t.NoError(op.Sign(priv, t.networkID, node))
+		t.NoError(op.NodeSign(priv, t.networkID, RandomAddress("")))
 
 		t.Equal(2, len(op.signs))
 	})
@@ -367,7 +367,7 @@ func TestBaseNodeOperationEncode(tt *testing.T) {
 		fact := NewDummyFact(util.UUID().Bytes(), util.UUID().String())
 
 		op := NewBaseNodeOperation(ht, fact)
-		t.NoError(op.Sign(NewMPrivatekey(), networkID, RandomAddress("")))
+		t.NoError(op.NodeSign(NewMPrivatekey(), networkID, RandomAddress("")))
 
 		b, err := enc.Marshal(op)
 		t.NoError(err)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -173,7 +174,6 @@ func (cmd *KeySignCommand) Run(pctx context.Context) error {
 		Str("privatekey", cmd.KeyString).
 		Str("network_id", cmd.NetworkID).
 		Stringer("node", cmd.Node.Address()).
-		Str("token", cmd.Token).
 		Msg("flags")
 
 	defer func() {
@@ -190,28 +190,16 @@ func (cmd *KeySignCommand) Run(pctx context.Context) error {
 		ptr = j
 	}
 
-	switch ptr.(type) {
-	case base.NodeHashSigner, base.NodeSigner:
-		if cmd.Node.Address() == nil {
-			return errors.Errorf("--node is missing")
-		}
+	if _, ok := ptr.(base.NodeSigner); ok && cmd.Node.Address() == nil {
+		return errors.Errorf("--node is missing")
 	}
 
 	if err := util.InterfaceSetValue(elem, ptr); err != nil {
 		return err
 	}
 
-	switch {
-	case len(cmd.Token) < 1:
-		cmd.log.Debug().Msg("token not updated")
-	default:
-		if i, ok := ptr.(base.TokenSetter); ok {
-			if err := i.SetToken(base.Token([]byte(cmd.Token))); err != nil {
-				return err
-			}
-
-			cmd.log.Debug().Str("new_token", cmd.Token).Msg("token updated")
-		}
+	if err := cmd.updateToken(ptr); err != nil {
+		return err
 	}
 
 	if err := cmd.sign(ptr); err != nil {
@@ -289,21 +277,46 @@ func (cmd *KeySignCommand) loadBody() (interface{}, interface{}, error) {
 	return elem, reflect.New(reflect.ValueOf(elem).Type()).Interface(), nil
 }
 
+func (cmd *KeySignCommand) updateToken(ptr interface{}) error {
+	var token base.Token
+
+	if i, ok := ptr.(base.Facter); ok {
+		if j, ok := i.Fact().(base.Tokener); ok {
+			token = j.Token()
+		}
+	}
+
+	cmd.log.Debug().Interface("body_token", token).Interface("new_token", []byte(cmd.Token)).Msg("tokens")
+
+	switch {
+	case len(cmd.Token) < 1:
+		if len(token) < 1 {
+			return errors.Errorf("empty token")
+		}
+	case bytes.Equal([]byte(cmd.Token), token):
+		cmd.log.Debug().Msg("same token given")
+	case len(token) > 0:
+		return errors.Errorf("different token found")
+	default:
+		if i, ok := ptr.(base.TokenSetter); ok {
+			if err := i.SetToken(base.Token([]byte(cmd.Token))); err != nil {
+				return err
+			}
+
+			cmd.log.Debug().Str("new_token", cmd.Token).Msg("token updated")
+		}
+	}
+
+	return nil
+}
+
 func (cmd *KeySignCommand) sign(ptr interface{}) error {
 	var sign func() error
 
 	switch t := ptr.(type) {
-	case base.NodeHashSigner:
-		sign = func() error {
-			return t.HashSign(cmd.priv, cmd.networkID, cmd.Node.Address())
-		}
 	case base.NodeSigner:
 		sign = func() error {
-			return t.Sign(cmd.priv, cmd.networkID, cmd.Node.Address())
-		}
-	case base.HashSigner:
-		sign = func() error {
-			return t.HashSign(cmd.priv, cmd.networkID)
+			return t.NodeSign(cmd.priv, cmd.networkID, cmd.Node.Address())
 		}
 	case base.Signer:
 		sign = func() error {

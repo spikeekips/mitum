@@ -125,7 +125,7 @@ func (t *testSuffrageDisjoin) TestIsValid() {
 	t.Run("ok", func() {
 		fact := NewSuffrageDisjoinFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(33))
 		op := NewSuffrageDisjoin(fact)
-		t.NoError(op.Sign(priv, networkID, fact.Node()))
+		t.NoError(op.NodeSign(priv, networkID, fact.Node()))
 
 		t.NoError(op.IsValid(networkID))
 	})
@@ -133,7 +133,7 @@ func (t *testSuffrageDisjoin) TestIsValid() {
 	t.Run("different network id", func() {
 		fact := NewSuffrageDisjoinFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(33))
 		op := NewSuffrageDisjoin(fact)
-		t.NoError(op.Sign(priv, networkID, fact.Node()))
+		t.NoError(op.NodeSign(priv, networkID, fact.Node()))
 
 		err := op.IsValid(util.UUID().Bytes())
 		t.Error(err)
@@ -143,7 +143,7 @@ func (t *testSuffrageDisjoin) TestIsValid() {
 	t.Run("different node", func() {
 		fact := NewSuffrageDisjoinFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(33))
 		op := NewSuffrageDisjoin(fact)
-		t.NoError(op.Sign(priv, networkID, base.RandomAddress("")))
+		t.NoError(op.NodeSign(priv, networkID, base.RandomAddress("")))
 
 		err := op.IsValid(networkID)
 		t.Error(err)
@@ -153,9 +153,9 @@ func (t *testSuffrageDisjoin) TestIsValid() {
 	t.Run("multiple sign", func() {
 		fact := NewSuffrageDisjoinFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(33))
 		op := NewSuffrageDisjoin(fact)
-		t.NoError(op.Sign(priv, networkID, fact.Node()))
+		t.NoError(op.NodeSign(priv, networkID, fact.Node()))
 
-		t.NoError(op.Sign(base.NewMPrivatekey(), networkID, base.RandomAddress("")))
+		t.NoError(op.NodeSign(base.NewMPrivatekey(), networkID, base.RandomAddress("")))
 
 		err := op.IsValid(networkID)
 		t.Error(err)
@@ -177,7 +177,7 @@ func TestSuffrageDisjoinEncode(tt *testing.T) {
 	t.Encode = func() (interface{}, []byte) {
 		fact := NewSuffrageDisjoinFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(33))
 		op := NewSuffrageDisjoin(fact)
-		t.NoError(op.Sign(base.NewMPrivatekey(), networkID, fact.Node()))
+		t.NoError(op.NodeSign(base.NewMPrivatekey(), networkID, fact.Node()))
 
 		t.NoError(op.IsValid(networkID))
 

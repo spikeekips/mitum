@@ -74,16 +74,6 @@ func NewSuffrageDisjoin(fact SuffrageDisjoinFact) SuffrageDisjoin {
 	}
 }
 
-func (op *SuffrageDisjoin) HashSign(priv base.Privatekey, networkID base.NetworkID, node base.Address) error {
-	fact := op.Fact().(SuffrageDisjoinFact) //nolint:forcetypeassert //...
-
-	fact.SetHash(fact.hash())
-
-	op.BaseNodeOperation.SetFact(fact)
-
-	return op.Sign(priv, networkID, node)
-}
-
 func (op *SuffrageDisjoin) SetToken(t base.Token) error {
 	fact := op.Fact().(SuffrageDisjoinFact) //nolint:forcetypeassert //...
 
