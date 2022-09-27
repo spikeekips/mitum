@@ -655,6 +655,10 @@ func (p *DefaultProposalProcessor) wait(ctx context.Context) (
 
 func (p *DefaultProposalProcessor) retry(ctx context.Context, f func() (bool, error)) error {
 	return util.Retry(ctx, func() (bool, error) {
+		if p.isCanceled() {
+			return false, ErrStopProcessingRetry.Wrap(context.Canceled)
+		}
+
 		keep, err := f()
 		if errors.Is(err, ErrStopProcessingRetry) {
 			return false, err
