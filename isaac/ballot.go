@@ -144,7 +144,7 @@ func (bl INITBallot) IsValid(networkID []byte) error {
 		return e.Errorf("number of withdraws not matched")
 	case len(bl.withdraws) < 1:
 	default:
-		if err := util.CheckIsValidersT(networkID, false, bl.withdraws...); err != nil {
+		if err := util.CheckIsValiderSlice(networkID, false, bl.withdraws); err != nil {
 			return e.Wrap(err)
 		}
 

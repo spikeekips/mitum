@@ -189,20 +189,12 @@ func (p *BaseProposalSelector) findProposalFromProposer(
 }
 
 func (*BaseProposalSelector) filterDeadNodes(n []base.Node, b []base.Address) []base.Node {
-	l := util.Filter2Slices( // NOTE filter long dead nodes
+	return util.Filter2Slices( // NOTE filter long dead nodes
 		n, b,
 		func(_, _ interface{}, i, j int) bool {
 			return n[i].Address().Equal(b[j])
 		},
 	)
-
-	m := make([]base.Node, len(l))
-
-	for i := range l {
-		m[i] = l[i].(base.Node) //nolint:forcetypeassert //...
-	}
-
-	return m
 }
 
 type FuncProposerSelector struct {

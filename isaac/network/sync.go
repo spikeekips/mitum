@@ -235,7 +235,7 @@ func (c *SyncSourceChecker) check(ctx context.Context, sources []SyncSource) ([]
 		copy(dest, ncis)
 
 		for j := range found {
-			dest[len(ncis)+j] = found[j].(isaac.NodeConnInfo) //nolint:forcetypeassert //...
+			dest[len(ncis)+j] = found[j]
 		}
 
 		ncis = dest

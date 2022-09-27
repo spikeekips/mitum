@@ -214,35 +214,18 @@ func (s *SuffrageCandidatesStateValueMerger) close() (base.StateValue, error) {
 		return nil, isaac.ErrIgnoreStateValue.Errorf("empty newly added or removes nodes")
 	}
 
-	convert := func(j []interface{}) []base.SuffrageCandidateStateValue {
-		if len(j) < 1 {
-			return nil
-		}
-
-		n := make([]base.SuffrageCandidateStateValue, len(j))
-		for i := range j {
-			n[i] = j[i].(base.SuffrageCandidateStateValue) //nolint:forcetypeassert //...
-		}
-
-		return n
-	}
-
 	existings := s.existings
 	if len(s.removes) > 0 {
-		filtered := util.Filter2Slices(existings, s.removes, func(_, _ interface{}, i, j int) bool {
+		existings = util.Filter2Slices(existings, s.removes, func(_, _ interface{}, i, j int) bool {
 			return existings[i].Address().Equal(s.removes[j])
 		})
-
-		existings = convert(filtered)
 	}
 
 	if len(s.added) > 0 {
 		// NOTE filter new nodes
-		filtered := util.Filter2Slices(existings, s.added, func(_, _ interface{}, i, j int) bool {
+		existings = util.Filter2Slices(existings, s.added, func(_, _ interface{}, i, j int) bool {
 			return s.existings[i].Address().Equal(s.added[j].Address())
 		})
-
-		existings = convert(filtered)
 	}
 
 	sort.Slice(s.added, func(i, j int) bool { // NOTE sort by address
@@ -271,7 +254,7 @@ func (suffrageRemoveCandidateStateValue) HashBytes() []byte {
 }
 
 func (s suffrageRemoveCandidateStateValue) IsValid([]byte) error {
-	if err := util.CheckIsValidersT(nil, false, s.nodes...); err != nil {
+	if err := util.CheckIsValiderSlice(nil, false, s.nodes); err != nil {
 		return util.ErrInvalid.Wrapf(err, "invalid suffrageRemoveCandidateStateValue")
 	}
 

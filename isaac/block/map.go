@@ -70,7 +70,7 @@ func (m BlockMap) IsValid(b []byte) error {
 		return true
 	})
 
-	if err := util.CheckIsValidersT(nil, true, vs...); err != nil {
+	if err := util.CheckIsValiderSlice(nil, true, vs); err != nil {
 		return e(err, "invalid item found")
 	}
 

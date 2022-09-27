@@ -104,7 +104,7 @@ func (fact INITBallotFact) IsValid([]byte) error {
 	}
 
 	if len(fact.withdrawfacts) > 0 {
-		if err := util.CheckIsValidersT(nil, false, fact.withdrawfacts...); err != nil {
+		if err := util.CheckIsValiderSlice(nil, false, fact.withdrawfacts); err != nil {
 			return util.ErrInvalid.Errorf("wrong withdrawfacts")
 		}
 	}
@@ -127,7 +127,7 @@ func (fact INITBallotFact) generateHash() util.Hash {
 				hs[i] = fact.withdrawfacts[i].Hash()
 			}
 
-			return util.ConcatBytersT(hs...)
+			return util.ConcatByterSlice(hs)
 		}),
 	))
 }

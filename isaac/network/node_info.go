@@ -60,7 +60,7 @@ func (info NodeInfo) IsValid(networkID base.NetworkID) error {
 		return e.Wrap(err)
 	}
 
-	if err := util.CheckIsValidersT(nil, false, info.consensusNodes...); err != nil {
+	if err := util.CheckIsValiderSlice(nil, false, info.consensusNodes); err != nil {
 		return e.Wrap(err)
 	}
 

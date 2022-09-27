@@ -256,14 +256,9 @@ func (s *SuffrageJoinStateValueMerger) close() (base.StateValue, error) {
 	existings := s.existings
 
 	if len(s.disjoined) > 0 {
-		filtered := util.Filter2Slices(s.existings, s.disjoined, func(_, _ interface{}, i, j int) bool {
+		existings = util.Filter2Slices(s.existings, s.disjoined, func(_, _ interface{}, i, j int) bool {
 			return s.existings[i].Address().Equal(s.disjoined[j])
 		})
-
-		existings = make([]base.SuffrageNodeStateValue, len(existings)-len(s.disjoined))
-		for i := range filtered {
-			existings[i] = filtered[i].(base.SuffrageNodeStateValue) //nolint:forcetypeassert //...
-		}
 	}
 
 	if len(s.joined) > 0 {
@@ -293,7 +288,7 @@ func newSuffrageJoinNodeStateValue(nodes []base.Node) suffrageJoinNodeStateValue
 }
 
 func (s suffrageJoinNodeStateValue) IsValid([]byte) error {
-	if err := util.CheckIsValidersT(nil, false, s.nodes...); err != nil {
+	if err := util.CheckIsValiderSlice(nil, false, s.nodes); err != nil {
 		return util.ErrInvalid.Errorf("invalie suffrageJoinNodeStateValue")
 	}
 

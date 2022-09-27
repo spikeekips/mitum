@@ -119,18 +119,7 @@ func (op SuffrageWithdraw) NodeSigns() []base.NodeSign {
 		return nil
 	}
 
-	switch j := util.FilterSlices(signs, func(_ interface{}, i int) bool {
+	return util.FilterSlices(signs, func(_ interface{}, i int) bool {
 		return !fact.Node().Equal(signs[i].Node())
-	}); {
-	case len(j) < 1:
-		return nil
-	default:
-		filtered := make([]base.NodeSign, len(j))
-
-		for i := range j {
-			filtered[i] = j[i].(base.NodeSign) //nolint:forcetypeassert //...
-		}
-
-		return filtered
-	}
+	})
 }

@@ -137,7 +137,7 @@ func (ts *Timers) StartTimers(ids []TimerID, stopOthers bool) error { // revive:
 		var n int
 
 		for id := range ts.timers {
-			if InStringSlice(id.String(), sids) {
+			if InSlice(id.String(), sids) {
 				continue
 			}
 

@@ -569,7 +569,7 @@ func (ps *PS) add(name Name, run, close Func, requires ...Name) (*P, bool) {
 		switch {
 		case len(requires) < 1:
 			requires = []Name{NameINIT} //revive:disable-line:modifies-parameter
-		case util.InSlice(requires, func(_ interface{}, i int) bool { return requires[i] == NameINIT }) < 1:
+		case util.InSliceFunc(requires, func(_ interface{}, i int) bool { return requires[i] == NameINIT }) < 1:
 			n := make([]Name, len(requires)+1)
 			n[0] = NameINIT
 			copy(n[1:], requires)

@@ -91,7 +91,7 @@ func (srv *Memberlist) Join(cis []quicstream.UDPConnInfo) error {
 	fcis := make([]string, len(filtered))
 
 	for i := range filtered {
-		ci := filtered[i].(quicstream.UDPConnInfo) //nolint:forcetypeassert //...
+		ci := filtered[i]
 
 		fcis[i] = ci.UDPAddr().String()
 		srv.cicache.Set(ci.UDPAddr().String(), ci, nil)

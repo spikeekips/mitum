@@ -260,7 +260,7 @@ func ValidateStatesTreeWithManifest(tr fixedtree.Tree, sts []State, manifest Man
 		switch i, found := msts[node.Key()]; {
 		case !found:
 			return false, errors.Errorf("state in tree not found in states")
-		case i.(State).Height() != manifest.Height(): //nolint:forcetypeassert //...
+		case i.Height() != manifest.Height():
 			return false, errors.Errorf("height does not match")
 		}
 

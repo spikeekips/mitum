@@ -18,7 +18,7 @@ func CheckIsValiders(b []byte, allowNil bool, vs ...IsValider) error { // revive
 	return nil
 }
 
-func CheckIsValidersT[T IsValider](b []byte, allowNil bool, vs ...T) error { // revive:disable-line:flag-parameter
+func CheckIsValiderSlice[T IsValider](b []byte, allowNil bool, vs []T) error { // revive:disable-line:flag-parameter
 	for i, v := range vs {
 		if err := checkIsValider(b, allowNil, i, v); err != nil {
 			return err

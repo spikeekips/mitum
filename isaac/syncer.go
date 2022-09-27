@@ -190,7 +190,7 @@ func (p *SyncSourcePool) Remove(node base.Address, publish string) bool {
 	p.Lock()
 	defer p.Unlock()
 
-	index := util.InSlice(p.sources, func(_ interface{}, i int) bool {
+	index := util.InSliceFunc(p.sources, func(_ interface{}, i int) bool {
 		switch {
 		case p.sources[i].Address().Equal(node) &&
 			p.sources[i].String() == publish:
@@ -342,7 +342,7 @@ func (p *SyncSourcePool) add(
 ) ([]NodeConnInfo, []string, []*time.Time, bool) {
 	var update bool
 
-	index := util.InSlice(sources, func(_ interface{}, i int) bool {
+	index := util.InSliceFunc(sources, func(_ interface{}, i int) bool {
 		a := sources[i]
 
 		if !a.Address().Equal(source.Address()) {
@@ -540,10 +540,5 @@ func (p *SyncSourcePool) filterExtras(fixedids []string) ([]NodeConnInfo, []stri
 		n++
 	}
 
-	extraids = make([]string, len(newextraids))
-	for i := range newextraids {
-		extraids[i] = newextraids[i].(string) //nolint:forcetypeassert //...
-	}
-
-	return newextras, extraids
+	return newextras, newextraids
 }

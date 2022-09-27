@@ -182,8 +182,8 @@ func (t *testTimers) TestStopTimer() {
 		started[i] = st[i].String()
 	}
 
-	t.True(InStringSlice("showme", started))
-	t.True(InStringSlice("findme", started))
+	t.True(InSlice("showme", started))
+	t.True(InSlice("findme", started))
 }
 
 func (t *testTimers) TestStopTimersAll() {

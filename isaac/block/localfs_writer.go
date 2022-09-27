@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io"
-	"io/fs"
 	"math"
 	"os"
 	"path/filepath"
@@ -647,7 +646,7 @@ func findHighestDirectory(root string) (string, bool, error) {
 
 			names = make([]string, len(filtered))
 			for i := range filtered {
-				names[i] = filtered[i].(fs.DirEntry).Name() //nolint:forcetypeassert //.
+				names[i] = filtered[i].Name()
 			}
 
 			sort.Slice(names, func(i, j int) bool {

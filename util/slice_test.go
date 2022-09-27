@@ -2,6 +2,7 @@ package util
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/suite"
@@ -19,8 +20,6 @@ func TestCheckSliceDuplicated(tt *testing.T) {
 		name     string
 		expected bool
 	}{
-		{name: "invalid: string", s: "string", expected: false},
-		{name: "invalid: int", s: 333, expected: false},
 		{name: "invalid: nil", s: nil, expected: false},
 		{name: "invalid: nil slice", s: nilslice, expected: false},
 		{name: "slice: not duplicated", s: []int{5, 4, 3, 2, 1}, expected: false, k: func(i interface{}, _ int) string {
@@ -47,8 +46,26 @@ func TestCheckSliceDuplicated(tt *testing.T) {
 		i := i
 		c := c
 		t.Run(c.name, func() {
-			_, isduplicated := CheckSliceDuplicated(c.s, c.k)
+			sl := makeInterfaceSlice(c.s)
+
+			_, isduplicated := CheckSliceDuplicated(sl, c.k)
 			t.Equal(c.expected, isduplicated, "%d(%q): %v", i, c.name, c.s)
 		})
+	}
+}
+
+func makeInterfaceSlice(s interface{}) []interface{} {
+	v := reflect.ValueOf(s)
+
+	switch v.Kind() {
+	case reflect.Slice, reflect.Array:
+		l := make([]interface{}, v.Len())
+		for i := 0; i < v.Len(); i++ {
+			l[i] = v.Index(i).Interface()
+		}
+
+		return l
+	default:
+		return nil
 	}
 }

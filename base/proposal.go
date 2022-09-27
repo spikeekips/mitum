@@ -56,7 +56,7 @@ func IsValidProposalFact(fact ProposalFact) error {
 		return util.ErrInvalid.Errorf("duplicated operation found")
 	}
 
-	if err := util.CheckIsValidersT(nil, false, fact.Operations()...); err != nil {
+	if err := util.CheckIsValiderSlice(nil, false, fact.Operations()); err != nil {
 		return e(err, "")
 	}
 

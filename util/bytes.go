@@ -26,7 +26,7 @@ func ConcatByters(bs ...Byter) []byte {
 	return ConcatBytesSlice(b...)
 }
 
-func ConcatBytersT[T Byter](bs ...T) []byte {
+func ConcatByterSlice[T Byter](bs []T) []byte {
 	b := make([][]byte, len(bs))
 
 	for i := range bs {

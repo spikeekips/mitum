@@ -218,7 +218,7 @@ func (s SuffrageCandidatesStateValue) IsValid([]byte) error {
 		return e(err, "")
 	}
 
-	if err := util.CheckIsValidersT(nil, false, s.nodes...); err != nil {
+	if err := util.CheckIsValiderSlice(nil, false, s.nodes); err != nil {
 		return e(err, "")
 	}
 
@@ -268,20 +268,9 @@ func GetSuffrageFromDatabase(
 func FilterCandidates(
 	height base.Height, candidates []base.SuffrageCandidateStateValue,
 ) []base.SuffrageCandidateStateValue {
-	n := util.FilterSlices(candidates, func(_ interface{}, i int) bool {
+	return util.FilterSlices(candidates, func(_ interface{}, i int) bool {
 		return candidates[i].Deadline() >= height
 	})
-
-	if n == nil {
-		return nil
-	}
-
-	c := make([]base.SuffrageCandidateStateValue, len(n))
-	for i := range n {
-		c[i] = n[i].(base.SuffrageCandidateStateValue) //nolint:forcetypeassert //...
-	}
-
-	return c
 }
 
 func LastCandidatesFromState(
