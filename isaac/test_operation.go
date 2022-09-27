@@ -40,7 +40,7 @@ func NewDummyOperationFact(token base.Token, v util.Byter) DummyOperationFact {
 }
 
 func (fact DummyOperationFact) IsValid([]byte) error {
-	if err := util.CheckIsValid(nil, false, fact.h, fact.token); err != nil {
+	if err := util.CheckIsValiders(nil, false, fact.h, fact.token); err != nil {
 		return util.ErrInvalid.Wrapf(err, "invalid DummyOperationFact")
 	}
 

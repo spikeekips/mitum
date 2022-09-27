@@ -1,8 +1,11 @@
 package isaac
 
 import (
+	"encoding/json"
+
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/valuehash"
 )
@@ -18,14 +21,16 @@ type baseBallotFactJSONUnmarshaler struct {
 }
 
 type INITBallotFactJSONMarshaler struct {
-	PreviousBlock util.Hash `json:"previous_block"`
-	Proposal      util.Hash `json:"proposal"`
+	PreviousBlock util.Hash              `json:"previous_block"`
+	Proposal      util.Hash              `json:"proposal"`
+	WithdrawFacts []SuffrageWithdrawFact `json:"withdraw_facts"`
 	baseBallotFactJSONMarshaler
 }
 
 type INITBallotFactJSONUnmarshaler struct {
 	PreviousBlock valuehash.HashDecoder `json:"previous_block"`
 	Proposal      valuehash.HashDecoder `json:"proposal"`
+	WithdrawFacts []json.RawMessage     `json:"withdraw_facts"`
 	baseBallotFactJSONUnmarshaler
 }
 
@@ -67,6 +72,7 @@ func (fact INITBallotFact) MarshalJSON() ([]byte, error) {
 		baseBallotFactJSONMarshaler: fact.jsonMarshaler(),
 		PreviousBlock:               fact.previousBlock,
 		Proposal:                    fact.proposal,
+		WithdrawFacts:               fact.withdrawfacts,
 	})
 }
 
@@ -87,6 +93,16 @@ func (fact *INITBallotFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 
 	fact.previousBlock = u.PreviousBlock.Hash()
 	fact.proposal = u.Proposal.Hash()
+
+	if len(u.WithdrawFacts) > 0 {
+		fact.withdrawfacts = make([]SuffrageWithdrawFact, len(u.WithdrawFacts))
+
+		for i := range u.WithdrawFacts {
+			if err := encoder.Decode(enc, u.WithdrawFacts[i], &fact.withdrawfacts[i]); err != nil {
+				return e(err, "")
+			}
+		}
+	}
 
 	return nil
 }

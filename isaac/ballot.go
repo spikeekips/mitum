@@ -1,6 +1,9 @@
 package isaac
 
 import (
+	"sort"
+	"strings"
+
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
@@ -102,6 +105,7 @@ func (bl *baseBallot) Sign(priv base.Privatekey, networkID base.NetworkID) error
 }
 
 type INITBallot struct {
+	withdraws []SuffrageWithdraw
 	baseBallot
 }
 
@@ -114,13 +118,50 @@ func NewINITBallot(
 	}
 }
 
+func NewINITBallotWithWithdraws(
+	vp base.Voteproof,
+	signfact INITBallotSignFact,
+	withdraws []SuffrageWithdraw,
+) INITBallot {
+	if len(withdraws) > 0 {
+		sort.Slice(withdraws, func(i, j int) bool {
+			return strings.Compare(withdraws[i].Fact().Hash().String(), withdraws[j].Fact().Hash().String()) < 0
+		})
+	}
+
+	return INITBallot{
+		baseBallot: newBaseBallot(INITBallotHint, vp, signfact),
+		withdraws:  withdraws,
+	}
+}
+
 func (bl INITBallot) IsValid(networkID []byte) error {
+	e := util.ErrInvalid.Errorf("invalid INITBallot")
+
 	if err := bl.BaseHinter.IsValid(INITBallotHint.Type().Bytes()); err != nil {
-		return util.ErrInvalid.Wrapf(err, "invalid INITBallot")
+		return e.Wrapf(err, "invalid INITBallot")
 	}
 
 	if err := base.IsValidINITBallot(bl, networkID); err != nil {
-		return util.ErrInvalid.Wrapf(err, "invalid INITBallot")
+		return e.Wrapf(err, "invalid INITBallot")
+	}
+
+	switch fact, ok := bl.signFact.Fact().(INITBallotFact); {
+	case !ok:
+		return e.Errorf("expected isaac.INITBallotFact, not %T", bl.signFact)
+	case len(fact.withdrawfacts) != len(bl.withdraws):
+		return e.Errorf("number of withdraws not matched")
+	case len(bl.withdraws) < 1:
+	default:
+		if err := util.CheckIsValidersT(networkID, false, bl.withdraws...); err != nil {
+			return e.Wrap(err)
+		}
+
+		for i := range fact.withdrawfacts {
+			if !fact.withdrawfacts[i].Hash().Equal(bl.withdraws[i].Fact().Hash()) {
+				return e.Errorf("withdraw fact hash not matched")
+			}
+		}
 	}
 
 	return nil
@@ -132,6 +173,10 @@ func (bl INITBallot) BallotSignFact() base.INITBallotSignFact {
 	}
 
 	return bl.signFact.(base.INITBallotSignFact) //nolint:forcetypeassert //...
+}
+
+func (bl INITBallot) Withdraws() []SuffrageWithdraw {
+	return bl.withdraws
 }
 
 type ACCEPTBallot struct {

@@ -1,6 +1,9 @@
 package isaac
 
 import (
+	"sort"
+	"strings"
+
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
@@ -42,14 +45,26 @@ func (fact baseBallotFact) hashBytes() []byte {
 type INITBallotFact struct {
 	previousBlock util.Hash
 	proposal      util.Hash
+	withdrawfacts []SuffrageWithdrawFact // NOTE hashes of withdraw facts
 	baseBallotFact
 }
 
-func NewINITBallotFact(point base.Point, previousBlock, proposal util.Hash) INITBallotFact {
+func NewINITBallotFact(
+	point base.Point,
+	previousBlock, proposal util.Hash,
+	withdrawfacts []SuffrageWithdrawFact,
+) INITBallotFact {
+	if len(withdrawfacts) > 0 {
+		sort.Slice(withdrawfacts, func(i, j int) bool {
+			return strings.Compare(withdrawfacts[i].Hash().String(), withdrawfacts[j].Hash().String()) < 0
+		})
+	}
+
 	fact := INITBallotFact{
 		baseBallotFact: newBaseBallotFact(INITBallotFactHint, base.StageINIT, point),
 		previousBlock:  previousBlock,
 		proposal:       proposal,
+		withdrawfacts:  withdrawfacts,
 	}
 
 	fact.SetHash(fact.generateHash())
@@ -63,6 +78,10 @@ func (fact INITBallotFact) PreviousBlock() util.Hash {
 
 func (fact INITBallotFact) Proposal() util.Hash {
 	return fact.proposal
+}
+
+func (fact INITBallotFact) WithdrawFacts() []SuffrageWithdrawFact {
+	return fact.withdrawfacts
 }
 
 func (fact INITBallotFact) IsValid([]byte) error {
@@ -84,6 +103,12 @@ func (fact INITBallotFact) IsValid([]byte) error {
 		return util.ErrInvalid.Errorf("wrong hash of INITBallotFact")
 	}
 
+	if len(fact.withdrawfacts) > 0 {
+		if err := util.CheckIsValidersT(nil, false, fact.withdrawfacts...); err != nil {
+			return util.ErrInvalid.Errorf("wrong withdrawfacts")
+		}
+	}
+
 	return nil
 }
 
@@ -92,6 +117,18 @@ func (fact INITBallotFact) generateHash() util.Hash {
 		util.DummyByter(fact.baseBallotFact.hashBytes),
 		fact.previousBlock,
 		fact.proposal,
+		util.DummyByter(func() []byte {
+			if len(fact.withdrawfacts) < 1 {
+				return nil
+			}
+
+			hs := make([]util.Hash, len(fact.withdrawfacts))
+			for i := range hs {
+				hs[i] = fact.withdrawfacts[i].Hash()
+			}
+
+			return util.ConcatBytersT(hs...)
+		}),
 	))
 }
 

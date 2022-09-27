@@ -50,37 +50,39 @@ func (t *testBaseBallotFact) TestNew() {
 	_ = (interface{})(bl).(base.BallotFact)
 }
 
-func (t *testBaseBallotFact) TestEmptyHash() {
-	bl := t.ballot()
-	bl = t.setHash(bl, nil)
+func (t *testBaseBallotFact) TestInValid() {
+	t.Run("EmptyHash", func() {
+		bl := t.ballot()
+		bl = t.setHash(bl, nil)
 
-	err := bl.IsValid(nil)
-	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
-}
+		err := bl.IsValid(nil)
+		t.Error(err)
+		t.True(errors.Is(err, util.ErrInvalid))
+	})
 
-func (t *testBaseBallotFact) TestWrongHash() {
-	bl := t.ballot()
-	bl = t.setHash(bl, valuehash.RandomSHA256())
+	t.Run("WrongHash", func() {
+		bl := t.ballot()
+		bl = t.setHash(bl, valuehash.RandomSHA256())
 
-	err := bl.IsValid(nil)
-	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
-}
+		err := bl.IsValid(nil)
+		t.Error(err)
+		t.True(errors.Is(err, util.ErrInvalid))
+	})
 
-func (t *testBaseBallotFact) TestWrongStage() {
-	bl := t.ballot()
-	bl = t.setWrongStage(bl)
+	t.Run("WrongStage", func() {
+		bl := t.ballot()
+		bl = t.setWrongStage(bl)
 
-	err := bl.IsValid(nil)
-	t.Error(err)
-	t.True(errors.Is(err, util.ErrInvalid))
+		err := bl.IsValid(nil)
+		t.Error(err)
+		t.True(errors.Is(err, util.ErrInvalid))
+	})
 }
 
 func TestBasicINITBallotFact(tt *testing.T) {
 	t := new(testBaseBallotFact)
 	t.ballot = func() base.BallotFact {
-		bl := NewINITBallotFact(base.RawPoint(33, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256())
+		bl := NewINITBallotFact(base.RawPoint(33, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
 		_ = (interface{})(bl).(base.INITBallotFact)
 
 		return bl
@@ -104,6 +106,31 @@ func TestBasicACCEPTBallotFact(tt *testing.T) {
 	suite.Run(tt, t)
 }
 
+type testINITBallotFact struct {
+	suite.Suite
+}
+
+func (t *testINITBallotFact) TestIsValid() {
+	t.Run("empty withdraw facts", func() {
+		bl := NewINITBallotFact(base.RawPoint(33, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
+		t.NoError(bl.IsValid(nil))
+	})
+
+	t.Run("withdraw facts", func() {
+		withdrawfacts := make([]SuffrageWithdrawFact, 3)
+		for i := range withdrawfacts {
+			withdrawfacts[i] = NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(int64(i+33)))
+		}
+
+		bl := NewINITBallotFact(base.RawPoint(33, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256(), withdrawfacts)
+		t.NoError(bl.IsValid(nil))
+	})
+}
+
+func TestINITBallotFact(t *testing.T) {
+	suite.Run(t, new(testINITBallotFact))
+}
+
 type baseTestBallotFactEncode struct {
 	encoder.BaseTestEncode
 	enc     encoder.Encoder
@@ -115,6 +142,7 @@ func (t *baseTestBallotFactEncode) SetupTest() {
 	t.enc = jsonenc.NewEncoder()
 
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: SuffrageWithdrawFactHint, Instance: SuffrageWithdrawFact{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: INITBallotFactHint, Instance: INITBallotFact{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ACCEPTBallotFactHint, Instance: ACCEPTBallotFact{}}))
 }
@@ -144,11 +172,18 @@ func testBallotFactEncode() *baseTestBallotFactEncode {
 func TestINITBallotFactJSON(tt *testing.T) {
 	t := testBallotFactEncode()
 
+	withdrawfacts := make([]SuffrageWithdrawFact, 3)
+	for i := range withdrawfacts {
+		withdrawfacts[i] = NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(int64(i+33)))
+	}
+
 	t.Encode = func() (interface{}, []byte) {
-		bl := NewINITBallotFact(base.RawPoint(33, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256())
+		bl := NewINITBallotFact(base.RawPoint(33, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256(), withdrawfacts)
 
 		b, err := t.enc.Marshal(&bl)
 		t.NoError(err)
+
+		t.T().Log("marshaled:", string(b))
 
 		return bl, b
 	}
@@ -160,6 +195,23 @@ func TestINITBallotFactJSON(tt *testing.T) {
 		t.True(ok)
 
 		return i
+	}
+
+	t.compare = func(a, b base.BallotFact) {
+		bb, ok := b.(INITBallotFact)
+		t.True(ok)
+
+		bwfs := bb.WithdrawFacts()
+		t.Equal(len(withdrawfacts), len(bwfs))
+
+		for i := range withdrawfacts {
+			af := withdrawfacts[i]
+			bf := bwfs[i]
+
+			t.True(af.Hash().Equal(bf.Hash()))
+			t.True(af.Node().Equal(bf.Node()))
+			t.Equal(af.Start(), bf.Start())
+		}
 	}
 
 	suite.Run(tt, t)
