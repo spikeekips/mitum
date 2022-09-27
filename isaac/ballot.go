@@ -112,15 +112,6 @@ type INITBallot struct {
 func NewINITBallot(
 	vp base.Voteproof,
 	signfact INITBallotSignFact,
-) INITBallot {
-	return INITBallot{
-		baseBallot: newBaseBallot(INITBallotHint, vp, signfact),
-	}
-}
-
-func NewINITBallotWithWithdraws(
-	vp base.Voteproof,
-	signfact INITBallotSignFact,
 	withdraws []SuffrageWithdraw,
 ) INITBallot {
 	if len(withdraws) > 0 {

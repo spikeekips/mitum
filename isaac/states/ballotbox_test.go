@@ -62,7 +62,7 @@ func (t *testBallotbox) initBallot(node isaac.LocalNode, nodes []isaac.LocalNode
 	signfact := isaac.NewINITBallotSignFact(node.Address(), fact)
 	t.NoError(signfact.Sign(node.Privatekey(), t.networkID))
 
-	return isaac.NewINITBallot(avp, signfact)
+	return isaac.NewINITBallot(avp, signfact, nil)
 }
 
 func (t *testBallotbox) acceptBallot(node isaac.LocalNode, nodes []isaac.LocalNode, point base.Point, pr, block util.Hash) isaac.ACCEPTBallot {

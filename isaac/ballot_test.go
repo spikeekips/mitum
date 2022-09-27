@@ -63,7 +63,7 @@ func (t *testBaseBallot) TestEmptySignFact() {
 	t.True(errors.Is(err, util.ErrInvalid))
 }
 
-func TestINITBallot(tt *testing.T) {
+func TestBaseINITBallot(tt *testing.T) {
 	t := new(testBaseBallot)
 	t.ballot = func() base.Ballot {
 		block := valuehash.RandomSHA256()
@@ -84,13 +84,13 @@ func TestINITBallot(tt *testing.T) {
 		signfact := NewINITBallotSignFact(base.RandomAddress(""), fact)
 		t.NoError(signfact.Sign(t.priv, t.networkID))
 
-		return NewINITBallot(avp, signfact)
+		return NewINITBallot(avp, signfact, nil)
 	}
 
 	suite.Run(tt, t)
 }
 
-func TestACCEPTBallot(tt *testing.T) {
+func TestBaseACCEPTBallot(tt *testing.T) {
 	t := new(testBaseBallot)
 	t.ballot = func() base.Ballot {
 		node := base.RandomAddress("")
@@ -120,6 +120,133 @@ func TestACCEPTBallot(tt *testing.T) {
 	}
 
 	suite.Run(tt, t)
+}
+
+type testINITBallot struct {
+	suite.Suite
+	priv      base.Privatekey
+	networkID base.NetworkID
+}
+
+func (t *testINITBallot) SetupTest() {
+	t.priv = base.NewMPrivatekey()
+	t.networkID = base.NetworkID(util.UUID().Bytes())
+}
+
+func (t *testINITBallot) newBallot(
+	node base.Address,
+	point base.Point,
+	withdraws []SuffrageWithdraw,
+	withdrawfacts []SuffrageWithdrawFact,
+) INITBallot {
+	block := valuehash.RandomSHA256()
+	afact := NewACCEPTBallotFact(point, valuehash.RandomSHA256(), block)
+
+	asignfact := NewACCEPTBallotSignFact(node, afact)
+	t.NoError(asignfact.Sign(t.priv, t.networkID))
+
+	avp := NewACCEPTVoteproof(afact.Point().Point)
+	avp.SetResult(base.VoteResultMajority).
+		SetMajority(afact).
+		SetSignFacts([]base.BallotSignFact{asignfact}).
+		SetThreshold(base.Threshold(100)).
+		Finish()
+
+	fact := NewINITBallotFact(base.NewPoint(afact.Point().Height()+1, base.Round(0)), block, valuehash.RandomSHA256(), withdrawfacts)
+
+	signfact := NewINITBallotSignFact(base.RandomAddress(""), fact)
+	t.NoError(signfact.Sign(t.priv, t.networkID))
+
+	return NewINITBallot(avp, signfact, withdraws)
+}
+
+func (t *testINITBallot) TestInValid() {
+	t.Run("valid withdraws", func() {
+		node := base.RandomAddress("")
+		point := base.RawPoint(33, 44)
+
+		withdraws := make([]SuffrageWithdraw, 3)
+		withdrawfacts := make([]SuffrageWithdrawFact, len(withdraws))
+		for i := range withdrawfacts {
+			withdrawfacts[i] = NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), point.Height()-1)
+			withdraws[i] = NewSuffrageWithdraw(withdrawfacts[i])
+			t.NoError(withdraws[i].NodeSign(t.priv, t.networkID, node))
+		}
+
+		bl := t.newBallot(node, point, withdraws, withdrawfacts)
+		t.NoError(bl.IsValid(t.networkID))
+	})
+
+	t.Run("withdraws mismatch", func() {
+		node := base.RandomAddress("")
+		point := base.RawPoint(33, 44)
+
+		withdraws := make([]SuffrageWithdraw, 3)
+		withdrawfacts := make([]SuffrageWithdrawFact, len(withdraws))
+		for i := range withdrawfacts {
+			withdrawfacts[i] = NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), point.Height()-1)
+			withdraws[i] = NewSuffrageWithdraw(withdrawfacts[i])
+			t.NoError(withdraws[i].NodeSign(t.priv, t.networkID, node))
+		}
+
+		bl := t.newBallot(node, point, withdraws, withdrawfacts[:len(withdrawfacts)-1])
+		err := bl.IsValid(t.networkID)
+		t.Error(err)
+		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorContains(err, "number of withdraws not matched")
+	})
+
+	t.Run("invalid withdraw", func() {
+		node := base.RandomAddress("")
+		point := base.RawPoint(33, 44)
+
+		withdraws := make([]SuffrageWithdraw, 3)
+		withdrawfacts := make([]SuffrageWithdrawFact, len(withdraws))
+		for i := range withdrawfacts {
+			fact := NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), point.Height()-1)
+			withdrawfacts[i] = fact
+			withdraws[i] = NewSuffrageWithdraw(fact)
+
+			if i != len(withdrawfacts)-1 {
+				t.NoError(withdraws[i].NodeSign(t.priv, t.networkID, node))
+			}
+		}
+
+		bl := t.newBallot(node, point, withdraws, withdrawfacts)
+		err := bl.IsValid(t.networkID)
+		t.Error(err)
+		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorContains(err, "empty signs")
+	})
+
+	t.Run("unknonwn withdraw", func() {
+		node := base.RandomAddress("")
+		point := base.RawPoint(33, 44)
+
+		withdraws := make([]SuffrageWithdraw, 3)
+		withdrawfacts := make([]SuffrageWithdrawFact, len(withdraws))
+		for i := range withdrawfacts {
+			fact := NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), point.Height()-1)
+			withdrawfacts[i] = fact
+
+			if i == len(withdrawfacts)-1 {
+				fact = NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), point.Height()-1)
+			}
+
+			withdraws[i] = NewSuffrageWithdraw(fact)
+			t.NoError(withdraws[i].NodeSign(t.priv, t.networkID, node))
+		}
+
+		bl := t.newBallot(node, point, withdraws, withdrawfacts)
+		err := bl.IsValid(t.networkID)
+		t.Error(err)
+		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorContains(err, "withdraw fact hash not matched")
+	})
+}
+
+func TestINITBallot(t *testing.T) {
+	suite.Run(t, new(testINITBallot))
 }
 
 type testBaseINITBallotWithVoteproof struct {
@@ -154,7 +281,7 @@ func (t *testBaseINITBallotWithVoteproof) TestValidINITVoteproofNone0Round() {
 
 	t.NoError(signfact.Sign(t.priv, t.networkID))
 
-	bl := NewINITBallot(ivp, signfact)
+	bl := NewINITBallot(ivp, signfact, nil)
 
 	t.NoError(bl.IsValid(t.networkID))
 }
@@ -182,7 +309,7 @@ func (t *testBaseINITBallotWithVoteproof) TestWrongHeightINITVoteproofNone0Round
 
 	t.NoError(signfact.Sign(t.priv, t.networkID))
 
-	bl := NewINITBallot(ivp, signfact)
+	bl := NewINITBallot(ivp, signfact, nil)
 
 	err := bl.IsValid(t.networkID)
 	t.Error(err)
@@ -206,6 +333,8 @@ func (t *baseTestBallotEncode) SetupTest() {
 
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: SuffrageWithdrawFactHint, Instance: SuffrageWithdrawFact{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: SuffrageWithdrawHint, Instance: SuffrageWithdraw{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: INITBallotFactHint, Instance: INITBallotFact{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ACCEPTBallotFactHint, Instance: ACCEPTBallotFact{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: INITVoteproofHint, Instance: INITVoteproof{}}))
@@ -256,16 +385,26 @@ func TestINITBallotJSON(tt *testing.T) {
 			SetThreshold(base.Threshold(100)).
 			Finish()
 
-		fact := NewINITBallotFact(base.NewPoint(afact.Point().Height()+1, base.Round(0)), block, valuehash.RandomSHA256(), nil)
+		withdraws := make([]SuffrageWithdraw, 3)
+		withdrawfacts := make([]SuffrageWithdrawFact, len(withdraws))
+		for i := range withdrawfacts {
+			withdrawfacts[i] = NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), afact.Point().Height()-1)
+			withdraws[i] = NewSuffrageWithdraw(withdrawfacts[i])
+			t.NoError(withdraws[i].NodeSign(t.priv, t.networkID, node))
+		}
+
+		fact := NewINITBallotFact(base.NewPoint(afact.Point().Height()+1, base.Round(0)), block, valuehash.RandomSHA256(), withdrawfacts)
 
 		signfact := NewINITBallotSignFact(node, fact)
 
 		t.NoError(signfact.Sign(t.priv, t.networkID))
 
-		bl := NewINITBallot(avp, signfact)
+		bl := NewINITBallot(avp, signfact, withdraws)
 
 		b, err := t.enc.Marshal(&bl)
 		t.NoError(err)
+
+		t.T().Log("marshaled:", string(b))
 
 		return bl, b
 	}

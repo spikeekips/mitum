@@ -258,7 +258,7 @@ func (st *baseHandler) prepareNextRound(vp base.Voteproof, prevBlock util.Hash) 
 		return nil, newBrokenSwitchContext(st.stt, e(err, "failed to make next round init ballot"))
 	}
 
-	return isaac.NewINITBallot(vp, sf), nil
+	return isaac.NewINITBallot(vp, sf, nil), nil
 }
 
 func (st *baseHandler) prepareNextBlock(
@@ -319,7 +319,7 @@ func (st *baseHandler) prepareNextBlock(
 		return nil, e(err, "failed to make next init ballot")
 	}
 
-	return isaac.NewINITBallot(avp, sf), nil
+	return isaac.NewINITBallot(avp, sf, nil), nil
 }
 
 func (st *baseHandler) vote(bl base.Ballot) (bool, error) {
