@@ -1,13 +1,13 @@
 package util
 
-func InSlice[T comparable](n T, s []T) bool {
+func InSlice[T comparable](n T, s []T) int {
 	for i := range s {
 		if n == s[i] {
-			return true
+			return i
 		}
 	}
 
-	return false
+	return -1
 }
 
 func InSliceFunc[T any](s []T, f func(interface{}, int) bool) int {
