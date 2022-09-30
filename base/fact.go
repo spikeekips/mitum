@@ -40,13 +40,13 @@ type TokenSetter interface {
 }
 
 func (t Token) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid Token")
+	e := util.ErrInvalid.Errorf("invalid Token")
 
 	switch l := len(t); {
 	case l < 1:
-		return e(util.ErrInvalid.Errorf("empty"), "")
+		return e.Errorf("empty")
 	case l > MaxTokenSize:
-		return e(util.ErrInvalid.Errorf("too long; %d > %d", l, MaxTokenSize), "")
+		return e.Errorf("too long; %d > %d", l, MaxTokenSize)
 	}
 
 	return nil

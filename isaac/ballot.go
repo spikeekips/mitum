@@ -15,17 +15,26 @@ var (
 )
 
 type baseBallot struct {
-	vp       base.Voteproof
-	signFact base.BallotSignFact
+	withdraws []SuffrageWithdraw
+	vp        base.Voteproof
+	signFact  base.BallotSignFact
 	util.DefaultJSONMarshaled
 	hint.BaseHinter
 }
 
-func newBaseBallot(ht hint.Hint, vp base.Voteproof, signFact base.BallotSignFact) baseBallot {
+func newBaseBallot(
+	ht hint.Hint,
+	vp base.Voteproof,
+	signFact base.BallotSignFact,
+	withdraws []SuffrageWithdraw,
+) baseBallot {
+	sortWithdraws(withdraws)
+
 	return baseBallot{
 		BaseHinter: hint.NewBaseHinter(ht),
 		vp:         vp,
 		signFact:   signFact,
+		withdraws:  withdraws,
 	}
 }
 
@@ -46,9 +55,33 @@ func (bl baseBallot) Voteproof() base.Voteproof {
 	return bl.vp
 }
 
+func (bl baseBallot) Withdraws() []SuffrageWithdraw {
+	return bl.withdraws
+}
+
 func (bl baseBallot) IsValid(networkID []byte) error {
 	if err := base.IsValidBallot(bl, networkID); err != nil {
 		return util.ErrInvalid.Wrapf(err, "invalid baseBallot")
+	}
+
+	switch fact, ok := bl.signFact.Fact().(ballotWithdrawFacts); {
+	case !ok:
+		return util.ErrInvalid.Errorf("expected isaac.INITBallotFact, not %T", bl.signFact)
+	case len(fact.WithdrawFacts()) != len(bl.withdraws):
+		return util.ErrInvalid.Errorf("number of withdraws not matched")
+	case len(bl.withdraws) < 1:
+	default:
+		if err := util.CheckIsValiderSlice(networkID, false, bl.withdraws); err != nil {
+			return util.ErrInvalid.Wrap(err)
+		}
+
+		withdrawfacts := fact.WithdrawFacts()
+
+		for i := range withdrawfacts {
+			if !withdrawfacts[i].Hash().Equal(bl.withdraws[i].Fact().Hash()) {
+				return util.ErrInvalid.Errorf("withdraw fact hash not matched")
+			}
+		}
 	}
 
 	return nil
@@ -105,7 +138,6 @@ func (bl *baseBallot) Sign(priv base.Privatekey, networkID base.NetworkID) error
 }
 
 type INITBallot struct {
-	withdraws []SuffrageWithdraw
 	baseBallot
 }
 
@@ -114,15 +146,8 @@ func NewINITBallot(
 	signfact INITBallotSignFact,
 	withdraws []SuffrageWithdraw,
 ) INITBallot {
-	if len(withdraws) > 0 {
-		sort.Slice(withdraws, func(i, j int) bool {
-			return strings.Compare(withdraws[i].Fact().Hash().String(), withdraws[j].Fact().Hash().String()) < 0
-		})
-	}
-
 	return INITBallot{
-		baseBallot: newBaseBallot(INITBallotHint, vp, signfact),
-		withdraws:  withdraws,
+		baseBallot: newBaseBallot(INITBallotHint, vp, signfact, withdraws),
 	}
 }
 
@@ -130,29 +155,15 @@ func (bl INITBallot) IsValid(networkID []byte) error {
 	e := util.ErrInvalid.Errorf("invalid INITBallot")
 
 	if err := bl.BaseHinter.IsValid(INITBallotHint.Type().Bytes()); err != nil {
-		return e.Wrapf(err, "invalid INITBallot")
+		return e.Wrap(err)
+	}
+
+	if err := bl.baseBallot.IsValid(networkID); err != nil {
+		return e.Wrap(err)
 	}
 
 	if err := base.IsValidINITBallot(bl, networkID); err != nil {
-		return e.Wrapf(err, "invalid INITBallot")
-	}
-
-	switch fact, ok := bl.signFact.Fact().(INITBallotFact); {
-	case !ok:
-		return e.Errorf("expected isaac.INITBallotFact, not %T", bl.signFact)
-	case len(fact.withdrawfacts) != len(bl.withdraws):
-		return e.Errorf("number of withdraws not matched")
-	case len(bl.withdraws) < 1:
-	default:
-		if err := util.CheckIsValiderSlice(networkID, false, bl.withdraws); err != nil {
-			return e.Wrap(err)
-		}
-
-		for i := range fact.withdrawfacts {
-			if !fact.withdrawfacts[i].Hash().Equal(bl.withdraws[i].Fact().Hash()) {
-				return e.Errorf("withdraw fact hash not matched")
-			}
-		}
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -166,10 +177,6 @@ func (bl INITBallot) BallotSignFact() base.INITBallotSignFact {
 	return bl.signFact.(base.INITBallotSignFact) //nolint:forcetypeassert //...
 }
 
-func (bl INITBallot) Withdraws() []SuffrageWithdraw {
-	return bl.withdraws
-}
-
 type ACCEPTBallot struct {
 	baseBallot
 }
@@ -177,19 +184,26 @@ type ACCEPTBallot struct {
 func NewACCEPTBallot(
 	ivp base.INITVoteproof,
 	signfact ACCEPTBallotSignFact,
+	withdraws []SuffrageWithdraw,
 ) ACCEPTBallot {
 	return ACCEPTBallot{
-		baseBallot: newBaseBallot(ACCEPTBallotHint, ivp, signfact),
+		baseBallot: newBaseBallot(ACCEPTBallotHint, ivp, signfact, withdraws),
 	}
 }
 
 func (bl ACCEPTBallot) IsValid(networkID []byte) error {
+	e := util.ErrInvalid.Errorf("invalid ACCEPTBallot")
+
 	if err := bl.BaseHinter.IsValid(ACCEPTBallotHint.Type().Bytes()); err != nil {
-		return util.ErrInvalid.Wrapf(err, "invalid ACCEPTBallot")
+		return e.Wrap(err)
+	}
+
+	if err := bl.baseBallot.IsValid(networkID); err != nil {
+		return e.Wrap(err)
 	}
 
 	if err := base.IsValidACCEPTBallot(bl, networkID); err != nil {
-		return util.ErrInvalid.Wrapf(err, "invalid ACCEPTBallot")
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -201,4 +215,24 @@ func (bl ACCEPTBallot) BallotSignFact() base.ACCEPTBallotSignFact {
 	}
 
 	return bl.signFact.(base.ACCEPTBallotSignFact) //nolint:forcetypeassert //...
+}
+
+func sortWithdrawFacts(withdrawfacts []SuffrageWithdrawFact) {
+	if len(withdrawfacts) < 1 {
+		return
+	}
+
+	sort.Slice(withdrawfacts, func(i, j int) bool {
+		return strings.Compare(withdrawfacts[i].Hash().String(), withdrawfacts[j].Hash().String()) < 0
+	})
+}
+
+func sortWithdraws(withdraws []SuffrageWithdraw) {
+	if len(withdraws) < 1 {
+		return
+	}
+
+	sort.Slice(withdraws, func(i, j int) bool {
+		return strings.Compare(withdraws[i].Fact().Hash().String(), withdraws[j].Fact().Hash().String()) < 0
+	})
 }

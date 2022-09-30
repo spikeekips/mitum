@@ -14,7 +14,7 @@ import (
 
 type testBaseBallotFact struct {
 	suite.Suite
-	ballot func() base.BallotFact
+	ballot func([]SuffrageWithdrawFact) base.BallotFact
 }
 
 func (t *testBaseBallotFact) setHash(bl base.BallotFact, h util.Hash) base.BallotFact {
@@ -44,7 +44,7 @@ func (t *testBaseBallotFact) setWrongStage(bl base.BallotFact) base.BallotFact {
 }
 
 func (t *testBaseBallotFact) TestNew() {
-	bl := t.ballot()
+	bl := t.ballot(nil)
 	t.NoError(bl.IsValid(nil))
 
 	_ = (interface{})(bl).(base.BallotFact)
@@ -52,7 +52,7 @@ func (t *testBaseBallotFact) TestNew() {
 
 func (t *testBaseBallotFact) TestInValid() {
 	t.Run("EmptyHash", func() {
-		bl := t.ballot()
+		bl := t.ballot(nil)
 		bl = t.setHash(bl, nil)
 
 		err := bl.IsValid(nil)
@@ -61,7 +61,7 @@ func (t *testBaseBallotFact) TestInValid() {
 	})
 
 	t.Run("WrongHash", func() {
-		bl := t.ballot()
+		bl := t.ballot(nil)
 		bl = t.setHash(bl, valuehash.RandomSHA256())
 
 		err := bl.IsValid(nil)
@@ -70,19 +70,48 @@ func (t *testBaseBallotFact) TestInValid() {
 	})
 
 	t.Run("WrongStage", func() {
-		bl := t.ballot()
+		bl := t.ballot(nil)
 		bl = t.setWrongStage(bl)
 
 		err := bl.IsValid(nil)
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
 	})
+
+	t.Run("empty withdraw facts", func() {
+		bl := t.ballot(nil)
+		t.NoError(bl.IsValid(nil))
+	})
+
+	t.Run("withdraw facts", func() {
+		withdrawfacts := make([]SuffrageWithdrawFact, 3)
+		for i := range withdrawfacts {
+			withdrawfacts[i] = NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(int64(i+33)))
+		}
+
+		bl := t.ballot(withdrawfacts)
+		t.NoError(bl.IsValid(nil))
+	})
+
+	t.Run("duplicated withdraw node", func() {
+		withdrawfacts := make([]SuffrageWithdrawFact, 3)
+		for i := range withdrawfacts[:len(withdrawfacts)-1] {
+			withdrawfacts[i] = NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(int64(i+33)))
+		}
+		withdrawfacts[len(withdrawfacts)-1] = NewSuffrageWithdrawFact(util.UUID().Bytes(), withdrawfacts[len(withdrawfacts)-2].Node(), base.Height(int64(len(withdrawfacts)+33)))
+
+		bl := t.ballot(withdrawfacts)
+		err := bl.IsValid(nil)
+		t.Error(err)
+		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorContains(err, "duplicated withdraw node found")
+	})
 }
 
 func TestBasicINITBallotFact(tt *testing.T) {
 	t := new(testBaseBallotFact)
-	t.ballot = func() base.BallotFact {
-		bl := NewINITBallotFact(base.RawPoint(33, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
+	t.ballot = func(withdrawfacts []SuffrageWithdrawFact) base.BallotFact {
+		bl := NewINITBallotFact(base.RawPoint(33, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256(), withdrawfacts)
 		_ = (interface{})(bl).(base.INITBallotFact)
 
 		return bl
@@ -93,10 +122,11 @@ func TestBasicINITBallotFact(tt *testing.T) {
 
 func TestBasicACCEPTBallotFact(tt *testing.T) {
 	t := new(testBaseBallotFact)
-	t.ballot = func() base.BallotFact {
+	t.ballot = func(withdrawfacts []SuffrageWithdrawFact) base.BallotFact {
 		bl := NewACCEPTBallotFact(base.RawPoint(33, 44),
 			valuehash.RandomSHA256(),
 			valuehash.RandomSHA256(),
+			withdrawfacts,
 		)
 		_ = (interface{})(bl).(base.ACCEPTBallotFact)
 
@@ -104,31 +134,6 @@ func TestBasicACCEPTBallotFact(tt *testing.T) {
 	}
 
 	suite.Run(tt, t)
-}
-
-type testINITBallotFact struct {
-	suite.Suite
-}
-
-func (t *testINITBallotFact) TestIsValid() {
-	t.Run("empty withdraw facts", func() {
-		bl := NewINITBallotFact(base.RawPoint(33, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
-		t.NoError(bl.IsValid(nil))
-	})
-
-	t.Run("withdraw facts", func() {
-		withdrawfacts := make([]SuffrageWithdrawFact, 3)
-		for i := range withdrawfacts {
-			withdrawfacts[i] = NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(int64(i+33)))
-		}
-
-		bl := NewINITBallotFact(base.RawPoint(33, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256(), withdrawfacts)
-		t.NoError(bl.IsValid(nil))
-	})
-}
-
-func TestINITBallotFact(t *testing.T) {
-	suite.Run(t, new(testINITBallotFact))
 }
 
 type baseTestBallotFactEncode struct {
@@ -220,14 +225,22 @@ func TestINITBallotFactJSON(tt *testing.T) {
 func TestACCEPTBallotFactJSON(tt *testing.T) {
 	t := testBallotFactEncode()
 
+	withdrawfacts := make([]SuffrageWithdrawFact, 3)
+	for i := range withdrawfacts {
+		withdrawfacts[i] = NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(int64(i+33)))
+	}
+
 	t.Encode = func() (interface{}, []byte) {
 		bl := NewACCEPTBallotFact(base.RawPoint(33, 44),
 			valuehash.RandomSHA256(),
 			valuehash.RandomSHA256(),
+			withdrawfacts,
 		)
 
 		b, err := t.enc.Marshal(&bl)
 		t.NoError(err)
+
+		t.T().Log("marshaled:", string(b))
 
 		return bl, b
 	}
@@ -239,6 +252,23 @@ func TestACCEPTBallotFactJSON(tt *testing.T) {
 		t.True(ok)
 
 		return i
+	}
+
+	t.compare = func(a, b base.BallotFact) {
+		bb, ok := b.(ACCEPTBallotFact)
+		t.True(ok)
+
+		bwfs := bb.WithdrawFacts()
+		t.Equal(len(withdrawfacts), len(bwfs))
+
+		for i := range withdrawfacts {
+			af := withdrawfacts[i]
+			bf := bwfs[i]
+
+			t.True(af.Hash().Equal(bf.Hash()))
+			t.True(af.Node().Equal(bf.Node()))
+			t.Equal(af.Start(), bf.Start())
+		}
 	}
 
 	suite.Run(tt, t)

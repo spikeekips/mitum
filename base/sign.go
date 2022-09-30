@@ -150,14 +150,14 @@ func (si BaseNodeSign) Bytes() []byte {
 }
 
 func (si BaseNodeSign) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid BaseNodeSign")
+	e := util.ErrInvalid.Errorf("invalid BaseNodeSign")
 
 	if err := util.CheckIsValiders(nil, false, si.node); err != nil {
-		return e(err, "invalid node")
+		return e.Wrapf(err, "invalid node")
 	}
 
 	if err := si.BaseSign.IsValid(nil); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil

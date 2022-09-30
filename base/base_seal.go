@@ -34,10 +34,10 @@ func (sl BaseSeal) Body() []SealBody {
 }
 
 func (sl BaseSeal) IsValid(networkID []byte) error {
-	e := util.StringErrorFunc("invalid BaseSeal")
+	e := util.ErrInvalid.Errorf("invalid BaseSeal")
 
 	if len(sl.body) < 1 {
-		return e(util.ErrInvalid.Errorf("empty body in BaseSeal"), "")
+		return e.Errorf("empty body in BaseSeal")
 	}
 
 	// NOTE BaseHinter should be checked by parent instance with it's own
@@ -51,12 +51,12 @@ func (sl BaseSeal) IsValid(networkID []byte) error {
 	}
 
 	if err := util.CheckIsValiders(nil, false, c...); err != nil {
-		return e(util.ErrInvalid.Wrap(err), "")
+		return e.Wrap(err)
 	}
 
 	// NOTE check sign with body hash
 	if err := sl.sign.Verify(networkID, sl.signedHashBytes()); err != nil {
-		return e(util.ErrInvalid.Wrap(err), "")
+		return e.Wrap(err)
 	}
 
 	return nil

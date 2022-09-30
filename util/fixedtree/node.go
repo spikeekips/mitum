@@ -95,19 +95,19 @@ func (n BaseNode) IsEmpty() bool {
 }
 
 func (n BaseNode) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid Node")
+	e := util.ErrInvalid.Errorf("invalid Node")
 
 	switch {
 	case n.isempty:
 		return nil
 	case len(n.key) < 1:
-		return e(util.ErrInvalid.Errorf("empty key"), "")
+		return e.Errorf("empty key")
 	case n.h == nil:
-		return e(util.ErrInvalid.Errorf("empty hash"), "")
+		return e.Errorf("empty hash")
 	}
 
 	if err := n.h.IsValid(nil); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil

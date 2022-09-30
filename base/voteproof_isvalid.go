@@ -4,7 +4,7 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
-func isValidVoteproof(vp Voteproof, networkID NetworkID) error {
+func IsValidVoteproof(vp Voteproof, networkID NetworkID) error {
 	e := util.StringErrorFunc("invalid Voteproof")
 
 	switch {
@@ -134,29 +134,17 @@ func isValidVoteproofSignFacts(vp Voteproof, networkID NetworkID) error {
 	return nil
 }
 
-func IsValidINITVoteproof(vp INITVoteproof, networkID NetworkID) error {
-	e := util.StringErrorFunc("invalid INITVoteproof")
-
-	if err := isValidVoteproof(vp, networkID); err != nil {
-		return e(err, "")
-	}
-
+func IsValidINITVoteproof(vp INITVoteproof, _ NetworkID) error {
 	if vp.Point().Stage() != StageINIT {
-		return e(util.ErrInvalid.Errorf("wrong stage in INITVoteproof, %q", vp.Point().Stage()), "")
+		return util.ErrInvalid.Errorf("wrong stage in INITVoteproof, %q", vp.Point().Stage())
 	}
 
 	return nil
 }
 
-func IsValidACCEPTVoteproof(vp ACCEPTVoteproof, networkID NetworkID) error {
-	e := util.StringErrorFunc("invalid ACCEPTVoteproof")
-
-	if err := isValidVoteproof(vp, networkID); err != nil {
-		return e(err, "")
-	}
-
+func IsValidACCEPTVoteproof(vp ACCEPTVoteproof, _ NetworkID) error {
 	if vp.Point().Stage() != StageACCEPT {
-		return e(util.ErrInvalid.Errorf("wrong stage for ACCEPTVoteproof, %q", vp.Point().Stage()), "")
+		return util.ErrInvalid.Errorf("wrong stage for ACCEPTVoteproof, %q", vp.Point().Stage())
 	}
 
 	return nil

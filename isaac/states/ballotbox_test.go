@@ -40,7 +40,7 @@ func (t *testBallotbox) SetupSuite() {
 }
 
 func (t *testBallotbox) initBallot(node isaac.LocalNode, nodes []isaac.LocalNode, point base.Point, prev, proposal util.Hash) isaac.INITBallot {
-	afact := isaac.NewACCEPTBallotFact(point.PrevHeight(), valuehash.RandomSHA256(), prev)
+	afact := isaac.NewACCEPTBallotFact(point.PrevHeight(), valuehash.RandomSHA256(), prev, nil)
 
 	asfs := make([]base.BallotSignFact, len(nodes))
 	for i := range nodes {
@@ -85,13 +85,13 @@ func (t *testBallotbox) acceptBallot(node isaac.LocalNode, nodes []isaac.LocalNo
 		SetThreshold(base.Threshold(100)).
 		Finish()
 
-	fact := isaac.NewACCEPTBallotFact(point, pr, block)
+	fact := isaac.NewACCEPTBallotFact(point, pr, block, nil)
 
 	signfact := isaac.NewACCEPTBallotSignFact(node.Address(), fact)
 
 	t.NoError(signfact.Sign(node.Privatekey(), t.networkID))
 
-	return isaac.NewACCEPTBallot(ivp, signfact)
+	return isaac.NewACCEPTBallot(ivp, signfact, nil)
 }
 
 func (t *testBallotbox) compareStagePoint(a base.StagePoint, i interface{}) {

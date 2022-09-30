@@ -244,7 +244,7 @@ func (g *GenesisBlockGenerator) initVoetproof() error {
 func (g *GenesisBlockGenerator) acceptVoteproof(proposal, newblock util.Hash) error {
 	e := util.StringErrorFunc("failed to make genesis accept voteproof")
 
-	fact := isaac.NewACCEPTBallotFact(base.GenesisPoint, proposal, newblock)
+	fact := isaac.NewACCEPTBallotFact(base.GenesisPoint, proposal, newblock, nil)
 	if err := fact.IsValid(nil); err != nil {
 		return e(err, "")
 	}

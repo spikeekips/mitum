@@ -50,10 +50,10 @@ func NewManifest(
 }
 
 func (m Manifest) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid manifest")
+	e := util.ErrInvalid.Errorf("invalid manifest")
 
 	if err := m.BaseHinter.IsValid(ManifestHint.Type().Bytes()); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := util.CheckIsValiders(nil, false,
@@ -67,12 +67,12 @@ func (m Manifest) IsValid([]byte) error {
 			return nil
 		}),
 	); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if m.height != base.GenesisHeight {
 		if err := util.CheckIsValiders(nil, false, m.previous); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	}
 
@@ -81,7 +81,7 @@ func (m Manifest) IsValid([]byte) error {
 		m.statesTree,
 		m.suffrage,
 	); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil

@@ -103,9 +103,10 @@ func (s SuffrageNodesStateValue) HashBytes() []byte {
 }
 
 func (s SuffrageNodesStateValue) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid SuffrageNodesStateValue")
+	e := util.ErrInvalid.Errorf("invalid SuffrageNodesStateValue")
+
 	if err := s.BaseHinter.IsValid(SuffrageNodesStateValueHint.Type().Bytes()); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	vs := make([]util.IsValider, len(s.nodes)+1)
@@ -116,7 +117,7 @@ func (s SuffrageNodesStateValue) IsValid([]byte) error {
 	}
 
 	if err := util.CheckIsValiders(nil, false, vs...); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -156,18 +157,18 @@ func NewSuffrageCandidateStateValue(node base.Node, start, deadline base.Height)
 }
 
 func (suf SuffrageCandidateStateValue) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid SuffrageCandidateStateValue")
+	e := util.ErrInvalid.Errorf("invalid SuffrageCandidateStateValue")
 
 	if err := suf.BaseHinter.IsValid(SuffrageCandidateStateValueHint.Type().Bytes()); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if suf.start >= suf.deadline {
-		return e(util.ErrInvalid.Errorf("start >= deadline"), "")
+		return e.Errorf("start >= deadline")
 	}
 
 	if err := suf.Node.IsValid(nil); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -212,14 +213,14 @@ func (s SuffrageCandidatesStateValue) HashBytes() []byte {
 }
 
 func (s SuffrageCandidatesStateValue) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid SuffrageCandidatesStateValue")
+	e := util.ErrInvalid.Errorf("invalid SuffrageCandidatesStateValue")
 
 	if err := s.BaseHinter.IsValid(SuffrageCandidatesStateValueHint.Type().Bytes()); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := util.CheckIsValiderSlice(nil, false, s.nodes); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil

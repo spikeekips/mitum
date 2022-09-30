@@ -81,7 +81,7 @@ func TestINITBallotSignFact(tt *testing.T) {
 		return sb
 	}
 	t.wrongfact = func() base.BallotFact {
-		return NewACCEPTBallotFact(base.RawPoint(33, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256())
+		return NewACCEPTBallotFact(base.RawPoint(33, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
 	}
 
 	suite.Run(tt, t)
@@ -90,7 +90,7 @@ func TestINITBallotSignFact(tt *testing.T) {
 func TestACCEPTBallotSignFact(tt *testing.T) {
 	t := new(testBaseBallotSignFact)
 	t.signfact = func() base.BallotSignFact {
-		fact := NewACCEPTBallotFact(base.RawPoint(33, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256())
+		fact := NewACCEPTBallotFact(base.RawPoint(33, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
 
 		sb := NewACCEPTBallotSignFact(base.RandomAddress(""), fact)
 		t.NoError(sb.Sign(t.priv, t.networkID))
@@ -163,7 +163,7 @@ func TestACCEPTBallotSignFactJSON(tt *testing.T) {
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: ACCEPTBallotFactHint, Instance: ACCEPTBallotFact{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: ACCEPTBallotSignFactHint, Instance: ACCEPTBallotSignFact{}}))
 
-		fact := NewACCEPTBallotFact(base.RawPoint(33, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256())
+		fact := NewACCEPTBallotFact(base.RawPoint(33, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
 		sb := NewACCEPTBallotSignFact(base.RandomAddress(""), fact)
 		t.NoError(sb.Sign(priv, networkID))
 		t.NoError(sb.IsValid(networkID))

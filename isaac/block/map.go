@@ -46,17 +46,17 @@ func NewBlockMap(writer, encoder hint.Hint) BlockMap {
 }
 
 func (m BlockMap) IsValid(b []byte) error {
-	e := util.StringErrorFunc("invalid blockmap")
+	e := util.ErrInvalid.Errorf("invalid blockmap")
 	if err := m.BaseHinter.IsValid(BlockMapHint.Type().Bytes()); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := util.CheckIsValiders(nil, false, m.writer, m.encoder, m.manifest, m.BaseNodeSign); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := m.checkItems(); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	vs := make([]util.IsValider, m.m.Len())
@@ -71,11 +71,11 @@ func (m BlockMap) IsValid(b []byte) error {
 	})
 
 	if err := util.CheckIsValiderSlice(nil, true, vs); err != nil {
-		return e(err, "invalid item found")
+		return e.Wrapf(err, "invalid item found")
 	}
 
 	if err := m.BaseNodeSign.Verify(b, m.signedBytes()); err != nil {
-		return e(util.ErrInvalid.Wrap(err), "")
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -226,29 +226,29 @@ func NewLocalBlockMapItem(t base.BlockMapItemType, checksum string, num uint64) 
 }
 
 func (item BlockMapItem) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid BlockMapItem")
+	e := util.ErrInvalid.Errorf("invalid BlockMapItem")
 
 	if err := item.t.IsValid(nil); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if item.num < 1 {
-		return e(util.ErrInvalid.Errorf("zero num"), "")
+		return e.Errorf("zero num")
 	}
 
 	if n := len(item.checksum); n < 1 {
-		return e(util.ErrInvalid.Errorf("empty checksum"), "")
+		return e.Errorf("empty checksum")
 	}
 
 	switch {
 	case len(item.url.String()) < 1:
-		return e(util.ErrInvalid.Errorf("empty url"), "")
+		return e.Errorf("empty url")
 	case len(item.url.Scheme) < 1:
-		return e(util.ErrInvalid.Errorf("empty url scheme"), "")
+		return e.Errorf("empty url scheme")
 	default:
 		scheme := strings.ToLower(item.url.Scheme)
 		if _, found := supportedBlockMapItemURLSchemes[strings.ToLower(item.url.Scheme)]; !found {
-			return e(util.ErrInvalid.Errorf("unsupported url scheme found, %q", scheme), "")
+			return e.Errorf("unsupported url scheme found, %q", scheme)
 		}
 	}
 

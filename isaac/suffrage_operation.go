@@ -35,18 +35,18 @@ func NewSuffrageWithdrawFact(
 }
 
 func (fact SuffrageWithdrawFact) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid SuffrageWithdrawFact")
+	e := util.ErrInvalid.Errorf("invalid SuffrageWithdrawFact")
 
 	if fact.start <= base.GenesisHeight {
-		return e(util.ErrInvalid.Errorf("invalid start height; should be over genesis height"), "")
+		return e.Errorf("invalid start height; should be over genesis height")
 	}
 
 	if err := util.CheckIsValiders(nil, false, fact.BaseFact, fact.node); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if !fact.Hash().Equal(fact.hash()) {
-		return e(util.ErrInvalid.Errorf("hash does not match"), "")
+		return e.Errorf("hash does not match")
 	}
 
 	return nil

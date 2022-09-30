@@ -35,14 +35,14 @@ func NewSuffrageCandidateFact(
 }
 
 func (fact SuffrageCandidateFact) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid SuffrageCandidateFact")
+	e := util.ErrInvalid.Errorf("invalid SuffrageCandidateFact")
 
 	if err := util.CheckIsValiders(nil, false, fact.BaseFact, fact.address, fact.publickey); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if !fact.Hash().Equal(fact.hash()) {
-		return e(util.ErrInvalid.Errorf("hash does not match"), "")
+		return e.Errorf("hash does not match")
 	}
 
 	return nil

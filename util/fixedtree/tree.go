@@ -30,14 +30,14 @@ func NewTree(ht hint.Hint, nodes []Node) (Tree, error) {
 }
 
 func (t Tree) IsValid(b []byte) error {
-	e := util.StringErrorFunc("invalid Tree")
+	e := util.ErrInvalid.Errorf("invalid Tree")
 
 	if t.Len() < 1 {
 		return nil
 	}
 
 	if err := t.BaseHinter.IsValid(nil); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := t.Traverse(func(index uint64, n Node) (bool, error) {
@@ -56,14 +56,14 @@ func (t Tree) IsValid(b []byte) error {
 
 		switch h, err := nodeHash(n, children[0], children[1]); {
 		case err != nil:
-			return false, util.ErrInvalid.Wrap(err)
+			return false, err
 		case !n.Hash().Equal(h):
-			return false, util.ErrInvalid.Errorf("hash does not match")
+			return false, errors.Errorf("hash does not match")
 		}
 
 		return true, nil
 	}); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil

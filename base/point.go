@@ -277,13 +277,14 @@ func (p StagePoint) IsZero() bool {
 }
 
 func (p StagePoint) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid stage point")
+	e := util.ErrInvalid.Errorf("invalid stage point")
+
 	if err := p.Point.IsValid(nil); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := p.stage.IsValid(nil); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil

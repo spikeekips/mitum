@@ -247,7 +247,7 @@ func (t *testBaseVoteproof) TestUnknownNode() {
 }
 
 func (t *testBaseVoteproof) TestNewACCEPT() {
-	afact := NewACCEPTBallotFact(base.RawPoint(33, 55), valuehash.RandomSHA256(), valuehash.RandomSHA256())
+	afact := NewACCEPTBallotFact(base.RawPoint(33, 55), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
 
 	node := base.RandomAddress("")
 	asignfact := NewACCEPTBallotSignFact(node, afact)
@@ -357,7 +357,7 @@ func TestACCEPTVoteproofJSON(tt *testing.T) {
 	t.Encode = func() (interface{}, []byte) {
 		node := base.RandomAddress("")
 
-		afact := NewACCEPTBallotFact(base.RawPoint(32, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256())
+		afact := NewACCEPTBallotFact(base.RawPoint(32, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
 
 		asignfact := NewACCEPTBallotSignFact(node, afact)
 

@@ -1,9 +1,6 @@
 package isaac
 
 import (
-	"sort"
-	"strings"
-
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
@@ -15,19 +12,56 @@ var (
 	ACCEPTBallotFactHint = hint.MustNewHint("accept-ballot-fact-v0.0.1")
 )
 
+type ballotWithdrawFacts interface {
+	WithdrawFacts() []SuffrageWithdrawFact
+}
+
 type baseBallotFact struct {
+	withdrawfacts []SuffrageWithdrawFact
 	util.DefaultJSONMarshaled
 	base.BaseFact
 	point base.StagePoint
 }
 
-func newBaseBallotFact(ht hint.Hint, stage base.Stage, point base.Point) baseBallotFact {
+func newBaseBallotFact(
+	ht hint.Hint,
+	stage base.Stage,
+	point base.Point,
+	withdrawfacts []SuffrageWithdrawFact,
+) baseBallotFact {
 	sp := base.NewStagePoint(point, stage)
 
+	sortWithdrawFacts(withdrawfacts)
+
 	return baseBallotFact{
-		BaseFact: base.NewBaseFact(ht, base.Token(util.ConcatByters(ht, sp))),
-		point:    sp,
+		BaseFact:      base.NewBaseFact(ht, base.Token(util.ConcatByters(ht, sp))),
+		point:         sp,
+		withdrawfacts: withdrawfacts,
 	}
+}
+
+func (fact baseBallotFact) IsValid([]byte) error {
+	if err := fact.BaseFact.IsValid(nil); err != nil {
+		return err
+	}
+
+	if err := base.IsValidBallotFact(fact); err != nil {
+		return err
+	}
+
+	if len(fact.withdrawfacts) > 0 {
+		if err := util.CheckIsValiderSlice(nil, false, fact.withdrawfacts); err != nil {
+			return util.ErrInvalid.Errorf("wrong withdrawfacts")
+		}
+
+		if _, found := util.CheckSliceDuplicated(fact.withdrawfacts, func(_ interface{}, i int) string {
+			return fact.withdrawfacts[i].Node().String()
+		}); found {
+			return util.ErrInvalid.Errorf("duplicated withdraw node found")
+		}
+	}
+
+	return nil
 }
 
 func (fact baseBallotFact) Stage() base.Stage {
@@ -38,14 +72,32 @@ func (fact baseBallotFact) Point() base.StagePoint {
 	return fact.point
 }
 
+func (fact baseBallotFact) WithdrawFacts() []SuffrageWithdrawFact {
+	return fact.withdrawfacts
+}
+
 func (fact baseBallotFact) hashBytes() []byte {
-	return util.ConcatByters(fact.point, util.BytesToByter(fact.Token()))
+	return util.ConcatByters(
+		fact.point,
+		util.BytesToByter(fact.Token()),
+		util.DummyByter(func() []byte {
+			if len(fact.withdrawfacts) < 1 {
+				return nil
+			}
+
+			hs := make([]util.Hash, len(fact.withdrawfacts))
+			for i := range hs {
+				hs[i] = fact.withdrawfacts[i].Hash()
+			}
+
+			return util.ConcatByterSlice(hs)
+		}),
+	)
 }
 
 type INITBallotFact struct {
 	previousBlock util.Hash
 	proposal      util.Hash
-	withdrawfacts []SuffrageWithdrawFact // NOTE hashes of withdraw facts
 	baseBallotFact
 }
 
@@ -54,17 +106,10 @@ func NewINITBallotFact(
 	previousBlock, proposal util.Hash,
 	withdrawfacts []SuffrageWithdrawFact,
 ) INITBallotFact {
-	if len(withdrawfacts) > 0 {
-		sort.Slice(withdrawfacts, func(i, j int) bool {
-			return strings.Compare(withdrawfacts[i].Hash().String(), withdrawfacts[j].Hash().String()) < 0
-		})
-	}
-
 	fact := INITBallotFact{
-		baseBallotFact: newBaseBallotFact(INITBallotFactHint, base.StageINIT, point),
+		baseBallotFact: newBaseBallotFact(INITBallotFactHint, base.StageINIT, point, withdrawfacts),
 		previousBlock:  previousBlock,
 		proposal:       proposal,
-		withdrawfacts:  withdrawfacts,
 	}
 
 	fact.SetHash(fact.generateHash())
@@ -80,33 +125,19 @@ func (fact INITBallotFact) Proposal() util.Hash {
 	return fact.proposal
 }
 
-func (fact INITBallotFact) WithdrawFacts() []SuffrageWithdrawFact {
-	return fact.withdrawfacts
-}
-
 func (fact INITBallotFact) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid INITBallotFact")
+	e := util.ErrInvalid.Errorf("invalid INITBallotFact")
 
-	if fact.point.Stage() != base.StageINIT {
-		return e(util.ErrInvalid.Errorf("invalid stage, %q", fact.point.Stage()), "")
-	}
-
-	if err := fact.BaseFact.IsValid(nil); err != nil {
-		return e(err, "")
+	if err := fact.baseBallotFact.IsValid(nil); err != nil {
+		return e.Wrap(err)
 	}
 
 	if err := base.IsValidINITBallotFact(fact); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if !fact.Hash().Equal(fact.generateHash()) {
-		return util.ErrInvalid.Errorf("wrong hash of INITBallotFact")
-	}
-
-	if len(fact.withdrawfacts) > 0 {
-		if err := util.CheckIsValiderSlice(nil, false, fact.withdrawfacts); err != nil {
-			return util.ErrInvalid.Errorf("wrong withdrawfacts")
-		}
+		return e.Errorf("wrong hash of INITBallotFact")
 	}
 
 	return nil
@@ -117,18 +148,6 @@ func (fact INITBallotFact) generateHash() util.Hash {
 		util.DummyByter(fact.baseBallotFact.hashBytes),
 		fact.previousBlock,
 		fact.proposal,
-		util.DummyByter(func() []byte {
-			if len(fact.withdrawfacts) < 1 {
-				return nil
-			}
-
-			hs := make([]util.Hash, len(fact.withdrawfacts))
-			for i := range hs {
-				hs[i] = fact.withdrawfacts[i].Hash()
-			}
-
-			return util.ConcatByterSlice(hs)
-		}),
 	))
 }
 
@@ -138,9 +157,13 @@ type ACCEPTBallotFact struct {
 	baseBallotFact
 }
 
-func NewACCEPTBallotFact(point base.Point, proposal, newBlock util.Hash) ACCEPTBallotFact {
+func NewACCEPTBallotFact(
+	point base.Point,
+	proposal, newBlock util.Hash,
+	withdrawfacts []SuffrageWithdrawFact,
+) ACCEPTBallotFact {
 	fact := ACCEPTBallotFact{
-		baseBallotFact: newBaseBallotFact(ACCEPTBallotFactHint, base.StageACCEPT, point),
+		baseBallotFact: newBaseBallotFact(ACCEPTBallotFactHint, base.StageACCEPT, point, withdrawfacts),
 		proposal:       proposal,
 		newBlock:       newBlock,
 	}
@@ -159,18 +182,18 @@ func (fact ACCEPTBallotFact) NewBlock() util.Hash {
 }
 
 func (fact ACCEPTBallotFact) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid ACCEPTBallotFact")
+	e := util.ErrInvalid.Errorf("invalid ACCEPTBallotFact")
 
-	if fact.point.Stage() != base.StageACCEPT {
-		return e(util.ErrInvalid.Errorf("invalid stage, %q", fact.point.Stage()), "")
+	if err := fact.baseBallotFact.IsValid(nil); err != nil {
+		return e.Wrap(err)
 	}
 
 	if err := base.IsValidACCEPTBallotFact(fact); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if !fact.Hash().Equal(fact.generateHash()) {
-		return util.ErrInvalid.Errorf("wrong hash of ACCEPTBallotFact")
+		return e.Errorf("wrong hash of ACCEPTBallotFact")
 	}
 
 	return nil

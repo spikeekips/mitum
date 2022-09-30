@@ -38,14 +38,14 @@ func (fact *BaseFact) SetToken(t Token) error {
 }
 
 func (fact BaseFact) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid BaseFact")
+	e := util.ErrInvalid.Errorf("invalid BaseFact")
 
 	if err := fact.BaseHinter.IsValid(fact.Hint().Type().Bytes()); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := IsValidFact(fact, nil); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil

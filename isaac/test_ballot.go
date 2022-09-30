@@ -50,7 +50,7 @@ func (t *BaseTestBallots) NewACCEPTBallotFact(point base.Point, pr, block util.H
 	if block == nil {
 		block = valuehash.RandomSHA256()
 	}
-	return NewACCEPTBallotFact(point, pr, block)
+	return NewACCEPTBallotFact(point, pr, block, nil)
 }
 
 func (t *BaseTestBallots) NewProposalFact(point base.Point, local LocalNode, ops []util.Hash) ProposalFact {

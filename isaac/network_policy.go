@@ -168,13 +168,14 @@ func (s NetworkPolicyStateValue) HashBytes() []byte {
 }
 
 func (s NetworkPolicyStateValue) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid NetworkPolicyStateValue")
+	e := util.ErrInvalid.Errorf("invalid NetworkPolicyStateValue")
+
 	if err := s.BaseHinter.IsValid(NetworkPolicyStateValueHint.Type().Bytes()); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := util.CheckIsValiders(nil, false, s.policy); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil

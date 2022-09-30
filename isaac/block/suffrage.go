@@ -34,26 +34,26 @@ func NewSuffrageProof(
 }
 
 func (s SuffrageProof) IsValid(b []byte) error {
-	e := util.StringErrorFunc("invalid SuffrageProof")
+	e := util.ErrInvalid.Errorf("invalid SuffrageProof")
 
 	if err := s.BaseHinter.IsValid(SuffrageProofHint.Type().Bytes()); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := util.CheckIsValiders(b, false, s.m, s.st, s.proof, s.voteproof); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if s.st.Height() != s.m.Manifest().Height() {
-		return e(util.ErrInvalid.Errorf("state height does not match with manifest"), "")
+		return e.Errorf("state height does not match with manifest")
 	}
 
 	if _, err := s.Suffrage(); err != nil {
-		return e(util.ErrInvalid.Wrap(err), "")
+		return e.Wrap(err)
 	}
 
 	if s.voteproof.Result() != base.VoteResultMajority {
-		return e(util.ErrInvalid.Errorf("accept voteproof is not majority"), "")
+		return e.Errorf("accept voteproof is not majority")
 	}
 
 	return nil

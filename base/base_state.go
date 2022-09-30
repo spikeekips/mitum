@@ -48,7 +48,7 @@ func NewBaseState(
 }
 
 func (s BaseState) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid base state")
+	e := util.ErrInvalid.Errorf("invalid base state")
 
 	vs := make([]util.IsValider, len(s.ops)+5)
 	vs[0] = s.BaseHinter
@@ -56,7 +56,7 @@ func (s BaseState) IsValid([]byte) error {
 	vs[2] = s.height
 	vs[3] = util.DummyIsValider(func([]byte) error {
 		if len(s.k) < 1 {
-			return util.ErrInvalid.Errorf("empty state key")
+			return e.Errorf("empty state key")
 		}
 
 		return nil
@@ -68,17 +68,17 @@ func (s BaseState) IsValid([]byte) error {
 	}
 
 	if err := util.CheckIsValiders(nil, false, vs...); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if s.previous != nil {
 		if err := s.previous.IsValid(nil); err != nil {
-			return e(err, "invalid previous state hash")
+			return e.Wrapf(err, "invalid previous state hash")
 		}
 	}
 
 	if !s.h.Equal(s.generateHash()) {
-		return util.ErrInvalid.Errorf("wrong hash")
+		return e.Errorf("wrong hash")
 	}
 
 	return nil

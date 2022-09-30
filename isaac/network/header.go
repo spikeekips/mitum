@@ -59,14 +59,14 @@ func NewOperationRequestHeader(operationhash util.Hash) OperationRequestHeader {
 }
 
 func (h OperationRequestHeader) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid OperationHeader")
+	e := util.ErrInvalid.Errorf("invalid OperationHeader")
 
 	if err := h.BaseHinter.IsValid(OperationRequestHeaderHint.Type().Bytes()); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := util.CheckIsValiders(nil, false, h.h); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -109,14 +109,14 @@ func NewRequestProposalRequestHeader(point base.Point, proposer base.Address) Re
 }
 
 func (h RequestProposalRequestHeader) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid RequestProposalHeader")
+	e := util.ErrInvalid.Errorf("invalid RequestProposalHeader")
 
 	if err := h.BaseHinter.IsValid(RequestProposalRequestHeaderHint.Type().Bytes()); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := util.CheckIsValiders(nil, false, h.point, h.proposer); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -143,14 +143,14 @@ func NewProposalRequestHeader(proposal util.Hash) ProposalRequestHeader {
 }
 
 func (h ProposalRequestHeader) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid ProposalHeader")
+	e := util.ErrInvalid.Errorf("invalid ProposalHeader")
 
 	if err := h.BaseHinter.IsValid(ProposalRequestHeaderHint.Type().Bytes()); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := util.CheckIsValiders(nil, false, h.proposal); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -173,15 +173,15 @@ func NewLastSuffrageProofRequestHeader(state util.Hash) LastSuffrageProofRequest
 }
 
 func (h LastSuffrageProofRequestHeader) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid LastSuffrageProofHeader")
+	e := util.ErrInvalid.Errorf("invalid LastSuffrageProofHeader")
 
 	if err := h.BaseHinter.IsValid(LastSuffrageProofRequestHeaderHint.Type().Bytes()); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if h.state != nil {
 		if err := h.state.IsValid(nil); err != nil {
-			return e(err, "")
+			return e.Wrap(err)
 		}
 	}
 
@@ -205,14 +205,14 @@ func NewSuffrageProofRequestHeader(suffrageheight base.Height) SuffrageProofRequ
 }
 
 func (h SuffrageProofRequestHeader) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid SuffrageProofHeader")
+	e := util.ErrInvalid.Errorf("invalid SuffrageProofHeader")
 
 	if err := h.BaseHinter.IsValid(SuffrageProofRequestHeaderHint.Type().Bytes()); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := util.CheckIsValiders(nil, false, h.suffrageheight); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -235,14 +235,14 @@ func NewLastBlockMapRequestHeader(manifest util.Hash) LastBlockMapRequestHeader 
 }
 
 func (h LastBlockMapRequestHeader) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid LastLastBlockMapHeader")
+	e := util.ErrInvalid.Errorf("invalid LastLastBlockMapHeader")
 
 	if err := h.BaseHinter.IsValid(LastBlockMapRequestHeaderHint.Type().Bytes()); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := util.CheckIsValiders(nil, true, h.manifest); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -265,14 +265,14 @@ func NewBlockMapRequestHeader(height base.Height) BlockMapRequestHeader {
 }
 
 func (h BlockMapRequestHeader) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid LastBlockMapHeader")
+	e := util.ErrInvalid.Errorf("invalid LastBlockMapHeader")
 
 	if err := h.BaseHinter.IsValid(BlockMapRequestHeaderHint.Type().Bytes()); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := util.CheckIsValiders(nil, false, h.height); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -297,14 +297,14 @@ func NewBlockMapItemRequestHeader(height base.Height, item base.BlockMapItemType
 }
 
 func (h BlockMapItemRequestHeader) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid BlockMapItemHeader")
+	e := util.ErrInvalid.Errorf("invalid BlockMapItemHeader")
 
 	if err := h.BaseHinter.IsValid(BlockMapItemRequestHeaderHint.Type().Bytes()); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := util.CheckIsValiders(nil, false, h.height, h.item); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -331,14 +331,14 @@ func NewNodeChallengeRequestHeader(input []byte) NodeChallengeRequestHeader {
 }
 
 func (h NodeChallengeRequestHeader) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid NodeChallengeHeader")
+	e := util.ErrInvalid.Errorf("invalid NodeChallengeHeader")
 
 	if err := h.BaseHinter.IsValid(NodeChallengeRequestHeaderHint.Type().Bytes()); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if len(h.input) < 1 {
-		return e(nil, "empty input")
+		return e.Errorf("empty input")
 	}
 
 	return nil
@@ -399,19 +399,19 @@ func NewStateRequestHeader(key string, h util.Hash) StateRequestHeader {
 }
 
 func (h StateRequestHeader) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid stateHeader")
+	e := util.ErrInvalid.Errorf("invalid stateHeader")
 
 	if err := h.BaseHinter.IsValid(h.Hint().Type().Bytes()); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if len(h.key) < 1 {
-		return e(nil, "empty state key")
+		return e.Errorf("empty state key")
 	}
 
 	if h.h != nil {
 		if err := h.h.IsValid(nil); err != nil {
-			return e(err, "invalid state hash")
+			return e.Wrapf(err, "invalid state hash")
 		}
 	}
 
@@ -443,18 +443,18 @@ func NewExistsInStateOperationRequestHeader(facthash util.Hash) ExistsInStateOpe
 }
 
 func (h ExistsInStateOperationRequestHeader) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid existsInStateOperationHeader")
+	e := util.ErrInvalid.Errorf("invalid existsInStateOperationHeader")
 
 	if err := h.BaseHinter.IsValid(h.Hint().Type().Bytes()); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if h.facthash == nil {
-		return e(nil, "empty operation fact hash")
+		return e.Errorf("empty operation fact hash")
 	}
 
 	if err := h.facthash.IsValid(nil); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	return nil

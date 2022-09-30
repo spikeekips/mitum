@@ -85,26 +85,26 @@ func (info DefaultNodeInfo) UpdateLastStartedAt() NodeInfo {
 }
 
 func (info DefaultNodeInfo) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid DefaultNodeInfo")
+	e := util.ErrInvalid.Errorf("invalid DefaultNodeInfo")
 
 	if err := info.BaseHinter.IsValid(DefaultNodeInfoHint.Type().Bytes()); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := util.CheckIsValiders(nil, false, info.networkID, info.version); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if len(info.id) < 1 {
-		return e(util.ErrInvalid.Errorf("empty id"), "")
+		return e.Errorf("empty id")
 	}
 
 	if info.createdAt.IsZero() {
-		return e(util.ErrInvalid.Errorf("empty created_at time"), "")
+		return e.Errorf("empty created_at time")
 	}
 
 	if info.lastStartedAt.IsZero() {
-		return e(util.ErrInvalid.Errorf("empty last_started_at time"), "")
+		return e.Errorf("empty last_started_at time")
 	}
 
 	return nil

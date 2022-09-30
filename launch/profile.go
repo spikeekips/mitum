@@ -118,22 +118,22 @@ func NewPprofRequestHeader(label string, seconds uint64, gc bool) PprofRequestHe
 }
 
 func (h PprofRequestHeader) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid PprofRequestHeader")
+	e := util.ErrInvalid.Errorf("invalid PprofRequestHeader")
 
 	if err := h.BaseHinter.IsValid(PprofRequestHeaderHint.Type().Bytes()); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if len(h.label) < 1 {
-		return e(nil, "empty profile label")
+		return e.Errorf("empty profile label")
 	}
 
 	if h.seconds < 1 {
-		return e(nil, "empty seconds")
+		return e.Errorf("empty seconds")
 	}
 
 	if p := pprof.Lookup(h.label); p == nil {
-		return e(nil, "unknown profile label, %q", h.label)
+		return e.Errorf("unknown profile label, %q", h.label)
 	}
 
 	return nil

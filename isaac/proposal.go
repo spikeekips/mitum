@@ -55,18 +55,18 @@ func (fact ProposalFact) ProposedAt() time.Time {
 }
 
 func (fact ProposalFact) IsValid([]byte) error {
-	e := util.StringErrorFunc("invalid ProposalFact")
+	e := util.ErrInvalid.Errorf("invalid ProposalFact")
 
 	if err := fact.BaseFact.IsValid(nil); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if err := base.IsValidProposalFact(fact); err != nil {
-		return e(err, "")
+		return e.Wrap(err)
 	}
 
 	if !fact.Hash().Equal(fact.generateHash()) {
-		return util.ErrInvalid.Errorf("wrong hash of ProposalFact")
+		return e.Errorf("wrong hash")
 	}
 
 	return nil
