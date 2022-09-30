@@ -413,7 +413,7 @@ func TestACCEPTBallotJSON(tt *testing.T) {
 		withdraws := make([]SuffrageWithdraw, 3)
 		withdrawfacts := make([]SuffrageWithdrawFact, len(withdraws))
 		for i := range withdrawfacts {
-			withdrawfacts[i] = NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), ifact.Point().Height())
+			withdrawfacts[i] = NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), ifact.Point().Height()-1)
 			withdraws[i] = NewSuffrageWithdraw(withdrawfacts[i])
 			t.NoError(withdraws[i].NodeSign(t.priv, t.networkID, node))
 		}

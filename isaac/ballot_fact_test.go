@@ -14,7 +14,7 @@ import (
 
 type testBaseBallotFact struct {
 	suite.Suite
-	ballot func([]SuffrageWithdrawFact) base.BallotFact
+	ballot func(base.Point, []SuffrageWithdrawFact) base.BallotFact
 }
 
 func (t *testBaseBallotFact) setHash(bl base.BallotFact, h util.Hash) base.BallotFact {
@@ -44,7 +44,7 @@ func (t *testBaseBallotFact) setWrongStage(bl base.BallotFact) base.BallotFact {
 }
 
 func (t *testBaseBallotFact) TestNew() {
-	bl := t.ballot(nil)
+	bl := t.ballot(base.RawPoint(33, 44), nil)
 	t.NoError(bl.IsValid(nil))
 
 	_ = (interface{})(bl).(base.BallotFact)
@@ -52,7 +52,7 @@ func (t *testBaseBallotFact) TestNew() {
 
 func (t *testBaseBallotFact) TestInValid() {
 	t.Run("EmptyHash", func() {
-		bl := t.ballot(nil)
+		bl := t.ballot(base.RawPoint(33, 44), nil)
 		bl = t.setHash(bl, nil)
 
 		err := bl.IsValid(nil)
@@ -61,7 +61,7 @@ func (t *testBaseBallotFact) TestInValid() {
 	})
 
 	t.Run("WrongHash", func() {
-		bl := t.ballot(nil)
+		bl := t.ballot(base.RawPoint(33, 44), nil)
 		bl = t.setHash(bl, valuehash.RandomSHA256())
 
 		err := bl.IsValid(nil)
@@ -70,7 +70,7 @@ func (t *testBaseBallotFact) TestInValid() {
 	})
 
 	t.Run("WrongStage", func() {
-		bl := t.ballot(nil)
+		bl := t.ballot(base.RawPoint(33, 44), nil)
 		bl = t.setWrongStage(bl)
 
 		err := bl.IsValid(nil)
@@ -79,28 +79,40 @@ func (t *testBaseBallotFact) TestInValid() {
 	})
 
 	t.Run("empty withdraw facts", func() {
-		bl := t.ballot(nil)
+		bl := t.ballot(base.RawPoint(33, 44), nil)
+		t.NoError(bl.IsValid(nil))
+	})
+
+	t.Run("wrong start height withdraw fact", func() {
+		withdrawfacts := make([]SuffrageWithdrawFact, 3)
+		for i := range withdrawfacts[:2] {
+			withdrawfacts[i] = NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(31))
+		}
+
+		withdrawfacts[2] = NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(31))
+
+		bl := t.ballot(base.RawPoint(33, 44), withdrawfacts)
 		t.NoError(bl.IsValid(nil))
 	})
 
 	t.Run("withdraw facts", func() {
 		withdrawfacts := make([]SuffrageWithdrawFact, 3)
 		for i := range withdrawfacts {
-			withdrawfacts[i] = NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(int64(i+33)))
+			withdrawfacts[i] = NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(31))
 		}
 
-		bl := t.ballot(withdrawfacts)
+		bl := t.ballot(base.RawPoint(33, 44), withdrawfacts)
 		t.NoError(bl.IsValid(nil))
 	})
 
 	t.Run("duplicated withdraw node", func() {
 		withdrawfacts := make([]SuffrageWithdrawFact, 3)
 		for i := range withdrawfacts[:len(withdrawfacts)-1] {
-			withdrawfacts[i] = NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(int64(i+33)))
+			withdrawfacts[i] = NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(31))
 		}
-		withdrawfacts[len(withdrawfacts)-1] = NewSuffrageWithdrawFact(util.UUID().Bytes(), withdrawfacts[len(withdrawfacts)-2].Node(), base.Height(int64(len(withdrawfacts)+33)))
+		withdrawfacts[len(withdrawfacts)-1] = NewSuffrageWithdrawFact(util.UUID().Bytes(), withdrawfacts[len(withdrawfacts)-2].Node(), base.Height(33))
 
-		bl := t.ballot(withdrawfacts)
+		bl := t.ballot(base.RawPoint(33, 44), withdrawfacts)
 		err := bl.IsValid(nil)
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
@@ -110,8 +122,8 @@ func (t *testBaseBallotFact) TestInValid() {
 
 func TestBasicINITBallotFact(tt *testing.T) {
 	t := new(testBaseBallotFact)
-	t.ballot = func(withdrawfacts []SuffrageWithdrawFact) base.BallotFact {
-		bl := NewINITBallotFact(base.RawPoint(33, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256(), withdrawfacts)
+	t.ballot = func(point base.Point, withdrawfacts []SuffrageWithdrawFact) base.BallotFact {
+		bl := NewINITBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), withdrawfacts)
 		_ = (interface{})(bl).(base.INITBallotFact)
 
 		return bl
@@ -122,8 +134,8 @@ func TestBasicINITBallotFact(tt *testing.T) {
 
 func TestBasicACCEPTBallotFact(tt *testing.T) {
 	t := new(testBaseBallotFact)
-	t.ballot = func(withdrawfacts []SuffrageWithdrawFact) base.BallotFact {
-		bl := NewACCEPTBallotFact(base.RawPoint(33, 44),
+	t.ballot = func(point base.Point, withdrawfacts []SuffrageWithdrawFact) base.BallotFact {
+		bl := NewACCEPTBallotFact(point,
 			valuehash.RandomSHA256(),
 			valuehash.RandomSHA256(),
 			withdrawfacts,
@@ -177,13 +189,15 @@ func testBallotFactEncode() *baseTestBallotFactEncode {
 func TestINITBallotFactJSON(tt *testing.T) {
 	t := testBallotFactEncode()
 
+	point := base.RawPoint(33, 44)
+
 	withdrawfacts := make([]SuffrageWithdrawFact, 3)
 	for i := range withdrawfacts {
-		withdrawfacts[i] = NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(int64(i+33)))
+		withdrawfacts[i] = NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), point.Height()-1)
 	}
 
 	t.Encode = func() (interface{}, []byte) {
-		bl := NewINITBallotFact(base.RawPoint(33, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256(), withdrawfacts)
+		bl := NewINITBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), withdrawfacts)
 
 		b, err := t.enc.Marshal(&bl)
 		t.NoError(err)
@@ -225,13 +239,15 @@ func TestINITBallotFactJSON(tt *testing.T) {
 func TestACCEPTBallotFactJSON(tt *testing.T) {
 	t := testBallotFactEncode()
 
+	point := base.RawPoint(33, 44)
+
 	withdrawfacts := make([]SuffrageWithdrawFact, 3)
 	for i := range withdrawfacts {
-		withdrawfacts[i] = NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(int64(i+33)))
+		withdrawfacts[i] = NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), point.Height()-1)
 	}
 
 	t.Encode = func() (interface{}, []byte) {
-		bl := NewACCEPTBallotFact(base.RawPoint(33, 44),
+		bl := NewACCEPTBallotFact(point,
 			valuehash.RandomSHA256(),
 			valuehash.RandomSHA256(),
 			withdrawfacts,
