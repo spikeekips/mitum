@@ -309,12 +309,14 @@ func memberlistDelegate(ctx context.Context, localnode quicmemberlist.Node) (*qu
 	var log *logging.Logging
 	var enc encoder.Encoder
 	var params *isaac.LocalParams
+	var db isaac.Database
 	var ballotbox *isaacstates.Ballotbox
 
 	if err := ps.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
 		LocalParamsContextKey, &params,
+		CenterDatabaseContextKey, &db,
 		BallotboxContextKey, &ballotbox,
 	); err != nil {
 		return nil, err
@@ -331,6 +333,18 @@ func memberlistDelegate(ctx context.Context, localnode quicmemberlist.Node) (*qu
 		switch t := i.(type) {
 		case base.Ballot:
 			log.Log().Trace().Interface("ballot", i).Msg("new incoming message")
+
+			if err := isaac.ValidateBallotBeforeVoting(
+				t, params.NetworkID(),
+				func(blockheight base.Height) (base.Suffrage, bool, error) {
+					return isaac.GetSuffrageFromDatabase(db, blockheight)
+				},
+				base.IsValidVoteproofWithSuffrage,
+			); err != nil {
+				log.Log().Error().Err(err).Interface("ballot", t).Msg("failed to vote")
+
+				return
+			}
 
 			_, err := ballotbox.Vote(t, params.Threshold())
 			if err != nil {
