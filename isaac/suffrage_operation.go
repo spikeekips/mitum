@@ -22,7 +22,7 @@ type SuffrageWithdrawFact struct {
 
 func NewSuffrageWithdrawFact(
 	node base.Address,
-	start base.Height, // FIXME check start height is behind last block
+	start base.Height,
 ) SuffrageWithdrawFact {
 	fact := SuffrageWithdrawFact{
 		// NOTE token should be node + start

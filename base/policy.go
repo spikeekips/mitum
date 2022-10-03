@@ -9,9 +9,10 @@ type NetworkPolicy interface {
 	util.IsValider
 	util.HashByter
 	MaxOperationsInProposal() uint64
-	SuffrageCandidateLifeSpan() Height
+	SuffrageCandidateLifespan() Height
 	SuffrageCandidateLimiterRule() SuffrageCandidateLimiterRule
 	MaxSuffrageSize() uint64
+	SuffrageWithdrawLifespan() Height
 }
 
 type NetworkPolicyStateValue interface {

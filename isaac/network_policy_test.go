@@ -50,11 +50,14 @@ func TestNetworkPolicyJSON(tt *testing.T) {
 
 		p := DefaultNetworkPolicy()
 		p.SetMaxOperationsInProposal(99)
-		p.SetSuffrageCandidateLifeSpan(88)
+		p.SetSuffrageCandidateLifespan(88)
 		p.SetSuffrageCandidateLimiterRule(NewFixedSuffrageCandidateLimiterRule(77))
+		p.SetSuffrageWithdrawLifespan(base.Height(44))
 
 		b, err := util.MarshalJSON(&p)
 		t.NoError(err)
+
+		t.T().Log("marshaled:", string(b))
 
 		return p, b
 	}
@@ -74,8 +77,9 @@ func TestNetworkPolicyJSON(tt *testing.T) {
 
 		t.True(ap.Hint().Equal(bp.Hint()))
 		t.Equal(ap.maxOperationsInProposal, bp.maxOperationsInProposal)
-		t.Equal(ap.suffrageCandidateLifeSpan, bp.suffrageCandidateLifeSpan)
+		t.Equal(ap.suffrageCandidateLifespan, bp.suffrageCandidateLifespan)
 		t.Equal(ap.maxSuffrageSize, bp.maxSuffrageSize)
+		t.Equal(ap.suffrageWithdrawLifespan, bp.suffrageWithdrawLifespan)
 
 		ar := ap.SuffrageCandidateLimiterRule()
 		br := ap.SuffrageCandidateLimiterRule()

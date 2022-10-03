@@ -128,29 +128,30 @@ func TestSuffrageWithdrawFactEncode(tt *testing.T) {
 
 type testSuffrageWithdrawOperation struct {
 	suite.Suite
+	priv      base.Privatekey
+	networkID base.NetworkID
+}
+
+func (t *testSuffrageWithdrawOperation) SetupTest() {
+	t.priv = base.NewMPrivatekey()
+	t.networkID = util.UUID().Bytes()
 }
 
 func (t *testSuffrageWithdrawOperation) TestNew() {
-	priv := base.NewMPrivatekey()
-	networkID := util.UUID().Bytes()
-
 	fact := NewSuffrageWithdrawFact(base.RandomAddress(""), base.Height(33))
 	op := NewSuffrageWithdrawOperation(fact)
-	t.NoError(op.NodeSign(priv, networkID, base.RandomAddress("")))
+	t.NoError(op.NodeSign(t.priv, t.networkID, base.RandomAddress("")))
 
 	_ = (interface{})(op).(base.SuffrageWithdrawOperation)
 }
 
 func (t *testSuffrageWithdrawOperation) TestIsValid() {
-	priv := base.NewMPrivatekey()
-	networkID := util.UUID().Bytes()
-
 	t.Run("ok", func() {
 		fact := NewSuffrageWithdrawFact(base.RandomAddress(""), base.Height(33))
 		op := NewSuffrageWithdrawOperation(fact)
-		t.NoError(op.NodeSign(priv, networkID, base.RandomAddress("")))
+		t.NoError(op.NodeSign(t.priv, t.networkID, base.RandomAddress("")))
 
-		t.NoError(op.IsValid(networkID))
+		t.NoError(op.IsValid(t.networkID))
 
 		signs := op.NodeSigns()
 		t.Equal(1, len(signs))
@@ -159,9 +160,9 @@ func (t *testSuffrageWithdrawOperation) TestIsValid() {
 	t.Run("target node signed", func() {
 		fact := NewSuffrageWithdrawFact(base.RandomAddress(""), base.Height(33))
 		op := NewSuffrageWithdrawOperation(fact)
-		t.NoError(op.NodeSign(priv, networkID, fact.Node()))
+		t.NoError(op.NodeSign(t.priv, t.networkID, fact.Node()))
 
-		err := op.IsValid(networkID)
+		err := op.IsValid(t.networkID)
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "withdraw target node sign found")
@@ -173,11 +174,93 @@ func (t *testSuffrageWithdrawOperation) TestIsValid() {
 	t.Run("different network id", func() {
 		fact := NewSuffrageWithdrawFact(base.RandomAddress(""), base.Height(33))
 		op := NewSuffrageWithdrawOperation(fact)
-		t.NoError(op.NodeSign(priv, networkID, base.RandomAddress("")))
+		t.NoError(op.NodeSign(t.priv, t.networkID, base.RandomAddress("")))
 
 		err := op.IsValid(util.UUID().Bytes())
 		t.Error(err)
 		t.True(errors.Is(err, base.ErrSignatureVerification))
+	})
+}
+
+func (t *testSuffrageWithdrawOperation) TestIsValidWithSuffrage() {
+	t.Run("ok", func() {
+		height := base.Height(33)
+		local := RandomLocalNode()
+		withdrawnode := RandomLocalNode()
+		nodes := []base.Node{local, RandomLocalNode(), withdrawnode}
+
+		fact := NewSuffrageWithdrawFact(withdrawnode.Address(), height)
+		op := NewSuffrageWithdrawOperation(fact)
+		t.NoError(op.NodeSign(local.Privatekey(), t.networkID, local.Address()))
+
+		t.NoError(op.IsValid(t.networkID))
+
+		suf, err := NewSuffrage(nodes)
+		t.NoError(err)
+
+		t.NoError(IsValidWithdrawWithSuffrage(height, op, suf, 1))
+	})
+
+	t.Run("expired", func() {
+		height := base.Height(33)
+		local := RandomLocalNode()
+		withdrawnode := RandomLocalNode()
+		nodes := []base.Node{local, RandomLocalNode(), withdrawnode}
+
+		fact := NewSuffrageWithdrawFact(withdrawnode.Address(), height)
+		op := NewSuffrageWithdrawOperation(fact)
+		t.NoError(op.NodeSign(local.Privatekey(), t.networkID, local.Address()))
+
+		t.NoError(op.IsValid(t.networkID))
+
+		suf, err := NewSuffrage(nodes)
+		t.NoError(err)
+
+		err = IsValidWithdrawWithSuffrage(height+2, op, suf, 1)
+		t.Error(err)
+		t.ErrorContains(err, "expired")
+	})
+
+	t.Run("signed node not in suffrage", func() {
+		height := base.Height(33)
+		local := RandomLocalNode()
+		withdrawnode := RandomLocalNode()
+		nodes := []base.Node{local, withdrawnode}
+
+		fact := NewSuffrageWithdrawFact(withdrawnode.Address(), height)
+		op := NewSuffrageWithdrawOperation(fact)
+
+		t.NoError(op.NodeSign(local.Privatekey(), t.networkID, local.Address()))
+		t.NoError(op.NodeSign(base.NewMPrivatekey(), t.networkID, base.RandomAddress("")))
+
+		t.NoError(op.IsValid(t.networkID))
+
+		suf, err := NewSuffrage(nodes)
+		t.NoError(err)
+
+		err = IsValidWithdrawWithSuffrage(height, op, suf, 1)
+		t.Error(err)
+		t.ErrorContains(err, "unknown node signed")
+	})
+
+	t.Run("withdraw node not in suffrage", func() {
+		height := base.Height(33)
+		local := RandomLocalNode()
+		withdrawnode := RandomLocalNode()
+		nodes := []base.Node{local, RandomLocalNode()}
+
+		fact := NewSuffrageWithdrawFact(withdrawnode.Address(), height)
+		op := NewSuffrageWithdrawOperation(fact)
+		t.NoError(op.NodeSign(local.Privatekey(), t.networkID, local.Address()))
+
+		t.NoError(op.IsValid(t.networkID))
+
+		suf, err := NewSuffrage(nodes)
+		t.NoError(err)
+
+		err = IsValidWithdrawWithSuffrage(height, op, suf, 1)
+		t.Error(err)
+		t.ErrorContains(err, "unknown withdraw node found")
 	})
 }
 

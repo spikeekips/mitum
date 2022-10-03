@@ -10,6 +10,55 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 )
 
+type networkPolicyJSONMarshaler struct {
+	// revive:disable-next-line:line-length-limit
+	SuffrageCandidateLimiterRule base.SuffrageCandidateLimiterRule `json:"suffrage_candidate_limiter"` //nolint:tagliatelle //...
+	hint.BaseHinter
+	MaxOperationsInProposal   uint64      `json:"max_operations_in_proposal"`
+	SuffrageCandidateLifespan base.Height `json:"suffrage_candidate_lifespan"`
+	MaxSuffrageSize           uint64      `json:"max_suffrage_size"`
+	SuffrageWithdrawLifespan  base.Height `json:"suffrage_withdraw_lifespan"`
+}
+
+func (p NetworkPolicy) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(networkPolicyJSONMarshaler{
+		BaseHinter:                   p.BaseHinter,
+		MaxOperationsInProposal:      p.maxOperationsInProposal,
+		SuffrageCandidateLifespan:    p.suffrageCandidateLifespan,
+		SuffrageCandidateLimiterRule: p.suffrageCandidateLimiterRule,
+		MaxSuffrageSize:              p.maxSuffrageSize,
+		SuffrageWithdrawLifespan:     p.suffrageWithdrawLifespan,
+	})
+}
+
+type networkPolicyJSONUnmarshaler struct {
+	SuffrageCandidateLimiterRule json.RawMessage `json:"suffrage_candidate_limiter"` //nolint:tagliatelle //...
+	MaxOperationsInProposal      uint64          `json:"max_operations_in_proposal"`
+	SuffrageCandidateLifespan    base.Height     `json:"suffrage_candidate_lifespan"`
+	MaxSuffrageSize              uint64          `json:"max_suffrage_size"`
+	SuffrageWithdrawLifespan     base.Height     `json:"suffrage_withdraw_lifespan"`
+}
+
+func (p *NetworkPolicy) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+	e := util.StringErrorFunc("failed to unmarshal NetworkPolicy")
+
+	var u networkPolicyJSONUnmarshaler
+	if err := util.UnmarshalJSON(b, &u); err != nil {
+		return e(err, "")
+	}
+
+	if err := encoder.Decode(enc, u.SuffrageCandidateLimiterRule, &p.suffrageCandidateLimiterRule); err != nil {
+		return e(err, "")
+	}
+
+	p.maxOperationsInProposal = u.MaxOperationsInProposal
+	p.suffrageCandidateLifespan = u.SuffrageCandidateLifespan
+	p.maxSuffrageSize = u.MaxSuffrageSize
+	p.suffrageWithdrawLifespan = u.SuffrageWithdrawLifespan
+
+	return nil
+}
+
 type NetworkPolicyStateValueJSONMarshaler struct {
 	Policy base.NetworkPolicy `json:"policy"`
 	hint.BaseHinter

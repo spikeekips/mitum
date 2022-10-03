@@ -340,6 +340,14 @@ func memberlistDelegate(ctx context.Context, localnode quicmemberlist.Node) (*qu
 					return isaac.GetSuffrageFromDatabase(db, blockheight)
 				},
 				base.IsValidVoteproofWithSuffrage,
+				func() (base.Height, error) {
+					policy := db.LastNetworkPolicy()
+					if policy == nil {
+						return base.NilHeight, errors.Errorf("empty network policy")
+					}
+
+					return policy.SuffrageWithdrawLifespan(), nil
+				},
 			); err != nil {
 				log.Log().Error().Err(err).Interface("ballot", t).Msg("failed to vote")
 

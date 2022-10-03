@@ -22,7 +22,7 @@ import (
 	"github.com/spikeekips/mitum/util/logging"
 )
 
-type SyncSourceType string
+type SyncSourceType string // FIXME rename to TrustLineSource
 
 var (
 	SyncSourceTypeNode          SyncSourceType = "sync-source-node"
@@ -31,7 +31,7 @@ var (
 	SyncSourceTypeURL           SyncSourceType = "sync-source-url"
 )
 
-type SyncSource struct {
+type SyncSource struct { // FIXME rename to TrustLine
 	Source interface{}
 	Type   SyncSourceType
 }

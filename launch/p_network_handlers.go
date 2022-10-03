@@ -216,7 +216,7 @@ func POperationProcessorsMap(ctx context.Context) (context.Context, error) {
 			db.State,
 			limiterf,
 			nil,
-			policy.SuffrageCandidateLifeSpan(),
+			policy.SuffrageCandidateLifespan(),
 		)
 	})
 
