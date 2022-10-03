@@ -381,16 +381,20 @@ func (vr *voterecords) vote(bl base.Ballot) (voted bool, validated bool, err err
 
 	e := util.StringErrorFunc("failed to vote")
 
-	switch _, found, err := vr.getSuffrage(); {
+	var suf base.Suffrage
+
+	switch i, found, err := vr.getSuffrage(); {
 	case err != nil:
 		return false, false, e(err, "")
 	case !found:
 		vr.ballots[node] = bl
 
 		return true, false, nil
+	default:
+		suf = i
 	}
 
-	switch isvalid, err := isValidBallotWithSuffrage(bl, vr.getSuffrageFunc, vr.isValidVoteproofWithSuffrage); {
+	switch _, isvalid, err := isaac.IsValidBallotWithSuffrage(bl, suf, vr.isValidVoteproofWithSuffrage); {
 	case err != nil:
 		return false, false, e(err, "")
 	case !isvalid:
@@ -414,8 +418,10 @@ func (vr *voterecords) count(lastStagePoint base.StagePoint, threshold base.Thre
 	vr.Lock()
 	defer vr.Unlock()
 
+	suf, _, _ := vr.getSuffrage()
+
 	if len(vr.voted) < 1 {
-		if _, found, err := vr.getSuffrage(); err != nil || !found {
+		if suf == nil {
 			return nil
 		}
 	}
@@ -427,7 +433,7 @@ func (vr *voterecords) count(lastStagePoint base.StagePoint, threshold base.Thre
 		for i := range vr.ballots {
 			bl := vr.ballots[i]
 
-			switch isvalid, err := isValidBallotWithSuffrage(bl, vr.getSuffrageFunc, vr.isValidVoteproofWithSuffrage); {
+			switch _, isvalid, err := isaac.IsValidBallotWithSuffrage(bl, suf, vr.isValidVoteproofWithSuffrage); {
 			case err != nil:
 				continue
 
@@ -616,56 +622,4 @@ func isNewVoteproof(
 	threshold base.Threshold,
 ) (ok bool, found bool) {
 	return vp.Point().Compare(lastStagePoint) > 0, vp.Threshold() >= threshold
-}
-
-func isValidBallotWithSuffrage(
-	bl base.Ballot,
-	getSuffrage isaac.GetSuffrageByBlockHeight,
-	checkValid func(base.Voteproof, base.Suffrage) error,
-) (bool, error) {
-	e := util.StringErrorFunc("invalid sign facts in ballot with suffrage")
-
-	switch suf, found, err := getSuffrage(bl.Point().Height()); {
-	case err != nil:
-		return false, e(util.ErrInvalid.Wrap(err), "")
-	case !found:
-		return false, nil
-	case !suf.Exists(bl.SignFact().Node()):
-		// NOTE ballot not in suffrage
-		return false, nil
-	case !suf.ExistsPublickey(bl.SignFact().Node(), bl.SignFact().Signer()):
-		return false, nil
-	}
-
-	if err := isValidVoteproofWithSuffrage(bl.Voteproof(), getSuffrage, checkValid); err != nil {
-		return false, nil
-	}
-
-	return true, nil
-}
-
-func isValidVoteproofWithSuffrage(
-	vp base.Voteproof,
-	getSuffrage isaac.GetSuffrageByBlockHeight,
-	checkValid func(base.Voteproof, base.Suffrage) error,
-) error {
-	e := util.StringErrorFunc("invalid sign facts in voteproof with suffrage")
-
-	switch suf, found, err := getSuffrage(vp.Point().Height()); {
-	case err != nil:
-		return e(util.ErrInvalid.Wrap(err), "")
-	case !found:
-		return e(util.ErrInvalid.Errorf("empty suffrage"), "")
-	default:
-		cf := checkValid
-		if cf == nil {
-			cf = func(base.Voteproof, base.Suffrage) error { return nil }
-		}
-
-		if err := cf(vp, suf); err != nil {
-			return e(err, "invalid voteproof")
-		}
-
-		return nil
-	}
 }

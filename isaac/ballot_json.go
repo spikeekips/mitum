@@ -11,9 +11,9 @@ import (
 )
 
 type baseBallotJSONMarshaler struct {
-	Withdraws []SuffrageWithdraw  `json:"withdraws,omitempty"`
-	Voteproof base.Voteproof      `json:"voteproof,omitempty"`
-	SignFact  base.BallotSignFact `json:"sign_fact"`
+	Withdraws []SuffrageWithdrawOperation `json:"withdraws,omitempty"`
+	Voteproof base.Voteproof              `json:"voteproof,omitempty"`
+	SignFact  base.BallotSignFact         `json:"sign_fact"`
 	hint.BaseHinter
 }
 
@@ -48,7 +48,7 @@ func (bl *baseBallot) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "")
 	}
 
-	bl.withdraws = make([]SuffrageWithdraw, len(u.Withdraws))
+	bl.withdraws = make([]SuffrageWithdrawOperation, len(u.Withdraws))
 	for i := range u.Withdraws {
 		if err := encoder.Decode(enc, u.Withdraws[i], &bl.withdraws[i]); err != nil {
 			return e(err, "")

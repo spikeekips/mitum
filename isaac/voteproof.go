@@ -24,7 +24,7 @@ type baseVoteproof struct {
 	id string
 	util.DefaultJSONMarshaled
 	sfs       []base.BallotSignFact
-	withdraws []SuffrageWithdraw
+	withdraws []SuffrageWithdrawOperation
 	point     base.StagePoint
 	threshold base.Threshold
 }
@@ -153,11 +153,11 @@ func (vp *baseVoteproof) SetPoint(p base.StagePoint) *baseVoteproof {
 	return vp
 }
 
-func (vp baseVoteproof) Withdraws() []SuffrageWithdraw {
+func (vp baseVoteproof) Withdraws() []SuffrageWithdrawOperation {
 	return vp.withdraws
 }
 
-func (vp *baseVoteproof) SetWithdraws(withdraws []SuffrageWithdraw) *baseVoteproof {
+func (vp *baseVoteproof) SetWithdraws(withdraws []SuffrageWithdrawOperation) *baseVoteproof {
 	sortWithdraws(withdraws)
 
 	vp.withdraws = withdraws

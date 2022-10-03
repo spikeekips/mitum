@@ -86,10 +86,10 @@ func (t *testBaseBallotFact) TestInValid() {
 	t.Run("wrong start height withdraw fact", func() {
 		withdrawfacts := make([]SuffrageWithdrawFact, 3)
 		for i := range withdrawfacts[:2] {
-			withdrawfacts[i] = NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(31))
+			withdrawfacts[i] = NewSuffrageWithdrawFact(base.RandomAddress(""), base.Height(31))
 		}
 
-		withdrawfacts[2] = NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(31))
+		withdrawfacts[2] = NewSuffrageWithdrawFact(base.RandomAddress(""), base.Height(31))
 
 		bl := t.ballot(base.RawPoint(33, 44), withdrawfacts)
 		t.NoError(bl.IsValid(nil))
@@ -98,7 +98,7 @@ func (t *testBaseBallotFact) TestInValid() {
 	t.Run("withdraw facts", func() {
 		withdrawfacts := make([]SuffrageWithdrawFact, 3)
 		for i := range withdrawfacts {
-			withdrawfacts[i] = NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(31))
+			withdrawfacts[i] = NewSuffrageWithdrawFact(base.RandomAddress(""), base.Height(31))
 		}
 
 		bl := t.ballot(base.RawPoint(33, 44), withdrawfacts)
@@ -108,9 +108,9 @@ func (t *testBaseBallotFact) TestInValid() {
 	t.Run("duplicated withdraw node", func() {
 		withdrawfacts := make([]SuffrageWithdrawFact, 3)
 		for i := range withdrawfacts[:len(withdrawfacts)-1] {
-			withdrawfacts[i] = NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(31))
+			withdrawfacts[i] = NewSuffrageWithdrawFact(base.RandomAddress(""), base.Height(31))
 		}
-		withdrawfacts[len(withdrawfacts)-1] = NewSuffrageWithdrawFact(util.UUID().Bytes(), withdrawfacts[len(withdrawfacts)-2].Node(), base.Height(33))
+		withdrawfacts[len(withdrawfacts)-1] = NewSuffrageWithdrawFact(withdrawfacts[len(withdrawfacts)-2].Node(), base.Height(33))
 
 		bl := t.ballot(base.RawPoint(33, 44), withdrawfacts)
 		err := bl.IsValid(nil)
@@ -193,7 +193,7 @@ func TestINITBallotFactJSON(tt *testing.T) {
 
 	withdrawfacts := make([]SuffrageWithdrawFact, 3)
 	for i := range withdrawfacts {
-		withdrawfacts[i] = NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), point.Height()-1)
+		withdrawfacts[i] = NewSuffrageWithdrawFact(base.RandomAddress(""), point.Height()-1)
 	}
 
 	t.Encode = func() (interface{}, []byte) {
@@ -229,7 +229,7 @@ func TestINITBallotFactJSON(tt *testing.T) {
 
 			t.True(af.Hash().Equal(bf.Hash()))
 			t.True(af.Node().Equal(bf.Node()))
-			t.Equal(af.Start(), bf.Start())
+			t.Equal(af.WithdrawStart(), bf.WithdrawStart())
 		}
 	}
 
@@ -243,7 +243,7 @@ func TestACCEPTBallotFactJSON(tt *testing.T) {
 
 	withdrawfacts := make([]SuffrageWithdrawFact, 3)
 	for i := range withdrawfacts {
-		withdrawfacts[i] = NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), point.Height()-1)
+		withdrawfacts[i] = NewSuffrageWithdrawFact(base.RandomAddress(""), point.Height()-1)
 	}
 
 	t.Encode = func() (interface{}, []byte) {
@@ -283,7 +283,7 @@ func TestACCEPTBallotFactJSON(tt *testing.T) {
 
 			t.True(af.Hash().Equal(bf.Hash()))
 			t.True(af.Node().Equal(bf.Node()))
-			t.Equal(af.Start(), bf.Start())
+			t.Equal(af.WithdrawStart(), bf.WithdrawStart())
 		}
 	}
 

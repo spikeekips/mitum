@@ -55,11 +55,12 @@ func (fact baseBallotFact) IsValid([]byte) error {
 		}
 
 		var err error
+
 		if _, found := util.CheckSliceDuplicated(fact.withdrawfacts, func(_ interface{}, i int) string {
 			wfact := fact.withdrawfacts[i]
 
 			// FIXME check start with lifespan
-			if err == nil && wfact.Start() >= fact.point.Height() {
+			if err == nil && wfact.WithdrawStart() >= fact.point.Height() {
 				err = util.ErrInvalid.Errorf("wrong start height in withdraw fact")
 			}
 

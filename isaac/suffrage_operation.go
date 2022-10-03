@@ -1,6 +1,8 @@
 package isaac
 
 import (
+	"bytes"
+
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
@@ -19,12 +21,12 @@ type SuffrageWithdrawFact struct {
 }
 
 func NewSuffrageWithdrawFact(
-	token base.Token,
 	node base.Address,
 	start base.Height, // FIXME check start height is behind last block
 ) SuffrageWithdrawFact {
 	fact := SuffrageWithdrawFact{
-		BaseFact: base.NewBaseFact(SuffrageWithdrawFactHint, token),
+		// NOTE token should be node + start
+		BaseFact: base.NewBaseFact(SuffrageWithdrawFactHint, base.Token(util.ConcatByters(node, start))),
 		node:     node,
 		start:    start,
 	}
@@ -37,8 +39,11 @@ func NewSuffrageWithdrawFact(
 func (fact SuffrageWithdrawFact) IsValid([]byte) error {
 	e := util.ErrInvalid.Errorf("invalid SuffrageWithdrawFact")
 
-	if fact.start <= base.GenesisHeight {
+	switch {
+	case fact.start <= base.GenesisHeight:
 		return e.Errorf("invalid start height; should be over genesis height")
+	case !bytes.Equal(fact.Token(), base.Token(util.ConcatByters(fact.node, fact.start))):
+		return e.Errorf("invalid token; should be node + start")
 	}
 
 	if err := util.CheckIsValiders(nil, false, fact.BaseFact, fact.node); err != nil {
@@ -56,7 +61,7 @@ func (fact SuffrageWithdrawFact) Node() base.Address {
 	return fact.node
 }
 
-func (fact SuffrageWithdrawFact) Start() base.Height {
+func (fact SuffrageWithdrawFact) WithdrawStart() base.Height {
 	return fact.start
 }
 
@@ -68,17 +73,17 @@ func (fact SuffrageWithdrawFact) hash() util.Hash {
 	))
 }
 
-type SuffrageWithdraw struct {
+type SuffrageWithdrawOperation struct {
 	base.BaseNodeOperation
 }
 
-func NewSuffrageWithdraw(fact SuffrageWithdrawFact) SuffrageWithdraw {
-	return SuffrageWithdraw{
+func NewSuffrageWithdrawOperation(fact SuffrageWithdrawFact) SuffrageWithdrawOperation {
+	return SuffrageWithdrawOperation{
 		BaseNodeOperation: base.NewBaseNodeOperation(SuffrageWithdrawHint, fact),
 	}
 }
 
-func (op *SuffrageWithdraw) SetToken(t base.Token) error {
+func (op *SuffrageWithdrawOperation) SetToken(t base.Token) error {
 	fact := op.Fact().(SuffrageWithdrawFact) //nolint:forcetypeassert //...
 
 	if err := fact.SetToken(t); err != nil {
@@ -90,8 +95,8 @@ func (op *SuffrageWithdraw) SetToken(t base.Token) error {
 	return nil
 }
 
-func (op SuffrageWithdraw) IsValid(networkID []byte) error {
-	e := util.ErrInvalid.Errorf("invalid SuffrageWithdraw")
+func (op SuffrageWithdrawOperation) IsValid(networkID []byte) error {
+	e := util.ErrInvalid.Errorf("invalid SuffrageWithdrawOperation")
 
 	if _, ok := op.Fact().(SuffrageWithdrawFact); !ok {
 		return e.Errorf("not SuffrageWithdrawFact, %T", op.Fact())
@@ -108,7 +113,7 @@ func (op SuffrageWithdraw) IsValid(networkID []byte) error {
 	return nil
 }
 
-func (op SuffrageWithdraw) NodeSigns() []base.NodeSign {
+func (op SuffrageWithdrawOperation) NodeSigns() []base.NodeSign {
 	signs := op.BaseNodeOperation.NodeSigns()
 	if len(signs) < 1 {
 		return nil
@@ -122,4 +127,8 @@ func (op SuffrageWithdraw) NodeSigns() []base.NodeSign {
 	return util.FilterSlices(signs, func(_ interface{}, i int) bool {
 		return !fact.Node().Equal(signs[i].Node())
 	})
+}
+
+func (op SuffrageWithdrawOperation) WithdrawFact() base.SuffrageWithdrawFact {
+	return op.Fact().(SuffrageWithdrawFact) //nolint:forcetypeassert //...
 }

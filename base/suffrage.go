@@ -99,3 +99,14 @@ type (
 	SuffrageCandidateLimiterFunc func(SuffrageCandidateLimiterRule) (SuffrageCandidateLimiter, error)
 	SuffrageCandidateLimiter     func() (uint64, error)
 )
+
+type SuffrageWithdrawFact interface {
+	Fact
+	Node() Address
+	WithdrawStart() Height
+}
+
+type SuffrageWithdrawOperation interface {
+	Operation
+	WithdrawFact() SuffrageWithdrawFact
+}

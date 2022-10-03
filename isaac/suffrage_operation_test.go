@@ -18,14 +18,16 @@ type testSuffrageWithdrawFact struct {
 }
 
 func (t *testSuffrageWithdrawFact) TestNew() {
-	fact := NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(33))
+	fact := NewSuffrageWithdrawFact(base.RandomAddress(""), base.Height(33))
 	t.NoError(fact.IsValid(nil))
+
+	_ = (interface{})(fact).(base.SuffrageWithdrawFact)
 }
 
 func (t *testSuffrageWithdrawFact) TestIsValid() {
 	t.Run("invalid BaseFact", func() {
-		fact := NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(33))
-		fact.SetToken(nil)
+		fact := NewSuffrageWithdrawFact(base.RandomAddress(""), base.Height(33))
+		fact.SetHash(nil)
 
 		err := fact.IsValid(nil)
 		t.Error(err)
@@ -33,8 +35,18 @@ func (t *testSuffrageWithdrawFact) TestIsValid() {
 		t.ErrorContains(err, "invalid BaseFact")
 	})
 
+	t.Run("invalid token", func() {
+		fact := NewSuffrageWithdrawFact(base.RandomAddress(""), base.Height(33))
+		t.NoError(fact.SetToken(util.UUID().Bytes()))
+
+		err := fact.IsValid(nil)
+		t.Error(err)
+		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorContains(err, "invalid token")
+	})
+
 	t.Run("empty node", func() {
-		fact := NewSuffrageWithdrawFact(util.UUID().Bytes(), nil, base.Height(33))
+		fact := NewSuffrageWithdrawFact(nil, base.Height(33))
 		err := fact.IsValid(nil)
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
@@ -43,7 +55,7 @@ func (t *testSuffrageWithdrawFact) TestIsValid() {
 
 	t.Run("bad node", func() {
 		addr := base.NewStringAddress(strings.Repeat("a", base.MinAddressSize-base.AddressTypeSize-1))
-		fact := NewSuffrageWithdrawFact(util.UUID().Bytes(), addr, base.Height(33))
+		fact := NewSuffrageWithdrawFact(addr, base.Height(33))
 		err := fact.IsValid(nil)
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
@@ -51,7 +63,7 @@ func (t *testSuffrageWithdrawFact) TestIsValid() {
 	})
 
 	t.Run("empty height", func() {
-		fact := NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), base.NilHeight)
+		fact := NewSuffrageWithdrawFact(base.RandomAddress(""), base.NilHeight)
 		err := fact.IsValid(nil)
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
@@ -59,7 +71,7 @@ func (t *testSuffrageWithdrawFact) TestIsValid() {
 	})
 
 	t.Run("wrong hash", func() {
-		fact := NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(33))
+		fact := NewSuffrageWithdrawFact(base.RandomAddress(""), base.Height(33))
 		fact.SetHash(valuehash.NewBytes(util.UUID().Bytes()))
 
 		err := fact.IsValid(nil)
@@ -79,7 +91,7 @@ func TestSuffrageWithdrawFactEncode(tt *testing.T) {
 	enc := jsonenc.NewEncoder()
 
 	t.Encode = func() (interface{}, []byte) {
-		fact := NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(33))
+		fact := NewSuffrageWithdrawFact(base.RandomAddress(""), base.Height(33))
 
 		b, err := enc.Marshal(fact)
 		t.NoError(err)
@@ -114,17 +126,28 @@ func TestSuffrageWithdrawFactEncode(tt *testing.T) {
 	suite.Run(tt, t)
 }
 
-type testSuffrageWithdraw struct {
+type testSuffrageWithdrawOperation struct {
 	suite.Suite
 }
 
-func (t *testSuffrageWithdraw) TestIsValid() {
+func (t *testSuffrageWithdrawOperation) TestNew() {
+	priv := base.NewMPrivatekey()
+	networkID := util.UUID().Bytes()
+
+	fact := NewSuffrageWithdrawFact(base.RandomAddress(""), base.Height(33))
+	op := NewSuffrageWithdrawOperation(fact)
+	t.NoError(op.NodeSign(priv, networkID, base.RandomAddress("")))
+
+	_ = (interface{})(op).(base.SuffrageWithdrawOperation)
+}
+
+func (t *testSuffrageWithdrawOperation) TestIsValid() {
 	priv := base.NewMPrivatekey()
 	networkID := util.UUID().Bytes()
 
 	t.Run("ok", func() {
-		fact := NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(33))
-		op := NewSuffrageWithdraw(fact)
+		fact := NewSuffrageWithdrawFact(base.RandomAddress(""), base.Height(33))
+		op := NewSuffrageWithdrawOperation(fact)
 		t.NoError(op.NodeSign(priv, networkID, base.RandomAddress("")))
 
 		t.NoError(op.IsValid(networkID))
@@ -134,8 +157,8 @@ func (t *testSuffrageWithdraw) TestIsValid() {
 	})
 
 	t.Run("target node signed", func() {
-		fact := NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(33))
-		op := NewSuffrageWithdraw(fact)
+		fact := NewSuffrageWithdrawFact(base.RandomAddress(""), base.Height(33))
+		op := NewSuffrageWithdrawOperation(fact)
 		t.NoError(op.NodeSign(priv, networkID, fact.Node()))
 
 		err := op.IsValid(networkID)
@@ -148,8 +171,8 @@ func (t *testSuffrageWithdraw) TestIsValid() {
 	})
 
 	t.Run("different network id", func() {
-		fact := NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(33))
-		op := NewSuffrageWithdraw(fact)
+		fact := NewSuffrageWithdrawFact(base.RandomAddress(""), base.Height(33))
+		op := NewSuffrageWithdrawOperation(fact)
 		t.NoError(op.NodeSign(priv, networkID, base.RandomAddress("")))
 
 		err := op.IsValid(util.UUID().Bytes())
@@ -158,19 +181,19 @@ func (t *testSuffrageWithdraw) TestIsValid() {
 	})
 }
 
-func TestSuffrageWithdraw(t *testing.T) {
-	suite.Run(t, new(testSuffrageWithdraw))
+func TestSuffrageWithdrawOperation(t *testing.T) {
+	suite.Run(t, new(testSuffrageWithdrawOperation))
 }
 
-func TestSuffrageWithdrawEncode(tt *testing.T) {
+func TestSuffrageWithdrawOperationEncode(tt *testing.T) {
 	t := new(encoder.BaseTestEncode)
 
 	enc := jsonenc.NewEncoder()
 	networkID := util.UUID().Bytes()
 
 	t.Encode = func() (interface{}, []byte) {
-		fact := NewSuffrageWithdrawFact(util.UUID().Bytes(), base.RandomAddress(""), base.Height(33))
-		op := NewSuffrageWithdraw(fact)
+		fact := NewSuffrageWithdrawFact(base.RandomAddress(""), base.Height(33))
+		op := NewSuffrageWithdrawOperation(fact)
 		t.NoError(op.NodeSign(base.NewMPrivatekey(), networkID, base.RandomAddress("")))
 		t.NoError(op.NodeSign(base.NewMPrivatekey(), networkID, base.RandomAddress("")))
 
@@ -187,12 +210,12 @@ func TestSuffrageWithdrawEncode(tt *testing.T) {
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: SuffrageWithdrawFactHint, Instance: SuffrageWithdrawFact{}}))
-		t.NoError(enc.Add(encoder.DecodeDetail{Hint: SuffrageWithdrawHint, Instance: SuffrageWithdraw{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: SuffrageWithdrawHint, Instance: SuffrageWithdrawOperation{}}))
 
 		i, err := enc.Decode(b)
 		t.NoError(err)
 
-		op, ok := i.(SuffrageWithdraw)
+		op, ok := i.(SuffrageWithdrawOperation)
 		t.True(ok)
 
 		t.NoError(op.IsValid(networkID))
@@ -200,9 +223,9 @@ func TestSuffrageWithdrawEncode(tt *testing.T) {
 		return i
 	}
 	t.Compare = func(a, b interface{}) {
-		af, ok := a.(SuffrageWithdraw)
+		af, ok := a.(SuffrageWithdrawOperation)
 		t.True(ok)
-		bf, ok := b.(SuffrageWithdraw)
+		bf, ok := b.(SuffrageWithdrawOperation)
 		t.True(ok)
 
 		t.NoError(bf.IsValid(networkID))
