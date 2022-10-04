@@ -496,7 +496,7 @@ func (t *testConsensusHandler) TestWithBallotbox() {
 		func(base.Height) (base.Suffrage, bool, error) {
 			return suf, true, nil
 		},
-		nil,
+		func(base.Voteproof, base.Suffrage) error { return nil },
 	)
 
 	testctx, testdone := context.WithCancel(context.Background())

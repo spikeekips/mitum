@@ -282,7 +282,7 @@ func (t *testVoteproof) withdraws(
 	withdraws := make([]base.SuffrageWithdrawOperation, len(withdrawnodes))
 
 	for i := range withdrawnodes {
-		withdrawfacts[i] = NewSuffrageWithdrawFact(withdrawnodes[i].Address(), height)
+		withdrawfacts[i] = NewSuffrageWithdrawFact(withdrawnodes[i].Address(), height, height+1)
 		withdraws[i] = NewSuffrageWithdrawOperation(withdrawfacts[i])
 	}
 
@@ -355,7 +355,7 @@ func (t *testVoteproof) TestINITWithWithdraws() {
 
 		t.NoError(ivp.IsValid(t.networkID))
 
-		t.NoError(IsValidVoteproofWithSuffrage(ivp, suf, 1))
+		t.NoError(IsValidVoteproofWithSuffrage(ivp, suf))
 	})
 
 	t.Run("ok: 2/5 withdraw nodes", func() {
@@ -380,7 +380,7 @@ func (t *testVoteproof) TestINITWithWithdraws() {
 
 		t.NoError(ivp.IsValid(t.networkID))
 
-		t.NoError(IsValidVoteproofWithSuffrage(ivp, suf, 1))
+		t.NoError(IsValidVoteproofWithSuffrage(ivp, suf))
 	})
 
 	t.Run("ok: draw, withdraw nodes", func() {
@@ -405,7 +405,7 @@ func (t *testVoteproof) TestINITWithWithdraws() {
 
 		t.NoError(ivp.IsValid(t.networkID))
 
-		t.NoError(IsValidVoteproofWithSuffrage(ivp, suf, 1))
+		t.NoError(IsValidVoteproofWithSuffrage(ivp, suf))
 	})
 
 	t.Run("ok: 2/5 withdraw nodes, but not enough signs", func() {
@@ -430,7 +430,7 @@ func (t *testVoteproof) TestINITWithWithdraws() {
 
 		t.NoError(ivp.IsValid(t.networkID))
 
-		err = IsValidVoteproofWithSuffrage(ivp, suf, 1)
+		err = IsValidVoteproofWithSuffrage(ivp, suf)
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "wrong result")

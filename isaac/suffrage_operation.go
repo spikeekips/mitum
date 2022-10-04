@@ -3,6 +3,7 @@ package isaac
 import (
 	"bytes"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
@@ -18,17 +19,20 @@ type SuffrageWithdrawFact struct {
 	node base.Address
 	base.BaseFact
 	start base.Height
+	end   base.Height
 }
 
 func NewSuffrageWithdrawFact(
 	node base.Address,
 	start base.Height,
+	end base.Height,
 ) SuffrageWithdrawFact {
 	fact := SuffrageWithdrawFact{
 		// NOTE token should be node + start
-		BaseFact: base.NewBaseFact(SuffrageWithdrawFactHint, base.Token(util.ConcatByters(node, start))),
+		BaseFact: base.NewBaseFact(SuffrageWithdrawFactHint, base.Token(util.ConcatByters(node, start, end))),
 		node:     node,
 		start:    start,
+		end:      end,
 	}
 
 	fact.SetHash(fact.hash())
@@ -42,8 +46,10 @@ func (fact SuffrageWithdrawFact) IsValid([]byte) error {
 	switch {
 	case fact.start <= base.GenesisHeight:
 		return e.Errorf("invalid start height; should be over genesis height")
-	case !bytes.Equal(fact.Token(), base.Token(util.ConcatByters(fact.node, fact.start))):
-		return e.Errorf("invalid token; should be node + start")
+	case fact.start >= fact.end:
+		return e.Errorf("invalid start and end height; end should be over start")
+	case !bytes.Equal(fact.Token(), base.Token(util.ConcatByters(fact.node, fact.start, fact.end))):
+		return e.Errorf("invalid token; should be node + start + end")
 	}
 
 	if err := util.CheckIsValiders(nil, false, fact.BaseFact, fact.node); err != nil {
@@ -65,11 +71,16 @@ func (fact SuffrageWithdrawFact) WithdrawStart() base.Height {
 	return fact.start
 }
 
+func (fact SuffrageWithdrawFact) WithdrawEnd() base.Height {
+	return fact.end
+}
+
 func (fact SuffrageWithdrawFact) hash() util.Hash {
 	return valuehash.NewSHA256(util.ConcatByters(
 		util.BytesToByter(fact.Token()),
 		fact.node,
 		fact.start,
+		fact.end,
 	))
 }
 
@@ -131,4 +142,51 @@ func (op SuffrageWithdrawOperation) NodeSigns() []base.NodeSign {
 
 func (op SuffrageWithdrawOperation) WithdrawFact() base.SuffrageWithdrawFact {
 	return op.Fact().(SuffrageWithdrawFact) //nolint:forcetypeassert //...
+}
+
+// IsValidWithdrawWithSuffrageLifespan checks withdraw operation itself with
+// suffrage and lifespan.
+func IsValidWithdrawWithSuffrageLifespan(
+	height base.Height,
+	withdraw base.SuffrageWithdrawOperation,
+	suf base.Suffrage,
+	lifespan base.Height,
+) error {
+	fact := withdraw.WithdrawFact()
+
+	if fact.WithdrawEnd() > fact.WithdrawStart()+lifespan {
+		return util.ErrInvalid.Errorf("invalid withdraw; wrong withdraw end")
+	}
+
+	return IsValidWithdrawWithSuffrage(height, withdraw, suf)
+}
+
+func IsValidWithdrawWithSuffrage(
+	height base.Height,
+	withdraw base.SuffrageWithdrawOperation,
+	suf base.Suffrage,
+) error {
+	e := util.ErrInvalid.Errorf("invalid withdraw with suffrage")
+
+	fact := withdraw.WithdrawFact()
+
+	if height > fact.WithdrawEnd() {
+		return errors.Errorf("withdraw expired")
+	}
+
+	if !suf.Exists(fact.Node()) {
+		return e.Errorf("unknown withdraw node found, %q", fact.Node())
+	}
+
+	signs := withdraw.NodeSigns()
+
+	for i := range signs {
+		sign := signs[i]
+
+		if !suf.ExistsPublickey(sign.Node(), sign.Signer()) {
+			return e.Errorf("unknown node signed, %q", sign.Node())
+		}
+	}
+
+	return nil
 }

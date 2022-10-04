@@ -51,7 +51,7 @@ func (fact baseBallotFact) IsValid([]byte) error {
 
 	if len(fact.withdrawfacts) > 0 {
 		if err := util.CheckIsValiderSlice(nil, false, fact.withdrawfacts); err != nil {
-			return util.ErrInvalid.Errorf("wrong withdrawfacts")
+			return util.ErrInvalid.Wrapf(err, "wrong withdrawfacts")
 		}
 
 		var err error

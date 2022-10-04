@@ -71,7 +71,7 @@ func (t *testBaseBallot) TestInValidWithdraws() {
 		withdraws := make([]SuffrageWithdrawOperation, 3)
 		withdrawfacts := make([]SuffrageWithdrawFact, len(withdraws))
 		for i := range withdrawfacts {
-			withdrawfacts[i] = NewSuffrageWithdrawFact(base.RandomAddress(""), point.Height()-1)
+			withdrawfacts[i] = NewSuffrageWithdrawFact(base.RandomAddress(""), point.Height()-1, point.Height()+1)
 			withdraws[i] = NewSuffrageWithdrawOperation(withdrawfacts[i])
 			t.NoError(withdraws[i].NodeSign(t.priv, t.networkID, node))
 		}
@@ -87,7 +87,7 @@ func (t *testBaseBallot) TestInValidWithdraws() {
 		withdraws := make([]SuffrageWithdrawOperation, 3)
 		withdrawfacts := make([]SuffrageWithdrawFact, len(withdraws))
 		for i := range withdrawfacts {
-			withdrawfacts[i] = NewSuffrageWithdrawFact(base.RandomAddress(""), point.Height()-1)
+			withdrawfacts[i] = NewSuffrageWithdrawFact(base.RandomAddress(""), point.Height()-1, point.Height()+1)
 			withdraws[i] = NewSuffrageWithdrawOperation(withdrawfacts[i])
 			t.NoError(withdraws[i].NodeSign(t.priv, t.networkID, node))
 		}
@@ -106,7 +106,7 @@ func (t *testBaseBallot) TestInValidWithdraws() {
 		withdraws := make([]SuffrageWithdrawOperation, 3)
 		withdrawfacts := make([]SuffrageWithdrawFact, len(withdraws))
 		for i := range withdrawfacts {
-			fact := NewSuffrageWithdrawFact(base.RandomAddress(""), point.Height()-1)
+			fact := NewSuffrageWithdrawFact(base.RandomAddress(""), point.Height()-1, point.Height()+1)
 			withdrawfacts[i] = fact
 			withdraws[i] = NewSuffrageWithdrawOperation(fact)
 
@@ -129,11 +129,11 @@ func (t *testBaseBallot) TestInValidWithdraws() {
 		withdraws := make([]SuffrageWithdrawOperation, 3)
 		withdrawfacts := make([]SuffrageWithdrawFact, len(withdraws))
 		for i := range withdrawfacts {
-			fact := NewSuffrageWithdrawFact(base.RandomAddress(""), point.Height()-1)
+			fact := NewSuffrageWithdrawFact(base.RandomAddress(""), point.Height()-1, point.Height()+1)
 			withdrawfacts[i] = fact
 
 			if i == len(withdrawfacts)-1 {
-				fact = NewSuffrageWithdrawFact(base.RandomAddress(""), point.Height()-1)
+				fact = NewSuffrageWithdrawFact(base.RandomAddress(""), point.Height()-1, point.Height()+1)
 			}
 
 			withdraws[i] = NewSuffrageWithdrawOperation(fact)
@@ -378,7 +378,7 @@ func TestINITBallotJSON(tt *testing.T) {
 		withdraws := make([]base.SuffrageWithdrawOperation, 3)
 		withdrawfacts := make([]base.SuffrageWithdrawFact, len(withdraws))
 		for i := range withdrawfacts {
-			withdrawfacts[i] = NewSuffrageWithdrawFact(base.RandomAddress(""), afact.Point().Height()-1)
+			withdrawfacts[i] = NewSuffrageWithdrawFact(base.RandomAddress(""), afact.Point().Height()-1, afact.Point().Height()+1)
 			w := NewSuffrageWithdrawOperation(withdrawfacts[i].(SuffrageWithdrawFact))
 			t.NoError(w.NodeSign(t.priv, t.networkID, node))
 
@@ -435,7 +435,7 @@ func TestACCEPTBallotJSON(tt *testing.T) {
 		withdraws := make([]base.SuffrageWithdrawOperation, 3)
 		withdrawfacts := make([]base.SuffrageWithdrawFact, len(withdraws))
 		for i := range withdrawfacts {
-			withdrawfacts[i] = NewSuffrageWithdrawFact(base.RandomAddress(""), ifact.Point().Height()-1)
+			withdrawfacts[i] = NewSuffrageWithdrawFact(base.RandomAddress(""), ifact.Point().Height()-1, ifact.Point().Height()+1)
 			w := NewSuffrageWithdrawOperation(withdrawfacts[i].(SuffrageWithdrawFact))
 			t.NoError(w.NodeSign(t.priv, t.networkID, node))
 

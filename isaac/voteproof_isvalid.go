@@ -5,11 +5,9 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
-func IsValidVoteproofWithSuffrage(
-	vp base.Voteproof,
-	suf base.Suffrage,
-	lifespan base.Height,
-) error {
+// FIXME if local is out of suffrage in voteproof, moves to syncing state
+
+func IsValidVoteproofWithSuffrage(vp base.Voteproof, suf base.Suffrage) error {
 	e := util.ErrInvalid.Errorf("invalid voteproof with suffrage")
 
 	var withdraws []base.SuffrageWithdrawOperation
@@ -36,7 +34,7 @@ func IsValidVoteproofWithSuffrage(
 				return e.Errorf("insufficient withdraw node signs; node signs=%d threshold=%d", n, th)
 			}
 
-			if err := IsValidWithdrawWithSuffrage(vp.Point().Height(), withdraws[i], suf, lifespan); err != nil {
+			if err := IsValidWithdrawWithSuffrage(vp.Point().Height(), withdraws[i], suf); err != nil {
 				return e.Wrap(err)
 			}
 		}

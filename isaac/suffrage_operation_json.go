@@ -10,6 +10,7 @@ type suffrageWithdrawFactJSONMarshaler struct {
 	Node base.Address `json:"node"`
 	base.BaseFactJSONMarshaler
 	Start base.Height `json:"start"`
+	End   base.Height `json:"end"`
 }
 
 func (fact SuffrageWithdrawFact) MarshalJSON() ([]byte, error) {
@@ -17,6 +18,7 @@ func (fact SuffrageWithdrawFact) MarshalJSON() ([]byte, error) {
 		BaseFactJSONMarshaler: fact.BaseFact.JSONMarshaler(),
 		Node:                  fact.node,
 		Start:                 fact.start,
+		End:                   fact.end,
 	})
 }
 
@@ -24,6 +26,7 @@ type suffrageWithdrawFactJSONUnmarshaler struct {
 	Node string `json:"node"`
 	base.BaseFactJSONUnmarshaler
 	Start base.Height `json:"start"`
+	End   base.Height `json:"end"`
 }
 
 func (fact *SuffrageWithdrawFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
@@ -44,6 +47,7 @@ func (fact *SuffrageWithdrawFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) err
 	}
 
 	fact.start = u.Start
+	fact.end = u.End
 
 	return nil
 }

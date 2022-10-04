@@ -47,14 +47,7 @@ func PBallotbox(ctx context.Context) (context.Context, error) {
 		func(blockheight base.Height) (base.Suffrage, bool, error) {
 			return isaac.GetSuffrageFromDatabase(db, blockheight)
 		},
-		func(vp base.Voteproof, suf base.Suffrage) error {
-			policy := db.LastNetworkPolicy()
-			if policy == nil {
-				return errors.Errorf("empty network policy")
-			}
-
-			return isaac.IsValidVoteproofWithSuffrage(vp, suf, policy.SuffrageWithdrawLifespan())
-		},
+		nil,
 	)
 
 	ctx = context.WithValue(ctx, BallotboxContextKey, ballotbox) //revive:disable-line:modifies-parameter
