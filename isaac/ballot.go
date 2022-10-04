@@ -15,11 +15,11 @@ var (
 )
 
 type ballotWithdraws interface {
-	Withdraws() []SuffrageWithdrawOperation
+	Withdraws() []base.SuffrageWithdrawOperation
 }
 
 type baseBallot struct {
-	withdraws []SuffrageWithdrawOperation
+	withdraws []base.SuffrageWithdrawOperation
 	vp        base.Voteproof
 	signFact  base.BallotSignFact
 	util.DefaultJSONMarshaled
@@ -30,7 +30,7 @@ func newBaseBallot(
 	ht hint.Hint,
 	vp base.Voteproof,
 	signFact base.BallotSignFact,
-	withdraws []SuffrageWithdrawOperation,
+	withdraws []base.SuffrageWithdrawOperation,
 ) baseBallot {
 	sortWithdraws(withdraws)
 
@@ -59,7 +59,7 @@ func (bl baseBallot) Voteproof() base.Voteproof {
 	return bl.vp
 }
 
-func (bl baseBallot) Withdraws() []SuffrageWithdrawOperation {
+func (bl baseBallot) Withdraws() []base.SuffrageWithdrawOperation {
 	return bl.withdraws
 }
 
@@ -70,7 +70,7 @@ func (bl baseBallot) IsValid(networkID []byte) error {
 
 	switch fact, ok := bl.signFact.Fact().(ballotWithdrawFacts); {
 	case !ok:
-		return util.ErrInvalid.Errorf("expected isaac.INITBallotFact, not %T", bl.signFact)
+		return util.ErrInvalid.Errorf("expected ballotWithdrawFacts, not %T", bl.signFact.Fact())
 	case len(fact.WithdrawFacts()) != len(bl.withdraws):
 		return util.ErrInvalid.Errorf("number of withdraws not matched")
 	case len(bl.withdraws) < 1:
@@ -148,7 +148,7 @@ type INITBallot struct {
 func NewINITBallot(
 	vp base.Voteproof,
 	signfact INITBallotSignFact,
-	withdraws []SuffrageWithdrawOperation,
+	withdraws []base.SuffrageWithdrawOperation,
 ) INITBallot {
 	return INITBallot{
 		baseBallot: newBaseBallot(INITBallotHint, vp, signfact, withdraws),
@@ -188,7 +188,7 @@ type ACCEPTBallot struct {
 func NewACCEPTBallot(
 	ivp base.INITVoteproof,
 	signfact ACCEPTBallotSignFact,
-	withdraws []SuffrageWithdrawOperation,
+	withdraws []base.SuffrageWithdrawOperation,
 ) ACCEPTBallot {
 	return ACCEPTBallot{
 		baseBallot: newBaseBallot(ACCEPTBallotHint, ivp, signfact, withdraws),
@@ -221,7 +221,7 @@ func (bl ACCEPTBallot) BallotSignFact() base.ACCEPTBallotSignFact {
 	return bl.signFact.(base.ACCEPTBallotSignFact) //nolint:forcetypeassert //...
 }
 
-func sortWithdrawFacts(withdrawfacts []SuffrageWithdrawFact) {
+func sortWithdrawFacts[T base.SuffrageWithdrawFact](withdrawfacts []T) {
 	if len(withdrawfacts) < 1 {
 		return
 	}
@@ -231,7 +231,7 @@ func sortWithdrawFacts(withdrawfacts []SuffrageWithdrawFact) {
 	})
 }
 
-func sortWithdraws(withdraws []SuffrageWithdrawOperation) {
+func sortWithdraws[T base.SuffrageWithdrawOperation](withdraws []T) {
 	if len(withdraws) < 1 {
 		return
 	}

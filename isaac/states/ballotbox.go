@@ -24,13 +24,18 @@ type Ballotbox struct {
 
 func NewBallotbox(
 	getSuffrage isaac.GetSuffrageByBlockHeight,
+	isValidVoteproofWithSuffrage func(base.Voteproof, base.Suffrage) error,
 ) *Ballotbox {
+	if isValidVoteproofWithSuffrage == nil {
+		isValidVoteproofWithSuffrage = base.IsValidVoteproofWithSuffrage //revive:disable-line:modifies-parameter
+	}
+
 	return &Ballotbox{
 		getSuffrage:                  getSuffrage,
 		vrs:                          map[string]*voterecords{},
 		vpch:                         make(chan base.Voteproof, math.MaxUint16),
 		lsp:                          util.NewLocked(base.ZeroStagePoint),
-		isValidVoteproofWithSuffrage: base.IsValidVoteproofWithSuffrage,
+		isValidVoteproofWithSuffrage: isValidVoteproofWithSuffrage,
 	}
 }
 

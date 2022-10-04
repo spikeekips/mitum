@@ -24,7 +24,7 @@ type baseVoteproof struct {
 	id string
 	util.DefaultJSONMarshaled
 	sfs       []base.BallotSignFact
-	withdraws []SuffrageWithdrawOperation
+	withdraws []base.SuffrageWithdrawOperation
 	point     base.StagePoint
 	threshold base.Threshold
 }
@@ -61,7 +61,7 @@ func (vp baseVoteproof) isValidWithdraws() error {
 	withdrawnodes := make([]string, len(vp.withdraws))
 
 	if _, found := util.CheckSliceDuplicated(vp.withdraws, func(_ interface{}, i int) string {
-		node := vp.withdraws[i].Fact().(SuffrageWithdrawFact).Node() //nolint:forcetypeassert //...
+		node := vp.withdraws[i].Fact().(base.SuffrageWithdrawFact).Node() //nolint:forcetypeassert //...
 
 		withdrawnodes[i] = node.String()
 
@@ -153,11 +153,11 @@ func (vp *baseVoteproof) SetPoint(p base.StagePoint) *baseVoteproof {
 	return vp
 }
 
-func (vp baseVoteproof) Withdraws() []SuffrageWithdrawOperation {
+func (vp baseVoteproof) Withdraws() []base.SuffrageWithdrawOperation {
 	return vp.withdraws
 }
 
-func (vp *baseVoteproof) SetWithdraws(withdraws []SuffrageWithdrawOperation) *baseVoteproof {
+func (vp *baseVoteproof) SetWithdraws(withdraws []base.SuffrageWithdrawOperation) *baseVoteproof {
 	sortWithdraws(withdraws)
 
 	vp.withdraws = withdraws

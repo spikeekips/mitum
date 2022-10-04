@@ -18,6 +18,8 @@ func IsValidBallotWithSuffrage(
 		isValidVoteproofWithSuffrage = base.IsValidVoteproofWithSuffrage // revive:disable-line:modifies-parameter
 	}
 
+	// FIXME check withdraws with suffrage, IsValidVoteproofWithSuffrage
+
 	if err := isValidVoteproofWithSuffrage(bl.Voteproof(), suf); err != nil {
 		return nil, false, err
 	}
@@ -27,7 +29,7 @@ func IsValidBallotWithSuffrage(
 
 func IsValidWithdrawWithSuffrage(
 	height base.Height,
-	withdraw SuffrageWithdrawOperation,
+	withdraw base.SuffrageWithdrawOperation,
 	suf base.Suffrage,
 	lifespan base.Height,
 ) error {
@@ -60,8 +62,9 @@ func ValidateBallotBeforeVoting(
 	bl base.Ballot,
 	networkID base.NetworkID,
 	getSuffrage GetSuffrageByBlockHeight,
+	// FIXME use isaac.IsValidVoteproofWithSuffrage
 	isValidVoteproofWithSuffrage func(base.Voteproof, base.Suffrage) error,
-	getSuffrageWithdrawLifespan func() (base.Height, error),
+	lifespan base.Height,
 ) error {
 	if err := bl.IsValid(networkID); err != nil {
 		return err
@@ -91,11 +94,6 @@ func ValidateBallotBeforeVoting(
 	case !ok:
 		return nil
 	default:
-		lifespan, err := getSuffrageWithdrawLifespan()
-		if err != nil {
-			return err
-		}
-
 		withdraws := wbl.Withdraws()
 
 		for i := range withdraws {

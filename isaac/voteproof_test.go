@@ -13,19 +13,24 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type testBaseVoteproof struct {
+type testVoteproof struct {
 	suite.Suite
 	local     LocalNode
 	networkID base.NetworkID
 }
 
-func (t *testBaseVoteproof) SetupTest() {
+func (t *testVoteproof) SetupTest() {
 	t.local = RandomLocalNode()
 	t.networkID = base.NetworkID(util.UUID().Bytes())
 }
 
-func (t *testBaseVoteproof) validVoteproof() INITVoteproof {
-	ifact := NewINITBallotFact(base.RawPoint(33, 55), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
+func (t *testVoteproof) validINITVoteproof(point base.Point, withdraws []base.SuffrageWithdrawOperation) INITVoteproof {
+	withdrawfacts := make([]base.SuffrageWithdrawFact, len(withdraws))
+	for i := range withdraws {
+		withdrawfacts[i] = withdraws[i].WithdrawFact().(SuffrageWithdrawFact)
+	}
+
+	ifact := NewINITBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), withdrawfacts)
 
 	isignfact := NewINITBallotSignFact(t.local.Address(), ifact)
 	t.NoError(isignfact.Sign(t.local.Privatekey(), t.networkID))
@@ -35,19 +40,20 @@ func (t *testBaseVoteproof) validVoteproof() INITVoteproof {
 		SetMajority(ifact).
 		SetSignFacts([]base.BallotSignFact{isignfact}).
 		SetThreshold(base.Threshold(100)).
+		SetWithdraws(withdraws).
 		Finish()
 
 	return ivp
 }
 
-func (t *testBaseVoteproof) TestNewINIT() {
-	ivp := t.validVoteproof()
+func (t *testVoteproof) TestNewINIT() {
+	ivp := t.validINITVoteproof(base.RawPoint(33, 55), nil)
 
 	t.NoError(ivp.IsValid(t.networkID))
 }
 
-func (t *testBaseVoteproof) TestEmptyID() {
-	ivp := t.validVoteproof()
+func (t *testVoteproof) TestEmptyID() {
+	ivp := t.validINITVoteproof(base.RawPoint(33, 55), nil)
 	ivp.id = ""
 
 	err := ivp.IsValid(t.networkID)
@@ -56,8 +62,8 @@ func (t *testBaseVoteproof) TestEmptyID() {
 	t.ErrorContains(err, "empty id")
 }
 
-func (t *testBaseVoteproof) TestInvalidStage() {
-	ivp := t.validVoteproof()
+func (t *testVoteproof) TestInvalidStage() {
+	ivp := t.validINITVoteproof(base.RawPoint(33, 55), nil)
 	ivp.point = base.NewStagePoint(ivp.point.Point, base.StageUnknown)
 
 	err := ivp.IsValid(t.networkID)
@@ -66,8 +72,8 @@ func (t *testBaseVoteproof) TestInvalidStage() {
 	t.ErrorContains(err, "wrong stage")
 }
 
-func (t *testBaseVoteproof) TestInvalidVoteResult() {
-	ivp := t.validVoteproof()
+func (t *testVoteproof) TestInvalidVoteResult() {
+	ivp := t.validINITVoteproof(base.RawPoint(33, 55), nil)
 	ivp.SetResult(base.VoteResultNotYet)
 
 	err := ivp.IsValid(t.networkID)
@@ -76,8 +82,8 @@ func (t *testBaseVoteproof) TestInvalidVoteResult() {
 	t.ErrorContains(err, "not yet finished")
 }
 
-func (t *testBaseVoteproof) TestZeroFinishedAt() {
-	ivp := t.validVoteproof()
+func (t *testVoteproof) TestZeroFinishedAt() {
+	ivp := t.validINITVoteproof(base.RawPoint(33, 55), nil)
 	ivp.finishedAt = time.Time{}
 
 	err := ivp.IsValid(t.networkID)
@@ -85,8 +91,8 @@ func (t *testBaseVoteproof) TestZeroFinishedAt() {
 	t.ErrorContains(err, "not yet finished")
 }
 
-func (t *testBaseVoteproof) TestEmptySignFacts() {
-	ivp := t.validVoteproof()
+func (t *testVoteproof) TestEmptySignFacts() {
+	ivp := t.validINITVoteproof(base.RawPoint(33, 55), nil)
 	ivp.SetSignFacts(nil).Finish()
 
 	err := ivp.IsValid(t.networkID)
@@ -95,8 +101,8 @@ func (t *testBaseVoteproof) TestEmptySignFacts() {
 	t.ErrorContains(err, "empty sign facts")
 }
 
-func (t *testBaseVoteproof) TestNilMajority() {
-	ivp := t.validVoteproof()
+func (t *testVoteproof) TestNilMajority() {
+	ivp := t.validINITVoteproof(base.RawPoint(33, 55), nil)
 	ivp.SetMajority(nil)
 
 	err := ivp.IsValid(t.networkID)
@@ -105,8 +111,8 @@ func (t *testBaseVoteproof) TestNilMajority() {
 	t.Equal(base.VoteResultDraw, ivp.Result())
 }
 
-func (t *testBaseVoteproof) TestInvalidPoint() {
-	ivp := t.validVoteproof()
+func (t *testVoteproof) TestInvalidPoint() {
+	ivp := t.validINITVoteproof(base.RawPoint(33, 55), nil)
 	ivp.point = base.NewStagePoint(base.NewPoint(base.NilHeight, base.Round(0)), ivp.point.Stage())
 
 	err := ivp.IsValid(t.networkID)
@@ -115,8 +121,8 @@ func (t *testBaseVoteproof) TestInvalidPoint() {
 	t.ErrorContains(err, "invalid point")
 }
 
-func (t *testBaseVoteproof) TestDuplicatedNodeInSignFact() {
-	ivp := t.validVoteproof()
+func (t *testVoteproof) TestDuplicatedNodeInSignFact() {
+	ivp := t.validINITVoteproof(base.RawPoint(33, 55), nil)
 
 	sfs := ivp.SignFacts()
 	isf := sfs[0].(INITBallotSignFact)
@@ -134,8 +140,8 @@ func (t *testBaseVoteproof) TestDuplicatedNodeInSignFact() {
 	t.ErrorContains(err, "duplicated node found")
 }
 
-func (t *testBaseVoteproof) TestInvalidSignFact() {
-	ivp := t.validVoteproof()
+func (t *testVoteproof) TestInvalidSignFact() {
+	ivp := t.validINITVoteproof(base.RawPoint(33, 55), nil)
 
 	ifact := NewINITBallotFact(base.RawPoint(33, 55), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
 
@@ -150,8 +156,8 @@ func (t *testBaseVoteproof) TestInvalidSignFact() {
 	t.ErrorContains(err, "failed to verify sign")
 }
 
-func (t *testBaseVoteproof) TestWrongPointOfSignFact() {
-	ivp := t.validVoteproof()
+func (t *testVoteproof) TestWrongPointOfSignFact() {
+	ivp := t.validINITVoteproof(base.RawPoint(33, 55), nil)
 
 	ifact := NewINITBallotFact(base.RawPoint(33, 55), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
 
@@ -172,8 +178,8 @@ func (t *testBaseVoteproof) TestWrongPointOfSignFact() {
 	t.ErrorContains(err, "invalid sign fact")
 }
 
-func (t *testBaseVoteproof) TestWrongPointOfMajority() {
-	ivp := t.validVoteproof()
+func (t *testVoteproof) TestWrongPointOfMajority() {
+	ivp := t.validINITVoteproof(base.RawPoint(33, 55), nil)
 
 	ifact := NewINITBallotFact(base.NewPoint(ivp.Point().Height()+1, ivp.Point().Round()), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
 
@@ -190,8 +196,8 @@ func (t *testBaseVoteproof) TestWrongPointOfMajority() {
 	t.ErrorContains(err, "invalid majority")
 }
 
-func (t *testBaseVoteproof) TestMajorityNotFoundInSignFacts() {
-	ivp := t.validVoteproof()
+func (t *testVoteproof) TestMajorityNotFoundInSignFacts() {
+	ivp := t.validINITVoteproof(base.RawPoint(33, 55), nil)
 
 	fact := NewINITBallotFact(base.RawPoint(33, 55), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
 
@@ -203,11 +209,11 @@ func (t *testBaseVoteproof) TestMajorityNotFoundInSignFacts() {
 	t.ErrorContains(err, "majoirty not found in sign facts")
 }
 
-func (t *testBaseVoteproof) TestWrongMajorityWithSuffrage() {
+func (t *testVoteproof) TestWrongMajorityWithSuffrage() {
 	suf, nodes := NewTestSuffrage(4)
 	t.local = nodes[0]
 
-	ivp := t.validVoteproof()
+	ivp := t.validINITVoteproof(base.RawPoint(33, 55), nil)
 
 	fact := NewINITBallotFact(base.RawPoint(33, 55), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
 
@@ -231,8 +237,8 @@ func (t *testBaseVoteproof) TestWrongMajorityWithSuffrage() {
 	t.ErrorContains(err, "wrong majority")
 }
 
-func (t *testBaseVoteproof) TestUnknownNode() {
-	ivp := t.validVoteproof()
+func (t *testVoteproof) TestUnknownNode() {
+	ivp := t.validINITVoteproof(base.RawPoint(33, 55), nil)
 
 	ivp.SetThreshold(base.Threshold(100))
 
@@ -246,7 +252,7 @@ func (t *testBaseVoteproof) TestUnknownNode() {
 	t.ErrorContains(err, "unknown node found")
 }
 
-func (t *testBaseVoteproof) TestNewACCEPT() {
+func (t *testVoteproof) TestNewACCEPT() {
 	afact := NewACCEPTBallotFact(base.RawPoint(33, 55), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
 
 	node := base.RandomAddress("")
@@ -264,8 +270,175 @@ func (t *testBaseVoteproof) TestNewACCEPT() {
 	t.NoError(avp.IsValid(t.networkID))
 }
 
-func TestBaseVoteproof(t *testing.T) {
-	suite.Run(t, new(testBaseVoteproof))
+func (t *testVoteproof) withdraws(
+	height base.Height,
+	withdrawnodes []base.Node,
+	signnodes []base.Node,
+) (
+	[]SuffrageWithdrawFact,
+	[]base.SuffrageWithdrawOperation,
+) {
+	withdrawfacts := make([]SuffrageWithdrawFact, len(withdrawnodes))
+	withdraws := make([]base.SuffrageWithdrawOperation, len(withdrawnodes))
+
+	for i := range withdrawnodes {
+		withdrawfacts[i] = NewSuffrageWithdrawFact(withdrawnodes[i].Address(), height)
+		withdraws[i] = NewSuffrageWithdrawOperation(withdrawfacts[i])
+	}
+
+	for i := range signnodes {
+		node := signnodes[i].(base.LocalNode)
+
+		for j := range withdraws {
+			w := withdraws[j].(SuffrageWithdrawOperation)
+			t.NoError(w.NodeSign(node.Privatekey(), t.networkID, node.Address()))
+			withdraws[j] = w
+		}
+
+	}
+
+	return withdrawfacts, withdraws
+}
+
+func (t *testVoteproof) signsINITVoteproof(vp INITVoteproof, majority INITBallotFact, mnodes, others []base.Node) INITVoteproof {
+	var signfacts []base.BallotSignFact
+
+	if majority.Proposal() != nil {
+		for i := range mnodes {
+			node := mnodes[i].(base.LocalNode)
+
+			signfact := NewINITBallotSignFact(node.Address(), majority)
+			t.NoError(signfact.Sign(node.Privatekey(), t.networkID))
+			signfacts = append(signfacts, signfact)
+		}
+	}
+
+	for i := range others {
+		node := others[i].(base.LocalNode)
+
+		ifact := NewINITBallotFact(vp.Point().Point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
+		signfact := NewINITBallotSignFact(node.Address(), ifact)
+		t.NoError(signfact.Sign(node.Privatekey(), t.networkID))
+		signfacts = append(signfacts, signfact)
+	}
+
+	switch {
+	case majority.Proposal() == nil:
+		vp.SetMajority(nil)
+	default:
+		vp.SetMajority(majority)
+	}
+
+	vp.SetSignFacts(signfacts)
+
+	return vp
+}
+
+func (t *testVoteproof) TestINITWithWithdraws() {
+	t.Run("ok: 1/4 withdraw node", func() {
+		point := base.RawPoint(33, 0)
+
+		withdrawnode := RandomLocalNode()
+		nodes := []base.Node{t.local, RandomLocalNode(), RandomLocalNode(), withdrawnode}
+		suf, err := NewSuffrage(nodes)
+		t.NoError(err)
+
+		_, withdraws := t.withdraws(point.Height()-1, []base.Node{withdrawnode}, nodes[:3])
+
+		ivp := t.validINITVoteproof(point, withdraws)
+		ivp = t.signsINITVoteproof(ivp, ivp.Majority().(INITBallotFact), nodes[:3], nil)
+
+		t.T().Log("voteresult:", ivp.Result())
+		t.T().Log("sign facts:", len(ivp.SignFacts()))
+		t.T().Log("withdraws:", len(ivp.Withdraws()))
+		t.T().Log("suffrage len:", suf.Len())
+
+		t.NoError(ivp.IsValid(t.networkID))
+
+		t.NoError(IsValidVoteproofWithSuffrage(ivp, suf, 1))
+	})
+
+	t.Run("ok: 2/5 withdraw nodes", func() {
+		point := base.RawPoint(33, 0)
+
+		nodes := []base.Node{t.local, RandomLocalNode(), RandomLocalNode()}
+		withdrawnodes := []base.Node{RandomLocalNode(), RandomLocalNode()}
+		nodes = append(nodes, withdrawnodes...)
+
+		suf, err := NewSuffrage(nodes)
+		t.NoError(err)
+
+		_, withdraws := t.withdraws(point.Height()-1, withdrawnodes, nodes[:3])
+
+		ivp := t.validINITVoteproof(point, withdraws)
+		ivp = t.signsINITVoteproof(ivp, ivp.Majority().(INITBallotFact), nodes[:3], nil)
+
+		t.T().Log("voteresult:", ivp.Result())
+		t.T().Log("sign facts:", len(ivp.SignFacts()))
+		t.T().Log("withdraws:", len(ivp.Withdraws()))
+		t.T().Log("suffrage len:", suf.Len())
+
+		t.NoError(ivp.IsValid(t.networkID))
+
+		t.NoError(IsValidVoteproofWithSuffrage(ivp, suf, 1))
+	})
+
+	t.Run("ok: draw, withdraw nodes", func() {
+		point := base.RawPoint(33, 0)
+
+		nodes := []base.Node{t.local, RandomLocalNode(), RandomLocalNode()}
+		withdrawnodes := []base.Node{RandomLocalNode(), RandomLocalNode()}
+		nodes = append(nodes, withdrawnodes...)
+
+		suf, err := NewSuffrage(nodes)
+		t.NoError(err)
+
+		_, withdraws := t.withdraws(point.Height()-1, withdrawnodes, nodes[:3])
+
+		ivp := t.validINITVoteproof(point, withdraws)
+		ivp = t.signsINITVoteproof(ivp, INITBallotFact{}, nil, nodes[:3])
+
+		t.T().Log("voteresult:", ivp.Result())
+		t.T().Log("sign facts:", len(ivp.SignFacts()))
+		t.T().Log("withdraws:", len(ivp.Withdraws()))
+		t.T().Log("suffrage len:", suf.Len())
+
+		t.NoError(ivp.IsValid(t.networkID))
+
+		t.NoError(IsValidVoteproofWithSuffrage(ivp, suf, 1))
+	})
+
+	t.Run("ok: 2/5 withdraw nodes, but not enough signs", func() {
+		point := base.RawPoint(33, 0)
+
+		nodes := []base.Node{t.local, RandomLocalNode(), RandomLocalNode()}
+		withdrawnodes := []base.Node{RandomLocalNode(), RandomLocalNode()}
+		nodes = append(nodes, withdrawnodes...)
+
+		suf, err := NewSuffrage(nodes)
+		t.NoError(err)
+
+		_, withdraws := t.withdraws(point.Height()-1, withdrawnodes, nodes[:3])
+
+		ivp := t.validINITVoteproof(point, withdraws)
+		ivp = t.signsINITVoteproof(ivp, ivp.Majority().(INITBallotFact), nodes[:2], nil)
+
+		t.T().Log("voteresult:", ivp.Result())
+		t.T().Log("sign facts:", len(ivp.SignFacts()))
+		t.T().Log("withdraws:", len(ivp.Withdraws()))
+		t.T().Log("suffrage len:", suf.Len())
+
+		t.NoError(ivp.IsValid(t.networkID))
+
+		err = IsValidVoteproofWithSuffrage(ivp, suf, 1)
+		t.Error(err)
+		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorContains(err, "wrong result")
+	})
+}
+
+func TestVoteproof(t *testing.T) {
+	suite.Run(t, new(testVoteproof))
 }
 
 type baseTestBaseVoteproofEncode struct {

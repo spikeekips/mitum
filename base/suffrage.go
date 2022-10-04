@@ -108,5 +108,6 @@ type SuffrageWithdrawFact interface {
 
 type SuffrageWithdrawOperation interface {
 	Operation
+	NodeSignFact
 	WithdrawFact() SuffrageWithdrawFact
 }

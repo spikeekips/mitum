@@ -114,6 +114,7 @@ func (t *testBallotbox) TestVoteINITBallotSignFact() {
 		func(base.Height) (base.Suffrage, bool, error) {
 			return suf, true, nil
 		},
+		nil,
 	)
 
 	point := base.RawPoint(33, 0)
@@ -154,6 +155,7 @@ func (t *testBallotbox) TestVoteACCEPTBallotSignFact() {
 		func(base.Height) (base.Suffrage, bool, error) {
 			return suf, true, nil
 		},
+		nil,
 	)
 
 	point := base.RawPoint(33, 1)
@@ -196,6 +198,7 @@ func (t *testBallotbox) TestVoteSamePointAndStageWithLastVoteproof() {
 		func(base.Height) (base.Suffrage, bool, error) {
 			return suf, true, nil
 		},
+		nil,
 	)
 
 	point := base.RawPoint(33, 1)
@@ -238,6 +241,7 @@ func (t *testBallotbox) TestOldBallotSignFact() {
 		func(base.Height) (base.Suffrage, bool, error) {
 			return suf, true, nil
 		},
+		nil,
 	)
 
 	point := base.RawPoint(33, 1)
@@ -280,6 +284,7 @@ func (t *testBallotbox) TestUnknownSuffrageNode() {
 		func(base.Height) (base.Suffrage, bool, error) {
 			return suf, true, nil
 		},
+		nil,
 	)
 
 	point := base.RawPoint(33, 1)
@@ -301,6 +306,7 @@ func (t *testBallotbox) TestNilSuffrage() {
 		func(base.Height) (base.Suffrage, bool, error) {
 			return nil, false, nil
 		},
+		nil,
 	)
 
 	point := base.RawPoint(33, 1)
@@ -337,6 +343,7 @@ func (t *testBallotbox) TestNilSuffrageCount() {
 
 			return suf, true, nil
 		},
+		nil,
 	)
 
 	point := base.RawPoint(33, 0)
@@ -384,6 +391,7 @@ func (t *testBallotbox) TestVoteproofOrder() {
 
 			return suf, true, nil
 		},
+		nil,
 	)
 
 	point := base.RawPoint(33, 22)
@@ -472,6 +480,7 @@ func (t *testBallotbox) TestVoteproofFromBallotACCEPTVoteproof() {
 		func(base.Height) (base.Suffrage, bool, error) {
 			return suf, true, nil
 		},
+		nil,
 	)
 
 	point := base.RawPoint(33, 0)
@@ -506,6 +515,7 @@ func (t *testBallotbox) TestVoteproofFromBallotINITVoteproof() {
 		func(base.Height) (base.Suffrage, bool, error) {
 			return suf, true, nil
 		},
+		nil,
 	)
 
 	point := base.RawPoint(33, 0)
@@ -556,6 +566,7 @@ func (t *testBallotbox) TestVoteproofFromBallotWhenCount() {
 
 			return suf, true, nil
 		},
+		nil,
 	)
 
 	point := base.RawPoint(33, 0)
@@ -651,7 +662,7 @@ func (t *testBallotbox) TestAsyncVoteAndClean() {
 
 	box := NewBallotbox(func(base.Height) (base.Suffrage, bool, error) {
 		return suf, true, nil
-	})
+	}, nil)
 	box.isValidVoteproofWithSuffrage = func(base.Voteproof, base.Suffrage) error {
 		return nil
 	}

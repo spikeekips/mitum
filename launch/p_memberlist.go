@@ -332,22 +332,27 @@ func memberlistDelegate(ctx context.Context, localnode quicmemberlist.Node) (*qu
 
 		switch t := i.(type) {
 		case base.Ballot:
+			// FIXME fetch original ballot from location instead of real body
 			log.Log().Trace().Interface("ballot", i).Msg("new incoming message")
+
+			policy := db.LastNetworkPolicy()
+			if policy == nil {
+				log.Log().Error().Interface("ballot", t).Msg("empty network policy")
+
+				return
+			}
+
+			lifespan := policy.SuffrageWithdrawLifespan()
 
 			if err := isaac.ValidateBallotBeforeVoting(
 				t, params.NetworkID(),
 				func(blockheight base.Height) (base.Suffrage, bool, error) {
 					return isaac.GetSuffrageFromDatabase(db, blockheight)
 				},
-				base.IsValidVoteproofWithSuffrage,
-				func() (base.Height, error) {
-					policy := db.LastNetworkPolicy()
-					if policy == nil {
-						return base.NilHeight, errors.Errorf("empty network policy")
-					}
-
-					return policy.SuffrageWithdrawLifespan(), nil
+				func(vp base.Voteproof, suf base.Suffrage) error {
+					return isaac.IsValidVoteproofWithSuffrage(vp, suf, lifespan)
 				},
+				lifespan,
 			); err != nil {
 				log.Log().Error().Err(err).Interface("ballot", t).Msg("failed to vote")
 

@@ -13,11 +13,11 @@ var (
 )
 
 type ballotWithdrawFacts interface {
-	WithdrawFacts() []SuffrageWithdrawFact
+	WithdrawFacts() []base.SuffrageWithdrawFact
 }
 
 type baseBallotFact struct {
-	withdrawfacts []SuffrageWithdrawFact
+	withdrawfacts []base.SuffrageWithdrawFact
 	util.DefaultJSONMarshaled
 	base.BaseFact
 	point base.StagePoint
@@ -27,7 +27,7 @@ func newBaseBallotFact(
 	ht hint.Hint,
 	stage base.Stage,
 	point base.Point,
-	withdrawfacts []SuffrageWithdrawFact,
+	withdrawfacts []base.SuffrageWithdrawFact,
 ) baseBallotFact {
 	sp := base.NewStagePoint(point, stage)
 
@@ -84,7 +84,7 @@ func (fact baseBallotFact) Point() base.StagePoint {
 	return fact.point
 }
 
-func (fact baseBallotFact) WithdrawFacts() []SuffrageWithdrawFact {
+func (fact baseBallotFact) WithdrawFacts() []base.SuffrageWithdrawFact {
 	return fact.withdrawfacts
 }
 
@@ -116,7 +116,7 @@ type INITBallotFact struct {
 func NewINITBallotFact(
 	point base.Point,
 	previousBlock, proposal util.Hash,
-	withdrawfacts []SuffrageWithdrawFact,
+	withdrawfacts []base.SuffrageWithdrawFact,
 ) INITBallotFact {
 	fact := INITBallotFact{
 		baseBallotFact: newBaseBallotFact(INITBallotFactHint, base.StageINIT, point, withdrawfacts),
@@ -172,7 +172,7 @@ type ACCEPTBallotFact struct {
 func NewACCEPTBallotFact(
 	point base.Point,
 	proposal, newBlock util.Hash,
-	withdrawfacts []SuffrageWithdrawFact,
+	withdrawfacts []base.SuffrageWithdrawFact,
 ) ACCEPTBallotFact {
 	fact := ACCEPTBallotFact{
 		baseBallotFact: newBaseBallotFact(ACCEPTBallotFactHint, base.StageACCEPT, point, withdrawfacts),

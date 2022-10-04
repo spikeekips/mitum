@@ -174,7 +174,7 @@ func isValidSignFactInVoteproof(vp Voteproof, sf BallotSignFact) error {
 }
 
 func IsValidVoteproofWithSuffrage(vp Voteproof, suf Suffrage) error {
-	e := util.StringErrorFunc("invalid sign facts in voteproof with suffrage")
+	e := util.StringErrorFunc("invalid voteproof with suffrage")
 
 	sfs := vp.SignFacts()
 

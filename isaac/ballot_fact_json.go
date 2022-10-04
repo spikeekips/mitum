@@ -11,7 +11,7 @@ import (
 )
 
 type baseBallotFactJSONMarshaler struct {
-	WithdrawFacts []SuffrageWithdrawFact `json:"withdraw_facts"`
+	WithdrawFacts []base.SuffrageWithdrawFact `json:"withdraw_facts"`
 	base.BaseFactJSONMarshaler
 	Point base.StagePoint `json:"point"`
 }
@@ -66,7 +66,7 @@ func (fact *baseBallotFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	fact.point = u.Point
 
 	if len(u.WithdrawFacts) > 0 {
-		fact.withdrawfacts = make([]SuffrageWithdrawFact, len(u.WithdrawFacts))
+		fact.withdrawfacts = make([]base.SuffrageWithdrawFact, len(u.WithdrawFacts))
 
 		for i := range u.WithdrawFacts {
 			if err := encoder.Decode(enc, u.WithdrawFacts[i], &fact.withdrawfacts[i]); err != nil {
