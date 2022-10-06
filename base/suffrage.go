@@ -105,6 +105,7 @@ type SuffrageWithdrawFact interface {
 	Node() Address
 	WithdrawStart() Height
 	WithdrawEnd() Height
+	Reason() string
 }
 
 type SuffrageWithdrawOperation interface {

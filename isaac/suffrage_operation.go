@@ -2,6 +2,7 @@ package isaac
 
 import (
 	"bytes"
+	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -18,17 +19,18 @@ var (
 // FIXME implement SuffrageWithdrawOperation signing process
 
 type SuffrageWithdrawFact struct {
-	node base.Address
+	reason string
+	node   base.Address
 	base.BaseFact
 	start base.Height
 	end   base.Height // FIXME validate end with lifespan at operation signing time
-	// FIXME add reason
 }
 
 func NewSuffrageWithdrawFact(
 	node base.Address,
 	start base.Height,
 	end base.Height,
+	reason string,
 ) SuffrageWithdrawFact {
 	fact := SuffrageWithdrawFact{
 		// NOTE token should be node + start
@@ -36,6 +38,7 @@ func NewSuffrageWithdrawFact(
 		node:     node,
 		start:    start,
 		end:      end,
+		reason:   reason,
 	}
 
 	fact.SetHash(fact.hash())
@@ -53,6 +56,8 @@ func (fact SuffrageWithdrawFact) IsValid([]byte) error {
 		return e.Errorf("invalid start and end height; end should be over start")
 	case !bytes.Equal(fact.Token(), base.Token(util.ConcatByters(fact.node, fact.start, fact.end))):
 		return e.Errorf("invalid token; should be node + start + end")
+	case len(strings.TrimSpace(fact.reason)) < 1:
+		return e.Errorf("empty reason")
 	}
 
 	if err := util.CheckIsValiders(nil, false, fact.BaseFact, fact.node); err != nil {
@@ -76,6 +81,10 @@ func (fact SuffrageWithdrawFact) WithdrawStart() base.Height {
 
 func (fact SuffrageWithdrawFact) WithdrawEnd() base.Height {
 	return fact.end
+}
+
+func (fact SuffrageWithdrawFact) Reason() string {
+	return fact.reason
 }
 
 func (fact SuffrageWithdrawFact) hash() util.Hash {

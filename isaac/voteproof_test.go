@@ -282,7 +282,7 @@ func (t *testVoteproof) withdraws(
 	withdraws := make([]base.SuffrageWithdrawOperation, len(withdrawnodes))
 
 	for i := range withdrawnodes {
-		withdrawfacts[i] = NewSuffrageWithdrawFact(withdrawnodes[i].Address(), height, height+1)
+		withdrawfacts[i] = NewSuffrageWithdrawFact(withdrawnodes[i].Address(), height, height+1, util.UUID().String())
 		withdraws[i] = NewSuffrageWithdrawOperation(withdrawfacts[i])
 	}
 

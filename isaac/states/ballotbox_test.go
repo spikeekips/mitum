@@ -745,7 +745,7 @@ func (t *testBallotboxWithWitdraw) withdraws(height base.Height, withdrawnodes [
 	for i := range withdrawnodes {
 		withdrawnode := withdrawnodes[i]
 
-		fact := isaac.NewSuffrageWithdrawFact(withdrawnode, height, height+1)
+		fact := isaac.NewSuffrageWithdrawFact(withdrawnode, height, height+1, util.UUID().String())
 		op := isaac.NewSuffrageWithdrawOperation(fact)
 
 		for j := range signs {
