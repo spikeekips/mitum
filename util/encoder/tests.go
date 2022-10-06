@@ -8,6 +8,19 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
+type BaseTest struct {
+	MarshalFunc func(interface{}) ([]byte, error)
+}
+
+func (t *BaseTest) StringMarshal(i interface{}) string {
+	b, err := t.MarshalFunc(i)
+	if err != nil {
+		return "<failed to marshal>"
+	}
+
+	return string(b)
+}
+
 type BaseTestEncode struct {
 	suite.Suite
 	Encode  func() (interface{}, []byte)

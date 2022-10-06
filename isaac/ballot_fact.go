@@ -12,7 +12,7 @@ var (
 	ACCEPTBallotFactHint = hint.MustNewHint("accept-ballot-fact-v0.0.1")
 )
 
-type ballotWithdrawFacts interface {
+type BallotWithdrawFacts interface {
 	WithdrawFacts() []base.SuffrageWithdrawFact
 }
 

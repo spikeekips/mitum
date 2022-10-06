@@ -1,7 +1,6 @@
 package base
 
 import (
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -57,36 +56,22 @@ type ACCEPTBallot interface {
 	BallotSignFact() ACCEPTBallotSignFact
 }
 
-func CountBallotSignFacts(allsfs []BallotSignFact) (
-	set []string,
-	sfs []BallotSignFact,
-	m map[string]BallotFact,
-	err error,
-) {
-	if len(allsfs) < 1 {
-		return set, sfs, m, nil
+func CountBallotSignFacts(sfs []BallotSignFact) (set []string, m map[string]BallotFact) {
+	if len(sfs) < 1 {
+		return set, m
 	}
 
-	set = make([]string, len(allsfs))
-	sfs = make([]BallotSignFact, len(allsfs))
+	set = make([]string, len(sfs))
 	m = map[string]BallotFact{}
 
-	for i := range allsfs {
-		sf := allsfs[i]
+	for i := range sfs {
+		sf := sfs[i]
 
 		k := sf.Fact().Hash().String()
-		if _, found := m[k]; !found {
-			switch j, ok := sf.Fact().(BallotFact); {
-			case !ok:
-				return nil, nil, nil, errors.Errorf("expected BallotFact, but %T", sf.Fact())
-			default:
-				m[k] = j
-			}
-		}
+		m[k] = sf.Fact().(BallotFact) //nolint:forcetypeassert //...
 
 		set[i] = k
-		sfs[i] = sf
 	}
 
-	return set, sfs, m, nil
+	return set, m
 }

@@ -14,7 +14,7 @@ var (
 	ACCEPTBallotHint = hint.MustNewHint("accept-ballot-v0.0.1")
 )
 
-type ballotWithdraws interface {
+type BallotWithdraws interface {
 	Withdraws() []base.SuffrageWithdrawOperation
 }
 
@@ -68,7 +68,7 @@ func (bl baseBallot) IsValid(networkID []byte) error {
 		return util.ErrInvalid.Wrapf(err, "invalid baseBallot")
 	}
 
-	switch fact, ok := bl.signFact.Fact().(ballotWithdrawFacts); {
+	switch fact, ok := bl.signFact.Fact().(BallotWithdrawFacts); {
 	case !ok:
 		return util.ErrInvalid.Errorf("expected ballotWithdrawFacts, not %T", bl.signFact.Fact())
 	case len(fact.WithdrawFacts()) != len(bl.withdraws):

@@ -189,11 +189,7 @@ func IsValidVoteproofWithSuffrage(vp Voteproof, suf Suffrage) error {
 		}
 	}
 
-	set, _, m, err := CountBallotSignFacts(sfs)
-	if err != nil {
-		return e(util.ErrInvalid.Wrap(err), "")
-	}
-
+	set, m := CountBallotSignFacts(sfs)
 	result, majoritykey := vp.Threshold().VoteResult(uint(suf.Len()), set)
 
 	switch {

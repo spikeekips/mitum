@@ -12,6 +12,10 @@ import (
 
 // FIXME remove withdraw nodes from trust line
 
+type WithdrawVoteproof interface {
+	Withdraws() []base.SuffrageWithdrawOperation
+}
+
 var (
 	INITVoteproofHint   = hint.MustNewHint("init-voteproof-v0.0.1")
 	ACCEPTVoteproofHint = hint.MustNewHint("accept-voteproof-v0.0.1")
@@ -76,7 +80,7 @@ func (vp baseVoteproof) isValidWithdraws() error {
 		}
 	}
 
-	if wf, ok := vp.majority.(ballotWithdrawFacts); ok {
+	if wf, ok := vp.majority.(BallotWithdrawFacts); ok {
 		switch withdrawfacts := wf.WithdrawFacts(); { //nolint:forcetypeassert //...
 		case len(withdrawfacts) < 1:
 		case len(withdrawfacts) != len(vp.withdraws):

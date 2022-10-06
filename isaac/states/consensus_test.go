@@ -493,6 +493,7 @@ func (t *testConsensusHandler) TestWithBallotbox() {
 
 	th := base.Threshold(100)
 	box := NewBallotbox(
+		t.Local.Address(),
 		func(base.Height) (base.Suffrage, bool, error) {
 			return suf, true, nil
 		},

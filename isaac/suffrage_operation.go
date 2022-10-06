@@ -15,11 +15,14 @@ var (
 	SuffrageWithdrawHint     = hint.MustNewHint("suffrage-withdraw-v0.0.1")
 )
 
+// FIXME implement SuffrageWithdrawOperation signing process
+
 type SuffrageWithdrawFact struct {
 	node base.Address
 	base.BaseFact
 	start base.Height
-	end   base.Height
+	end   base.Height // FIXME validate end with lifespan at operation signing time
+	// FIXME add reason
 }
 
 func NewSuffrageWithdrawFact(

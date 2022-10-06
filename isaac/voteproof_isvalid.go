@@ -10,6 +10,10 @@ import (
 func IsValidVoteproofWithSuffrage(vp base.Voteproof, suf base.Suffrage) error {
 	e := util.ErrInvalid.Errorf("invalid voteproof with suffrage")
 
+	if vp == nil {
+		return e.Errorf("nil voteproof")
+	}
+
 	var withdraws []base.SuffrageWithdrawOperation
 
 	switch t := vp.(type) {

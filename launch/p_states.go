@@ -37,17 +37,19 @@ var (
 )
 
 func PBallotbox(ctx context.Context) (context.Context, error) {
+	var local base.LocalNode
 	var db isaac.Database
 
-	if err := ps.LoadFromContextOK(ctx, CenterDatabaseContextKey, &db); err != nil {
+	if err := ps.LoadFromContextOK(ctx, LocalContextKey, &local, CenterDatabaseContextKey, &db); err != nil {
 		return ctx, err
 	}
 
 	ballotbox := isaacstates.NewBallotbox(
+		local.Address(),
 		func(blockheight base.Height) (base.Suffrage, bool, error) {
 			return isaac.GetSuffrageFromDatabase(db, blockheight)
 		},
-		nil,
+		isaac.IsValidVoteproofWithSuffrage,
 	)
 
 	ctx = context.WithValue(ctx, BallotboxContextKey, ballotbox) //revive:disable-line:modifies-parameter
