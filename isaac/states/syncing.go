@@ -405,10 +405,6 @@ func newSyncingSwitchContext(from StateType, height base.Height) syncingSwitchCo
 	}
 }
 
-func (syncingSwitchContext) Error() string {
-	return ""
-}
-
 func (s syncingSwitchContext) MarshalZerologObject(e *zerolog.Event) {
 	s.baseSwitchContext.MarshalZerologObject(e)
 

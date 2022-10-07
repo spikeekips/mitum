@@ -99,8 +99,12 @@ func (s baseSwitchContext) next() StateType {
 	return s.n
 }
 
-func (baseSwitchContext) Error() string {
-	return ""
+func (s baseSwitchContext) Error() string {
+	return s.String()
+}
+
+func (s baseSwitchContext) String() string {
+	return fmt.Sprintf("state switch from=%s next=%s", s.f, s.n)
 }
 
 func (s baseSwitchContext) MarshalZerologObject(e *zerolog.Event) {
@@ -124,7 +128,7 @@ func (s baseErrorSwitchContext) Error() string {
 		return s.err.Error()
 	}
 
-	return ""
+	return s.String()
 }
 
 func (s baseErrorSwitchContext) Unwrap() error {
