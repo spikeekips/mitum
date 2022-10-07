@@ -21,6 +21,8 @@ import (
 	"github.com/spikeekips/mitum/util/ps"
 )
 
+// FIXME add TimeSyncer
+
 type RunCommand struct { //nolint:govet //...
 	launch.DesignFlag
 	Vault     string                `name:"vault" help:"privatekey path of vault"`

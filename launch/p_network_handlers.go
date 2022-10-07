@@ -235,6 +235,20 @@ func POperationProcessorsMap(ctx context.Context) (context.Context, error) {
 		)
 	})
 
+	_ = set.Add(isaac.SuffrageWithdrawOperationHint, func(height base.Height) (base.OperationProcessor, error) {
+		policy := db.LastNetworkPolicy()
+		if policy == nil { // NOTE Usually it means empty block data
+			return nil, nil
+		}
+
+		return isaacoperation.NewSuffrageWithdrawProcessor(
+			height,
+			db.State,
+			nil,
+			nil,
+		)
+	})
+
 	_ = set.Add(isaacoperation.SuffrageDisjoinHint, func(height base.Height) (base.OperationProcessor, error) {
 		return isaacoperation.NewSuffrageDisjoinProcessor(
 			height,

@@ -579,9 +579,7 @@ func (t *testSyncer) TestFetchBlockItem() {
 }
 
 func TestSyncer(t *testing.T) {
-	defer goleak.VerifyNone(t,
-		goleak.IgnoreTopFunction("github.com/spikeekips/mitum/isaac/states.(*testNewINITOnACCEPTVoteproofConsensusHandler).TestNotInConsensusNodes.func4"),
-	)
+	defer goleak.VerifyNone(t)
 
 	suite.Run(t, new(testSyncer))
 }

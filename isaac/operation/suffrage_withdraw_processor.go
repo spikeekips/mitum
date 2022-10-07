@@ -8,19 +8,20 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
-type SuffrageDisjoinProcessor struct {
+type SuffrageWithdrawProcessor struct {
 	*base.BaseOperationProcessor
-	suffrage     map[string]base.SuffrageNodeStateValue
+	sufstv       base.SuffrageNodesStateValue
+	suffrage     base.Suffrage
 	preprocessed map[string]struct{} //revive:disable-line:nested-structs
 }
 
-func NewSuffrageDisjoinProcessor(
+func NewSuffrageWithdrawProcessor(
 	height base.Height,
 	getStateFunc base.GetStateFunc,
 	newPreProcessConstraintFunc base.NewOperationProcessorProcessFunc,
 	newProcessConstraintFunc base.NewOperationProcessorProcessFunc,
-) (*SuffrageDisjoinProcessor, error) {
-	e := util.StringErrorFunc("failed to create new SuffrageDisjoinProcessor")
+) (*SuffrageWithdrawProcessor, error) {
+	e := util.StringErrorFunc("failed to create new SuffrageWithdrawProcessor")
 
 	b, err := base.NewBaseOperationProcessor(
 		height, getStateFunc, newPreProcessConstraintFunc, newProcessConstraintFunc)
@@ -28,7 +29,7 @@ func NewSuffrageDisjoinProcessor(
 		return nil, e(err, "")
 	}
 
-	p := &SuffrageDisjoinProcessor{
+	p := &SuffrageWithdrawProcessor{
 		BaseOperationProcessor: b,
 		preprocessed:           map[string]struct{}{},
 	}
@@ -39,60 +40,53 @@ func NewSuffrageDisjoinProcessor(
 	case !found, i == nil:
 		return nil, e(isaac.ErrStopProcessingRetry.Errorf("empty state"), "")
 	default:
-		sufstv := i.Value().(base.SuffrageNodesStateValue) //nolint:forcetypeassert //...
-		p.suffrage = map[string]base.SuffrageNodeStateValue{}
+		p.sufstv = i.Value().(base.SuffrageNodesStateValue) //nolint:forcetypeassert //...
 
-		snodes := sufstv.Nodes()
-
-		for i := range snodes {
-			node := snodes[i]
-
-			p.suffrage[node.Address().String()] = node
+		suf, err := p.sufstv.Suffrage()
+		if err != nil {
+			return nil, e(isaac.ErrStopProcessingRetry.Errorf("failed to get suffrage from state"), "")
 		}
+
+		p.suffrage = suf
 	}
 
 	return p, nil
 }
 
-func (p *SuffrageDisjoinProcessor) Close() error {
+func (p *SuffrageWithdrawProcessor) Close() error {
 	if err := p.BaseOperationProcessor.Close(); err != nil {
 		return err
 	}
 
+	p.sufstv = nil
 	p.suffrage = nil
 	p.preprocessed = nil
 
 	return nil
 }
 
-func (p *SuffrageDisjoinProcessor) PreProcess(ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (
+func (p *SuffrageWithdrawProcessor) PreProcess(ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (
 	base.OperationProcessReasonError, error,
 ) {
-	e := util.StringErrorFunc("failed to preprocess for SuffrageDisjoin")
+	e := util.StringErrorFunc("failed to preprocess for SuffrageWithdraw")
 
-	var signer base.Publickey
+	fact := op.Fact().(base.SuffrageWithdrawFact) //nolint:forcetypeassert //...
 
-	switch sf, ok := op.(base.NodeSignFact); {
-	case !ok:
-		return nil, e(nil, "not NodeSignFact, %T", op)
-	default:
-		signer = sf.NodeSigns()[0].Signer()
+	switch {
+	case fact.WithdrawStart() > p.Height():
+		return base.NewBaseOperationProcessReasonError("wrong start height"), nil
+	case fact.WithdrawEnd() < p.Height():
+		return base.NewBaseOperationProcessReasonError("expired"), nil
 	}
 
-	fact := op.Fact().(SuffrageDisjoinFact) //nolint:forcetypeassert //...
 	n := fact.Node()
 
 	if _, found := p.preprocessed[n.String()]; found {
 		return base.NewBaseOperationProcessReasonError("already preprocessed, %q", n), nil
 	}
 
-	switch stv, found := p.suffrage[n.String()]; {
-	case !found:
+	if !p.suffrage.Exists(n) {
 		return base.NewBaseOperationProcessReasonError("not in suffrage, %q", n), nil
-	case fact.Start() != stv.Start():
-		return base.NewBaseOperationProcessReasonError("start does not match"), nil
-	case !signer.Equal(stv.Publickey()):
-		return base.NewBaseOperationProcessReasonError("not signed by node key"), nil
 	}
 
 	switch reasonerr, err := p.PreProcessConstraintFunc(ctx, op, getStateFunc); {
@@ -107,10 +101,10 @@ func (p *SuffrageDisjoinProcessor) PreProcess(ctx context.Context, op base.Opera
 	return nil, nil
 }
 
-func (p *SuffrageDisjoinProcessor) Process(ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (
+func (p *SuffrageWithdrawProcessor) Process(ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (
 	[]base.StateMergeValue, base.OperationProcessReasonError, error,
 ) {
-	e := util.StringErrorFunc("failed to process for SuffrageDisjoin")
+	e := util.StringErrorFunc("failed to process for SuffrageWithdraw")
 
 	switch reasonerr, err := p.ProcessConstraintFunc(ctx, op, getStateFunc); {
 	case err != nil:
@@ -119,7 +113,7 @@ func (p *SuffrageDisjoinProcessor) Process(ctx context.Context, op base.Operatio
 		return nil, reasonerr, nil
 	}
 
-	fact := op.Fact().(SuffrageDisjoinFact) //nolint:forcetypeassert //...
+	fact := op.Fact().(base.SuffrageWithdrawFact) //nolint:forcetypeassert //...
 
 	return []base.StateMergeValue{
 		base.NewBaseStateMergeValue(
@@ -130,26 +124,4 @@ func (p *SuffrageDisjoinProcessor) Process(ctx context.Context, op base.Operatio
 			},
 		),
 	}, nil, nil
-}
-
-type suffrageDisjoinNodeStateValue struct {
-	node base.Address
-}
-
-func newSuffrageDisjoinNodeStateValue(node base.Address) suffrageDisjoinNodeStateValue {
-	return suffrageDisjoinNodeStateValue{
-		node: node,
-	}
-}
-
-func (s suffrageDisjoinNodeStateValue) IsValid([]byte) error {
-	if err := util.CheckIsValiders(nil, false, s.node); err != nil {
-		return util.ErrInvalid.Errorf("invalie suffrageDisjoinNodeStateValue")
-	}
-
-	return nil
-}
-
-func (s suffrageDisjoinNodeStateValue) HashBytes() []byte {
-	return util.ConcatByters(s.node)
 }

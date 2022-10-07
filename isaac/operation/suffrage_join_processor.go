@@ -228,7 +228,7 @@ func (s *SuffrageJoinStateValueMerger) Merge(value base.StateValue, ops []util.H
 	case suffrageJoinNodeStateValue:
 		s.joined = append(s.joined, t.nodes...)
 	case suffrageDisjoinNodeStateValue:
-		s.disjoined = append(s.disjoined, t.nodes...)
+		s.disjoined = append(s.disjoined, t.node)
 	default:
 		return errors.Errorf("unsupported suffrage state value, %T", value)
 	}

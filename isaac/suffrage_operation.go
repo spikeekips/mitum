@@ -12,8 +12,8 @@ import (
 )
 
 var (
-	SuffrageWithdrawFactHint = hint.MustNewHint("suffrage-withdraw-fact-v0.0.1")
-	SuffrageWithdrawHint     = hint.MustNewHint("suffrage-withdraw-v0.0.1")
+	SuffrageWithdrawFactHint      = hint.MustNewHint("suffrage-withdraw-fact-v0.0.1")
+	SuffrageWithdrawOperationHint = hint.MustNewHint("suffrage-withdraw-operation-v0.0.1")
 )
 
 // FIXME implement SuffrageWithdrawOperation signing process
@@ -102,7 +102,7 @@ type SuffrageWithdrawOperation struct {
 
 func NewSuffrageWithdrawOperation(fact SuffrageWithdrawFact) SuffrageWithdrawOperation {
 	return SuffrageWithdrawOperation{
-		BaseNodeOperation: base.NewBaseNodeOperation(SuffrageWithdrawHint, fact),
+		BaseNodeOperation: base.NewBaseNodeOperation(SuffrageWithdrawOperationHint, fact),
 	}
 }
 
