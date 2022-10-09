@@ -45,7 +45,7 @@ func CheckSliceDuplicated[T any](s []T, keyf func(interface{}, int) string) (map
 	return m, false
 }
 
-func FilterSlices[T any](s []T, f func(interface{}, int) bool) []T {
+func FilterSlice[T any](s []T, f func(interface{}, int) bool) []T {
 	if len(s) < 1 {
 		return nil
 	}

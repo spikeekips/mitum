@@ -146,6 +146,39 @@ func (t *testBaseBallot) TestInValidWithdraws() {
 		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "withdraw fact hash not matched")
 	})
+
+	t.Run("ok: withdraw node in sign", func() {
+		node := base.RandomAddress("")
+		point := base.RawPoint(33, 44)
+
+		withdrawnode := RandomLocalNode()
+
+		fact := NewSuffrageWithdrawFact(withdrawnode.Address(), point.Height()-1, point.Height()+1, util.UUID().String())
+		withdraw := NewSuffrageWithdrawOperation(fact)
+
+		t.NoError(withdraw.NodeSign(t.priv, t.networkID, node))
+		t.NoError(withdraw.NodeSign(withdrawnode.Privatekey(), t.networkID, withdrawnode.Address()))
+
+		bl := t.ballot(point, []SuffrageWithdrawOperation{withdraw}, []SuffrageWithdrawFact{fact})
+		t.NoError(bl.IsValid(t.networkID))
+	})
+
+	t.Run("withdraw node in self sign", func() {
+		point := base.RawPoint(33, 44)
+
+		withdrawnode := RandomLocalNode()
+
+		fact := NewSuffrageWithdrawFact(withdrawnode.Address(), point.Height()-1, point.Height()+1, util.UUID().String())
+		withdraw := NewSuffrageWithdrawOperation(fact)
+
+		t.NoError(withdraw.NodeSign(withdrawnode.Privatekey(), t.networkID, withdrawnode.Address()))
+
+		bl := t.ballot(point, []SuffrageWithdrawOperation{withdraw}, []SuffrageWithdrawFact{fact})
+		err := bl.IsValid(t.networkID)
+		t.Error(err)
+		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorContains(err, "valid node signs not found")
+	})
 }
 
 func TestBaseINITBallot(tt *testing.T) {

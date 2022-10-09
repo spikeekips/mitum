@@ -84,7 +84,7 @@ func (srv *Memberlist) Join(cis []quicstream.UDPConnInfo) error {
 		return e(nil, "duplicated conninfo found")
 	}
 
-	filtered := util.FilterSlices(cis, func(_ interface{}, i int) bool {
+	filtered := util.FilterSlice(cis, func(_ interface{}, i int) bool {
 		return cis[i].UDPAddr().String() != srv.local.UDPAddr().String()
 	})
 

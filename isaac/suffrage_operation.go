@@ -130,7 +130,7 @@ func (op SuffrageWithdrawOperation) IsValid(networkID []byte) error {
 	}
 
 	if len(op.NodeSigns()) < 1 {
-		return e.Errorf("empty signs; withdraw target node sign found")
+		return e.Errorf("empty signs; valid node signs not found")
 	}
 
 	return nil
@@ -147,7 +147,7 @@ func (op SuffrageWithdrawOperation) NodeSigns() []base.NodeSign {
 		return nil
 	}
 
-	return util.FilterSlices(signs, func(_ interface{}, i int) bool {
+	return util.FilterSlice(signs, func(_ interface{}, i int) bool {
 		return !fact.Node().Equal(signs[i].Node())
 	})
 }

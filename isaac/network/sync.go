@@ -212,7 +212,7 @@ func (c *SyncSourceChecker) check(ctx context.Context, sources []SyncSource) ([]
 		ss := nciss[i]
 
 		found := util.Filter2Slices(
-			util.FilterSlices(ss, func(_ interface{}, j int) bool {
+			util.FilterSlice(ss, func(_ interface{}, j int) bool {
 				aci := ss[j]
 
 				if aci == nil {

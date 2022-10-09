@@ -4,6 +4,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
@@ -64,28 +65,14 @@ func (bl baseBallot) Withdraws() []base.SuffrageWithdrawOperation {
 }
 
 func (bl baseBallot) IsValid(networkID []byte) error {
+	e := util.ErrInvalid.Errorf("invalid baseBallot")
+
 	if err := base.IsValidBallot(bl, networkID); err != nil {
-		return util.ErrInvalid.Wrapf(err, "invalid baseBallot")
+		return e.Wrap(err)
 	}
 
-	switch fact, ok := bl.signFact.Fact().(BallotWithdrawFacts); {
-	case !ok:
-		return util.ErrInvalid.Errorf("expected ballotWithdrawFacts, not %T", bl.signFact.Fact())
-	case len(fact.WithdrawFacts()) != len(bl.withdraws):
-		return util.ErrInvalid.Errorf("number of withdraws not matched")
-	case len(bl.withdraws) < 1:
-	default:
-		if err := util.CheckIsValiderSlice(networkID, false, bl.withdraws); err != nil {
-			return util.ErrInvalid.Wrap(err)
-		}
-
-		withdrawfacts := fact.WithdrawFacts()
-
-		for i := range withdrawfacts {
-			if !withdrawfacts[i].Hash().Equal(bl.withdraws[i].Fact().Hash()) {
-				return util.ErrInvalid.Errorf("withdraw fact hash not matched")
-			}
-		}
+	if err := bl.isValidWithdraws(networkID); err != nil {
+		return e.Wrap(err)
 	}
 
 	return nil
@@ -137,6 +124,47 @@ func (bl *baseBallot) Sign(priv base.Privatekey, networkID base.NetworkID) error
 	}
 
 	bl.signFact = signer.(base.BallotSignFact) //nolint:forcetypeassert //...
+
+	return nil
+}
+
+func (bl *baseBallot) isValidWithdraws(networkID []byte) error {
+	fact, ok := bl.signFact.Fact().(BallotWithdrawFacts)
+	if !ok {
+		return nil
+	}
+
+	withdrawfacts := fact.WithdrawFacts()
+
+	switch {
+	case len(fact.WithdrawFacts()) != len(bl.withdraws):
+		return errors.Errorf("number of withdraws not matched")
+	case len(bl.withdraws) < 1:
+	default:
+		if err := util.CheckIsValiderSlice(networkID, false, bl.withdraws); err != nil {
+			return err
+		}
+
+		for i := range withdrawfacts {
+			if !withdrawfacts[i].Hash().Equal(bl.withdraws[i].Fact().Hash()) {
+				return errors.Errorf("withdraw fact hash not matched")
+			}
+		}
+	}
+
+	for i := range bl.withdraws {
+		signs := bl.withdraws[i].NodeSigns()
+
+		filtered := util.FilterSlice(signs, func(_ interface{}, j int) bool {
+			return util.InSliceFunc(withdrawfacts, func(_ interface{}, k int) bool {
+				return signs[j].Node().Equal(withdrawfacts[k].Node())
+			}) < 0
+		})
+
+		if len(filtered) < 1 {
+			return errors.Errorf("valid node signs not found")
+		}
+	}
 
 	return nil
 }

@@ -173,7 +173,7 @@ func (h *hooks) remove(name Name) bool {
 
 	var i int
 
-	_ = util.FilterSlices(h.l, func(_ interface{}, j int) bool {
+	_ = util.FilterSlice(h.l, func(_ interface{}, j int) bool {
 		if name == h.l[j] {
 			return false
 		}

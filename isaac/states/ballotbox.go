@@ -747,7 +747,7 @@ func extractWithdrawsFromBallot(
 	}
 
 	m[0] = wfacts
-	m[1] = util.FilterSlices(sfs, func(_ interface{}, j int) bool {
+	m[1] = util.FilterSlice(sfs, func(_ interface{}, j int) bool {
 		return util.InSliceFunc(wfacts, func(_ interface{}, k int) bool {
 			return wfacts[k].Node().Equal(sfs[j].Node())
 		}) < 0

@@ -623,7 +623,7 @@ func findHighestDirectory(root string) (string, bool, error) {
 			return errors.WithStack(err)
 		default:
 			var foundsubs bool
-			filtered := util.FilterSlices(files, func(_ interface{}, i int) bool {
+			filtered := util.FilterSlice(files, func(_ interface{}, i int) bool {
 				f := files[i]
 
 				switch {
