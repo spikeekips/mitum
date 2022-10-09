@@ -25,7 +25,7 @@ type Operation interface {
 	util.IsValider
 	util.Hasher
 	SignFact
-	PreProcess(context.Context, GetStateFunc) (OperationProcessReasonError, error)
+	PreProcess(context.Context, GetStateFunc) (context.Context, OperationProcessReasonError, error)
 	Process(context.Context, GetStateFunc) ([]StateMergeValue, OperationProcessReasonError, error)
 }
 
@@ -41,7 +41,7 @@ var EmptyOperationProcessorProcessFunc = func(context.Context, Operation, GetSta
 }
 
 type OperationProcessor interface {
-	PreProcess(context.Context, Operation, GetStateFunc) (OperationProcessReasonError, error)
+	PreProcess(context.Context, Operation, GetStateFunc) (context.Context, OperationProcessReasonError, error)
 	Process(context.Context, Operation, GetStateFunc) ([]StateMergeValue, OperationProcessReasonError, error)
 	Close() error
 }

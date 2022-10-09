@@ -224,15 +224,15 @@ func (op SuffrageGenesisJoin) IsValid(networkID []byte) error {
 }
 
 func (SuffrageGenesisJoin) PreProcess(
-	_ context.Context, getStateFunc base.GetStateFunc,
-) (base.OperationProcessReasonError, error) {
+	ctx context.Context, getStateFunc base.GetStateFunc,
+) (context.Context, base.OperationProcessReasonError, error) {
 	switch _, found, err := getStateFunc(isaac.SuffrageStateKey); {
 	case err != nil:
-		return base.NewBaseOperationProcessReasonError("failed to check suffrage state: %w", err), nil
+		return ctx, base.NewBaseOperationProcessReasonError("failed to check suffrage state: %w", err), nil
 	case found:
-		return base.NewBaseOperationProcessReasonError("suffrage state already exists"), nil
+		return ctx, base.NewBaseOperationProcessReasonError("suffrage state already exists"), nil
 	default:
-		return nil, nil
+		return ctx, nil, nil
 	}
 }
 

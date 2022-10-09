@@ -2,6 +2,8 @@ package util
 
 import "context"
 
+type ContextKey string
+
 func AwareContext(ctx context.Context, f func() error) error {
 	errch := make(chan error, 1)
 

@@ -114,8 +114,10 @@ func (op *BaseOperation) sign(priv Privatekey, networkID NetworkID) (found int, 
 	return found, newsign, nil
 }
 
-func (BaseOperation) PreProcess(context.Context, GetStateFunc) (OperationProcessReasonError, error) {
-	return nil, errors.WithStack(util.ErrNotImplemented)
+func (BaseOperation) PreProcess(ctx context.Context, _ GetStateFunc) (
+	context.Context, OperationProcessReasonError, error,
+) {
+	return ctx, nil, errors.WithStack(util.ErrNotImplemented)
 }
 
 func (BaseOperation) Process(context.Context, GetStateFunc) ([]StateMergeValue, OperationProcessReasonError, error) {

@@ -307,7 +307,22 @@ func (p *DefaultProposalProcessor) process(ctx context.Context, vp base.INITVote
 func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) (err error) {
 	e := util.StringErrorFunc("failed to collect operations")
 
-	p.Log().Debug().Int("operations", len(p.proposal.ProposalFact().Operations())).Msg("collecting operations")
+	var index int
+
+	if w, ok := p.ivp.(WithdrawVoteproof); ok {
+		withdraws := w.Withdraws()
+		p.cops = make([]base.Operation, len(p.proposal.ProposalFact().Operations())+len(withdraws))
+
+		for i := range withdraws {
+			p.setOperation(i, withdraws[i])
+		}
+
+		index = len(withdraws)
+	}
+
+	p.Log().Debug().
+		Int("operations", len(p.proposal.ProposalFact().Operations())).
+		Msg("collecting operations")
 
 	if len(p.proposal.ProposalFact().Operations()) < 1 {
 		return nil
@@ -341,7 +356,7 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) (err e
 			return errors.Wrapf(err, "failed to collect operation, %q", h)
 		}
 
-		p.setOperation(int(i), op)
+		p.setOperation(index+int(i), op)
 
 		return nil
 	}); err != nil {
@@ -398,8 +413,9 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context) error 
 	worker := util.NewErrgroupWorker(wctx, int64(len(cops)))
 	defer worker.Close()
 
-	gopsindex := -1
-	gvalidindex := -1
+	pctx := ctx
+
+	var opsindex, validindex int
 
 	for i := range cops {
 		op := cops[i]
@@ -407,43 +423,8 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context) error 
 			continue
 		}
 
-		gopsindex++
-		opsindex := gopsindex
-
-		if rop, ok := op.(ReasonProcessedOperation); ok {
-			if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-				return p.writer.SetProcessResult( //nolint:wrapcheck //...
-					ctx, uint64(opsindex), rop.OperationHash(), rop.FactHash(), false, rop.Reason())
-			}); err != nil {
-				return e(err, "")
-			}
-		}
-
-		switch reasonerr, passed, err := p.doPreProcessOperation(ctx, op); {
-		case err != nil:
-			return e(err, "failed to pre process operation")
-		case !passed:
-			gopsindex--
-
-			continue
-		case reasonerr != nil:
-			if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-				return p.writer.SetProcessResult(
-					ctx, uint64(opsindex), op.Hash(), op.Fact().Hash(), false, reasonerr,
-				)
-			}); err != nil {
-				return e(err, "")
-			}
-
-			continue
-		}
-
-		gvalidindex++
-		validindex := gvalidindex
-
-		if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-			return p.doProcessOperation(ctx, uint64(opsindex), uint64(validindex), op)
-		}); err != nil {
+		pctx, opsindex, validindex, err = p.processOperation(pctx, worker, op, opsindex, validindex)
+		if err != nil {
 			return e(err, "")
 		}
 	}
@@ -457,10 +438,55 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context) error 
 	return nil
 }
 
+func (p *DefaultProposalProcessor) processOperation(
+	ctx context.Context,
+	worker *util.ErrgroupWorker,
+	op base.Operation,
+	opsindex, validindex int,
+) (_ context.Context, newopsindex int, newvalidindex int, _ error) {
+	if rop, ok := op.(ReasonProcessedOperation); ok {
+		if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
+			return p.writer.SetProcessResult( //nolint:wrapcheck //...
+				ctx, uint64(opsindex), rop.OperationHash(), rop.FactHash(), false, rop.Reason())
+		}); err != nil {
+			return ctx, 0, 0, err
+		}
+	}
+
+	switch pctx, reasonerr, passed, err := p.doPreProcessOperation(ctx, op); {
+	case err != nil:
+		return pctx, 0, 0, errors.WithMessage(err, "failed to pre process operation")
+	case !passed:
+		return pctx, opsindex, validindex, nil
+	case reasonerr != nil:
+		if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
+			return p.writer.SetProcessResult(
+				ctx, uint64(opsindex), op.Hash(), op.Fact().Hash(), false, reasonerr,
+			)
+		}); err != nil {
+			return pctx, 0, 0, err
+		}
+
+		return pctx, opsindex + 1, validindex, nil
+	default:
+		ctx = pctx //revive:disable-line:modifies-parameter
+	}
+
+	if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
+		return p.doProcessOperation(ctx, uint64(opsindex), uint64(validindex), op)
+	}); err != nil {
+		return ctx, opsindex + 1, validindex + 1, err
+	}
+
+	return ctx, opsindex + 1, validindex + 1, nil
+}
+
 func (p *DefaultProposalProcessor) doPreProcessOperation(
 	ctx context.Context, op base.Operation,
-) (base.OperationProcessReasonError, bool, error) {
+) (context.Context, base.OperationProcessReasonError, bool, error) {
 	var errorreason base.OperationProcessReasonError
+
+	pctx := ctx
 
 	err := p.retry(ctx, func() (bool, error) {
 		f, err := p.getPreProcessor(ctx, op)
@@ -472,23 +498,29 @@ func (p *DefaultProposalProcessor) doPreProcessOperation(
 			return false, nil
 		}
 
-		switch i, err := f(ctx); {
+		switch i, j, err := f(ctx); {
 		case err == nil:
-			errorreason = i
+			errorreason = j
+
+			pctx = i
 
 			return false, nil
 		case errors.Is(err, ErrSuspendOperation):
+			pctx = i
+
 			return false, err
 		default:
+			pctx = i
+
 			return true, err
 		}
 	})
 
 	if errors.Is(err, ErrSuspendOperation) {
-		return nil, false, nil
+		return pctx, nil, false, nil
 	}
 
-	return errorreason, true, err
+	return pctx, errorreason, true, err
 }
 
 func (p *DefaultProposalProcessor) doProcessOperation(
@@ -552,19 +584,19 @@ func (p *DefaultProposalProcessor) doProcessOperation(
 }
 
 func (p *DefaultProposalProcessor) getPreProcessor(ctx context.Context, op base.Operation) (
-	func(context.Context) (base.OperationProcessReasonError, error),
+	func(context.Context) (context.Context, base.OperationProcessReasonError, error),
 	error,
 ) {
 	switch opp, found, err := p.getOperationProcessor(ctx, op.Hint()); {
 	case err != nil:
 		return nil, errors.Wrap(err, "failed to get OperationProcessor for PreProcess")
 	case found:
-		return func(ctx context.Context) (base.OperationProcessReasonError, error) {
+		return func(ctx context.Context) (context.Context, base.OperationProcessReasonError, error) {
 			return opp.PreProcess(ctx, op, p.getStateFunc) //nolint:wrapcheck //...
 		}, nil
 	}
 
-	return func(ctx context.Context) (base.OperationProcessReasonError, error) {
+	return func(ctx context.Context) (context.Context, base.OperationProcessReasonError, error) {
 		return op.PreProcess(ctx, p.getStateFunc) //nolint:wrapcheck //...
 	}, nil
 }

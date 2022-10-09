@@ -92,18 +92,18 @@ func (p *SuffrageCandidateProcessor) Close() error {
 
 func (p *SuffrageCandidateProcessor) PreProcess(
 	ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (
-	base.OperationProcessReasonError, error,
+	context.Context, base.OperationProcessReasonError, error,
 ) {
 	e := util.StringErrorFunc("failed to preprocess for SuffrageCandidateStateValue")
 
 	fact := op.Fact().(SuffrageCandidateFact) //nolint:forcetypeassert //...
 
 	if _, found := p.preprocessed[fact.Address().String()]; found {
-		return base.NewBaseOperationProcessReasonError("candidate already preprocessed, %q", fact.Address()), nil
+		return ctx, base.NewBaseOperationProcessReasonError("candidate already preprocessed, %q", fact.Address()), nil
 	}
 
 	if _, found := p.suffrages[fact.Address().String()]; found {
-		return base.NewBaseOperationProcessReasonError("candidate already in suffrage, %q", fact.Address()), nil
+		return ctx, base.NewBaseOperationProcessReasonError("candidate already in suffrage, %q", fact.Address()), nil
 	}
 
 	switch record, found := p.existings[fact.Address().String()]; {
@@ -112,17 +112,17 @@ func (p *SuffrageCandidateProcessor) PreProcess(
 	case p.Height() <= record.Deadline():
 		p.preprocessed[fact.Address().String()] = struct{}{}
 
-		return base.NewBaseOperationProcessReasonError("already candidate up to, %d", record.Deadline()), nil
+		return ctx, base.NewBaseOperationProcessReasonError("already candidate up to, %d", record.Deadline()), nil
 	}
 
 	switch reasonerr, err := p.PreProcessConstraintFunc(ctx, op, getStateFunc); {
 	case err != nil:
-		return nil, e(err, "")
+		return ctx, nil, e(err, "")
 	case reasonerr != nil:
-		return reasonerr, nil
+		return ctx, reasonerr, nil
 	}
 
-	return nil, nil
+	return ctx, nil, nil
 }
 
 func (p *SuffrageCandidateProcessor) Process(ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (

@@ -412,7 +412,11 @@ func (vr *voterecords) finished() bool {
 	return vr.f
 }
 
-func (vr *voterecords) count(local base.Address, lastStagePoint base.StagePoint, threshold base.Threshold) []base.Voteproof {
+func (vr *voterecords) count(
+	local base.Address,
+	lastStagePoint base.StagePoint,
+	threshold base.Threshold,
+) []base.Voteproof {
 	vr.Lock()
 	defer vr.Unlock()
 

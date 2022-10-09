@@ -182,7 +182,7 @@ func (t *testSuffrageWithdrawOperation) TestIsValid() {
 		err := op.IsValid(t.networkID)
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
-		t.ErrorContains(err, "withdraw target node sign found")
+		t.ErrorContains(err, "valid node signs not found")
 
 		signs := op.NodeSigns()
 		t.Equal(0, len(signs))

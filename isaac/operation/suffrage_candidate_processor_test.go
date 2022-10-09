@@ -45,7 +45,7 @@ func (t *testSuffrageCandidateProcessor) TestNewCandidateFromEmpty() {
 	op := NewSuffrageCandidate(NewSuffrageCandidateFact(util.UUID().Bytes(), candidate, t.priv.Publickey()))
 	t.NoError(op.NodeSign(t.priv, t.networkID, candidate))
 
-	reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
+	_, reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
 	t.NoError(err)
 	t.Nil(reason)
 
@@ -127,7 +127,7 @@ func (t *testSuffrageCandidateProcessor) TestNewCandidate() {
 	op := NewSuffrageCandidate(NewSuffrageCandidateFact(util.UUID().Bytes(), candidate, t.priv.Publickey()))
 	t.NoError(op.NodeSign(t.priv, t.networkID, candidate))
 
-	reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
+	_, reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
 	t.NoError(err)
 	t.Nil(reason)
 
@@ -192,7 +192,7 @@ func (t *testSuffrageCandidateProcessor) TestPreProcess() {
 		)
 		t.NoError(err)
 
-		reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
+		_, reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
 		t.NoError(err)
 		t.Nil(reason)
 
@@ -200,7 +200,7 @@ func (t *testSuffrageCandidateProcessor) TestPreProcess() {
 		opsame := NewSuffrageCandidate(NewSuffrageCandidateFact(util.UUID().Bytes(), candidate, t.priv.Publickey()))
 		t.NoError(opsame.NodeSign(t.priv, t.networkID, candidate))
 
-		reason, err = pp.PreProcess(context.Background(), opsame, getStateFunc)
+		_, reason, err = pp.PreProcess(context.Background(), opsame, getStateFunc)
 		t.NoError(err)
 		t.NotNil(reason)
 		t.ErrorContains(reason, "already preprocessed")
@@ -239,7 +239,7 @@ func (t *testSuffrageCandidateProcessor) TestPreProcess() {
 		)
 		t.NoError(err)
 
-		reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
+		_, reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
 		t.NoError(err)
 		t.Nil(reason)
 
@@ -247,7 +247,7 @@ func (t *testSuffrageCandidateProcessor) TestPreProcess() {
 		opsame := NewSuffrageCandidate(NewSuffrageCandidateFact(util.UUID().Bytes(), candidate, t.priv.Publickey()))
 		t.NoError(opsame.NodeSign(t.priv, t.networkID, candidate))
 
-		reason, err = pp.PreProcess(context.Background(), opsame, getStateFunc)
+		_, reason, err = pp.PreProcess(context.Background(), opsame, getStateFunc)
 		t.NoError(err)
 		t.NotNil(reason)
 		t.ErrorContains(reason, "already preprocessed")
@@ -286,7 +286,7 @@ func (t *testSuffrageCandidateProcessor) TestPreProcess() {
 		)
 		t.NoError(err)
 
-		reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
+		_, reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
 		t.NoError(err)
 		t.NotNil(reason)
 		t.ErrorContains(reason, "already candidate")
@@ -325,7 +325,7 @@ func (t *testSuffrageCandidateProcessor) TestPreProcess() {
 		)
 		t.NoError(err)
 
-		reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
+		_, reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
 		t.NoError(err)
 		t.Nil(reason)
 	})
@@ -348,7 +348,7 @@ func (t *testSuffrageCandidateProcessor) TestPreProcess() {
 		)
 		t.NoError(err)
 
-		reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
+		_, reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
 		t.NoError(err)
 		t.NotNil(reason)
 		t.ErrorContains(reason, "hehehe")

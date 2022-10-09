@@ -66,7 +66,7 @@ func (p *SuffrageWithdrawProcessor) Close() error {
 }
 
 func (p *SuffrageWithdrawProcessor) PreProcess(ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (
-	base.OperationProcessReasonError, error,
+	context.Context, base.OperationProcessReasonError, error,
 ) {
 	e := util.StringErrorFunc("failed to preprocess for SuffrageWithdraw")
 
@@ -74,31 +74,31 @@ func (p *SuffrageWithdrawProcessor) PreProcess(ctx context.Context, op base.Oper
 
 	switch {
 	case fact.WithdrawStart() > p.Height():
-		return base.NewBaseOperationProcessReasonError("wrong start height"), nil
+		return ctx, base.NewBaseOperationProcessReasonError("wrong start height"), nil
 	case fact.WithdrawEnd() < p.Height():
-		return base.NewBaseOperationProcessReasonError("expired"), nil
+		return ctx, base.NewBaseOperationProcessReasonError("expired"), nil
 	}
 
 	n := fact.Node()
 
 	if _, found := p.preprocessed[n.String()]; found {
-		return base.NewBaseOperationProcessReasonError("already preprocessed, %q", n), nil
+		return ctx, base.NewBaseOperationProcessReasonError("already preprocessed, %q", n), nil
 	}
 
 	if !p.suffrage.Exists(n) {
-		return base.NewBaseOperationProcessReasonError("not in suffrage, %q", n), nil
+		return ctx, base.NewBaseOperationProcessReasonError("not in suffrage, %q", n), nil
 	}
 
 	switch reasonerr, err := p.PreProcessConstraintFunc(ctx, op, getStateFunc); {
 	case err != nil:
-		return nil, e(err, "")
+		return ctx, nil, e(err, "")
 	case reasonerr != nil:
-		return reasonerr, nil
+		return ctx, reasonerr, nil
 	}
 
 	p.preprocessed[n.String()] = struct{}{}
 
-	return nil, nil
+	return ctx, nil, nil
 }
 
 func (p *SuffrageWithdrawProcessor) Process(ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (

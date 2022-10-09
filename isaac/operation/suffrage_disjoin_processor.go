@@ -8,6 +8,8 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
+// FIXME ignore duplicated disjoin operations with withdraws
+
 type SuffrageDisjoinProcessor struct {
 	*base.BaseOperationProcessor
 	suffrage     map[string]base.SuffrageNodeStateValue
@@ -66,7 +68,7 @@ func (p *SuffrageDisjoinProcessor) Close() error {
 }
 
 func (p *SuffrageDisjoinProcessor) PreProcess(ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (
-	base.OperationProcessReasonError, error,
+	context.Context, base.OperationProcessReasonError, error,
 ) {
 	e := util.StringErrorFunc("failed to preprocess for SuffrageDisjoin")
 
@@ -74,7 +76,7 @@ func (p *SuffrageDisjoinProcessor) PreProcess(ctx context.Context, op base.Opera
 
 	switch sf, ok := op.(base.NodeSignFact); {
 	case !ok:
-		return nil, e(nil, "not NodeSignFact, %T", op)
+		return ctx, nil, e(nil, "not NodeSignFact, %T", op)
 	default:
 		signer = sf.NodeSigns()[0].Signer()
 	}
@@ -83,28 +85,28 @@ func (p *SuffrageDisjoinProcessor) PreProcess(ctx context.Context, op base.Opera
 	n := fact.Node()
 
 	if _, found := p.preprocessed[n.String()]; found {
-		return base.NewBaseOperationProcessReasonError("already preprocessed, %q", n), nil
+		return ctx, base.NewBaseOperationProcessReasonError("already preprocessed, %q", n), nil
 	}
 
 	switch stv, found := p.suffrage[n.String()]; {
 	case !found:
-		return base.NewBaseOperationProcessReasonError("not in suffrage, %q", n), nil
+		return ctx, base.NewBaseOperationProcessReasonError("not in suffrage, %q", n), nil
 	case fact.Start() != stv.Start():
-		return base.NewBaseOperationProcessReasonError("start does not match"), nil
+		return ctx, base.NewBaseOperationProcessReasonError("start does not match"), nil
 	case !signer.Equal(stv.Publickey()):
-		return base.NewBaseOperationProcessReasonError("not signed by node key"), nil
+		return ctx, base.NewBaseOperationProcessReasonError("not signed by node key"), nil
 	}
 
 	switch reasonerr, err := p.PreProcessConstraintFunc(ctx, op, getStateFunc); {
 	case err != nil:
-		return nil, e(err, "")
+		return ctx, nil, e(err, "")
 	case reasonerr != nil:
-		return reasonerr, nil
+		return ctx, reasonerr, nil
 	}
 
 	p.preprocessed[n.String()] = struct{}{}
 
-	return nil, nil
+	return ctx, nil, nil
 }
 
 func (p *SuffrageDisjoinProcessor) Process(ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (

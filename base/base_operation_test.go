@@ -18,8 +18,8 @@ type dummyOperation struct {
 	BaseOperation
 }
 
-func (op dummyOperation) PreProcess(context.Context, GetStateFunc) (OperationProcessReasonError, error) {
-	return nil, nil
+func (op dummyOperation) PreProcess(ctx context.Context, _ GetStateFunc) (context.Context, OperationProcessReasonError, error) {
+	return ctx, nil, nil
 }
 
 func (op dummyOperation) Process(context.Context, GetStateFunc) ([]StateMergeValue, OperationProcessReasonError, error) {
@@ -30,8 +30,8 @@ type dummyNodeOperation struct {
 	BaseNodeOperation
 }
 
-func (op dummyNodeOperation) PreProcess(context.Context, GetStateFunc) (OperationProcessReasonError, error) {
-	return nil, nil
+func (op dummyNodeOperation) PreProcess(ctx context.Context, _ GetStateFunc) (context.Context, OperationProcessReasonError, error) {
+	return ctx, nil, nil
 }
 
 func (op dummyNodeOperation) Process(context.Context, GetStateFunc) ([]StateMergeValue, OperationProcessReasonError, error) {

@@ -77,7 +77,7 @@ func (t *testSuffrageWithdrawProcessor) TestNew() {
 	op := isaac.NewSuffrageWithdrawOperation(isaac.NewSuffrageWithdrawFact(withdrawnode.Address(), height, height+1, util.UUID().String()))
 	t.NoError(op.NodeSign(local.Privatekey(), t.networkID, local.Address()))
 
-	reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
+	_, reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
 	t.NoError(err)
 	t.Nil(reason)
 
@@ -182,14 +182,14 @@ func (t *testSuffrageWithdrawProcessor) TestPreProcessed() {
 	op := isaac.NewSuffrageWithdrawOperation(isaac.NewSuffrageWithdrawFact(withdrawnode.Address(), height, height+1, util.UUID().String()))
 	t.NoError(op.NodeSign(local.Privatekey(), t.networkID, local.Address()))
 
-	reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
+	_, reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
 	t.NoError(err)
 	t.Nil(reason)
 
 	anotherop := isaac.NewSuffrageWithdrawOperation(isaac.NewSuffrageWithdrawFact(withdrawnode.Address(), height, height+1, util.UUID().String()))
 	t.NoError(anotherop.NodeSign(base.NewMPrivatekey(), t.networkID, local.Address()))
 
-	reason, err = pp.PreProcess(context.Background(), anotherop, getStateFunc)
+	_, reason, err = pp.PreProcess(context.Background(), anotherop, getStateFunc)
 	t.NoError(err)
 	t.NotNil(reason)
 	t.ErrorContains(reason, "already preprocessed")
@@ -214,7 +214,7 @@ func (t *testSuffrageWithdrawProcessor) TestWrongHeight() {
 		op := isaac.NewSuffrageWithdrawOperation(isaac.NewSuffrageWithdrawFact(node.Address(), height+1, height+2, util.UUID().String()))
 		t.NoError(op.NodeSign(node.Privatekey(), t.networkID, node.Address()))
 
-		reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
+		_, reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
 		t.NoError(err)
 		t.NotNil(reason)
 		t.ErrorContains(reason, "wrong start height")
@@ -226,7 +226,7 @@ func (t *testSuffrageWithdrawProcessor) TestWrongHeight() {
 		op := isaac.NewSuffrageWithdrawOperation(isaac.NewSuffrageWithdrawFact(node.Address(), height-2, height-1, util.UUID().String()))
 		t.NoError(op.NodeSign(node.Privatekey(), t.networkID, node.Address()))
 
-		reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
+		_, reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
 		t.NoError(err)
 		t.NotNil(reason)
 		t.ErrorContains(reason, "expired")
@@ -255,7 +255,7 @@ func (t *testSuffrageWithdrawProcessor) TestPreProcessConstaint() {
 	op := isaac.NewSuffrageWithdrawOperation(isaac.NewSuffrageWithdrawFact(local.Address(), height, height+1, util.UUID().String()))
 	t.NoError(op.NodeSign(local.Privatekey(), t.networkID, local.Address()))
 
-	reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
+	_, reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
 	t.NoError(err)
 	t.NotNil(reason)
 	t.ErrorContains(reason, "hehehe")
@@ -278,7 +278,7 @@ func (t *testSuffrageWithdrawProcessor) TestNotSuffrage() {
 	op := isaac.NewSuffrageWithdrawOperation(isaac.NewSuffrageWithdrawFact(unknown, height, height+1, util.UUID().String()))
 	t.NoError(op.NodeSign(base.NewMPrivatekey(), t.networkID, unknown))
 
-	reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
+	_, reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
 	t.NoError(err)
 	t.NotNil(reason)
 	t.ErrorContains(reason, "not in suffrage")

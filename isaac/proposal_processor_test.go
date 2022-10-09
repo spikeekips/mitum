@@ -128,7 +128,7 @@ func (w *DummyBlockWriter) Cancel() error {
 }
 
 type DummyOperationProcessor struct {
-	preprocess func(context.Context, base.Operation, base.GetStateFunc) (base.OperationProcessReasonError, error)
+	preprocess func(context.Context, base.Operation, base.GetStateFunc) (context.Context, base.OperationProcessReasonError, error)
 	process    func(context.Context, base.Operation, base.GetStateFunc) ([]base.StateMergeValue, base.OperationProcessReasonError, error)
 }
 
@@ -136,9 +136,9 @@ func (*DummyOperationProcessor) Close() error {
 	return nil
 }
 
-func (p *DummyOperationProcessor) PreProcess(ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (base.OperationProcessReasonError, error) {
+func (p *DummyOperationProcessor) PreProcess(ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (context.Context, base.OperationProcessReasonError, error) {
 	if p.preprocess == nil {
-		return base.NewBaseOperationProcessReasonError("nil preprocess"), nil
+		return ctx, base.NewBaseOperationProcessReasonError("nil preprocess"), nil
 	}
 
 	return p.preprocess(ctx, op, getStateFunc)
@@ -185,8 +185,8 @@ func (t *testDefaultProposalProcessor) prepareOperations(height base.Height, n i
 		ophs[i] = fact.Hash()
 		st := t.newStateMergeValue(fact.Hash().String())
 
-		op.preprocess = func(context.Context, base.GetStateFunc) (base.OperationProcessReasonError, error) {
-			return nil, nil
+		op.preprocess = func(ctx context.Context, _ base.GetStateFunc) (context.Context, base.OperationProcessReasonError, error) {
+			return ctx, nil, nil
 		}
 		op.process = func(context.Context, base.GetStateFunc) ([]base.StateMergeValue, base.OperationProcessReasonError, error) {
 			return []base.StateMergeValue{st}, nil, nil
@@ -484,12 +484,12 @@ func (t *testDefaultProposalProcessor) TestPreProcessButErrSuspendOperation() {
 			}
 
 			return &DummyOperationProcessor{
-				preprocess: func(_ context.Context, op base.Operation, _ base.GetStateFunc) (base.OperationProcessReasonError, error) {
+				preprocess: func(ctx context.Context, op base.Operation, _ base.GetStateFunc) (context.Context, base.OperationProcessReasonError, error) {
 					if op.Fact().Hash().Equal(suspended) {
-						return nil, ErrSuspendOperation.Errorf("hohoho")
+						return ctx, nil, ErrSuspendOperation.Errorf("hohoho")
 					}
 
-					return nil, nil
+					return ctx, nil, nil
 				},
 				process: func(_ context.Context, op base.Operation, _ base.GetStateFunc) ([]base.StateMergeValue, base.OperationProcessReasonError, error) {
 					return []base.StateMergeValue{sts[op.Fact().Hash().String()]}, nil, nil
@@ -545,13 +545,13 @@ func (t *testDefaultProposalProcessor) TestPreProcessWithOperationProcessor() {
 			}
 
 			return &DummyOperationProcessor{
-				preprocess: func(_ context.Context, op base.Operation, _ base.GetStateFunc) (base.OperationProcessReasonError, error) {
+				preprocess: func(ctx context.Context, op base.Operation, _ base.GetStateFunc) (context.Context, base.OperationProcessReasonError, error) {
 					switch h := op.Fact().Hash(); {
 					case h.Equal(ophs[1]),
 						h.Equal(ophs[3]): // NOTE only will process, index 1 and 3 operation
-						return nil, nil
+						return ctx, nil, nil
 					default:
-						return base.NewBaseOperationProcessReasonError("bad"), nil
+						return ctx, base.NewBaseOperationProcessReasonError("bad"), nil
 					}
 				},
 				process: func(_ context.Context, op base.Operation, _ base.GetStateFunc) ([]base.StateMergeValue, base.OperationProcessReasonError, error) {
@@ -604,13 +604,13 @@ func (t *testDefaultProposalProcessor) TestPreProcess() {
 	ophs, ops, sts := t.prepareOperations(point.Height()-1, 4)
 	for i := range ops {
 		op := ops[i].(DummyOperation)
-		op.preprocess = func(context.Context, base.GetStateFunc) (base.OperationProcessReasonError, error) {
+		op.preprocess = func(ctx context.Context, _ base.GetStateFunc) (context.Context, base.OperationProcessReasonError, error) {
 			switch {
 			case op.Fact().Hash().Equal(ophs[1]),
 				op.Fact().Hash().Equal(ophs[3]): // NOTE only will process, index 1 and 3 operation
-				return nil, nil
+				return ctx, nil, nil
 			default:
-				return base.NewBaseOperationProcessReasonError("bad"), nil
+				return ctx, base.NewBaseOperationProcessReasonError("bad"), nil
 			}
 		}
 
@@ -686,8 +686,8 @@ func (t *testDefaultProposalProcessor) TestPreProcessButError() {
 		i := i
 		op := ops[i].(DummyOperation)
 		if op.Fact().Hash().Equal(ophs[1]) {
-			op.preprocess = func(ctx context.Context, _ base.GetStateFunc) (base.OperationProcessReasonError, error) {
-				return nil, errors.Errorf("findme: %q", op.Fact().Hash())
+			op.preprocess = func(ctx context.Context, _ base.GetStateFunc) (context.Context, base.OperationProcessReasonError, error) {
+				return ctx, nil, errors.Errorf("findme: %q", op.Fact().Hash())
 			}
 		}
 
@@ -729,13 +729,13 @@ func (t *testDefaultProposalProcessor) TestPreProcessButWithOperationReasonError
 	for i := range ops {
 		i := i
 		op := ops[i].(DummyOperation)
-		op.preprocess = func(ctx context.Context, _ base.GetStateFunc) (base.OperationProcessReasonError, error) {
+		op.preprocess = func(ctx context.Context, _ base.GetStateFunc) (context.Context, base.OperationProcessReasonError, error) {
 			switch {
 			case op.Fact().Hash().Equal(ophs[1]),
 				op.Fact().Hash().Equal(ophs[3]):
-				return base.NewBaseOperationProcessReasonError("showme, %q", op.Fact().Hash()), nil
+				return ctx, base.NewBaseOperationProcessReasonError("showme, %q", op.Fact().Hash()), nil
 			default:
-				return nil, nil
+				return ctx, nil, nil
 			}
 		}
 
@@ -792,9 +792,9 @@ func (t *testDefaultProposalProcessor) TestPreProcessButErrorRetry() {
 	for i := range ops {
 		op := ops[i].(DummyOperation)
 		if op.Fact().Hash().Equal(ophs[1]) {
-			op.preprocess = func(ctx context.Context, _ base.GetStateFunc) (base.OperationProcessReasonError, error) {
+			op.preprocess = func(ctx context.Context, _ base.GetStateFunc) (context.Context, base.OperationProcessReasonError, error) {
 				called++
-				return nil, errors.Errorf("findme: %q", op.Fact().Hash())
+				return ctx, nil, errors.Errorf("findme: %q", op.Fact().Hash())
 			}
 		}
 
@@ -840,22 +840,22 @@ func (t *testDefaultProposalProcessor) TestPreProcessContextCancel() {
 	for i := range ops {
 		op := ops[i].(DummyOperation)
 		if op.Fact().Hash().Equal(ophs[1]) {
-			op.preprocess = func(ctx context.Context, _ base.GetStateFunc) (base.OperationProcessReasonError, error) {
+			op.preprocess = func(ctx context.Context, _ base.GetStateFunc) (context.Context, base.OperationProcessReasonError, error) {
 				select {
 				case <-time.After(time.Minute):
 				case <-ctx.Done():
-					return nil, ctx.Err()
+					return ctx, nil, ctx.Err()
 				}
 
-				return nil, nil
+				return ctx, nil, nil
 			}
 		} else {
-			op.preprocess = func(ctx context.Context, _ base.GetStateFunc) (base.OperationProcessReasonError, error) {
+			op.preprocess = func(ctx context.Context, _ base.GetStateFunc) (context.Context, base.OperationProcessReasonError, error) {
 				defer startprocessedonece.Do(func() {
 					startprocessedch <- struct{}{}
 				})
 
-				return nil, nil
+				return ctx, nil, nil
 			}
 		}
 
@@ -903,6 +903,64 @@ func (t *testDefaultProposalProcessor) TestPreProcessContextCancel() {
 
 	t.True(errors.Is(err, context.Canceled))
 	t.ErrorContains(err, "failed to pre process operation")
+}
+
+func (t *testDefaultProposalProcessor) TestPreProcessWithContext() {
+	point := base.RawPoint(33, 44)
+
+	collectedstringkey := util.ContextKey("index")
+	var collected int
+
+	ophs, ops, _ := t.prepareOperations(point.Height()-1, 4)
+	for i := range ops {
+		i := i
+
+		op := ops[i].(DummyOperation)
+		op.preprocess = func(ctx context.Context, _ base.GetStateFunc) (context.Context, base.OperationProcessReasonError, error) {
+			var index int
+
+			s := ctx.Value(collectedstringkey)
+			if s != nil {
+				index = s.(int)
+			}
+
+			if i == ophs[len(ophs)-1].String() {
+				collected = index
+			}
+
+			ctx = context.WithValue(ctx, collectedstringkey, index+1)
+
+			return ctx, nil, nil
+		}
+
+		ops[i] = op
+	}
+
+	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), ophs))
+
+	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
+	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+	writer, newwriterf := t.newBlockWriter()
+	writer.manifest = manifest
+
+	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
+		op, found := ops[facthash.String()]
+		if !found {
+			return nil, ErrOperationNotFoundInProcessor.Errorf("operation not found")
+		}
+
+		return op, nil
+	},
+		func(base.Height, hint.Hint) (base.OperationProcessor, error) { return nil, nil },
+	)
+
+	m, err := opp.Process(context.Background(), nil)
+	t.NoError(err)
+	t.NotNil(m)
+
+	t.Equal(len(ops), writer.sts.Len())
+
+	t.Equal(len(ops)-1, collected)
 }
 
 func (t *testDefaultProposalProcessor) TestProcess() {
@@ -1034,8 +1092,8 @@ func (t *testDefaultProposalProcessor) TestProcessWithOperationProcessor() {
 			}
 
 			return &DummyOperationProcessor{
-				preprocess: func(_ context.Context, op base.Operation, _ base.GetStateFunc) (base.OperationProcessReasonError, error) {
-					return nil, nil
+				preprocess: func(ctx context.Context, op base.Operation, _ base.GetStateFunc) (context.Context, base.OperationProcessReasonError, error) {
+					return ctx, nil, nil
 				},
 				process: func(_ context.Context, op base.Operation, _ base.GetStateFunc) ([]base.StateMergeValue, base.OperationProcessReasonError, error) {
 					switch h := op.Fact().Hash(); {

@@ -307,7 +307,7 @@ func sendOperationFilterFunc(ctx context.Context) (
 			_ = closef()
 		}()
 
-		reason, err := f(context.Background(), db.State)
+		_, reason, err := f(context.Background(), db.State)
 		if err != nil {
 			return false, err
 		}
@@ -423,7 +423,7 @@ func OperationPreProcess(
 	op base.Operation,
 	height base.Height,
 ) (
-	preprocess func(context.Context, base.GetStateFunc) (base.OperationProcessReasonError, error),
+	preprocess func(context.Context, base.GetStateFunc) (context.Context, base.OperationProcessReasonError, error),
 	cancelf func() error,
 	_ error,
 ) {
@@ -438,7 +438,9 @@ func OperationPreProcess(
 	case err != nil:
 		return nil, nil, err
 	default:
-		return func(ctx context.Context, getStateFunc base.GetStateFunc) (base.OperationProcessReasonError, error) {
+		return func(ctx context.Context, getStateFunc base.GetStateFunc) (
+			context.Context, base.OperationProcessReasonError, error,
+		) {
 			return opp.PreProcess(ctx, op, getStateFunc)
 		}, opp.Close, nil
 	}

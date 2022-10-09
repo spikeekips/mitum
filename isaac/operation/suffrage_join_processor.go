@@ -88,64 +88,64 @@ func (p *SuffrageJoinProcessor) Close() error {
 }
 
 func (p *SuffrageJoinProcessor) PreProcess(ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (
-	base.OperationProcessReasonError, error,
+	context.Context, base.OperationProcessReasonError, error,
 ) {
 	if len(p.candidates) < 1 {
-		return base.NewBaseOperationProcessReasonError("not candidate"), nil
+		return ctx, base.NewBaseOperationProcessReasonError("not candidate"), nil
 	}
 
 	e := util.StringErrorFunc("failed to preprocess for SuffrageJoin")
 
 	noop, ok := op.(base.NodeSignFact)
 	if !ok {
-		return nil, e(nil, "not NodeSignFact, %T", op)
+		return ctx, nil, e(nil, "not NodeSignFact, %T", op)
 	}
 
 	fact := op.Fact().(SuffrageJoinFact) //nolint:forcetypeassert //...
 	n := fact.Candidate()
 
 	if _, found := p.preprocessed[n.String()]; found {
-		return base.NewBaseOperationProcessReasonError("already preprocessed, %q", n), nil
+		return ctx, base.NewBaseOperationProcessReasonError("already preprocessed, %q", n), nil
 	}
 
 	if p.suffrage.Exists(n) {
-		return base.NewBaseOperationProcessReasonError("candidate already in suffrage, %q", n), nil
+		return ctx, base.NewBaseOperationProcessReasonError("candidate already in suffrage, %q", n), nil
 	}
 
 	var info base.SuffrageCandidateStateValue
 
 	switch i, found := p.candidates[n.String()]; {
 	case !found:
-		return base.NewBaseOperationProcessReasonError("candidate not in candidates, %q", n), nil
+		return ctx, base.NewBaseOperationProcessReasonError("candidate not in candidates, %q", n), nil
 	case fact.Start() != i.Start():
-		return base.NewBaseOperationProcessReasonError("start does not match"), nil
+		return ctx, base.NewBaseOperationProcessReasonError("start does not match"), nil
 	case i.Deadline() < p.Height():
-		return base.NewBaseOperationProcessReasonError("candidate expired, %q", n), nil
+		return ctx, base.NewBaseOperationProcessReasonError("candidate expired, %q", n), nil
 	default:
 		info = i
 	}
 
 	switch node, err := p.findCandidateFromSigns(op); {
 	case err != nil:
-		return base.NewBaseOperationProcessReasonError(err.Error()), nil
+		return ctx, base.NewBaseOperationProcessReasonError(err.Error()), nil
 	case !node.Publickey().Equal(info.Publickey()):
-		return base.NewBaseOperationProcessReasonError("not signed by candidate key"), nil
+		return ctx, base.NewBaseOperationProcessReasonError("not signed by candidate key"), nil
 	}
 
 	switch reasonerr, err := p.PreProcessConstraintFunc(ctx, op, getStateFunc); {
 	case err != nil:
-		return nil, e(err, "")
+		return ctx, nil, e(err, "")
 	case reasonerr != nil:
-		return reasonerr, nil
+		return ctx, reasonerr, nil
 	}
 
 	if err := base.CheckFactSignsBySuffrage(p.suffrage, p.threshold, noop.NodeSigns()); err != nil {
-		return base.NewBaseOperationProcessReasonError("not enough signs"), nil
+		return ctx, base.NewBaseOperationProcessReasonError("not enough signs"), nil
 	}
 
 	p.preprocessed[info.Address().String()] = struct{}{}
 
-	return nil, nil
+	return ctx, nil, nil
 }
 
 func (p *SuffrageJoinProcessor) Process(ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (

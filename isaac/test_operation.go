@@ -104,7 +104,7 @@ type DummyOperation struct {
 	h          util.Hash
 	fact       DummyOperationFact
 	sign       base.BaseSign
-	preprocess func(context.Context, base.GetStateFunc) (base.OperationProcessReasonError, error)
+	preprocess func(context.Context, base.GetStateFunc) (context.Context, base.OperationProcessReasonError, error)
 	process    func(context.Context, base.GetStateFunc) ([]base.StateMergeValue, base.OperationProcessReasonError, error)
 }
 
@@ -189,9 +189,9 @@ func (op *DummyOperation) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	return nil
 }
 
-func (op DummyOperation) PreProcess(ctx context.Context, getStateFunc base.GetStateFunc) (base.OperationProcessReasonError, error) {
+func (op DummyOperation) PreProcess(ctx context.Context, getStateFunc base.GetStateFunc) (context.Context, base.OperationProcessReasonError, error) {
 	if op.preprocess == nil {
-		return base.NewBaseOperationProcessReasonError("nil preprocess"), nil
+		return ctx, base.NewBaseOperationProcessReasonError("nil preprocess"), nil
 	}
 
 	return op.preprocess(ctx, getStateFunc)
