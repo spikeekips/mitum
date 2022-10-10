@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/pkg/errors"
+	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -17,7 +18,7 @@ func (t *baseTest) emptyfunc() Func {
 }
 
 func (t *baseTest) calledfunc(name string) Func {
-	key := ContextKey("called")
+	key := util.ContextKey("called")
 
 	return func(ctx context.Context) (context.Context, error) {
 		var called []string
@@ -161,7 +162,7 @@ func (t *testHooks) TestRun() {
 	rctx, err := h.run(ctx)
 	t.NoError(err)
 
-	rcalled := rctx.Value(ContextKey("called"))
+	rcalled := rctx.Value(util.ContextKey("called"))
 	t.Equal([]string{"a", "b", "c"}, rcalled)
 }
 
@@ -293,7 +294,7 @@ func (t *testP) TestRun() {
 		rctx, err := p.Run(ctx)
 		t.NoError(err)
 
-		rcalled := rctx.Value(ContextKey("called"))
+		rcalled := rctx.Value(util.ContextKey("called"))
 		t.Equal([]string{"run"}, rcalled)
 
 		ctx = rctx
@@ -303,7 +304,7 @@ func (t *testP) TestRun() {
 		cctx, err := p.Close(ctx)
 		t.NoError(err)
 
-		ccalled := cctx.Value(ContextKey("called"))
+		ccalled := cctx.Value(util.ContextKey("called"))
 		t.Equal([]string{"run", "close"}, ccalled)
 	})
 }
@@ -322,7 +323,7 @@ func (t *testP) TestRunPrePost() {
 		rctx, err := p.Run(ctx)
 		t.NoError(err)
 
-		rcalled := rctx.Value(ContextKey("called"))
+		rcalled := rctx.Value(util.ContextKey("called"))
 		t.Equal([]string{"pre-a", "pre-b", "run", "post-a", "post-b"}, rcalled)
 
 		ctx = rctx
@@ -332,7 +333,7 @@ func (t *testP) TestRunPrePost() {
 		cctx, err := p.Close(ctx)
 		t.NoError(err)
 
-		ccalled := cctx.Value(ContextKey("called"))
+		ccalled := cctx.Value(util.ContextKey("called"))
 		t.Equal([]string{"pre-a", "pre-b", "run", "post-a", "post-b", "close"}, ccalled)
 	})
 }
@@ -402,7 +403,7 @@ func (t *testPS) TestRun() {
 		rctx, err := ps.Run(ctx)
 		t.NoError(err)
 
-		rcalled := rctx.Value(ContextKey("called"))
+		rcalled := rctx.Value(util.ContextKey("called"))
 		t.Equal([]string{"a-run", "b-run", "c-run"}, rcalled)
 	})
 
@@ -419,14 +420,14 @@ func (t *testPS) TestRun() {
 		t.Error(err)
 		t.ErrorContains(err, "hihihi")
 
-		rcalled := rctx.Value(ContextKey("called"))
+		rcalled := rctx.Value(util.ContextKey("called"))
 		t.Equal([]string{"a-run"}, rcalled)
 		t.Equal([]Name{NameINIT, "a", "b"}, ps.runs)
 
 		rctx, err = ps.Close(rctx)
 		t.NoError(err)
 
-		rcalled = rctx.Value(ContextKey("called"))
+		rcalled = rctx.Value(util.ContextKey("called"))
 		t.Equal([]string{"a-run", "b-close", "a-close"}, rcalled)
 	})
 
@@ -439,7 +440,7 @@ func (t *testPS) TestRun() {
 		rctx, err = ps.Close(rctx)
 		t.NoError(err)
 
-		rcalled := rctx.Value(ContextKey("called"))
+		rcalled := rctx.Value(util.ContextKey("called"))
 		t.Equal([]string{"a-run", "b-run", "c-run", "c-close", "b-close", "a-close"}, rcalled)
 	})
 }
@@ -464,7 +465,7 @@ func (t *testPS) TestRunIgnoreLeft() {
 		rctx, err := ps.Run(ctx)
 		t.NoError(err)
 
-		rcalled := rctx.Value(ContextKey("called"))
+		rcalled := rctx.Value(util.ContextKey("called"))
 		t.Equal([]string{"a-run", "b-run"}, rcalled)
 	})
 }

@@ -22,16 +22,16 @@ var (
 	PNameLastSuffrageProofWatcher                    = ps.Name("last-suffrage-proof-watcher")
 	PNameStartLastSuffrageProofWatcher               = ps.Name("start-last-suffrage-proof-watcher")
 	PNameNodeInConsensusNodesFunc                    = ps.Name("node-in-consensus-nodes-func")
-	SuffrageCandidateLimiterSetContextKey            = ps.ContextKey("suffrage-candidate-limiter-set")
-	LastSuffrageProofWatcherContextKey               = ps.ContextKey("last-suffrage-proof-watcher")
-	NodeInConsensusNodesFuncContextKey               = ps.ContextKey("node-in-consensus-nodes-func")
+	SuffrageCandidateLimiterSetContextKey            = util.ContextKey("suffrage-candidate-limiter-set")
+	LastSuffrageProofWatcherContextKey               = util.ContextKey("last-suffrage-proof-watcher")
+	NodeInConsensusNodesFuncContextKey               = util.ContextKey("node-in-consensus-nodes-func")
 )
 
 func PSuffrageCandidateLimiterSet(ctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to prepare SuffrageCandidateLimiterSet")
 
 	var db isaac.Database
-	if err := ps.LoadFromContextOK(ctx, CenterDatabaseContextKey, &db); err != nil {
+	if err := util.LoadFromContextOK(ctx, CenterDatabaseContextKey, &db); err != nil {
 		return ctx, e(err, "")
 	}
 
@@ -61,7 +61,7 @@ func PLastSuffrageProofWatcher(ctx context.Context) (context.Context, error) {
 	var params base.LocalParams
 	var db isaac.Database
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
 		CenterDatabaseContextKey, &db,
@@ -120,7 +120,7 @@ func PPatchLastSuffrageProofWatcherWithMemberlist(ctx context.Context) (context.
 	var watcher *isaac.LastConsensusNodesWatcher
 	var memberlist *quicmemberlist.Memberlist
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
 		LastSuffrageProofWatcherContextKey, &watcher,
@@ -140,7 +140,7 @@ func PNodeInConsensusNodesFunc(ctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed NodeInConsensusNodesFunc")
 
 	var db isaac.Database
-	if err := ps.LoadFromContextOK(ctx, CenterDatabaseContextKey, &db); err != nil {
+	if err := util.LoadFromContextOK(ctx, CenterDatabaseContextKey, &db); err != nil {
 		return ctx, e(err, "")
 	}
 
@@ -291,7 +291,7 @@ func GetLastSuffrageProofFunc(ctx context.Context) (isaac.GetLastSuffrageProofFr
 	var client *isaacnetwork.QuicstreamClient
 	var syncSourcePool *isaac.SyncSourcePool
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		QuicstreamClientContextKey, &client,
 		LocalParamsContextKey, &params,
 		SyncSourcePoolContextKey, &syncSourcePool,
@@ -392,7 +392,7 @@ func GetSuffrageProofFunc(ctx context.Context) ( //revive:disable-line:cognitive
 	var client *isaacnetwork.QuicstreamClient
 	var syncSourcePool *isaac.SyncSourcePool
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		QuicstreamClientContextKey, &client,
 		LocalParamsContextKey, &params,
 		SyncSourcePoolContextKey, &syncSourcePool,
@@ -471,7 +471,7 @@ func GetLastSuffrageCandidateFunc(ctx context.Context) (isaac.GetLastSuffrageCan
 	var client *isaacnetwork.QuicstreamClient
 	var syncSourcePool *isaac.SyncSourcePool
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		QuicstreamClientContextKey, &client,
 		SyncSourcePoolContextKey, &syncSourcePool,
 	); err != nil {
@@ -560,7 +560,7 @@ func NewSuffrageCandidateLimiterFunc(ctx context.Context) ( //revive:disable-lin
 	var db isaac.Database
 	var limiterset *hint.CompatibleSet
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		CenterDatabaseContextKey, &db,
 		SuffrageCandidateLimiterSetContextKey, &limiterset,
 	); err != nil {
@@ -663,7 +663,7 @@ func NewSuffrageCandidateLimiterFunc(ctx context.Context) ( //revive:disable-lin
 
 func PStartLastSuffrageProofWatcher(ctx context.Context) (context.Context, error) {
 	var watcher *isaac.LastConsensusNodesWatcher
-	if err := ps.LoadFromContextOK(ctx, LastSuffrageProofWatcherContextKey, &watcher); err != nil {
+	if err := util.LoadFromContextOK(ctx, LastSuffrageProofWatcherContextKey, &watcher); err != nil {
 		return ctx, err
 	}
 
@@ -672,7 +672,7 @@ func PStartLastSuffrageProofWatcher(ctx context.Context) (context.Context, error
 
 func PCloseLastSuffrageProofWatcher(ctx context.Context) (context.Context, error) {
 	var watcher *isaac.LastConsensusNodesWatcher
-	if err := ps.LoadFromContext(ctx, LastSuffrageProofWatcherContextKey, &watcher); err != nil {
+	if err := util.LoadFromContext(ctx, LastSuffrageProofWatcherContextKey, &watcher); err != nil {
 		return ctx, err
 	}
 

@@ -12,20 +12,20 @@ import (
 
 var (
 	PNameLocal            = ps.Name("local")
-	LocalContextKey       = ps.ContextKey("local")
-	LocalParamsContextKey = ps.ContextKey("local-params")
+	LocalContextKey       = util.ContextKey("local")
+	LocalParamsContextKey = util.ContextKey("local-params")
 )
 
 func PLocal(ctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to load local")
 
 	var log *logging.Logging
-	if err := ps.LoadFromContextOK(ctx, LoggingContextKey, &log); err != nil {
+	if err := util.LoadFromContextOK(ctx, LoggingContextKey, &log); err != nil {
 		return ctx, e(err, "")
 	}
 
 	var design NodeDesign
-	if err := ps.LoadFromContextOK(ctx, DesignContextKey, &design); err != nil {
+	if err := util.LoadFromContextOK(ctx, DesignContextKey, &design); err != nil {
 		return ctx, e(err, "")
 	}
 

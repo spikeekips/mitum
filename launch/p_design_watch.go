@@ -27,7 +27,7 @@ func PWatchDesign(ctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var flag DesignFlag
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		DesignFlagContextKey, &flag,
 	); err != nil {
@@ -67,7 +67,7 @@ func consulWatch(
 	var log *logging.Logging
 	var flag DesignFlag
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		DesignFlagContextKey, &flag,
 	); err != nil {
@@ -128,7 +128,7 @@ func watchUpdateFuncs(ctx context.Context) (map[string]func(string) error, error
 	var discoveries *util.Locked
 	var syncSourceChecker *isaacnetwork.SyncSourceChecker
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
 		DesignContextKey, &design,

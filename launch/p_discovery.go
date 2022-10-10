@@ -10,15 +10,15 @@ import (
 
 var (
 	PNameDiscoveryFlag      = ps.Name("discovery-flag")
-	DiscoveryFlagContextKey = ps.ContextKey("discovery-flag")
-	DiscoveryContextKey     = ps.ContextKey("discovery")
+	DiscoveryFlagContextKey = util.ContextKey("discovery-flag")
+	DiscoveryContextKey     = util.ContextKey("discovery")
 )
 
 func PDiscoveryFlag(ctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to prepare discovery flag")
 
 	var flag []ConnInfoFlag
-	if err := ps.LoadFromContextOK(ctx, DiscoveryFlagContextKey, &flag); err != nil {
+	if err := util.LoadFromContextOK(ctx, DiscoveryFlagContextKey, &flag); err != nil {
 		return ctx, e(err, "")
 	}
 

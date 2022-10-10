@@ -8,6 +8,8 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
+var WithdrawPreProcessedContextKey = util.ContextKey("withdraw-preprocessed")
+
 type SuffrageWithdrawProcessor struct {
 	*base.BaseOperationProcessor
 	sufstv       base.SuffrageNodesStateValue
@@ -97,6 +99,13 @@ func (p *SuffrageWithdrawProcessor) PreProcess(ctx context.Context, op base.Oper
 	}
 
 	p.preprocessed[n.String()] = struct{}{}
+
+	var preprocessed []base.Address
+
+	_ = util.LoadFromContext(ctx, WithdrawPreProcessedContextKey, &preprocessed)
+	preprocessed = append(preprocessed, n)
+
+	ctx = context.WithValue(ctx, WithdrawPreProcessedContextKey, preprocessed) //revive:disable-line:modifies-parameter
 
 	return ctx, nil, nil
 }

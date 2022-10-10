@@ -5,6 +5,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/launch"
+	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/logging"
@@ -27,7 +28,7 @@ func (cmd *baseCommand) prepare(pctx context.Context) (context.Context, error) {
 		PostAddOK(launch.PNameAddHinters, launch.PAddHinters)
 
 	var log *logging.Logging
-	if err := ps.LoadFromContextOK(pctx, launch.LoggingContextKey, &log); err != nil {
+	if err := util.LoadFromContextOK(pctx, launch.LoggingContextKey, &log); err != nil {
 		return pctx, err
 	}
 
@@ -38,7 +39,7 @@ func (cmd *baseCommand) prepare(pctx context.Context) (context.Context, error) {
 		return pctx, err
 	}
 
-	return pctx, ps.LoadFromContextOK(pctx,
+	return pctx, util.LoadFromContextOK(pctx,
 		launch.EncodersContextKey, &cmd.encs,
 		launch.EncoderContextKey, &cmd.enc,
 	)

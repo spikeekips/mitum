@@ -16,13 +16,12 @@ import (
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/logging"
-	"github.com/spikeekips/mitum/util/ps"
 )
 
 func PProposalProcessors(ctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 
-	if err := ps.LoadFromContextOK(ctx, LoggingContextKey, &log); err != nil {
+	if err := util.LoadFromContextOK(ctx, LoggingContextKey, &log); err != nil {
 		return ctx, err
 	}
 
@@ -55,7 +54,7 @@ func newProposalProcessorFunc(pctx context.Context) (
 	var db isaac.Database
 	var oprs *hint.CompatibleSet
 
-	if err := ps.LoadFromContextOK(pctx,
+	if err := util.LoadFromContextOK(pctx,
 		EncoderContextKey, &enc,
 		DesignContextKey, &design,
 		LocalContextKey, &local,
@@ -108,7 +107,7 @@ func getProposalFunc(pctx context.Context) (
 	var client *isaacnetwork.QuicstreamClient
 	var memberlist *quicmemberlist.Memberlist
 
-	if err := ps.LoadFromContextOK(pctx,
+	if err := util.LoadFromContextOK(pctx,
 		PoolDatabaseContextKey, &pool,
 		QuicstreamClientContextKey, &client,
 		MemberlistContextKey, &memberlist,
@@ -183,7 +182,7 @@ func getProposalOperationFunc(pctx context.Context) (
 	var params base.LocalParams
 	var db isaac.Database
 
-	if err := ps.LoadFromContextOK(pctx,
+	if err := util.LoadFromContextOK(pctx,
 		LocalParamsContextKey, &params,
 		CenterDatabaseContextKey, &db,
 	); err != nil {
@@ -244,7 +243,7 @@ func getProposalOperationFromPoolFunc(pctx context.Context) (
 ) {
 	var pool *isaacdatabase.TempPool
 
-	if err := ps.LoadFromContextOK(pctx, PoolDatabaseContextKey, &pool); err != nil {
+	if err := util.LoadFromContextOK(pctx, PoolDatabaseContextKey, &pool); err != nil {
 		return nil, err
 	}
 
@@ -269,7 +268,7 @@ func getProposalOperationFromRemoteFunc(pctx context.Context) ( //nolint:gocogni
 	var client *isaacnetwork.QuicstreamClient
 	var syncSourcePool *isaac.SyncSourcePool
 
-	if err := ps.LoadFromContextOK(pctx,
+	if err := util.LoadFromContextOK(pctx,
 		QuicstreamClientContextKey, &client,
 		SyncSourcePoolContextKey, &syncSourcePool,
 	); err != nil {
@@ -363,7 +362,7 @@ func getProposalOperationFromRemoteProposerFunc(pctx context.Context) (
 	var client *isaacnetwork.QuicstreamClient
 	var syncSourcePool *isaac.SyncSourcePool
 
-	if err := ps.LoadFromContextOK(pctx,
+	if err := util.LoadFromContextOK(pctx,
 		QuicstreamClientContextKey, &client,
 		SyncSourcePoolContextKey, &syncSourcePool,
 	); err != nil {
@@ -422,7 +421,7 @@ func NewProposalSelector(pctx context.Context) (*isaac.BaseProposalSelector, err
 	var memberlist *quicmemberlist.Memberlist
 	var client *isaacnetwork.QuicstreamClient
 
-	if err := ps.LoadFromContextOK(pctx,
+	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,

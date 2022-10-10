@@ -26,9 +26,9 @@ var (
 	PNameMemberlist                     = ps.Name("memberlist")
 	PNameStartMemberlist                = ps.Name("start-memberlist")
 	PNameLongRunningMemberlistJoin      = ps.Name("long-running-memberlist-join")
-	MemberlistContextKey                = ps.ContextKey("memberlist")
-	LongRunningMemberlistJoinContextKey = ps.ContextKey("long-running-memberlist-join")
-	EventOnEmptyMembers                 = ps.ContextKey("event-on-empty-members")
+	MemberlistContextKey                = util.ContextKey("memberlist")
+	LongRunningMemberlistJoinContextKey = util.ContextKey("long-running-memberlist-join")
+	EventOnEmptyMembers                 = util.ContextKey("event-on-empty-members")
 )
 
 func PMemberlist(ctx context.Context) (context.Context, error) {
@@ -38,7 +38,7 @@ func PMemberlist(ctx context.Context) (context.Context, error) {
 	var enc *jsonenc.Encoder
 	var params *isaac.LocalParams
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
 		LocalParamsContextKey, &params,
@@ -92,7 +92,7 @@ func PMemberlist(ctx context.Context) (context.Context, error) {
 
 func PStartMemberlist(ctx context.Context) (context.Context, error) {
 	var m *quicmemberlist.Memberlist
-	if err := ps.LoadFromContextOK(ctx, MemberlistContextKey, &m); err != nil {
+	if err := util.LoadFromContextOK(ctx, MemberlistContextKey, &m); err != nil {
 		return ctx, err
 	}
 
@@ -101,7 +101,7 @@ func PStartMemberlist(ctx context.Context) (context.Context, error) {
 
 func PCloseMemberlist(ctx context.Context) (context.Context, error) {
 	var m *quicmemberlist.Memberlist
-	if err := ps.LoadFromContext(ctx, MemberlistContextKey, &m); err != nil {
+	if err := util.LoadFromContext(ctx, MemberlistContextKey, &m); err != nil {
 		return ctx, err
 	}
 
@@ -118,7 +118,7 @@ func PLongRunningMemberlistJoin(ctx context.Context) (context.Context, error) {
 	var discoveries *util.Locked
 	var m *quicmemberlist.Memberlist
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		DiscoveryContextKey, &discoveries,
 		MemberlistContextKey, &m,
 	); err != nil {
@@ -140,7 +140,7 @@ func memberlistLocalNode(ctx context.Context) (quicmemberlist.Node, error) {
 	var local base.LocalNode
 	var fsnodeinfo NodeInfo
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		DesignContextKey, &design,
 		LocalContextKey, &local,
 		FSNodeInfoContextKey, &fsnodeinfo,
@@ -171,7 +171,7 @@ func memberlistConfig(
 	var local base.LocalNode
 	var syncSourcePool *isaac.SyncSourcePool
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
 		DesignContextKey, &design,
@@ -263,7 +263,7 @@ func memberlistTransport(
 	var syncSourcePool *isaac.SyncSourcePool
 	var handlers *quicstream.PrefixHandler
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
 		DesignContextKey, &design,
@@ -312,7 +312,7 @@ func memberlistDelegate(ctx context.Context, localnode quicmemberlist.Node) (*qu
 	var db isaac.Database
 	var ballotbox *isaacstates.Ballotbox
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
 		LocalParamsContextKey, &params,
@@ -355,7 +355,7 @@ func memberlistAlive(ctx context.Context) (*quicmemberlist.AliveDelegate, error)
 	var design NodeDesign
 	var enc *jsonenc.Encoder
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		DesignContextKey, &design,
 		EncoderContextKey, &enc,
 	); err != nil {
@@ -387,7 +387,7 @@ func nodeChallengeFunc(pctx context.Context) (
 	var params base.LocalParams
 	var client *isaacnetwork.QuicstreamClient
 
-	if err := ps.LoadFromContextOK(pctx,
+	if err := util.LoadFromContextOK(pctx,
 		LocalParamsContextKey, &params,
 		QuicstreamClientContextKey, &client,
 	); err != nil {
@@ -446,7 +446,7 @@ func memberlistAllowFunc(ctx context.Context) (
 	var log *logging.Logging
 	var watcher *isaac.LastConsensusNodesWatcher
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		LastSuffrageProofWatcherContextKey, &watcher,
 	); err != nil {

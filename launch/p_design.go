@@ -13,11 +13,11 @@ var (
 	PNameDesign                 = ps.Name("design")
 	PNameCheckDesign            = ps.Name("check-design")
 	PNameGenesisDesign          = ps.Name("genesis-design")
-	DesignFlagContextKey        = ps.ContextKey("design-flag")
-	GenesisDesignFileContextKey = ps.ContextKey("genesis-design-file")
-	DesignContextKey            = ps.ContextKey("design")
-	GenesisDesignContextKey     = ps.ContextKey("genesis-design")
-	VaultContextKey             = ps.ContextKey("vault")
+	DesignFlagContextKey        = util.ContextKey("design-flag")
+	GenesisDesignFileContextKey = util.ContextKey("genesis-design-file")
+	DesignContextKey            = util.ContextKey("design")
+	GenesisDesignContextKey     = util.ContextKey("genesis-design")
+	VaultContextKey             = util.ContextKey("vault")
 )
 
 func PLoadDesign(ctx context.Context) (context.Context, error) {
@@ -28,7 +28,7 @@ func PLoadDesign(ctx context.Context) (context.Context, error) {
 	var enc *jsonenc.Encoder
 	var privfromvault string
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		DesignFlagContextKey, &flag,
 		EncoderContextKey, &enc,
@@ -87,17 +87,17 @@ func PGenesisDesign(ctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to load genesis design")
 
 	var log *logging.Logging
-	if err := ps.LoadFromContextOK(ctx, LoggingContextKey, &log); err != nil {
+	if err := util.LoadFromContextOK(ctx, LoggingContextKey, &log); err != nil {
 		return ctx, e(err, "")
 	}
 
 	var designfile string
-	if err := ps.LoadFromContextOK(ctx, GenesisDesignFileContextKey, &designfile); err != nil {
+	if err := util.LoadFromContextOK(ctx, GenesisDesignFileContextKey, &designfile); err != nil {
 		return ctx, e(err, "")
 	}
 
 	var enc *jsonenc.Encoder
-	if err := ps.LoadFromContextOK(ctx, EncoderContextKey, &enc); err != nil {
+	if err := util.LoadFromContextOK(ctx, EncoderContextKey, &enc); err != nil {
 		return ctx, e(err, "")
 	}
 
@@ -120,7 +120,7 @@ func PCheckDesign(ctx context.Context) (context.Context, error) {
 	var flag DesignFlag
 	var design NodeDesign
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		DesignFlagContextKey, &flag,
 		DesignContextKey, &design,

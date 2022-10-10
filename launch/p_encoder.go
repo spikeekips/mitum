@@ -12,8 +12,8 @@ import (
 var (
 	PNameEncoder       = ps.Name("encoder")
 	PNameAddHinters    = ps.Name("add-hinters")
-	EncodersContextKey = ps.ContextKey("encoders")
-	EncoderContextKey  = ps.ContextKey("encoder")
+	EncodersContextKey = util.ContextKey("encoders")
+	EncoderContextKey  = util.ContextKey("encoder")
 )
 
 func PEncoder(ctx context.Context) (context.Context, error) {
@@ -36,7 +36,7 @@ func PAddHinters(ctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to add hinters")
 
 	var enc encoder.Encoder
-	if err := ps.LoadFromContextOK(ctx, EncoderContextKey, &enc); err != nil {
+	if err := util.LoadFromContextOK(ctx, EncoderContextKey, &enc); err != nil {
 		return ctx, e(err, "")
 	}
 

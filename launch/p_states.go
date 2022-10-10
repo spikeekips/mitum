@@ -28,19 +28,19 @@ var (
 	PNameBallotbox                                  = ps.Name("ballotbox")
 	PNameProposalProcessors                         = ps.Name("proposal-processors")
 	PNameStatesSetHandlers                          = ps.Name("states-set-handlers")
-	BallotboxContextKey                             = ps.ContextKey("ballotbox")
-	StatesContextKey                                = ps.ContextKey("states")
-	ProposalProcessorsContextKey                    = ps.ContextKey("proposal-processors")
-	ProposalSelectorContextKey                      = ps.ContextKey("proposal-selector")
-	WhenNewBlockSavedInSyncingStateFuncContextKey   = ps.ContextKey("when-new-block-saved-in-syncing-state-func")
-	WhenNewBlockSavedInConsensusStateFuncContextKey = ps.ContextKey("when-new-block-saved-in-consensus-state-func")
+	BallotboxContextKey                             = util.ContextKey("ballotbox")
+	StatesContextKey                                = util.ContextKey("states")
+	ProposalProcessorsContextKey                    = util.ContextKey("proposal-processors")
+	ProposalSelectorContextKey                      = util.ContextKey("proposal-selector")
+	WhenNewBlockSavedInSyncingStateFuncContextKey   = util.ContextKey("when-new-block-saved-in-syncing-state-func")
+	WhenNewBlockSavedInConsensusStateFuncContextKey = util.ContextKey("when-new-block-saved-in-consensus-state-func")
 )
 
 func PBallotbox(ctx context.Context) (context.Context, error) {
 	var local base.LocalNode
 	var db isaac.Database
 
-	if err := ps.LoadFromContextOK(ctx, LocalContextKey, &local, CenterDatabaseContextKey, &db); err != nil {
+	if err := util.LoadFromContextOK(ctx, LocalContextKey, &local, CenterDatabaseContextKey, &db); err != nil {
 		return ctx, err
 	}
 
@@ -66,7 +66,7 @@ func PStates(ctx context.Context) (context.Context, error) {
 	var memberlist *quicmemberlist.Memberlist
 	var lvps *isaacstates.LastVoteproofsHandler
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		EncoderContextKey, &enc,
 		BallotboxContextKey, &ballotbox,
 		ProposalProcessorsContextKey, &pps,
@@ -112,7 +112,7 @@ func PStates(ctx context.Context) (context.Context, error) {
 
 func PCloseStates(ctx context.Context) (context.Context, error) {
 	var states *isaacstates.States
-	if err := ps.LoadFromContext(ctx, StatesContextKey, &states); err != nil {
+	if err := util.LoadFromContext(ctx, StatesContextKey, &states); err != nil {
 		return ctx, err
 	}
 
@@ -141,7 +141,7 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 	var lvps *isaacstates.LastVoteproofsHandler
 	var pps *isaac.ProposalProcessors
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
@@ -189,7 +189,7 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 
 	var whenNewBlockSavedInSyncingStatef func(base.Height)
 
-	switch err = ps.LoadFromContext(
+	switch err = util.LoadFromContext(
 		ctx, WhenNewBlockSavedInSyncingStateFuncContextKey, &whenNewBlockSavedInSyncingStatef); {
 	case err != nil:
 		return ctx, e(err, "")
@@ -199,7 +199,7 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 
 	var whenNewBlockSavedInConsensusStatef func(base.Height)
 
-	switch err = ps.LoadFromContext(
+	switch err = util.LoadFromContext(
 		ctx, WhenNewBlockSavedInConsensusStateFuncContextKey, &whenNewBlockSavedInConsensusStatef); {
 	case err != nil:
 		return ctx, e(err, "")
@@ -306,7 +306,7 @@ func newSyncerFunc(
 	var perm isaac.PermanentDatabase
 	var syncSourcePool *isaac.SyncSourcePool
 
-	if err := ps.LoadFromContextOK(pctx,
+	if err := util.LoadFromContextOK(pctx,
 		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
 		DesignContextKey, &design,
@@ -662,7 +662,7 @@ func joinMemberlistForStateHandlerFunc(pctx context.Context) (
 	error,
 ) {
 	var long *LongRunningMemberlistJoin
-	if err := ps.LoadFromContextOK(pctx, LongRunningMemberlistJoinContextKey, &long); err != nil {
+	if err := util.LoadFromContextOK(pctx, LongRunningMemberlistJoinContextKey, &long); err != nil {
 		return nil, err
 	}
 
@@ -686,7 +686,7 @@ func joinMemberlistForJoiningeHandlerFunc(pctx context.Context) (
 	error,
 ) {
 	var long *LongRunningMemberlistJoin
-	if err := ps.LoadFromContextOK(pctx, LongRunningMemberlistJoinContextKey, &long); err != nil {
+	if err := util.LoadFromContextOK(pctx, LongRunningMemberlistJoinContextKey, &long); err != nil {
 		return nil, err
 	}
 
@@ -704,7 +704,7 @@ func leaveMemberlistForStateHandlerFunc(pctx context.Context) (
 	var long *LongRunningMemberlistJoin
 	var m *quicmemberlist.Memberlist
 
-	if err := ps.LoadFromContextOK(pctx,
+	if err := util.LoadFromContextOK(pctx,
 		MemberlistContextKey, &m,
 		LongRunningMemberlistJoinContextKey, &long,
 	); err != nil {
@@ -728,7 +728,7 @@ func leaveMemberlistForSyncingHandlerFunc(pctx context.Context) (
 	error,
 ) {
 	var long *LongRunningMemberlistJoin
-	if err := ps.LoadFromContextOK(pctx, LongRunningMemberlistJoinContextKey, &long); err != nil {
+	if err := util.LoadFromContextOK(pctx, LongRunningMemberlistJoinContextKey, &long); err != nil {
 		return nil, err
 	}
 
@@ -791,7 +791,7 @@ func newSyncerDeferredFunc(pctx context.Context, db isaac.Database) (
 ) {
 	var log *logging.Logging
 
-	if err := ps.LoadFromContextOK(pctx, LoggingContextKey, &log); err != nil {
+	if err := util.LoadFromContextOK(pctx, LoggingContextKey, &log); err != nil {
 		return nil, err
 	}
 
@@ -827,7 +827,7 @@ func onEmptyMembersStateHandlerFunc(
 	var pps *ps.PS
 	var long *LongRunningMemberlistJoin
 
-	if err := ps.LoadFromContextOK(pctx,
+	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		EventOnEmptyMembers, &pps,
 		LongRunningMemberlistJoinContextKey, &long,

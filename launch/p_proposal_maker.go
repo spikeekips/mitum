@@ -16,7 +16,7 @@ import (
 
 var (
 	PNameProposalMaker      = ps.Name("proposal-maker")
-	ProposalMakerContextKey = ps.ContextKey("proposal-maker")
+	ProposalMakerContextKey = util.ContextKey("proposal-maker")
 )
 
 func PProposalMaker(ctx context.Context) (context.Context, error) {
@@ -27,7 +27,7 @@ func PProposalMaker(ctx context.Context) (context.Context, error) {
 	var params base.LocalParams
 	var pool *isaacdatabase.TempPool
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
@@ -65,7 +65,7 @@ func proposalMakderGetOperationsFunc(ctx context.Context) (
 	var db isaac.Database
 	var pool *isaacdatabase.TempPool
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,

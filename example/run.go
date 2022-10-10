@@ -36,7 +36,7 @@ type RunCommand struct { //nolint:govet //...
 
 func (cmd *RunCommand) Run(pctx context.Context) error {
 	var log *logging.Logging
-	if err := ps.LoadFromContextOK(pctx, launch.LoggingContextKey, &log); err != nil {
+	if err := util.LoadFromContextOK(pctx, launch.LoggingContextKey, &log); err != nil {
 		return err
 	}
 
@@ -128,7 +128,7 @@ func (cmd *RunCommand) runStates(ctx, pctx context.Context) (func(), error) {
 	var discoveries *util.Locked
 	var states *isaacstates.States
 
-	if err := ps.LoadFromContextOK(pctx,
+	if err := util.LoadFromContextOK(pctx,
 		launch.DiscoveryContextKey, &discoveries,
 		launch.StatesContextKey, &states,
 	); err != nil {
@@ -161,7 +161,7 @@ func (cmd *RunCommand) pWhenNewBlockSavedInConsensusStateFunc(pctx context.Conte
 	var ballotbox *isaacstates.Ballotbox
 	var nodeinfo *isaacnetwork.NodeInfoUpdater
 
-	if err := ps.LoadFromContextOK(pctx,
+	if err := util.LoadFromContextOK(pctx,
 		launch.LoggingContextKey, &log,
 		launch.CenterDatabaseContextKey, &db,
 		launch.LocalParamsContextKey, &params,
@@ -194,7 +194,7 @@ func (cmd *RunCommand) pWhenNewBlockSavedInConsensusStateFunc(pctx context.Conte
 
 func (cmd *RunCommand) pCheckHold(pctx context.Context) (context.Context, error) {
 	var db isaac.Database
-	if err := ps.LoadFromContextOK(pctx, launch.CenterDatabaseContextKey, &db); err != nil {
+	if err := util.LoadFromContextOK(pctx, launch.CenterDatabaseContextKey, &db); err != nil {
 		return pctx, err
 	}
 

@@ -26,7 +26,7 @@ import (
 var (
 	PNameNetworkHandlers             = ps.Name("network-handlers")
 	PNameOperationProcessorsMap      = ps.Name("operation-processors-map")
-	OperationProcessorsMapContextKey = ps.ContextKey("operation-processors-map")
+	OperationProcessorsMapContextKey = util.ContextKey("operation-processors-map")
 )
 
 func PNetworkHandlers(ctx context.Context) (context.Context, error) {
@@ -45,7 +45,7 @@ func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 	var handlers *quicstream.PrefixHandler
 	var nodeinfo *isaacnetwork.NodeInfoUpdater
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
 		DesignContextKey, &design,
@@ -191,7 +191,7 @@ func POperationProcessorsMap(ctx context.Context) (context.Context, error) {
 	var params *isaac.LocalParams
 	var db isaac.Database
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		LocalParamsContextKey, &params,
 		CenterDatabaseContextKey, &db,
 	); err != nil {
@@ -270,7 +270,7 @@ func sendOperationFilterFunc(ctx context.Context) (
 	var db isaac.Database
 	var oprs *hint.CompatibleSet
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		CenterDatabaseContextKey, &db,
 		OperationProcessorsMapContextKey, &oprs,
 	); err != nil {

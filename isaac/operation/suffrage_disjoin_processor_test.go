@@ -244,6 +244,31 @@ func (t *testSuffrageDisjoinProcessor) TestPreProcessConstaint() {
 	t.ErrorContains(reason, "hehehe")
 }
 
+func (t *testSuffrageDisjoinProcessor) TestPreProcessWithdrew() {
+	height := base.Height(33)
+
+	_, nodes, getStateFunc := t.prepare(height, 3)
+
+	pp, err := NewSuffrageDisjoinProcessor(
+		height,
+		getStateFunc,
+		nil,
+		nil,
+	)
+	t.NoError(err)
+
+	local := nodes[1]
+
+	op := NewSuffrageDisjoin(NewSuffrageDisjoinFact(util.UUID().Bytes(), local.Address(), height))
+	t.NoError(op.NodeSign(local.Privatekey(), t.networkID, local.Address()))
+
+	ctx := context.WithValue(context.Background(), WithdrawPreProcessedContextKey, []base.Address{local.Address()})
+	_, reason, err := pp.PreProcess(ctx, op, getStateFunc)
+	t.NoError(err)
+	t.NotNil(reason)
+	t.ErrorContains(reason, "already withdrew")
+}
+
 func (t *testSuffrageDisjoinProcessor) TestNotSignedByCandidate() {
 	height := base.Height(33)
 

@@ -16,7 +16,7 @@ import (
 
 var (
 	PNameNodeInfo      = ps.Name("nodeinfo")
-	NodeInfoContextKey = ps.ContextKey("nodeinfo")
+	NodeInfoContextKey = util.ContextKey("nodeinfo")
 )
 
 func PNodeInfo(ctx context.Context) (context.Context, error) {
@@ -29,7 +29,7 @@ func PNodeInfo(ctx context.Context) (context.Context, error) {
 	var design NodeDesign
 	var db isaac.Database
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		VersionContextKey, &version,
 		DesignContextKey, &design,

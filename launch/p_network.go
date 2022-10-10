@@ -26,9 +26,9 @@ var (
 	PNameNetwork                 = ps.Name("network")
 	PNameStartNetwork            = ps.Name("start-network")
 	PNameQuicstreamClient        = ps.Name("network-client")
-	QuicstreamClientContextKey   = ps.ContextKey("network-client")
-	QuicstreamServerContextKey   = ps.ContextKey("quicstream-server")
-	QuicstreamHandlersContextKey = ps.ContextKey("quicstream-handlers")
+	QuicstreamClientContextKey   = util.ContextKey("network-client")
+	QuicstreamServerContextKey   = util.ContextKey("quicstream-server")
+	QuicstreamHandlersContextKey = util.ContextKey("quicstream-handlers")
 )
 
 func PQuicstreamClient(ctx context.Context) (context.Context, error) {
@@ -36,7 +36,7 @@ func PQuicstreamClient(ctx context.Context) (context.Context, error) {
 	var enc encoder.Encoder
 	var params base.LocalParams
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
 		LocalParamsContextKey, &params,
@@ -60,7 +60,7 @@ func PNetwork(ctx context.Context) (context.Context, error) {
 	var design NodeDesign
 	var params base.LocalParams
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
@@ -93,7 +93,7 @@ func PNetwork(ctx context.Context) (context.Context, error) {
 
 func PStartNetwork(ctx context.Context) (context.Context, error) {
 	var server *quicstream.Server
-	if err := ps.LoadFromContextOK(ctx, QuicstreamServerContextKey, &server); err != nil {
+	if err := util.LoadFromContextOK(ctx, QuicstreamServerContextKey, &server); err != nil {
 		return ctx, err
 	}
 
@@ -102,7 +102,7 @@ func PStartNetwork(ctx context.Context) (context.Context, error) {
 
 func PCloseNetwork(ctx context.Context) (context.Context, error) {
 	var server *quicstream.Server
-	if err := ps.LoadFromContext(ctx, QuicstreamServerContextKey, &server); err != nil {
+	if err := util.LoadFromContext(ctx, QuicstreamServerContextKey, &server); err != nil {
 		return ctx, err
 	}
 

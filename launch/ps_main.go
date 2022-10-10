@@ -17,10 +17,10 @@ var (
 )
 
 var (
-	VersionContextKey     = ps.ContextKey("version")
-	FlagsContextKey       = ps.ContextKey("flags")
-	KongContextContextKey = ps.ContextKey("kong-context")
-	LoggingContextKey     = ps.ContextKey("logging")
+	VersionContextKey     = util.ContextKey("version")
+	FlagsContextKey       = util.ContextKey("flags")
+	KongContextContextKey = util.ContextKey("kong-context")
+	LoggingContextKey     = util.ContextKey("logging")
 )
 
 func DefaultMainPS() *ps.PS {
@@ -41,7 +41,7 @@ func PINIT(ctx context.Context) (context.Context, error) {
 
 	var version util.Version
 
-	switch err := ps.LoadFromContextOK(ctx, VersionContextKey, &version); {
+	switch err := util.LoadFromContextOK(ctx, VersionContextKey, &version); {
 	case err != nil:
 		return ctx, e(err, "")
 	default:
@@ -57,7 +57,7 @@ func PLogging(ctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed logging")
 
 	var flags BaseFlags
-	if err := ps.LoadFromContextOK(ctx, FlagsContextKey, &flags); err != nil {
+	if err := util.LoadFromContextOK(ctx, FlagsContextKey, &flags); err != nil {
 		return ctx, e(err, "")
 	}
 
@@ -73,12 +73,12 @@ func PLogging(ctx context.Context) (context.Context, error) {
 
 func PLoggingWithCli(ctx context.Context) (context.Context, error) {
 	var log *logging.Logging
-	if err := ps.LoadFromContextOK(ctx, LoggingContextKey, &log); err != nil {
+	if err := util.LoadFromContextOK(ctx, LoggingContextKey, &log); err != nil {
 		return ctx, err
 	}
 
 	var kctx *kong.Context
-	if err := ps.LoadFromContextOK(ctx, KongContextContextKey, &kctx); err != nil {
+	if err := util.LoadFromContextOK(ctx, KongContextContextKey, &kctx); err != nil {
 		return ctx, err
 	}
 

@@ -26,7 +26,7 @@ type ImportCommand struct { //nolint:govet //...
 
 func (cmd *ImportCommand) Run(pctx context.Context) error {
 	var log *logging.Logging
-	if err := ps.LoadFromContextOK(pctx, launch.LoggingContextKey, &log); err != nil {
+	if err := util.LoadFromContextOK(pctx, launch.LoggingContextKey, &log); err != nil {
 		return err
 	}
 
@@ -78,7 +78,7 @@ func (cmd *ImportCommand) importBlocks(ctx context.Context) (context.Context, er
 	var db isaac.Database
 	var perm isaac.PermanentDatabase
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		launch.EncodersContextKey, &encs,
 		launch.EncoderContextKey, &enc,
 		launch.DesignContextKey, &design,

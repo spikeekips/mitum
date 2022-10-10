@@ -8,8 +8,6 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
-// FIXME ignore duplicated disjoin operations with withdraws
-
 type SuffrageDisjoinProcessor struct {
 	*base.BaseOperationProcessor
 	suffrage     map[string]base.SuffrageNodeStateValue
@@ -86,6 +84,16 @@ func (p *SuffrageDisjoinProcessor) PreProcess(ctx context.Context, op base.Opera
 
 	if _, found := p.preprocessed[n.String()]; found {
 		return ctx, base.NewBaseOperationProcessReasonError("already preprocessed, %q", n), nil
+	}
+
+	var withdrawpreprocessed []base.Address
+
+	_ = util.LoadFromContext(ctx, WithdrawPreProcessedContextKey, &withdrawpreprocessed)
+
+	if util.InSliceFunc(withdrawpreprocessed, func(_ interface{}, i int) bool {
+		return withdrawpreprocessed[i].Equal(n)
+	}) >= 0 {
+		return ctx, base.NewBaseOperationProcessReasonError("already withdrew, %q", n), nil
 	}
 
 	switch stv, found := p.suffrage[n.String()]; {

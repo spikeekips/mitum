@@ -10,7 +10,6 @@ import (
 	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
-	"github.com/spikeekips/mitum/util/ps"
 )
 
 var (
@@ -81,7 +80,7 @@ func main() {
 	}
 
 	var log *logging.Logging
-	if err := ps.LoadFromContextOK(pctx, launch.LoggingContextKey, &log); err != nil {
+	if err := util.LoadFromContextOK(pctx, launch.LoggingContextKey, &log); err != nil {
 		kctx.FatalIfErrorf(err)
 	}
 

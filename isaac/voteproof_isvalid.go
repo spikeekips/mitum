@@ -5,8 +5,6 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
-// FIXME if local is out of suffrage in voteproof, moves to syncing state
-
 func IsValidVoteproofWithSuffrage(vp base.Voteproof, suf base.Suffrage) error {
 	e := util.ErrInvalid.Errorf("invalid voteproof with suffrage")
 

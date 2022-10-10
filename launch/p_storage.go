@@ -39,12 +39,12 @@ var (
 	PNameCreateLocalFS              = ps.Name("create-localfs")
 	PNameCheckLocalFS               = ps.Name("check-localfs")
 	PNameLoadDatabase               = ps.Name("load-database")
-	FSNodeInfoContextKey            = ps.ContextKey("fs-node-info")
-	LeveldbStorageContextKey        = ps.ContextKey("leveldb-storage")
-	CenterDatabaseContextKey        = ps.ContextKey("center-database")
-	PermanentDatabaseContextKey     = ps.ContextKey("permanent-database")
-	PoolDatabaseContextKey          = ps.ContextKey("pool-database")
-	LastVoteproofsHandlerContextKey = ps.ContextKey("last-voteproofs-handler")
+	FSNodeInfoContextKey            = util.ContextKey("fs-node-info")
+	LeveldbStorageContextKey        = util.ContextKey("leveldb-storage")
+	CenterDatabaseContextKey        = util.ContextKey("center-database")
+	PermanentDatabaseContextKey     = util.ContextKey("permanent-database")
+	PoolDatabaseContextKey          = util.ContextKey("pool-database")
+	LastVoteproofsHandlerContextKey = util.ContextKey("last-voteproofs-handler")
 )
 
 var (
@@ -60,14 +60,14 @@ func PStorage(ctx context.Context) (context.Context, error) {
 
 func PStartStorage(ctx context.Context) (context.Context, error) {
 	var log *logging.Logging
-	if err := ps.LoadFromContextOK(ctx, LoggingContextKey, &log); err != nil {
+	if err := util.LoadFromContextOK(ctx, LoggingContextKey, &log); err != nil {
 		return ctx, nil
 	}
 
 	var starters []func()
 
-	load := func(name string, key ps.ContextKey, v interface{}) bool {
-		switch err := ps.LoadFromContext(ctx, key, v); {
+	load := func(name string, key util.ContextKey, v interface{}) bool {
+		switch err := util.LoadFromContext(ctx, key, v); {
 		case err != nil:
 			return false
 		case v == nil:
@@ -107,15 +107,15 @@ func PStartStorage(ctx context.Context) (context.Context, error) {
 
 func PCloseStorage(ctx context.Context) (context.Context, error) {
 	var log *logging.Logging
-	if err := ps.LoadFromContextOK(ctx, LoggingContextKey, &log); err != nil {
+	if err := util.LoadFromContextOK(ctx, LoggingContextKey, &log); err != nil {
 		return ctx, nil
 	}
 
 	var closers []func()
 	var stoppers []func()
 
-	load := func(name string, key ps.ContextKey, v interface{}) bool {
-		switch err := ps.LoadFromContext(ctx, key, v); {
+	load := func(name string, key util.ContextKey, v interface{}) bool {
+		switch err := util.LoadFromContext(ctx, key, v); {
 		case err != nil:
 			return false
 		case v == nil:
@@ -172,12 +172,12 @@ func PCheckLeveldbStorage(ctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to check leveldb storage")
 
 	var log *logging.Logging
-	if err := ps.LoadFromContextOK(ctx, LoggingContextKey, &log); err != nil {
+	if err := util.LoadFromContextOK(ctx, LoggingContextKey, &log); err != nil {
 		return ctx, e(err, "")
 	}
 
 	var st *leveldbstorage.Storage
-	if err := ps.LoadFromContextOK(ctx, LeveldbStorageContextKey, &st); err != nil {
+	if err := util.LoadFromContextOK(ctx, LeveldbStorageContextKey, &st); err != nil {
 		return ctx, e(err, "")
 	}
 
@@ -197,7 +197,7 @@ func PLoadFromDatabase(ctx context.Context) (context.Context, error) {
 	var encs *encoder.Encoders
 	var center isaac.Database
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		DesignContextKey, &design,
 		EncodersContextKey, &encs,
 		CenterDatabaseContextKey, &center,
@@ -259,7 +259,7 @@ func PCleanStorage(ctx context.Context) (context.Context, error) {
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		DesignContextKey, &design,
 		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
@@ -282,7 +282,7 @@ func PCreateLocalFS(ctx context.Context) (context.Context, error) {
 	var params *isaac.LocalParams
 	var version util.Version
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		DesignContextKey, &design,
 		EncoderContextKey, &enc,
 		LocalParamsContextKey, &params,
@@ -311,7 +311,7 @@ func PCheckLocalFS(ctx context.Context) (context.Context, error) {
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		VersionContextKey, &version,
 		DesignContextKey, &design,
 		EncodersContextKey, &encs,
@@ -361,7 +361,7 @@ func PLoadDatabase(ctx context.Context) (context.Context, error) {
 	var enc encoder.Encoder
 	var fsnodeinfo NodeInfo
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		DesignContextKey, &design,
 		EncodersContextKey, &encs,
@@ -394,7 +394,7 @@ func LastHeightOfLocalFS(ctx context.Context, from string) (last base.Height, _ 
 	var enc encoder.Encoder
 	var params *isaac.LocalParams
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		EncoderContextKey, &enc,
 		LocalParamsContextKey, &params,
 	); err != nil {

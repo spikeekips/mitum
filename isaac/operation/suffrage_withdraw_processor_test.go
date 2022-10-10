@@ -77,9 +77,14 @@ func (t *testSuffrageWithdrawProcessor) TestNew() {
 	op := isaac.NewSuffrageWithdrawOperation(isaac.NewSuffrageWithdrawFact(withdrawnode.Address(), height, height+1, util.UUID().String()))
 	t.NoError(op.NodeSign(local.Privatekey(), t.networkID, local.Address()))
 
-	_, reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
+	ctx, reason, err := pp.PreProcess(context.Background(), op, getStateFunc)
 	t.NoError(err)
 	t.Nil(reason)
+
+	var preprocessed []base.Address
+	t.NoError(util.LoadFromContextOK(ctx, WithdrawPreProcessedContextKey, &preprocessed))
+	t.Equal(1, len(preprocessed))
+	t.True(withdrawnode.Address().Equal(preprocessed[0]))
 
 	mergevalues, reason, err := pp.Process(context.Background(), op, getStateFunc)
 	t.NoError(err)

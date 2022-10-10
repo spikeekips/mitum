@@ -16,8 +16,8 @@ import (
 var (
 	PNameSyncSourceChecker      = ps.Name("sync-source-checker")
 	PNameStartSyncSourceChecker = ps.Name("start-sync-source-checker")
-	SyncSourceCheckerContextKey = ps.ContextKey("sync-source-checker")
-	SyncSourcePoolContextKey    = ps.ContextKey("sync-source-pool")
+	SyncSourceCheckerContextKey = util.ContextKey("sync-source-checker")
+	SyncSourcePoolContextKey    = util.ContextKey("sync-source-pool")
 )
 
 func PSyncSourceChecker(ctx context.Context) (context.Context, error) {
@@ -30,7 +30,7 @@ func PSyncSourceChecker(ctx context.Context) (context.Context, error) {
 	var params *isaac.LocalParams
 	var client *isaacnetwork.QuicstreamClient
 
-	if err := ps.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
 		DesignContextKey, &design,
@@ -89,7 +89,7 @@ func PSyncSourceChecker(ctx context.Context) (context.Context, error) {
 
 func PStartSyncSourceChecker(ctx context.Context) (context.Context, error) {
 	var syncSourceChecker *isaacnetwork.SyncSourceChecker
-	if err := ps.LoadFromContextOK(ctx, SyncSourceCheckerContextKey, &syncSourceChecker); err != nil {
+	if err := util.LoadFromContextOK(ctx, SyncSourceCheckerContextKey, &syncSourceChecker); err != nil {
 		return ctx, err
 	}
 
@@ -98,7 +98,7 @@ func PStartSyncSourceChecker(ctx context.Context) (context.Context, error) {
 
 func PCloseSyncSourceChecker(ctx context.Context) (context.Context, error) {
 	var syncSourceChecker *isaacnetwork.SyncSourceChecker
-	if err := ps.LoadFromContext(ctx,
+	if err := util.LoadFromContext(ctx,
 		SyncSourceCheckerContextKey, &syncSourceChecker,
 	); err != nil {
 		return ctx, err
