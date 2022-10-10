@@ -14,6 +14,8 @@ type Signer interface {
 
 type NodeSigner interface {
 	NodeSign(Privatekey, NetworkID, Address) error
+	AddNodeSigns([]NodeSign) (added bool, _ error)
+	SetNodeSigns([]NodeSign) error
 }
 
 type Sign interface {

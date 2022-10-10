@@ -7,7 +7,7 @@ import (
 	"github.com/spikeekips/mitum/util/valuehash"
 )
 
-type BaseSeal struct {
+type BaseSeal struct { // FIXME remove
 	h    util.Hash
 	sign BaseSign
 	body []SealBody

@@ -180,22 +180,17 @@ func (cmd *KeySignCommand) Run(pctx context.Context) error {
 		_ = cmd.Body.Close()
 	}()
 
-	var elem, ptr interface{}
+	var ptr interface{}
 
-	switch i, j, err := cmd.loadBody(); {
+	switch j, err := cmd.loadBody(); {
 	case err != nil:
 		return err
 	default:
-		elem = i
 		ptr = j
 	}
 
 	if _, ok := ptr.(base.NodeSigner); ok && cmd.Node.Address() == nil {
 		return errors.Errorf("--node is missing")
-	}
-
-	if err := util.InterfaceSetValue(elem, ptr); err != nil {
-		return err
 	}
 
 	if err := cmd.updateToken(ptr); err != nil {
@@ -239,24 +234,24 @@ func (cmd *KeySignCommand) prepare(pctx context.Context) error {
 	return cmd.networkID.IsValid(nil)
 }
 
-func (cmd *KeySignCommand) loadBody() (interface{}, interface{}, error) {
+func (cmd *KeySignCommand) loadBody() (interface{}, error) {
 	var body []byte
 
 	switch i, err := io.ReadAll(cmd.Body); {
 	case err != nil:
-		return nil, nil, errors.WithStack(err)
+		return nil, errors.WithStack(err)
 	default:
 		body = i
 	}
 
 	var u map[string]interface{}
 	if err := util.UnmarshalJSON(body, &u); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	switch i, err := util.MarshalJSONIndent(u); {
 	case err != nil:
-		return nil, nil, err
+		return nil, err
 	default:
 		_, _ = fmt.Fprintln(os.Stderr, string(i))
 	}
@@ -265,16 +260,22 @@ func (cmd *KeySignCommand) loadBody() (interface{}, interface{}, error) {
 
 	elem, err := cmd.enc.Decode(body)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	if elem == nil {
-		return nil, nil, errors.Errorf("failed to load body")
+		return nil, errors.Errorf("failed to load body")
+	}
+
+	ptr := reflect.New(reflect.ValueOf(elem).Type()).Interface()
+
+	if err := util.InterfaceSetValue(elem, ptr); err != nil {
+		return nil, err
 	}
 
 	cmd.log.Debug().Str("body_type", fmt.Sprintf("%T", elem)).Msg("body loaded")
 
-	return elem, reflect.New(reflect.ValueOf(elem).Type()).Interface(), nil
+	return ptr, nil
 }
 
 func (cmd *KeySignCommand) updateToken(ptr interface{}) error {
@@ -297,14 +298,14 @@ func (cmd *KeySignCommand) updateToken(ptr interface{}) error {
 		cmd.log.Debug().Msg("same token given")
 	case len(token) > 0:
 		return errors.Errorf("different token found")
-	default:
-		if i, ok := ptr.(base.TokenSetter); ok {
-			if err := i.SetToken(base.Token([]byte(cmd.Token))); err != nil {
-				return err
-			}
+	}
 
-			cmd.log.Debug().Str("new_token", cmd.Token).Msg("token updated")
+	if i, ok := ptr.(base.TokenSetter); ok {
+		if err := i.SetToken(base.Token([]byte(cmd.Token))); err != nil {
+			return err
 		}
+
+		cmd.log.Debug().Str("new_token", cmd.Token).Msg("token updated")
 	}
 
 	return nil

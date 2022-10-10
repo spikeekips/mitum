@@ -118,7 +118,12 @@ func (n BaseNode) String() string {
 	case n.isempty:
 		return emptyNodeString
 	default:
-		return fmt.Sprintf("%s %s", n.h.String(), n.key)
+		var h string
+		if n.h != nil {
+			h = n.h.String()
+		}
+
+		return fmt.Sprintf("%s %s", h, n.key)
 	}
 }
 

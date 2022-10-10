@@ -123,3 +123,14 @@ type TempSyncPool interface {
 	Cancel() error
 	Close() error
 }
+
+type SuffrageWithdrawPool interface {
+	SuffrageWithdrawOperation(base.Height, base.Address) (base.SuffrageWithdrawOperation, bool, error)
+	SetSuffrageWithdrawOperation(base.SuffrageWithdrawOperation) error
+	TraverseSuffrageWithdrawOperations(
+		context.Context,
+		base.Height,
+		func(base.SuffrageWithdrawOperation) (ok bool, err error),
+	) error
+	RemoveSuffrageWithdrawOperations(ops []util.Hash) error
+}

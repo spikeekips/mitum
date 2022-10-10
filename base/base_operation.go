@@ -211,6 +211,50 @@ func (op *BaseNodeOperation) NodeSign(priv Privatekey, networkID NetworkID, node
 	return nil
 }
 
+func (op *BaseNodeOperation) SetNodeSigns(signs []NodeSign) error {
+	if _, duplicated := util.CheckSliceDuplicated(signs, func(_ interface{}, i int) string {
+		return signs[i].Node().String()
+	}); duplicated {
+		return errors.Errorf("duplicated signs found")
+	}
+
+	op.signs = make([]Sign, len(signs))
+	for i := range signs {
+		op.signs[i] = signs[i]
+	}
+
+	op.h = op.hash()
+
+	return nil
+}
+
+func (op *BaseNodeOperation) AddNodeSigns(signs []NodeSign) (added bool, _ error) {
+	updates := util.Filter2Slices(signs, op.signs, func(_, _ interface{}, i, j int) bool {
+		nodesign, ok := op.signs[j].(NodeSign)
+		if !ok {
+			return true
+		}
+
+		return !signs[i].Node().Equal(nodesign.Node())
+	})
+
+	if len(updates) < 1 {
+		return false, nil
+	}
+
+	mergedsigns := make([]Sign, len(op.signs)+len(updates))
+	copy(mergedsigns, op.signs)
+
+	for i := range updates {
+		mergedsigns[len(op.signs)+i] = updates[i]
+	}
+
+	op.signs = mergedsigns
+	op.h = op.hash()
+
+	return true, nil
+}
+
 func (op BaseNodeOperation) NodeSigns() []NodeSign {
 	ss := op.Signs()
 	signs := make([]NodeSign, len(ss))

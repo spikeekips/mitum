@@ -43,7 +43,6 @@ var Hinters = []encoder.DecodeDetail{
 	{Hint: isaac.SuffrageNodeStateValueHint, Instance: isaac.SuffrageNodeStateValue{}},
 	{Hint: isaac.SuffrageNodesStateValueHint, Instance: isaac.SuffrageNodesStateValue{}},
 	{Hint: isaac.SuffrageCandidatesStateValueHint, Instance: isaac.SuffrageCandidatesStateValue{}},
-	{Hint: isaac.SuffrageWithdrawFactHint, Instance: isaac.SuffrageWithdrawFact{}},
 	{Hint: isaac.SuffrageWithdrawOperationHint, Instance: isaac.SuffrageWithdrawOperation{}},
 	{Hint: isaacblock.BlockMapHint, Instance: isaacblock.BlockMap{}},
 	{Hint: isaacblock.SuffrageProofHint, Instance: isaacblock.SuffrageProof{}},
@@ -88,6 +87,7 @@ var SupportedProposalOperationFactHinters = []encoder.DecodeDetail{
 	{Hint: isaacoperation.SuffrageCandidateFactHint, Instance: isaacoperation.SuffrageCandidateFact{}},
 	{Hint: isaacoperation.SuffrageDisjoinFactHint, Instance: isaacoperation.SuffrageDisjoinFact{}},
 	{Hint: isaacoperation.SuffrageJoinFactHint, Instance: isaacoperation.SuffrageJoinFact{}},
+	{Hint: isaac.SuffrageWithdrawFactHint, Instance: isaac.SuffrageWithdrawFact{}},
 }
 
 func LoadHinters(enc encoder.Encoder) error {

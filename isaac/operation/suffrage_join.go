@@ -154,6 +154,8 @@ func (op *SuffrageJoin) SetToken(t base.Token) error {
 		return err
 	}
 
+	fact.SetHash(fact.hash())
+
 	op.BaseNodeOperation.SetFact(fact)
 
 	return nil

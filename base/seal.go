@@ -4,6 +4,8 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
+// FIXME remove
+
 type Seal interface {
 	util.IsValider
 	util.Hasher

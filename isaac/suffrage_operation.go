@@ -33,7 +33,7 @@ func NewSuffrageWithdrawFact(
 	reason string,
 ) SuffrageWithdrawFact {
 	fact := SuffrageWithdrawFact{
-		// NOTE token should be node + start
+		// NOTE token is <node + start>
 		BaseFact: base.NewBaseFact(SuffrageWithdrawFactHint, base.Token(util.ConcatByters(node, start, end))),
 		node:     node,
 		start:    start,
@@ -106,12 +106,17 @@ func NewSuffrageWithdrawOperation(fact SuffrageWithdrawFact) SuffrageWithdrawOpe
 	}
 }
 
-func (op *SuffrageWithdrawOperation) SetToken(t base.Token) error {
+func (op *SuffrageWithdrawOperation) SetToken(base.Token) error {
 	fact := op.Fact().(SuffrageWithdrawFact) //nolint:forcetypeassert //...
+
+	// NOTE ignore given token
+	t := base.Token(util.ConcatByters(fact.node, fact.start, fact.end))
 
 	if err := fact.SetToken(t); err != nil {
 		return err
 	}
+
+	fact.SetHash(fact.hash())
 
 	op.BaseNodeOperation.SetFact(fact)
 
