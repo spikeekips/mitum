@@ -549,15 +549,21 @@ func (vr *voterecords) countWithWithdraws(
 
 		set, m := base.CountBallotSignFacts(wsfs)
 
-		suflen := suf.Len() - len(wfacts)
+		newthreshold := threshold
+		quorum := uint(suf.Len())
 
-		if uint(len(set)) < threshold.Threshold(uint(suflen)) {
+		if n := uint(len(wfacts)); n > quorum-base.DefaultThreshold.Threshold(quorum) {
+			newthreshold = base.MaxThreshold
+			quorum = uint(suf.Len() - len(wfacts))
+		}
+
+		if uint(len(set)) < newthreshold.Threshold(quorum) {
 			continue
 		}
 
 		var majority base.BallotFact
 
-		switch result, majoritykey := threshold.VoteResult(uint(suflen), set); result {
+		switch result, majoritykey := newthreshold.VoteResult(quorum, set); result {
 		case base.VoteResultDraw:
 		case base.VoteResultMajority:
 			majority = m[majoritykey]

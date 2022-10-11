@@ -986,7 +986,7 @@ func (t *testBallotboxWithWitdraw) TestACCEPTBallotWithdrawOthers() {
 	})
 }
 
-func (t *testBallotboxWithWitdraw) TestINITBallotJointWithdraws() {
+func (t *testBallotboxWithWitdraw) TestINITBallotJointWithdrawsOverThreshold() {
 	suf, nodes := isaac.NewTestSuffrage(20)
 	th := base.DefaultThreshold
 
@@ -1028,7 +1028,82 @@ func (t *testBallotboxWithWitdraw) TestINITBallotJointWithdraws() {
 
 	box.setLastStagePoint(base.NewStagePoint(point.PrevHeight(), base.StageACCEPT))
 
-	expected := 6
+	expected := 9
+
+	var vp base.Voteproof
+
+	for i := range nodes {
+		node := nodes[i]
+
+		if util.InSliceFunc(withdrawnodes, func(_ interface{}, j int) bool {
+			return withdrawnodes[j].Equal(node.Address())
+		}) >= 0 {
+			break
+		}
+
+		bl := t.initBallot(node, suf.Locals(), point, prev, pr, ops)
+		t.NoError(bl.IsValid(t.networkID))
+		voted, ivp, err := box.voteAndWait(bl, th)
+		t.NoError(err)
+
+		t.T().Logf("voted: %-2d, voted=%-5v vp=%-5v err=%v\n", i, voted, ivp == nil, err)
+
+		switch {
+		case i < expected:
+			t.True(voted)
+			t.Nil(ivp)
+		case i == expected:
+			t.True(voted)
+			t.NotNil(ivp)
+
+			vp = ivp
+		default:
+			t.False(voted)
+			t.Nil(ivp)
+		}
+	}
+
+	t.T().Log("voteproof:", t.StringMarshal(vp))
+
+	t.NoError(isaac.IsValidVoteproofWithSuffrage(vp, suf))
+}
+
+func (t *testBallotboxWithWitdraw) TestINITBallotJointWithdrawsSafeThreshold() {
+	suf, nodes := isaac.NewTestSuffrage(20)
+	th := base.DefaultThreshold
+
+	local := nodes[0]
+	withdrawnodes := []base.Address{
+		nodes[14].Address(),
+		nodes[15].Address(),
+		nodes[16].Address(),
+		nodes[17].Address(),
+		nodes[18].Address(),
+		nodes[19].Address(),
+	}
+
+	point := base.RawPoint(33, 0)
+	prev := valuehash.RandomSHA256()
+	pr := valuehash.RandomSHA256()
+
+	fullsigned := t.withdraws(point.Height()-1, withdrawnodes, nodes[:15])
+
+	var ops []base.SuffrageWithdrawOperation
+	ops = append(ops, fullsigned...)
+
+	t.T().Log("full signed withdraw:", t.StringMarshal(fullsigned))
+
+	box := NewBallotbox(
+		local.Address(),
+		func(base.Height) (base.Suffrage, bool, error) {
+			return suf, true, nil
+		},
+		isaac.IsValidVoteproofWithSuffrage,
+	)
+
+	box.setLastStagePoint(base.NewStagePoint(point.PrevHeight(), base.StageACCEPT))
+
+	expected := 13
 
 	var vp base.Voteproof
 
