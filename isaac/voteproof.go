@@ -75,7 +75,7 @@ func (vp baseVoteproof) isValidWithdraws() error {
 	}
 
 	for i := range vp.sfs {
-		if util.InSlice(vp.sfs[i].Node().String(), withdrawnodes) >= 0 {
+		if util.InSlice(withdrawnodes, vp.sfs[i].Node().String()) >= 0 {
 			return util.ErrInvalid.Errorf("withdraw node voted")
 		}
 	}

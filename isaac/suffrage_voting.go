@@ -2,7 +2,10 @@ package isaac
 
 import (
 	"context"
+	"math/bits"
 	"reflect"
+	"sort"
+	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -66,7 +69,67 @@ func (s *SuffrageVoting) Vote(op base.SuffrageWithdrawOperation) (bool, error) {
 	return true, nil
 }
 
-func (s *SuffrageVoting) Collect(ctx context.Context, height base.Height, suf base.Suffrage) ([]base.SuffrageWithdrawOperation, error) {
+func (s *SuffrageVoting) Find(
+	ctx context.Context,
+	height base.Height,
+	suf base.Suffrage,
+) ([]base.SuffrageWithdrawOperation, error) {
+	e := util.StringErrorFunc("failed to collect suffrage withdraw operations")
+
+	if h := height.Prev(); h >= base.GenesisHeight {
+		defer func() {
+			_ = s.db.RemoveSuffrageWithdrawOperationsByHeight(h)
+		}()
+	}
+
+	var collected []base.SuffrageWithdrawOperation
+
+	// FIXME remove useless
+
+	var expires []util.Hash
+
+	if err := s.db.TraverseSuffrageWithdrawOperations(
+		ctx,
+		height,
+		func(op base.SuffrageWithdrawOperation) (bool, error) {
+			fact := op.WithdrawFact()
+
+			if !suf.Exists(fact.Node()) {
+				expires = append(expires, fact.Hash())
+
+				return false, nil
+			}
+
+			collected = append(collected, op)
+
+			return true, nil
+		}); err != nil {
+		return nil, e(err, "")
+	}
+
+	if len(expires) > 0 {
+		defer func() {
+			_ = s.db.RemoveSuffrageWithdrawOperationsByHash(expires)
+		}()
+	}
+
+	if len(collected) < 1 {
+		return nil, nil
+	}
+
+	// NOTE sort by fact hash
+	sort.Slice(collected, func(i, j int) bool {
+		return strings.Compare(collected[i].Hash().String(), collected[j].Hash().String()) < 0
+	})
+
+	threshold := base.DefaultThreshold.Threshold(uint(suf.Len()))
+
+	for i := len(collected); i > 0; i-- {
+		if j := s.findWithdrawCombinations(collected, suf, i, threshold); len(j) > 0 {
+			return j, nil
+		}
+	}
+
 	return nil, nil
 }
 
@@ -100,5 +163,106 @@ func (s *SuffrageVoting) merge(op, existing base.SuffrageWithdrawOperation) (bas
 		}
 
 		return updated, nil
+	}
+}
+
+func (*SuffrageVoting) findWithdrawCombinations(
+	set []base.SuffrageWithdrawOperation,
+	suf base.Suffrage,
+	n int,
+	threshold uint,
+) (found []base.SuffrageWithdrawOperation) {
+	newthreshold := threshold
+
+	if i := uint(n); i > uint(suf.Len())-threshold {
+		newthreshold = uint(suf.Len()) - i
+	}
+
+	findWithdrawCombinations(set, n, n,
+		func(op base.SuffrageWithdrawOperation) bool {
+			signs := op.NodeSigns()
+
+			for j := range signs {
+				// NOTE unknown node
+				if !suf.Exists(signs[j].Node()) {
+					return false
+				}
+			}
+
+			return uint(len(signs)) >= newthreshold // NOTE under threshold
+		},
+		func(ops []base.SuffrageWithdrawOperation) bool {
+			// NOTE check valid signs
+			withdrawnodes := make([]string, len(ops))
+			for j := range ops {
+				withdrawnodes[j] = ops[j].WithdrawFact().Node().String()
+			}
+
+			for j := range ops {
+				signs := ops[j].NodeSigns()
+
+				// NOTE check signs except withdraw nodes
+				if k := util.CountFilteredSlice(signs, func(_ interface{}, x int) bool {
+					return util.InSlice(withdrawnodes, signs[x].Node().String()) < 0
+				}); uint(k) < newthreshold {
+					return false
+				}
+			}
+
+			found = ops
+
+			return false
+		},
+	)
+
+	return found
+}
+
+// NOTE findBallotCombinations finds the possible combinations by number of
+// signs; it was derived from
+// https://github.com/mxschmitt/golang-combinations/blob/v1.1.0/combinations.go#L32
+func findWithdrawCombinations(
+	set []base.SuffrageWithdrawOperation,
+	min, max int,
+	filterOperation func(base.SuffrageWithdrawOperation) bool,
+	callback func([]base.SuffrageWithdrawOperation) bool,
+) {
+	if max > len(set) {
+		return
+	}
+
+	length := uint(len(set))
+
+end:
+	for i := 1; i < (1 << length); i++ {
+		switch {
+		case min >= 0 && bits.OnesCount(uint(i)) < min,
+			max >= 0 && bits.OnesCount(uint(i)) > max:
+			continue
+		}
+
+		subset := make([]base.SuffrageWithdrawOperation, max)
+
+		var n int
+
+		for j := uint(0); j < length; j++ {
+			if (i>>j)&1 == 1 {
+				if !filterOperation(set[j]) {
+					continue end
+				}
+
+				subset[n] = set[j]
+				n++
+			}
+		}
+
+		// NOTE less signed first for threshold comparison
+		sort.Slice(subset, func(i, j int) bool {
+			return len(subset[i].NodeSigns()) < len(subset[j].NodeSigns())
+		})
+
+		if !callback(subset) {
+			break end
+		}
 	}
 }

@@ -1,6 +1,6 @@
 package util
 
-func InSlice[T comparable](n T, s []T) int {
+func InSlice[T comparable](s []T, n T) int {
 	for i := range s {
 		if n == s[i] {
 			return i
@@ -63,6 +63,22 @@ func FilterSlice[T any](s []T, f func(interface{}, int) bool) []T {
 	}
 
 	return ns[:index]
+}
+
+func CountFilteredSlice[T any](s []T, f func(interface{}, int) bool) (n int) {
+	if len(s) < 1 {
+		return 0
+	}
+
+	for i := range s {
+		if !f(s[i], i) {
+			continue
+		}
+
+		n++
+	}
+
+	return n
 }
 
 func Filter2Slices[T any, Y any](a []T, b []Y, f func(interface{}, interface{}, int, int) bool) []T {

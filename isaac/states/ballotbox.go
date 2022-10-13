@@ -552,7 +552,7 @@ func (vr *voterecords) countWithWithdraws(
 		newthreshold := threshold
 		quorum := uint(suf.Len())
 
-		if n := uint(len(wfacts)); n > quorum-base.DefaultThreshold.Threshold(quorum) {
+		if uint(len(wfacts)) > quorum-base.DefaultThreshold.Threshold(quorum) {
 			newthreshold = base.MaxThreshold
 			quorum = uint(suf.Len() - len(wfacts))
 		}
