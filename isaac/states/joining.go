@@ -12,6 +12,9 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
+// FIXME when non-consensus state, mimic the incoming ballot from trust line. It
+// will help to prevent consensus stuck.
+
 type JoiningHandler struct {
 	*baseHandler
 	lastManifest         func() (base.Manifest, bool, error)

@@ -48,13 +48,17 @@ func (s *SuffrageVoting) Vote(op base.SuffrageWithdrawOperation) (bool, error) {
 	switch i, found, err := s.db.SuffrageWithdrawOperation(fact.WithdrawStart(), fact.Node()); {
 	case err != nil:
 		return false, e(err, "")
-	case found:
-		voted, err = s.merge(op, i)
+	case !found:
+		voted, err = s.merge(nil, op)
 		if err != nil {
 			return false, e(err, "")
 		}
 	default:
-		voted, err = s.merge(op, nil)
+		if i.Hash().Equal(op.Hash()) {
+			return false, nil
+		}
+
+		voted, err = s.merge(i, op)
 		if err != nil {
 			return false, e(err, "")
 		}
@@ -66,7 +70,7 @@ func (s *SuffrageVoting) Vote(op base.SuffrageWithdrawOperation) (bool, error) {
 		}
 	}
 
-	return true, nil
+	return voted != nil, nil
 }
 
 func (s *SuffrageVoting) Find(
@@ -77,14 +81,13 @@ func (s *SuffrageVoting) Find(
 	e := util.StringErrorFunc("failed to collect suffrage withdraw operations")
 
 	if h := height.Prev(); h >= base.GenesisHeight {
+		// NOTE remove expires
 		defer func() {
 			_ = s.db.RemoveSuffrageWithdrawOperationsByHeight(h)
 		}()
 	}
 
 	var collected []base.SuffrageWithdrawOperation
-
-	// FIXME remove useless
 
 	var expires []util.Hash
 
@@ -108,6 +111,7 @@ func (s *SuffrageVoting) Find(
 	}
 
 	if len(expires) > 0 {
+		// NOTE remove unknowns
 		defer func() {
 			_ = s.db.RemoveSuffrageWithdrawOperationsByHash(expires)
 		}()
@@ -122,26 +126,40 @@ func (s *SuffrageVoting) Find(
 		return strings.Compare(collected[i].Hash().String(), collected[j].Hash().String()) < 0
 	})
 
-	threshold := base.DefaultThreshold.Threshold(uint(suf.Len()))
+	var withdrawnodes []string
+	var found []base.SuffrageWithdrawOperation
 
-	for i := len(collected); i > 0; i-- {
-		if j := s.findWithdrawCombinations(collected, suf, i, threshold); len(j) > 0 {
-			return j, nil
-		}
+	if j, k := s.findWithdrawCombinations(collected, suf); len(j) > 0 {
+		withdrawnodes = j
+		found = k
 	}
 
-	return nil, nil
+	if len(found) < 1 {
+		return nil, nil
+	}
+
+	ops := make([]base.SuffrageWithdrawOperation, len(found))
+
+	for i := range found {
+		j, err := s.filterSigns(found[i], withdrawnodes)
+		if err != nil {
+			return nil, e(err, "")
+		}
+
+		ops[i] = j
+	}
+
+	return ops, nil
 }
 
-func (s *SuffrageVoting) merge(op, existing base.SuffrageWithdrawOperation) (base.SuffrageWithdrawOperation, error) {
+func (s *SuffrageVoting) merge(existing, newop base.SuffrageWithdrawOperation) (base.SuffrageWithdrawOperation, error) {
 	if existing == nil {
-		return nil, s.db.SetSuffrageWithdrawOperation(op)
+		return newop, s.db.SetSuffrageWithdrawOperation(newop)
 	}
 
-	elem := reflect.ValueOf(existing)
-	ptr := reflect.New(elem.Type()).Interface()
+	ptr := reflect.New(reflect.ValueOf(existing).Type()).Interface()
 
-	if err := util.InterfaceSetValue(elem, ptr); err != nil {
+	if err := util.InterfaceSetValue(existing, ptr); err != nil {
 		return nil, err
 	}
 
@@ -150,7 +168,7 @@ func (s *SuffrageVoting) merge(op, existing base.SuffrageWithdrawOperation) (bas
 		return nil, errors.Errorf("expected NodeSigner, but %T", existing)
 	}
 
-	switch added, err := nodesigner.AddNodeSigns(op.NodeSigns()); {
+	switch added, err := nodesigner.AddNodeSigns(newop.NodeSigns()); {
 	case err != nil:
 		return nil, err
 	case !added:
@@ -166,20 +184,16 @@ func (s *SuffrageVoting) merge(op, existing base.SuffrageWithdrawOperation) (bas
 	}
 }
 
-func (*SuffrageVoting) findWithdrawCombinations(
-	set []base.SuffrageWithdrawOperation,
-	suf base.Suffrage,
-	n int,
-	threshold uint,
-) (found []base.SuffrageWithdrawOperation) {
-	newthreshold := threshold
+func (*SuffrageVoting) findWithdrawCombinations(ops []base.SuffrageWithdrawOperation, suf base.Suffrage) (
+	withdrawnodes []string,
+	found []base.SuffrageWithdrawOperation,
+) {
+	threshold := base.DefaultThreshold.Threshold(uint(suf.Len()))
 
-	if i := uint(n); i > uint(suf.Len())-threshold {
-		newthreshold = uint(suf.Len()) - i
-	}
+	n := len(ops)
 
-	findWithdrawCombinations(set, n, n,
-		func(op base.SuffrageWithdrawOperation) bool {
+	findWithdrawCombinations(ops, 1, n,
+		func(i int, op base.SuffrageWithdrawOperation) bool {
 			signs := op.NodeSigns()
 
 			for j := range signs {
@@ -189,13 +203,24 @@ func (*SuffrageVoting) findWithdrawCombinations(
 				}
 			}
 
+			newthreshold := threshold
+
+			if uint(i) > uint(suf.Len())-threshold {
+				newthreshold = uint(suf.Len()) - uint(i)
+			}
+
 			return uint(len(signs)) >= newthreshold // NOTE under threshold
 		},
 		func(ops []base.SuffrageWithdrawOperation) bool {
-			// NOTE check valid signs
-			withdrawnodes := make([]string, len(ops))
+			newthreshold := threshold
+
+			if i := uint(len(ops)); i > uint(suf.Len())-threshold {
+				newthreshold = uint(suf.Len()) - i
+			}
+
+			nodes := make([]string, len(ops))
 			for j := range ops {
-				withdrawnodes[j] = ops[j].WithdrawFact().Node().String()
+				nodes[j] = ops[j].WithdrawFact().Node().String()
 			}
 
 			for j := range ops {
@@ -203,65 +228,100 @@ func (*SuffrageVoting) findWithdrawCombinations(
 
 				// NOTE check signs except withdraw nodes
 				if k := util.CountFilteredSlice(signs, func(_ interface{}, x int) bool {
-					return util.InSlice(withdrawnodes, signs[x].Node().String()) < 0
+					return util.InSlice(nodes, signs[x].Node().String()) < 0
 				}); uint(k) < newthreshold {
-					return false
+					return true
 				}
 			}
 
+			withdrawnodes = nodes
 			found = ops
 
 			return false
 		},
 	)
 
-	return found
+	return withdrawnodes, found
+}
+
+func (*SuffrageVoting) filterSigns(
+	op base.SuffrageWithdrawOperation, withdrawnodes []string,
+) (base.SuffrageWithdrawOperation, error) {
+	signs := op.NodeSigns()
+
+	filtered := util.FilterSlice(signs, func(_ interface{}, x int) bool {
+		return util.InSlice(withdrawnodes, signs[x].Node().String()) < 0
+	})
+
+	if len(signs) == len(filtered) {
+		return op, nil
+	}
+
+	ptr := reflect.New(reflect.ValueOf(op).Type()).Interface()
+
+	if err := util.InterfaceSetValue(op, ptr); err != nil {
+		return nil, err
+	}
+
+	nodesigner, ok := ptr.(base.NodeSigner)
+	if !ok {
+		return nil, errors.Errorf("expected NodeSigner, but %T", ptr)
+	}
+
+	if err := nodesigner.SetNodeSigns(filtered); err != nil {
+		return nil, err
+	}
+
+	return reflect.ValueOf(nodesigner). //nolint:forcetypeassert //...
+						Elem().Interface().(base.SuffrageWithdrawOperation), nil
 }
 
 // NOTE findBallotCombinations finds the possible combinations by number of
 // signs; it was derived from
 // https://github.com/mxschmitt/golang-combinations/blob/v1.1.0/combinations.go#L32
 func findWithdrawCombinations(
-	set []base.SuffrageWithdrawOperation,
+	ops []base.SuffrageWithdrawOperation,
 	min, max int,
-	filterOperation func(base.SuffrageWithdrawOperation) bool,
+	filterOperation func(int, base.SuffrageWithdrawOperation) bool,
 	callback func([]base.SuffrageWithdrawOperation) bool,
 ) {
-	if max > len(set) {
+	if max > len(ops) {
 		return
 	}
 
-	length := uint(len(set))
+	length := len(ops)
 
 end:
-	for i := 1; i < (1 << length); i++ {
+	for i := (1 << length) - 1; i > 0; i-- { // NOTE big combination first
+		n := bits.OnesCount(uint(i))
+
 		switch {
-		case min >= 0 && bits.OnesCount(uint(i)) < min,
-			max >= 0 && bits.OnesCount(uint(i)) > max:
+		case min >= 0 && n < min,
+			max >= 0 && n > max:
 			continue
 		}
 
-		subset := make([]base.SuffrageWithdrawOperation, max)
+		set := make([]base.SuffrageWithdrawOperation, max)
 
-		var n int
-
-		for j := uint(0); j < length; j++ {
+		var k int
+		for j := 0; j < length; j++ {
 			if (i>>j)&1 == 1 {
-				if !filterOperation(set[j]) {
+				if !filterOperation(n, ops[j]) {
 					continue end
 				}
 
-				subset[n] = set[j]
-				n++
+				set[k] = ops[j]
+
+				k++
 			}
 		}
 
 		// NOTE less signed first for threshold comparison
-		sort.Slice(subset, func(i, j int) bool {
-			return len(subset[i].NodeSigns()) < len(subset[j].NodeSigns())
+		sort.Slice(set[:n], func(i, j int) bool {
+			return len(set[i].NodeSigns()) < len(set[j].NodeSigns())
 		})
 
-		if !callback(subset) {
+		if !callback(set[:n]) {
 			break end
 		}
 	}
