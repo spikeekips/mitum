@@ -26,13 +26,13 @@ func (t *baseTestConsensusHandler) newState(previous base.Manifest, suf base.Suf
 		local,
 		params,
 		nil,
+		isaac.NewProposalProcessors(nil, nil),
 		func(base.Height) (base.Manifest, error) { return previous, nil },
 		func(base.Node, base.Height) (base.Suffrage, bool, error) {
 			return suf, suf.ExistsPublickey(local.Address(), local.Publickey()), nil
 		},
 		func(base.Ballot) (bool, error) { return true, nil },
 		func(base.Height) {},
-		isaac.NewProposalProcessors(nil, nil),
 	)
 	_ = newhandler.SetLogging(logging.TestNilLogging)
 	_ = newhandler.setTimers(util.NewTimers([]util.TimerID{
@@ -124,11 +124,11 @@ func (t *testConsensusHandler) TestFailedToFetchProposal() {
 		t.Local,
 		t.LocalParams,
 		nil,
+		pps,
 		func(base.Height) (base.Manifest, error) { return previous, nil },
 		func(base.Node, base.Height) (base.Suffrage, bool, error) { return suf, true, nil },
 		func(base.Ballot) (bool, error) { return true, nil },
 		nil,
-		pps,
 	)
 	_ = newhandler.SetLogging(logging.TestNilLogging)
 

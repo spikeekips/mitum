@@ -26,7 +26,7 @@ func NewNewBootingHandlerType(
 ) *NewBootingHandlerType {
 	return &NewBootingHandlerType{
 		BootingHandler: &BootingHandler{
-			baseHandler:          newBaseHandler(StateBooting, local, params, nil),
+			baseHandler:          newBaseHandler(StateBooting, local, params),
 			lastManifest:         lastManifest,
 			nodeInConsensusNodes: nodeInConsensusNodes,
 		},

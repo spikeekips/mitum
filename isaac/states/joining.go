@@ -16,7 +16,7 @@ import (
 // will help to prevent consensus stuck.
 
 type JoiningHandler struct {
-	*baseHandler
+	*baseBallotHandler
 	lastManifest         func() (base.Manifest, bool, error)
 	joinMemberlistf      func(context.Context, base.Suffrage) error
 	leaveMemberlistf     func(time.Duration) error
@@ -39,15 +39,15 @@ func NewNewJoiningHandlerType(
 	joinMemberlistf func(context.Context, base.Suffrage) error,
 	leaveMemberlistf func(time.Duration) error,
 ) *NewJoiningHandlerType {
-	baseHandler := newBaseHandler(StateJoining, local, params, proposalSelector)
+	baseBallotHandler := newBaseBallotHandler(StateJoining, local, params, proposalSelector)
 
 	if voteFunc != nil {
-		baseHandler.voteFunc = preventVotingWithEmptySuffrage(voteFunc, local, nodeInConsensusNodes)
+		baseBallotHandler.voteFunc = preventVotingWithEmptySuffrage(voteFunc, local, nodeInConsensusNodes)
 	}
 
 	return &NewJoiningHandlerType{
 		JoiningHandler: &JoiningHandler{
-			baseHandler:          baseHandler,
+			baseBallotHandler:    baseBallotHandler,
 			lastManifest:         lastManifest,
 			waitFirstVoteproof:   params.IntervalBroadcastBallot()*2 + params.WaitPreparingINITBallot(),
 			nodeInConsensusNodes: nodeInConsensusNodes,
@@ -59,7 +59,7 @@ func NewNewJoiningHandlerType(
 
 func (h *NewJoiningHandlerType) new() (handler, error) {
 	return &JoiningHandler{
-		baseHandler:          h.baseHandler.new(),
+		baseBallotHandler:    h.baseBallotHandler.new(),
 		lastManifest:         h.lastManifest,
 		waitFirstVoteproof:   h.waitFirstVoteproof,
 		nodeInConsensusNodes: h.nodeInConsensusNodes,
@@ -71,7 +71,7 @@ func (h *NewJoiningHandlerType) new() (handler, error) {
 func (st *JoiningHandler) enter(i switchContext) (func(), error) {
 	e := util.StringErrorFunc("failed to enter joining state")
 
-	deferred, err := st.baseHandler.enter(i)
+	deferred, err := st.baseBallotHandler.enter(i)
 	if err != nil {
 		return nil, e(err, "")
 	}
@@ -123,7 +123,7 @@ func (st *JoiningHandler) enter(i switchContext) (func(), error) {
 func (st *JoiningHandler) exit(sctx switchContext) (func(), error) {
 	e := util.StringErrorFunc("failed to exit from joining state")
 
-	deferred, err := st.baseHandler.exit(sctx)
+	deferred, err := st.baseBallotHandler.exit(sctx)
 	if err != nil {
 		return nil, e(err, "")
 	}
@@ -153,7 +153,7 @@ func (st *JoiningHandler) exit(sctx switchContext) (func(), error) {
 }
 
 func (st *JoiningHandler) newVoteproof(vp base.Voteproof) error {
-	if _, _, isnew := st.baseHandler.setNewVoteproof(vp); !isnew {
+	if _, _, isnew := st.baseBallotHandler.setNewVoteproof(vp); !isnew {
 		return nil
 	}
 

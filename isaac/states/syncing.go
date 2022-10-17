@@ -38,7 +38,6 @@ type NewSyncingHandlerType struct {
 func NewNewSyncingHandlerType(
 	local base.LocalNode,
 	params *isaac.LocalParams,
-	proposalSelector isaac.ProposalSelector,
 	newSyncer func(base.Height) (isaac.Syncer, error),
 	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc,
 	joinMemberlistf func(context.Context, base.Suffrage) error,
@@ -59,7 +58,7 @@ func NewNewSyncingHandlerType(
 
 	return &NewSyncingHandlerType{
 		SyncingHandler: &SyncingHandler{
-			baseHandler:          newBaseHandler(StateSyncing, local, params, proposalSelector),
+			baseHandler:          newBaseHandler(StateSyncing, local, params),
 			newSyncer:            newSyncer,
 			waitStuckInterval:    util.NewLocked(params.IntervalBroadcastBallot()*2 + params.WaitPreparingINITBallot()),
 			whenFinishedf:        func(base.Height) {},

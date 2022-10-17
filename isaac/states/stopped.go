@@ -19,7 +19,7 @@ func NewNewStoppedHandlerType(
 ) *NewStoppedHandlerType {
 	return &NewStoppedHandlerType{
 		StoppedHandler: &StoppedHandler{
-			baseHandler: newBaseHandler(StateStopped, local, params, nil),
+			baseHandler: newBaseHandler(StateStopped, local, params),
 		},
 	}
 }

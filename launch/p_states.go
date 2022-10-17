@@ -225,7 +225,7 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 	})
 
 	syncinghandler := isaacstates.NewNewSyncingHandlerType(
-		local, params, proposalSelector, newsyncerf, nodeInConsensusNodesf,
+		local, params, newsyncerf, nodeInConsensusNodesf,
 		joinMemberlistForStateHandlerf,
 		leaveMemberlistForSyncingHandlerf,
 		whenNewBlockSavedInSyncingStatef,
@@ -235,9 +235,8 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 	})
 
 	consensusHandler := isaacstates.NewNewConsensusHandlerType(
-		local, params, proposalSelector,
+		local, params, proposalSelector, pps,
 		getManifestf, nodeInConsensusNodesf, voteFunc, whenNewBlockSavedInConsensusStatef,
-		pps,
 	)
 
 	consensusHandler.SetOnEmptyMembers(onEmptyMembersf)

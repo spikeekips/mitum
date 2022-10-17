@@ -29,7 +29,6 @@ func (t *testSyncingHandler) newState(finishch chan base.Height) (*SyncingHandle
 	newhandler := NewNewSyncingHandlerType(
 		local,
 		params,
-		nil,
 		func(height base.Height) (isaac.Syncer, error) {
 			syncer := newDummySyncer(finishch, nil)
 			if !syncer.Add(height) {
@@ -49,9 +48,6 @@ func (t *testSyncingHandler) newState(finishch chan base.Height) (*SyncingHandle
 		timerIDBroadcastACCEPTBallot,
 	}, false))
 
-	newhandler.broadcastBallotFunc = func(bl base.Ballot) error {
-		return nil
-	}
 	newhandler.switchStateFunc = func(switchContext) error {
 		return nil
 	}

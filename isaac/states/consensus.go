@@ -12,11 +12,11 @@ import (
 )
 
 type ConsensusHandler struct {
-	*baseHandler
+	*baseBallotHandler
+	pps                  *isaac.ProposalProcessors
 	getManifest          func(base.Height) (base.Manifest, error)
 	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc
 	whenNewBlockSaved    func(base.Height)
-	pps                  *isaac.ProposalProcessors
 }
 
 type NewConsensusHandlerType struct {
@@ -27,32 +27,32 @@ func NewNewConsensusHandlerType(
 	local base.LocalNode,
 	params *isaac.LocalParams,
 	proposalSelector isaac.ProposalSelector,
+	pps *isaac.ProposalProcessors,
 	getManifest func(base.Height) (base.Manifest, error),
 	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc,
 	voteFunc func(base.Ballot) (bool, error),
 	whenNewBlockSaved func(base.Height),
-	pps *isaac.ProposalProcessors,
 ) *NewConsensusHandlerType {
-	baseHandler := newBaseHandler(StateConsensus, local, params, proposalSelector)
+	baseBallotHandler := newBaseBallotHandler(StateConsensus, local, params, proposalSelector)
 
 	if voteFunc != nil {
-		baseHandler.voteFunc = preventVotingWithEmptySuffrage(voteFunc, local, nodeInConsensusNodes)
+		baseBallotHandler.voteFunc = preventVotingWithEmptySuffrage(voteFunc, local, nodeInConsensusNodes)
 	}
 
 	return &NewConsensusHandlerType{
 		ConsensusHandler: &ConsensusHandler{
-			baseHandler:          baseHandler,
+			baseBallotHandler:    baseBallotHandler,
+			pps:                  pps,
 			getManifest:          getManifest,
 			nodeInConsensusNodes: nodeInConsensusNodes,
 			whenNewBlockSaved:    whenNewBlockSaved,
-			pps:                  pps,
 		},
 	}
 }
 
 func (h *NewConsensusHandlerType) new() (handler, error) {
 	return &ConsensusHandler{
-		baseHandler:          h.baseHandler.new(),
+		baseBallotHandler:    h.baseBallotHandler.new(),
 		getManifest:          h.getManifest,
 		nodeInConsensusNodes: h.nodeInConsensusNodes,
 		whenNewBlockSaved:    h.whenNewBlockSaved,
@@ -63,7 +63,7 @@ func (h *NewConsensusHandlerType) new() (handler, error) {
 func (st *ConsensusHandler) enter(i switchContext) (func(), error) {
 	e := util.StringErrorFunc("failed to enter consensus state")
 
-	deferred, err := st.baseHandler.enter(i)
+	deferred, err := st.baseBallotHandler.enter(i)
 	if err != nil {
 		return nil, e(err, "")
 	}
@@ -127,7 +127,7 @@ func (st *ConsensusHandler) enter(i switchContext) (func(), error) {
 func (st *ConsensusHandler) exit(sctx switchContext) (func(), error) {
 	e := util.StringErrorFunc("failed to exit from consensus state")
 
-	deferred, err := st.baseHandler.exit(sctx)
+	deferred, err := st.baseBallotHandler.exit(sctx)
 	if err != nil {
 		return nil, e(err, "")
 	}
@@ -326,6 +326,8 @@ func (st *ConsensusHandler) prepareACCEPTBallot(
 ) error {
 	e := util.StringErrorFunc("failed to prepare accept ballot")
 
+	// FIXME add SuffrageWithdrawOperations into ballot from voteproof
+
 	afact := isaac.NewACCEPTBallotFact(ivp.Point().Point, ivp.BallotMajority().Proposal(), manifest.Hash(), nil)
 	signfact := isaac.NewACCEPTBallotSignFact(st.local.Address(), afact)
 
@@ -368,7 +370,7 @@ func (st *ConsensusHandler) prepareACCEPTBallot(
 func (st *ConsensusHandler) newVoteproof(vp base.Voteproof) error {
 	var lvps LastVoteproofs
 
-	switch i, v, isnew := st.baseHandler.setNewVoteproof(vp); {
+	switch i, v, isnew := st.baseBallotHandler.setNewVoteproof(vp); {
 	case v == nil, !isnew:
 		return nil
 	default:
