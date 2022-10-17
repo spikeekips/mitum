@@ -35,6 +35,7 @@ func (t *testJoiningHandler) newState(suf base.Suffrage) (*JoiningHandler, func(
 		func(base.Ballot) (bool, error) { return true, nil },
 		func(context.Context, base.Suffrage) error { return nil },
 		func(time.Duration) error { return nil },
+		nil,
 	)
 	_ = newhandler.SetLogging(logging.TestNilLogging)
 	_ = newhandler.setTimers(util.NewTimers([]util.TimerID{

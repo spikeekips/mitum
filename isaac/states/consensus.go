@@ -32,8 +32,9 @@ func NewNewConsensusHandlerType(
 	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc,
 	voteFunc func(base.Ballot) (bool, error),
 	whenNewBlockSaved func(base.Height),
+	svf SuffrageVotingFindFunc,
 ) *NewConsensusHandlerType {
-	baseBallotHandler := newBaseBallotHandler(StateConsensus, local, params, proposalSelector)
+	baseBallotHandler := newBaseBallotHandler(StateConsensus, local, params, proposalSelector, svf)
 
 	if voteFunc != nil {
 		baseBallotHandler.voteFunc = preventVotingWithEmptySuffrage(voteFunc, local, nodeInConsensusNodes)
@@ -326,16 +327,33 @@ func (st *ConsensusHandler) prepareACCEPTBallot(
 ) error {
 	e := util.StringErrorFunc("failed to prepare accept ballot")
 
-	// FIXME add SuffrageWithdrawOperations into ballot from voteproof
+	// NOTE add SuffrageWithdrawOperations into ballot from init voteproof
+	var withdrawfacts []base.SuffrageWithdrawFact
+	var withdraws []base.SuffrageWithdrawOperation
 
-	afact := isaac.NewACCEPTBallotFact(ivp.Point().Point, ivp.BallotMajority().Proposal(), manifest.Hash(), nil)
+	if i, ok := ivp.(isaac.WithdrawVoteproof); ok {
+		withdraws = i.Withdraws()
+
+		withdrawfacts = make([]base.SuffrageWithdrawFact, len(withdraws))
+
+		for i := range withdraws {
+			withdrawfacts[i] = withdraws[i].WithdrawFact()
+		}
+	}
+
+	afact := isaac.NewACCEPTBallotFact(
+		ivp.Point().Point,
+		ivp.BallotMajority().Proposal(),
+		manifest.Hash(),
+		withdrawfacts,
+	)
 	signfact := isaac.NewACCEPTBallotSignFact(st.local.Address(), afact)
 
 	if err := signfact.Sign(st.local.Privatekey(), st.params.NetworkID()); err != nil {
 		return e(err, "")
 	}
 
-	bl := isaac.NewACCEPTBallot(ivp, signfact, nil)
+	bl := isaac.NewACCEPTBallot(ivp, signfact, withdraws)
 
 	go func() {
 		<-time.After(initialWait)
@@ -592,7 +610,7 @@ func (st *ConsensusHandler) nextRound(vp base.Voteproof, previousBlock util.Hash
 	var sctx switchContext
 	var bl base.INITBallot
 
-	switch i, err := st.prepareNextRound(vp, previousBlock); {
+	switch i, err := st.prepareNextRound(vp, previousBlock, st.nodeInConsensusNodes); {
 	case err == nil:
 		if i == nil {
 			return

@@ -11,11 +11,14 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
+type SuffrageVotingFindFunc func(context.Context, base.Height, base.Suffrage) ([]base.SuffrageWithdrawOperation, error)
+
 type baseBallotHandler struct {
 	*baseHandler
 	proposalSelector    isaac.ProposalSelector
 	broadcastBallotFunc func(base.Ballot) error
 	voteFunc            func(base.Ballot) (bool, error)
+	svf                 SuffrageVotingFindFunc
 }
 
 func newBaseBallotHandler(
@@ -23,7 +26,16 @@ func newBaseBallotHandler(
 	local base.LocalNode,
 	params *isaac.LocalParams,
 	proposalSelector isaac.ProposalSelector,
+	svf SuffrageVotingFindFunc,
 ) *baseBallotHandler {
+	if svf == nil {
+		svf = func(context.Context, base.Height, base.Suffrage) ( //revive:disable-line:modifies-parameter
+			[]base.SuffrageWithdrawOperation, error,
+		) {
+			return nil, nil
+		}
+	}
+
 	return &baseBallotHandler{
 		baseHandler:      newBaseHandler(state, local, params),
 		proposalSelector: proposalSelector,
@@ -31,6 +43,7 @@ func newBaseBallotHandler(
 			return nil
 		},
 		voteFunc: func(base.Ballot) (bool, error) { return false, errors.Errorf("not voted") },
+		svf:      svf,
 	}
 }
 
@@ -38,6 +51,7 @@ func (st *baseBallotHandler) new() *baseBallotHandler {
 	return &baseBallotHandler{
 		baseHandler:         st.baseHandler.new(),
 		proposalSelector:    st.proposalSelector,
+		svf:                 st.svf,
 		broadcastBallotFunc: st.broadcastBallotFunc,
 		voteFunc:            st.voteFunc,
 	}
@@ -51,12 +65,45 @@ func (st *baseBallotHandler) setStates(sts *States) {
 	}
 }
 
-func (st *baseBallotHandler) prepareNextRound(vp base.Voteproof, prevBlock util.Hash) (base.INITBallot, error) {
+func (st *baseBallotHandler) prepareNextRound(
+	vp base.Voteproof,
+	prevBlock util.Hash,
+	nodeInConsensusNodesFunc isaac.NodeInConsensusNodesFunc,
+) (base.INITBallot, error) {
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(vp)).Logger() //nolint:goconst //...
 
 	point := vp.Point().Point.NextRound()
 
 	l.Debug().Object("point", point).Msg("preparing next round")
+
+	var withdrawfacts []base.SuffrageWithdrawFact
+	var withdraws []base.SuffrageWithdrawOperation
+
+	switch suf, found, err := nodeInConsensusNodesFunc(st.local, point.Height()); {
+	case errors.Is(err, storage.ErrNotFound):
+	case err != nil:
+		l.Error().Err(err).Msg("failed to get suffrage")
+
+		return nil, err
+	case suf == nil || suf.Len() < 1:
+		l.Debug().Msg("empty suffrage of next block; moves to broken state")
+
+		return nil, err
+	case !found:
+		l.Debug().Msg("local is not in consensus nodes")
+
+		return nil, nil
+	default:
+		l.Debug().
+			Bool("in_suffrage", suf.ExistsPublickey(st.local.Address(), st.local.Publickey())).
+			Msg("local is in consensus nodes and is in suffrage?")
+
+		// NOTE collect suffrage withdraw operations
+		withdraws, withdrawfacts, err = st.findWithdraws(point.Height(), suf)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	// NOTE find next proposal
 	pr, err := st.proposalSelector.Select(st.ctx, point)
@@ -70,13 +117,11 @@ func (st *baseBallotHandler) prepareNextRound(vp base.Voteproof, prevBlock util.
 
 	e := util.StringErrorFunc("failed to move to next round")
 
-	// FIXME collect suffrage withdraw operations
-
 	fact := isaac.NewINITBallotFact(
 		point,
 		prevBlock,
 		pr.Fact().Hash(),
-		nil,
+		withdrawfacts,
 	)
 	sf := isaac.NewINITBallotSignFact(st.local.Address(), fact)
 
@@ -84,17 +129,21 @@ func (st *baseBallotHandler) prepareNextRound(vp base.Voteproof, prevBlock util.
 		return nil, newBrokenSwitchContext(st.stt, e(err, "failed to make next round init ballot"))
 	}
 
-	return isaac.NewINITBallot(vp, sf, nil), nil
+	return isaac.NewINITBallot(vp, sf, withdraws), nil
 }
 
 func (st *baseBallotHandler) prepareNextBlock(
-	avp base.ACCEPTVoteproof, nodeInConsensusNodesFunc isaac.NodeInConsensusNodesFunc,
+	avp base.ACCEPTVoteproof,
+	nodeInConsensusNodesFunc isaac.NodeInConsensusNodesFunc,
 ) (base.INITBallot, error) {
 	e := util.StringErrorFunc("failed to prepare next block")
 
 	point := avp.Point().Point.NextHeight()
 
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(avp)).Object("point", point).Logger()
+
+	var withdrawfacts []base.SuffrageWithdrawFact
+	var withdraws []base.SuffrageWithdrawOperation
 
 	switch suf, found, err := nodeInConsensusNodesFunc(st.local, point.Height()); {
 	case errors.Is(err, storage.ErrNotFound):
@@ -109,10 +158,16 @@ func (st *baseBallotHandler) prepareNextBlock(
 		l.Debug().Msg("local is not in consensus nodes at next block; moves to syncing state")
 
 		return nil, newSyncingSwitchContext(StateConsensus, avp.Point().Height())
-	case suf.ExistsPublickey(st.local.Address(), st.local.Publickey()):
-		l.Debug().Msg("local is in consensus nodes and in suffrage")
 	default:
-		l.Debug().Msg("local is in consensus nodes, but not in suffrage")
+		l.Debug().
+			Bool("in_suffrage", suf.ExistsPublickey(st.local.Address(), st.local.Publickey())).
+			Msg("local is in consensus nodes and is in suffrage?")
+
+		// NOTE collect suffrage withdraw operations
+		withdraws, withdrawfacts, err = st.findWithdraws(point.Height(), suf)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// NOTE find next proposal
@@ -137,7 +192,7 @@ func (st *baseBallotHandler) prepareNextBlock(
 		point,
 		avp.BallotMajority().NewBlock(),
 		pr.Fact().Hash(),
-		nil,
+		withdrawfacts,
 	)
 	sf := isaac.NewINITBallotSignFact(st.local.Address(), fact)
 
@@ -145,7 +200,7 @@ func (st *baseBallotHandler) prepareNextBlock(
 		return nil, e(err, "failed to make next init ballot")
 	}
 
-	return isaac.NewINITBallot(avp, sf, nil), nil
+	return isaac.NewINITBallot(avp, sf, withdraws), nil
 }
 
 func (st *baseBallotHandler) broadcastINITBallot(bl base.Ballot, initialWait time.Duration) error {
@@ -201,6 +256,31 @@ func (st *baseBallotHandler) broadcastBallot(
 
 func (st *baseBallotHandler) vote(bl base.Ballot) (bool, error) {
 	return st.voteFunc(bl)
+}
+
+func (st *baseBallotHandler) findWithdraws(height base.Height, suf base.Suffrage) (
+	withdraws []base.SuffrageWithdrawOperation,
+	withdrawfacts []base.SuffrageWithdrawFact,
+	_ error,
+) {
+	ops, err := st.svf(context.Background(), height, suf)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if len(ops) < 1 {
+		return nil, nil, nil
+	}
+
+	withdrawfacts = make([]base.SuffrageWithdrawFact, len(ops))
+
+	for i := range ops {
+		withdrawfacts[i] = ops[i].WithdrawFact()
+	}
+
+	withdraws = ops
+
+	return withdraws, withdrawfacts, nil
 }
 
 var errFailedToVoteNotInConsensus = util.NewError("failed to vote; local not in consensus nodes")

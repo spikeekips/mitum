@@ -38,8 +38,9 @@ func NewNewJoiningHandlerType(
 	voteFunc func(base.Ballot) (bool, error),
 	joinMemberlistf func(context.Context, base.Suffrage) error,
 	leaveMemberlistf func(time.Duration) error,
+	svf SuffrageVotingFindFunc,
 ) *NewJoiningHandlerType {
-	baseBallotHandler := newBaseBallotHandler(StateJoining, local, params, proposalSelector)
+	baseBallotHandler := newBaseBallotHandler(StateJoining, local, params, proposalSelector, svf)
 
 	if voteFunc != nil {
 		baseBallotHandler.voteFunc = preventVotingWithEmptySuffrage(voteFunc, local, nodeInConsensusNodes)
@@ -350,7 +351,7 @@ func (st *JoiningHandler) nextRound(vp base.Voteproof, prevBlock util.Hash) {
 	var sctx switchContext
 	var bl base.INITBallot
 
-	switch i, err := st.prepareNextRound(vp, prevBlock); {
+	switch i, err := st.prepareNextRound(vp, prevBlock, st.nodeInConsensusNodes); {
 	case err == nil:
 		if i == nil {
 			return

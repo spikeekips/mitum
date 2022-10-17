@@ -140,6 +140,7 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 	var pool *isaacdatabase.TempPool
 	var lvps *isaacstates.LastVoteproofsHandler
 	var pps *isaac.ProposalProcessors
+	var sv *isaac.SuffrageVoting
 
 	if err := util.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
@@ -154,6 +155,7 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 		PoolDatabaseContextKey, &pool,
 		LastVoteproofsHandlerContextKey, &lvps,
 		ProposalProcessorsContextKey, &pps,
+		SuffrageVotingContextKey, &sv,
 	); err != nil {
 		return ctx, e(err, "")
 	}
@@ -207,6 +209,14 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 		whenNewBlockSavedInConsensusStatef = WhenNewBlockSavedInConsensusStateFunc(params, ballotbox, db, nodeinfo)
 	}
 
+	suffrageVotingFindf := func(
+		ctx context.Context,
+		height base.Height,
+		suf base.Suffrage,
+	) ([]base.SuffrageWithdrawOperation, error) {
+		return sv.Find(ctx, height, suf)
+	}
+
 	onEmptyMembersf, err := onEmptyMembersStateHandlerFunc(ctx, states)
 	if err != nil {
 		return ctx, e(err, "")
@@ -236,14 +246,15 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 
 	consensusHandler := isaacstates.NewNewConsensusHandlerType(
 		local, params, proposalSelector, pps,
-		getManifestf, nodeInConsensusNodesf, voteFunc, whenNewBlockSavedInConsensusStatef,
+		getManifestf, nodeInConsensusNodesf, voteFunc, whenNewBlockSavedInConsensusStatef, suffrageVotingFindf,
 	)
 
 	consensusHandler.SetOnEmptyMembers(onEmptyMembersf)
 
 	joiningHandler := isaacstates.NewNewJoiningHandlerType(
-		local, params, proposalSelector, getLastManifestf, nodeInConsensusNodesf,
-		voteFunc, joinMemberlistForJoiningeHandlerf, leaveMemberlistForStateHandlerf,
+		local, params, proposalSelector,
+		getLastManifestf, nodeInConsensusNodesf,
+		voteFunc, joinMemberlistForJoiningeHandlerf, leaveMemberlistForStateHandlerf, suffrageVotingFindf,
 	)
 	joiningHandler.SetOnEmptyMembers(onEmptyMembersf)
 
