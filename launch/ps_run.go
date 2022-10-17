@@ -54,7 +54,8 @@ func DefaultRunPS() *ps.PS {
 	_ = pps.POK(PNameMemberlist).
 		PreAddOK(PNameLastSuffrageProofWatcher, PLastSuffrageProofWatcher).
 		PostAddOK(PNamePatchLastSuffrageProofWatcherWithMemberlist, PPatchLastSuffrageProofWatcherWithMemberlist).
-		PostAddOK(PNameLongRunningMemberlistJoin, PLongRunningMemberlistJoin)
+		PostAddOK(PNameLongRunningMemberlistJoin, PLongRunningMemberlistJoin).
+		PostAddOK(PNameSuffrageVoting, PSuffrageVoting)
 
 	_ = pps.POK(PNameStates).
 		PreAddOK(PNameOperationProcessorsMap, POperationProcessorsMap).

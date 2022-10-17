@@ -60,6 +60,7 @@ func QuicstreamHandlerSendOperation(
 	oppool isaac.NewOperationPool,
 	existsInStateOperationf func(util.Hash) (bool, error),
 	filterSendOperationf func(base.Operation) (bool, error),
+	vote func(base.SuffrageWithdrawOperation) (bool, error),
 ) quicstream.Handler {
 	filterNewOperation := func(op base.Operation) error {
 		switch found, err := existsInStateOperationf(op.Fact().Hash()); {
@@ -120,13 +121,27 @@ func QuicstreamHandlerSendOperation(
 			return e(err, "")
 		}
 
-		added, err := oppool.SetNewOperation(context.Background(), op)
+		added, err := quicstreamHandlerSetOperation(context.Background(), oppool, vote, op)
 
 		if err = WriteResponse(w, NewResponseHeader(added, err), nil, enc); err != nil {
 			return e(err, "")
 		}
 
 		return nil
+	}
+}
+
+func quicstreamHandlerSetOperation(
+	ctx context.Context,
+	oppool isaac.NewOperationPool,
+	vote func(base.SuffrageWithdrawOperation) (bool, error),
+	op base.Operation,
+) (bool, error) {
+	switch t := op.(type) {
+	case base.SuffrageWithdrawOperation:
+		return vote(t)
+	default:
+		return oppool.SetNewOperation(ctx, op)
 	}
 }
 

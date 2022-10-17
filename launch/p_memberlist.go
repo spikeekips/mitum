@@ -26,9 +26,11 @@ var (
 	PNameMemberlist                     = ps.Name("memberlist")
 	PNameStartMemberlist                = ps.Name("start-memberlist")
 	PNameLongRunningMemberlistJoin      = ps.Name("long-running-memberlist-join")
+	PNameSuffrageVoting                 = ps.Name("suffrage-voting")
 	MemberlistContextKey                = util.ContextKey("memberlist")
 	LongRunningMemberlistJoinContextKey = util.ContextKey("long-running-memberlist-join")
-	EventOnEmptyMembers                 = util.ContextKey("event-on-empty-members")
+	EventOnEmptyMembersContextKey       = util.ContextKey("event-on-empty-members")
+	SuffrageVotingContextKey            = util.ContextKey("suffrage-voting")
 )
 
 func PMemberlist(ctx context.Context) (context.Context, error) {
@@ -84,7 +86,7 @@ func PMemberlist(ctx context.Context) (context.Context, error) {
 
 	//revive:disable:modifies-parameter
 	ctx = context.WithValue(ctx, MemberlistContextKey, m)
-	ctx = context.WithValue(ctx, EventOnEmptyMembers, pps)
+	ctx = context.WithValue(ctx, EventOnEmptyMembersContextKey, pps)
 	//revive:enable:modifies-parameter
 
 	return ctx, nil

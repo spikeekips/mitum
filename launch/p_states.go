@@ -829,7 +829,7 @@ func onEmptyMembersStateHandlerFunc(
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
-		EventOnEmptyMembers, &pps,
+		EventOnEmptyMembersContextKey, &pps,
 		LongRunningMemberlistJoinContextKey, &long,
 	); err != nil {
 		return nil, err

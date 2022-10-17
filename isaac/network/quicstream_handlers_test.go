@@ -53,6 +53,8 @@ func (t *testQuicstreamHandlers) SetupSuite() {
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.DummyOperationFactHint, Instance: isaac.DummyOperationFact{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.DummyOperationHint, Instance: isaac.DummyOperation{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageCandidateStateValueHint, Instance: isaac.SuffrageCandidateStateValue{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageWithdrawOperationHint, Instance: isaac.SuffrageWithdrawOperation{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageWithdrawFactHint, Instance: isaac.SuffrageWithdrawFact{}}))
 }
 
 func (t *testQuicstreamHandlers) TestClient() {
@@ -182,6 +184,7 @@ func (t *testQuicstreamHandlers) TestSendOperation() {
 	handler := QuicstreamHandlerSendOperation(t.Encs, time.Second, t.LocalParams, pool,
 		func(util.Hash) (bool, error) { return false, nil },
 		func(base.Operation) (bool, error) { return true, nil },
+		nil,
 	)
 
 	ci := quicstream.NewUDPConnInfo(nil, true)
@@ -203,12 +206,69 @@ func (t *testQuicstreamHandlers) TestSendOperation() {
 		handler := QuicstreamHandlerSendOperation(t.Encs, time.Second, t.LocalParams, pool,
 			func(util.Hash) (bool, error) { return false, nil },
 			func(base.Operation) (bool, error) { return false, nil },
+			nil,
 		)
 		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixSendOperation, handler))
 
 		updated, err := c.SendOperation(context.Background(), ci, op)
 		t.Error(err)
 		t.False(updated)
+		t.ErrorContains(err, "filtered")
+	})
+}
+
+func (t *testQuicstreamHandlers) TestSendOperationWithdraw() {
+	fact := isaac.NewSuffrageWithdrawFact(base.RandomAddress(""), base.Height(33), base.Height(34), util.UUID().String())
+	op := isaac.NewSuffrageWithdrawOperation(fact)
+	t.NoError(op.NodeSign(t.Local.Privatekey(), t.LocalParams.NetworkID(), t.Local.Address()))
+
+	var votedop base.SuffrageWithdrawOperation
+
+	handler := QuicstreamHandlerSendOperation(t.Encs, time.Second, t.LocalParams, nil,
+		func(util.Hash) (bool, error) { return false, nil },
+		func(base.Operation) (bool, error) { return true, nil },
+		func(op base.SuffrageWithdrawOperation) (bool, error) {
+			var voted bool
+
+			switch {
+			case votedop == nil:
+				voted = true
+			case votedop.Hash().Equal(op.Hash()):
+				voted = false
+			}
+
+			votedop = op
+
+			return voted, nil
+		},
+	)
+
+	ci := quicstream.NewUDPConnInfo(nil, true)
+	c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixSendOperation, handler))
+
+	t.Run("ok", func() {
+		voted, err := c.SendOperation(context.Background(), ci, op)
+		t.NoError(err)
+		t.True(voted)
+	})
+
+	t.Run("already voted", func() {
+		voted, err := c.SendOperation(context.Background(), ci, op)
+		t.NoError(err)
+		t.False(voted)
+	})
+
+	t.Run("filtered", func() {
+		handler := QuicstreamHandlerSendOperation(t.Encs, time.Second, t.LocalParams, nil,
+			func(util.Hash) (bool, error) { return false, nil },
+			func(base.Operation) (bool, error) { return false, nil },
+			func(op base.SuffrageWithdrawOperation) (bool, error) { return true, nil },
+		)
+		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixSendOperation, handler))
+
+		voted, err := c.SendOperation(context.Background(), ci, op)
+		t.Error(err)
+		t.False(voted)
 		t.ErrorContains(err, "filtered")
 	})
 }

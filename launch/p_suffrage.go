@@ -7,10 +7,12 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
+	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/ps"
@@ -236,9 +238,44 @@ func PNodeInConsensusNodesFunc(ctx context.Context) (context.Context, error) {
 		return suf, false, nil
 	}
 
-	ctx = context.WithValue(ctx, NodeInConsensusNodesFuncContextKey, f) //revive:disable-line:modifies-parameter
+	return context.WithValue(ctx, NodeInConsensusNodesFuncContextKey, f), nil //revive:disable-line:modifies-parameter
+}
 
-	return ctx, nil
+func PSuffrageVoting(ctx context.Context) (context.Context, error) {
+	var local base.LocalNode
+	var enc encoder.Encoder
+	var pool *isaacdatabase.TempPool
+	var memberlist *quicmemberlist.Memberlist
+
+	if err := util.LoadFromContextOK(ctx,
+		LocalContextKey, &local,
+		EncoderContextKey, &enc,
+		PoolDatabaseContextKey, &pool,
+		MemberlistContextKey, &memberlist,
+	); err != nil {
+		return ctx, err
+	}
+
+	sv := isaac.NewSuffrageVoting(
+		local.Address(),
+		pool,
+		func(op base.SuffrageWithdrawOperation) error {
+			e := util.StringErrorFunc("failed to broadcast suffrage withdraw operation")
+
+			b, err := enc.Marshal(op)
+			if err != nil {
+				return e(err, "")
+			}
+
+			if err := BroadcastThruMemberlist(memberlist, op.Hash().String(), b, nil); err != nil {
+				return e(err, "")
+			}
+
+			return nil
+		},
+	)
+
+	return context.WithValue(ctx, SuffrageVotingContextKey, sv), nil
 }
 
 func FixedSuffrageCandidateLimiterFunc() func(

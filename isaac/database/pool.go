@@ -284,7 +284,10 @@ func (db *TempPool) SetNewOperation(_ context.Context, op base.Operation) (bool,
 	return true, nil
 }
 
-func (db *TempPool) SuffrageWithdrawOperation(height base.Height, node base.Address) (base.SuffrageWithdrawOperation, bool, error) {
+func (db *TempPool) SuffrageWithdrawOperation(
+	height base.Height,
+	node base.Address,
+) (base.SuffrageWithdrawOperation, bool, error) {
 	e := util.StringErrorFunc("failed to get SuffrageWithdrawOperation")
 
 	nodeb := node.Bytes()

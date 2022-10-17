@@ -44,6 +44,7 @@ func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 	var syncSourcePool *isaac.SyncSourcePool
 	var handlers *quicstream.PrefixHandler
 	var nodeinfo *isaacnetwork.NodeInfoUpdater
+	var sv *isaac.SuffrageVoting
 
 	if err := util.LoadFromContextOK(ctx,
 		EncodersContextKey, &encs,
@@ -58,6 +59,7 @@ func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 		SyncSourcePoolContextKey, &syncSourcePool,
 		QuicstreamHandlersContextKey, &handlers,
 		NodeInfoContextKey, &nodeinfo,
+		SuffrageVotingContextKey, &sv,
 	); err != nil {
 		return ctx, e(err, "")
 	}
@@ -75,7 +77,13 @@ func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 		Add(isaacnetwork.HandlerPrefixOperation, isaacnetwork.QuicstreamHandlerOperation(encs, idletimeout, pool)).
 		Add(isaacnetwork.HandlerPrefixSendOperation,
 			isaacnetwork.QuicstreamHandlerSendOperation(
-				encs, idletimeout, params, pool, db.ExistsInStateOperation, sendOperationFilterf),
+				encs, idletimeout, params, pool,
+				db.ExistsInStateOperation,
+				sendOperationFilterf,
+				func(op base.SuffrageWithdrawOperation) (bool, error) {
+					return sv.Vote(op)
+				},
+			),
 		).
 		Add(isaacnetwork.HandlerPrefixRequestProposal,
 			isaacnetwork.QuicstreamHandlerRequestProposal(encs, idletimeout,
