@@ -177,7 +177,7 @@ func NewLengthedBytesSlice(version byte, m [][]byte) ([]byte, error) {
 }
 
 func WriteLengthedBytesSlice(w io.Writer, version byte, m [][]byte) error {
-	e := StringErrorFunc("failed RecordMeta")
+	e := StringErrorFunc("failed to write lengthed bytes")
 
 	if err := LengthedBytes(w, []byte{version}); err != nil {
 		return e(err, "")
@@ -197,7 +197,7 @@ func WriteLengthedBytesSlice(w io.Writer, version byte, m [][]byte) error {
 }
 
 func ReadLengthedBytesSlice(b []byte) (version byte, m [][]byte, left []byte, _ error) {
-	e := StringErrorFunc("failed RecordMeta from bytes")
+	e := StringErrorFunc("failed to read lengthed bytes from bytes")
 
 	switch i, j, err := ReadLengthedBytes(b); {
 	case err != nil:
