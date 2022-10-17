@@ -132,6 +132,6 @@ type SuffrageWithdrawPool interface {
 		base.Height,
 		func(base.SuffrageWithdrawOperation) (ok bool, err error),
 	) error
-	RemoveSuffrageWithdrawOperationsByHash(facthashes []util.Hash) error
+	RemoveSuffrageWithdrawOperationsByFact([]base.SuffrageWithdrawFact) error
 	RemoveSuffrageWithdrawOperationsByHeight(base.Height) error
 }

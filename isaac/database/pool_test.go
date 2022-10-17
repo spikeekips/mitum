@@ -653,3 +653,161 @@ func (t *testNewOperationPool) TestPeriodicCleanNewOperations() {
 func TestNewOperationPool(t *testing.T) {
 	suite.Run(t, new(testNewOperationPool))
 }
+
+type testSuffrageWithdrawPool struct {
+	isaac.BaseTestBallots
+	BaseTestDatabase
+	local     isaac.LocalNode
+	networkID base.NetworkID
+}
+
+func (t *testSuffrageWithdrawPool) SetupSuite() {
+	t.BaseTestDatabase.SetupSuite()
+
+	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageWithdrawOperationHint, Instance: isaac.SuffrageWithdrawOperation{}}))
+	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageWithdrawFactHint, Instance: isaac.SuffrageWithdrawFact{}}))
+
+	t.local = isaac.RandomLocalNode()
+	t.networkID = util.UUID().Bytes()
+}
+
+func (t *testSuffrageWithdrawPool) SetupTest() {
+	t.BaseTestBallots.SetupTest()
+}
+
+func (t *testSuffrageWithdrawPool) operation(
+	start, end base.Height,
+	node base.Address,
+) isaac.SuffrageWithdrawOperation {
+	fact := isaac.NewSuffrageWithdrawFact(node, start, end, util.UUID().String())
+	op := isaac.NewSuffrageWithdrawOperation(fact)
+	t.NoError(op.NodeSign(t.local.Privatekey(), t.networkID, t.local.Address()))
+
+	return op
+}
+
+func (t *testSuffrageWithdrawPool) TestSet() {
+	pst := t.NewPool()
+	defer pst.Close()
+
+	t.Run("set and get", func() {
+		height := base.Height(33)
+		node := base.RandomAddress("")
+
+		rop, found, err := pst.SuffrageWithdrawOperation(height, node)
+		t.NoError(err)
+		t.False(found)
+		t.Nil(rop)
+
+		nop := t.operation(height, height+1, node)
+		t.NoError(pst.SetSuffrageWithdrawOperation(nop))
+
+		rop, found, err = pst.SuffrageWithdrawOperation(height, node)
+		t.NoError(err)
+		t.True(found)
+		t.NotNil(rop)
+		t.True(nop.Hash().Equal(rop.Hash()))
+	})
+}
+
+func (t *testSuffrageWithdrawPool) TestRemoveByFact() {
+	pst := t.NewPool()
+	defer pst.Close()
+
+	t.Run("set and remove", func() {
+		height := base.Height(33)
+		node := base.RandomAddress("")
+
+		rop, found, err := pst.SuffrageWithdrawOperation(height, node)
+		t.NoError(err)
+		t.False(found)
+		t.Nil(rop)
+
+		nop0 := t.operation(height, height+1, node)
+		t.NoError(pst.SetSuffrageWithdrawOperation(nop0))
+
+		nop1 := t.operation(height, height+1, base.RandomAddress(""))
+		t.NoError(pst.SetSuffrageWithdrawOperation(nop1))
+
+		t.NoError(pst.RemoveSuffrageWithdrawOperationsByFact([]base.SuffrageWithdrawFact{nop0.WithdrawFact()}))
+
+		rop, found, err = pst.SuffrageWithdrawOperation(height, node)
+		t.NoError(err)
+		t.False(found)
+		t.Nil(rop)
+
+		rop, found, err = pst.SuffrageWithdrawOperation(height, nop1.WithdrawFact().Node())
+		t.NoError(err)
+		t.True(found)
+		t.NotNil(rop)
+	})
+
+	t.Run("remove unknowns", func() {
+		height := base.Height(33)
+		node := base.RandomAddress("")
+
+		op := t.operation(height, height+1, node)
+		t.NoError(pst.SetSuffrageWithdrawOperation(op))
+
+		unknown := t.operation(height, height+1, node)
+
+		t.NoError(pst.RemoveSuffrageWithdrawOperationsByFact([]base.SuffrageWithdrawFact{
+			op.WithdrawFact(),
+			unknown.WithdrawFact(),
+		}))
+	})
+}
+
+func (t *testSuffrageWithdrawPool) TestRemoveByHeight() {
+	pst := t.NewPool()
+	defer pst.Close()
+
+	t.Run("remove", func() {
+		baseheight := base.Height(33)
+
+		ops := make([]base.SuffrageWithdrawOperation, 3)
+		for i := range ops {
+			op := t.operation(baseheight, baseheight+base.Height(int64(i)), base.RandomAddress(""))
+			t.NoError(pst.SetSuffrageWithdrawOperation(op))
+
+			ops[i] = op
+		}
+
+		height := ops[0].WithdrawFact().WithdrawEnd()
+
+		var rops0 []base.SuffrageWithdrawOperation
+
+		t.NoError(pst.TraverseSuffrageWithdrawOperations(context.Background(), height, func(op base.SuffrageWithdrawOperation) (bool, error) {
+			rops0 = append(rops0, op)
+
+			return true, nil
+		}))
+		t.Equal(len(ops), len(rops0))
+
+		t.NoError(pst.RemoveSuffrageWithdrawOperationsByHeight(height))
+
+		var rops1 []base.SuffrageWithdrawOperation
+
+		t.NoError(pst.TraverseSuffrageWithdrawOperations(context.Background(), height, func(op base.SuffrageWithdrawOperation) (bool, error) {
+			rops1 = append(rops1, op)
+
+			return true, nil
+		}))
+		t.Equal(2, len(rops1))
+
+		t.NoError(pst.RemoveSuffrageWithdrawOperationsByHeight(ops[2].WithdrawFact().WithdrawEnd()))
+
+		var rops2 []base.SuffrageWithdrawOperation
+
+		t.NoError(pst.TraverseSuffrageWithdrawOperations(context.Background(), height, func(op base.SuffrageWithdrawOperation) (bool, error) {
+			rops2 = append(rops2, op)
+
+			return true, nil
+		}))
+		t.Equal(0, len(rops2))
+	})
+}
+
+func TestSuffrageWithdrawPool(t *testing.T) {
+	suite.Run(t, new(testSuffrageWithdrawPool))
+}

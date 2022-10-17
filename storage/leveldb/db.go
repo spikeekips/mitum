@@ -85,7 +85,7 @@ func (st *Storage) Exists(key []byte) (bool, error) {
 func (st *Storage) Iter(
 	r *leveldbutil.Range,
 	callback func(key []byte, raw []byte) (bool, error),
-	sort bool,
+	sort bool, // NOTE if true, ascend order
 ) error {
 	iter := st.db.NewIterator(r, nil)
 	defer iter.Release()

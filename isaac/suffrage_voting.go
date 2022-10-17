@@ -89,7 +89,7 @@ func (s *SuffrageVoting) Find(
 
 	var collected []base.SuffrageWithdrawOperation
 
-	var expires []util.Hash
+	var expires []base.SuffrageWithdrawFact
 
 	if err := s.db.TraverseSuffrageWithdrawOperations(
 		ctx,
@@ -98,7 +98,7 @@ func (s *SuffrageVoting) Find(
 			fact := op.WithdrawFact()
 
 			if !suf.Exists(fact.Node()) {
-				expires = append(expires, fact.Hash())
+				expires = append(expires, fact)
 
 				return false, nil
 			}
@@ -113,7 +113,7 @@ func (s *SuffrageVoting) Find(
 	if len(expires) > 0 {
 		// NOTE remove unknowns
 		defer func() {
-			_ = s.db.RemoveSuffrageWithdrawOperationsByHash(expires)
+			_ = s.db.RemoveSuffrageWithdrawOperationsByFact(expires)
 		}()
 	}
 

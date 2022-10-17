@@ -14,16 +14,7 @@ import (
 
 type dummySuffrageWithdrawPool struct {
 	sync.RWMutex
-	ops                                 map[string]base.SuffrageWithdrawOperation
-	suffrageWithdrawOperationf          func(base.Height, base.Address) (base.SuffrageWithdrawOperation, bool, error)
-	setSuffrageWithdrawOperationf       func(base.SuffrageWithdrawOperation) error
-	traverseSuffrageWithdrawOperationsf func(
-		context.Context,
-		base.Height,
-		func(base.SuffrageWithdrawOperation) (ok bool, err error),
-	) error
-	removeSuffrageWithdrawOperationsByHashf   func(facthashes []util.Hash) error
-	removeSuffrageWithdrawOperationsByHeightf func(base.Height) error
+	ops map[string]base.SuffrageWithdrawOperation
 }
 
 func newDummySuffrageWithdrawPool() *dummySuffrageWithdrawPool {
@@ -33,40 +24,32 @@ func newDummySuffrageWithdrawPool() *dummySuffrageWithdrawPool {
 }
 
 func (p *dummySuffrageWithdrawPool) SuffrageWithdrawOperation(height base.Height, node base.Address) (base.SuffrageWithdrawOperation, bool, error) {
-	if p.suffrageWithdrawOperationf == nil {
-		p.RLock()
-		defer p.RUnlock()
+	p.RLock()
+	defer p.RUnlock()
 
-		for i := range p.ops {
-			op := p.ops[i]
+	for i := range p.ops {
+		op := p.ops[i]
 
-			switch {
-			case !op.WithdrawFact().Node().Equal(node):
-				continue
-			case height > op.WithdrawFact().WithdrawEnd():
-				continue
-			default:
-				return op, true, nil
-			}
+		switch {
+		case !op.WithdrawFact().Node().Equal(node):
+			continue
+		case height > op.WithdrawFact().WithdrawEnd():
+			continue
+		default:
+			return op, true, nil
 		}
-
-		return nil, false, nil
 	}
 
-	return p.suffrageWithdrawOperationf(height, node)
+	return nil, false, nil
 }
 
 func (p *dummySuffrageWithdrawPool) SetSuffrageWithdrawOperation(op base.SuffrageWithdrawOperation) error {
-	if p.setSuffrageWithdrawOperationf == nil {
-		p.Lock()
-		defer p.Unlock()
+	p.Lock()
+	defer p.Unlock()
 
-		p.ops[op.Fact().Hash().String()] = op
+	p.ops[op.Fact().Hash().String()] = op
 
-		return nil
-	}
-
-	return p.setSuffrageWithdrawOperationf(op)
+	return nil
 }
 
 func (p *dummySuffrageWithdrawPool) TraverseSuffrageWithdrawOperations(
@@ -74,72 +57,57 @@ func (p *dummySuffrageWithdrawPool) TraverseSuffrageWithdrawOperations(
 	height base.Height,
 	callback func(base.SuffrageWithdrawOperation) (ok bool, err error),
 ) error {
-	if p.traverseSuffrageWithdrawOperationsf == nil {
-		p.RLock()
-		defer p.RUnlock()
+	p.RLock()
+	defer p.RUnlock()
 
-		for i := range p.ops {
-			op := p.ops[i]
-			fact := op.WithdrawFact()
-			if height > fact.WithdrawEnd() {
-				continue
-			}
-
-			switch ok, err := callback(op); {
-			case err != nil:
-				return err
-			case !ok:
-				return nil
-			}
+	for i := range p.ops {
+		op := p.ops[i]
+		fact := op.WithdrawFact()
+		if height > fact.WithdrawEnd() {
+			continue
 		}
 
-		return nil
+		switch ok, err := callback(op); {
+		case err != nil:
+			return err
+		case !ok:
+			return nil
+		}
 	}
 
-	return p.traverseSuffrageWithdrawOperationsf(ctx, height, callback)
+	return nil
 }
 
-func (p *dummySuffrageWithdrawPool) RemoveSuffrageWithdrawOperationsByHash(facthashes []util.Hash) error {
-	if p.removeSuffrageWithdrawOperationsByHashf == nil {
-		p.RLock()
-		defer p.RUnlock()
+func (p *dummySuffrageWithdrawPool) RemoveSuffrageWithdrawOperationsByFact(facts []base.SuffrageWithdrawFact) error {
+	p.RLock()
+	defer p.RUnlock()
 
-		for i := range facthashes {
-			h := facthashes[i]
+	for i := range facts {
+		h := facts[i].Hash()
 
-			if _, found := p.ops[h.String()]; !found {
-				continue
-			}
-
-			delete(p.ops, h.String())
+		if _, found := p.ops[h.String()]; !found {
+			continue
 		}
 
-		return nil
+		delete(p.ops, h.String())
 	}
 
-	return p.removeSuffrageWithdrawOperationsByHashf(facthashes)
+	return nil
 }
 
 func (p *dummySuffrageWithdrawPool) RemoveSuffrageWithdrawOperationsByHeight(height base.Height) error {
-	if p.removeSuffrageWithdrawOperationsByHeightf == nil {
-		p.RLock()
-		defer p.RUnlock()
+	p.RLock()
+	defer p.RUnlock()
 
-		for i := range p.ops {
-			fact := p.ops[i].WithdrawFact()
+	for i := range p.ops {
+		fact := p.ops[i].WithdrawFact()
 
-			if height < fact.WithdrawEnd() {
-				delete(p.ops, fact.Hash().String())
-			}
+		if height < fact.WithdrawEnd() {
+			delete(p.ops, fact.Hash().String())
 		}
-
-		return nil
 	}
 
-	return p.removeSuffrageWithdrawOperationsByHeightf(height)
-}
-
-func (p *dummySuffrageWithdrawPool) clean() {
+	return nil
 }
 
 type testSuffrageVoting struct {

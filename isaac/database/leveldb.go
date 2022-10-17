@@ -35,6 +35,7 @@ var (
 	leveldbKeyTempSyncMap                   = []byte{0x02, 0x0c}
 	leveldbKeySuffrageProof                 = []byte{0x02, 0x0d}
 	leveldbKeySuffrageProofByBlockHeight    = []byte{0x02, 0x0e}
+	leveldbKeySuffrageWithdrawOperation     = []byte{0x02, 0x0f}
 )
 
 type baseLeveldb struct {
@@ -237,6 +238,10 @@ func leveldbSuffrageProofByBlockHeightKey(height base.Height) []byte {
 		leveldbKeySuffrageProofByBlockHeight,
 		height.Bytes(),
 	)
+}
+
+func leveldbSuffrageWithdrawOperation(fact base.SuffrageWithdrawFact) []byte {
+	return util.ConcatBytesSlice(leveldbKeySuffrageWithdrawOperation, fact.WithdrawEnd().Bytes(), fact.Hash().Bytes())
 }
 
 func heightFromleveldbKey(b, prefix []byte) (base.Height, error) {
