@@ -26,8 +26,8 @@ import (
 type RunCommand struct { //nolint:govet //...
 	launch.DesignFlag
 	Vault     string                `name:"vault" help:"privatekey path of vault"`
-	Discovery []launch.ConnInfoFlag `help:"member discovery" placeholder:"ConnInfo"`
-	Hold      launch.HeightFlag     `help:"hold consensus states"`
+	Discovery []launch.ConnInfoFlag `help:"member discovery" placeholder:"connection info"`
+	Hold      launch.HeightFlag     `help:"hold consensus states" placeholder:"height"`
 	HTTPState string                `name:"http-state" help:"runtime statistics thru https" placeholder:"bind address"`
 	exitf     func(error)
 	log       *zerolog.Logger
