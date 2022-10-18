@@ -142,21 +142,20 @@ func (cmd *NetworkClientCommand) response(header isaac.NetworkHeader) error {
 		}
 	}()
 
-	response, v, cancel, err := client.Request(context.Background(), cmd.remote, header, cmd.body)
+	ctx, cancel := context.WithTimeout(context.Background(), cmd.Timeout)
+	defer cancel()
+
+	response, v, cancelrequest, err := client.Request(ctx, cmd.remote, header, cmd.body)
 
 	switch {
 	case err != nil:
-		cmd.log.Error().Err(err).Interface("response", response).Msg("got respond")
-
 		return err
 	case response.Err() != nil:
-		cmd.log.Error().Err(err).Interface("response", response).Msg("got respond")
-
-		return err
+		return response.Err()
 	}
 
 	defer func() {
-		_ = cancel()
+		_ = cancelrequest()
 	}()
 
 	cmd.log.Debug().Interface("response", response).Msg("got respond")
