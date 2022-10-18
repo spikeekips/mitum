@@ -654,7 +654,7 @@ func (t *testBallotbox) TestAsyncVoterecords() {
 	suf, nodes := isaac.NewTestSuffrage(max + 2)
 	th := base.Threshold(100)
 	stagepoint := base.NewStagePoint(base.RawPoint(33, 44), base.StageINIT)
-	vr := newVoterecords(stagepoint, nil, func(base.Height) (base.Suffrage, bool, error) { return suf, true, nil })
+	vr := newVoterecords(stagepoint, nil, func(base.Height) (base.Suffrage, bool, error) { return suf, true, nil }, nil)
 
 	ctx := context.TODO()
 	sem := semaphore.NewWeighted(300)

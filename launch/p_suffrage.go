@@ -9,6 +9,7 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
+	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
@@ -244,14 +245,18 @@ func PNodeInConsensusNodesFunc(ctx context.Context) (context.Context, error) {
 func PSuffrageVoting(ctx context.Context) (context.Context, error) {
 	var local base.LocalNode
 	var enc encoder.Encoder
+	var db isaac.Database
 	var pool *isaacdatabase.TempPool
 	var memberlist *quicmemberlist.Memberlist
+	var ballotbox *isaacstates.Ballotbox
 
 	if err := util.LoadFromContextOK(ctx,
 		LocalContextKey, &local,
 		EncoderContextKey, &enc,
+		CenterDatabaseContextKey, &db,
 		PoolDatabaseContextKey, &pool,
 		MemberlistContextKey, &memberlist,
+		BallotboxContextKey, &ballotbox,
 	); err != nil {
 		return ctx, err
 	}
@@ -259,6 +264,7 @@ func PSuffrageVoting(ctx context.Context) (context.Context, error) {
 	sv := isaac.NewSuffrageVoting(
 		local.Address(),
 		pool,
+		db.ExistsInStateOperation,
 		func(op base.SuffrageWithdrawOperation) error {
 			e := util.StringErrorFunc("failed to broadcast suffrage withdraw operation")
 
@@ -272,6 +278,48 @@ func PSuffrageVoting(ctx context.Context) (context.Context, error) {
 			}
 
 			return nil
+		},
+	)
+
+	ballotbox.SetSuffrageVote(func(op base.SuffrageWithdrawOperation) error {
+		_, err := sv.Vote(op)
+
+		return err
+	})
+
+	ctx = context.WithValue(ctx, SuffrageVotingVoteFuncContextKey, //revive:disable-line:modifies-parameter
+		func(op base.SuffrageWithdrawOperation) (bool, error) {
+			var height base.Height
+
+			switch m, found, err := db.LastBlockMap(); {
+			case err != nil:
+				return false, err
+			case !found:
+				return false, nil
+			default:
+				height = m.Manifest().Height()
+			}
+
+			var suf base.Suffrage
+
+			switch i, found, err := isaac.GetSuffrageFromDatabase(db, height); {
+			case err != nil:
+				return false, err
+			case !found:
+				return false, nil
+			default:
+				suf = i
+			}
+
+			policy := db.LastNetworkPolicy()
+
+			if err := isaac.IsValidWithdrawWithSuffrageLifespan(
+				height, op, suf, policy.SuffrageWithdrawLifespan(),
+			); err != nil {
+				return false, err
+			}
+
+			return sv.Vote(op)
 		},
 	)
 

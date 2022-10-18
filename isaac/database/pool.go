@@ -358,7 +358,7 @@ func (db *TempPool) SetSuffrageWithdrawOperation(op base.SuffrageWithdrawOperati
 func (db *TempPool) TraverseSuffrageWithdrawOperations(
 	_ context.Context,
 	height base.Height,
-	callback func(base.SuffrageWithdrawOperation) (bool, error),
+	callback isaac.SuffrageVoteFunc,
 ) error {
 	if err := db.st.Iter(
 		leveldbutil.BytesPrefix(leveldbKeySuffrageWithdrawOperation), func(key, b []byte) (bool, error) {

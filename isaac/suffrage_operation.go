@@ -23,7 +23,7 @@ type SuffrageWithdrawFact struct {
 	node   base.Address
 	base.BaseFact
 	start base.Height
-	end   base.Height // FIXME validate end with lifespan at operation signing time
+	end   base.Height
 }
 
 func NewSuffrageWithdrawFact(

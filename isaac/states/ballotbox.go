@@ -15,6 +15,7 @@ type Ballotbox struct {
 	local            base.Address
 	getSuffrage      isaac.GetSuffrageByBlockHeight
 	isValidVoteproof func(base.Voteproof, base.Suffrage) error
+	suffrageVote     func(base.SuffrageWithdrawOperation) error
 	vrs              map[string]*voterecords
 	vpch             chan base.Voteproof
 	lsp              *util.Locked
@@ -88,6 +89,10 @@ func (box *Ballotbox) Count(threshold base.Threshold) {
 	}
 
 	box.clean()
+}
+
+func (box *Ballotbox) SetSuffrageVote(f func(base.SuffrageWithdrawOperation) error) {
+	box.suffrageVote = f
 }
 
 func (box *Ballotbox) countWithVoterecords(
@@ -164,7 +169,7 @@ func (box *Ballotbox) newVoterecords(bl base.Ballot) *voterecords {
 		return vr
 	}
 
-	vr := newVoterecords(stagepoint, box.isValidVoteproof, box.getSuffrage)
+	vr := newVoterecords(stagepoint, box.isValidVoteproof, box.getSuffrage, box.suffrageVote)
 	box.vrs[stagepoint.String()] = vr
 
 	return vr
@@ -339,6 +344,7 @@ func (box *Ballotbox) notFinishedVoterecords() ([]*voterecords, []*voterecords) 
 type voterecords struct {
 	ballots          map[string]base.Ballot
 	isValidVoteproof func(base.Voteproof, base.Suffrage) error
+	suffrageVote     func(base.SuffrageWithdrawOperation) error
 	getSuffrageFunc  isaac.GetSuffrageByBlockHeight
 	nodes            map[string]struct{} // revive:disable-line:nested-structs
 	voted            map[string]base.Ballot
@@ -352,6 +358,7 @@ func newVoterecords(
 	stagepoint base.StagePoint,
 	isValidVoteproof func(base.Voteproof, base.Suffrage) error,
 	getSuffrageFunc isaac.GetSuffrageByBlockHeight,
+	suffrageVote func(base.SuffrageWithdrawOperation) error,
 ) *voterecords {
 	vr := voterecordsPool.Get().(*voterecords) //nolint:forcetypeassert //...
 
@@ -363,6 +370,7 @@ func newVoterecords(
 	vr.f = false
 	vr.ballots = map[string]base.Ballot{}
 	vr.suf = util.EmptyLocked()
+	vr.suffrageVote = suffrageVote
 
 	return vr
 }
@@ -397,6 +405,10 @@ func (vr *voterecords) vote(bl base.Ballot) (voted bool, validated bool, err err
 
 	if err := isaac.IsValidBallotWithSuffrage(bl, suf, vr.isValidVoteproof); err != nil {
 		return false, false, nil
+	}
+
+	if err := vr.learnWithdraws(bl); err != nil {
+		return true, true, err
 	}
 
 	vr.voted[node] = bl
@@ -438,6 +450,10 @@ func (vr *voterecords) count(
 			if err := isaac.IsValidBallotWithSuffrage(bl, suf, vr.isValidVoteproof); err != nil {
 				delete(vr.ballots, i)
 
+				continue
+			}
+
+			if err := vr.learnWithdraws(bl); err != nil {
 				continue
 			}
 
@@ -635,6 +651,27 @@ func (vr *voterecords) getSuffrage() (base.Suffrage, bool, error) {
 	default:
 		return nil, false, err
 	}
+}
+
+func (vr *voterecords) learnWithdraws(bl base.Ballot) error {
+	if vr.suffrageVote == nil {
+		return nil
+	}
+
+	bw, ok := bl.(isaac.BallotWithdraws)
+	if !ok {
+		return nil
+	}
+
+	w := bw.Withdraws()
+
+	for i := range w {
+		if err := vr.suffrageVote(w[i]); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 var voterecordsPool = sync.Pool{

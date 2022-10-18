@@ -55,7 +55,7 @@ func (p *dummySuffrageWithdrawPool) SetSuffrageWithdrawOperation(op base.Suffrag
 func (p *dummySuffrageWithdrawPool) TraverseSuffrageWithdrawOperations(
 	ctx context.Context,
 	height base.Height,
-	callback func(base.SuffrageWithdrawOperation) (ok bool, err error),
+	callback SuffrageVoteFunc,
 ) error {
 	p.RLock()
 	defer p.RUnlock()
@@ -136,7 +136,10 @@ func (t *testSuffrageVoting) operation(
 func (t *testSuffrageVoting) TestVote() {
 	db := newDummySuffrageWithdrawPool()
 
-	sv := NewSuffrageVoting(t.local.Address(), db, func(base.SuffrageWithdrawOperation) error { return nil })
+	sv := NewSuffrageVoting(t.local.Address(), db,
+		func(util.Hash) (bool, error) { return false, nil },
+		func(base.SuffrageWithdrawOperation) error { return nil },
+	)
 
 	t.Run("voted; no previous vote", func() {
 		height := base.Height(33)
@@ -159,6 +162,21 @@ func (t *testSuffrageVoting) TestVote() {
 		t.NoError(err)
 		t.False(voted)
 	})
+
+	t.Run("false voted; already in state", func() {
+		height := base.Height(33)
+		op := t.operation(t.local, height, base.RandomAddress(""))
+
+		sv.existsInState = func(h util.Hash) (bool, error) {
+			return h.Equal(op.Fact().Hash()), nil
+		}
+
+		voted, err := sv.Vote(op)
+		t.NoError(err)
+		t.False(voted)
+	})
+
+	sv.existsInState = func(util.Hash) (bool, error) { return false, nil }
 
 	t.Run("false voted; already voted", func() {
 		height := base.Height(33)
@@ -194,7 +212,10 @@ func (t *testSuffrageVoting) TestVote() {
 func (t *testSuffrageVoting) TestVoteCallback() {
 	db := newDummySuffrageWithdrawPool()
 
-	sv := NewSuffrageVoting(t.local.Address(), db, func(base.SuffrageWithdrawOperation) error { return nil })
+	sv := NewSuffrageVoting(t.local.Address(), db,
+		func(util.Hash) (bool, error) { return false, nil },
+		func(base.SuffrageWithdrawOperation) error { return nil },
+	)
 
 	t.Run("voted and callback", func() {
 		height := base.Height(33)
@@ -264,7 +285,10 @@ func (t *testSuffrageVoting) TestFindSingleOperation() {
 
 	db := newDummySuffrageWithdrawPool()
 
-	sv := NewSuffrageVoting(local.Address(), db, func(base.SuffrageWithdrawOperation) error { return nil })
+	sv := NewSuffrageVoting(local.Address(), db,
+		func(util.Hash) (bool, error) { return false, nil },
+		func(base.SuffrageWithdrawOperation) error { return nil },
+	)
 
 	withdrawnode := localnodes[1].Address()
 
@@ -293,7 +317,10 @@ func (t *testSuffrageVoting) TestFindMultipleOperations() {
 
 	db := newDummySuffrageWithdrawPool()
 
-	sv := NewSuffrageVoting(local.Address(), db, func(base.SuffrageWithdrawOperation) error { return nil })
+	sv := NewSuffrageVoting(local.Address(), db,
+		func(util.Hash) (bool, error) { return false, nil },
+		func(base.SuffrageWithdrawOperation) error { return nil },
+	)
 
 	expectedwithdrawnodes := localnodes[1:5] // 4 withdraw nodes
 	threshold := base.DefaultThreshold.Threshold(uint(suf.Len()))
@@ -369,7 +396,10 @@ func (t *testSuffrageVoting) TestFindMultipleOperationsWithInsufficientVotes() {
 
 	db := newDummySuffrageWithdrawPool()
 
-	sv := NewSuffrageVoting(local.Address(), db, func(base.SuffrageWithdrawOperation) error { return nil })
+	sv := NewSuffrageVoting(local.Address(), db,
+		func(util.Hash) (bool, error) { return false, nil },
+		func(base.SuffrageWithdrawOperation) error { return nil },
+	)
 
 	allwithdrawnodes := localnodes[1:5] // 4 withdraw nodes
 	threshold := base.DefaultThreshold.Threshold(uint(suf.Len()))

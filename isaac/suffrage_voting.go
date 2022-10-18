@@ -12,27 +12,28 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
+type SuffrageVoteFunc func(base.SuffrageWithdrawOperation) (bool, error)
+
 type SuffrageVoting struct {
 	local         base.Address
 	db            SuffrageWithdrawPool
 	votedCallback func(base.SuffrageWithdrawOperation) error
+	existsInState func(util.Hash) (bool, error)
 }
 
 func NewSuffrageVoting(
 	local base.Address,
 	db SuffrageWithdrawPool,
+	existsInState func(util.Hash) (bool, error),
 	votedCallback func(base.SuffrageWithdrawOperation) error,
 ) *SuffrageVoting {
 	return &SuffrageVoting{
 		local:         local,
 		db:            db,
+		existsInState: existsInState,
 		votedCallback: votedCallback,
 	}
 }
-
-// FIXME before Vote(), op should be passed by IsValidWithdrawWithSuffrage and
-// IsValidWithdrawWithSuffrageLifespan.
-// FIXME if local is not in consensus nodes, don't Vote().
 
 func (s *SuffrageVoting) Vote(op base.SuffrageWithdrawOperation) (bool, error) {
 	e := util.StringErrorFunc("failed suffrage voting")
@@ -40,6 +41,13 @@ func (s *SuffrageVoting) Vote(op base.SuffrageWithdrawOperation) (bool, error) {
 	fact := op.WithdrawFact()
 
 	if fact.Node().Equal(s.local) {
+		return false, nil
+	}
+
+	switch found, err := s.existsInState(fact.Hash()); {
+	case err != nil:
+		return false, e(err, "")
+	case found:
 		return false, nil
 	}
 

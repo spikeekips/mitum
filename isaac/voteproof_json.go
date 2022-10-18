@@ -17,10 +17,11 @@ type baseVoteproofJSONMarshaler struct {
 	FinishedAt time.Time `json:"finished_at"`
 	Majority   util.Hash `json:"majority"` // NOTE fact hash of majority BallotSignFact
 	hint.BaseHinter
-	ID        string                `json:"id"`
-	SignFacts []base.BallotSignFact `json:"sign_facts"`
-	Point     base.StagePoint       `json:"point"`
-	Threshold base.Threshold        `json:"threshold"`
+	ID        string                           `json:"id"`
+	SignFacts []base.BallotSignFact            `json:"sign_facts"`
+	Withdraws []base.SuffrageWithdrawOperation `json:"withdraws"`
+	Point     base.StagePoint                  `json:"point"`
+	Threshold base.Threshold                   `json:"threshold"`
 }
 
 func (vp baseVoteproof) MarshalJSON() ([]byte, error) {
@@ -37,6 +38,7 @@ func (vp baseVoteproof) MarshalJSON() ([]byte, error) {
 		Threshold:  vp.threshold,
 		SignFacts:  vp.sfs,
 		ID:         vp.id,
+		Withdraws:  vp.withdraws,
 	})
 }
 
@@ -45,6 +47,7 @@ type baseVoteproofJSONUnmarshaler struct {
 	ID         string                `json:"id"`
 	Majority   valuehash.HashDecoder `json:"majority"`
 	SignFacts  []json.RawMessage     `json:"sign_facts"`
+	Withdraws  []json.RawMessage     `json:"withdraws"`
 	Point      base.StagePoint       `json:"point"`
 	Threshold  base.Threshold        `json:"threshold"`
 }
@@ -74,6 +77,14 @@ func (vp *baseVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 					vp.majority = fact
 				}
 			}
+		}
+	}
+
+	vp.withdraws = make([]base.SuffrageWithdrawOperation, len(u.Withdraws))
+
+	for i := range u.Withdraws {
+		if err := encoder.Decode(enc, u.Withdraws[i], &vp.withdraws[i]); err != nil {
+			return e(err, "")
 		}
 	}
 

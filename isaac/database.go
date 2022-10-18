@@ -130,7 +130,7 @@ type SuffrageWithdrawPool interface {
 	TraverseSuffrageWithdrawOperations(
 		context.Context,
 		base.Height,
-		func(base.SuffrageWithdrawOperation) (ok bool, err error),
+		SuffrageVoteFunc,
 	) error
 	RemoveSuffrageWithdrawOperationsByFact([]base.SuffrageWithdrawFact) error
 	RemoveSuffrageWithdrawOperationsByHeight(base.Height) error

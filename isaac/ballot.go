@@ -238,7 +238,7 @@ func (bl ACCEPTBallot) IsValid(networkID []byte) error {
 		return e.Wrap(err)
 	}
 
-	return nil
+	return bl.isValidWithdraws(networkID)
 }
 
 func (bl ACCEPTBallot) BallotSignFact() base.ACCEPTBallotSignFact {
@@ -247,6 +247,36 @@ func (bl ACCEPTBallot) BallotSignFact() base.ACCEPTBallotSignFact {
 	}
 
 	return bl.signFact.(base.ACCEPTBallotSignFact) //nolint:forcetypeassert //...
+}
+
+func (bl ACCEPTBallot) isValidWithdraws(base.NetworkID) error {
+	e := util.ErrInvalid.Errorf("invalid withdraws in accept ballot")
+
+	if len(bl.withdraws) < 1 {
+		return nil
+	}
+
+	wvp, ok := bl.vp.(BallotWithdraws)
+	if !ok {
+		return e.Errorf("invalid init voteproof; withdraws not found")
+	}
+
+	withdraws := wvp.Withdraws()
+
+	if len(bl.withdraws) != len(withdraws) {
+		return e.Errorf("invalid init voteproof; insufficient withdraws")
+	}
+
+	for i := range bl.withdraws {
+		bw := bl.withdraws[i]
+		vw := withdraws[i]
+
+		if !bw.Fact().Hash().Equal(vw.Fact().Hash()) {
+			return e.Errorf("invalid init voteproof; withdraw not match")
+		}
+	}
+
+	return nil
 }
 
 func sortWithdrawFacts[T base.SuffrageWithdrawFact](withdrawfacts []T) {

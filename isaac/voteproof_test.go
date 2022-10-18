@@ -459,6 +459,8 @@ func (t *baseTestBaseVoteproofEncode) SetupTest() {
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ACCEPTVoteproofHint, Instance: ACCEPTVoteproof{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: INITBallotSignFactHint, Instance: INITBallotSignFact{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ACCEPTBallotSignFactHint, Instance: ACCEPTBallotSignFact{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: SuffrageWithdrawFactHint, Instance: SuffrageWithdrawFact{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: SuffrageWithdrawOperationHint, Instance: SuffrageWithdrawOperation{}}))
 }
 
 func testBaseVoteproofEncode() *baseTestBaseVoteproofEncode {
@@ -487,10 +489,14 @@ func TestINITVoteproofJSON(tt *testing.T) {
 	t.Encode = func() (interface{}, []byte) {
 		point := base.RawPoint(32, 44)
 
+		withdrawfact := NewSuffrageWithdrawFact(base.RandomAddress(""), point.Height()-1, point.Height()+1, util.UUID().String())
+		withdraw := NewSuffrageWithdrawOperation(withdrawfact)
+		t.NoError(withdraw.NodeSign(t.priv, t.networkID, base.RandomAddress("")))
+
 		sfs := make([]base.BallotSignFact, 2)
 		for i := range sfs {
 			node := RandomLocalNode()
-			fact := NewINITBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
+			fact := NewINITBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), []base.SuffrageWithdrawFact{withdrawfact})
 			sf := NewINITBallotSignFact(node.Address(), fact)
 			t.NoError(sf.Sign(node.Privatekey(), t.networkID))
 
@@ -502,6 +508,7 @@ func TestINITVoteproofJSON(tt *testing.T) {
 			SetMajority(sfs[0].Fact().(base.BallotFact)).
 			SetSignFacts(sfs).
 			SetThreshold(base.Threshold(100)).
+			SetWithdraws([]base.SuffrageWithdrawOperation{withdraw}).
 			Finish()
 
 		b, err := t.enc.Marshal(&ivp)
@@ -530,7 +537,13 @@ func TestACCEPTVoteproofJSON(tt *testing.T) {
 	t.Encode = func() (interface{}, []byte) {
 		node := base.RandomAddress("")
 
-		afact := NewACCEPTBallotFact(base.RawPoint(32, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
+		point := base.RawPoint(32, 44)
+
+		withdrawfact := NewSuffrageWithdrawFact(base.RandomAddress(""), point.Height()-1, point.Height()+1, util.UUID().String())
+		withdraw := NewSuffrageWithdrawOperation(withdrawfact)
+		t.NoError(withdraw.NodeSign(t.priv, t.networkID, node))
+
+		afact := NewACCEPTBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), []base.SuffrageWithdrawFact{withdrawfact})
 
 		asignfact := NewACCEPTBallotSignFact(node, afact)
 
@@ -541,6 +554,7 @@ func TestACCEPTVoteproofJSON(tt *testing.T) {
 			SetMajority(afact).
 			SetSignFacts([]base.BallotSignFact{asignfact}).
 			SetThreshold(base.Threshold(100)).
+			SetWithdraws([]base.SuffrageWithdrawOperation{withdraw}).
 			Finish()
 
 		t.NoError(avp.IsValid(t.networkID))

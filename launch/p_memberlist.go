@@ -31,6 +31,7 @@ var (
 	LongRunningMemberlistJoinContextKey = util.ContextKey("long-running-memberlist-join")
 	EventOnEmptyMembersContextKey       = util.ContextKey("event-on-empty-members")
 	SuffrageVotingContextKey            = util.ContextKey("suffrage-voting")
+	SuffrageVotingVoteFuncContextKey    = util.ContextKey("suffrage-voting-vote-func")
 )
 
 func PMemberlist(ctx context.Context) (context.Context, error) {
