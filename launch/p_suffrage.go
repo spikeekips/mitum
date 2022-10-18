@@ -288,7 +288,7 @@ func PSuffrageVoting(ctx context.Context) (context.Context, error) {
 	})
 
 	ctx = context.WithValue(ctx, SuffrageVotingVoteFuncContextKey, //revive:disable-line:modifies-parameter
-		func(op base.SuffrageWithdrawOperation) (bool, error) {
+		isaac.SuffrageVoteFunc(func(op base.SuffrageWithdrawOperation) (bool, error) {
 			var height base.Height
 
 			switch m, found, err := db.LastBlockMap(); {
@@ -320,7 +320,7 @@ func PSuffrageVoting(ctx context.Context) (context.Context, error) {
 			}
 
 			return sv.Vote(op)
-		},
+		}),
 	)
 
 	return context.WithValue(ctx, SuffrageVotingContextKey, sv), nil
