@@ -236,7 +236,8 @@ func GetSuffrageFromDatabase(
 ) (base.Suffrage, bool, error) {
 	height := blockheight.Prev()
 
-	if height < base.GenesisHeight { // NOTE signer node of genesis suffrage proof will be used
+	switch {
+	case height < base.GenesisHeight: // NOTE signer node of genesis suffrage proof will be used
 		proof, found, err := db.SuffrageProofByBlockHeight(base.GenesisHeight)
 
 		switch {
@@ -250,19 +251,19 @@ func GetSuffrageFromDatabase(
 
 			return suf, true, err
 		}
-	}
-
-	proof, found, err := db.SuffrageProofByBlockHeight(height)
-
-	switch {
-	case err != nil:
-		return nil, false, err
-	case !found:
-		return nil, false, nil
 	default:
-		suf, err := proof.Suffrage()
+		proof, found, err := db.SuffrageProofByBlockHeight(height)
 
-		return suf, true, err
+		switch {
+		case err != nil:
+			return nil, false, err
+		case !found:
+			return nil, false, nil
+		default:
+			suf, err := proof.Suffrage()
+
+			return suf, true, err
+		}
 	}
 }
 

@@ -40,23 +40,27 @@ func (t *baseTestBallotbox) SetupSuite() {
 	t.networkID = base.NetworkID(util.UUID().Bytes())
 }
 
-func (t *baseTestBallotbox) initBallot(node isaac.LocalNode, nodes []isaac.LocalNode, point base.Point, prev, proposal util.Hash, withdraws []base.SuffrageWithdrawOperation) isaac.INITBallot {
-	afact := isaac.NewACCEPTBallotFact(point.PrevHeight(), valuehash.RandomSHA256(), prev, nil)
+func (t *baseTestBallotbox) initBallot(node isaac.LocalNode, nodes []isaac.LocalNode, point base.Point, prev, proposal util.Hash, withdraws []base.SuffrageWithdrawOperation, avp base.Voteproof) isaac.INITBallot {
+	if avp == nil {
+		afact := isaac.NewACCEPTBallotFact(point.PrevHeight(), valuehash.RandomSHA256(), prev, nil)
 
-	asfs := make([]base.BallotSignFact, len(nodes))
-	for i := range nodes {
-		n := nodes[i]
-		sf := isaac.NewACCEPTBallotSignFact(n.Address(), afact)
-		t.NoError(sf.Sign(n.Privatekey(), t.networkID))
-		asfs[i] = sf
+		asfs := make([]base.BallotSignFact, len(nodes))
+		for i := range nodes {
+			n := nodes[i]
+			sf := isaac.NewACCEPTBallotSignFact(n.Address(), afact)
+			t.NoError(sf.Sign(n.Privatekey(), t.networkID))
+			asfs[i] = sf
+		}
+
+		vp := isaac.NewACCEPTVoteproof(afact.Point().Point)
+		vp.SetResult(base.VoteResultMajority).
+			SetMajority(afact).
+			SetSignFacts(asfs).
+			SetThreshold(base.Threshold(100)).
+			Finish()
+
+		avp = vp
 	}
-
-	avp := isaac.NewACCEPTVoteproof(afact.Point().Point)
-	avp.SetResult(base.VoteResultMajority).
-		SetMajority(afact).
-		SetSignFacts(asfs).
-		SetThreshold(base.Threshold(100)).
-		Finish()
 
 	withdrawfacts := make([]base.SuffrageWithdrawFact, len(withdraws))
 	for i := range withdraws {
@@ -137,7 +141,7 @@ func (t *testBallotbox) TestVoteINITBallotSignFact() {
 	point := base.RawPoint(33, 0)
 	prev := valuehash.RandomSHA256()
 
-	bl := t.initBallot(nodes[0], suf.Locals(), point, prev, valuehash.RandomSHA256(), nil)
+	bl := t.initBallot(nodes[0], suf.Locals(), point, prev, valuehash.RandomSHA256(), nil, nil)
 	box.setLastStagePoint(bl.Voteproof().Point())
 
 	voted, err := box.Vote(bl, th)
@@ -290,7 +294,7 @@ func (t *testBallotbox) TestOldBallotSignFact() {
 		t.compareStagePoint(box.lastStagePoint(), vp)
 	}
 
-	bl01 := t.initBallot(nodes[0], suf.Locals(), point, valuehash.RandomSHA256(), pr, nil)
+	bl01 := t.initBallot(nodes[0], suf.Locals(), point, valuehash.RandomSHA256(), pr, nil, nil)
 	voted, err = box.Vote(bl01, th)
 	t.NoError(err)
 	t.False(voted)
@@ -313,7 +317,7 @@ func (t *testBallotbox) TestUnknownSuffrageNode() {
 
 	unknown := isaac.RandomLocalNode()
 
-	bl := t.initBallot(unknown, suf.Locals(), point, prev, valuehash.RandomSHA256(), nil)
+	bl := t.initBallot(unknown, suf.Locals(), point, prev, valuehash.RandomSHA256(), nil, nil)
 	voted, err := box.Vote(bl, th)
 	t.NoError(err)
 	t.False(voted)
@@ -334,7 +338,7 @@ func (t *testBallotbox) TestNilSuffrage() {
 	point := base.RawPoint(33, 1)
 	prev := valuehash.RandomSHA256()
 
-	bl := t.initBallot(n0, []isaac.LocalNode{n0}, point, prev, valuehash.RandomSHA256(), nil)
+	bl := t.initBallot(n0, []isaac.LocalNode{n0}, point, prev, valuehash.RandomSHA256(), nil, nil)
 	voted, err := box.Vote(bl, th)
 	t.NoError(err)
 	t.True(voted)
@@ -372,7 +376,7 @@ func (t *testBallotbox) TestNilSuffrageCount() {
 	point := base.RawPoint(33, 0)
 	prev := valuehash.RandomSHA256()
 
-	bl := t.initBallot(nodes[0], suf.Locals(), point, prev, valuehash.RandomSHA256(), nil)
+	bl := t.initBallot(nodes[0], suf.Locals(), point, prev, valuehash.RandomSHA256(), nil, nil)
 	box.setLastStagePoint(bl.Voteproof().Point())
 
 	_, _, err := box.voteAndWait(bl, th)
@@ -436,7 +440,7 @@ func (t *testBallotbox) TestVoteproofOrder() {
 	pr := valuehash.RandomSHA256()
 
 	for i := range nodes {
-		bl := t.initBallot(nodes[i], suf.Locals(), point, prev, pr, nil)
+		bl := t.initBallot(nodes[i], suf.Locals(), point, prev, pr, nil, nil)
 		_, vp, err := box.voteAndWait(bl, th)
 		t.NoError(err)
 		t.Nil(vp)
@@ -456,7 +460,7 @@ func (t *testBallotbox) TestVoteproofOrder() {
 	nextpr := valuehash.RandomSHA256()
 	nextpoint := base.NewPoint(point.Height()+1, base.Round(0))
 	for i := range nodes {
-		bl := t.initBallot(nodes[i], suf.Locals(), nextpoint, block, nextpr, nil)
+		bl := t.initBallot(nodes[i], suf.Locals(), nextpoint, block, nextpr, nil, nil)
 		_, vp, err := box.voteAndWait(bl, th)
 		t.NoError(err)
 		t.Nil(vp)
@@ -513,7 +517,7 @@ func (t *testBallotbox) TestVoteproofFromBallotACCEPTVoteproof() {
 	prev := valuehash.RandomSHA256()
 	pr := valuehash.RandomSHA256()
 
-	bl := t.initBallot(nodes[0], suf.Locals(), point, prev, pr, nil)
+	bl := t.initBallot(nodes[0], suf.Locals(), point, prev, pr, nil, nil)
 	box.setLastStagePoint(bl.Voteproof().Point().Decrease())
 
 	voted, err := box.Vote(bl, th)
@@ -654,7 +658,7 @@ func (t *testBallotbox) TestAsyncVoterecords() {
 	suf, nodes := isaac.NewTestSuffrage(max + 2)
 	th := base.Threshold(100)
 	stagepoint := base.NewStagePoint(base.RawPoint(33, 44), base.StageINIT)
-	vr := newVoterecords(stagepoint, nil, func(base.Height) (base.Suffrage, bool, error) { return suf, true, nil }, nil)
+	vr := newVoterecords(stagepoint, nil, func(base.Height) (base.Suffrage, bool, error) { return suf, true, nil }, nil, nil)
 
 	ctx := context.TODO()
 	sem := semaphore.NewWeighted(300)
@@ -667,7 +671,7 @@ func (t *testBallotbox) TestAsyncVoterecords() {
 		go func(i int) {
 			defer sem.Release(1)
 
-			bl := t.initBallot(nodes[i], nil, stagepoint.Point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
+			bl := t.initBallot(nodes[i], nil, stagepoint.Point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil, nil)
 			_, _, _ = vr.vote(bl)
 
 			if i%3 == 0 {
@@ -710,7 +714,7 @@ func (t *testBallotbox) TestAsyncVoteAndClean() {
 
 			point := base.NewPoint(base.Height(int64(i)%4), base.Round(0))
 
-			bl := t.initBallot(nodes[i], nil, point, prev, pr, nil)
+			bl := t.initBallot(nodes[i], nil, point, prev, pr, nil, nil)
 			box.Vote(bl, th)
 
 			if i%2 == 0 {
@@ -721,6 +725,80 @@ func (t *testBallotbox) TestAsyncVoteAndClean() {
 
 	if err := sem.Acquire(ctx, 300); err != nil {
 		panic(err)
+	}
+}
+
+func (t *testBallotbox) TestDifferentSuffrage() {
+	vsuf, vnodes := isaac.NewTestSuffrage(1)
+
+	suf, nodes := isaac.NewTestSuffrage(3)
+	th := base.Threshold(100)
+
+	point := base.RawPoint(33, 0)
+
+	box := NewBallotbox(
+		base.RandomAddress(""),
+		func(height base.Height) (base.Suffrage, bool, error) {
+			// return suf, true, nil
+			switch {
+			case height == point.Height().Prev():
+				return vsuf, true, nil
+			case height == point.Height():
+				return suf, true, nil
+			default:
+				return nil, false, nil
+			}
+		},
+		func(base.Voteproof, base.Suffrage) error { return nil },
+	)
+
+	prev := valuehash.RandomSHA256()
+
+	afact := isaac.NewACCEPTBallotFact(point.PrevHeight(), valuehash.RandomSHA256(), prev, nil)
+	asfs := make([]base.BallotSignFact, len(vnodes))
+	for i := range vnodes {
+		n := vnodes[i]
+		sf := isaac.NewACCEPTBallotSignFact(n.Address(), afact)
+		t.NoError(sf.Sign(n.Privatekey(), t.networkID))
+		asfs[i] = sf
+	}
+
+	avp := isaac.NewACCEPTVoteproof(point.PrevHeight())
+	avp.SetResult(base.VoteResultMajority).
+		SetMajority(afact).
+		SetSignFacts(asfs).
+		SetThreshold(base.Threshold(100)).
+		Finish()
+
+	proposal := valuehash.RandomSHA256()
+	fact := isaac.NewINITBallotFact(point, prev, proposal, nil)
+
+	for i := range nodes {
+		node := nodes[i]
+
+		bl := t.initBallot(node, suf.Locals(), point, prev, proposal, nil, avp)
+		box.setLastStagePoint(bl.Voteproof().Point())
+
+		voted, err := box.Vote(bl, th)
+		t.NoError(err)
+		t.True(voted)
+	}
+
+	select {
+	case <-time.After(time.Second):
+		t.NoError(errors.Errorf("failed to wait voteproof"))
+	case vp := <-box.Voteproof():
+		t.NoError(vp.IsValid(t.networkID))
+
+		t.Equal(point, vp.Point().Point)
+		t.Equal(th, vp.Threshold())
+
+		base.EqualBallotFact(t.Assert(), fact, vp.Majority())
+		t.Equal(base.VoteResultMajority, vp.Result())
+
+		t.True(time.Since(vp.FinishedAt()) < time.Millisecond*800)
+
+		t.compareStagePoint(box.lastStagePoint(), vp)
 	}
 }
 
@@ -788,12 +866,12 @@ func (t *testBallotboxWithWitdraw) TestINITBallot() {
 
 	t.T().Log("withdraw:", t.StringMarshal(ops))
 
-	bl0 := t.initBallot(local, suf.Locals(), point, prev, pr, ops)
+	bl0 := t.initBallot(local, suf.Locals(), point, prev, pr, ops, nil)
 	t.NoError(bl0.IsValid(t.networkID))
 
 	t.T().Log("ballot local:", t.StringMarshal(bl0))
 
-	bl1 := t.initBallot(other, suf.Locals(), point, prev, pr, ops)
+	bl1 := t.initBallot(other, suf.Locals(), point, prev, pr, ops, nil)
 	t.NoError(bl1.IsValid(t.networkID))
 
 	t.T().Log("ballot other:", t.StringMarshal(bl1))
@@ -830,7 +908,7 @@ func (t *testBallotboxWithWitdraw) TestINITBallotWithdrawOthers() {
 
 	t.T().Log("withdraw:", t.StringMarshal(ops))
 
-	bl := t.initBallot(local, suf.Locals(), point, prev, pr, ops)
+	bl := t.initBallot(local, suf.Locals(), point, prev, pr, ops, nil)
 	t.NoError(bl.IsValid(t.networkID))
 
 	t.T().Log("ballot local:", t.StringMarshal(bl))
@@ -1041,7 +1119,7 @@ func (t *testBallotboxWithWitdraw) TestINITBallotJointWithdrawsOverThreshold() {
 			break
 		}
 
-		bl := t.initBallot(node, suf.Locals(), point, prev, pr, ops)
+		bl := t.initBallot(node, suf.Locals(), point, prev, pr, ops, nil)
 		t.NoError(bl.IsValid(t.networkID))
 		voted, ivp, err := box.voteAndWait(bl, th)
 		t.NoError(err)
@@ -1116,7 +1194,7 @@ func (t *testBallotboxWithWitdraw) TestINITBallotJointWithdrawsSafeThreshold() {
 			break
 		}
 
-		bl := t.initBallot(node, suf.Locals(), point, prev, pr, ops)
+		bl := t.initBallot(node, suf.Locals(), point, prev, pr, ops, nil)
 		t.NoError(bl.IsValid(t.networkID))
 		voted, ivp, err := box.voteAndWait(bl, th)
 		t.NoError(err)

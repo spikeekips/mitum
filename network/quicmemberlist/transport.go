@@ -276,7 +276,7 @@ func (t *Transport) receivePacket(b []byte, raddr net.Addr) {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.Log().Warn().Msg("receive packet blocked")
+		t.Log().Warn().Interface("remote", raddr).Msg("receive packet blocked")
 	case <-donech:
 	}
 }

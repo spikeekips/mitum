@@ -37,10 +37,15 @@ var (
 )
 
 func PBallotbox(ctx context.Context) (context.Context, error) {
+	var log *logging.Logging
 	var local base.LocalNode
 	var db isaac.Database
 
-	if err := util.LoadFromContextOK(ctx, LocalContextKey, &local, CenterDatabaseContextKey, &db); err != nil {
+	if err := util.LoadFromContextOK(ctx,
+		LocalContextKey, &local,
+		CenterDatabaseContextKey, &db,
+		LoggingContextKey, &log,
+	); err != nil {
 		return ctx, err
 	}
 
@@ -51,6 +56,8 @@ func PBallotbox(ctx context.Context) (context.Context, error) {
 		},
 		isaac.IsValidVoteproofWithSuffrage,
 	)
+
+	_ = ballotbox.SetLogging(log)
 
 	ctx = context.WithValue(ctx, BallotboxContextKey, ballotbox) //revive:disable-line:modifies-parameter
 

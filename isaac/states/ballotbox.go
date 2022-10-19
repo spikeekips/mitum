@@ -6,12 +6,15 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/logging"
 )
 
 type Ballotbox struct {
+	*logging.Logging
 	local            base.Address
 	getSuffrage      isaac.GetSuffrageByBlockHeight
 	isValidVoteproof func(base.Voteproof, base.Suffrage) error
@@ -30,6 +33,9 @@ func NewBallotbox(
 	isValidVoteproof func(base.Voteproof, base.Suffrage) error,
 ) *Ballotbox {
 	return &Ballotbox{
+		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
+			return zctx.Str("module", "ballotbox")
+		}),
 		local:            local,
 		getSuffrage:      getSuffrage,
 		vrs:              map[string]*voterecords{},
@@ -169,7 +175,7 @@ func (box *Ballotbox) newVoterecords(bl base.Ballot) *voterecords {
 		return vr
 	}
 
-	vr := newVoterecords(stagepoint, box.isValidVoteproof, box.getSuffrage, box.suffrageVote)
+	vr := newVoterecords(stagepoint, box.isValidVoteproof, box.getSuffrage, box.suffrageVote, box.Logging.Log())
 	box.vrs[stagepoint.String()] = vr
 
 	return vr
@@ -349,6 +355,8 @@ type voterecords struct {
 	nodes            map[string]struct{} // revive:disable-line:nested-structs
 	voted            map[string]base.Ballot
 	suf              *util.Locked
+	vsuf             *util.Locked // NOTE suffrage for voteproof
+	log              zerolog.Logger
 	stagepoint       base.StagePoint
 	sync.RWMutex
 	f bool
@@ -359,6 +367,7 @@ func newVoterecords(
 	isValidVoteproof func(base.Voteproof, base.Suffrage) error,
 	getSuffrageFunc isaac.GetSuffrageByBlockHeight,
 	suffrageVote func(base.SuffrageWithdrawOperation) error,
+	log *zerolog.Logger,
 ) *voterecords {
 	vr := voterecordsPool.Get().(*voterecords) //nolint:forcetypeassert //...
 
@@ -370,7 +379,15 @@ func newVoterecords(
 	vr.f = false
 	vr.ballots = map[string]base.Ballot{}
 	vr.suf = util.EmptyLocked()
+	vr.vsuf = util.EmptyLocked()
 	vr.suffrageVote = suffrageVote
+
+	switch {
+	case log == nil:
+		vr.log = zerolog.Nop()
+	default:
+		vr.log = log.With().Interface("point", stagepoint).Logger()
+	}
 
 	return vr
 }
@@ -403,11 +420,15 @@ func (vr *voterecords) vote(bl base.Ballot) (voted bool, validated bool, err err
 		suf = i
 	}
 
-	if err := isaac.IsValidBallotWithSuffrage(bl, suf, vr.isValidVoteproof); err != nil {
+	if err := vr.isValidBallotWithSuffrage(bl, suf); err != nil {
+		vr.log.Error().Err(err).Interface("ballot", bl).Interface("suffrage", suf).Msg("invalid ballot")
+
 		return false, false, nil
 	}
 
 	if err := vr.learnWithdraws(bl); err != nil {
+		vr.log.Error().Err(err).Interface("ballot", bl).Msg("failed suffrage voting")
+
 		return true, true, err
 	}
 
@@ -447,7 +468,7 @@ func (vr *voterecords) count(
 		for i := range vr.ballots {
 			bl := vr.ballots[i]
 
-			if err := isaac.IsValidBallotWithSuffrage(bl, suf, vr.isValidVoteproof); err != nil {
+			if err := vr.isValidBallotWithSuffrage(bl, suf); err != nil {
 				delete(vr.ballots, i)
 
 				continue
@@ -653,6 +674,44 @@ func (vr *voterecords) getSuffrage() (base.Suffrage, bool, error) {
 	}
 }
 
+func (vr *voterecords) getVoteproofSuffrage() (base.Suffrage, bool, error) {
+	i, err := vr.vsuf.Set(func(_ bool, i interface{}) (interface{}, error) {
+		if i != nil {
+			return i, util.ErrFound.Call()
+		}
+
+		var height base.Height
+
+		switch {
+		case vr.stagepoint.Stage() == base.StageACCEPT,
+			vr.stagepoint.Round() > 0:
+			height = vr.stagepoint.Height()
+		default:
+			height = vr.stagepoint.Height().Prev()
+		}
+
+		switch j, found, err := vr.getSuffrageFunc(height); {
+		case err != nil:
+			return nil, err
+		case !found:
+			return nil, util.ErrNotFound.Call()
+		default:
+			return j, util.ErrFound.Call()
+		}
+	})
+
+	switch {
+	case err == nil:
+		return nil, false, nil
+	case errors.Is(err, util.ErrFound):
+		return i.(base.Suffrage), true, nil //nolint:forcetypeassert //...
+	case errors.Is(err, util.ErrNotFound):
+		return nil, false, nil
+	default:
+		return nil, false, err
+	}
+}
+
 func (vr *voterecords) learnWithdraws(bl base.Ballot) error {
 	if vr.suffrageVote == nil {
 		return nil
@@ -668,6 +727,47 @@ func (vr *voterecords) learnWithdraws(bl base.Ballot) error {
 	for i := range w {
 		if err := vr.suffrageVote(w[i]); err != nil {
 			return err
+		}
+	}
+
+	return nil
+}
+
+func (vr *voterecords) isValidBallotWithSuffrage(bl base.Ballot, suf base.Suffrage) error {
+	e := util.ErrInvalid.Errorf("invalid ballot with suffrage")
+
+	var vsuf base.Suffrage
+
+	switch i, found, err := vr.getVoteproofSuffrage(); {
+	case err != nil:
+		return e.Wrap(err)
+	case !found:
+		return e.Errorf("voteproof suffrage not found")
+	default:
+		vsuf = i
+	}
+
+	if !suf.ExistsPublickey(bl.SignFact().Node(), bl.SignFact().Signer()) {
+		return e.Errorf("node not in suffrage")
+	}
+
+	if wbl, ok := bl.(isaac.BallotWithdraws); ok {
+		withdraws := wbl.Withdraws()
+
+		for i := range withdraws {
+			if err := isaac.IsValidWithdrawWithSuffrage(bl.Point().Height(), withdraws[i], suf); err != nil {
+				return e.Wrap(err)
+			}
+		}
+	}
+
+	if err := isaac.IsValidVoteproofWithSuffrage(bl.Voteproof(), vsuf); err != nil {
+		return e.Wrap(err)
+	}
+
+	if vr.isValidVoteproof != nil {
+		if err := vr.isValidVoteproof(bl.Voteproof(), vsuf); err != nil {
+			return e.Wrap(err)
 		}
 	}
 
@@ -692,6 +792,8 @@ var voterecordsPoolPut = func(vr *voterecords) {
 	vr.f = false
 	vr.ballots = nil
 	vr.suf = nil
+	vr.vsuf = nil
+	vr.log = zerolog.Nop()
 
 	voterecordsPool.Put(vr)
 }

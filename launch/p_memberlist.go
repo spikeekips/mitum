@@ -336,18 +336,20 @@ func memberlistDelegate(ctx context.Context, localnode quicmemberlist.Node) (*qu
 		switch t := i.(type) {
 		case base.Ballot:
 			// FIXME fetch original ballot from location instead of real body
-			log.Log().Trace().Interface("ballot", i).Msg("new incoming message")
-
 			if err := t.IsValid(params.NetworkID()); err != nil {
-				log.Log().Error().Err(err).Interface("ballot", t).Msg("failed to vote")
+				log.Log().Error().Err(err).Interface("ballot", t).Msg("new ballot; failed to vote")
 
 				return
 			}
 
-			_, err := ballotbox.Vote(t, params.Threshold())
+			voted, err := ballotbox.Vote(t, params.Threshold())
 			if err != nil {
-				log.Log().Error().Err(err).Interface("ballot", t).Msg("failed to vote")
+				log.Log().Error().Err(err).Interface("ballot", t).Msg("new ballot; failed to vote")
+
+				return
 			}
+
+			log.Log().Trace().Interface("ballot", t).Bool("voted", voted).Msg("new ballot; voted")
 		default:
 			log.Log().Trace().Interface("message", i).Msgf("new incoming message; ignored; but unknown, %T", t)
 		}
@@ -457,20 +459,22 @@ func memberlistAllowFunc(ctx context.Context) (
 	}
 
 	return func(node quicmemberlist.Node) error {
+		l := log.Log().With().Interface("remote", node).Logger()
+
 		proof, st, err := watcher.Last()
 		if err != nil {
-			log.Log().Error().Err(err).Msg("failed to check last consensus nodes; node will not be allowed")
+			l.Error().Err(err).Msg("failed to check last consensus nodes; node will not be allowed")
 
 			return err
 		}
 
 		switch _, found, err := isaac.IsNodeInLastConsensusNodes(node, proof, st); {
 		case err != nil:
-			log.Log().Error().Err(err).Msg("failed to check node in consensus nodes; node will not be allowed")
+			l.Error().Err(err).Msg("failed to check node in consensus nodes; node will not be allowed")
 
 			return err
 		case !found:
-			log.Log().Error().Err(err).Msg("node not in consensus nodes; node will not be allowed")
+			l.Error().Err(err).Msg("node not in consensus nodes; node will not be allowed")
 
 			return util.ErrNotFound.Errorf("node not in consensus nodes")
 		default:
