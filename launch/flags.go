@@ -64,6 +64,10 @@ func (f ConnInfoFlag) String() string {
 	return network.ConnInfoToString(f.addr, f.tlsinsecure)
 }
 
+func (f ConnInfoFlag) MarshalText() ([]byte, error) {
+	return []byte(f.String()), nil
+}
+
 func (f *ConnInfoFlag) ConnInfo() (quicstream.UDPConnInfo, error) {
 	if f.ci.Addr() == nil {
 		ci, err := quicstream.NewUDPConnInfoFromStringAddress(f.addr, f.tlsinsecure)
