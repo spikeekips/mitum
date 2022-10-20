@@ -216,7 +216,7 @@ func (u *LastConsensusNodesWatcher) checkUpdated(ctx context.Context, last base.
 	case last >= height:
 		return last
 	default:
-		u.Log().Debug().Interface("proof", proof).Interface("candidates", candidates).Msg("new consensus nodes found")
+		u.Log().Debug().Interface("proof", proof).Interface("candidates", candidates).Msg("consensus nodes updated")
 
 		go u.whenUpdated(ctx, proof, candidates)
 
