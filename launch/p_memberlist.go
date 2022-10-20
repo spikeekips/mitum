@@ -286,6 +286,7 @@ func memberlistTransport(
 		isaacnetwork.HandlerPrefixMemberlist,
 		poolclient,
 		client.NewQuicstreamClient,
+		nil,
 	)
 
 	_ = handlers.Add(isaacnetwork.HandlerPrefixMemberlist, func(addr net.Addr, r io.Reader, w io.Writer) error {

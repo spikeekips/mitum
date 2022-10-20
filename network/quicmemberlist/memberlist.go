@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bluele/gcache"
 	"github.com/hashicorp/memberlist"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -19,6 +20,8 @@ import (
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/logging"
 )
+
+var errIgnoreAllowNode = util.NewError("ignore to allow node")
 
 type Memberlist struct {
 	local Node
@@ -55,7 +58,7 @@ func NewMemberlist(
 		whenLeftf:       func(Node) {},
 	}
 
-	if err := srv.patchMemberlistConfig(config); err != nil {
+	if err := srv.patch(config); err != nil {
 		return nil, errors.WithMessage(err, "wrong memberlist.Config")
 	}
 
@@ -242,17 +245,19 @@ func (srv *Memberlist) start(ctx context.Context) error {
 	return ctx.Err()
 }
 
-func (srv *Memberlist) patchMemberlistConfig(config *memberlist.Config) error { // revive:disable-line:function-length
-	if config.Transport == nil {
+func (srv *Memberlist) patch(config *memberlist.Config) error { // revive:disable-line:function-length
+	switch {
+	case config.Transport == nil:
 		return errors.Errorf("empty Transport")
-	}
-
-	if config.Delegate == nil {
+	case config.Delegate == nil:
 		return errors.Errorf("delegate missing")
+	case config.Alive == nil:
+		return errors.Errorf("alive delegate missing")
 	}
 
-	if config.Alive == nil {
-		return errors.Errorf("alive delegate missing")
+	notallowedcache := gcache.New(1 << 9).LRU().Build() //nolint:gomnd //...
+	setnotallowedcache := func(addr string) {
+		_ = notallowedcache.SetWithExpire(addr, nil, time.Minute*2) //nolint:gomnd //... // FIXME set by config
 	}
 
 	switch i, ok := config.Transport.(*Transport); {
@@ -266,6 +271,10 @@ func (srv *Memberlist) patchMemberlistConfig(config *memberlist.Config) error { 
 			}
 
 			return j.(quicstream.UDPConnInfo) //nolint:forcetypeassert // ...
+		}
+
+		i.notallowf = func(addr string) bool {
+			return notallowedcache.Has(addr)
 		}
 	}
 
@@ -284,12 +293,21 @@ func (srv *Memberlist) patchMemberlistConfig(config *memberlist.Config) error { 
 		}
 
 		origallowf := i.allowf
-		i.allowf = func(node Node) error {
+		allowf := func(node Node) error {
 			if err := srv.allowNode(node); err != nil {
 				return err
 			}
 
 			return origallowf(node)
+		}
+
+		i.allowf = func(node Node) error {
+			err := allowf(node)
+			if !errors.Is(err, errIgnoreAllowNode) {
+				setnotallowedcache(node.UDPAddr().String())
+			}
+
+			return err
 		}
 	}
 
@@ -317,6 +335,13 @@ func (srv *Memberlist) patchMemberlistConfig(config *memberlist.Config) error { 
 			}
 		}
 	}
+
+	config.LogOutput = writerFunc(func(b []byte) (int, error) {
+		srv.Log().Trace().Msg(string(b))
+
+		return len(b), nil
+	})
+	config.Logger = nil
 
 	srv.mconfig = config
 
@@ -375,7 +400,7 @@ func (srv *Memberlist) allowNode(node Node) error {
 	switch n := srv.members.NodesLen(node.Address()); {
 	case n < 1:
 	case uint64(n-1) == srv.sameMemberLimit:
-		return errors.Errorf("over member limit; %q", node.Name())
+		return errIgnoreAllowNode.Errorf("over member limit; %q", node.Name())
 	}
 
 	return nil
@@ -530,4 +555,10 @@ func nodeid(addr *net.UDPAddr) string {
 	}
 
 	return net.JoinHostPort(ip, strconv.FormatInt(int64(addr.Port), 10))
+}
+
+type writerFunc func([]byte) (int, error)
+
+func (f writerFunc) Write(b []byte) (int, error) {
+	return f(b)
 }

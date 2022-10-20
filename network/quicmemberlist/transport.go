@@ -29,6 +29,7 @@ type Transport struct {
 	laddr        *net.UDPAddr
 	dialf        TransportDialFunc
 	writef       TransportWriteFunc
+	notallowf    func(string) bool
 	packetch     chan *memberlist.Packet
 	conns        *util.ShardedMap
 	getconninfof TransportGetConnInfo
@@ -40,6 +41,7 @@ func NewTransport(
 	laddr *net.UDPAddr,
 	dialf TransportDialFunc,
 	writef TransportWriteFunc,
+	notallowf func(string) bool,
 ) *Transport {
 	return &Transport{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
@@ -48,6 +50,7 @@ func NewTransport(
 		laddr:        laddr,
 		dialf:        dialf,
 		writef:       writef,
+		notallowf:    notallowf,
 		packetch:     make(chan *memberlist.Packet),
 		streamch:     make(chan net.Conn),
 		conns:        util.NewShardedMap(1 << 9), //nolint:gomnd //...
@@ -60,6 +63,7 @@ func NewTransportWithQuicstream(
 	handlerPrefix string,
 	poolclient *quicstream.PoolClient,
 	newClient func(quicstream.UDPConnInfo) func(*net.UDPAddr) *quicstream.Client,
+	notallowf func(string) bool,
 ) *Transport {
 	makebody := func(w io.Writer, b []byte) error {
 		_, err := w.Write(b)
@@ -111,6 +115,7 @@ func NewTransportWithQuicstream(
 
 			return nil
 		},
+		notallowf,
 	)
 }
 
@@ -122,6 +127,13 @@ func (t *Transport) DialAddressTimeout(addr memberlist.Address, timeout time.Dur
 	l := t.Log().With().Stringer("remote_address", &addr).Logger()
 
 	l.Trace().Msg("trying to dial")
+
+	if t.notallowf(addr.Addr) {
+		return nil, &net.OpError{
+			Net: "tcp", Op: "dial",
+			Err: errors.Errorf("failed to dial; not allowed"),
+		}
+	}
 
 	e := util.StringErrorFunc("failed DialAddressTimeout")
 
@@ -241,6 +253,10 @@ func (t *Transport) ReceiveRaw(b []byte, addr net.Addr) error {
 		t.Log().Error().Err(err).Stringer("remote_address", addr).Msg("invalid message received")
 
 		return e(err, "")
+	}
+
+	if t.notallowf(raddr.String()) {
+		return e(nil, "not allowed")
 	}
 
 	t.Log().Trace().Stringer("remote_address", raddr).Stringer("message_type", dt).Msg("raw data received")

@@ -138,6 +138,7 @@ func PPatchLastSuffrageProofWatcherWithMemberlist(ctx context.Context) (context.
 
 	watcher.SetWhenUpdated(func(ctx context.Context, proof base.SuffrageProof, st base.State) {
 		// NOTE set blank
+		// FIXME if local is out of consensus nodes, moves to syncing state
 	})
 
 	return ctx, nil

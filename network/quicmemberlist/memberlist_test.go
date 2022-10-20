@@ -84,6 +84,7 @@ func (t *testMemberlist) newServersForJoining(
 				)
 			}
 		},
+		func(string) bool { return false },
 	)
 
 	handler := func(addr net.Addr, r io.Reader, w io.Writer) error {
