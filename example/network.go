@@ -75,8 +75,8 @@ func init() {
 
 type NetworkClientCommand struct { //nolint:govet //...
 	baseCommand
-	NetworkID string              `arg:"" name:"network-id" help:"network-id"`
 	Header    string              `arg:"" help:"request header; 'example' will print example headers"`
+	NetworkID string              `arg:"" name:"network-id" help:"network-id" default:""`
 	Remote    launch.ConnInfoFlag `arg:"" help:"remote node conn info" placeholder:"ConnInfo" default:"localhost:4321"`
 	Timeout   time.Duration       `help:"timeout" placeholder:"duration" default:"10s"`
 	Body      *os.File            `help:"body"`
@@ -105,6 +105,10 @@ func (cmd *NetworkClientCommand) Run(pctx context.Context) error {
 		_, _ = fmt.Fprintln(os.Stdout, "\n* see isaac/network/header.go")
 
 		return nil
+	}
+
+	if len(cmd.NetworkID) < 1 {
+		return errors.Errorf(`expected "<network-id>"`)
 	}
 
 	if err := cmd.prepare(pctx); err != nil {
