@@ -33,7 +33,7 @@ func NewSuffrageWithdrawFact(
 	reason string,
 ) SuffrageWithdrawFact {
 	fact := SuffrageWithdrawFact{
-		// NOTE token is <node + start>
+		// NOTE token is <node + start + end>
 		BaseFact: base.NewBaseFact(SuffrageWithdrawFactHint, base.Token(util.ConcatByters(node, start, end))),
 		node:     node,
 		start:    start,
