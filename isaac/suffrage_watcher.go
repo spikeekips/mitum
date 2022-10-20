@@ -27,7 +27,7 @@ func NewLastConsensusNodesWatcher(
 ) *LastConsensusNodesWatcher {
 	u := &LastConsensusNodesWatcher{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
-			return lctx.Str("module", "suffrage-state-updater")
+			return lctx.Str("module", "suffrage-state-watcher")
 		}),
 		getFromLocal:  getFromLocal,
 		getFromRemote: getFromRemote,
@@ -216,6 +216,8 @@ func (u *LastConsensusNodesWatcher) checkUpdated(ctx context.Context, last base.
 	case last >= height:
 		return last
 	default:
+		u.Log().Debug().Interface("proof", proof).Interface("candidates", candidates).Msg("new consensus nodes found")
+
 		go u.whenUpdated(ctx, proof, candidates)
 
 		return height

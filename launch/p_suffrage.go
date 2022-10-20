@@ -60,11 +60,13 @@ func PSuffrageCandidateLimiterSet(ctx context.Context) (context.Context, error) 
 }
 
 func PLastSuffrageProofWatcher(ctx context.Context) (context.Context, error) {
+	var log *logging.Logging
 	var local base.LocalNode
 	var params base.LocalParams
 	var db isaac.Database
 
 	if err := util.LoadFromContextOK(ctx,
+		LoggingContextKey, &log,
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
 		CenterDatabaseContextKey, &db,
@@ -111,6 +113,8 @@ func PLastSuffrageProofWatcher(ctx context.Context) (context.Context, error) {
 		builder.Build,
 		nil,
 	)
+
+	_ = watcher.SetLogging(log)
 
 	ctx = context.WithValue(ctx, LastSuffrageProofWatcherContextKey, watcher) //revive:disable-line:modifies-parameter
 
