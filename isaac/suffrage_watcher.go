@@ -27,7 +27,7 @@ func NewLastConsensusNodesWatcher(
 ) *LastConsensusNodesWatcher {
 	u := &LastConsensusNodesWatcher{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
-			return lctx.Str("module", "suffrage-state-watcher")
+			return lctx.Str("module", "last-consensus-nodes-watcher")
 		}),
 		getFromLocal:  getFromLocal,
 		getFromRemote: getFromRemote,
@@ -193,7 +193,11 @@ func (u *LastConsensusNodesWatcher) update(proof base.SuffrageProof, candidates 
 		j := i.([2]interface{}) //nolint:forcetypeassert //...
 
 		oldproof := j[0].(base.SuffrageProof) //nolint:forcetypeassert //...
-		oldcandidates := j[1].(base.State)    //nolint:forcetypeassert //...
+
+		var oldcandidates base.State //nolint:forcetypeassert //...
+		if j[1] != nil {
+			oldcandidates = j[1].(base.State) //nolint:forcetypeassert //...
+		}
 
 		updated = u.compare(oldproof, proof, oldcandidates, candidates)
 		if !updated {
