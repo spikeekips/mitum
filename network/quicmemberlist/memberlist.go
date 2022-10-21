@@ -303,7 +303,7 @@ func (srv *Memberlist) patch(config *memberlist.Config) error { // revive:disabl
 
 		i.allowf = func(node Node) error {
 			err := allowf(node)
-			if !errors.Is(err, errIgnoreAllowNode) {
+			if err != nil && !errors.Is(err, errIgnoreAllowNode) {
 				setnotallowedcache(node.UDPAddr().String())
 			}
 
