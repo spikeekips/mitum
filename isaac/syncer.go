@@ -204,6 +204,34 @@ func (p *SyncSourcePool) Remove(node base.Address, publish string) bool {
 		return false
 	}
 
+	return p.remove(index)
+}
+
+func (p *SyncSourcePool) RemoveNonFixed(node base.Address, publish string) bool {
+	p.Lock()
+	defer p.Unlock()
+
+	index := util.InSliceFunc(p.sources, func(_ interface{}, i int) bool {
+		switch {
+		case p.sources[i].Address().Equal(node) &&
+			p.sources[i].String() == publish:
+			return true
+		default:
+			return false
+		}
+	})
+
+	switch {
+	case index < 0:
+		return false
+	case index < p.fixedlen:
+		return false
+	default:
+		return p.remove(index)
+	}
+}
+
+func (p *SyncSourcePool) remove(index int) bool {
 	sources := make([]NodeConnInfo, len(p.sources)-1)
 	copy(sources, p.sources[:index])
 	copy(sources[index:], p.sources[index+1:])

@@ -244,9 +244,18 @@ func memberlistConfig(
 			}
 		},
 		func(node quicmemberlist.Node) {
-			log.Log().Debug().Interface("node", node).Msg("node left")
+			l := log.Log().With().Interface("node", node).Logger()
 
-			poolclient.Remove(node.UDPAddr())
+			l.Debug().Msg("node left")
+
+			if poolclient.Remove(node.UDPAddr()) {
+				l.Debug().Msg("node removed from client pool")
+			}
+
+			nci := isaacnetwork.NewNodeConnInfoFromMemberlistNode(node)
+			if syncSourcePool.RemoveNonFixed(nci.Address(), nci.String()) {
+				l.Debug().Msg("node removed from sync source pool")
+			}
 		},
 	)
 

@@ -59,6 +59,8 @@ func PSuffrageCandidateLimiterSet(ctx context.Context) (context.Context, error) 
 	return ctx, nil
 }
 
+// FIXME rename LastSuffrageProofWatcher -> LastConsensusNodesWatcher
+
 func PLastSuffrageProofWatcher(ctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var local base.LocalNode
