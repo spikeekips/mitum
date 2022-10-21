@@ -125,11 +125,8 @@ func (s SuffrageProof) Prove(previousState base.State) error {
 		previoussuf = suf
 	}
 
-	switch {
-	case !s.m.Manifest().Hash().Equal(s.voteproof.BallotMajority().NewBlock()):
+	if !s.m.Manifest().Hash().Equal(s.voteproof.BallotMajority().NewBlock()) {
 		return e(nil, "manifest doest not match with suffrage voteproof")
-	case previoussuf != nil && !s.m.Manifest().Suffrage().Equal(previousState.Hash()):
-		return e(nil, "suffrage does not match with previous suffrage")
 	}
 
 	if err := s.proof.Prove(s.st.Hash().String()); err != nil {
@@ -137,7 +134,7 @@ func (s SuffrageProof) Prove(previousState base.State) error {
 	}
 
 	if previoussuf != nil {
-		if err := base.IsValidVoteproofWithSuffrage(s.voteproof, previoussuf); err != nil {
+		if err := isaac.IsValidVoteproofWithSuffrage(s.voteproof, previoussuf); err != nil {
 			return e(err, "")
 		}
 	}
