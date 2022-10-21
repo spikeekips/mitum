@@ -140,6 +140,8 @@ func (t *testSuffrageDisjoinProcessor) TestNew() {
 		unodes := uv.Nodes()
 		t.True(base.IsEqualNode(nodes[0], unodes[0]))
 		t.True(base.IsEqualNode(nodes[2], unodes[1]))
+
+		t.Equal(suffragest.Value().(base.SuffrageNodesStateValue).Height()+1, uv.Height())
 	})
 }
 

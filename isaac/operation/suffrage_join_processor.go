@@ -205,7 +205,7 @@ func (*SuffrageJoinProcessor) findCandidateFromSigns(op base.Operation) (base.No
 
 type SuffrageJoinStateValueMerger struct {
 	*base.BaseStateValueMerger
-	existings []base.SuffrageNodeStateValue
+	existing  base.SuffrageNodesStateValue
 	joined    []base.Node
 	disjoined []base.Address
 }
@@ -215,7 +215,7 @@ func NewSuffrageJoinStateValueMerger(height base.Height, st base.State) *Suffrag
 		BaseStateValueMerger: base.NewBaseStateValueMerger(height, isaac.SuffrageStateKey, st),
 	}
 
-	s.existings = st.Value().(base.SuffrageNodesStateValue).Nodes() //nolint:forcetypeassert //...
+	s.existing = st.Value().(base.SuffrageNodesStateValue) //nolint:forcetypeassert //...
 
 	return s
 }
@@ -253,11 +253,11 @@ func (s *SuffrageJoinStateValueMerger) close() (base.StateValue, error) {
 	s.Lock()
 	defer s.Unlock()
 
-	existings := s.existings
+	existingnodes := s.existing.Nodes()
 
 	if len(s.disjoined) > 0 {
-		existings = util.Filter2Slices(s.existings, s.disjoined, func(_, _ interface{}, i, j int) bool {
-			return s.existings[i].Address().Equal(s.disjoined[j])
+		existingnodes = util.Filter2Slices(existingnodes, s.disjoined, func(_, _ interface{}, i, j int) bool {
+			return existingnodes[i].Address().Equal(s.disjoined[j])
 		})
 	}
 
@@ -267,14 +267,17 @@ func (s *SuffrageJoinStateValueMerger) close() (base.StateValue, error) {
 		})
 	}
 
-	newnodes := make([]base.SuffrageNodeStateValue, len(existings)+len(s.joined))
-	copy(newnodes, existings)
+	newnodes := make([]base.SuffrageNodeStateValue, len(existingnodes)+len(s.joined))
+	copy(newnodes, existingnodes)
 
 	for i := range s.joined {
-		newnodes[len(existings)+i] = isaac.NewSuffrageNodeStateValue(s.joined[i], s.Height()+1)
+		newnodes[len(existingnodes)+i] = isaac.NewSuffrageNodeStateValue(s.joined[i], s.Height()+1)
 	}
 
-	return isaac.NewSuffrageNodesStateValue(s.Height(), newnodes), nil
+	return isaac.NewSuffrageNodesStateValue(
+		s.existing.Height()+1,
+		newnodes,
+	), nil
 }
 
 type suffrageJoinNodeStateValue struct {

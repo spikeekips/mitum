@@ -167,6 +167,8 @@ func (t *testSuffrageJoinProcessor) TestNew() {
 		nodes := uv.Nodes()
 		t.True(base.IsEqualNode(nodes[0], existingnode))
 		t.True(base.IsEqualNode(nodes[1], candidatenode))
+
+		t.Equal(suffragest.Value().(base.SuffrageNodesStateValue).Height()+1, uv.Height())
 	})
 }
 
