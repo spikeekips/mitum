@@ -18,7 +18,8 @@ type BallotSignFact interface {
 }
 
 type Ballot interface {
-	SealBody
+	util.IsValider
+	util.HashByter
 	Point() StagePoint
 	SignFact() BallotSignFact
 	Voteproof() Voteproof
