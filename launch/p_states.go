@@ -368,6 +368,16 @@ func newSyncerFunc(
 
 		newclient := client.Clone()
 
+		var cachesize int64 = 333
+
+		if prev != nil {
+			if cachesize = (height - prev.Manifest().Height()).Int64(); cachesize > 333 { //nolint:gomnd //...
+				cachesize = 333
+			}
+		}
+
+		conninfocache := util.NewShardedMap(cachesize)
+
 		syncer, err := isaacstates.NewSyncer(
 			design.Storage.Base,
 			func(height base.Height) (isaac.BlockWriteDatabase, func(context.Context) error, error) {
@@ -399,11 +409,14 @@ func newSyncerFunc(
 			},
 			prev,
 			syncerLastBlockMapFunc(newclient, params, syncSourcePool),
-			syncerBlockMapFunc(newclient, params, syncSourcePool),
-			syncerBlockMapItemFunc(newclient, syncSourcePool),
+			syncerBlockMapFunc(newclient, params, syncSourcePool, conninfocache),
+			syncerBlockMapItemFunc(newclient, conninfocache),
 			tempsyncpool,
 			setLastVoteproofsfFromBlockReaderf,
 			func() error {
+				conninfocache.Close()
+				conninfocache = nil
+
 				return newclient.Close()
 			},
 		)
@@ -495,6 +508,7 @@ func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
 	client *isaacnetwork.QuicstreamClient,
 	params base.LocalParams,
 	syncSourcePool *isaac.SyncSourcePool,
+	conninfocache *util.ShardedMap,
 ) isaacstates.SyncerBlockMapFunc {
 	f := func(ctx context.Context, height base.Height, ci quicstream.UDPConnInfo) (base.BlockMap, bool, error) {
 		cctx, cancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
@@ -545,6 +559,8 @@ func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
 									return nil, errors.Errorf("already set")
 								}
 
+								_ = conninfocache.SetValue(height.String(), ci)
+
 								return [2]interface{}{a, b}, nil
 							})
 
@@ -574,31 +590,31 @@ func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
 
 func syncerBlockMapItemFunc(
 	client *isaacnetwork.QuicstreamClient,
-	syncSourcePool *isaac.SyncSourcePool,
+	conninfocache *util.ShardedMap,
 ) isaacstates.SyncerBlockMapItemFunc {
 	// FIXME support remote item like https or ftp?
 
-	return func(ctx context.Context, height base.Height, node base.Address, item base.BlockMapItemType) (
+	return func(ctx context.Context, height base.Height, item base.BlockMapItemType) (
 		reader io.ReadCloser, closef func() error, found bool, _ error,
 	) {
+		e := util.StringErrorFunc("failed to fetch blockmap item")
+
 		var ci quicstream.UDPConnInfo
 
-		switch nci, nfound := syncSourcePool.NodeConnInfo(node); {
-		case !nfound:
-			return reader, closef, false, nil
+		switch i, cfound := conninfocache.Value(height.String()); {
+		case !cfound:
+			return nil, nil, false, e(nil, "failed to conninfo not found")
 		default:
-			i, err := nci.UDPConnInfo()
-			if err != nil {
-				return reader, closef, false, nil
-			}
-
-			ci = i
+			ci = i.(quicstream.UDPConnInfo) //nolint:forcetypeassert //...
 		}
 
 		cctx, ctxcancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
 		defer ctxcancel()
 
 		r, cancel, found, err := client.BlockMapItem(cctx, ci, height, item)
+		if err != nil {
+			return nil, nil, false, e(err, "")
+		}
 
 		return r, cancel, found, err
 	}

@@ -62,7 +62,7 @@ func ImportBlocks(
 			return m, found, err
 		},
 		func(
-			_ context.Context, height base.Height, _ base.Address, item base.BlockMapItemType,
+			_ context.Context, height base.Height, item base.BlockMapItemType,
 		) (io.ReadCloser, func() error, bool, error) {
 			reader, err := getreader(height)
 			if err != nil {

@@ -128,7 +128,7 @@ func importBlock(
 
 	m.Items(func(item base.BlockMapItem) bool {
 		if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-			switch r, cancel, found, err := blockMapItemf(ctx, height, m.Node(), item.Type()); {
+			switch r, cancel, found, err := blockMapItemf(ctx, height, item.Type()); {
 			case err != nil:
 				return err
 			case !found:
