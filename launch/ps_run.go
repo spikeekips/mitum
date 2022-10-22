@@ -17,13 +17,13 @@ func DefaultRunPS() *ps.PS {
 		AddOK(PNameStartStorage, PStartStorage, PCloseStorage, PNameStartNetwork).
 		AddOK(PNameStartMemberlist, PStartMemberlist, PCloseMemberlist, PNameStartNetwork).
 		AddOK(PNameStartSyncSourceChecker, PStartSyncSourceChecker, PCloseSyncSourceChecker, PNameStartNetwork).
-		AddOK(PNameStartLastSuffrageProofWatcher,
-			PStartLastSuffrageProofWatcher, PCloseLastSuffrageProofWatcher, PNameStartNetwork).
+		AddOK(PNameStartLastConsensusNodesWatcher,
+			PStartLastConsensusNodesWatcher, PCloseLastConsensusNodesWatcher, PNameStartNetwork).
 		AddOK(PNameStates, PStates, nil, PNameNetwork).
 		AddOK(PNameStatesReady, nil, PCloseStates,
 			PNameStartStorage,
 			PNameStartSyncSourceChecker,
-			PNameStartLastSuffrageProofWatcher,
+			PNameStartLastConsensusNodesWatcher,
 			PNameStartMemberlist,
 			PNameStartNetwork,
 			PNameStates,
@@ -52,7 +52,7 @@ func DefaultRunPS() *ps.PS {
 		PostAddOK(PNameSuffrageCandidateLimiterSet, PSuffrageCandidateLimiterSet)
 
 	_ = pps.POK(PNameMemberlist).
-		PreAddOK(PNameLastSuffrageProofWatcher, PLastSuffrageProofWatcher).
+		PreAddOK(PNameLastConsensusNodesWatcher, PLastConsensusNodesWatcher).
 		PostAddOK(PNameLongRunningMemberlistJoin, PLongRunningMemberlistJoin).
 		PostAddOK(PNameSuffrageVoting, PSuffrageVoting)
 
@@ -61,7 +61,7 @@ func DefaultRunPS() *ps.PS {
 		PreAddOK(PNameNetworkHandlers, PNetworkHandlers).
 		PreAddOK(PNameNodeInConsensusNodesFunc, PNodeInConsensusNodesFunc).
 		PreAddOK(PNameProposalProcessors, PProposalProcessors).
-		PostAddOK(PNamePatchLastSuffrageProofWatcherWithMemberlist, PPatchLastSuffrageProofWatcher).
+		PostAddOK(PNamePatchLastConsensusNodesWatcher, PPatchLastConsensusNodesWatcher).
 		PostAddOK(PNameStatesSetHandlers, PStatesSetHandlers).
 		PostAddOK(PNameWatchDesign, PWatchDesign)
 

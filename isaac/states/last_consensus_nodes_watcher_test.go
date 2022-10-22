@@ -12,11 +12,11 @@ import (
 	"go.uber.org/goleak"
 )
 
-type testLastSuffrageProofWatcher struct {
+type testLastConsensusNodesWatcher struct {
 	baseTestSuffrageStateBuilder
 }
 
-func (t *testLastSuffrageProofWatcher) TestLocalAhead() {
+func (t *testLastConsensusNodesWatcher) TestLocalAhead() {
 	proofs := t.newProofs(2)
 
 	localproof := proofs[1]
@@ -94,7 +94,7 @@ func (t *testLastSuffrageProofWatcher) TestLocalAhead() {
 	}
 }
 
-func (t *testLastSuffrageProofWatcher) TestRemoteAhead() {
+func (t *testLastConsensusNodesWatcher) TestRemoteAhead() {
 	proofs := t.newProofs(2)
 
 	localproof := proofs[0]
@@ -172,7 +172,7 @@ func (t *testLastSuffrageProofWatcher) TestRemoteAhead() {
 	}
 }
 
-func (t *testLastSuffrageProofWatcher) TestSameButLocalFirst() {
+func (t *testLastConsensusNodesWatcher) TestSameButLocalFirst() {
 	localproofs := t.newProofs(2)
 	remoteproofs := t.newProofs(2)
 
@@ -251,8 +251,8 @@ func (t *testLastSuffrageProofWatcher) TestSameButLocalFirst() {
 	}
 }
 
-func TestLastSuffrageProofWatcher(t *testing.T) {
+func TestLastConsensusNodesWatcher(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	suite.Run(t, new(testLastSuffrageProofWatcher))
+	suite.Run(t, new(testLastConsensusNodesWatcher))
 }

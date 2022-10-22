@@ -463,7 +463,7 @@ func memberlistAllowFunc(ctx context.Context) (
 
 	if err := util.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
-		LastSuffrageProofWatcherContextKey, &watcher,
+		LastConsensusNodesWatcherContextKey, &watcher,
 	); err != nil {
 		return nil, err
 	}

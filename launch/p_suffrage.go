@@ -20,14 +20,14 @@ import (
 )
 
 var (
-	PNameSuffrageCandidateLimiterSet                 = ps.Name("suffrage-candidate-limiter-set")
-	PNamePatchLastSuffrageProofWatcherWithMemberlist = ps.Name("patch-last-suffrage-proof-watcher-with-memberlist")
-	PNameLastSuffrageProofWatcher                    = ps.Name("last-suffrage-proof-watcher")
-	PNameStartLastSuffrageProofWatcher               = ps.Name("start-last-suffrage-proof-watcher")
-	PNameNodeInConsensusNodesFunc                    = ps.Name("node-in-consensus-nodes-func")
-	SuffrageCandidateLimiterSetContextKey            = util.ContextKey("suffrage-candidate-limiter-set")
-	LastSuffrageProofWatcherContextKey               = util.ContextKey("last-suffrage-proof-watcher")
-	NodeInConsensusNodesFuncContextKey               = util.ContextKey("node-in-consensus-nodes-func")
+	PNameSuffrageCandidateLimiterSet      = ps.Name("suffrage-candidate-limiter-set")
+	PNamePatchLastConsensusNodesWatcher   = ps.Name("patch-last-consensus-nodes-watcher")
+	PNameLastConsensusNodesWatcher        = ps.Name("last-consensus-nodes-watcher")
+	PNameStartLastConsensusNodesWatcher   = ps.Name("start-last-consensus-nodes-watcher")
+	PNameNodeInConsensusNodesFunc         = ps.Name("node-in-consensus-nodes-func")
+	SuffrageCandidateLimiterSetContextKey = util.ContextKey("suffrage-candidate-limiter-set")
+	LastConsensusNodesWatcherContextKey   = util.ContextKey("last-consensus-nodes-watcher")
+	NodeInConsensusNodesFuncContextKey    = util.ContextKey("node-in-consensus-nodes-func")
 )
 
 func PSuffrageCandidateLimiterSet(ctx context.Context) (context.Context, error) {
@@ -59,9 +59,7 @@ func PSuffrageCandidateLimiterSet(ctx context.Context) (context.Context, error) 
 	return ctx, nil
 }
 
-// FIXME rename LastSuffrageProofWatcher -> LastConsensusNodesWatcher
-
-func PLastSuffrageProofWatcher(ctx context.Context) (context.Context, error) {
+func PLastConsensusNodesWatcher(ctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var local base.LocalNode
 	var params base.LocalParams
@@ -118,12 +116,12 @@ func PLastSuffrageProofWatcher(ctx context.Context) (context.Context, error) {
 
 	_ = watcher.SetLogging(log)
 
-	ctx = context.WithValue(ctx, LastSuffrageProofWatcherContextKey, watcher) //revive:disable-line:modifies-parameter
+	ctx = context.WithValue(ctx, LastConsensusNodesWatcherContextKey, watcher) //revive:disable-line:modifies-parameter
 
 	return ctx, nil
 }
 
-func PPatchLastSuffrageProofWatcher(ctx context.Context) (context.Context, error) {
+func PPatchLastConsensusNodesWatcher(ctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var local base.LocalNode
 	var db isaac.Database
@@ -134,7 +132,7 @@ func PPatchLastSuffrageProofWatcher(ctx context.Context) (context.Context, error
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
 		CenterDatabaseContextKey, &db,
-		LastSuffrageProofWatcherContextKey, &watcher,
+		LastConsensusNodesWatcherContextKey, &watcher,
 		StatesContextKey, &states,
 	); err != nil {
 		return ctx, err
@@ -780,18 +778,18 @@ func NewSuffrageCandidateLimiterFunc(ctx context.Context) ( //revive:disable-lin
 	}, nil
 }
 
-func PStartLastSuffrageProofWatcher(ctx context.Context) (context.Context, error) {
+func PStartLastConsensusNodesWatcher(ctx context.Context) (context.Context, error) {
 	var watcher *isaac.LastConsensusNodesWatcher
-	if err := util.LoadFromContextOK(ctx, LastSuffrageProofWatcherContextKey, &watcher); err != nil {
+	if err := util.LoadFromContextOK(ctx, LastConsensusNodesWatcherContextKey, &watcher); err != nil {
 		return ctx, err
 	}
 
 	return ctx, watcher.Start()
 }
 
-func PCloseLastSuffrageProofWatcher(ctx context.Context) (context.Context, error) {
+func PCloseLastConsensusNodesWatcher(ctx context.Context) (context.Context, error) {
 	var watcher *isaac.LastConsensusNodesWatcher
-	if err := util.LoadFromContext(ctx, LastSuffrageProofWatcherContextKey, &watcher); err != nil {
+	if err := util.LoadFromContext(ctx, LastConsensusNodesWatcherContextKey, &watcher); err != nil {
 		return ctx, err
 	}
 
