@@ -69,10 +69,10 @@ func (h *NewJoiningHandlerType) new() (handler, error) {
 	}, nil
 }
 
-func (st *JoiningHandler) enter(i switchContext) (func(), error) {
+func (st *JoiningHandler) enter(from StateType, i switchContext) (func(), error) {
 	e := util.StringErrorFunc("failed to enter joining state")
 
-	deferred, err := st.baseBallotHandler.enter(i)
+	deferred, err := st.baseBallotHandler.enter(from, i)
 	if err != nil {
 		return nil, e(err, "")
 	}
@@ -269,7 +269,7 @@ func (st *JoiningHandler) checkSuffrage(height base.Height) error {
 
 		st.Log().Debug().Msg("local not in consensus nodes; moves to syncing")
 
-		return newSyncingSwitchContext(StateEmpty, height)
+		return newSyncingSwitchContext(StateJoining, height)
 	case suf.Exists(st.local.Address()) && suf.Len() < 2: //nolint:gomnd // local is alone in suffrage node
 		st.Log().Debug().Msg("local alone in consensus nodes; will not wait new voteproof")
 
@@ -287,7 +287,7 @@ func (st *JoiningHandler) checkSuffrage(height base.Height) error {
 	case errors.Is(err, storage.ErrNotFound):
 		st.Log().Debug().Interface("height", height+1).Msg("suffrage not found; moves to syncing")
 
-		return newSyncingSwitchContext(StateEmpty, height)
+		return newSyncingSwitchContext(StateJoining, height)
 	case err != nil:
 		return err
 	default:
@@ -487,7 +487,7 @@ type joiningSwitchContext struct {
 
 func newJoiningSwitchContext(from StateType, vp base.Voteproof) joiningSwitchContext {
 	return joiningSwitchContext{
-		baseSwitchContext: newBaseSwitchContext(from, StateJoining),
+		baseSwitchContext: newBaseSwitchContext(StateJoining, switchContextOKFuncCheckFrom(from)),
 		vp:                vp,
 	}
 }

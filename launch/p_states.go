@@ -237,7 +237,7 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 	getLastManifestf := getLastManifestFunc(db)
 	getManifestf := getManifestFunc(db)
 
-	states.SetWhenStateSwitched(func(_, next isaacstates.StateType) {
+	states.SetWhenStateSwitched(func(next isaacstates.StateType) {
 		_ = nodeinfo.SetConsensusState(next)
 	})
 

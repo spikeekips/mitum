@@ -73,7 +73,7 @@ func (t *testStates) TestWait() {
 	booting := newDummyStateHandler(StateBooting)
 
 	enterch := make(chan bool, 1)
-	_ = booting.setEnter(func(switchContext) error {
+	_ = booting.setEnter(func(StateType, switchContext) error {
 		enterch <- true
 
 		return nil
@@ -110,7 +110,7 @@ func (t *testStates) TestExit() {
 	}, nil)
 
 	sctx := newDummySwitchContext(st.current().state(), StateJoining, nil)
-	t.NoError(st.newState(sctx))
+	t.NoError(st.MoveState(sctx))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -128,7 +128,7 @@ func (t *testStates) TestBootingAtStarting() {
 	booting := newDummyStateHandler(StateBooting)
 
 	enterch := make(chan bool, 1)
-	_ = booting.setEnter(func(switchContext) error {
+	_ = booting.setEnter(func(StateType, switchContext) error {
 		enterch <- true
 
 		return nil
@@ -155,7 +155,7 @@ func (t *testStates) TestFailedToEnterIntoBootingAtStarting() {
 	booting := newDummyStateHandler(StateBooting)
 
 	bootingenterch := make(chan bool, 1)
-	_ = booting.setEnter(func(switchContext) error {
+	_ = booting.setEnter(func(StateType, switchContext) error {
 		bootingenterch <- true
 
 		return errors.Errorf("something wrong in booting")
@@ -195,7 +195,7 @@ func (t *testStates) booted() (*States, <-chan error) {
 	booting := newDummyStateHandler(StateBooting)
 
 	enterch := make(chan bool, 1)
-	_ = booting.setEnter(func(switchContext) error {
+	_ = booting.setEnter(func(StateType, switchContext) error {
 		enterch <- true
 
 		return nil
@@ -223,7 +223,7 @@ func (t *testStates) TestFailedToEnterIntoBrokenAtStarting() {
 	booting := newDummyStateHandler(StateBooting)
 
 	bootingenterch := make(chan bool, 1)
-	_ = booting.setEnter(func(switchContext) error {
+	_ = booting.setEnter(func(StateType, switchContext) error {
 		bootingenterch <- true
 
 		return errors.Errorf("something wrong in booting")
@@ -232,7 +232,7 @@ func (t *testStates) TestFailedToEnterIntoBrokenAtStarting() {
 
 	broken := newDummyStateHandler(StateBroken)
 	brokenenterch := make(chan bool, 1)
-	_ = broken.setEnter(func(switchContext) error {
+	_ = broken.setEnter(func(StateType, switchContext) error {
 		brokenenterch <- true
 
 		return errors.Errorf("something wrong in broken")
@@ -273,7 +273,7 @@ func (t *testStates) TestNewStateWithWrongFrom() {
 	stopped := handler.(*dummyStateHandler)
 
 	enterch := make(chan bool, 1)
-	_ = stopped.setEnter(func(switchContext) error {
+	_ = stopped.setEnter(func(StateType, switchContext) error {
 		enterch <- true
 
 		return errors.Errorf("something wrong in joining")
@@ -285,7 +285,7 @@ func (t *testStates) TestNewStateWithWrongFrom() {
 	_ = st.setHandler(joining)
 
 	sctx := newDummySwitchContext(StateJoining, StateStopped, nil)
-	err := st.newState(sctx)
+	err := st.MoveState(sctx)
 	t.NoError(err)
 
 	select {
@@ -302,7 +302,7 @@ func (t *testStates) TestNewStateWithWrongNext() {
 	t.Equal(StateBooting, st.current().state())
 
 	sctx := newDummySwitchContext(st.current().state(), StateType(util.UUID().String()), nil)
-	err := st.newState(sctx)
+	err := st.MoveState(sctx)
 	t.Error(err)
 	t.ErrorContains(err, "unknown next state")
 }
@@ -314,7 +314,7 @@ func (t *testStates) TestNewState() {
 	joining := newDummyStateHandler(StateJoining)
 
 	enterch := make(chan bool, 1)
-	_ = joining.setEnter(func(switchContext) error {
+	_ = joining.setEnter(func(StateType, switchContext) error {
 		enterch <- true
 
 		return nil
@@ -324,7 +324,7 @@ func (t *testStates) TestNewState() {
 	t.Equal(StateBooting, st.current().state())
 
 	sctx := newDummySwitchContext(st.current().state(), StateJoining, nil)
-	err := st.newState(sctx)
+	err := st.MoveState(sctx)
 	t.NoError(err)
 
 	select {
@@ -342,7 +342,7 @@ func (t *testStates) TestExitCurrentWhenStopped() {
 
 	enterch := make(chan bool, 1)
 	exitch := make(chan bool, 1)
-	_ = joining.setEnter(func(switchContext) error {
+	_ = joining.setEnter(func(StateType, switchContext) error {
 		enterch <- true
 
 		return nil
@@ -356,7 +356,7 @@ func (t *testStates) TestExitCurrentWhenStopped() {
 	t.Equal(StateBooting, st.current().state())
 
 	sctx := newDummySwitchContext(st.current().state(), StateJoining, nil)
-	err := st.newState(sctx)
+	err := st.MoveState(sctx)
 	t.NoError(err)
 
 	select {
@@ -384,7 +384,7 @@ func (t *testStates) TestEnterWithVoteproof() {
 	joining := newDummyStateHandler(StateJoining)
 
 	enterch := make(chan base.Voteproof, 1)
-	_ = joining.setEnter(func(sctx switchContext) error {
+	_ = joining.setEnter(func(_ StateType, sctx switchContext) error {
 		i, ok := sctx.(dummySwitchContext)
 		t.True(ok)
 
@@ -398,7 +398,7 @@ func (t *testStates) TestEnterWithVoteproof() {
 	vp.SetID(util.UUID().String())
 
 	sctx := newDummySwitchContext(st.current().state(), StateJoining, vp)
-	t.NoError(st.newState(sctx))
+	t.NoError(st.MoveState(sctx))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -415,7 +415,7 @@ func (t *testStates) TestSameCurrentWithNext() {
 	booting := handler.(*dummyStateHandler)
 
 	reenterch := make(chan bool, 1)
-	_ = booting.setEnter(func(switchContext) error {
+	_ = booting.setEnter(func(StateType, switchContext) error {
 		reenterch <- true
 
 		return nil
@@ -425,7 +425,7 @@ func (t *testStates) TestSameCurrentWithNext() {
 	vp.SetID(util.UUID().String())
 
 	sctx := newDummySwitchContext(st.current().state(), StateBooting, vp)
-	err := st.newState(sctx)
+	err := st.MoveState(sctx)
 	t.NoError(err)
 
 	select {
@@ -443,14 +443,14 @@ func (t *testStates) TestSameCurrentWithNextWithoutVoteproof() {
 	booting := handler.(*dummyStateHandler)
 
 	reenterch := make(chan bool, 1)
-	_ = booting.setEnter(func(switchContext) error {
+	_ = booting.setEnter(func(StateType, switchContext) error {
 		reenterch <- true
 
 		return nil
 	}, nil)
 
 	sctx := newDummySwitchContext(st.current().state(), StateBooting, nil)
-	t.NoError(st.newState(sctx))
+	t.NoError(st.MoveState(sctx))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -491,7 +491,7 @@ func (t *testStates) TestNewVoteproofSwitchState() {
 	defer st.Stop()
 
 	joiningch := make(chan base.Voteproof, 1)
-	joining := newDummyStateHandler(StateJoining).setEnter(func(sctx switchContext) error {
+	joining := newDummyStateHandler(StateJoining).setEnter(func(_ StateType, sctx switchContext) error {
 		i, ok := sctx.(dummySwitchContext)
 		t.True(ok)
 
@@ -549,7 +549,7 @@ func (t *testStates) TestCurrentIgnoresSwitchingState() {
 	joining := newDummyStateHandler(StateJoining)
 
 	enterch := make(chan bool, 1)
-	_ = joining.setEnter(func(switchContext) error {
+	_ = joining.setEnter(func(StateType, switchContext) error {
 		enterch <- true
 
 		return nil
@@ -559,7 +559,7 @@ func (t *testStates) TestCurrentIgnoresSwitchingState() {
 	t.Equal(StateBooting, st.current().state())
 
 	sctx := newDummySwitchContext(st.current().state(), StateJoining, nil)
-	err := st.newState(sctx)
+	err := st.MoveState(sctx)
 	t.NoError(err)
 
 	select {
@@ -596,8 +596,8 @@ func (t *testStates) TestStoppedByStateStopped() {
 
 	t.Equal(StateBooting, st.current().state())
 
-	sctx := newBaseErrorSwitchContext(st.current().state(), StateStopped, errors.Errorf("something wrong"))
-	err := st.newState(sctx)
+	sctx := newBaseErrorSwitchContext(StateStopped, errors.Errorf("something wrong"), switchContextOKFuncCheckFrom(st.current().state()))
+	err := st.MoveState(sctx)
 	t.NoError(err)
 
 	select {
@@ -621,7 +621,7 @@ func TestStates(t *testing.T) {
 
 type dummyStateHandler struct {
 	s             StateType
-	enterf        func(switchContext) error
+	enterf        func(StateType, switchContext) error
 	enterdefer    func()
 	exitf         func(switchContext) error
 	exitdefer     func()
@@ -638,12 +638,12 @@ func (st *dummyStateHandler) state() StateType {
 	return st.s
 }
 
-func (st *dummyStateHandler) enter(sctx switchContext) (func(), error) {
+func (st *dummyStateHandler) enter(from StateType, sctx switchContext) (func(), error) {
 	if st.enterf == nil {
 		return st.enterdefer, nil
 	}
 
-	if err := st.enterf(sctx); err != nil {
+	if err := st.enterf(from, sctx); err != nil {
 		return nil, err
 	}
 
@@ -672,7 +672,7 @@ func (st *dummyStateHandler) newVoteproof(vp base.Voteproof) error {
 
 func (st *dummyStateHandler) onEmptyMembers() {}
 
-func (st *dummyStateHandler) setEnter(f func(switchContext) error, d func()) *dummyStateHandler {
+func (st *dummyStateHandler) setEnter(f func(StateType, switchContext) error, d func()) *dummyStateHandler {
 	st.enterf = f
 	st.enterdefer = d
 
@@ -699,7 +699,7 @@ type dummySwitchContext struct {
 
 func newDummySwitchContext(from, next StateType, vp base.Voteproof) dummySwitchContext {
 	return dummySwitchContext{
-		baseSwitchContext: newBaseSwitchContext(from, next),
+		baseSwitchContext: newBaseSwitchContext(next, switchContextOKFuncCheckFrom(from)),
 		vp:                vp,
 	}
 }

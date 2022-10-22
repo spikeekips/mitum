@@ -31,5 +31,5 @@ func (h *NewStoppedHandlerType) new() (handler, error) {
 }
 
 func newStoppedSwitchContext(from StateType, err error) baseErrorSwitchContext {
-	return newBaseErrorSwitchContext(from, StateStopped, err)
+	return newBaseErrorSwitchContext(StateStopped, err, switchContextOKFuncCheckFrom(from))
 }

@@ -57,7 +57,7 @@ type newHandler interface {
 
 type handler interface {
 	state() StateType
-	enter(switchContext) (func(), error)
+	enter(from StateType, _ switchContext) (func(), error)
 	exit(switchContext) (func(), error)
 	newVoteproof(base.Voteproof) error
 	onEmptyMembers()
@@ -74,29 +74,29 @@ func handlerLog(st handler) fmt.Stringer {
 }
 
 type switchContext interface {
-	from() StateType
 	next() StateType
 	Error() string
+	ok(current StateType) bool
 }
 
 type baseSwitchContext struct { //nolint:errname //...
-	f StateType
-	n StateType
+	okf func(StateType) bool
+	n   StateType
 }
 
-func newBaseSwitchContext(from, next StateType) baseSwitchContext {
+func newBaseSwitchContext(next StateType, okf func(StateType) bool) baseSwitchContext {
 	return baseSwitchContext{
-		f: from,
-		n: next,
+		n:   next,
+		okf: okf,
 	}
-}
-
-func (s baseSwitchContext) from() StateType {
-	return s.f
 }
 
 func (s baseSwitchContext) next() StateType {
 	return s.n
+}
+
+func (s baseSwitchContext) ok(current StateType) bool {
+	return s.okf(current)
 }
 
 func (s baseSwitchContext) Error() string {
@@ -104,11 +104,11 @@ func (s baseSwitchContext) Error() string {
 }
 
 func (s baseSwitchContext) String() string {
-	return fmt.Sprintf("state switch from=%s next=%s", s.f, s.n)
+	return fmt.Sprintf("state switch next=%s", s.n)
 }
 
 func (s baseSwitchContext) MarshalZerologObject(e *zerolog.Event) {
-	e.Stringer("from", s.f).Stringer("next", s.n)
+	e.Stringer("next", s.n)
 }
 
 type baseErrorSwitchContext struct { //nolint:errname //...
@@ -116,9 +116,9 @@ type baseErrorSwitchContext struct { //nolint:errname //...
 	baseSwitchContext
 }
 
-func newBaseErrorSwitchContext(from, next StateType, err error) baseErrorSwitchContext {
+func newBaseErrorSwitchContext(next StateType, err error, okf func(StateType) bool) baseErrorSwitchContext {
 	return baseErrorSwitchContext{
-		baseSwitchContext: newBaseSwitchContext(from, next),
+		baseSwitchContext: newBaseSwitchContext(next, okf),
 		err:               err,
 	}
 }
@@ -152,7 +152,7 @@ func switchContextLog(sctx switchContext) *zerolog.Event {
 	case ok:
 		e = e.EmbedObject(o)
 	default:
-		e = e.Stringer("from", sctx.from()).Stringer("next", sctx.next())
+		e = e.Stringer("next", sctx.next())
 	}
 
 	return e
@@ -161,4 +161,14 @@ func switchContextLog(sctx switchContext) *zerolog.Event {
 func isSwitchContextError(err error) bool {
 	var sctx switchContext
 	return errors.As(err, &sctx)
+}
+
+func switchContextOKFuncNil(StateType) bool {
+	return true
+}
+
+func switchContextOKFuncCheckFrom(st StateType) func(StateType) bool {
+	return func(current StateType) bool {
+		return current == st
+	}
 }

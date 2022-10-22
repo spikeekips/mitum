@@ -213,7 +213,7 @@ func (im *BlockImporter) importItem(t base.BlockMapItemType, r io.Reader) error 
 	}
 
 	if cr.Checksum() != item.Checksum() {
-		return errors.Errorf("checksum does not match")
+		return errors.Errorf("checksum does not match, expected=%q != %q", item.Checksum(), cr.Checksum())
 	}
 
 	return nil

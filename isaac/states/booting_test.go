@@ -52,7 +52,7 @@ func (t *testBootingHandler) TestNew() {
 	t.True(ok)
 
 	sctx := newBootingSwitchContext(StateStopped)
-	deferred, err := st.enter(sctx)
+	deferred, err := st.enter(StateStopped, sctx)
 	t.Error(err)
 	t.Nil(deferred)
 
@@ -68,10 +68,10 @@ func (t *testBootingHandler) TestEmptyManifest() {
 	st.lastManifest = func() (base.Manifest, bool, error) { return nil, false, nil }
 
 	sctx := newBootingSwitchContext(StateStopped)
-	_, err := st.enter(sctx)
+	_, err := st.enter(StateStopped, sctx)
 	t.Error(err)
 
-	var rsctx syncingSwitchContext
+	var rsctx SyncingSwitchContext
 	t.True(errors.As(err, &rsctx))
 	t.Equal(base.GenesisHeight, rsctx.height)
 }
@@ -86,7 +86,7 @@ func (t *testBootingHandler) TestWrongLastACCEPTVoteproof() {
 	st.setLastVoteproofFunc(newavp)
 
 	sctx := newBootingSwitchContext(StateStopped)
-	_, err := st.enter(sctx)
+	_, err := st.enter(StateStopped, sctx)
 	t.Error(err)
 	t.ErrorContains(err, "failed to enter booting state")
 	t.ErrorContains(err, "failed to compare manifest with accept voteproof")
@@ -97,7 +97,7 @@ func (t *testBootingHandler) TestEmptySuffrage() {
 	st.nodeInConsensusNodes = func(base.Node, base.Height) (base.Suffrage, bool, error) { return nil, false, nil }
 
 	sctx := newBootingSwitchContext(StateStopped)
-	_, err := st.enter(sctx)
+	_, err := st.enter(StateStopped, sctx)
 	t.Error(err)
 	t.ErrorContains(err, "failed to enter booting state")
 	t.ErrorContains(err, "empty suffrage for last manifest")
@@ -110,10 +110,10 @@ func (t *testBootingHandler) TestNotInSuffrage() {
 	st.nodeInConsensusNodes = func(base.Node, base.Height) (base.Suffrage, bool, error) { return suf, false, nil }
 
 	sctx := newBootingSwitchContext(StateStopped)
-	_, err := st.enter(sctx)
+	_, err := st.enter(StateStopped, sctx)
 	t.Error(err)
 
-	var rsctx syncingSwitchContext
+	var rsctx SyncingSwitchContext
 	t.True(errors.As(err, &rsctx))
 	manifest, _, _ := st.lastManifest()
 

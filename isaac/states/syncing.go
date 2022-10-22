@@ -83,15 +83,15 @@ func (h *NewSyncingHandlerType) new() (handler, error) {
 	}, nil
 }
 
-func (st *SyncingHandler) enter(i switchContext) (func(), error) {
+func (st *SyncingHandler) enter(from StateType, i switchContext) (func(), error) {
 	e := util.StringErrorFunc("failed to enter syncing state")
 
-	deferred, err := st.baseHandler.enter(i)
+	deferred, err := st.baseHandler.enter(from, i)
 	if err != nil {
 		return nil, e(err, "")
 	}
 
-	sctx, ok := i.(syncingSwitchContext)
+	sctx, ok := i.(SyncingSwitchContext)
 	if !ok {
 		return nil, e(nil, "invalid stateSwitchContext, not for syncing state; %T", i)
 	}
@@ -118,7 +118,7 @@ func (st *SyncingHandler) enter(i switchContext) (func(), error) {
 
 		// NOTE if syncing is switched from consensus state, the other nodes can
 		// not get the last INIT ballot.
-		switch sctx.from() {
+		switch from {
 		case StateConsensus:
 			go func() {
 				wait := st.params.WaitPreparingINITBallot() * 2 //nolint:gomnd //...
@@ -392,19 +392,26 @@ func (st *SyncingHandler) checkAndJoinMemberlist(height base.Height) (joined boo
 	return true, nil
 }
 
-type syncingSwitchContext struct { //nolint:errname //...
+type SyncingSwitchContext struct { //nolint:errname //...
 	baseSwitchContext
 	height base.Height
 }
 
-func newSyncingSwitchContext(from StateType, height base.Height) syncingSwitchContext {
-	return syncingSwitchContext{
-		baseSwitchContext: newBaseSwitchContext(from, StateSyncing),
+func newSyncingSwitchContext(from StateType, height base.Height) SyncingSwitchContext {
+	return SyncingSwitchContext{
+		baseSwitchContext: newBaseSwitchContext(StateSyncing, switchContextOKFuncCheckFrom(from)),
 		height:            height,
 	}
 }
 
-func (s syncingSwitchContext) MarshalZerologObject(e *zerolog.Event) {
+func NewSyncingSwitchContextWithOK(height base.Height, okf func(StateType) bool) SyncingSwitchContext {
+	return SyncingSwitchContext{
+		baseSwitchContext: newBaseSwitchContext(StateSyncing, okf),
+		height:            height,
+	}
+}
+
+func (s SyncingSwitchContext) MarshalZerologObject(e *zerolog.Event) {
 	s.baseSwitchContext.MarshalZerologObject(e)
 
 	e.Interface("height", s.height)

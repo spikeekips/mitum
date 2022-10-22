@@ -173,7 +173,7 @@ func (t *testConsensusHandler) TestFailedToFetchProposal() {
 
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
-	_, err = st.enter(sctx)
+	_, err = st.enter(StateJoining, sctx)
 	t.NoError(err)
 
 	t.Run("moves to next round", func() {
@@ -202,7 +202,7 @@ func (t *testConsensusHandler) TestInvalidVoteproofs() {
 
 		sctx := newConsensusSwitchContext(StateJoining, nil)
 
-		deferred, err := st.enter(sctx)
+		deferred, err := st.enter(StateJoining, sctx)
 		t.Nil(deferred)
 		t.Error(err)
 		t.ErrorContains(err, "empty init voteproof")
@@ -218,7 +218,7 @@ func (t *testConsensusHandler) TestInvalidVoteproofs() {
 
 		sctx := newConsensusSwitchContext(StateJoining, ivp)
 
-		deferred, err := st.enter(sctx)
+		deferred, err := st.enter(StateJoining, sctx)
 		t.Nil(deferred)
 		t.Error(err)
 		t.ErrorContains(err, "wrong vote result")
@@ -234,7 +234,7 @@ func (t *testConsensusHandler) TestInvalidVoteproofs() {
 
 		sctx := newConsensusSwitchContext(StateJoining, ivp)
 
-		_, err := st.enter(sctx)
+		_, err := st.enter(StateJoining, sctx)
 		t.Error(err)
 		t.ErrorContains(err, "wrong vote result")
 	})
@@ -261,7 +261,7 @@ func (t *testConsensusHandler) TestExit() {
 
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
-	deferredenter, err := st.enter(sctx)
+	deferredenter, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
 	deferredenter()
 
@@ -310,7 +310,7 @@ func (t *testConsensusHandler) TestProcessingProposalAfterEntered() {
 
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
-	deferred, err := st.enter(sctx)
+	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
 	deferred()
 
@@ -357,7 +357,7 @@ func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailed() {
 		return nil
 	}
 
-	deferred, err := st.enter(newConsensusSwitchContext(StateJoining, ivp))
+	deferred, err := st.enter(StateJoining, newConsensusSwitchContext(StateJoining, ivp))
 	t.NoError(err)
 	deferred()
 
@@ -367,7 +367,7 @@ func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailed() {
 
 		return
 	case sctx := <-sctxch:
-		t.Equal(StateConsensus, sctx.from())
+		t.True(sctx.ok(StateConsensus))
 		t.Equal(StateBroken, sctx.next())
 		t.ErrorContains(sctx, "hahaha")
 	}
@@ -397,7 +397,7 @@ func (t *testConsensusHandler) TestProcessingProposalWithACCEPTVoteproof() {
 
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
-	deferred, err := st.enter(sctx)
+	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
 	deferred()
 
@@ -436,7 +436,7 @@ func (t *testConsensusHandler) TestProcessingProposalWithDrawACCEPTVoteproof() {
 
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
-	deferred, err := st.enter(sctx)
+	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
 	deferred()
 
@@ -472,7 +472,7 @@ func (t *testConsensusHandler) TestProcessingProposalWithWrongNewBlockACCEPTVote
 		return nil
 	}
 
-	deferred, err := st.enter(newConsensusSwitchContext(StateJoining, ivp))
+	deferred, err := st.enter(StateJoining, newConsensusSwitchContext(StateJoining, ivp))
 	t.NoError(err)
 	deferred()
 
@@ -480,7 +480,7 @@ func (t *testConsensusHandler) TestProcessingProposalWithWrongNewBlockACCEPTVote
 	case <-time.After(time.Second * 2):
 		t.NoError(errors.Errorf("timeout to wait to switch syncing state"))
 	case err := <-sctxch:
-		var ssctx syncingSwitchContext
+		var ssctx SyncingSwitchContext
 		t.True(errors.As(err, &ssctx))
 
 		t.Equal(avp.Point().Height(), ssctx.height)
@@ -595,7 +595,7 @@ func (t *testConsensusHandler) TestWithBallotbox() {
 
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
-	deferred, err := st.enter(sctx)
+	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
 	deferred()
 
@@ -660,7 +660,7 @@ func (t *testConsensusHandler) TestEmptySuffrageNextBlock() {
 
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
-	deferred, err := st.enter(sctx)
+	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
 	deferred()
 
@@ -734,7 +734,7 @@ func (t *testConsensusHandler) TestOutOfSuffrage() {
 
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
-	deferred, err := st.enter(sctx)
+	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
 	deferred()
 
@@ -757,7 +757,7 @@ func (t *testConsensusHandler) TestOutOfSuffrage() {
 
 		return
 	case sctx := <-sctxch:
-		var ssctx syncingSwitchContext
+		var ssctx SyncingSwitchContext
 		t.True(errors.As(sctx, &ssctx))
 		t.Equal(point.Height(), ssctx.height)
 	}
@@ -782,7 +782,7 @@ func (t *testConsensusHandler) TestEnterButEmptySuffrage() {
 
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
-	_, err := st.enter(sctx)
+	_, err := st.enter(StateJoining, sctx)
 	t.Error(err)
 	t.ErrorContains(err, "empty suffrage of init voteproof")
 }
@@ -803,9 +803,9 @@ func (t *testConsensusHandler) TestEnterButNotInSuffrage() {
 
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
-	_, err := st.enter(sctx)
+	_, err := st.enter(StateJoining, sctx)
 
-	var ssctx syncingSwitchContext
+	var ssctx SyncingSwitchContext
 	t.True(errors.As(err, &ssctx))
 	t.Equal(point.Height(), ssctx.height)
 }

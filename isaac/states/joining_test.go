@@ -80,7 +80,7 @@ func (t *testJoiningHandler) TestNew() {
 
 	sctx := newJoiningSwitchContext(StateBooting, nil)
 
-	deferred, err := st.enter(sctx)
+	deferred, err := st.enter(StateBooting, sctx)
 	t.NoError(err)
 	deferred()
 
@@ -110,10 +110,10 @@ func (t *testJoiningHandler) TestLocalNotInSuffrage() {
 
 	sctx := newJoiningSwitchContext(StateBooting, nil)
 
-	_, err := st.enter(sctx)
+	_, err := st.enter(StateBooting, sctx)
 	t.Error(err)
 
-	var ssctx syncingSwitchContext
+	var ssctx SyncingSwitchContext
 	t.True(errors.As(err, &ssctx))
 	t.Equal(manifest.Height(), ssctx.height)
 }
@@ -127,7 +127,7 @@ func (t *testJoiningHandler) TestFailedLastManifest() {
 
 		sctx := newJoiningSwitchContext(StateBooting, nil)
 
-		_, err := st.enter(sctx)
+		_, err := st.enter(StateBooting, sctx)
 		t.Error(err)
 		t.ErrorContains(err, "failed to enter joining state")
 		t.ErrorContains(err, "empty manifest")
@@ -147,7 +147,7 @@ func (t *testJoiningHandler) TestFailedLastManifest() {
 
 		sctx := newJoiningSwitchContext(StateBooting, nil)
 
-		deferred, err := st.enter(sctx)
+		deferred, err := st.enter(StateBooting, sctx)
 		t.NoError(err)
 		deferred()
 
@@ -172,7 +172,7 @@ func (t *testJoiningHandler) TestFailedLastManifest() {
 
 		sctx := newJoiningSwitchContext(StateBooting, nil)
 
-		_, err := st.enter(sctx)
+		_, err := st.enter(StateBooting, sctx)
 		t.Error(err)
 
 		t.ErrorContains(err, "last manifest not found")
@@ -194,7 +194,7 @@ func (t *testJoiningHandler) TestInvalidINITVoteproof() {
 
 		sctx := newJoiningSwitchContext(StateBooting, nil)
 
-		deferred, err := st.enter(sctx)
+		deferred, err := st.enter(StateBooting, sctx)
 		t.NoError(err)
 		deferred()
 
@@ -214,14 +214,14 @@ func (t *testJoiningHandler) TestInvalidINITVoteproof() {
 
 		sctx := newJoiningSwitchContext(StateBooting, nil)
 
-		deferred, err := st.enter(sctx)
+		deferred, err := st.enter(StateBooting, sctx)
 		t.NoError(err)
 		deferred()
 
 		_, ivp := t.VoteproofsPair(point.NextHeight(), point.NextHeight().NextHeight(), nil, nil, nil, nodes)
 		err = st.newVoteproof(ivp)
 
-		var ssctx syncingSwitchContext
+		var ssctx SyncingSwitchContext
 		t.True(errors.As(err, &ssctx))
 		t.Equal(ivp.Point().Height()-1, ssctx.height)
 	})
@@ -239,14 +239,14 @@ func (t *testJoiningHandler) TestInvalidINITVoteproof() {
 
 		sctx := newJoiningSwitchContext(StateBooting, nil)
 
-		deferred, err := st.enter(sctx)
+		deferred, err := st.enter(StateBooting, sctx)
 		t.NoError(err)
 		deferred()
 
 		_, ivp := t.VoteproofsPair(point, point.NextHeight(), nil, nil, nil, nodes)
 		err = st.newVoteproof(ivp)
 
-		var ssctx syncingSwitchContext
+		var ssctx SyncingSwitchContext
 		t.True(errors.As(err, &ssctx))
 		t.Equal(ivp.Point().Height()-1, ssctx.height)
 	})
@@ -282,7 +282,7 @@ func (t *testJoiningHandler) TestFirstVoteproof() {
 	avp, _ := t.VoteproofsPair(point, point.NextHeight(), manifest.Hash(), nil, nil, nodes)
 	sctx := newJoiningSwitchContext(StateBooting, avp)
 
-	deferred, err := st.enter(sctx)
+	deferred, err := st.enter(StateBooting, sctx)
 	t.NoError(err)
 	deferred()
 
@@ -314,7 +314,7 @@ func (t *testJoiningHandler) TestInvalidACCEPTVoteproof() {
 
 		sctx := newJoiningSwitchContext(StateBooting, nil)
 
-		deferred, err := st.enter(sctx)
+		deferred, err := st.enter(StateBooting, sctx)
 		t.NoError(err)
 		deferred()
 
@@ -334,14 +334,14 @@ func (t *testJoiningHandler) TestInvalidACCEPTVoteproof() {
 
 		sctx := newJoiningSwitchContext(StateBooting, nil)
 
-		deferred, err := st.enter(sctx)
+		deferred, err := st.enter(StateBooting, sctx)
 		t.NoError(err)
 		deferred()
 
 		avp, _ := t.VoteproofsPair(point.NextHeight().NextHeight(), point.NextHeight().NextHeight().NextHeight(), nil, nil, nil, nodes)
 		err = st.newVoteproof(avp)
 
-		var ssctx syncingSwitchContext
+		var ssctx SyncingSwitchContext
 		t.True(errors.As(err, &ssctx))
 		t.Equal(avp.Point().Height(), ssctx.height)
 	})
@@ -358,7 +358,7 @@ func (t *testJoiningHandler) TestInvalidACCEPTVoteproof() {
 
 		sctx := newJoiningSwitchContext(StateBooting, nil)
 
-		deferred, err := st.enter(sctx)
+		deferred, err := st.enter(StateBooting, sctx)
 		t.NoError(err)
 		deferred()
 
@@ -366,7 +366,7 @@ func (t *testJoiningHandler) TestInvalidACCEPTVoteproof() {
 		avp.SetResult(base.VoteResultDraw)
 		err = st.newVoteproof(avp)
 
-		var ssctx syncingSwitchContext
+		var ssctx SyncingSwitchContext
 		t.True(errors.As(err, &ssctx))
 		t.Equal(avp.Point().Height()-1, ssctx.height)
 	})
@@ -405,7 +405,7 @@ func (t *testJoiningHandler) TestINITVoteproofNextRound() {
 
 	sctx := newJoiningSwitchContext(StateBooting, nil)
 
-	deferred, err := st.enter(sctx)
+	deferred, err := st.enter(StateBooting, sctx)
 	t.NoError(err)
 	deferred()
 
@@ -463,7 +463,7 @@ func (t *testJoiningHandler) TestACCEPTVoteproofNextRound() {
 
 	sctx := newJoiningSwitchContext(StateBooting, nil)
 
-	deferred, err := st.enter(sctx)
+	deferred, err := st.enter(StateBooting, sctx)
 	t.NoError(err)
 	deferred()
 
@@ -527,7 +527,7 @@ func (t *testJoiningHandler) TestLastINITVoteproofNextRound() {
 	ivp.SetResult(base.VoteResultDraw)
 	t.True(st.setLastVoteproof(ivp))
 
-	deferred, err := st.enter(sctx)
+	deferred, err := st.enter(StateBooting, sctx)
 	t.NoError(err)
 	deferred()
 
@@ -586,7 +586,7 @@ func (t *testJoiningHandler) TestLastACCEPTVoteproofNextRound() {
 	avp.SetResult(base.VoteResultDraw)
 	st.setLastVoteproof(avp)
 
-	deferred, err := st.enter(sctx)
+	deferred, err := st.enter(StateBooting, sctx)
 	t.NoError(err)
 	deferred()
 
@@ -642,7 +642,7 @@ func (t *testJoiningHandler) TestINITVoteproofNextRoundButNotInConsensusNodes() 
 
 	sctx := newJoiningSwitchContext(StateBooting, nil)
 
-	deferred, err := st.enter(sctx)
+	deferred, err := st.enter(StateBooting, sctx)
 	t.NoError(err)
 	deferred()
 
@@ -660,7 +660,7 @@ func (t *testJoiningHandler) TestINITVoteproofNextRoundButNotInConsensusNodes() 
 	case <-ballotch:
 		t.NoError(errors.Errorf("unexpected next round init ballot"))
 	case sctx := <-switchch:
-		var ssctx syncingSwitchContext
+		var ssctx SyncingSwitchContext
 		t.True(errors.As(sctx, &ssctx))
 		t.Equal(ivp.Point().Height()-1, ssctx.height)
 	}

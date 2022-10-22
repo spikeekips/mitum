@@ -41,10 +41,10 @@ func (h *NewBootingHandlerType) new() (handler, error) {
 	}, nil
 }
 
-func (st *BootingHandler) enter(i switchContext) (func(), error) { //nolint:unparam //...
+func (st *BootingHandler) enter(from StateType, i switchContext) (func(), error) { //nolint:unparam //...
 	e := util.StringErrorFunc("failed to enter booting state")
 
-	if _, err := st.baseHandler.enter(i); err != nil {
+	if _, err := st.baseHandler.enter(from, i); err != nil {
 		return nil, e(err, "")
 	}
 
@@ -57,7 +57,7 @@ func (st *BootingHandler) enter(i switchContext) (func(), error) { //nolint:unpa
 		// NOTE empty block map item, moves to syncing
 		st.Log().Debug().Msg("empty block map item; moves to syncing")
 
-		return nil, newSyncingSwitchContext(StateEmpty, base.GenesisHeight)
+		return nil, newSyncingSwitchContext(StateBooting, base.GenesisHeight)
 	default:
 		manifest = m
 	}
@@ -83,7 +83,7 @@ func (st *BootingHandler) enter(i switchContext) (func(), error) { //nolint:unpa
 	case errors.Is(err, storage.ErrNotFound):
 		st.Log().Debug().Interface("height", manifest.Height()+1).Msg("suffrage not found; moves to syncing")
 
-		return nil, newSyncingSwitchContext(StateEmpty, manifest.Height())
+		return nil, newSyncingSwitchContext(StateBooting, manifest.Height())
 	case err != nil:
 		return nil, e(err, "")
 	case suf == nil || suf.Len() < 1:
@@ -91,12 +91,12 @@ func (st *BootingHandler) enter(i switchContext) (func(), error) { //nolint:unpa
 	case !found:
 		st.Log().Debug().Msg("local not in consensus node; moves to syncing")
 
-		return nil, newSyncingSwitchContext(StateEmpty, manifest.Height())
+		return nil, newSyncingSwitchContext(StateBooting, manifest.Height())
 	}
 
 	st.Log().Debug().Msg("moves to joining")
 
-	return nil, newJoiningSwitchContext(StateEmpty, avp)
+	return nil, newJoiningSwitchContext(StateBooting, avp)
 }
 
 type bootingSwitchContext struct {
@@ -105,7 +105,7 @@ type bootingSwitchContext struct {
 
 func newBootingSwitchContext(from StateType) bootingSwitchContext {
 	return bootingSwitchContext{
-		baseSwitchContext: newBaseSwitchContext(from, StateBooting),
+		baseSwitchContext: newBaseSwitchContext(StateBooting, switchContextOKFuncCheckFrom(from)),
 	}
 }
 

@@ -61,10 +61,10 @@ func (h *NewConsensusHandlerType) new() (handler, error) {
 	}, nil
 }
 
-func (st *ConsensusHandler) enter(i switchContext) (func(), error) {
+func (st *ConsensusHandler) enter(from StateType, i switchContext) (func(), error) {
 	e := util.StringErrorFunc("failed to enter consensus state")
 
-	deferred, err := st.baseBallotHandler.enter(i)
+	deferred, err := st.baseBallotHandler.enter(from, i)
 	if err != nil {
 		return nil, e(err, "")
 	}
@@ -89,7 +89,7 @@ func (st *ConsensusHandler) enter(i switchContext) (func(), error) {
 			Interface("height", sctx.ivp.Point().Height()).
 			Msg("suffrage not found at entering consensus state; moves to syncing state")
 
-		return nil, newSyncingSwitchContext(StateEmpty, sctx.ivp.Point().Height())
+		return nil, newSyncingSwitchContext(StateConsensus, sctx.ivp.Point().Height())
 	case err != nil:
 		return nil, e(err, "")
 	case suf == nil || suf.Len() < 1:
@@ -100,7 +100,7 @@ func (st *ConsensusHandler) enter(i switchContext) (func(), error) {
 			Interface("height", sctx.ivp.Point().Height()).
 			Msg("local is not in consensus nodes at entering consensus state; moves to syncing state")
 
-		return nil, newSyncingSwitchContext(StateEmpty, sctx.ivp.Point().Height())
+		return nil, newSyncingSwitchContext(StateConsensus, sctx.ivp.Point().Height())
 	}
 
 	process, err := st.processProposal(sctx.ivp)
@@ -727,7 +727,7 @@ type consensusSwitchContext struct {
 
 func newConsensusSwitchContext(from StateType, ivp base.INITVoteproof) consensusSwitchContext {
 	return consensusSwitchContext{
-		baseSwitchContext: newBaseSwitchContext(from, StateConsensus),
+		baseSwitchContext: newBaseSwitchContext(StateConsensus, switchContextOKFuncCheckFrom(from)),
 		ivp:               ivp,
 	}
 }

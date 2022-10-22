@@ -123,24 +123,51 @@ func PLastSuffrageProofWatcher(ctx context.Context) (context.Context, error) {
 	return ctx, nil
 }
 
-func PPatchLastSuffrageProofWatcherWithMemberlist(ctx context.Context) (context.Context, error) {
+func PPatchLastSuffrageProofWatcher(ctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var local base.LocalNode
+	var db isaac.Database
 	var watcher *isaac.LastConsensusNodesWatcher
-	var memberlist *quicmemberlist.Memberlist
+	var states *isaacstates.States
 
 	if err := util.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
+		CenterDatabaseContextKey, &db,
 		LastSuffrageProofWatcherContextKey, &watcher,
-		MemberlistContextKey, &memberlist,
+		StatesContextKey, &states,
 	); err != nil {
 		return ctx, err
 	}
 
-	watcher.SetWhenUpdated(func(ctx context.Context, proof base.SuffrageProof, st base.State) {
-		// NOTE set blank
-		// FIXME if local is out of consensus nodes, moves to syncing state
+	watcher.SetWhenUpdated(func(ctx context.Context, proof base.SuffrageProof, candidatesst base.State) {
+		// NOTE if local is out of consensus nodes, moves to syncing state
+		switch suf, err := proof.Suffrage(); {
+		case err != nil:
+			return
+		case suf.Exists(local.Address()):
+			return
+		case candidatesst == nil:
+		case isaac.InCandidates(local,
+			candidatesst.Value().(base.SuffrageCandidatesStateValue).Nodes()): //nolint:forcetypeassert //...
+			return
+		}
+
+		log.Log().Debug().
+			Interface("height", proof.Map().Manifest().Height()).
+			Msg("local is not in consensus nodes; moves to syncing")
+
+		_ = states.MoveState(isaacstates.NewSyncingSwitchContextWithOK(
+			proof.Map().Manifest().Height(),
+			func(current isaacstates.StateType) bool {
+				switch current {
+				case isaacstates.StateJoining, isaacstates.StateConsensus:
+					return true
+				default:
+					return false
+				}
+			},
+		))
 	})
 
 	return ctx, nil

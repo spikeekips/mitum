@@ -70,7 +70,7 @@ func (t *testSyncingHandler) TestNew() {
 
 	_ = (interface{})(st).(handler)
 
-	deferred, err := st.enter(newSyncingSwitchContext(StateJoining, base.Height(33)))
+	deferred, err := st.enter(StateJoining, newSyncingSwitchContext(StateJoining, base.Height(33)))
 	t.NoError(err)
 	deferred()
 
@@ -85,7 +85,7 @@ func (t *testSyncingHandler) TestExit() {
 		st, closef := t.newState(nil)
 		defer closef()
 
-		deferredenter, err := st.enter(newSyncingSwitchContext(StateJoining, base.Height(33)))
+		deferredenter, err := st.enter(StateJoining, newSyncingSwitchContext(StateJoining, base.Height(33)))
 		t.NoError(err)
 		deferredenter()
 
@@ -100,7 +100,7 @@ func (t *testSyncingHandler) TestExit() {
 		st, _ := t.newState(nil)
 
 		point := base.RawPoint(33, 0)
-		deferredenter, err := st.enter(newSyncingSwitchContext(StateJoining, point.Height()))
+		deferredenter, err := st.enter(StateJoining, newSyncingSwitchContext(StateJoining, point.Height()))
 		t.NoError(err)
 		deferredenter()
 
@@ -120,7 +120,7 @@ func (t *testSyncingHandler) TestExit() {
 	t.Run("can not cancel", func() {
 		st, _ := t.newState(nil)
 
-		deferredenter, err := st.enter(newSyncingSwitchContext(StateJoining, base.Height(33)))
+		deferredenter, err := st.enter(StateJoining, newSyncingSwitchContext(StateJoining, base.Height(33)))
 		t.NoError(err)
 		deferredenter()
 
@@ -147,7 +147,7 @@ func (t *testSyncingHandler) TestNewHigherVoteproof() {
 		}
 
 		point := base.RawPoint(33, 2)
-		deferred, err := st.enter(newSyncingSwitchContext(StateJoining, point.Height()))
+		deferred, err := st.enter(StateJoining, newSyncingSwitchContext(StateJoining, point.Height()))
 		t.NoError(err)
 		deferred()
 
@@ -173,7 +173,7 @@ func (t *testSyncingHandler) TestNewHigherVoteproof() {
 		}
 
 		point := base.RawPoint(33, 2)
-		deferred, err := st.enter(newSyncingSwitchContext(StateJoining, point.Height()))
+		deferred, err := st.enter(StateJoining, newSyncingSwitchContext(StateJoining, point.Height()))
 		t.NoError(err)
 		deferred()
 
@@ -201,7 +201,7 @@ func (t *testSyncingHandler) TestNewLowerVoteproof() {
 		}
 
 		point := base.RawPoint(33, 2)
-		deferred, err := st.enter(newSyncingSwitchContext(StateJoining, point.Height()))
+		deferred, err := st.enter(StateJoining, newSyncingSwitchContext(StateJoining, point.Height()))
 		t.NoError(err)
 		deferred()
 
@@ -227,7 +227,7 @@ func (t *testSyncingHandler) TestNewLowerVoteproof() {
 		}
 
 		point := base.RawPoint(33, 2)
-		deferred, err := st.enter(newSyncingSwitchContext(StateJoining, point.Height()))
+		deferred, err := st.enter(StateJoining, newSyncingSwitchContext(StateJoining, point.Height()))
 		t.NoError(err)
 		deferred()
 
@@ -255,7 +255,7 @@ func (t *testSyncingHandler) TestNewExpectedINITVoteproof() {
 		}
 
 		point := base.RawPoint(33, 2)
-		deferred, err := st.enter(newSyncingSwitchContext(StateJoining, point.Height()))
+		deferred, err := st.enter(StateJoining, newSyncingSwitchContext(StateJoining, point.Height()))
 		t.NoError(err)
 		deferred()
 
@@ -280,7 +280,7 @@ func (t *testSyncingHandler) TestNewExpectedINITVoteproof() {
 		}
 
 		point := base.RawPoint(33, 2)
-		deferred, err := st.enter(newSyncingSwitchContext(StateJoining, point.Height()))
+		deferred, err := st.enter(StateJoining, newSyncingSwitchContext(StateJoining, point.Height()))
 		t.NoError(err)
 		deferred()
 
@@ -319,7 +319,7 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 		}
 
 		point := base.RawPoint(33, 2)
-		deferred, err := st.enter(newSyncingSwitchContext(StateJoining, point.Height()))
+		deferred, err := st.enter(StateJoining, newSyncingSwitchContext(StateJoining, point.Height()))
 		t.NoError(err)
 		deferred()
 
@@ -336,7 +336,7 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 		select {
 		case <-time.After(time.Second * 1):
 		case sctx := <-sctxch:
-			t.NoError(errors.Errorf("unexpected switch state"), "from=%q next=%q err=%q", sctx.from(), sctx.next(), sctx.Error())
+			t.NoError(errors.Errorf("unexpected switch state"), "next=%q err=%q", sctx.next(), sctx.Error())
 		}
 
 		t.Equal(point.Height(), syncer.Top())
@@ -359,7 +359,7 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 		}
 
 		point := base.RawPoint(33, 2)
-		deferred, err := st.enter(newSyncingSwitchContext(StateJoining, point.Height()))
+		deferred, err := st.enter(StateJoining, newSyncingSwitchContext(StateJoining, point.Height()))
 		t.NoError(err)
 		deferred()
 
@@ -400,7 +400,7 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 		}
 
 		point := base.RawPoint(33, 2)
-		deferred, err := st.enter(newSyncingSwitchContext(StateJoining, point.Height()))
+		deferred, err := st.enter(StateJoining, newSyncingSwitchContext(StateJoining, point.Height()))
 		t.NoError(err)
 		deferred()
 
@@ -437,7 +437,7 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 		}
 
 		point := base.RawPoint(33, 2)
-		deferred, err := st.enter(newSyncingSwitchContext(StateJoining, point.Height()))
+		deferred, err := st.enter(StateJoining, newSyncingSwitchContext(StateJoining, point.Height()))
 		t.NoError(err)
 		deferred()
 
@@ -482,7 +482,7 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 		}
 
 		point := base.RawPoint(33, 2)
-		deferred, err := st.enter(newSyncingSwitchContext(StateJoining, point.Height()))
+		deferred, err := st.enter(StateJoining, newSyncingSwitchContext(StateJoining, point.Height()))
 		t.NoError(err)
 		deferred()
 
@@ -533,7 +533,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 		}
 
 		point := base.RawPoint(33, 2)
-		deferred, err := st.enter(newSyncingSwitchContext(StateJoining, point.Height()))
+		deferred, err := st.enter(StateJoining, newSyncingSwitchContext(StateJoining, point.Height()))
 		t.NoError(err)
 		deferred()
 
@@ -577,7 +577,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 		}
 
 		point := base.RawPoint(33, 2)
-		deferred, err := st.enter(newSyncingSwitchContext(StateJoining, point.Height()))
+		deferred, err := st.enter(StateJoining, newSyncingSwitchContext(StateJoining, point.Height()))
 		t.NoError(err)
 		deferred()
 
@@ -617,7 +617,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 		}
 
 		point := base.RawPoint(33, 2)
-		deferred, err := st.enter(newSyncingSwitchContext(StateJoining, point.Height()))
+		deferred, err := st.enter(StateJoining, newSyncingSwitchContext(StateJoining, point.Height()))
 		t.NoError(err)
 		deferred()
 
@@ -637,7 +637,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 		select {
 		case <-time.After(time.Second * 2):
 		case sctx := <-sctxch:
-			t.NoError(errors.Errorf("unexpected; switched another state: %s -> %s, %+v", sctx.from(), sctx.next(), sctx.Error()))
+			t.NoError(errors.Errorf("unexpected; switched another state: -> %s, %+v", sctx.next(), sctx.Error()))
 		}
 	})
 
@@ -658,7 +658,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 		}
 
 		point := base.RawPoint(33, 2)
-		deferred, err := st.enter(newSyncingSwitchContext(StateJoining, point.Height()))
+		deferred, err := st.enter(StateJoining, newSyncingSwitchContext(StateJoining, point.Height()))
 		t.NoError(err)
 		deferred()
 
@@ -706,7 +706,7 @@ func (t *testSyncingHandler) TestSyncerErr() {
 	}
 
 	point := base.RawPoint(33, 2)
-	deferred, err := st.enter(newSyncingSwitchContext(StateJoining, point.Height()))
+	deferred, err := st.enter(StateJoining, newSyncingSwitchContext(StateJoining, point.Height()))
 	t.NoError(err)
 	deferred()
 

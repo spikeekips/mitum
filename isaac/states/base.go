@@ -65,7 +65,7 @@ func (st *baseHandler) new() *baseHandler {
 	}
 }
 
-func (st *baseHandler) enter(switchContext) (func(), error) { //nolint:unparam //...
+func (st *baseHandler) enter(StateType, switchContext) (func(), error) { //nolint:unparam //...
 	st.ctx, st.cancel = context.WithCancel(context.Background())
 
 	return func() {}, nil
@@ -124,7 +124,7 @@ func (st *baseHandler) setStates(sts *States) {
 	st.sts = sts
 
 	st.switchStateFunc = func(sctx switchContext) error {
-		return st.sts.newState(sctx)
+		return st.sts.MoveState(sctx)
 	}
 
 	st.timers = st.sts.timers

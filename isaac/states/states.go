@@ -3,7 +3,6 @@ package isaacstates
 import (
 	"context"
 	"sync"
-	"time"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -30,7 +29,7 @@ type States struct {
 	*util.ContextDaemon
 	timers              *util.Timers
 	broadcastBallotFunc func(base.Ballot) error
-	whenStateSwitched   func(from StateType, next StateType)
+	whenStateSwitched   func(next StateType)
 	stateLock           sync.RWMutex
 }
 
@@ -58,7 +57,7 @@ func NewStates(
 			timerIDBroadcastACCEPTBallot,
 		}, false),
 		lvps:              lvps,
-		whenStateSwitched: func(StateType, StateType) {},
+		whenStateSwitched: func(StateType) {},
 	}
 
 	st.ContextDaemon = util.NewContextDaemon(st.start)
@@ -94,7 +93,7 @@ func (st *States) SetLogging(l *logging.Logging) *logging.Logging {
 	return st.Logging.SetLogging(l)
 }
 
-func (st *States) SetWhenStateSwitched(f func(StateType, StateType)) {
+func (st *States) SetWhenStateSwitched(f func(StateType)) {
 	st.whenStateSwitched = f
 }
 
@@ -122,6 +121,30 @@ func (st *States) Hold() error {
 	return st.switchState(newStoppedSwitchContext(current.state(), nil))
 }
 
+func (st *States) MoveState(sctx switchContext) error {
+	l := st.stateSwitchContextLog(sctx, st.current())
+
+	switch err := st.checkStateSwitchContext(sctx, st.current()); {
+	case err == nil:
+	case errors.Is(err, ErrIgnoreSwithingState):
+		return nil
+	default:
+		l.Error().Err(err).Msg("failed to switch state")
+
+		return errors.Wrap(err, "failed to switch state")
+	}
+
+	go func() {
+		st.statech <- sctx
+	}()
+
+	return nil
+}
+
+func (st *States) Current() StateType {
+	return st.current().state()
+}
+
 func (st *States) start(ctx context.Context) error {
 	defer st.Log().Debug().Msg("states stopped")
 
@@ -135,7 +158,7 @@ func (st *States) start(ctx context.Context) error {
 			return errors.WithMessage(err, "failed to create stopped new handler")
 		}
 
-		if _, err := h.enter(nil); err != nil {
+		if _, err := h.enter(StateEmpty, nil); err != nil {
 			return errors.Errorf("failed to enter stopped handler")
 		}
 
@@ -199,10 +222,6 @@ func (st *States) startStatesSwitch(ctx context.Context) error {
 	}
 }
 
-func (st *States) Current() StateType {
-	return st.current().state()
-}
-
 func (st *States) current() handler {
 	st.stateLock.RLock()
 	defer st.stateLock.RUnlock()
@@ -213,19 +232,12 @@ func (st *States) current() handler {
 func (st *States) ensureSwitchState(sctx switchContext) error {
 	var n int
 
-	current := st.cs
-
 	movetobroken := func(err error) switchContext {
 		st.Log().Error().Err(err).Msg("failed to switch state; wil move to broken")
 
 		n = 0
 
-		from := StateEmpty
-		if current != nil {
-			from = current.state()
-		}
-
-		return newBrokenSwitchContext(from, err)
+		return newBrokenSwitchContextFromEmpty(err)
 	}
 
 	nsctx := sctx
@@ -257,10 +269,6 @@ end:
 				st.Log().Error().Err(err).Msg("failed to switch to broken; will stop switching")
 
 				return errors.Wrap(err, "failed to switch to broken")
-			}
-
-			if nsctx.from() == StateBroken {
-				<-time.After(time.Second) // NOTE prevents too fast switching
 			}
 
 			nsctx = movetobroken(err)
@@ -306,7 +314,7 @@ func (st *States) switchState(sctx switchContext) error {
 
 	l.Debug().Msg("state switched")
 
-	go st.whenStateSwitched(sctx.from(), sctx.next())
+	go st.whenStateSwitched(sctx.next())
 
 	return nil
 }
@@ -350,7 +358,7 @@ func (st *States) exitAndEnter(sctx switchContext, current handler) (func(), fun
 		return nil, nil, e(err, "failed to create new handler, %q", sctx.next())
 	}
 
-	ndefer, err = nextHandler.enter(sctx)
+	ndefer, err = nextHandler.enter(current.state(), sctx)
 	if err != nil {
 		if isSwitchContextError(err) {
 			st.cs = nextHandler
@@ -364,26 +372,6 @@ func (st *States) exitAndEnter(sctx switchContext, current handler) (func(), fun
 	st.cs = nextHandler
 
 	return cdefer, ndefer, nil
-}
-
-func (st *States) newState(sctx switchContext) error {
-	l := st.stateSwitchContextLog(sctx, st.current())
-
-	switch err := st.checkStateSwitchContext(sctx, st.current()); {
-	case err == nil:
-	case errors.Is(err, ErrIgnoreSwithingState):
-		return nil
-	default:
-		l.Error().Err(err).Msg("failed to switch state")
-
-		return errors.Wrap(err, "failed to switch state")
-	}
-
-	go func() {
-		st.statech <- sctx
-	}()
-
-	return nil
 }
 
 func (st *States) voteproofToCurrent(vp base.Voteproof, current handler) error {
@@ -415,25 +403,15 @@ func (st *States) checkStateSwitchContext(sctx switchContext, current handler) e
 		return nil
 	}
 
-	from := sctx.from()
-
-	switch {
-	case from == StateEmpty:
-		from = current.state()
-	default:
-		if _, found := st.newHandlers[from]; !found {
-			return errors.Errorf("unknown from state, %q", from)
-		}
-	}
-
 	if _, found := st.newHandlers[sctx.next()]; !found {
 		return errors.Errorf("unknown next state, %q", sctx.next())
 	}
 
-	switch {
-	case from != current.state():
-		return ErrIgnoreSwithingState.Errorf("from not matched")
-	case sctx.next() == current.state():
+	if !sctx.ok(current.state()) {
+		return ErrIgnoreSwithingState.Errorf("not ok")
+	}
+
+	if sctx.next() == current.state() {
 		return ErrIgnoreSwithingState.Errorf("same next state")
 	}
 

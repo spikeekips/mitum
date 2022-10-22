@@ -51,7 +51,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestHigherHeight() {
 
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
-	deferred, err := st.enter(sctx)
+	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
 	deferred()
 
@@ -71,7 +71,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestHigherHeight() {
 	err = st.newVoteproof(newivp)
 	t.Error(err)
 
-	var ssctx syncingSwitchContext
+	var ssctx SyncingSwitchContext
 	t.True(errors.As(err, &ssctx))
 	t.Equal(ssctx.height, newpoint.Height()-1)
 }
@@ -109,7 +109,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestNextRoundButAlreadyFini
 
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
-	deferred, err := st.enter(sctx)
+	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
 	deferred()
 
@@ -171,7 +171,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBeforePreviousBlock
 
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
-	deferred, err := st.enter(sctx)
+	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
 	deferred()
 
@@ -214,7 +214,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBeforePreviousBlock
 	_, newivp := t.VoteproofsPair(point, drawivp.Point().Point.NextRound(), valuehash.RandomSHA256(), nil, t.PRPool.Hash(drawivp.Point().Point.NextRound()), nodes)
 	err = st.newVoteproof(newivp)
 
-	var ssctx syncingSwitchContext
+	var ssctx SyncingSwitchContext
 	t.True(errors.As(err, &ssctx))
 	t.Equal(ssctx.height, newivp.Point().Height()-1)
 }
@@ -262,7 +262,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBefore() {
 
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
-	deferred, err := st.enter(sctx)
+	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
 	deferred()
 
@@ -360,7 +360,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawAndDrawAgain() {
 
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
-	deferred, err := st.enter(sctx)
+	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
 	deferred()
 
@@ -464,7 +464,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestExpected() {
 
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
-	deferred, err := st.enter(sctx)
+	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
 	deferred()
 
@@ -537,7 +537,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestHigherHeight() {
 
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
-	deferred, err := st.enter(sctx)
+	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
 	deferred()
 
@@ -556,7 +556,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestHigherHeight() {
 	_, newivp := t.VoteproofsPair(point.NextHeight(), point.NextHeight().NextHeight(), nil, nil, t.PRPool.Hash(point.NextHeight().NextHeight()), nodes)
 	err = st.newVoteproof(newivp)
 
-	var ssctx syncingSwitchContext
+	var ssctx SyncingSwitchContext
 	t.True(errors.As(err, &ssctx))
 	t.Equal(ssctx.height, newivp.Point().Height()-1)
 }
@@ -602,7 +602,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestPreviousBlockNotMatch
 
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
-	deferred, err := st.enter(sctx)
+	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
 	deferred()
 
@@ -626,7 +626,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestPreviousBlockNotMatch
 
 	err = st.newVoteproof(newivp)
 
-	var ssctx syncingSwitchContext
+	var ssctx SyncingSwitchContext
 	t.True(errors.As(err, &ssctx))
 	t.Equal(ssctx.height, newivp.Point().Height()-1)
 }
@@ -682,7 +682,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestNotInConsensusNodes()
 
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
-	deferred, err := st.enter(sctx)
+	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
 	deferred()
 
@@ -718,7 +718,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestNotInConsensusNodes()
 
 		return
 	case sctx := <-sctxch:
-		var ssctx syncingSwitchContext
+		var ssctx SyncingSwitchContext
 		t.True(errors.As(sctx, &ssctx))
 		t.Equal(nextavp.Point().Height()-1, ssctx.height)
 	}
