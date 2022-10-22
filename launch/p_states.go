@@ -577,80 +577,30 @@ func syncerBlockMapItemFunc(
 	syncSourcePool *isaac.SyncSourcePool,
 ) isaacstates.SyncerBlockMapItemFunc {
 	// FIXME support remote item like https or ftp?
-	f := func(
-		ctx context.Context, height base.Height, item base.BlockMapItemType, ci quicstream.UDPConnInfo,
-	) (io.ReadCloser, func() error, bool, error) {
+
+	return func(ctx context.Context, height base.Height, node base.Address, item base.BlockMapItemType) (
+		reader io.ReadCloser, closef func() error, found bool, _ error,
+	) {
+		var ci quicstream.UDPConnInfo
+
+		switch nci, nfound := syncSourcePool.NodeConnInfo(node); {
+		case !nfound:
+			return reader, closef, false, nil
+		default:
+			i, err := nci.UDPConnInfo()
+			if err != nil {
+				return reader, closef, false, nil
+			}
+
+			ci = i
+		}
+
 		cctx, ctxcancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
 		defer ctxcancel()
 
 		r, cancel, found, err := client.BlockMapItem(cctx, ci, height, item)
 
 		return r, cancel, found, err
-	}
-
-	return func(ctx context.Context, height base.Height, item base.BlockMapItemType) (
-		reader io.ReadCloser, closef func() error, found bool, _ error,
-	) {
-		err := util.Retry(
-			ctx,
-			func() (bool, error) {
-				numnodes := 3 // NOTE choose top 3 sync nodes
-				result := util.EmptyLocked()
-
-				_ = isaac.ErrGroupWorkerWithSyncSourcePool(
-					ctx,
-					syncSourcePool,
-					numnodes,
-					uint64(numnodes),
-					func(ctx context.Context, i, _ uint64, nci isaac.NodeConnInfo) error {
-						ci, err := nci.UDPConnInfo()
-						if err != nil {
-							return err
-						}
-
-						switch a, b, c, err := f(ctx, height, item, ci); {
-						case err != nil:
-							if quicstream.IsNetworkError(err) {
-								return err
-							}
-
-							return nil
-						case !c:
-							return nil
-						default:
-							_, _ = result.Set(func(_ bool, i interface{}) (interface{}, error) {
-								if i != nil {
-									_ = a.Close()
-									_ = b()
-
-									return nil, errors.Errorf("already set")
-								}
-
-								return [3]interface{}{a, b, c}, nil
-							})
-
-							return errors.Errorf("stop")
-						}
-					},
-				)
-
-				v, _ := result.Value()
-				if v == nil {
-					return true, nil
-				}
-
-				i := v.([3]interface{}) //nolint:forcetypeassert //...
-
-				reader, closef, found = i[0].(io.ReadCloser), //nolint:forcetypeassert //...
-					i[1].(func() error), i[2].(bool)
-
-				return false, nil
-			},
-			-1,
-			time.Second,
-		)
-
-		return reader, closef, found, err
 	}
 }
 

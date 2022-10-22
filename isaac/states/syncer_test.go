@@ -79,7 +79,7 @@ func (t *testSyncer) dummyNewBlockImporterFunc() NewBlockImporterFunc {
 }
 
 func (t *testSyncer) dummyBlockMapItemFunc() SyncerBlockMapItemFunc {
-	return func(context.Context, base.Height, base.BlockMapItemType) (io.ReadCloser, func() error, bool, error) {
+	return func(context.Context, base.Height, base.Address, base.BlockMapItemType) (io.ReadCloser, func() error, bool, error) {
 		return io.NopCloser(&bytes.Buffer{}), func() error { return nil }, true, nil
 	}
 }

@@ -152,6 +152,21 @@ func (p *SyncSourcePool) UpdateFixed(fixed []NodeConnInfo) bool {
 	return true
 }
 
+func (p *SyncSourcePool) NodeConnInfo(node base.Address) (NodeConnInfo, bool) {
+	p.RLock()
+	defer p.RUnlock()
+
+	index := util.InSliceFunc(p.sources, func(_ interface{}, i int) bool {
+		return p.sources[i].Address().Equal(node)
+	})
+
+	if index < 0 {
+		return nil, false
+	}
+
+	return p.sources[index], true
+}
+
 func (p *SyncSourcePool) Add(added ...NodeConnInfo) bool {
 	p.Lock()
 	defer p.Unlock()
@@ -229,30 +244,6 @@ func (p *SyncSourcePool) RemoveNonFixed(node base.Address, publish string) bool 
 	default:
 		return p.remove(index)
 	}
-}
-
-func (p *SyncSourcePool) remove(index int) bool {
-	sources := make([]NodeConnInfo, len(p.sources)-1)
-	copy(sources, p.sources[:index])
-	copy(sources[index:], p.sources[index+1:])
-
-	sourceids := make([]string, len(p.sourceids)-1)
-	copy(sourceids, p.sourceids[:index])
-	copy(sourceids[index:], p.sourceids[index+1:])
-
-	problems := make([]*time.Time, len(p.problems)-1)
-	copy(problems, p.problems[:index])
-	copy(problems[index:], p.problems[index+1:])
-
-	p.sources = sources
-	p.sourceids = sourceids
-	p.problems = problems
-
-	if index < p.fixedlen {
-		p.fixedlen--
-	}
-
-	return true
 }
 
 func (p *SyncSourcePool) Retry(
@@ -434,6 +425,30 @@ func (p *SyncSourcePool) pick(from int) (found int, _ NodeConnInfo, report func(
 	}
 
 	return -1, nil, nil, ErrEmptySyncSources.Call()
+}
+
+func (p *SyncSourcePool) remove(index int) bool {
+	sources := make([]NodeConnInfo, len(p.sources)-1)
+	copy(sources, p.sources[:index])
+	copy(sources[index:], p.sources[index+1:])
+
+	sourceids := make([]string, len(p.sourceids)-1)
+	copy(sourceids, p.sourceids[:index])
+	copy(sourceids[index:], p.sourceids[index+1:])
+
+	problems := make([]*time.Time, len(p.problems)-1)
+	copy(problems, p.problems[:index])
+	copy(problems[index:], p.problems[index+1:])
+
+	p.sources = sources
+	p.sourceids = sourceids
+	p.problems = problems
+
+	if index < p.fixedlen {
+		p.fixedlen--
+	}
+
+	return true
 }
 
 func DistributeWorkerWithSyncSourcePool(

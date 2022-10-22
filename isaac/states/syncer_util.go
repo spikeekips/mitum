@@ -2,7 +2,6 @@ package isaacstates
 
 import (
 	"context"
-	"io"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -14,8 +13,8 @@ func ImportBlocks(
 	ctx context.Context,
 	from, to base.Height,
 	batchlimit int64,
-	blockMapf func(base.Height) (base.BlockMap, bool, error),
-	blockMapItemf func(context.Context, base.Height, base.BlockMapItemType) (io.ReadCloser, func() error, bool, error),
+	blockMapf SyncerBlockMapFunc,
+	blockMapItemf SyncerBlockMapItemFunc,
 	newBlockWriteDatabase newBlockWriteDatabaseFunc,
 	newBlockImporter func(base.BlockMap, isaac.BlockWriteDatabase) (isaac.BlockImporter, error),
 	setLastVoteproofsFunc func(isaac.BlockReader) error,
@@ -61,7 +60,7 @@ func ImportBlocks(
 		func(ctx context.Context, i, end uint64) error {
 			height := from + base.Height(int64(i))
 
-			m, found, err := blockMapf(height)
+			m, found, err := blockMapf(ctx, height)
 			switch {
 			case err != nil:
 				return err
@@ -113,7 +112,7 @@ func importBlock(
 	height base.Height,
 	m base.BlockMap,
 	im isaac.BlockImporter,
-	blockMapItemf func(context.Context, base.Height, base.BlockMapItemType) (io.ReadCloser, func() error, bool, error),
+	blockMapItemf SyncerBlockMapItemFunc,
 ) error {
 	e := util.StringErrorFunc("failed to import block, %d", height)
 
@@ -129,7 +128,7 @@ func importBlock(
 
 	m.Items(func(item base.BlockMapItem) bool {
 		if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-			switch r, cancel, found, err := blockMapItemf(ctx, height, item.Type()); {
+			switch r, cancel, found, err := blockMapItemf(ctx, height, m.Node(), item.Type()); {
 			case err != nil:
 				return err
 			case !found:

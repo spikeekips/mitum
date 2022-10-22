@@ -51,7 +51,7 @@ func ImportBlocks(
 		context.Background(),
 		fromHeight, toHeight,
 		333, //nolint:gomnd //...
-		func(height base.Height) (base.BlockMap, bool, error) {
+		func(_ context.Context, height base.Height) (base.BlockMap, bool, error) {
 			reader, err := getreader(height)
 			if err != nil {
 				return nil, false, err
@@ -62,7 +62,7 @@ func ImportBlocks(
 			return m, found, err
 		},
 		func(
-			_ context.Context, height base.Height, item base.BlockMapItemType,
+			_ context.Context, height base.Height, _ base.Address, item base.BlockMapItemType,
 		) (io.ReadCloser, func() error, bool, error) {
 			reader, err := getreader(height)
 			if err != nil {

@@ -20,7 +20,7 @@ import (
 type (
 	SyncerBlockMapFunc     func(context.Context, base.Height) (base.BlockMap, bool, error)
 	SyncerBlockMapItemFunc func(
-		context.Context, base.Height, base.BlockMapItemType) (io.ReadCloser, func() error, bool, error)
+		context.Context, base.Height, base.Address, base.BlockMapItemType) (io.ReadCloser, func() error, bool, error)
 	newBlockWriteDatabaseFunc func(base.Height) (_ isaac.BlockWriteDatabase, merge func(context.Context) error, _ error)
 	NewBlockImporterFunc      func(
 		root string, _ base.BlockMap, _ isaac.BlockWriteDatabase) (isaac.BlockImporter, error)
@@ -357,7 +357,9 @@ func (s *Syncer) syncBlocks(ctx context.Context, prev base.BlockMap, to base.Hei
 		ctx,
 		from, to,
 		s.batchlimit,
-		s.tempsyncpool.BlockMap,
+		func(_ context.Context, height base.Height) (base.BlockMap, bool, error) {
+			return s.tempsyncpool.BlockMap(height)
+		},
 		s.blockMapItemf,
 		s.newBlockWriteDatabasef,
 		func(m base.BlockMap, bwdb isaac.BlockWriteDatabase) (isaac.BlockImporter, error) {
