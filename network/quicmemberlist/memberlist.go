@@ -396,6 +396,19 @@ func (srv *Memberlist) SetWhenLeftFunc(f func(Node)) {
 	srv.whenLeftf = f
 }
 
+func (srv *Memberlist) SetNotifyMsg(f func([]byte)) {
+	if srv.mconfig.Delegate == nil {
+		return
+	}
+
+	i, ok := srv.mconfig.Delegate.(*Delegate)
+	if !ok {
+		return
+	}
+
+	i.notifyMsgFunc = f
+}
+
 func (srv *Memberlist) allowNode(node Node) error {
 	switch n := srv.members.NodesLen(node.Address()); {
 	case n < 1:

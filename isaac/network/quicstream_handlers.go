@@ -544,6 +544,51 @@ func QuicstreamHandlerNodeInfo(
 	}
 }
 
+func QuicstreamHandlerCallbackBroadcast(
+	encs *encoder.Encoders,
+	idleTimeout time.Duration,
+	cb *CallbackBroadcaster,
+) quicstream.Handler {
+	var sg singleflight.Group
+
+	return func(_ net.Addr, r io.Reader, w io.Writer) error {
+		e := util.StringErrorFunc("failed to handle callback broadcast")
+
+		var header CallbackBroadcastHeader
+
+		enc, err := quicstreamPreHandle(encs, idleTimeout, r, &header)
+		if err != nil {
+			return e(err, "")
+		}
+
+		i, err, _ := sg.Do(HandlerPrefixCallbackBroadcast, func() (interface{}, error) {
+			b, found := cb.RawMessage(header.ID())
+
+			return [2]interface{}{b, found}, nil
+		})
+
+		if err != nil {
+			return e(err, "")
+		}
+
+		var b json.RawMessage
+		var found bool
+
+		if i != nil {
+			j := i.([2]interface{}) //nolint:forcetypeassert //...
+
+			b = json.RawMessage(j[0].([]byte)) //nolint:forcetypeassert //...
+			found = j[1].(bool)                //nolint:forcetypeassert //...
+		}
+
+		if err := WriteResponse(w, NewResponseHeader(found, nil), b, enc); err != nil {
+			return e(err, "")
+		}
+
+		return nil
+	}
+}
+
 func quicstreamPreHandle(
 	encs *encoder.Encoders,
 	idleTimeout time.Duration,

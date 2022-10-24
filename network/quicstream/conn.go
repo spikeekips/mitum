@@ -23,6 +23,17 @@ func NewUDPConnInfoFromString(s string) (UDPConnInfo, error) {
 	return NewUDPConnInfoFromStringAddress(as, tlsinsecure)
 }
 
+func MustNewUDPConnInfoFromString(s string) UDPConnInfo {
+	as, tlsinsecure := network.ParseTLSInsecure(s)
+
+	ci, err := NewUDPConnInfoFromStringAddress(as, tlsinsecure)
+	if err != nil {
+		panic(err)
+	}
+
+	return ci
+}
+
 func NewUDPConnInfoFromStringAddress(s string, tlsinsecure bool) (ci UDPConnInfo, _ error) {
 	addr, err := net.ResolveUDPAddr("udp", s)
 	if err == nil {

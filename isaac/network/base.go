@@ -27,6 +27,7 @@ var (
 	HandlerPrefixState                  = "state"
 	HandlerPrefixExistsInStateOperation = "exists_instate_operation"
 	HandlerPrefixNodeInfo               = "node_info"
+	HandlerPrefixCallbackBroadcast      = "callback_broadcast"
 )
 
 type baseNetwork struct {

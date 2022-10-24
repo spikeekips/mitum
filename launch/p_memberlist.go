@@ -26,12 +26,15 @@ var (
 	PNameMemberlist                     = ps.Name("memberlist")
 	PNameStartMemberlist                = ps.Name("start-memberlist")
 	PNameLongRunningMemberlistJoin      = ps.Name("long-running-memberlist-join")
+	PNameCallbackBroadcaster            = ps.Name("callback-broadcaster")
 	PNameSuffrageVoting                 = ps.Name("suffrage-voting")
+	PNamePatchMemberlist                = ps.Name("patch-memberlist")
 	MemberlistContextKey                = util.ContextKey("memberlist")
 	LongRunningMemberlistJoinContextKey = util.ContextKey("long-running-memberlist-join")
 	EventOnEmptyMembersContextKey       = util.ContextKey("event-on-empty-members")
 	SuffrageVotingContextKey            = util.ContextKey("suffrage-voting")
 	SuffrageVotingVoteFuncContextKey    = util.ContextKey("suffrage-voting-vote-func")
+	CallbackBroadcasterContextKey       = util.ContextKey("callback-broadcaster")
 )
 
 func PMemberlist(ctx context.Context) (context.Context, error) {
@@ -138,6 +141,123 @@ func PLongRunningMemberlistJoin(ctx context.Context) (context.Context, error) {
 	return ctx, nil
 }
 
+func PCallbackBroadcaster(ctx context.Context) (context.Context, error) {
+	var design NodeDesign
+	var enc *jsonenc.Encoder
+	var m *quicmemberlist.Memberlist
+
+	if err := util.LoadFromContextOK(ctx,
+		DesignContextKey, &design,
+		EncoderContextKey, &enc,
+		MemberlistContextKey, &m,
+	); err != nil {
+		return nil, err
+	}
+
+	c := isaacnetwork.NewCallbackBroadcaster(
+		quicstream.NewUDPConnInfo(design.Network.Publish(), design.Network.TLSInsecure),
+		enc,
+		m,
+	)
+
+	return context.WithValue(ctx, CallbackBroadcasterContextKey, c), nil
+}
+
+func PPatchMemberlist(ctx context.Context) (context.Context, error) {
+	var log *logging.Logging
+	var enc encoder.Encoder
+	var params *isaac.LocalParams
+	var db isaac.Database
+	var ballotbox *isaacstates.Ballotbox
+	var m *quicmemberlist.Memberlist
+	var client *isaacnetwork.QuicstreamClient
+	var svvotef isaac.SuffrageVoteFunc
+
+	if err := util.LoadFromContextOK(ctx,
+		LoggingContextKey, &log,
+		EncoderContextKey, &enc,
+		LocalParamsContextKey, &params,
+		CenterDatabaseContextKey, &db,
+		BallotboxContextKey, &ballotbox,
+		QuicstreamClientContextKey, &client,
+		MemberlistContextKey, &m,
+		SuffrageVotingVoteFuncContextKey, &svvotef,
+	); err != nil {
+		return ctx, err
+	}
+
+	m.SetNotifyMsg(func(b []byte) {
+		i, err := enc.Decode(b) //nolint:govet //...
+		if err != nil {
+			log.Log().Error().Err(err).Str("message", string(b)).Msg("failed to decode incoming message")
+
+			return
+		}
+
+		m := i
+
+		if j, ok := i.(isaacnetwork.CallbackBroadcastHeader); ok {
+			l := log.Log().With().Interface("header", j).Logger()
+
+			cctx, cancel := context.WithTimeout(context.Background(), time.Second*10) //nolint:gomnd //...
+			defer cancel()
+
+			response, v, cancelrequest, err := client.Request(cctx, j.ConnInfo(), j, nil)
+			defer func() {
+				_ = cancelrequest()
+			}()
+
+			if err != nil {
+				l.Error().Err(err).Msg("failed to request callback broadcast")
+
+				return
+			}
+
+			if response.Type() != isaac.NetworkResponseHinterContentType {
+				l.Error().Err(err).Interface("response_type", response.Type()).
+					Msg("invalid response type; response should be isaac.NetworkResponseHinterContentType")
+
+				return
+			}
+
+			m = v
+		}
+
+		switch t := m.(type) {
+		case base.Ballot:
+			if err := t.IsValid(params.NetworkID()); err != nil {
+				log.Log().Error().Err(err).Interface("ballot", t).Msg("new ballot; failed to vote")
+
+				return
+			}
+
+			voted, err := ballotbox.Vote(t, params.Threshold())
+			if err != nil {
+				log.Log().Error().Err(err).Interface("ballot", t).Msg("new ballot; failed to vote")
+
+				return
+			}
+
+			log.Log().Trace().Interface("ballot", t).Bool("voted", voted).Msg("new ballot; voted")
+		case base.SuffrageWithdrawOperation:
+			voted, err := svvotef(t)
+			if err != nil {
+				log.Log().Error().Err(err).Interface("withdraw operation", t).
+					Msg("new withdraw operation; failed to vote")
+
+				return
+			}
+
+			log.Log().Trace().Interface("withdraw operation", t).Bool("voted", voted).
+				Msg("new withdraw operation; voted")
+		default:
+			log.Log().Trace().Interface("message", m).Msgf("new incoming message; ignored; but unknown, %T", t)
+		}
+	})
+
+	return ctx, nil
+}
+
 func memberlistLocalNode(ctx context.Context) (quicmemberlist.Node, error) {
 	var design NodeDesign
 	var local base.LocalNode
@@ -193,10 +313,9 @@ func memberlistConfig(
 		return nil, err
 	}
 
-	delegate, err := memberlistDelegate(ctx, localnode)
-	if err != nil {
-		return nil, err
-	}
+	delegate := quicmemberlist.NewDelegate(localnode, nil, func(b []byte) {
+		panic("set notifyMsgFunc")
+	})
 
 	alive, err := memberlistAlive(ctx)
 	if err != nil {
@@ -316,54 +435,6 @@ func memberlistTransport(
 	})
 
 	return transport, nil
-}
-
-func memberlistDelegate(ctx context.Context, localnode quicmemberlist.Node) (*quicmemberlist.Delegate, error) {
-	var log *logging.Logging
-	var enc encoder.Encoder
-	var params *isaac.LocalParams
-	var db isaac.Database
-	var ballotbox *isaacstates.Ballotbox
-
-	if err := util.LoadFromContextOK(ctx,
-		LoggingContextKey, &log,
-		EncoderContextKey, &enc,
-		LocalParamsContextKey, &params,
-		CenterDatabaseContextKey, &db,
-		BallotboxContextKey, &ballotbox,
-	); err != nil {
-		return nil, err
-	}
-
-	return quicmemberlist.NewDelegate(localnode, nil, func(b []byte) {
-		i, err := enc.Decode(b) //nolint:govet //...
-		if err != nil {
-			log.Log().Error().Err(err).Str("message", string(b)).Msg("failed to decode incoming message")
-
-			return
-		}
-
-		switch t := i.(type) {
-		case base.Ballot:
-			// FIXME fetch original ballot from location instead of real body
-			if err := t.IsValid(params.NetworkID()); err != nil {
-				log.Log().Error().Err(err).Interface("ballot", t).Msg("new ballot; failed to vote")
-
-				return
-			}
-
-			voted, err := ballotbox.Vote(t, params.Threshold())
-			if err != nil {
-				log.Log().Error().Err(err).Interface("ballot", t).Msg("new ballot; failed to vote")
-
-				return
-			}
-
-			log.Log().Trace().Interface("ballot", t).Bool("voted", voted).Msg("new ballot; voted")
-		default:
-			log.Log().Trace().Interface("message", i).Msgf("new incoming message; ignored; but unknown, %T", t)
-		}
-	}), nil
 }
 
 func memberlistAlive(ctx context.Context) (*quicmemberlist.AliveDelegate, error) {

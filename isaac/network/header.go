@@ -26,6 +26,7 @@ var (
 	StateRequestHeaderHint                  = hint.MustNewHint("state-header-v0.0.1")
 	ExistsInStateOperationRequestHeaderHint = hint.MustNewHint("exists-instate-operation-header-v0.0.1")
 	NodeInfoRequestHeaderHint               = hint.MustNewHint("node-info-header-v0.0.1")
+	CallbackBroadcastHeaderHint             = hint.MustNewHint("callback-broadcast-header-v0.0.1")
 )
 
 var ResponseHeaderHint = hint.MustNewHint("response-header-v0.0.1")
@@ -59,7 +60,7 @@ func NewOperationRequestHeader(operationhash util.Hash) OperationRequestHeader {
 }
 
 func (h OperationRequestHeader) IsValid([]byte) error {
-	e := util.ErrInvalid.Errorf("invalid OperationHeader")
+	e := util.ErrInvalid.Errorf("invalid OperationRequestHeader")
 
 	if err := h.BaseHinter.IsValid(OperationRequestHeaderHint.Type().Bytes()); err != nil {
 		return e.Wrap(err)
@@ -486,6 +487,46 @@ func (h NodeInfoRequestHeader) IsValid([]byte) error {
 	return nil
 }
 
+type CallbackBroadcastHeader struct {
+	id string
+	ci quicstream.UDPConnInfo
+	BaseHeader
+}
+
+func NewCallbackBroadcastHeader(id string, ci quicstream.UDPConnInfo) CallbackBroadcastHeader {
+	return CallbackBroadcastHeader{
+		BaseHeader: NewBaseHeader(CallbackBroadcastHeaderHint),
+		id:         id,
+		ci:         ci,
+	}
+}
+
+func (h CallbackBroadcastHeader) IsValid([]byte) error {
+	e := util.ErrInvalid.Errorf("invalid CallbackBroadcastHeader")
+
+	if err := h.BaseHinter.IsValid(CallbackBroadcastHeaderHint.Type().Bytes()); err != nil {
+		return e.Wrap(err)
+	}
+
+	if len(h.id) < 1 {
+		return e.Errorf("empty id")
+	}
+
+	if err := h.ci.IsValid(nil); err != nil {
+		return e.Wrap(err)
+	}
+
+	return nil
+}
+
+func (h CallbackBroadcastHeader) ID() string {
+	return h.id
+}
+
+func (h CallbackBroadcastHeader) ConnInfo() quicstream.UDPConnInfo {
+	return h.ci
+}
+
 type ResponseHeader struct {
 	ctype isaac.NetworkResponseContentType
 	err   error
@@ -564,6 +605,8 @@ func baseHeaderPrefixByHint(ht hint.Hint) string {
 		return HandlerPrefixExistsInStateOperation
 	case NodeInfoRequestHeaderHint.Type():
 		return HandlerPrefixNodeInfo
+	case CallbackBroadcastHeaderHint.Type():
+		return HandlerPrefixCallbackBroadcast
 	default:
 		return ""
 	}

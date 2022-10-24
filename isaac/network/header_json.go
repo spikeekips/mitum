@@ -4,6 +4,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
+	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
@@ -45,7 +46,7 @@ type operationRequestHeaderJSONUnmarshaler struct {
 }
 
 func (h *OperationRequestHeader) DecodeJSON(b []byte, _ *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to unmarshal OperationHeader")
+	e := util.StringErrorFunc("failed to unmarshal OperationRequestHeader")
 
 	var u operationRequestHeaderJSONUnmarshaler
 
@@ -469,6 +470,43 @@ func (h *NodeInfoRequestHeader) UnmarshalJSON(b []byte) error {
 	if err := h.BaseHeader.unmarshalJSON(b); err != nil {
 		return errors.WithMessage(err, "failed to unmarshal NodeInfoHeader")
 	}
+
+	return nil
+}
+
+type callbackBroadcastHeaderJSONMarshaler struct {
+	ID string                 `json:"id"`
+	CI quicstream.UDPConnInfo `json:"conninfo"` //nolint:tagliatelle //...
+}
+
+func (h CallbackBroadcastHeader) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(struct {
+		callbackBroadcastHeaderJSONMarshaler
+		BaseHeader
+	}{
+		BaseHeader: h.BaseHeader,
+		callbackBroadcastHeaderJSONMarshaler: callbackBroadcastHeaderJSONMarshaler{
+			ID: h.id,
+			CI: h.ci,
+		},
+	})
+}
+
+func (h *CallbackBroadcastHeader) DecodeJSON(b []byte, _ *jsonenc.Encoder) error {
+	e := util.StringErrorFunc("failed to unmarshal CallbackBroadcast")
+
+	var u callbackBroadcastHeaderJSONMarshaler
+
+	if err := util.UnmarshalJSON(b, &u); err != nil {
+		return e(err, "")
+	}
+
+	if err := h.BaseHeader.unmarshalJSON(b); err != nil {
+		return e(err, "")
+	}
+
+	h.id = u.ID
+	h.ci = u.CI
 
 	return nil
 }

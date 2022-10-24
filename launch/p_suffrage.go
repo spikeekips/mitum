@@ -281,6 +281,7 @@ func PSuffrageVoting(ctx context.Context) (context.Context, error) {
 	var pool *isaacdatabase.TempPool
 	var memberlist *quicmemberlist.Memberlist
 	var ballotbox *isaacstates.Ballotbox
+	var cb *isaacnetwork.CallbackBroadcaster
 
 	if err := util.LoadFromContextOK(ctx,
 		LocalContextKey, &local,
@@ -289,6 +290,7 @@ func PSuffrageVoting(ctx context.Context) (context.Context, error) {
 		PoolDatabaseContextKey, &pool,
 		MemberlistContextKey, &memberlist,
 		BallotboxContextKey, &ballotbox,
+		CallbackBroadcasterContextKey, &cb,
 	); err != nil {
 		return ctx, err
 	}
@@ -305,7 +307,7 @@ func PSuffrageVoting(ctx context.Context) (context.Context, error) {
 				return e(err, "")
 			}
 
-			if err := BroadcastThruMemberlist(memberlist, op.Hash().String(), b, nil); err != nil {
+			if err := cb.Broadcast(op.Hash().String(), b, nil); err != nil {
 				return e(err, "")
 			}
 

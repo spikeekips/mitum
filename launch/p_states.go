@@ -72,6 +72,7 @@ func PStates(ctx context.Context) (context.Context, error) {
 	var pps *isaac.ProposalProcessors
 	var memberlist *quicmemberlist.Memberlist
 	var lvps *isaacstates.LastVoteproofsHandler
+	var cb *isaacnetwork.CallbackBroadcaster
 
 	if err := util.LoadFromContextOK(ctx,
 		EncoderContextKey, &enc,
@@ -79,6 +80,7 @@ func PStates(ctx context.Context) (context.Context, error) {
 		ProposalProcessorsContextKey, &pps,
 		MemberlistContextKey, &memberlist,
 		LastVoteproofsHandlerContextKey, &lvps,
+		CallbackBroadcasterContextKey, &cb,
 	); err != nil {
 		return ctx, e(err, "")
 	}
@@ -96,7 +98,7 @@ func PStates(ctx context.Context) (context.Context, error) {
 
 			id := valuehash.NewSHA256(ballot.HashBytes()).String()
 
-			if err := BroadcastThruMemberlist(memberlist, id, b, nil); err != nil {
+			if err := cb.Broadcast(id, b, nil); err != nil {
 				return ee(err, "")
 			}
 
@@ -280,29 +282,6 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 	_ = states.SetLogging(log)
 
 	return ctx, nil
-}
-
-func BroadcastThruMemberlist(
-	memberlist *quicmemberlist.Memberlist,
-	id string,
-	b []byte,
-	notifych chan struct{},
-) error {
-	defer func() {
-		if notifych != nil {
-			<-notifych
-		}
-	}()
-
-	if !memberlist.IsJoined() {
-		return nil
-	}
-
-	body := quicmemberlist.NewBroadcast(b, id, notifych)
-
-	memberlist.Broadcast(body)
-
-	return nil
 }
 
 func newSyncerFunc(
