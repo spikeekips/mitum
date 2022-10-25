@@ -476,7 +476,7 @@ func (h *NodeInfoRequestHeader) UnmarshalJSON(b []byte) error {
 
 type callbackBroadcastHeaderJSONMarshaler struct {
 	ID string                 `json:"id"`
-	CI quicstream.UDPConnInfo `json:"conninfo"` //nolint:tagliatelle //...
+	CI quicstream.UDPConnInfo `json:"conn_info"` //nolint:tagliatelle //...
 }
 
 func (h CallbackBroadcastHeader) MarshalJSON() ([]byte, error) {
