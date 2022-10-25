@@ -549,13 +549,13 @@ func memberlistAllowFunc(ctx context.Context) (
 			return err
 		}
 
-		switch _, found, err := isaac.IsNodeInLastConsensusNodes(node, proof, st); {
+		switch suf, found, err := isaac.IsNodeInLastConsensusNodes(node, proof, st); {
 		case err != nil:
 			l.Error().Err(err).Msg("failed to check node in consensus nodes; node will not be allowed")
 
 			return err
 		case !found:
-			l.Error().Err(err).Msg("node not in consensus nodes; node will not be allowed")
+			l.Error().Err(err).Interface("suffrage", suf).Msg("node not in consensus nodes; node will not be allowed")
 
 			return util.ErrNotFound.Errorf("node not in consensus nodes")
 		default:

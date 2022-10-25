@@ -257,7 +257,7 @@ func (srv *Memberlist) patch(config *memberlist.Config) error { // revive:disabl
 
 	notallowedcache := gcache.New(1 << 9).LRU().Build() //nolint:gomnd //...
 	setnotallowedcache := func(addr string) {
-		_ = notallowedcache.SetWithExpire(addr, nil, time.Minute*2) //nolint:gomnd //... // FIXME set by config
+		_ = notallowedcache.SetWithExpire(addr, nil, time.Second*6) //nolint:gomnd //... // FIXME set by config
 	}
 
 	switch i, ok := config.Transport.(*Transport); {
@@ -304,6 +304,8 @@ func (srv *Memberlist) patch(config *memberlist.Config) error { // revive:disabl
 		i.allowf = func(node Node) error {
 			err := allowf(node)
 			if err != nil && !errors.Is(err, errIgnoreAllowNode) {
+				srv.Log().Trace().Err(err).Interface("node", node).Msg("set not allowed")
+
 				setnotallowedcache(node.UDPAddr().String())
 			}
 

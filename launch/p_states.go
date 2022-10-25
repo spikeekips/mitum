@@ -582,7 +582,7 @@ func syncerBlockMapItemFunc(
 
 		switch i, cfound := conninfocache.Value(height.String()); {
 		case !cfound:
-			return nil, nil, false, e(nil, "failed to conninfo not found")
+			return nil, nil, false, e(nil, "conninfo not found")
 		default:
 			ci = i.(quicstream.UDPConnInfo) //nolint:forcetypeassert //...
 		}
