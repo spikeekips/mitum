@@ -353,19 +353,28 @@ func (s *Syncer) syncBlocks(ctx context.Context, prev base.BlockMap, to base.Hei
 		from = prev.Manifest().Height() + 1
 	}
 
-	if err := ImportBlocks(
-		ctx,
-		from, to,
-		s.batchlimit,
-		func(_ context.Context, height base.Height) (base.BlockMap, bool, error) {
-			return s.tempsyncpool.BlockMap(height)
-		},
-		s.blockMapItemf,
-		s.newBlockWriteDatabasef,
-		func(m base.BlockMap, bwdb isaac.BlockWriteDatabase) (isaac.BlockImporter, error) {
-			return s.newBlockImporter(s.root, m, bwdb)
-		},
-		s.setLastVoteproofsFunc,
+	if err := util.Retry(ctx, func() (bool, error) {
+		if err := ImportBlocks(
+			ctx,
+			from, to,
+			s.batchlimit,
+			func(_ context.Context, height base.Height) (base.BlockMap, bool, error) {
+				return s.tempsyncpool.BlockMap(height)
+			},
+			s.blockMapItemf,
+			s.newBlockWriteDatabasef,
+			func(m base.BlockMap, bwdb isaac.BlockWriteDatabase) (isaac.BlockImporter, error) {
+				return s.newBlockImporter(s.root, m, bwdb)
+			},
+			s.setLastVoteproofsFunc,
+		); err != nil {
+			return true, err
+		}
+
+		return false, nil
+	},
+		-1,
+		time.Second,
 	); err != nil {
 		return e(err, "")
 	}
