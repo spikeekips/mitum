@@ -224,7 +224,6 @@ func (p *DefaultProposalProcessor) Cancel() error {
 
 func (p *DefaultProposalProcessor) clean() {
 	p.ctx = nil
-	p.cancel = nil
 	p.previous = nil
 	p.writer = nil
 	p.getStatef = nil
