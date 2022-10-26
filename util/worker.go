@@ -350,8 +350,6 @@ func NewErrgroupWorker(ctx context.Context, semsize int64) *ErrgroupWorker {
 	eg, egctx := errgroup.WithContext(base.Ctx)
 	base.Ctx = egctx
 
-	var cancelonece sync.Once
-
 	base.NewJobFunc = func(ctx context.Context, jobs uint64, callback ContextWorkerCallback) {
 		donech := make(chan struct{}, 1)
 
@@ -368,12 +366,8 @@ func NewErrgroupWorker(ctx context.Context, semsize int64) *ErrgroupWorker {
 			var err error
 			select {
 			case <-ctx.Done():
+				err = ctx.Err()
 			case err = <-errch:
-				if err != nil {
-					defer cancelonece.Do(func() {
-						wk.Cancel()
-					})
-				}
 			}
 
 			return err
@@ -397,9 +391,9 @@ func (wk *ErrgroupWorker) Wait() error {
 		case errors.Is(err, context.Canceled):
 			berr = err
 		case errors.Is(err, ErrWorkerContextCanceled):
-			return context.Canceled
+			berr = context.Canceled
 		default:
-			return err
+			berr = err
 		}
 	}
 
@@ -408,6 +402,10 @@ func (wk *ErrgroupWorker) Wait() error {
 	wk.doneonce.Do(func() {
 		werr = wk.eg.Wait()
 	})
+
+	if werr != nil || berr != nil {
+		wk.Cancel()
+	}
 
 	switch {
 	case werr != nil:

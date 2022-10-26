@@ -47,53 +47,54 @@ type ProposalProcessor interface {
 }
 
 type DefaultProposalProcessor struct {
-	writer                BlockWriter
-	ivp                   base.INITVoteproof
-	proposal              base.ProposalSignFact
-	previous              base.Manifest
-	newOperationProcessor NewOperationProcessorFunction
-	getStateFunc          base.GetStateFunc
-	getOperation          OperationProcessorGetOperationFunction
 	*logging.Logging
-	oprs          *util.ShardedMap
-	cancel        func()
-	cops          []base.Operation
-	retrylimit    int
-	retryinterval time.Duration
-	opslock       sync.RWMutex
-	sync.RWMutex
-	cancellock sync.RWMutex
-	issaved    bool
+	proposal              base.ProposalSignFact
+	ctx                   context.Context //nolint:containedctx //...
+	cancel                func()
+	previous              base.Manifest
+	writer                BlockWriter
+	getStatef             base.GetStateFunc
+	getOperationf         OperationProcessorGetOperationFunction
+	newOperationProcessor NewOperationProcessorFunction
+	ivp                   base.INITVoteproof
+	oprs                  *util.ShardedMap
+	processstate          *util.Locked
+	processlock           sync.Mutex
+	retrylimit            int
+	retryinterval         time.Duration
 }
 
 func NewDefaultProposalProcessor(
 	proposal base.ProposalSignFact,
 	previous base.Manifest,
 	newWriter NewBlockWriterFunc,
-	getStateFunc base.GetStateFunc,
-	getOperation OperationProcessorGetOperationFunction,
+	getStatef base.GetStateFunc,
+	getOperationf OperationProcessorGetOperationFunction,
 	newOperationProcessor NewOperationProcessorFunction,
 ) (*DefaultProposalProcessor, error) {
-	writer, err := newWriter(proposal, getStateFunc)
+	writer, err := newWriter(proposal, getStatef)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to make new ProposalProcessor")
 	}
+
+	ctx, cancel := context.WithCancel(context.Background())
 
 	return &DefaultProposalProcessor{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", "default-proposal-processor")
 		}),
 		proposal:              proposal,
+		ctx:                   ctx,
+		cancel:                cancel,
 		previous:              previous,
 		writer:                writer,
-		getStateFunc:          getStateFunc,
-		getOperation:          getOperation,
+		getStatef:             getStatef,
+		getOperationf:         getOperationf,
 		newOperationProcessor: newOperationProcessor,
-		cops:                  make([]base.Operation, len(proposal.ProposalFact().Operations())),
-		cancel:                func() {},
 		oprs:                  util.NewShardedMap(1 << 5), //nolint:gomnd //...
-		retrylimit:            15,                         //nolint:gomnd //...
-		retryinterval:         time.Millisecond * 600,     //nolint:gomnd //...
+		processstate:          util.NewLocked(0),
+		retrylimit:            15,                     //nolint:gomnd //...
+		retryinterval:         time.Millisecond * 600, //nolint:gomnd //...
 	}, nil
 }
 
@@ -101,58 +102,82 @@ func (p *DefaultProposalProcessor) Proposal() base.ProposalSignFact {
 	return p.proposal
 }
 
-func (p *DefaultProposalProcessor) collected() []base.Operation {
-	p.opslock.RLock()
-	defer p.opslock.RUnlock()
+func (p *DefaultProposalProcessor) Process(ctx context.Context, ivp base.INITVoteproof) (base.Manifest, error) {
+	p.processlock.Lock()
+	defer p.processlock.Unlock()
 
-	return p.cops
-}
-
-func (p *DefaultProposalProcessor) setOperation(index int, op base.Operation) {
-	p.opslock.Lock()
-	defer p.opslock.Unlock()
-
-	p.cops[index] = op
-}
-
-func (p *DefaultProposalProcessor) Process(ctx context.Context, vp base.INITVoteproof) (base.Manifest, error) {
-	p.Lock()
-	defer p.Unlock()
-
-	wctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	p.updateCancel(cancel)
-
-	e := util.StringErrorFunc("failed to process proposal")
-
-	p.ivp = vp
-
-	if err := p.process(wctx, vp); err != nil {
-		return nil, e(err, "failed to process operations")
+	switch {
+	case p.isCanceled():
+		return nil, errors.Errorf("already canceled")
+	case p.isProcessed():
+		return nil, errors.Errorf("already processed")
 	}
 
-	manifest, err := p.writer.Manifest(wctx, p.previous)
+	e := util.StringErrorFunc("failed to process operations")
+
+	pctx, cancel := context.WithCancel(p.ctx)
+	defer cancel()
+
+	deferf, f := p.deferctx(ctx, cancel)
+	defer deferf()
+	f()
+
+	p.ivp = ivp
+
+	if err := p.process(pctx); err != nil {
+		p.clean()
+
+		return nil, e(err, "")
+	}
+
+	manifest, err := p.writer.Manifest(pctx, p.previous)
 	if err != nil {
+		p.clean()
+
 		return nil, e(err, "")
 	}
 
 	p.Log().Info().Interface("manifest", manifest).Msg("new manifest prepared")
 
+	if _, err := p.processstate.Set(func(_ bool, i interface{}) (interface{}, error) {
+		s := i.(int) //nolint:forcetypeassert //...
+
+		if s < 0 {
+			return nil, errors.Errorf("failed to process proposal; already canceled")
+		}
+
+		return 1, nil
+	}); err != nil {
+		p.clean()
+
+		return nil, e(err, "")
+	}
+
 	return manifest, nil
 }
 
 func (p *DefaultProposalProcessor) Save(ctx context.Context, avp base.ACCEPTVoteproof) error {
-	p.Lock()
-	defer p.Unlock()
+	p.processlock.Lock()
+	defer p.processlock.Unlock()
 
-	wctx, cancel := context.WithCancel(ctx)
+	switch {
+	case p.isCanceled():
+		return errors.Errorf("already canceled")
+	case p.isSaved():
+		return ErrProcessorAlreadySaved.Call()
+	}
+
+	sctx, cancel := context.WithCancel(p.ctx)
 	defer cancel()
 
-	p.updateCancel(cancel)
+	deferf, f := p.deferctx(ctx, cancel)
+	defer deferf()
+	f()
 
-	if err := util.Retry(wctx, func() (bool, error) {
-		switch err := p.save(wctx, avp); {
+	defer p.clean()
+
+	if err := util.Retry(sctx, func() (bool, error) {
+		switch err := p.save(sctx, avp); {
 		case err == nil:
 			return false, nil
 		case errors.Is(err, ErrProcessorAlreadySaved):
@@ -168,178 +193,132 @@ func (p *DefaultProposalProcessor) Save(ctx context.Context, avp base.ACCEPTVote
 		return errors.Wrap(err, "failed to save proposal")
 	}
 
-	return nil
-}
+	_, err := p.processstate.Set(func(_ bool, i interface{}) (interface{}, error) {
+		s := i.(int) //nolint:forcetypeassert //...
 
-func (p *DefaultProposalProcessor) save(ctx context.Context, acceptVoteproof base.ACCEPTVoteproof) error {
-	if p.issaved {
-		return ErrProcessorAlreadySaved.Call()
-	}
+		if s < 0 {
+			return nil, errors.Errorf("failed to save proposal; already canceled")
+		}
 
-	e := util.StringErrorFunc("failed to save")
-	if p.isCanceled() {
-		return e(context.Canceled, "")
-	}
+		return 2, nil //nolint:gomnd //...
+	})
 
-	if err := p.writer.SetACCEPTVoteproof(ctx, acceptVoteproof); err != nil {
-		return e(err, "failed to set accept voteproof")
-	}
-
-	m, err := p.writer.Save(ctx)
-	if err != nil {
-		return e(err, "")
-	}
-
-	p.Log().Info().Interface("blockmap", m).Msg("new block saved in proposal processor")
-
-	p.close()
-	p.issaved = true
-
-	return nil
+	return err
 }
 
 func (p *DefaultProposalProcessor) Cancel() error {
-	if !func() bool {
-		p.cancellock.Lock()
-		defer p.cancellock.Unlock()
-
-		if p.cancel == nil {
-			return false
+	_, err := p.processstate.Set(func(_ bool, i interface{}) (interface{}, error) {
+		if i.(int) == -1 { //nolint:forcetypeassert //...
+			return nil, errors.Errorf("proposal processor already canceled")
 		}
 
 		p.cancel()
-		p.cancel = nil
 
-		return true
-	}() {
-		return nil
-	}
+		p.Log().Debug().Msg("proposal processor canceled")
 
-	p.Lock()
-	defer p.Unlock()
+		return -1, nil
+	})
 
-	if p.writer != nil {
-		if err := p.writer.Cancel(); err != nil {
-			return errors.Wrap(err, "failed to cancel DefaultProposalProcessor")
-		}
-	}
-
-	p.close()
-
-	return nil
+	return err
 }
 
-func (p *DefaultProposalProcessor) close() {
-	p.writer = nil
-	p.ivp = nil
-	p.proposal = nil
+func (p *DefaultProposalProcessor) clean() {
+	p.ctx = nil
+	p.cancel = nil
 	p.previous = nil
+	p.writer = nil
+	p.getStatef = nil
+	p.getOperationf = nil
 	p.newOperationProcessor = nil
-	// p.getStateFunc = nil
-	p.getOperation = nil
-
-	if p.oprs != nil {
-		p.oprs.Traverse(func(key interface{}, i interface{}) bool {
-			opp := i.(base.OperationProcessor) //nolint:forcetypeassert //...
-
-			_ = opp.Close()
-
-			return true
-		})
-
-		p.oprs.Close()
-		p.oprs = nil
-	}
-
-	p.cops = nil
-}
-
-func (p *DefaultProposalProcessor) updateCancel(f func()) {
-	p.cancellock.Lock()
-	defer p.cancellock.Unlock()
-
-	if p.cancel == nil {
-		return
-	}
-
-	cancel := p.cancel
-
-	p.cancel = func() {
-		cancel()
-		f()
-	}
+	p.ivp = nil
 }
 
 func (p *DefaultProposalProcessor) isCanceled() bool {
-	p.cancellock.RLock()
-	defer p.cancellock.RUnlock()
+	i, _ := p.processstate.Value()
 
-	return p.cancel == nil
+	return i.(int) == -1 //nolint:gomnd,forcetypeassert //...
 }
 
-func (p *DefaultProposalProcessor) process(ctx context.Context, vp base.INITVoteproof) error {
-	e := util.StringErrorFunc("failed to process all operations")
+func (p *DefaultProposalProcessor) isProcessed() bool {
+	i, _ := p.processstate.Value()
 
-	if p.isCanceled() {
-		return e(context.Canceled, "")
+	return i.(int) == 1 //nolint:gomnd,forcetypeassert //...
+}
+
+func (p *DefaultProposalProcessor) isSaved() bool {
+	i, _ := p.processstate.Value()
+
+	return i.(int) == 2 //nolint:gomnd,forcetypeassert //...
+}
+
+func (p *DefaultProposalProcessor) process(ctx context.Context) error {
+	if err := p.writer.SetINITVoteproof(ctx, p.ivp); err != nil {
+		return errors.WithMessage(err, "failed to set init voteproof")
 	}
 
-	if err := p.writer.SetINITVoteproof(ctx, vp); err != nil {
-		return e(err, "failed to set init voteproof")
-	}
+	var cops []base.Operation
 
-	switch err := p.collectOperations(ctx); {
+	switch i, err := p.collectOperations(ctx); {
 	case err != nil:
-		return e(err, "failed to collect operations")
-	case len(p.collected()) < 1:
+		return errors.WithMessage(err, "failed to collect operations")
+	case len(i) < 1:
 		return nil
 	default:
-		p.writer.SetOperationsSize(uint64(len(p.collected())))
+		p.writer.SetOperationsSize(uint64(len(i)))
+
+		cops = i
 	}
 
-	if err := p.processOperations(ctx); err != nil {
-		return e(err, "")
+	if err := p.processOperations(ctx, cops); err != nil {
+		return errors.WithMessage(err, "failed to process operations")
 	}
 
 	return nil
 }
 
-func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) (err error) {
+func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) ([]base.Operation, error) {
 	e := util.StringErrorFunc("failed to collect operations")
 
+	var cops []base.Operation
 	var index int
 
-	if w, ok := p.ivp.(WithdrawVoteproof); ok {
+	switch w, ok := p.ivp.(WithdrawVoteproof); {
+	case ok:
 		withdraws := w.Withdraws()
-		p.cops = make([]base.Operation, len(p.proposal.ProposalFact().Operations())+len(withdraws))
+		cops = make([]base.Operation, len(p.proposal.ProposalFact().Operations())+len(withdraws))
 
 		for i := range withdraws {
-			p.setOperation(i, withdraws[i])
+			cops[i] = withdraws[i]
 		}
 
 		index = len(withdraws)
-	}
 
-	p.Log().Debug().
-		Int("operations", len(p.proposal.ProposalFact().Operations())).
-		Msg("collecting operations")
+		p.Log().Debug().
+			Int("operations", len(cops)).
+			Int("withdraws", len(withdraws)).
+			Msg("collecting operations")
+	default:
+		cops = make([]base.Operation, len(p.proposal.ProposalFact().Operations()))
+
+		p.Log().Debug().
+			Int("operations", len(cops)).
+			Msg("collecting operations")
+	}
 
 	if len(p.proposal.ProposalFact().Operations()) < 1 {
-		return nil
+		return cops, nil
 	}
-
-	wctx, done, err := p.wait(ctx)
-	if err != nil {
-		return e(err, "")
-	}
-
-	defer done()
 
 	ophs := p.proposal.ProposalFact().Operations()
 
-	if err := util.RunErrgroupWorker(wctx, uint64(len(ophs)), func(ctx context.Context, i, _ uint64) error {
+	cctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	getOperationf := p.getOperationf
+
+	if err := util.RunErrgroupWorker(cctx, uint64(len(ophs)), func(ctx context.Context, i, _ uint64) error {
 		h := ophs[i]
-		op, err := p.collectOperation(ctx, h)
+		op, err := p.collectOperation(ctx, h, getOperationf)
 
 		p.Log().Trace().Stringer("operation", h).Err(err).Msg("operation collected")
 
@@ -353,69 +332,36 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) (err e
 
 			return nil
 		default:
-			return errors.Wrapf(err, "failed to collect operation, %q", h)
+			return err
 		}
 
-		p.setOperation(index+int(i), op)
+		cops[index+int(i)] = op
 
 		return nil
 	}); err != nil {
-		return e(err, "")
-	}
+		cancel()
 
-	return nil
-}
-
-func (p *DefaultProposalProcessor) collectOperation(ctx context.Context, h util.Hash) (base.Operation, error) {
-	e := util.StringErrorFunc("failed to collect operation, %q", h)
-
-	var op base.Operation
-
-	if err := p.retry(ctx, func() (bool, error) {
-		switch j, err := p.getOperation(ctx, h); {
-		case err == nil:
-			op = j
-
-			return false, nil
-		case errors.Is(err, util.ErrInvalid),
-			errors.Is(err, ErrInvalidOperationInProcessor),
-			errors.Is(err, ErrOperationNotFoundInProcessor),
-			errors.Is(err, ErrOperationAlreadyProcessedInProcessor):
-			return false, err
-		default:
-			return true, err
-		}
-	}); err != nil {
 		return nil, e(err, "")
 	}
 
-	if op == nil {
-		return nil, ErrOperationNotFoundInProcessor.Errorf("empty operation")
-	}
-
-	return op, nil
+	return cops, nil
 }
 
-func (p *DefaultProposalProcessor) processOperations(ctx context.Context) error {
+func (p *DefaultProposalProcessor) processOperations(ctx context.Context, cops []base.Operation) error {
 	e := util.StringErrorFunc("failed to process operations")
-
-	wctx, done, err := p.wait(ctx)
-	if err != nil {
-		return e(err, "")
-	}
-
-	defer done()
-
-	cops := p.collected()
 
 	p.Log().Debug().Int("operations", len(cops)).Msg("trying to process operations")
 
-	worker := util.NewErrgroupWorker(wctx, int64(len(cops)))
+	worker := util.NewErrgroupWorker(ctx, int64(len(cops)))
 	defer worker.Close()
 
 	pctx := ctx
 
 	var opsindex, validindex int
+
+	writer := p.writer
+	getStatef := p.getStatef
+	newOperationProcessor := p.newOperationProcessor
 
 	for i := range cops {
 		op := cops[i]
@@ -423,7 +369,10 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context) error 
 			continue
 		}
 
-		pctx, opsindex, validindex, err = p.processOperation(pctx, worker, op, opsindex, validindex)
+		var err error
+
+		pctx, opsindex, validindex, err = p.processOperation(
+			pctx, writer, getStatef, newOperationProcessor, worker, op, opsindex, validindex)
 		if err != nil {
 			return e(err, "")
 		}
@@ -440,27 +389,30 @@ func (p *DefaultProposalProcessor) processOperations(ctx context.Context) error 
 
 func (p *DefaultProposalProcessor) processOperation(
 	ctx context.Context,
+	writer BlockWriter,
+	getStatef base.GetStateFunc,
+	newOperationProcessor NewOperationProcessorFunction,
 	worker *util.ErrgroupWorker,
 	op base.Operation,
 	opsindex, validindex int,
 ) (_ context.Context, newopsindex int, newvalidindex int, _ error) {
 	if rop, ok := op.(ReasonProcessedOperation); ok {
 		if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-			return p.writer.SetProcessResult( //nolint:wrapcheck //...
+			return writer.SetProcessResult( //nolint:wrapcheck //...
 				ctx, uint64(opsindex), rop.OperationHash(), rop.FactHash(), false, rop.Reason())
 		}); err != nil {
 			return ctx, 0, 0, err
 		}
 	}
 
-	switch pctx, reasonerr, passed, err := p.doPreProcessOperation(ctx, op); {
+	switch pctx, reasonerr, passed, err := p.doPreProcessOperation(ctx, newOperationProcessor, op); {
 	case err != nil:
 		return pctx, 0, 0, errors.WithMessage(err, "failed to pre process operation")
 	case !passed:
 		return pctx, opsindex, validindex, nil
 	case reasonerr != nil:
 		if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-			return p.writer.SetProcessResult(
+			return writer.SetProcessResult(
 				ctx, uint64(opsindex), op.Hash(), op.Fact().Hash(), false, reasonerr,
 			)
 		}); err != nil {
@@ -473,7 +425,8 @@ func (p *DefaultProposalProcessor) processOperation(
 	}
 
 	if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-		return p.doProcessOperation(ctx, uint64(opsindex), uint64(validindex), op)
+		return p.doProcessOperation(
+			ctx, writer, getStatef, newOperationProcessor, uint64(opsindex), uint64(validindex), op)
 	}); err != nil {
 		return ctx, opsindex + 1, validindex + 1, err
 	}
@@ -482,14 +435,16 @@ func (p *DefaultProposalProcessor) processOperation(
 }
 
 func (p *DefaultProposalProcessor) doPreProcessOperation(
-	ctx context.Context, op base.Operation,
+	ctx context.Context,
+	newOperationProcessor NewOperationProcessorFunction,
+	op base.Operation,
 ) (context.Context, base.OperationProcessReasonError, bool, error) {
 	var errorreason base.OperationProcessReasonError
 
 	pctx := ctx
 
 	err := p.retry(ctx, func() (bool, error) {
-		f, err := p.getPreProcessor(ctx, op)
+		f, err := p.getPreProcessor(ctx, newOperationProcessor, op)
 
 		switch {
 		case err != nil:
@@ -524,7 +479,12 @@ func (p *DefaultProposalProcessor) doPreProcessOperation(
 }
 
 func (p *DefaultProposalProcessor) doProcessOperation(
-	ctx context.Context, opsindex, validindex uint64, op base.Operation,
+	ctx context.Context,
+	writer BlockWriter,
+	getStatef base.GetStateFunc,
+	newOperationProcessor NewOperationProcessorFunction,
+	opsindex, validindex uint64,
+	op base.Operation,
 ) error {
 	e := util.StringErrorFunc("failed to process operation, %q", op.Fact().Hash())
 
@@ -533,7 +493,7 @@ func (p *DefaultProposalProcessor) doProcessOperation(
 
 	if err := p.retry(ctx, func() (bool, error) {
 		if stvs == nil {
-			f, err := p.getProcessor(ctx, op)
+			f, err := p.getProcessor(ctx, getStatef, newOperationProcessor, op)
 
 			switch {
 			case err != nil:
@@ -564,12 +524,12 @@ func (p *DefaultProposalProcessor) doProcessOperation(
 
 		instate := len(stvs) > 0
 		if instate {
-			if err := p.writer.SetStates(ctx, validindex, stvs, op); err != nil {
+			if err := writer.SetStates(ctx, validindex, stvs, op); err != nil {
 				return true, e(err, "")
 			}
 		}
 
-		if err := p.writer.SetProcessResult(
+		if err := writer.SetProcessResult(
 			ctx, opsindex, op.Hash(), op.Fact().Hash(), instate, errorreason,
 		); err != nil {
 			return true, e(err, "")
@@ -583,52 +543,63 @@ func (p *DefaultProposalProcessor) doProcessOperation(
 	return nil
 }
 
-func (p *DefaultProposalProcessor) getPreProcessor(ctx context.Context, op base.Operation) (
+func (p *DefaultProposalProcessor) getPreProcessor(
+	ctx context.Context,
+	newOperationProcessor NewOperationProcessorFunction,
+	op base.Operation,
+) (
 	func(context.Context) (context.Context, base.OperationProcessReasonError, error),
 	error,
 ) {
-	switch opp, found, err := p.getOperationProcessor(ctx, op.Hint()); {
+	switch opp, found, err := p.getOperationProcessor(ctx, newOperationProcessor, op.Hint()); {
 	case err != nil:
 		return nil, errors.Wrap(err, "failed to get OperationProcessor for PreProcess")
 	case found:
 		return func(ctx context.Context) (context.Context, base.OperationProcessReasonError, error) {
-			return opp.PreProcess(ctx, op, p.getStateFunc) //nolint:wrapcheck //...
+			return opp.PreProcess(ctx, op, p.getStatef) //nolint:wrapcheck //...
 		}, nil
 	}
 
 	return func(ctx context.Context) (context.Context, base.OperationProcessReasonError, error) {
-		return op.PreProcess(ctx, p.getStateFunc) //nolint:wrapcheck //...
+		return op.PreProcess(ctx, p.getStatef) //nolint:wrapcheck //...
 	}, nil
 }
 
-func (p *DefaultProposalProcessor) getProcessor(ctx context.Context, op base.Operation) (
+func (p *DefaultProposalProcessor) getProcessor(
+	ctx context.Context,
+	getStatef base.GetStateFunc,
+	newOperationProcessor NewOperationProcessorFunction,
+	op base.Operation,
+) (
 	func(context.Context) ([]base.StateMergeValue, base.OperationProcessReasonError, error),
 	error,
 ) {
-	switch opp, found, err := p.getOperationProcessor(ctx, op.Hint()); {
+	switch opp, found, err := p.getOperationProcessor(ctx, newOperationProcessor, op.Hint()); {
 	case err != nil:
 		return nil, errors.Wrap(err, "failed to get OperationProcessor for Process")
 	case found:
 		return func(ctx context.Context) ([]base.StateMergeValue, base.OperationProcessReasonError, error) {
-			return opp.Process(ctx, op, p.getStateFunc) //nolint:wrapcheck //...
+			return opp.Process(ctx, op, getStatef) //nolint:wrapcheck //...
 		}, nil
 	}
 
-	getStateFunc := p.getStateFunc
-
 	return func(ctx context.Context) ([]base.StateMergeValue, base.OperationProcessReasonError, error) {
-		return op.Process(ctx, getStateFunc) //nolint:wrapcheck //...
+		return op.Process(ctx, getStatef) //nolint:wrapcheck //...
 	}, nil
 }
 
-func (p *DefaultProposalProcessor) getOperationProcessor(ctx context.Context, ht hint.Hint) (
+func (p *DefaultProposalProcessor) getOperationProcessor(
+	ctx context.Context,
+	newOperationProcessor NewOperationProcessorFunction,
+	ht hint.Hint,
+) (
 	base.OperationProcessor, bool, error,
 ) {
 	i, _, err := p.oprs.Get(ht.String(), func() (interface{}, error) {
 		var opp base.OperationProcessor
 
 		if err := p.retry(ctx, func() (bool, error) {
-			i, err := p.newOperationProcessor(p.proposal.Point().Height(), ht)
+			i, err := newOperationProcessor(p.proposal.Point().Height(), ht)
 			if err != nil {
 				return true, err
 			}
@@ -657,40 +628,8 @@ func (p *DefaultProposalProcessor) getOperationProcessor(ctx context.Context, ht
 	}
 }
 
-func (p *DefaultProposalProcessor) wait(ctx context.Context) (
-	context.Context,
-	func(),
-	error,
-) {
-	if p.isCanceled() {
-		return context.TODO(), nil, context.Canceled
-	}
-
-	wctx, cancel := context.WithCancel(ctx)
-
-	donech := make(chan struct{}, 1)
-
-	var cancelonce sync.Once
-
-	p.updateCancel(func() {
-		cancelonce.Do(func() {
-			cancel()
-
-			<-donech
-		})
-	})
-
-	return wctx, func() {
-		donech <- struct{}{}
-	}, nil
-}
-
 func (p *DefaultProposalProcessor) retry(ctx context.Context, f func() (bool, error)) error {
 	return util.Retry(ctx, func() (bool, error) {
-		if p.isCanceled() {
-			return false, ErrStopProcessingRetry.Wrap(context.Canceled)
-		}
-
 		keep, err := f()
 		if errors.Is(err, ErrStopProcessingRetry) {
 			return false, err
@@ -698,6 +637,77 @@ func (p *DefaultProposalProcessor) retry(ctx context.Context, f func() (bool, er
 
 		return keep, err
 	}, p.retrylimit, p.retryinterval)
+}
+
+func (p *DefaultProposalProcessor) save(ctx context.Context, avp base.ACCEPTVoteproof) error {
+	e := util.StringErrorFunc("failed to save")
+
+	if err := p.writer.SetACCEPTVoteproof(ctx, avp); err != nil {
+		return e(err, "failed to set accept voteproof")
+	}
+
+	m, err := p.writer.Save(ctx)
+	if err != nil {
+		return e(err, "")
+	}
+
+	p.Log().Info().Interface("blockmap", m).Msg("new block saved in proposal processor")
+
+	return nil
+}
+
+func (p *DefaultProposalProcessor) collectOperation(
+	ctx context.Context,
+	h util.Hash,
+	getOperationf OperationProcessorGetOperationFunction,
+) (base.Operation, error) {
+	e := util.StringErrorFunc("failed to collect operation, %q", h)
+
+	var op base.Operation
+
+	if err := p.retry(ctx, func() (bool, error) {
+		switch j, err := getOperationf(ctx, h); {
+		case err == nil:
+			op = j
+
+			return false, nil
+		case errors.Is(err, util.ErrInvalid),
+			errors.Is(err, ErrInvalidOperationInProcessor),
+			errors.Is(err, ErrOperationNotFoundInProcessor),
+			errors.Is(err, ErrOperationAlreadyProcessedInProcessor):
+			return false, err
+		default:
+			return true, err
+		}
+	}); err != nil {
+		return nil, e(err, "")
+	}
+
+	if op == nil {
+		return nil, ErrOperationNotFoundInProcessor.Errorf("empty operation")
+	}
+
+	return op, nil
+}
+
+func (*DefaultProposalProcessor) deferctx(ctx context.Context, cancel func()) (func(), func()) {
+	donech := make(chan struct{}, 1)
+
+	return func() {
+			donech <- struct{}{}
+		},
+		func() {
+			go func() {
+				select {
+				case <-donech:
+					return
+				case <-ctx.Done():
+					if ctx.Err() != nil {
+						cancel()
+					}
+				}
+			}()
+		}
 }
 
 type ReasonProcessedOperation struct {

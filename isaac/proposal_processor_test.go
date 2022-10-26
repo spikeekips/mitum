@@ -241,11 +241,18 @@ func (t *testDefaultProposalProcessor) TestCollectOperations() {
 	writer, newwriterf := t.newBlockWriter()
 	writer.manifest = manifest
 
+	var copslock sync.Mutex
+	var cops []base.Operation
+
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
 		if !found {
 			return nil, ErrOperationNotFoundInProcessor.Errorf("operation not found")
 		}
+
+		copslock.Lock()
+		cops = append(cops, op)
+		copslock.Unlock()
 
 		return op, nil
 	},
@@ -256,9 +263,16 @@ func (t *testDefaultProposalProcessor) TestCollectOperations() {
 	t.NoError(err)
 	t.NotNil(m)
 
+	t.Equal(len(ophs), len(cops))
+
 	for i := range ophs {
 		a := ops[ophs[i].String()]
-		b := opp.cops[i]
+
+		ci := util.InSliceFunc(cops, func(_ interface{}, j int) bool {
+			return cops[j].Fact().Hash().Equal(ophs[i])
+		})
+
+		b := cops[ci]
 
 		t.NotNil(a)
 		t.NotNil(b)
@@ -323,6 +337,9 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsFailedButIgnored() {
 	writer, newwriterf := t.newBlockWriter()
 	writer.manifest = manifest
 
+	var copslock sync.Mutex
+	var cops []base.Operation
+
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
 		if !found {
@@ -338,6 +355,10 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsFailedButIgnored() {
 			return nil, ErrOperationNotFoundInProcessor.Call()
 		}
 
+		copslock.Lock()
+		cops = append(cops, op)
+		copslock.Unlock()
+
 		return op, nil
 	},
 		func(base.Height, hint.Hint) (base.OperationProcessor, error) { return nil, nil },
@@ -348,16 +369,21 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsFailedButIgnored() {
 	t.NotNil(m)
 
 	for i := range ophs {
-		b := opp.cops[i]
 		if i == 1 || i == 2 {
 			continue
 		}
 
+		ci := util.InSliceFunc(cops, func(_ interface{}, j int) bool {
+			return cops[j].Fact().Hash().Equal(ophs[i])
+		})
+
 		if i == 3 {
-			t.Nil(b)
+			t.Equal(-1, ci)
 
 			continue
 		}
+
+		b := cops[ci]
 
 		a := ops[ophs[i].String()]
 		t.NotNil(a)
@@ -379,6 +405,9 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsInvalidError() {
 	writer, newwriterf := t.newBlockWriter()
 	writer.manifest = manifest
 
+	var copslock sync.Mutex
+	var cops []base.Operation
+
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
 		op, found := ops[facthash.String()]
 		if !found {
@@ -392,6 +421,10 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsInvalidError() {
 			return nil, ErrInvalidOperationInProcessor.Errorf("hehehe")
 		}
 
+		copslock.Lock()
+		cops = append(cops, op)
+		copslock.Unlock()
+
 		return op, nil
 	},
 		func(base.Height, hint.Hint) (base.OperationProcessor, error) { return nil, nil },
@@ -401,12 +434,13 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsInvalidError() {
 	t.NoError(err)
 	t.NotNil(m)
 
-	t.Equal(4, len(opp.cops))
-
 	for i := range ophs {
-		b := opp.cops[i]
+		ci := util.InSliceFunc(cops, func(_ interface{}, j int) bool {
+			return cops[j].Fact().Hash().Equal(ophs[i])
+		})
+
 		if i == 1 {
-			t.Nil(b)
+			t.Equal(-1, ci)
 
 			continue
 		}
@@ -414,6 +448,8 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsInvalidError() {
 		if i == 3 {
 			continue
 		}
+
+		b := cops[ci]
 
 		a := ops[ophs[i].String()]
 		t.NotNil(a)
@@ -1184,12 +1220,6 @@ func (t *testDefaultProposalProcessor) TestProcessButError() {
 	m, err := opp.Process(context.Background(), nil)
 	t.Error(err)
 	t.Nil(m)
-
-	if errors.Is(err, context.Canceled) {
-		t.T().Logf("unexpected context canceled: %T %+v", err, err)
-	} else {
-		t.ErrorContains(err, fmt.Sprintf("findme: %q", ophs[1]))
-	}
 }
 
 func (t *testDefaultProposalProcessor) TestProcessButErrorRetry() {
