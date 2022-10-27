@@ -53,7 +53,7 @@ func (t *testLocalParams) TestIsValid() {
 		err := p.IsValid(networkID)
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
-		t.ErrorContains(err, "risky threshold")
+		t.ErrorContains(err, "under min threshold")
 	})
 
 	t.Run("wrong intervalBroadcastBallot", func() {

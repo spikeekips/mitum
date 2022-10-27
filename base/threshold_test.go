@@ -35,13 +35,13 @@ func TestThreshold(tt *testing.T) {
 			name:      "0 threshold: under 1",
 			quorum:    10,
 			threshold: 0.5,
-			err:       "risky threshold",
+			err:       "min threshold",
 		},
 		{
-			name:      "0 threshold: under 67",
+			name:      "0 threshold: under min threshold",
 			quorum:    10,
-			threshold: 66,
-			err:       "risky threshold",
+			threshold: MinThreshold.Float64() - float64(1),
+			err:       "under min threshold",
 		},
 		{
 			name:      "over threshold",

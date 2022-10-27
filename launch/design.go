@@ -176,6 +176,16 @@ func (d *NodeDesign) IsValid([]byte) error {
 	return nil
 }
 
+func (d *NodeDesign) Check(devflags DevFlags) error {
+	if !devflags.AllowRiskyThreshold {
+		if t := d.LocalParams.Threshold(); t < base.SafeThreshold {
+			return util.ErrInvalid.Errorf("risky threshold under %v; %v", t, base.SafeThreshold)
+		}
+	}
+
+	return nil
+}
+
 type NodeDesignYAMLMarshaler struct {
 	Address     base.Address       `yaml:"address"`
 	Privatekey  base.Privatekey    `yaml:"privatekey"`

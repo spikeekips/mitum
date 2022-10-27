@@ -10,7 +10,8 @@ import (
 
 var (
 	DefaultThreshold Threshold = 67
-	MinThreshold     Threshold = 67
+	SafeThreshold    Threshold = 67
+	MinThreshold     Threshold = 51
 	MaxThreshold     Threshold = 100
 )
 
@@ -39,7 +40,7 @@ func (t Threshold) IsValid([]byte) error {
 	case t > MaxThreshold:
 		return util.ErrInvalid.Errorf("over 100 threshold, %v", t)
 	case t < MinThreshold:
-		return util.ErrInvalid.Errorf("risky threshold, %v < 67", t)
+		return util.ErrInvalid.Errorf("under min threshold, %v < %v", t, MinThreshold)
 	}
 
 	return nil
