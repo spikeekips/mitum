@@ -17,17 +17,16 @@ func init() { //nolint:gochecknoinits //...
 	zerolog.ErrorStackMarshaler = util.ZerologMarshalStack //nolint:reassign //...
 }
 
-// revive:disable:line-length-limit
 type LoggingFlags struct {
+	// revive:disable:line-length-limit
 	//revive:disable:struct-tag
 	Out        LogOutFlag   `name:"out" default:"${log_out}" help:"log output file: {stdout, stderr, <file>}" group:"logging"`
 	Format     string       `enum:"json, terminal" default:"${log_format}" help:"log format: {${enum}}" group:"logging"`
 	Level      LogLevelFlag `name:"level" default:"${log_level}" help:"log level: {trace, debug, info, warn, error}" group:"logging"`
 	ForceColor bool         `name:"force-color" default:"${log_force_color}" negatable:"" help:"log force color" group:"logging"`
 	//revive:enable:struct-tag
+	// revive:enable:line-length-limit
 }
-
-// revive:enable:line-length-limit
 
 type LogLevelFlag struct {
 	level zerolog.Level

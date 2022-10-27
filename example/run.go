@@ -24,14 +24,17 @@ import (
 // FIXME add TimeSyncer
 
 type RunCommand struct { //nolint:govet //...
+	//revive:disable:line-length-limit
 	launch.DesignFlag
-	Vault     string                `name:"vault" help:"privatekey path of vault"`
-	Discovery []launch.ConnInfoFlag `help:"member discovery" placeholder:"connection info"`
-	Hold      launch.HeightFlag     `help:"hold consensus states" placeholder:"height"`
-	HTTPState string                `name:"http-state" help:"runtime statistics thru https" placeholder:"bind address"`
-	exitf     func(error)
-	log       *zerolog.Logger
-	holded    bool
+	launch.DevFlags `embed:"" prefix:"dev."`
+	Vault           string                `name:"vault" help:"privatekey path of vault"`
+	Discovery       []launch.ConnInfoFlag `help:"member discovery" placeholder:"connection info"`
+	Hold            launch.HeightFlag     `help:"hold consensus states" placeholder:"height"`
+	HTTPState       string                `name:"http-state" help:"runtime statistics thru https" placeholder:"bind address"`
+	exitf           func(error)
+	log             *zerolog.Logger
+	holded          bool
+	//revive:enable:line-length-limit
 }
 
 func (cmd *RunCommand) Run(pctx context.Context) error {
@@ -39,6 +42,15 @@ func (cmd *RunCommand) Run(pctx context.Context) error {
 	if err := util.LoadFromContextOK(pctx, launch.LoggingContextKey, &log); err != nil {
 		return err
 	}
+
+	log.Log().Debug().
+		Interface("design", cmd.DesignFlag).
+		Interface("vault", cmd.Vault).
+		Interface("discovery", cmd.Discovery).
+		Interface("hold", cmd.Hold).
+		Interface("http_state", cmd.HTTPState).
+		Interface("dev", cmd.DevFlags).
+		Msg("flags")
 
 	cmd.log = log.Log()
 
@@ -50,6 +62,7 @@ func (cmd *RunCommand) Run(pctx context.Context) error {
 
 	//revive:disable:modifies-parameter
 	pctx = context.WithValue(pctx, launch.DesignFlagContextKey, cmd.DesignFlag)
+	pctx = context.WithValue(pctx, launch.DevFlagsContextKey, cmd.DevFlags)
 	pctx = context.WithValue(pctx, launch.DiscoveryFlagContextKey, cmd.Discovery)
 	pctx = context.WithValue(pctx, launch.VaultContextKey, cmd.Vault)
 	//revive:enable:modifies-parameter

@@ -127,6 +127,8 @@ func PPatchLastConsensusNodesWatcher(ctx context.Context) (context.Context, erro
 	var db isaac.Database
 	var watcher *isaac.LastConsensusNodesWatcher
 	var states *isaacstates.States
+	var long *LongRunningMemberlistJoin
+	var mlist *quicmemberlist.Memberlist
 
 	if err := util.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
@@ -134,38 +136,54 @@ func PPatchLastConsensusNodesWatcher(ctx context.Context) (context.Context, erro
 		CenterDatabaseContextKey, &db,
 		LastConsensusNodesWatcherContextKey, &watcher,
 		StatesContextKey, &states,
+		LongRunningMemberlistJoinContextKey, &long,
+		MemberlistContextKey, &mlist,
 	); err != nil {
 		return ctx, err
 	}
 
 	watcher.SetWhenUpdated(func(ctx context.Context, proof base.SuffrageProof, candidatesst base.State) {
 		// NOTE if local is out of consensus nodes, moves to syncing state
+		var isinsuffrage bool
+
 		switch suf, err := proof.Suffrage(); {
 		case err != nil:
 			return
 		case suf.Exists(local.Address()):
-			return
+			isinsuffrage = true
 		case candidatesst == nil:
 		case isaac.InCandidates(local,
 			candidatesst.Value().(base.SuffrageCandidatesStateValue).Nodes()): //nolint:forcetypeassert //...
-			return
+			isinsuffrage = true
 		}
 
-		log.Log().Debug().
-			Interface("height", proof.Map().Manifest().Height()).
-			Msg("local is not in consensus nodes; moves to syncing")
+		switch {
+		case isinsuffrage:
+			if !mlist.IsJoined() {
+				log.Log().Debug().
+					Msg("watcher updated suffrage and local is in consensus nodes, but not yet joined; tries to join")
 
-		_ = states.MoveState(isaacstates.NewSyncingSwitchContextWithOK(
-			proof.Map().Manifest().Height(),
-			func(current isaacstates.StateType) bool {
-				switch current {
-				case isaacstates.StateJoining, isaacstates.StateConsensus:
-					return true
-				default:
-					return false
-				}
-			},
-		))
+				go func() {
+					_ = long.Join()
+				}()
+			}
+		default:
+			log.Log().Debug().
+				Interface("height", proof.Map().Manifest().Height()).
+				Msg("local is not in consensus nodes; moves to syncing")
+
+			_ = states.MoveState(isaacstates.NewSyncingSwitchContextWithOK(
+				proof.Map().Manifest().Height(),
+				func(current isaacstates.StateType) bool {
+					switch current {
+					case isaacstates.StateJoining, isaacstates.StateConsensus:
+						return true
+					default:
+						return false
+					}
+				},
+			))
+		}
 	})
 
 	return ctx, nil

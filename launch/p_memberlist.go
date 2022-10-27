@@ -238,7 +238,7 @@ func PPatchMemberlist(ctx context.Context) (context.Context, error) {
 				return
 			}
 
-			log.Log().Trace().Interface("ballot", t).Bool("voted", voted).Msg("new ballot; voted")
+			log.Log().Debug().Interface("ballot", t).Bool("voted", voted).Msg("new ballot; voted")
 		case base.SuffrageWithdrawOperation:
 			voted, err := svvotef(t)
 			if err != nil {
@@ -248,10 +248,10 @@ func PPatchMemberlist(ctx context.Context) (context.Context, error) {
 				return
 			}
 
-			log.Log().Trace().Interface("withdraw operation", t).Bool("voted", voted).
+			log.Log().Debug().Interface("withdraw operation", t).Bool("voted", voted).
 				Msg("new withdraw operation; voted")
 		default:
-			log.Log().Trace().Interface("message", m).Msgf("new incoming message; ignored; but unknown, %T", t)
+			log.Log().Debug().Interface("message", m).Msgf("new incoming message; ignored; but unknown, %T", t)
 		}
 	})
 

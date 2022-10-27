@@ -14,6 +14,7 @@ var (
 	PNameCheckDesign            = ps.Name("check-design")
 	PNameGenesisDesign          = ps.Name("genesis-design")
 	DesignFlagContextKey        = util.ContextKey("design-flag")
+	DevFlagsContextKey          = util.ContextKey("dev-flag")
 	GenesisDesignFileContextKey = util.ContextKey("genesis-design-file")
 	DesignContextKey            = util.ContextKey("design")
 	GenesisDesignContextKey     = util.ContextKey("genesis-design")
@@ -118,17 +119,23 @@ func PCheckDesign(ctx context.Context) (context.Context, error) {
 
 	var log *logging.Logging
 	var flag DesignFlag
+	var devflags DevFlags
 	var design NodeDesign
 
 	if err := util.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		DesignFlagContextKey, &flag,
+		DevFlagsContextKey, &devflags,
 		DesignContextKey, &design,
 	); err != nil {
 		return ctx, e(err, "")
 	}
 
 	if err := design.IsValid(nil); err != nil {
+		return ctx, e(err, "")
+	}
+
+	if err := design.Check(devflags); err != nil {
 		return ctx, e(err, "")
 	}
 

@@ -7,6 +7,7 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/pkg/errors"
+	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
@@ -44,6 +45,7 @@ var flagDefaults = kong.Vars{
 	"log_level":       "debug",
 	"log_force_color": "false",
 	"design_uri":      launch.DefaultDesignURI,
+	"safe_threshold":  base.SafeThreshold.String(),
 }
 
 func main() {
@@ -84,6 +86,7 @@ func main() {
 		kctx.FatalIfErrorf(err)
 	}
 
+	log.Log().Debug().Interface("flags", os.Args).Msg("flags")
 	log.Log().Debug().Interface("main_process", pss.Verbose()).Msg("processed")
 
 	if err := func() error {

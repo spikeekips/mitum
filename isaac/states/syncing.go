@@ -210,6 +210,8 @@ func (st *SyncingHandler) checkFinished(vp base.Voteproof) (done bool, _ error) 
 	top, isfinished := st.syncer.IsFinished()
 
 	if isfinished {
+		st.whenFinishedf(top)
+
 		go st.whenNewBlockSaved(top)
 
 		joined, err := st.checkAndJoinMemberlist(top + 1)
@@ -267,8 +269,6 @@ end:
 			}
 		case top := <-sc.Finished():
 			st.Log().Debug().Interface("height", top).Msg("syncer finished")
-
-			st.whenFinishedf(top)
 
 			var done bool
 			switch done, err = st.checkFinished(st.lastVoteproofs().Cap()); {

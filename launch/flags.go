@@ -3,6 +3,7 @@ package launch
 import (
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -184,4 +185,13 @@ func (f *DesignURIFlag) UnmarshalText(b []byte) error {
 
 type DesignURIProperties struct {
 	HTTPSTLSInsecure bool `name:"https.tls_insecure" negatable:"" help:"https tls insecure" group:"design"`
+}
+
+type DevFlags struct {
+	// revive:disable:line-length-limit
+	//revive:disable:struct-tag
+	AllowRiskyThreshold bool          `name:"allow-risky-threshold" help:"allow risky threshold under threshold, ${safe_threshold}" group:"dev"`
+	DelaySyncer         time.Duration `name:"delay-syncer" help:"initial delay when sync one block" group:"dev"`
+	//revive:enable:struct-tag
+	// revive:enable:line-length-limit
 }

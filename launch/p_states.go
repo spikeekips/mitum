@@ -248,6 +248,10 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 	getLastManifestf := getLastManifestFunc(db)
 	getManifestf := getManifestFunc(db)
 
+	whenSyncingFinished := func(base.Height) {
+		ballotbox.Count(params.Threshold())
+	}
+
 	states.SetWhenStateSwitched(func(next isaacstates.StateType) {
 		_ = nodeinfo.SetConsensusState(next)
 	})
@@ -258,9 +262,7 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 		leaveMemberlistForSyncingHandlerf,
 		whenNewBlockSavedInSyncingStatef,
 	)
-	syncinghandler.SetWhenFinished(func(base.Height) {
-		ballotbox.Count(params.Threshold())
-	})
+	syncinghandler.SetWhenFinished(whenSyncingFinished)
 
 	consensusHandler := isaacstates.NewNewConsensusHandlerType(
 		local, params, proposalSelector, pps,
@@ -305,6 +307,7 @@ func newSyncerFunc(
 ) {
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
+	var devflags DevFlags
 	var design NodeDesign
 	var client *isaacnetwork.QuicstreamClient
 	var st *leveldbstorage.Storage
@@ -314,6 +317,7 @@ func newSyncerFunc(
 	if err := util.LoadFromContextOK(pctx,
 		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
+		DevFlagsContextKey, &devflags,
 		DesignContextKey, &design,
 		QuicstreamClientContextKey, &client,
 		LeveldbStorageContextKey, &st,
@@ -397,7 +401,7 @@ func newSyncerFunc(
 			},
 			prev,
 			syncerLastBlockMapFunc(newclient, params, syncSourcePool),
-			syncerBlockMapFunc(newclient, params, syncSourcePool, conninfocache),
+			syncerBlockMapFunc(newclient, params, syncSourcePool, conninfocache, devflags.DelaySyncer),
 			syncerBlockMapItemFunc(newclient, conninfocache),
 			tempsyncpool,
 			setLastVoteproofsfFromBlockReaderf,
@@ -497,10 +501,15 @@ func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
 	params base.LocalParams,
 	syncSourcePool *isaac.SyncSourcePool,
 	conninfocache *util.ShardedMap,
+	devdelay time.Duration,
 ) isaacstates.SyncerBlockMapFunc {
 	f := func(ctx context.Context, height base.Height, ci quicstream.UDPConnInfo) (base.BlockMap, bool, error) {
 		cctx, cancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
 		defer cancel()
+
+		if devdelay > 0 {
+			<-time.After(devdelay) // NOTE for testing
+		}
 
 		switch m, found, err := client.BlockMap(cctx, ci, height); {
 		case err != nil, !found:
