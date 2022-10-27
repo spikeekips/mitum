@@ -19,9 +19,10 @@ var pnameImportBlocks = ps.Name("import-blocks")
 
 type ImportCommand struct { //nolint:govet //...
 	launch.DesignFlag
-	From  string `arg:"" name:"from directory" help:"block data directory to import" type:"existingdir"`
-	Vault string `name:"vault" help:"privatekey path of vault"`
-	log   *zerolog.Logger
+	From            string `arg:"" name:"from directory" help:"block data directory to import" type:"existingdir"`
+	Vault           string `name:"vault" help:"privatekey path of vault"`
+	log             *zerolog.Logger
+	launch.DevFlags `embed:"" prefix:"dev."`
 }
 
 func (cmd *ImportCommand) Run(pctx context.Context) error {
@@ -34,6 +35,7 @@ func (cmd *ImportCommand) Run(pctx context.Context) error {
 
 	//revive:disable:modifies-parameter
 	pctx = context.WithValue(pctx, launch.DesignFlagContextKey, cmd.DesignFlag)
+	pctx = context.WithValue(pctx, launch.DevFlagsContextKey, cmd.DevFlags)
 	pctx = context.WithValue(pctx, launch.VaultContextKey, cmd.Vault)
 	//revive:enable:modifies-parameter
 
