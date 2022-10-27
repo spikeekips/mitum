@@ -108,6 +108,17 @@ func (p *SyncSourcePool) PickMultiple(n int) ([]NodeConnInfo, []func(error), err
 	return sources[:i], reports[:i], nil
 }
 
+func (p *SyncSourcePool) IsInFixed(node base.Address) bool {
+	p.RLock()
+	defer p.RUnlock()
+
+	fixed := p.sources[:p.fixedlen]
+
+	return util.InSliceFunc(fixed, func(_ interface{}, i int) bool {
+		return fixed[i].Address().Equal(node)
+	}) >= 0
+}
+
 func (p *SyncSourcePool) UpdateFixed(fixed []NodeConnInfo) bool {
 	p.Lock()
 	defer p.Unlock()

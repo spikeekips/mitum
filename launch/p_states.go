@@ -68,26 +68,35 @@ func PStates(ctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to prepare states")
 
 	var enc encoder.Encoder
+	var local base.LocalNode
+	var params *isaac.LocalParams
 	var ballotbox *isaacstates.Ballotbox
 	var pps *isaac.ProposalProcessors
 	var memberlist *quicmemberlist.Memberlist
 	var lvps *isaacstates.LastVoteproofsHandler
+	var syncSourcePool *isaac.SyncSourcePool
 	var cb *isaacnetwork.CallbackBroadcaster
 
 	if err := util.LoadFromContextOK(ctx,
 		EncoderContextKey, &enc,
+		LocalContextKey, &local,
+		LocalParamsContextKey, &params,
 		BallotboxContextKey, &ballotbox,
 		ProposalProcessorsContextKey, &pps,
 		MemberlistContextKey, &memberlist,
 		LastVoteproofsHandlerContextKey, &lvps,
+		SyncSourcePoolContextKey, &syncSourcePool,
 		CallbackBroadcasterContextKey, &cb,
 	); err != nil {
 		return ctx, e(err, "")
 	}
 
 	states := isaacstates.NewStates(
+		local,
+		params,
 		ballotbox,
 		lvps,
+		syncSourcePool.IsInFixed,
 		func(ballot base.Ballot) error {
 			ee := util.StringErrorFunc("failed to broadcast ballot")
 

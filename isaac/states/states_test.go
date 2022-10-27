@@ -11,21 +11,9 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
+	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 )
-
-type dummyNewHandler struct {
-	ne func() (handler, error)
-	st func(*States)
-}
-
-func (h dummyNewHandler) new() (handler, error) {
-	return h.ne()
-}
-
-func (h dummyNewHandler) setStates(st *States) {
-	h.st(st)
-}
 
 func (st *States) newVoteproof(vp base.Voteproof) error {
 	current := st.current()
@@ -61,12 +49,118 @@ func (st *States) setHandler(h handler) *States {
 	return st
 }
 
+type dummyNewHandler struct {
+	ne func() (handler, error)
+	st func(*States)
+}
+
+func (h dummyNewHandler) new() (handler, error) {
+	return h.ne()
+}
+
+func (h dummyNewHandler) setStates(st *States) {
+	h.st(st)
+}
+
+type dummyStateHandler struct {
+	s             StateType
+	enterf        func(StateType, switchContext) error
+	enterdefer    func()
+	exitf         func(switchContext) error
+	exitdefer     func()
+	newVoteprooff func(base.Voteproof) error
+}
+
+func newDummyStateHandler(state StateType) *dummyStateHandler {
+	return &dummyStateHandler{
+		s: state,
+	}
+}
+
+func (st *dummyStateHandler) state() StateType {
+	return st.s
+}
+
+func (st *dummyStateHandler) enter(from StateType, sctx switchContext) (func(), error) {
+	if st.enterf == nil {
+		return st.enterdefer, nil
+	}
+
+	if err := st.enterf(from, sctx); err != nil {
+		return nil, err
+	}
+
+	return st.enterdefer, nil
+}
+
+func (st *dummyStateHandler) exit(sctx switchContext) (func(), error) {
+	if st.exitf == nil {
+		return st.exitdefer, nil
+	}
+
+	if err := st.exitf(sctx); err != nil {
+		return nil, err
+	}
+
+	return st.exitdefer, nil
+}
+
+func (st *dummyStateHandler) newVoteproof(vp base.Voteproof) error {
+	if st.newVoteprooff == nil {
+		return nil
+	}
+
+	return st.newVoteprooff(vp)
+}
+
+func (st *dummyStateHandler) onEmptyMembers() {}
+
+func (st *dummyStateHandler) setEnter(f func(StateType, switchContext) error, d func()) *dummyStateHandler {
+	st.enterf = f
+	st.enterdefer = d
+
+	return st
+}
+
+func (st *dummyStateHandler) setExit(f func(switchContext) error, d func()) *dummyStateHandler {
+	st.exitf = f
+	st.exitdefer = d
+
+	return st
+}
+
+func (st *dummyStateHandler) setNewVoteproof(f func(base.Voteproof) error) *dummyStateHandler {
+	st.newVoteprooff = f
+
+	return st
+}
+
+type dummySwitchContext struct {
+	baseSwitchContext
+	vp base.Voteproof
+}
+
+func newDummySwitchContext(from, next StateType, vp base.Voteproof) dummySwitchContext {
+	return dummySwitchContext{
+		baseSwitchContext: newBaseSwitchContext(next, switchContextOKFuncCheckFrom(from)),
+		vp:                vp,
+	}
+}
+
+func (s dummySwitchContext) MarshalZerologObject(e *zerolog.Event) {
+	s.baseSwitchContext.MarshalZerologObject(e)
+
+	if s.vp != nil {
+		e.Interface("voteproof", s.vp)
+	}
+}
+
 type testStates struct {
 	suite.Suite
 }
 
 func (t *testStates) TestWait() {
-	st := NewStates(nil, nil, func(base.Ballot) error { return nil })
+	st := NewStates(nil, nil, nil, nil, nil, func(base.Ballot) error { return nil })
 	_ = st.SetLogging(logging.TestNilLogging)
 
 	_ = st.setHandler(newDummyStateHandler(StateStopped))
@@ -120,7 +214,7 @@ func (t *testStates) TestExit() {
 }
 
 func (t *testStates) TestBootingAtStarting() {
-	st := NewStates(nil, nil, func(base.Ballot) error { return nil })
+	st := NewStates(nil, nil, nil, nil, nil, func(base.Ballot) error { return nil })
 	_ = st.SetLogging(logging.TestNilLogging)
 
 	_ = st.setHandler(newDummyStateHandler(StateStopped))
@@ -147,7 +241,7 @@ func (t *testStates) TestBootingAtStarting() {
 }
 
 func (t *testStates) TestFailedToEnterIntoBootingAtStarting() {
-	st := NewStates(nil, nil, func(base.Ballot) error { return nil })
+	st := NewStates(nil, nil, nil, nil, nil, func(base.Ballot) error { return nil })
 	_ = st.SetLogging(logging.TestNilLogging)
 
 	_ = st.setHandler(newDummyStateHandler(StateStopped))
@@ -187,7 +281,7 @@ func (t *testStates) TestFailedToEnterIntoBootingAtStarting() {
 }
 
 func (t *testStates) booted() (*States, <-chan error) {
-	st := NewStates(nil, nil, func(base.Ballot) error { return nil })
+	st := NewStates(nil, nil, nil, nil, nil, func(base.Ballot) error { return nil })
 	_ = st.SetLogging(logging.TestNilLogging)
 
 	_ = st.setHandler(newDummyStateHandler(StateStopped))
@@ -215,7 +309,7 @@ func (t *testStates) booted() (*States, <-chan error) {
 }
 
 func (t *testStates) TestFailedToEnterIntoBrokenAtStarting() {
-	st := NewStates(nil, nil, func(base.Ballot) error { return nil })
+	st := NewStates(nil, nil, nil, nil, nil, func(base.Ballot) error { return nil })
 	_ = st.SetLogging(logging.TestNilLogging)
 
 	_ = st.setHandler(newDummyStateHandler(StateStopped))
@@ -615,99 +709,206 @@ func (t *testStates) TestStoppedByStateStopped() {
 	t.False(st.IsStarted())
 }
 
+func (t *testStates) TestMimicBallot() {
+	local := isaac.RandomLocalNode()
+	params := isaac.DefaultLocalParams(base.RandomNetworkID())
+	remote := isaac.RandomLocalNode()
+
+	newINITBallot := func(local base.LocalNode) base.Ballot {
+		afact := isaac.NewACCEPTBallotFact(base.RawPoint(32, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
+		afs := isaac.NewACCEPTBallotSignFact(local.Address(), afact)
+		t.NoError(afs.Sign(local.Privatekey(), params.NetworkID()))
+
+		avp := isaac.NewACCEPTVoteproof(afact.Point().Point)
+		avp.SetResult(base.VoteResultMajority).
+			SetMajority(afact).
+			SetSignFacts([]base.BallotSignFact{afs}).
+			SetThreshold(100).
+			Finish()
+
+		ifact := isaac.NewINITBallotFact(base.RawPoint(33, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
+		ifs := isaac.NewINITBallotSignFact(local.Address(), ifact)
+
+		return isaac.NewINITBallot(avp, ifs, nil)
+	}
+
+	newstates := func() (*States, <-chan error) {
+		st, errch := t.booted()
+
+		st.local = local
+		st.params = params
+
+		_ = st.setHandler(newDummyStateHandler(StateStopped))
+		_ = st.setHandler(newDummyStateHandler(StateSyncing))
+
+		return st, errch
+	}
+
+	newstatesinsyncing := func() (*States, <-chan error) {
+		st, errch := newstates()
+		syncinghandler := newDummyStateHandler(StateSyncing)
+		_ = st.setHandler(syncinghandler)
+
+		enterch := make(chan bool, 1)
+		_ = syncinghandler.setEnter(func(StateType, switchContext) error {
+			enterch <- true
+
+			return nil
+		}, nil)
+
+		t.NoError(st.MoveState(newDummySwitchContext(st.current().state(), StateSyncing, nil)))
+		<-enterch
+
+		return st, errch
+	}
+
+	t.Run("ok", func() {
+		st, errch := newstatesinsyncing()
+		defer st.Stop()
+
+		st.isinsyncsources = func(base.Address) bool { return true }
+
+		blch := make(chan base.Ballot, 1)
+		st.broadcastBallotFunc = func(bl base.Ballot) error {
+			blch <- bl
+
+			return nil
+		}
+
+		bl := newINITBallot(remote)
+
+		st.mimicBallotFunc()(bl)
+
+		select {
+		case <-time.After(time.Second * 2):
+			t.NoError(errors.Errorf("wait broadcasted ballot, but failed"))
+		case err := <-errch:
+			t.NoError(err)
+		case newbl := <-blch:
+			t.Equal(bl.Point(), newbl.Point())
+		}
+	})
+
+	t.Run("not in valid states", func() {
+		st, errch := t.booted()
+		defer st.Stop()
+
+		st.local = local
+		st.params = params
+
+		st.isinsyncsources = func(base.Address) bool { return true }
+
+		blch := make(chan base.Ballot, 1)
+		st.broadcastBallotFunc = func(bl base.Ballot) error {
+			blch <- bl
+			return nil
+		}
+
+		bl := newINITBallot(remote)
+
+		st.mimicBallotFunc()(bl)
+
+		select {
+		case <-time.After(time.Second * 2):
+		case err := <-errch:
+			t.NoError(err)
+		case <-blch:
+			t.NoError(errors.Errorf("should be no broadcasted ballot, but broadcasted"))
+		}
+	})
+
+	t.Run("not in sync sources", func() {
+		st, errch := newstatesinsyncing()
+		defer st.Stop()
+
+		st.isinsyncsources = func(base.Address) bool { return false }
+
+		blch := make(chan base.Ballot, 1)
+		st.broadcastBallotFunc = func(bl base.Ballot) error {
+			blch <- bl
+			return nil
+		}
+
+		bl := newINITBallot(remote)
+
+		st.mimicBallotFunc()(bl)
+
+		select {
+		case <-time.After(time.Second * 2):
+		case err := <-errch:
+			t.NoError(err)
+		case <-blch:
+			t.NoError(errors.Errorf("should be no broadcasted ballot, but broadcasted"))
+		}
+	})
+
+	t.Run("different ballot signer", func() {
+		st, errch := newstatesinsyncing()
+		defer st.Stop()
+
+		st.isinsyncsources = func(base.Address) bool { return true }
+
+		blch := make(chan base.Ballot, 1)
+		st.broadcastBallotFunc = func(bl base.Ballot) error {
+			blch <- bl
+			return nil
+		}
+
+		mimicBallotFunc := st.mimicBallotFunc()
+
+		bl := newINITBallot(remote)
+
+		t.T().Log("initial ballot")
+		mimicBallotFunc(bl)
+
+		select {
+		case <-time.After(time.Second * 2):
+		case err := <-errch:
+			t.NoError(err)
+		case newbl := <-blch:
+			t.Equal(bl.Point(), newbl.Point())
+		}
+
+		t.T().Log("second ballot by another node")
+
+		anotherbl := newINITBallot(isaac.RandomLocalNode())
+		mimicBallotFunc(anotherbl)
+
+		select {
+		case <-time.After(time.Second * 2):
+		case err := <-errch:
+			t.NoError(err)
+		case <-blch:
+			t.NoError(errors.Errorf("should be no broadcasted ballot, but broadcasted"))
+		}
+	})
+
+	t.Run("local signed ballot", func() {
+		st, errch := newstatesinsyncing()
+		defer st.Stop()
+
+		st.isinsyncsources = func(base.Address) bool { return true }
+
+		blch := make(chan base.Ballot, 1)
+		st.broadcastBallotFunc = func(bl base.Ballot) error {
+			blch <- bl
+			return nil
+		}
+
+		bl := newINITBallot(local)
+
+		st.mimicBallotFunc()(bl)
+
+		select {
+		case <-time.After(time.Second * 2):
+		case err := <-errch:
+			t.NoError(err)
+		case <-blch:
+			t.NoError(errors.Errorf("should be no broadcasted ballot, but broadcasted"))
+		}
+	})
+}
+
 func TestStates(t *testing.T) {
 	suite.Run(t, new(testStates))
-}
-
-type dummyStateHandler struct {
-	s             StateType
-	enterf        func(StateType, switchContext) error
-	enterdefer    func()
-	exitf         func(switchContext) error
-	exitdefer     func()
-	newVoteprooff func(base.Voteproof) error
-}
-
-func newDummyStateHandler(state StateType) *dummyStateHandler {
-	return &dummyStateHandler{
-		s: state,
-	}
-}
-
-func (st *dummyStateHandler) state() StateType {
-	return st.s
-}
-
-func (st *dummyStateHandler) enter(from StateType, sctx switchContext) (func(), error) {
-	if st.enterf == nil {
-		return st.enterdefer, nil
-	}
-
-	if err := st.enterf(from, sctx); err != nil {
-		return nil, err
-	}
-
-	return st.enterdefer, nil
-}
-
-func (st *dummyStateHandler) exit(sctx switchContext) (func(), error) {
-	if st.exitf == nil {
-		return st.exitdefer, nil
-	}
-
-	if err := st.exitf(sctx); err != nil {
-		return nil, err
-	}
-
-	return st.exitdefer, nil
-}
-
-func (st *dummyStateHandler) newVoteproof(vp base.Voteproof) error {
-	if st.newVoteprooff == nil {
-		return nil
-	}
-
-	return st.newVoteprooff(vp)
-}
-
-func (st *dummyStateHandler) onEmptyMembers() {}
-
-func (st *dummyStateHandler) setEnter(f func(StateType, switchContext) error, d func()) *dummyStateHandler {
-	st.enterf = f
-	st.enterdefer = d
-
-	return st
-}
-
-func (st *dummyStateHandler) setExit(f func(switchContext) error, d func()) *dummyStateHandler {
-	st.exitf = f
-	st.exitdefer = d
-
-	return st
-}
-
-func (st *dummyStateHandler) setNewVoteproof(f func(base.Voteproof) error) *dummyStateHandler {
-	st.newVoteprooff = f
-
-	return st
-}
-
-type dummySwitchContext struct {
-	baseSwitchContext
-	vp base.Voteproof
-}
-
-func newDummySwitchContext(from, next StateType, vp base.Voteproof) dummySwitchContext {
-	return dummySwitchContext{
-		baseSwitchContext: newBaseSwitchContext(next, switchContextOKFuncCheckFrom(from)),
-		vp:                vp,
-	}
-}
-
-func (s dummySwitchContext) MarshalZerologObject(e *zerolog.Event) {
-	s.baseSwitchContext.MarshalZerologObject(e)
-
-	if s.vp != nil {
-		e.Interface("voteproof", s.vp)
-	}
 }

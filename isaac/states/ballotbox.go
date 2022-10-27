@@ -19,6 +19,7 @@ type Ballotbox struct {
 	getSuffrage      isaac.GetSuffrageByBlockHeight
 	isValidVoteproof func(base.Voteproof, base.Suffrage) error
 	suffrageVote     func(base.SuffrageWithdrawOperation) error
+	newBallot        func(base.Ballot)
 	vrs              map[string]*voterecords
 	vpch             chan base.Voteproof
 	lsp              *util.Locked
@@ -42,6 +43,7 @@ func NewBallotbox(
 		vpch:             make(chan base.Voteproof, math.MaxUint16),
 		lsp:              util.NewLocked(base.ZeroStagePoint),
 		isValidVoteproof: isValidVoteproof,
+		newBallot:        func(base.Ballot) {},
 	}
 }
 
@@ -59,6 +61,8 @@ func (box *Ballotbox) Vote(bl base.Ballot, threshold base.Threshold) (bool, erro
 			_ = callback()
 		}()
 	}
+
+	box.newBallot(bl)
 
 	return voted, nil
 }
@@ -99,6 +103,10 @@ func (box *Ballotbox) Count(threshold base.Threshold) {
 
 func (box *Ballotbox) SetSuffrageVote(f func(base.SuffrageWithdrawOperation) error) {
 	box.suffrageVote = f
+}
+
+func (box *Ballotbox) SetNewBallot(f func(base.Ballot)) {
+	box.newBallot = f
 }
 
 func (box *Ballotbox) countWithVoterecords(

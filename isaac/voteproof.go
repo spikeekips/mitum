@@ -10,7 +10,7 @@ import (
 	"github.com/spikeekips/mitum/util/localtime"
 )
 
-// FIXME remove withdraw nodes from trust line
+// FIXME remove withdraw nodes from sync sources
 
 type WithdrawVoteproof interface {
 	Withdraws() []base.SuffrageWithdrawOperation

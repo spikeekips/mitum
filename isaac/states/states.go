@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 )
@@ -21,6 +22,8 @@ var (
 type States struct {
 	cs handler
 	*logging.Logging
+	local       base.LocalNode
+	params      *isaac.LocalParams
 	box         *Ballotbox
 	lvps        *LastVoteproofsHandler
 	statech     chan switchContext
@@ -28,24 +31,34 @@ type States struct {
 	newHandlers map[StateType]newHandler
 	*util.ContextDaemon
 	timers              *util.Timers
+	isinsyncsources     func(base.Address) bool
 	broadcastBallotFunc func(base.Ballot) error
 	whenStateSwitched   func(next StateType)
 	stateLock           sync.RWMutex
 }
 
 func NewStates(
+	local base.LocalNode,
+	params *isaac.LocalParams,
 	box *Ballotbox,
 	lvps *LastVoteproofsHandler,
+	isinsyncsourcepool func(base.Address) bool,
 	broadcastBallotFunc func(base.Ballot) error,
 ) *States {
 	if lvps == nil {
 		lvps = NewLastVoteproofsHandler() //revive:disable-line:modifies-parameter
 	}
 
+	if isinsyncsourcepool == nil {
+		isinsyncsourcepool = func(base.Address) bool { return false } //revive:disable-line:modifies-parameter
+	}
+
 	st := &States{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", "states")
 		}),
+		local:               local,
+		params:              params,
 		box:                 box,
 		broadcastBallotFunc: broadcastBallotFunc,
 		statech:             make(chan switchContext),
@@ -57,10 +70,15 @@ func NewStates(
 			timerIDBroadcastACCEPTBallot,
 		}, false),
 		lvps:              lvps,
+		isinsyncsources:   isinsyncsourcepool,
 		whenStateSwitched: func(StateType) {},
 	}
 
 	st.ContextDaemon = util.NewContextDaemon(st.start)
+
+	if box != nil {
+		box.SetNewBallot(st.mimicBallotFunc())
+	}
 
 	return st
 }
@@ -434,4 +452,114 @@ func (st *States) lastVoteproof() LastVoteproofs {
 
 func (st *States) setLastVoteproof(vp base.Voteproof) bool {
 	return st.lvps.Set(vp)
+}
+
+// mimicBallotFunc mimics incoming ballot when node can not broadcast ballot; this will
+// prevent to be gussed by the other nodes, local node is dead.
+// - ballot signer should be in sync sources
+func (st *States) mimicBallotFunc() func(base.Ballot) {
+	checkMimicBallot := st.checkMimicBallot()
+
+	return func(bl base.Ballot) {
+		if bl.SignFact().Node().Equal(st.local.Address()) {
+			return
+		}
+
+		newbl := checkMimicBallot(bl)
+		if newbl == nil {
+			return
+		}
+
+		if err := st.broadcastBallotFunc(newbl); err != nil {
+			st.Log().Error().Err(err).Interface("ballot", bl).Interface("new_ballot", newbl).Msg("failed to mimic")
+		}
+	}
+}
+
+func (st *States) checkMimicBallot() func(base.Ballot) base.Ballot {
+	var lock sync.Mutex
+
+	cache := util.NewGCacheObjectPool(3) //nolint:gomnd // NOTE include previous round
+
+	return func(bl base.Ballot) base.Ballot {
+		lock.Lock()
+		defer lock.Unlock()
+
+		switch st.current().state() {
+		case StateSyncing, StateBroken:
+		default:
+			return nil
+		}
+
+		if !st.isinsyncsources(bl.SignFact().Node()) {
+			return nil
+		}
+
+		l := st.Log().With().Interface("ballot", bl).Logger()
+
+		// NOTE check in cache
+		cachekey := bl.Point().String()
+
+		if i, found := cache.Get(cachekey); found {
+			newbl := i.(base.Ballot) //nolint:forcetypeassert //...
+
+			if !newbl.SignFact().Node().Equal(bl.SignFact().Node()) {
+				return nil
+			}
+
+			return newbl
+		}
+
+		switch i, err := st.mimicSignBallot(bl); {
+		case err != nil:
+			l.Error().Err(err).Msg("failed to mimic")
+
+			return nil
+		case i == nil:
+			return nil
+		default:
+			cache.Set(cachekey, i, nil)
+
+			return i
+		}
+	}
+}
+
+func (st *States) mimicSignBallot(bl base.Ballot) (base.Ballot, error) {
+	fact := bl.SignFact().Fact()
+
+	var withdraws []base.SuffrageWithdrawOperation
+
+	if i, ok := bl.(isaac.BallotWithdraws); ok {
+		withdraws = i.Withdraws()
+	}
+
+	var newbl base.Ballot
+
+	switch t := fact.(type) {
+	case isaac.INITBallotFact:
+		sf := isaac.NewINITBallotSignFact(st.local.Address(), t)
+
+		if err := sf.Sign(st.local.Privatekey(), st.params.NetworkID()); err != nil {
+			return nil, err
+		}
+
+		newbl = isaac.NewINITBallot(bl.Voteproof(), sf, withdraws)
+	case isaac.ACCEPTBallotFact:
+		sf := isaac.NewACCEPTBallotSignFact(st.local.Address(), t)
+
+		if err := sf.Sign(st.local.Privatekey(), st.params.NetworkID()); err != nil {
+			return nil, err
+		}
+
+		newbl = isaac.NewACCEPTBallot( //nolint:forcetypeassert //...
+			bl.Voteproof().(base.INITVoteproof),
+			sf,
+			withdraws,
+		)
+	default:
+		return nil, errors.Errorf("unknown ballot, %T", bl)
+	}
+
+	return newbl, nil
 }
