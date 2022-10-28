@@ -194,6 +194,8 @@ func PPatchMemberlist(ctx context.Context) (context.Context, error) {
 			return
 		}
 
+		// FIXME validate node sign and node is in consensus nodes
+
 		m := i
 
 		if j, ok := i.(isaacnetwork.CallbackBroadcastHeader); ok {

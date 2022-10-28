@@ -131,7 +131,7 @@ func (m BlockMap) Items(f func(base.BlockMapItem) bool) {
 }
 
 func (m *BlockMap) Sign(node base.Address, priv base.Privatekey, networkID base.NetworkID) error {
-	sign, err := base.BaseNodeSignFromBytes(node, priv, networkID, m.signedBytes())
+	sign, err := base.NewBaseNodeSignFromBytes(node, priv, networkID, m.signedBytes())
 	if err != nil {
 		return errors.Wrap(err, "failed to sign blockmap")
 	}

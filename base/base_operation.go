@@ -194,7 +194,7 @@ func (op *BaseNodeOperation) NodeSign(priv Privatekey, networkID NetworkID, node
 		}
 	}
 
-	ns, err := BaseNodeSignFromFact(node, priv, networkID, op.fact)
+	ns, err := NewBaseNodeSignFromFact(node, priv, networkID, op.fact)
 	if err != nil {
 		return err
 	}

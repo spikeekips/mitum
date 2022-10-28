@@ -123,15 +123,15 @@ func NewBaseNodeSign(node Address, signer Publickey, signature Signature, signed
 	}
 }
 
-func BaseNodeSignFromFact(node Address, priv Privatekey, networkID NetworkID, fact Fact) (BaseNodeSign, error) {
+func NewBaseNodeSignFromFact(node Address, priv Privatekey, networkID NetworkID, fact Fact) (BaseNodeSign, error) {
 	if fact == nil || fact.Hash() == nil {
 		return BaseNodeSign{}, util.ErrInvalid.Errorf("failed to make BaseSign; empty fact")
 	}
 
-	return BaseNodeSignFromBytes(node, priv, networkID, fact.Hash().Bytes())
+	return NewBaseNodeSignFromBytes(node, priv, networkID, fact.Hash().Bytes())
 }
 
-func BaseNodeSignFromBytes(node Address, priv Privatekey, networkID NetworkID, b []byte) (BaseNodeSign, error) {
+func NewBaseNodeSignFromBytes(node Address, priv Privatekey, networkID NetworkID, b []byte) (BaseNodeSign, error) {
 	si, err := NewBaseSignFromBytes(priv, networkID, util.ConcatByters(node, util.BytesToByter(b)))
 	if err != nil {
 		return BaseNodeSign{}, errors.Wrap(err, "failed to create BaseNodeSign from bytes")

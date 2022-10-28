@@ -146,7 +146,7 @@ func (t *testNodeSign) TestSignedAndVerify() {
 	input := util.UUID().Bytes()
 	node := RandomAddress("")
 
-	s, err := BaseNodeSignFromBytes(node, priv, nil, input)
+	s, err := NewBaseNodeSignFromBytes(node, priv, nil, input)
 	t.NoError(err)
 	t.NoError(s.IsValid(nil))
 
@@ -176,7 +176,7 @@ func TestBaseNodeSignJSON(tt *testing.T) {
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: MPublickeyHint, Instance: MPublickey{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: StringAddressHint, Instance: StringAddress{}}))
 
-		s, err := BaseNodeSignFromBytes(RandomAddress(""), priv, nil, input)
+		s, err := NewBaseNodeSignFromBytes(RandomAddress(""), priv, nil, input)
 		t.NoError(err)
 
 		b, err := enc.Marshal(s)

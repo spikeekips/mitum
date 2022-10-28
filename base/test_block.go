@@ -229,7 +229,7 @@ type DummyBlockMap struct {
 }
 
 func NewDummyBlockMap(manifest Manifest) DummyBlockMap {
-	sign, _ := BaseNodeSignFromBytes(
+	sign, _ := NewBaseNodeSignFromBytes(
 		RandomAddress(""),
 		NewMPrivatekey(),
 		util.UUID().Bytes(),
