@@ -141,7 +141,7 @@ func (info *NodeInfo) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	case err != nil:
 		return e(err, "failed to parse uptime, %q", u.Local.Uptime)
 	default:
-		info.uptime = time.Duration(int64(f * float64(1000000000))) //nolint:gomnd //...
+		info.uptime = time.Duration(int64(f * float64(1_000_000_000))) //nolint:gomnd //...
 	}
 
 	// NOTE consensus

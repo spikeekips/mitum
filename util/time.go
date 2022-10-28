@@ -41,7 +41,7 @@ func NormalizeTime(t time.Time) time.Time {
 		n.Hour(),
 		n.Minute(),
 		n.Second(),
-		(n.Nanosecond()/1000000)*1000000, //nolint:gomnd //...
+		(n.Nanosecond()/1_000_000)*1_000_000, //nolint:gomnd //...
 		time.UTC,
 	)
 }

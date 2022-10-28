@@ -473,7 +473,7 @@ func BasicMemberlistConfig(name string, bind, advertise *net.UDPAddr) *memberlis
 	config.Merge = nil
 	config.Ping = nil
 	config.Alive = nil
-	config.UDPBufferSize = 260000 // NOTE 260kb
+	config.UDPBufferSize = 260_000 // NOTE 260kb
 	config.Logger = log.New(io.Discard, "", 0)
 
 	return config

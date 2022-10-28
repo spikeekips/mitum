@@ -371,8 +371,8 @@ func (l *ShardedMap) Len() int {
 }
 
 const (
-	shardedprime = uint32(16777619)
-	shardedseed  = uint32(2166136261)
+	shardedprime = uint32(16_777_619)
+	shardedseed  = uint32(2_166_136_261)
 )
 
 func (l *ShardedMap) fnv(k string) int64 {
