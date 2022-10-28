@@ -198,31 +198,37 @@ func PPatchMemberlist(ctx context.Context) (context.Context, error) {
 
 		m := i
 
-		if j, ok := i.(isaacnetwork.CallbackBroadcastHeader); ok {
+		if j, ok := i.(isaacnetwork.CallbackBroadcastMessage); ok {
 			l := log.Log().With().Interface("header", j).Logger()
 
 			cctx, cancel := context.WithTimeout(context.Background(), time.Second*10) //nolint:gomnd //...
 			defer cancel()
 
-			response, v, cancelrequest, err := client.Request(cctx, j.ConnInfo(), j, nil)
+			header := isaacnetwork.NewCallbackMessageHeader(j.ID())
+
+			response, v, cancelrequest, err := client.Request(cctx, j.ConnInfo(), header, nil)
 			defer func() {
 				_ = cancelrequest()
 			}()
 
-			if err != nil {
+			switch {
+			case err != nil:
 				l.Error().Err(err).Msg("failed to request callback broadcast")
 
 				return
-			}
+			case i == nil:
+				l.Error().Err(err).Interface("response_type", response.Type()).
+					Msg("empty body")
 
-			if response.Type() != isaac.NetworkResponseHinterContentType {
+				return
+			case response.Type() != isaac.NetworkResponseHinterContentType:
 				l.Error().Err(err).Interface("response_type", response.Type()).
 					Msg("invalid response type; response should be isaac.NetworkResponseHinterContentType")
 
 				return
+			default:
+				m = v
 			}
-
-			m = v
 		}
 
 		switch t := m.(type) {

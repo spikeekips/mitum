@@ -190,8 +190,8 @@ func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 		Add(isaacnetwork.HandlerPrefixNodeInfo,
 			isaacnetwork.QuicstreamHandlerNodeInfo(encs, idletimeout, quicstreamHandlerGetNodeInfoFunc(enc, nodeinfo)),
 		).
-		Add(isaacnetwork.HandlerPrefixCallbackBroadcast,
-			isaacnetwork.QuicstreamHandlerCallbackBroadcast(encs, idletimeout, cb),
+		Add(isaacnetwork.HandlerPrefixCallbackMessage,
+			isaacnetwork.QuicstreamHandlerCallbackMessage(encs, idletimeout, cb),
 		).
 		Add(HandlerPrefixPprof, NetworkHandlerPprofFunc(encs))
 

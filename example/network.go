@@ -54,9 +54,8 @@ func init() {
 			isaac.SuffrageStateKey, valuehash.RandomSHA256()),
 		isaacnetwork.HandlerPrefixExistsInStateOperation: isaacnetwork.NewExistsInStateOperationRequestHeader(
 			valuehash.RandomSHA256()),
-		isaacnetwork.HandlerPrefixNodeInfo: isaacnetwork.NewNodeInfoRequestHeader(),
-		isaacnetwork.HandlerPrefixCallbackBroadcast: isaacnetwork.NewCallbackBroadcastHeader(
-			util.UUID().String(), quicstream.MustNewUDPConnInfoFromString("1.2.3.4:4321#tls_insecure")),
+		isaacnetwork.HandlerPrefixNodeInfo:        isaacnetwork.NewNodeInfoRequestHeader(),
+		isaacnetwork.HandlerPrefixCallbackMessage: isaacnetwork.NewCallbackMessageHeader(util.UUID().String()),
 		launch.HandlerPrefixPprof: launch.NewPprofRequestHeader(
 			"heap", 5, true), //nolint:gomnd //...
 	}

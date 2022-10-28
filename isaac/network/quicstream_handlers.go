@@ -544,7 +544,7 @@ func QuicstreamHandlerNodeInfo(
 	}
 }
 
-func QuicstreamHandlerCallbackBroadcast(
+func QuicstreamHandlerCallbackMessage(
 	encs *encoder.Encoders,
 	idleTimeout time.Duration,
 	cb *CallbackBroadcaster,
@@ -552,16 +552,16 @@ func QuicstreamHandlerCallbackBroadcast(
 	var sg singleflight.Group
 
 	return func(_ net.Addr, r io.Reader, w io.Writer) error {
-		e := util.StringErrorFunc("failed to handle callback broadcast")
+		e := util.StringErrorFunc("failed to handle callback message")
 
-		var header CallbackBroadcastHeader
+		var header CallbackMessageHeader
 
 		enc, err := quicstreamPreHandle(encs, idleTimeout, r, &header)
 		if err != nil {
 			return e(err, "")
 		}
 
-		i, err, _ := sg.Do(HandlerPrefixCallbackBroadcast, func() (interface{}, error) {
+		i, err, _ := sg.Do(HandlerPrefixCallbackMessage, func() (interface{}, error) {
 			b, found := cb.RawMessage(header.ID())
 
 			return [2]interface{}{b, found}, nil

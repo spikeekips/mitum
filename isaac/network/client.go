@@ -69,9 +69,9 @@ func (c *BaseNetworkClient) Request(
 
 	switch {
 	case err != nil:
-		return h, nil, cancel, e(err, "failed to read stream")
+		return h, nil, cancelf, e(err, "failed to read stream")
 	case h.Err() != nil, !h.OK():
-		return h, nil, cancel, nil
+		return h, nil, cancelf, nil
 	}
 
 	switch h.Type() {
@@ -90,6 +90,10 @@ func (c *BaseNetworkClient) Request(
 	case isaac.NetworkResponseRawContentType:
 		return h, r, cancelf, nil
 	default:
+		defer func() {
+			_ = cancelf()
+		}()
+
 		return nil, nil, cancel, errors.Errorf("unknown content type, %q", h.Type())
 	}
 }

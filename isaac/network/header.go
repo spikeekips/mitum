@@ -26,7 +26,7 @@ var (
 	StateRequestHeaderHint                  = hint.MustNewHint("state-header-v0.0.1")
 	ExistsInStateOperationRequestHeaderHint = hint.MustNewHint("exists-instate-operation-header-v0.0.1")
 	NodeInfoRequestHeaderHint               = hint.MustNewHint("node-info-header-v0.0.1")
-	CallbackBroadcastHeaderHint             = hint.MustNewHint("callback-broadcast-header-v0.0.1")
+	CallbackMessageHeaderHint               = hint.MustNewHint("callback-message-header-v0.0.1")
 )
 
 var ResponseHeaderHint = hint.MustNewHint("response-header-v0.0.1")
@@ -487,24 +487,22 @@ func (h NodeInfoRequestHeader) IsValid([]byte) error {
 	return nil
 }
 
-type CallbackBroadcastHeader struct {
+type CallbackMessageHeader struct {
 	id string
-	ci quicstream.UDPConnInfo
 	BaseHeader
 }
 
-func NewCallbackBroadcastHeader(id string, ci quicstream.UDPConnInfo) CallbackBroadcastHeader {
-	return CallbackBroadcastHeader{
-		BaseHeader: NewBaseHeader(CallbackBroadcastHeaderHint),
+func NewCallbackMessageHeader(id string) CallbackMessageHeader {
+	return CallbackMessageHeader{
+		BaseHeader: NewBaseHeader(CallbackMessageHeaderHint),
 		id:         id,
-		ci:         ci,
 	}
 }
 
-func (h CallbackBroadcastHeader) IsValid([]byte) error {
-	e := util.ErrInvalid.Errorf("invalid CallbackBroadcastHeader")
+func (h CallbackMessageHeader) IsValid([]byte) error {
+	e := util.ErrInvalid.Errorf("invalid CallbackMessageHeader")
 
-	if err := h.BaseHinter.IsValid(CallbackBroadcastHeaderHint.Type().Bytes()); err != nil {
+	if err := h.BaseHinter.IsValid(CallbackMessageHeaderHint.Type().Bytes()); err != nil {
 		return e.Wrap(err)
 	}
 
@@ -512,19 +510,11 @@ func (h CallbackBroadcastHeader) IsValid([]byte) error {
 		return e.Errorf("empty id")
 	}
 
-	if err := h.ci.IsValid(nil); err != nil {
-		return e.Wrap(err)
-	}
-
 	return nil
 }
 
-func (h CallbackBroadcastHeader) ID() string {
+func (h CallbackMessageHeader) ID() string {
 	return h.id
-}
-
-func (h CallbackBroadcastHeader) ConnInfo() quicstream.UDPConnInfo {
-	return h.ci
 }
 
 type ResponseHeader struct {
@@ -605,8 +595,8 @@ func baseHeaderPrefixByHint(ht hint.Hint) string {
 		return HandlerPrefixExistsInStateOperation
 	case NodeInfoRequestHeaderHint.Type():
 		return HandlerPrefixNodeInfo
-	case CallbackBroadcastHeaderHint.Type():
-		return HandlerPrefixCallbackBroadcast
+	case CallbackMessageHeaderHint.Type():
+		return HandlerPrefixCallbackMessage
 	default:
 		return ""
 	}
