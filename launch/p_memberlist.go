@@ -231,14 +231,11 @@ func PPatchMemberlist(ctx context.Context) (context.Context, error) {
 				return
 			}
 
-			voted, err := ballotbox.Vote(t, params.Threshold())
-			if err != nil {
+			if _, err := ballotbox.Vote(t, params.Threshold()); err != nil {
 				log.Log().Error().Err(err).Interface("ballot", t).Msg("new ballot; failed to vote")
 
 				return
 			}
-
-			log.Log().Debug().Interface("ballot", t).Bool("voted", voted).Msg("new ballot; voted")
 		case base.SuffrageWithdrawOperation:
 			voted, err := svvotef(t)
 			if err != nil {

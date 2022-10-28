@@ -62,6 +62,8 @@ func (box *Ballotbox) Vote(bl base.Ballot, threshold base.Threshold) (bool, erro
 		}()
 	}
 
+	box.Log().Debug().Interface("ballot", bl).Bool("voted", voted).Msg("ballot voted")
+
 	box.newBallot(bl)
 
 	return voted, nil
