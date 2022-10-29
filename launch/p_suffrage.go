@@ -317,20 +317,7 @@ func PSuffrageVoting(ctx context.Context) (context.Context, error) {
 		local.Address(),
 		pool,
 		db.ExistsInStateOperation,
-		func(op base.SuffrageWithdrawOperation) error {
-			e := util.StringErrorFunc("failed to broadcast suffrage withdraw operation")
-
-			b, err := enc.Marshal(op)
-			if err != nil {
-				return e(err, "")
-			}
-
-			if err := cb.Broadcast(op.Hash().String(), b, nil); err != nil {
-				return e(err, "")
-			}
-
-			return nil
-		},
+		nil,
 	)
 
 	ballotbox.SetSuffrageVote(func(op base.SuffrageWithdrawOperation) error {
