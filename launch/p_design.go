@@ -14,7 +14,7 @@ var (
 	PNameCheckDesign            = ps.Name("check-design")
 	PNameGenesisDesign          = ps.Name("genesis-design")
 	DesignFlagContextKey        = util.ContextKey("design-flag")
-	DevFlagsContextKey          = util.ContextKey("dev-flag")
+	DevFlagsContextKey          = util.ContextKey("dev-flags")
 	GenesisDesignFileContextKey = util.ContextKey("genesis-design-file")
 	DesignContextKey            = util.ContextKey("design")
 	GenesisDesignContextKey     = util.ContextKey("genesis-design")
