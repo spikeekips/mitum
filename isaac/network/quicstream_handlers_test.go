@@ -185,6 +185,7 @@ func (t *testQuicstreamHandlers) TestSendOperation() {
 		func(util.Hash) (bool, error) { return false, nil },
 		func(base.Operation) (bool, error) { return true, nil },
 		nil,
+		nil,
 	)
 
 	ci := quicstream.NewUDPConnInfo(nil, true)
@@ -194,6 +195,37 @@ func (t *testQuicstreamHandlers) TestSendOperation() {
 		updated, err := c.SendOperation(context.Background(), ci, op)
 		t.NoError(err)
 		t.True(updated)
+	})
+
+	t.Run("broadcast", func() {
+		_ = pool.Clean()
+
+		ch := make(chan []byte, 1)
+		handler := QuicstreamHandlerSendOperation(t.Encs, time.Second, t.LocalParams, pool,
+			func(util.Hash) (bool, error) { return false, nil },
+			func(base.Operation) (bool, error) { return true, nil },
+			nil,
+			func(_ string, b []byte) error {
+				ch <- b
+
+				return nil
+			},
+		)
+		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixSendOperation, handler))
+
+		updated, err := c.SendOperation(context.Background(), ci, op)
+		t.NoError(err)
+		t.True(updated)
+
+		select {
+		case <-time.After(time.Second * 2):
+			t.NoError(errors.Errorf("wait broadcast operation, but failed"))
+		case b := <-ch:
+			var rop isaac.DummyOperation
+
+			t.NoError(encoder.Decode(t.Enc, b, &rop))
+			t.True(op.Hash().Equal(rop.Hash()))
+		}
 	})
 
 	t.Run("already exists", func() {
@@ -206,6 +238,7 @@ func (t *testQuicstreamHandlers) TestSendOperation() {
 		handler := QuicstreamHandlerSendOperation(t.Encs, time.Second, t.LocalParams, pool,
 			func(util.Hash) (bool, error) { return false, nil },
 			func(base.Operation) (bool, error) { return false, nil },
+			nil,
 			nil,
 		)
 		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixSendOperation, handler))
@@ -241,6 +274,7 @@ func (t *testQuicstreamHandlers) TestSendOperationWithdraw() {
 
 			return voted, nil
 		},
+		nil,
 	)
 
 	ci := quicstream.NewUDPConnInfo(nil, true)
@@ -263,6 +297,7 @@ func (t *testQuicstreamHandlers) TestSendOperationWithdraw() {
 			func(util.Hash) (bool, error) { return false, nil },
 			func(base.Operation) (bool, error) { return false, nil },
 			func(op base.SuffrageWithdrawOperation) (bool, error) { return true, nil },
+			nil,
 		)
 		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixSendOperation, handler))
 

@@ -60,9 +60,87 @@ func QuicstreamHandlerSendOperation(
 	oppool isaac.NewOperationPool,
 	existsInStateOperationf func(util.Hash) (bool, error),
 	filterSendOperationf func(base.Operation) (bool, error),
-	vote isaac.SuffrageVoteFunc,
+	svvote isaac.SuffrageVoteFunc,
+	broadcast func(string, []byte) error,
 ) quicstream.Handler {
-	filterNewOperation := func(op base.Operation) error {
+	filterNewOperation := quicstreamHandlerFilterOperation(
+		existsInStateOperationf,
+		filterSendOperationf,
+	)
+
+	return func(_ net.Addr, r io.Reader, w io.Writer) error {
+		e := util.StringErrorFunc("failed to handle new operation")
+
+		var header SendOperationRequestHeader
+
+		enc, err := quicstreamPreHandle(encs, idleTimeout, r, &header)
+		if err != nil {
+			return e(err, "")
+		}
+
+		var op base.Operation
+
+		var body []byte
+
+		switch body, err = io.ReadAll(r); {
+		case err != nil:
+			return e(err, "")
+		case uint64(len(body)) > params.MaxOperationSize():
+			return e(nil, "too big size; >= %d", params.MaxOperationSize())
+		default:
+			if err = encoder.Decode(enc, body, &op); err != nil {
+				return e(err, "")
+			}
+
+			if op == nil {
+				return e(nil, "empty body")
+			}
+
+			if err = op.IsValid(params.NetworkID()); err != nil {
+				return e(err, "")
+			}
+		}
+
+		if err = filterNewOperation(op); err != nil {
+			return e(err, "")
+		}
+
+		added, err := quicstreamHandlerSetOperation(context.Background(), oppool, svvote, op)
+		if err == nil && added {
+			if broadcast != nil {
+				go func() {
+					_ = broadcast(op.Hash().String(), body)
+				}()
+			}
+		}
+
+		if err = WriteResponse(w, NewResponseHeader(added, err), nil, enc); err != nil {
+			return e(err, "")
+		}
+
+		return nil
+	}
+}
+
+func quicstreamHandlerSetOperation(
+	ctx context.Context,
+	oppool isaac.NewOperationPool,
+	vote isaac.SuffrageVoteFunc,
+	op base.Operation,
+) (bool, error) {
+	switch t := op.(type) {
+	case base.SuffrageWithdrawOperation:
+		return vote(t)
+	default:
+		return oppool.SetNewOperation(ctx, op)
+	}
+}
+
+func quicstreamHandlerFilterOperation(
+	existsInStateOperationf func(util.Hash) (bool, error),
+	filterSendOperationf func(base.Operation) (bool, error),
+) func(op base.Operation) error {
+	return func(op base.Operation) error {
 		switch found, err := existsInStateOperationf(op.Fact().Hash()); {
 		case err != nil:
 			return err
@@ -84,64 +162,6 @@ func QuicstreamHandlerSendOperation(
 		default:
 			return nil
 		}
-	}
-
-	return func(_ net.Addr, r io.Reader, w io.Writer) error {
-		e := util.StringErrorFunc("failed to handle new operation")
-
-		var header SendOperationRequestHeader
-
-		enc, err := quicstreamPreHandle(encs, idleTimeout, r, &header)
-		if err != nil {
-			return e(err, "")
-		}
-
-		var op base.Operation
-
-		switch body, eerr := io.ReadAll(r); {
-		case eerr != nil:
-			return e(eerr, "")
-		case uint64(len(body)) > params.MaxOperationSize():
-			return e(nil, "too big size; >= %d", params.MaxOperationSize())
-		default:
-			if err = encoder.Decode(enc, body, &op); err != nil {
-				return e(err, "")
-			}
-
-			if op == nil {
-				return e(nil, "empty body")
-			}
-
-			if err = op.IsValid(params.NetworkID()); err != nil {
-				return e(err, "")
-			}
-		}
-
-		if err = filterNewOperation(op); err != nil {
-			return e(err, "")
-		}
-
-		added, err := quicstreamHandlerSetOperation(context.Background(), oppool, vote, op)
-
-		if err = WriteResponse(w, NewResponseHeader(added, err), nil, enc); err != nil {
-			return e(err, "")
-		}
-
-		return nil
-	}
-}
-
-func quicstreamHandlerSetOperation(
-	ctx context.Context,
-	oppool isaac.NewOperationPool,
-	vote isaac.SuffrageVoteFunc,
-	op base.Operation,
-) (bool, error) {
-	switch t := op.(type) {
-	case base.SuffrageWithdrawOperation:
-		return vote(t)
-	default:
-		return oppool.SetNewOperation(ctx, op)
 	}
 }
 

@@ -83,6 +83,9 @@ func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 				db.ExistsInStateOperation,
 				sendOperationFilterf,
 				svvotef,
+				func(id string, b []byte) error {
+					return cb.Broadcast(id, b, nil)
+				},
 			),
 		).
 		Add(isaacnetwork.HandlerPrefixRequestProposal,

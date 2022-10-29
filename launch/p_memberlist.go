@@ -187,18 +187,14 @@ func PPatchMemberlist(ctx context.Context) (context.Context, error) {
 	}
 
 	m.SetNotifyMsg(func(b []byte) {
-		i, err := enc.Decode(b) //nolint:govet //...
+		m, err := enc.Decode(b) //nolint:govet //...
 		if err != nil {
 			log.Log().Error().Err(err).Str("message", string(b)).Msg("failed to decode incoming message")
 
 			return
 		}
 
-		// FIXME validate node sign and node is in consensus nodes
-
-		m := i
-
-		if j, ok := i.(isaacnetwork.CallbackBroadcastMessage); ok {
+		if j, ok := m.(isaacnetwork.CallbackBroadcastMessage); ok {
 			l := log.Log().With().Interface("header", j).Logger()
 
 			cctx, cancel := context.WithTimeout(context.Background(), time.Second*10) //nolint:gomnd //...
@@ -216,7 +212,7 @@ func PPatchMemberlist(ctx context.Context) (context.Context, error) {
 				l.Error().Err(err).Msg("failed to request callback broadcast")
 
 				return
-			case i == nil:
+			case v == nil:
 				l.Error().Err(err).Interface("response_type", response.Type()).
 					Msg("empty body")
 

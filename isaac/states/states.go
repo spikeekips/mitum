@@ -3,6 +3,7 @@ package isaacstates
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -460,6 +461,11 @@ func (st *States) setLastVoteproof(vp base.Voteproof) bool {
 func (st *States) mimicBallotFunc() func(base.Ballot) {
 	checkMimicBallot := st.checkMimicBallot()
 
+	timers := util.NewTimers([]util.TimerID{
+		timerIDBroadcastINITBallot,
+		timerIDBroadcastACCEPTBallot,
+	}, false)
+
 	return func(bl base.Ballot) {
 		if bl.SignFact().Node().Equal(st.local.Address()) {
 			return
@@ -470,8 +476,35 @@ func (st *States) mimicBallotFunc() func(base.Ballot) {
 			return
 		}
 
-		if err := st.broadcastBallotFunc(newbl); err != nil {
-			st.Log().Error().Err(err).Interface("ballot", bl).Interface("new_ballot", newbl).Msg("failed to mimic")
+		l := st.Log().With().Interface("ballot", bl).Interface("new_ballot", newbl).Logger()
+
+		var timerid util.TimerID
+
+		switch newbl.Point().Stage() {
+		case base.StageINIT:
+			timerid = timerIDBroadcastINITBallot
+		case base.StageACCEPT:
+			timerid = timerIDBroadcastACCEPTBallot
+		default:
+			return
+		}
+
+		if err := broadcastBallot(
+			newbl,
+			timers,
+			timerid,
+			st.params.IntervalBroadcastBallot(),
+			time.Nanosecond,
+			st.broadcastBallotFunc,
+			st.Log(),
+		); err != nil {
+			l.Error().Err(err).Msg("failed to broadcast mimic ballot")
+
+			return
+		}
+
+		if err := timers.StartTimers([]util.TimerID{timerid}, false); err != nil {
+			l.Error().Err(err).Msg("failed to broadcast mimic ballot")
 		}
 	}
 }
