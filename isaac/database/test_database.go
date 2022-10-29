@@ -39,6 +39,25 @@ func (db *TempPool) DeepClose() error {
 	return db.Close()
 }
 
+func (db *TempPool) Clean() error {
+	batch := db.st.NewBatch()
+	defer batch.Reset()
+
+	if err := db.st.Iter(
+		nil,
+		func(k []byte, _ []byte) (bool, error) {
+			batch.Delete(k)
+
+			return true, nil
+		},
+		true,
+	); err != nil {
+		return err
+	}
+
+	return db.st.Batch(batch, nil)
+}
+
 var DummySuffrageProofHint = hint.MustNewHint("isaac-dummy-suffrage-proof-v0.0.1")
 
 type DummySuffrageProof struct {
