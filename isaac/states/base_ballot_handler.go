@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/storage"
@@ -204,54 +205,27 @@ func (st *baseBallotHandler) prepareNextBlock(
 }
 
 func (st *baseBallotHandler) broadcastINITBallot(bl base.Ballot, initialWait time.Duration) error {
-	return st.broadcastBallot(bl, timerIDBroadcastINITBallot, initialWait)
+	return broadcastBallot(
+		bl,
+		st.timers,
+		timerIDBroadcastINITBallot,
+		st.params.IntervalBroadcastBallot(),
+		initialWait,
+		st.broadcastBallotFunc,
+		st.Log(),
+	)
 }
 
 func (st *baseBallotHandler) broadcastACCEPTBallot(bl base.Ballot, initialWait time.Duration) error {
-	return st.broadcastBallot(bl, timerIDBroadcastACCEPTBallot, initialWait)
-}
-
-func (st *baseBallotHandler) broadcastBallot(
-	bl base.Ballot,
-	timerid util.TimerID,
-	initialWait time.Duration,
-) error {
-	iw := initialWait
-	if iw < 1 {
-		iw = time.Nanosecond
-	}
-
-	l := st.Log().With().
-		Stringer("ballot_hash", bl.SignFact().Fact().Hash()).
-		Dur("initial_wait", iw).
-		Logger()
-	l.Debug().Interface("ballot", bl).Object("point", bl.Point()).Msg("trying to broadcast ballot")
-
-	e := util.StringErrorFunc("failed to broadcast ballot")
-
-	ct := util.NewContextTimer(
-		timerid,
+	return broadcastBallot(
+		bl,
+		st.timers,
+		timerIDBroadcastACCEPTBallot,
 		st.params.IntervalBroadcastBallot(),
-		func(int) (bool, error) {
-			if err := st.broadcastBallotFunc(bl); err != nil {
-				l.Error().Err(err).Msg("failed to broadcast ballot; keep going")
-			}
-
-			return true, nil
-		},
-	).SetInterval(func(i int, d time.Duration) time.Duration {
-		if i < 1 {
-			return iw
-		}
-
-		return d
-	})
-
-	if err := st.timers.SetTimer(ct); err != nil {
-		return e(err, "")
-	}
-
-	return nil
+		initialWait,
+		st.broadcastBallotFunc,
+		st.Log(),
+	)
 }
 
 func (st *baseBallotHandler) vote(bl base.Ballot) (bool, error) {
@@ -309,4 +283,51 @@ func preventVotingWithEmptySuffrage(
 
 		return voteFunc(bl)
 	}
+}
+
+func broadcastBallot(
+	bl base.Ballot,
+	timers *util.Timers,
+	timerid util.TimerID,
+	interval time.Duration,
+	initialWait time.Duration,
+	broadcastBallotFunc func(base.Ballot) error,
+	log *zerolog.Logger,
+) error {
+	iw := initialWait
+	if iw < 1 {
+		iw = time.Nanosecond
+	}
+
+	l := log.With().
+		Stringer("ballot_hash", bl.SignFact().Fact().Hash()).
+		Dur("initial_wait", iw).
+		Logger()
+	l.Debug().Interface("ballot", bl).Object("point", bl.Point()).Msg("trying to broadcast ballot")
+
+	e := util.StringErrorFunc("failed to broadcast ballot")
+
+	ct := util.NewContextTimer(
+		timerid,
+		interval,
+		func(int) (bool, error) {
+			if err := broadcastBallotFunc(bl); err != nil {
+				l.Error().Err(err).Msg("failed to broadcast ballot; keep going")
+			}
+
+			return true, nil
+		},
+	).SetInterval(func(i int, d time.Duration) time.Duration {
+		if i < 1 {
+			return iw
+		}
+
+		return d
+	})
+
+	if err := timers.SetTimer(ct); err != nil {
+		return e(err, "")
+	}
+
+	return nil
 }
