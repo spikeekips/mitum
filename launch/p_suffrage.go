@@ -17,6 +17,7 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/ps"
+	"golang.org/x/sync/singleflight"
 )
 
 var (
@@ -197,10 +198,54 @@ func PNodeInConsensusNodesFunc(ctx context.Context) (context.Context, error) {
 		return ctx, e(err, "")
 	}
 
+	f := nodeInConsensusNodesFunc(db)
+
+	var sg singleflight.Group
+	cache := util.NewGCacheObjectPool(3) //nolint:gomnd // last 3 heights
+
+	sgf := func(node base.Node, height base.Height) (base.Suffrage, bool, error) {
+		i, err, _ := sg.Do("node_in_consensus_nodes-"+height.String(), func() (interface{}, error) {
+			cachekey := node.Address().String() + "/" + height.String()
+
+			if j, found := cache.Get(cachekey); found {
+				return j, nil
+			}
+
+			switch suf, found, err := f(node, height); {
+			case err != nil:
+				return nil, err
+			default:
+				v := [2]interface{}{suf, found}
+				cache.Set(cachekey, v, nil)
+
+				return v, nil
+			}
+		})
+
+		if err != nil {
+			return nil, false, err //nolint:wrapcheck //...
+		}
+
+		switch j := i.([2]interface{}); { //nolint:forcetypeassert //...
+		case j[0] == nil:
+			return nil, j[1].(bool), nil //nolint:forcetypeassert //...
+		default:
+			return j[0].(base.Suffrage), j[1].(bool), nil //nolint:forcetypeassert //...
+		}
+	}
+
+	return context.WithValue(ctx, NodeInConsensusNodesFuncContextKey, sgf), nil //revive:disable-line:modifies-parameter
+}
+
+func getCandidatesFunc(
+	db isaac.Database,
+) func(height base.Height) (
+	[]base.SuffrageCandidateStateValue, []base.SuffrageCandidateStateValue, error,
+) {
 	lastcandidateslocked := util.EmptyLocked()
 	prevcandidateslocked := util.EmptyLocked()
 
-	getCandidates := func(height base.Height) (
+	return func(height base.Height) (
 		[]base.SuffrageCandidateStateValue, []base.SuffrageCandidateStateValue, error,
 	) {
 		var prevcandidates []base.SuffrageCandidateStateValue
@@ -260,8 +305,14 @@ func PNodeInConsensusNodesFunc(ctx context.Context) (context.Context, error) {
 
 		return prevcandidates, lastcandidates, nil
 	}
+}
 
-	f := func(node base.Node, height base.Height) (base.Suffrage, bool, error) {
+func nodeInConsensusNodesFunc(
+	db isaac.Database,
+) func(node base.Node, height base.Height) (base.Suffrage, bool, error) {
+	getCandidatesf := getCandidatesFunc(db)
+
+	return func(node base.Node, height base.Height) (base.Suffrage, bool, error) {
 		suf, found, err := isaac.GetSuffrageFromDatabase(db, height)
 
 		switch {
@@ -273,7 +324,7 @@ func PNodeInConsensusNodesFunc(ctx context.Context) (context.Context, error) {
 			return suf, true, nil
 		}
 
-		prev, last, err := getCandidates(height)
+		prev, last, err := getCandidatesf(height)
 		if err != nil {
 			return nil, false, err
 		}
@@ -288,8 +339,6 @@ func PNodeInConsensusNodesFunc(ctx context.Context) (context.Context, error) {
 
 		return suf, false, nil
 	}
-
-	return context.WithValue(ctx, NodeInConsensusNodesFuncContextKey, f), nil //revive:disable-line:modifies-parameter
 }
 
 func PSuffrageVoting(ctx context.Context) (context.Context, error) {

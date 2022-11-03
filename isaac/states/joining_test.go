@@ -179,7 +179,7 @@ func (t *testJoiningHandler) TestFailedLastManifest() {
 	})
 }
 
-func (t *testJoiningHandler) TestInvalidINITVoteproof() {
+func (t *testJoiningHandler) TestINITVoteproof() {
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
 	t.Run("lower height", func() {

@@ -19,7 +19,6 @@ import (
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/ps"
-	"github.com/spikeekips/mitum/util/valuehash"
 )
 
 var (
@@ -97,17 +96,15 @@ func PStates(ctx context.Context) (context.Context, error) {
 		ballotbox,
 		lvps,
 		syncSourcePool.IsInFixed,
-		func(ballot base.Ballot) error {
+		func(bl base.Ballot) error {
 			ee := util.StringErrorFunc("failed to broadcast ballot")
 
-			b, err := enc.Marshal(ballot)
+			b, err := enc.Marshal(bl)
 			if err != nil {
 				return ee(err, "")
 			}
 
-			id := valuehash.NewSHA256(ballot.HashBytes()).String()
-
-			if err := cb.Broadcast(id, b, nil); err != nil {
+			if err := cb.Broadcast(util.UUID().String(), b, nil); err != nil {
 				return ee(err, "")
 			}
 

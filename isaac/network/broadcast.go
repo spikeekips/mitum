@@ -37,11 +37,11 @@ func NewCallbackBroadcaster(
 }
 
 func (c *CallbackBroadcaster) Broadcast(id string, b []byte, notifych chan struct{}) error {
-	defer func() {
-		if notifych != nil {
+	if notifych != nil {
+		defer func() {
 			<-notifych
-		}
-	}()
+		}()
+	}
 
 	if !c.m.IsJoined() {
 		return nil

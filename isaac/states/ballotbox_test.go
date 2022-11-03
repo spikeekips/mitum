@@ -11,6 +11,7 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
+	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 	"golang.org/x/sync/semaphore"
@@ -1223,4 +1224,96 @@ func (t *testBallotboxWithWitdraw) TestINITBallotJointWithdrawsSafeThreshold() {
 
 func TestBallotboxWithWitdraw(t *testing.T) {
 	suite.Run(t, new(testBallotboxWithWitdraw))
+}
+
+type testBallotboxWithBallots struct {
+	baseTestBallotbox
+	enc encoder.Encoder
+}
+
+func (t *testBallotboxWithBallots) SetupSuite() {
+	t.baseTestBallotbox.SetupSuite()
+
+	t.enc = jsonenc.NewEncoder()
+
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageWithdrawFactHint, Instance: isaac.SuffrageWithdrawFact{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageWithdrawOperationHint, Instance: isaac.SuffrageWithdrawOperation{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: isaac.INITBallotFactHint, Instance: isaac.INITBallotFact{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: isaac.ACCEPTBallotFactHint, Instance: isaac.ACCEPTBallotFact{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: isaac.INITVoteproofHint, Instance: isaac.INITVoteproof{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: isaac.ACCEPTVoteproofHint, Instance: isaac.ACCEPTVoteproof{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: isaac.INITBallotSignFactHint, Instance: isaac.INITBallotSignFact{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: isaac.ACCEPTBallotSignFactHint, Instance: isaac.ACCEPTBallotSignFact{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: isaac.INITBallotHint, Instance: isaac.INITBallot{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: isaac.ACCEPTBallotHint, Instance: isaac.ACCEPTBallot{}}))
+}
+
+func (t *testBallotboxWithBallots) TestDrewWithdraws() {
+	ballotstrings := []string{
+		`{"withdraws":[{"hash":"6izM55oABBb71iQkquV1oJWzwLrD8A8iSgNb79nVPJGJ","fact":{"node":"no2sas","reason":"disconnected","hash":"2VemtY2Ekr6am7EEh6hL1t1Bi4sjkniFz66uCDUyeu69","token":"bm8yc2FzAAAAAAAAAAEAAAAAAAAAWg==","_hint":"suffrage-withdraw-fact-v0.0.1","start":1,"end":90},"signs":[{"node":"no0sas","signed_at":"2022-11-02T06:44:15.371988986Z","signer":"emwUUjsEKGXvU5NK4FyK2nWi5s5aonexCu7ZAxxLkV6bmpu","signature":"381yXZACJuSSxs69aHPSCxweZ4kz1qBPsY1cU8UY62zpPLq2ZFKHr5Zpow7j3H7gsLojjJQfMjzqNF4wFWUgYkwBzrtro6pM"},{"node":"no1sas","signed_at":"2022-11-02T06:44:15.37447462Z","signer":"gJSwJoeb1b8g3MTmKrJEoCBxXQvWnwcTb5DwUhPB54NDmpu","signature":"AN1rKvtj8EtUE5d7cVtqV36K9njoqJN9ULwAmAfDtAEuSAP7rvnEHQy7PYT5LZCKJMSBzfMdExJiu8586kMnYzGrNZTH49987"}],"_hint":"suffrage-withdraw-operation-v0.0.1"}],"voteproof":{"finished_at":"2022-11-02T06:44:21.113550894Z","majority":"GP7QFah2PtgvR5W9o8AQgDJpj2eXzAcMKMdFHR9ZpJAw","_hint":"accept-voteproof-v0.0.1","id":"3-0-ACCEPT-f1eee683-5782-41ef-839b-69cba858c48e","sign_facts":[{"fact":{"proposal":"HtRssy8HvmxXmvm3jP3eu2oZ5AM4hG9bdGw2Soe6LxQY","new_block":"BzfWQnyKSWRyLzHBi4tZSAGnEs8z1uPpQWcUWPA7eU4s","withdraw_facts":null,"hash":"GP7QFah2PtgvR5W9o8AQgDJpj2eXzAcMKMdFHR9ZpJAw","token":"YWNjZXB0LWJhbGxvdC1mYWN0LXYwLjAuMQAAAAAAAAADAAAAAAAAAABBQ0NFUFQ=","_hint":"accept-ballot-fact-v0.0.1","point":{"stage":"ACCEPT","height":3,"round":0}},"node":"no0sas","sign":{"signed_at":"2022-11-02T06:44:20.794194574Z","signer":"emwUUjsEKGXvU5NK4FyK2nWi5s5aonexCu7ZAxxLkV6bmpu","signature":"AN1rKvtiTCAXSxLmDrhTr4f7K32dJjdm2RhSu9jCAp18d54KsomDFpkYuHYKjYpteii3TXuzjcv9CoxdyMHWKPsSTjFjYfWLU"},"_hint":"accept-ballot-sign-fact-v0.0.1"},{"fact":{"proposal":"HtRssy8HvmxXmvm3jP3eu2oZ5AM4hG9bdGw2Soe6LxQY","new_block":"BzfWQnyKSWRyLzHBi4tZSAGnEs8z1uPpQWcUWPA7eU4s","withdraw_facts":[],"hash":"GP7QFah2PtgvR5W9o8AQgDJpj2eXzAcMKMdFHR9ZpJAw","token":"YWNjZXB0LWJhbGxvdC1mYWN0LXYwLjAuMQAAAAAAAAADAAAAAAAAAABBQ0NFUFQ=","_hint":"accept-ballot-fact-v0.0.1","point":{"stage":"ACCEPT","height":3,"round":0}},"node":"no1sas","sign":{"signed_at":"2022-11-02T06:44:20.793856698Z","signer":"gJSwJoeb1b8g3MTmKrJEoCBxXQvWnwcTb5DwUhPB54NDmpu","signature":"381yXYzp1pZBsXNqCwTWnnZZZw1NZGD8siHE9kzoQdmuLXEVB7zjjMvNYpB1rhg4MUHjq4KmDuGF4kPRceyMqkh97aRjTf93"},"_hint":"accept-ballot-sign-fact-v0.0.1"},{"fact":{"proposal":"HtRssy8HvmxXmvm3jP3eu2oZ5AM4hG9bdGw2Soe6LxQY","new_block":"BzfWQnyKSWRyLzHBi4tZSAGnEs8z1uPpQWcUWPA7eU4s","withdraw_facts":null,"hash":"GP7QFah2PtgvR5W9o8AQgDJpj2eXzAcMKMdFHR9ZpJAw","token":"YWNjZXB0LWJhbGxvdC1mYWN0LXYwLjAuMQAAAAAAAAADAAAAAAAAAABBQ0NFUFQ=","_hint":"accept-ballot-fact-v0.0.1","point":{"stage":"ACCEPT","height":3,"round":0}},"node":"no2sas","sign":{"signed_at":"2022-11-02T06:44:20.615181534Z","signer":"vkzhn8z2SNmNSLERKudKpKzDq6ytG72UM5JyLKzv3frdmpu","signature":"381yXZBsjE9WZxEhmEr55gr3YQBX3n5j33tUJ2zrH691rfZxMch9Agq2ga89FGch6axRqcR3yDceSdkRfiqXmzFcq7BTyyHG"},"_hint":"accept-ballot-sign-fact-v0.0.1"}],"withdraws":null,"point":{"stage":"ACCEPT","height":3,"round":0},"threshold":"67.0"},"sign_fact":{"fact":{"previous_block":"BzfWQnyKSWRyLzHBi4tZSAGnEs8z1uPpQWcUWPA7eU4s","proposal":"BB5N9tYVM6N2DVwsqPzBu4gy3CENKLjy1TbQSmrK4TGo","withdraw_facts":[{"node":"no2sas","reason":"disconnected","hash":"2VemtY2Ekr6am7EEh6hL1t1Bi4sjkniFz66uCDUyeu69","token":"bm8yc2FzAAAAAAAAAAEAAAAAAAAAWg==","_hint":"suffrage-withdraw-fact-v0.0.1","start":1,"end":90}],"hash":"cDKTJsVhi3JejPoBsvCJrMCspZd3zaLTfp4VKa98nVv","token":"aW5pdC1iYWxsb3QtZmFjdC12MC4wLjEAAAAAAAAABAAAAAAAAAAASU5JVA==","_hint":"init-ballot-fact-v0.0.1","point":{"stage":"INIT","height":4,"round":0}},"node":"no1sas","sign":{"signed_at":"2022-11-02T06:44:21.114270772Z","signer":"gJSwJoeb1b8g3MTmKrJEoCBxXQvWnwcTb5DwUhPB54NDmpu","signature":"AN1rKvtJ4PsxTVmy2egAiTps1esW8o33NvrqqbyivzGC6KqUua8MzWhLqCpTYxfjt4jUw1C5S8Aqd4rF7Vi3BYqtKL84kfReU"},"_hint":"init-ballot-sign-fact-v0.0.1"},"_hint":"init-ballot-v0.0.1"}`,
+		`{"voteproof":{"finished_at":"2022-11-02T06:44:21.194966219Z","majority":"GP7QFah2PtgvR5W9o8AQgDJpj2eXzAcMKMdFHR9ZpJAw","_hint":"accept-voteproof-v0.0.1","id":"3-0-ACCEPT-02879ad7-6370-4dd3-a536-4043b7320b85","sign_facts":[{"fact":{"proposal":"HtRssy8HvmxXmvm3jP3eu2oZ5AM4hG9bdGw2Soe6LxQY","new_block":"BzfWQnyKSWRyLzHBi4tZSAGnEs8z1uPpQWcUWPA7eU4s","withdraw_facts":null,"hash":"GP7QFah2PtgvR5W9o8AQgDJpj2eXzAcMKMdFHR9ZpJAw","token":"YWNjZXB0LWJhbGxvdC1mYWN0LXYwLjAuMQAAAAAAAAADAAAAAAAAAABBQ0NFUFQ=","_hint":"accept-ballot-fact-v0.0.1","point":{"stage":"ACCEPT","height":3,"round":0}},"node":"no2sas","sign":{"signed_at":"2022-11-02T06:44:20.615181534Z","signer":"vkzhn8z2SNmNSLERKudKpKzDq6ytG72UM5JyLKzv3frdmpu","signature":"381yXZBsjE9WZxEhmEr55gr3YQBX3n5j33tUJ2zrH691rfZxMch9Agq2ga89FGch6axRqcR3yDceSdkRfiqXmzFcq7BTyyHG"},"_hint":"accept-ballot-sign-fact-v0.0.1"},{"fact":{"proposal":"HtRssy8HvmxXmvm3jP3eu2oZ5AM4hG9bdGw2Soe6LxQY","new_block":"BzfWQnyKSWRyLzHBi4tZSAGnEs8z1uPpQWcUWPA7eU4s","withdraw_facts":null,"hash":"GP7QFah2PtgvR5W9o8AQgDJpj2eXzAcMKMdFHR9ZpJAw","token":"YWNjZXB0LWJhbGxvdC1mYWN0LXYwLjAuMQAAAAAAAAADAAAAAAAAAABBQ0NFUFQ=","_hint":"accept-ballot-fact-v0.0.1","point":{"stage":"ACCEPT","height":3,"round":0}},"node":"no0sas","sign":{"signed_at":"2022-11-02T06:44:20.794194574Z","signer":"emwUUjsEKGXvU5NK4FyK2nWi5s5aonexCu7ZAxxLkV6bmpu","signature":"AN1rKvtiTCAXSxLmDrhTr4f7K32dJjdm2RhSu9jCAp18d54KsomDFpkYuHYKjYpteii3TXuzjcv9CoxdyMHWKPsSTjFjYfWLU"},"_hint":"accept-ballot-sign-fact-v0.0.1"},{"fact":{"proposal":"HtRssy8HvmxXmvm3jP3eu2oZ5AM4hG9bdGw2Soe6LxQY","new_block":"BzfWQnyKSWRyLzHBi4tZSAGnEs8z1uPpQWcUWPA7eU4s","withdraw_facts":null,"hash":"GP7QFah2PtgvR5W9o8AQgDJpj2eXzAcMKMdFHR9ZpJAw","token":"YWNjZXB0LWJhbGxvdC1mYWN0LXYwLjAuMQAAAAAAAAADAAAAAAAAAABBQ0NFUFQ=","_hint":"accept-ballot-fact-v0.0.1","point":{"stage":"ACCEPT","height":3,"round":0}},"node":"no1sas","sign":{"signed_at":"2022-11-02T06:44:20.793856698Z","signer":"gJSwJoeb1b8g3MTmKrJEoCBxXQvWnwcTb5DwUhPB54NDmpu","signature":"381yXYzp1pZBsXNqCwTWnnZZZw1NZGD8siHE9kzoQdmuLXEVB7zjjMvNYpB1rhg4MUHjq4KmDuGF4kPRceyMqkh97aRjTf93"},"_hint":"accept-ballot-sign-fact-v0.0.1"}],"withdraws":[],"point":{"stage":"ACCEPT","height":3,"round":0},"threshold":"67.0"},"sign_fact":{"fact":{"previous_block":"BzfWQnyKSWRyLzHBi4tZSAGnEs8z1uPpQWcUWPA7eU4s","proposal":"BB5N9tYVM6N2DVwsqPzBu4gy3CENKLjy1TbQSmrK4TGo","withdraw_facts":null,"hash":"6sntS1ZBJue9GJdXafaUqR5kvXh1FkNWcqYpapAWRm19","token":"aW5pdC1iYWxsb3QtZmFjdC12MC4wLjEAAAAAAAAABAAAAAAAAAAASU5JVA==","_hint":"init-ballot-fact-v0.0.1","point":{"stage":"INIT","height":4,"round":0}},"node":"no2sas","sign":{"signed_at":"2022-11-02T06:44:21.197945646Z","signer":"vkzhn8z2SNmNSLERKudKpKzDq6ytG72UM5JyLKzv3frdmpu","signature":"381yXZ9HYS27dtyuHXHH3KawweUiqzuio43RCiMvihccU8ff8qkzTygBgQMiKf7QvyjEbsTTUBkrYVwx8G2SPRLLvk6hcV36"},"_hint":"init-ballot-sign-fact-v0.0.1"},"_hint":"init-ballot-v0.0.1"}`,
+	}
+
+	priv, err := base.ParseMPrivatekey("2uKz5JXqRcZd2xNSu58zLWGNVb6gDgDU5XMKxwZA1QLCmpr")
+	t.NoError(err)
+
+	addr, err := base.ParseStringAddress("no1sas")
+	t.NoError(err)
+
+	local := isaac.NewLocalNode(priv, addr)
+
+	ballots := make([]base.Ballot, len(ballotstrings))
+
+	for i := range ballotstrings {
+		t.NoError(encoder.Decode(t.enc, []byte(ballotstrings[i]), &ballots[i]))
+	}
+
+	nodes := []base.Node{local}
+	for _, i := range [][]string{
+		{"no0sas", "emwUUjsEKGXvU5NK4FyK2nWi5s5aonexCu7ZAxxLkV6bmpu"},
+		{"no2sas", "vkzhn8z2SNmNSLERKudKpKzDq6ytG72UM5JyLKzv3frdmpu"},
+	} {
+		addr, err := base.ParseStringAddress(i[0])
+		t.NoError(err)
+		pub, err := base.ParseMPublickey(i[1])
+		t.NoError(err)
+
+		nodes = append(nodes, isaac.NewNode(pub, addr))
+	}
+
+	suf, err := isaac.NewSuffrage(nodes)
+	t.NoError(err)
+
+	box := NewBallotbox(
+		local.Address(),
+		func(base.Height) (base.Suffrage, bool, error) {
+			return suf, true, nil
+		},
+		isaac.IsValidVoteproofWithSuffrage,
+	)
+	box.setLastStagePoint(ballots[0].Voteproof().Point())
+
+	go func() {
+		for i := range ballots {
+			voted, err := box.Vote(ballots[i], base.Threshold(67))
+			if err != nil {
+				panic(err)
+			}
+			if !voted {
+				panic("not voted")
+			}
+		}
+	}()
+
+	select {
+	case <-time.After(time.Second):
+	case <-box.Voteproof():
+		t.NoError(errors.Errorf("unexpected voteproof"))
+	}
+}
+
+func TestBallotboxWithBallots(t *testing.T) {
+	suite.Run(t, new(testBallotboxWithBallots))
 }

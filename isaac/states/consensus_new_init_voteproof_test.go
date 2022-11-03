@@ -480,7 +480,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestExpected() {
 	case <-savedch:
 	}
 
-	t.T().Log("new init voteproof; wrong previous block")
+	t.T().Log("new init voteproof")
 
 	t.NoError(st.newVoteproof(nextivp))
 
@@ -698,7 +698,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestNotInConsensusNodes()
 	case <-savedch:
 	}
 
-	t.T().Log("new init voteproof; wrong previous block")
+	t.T().Log("new init voteproof")
 
 	t.NoError(st.newVoteproof(nextivp))
 

@@ -459,7 +459,7 @@ func (st *States) setLastVoteproof(vp base.Voteproof) bool {
 // prevent to be gussed by the other nodes, local node is dead.
 // - ballot signer should be in sync sources
 func (st *States) mimicBallotFunc() func(base.Ballot) {
-	checkMimicBallot := st.checkMimicBallot()
+	mimicBallotf := st.mimicBallot()
 
 	timers := util.NewTimers([]util.TimerID{
 		timerIDBroadcastINITBallot,
@@ -467,11 +467,22 @@ func (st *States) mimicBallotFunc() func(base.Ballot) {
 	}, false)
 
 	return func(bl base.Ballot) {
-		if bl.SignFact().Node().Equal(st.local.Address()) {
+		switch s := st.current().state(); {
+		case bl.SignFact().Node().Equal(st.local.Address()):
+			return
+		case s != StateSyncing && s != StateBroken:
+			if err := timers.StopTimersAll(); err != nil {
+				st.Log().Error().Err(err).Msg("failed to stop mimic timers; ignore")
+			}
+
+			return
+		case !st.isinsyncsources(bl.SignFact().Node()):
 			return
 		}
 
-		newbl := checkMimicBallot(bl)
+		// FIXME if local is blocking node, don't mimic
+
+		newbl := mimicBallotf(bl)
 		if newbl == nil {
 			return
 		}
@@ -509,7 +520,7 @@ func (st *States) mimicBallotFunc() func(base.Ballot) {
 	}
 }
 
-func (st *States) checkMimicBallot() func(base.Ballot) base.Ballot {
+func (st *States) mimicBallot() func(base.Ballot) base.Ballot {
 	var lock sync.Mutex
 
 	cache := util.NewGCacheObjectPool(3) //nolint:gomnd // NOTE include previous round
@@ -517,16 +528,6 @@ func (st *States) checkMimicBallot() func(base.Ballot) base.Ballot {
 	return func(bl base.Ballot) base.Ballot {
 		lock.Lock()
 		defer lock.Unlock()
-
-		switch st.current().state() {
-		case StateSyncing, StateBroken:
-		default:
-			return nil
-		}
-
-		if !st.isinsyncsources(bl.SignFact().Node()) {
-			return nil
-		}
 
 		l := st.Log().With().Interface("ballot", bl).Logger()
 
@@ -543,7 +544,7 @@ func (st *States) checkMimicBallot() func(base.Ballot) base.Ballot {
 			return newbl
 		}
 
-		switch i, err := st.mimicSignBallot(bl); {
+		switch i, err := st.signMimicBallot(bl); {
 		case err != nil:
 			l.Error().Err(err).Msg("failed to mimic")
 
@@ -558,40 +559,54 @@ func (st *States) checkMimicBallot() func(base.Ballot) base.Ballot {
 	}
 }
 
-func (st *States) mimicSignBallot(bl base.Ballot) (base.Ballot, error) {
-	fact := bl.SignFact().Fact()
-
+func (st *States) signMimicBallot(bl base.Ballot) (base.Ballot, error) {
 	var withdraws []base.SuffrageWithdrawOperation
 
 	if i, ok := bl.(isaac.BallotWithdraws); ok {
 		withdraws = i.Withdraws()
 	}
 
+	return mimicBallot(
+		st.local,
+		st.params,
+		bl.SignFact().Fact().(base.BallotFact), //nolint:forcetypeassert //...
+		withdraws,
+		bl.Voteproof(),
+	)
+}
+
+func mimicBallot(
+	local base.LocalNode,
+	params *isaac.LocalParams,
+	fact base.BallotFact,
+	withdraws []base.SuffrageWithdrawOperation,
+	voteproof base.Voteproof,
+) (base.Ballot, error) {
 	var newbl base.Ballot
 
 	switch t := fact.(type) {
 	case isaac.INITBallotFact:
-		sf := isaac.NewINITBallotSignFact(st.local.Address(), t)
+		sf := isaac.NewINITBallotSignFact(local.Address(), t)
 
-		if err := sf.Sign(st.local.Privatekey(), st.params.NetworkID()); err != nil {
+		if err := sf.Sign(local.Privatekey(), params.NetworkID()); err != nil {
 			return nil, err
 		}
 
-		newbl = isaac.NewINITBallot(bl.Voteproof(), sf, withdraws)
+		newbl = isaac.NewINITBallot(voteproof, sf, withdraws)
 	case isaac.ACCEPTBallotFact:
-		sf := isaac.NewACCEPTBallotSignFact(st.local.Address(), t)
+		sf := isaac.NewACCEPTBallotSignFact(local.Address(), t)
 
-		if err := sf.Sign(st.local.Privatekey(), st.params.NetworkID()); err != nil {
+		if err := sf.Sign(local.Privatekey(), params.NetworkID()); err != nil {
 			return nil, err
 		}
 
 		newbl = isaac.NewACCEPTBallot( //nolint:forcetypeassert //...
-			bl.Voteproof().(base.INITVoteproof),
+			voteproof.(base.INITVoteproof),
 			sf,
 			withdraws,
 		)
 	default:
-		return nil, errors.Errorf("unknown ballot, %T", bl)
+		return nil, errors.Errorf("unknown ballot, %T", fact)
 	}
 
 	return newbl, nil

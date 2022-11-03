@@ -47,6 +47,8 @@ func (t *baseTestConsensusHandler) newState(previous base.Manifest, suf base.Suf
 	st := i.(*ConsensusHandler)
 
 	return st, func() {
+		st.timers.Stop()
+
 		deferred, err := st.exit(nil)
 		t.NoError(err)
 		deferred()
@@ -154,6 +156,8 @@ func (t *testConsensusHandler) TestFailedToFetchProposal() {
 		timerIDBroadcastINITBallot,
 		timerIDBroadcastACCEPTBallot,
 	}, false))
+
+	defer st.timers.Stop()
 
 	_, ivp := t.VoteproofsPair(point.PrevHeight(), point, nil, nil, nil, nodes)
 	t.True(st.setLastVoteproof(ivp))

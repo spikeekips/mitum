@@ -229,6 +229,11 @@ func PPatchMemberlist(ctx context.Context) (context.Context, error) {
 
 		switch t := m.(type) {
 		case base.Ballot:
+			log.Log().Debug().
+				Interface("point", t.Point()).
+				Stringer("node", t.SignFact().Node()).
+				Msg("ballot notified")
+
 			if err := t.IsValid(params.NetworkID()); err != nil {
 				log.Log().Error().Err(err).Interface("ballot", t).Msg("new ballot; failed to vote")
 

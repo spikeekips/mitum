@@ -895,6 +895,10 @@ func extractWithdrawsFromBallot(
 		withdraws = w.Withdraws()
 	}
 
+	if len(withdraws) < 1 {
+		return m, false
+	}
+
 	sf := bl.SignFact()
 
 	wfacts := sf.Fact().(isaac.BallotWithdrawFacts).WithdrawFacts() //nolint:forcetypeassert //...

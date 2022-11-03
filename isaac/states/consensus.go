@@ -111,17 +111,7 @@ func (st *ConsensusHandler) enter(from StateType, i switchContext) (func(), erro
 	return func() {
 		deferred()
 
-		if process != nil {
-			var sctx switchContext
-
-			switch err := process(st.ctx); {
-			case err == nil:
-			case errors.As(err, &sctx):
-				go st.switchState(sctx)
-			default:
-				go st.switchState(newBrokenSwitchContext(StateConsensus, err))
-			}
-		}
+		process()
 	}, nil
 }
 
@@ -140,7 +130,7 @@ func (st *ConsensusHandler) exit(sctx switchContext) (func(), error) {
 	return deferred, nil
 }
 
-func (st *ConsensusHandler) processProposal(ivp base.INITVoteproof) (func(context.Context) error, error) {
+func (st *ConsensusHandler) processProposalFunc(ivp base.INITVoteproof) (func(context.Context) error, error) {
 	facthash := ivp.BallotMajority().Proposal()
 	l := st.Log().With().Stringer("fact", facthash).Logger()
 	l.Debug().Msg("trying to process proposal")
@@ -170,8 +160,12 @@ func (st *ConsensusHandler) processProposal(ivp base.INITVoteproof) (func(contex
 
 	return func(ctx context.Context) error {
 		manifest, err := process(ctx)
-		if err != nil {
+
+		switch {
+		case err != nil:
 			return e(err, "")
+		case manifest == nil:
+			return nil
 		}
 
 		eavp := st.lastVoteproofs().ACCEPT()
@@ -206,6 +200,29 @@ func (st *ConsensusHandler) processProposal(ivp base.INITVoteproof) (func(contex
 	}, nil
 }
 
+func (st *ConsensusHandler) processProposal(ivp base.INITVoteproof) (func(), error) {
+	f, err := st.processProposalFunc(ivp)
+
+	switch {
+	case err != nil:
+		return nil, err
+	case f == nil:
+		return func() {}, nil
+	}
+
+	return func() {
+		var sctx switchContext
+
+		switch err := f(st.ctx); {
+		case err == nil:
+		case errors.As(err, &sctx):
+			go st.switchState(sctx)
+		default:
+			go st.switchState(newBrokenSwitchContext(StateConsensus, err))
+		}
+	}, nil
+}
+
 func (st *ConsensusHandler) processProposalInternal(ivp base.INITVoteproof) (isaac.ProcessorProcessFunc, error) {
 	e := util.StringErrorFunc("failed to process proposal")
 
@@ -232,7 +249,7 @@ func (st *ConsensusHandler) processProposalInternal(ivp base.INITVoteproof) (isa
 				st.Log().Error().Err(err).Msg("failed to process proposal")
 
 				if errors.Is(err, context.Canceled) {
-					return nil, nil
+					return nil, err
 				}
 
 				if err0 := st.pps.Cancel(); err0 != nil {
@@ -241,6 +258,8 @@ func (st *ConsensusHandler) processProposalInternal(ivp base.INITVoteproof) (isa
 
 				return nil, err
 			case manifest == nil:
+				st.Log().Debug().Msg("empty manifest; already processed")
+
 				return nil, nil
 			default:
 				st.Log().Debug().Msg("proposal processed")
@@ -361,7 +380,7 @@ func (st *ConsensusHandler) prepareACCEPTBallot(
 		switch _, err := st.vote(bl); {
 		case err == nil:
 		case errors.Is(err, errFailedToVoteNotInConsensus):
-			st.Log().Debug().Err(err).Msg("failed to vote init ballot; moves to syncing state")
+			st.Log().Debug().Err(err).Msg("failed to vote accept ballot; moves to syncing state")
 
 			go st.switchState(newSyncingSwitchContext(StateConsensus, ivp.Point().Height()-1))
 		default:
@@ -460,7 +479,6 @@ func (st *ConsensusHandler) newINITVoteproofWithLastINITVoteproof(
 
 		return newSyncingSwitchContext(StateConsensus, ivp.Point().Height()-1)
 	case livp.Result() == base.VoteResultMajority:
-		return nil
 	case ivp.Result() == base.VoteResultMajority: // NOTE new init voteproof has same height, but higher round
 		lavp := lvps.ACCEPT()
 
@@ -485,21 +503,19 @@ func (st *ConsensusHandler) newINITVoteproofWithLastINITVoteproof(
 			return newSyncingSwitchContext(StateConsensus, ivp.Point().Height()-1)
 		}
 
-		switch process, err := st.processProposal(ivp); {
-		case err != nil:
+		process, err := st.processProposal(ivp)
+		if err != nil {
 			return err
-		case process == nil:
-			return nil
-		default:
-			return process(st.ctx)
 		}
+
+		go process()
 	default:
 		l.Debug().Msg("new init voteproof draw; moves to next round")
 
 		go st.nextRound(ivp, lvps.PreviousBlockForNextRound(ivp))
-
-		return nil
 	}
+
+	return nil
 }
 
 func (st *ConsensusHandler) newINITVoteproofWithLastACCEPTVoteproof(
@@ -535,14 +551,14 @@ func (st *ConsensusHandler) newINITVoteproofWithLastACCEPTVoteproof(
 		}
 	}
 
-	switch process, err := st.processProposal(ivp); {
-	case err != nil:
+	process, err := st.processProposal(ivp)
+	if err != nil {
 		return err
-	case process == nil:
-		return nil
-	default:
-		return process(st.ctx)
 	}
+
+	go process()
+
+	return nil
 }
 
 func (st *ConsensusHandler) newACCEPTVoteproofWithLastINITVoteproof(
