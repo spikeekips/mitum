@@ -193,39 +193,37 @@ func (db *Center) SuffrageProofByBlockHeight(height base.Height) (base.SuffrageP
 		return nil, false, errors.Errorf("wrong height; < 0")
 	}
 
-	temps := db.activeTemps()
-	if len(temps) > 0 && height > temps[0].Height() {
-		return nil, false, nil
-	}
-
-	temph := db.findTemp(height)
-	if temph != nil {
-		switch i, found, err := temph.SuffrageProof(); {
-		case err != nil:
-			return nil, false, e(err, "")
-		case found:
-			return i, true, nil
-		}
-	}
-
 	lastheight := height
 
-	if temph != nil {
-		for i := range temps {
-			temp := temps[i]
-			if temp.Height() > lastheight {
-				continue
-			}
+	if temps := db.activeTemps(); len(temps) > 0 {
+		if height > temps[0].Height() {
+			return nil, false, nil
+		}
 
-			switch j, found, err := temp.SuffrageProof(); {
+		if temph := db.findTemp(height); temph != nil {
+			switch i, found, err := temph.SuffrageProof(); {
 			case err != nil:
 				return nil, false, e(err, "")
 			case found:
-				return j, true, nil
+				return i, true, nil
 			}
-		}
 
-		lastheight = temps[len(temps)-1].Height() - 1
+			for i := range temps {
+				temp := temps[i]
+				if temp.Height() > lastheight {
+					continue
+				}
+
+				switch j, found, err := temp.SuffrageProof(); {
+				case err != nil:
+					return nil, false, e(err, "")
+				case found:
+					return j, true, nil
+				}
+			}
+
+			lastheight = temps[len(temps)-1].Height() - 1
+		}
 	}
 
 	proof, found, err := db.perm.SuffrageProofByBlockHeight(lastheight)

@@ -108,6 +108,15 @@ func (db *LeveldbPermanent) SuffrageProofBytes(suffrageHeight base.Height) (
 func (db *LeveldbPermanent) SuffrageProofByBlockHeight(height base.Height) (base.SuffrageProof, bool, error) {
 	e := util.StringErrorFunc("failed to get suffrage by block height")
 
+	switch m, found, err := db.LastBlockMap(); {
+	case err != nil:
+		return nil, false, e(err, "")
+	case !found:
+		return nil, false, nil
+	case height > m.Manifest().Height():
+		return nil, false, nil
+	}
+
 	switch proof, found, err := db.LastSuffrageProof(); {
 	case err != nil:
 		return nil, false, e(err, "")
