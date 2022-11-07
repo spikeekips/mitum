@@ -95,10 +95,7 @@ func FindVoteResult(quorum, threshold uint, s []string) (result VoteResult, key 
 		th = quorum
 	}
 
-	switch {
-	case len(s) < 1:
-		return VoteResultNotYet, ""
-	case uint(len(s)) < th:
+	if len(s) < 1 {
 		return VoteResultNotYet, ""
 	}
 

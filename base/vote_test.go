@@ -84,6 +84,12 @@ func TestFindMajority(tt *testing.T) {
 			expected: -2,
 		},
 		{
+			name:   "draw #3",
+			quorum: 3, threshold: 3,
+			set:      []uint{1, 1},
+			expected: -2,
+		},
+		{
 			name:   "over quorum",
 			quorum: 10, threshold: 17,
 			set:      []uint{4, 4},
