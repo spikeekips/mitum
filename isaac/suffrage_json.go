@@ -10,6 +10,10 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 )
 
+func (suf Suffrage) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(suf.Nodes())
+}
+
 type suffrageNodeStateValueJSONMarshaler struct {
 	Start base.Height `json:"start"`
 }
