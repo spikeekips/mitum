@@ -650,7 +650,10 @@ func (st *ConsensusHandler) nextRound(vp base.Voteproof, previousBlock util.Hash
 		initialWait = st.params.WaitPreparingINITBallot() - d
 	}
 
-	if err := st.prepareINITBallot(bl, initialWait, []util.TimerID{timerIDBroadcastINITBallot}); err != nil {
+	if err := st.prepareINITBallot(bl, initialWait, []util.TimerID{
+		timerIDBroadcastINITBallot,
+		timerIDBroadcastACCEPTBallot,
+	}); err != nil {
 		l.Error().Err(err).Msg("failed to prepare init ballot for next round")
 
 		return
