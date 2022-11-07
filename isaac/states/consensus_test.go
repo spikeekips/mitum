@@ -504,6 +504,7 @@ func (t *testConsensusHandler) TestWithBallotbox() {
 			return suf, true, nil
 		},
 		func(base.Voteproof, base.Suffrage) error { return nil },
+		0,
 	)
 
 	testctx, testdone := context.WithCancel(context.Background())

@@ -19,6 +19,7 @@ import (
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/ps"
+	"github.com/spikeekips/mitum/util/valuehash"
 )
 
 var (
@@ -38,12 +39,14 @@ var (
 func PBallotbox(ctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var local base.LocalNode
+	var params *isaac.LocalParams
 	var db isaac.Database
 
 	if err := util.LoadFromContextOK(ctx,
-		LocalContextKey, &local,
-		CenterDatabaseContextKey, &db,
 		LoggingContextKey, &log,
+		LocalContextKey, &local,
+		LocalParamsContextKey, &params,
+		CenterDatabaseContextKey, &db,
 	); err != nil {
 		return ctx, err
 	}
@@ -54,9 +57,14 @@ func PBallotbox(ctx context.Context) (context.Context, error) {
 			return isaac.GetSuffrageFromDatabase(db, blockheight)
 		},
 		isaac.IsValidVoteproofWithSuffrage,
+		params.WaitPreparingINITBallot(),
 	)
 
 	_ = ballotbox.SetLogging(log)
+
+	if err := ballotbox.Start(); err != nil {
+		return ctx, err
+	}
 
 	ctx = context.WithValue(ctx, BallotboxContextKey, ballotbox) //revive:disable-line:modifies-parameter
 
@@ -104,7 +112,8 @@ func PStates(ctx context.Context) (context.Context, error) {
 				return ee(err, "")
 			}
 
-			if err := cb.Broadcast(util.UUID().String(), b, nil); err != nil {
+			id := valuehash.NewBytes(bl.HashBytes()).String()
+			if err := cb.Broadcast(id, b, nil); err != nil {
 				return ee(err, "")
 			}
 
@@ -127,12 +136,23 @@ func PStates(ctx context.Context) (context.Context, error) {
 
 func PCloseStates(ctx context.Context) (context.Context, error) {
 	var states *isaacstates.States
-	if err := util.LoadFromContext(ctx, StatesContextKey, &states); err != nil {
+	var ballotbox *isaacstates.Ballotbox
+
+	if err := util.LoadFromContext(ctx,
+		StatesContextKey, &states,
+		BallotboxContextKey, &ballotbox,
+	); err != nil {
 		return ctx, err
 	}
 
 	if states != nil {
 		if err := states.Stop(); err != nil && !errors.Is(err, util.ErrDaemonAlreadyStopped) {
+			return ctx, err
+		}
+	}
+
+	if ballotbox != nil {
+		if err := ballotbox.Stop(); err != nil && !errors.Is(err, util.ErrDaemonAlreadyStopped) {
 			return ctx, err
 		}
 	}
