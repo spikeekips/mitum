@@ -11,7 +11,6 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
-	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
 	"golang.org/x/sync/semaphore"
@@ -75,9 +74,9 @@ func (t *baseTestBallotbox) initBallot(node isaac.LocalNode, nodes []isaac.Local
 		avp = vp
 	}
 
-	withdrawfacts := make([]base.SuffrageWithdrawFact, len(withdraws))
+	withdrawfacts := make([]util.Hash, len(withdraws))
 	for i := range withdraws {
-		withdrawfacts[i] = withdraws[i].WithdrawFact()
+		withdrawfacts[i] = withdraws[i].Fact().Hash()
 	}
 
 	fact := isaac.NewINITBallotFact(point, prev, proposal, withdrawfacts)
@@ -91,9 +90,9 @@ func (t *baseTestBallotbox) initBallot(node isaac.LocalNode, nodes []isaac.Local
 func (t *baseTestBallotbox) acceptBallot(node isaac.LocalNode, nodes []isaac.LocalNode, point base.Point, pr, block util.Hash, withdraws []base.SuffrageWithdrawOperation) isaac.ACCEPTBallot {
 	prev := valuehash.RandomSHA256()
 
-	withdrawfacts := make([]base.SuffrageWithdrawFact, len(withdraws))
+	withdrawfacts := make([]util.Hash, len(withdraws))
 	for i := range withdraws {
-		withdrawfacts[i] = withdraws[i].WithdrawFact()
+		withdrawfacts[i] = withdraws[i].Fact().Hash()
 	}
 
 	ifact := isaac.NewINITBallotFact(point, prev, pr, withdrawfacts)
@@ -1318,32 +1317,4 @@ func (t *testBallotboxWithWitdraw) TestINITBallotButDraw() {
 
 func TestBallotboxWithWitdraw(t *testing.T) {
 	suite.Run(t, new(testBallotboxWithWitdraw))
-}
-
-type testBallotboxWithBallots struct {
-	baseTestBallotbox
-	enc encoder.Encoder
-}
-
-func (t *testBallotboxWithBallots) SetupSuite() {
-	t.baseTestBallotbox.SetupSuite()
-
-	t.enc = jsonenc.NewEncoder()
-
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageWithdrawFactHint, Instance: isaac.SuffrageWithdrawFact{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageWithdrawOperationHint, Instance: isaac.SuffrageWithdrawOperation{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: isaac.INITBallotFactHint, Instance: isaac.INITBallotFact{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: isaac.ACCEPTBallotFactHint, Instance: isaac.ACCEPTBallotFact{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: isaac.INITVoteproofHint, Instance: isaac.INITVoteproof{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: isaac.ACCEPTVoteproofHint, Instance: isaac.ACCEPTVoteproof{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: isaac.INITBallotSignFactHint, Instance: isaac.INITBallotSignFact{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: isaac.ACCEPTBallotSignFactHint, Instance: isaac.ACCEPTBallotSignFact{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: isaac.INITBallotHint, Instance: isaac.INITBallot{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: isaac.ACCEPTBallotHint, Instance: isaac.ACCEPTBallot{}}))
-}
-
-func TestBallotboxWithBallots(t *testing.T) {
-	suite.Run(t, new(testBallotboxWithBallots))
 }

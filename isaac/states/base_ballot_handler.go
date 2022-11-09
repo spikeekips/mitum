@@ -77,7 +77,7 @@ func (st *baseBallotHandler) prepareNextRound(
 
 	l.Debug().Object("point", point).Msg("preparing next round")
 
-	var withdrawfacts []base.SuffrageWithdrawFact
+	var withdrawfacts []util.Hash
 	var withdraws []base.SuffrageWithdrawOperation
 
 	switch suf, found, err := nodeInConsensusNodesFunc(st.local, point.Height()); {
@@ -143,7 +143,7 @@ func (st *baseBallotHandler) prepareNextBlock(
 
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(avp)).Object("point", point).Logger()
 
-	var withdrawfacts []base.SuffrageWithdrawFact
+	var withdrawfacts []util.Hash
 	var withdraws []base.SuffrageWithdrawOperation
 
 	switch suf, found, err := nodeInConsensusNodesFunc(st.local, point.Height()); {
@@ -234,7 +234,7 @@ func (st *baseBallotHandler) vote(bl base.Ballot) (bool, error) {
 
 func (st *baseBallotHandler) findWithdraws(height base.Height, suf base.Suffrage) (
 	withdraws []base.SuffrageWithdrawOperation,
-	withdrawfacts []base.SuffrageWithdrawFact,
+	withdrawfacts []util.Hash,
 	_ error,
 ) {
 	ops, err := st.svf(context.Background(), height, suf)
@@ -246,10 +246,10 @@ func (st *baseBallotHandler) findWithdraws(height base.Height, suf base.Suffrage
 		return nil, nil, nil
 	}
 
-	withdrawfacts = make([]base.SuffrageWithdrawFact, len(ops))
+	withdrawfacts = make([]util.Hash, len(ops))
 
 	for i := range ops {
-		withdrawfacts[i] = ops[i].WithdrawFact()
+		withdrawfacts[i] = ops[i].WithdrawFact().Hash()
 	}
 
 	withdraws = ops

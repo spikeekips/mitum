@@ -145,19 +145,43 @@ func (bl *baseBallot) isValidWithdraws(networkID []byte) error {
 			return err
 		}
 
+		var werr error
+
+		if _, found := util.CheckSliceDuplicated(bl.withdraws, func(_ interface{}, i int) string {
+			if werr != nil {
+				return ""
+			}
+
+			fact := bl.withdraws[i].WithdrawFact()
+
+			if werr == nil && fact.WithdrawStart() >= bl.Point().Height() {
+				werr = util.ErrInvalid.Errorf("wrong start height in withdraw")
+			}
+
+			return fact.Node().String()
+		}); werr == nil && found {
+			return util.ErrInvalid.Errorf("duplicated withdraw node found")
+		}
+
+		if werr != nil {
+			return werr
+		}
+
 		for i := range withdrawfacts {
-			if !withdrawfacts[i].Hash().Equal(bl.withdraws[i].Fact().Hash()) {
+			if !withdrawfacts[i].Equal(bl.withdraws[i].Fact().Hash()) {
 				return errors.Errorf("withdraw fact hash not matched")
 			}
 		}
 	}
 
+	withdrawnodes := make([]base.Address, len(bl.withdraws))
+
 	for i := range bl.withdraws {
 		signs := bl.withdraws[i].NodeSigns()
 
 		filtered := util.FilterSlice(signs, func(_ interface{}, j int) bool {
-			return util.InSliceFunc(withdrawfacts, func(_ interface{}, k int) bool {
-				return signs[j].Node().Equal(withdrawfacts[k].Node())
+			return util.InSliceFunc(withdrawnodes, func(_ interface{}, k int) bool {
+				return signs[j].Node().Equal(withdrawnodes[k])
 			}) < 0
 		})
 
@@ -194,8 +218,15 @@ func (bl INITBallot) IsValid(networkID []byte) error {
 		return e.Wrap(err)
 	}
 
-	if err := base.IsValidINITBallot(bl, networkID); err != nil {
-		return e.Wrap(err)
+	switch _, ok := bl.signFact.Fact().(SIGNBallotFact); {
+	case ok:
+		if err := bl.isvalidSIGNBallotFact(); err != nil {
+			return e.Wrap(err)
+		}
+	default:
+		if err := base.IsValidINITBallot(bl, networkID); err != nil {
+			return e.Wrap(err)
+		}
 	}
 
 	return nil
@@ -207,6 +238,58 @@ func (bl INITBallot) BallotSignFact() base.INITBallotSignFact {
 	}
 
 	return bl.signFact.(base.INITBallotSignFact) //nolint:forcetypeassert //...
+}
+
+func (bl INITBallot) isvalidSIGNBallotFact() error {
+	e := util.ErrInvalid.Errorf("invalid sign ballot")
+
+	vp := bl.Voteproof()
+
+	if s := vp.Point().Stage(); s != base.StageINIT {
+		return e.Errorf("wrong voteproof; stage should be INIT, not %q", s)
+	}
+
+	// NOTE if fact is sign fact, voteproof should be majority
+	if r := vp.Result(); r != base.VoteResultMajority {
+		return e.Errorf("wrong voteproof; vote result should be %q, not %q", base.VoteResultMajority, r)
+	}
+
+	if _, ok := vp.Majority().(base.INITBallotFact); !ok {
+		return e.Errorf("wrong voteproof; majority should be INITBallotFact, not %q", vp.Majority())
+	}
+
+	fact := bl.signFact.Fact().(SIGNBallotFact) //nolint:forcetypeassert //...
+
+	switch w, ok := vp.(WithdrawVoteproof); {
+	case !ok:
+		return e.Errorf("wrong voteproof; expected WithdrawVoteproof, but %T", vp)
+	case len(w.Withdraws()) < 1:
+		return e.Errorf("wrong voteproof; empty withdraws")
+	default:
+		bfacts := fact.WithdrawFacts()                                //nolint:forcetypeassert //...
+		vfacts := vp.Majority().(BallotWithdrawFacts).WithdrawFacts() //nolint:forcetypeassert //...
+
+		// NOTE compare withdraws in fact with ballot's
+		if len(bfacts) != len(vfacts) {
+			return e.Errorf("wrong voteproof; not matched with sign ballot fact")
+		}
+
+		for i := range bfacts {
+			if !bfacts[i].Equal(vfacts[i]) {
+				return e.Errorf("wrong voteproof; not matched hash with sign ballot fact")
+			}
+		}
+	}
+
+	// NOTE compare previous block and proposal of sign ballot fact with voteproof's
+	switch mfact := vp.Majority().(base.INITBallotFact); { //nolint:forcetypeassert //...
+	case !mfact.PreviousBlock().Equal(fact.PreviousBlock()):
+		return e.Errorf("wrong voteproof; wrong previous block with sign ballot fact")
+	case !mfact.Proposal().Equal(fact.Proposal()):
+		return e.Errorf("wrong voteproof; wrong proposal with sign ballot fact")
+	}
+
+	return nil
 }
 
 type ACCEPTBallot struct {
@@ -279,13 +362,13 @@ func (bl ACCEPTBallot) isValidWithdraws(base.NetworkID) error {
 	return nil
 }
 
-func sortWithdrawFacts[T base.SuffrageWithdrawFact](withdrawfacts []T) {
+func sortWithdrawFacts(withdrawfacts []util.Hash) {
 	if len(withdrawfacts) < 1 {
 		return
 	}
 
 	sort.Slice(withdrawfacts, func(i, j int) bool {
-		return strings.Compare(withdrawfacts[i].Hash().String(), withdrawfacts[j].Hash().String()) < 0
+		return strings.Compare(withdrawfacts[i].String(), withdrawfacts[j].String()) < 0
 	})
 }
 

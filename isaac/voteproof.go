@@ -62,6 +62,12 @@ func (vp baseVoteproof) isValidWithdraws() error {
 		return nil
 	}
 
+	if vp.Result() == base.VoteResultMajority {
+		if _, ok := vp.Majority().(BallotWithdrawFacts); !ok {
+			return util.ErrInvalid.Errorf("majority should be BallotWithdrawFacts, not %q", vp.Majority())
+		}
+	}
+
 	withdrawnodes := make([]string, len(vp.withdraws))
 
 	if _, found := util.CheckSliceDuplicated(vp.withdraws, func(_ interface{}, i int) string {
@@ -82,12 +88,11 @@ func (vp baseVoteproof) isValidWithdraws() error {
 
 	if wf, ok := vp.majority.(BallotWithdrawFacts); ok {
 		switch withdrawfacts := wf.WithdrawFacts(); { //nolint:forcetypeassert //...
-		case len(withdrawfacts) < 1:
 		case len(withdrawfacts) != len(vp.withdraws):
 			return util.ErrInvalid.Errorf("withdraws not matched")
 		default:
 			for i := range withdrawfacts {
-				if !withdrawfacts[i].Hash().Equal(vp.withdraws[i].Fact().Hash()) {
+				if !withdrawfacts[i].Equal(vp.withdraws[i].Fact().Hash()) {
 					return util.ErrInvalid.Errorf("unknown withdraws found")
 				}
 			}

@@ -10,14 +10,15 @@ import (
 var (
 	INITBallotFactHint   = hint.MustNewHint("init-ballot-fact-v0.0.1")
 	ACCEPTBallotFactHint = hint.MustNewHint("accept-ballot-fact-v0.0.1")
+	SIGNBallotFactHint   = hint.MustNewHint("sign-ballot-fact-v0.0.1")
 )
 
 type BallotWithdrawFacts interface {
-	WithdrawFacts() []base.SuffrageWithdrawFact
+	WithdrawFacts() []util.Hash
 }
 
 type baseBallotFact struct {
-	withdrawfacts []base.SuffrageWithdrawFact
+	withdrawfacts []util.Hash
 	util.DefaultJSONMarshaled
 	base.BaseFact
 	point base.StagePoint
@@ -27,14 +28,14 @@ func newBaseBallotFact(
 	ht hint.Hint,
 	stage base.Stage,
 	point base.Point,
-	withdrawfacts []base.SuffrageWithdrawFact,
+	withdrawfacts []util.Hash,
 ) baseBallotFact {
 	sp := base.NewStagePoint(point, stage)
 
 	sortWithdrawFacts(withdrawfacts)
 
 	return baseBallotFact{
-		BaseFact:      base.NewBaseFact(ht, base.Token(util.ConcatByters(ht, sp))),
+		BaseFact:      base.NewBaseFact(ht, base.Token(sp.Bytes())),
 		point:         sp,
 		withdrawfacts: withdrawfacts,
 	}
@@ -54,22 +55,10 @@ func (fact baseBallotFact) IsValid([]byte) error {
 			return util.ErrInvalid.Wrapf(err, "wrong withdrawfacts")
 		}
 
-		var err error
-
 		if _, found := util.CheckSliceDuplicated(fact.withdrawfacts, func(_ interface{}, i int) string {
-			wfact := fact.withdrawfacts[i]
-
-			if err == nil && wfact.WithdrawStart() >= fact.point.Height() {
-				err = util.ErrInvalid.Errorf("wrong start height in withdraw fact")
-			}
-
-			return wfact.Node().String()
+			return fact.withdrawfacts[i].String()
 		}); found {
-			return util.ErrInvalid.Errorf("duplicated withdraw node found")
-		}
-
-		if err != nil {
-			return err
+			return util.ErrInvalid.Errorf("duplicated withdraw fact found")
 		}
 	}
 
@@ -84,7 +73,7 @@ func (fact baseBallotFact) Point() base.StagePoint {
 	return fact.point
 }
 
-func (fact baseBallotFact) WithdrawFacts() []base.SuffrageWithdrawFact {
+func (fact baseBallotFact) WithdrawFacts() []util.Hash {
 	return fact.withdrawfacts
 }
 
@@ -99,7 +88,7 @@ func (fact baseBallotFact) hashBytes() []byte {
 
 			hs := make([]util.Hash, len(fact.withdrawfacts))
 			for i := range hs {
-				hs[i] = fact.withdrawfacts[i].Hash()
+				hs[i] = fact.withdrawfacts[i]
 			}
 
 			return util.ConcatByterSlice(hs)
@@ -116,17 +105,26 @@ type INITBallotFact struct {
 func NewINITBallotFact(
 	point base.Point,
 	previousBlock, proposal util.Hash,
-	withdrawfacts []base.SuffrageWithdrawFact,
+	withdrawfacts []util.Hash,
 ) INITBallotFact {
-	fact := INITBallotFact{
-		baseBallotFact: newBaseBallotFact(INITBallotFactHint, base.StageINIT, point, withdrawfacts),
-		previousBlock:  previousBlock,
-		proposal:       proposal,
-	}
+	fact := newINITBallotFact(INITBallotFactHint, point, previousBlock, proposal, withdrawfacts)
 
 	fact.SetHash(fact.generateHash())
 
 	return fact
+}
+
+func newINITBallotFact(
+	ht hint.Hint,
+	point base.Point,
+	previousBlock, proposal util.Hash,
+	withdrawfacts []util.Hash,
+) INITBallotFact {
+	return INITBallotFact{
+		baseBallotFact: newBaseBallotFact(ht, base.StageINIT, point, withdrawfacts),
+		previousBlock:  previousBlock,
+		proposal:       proposal,
+	}
 }
 
 func (fact INITBallotFact) PreviousBlock() util.Hash {
@@ -155,12 +153,16 @@ func (fact INITBallotFact) IsValid([]byte) error {
 	return nil
 }
 
-func (fact INITBallotFact) generateHash() util.Hash {
-	return valuehash.NewSHA256(util.ConcatByters(
+func (fact INITBallotFact) hashBytes() []byte {
+	return util.ConcatByters(
 		util.DummyByter(fact.baseBallotFact.hashBytes),
 		fact.previousBlock,
 		fact.proposal,
-	))
+	)
+}
+
+func (fact INITBallotFact) generateHash() util.Hash {
+	return valuehash.NewSHA256(fact.hashBytes())
 }
 
 type ACCEPTBallotFact struct {
@@ -172,7 +174,7 @@ type ACCEPTBallotFact struct {
 func NewACCEPTBallotFact(
 	point base.Point,
 	proposal, newBlock util.Hash,
-	withdrawfacts []base.SuffrageWithdrawFact,
+	withdrawfacts []util.Hash,
 ) ACCEPTBallotFact {
 	fact := ACCEPTBallotFact{
 		baseBallotFact: newBaseBallotFact(ACCEPTBallotFactHint, base.StageACCEPT, point, withdrawfacts),
@@ -217,4 +219,48 @@ func (fact ACCEPTBallotFact) generateHash() util.Hash {
 		fact.proposal,
 		fact.newBlock,
 	))
+}
+
+type SIGNBallotFact struct {
+	INITBallotFact
+}
+
+func NewSIGNBallotFact(
+	point base.Point,
+	previousBlock, proposal util.Hash,
+	withdrawfacts []util.Hash,
+) SIGNBallotFact {
+	fact := SIGNBallotFact{
+		INITBallotFact: newINITBallotFact(SIGNBallotFactHint, point, previousBlock, proposal, withdrawfacts),
+	}
+
+	fact.SetHash(fact.generateHash())
+
+	return fact
+}
+
+func (fact SIGNBallotFact) IsValid([]byte) error {
+	e := util.ErrInvalid.Errorf("invalid SIGNBallotFact")
+
+	if r := fact.point.Round(); r < 1 {
+		return e.Errorf("wrong round, %d", r)
+	}
+
+	if len(fact.withdrawfacts) < 1 {
+		return e.Errorf("empty withdraw facts")
+	}
+
+	if err := fact.baseBallotFact.IsValid(nil); err != nil {
+		return e.Wrap(err)
+	}
+
+	if err := base.IsValidINITBallotFact(fact); err != nil {
+		return e.Wrap(err)
+	}
+
+	if !fact.Hash().Equal(fact.generateHash()) {
+		return e.Errorf("wrong hash of INITBallotFact")
+	}
+
+	return nil
 }

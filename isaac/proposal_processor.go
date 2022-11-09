@@ -319,6 +319,8 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) ([]bas
 		h := ophs[i]
 		op, err := p.collectOperation(ctx, h, getOperationf)
 
+		// FIXME filter suffrage withdraw operation
+
 		p.Log().Trace().Stringer("operation", h).Err(err).Msg("operation collected")
 
 		switch {

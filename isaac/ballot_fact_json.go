@@ -1,23 +1,20 @@
 package isaac
 
 import (
-	"encoding/json"
-
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/valuehash"
 )
 
 type baseBallotFactJSONMarshaler struct {
-	WithdrawFacts []base.SuffrageWithdrawFact `json:"withdraw_facts"`
+	WithdrawFacts []util.Hash `json:"withdraw_facts"`
 	base.BaseFactJSONMarshaler
 	Point base.StagePoint `json:"point"`
 }
 
 type baseBallotFactJSONUnmarshaler struct {
-	WithdrawFacts []json.RawMessage `json:"withdraw_facts"`
+	WithdrawFacts []valuehash.HashDecoder `json:"withdraw_facts"`
 	base.BaseFactJSONUnmarshaler
 	Point base.StagePoint `json:"point"`
 }
@@ -66,12 +63,10 @@ func (fact *baseBallotFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	fact.point = u.Point
 
 	if len(u.WithdrawFacts) > 0 {
-		fact.withdrawfacts = make([]base.SuffrageWithdrawFact, len(u.WithdrawFacts))
+		fact.withdrawfacts = make([]util.Hash, len(u.WithdrawFacts))
 
 		for i := range u.WithdrawFacts {
-			if err := encoder.Decode(enc, u.WithdrawFacts[i], &fact.withdrawfacts[i]); err != nil {
-				return e(err, "")
-			}
+			fact.withdrawfacts[i] = u.WithdrawFacts[i].Hash()
 		}
 	}
 

@@ -347,16 +347,16 @@ func (st *ConsensusHandler) prepareACCEPTBallot(
 	e := util.StringErrorFunc("failed to prepare accept ballot")
 
 	// NOTE add SuffrageWithdrawOperations into ballot from init voteproof
-	var withdrawfacts []base.SuffrageWithdrawFact
+	var withdrawfacts []util.Hash
 	var withdraws []base.SuffrageWithdrawOperation
 
 	if i, ok := ivp.(isaac.WithdrawVoteproof); ok {
 		withdraws = i.Withdraws()
 
-		withdrawfacts = make([]base.SuffrageWithdrawFact, len(withdraws))
+		withdrawfacts = make([]util.Hash, len(withdraws))
 
 		for i := range withdraws {
-			withdrawfacts[i] = withdraws[i].WithdrawFact()
+			withdrawfacts[i] = withdraws[i].WithdrawFact().Hash()
 		}
 	}
 

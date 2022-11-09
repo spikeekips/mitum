@@ -927,6 +927,10 @@ func sortBallotSignFactsByWithdraws(
 	for i := range ballots {
 		bl := ballots[i]
 
+		if _, ok := bl.(isaac.BallotWithdraws); !ok {
+			continue
+		}
+
 		if _, found := mw[bl.SignFact().Fact().Hash().String()]; found {
 			continue
 		}
@@ -979,14 +983,15 @@ func extractWithdrawsFromBallot(
 		return m, false
 	}
 
-	sf := bl.SignFact()
+	wfacts := make([]base.SuffrageWithdrawFact, len(withdraws))
 
-	wfacts := sf.Fact().(isaac.BallotWithdrawFacts).WithdrawFacts() //nolint:forcetypeassert //...
+	for i := range withdraws {
+		fact := withdraws[i].WithdrawFact()
+		if fact.Node().Equal(local) { // NOTE if local is in withdraws, ignore
+			return m, false
+		}
 
-	if util.InSliceFunc(wfacts, func(_ interface{}, j int) bool {
-		return wfacts[j].Node().Equal(local) // NOTE if local is in withdraws, ignore
-	}) >= 0 {
-		return m, false
+		wfacts[i] = fact
 	}
 
 	m[0] = wfacts

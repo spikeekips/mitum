@@ -25,9 +25,9 @@ func (t *testVoteproof) SetupTest() {
 }
 
 func (t *testVoteproof) validINITVoteproof(point base.Point, withdraws []base.SuffrageWithdrawOperation) INITVoteproof {
-	withdrawfacts := make([]base.SuffrageWithdrawFact, len(withdraws))
+	withdrawfacts := make([]util.Hash, len(withdraws))
 	for i := range withdraws {
-		withdrawfacts[i] = withdraws[i].WithdrawFact().(SuffrageWithdrawFact)
+		withdrawfacts[i] = withdraws[i].Fact().Hash()
 	}
 
 	ifact := NewINITBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), withdrawfacts)
@@ -275,15 +275,16 @@ func (t *testVoteproof) withdraws(
 	withdrawnodes []base.Node,
 	signnodes []base.Node,
 ) (
-	[]SuffrageWithdrawFact,
+	[]util.Hash,
 	[]base.SuffrageWithdrawOperation,
 ) {
-	withdrawfacts := make([]SuffrageWithdrawFact, len(withdrawnodes))
+	withdrawfacts := make([]util.Hash, len(withdrawnodes))
 	withdraws := make([]base.SuffrageWithdrawOperation, len(withdrawnodes))
 
 	for i := range withdrawnodes {
-		withdrawfacts[i] = NewSuffrageWithdrawFact(withdrawnodes[i].Address(), height, height+1, util.UUID().String())
-		withdraws[i] = NewSuffrageWithdrawOperation(withdrawfacts[i])
+		fact := NewSuffrageWithdrawFact(withdrawnodes[i].Address(), height, height+1, util.UUID().String())
+		withdrawfacts[i] = fact.Hash()
+		withdraws[i] = NewSuffrageWithdrawOperation(fact)
 	}
 
 	for i := range signnodes {
@@ -300,7 +301,7 @@ func (t *testVoteproof) withdraws(
 	return withdrawfacts, withdraws
 }
 
-func (t *testVoteproof) signsINITVoteproof(vp INITVoteproof, majority INITBallotFact, mnodes, others []base.Node) INITVoteproof {
+func (t *testVoteproof) signsINITVoteproof(vp INITVoteproof, majority base.INITBallotFact, mnodes, others []base.Node) INITVoteproof {
 	var signfacts []base.BallotSignFact
 
 	if majority.Proposal() != nil {
@@ -437,6 +438,142 @@ func (t *testVoteproof) TestINITWithWithdraws() {
 	})
 }
 
+func (t *testVoteproof) TestINITWithSIGN() {
+	t.Run("all signs", func() {
+		point := base.RawPoint(33, 1)
+
+		withdrawnode := RandomLocalNode()
+		nodes := []base.Node{t.local, RandomLocalNode(), RandomLocalNode(), withdrawnode}
+		suf, err := NewSuffrage(nodes)
+		t.NoError(err)
+
+		withdrawfacts, withdraws := t.withdraws(point.Height()-1, []base.Node{withdrawnode}, nodes[:3])
+
+		sfact := NewSIGNBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), withdrawfacts)
+
+		ivp := NewINITVoteproof(sfact.Point().Point)
+		ivp.SetResult(base.VoteResultMajority).
+			SetMajority(sfact).
+			SetThreshold(base.Threshold(100)).
+			SetWithdraws(withdraws).
+			Finish()
+
+		var signfacts []base.BallotSignFact
+		for i := range nodes[:3] {
+			node := nodes[i].(base.LocalNode)
+
+			signfact := NewINITBallotSignFact(node.Address(), sfact)
+			t.NoError(signfact.Sign(node.Privatekey(), t.networkID))
+			signfacts = append(signfacts, signfact)
+		}
+
+		ivp.SetSignFacts(signfacts)
+
+		t.T().Log("voteresult:", ivp.Result())
+		t.T().Log("sign facts:", len(ivp.SignFacts()))
+		t.T().Log("withdraws:", len(ivp.Withdraws()))
+		t.T().Log("suffrage len:", suf.Len())
+
+		t.NoError(ivp.IsValid(t.networkID))
+
+		t.NoError(IsValidVoteproofWithSuffrage(ivp, suf))
+	})
+
+	t.Run("mixed signs", func() {
+		point := base.RawPoint(33, 1)
+
+		withdrawnode := RandomLocalNode()
+		nodes := []base.Node{t.local, RandomLocalNode(), RandomLocalNode(), withdrawnode}
+		suf, err := NewSuffrage(nodes)
+		t.NoError(err)
+
+		withdrawfacts, withdraws := t.withdraws(point.Height()-1, []base.Node{withdrawnode}, nodes[:3])
+
+		sfact := NewSIGNBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), withdrawfacts)
+		ifact := NewINITBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), withdrawfacts)
+
+		ivp := NewINITVoteproof(sfact.Point().Point)
+		ivp.
+			SetThreshold(base.Threshold(100)).
+			SetWithdraws(withdraws).
+			Finish()
+
+		var signfacts []base.BallotSignFact
+		for i := range nodes[:3] {
+			node := nodes[i].(base.LocalNode)
+
+			var signfact base.BallotSignFact
+			if i%2 == 0 {
+				j := NewINITBallotSignFact(node.Address(), sfact)
+				t.NoError(j.Sign(node.Privatekey(), t.networkID))
+
+				signfact = j
+			} else {
+				j := NewINITBallotSignFact(node.Address(), ifact)
+				t.NoError(j.Sign(node.Privatekey(), t.networkID))
+
+				signfact = j
+			}
+			signfacts = append(signfacts, signfact)
+		}
+
+		ivp.SetSignFacts(signfacts)
+
+		t.T().Log("voteresult:", ivp.Result())
+		t.T().Log("sign facts:", len(ivp.SignFacts()))
+		t.T().Log("withdraws:", len(ivp.Withdraws()))
+		t.T().Log("suffrage len:", suf.Len())
+
+		t.NoError(ivp.IsValid(t.networkID))
+
+		t.NoError(IsValidVoteproofWithSuffrage(ivp, suf))
+	})
+
+	t.Run("wrong round", func() {
+		point := base.RawPoint(33, 0)
+
+		withdrawnode := RandomLocalNode()
+		nodes := []base.Node{t.local, RandomLocalNode(), RandomLocalNode(), withdrawnode}
+		suf, err := NewSuffrage(nodes)
+		t.NoError(err)
+
+		withdrawfacts, withdraws := t.withdraws(point.Height()-1, []base.Node{withdrawnode}, nodes[:3])
+
+		sfact := NewSIGNBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), withdrawfacts)
+
+		ssignfact := NewINITBallotSignFact(t.local.Address(), sfact)
+		t.NoError(ssignfact.Sign(t.local.Privatekey(), t.networkID))
+
+		ivp := NewINITVoteproof(sfact.Point().Point)
+		ivp.SetResult(base.VoteResultMajority).
+			SetMajority(sfact).
+			SetThreshold(base.Threshold(100)).
+			SetWithdraws(withdraws).
+			Finish()
+
+		var signfacts []base.BallotSignFact
+		for i := range nodes[:3] {
+			node := nodes[i].(base.LocalNode)
+
+			signfact := NewINITBallotSignFact(node.Address(), sfact)
+			t.NoError(signfact.Sign(node.Privatekey(), t.networkID))
+			signfacts = append(signfacts, signfact)
+		}
+
+		ivp.SetSignFacts(signfacts)
+
+		t.T().Log("voteresult:", ivp.Result())
+		t.T().Log("sign facts:", len(ivp.SignFacts()))
+		t.T().Log("withdraws:", len(ivp.Withdraws()))
+		t.T().Log("suffrage len:", suf.Len())
+
+		err = ivp.IsValid(t.networkID)
+		t.Error(err)
+		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorContains(err, "wrong round")
+	})
+}
+
 func TestVoteproof(t *testing.T) {
 	suite.Run(t, new(testVoteproof))
 }
@@ -496,7 +633,7 @@ func TestINITVoteproofJSON(tt *testing.T) {
 		sfs := make([]base.BallotSignFact, 2)
 		for i := range sfs {
 			node := RandomLocalNode()
-			fact := NewINITBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), []base.SuffrageWithdrawFact{withdrawfact})
+			fact := NewINITBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), []util.Hash{withdrawfact.Hash()})
 			sf := NewINITBallotSignFact(node.Address(), fact)
 			t.NoError(sf.Sign(node.Privatekey(), t.networkID))
 
@@ -543,7 +680,7 @@ func TestACCEPTVoteproofJSON(tt *testing.T) {
 		withdraw := NewSuffrageWithdrawOperation(withdrawfact)
 		t.NoError(withdraw.NodeSign(t.priv, t.networkID, node))
 
-		afact := NewACCEPTBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), []base.SuffrageWithdrawFact{withdrawfact})
+		afact := NewACCEPTBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), []util.Hash{withdrawfact.Hash()})
 
 		asignfact := NewACCEPTBallotSignFact(node, afact)
 
