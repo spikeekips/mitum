@@ -777,7 +777,9 @@ func (t *testStates) TestMimicBallot() {
 
 		bl := newINITBallot(remote)
 
-		st.mimicBallotFunc()(bl)
+		f, cancel := st.mimicBallotFunc()
+		f(bl)
+		defer cancel()
 
 		select {
 		case <-time.After(time.Second * 2):
@@ -806,7 +808,9 @@ func (t *testStates) TestMimicBallot() {
 
 		bl := newINITBallot(remote)
 
-		st.mimicBallotFunc()(bl)
+		f, cancel := st.mimicBallotFunc()
+		f(bl)
+		defer cancel()
 
 		select {
 		case <-time.After(time.Second * 2):
@@ -831,7 +835,9 @@ func (t *testStates) TestMimicBallot() {
 
 		bl := newINITBallot(remote)
 
-		st.mimicBallotFunc()(bl)
+		f, cancel := st.mimicBallotFunc()
+		f(bl)
+		defer cancel()
 
 		select {
 		case <-time.After(time.Second * 2):
@@ -854,7 +860,8 @@ func (t *testStates) TestMimicBallot() {
 			return nil
 		}
 
-		mimicBallotFunc := st.mimicBallotFunc()
+		mimicBallotFunc, cancel := st.mimicBallotFunc()
+		defer cancel()
 
 		bl := newINITBallot(remote)
 
@@ -897,7 +904,9 @@ func (t *testStates) TestMimicBallot() {
 
 		bl := newINITBallot(local)
 
-		st.mimicBallotFunc()(bl)
+		f, cancel := st.mimicBallotFunc()
+		f(bl)
+		defer cancel()
 
 		select {
 		case <-time.After(time.Second * 2):

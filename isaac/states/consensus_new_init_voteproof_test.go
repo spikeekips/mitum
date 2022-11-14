@@ -659,7 +659,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestNotInConsensusNodes()
 		return nil
 	}
 
-	sctxch := make(chan switchContext, 1)
+	sctxch := make(chan switchContext, 2)
 	st.switchStateFunc = func(sctx switchContext) error {
 		sctxch <- sctx
 
