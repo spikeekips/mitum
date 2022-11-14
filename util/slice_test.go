@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-func TestCheckSliceDuplicated(tt *testing.T) {
+func TestIsDuplicatedSlice(tt *testing.T) {
 	t := new(suite.Suite)
 	t.SetT(tt)
 
@@ -16,29 +16,29 @@ func TestCheckSliceDuplicated(tt *testing.T) {
 
 	cases := []struct {
 		s        interface{}
-		k        func(interface{}, int) string
+		k        func(interface{}, int) (bool, string)
 		name     string
 		expected bool
 	}{
 		{name: "invalid: nil", s: nil, expected: false},
 		{name: "invalid: nil slice", s: nilslice, expected: false},
-		{name: "slice: not duplicated", s: []int{5, 4, 3, 2, 1}, expected: false, k: func(i interface{}, _ int) string {
-			return fmt.Sprintf("%d", i)
+		{name: "slice: not duplicated", s: []int{5, 4, 3, 2, 1}, expected: false, k: func(i interface{}, _ int) (bool, string) {
+			return true, fmt.Sprintf("%d", i)
 		}},
-		{name: "slice: duplicated", s: []int{4, 4, 3, 2, 1}, expected: true, k: func(i interface{}, _ int) string {
-			return fmt.Sprintf("%d", i)
+		{name: "slice: duplicated", s: []int{4, 4, 3, 2, 1}, expected: true, k: func(i interface{}, _ int) (bool, string) {
+			return true, fmt.Sprintf("%d", i)
 		}},
-		{name: "array: not duplicated", s: [5]int{5, 4, 3, 2, 1}, expected: false, k: func(i interface{}, _ int) string {
-			return fmt.Sprintf("%d", i)
+		{name: "array: not duplicated", s: [5]int{5, 4, 3, 2, 1}, expected: false, k: func(i interface{}, _ int) (bool, string) {
+			return true, fmt.Sprintf("%d", i)
 		}},
-		{name: "array: duplicated", s: [5]int{4, 4, 3, 2, 1}, expected: true, k: func(i interface{}, _ int) string {
-			return fmt.Sprintf("%d", i)
+		{name: "array: duplicated", s: [5]int{4, 4, 3, 2, 1}, expected: true, k: func(i interface{}, _ int) (bool, string) {
+			return true, fmt.Sprintf("%d", i)
 		}},
-		{name: "slice: nil", s: []interface{}{4, nil, 3, 2, 1}, expected: false, k: func(i interface{}, _ int) string {
-			return fmt.Sprintf("%d", i)
+		{name: "slice: nil", s: []interface{}{4, nil, 3, 2, 1}, expected: false, k: func(i interface{}, _ int) (bool, string) {
+			return true, fmt.Sprintf("%d", i)
 		}},
-		{name: "slice: nils", s: []interface{}{nil, nil, 3, 2, 1}, expected: true, k: func(i interface{}, _ int) string {
-			return fmt.Sprintf("%d", i)
+		{name: "slice: nils", s: []interface{}{nil, nil, 3, 2, 1}, expected: true, k: func(i interface{}, _ int) (bool, string) {
+			return true, fmt.Sprintf("%d", i)
 		}},
 	}
 
@@ -48,10 +48,29 @@ func TestCheckSliceDuplicated(tt *testing.T) {
 		t.Run(c.name, func() {
 			sl := makeInterfaceSlice(c.s)
 
-			_, isduplicated := CheckSliceDuplicated(sl, c.k)
+			_, isduplicated := IsDuplicatedSlice(sl, c.k)
 			t.Equal(c.expected, isduplicated, "%d(%q): %v", i, c.name, c.s)
 		})
 	}
+
+	t.Run("stop", func() {
+		sl := []string{"a", "b", "c"}
+
+		var n int
+
+		_, isduplicated := IsDuplicatedSlice(sl, func(_ interface{}, i int) (bool, string) {
+			if n == 2 {
+				return false, sl[i]
+			}
+
+			n++
+
+			return true, sl[i]
+		})
+
+		t.False(isduplicated)
+		t.Equal(2, n)
+	})
 }
 
 func makeInterfaceSlice(s interface{}) []interface{} {

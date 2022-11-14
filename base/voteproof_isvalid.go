@@ -45,14 +45,14 @@ func IsValidVoteproof(vp Voteproof, networkID NetworkID) error {
 func isValidVoteproofDuplicatedSignNode(vp Voteproof) error {
 	facts := vp.SignFacts()
 
-	if _, found := util.CheckSliceDuplicated(facts, func(_ interface{}, i int) string {
+	if _, found := util.IsDuplicatedSlice(facts, func(_ interface{}, i int) (bool, string) {
 		fact := facts[i]
 
 		switch {
 		case fact == nil, fact.Node() == nil:
-			return ""
+			return true, ""
 		default:
-			return fact.Node().String()
+			return true, fact.Node().String()
 		}
 	}); found {
 		return util.ErrInvalid.Errorf("duplicated node found in SignFacts of voteproof")

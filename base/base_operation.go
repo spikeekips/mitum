@@ -149,19 +149,13 @@ func (op BaseNodeOperation) IsValid(networkID []byte) error {
 
 	var duplicatederr error
 
-	switch _, duplicated := util.CheckSliceDuplicated(sfs, func(_ interface{}, i int) string {
-		if duplicatederr != nil {
-			return ""
-		}
-
-		switch ns, ok := sfs[i].(NodeSign); {
-		case !ok:
+	switch _, duplicated := util.IsDuplicatedSlice(sfs, func(_ interface{}, i int) (bool, string) {
+		ns, ok := sfs[i].(NodeSign)
+		if !ok {
 			duplicatederr = errors.Errorf("not NodeSign, %T", sfs[i])
-
-			return ""
-		default:
-			return ns.Node().String()
 		}
+
+		return duplicatederr == nil, ns.Node().String()
 	}); {
 	case duplicatederr != nil:
 		return e.Wrap(duplicatederr)
@@ -212,8 +206,8 @@ func (op *BaseNodeOperation) NodeSign(priv Privatekey, networkID NetworkID, node
 }
 
 func (op *BaseNodeOperation) SetNodeSigns(signs []NodeSign) error {
-	if _, duplicated := util.CheckSliceDuplicated(signs, func(_ interface{}, i int) string {
-		return signs[i].Node().String()
+	if _, duplicated := util.IsDuplicatedSlice(signs, func(_ interface{}, i int) (bool, string) {
+		return true, signs[i].Node().String()
 	}); duplicated {
 		return errors.Errorf("duplicated signs found")
 	}

@@ -20,8 +20,7 @@ func InSliceFunc[T any](s []T, f func(interface{}, int) bool) int {
 	return -1
 }
 
-func CheckSliceDuplicated[T any](s []T, keyf func(interface{}, int) string) (map[string]T, bool) {
-	// FIXME keyf returns (bool, string)
+func IsDuplicatedSlice[T any](s []T, keyf func(interface{}, int) (bool, string)) (map[string]T, bool) {
 	if len(s) < 1 {
 		return nil, false
 	}
@@ -29,15 +28,24 @@ func CheckSliceDuplicated[T any](s []T, keyf func(interface{}, int) string) (map
 	m := map[string]T{}
 
 	for i := range s {
+		var stop bool
 		var k string
+
 		if (interface{})(s[i]) == nil {
 			k = ""
 		} else {
-			k = keyf(s[i], i)
+			var keep bool
+
+			keep, k = keyf(s[i], i)
+			stop = !keep
 		}
 
 		if _, found := m[k]; found {
 			return nil, true
+		}
+
+		if stop {
+			return m, false
 		}
 
 		m[k] = s[i]

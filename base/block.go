@@ -210,8 +210,8 @@ func ValidateOperationsTreeWithManifest(tr fixedtree.Tree, ops []Operation, mani
 		return nil
 	}
 
-	mops, duplicated := util.CheckSliceDuplicated(ops, func(_ interface{}, i int) string {
-		return ops[i].Fact().Hash().String()
+	mops, duplicated := util.IsDuplicatedSlice(ops, func(_ interface{}, i int) (bool, string) {
+		return true, ops[i].Fact().Hash().String()
 	})
 	if duplicated {
 		return e(nil, "duplicated operation found in operations")
@@ -249,8 +249,8 @@ func ValidateStatesTreeWithManifest(tr fixedtree.Tree, sts []State, manifest Man
 		return nil
 	}
 
-	msts, duplicated := util.CheckSliceDuplicated(sts, func(_ interface{}, i int) string {
-		return sts[i].Hash().String()
+	msts, duplicated := util.IsDuplicatedSlice(sts, func(_ interface{}, i int) (bool, string) {
+		return true, sts[i].Hash().String()
 	})
 	if duplicated {
 		return e(nil, "duplicated state found in states")

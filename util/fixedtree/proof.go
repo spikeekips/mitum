@@ -49,26 +49,26 @@ end:
 		}
 	}
 
-	if _, found := util.CheckSliceDuplicated(p.nodes, func(_ interface{}, i int) string {
+	if _, found := util.IsDuplicatedSlice(p.nodes, func(_ interface{}, i int) (bool, string) {
 		n := p.nodes[i]
 
 		if n.IsEmpty() {
-			return util.UUID().String()
+			return true, util.UUID().String()
 		}
 
-		return n.Key()
+		return true, n.Key()
 	}); found {
 		return errors.Errorf("duplicated key found")
 	}
 
-	if _, found := util.CheckSliceDuplicated(p.nodes, func(_ interface{}, i int) string {
+	if _, found := util.IsDuplicatedSlice(p.nodes, func(_ interface{}, i int) (bool, string) {
 		n := p.nodes[i]
 
 		if n.IsEmpty() {
-			return valuehash.Bytes(util.UUID().Bytes()).String()
+			return true, valuehash.Bytes(util.UUID().Bytes()).String()
 		}
 
-		return n.Hash().String()
+		return true, n.Hash().String()
 	}); found {
 		return errors.Errorf("duplicated hash found")
 	}

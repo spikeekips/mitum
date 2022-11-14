@@ -114,13 +114,13 @@ func (t *testProof) TestExtract() {
 		}
 
 		if !t.Run("duplicated node", func() {
-			_, found := util.CheckSliceDuplicated(extracted, func(i interface{}, _ int) string {
+			_, found := util.IsDuplicatedSlice(extracted, func(i interface{}, _ int) (bool, string) {
 				n := i.(Node)
 				if n.IsEmpty() {
-					return util.UUID().String()
+					return true, util.UUID().String()
 				}
 
-				return n.Key()
+				return true, n.Key()
 			})
 			t.False(found)
 		}) {

@@ -44,14 +44,14 @@ func IsValidProposalFact(fact ProposalFact) error {
 
 	ops := fact.Operations()
 
-	if _, found := util.CheckSliceDuplicated(ops, func(_ interface{}, i int) string {
+	if _, found := util.IsDuplicatedSlice(ops, func(_ interface{}, i int) (bool, string) {
 		op := ops[i]
 
 		if op == nil {
-			return ""
+			return true, ""
 		}
 
-		return op.String()
+		return true, op.String()
 	}); found {
 		return util.ErrInvalid.Errorf("duplicated operation found")
 	}

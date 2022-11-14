@@ -126,18 +126,14 @@ func (bl *baseBallot) isValidWithdraws(networkID []byte, withdraws []base.Suffra
 
 		var werr error
 
-		if _, found := util.CheckSliceDuplicated(withdraws, func(_ interface{}, i int) string {
-			if werr != nil {
-				return ""
-			}
-
+		if _, found := util.IsDuplicatedSlice(withdraws, func(_ interface{}, i int) (bool, string) {
 			fact := withdraws[i].WithdrawFact()
 
 			if werr == nil && fact.WithdrawStart() >= bl.Point().Height() {
 				werr = util.ErrInvalid.Errorf("wrong start height in withdraw")
 			}
 
-			return fact.Node().String()
+			return werr == nil, fact.Node().String()
 		}); werr == nil && found {
 			return util.ErrInvalid.Errorf("duplicated withdraw node found")
 		}

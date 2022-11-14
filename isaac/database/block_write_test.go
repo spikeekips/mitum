@@ -43,8 +43,8 @@ func (t *testLeveldbBlockWrite) Test2Writers() {
 		sorted[i] = wst
 	}
 
-	_, duplicated := util.CheckSliceDuplicated(wsts, func(_ interface{}, i int) string {
-		return string(wsts[i].st.Prefix())
+	_, duplicated := util.IsDuplicatedSlice(wsts, func(_ interface{}, i int) (bool, string) {
+		return true, string(wsts[i].st.Prefix())
 	})
 	t.False(duplicated)
 
