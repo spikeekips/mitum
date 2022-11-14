@@ -293,7 +293,7 @@ func (t *testINITBallot) TestSignIsValid() {
 		signfact := NewINITBallotSignFact(base.RandomAddress(""), fact)
 		t.NoError(signfact.Sign(t.priv, t.networkID))
 
-		bl := NewINITBallot(ivp, signfact, []base.SuffrageWithdrawOperation{withdraw})
+		bl := NewINITBallot(ivp, signfact, nil)
 		t.NoError(bl.IsValid(t.networkID))
 	})
 
@@ -319,6 +319,31 @@ func (t *testINITBallot) TestSignIsValid() {
 		err := bl.IsValid(t.networkID)
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorContains(err, "not empty withdraws")
+	})
+
+	t.Run("number of withdraws not matched", func() {
+		ifact := NewINITBallotFact(point.PrevRound(), valuehash.RandomSHA256(), valuehash.RandomSHA256(), []util.Hash{withdrawfact.Hash()})
+
+		isignfact := NewINITBallotSignFact(base.RandomAddress(""), ifact)
+		t.NoError(isignfact.Sign(t.priv, t.networkID))
+
+		ivp := NewINITVoteproof(ifact.Point().Point)
+		ivp.SetResult(base.VoteResultMajority).
+			SetMajority(ifact).
+			SetSignFacts([]base.BallotSignFact{isignfact}).
+			SetThreshold(base.Threshold(100)).
+			SetWithdraws([]base.SuffrageWithdrawOperation{withdraw}).
+			Finish()
+
+		fact := NewSIGNBallotFact(point, ifact.PreviousBlock(), ifact.Proposal(), []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()})
+		signfact := NewINITBallotSignFact(base.RandomAddress(""), fact)
+		t.NoError(signfact.Sign(t.priv, t.networkID))
+
+		bl := NewINITBallot(ivp, signfact, nil)
+		err := bl.IsValid(t.networkID)
+		t.Error(err)
+		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "number of withdraws not matched")
 	})
 
@@ -340,7 +365,7 @@ func (t *testINITBallot) TestSignIsValid() {
 		signfact := NewINITBallotSignFact(base.RandomAddress(""), fact)
 		t.NoError(signfact.Sign(t.priv, t.networkID))
 
-		bl := NewINITBallot(avp, signfact, []base.SuffrageWithdrawOperation{withdraw})
+		bl := NewINITBallot(avp, signfact, nil)
 		err := bl.IsValid(t.networkID)
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
@@ -365,7 +390,7 @@ func (t *testINITBallot) TestSignIsValid() {
 		signfact := NewINITBallotSignFact(base.RandomAddress(""), fact)
 		t.NoError(signfact.Sign(t.priv, t.networkID))
 
-		bl := NewINITBallot(ivp, signfact, []base.SuffrageWithdrawOperation{withdraw})
+		bl := NewINITBallot(ivp, signfact, nil)
 		err := bl.IsValid(t.networkID)
 		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "wrong voteproof")
@@ -389,7 +414,7 @@ func (t *testINITBallot) TestSignIsValid() {
 		signfact := NewINITBallotSignFact(base.RandomAddress(""), fact)
 		t.NoError(signfact.Sign(t.priv, t.networkID))
 
-		bl := NewINITBallot(ivp, signfact, []base.SuffrageWithdrawOperation{withdraw})
+		bl := NewINITBallot(ivp, signfact, nil)
 		err := bl.IsValid(t.networkID)
 		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "wrong voteproof")
@@ -414,7 +439,7 @@ func (t *testINITBallot) TestSignIsValid() {
 		signfact := NewINITBallotSignFact(base.RandomAddress(""), fact)
 		t.NoError(signfact.Sign(t.priv, t.networkID))
 
-		bl := NewINITBallot(ivp, signfact, []base.SuffrageWithdrawOperation{withdraw})
+		bl := NewINITBallot(ivp, signfact, nil)
 		err := bl.IsValid(t.networkID)
 		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "wrong voteproof")
@@ -439,7 +464,7 @@ func (t *testINITBallot) TestSignIsValid() {
 		signfact := NewINITBallotSignFact(base.RandomAddress(""), fact)
 		t.NoError(signfact.Sign(t.priv, t.networkID))
 
-		bl := NewINITBallot(ivp, signfact, []base.SuffrageWithdrawOperation{withdraw})
+		bl := NewINITBallot(ivp, signfact, nil)
 		err := bl.IsValid(t.networkID)
 		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "wrong voteproof")

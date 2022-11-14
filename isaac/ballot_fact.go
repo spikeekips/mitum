@@ -242,10 +242,6 @@ func NewSIGNBallotFact(
 func (fact SIGNBallotFact) IsValid([]byte) error {
 	e := util.ErrInvalid.Errorf("invalid SIGNBallotFact")
 
-	if r := fact.point.Round(); r < 1 {
-		return e.Errorf("wrong round, %d", r)
-	}
-
 	if len(fact.withdrawfacts) < 1 {
 		return e.Errorf("empty withdraw facts")
 	}

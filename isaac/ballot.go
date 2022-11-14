@@ -71,10 +71,6 @@ func (bl baseBallot) IsValid(networkID []byte) error {
 		return e.Wrap(err)
 	}
 
-	if err := bl.isValidWithdraws(networkID); err != nil {
-		return e.Wrap(err)
-	}
-
 	return nil
 }
 
@@ -111,24 +107,7 @@ func (bl baseBallot) ballotFact() base.BallotFact {
 	return bf
 }
 
-func (bl *baseBallot) Sign(priv base.Privatekey, networkID base.NetworkID) error {
-	e := util.StringErrorFunc("failed to sign ballot")
-
-	signer, ok := bl.signFact.(base.Signer)
-	if !ok {
-		return e(nil, "invalid sign fact; missing Sign()")
-	}
-
-	if err := signer.Sign(priv, networkID); err != nil {
-		return e(err, "")
-	}
-
-	bl.signFact = signer.(base.BallotSignFact) //nolint:forcetypeassert //...
-
-	return nil
-}
-
-func (bl *baseBallot) isValidWithdraws(networkID []byte) error {
+func (bl *baseBallot) isValidWithdraws(networkID []byte, withdraws []base.SuffrageWithdrawOperation) error {
 	fact, ok := bl.signFact.Fact().(BallotWithdrawFacts)
 	if !ok {
 		return nil
@@ -137,22 +116,22 @@ func (bl *baseBallot) isValidWithdraws(networkID []byte) error {
 	withdrawfacts := fact.WithdrawFacts()
 
 	switch {
-	case len(fact.WithdrawFacts()) != len(bl.withdraws):
+	case len(fact.WithdrawFacts()) != len(withdraws):
 		return errors.Errorf("number of withdraws not matched")
-	case len(bl.withdraws) < 1:
+	case len(withdraws) < 1:
 	default:
-		if err := util.CheckIsValiderSlice(networkID, false, bl.withdraws); err != nil {
+		if err := util.CheckIsValiderSlice(networkID, false, withdraws); err != nil {
 			return err
 		}
 
 		var werr error
 
-		if _, found := util.CheckSliceDuplicated(bl.withdraws, func(_ interface{}, i int) string {
+		if _, found := util.CheckSliceDuplicated(withdraws, func(_ interface{}, i int) string {
 			if werr != nil {
 				return ""
 			}
 
-			fact := bl.withdraws[i].WithdrawFact()
+			fact := withdraws[i].WithdrawFact()
 
 			if werr == nil && fact.WithdrawStart() >= bl.Point().Height() {
 				werr = util.ErrInvalid.Errorf("wrong start height in withdraw")
@@ -168,16 +147,16 @@ func (bl *baseBallot) isValidWithdraws(networkID []byte) error {
 		}
 
 		for i := range withdrawfacts {
-			if !withdrawfacts[i].Equal(bl.withdraws[i].Fact().Hash()) {
+			if !withdrawfacts[i].Equal(withdraws[i].Fact().Hash()) {
 				return errors.Errorf("withdraw fact hash not matched")
 			}
 		}
 	}
 
-	withdrawnodes := make([]base.Address, len(bl.withdraws))
+	withdrawnodes := make([]base.Address, len(withdraws))
 
-	for i := range bl.withdraws {
-		signs := bl.withdraws[i].NodeSigns()
+	for i := range withdraws {
+		signs := withdraws[i].NodeSigns()
 
 		filtered := util.FilterSlice(signs, func(_ interface{}, j int) bool {
 			return util.InSliceFunc(withdrawnodes, func(_ interface{}, k int) bool {
@@ -220,10 +199,14 @@ func (bl INITBallot) IsValid(networkID []byte) error {
 
 	switch _, ok := bl.signFact.Fact().(SIGNBallotFact); {
 	case ok:
-		if err := bl.isvalidSIGNBallotFact(); err != nil {
+		if err := bl.isvalidSIGNBallotFact(networkID); err != nil {
 			return e.Wrap(err)
 		}
 	default:
+		if err := bl.isValidWithdraws(networkID, bl.withdraws); err != nil {
+			return e.Wrap(err)
+		}
+
 		if err := base.IsValidINITBallot(bl, networkID); err != nil {
 			return e.Wrap(err)
 		}
@@ -240,7 +223,27 @@ func (bl INITBallot) BallotSignFact() base.INITBallotSignFact {
 	return bl.signFact.(base.INITBallotSignFact) //nolint:forcetypeassert //...
 }
 
-func (bl INITBallot) isvalidSIGNBallotFact() error {
+func (bl INITBallot) Withdraws() []base.SuffrageWithdrawOperation {
+	if bl.signFact != nil {
+		if _, ok := bl.signFact.Fact().(SIGNBallotFact); ok {
+			vp := bl.Voteproof()
+			if vp == nil {
+				return nil
+			}
+
+			switch w, ok := bl.Voteproof().(WithdrawVoteproof); {
+			case !ok:
+				return nil
+			default:
+				return w.Withdraws()
+			}
+		}
+	}
+
+	return bl.baseBallot.Withdraws()
+}
+
+func (bl INITBallot) isvalidSIGNBallotFact(networkID base.NetworkID) error {
 	e := util.ErrInvalid.Errorf("invalid sign ballot")
 
 	vp := bl.Voteproof()
@@ -249,7 +252,7 @@ func (bl INITBallot) isvalidSIGNBallotFact() error {
 		return e.Errorf("wrong voteproof; stage should be INIT, not %q", s)
 	}
 
-	// NOTE if fact is sign fact, voteproof should be majority
+	// NOTE if fact is sign fact, voteproof result should be majority
 	if r := vp.Result(); r != base.VoteResultMajority {
 		return e.Errorf("wrong voteproof; vote result should be %q, not %q", base.VoteResultMajority, r)
 	}
@@ -258,26 +261,34 @@ func (bl INITBallot) isvalidSIGNBallotFact() error {
 		return e.Errorf("wrong voteproof; majority should be INITBallotFact, not %q", vp.Majority())
 	}
 
-	fact := bl.signFact.Fact().(SIGNBallotFact) //nolint:forcetypeassert //...
-
+	// NOTE SIGN INIT ballot does use withdraws from voteproof instead of from it's
+	// body.
 	switch w, ok := vp.(WithdrawVoteproof); {
 	case !ok:
 		return e.Errorf("wrong voteproof; expected WithdrawVoteproof, but %T", vp)
 	case len(w.Withdraws()) < 1:
 		return e.Errorf("wrong voteproof; empty withdraws")
+	case len(bl.withdraws) > 0:
+		return e.Errorf("not empty withdraws")
 	default:
-		bfacts := fact.WithdrawFacts()                                //nolint:forcetypeassert //...
-		vfacts := vp.Majority().(BallotWithdrawFacts).WithdrawFacts() //nolint:forcetypeassert //...
-
-		// NOTE compare withdraws in fact with ballot's
-		if len(bfacts) != len(vfacts) {
-			return e.Errorf("wrong voteproof; not matched with sign ballot fact")
+		if err := bl.isValidWithdraws(networkID, w.Withdraws()); err != nil {
+			return e.Wrap(err)
 		}
+	}
 
-		for i := range bfacts {
-			if !bfacts[i].Equal(vfacts[i]) {
-				return e.Errorf("wrong voteproof; not matched hash with sign ballot fact")
-			}
+	fact := bl.signFact.Fact().(SIGNBallotFact) //nolint:forcetypeassert //...
+
+	bfacts := fact.WithdrawFacts()                                //nolint:forcetypeassert //...
+	vfacts := vp.Majority().(BallotWithdrawFacts).WithdrawFacts() //nolint:forcetypeassert //...
+
+	// NOTE compare withdraws in fact with ballot's
+	if len(bfacts) != len(vfacts) {
+		return e.Errorf("wrong voteproof; not matched with sign ballot fact")
+	}
+
+	for i := range bfacts {
+		if !bfacts[i].Equal(vfacts[i]) {
+			return e.Errorf("wrong voteproof; not matched hash with sign ballot fact")
 		}
 	}
 
@@ -317,11 +328,15 @@ func (bl ACCEPTBallot) IsValid(networkID []byte) error {
 		return e.Wrap(err)
 	}
 
+	if err := bl.isValidWithdraws(networkID, bl.withdraws); err != nil {
+		return e.Wrap(err)
+	}
+
 	if err := base.IsValidACCEPTBallot(bl, networkID); err != nil {
 		return e.Wrap(err)
 	}
 
-	return bl.isValidWithdraws(networkID)
+	return bl.isValidACCEPTWithdraws()
 }
 
 func (bl ACCEPTBallot) BallotSignFact() base.ACCEPTBallotSignFact {
@@ -332,7 +347,7 @@ func (bl ACCEPTBallot) BallotSignFact() base.ACCEPTBallotSignFact {
 	return bl.signFact.(base.ACCEPTBallotSignFact) //nolint:forcetypeassert //...
 }
 
-func (bl ACCEPTBallot) isValidWithdraws(base.NetworkID) error {
+func (bl ACCEPTBallot) isValidACCEPTWithdraws() error {
 	e := util.ErrInvalid.Errorf("invalid withdraws in accept ballot")
 
 	if len(bl.withdraws) < 1 {

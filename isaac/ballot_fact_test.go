@@ -170,17 +170,6 @@ func (t *testSIGNBallotFact) TestNew() {
 }
 
 func (t *testSIGNBallotFact) TestIsValid() {
-	t.Run("zero round", func() {
-		point := base.RawPoint(33, 0)
-
-		bl := t.ballot(point, nil)
-
-		err := bl.IsValid(nil)
-		t.Error(err)
-		t.True(errors.Is(err, util.ErrInvalid))
-		t.ErrorContains(err, "wrong round")
-	})
-
 	t.Run("empty withdrawfacts", func() {
 		point := base.RawPoint(33, 44)
 
