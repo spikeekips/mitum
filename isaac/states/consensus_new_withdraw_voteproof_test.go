@@ -18,7 +18,6 @@ type testWithdrawsConsensusHandler struct {
 	baseTestConsensusHandler
 }
 
-// FIXME enter with sign init voteproof
 func (t *testWithdrawsConsensusHandler) TestEnterWithSIGNVoteproof() {
 	point := base.RawPoint(33, 44)
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
