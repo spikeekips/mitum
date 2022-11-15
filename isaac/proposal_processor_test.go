@@ -268,8 +268,8 @@ func (t *testDefaultProposalProcessor) TestCollectOperations() {
 	for i := range ophs {
 		a := ops[ophs[i].String()]
 
-		ci := util.InSliceFunc(cops, func(_ interface{}, j int) bool {
-			return cops[j].Fact().Hash().Equal(ophs[i])
+		ci := util.InSliceFunc(cops, func(op base.Operation) bool {
+			return op.Fact().Hash().Equal(ophs[i])
 		})
 
 		b := cops[ci]
@@ -373,8 +373,8 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsFailedButIgnored() {
 			continue
 		}
 
-		ci := util.InSliceFunc(cops, func(_ interface{}, j int) bool {
-			return cops[j].Fact().Hash().Equal(ophs[i])
+		ci := util.InSliceFunc(cops, func(op base.Operation) bool {
+			return op.Fact().Hash().Equal(ophs[i])
 		})
 
 		if i == 3 {
@@ -435,8 +435,8 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsInvalidError() {
 	t.NotNil(m)
 
 	for i := range ophs {
-		ci := util.InSliceFunc(cops, func(_ interface{}, j int) bool {
-			return cops[j].Fact().Hash().Equal(ophs[i])
+		ci := util.InSliceFunc(cops, func(op base.Operation) bool {
+			return op.Fact().Hash().Equal(ophs[i])
 		})
 
 		if i == 1 {

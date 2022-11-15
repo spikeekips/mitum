@@ -114,8 +114,8 @@ func (p *SyncSourcePool) IsInFixed(node base.Address) bool {
 
 	fixed := p.sources[:p.fixedlen]
 
-	return util.InSliceFunc(fixed, func(_ interface{}, i int) bool {
-		return fixed[i].Address().Equal(node)
+	return util.InSliceFunc(fixed, func(i NodeConnInfo) bool {
+		return i.Address().Equal(node)
 	}) >= 0
 }
 
@@ -167,8 +167,8 @@ func (p *SyncSourcePool) NodeConnInfo(node base.Address) (NodeConnInfo, bool) {
 	p.RLock()
 	defer p.RUnlock()
 
-	index := util.InSliceFunc(p.sources, func(_ interface{}, i int) bool {
-		return p.sources[i].Address().Equal(node)
+	index := util.InSliceFunc(p.sources, func(i NodeConnInfo) bool {
+		return i.Address().Equal(node)
 	})
 
 	if index < 0 {
@@ -216,10 +216,9 @@ func (p *SyncSourcePool) Remove(node base.Address, publish string) bool {
 	p.Lock()
 	defer p.Unlock()
 
-	index := util.InSliceFunc(p.sources, func(_ interface{}, i int) bool {
+	index := util.InSliceFunc(p.sources, func(i NodeConnInfo) bool {
 		switch {
-		case p.sources[i].Address().Equal(node) &&
-			p.sources[i].String() == publish:
+		case i.Address().Equal(node) && i.String() == publish:
 			return true
 		default:
 			return false
@@ -237,10 +236,9 @@ func (p *SyncSourcePool) RemoveNonFixed(node base.Address, publish string) bool 
 	p.Lock()
 	defer p.Unlock()
 
-	index := util.InSliceFunc(p.sources, func(_ interface{}, i int) bool {
+	index := util.InSliceFunc(p.sources, func(i NodeConnInfo) bool {
 		switch {
-		case p.sources[i].Address().Equal(node) &&
-			p.sources[i].String() == publish:
+		case i.Address().Equal(node) && i.String() == publish:
 			return true
 		default:
 			return false
@@ -372,14 +370,12 @@ func (p *SyncSourcePool) add(
 ) ([]NodeConnInfo, []string, []*time.Time, bool) {
 	var update bool
 
-	index := util.InSliceFunc(sources, func(_ interface{}, i int) bool {
-		a := sources[i]
-
-		if !a.Address().Equal(source.Address()) {
+	index := util.InSliceFunc(sources, func(i NodeConnInfo) bool {
+		if !i.Address().Equal(source.Address()) {
 			return false
 		}
 
-		if a.String() != source.String() {
+		if i.String() != source.String() {
 			update = true
 		}
 
@@ -556,10 +552,10 @@ func (p *SyncSourcePool) filterExtras(fixedids []string) ([]NodeConnInfo, []stri
 	extras := p.sources[p.fixedlen:]
 	extraids := p.sourceids[p.fixedlen:]
 
-	var duplicated []int
-	newextraids := util.Filter2Slices(extraids, fixedids, func(_, _ interface{}, i, j int) bool {
-		if extraids[i] == fixedids[j] {
-			duplicated = append(duplicated, i)
+	var duplicated []string
+	newextraids := util.Filter2Slices(extraids, fixedids, func(x, y string) bool {
+		if x == y {
+			duplicated = append(duplicated, x)
 
 			return true
 		}
@@ -579,7 +575,7 @@ func (p *SyncSourcePool) filterExtras(fixedids []string) ([]NodeConnInfo, []stri
 		var found bool
 
 		for j := range duplicated {
-			if i == duplicated[j] {
+			if extraids[i] == duplicated[j] {
 				found = true
 
 				break

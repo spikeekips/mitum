@@ -212,9 +212,7 @@ func (c *SyncSourceChecker) check(ctx context.Context, sources []SyncSource) ([]
 		ss := nciss[i]
 
 		found := util.Filter2Slices(
-			util.FilterSlice(ss, func(_ interface{}, j int) bool {
-				aci := ss[j]
-
+			util.FilterSlice(ss, func(aci isaac.NodeConnInfo) bool {
 				if aci == nil {
 					return false
 				}
@@ -222,10 +220,8 @@ func (c *SyncSourceChecker) check(ctx context.Context, sources []SyncSource) ([]
 				return !aci.Address().Equal(c.local.Address())
 			}),
 			ncis,
-			func(a, _ interface{}, _, j int) bool {
-				aci := a.(isaac.NodeConnInfo) //nolint:forcetypeassert //...
-
-				return aci.Address().Equal(ncis[j].Address())
+			func(x, y isaac.NodeConnInfo) bool {
+				return x.Address().Equal(y.Address())
 			})
 		if len(found) < 1 {
 			continue

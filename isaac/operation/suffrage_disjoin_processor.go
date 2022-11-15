@@ -90,8 +90,8 @@ func (p *SuffrageDisjoinProcessor) PreProcess(ctx context.Context, op base.Opera
 
 	_ = util.LoadFromContext(ctx, WithdrawPreProcessedContextKey, &withdrawpreprocessed)
 
-	if util.InSliceFunc(withdrawpreprocessed, func(_ interface{}, i int) bool {
-		return withdrawpreprocessed[i].Equal(n)
+	if util.InSliceFunc(withdrawpreprocessed, func(addr base.Address) bool {
+		return addr.Equal(n)
 	}) >= 0 {
 		return ctx, base.NewBaseOperationProcessReasonError("already withdrew, %q", n), nil
 	}

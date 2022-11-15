@@ -216,15 +216,19 @@ func (s *SuffrageCandidatesStateValueMerger) close() (base.StateValue, error) {
 
 	existings := s.existings
 	if len(s.removes) > 0 {
-		existings = util.Filter2Slices(existings, s.removes, func(_, _ interface{}, i, j int) bool {
-			return existings[i].Address().Equal(s.removes[j])
-		})
+		existings = util.Filter2Slices(
+			existings,
+			s.removes,
+			func(x base.SuffrageCandidateStateValue, y base.Address) bool {
+				return x.Address().Equal(y)
+			},
+		)
 	}
 
 	if len(s.added) > 0 {
 		// NOTE filter new nodes
-		existings = util.Filter2Slices(existings, s.added, func(_, _ interface{}, i, j int) bool {
-			return s.existings[i].Address().Equal(s.added[j].Address())
+		existings = util.Filter2Slices(existings, s.added, func(x, y base.SuffrageCandidateStateValue) bool {
+			return x.Address().Equal(y.Address())
 		})
 	}
 

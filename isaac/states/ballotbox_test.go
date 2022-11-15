@@ -1215,8 +1215,8 @@ func (t *testBallotboxWithWithdraw) TestINITBallotJointWithdrawsOverThreshold() 
 	for i := range nodes {
 		node := nodes[i]
 
-		if util.InSliceFunc(withdrawnodes, func(_ interface{}, j int) bool {
-			return withdrawnodes[j].Equal(node.Address())
+		if util.InSliceFunc(withdrawnodes, func(addr base.Address) bool {
+			return addr.Equal(node.Address())
 		}) >= 0 {
 			break
 		}
@@ -1291,8 +1291,8 @@ func (t *testBallotboxWithWithdraw) TestINITBallotJointWithdrawsSafeThreshold() 
 	for i := range nodes {
 		node := nodes[i]
 
-		if util.InSliceFunc(withdrawnodes, func(_ interface{}, j int) bool {
-			return withdrawnodes[j].Equal(node.Address())
+		if util.InSliceFunc(withdrawnodes, func(addr base.Address) bool {
+			return addr.Equal(node.Address())
 		}) >= 0 {
 			break
 		}

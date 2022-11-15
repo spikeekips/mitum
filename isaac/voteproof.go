@@ -70,10 +70,13 @@ func (vp baseVoteproof) isValidWithdraws() error {
 
 	withdrawnodes := make([]string, len(vp.withdraws))
 
-	if _, found := util.IsDuplicatedSlice(vp.withdraws, func(_ interface{}, i int) (bool, string) {
-		node := vp.withdraws[i].Fact().(base.SuffrageWithdrawFact).Node() //nolint:forcetypeassert //...
+	var n int
 
-		withdrawnodes[i] = node.String()
+	if _, found := util.IsDuplicatedSlice(vp.withdraws, func(i base.SuffrageWithdrawOperation) (bool, string) {
+		node := i.Fact().(base.SuffrageWithdrawFact).Node() //nolint:forcetypeassert //...
+
+		withdrawnodes[n] = node.String()
+		n++
 
 		return true, node.String()
 	}); found {

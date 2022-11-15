@@ -149,10 +149,10 @@ func (op BaseNodeOperation) IsValid(networkID []byte) error {
 
 	var duplicatederr error
 
-	switch _, duplicated := util.IsDuplicatedSlice(sfs, func(_ interface{}, i int) (bool, string) {
-		ns, ok := sfs[i].(NodeSign)
+	switch _, duplicated := util.IsDuplicatedSlice(sfs, func(i Sign) (bool, string) {
+		ns, ok := i.(NodeSign)
 		if !ok {
-			duplicatederr = errors.Errorf("not NodeSign, %T", sfs[i])
+			duplicatederr = errors.Errorf("not NodeSign, %T", i)
 		}
 
 		return duplicatederr == nil, ns.Node().String()
@@ -206,8 +206,8 @@ func (op *BaseNodeOperation) NodeSign(priv Privatekey, networkID NetworkID, node
 }
 
 func (op *BaseNodeOperation) SetNodeSigns(signs []NodeSign) error {
-	if _, duplicated := util.IsDuplicatedSlice(signs, func(_ interface{}, i int) (bool, string) {
-		return true, signs[i].Node().String()
+	if _, duplicated := util.IsDuplicatedSlice(signs, func(i NodeSign) (bool, string) {
+		return true, i.Node().String()
 	}); duplicated {
 		return errors.Errorf("duplicated signs found")
 	}
@@ -223,11 +223,9 @@ func (op *BaseNodeOperation) SetNodeSigns(signs []NodeSign) error {
 }
 
 func (op *BaseNodeOperation) AddNodeSigns(signs []NodeSign) (added bool, _ error) {
-	updates := util.FilterSlice(signs, func(_ interface{}, i int) bool {
-		sign := signs[i]
-
-		return util.InSliceFunc(op.signs, func(_ interface{}, j int) bool {
-			nodesign, ok := op.signs[j].(NodeSign)
+	updates := util.FilterSlice(signs, func(sign NodeSign) bool {
+		return util.InSliceFunc(op.signs, func(s Sign) bool {
+			nodesign, ok := s.(NodeSign)
 			if !ok {
 				return false
 			}

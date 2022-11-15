@@ -43,8 +43,8 @@ func IsValidVoteproofWithSuffrage(vp base.Voteproof, suf base.Suffrage) error {
 
 		nodes := suf.Nodes()
 
-		filtered := util.Filter2Slices(nodes, withdraws, func(_, _ interface{}, i, j int) bool {
-			return nodes[i].Address().Equal(withdraws[j].WithdrawFact().Node())
+		filtered := util.Filter2Slices(nodes, withdraws, func(x base.Node, y base.SuffrageWithdrawOperation) bool {
+			return x.Address().Equal(y.WithdrawFact().Node())
 		})
 
 		switch i, err := NewSuffrage(filtered); {

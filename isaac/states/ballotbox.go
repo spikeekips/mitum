@@ -306,8 +306,8 @@ func (box *Ballotbox) notFinishedVoterecords() ([]*voterecords, []*voterecords) 
 
 	last, _ := box.lastStagePoint()
 
-	vrs := util.FilterMap(box.vrs, func(_ interface{}, i string) bool {
-		switch vr := box.vrs[i]; {
+	vrs := util.FilterMap(box.vrs, func(_ string, vr *voterecords) bool {
+		switch {
 		case vr.finished():
 			return false
 		case !last.IsZero() && vr.stagepoint.Compare(last) < 1:
@@ -1060,9 +1060,9 @@ func extractWithdrawsFromBallot(
 	}
 
 	m[0] = wfacts
-	m[1] = util.FilterSlice(sfs, func(_ interface{}, j int) bool {
-		return util.InSliceFunc(wfacts, func(_ interface{}, k int) bool {
-			return wfacts[k].Node().Equal(sfs[j].Node())
+	m[1] = util.FilterSlice(sfs, func(j base.BallotSignFact) bool {
+		return util.InSliceFunc(wfacts, func(sf base.SuffrageWithdrawFact) bool {
+			return sf.Node().Equal(j.Node())
 		}) < 0
 	})
 	m[2] = withdraws

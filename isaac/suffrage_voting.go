@@ -241,8 +241,8 @@ func (*SuffrageVoting) findWithdrawCombinations(ops []base.SuffrageWithdrawOpera
 				signs := ops[j].NodeSigns()
 
 				// NOTE check signs except withdraw nodes
-				if k := util.CountFilteredSlice(signs, func(_ interface{}, x int) bool {
-					return util.InSlice(nodes, signs[x].Node().String()) < 0
+				if k := util.CountFilteredSlice(signs, func(x base.NodeSign) bool {
+					return util.InSlice(nodes, x.Node().String()) < 0
 				}); uint(k) < newthreshold {
 					return true
 				}
@@ -263,8 +263,8 @@ func (*SuffrageVoting) filterSigns(
 ) (base.SuffrageWithdrawOperation, error) {
 	signs := op.NodeSigns()
 
-	filtered := util.FilterSlice(signs, func(_ interface{}, x int) bool {
-		return util.InSlice(withdrawnodes, signs[x].Node().String()) < 0
+	filtered := util.FilterSlice(signs, func(i base.NodeSign) bool {
+		return util.InSlice(withdrawnodes, i.Node().String()) < 0
 	})
 
 	if len(signs) == len(filtered) {

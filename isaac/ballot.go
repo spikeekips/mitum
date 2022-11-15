@@ -126,8 +126,8 @@ func (bl *baseBallot) isValidWithdraws(networkID []byte, withdraws []base.Suffra
 
 		var werr error
 
-		if _, found := util.IsDuplicatedSlice(withdraws, func(_ interface{}, i int) (bool, string) {
-			fact := withdraws[i].WithdrawFact()
+		if _, found := util.IsDuplicatedSlice(withdraws, func(i base.SuffrageWithdrawOperation) (bool, string) {
+			fact := i.WithdrawFact()
 
 			if werr == nil && fact.WithdrawStart() >= bl.Point().Height() {
 				werr = util.ErrInvalid.Errorf("wrong start height in withdraw")
@@ -154,9 +154,9 @@ func (bl *baseBallot) isValidWithdraws(networkID []byte, withdraws []base.Suffra
 	for i := range withdraws {
 		signs := withdraws[i].NodeSigns()
 
-		filtered := util.FilterSlice(signs, func(_ interface{}, j int) bool {
-			return util.InSliceFunc(withdrawnodes, func(_ interface{}, k int) bool {
-				return signs[j].Node().Equal(withdrawnodes[k])
+		filtered := util.FilterSlice(signs, func(sign base.NodeSign) bool {
+			return util.InSliceFunc(withdrawnodes, func(addr base.Address) bool {
+				return sign.Node().Equal(addr)
 			}) < 0
 		})
 

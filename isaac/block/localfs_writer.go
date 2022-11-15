@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io"
+	"io/fs"
 	"math"
 	"os"
 	"path/filepath"
@@ -623,9 +624,7 @@ func findHighestDirectory(root string) (string, bool, error) {
 			return errors.WithStack(err)
 		default:
 			var foundsubs bool
-			filtered := util.FilterSlice(files, func(_ interface{}, i int) bool {
-				f := files[i]
-
+			filtered := util.FilterSlice(files, func(f fs.DirEntry) bool {
 				switch {
 				case !f.IsDir(), !rHeightDirectory.MatchString(f.Name()):
 					return false

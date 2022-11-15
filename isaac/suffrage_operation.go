@@ -152,8 +152,8 @@ func (op SuffrageWithdrawOperation) NodeSigns() []base.NodeSign {
 		return nil
 	}
 
-	return util.FilterSlice(signs, func(_ interface{}, i int) bool {
-		return !fact.Node().Equal(signs[i].Node())
+	return util.FilterSlice(signs, func(i base.NodeSign) bool {
+		return !fact.Node().Equal(i.Node())
 	})
 }
 

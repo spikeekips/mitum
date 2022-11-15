@@ -171,12 +171,12 @@ func (h *hooks) remove(name Name) bool {
 
 	var i int
 
-	_ = util.FilterSlice(h.l, func(_ interface{}, j int) bool {
-		if name == h.l[j] {
+	_ = util.FilterSlice(h.l, func(j Name) bool {
+		if name == j {
 			return false
 		}
 
-		hooks[i] = h.l[j]
+		hooks[i] = j
 		i++
 
 		return true
@@ -567,7 +567,7 @@ func (ps *PS) add(name Name, run, close Func, requires ...Name) (*P, bool) {
 		switch {
 		case len(requires) < 1:
 			requires = []Name{NameINIT} //revive:disable-line:modifies-parameter
-		case util.InSliceFunc(requires, func(_ interface{}, i int) bool { return requires[i] == NameINIT }) < 1:
+		case util.InSliceFunc(requires, func(i Name) bool { return i == NameINIT }) < 1:
 			n := make([]Name, len(requires)+1)
 			n[0] = NameINIT
 			copy(n[1:], requires)

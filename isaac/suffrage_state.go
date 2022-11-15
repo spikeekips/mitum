@@ -270,8 +270,8 @@ func GetSuffrageFromDatabase(
 func FilterCandidates(
 	height base.Height, candidates []base.SuffrageCandidateStateValue,
 ) []base.SuffrageCandidateStateValue {
-	return util.FilterSlice(candidates, func(_ interface{}, i int) bool {
-		return candidates[i].Deadline() >= height
+	return util.FilterSlice(candidates, func(i base.SuffrageCandidateStateValue) bool {
+		return i.Deadline() >= height
 	})
 }
 

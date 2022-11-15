@@ -344,8 +344,8 @@ func (t *testSuffrageVoting) TestFindMultipleOperations() {
 				continue
 			}
 
-			if util.InSliceFunc(expectedwithdrawnodes, func(_ interface{}, x int) bool {
-				return expectedwithdrawnodes[x].Address().Equal(node.Address())
+			if util.InSliceFunc(expectedwithdrawnodes, func(n base.LocalNode) bool {
+				return n.Address().Equal(node.Address())
 			}) >= 0 {
 				withdrawnodesigns++
 			}
@@ -421,8 +421,8 @@ func (t *testSuffrageVoting) TestFindMultipleOperationsWithInsufficientVotes() {
 		var withdrawnodesigns uint
 		opminsigns := minsigns
 
-		isininsufficients := util.InSliceFunc(insufficients, func(_ interface{}, x int) bool {
-			return insufficients[x].Address().Equal(w)
+		isininsufficients := util.InSliceFunc(insufficients, func(n base.LocalNode) bool {
+			return n.Address().Equal(w)
 		}) >= 0
 
 		if isininsufficients {
@@ -436,8 +436,8 @@ func (t *testSuffrageVoting) TestFindMultipleOperationsWithInsufficientVotes() {
 				continue
 			}
 
-			if util.InSliceFunc(insufficients, func(_ interface{}, x int) bool {
-				return insufficients[x].Address().Equal(node.Address())
+			if util.InSliceFunc(insufficients, func(n base.LocalNode) bool {
+				return n.Address().Equal(node.Address())
 			}) >= 0 {
 				withdrawnodesigns++
 			}
@@ -457,9 +457,9 @@ func (t *testSuffrageVoting) TestFindMultipleOperationsWithInsufficientVotes() {
 				withdrawnodes = allwithdrawnodes
 			}
 
-			return util.CountFilteredSlice(signs, func(_ interface{}, x int) bool {
-				return util.InSliceFunc(withdrawnodes, func(_ interface{}, y int) bool {
-					return signs[x].Node().Equal(withdrawnodes[y].Address())
+			return util.CountFilteredSlice(signs, func(x base.NodeSign) bool {
+				return util.InSliceFunc(withdrawnodes, func(n base.LocalNode) bool {
+					return x.Node().Equal(n.Address())
 				}) < 0
 			})
 		}(), opminsigns, w)

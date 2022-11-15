@@ -384,8 +384,8 @@ func (t *testSyncSourceChecker) TestCheckFilterLocal() {
 	t.NoError(err)
 	t.NotNil(ucis)
 
-	nciswithoutlocal := util.FilterSlice(ncis, func(_ interface{}, i int) bool {
-		return !ncis[i].Address().Equal(local.Address())
+	nciswithoutlocal := util.FilterSlice(ncis, func(i isaac.NodeConnInfo) bool {
+		return !i.Address().Equal(local.Address())
 	})
 
 	t.Equal(len(nciswithoutlocal), len(ucis))

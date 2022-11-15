@@ -16,28 +16,28 @@ func TestIsDuplicatedSlice(tt *testing.T) {
 
 	cases := []struct {
 		s        interface{}
-		k        func(interface{}, int) (bool, string)
+		k        func(interface{}) (bool, string)
 		name     string
 		expected bool
 	}{
 		{name: "invalid: nil", s: nil, expected: false},
 		{name: "invalid: nil slice", s: nilslice, expected: false},
-		{name: "slice: not duplicated", s: []int{5, 4, 3, 2, 1}, expected: false, k: func(i interface{}, _ int) (bool, string) {
+		{name: "slice: not duplicated", s: []int{5, 4, 3, 2, 1}, expected: false, k: func(i interface{}) (bool, string) {
 			return true, fmt.Sprintf("%d", i)
 		}},
-		{name: "slice: duplicated", s: []int{4, 4, 3, 2, 1}, expected: true, k: func(i interface{}, _ int) (bool, string) {
+		{name: "slice: duplicated", s: []int{4, 4, 3, 2, 1}, expected: true, k: func(i interface{}) (bool, string) {
 			return true, fmt.Sprintf("%d", i)
 		}},
-		{name: "array: not duplicated", s: [5]int{5, 4, 3, 2, 1}, expected: false, k: func(i interface{}, _ int) (bool, string) {
+		{name: "array: not duplicated", s: [5]int{5, 4, 3, 2, 1}, expected: false, k: func(i interface{}) (bool, string) {
 			return true, fmt.Sprintf("%d", i)
 		}},
-		{name: "array: duplicated", s: [5]int{4, 4, 3, 2, 1}, expected: true, k: func(i interface{}, _ int) (bool, string) {
+		{name: "array: duplicated", s: [5]int{4, 4, 3, 2, 1}, expected: true, k: func(i interface{}) (bool, string) {
 			return true, fmt.Sprintf("%d", i)
 		}},
-		{name: "slice: nil", s: []interface{}{4, nil, 3, 2, 1}, expected: false, k: func(i interface{}, _ int) (bool, string) {
+		{name: "slice: nil", s: []interface{}{4, nil, 3, 2, 1}, expected: false, k: func(i interface{}) (bool, string) {
 			return true, fmt.Sprintf("%d", i)
 		}},
-		{name: "slice: nils", s: []interface{}{nil, nil, 3, 2, 1}, expected: true, k: func(i interface{}, _ int) (bool, string) {
+		{name: "slice: nils", s: []interface{}{nil, nil, 3, 2, 1}, expected: true, k: func(i interface{}) (bool, string) {
 			return true, fmt.Sprintf("%d", i)
 		}},
 	}
@@ -58,14 +58,14 @@ func TestIsDuplicatedSlice(tt *testing.T) {
 
 		var n int
 
-		_, isduplicated := IsDuplicatedSlice(sl, func(_ interface{}, i int) (bool, string) {
+		_, isduplicated := IsDuplicatedSlice(sl, func(i string) (bool, string) {
 			if n == 2 {
-				return false, sl[i]
+				return false, i
 			}
 
 			n++
 
-			return true, sl[i]
+			return true, i
 		})
 
 		t.False(isduplicated)

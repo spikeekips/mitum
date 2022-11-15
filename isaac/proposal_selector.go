@@ -191,8 +191,8 @@ func (p *BaseProposalSelector) findProposalFromProposer(
 func (*BaseProposalSelector) filterDeadNodes(n []base.Node, b []base.Address) []base.Node {
 	return util.Filter2Slices( // NOTE filter long dead nodes
 		n, b,
-		func(_, _ interface{}, i, j int) bool {
-			return n[i].Address().Equal(b[j])
+		func(x base.Node, y base.Address) bool {
+			return x.Address().Equal(y)
 		},
 	)
 }

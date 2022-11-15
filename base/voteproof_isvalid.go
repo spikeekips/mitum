@@ -45,9 +45,7 @@ func IsValidVoteproof(vp Voteproof, networkID NetworkID) error {
 func isValidVoteproofDuplicatedSignNode(vp Voteproof) error {
 	facts := vp.SignFacts()
 
-	if _, found := util.IsDuplicatedSlice(facts, func(_ interface{}, i int) (bool, string) {
-		fact := facts[i]
-
+	if _, found := util.IsDuplicatedSlice(facts, func(fact BallotSignFact) (bool, string) {
 		switch {
 		case fact == nil, fact.Node() == nil:
 			return true, ""

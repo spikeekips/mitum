@@ -10,17 +10,7 @@ func InSlice[T comparable](s []T, n T) int {
 	return -1
 }
 
-func InSliceFunc[T any](s []T, f func(interface{}, int) bool) int {
-	for i := range s {
-		if f((interface{})(s[i]), i) {
-			return i
-		}
-	}
-
-	return -1
-}
-
-func InSliceFunc0[T any](s []T, f func(T) bool) int { // FIXME replace InSliceFunc
+func InSliceFunc[T any](s []T, f func(T) bool) int {
 	for i := range s {
 		if f(s[i]) {
 			return i
@@ -30,7 +20,7 @@ func InSliceFunc0[T any](s []T, f func(T) bool) int { // FIXME replace InSliceFu
 	return -1
 }
 
-func IsDuplicatedSlice[T any](s []T, keyf func(interface{}, int) (bool, string)) (map[string]T, bool) {
+func IsDuplicatedSlice[T any](s []T, keyf func(T) (bool, string)) (map[string]T, bool) {
 	if len(s) < 1 {
 		return nil, false
 	}
@@ -46,7 +36,7 @@ func IsDuplicatedSlice[T any](s []T, keyf func(interface{}, int) (bool, string))
 		} else {
 			var keep bool
 
-			keep, k = keyf(s[i], i)
+			keep, k = keyf(s[i])
 			stop = !keep
 		}
 
@@ -64,7 +54,7 @@ func IsDuplicatedSlice[T any](s []T, keyf func(interface{}, int) (bool, string))
 	return m, false
 }
 
-func FilterMap[T any, Y comparable](s map[Y]T, f func(interface{}, Y) bool) []T {
+func FilterMap[T any, Y comparable](s map[Y]T, f func(Y, T) bool) []T {
 	if len(s) < 1 {
 		return nil
 	}
@@ -73,7 +63,7 @@ func FilterMap[T any, Y comparable](s map[Y]T, f func(interface{}, Y) bool) []T 
 	var index int
 
 	for i := range s {
-		if !f(s[i], i) {
+		if !f(i, s[i]) {
 			continue
 		}
 
@@ -84,7 +74,7 @@ func FilterMap[T any, Y comparable](s map[Y]T, f func(interface{}, Y) bool) []T 
 	return ns[:index]
 }
 
-func FilterSlice[T any](s []T, f func(interface{}, int) bool) []T {
+func FilterSlice[T any](s []T, f func(T) bool) []T {
 	if len(s) < 1 {
 		return nil
 	}
@@ -93,7 +83,7 @@ func FilterSlice[T any](s []T, f func(interface{}, int) bool) []T {
 	var index int
 
 	for i := range s {
-		if !f(s[i], i) {
+		if !f(s[i]) {
 			continue
 		}
 
@@ -104,13 +94,13 @@ func FilterSlice[T any](s []T, f func(interface{}, int) bool) []T {
 	return ns[:index]
 }
 
-func CountFilteredSlice[T any](s []T, f func(interface{}, int) bool) (n int) {
+func CountFilteredSlice[T any](s []T, f func(T) bool) (n int) {
 	if len(s) < 1 {
 		return 0
 	}
 
 	for i := range s {
-		if !f(s[i], i) {
+		if !f(s[i]) {
 			continue
 		}
 
@@ -120,7 +110,7 @@ func CountFilteredSlice[T any](s []T, f func(interface{}, int) bool) (n int) {
 	return n
 }
 
-func Filter2Slices[T any, Y any](a []T, b []Y, f func(interface{}, interface{}, int, int) bool) []T {
+func Filter2Slices[T any, Y any](a []T, b []Y, f func(T, Y) bool) []T {
 	if len(a) < 1 {
 		return nil
 	}
@@ -137,7 +127,7 @@ func Filter2Slices[T any, Y any](a []T, b []Y, f func(interface{}, interface{}, 
 		var found bool
 
 		for j := range b {
-			if f(a[i], b[j], i, j) {
+			if f(a[i], b[j]) {
 				found = true
 
 				break

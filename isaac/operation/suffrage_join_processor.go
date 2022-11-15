@@ -256,9 +256,13 @@ func (s *SuffrageJoinStateValueMerger) close() (base.StateValue, error) {
 	existingnodes := s.existing.Nodes()
 
 	if len(s.disjoined) > 0 {
-		existingnodes = util.Filter2Slices(existingnodes, s.disjoined, func(_, _ interface{}, i, j int) bool {
-			return existingnodes[i].Address().Equal(s.disjoined[j])
-		})
+		existingnodes = util.Filter2Slices(
+			existingnodes,
+			s.disjoined,
+			func(x base.SuffrageNodeStateValue, y base.Address) bool {
+				return x.Address().Equal(y)
+			},
+		)
 	}
 
 	if len(s.joined) > 0 {

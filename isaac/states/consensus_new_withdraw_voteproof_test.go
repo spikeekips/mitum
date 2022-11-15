@@ -167,7 +167,7 @@ func (t *testWithdrawsConsensusHandler) TestSIGNAfterEnteringINITVoteproof() {
 
 		t.Equal(len(withdrawfacts), len(sfactwithdraws))
 		for i := range withdrawfacts {
-			f := util.InSliceFunc0(sfactwithdraws, func(j util.Hash) bool {
+			f := util.InSliceFunc(sfactwithdraws, func(j util.Hash) bool {
 				return withdrawfacts[i].Equal(j)
 			})
 			t.False(f < 0)
