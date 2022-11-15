@@ -160,7 +160,7 @@ func (box *Ballotbox) vote(bl base.Ballot, threshold base.Threshold) (bool, func
 
 	if voted && validated {
 		last, lastIsMajority := box.lastStagePoint()
-		if isnew, overthreshold := isNewBallotVoteproof(
+		if isnew, overthreshold := isNewBallotVoteproofWithThreshold(
 			box.local,
 			bl,
 			last,
@@ -551,7 +551,8 @@ func (vr *voterecords) count(
 			vr.voted[bl.SignFact().Node().String()] = bl
 
 			if !vpchecked {
-				isnew, overthreshold := isNewBallotVoteproof(local, bl, lastStagePoint, lastIsMajority, threshold)
+				isnew, overthreshold := isNewBallotVoteproofWithThreshold(
+					local, bl, lastStagePoint, lastIsMajority, threshold)
 				if isnew && overthreshold {
 					digged = bl.Voteproof()
 				}
@@ -905,6 +906,44 @@ var voterecordsPoolPut = func(vr *voterecords) {
 }
 
 func isNewBallotVoteproof( //revive:disable-line:flag-parameter
+	vp base.Voteproof,
+	last base.StagePoint,
+	lastIsMajority bool,
+) bool {
+	if last.IsZero() {
+		return true
+	}
+
+	point := vp.Point()
+
+	switch {
+	case !lastIsMajority && vp.Result() == base.VoteResultMajority:
+		// NOTE when last voteproof is based on SIGN ballots, ignore the next
+		// ballots, which same height and not ACCEPT stage
+		switch {
+		case point.Height() < last.Height():
+			return false
+		case point.Height() > last.Height():
+			return true
+		case last.Stage() == base.StageINIT && vp.Point().Stage() == base.StageINIT:
+			return true
+		}
+	case lastIsMajority && point.Height() == last.Height() && point.Stage().Compare(last.Stage()) == 0:
+		if _, ok := vp.Majority().(isaac.SIGNBallotFact); ok {
+			return true
+		}
+
+		return false
+	case lastIsMajority && point.Height() == last.Height() && point.Stage().Compare(last.Stage()) < 1:
+		// NOTE when last voteproof is majority, ignore the next ballots, which
+		// has same height and not higher stage.
+		return false
+	}
+
+	return point.Compare(last) >= 0
+}
+
+func isNewBallotVoteproofWithThreshold( //revive:disable-line:flag-parameter
 	local base.Address,
 	bl base.Ballot,
 	last base.StagePoint,
@@ -924,33 +963,12 @@ func isNewBallotVoteproof( //revive:disable-line:flag-parameter
 		}
 	}
 
-	overthreshold = vp.Threshold() >= threshold
-
-	if last.IsZero() {
-		return true, overthreshold
-	}
-
-	point := vp.Point()
-
-	if !lastIsMajority {
-		// NOTE when last voteproof is based on SIGN ballots, ignore the next
-		// ballots, which same height and not ACCEPT stage
-
-		switch {
-		case point.Height() < last.Height():
-			return false, overthreshold
-		case point.Height() > last.Height():
-			return true, overthreshold
-		case isSIGNBallotFact(bl.SignFact().Fact()):
-			return true, overthreshold
-		}
-	} else if point.Height() == last.Height() && point.Stage().Compare(last.Stage()) < 1 {
-		// NOTE when last voteproof is majority, ignore the next ballots, which
-		// has same height and not higher stage.
-		return false, overthreshold
-	}
-
-	return point.Compare(last) >= 0, overthreshold
+	return isNewBallotVoteproof(
+			vp,
+			last,
+			lastIsMajority,
+		),
+		bl.Voteproof().Threshold() >= threshold
 }
 
 func sortBallotSignFactsByWithdraws(

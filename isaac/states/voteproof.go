@@ -33,20 +33,42 @@ func (l *LastVoteproofsHandler) IsNew(vp base.Voteproof) bool {
 	l.RLock()
 	defer l.RUnlock()
 
-	if lvp := findLastVoteproofs(l.ivp, l.avp); lvp != nil && vp.Point().Compare(lvp.Point()) < 1 {
-		return false
+	lvp := findLastVoteproofs(l.ivp, l.avp)
+
+	if lvp == nil {
+		return true
 	}
 
-	return true
+	return isNewBallotVoteproof(vp, lvp.Point(), lvp.Result() == base.VoteResultMajority)
 }
 
 func (l *LastVoteproofsHandler) Set(vp base.Voteproof) bool {
 	l.Lock()
 	defer l.Unlock()
 
-	if lvp := findLastVoteproofs(l.ivp, l.avp); lvp != nil && vp.Point().Compare(lvp.Point()) < 1 {
+	lvp := findLastVoteproofs(l.ivp, l.avp)
+
+	if lvp != nil && !isNewBallotVoteproof(vp, lvp.Point(), lvp.Result() == base.VoteResultMajority) {
 		return false
 	}
+
+	switch vp.Point().Stage() { //nolint:exhaustive //...
+	case base.StageINIT:
+		l.ivp = vp.(base.INITVoteproof) //nolint:forcetypeassert //...
+	case base.StageACCEPT:
+		l.avp = vp.(base.ACCEPTVoteproof) //nolint:forcetypeassert //...
+	}
+
+	if vp.Result() == base.VoteResultMajority {
+		l.mvp = vp
+	}
+
+	return true
+}
+
+func (l *LastVoteproofsHandler) ForceSet(vp base.Voteproof) bool {
+	l.Lock()
+	defer l.Unlock()
 
 	switch vp.Point().Stage() { //nolint:exhaustive //...
 	case base.StageINIT:
@@ -121,11 +143,12 @@ func (l LastVoteproofs) ACCEPT() base.ACCEPTVoteproof {
 }
 
 func (l LastVoteproofs) IsNew(vp base.Voteproof) bool {
-	if lvp := l.Cap(); lvp != nil && vp.Point().Compare(lvp.Point()) < 1 {
-		return false
+	lvp := l.Cap()
+	if lvp == nil {
+		return true
 	}
 
-	return true
+	return isNewBallotVoteproof(vp, lvp.Point(), lvp.Result() == base.VoteResultMajority)
 }
 
 func findLastVoteproofs(ivp, avp base.Voteproof) base.Voteproof {

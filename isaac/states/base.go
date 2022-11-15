@@ -16,15 +16,16 @@ type baseHandler struct {
 	local base.LocalNode
 	ctx   context.Context //nolint:containedctx //...
 	*logging.Logging
-	params               *isaac.LocalParams
-	setLastVoteproofFunc func(base.Voteproof) bool
-	cancel               func()
-	lastVoteproofFunc    func() LastVoteproofs
-	sts                  *States
-	timers               *util.Timers
-	switchStateFunc      func(switchContext) error
-	onEmptyMembersf      func()
-	stt                  StateType
+	params                *isaac.LocalParams
+	setLastVoteproofFunc  func(base.Voteproof) bool
+	forceSetLastVoteproof func(base.Voteproof) bool
+	cancel                func()
+	lastVoteproofFunc     func() LastVoteproofs
+	sts                   *States
+	timers                *util.Timers
+	switchStateFunc       func(switchContext) error
+	onEmptyMembersf       func()
+	stt                   StateType
 }
 
 func newBaseHandler(
@@ -47,21 +48,26 @@ func newBaseHandler(
 		setLastVoteproofFunc: func(vp base.Voteproof) bool {
 			return lvps.Set(vp)
 		},
+		forceSetLastVoteproof: func(vp base.Voteproof) bool {
+			return lvps.ForceSet(vp)
+		},
 		onEmptyMembersf: func() {},
 	}
 }
 
 func (st *baseHandler) new() *baseHandler {
 	return &baseHandler{
-		Logging:              st.Logging,
-		local:                st.local,
-		stt:                  st.stt,
-		params:               st.params,
-		sts:                  st.sts,
-		timers:               st.timers,
-		lastVoteproofFunc:    st.lastVoteproofFunc,
-		setLastVoteproofFunc: st.setLastVoteproofFunc,
-		switchStateFunc:      st.switchStateFunc,
+		Logging:               st.Logging,
+		local:                 st.local,
+		stt:                   st.stt,
+		params:                st.params,
+		sts:                   st.sts,
+		timers:                st.timers,
+		cancel:                func() {},
+		lastVoteproofFunc:     st.lastVoteproofFunc,
+		setLastVoteproofFunc:  st.setLastVoteproofFunc,
+		forceSetLastVoteproof: st.forceSetLastVoteproof,
+		switchStateFunc:       st.switchStateFunc,
 	}
 }
 

@@ -73,7 +73,7 @@ func (t *baseTestBallotbox) initBallot(node isaac.LocalNode, nodes []isaac.Local
 			}
 
 			avp := isaac.NewACCEPTVoteproof(afact.Point().Point)
-			avp.SetResult(base.VoteResultMajority).
+			avp.
 				SetMajority(afact).
 				SetSignFacts(asfs).
 				SetThreshold(base.Threshold(100)).
@@ -137,7 +137,7 @@ func (t *baseTestBallotbox) acceptBallot(node isaac.LocalNode, nodes []isaac.Loc
 	}
 
 	ivp := isaac.NewINITVoteproof(ifact.Point().Point)
-	ivp.SetResult(base.VoteResultMajority).
+	ivp.
 		SetMajority(ifact).
 		SetSignFacts(isfs).
 		SetThreshold(base.Threshold(100)).
@@ -858,7 +858,7 @@ func (t *testBallotbox) TestDifferentSuffrage() {
 	}
 
 	avp := isaac.NewACCEPTVoteproof(point.PrevHeight())
-	avp.SetResult(base.VoteResultMajority).
+	avp.
 		SetMajority(afact).
 		SetSignFacts(asfs).
 		SetThreshold(base.Threshold(100)).

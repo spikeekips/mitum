@@ -103,9 +103,19 @@ func (st *ConsensusHandler) enter(from StateType, i switchContext) (func(), erro
 		return nil, newSyncingSwitchContext(StateConsensus, sctx.ivp.Point().Height())
 	}
 
-	process, err := st.processProposal(sctx.ivp)
-	if err != nil {
+	process := func() {}
+
+	// NOTE suffrage sign voting
+	switch keep, err := st.checkSuffrageVoting(sctx.ivp); {
+	case err != nil:
 		return nil, e(err, "")
+	case keep:
+		f, err := st.processProposal(sctx.ivp)
+		if err != nil {
+			return nil, e(err, "")
+		}
+
+		process = f
 	}
 
 	return func() {
@@ -479,43 +489,52 @@ func (st *ConsensusHandler) newINITVoteproofWithLastINITVoteproof(
 
 		return newSyncingSwitchContext(StateConsensus, ivp.Point().Height()-1)
 	case livp.Result() == base.VoteResultMajority:
-	case ivp.Result() == base.VoteResultMajority: // NOTE new init voteproof has same height, but higher round
-		lavp := lvps.ACCEPT()
+	case ivp.Result() != base.VoteResultMajority: // NOTE new init voteproof has same height, but higher round
+		l.Debug().Msg("new init voteproof draw; moves to next round")
 
-		ll := st.Log().With().
-			Dict("init_voteproof", base.VoteproofLog(ivp)).
-			Dict("last_accept_voteproof", base.VoteproofLog(lavp)).
-			Logger()
+		go st.nextRound(ivp, lvps.PreviousBlockForNextRound(ivp))
 
-		if lavp == nil {
-			ll.Debug().Msg("empty last accept voteproof; moves to broken state")
+		return nil
+	}
 
-			return newBrokenSwitchContext(StateConsensus, errors.Errorf("empty last accept voteproof"))
-		}
+	lavp := lvps.ACCEPT()
 
-		if m := lavp.BallotMajority(); m == nil || !ivp.BallotMajority().PreviousBlock().Equal(m.NewBlock()) {
-			// NOTE local stored block is different with other nodes
-			ll.Debug().
-				Stringer("previous_block", ivp.BallotMajority().PreviousBlock()).
-				Stringer("new_block", m.NewBlock()).
-				Msg("previous block does not match with last accept voteproof; moves to syncing")
+	ll := st.Log().With().
+		Dict("init_voteproof", base.VoteproofLog(ivp)).
+		Dict("last_accept_voteproof", base.VoteproofLog(lavp)).
+		Logger()
 
-			return newSyncingSwitchContext(StateConsensus, ivp.Point().Height()-1)
-		}
+	if lavp == nil {
+		ll.Debug().Msg("empty last accept voteproof; moves to broken state")
 
+		return newBrokenSwitchContext(StateConsensus, errors.Errorf("empty last accept voteproof"))
+	}
+
+	if m := lavp.BallotMajority(); m == nil || !ivp.BallotMajority().PreviousBlock().Equal(m.NewBlock()) {
+		// NOTE local stored block is different with other nodes
+		ll.Debug().
+			Stringer("previous_block", ivp.BallotMajority().PreviousBlock()).
+			Stringer("new_block", m.NewBlock()).
+			Msg("previous block does not match with last accept voteproof; moves to syncing")
+
+		return newSyncingSwitchContext(StateConsensus, ivp.Point().Height()-1)
+	}
+
+	switch keep, err := st.checkSuffrageVoting(ivp); {
+	case err != nil:
+		return err
+	case !keep:
+		return nil
+	default:
 		process, err := st.processProposal(ivp)
 		if err != nil {
 			return err
 		}
 
 		go process()
-	default:
-		l.Debug().Msg("new init voteproof draw; moves to next round")
 
-		go st.nextRound(ivp, lvps.PreviousBlockForNextRound(ivp))
+		return nil
 	}
-
-	return nil
 }
 
 func (st *ConsensusHandler) newINITVoteproofWithLastACCEPTVoteproof(
@@ -551,14 +570,22 @@ func (st *ConsensusHandler) newINITVoteproofWithLastACCEPTVoteproof(
 		}
 	}
 
-	process, err := st.processProposal(ivp)
-	if err != nil {
+	// NOTE suffrage sign voting
+	switch keep, err := st.checkSuffrageVoting(ivp); {
+	case err != nil:
 		return err
+	case !keep:
+		return nil
+	default:
+		process, err := st.processProposal(ivp)
+		if err != nil {
+			return err
+		}
+
+		go process()
+
+		return nil
 	}
-
-	go process()
-
-	return nil
 }
 
 func (st *ConsensusHandler) newACCEPTVoteproofWithLastINITVoteproof(
@@ -708,6 +735,47 @@ func (st *ConsensusHandler) nextBlock(avp base.ACCEPTVoteproof) {
 	l.Debug().Interface("ballot", bl).Msg("next init ballot broadcasted")
 }
 
+func (st *ConsensusHandler) suffrageSIGNVoting(vp base.Voteproof) {
+	l := st.Log().With().Dict("voteproof", base.VoteproofLog(vp)).Logger()
+
+	if _, ok := vp.(isaac.WithdrawVoteproof); !ok {
+		l.Error().Msg("expected WithdrawVoteproof for suffrage sign voting")
+
+		return
+	}
+
+	ifact := vp.Majority().(isaac.INITBallotFact) //nolint:forcetypeassert //...
+	withdrawfacts := ifact.WithdrawFacts()
+
+	fact := isaac.NewSIGNBallotFact(
+		vp.Point().Point,
+		ifact.PreviousBlock(),
+		ifact.Proposal(),
+		withdrawfacts,
+	)
+
+	sf := isaac.NewINITBallotSignFact(st.local.Address(), fact)
+
+	if err := sf.Sign(st.local.Privatekey(), st.params.NetworkID()); err != nil {
+		go st.switchState(newBrokenSwitchContext(st.stt, errors.WithMessage(err, "failed to make sign ballot")))
+
+		return
+	}
+
+	bl := isaac.NewINITBallot(vp, sf, nil)
+
+	if err := st.prepareINITBallot(bl, time.Nanosecond, []util.TimerID{
+		timerIDBroadcastINITBallot,
+		timerIDBroadcastACCEPTBallot,
+	}); err != nil {
+		l.Error().Err(err).Msg("failed to prepare sign ballot")
+
+		return
+	}
+
+	l.Debug().Interface("ballot", bl).Msg("sign ballot broadcasted")
+}
+
 func (st *ConsensusHandler) saveBlock(avp base.ACCEPTVoteproof) (bool, error) {
 	facthash := avp.BallotMajority().Proposal()
 
@@ -736,6 +804,26 @@ func (st *ConsensusHandler) saveBlock(avp base.ACCEPTVoteproof) (bool, error) {
 		ll.Error().Err(err).Msg("failed to save proposal; moves to broken state")
 
 		return false, newBrokenSwitchContext(StateConsensus, err)
+	}
+}
+
+func (st *ConsensusHandler) checkSuffrageVoting(ivp base.INITVoteproof) (bool, error) {
+	switch wvp, ok := ivp.(isaac.WithdrawVoteproof); {
+	case !ok:
+		return true, nil
+	case len(wvp.Withdraws()) < 1:
+		return true, nil
+	}
+
+	switch t := ivp.Majority().(type) {
+	case isaac.INITBallotFact:
+		go st.suffrageSIGNVoting(ivp)
+
+		return false, nil
+	case isaac.SIGNBallotFact:
+		return true, nil
+	default:
+		return false, errors.Errorf("expected SIGNBallotFact, but %T", t)
 	}
 }
 

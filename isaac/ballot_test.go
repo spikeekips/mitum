@@ -248,7 +248,7 @@ func (t *testINITBallot) SetupSuite() {
 		t.NoError(asignfact.Sign(t.priv, t.networkID))
 
 		avp := NewACCEPTVoteproof(afact.Point().Point)
-		avp.SetResult(base.VoteResultMajority).
+		avp.
 			SetMajority(afact).
 			SetSignFacts([]base.BallotSignFact{asignfact}).
 			SetThreshold(base.Threshold(100)).
@@ -282,7 +282,7 @@ func (t *testINITBallot) TestSignIsValid() {
 		t.NoError(isignfact.Sign(t.priv, t.networkID))
 
 		ivp := NewINITVoteproof(ifact.Point().Point)
-		ivp.SetResult(base.VoteResultMajority).
+		ivp.
 			SetMajority(ifact).
 			SetSignFacts([]base.BallotSignFact{isignfact}).
 			SetThreshold(base.Threshold(100)).
@@ -304,7 +304,7 @@ func (t *testINITBallot) TestSignIsValid() {
 		t.NoError(isignfact.Sign(t.priv, t.networkID))
 
 		ivp := NewINITVoteproof(ifact.Point().Point)
-		ivp.SetResult(base.VoteResultMajority).
+		ivp.
 			SetMajority(ifact).
 			SetSignFacts([]base.BallotSignFact{isignfact}).
 			SetThreshold(base.Threshold(100)).
@@ -329,7 +329,7 @@ func (t *testINITBallot) TestSignIsValid() {
 		t.NoError(isignfact.Sign(t.priv, t.networkID))
 
 		ivp := NewINITVoteproof(ifact.Point().Point)
-		ivp.SetResult(base.VoteResultMajority).
+		ivp.
 			SetMajority(ifact).
 			SetSignFacts([]base.BallotSignFact{isignfact}).
 			SetThreshold(base.Threshold(100)).
@@ -355,7 +355,7 @@ func (t *testINITBallot) TestSignIsValid() {
 		t.NoError(asignfact.Sign(t.priv, t.networkID))
 
 		avp := NewACCEPTVoteproof(afact.Point().Point)
-		avp.SetResult(base.VoteResultMajority).
+		avp.
 			SetMajority(afact).
 			SetSignFacts([]base.BallotSignFact{asignfact}).
 			SetThreshold(base.Threshold(100)).
@@ -380,7 +380,7 @@ func (t *testINITBallot) TestSignIsValid() {
 		t.NoError(isignfact.Sign(t.priv, t.networkID))
 
 		ivp := NewINITVoteproof(ifact.Point().Point)
-		ivp.SetResult(base.VoteResultMajority).
+		ivp.
 			SetMajority(ifact).
 			SetSignFacts([]base.BallotSignFact{isignfact}).
 			SetThreshold(base.Threshold(100)).
@@ -428,7 +428,7 @@ func (t *testINITBallot) TestSignIsValid() {
 		t.NoError(isignfact.Sign(t.priv, t.networkID))
 
 		ivp := NewINITVoteproof(ifact.Point().Point)
-		ivp.SetResult(base.VoteResultMajority).
+		ivp.
 			SetMajority(ifact).
 			SetSignFacts([]base.BallotSignFact{isignfact}).
 			SetThreshold(base.Threshold(100)).
@@ -453,7 +453,7 @@ func (t *testINITBallot) TestSignIsValid() {
 		t.NoError(isignfact.Sign(t.priv, t.networkID))
 
 		ivp := NewINITVoteproof(ifact.Point().Point)
-		ivp.SetResult(base.VoteResultMajority).
+		ivp.
 			SetMajority(ifact).
 			SetSignFacts([]base.BallotSignFact{isignfact}).
 			SetThreshold(base.Threshold(100)).
@@ -496,7 +496,7 @@ func TestACCEPTBallot(tt *testing.T) {
 		t.NoError(isignfact.Sign(t.priv, t.networkID))
 
 		ivp := NewINITVoteproof(ifact.Point().Point)
-		ivp.SetResult(base.VoteResultMajority).
+		ivp.
 			SetMajority(ifact).
 			SetSignFacts([]base.BallotSignFact{isignfact}).
 			SetThreshold(base.Threshold(100)).
@@ -568,7 +568,7 @@ func (t *testBaseINITBallotWithVoteproof) TestWrongHeightINITVoteproofNone0Round
 	t.NoError(isignfact.Sign(t.priv, t.networkID))
 
 	ivp := NewINITVoteproof(ifact.Point().Point)
-	ivp.SetResult(base.VoteResultMajority).
+	ivp.
 		SetMajority(ifact).
 		SetSignFacts([]base.BallotSignFact{isignfact}).
 		SetThreshold(base.Threshold(100)).
@@ -663,7 +663,7 @@ func TestINITBallotJSON(tt *testing.T) {
 		t.NoError(asignfact.Sign(t.priv, t.networkID))
 
 		avp := NewACCEPTVoteproof(afact.Point().Point)
-		avp.SetResult(base.VoteResultMajority).
+		avp.
 			SetMajority(afact).
 			SetSignFacts([]base.BallotSignFact{asignfact}).
 			SetThreshold(base.Threshold(100)).
@@ -734,7 +734,7 @@ func TestACCEPTBallotJSON(tt *testing.T) {
 		t.NoError(isignfact.Sign(t.priv, t.networkID))
 
 		ivp := NewINITVoteproof(ifact.Point().Point)
-		ivp.SetResult(base.VoteResultMajority).
+		ivp.
 			SetMajority(ifact).
 			SetSignFacts([]base.BallotSignFact{isignfact}).
 			SetThreshold(base.Threshold(100)).

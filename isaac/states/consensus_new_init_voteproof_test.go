@@ -269,7 +269,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBefore() {
 	nextavp, drawivp := t.VoteproofsPair(point, point.NextHeight(), nil, t.PRPool.Hash(point), nil, nodes)
 	t.NoError(st.newVoteproof(nextavp))
 
-	t.T().Log("wait new block saved")
+	t.T().Log("wait new block saved:", point)
 	select {
 	case <-time.After(time.Second * 2):
 		t.NoError(errors.Errorf("timeout to wait save proposal processor"))
@@ -278,7 +278,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBefore() {
 	case <-savedch:
 	}
 
-	t.T().Log("wait next init ballot")
+	t.T().Log("wait next init ballot:", point.NextHeight())
 	select {
 	case <-time.After(time.Second * 2):
 		t.NoError(errors.Errorf("timeout to wait next init ballot"))
@@ -290,9 +290,9 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBefore() {
 
 	drawivp.SetResult(base.VoteResultDraw).Finish()
 
+	t.T().Log("new draw init voteproof:", drawivp.Point())
 	t.NoError(st.newVoteproof(drawivp))
 
-	t.T().Log("new draw init voteproof")
 	select {
 	case <-time.After(time.Second * 2):
 		t.NoError(errors.Errorf("timeout to wait next round init ballot"))
@@ -305,13 +305,14 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBefore() {
 	_, newivp := t.VoteproofsPair(point, drawivp.Point().Point.NextRound(), nextavp.BallotMajority().NewBlock(), nil, t.PRPool.Hash(drawivp.Point().Point.NextRound()), nodes)
 	t.NoError(st.newVoteproof(newivp))
 
-	t.T().Log("new init voteproof")
+	t.T().Log("next init voteproof:", newivp.Point())
 	select {
 	case <-time.After(time.Second * 2):
 		t.NoError(errors.Errorf("timeout to wait next round init ballot"))
 
 		return
 	case bl := <-ballotch:
+		t.T().Log("next accept ballot:", bl.Point())
 		t.Equal(drawivp.Point().Point.NextRound(), bl.Point().Point)
 	}
 }

@@ -242,7 +242,7 @@ func (vp INITVoteproof) BallotMajority() base.INITBallotFact {
 		return nil
 	}
 
-	return vp.majority.(INITBallotFact) //nolint:forcetypeassert //...
+	return vp.majority.(base.INITBallotFact) //nolint:forcetypeassert //...
 }
 
 func (vp INITVoteproof) BallotSignFacts() []base.INITBallotSignFact {

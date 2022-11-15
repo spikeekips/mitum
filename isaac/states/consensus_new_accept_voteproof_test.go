@@ -204,7 +204,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestOld() {
 	fact := t.PRPool.GetFact(point)
 	nextavp, _ := t.VoteproofsPair(point.PrevHeight(), point.NextHeight(), nil, fact.Hash(), nil, nodes)
 	t.NoError(st.newVoteproof(nextavp))
-	t.Nil(st.lastVoteproofs().ACCEPT())
+	t.Equal(st.lastVoteproofs().ACCEPT().Point().Point, point.PrevHeight())
 }
 
 func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestHiger() {

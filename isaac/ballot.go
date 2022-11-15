@@ -222,11 +222,6 @@ func (bl INITBallot) BallotSignFact() base.INITBallotSignFact {
 func (bl INITBallot) Withdraws() []base.SuffrageWithdrawOperation {
 	if bl.signFact != nil {
 		if _, ok := bl.signFact.Fact().(SIGNBallotFact); ok {
-			vp := bl.Voteproof()
-			if vp == nil {
-				return nil
-			}
-
 			switch w, ok := bl.Voteproof().(WithdrawVoteproof); {
 			case !ok:
 				return nil

@@ -65,7 +65,7 @@ func (t *BaseTestBallots) NewProposal(local LocalNode, fact ProposalFact) Propos
 }
 
 func (t *BaseTestBallots) NewINITVoteproof(
-	fact INITBallotFact,
+	fact base.INITBallotFact,
 	local LocalNode,
 	nodes []LocalNode,
 ) (INITVoteproof, error) {
@@ -89,7 +89,7 @@ func (t *BaseTestBallots) NewINITVoteproof(
 	}
 
 	vp := NewINITVoteproof(fact.Point().Point)
-	vp.SetResult(base.VoteResultMajority).
+	vp.
 		SetMajority(fact).
 		SetSignFacts(sfs).
 		SetThreshold(t.LocalParams.Threshold()).
@@ -123,7 +123,7 @@ func (t *BaseTestBallots) NewACCEPTVoteproof(
 	}
 
 	vp := NewACCEPTVoteproof(fact.Point().Point)
-	vp.SetResult(base.VoteResultMajority).
+	vp.
 		SetMajority(fact).
 		SetSignFacts(sfs).
 		SetThreshold(t.LocalParams.Threshold()).
@@ -202,6 +202,31 @@ func (t *BaseTestBallots) NetworkPolicyState(height base.Height, policy NetworkP
 	st.SetOperations([]util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256(), valuehash.RandomSHA256()})
 
 	return st, sv
+}
+
+func (t *BaseTestBallots) Withdraws(height base.Height, withdrawnodes []base.Address, signs []LocalNode) []base.SuffrageWithdrawOperation {
+	ops := make([]base.SuffrageWithdrawOperation, len(withdrawnodes))
+
+	for i := range withdrawnodes {
+		withdrawnode := withdrawnodes[i]
+
+		fact := NewSuffrageWithdrawFact(withdrawnode, height, height+1, util.UUID().String())
+		op := NewSuffrageWithdrawOperation(fact)
+
+		for j := range signs {
+			node := signs[j]
+
+			if node.Address().Equal(withdrawnode) {
+				continue
+			}
+
+			t.NoError(op.NodeSign(node.Privatekey(), t.LocalParams.NetworkID(), node.Address()))
+		}
+
+		ops[i] = op
+	}
+
+	return ops
 }
 
 type proposalPool struct {

@@ -280,11 +280,9 @@ func (srv *Memberlist) patch(config *memberlist.Config) error { // revive:disabl
 
 	config.SecretKey = nil
 
-	if config.Delegate != nil {
-		if i, ok := config.Delegate.(*Delegate); ok {
-			srv.delegate = i
-			srv.delegate.qu.NumNodes = srv.MembersLen
-		}
+	if i, ok := config.Delegate.(*Delegate); ok {
+		srv.delegate = i
+		srv.delegate.qu.NumNodes = srv.MembersLen
 	}
 
 	if i, ok := config.Alive.(*AliveDelegate); ok {
@@ -399,10 +397,6 @@ func (srv *Memberlist) SetWhenLeftFunc(f func(Node)) {
 }
 
 func (srv *Memberlist) SetNotifyMsg(f func([]byte)) {
-	if srv.mconfig.Delegate == nil {
-		return
-	}
-
 	i, ok := srv.mconfig.Delegate.(*Delegate)
 	if !ok {
 		return

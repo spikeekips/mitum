@@ -791,8 +791,6 @@ func unmarshalIndexedTreeNode(enc encoder.Encoder, b []byte, ht hint.Hint) (in i
 	switch i, err := enc.DecodeWithHint(left, ht); {
 	case err != nil:
 		return in, err
-	case i == nil:
-		return in, errors.Errorf("empty node")
 	default:
 		j, ok := i.(fixedtree.Node)
 		if !ok {

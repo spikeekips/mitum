@@ -53,8 +53,6 @@ func LoadNodesFromSuffrageCandidatesState(st State) ([]SuffrageCandidateStateVal
 	switch v := st.Value(); {
 	case st == nil:
 		return nil, nil
-	case v == nil:
-		return nil, errors.Errorf("empty value of state of SuffrageCandidateStateValue")
 	default:
 		i, ok := v.(SuffrageCandidatesStateValue)
 		if !ok {

@@ -720,7 +720,7 @@ func (t *testStates) TestMimicBallot() {
 		t.NoError(afs.Sign(local.Privatekey(), params.NetworkID()))
 
 		avp := isaac.NewACCEPTVoteproof(afact.Point().Point)
-		avp.SetResult(base.VoteResultMajority).
+		avp.
 			SetMajority(afact).
 			SetSignFacts([]base.BallotSignFact{afs}).
 			SetThreshold(100).

@@ -21,6 +21,10 @@ func (vp *baseVoteproof) SetResult(r base.VoteResult) *baseVoteproof {
 	case base.VoteResultNotYet:
 		vp.finishedAt = time.Time{}
 	case base.VoteResultMajority:
+		if vp.majority == nil {
+			panic("empty majority")
+		}
+
 		vp.finishedAt = localtime.UTCNow()
 	}
 

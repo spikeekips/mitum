@@ -102,7 +102,8 @@ func (t *baseTestConsensusHandler) newStateWithINITVoteproof(point base.Point, s
 		nodes[i] = sn[i].(isaac.LocalNode)
 	}
 
-	_, ivp := t.VoteproofsPair(point.PrevHeight(), point, nil, nil, fact.Hash(), nodes)
+	avp, ivp := t.VoteproofsPair(point.PrevHeight(), point, nil, nil, fact.Hash(), nodes)
+	t.True(st.setLastVoteproof(avp))
 	t.True(st.setLastVoteproof(ivp))
 
 	return st, closef, pp, ivp
