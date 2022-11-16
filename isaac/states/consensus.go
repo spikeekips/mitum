@@ -151,13 +151,15 @@ func (st *ConsensusHandler) processProposalFunc(ivp base.INITVoteproof) (func(co
 
 	switch i, err := st.processProposalInternal(ivp); {
 	case err == nil:
+		if i == nil {
+			l.Debug().Msg("empty manifest; ignore")
+
+			return nil, nil
+		}
+
 		process = i
 	case errors.Is(err, isaac.ErrNotProposalProcessorProcessed):
 		go st.nextRound(ivp, ivp.BallotMajority().PreviousBlock())
-
-		return nil, nil
-	case i == nil:
-		l.Debug().Msg("failed to process proposal; empty manifest; ignore")
 
 		return nil, nil
 	default:
@@ -325,7 +327,12 @@ func (st *ConsensusHandler) handleACCEPTVoteproofAfterProcessingProposal(
 	return saved, sctx
 }
 
-func (st *ConsensusHandler) prepareINITBallot(bl base.INITBallot, initialWait time.Duration, ids []util.TimerID) error {
+func (st *ConsensusHandler) prepareINITBallot(
+	bl base.INITBallot,
+	ids []util.TimerID,
+	initialWait time.Duration,
+	interval func(int, time.Duration) time.Duration,
+) error {
 	go func() {
 		<-time.After(initialWait)
 
@@ -342,11 +349,57 @@ func (st *ConsensusHandler) prepareINITBallot(bl base.INITBallot, initialWait ti
 		}
 	}()
 
-	if err := st.broadcastINITBallot(bl, initialWait); err != nil {
+	if err := st.broadcastINITBallot(bl, interval); err != nil {
 		return err
 	}
 
 	return st.timers.StartTimers(ids, true)
+}
+
+func (st *ConsensusHandler) prepareSIGNBallot(bl base.INITBallot) error {
+	go func() {
+		switch _, err := st.vote(bl); {
+		case err == nil:
+		case errors.Is(err, errFailedToVoteNotInConsensus):
+			st.Log().Debug().Err(err).Msg("failed to vote sign ballot; moves to syncing state")
+
+			go st.switchState(newSyncingSwitchContext(StateConsensus, bl.Point().Height()-1))
+		default:
+			st.Log().Debug().Err(err).Msg("failed to vote sign ballot; moves to broken state")
+
+			go st.switchState(newBrokenSwitchContext(StateConsensus, err))
+		}
+	}()
+
+	if err := broadcastBallot(
+		bl,
+		st.timers,
+		timerIDBroadcastSIGNBallot,
+		st.broadcastBallotFunc,
+		st.Log(),
+		func(i int, _ time.Duration) time.Duration {
+			lvp := st.lastVoteproofs().Cap()
+			if lvp.Point().Height() > bl.Point().Height() {
+				return 0
+			}
+
+			if i < 1 {
+				return time.Nanosecond
+			}
+
+			return st.params.IntervalBroadcastBallot()
+		},
+	); err != nil {
+		return err
+	}
+
+	return st.timers.StartTimers(
+		[]util.TimerID{
+			timerIDBroadcastSIGNBallot,
+			timerIDBroadcastACCEPTBallot,
+		},
+		true,
+	)
 }
 
 func (st *ConsensusHandler) prepareACCEPTBallot(
@@ -406,6 +459,7 @@ func (st *ConsensusHandler) prepareACCEPTBallot(
 
 	if err := st.timers.StartTimers([]util.TimerID{
 		timerIDBroadcastINITBallot,
+		timerIDBroadcastSIGNBallot,
 		timerIDBroadcastACCEPTBallot,
 	}, true); err != nil {
 		return e(err, "failed to start timers for broadcasting accept ballot")
@@ -674,13 +728,33 @@ func (st *ConsensusHandler) nextRound(vp base.Voteproof, previousBlock util.Hash
 
 	initialWait := time.Nanosecond
 	if d := time.Since(started); d < st.params.WaitPreparingINITBallot() {
-		initialWait = st.params.WaitPreparingINITBallot() - d
+		initialWait = st.params.WaitPreparingINITBallot() - d // FIXME remove duration?
 	}
 
-	if err := st.prepareINITBallot(bl, initialWait, []util.TimerID{
-		timerIDBroadcastINITBallot,
-		timerIDBroadcastACCEPTBallot,
-	}); err != nil {
+	if err := st.prepareINITBallot(
+		bl,
+		[]util.TimerID{
+			timerIDBroadcastINITBallot,
+			timerIDBroadcastSIGNBallot,
+			timerIDBroadcastACCEPTBallot,
+		},
+		initialWait,
+		func(i int, _ time.Duration) time.Duration {
+			lvp := st.lastVoteproofs().Cap()
+			if bl.Point().Compare(lvp.Point()) < 0 &&
+				bl.Point().Height() == lvp.Point().Height() &&
+				lvp.Point().Stage() == base.StageINIT &&
+				lvp.Result() == base.VoteResultMajority {
+				return 0
+			}
+
+			if i < 1 {
+				return initialWait
+			}
+
+			return st.params.IntervalBroadcastBallot()
+		},
+	); err != nil {
 		l.Error().Err(err).Msg("failed to prepare init ballot for next round")
 
 		return
@@ -723,10 +797,21 @@ func (st *ConsensusHandler) nextBlock(avp base.ACCEPTVoteproof) {
 		initialWait = st.params.WaitPreparingINITBallot() - d
 	}
 
-	if err := st.prepareINITBallot(bl, initialWait, []util.TimerID{
-		timerIDBroadcastINITBallot,
-		timerIDBroadcastACCEPTBallot,
-	}); err != nil {
+	if err := st.prepareINITBallot(
+		bl,
+		[]util.TimerID{
+			timerIDBroadcastINITBallot,
+			timerIDBroadcastACCEPTBallot,
+		},
+		initialWait,
+		func(i int, _ time.Duration) time.Duration {
+			if i < 1 {
+				return initialWait
+			}
+
+			return st.params.IntervalBroadcastBallot()
+		},
+	); err != nil {
 		l.Error().Err(err).Msg("failed to prepare init ballot for next block")
 
 		return
@@ -764,10 +849,7 @@ func (st *ConsensusHandler) suffrageSIGNVoting(vp base.Voteproof) {
 
 	bl := isaac.NewINITBallot(vp, sf, nil)
 
-	if err := st.prepareINITBallot(bl, time.Nanosecond, []util.TimerID{
-		timerIDBroadcastINITBallot,
-		timerIDBroadcastACCEPTBallot,
-	}); err != nil {
+	if err := st.prepareSIGNBallot(bl); err != nil {
 		l.Error().Err(err).Msg("failed to prepare sign ballot")
 
 		return

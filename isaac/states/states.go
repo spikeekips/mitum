@@ -17,6 +17,7 @@ var ErrIgnoreSwithingState = util.NewError("failed to switch state, but ignored"
 
 var (
 	timerIDBroadcastINITBallot   = util.TimerID("broadcast-init-ballot")
+	timerIDBroadcastSIGNBallot   = util.TimerID("broadcast-sign-ballot")
 	timerIDBroadcastACCEPTBallot = util.TimerID("broadcast-accept-ballot")
 )
 
@@ -68,6 +69,7 @@ func NewStates(
 		cs:                  nil,
 		timers: util.NewTimers([]util.TimerID{
 			timerIDBroadcastINITBallot,
+			timerIDBroadcastSIGNBallot,
 			timerIDBroadcastACCEPTBallot,
 		}, false),
 		lvps:              lvps,
@@ -512,10 +514,15 @@ func (st *States) mimicBallotFunc() (func(base.Ballot), func()) {
 				newbl,
 				timers,
 				timerid,
-				st.params.IntervalBroadcastBallot(),
-				time.Nanosecond,
 				st.broadcastBallotFunc,
 				st.Log(),
+				func(i int, _ time.Duration) time.Duration {
+					if i < 1 {
+						return time.Nanosecond
+					}
+
+					return st.params.IntervalBroadcastBallot()
+				},
 			); err != nil {
 				l.Error().Err(err).Msg("failed to broadcast mimic ballot")
 

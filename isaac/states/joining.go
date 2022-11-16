@@ -383,7 +383,16 @@ func (st *JoiningHandler) nextRound(vp base.Voteproof, prevBlock util.Hash) {
 		return
 	}
 
-	if err := st.broadcastINITBallot(bl, time.Nanosecond); err != nil {
+	if err := st.broadcastINITBallot(
+		bl,
+		func(i int, _ time.Duration) time.Duration {
+			if i < 1 {
+				return time.Nanosecond
+			}
+
+			return st.params.IntervalBroadcastBallot()
+		},
+	); err != nil {
 		l.Error().Err(err).Msg("failed to broadcast init ballot for next round")
 
 		return
@@ -441,7 +450,16 @@ func (st *JoiningHandler) nextBlock(avp base.ACCEPTVoteproof) {
 		return
 	}
 
-	if err := st.broadcastINITBallot(bl, time.Nanosecond); err != nil {
+	if err := st.broadcastINITBallot(
+		bl,
+		func(i int, _ time.Duration) time.Duration {
+			if i < 1 {
+				return time.Nanosecond
+			}
+
+			return st.params.IntervalBroadcastBallot()
+		},
+	); err != nil {
 		l.Error().Err(err).Msg("failed to broadcast init ballot for next block")
 
 		return

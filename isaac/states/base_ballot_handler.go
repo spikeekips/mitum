@@ -204,27 +204,35 @@ func (st *baseBallotHandler) prepareNextBlock(
 	return isaac.NewINITBallot(avp, sf, withdraws), nil
 }
 
-func (st *baseBallotHandler) broadcastINITBallot(bl base.Ballot, initialWait time.Duration) error {
+func (st *baseBallotHandler) broadcastINITBallot(bl base.Ballot, interval func(int, time.Duration) time.Duration) error {
 	return broadcastBallot(
 		bl,
 		st.timers,
 		timerIDBroadcastINITBallot,
-		st.params.IntervalBroadcastBallot(),
-		initialWait,
 		st.broadcastBallotFunc,
 		st.Log(),
+		interval,
 	)
 }
 
 func (st *baseBallotHandler) broadcastACCEPTBallot(bl base.Ballot, initialWait time.Duration) error {
+	if initialWait < 1 {
+		initialWait = time.Nanosecond //revive:disable-line:modifies-parameter
+	}
+
 	return broadcastBallot(
 		bl,
 		st.timers,
 		timerIDBroadcastACCEPTBallot,
-		st.params.IntervalBroadcastBallot(),
-		initialWait,
 		st.broadcastBallotFunc,
 		st.Log(),
+		func(i int, _ time.Duration) time.Duration {
+			if i < 1 {
+				return initialWait
+			}
+
+			return st.params.IntervalBroadcastBallot()
+		},
 	)
 }
 
@@ -289,19 +297,12 @@ func broadcastBallot(
 	bl base.Ballot,
 	timers *util.Timers,
 	timerid util.TimerID,
-	interval time.Duration,
-	initialWait time.Duration,
 	broadcastBallotFunc func(base.Ballot) error,
 	log *zerolog.Logger,
+	interval func(int, time.Duration) time.Duration,
 ) error {
-	iw := initialWait
-	if iw < 1 {
-		iw = time.Nanosecond
-	}
-
 	l := log.With().
 		Stringer("ballot_hash", bl.SignFact().Fact().Hash()).
-		Dur("initial_wait", iw).
 		Logger()
 	l.Debug().Interface("ballot", bl).Object("point", bl.Point()).Msg("trying to broadcast ballot")
 
@@ -309,21 +310,19 @@ func broadcastBallot(
 
 	ct := util.NewContextTimer(
 		timerid,
-		interval,
-		func(int) (bool, error) {
+		time.Nanosecond,
+		func(i int) (bool, error) {
 			if err := broadcastBallotFunc(bl); err != nil {
 				l.Error().Err(err).Msg("failed to broadcast ballot; keep going")
+
+				return true, nil
 			}
+
+			l.Debug().Msg("ballot broadcasted")
 
 			return true, nil
 		},
-	).SetInterval(func(i int, d time.Duration) time.Duration {
-		if i < 1 {
-			return iw
-		}
-
-		return d
-	})
+	).SetInterval(interval)
 
 	if err := timers.SetTimer(ct); err != nil {
 		return e(err, "")
