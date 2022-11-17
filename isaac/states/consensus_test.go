@@ -180,10 +180,11 @@ func (t *testConsensusHandler) TestFailedToFetchProposal() {
 
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
-	_, err = st.enter(StateJoining, sctx)
+	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
+	deferred()
 
-	t.Run("moves to next round", func() {
+	t.Run("intended wrong accept ballot", func() {
 		select {
 		case <-time.After(time.Second * 2):
 			t.NoError(errors.Errorf("timeout to wait next round init ballot"))
@@ -191,10 +192,10 @@ func (t *testConsensusHandler) TestFailedToFetchProposal() {
 			return
 		case bl := <-ballotch:
 			t.NoError(bl.IsValid(t.LocalParams.NetworkID()))
-			ibl, ok := bl.(base.INITBallot)
+			abl, ok := bl.(base.ACCEPTBallot)
 			t.True(ok)
 
-			t.Equal(ivp.Point().NextRound(), ibl.Point().Point)
+			t.Equal(ivp.Point().Point, abl.Point().Point)
 		}
 	})
 }

@@ -9,6 +9,8 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/storage"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/localtime"
+	"github.com/spikeekips/mitum/util/valuehash"
 )
 
 type ConsensusHandler struct {
@@ -140,8 +142,6 @@ func (st *ConsensusHandler) exit(sctx switchContext) (func(), error) {
 	return deferred, nil
 }
 
-// FIXME if stuck, moves to next round.
-
 func (st *ConsensusHandler) processProposalFunc(ivp base.INITVoteproof) (func(context.Context) error, error) {
 	facthash := ivp.BallotMajority().Proposal()
 	l := st.Log().With().Stringer("fact", facthash).Logger()
@@ -161,9 +161,25 @@ func (st *ConsensusHandler) processProposalFunc(ivp base.INITVoteproof) (func(co
 
 		process = i
 	case errors.Is(err, isaac.ErrNotProposalProcessorProcessed):
-		go st.nextRound(ivp, ivp.BallotMajority().PreviousBlock())
+		// NOTE instead of moving next round, intended-wrong accept ballot?
+		return func(context.Context) error {
+				dummy := isaac.NewManifest(
+					ivp.Point().Height(),
+					ivp.BallotMajority().PreviousBlock(),
+					valuehash.RandomSHA256(),
+					valuehash.RandomSHA256(),
+					valuehash.RandomSHA256(),
+					valuehash.RandomSHA256(),
+					localtime.Now(),
+				)
 
-		return nil, nil
+				if err = st.prepareACCEPTBallot(ivp, dummy, time.Nanosecond); err != nil {
+					return errors.WithMessage(err, "failed to prepare intended wrong accept ballot")
+				}
+
+				return nil
+			},
+			nil
 	default:
 		err = e(err, "")
 
