@@ -365,7 +365,7 @@ type localParamsJSONMarshaler struct {
 	Threshold                             base.Threshold            `json:"threshold,omitempty"`
 	IntervalBroadcastBallot               util.ReadableJSONDuration `json:"interval_broadcast_ballot,omitempty"`
 	WaitPreparingINITBallot               util.ReadableJSONDuration `json:"wait_preparing_init_ballot,omitempty"`
-	WaitPreparingNextRoundINITBallot      util.ReadableJSONDuration `json:"wait_preparing_next_round_init_ballot,omitempty"`
+	WaitPreparingNextRoundINITBallot      util.ReadableJSONDuration `json:"wait_preparing_next_round_init_ballot,omitempty"` //revive:disable-line:line-length-limit
 	TimeoutRequestProposal                util.ReadableJSONDuration `json:"timeout_request_proposal,omitempty"`
 	SyncSourceCheckerInterval             util.ReadableJSONDuration `json:"sync_source_checker_interval,omitempty"`
 	ValidProposalOperationExpire          util.ReadableJSONDuration `json:"valid_proposal_operation_expire,omitempty"`

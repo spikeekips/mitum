@@ -204,7 +204,10 @@ func (st *baseBallotHandler) prepareNextBlock(
 	return isaac.NewINITBallot(avp, sf, withdraws), nil
 }
 
-func (st *baseBallotHandler) broadcastINITBallot(bl base.Ballot, interval func(int, time.Duration) time.Duration) error {
+func (st *baseBallotHandler) broadcastINITBallot(
+	bl base.Ballot,
+	interval func(int, time.Duration) time.Duration,
+) error {
 	return broadcastBallot(
 		bl,
 		st.timers,
