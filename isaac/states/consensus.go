@@ -140,6 +140,8 @@ func (st *ConsensusHandler) exit(sctx switchContext) (func(), error) {
 	return deferred, nil
 }
 
+// FIXME if stuck, moves to next round.
+
 func (st *ConsensusHandler) processProposalFunc(ivp base.INITVoteproof) (func(context.Context) error, error) {
 	facthash := ivp.BallotMajority().Proposal()
 	l := st.Log().With().Stringer("fact", facthash).Logger()
@@ -727,8 +729,8 @@ func (st *ConsensusHandler) nextRound(vp base.Voteproof, previousBlock util.Hash
 	}
 
 	initialWait := time.Nanosecond
-	if d := time.Since(started); d < st.params.WaitPreparingINITBallot() {
-		initialWait = st.params.WaitPreparingINITBallot() - d // FIXME remove duration?
+	if d := time.Since(started); d < st.params.WaitPreparingNextRoundINITBallot() {
+		initialWait = st.params.WaitPreparingNextRoundINITBallot() - d
 	}
 
 	if err := st.prepareINITBallot(

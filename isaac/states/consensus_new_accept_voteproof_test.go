@@ -243,7 +243,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestDraw() {
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
 
-	st.params = t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
+	st.params = t.LocalParams.SetWaitPreparingNextRoundINITBallot(time.Nanosecond)
 
 	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
 		return base.NewDummyManifest(point.Height(), valuehash.RandomSHA256()), nil
