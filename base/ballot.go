@@ -10,9 +10,7 @@ type BallotFact interface {
 }
 
 type BallotSignFact interface {
-	util.HashByter
-	util.IsValider
-	SignFact
+	NodeSignFact
 	Node() Address
 	Signer() Publickey
 }

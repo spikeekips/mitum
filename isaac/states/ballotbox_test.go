@@ -67,8 +67,8 @@ func (t *baseTestBallotbox) initBallot(node isaac.LocalNode, nodes []isaac.Local
 			asfs := make([]base.BallotSignFact, len(nodes))
 			for i := range nodes {
 				n := nodes[i]
-				sf := isaac.NewACCEPTBallotSignFact(n.Address(), afact)
-				t.NoError(sf.Sign(n.Privatekey(), t.networkID))
+				sf := isaac.NewACCEPTBallotSignFact(afact)
+				t.NoError(sf.NodeSign(n.Privatekey(), t.networkID, n.Address()))
 				asfs[i] = sf
 			}
 
@@ -94,8 +94,8 @@ func (t *baseTestBallotbox) initBallot(node isaac.LocalNode, nodes []isaac.Local
 					ifact = isaac.NewINITBallotFact(point.PrevRound(), prev, valuehash.RandomSHA256(), withdrawfacts)
 				}
 
-				sf := isaac.NewINITBallotSignFact(n.Address(), ifact)
-				t.NoError(sf.Sign(n.Privatekey(), t.networkID))
+				sf := isaac.NewINITBallotSignFact(ifact)
+				t.NoError(sf.NodeSign(n.Privatekey(), t.networkID, n.Address()))
 				isfs[i] = sf
 			}
 
@@ -112,8 +112,8 @@ func (t *baseTestBallotbox) initBallot(node isaac.LocalNode, nodes []isaac.Local
 
 	fact := isaac.NewINITBallotFact(point, prev, proposal, withdrawfacts)
 
-	signfact := isaac.NewINITBallotSignFact(node.Address(), fact)
-	t.NoError(signfact.Sign(node.Privatekey(), t.networkID))
+	signfact := isaac.NewINITBallotSignFact(fact)
+	t.NoError(signfact.NodeSign(node.Privatekey(), t.networkID, node.Address()))
 
 	return isaac.NewINITBallot(vp, signfact, withdraws)
 }
@@ -131,8 +131,8 @@ func (t *baseTestBallotbox) acceptBallot(node isaac.LocalNode, nodes []isaac.Loc
 	isfs := make([]base.BallotSignFact, len(nodes))
 	for i := range nodes {
 		n := nodes[i]
-		sf := isaac.NewINITBallotSignFact(n.Address(), ifact)
-		t.NoError(sf.Sign(n.Privatekey(), t.networkID))
+		sf := isaac.NewINITBallotSignFact(ifact)
+		t.NoError(sf.NodeSign(n.Privatekey(), t.networkID, n.Address()))
 		isfs[i] = sf
 	}
 
@@ -146,9 +146,9 @@ func (t *baseTestBallotbox) acceptBallot(node isaac.LocalNode, nodes []isaac.Loc
 
 	fact := isaac.NewACCEPTBallotFact(point, pr, block, withdrawfacts)
 
-	signfact := isaac.NewACCEPTBallotSignFact(node.Address(), fact)
+	signfact := isaac.NewACCEPTBallotSignFact(fact)
 
-	t.NoError(signfact.Sign(node.Privatekey(), t.networkID))
+	t.NoError(signfact.NodeSign(node.Privatekey(), t.networkID, node.Address()))
 
 	return isaac.NewACCEPTBallot(ivp, signfact, withdraws)
 }
@@ -852,8 +852,8 @@ func (t *testBallotbox) TestDifferentSuffrage() {
 	asfs := make([]base.BallotSignFact, len(vnodes))
 	for i := range vnodes {
 		n := vnodes[i]
-		sf := isaac.NewACCEPTBallotSignFact(n.Address(), afact)
-		t.NoError(sf.Sign(n.Privatekey(), t.networkID))
+		sf := isaac.NewACCEPTBallotSignFact(afact)
+		t.NoError(sf.NodeSign(n.Privatekey(), t.networkID, n.Address()))
 		asfs[i] = sf
 	}
 
@@ -1416,8 +1416,8 @@ func (t *testBallotboxWithWithdraw) TestSignBallots() {
 		if node.Address().Equal(withdrawnode.Address()) {
 			continue
 		}
-		sf := isaac.NewINITBallotSignFact(node.Address(), ifact)
-		t.NoError(sf.Sign(node.Privatekey(), t.networkID))
+		sf := isaac.NewINITBallotSignFact(ifact)
+		t.NoError(sf.NodeSign(node.Privatekey(), t.networkID, node.Address()))
 
 		isfs[n] = sf
 		n++
@@ -1444,8 +1444,8 @@ func (t *testBallotboxWithWithdraw) TestSignBallots() {
 				continue
 			}
 
-			sf := isaac.NewINITBallotSignFact(node.Address(), sfact)
-			t.NoError(sf.Sign(node.Privatekey(), t.networkID))
+			sf := isaac.NewINITBallotSignFact(sfact)
+			t.NoError(sf.NodeSign(node.Privatekey(), t.networkID, node.Address()))
 
 			bl := isaac.NewINITBallot(ivp, sf, nil)
 			// t.T().Log("ballot:", t.StringMarshal(bl))
@@ -1509,8 +1509,8 @@ func (t *testBallotboxWithWithdraw) TestVoteproofFromSignBallots() {
 		if node.Address().Equal(withdrawnode.Address()) {
 			continue
 		}
-		sf := isaac.NewINITBallotSignFact(node.Address(), ifact)
-		t.NoError(sf.Sign(node.Privatekey(), t.networkID))
+		sf := isaac.NewINITBallotSignFact(ifact)
+		t.NoError(sf.NodeSign(node.Privatekey(), t.networkID, node.Address()))
 
 		isfs[n] = sf
 		n++
@@ -1538,8 +1538,8 @@ func (t *testBallotboxWithWithdraw) TestVoteproofFromSignBallots() {
 				continue
 			}
 
-			sf := isaac.NewINITBallotSignFact(node.Address(), sfact)
-			t.NoError(sf.Sign(node.Privatekey(), t.networkID))
+			sf := isaac.NewINITBallotSignFact(sfact)
+			t.NoError(sf.NodeSign(node.Privatekey(), t.networkID, node.Address()))
 
 			bl := isaac.NewINITBallot(ivp, sf, nil)
 			// t.T().Log("ballot:", t.StringMarshal(bl))

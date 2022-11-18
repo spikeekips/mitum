@@ -447,9 +447,9 @@ func (st *ConsensusHandler) prepareACCEPTBallot(
 		manifest.Hash(),
 		withdrawfacts,
 	)
-	signfact := isaac.NewACCEPTBallotSignFact(st.local.Address(), afact)
+	signfact := isaac.NewACCEPTBallotSignFact(afact)
 
-	if err := signfact.Sign(st.local.Privatekey(), st.params.NetworkID()); err != nil {
+	if err := signfact.NodeSign(st.local.Privatekey(), st.params.NetworkID(), st.local.Address()); err != nil {
 		return e(err, "")
 	}
 
@@ -857,9 +857,9 @@ func (st *ConsensusHandler) suffrageSIGNVoting(vp base.Voteproof) {
 		withdrawfacts,
 	)
 
-	sf := isaac.NewINITBallotSignFact(st.local.Address(), fact)
+	sf := isaac.NewINITBallotSignFact(fact)
 
-	if err := sf.Sign(st.local.Privatekey(), st.params.NetworkID()); err != nil {
+	if err := sf.NodeSign(st.local.Privatekey(), st.params.NetworkID(), st.local.Address()); err != nil {
 		go st.switchState(newBrokenSwitchContext(st.stt, errors.WithMessage(err, "failed to make sign ballot")))
 
 		return

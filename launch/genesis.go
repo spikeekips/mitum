@@ -214,8 +214,8 @@ func (g *GenesisBlockGenerator) initVoetproof() error {
 		return e(err, "")
 	}
 
-	sf := isaac.NewINITBallotSignFact(g.local.Address(), fact)
-	if err := sf.Sign(g.local.Privatekey(), g.networkID); err != nil {
+	sf := isaac.NewINITBallotSignFact(fact)
+	if err := sf.NodeSign(g.local.Privatekey(), g.networkID, g.local.Address()); err != nil {
 		return e(err, "")
 	}
 
@@ -249,8 +249,8 @@ func (g *GenesisBlockGenerator) acceptVoteproof(proposal, newblock util.Hash) er
 		return e(err, "")
 	}
 
-	sf := isaac.NewACCEPTBallotSignFact(g.local.Address(), fact)
-	if err := sf.Sign(g.local.Privatekey(), g.networkID); err != nil {
+	sf := isaac.NewACCEPTBallotSignFact(fact)
+	if err := sf.NodeSign(g.local.Privatekey(), g.networkID, g.local.Address()); err != nil {
 		return e(err, "")
 	}
 

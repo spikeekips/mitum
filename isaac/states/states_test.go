@@ -716,8 +716,8 @@ func (t *testStates) TestMimicBallot() {
 
 	newINITBallot := func(local base.LocalNode) base.Ballot {
 		afact := isaac.NewACCEPTBallotFact(base.RawPoint(32, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
-		afs := isaac.NewACCEPTBallotSignFact(local.Address(), afact)
-		t.NoError(afs.Sign(local.Privatekey(), params.NetworkID()))
+		afs := isaac.NewACCEPTBallotSignFact(afact)
+		t.NoError(afs.NodeSign(local.Privatekey(), params.NetworkID(), local.Address()))
 
 		avp := isaac.NewACCEPTVoteproof(afact.Point().Point)
 		avp.
@@ -727,7 +727,8 @@ func (t *testStates) TestMimicBallot() {
 			Finish()
 
 		ifact := isaac.NewINITBallotFact(base.RawPoint(33, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
-		ifs := isaac.NewINITBallotSignFact(local.Address(), ifact)
+		ifs := isaac.NewINITBallotSignFact(ifact)
+		t.NoError(ifs.NodeSign(local.Privatekey(), params.NetworkID(), local.Address()))
 
 		return isaac.NewINITBallot(avp, ifs, nil)
 	}

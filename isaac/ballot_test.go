@@ -244,8 +244,8 @@ func (t *testINITBallot) SetupSuite() {
 		block := valuehash.RandomSHA256()
 		afact := NewACCEPTBallotFact(base.NewPoint(point.Height()-1, 44), valuehash.RandomSHA256(), block, nil)
 
-		asignfact := NewACCEPTBallotSignFact(base.RandomAddress(""), afact)
-		t.NoError(asignfact.Sign(t.priv, t.networkID))
+		asignfact := NewACCEPTBallotSignFact(afact)
+		t.NoError(asignfact.NodeSign(t.priv, t.networkID, base.RandomAddress("")))
 
 		avp := NewACCEPTVoteproof(afact.Point().Point)
 		avp.
@@ -256,8 +256,8 @@ func (t *testINITBallot) SetupSuite() {
 
 		fact := NewINITBallotFact(point, block, valuehash.RandomSHA256(), withdrawfacts)
 
-		signfact := NewINITBallotSignFact(base.RandomAddress(""), fact)
-		t.NoError(signfact.Sign(t.priv, t.networkID))
+		signfact := NewINITBallotSignFact(fact)
+		t.NoError(signfact.NodeSign(t.priv, t.networkID, base.RandomAddress("")))
 
 		ws := make([]base.SuffrageWithdrawOperation, len(withdraws))
 		for i := range withdraws {
@@ -278,8 +278,8 @@ func (t *testINITBallot) TestSignIsValid() {
 	t.Run("valid", func() {
 		ifact := NewINITBallotFact(point.PrevRound(), valuehash.RandomSHA256(), valuehash.RandomSHA256(), []util.Hash{withdrawfact.Hash()})
 
-		isignfact := NewINITBallotSignFact(base.RandomAddress(""), ifact)
-		t.NoError(isignfact.Sign(t.priv, t.networkID))
+		isignfact := NewINITBallotSignFact(ifact)
+		t.NoError(isignfact.NodeSign(t.priv, t.networkID, base.RandomAddress("")))
 
 		ivp := NewINITVoteproof(ifact.Point().Point)
 		ivp.
@@ -290,8 +290,8 @@ func (t *testINITBallot) TestSignIsValid() {
 			Finish()
 
 		fact := NewSIGNBallotFact(point, ifact.PreviousBlock(), ifact.Proposal(), []util.Hash{withdrawfact.Hash()})
-		signfact := NewINITBallotSignFact(base.RandomAddress(""), fact)
-		t.NoError(signfact.Sign(t.priv, t.networkID))
+		signfact := NewINITBallotSignFact(fact)
+		t.NoError(signfact.NodeSign(t.priv, t.networkID, base.RandomAddress("")))
 
 		bl := NewINITBallot(ivp, signfact, nil)
 		t.NoError(bl.IsValid(t.networkID))
@@ -300,8 +300,8 @@ func (t *testINITBallot) TestSignIsValid() {
 	t.Run("not empty withdraws", func() {
 		ifact := NewINITBallotFact(point.PrevRound(), valuehash.RandomSHA256(), valuehash.RandomSHA256(), []util.Hash{withdrawfact.Hash()})
 
-		isignfact := NewINITBallotSignFact(base.RandomAddress(""), ifact)
-		t.NoError(isignfact.Sign(t.priv, t.networkID))
+		isignfact := NewINITBallotSignFact(ifact)
+		t.NoError(isignfact.NodeSign(t.priv, t.networkID, base.RandomAddress("")))
 
 		ivp := NewINITVoteproof(ifact.Point().Point)
 		ivp.
@@ -312,8 +312,8 @@ func (t *testINITBallot) TestSignIsValid() {
 			Finish()
 
 		fact := NewSIGNBallotFact(point, ifact.PreviousBlock(), ifact.Proposal(), []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()})
-		signfact := NewINITBallotSignFact(base.RandomAddress(""), fact)
-		t.NoError(signfact.Sign(t.priv, t.networkID))
+		signfact := NewINITBallotSignFact(fact)
+		t.NoError(signfact.NodeSign(t.priv, t.networkID, base.RandomAddress("")))
 
 		bl := NewINITBallot(ivp, signfact, []base.SuffrageWithdrawOperation{withdraw})
 		err := bl.IsValid(t.networkID)
@@ -325,8 +325,8 @@ func (t *testINITBallot) TestSignIsValid() {
 	t.Run("number of withdraws not matched", func() {
 		ifact := NewINITBallotFact(point.PrevRound(), valuehash.RandomSHA256(), valuehash.RandomSHA256(), []util.Hash{withdrawfact.Hash()})
 
-		isignfact := NewINITBallotSignFact(base.RandomAddress(""), ifact)
-		t.NoError(isignfact.Sign(t.priv, t.networkID))
+		isignfact := NewINITBallotSignFact(ifact)
+		t.NoError(isignfact.NodeSign(t.priv, t.networkID, base.RandomAddress("")))
 
 		ivp := NewINITVoteproof(ifact.Point().Point)
 		ivp.
@@ -337,8 +337,8 @@ func (t *testINITBallot) TestSignIsValid() {
 			Finish()
 
 		fact := NewSIGNBallotFact(point, ifact.PreviousBlock(), ifact.Proposal(), []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()})
-		signfact := NewINITBallotSignFact(base.RandomAddress(""), fact)
-		t.NoError(signfact.Sign(t.priv, t.networkID))
+		signfact := NewINITBallotSignFact(fact)
+		t.NoError(signfact.NodeSign(t.priv, t.networkID, base.RandomAddress("")))
 
 		bl := NewINITBallot(ivp, signfact, nil)
 		err := bl.IsValid(t.networkID)
@@ -351,8 +351,8 @@ func (t *testINITBallot) TestSignIsValid() {
 		block := valuehash.RandomSHA256()
 		afact := NewACCEPTBallotFact(base.NewPoint(point.Height()-1, 44), valuehash.RandomSHA256(), block, nil)
 
-		asignfact := NewACCEPTBallotSignFact(base.RandomAddress(""), afact)
-		t.NoError(asignfact.Sign(t.priv, t.networkID))
+		asignfact := NewACCEPTBallotSignFact(afact)
+		t.NoError(asignfact.NodeSign(t.priv, t.networkID, base.RandomAddress("")))
 
 		avp := NewACCEPTVoteproof(afact.Point().Point)
 		avp.
@@ -362,8 +362,8 @@ func (t *testINITBallot) TestSignIsValid() {
 			Finish()
 
 		fact := NewSIGNBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), []util.Hash{withdrawfact.Hash()})
-		signfact := NewINITBallotSignFact(base.RandomAddress(""), fact)
-		t.NoError(signfact.Sign(t.priv, t.networkID))
+		signfact := NewINITBallotSignFact(fact)
+		t.NoError(signfact.NodeSign(t.priv, t.networkID, base.RandomAddress("")))
 
 		bl := NewINITBallot(avp, signfact, nil)
 		err := bl.IsValid(t.networkID)
@@ -376,8 +376,8 @@ func (t *testINITBallot) TestSignIsValid() {
 	t.Run("empty withdraws in voteproof", func() {
 		ifact := NewINITBallotFact(point.PrevRound(), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
 
-		isignfact := NewINITBallotSignFact(base.RandomAddress(""), ifact)
-		t.NoError(isignfact.Sign(t.priv, t.networkID))
+		isignfact := NewINITBallotSignFact(ifact)
+		t.NoError(isignfact.NodeSign(t.priv, t.networkID, base.RandomAddress("")))
 
 		ivp := NewINITVoteproof(ifact.Point().Point)
 		ivp.
@@ -387,8 +387,8 @@ func (t *testINITBallot) TestSignIsValid() {
 			Finish()
 
 		fact := NewSIGNBallotFact(point, ifact.PreviousBlock(), ifact.Proposal(), []util.Hash{withdrawfact.Hash()})
-		signfact := NewINITBallotSignFact(base.RandomAddress(""), fact)
-		t.NoError(signfact.Sign(t.priv, t.networkID))
+		signfact := NewINITBallotSignFact(fact)
+		t.NoError(signfact.NodeSign(t.priv, t.networkID, base.RandomAddress("")))
 
 		bl := NewINITBallot(ivp, signfact, nil)
 		err := bl.IsValid(t.networkID)
@@ -400,8 +400,8 @@ func (t *testINITBallot) TestSignIsValid() {
 	t.Run("not majority in voteproof", func() {
 		ifact := NewINITBallotFact(point.PrevRound(), valuehash.RandomSHA256(), valuehash.RandomSHA256(), []util.Hash{withdrawfact.Hash()})
 
-		isignfact := NewINITBallotSignFact(base.RandomAddress(""), ifact)
-		t.NoError(isignfact.Sign(t.priv, t.networkID))
+		isignfact := NewINITBallotSignFact(ifact)
+		t.NoError(isignfact.NodeSign(t.priv, t.networkID, base.RandomAddress("")))
 
 		ivp := NewINITVoteproof(ifact.Point().Point)
 		ivp.
@@ -411,8 +411,8 @@ func (t *testINITBallot) TestSignIsValid() {
 			Finish()
 
 		fact := NewSIGNBallotFact(point, ifact.PreviousBlock(), ifact.Proposal(), []util.Hash{withdrawfact.Hash()})
-		signfact := NewINITBallotSignFact(base.RandomAddress(""), fact)
-		t.NoError(signfact.Sign(t.priv, t.networkID))
+		signfact := NewINITBallotSignFact(fact)
+		t.NoError(signfact.NodeSign(t.priv, t.networkID, base.RandomAddress("")))
 
 		bl := NewINITBallot(ivp, signfact, nil)
 		err := bl.IsValid(t.networkID)
@@ -424,8 +424,8 @@ func (t *testINITBallot) TestSignIsValid() {
 	t.Run("wrong previous block", func() {
 		ifact := NewINITBallotFact(point.PrevRound(), valuehash.RandomSHA256(), valuehash.RandomSHA256(), []util.Hash{withdrawfact.Hash()})
 
-		isignfact := NewINITBallotSignFact(base.RandomAddress(""), ifact)
-		t.NoError(isignfact.Sign(t.priv, t.networkID))
+		isignfact := NewINITBallotSignFact(ifact)
+		t.NoError(isignfact.NodeSign(t.priv, t.networkID, base.RandomAddress("")))
 
 		ivp := NewINITVoteproof(ifact.Point().Point)
 		ivp.
@@ -436,8 +436,8 @@ func (t *testINITBallot) TestSignIsValid() {
 			Finish()
 
 		fact := NewSIGNBallotFact(point, valuehash.RandomSHA256(), ifact.Proposal(), []util.Hash{withdrawfact.Hash()})
-		signfact := NewINITBallotSignFact(base.RandomAddress(""), fact)
-		t.NoError(signfact.Sign(t.priv, t.networkID))
+		signfact := NewINITBallotSignFact(fact)
+		t.NoError(signfact.NodeSign(t.priv, t.networkID, base.RandomAddress("")))
 
 		bl := NewINITBallot(ivp, signfact, nil)
 		err := bl.IsValid(t.networkID)
@@ -449,8 +449,8 @@ func (t *testINITBallot) TestSignIsValid() {
 	t.Run("wrong proposal block", func() {
 		ifact := NewINITBallotFact(point.PrevRound(), valuehash.RandomSHA256(), valuehash.RandomSHA256(), []util.Hash{withdrawfact.Hash()})
 
-		isignfact := NewINITBallotSignFact(base.RandomAddress(""), ifact)
-		t.NoError(isignfact.Sign(t.priv, t.networkID))
+		isignfact := NewINITBallotSignFact(ifact)
+		t.NoError(isignfact.NodeSign(t.priv, t.networkID, base.RandomAddress("")))
 
 		ivp := NewINITVoteproof(ifact.Point().Point)
 		ivp.
@@ -461,8 +461,8 @@ func (t *testINITBallot) TestSignIsValid() {
 			Finish()
 
 		fact := NewSIGNBallotFact(point, ifact.PreviousBlock(), valuehash.RandomSHA256(), []util.Hash{withdrawfact.Hash()})
-		signfact := NewINITBallotSignFact(base.RandomAddress(""), fact)
-		t.NoError(signfact.Sign(t.priv, t.networkID))
+		signfact := NewINITBallotSignFact(fact)
+		t.NoError(signfact.NodeSign(t.priv, t.networkID, base.RandomAddress("")))
 
 		bl := NewINITBallot(ivp, signfact, nil)
 		err := bl.IsValid(t.networkID)
@@ -492,8 +492,8 @@ func TestACCEPTBallot(tt *testing.T) {
 			iwithdrawfacts,
 		)
 
-		isignfact := NewINITBallotSignFact(node, ifact)
-		t.NoError(isignfact.Sign(t.priv, t.networkID))
+		isignfact := NewINITBallotSignFact(ifact)
+		t.NoError(isignfact.NodeSign(t.priv, t.networkID, node))
 
 		ivp := NewINITVoteproof(ifact.Point().Point)
 		ivp.
@@ -505,9 +505,9 @@ func TestACCEPTBallot(tt *testing.T) {
 
 		fact := NewACCEPTBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), withdrawfacts)
 
-		signfact := NewACCEPTBallotSignFact(base.RandomAddress(""), fact)
+		signfact := NewACCEPTBallotSignFact(fact)
 
-		t.NoError(signfact.Sign(t.priv, t.networkID))
+		t.NoError(signfact.NodeSign(t.priv, t.networkID, base.RandomAddress("")))
 
 		ws := make([]base.SuffrageWithdrawOperation, len(withdraws))
 		for i := range withdraws {
@@ -536,9 +536,9 @@ func (t *testBaseINITBallotWithVoteproof) TestValidINITVoteproofNone0Round() {
 
 	ifact := NewINITBallotFact(base.RawPoint(44, 55), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
 
-	isignfact := NewINITBallotSignFact(node, ifact)
+	isignfact := NewINITBallotSignFact(ifact)
 
-	t.NoError(isignfact.Sign(t.priv, t.networkID))
+	t.NoError(isignfact.NodeSign(t.priv, t.networkID, node))
 
 	ivp := NewINITVoteproof(ifact.Point().Point)
 	ivp.SetResult(base.VoteResultDraw).
@@ -548,9 +548,9 @@ func (t *testBaseINITBallotWithVoteproof) TestValidINITVoteproofNone0Round() {
 
 	fact := NewINITBallotFact(base.NewPoint(ifact.Point().Height(), ifact.Point().Round()+1), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
 
-	signfact := NewINITBallotSignFact(base.RandomAddress(""), fact)
+	signfact := NewINITBallotSignFact(fact)
 
-	t.NoError(signfact.Sign(t.priv, t.networkID))
+	t.NoError(signfact.NodeSign(t.priv, t.networkID, base.RandomAddress("")))
 
 	bl := NewINITBallot(ivp, signfact, nil)
 
@@ -563,9 +563,9 @@ func (t *testBaseINITBallotWithVoteproof) TestWrongHeightINITVoteproofNone0Round
 	point := base.RawPoint(33, 44)
 	ifact := NewINITBallotFact(base.NewPoint(point.Height()+2, base.Round(55)), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
 
-	isignfact := NewINITBallotSignFact(node, ifact)
+	isignfact := NewINITBallotSignFact(ifact)
 
-	t.NoError(isignfact.Sign(t.priv, t.networkID))
+	t.NoError(isignfact.NodeSign(t.priv, t.networkID, node))
 
 	ivp := NewINITVoteproof(ifact.Point().Point)
 	ivp.
@@ -576,9 +576,9 @@ func (t *testBaseINITBallotWithVoteproof) TestWrongHeightINITVoteproofNone0Round
 
 	fact := NewINITBallotFact(base.NewPoint(point.Height()+1, ifact.Point().Round()+1), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
 
-	signfact := NewINITBallotSignFact(base.RandomAddress(""), fact)
+	signfact := NewINITBallotSignFact(fact)
 
-	t.NoError(signfact.Sign(t.priv, t.networkID))
+	t.NoError(signfact.NodeSign(t.priv, t.networkID, base.RandomAddress("")))
 
 	bl := NewINITBallot(ivp, signfact, nil)
 
@@ -658,9 +658,9 @@ func TestINITBallotJSON(tt *testing.T) {
 		block := valuehash.RandomSHA256()
 		afact := NewACCEPTBallotFact(base.RawPoint(33, 44), valuehash.RandomSHA256(), block, nil)
 
-		asignfact := NewACCEPTBallotSignFact(node, afact)
+		asignfact := NewACCEPTBallotSignFact(afact)
 
-		t.NoError(asignfact.Sign(t.priv, t.networkID))
+		t.NoError(asignfact.NodeSign(t.priv, t.networkID, node))
 
 		avp := NewACCEPTVoteproof(afact.Point().Point)
 		avp.
@@ -682,9 +682,9 @@ func TestINITBallotJSON(tt *testing.T) {
 
 		fact := NewINITBallotFact(base.NewPoint(afact.Point().Height()+1, base.Round(0)), block, valuehash.RandomSHA256(), withdrawfacts)
 
-		signfact := NewINITBallotSignFact(node, fact)
+		signfact := NewINITBallotSignFact(fact)
 
-		t.NoError(signfact.Sign(t.priv, t.networkID))
+		t.NoError(signfact.NodeSign(t.priv, t.networkID, node))
 
 		bl := NewINITBallot(avp, signfact, withdraws)
 
@@ -729,9 +729,9 @@ func TestACCEPTBallotJSON(tt *testing.T) {
 
 		ifact := NewINITBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), withdrawfacts)
 
-		isignfact := NewINITBallotSignFact(node, ifact)
+		isignfact := NewINITBallotSignFact(ifact)
 
-		t.NoError(isignfact.Sign(t.priv, t.networkID))
+		t.NoError(isignfact.NodeSign(t.priv, t.networkID, node))
 
 		ivp := NewINITVoteproof(ifact.Point().Point)
 		ivp.
@@ -743,9 +743,9 @@ func TestACCEPTBallotJSON(tt *testing.T) {
 
 		fact := NewACCEPTBallotFact(ifact.Point().Point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), withdrawfacts)
 
-		signfact := NewACCEPTBallotSignFact(node, fact)
+		signfact := NewACCEPTBallotSignFact(fact)
 
-		t.NoError(signfact.Sign(t.priv, t.networkID))
+		t.NoError(signfact.NodeSign(t.priv, t.networkID, node))
 
 		bl := NewACCEPTBallot(ivp, signfact, withdraws)
 

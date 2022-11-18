@@ -493,12 +493,12 @@ func (t *testWithdrawsConsensusHandler) TestSIGNAfterDrawINITVoteproof() {
 
 		if n.Address().Equal(withdrawnode.Address()) {
 			fact := isaac.NewINITBallotFact(nextpoint, afact.NewBlock(), t.PRPool.Hash(nextpoint), nil)
-			fs = isaac.NewINITBallotSignFact(n.Address(), fact)
+			fs = isaac.NewINITBallotSignFact(fact)
 		} else {
-			fs = isaac.NewINITBallotSignFact(n.Address(), ifact)
+			fs = isaac.NewINITBallotSignFact(ifact)
 		}
 
-		t.NoError(fs.Sign(n.Privatekey(), t.LocalParams.NetworkID()))
+		t.NoError(fs.NodeSign(n.Privatekey(), t.LocalParams.NetworkID(), n.Address()))
 
 		isfs[i] = fs
 	}
@@ -607,12 +607,12 @@ func (t *testWithdrawsConsensusHandler) TestReversalAfterDrawINITVoteproof() {
 
 		if n.Address().Equal(withdrawnode.Address()) {
 			fact := isaac.NewINITBallotFact(nextpoint, afact.NewBlock(), t.PRPool.Hash(nextpoint), nil)
-			fs = isaac.NewINITBallotSignFact(n.Address(), fact)
+			fs = isaac.NewINITBallotSignFact(fact)
 		} else {
-			fs = isaac.NewINITBallotSignFact(n.Address(), ifact)
+			fs = isaac.NewINITBallotSignFact(ifact)
 		}
 
-		t.NoError(fs.Sign(n.Privatekey(), t.LocalParams.NetworkID()))
+		t.NoError(fs.NodeSign(n.Privatekey(), t.LocalParams.NetworkID(), n.Address()))
 
 		if !n.Address().Equal(withdrawnode.Address()) {
 			majoritysfs = append(majoritysfs, fs)

@@ -80,8 +80,8 @@ func (t *BaseTestBallots) NewINITVoteproof(
 	sfs := make([]base.BallotSignFact, len(suffrage))
 	for i := range suffrage {
 		n := suffrage[i]
-		fs := NewINITBallotSignFact(n.Address(), fact)
-		if err := fs.Sign(n.Privatekey(), t.LocalParams.NetworkID()); err != nil {
+		fs := NewINITBallotSignFact(fact)
+		if err := fs.NodeSign(n.Privatekey(), t.LocalParams.NetworkID(), n.Address()); err != nil {
 			return INITVoteproof{}, err
 		}
 
@@ -114,8 +114,8 @@ func (t *BaseTestBallots) NewACCEPTVoteproof(
 	sfs := make([]base.BallotSignFact, len(suffrage))
 	for i := range suffrage {
 		n := suffrage[i]
-		fs := NewACCEPTBallotSignFact(n.Address(), fact)
-		if err := fs.Sign(n.Privatekey(), t.LocalParams.NetworkID()); err != nil {
+		fs := NewACCEPTBallotSignFact(fact)
+		if err := fs.NodeSign(n.Privatekey(), t.LocalParams.NetworkID(), n.Address()); err != nil {
 			return ACCEPTVoteproof{}, err
 		}
 

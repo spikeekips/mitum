@@ -605,17 +605,17 @@ func mimicBallot(
 	case isaac.INITBallotFact, isaac.SIGNBallotFact:
 		ifact := t.(base.INITBallotFact) //nolint:forcetypeassert //...
 
-		sf := isaac.NewINITBallotSignFact(local.Address(), ifact)
+		sf := isaac.NewINITBallotSignFact(ifact)
 
-		if err := sf.Sign(local.Privatekey(), params.NetworkID()); err != nil {
+		if err := sf.NodeSign(local.Privatekey(), params.NetworkID(), local.Address()); err != nil {
 			return nil, err
 		}
 
 		newbl = isaac.NewINITBallot(voteproof, sf, withdraws)
 	case isaac.ACCEPTBallotFact:
-		sf := isaac.NewACCEPTBallotSignFact(local.Address(), t)
+		sf := isaac.NewACCEPTBallotSignFact(t)
 
-		if err := sf.Sign(local.Privatekey(), params.NetworkID()); err != nil {
+		if err := sf.NodeSign(local.Privatekey(), params.NetworkID(), local.Address()); err != nil {
 			return nil, err
 		}
 

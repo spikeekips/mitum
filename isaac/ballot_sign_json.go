@@ -11,14 +11,12 @@ import (
 )
 
 type baseBallotSignFactJSONMarshaler struct {
-	Fact base.BallotFact `json:"fact"`
-	Node base.Address    `json:"node"`
-	Sign base.BaseSign   `json:"sign"`
+	Fact base.BallotFact   `json:"fact"`
+	Sign base.BaseNodeSign `json:"sign"`
 	hint.BaseHinter
 }
 
 type baseBallotSignFactJSONUnmarshaler struct {
-	Node string          `json:"node"`
 	Fact json.RawMessage `json:"fact"`
 	Sign json.RawMessage `json:"sign"`
 	hint.BaseHinter
@@ -28,7 +26,6 @@ func (sf baseBallotSignFact) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(baseBallotSignFactJSONMarshaler{
 		BaseHinter: sf.BaseHinter,
 		Fact:       sf.fact,
-		Node:       sf.node,
 		Sign:       sf.sign,
 	})
 }
@@ -43,13 +40,6 @@ func (sf *baseBallotSignFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 
 	if err := encoder.Decode(enc, u.Fact, &sf.fact); err != nil {
 		return e(err, "failed to decode fact")
-	}
-
-	switch i, err := base.DecodeAddress(u.Node, enc); {
-	case err != nil:
-		return e(err, "failed to decode address")
-	default:
-		sf.node = i
 	}
 
 	if err := sf.sign.DecodeJSON(u.Sign, enc); err != nil {

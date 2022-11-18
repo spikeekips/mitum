@@ -15,22 +15,20 @@ var (
 
 type baseBallotSignFact struct {
 	fact base.BallotFact
-	node base.Address
-	sign base.BaseSign
+	sign base.BaseNodeSign
 	util.DefaultJSONMarshaled
 	hint.BaseHinter
 }
 
-func newBaseBallotSignFact(ht hint.Hint, node base.Address, fact base.BallotFact) baseBallotSignFact {
+func newBaseBallotSignFact(ht hint.Hint, fact base.BallotFact) baseBallotSignFact {
 	return baseBallotSignFact{
 		BaseHinter: hint.NewBaseHinter(ht),
 		fact:       fact,
-		node:       node,
 	}
 }
 
 func (sf baseBallotSignFact) Node() base.Address {
-	return sf.node
+	return sf.sign.Node()
 }
 
 func (sf baseBallotSignFact) Signer() base.Publickey {
@@ -45,18 +43,18 @@ func (sf baseBallotSignFact) Fact() base.Fact {
 	return sf.fact
 }
 
+func (sf baseBallotSignFact) NodeSigns() []base.NodeSign {
+	return []base.NodeSign{sf.sign}
+}
+
 func (baseBallotSignFact) IsValid([]byte) error {
 	return nil
 }
 
-func (sf *baseBallotSignFact) Sign(priv base.Privatekey, networkID base.NetworkID) error {
-	sign, err := base.NewBaseSignFromFact(
-		priv,
-		networkID,
-		sf.fact,
-	)
+func (sf *baseBallotSignFact) NodeSign(priv base.Privatekey, networkID base.NetworkID, node base.Address) error {
+	sign, err := base.NewBaseNodeSignFromFact(node, priv, networkID, sf.fact)
 	if err != nil {
-		return errors.Wrap(err, "failed to sign BaseSeal")
+		return errors.Wrap(err, "failed to sign base ballot sign fact")
 	}
 
 	sf.sign = sign
@@ -65,16 +63,16 @@ func (sf *baseBallotSignFact) Sign(priv base.Privatekey, networkID base.NetworkI
 }
 
 func (sf baseBallotSignFact) HashBytes() []byte {
-	return util.ConcatByters(sf.BaseHinter, sf.sign, sf.node)
+	return util.ConcatByters(sf.BaseHinter, sf.sign)
 }
 
 type INITBallotSignFact struct {
 	baseBallotSignFact
 }
 
-func NewINITBallotSignFact(node base.Address, fact base.INITBallotFact) INITBallotSignFact {
+func NewINITBallotSignFact(fact base.INITBallotFact) INITBallotSignFact {
 	return INITBallotSignFact{
-		baseBallotSignFact: newBaseBallotSignFact(INITBallotSignFactHint, node, fact),
+		baseBallotSignFact: newBaseBallotSignFact(INITBallotSignFactHint, fact),
 	}
 }
 
@@ -98,9 +96,9 @@ type ACCEPTBallotSignFact struct {
 	baseBallotSignFact
 }
 
-func NewACCEPTBallotSignFact(node base.Address, fact ACCEPTBallotFact) ACCEPTBallotSignFact {
+func NewACCEPTBallotSignFact(fact ACCEPTBallotFact) ACCEPTBallotSignFact {
 	return ACCEPTBallotSignFact{
-		baseBallotSignFact: newBaseBallotSignFact(ACCEPTBallotSignFactHint, node, fact),
+		baseBallotSignFact: newBaseBallotSignFact(ACCEPTBallotSignFactHint, fact),
 	}
 }
 

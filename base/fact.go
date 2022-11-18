@@ -20,6 +20,7 @@ type Facter interface {
 
 type SignFact interface {
 	util.HashByter
+	util.IsValider
 	Fact() Fact
 	Signs() []Sign
 }
