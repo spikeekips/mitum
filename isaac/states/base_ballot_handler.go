@@ -124,9 +124,9 @@ func (st *baseBallotHandler) prepareNextRound(
 		pr.Fact().Hash(),
 		withdrawfacts,
 	)
-	sf := isaac.NewINITBallotSignFact(st.local.Address(), fact)
+	sf := isaac.NewINITBallotSignFact(fact)
 
-	if err := sf.Sign(st.local.Privatekey(), st.params.NetworkID()); err != nil {
+	if err := sf.NodeSign(st.local.Privatekey(), st.params.NetworkID(), st.local.Address()); err != nil {
 		return nil, newBrokenSwitchContext(st.stt, e(err, "failed to make next round init ballot"))
 	}
 
@@ -195,9 +195,9 @@ func (st *baseBallotHandler) prepareNextBlock(
 		pr.Fact().Hash(),
 		withdrawfacts,
 	)
-	sf := isaac.NewINITBallotSignFact(st.local.Address(), fact)
+	sf := isaac.NewINITBallotSignFact(fact)
 
-	if err := sf.Sign(st.local.Privatekey(), st.params.NetworkID()); err != nil {
+	if err := sf.NodeSign(st.local.Privatekey(), st.params.NetworkID(), st.local.Address()); err != nil {
 		return nil, e(err, "failed to make next init ballot")
 	}
 
