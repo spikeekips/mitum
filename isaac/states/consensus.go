@@ -413,6 +413,7 @@ func (st *ConsensusHandler) prepareSIGNBallot(bl base.INITBallot) error {
 
 	return st.timers.StartTimers(
 		[]util.TimerID{
+			timerIDBroadcastINITBallot,
 			timerIDBroadcastSIGNBallot,
 			timerIDBroadcastACCEPTBallot,
 		},
