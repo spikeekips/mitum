@@ -602,10 +602,16 @@ func mimicBallot(
 	var newbl base.Ballot
 
 	switch t := fact.(type) {
-	case isaac.INITBallotFact, isaac.SIGNBallotFact:
-		ifact := t.(base.INITBallotFact) //nolint:forcetypeassert //...
+	case isaac.SIGNBallotFact:
+		sf := isaac.NewINITBallotSignFact(t)
 
-		sf := isaac.NewINITBallotSignFact(ifact)
+		if err := sf.NodeSign(local.Privatekey(), params.NetworkID(), local.Address()); err != nil {
+			return nil, err
+		}
+
+		newbl = isaac.NewINITBallot(voteproof, sf, nil)
+	case base.INITBallotFact:
+		sf := isaac.NewINITBallotSignFact(t)
 
 		if err := sf.NodeSign(local.Privatekey(), params.NetworkID(), local.Address()); err != nil {
 			return nil, err
