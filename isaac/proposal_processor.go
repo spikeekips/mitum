@@ -319,24 +319,16 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) ([]bas
 		h := ophs[i]
 		op, err := p.collectOperation(ctx, h, getOperationf)
 
-		// FIXME filter suffrage withdraw operation
-
-		p.Log().Trace().Stringer("operation", h).Err(err).Msg("operation collected")
-
 		switch {
-		case err == nil:
-		case errors.Is(err, util.ErrInvalid),
-			errors.Is(err, ErrInvalidOperationInProcessor),
-			errors.Is(err, ErrOperationNotFoundInProcessor),
-			errors.Is(err, ErrOperationAlreadyProcessedInProcessor):
-			p.Log().Debug().Err(err).Stringer("operation", h).Msg("operation ignored")
-
-			return nil
-		default:
+		case err != nil:
 			return err
-		}
+		case op == nil:
+			p.Log().Debug().Err(err).Stringer("operation", h).Msg("operation ignored")
+		default:
+			p.Log().Trace().Stringer("operation", h).Err(err).Msg("operation collected")
 
-		cops[index+int(i)] = op
+			cops[index+int(i)] = op
+		}
 
 		return nil
 	}); err != nil {
@@ -676,8 +668,13 @@ func (p *DefaultProposalProcessor) collectOperation(
 			errors.Is(err, ErrInvalidOperationInProcessor),
 			errors.Is(err, ErrOperationNotFoundInProcessor),
 			errors.Is(err, ErrOperationAlreadyProcessedInProcessor):
-			return false, err
+			return false, nil
 		default:
+			// NOTE suffrage withdraw operation should be in ballot.
+			if _, ok := j.(base.SuffrageWithdrawOperation); ok {
+				return false, nil
+			}
+
 			return true, err
 		}
 	}); err != nil {
@@ -685,7 +682,9 @@ func (p *DefaultProposalProcessor) collectOperation(
 	}
 
 	if op == nil {
-		return nil, ErrOperationNotFoundInProcessor.Errorf("empty operation")
+		p.Log().Debug().Stringer("operation", h).Msg("operation ignored")
+
+		return nil, nil
 	}
 
 	return op, nil
