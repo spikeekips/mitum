@@ -126,28 +126,7 @@ func (st *JoiningHandler) exit(sctx switchContext) (func(), error) {
 		return nil, e(err, "")
 	}
 
-	return func() {
-		deferred()
-
-		var timers []util.TimerID
-
-		if sctx != nil {
-			switch sctx.next() { //nolint:exhaustive //...
-			case StateConsensus, StateHandover:
-				timers = []util.TimerID{timerIDBroadcastINITBallot}
-			}
-		}
-
-		if len(timers) < 1 {
-			if err := st.timers.StopTimersAll(); err != nil {
-				st.Log().Error().Err(err).Msg("failed to stop timers; ignore")
-			}
-		} else if err := st.timers.StartTimers([]util.TimerID{
-			timerIDBroadcastINITBallot, // NOTE keep broadcasting init ballot and stops others
-		}, true); err != nil {
-			st.Log().Error().Err(err).Msg("failed to start timers; ignore")
-		}
-	}, nil
+	return deferred, nil
 }
 
 func (st *JoiningHandler) newVoteproof(vp base.Voteproof) error {

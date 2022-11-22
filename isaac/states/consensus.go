@@ -820,6 +820,7 @@ func (st *ConsensusHandler) nextBlock(avp base.ACCEPTVoteproof) {
 		bl,
 		[]util.TimerID{
 			timerIDBroadcastINITBallot,
+			timerIDBroadcastSIGNBallot,
 			timerIDBroadcastACCEPTBallot,
 		},
 		initialWait,
