@@ -223,21 +223,27 @@ func (box *Ballotbox) lastStagePoint() (point base.StagePoint, lastIsMajority bo
 	return j[0].(base.StagePoint), j[1].(bool) //nolint:forcetypeassert //...
 }
 
-func (box *Ballotbox) setLastStagePoint(p base.StagePoint, lastIsMajority bool) bool {
+func (box *Ballotbox) setLastStagePoint(p base.StagePoint, isMajority bool) bool {
 	_, err := box.lsp.Set(func(_ bool, i interface{}) (interface{}, error) {
 		if i == nil {
-			return [2]interface{}{p, lastIsMajority}, nil
+			return [2]interface{}{p, isMajority}, nil
 		}
 
 		j := i.([2]interface{}) //nolint:forcetypeassert //...
 
 		last := j[0].(base.StagePoint) //nolint:forcetypeassert //...
+		lastIsMajority := j[1].(bool)  //nolint:forcetypeassert //...
 
-		if p.Compare(last) < 0 {
+		switch {
+		case !lastIsMajority && isMajority &&
+			p.Height() == last.Height() &&
+			p.Stage() == base.StageINIT &&
+			last.Stage() == base.StageINIT:
+		case p.Compare(last) < 0:
 			return nil, errors.Errorf("not higher")
 		}
 
-		return [2]interface{}{p, lastIsMajority}, nil
+		return [2]interface{}{p, isMajority}, nil
 	})
 
 	return err == nil

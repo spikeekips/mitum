@@ -897,6 +897,29 @@ func (t *testBallotbox) TestDifferentSuffrage() {
 	}
 }
 
+func (t *testBallotbox) TestSetLastStagePointReversalByVoteproof() {
+	box := NewBallotbox(
+		base.RandomAddress(""),
+		func(base.Height) (base.Suffrage, bool, error) {
+			return nil, false, nil
+		},
+		func(base.Voteproof, base.Suffrage) error { return nil },
+		0,
+	)
+
+	point := base.RawPoint(33, 0)
+
+	t.Run("next round + not majority -> previous round + majority", func() {
+		t.True(box.setLastStagePoint(base.NewStagePoint(point.NextRound(), base.StageINIT), false))
+		t.True(box.setLastStagePoint(base.NewStagePoint(point, base.StageINIT), true))
+	})
+
+	t.Run("next round + majority -> previous round + majority", func() {
+		t.True(box.setLastStagePoint(base.NewStagePoint(point.NextRound(), base.StageINIT), true))
+		t.False(box.setLastStagePoint(base.NewStagePoint(point, base.StageINIT), true))
+	})
+}
+
 func TestBallotbox(t *testing.T) {
 	suite.Run(t, new(testBallotbox))
 }
