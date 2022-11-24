@@ -194,11 +194,17 @@ func PNodeInConsensusNodesFunc(ctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed NodeInConsensusNodesFunc")
 
 	var db isaac.Database
-	if err := util.LoadFromContextOK(ctx, CenterDatabaseContextKey, &db); err != nil {
+	var getSuffragef isaac.GetSuffrageByBlockHeight
+
+	if err := util.LoadFromContextOK(
+		ctx,
+		CenterDatabaseContextKey, &db,
+		GetSuffrageFromDatabaseeFuncContextKey, &getSuffragef,
+	); err != nil {
 		return ctx, e(err, "")
 	}
 
-	f := nodeInConsensusNodesFunc(db)
+	f := nodeInConsensusNodesFunc(db, getSuffragef)
 
 	var sg singleflight.Group
 	cache := util.NewGCacheObjectPool(3) //nolint:gomnd // last 3 heights
@@ -309,11 +315,12 @@ func getCandidatesFunc(
 
 func nodeInConsensusNodesFunc(
 	db isaac.Database,
+	getSuffragef isaac.GetSuffrageByBlockHeight,
 ) func(node base.Node, height base.Height) (base.Suffrage, bool, error) {
 	getCandidatesf := getCandidatesFunc(db)
 
 	return func(node base.Node, height base.Height) (base.Suffrage, bool, error) {
-		suf, found, err := isaac.GetSuffrageFromDatabase(db, height)
+		suf, found, err := getSuffragef(height)
 
 		switch {
 		case err != nil:
@@ -349,6 +356,7 @@ func PSuffrageVoting(ctx context.Context) (context.Context, error) {
 	var memberlist *quicmemberlist.Memberlist
 	var ballotbox *isaacstates.Ballotbox
 	var cb *isaacnetwork.CallbackBroadcaster
+	var getSuffragef isaac.GetSuffrageByBlockHeight
 
 	if err := util.LoadFromContextOK(ctx,
 		LocalContextKey, &local,
@@ -358,6 +366,7 @@ func PSuffrageVoting(ctx context.Context) (context.Context, error) {
 		MemberlistContextKey, &memberlist,
 		BallotboxContextKey, &ballotbox,
 		CallbackBroadcasterContextKey, &cb,
+		GetSuffrageFromDatabaseeFuncContextKey, &getSuffragef,
 	); err != nil {
 		return ctx, err
 	}
@@ -390,7 +399,7 @@ func PSuffrageVoting(ctx context.Context) (context.Context, error) {
 
 			var suf base.Suffrage
 
-			switch i, found, err := isaac.GetSuffrageFromDatabase(db, height); {
+			switch i, found, err := getSuffragef(height); {
 			case err != nil:
 				return false, err
 			case !found:

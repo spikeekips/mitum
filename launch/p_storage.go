@@ -31,20 +31,22 @@ import (
 )
 
 var (
-	PNameStorage                    = ps.Name("storage")
-	PNameStartStorage               = ps.Name("start-storage")
-	PNameCheckLeveldbStorage        = ps.Name("check-leveldb-storage")
-	PNameCheckLoadFromDatabase      = ps.Name("load-from-database")
-	PNameCleanStorage               = ps.Name("clean-storage")
-	PNameCreateLocalFS              = ps.Name("create-localfs")
-	PNameCheckLocalFS               = ps.Name("check-localfs")
-	PNameLoadDatabase               = ps.Name("load-database")
-	FSNodeInfoContextKey            = util.ContextKey("fs-node-info")
-	LeveldbStorageContextKey        = util.ContextKey("leveldb-storage")
-	CenterDatabaseContextKey        = util.ContextKey("center-database")
-	PermanentDatabaseContextKey     = util.ContextKey("permanent-database")
-	PoolDatabaseContextKey          = util.ContextKey("pool-database")
-	LastVoteproofsHandlerContextKey = util.ContextKey("last-voteproofs-handler")
+	PNameStorage                           = ps.Name("storage")
+	PNameStartStorage                      = ps.Name("start-storage")
+	PNameCheckLeveldbStorage               = ps.Name("check-leveldb-storage")
+	PNameCheckLoadFromDatabase             = ps.Name("load-from-database")
+	PNameCleanStorage                      = ps.Name("clean-storage")
+	PNameCreateLocalFS                     = ps.Name("create-localfs")
+	PNameCheckLocalFS                      = ps.Name("check-localfs")
+	PNameLoadDatabase                      = ps.Name("load-database")
+	PNameGetSuffrageFromDatabaseeFunc      = ps.Name("get-suffrage-from-database")
+	FSNodeInfoContextKey                   = util.ContextKey("fs-node-info")
+	LeveldbStorageContextKey               = util.ContextKey("leveldb-storage")
+	CenterDatabaseContextKey               = util.ContextKey("center-database")
+	PermanentDatabaseContextKey            = util.ContextKey("permanent-database")
+	PoolDatabaseContextKey                 = util.ContextKey("pool-database")
+	LastVoteproofsHandlerContextKey        = util.ContextKey("last-voteproofs-handler")
+	GetSuffrageFromDatabaseeFuncContextKey = util.ContextKey("get-suffrage-from-database")
 )
 
 var (
@@ -1005,4 +1007,38 @@ func ValidateStatesOfBlock(
 	}
 
 	return nil
+}
+
+func PGetSuffrageFromDatabaseeFunc(ctx context.Context) (context.Context, error) {
+	e := util.StringErrorFunc("failed to create GetSuffrageFromDatabaseFunc")
+
+	var db isaac.Database
+
+	if err := util.LoadFromContextOK(ctx, CenterDatabaseContextKey, &db); err != nil {
+		return ctx, e(err, "")
+	}
+
+	sufcache := util.NewGCacheObjectPool(1 << 9) //nolint:gomnd //...
+
+	var l sync.Mutex
+
+	f := func(height base.Height) (base.Suffrage, bool, error) {
+		if i, found := sufcache.Get(height.String()); found {
+			return i.(base.Suffrage), true, nil //nolint:forcetypeassert //...
+		}
+
+		l.Lock()
+		defer l.Unlock()
+
+		i, found, err := isaac.GetSuffrageFromDatabase(db, height)
+		if err != nil || !found {
+			return nil, false, err
+		}
+
+		sufcache.Set(height.String(), i, nil)
+
+		return i, true, nil
+	}
+
+	return context.WithValue(ctx, GetSuffrageFromDatabaseeFuncContextKey, isaac.GetSuffrageByBlockHeight(f)), nil
 }

@@ -420,6 +420,7 @@ func NewProposalSelector(pctx context.Context) (*isaac.BaseProposalSelector, err
 	var proposalMaker *isaac.ProposalMaker
 	var memberlist *quicmemberlist.Memberlist
 	var client *isaacnetwork.QuicstreamClient
+	var getSuffragef isaac.GetSuffrageByBlockHeight
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
@@ -430,6 +431,7 @@ func NewProposalSelector(pctx context.Context) (*isaac.BaseProposalSelector, err
 		ProposalMakerContextKey, &proposalMaker,
 		MemberlistContextKey, &memberlist,
 		QuicstreamClientContextKey, &client,
+		GetSuffrageFromDatabaseeFuncContextKey, &getSuffragef,
 	); err != nil {
 		return nil, err
 	}
@@ -468,7 +470,7 @@ func NewProposalSelector(pctx context.Context) (*isaac.BaseProposalSelector, err
 		func(height base.Height) ([]base.Node, bool, error) {
 			var suf base.Suffrage
 
-			switch i, found, err := isaac.GetSuffrageFromDatabase(db, height); {
+			switch i, found, err := getSuffragef(height); {
 			case err != nil:
 				return nil, false, err
 			case !found:
