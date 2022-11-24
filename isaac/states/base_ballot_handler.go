@@ -5,11 +5,11 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/storage"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/logging"
 )
 
 type SuffrageVotingFindFunc func(context.Context, base.Height, base.Suffrage) ([]base.SuffrageWithdrawOperation, error)
@@ -213,7 +213,7 @@ func (st *baseBallotHandler) broadcastINITBallot(
 		st.timers,
 		timerIDBroadcastINITBallot,
 		st.broadcastBallotFunc,
-		st.Log(),
+		st.Logging,
 		interval,
 	)
 }
@@ -228,7 +228,7 @@ func (st *baseBallotHandler) broadcastACCEPTBallot(bl base.Ballot, initialWait t
 		st.timers,
 		timerIDBroadcastACCEPTBallot,
 		st.broadcastBallotFunc,
-		st.Log(),
+		st.Logging,
 		func(i int, _ time.Duration) time.Duration {
 			if i < 1 {
 				return initialWait
@@ -301,10 +301,10 @@ func broadcastBallot(
 	timers *util.Timers,
 	timerid util.TimerID,
 	broadcastBallotFunc func(base.Ballot) error,
-	log *zerolog.Logger,
+	log *logging.Logging,
 	interval func(int, time.Duration) time.Duration,
 ) error {
-	l := log.With().
+	l := log.Log().With().
 		Stringer("ballot_hash", bl.SignFact().Fact().Hash()).
 		Logger()
 	l.Debug().Interface("ballot", bl).Object("point", bl.Point()).Msg("trying to broadcast ballot")
@@ -325,9 +325,10 @@ func broadcastBallot(
 
 			return true, nil
 		},
-	).SetInterval(interval)
+	)
+	_ = ct.SetLogging(log)
 
-	if err := timers.SetTimer(ct); err != nil {
+	if err := timers.SetTimer(ct.SetInterval(interval)); err != nil {
 		return e(err, "")
 	}
 

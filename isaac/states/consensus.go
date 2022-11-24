@@ -394,7 +394,7 @@ func (st *ConsensusHandler) prepareSIGNBallot(bl base.INITBallot) error {
 		st.timers,
 		timerIDBroadcastSIGNBallot,
 		st.broadcastBallotFunc,
-		st.Log(),
+		st.Logging,
 		func(i int, _ time.Duration) time.Duration {
 			lvp := st.lastVoteproofs().Cap()
 			if lvp.Point().Height() > bl.Point().Height() {

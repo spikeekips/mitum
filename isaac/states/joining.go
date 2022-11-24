@@ -446,6 +446,7 @@ func (st *JoiningHandler) nextBlock(avp base.ACCEPTVoteproof) {
 
 	if err := st.timers.StartTimers([]util.TimerID{
 		timerIDBroadcastINITBallot,
+		timerIDBroadcastACCEPTBallot,
 	}, true); err != nil {
 		l.Error().Err(err).Msg("failed to start timers for broadcasting init ballot for next block")
 
