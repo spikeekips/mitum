@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
+	"github.com/spikeekips/mitum/util/logging"
 )
 
 var contextTimerPool = sync.Pool{
@@ -34,6 +36,7 @@ var (
 type ContextTimer struct {
 	callback func(int) (bool, error)
 	*ContextDaemon
+	*logging.Logging
 	interval        func(int, time.Duration) time.Duration
 	id              TimerID
 	defaultInterval time.Duration
@@ -43,6 +46,9 @@ type ContextTimer struct {
 
 func NewContextTimer(id TimerID, interval time.Duration, callback func(int) (bool, error)) *ContextTimer {
 	ct := ContextTimerPoolGet()
+	ct.Logging = logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
+		return zctx.Str("module", "timer-"+string(id))
+	})
 	ct.RWMutex = sync.RWMutex{}
 	ct.id = id
 	ct.interval = func(int, time.Duration) time.Duration {
@@ -78,6 +84,8 @@ func (ct *ContextTimer) Reset() error {
 }
 
 func (ct *ContextTimer) Stop() error {
+	defer ct.Log().Debug().Msg("stopped by force")
+
 	errch := make(chan error)
 
 	go func() {
@@ -105,7 +113,19 @@ func (ct *ContextTimer) count() int {
 	return ct.c
 }
 
+func (ct *ContextTimer) incCount(count int) {
+	ct.Lock()
+	defer ct.Unlock()
+
+	if ct.c == count {
+		ct.c++
+	}
+}
+
 func (ct *ContextTimer) start(ctx context.Context) error {
+	ct.Log().Debug().Msg("started")
+	defer ct.Log().Debug().Msg("stopped")
+
 	if err := ct.Reset(); err != nil {
 		return errors.WithMessage(err, "failed to start ContextTimer")
 	}
@@ -114,6 +134,8 @@ end:
 	for {
 		select {
 		case <-ctx.Done():
+			ct.Log().Error().Err(ctx.Err()).Msg("stopped by context")
+
 			break end
 		default:
 			c := func() bool {
@@ -123,25 +145,20 @@ end:
 				return ct.interval == nil || ct.callback == nil
 			}
 			if c() {
+				ct.Log().Debug().Msg("stopped by nil")
+
 				break end
 			}
 
 			if err := ct.prepareCallback(ctx); err != nil {
+				ct.Log().Error().Err(err).Msg("stopped by error")
+
 				break end
 			}
 		}
 	}
 
 	return nil
-}
-
-func (ct *ContextTimer) finishCallback(count int) {
-	ct.Lock()
-	defer ct.Unlock()
-
-	if ct.c == count {
-		ct.c++
-	}
 }
 
 func (ct *ContextTimer) prepareCallback(ctx context.Context) error {
@@ -178,7 +195,7 @@ func (ct *ContextTimer) waitAndRun(
 		return ErrStopTimer.Call()
 	}
 
-	ct.finishCallback(count)
+	ct.incCount(count)
 
 	return nil
 }
