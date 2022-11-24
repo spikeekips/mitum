@@ -50,6 +50,10 @@ func (po *GCacheObjectPool) Set(key string, v interface{}, expire *time.Duration
 	_ = po.cache.Set(key, v)
 }
 
+func (po *GCacheObjectPool) Close() {
+	po.cache.Purge()
+}
+
 type LockedObjectPool struct {
 	maps *ShardedMap
 }
