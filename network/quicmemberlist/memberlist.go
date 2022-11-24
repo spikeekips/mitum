@@ -212,6 +212,8 @@ func (srv *Memberlist) Broadcast(b memberlist.Broadcast) {
 }
 
 func (srv *Memberlist) start(ctx context.Context) error {
+	defer srv.cicache.Close()
+
 	<-ctx.Done()
 
 	if err := func() error {
