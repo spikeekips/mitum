@@ -65,7 +65,7 @@ func (s *SuffrageVoting) Vote(op base.SuffrageWithdrawOperation) (bool, error) {
 	case !found:
 		voted, err = s.merge(nil, op)
 		if err != nil {
-			return false, e(err, "")
+			return false, nil
 		}
 	default:
 		if i.Hash().Equal(op.Hash()) {
@@ -74,14 +74,12 @@ func (s *SuffrageVoting) Vote(op base.SuffrageWithdrawOperation) (bool, error) {
 
 		voted, err = s.merge(i, op)
 		if err != nil {
-			return false, e(err, "")
+			return false, nil
 		}
 	}
 
 	if voted != nil {
-		if err := s.votedCallback(voted); err != nil {
-			return true, e(err, "")
-		}
+		_ = s.votedCallback(voted)
 	}
 
 	return voted != nil, nil
