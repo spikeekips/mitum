@@ -19,7 +19,7 @@ type Ballotbox struct {
 	*util.ContextDaemon
 	*logging.Logging
 	local            base.Address
-	getSuffrage      isaac.GetSuffrageByBlockHeight
+	getSuffragef     isaac.GetSuffrageByBlockHeight
 	isValidVoteproof func(base.Voteproof, base.Suffrage) error
 	suffrageVote     func(base.SuffrageWithdrawOperation) error
 	newBallot        func(base.Ballot)
@@ -35,7 +35,7 @@ type Ballotbox struct {
 
 func NewBallotbox(
 	local base.Address,
-	getSuffrage isaac.GetSuffrageByBlockHeight,
+	getSuffragef isaac.GetSuffrageByBlockHeight,
 	isValidVoteproof func(base.Voteproof, base.Suffrage) error,
 	countAfter time.Duration,
 ) *Ballotbox {
@@ -44,7 +44,7 @@ func NewBallotbox(
 			return zctx.Str("module", "ballotbox")
 		}),
 		local:            local,
-		getSuffrage:      getSuffrage,
+		getSuffragef:     getSuffragef,
 		vrs:              map[string]*voterecords{},
 		vpch:             make(chan base.Voteproof, math.MaxUint16),
 		lsp:              util.EmptyLocked(),
@@ -63,7 +63,17 @@ func (box *Ballotbox) Vote(bl base.Ballot, threshold base.Threshold) (bool, erro
 	box.vrsLock.Lock()
 	defer box.vrsLock.Unlock()
 
-	voted, callback, err := box.vote(bl, threshold)
+	var withdraws []base.SuffrageWithdrawOperation
+	if i, ok := bl.(isaac.BallotWithdraws); ok {
+		withdraws = i.Withdraws()
+	}
+
+	voted, callback, err := box.vote(
+		bl.SignFact(),
+		bl.Voteproof(),
+		withdraws,
+		threshold,
+	)
 	if err != nil {
 		return false, err
 	}
@@ -134,51 +144,67 @@ func (box *Ballotbox) countWithVoterecords(
 	return vp
 }
 
-func (box *Ballotbox) filterNewBallot(bl base.Ballot) bool {
-	last, lastIsMajority := box.lastStagePoint()
-
-	return isNewBallotboxStagePoint(last, bl.Point(), lastIsMajority, isSIGNBallotFact(bl.SignFact().Fact()))
-}
-
-func (box *Ballotbox) vote(bl base.Ballot, threshold base.Threshold) (bool, func() base.Voteproof, error) {
+func (box *Ballotbox) vote(
+	signfact base.BallotSignFact,
+	vp base.Voteproof,
+	withdraws []base.SuffrageWithdrawOperation,
+	threshold base.Threshold,
+) (bool, func() base.Voteproof, error) {
 	e := util.StringErrorFunc("failed to vote")
 
-	if !box.filterNewBallot(bl) {
+	last, lastIsMajority := box.lastStagePoint()
+
+	fact := signfact.Fact().(base.BallotFact) //nolint:forcetypeassert //...
+
+	if !isNewBallotboxStagePoint(last, fact.Point(), lastIsMajority, isSIGNBallotFact(fact)) {
 		return false, nil, nil
 	}
 
-	vr := box.newVoterecords(bl)
+	vr := box.newVoterecords(fact.Point(), isSIGNBallotFact(fact))
 
-	voted, validated, err := vr.vote(bl)
+	voted, validated, err := vr.vote(signfact, vp, withdraws)
 	if err != nil {
 		return false, nil, e(err, "")
 	}
 
-	box.Log().Debug().Interface("ballot", bl).Bool("voted", voted).Bool("validated", validated).Msg("ballot voted")
+	box.Log().Debug().
+		Interface("ballot_sign_fact", signfact).
+		Bool("voted", voted).
+		Bool("validated", validated).
+		Msg("ballot voted")
 
-	var vp base.Voteproof
+	var digged base.Voteproof
 
-	if voted && validated {
-		last, lastIsMajority := box.lastStagePoint()
-		if isnew, overthreshold := isNewBallotVoteproofWithThreshold(
-			box.local,
-			bl,
-			last,
-			lastIsMajority,
-			threshold,
-		); isnew && overthreshold {
-			vp = bl.Voteproof()
+	if voted && vp != nil { // FIXME remove
+		if !validated {
+			if err := isValidVoteproofWithSuffrage(box.getSuffragef, box.isValidVoteproof, vp); err == nil {
+				validated = true
+			}
+		}
+
+		if validated {
+			last, lastIsMajority := box.lastStagePoint()
+
+			if isnew, overthreshold := isNewBallotVoteproofWithThreshold(
+				box.local,
+				vp,
+				last,
+				lastIsMajority,
+				threshold,
+			); isnew && overthreshold {
+				digged = vp
+			}
 		}
 	}
 
-	if vp != nil {
-		box.setLastStagePoint(vp.Point(), vp.Result() == base.VoteResultMajority)
+	if digged != nil {
+		box.setLastStagePoint(digged.Point(), digged.Result() == base.VoteResultMajority)
 	}
 
 	return voted,
 		func() base.Voteproof {
-			if vp != nil {
-				box.vpch <- vp
+			if digged != nil {
+				box.vpch <- digged
 			}
 
 			return box.countWithVoterecords(vr, threshold)
@@ -186,11 +212,12 @@ func (box *Ballotbox) vote(bl base.Ballot, threshold base.Threshold) (bool, func
 		nil
 }
 
-func (box *Ballotbox) newVoterecords(bl base.Ballot) *voterecords {
-	stagepoint := bl.Point()
-
+func (box *Ballotbox) newVoterecords( //revive:disable-line:flag-parameter
+	stagepoint base.StagePoint,
+	isSIGN bool,
+) *voterecords {
 	vrkey := stagepoint.String()
-	if isSIGNBallotFact(bl.SignFact().Fact()) {
+	if isSIGN {
 		vrkey = "sign-" + vrkey
 	}
 
@@ -201,9 +228,9 @@ func (box *Ballotbox) newVoterecords(bl base.Ballot) *voterecords {
 	vr := newVoterecords(
 		stagepoint,
 		box.isValidVoteproof,
-		box.getSuffrage,
+		box.getSuffragef,
 		box.suffrageVote,
-		isSIGNBallotFact(bl.SignFact().Fact()),
+		isSIGN,
 		box.Logging.Log(),
 	)
 
@@ -416,12 +443,13 @@ func (box *Ballotbox) sortedVoterecords() (vrs []*voterecords) {
 
 type voterecords struct {
 	*logging.Logging
-	ballots          map[string]base.Ballot
+	ballots          map[string]base.BallotSignFact
 	isValidVoteproof func(base.Voteproof, base.Suffrage) error
 	suffrageVote     func(base.SuffrageWithdrawOperation) error
-	getSuffrageFunc  isaac.GetSuffrageByBlockHeight
-	nodes            map[string]struct{} // revive:disable-line:nested-structs
-	voted            map[string]base.Ballot
+	getSuffragef     isaac.GetSuffrageByBlockHeight
+	voted            map[string]base.BallotSignFact
+	withdraws        map[string][]base.SuffrageWithdrawOperation
+	vps              map[string]base.Voteproof
 	suf              *util.Locked
 	vsuf             *util.Locked // NOTE suffrage for voteproof
 	log              zerolog.Logger
@@ -436,7 +464,7 @@ type voterecords struct {
 func newVoterecords(
 	stagepoint base.StagePoint,
 	isValidVoteproof func(base.Voteproof, base.Suffrage) error,
-	getSuffrageFunc isaac.GetSuffrageByBlockHeight,
+	getSuffragef isaac.GetSuffrageByBlockHeight,
 	suffrageVote func(base.SuffrageWithdrawOperation) error,
 	isSIGN bool,
 	log *zerolog.Logger,
@@ -445,11 +473,12 @@ func newVoterecords(
 
 	vr.stagepoint = stagepoint
 	vr.isValidVoteproof = isValidVoteproof
-	vr.getSuffrageFunc = getSuffrageFunc
-	vr.voted = map[string]base.Ballot{}
-	vr.nodes = map[string]struct{}{}
+	vr.getSuffragef = getSuffragef
+	vr.voted = map[string]base.BallotSignFact{}
 	vr.f = false
-	vr.ballots = map[string]base.Ballot{}
+	vr.ballots = map[string]base.BallotSignFact{}
+	vr.withdraws = map[string][]base.SuffrageWithdrawOperation{}
+	vr.vps = map[string]base.Voteproof{}
 	vr.suf = util.EmptyLocked()
 	vr.vsuf = util.EmptyLocked()
 	vr.suffrageVote = suffrageVote
@@ -465,12 +494,16 @@ func newVoterecords(
 	return vr
 }
 
-func (vr *voterecords) vote(bl base.Ballot) (voted bool, validated bool, err error) {
+func (vr *voterecords) vote(
+	signfact base.BallotSignFact,
+	vp base.Voteproof,
+	withdraws []base.SuffrageWithdrawOperation,
+) (voted bool, validated bool, err error) {
 	vr.Lock()
 	defer vr.Unlock()
 
-	node := bl.SignFact().Node().String()
-	if _, found := vr.nodes[node]; found {
+	node := signfact.Node().String()
+	if _, found := vr.vps[node]; found {
 		return false, false, nil
 	}
 
@@ -480,33 +513,56 @@ func (vr *voterecords) vote(bl base.Ballot) (voted bool, validated bool, err err
 
 	e := util.StringErrorFunc("failed to vote")
 
+	if vp != nil {
+		vr.vps[node] = vp
+	}
+
+	if len(withdraws) > 0 {
+		vr.withdraws[node] = withdraws
+
+		if err := vr.learnWithdraws(withdraws); err != nil {
+			vr.log.Error().Err(err).
+				Interface("ballot_sign_fact", signfact).
+				Interface("withdraws", withdraws).
+				Msg("failed learn suffrage withdraws; ignored")
+		}
+	}
+
 	var suf base.Suffrage
 
 	switch i, found, err := vr.getSuffrage(); {
 	case err != nil:
 		return false, false, e(err, "")
 	case !found:
-		vr.ballots[node] = bl
+		vr.ballots[node] = signfact
 
 		return true, false, nil
 	default:
 		suf = i
 	}
 
-	if err := vr.isValidBallotWithSuffrage(bl, suf); err != nil {
-		vr.log.Error().Err(err).Interface("ballot", bl).Interface("suffrage", suf).Msg("invalid ballot")
+	if vp != nil {
+		if err := vr.isValidBallotWithSuffrage(signfact, vp, suf); err != nil {
+			vr.log.Error().Err(err).
+				Interface("ballot_sign_fact", signfact).
+				Interface("voteproof", vp). //nolint:goconst //...
+				Interface("suffrage", suf).
+				Msg("invalid ballot")
 
-		return false, false, nil
+			return false, false, nil
+		}
 	}
 
-	if err := vr.learnWithdraws(bl); err != nil {
-		vr.log.Error().Err(err).Interface("ballot", bl).Msg("failed suffrage voting")
+	if err := vr.learnWithdraws(withdraws); err != nil {
+		vr.log.Error().Err(err).
+			Interface("ballot_sign_fact", signfact).
+			Interface("withdraws", withdraws).
+			Msg("failed learn suffrage withdraws")
 
-		return true, true, err
+		return true, true, e(err, "")
 	}
 
-	vr.voted[node] = bl
-	vr.nodes[node] = struct{}{}
+	vr.voted[node] = signfact
 
 	return true, true, nil
 }
@@ -537,51 +593,69 @@ func (vr *voterecords) count(
 		return nil
 	}
 
-	var digged base.Voteproof
-	var vpchecked bool
+	var vps []base.Voteproof
 
 	if len(vr.ballots) > 0 {
-		for i := range vr.ballots {
-			bl := vr.ballots[i]
-
-			if err := vr.isValidBallotWithSuffrage(bl, suf); err != nil {
-				delete(vr.ballots, i)
-
-				continue
-			}
-
-			if err := vr.learnWithdraws(bl); err != nil {
-				continue
-			}
-
-			vr.voted[bl.SignFact().Node().String()] = bl
-
-			if !vpchecked {
-				isnew, overthreshold := isNewBallotVoteproofWithThreshold(
-					local, bl, lastStagePoint, lastIsMajority, threshold)
-				if isnew && overthreshold {
-					digged = bl.Voteproof()
-				}
-
-				vpchecked = !isnew || overthreshold
-			}
+		if vp := vr.countFromBallots(local, lastStagePoint, lastIsMajority, threshold, suf); vp != nil {
+			vps = append(vps, vp)
 		}
-
-		vr.ballots = map[string]base.Ballot{}
 	}
 
-	var vps []base.Voteproof
-	if digged != nil {
-		vps = append(vps, digged)
-	}
-
-	if vp := vr.countFromBallots(local, threshold, countAfter); vp != nil {
+	if vp := vr.countFromVoted(local, threshold, countAfter); vp != nil {
 		vr.countAfter = time.Time{}
 
 		vps = append(vps, vp)
 	}
 
 	return vps
+}
+
+func (vr *voterecords) countFromBallots(
+	local base.Address,
+	lastStagePoint base.StagePoint,
+	lastIsMajority bool,
+	threshold base.Threshold,
+	suf base.Suffrage,
+) base.Voteproof {
+	if len(vr.ballots) < 1 {
+		return nil
+	}
+
+	var vpchecked bool
+	var digged base.Voteproof
+
+	for i := range vr.ballots {
+		signfact := vr.ballots[i]
+		vp := vr.vps[i]
+
+		if vp != nil {
+			if err := vr.isValidBallotWithSuffrage(signfact, vp, suf); err != nil {
+				delete(vr.ballots, i)
+
+				continue
+			}
+		}
+
+		if err := vr.learnWithdraws(vr.withdraws[i]); err != nil {
+			continue
+		}
+
+		vr.voted[signfact.Node().String()] = signfact
+
+		if digged == nil && !vpchecked && vp != nil {
+			isnew, overthreshold := isNewBallotVoteproofWithThreshold(
+				local, vp, lastStagePoint, lastIsMajority, threshold)
+			if isnew && overthreshold {
+				digged = vp
+			}
+
+			vpchecked = !isnew || overthreshold
+		}
+	}
+
+	vr.ballots = map[string]base.BallotSignFact{}
+
+	return digged
 }
 
 func (vr *voterecords) countHolded(
@@ -604,7 +678,7 @@ func (vr *voterecords) countHolded(
 	}
 }
 
-func (vr *voterecords) countFromBallots(
+func (vr *voterecords) countFromVoted(
 	local base.Address,
 	threshold base.Threshold,
 	countAfter time.Duration,
@@ -629,7 +703,7 @@ func (vr *voterecords) countFromBallots(
 	var i int
 
 	for k := range vr.voted {
-		sfs[i] = vr.voted[k].SignFact()
+		sfs[i] = vr.voted[k]
 		i++
 	}
 
@@ -689,7 +763,7 @@ func (vr *voterecords) countWithWithdraws(
 	base.BallotFact,
 	[]base.SuffrageWithdrawOperation,
 ) {
-	sorted := sortBallotSignFactsByWithdraws(local, vr.voted)
+	sorted := sortBallotSignFactsByWithdraws(local, vr.voted, vr.withdraws)
 	if len(sorted) < 1 {
 		return false, nil, nil, nil
 	}
@@ -761,84 +835,21 @@ func (vr *voterecords) newVoteproof(
 	}
 }
 
-func (vr *voterecords) getSuffrage() (base.Suffrage, bool, error) { // FIXME move to ballotbox
-	i, err := vr.suf.Set(func(_ bool, i interface{}) (interface{}, error) {
-		if i != nil {
-			return i, nil
-		}
-
-		switch j, found, err := vr.getSuffrageFunc(vr.stagepoint.Height()); {
-		case err != nil:
-			return nil, err
-		case !found:
-			return nil, util.ErrNotFound.Call()
-		default:
-			vr.log.Debug().Interface("suffrage", j).Msg("suffrage found")
-
-			return j, nil
-		}
-	})
-
-	switch {
-	case err == nil:
-		return i.(base.Suffrage), true, nil //nolint:forcetypeassert //...
-	case errors.Is(err, util.ErrNotFound):
-		return nil, false, nil
-	default:
-		return nil, false, err
-	}
+func (vr *voterecords) getSuffrage() (base.Suffrage, bool, error) {
+	return vr.getSuffragef(vr.stagepoint.Height())
 }
 
-func (vr *voterecords) getVoteproofSuffrage() (base.Suffrage, bool, error) {
-	i, err := vr.vsuf.Set(func(_ bool, i interface{}) (interface{}, error) {
-		if i != nil {
-			return i, nil
-		}
-
-		var height base.Height
-
-		switch {
-		case vr.stagepoint.Stage() == base.StageACCEPT,
-			vr.stagepoint.Round() > 0:
-			height = vr.stagepoint.Height()
-		default:
-			height = vr.stagepoint.Height().Prev()
-		}
-
-		switch j, found, err := vr.getSuffrageFunc(height); {
-		case err != nil:
-			return nil, err
-		case !found:
-			return nil, util.ErrNotFound.Call()
-		default:
-			return j, nil
-		}
-	})
-
-	switch {
-	case err == nil:
-		return i.(base.Suffrage), true, nil //nolint:forcetypeassert //...
-	case errors.Is(err, util.ErrNotFound):
-		return nil, false, nil
-	default:
-		return nil, false, err
-	}
-}
-
-func (vr *voterecords) learnWithdraws(bl base.Ballot) error {
+func (vr *voterecords) learnWithdraws(withdraws []base.SuffrageWithdrawOperation) error {
 	if vr.suffrageVote == nil {
 		return nil
 	}
 
-	bw, ok := bl.(isaac.BallotWithdraws)
-	if !ok {
+	if len(withdraws) < 1 {
 		return nil
 	}
 
-	w := bw.Withdraws()
-
-	for i := range w {
-		if err := vr.suffrageVote(w[i]); err != nil {
+	for i := range withdraws {
+		if err := vr.suffrageVote(withdraws[i]); err != nil {
 			return err
 		}
 	}
@@ -846,42 +857,29 @@ func (vr *voterecords) learnWithdraws(bl base.Ballot) error {
 	return nil
 }
 
-func (vr *voterecords) isValidBallotWithSuffrage(bl base.Ballot, suf base.Suffrage) error {
+func (vr *voterecords) isValidBallotWithSuffrage(
+	signfact base.BallotSignFact,
+	vp base.Voteproof,
+	suf base.Suffrage,
+) error {
 	e := util.ErrInvalid.Errorf("invalid ballot with suffrage")
 
-	var vsuf base.Suffrage
+	fact := signfact.Fact().(base.BallotFact) //nolint:forcetypeassert //...
 
-	switch i, found, err := vr.getVoteproofSuffrage(); {
-	case err != nil:
-		return e.Wrap(err)
-	case !found:
-		return e.Errorf("voteproof suffrage not found")
-	default:
-		vsuf = i
-	}
-
-	if !suf.ExistsPublickey(bl.SignFact().Node(), bl.SignFact().Signer()) {
+	if !suf.ExistsPublickey(signfact.Node(), signfact.Signer()) {
 		return e.Errorf("node not in suffrage")
 	}
 
-	if wbl, ok := bl.(isaac.BallotWithdraws); ok {
-		withdraws := wbl.Withdraws()
-
+	if withdraws := vr.withdraws[signfact.Node().String()]; len(withdraws) > 0 {
 		for i := range withdraws {
-			if err := isaac.IsValidWithdrawWithSuffrage(bl.Point().Height(), withdraws[i], suf); err != nil {
+			if err := isaac.IsValidWithdrawWithSuffrage(fact.Point().Height(), withdraws[i], suf); err != nil {
 				return e.Wrap(err)
 			}
 		}
 	}
 
-	if err := isaac.IsValidVoteproofWithSuffrage(bl.Voteproof(), vsuf); err != nil {
+	if err := isValidVoteproofWithSuffrage(vr.getSuffragef, vr.isValidVoteproof, vp); err != nil {
 		return e.Wrap(err)
-	}
-
-	if vr.isValidVoteproof != nil {
-		if err := vr.isValidVoteproof(bl.Voteproof(), vsuf); err != nil {
-			return e.Wrap(err)
-		}
 	}
 
 	return nil
@@ -899,11 +897,12 @@ var voterecordsPoolPut = func(vr *voterecords) {
 
 	vr.stagepoint = base.ZeroStagePoint
 	vr.isValidVoteproof = nil
-	vr.getSuffrageFunc = nil
+	vr.getSuffragef = nil
 	vr.voted = nil
-	vr.nodes = nil
 	vr.f = false
 	vr.ballots = nil
+	vr.withdraws = nil
+	vr.vps = nil
 	vr.suf = nil
 	vr.vsuf = nil
 	vr.log = zerolog.Nop()
@@ -951,13 +950,11 @@ func isNewBallotVoteproof( //revive:disable-line:flag-parameter
 
 func isNewBallotVoteproofWithThreshold( //revive:disable-line:flag-parameter
 	local base.Address,
-	bl base.Ballot,
+	vp base.Voteproof,
 	last base.StagePoint,
 	lastIsMajority bool,
 	threshold base.Threshold,
 ) (isnew bool, overthreshold bool) {
-	vp := bl.Voteproof()
-
 	if w, ok := vp.(isaac.WithdrawVoteproof); ok {
 		withdraws := w.Withdraws()
 
@@ -974,20 +971,21 @@ func isNewBallotVoteproofWithThreshold( //revive:disable-line:flag-parameter
 			last,
 			lastIsMajority,
 		),
-		bl.Voteproof().Threshold() >= threshold
+		vp.Threshold() >= threshold
 }
 
 func sortBallotSignFactsByWithdraws(
 	local base.Address,
-	ballots map[string]base.Ballot,
+	signfacts map[string]base.BallotSignFact,
+	withdraws map[string][]base.SuffrageWithdrawOperation,
 ) [][3]interface{} {
-	sfs := make([]base.BallotSignFact, len(ballots))
+	sfs := make([]base.BallotSignFact, len(signfacts))
 
 	{
 		var n int
 
-		for i := range ballots {
-			sfs[n] = ballots[i].SignFact()
+		for i := range signfacts {
+			sfs[n] = signfacts[i]
 
 			n++
 		}
@@ -995,23 +993,24 @@ func sortBallotSignFactsByWithdraws(
 
 	mw := map[string][3]interface{}{}
 
-	for i := range ballots {
-		bl := ballots[i]
+	for i := range signfacts {
+		signfact := signfacts[i]
 
-		if _, ok := bl.(isaac.BallotWithdraws); !ok {
+		w := withdraws[i]
+		if len(w) < 1 {
 			continue
 		}
 
-		if _, found := mw[bl.SignFact().Fact().Hash().String()]; found {
+		if _, found := mw[signfact.Fact().Hash().String()]; found {
 			continue
 		}
 
-		m, found := extractWithdrawsFromBallot(local, bl, sfs)
+		m, found := extractWithdrawsFromBallot(local, w, sfs)
 		if !found {
 			continue
 		}
 
-		mw[bl.SignFact().Fact().Hash().String()] = m
+		mw[signfact.Fact().Hash().String()] = m
 	}
 
 	if len(mw) < 1 {
@@ -1038,18 +1037,9 @@ func sortBallotSignFactsByWithdraws(
 
 func extractWithdrawsFromBallot(
 	local base.Address,
-	bl base.Ballot,
+	withdraws []base.SuffrageWithdrawOperation,
 	sfs []base.BallotSignFact,
 ) (m [3]interface{}, found bool) {
-	var withdraws []base.SuffrageWithdrawOperation
-
-	switch w, ok := bl.(isaac.BallotWithdraws); {
-	case !ok:
-		return m, false
-	default:
-		withdraws = w.Withdraws()
-	}
-
 	if len(withdraws) < 1 {
 		return m, false
 	}
@@ -1106,10 +1096,58 @@ func isNewBallotboxStagePoint( //revive:disable-line:flag-parameter
 	case c < 1:
 		return false
 	case lastIsMajority && point.Height() == last.Height() && point.Stage().Compare(last.Stage()) < 1:
-		// NOTE when last voteproof is majority, ignore the next ballots, which has
-		// same height and not higher stage.
+		// NOTE when last voteproof is majority, ignore the next ballots, which
+		// has same height and not higher stage.
 		return false
 	default:
 		return true
 	}
+}
+
+func getVoteproofSuffrage(
+	ballotpoint base.StagePoint,
+	getSuffragef isaac.GetSuffrageByBlockHeight,
+) (base.Suffrage, bool, error) {
+	var height base.Height
+
+	switch {
+	case ballotpoint.Stage() == base.StageACCEPT,
+		ballotpoint.Round() > 0:
+		height = ballotpoint.Height()
+	default:
+		height = ballotpoint.Height().Prev()
+	}
+
+	return getSuffragef(height)
+}
+
+func isValidVoteproofWithSuffrage(
+	getSuffragef isaac.GetSuffrageByBlockHeight,
+	isValidVoteproof func(base.Voteproof, base.Suffrage) error,
+	vp base.Voteproof,
+) error {
+	e := util.ErrInvalid.Errorf("invalid voteproof with suffrage")
+
+	var vsuf base.Suffrage
+
+	switch i, found, err := getSuffragef(vp.Point().Height()); {
+	case err != nil:
+		return e.Wrap(err)
+	case !found:
+		return e.Errorf("suffrage not found")
+	default:
+		vsuf = i
+	}
+
+	if err := isaac.IsValidVoteproofWithSuffrage(vp, vsuf); err != nil {
+		return e.Wrap(err)
+	}
+
+	if isValidVoteproof != nil {
+		if err := isValidVoteproof(vp, vsuf); err != nil {
+			return e.Wrap(err)
+		}
+	}
+
+	return nil
 }

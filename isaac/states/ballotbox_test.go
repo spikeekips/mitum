@@ -31,7 +31,12 @@ func (box *Ballotbox) voterecords(stagepoint base.StagePoint) *voterecords {
 }
 
 func (box *Ballotbox) voteAndWait(bl base.Ballot, threshold base.Threshold) (bool, base.Voteproof, error) {
-	voted, callback, err := box.vote(bl, threshold)
+	var withdraws []base.SuffrageWithdrawOperation
+	if i, ok := bl.(isaac.BallotWithdraws); ok {
+		withdraws = i.Withdraws()
+	}
+
+	voted, callback, err := box.vote(bl.SignFact(), bl.Voteproof(), withdraws, threshold)
 	if err != nil {
 		return voted, nil, err
 	}
@@ -434,7 +439,7 @@ func (t *testBallotbox) TestNilSuffrage() {
 	defer vr.Unlock()
 
 	vbl := vr.ballots[n0.Address().String()]
-	base.EqualBallot(t.Assert(), bl, vbl)
+	base.EqualBallotSignFact(t.Assert(), bl.SignFact(), vbl)
 }
 
 func (t *testBallotbox) TestNilSuffrageCount() {
@@ -760,7 +765,7 @@ func (t *testBallotbox) TestAsyncVoterecords() {
 			defer sem.Release(1)
 
 			bl := t.initBallot(nodes[i], nil, stagepoint.Point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil, nil)
-			_, _, _ = vr.vote(bl)
+			_, _, _ = vr.vote(bl.BallotSignFact(), bl.Voteproof(), nil)
 
 			if i%3 == 0 {
 				_ = vr.count(base.RandomAddress(""), base.ZeroStagePoint, true, th, 0)
@@ -917,6 +922,76 @@ func (t *testBallotbox) TestSetLastStagePointReversalByVoteproof() {
 	t.Run("next round + majority -> previous round + majority", func() {
 		t.True(box.setLastStagePoint(base.NewStagePoint(point.NextRound(), base.StageINIT), true))
 		t.False(box.setLastStagePoint(base.NewStagePoint(point, base.StageINIT), true))
+	})
+}
+
+func (t *testBallotbox) TestDiggVoteproof() {
+	suf, nodes := isaac.NewTestSuffrage(3)
+	th := base.Threshold(100)
+	local := nodes[0]
+
+	point := base.RawPoint(33, 0)
+
+	box := NewBallotbox(
+		base.RandomAddress(""),
+		func(height base.Height) (base.Suffrage, bool, error) {
+			if height == point.Height() {
+				return suf, true, nil
+			}
+
+			return nil, false, nil
+		},
+		func(base.Voteproof, base.Suffrage) error { return nil },
+		0,
+	)
+
+	t.Run("accept ballot of same height", func() {
+		box.setLastStagePoint(base.NewStagePoint(point, base.StageINIT), true)
+
+		abl := t.acceptBallot(local, nodes, point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
+
+		voted, err := box.Vote(abl, th)
+		t.NoError(err)
+		t.True(voted)
+
+		select {
+		case <-time.After(time.Second):
+		case <-box.Voteproof():
+			t.NoError(errors.Errorf("no voteproof expected"))
+		}
+	})
+
+	t.Run("init ballot of next height", func() {
+		box.setLastStagePoint(base.NewStagePoint(point, base.StageINIT), true)
+
+		ibl := t.initBallot(local, nodes, point.NextHeight(), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil, nil)
+
+		voted, err := box.Vote(ibl, th)
+		t.NoError(err)
+		t.True(voted)
+
+		select {
+		case <-time.After(time.Second):
+			t.NoError(errors.Errorf("failed to wait voteproof"))
+		case vp := <-box.Voteproof():
+			t.NoError(vp.IsValid(t.networkID))
+		}
+	})
+
+	t.Run("init ballot of next next height", func() {
+		box.setLastStagePoint(base.NewStagePoint(point, base.StageINIT), true)
+
+		ibl := t.initBallot(local, nodes, point.NextHeight().NextHeight(), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil, nil)
+
+		voted, err := box.Vote(ibl, th)
+		t.NoError(err)
+		t.True(voted)
+
+		select {
+		case <-time.After(time.Second):
+		case <-box.Voteproof():
+			t.NoError(errors.Errorf("no voteproof expected"))
+		}
 	})
 }
 
