@@ -38,7 +38,7 @@ func (t *baseTestConsensusHandler) newState(previous base.Manifest, suf base.Suf
 	_ = newhandler.SetLogging(logging.TestNilLogging)
 	_ = newhandler.setTimers(util.NewTimers([]util.TimerID{
 		timerIDBroadcastINITBallot,
-		timerIDBroadcastSIGNBallot,
+		timerIDBroadcastSuffrageConfirmBallot,
 		timerIDBroadcastACCEPTBallot,
 	}, false))
 
@@ -156,7 +156,7 @@ func (t *testConsensusHandler) TestFailedToFetchProposal() {
 
 	_ = st.setTimers(util.NewTimers([]util.TimerID{
 		timerIDBroadcastINITBallot,
-		timerIDBroadcastSIGNBallot,
+		timerIDBroadcastSuffrageConfirmBallot,
 		timerIDBroadcastACCEPTBallot,
 	}, false))
 

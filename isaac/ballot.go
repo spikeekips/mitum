@@ -193,9 +193,9 @@ func (bl INITBallot) IsValid(networkID []byte) error {
 		return e.Wrap(err)
 	}
 
-	switch _, ok := bl.signFact.Fact().(SIGNBallotFact); {
+	switch _, ok := bl.signFact.Fact().(SuffrageConfirmBallotFact); {
 	case ok:
-		if err := bl.isvalidSIGNBallotFact(networkID); err != nil {
+		if err := bl.isvalidSuffrageConfirmBallotFact(networkID); err != nil {
 			return e.Wrap(err)
 		}
 	default:
@@ -221,7 +221,7 @@ func (bl INITBallot) BallotSignFact() base.INITBallotSignFact {
 
 func (bl INITBallot) Withdraws() []base.SuffrageWithdrawOperation {
 	if bl.signFact != nil {
-		if _, ok := bl.signFact.Fact().(SIGNBallotFact); ok {
+		if _, ok := bl.signFact.Fact().(SuffrageConfirmBallotFact); ok {
 			switch w, ok := bl.Voteproof().(WithdrawVoteproof); {
 			case !ok:
 				return nil
@@ -234,8 +234,8 @@ func (bl INITBallot) Withdraws() []base.SuffrageWithdrawOperation {
 	return bl.baseBallot.Withdraws()
 }
 
-func (bl INITBallot) isvalidSIGNBallotFact(networkID base.NetworkID) error {
-	e := util.ErrInvalid.Errorf("invalid sign ballot")
+func (bl INITBallot) isvalidSuffrageConfirmBallotFact(networkID base.NetworkID) error {
+	e := util.ErrInvalid.Errorf("invalid suffrage confirm ballot")
 
 	vp := bl.Voteproof()
 
@@ -252,8 +252,8 @@ func (bl INITBallot) isvalidSIGNBallotFact(networkID base.NetworkID) error {
 		return e.Errorf("wrong voteproof; majority should be INITBallotFact, not %q", vp.Majority())
 	}
 
-	// NOTE SIGN INIT ballot does use withdraws from voteproof instead of from it's
-	// body.
+	// NOTE SuffrageConfirm INIT ballot does use withdraws from voteproof
+	// instead of from it's body.
 	switch w, ok := vp.(WithdrawVoteproof); {
 	case !ok:
 		return e.Errorf("wrong voteproof; expected WithdrawVoteproof, but %T", vp)
@@ -267,28 +267,29 @@ func (bl INITBallot) isvalidSIGNBallotFact(networkID base.NetworkID) error {
 		}
 	}
 
-	fact := bl.signFact.Fact().(SIGNBallotFact) //nolint:forcetypeassert //...
+	fact := bl.signFact.Fact().(SuffrageConfirmBallotFact) //nolint:forcetypeassert //...
 
 	bfacts := fact.WithdrawFacts()                                //nolint:forcetypeassert //...
 	vfacts := vp.Majority().(BallotWithdrawFacts).WithdrawFacts() //nolint:forcetypeassert //...
 
 	// NOTE compare withdraws in fact with ballot's
 	if len(bfacts) != len(vfacts) {
-		return e.Errorf("wrong voteproof; not matched with sign ballot fact")
+		return e.Errorf("wrong voteproof; not matched with suffrage confirm ballot fact")
 	}
 
 	for i := range bfacts {
 		if !bfacts[i].Equal(vfacts[i]) {
-			return e.Errorf("wrong voteproof; not matched hash with sign ballot fact")
+			return e.Errorf("wrong voteproof; not matched hash with suffrage confirm ballot fact")
 		}
 	}
 
-	// NOTE compare previous block and proposal of sign ballot fact with voteproof's
+	// NOTE compare previous block and proposal of suffrage confirm ballot fact
+	// with voteproof's
 	switch mfact := vp.Majority().(base.INITBallotFact); { //nolint:forcetypeassert //...
 	case !mfact.PreviousBlock().Equal(fact.PreviousBlock()):
-		return e.Errorf("wrong voteproof; wrong previous block with sign ballot fact")
+		return e.Errorf("wrong voteproof; wrong previous block with suffrage confirm ballot fact")
 	case !mfact.Proposal().Equal(fact.Proposal()):
-		return e.Errorf("wrong voteproof; wrong proposal with sign ballot fact")
+		return e.Errorf("wrong voteproof; wrong proposal with suffrage confirm ballot fact")
 	}
 
 	return nil

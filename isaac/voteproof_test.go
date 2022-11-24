@@ -449,7 +449,7 @@ func (t *testVoteproof) TestINITWithSIGN() {
 
 		withdrawfacts, withdraws := t.withdraws(point.Height()-1, []base.Node{withdrawnode}, nodes[:3])
 
-		sfact := NewSIGNBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), withdrawfacts)
+		sfact := NewSuffrageConfirmBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), withdrawfacts)
 
 		ivp := NewINITVoteproof(sfact.Point().Point)
 		ivp.
@@ -489,7 +489,7 @@ func (t *testVoteproof) TestINITWithSIGN() {
 
 		withdrawfacts, withdraws := t.withdraws(point.Height()-1, []base.Node{withdrawnode}, nodes[:3])
 
-		sfact := NewSIGNBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), withdrawfacts)
+		sfact := NewSuffrageConfirmBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), withdrawfacts)
 		ifact := NewINITBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), withdrawfacts)
 
 		ivp := NewINITVoteproof(sfact.Point().Point)

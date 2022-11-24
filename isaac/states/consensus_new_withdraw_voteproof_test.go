@@ -55,13 +55,13 @@ func (t *testWithdrawsConsensusHandler) TestEnterWithSIGNVoteproof() {
 		withdrawfacts[i] = withdraws[i].Fact().Hash()
 	}
 
-	sfact := isaac.NewSIGNBallotFact(point, origifact.PreviousBlock(), origifact.Proposal(), withdrawfacts)
+	sfact := isaac.NewSuffrageConfirmBallotFact(point, origifact.PreviousBlock(), origifact.Proposal(), withdrawfacts)
 	ivp, err := t.NewINITVoteproof(sfact, t.Local, nodes[:2])
 	t.NoError(err)
 
 	_ = ivp.SetWithdraws(withdraws)
 
-	t.T().Log("new sign init voteproof", ivp.Point())
+	t.T().Log("new suffrage confirm init voteproof", ivp.Point())
 
 	sctx := newConsensusSwitchContext(StateJoining, ivp)
 
@@ -71,7 +71,7 @@ func (t *testWithdrawsConsensusHandler) TestEnterWithSIGNVoteproof() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait sign init ballot"))
+		t.NoError(errors.Errorf("timeout to wait suffrage confirm init ballot"))
 
 		return
 	case m := <-processedch:
@@ -79,7 +79,7 @@ func (t *testWithdrawsConsensusHandler) TestEnterWithSIGNVoteproof() {
 
 		base.EqualManifest(t.Assert(), manifest, m)
 
-		t.T().Log("expected manifest processed from sign init voteproof,", manifest.Height())
+		t.T().Log("expected manifest processed from suffrage confirm init voteproof,", manifest.Height())
 	}
 }
 
@@ -100,10 +100,10 @@ func (t *testWithdrawsConsensusHandler) TestSIGNAfterEnteringINITVoteproof() {
 		return manifest, nil
 	}
 
-	signballotch := make(chan base.Ballot, 1)
+	scballotch := make(chan base.Ballot, 1)
 	st.broadcastBallotFunc = func(bl base.Ballot) error {
 		if p := bl.Point(); p.Point.Equal(point) && p.Stage() == base.StageINIT {
-			signballotch <- bl
+			scballotch <- bl
 		}
 
 		return nil
@@ -145,20 +145,20 @@ func (t *testWithdrawsConsensusHandler) TestSIGNAfterEnteringINITVoteproof() {
 	t.NoError(err)
 	deferred()
 
-	var sfact isaac.SIGNBallotFact
+	var sfact isaac.SuffrageConfirmBallotFact
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait sign init ballot"))
+		t.NoError(errors.Errorf("timeout to wait suffrage confirm init ballot"))
 
 		return
-	case bl := <-signballotch:
+	case bl := <-scballotch:
 		t.NoError(bl.IsValid(t.LocalParams.NetworkID()))
 		ibl, ok := bl.(base.INITBallot)
 		t.True(ok)
 		t.Equal(ivp.Point(), ibl.Point())
 
-		i, ok := ibl.SignFact().Fact().(isaac.SIGNBallotFact)
+		i, ok := ibl.SignFact().Fact().(isaac.SuffrageConfirmBallotFact)
 		t.True(ok)
 		sfact = i
 
@@ -172,7 +172,7 @@ func (t *testWithdrawsConsensusHandler) TestSIGNAfterEnteringINITVoteproof() {
 			t.False(f < 0)
 		}
 
-		t.T().Log("expected sign init ballot broadcasted", bl.Point())
+		t.T().Log("expected suffrage confirm init ballot broadcasted", bl.Point())
 	}
 
 	ivp, err = t.NewINITVoteproof(sfact, t.Local, nodes[:2])
@@ -180,13 +180,13 @@ func (t *testWithdrawsConsensusHandler) TestSIGNAfterEnteringINITVoteproof() {
 
 	_ = ivp.SetWithdraws(withdraws)
 
-	t.T().Log("new sign init voteproof", ivp.Point())
+	t.T().Log("new suffrage confirm init voteproof", ivp.Point())
 
 	t.NoError(st.newVoteproof(ivp))
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait sign init ballot"))
+		t.NoError(errors.Errorf("timeout to wait suffrage confirm init ballot"))
 
 		return
 	case m := <-processedch:
@@ -194,7 +194,7 @@ func (t *testWithdrawsConsensusHandler) TestSIGNAfterEnteringINITVoteproof() {
 
 		base.EqualManifest(t.Assert(), manifest, m)
 
-		t.T().Log("expected manifest processed from sign init voteproof,", manifest.Height())
+		t.T().Log("expected manifest processed from suffrage confirm init voteproof,", manifest.Height())
 	}
 }
 
@@ -224,10 +224,10 @@ func (t *testWithdrawsConsensusHandler) TestSIGNAfterACCEPTVoteproof() {
 		}
 	}
 
-	signballotch := make(chan base.Ballot, 1)
+	scballotch := make(chan base.Ballot, 1)
 	st.broadcastBallotFunc = func(bl base.Ballot) error {
 		if p := bl.Point(); p.Point.Equal(point.NextHeight()) && p.Stage() == base.StageINIT {
-			signballotch <- bl
+			scballotch <- bl
 		}
 
 		return nil
@@ -259,7 +259,7 @@ func (t *testWithdrawsConsensusHandler) TestSIGNAfterACCEPTVoteproof() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait sign init ballot"))
+		t.NoError(errors.Errorf("timeout to wait suffrage confirm init ballot"))
 
 		return
 	case m := <-processedch:
@@ -267,7 +267,7 @@ func (t *testWithdrawsConsensusHandler) TestSIGNAfterACCEPTVoteproof() {
 
 		base.EqualManifest(t.Assert(), manifest, m)
 
-		t.T().Log("expected manifest processed from sign init voteproof,", manifest.Height())
+		t.T().Log("expected manifest processed from suffrage confirm init voteproof,", manifest.Height())
 	}
 
 	afact := isaac.NewACCEPTBallotFact(ivp.Point().Point, ivp.Majority().(base.INITBallotFact).Proposal(), manifest.Hash(), nil)
@@ -302,24 +302,24 @@ func (t *testWithdrawsConsensusHandler) TestSIGNAfterACCEPTVoteproof() {
 
 	t.NoError(st.newVoteproof(nextivp))
 
-	var sfact isaac.SIGNBallotFact
+	var sfact isaac.SuffrageConfirmBallotFact
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait sign init ballot"))
+		t.NoError(errors.Errorf("timeout to wait suffrage confirm init ballot"))
 
 		return
-	case bl := <-signballotch:
+	case bl := <-scballotch:
 		t.NoError(bl.IsValid(t.LocalParams.NetworkID()))
 		ibl, ok := bl.(base.INITBallot)
 		t.True(ok)
 		t.Equal(nextivp.Point(), ibl.Point())
 
-		i, ok := ibl.SignFact().Fact().(isaac.SIGNBallotFact)
+		i, ok := ibl.SignFact().Fact().(isaac.SuffrageConfirmBallotFact)
 		t.True(ok)
 		sfact = i
 
-		t.T().Log("expected sign init ballot broadcasted", sfact.Point())
+		t.T().Log("expected suffrage confirm init ballot broadcasted", sfact.Point())
 	}
 
 	signivp, err := t.NewINITVoteproof(sfact, t.Local, nodes[:2])
@@ -327,13 +327,13 @@ func (t *testWithdrawsConsensusHandler) TestSIGNAfterACCEPTVoteproof() {
 
 	_ = signivp.SetWithdraws(withdraws)
 
-	t.T().Log("new sign init voteproof", signivp.Point())
+	t.T().Log("new suffrage confirm init voteproof", signivp.Point())
 
 	t.NoError(st.newVoteproof(signivp))
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait sign init ballot"))
+		t.NoError(errors.Errorf("timeout to wait suffrage confirm init ballot"))
 
 		return
 	case m := <-processedch:
@@ -341,7 +341,7 @@ func (t *testWithdrawsConsensusHandler) TestSIGNAfterACCEPTVoteproof() {
 
 		base.EqualManifest(t.Assert(), nextmanifest, m)
 
-		t.T().Log("expected manifest processed from sign init voteproof,", manifest.Height())
+		t.T().Log("expected manifest processed from suffrage confirm init voteproof,", manifest.Height())
 	}
 }
 
@@ -411,13 +411,13 @@ func (t *testWithdrawsConsensusHandler) prepareAfterACCEPT(
 
 			select {
 			case <-time.After(time.Second * 2):
-				return nil, errors.Errorf("timeout to wait sign init ballot")
+				return nil, errors.Errorf("timeout to wait suffrage confirm init ballot")
 			case m := <-processedch:
 				t.NotNil(m)
 
 				base.EqualManifest(t.Assert(), manifest, m)
 
-				t.T().Log("expected manifest processed from sign init voteproof,", manifest.Height())
+				t.T().Log("expected manifest processed from suffrage confirm init voteproof,", manifest.Height())
 			}
 
 			afact := isaac.NewACCEPTBallotFact(ivp.Point().Point, ivp.Majority().(base.INITBallotFact).Proposal(), manifest.Hash(), nil)
@@ -514,7 +514,7 @@ func (t *testWithdrawsConsensusHandler) TestSIGNAfterDrawINITVoteproof() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait sign init ballot"))
+		t.NoError(errors.Errorf("timeout to wait suffrage confirm init ballot"))
 
 		return
 	case bl := <-initballotch:
@@ -529,17 +529,17 @@ func (t *testWithdrawsConsensusHandler) TestSIGNAfterDrawINITVoteproof() {
 		t.T().Log("expected next round init ballot broadcasted", bl.Point())
 	}
 
-	sfact := isaac.NewSIGNBallotFact(nextpoint, afact.NewBlock(), t.PRPool.Hash(nextpoint), withdrawfacts)
+	sfact := isaac.NewSuffrageConfirmBallotFact(nextpoint, afact.NewBlock(), t.PRPool.Hash(nextpoint), withdrawfacts)
 	signivp, err := t.NewINITVoteproof(sfact, t.Local, nodes[:2])
 	t.NoError(err)
 	_ = signivp.SetWithdraws(withdraws)
 
-	t.T().Log("next sign init voteproof:", signivp.Point())
+	t.T().Log("next suffrage confirm init voteproof:", signivp.Point())
 	t.NoError(st.newVoteproof(signivp))
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait sign init ballot"))
+		t.NoError(errors.Errorf("timeout to wait suffrage confirm init ballot"))
 
 		return
 	case m := <-processedch:
@@ -547,7 +547,7 @@ func (t *testWithdrawsConsensusHandler) TestSIGNAfterDrawINITVoteproof() {
 
 		base.EqualManifest(t.Assert(), nextmanifest, m)
 
-		t.T().Log("expected manifest processed from sign init voteproof,", nextmanifest.Height())
+		t.T().Log("expected manifest processed from suffrage confirm init voteproof,", nextmanifest.Height())
 	}
 }
 
@@ -559,7 +559,7 @@ func (t *testWithdrawsConsensusHandler) TestReversalAfterDrawINITVoteproof() {
 	defer closef()
 
 	initballotch := make(chan base.Ballot, 3)
-	signballotch := make(chan base.Ballot, 3)
+	scballotch := make(chan base.Ballot, 3)
 	st.broadcastBallotFunc = func(bl base.Ballot) error {
 		p := bl.Point()
 		if p.Stage() != base.StageINIT {
@@ -570,8 +570,8 @@ func (t *testWithdrawsConsensusHandler) TestReversalAfterDrawINITVoteproof() {
 		case p.Point.Equal(nextpoint.NextRound()):
 			initballotch <- bl
 		case p.Point.Equal(nextpoint):
-			if _, ok := bl.SignFact().Fact().(isaac.SIGNBallotFact); ok {
-				signballotch <- bl
+			if _, ok := bl.SignFact().Fact().(isaac.SuffrageConfirmBallotFact); ok {
+				scballotch <- bl
 			}
 		}
 
@@ -638,7 +638,7 @@ func (t *testWithdrawsConsensusHandler) TestReversalAfterDrawINITVoteproof() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait sign init ballot"))
+		t.NoError(errors.Errorf("timeout to wait suffrage confirm init ballot"))
 
 		return
 	case bl := <-initballotch:
@@ -658,19 +658,19 @@ func (t *testWithdrawsConsensusHandler) TestReversalAfterDrawINITVoteproof() {
 
 	select {
 	case <-time.After(time.Second * 2):
-		t.NoError(errors.Errorf("timeout to wait sign init ballot"))
+		t.NoError(errors.Errorf("timeout to wait suffrage confirm init ballot"))
 
 		return
-	case bl := <-signballotch:
+	case bl := <-scballotch:
 		t.NoError(bl.IsValid(t.LocalParams.NetworkID()))
 		ibl, ok := bl.(base.INITBallot)
 		t.True(ok)
 		t.Equal(nextmajorityivp.Point().Point, ibl.Point().Point, "%v != %v", nextmajorityivp.Point().Point, ibl.Point())
 
-		_, ok = ibl.SignFact().Fact().(isaac.SIGNBallotFact)
-		t.True(ok, "expected SIGNBallotFact, but %T", ibl.SignFact().Fact())
+		_, ok = ibl.SignFact().Fact().(isaac.SuffrageConfirmBallotFact)
+		t.True(ok, "expected SuffrageConfirmBallotFact, but %T", ibl.SignFact().Fact())
 
-		t.T().Log("expected sign init ballot broadcasted", bl.Point())
+		t.T().Log("expected suffrage confirm init ballot broadcasted", bl.Point())
 	}
 }
 

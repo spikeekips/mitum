@@ -45,7 +45,7 @@ func (t *testSyncingHandler) newState(finishch chan base.Height) (*SyncingHandle
 	_ = newhandler.SetLogging(logging.TestNilLogging)
 	_ = newhandler.setTimers(util.NewTimers([]util.TimerID{
 		timerIDBroadcastINITBallot,
-		timerIDBroadcastSIGNBallot,
+		timerIDBroadcastSuffrageConfirmBallot,
 		timerIDBroadcastACCEPTBallot,
 	}, false))
 

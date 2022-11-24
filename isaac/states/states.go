@@ -16,9 +16,9 @@ import (
 var ErrIgnoreSwithingState = util.NewError("failed to switch state, but ignored")
 
 var (
-	timerIDBroadcastINITBallot   = util.TimerID("broadcast-init-ballot")
-	timerIDBroadcastSIGNBallot   = util.TimerID("broadcast-sign-ballot")
-	timerIDBroadcastACCEPTBallot = util.TimerID("broadcast-accept-ballot")
+	timerIDBroadcastINITBallot            = util.TimerID("broadcast-init-ballot")
+	timerIDBroadcastSuffrageConfirmBallot = util.TimerID("broadcast-suffrage-confirm-ballot")
+	timerIDBroadcastACCEPTBallot          = util.TimerID("broadcast-accept-ballot")
 )
 
 type States struct {
@@ -69,7 +69,7 @@ func NewStates(
 		cs:                  nil,
 		timers: util.NewTimers([]util.TimerID{
 			timerIDBroadcastINITBallot,
-			timerIDBroadcastSIGNBallot,
+			timerIDBroadcastSuffrageConfirmBallot,
 			timerIDBroadcastACCEPTBallot,
 		}, false),
 		lvps:              lvps,
@@ -515,7 +515,7 @@ func (st *States) mimicBallotFunc() (func(base.Ballot), func()) {
 				timers,
 				timerid,
 				st.broadcastBallotFunc,
-				st.Log(),
+				st.Logging,
 				func(i int, _ time.Duration) time.Duration {
 					if i < 1 {
 						return time.Nanosecond
@@ -602,7 +602,7 @@ func mimicBallot(
 	var newbl base.Ballot
 
 	switch t := fact.(type) {
-	case isaac.SIGNBallotFact:
+	case isaac.SuffrageConfirmBallotFact:
 		sf := isaac.NewINITBallotSignFact(t)
 
 		if err := sf.NodeSign(local.Privatekey(), params.NetworkID(), local.Address()); err != nil {

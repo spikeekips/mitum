@@ -289,7 +289,7 @@ func (t *testINITBallot) TestSignIsValid() {
 			SetWithdraws([]base.SuffrageWithdrawOperation{withdraw}).
 			Finish()
 
-		fact := NewSIGNBallotFact(point, ifact.PreviousBlock(), ifact.Proposal(), []util.Hash{withdrawfact.Hash()})
+		fact := NewSuffrageConfirmBallotFact(point, ifact.PreviousBlock(), ifact.Proposal(), []util.Hash{withdrawfact.Hash()})
 		signfact := NewINITBallotSignFact(fact)
 		t.NoError(signfact.NodeSign(t.priv, t.networkID, base.RandomAddress("")))
 
@@ -311,7 +311,7 @@ func (t *testINITBallot) TestSignIsValid() {
 			SetWithdraws([]base.SuffrageWithdrawOperation{withdraw}).
 			Finish()
 
-		fact := NewSIGNBallotFact(point, ifact.PreviousBlock(), ifact.Proposal(), []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()})
+		fact := NewSuffrageConfirmBallotFact(point, ifact.PreviousBlock(), ifact.Proposal(), []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()})
 		signfact := NewINITBallotSignFact(fact)
 		t.NoError(signfact.NodeSign(t.priv, t.networkID, base.RandomAddress("")))
 
@@ -336,7 +336,7 @@ func (t *testINITBallot) TestSignIsValid() {
 			SetWithdraws([]base.SuffrageWithdrawOperation{withdraw}).
 			Finish()
 
-		fact := NewSIGNBallotFact(point, ifact.PreviousBlock(), ifact.Proposal(), []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()})
+		fact := NewSuffrageConfirmBallotFact(point, ifact.PreviousBlock(), ifact.Proposal(), []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()})
 		signfact := NewINITBallotSignFact(fact)
 		t.NoError(signfact.NodeSign(t.priv, t.networkID, base.RandomAddress("")))
 
@@ -361,7 +361,7 @@ func (t *testINITBallot) TestSignIsValid() {
 			SetThreshold(base.Threshold(100)).
 			Finish()
 
-		fact := NewSIGNBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), []util.Hash{withdrawfact.Hash()})
+		fact := NewSuffrageConfirmBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), []util.Hash{withdrawfact.Hash()})
 		signfact := NewINITBallotSignFact(fact)
 		t.NoError(signfact.NodeSign(t.priv, t.networkID, base.RandomAddress("")))
 
@@ -386,7 +386,7 @@ func (t *testINITBallot) TestSignIsValid() {
 			SetThreshold(base.Threshold(100)).
 			Finish()
 
-		fact := NewSIGNBallotFact(point, ifact.PreviousBlock(), ifact.Proposal(), []util.Hash{withdrawfact.Hash()})
+		fact := NewSuffrageConfirmBallotFact(point, ifact.PreviousBlock(), ifact.Proposal(), []util.Hash{withdrawfact.Hash()})
 		signfact := NewINITBallotSignFact(fact)
 		t.NoError(signfact.NodeSign(t.priv, t.networkID, base.RandomAddress("")))
 
@@ -410,7 +410,7 @@ func (t *testINITBallot) TestSignIsValid() {
 			SetWithdraws([]base.SuffrageWithdrawOperation{withdraw}).
 			Finish()
 
-		fact := NewSIGNBallotFact(point, ifact.PreviousBlock(), ifact.Proposal(), []util.Hash{withdrawfact.Hash()})
+		fact := NewSuffrageConfirmBallotFact(point, ifact.PreviousBlock(), ifact.Proposal(), []util.Hash{withdrawfact.Hash()})
 		signfact := NewINITBallotSignFact(fact)
 		t.NoError(signfact.NodeSign(t.priv, t.networkID, base.RandomAddress("")))
 
@@ -435,7 +435,7 @@ func (t *testINITBallot) TestSignIsValid() {
 			SetWithdraws([]base.SuffrageWithdrawOperation{withdraw}).
 			Finish()
 
-		fact := NewSIGNBallotFact(point, valuehash.RandomSHA256(), ifact.Proposal(), []util.Hash{withdrawfact.Hash()})
+		fact := NewSuffrageConfirmBallotFact(point, valuehash.RandomSHA256(), ifact.Proposal(), []util.Hash{withdrawfact.Hash()})
 		signfact := NewINITBallotSignFact(fact)
 		t.NoError(signfact.NodeSign(t.priv, t.networkID, base.RandomAddress("")))
 
@@ -443,7 +443,7 @@ func (t *testINITBallot) TestSignIsValid() {
 		err := bl.IsValid(t.networkID)
 		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "wrong voteproof")
-		t.ErrorContains(err, "wrong previous block with sign ballot fact")
+		t.ErrorContains(err, "wrong previous block with suffrage confirm ballot fact")
 	})
 
 	t.Run("wrong proposal block", func() {
@@ -460,7 +460,7 @@ func (t *testINITBallot) TestSignIsValid() {
 			SetWithdraws([]base.SuffrageWithdrawOperation{withdraw}).
 			Finish()
 
-		fact := NewSIGNBallotFact(point, ifact.PreviousBlock(), valuehash.RandomSHA256(), []util.Hash{withdrawfact.Hash()})
+		fact := NewSuffrageConfirmBallotFact(point, ifact.PreviousBlock(), valuehash.RandomSHA256(), []util.Hash{withdrawfact.Hash()})
 		signfact := NewINITBallotSignFact(fact)
 		t.NoError(signfact.NodeSign(t.priv, t.networkID, base.RandomAddress("")))
 
@@ -468,7 +468,7 @@ func (t *testINITBallot) TestSignIsValid() {
 		err := bl.IsValid(t.networkID)
 		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "wrong voteproof")
-		t.ErrorContains(err, "wrong proposal with sign ballot fact")
+		t.ErrorContains(err, "wrong proposal with suffrage confirm ballot fact")
 	})
 }
 
@@ -614,7 +614,7 @@ func (t *baseTestBallotEncode) SetupTest() {
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ACCEPTBallotSignFactHint, Instance: ACCEPTBallotSignFact{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: INITBallotHint, Instance: INITBallot{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ACCEPTBallotHint, Instance: ACCEPTBallot{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: SIGNBallotFactHint, Instance: SIGNBallotFact{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: SuffrageConfirmBallotFactHint, Instance: SuffrageConfirmBallotFact{}}))
 }
 
 func testBallotEncode() *baseTestBallotEncode {

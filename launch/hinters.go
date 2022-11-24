@@ -39,7 +39,7 @@ var Hinters = []encoder.DecodeDetail{
 	{Hint: isaac.NodeHint, Instance: base.BaseNode{}},
 	{Hint: isaac.ProposalFactHint, Instance: isaac.ProposalFact{}},
 	{Hint: isaac.ProposalSignFactHint, Instance: isaac.ProposalSignFact{}},
-	{Hint: isaac.SIGNBallotFactHint, Instance: isaac.SIGNBallotFact{}},
+	{Hint: isaac.SuffrageConfirmBallotFactHint, Instance: isaac.SuffrageConfirmBallotFact{}},
 	{Hint: isaac.SuffrageCandidateStateValueHint, Instance: isaac.SuffrageCandidateStateValue{}},
 	{Hint: isaac.SuffrageCandidatesStateValueHint, Instance: isaac.SuffrageCandidatesStateValue{}},
 	{Hint: isaac.SuffrageNodeStateValueHint, Instance: isaac.SuffrageNodeStateValue{}},

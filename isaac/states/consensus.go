@@ -374,16 +374,16 @@ func (st *ConsensusHandler) prepareINITBallot(
 	return st.timers.StartTimers(ids, true)
 }
 
-func (st *ConsensusHandler) prepareSIGNBallot(bl base.INITBallot) error {
+func (st *ConsensusHandler) prepareSuffrageConfirmBallot(bl base.INITBallot) error {
 	go func() {
 		switch _, err := st.vote(bl); {
 		case err == nil:
 		case errors.Is(err, errFailedToVoteNotInConsensus):
-			st.Log().Debug().Err(err).Msg("failed to vote sign ballot; moves to syncing state")
+			st.Log().Debug().Err(err).Msg("failed to vote suffrage confirm ballot; moves to syncing state")
 
 			go st.switchState(newSyncingSwitchContext(StateConsensus, bl.Point().Height()-1))
 		default:
-			st.Log().Debug().Err(err).Msg("failed to vote sign ballot; moves to broken state")
+			st.Log().Debug().Err(err).Msg("failed to vote suffrage confirm ballot; moves to broken state")
 
 			go st.switchState(newBrokenSwitchContext(StateConsensus, err))
 		}
@@ -392,7 +392,7 @@ func (st *ConsensusHandler) prepareSIGNBallot(bl base.INITBallot) error {
 	if err := broadcastBallot(
 		bl,
 		st.timers,
-		timerIDBroadcastSIGNBallot,
+		timerIDBroadcastSuffrageConfirmBallot,
 		st.broadcastBallotFunc,
 		st.Logging,
 		func(i int, _ time.Duration) time.Duration {
@@ -414,7 +414,7 @@ func (st *ConsensusHandler) prepareSIGNBallot(bl base.INITBallot) error {
 	return st.timers.StartTimers(
 		[]util.TimerID{
 			timerIDBroadcastINITBallot,
-			timerIDBroadcastSIGNBallot,
+			timerIDBroadcastSuffrageConfirmBallot,
 			timerIDBroadcastACCEPTBallot,
 		},
 		true,
@@ -478,7 +478,7 @@ func (st *ConsensusHandler) prepareACCEPTBallot(
 
 	if err := st.timers.StartTimers([]util.TimerID{
 		timerIDBroadcastINITBallot,
-		timerIDBroadcastSIGNBallot,
+		timerIDBroadcastSuffrageConfirmBallot,
 		timerIDBroadcastACCEPTBallot,
 	}, true); err != nil {
 		return e(err, "failed to start timers for broadcasting accept ballot")
@@ -754,7 +754,7 @@ func (st *ConsensusHandler) nextRound(vp base.Voteproof, previousBlock util.Hash
 		bl,
 		[]util.TimerID{
 			timerIDBroadcastINITBallot,
-			timerIDBroadcastSIGNBallot,
+			timerIDBroadcastSuffrageConfirmBallot,
 			timerIDBroadcastACCEPTBallot,
 		},
 		initialWait,
@@ -820,7 +820,7 @@ func (st *ConsensusHandler) nextBlock(avp base.ACCEPTVoteproof) {
 		bl,
 		[]util.TimerID{
 			timerIDBroadcastINITBallot,
-			timerIDBroadcastSIGNBallot,
+			timerIDBroadcastSuffrageConfirmBallot,
 			timerIDBroadcastACCEPTBallot,
 		},
 		initialWait,
@@ -852,7 +852,7 @@ func (st *ConsensusHandler) suffrageSIGNVoting(vp base.Voteproof) {
 	ifact := vp.Majority().(isaac.INITBallotFact) //nolint:forcetypeassert //...
 	withdrawfacts := ifact.WithdrawFacts()
 
-	fact := isaac.NewSIGNBallotFact(
+	fact := isaac.NewSuffrageConfirmBallotFact(
 		vp.Point().Point,
 		ifact.PreviousBlock(),
 		ifact.Proposal(),
@@ -862,20 +862,22 @@ func (st *ConsensusHandler) suffrageSIGNVoting(vp base.Voteproof) {
 	sf := isaac.NewINITBallotSignFact(fact)
 
 	if err := sf.NodeSign(st.local.Privatekey(), st.params.NetworkID(), st.local.Address()); err != nil {
-		go st.switchState(newBrokenSwitchContext(st.stt, errors.WithMessage(err, "failed to make sign ballot")))
+		go st.switchState(
+			newBrokenSwitchContext(st.stt, errors.WithMessage(err, "failed to make suffrage confirm ballot")),
+		)
 
 		return
 	}
 
 	bl := isaac.NewINITBallot(vp, sf, nil)
 
-	if err := st.prepareSIGNBallot(bl); err != nil {
-		l.Error().Err(err).Msg("failed to prepare sign ballot")
+	if err := st.prepareSuffrageConfirmBallot(bl); err != nil {
+		l.Error().Err(err).Msg("failed to prepare suffrage confirm ballot")
 
 		return
 	}
 
-	l.Debug().Interface("ballot", bl).Msg("sign ballot broadcasted")
+	l.Debug().Interface("ballot", bl).Msg("suffrage confirm ballot broadcasted")
 }
 
 func (st *ConsensusHandler) saveBlock(avp base.ACCEPTVoteproof) (bool, error) {
@@ -922,10 +924,10 @@ func (st *ConsensusHandler) checkSuffrageVoting(ivp base.INITVoteproof) (bool, e
 		go st.suffrageSIGNVoting(ivp)
 
 		return false, nil
-	case isaac.SIGNBallotFact:
+	case isaac.SuffrageConfirmBallotFact:
 		return true, nil
 	default:
-		return false, errors.Errorf("expected SIGNBallotFact, but %T", t)
+		return false, errors.Errorf("expected SuffrageConfirmBallotFact, but %T", t)
 	}
 }
 

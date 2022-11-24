@@ -156,11 +156,11 @@ func (box *Ballotbox) vote(
 
 	fact := signfact.Fact().(base.BallotFact) //nolint:forcetypeassert //...
 
-	if !isNewBallotboxStagePoint(last, fact.Point(), lastIsMajority, isSIGNBallotFact(fact)) {
+	if !isNewBallotboxStagePoint(last, fact.Point(), lastIsMajority, isSuffrageConfirmBallotFact(fact)) {
 		return false, nil, nil
 	}
 
-	vr := box.newVoterecords(fact.Point(), isSIGNBallotFact(fact))
+	vr := box.newVoterecords(fact.Point(), isSuffrageConfirmBallotFact(fact))
 
 	voted, validated, err := vr.vote(signfact, vp, withdraws)
 	if err != nil {
@@ -175,7 +175,7 @@ func (box *Ballotbox) vote(
 
 	var digged base.Voteproof
 
-	if voted && vp != nil { // FIXME remove
+	if voted && vp != nil {
 		if !validated {
 			if err := isValidVoteproofWithSuffrage(box.getSuffragef, box.isValidVoteproof, vp); err == nil {
 				validated = true
@@ -923,8 +923,8 @@ func isNewBallotVoteproof( //revive:disable-line:flag-parameter
 
 	switch {
 	case !lastIsMajority && vp.Result() == base.VoteResultMajority:
-		// NOTE when last voteproof is based on SIGN ballots, ignore the next
-		// ballots, which same height and not ACCEPT stage
+		// NOTE when last voteproof is based on SuffrageConfirm ballots, ignore
+		// the next ballots, which same height and not ACCEPT stage
 		switch {
 		case point.Height() < last.Height():
 			return false
@@ -934,7 +934,7 @@ func isNewBallotVoteproof( //revive:disable-line:flag-parameter
 			return true
 		}
 	case lastIsMajority && point.Height() == last.Height() && point.Stage().Compare(last.Stage()) == 0:
-		if _, ok := vp.Majority().(isaac.SIGNBallotFact); ok {
+		if _, ok := vp.Majority().(isaac.SuffrageConfirmBallotFact); ok {
 			return true
 		}
 
@@ -1066,8 +1066,8 @@ func extractWithdrawsFromBallot(
 	return m, true
 }
 
-func isSIGNBallotFact(fact base.Fact) bool {
-	_, ok := fact.(isaac.SIGNBallotFact)
+func isSuffrageConfirmBallotFact(fact base.Fact) bool {
+	_, ok := fact.(isaac.SuffrageConfirmBallotFact)
 
 	return ok
 }
@@ -1102,23 +1102,6 @@ func isNewBallotboxStagePoint( //revive:disable-line:flag-parameter
 	default:
 		return true
 	}
-}
-
-func getVoteproofSuffrage(
-	ballotpoint base.StagePoint,
-	getSuffragef isaac.GetSuffrageByBlockHeight,
-) (base.Suffrage, bool, error) {
-	var height base.Height
-
-	switch {
-	case ballotpoint.Stage() == base.StageACCEPT,
-		ballotpoint.Round() > 0:
-		height = ballotpoint.Height()
-	default:
-		height = ballotpoint.Height().Prev()
-	}
-
-	return getSuffragef(height)
 }
 
 func isValidVoteproofWithSuffrage(

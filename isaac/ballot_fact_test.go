@@ -26,7 +26,7 @@ func (t *testBaseBallotFact) setHash(bl base.BallotFact, h util.Hash) base.Ballo
 	case ACCEPTBallotFact:
 		t.SetHash(h)
 		return t
-	case SIGNBallotFact:
+	case SuffrageConfirmBallotFact:
 		t.SetHash(h)
 		return t
 	default:
@@ -42,7 +42,7 @@ func (t *testBaseBallotFact) setWrongStage(bl base.BallotFact) base.BallotFact {
 	case ACCEPTBallotFact:
 		y.point = base.NewStagePoint(y.point.Point, base.StageINIT)
 		return y
-	case SIGNBallotFact:
+	case SuffrageConfirmBallotFact:
 		y.point = base.NewStagePoint(y.point.Point, base.StageACCEPT)
 		return y
 	default:
@@ -142,20 +142,20 @@ func TestACCEPTBallotFact(tt *testing.T) {
 	suite.Run(tt, t)
 }
 
-type testSIGNBallotFact struct {
+type testSuffrageConfirmBallotFact struct {
 	testBaseBallotFact
 }
 
-func (t *testSIGNBallotFact) SetupSuite() {
+func (t *testSuffrageConfirmBallotFact) SetupSuite() {
 	t.ballot = func(point base.Point, withdrawfacts []util.Hash) base.BallotFact {
-		bl := NewSIGNBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), withdrawfacts)
+		bl := NewSuffrageConfirmBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), withdrawfacts)
 		_ = (interface{})(bl).(base.INITBallotFact)
 
 		return bl
 	}
 }
 
-func (t *testSIGNBallotFact) TestNew() {
+func (t *testSuffrageConfirmBallotFact) TestNew() {
 	point := base.RawPoint(33, 44)
 
 	withdrawfacts := make([]util.Hash, 3)
@@ -169,7 +169,7 @@ func (t *testSIGNBallotFact) TestNew() {
 	_ = (interface{})(bl).(base.BallotFact)
 }
 
-func (t *testSIGNBallotFact) TestIsValid() {
+func (t *testSuffrageConfirmBallotFact) TestIsValid() {
 	t.Run("empty withdrawfacts", func() {
 		point := base.RawPoint(33, 44)
 
@@ -188,8 +188,8 @@ func (t *testSIGNBallotFact) TestIsValid() {
 	})
 }
 
-func TestSIGNBallotFact(t *testing.T) {
-	suite.Run(t, new(testSIGNBallotFact))
+func TestSuffrageConfirmBallotFact(t *testing.T) {
+	suite.Run(t, new(testSuffrageConfirmBallotFact))
 }
 
 type baseTestBallotFactEncode struct {
@@ -206,7 +206,7 @@ func (t *baseTestBallotFactEncode) SetupTest() {
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: SuffrageWithdrawFactHint, Instance: SuffrageWithdrawFact{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: INITBallotFactHint, Instance: INITBallotFact{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ACCEPTBallotFactHint, Instance: ACCEPTBallotFact{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: SIGNBallotFactHint, Instance: SIGNBallotFact{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: SuffrageConfirmBallotFactHint, Instance: SuffrageConfirmBallotFact{}}))
 }
 
 func testBallotFactEncode() *baseTestBallotFactEncode {
@@ -331,13 +331,13 @@ func TestACCEPTBallotFactJSON(tt *testing.T) {
 	suite.Run(tt, t)
 }
 
-func TestSIGNBallotFactJSON(tt *testing.T) {
+func TestSuffrageConfirmBallotFactJSON(tt *testing.T) {
 	t := testBallotFactEncode()
 
 	point := base.RawPoint(33, 44)
 
 	t.Encode = func() (interface{}, []byte) {
-		bl := NewSIGNBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()})
+		bl := NewSuffrageConfirmBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()})
 
 		b, err := t.enc.Marshal(&bl)
 		t.NoError(err)
@@ -350,7 +350,7 @@ func TestSIGNBallotFactJSON(tt *testing.T) {
 		i, err := t.enc.Decode(b)
 		t.NoError(err)
 
-		_, ok := i.(SIGNBallotFact)
+		_, ok := i.(SuffrageConfirmBallotFact)
 		t.True(ok)
 
 		return i
@@ -367,9 +367,9 @@ func TestSIGNBallotFactJSON(tt *testing.T) {
 
 		t.NoError(bf.IsValid(nil))
 
-		ab, ok := b.(SIGNBallotFact)
+		ab, ok := b.(SuffrageConfirmBallotFact)
 		t.True(ok)
-		bb, ok := b.(SIGNBallotFact)
+		bb, ok := b.(SuffrageConfirmBallotFact)
 		t.True(ok)
 
 		abf := ab.WithdrawFacts()

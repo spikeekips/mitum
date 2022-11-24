@@ -8,9 +8,9 @@ import (
 )
 
 var (
-	INITBallotFactHint   = hint.MustNewHint("init-ballot-fact-v0.0.1")
-	ACCEPTBallotFactHint = hint.MustNewHint("accept-ballot-fact-v0.0.1")
-	SIGNBallotFactHint   = hint.MustNewHint("sign-ballot-fact-v0.0.1")
+	INITBallotFactHint            = hint.MustNewHint("init-ballot-fact-v0.0.1")
+	ACCEPTBallotFactHint          = hint.MustNewHint("accept-ballot-fact-v0.0.1")
+	SuffrageConfirmBallotFactHint = hint.MustNewHint("suffrage-confirm-ballot-fact-v0.0.1")
 )
 
 type BallotWithdrawFacts interface {
@@ -221,17 +221,17 @@ func (fact ACCEPTBallotFact) generateHash() util.Hash {
 	))
 }
 
-type SIGNBallotFact struct {
+type SuffrageConfirmBallotFact struct {
 	INITBallotFact
 }
 
-func NewSIGNBallotFact(
+func NewSuffrageConfirmBallotFact(
 	point base.Point,
 	previousBlock, proposal util.Hash,
 	withdrawfacts []util.Hash,
-) SIGNBallotFact {
-	fact := SIGNBallotFact{
-		INITBallotFact: newINITBallotFact(SIGNBallotFactHint, point, previousBlock, proposal, withdrawfacts),
+) SuffrageConfirmBallotFact {
+	fact := SuffrageConfirmBallotFact{
+		INITBallotFact: newINITBallotFact(SuffrageConfirmBallotFactHint, point, previousBlock, proposal, withdrawfacts),
 	}
 
 	fact.SetHash(fact.generateHash())
@@ -239,8 +239,8 @@ func NewSIGNBallotFact(
 	return fact
 }
 
-func (fact SIGNBallotFact) IsValid([]byte) error {
-	e := util.ErrInvalid.Errorf("invalid SIGNBallotFact")
+func (fact SuffrageConfirmBallotFact) IsValid([]byte) error {
+	e := util.ErrInvalid.Errorf("invalid SuffrageConfirmBallotFact")
 
 	if len(fact.withdrawfacts) < 1 {
 		return e.Errorf("empty withdraw facts")

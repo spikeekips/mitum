@@ -10,7 +10,6 @@ import (
 var (
 	INITBallotSignFactHint   = hint.MustNewHint("init-ballot-sign-fact-v0.0.1")
 	ACCEPTBallotSignFactHint = hint.MustNewHint("accept-ballot-sign-fact-v0.0.1")
-	SIGNBallotSignFactHint   = hint.MustNewHint("sign-ballot-sign-fact-v0.0.1")
 )
 
 type baseBallotSignFact struct {

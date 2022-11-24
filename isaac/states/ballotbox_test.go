@@ -1479,7 +1479,7 @@ func (t *testBallotboxWithWithdraw) TestINITBallotButDraw() {
 	}
 }
 
-func (t *testBallotboxWithWithdraw) TestSignBallots() {
+func (t *testBallotboxWithWithdraw) TestSuffrageConfirmBallots() {
 	point := base.RawPoint(33, 0)
 
 	suf, nodes := isaac.NewTestSuffrage(3)
@@ -1532,7 +1532,7 @@ func (t *testBallotboxWithWithdraw) TestSignBallots() {
 
 	box.setLastStagePoint(ivp.Point(), true)
 
-	sfact := isaac.NewSIGNBallotFact(ifact.Point().Point, ifact.PreviousBlock(), ifact.Proposal(), ifact.WithdrawFacts())
+	sfact := isaac.NewSuffrageConfirmBallotFact(ifact.Point().Point, ifact.PreviousBlock(), ifact.Proposal(), ifact.WithdrawFacts())
 	t.NoError(sfact.IsValid(nil))
 
 	go func() {
@@ -1565,14 +1565,14 @@ func (t *testBallotboxWithWithdraw) TestSignBallots() {
 		t.NoError(vp.IsValid(t.networkID))
 
 		t.NotNil(vp.Majority())
-		t.IsType(isaac.SIGNBallotFact{}, vp.Majority())
+		t.IsType(isaac.SuffrageConfirmBallotFact{}, vp.Majority())
 		t.True(vp.Point().Equal(ivp.Point()))
 
 		// t.T().Log("#1 voteproof:", t.StringMarshal(vp))
 	}
 }
 
-func (t *testBallotboxWithWithdraw) TestVoteproofFromSignBallots() {
+func (t *testBallotboxWithWithdraw) TestVoteproofFromSuffrageConfirmBallots() {
 	point := base.RawPoint(33, 0)
 
 	suf, nodes := isaac.NewTestSuffrage(3)
@@ -1626,7 +1626,7 @@ func (t *testBallotboxWithWithdraw) TestVoteproofFromSignBallots() {
 	// NOTE set last stage point is not init marjoity
 	box.setLastStagePoint(base.NewStagePoint(point.NextRound(), base.StageINIT), false)
 
-	sfact := isaac.NewSIGNBallotFact(point, prev, valuehash.RandomSHA256(), withdrawfacts)
+	sfact := isaac.NewSuffrageConfirmBallotFact(point, prev, valuehash.RandomSHA256(), withdrawfacts)
 	t.NoError(sfact.IsValid(nil))
 
 	go func() {
@@ -1656,7 +1656,7 @@ func (t *testBallotboxWithWithdraw) TestVoteproofFromSignBallots() {
 	case <-time.After(time.Second):
 		t.NoError(errors.Errorf("failed to wait voteproof"))
 	case vp := <-box.Voteproof():
-		// NOTE init voteproof from sign ballot
+		// NOTE init voteproof from suffrage confirm ballot
 		t.NoError(vp.IsValid(t.networkID))
 
 		t.NotNil(vp.Majority())
