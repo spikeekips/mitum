@@ -140,7 +140,7 @@ func proposalMakderGetOperationsFunc(ctx context.Context) (
 					expire = params.ValidProposalOperationExpire()
 				}
 
-				if localtime.UTCNow().After(meta.AddedAt().Add(expire)) {
+				if localtime.Now().UTC().After(meta.AddedAt().Add(expire)) {
 					return false, nil
 				}
 

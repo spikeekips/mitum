@@ -30,7 +30,7 @@ func NewProposalFact(point base.Point, proposer base.Address, operations []util.
 		point:      point,
 		proposer:   proposer,
 		operations: operations,
-		proposedAt: localtime.UTCNow(),
+		proposedAt: localtime.Now().UTC(),
 	}
 
 	fact.SetHash(fact.generateHash())

@@ -24,7 +24,7 @@ func TestManifestEncode(tt *testing.T) {
 			valuehash.RandomSHA256(),
 			valuehash.RandomSHA256(),
 			valuehash.RandomSHA256(),
-			localtime.UTCNow(),
+			localtime.Now().UTC(),
 		)
 
 		b, err := enc.Marshal(m)

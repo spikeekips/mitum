@@ -25,7 +25,7 @@ func (vp *baseVoteproof) SetResult(r base.VoteResult) *baseVoteproof {
 			panic("empty majority")
 		}
 
-		vp.finishedAt = localtime.UTCNow()
+		vp.finishedAt = localtime.Now().UTC()
 	}
 
 	return vp

@@ -407,7 +407,7 @@ func quicstreamHandlerGetNodeInfoFunc(
 		return bytes.Replace(
 			b,
 			uptimet,
-			[]byte(fmt.Sprintf("%0.3f", localtime.UTCNow().Sub(startedAt).Seconds())),
+			[]byte(fmt.Sprintf("%0.3f", localtime.Now().UTC().Sub(startedAt).Seconds())),
 			1,
 		)
 	}

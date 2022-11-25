@@ -37,7 +37,7 @@ type DefaultNodeInfo struct {
 }
 
 func NewDefaultNodeInfo(id string, networkID base.NetworkID, version util.Version) DefaultNodeInfo {
-	now := localtime.UTCNow()
+	now := localtime.Now().UTC()
 
 	return DefaultNodeInfo{
 		BaseHinter:    hint.NewBaseHinter(DefaultNodeInfoHint),
@@ -79,7 +79,7 @@ func (info DefaultNodeInfo) UpdateLastStartedAt() NodeInfo {
 		id:            info.id,
 		networkID:     info.networkID,
 		createdAt:     info.createdAt,
-		lastStartedAt: localtime.UTCNow(),
+		lastStartedAt: localtime.Now().UTC(),
 		version:       info.version,
 	}
 }

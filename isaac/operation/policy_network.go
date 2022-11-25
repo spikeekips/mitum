@@ -23,8 +23,11 @@ type GenesisNetworkPolicyFact struct {
 
 func NewGenesisNetworkPolicyFact(policy base.NetworkPolicy) GenesisNetworkPolicyFact {
 	fact := GenesisNetworkPolicyFact{
-		BaseFact: base.NewBaseFact(GenesisNetworkPolicyFactHint, base.Token(localtime.New(localtime.UTCNow()).Bytes())),
-		policy:   policy,
+		BaseFact: base.NewBaseFact(
+			GenesisNetworkPolicyFactHint,
+			base.Token(localtime.New(localtime.Now().UTC()).Bytes()),
+		),
+		policy: policy,
 	}
 
 	fact.SetHash(fact.hash())

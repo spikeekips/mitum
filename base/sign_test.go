@@ -20,7 +20,7 @@ func (t *testSign) TestNew() {
 	s := NewBaseSign(
 		NewMPrivatekey().Publickey(),
 		Signature([]byte("showme")),
-		localtime.UTCNow(),
+		localtime.Now().UTC(),
 	)
 	t.NoError(s.IsValid(nil))
 
@@ -31,7 +31,7 @@ func (t *testSign) TestEmptySigner() {
 	s := NewBaseSign(
 		nil,
 		Signature([]byte("showme")),
-		localtime.UTCNow(),
+		localtime.Now().UTC(),
 	)
 
 	err := s.IsValid(nil)
@@ -44,7 +44,7 @@ func (t *testSign) TestEmptySignature() {
 	s := NewBaseSign(
 		NewMPrivatekey().Publickey(),
 		nil,
-		localtime.UTCNow(),
+		localtime.Now().UTC(),
 	)
 
 	err := s.IsValid(nil)
@@ -134,7 +134,7 @@ func (t *testNodeSign) TestNew() {
 		RandomAddress(""),
 		NewMPrivatekey().Publickey(),
 		Signature([]byte("showme")),
-		localtime.UTCNow(),
+		localtime.Now().UTC(),
 	)
 	t.NoError(s.IsValid(nil))
 

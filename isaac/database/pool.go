@@ -695,7 +695,7 @@ func NewPoolOperationRecordMeta(op base.Operation) util.Byter {
 	}
 
 	b, _ := util.NewLengthedBytesSlice(0x01, [][]byte{ //nolint:gomnd //...
-		util.Int64ToBytes(localtime.UTCNow().UnixNano()), // NOTE added UTC timestamp(10)
+		util.Int64ToBytes(localtime.Now().UTC().UnixNano()), // NOTE added UTC timestamp(10)
 		htb,
 		op.Hash().Bytes(),
 		op.Fact().Hash().Bytes(),

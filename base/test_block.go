@@ -34,7 +34,7 @@ func NewDummyManifest(height Height, h util.Hash) DummyManifest {
 	return DummyManifest{
 		h:          h,
 		height:     height,
-		proposedAt: localtime.UTCNow(),
+		proposedAt: localtime.Now().UTC(),
 	}
 }
 

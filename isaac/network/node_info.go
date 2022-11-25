@@ -124,7 +124,7 @@ func NewNodeInfoUpdater(networkID base.NetworkID, local base.Node, version util.
 			suffrageHeight: base.NilHeight,
 			version:        version,
 		},
-		startedAt: localtime.UTCNow(),
+		startedAt: localtime.Now().UTC(),
 	}
 }
 
@@ -144,7 +144,7 @@ func (info *NodeInfoUpdater) NodeInfo() NodeInfo {
 	defer info.RUnlock()
 
 	n := info.n
-	n.uptime = localtime.UTCNow().Sub(info.startedAt)
+	n.uptime = localtime.Now().UTC().Sub(info.startedAt)
 
 	return n
 }

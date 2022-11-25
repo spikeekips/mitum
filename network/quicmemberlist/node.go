@@ -77,7 +77,7 @@ func newNodeWithMeta(name string, addr *net.UDPAddr, meta nodeMeta) (BaseNode, e
 		BaseHinter: hint.NewBaseHinter(NodeHint),
 		name:       name,
 		addr:       addr,
-		joinedAt:   localtime.UTCNow(),
+		joinedAt:   localtime.Now().UTC(),
 		meta:       meta,
 		metab:      metab,
 		publish:    NewNamedConnInfo(meta.publish, meta.tlsinsecure),
