@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/beevik/ntp"
-	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
@@ -14,52 +13,39 @@ import (
 
 var (
 	allowedTimeSyncOffset     = time.Millisecond * 500
-	minTimeSyncCheckInterval  = time.Minute
+	minTimeSyncCheckInterval  = time.Minute * 10
 	timeServerQueryingTimeout = time.Second * 5
-	timeSyncer                *TimeSyncer
+	defaultTimeSyncer         *TimeSyncer
 )
 
 // TimeSyncer tries to sync time to time server.
 type TimeSyncer struct {
 	*logging.Logging
 	*util.ContextDaemon
-	server   string
+	host     string
+	port     int
 	offset   time.Duration
 	interval time.Duration
 	sync.RWMutex
 }
 
 // NewTimeSyncer creates new TimeSyncer
-func NewTimeSyncer(server string, checkInterval time.Duration) (*TimeSyncer, error) {
-	if checkInterval < timeServerQueryingTimeout {
-		return nil, errors.Errorf("too narrow checking interval; should be over %v", timeServerQueryingTimeout)
-	}
-
-	if err := util.Retry(context.Background(), func() (bool, error) {
-		if _, err := ntp.Query(server); err != nil {
-			return true, errors.Wrapf(err, "failed to query ntp server, %q", server)
-		}
-
-		return false, nil
-	}, 3, time.Second*2); err != nil { //nolint:gomnd //...
-		return nil, errors.WithMessage(err, "failed to create TimeSyncer")
-	}
-
+func NewTimeSyncer(server string, port int, interval time.Duration) (*TimeSyncer, error) {
 	ts := &TimeSyncer{
 		Logging: logging.NewLogging(func(c zerolog.Context) zerolog.Context {
 			return c.Str("module", "time-syncer").
 				Str("server", server).
-				Dur("interval", checkInterval)
+				Int("port", port).
+				Dur("interval", interval)
 		}),
-		server:   server,
-		interval: checkInterval,
+		host:     server,
+		port:     port,
+		interval: interval,
 	}
 
 	ts.ContextDaemon = util.NewContextDaemon(ts.schedule)
 
-	ts.check()
-
-	return ts, nil
+	return ts, ts.check()
 }
 
 // Start starts TimeSyncer
@@ -77,6 +63,8 @@ func (ts *TimeSyncer) Start() error {
 }
 
 func (ts *TimeSyncer) schedule(ctx context.Context) error {
+	defer ts.Log().Debug().Msg("stopped")
+
 	ticker := time.NewTicker(ts.interval)
 	defer ticker.Stop()
 
@@ -84,13 +72,14 @@ end:
 	for {
 		select {
 		case <-ctx.Done():
-			ts.Log().Debug().Msg("stopped")
-
 			break end
 		case <-ticker.C:
 			started := time.Now()
-			ts.check()
-			ts.Log().Debug().Dur("elapsed", time.Since(started)).Msg("time queried")
+			if err := ts.check(); err != nil {
+				ts.Log().Error().Err(err).Dur("elapsed", time.Since(started)).Msg("failed to check sync time")
+			} else {
+				ts.Log().Debug().Dur("elapsed", time.Since(started)).Msg("time sync checked")
+			}
 		}
 	}
 
@@ -112,60 +101,57 @@ func (ts *TimeSyncer) setOffset(d time.Duration) {
 	ts.offset = d
 }
 
-func (ts *TimeSyncer) check() {
-	response, err := ntp.QueryWithOptions(ts.server, ntp.QueryOptions{Timeout: timeServerQueryingTimeout})
-	if err != nil {
-		ts.Log().Error().Err(err).Msg("failed to query")
+func (ts *TimeSyncer) check() error {
+	e := util.StringErrorFunc("failed to sync time")
 
-		return
+	option := ntp.QueryOptions{Timeout: timeServerQueryingTimeout}
+
+	if ts.port > 0 {
+		option.Port = ts.port
+	}
+
+	response, err := ntp.QueryWithOptions(ts.host, option)
+	if err != nil {
+		return e(err, "failed to query")
 	}
 
 	if err := response.Validate(); err != nil {
-		ts.Log().Error().
-			Err(err).
-			Interface("response", response).
-			Msg("invalid response")
-
-		return
+		return e(err, "invalid response")
 	}
 
 	offset := ts.Offset()
-	defer func() {
-		ts.Log().Debug().Interface("response", response).Dur("offset", offset).Msg("time checked")
-	}()
+	defer ts.Log().Debug().Interface("response", response).Dur("offset", offset).Msg("time checked")
 
 	switch diff := offset - response.ClockOffset; {
 	case diff == 0:
-		return
+		return nil
 	case diff > 0:
 		if diff < allowedTimeSyncOffset {
-			return
+			return nil
 		}
 	case diff < 0:
 		if diff > allowedTimeSyncOffset*-1 {
-			return
+			return nil
 		}
 	}
 
 	ts.setOffset(response.ClockOffset)
+
+	return nil
 }
 
-// SetTimeSyncer sets the global TimeSyncer.
-func SetTimeSyncer(syncer *TimeSyncer) {
-	timeSyncer = syncer
+// SetDefaultTimeSyncer sets the global TimeSyncer.
+func SetDefaultTimeSyncer(syncer *TimeSyncer) {
+	defaultTimeSyncer = syncer
 }
 
 // Now returns the tuned Time with TimeSyncer.Offset().
 func Now() time.Time {
-	if timeSyncer == nil {
+	if defaultTimeSyncer == nil {
 		return time.Now()
 	}
 
-	return time.Now().Add(timeSyncer.Offset())
-}
-
-func UTCNow() time.Time {
-	return Now().UTC()
+	return time.Now().Add(defaultTimeSyncer.Offset())
 }
 
 func Within(base, target time.Time, d time.Duration) bool {
@@ -179,8 +165,4 @@ func Within(base, target time.Time, d time.Duration) bool {
 	}
 
 	return false
-}
-
-func WithinNow(target time.Time, d time.Duration) bool {
-	return Within(Now(), target, d)
 }

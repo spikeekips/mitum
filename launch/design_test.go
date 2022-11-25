@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
@@ -553,6 +554,69 @@ func (t *testNodeDesign) TestIsValid() {
 		err := a.IsValid(nil)
 		t.Error(err)
 		t.ErrorContains(err, "sync source has same with publish resolved address")
+	})
+
+	t.Run("empty time server", func() {
+		a := NodeDesign{
+			Address:    base.RandomAddress(""),
+			Privatekey: base.NewMPrivatekey(),
+			NetworkID:  networkID,
+		}
+
+		t.NoError(a.IsValid(nil))
+	})
+
+	t.Run("name time server", func() {
+		a := NodeDesign{
+			Address:    base.RandomAddress(""),
+			Privatekey: base.NewMPrivatekey(),
+			NetworkID:  networkID,
+			TimeServer: "un.org",
+		}
+
+		t.NoError(a.IsValid(nil))
+		t.Equal("un.org", a.TimeServer)
+		t.Empty(a.TimeServerPort)
+	})
+
+	t.Run("unresolve time server", func() {
+		a := NodeDesign{
+			Address:    base.RandomAddress(""),
+			Privatekey: base.NewMPrivatekey(),
+			NetworkID:  networkID,
+			TimeServer: "xxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+		}
+
+		err := a.IsValid(nil)
+		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorContains(err, "invalid time server")
+		t.ErrorContains(err, "no such host")
+	})
+
+	t.Run("invalid time server", func() {
+		a := NodeDesign{
+			Address:    base.RandomAddress(""),
+			Privatekey: base.NewMPrivatekey(),
+			NetworkID:  networkID,
+			TimeServer: "a/10",
+		}
+
+		err := a.IsValid(nil)
+		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorContains(err, "invalid time server")
+	})
+
+	t.Run("time server with port", func() {
+		a := NodeDesign{
+			Address:    base.RandomAddress(""),
+			Privatekey: base.NewMPrivatekey(),
+			NetworkID:  networkID,
+			TimeServer: "1.1.1.1:10",
+		}
+
+		t.NoError(a.IsValid(nil))
+		t.Equal("1.1.1.1", a.TimeServer)
+		t.Equal(10, a.TimeServerPort)
 	})
 }
 

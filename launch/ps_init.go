@@ -8,6 +8,7 @@ func DefaultINITPS() *ps.PS {
 	_ = pps.
 		AddOK(PNameEncoder, PEncoder, nil).
 		AddOK(PNameDesign, PLoadDesign, nil, PNameEncoder).
+		AddOK(PNameTimeSyncer, PStartTimeSyncer, PCloseTimeSyncer, PNameDesign).
 		AddOK(PNameLocal, PLocal, nil, PNameDesign).
 		AddOK(PNameStorage, PStorage, PCloseStorage, PNameLocal).
 		AddOK(PNameGenerateGenesis, PGenerateGenesis, nil, PNameStorage)
