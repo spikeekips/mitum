@@ -156,7 +156,11 @@ func (box *Ballotbox) vote(
 
 	fact := signfact.Fact().(base.BallotFact) //nolint:forcetypeassert //...
 
+	l := box.Log().With().Interface("sign_fact", signfact).Logger()
+
 	if !isNewBallotboxStagePoint(last, fact.Point(), lastIsMajority, isSuffrageConfirmBallotFact(fact)) {
+		l.Debug().Bool("voted", false).Bool("validated", false).Msg("ballot voted")
+
 		return false, nil, nil
 	}
 
@@ -164,14 +168,12 @@ func (box *Ballotbox) vote(
 
 	voted, validated, err := vr.vote(signfact, vp, withdraws)
 	if err != nil {
+		l.Error().Bool("voted", voted).Bool("validated", validated).Msg("ballot voted")
+
 		return false, nil, e(err, "")
 	}
 
-	box.Log().Debug().
-		Interface("ballot_sign_fact", signfact).
-		Bool("voted", voted).
-		Bool("validated", validated).
-		Msg("ballot voted")
+	l.Debug().Bool("voted", voted).Bool("validated", validated).Msg("ballot voted")
 
 	var digged base.Voteproof
 
@@ -192,6 +194,8 @@ func (box *Ballotbox) vote(
 				lastIsMajority,
 				threshold,
 			); isnew && overthreshold {
+				l.Debug().Interface("voteproof", vp).Msg("new voteproof from ballot") //nolint:goconst //...
+
 				digged = vp
 			}
 		}
@@ -522,7 +526,7 @@ func (vr *voterecords) vote(
 
 		if err := vr.learnWithdraws(withdraws); err != nil {
 			vr.log.Error().Err(err).
-				Interface("ballot_sign_fact", signfact).
+				Interface("sign_fact", signfact).
 				Interface("withdraws", withdraws).
 				Msg("failed learn suffrage withdraws; ignored")
 		}
@@ -544,7 +548,7 @@ func (vr *voterecords) vote(
 	if vp != nil {
 		if err := vr.isValidBallotWithSuffrage(signfact, vp, suf); err != nil {
 			vr.log.Error().Err(err).
-				Interface("ballot_sign_fact", signfact).
+				Interface("sign_fact", signfact).
 				Interface("voteproof", vp). //nolint:goconst //...
 				Interface("suffrage", suf).
 				Msg("invalid ballot")
@@ -555,7 +559,7 @@ func (vr *voterecords) vote(
 
 	if err := vr.learnWithdraws(withdraws); err != nil {
 		vr.log.Error().Err(err).
-			Interface("ballot_sign_fact", signfact).
+			Interface("sign_fact", signfact).
 			Interface("withdraws", withdraws).
 			Msg("failed learn suffrage withdraws")
 
@@ -597,11 +601,15 @@ func (vr *voterecords) count(
 
 	if len(vr.ballots) > 0 {
 		if vp := vr.countFromBallots(local, lastStagePoint, lastIsMajority, threshold, suf); vp != nil {
+			vr.log.Debug().Interface("voteproof", vp).Msg("new voteproof; count from ballot")
+
 			vps = append(vps, vp)
 		}
 	}
 
 	if vp := vr.countFromVoted(local, threshold, countAfter); vp != nil {
+		vr.log.Debug().Interface("voteproof", vp).Msg("new voteproof; count from voted")
+
 		vr.countAfter = time.Time{}
 
 		vps = append(vps, vp)
