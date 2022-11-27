@@ -477,10 +477,13 @@ func (st *States) mimicBallotFunc() (func(base.Ballot), func()) {
 	}, false)
 
 	return func(bl base.Ballot) {
-			// FIXME don't mimic local is in withdraws
-			switch s := st.current().state(); {
-			case bl.SignFact().Node().Equal(st.local.Address()):
+			if filterMimicBallot(bl, st.local.Address()) {
+				st.Log().Debug().Interface("ballot", bl).Msg("local is in withdraws; ignore")
+
 				return
+			}
+
+			switch s := st.current().state(); {
 			case s != StateSyncing && s != StateBroken:
 				if err := timers.StopTimersAll(); err != nil {
 					st.Log().Error().Err(err).Msg("failed to stop mimic timers; ignore")
@@ -634,4 +637,35 @@ func mimicBallot(
 	}
 
 	return newbl, nil
+}
+
+func filterMimicBallot(bl base.Ballot, local base.Address) bool {
+	if bl.SignFact().Node().Equal(local) {
+		return true
+	}
+
+	// NOTE if local is in withdraws, ignore
+	switch w, ok := bl.(isaac.BallotWithdraws); {
+	case !ok:
+	default:
+		if util.InSliceFunc(w.Withdraws(), func(i base.SuffrageWithdrawOperation) bool {
+			return i.WithdrawFact().Node().Equal(local)
+		}) >= 0 {
+			return true
+		}
+	}
+
+	if vp := bl.Voteproof(); vp != nil {
+		switch wvp, ok := vp.(isaac.WithdrawVoteproof); {
+		case !ok:
+		default:
+			if util.InSliceFunc(wvp.Withdraws(), func(i base.SuffrageWithdrawOperation) bool {
+				return i.WithdrawFact().Node().Equal(local)
+			}) >= 0 {
+				return true
+			}
+		}
+	}
+
+	return false
 }

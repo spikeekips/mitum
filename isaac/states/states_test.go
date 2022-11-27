@@ -714,8 +714,10 @@ func (t *testStates) TestMimicBallot() {
 	params := isaac.DefaultLocalParams(base.RandomNetworkID())
 	remote := isaac.RandomLocalNode()
 
-	newINITBallot := func(local base.LocalNode) base.Ballot {
-		afact := isaac.NewACCEPTBallotFact(base.RawPoint(32, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
+	point := base.RawPoint(32, 44)
+
+	newINITBallot := func(local base.LocalNode, withdraws []base.SuffrageWithdrawOperation) base.Ballot {
+		afact := isaac.NewACCEPTBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
 		afs := isaac.NewACCEPTBallotSignFact(afact)
 		t.NoError(afs.NodeSign(local.Privatekey(), params.NetworkID(), local.Address()))
 
@@ -726,11 +728,16 @@ func (t *testStates) TestMimicBallot() {
 			SetThreshold(100).
 			Finish()
 
-		ifact := isaac.NewINITBallotFact(base.RawPoint(33, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
+		withdrawfacts := make([]util.Hash, len(withdraws))
+		for i := range withdraws {
+			withdrawfacts[i] = withdraws[i].Fact().Hash()
+		}
+
+		ifact := isaac.NewINITBallotFact(base.RawPoint(33, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256(), withdrawfacts)
 		ifs := isaac.NewINITBallotSignFact(ifact)
 		t.NoError(ifs.NodeSign(local.Privatekey(), params.NetworkID(), local.Address()))
 
-		return isaac.NewINITBallot(avp, ifs, nil)
+		return isaac.NewINITBallot(avp, ifs, withdraws)
 	}
 
 	newstates := func() (*States, <-chan error) {
@@ -776,7 +783,7 @@ func (t *testStates) TestMimicBallot() {
 			return nil
 		}
 
-		bl := newINITBallot(remote)
+		bl := newINITBallot(remote, nil)
 
 		f, cancel := st.mimicBallotFunc()
 		f(bl)
@@ -807,7 +814,7 @@ func (t *testStates) TestMimicBallot() {
 			return nil
 		}
 
-		bl := newINITBallot(remote)
+		bl := newINITBallot(remote, nil)
 
 		f, cancel := st.mimicBallotFunc()
 		f(bl)
@@ -834,7 +841,7 @@ func (t *testStates) TestMimicBallot() {
 			return nil
 		}
 
-		bl := newINITBallot(remote)
+		bl := newINITBallot(remote, nil)
 
 		f, cancel := st.mimicBallotFunc()
 		f(bl)
@@ -864,7 +871,7 @@ func (t *testStates) TestMimicBallot() {
 		mimicBallotFunc, cancel := st.mimicBallotFunc()
 		defer cancel()
 
-		bl := newINITBallot(remote)
+		bl := newINITBallot(remote, nil)
 
 		t.T().Log("initial ballot")
 		mimicBallotFunc(bl)
@@ -879,7 +886,7 @@ func (t *testStates) TestMimicBallot() {
 
 		t.T().Log("second ballot by another node")
 
-		anotherbl := newINITBallot(isaac.RandomLocalNode())
+		anotherbl := newINITBallot(isaac.RandomLocalNode(), nil)
 		mimicBallotFunc(anotherbl)
 
 		select {
@@ -903,7 +910,38 @@ func (t *testStates) TestMimicBallot() {
 			return nil
 		}
 
-		bl := newINITBallot(local)
+		bl := newINITBallot(local, nil)
+
+		f, cancel := st.mimicBallotFunc()
+		f(bl)
+		defer cancel()
+
+		select {
+		case <-time.After(time.Second * 2):
+		case err := <-errch:
+			t.NoError(err)
+		case <-blch:
+			t.NoError(errors.Errorf("should be no broadcasted ballot, but broadcasted"))
+		}
+	})
+
+	t.Run("local is in withdraws", func() {
+		st, errch := newstatesinsyncing()
+		defer st.Stop()
+
+		st.isinsyncsources = func(base.Address) bool { return true }
+
+		blch := make(chan base.Ballot, 1)
+		st.broadcastBallotFunc = func(bl base.Ballot) error {
+			blch <- bl
+			return nil
+		}
+
+		fact := isaac.NewSuffrageWithdrawFact(local.Address(), point.Height()-1, point.Height()+1, util.UUID().String())
+		withdraw := isaac.NewSuffrageWithdrawOperation(fact)
+		t.NoError(withdraw.NodeSign(remote.Privatekey(), params.NetworkID(), remote.Address()))
+
+		bl := newINITBallot(local, []base.SuffrageWithdrawOperation{withdraw})
 
 		f, cancel := st.mimicBallotFunc()
 		f(bl)
