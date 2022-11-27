@@ -74,7 +74,7 @@ func PNetwork(ctx context.Context) (context.Context, error) {
 
 	quicconfig := DefaultQuicConfig()
 	quicconfig.RequireAddressValidation = func(net.Addr) bool {
-		return true // FIXME NOTE manage blacklist
+		return true // TODO NOTE manage blacklist
 	}
 
 	server := quicstream.NewServer(

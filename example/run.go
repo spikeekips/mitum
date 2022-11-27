@@ -21,8 +21,6 @@ import (
 	"github.com/spikeekips/mitum/util/ps"
 )
 
-// FIXME add TimeSyncer
-
 type RunCommand struct { //nolint:govet //...
 	//revive:disable:line-length-limit
 	launch.DesignFlag

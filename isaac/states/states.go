@@ -477,6 +477,7 @@ func (st *States) mimicBallotFunc() (func(base.Ballot), func()) {
 	}, false)
 
 	return func(bl base.Ballot) {
+			// FIXME don't mimic local is in withdraws
 			switch s := st.current().state(); {
 			case bl.SignFact().Node().Equal(st.local.Address()):
 				return
@@ -489,8 +490,6 @@ func (st *States) mimicBallotFunc() (func(base.Ballot), func()) {
 			case !st.isinsyncsources(bl.SignFact().Node()):
 				return
 			}
-
-			// FIXME if local is blocking node, don't mimic
 
 			newbl := mimicBallotf(bl)
 			if newbl == nil {

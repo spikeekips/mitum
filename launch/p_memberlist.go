@@ -121,18 +121,22 @@ func PCloseMemberlist(ctx context.Context) (context.Context, error) {
 }
 
 func PLongRunningMemberlistJoin(ctx context.Context) (context.Context, error) {
+	var local base.LocalNode
 	var discoveries *util.Locked
 	var m *quicmemberlist.Memberlist
+	var watcher *isaac.LastConsensusNodesWatcher
 
 	if err := util.LoadFromContextOK(ctx,
+		LocalContextKey, &local,
 		DiscoveryContextKey, &discoveries,
 		MemberlistContextKey, &m,
+		LastConsensusNodesWatcherContextKey, &watcher,
 	); err != nil {
 		return nil, err
 	}
 
 	l := NewLongRunningMemberlistJoin(
-		ensureJoinMemberlist(discoveries, m),
+		ensureJoinMemberlist(local, watcher, discoveries, m),
 		m.IsJoined,
 	)
 
@@ -548,14 +552,7 @@ func memberlistAllowFunc(ctx context.Context) (
 	return func(node quicmemberlist.Node) error {
 		l := log.Log().With().Interface("remote", node).Logger()
 
-		proof, st, err := watcher.Last()
-		if err != nil {
-			l.Error().Err(err).Msg("failed to check last consensus nodes; node will not be allowed")
-
-			return err
-		}
-
-		switch suf, found, err := isaac.IsNodeInLastConsensusNodes(node, proof, st); {
+		switch suf, found, err := watcher.Exists(node); {
 		case err != nil:
 			l.Error().Err(err).Msg("failed to check node in consensus nodes; node will not be allowed")
 
@@ -658,8 +655,20 @@ func (l *LongRunningMemberlistJoin) Cancel() bool {
 	return true
 }
 
-func ensureJoinMemberlist(discoveries *util.Locked, m *quicmemberlist.Memberlist) func() (bool, error) {
+func ensureJoinMemberlist(
+	local base.LocalNode,
+	watcher *isaac.LastConsensusNodesWatcher,
+	discoveries *util.Locked,
+	m *quicmemberlist.Memberlist,
+) func() (bool, error) {
 	return func() (bool, error) {
+		switch _, found, err := watcher.Exists(local); {
+		case err != nil:
+			return false, err
+		case !found:
+			return true, errors.Errorf("local, not in consensus nodes")
+		}
+
 		dis := GetDiscoveriesFromLocked(discoveries)
 
 		if len(dis) < 1 {
