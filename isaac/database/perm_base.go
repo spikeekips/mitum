@@ -11,7 +11,7 @@ import (
 type basePermanent struct {
 	encs   *encoder.Encoders
 	enc    encoder.Encoder
-	lenc   *util.Locked // NOTE last blockmap
+	lenc   *util.Locked // NOTE encoder of last blockmap
 	mp     *util.Locked // NOTE last blockmap
 	policy *util.Locked // NOTE last NetworkPolicy
 	proof  *util.Locked // NOTE last SuffrageProof

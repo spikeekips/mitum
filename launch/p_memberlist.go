@@ -364,7 +364,7 @@ func memberlistConfig(
 
 			if !node.Address().Equal(local.Address()) {
 				nci := isaacnetwork.NewNodeConnInfoFromMemberlistNode(node)
-				added := syncSourcePool.Add(nci)
+				added := syncSourcePool.AddNonFixed(nci)
 
 				l.Debug().
 					Bool("added", added).
@@ -382,7 +382,7 @@ func memberlistConfig(
 			}
 
 			nci := isaacnetwork.NewNodeConnInfoFromMemberlistNode(node)
-			if syncSourcePool.RemoveNonFixed(nci.Address(), nci.String()) {
+			if syncSourcePool.RemoveNonFixed(nci) {
 				l.Debug().Msg("node removed from sync source pool")
 			}
 		},

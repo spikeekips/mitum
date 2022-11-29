@@ -6,12 +6,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bluele/gcache"
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/valuehash"
-	"golang.org/x/crypto/sha3"
 )
 
 var (
@@ -30,23 +29,22 @@ type Syncer interface {
 }
 
 type SyncSourcePool struct {
-	sources   []NodeConnInfo
-	sourceids []string
-	problems  []*time.Time
+	problems gcache.Cache
+	nonfixed map[string]NodeConnInfo
+	fixed    []NodeConnInfo
+	fixedids []string
 	sync.RWMutex
-	fixedlen     int
 	renewTimeout time.Duration
 }
 
 func NewSyncSourcePool(fixed []NodeConnInfo) *SyncSourcePool {
 	p := &SyncSourcePool{
-		sources:      fixed,
-		renewTimeout: time.Second * 3, //nolint:gomnd //...
+		nonfixed:     map[string]NodeConnInfo{},
+		problems:     gcache.New(1 << 14).LRU().Build(), //nolint:gomnd // big enough for suffrage size
+		renewTimeout: time.Second * 3,                   //nolint:gomnd //...
 	}
 
-	p.sourceids = p.makeid(fixed)
-	p.problems = make([]*time.Time, len(fixed))
-	p.fixedlen = len(fixed)
+	_ = p.UpdateFixed(fixed)
 
 	return p
 }
@@ -55,7 +53,7 @@ func (p *SyncSourcePool) Pick() (NodeConnInfo, func(error), error) {
 	p.Lock()
 	defer p.Unlock()
 
-	_, nci, report, err := p.pick(0)
+	_, nci, report, err := p.pick("")
 
 	return nci, report, err
 }
@@ -64,32 +62,37 @@ func (p *SyncSourcePool) PickMultiple(n int) ([]NodeConnInfo, []func(error), err
 	p.Lock()
 	defer p.Unlock()
 
-	switch {
-	case n < 1:
+	if n < 1 {
 		return nil, nil, errors.Errorf("zero")
-	case n == 1:
-		_, nci, report, err := p.pick(0)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return []NodeConnInfo{nci}, []func(error){report}, nil
 	}
 
-	sources := make([]NodeConnInfo, n)
+	ncis := make([]NodeConnInfo, n)
 	reports := make([]func(error), n)
 
-	var index int
+	var last string
 
-	var i int
+	switch i, nci, report, err := p.pick(""); {
+	case err != nil:
+		return nil, nil, err
+	default:
+		last = i
+		ncis[0] = nci
+		reports[0] = report
+	}
+
+	if n == 1 {
+		return ncis, reports, nil
+	}
+
+	i := 1
 
 	for {
-		j, source, report, err := p.pick(index)
-		if err != nil {
+		id, nci, report, err := p.pick(last)
+		if err != nil || nci == nil {
 			break
 		}
 
-		sources[i] = source
+		ncis[i] = nci
 		reports[i] = report
 
 		i++
@@ -98,161 +101,149 @@ func (p *SyncSourcePool) PickMultiple(n int) ([]NodeConnInfo, []func(error), err
 			break
 		}
 
-		index = j + 1
+		last = id
 	}
 
-	if len(sources[:i]) < 1 {
+	if len(ncis[:i]) < 1 {
 		return nil, nil, ErrEmptySyncSources.Call()
 	}
 
-	return sources[:i], reports[:i], nil
+	return ncis[:i], reports[:i], nil
 }
 
 func (p *SyncSourcePool) IsInFixed(node base.Address) bool {
 	p.RLock()
 	defer p.RUnlock()
 
-	fixed := p.sources[:p.fixedlen]
+	return p.nodeIsInFixed(node) >= 0
+}
 
-	return util.InSliceFunc(fixed, func(i NodeConnInfo) bool {
-		return i.Address().Equal(node)
-	}) >= 0
+func (p *SyncSourcePool) IsInNonFixed(node base.Address) bool {
+	p.RLock()
+	defer p.RUnlock()
+
+	if p.nodeIsInFixed(node) >= 0 {
+		return false
+	}
+
+	for id := range p.nonfixed {
+		if p.nonfixed[id].Address().Equal(node) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (p *SyncSourcePool) NodeExists(node base.Address) bool {
+	p.RLock()
+	defer p.RUnlock()
+
+	for i := range p.fixed {
+		if p.fixed[i].Address().Equal(node) {
+			return true
+		}
+	}
+
+	for i := range p.nonfixed {
+		if p.nonfixed[i].Address().Equal(node) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (p *SyncSourcePool) UpdateFixed(fixed []NodeConnInfo) bool {
 	p.Lock()
 	defer p.Unlock()
 
-	existingids := p.sourceids[:p.fixedlen]
-	fixedids := p.makeid(fixed)
+	if len(p.fixed) == len(fixed) {
+		var notsame bool
 
-	if len(existingids) == len(fixedids) {
-		var found bool
-
-		for i := range fixedids {
-			if fixedids[i] != existingids[i] {
-				found = true
+		for i := range fixed {
+			if p.fixedids[i] != p.makeid(fixed[i]) {
+				notsame = true
 
 				break
 			}
 		}
 
-		if !found {
+		if !notsame {
 			return false
 		}
 	}
 
-	extras, extraids := p.filterExtras(fixedids)
+	p.fixed = fixed
+	p.fixedids = make([]string, len(fixed))
 
-	sources := make([]NodeConnInfo, len(fixed)+len(extras))
-	copy(sources, fixed)
-	copy(sources[len(fixed):], extras)
+	for i := range fixed {
+		p.fixedids[i] = p.makeid(fixed[i])
+	}
 
-	ids := make([]string, len(fixedids)+len(extraids))
-	copy(ids, fixedids)
-	copy(ids[len(fixedids):], extraids)
-
-	problems := make([]*time.Time, len(fixed)+len(extras))
-	copy(problems[len(fixed):], p.problems[p.fixedlen:])
-
-	p.sources = sources
-	p.sourceids = ids
-	p.problems = problems
-	p.fixedlen = len(fixed)
+	for id := range p.nonfixed {
+		if util.InSlice(p.fixedids, id) >= 0 {
+			delete(p.nonfixed, id)
+		}
+	}
 
 	return true
 }
 
-func (p *SyncSourcePool) NodeConnInfo(node base.Address) (NodeConnInfo, bool) {
-	p.RLock()
-	defer p.RUnlock()
-
-	index := util.InSliceFunc(p.sources, func(i NodeConnInfo) bool {
-		return i.Address().Equal(node)
-	})
-
-	if index < 0 {
-		return nil, false
-	}
-
-	return p.sources[index], true
-}
-
-func (p *SyncSourcePool) Add(added ...NodeConnInfo) bool {
+func (p *SyncSourcePool) AddNonFixed(ncis ...NodeConnInfo) bool {
 	p.Lock()
 	defer p.Unlock()
 
-	sources := make([]NodeConnInfo, len(p.sources))
-	copy(sources, p.sources)
+	var isnew bool
 
-	sourceids := make([]string, len(p.sourceids))
-	copy(sourceids, p.sourceids)
+	for i := range ncis {
+		nci := ncis[i]
+		id := p.makeid(nci)
 
-	problems := make([]*time.Time, len(p.problems))
-	copy(problems, p.problems)
-
-	var updatedcount int
-
-	for i := range added {
-		var updated bool
-
-		sources, sourceids, problems, updated = p.add(sources, sourceids, problems, added[i])
-
-		if updated {
-			updatedcount++
+		if util.InSlice(p.fixedids, id) >= 0 {
+			continue
 		}
+
+		if _, found := p.nonfixed[id]; !found {
+			isnew = true
+		}
+
+		p.nonfixed[id] = nci
 	}
 
-	if updatedcount > 0 {
-		p.sources = sources
-		p.sourceids = sourceids
-		p.problems = problems
-	}
-
-	return updatedcount > 0
+	return isnew
 }
 
-func (p *SyncSourcePool) Remove(node base.Address, publish string) bool {
+func (p *SyncSourcePool) RemoveNonFixed(nci NodeConnInfo) bool {
 	p.Lock()
 	defer p.Unlock()
 
-	index := util.InSliceFunc(p.sources, func(i NodeConnInfo) bool {
-		switch {
-		case i.Address().Equal(node) && i.String() == publish:
-			return true
-		default:
-			return false
-		}
-	})
+	id := p.makeid(nci)
 
-	if index < 0 {
-		return false
+	if _, found := p.nonfixed[id]; found {
+		delete(p.nonfixed, id)
+
+		return true
 	}
 
-	return p.remove(index)
+	return false
 }
 
-func (p *SyncSourcePool) RemoveNonFixed(node base.Address, publish string) bool {
+func (p *SyncSourcePool) RemoveNonFixedNode(node base.Address) bool {
 	p.Lock()
 	defer p.Unlock()
 
-	index := util.InSliceFunc(p.sources, func(i NodeConnInfo) bool {
-		switch {
-		case i.Address().Equal(node) && i.String() == publish:
-			return true
-		default:
-			return false
-		}
-	})
+	var found bool
 
-	switch {
-	case index < 0:
-		return false
-	case index < p.fixedlen:
-		return false
-	default:
-		return p.remove(index)
+	for id := range p.nonfixed {
+		if p.nonfixed[id].Address().Equal(node) {
+			found = true
+
+			delete(p.nonfixed, id)
+		}
 	}
+
+	return found
 }
 
 func (p *SyncSourcePool) Retry(
@@ -277,8 +268,8 @@ func (p *SyncSourcePool) Retry(
 
 			keep, err := f(nci)
 
-			if isProblem(err) {
-				report(nil)
+			if isSyncSourceProblem(err) {
+				report(err)
 
 				return true, nil
 			}
@@ -294,168 +285,136 @@ func (p *SyncSourcePool) Len() int {
 	p.RLock()
 	defer p.RUnlock()
 
-	return len(p.sources)
+	return len(p.fixed) + len(p.nonfixed)
 }
 
 func (p *SyncSourcePool) Actives(f func(NodeConnInfo) bool) {
 	p.RLock()
 	defer p.RUnlock()
 
-	if len(p.sources) < 1 {
-		return
+	for i := range p.fixedids {
+		if p.problems.Has(p.fixedids[i]) {
+			continue
+		}
+
+		if !f(p.fixed[i]) {
+			return
+		}
 	}
 
-	for i := range p.problems {
-		d := p.problems[i]
+	for id := range p.nonfixed {
+		if p.problems.Has(id) {
+			continue
+		}
 
-		if d == nil || time.Since(*d) > p.renewTimeout {
-			if !f(p.sources[i]) {
-				return
-			}
+		if !f(p.nonfixed[id]) {
+			return
 		}
 	}
 }
 
-func (p *SyncSourcePool) makeid(sources []NodeConnInfo) []string {
-	if len(sources) < 1 {
-		return nil
-	}
-
-	ids := make([]string, len(sources))
-
-	for i := range sources {
-		id := p.makesourceid(sources[i])
-		ids[i] = id
-	}
-
-	return ids
+func (*SyncSourcePool) makeid(nci NodeConnInfo) string {
+	return nci.Address().String() + "-" + nci.String()
 }
 
-func (*SyncSourcePool) makesourceid(source NodeConnInfo) string {
-	h := sha3.New256()
-	_, _ = h.Write(source.Address().Bytes())
-	_, _ = h.Write([]byte(source.String()))
+func (p *SyncSourcePool) pick(skipid string) (_ string, _ NodeConnInfo, report func(error), _ error) {
+	foundid := len(skipid) < 1
 
-	var v valuehash.L32
+	for i := range p.fixedids {
+		id := p.fixedids[i]
 
-	h.Sum(v[:0])
+		switch {
+		case skipid == id && (!foundid && len(skipid) > 0):
+			foundid = true
 
-	return v.String()
+			continue
+		case !foundid:
+			continue
+		case p.problems.Has(id):
+			continue
+		default:
+			return id, p.fixed[i], func(err error) { p.reportProblem(id, err) }, nil
+		}
+	}
+
+	foundid = false
+
+	for id := range p.nonfixed {
+		switch {
+		case skipid == id && (!foundid && len(skipid) > 0):
+			foundid = true
+
+			continue
+		case !foundid:
+			continue
+		case p.problems.Has(id):
+			continue
+		default:
+			return id, p.nonfixed[id], func(err error) { p.reportProblem(id, err) }, nil
+		}
+	}
+
+	return "", nil, nil, ErrEmptySyncSources.Call()
 }
 
 func (p *SyncSourcePool) reportProblem(id string, err error) {
-	if err != nil && !isProblem(err) {
+	if !isSyncSourceProblem(err) {
 		return
 	}
 
 	p.Lock()
 	defer p.Unlock()
 
-	for i := range p.sourceids {
-		if id == p.sourceids[i] {
-			now := time.Now()
-
-			p.problems[i] = &now
-
+	if util.InSlice(p.fixedids, id) < 0 {
+		if _, found := p.nonfixed[id]; !found {
 			return
 		}
 	}
+
+	_ = p.problems.SetWithExpire(id, struct{}{}, p.renewTimeout)
 }
 
-func (p *SyncSourcePool) add(
-	sources []NodeConnInfo,
-	sourceids []string,
-	problems []*time.Time,
-	source NodeConnInfo,
-) ([]NodeConnInfo, []string, []*time.Time, bool) {
-	var update bool
+func (p *SyncSourcePool) NodeConnInfo(node base.Address) []NodeConnInfo {
+	var founds []NodeConnInfo
 
-	index := util.InSliceFunc(sources, func(i NodeConnInfo) bool {
-		if !i.Address().Equal(source.Address()) {
-			return false
+	for i := range p.fixed {
+		nci := p.fixed[i]
+
+		if nci.Address().Equal(node) {
+			founds = append(founds, nci)
 		}
+	}
 
-		if i.String() != source.String() {
-			update = true
+	for i := range p.nonfixed {
+		nci := p.nonfixed[i]
+
+		if nci.Address().Equal(node) {
+			founds = append(founds, nci)
 		}
+	}
 
-		return true
+	return founds
+}
+
+func (p *SyncSourcePool) nodeIsInFixed(node base.Address) int {
+	return util.InSliceFunc(p.fixed, func(i NodeConnInfo) bool {
+		return i.Address().Equal(node)
 	})
+}
+
+func isSyncSourceProblem(err error) bool {
+	var dnserr *net.DNSError
 
 	switch {
-	case index < 0:
-		newsources := make([]NodeConnInfo, len(sources)+1)
-		copy(newsources, sources)
-		newsources[len(sources)] = source
-
-		newsourceids := make([]string, len(sourceids)+1)
-		copy(newsourceids, sourceids)
-		newsourceids[len(sources)] = p.makesourceid(source)
-
-		newproblems := make([]*time.Time, len(problems)+1)
-		copy(newproblems, problems)
-
-		return newsources, newsourceids, newproblems, true
-	case update:
-		sources[index] = source
-		sourceids[index] = p.makesourceid(source)
-		problems[index] = nil
-
-		return sources, sourceids, problems, true
+	case err == nil:
+		return false
+	case errors.Is(err, ErrRetrySyncSources),
+		quicstream.IsNetworkError(err),
+		errors.As(err, &dnserr):
+		return true
 	default:
-		return sources, sourceids, problems, false
+		return false
 	}
-}
-
-func (p *SyncSourcePool) pick(from int) (found int, _ NodeConnInfo, report func(error), _ error) {
-	switch {
-	case len(p.sources) < 1:
-		return -1, nil, nil, ErrEmptySyncSources.Call()
-	case from >= len(p.sources):
-		return -1, nil, nil, ErrEmptySyncSources.Call()
-	}
-
-	for i := range p.problems[from:] {
-		index := from + i
-		d := p.problems[index]
-
-		id := p.sourceids[index]
-
-		switch {
-		case d == nil:
-			return index, p.sources[index], func(err error) { p.reportProblem(id, err) }, nil
-		case time.Since(*d) > p.renewTimeout:
-			p.problems[index] = nil
-
-			return index, p.sources[index], func(err error) { p.reportProblem(id, err) }, nil
-		}
-	}
-
-	return -1, nil, nil, ErrEmptySyncSources.Call()
-}
-
-func (p *SyncSourcePool) remove(index int) bool {
-	sources := make([]NodeConnInfo, len(p.sources)-1)
-	copy(sources, p.sources[:index])
-	copy(sources[index:], p.sources[index+1:])
-
-	sourceids := make([]string, len(p.sourceids)-1)
-	copy(sourceids, p.sourceids[:index])
-	copy(sourceids[index:], p.sourceids[index+1:])
-
-	problems := make([]*time.Time, len(p.problems)-1)
-	copy(problems, p.problems[:index])
-	copy(problems[index:], p.problems[index+1:])
-
-	p.sources = sources
-	p.sourceids = sourceids
-	p.problems = problems
-
-	if index < p.fixedlen {
-		p.fixedlen--
-	}
-
-	return true
 }
 
 func DistributeWorkerWithSyncSourcePool(
@@ -524,71 +483,11 @@ func ErrGroupWorkerWithSyncSourcePool(
 		if err != nil {
 			reports[index](err)
 
-			if isProblem(err) {
+			if isSyncSourceProblem(err) {
 				err = nil
 			}
 		}
 
 		return err
 	})
-}
-
-func isProblem(err error) bool {
-	var dnserr *net.DNSError
-
-	switch {
-	case err == nil:
-		return false
-	case errors.Is(err, ErrRetrySyncSources),
-		quicstream.IsNetworkError(err),
-		errors.As(err, &dnserr):
-		return true
-	default:
-		return false
-	}
-}
-
-func (p *SyncSourcePool) filterExtras(fixedids []string) ([]NodeConnInfo, []string) {
-	extras := p.sources[p.fixedlen:]
-	extraids := p.sourceids[p.fixedlen:]
-
-	var duplicated []string
-	newextraids := util.Filter2Slices(extraids, fixedids, func(x, y string) bool {
-		if x == y {
-			duplicated = append(duplicated, x)
-
-			return true
-		}
-
-		return false
-	})
-
-	if len(duplicated) < 1 {
-		return extras, extraids
-	}
-
-	newextras := make([]NodeConnInfo, len(extras)-len(duplicated))
-
-	var n int
-
-	for i := range extras {
-		var found bool
-
-		for j := range duplicated {
-			if extraids[i] == duplicated[j] {
-				found = true
-
-				break
-			}
-		}
-
-		if found {
-			continue
-		}
-
-		newextras[n] = extras[i]
-		n++
-	}
-
-	return newextras, newextraids
 }
