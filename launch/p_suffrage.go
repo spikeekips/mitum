@@ -130,6 +130,7 @@ func PPatchLastConsensusNodesWatcher(ctx context.Context) (context.Context, erro
 	var states *isaacstates.States
 	var long *LongRunningMemberlistJoin
 	var mlist *quicmemberlist.Memberlist
+	var syncSourcePool *isaac.SyncSourcePool
 
 	if err := util.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
@@ -139,51 +140,21 @@ func PPatchLastConsensusNodesWatcher(ctx context.Context) (context.Context, erro
 		StatesContextKey, &states,
 		LongRunningMemberlistJoinContextKey, &long,
 		MemberlistContextKey, &mlist,
+		SyncSourcePoolContextKey, &syncSourcePool,
 	); err != nil {
 		return ctx, err
 	}
 
-	watcher.SetWhenUpdated(func(ctx context.Context, proof base.SuffrageProof, candidatesst base.State) {
-		// NOTE if local is out of consensus nodes, moves to syncing state
-		var isinsuffrage bool
-
-		switch suf, err := proof.Suffrage(); {
-		case err != nil:
-			return
-		case suf.Exists(local.Address()):
-			isinsuffrage = true
-		case candidatesst == nil:
-		case isaac.InCandidates(local,
-			candidatesst.Value().(base.SuffrageCandidatesStateValue).Nodes()): //nolint:forcetypeassert //...
-			isinsuffrage = true
+	watcher.SetWhenUpdated(func(_ context.Context, previous, updated base.SuffrageProof, candidatesst base.State) {
+		// NOTE remove withdraw nodes from SyncSourcePool
+		if err := removeWithdrawsFromSyncSourcePoolByWatcher(previous, updated, syncSourcePool, log); err != nil {
+			log.Log().Error().Err(err).Msg("failed to remove withdraws from sync source pool")
 		}
 
-		switch {
-		case isinsuffrage:
-			if !mlist.IsJoined() {
-				log.Log().Debug().
-					Msg("watcher updated suffrage and local is in consensus nodes, but not yet joined; tries to join")
-
-				go func() {
-					_ = long.Join()
-				}()
-			}
-		default:
-			log.Log().Debug().
-				Interface("height", proof.Map().Manifest().Height()).
-				Msg("local is not in consensus nodes; moves to syncing")
-
-			_ = states.MoveState(isaacstates.NewSyncingSwitchContextWithOK(
-				proof.Map().Manifest().Height(),
-				func(current isaacstates.StateType) bool {
-					switch current {
-					case isaacstates.StateJoining, isaacstates.StateConsensus:
-						return true
-					default:
-						return false
-					}
-				},
-			))
+		if err := checkLocalIsInConsensusNodesByWatcher(
+			updated, candidatesst, local, mlist, long, states, log,
+		); err != nil {
+			log.Log().Error().Err(err).Msg("failed to check local is in consensus nodes")
 		}
 	})
 
@@ -865,4 +836,104 @@ func PCloseLastConsensusNodesWatcher(ctx context.Context) (context.Context, erro
 	}
 
 	return ctx, nil
+}
+
+func checkLocalIsInConsensusNodesByWatcher(
+	updated base.SuffrageProof,
+	candidatesst base.State,
+	local base.LocalNode,
+	mlist *quicmemberlist.Memberlist,
+	long *LongRunningMemberlistJoin,
+	states *isaacstates.States,
+	log *logging.Logging,
+) error {
+	suf, err := updated.Suffrage()
+	if err != nil {
+		return err
+	}
+
+	var isinsuffrage bool
+
+	switch {
+	case suf.Exists(local.Address()):
+		isinsuffrage = true
+	case candidatesst == nil:
+	case isaac.InCandidates(local,
+		candidatesst.Value().(base.SuffrageCandidatesStateValue).Nodes()): //nolint:forcetypeassert //...
+		isinsuffrage = true
+	}
+
+	switch {
+	case isinsuffrage:
+		// NOTE if local is in consensus nodes, try to join
+		if !mlist.IsJoined() {
+			log.Log().Debug().
+				Msg("watcher updated suffrage and local is in consensus nodes, but not yet joined; tries to join")
+
+			go func() {
+				_ = long.Join()
+			}()
+		}
+	default:
+		log.Log().Debug().
+			Interface("height", updated.Map().Manifest().Height()).
+			Msg("local is not in consensus nodes; moves to syncing")
+
+			// NOTE if local is out of consensus nodes, moves to syncing state
+		_ = states.MoveState(isaacstates.NewSyncingSwitchContextWithOK(
+			updated.Map().Manifest().Height(),
+			func(current isaacstates.StateType) bool {
+				switch current {
+				case isaacstates.StateJoining, isaacstates.StateConsensus:
+					return true
+				default:
+					return false
+				}
+			},
+		))
+	}
+
+	return nil
+}
+
+func removeWithdrawsFromSyncSourcePoolByWatcher(
+	previous, updated base.SuffrageProof,
+	syncSourcePool *isaac.SyncSourcePool,
+	log *logging.Logging,
+) error {
+	if previous == nil {
+		return nil
+	}
+
+	suf, err := updated.Suffrage()
+	if err != nil {
+		return err
+	}
+
+	previoussuf, err := previous.Suffrage()
+	if err != nil {
+		return err
+	}
+
+	withdraws := util.Filter2Slices(previoussuf.Nodes(), suf.Nodes(), func(p, n base.Node) bool {
+		return p.Address().Equal(n.Address())
+	})
+
+	if len(withdraws) < 1 {
+		return nil
+	}
+
+	withdrawnodes := make([]base.Address, len(withdraws))
+	for i := range withdraws {
+		withdrawnodes[i] = withdraws[i].Address()
+	}
+
+	removed := syncSourcePool.RemoveNonFixedNode(withdrawnodes...)
+
+	log.Log().Debug().
+		Interface("withdraws", withdrawnodes).
+		Bool("removed", removed).
+		Msg("withdraw nodes removed from sync source pool")
+
+	return nil
 }
