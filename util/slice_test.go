@@ -73,6 +73,49 @@ func TestIsDuplicatedSlice(tt *testing.T) {
 	})
 }
 
+func TestFilter2Slices(tt *testing.T) {
+	t := new(suite.Suite)
+	t.SetT(tt)
+
+	t.Run("nil & nil", func() {
+		o := Filter2Slices(
+			nil,
+			nil,
+			func(a, b int) bool {
+				return a == b
+			},
+		)
+
+		t.Equal(0, len(o))
+	})
+
+	t.Run("[1,2,3], [2,3]", func() {
+		o := Filter2Slices(
+			[]int{1, 2, 3},
+			[]int{2, 3},
+			func(a, b int) bool {
+				return a == b
+			},
+		)
+
+		t.Equal(1, len(o))
+		t.Equal([]int{1}, o)
+	})
+
+	t.Run("[1,2,3], [2,3,4]", func() {
+		o := Filter2Slices(
+			[]int{1, 2, 3},
+			[]int{2, 3, 4},
+			func(a, b int) bool {
+				return a == b
+			},
+		)
+
+		t.Equal(1, len(o))
+		t.Equal([]int{1}, o)
+	})
+}
+
 func makeInterfaceSlice(s interface{}) []interface{} {
 	v := reflect.ValueOf(s)
 
