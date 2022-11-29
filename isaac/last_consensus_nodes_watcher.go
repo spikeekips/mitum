@@ -15,27 +15,34 @@ type LastConsensusNodesWatcher struct {
 	*logging.Logging
 	getFromLocal  func() (_ base.SuffrageProof, candidatestate base.State, _ bool, _ error)
 	getFromRemote func(context.Context, base.State) (_ base.SuffrageProof, candidatestate base.State, _ error)
-	whenUpdated   func(context.Context, base.SuffrageProof, base.State)
-	last          *util.Locked
-	interval      time.Duration
+	whenUpdatedf  func(
+		_ context.Context, previous base.SuffrageProof, updated base.SuffrageProof, updatedstate base.State)
+	lastRemote          *util.Locked
+	checkRemoteInterval time.Duration
 }
 
 func NewLastConsensusNodesWatcher(
 	getFromLocal func() (base.SuffrageProof, base.State, bool, error),
 	getFromRemote func(context.Context, base.State) (base.SuffrageProof, base.State, error),
-	whenUpdated func(context.Context, base.SuffrageProof, base.State),
+	whenUpdatedf func(context.Context, base.SuffrageProof, base.SuffrageProof, base.State),
 ) *LastConsensusNodesWatcher {
 	u := &LastConsensusNodesWatcher{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", "last-consensus-nodes-watcher")
 		}),
-		getFromLocal:  getFromLocal,
-		getFromRemote: getFromRemote,
-		interval:      time.Second * 3, //nolint:gomnd //...
-		last:          util.EmptyLocked(),
+		getFromLocal:        getFromLocal,
+		getFromRemote:       getFromRemote,
+		lastRemote:          util.EmptyLocked(),
+		checkRemoteInterval: time.Second * 3, //nolint:gomnd //...
 	}
 
-	u.SetWhenUpdated(whenUpdated)
+	if whenUpdatedf == nil {
+		whenUpdatedf = func( // revive:disable-line:modifies-parameter
+			context.Context, base.SuffrageProof, base.SuffrageProof, base.State) {
+		}
+	}
+
+	u.SetWhenUpdated(whenUpdatedf)
 	u.ContextDaemon = util.NewContextDaemon(u.start)
 
 	return u
@@ -81,17 +88,13 @@ func (u *LastConsensusNodesWatcher) Exists(node base.Node) (base.Suffrage, bool,
 }
 
 func (u *LastConsensusNodesWatcher) SetWhenUpdated(
-	whenUpdated func(context.Context, base.SuffrageProof, base.State),
+	whenUpdated func(context.Context, base.SuffrageProof, base.SuffrageProof, base.State),
 ) {
-	if whenUpdated == nil {
-		whenUpdated = func(context.Context, base.SuffrageProof, base.State) {} // revive:disable-line:modifies-parameter
-	}
-
-	u.whenUpdated = whenUpdated
+	u.whenUpdatedf = whenUpdated
 }
 
 func (u *LastConsensusNodesWatcher) lastValue() (base.SuffrageProof, base.State) {
-	i, _ := u.last.Value()
+	i, _ := u.lastRemote.Value()
 	if i == nil {
 		return nil, nil
 	}
@@ -113,15 +116,13 @@ func (u *LastConsensusNodesWatcher) lastValue() (base.SuffrageProof, base.State)
 }
 
 func (u *LastConsensusNodesWatcher) start(ctx context.Context) error {
-	last := base.NilHeight // NOTE suffrage height
-
 	if err := u.checkRemote(ctx); err != nil {
 		u.Log().Error().Err(err).Msg("failed to check remote")
 	}
 
-	last = u.checkUpdated(ctx, last)
+	last := u.checkUpdated(ctx, nil)
 
-	ticker := time.NewTicker(u.interval)
+	ticker := time.NewTicker(u.checkRemoteInterval)
 	defer ticker.Stop()
 
 	for {
@@ -185,7 +186,7 @@ func (u *LastConsensusNodesWatcher) compare(
 func (u *LastConsensusNodesWatcher) update(proof base.SuffrageProof, candidates base.State) bool {
 	var updated bool
 
-	_, _ = u.last.Set(func(_ bool, i interface{}) (interface{}, error) {
+	_, _ = u.lastRemote.Set(func(_ bool, i interface{}) (interface{}, error) {
 		if i == nil {
 			return [2]interface{}{proof, candidates}, nil
 		}
@@ -210,21 +211,29 @@ func (u *LastConsensusNodesWatcher) update(proof base.SuffrageProof, candidates 
 	return updated
 }
 
-func (u *LastConsensusNodesWatcher) checkUpdated(ctx context.Context, last base.Height) base.Height {
+func (u *LastConsensusNodesWatcher) checkUpdated(ctx context.Context, last base.SuffrageProof) base.SuffrageProof {
 	proof, candidates, err := u.Last()
-	if err != nil {
+
+	switch {
+	case err != nil:
+		return last
+	case proof == nil:
 		return last
 	}
 
 	switch height := u.newerHeight(proof, candidates); {
-	case last >= height:
+	case last != nil && last.State().Height() >= height:
 		return last
 	default:
-		u.Log().Debug().Interface("proof", proof).Interface("candidates", candidates).Msg("consensus nodes updated")
+		u.Log().Debug().
+			Interface("previous_proof", last).
+			Interface("new_proof", proof).
+			Interface("new_candidates", candidates).
+			Msg("consensus nodes updated")
 
-		go u.whenUpdated(ctx, proof, candidates)
+		go u.whenUpdatedf(ctx, last, proof, candidates)
 
-		return height
+		return proof
 	}
 }
 

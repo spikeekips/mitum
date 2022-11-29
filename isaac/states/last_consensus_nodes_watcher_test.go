@@ -3,7 +3,9 @@ package isaacstates
 import (
 	"context"
 	"testing"
+	"time"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
@@ -71,15 +73,24 @@ func (t *testLastConsensusNodesWatcher) TestLocalAhead() {
 
 			return remoteproof, remotecandidatest, nil
 		},
-		func(context.Context, base.SuffrageProof, base.State) {
+		func(context.Context, base.SuffrageProof, base.SuffrageProof, base.State) {
 			updatedch <- struct{}{}
 		},
 	)
 	t.NoError(u.Start())
 	defer u.Stop()
 
-	<-called
-	<-updatedch
+	select {
+	case <-time.After(time.Second * 3):
+		t.NoError(errors.Errorf("failed to get from remote"))
+	case <-called:
+	}
+
+	select {
+	case <-time.After(time.Second * 3):
+		t.NoError(errors.Errorf("failed to update"))
+	case <-updatedch:
+	}
 
 	proof, candidatest, err := u.Last()
 	t.NoError(err)
@@ -149,7 +160,7 @@ func (t *testLastConsensusNodesWatcher) TestRemoteAhead() {
 
 			return remoteproof, remotecandidatest, nil
 		},
-		func(context.Context, base.SuffrageProof, base.State) {
+		func(context.Context, base.SuffrageProof, base.SuffrageProof, base.State) {
 			updatedch <- struct{}{}
 		},
 	)
@@ -228,7 +239,7 @@ func (t *testLastConsensusNodesWatcher) TestSameButLocalFirst() {
 
 			return remoteproof, remotecandidatest, nil
 		},
-		func(context.Context, base.SuffrageProof, base.State) {
+		func(context.Context, base.SuffrageProof, base.SuffrageProof, base.State) {
 			updatedch <- struct{}{}
 		},
 	)
