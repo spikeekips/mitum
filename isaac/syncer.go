@@ -229,17 +229,19 @@ func (p *SyncSourcePool) RemoveNonFixed(nci NodeConnInfo) bool {
 	return false
 }
 
-func (p *SyncSourcePool) RemoveNonFixedNode(node base.Address) bool {
+func (p *SyncSourcePool) RemoveNonFixedNode(nodes ...base.Address) bool {
 	p.Lock()
 	defer p.Unlock()
 
 	var found bool
 
-	for id := range p.nonfixed {
-		if p.nonfixed[id].Address().Equal(node) {
-			found = true
+	for i := range nodes {
+		for id := range p.nonfixed {
+			if p.nonfixed[id].Address().Equal(nodes[i]) {
+				found = true
 
-			delete(p.nonfixed, id)
+				delete(p.nonfixed, id)
+			}
 		}
 	}
 
@@ -286,6 +288,23 @@ func (p *SyncSourcePool) Len() int {
 	defer p.RUnlock()
 
 	return len(p.fixed) + len(p.nonfixed)
+}
+
+func (p *SyncSourcePool) Traverse(f func(NodeConnInfo) bool) {
+	p.RLock()
+	defer p.RUnlock()
+
+	for i := range p.fixedids {
+		if !f(p.fixed[i]) {
+			return
+		}
+	}
+
+	for id := range p.nonfixed {
+		if !f(p.nonfixed[id]) {
+			return
+		}
+	}
 }
 
 func (p *SyncSourcePool) Actives(f func(NodeConnInfo) bool) {
