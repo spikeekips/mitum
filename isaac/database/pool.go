@@ -50,7 +50,10 @@ func newTempPool(st *leveldbstorage.Storage, encs *encoder.Encoders, enc encoder
 func (db *TempPool) Close() error {
 	e := util.StringErrorFunc("failed to close TempPool")
 
-	if err := db.Stop(); err != nil {
+	switch err := db.Stop(); {
+	case err == nil:
+	case errors.Is(err, util.ErrDaemonAlreadyStopped):
+	default:
 		return e(err, "")
 	}
 
