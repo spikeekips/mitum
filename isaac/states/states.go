@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bluele/gcache"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
@@ -24,13 +25,14 @@ var (
 type States struct {
 	cs handler
 	*logging.Logging
-	local       base.LocalNode
-	params      *isaac.LocalParams
-	box         *Ballotbox
-	lvps        *LastVoteproofsHandler
-	statech     chan switchContext
-	vpch        chan base.Voteproof
-	newHandlers map[StateType]newHandler
+	local           base.LocalNode
+	params          *isaac.LocalParams
+	box             *Ballotbox
+	lvps            *LastVoteproofsHandler
+	madeBallotCache gcache.Cache
+	statech         chan switchContext
+	vpch            chan base.Voteproof
+	newHandlers     map[StateType]newHandler
 	*util.ContextDaemon
 	timers              *util.Timers
 	isinsyncsources     func(base.Address) bool
@@ -75,6 +77,7 @@ func NewStates(
 		lvps:              lvps,
 		isinsyncsources:   isinsyncsourcepool,
 		whenStateSwitched: func(StateType) {},
+		madeBallotCache:   gcache.New(1 << 3).LRU().Build(), //nolint:gomnd //...
 	}
 
 	cancelf := func() {}
@@ -540,26 +543,22 @@ func (st *States) mimicBallotFunc() (func(base.Ballot), func()) {
 func (st *States) mimicBallot() func(base.Ballot) base.Ballot {
 	var lock sync.Mutex
 
-	cache := util.NewGCacheObjectPool(3) //nolint:gomnd // NOTE include previous round
-
 	return func(bl base.Ballot) base.Ballot {
 		lock.Lock()
 		defer lock.Unlock()
 
-		l := st.Log().With().Interface("ballot", bl).Logger()
-
-		// NOTE check in cache
-		cachekey := bl.Point().String()
-
-		if i, found := cache.Get(cachekey); found {
-			newbl := i.(base.Ballot) //nolint:forcetypeassert //...
-
-			if !newbl.SignFact().Node().Equal(bl.SignFact().Node()) {
+		switch {
+		case isSuffrageConfirmBallotFact(bl.SignFact().Fact()):
+			if madeSuffrageConfirmBallot(st.madeBallotCache, bl.Point()) != nil {
 				return nil
 			}
-
-			return newbl
+		default:
+			if madeBallot(st.madeBallotCache, bl.Point()) != nil {
+				return nil
+			}
 		}
+
+		l := st.Log().With().Interface("ballot", bl).Logger()
 
 		switch i, err := st.signMimicBallot(bl); {
 		case err != nil:
@@ -569,7 +568,7 @@ func (st *States) mimicBallot() func(base.Ballot) base.Ballot {
 		case i == nil:
 			return nil
 		default:
-			cache.Set(cachekey, i, nil)
+			setMadeBallot(st.madeBallotCache, i)
 
 			return i
 		}

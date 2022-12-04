@@ -613,7 +613,7 @@ func (st *ConsensusHandler) prepareNextRound(vp base.Voteproof, previousBlock ut
 	var sctx switchContext
 	var bl base.INITBallot
 
-	switch i, err := st.baseBallotHandler.prepareNextRound(vp, previousBlock, st.nodeInConsensusNodes); {
+	switch i, err := st.baseBallotHandler.makeNextRoundBallot(vp, previousBlock, st.nodeInConsensusNodes); {
 	case err == nil:
 		if i == nil {
 			return
@@ -679,7 +679,7 @@ func (st *ConsensusHandler) prepareNextBlock(avp base.ACCEPTVoteproof) {
 	var sctx switchContext
 	var bl base.INITBallot
 
-	switch i, err := st.baseBallotHandler.prepareNextBlock(avp, st.nodeInConsensusNodes); {
+	switch i, err := st.baseBallotHandler.makeNextBlockBallot(avp, st.nodeInConsensusNodes); {
 	case err == nil:
 		if i == nil {
 			return

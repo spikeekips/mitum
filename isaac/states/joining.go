@@ -327,7 +327,7 @@ func (st *JoiningHandler) nextRound(vp base.Voteproof, prevBlock util.Hash) {
 	var sctx switchContext
 	var bl base.INITBallot
 
-	switch i, err := st.prepareNextRound(vp, prevBlock, st.nodeInConsensusNodes); {
+	switch i, err := st.makeNextRoundBallot(vp, prevBlock, st.nodeInConsensusNodes); {
 	case err == nil:
 		if i == nil {
 			return
@@ -394,7 +394,7 @@ func (st *JoiningHandler) nextBlock(avp base.ACCEPTVoteproof) {
 	var sctx switchContext
 	var bl base.INITBallot
 
-	switch i, err := st.prepareNextBlock(avp, st.nodeInConsensusNodes); {
+	switch i, err := st.makeNextBlockBallot(avp, st.nodeInConsensusNodes); {
 	case err == nil:
 		if i == nil {
 			return

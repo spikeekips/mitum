@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/bluele/gcache"
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
@@ -20,6 +21,7 @@ type baseBallotHandler struct {
 	broadcastBallotFunc func(base.Ballot) error
 	voteFunc            func(base.Ballot) (bool, error)
 	svf                 SuffrageVotingFindFunc
+	madeBallotCache     gcache.Cache
 }
 
 func newBaseBallotHandler(
@@ -60,13 +62,14 @@ func (st *baseBallotHandler) new() *baseBallotHandler {
 
 func (st *baseBallotHandler) setStates(sts *States) {
 	st.baseHandler.setStates(sts)
+	st.madeBallotCache = sts.madeBallotCache
 
 	st.broadcastBallotFunc = func(bl base.Ballot) error {
 		return st.sts.broadcastBallot(bl)
 	}
 }
 
-func (st *baseBallotHandler) prepareNextRound(
+func (st *baseBallotHandler) makeNextRoundBallot(
 	vp base.Voteproof,
 	prevBlock util.Hash,
 	nodeInConsensusNodesFunc isaac.NodeInConsensusNodesFunc,
@@ -76,6 +79,10 @@ func (st *baseBallotHandler) prepareNextRound(
 	point := vp.Point().Point.NextRound()
 
 	l.Debug().Object("point", point).Msg("preparing next round")
+
+	if bl := madeBallot(st.madeBallotCache, base.NewStagePoint(point, base.StageINIT)); bl != nil {
+		return bl.(base.INITBallot), nil //nolint:forcetypeassert //...
+	}
 
 	var withdrawfacts []util.Hash
 	var withdraws []base.SuffrageWithdrawOperation
@@ -130,16 +137,24 @@ func (st *baseBallotHandler) prepareNextRound(
 		return nil, newBrokenSwitchContext(st.stt, e(err, "failed to make next round init ballot"))
 	}
 
-	return isaac.NewINITBallot(vp, sf, withdraws), nil
+	bl := isaac.NewINITBallot(vp, sf, withdraws)
+
+	setMadeBallot(st.madeBallotCache, bl)
+
+	return bl, nil
 }
 
-func (st *baseBallotHandler) prepareNextBlock(
+func (st *baseBallotHandler) makeNextBlockBallot(
 	avp base.ACCEPTVoteproof,
 	nodeInConsensusNodesFunc isaac.NodeInConsensusNodesFunc,
 ) (base.INITBallot, error) {
 	e := util.StringErrorFunc("failed to prepare next block")
 
 	point := avp.Point().Point.NextHeight()
+
+	if bl := madeBallot(st.madeBallotCache, base.NewStagePoint(point, base.StageINIT)); bl != nil {
+		return bl.(base.INITBallot), nil //nolint:forcetypeassert //...
+	}
 
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(avp)).Object("point", point).Logger()
 
@@ -201,43 +216,20 @@ func (st *baseBallotHandler) prepareNextBlock(
 		return nil, e(err, "failed to make next init ballot")
 	}
 
-	return isaac.NewINITBallot(avp, sf, withdraws), nil
+	bl := isaac.NewINITBallot(avp, sf, withdraws)
+
+	setMadeBallot(st.madeBallotCache, bl)
+
+	return bl, nil
 }
 
-func (st *baseBallotHandler) prepareACCEPTBallot(
-	ivp base.INITVoteproof,
-	manifest base.Manifest,
-	initialWait time.Duration,
-) error {
+func (st *baseBallotHandler) prepareACCEPTBallot(ivp base.INITVoteproof, manifest base.Manifest, initialWait time.Duration) error {
 	e := util.StringErrorFunc("failed to prepare accept ballot")
 
-	// NOTE add SuffrageWithdrawOperations into ballot from init voteproof
-	var withdrawfacts []util.Hash
-	var withdraws []base.SuffrageWithdrawOperation
-
-	if i, ok := ivp.(isaac.WithdrawVoteproof); ok {
-		withdraws = i.Withdraws()
-
-		withdrawfacts = make([]util.Hash, len(withdraws))
-
-		for i := range withdraws {
-			withdrawfacts[i] = withdraws[i].WithdrawFact().Hash()
-		}
-	}
-
-	afact := isaac.NewACCEPTBallotFact(
-		ivp.Point().Point,
-		ivp.BallotMajority().Proposal(),
-		manifest.Hash(),
-		withdrawfacts,
-	)
-	signfact := isaac.NewACCEPTBallotSignFact(afact)
-
-	if err := signfact.NodeSign(st.local.Privatekey(), st.params.NetworkID(), st.local.Address()); err != nil {
+	bl, err := st.makeACCEPTBallot(ivp, manifest)
+	if err != nil {
 		return e(err, "")
 	}
-
-	bl := isaac.NewACCEPTBallot(ivp, signfact, withdraws)
 
 	go func() {
 		<-time.After(initialWait)
@@ -270,6 +262,44 @@ func (st *baseBallotHandler) prepareACCEPTBallot(
 	return nil
 }
 
+func (st *baseBallotHandler) makeACCEPTBallot(ivp base.INITVoteproof, manifest base.Manifest) (base.ACCEPTBallot, error) {
+	if bl := madeBallot(st.madeBallotCache, base.NewStagePoint(ivp.Point().Point, base.StageACCEPT)); bl != nil {
+		return bl.(base.ACCEPTBallot), nil //nolint:forcetypeassert //...
+	}
+
+	// NOTE add SuffrageWithdrawOperations into ballot from init voteproof
+	var withdrawfacts []util.Hash
+	var withdraws []base.SuffrageWithdrawOperation
+
+	if i, ok := ivp.(isaac.WithdrawVoteproof); ok {
+		withdraws = i.Withdraws()
+
+		withdrawfacts = make([]util.Hash, len(withdraws))
+
+		for i := range withdraws {
+			withdrawfacts[i] = withdraws[i].WithdrawFact().Hash()
+		}
+	}
+
+	afact := isaac.NewACCEPTBallotFact(
+		ivp.Point().Point,
+		ivp.BallotMajority().Proposal(),
+		manifest.Hash(),
+		withdrawfacts,
+	)
+	signfact := isaac.NewACCEPTBallotSignFact(afact)
+
+	if err := signfact.NodeSign(st.local.Privatekey(), st.params.NetworkID(), st.local.Address()); err != nil {
+		return nil, err
+	}
+
+	bl := isaac.NewACCEPTBallot(ivp, signfact, withdraws)
+
+	setMadeBallot(st.madeBallotCache, bl)
+
+	return bl, nil
+}
+
 func (st *baseBallotHandler) prepareSuffrageConfirmBallot(vp base.Voteproof) {
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(vp)).Logger()
 
@@ -279,27 +309,12 @@ func (st *baseBallotHandler) prepareSuffrageConfirmBallot(vp base.Voteproof) {
 		return
 	}
 
-	ifact := vp.Majority().(isaac.INITBallotFact) //nolint:forcetypeassert //...
-	withdrawfacts := ifact.WithdrawFacts()
-
-	fact := isaac.NewSuffrageConfirmBallotFact(
-		vp.Point().Point,
-		ifact.PreviousBlock(),
-		ifact.Proposal(),
-		withdrawfacts,
-	)
-
-	sf := isaac.NewINITBallotSignFact(fact)
-
-	if err := sf.NodeSign(st.local.Privatekey(), st.params.NetworkID(), st.local.Address()); err != nil {
-		go st.switchState(
-			newBrokenSwitchContext(st.stt, errors.WithMessage(err, "failed to make suffrage confirm ballot")),
-		)
+	bl, err := st.makeSuffrageConfirmBallot(vp)
+	if err != nil {
+		l.Error().Err(err).Msg("failed to prepare suffrage confirm ballot")
 
 		return
 	}
-
-	bl := isaac.NewINITBallot(vp, sf, nil)
 
 	go func() {
 		switch _, err := st.vote(bl); {
@@ -322,6 +337,38 @@ func (st *baseBallotHandler) prepareSuffrageConfirmBallot(vp base.Voteproof) {
 	}
 
 	l.Debug().Interface("ballot", bl).Msg("suffrage confirm ballot broadcasted")
+}
+
+func (st *baseBallotHandler) makeSuffrageConfirmBallot(vp base.Voteproof) (base.INITBallot, error) {
+	if bl := madeSuffrageConfirmBallot(st.madeBallotCache, vp.Point()); bl != nil {
+		return bl.(base.INITBallot), nil //nolint:forcetypeassert //...
+	}
+
+	ifact := vp.Majority().(isaac.INITBallotFact) //nolint:forcetypeassert //...
+	withdrawfacts := ifact.WithdrawFacts()
+
+	fact := isaac.NewSuffrageConfirmBallotFact(
+		vp.Point().Point,
+		ifact.PreviousBlock(),
+		ifact.Proposal(),
+		withdrawfacts,
+	)
+
+	sf := isaac.NewINITBallotSignFact(fact)
+
+	if err := sf.NodeSign(st.local.Privatekey(), st.params.NetworkID(), st.local.Address()); err != nil {
+		go st.switchState(
+			newBrokenSwitchContext(st.stt, errors.WithMessage(err, "failed to make suffrage confirm ballot")),
+		)
+
+		return nil, err
+	}
+
+	bl := isaac.NewINITBallot(vp, sf, nil)
+
+	setMadeBallot(st.madeBallotCache, bl)
+
+	return bl, nil
 }
 
 func (st *baseBallotHandler) broadcastINITBallot(
@@ -486,4 +533,47 @@ func broadcastBallot(
 	}
 
 	return nil
+}
+
+func madeBallot(c gcache.Cache, point base.StagePoint) base.Ballot {
+	if c == nil {
+		return nil
+	}
+
+	return madeBallotByKey(c, point.String())
+}
+
+func madeSuffrageConfirmBallot(c gcache.Cache, point base.StagePoint) base.Ballot {
+	if c == nil {
+		return nil
+	}
+
+	return madeBallotByKey(c, point.String()+"suffrage-confirm")
+}
+
+func madeBallotByKey(c gcache.Cache, key string) base.Ballot {
+	if c == nil {
+		return nil
+	}
+
+	switch i, err := c.Get(key); {
+	case err == nil && i != nil:
+		return i.(base.Ballot) //nolint:forcetypeassert //...
+	default:
+		return nil
+	}
+}
+
+func setMadeBallot(c gcache.Cache, bl base.Ballot) {
+	if c == nil {
+		return
+	}
+
+	key := bl.Point().String()
+
+	if _, ok := bl.SignFact().Fact().(isaac.SuffrageConfirmBallotFact); ok {
+		key = key + "suffrage-confirm"
+	}
+
+	_ = c.Set(key, bl)
 }
