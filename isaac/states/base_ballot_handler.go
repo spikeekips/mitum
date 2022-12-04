@@ -204,6 +204,126 @@ func (st *baseBallotHandler) prepareNextBlock(
 	return isaac.NewINITBallot(avp, sf, withdraws), nil
 }
 
+func (st *baseBallotHandler) prepareACCEPTBallot(
+	ivp base.INITVoteproof,
+	manifest base.Manifest,
+	initialWait time.Duration,
+) error {
+	e := util.StringErrorFunc("failed to prepare accept ballot")
+
+	// NOTE add SuffrageWithdrawOperations into ballot from init voteproof
+	var withdrawfacts []util.Hash
+	var withdraws []base.SuffrageWithdrawOperation
+
+	if i, ok := ivp.(isaac.WithdrawVoteproof); ok {
+		withdraws = i.Withdraws()
+
+		withdrawfacts = make([]util.Hash, len(withdraws))
+
+		for i := range withdraws {
+			withdrawfacts[i] = withdraws[i].WithdrawFact().Hash()
+		}
+	}
+
+	afact := isaac.NewACCEPTBallotFact(
+		ivp.Point().Point,
+		ivp.BallotMajority().Proposal(),
+		manifest.Hash(),
+		withdrawfacts,
+	)
+	signfact := isaac.NewACCEPTBallotSignFact(afact)
+
+	if err := signfact.NodeSign(st.local.Privatekey(), st.params.NetworkID(), st.local.Address()); err != nil {
+		return e(err, "")
+	}
+
+	bl := isaac.NewACCEPTBallot(ivp, signfact, withdraws)
+
+	go func() {
+		<-time.After(initialWait)
+
+		switch _, err := st.vote(bl); {
+		case err == nil:
+		case errors.Is(err, errFailedToVoteNotInConsensus):
+			st.Log().Debug().Err(err).Msg("failed to vote accept ballot; moves to syncing state")
+
+			go st.switchState(newSyncingSwitchContext(StateConsensus, ivp.Point().Height()-1))
+		default:
+			st.Log().Error().Err(err).Msg("failed to vote accept ballot; moves to broken state")
+
+			go st.switchState(newBrokenSwitchContext(StateConsensus, err))
+		}
+	}()
+
+	if err := st.broadcastACCEPTBallot(bl, initialWait); err != nil {
+		return e(err, "failed to broadcast accept ballot")
+	}
+
+	if err := st.timers.StartTimers([]util.TimerID{
+		timerIDBroadcastINITBallot,
+		timerIDBroadcastSuffrageConfirmBallot,
+		timerIDBroadcastACCEPTBallot,
+	}, true); err != nil {
+		return e(err, "failed to start timers for broadcasting accept ballot")
+	}
+
+	return nil
+}
+
+func (st *baseBallotHandler) prepareSuffrageConfirmBallot(vp base.Voteproof) {
+	l := st.Log().With().Dict("voteproof", base.VoteproofLog(vp)).Logger()
+
+	if _, ok := vp.(isaac.WithdrawVoteproof); !ok {
+		l.Error().Msg("expected WithdrawVoteproof for suffrage sign voting")
+
+		return
+	}
+
+	ifact := vp.Majority().(isaac.INITBallotFact) //nolint:forcetypeassert //...
+	withdrawfacts := ifact.WithdrawFacts()
+
+	fact := isaac.NewSuffrageConfirmBallotFact(
+		vp.Point().Point,
+		ifact.PreviousBlock(),
+		ifact.Proposal(),
+		withdrawfacts,
+	)
+
+	sf := isaac.NewINITBallotSignFact(fact)
+
+	if err := sf.NodeSign(st.local.Privatekey(), st.params.NetworkID(), st.local.Address()); err != nil {
+		go st.switchState(
+			newBrokenSwitchContext(st.stt, errors.WithMessage(err, "failed to make suffrage confirm ballot")),
+		)
+
+		return
+	}
+
+	bl := isaac.NewINITBallot(vp, sf, nil)
+
+	go func() {
+		switch _, err := st.vote(bl); {
+		case err == nil:
+		case errors.Is(err, errFailedToVoteNotInConsensus):
+			st.Log().Debug().Err(err).Msg("failed to vote suffrage confirm ballot; moves to syncing state")
+
+			go st.switchState(newSyncingSwitchContext(StateConsensus, bl.Point().Height()-1))
+		default:
+			st.Log().Debug().Err(err).Msg("failed to vote suffrage confirm ballot; moves to broken state")
+
+			go st.switchState(newBrokenSwitchContext(StateConsensus, err))
+		}
+	}()
+
+	if err := st.broadcastSuffrageConfirmBallot(bl); err != nil {
+		l.Error().Err(err).Msg("failed to prepare suffrage confirm ballot")
+
+		return
+	}
+
+	l.Debug().Interface("ballot", bl).Msg("suffrage confirm ballot broadcasted")
+}
+
 func (st *baseBallotHandler) broadcastINITBallot(
 	bl base.Ballot,
 	interval func(int, time.Duration) time.Duration,
@@ -236,6 +356,39 @@ func (st *baseBallotHandler) broadcastACCEPTBallot(bl base.Ballot, initialWait t
 
 			return st.params.IntervalBroadcastBallot()
 		},
+	)
+}
+
+func (st *baseBallotHandler) broadcastSuffrageConfirmBallot(bl base.INITBallot) error {
+	if err := broadcastBallot(
+		bl,
+		st.timers,
+		timerIDBroadcastSuffrageConfirmBallot,
+		st.broadcastBallotFunc,
+		st.Logging,
+		func(i int, _ time.Duration) time.Duration {
+			lvp := st.lastVoteproofs().Cap()
+			if lvp.Point().Height() > bl.Point().Height() {
+				return 0
+			}
+
+			if i < 1 {
+				return time.Nanosecond
+			}
+
+			return st.params.IntervalBroadcastBallot()
+		},
+	); err != nil {
+		return err
+	}
+
+	return st.timers.StartTimers(
+		[]util.TimerID{
+			timerIDBroadcastINITBallot,
+			timerIDBroadcastSuffrageConfirmBallot,
+			timerIDBroadcastACCEPTBallot,
+		},
+		true,
 	)
 }
 

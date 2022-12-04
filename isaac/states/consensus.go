@@ -374,119 +374,6 @@ func (st *ConsensusHandler) prepareINITBallot(
 	return st.timers.StartTimers(ids, true)
 }
 
-func (st *ConsensusHandler) prepareSuffrageConfirmBallot(bl base.INITBallot) error {
-	go func() {
-		switch _, err := st.vote(bl); {
-		case err == nil:
-		case errors.Is(err, errFailedToVoteNotInConsensus):
-			st.Log().Debug().Err(err).Msg("failed to vote suffrage confirm ballot; moves to syncing state")
-
-			go st.switchState(newSyncingSwitchContext(StateConsensus, bl.Point().Height()-1))
-		default:
-			st.Log().Debug().Err(err).Msg("failed to vote suffrage confirm ballot; moves to broken state")
-
-			go st.switchState(newBrokenSwitchContext(StateConsensus, err))
-		}
-	}()
-
-	if err := broadcastBallot(
-		bl,
-		st.timers,
-		timerIDBroadcastSuffrageConfirmBallot,
-		st.broadcastBallotFunc,
-		st.Logging,
-		func(i int, _ time.Duration) time.Duration {
-			lvp := st.lastVoteproofs().Cap()
-			if lvp.Point().Height() > bl.Point().Height() {
-				return 0
-			}
-
-			if i < 1 {
-				return time.Nanosecond
-			}
-
-			return st.params.IntervalBroadcastBallot()
-		},
-	); err != nil {
-		return err
-	}
-
-	return st.timers.StartTimers(
-		[]util.TimerID{
-			timerIDBroadcastINITBallot,
-			timerIDBroadcastSuffrageConfirmBallot,
-			timerIDBroadcastACCEPTBallot,
-		},
-		true,
-	)
-}
-
-func (st *ConsensusHandler) prepareACCEPTBallot(
-	ivp base.INITVoteproof,
-	manifest base.Manifest,
-	initialWait time.Duration,
-) error {
-	e := util.StringErrorFunc("failed to prepare accept ballot")
-
-	// NOTE add SuffrageWithdrawOperations into ballot from init voteproof
-	var withdrawfacts []util.Hash
-	var withdraws []base.SuffrageWithdrawOperation
-
-	if i, ok := ivp.(isaac.WithdrawVoteproof); ok {
-		withdraws = i.Withdraws()
-
-		withdrawfacts = make([]util.Hash, len(withdraws))
-
-		for i := range withdraws {
-			withdrawfacts[i] = withdraws[i].WithdrawFact().Hash()
-		}
-	}
-
-	afact := isaac.NewACCEPTBallotFact(
-		ivp.Point().Point,
-		ivp.BallotMajority().Proposal(),
-		manifest.Hash(),
-		withdrawfacts,
-	)
-	signfact := isaac.NewACCEPTBallotSignFact(afact)
-
-	if err := signfact.NodeSign(st.local.Privatekey(), st.params.NetworkID(), st.local.Address()); err != nil {
-		return e(err, "")
-	}
-
-	bl := isaac.NewACCEPTBallot(ivp, signfact, withdraws)
-
-	go func() {
-		<-time.After(initialWait)
-
-		switch _, err := st.vote(bl); {
-		case err == nil:
-		case errors.Is(err, errFailedToVoteNotInConsensus):
-			st.Log().Debug().Err(err).Msg("failed to vote accept ballot; moves to syncing state")
-
-			go st.switchState(newSyncingSwitchContext(StateConsensus, ivp.Point().Height()-1))
-		default:
-			st.Log().Error().Err(err).Msg("failed to vote accept ballot; moves to broken state")
-
-			go st.switchState(newBrokenSwitchContext(StateConsensus, err))
-		}
-	}()
-
-	if err := st.broadcastACCEPTBallot(bl, initialWait); err != nil {
-		return e(err, "failed to broadcast accept ballot")
-	}
-
-	if err := st.timers.StartTimers([]util.TimerID{
-		timerIDBroadcastINITBallot,
-		timerIDBroadcastSuffrageConfirmBallot,
-		timerIDBroadcastACCEPTBallot,
-	}, true); err != nil {
-		return e(err, "failed to start timers for broadcasting accept ballot")
-	}
-
-	return nil
-}
-
 func (st *ConsensusHandler) newVoteproof(vp base.Voteproof) error {
 	var lvps LastVoteproofs
 
@@ -565,7 +452,7 @@ func (st *ConsensusHandler) newINITVoteproofWithLastINITVoteproof(
 	case ivp.Result() != base.VoteResultMajority: // NOTE new init voteproof has same height, but higher round
 		l.Debug().Msg("new init voteproof draw; moves to next round")
 
-		go st.nextRound(ivp, lvps.PreviousBlockForNextRound(ivp))
+		go st.prepareNextRound(ivp, lvps.PreviousBlockForNextRound(ivp))
 
 		return nil
 	}
@@ -628,7 +515,7 @@ func (st *ConsensusHandler) newINITVoteproofWithLastACCEPTVoteproof(
 	case ivp.Result() == base.VoteResultDraw:
 		l.Debug().Msg("new init voteproof draw; moves to next round")
 
-		go st.nextRound(ivp, lvps.PreviousBlockForNextRound(ivp))
+		go st.prepareNextRound(ivp, lvps.PreviousBlockForNextRound(ivp))
 
 		return nil
 	default:
@@ -674,12 +561,12 @@ func (st *ConsensusHandler) newACCEPTVoteproofWithLastINITVoteproof(
 			return err
 		}
 
-		go st.nextRound(avp, lvps.PreviousBlockForNextRound(avp))
+		go st.prepareNextRound(avp, lvps.PreviousBlockForNextRound(avp))
 
 		return nil
 	case avp.Point().Height() > livp.Point().Height():
 	case avp.Result() == base.VoteResultDraw:
-		go st.nextRound(avp, lvps.PreviousBlockForNextRound(avp))
+		go st.prepareNextRound(avp, lvps.PreviousBlockForNextRound(avp))
 
 		return nil
 	}
@@ -704,7 +591,7 @@ func (st *ConsensusHandler) newACCEPTVoteproofWithLastACCEPTVoteproof(
 	case avp.Result() == base.VoteResultDraw:
 		l.Debug().Msg("new accept voteproof draw; moves to next round")
 
-		go st.nextRound(avp, lvps.PreviousBlockForNextRound(avp))
+		go st.prepareNextRound(avp, lvps.PreviousBlockForNextRound(avp))
 
 		return nil
 	default:
@@ -712,7 +599,7 @@ func (st *ConsensusHandler) newACCEPTVoteproofWithLastACCEPTVoteproof(
 	}
 }
 
-func (st *ConsensusHandler) nextRound(vp base.Voteproof, previousBlock util.Hash) {
+func (st *ConsensusHandler) prepareNextRound(vp base.Voteproof, previousBlock util.Hash) {
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(vp)).Logger()
 
 	started := time.Now()
@@ -726,7 +613,7 @@ func (st *ConsensusHandler) nextRound(vp base.Voteproof, previousBlock util.Hash
 	var sctx switchContext
 	var bl base.INITBallot
 
-	switch i, err := st.prepareNextRound(vp, previousBlock, st.nodeInConsensusNodes); {
+	switch i, err := st.baseBallotHandler.prepareNextRound(vp, previousBlock, st.nodeInConsensusNodes); {
 	case err == nil:
 		if i == nil {
 			return
@@ -782,7 +669,7 @@ func (st *ConsensusHandler) nextRound(vp base.Voteproof, previousBlock util.Hash
 	l.Debug().Interface("ballot", bl).Msg("init ballot broadcasted for next round")
 }
 
-func (st *ConsensusHandler) nextBlock(avp base.ACCEPTVoteproof) {
+func (st *ConsensusHandler) prepareNextBlock(avp base.ACCEPTVoteproof) {
 	point := avp.Point().Point.NextHeight()
 
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(avp)).Object("point", point).Logger()
@@ -792,7 +679,7 @@ func (st *ConsensusHandler) nextBlock(avp base.ACCEPTVoteproof) {
 	var sctx switchContext
 	var bl base.INITBallot
 
-	switch i, err := st.prepareNextBlock(avp, st.nodeInConsensusNodes); {
+	switch i, err := st.baseBallotHandler.prepareNextBlock(avp, st.nodeInConsensusNodes); {
 	case err == nil:
 		if i == nil {
 			return
@@ -840,46 +727,6 @@ func (st *ConsensusHandler) nextBlock(avp base.ACCEPTVoteproof) {
 	l.Debug().Interface("ballot", bl).Msg("next init ballot broadcasted")
 }
 
-func (st *ConsensusHandler) suffrageSIGNVoting(vp base.Voteproof) {
-	l := st.Log().With().Dict("voteproof", base.VoteproofLog(vp)).Logger()
-
-	if _, ok := vp.(isaac.WithdrawVoteproof); !ok {
-		l.Error().Msg("expected WithdrawVoteproof for suffrage sign voting")
-
-		return
-	}
-
-	ifact := vp.Majority().(isaac.INITBallotFact) //nolint:forcetypeassert //...
-	withdrawfacts := ifact.WithdrawFacts()
-
-	fact := isaac.NewSuffrageConfirmBallotFact(
-		vp.Point().Point,
-		ifact.PreviousBlock(),
-		ifact.Proposal(),
-		withdrawfacts,
-	)
-
-	sf := isaac.NewINITBallotSignFact(fact)
-
-	if err := sf.NodeSign(st.local.Privatekey(), st.params.NetworkID(), st.local.Address()); err != nil {
-		go st.switchState(
-			newBrokenSwitchContext(st.stt, errors.WithMessage(err, "failed to make suffrage confirm ballot")),
-		)
-
-		return
-	}
-
-	bl := isaac.NewINITBallot(vp, sf, nil)
-
-	if err := st.prepareSuffrageConfirmBallot(bl); err != nil {
-		l.Error().Err(err).Msg("failed to prepare suffrage confirm ballot")
-
-		return
-	}
-
-	l.Debug().Interface("ballot", bl).Msg("suffrage confirm ballot broadcasted")
-}
-
 func (st *ConsensusHandler) saveBlock(avp base.ACCEPTVoteproof) (bool, error) {
 	facthash := avp.BallotMajority().Proposal()
 
@@ -893,7 +740,7 @@ func (st *ConsensusHandler) saveBlock(avp base.ACCEPTVoteproof) (bool, error) {
 		ll.Debug().Msg("processed proposal saved; moves to next block")
 
 		go st.whenNewBlockSaved(avp.Point().Height())
-		go st.nextBlock(avp)
+		go st.prepareNextBlock(avp)
 
 		return true, nil
 	case errors.Is(err, isaac.ErrProcessorAlreadySaved):
@@ -921,7 +768,7 @@ func (st *ConsensusHandler) checkSuffrageVoting(ivp base.INITVoteproof) (bool, e
 
 	switch t := ivp.Majority().(type) {
 	case isaac.INITBallotFact:
-		go st.suffrageSIGNVoting(ivp)
+		go st.prepareSuffrageConfirmBallot(ivp)
 
 		return false, nil
 	case isaac.SuffrageConfirmBallotFact:
