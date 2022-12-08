@@ -229,7 +229,6 @@ func (p *DefaultProposalProcessor) clean() {
 	p.newOperationProcessor = nil
 	p.ivp = nil
 	p.oprs.Close()
-	p.oprs = nil
 }
 
 func (p *DefaultProposalProcessor) isCanceled() bool {
