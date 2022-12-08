@@ -4,6 +4,7 @@ import (
 	"net"
 	"net/url"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -590,7 +591,13 @@ func (t *testNodeDesign) TestIsValid() {
 		err := a.IsValid(nil)
 		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "invalid time server")
-		t.ErrorContains(err, "no such host")
+
+		switch s := err.Error(); {
+		case strings.Contains(s, "no such host"):
+		case strings.Contains(s, "failure in name resolution"):
+		default:
+			t.NoError(errors.Errorf("unknown error: %+v", err))
+		}
 	})
 
 	t.Run("invalid time server", func() {
