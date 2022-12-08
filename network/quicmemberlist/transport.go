@@ -31,7 +31,7 @@ type Transport struct {
 	writef       TransportWriteFunc
 	notallowf    func(string) bool
 	packetch     chan *memberlist.Packet
-	conns        *util.ShardedMap
+	conns        *util.ShardedMap[string, *qconn]
 	getconninfof TransportGetConnInfo
 	sync.RWMutex
 	shutdowned bool
@@ -43,6 +43,8 @@ func NewTransport(
 	writef TransportWriteFunc,
 	notallowf func(string) bool,
 ) *Transport {
+	conns, _ := util.NewShardedMap("", (*qconn)(nil), 1<<9) //nolint:gomnd //...
+
 	return &Transport{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", "memberlist-quicmemberlist")
@@ -53,7 +55,7 @@ func NewTransport(
 		notallowf:    notallowf,
 		packetch:     make(chan *memberlist.Packet),
 		streamch:     make(chan net.Conn),
-		conns:        util.NewShardedMap(1 << 9), //nolint:gomnd //...
+		conns:        conns,
 		getconninfof: func(addr *net.UDPAddr) quicstream.UDPConnInfo { return quicstream.NewUDPConnInfo(addr, true) },
 	}
 }
@@ -307,7 +309,7 @@ func (t *Transport) receiveStream(b []byte, raddr net.Addr) {
 
 	switch {
 	case i != nil:
-		conn = i.(*qconn) //nolint:forcetypeassert // ...
+		conn = i
 	default:
 		conn = t.newConn(raddr.(*net.UDPAddr)) //nolint:forcetypeassert // ...
 	}
@@ -333,11 +335,11 @@ func (t *Transport) newConn(raddr *net.UDPAddr) *qconn {
 			return n, err
 		},
 		func() {
-			_, _ = t.conns.Remove(raddr.String(), nil)
+			_ = t.conns.RemoveValue(raddr.String())
 		},
 	)
 
-	t.conns.SetValue(raddr.String(), conn)
+	_ = t.conns.SetValue(raddr.String(), conn)
 
 	return conn
 }

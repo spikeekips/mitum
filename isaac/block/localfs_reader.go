@@ -15,9 +15,9 @@ import (
 
 type LocalFSReader struct {
 	enc      encoder.Encoder
-	mapl     *util.Locked
-	readersl *util.LockedMap
-	itemsl   *util.LockedMap
+	mapl     *util.Locked[base.BlockMap]
+	readersl *util.ShardedMap[base.BlockMapItemType, error]
+	itemsl   *util.ShardedMap[base.BlockMapItemType, [3]interface{}]
 	root     string
 }
 
@@ -31,12 +31,15 @@ func NewLocalFSReader(root string, enc encoder.Encoder) (*LocalFSReader, error) 
 		return nil, e(nil, "map file is directory")
 	}
 
+	readersl, _ := util.NewShardedMap(base.BlockMapItemType(""), (error)(nil), 6)   //nolint:gomnd //...
+	itemsl, _ := util.NewShardedMap(base.BlockMapItemType(""), [3]interface{}{}, 6) //nolint:gomnd //...
+
 	return &LocalFSReader{
 		root:     root,
 		enc:      enc,
-		mapl:     util.EmptyLocked(),
-		readersl: util.NewLockedMap(),
-		itemsl:   util.NewLockedMap(),
+		mapl:     util.EmptyLocked((base.BlockMap)(nil)),
+		readersl: readersl,
+		itemsl:   itemsl,
 	}, nil
 }
 
@@ -45,15 +48,15 @@ func NewLocalFSReaderFromHeight(baseroot string, height base.Height, enc encoder
 }
 
 func (r *LocalFSReader) Close() error {
-	r.mapl = nil
-	r.readersl = nil
-	r.itemsl = nil
+	r.mapl.EmptyValue()
+	r.readersl.Close()
+	r.itemsl.Close()
 
 	return nil
 }
 
 func (r *LocalFSReader) BlockMap() (base.BlockMap, bool, error) {
-	i, err := r.mapl.Get(func() (interface{}, error) {
+	i, err := r.mapl.Get(func() (base.BlockMap, error) {
 		var b []byte
 
 		switch f, err := os.Open(filepath.Join(r.root, blockFSMapFilename(r.enc.Hint().Type().String()))); {
@@ -84,7 +87,7 @@ func (r *LocalFSReader) BlockMap() (base.BlockMap, bool, error) {
 
 	switch {
 	case err == nil:
-		return i.(base.BlockMap), true, nil //nolint:forcetypeassert //...
+		return i, true, nil
 	case os.IsNotExist(err):
 		return nil, false, nil
 	default:
@@ -104,7 +107,7 @@ func (r *LocalFSReader) Reader(t base.BlockMapItemType) (io.ReadCloser, bool, er
 		fpath = filepath.Join(r.root, i)
 	}
 
-	i, _, _ := r.readersl.Get(t, func() (interface{}, error) {
+	i, _, _ := r.readersl.Get(t, func() (error, error) {
 		switch fi, err := os.Stat(fpath); {
 		case err != nil:
 			return err, nil //nolint:nilerr,wrapcheck //...
@@ -115,29 +118,26 @@ func (r *LocalFSReader) Reader(t base.BlockMapItemType) (io.ReadCloser, bool, er
 		}
 	})
 
-	if i != nil {
-		switch err, ok := i.(error); {
-		case !ok:
-			return nil, false, nil
-		case os.IsNotExist(err):
-			return nil, false, nil
-		default:
-			return nil, false, e(err, "")
-		}
+	switch {
+	case i == nil:
+	case os.IsNotExist(i):
+		return nil, false, nil
+	default:
+		return nil, false, e(i, "")
 	}
 
 	f, err := os.Open(filepath.Clean(fpath))
-	if err == nil {
-		return f, true, nil
-	}
 
 	_ = r.readersl.SetValue(t, err)
 
-	if os.IsNotExist(err) {
+	switch {
+	case err == nil:
+		return f, true, nil
+	case os.IsNotExist(err):
 		return nil, false, nil
+	default:
+		return nil, false, e(err, "")
 	}
-
-	return nil, false, e(err, "")
 }
 
 func (r *LocalFSReader) ChecksumReader(t base.BlockMapItemType) (util.ChecksumReader, bool, error) {
@@ -152,7 +152,7 @@ func (r *LocalFSReader) ChecksumReader(t base.BlockMapItemType) (util.ChecksumRe
 		fpath = filepath.Join(r.root, i)
 	}
 
-	i, _, _ := r.readersl.Get(t, func() (interface{}, error) {
+	i, _, _ := r.readersl.Get(t, func() (error, error) {
 		switch fi, err := os.Stat(fpath); {
 		case err != nil:
 			return err, nil //nolint:nilerr,wrapcheck //...
@@ -163,15 +163,12 @@ func (r *LocalFSReader) ChecksumReader(t base.BlockMapItemType) (util.ChecksumRe
 		}
 	})
 
-	if i != nil {
-		switch err, ok := i.(error); {
-		case !ok:
-			return nil, false, nil
-		case os.IsNotExist(err):
-			return nil, false, nil
-		default:
-			return nil, false, e(err, "")
-		}
+	switch {
+	case i == nil:
+	case os.IsNotExist(i):
+		return nil, false, nil
+	default:
+		return nil, false, e(i, "")
 	}
 
 	var f util.ChecksumReader
@@ -206,20 +203,18 @@ func (r *LocalFSReader) ChecksumReader(t base.BlockMapItemType) (util.ChecksumRe
 }
 
 func (r *LocalFSReader) Item(t base.BlockMapItemType) (item interface{}, found bool, _ error) {
-	i, _, _ := r.itemsl.Get(t, func() (interface{}, error) {
+	i, _, _ := r.itemsl.Get(t, func() ([3]interface{}, error) {
 		j, found, err := r.item(t)
 
 		return [3]interface{}{j, found, err}, nil
 	})
 
-	l := i.([3]interface{}) //nolint:forcetypeassert //...
-
 	var err error
-	if l[2] != nil {
-		err = l[2].(error) //nolint:forcetypeassert //...
+	if i[2] != nil {
+		err = i[2].(error) //nolint:forcetypeassert //...
 	}
 
-	return l[0], l[1].(bool), err //nolint:forcetypeassert //...
+	return i[0], i[1].(bool), err //nolint:forcetypeassert //...
 }
 
 func (r *LocalFSReader) Items(f func(base.BlockMapItem, interface{}, bool, error) bool) error {

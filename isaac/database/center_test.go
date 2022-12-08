@@ -14,8 +14,25 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
 	"github.com/stretchr/testify/suite"
+	"github.com/syndtr/goleveldb/leveldb"
 	leveldbutil "github.com/syndtr/goleveldb/leveldb/util"
 )
+
+func removeHeight(st *leveldbstorage.Storage, height base.Height) error { //nolint:deadcode,unused //...
+	batch := &leveldb.Batch{}
+	defer batch.Reset()
+
+	r := &leveldbutil.Range{
+		Start: emptyPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, height),
+		Limit: emptyPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, height+1),
+	}
+
+	if _, err := leveldbstorage.BatchRemove(st, r, 333); err != nil { //nolint:gomnd //...
+		return errors.WithMessage(err, "failed to remove height")
+	}
+
+	return nil
+}
 
 type DummyPermanentDatabase struct {
 	closef                      func() error

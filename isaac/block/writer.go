@@ -37,7 +37,7 @@ type Writer struct {
 	mergeDatabase func(isaac.BlockWriteDatabase) error
 	opstreeg      *fixedtree.Writer
 	getStateFunc  base.GetStateFunc
-	states        *util.LockedMap
+	states        *util.ShardedMap[string, base.StateValueMerger]
 	ststree       fixedtree.Tree
 	sync.RWMutex
 }
@@ -49,13 +49,15 @@ func NewWriter(
 	mergeDatabase func(isaac.BlockWriteDatabase) error,
 	fswriter FSWriter,
 ) *Writer {
+	states, _ := util.NewShardedMap("", (base.StateValueMerger)(nil), 1<<9) //nolint:gomnd //...
+
 	return &Writer{
 		proposal:      proposal,
 		getStateFunc:  getStateFunc,
 		db:            db,
 		mergeDatabase: mergeDatabase,
 		fswriter:      fswriter,
-		states:        util.NewLockedMap(),
+		states:        states,
 	}
 }
 
@@ -130,7 +132,7 @@ func (w *Writer) SetStates(
 func (w *Writer) SetState(_ context.Context, stv base.StateMergeValue, operation base.Operation) error {
 	e := util.StringErrorFunc("failed to set state")
 
-	j, _, err := w.states.Get(stv.Key(), func() (interface{}, error) {
+	j, _, err := w.states.Get(stv.Key(), func() (base.StateValueMerger, error) {
 		var st base.State
 
 		switch j, found, err := w.getStateFunc(stv.Key()); {
@@ -146,8 +148,7 @@ func (w *Writer) SetState(_ context.Context, stv base.StateMergeValue, operation
 		return e(err, "")
 	}
 
-	if err := j.(base.StateValueMerger).Merge( //nolint:forcetypeassert //...
-		stv.Value(), []util.Hash{operation.Fact().Hash()}); err != nil {
+	if err := j.Merge(stv.Value(), []util.Hash{operation.Fact().Hash()}); err != nil {
 		return e(err, "failed to merge")
 	}
 
@@ -181,8 +182,8 @@ func (w *Writer) closeStateValues(ctx context.Context) error {
 	sortedkeys := make([]string, w.states.Len())
 	{
 		var i int
-		w.states.Traverse(func(k, _ interface{}) bool {
-			sortedkeys[i] = k.(string) //nolint:forcetypeassert //...
+		w.states.Traverse(func(k string, _ base.StateValueMerger) bool {
+			sortedkeys[i] = k
 			i++
 
 			return true
@@ -204,8 +205,7 @@ func (w *Writer) closeStateValues(ctx context.Context) error {
 		defer worker.Done()
 
 		for i := range sortedkeys {
-			v, _ := w.states.Value(sortedkeys[i])
-			st := v.(base.State) //nolint:forcetypeassert //...
+			st, _ := w.states.Value(sortedkeys[i])
 
 			index := uint64(i)
 
@@ -432,7 +432,7 @@ func (w *Writer) close() error {
 	w.mergeDatabase = nil
 	w.opstreeg = nil
 	w.getStateFunc = nil
-	w.states = nil
+	w.states.Close()
 	w.ststree = fixedtree.Tree{}
 
 	return nil

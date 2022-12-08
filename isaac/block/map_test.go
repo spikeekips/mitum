@@ -93,7 +93,7 @@ func (t *testBlockMap) TestInvalid() {
 
 	t.Run("proposal not set", func() {
 		m := t.newmap()
-		m.m.RemoveValue(base.BlockMapItemTypeProposal)
+		m.items.RemoveValue(base.BlockMapItemTypeProposal)
 
 		err := m.IsValid(t.networkID)
 		t.True(errors.Is(err, util.ErrInvalid))
@@ -102,7 +102,7 @@ func (t *testBlockMap) TestInvalid() {
 
 	t.Run("empty proposal", func() {
 		m := t.newmap()
-		m.m.SetValue(base.BlockMapItemTypeProposal, nil)
+		m.items.SetValue(base.BlockMapItemTypeProposal, nil)
 
 		err := m.IsValid(t.networkID)
 		t.True(errors.Is(err, util.ErrInvalid))
@@ -111,7 +111,7 @@ func (t *testBlockMap) TestInvalid() {
 
 	t.Run("voteproofs not set", func() {
 		m := t.newmap()
-		m.m.RemoveValue(base.BlockMapItemTypeVoteproofs)
+		m.items.RemoveValue(base.BlockMapItemTypeVoteproofs)
 
 		err := m.IsValid(t.networkID)
 		t.True(errors.Is(err, util.ErrInvalid))
@@ -120,7 +120,7 @@ func (t *testBlockMap) TestInvalid() {
 
 	t.Run("empty voteproofs", func() {
 		m := t.newmap()
-		m.m.SetValue(base.BlockMapItemTypeVoteproofs, nil)
+		m.items.SetValue(base.BlockMapItemTypeVoteproofs, nil)
 
 		err := m.IsValid(t.networkID)
 		t.True(errors.Is(err, util.ErrInvalid))
@@ -129,7 +129,7 @@ func (t *testBlockMap) TestInvalid() {
 
 	t.Run("invalid item", func() {
 		m := t.newmap()
-		m.m.SetValue(base.BlockMapItemTypeVoteproofs, t.newitem(base.BlockMapItemType("hehe")))
+		m.items.SetValue(base.BlockMapItemTypeVoteproofs, t.newitem(base.BlockMapItemType("hehe")))
 
 		err := m.IsValid(t.networkID)
 		t.True(errors.Is(err, util.ErrInvalid))

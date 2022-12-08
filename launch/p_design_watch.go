@@ -125,7 +125,7 @@ func watchUpdateFuncs(ctx context.Context) (map[string]func(string) error, error
 	var enc *jsonenc.Encoder
 	var design NodeDesign
 	var params *isaac.LocalParams
-	var discoveries *util.Locked
+	var discoveries *util.Locked[[]quicstream.UDPConnInfo]
 	var syncSourceChecker *isaacnetwork.SyncSourceChecker
 
 	if err := util.LoadFromContextOK(ctx,
@@ -162,7 +162,7 @@ func watchUpdateFromConsulFunc(
 	prefix string,
 	fs map[string]func(string) error,
 ) func(*consulapi.KVPair) (bool, error) {
-	updated := util.NewLockedMap()
+	updated := util.NewSingleLockedMap("", uint64(0))
 
 	return func(v *consulapi.KVPair) (bool, error) {
 		if v == nil {
@@ -170,8 +170,7 @@ func watchUpdateFromConsulFunc(
 		}
 
 		switch i, found := updated.Value(v.Key); {
-		case !found, i == nil:
-		case v.CreateIndex > i.(uint64): //nolint:forcetypeassert //...
+		case !found, v.CreateIndex > i:
 		default:
 			return false, nil
 		}
@@ -468,7 +467,7 @@ func updateSyncSources(
 }
 
 func updateDiscoveries(
-	discoveries *util.Locked,
+	discoveries *util.Locked[[]quicstream.UDPConnInfo],
 	log *logging.Logging,
 ) func(string) error {
 	return func(s string) error {

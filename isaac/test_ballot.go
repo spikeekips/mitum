@@ -230,7 +230,7 @@ func (t *BaseTestBallots) Withdraws(height base.Height, withdrawnodes []base.Add
 }
 
 type proposalPool struct {
-	*util.LockedMap
+	*util.SingleLockedMap[string, base.ProposalSignFact]
 	newproposal func(base.Point) base.ProposalSignFact
 }
 
@@ -238,8 +238,8 @@ func newProposalPool(
 	newproposal func(base.Point) base.ProposalSignFact,
 ) *proposalPool {
 	return &proposalPool{
-		LockedMap:   util.NewLockedMap(),
-		newproposal: newproposal,
+		SingleLockedMap: util.NewSingleLockedMap("", (base.ProposalSignFact)(nil)),
+		newproposal:     newproposal,
 	}
 }
 
@@ -248,11 +248,11 @@ func (p *proposalPool) Hash(point base.Point) util.Hash {
 }
 
 func (p *proposalPool) Get(point base.Point) base.ProposalSignFact {
-	i, _, _ := p.LockedMap.Get(point.String(), func() (interface{}, error) {
+	i, _, _ := p.SingleLockedMap.Get(point.String(), func() (base.ProposalSignFact, error) {
 		return p.newproposal(point), nil
 	})
 
-	return i.(base.ProposalSignFact)
+	return i
 }
 
 func (p *proposalPool) GetFact(point base.Point) base.ProposalFact {
@@ -264,15 +264,15 @@ func (p *proposalPool) ByPoint(point base.Point) base.ProposalSignFact {
 	case !found:
 		return nil
 	default:
-		return i.(base.ProposalSignFact)
+		return i
 	}
 }
 
 func (p *proposalPool) ByHash(h util.Hash) (base.ProposalSignFact, error) {
 	var pr base.ProposalSignFact
-	p.Traverse(func(_, v interface{}) bool {
-		if i := v.(base.ProposalSignFact); i.Fact().Hash().Equal(h) {
-			pr = i
+	p.Traverse(func(_ string, v base.ProposalSignFact) bool {
+		if v.Fact().Hash().Equal(h) {
+			pr = v
 
 			return false
 		}

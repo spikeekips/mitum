@@ -22,7 +22,7 @@ type TempPool struct {
 	*baseLeveldb
 	*util.ContextDaemon
 	whenNewOperationsremoved          func(int, error)
-	lastvoteproofs                    *util.Locked
+	lastvoteproofs                    *util.Locked[[2]base.Voteproof]
 	cleanRemovedNewOperationsInterval time.Duration
 	cleanRemovedNewOperationsDeep     base.Height
 }
@@ -36,7 +36,7 @@ func newTempPool(st *leveldbstorage.Storage, encs *encoder.Encoders, enc encoder
 
 	db := &TempPool{
 		baseLeveldb:                       newBaseLeveldb(pst, encs, enc),
-		lastvoteproofs:                    util.EmptyLocked(),
+		lastvoteproofs:                    util.EmptyLocked([2]base.Voteproof{}),
 		cleanRemovedNewOperationsInterval: time.Minute * 33, //nolint:gomnd //...
 		cleanRemovedNewOperationsDeep:     3,                //nolint:gomnd //...
 		whenNewOperationsremoved:          func(int, error) {},
@@ -511,16 +511,11 @@ func (db *TempPool) setRemoveNewOperations(ctx context.Context, height base.Heig
 }
 
 func (db *TempPool) LastVoteproofs() (base.INITVoteproof, base.ACCEPTVoteproof, bool, error) {
-	switch i, _ := db.lastvoteproofs.Value(); {
-	case i == nil:
+	switch i, isempty := db.lastvoteproofs.Value(); {
+	case isempty:
 		return nil, nil, false, nil
 	default:
-		j, ok := i.([2]base.Voteproof)
-		if !ok {
-			return nil, nil, false, errors.Errorf("invalid last voteproofs")
-		}
-
-		return j[0].(base.INITVoteproof), j[1].(base.ACCEPTVoteproof), true, nil //nolint:forcetypeassert //...
+		return i[0].(base.INITVoteproof), i[1].(base.ACCEPTVoteproof), true, nil //nolint:forcetypeassert //...
 	}
 }
 
@@ -529,20 +524,17 @@ func (db *TempPool) SetLastVoteproofs(ivp base.INITVoteproof, avp base.ACCEPTVot
 
 	switch {
 	case ivp == nil || avp == nil:
-		_ = db.lastvoteproofs.Empty()
+		_ = db.lastvoteproofs.EmptyValue()
 
 		return nil
 	case !ivp.Point().Point.Equal(avp.Point().Point):
 		return e(nil, "voteproofs should have same point")
 	}
 
-	if _, err := db.lastvoteproofs.Set(func(_ bool, i interface{}) (interface{}, error) {
-		var old [2]base.Voteproof
-		if i != nil {
-			old = i.([2]base.Voteproof) //nolint:forcetypeassert //...
-
+	if _, err := db.lastvoteproofs.Set(func(old [2]base.Voteproof, isempty bool) ([2]base.Voteproof, error) {
+		if !isempty {
 			if ivp.Point().Compare(old[0].Point()) < 1 {
-				return nil, util.ErrLockedSetIgnore.Call()
+				return [2]base.Voteproof{}, util.ErrLockedSetIgnore.Call()
 			}
 		}
 

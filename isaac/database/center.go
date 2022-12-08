@@ -249,7 +249,7 @@ func (db *Center) LastNetworkPolicy() base.NetworkPolicy {
 func (db *Center) State(key string) (base.State, bool, error) {
 	e := util.StringErrorFunc("failed to find State")
 
-	l := util.EmptyLocked()
+	l := util.EmptyLocked((base.State)(nil))
 
 	if err := db.state(key, func(key string, p isaac.TempDatabase) (bool, error) {
 		switch st, found, err := p.State(key); {
@@ -265,7 +265,7 @@ func (db *Center) State(key string) (base.State, bool, error) {
 	}
 
 	if i, _ := l.Value(); i != nil {
-		return i.(base.State), true, nil //nolint:forcetypeassert //...
+		return i, true, nil
 	}
 
 	st, found, err := db.perm.State(key)
@@ -279,7 +279,7 @@ func (db *Center) State(key string) (base.State, bool, error) {
 func (db *Center) StateBytes(key string) (ht hint.Hint, _, _ []byte, _ bool, _ error) {
 	e := util.StringErrorFunc("failed to find state bytes")
 
-	l := util.EmptyLocked()
+	l := util.EmptyLocked([3]interface{}{})
 
 	if err := db.state(key, func(key string, p isaac.TempDatabase) (bool, error) {
 		switch enchint, meta, body, found, err := p.StateBytes(key); {
@@ -294,9 +294,8 @@ func (db *Center) StateBytes(key string) (ht hint.Hint, _, _ []byte, _ bool, _ e
 		return ht, nil, nil, false, e(err, "")
 	}
 
-	if i, _ := l.Value(); i != nil {
-		j := i.([3]interface{})                                          //nolint:forcetypeassert //...
-		return j[0].(hint.Hint), j[1].([]byte), j[2].([]byte), true, nil //nolint:forcetypeassert //...
+	if i, isempty := l.Value(); !isempty {
+		return i[0].(hint.Hint), i[1].([]byte), i[2].([]byte), true, nil //nolint:forcetypeassert //...
 	}
 
 	enchint, meta, body, found, err := db.perm.StateBytes(key)
@@ -308,21 +307,21 @@ func (db *Center) StateBytes(key string) (ht hint.Hint, _, _ []byte, _ bool, _ e
 }
 
 func (db *Center) state(key string, f func(string, isaac.TempDatabase) (bool, error)) error {
-	l := util.EmptyLocked()
+	l := util.NewLocked(base.NilHeight)
 
 	return db.dig(func(p isaac.TempDatabase) (bool, error) {
-		if _, err := l.Set(func(_ bool, old interface{}) (interface{}, error) {
-			if old != nil && p.Height() <= old.(base.Height) { //nolint:forcetypeassert //...
-				return nil, util.ErrLockedSetIgnore.Errorf("old")
+		if _, err := l.Set(func(old base.Height, _ bool) (base.Height, error) {
+			if p.Height() <= old {
+				return base.NilHeight, util.ErrLockedSetIgnore.Errorf("old")
 			}
 
 			switch found, err := f(key, p); {
 			case err != nil:
-				return nil, err
+				return base.NilHeight, err
 			case found:
 				return p.Height(), nil
 			default:
-				return nil, util.ErrLockedSetIgnore.Errorf("not found")
+				return base.NilHeight, util.ErrLockedSetIgnore.Errorf("not found")
 			}
 		}); err != nil {
 			return false, err
@@ -335,7 +334,7 @@ func (db *Center) state(key string, f func(string, isaac.TempDatabase) (bool, er
 func (db *Center) ExistsInStateOperation(h util.Hash) (bool, error) { //nolint:dupl //...
 	e := util.StringErrorFunc("failed to check operation")
 
-	l := util.EmptyLocked()
+	l := util.EmptyLocked(false)
 
 	if err := db.dig(func(p isaac.TempDatabase) (bool, error) {
 		switch found, err := p.ExistsInStateOperation(h); {
@@ -352,8 +351,8 @@ func (db *Center) ExistsInStateOperation(h util.Hash) (bool, error) { //nolint:d
 		return false, e(err, "")
 	}
 
-	if i, _ := l.Value(); i != nil {
-		return i.(bool), nil //nolint:forcetypeassert //...
+	if i, isempty := l.Value(); !isempty {
+		return i, nil
 	}
 
 	found, err := db.perm.ExistsInStateOperation(h)
@@ -367,7 +366,7 @@ func (db *Center) ExistsInStateOperation(h util.Hash) (bool, error) { //nolint:d
 func (db *Center) ExistsKnownOperation(h util.Hash) (bool, error) { //nolint:dupl //...
 	e := util.StringErrorFunc("failed to check operation")
 
-	l := util.EmptyLocked()
+	l := util.EmptyLocked(false)
 
 	if err := db.dig(func(p isaac.TempDatabase) (bool, error) {
 		switch found, err := p.ExistsKnownOperation(h); {
@@ -384,8 +383,8 @@ func (db *Center) ExistsKnownOperation(h util.Hash) (bool, error) { //nolint:dup
 		return false, e(err, "")
 	}
 
-	if i, _ := l.Value(); i != nil {
-		return i.(bool), nil //nolint:forcetypeassert //...
+	if i, isempty := l.Value(); !isempty {
+		return i, nil
 	}
 
 	found, err := db.perm.ExistsKnownOperation(h)

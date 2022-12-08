@@ -1485,7 +1485,10 @@ linters-settings:
   #    # Intended to point to the repo location of the linter.
   #    # Optional.
   #    original-url: github.com/golangci/example-linter
-
+  interfacebloat:
+    # The maximum number of methods allowed for an interface.
+    # Default: 10
+    max: 11
 
 linters:
   # Disable all linters.

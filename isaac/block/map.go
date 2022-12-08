@@ -29,7 +29,7 @@ var BlockDirectoryHeightFormat = "%021s"
 
 type BlockMap struct {
 	manifest base.Manifest
-	m        *util.LockedMap
+	items    *util.SingleLockedMap[base.BlockMapItemType, base.BlockMapItem]
 	base.BaseNodeSign
 	hint.BaseHinter
 	writer  hint.Hint
@@ -41,7 +41,7 @@ func NewBlockMap(writer, encoder hint.Hint) BlockMap {
 		BaseHinter: hint.NewBaseHinter(BlockMapHint),
 		writer:     writer,
 		encoder:    encoder,
-		m:          util.NewLockedMap(),
+		items:      util.NewSingleLockedMap(base.BlockMapItemType(""), (base.BlockMapItem)(nil)),
 	}
 }
 
@@ -59,11 +59,12 @@ func (m BlockMap) IsValid(b []byte) error {
 		return e.Wrap(err)
 	}
 
-	vs := make([]util.IsValider, m.m.Len())
+	vs := make([]util.IsValider, m.items.Len())
 	var i int
-	m.m.Traverse(func(_, v interface{}) bool {
+	m.items.Traverse(func(_ base.BlockMapItemType, v base.BlockMapItem) bool {
 		if v != nil {
-			vs[i] = v.(BlockMapItem) //nolint:forcetypeassert //...
+			vs[i] = v
+
 			i++
 		}
 
@@ -98,13 +99,11 @@ func (m *BlockMap) SetManifest(manifest base.Manifest) {
 }
 
 func (m BlockMap) Item(t base.BlockMapItemType) (base.BlockMapItem, bool) {
-	switch i, found := m.m.Value(t); {
-	case !found:
-		return nil, false
-	case i == nil:
+	switch i, found := m.items.Value(t); {
+	case !found, i == nil:
 		return nil, false
 	default:
-		return i.(BlockMapItem), true //nolint:forcetypeassert //...
+		return i, true
 	}
 }
 
@@ -115,18 +114,18 @@ func (m *BlockMap) SetItem(item base.BlockMapItem) error {
 		return e(err, "")
 	}
 
-	_ = m.m.SetValue(item.Type(), item)
+	_ = m.items.SetValue(item.Type(), item)
 
 	return nil
 }
 
 func (m BlockMap) Items(f func(base.BlockMapItem) bool) {
-	m.m.Traverse(func(_, v interface{}) bool {
+	m.items.Traverse(func(_ base.BlockMapItemType, v base.BlockMapItem) bool {
 		if v == nil {
 			return true
 		}
 
-		return f(v.(base.BlockMapItem)) //nolint:forcetypeassert //...
+		return f(v)
 	})
 }
 
@@ -143,10 +142,8 @@ func (m *BlockMap) Sign(node base.Address, priv base.Privatekey, networkID base.
 
 func (m BlockMap) checkItems() error {
 	check := func(t base.BlockMapItemType) bool {
-		switch i, found := m.m.Value(t); {
-		case !found:
-			return false
-		case i == nil:
+		switch i, found := m.items.Value(t); {
+		case !found, i == nil:
 			return false
 		default:
 			return true
@@ -181,14 +178,14 @@ func (BlockMap) Bytes() []byte {
 }
 
 func (m BlockMap) signedBytes() []byte {
-	ts := make([][]byte, m.m.Len())
+	ts := make([][]byte, m.items.Len())
 
 	var i int
-	m.m.Traverse(func(_, v interface{}) bool {
+	m.items.Traverse(func(_ base.BlockMapItemType, v base.BlockMapItem) bool {
 		if v != nil {
 			// NOTE only checksum and num will be included in signature
-			item := v.(BlockMapItem) //nolint:forcetypeassert //...
-			ts[i] = util.ConcatBytesSlice([]byte(item.Checksum()), util.Uint64ToBytes(item.Num()))
+			ts[i] = util.ConcatBytesSlice([]byte(v.Checksum()), util.Uint64ToBytes(v.Num()))
+
 			i++
 		}
 

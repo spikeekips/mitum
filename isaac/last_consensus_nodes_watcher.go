@@ -17,7 +17,7 @@ type LastConsensusNodesWatcher struct {
 	getFromRemote func(context.Context, base.State) (_ base.SuffrageProof, candidatestate base.State, _ error)
 	whenUpdatedf  func(
 		_ context.Context, previous base.SuffrageProof, updated base.SuffrageProof, updatedstate base.State)
-	lastRemote          *util.Locked
+	lastRemote          *util.Locked[[2]interface{}]
 	checkRemoteInterval time.Duration
 }
 
@@ -32,7 +32,7 @@ func NewLastConsensusNodesWatcher(
 		}),
 		getFromLocal:        getFromLocal,
 		getFromRemote:       getFromRemote,
-		lastRemote:          util.EmptyLocked(),
+		lastRemote:          util.EmptyLocked([2]interface{}{}),
 		checkRemoteInterval: time.Second * 3, //nolint:gomnd //...
 	}
 
@@ -94,22 +94,20 @@ func (u *LastConsensusNodesWatcher) SetWhenUpdated(
 }
 
 func (u *LastConsensusNodesWatcher) lastValue() (base.SuffrageProof, base.State) {
-	i, _ := u.lastRemote.Value()
-	if i == nil {
+	i, isempty := u.lastRemote.Value()
+	if isempty {
 		return nil, nil
 	}
-
-	j := i.([2]interface{}) //nolint:forcetypeassert //...
 
 	var proof base.SuffrageProof
 	var st base.State
 
-	if j[0] != nil {
-		proof = j[0].(base.SuffrageProof) //nolint:forcetypeassert //...
+	if i[0] != nil {
+		proof = i[0].(base.SuffrageProof) //nolint:forcetypeassert //...
 	}
 
-	if j[1] != nil {
-		st = j[1].(base.State) //nolint:forcetypeassert //...
+	if i[1] != nil {
+		st = i[1].(base.State) //nolint:forcetypeassert //...
 	}
 
 	return proof, st
@@ -186,23 +184,21 @@ func (u *LastConsensusNodesWatcher) compare(
 func (u *LastConsensusNodesWatcher) update(proof base.SuffrageProof, candidates base.State) bool {
 	var updated bool
 
-	_, _ = u.lastRemote.Set(func(_ bool, i interface{}) (interface{}, error) {
-		if i == nil {
+	_, _ = u.lastRemote.Set(func(i [2]interface{}, isempty bool) ([2]interface{}, error) {
+		if isempty {
 			return [2]interface{}{proof, candidates}, nil
 		}
 
-		j := i.([2]interface{}) //nolint:forcetypeassert //...
-
-		oldproof := j[0].(base.SuffrageProof) //nolint:forcetypeassert //...
+		oldproof := i[0].(base.SuffrageProof) //nolint:forcetypeassert //...
 
 		var oldcandidates base.State //nolint:forcetypeassert //...
-		if j[1] != nil {
-			oldcandidates = j[1].(base.State) //nolint:forcetypeassert //...
+		if i[1] != nil {
+			oldcandidates = i[1].(base.State) //nolint:forcetypeassert //...
 		}
 
 		updated = u.compare(oldproof, proof, oldcandidates, candidates)
 		if !updated {
-			return nil, util.ErrLockedSetIgnore.Errorf("old")
+			return [2]interface{}{}, util.ErrLockedSetIgnore.Errorf("old")
 		}
 
 		return [2]interface{}{proof, candidates}, nil

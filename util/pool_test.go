@@ -42,20 +42,20 @@ type testLockedObjectPool struct {
 }
 
 func (t *testLockedObjectPool) TestNew() {
-	p := NewLockedObjectPool()
+	p, _ := NewLockedObjectPool(3)
 
 	_ = (interface{})(p).(ObjectPool)
 }
 
 func (t *testLockedObjectPool) TestGetNotFound() {
-	p := NewLockedObjectPool()
+	p, _ := NewLockedObjectPool(3)
 	i, found := p.Get("findme")
 	t.False(found)
 	t.Nil(i)
 }
 
 func (t *testLockedObjectPool) TestGet() {
-	p := NewLockedObjectPool()
+	p, _ := NewLockedObjectPool(3)
 	p.Set("findme", "showme", nil)
 
 	i, found := p.Get("findme")

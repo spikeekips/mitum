@@ -48,7 +48,6 @@ type LocalFSWriter struct {
 	opsf       util.ChecksumWriter
 	stsf       util.ChecksumWriter
 	enc        encoder.Encoder
-	saved      *util.Locked
 	root       string
 	id         string
 	heightbase string
@@ -58,6 +57,7 @@ type LocalFSWriter struct {
 	hint.BaseHinter
 	lenops uint64
 	height base.Height
+	saved  bool
 	sync.Mutex
 }
 
@@ -100,7 +100,6 @@ func NewLocalFSWriter(
 		heightbase: HeightDirectory(height),
 		temp:       temp,
 		m:          NewBlockMap(LocalFSWriterHint, enc.Hint()),
-		saved:      util.EmptyLocked(),
 	}
 
 	switch f, err := w.newChecksumWriter(base.BlockMapItemTypeOperations); {
@@ -268,24 +267,13 @@ func (w *LocalFSWriter) saveVoteproofs() error {
 	return nil
 }
 
-func (w *LocalFSWriter) Save(ctx context.Context) (base.BlockMap, error) {
-	if i, _ := w.saved.Value(); i != nil {
-		return w.m, nil
-	}
-
-	m, err := w.save(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	_ = w.saved.SetValue(true)
-
-	return m, nil
-}
-
-func (w *LocalFSWriter) save(context.Context) (base.BlockMap, error) {
+func (w *LocalFSWriter) Save(context.Context) (base.BlockMap, error) {
 	w.Lock()
 	defer w.Unlock()
+
+	if w.saved {
+		return w.m, nil
+	}
 
 	e := util.StringErrorFunc("failed to save fs writer")
 
@@ -342,6 +330,8 @@ func (w *LocalFSWriter) save(context.Context) (base.BlockMap, error) {
 	if err := w.close(); err != nil {
 		return nil, e(err, "")
 	}
+
+	w.saved = true
 
 	return m, nil
 }

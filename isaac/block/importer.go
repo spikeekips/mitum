@@ -20,7 +20,7 @@ type BlockImporter struct {
 	avp        base.ACCEPTVoteproof
 	sufst      base.State
 	localfs    *LocalFSImporter
-	finisheds  *util.LockedMap
+	finisheds  *util.ShardedMap[base.BlockMapItemType, bool]
 	root       string
 	networkID  base.NetworkID
 	statestree fixedtree.Tree
@@ -46,6 +46,8 @@ func NewBlockImporter(
 		return nil, e(err, "")
 	}
 
+	finisheds, _ := util.NewShardedMap(base.BlockMapItemType(""), false, 6) //nolint:gomnd //...
+
 	im := &BlockImporter{
 		root:       root,
 		m:          m,
@@ -53,7 +55,7 @@ func NewBlockImporter(
 		localfs:    localfs,
 		bwdb:       bwdb,
 		networkID:  networkID,
-		finisheds:  util.NewLockedMap(),
+		finisheds:  finisheds,
 		batchlimit: 333, //nolint:gomnd // enough big size
 	}
 
@@ -145,6 +147,8 @@ func (im *BlockImporter) CancelImport(context.Context) error {
 		return e(err, "")
 	}
 
+	im.finisheds.Close()
+
 	return nil
 }
 
@@ -222,12 +226,12 @@ func (im *BlockImporter) importItem(t base.BlockMapItemType, r io.Reader) error 
 func (im *BlockImporter) isfinished() bool {
 	var notyet bool
 	im.m.Items(func(item base.BlockMapItem) bool {
-		switch i, found := im.finisheds.Value(item.Type()); {
+		switch finished, found := im.finisheds.Value(item.Type()); {
 		case !found:
 			notyet = true
 
 			return false
-		case !i.(bool): //nolint:forcetypeassert //...
+		case !finished:
 			notyet = true
 
 			return false

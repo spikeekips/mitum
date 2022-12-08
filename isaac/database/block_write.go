@@ -20,11 +20,11 @@ import (
 
 type LeveldbBlockWrite struct {
 	*baseLeveldb
-	mp         *util.Locked
-	sufst      *util.Locked
-	policy     *util.Locked
-	proof      *util.Locked
-	laststates *util.ShardedMap
+	mp         *util.Locked[[3]interface{}]
+	sufst      *util.Locked[base.State]
+	policy     *util.Locked[base.State]
+	proof      *util.Locked[[3]interface{}]
+	laststates *util.ShardedMap[string, base.Height]
 	height     base.Height
 	sync.Mutex
 }
@@ -37,14 +37,16 @@ func NewLeveldbBlockWrite(
 ) *LeveldbBlockWrite {
 	pst := leveldbstorage.NewPrefixStorage(st, newPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, height))
 
+	laststates, _ := util.NewShardedMap("", base.NilHeight, math.MaxInt8)
+
 	return &LeveldbBlockWrite{
 		baseLeveldb: newBaseLeveldb(pst, encs, enc),
 		height:      height,
-		mp:          util.EmptyLocked(),
-		sufst:       util.EmptyLocked(),
-		policy:      util.EmptyLocked(),
-		proof:       util.EmptyLocked(),
-		laststates:  util.NewShardedMap(math.MaxInt8),
+		mp:          util.EmptyLocked([3]interface{}{}),
+		sufst:       util.EmptyLocked((base.State)(nil)),
+		policy:      util.EmptyLocked((base.State)(nil)),
+		proof:       util.EmptyLocked([3]interface{}{}),
+		laststates:  laststates,
 	}
 }
 
@@ -71,6 +73,10 @@ func (db *LeveldbBlockWrite) Write() error {
 }
 
 func (db *LeveldbBlockWrite) clean() {
+	db.mp.EmptyValue()
+	db.sufst.EmptyValue()
+	db.policy.EmptyValue()
+	db.proof.EmptyValue()
 	db.mp = nil
 	db.sufst = nil
 	db.policy = nil
@@ -193,11 +199,10 @@ func (db *LeveldbBlockWrite) BlockMapBytes() (enchint hint.Hint, meta, body []by
 }
 
 func (db *LeveldbBlockWrite) SetBlockMap(m base.BlockMap) error {
-	if _, err := db.mp.Set(func(_ bool, i interface{}) (interface{}, error) {
-		if i != nil {
-			j := i.([3]interface{})                                                //nolint:forcetypeassert //...
-			if m.Manifest().Height() <= j[0].(base.BlockMap).Manifest().Height() { //nolint:forcetypeassert //...
-				return nil, util.ErrLockedSetIgnore.Call()
+	if _, err := db.mp.Set(func(i [3]interface{}, isempty bool) (v [3]interface{}, _ error) {
+		if !isempty {
+			if m.Manifest().Height() <= i[0].(base.BlockMap).Manifest().Height() { //nolint:forcetypeassert //...
+				return v, util.ErrLockedSetIgnore.Call()
 			}
 		}
 
@@ -205,11 +210,11 @@ func (db *LeveldbBlockWrite) SetBlockMap(m base.BlockMap) error {
 
 		b, body, err := db.marshal(m, meta)
 		if err != nil {
-			return nil, err
+			return v, err
 		}
 
 		if err := db.st.Put(leveldbBlockMapKey(m.Manifest().Height()), b, nil); err != nil {
-			return nil, err
+			return v, err
 		}
 
 		return [3]interface{}{m, meta.Bytes(), body}, nil
@@ -222,11 +227,8 @@ func (db *LeveldbBlockWrite) SetBlockMap(m base.BlockMap) error {
 
 func (db *LeveldbBlockWrite) SuffrageState() base.State {
 	i, _ := db.sufst.Value()
-	if i == nil {
-		return nil
-	}
 
-	return i.(base.State) //nolint:forcetypeassert //...
+	return i
 }
 
 func (db *LeveldbBlockWrite) NetworkPolicy() base.NetworkPolicy {
@@ -235,30 +237,30 @@ func (db *LeveldbBlockWrite) NetworkPolicy() base.NetworkPolicy {
 		return nil
 	}
 
-	return i.(base.State).Value().(base.NetworkPolicyStateValue).Policy() //nolint:forcetypeassert //...
+	return i.Value().(base.NetworkPolicyStateValue).Policy() //nolint:forcetypeassert //...
 }
 
 func (db *LeveldbBlockWrite) SetSuffrageProof(proof base.SuffrageProof) error {
-	if _, err := db.proof.Set(func(_ bool, i interface{}) (interface{}, error) {
+	if _, err := db.proof.Set(func(i [3]interface{}, isempty bool) (v [3]interface{}, _ error) {
 		switch {
-		case i == nil:
-		case proof.SuffrageHeight() <= i.(base.SuffrageProof).SuffrageHeight(): //nolint:forcetypeassert //...
-			return nil, util.ErrLockedSetIgnore.Call()
+		case isempty:
+		case proof.SuffrageHeight() <= i[0].(base.SuffrageProof).SuffrageHeight(): //nolint:forcetypeassert //...
+			return v, util.ErrLockedSetIgnore.Call()
 		}
 
 		meta := NewHashRecordMeta(proof.Map().Manifest().Suffrage())
 
 		b, body, err := db.marshal(proof, meta)
 		if err != nil {
-			return nil, err
+			return v, err
 		}
 
 		if err := db.st.Put(leveldbSuffrageProofKey(proof.SuffrageHeight()), b, nil); err != nil {
-			return nil, err
+			return v, err
 		}
 
 		if err := db.st.Put(leveldbSuffrageProofByBlockHeightKey(proof.Map().Manifest().Height()), b, nil); err != nil {
-			return nil, err
+			return v, err
 		}
 
 		return [3]interface{}{proof, meta.Bytes(), body}, nil
@@ -299,24 +301,20 @@ func (db *LeveldbBlockWrite) TempDatabase() (isaac.TempDatabase, error) {
 }
 
 func (db *LeveldbBlockWrite) blockmaps() (base.BlockMap, []byte, []byte) {
-	switch i, _ := db.mp.Value(); {
-	case i == nil:
+	switch i, isempty := db.mp.Value(); {
+	case isempty:
 		return nil, nil, nil
 	default:
-		j := i.([3]interface{}) //nolint:forcetypeassert //...
-
-		return j[0].(base.BlockMap), j[1].([]byte), j[2].([]byte) //nolint:forcetypeassert //...
+		return i[0].(base.BlockMap), i[1].([]byte), i[2].([]byte) //nolint:forcetypeassert //...
 	}
 }
 
 func (db *LeveldbBlockWrite) proofs() (base.SuffrageProof, []byte, []byte) {
-	switch i, _ := db.proof.Value(); {
-	case i == nil:
+	switch i, isempty := db.proof.Value(); {
+	case isempty:
 		return nil, nil, nil
 	default:
-		j := i.([3]interface{}) //nolint:forcetypeassert //...
-
-		return j[0].(base.SuffrageProof), j[1].([]byte), j[2].([]byte) //nolint:forcetypeassert //...
+		return i[0].(base.SuffrageProof), i[1].([]byte), i[2].([]byte) //nolint:forcetypeassert //...
 	}
 }
 
@@ -350,9 +348,9 @@ func (db *LeveldbBlockWrite) setState(st base.State) error {
 
 func (db *LeveldbBlockWrite) isLastStates(st base.State) bool {
 	var islast bool
-	_, _ = db.laststates.Set(st.Key(), func(found bool, i interface{}) (interface{}, error) {
-		if found && i != nil && st.Height() <= i.(base.Height) { //nolint:forcetypeassert //...
-			return nil, errors.Errorf("old")
+	_, _ = db.laststates.Set(st.Key(), func(i base.Height, found bool) (base.Height, error) {
+		if found && st.Height() <= i {
+			return base.NilHeight, errors.Errorf("old")
 		}
 
 		islast = true
@@ -363,9 +361,9 @@ func (db *LeveldbBlockWrite) isLastStates(st base.State) bool {
 	return islast
 }
 
-func (*LeveldbBlockWrite) updateLockedStates(st base.State, locked *util.Locked) {
-	_, _ = locked.Set(func(_ bool, i interface{}) (interface{}, error) {
-		if i != nil && st.Height() <= i.(base.State).Height() { //nolint:forcetypeassert //...
+func (*LeveldbBlockWrite) updateLockedStates(st base.State, locked *util.Locked[base.State]) {
+	_, _ = locked.Set(func(i base.State, _ bool) (base.State, error) {
+		if i != nil && st.Height() <= i.Height() {
 			return i, nil
 		}
 
@@ -432,22 +430,6 @@ func cleanOneHeight(st *leveldbstorage.Storage, height base.Height, prefix []byt
 
 	if _, err := leveldbstorage.BatchRemove(st, r, 333); err != nil { //nolint:gomnd //...
 		return e(err, "")
-	}
-
-	return nil
-}
-
-func removeHeight(st *leveldbstorage.Storage, height base.Height) error { //nolint:deadcode,unused //...
-	batch := &leveldb.Batch{}
-	defer batch.Reset()
-
-	r := &leveldbutil.Range{
-		Start: emptyPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, height),
-		Limit: emptyPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, height+1),
-	}
-
-	if _, err := leveldbstorage.BatchRemove(st, r, 333); err != nil { //nolint:gomnd //...
-		return errors.WithMessage(err, "failed to remove height")
 	}
 
 	return nil

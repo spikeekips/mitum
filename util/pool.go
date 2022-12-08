@@ -55,13 +55,16 @@ func (po *GCacheObjectPool) Close() {
 }
 
 type LockedObjectPool struct {
-	maps *ShardedMap
+	maps *ShardedMap[string, interface{}]
 }
 
-func NewLockedObjectPool() *LockedObjectPool {
-	return &LockedObjectPool{
-		maps: NewShardedMap(1 << 13), //nolint:gomnd //...
+func NewLockedObjectPool(size int64) (*LockedObjectPool, error) {
+	maps, err := NewShardedMap("", (interface{})(nil), size) //nolint:gomnd //...
+	if err != nil {
+		return nil, err
 	}
+
+	return &LockedObjectPool{maps: maps}, nil
 }
 
 func (po *LockedObjectPool) Exists(key string) bool {

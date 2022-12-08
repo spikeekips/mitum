@@ -127,7 +127,7 @@ func getProposalFunc(pctx context.Context) (
 		worker := util.NewErrgroupWorker(ctx, int64(memberlist.MembersLen()))
 		defer worker.Close()
 
-		prl := util.EmptyLocked()
+		prl := util.EmptyLocked((base.ProposalSignFact)(nil))
 
 		go func() {
 			defer worker.Done()
@@ -140,18 +140,11 @@ func getProposalFunc(pctx context.Context) (
 					defer cancel()
 
 					pr, found, err := client.Proposal(cctx, ci, facthash)
-					switch {
-					case err != nil:
-						return nil
-					case !found:
+					if err != nil || !found {
 						return nil
 					}
 
-					_, _ = prl.Set(func(_ bool, i interface{}) (interface{}, error) {
-						if i != nil {
-							return i, nil
-						}
-
+					_, _ = prl.Get(func() (base.ProposalSignFact, error) {
 						return pr, nil
 					})
 
@@ -170,7 +163,7 @@ func getProposalFunc(pctx context.Context) (
 
 			return nil, storage.ErrNotFound.Errorf("ProposalSignFact not found")
 		default:
-			return i.(base.ProposalSignFact), nil //nolint:forcetypeassert //...
+			return i, nil
 		}
 	}, nil
 }
@@ -298,7 +291,7 @@ func getProposalOperationFromRemoteFunc(pctx context.Context) ( //nolint:gocogni
 		}
 
 		proposer := proposal.ProposalFact().Proposer()
-		result := util.EmptyLocked()
+		result := util.EmptyLocked((base.Operation)(nil))
 
 		worker := util.NewErrgroupWorker(ctx, int64(syncSourcePool.Len()))
 		defer worker.Close()
@@ -314,23 +307,23 @@ func getProposalOperationFromRemoteFunc(pctx context.Context) ( //nolint:gocogni
 			}
 
 			if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
-				_, err := result.Set(func(_ bool, i interface{}) (interface{}, error) {
+				cctx, cancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
+				defer cancel()
+
+				op, _ := result.Set(func(i base.Operation, _ bool) (base.Operation, error) {
 					if i != nil {
-						return nil, util.ErrLockedSetIgnore.Call()
+						return i, util.ErrLockedSetIgnore.Call()
 					}
 
-					cctx, cancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
-					defer cancel()
-
-					op, found, err := client.Operation(cctx, ci, operationhash)
-					if err == nil && found {
+					switch op, found, err := client.Operation(cctx, ci, operationhash); {
+					case err != nil, !found:
+						return nil, util.ErrLockedSetIgnore.Call()
+					default:
 						return op, nil
 					}
-
-					return nil, util.ErrLockedSetIgnore.Call()
 				})
 
-				if err == nil {
+				if op != nil {
 					return errors.Errorf("stop")
 				}
 
@@ -351,7 +344,7 @@ func getProposalOperationFromRemoteFunc(pctx context.Context) ( //nolint:gocogni
 			return nil, false, err
 		}
 
-		return i.(base.Operation), true, nil //nolint:forcetypeassert //...
+		return i, true, nil
 	}, nil
 }
 

@@ -28,7 +28,7 @@ type (
 type Client struct {
 	dialf DialFunc
 	*logging.Logging
-	session    *util.Locked
+	session    *util.Locked[quic.EarlyConnection]
 	addr       *net.UDPAddr
 	tlsconfig  *tls.Config
 	quicconfig *quic.Config
@@ -56,18 +56,17 @@ func NewClient(
 		tlsconfig:  tlsconfig,
 		quicconfig: quicconfig,
 		dialf:      ldialf,
-		session:    util.EmptyLocked(),
+		session:    util.EmptyLocked((quic.EarlyConnection)(nil)),
 	}
 }
 
 func (c *Client) Close() error {
-	_, err := c.session.Set(func(_ bool, i interface{}) (interface{}, error) {
+	_, err := c.session.Set(func(i quic.EarlyConnection, _ bool) (quic.EarlyConnection, error) {
 		if i == nil {
 			return nil, nil
 		}
 
-		if err := i.(quic.EarlyConnection). //nolint:forcetypeassert //...
-							CloseWithError(0x100, ""); err != nil { //nolint:gomnd // errorNoError
+		if err := i.CloseWithError(0x100, ""); err != nil { //nolint:gomnd // errorNoError
 			return nil, errors.Wrap(err, "failed to close client")
 		}
 
@@ -79,11 +78,8 @@ func (c *Client) Close() error {
 
 func (c *Client) Session() quic.EarlyConnection {
 	i, _ := c.session.Value()
-	if i == nil {
-		return nil
-	}
 
-	return i.(quic.EarlyConnection) //nolint:forcetypeassert // ...
+	return i
 }
 
 func (c *Client) Dial(ctx context.Context) (quic.EarlyConnection, error) {
@@ -99,7 +95,7 @@ func (c *Client) Write(ctx context.Context, f ClientWriteFunc) (quic.Stream, err
 	r, err := c.write(ctx, f)
 	if err != nil {
 		if IsNetworkError(err) {
-			_ = c.session.Empty()
+			_ = c.session.EmptyValue()
 		}
 
 		return nil, err
@@ -145,7 +141,7 @@ func (c *Client) dial(ctx context.Context) (quic.EarlyConnection, error) {
 
 	e := util.StringErrorFunc("failed to dial")
 
-	i, err := c.session.Get(func() (interface{}, error) {
+	i, err := c.session.Get(func() (quic.EarlyConnection, error) {
 		i, err := c.dialf(ctx, c.addr.String(), c.tlsconfig, c.quicconfig)
 		if err != nil {
 			return nil, err
@@ -163,7 +159,7 @@ func (c *Client) dial(ctx context.Context) (quic.EarlyConnection, error) {
 			Err: errors.Errorf("already closed"),
 		}
 	default:
-		return i.(quic.EarlyConnection), nil //nolint:forcetypeassert // ...
+		return i, nil
 	}
 }
 

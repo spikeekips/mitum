@@ -219,8 +219,9 @@ func getCandidatesFunc(
 ) func(height base.Height) (
 	[]base.SuffrageCandidateStateValue, []base.SuffrageCandidateStateValue, error,
 ) {
-	lastcandidateslocked := util.EmptyLocked()
-	prevcandidateslocked := util.EmptyLocked()
+	var prevcandidateslocked [2]interface{}
+
+	lastcandidateslocked := util.EmptyLocked([2]interface{}{})
 
 	return func(height base.Height) (
 		[]base.SuffrageCandidateStateValue, []base.SuffrageCandidateStateValue, error,
@@ -229,49 +230,40 @@ func getCandidatesFunc(
 		var lastcandidates []base.SuffrageCandidateStateValue
 		var cerr error
 
-		_, _ = lastcandidateslocked.Set(func(_ bool, i interface{}) (interface{}, error) {
+		_, _ = lastcandidateslocked.Set(func(i [2]interface{}, isempty bool) (v [2]interface{}, _ error) {
 			var lastheight base.Height
 			var last []base.SuffrageCandidateStateValue
 			var prev []base.SuffrageCandidateStateValue
 
-			if i != nil {
-				j := i.([2]interface{}) //nolint:forcetypeassert //...
-
-				lastheight = j[0].(base.Height) //nolint:forcetypeassert //...
+			if !isempty {
+				lastheight = i[0].(base.Height) //nolint:forcetypeassert //...
 				last = isaac.FilterCandidates(  //nolint:forcetypeassert //...
-					height, j[1].([]base.SuffrageCandidateStateValue))
+					height, i[1].([]base.SuffrageCandidateStateValue))
 			}
 
 			stheight, c, err := isaac.LastCandidatesFromState(height, db.State)
 			if err != nil {
 				cerr = err
 
-				return nil, err
+				return v, err
 			}
 
-			switch j, _ := prevcandidateslocked.Value(); {
-			case j == nil:
-			default:
-				j := i.([2]interface{}) //nolint:forcetypeassert //...
-
+			if j := prevcandidateslocked[1]; j != nil {
 				prev = isaac.FilterCandidates( //nolint:forcetypeassert //...
-					height-1, j[1].([]base.SuffrageCandidateStateValue))
+					height-1, j.([]base.SuffrageCandidateStateValue))
 			}
 
 			if stheight == lastheight {
 				prevcandidates = prev
 				lastcandidates = last
 
-				return nil, errors.Errorf("stop")
+				return v, errors.Errorf("stop")
 			}
 
 			prevcandidates = last
 			lastcandidates = c
 
-			_ = prevcandidateslocked.SetValue([2]interface{}{
-				lastheight,
-				last,
-			})
+			prevcandidateslocked = [2]interface{}{lastheight, last}
 
 			return [2]interface{}{stheight, c}, nil
 		})
@@ -452,17 +444,13 @@ func GetLastSuffrageProofFunc(ctx context.Context) (isaac.GetLastSuffrageProofFr
 		return nil, err
 	}
 
-	lastl := util.EmptyLocked()
+	lastl := util.EmptyLocked((util.Hash)(nil))
 
 	f := func(ctx context.Context, ci quicstream.UDPConnInfo) (base.SuffrageProof, bool, error) {
-		var last util.Hash
-
-		if i, _ := lastl.Value(); i != nil {
-			last = i.(util.Hash) //nolint:forcetypeassert //...
-		}
-
 		cctx, cancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
 		defer cancel()
+
+		last, _ := lastl.Value()
 
 		proof, updated, err := client.LastSuffrageProof(cctx, ci, last)
 
@@ -483,7 +471,7 @@ func GetLastSuffrageProofFunc(ctx context.Context) (isaac.GetLastSuffrageProofFr
 	}
 
 	return func(ctx context.Context) (proof base.SuffrageProof, found bool, _ error) {
-		ml := util.EmptyLocked()
+		ml := util.EmptyLocked((base.SuffrageProof)(nil))
 
 		numnodes := 3 // NOTE choose top 3 sync nodes
 
@@ -507,11 +495,10 @@ func GetLastSuffrageProofFunc(ctx context.Context) (isaac.GetLastSuffrageProofFr
 					return nil
 				}
 
-				_, err = ml.Set(func(_ bool, v interface{}) (interface{}, error) {
+				_, _ = ml.Set(func(v base.SuffrageProof, _ bool) (base.SuffrageProof, error) {
 					switch {
 					case v == nil,
-						proof.Map().Manifest().Height() >
-							v.(base.SuffrageProof).Map().Manifest().Height(): //nolint:forcetypeassert //...
+						proof.Map().Manifest().Height() > v.Map().Manifest().Height():
 
 						return proof, nil
 					default:
@@ -519,7 +506,7 @@ func GetLastSuffrageProofFunc(ctx context.Context) (isaac.GetLastSuffrageProofFr
 					}
 				})
 
-				return err
+				return nil
 			},
 		); err != nil {
 			if errors.Is(err, isaac.ErrEmptySyncSources) {
@@ -533,7 +520,7 @@ func GetLastSuffrageProofFunc(ctx context.Context) (isaac.GetLastSuffrageProofFr
 		case v == nil:
 			return nil, false, nil
 		default:
-			return v.(base.SuffrageProof), true, nil //nolint:forcetypeassert //...
+			return v, true, nil
 		}
 	}, nil
 }
@@ -558,7 +545,7 @@ func GetSuffrageProofFunc(ctx context.Context) ( //revive:disable-line:cognitive
 			ctx,
 			func() (bool, error) {
 				numnodes := 3 // NOTE choose top 3 sync nodes
-				result := util.EmptyLocked()
+				result := util.EmptyLocked([2]interface{}{})
 
 				_ = isaac.ErrGroupWorkerWithSyncSourcePool(
 					ctx,
@@ -588,9 +575,9 @@ func GetSuffrageProofFunc(ctx context.Context) ( //revive:disable-line:cognitive
 								return nil
 							}
 
-							_, _ = result.Set(func(_ bool, i interface{}) (interface{}, error) {
-								if i != nil {
-									return nil, errors.Errorf("already set")
+							_, _ = result.Set(func(_ [2]interface{}, isempty bool) ([2]interface{}, error) {
+								if !isempty {
+									return [2]interface{}{}, util.ErrLockedSetIgnore.Errorf("already set")
 								}
 
 								return [2]interface{}{a, b}, nil
@@ -601,12 +588,10 @@ func GetSuffrageProofFunc(ctx context.Context) ( //revive:disable-line:cognitive
 					},
 				)
 
-				v, _ := result.Value()
-				if v == nil {
+				i, isempty := result.Value()
+				if isempty {
 					return true, nil
 				}
-
-				i := v.([2]interface{}) //nolint:forcetypeassert //...
 
 				proof, found = i[0].(base.SuffrageProof), i[1].(bool) //nolint:forcetypeassert //...
 
@@ -631,14 +616,10 @@ func GetLastSuffrageCandidateFunc(ctx context.Context) (isaac.GetLastSuffrageCan
 		return nil, err
 	}
 
-	lastl := util.EmptyLocked()
+	lastl := util.EmptyLocked((util.Hash)(nil))
 
 	f := func(ctx context.Context, ci quicstream.UDPConnInfo) (base.State, bool, error) {
-		var last util.Hash
-
-		if i, _ := lastl.Value(); i != nil {
-			last = i.(util.Hash) //nolint:forcetypeassert //...
-		}
+		last, _ := lastl.Value()
 
 		cctx, cancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
 		defer cancel()
@@ -660,7 +641,7 @@ func GetLastSuffrageCandidateFunc(ctx context.Context) (isaac.GetLastSuffrageCan
 	}
 
 	return func(ctx context.Context) (base.State, bool, error) {
-		ml := util.EmptyLocked()
+		ml := util.EmptyLocked((base.State)(nil))
 
 		numnodes := 3 // NOTE choose top 3 sync nodes
 
@@ -682,9 +663,9 @@ func GetLastSuffrageCandidateFunc(ctx context.Context) (isaac.GetLastSuffrageCan
 					return err
 				}
 
-				_, err = ml.Set(func(_ bool, v interface{}) (interface{}, error) {
+				_, err = ml.Set(func(v base.State, _ bool) (base.State, error) {
 					switch {
-					case v == nil, st.Height() > v.(base.State).Height(): //nolint:forcetypeassert //...
+					case v == nil, st.Height() > v.Height():
 						return st, nil
 					default:
 						return nil, util.ErrLockedSetIgnore.Errorf("old SuffrageProof")
@@ -701,7 +682,7 @@ func GetLastSuffrageCandidateFunc(ctx context.Context) (isaac.GetLastSuffrageCan
 		case v == nil:
 			return nil, false, nil
 		default:
-			return v.(base.State), true, nil //nolint:forcetypeassert //...
+			return v, true, nil
 		}
 	}, nil
 }

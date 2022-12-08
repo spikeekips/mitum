@@ -171,11 +171,8 @@ func (t *testWriter) TestSetStates() {
 
 		for j := range sts {
 			st := sts[j]
-			k, found := writer.states.Value(st.Key())
+			merger, found := writer.states.Value(st.Key())
 			t.True(found)
-
-			merger, ok := k.(base.StateValueMerger)
-			t.True(ok)
 
 			t.NoError(merger.Close())
 

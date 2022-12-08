@@ -94,7 +94,7 @@ type SyncSourceChecker struct {
 	*logging.Logging
 	*util.ContextDaemon
 	callback        func(called int64, _ []isaac.NodeConnInfo, _ error)
-	sourceslocked   *util.Locked
+	sourceslocked   *util.Locked[[]SyncSource]
 	local           base.Node
 	networkID       base.NetworkID
 	interval        time.Duration
@@ -455,12 +455,9 @@ func (c *SyncSourceChecker) fetchNodeConnInfos(
 }
 
 func (c *SyncSourceChecker) Sources() []SyncSource {
-	switch i, _ := c.sourceslocked.Value(); {
-	case i == nil:
-		return nil
-	default:
-		return i.([]SyncSource) //nolint:forcetypeassert //...
-	}
+	i, _ := c.sourceslocked.Value()
+
+	return i
 }
 
 func (c *SyncSourceChecker) UpdateSources(cis []SyncSource) {

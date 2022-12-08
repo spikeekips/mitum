@@ -14,8 +14,10 @@ type MemTempSyncPool struct {
 }
 
 func NewMemTempSyncPool() *MemTempSyncPool {
+	pool, _ := util.NewLockedObjectPool(1 << 13) //nolint:gomnd //...
+
 	return &MemTempSyncPool{
-		LockedObjectPool: util.NewLockedObjectPool(),
+		LockedObjectPool: pool,
 	}
 }
 

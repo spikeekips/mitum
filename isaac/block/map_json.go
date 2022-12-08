@@ -23,10 +23,9 @@ type blockMapJSONMarshaler struct {
 func (m BlockMap) MarshalJSON() ([]byte, error) {
 	items := map[base.BlockMapItemType]base.BlockMapItem{}
 
-	m.m.Traverse(func(_, v interface{}) bool {
+	m.items.Traverse(func(_ base.BlockMapItemType, v base.BlockMapItem) bool {
 		if v != nil {
-			i := v.(BlockMapItem) //nolint:forcetypeassert //...
-			items[i.Type()] = i
+			items[v.Type()] = v
 		}
 
 		return true
@@ -65,7 +64,7 @@ func (m *BlockMap) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "failed to decode manifest")
 	}
 
-	items := util.NewLockedMap()
+	items := util.NewSingleLockedMap(base.BlockMapItemType(""), (base.BlockMapItem)(nil))
 
 	for k := range u.Items {
 		var ui BlockMapItem
@@ -78,7 +77,7 @@ func (m *BlockMap) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 
 	m.writer = u.Writer
 	m.encoder = u.Encoder
-	m.m = items
+	m.items = items
 
 	return nil
 }

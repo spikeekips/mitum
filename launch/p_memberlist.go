@@ -122,7 +122,7 @@ func PCloseMemberlist(ctx context.Context) (context.Context, error) {
 
 func PLongRunningMemberlistJoin(ctx context.Context) (context.Context, error) {
 	var local base.LocalNode
-	var discoveries *util.Locked
+	var discoveries *util.Locked[[]quicstream.UDPConnInfo]
 	var m *quicmemberlist.Memberlist
 	var watcher *isaac.LastConsensusNodesWatcher
 
@@ -570,8 +570,8 @@ func memberlistAllowFunc(ctx context.Context) (
 type LongRunningMemberlistJoin struct {
 	ensureJoin    func() (bool, error)
 	isJoined      func() bool
-	cancelrunning *util.Locked
-	donech        *util.Locked
+	cancelrunning *util.Locked[context.CancelFunc]
+	donech        *util.Locked[chan struct{}] // revive:disable-line:nested-structs
 	interval      time.Duration
 }
 
@@ -582,8 +582,8 @@ func NewLongRunningMemberlistJoin(
 	return &LongRunningMemberlistJoin{
 		ensureJoin:    ensureJoin,
 		isJoined:      isJoined,
-		cancelrunning: util.EmptyLocked(),
-		donech:        util.EmptyLocked(),
+		cancelrunning: util.EmptyLocked((context.CancelFunc)(nil)),
+		donech:        util.EmptyLocked((chan struct{})(nil)),
 		interval:      time.Second * 3, //nolint:gomnd //...
 	}
 }
@@ -595,13 +595,13 @@ func (l *LongRunningMemberlistJoin) Join() <-chan struct{} {
 
 	var donech chan struct{}
 
-	_, _ = l.cancelrunning.Set(func(_ bool, i interface{}) (interface{}, error) {
+	_, _ = l.cancelrunning.Set(func(i context.CancelFunc, _ bool) (context.CancelFunc, error) {
 		if i != nil {
 			switch c, _ := l.donech.Value(); {
 			case c == nil:
-				i.(context.CancelFunc)() //nolint:forcetypeassert //...
+				i()
 			default:
-				donech = c.(chan struct{}) //nolint:forcetypeassert //...
+				donech = c
 
 				return nil, util.ErrLockedSetIgnore.Call()
 			}
@@ -617,7 +617,7 @@ func (l *LongRunningMemberlistJoin) Join() <-chan struct{} {
 			defer func() {
 				cancel()
 
-				_ = l.cancelrunning.Empty()
+				_ = l.cancelrunning.EmptyValue()
 			}()
 
 			_ = util.Retry(ctx,
@@ -642,12 +642,12 @@ func (l *LongRunningMemberlistJoin) Join() <-chan struct{} {
 }
 
 func (l *LongRunningMemberlistJoin) Cancel() bool {
-	_, _ = l.cancelrunning.Set(func(_ bool, i interface{}) (interface{}, error) {
+	_, _ = l.cancelrunning.Set(func(i context.CancelFunc, _ bool) (context.CancelFunc, error) {
 		if i == nil {
 			return nil, nil
 		}
 
-		i.(context.CancelFunc)() //nolint:forcetypeassert //...
+		i()
 
 		return nil, nil
 	})
@@ -658,7 +658,7 @@ func (l *LongRunningMemberlistJoin) Cancel() bool {
 func ensureJoinMemberlist(
 	local base.LocalNode,
 	watcher *isaac.LastConsensusNodesWatcher,
-	discoveries *util.Locked,
+	discoveries *util.Locked[[]quicstream.UDPConnInfo],
 	m *quicmemberlist.Memberlist,
 ) func() (bool, error) {
 	return func() (bool, error) {

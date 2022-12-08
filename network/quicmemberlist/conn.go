@@ -88,8 +88,8 @@ type qconn struct {
 	closef func()
 	r      *io.PipeReader
 	w      *io.PipeWriter
-	dr     *util.Locked
-	dw     *util.Locked
+	dr     *util.Locked[time.Time]
+	dw     *util.Locked[time.Time]
 	sync.RWMutex
 	closeonce sync.Once
 	closed    bool
@@ -107,8 +107,8 @@ func newQConn(
 		writef:    writef,
 		closeonce: sync.Once{},
 		closef:    closef,
-		dr:        util.EmptyLocked(),
-		dw:        util.EmptyLocked(),
+		dr:        util.EmptyLocked(time.Time{}),
+		dw:        util.EmptyLocked(time.Time{}),
 	}
 
 	c.r, c.w = io.Pipe()
@@ -123,25 +123,18 @@ func (c *qconn) Read(b []byte) (int, error) {
 		return n, errors.WithStack(err)
 	}
 
-	var t time.Time
+	var dur time.Duration
 
 	switch i, _ := c.dr.Value(); {
-	case i == nil:
+	case i.IsZero():
 		n, err := c.r.Read(b)
 
 		return n, errors.WithStack(err)
 	default:
-		t = i.(time.Time) //nolint:forcetypeassert // ...
-		if t.IsZero() {
-			n, err := c.r.Read(b)
-
-			return n, errors.WithStack(err)
+		dur = time.Until(i)
+		if dur < 1 {
+			return 0, errors.WithStack(context.DeadlineExceeded)
 		}
-	}
-
-	dur := time.Until(t)
-	if dur < 1 {
-		return 0, errors.WithStack(context.DeadlineExceeded)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), dur)
@@ -171,21 +164,17 @@ func (c *qconn) Write(b []byte) (int, error) {
 	}
 
 	ctx := context.Background()
-	var t time.Time
+
+	var dur time.Duration
 
 	switch i, _ := c.dw.Value(); {
-	case i == nil:
+	case i.IsZero():
 		return c.writef(ctx, b)
 	default:
-		t = i.(time.Time) //nolint:forcetypeassert // ...
-		if t.IsZero() {
-			return c.writef(ctx, b)
+		dur = time.Until(i)
+		if dur < 1 {
+			return 0, errors.WithStack(context.DeadlineExceeded)
 		}
-	}
-
-	dur := time.Until(t)
-	if dur < 1 {
-		return 0, errors.WithStack(context.DeadlineExceeded)
 	}
 
 	var cancel func()
@@ -235,8 +224,8 @@ func (c *qconn) RemoteAddr() net.Addr {
 
 func (c *qconn) SetDeadline(t time.Time) error {
 	if t.IsZero() {
-		_ = c.dr.Empty()
-		_ = c.dw.Empty()
+		_ = c.dr.EmptyValue()
+		_ = c.dw.EmptyValue()
 
 		return nil
 	}
@@ -249,7 +238,7 @@ func (c *qconn) SetDeadline(t time.Time) error {
 
 func (c *qconn) SetReadDeadline(t time.Time) error {
 	if t.IsZero() {
-		_ = c.dr.Empty()
+		_ = c.dr.EmptyValue()
 
 		return nil
 	}
@@ -261,7 +250,7 @@ func (c *qconn) SetReadDeadline(t time.Time) error {
 
 func (c *qconn) SetWriteDeadline(t time.Time) error {
 	if t.IsZero() {
-		_ = c.dw.Empty()
+		_ = c.dw.EmptyValue()
 
 		return nil
 	}

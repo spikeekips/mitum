@@ -523,15 +523,15 @@ func (t *testConsensusHandler) TestWithBallotbox() {
 
 	st.params = t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
 
-	manifests := util.NewLockedMap()
+	manifests := util.NewSingleLockedMap(base.NilHeight, (base.Manifest)(nil))
 	getmanifest := func(height base.Height) base.Manifest {
-		i, _, _ := manifests.Get(height, func() (interface{}, error) {
+		i, _, _ := manifests.Get(height, func() (base.Manifest, error) {
 			manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
 
 			return manifest, nil
 		})
 
-		return i.(base.Manifest)
+		return i
 	}
 
 	processdelay := time.Millisecond * 100

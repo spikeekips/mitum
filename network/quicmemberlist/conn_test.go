@@ -231,9 +231,9 @@ func (t *testQConn) TestSetDeadline() {
 		t.NoError(c.SetDeadline(dt))
 
 		i, _ := c.dr.Value()
-		t.Equal(dt, i.(time.Time))
+		t.Equal(dt, i)
 		i, _ = c.dw.Value()
-		t.Equal(dt, i.(time.Time))
+		t.Equal(dt, i)
 	})
 
 	t.Run("zero time", func() {

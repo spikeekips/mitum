@@ -29,6 +29,7 @@ require (
 	github.com/zeebo/blake3 v0.2.3
 	go.uber.org/goleak v1.2.0
 	golang.org/x/crypto v0.3.0
+	golang.org/x/exp v0.0.0-20221114191408-850992195362
 	golang.org/x/mod v0.7.0
 	golang.org/x/sync v0.1.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -93,7 +94,6 @@ require (
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
 	golang.org/x/arch v0.1.0 // indirect
-	golang.org/x/exp v0.0.0-20221114191408-850992195362 // indirect
 	golang.org/x/lint v0.0.0-20201208152925-83fdc39ff7b5 // indirect
 	golang.org/x/net v0.2.0 // indirect
 	golang.org/x/sys v0.2.0 // indirect

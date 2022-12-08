@@ -223,7 +223,11 @@ func (st *baseBallotHandler) makeNextBlockBallot(
 	return bl, nil
 }
 
-func (st *baseBallotHandler) prepareACCEPTBallot(ivp base.INITVoteproof, manifest base.Manifest, initialWait time.Duration) error {
+func (st *baseBallotHandler) prepareACCEPTBallot(
+	ivp base.INITVoteproof,
+	manifest base.Manifest,
+	initialWait time.Duration,
+) error {
 	e := util.StringErrorFunc("failed to prepare accept ballot")
 
 	bl, err := st.makeACCEPTBallot(ivp, manifest)
@@ -262,8 +266,13 @@ func (st *baseBallotHandler) prepareACCEPTBallot(ivp base.INITVoteproof, manifes
 	return nil
 }
 
-func (st *baseBallotHandler) makeACCEPTBallot(ivp base.INITVoteproof, manifest base.Manifest) (base.ACCEPTBallot, error) {
-	if bl := madeBallot(st.madeBallotCache, base.NewStagePoint(ivp.Point().Point, base.StageACCEPT)); bl != nil {
+func (st *baseBallotHandler) makeACCEPTBallot(
+	ivp base.INITVoteproof,
+	manifest base.Manifest,
+) (base.ACCEPTBallot, error) {
+	if bl := madeBallot(
+		st.madeBallotCache, base.NewStagePoint(ivp.Point().Point, base.StageACCEPT),
+	); bl != nil {
 		return bl.(base.ACCEPTBallot), nil //nolint:forcetypeassert //...
 	}
 

@@ -57,8 +57,8 @@ type DefaultProposalProcessor struct {
 	getOperationf         OperationProcessorGetOperationFunction
 	newOperationProcessor NewOperationProcessorFunction
 	ivp                   base.INITVoteproof
-	oprs                  *util.ShardedMap
-	processstate          *util.Locked
+	oprs                  *util.ShardedMap[string, base.OperationProcessor]
+	processstate          *util.Locked[int]
 	processlock           sync.Mutex
 	retrylimit            int
 	retryinterval         time.Duration
@@ -77,6 +77,8 @@ func NewDefaultProposalProcessor(
 		return nil, errors.Wrap(err, "failed to make new ProposalProcessor")
 	}
 
+	oprs, _ := util.NewShardedMap("", (base.OperationProcessor)(nil), 1<<5) //nolint:gomnd //...
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &DefaultProposalProcessor{
@@ -91,7 +93,7 @@ func NewDefaultProposalProcessor(
 		getStatef:             getStatef,
 		getOperationf:         getOperationf,
 		newOperationProcessor: newOperationProcessor,
-		oprs:                  util.NewShardedMap(1 << 5), //nolint:gomnd //...
+		oprs:                  oprs,
 		processstate:          util.NewLocked(0),
 		retrylimit:            15,                     //nolint:gomnd //...
 		retryinterval:         time.Millisecond * 600, //nolint:gomnd //...
@@ -139,11 +141,9 @@ func (p *DefaultProposalProcessor) Process(ctx context.Context, ivp base.INITVot
 
 	p.Log().Info().Interface("manifest", manifest).Msg("new manifest prepared")
 
-	if _, err := p.processstate.Set(func(_ bool, i interface{}) (interface{}, error) {
-		s := i.(int) //nolint:forcetypeassert //...
-
-		if s < 0 {
-			return nil, errors.Errorf("failed to process proposal; already canceled")
+	if _, err := p.processstate.Set(func(i int, _ bool) (int, error) {
+		if i < 0 {
+			return i, errors.Errorf("failed to process proposal; already canceled")
 		}
 
 		return 1, nil
@@ -193,11 +193,9 @@ func (p *DefaultProposalProcessor) Save(ctx context.Context, avp base.ACCEPTVote
 		return errors.Wrap(err, "failed to save proposal")
 	}
 
-	_, err := p.processstate.Set(func(_ bool, i interface{}) (interface{}, error) {
-		s := i.(int) //nolint:forcetypeassert //...
-
-		if s < 0 {
-			return nil, errors.Errorf("failed to save proposal; already canceled")
+	_, err := p.processstate.Set(func(i int, _ bool) (int, error) {
+		if i < 0 {
+			return i, errors.Errorf("failed to save proposal; already canceled")
 		}
 
 		return 2, nil //nolint:gomnd //...
@@ -207,9 +205,9 @@ func (p *DefaultProposalProcessor) Save(ctx context.Context, avp base.ACCEPTVote
 }
 
 func (p *DefaultProposalProcessor) Cancel() error {
-	_, err := p.processstate.Set(func(_ bool, i interface{}) (interface{}, error) {
-		if i.(int) == -1 { //nolint:forcetypeassert //...
-			return nil, errors.Errorf("proposal processor already canceled")
+	_, err := p.processstate.Set(func(i int, _ bool) (int, error) {
+		if i == -1 {
+			return i, errors.Errorf("proposal processor already canceled")
 		}
 
 		p.cancel()
@@ -230,24 +228,26 @@ func (p *DefaultProposalProcessor) clean() {
 	p.getOperationf = nil
 	p.newOperationProcessor = nil
 	p.ivp = nil
+	p.oprs.Close()
+	p.oprs = nil
 }
 
 func (p *DefaultProposalProcessor) isCanceled() bool {
 	i, _ := p.processstate.Value()
 
-	return i.(int) == -1 //nolint:gomnd,forcetypeassert //...
+	return i == -1 //nolint:gomnd //...
 }
 
 func (p *DefaultProposalProcessor) isProcessed() bool {
 	i, _ := p.processstate.Value()
 
-	return i.(int) == 1 //nolint:gomnd,forcetypeassert //...
+	return i == 1 //nolint:gomnd //...
 }
 
 func (p *DefaultProposalProcessor) isSaved() bool {
 	i, _ := p.processstate.Value()
 
-	return i.(int) == 2 //nolint:gomnd,forcetypeassert //...
+	return i == 2 //nolint:gomnd //...
 }
 
 func (p *DefaultProposalProcessor) process(ctx context.Context) error {
@@ -588,9 +588,7 @@ func (p *DefaultProposalProcessor) getOperationProcessor(
 ) (
 	base.OperationProcessor, bool, error,
 ) {
-	i, _, err := p.oprs.Get(ht.String(), func() (interface{}, error) {
-		var opp base.OperationProcessor
-
+	i, _, err := p.oprs.Get(ht.String(), func() (opp base.OperationProcessor, _ error) {
 		if err := p.retry(ctx, func() (bool, error) {
 			i, err := newOperationProcessor(p.proposal.Point().Height(), ht)
 			if err != nil {
@@ -613,7 +611,7 @@ func (p *DefaultProposalProcessor) getOperationProcessor(
 
 	switch {
 	case err == nil:
-		return i.(base.OperationProcessor), true, nil //nolint:forcetypeassert //...
+		return i, true, nil
 	case errors.Is(err, ErrOperationInProcessorNotFound):
 		return nil, false, nil
 	default:

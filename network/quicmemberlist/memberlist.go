@@ -476,14 +476,17 @@ func BasicMemberlistConfig(name string, bind, advertise *net.UDPAddr) *memberlis
 }
 
 type membersPool struct {
-	addrs *util.ShardedMap
-	nodes *util.ShardedMap // NOTE by node address
+	addrs *util.ShardedMap[string, Node]
+	nodes *util.ShardedMap[string, []Node] // NOTE by node address
 }
 
 func newMembersPool() *membersPool {
+	addrs, _ := util.NewShardedMap("", (Node)(nil), 1<<9) //nolint:gomnd //...
+	nodes, _ := util.NewShardedMap("", []Node{}, 1<<9)    //nolint:gomnd //...
+
 	return &membersPool{
-		addrs: util.NewShardedMap(1 << 9), //nolint:gomnd //...
-		nodes: util.NewShardedMap(1 << 9), //nolint:gomnd //...
+		addrs: addrs,
+		nodes: nodes,
 	}
 }
 
@@ -498,38 +501,33 @@ func (m *membersPool) Exists(k *net.UDPAddr) bool {
 
 func (m *membersPool) Get(k *net.UDPAddr) (Node, bool) {
 	switch i, found := m.addrs.Value(nodeid(k)); {
-	case !found:
+	case !found, i == nil:
 		return nil, false
-	case i == nil:
-		return nil, true
 	default:
-		return i.(Node), false //nolint:forcetypeassert // ...
+		return i, false
 	}
 }
 
 func (m *membersPool) NodesLen(node base.Address) int {
 	switch i, found := m.nodes.Value(node.String()); {
-	case !found:
-		return 0
-	case i == nil:
+	case !found, i == nil:
 		return 0
 	default:
-		return len(i.([]Node)) //nolint:forcetypeassert // ...
+		return len(i)
 	}
 }
 
 func (m *membersPool) Set(node Node) bool {
 	var found bool
-	_, _ = m.addrs.Set(nodeid(node.UDPAddr()), func(addrfound bool, _ interface{}) (interface{}, error) {
+	_, _ = m.addrs.Set(nodeid(node.UDPAddr()), func(_ Node, addrfound bool) (Node, error) {
 		var nodes []Node
 
 		found = addrfound
 
 		switch i, f := m.nodes.Value(node.Address().String()); {
-		case !f:
-		case i == nil:
+		case !f, i == nil:
 		default:
-			nodes = i.([]Node) //nolint:forcetypeassert // ...
+			nodes = i
 		}
 
 		nodes = append(nodes, node)
@@ -542,8 +540,8 @@ func (m *membersPool) Set(node Node) bool {
 }
 
 func (m *membersPool) Remove(k *net.UDPAddr) (bool, error) {
-	return m.addrs.Remove(nodeid(k), func(i interface{}) error {
-		_, _ = m.nodes.Remove(i.(Node).Address().String(), nil) //nolint:forcetypeassert // ...
+	return m.addrs.Remove(nodeid(k), func(i Node) error {
+		_ = m.nodes.RemoveValue(i.Address().String())
 
 		return nil
 	})
@@ -554,8 +552,8 @@ func (m *membersPool) Len() int {
 }
 
 func (m *membersPool) Traverse(f func(Node) bool) {
-	m.addrs.Traverse(func(k, v interface{}) bool {
-		return f(v.(Node)) //nolint:forcetypeassert // ...
+	m.addrs.Traverse(func(_ string, v Node) bool {
+		return f(v)
 	})
 }
 

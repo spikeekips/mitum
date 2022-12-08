@@ -385,7 +385,7 @@ func newSyncerFunc(
 			}
 		}
 
-		conninfocache := util.NewShardedMap(cachesize)
+		conninfocache, _ := util.NewShardedMap(base.NilHeight, quicstream.UDPConnInfo{}, cachesize)
 
 		syncer, err := isaacstates.NewSyncer(
 			design.Storage.Base,
@@ -463,7 +463,7 @@ func syncerLastBlockMapFunc(
 	}
 
 	return func(ctx context.Context, manifest util.Hash) (base.BlockMap, bool, error) {
-		ml := util.EmptyLocked()
+		ml := util.EmptyLocked((base.BlockMap)(nil))
 
 		numnodes := 3 // NOTE choose top 3 sync nodes
 
@@ -487,10 +487,10 @@ func syncerLastBlockMapFunc(
 					return nil
 				}
 
-				_, err = ml.Set(func(_ bool, v interface{}) (interface{}, error) {
+				_, err = ml.Set(func(v base.BlockMap, _ bool) (base.BlockMap, error) {
 					switch {
 					case v == nil,
-						m.Manifest().Height() > v.(base.BlockMap).Manifest().Height(): //nolint:forcetypeassert //...
+						m.Manifest().Height() > v.Manifest().Height():
 
 						return m, nil
 					default:
@@ -508,7 +508,7 @@ func syncerLastBlockMapFunc(
 		case v == nil:
 			return nil, false, nil
 		default:
-			return v.(base.BlockMap), true, nil //nolint:forcetypeassert //...
+			return v, true, nil
 		}
 	}
 }
@@ -517,7 +517,7 @@ func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
 	client *isaacnetwork.QuicstreamClient,
 	params base.LocalParams,
 	syncSourcePool *isaac.SyncSourcePool,
-	conninfocache *util.ShardedMap,
+	conninfocache *util.ShardedMap[base.Height, quicstream.UDPConnInfo],
 	devdelay time.Duration,
 ) isaacstates.SyncerBlockMapFunc {
 	f := func(ctx context.Context, height base.Height, ci quicstream.UDPConnInfo) (base.BlockMap, bool, error) {
@@ -545,7 +545,7 @@ func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
 			ctx,
 			func() (bool, error) {
 				numnodes := 3 // NOTE choose top 3 sync nodes
-				result := util.EmptyLocked()
+				result := util.EmptyLocked([2]interface{}{})
 
 				_ = isaac.ErrGroupWorkerWithSyncSourcePool(
 					ctx,
@@ -568,12 +568,12 @@ func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
 						case !b:
 							return nil
 						default:
-							_, _ = result.Set(func(_ bool, i interface{}) (interface{}, error) {
-								if i != nil {
-									return nil, errors.Errorf("already set")
+							_, _ = result.Set(func(i [2]interface{}, isempty bool) ([2]interface{}, error) {
+								if !isempty {
+									return [2]interface{}{}, errors.Errorf("already set")
 								}
 
-								_ = conninfocache.SetValue(height.String(), ci)
+								_ = conninfocache.SetValue(height, ci)
 
 								return [2]interface{}{a, b}, nil
 							})
@@ -583,12 +583,10 @@ func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
 					},
 				)
 
-				v, _ := result.Value()
-				if v == nil {
+				i, isempty := result.Value()
+				if isempty {
 					return true, nil
 				}
-
-				i := v.([2]interface{}) //nolint:forcetypeassert //...
 
 				m, found = i[0].(base.BlockMap), i[1].(bool) //nolint:forcetypeassert //...
 
@@ -604,7 +602,7 @@ func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
 
 func syncerBlockMapItemFunc(
 	client *isaacnetwork.QuicstreamClient,
-	conninfocache *util.ShardedMap,
+	conninfocache *util.ShardedMap[base.Height, quicstream.UDPConnInfo],
 ) isaacstates.SyncerBlockMapItemFunc {
 	// FIXME support remote item like https or ftp?
 
@@ -615,11 +613,11 @@ func syncerBlockMapItemFunc(
 
 		var ci quicstream.UDPConnInfo
 
-		switch i, cfound := conninfocache.Value(height.String()); {
+		switch i, cfound := conninfocache.Value(height); {
 		case !cfound:
 			return nil, nil, false, e(nil, "conninfo not found")
 		default:
-			ci = i.(quicstream.UDPConnInfo) //nolint:forcetypeassert //...
+			ci = i
 		}
 
 		cctx, ctxcancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...

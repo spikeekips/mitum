@@ -34,15 +34,15 @@ type Syncer struct {
 	newBlockWriteDatabasef newBlockWriteDatabaseFunc
 	newBlockImporter       NewBlockImporterFunc
 	*logging.Logging
-	prevvalue     *util.Locked
+	prevvalue     *util.Locked[base.BlockMap]
 	blockMapf     SyncerBlockMapFunc
 	blockMapItemf SyncerBlockMapItemFunc
 	*util.ContextDaemon
 	isdonevalue           *atomic.Value
 	startsyncch           chan base.Height
 	donech                chan struct{} // revive:disable-line:nested-structs
-	doneerr               *util.Locked
-	topvalue              *util.Locked
+	doneerr               *util.Locked[error]
+	topvalue              *util.Locked[base.Height]
 	setLastVoteproofsFunc func(isaac.BlockReader) error
 	whenStoppedf          func() error
 	lastBlockMapf         SyncerLastBlockMapFunc
@@ -106,7 +106,7 @@ func NewSyncer(
 		batchlimit:             33, //nolint:gomnd // big enough size
 		finishedch:             make(chan base.Height),
 		donech:                 make(chan struct{}, 2),
-		doneerr:                util.EmptyLocked(),
+		doneerr:                util.EmptyLocked((error)(nil)),
 		topvalue:               util.NewLocked(prevheight),
 		isdonevalue:            &atomic.Value{},
 		startsyncch:            make(chan base.Height),
@@ -128,13 +128,12 @@ func (s *Syncer) Add(height base.Height) bool {
 
 	var startsync bool
 
-	if _, err := s.topvalue.Set(func(_ bool, i interface{}) (interface{}, error) {
-		top := i.(base.Height) //nolint:forcetypeassert //...
+	if _, err := s.topvalue.Set(func(top base.Height, _ bool) (base.Height, error) {
 		synced := s.prevheight()
 
 		switch {
 		case height <= top:
-			return nil, errors.Errorf("old height")
+			return base.NilHeight, errors.Errorf("old height")
 		case top == synced:
 			startsync = true
 		}
@@ -163,11 +162,8 @@ func (s *Syncer) Done() <-chan struct{} {
 
 func (s *Syncer) Err() error {
 	i, _ := s.doneerr.Value()
-	if i == nil {
-		return nil
-	}
 
-	return i.(error) //nolint:forcetypeassert //...
+	return i
 }
 
 func (s *Syncer) IsFinished() (base.Height, bool) {
@@ -185,7 +181,7 @@ func (s *Syncer) Cancel() error {
 			_ = s.tempsyncpool.Cancel()
 		}()
 
-		_, _ = s.doneerr.Set(func(_ bool, i interface{}) (interface{}, error) {
+		_, _ = s.doneerr.Set(func(i error, _ bool) (error, error) {
 			s.isdonevalue.Store(true)
 
 			// close(s.donech)
@@ -236,16 +232,13 @@ end:
 func (s *Syncer) top() base.Height {
 	i, _ := s.topvalue.Value()
 
-	return i.(base.Height) //nolint:forcetypeassert //...
+	return i
 }
 
 func (s *Syncer) prev() base.BlockMap {
 	i, _ := s.prevvalue.Value()
-	if i == nil {
-		return nil
-	}
 
-	return i.(base.BlockMap) //nolint:forcetypeassert //...
+	return i
 }
 
 func (s *Syncer) prevheight() base.Height {
@@ -258,7 +251,7 @@ func (s *Syncer) prevheight() base.Height {
 }
 
 func (s *Syncer) sync(ctx context.Context, prev base.BlockMap, to base.Height) { // revive:disable-line:import-shadowing
-	err, _ := s.doneerr.Set(func(bool, interface{}) (interface{}, error) {
+	err, _ := s.doneerr.Set(func(error, bool) (error, error) {
 		newprev, err := s.doSync(ctx, prev, to)
 		if err != nil {
 			return err, nil
@@ -398,7 +391,7 @@ end:
 		case <-ctx.Done():
 			break end
 		case <-ticker.C:
-			_, err := s.doneerr.Set(func(_ bool, i interface{}) (interface{}, error) {
+			_, err := s.doneerr.Set(func(i error, _ bool) (error, error) {
 				if i != nil {
 					return nil, errors.Errorf("already done by error")
 				}

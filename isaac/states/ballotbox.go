@@ -25,7 +25,7 @@ type Ballotbox struct {
 	newBallot        func(base.Ballot)
 	vrs              map[string]*voterecords
 	vpch             chan base.Voteproof
-	lsp              *util.Locked
+	lsp              *util.Locked[[2]interface{}]
 	removed          []*voterecords
 	vrsLock          sync.RWMutex
 	countLock        sync.Mutex
@@ -47,7 +47,7 @@ func NewBallotbox(
 		getSuffragef:     getSuffragef,
 		vrs:              map[string]*voterecords{},
 		vpch:             make(chan base.Voteproof, math.MaxUint16),
-		lsp:              util.EmptyLocked(),
+		lsp:              util.EmptyLocked([2]interface{}{}),
 		isValidVoteproof: isValidVoteproof,
 		newBallot:        func(base.Ballot) {},
 		countAfter:       countAfter,
@@ -244,26 +244,22 @@ func (box *Ballotbox) newVoterecords( //revive:disable-line:flag-parameter
 }
 
 func (box *Ballotbox) lastStagePoint() (point base.StagePoint, lastIsMajority bool) {
-	i, _ := box.lsp.Value()
-	if i == nil {
+	i, isempty := box.lsp.Value()
+	if isempty {
 		return point, false
 	}
 
-	j := i.([2]interface{}) //nolint:forcetypeassert //...
-
-	return j[0].(base.StagePoint), j[1].(bool) //nolint:forcetypeassert //...
+	return i[0].(base.StagePoint), i[1].(bool) //nolint:forcetypeassert //...
 }
 
 func (box *Ballotbox) setLastStagePoint(p base.StagePoint, isMajority bool) bool {
-	_, err := box.lsp.Set(func(_ bool, i interface{}) (interface{}, error) {
-		if i == nil {
+	_, err := box.lsp.Set(func(i [2]interface{}, isempty bool) ([2]interface{}, error) {
+		if isempty {
 			return [2]interface{}{p, isMajority}, nil
 		}
 
-		j := i.([2]interface{}) //nolint:forcetypeassert //...
-
-		last := j[0].(base.StagePoint) //nolint:forcetypeassert //...
-		lastIsMajority := j[1].(bool)  //nolint:forcetypeassert //...
+		last := i[0].(base.StagePoint) //nolint:forcetypeassert //...
+		lastIsMajority := i[1].(bool)  //nolint:forcetypeassert //...
 
 		switch {
 		case !lastIsMajority && isMajority &&
@@ -271,7 +267,7 @@ func (box *Ballotbox) setLastStagePoint(p base.StagePoint, isMajority bool) bool
 			p.Stage() == base.StageINIT &&
 			last.Stage() == base.StageINIT:
 		case p.Compare(last) < 0:
-			return nil, errors.Errorf("not higher")
+			return [2]interface{}{}, errors.Errorf("not higher")
 		}
 
 		return [2]interface{}{p, isMajority}, nil
@@ -454,8 +450,6 @@ type voterecords struct {
 	voted            map[string]base.BallotSignFact
 	withdraws        map[string][]base.SuffrageWithdrawOperation
 	vps              map[string]base.Voteproof
-	suf              *util.Locked
-	vsuf             *util.Locked // NOTE suffrage for voteproof
 	log              zerolog.Logger
 	countAfter       time.Time
 	stagepoint       base.StagePoint
@@ -483,8 +477,6 @@ func newVoterecords(
 	vr.ballots = map[string]base.BallotSignFact{}
 	vr.withdraws = map[string][]base.SuffrageWithdrawOperation{}
 	vr.vps = map[string]base.Voteproof{}
-	vr.suf = util.EmptyLocked()
-	vr.vsuf = util.EmptyLocked()
 	vr.suffrageVote = suffrageVote
 	vr.isSIGN = isSIGN
 
@@ -911,8 +903,6 @@ var voterecordsPoolPut = func(vr *voterecords) {
 	vr.ballots = nil
 	vr.withdraws = nil
 	vr.vps = nil
-	vr.suf = nil
-	vr.vsuf = nil
 	vr.log = zerolog.Nop()
 
 	voterecordsPool.Put(vr)

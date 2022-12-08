@@ -13,13 +13,15 @@ import (
 )
 
 type PoolClient struct {
-	clients  *util.ShardedMap
+	clients  *util.ShardedMap[string, *poolClientItem]
 	onerrorf func(addr *net.UDPAddr, c *Client, err error)
 }
 
 func NewPoolClient() *PoolClient {
+	clients, _ := util.NewShardedMap("", (*poolClientItem)(nil), math.MaxInt8)
+
 	return &PoolClient{
-		clients: util.NewShardedMap(math.MaxInt8),
+		clients: clients,
 	}
 }
 
@@ -28,36 +30,16 @@ func (p *PoolClient) Close() error {
 
 	defer p.clients.Close()
 
-	switch {
-	case p.clients.Len() < 1:
-		return nil
-	case p.clients.Len() < 2: //nolint:gomnd //...
-		var err error
-
-		p.clients.Traverse(func(_, i interface{}) bool {
-			item := i.(*poolClientItem) //nolint:forcetypeassert //...
-			err = item.client.Close()
-
-			return true
-		})
-
-		if err != nil {
-			return e(err, "")
-		}
-
+	if p.clients.Len() < 1 {
 		return nil
 	}
 
 	worker := util.NewErrgroupWorker(context.Background(), int64(p.clients.Len()))
 	defer worker.Close()
 
-	var cerr error
-
-	p.clients.Traverse(func(_, i interface{}) bool {
-		item := i.(*poolClientItem) //nolint:forcetypeassert //...
-
-		cerr = worker.NewJob(func(context.Context, uint64) error {
-			cerr = item.client.Close()
+	p.clients.Traverse(func(_ string, i *poolClientItem) bool {
+		_ = worker.NewJob(func(context.Context, uint64) error {
+			_ = i.client.Close()
 
 			return nil
 		})
@@ -71,15 +53,17 @@ func (p *PoolClient) Close() error {
 		return e(err, "")
 	}
 
-	if cerr != nil {
-		return e(cerr, "")
-	}
-
 	return nil
 }
 
 func (p *PoolClient) Add(addr *net.UDPAddr, client *Client) bool {
-	return !p.clients.SetValue(addr.String(), client)
+	return !p.clients.SetValue(
+		addr.String(),
+		&poolClientItem{
+			client:   client,
+			accessed: time.Now(),
+		},
+	)
 }
 
 func (p *PoolClient) Remove(addr *net.UDPAddr) bool {
@@ -88,12 +72,10 @@ func (p *PoolClient) Remove(addr *net.UDPAddr) bool {
 
 func (p *PoolClient) Client(addr *net.UDPAddr) (*Client, bool) {
 	switch i, found := p.clients.Value(addr.String()); {
-	case !found:
-		return nil, false
-	case i == nil:
+	case !found, i == nil:
 		return nil, false
 	default:
-		return i.(*Client), true //nolint:forcetypeassert //...
+		return i.client, true
 	}
 }
 
@@ -104,12 +86,11 @@ func (p *PoolClient) Dial(
 ) (quic.EarlyConnection, error) {
 	var found bool
 	var client *Client
-	_, _ = p.clients.Set(addr.String(), func(clientfound bool, i interface{}) (interface{}, error) {
+	_, _ = p.clients.Set(addr.String(), func(i *poolClientItem, clientfound bool) (*poolClientItem, error) {
 		if clientfound && i != nil {
-			item := i.(*poolClientItem) //nolint:forcetypeassert // ...
-			item.accessed = time.Now()
+			i.accessed = time.Now()
 
-			client = item.client
+			client = i.client
 
 			found = true
 
@@ -154,12 +135,11 @@ func (p *PoolClient) Write(
 	newClient func(*net.UDPAddr) *Client,
 ) (quic.Stream, error) {
 	var client *Client
-	_, _ = p.clients.Set(addr.String(), func(found bool, i interface{}) (interface{}, error) {
+	_, _ = p.clients.Set(addr.String(), func(i *poolClientItem, found bool) (*poolClientItem, error) {
 		if found && i != nil {
-			item := i.(*poolClientItem) //nolint:forcetypeassert // ...
-			item.accessed = time.Now()
+			i.accessed = time.Now()
 
-			client = item.client
+			client = i.client
 
 			return nil, errors.Errorf("ignore")
 		}
@@ -190,10 +170,10 @@ func (p *PoolClient) Clean(cleanDuration time.Duration) int {
 	removeds := make([]string, p.clients.Len())
 
 	var n int
-	p.clients.Traverse(func(k interface{}, v interface{}) bool {
-		item := v.(*poolClientItem) //nolint:forcetypeassert // ...
-		if time.Since(item.accessed) > cleanDuration {
-			removeds[n] = k.(string) //nolint:forcetypeassert // ...
+	p.clients.Traverse(func(k string, v *poolClientItem) bool {
+		if time.Since(v.accessed) > cleanDuration {
+			removeds[n] = k
+
 			n++
 		}
 
@@ -205,7 +185,7 @@ func (p *PoolClient) Clean(cleanDuration time.Duration) int {
 	}
 
 	for i := range removeds[:n] {
-		_, _ = p.clients.Remove(removeds[i], nil)
+		_ = p.clients.RemoveValue(removeds[i])
 	}
 
 	return n
@@ -219,19 +199,17 @@ func (p *PoolClient) onerror(addr *net.UDPAddr, c *Client, err error) {
 	var client *Client
 
 	switch i, found := p.clients.Value(addr.String()); {
-	case !found:
-		return
-	case i == nil:
+	case !found, i == nil:
 		return
 	default:
-		client = i.(*poolClientItem).client //nolint:forcetypeassert // ...
+		client = i.client
 	}
 
 	if client.id != c.id {
 		return
 	}
 
-	_, _ = p.clients.Remove(addr.String(), nil)
+	_ = p.clients.RemoveValue(addr.String())
 
 	if p.onerrorf != nil {
 		p.onerrorf(addr, c, err)

@@ -72,12 +72,11 @@ func (t *testTempLeveldb) TestLoad() {
 
 	var mpmeta, mpb []byte
 	{
-		i, _ := wst.mp.Value()
-		t.NotNil(i)
+		i, isempty := wst.mp.Value()
+		t.False(isempty)
 
-		j := i.([3]interface{})
-		mpmeta = j[1].([]byte)
-		mpb = j[2].([]byte)
+		mpmeta = i[1].([]byte)
+		mpb = i[2].([]byte)
 	}
 
 	_, proofmeta, proofbody := wst.proofs()

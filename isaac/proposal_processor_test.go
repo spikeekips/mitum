@@ -26,7 +26,7 @@ type DummyBlockWriter struct {
 	manifesterr  error
 	opstreeg     *fixedtree.Writer
 	ops          []base.Operation
-	sts          *util.LockedMap
+	sts          *util.SingleLockedMap[string, base.StateValueMerger]
 	setstatesf   func(context.Context, uint64, []base.StateMergeValue, base.Operation) error
 	savef        func(context.Context) (base.BlockMap, error)
 }
@@ -35,7 +35,7 @@ func NewDummyBlockWriter(proposal base.ProposalSignFact, getStateFunc base.GetSt
 	return &DummyBlockWriter{
 		proposal:     proposal,
 		getStateFunc: getStateFunc,
-		sts:          util.NewLockedMap(),
+		sts:          util.NewSingleLockedMap("", (base.StateValueMerger)(nil)),
 	}
 }
 
@@ -81,8 +81,9 @@ func (w *DummyBlockWriter) setStates(ctx context.Context, index uint64, states [
 	for i := range states {
 		stv := states[i]
 
-		j, _, _ := w.sts.Get(stv.Key(), func() (interface{}, error) {
+		j, _, _ := w.sts.Get(stv.Key(), func() (base.StateValueMerger, error) {
 			var st base.State
+
 			switch j, found, err := w.getStateFunc(stv.Key()); {
 			case err != nil:
 				return nil, err
@@ -93,7 +94,7 @@ func (w *DummyBlockWriter) setStates(ctx context.Context, index uint64, states [
 			return stv.Merger(w.proposal.Point().Height(), st), nil
 		})
 
-		if err := j.(base.StateValueMerger).Merge(stv, []util.Hash{op.Fact().Hash()}); err != nil {
+		if err := j.Merge(stv, []util.Hash{op.Fact().Hash()}); err != nil {
 			return e(err, "failed to merge")
 		}
 	}
@@ -608,10 +609,9 @@ func (t *testDefaultProposalProcessor) TestPreProcessWithOperationProcessor() {
 		st := sts[h.String()]
 
 		var bst base.State
-		writer.sts.Traverse(func(_, v interface{}) bool {
-			k := v.(base.State)
-			if k.Key() == st.Key() {
-				bst = k
+		writer.sts.Traverse(func(_ string, v base.StateValueMerger) bool {
+			if v.Key() == st.Key() {
+				bst = v
 
 				return false
 			}
@@ -686,10 +686,9 @@ func (t *testDefaultProposalProcessor) TestPreProcess() {
 		st := sts[h.String()]
 
 		var bst base.State
-		writer.sts.Traverse(func(_, v interface{}) bool {
-			k := v.(base.State)
-			if k.Key() == st.Key() {
-				bst = k
+		writer.sts.Traverse(func(_ string, v base.StateValueMerger) bool {
+			if v.Key() == st.Key() {
+				bst = v
 
 				return false
 			}
@@ -1055,10 +1054,9 @@ func (t *testDefaultProposalProcessor) TestProcess() {
 		st := sts[h.String()]
 
 		var bst base.State
-		writer.sts.Traverse(func(_, v interface{}) bool {
-			k := v.(base.State)
-			if k.Key() == st.Key() {
-				bst = k
+		writer.sts.Traverse(func(_ string, v base.StateValueMerger) bool {
+			if v.Key() == st.Key() {
+				bst = v
 
 				return false
 			}
@@ -1155,10 +1153,9 @@ func (t *testDefaultProposalProcessor) TestProcessWithOperationProcessor() {
 		st := sts[h.String()]
 
 		var bst base.State
-		writer.sts.Traverse(func(_, v interface{}) bool {
-			k := v.(base.State)
-			if k.Key() == st.Key() {
-				bst = k
+		writer.sts.Traverse(func(_ string, v base.StateValueMerger) bool {
+			if v.Key() == st.Key() {
+				bst = v
 
 				return false
 			}

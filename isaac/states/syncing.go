@@ -26,7 +26,7 @@ type SyncingHandler struct {
 	leaveMemberlistf     func(time.Duration) error
 	whenNewBlockSaved    func(base.Height)
 	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc
-	waitStuckInterval    *util.Locked
+	waitStuckInterval    *util.Locked[time.Duration]
 	finishedLock         sync.RWMutex
 	stuckcancellock      sync.RWMutex
 }
@@ -58,9 +58,11 @@ func NewNewSyncingHandlerType(
 
 	return &NewSyncingHandlerType{
 		SyncingHandler: &SyncingHandler{
-			baseHandler:          newBaseHandler(StateSyncing, local, params),
-			newSyncer:            newSyncer,
-			waitStuckInterval:    util.NewLocked(params.IntervalBroadcastBallot()*2 + params.WaitPreparingINITBallot()),
+			baseHandler: newBaseHandler(StateSyncing, local, params),
+			newSyncer:   newSyncer,
+			waitStuckInterval: util.NewLocked(
+				params.IntervalBroadcastBallot()*2 + params.WaitPreparingINITBallot(),
+			),
 			whenFinishedf:        func(base.Height) {},
 			nodeInConsensusNodes: nodeInConsensusNodes,
 			joinMemberlistf:      joinMemberlistf,
@@ -349,7 +351,7 @@ func (st *SyncingHandler) SetWhenFinished(f func(base.Height)) {
 func (st *SyncingHandler) waitStuck() time.Duration {
 	i, _ := st.waitStuckInterval.Value()
 
-	return i.(time.Duration) //nolint:forcetypeassert //...
+	return i
 }
 
 func (st *SyncingHandler) checkAndJoinMemberlist(height base.Height) (joined bool, _ error) {
