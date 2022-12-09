@@ -377,15 +377,7 @@ func newSyncerFunc(
 
 		newclient := client.Clone()
 
-		var cachesize int64 = 333
-
-		if prev != nil {
-			if cachesize = (height - prev.Manifest().Height()).Int64(); cachesize > 333 { //nolint:gomnd //...
-				cachesize = 333
-			}
-		}
-
-		conninfocache, _ := util.NewShardedMap(base.NilHeight, quicstream.UDPConnInfo{}, cachesize)
+		conninfocache, _ := util.NewShardedMap(base.NilHeight, quicstream.UDPConnInfo{}, 1<<9) //nolint:gomnd //...
 
 		syncer, err := isaacstates.NewSyncer(
 			design.Storage.Base,
@@ -424,7 +416,6 @@ func newSyncerFunc(
 			setLastVoteproofsfFromBlockReaderf,
 			func() error {
 				conninfocache.Close()
-				conninfocache = nil
 
 				return newclient.Close()
 			},
@@ -517,7 +508,7 @@ func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
 	client *isaacnetwork.QuicstreamClient,
 	params base.LocalParams,
 	syncSourcePool *isaac.SyncSourcePool,
-	conninfocache *util.ShardedMap[base.Height, quicstream.UDPConnInfo],
+	conninfocache util.LockedMap[base.Height, quicstream.UDPConnInfo],
 	devdelay time.Duration,
 ) isaacstates.SyncerBlockMapFunc {
 	f := func(ctx context.Context, height base.Height, ci quicstream.UDPConnInfo) (base.BlockMap, bool, error) {
@@ -602,7 +593,7 @@ func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
 
 func syncerBlockMapItemFunc(
 	client *isaacnetwork.QuicstreamClient,
-	conninfocache *util.ShardedMap[base.Height, quicstream.UDPConnInfo],
+	conninfocache util.LockedMap[base.Height, quicstream.UDPConnInfo],
 ) isaacstates.SyncerBlockMapItemFunc {
 	// FIXME support remote item like https or ftp?
 

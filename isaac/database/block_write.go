@@ -84,7 +84,6 @@ func (db *LeveldbBlockWrite) clean() {
 
 	if db.laststates != nil {
 		db.laststates.Close()
-		db.laststates = nil
 	}
 }
 
