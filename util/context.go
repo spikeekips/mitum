@@ -24,7 +24,7 @@ func AwareContext(ctx context.Context, f func() error) error {
 }
 
 func LoadFromContextOK(ctx context.Context, a ...interface{}) error {
-	if err := checkLoadFromContext(ctx, a...); err != nil {
+	if err := checkLoadFromContextOK(ctx, a...); err != nil {
 		return err
 	}
 
@@ -32,17 +32,14 @@ func LoadFromContextOK(ctx context.Context, a ...interface{}) error {
 }
 
 func LoadFromContext(ctx context.Context, a ...interface{}) error {
-	switch err := checkLoadFromContext(ctx, a...); {
-	case err == nil:
-	case errors.Is(err, ErrNotFound):
-	default:
+	if err := checkLoadFromContext(ctx, a...); err != nil {
 		return err
 	}
 
 	return loadFromContext(ctx, load, a...)
 }
 
-func checkLoadFromContext(ctx context.Context, a ...interface{}) error {
+func checkLoadFromContextOK(ctx context.Context, a ...interface{}) error {
 	switch {
 	case len(a) < 1:
 		return nil
@@ -60,6 +57,25 @@ func checkLoadFromContext(ctx context.Context, a ...interface{}) error {
 
 		if ctx.Value(k) == nil {
 			return ErrNotFound.Errorf("key not found, %q", k)
+		}
+	}
+
+	return nil
+}
+
+func checkLoadFromContext(ctx context.Context, a ...interface{}) error {
+	switch {
+	case len(a) < 1:
+		return nil
+	case len(a)%2 != 0:
+		return errors.Errorf("should be, [key value] pairs")
+	}
+
+	for i := 0; i < len(a)/2; i++ {
+		b := a[i*2]
+
+		if _, ok := b.(ContextKey); !ok {
+			return errors.Errorf("expected ContextKey, not %T", b)
 		}
 	}
 
