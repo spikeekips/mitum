@@ -55,13 +55,16 @@ func PCloseTimeSyncer(ctx context.Context) (context.Context, error) {
 
 	var ts *localtime.TimeSyncer
 
-	if err := util.LoadFromContextOK(ctx, TimeSyncerContextKey, &ts); err != nil {
+	switch err := util.LoadFromContext(ctx, TimeSyncerContextKey, &ts); {
+	case err != nil:
 		return ctx, e(err, "")
-	}
+	case ts == nil:
+		return ctx, nil
+	default:
+		if err := ts.Stop(); err != nil {
+			return ctx, e(err, "")
+		}
 
-	if err := ts.Stop(); err != nil {
-		return ctx, e(err, "")
+		return ctx, nil
 	}
-
-	return ctx, nil
 }
