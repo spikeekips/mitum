@@ -32,7 +32,7 @@ func LoadFromContextOK(ctx context.Context, a ...interface{}) error {
 }
 
 func LoadFromContext(ctx context.Context, a ...interface{}) error {
-	if err := checkLoadFromContext(ctx, a...); err != nil {
+	if err := checkLoadArgs(a); err != nil {
 		return err
 	}
 
@@ -42,7 +42,7 @@ func LoadFromContext(ctx context.Context, a ...interface{}) error {
 func checkLoadFromContextOK(ctx context.Context, a ...interface{}) error {
 	switch {
 	case len(a) < 1:
-		return nil
+		return errors.Errorf("empty [key value] pairs")
 	case len(a)%2 != 0:
 		return errors.Errorf("should be, [key value] pairs")
 	}
@@ -63,10 +63,10 @@ func checkLoadFromContextOK(ctx context.Context, a ...interface{}) error {
 	return nil
 }
 
-func checkLoadFromContext(ctx context.Context, a ...interface{}) error {
+func checkLoadArgs(a []interface{}) error {
 	switch {
 	case len(a) < 1:
-		return nil
+		return errors.Errorf("empty [key value] pairs")
 	case len(a)%2 != 0:
 		return errors.Errorf("should be, [key value] pairs")
 	}

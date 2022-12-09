@@ -98,7 +98,7 @@ func PStartSyncSourceChecker(ctx context.Context) (context.Context, error) {
 
 func PCloseSyncSourceChecker(ctx context.Context) (context.Context, error) {
 	var syncSourceChecker *isaacnetwork.SyncSourceChecker
-	if err := util.LoadFromContext(ctx,
+	if err := util.LoadFromContextOK(ctx,
 		SyncSourceCheckerContextKey, &syncSourceChecker,
 	); err != nil {
 		return ctx, err
