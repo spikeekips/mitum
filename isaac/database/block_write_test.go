@@ -75,8 +75,9 @@ func (t *testLeveldbBlockWrite) TestSetBlockMap() {
 	t.NoError(err)
 
 	t.Run("blockmap", func() {
-		rm, err := rst.BlockMap()
+		rm, found, err := rst.LastBlockMap()
 		t.NoError(err)
+		t.True(found)
 
 		base.EqualBlockMap(t.Assert(), mp, rm)
 	})

@@ -90,8 +90,9 @@ func (t *testTempLeveldb) TestLoad() {
 	_ = (interface{})(rst).(isaac.TempDatabase)
 
 	t.Run("blockmap", func() {
-		rm, err := rst.BlockMap()
+		rm, found, err := rst.LastBlockMap()
 		t.NoError(err)
+		t.True(found)
 
 		base.EqualBlockMap(t.Assert(), mp, rm)
 
@@ -109,7 +110,7 @@ func (t *testTempLeveldb) TestLoad() {
 
 		base.EqualSuffrageProof(t.Assert(), proof, rproof)
 
-		enchint, meta, body, found, err := rst.SuffrageProofBytes()
+		enchint, meta, body, found, err := rst.LastSuffrageProofBytes()
 		t.NoError(err)
 		t.True(found)
 		t.Equal(t.Enc.Hint(), enchint)

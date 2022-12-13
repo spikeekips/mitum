@@ -71,7 +71,7 @@ func (t *testBlockImporter) TestWriteMap() {
 		tempdb, err := bwdb.TempDatabase()
 		t.NoError(err)
 
-		rm, err := tempdb.BlockMap()
+		rm, _, err := tempdb.LastBlockMap()
 		t.NoError(err)
 
 		base.EqualBlockMap(t.Assert(), m, rm)

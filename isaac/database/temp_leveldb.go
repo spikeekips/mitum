@@ -152,12 +152,12 @@ func (db *TempLeveldb) SuffrageHeight() base.Height {
 	return db.sufst.Value().(base.SuffrageNodesStateValue).Height() //nolint:forcetypeassert //...
 }
 
-func (db *TempLeveldb) BlockMap() (base.BlockMap, error) {
+func (db *TempLeveldb) LastBlockMap() (base.BlockMap, bool, error) {
 	if db.mp == nil {
-		return nil, storage.ErrNotFound.Errorf("blockmap not found")
+		return nil, false, storage.ErrNotFound.Errorf("blockmap not found")
 	}
 
-	return db.mp, nil
+	return db.mp, true, nil
 }
 
 func (db *TempLeveldb) BlockMapBytes() (enchint hint.Hint, meta, body []byte, _ error) {
@@ -172,7 +172,7 @@ func (db *TempLeveldb) SuffrageProof() (base.SuffrageProof, bool, error) {
 	return db.proof, true, nil
 }
 
-func (db *TempLeveldb) SuffrageProofBytes() (enchint hint.Hint, meta, body []byte, found bool, err error) {
+func (db *TempLeveldb) LastSuffrageProofBytes() (enchint hint.Hint, meta, body []byte, found bool, err error) {
 	if db.proof == nil {
 		return enchint, nil, nil, false, nil
 	}
