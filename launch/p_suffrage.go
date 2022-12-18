@@ -2,6 +2,7 @@ package launch
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -63,7 +64,7 @@ func PSuffrageCandidateLimiterSet(ctx context.Context) (context.Context, error) 
 func PLastConsensusNodesWatcher(ctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var local base.LocalNode
-	var params base.LocalParams
+	var params *isaac.LocalParams
 	var db isaac.Database
 
 	if err := util.LoadFromContextOK(ctx,
@@ -97,23 +98,38 @@ func PLastConsensusNodesWatcher(ctx context.Context) (context.Context, error) {
 		getLastSuffrageCandidatef,
 	)
 
-	watcher := isaac.NewLastConsensusNodesWatcher(
-		func() (base.SuffrageProof, base.State, bool, error) {
-			proof, found, err := db.LastSuffrageProof()
+	watcher, err := isaac.NewLastConsensusNodesWatcher(
+		func() (base.Height, base.SuffrageProof, base.State, bool, error) {
+			var lastheight base.Height
+
+			switch m, found, err := db.LastBlockMap(); { //nolint:govet //...
+			case err != nil:
+				return lastheight, nil, nil, false, err
+			case !found:
+				return lastheight, nil, nil, false, nil
+			default:
+				lastheight = m.Manifest().Height()
+			}
+
+			proof, found, err := db.LastSuffrageProof() //nolint:govet //...
 			if err != nil {
-				return nil, nil, false, err
+				return lastheight, nil, nil, false, err
 			}
 
 			st, _, err := db.State(isaac.SuffrageCandidateStateKey)
 			if err != nil {
-				return nil, nil, false, err
+				return lastheight, nil, nil, false, err
 			}
 
-			return proof, st, found, nil
+			return lastheight, proof, st, found, nil
 		},
 		builder.Build,
 		nil,
+		params.WaitPreparingINITBallot(),
 	)
+	if err != nil {
+		return ctx, err
+	}
 
 	_ = watcher.SetLogging(log)
 
@@ -125,27 +141,39 @@ func PLastConsensusNodesWatcher(ctx context.Context) (context.Context, error) {
 func PPatchLastConsensusNodesWatcher(ctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var local base.LocalNode
+	var params *isaac.LocalParams
 	var db isaac.Database
 	var watcher *isaac.LastConsensusNodesWatcher
 	var states *isaacstates.States
 	var long *LongRunningMemberlistJoin
 	var mlist *quicmemberlist.Memberlist
 	var syncSourcePool *isaac.SyncSourcePool
+	var ballotbox *isaacstates.Ballotbox
 
 	if err := util.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
+		LocalParamsContextKey, &params,
 		CenterDatabaseContextKey, &db,
 		LastConsensusNodesWatcherContextKey, &watcher,
 		StatesContextKey, &states,
 		LongRunningMemberlistJoinContextKey, &long,
 		MemberlistContextKey, &mlist,
 		SyncSourcePoolContextKey, &syncSourcePool,
+		BallotboxContextKey, &ballotbox,
 	); err != nil {
 		return ctx, err
 	}
 
 	watcher.SetWhenUpdated(func(_ context.Context, previous, updated base.SuffrageProof, candidatesst base.State) {
+		if updated == nil {
+			ballotbox.Count(params.Threshold())
+
+			log.Log().Debug().Msg("last height of suffrage updated; ballotbox.Count()")
+
+			return
+		}
+
 		// NOTE remove withdraw nodes from SyncSourcePool
 		if err := removeWithdrawsFromSyncSourcePoolByWatcher(previous, updated, syncSourcePool, log); err != nil {
 			log.Log().Error().Err(err).Msg("failed to remove withdraws from sync source pool")
@@ -170,7 +198,7 @@ func PNodeInConsensusNodesFunc(ctx context.Context) (context.Context, error) {
 	if err := util.LoadFromContextOK(
 		ctx,
 		CenterDatabaseContextKey, &db,
-		GetSuffrageFromDatabaseeFuncContextKey, &getSuffragef,
+		GetSuffrageFromDatabaseFuncContextKey, &getSuffragef,
 	); err != nil {
 		return ctx, e(err, "")
 	}
@@ -329,7 +357,7 @@ func PSuffrageVoting(ctx context.Context) (context.Context, error) {
 		MemberlistContextKey, &memberlist,
 		BallotboxContextKey, &ballotbox,
 		CallbackBroadcasterContextKey, &cb,
-		GetSuffrageFromDatabaseeFuncContextKey, &getSuffragef,
+		GetSuffrageFromDatabaseFuncContextKey, &getSuffragef,
 	); err != nil {
 		return ctx, err
 	}
@@ -446,31 +474,27 @@ func GetLastSuffrageProofFunc(ctx context.Context) (isaac.GetLastSuffrageProofFr
 
 	lastl := util.EmptyLocked((util.Hash)(nil))
 
-	f := func(ctx context.Context, ci quicstream.UDPConnInfo) (base.SuffrageProof, bool, error) {
+	f := func(ctx context.Context, ci quicstream.UDPConnInfo) (base.Height, base.SuffrageProof, bool, error) {
 		cctx, cancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
 		defer cancel()
 
 		last, _ := lastl.Value()
 
-		proof, updated, err := client.LastSuffrageProof(cctx, ci, last)
-
-		switch {
-		case err != nil:
-			return proof, updated, err
-		case !updated:
-			return proof, updated, nil
+		switch lastheight, proof, updated, err := client.LastSuffrageProof(cctx, ci, last); {
+		case err != nil, !updated:
+			return lastheight, proof, updated, nil
 		default:
 			if err := proof.IsValid(params.NetworkID()); err != nil {
-				return nil, updated, err
+				return lastheight, nil, updated, err
 			}
 
 			_ = lastl.SetValue(proof.Map().Manifest().Suffrage())
 
-			return proof, updated, nil
+			return lastheight, proof, updated, nil
 		}
 	}
 
-	return func(ctx context.Context) (proof base.SuffrageProof, found bool, _ error) {
+	return func(ctx context.Context) (lastheight base.Height, proof base.SuffrageProof, found bool, _ error) {
 		ml := util.EmptyLocked((base.SuffrageProof)(nil))
 
 		numnodes := 3 // NOTE choose top 3 sync nodes
@@ -487,15 +511,18 @@ func GetLastSuffrageProofFunc(ctx context.Context) (isaac.GetLastSuffrageProofFr
 					return err
 				}
 
-				proof, updated, err := f(ctx, ci)
-				switch {
-				case err != nil:
+				h, proof, updated, err := f(ctx, ci)
+				if err != nil {
 					return err
-				case !updated:
-					return nil
 				}
 
 				_, _ = ml.Set(func(v base.SuffrageProof, _ bool) (base.SuffrageProof, error) {
+					lastheight = h
+
+					if !updated {
+						return nil, util.ErrLockedSetIgnore.Errorf("not updated")
+					}
+
 					switch {
 					case v == nil,
 						proof.Map().Manifest().Height() > v.Map().Manifest().Height():
@@ -510,17 +537,17 @@ func GetLastSuffrageProofFunc(ctx context.Context) (isaac.GetLastSuffrageProofFr
 			},
 		); err != nil {
 			if errors.Is(err, isaac.ErrEmptySyncSources) {
-				return nil, false, nil
+				return lastheight, nil, false, nil
 			}
 
-			return nil, false, err
+			return lastheight, nil, false, err
 		}
 
 		switch v, _ := ml.Value(); {
 		case v == nil:
-			return nil, false, nil
+			return lastheight, nil, false, nil
 		default:
-			return v, true, nil
+			return lastheight, v, true, nil
 		}
 	}, nil
 }
@@ -817,6 +844,54 @@ func PCloseLastConsensusNodesWatcher(ctx context.Context) (context.Context, erro
 	}
 
 	return ctx, nil
+}
+
+func GetLastSuffrageFunc(ctx context.Context) (isaac.GetSuffrageByBlockHeight, error) {
+	e := util.StringErrorFunc("failed to create GetLastSuffrageFunc")
+
+	var db isaac.Database
+	var watcher *isaac.LastConsensusNodesWatcher
+
+	if err := util.LoadFromContextOK(ctx,
+		CenterDatabaseContextKey, &db,
+		LastConsensusNodesWatcherContextKey, &watcher,
+	); err != nil {
+		return nil, e(err, "")
+	}
+
+	sufcache := util.NewGCacheObjectPool(1 << 9) //nolint:gomnd //...
+
+	var l sync.Mutex
+
+	f := func(height base.Height) (base.Suffrage, bool, error) {
+		switch suf, found, err := isaac.GetSuffrageFromDatabase(db, height); {
+		case err != nil:
+			return nil, false, err
+		case found:
+			return suf, true, nil
+		}
+
+		// NOTE find in watcher
+		return watcher.GetSuffrage(height)
+	}
+
+	return func(height base.Height) (base.Suffrage, bool, error) {
+		if i, found := sufcache.Get(height.String()); found {
+			return i.(base.Suffrage), true, nil //nolint:forcetypeassert //...
+		}
+
+		l.Lock()
+		defer l.Unlock()
+
+		switch suf, found, err := f(height); {
+		case err != nil || !found:
+			return nil, found, err
+		default:
+			sufcache.Set(height.String(), suf, nil)
+
+			return suf, true, nil
+		}
+	}, nil
 }
 
 func checkLocalIsInConsensusNodesByWatcher(

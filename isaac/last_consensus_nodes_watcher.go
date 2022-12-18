@@ -13,68 +13,85 @@ import (
 type LastConsensusNodesWatcher struct {
 	*util.ContextDaemon
 	*logging.Logging
-	getFromLocal  func() (_ base.SuffrageProof, candidatestate base.State, _ bool, _ error)
-	getFromRemote func(context.Context, base.State) (_ base.SuffrageProof, candidatestate base.State, _ error)
-	whenUpdatedf  func(
+	getFromLocal  func() (_ base.Height, _ base.SuffrageProof, candidatestate base.State, _ bool, _ error)
+	getFromRemote func(context.Context, base.State) (
+		lastheight base.Height, _ []base.SuffrageProof, lastcandidatestate base.State, _ error)
+	whenUpdatedf func(
 		_ context.Context, previous base.SuffrageProof, updated base.SuffrageProof, updatedstate base.State)
-	lastRemote          *util.Locked[[2]interface{}]
+	lastheight          *util.Locked[base.Height]
+	last                *util.Locked[[]base.SuffrageProof]
+	lastcandidates      base.State
 	checkRemoteInterval time.Duration
 }
 
 func NewLastConsensusNodesWatcher(
-	getFromLocal func() (base.SuffrageProof, base.State, bool, error),
-	getFromRemote func(context.Context, base.State) (base.SuffrageProof, base.State, error),
+	getFromLocal func() (base.Height, base.SuffrageProof, base.State, bool, error),
+	getFromRemote func(context.Context, base.State) (base.Height, []base.SuffrageProof, base.State, error),
 	whenUpdatedf func(context.Context, base.SuffrageProof, base.SuffrageProof, base.State),
-) *LastConsensusNodesWatcher {
-	u := &LastConsensusNodesWatcher{
-		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
-			return lctx.Str("module", "last-consensus-nodes-watcher")
-		}),
-		getFromLocal:        getFromLocal,
-		getFromRemote:       getFromRemote,
-		lastRemote:          util.EmptyLocked([2]interface{}{}),
-		checkRemoteInterval: time.Second * 3, //nolint:gomnd //...
-	}
-
+	checkInterval time.Duration,
+) (*LastConsensusNodesWatcher, error) {
 	if whenUpdatedf == nil {
 		whenUpdatedf = func( // revive:disable-line:modifies-parameter
 			context.Context, base.SuffrageProof, base.SuffrageProof, base.State) {
 		}
 	}
 
-	u.SetWhenUpdated(whenUpdatedf)
-	u.ContextDaemon = util.NewContextDaemon(u.start)
-
-	return u
-}
-
-func (u *LastConsensusNodesWatcher) Start() error {
-	if _, _, err := u.getFromRemote(context.Background(), nil); err != nil {
-		return err
+	u := &LastConsensusNodesWatcher{
+		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
+			return lctx.Str("module", "last-consensus-nodes-watcher")
+		}),
+		getFromLocal:        getFromLocal,
+		getFromRemote:       getFromRemote,
+		checkRemoteInterval: checkInterval,
+		lastheight:          util.NewLocked(base.NilHeight),
+		last:                util.EmptyLocked([]base.SuffrageProof{}),
+		whenUpdatedf:        whenUpdatedf,
 	}
 
-	return u.ContextDaemon.Start()
+	switch height, proof, st, found, err := u.getFromLocal(); {
+	case err != nil:
+		return nil, err
+	case !found:
+	default:
+		_ = u.lastheight.SetValue(height)
+		_ = u.last.SetValue([]base.SuffrageProof{proof})
+		u.lastcandidates = st
+	}
+
+	u.ContextDaemon = util.NewContextDaemon(u.start)
+
+	return u, nil
 }
 
 func (u *LastConsensusNodesWatcher) Last() (base.SuffrageProof, base.State, error) {
-	e := util.StringErrorFunc("failed to get last suffrageproof and candidate state")
-
-	var localproof base.SuffrageProof
-	var localcandidates base.State
-
-	switch proof, candidates, found, err := u.getFromLocal(); {
+	switch height, p, c, found, err := u.getFromLocal(); {
 	case err != nil:
-		return nil, nil, e(err, "")
-	case found:
-		localproof = proof
-		localcandidates = candidates
-	}
+		return nil, nil, err
+	case !found:
+		var proof base.SuffrageProof
+		var candidates base.State
 
-	switch proof, candidates := u.lastValue(); {
-	case u.compare(localproof, proof, localcandidates, candidates):
+		_, _ = u.lastheight.Set(func(old base.Height, isempty bool) (base.Height, error) {
+			proofs, _ := u.last.Value()
+			if len(proofs) > 0 {
+				proof = proofs[len(proofs)-1]
+			}
+
+			candidates = u.lastcandidates
+
+			return base.NilHeight, util.ErrLockedSetIgnore.Call()
+		})
+
 		return proof, candidates, nil
 	default:
-		return localproof, localcandidates, nil
+		var proof base.SuffrageProof
+
+		proofs, candidates, _, _ := u.update(height, []base.SuffrageProof{p}, c)
+		if len(proofs) > 0 {
+			proof = proofs[len(proofs)-1]
+		}
+
+		return proof, candidates, nil
 	}
 }
 
@@ -87,38 +104,60 @@ func (u *LastConsensusNodesWatcher) Exists(node base.Node) (base.Suffrage, bool,
 	return IsNodeInLastConsensusNodes(node, proof, st)
 }
 
+func (u *LastConsensusNodesWatcher) GetSuffrage(height base.Height) (base.Suffrage, bool, error) {
+	var proof base.SuffrageProof
+
+	_, _ = u.lastheight.Set(func(lastheight base.Height, _ bool) (base.Height, error) {
+		switch {
+		case height > lastheight:
+			return base.NilHeight, util.ErrLockedSetIgnore.Call()
+		case lastheight <= base.NilHeight:
+			return base.NilHeight, util.ErrLockedSetIgnore.Call()
+		}
+
+		l3, _ := u.last.Value()
+
+		switch {
+		case len(l3) < 1:
+			return base.NilHeight, util.ErrLockedSetIgnore.Call()
+		case height == lastheight:
+			proof = l3[len(l3)-1]
+
+			return base.NilHeight, util.ErrLockedSetIgnore.Call()
+		}
+
+		for i := len(l3) - 1; i >= 0; i-- {
+			j := l3[i]
+
+			if height >= j.Map().Manifest().Height() {
+				proof = j
+
+				break
+			}
+		}
+
+		return base.NilHeight, util.ErrLockedSetIgnore.Call()
+	})
+
+	if proof != nil {
+		suf, err := proof.Suffrage()
+
+		return suf, true, err
+	}
+
+	return nil, false, nil
+}
+
 func (u *LastConsensusNodesWatcher) SetWhenUpdated(
 	whenUpdated func(context.Context, base.SuffrageProof, base.SuffrageProof, base.State),
 ) {
 	u.whenUpdatedf = whenUpdated
 }
 
-func (u *LastConsensusNodesWatcher) lastValue() (base.SuffrageProof, base.State) {
-	i, isempty := u.lastRemote.Value()
-	if isempty {
-		return nil, nil
-	}
-
-	var proof base.SuffrageProof
-	var st base.State
-
-	if i[0] != nil {
-		proof = i[0].(base.SuffrageProof) //nolint:forcetypeassert //...
-	}
-
-	if i[1] != nil {
-		st = i[1].(base.State) //nolint:forcetypeassert //...
-	}
-
-	return proof, st
-}
-
 func (u *LastConsensusNodesWatcher) start(ctx context.Context) error {
-	if err := u.checkRemote(ctx); err != nil {
+	if err := u.check(ctx); err != nil {
 		u.Log().Error().Err(err).Msg("failed to check remote")
 	}
-
-	last := u.checkUpdated(ctx, nil)
 
 	ticker := time.NewTicker(u.checkRemoteInterval)
 	defer ticker.Stop()
@@ -128,109 +167,168 @@ func (u *LastConsensusNodesWatcher) start(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			if err := u.checkRemote(ctx); err != nil {
-				u.Log().Error().Err(err).Msg("failed to check remote")
+			if err := u.check(ctx); err != nil {
+				u.Log().Error().Err(err).Msg("failed to check")
 			}
-
-			last = u.checkUpdated(ctx, last)
 		}
 	}
 }
 
-func (u *LastConsensusNodesWatcher) checkRemote(ctx context.Context) error {
-	var known base.State
+func (u *LastConsensusNodesWatcher) check(ctx context.Context) error {
+	var last base.SuffrageProof
+	var laststate base.State
 
-	if suf, _ := u.lastValue(); suf != nil {
-		known = suf.State()
-	}
-
-	switch proof, candidates, err := u.getFromRemote(ctx, known); {
+	switch i, _, err := u.Last(); {
 	case err != nil:
 		return err
-	case proof == nil:
-		return nil
+	case i != nil:
+		last = i
+		laststate = i.State()
+	}
+
+	switch height, proof, candidates, err := u.getFromRemote(ctx, laststate); {
+	case err != nil:
+		return err
 	default:
-		if u.update(proof, candidates) {
-			u.Log().Debug().Interface("proof", proof).Msg("new suffrage proof found from remote")
+		newproofs, newcandidates, lastheightUpdated, nodesUpdated := u.update(height, proof, candidates)
+
+		if lastheightUpdated {
+			u.Log().Debug().Interface("height", height).Msg("new height found from remote")
+
+			defer func() {
+				// NOTE empty updated SuffrageProof when new updated last height
+				go u.whenUpdatedf(ctx, last, nil, nil)
+			}()
+		}
+
+		if nodesUpdated {
+			u.Log().Debug().Interface("proofs", newproofs).Msg("new suffrage proof found from remote")
+
+			go u.whenUpdatedf(ctx, last, newproofs[len(newproofs)-1], newcandidates)
 		}
 
 		return nil
 	}
 }
 
-func (*LastConsensusNodesWatcher) newerHeight(proof base.SuffrageProof, candidates base.State) base.Height {
-	height := base.NilHeight
+func (u *LastConsensusNodesWatcher) update(
+	height base.Height,
+	proofs []base.SuffrageProof,
+	candidates base.State,
+) (
+	lastproofs []base.SuffrageProof,
+	lastcandidates base.State,
+	lastheightUpdated, nodesUpdated bool,
+) {
+	_, _ = u.lastheight.Set(func(old base.Height, isempty bool) (base.Height, error) {
+		defer func() {
+			lastproofs, _ = u.last.Value()
+			lastcandidates = u.lastcandidates
+		}()
 
-	if proof != nil {
-		height = proof.Map().Manifest().Height()
-	}
-
-	if candidates != nil && candidates.Height() > height {
-		height = candidates.Height()
-	}
-
-	return height
-}
-
-func (u *LastConsensusNodesWatcher) compare(
-	aproof, bproof base.SuffrageProof, acandidates, bcandidates base.State,
-) bool {
-	aheight := u.newerHeight(aproof, acandidates)
-	bheight := u.newerHeight(bproof, bcandidates)
-
-	return bheight > aheight
-}
-
-func (u *LastConsensusNodesWatcher) update(proof base.SuffrageProof, candidates base.State) bool {
-	var updated bool
-
-	_, _ = u.lastRemote.Set(func(i [2]interface{}, isempty bool) ([2]interface{}, error) {
 		if isempty {
-			return [2]interface{}{proof, candidates}, nil
+			if len(proofs) > 0 {
+				nodesUpdated = true
+
+				_ = u.last.SetValue(proofs)
+			}
+
+			if candidates != nil {
+				nodesUpdated = true
+
+				u.lastcandidates = candidates
+			}
+
+			lastheightUpdated = true
+
+			return height, nil
 		}
 
-		oldproof := i[0].(base.SuffrageProof) //nolint:forcetypeassert //...
+		if newl3 := u.compareProofs(proofs); len(newl3) > 0 {
+			nodesUpdated = true
 
-		var oldcandidates base.State //nolint:forcetypeassert //...
-		if i[1] != nil {
-			oldcandidates = i[1].(base.State) //nolint:forcetypeassert //...
+			_ = u.last.SetValue(newl3)
 		}
 
-		updated = u.compare(oldproof, proof, oldcandidates, candidates)
-		if !updated {
-			return [2]interface{}{}, util.ErrLockedSetIgnore.Errorf("old")
+		if newcandidates := u.compareCandidates(candidates); newcandidates != nil {
+			nodesUpdated = true
+
+			u.lastcandidates = candidates
 		}
 
-		return [2]interface{}{proof, candidates}, nil
+		if height > old {
+			lastheightUpdated = true
+
+			return height, nil
+		}
+
+		return base.NilHeight, util.ErrLockedSetIgnore.Call()
 	})
 
-	return updated
+	return lastproofs, lastcandidates, lastheightUpdated, nodesUpdated
 }
 
-func (u *LastConsensusNodesWatcher) checkUpdated(ctx context.Context, last base.SuffrageProof) base.SuffrageProof {
-	proof, candidates, err := u.Last()
+func (u *LastConsensusNodesWatcher) compareProofs(proofs []base.SuffrageProof) []base.SuffrageProof {
+	if len(proofs) < 1 {
+		return nil
+	}
+
+	l3, _ := u.last.Value()
+
+	if len(l3) > 0 {
+		top := l3[len(l3)-1].Map().Manifest().Height()
+
+		proofs = util.FilterSlice(proofs, func(i base.SuffrageProof) bool { //revive:disable-line:modifies-parameter
+			return i.Map().Manifest().Height() > top
+		})
+	}
+
+	if len(proofs) < 1 {
+		return nil
+	}
+
+	var newl3 []base.SuffrageProof
 
 	switch {
-	case err != nil:
-		return last
-	case proof == nil:
-		return last
+	case len(proofs) >= 3: //nolint:gomnd //...
+		newl3 = proofs[len(proofs)-3:]
+	case len(proofs) < 3: //nolint:gomnd //...
+		newl3 = proofs
+
+		for i := len(l3) - 1; i >= 0; i-- {
+			j := l3[i]
+
+			if newl3[0].SuffrageHeight() == j.SuffrageHeight()+1 {
+				k := make([]base.SuffrageProof, len(newl3)+1)
+				k[0] = j
+				copy(k[1:], newl3)
+
+				newl3 = k
+
+				if len(newl3) == 3 { //nolint:gomnd //...
+					break
+				}
+
+				continue
+			}
+
+			break
+		}
 	}
 
-	switch height := u.newerHeight(proof, candidates); {
-	case last != nil && last.State().Height() >= height:
-		return last
-	default:
-		u.Log().Debug().
-			Interface("previous_proof", last).
-			Interface("new_proof", proof).
-			Interface("new_candidates", candidates).
-			Msg("consensus nodes updated")
+	return newl3
+}
 
-		go u.whenUpdatedf(ctx, last, proof, candidates)
-
-		return proof
+func (u *LastConsensusNodesWatcher) compareCandidates(candidates base.State) base.State {
+	switch last := u.lastcandidates; {
+	case candidates == nil:
+	case last == nil:
+		return candidates
+	case candidates.Height() > last.Height():
+		return candidates
 	}
+
+	return nil
 }
 
 func IsNodeInLastConsensusNodes(node base.Node, proof base.SuffrageProof, st base.State) (base.Suffrage, bool, error) {

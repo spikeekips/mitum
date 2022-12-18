@@ -443,6 +443,7 @@ func (t *testQuicstreamHandlers) TestProposal() {
 }
 
 func (t *testQuicstreamHandlers) TestLastSuffrageProof() {
+	lastheight := base.Height(44)
 	st, _ := t.SuffrageState(base.Height(33), base.Height(11), nil)
 	proof := base.NewDummySuffrageProof()
 	proof = proof.SetState(st)
@@ -450,7 +451,9 @@ func (t *testQuicstreamHandlers) TestLastSuffrageProof() {
 	handler := QuicstreamHandlerLastSuffrageProof(t.Encs, time.Second,
 		func(h util.Hash) (hint.Hint, []byte, []byte, bool, error) {
 			if h != nil && h.Equal(st.Hash()) {
-				return hint.Hint{}, nil, nil, false, nil
+				nbody, _ := util.NewLengthedBytesSlice(0x01, [][]byte{lastheight.Bytes(), nil})
+
+				return t.Enc.Hint(), nil, nbody, false, nil
 			}
 
 			b, err := t.Enc.Marshal(proof)
@@ -458,7 +461,9 @@ func (t *testQuicstreamHandlers) TestLastSuffrageProof() {
 				return hint.Hint{}, nil, nil, false, err
 			}
 
-			return t.Enc.Hint(), nil, b, true, nil
+			nbody, _ := util.NewLengthedBytesSlice(0x01, [][]byte{lastheight.Bytes(), b})
+
+			return t.Enc.Hint(), nil, nbody, true, nil
 		},
 	)
 
@@ -466,21 +471,22 @@ func (t *testQuicstreamHandlers) TestLastSuffrageProof() {
 	c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixLastSuffrageProof, handler))
 
 	t.Run("not updated", func() {
-		rproof, updated, err := c.LastSuffrageProof(context.Background(), ci, st.Hash())
+		rlastheight, rproof, updated, err := c.LastSuffrageProof(context.Background(), ci, st.Hash())
 		t.NoError(err)
 		t.False(updated)
 		t.Nil(rproof)
+		t.Equal(lastheight, rlastheight)
 	})
 
 	t.Run("nil state", func() {
-		rproof, updated, err := c.LastSuffrageProof(context.Background(), ci, nil)
+		_, rproof, updated, err := c.LastSuffrageProof(context.Background(), ci, nil)
 		t.NoError(err)
 		t.True(updated)
 		t.NotNil(rproof)
 	})
 
 	t.Run("updated", func() {
-		rproof, updated, err := c.LastSuffrageProof(context.Background(), ci, valuehash.RandomSHA256())
+		_, rproof, updated, err := c.LastSuffrageProof(context.Background(), ci, valuehash.RandomSHA256())
 		t.NoError(err)
 		t.True(updated)
 		t.NotNil(proof)

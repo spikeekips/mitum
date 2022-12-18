@@ -99,7 +99,7 @@ func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 		Add(isaacnetwork.HandlerPrefixLastSuffrageProof,
 			isaacnetwork.QuicstreamHandlerLastSuffrageProof(encs, idletimeout,
 				func(last util.Hash) (hint.Hint, []byte, []byte, bool, error) {
-					enchint, metabytes, body, found, err := db.LastSuffrageProofBytes()
+					enchint, metabytes, body, found, lastheight, err := db.LastSuffrageProofBytes()
 
 					switch {
 					case err != nil:
@@ -112,9 +112,13 @@ func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 					case err != nil:
 						return enchint, nil, nil, true, err
 					case last != nil && last.Equal(h):
-						return enchint, nil, nil, false, nil
+						nbody, _ := util.NewLengthedBytesSlice(0x01, [][]byte{lastheight.Bytes(), nil})
+
+						return enchint, nil, nbody, false, nil
 					default:
-						return enchint, metabytes, body, true, nil
+						nbody, _ := util.NewLengthedBytesSlice(0x01, [][]byte{lastheight.Bytes(), body})
+
+						return enchint, metabytes, nbody, true, nil
 					}
 				},
 			),

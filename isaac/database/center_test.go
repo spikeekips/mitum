@@ -10,6 +10,7 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
@@ -422,6 +423,66 @@ func (t *testCenterWithPermanent) TestLastSuffrageProof() {
 		t.Error(err)
 		t.False(found)
 		t.Nil(rproof)
+		t.ErrorContains(err, "hihihi")
+	})
+}
+
+func (t *testCenterWithPermanent) TestLastSuffrageProofBytes() {
+	_, nodes := t.Locals(1)
+
+	sufst, _ := t.SuffrageState(base.Height(77), base.Height(66), nodes)
+	proof := NewDummySuffrageProof(sufst)
+
+	perm := &DummyPermanentDatabase{}
+
+	manifest := base.NewDummyManifest(base.Height(88), valuehash.RandomSHA256())
+	mp := base.NewDummyBlockMap(manifest)
+
+	perm.lastMapf = func() (base.BlockMap, bool, error) {
+		return mp, true, nil
+	}
+
+	db, err := NewCenter(leveldbstorage.NewMemStorage(), t.Encs, t.Enc, perm, nil)
+	t.NoError(err)
+
+	t.Run("found", func() {
+		perm.lastSuffrageprooff = func() (base.SuffrageProof, bool, error) {
+			return proof, true, nil
+		}
+
+		enchint, _, body, found, height, err := db.LastSuffrageProofBytes()
+		t.NoError(err)
+		t.True(found)
+		t.Equal(manifest.Height(), height)
+		t.Equal(jsonenc.JSONEncoderHint, enchint)
+
+		var rproof base.SuffrageProof
+
+		t.NoError(encoder.Decode(t.Enc, body, &rproof))
+		base.EqualSuffrageProof(t.Assert(), proof, rproof)
+	})
+
+	t.Run("not found", func() {
+		perm.lastSuffrageprooff = func() (base.SuffrageProof, bool, error) {
+			return nil, false, nil
+		}
+
+		_, _, body, found, height, err := db.LastSuffrageProofBytes()
+		t.NoError(err)
+		t.False(found)
+		t.Equal(base.NilHeight, height)
+		t.Empty(body)
+	})
+
+	t.Run("error", func() {
+		perm.lastSuffrageprooff = func() (base.SuffrageProof, bool, error) {
+			return nil, false, errors.Errorf("hihihi")
+		}
+
+		_, _, _, found, height, err := db.LastSuffrageProofBytes()
+		t.Error(err)
+		t.False(found)
+		t.Equal(base.NilHeight, height)
 		t.ErrorContains(err, "hihihi")
 	})
 }
@@ -1088,8 +1149,9 @@ func (t *testCenterLoad) TestLoadTempDatabases() {
 
 		t.Equal(expected.Manifest().Height(), temp.Height())
 
-		tm, err := temp.BlockMap()
+		tm, found, err := temp.LastBlockMap()
 		t.NoError(err)
+		t.True(found)
 
 		base.EqualBlockMap(t.Assert(), expected, tm)
 	}
@@ -1106,10 +1168,13 @@ func (t *testCenterLoad) TestLoadTempDatabases() {
 
 		t.Equal(expected.Height(), temp.Height())
 
-		em, err := expected.BlockMap()
+		em, found, err := expected.LastBlockMap()
 		t.NoError(err)
-		tm, err := temp.BlockMap()
+		t.True(found)
+
+		tm, found, err := temp.LastBlockMap()
 		t.NoError(err)
+		t.True(found)
 
 		base.EqualBlockMap(t.Assert(), em, tm)
 	}
@@ -1166,8 +1231,9 @@ func (t *testCenterLoad) TestLoadTempDatabasesButMissing() {
 
 	last := rtemps[0]
 
-	lm, err := last.BlockMap()
+	lm, found, err := last.LastBlockMap()
 	t.NoError(err)
+	t.True(found)
 
 	t.Equal(baseheight+2, last.Height())
 	t.Equal(baseheight+2, lm.Manifest().Height())

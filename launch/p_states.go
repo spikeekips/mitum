@@ -41,21 +41,24 @@ func PBallotbox(ctx context.Context) (context.Context, error) {
 	var local base.LocalNode
 	var params *isaac.LocalParams
 	var db isaac.Database
-	var getSuffragef isaac.GetSuffrageByBlockHeight
 
 	if err := util.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
 		CenterDatabaseContextKey, &db,
-		GetSuffrageFromDatabaseeFuncContextKey, &getSuffragef,
 	); err != nil {
+		return ctx, err
+	}
+
+	getLastSuffragef, err := GetLastSuffrageFunc(ctx)
+	if err != nil {
 		return ctx, err
 	}
 
 	ballotbox := isaacstates.NewBallotbox(
 		local.Address(),
-		getSuffragef,
+		getLastSuffragef,
 		isaac.IsValidVoteproofWithSuffrage,
 		params.WaitPreparingINITBallot(),
 	)

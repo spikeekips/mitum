@@ -90,7 +90,7 @@ func (t *baseTestSuffrageStateBuilder) newProofs(n int) map[base.Height]base.Suf
 
 	p := base.GenesisPoint
 	proofs := map[base.Height]base.SuffrageProof{}
-	for i := range make([]byte, 14) {
+	for i := range make([]byte, n) {
 		newnodes, _ := t.Locals(i)
 		newlocals := make([]isaac.LocalNode, len(locals)+len(newnodes))
 		copy(newlocals[:len(locals)], locals)
@@ -152,6 +152,7 @@ func (t *testSuffrageStateBuilder) candidateState(height base.Height, n int) bas
 func (t *testSuffrageStateBuilder) TestBuildOneFromGenesis() {
 	proofs := t.newProofs(1)
 	last := proofs[0]
+	lastheight := base.Height(66)
 
 	cst := t.candidateState(base.Height(33), 1)
 
@@ -160,8 +161,10 @@ func (t *testSuffrageStateBuilder) TestBuildOneFromGenesis() {
 
 	s := isaac.NewSuffrageStateBuilder(
 		t.LocalParams.NetworkID(),
-		func(context.Context) (base.SuffrageProof, bool, error) {
-			return proofs[last.State().Height()], true, nil
+		func(context.Context) (base.Height, base.SuffrageProof, bool, error) {
+			h := last.State().Height()
+
+			return lastheight, proofs[h], true, nil
 		},
 		func(_ context.Context, height base.Height) (base.SuffrageProof, bool, error) {
 			switch {
@@ -182,10 +185,13 @@ func (t *testSuffrageStateBuilder) TestBuildOneFromGenesis() {
 	)
 	s.SetBatchLimit(3)
 
-	proof, st, err := s.Build(context.Background(), nil)
+	rlastheight, rproofs, st, err := s.Build(context.Background(), nil)
 	t.NoError(err)
-	t.NotNil(proof)
+	t.True(len(rproofs) > 0)
 	t.NotNil(st)
+	t.Equal(lastheight, rlastheight)
+
+	proof := rproofs[len(rproofs)-1]
 
 	t.True(base.IsEqualState(last.State(), proof.State()))
 	t.True(base.IsEqualState(cst, st))
@@ -207,8 +213,10 @@ func (t *testSuffrageStateBuilder) TestBuildFromGenesis() {
 
 	s := isaac.NewSuffrageStateBuilder(
 		t.LocalParams.NetworkID(),
-		func(context.Context) (base.SuffrageProof, bool, error) {
-			return proofs[last.State().Height()], true, nil
+		func(context.Context) (base.Height, base.SuffrageProof, bool, error) {
+			h := last.State().Height()
+
+			return h, proofs[h], true, nil
 		},
 		func(_ context.Context, height base.Height) (base.SuffrageProof, bool, error) {
 			switch {
@@ -227,8 +235,11 @@ func (t *testSuffrageStateBuilder) TestBuildFromGenesis() {
 	)
 	s.SetBatchLimit(3)
 
-	proof, _, err := s.Build(context.Background(), nil)
+	_, rproofs, _, err := s.Build(context.Background(), nil)
 	t.NoError(err)
+
+	proof := rproofs[len(rproofs)-1]
+
 	t.NotNil(proof)
 
 	t.True(base.IsEqualState(last.State(), proof.State()))
@@ -252,8 +263,10 @@ func (t *testSuffrageStateBuilder) TestBuildNotFromGenesis() {
 
 	s := isaac.NewSuffrageStateBuilder(
 		t.LocalParams.NetworkID(),
-		func(context.Context) (base.SuffrageProof, bool, error) {
-			return proofs[last.State().Height()], true, nil
+		func(context.Context) (base.Height, base.SuffrageProof, bool, error) {
+			h := last.State().Height()
+
+			return h, proofs[h], true, nil
 		},
 		func(_ context.Context, height base.Height) (base.SuffrageProof, bool, error) {
 			switch {
@@ -272,8 +285,10 @@ func (t *testSuffrageStateBuilder) TestBuildNotFromGenesis() {
 	)
 	s.SetBatchLimit(3)
 
-	proof, _, err := s.Build(context.Background(), proofs[localheight].State())
+	_, rproofs, _, err := s.Build(context.Background(), proofs[localheight].State())
 	t.NoError(err)
+
+	proof := rproofs[len(rproofs)-1]
 	t.NotNil(proof)
 
 	t.True(base.IsEqualState(last.State(), proof.State()))
@@ -294,8 +309,10 @@ func (t *testSuffrageStateBuilder) TestBuildLastNotFromGenesis() {
 
 	s := isaac.NewSuffrageStateBuilder(
 		t.LocalParams.NetworkID(),
-		func(context.Context) (base.SuffrageProof, bool, error) {
-			return proofs[last.State().Height()], true, nil
+		func(context.Context) (base.Height, base.SuffrageProof, bool, error) {
+			h := last.State().Height()
+
+			return h, proofs[h], true, nil
 		},
 		func(_ context.Context, height base.Height) (base.SuffrageProof, bool, error) {
 			return nil, false, errors.Errorf("invalid height request, %d", height)
@@ -304,9 +321,9 @@ func (t *testSuffrageStateBuilder) TestBuildLastNotFromGenesis() {
 	)
 	s.SetBatchLimit(3)
 
-	proof, _, err := s.Build(context.Background(), proofs[localheight].State())
+	_, rproofs, _, err := s.Build(context.Background(), proofs[localheight].State())
 	t.NoError(err)
-	t.Nil(proof)
+	t.True(len(rproofs) < 1)
 }
 
 func TestSuffrageStateBuilder(t *testing.T) {

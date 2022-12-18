@@ -10,7 +10,7 @@ import (
 )
 
 type (
-	GetLastSuffrageProofFromRemoteFunc func(context.Context) (base.SuffrageProof, bool, error)
+	GetLastSuffrageProofFromRemoteFunc func(context.Context) (base.Height, base.SuffrageProof, bool, error)
 	GetSuffrageProofFromRemoteFunc     func(_ context.Context, suffrageheight base.Height) (
 		base.SuffrageProof, bool, error)
 	GetLastSuffrageCandidateStateRemoteFunc func(context.Context) (base.State, bool, error)
@@ -45,18 +45,20 @@ func NewSuffrageStateBuilder(
 // Build builds latest suffrage states from localstate.
 func (s *SuffrageStateBuilder) Build(
 	ctx context.Context, localstate base.State,
-) (base.SuffrageProof, base.State, error) {
+) (base.Height, []base.SuffrageProof, base.State, error) {
 	e := util.StringErrorFunc("failed to build suffrage states")
 
+	lastheight := base.NilHeight
+
 	if s.batchlimit < 1 {
-		return nil, nil, e(nil, "invalid numbatches, %d", s.batchlimit)
+		return lastheight, nil, nil, e(nil, "invalid numbatches, %d", s.batchlimit)
 	}
 
 	fromheight := base.GenesisHeight
 
 	if localstate != nil {
 		if _, err := NewSuffrageFromState(localstate); err != nil {
-			return nil, nil, e(err, "invalid localstate")
+			return lastheight, nil, nil, e(err, "invalid localstate")
 		}
 
 		v, _ := base.LoadSuffrageNodesStateValue(localstate)
@@ -64,57 +66,62 @@ func (s *SuffrageStateBuilder) Build(
 	}
 
 	var last base.SuffrageProof
+	var proofs []base.SuffrageProof
 
-	switch proof, updated, err := s.lastSuffrageProof(ctx); {
+	switch h, proof, updated, err := s.lastSuffrageProof(ctx); {
 	case err != nil:
-		return nil, nil, e(err, "")
+		return lastheight, nil, nil, e(err, "")
 	case !updated:
 		if localstate != nil {
 			if _, err := NewSuffrageFromState(localstate); err != nil {
-				return nil, nil, e(err, "invalid localstate")
+				return lastheight, nil, nil, e(err, "invalid localstate")
 			}
 		}
 
-		return nil, nil, nil
+		lastheight = h
 	default:
 		if err := proof.IsValid(s.networkID); err != nil {
-			return nil, nil, e(err, "")
+			return lastheight, nil, nil, e(err, "")
 		}
 
 		if localstate != nil {
 			if proof.State().Height() <= localstate.Height() {
-				return nil, nil, nil
+				return h, nil, nil, nil
 			}
 
 			v, _ := base.LoadSuffrageNodesStateValue(localstate)
 
 			if proof.SuffrageHeight() <= v.Height() {
-				return nil, nil, nil
+				return h, nil, nil, nil
 			}
 		}
 
-		if _, err := NewSuffrageFromState(proof.State()); err != nil {
-			return nil, nil, e(err, "")
+		last = proof
+		lastheight = h
+
+		ps, err := s.buildBatch(ctx, localstate, last.State(), fromheight)
+		if err != nil {
+			return lastheight, nil, nil, e(err, "")
 		}
 
-		last = proof
-	}
-
-	if err := s.buildBatch(ctx, localstate, last.State(), fromheight); err != nil {
-		return nil, nil, e(err, "")
+		proofs = ps
 	}
 
 	switch cst, _, err := s.lastSuffrageCandidateState(ctx); {
 	case err != nil:
-		return nil, nil, e(err, "")
+		return lastheight, nil, nil, e(err, "")
 	default:
-		return last, cst, nil
+		if last != nil {
+			proofs = append(proofs, last)
+		}
+
+		return lastheight, proofs, cst, nil
 	}
 }
 
 func (s *SuffrageStateBuilder) buildBatch(
 	ctx context.Context, localstate, last base.State, from base.Height,
-) error {
+) ([]base.SuffrageProof, error) {
 	e := util.StringErrorFunc("failed to build by batch")
 
 	lastv, _ := base.LoadSuffrageNodesStateValue(last)
@@ -169,10 +176,10 @@ func (s *SuffrageStateBuilder) buildBatch(
 			}()
 		},
 	); err != nil {
-		return e(err, "")
+		return nil, e(err, "")
 	}
 
-	return nil
+	return proofs, nil
 }
 
 func (*SuffrageStateBuilder) prove(

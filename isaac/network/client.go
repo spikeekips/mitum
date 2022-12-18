@@ -239,14 +239,38 @@ func (c *BaseNetworkClient) Proposal( //nolint:dupl //...
 
 func (c *BaseNetworkClient) LastSuffrageProof(
 	ctx context.Context, ci quicstream.UDPConnInfo, state util.Hash,
-) (base.SuffrageProof, bool, error) {
+) (base.Height, base.SuffrageProof, bool, error) {
 	header := NewLastSuffrageProofRequestHeader(state)
 
+	var lastheight base.Height
 	var u base.SuffrageProof
 
-	found, err := c.requestOK(ctx, ci, header, nil, &u)
+	found, err := c.requestWithCallback(ctx, ci, header, nil, func(enc encoder.Encoder, r io.Reader, ok bool) error {
+		b, err := io.ReadAll(r)
+		if err != nil {
+			return errors.WithMessage(err, "failed to read response")
+		}
 
-	return u, found, errors.WithMessage(err, "failed to get last SuffrageProof")
+		switch _, m, _, err := util.ReadLengthedBytesSlice(b); {
+		case err != nil:
+			return errors.WithMessage(err, "failed to read response")
+		case len(m) != 2: //nolint:gomnd //...
+			return errors.Errorf("invalid response message")
+		default:
+			lastheight, err = base.ParseHeightBytes(m[0])
+			if err != nil {
+				return errors.WithMessage(err, "failed to load last height")
+			}
+
+			if ok {
+				return encoder.Decode(enc, m[1], &u)
+			}
+
+			return nil
+		}
+	})
+
+	return lastheight, u, found, errors.WithMessage(err, "failed to get last SuffrageProof")
 }
 
 func (c *BaseNetworkClient) SuffrageProof( //nolint:dupl //...
@@ -430,6 +454,22 @@ func (c *BaseNetworkClient) requestOK(
 	body io.Reader,
 	u interface{},
 ) (bool, error) {
+	return c.requestWithCallback(ctx, ci, header, body, func(enc encoder.Encoder, r io.Reader, ok bool) error {
+		if !ok || u == nil {
+			return nil
+		}
+
+		return encoder.DecodeReader(enc, r, u)
+	})
+}
+
+func (c *BaseNetworkClient) requestWithCallback(
+	ctx context.Context,
+	ci quicstream.UDPConnInfo,
+	header isaac.NetworkHeader,
+	body io.Reader,
+	callback func(encoder.Encoder, io.Reader, bool) error,
+) (bool, error) {
 	if err := header.IsValid(nil); err != nil {
 		return false, err
 	}
@@ -450,16 +490,12 @@ func (c *BaseNetworkClient) requestOK(
 		return false, errors.WithMessage(err, "failed to read stream")
 	case h.Err() != nil:
 		return false, h.Err()
-	case u == nil:
-		return h.OK(), nil
-	case !h.OK():
-		return false, nil
 	default:
-		if err := encoder.DecodeReader(enc, r, u); err != nil {
+		if err := callback(enc, r, h.OK()); err != nil {
 			return false, err
 		}
 
-		return true, nil
+		return h.OK(), nil
 	}
 }
 

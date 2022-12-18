@@ -431,7 +431,9 @@ func (t *testSyncSourceChecker) TestCalled() {
 }
 
 func TestSyncSourceChecker(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	defer goleak.VerifyNone(t,
+		goleak.IgnoreTopFunction("github.com/syndtr/goleveldb/leveldb.(*DB).mpoolDrain"),
+	)
 
 	suite.Run(t, new(testSyncSourceChecker))
 }

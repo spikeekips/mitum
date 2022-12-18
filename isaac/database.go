@@ -20,7 +20,7 @@ type Database interface { //nolint:interfacebloat //..
 	LastBlockMap() (base.BlockMap, bool, error)
 	LastBlockMapBytes() (hint.Hint, []byte, []byte, bool, error)
 	LastSuffrageProof() (base.SuffrageProof, bool, error)
-	LastSuffrageProofBytes() (hint.Hint, []byte, []byte, bool, error)
+	LastSuffrageProofBytes() (hint.Hint, []byte, []byte, bool, base.Height, error)
 	SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof, bool, error)
 	SuffrageProofBytes(suffrageHeight base.Height) (hint.Hint, []byte, []byte, bool, error)
 	SuffrageProofByBlockHeight(blockheight base.Height) (base.SuffrageProof, bool, error)
@@ -50,11 +50,11 @@ type TempDatabase interface {
 	Height() base.Height
 	Close() error
 	Remove() error
-	BlockMap() (base.BlockMap, error)
+	LastBlockMap() (base.BlockMap, bool, error)
 	BlockMapBytes() (hint.Hint, []byte, []byte, error)
 	SuffrageHeight() base.Height
 	SuffrageProof() (base.SuffrageProof, bool, error)
-	SuffrageProofBytes() (hint.Hint, []byte, []byte, bool, error)
+	LastSuffrageProofBytes() (hint.Hint, []byte, []byte, bool, error)
 	NetworkPolicy() base.NetworkPolicy
 }
 

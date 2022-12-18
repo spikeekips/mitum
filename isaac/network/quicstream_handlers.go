@@ -769,14 +769,12 @@ func boolBytesQUICstreamHandler(
 		j := i.([3]interface{}) //nolint:forcetypeassert //...
 
 		found := j[2].(bool) //nolint:forcetypeassert //...
-		if found {
+		body = j[1].([]byte) //nolint:forcetypeassert //..
+
+		if len(body) > 0 {
 			enc = encs.Find(j[0].(hint.Hint)) //nolint:forcetypeassert //...
 			if enc == nil {
-				return errors.Errorf("failed to find encoder")
-			}
-
-			if j[1] != nil {
-				body = j[1].([]byte) //nolint:forcetypeassert //..
+				return errors.Errorf("failed to find encoder, %q", j[0])
 			}
 		}
 

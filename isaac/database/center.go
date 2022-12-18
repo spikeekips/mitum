@@ -69,7 +69,7 @@ func (db *Center) SetLogging(l *logging.Logging) *logging.Logging {
 func (db *Center) Close() error {
 	e := util.StringErrorFunc("failed to close database")
 
-	// NOTE don't close temps
+	// WARN don't close temps
 	//for i := range db.temps {
 	//	if err := db.temps[i].Close(); err != nil {
 	//		return e(err, "failed to close temp")
@@ -126,19 +126,49 @@ func (db *Center) LastSuffrageProof() (base.SuffrageProof, bool, error) {
 	return proof, found, nil
 }
 
-func (db *Center) LastSuffrageProofBytes() (enchint hint.Hint, meta, body []byte, found bool, err error) {
-	temps := db.activeTemps()
+type lastSuffrageProofDatabase interface {
+	LastBlockMap() (base.BlockMap, bool, error)
+	LastSuffrageProofBytes() (hint.Hint, []byte, []byte, bool, error)
+}
 
-	for i := range temps {
-		switch enchint, meta, body, found, err := temps[i].SuffrageProofBytes(); {
+func (db *Center) LastSuffrageProofBytes() ( //revive:disable-line:function-result-limit
+	enchint hint.Hint, meta, body []byte, found bool, lastheight base.Height, _ error,
+) {
+	temps := db.activeTemps()
+	partials := make([]lastSuffrageProofDatabase, len(temps)+1)
+
+	switch {
+	case len(temps) > 0:
+		for i := range temps {
+			partials[i] = temps[i]
+		}
+
+		fallthrough
+	default:
+		partials[len(temps)] = db.perm
+	}
+
+	for i := range partials {
+		p := partials[i]
+
+		switch m, found, err := p.LastBlockMap(); {
 		case err != nil:
-			return enchint, nil, nil, false, err
+			return enchint, nil, nil, true, base.NilHeight, err
+		case !found:
+			return enchint, nil, nil, true, base.NilHeight, err
+		default:
+			lastheight = m.Manifest().Height()
+		}
+
+		switch ht, meta, body, found, err := p.LastSuffrageProofBytes(); {
+		case err != nil:
+			return enchint, nil, nil, false, base.NilHeight, err
 		case found:
-			return enchint, meta, body, found, nil
+			return ht, meta, body, true, lastheight, nil
 		}
 	}
 
-	return db.perm.LastSuffrageProofBytes()
+	return enchint, nil, nil, false, base.NilHeight, nil
 }
 
 func (db *Center) SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof, bool, error) {
@@ -170,7 +200,7 @@ func (db *Center) SuffrageProofBytes(suffrageHeight base.Height) (
 	case err != nil:
 		return enchint, nil, nil, false, e(err, "")
 	case found:
-		switch enchint, meta, body, found, err = temp.SuffrageProofBytes(); {
+		switch enchint, meta, body, found, err = temp.LastSuffrageProofBytes(); {
 		case err != nil:
 			return enchint, nil, nil, false, e(err, "")
 		case found:
@@ -402,7 +432,7 @@ func (db *Center) BlockMap(height base.Height) (base.BlockMap, bool, error) {
 		return nil, false, nil
 	default:
 		if temp := db.findTemp(height); temp != nil {
-			m, err := temp.BlockMap()
+			m, _, err := temp.LastBlockMap()
 			if err != nil {
 				return nil, false, err
 			}
@@ -435,7 +465,7 @@ func (db *Center) BlockMapBytes(height base.Height) (enchint hint.Hint, meta, bo
 
 func (db *Center) LastBlockMap() (base.BlockMap, bool, error) {
 	if temps := db.activeTemps(); len(temps) > 0 {
-		m, err := temps[0].BlockMap()
+		m, _, err := temps[0].LastBlockMap()
 		if err != nil {
 			return nil, false, err
 		}

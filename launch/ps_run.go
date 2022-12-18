@@ -44,9 +44,8 @@ func DefaultRunPS() *ps.PS {
 		PreAddOK(PNameLoadDatabase, PLoadDatabase).
 		PostAddOK(PNameCheckLeveldbStorage, PCheckLeveldbStorage).
 		PostAddOK(PNameCheckLoadFromDatabase, PLoadFromDatabase).
-		PostAddOK(PNameGetSuffrageFromDatabaseeFunc, PGetSuffrageFromDatabaseeFunc).
-		PostAddOK(PNameNodeInfo, PNodeInfo).
-		PostAddOK(PNameBallotbox, PBallotbox)
+		PostAddOK(PNameGetSuffrageFromDatabaseeFunc, PGetSuffrageFromDatabaseFunc).
+		PostAddOK(PNameNodeInfo, PNodeInfo)
 
 	_ = pps.POK(PNameNetwork).
 		PreAddOK(PNameQuicstreamClient, PQuicstreamClient).
@@ -55,6 +54,7 @@ func DefaultRunPS() *ps.PS {
 
 	_ = pps.POK(PNameMemberlist).
 		PreAddOK(PNameLastConsensusNodesWatcher, PLastConsensusNodesWatcher).
+		PostAddOK(PNameBallotbox, PBallotbox).
 		PostAddOK(PNameLongRunningMemberlistJoin, PLongRunningMemberlistJoin).
 		PostAddOK(PNameCallbackBroadcaster, PCallbackBroadcaster).
 		PostAddOK(PNameSuffrageVoting, PSuffrageVoting)

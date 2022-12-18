@@ -17,7 +17,7 @@ type NetworkClient interface { //nolint:interfacebloat //..
 	SendOperation(context.Context, quicstream.UDPConnInfo, base.Operation) (bool, error)
 	RequestProposal(_ context.Context, connInfo quicstream.UDPConnInfo, point base.Point, propser base.Address) (base.ProposalSignFact, bool, error)
 	Proposal(_ context.Context, connInfo quicstream.UDPConnInfo, facthash util.Hash) (base.ProposalSignFact, bool, error)
-	LastSuffrageProof(_ context.Context, connInfo quicstream.UDPConnInfo, state util.Hash) (_ base.SuffrageProof, updated bool, _ error)
+	LastSuffrageProof(_ context.Context, connInfo quicstream.UDPConnInfo, state util.Hash) (lastheight base.Height, _ base.SuffrageProof, updated bool, _ error)
 	SuffrageProof(_ context.Context, connInfo quicstream.UDPConnInfo, suffrageheight base.Height) (_ base.SuffrageProof, found bool, _ error)
 	LastBlockMap(_ context.Context, _ quicstream.UDPConnInfo, manifest util.Hash) (_ base.BlockMap, updated bool, _ error)
 	BlockMap(context.Context, quicstream.UDPConnInfo, base.Height) (_ base.BlockMap, updated bool, _ error)

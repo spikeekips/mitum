@@ -424,7 +424,7 @@ func NewProposalSelector(pctx context.Context) (*isaac.BaseProposalSelector, err
 		ProposalMakerContextKey, &proposalMaker,
 		MemberlistContextKey, &memberlist,
 		QuicstreamClientContextKey, &client,
-		GetSuffrageFromDatabaseeFuncContextKey, &getSuffragef,
+		GetSuffrageFromDatabaseFuncContextKey, &getSuffragef,
 	); err != nil {
 		return nil, err
 	}
