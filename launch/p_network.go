@@ -101,7 +101,7 @@ func PStartNetwork(ctx context.Context) (context.Context, error) {
 		return ctx, err
 	}
 
-	return ctx, server.Start()
+	return ctx, server.Start(context.Background())
 }
 
 func PCloseNetwork(ctx context.Context) (context.Context, error) {

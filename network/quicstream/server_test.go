@@ -38,14 +38,14 @@ func (t *testServer) TestNew() {
 	t.NoError(err)
 	srv.SetLogging(logging.TestNilLogging)
 
-	t.NoError(srv.Start())
+	t.NoError(srv.Start(context.Background()))
 	t.NoError(srv.Stop())
 }
 
 func (t *testServer) TestEcho() {
 	srv := t.NewDefaultServer(nil)
 
-	t.NoError(srv.Start())
+	t.NoError(srv.Start(context.Background()))
 	defer srv.Stop()
 
 	client := t.NewClient(t.Bind)
@@ -66,7 +66,7 @@ func (t *testServer) TestEcho() {
 func (t *testServer) TestEchos() {
 	srv := t.NewDefaultServer(nil)
 
-	t.NoError(srv.Start())
+	t.NoError(srv.Start(context.Background()))
 	defer srv.Stop()
 
 	client := t.NewClient(t.Bind)
@@ -101,7 +101,7 @@ func (t *testServer) TestSendTimeout() {
 		MaxIdleTimeout: time.Millisecond * 100,
 	})
 
-	t.NoError(srv.Start())
+	t.NoError(srv.Start(context.Background()))
 	defer srv.Stop()
 
 	client := t.NewClient(t.Bind)
@@ -150,7 +150,7 @@ func (t *testServer) TestResponseIdleTimeout() {
 		return nil
 	}
 
-	t.NoError(srv.Start())
+	t.NoError(srv.Start(context.Background()))
 	defer srv.Stop()
 
 	client := t.NewClient(t.Bind)
@@ -187,7 +187,7 @@ func (t *testServer) TestResponseContextTimeout() {
 		return nil
 	}
 
-	t.NoError(srv.Start())
+	t.NoError(srv.Start(context.Background()))
 	defer srv.Stop()
 
 	client := t.NewClient(t.Bind)
@@ -226,7 +226,7 @@ func (t *testServer) TestServerGone() {
 		return nil
 	}
 
-	t.NoError(srv.Start())
+	t.NoError(srv.Start(context.Background()))
 	defer srv.Stop()
 
 	client := t.NewClient(t.Bind)
@@ -283,7 +283,7 @@ func (t *testServer) TestPrefixHandler() {
 
 	srv.handler = Handler(handler.Handler)
 
-	t.NoError(srv.Start())
+	t.NoError(srv.Start(context.Background()))
 	defer srv.Stop()
 
 	client := t.NewClient(t.Bind)

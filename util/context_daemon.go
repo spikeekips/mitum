@@ -27,17 +27,7 @@ func (dm *ContextDaemon) IsStarted() bool {
 	return dm.callbackCancelFunc != nil
 }
 
-func (dm *ContextDaemon) Start() error {
-	if dm.IsStarted() {
-		return ErrDaemonAlreadyStarted.Call()
-	}
-
-	_ = dm.Wait(context.Background())
-
-	return nil
-}
-
-func (dm *ContextDaemon) StartWithContext(ctx context.Context) error {
+func (dm *ContextDaemon) Start(ctx context.Context) error {
 	if dm.IsStarted() {
 		return ErrDaemonAlreadyStarted.Call()
 	}

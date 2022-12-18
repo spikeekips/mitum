@@ -229,7 +229,7 @@ func (t *testStates) TestBootingAtStarting() {
 	}, nil)
 	_ = st.setHandler(booting)
 
-	t.NoError(st.Start())
+	t.NoError(st.Start(context.Background()))
 	defer st.Stop()
 
 	select {
@@ -263,7 +263,7 @@ func (t *testStates) TestFailedToEnterIntoBootingAtStarting() {
 	})
 	_ = st.setHandler(broken)
 
-	t.NoError(st.Start())
+	t.NoError(st.Start(context.Background()))
 	defer st.Stop()
 
 	select {

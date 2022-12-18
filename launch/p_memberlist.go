@@ -102,7 +102,7 @@ func PStartMemberlist(ctx context.Context) (context.Context, error) {
 		return ctx, err
 	}
 
-	return ctx, m.Start()
+	return ctx, m.Start(context.Background())
 }
 
 func PCloseMemberlist(ctx context.Context) (context.Context, error) {

@@ -20,7 +20,7 @@ type testClient struct {
 func (t *testClient) TestSessionClose() {
 	srv := t.NewDefaultServer(nil)
 
-	t.NoError(srv.Start())
+	t.NoError(srv.Start(context.Background()))
 	defer srv.Stop()
 
 	client := t.NewClient(t.Bind)
@@ -56,7 +56,7 @@ func (t *testClient) TestSessionClose() {
 func (t *testClient) TestSessionRemove() {
 	srv := t.NewDefaultServer(nil)
 
-	t.NoError(srv.Start())
+	t.NoError(srv.Start(context.Background()))
 	defer srv.Stop()
 
 	client := t.NewClient(t.Bind)
@@ -103,7 +103,7 @@ func (t *testClient) TestSessionRemove() {
 	})
 
 	newsrv := t.NewDefaultServer(nil)
-	t.NoError(newsrv.Start())
+	t.NoError(newsrv.Start(context.Background()))
 	defer newsrv.Stop()
 
 	t.Run("send again after restarting", func() {

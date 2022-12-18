@@ -20,7 +20,7 @@ type testPool struct {
 func (t *testPool) TestWrite() {
 	srv := t.NewDefaultServer(nil)
 
-	t.NoError(srv.Start())
+	t.NoError(srv.Start(context.Background()))
 	defer srv.Stop()
 
 	p := NewPoolClient()
@@ -52,7 +52,7 @@ func (t *testPool) TestWrite() {
 func (t *testPool) TestClose() {
 	srv := t.NewDefaultServer(nil)
 
-	t.NoError(srv.Start())
+	t.NoError(srv.Start(context.Background()))
 	defer srv.Stop()
 
 	p := NewPoolClient()
@@ -97,7 +97,7 @@ func (t *testPool) TestClose() {
 func (t *testPool) TestSend() {
 	srv := t.NewDefaultServer(nil)
 
-	t.NoError(srv.Start())
+	t.NoError(srv.Start(context.Background()))
 	defer srv.Stop()
 
 	p := NewPoolClient()
@@ -166,7 +166,7 @@ func (t *testPool) TestFailedToDial() {
 func (t *testPool) TestRemoveAgain() {
 	srv := t.NewDefaultServer(nil)
 
-	t.NoError(srv.Start())
+	t.NoError(srv.Start(context.Background()))
 	defer srv.Stop()
 
 	p := NewPoolClient()
@@ -213,7 +213,7 @@ func (t *testPool) TestRemoveAgain() {
 func (t *testPool) TestClean() {
 	srv := t.NewDefaultServer(nil)
 
-	t.NoError(srv.Start())
+	t.NoError(srv.Start(context.Background()))
 	defer srv.Stop()
 
 	p := NewPoolClient()

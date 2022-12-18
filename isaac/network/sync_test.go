@@ -410,7 +410,7 @@ func (t *testSyncSourceChecker) TestCalled() {
 	)
 	defer checker.Stop()
 
-	t.NoError(checker.Start())
+	t.NoError(checker.Start(context.Background()))
 
 	donech := make(chan struct{})
 	go func() {

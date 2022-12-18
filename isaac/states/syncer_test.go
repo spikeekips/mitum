@@ -208,7 +208,7 @@ func (t *testSyncer) TestCancel() {
 		return nil
 	})
 	t.NoError(err)
-	t.NoError(s.Start())
+	t.NoError(s.Start(context.Background()))
 
 	t.NoError(s.Cancel())
 	t.NoError(s.Cancel())
@@ -239,7 +239,7 @@ func (t *testSyncer) TestFetchMaps() {
 			return maps[index], true, nil
 		}, nil, isaacdatabase.NewMemTempSyncPool(), nil, nil)
 		t.NoError(err)
-		t.NoError(s.Start())
+		t.NoError(s.Start(context.Background()))
 		defer s.Cancel()
 
 		t.True(s.Add(to))
@@ -268,7 +268,7 @@ func (t *testSyncer) TestFetchMaps() {
 			return maps[index], true, nil
 		}, nil, isaacdatabase.NewMemTempSyncPool(), nil, nil)
 		t.NoError(err)
-		t.NoError(s.Start())
+		t.NoError(s.Start(context.Background()))
 		defer s.Cancel()
 
 		t.True(s.Add(to))
@@ -322,7 +322,7 @@ func (t *testSyncer) TestFetchMaps() {
 			nil,
 		)
 		t.NoError(err)
-		t.NoError(s.Start())
+		t.NoError(s.Start(context.Background()))
 		defer s.Cancel()
 
 		t.True(s.Add(to))
@@ -368,7 +368,7 @@ func (t *testSyncer) TestFetchMaps() {
 			nil,
 		)
 		t.NoError(err)
-		t.NoError(s.Start())
+		t.NoError(s.Start(context.Background()))
 		defer s.Cancel()
 
 		t.True(s.Add(to))
@@ -408,7 +408,7 @@ func (t *testSyncer) TestFetchMaps() {
 			nil,
 		)
 		t.NoError(err)
-		t.NoError(s.Start())
+		t.NoError(s.Start(context.Background()))
 		defer s.Cancel()
 
 		t.True(s.Add(to))
@@ -450,7 +450,7 @@ func (t *testSyncer) TestFetchMaps() {
 		t.NoError(err)
 
 		s.batchlimit = 2
-		t.NoError(s.Start())
+		t.NoError(s.Start(context.Background()))
 		defer s.Cancel()
 
 		t.True(s.Add(to))
@@ -511,7 +511,7 @@ func (t *testSyncer) TestFetchMaps() {
 			nil,
 		)
 		t.NoError(err)
-		t.NoError(s.Start())
+		t.NoError(s.Start(context.Background()))
 		defer s.Cancel()
 
 		t.True(s.Add(to))
@@ -559,7 +559,7 @@ func (t *testSyncer) TestFetchBlockItem() {
 
 	s.batchlimit = 2
 
-	t.NoError(s.Start())
+	t.NoError(s.Start(context.Background()))
 	defer s.Cancel()
 
 	t.True(s.Add(to))

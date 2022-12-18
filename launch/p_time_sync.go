@@ -43,7 +43,7 @@ func PStartTimeSyncer(ctx context.Context) (context.Context, error) {
 
 	_ = ts.SetLogging(log)
 
-	if err := ts.Start(); err != nil {
+	if err := ts.Start(context.Background()); err != nil {
 		return ctx, e(err, "")
 	}
 

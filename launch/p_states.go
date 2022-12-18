@@ -65,7 +65,7 @@ func PBallotbox(ctx context.Context) (context.Context, error) {
 
 	_ = ballotbox.SetLogging(log)
 
-	if err := ballotbox.Start(); err != nil {
+	if err := ballotbox.Start(context.Background()); err != nil {
 		return ctx, err
 	}
 
@@ -795,7 +795,7 @@ func newSyncerDeferredFunc(pctx context.Context, db isaac.Database) (
 
 		log.Log().Debug().Msg("SuffrageProofs built")
 
-		err := syncer.Start()
+		err := syncer.Start(context.Background())
 		if err != nil {
 			l.Error().Err(err).Msg("syncer stopped")
 

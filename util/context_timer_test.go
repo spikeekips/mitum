@@ -39,8 +39,8 @@ func (t *testContextTimer) TestStart() {
 		},
 	)
 
-	t.NoError(ct.Start())
-	t.True(errors.Is(ct.Start(), ErrDaemonAlreadyStarted))
+	t.NoError(ct.Start(context.Background()))
+	t.True(errors.Is(ct.Start(context.Background()), ErrDaemonAlreadyStarted))
 
 	<-time.After(time.Millisecond * 100)
 
@@ -62,8 +62,8 @@ func (t *testContextTimer) TestStop() {
 		},
 	)
 
-	t.NoError(ct.Start())
-	t.True(errors.Is(ct.Start(), ErrDaemonAlreadyStarted))
+	t.NoError(ct.Start(context.Background()))
+	t.True(errors.Is(ct.Start(context.Background()), ErrDaemonAlreadyStarted))
 
 	<-time.After(time.Second * 2)
 	ct.Stop()
@@ -94,8 +94,8 @@ func (t *testContextTimer) TestStoppedByCallback() {
 		return time.Millisecond * 10
 	})
 
-	t.NoError(ct.Start())
-	t.True(errors.Is(ct.Start(), ErrDaemonAlreadyStarted))
+	t.NoError(ct.Start(context.Background()))
+	t.True(errors.Is(ct.Start(context.Background()), ErrDaemonAlreadyStarted))
 
 	<-time.After(time.Millisecond * 100)
 	t.True(atomic.LoadInt64(&ticked) < 4)
@@ -117,8 +117,8 @@ func (t *testContextTimer) TestIntervalFunc() {
 		return time.Millisecond * 10
 	})
 
-	t.NoError(ct.Start())
-	t.True(errors.Is(ct.Start(), ErrDaemonAlreadyStarted))
+	t.NoError(ct.Start(context.Background()))
+	t.True(errors.Is(ct.Start(context.Background()), ErrDaemonAlreadyStarted))
 
 	<-time.After(time.Millisecond * 60)
 
@@ -146,8 +146,8 @@ func (t *testContextTimer) TestIntervalFuncNarrowInterval() {
 		return time.Millisecond * 10
 	})
 
-	t.NoError(ct.Start())
-	t.True(errors.Is(ct.Start(), ErrDaemonAlreadyStarted))
+	t.NoError(ct.Start(context.Background()))
+	t.True(errors.Is(ct.Start(context.Background()), ErrDaemonAlreadyStarted))
 
 	<-time.After(time.Millisecond * 50)
 
@@ -164,7 +164,7 @@ func (t *testContextTimer) TestLongInterval() {
 			return true, nil
 		},
 	)
-	t.NoError(ct.Start())
+	t.NoError(ct.Start(context.Background()))
 
 	<-time.After(time.Millisecond * 100)
 	t.NoError(ct.Stop())
@@ -207,7 +207,7 @@ func (t *testContextTimer) TestLongRunning() {
 					return true, nil
 				},
 			)
-			t.NoError(ct.Start())
+			t.NoError(ct.Start(context.Background()))
 
 			<-time.After(time.Second)
 			t.NoError(ct.Stop())
@@ -238,13 +238,13 @@ func (t *testContextTimer) TestRestartAfterStop() {
 		return d
 	})
 
-	t.NoError(ct.Start())
+	t.NoError(ct.Start(context.Background()))
 
 	<-time.After(time.Millisecond * 200)
 	t.True(atomic.LoadInt64(&ticked) < 4)
 	t.False(ct.IsStarted())
 
-	t.NoError(ct.Start())
+	t.NoError(ct.Start(context.Background()))
 
 	<-time.After(time.Millisecond * 100)
 	t.True(atomic.LoadInt64(&ticked) > 4)
@@ -267,7 +267,7 @@ func (t *testContextTimer) TestReset() {
 		return time.Millisecond * 30
 	})
 
-	t.NoError(ct.Start())
+	t.NoError(ct.Start(context.Background()))
 	defer ct.Stop()
 
 	<-time.After(time.Millisecond * 100)

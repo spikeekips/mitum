@@ -1,6 +1,7 @@
 package util
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -29,7 +30,7 @@ func (t *testTimers) TestStart() {
 	}
 
 	timers := NewTimers(ids, false)
-	t.NoError(timers.Start())
+	t.NoError(timers.Start(context.Background()))
 }
 
 func (t *testTimers) TestAllowNew() {

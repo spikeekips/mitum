@@ -79,7 +79,7 @@ func PStartStorage(ctx context.Context) (context.Context, error) {
 		d, ok := reflect.ValueOf(v).Elem().Interface().(util.Daemon)
 		if ok {
 			starters = append(starters, func() {
-				if err := d.Start(); err != nil {
+				if err := d.Start(context.Background()); err != nil {
 					log.Log().Error().Err(err).Msgf("failed to start %s", name)
 				}
 			})

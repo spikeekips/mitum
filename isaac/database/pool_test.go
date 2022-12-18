@@ -627,7 +627,7 @@ func (t *testNewOperationPool) TestPeriodicCleanNewOperations() {
 		removedch <- removed
 	}
 
-	t.NoError(pst.Start())
+	t.NoError(pst.Start(context.Background()))
 
 	select {
 	case <-time.After(time.Second * 2):

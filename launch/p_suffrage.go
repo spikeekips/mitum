@@ -828,7 +828,7 @@ func PStartLastConsensusNodesWatcher(ctx context.Context) (context.Context, erro
 		return ctx, err
 	}
 
-	return ctx, watcher.Start()
+	return ctx, watcher.Start(context.Background())
 }
 
 func PCloseLastConsensusNodesWatcher(ctx context.Context) (context.Context, error) {

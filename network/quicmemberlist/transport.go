@@ -186,7 +186,7 @@ func (t *Transport) PacketCh() <-chan *memberlist.Packet {
 	return t.packetch
 }
 
-func (t *Transport) Start() error {
+func (t *Transport) Start(context.Context) error {
 	t.Lock()
 	defer t.Unlock()
 

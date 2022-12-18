@@ -1,6 +1,7 @@
 package quicmemberlist
 
 import (
+	"context"
 	"crypto/tls"
 	"io"
 	"net"
@@ -52,7 +53,7 @@ func (t *testMemberlist) TestNew() {
 	srv, err := NewMemberlist(local, t.enc, config, 3)
 	t.NoError(err)
 
-	t.NoError(srv.Start())
+	t.NoError(srv.Start(context.Background()))
 	defer t.NoError(srv.Stop())
 }
 
@@ -132,10 +133,10 @@ func (t *testMemberlist) TestLocalJoinAlone() {
 		nil,
 	)
 
-	t.NoError(quicstreamsrv.Start())
+	t.NoError(quicstreamsrv.Start(context.Background()))
 	defer quicstreamsrv.Stop()
 
-	t.NoError(srv.Start())
+	t.NoError(srv.Start(context.Background()))
 	defer srv.Stop()
 
 	select {
@@ -174,10 +175,10 @@ func (t *testMemberlist) TestLocalJoinAloneAndRejoin() {
 		},
 	)
 
-	t.NoError(quicstreamsrv.Start())
+	t.NoError(quicstreamsrv.Start(context.Background()))
 	defer quicstreamsrv.Stop()
 
-	t.NoError(srv.Start())
+	t.NoError(srv.Start(context.Background()))
 	defer srv.Stop()
 
 	select {
@@ -262,13 +263,13 @@ func (t *testMemberlist) TestLocalJoinToRemote() {
 		nil,
 	)
 
-	t.NoError(lqsrv.Start())
-	t.NoError(rqsrv.Start())
+	t.NoError(lqsrv.Start(context.Background()))
+	t.NoError(rqsrv.Start(context.Background()))
 	defer lqsrv.Stop()
 	defer rqsrv.Stop()
 
-	t.NoError(lsrv.Start())
-	t.NoError(rsrv.Start())
+	t.NoError(lsrv.Start(context.Background()))
+	t.NoError(rsrv.Start(context.Background()))
 	defer lsrv.Stop()
 	defer rsrv.Stop()
 
@@ -363,13 +364,13 @@ func (t *testMemberlist) TestLocalJoinToRemoteButFailedToChallenge() {
 		nil,
 	)
 
-	t.NoError(lqsrv.Start())
-	t.NoError(rqsrv.Start())
+	t.NoError(lqsrv.Start(context.Background()))
+	t.NoError(rqsrv.Start(context.Background()))
 	defer lqsrv.Stop()
 	defer rqsrv.Stop()
 
-	t.NoError(lsrv.Start())
-	t.NoError(rsrv.Start())
+	t.NoError(lsrv.Start(context.Background()))
+	t.NoError(rsrv.Start(context.Background()))
 	defer lsrv.Stop()
 	defer rsrv.Stop()
 
@@ -429,13 +430,13 @@ func (t *testMemberlist) TestLocalJoinToRemoteButNotAllowed() {
 		nil,
 	)
 
-	t.NoError(lqsrv.Start())
-	t.NoError(rqsrv.Start())
+	t.NoError(lqsrv.Start(context.Background()))
+	t.NoError(rqsrv.Start(context.Background()))
 	defer lqsrv.Stop()
 	defer rqsrv.Stop()
 
-	t.NoError(lsrv.Start())
-	t.NoError(rsrv.Start())
+	t.NoError(lsrv.Start(context.Background()))
+	t.NoError(rsrv.Start(context.Background()))
 	defer lsrv.Stop()
 	defer rsrv.Stop()
 
@@ -495,13 +496,13 @@ func (t *testMemberlist) TestLocalLeave() {
 		},
 	)
 
-	t.NoError(lqsrv.Start())
-	t.NoError(rqsrv.Start())
+	t.NoError(lqsrv.Start(context.Background()))
+	t.NoError(rqsrv.Start(context.Background()))
 	defer lqsrv.Stop()
 	defer rqsrv.Stop()
 
-	t.NoError(lsrv.Start())
-	t.NoError(rsrv.Start())
+	t.NoError(lsrv.Start(context.Background()))
+	t.NoError(rsrv.Start(context.Background()))
 	defer lsrv.Stop()
 	defer rsrv.Stop()
 
@@ -599,13 +600,13 @@ func (t *testMemberlist) TestLocalShutdownAndLeave() {
 		},
 	)
 
-	t.NoError(lqsrv.Start())
-	t.NoError(rqsrv.Start())
+	t.NoError(lqsrv.Start(context.Background()))
+	t.NoError(rqsrv.Start(context.Background()))
 	defer lqsrv.Stop()
 	defer rqsrv.Stop()
 
-	t.NoError(lsrv.Start())
-	t.NoError(rsrv.Start())
+	t.NoError(lsrv.Start(context.Background()))
+	t.NoError(rsrv.Start(context.Background()))
 	defer lsrv.Stop()
 	defer rsrv.Stop()
 
@@ -666,16 +667,16 @@ func (t *testMemberlist) TestJoinMultipleNodeWithSameName() {
 	rqsrv0, rsrv0 := t.newServersForJoining(rnode, rci0, nil, nil)
 	rqsrv1, rsrv1 := t.newServersForJoining(rnode, rci1, nil, nil)
 
-	t.NoError(lqsrv.Start())
-	t.NoError(rqsrv0.Start())
-	t.NoError(rqsrv1.Start())
+	t.NoError(lqsrv.Start(context.Background()))
+	t.NoError(rqsrv0.Start(context.Background()))
+	t.NoError(rqsrv1.Start(context.Background()))
 	defer lqsrv.Stop()
 	defer rqsrv0.Stop()
 	defer rqsrv1.Stop()
 
-	t.NoError(lsrv.Start())
-	t.NoError(rsrv0.Start())
-	t.NoError(rsrv1.Start())
+	t.NoError(lsrv.Start(context.Background()))
+	t.NoError(rsrv0.Start(context.Background()))
+	t.NoError(rsrv1.Start(context.Background()))
 	defer lsrv.Stop()
 	defer rsrv0.Stop()
 	defer rsrv1.Stop()
@@ -750,13 +751,13 @@ func (t *testMemberlist) TestLocalOverMemberLimit() {
 		nil,
 	)
 
-	t.NoError(lqsrv.Start())
-	t.NoError(rqsrv0.Start())
+	t.NoError(lqsrv.Start(context.Background()))
+	t.NoError(rqsrv0.Start(context.Background()))
 	defer lqsrv.Stop()
 	defer rqsrv0.Stop()
 
-	t.NoError(lsrv.Start())
-	t.NoError(rsrv0.Start())
+	t.NoError(lsrv.Start(context.Background()))
+	t.NoError(rsrv0.Start(context.Background()))
 	defer lsrv.Stop()
 	defer rsrv0.Stop()
 
@@ -784,8 +785,8 @@ func (t *testMemberlist) TestLocalOverMemberLimit() {
 		nil,
 	)
 
-	t.NoError(rqsrv1.Start())
-	t.NoError(rsrv1.Start())
+	t.NoError(rqsrv1.Start(context.Background()))
+	t.NoError(rsrv1.Start(context.Background()))
 	defer rqsrv1.Stop()
 	defer rsrv1.Stop()
 
@@ -860,13 +861,13 @@ func (t *testMemberlist) TestLocalJoinToRemoteWithInvalidNode() {
 	rdelegate := rsrv.mconfig.Delegate.(*Delegate)
 	rdelegate.local = remote
 
-	t.NoError(lqsrv.Start())
-	t.NoError(rqsrv.Start())
+	t.NoError(lqsrv.Start(context.Background()))
+	t.NoError(rqsrv.Start(context.Background()))
 	defer lqsrv.Stop()
 	defer rqsrv.Stop()
 
-	t.NoError(lsrv.Start())
-	t.NoError(rsrv.Start())
+	t.NoError(lsrv.Start(context.Background()))
+	t.NoError(rsrv.Start(context.Background()))
 	defer lsrv.Stop()
 	defer rsrv.Stop()
 
@@ -898,10 +899,10 @@ func (t *testMemberlist) TestJoinWithDeadNode() {
 		nil,
 	)
 
-	t.NoError(lqsrv.Start())
+	t.NoError(lqsrv.Start(context.Background()))
 	defer lqsrv.Stop()
 
-	t.NoError(lsrv.Start())
+	t.NoError(lsrv.Start(context.Background()))
 	defer lsrv.Stop()
 
 	err := lsrv.Join([]quicstream.UDPConnInfo{rci})

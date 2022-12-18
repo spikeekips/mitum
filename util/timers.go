@@ -1,6 +1,7 @@
 package util
 
 import (
+	"context"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -27,7 +28,7 @@ func NewTimers(ids []TimerID, allowUnknown bool) *Timers {
 }
 
 // Start of Timers does nothing
-func (ts *Timers) Start() error {
+func (ts *Timers) Start(context.Context) error {
 	ts.Lock()
 	defer ts.Unlock()
 
@@ -158,7 +159,7 @@ func (ts *Timers) StartTimers(ids []TimerID, stopOthers bool) error { // revive:
 			return
 		}
 
-		_ = t.Start()
+		_ = t.Start(context.Background())
 	}
 
 	return ts.traverse(callback, ids)

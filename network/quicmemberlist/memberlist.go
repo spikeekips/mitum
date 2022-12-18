@@ -67,7 +67,7 @@ func NewMemberlist(
 	return srv, nil
 }
 
-func (srv *Memberlist) Start() error {
+func (srv *Memberlist) Start(ctx context.Context) error {
 	m, err := srv.createMemberlist()
 	if err != nil {
 		return errors.Wrap(err, "failed to create memberlist")
@@ -75,7 +75,7 @@ func (srv *Memberlist) Start() error {
 
 	srv.m = m
 
-	return srv.ContextDaemon.Start()
+	return srv.ContextDaemon.Start(ctx)
 }
 
 func (srv *Memberlist) Join(cis []quicstream.UDPConnInfo) error {
@@ -441,7 +441,7 @@ func (srv *Memberlist) createMemberlist() (*memberlist.Memberlist, error) {
 	}
 
 	if i, ok := srv.mconfig.Transport.(*Transport); ok {
-		_ = i.Start()
+		_ = i.Start(context.Background())
 	}
 
 	return m, nil

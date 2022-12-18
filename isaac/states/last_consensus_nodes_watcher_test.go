@@ -87,7 +87,7 @@ func (t *testLastConsensusNodesWatcher) TestLocalAhead() {
 	)
 	t.NoError(err)
 
-	t.NoError(u.Start())
+	t.NoError(u.Start(context.Background()))
 	defer u.Stop()
 
 	select {
@@ -179,7 +179,7 @@ func (t *testLastConsensusNodesWatcher) TestRemoteAhead() {
 	)
 	t.NoError(err)
 
-	t.NoError(u.Start())
+	t.NoError(u.Start(context.Background()))
 	defer u.Stop()
 
 	<-called
@@ -263,7 +263,7 @@ func (t *testLastConsensusNodesWatcher) TestSameButLocalFirst() {
 	)
 	t.NoError(err)
 
-	t.NoError(u.Start())
+	t.NoError(u.Start(context.Background()))
 	defer u.Stop()
 
 	<-called
@@ -344,7 +344,7 @@ func (t *testLastConsensusNodesWatcher) TestLast3() {
 
 	called <- lastheight0
 
-	t.NoError(u.Start())
+	t.NoError(u.Start(context.Background()))
 	defer u.Stop()
 
 	called <- lastheight0

@@ -49,7 +49,7 @@ func NewTimeSyncer(server string, port int, interval time.Duration) (*TimeSyncer
 }
 
 // Start starts TimeSyncer
-func (ts *TimeSyncer) Start() error {
+func (ts *TimeSyncer) Start(ctx context.Context) error {
 	ts.Log().Debug().Msg("started")
 
 	if ts.interval < minTimeSyncCheckInterval {
@@ -59,7 +59,7 @@ func (ts *TimeSyncer) Start() error {
 			Msg("interval too short")
 	}
 
-	return ts.ContextDaemon.Start()
+	return ts.ContextDaemon.Start(ctx)
 }
 
 func (ts *TimeSyncer) schedule(ctx context.Context) error {

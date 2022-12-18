@@ -93,7 +93,7 @@ func PStartSyncSourceChecker(ctx context.Context) (context.Context, error) {
 		return ctx, err
 	}
 
-	return ctx, syncSourceChecker.Start()
+	return ctx, syncSourceChecker.Start(context.Background())
 }
 
 func PCloseSyncSourceChecker(ctx context.Context) (context.Context, error) {

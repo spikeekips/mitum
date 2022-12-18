@@ -24,11 +24,11 @@ func (t *testContextDaemon) TestNew() {
 
 		return nil
 	})
-	t.NoError(ed.Start())
+	t.NoError(ed.Start(context.Background()))
 
 	t.True(ed.IsStarted())
 
-	err := ed.Start()
+	err := ed.Start(context.Background())
 	t.True(errors.Is(err, ErrDaemonAlreadyStarted))
 
 	<-time.After(time.Millisecond * 100)
@@ -50,7 +50,7 @@ func (t *testContextDaemon) TestFuncStopped() {
 
 		return errors.Errorf("show me")
 	})
-	t.NoError(ed.Start())
+	t.NoError(ed.Start(context.Background()))
 	defer ed.Stop()
 
 	t.True(ed.IsStarted())
@@ -88,7 +88,7 @@ func (t *testContextDaemon) TestStartAgain() {
 
 		return nil
 	})
-	t.NoError(ed.Start())
+	t.NoError(ed.Start(context.Background()))
 	t.True(ed.IsStarted())
 
 	t.NoError(ed.Stop())
@@ -99,7 +99,7 @@ func (t *testContextDaemon) TestStartAgain() {
 	case <-resultchan:
 	}
 
-	t.NoError(ed.Start())
+	t.NoError(ed.Start(context.Background()))
 	<-startedch
 	t.True(ed.IsStarted())
 
@@ -154,7 +154,7 @@ func (t *testContextDaemon) TestStartWithContext() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	t.NoError(ed.StartWithContext(ctx))
+	t.NoError(ed.Start(ctx))
 	err := <-resultchan
 
 	t.True(time.Since(started) < time.Second*2)
@@ -171,7 +171,7 @@ func (t *testContextDaemon) TestStopInGoroutine() {
 		return nil
 	})
 
-	t.NoError(ed.Start())
+	t.NoError(ed.Start(context.Background()))
 
 	var wg sync.WaitGroup
 	wg.Add(4)
