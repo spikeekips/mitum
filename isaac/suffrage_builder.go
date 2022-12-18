@@ -45,10 +45,10 @@ func NewSuffrageStateBuilder(
 // Build builds latest suffrage states from localstate.
 func (s *SuffrageStateBuilder) Build(
 	ctx context.Context, localstate base.State,
-) (base.Height, []base.SuffrageProof, base.State, error) {
+) (lastheight base.Height, proofs []base.SuffrageProof, candidates base.State, _ error) {
 	e := util.StringErrorFunc("failed to build suffrage states")
 
-	lastheight := base.NilHeight
+	lastheight = base.NilHeight
 
 	if s.batchlimit < 1 {
 		return lastheight, nil, nil, e(nil, "invalid numbatches, %d", s.batchlimit)
@@ -57,16 +57,11 @@ func (s *SuffrageStateBuilder) Build(
 	fromheight := base.GenesisHeight
 
 	if localstate != nil {
-		if _, err := NewSuffrageFromState(localstate); err != nil {
-			return lastheight, nil, nil, e(err, "invalid localstate")
-		}
-
 		v, _ := base.LoadSuffrageNodesStateValue(localstate)
 		fromheight = v.Height() + 1
 	}
 
 	var last base.SuffrageProof
-	var proofs []base.SuffrageProof
 
 	switch h, proof, updated, err := s.lastSuffrageProof(ctx); {
 	case err != nil:
