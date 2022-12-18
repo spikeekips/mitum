@@ -32,9 +32,10 @@ type testServer struct {
 }
 
 func (t *testServer) TestNew() {
-	srv := NewServer(t.Bind, t.TLSConfig, nil, func(net.Addr, io.Reader, io.Writer) error {
+	srv, err := NewServer(t.Bind, t.TLSConfig, nil, func(net.Addr, io.Reader, io.Writer) error {
 		return nil
 	})
+	t.NoError(err)
 	srv.SetLogging(logging.TestNilLogging)
 
 	t.NoError(srv.Start())
@@ -42,7 +43,7 @@ func (t *testServer) TestNew() {
 }
 
 func (t *testServer) TestEcho() {
-	srv := t.NewDefaultServer()
+	srv := t.NewDefaultServer(nil)
 
 	t.NoError(srv.Start())
 	defer srv.Stop()
@@ -63,7 +64,7 @@ func (t *testServer) TestEcho() {
 }
 
 func (t *testServer) TestEchos() {
-	srv := t.NewDefaultServer()
+	srv := t.NewDefaultServer(nil)
 
 	t.NoError(srv.Start())
 	defer srv.Stop()
@@ -96,10 +97,9 @@ func (t *testServer) TestEchos() {
 }
 
 func (t *testServer) TestSendTimeout() {
-	srv := t.NewDefaultServer()
-	srv.quicconfig = &quic.Config{
+	srv := t.NewDefaultServer(&quic.Config{
 		MaxIdleTimeout: time.Millisecond * 100,
-	}
+	})
 
 	t.NoError(srv.Start())
 	defer srv.Stop()
@@ -136,7 +136,7 @@ func (t *testServer) TestResponseIdleTimeout() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	srv := t.NewDefaultServer()
+	srv := t.NewDefaultServer(nil)
 	srv.handler = func(_ net.Addr, r io.Reader, w io.Writer) error {
 		select {
 		case <-ctx.Done():
@@ -173,7 +173,7 @@ func (t *testServer) TestResponseContextTimeout() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	srv := t.NewDefaultServer()
+	srv := t.NewDefaultServer(nil)
 	srv.handler = func(_ net.Addr, r io.Reader, w io.Writer) error {
 		select {
 		case <-ctx.Done():
@@ -210,7 +210,7 @@ func (t *testServer) TestResponseContextTimeout() {
 }
 
 func (t *testServer) TestServerGone() {
-	srv := t.NewDefaultServer()
+	srv := t.NewDefaultServer(nil)
 
 	donectx, done := context.WithCancel(context.Background())
 	sentch := make(chan struct{}, 1)
@@ -260,7 +260,7 @@ func (t *testServer) TestServerGone() {
 }
 
 func (t *testServer) TestPrefixHandler() {
-	srv := t.NewDefaultServer()
+	srv := t.NewDefaultServer(nil)
 
 	handler := NewPrefixHandler(func(_ net.Addr, r io.Reader, w io.Writer, err error) error {
 		_, _ = w.Write([]byte("hehehe"))

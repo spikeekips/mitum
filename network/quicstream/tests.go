@@ -66,8 +66,8 @@ func (t *BaseTest) NewTLSConfig(proto string) *tls.Config {
 	return generateTLSConfig(proto)
 }
 
-func (t *BaseTest) NewServer(bind *net.UDPAddr, tlsconfig *tls.Config) *Server {
-	srv := NewServer(bind, tlsconfig, &quic.Config{}, func(_ net.Addr, r io.Reader, w io.Writer) error {
+func (t *BaseTest) NewServer(bind *net.UDPAddr, tlsconfig *tls.Config, qconfig *quic.Config) *Server {
+	srv, err := NewServer(bind, tlsconfig, qconfig, func(_ net.Addr, r io.Reader, w io.Writer) error {
 		b, err := io.ReadAll(r)
 		if err != nil {
 			return err
@@ -77,13 +77,19 @@ func (t *BaseTest) NewServer(bind *net.UDPAddr, tlsconfig *tls.Config) *Server {
 
 		return nil
 	})
+	t.NoError(err)
+
 	srv.SetLogging(logging.TestNilLogging)
 
 	return srv
 }
 
-func (t *BaseTest) NewDefaultServer() *Server {
-	return t.NewServer(t.Bind, t.TLSConfig)
+func (t *BaseTest) NewDefaultServer(qconfig *quic.Config) *Server {
+	if qconfig == nil {
+		qconfig = &quic.Config{}
+	}
+
+	return t.NewServer(t.Bind, t.TLSConfig, qconfig)
 }
 
 func (t *BaseTest) NewClient(addr *net.UDPAddr) *Client {

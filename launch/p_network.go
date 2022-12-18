@@ -77,12 +77,16 @@ func PNetwork(ctx context.Context) (context.Context, error) {
 		return true // TODO NOTE manage blacklist
 	}
 
-	server := quicstream.NewServer(
+	server, err := quicstream.NewServer(
 		design.Network.Bind,
 		GenerateNewTLSConfig(params.NetworkID()),
 		quicconfig,
 		handlers.Handler,
 	)
+	if err != nil {
+		return ctx, err
+	}
+
 	_ = server.SetLogging(log)
 
 	ctx = context.WithValue(ctx, QuicstreamServerContextKey, server)     //revive:disable-line:modifies-parameter

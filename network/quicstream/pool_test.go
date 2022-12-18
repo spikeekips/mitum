@@ -18,7 +18,7 @@ type testPool struct {
 }
 
 func (t *testPool) TestWrite() {
-	srv := t.NewDefaultServer()
+	srv := t.NewDefaultServer(nil)
 
 	t.NoError(srv.Start())
 	defer srv.Stop()
@@ -50,7 +50,7 @@ func (t *testPool) TestWrite() {
 }
 
 func (t *testPool) TestClose() {
-	srv := t.NewDefaultServer()
+	srv := t.NewDefaultServer(nil)
 
 	t.NoError(srv.Start())
 	defer srv.Stop()
@@ -95,7 +95,7 @@ func (t *testPool) TestClose() {
 }
 
 func (t *testPool) TestSend() {
-	srv := t.NewDefaultServer()
+	srv := t.NewDefaultServer(nil)
 
 	t.NoError(srv.Start())
 	defer srv.Stop()
@@ -164,7 +164,7 @@ func (t *testPool) TestFailedToDial() {
 }
 
 func (t *testPool) TestRemoveAgain() {
-	srv := t.NewDefaultServer()
+	srv := t.NewDefaultServer(nil)
 
 	t.NoError(srv.Start())
 	defer srv.Stop()
@@ -211,7 +211,7 @@ func (t *testPool) TestRemoveAgain() {
 }
 
 func (t *testPool) TestClean() {
-	srv := t.NewDefaultServer()
+	srv := t.NewDefaultServer(nil)
 
 	t.NoError(srv.Start())
 	defer srv.Stop()

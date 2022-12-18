@@ -100,7 +100,8 @@ func (t *testMemberlist) newServersForJoining(
 		return nil
 	}
 
-	quicstreamsrv := quicstream.NewServer(laddr, tlsconfig, nil, handler)
+	quicstreamsrv, err := quicstream.NewServer(laddr, tlsconfig, nil, handler)
+	t.NoError(err)
 
 	local, err := NewNode(laddr.String(), laddr, node, base.NewMPrivatekey().Publickey(), "1.2.3.4:4321", true)
 	t.NoError(err)

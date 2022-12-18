@@ -26,7 +26,12 @@ func NewServer(
 	tlsconfig *tls.Config,
 	quicconfig *quic.Config,
 	handler Handler,
-) *Server {
+) (*Server, error) {
+	listener, err := quic.ListenAddrEarly(bind.String(), tlsconfig, quicconfig)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to listen")
+	}
+
 	srv := &Server{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", "quicstream-server")
@@ -37,24 +42,14 @@ func NewServer(
 		handler:    handler,
 	}
 
-	srv.ContextDaemon = util.NewContextDaemon(srv.start)
+	srv.ContextDaemon = util.NewContextDaemon(func(ctx context.Context) error {
+		return srv.start(ctx, listener)
+	})
 
-	return srv
+	return srv, nil
 }
 
-func (srv *Server) start(ctx context.Context) error {
-	srv.Log().Debug().
-		Str("bind", srv.bind.String()).
-		Msg("trying to start")
-	defer srv.Log().Debug().Msg("stopped")
-
-	listener, err := quic.ListenAddrEarly(srv.bind.String(), srv.tlsconfig, srv.quicconfig)
-	if err != nil {
-		srv.Log().Error().Err(err).Msg("failed to listen")
-
-		return errors.Wrap(err, "failed to listen")
-	}
-
+func (srv *Server) start(ctx context.Context, listener quic.EarlyListener) error {
 	go srv.accept(ctx, listener)
 
 	<-ctx.Done()

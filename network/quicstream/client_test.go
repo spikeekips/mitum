@@ -18,7 +18,7 @@ type testClient struct {
 }
 
 func (t *testClient) TestSessionClose() {
-	srv := t.NewDefaultServer()
+	srv := t.NewDefaultServer(nil)
 
 	t.NoError(srv.Start())
 	defer srv.Stop()
@@ -54,7 +54,7 @@ func (t *testClient) TestSessionClose() {
 }
 
 func (t *testClient) TestSessionRemove() {
-	srv := t.NewDefaultServer()
+	srv := t.NewDefaultServer(nil)
 
 	t.NoError(srv.Start())
 	defer srv.Stop()
@@ -102,7 +102,7 @@ func (t *testClient) TestSessionRemove() {
 		t.Nil(i)
 	})
 
-	newsrv := t.NewDefaultServer()
+	newsrv := t.NewDefaultServer(nil)
 	t.NoError(newsrv.Start())
 	defer newsrv.Stop()
 
