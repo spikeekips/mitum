@@ -526,6 +526,7 @@ linters-settings:
       - '0o700'
       - '0755'
       - '42'
+      - '0x01'
     # List of file patterns to exclude from analysis.
     # Values always ignored: `.+_test.go`
     ignored-files:
