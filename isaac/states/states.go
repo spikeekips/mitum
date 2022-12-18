@@ -502,6 +502,14 @@ func (st *States) mimicBallotFunc() (func(base.Ballot), func()) {
 
 			l := st.Log().With().Interface("ballot", bl).Interface("new_ballot", newbl).Logger()
 
+			if st.box != nil {
+				if _, err := st.box.Vote(newbl, st.params.Threshold()); err != nil {
+					l.Error().Err(err).Msg("failed to vote mimic ballot")
+
+					return
+				}
+			}
+
 			var timerid util.TimerID
 
 			switch newbl.Point().Stage() {
