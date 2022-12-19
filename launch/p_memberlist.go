@@ -662,13 +662,6 @@ func ensureJoinMemberlist(
 	m *quicmemberlist.Memberlist,
 ) func() (bool, error) {
 	return func() (bool, error) {
-		switch _, found, err := watcher.Exists(local); {
-		case err != nil:
-			return false, err
-		case !found:
-			return true, errors.Errorf("local, not in consensus nodes")
-		}
-
 		dis := GetDiscoveriesFromLocked(discoveries)
 
 		if len(dis) < 1 {
@@ -677,6 +670,13 @@ func ensureJoinMemberlist(
 
 		if m.IsJoined() {
 			return true, nil
+		}
+
+		switch _, found, err := watcher.Exists(local); {
+		case err != nil:
+			return false, err
+		case !found:
+			return true, errors.Errorf("local, not in consensus nodes")
 		}
 
 		err := m.Join(dis)

@@ -61,8 +61,6 @@ func (s *SuffrageStateBuilder) Build(
 		fromheight = v.Height() + 1
 	}
 
-	var last base.SuffrageProof
-
 	switch h, proof, updated, err := s.lastSuffrageProof(ctx); {
 	case err != nil:
 		return lastheight, nil, nil, e(err, "")
@@ -79,37 +77,38 @@ func (s *SuffrageStateBuilder) Build(
 			return lastheight, nil, nil, e(err, "")
 		}
 
+		isnew := localstate == nil
+
 		if localstate != nil {
-			if proof.State().Height() <= localstate.Height() {
-				return h, nil, nil, nil
+			if proof.State().Height() > localstate.Height() {
+				isnew = true
 			}
 
-			v, _ := base.LoadSuffrageNodesStateValue(localstate)
-
-			if proof.SuffrageHeight() <= v.Height() {
-				return h, nil, nil, nil
+			if !isnew {
+				v, _ := base.LoadSuffrageNodesStateValue(localstate)
+				if proof.SuffrageHeight() > v.Height() {
+					isnew = true
+				}
 			}
 		}
 
-		last = proof
 		lastheight = h
 
-		ps, err := s.buildBatch(ctx, localstate, last.State(), fromheight)
-		if err != nil {
-			return lastheight, nil, nil, e(err, "")
-		}
+		if isnew {
+			ps, err := s.buildBatch(ctx, localstate, proof.State(), fromheight)
+			if err != nil {
+				return lastheight, nil, nil, e(err, "")
+			}
 
-		proofs = ps
+			proofs = ps
+			proofs = append(proofs, proof)
+		}
 	}
 
 	switch cst, _, err := s.lastSuffrageCandidateState(ctx); {
 	case err != nil:
 		return lastheight, nil, nil, e(err, "")
 	default:
-		if last != nil {
-			proofs = append(proofs, last)
-		}
-
 		return lastheight, proofs, cst, nil
 	}
 }

@@ -250,7 +250,7 @@ func (u *LastConsensusNodesWatcher) update(
 			_ = u.last.SetValue(newl3)
 		}
 
-		if newcandidates := u.compareCandidates(candidates); newcandidates != nil {
+		if u.isNewCandiates(candidates) {
 			nodesUpdated = true
 
 			u.lastcandidates = candidates
@@ -319,16 +319,15 @@ func (u *LastConsensusNodesWatcher) compareProofs(proofs []base.SuffrageProof) [
 	return newl3
 }
 
-func (u *LastConsensusNodesWatcher) compareCandidates(candidates base.State) base.State {
+func (u *LastConsensusNodesWatcher) isNewCandiates(candidates base.State) bool {
 	switch last := u.lastcandidates; {
 	case candidates == nil:
-	case last == nil:
-		return candidates
-	case candidates.Height() > last.Height():
-		return candidates
+	case last == nil,
+		candidates.Height() > last.Height():
+		return true
 	}
 
-	return nil
+	return false
 }
 
 func IsNodeInLastConsensusNodes(node base.Node, proof base.SuffrageProof, st base.State) (base.Suffrage, bool, error) {
