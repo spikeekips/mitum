@@ -115,7 +115,7 @@ func PStates(ctx context.Context) (context.Context, error) {
 				return ee(err, "")
 			}
 
-			id := valuehash.NewBytes(bl.HashBytes()).String()
+			id := valuehash.NewSHA256(bl.HashBytes()).String()
 			if err := cb.Broadcast(id, b, nil); err != nil {
 				return ee(err, "")
 			}
