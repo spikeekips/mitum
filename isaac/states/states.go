@@ -480,6 +480,10 @@ func (st *States) mimicBallotFunc() (func(base.Ballot), func()) {
 	}, false)
 
 	return func(bl base.Ballot) {
+			if bl.SignFact().Node().Equal(st.local.Address()) {
+				return
+			}
+
 			switch s := st.current().state(); {
 			case bl.SignFact().Node().Equal(st.local.Address()):
 				return
@@ -503,11 +507,11 @@ func (st *States) mimicBallotFunc() (func(base.Ballot), func()) {
 			l := st.Log().With().Interface("ballot", bl).Interface("new_ballot", newbl).Logger()
 
 			if st.box != nil {
-				if _, err := st.box.Vote(newbl, st.params.Threshold()); err != nil {
-					l.Error().Err(err).Msg("failed to vote mimic ballot")
-
-					return
-				}
+				go func() {
+					if _, err := st.box.Vote(newbl, st.params.Threshold()); err != nil {
+						l.Error().Err(err).Msg("failed to vote mimic ballot")
+					}
+				}()
 			}
 
 			var timerid util.TimerID
