@@ -1,4 +1,4 @@
-package main
+package launchcmd
 
 import (
 	"bytes"
@@ -17,7 +17,7 @@ import (
 )
 
 type KeyNewCommand struct {
-	baseCommand
+	BaseCommand
 	Seed string `arg:"" name:"seed" optional:"" help:"seed for generating key"`
 }
 
@@ -80,7 +80,7 @@ func (cmd *KeyNewCommand) Run(pctx context.Context) error {
 }
 
 type KeyLoadCommand struct {
-	baseCommand
+	BaseCommand
 	KeyString string `arg:"" name:"key string" help:"key string"`
 }
 
@@ -155,7 +155,7 @@ func (cmd *KeyLoadCommand) Run(pctx context.Context) error {
 }
 
 type KeySignCommand struct {
-	baseCommand
+	BaseCommand
 	KeyString string             `arg:"" name:"privatekey" help:"privatekey string"`
 	NetworkID string             `arg:"" name:"network-id" help:"network-id"`
 	Body      *os.File           `arg:"" help:"body"`
@@ -214,7 +214,7 @@ func (cmd *KeySignCommand) Run(pctx context.Context) error {
 }
 
 func (cmd *KeySignCommand) prepare(pctx context.Context) error {
-	if _, err := cmd.baseCommand.prepare(pctx); err != nil {
+	if _, err := cmd.BaseCommand.prepare(pctx); err != nil {
 		return err
 	}
 

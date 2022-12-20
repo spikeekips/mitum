@@ -60,6 +60,7 @@ func DefaultRunPS() *ps.PS {
 		PostAddOK(PNameSuffrageVoting, PSuffrageVoting)
 
 	_ = pps.POK(PNameStates).
+		PreAddOK(PNameProposerSelector, PProposerSelector).
 		PreAddOK(PNameOperationProcessorsMap, POperationProcessorsMap).
 		PreAddOK(PNameNetworkHandlers, PNetworkHandlers).
 		PreAddOK(PNameNodeInConsensusNodesFunc, PNodeInConsensusNodesFunc).

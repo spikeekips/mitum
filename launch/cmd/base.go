@@ -1,4 +1,4 @@
-package main
+package launchcmd
 
 import (
 	"context"
@@ -12,13 +12,13 @@ import (
 	"github.com/spikeekips/mitum/util/ps"
 )
 
-type baseCommand struct {
+type BaseCommand struct {
 	enc  *jsonenc.Encoder
 	encs *encoder.Encoders
 	log  *zerolog.Logger
 }
 
-func (cmd *baseCommand) prepare(pctx context.Context) (context.Context, error) {
+func (cmd *BaseCommand) prepare(pctx context.Context) (context.Context, error) {
 	pps := ps.NewPS("cmd")
 
 	_ = pps.

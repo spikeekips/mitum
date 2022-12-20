@@ -1,4 +1,4 @@
-package main
+package launchcmd
 
 import (
 	"context"
@@ -15,7 +15,7 @@ import (
 	"github.com/spikeekips/mitum/util/ps"
 )
 
-var pnameImportBlocks = ps.Name("import-blocks")
+var PNameImportBlocks = ps.Name("import-blocks")
 
 type ImportCommand struct { //nolint:govet //...
 	launch.DesignFlag
@@ -48,7 +48,7 @@ func (cmd *ImportCommand) Run(pctx context.Context) error {
 	_ = pps.
 		RemoveOK(launch.PNameGenerateGenesis)
 
-	_ = pps.AddOK(pnameImportBlocks, cmd.importBlocks, nil, launch.PNameStorage)
+	_ = pps.AddOK(PNameImportBlocks, cmd.importBlocks, nil, launch.PNameStorage)
 
 	cmd.log.Debug().Interface("process", pps.Verbose()).Msg("process ready")
 

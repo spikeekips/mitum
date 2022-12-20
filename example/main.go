@@ -9,6 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/launch"
+	launchcmd "github.com/spikeekips/mitum/launch/cmd"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 )
@@ -23,16 +24,16 @@ var (
 var CLI struct { //nolint:govet //...
 	//revive:disable:nested-structs
 	launch.BaseFlags
-	Import  ImportCommand `cmd:"" help:"import from block data"`
-	Init    INITCommand   `cmd:"" help:"init node"`
-	Run     RunCommand    `cmd:"" help:"run node"`
+	Import  launchcmd.ImportCommand `cmd:"" help:"import from block data"`
+	Init    launchcmd.INITCommand   `cmd:"" help:"init node"`
+	Run     launchcmd.RunCommand    `cmd:"" help:"run node"`
 	Network struct {
-		Client NetworkClientCommand `cmd:"" help:"network client"`
+		Client launchcmd.NetworkClientCommand `cmd:"" help:"network client"`
 	} `cmd:"" help:"network"`
 	Key struct {
-		New  KeyNewCommand  `cmd:"" help:"generate new key"`
-		Load KeyLoadCommand `cmd:"" help:"load key"`
-		Sign KeySignCommand `cmd:"" help:"sign"`
+		New  launchcmd.KeyNewCommand  `cmd:"" help:"generate new key"`
+		Load launchcmd.KeyLoadCommand `cmd:"" help:"load key"`
+		Sign launchcmd.KeySignCommand `cmd:"" help:"sign"`
 	} `cmd:"" help:"key"`
 	Version struct{} `cmd:"" help:"version"`
 	//revive:enable:nested-structs

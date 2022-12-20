@@ -146,10 +146,10 @@ func (v *Version) UnmarshalText(b []byte) error {
 }
 
 type BuildInfo struct {
-	Version   Version
 	Branch    string
 	Commit    string
 	BuildTime time.Time
+	Version   Version
 }
 
 func ParseBuildInfo(version, branch, commit, buildTime string) (BuildInfo, error) {

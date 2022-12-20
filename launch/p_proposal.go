@@ -43,6 +43,31 @@ func PProposalProcessors(ctx context.Context) (context.Context, error) {
 	return ctx, nil
 }
 
+func PProposerSelector(ctx context.Context) (context.Context, error) {
+	var db isaac.Database
+
+	if err := util.LoadFromContextOK(ctx,
+		CenterDatabaseContextKey, &db,
+	); err != nil {
+		return ctx, err
+	}
+
+	p := isaac.NewBlockBasedProposerSelector(
+		func(height base.Height) (util.Hash, error) {
+			switch m, found, err := db.BlockMap(height); {
+			case err != nil:
+				return nil, err
+			case !found:
+				return nil, nil
+			default:
+				return m.Manifest().Hash(), nil
+			}
+		},
+	)
+
+	return context.WithValue(ctx, ProposerSelectorContextKey, p), nil
+}
+
 func newProposalProcessorFunc(pctx context.Context) (
 	func(base.ProposalSignFact, base.Manifest) (isaac.ProposalProcessor, error),
 	error,
@@ -414,6 +439,7 @@ func NewProposalSelector(pctx context.Context) (*isaac.BaseProposalSelector, err
 	var memberlist *quicmemberlist.Memberlist
 	var client *isaacnetwork.QuicstreamClient
 	var getSuffragef isaac.GetSuffrageByBlockHeight
+	var proposerSelector isaac.ProposerSelector
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
@@ -425,6 +451,7 @@ func NewProposalSelector(pctx context.Context) (*isaac.BaseProposalSelector, err
 		MemberlistContextKey, &memberlist,
 		QuicstreamClientContextKey, &client,
 		GetSuffrageFromDatabaseFuncContextKey, &getSuffragef,
+		ProposerSelectorContextKey, &proposerSelector,
 	); err != nil {
 		return nil, err
 	}
@@ -432,18 +459,7 @@ func NewProposalSelector(pctx context.Context) (*isaac.BaseProposalSelector, err
 	return isaac.NewBaseProposalSelector(
 		local,
 		params,
-		isaac.NewBlockBasedProposerSelector(
-			func(height base.Height) (util.Hash, error) {
-				switch m, found, err := db.BlockMap(height); {
-				case err != nil:
-					return nil, err
-				case !found:
-					return nil, nil
-				default:
-					return m.Manifest().Hash(), nil
-				}
-			},
-		),
+		proposerSelector,
 		// isaac.NewFixedProposerSelector(func(_ base.Point, nodes []base.Node) (base.Node, error) { // NOTE
 		// 	log.Log().Debug().
 		// 		Int("number_nodes", len(nodes)).

@@ -1,4 +1,4 @@
-package main
+package launchcmd
 
 import (
 	"bytes"
@@ -75,7 +75,7 @@ func init() {
 }
 
 type NetworkClientCommand struct { //nolint:govet //...
-	baseCommand
+	BaseCommand
 	Header    string              `arg:"" help:"request header; 'example' will print example headers"`
 	NetworkID string              `arg:"" name:"network-id" help:"network-id" default:""`
 	Remote    launch.ConnInfoFlag `arg:"" help:"remote node conn info" placeholder:"ConnInfo" default:"localhost:4321"`
@@ -190,7 +190,7 @@ func (cmd *NetworkClientCommand) response(header isaac.NetworkHeader) error {
 }
 
 func (cmd *NetworkClientCommand) prepare(pctx context.Context) error {
-	if _, err := cmd.baseCommand.prepare(pctx); err != nil {
+	if _, err := cmd.BaseCommand.prepare(pctx); err != nil {
 		return err
 	}
 
