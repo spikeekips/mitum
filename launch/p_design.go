@@ -17,6 +17,7 @@ var (
 	DevFlagsContextKey          = util.ContextKey("dev-flags")
 	GenesisDesignFileContextKey = util.ContextKey("genesis-design-file")
 	DesignContextKey            = util.ContextKey("design")
+	DesignStringContextKey      = util.ContextKey("design-string")
 	GenesisDesignContextKey     = util.ContextKey("genesis-design")
 	VaultContextKey             = util.ContextKey("vault")
 )
@@ -39,28 +40,32 @@ func PLoadDesign(ctx context.Context) (context.Context, error) {
 	}
 
 	var design NodeDesign
+	var designString string
 
 	switch flag.Scheme() {
 	case "file":
-		switch d, _, err := NodeDesignFromFile(flag.URL().Path, enc); {
+		switch d, b, err := NodeDesignFromFile(flag.URL().Path, enc); {
 		case err != nil:
 			return ctx, e(err, "")
 		default:
 			design = d
+			designString = string(b)
 		}
 	case "http", "https":
-		switch d, err := NodeDesignFromHTTP(flag.URL().String(), flag.Properties().HTTPSTLSInsecure, enc); {
+		switch d, b, err := NodeDesignFromHTTP(flag.URL().String(), flag.Properties().HTTPSTLSInsecure, enc); {
 		case err != nil:
 			return ctx, e(err, "")
 		default:
 			design = d
+			designString = string(b)
 		}
 	case "consul":
-		switch d, err := NodeDesignFromConsul(flag.URL().Host, flag.URL().Path, enc); {
+		switch d, b, err := NodeDesignFromConsul(flag.URL().Host, flag.URL().Path, enc); {
 		case err != nil:
 			return ctx, e(err, "")
 		default:
 			design = d
+			designString = string(b)
 		}
 	default:
 		return ctx, e(nil, "unknown design uri, %q", flag.URL())
@@ -79,7 +84,8 @@ func PLoadDesign(ctx context.Context) (context.Context, error) {
 		design.Privatekey = priv
 	}
 
-	ctx = context.WithValue(ctx, DesignContextKey, design) //revive:disable-line:modifies-parameter
+	ctx = context.WithValue(ctx, DesignContextKey, design)             //revive:disable-line:modifies-parameter
+	ctx = context.WithValue(ctx, DesignStringContextKey, designString) //revive:disable-line:modifies-parameter
 
 	return ctx, nil
 }

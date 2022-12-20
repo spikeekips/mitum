@@ -78,7 +78,7 @@ func NodeDesignFromFile(f string, enc *jsonenc.Encoder) (d NodeDesign, _ []byte,
 	return d, b, nil
 }
 
-func NodeDesignFromHTTP(u string, tlsInsecure bool, enc *jsonenc.Encoder) (design NodeDesign, _ error) {
+func NodeDesignFromHTTP(u string, tlsInsecure bool, enc *jsonenc.Encoder) (design NodeDesign, _ []byte, _ error) {
 	e := util.StringErrorFunc("failed to load NodeDesign thru http")
 
 	httpclient := &http.Client{
@@ -91,17 +91,17 @@ func NodeDesignFromHTTP(u string, tlsInsecure bool, enc *jsonenc.Encoder) (desig
 
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, u, nil)
 	if err != nil {
-		return design, e(err, "")
+		return design, nil, e(err, "")
 	}
 
 	res, err := httpclient.Do(req)
 	if err != nil {
-		return design, e(err, "")
+		return design, nil, e(err, "")
 	}
 
 	b, err := io.ReadAll(res.Body)
 	if err != nil {
-		return design, e(err, "")
+		return design, nil, e(err, "")
 	}
 
 	defer func() {
@@ -109,33 +109,33 @@ func NodeDesignFromHTTP(u string, tlsInsecure bool, enc *jsonenc.Encoder) (desig
 	}()
 
 	if res.StatusCode != http.StatusOK {
-		return design, e(nil, "design not found")
+		return design, nil, e(nil, "design not found")
 	}
 
 	if err := design.DecodeYAML(b, enc); err != nil {
-		return design, e(err, "")
+		return design, nil, e(err, "")
 	}
 
-	return design, nil
+	return design, b, nil
 }
 
-func NodeDesignFromConsul(addr, key string, enc *jsonenc.Encoder) (design NodeDesign, _ error) {
+func NodeDesignFromConsul(addr, key string, enc *jsonenc.Encoder) (design NodeDesign, _ []byte, _ error) {
 	e := util.StringErrorFunc("failed to load NodeDesign thru consul")
 
 	client, err := consulClient(addr)
 	if err != nil {
-		return design, e(err, "")
+		return design, nil, e(err, "")
 	}
 
 	switch v, _, err := client.KV().Get(key, nil); {
 	case err != nil:
-		return design, e(err, "")
+		return design, nil, e(err, "")
 	default:
 		if err := design.DecodeYAML(v.Value, enc); err != nil {
-			return design, e(err, "")
+			return design, nil, e(err, "")
 		}
 
-		return design, nil
+		return design, v.Value, nil
 	}
 }
 

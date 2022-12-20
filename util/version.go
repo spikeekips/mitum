@@ -1,7 +1,9 @@
 package util
 
 import (
+	"fmt"
 	"strings"
+	"time"
 
 	semver "github.com/Masterminds/semver/v3"
 	"github.com/pkg/errors"
@@ -141,6 +143,46 @@ func (v *Version) UnmarshalText(b []byte) error {
 	*v = u
 
 	return nil
+}
+
+type BuildInfo struct {
+	Version   Version
+	Branch    string
+	Commit    string
+	BuildTime time.Time
+}
+
+func ParseBuildInfo(version, branch, commit, buildTime string) (BuildInfo, error) {
+	bi := BuildInfo{}
+
+	switch i, err := ParseVersion(version); {
+	case err != nil:
+		return bi, err
+	default:
+		bi.Version = i
+	}
+
+	if buildTime != "-" {
+		switch i, err := ParseRFC3339(buildTime); {
+		case err != nil:
+			return bi, err
+		default:
+			bi.BuildTime = i
+		}
+	}
+
+	bi.Branch = branch
+	bi.Commit = commit
+
+	return bi, nil
+}
+
+func (bi BuildInfo) String() string {
+	return fmt.Sprintf(`* mitum build info
+  version: %s
+   branch: %s
+   commit: %s
+    build: %s`, bi.Version, bi.Branch, bi.Commit, bi.BuildTime)
 }
 
 func compareVersionMainPart(a, b uint64) int {

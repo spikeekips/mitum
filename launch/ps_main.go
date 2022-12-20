@@ -13,7 +13,7 @@ import (
 
 var (
 	PNameLogging        = ps.Name("logging")
-	PNameLoggingWithCli = ps.Name("logging-cli")
+	PNameLoggingWithCLI = ps.Name("logging-cli")
 )
 
 var (
@@ -31,7 +31,7 @@ func DefaultMainPS() *ps.PS {
 
 	_ = ips.POK(ps.NameINIT).
 		PostAddOK(PNameLogging, PLogging).
-		PostAddOK(PNameLoggingWithCli, PLoggingWithCli)
+		PostAddOK(PNameLoggingWithCLI, PLoggingWithCLI)
 
 	return ips
 }
@@ -71,7 +71,7 @@ func PLogging(ctx context.Context) (context.Context, error) {
 	return ctx, nil
 }
 
-func PLoggingWithCli(ctx context.Context) (context.Context, error) {
+func PLoggingWithCLI(ctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	if err := util.LoadFromContextOK(ctx, LoggingContextKey, &log); err != nil {
 		return ctx, err

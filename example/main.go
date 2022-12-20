@@ -16,9 +16,8 @@ import (
 var (
 	Version   = "v0.0.1"
 	BuildTime = "-"
-	GitBranch = "master"
+	GitBranch = "-"
 	GitCommit = "-"
-	version   util.Version
 )
 
 var CLI struct { //nolint:govet //...
@@ -51,18 +50,19 @@ var flagDefaults = kong.Vars{
 func main() {
 	kctx := kong.Parse(&CLI, flagDefaults)
 
-	if err := checkVersion(); err != nil {
+	bi, err := util.ParseBuildInfo(Version, GitBranch, GitCommit, BuildTime)
+	if err != nil {
 		kctx.FatalIfErrorf(err)
 	}
 
 	if kctx.Command() == "version" {
-		showVersion()
+		_, _ = fmt.Fprintln(os.Stdout, bi.String())
 
 		return
 	}
 
 	pctx := context.Background()
-	pctx = context.WithValue(pctx, launch.VersionContextKey, version)
+	pctx = context.WithValue(pctx, launch.VersionContextKey, bi.Version)
 	pctx = context.WithValue(pctx, launch.FlagsContextKey, CLI.BaseFlags)
 	pctx = context.WithValue(pctx, launch.KongContextContextKey, kctx)
 
@@ -98,31 +98,4 @@ func main() {
 
 		kctx.FatalIfErrorf(err)
 	}
-}
-
-func checkVersion() error {
-	if len(Version) < 1 {
-		return errors.Errorf("empty version")
-	}
-
-	v, err := util.ParseVersion(Version)
-	if err != nil {
-		return err
-	}
-
-	if err := v.IsValid(nil); err != nil {
-		return err
-	}
-
-	version = v
-
-	return nil
-}
-
-func showVersion() {
-	_, _ = fmt.Fprintf(os.Stdout, `version: %s
- branch: %s
- commit: %s
-  build: %s
-`, version, GitBranch, GitCommit, BuildTime)
 }
