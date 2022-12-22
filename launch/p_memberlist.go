@@ -23,19 +23,22 @@ import (
 )
 
 var (
-	PNameMemberlist                     = ps.Name("memberlist")
-	PNameStartMemberlist                = ps.Name("start-memberlist")
-	PNameLongRunningMemberlistJoin      = ps.Name("long-running-memberlist-join")
-	PNameCallbackBroadcaster            = ps.Name("callback-broadcaster")
-	PNameSuffrageVoting                 = ps.Name("suffrage-voting")
-	PNamePatchMemberlist                = ps.Name("patch-memberlist")
-	MemberlistContextKey                = util.ContextKey("memberlist")
-	LongRunningMemberlistJoinContextKey = util.ContextKey("long-running-memberlist-join")
-	EventOnEmptyMembersContextKey       = util.ContextKey("event-on-empty-members")
-	SuffrageVotingContextKey            = util.ContextKey("suffrage-voting")
-	SuffrageVotingVoteFuncContextKey    = util.ContextKey("suffrage-voting-vote-func")
-	CallbackBroadcasterContextKey       = util.ContextKey("callback-broadcaster")
+	PNameMemberlist                         = ps.Name("memberlist")
+	PNameStartMemberlist                    = ps.Name("start-memberlist")
+	PNameLongRunningMemberlistJoin          = ps.Name("long-running-memberlist-join")
+	PNameCallbackBroadcaster                = ps.Name("callback-broadcaster")
+	PNameSuffrageVoting                     = ps.Name("suffrage-voting")
+	PNamePatchMemberlist                    = ps.Name("patch-memberlist")
+	MemberlistContextKey                    = util.ContextKey("memberlist")
+	LongRunningMemberlistJoinContextKey     = util.ContextKey("long-running-memberlist-join")
+	EventOnEmptyMembersContextKey           = util.ContextKey("event-on-empty-members")
+	SuffrageVotingContextKey                = util.ContextKey("suffrage-voting")
+	SuffrageVotingVoteFuncContextKey        = util.ContextKey("suffrage-voting-vote-func")
+	CallbackBroadcasterContextKey           = util.ContextKey("callback-broadcaster")
+	FilterMemberlistNotifyMsgFuncContextKey = util.ContextKey("filter-memberlist-notify-msg-func")
 )
+
+type FilterMemberlistNotifyMsgFunc func(interface{}) bool
 
 func PMemberlist(ctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to prepare memberlist")
@@ -91,6 +94,9 @@ func PMemberlist(ctx context.Context) (context.Context, error) {
 	//revive:disable:modifies-parameter
 	ctx = context.WithValue(ctx, MemberlistContextKey, m)
 	ctx = context.WithValue(ctx, EventOnEmptyMembersContextKey, pps)
+	ctx = context.WithValue(ctx, FilterMemberlistNotifyMsgFuncContextKey,
+		FilterMemberlistNotifyMsgFunc(func(interface{}) bool { return true }),
+	)
 	//revive:enable:modifies-parameter
 
 	return ctx, nil
@@ -176,6 +182,7 @@ func PPatchMemberlist(ctx context.Context) (context.Context, error) {
 	var m *quicmemberlist.Memberlist
 	var client *isaacnetwork.QuicstreamClient
 	var svvotef isaac.SuffrageVoteFunc
+	var filternotifymsg FilterMemberlistNotifyMsgFunc
 
 	if err := util.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
@@ -186,82 +193,67 @@ func PPatchMemberlist(ctx context.Context) (context.Context, error) {
 		QuicstreamClientContextKey, &client,
 		MemberlistContextKey, &m,
 		SuffrageVotingVoteFuncContextKey, &svvotef,
+		FilterMemberlistNotifyMsgFuncContextKey, &filternotifymsg,
 	); err != nil {
 		return ctx, err
 	}
 
+	l := log.Log().With().Str("module", "memberlist-notify-msg").Logger()
+
 	m.SetNotifyMsg(func(b []byte) {
 		m, err := enc.Decode(b) //nolint:govet //...
 		if err != nil {
-			log.Log().Error().Err(err).Str("message", string(b)).Msg("failed to decode incoming message")
+			l.Error().Err(err).Str("message", string(b)).Msg("failed to decode incoming message")
 
 			return
 		}
 
-		if j, ok := m.(isaacnetwork.CallbackBroadcastMessage); ok {
-			l := log.Log().With().Interface("header", j).Logger()
+		switch i, err := fetchNotifyMessage(client, m); {
+		case err != nil:
+			l.Error().Err(err).Interface("message", m).Msg("failed to request callback broadcast")
 
-			cctx, cancel := context.WithTimeout(context.Background(), time.Second*10) //nolint:gomnd //...
-			defer cancel()
+			return
+		default:
+			m = i
+		}
 
-			header := isaacnetwork.NewCallbackMessageHeader(j.ID())
+		if !filternotifymsg(m) {
+			l.Trace().Interface("message", m).Msg("filtered")
 
-			response, v, cancelrequest, err := client.Request(cctx, j.ConnInfo(), header, nil)
-			defer func() {
-				_ = cancelrequest()
-			}()
-
-			switch {
-			case err != nil:
-				l.Error().Err(err).Msg("failed to request callback broadcast")
-
-				return
-			case v == nil:
-				l.Error().Err(err).Interface("response_type", response.Type()).
-					Msg("empty body")
-
-				return
-			case response.Type() != isaac.NetworkResponseHinterContentType:
-				l.Error().Err(err).Interface("response_type", response.Type()).
-					Msg("invalid response type; response should be isaac.NetworkResponseHinterContentType")
-
-				return
-			default:
-				m = v
-			}
+			return
 		}
 
 		switch t := m.(type) {
 		case base.Ballot:
-			log.Log().Debug().
+			l.Debug().
 				Interface("point", t.Point()).
 				Stringer("node", t.SignFact().Node()).
 				Msg("ballot notified")
 
 			if err := t.IsValid(params.NetworkID()); err != nil {
-				log.Log().Error().Err(err).Interface("ballot", t).Msg("new ballot; failed to vote")
+				l.Error().Err(err).Interface("ballot", t).Msg("new ballot; failed to vote")
 
 				return
 			}
 
 			if _, err := ballotbox.Vote(t, params.Threshold()); err != nil {
-				log.Log().Error().Err(err).Interface("ballot", t).Msg("new ballot; failed to vote")
+				l.Error().Err(err).Interface("ballot", t).Msg("new ballot; failed to vote")
 
 				return
 			}
 		case base.SuffrageWithdrawOperation:
 			voted, err := svvotef(t)
 			if err != nil {
-				log.Log().Error().Err(err).Interface("withdraw operation", t).
+				l.Error().Err(err).Interface("withdraw operation", t).
 					Msg("new withdraw operation; failed to vote")
 
 				return
 			}
 
-			log.Log().Debug().Interface("withdraw operation", t).Bool("voted", voted).
+			l.Debug().Interface("withdraw operation", t).Bool("voted", voted).
 				Msg("new withdraw operation; voted")
 		default:
-			log.Log().Debug().Interface("message", m).Msgf("new incoming message; ignored; but unknown, %T", t)
+			l.Debug().Interface("message", m).Msgf("new incoming message; ignored; but unknown, %T", t)
 		}
 	})
 
@@ -682,5 +674,37 @@ func ensureJoinMemberlist(
 		err := m.Join(dis)
 
 		return m.IsJoined(), err
+	}
+}
+
+func fetchNotifyMessage(
+	client *isaacnetwork.QuicstreamClient,
+	i interface{},
+) (interface{}, error) {
+	header, ok := i.(isaacnetwork.CallbackBroadcastMessage)
+	if !ok {
+		return i, nil
+	}
+
+	cctx, cancel := context.WithTimeout(context.Background(), time.Second*10) //nolint:gomnd //...
+	defer cancel()
+
+	req := isaacnetwork.NewCallbackMessageHeader(header.ID())
+
+	response, v, cancelrequest, err := client.Request(cctx, header.ConnInfo(), req, nil)
+	defer func() {
+		_ = cancelrequest()
+	}()
+
+	switch {
+	case err != nil:
+		return nil, err
+	case v == nil:
+		return nil, errors.Errorf("empty body")
+	case response.Type() != isaac.NetworkResponseHinterContentType:
+		return nil, errors.Errorf(
+			"invalid response type; expected isaac.NetworkResponseHinterContentType, but %q", response.Type())
+	default:
+		return v, nil
 	}
 }
