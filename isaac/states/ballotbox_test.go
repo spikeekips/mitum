@@ -174,6 +174,50 @@ type testBallotbox struct {
 	baseTestBallotbox
 }
 
+func (t *testBallotbox) TestVoteSignFactINITBallotSignFact() {
+	suf, nodes := isaac.NewTestSuffrage(1)
+	th := base.Threshold(100)
+
+	box := NewBallotbox(
+		base.RandomAddress(""),
+		func(base.Height) (base.Suffrage, bool, error) {
+			return suf, true, nil
+		},
+		func(base.Voteproof, base.Suffrage) error { return nil },
+		0,
+	)
+
+	point := base.RawPoint(33, 0)
+	prev := valuehash.RandomSHA256()
+
+	bl := t.initBallot(nodes[0], suf.Locals(), point, prev, valuehash.RandomSHA256(), nil, nil)
+	box.setLastStagePoint(bl.Voteproof().Point(), true)
+
+	voted, err := box.VoteSignFact(bl.SignFact(), th)
+	t.NoError(err)
+	t.True(voted)
+
+	select {
+	case <-time.After(time.Second):
+		t.NoError(errors.Errorf("failed to wait voteproof"))
+	case vp := <-box.Voteproof():
+		t.NoError(vp.IsValid(t.networkID))
+
+		t.Equal(point, vp.Point().Point)
+		t.Equal(th, vp.Threshold())
+
+		base.EqualBallotFact(t.Assert(), bl.SignFact().Fact().(base.BallotFact), vp.Majority())
+		t.Equal(base.VoteResultMajority, vp.Result())
+
+		t.True(time.Since(vp.FinishedAt()) < time.Millisecond*800)
+		t.Equal(1, len(vp.SignFacts()))
+		base.EqualBallotSignFact(t.Assert(), bl.SignFact(), vp.SignFacts()[0])
+
+		last, _ := box.lastStagePoint()
+		t.compareStagePoint(last, vp)
+	}
+}
+
 func (t *testBallotbox) TestVoteINITBallotSignFact() {
 	suf, nodes := isaac.NewTestSuffrage(1)
 	th := base.Threshold(100)

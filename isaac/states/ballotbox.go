@@ -89,6 +89,21 @@ func (box *Ballotbox) Vote(bl base.Ballot, threshold base.Threshold) (bool, erro
 	return voted, nil
 }
 
+func (box *Ballotbox) VoteSignFact(sf base.BallotSignFact, threshold base.Threshold) (bool, error) {
+	voted, callback, err := box.vote(sf, nil, nil, threshold)
+	if err != nil {
+		return false, err
+	}
+
+	if callback != nil {
+		go func() {
+			_ = callback()
+		}()
+	}
+
+	return voted, nil
+}
+
 func (box *Ballotbox) Voteproof() <-chan base.Voteproof {
 	if box == nil {
 		return nil
