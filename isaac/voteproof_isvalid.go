@@ -26,7 +26,7 @@ func IsValidVoteproofWithSuffrage(vp base.Voteproof, suf base.Suffrage) error {
 	rsuf := suf
 
 	if len(withdraws) > 0 {
-		th := base.DefaultThreshold.Threshold(uint(suf.Len()))
+		th := vp.Threshold().Threshold(uint(suf.Len()))
 		if n := uint(len(withdraws)); n > uint(suf.Len())-th {
 			th = uint(suf.Len()) - n
 		}
