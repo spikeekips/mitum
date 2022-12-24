@@ -15,8 +15,8 @@ var (
 	NilHeight      = Height(-1)
 	GenesisHeight  = Height(0)
 	GenesisPoint   = Point{h: GenesisHeight, r: Round(0)}
-	ZeroStagePoint = StagePoint{Point: ZeroPoint, stage: StageUnknown}
 	ZeroPoint      = Point{h: NilHeight, r: Round(0)}
+	ZeroStagePoint = StagePoint{Point: ZeroPoint, stage: StageUnknown}
 )
 
 var zeroPrefixHeightString = regexp.MustCompile(`^[0]+`)
