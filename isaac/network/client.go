@@ -115,7 +115,7 @@ func (c *BaseNetworkClient) SendOperation(
 	ci quicstream.UDPConnInfo,
 	op base.Operation,
 ) (bool, error) {
-	e := util.StringErrorFunc("failed to NewOperation")
+	e := util.StringErrorFunc("failed SendOperation")
 
 	b, err := c.enc.Marshal(op)
 	if err != nil {
@@ -445,6 +445,52 @@ func (c *BaseNetworkClient) ExistsInStateOperation(
 	found, err := c.requestOK(ctx, ci, header, nil, nil)
 
 	return found, errors.WithMessage(err, "failed ExistsInStateOperation")
+}
+
+func (c *BaseNetworkClient) SendBallots(
+	ctx context.Context,
+	ci quicstream.UDPConnInfo,
+	ballots []base.BallotSignFact,
+) error {
+	e := util.StringErrorFunc("failed to SendBallots")
+
+	if len(ballots) < 1 {
+		return e(nil, "empty ballots")
+	}
+
+	header := NewSendBallotsHeader()
+
+	if err := header.IsValid(nil); err != nil {
+		return e(err, "")
+	}
+
+	b, err := c.enc.Marshal(ballots)
+	if err != nil {
+		return e(err, "")
+	}
+
+	buf := bytes.NewBuffer(b)
+	defer buf.Reset()
+
+	r, cancel, err := c.write(ctx, ci, c.enc, header, buf)
+	if err != nil {
+		return e(err, "failed to send request")
+	}
+
+	defer func() {
+		_ = cancel()
+	}()
+
+	h, _, err := c.loadResponseHeader(ctx, r)
+
+	switch {
+	case err != nil:
+		return e(err, "failed to read stream")
+	case h.Err() != nil:
+		return e(h.Err(), "")
+	default:
+		return nil
+	}
 }
 
 func (c *BaseNetworkClient) requestOK(

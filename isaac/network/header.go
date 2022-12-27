@@ -27,6 +27,7 @@ var (
 	ExistsInStateOperationRequestHeaderHint = hint.MustNewHint("exists-instate-operation-header-v0.0.1")
 	NodeInfoRequestHeaderHint               = hint.MustNewHint("node-info-header-v0.0.1")
 	CallbackMessageHeaderHint               = hint.MustNewHint("callback-message-header-v0.0.1")
+	SendBallotsHeaderHint                   = hint.MustNewHint("send-ballots-header-v0.0.1")
 )
 
 var ResponseHeaderHint = hint.MustNewHint("response-header-v0.0.1")
@@ -479,6 +480,24 @@ func (h NodeInfoRequestHeader) IsValid([]byte) error {
 	return nil
 }
 
+type SendBallotsHeader struct {
+	BaseHeader
+}
+
+func NewSendBallotsHeader() SendBallotsHeader {
+	return SendBallotsHeader{
+		BaseHeader: NewBaseHeader(SendBallotsHeaderHint),
+	}
+}
+
+func (h SendBallotsHeader) IsValid([]byte) error {
+	if err := h.BaseHinter.IsValid(SendBallotsHeaderHint.Type().Bytes()); err != nil {
+		return errors.WithMessage(err, "invalid SendBallotsHeader")
+	}
+
+	return nil
+}
+
 type CallbackMessageHeader struct {
 	id string
 	BaseHeader
@@ -589,6 +608,8 @@ func baseHeaderPrefixByHint(ht hint.Hint) string {
 		return HandlerPrefixNodeInfo
 	case CallbackMessageHeaderHint.Type():
 		return HandlerPrefixCallbackMessage
+	case SendBallotsHeaderHint.Type():
+		return HandlerPrefixSendBallots
 	default:
 		return ""
 	}

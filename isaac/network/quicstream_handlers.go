@@ -609,6 +609,64 @@ func QuicstreamHandlerCallbackMessage(
 	}
 }
 
+func QuicstreamHandlerSendBallots(
+	encs *encoder.Encoders,
+	idleTimeout time.Duration,
+	params *isaac.LocalParams,
+	votef func(base.BallotSignFact) error,
+) quicstream.Handler {
+	return func(_ net.Addr, r io.Reader, w io.Writer) error {
+		e := util.StringErrorFunc("failed to handle new ballot")
+
+		var header SendBallotsHeader
+
+		enc, err := quicstreamPreHandle(encs, idleTimeout, r, &header)
+		if err != nil {
+			return e(err, "")
+		}
+
+		var body []byte
+
+		switch body, err = io.ReadAll(r); {
+		case err != nil:
+			return e(err, "")
+		case uint64(len(body)) > params.MaxOperationSize():
+			return e(nil, "too big size; >= %d", params.MaxOperationSize())
+		}
+
+		var u []json.RawMessage
+
+		switch err = util.UnmarshalJSON(body, &u); {
+		case err != nil:
+			return e(err, "")
+		case len(u) < 1:
+			return e(nil, "empty body")
+		}
+
+		for i := range u {
+			var bl base.BallotSignFact
+
+			if err = encoder.Decode(enc, u[i], &bl); err != nil {
+				return e(err, "")
+			}
+
+			if err = bl.IsValid(params.NetworkID()); err != nil {
+				return e(err, "")
+			}
+
+			if err = votef(bl); err != nil {
+				return e(err, "")
+			}
+		}
+
+		if err = WriteResponse(w, NewResponseHeader(true, nil), nil, enc); err != nil {
+			return e(err, "")
+		}
+
+		return nil
+	}
+}
+
 func quicstreamPreHandle(
 	encs *encoder.Encoders,
 	idleTimeout time.Duration,

@@ -28,6 +28,7 @@ var (
 	HandlerPrefixExistsInStateOperation = "exists_instate_operation"
 	HandlerPrefixNodeInfo               = "node_info"
 	HandlerPrefixCallbackMessage        = "callback_message"
+	HandlerPrefixSendBallots            = "send_ballots"
 )
 
 type baseNetwork struct {

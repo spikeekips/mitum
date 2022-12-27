@@ -48,6 +48,7 @@ func (t *testQuicstreamHandlers) SetupSuite() {
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: SyncSourceConnInfoRequestHeaderHint, Instance: SyncSourceConnInfoRequestHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: StateRequestHeaderHint, Instance: StateRequestHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ExistsInStateOperationRequestHeaderHint, Instance: ExistsInStateOperationRequestHeader{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: SendBallotsHeaderHint, Instance: SendBallotsHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ResponseHeaderHint, Instance: ResponseHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: base.DummySuffrageProofHint, Instance: base.DummySuffrageProof{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.DummyOperationFactHint, Instance: isaac.DummyOperationFact{}}))
@@ -55,6 +56,8 @@ func (t *testQuicstreamHandlers) SetupSuite() {
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageCandidateStateValueHint, Instance: isaac.SuffrageCandidateStateValue{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageWithdrawOperationHint, Instance: isaac.SuffrageWithdrawOperation{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageWithdrawFactHint, Instance: isaac.SuffrageWithdrawFact{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.INITBallotSignFactHint, Instance: isaac.INITBallotSignFact{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.INITBallotFactHint, Instance: isaac.INITBallotFact{}}))
 }
 
 func (t *testQuicstreamHandlers) TestClient() {
@@ -949,6 +952,50 @@ func (t *testQuicstreamHandlers) TestExistsInStateOperation() {
 		found, err := c.ExistsInStateOperation(context.Background(), ci, valuehash.RandomSHA256())
 		t.NoError(err)
 		t.False(found)
+	})
+}
+
+func (t *testQuicstreamHandlers) TestSendBallots() {
+	newballot := func(point base.Point, node base.LocalNode) base.BallotSignFact {
+		fact := isaac.NewINITBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
+
+		signfact := isaac.NewINITBallotSignFact(fact)
+		t.NoError(signfact.NodeSign(node.Privatekey(), t.LocalParams.NetworkID(), base.RandomAddress("")))
+
+		return signfact
+	}
+
+	t.Run("ok", func() {
+		votedch := make(chan base.BallotSignFact, 1)
+		handler := QuicstreamHandlerSendBallots(t.Encs, time.Second, t.LocalParams, func(bl base.BallotSignFact) error {
+			go func() {
+				votedch <- bl
+			}()
+
+			return nil
+		})
+
+		ci := quicstream.NewUDPConnInfo(nil, true)
+		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixSendBallots, handler))
+
+		var ballots []base.BallotSignFact
+
+		point := base.RawPoint(33, 44)
+		for _, i := range []base.LocalNode{isaac.RandomLocalNode(), isaac.RandomLocalNode()} {
+			ballots = append(ballots, newballot(point, i))
+		}
+
+		t.NoError(c.SendBallots(context.Background(), ci, ballots))
+
+		select {
+		case <-time.After(time.Second):
+			t.NoError(errors.Errorf("wait ballot, but failed"))
+		case bl := <-votedch:
+			base.EqualBallotSignFact(t.Assert(), ballots[0], bl)
+
+			bl = <-votedch
+			base.EqualBallotSignFact(t.Assert(), ballots[1], bl)
+		}
 	})
 }
 
