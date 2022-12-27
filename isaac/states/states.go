@@ -28,6 +28,7 @@ type States struct {
 	local           base.LocalNode
 	params          *isaac.LocalParams
 	box             *Ballotbox
+	resolver        BallotStuckResolver
 	lvps            *LastVoteproofsHandler
 	madeBallotCache gcache.Cache
 	statech         chan switchContext
@@ -45,6 +46,7 @@ func NewStates(
 	local base.LocalNode,
 	params *isaac.LocalParams,
 	box *Ballotbox,
+	resolver BallotStuckResolver,
 	lvps *LastVoteproofsHandler,
 	isinsyncsourcepool func(base.Address) bool,
 	broadcastBallotFunc func(base.Ballot) error,
@@ -64,6 +66,7 @@ func NewStates(
 		local:               local,
 		params:              params,
 		box:                 box,
+		resolver:            resolver,
 		broadcastBallotFunc: broadcastBallotFunc,
 		statech:             make(chan switchContext),
 		vpch:                make(chan base.Voteproof),
@@ -218,6 +221,12 @@ func (st *States) startFunc(cancel func()) func(context.Context) error {
 }
 
 func (st *States) startStatesSwitch(ctx context.Context) error {
+	var resolvervpch <-chan base.Voteproof
+
+	if st.resolver == nil {
+		resolvervpch = make(chan base.Voteproof)
+	}
+
 	for {
 		var sctx switchContext
 		var vp base.Voteproof
@@ -227,6 +236,7 @@ func (st *States) startStatesSwitch(ctx context.Context) error {
 			return errors.Wrap(ctx.Err(), "states stopped by context")
 		case sctx = <-st.statech:
 		case vp = <-st.box.Voteproof():
+		case vp = <-resolvervpch:
 		case vp = <-st.vpch:
 		}
 

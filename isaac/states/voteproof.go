@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -113,10 +114,13 @@ func (l LastVoteproofs) INIT() base.INITVoteproof {
 // * 'm' is last majority voteproof
 // * 'v' is draw voteproof, new incoming voteproof for next round
 func (l LastVoteproofs) PreviousBlockForNextRound(vp base.Voteproof) util.Hash {
+	wvp, _ := vp.(isaac.WithdrawVoteproof)
+
 	switch {
 	case l.mvp == nil:
 		return nil
-	case vp.Result() != base.VoteResultDraw:
+	case wvp != nil && wvp.IsStuck():
+	case wvp == nil && vp.Result() != base.VoteResultDraw:
 		return nil
 	}
 

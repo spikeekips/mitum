@@ -1,6 +1,7 @@
 package isaac
 
 import (
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 )
@@ -60,4 +61,33 @@ func (suf Suffrage) Nodes() []base.Node {
 
 func (suf Suffrage) Len() int {
 	return len(suf.ns)
+}
+
+func NewSuffrageWithWithdraws(
+	suf base.Suffrage,
+	threshold base.Threshold,
+	withdraws []base.SuffrageWithdrawOperation,
+) (base.Suffrage, error) {
+	if len(withdraws) < 1 {
+		return suf, nil
+	}
+
+	th := threshold.Threshold(uint(suf.Len()))
+	if n := uint(len(withdraws)); n > uint(suf.Len())-th {
+		th = uint(suf.Len()) - n
+	}
+
+	for i := range withdraws {
+		if n := uint(len(withdraws[i].NodeSigns())); n < th {
+			return nil, errors.Errorf("insufficient withdraw node signs; node signs=%d threshold=%d", n, th)
+		}
+	}
+
+	nodes := suf.Nodes()
+
+	filtered := util.Filter2Slices(nodes, withdraws, func(x base.Node, y base.SuffrageWithdrawOperation) bool {
+		return x.Address().Equal(y.WithdrawFact().Node())
+	})
+
+	return NewSuffrage(filtered)
 }

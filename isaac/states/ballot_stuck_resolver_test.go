@@ -14,48 +14,62 @@ import (
 	"go.uber.org/goleak"
 )
 
-type testBallotStuckResolver struct {
+var (
+	findMissingBallotsf    = func(context.Context, base.StagePoint, bool) ([]base.Address, bool, error) { return nil, true, nil }
+	requestMissingBallotsf = func(context.Context, base.StagePoint, []base.Address) error { return nil }
+	voteSuffrageVotingf    = func(context.Context, base.Point, []base.Address) (base.Voteproof, error) { return nil, nil }
+)
+
+type testDefaultBallotStuckResolver struct {
 	suite.Suite
 }
 
-func (t *testBallotStuckResolver) TestCancel() {
+func (t *testDefaultBallotStuckResolver) TestNew() {
+	r := NewDefaultBallotStuckResolver(
+		time.Second*3,
+		time.Millisecond*300,
+		findMissingBallotsf,
+		requestMissingBallotsf,
+		voteSuffrageVotingf,
+	)
+
+	_ = (interface{})(r).(BallotStuckResolver)
+}
+
+func (t *testDefaultBallotStuckResolver) TestCancel() {
 	t.Run("cancel before wait", func() {
 		point := base.NewStagePoint(base.RawPoint(33, 0), base.StageINIT)
 
-		r := newBallotStuckResolver(
+		r := NewDefaultBallotStuckResolver(
 			time.Second*3,
 			time.Millisecond*300,
-			func(context.Context, base.StagePoint) ([]base.Address, error) { return nil, nil },
-			func(context.Context, base.StagePoint, []base.Address) error { return nil },
-			func(context.Context, base.Point, []base.Address) error { return nil },
-			func(context.Context, base.Point) (base.Voteproof, error) { return nil, nil },
-			func(context.Context, base.Point, base.Voteproof) error { return nil },
+			findMissingBallotsf,
+			requestMissingBallotsf,
+			voteSuffrageVotingf,
 		)
 
-		t.True(r.newPoint(context.Background(), point))
-		r.cancel(point)
+		t.True(r.NewPoint(context.Background(), point))
+		r.Cancel(point)
 	})
 
 	t.Run("cancel after wait", func() {
 		point := base.NewStagePoint(base.RawPoint(33, 0), base.StageINIT)
 
-		r := newBallotStuckResolver(
+		r := NewDefaultBallotStuckResolver(
 			time.Nanosecond,
 			time.Millisecond*100,
-			func(context.Context, base.StagePoint) ([]base.Address, error) {
-				return []base.Address{base.RandomAddress("")}, nil
+			func(context.Context, base.StagePoint, bool) ([]base.Address, bool, error) {
+				return []base.Address{base.RandomAddress("")}, true, nil
 			},
-			func(context.Context, base.StagePoint, []base.Address) error { return nil },
-			func(context.Context, base.Point, []base.Address) error { return nil },
-			func(context.Context, base.Point) (base.Voteproof, error) { return nil, nil },
-			func(context.Context, base.Point, base.Voteproof) error { return nil },
+			requestMissingBallotsf,
+			voteSuffrageVotingf,
 		)
 
 		r.SetLogging(logging.TestNilLogging)
 
-		t.True(r.newPoint(context.Background(), point))
+		t.True(r.NewPoint(context.Background(), point))
 		<-time.After(time.Millisecond * 300)
-		r.cancel(point)
+		r.Cancel(point)
 	})
 
 	t.Run("cancel by another point", func() {
@@ -63,26 +77,24 @@ func (t *testBallotStuckResolver) TestCancel() {
 
 		votedch := make(chan struct{}, 1)
 
-		r := newBallotStuckResolver(
+		r := NewDefaultBallotStuckResolver(
 			time.Nanosecond,
 			time.Millisecond*300,
-			func(context.Context, base.StagePoint) ([]base.Address, error) {
-				return []base.Address{base.RandomAddress("")}, nil
+			func(context.Context, base.StagePoint, bool) ([]base.Address, bool, error) {
+				return []base.Address{base.RandomAddress("")}, true, nil
 			},
-			func(context.Context, base.StagePoint, []base.Address) error { return nil },
-			func(context.Context, base.Point, []base.Address) error {
+			requestMissingBallotsf,
+			func(context.Context, base.Point, []base.Address) (base.Voteproof, error) {
 				votedch <- struct{}{}
 
-				return nil
+				return nil, nil
 			},
-			func(context.Context, base.Point) (base.Voteproof, error) { return nil, nil },
-			func(context.Context, base.Point, base.Voteproof) error { return nil },
 		)
 
-		t.True(r.newPoint(context.Background(), point))
+		t.True(r.NewPoint(context.Background(), point))
 
 		newpoint := base.NewStagePoint(base.RawPoint(33, 1), base.StageINIT)
-		t.True(r.newPoint(context.Background(), newpoint))
+		t.True(r.NewPoint(context.Background(), newpoint))
 
 		select {
 		case <-time.After(time.Millisecond * 600):
@@ -90,7 +102,7 @@ func (t *testBallotStuckResolver) TestCancel() {
 			t.NoError(errors.Errorf("should be cancled before suffrage voting"))
 		}
 
-		r.cancel(newpoint)
+		r.Cancel(newpoint)
 
 		t.Equal(newpoint, r.point)
 	})
@@ -100,28 +112,26 @@ func (t *testBallotStuckResolver) TestCancel() {
 
 		votedch := make(chan struct{}, 1)
 
-		r := newBallotStuckResolver(
+		r := NewDefaultBallotStuckResolver(
 			time.Nanosecond,
 			time.Millisecond*300,
-			func(context.Context, base.StagePoint) ([]base.Address, error) {
-				return []base.Address{base.RandomAddress("")}, nil
+			func(context.Context, base.StagePoint, bool) ([]base.Address, bool, error) {
+				return []base.Address{base.RandomAddress("")}, true, nil
 			},
-			func(context.Context, base.StagePoint, []base.Address) error { return nil },
-			func(context.Context, base.Point, []base.Address) error {
+			requestMissingBallotsf,
+			func(context.Context, base.Point, []base.Address) (base.Voteproof, error) {
 				votedch <- struct{}{}
 
-				return nil
+				return nil, nil
 			},
-			func(context.Context, base.Point) (base.Voteproof, error) { return nil, nil },
-			func(context.Context, base.Point, base.Voteproof) error { return nil },
 		)
 
-		t.True(r.newPoint(context.Background(), point))
+		t.True(r.NewPoint(context.Background(), point))
 
 		<-time.After(time.Millisecond * 600)
 		oldpoint := base.NewStagePoint(point.Point.PrevRound(), base.StageINIT)
 
-		r.cancel(oldpoint)
+		r.Cancel(oldpoint)
 
 		select {
 		case <-time.After(time.Second * 2):
@@ -129,38 +139,36 @@ func (t *testBallotStuckResolver) TestCancel() {
 		case <-votedch:
 		}
 
-		r.cancel(point)
+		r.Cancel(point)
 		t.Equal(point, r.point)
 	})
 }
 
-func (t *testBallotStuckResolver) TestClean() {
+func (t *testDefaultBallotStuckResolver) TestClean() {
 	t.Run("clean", func() {
 		point := base.NewStagePoint(base.RawPoint(33, 0), base.StageINIT)
 
 		votedch := make(chan struct{}, 1)
 
-		r := newBallotStuckResolver(
+		r := NewDefaultBallotStuckResolver(
 			time.Nanosecond,
 			time.Millisecond*300,
-			func(context.Context, base.StagePoint) ([]base.Address, error) {
-				return []base.Address{base.RandomAddress("")}, nil
+			func(context.Context, base.StagePoint, bool) ([]base.Address, bool, error) {
+				return []base.Address{base.RandomAddress("")}, true, nil
 			},
-			func(context.Context, base.StagePoint, []base.Address) error { return nil },
-			func(context.Context, base.Point, []base.Address) error {
+			requestMissingBallotsf,
+			func(context.Context, base.Point, []base.Address) (base.Voteproof, error) {
 				votedch <- struct{}{}
 
-				return nil
+				return nil, nil
 			},
-			func(context.Context, base.Point) (base.Voteproof, error) { return nil, nil },
-			func(context.Context, base.Point, base.Voteproof) error { return nil },
 		)
 
-		t.True(r.newPoint(context.Background(), point))
+		t.True(r.NewPoint(context.Background(), point))
 
 		<-time.After(time.Millisecond * 600)
 
-		r.clean()
+		r.Clean()
 
 		select {
 		case <-time.After(time.Second * 2):
@@ -172,38 +180,36 @@ func (t *testBallotStuckResolver) TestClean() {
 	})
 }
 
-func (t *testBallotStuckResolver) TestNomoreGatherMissingBallots() {
+func (t *testDefaultBallotStuckResolver) TestNomoreGatherMissingBallots() {
 	point := base.NewStagePoint(base.RawPoint(33, 0), base.StageINIT)
 
 	var n int64
 
-	findMissingBallotsf := func(context.Context, base.StagePoint) ([]base.Address, error) {
+	findMissingBallotsf := func(context.Context, base.StagePoint, bool) ([]base.Address, bool, error) {
 		defer atomic.AddInt64(&n, 1)
 
 		if atomic.LoadInt64(&n) < 2 {
-			return []base.Address{base.RandomAddress("")}, nil
+			return []base.Address{base.RandomAddress("")}, true, nil
 		}
 
-		return nil, nil // no more missing nodes
+		return nil, true, nil // no more missing nodes
 	}
 
 	votedch := make(chan struct{}, 1)
 
-	r := newBallotStuckResolver(
+	r := NewDefaultBallotStuckResolver(
 		time.Nanosecond,
 		time.Millisecond*300,
 		findMissingBallotsf,
-		func(context.Context, base.StagePoint, []base.Address) error { return nil },
-		func(context.Context, base.Point, []base.Address) error {
+		requestMissingBallotsf,
+		func(context.Context, base.Point, []base.Address) (base.Voteproof, error) {
 			votedch <- struct{}{}
 
-			return nil
+			return nil, nil
 		},
-		func(context.Context, base.Point) (base.Voteproof, error) { return nil, nil },
-		func(context.Context, base.Point, base.Voteproof) error { return nil },
 	)
 
-	t.True(r.newPoint(context.Background(), point))
+	t.True(r.NewPoint(context.Background(), point))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -212,38 +218,36 @@ func (t *testBallotStuckResolver) TestNomoreGatherMissingBallots() {
 	}
 }
 
-func (t *testBallotStuckResolver) TestNomoreMissingNodesInSuffrageVoting() {
+func (t *testDefaultBallotStuckResolver) TestNomoreMissingNodesInSuffrageVoting() {
 	point := base.NewStagePoint(base.RawPoint(33, 0), base.StageINIT)
 
 	var n int64
 
-	findMissingBallotsf := func(context.Context, base.StagePoint) ([]base.Address, error) {
+	findMissingBallotsf := func(context.Context, base.StagePoint, bool) ([]base.Address, bool, error) {
 		defer atomic.AddInt64(&n, 1)
 
 		if atomic.LoadInt64(&n) < 6 {
-			return []base.Address{base.RandomAddress("")}, nil
+			return []base.Address{base.RandomAddress("")}, true, nil
 		}
 
-		return nil, nil // no more missing nodes
+		return nil, true, nil // no more missing nodes
 	}
 
 	votedch := make(chan struct{}, 1)
 
-	r := newBallotStuckResolver(
+	r := NewDefaultBallotStuckResolver(
 		time.Nanosecond,
 		time.Millisecond*300,
 		findMissingBallotsf,
-		func(context.Context, base.StagePoint, []base.Address) error { return nil },
-		func(context.Context, base.Point, []base.Address) error {
+		requestMissingBallotsf,
+		func(context.Context, base.Point, []base.Address) (base.Voteproof, error) {
 			votedch <- struct{}{}
 
-			return nil
+			return nil, nil
 		},
-		func(context.Context, base.Point) (base.Voteproof, error) { return nil, nil },
-		func(context.Context, base.Point, base.Voteproof) error { return nil },
 	)
 
-	t.True(r.newPoint(context.Background(), point))
+	t.True(r.NewPoint(context.Background(), point))
 
 	<-votedch
 
@@ -254,42 +258,33 @@ func (t *testBallotStuckResolver) TestNomoreMissingNodesInSuffrageVoting() {
 	}
 }
 
-func (t *testBallotStuckResolver) TestNextRound() {
+func (t *testDefaultBallotStuckResolver) TestNextRound() {
 	point := base.NewStagePoint(base.RawPoint(33, 0), base.StageINIT)
 
-	nextroundch := make(chan struct{}, 1)
-
-	r := newBallotStuckResolver(
+	r := NewDefaultBallotStuckResolver(
 		time.Nanosecond,
 		time.Millisecond*300,
-		func(context.Context, base.StagePoint) ([]base.Address, error) {
-			return []base.Address{base.RandomAddress("")}, nil
+		func(context.Context, base.StagePoint, bool) ([]base.Address, bool, error) {
+			return []base.Address{base.RandomAddress("")}, true, nil
 		},
-		func(context.Context, base.StagePoint, []base.Address) error { return nil },
-		func(context.Context, base.Point, []base.Address) error {
-			return nil
-		},
-		func(context.Context, base.Point) (base.Voteproof, error) {
+		requestMissingBallotsf,
+		func(context.Context, base.Point, []base.Address) (base.Voteproof, error) {
 			return isaac.NewINITVoteproof(point.Point), nil
-		},
-		func(context.Context, base.Point, base.Voteproof) error {
-			nextroundch <- struct{}{}
-
-			return nil
 		},
 	)
 
-	t.True(r.newPoint(context.Background(), point))
+	t.True(r.NewPoint(context.Background(), point))
 
 	select {
 	case <-time.After(time.Second * 2):
 		t.NoError(errors.Errorf("wait next round, but failed"))
-	case <-nextroundch:
+	case vp := <-r.Voteproof():
+		t.NotNil(vp)
 	}
 }
 
-func TestBallotStuckResolver(t *testing.T) {
+func TestDefaultBallotStuckResolver(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	suite.Run(t, new(testBallotStuckResolver))
+	suite.Run(t, new(testDefaultBallotStuckResolver))
 }

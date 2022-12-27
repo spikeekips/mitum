@@ -252,6 +252,26 @@ func PPatchMemberlist(ctx context.Context) (context.Context, error) {
 
 			l.Debug().Interface("withdraw operation", t).Bool("voted", voted).
 				Msg("new withdraw operation; voted")
+		case isaacstates.MissingBallotsRequestMessage:
+			l.Debug().
+				Interface("point", t.Point()).
+				Interface("nodes", t.Nodes()).
+				Msg("missing ballots request message notified")
+
+			if err := t.IsValid(nil); err != nil {
+				l.Error().Err(err).Msg("invalid missing ballots request message")
+
+				return
+			}
+
+			switch ballots := ballotbox.Voted(t.Point(), t.Nodes()); {
+			case len(ballots) < 1:
+				return
+			default:
+				if err := client.SendBallots(context.Background(), t.ConnInfo(), ballots); err != nil {
+					l.Error().Err(err).Msg("failed to send ballots")
+				}
+			}
 		default:
 			l.Debug().Interface("message", m).Msgf("new incoming message; ignored; but unknown, %T", t)
 		}

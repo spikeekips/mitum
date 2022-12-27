@@ -12,7 +12,8 @@ import (
 
 // FIXME remove withdraw nodes from sync sources
 
-type WithdrawVoteproof interface {
+type WithdrawVoteproof interface { // FIXME declare BaseWithdrawVoteproof instead of baseVoteproof
+	IsStuck() bool
 	Withdraws() []base.SuffrageWithdrawOperation
 }
 
@@ -62,12 +63,6 @@ func (vp baseVoteproof) isValidWithdraws() error {
 		return nil
 	}
 
-	if vp.Result() == base.VoteResultMajority {
-		if _, ok := vp.Majority().(BallotWithdrawFacts); !ok {
-			return util.ErrInvalid.Errorf("majority should be BallotWithdrawFacts, not %q", vp.Majority())
-		}
-	}
-
 	withdrawnodes := make([]string, len(vp.withdraws))
 
 	var n int
@@ -90,13 +85,16 @@ func (vp baseVoteproof) isValidWithdraws() error {
 	}
 
 	if wf, ok := vp.majority.(BallotWithdrawFacts); ok {
-		switch withdrawfacts := wf.WithdrawFacts(); { //nolint:forcetypeassert //...
-		case len(withdrawfacts) != len(vp.withdraws):
-			return util.ErrInvalid.Errorf("withdraws not matched")
-		default:
-			for i := range withdrawfacts {
-				if !withdrawfacts[i].Equal(vp.withdraws[i].Fact().Hash()) {
-					return util.ErrInvalid.Errorf("unknown withdraws found")
+		withdrawfacts := wf.WithdrawFacts()
+		if len(withdrawfacts) > 0 {
+			switch { //nolint:forcetypeassert //...
+			case len(withdrawfacts) != len(vp.withdraws):
+				return util.ErrInvalid.Errorf("withdraws not matched")
+			default:
+				for i := range withdrawfacts {
+					if !withdrawfacts[i].Equal(vp.withdraws[i].Fact().Hash()) {
+						return util.ErrInvalid.Errorf("unknown withdraws found")
+					}
 				}
 			}
 		}
@@ -210,6 +208,21 @@ func (vp *baseVoteproof) SetSignFacts(sfs []base.BallotSignFact) *baseVoteproof 
 
 func (vp baseVoteproof) ID() string {
 	return vp.id
+}
+
+func (vp baseVoteproof) IsStuck() bool {
+	if vp.majority == nil && len(vp.withdraws) < 1 {
+		return false
+	}
+
+	switch wf, ok := vp.majority.(BallotWithdrawFacts); {
+	case !ok,
+		len(vp.Withdraws()) < 1,
+		len(wf.WithdrawFacts()) > 0:
+		return false
+	default:
+		return true
+	}
 }
 
 type INITVoteproof struct {

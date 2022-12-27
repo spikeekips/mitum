@@ -26,28 +26,13 @@ func IsValidVoteproofWithSuffrage(vp base.Voteproof, suf base.Suffrage) error {
 	rsuf := suf
 
 	if len(withdraws) > 0 {
-		th := vp.Threshold().Threshold(uint(suf.Len()))
-		if n := uint(len(withdraws)); n > uint(suf.Len())-th {
-			th = uint(suf.Len()) - n
-		}
-
 		for i := range withdraws {
-			if n := uint(len(withdraws[i].NodeSigns())); n < th {
-				return e.Errorf("insufficient withdraw node signs; node signs=%d threshold=%d", n, th)
-			}
-
 			if err := IsValidWithdrawWithSuffrage(vp.Point().Height(), withdraws[i], suf); err != nil {
 				return e.Wrap(err)
 			}
 		}
 
-		nodes := suf.Nodes()
-
-		filtered := util.Filter2Slices(nodes, withdraws, func(x base.Node, y base.SuffrageWithdrawOperation) bool {
-			return x.Address().Equal(y.WithdrawFact().Node())
-		})
-
-		switch i, err := NewSuffrage(filtered); {
+		switch i, err := NewSuffrageWithWithdraws(suf, vp.Threshold(), withdraws); {
 		case err != nil:
 			return e.Wrap(err)
 		default:

@@ -316,7 +316,7 @@ func (p *LocalParams) SetValidProposalSuffrageOperationsExpire(d time.Duration) 
 	return p
 }
 
-func (p *LocalParams) MaxOperationSize() uint64 {
+func (p *LocalParams) MaxOperationSize() uint64 { // FIXME rename to MaxIncomingMessageSize
 	p.RLock()
 	defer p.RUnlock()
 

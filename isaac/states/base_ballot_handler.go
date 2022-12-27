@@ -21,6 +21,7 @@ type baseBallotHandler struct {
 	broadcastBallotFunc func(base.Ballot) error
 	voteFunc            func(base.Ballot) (bool, error)
 	svf                 SuffrageVotingFindFunc
+	resolver            BallotStuckResolver
 	madeBallotCache     gcache.Cache
 }
 
@@ -55,6 +56,7 @@ func (st *baseBallotHandler) new() *baseBallotHandler {
 		baseHandler:         st.baseHandler.new(),
 		proposalSelector:    st.proposalSelector,
 		svf:                 st.svf,
+		resolver:            st.resolver,
 		broadcastBallotFunc: st.broadcastBallotFunc,
 		voteFunc:            st.voteFunc,
 	}
@@ -63,6 +65,7 @@ func (st *baseBallotHandler) new() *baseBallotHandler {
 func (st *baseBallotHandler) setStates(sts *States) {
 	st.baseHandler.setStates(sts)
 	st.madeBallotCache = sts.madeBallotCache
+	st.resolver = sts.resolver
 
 	st.broadcastBallotFunc = func(bl base.Ballot) error {
 		return st.sts.broadcastBallot(bl)
@@ -449,7 +452,16 @@ func (st *baseBallotHandler) broadcastSuffrageConfirmBallot(bl base.INITBallot) 
 }
 
 func (st *baseBallotHandler) vote(bl base.Ballot) (bool, error) {
-	return st.voteFunc(bl)
+	voted, err := st.voteFunc(bl)
+	if err != nil {
+		return voted, err
+	}
+
+	if st.resolver != nil {
+		_ = st.resolver.NewPoint(st.ctx, bl.Point())
+	}
+
+	return voted, nil
 }
 
 func (st *baseBallotHandler) findWithdraws(height base.Height, suf base.Suffrage) (

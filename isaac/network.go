@@ -27,6 +27,7 @@ type NetworkClient interface { //nolint:interfacebloat //..
 	SyncSourceConnInfo(context.Context, quicstream.UDPConnInfo) ([]NodeConnInfo, error)
 	State(_ context.Context, _ quicstream.UDPConnInfo, key string, _ util.Hash) (base.State, bool, error)
 	ExistsInStateOperation(_ context.Context, _ quicstream.UDPConnInfo, facthash util.Hash) (bool, error)
+	SendBallots(context.Context, quicstream.UDPConnInfo, []base.BallotSignFact) error
 }
 
 // revive:enable:line-length-limit

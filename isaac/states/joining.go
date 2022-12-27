@@ -130,11 +130,16 @@ func (st *JoiningHandler) exit(sctx switchContext) (func(), error) {
 }
 
 func (st *JoiningHandler) newVoteproof(vp base.Voteproof) error {
-	if _, _, isnew := st.baseBallotHandler.setNewVoteproof(vp); !isnew {
+	switch _, _, isnew := st.baseBallotHandler.setNewVoteproof(vp); {
+	case isnew:
+		if st.resolver != nil {
+			st.resolver.Cancel(vp.Point())
+		}
+
+		return st.handleNewVoteproof(vp)
+	default:
 		return nil
 	}
-
-	return st.handleNewVoteproof(vp)
 }
 
 func (st *JoiningHandler) handleNewVoteproof(vp base.Voteproof) error {

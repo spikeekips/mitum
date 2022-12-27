@@ -13,6 +13,7 @@ import (
 	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	isaacoperation "github.com/spikeekips/mitum/isaac/operation"
+	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/storage"
@@ -46,6 +47,7 @@ func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 	var nodeinfo *isaacnetwork.NodeInfoUpdater
 	var svvotef isaac.SuffrageVoteFunc
 	var cb *isaacnetwork.CallbackBroadcaster
+	var ballotbox *isaacstates.Ballotbox
 
 	if err := util.LoadFromContextOK(ctx,
 		EncodersContextKey, &encs,
@@ -62,6 +64,7 @@ func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 		NodeInfoContextKey, &nodeinfo,
 		SuffrageVotingVoteFuncContextKey, &svvotef,
 		CallbackBroadcasterContextKey, &cb,
+		BallotboxContextKey, &ballotbox,
 	); err != nil {
 		return ctx, e(err, "")
 	}
@@ -199,6 +202,16 @@ func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 		).
 		Add(isaacnetwork.HandlerPrefixCallbackMessage,
 			isaacnetwork.QuicstreamHandlerCallbackMessage(encs, idletimeout, cb),
+		).
+		Add(isaacnetwork.HandlerPrefixSendBallots,
+			isaacnetwork.QuicstreamHandlerSendBallots(
+				encs, idletimeout, params,
+				func(bl base.BallotSignFact) error {
+					_, err := ballotbox.VoteSignFact(bl, params.Threshold())
+
+					return err
+				},
+			),
 		).
 		Add(HandlerPrefixPprof, NetworkHandlerPprofFunc(encs))
 

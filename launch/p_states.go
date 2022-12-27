@@ -29,6 +29,7 @@ var (
 	PNameProposalProcessors                         = ps.Name("proposal-processors")
 	PNameStatesSetHandlers                          = ps.Name("states-set-handlers")
 	PNameProposerSelector                           = ps.Name("proposer-selector")
+	PNameBallotStuckResolver                        = ps.Name("ballot-stuck-resolver")
 	BallotboxContextKey                             = util.ContextKey("ballotbox")
 	StatesContextKey                                = util.ContextKey("states")
 	ProposalProcessorsContextKey                    = util.ContextKey("proposal-processors")
@@ -36,6 +37,7 @@ var (
 	ProposalSelectorContextKey                      = util.ContextKey("proposal-selector")
 	WhenNewBlockSavedInSyncingStateFuncContextKey   = util.ContextKey("when-new-block-saved-in-syncing-state-func")
 	WhenNewBlockSavedInConsensusStateFuncContextKey = util.ContextKey("when-new-block-saved-in-consensus-state-func")
+	BallotStuckResolverContextKey                   = util.ContextKey("ballot-stuck-resolver")
 )
 
 func PBallotbox(ctx context.Context) (context.Context, error) {
@@ -76,6 +78,61 @@ func PBallotbox(ctx context.Context) (context.Context, error) {
 	return ctx, nil
 }
 
+func PBallotStuckResolver(ctx context.Context) (context.Context, error) {
+	e := util.StringErrorFunc("failed to load ballot stuck resolver")
+
+	var log *logging.Logging
+	var design NodeDesign
+	var local base.LocalNode
+	var params *isaac.LocalParams
+	var ballotbox *isaacstates.Ballotbox
+	var cb *isaacnetwork.CallbackBroadcaster
+
+	if err := util.LoadFromContextOK(ctx,
+		LoggingContextKey, &log,
+		DesignContextKey, &design,
+		LocalContextKey, &local,
+		LocalParamsContextKey, &params,
+		BallotboxContextKey, &ballotbox,
+		CallbackBroadcasterContextKey, &cb,
+	); err != nil {
+		return ctx, e(err, "")
+	}
+
+	getLastSuffragef, err := GetLastSuffrageFunc(ctx)
+	if err != nil {
+		return ctx, e(err, "")
+	}
+
+	findMissingBallotsf := isaacstates.FindMissingBallotsFromBallotboxFunc(
+		local.Address(),
+		params,
+		getLastSuffragef,
+		ballotbox,
+	)
+
+	requestMissingBallotsf := isaacstates.RequestMissingBallots(
+		quicstream.NewUDPConnInfo(design.Network.Publish(), design.Network.TLSInsecure),
+		cb.Broadcast,
+	)
+
+	r := isaacstates.NewDefaultBallotStuckResolver(
+		params.WaitPreparingINITBallot(),
+		params.IntervalBroadcastBallot(),
+		findMissingBallotsf,
+		requestMissingBallotsf,
+		func(context.Context, base.Point, []base.Address) (base.Voteproof, error) {
+			// FIXME not yet implemented
+
+			return nil, errors.Errorf("not yet implemented")
+		},
+	)
+
+	_ = r.SetLogging(log)
+
+	return context.WithValue(ctx, BallotStuckResolverContextKey, r), nil
+}
+
 func PStates(ctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to prepare states")
 
@@ -88,6 +145,7 @@ func PStates(ctx context.Context) (context.Context, error) {
 	var lvps *isaacstates.LastVoteproofsHandler
 	var syncSourcePool *isaac.SyncSourcePool
 	var cb *isaacnetwork.CallbackBroadcaster
+	var resolver isaacstates.BallotStuckResolver
 
 	if err := util.LoadFromContextOK(ctx,
 		EncoderContextKey, &enc,
@@ -99,6 +157,7 @@ func PStates(ctx context.Context) (context.Context, error) {
 		LastVoteproofsHandlerContextKey, &lvps,
 		SyncSourcePoolContextKey, &syncSourcePool,
 		CallbackBroadcasterContextKey, &cb,
+		BallotStuckResolverContextKey, &resolver,
 	); err != nil {
 		return ctx, e(err, "")
 	}
@@ -107,6 +166,7 @@ func PStates(ctx context.Context) (context.Context, error) {
 		local,
 		params,
 		ballotbox,
+		resolver,
 		lvps,
 		syncSourcePool.IsInFixed,
 		func(bl base.Ballot) error {

@@ -355,6 +355,7 @@ func (t *testVoteproof) TestINITWithWithdraws() {
 		t.T().Log("suffrage len:", suf.Len())
 
 		t.NoError(ivp.IsValid(t.networkID))
+		t.False(ivp.IsStuck())
 
 		t.NoError(IsValidVoteproofWithSuffrage(ivp, suf))
 	})
@@ -435,6 +436,41 @@ func (t *testVoteproof) TestINITWithWithdraws() {
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "wrong result")
+	})
+
+	t.Run("ok, but is stuck", func() {
+		point := base.RawPoint(33, 0)
+
+		withdrawnode := RandomLocalNode()
+		nodes := []base.Node{t.local, RandomLocalNode(), RandomLocalNode(), withdrawnode}
+		suf, err := NewSuffrage(nodes)
+		t.NoError(err)
+
+		_, withdraws := t.withdraws(point.Height()-1, []base.Node{withdrawnode}, nodes[:3])
+
+		ifact := NewINITBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
+		isignfact := NewINITBallotSignFact(ifact)
+		t.NoError(isignfact.NodeSign(t.local.Privatekey(), t.networkID, t.local.Address()))
+
+		ivp := NewINITVoteproof(ifact.Point().Point)
+		ivp.
+			SetMajority(ifact).
+			SetSignFacts([]base.BallotSignFact{isignfact}).
+			SetThreshold(base.Threshold(100)).
+			SetWithdraws(withdraws).
+			Finish()
+
+		ivp = t.signsINITVoteproof(ivp, ivp.Majority().(INITBallotFact), nodes[:3], nil)
+
+		t.T().Log("voteresult:", ivp.Result())
+		t.T().Log("sign facts:", len(ivp.SignFacts()))
+		t.T().Log("withdraws:", len(ivp.Withdraws()))
+		t.T().Log("suffrage len:", suf.Len())
+
+		t.NoError(ivp.IsValid(t.networkID))
+		t.True(ivp.IsStuck())
+
+		t.NoError(IsValidVoteproofWithSuffrage(ivp, suf))
 	})
 }
 

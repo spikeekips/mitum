@@ -381,6 +381,10 @@ func (st *ConsensusHandler) newVoteproof(vp base.Voteproof) error {
 	case v == nil, !isnew:
 		return nil
 	default:
+		if st.resolver != nil {
+			st.resolver.Cancel(vp.Point())
+		}
+
 		lvps = i
 	}
 
