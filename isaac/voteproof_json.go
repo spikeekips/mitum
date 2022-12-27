@@ -19,7 +19,7 @@ type baseVoteproofJSONMarshaler struct {
 	hint.BaseHinter
 	ID        string                           `json:"id"`
 	SignFacts []base.BallotSignFact            `json:"sign_facts"`
-	Withdraws []base.SuffrageWithdrawOperation `json:"withdraws"`
+	Withdraws []base.SuffrageWithdrawOperation `json:"withdraws,omitempty"`
 	Point     base.StagePoint                  `json:"point"`
 	Threshold base.Threshold                   `json:"threshold"`
 }
