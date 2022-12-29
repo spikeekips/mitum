@@ -64,11 +64,11 @@ func (t *BaseTestBallots) NewProposal(local LocalNode, fact ProposalFact) Propos
 	return fs
 }
 
-func (t *BaseTestBallots) NewINITVoteproof(
+func (t *BaseTestBallots) prepareINITVoteproof(
 	fact base.INITBallotFact,
 	local LocalNode,
 	nodes []LocalNode,
-) (INITVoteproof, error) {
+) ([]base.BallotSignFact, error) {
 	suffrage := []LocalNode{local}
 	for i := range nodes {
 		n := nodes[i]
@@ -82,10 +82,23 @@ func (t *BaseTestBallots) NewINITVoteproof(
 		n := suffrage[i]
 		fs := NewINITBallotSignFact(fact)
 		if err := fs.NodeSign(n.Privatekey(), t.LocalParams.NetworkID(), n.Address()); err != nil {
-			return INITVoteproof{}, err
+			return nil, err
 		}
 
 		sfs[i] = fs
+	}
+
+	return sfs, nil
+}
+
+func (t *BaseTestBallots) NewINITVoteproof(
+	fact base.INITBallotFact,
+	local LocalNode,
+	nodes []LocalNode,
+) (INITVoteproof, error) {
+	sfs, err := t.prepareINITVoteproof(fact, local, nodes)
+	if err != nil {
+		return INITVoteproof{}, err
 	}
 
 	vp := NewINITVoteproof(fact.Point().Point)
@@ -94,6 +107,28 @@ func (t *BaseTestBallots) NewINITVoteproof(
 		SetSignFacts(sfs).
 		SetThreshold(t.LocalParams.Threshold()).
 		Finish()
+
+	return vp, nil
+}
+
+func (t *BaseTestBallots) NewINITWithdrawVoteproof(
+	fact base.INITBallotFact,
+	local LocalNode,
+	nodes []LocalNode,
+	withdraws []base.SuffrageWithdrawOperation,
+) (INITWithdrawVoteproof, error) {
+	sfs, err := t.prepareINITVoteproof(fact, local, nodes)
+	if err != nil {
+		return INITWithdrawVoteproof{}, err
+	}
+
+	vp := NewINITWithdrawVoteproof(fact.Point().Point)
+	vp.
+		SetMajority(fact).
+		SetSignFacts(sfs).
+		SetThreshold(t.LocalParams.Threshold())
+	vp.SetWithdraws(withdraws)
+	vp.Finish()
 
 	return vp, nil
 }

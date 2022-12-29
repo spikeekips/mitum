@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
@@ -12,14 +13,22 @@ import (
 
 // FIXME remove withdraw nodes from sync sources
 
-type WithdrawVoteproof interface { // FIXME declare BaseWithdrawVoteproof instead of baseVoteproof
-	IsStuck() bool
+type WithdrawVoteproof interface {
 	Withdraws() []base.SuffrageWithdrawOperation
 }
 
+type StuckVoteproof interface {
+	WithdrawVoteproof
+	IsStuck() bool
+}
+
 var (
-	INITVoteproofHint   = hint.MustNewHint("init-voteproof-v0.0.1")
-	ACCEPTVoteproofHint = hint.MustNewHint("accept-voteproof-v0.0.1")
+	INITVoteproofHint           = hint.MustNewHint("init-voteproof-v0.0.1")
+	INITWithdrawVoteproofHint   = hint.MustNewHint("init-withdraw-voteproof-v0.0.1")
+	INITStuckVoteproofHint      = hint.MustNewHint("init-stuck-voteproof-v0.0.1")
+	ACCEPTVoteproofHint         = hint.MustNewHint("accept-voteproof-v0.0.1")
+	ACCEPTWithdrawVoteproofHint = hint.MustNewHint("accept-withdraw-voteproof-v0.0.1")
+	ACCEPTStuckVoteproofHint    = hint.MustNewHint("accept-stuck-voteproof-v0.0.1")
 )
 
 type baseVoteproof struct {
@@ -29,7 +38,6 @@ type baseVoteproof struct {
 	id string
 	util.DefaultJSONMarshaled
 	sfs       []base.BallotSignFact
-	withdraws []base.SuffrageWithdrawOperation
 	point     base.StagePoint
 	threshold base.Threshold
 }
@@ -47,64 +55,11 @@ func newBaseVoteproof(
 }
 
 func (vp baseVoteproof) IsValid(networkID []byte) error {
-	if err := base.IsValidVoteproof(vp, networkID); err != nil {
-		return err
-	}
-
-	if err := util.CheckIsValiderSlice(networkID, false, vp.withdraws); err != nil {
-		return err
-	}
-
-	return vp.isValidWithdraws()
-}
-
-func (vp baseVoteproof) isValidWithdraws() error {
-	if len(vp.withdraws) < 1 {
-		return nil
-	}
-
-	withdrawnodes := make([]string, len(vp.withdraws))
-
-	var n int
-
-	if _, found := util.IsDuplicatedSlice(vp.withdraws, func(i base.SuffrageWithdrawOperation) (bool, string) {
-		node := i.Fact().(base.SuffrageWithdrawFact).Node() //nolint:forcetypeassert //...
-
-		withdrawnodes[n] = node.String()
-		n++
-
-		return true, node.String()
-	}); found {
-		return util.ErrInvalid.Errorf("duplicated withdraw node found")
-	}
-
-	for i := range vp.sfs {
-		if util.InSlice(withdrawnodes, vp.sfs[i].Node().String()) >= 0 {
-			return util.ErrInvalid.Errorf("withdraw node voted")
-		}
-	}
-
-	if wf, ok := vp.majority.(BallotWithdrawFacts); ok {
-		withdrawfacts := wf.WithdrawFacts()
-		if len(withdrawfacts) > 0 {
-			switch { //nolint:forcetypeassert //...
-			case len(withdrawfacts) != len(vp.withdraws):
-				return util.ErrInvalid.Errorf("withdraws not matched")
-			default:
-				for i := range withdrawfacts {
-					if !withdrawfacts[i].Equal(vp.withdraws[i].Fact().Hash()) {
-						return util.ErrInvalid.Errorf("unknown withdraws found")
-					}
-				}
-			}
-		}
-	}
-
-	return nil
+	return base.IsValidVoteproof(vp, networkID)
 }
 
 func (vp baseVoteproof) HashBytes() []byte {
-	bs := make([]util.Byter, len(vp.sfs)+4+len(vp.withdraws))
+	bs := make([]util.Byter, len(vp.sfs)+4)
 	bs[0] = util.DummyByter(func() []byte {
 		if vp.majority == nil {
 			return nil
@@ -120,13 +75,6 @@ func (vp baseVoteproof) HashBytes() []byte {
 		sf := vp.sfs[i]
 		bs[4+i] = util.DummyByter(func() []byte {
 			return sf.HashBytes()
-		})
-	}
-
-	for i := range vp.withdraws {
-		withdraw := vp.withdraws[i]
-		bs[4+len(vp.sfs)+i] = util.DummyByter(func() []byte {
-			return withdraw.Hash().Bytes()
 		})
 	}
 
@@ -159,18 +107,6 @@ func (vp baseVoteproof) Point() base.StagePoint {
 
 func (vp *baseVoteproof) SetPoint(p base.StagePoint) *baseVoteproof {
 	vp.point = p
-
-	return vp
-}
-
-func (vp baseVoteproof) Withdraws() []base.SuffrageWithdrawOperation {
-	return vp.withdraws
-}
-
-func (vp *baseVoteproof) SetWithdraws(withdraws []base.SuffrageWithdrawOperation) *baseVoteproof {
-	sortWithdraws(withdraws)
-
-	vp.withdraws = withdraws
 
 	return vp
 }
@@ -210,21 +146,6 @@ func (vp baseVoteproof) ID() string {
 	return vp.id
 }
 
-func (vp baseVoteproof) IsStuck() bool {
-	if vp.majority == nil && len(vp.withdraws) < 1 {
-		return false
-	}
-
-	switch wf, ok := vp.majority.(BallotWithdrawFacts); {
-	case !ok,
-		len(vp.Withdraws()) < 1,
-		len(wf.WithdrawFacts()) > 0:
-		return false
-	default:
-		return true
-	}
-}
-
 type INITVoteproof struct {
 	baseVoteproof
 }
@@ -242,15 +163,19 @@ func (vp INITVoteproof) IsValid(networkID []byte) error {
 		return e.Wrap(err)
 	}
 
-	if err := vp.baseVoteproof.IsValid(networkID); err != nil {
-		return e.Wrap(err)
-	}
-
-	if err := base.IsValidINITVoteproof(vp, networkID); err != nil {
+	if err := vp.isValid(networkID); err != nil {
 		return e.Wrap(err)
 	}
 
 	return nil
+}
+
+func (vp INITVoteproof) isValid(networkID []byte) error {
+	if err := vp.baseVoteproof.IsValid(networkID); err != nil {
+		return err
+	}
+
+	return base.IsValidINITVoteproof(vp, networkID)
 }
 
 func (vp INITVoteproof) BallotMajority() base.INITBallotFact {
@@ -271,6 +196,80 @@ func (vp INITVoteproof) BallotSignFacts() []base.INITBallotSignFact {
 	return vs
 }
 
+type INITWithdrawVoteproof struct {
+	baseWithdrawVoteproof
+	INITVoteproof
+}
+
+func NewINITWithdrawVoteproof(point base.Point) INITWithdrawVoteproof {
+	vp := INITWithdrawVoteproof{
+		INITVoteproof: NewINITVoteproof(point),
+	}
+
+	vp.BaseHinter = vp.SetHint(INITWithdrawVoteproofHint).(hint.BaseHinter) //nolint:forcetypeassert //...
+
+	return vp
+}
+
+func (vp INITWithdrawVoteproof) IsValid(networkID []byte) error {
+	e := util.ErrInvalid.Errorf("invalid INITWithdrawVoteproof")
+
+	if err := vp.BaseHinter.IsValid(INITWithdrawVoteproofHint.Type().Bytes()); err != nil {
+		return e.Wrap(err)
+	}
+
+	if err := vp.INITVoteproof.isValid(networkID); err != nil {
+		return e.Wrap(err)
+	}
+
+	if err := vp.baseWithdrawVoteproof.isValid(networkID, vp.baseVoteproof); err != nil {
+		return e.Wrap(err)
+	}
+
+	return nil
+}
+
+func (vp INITWithdrawVoteproof) HashBytes() []byte {
+	return util.ConcatBytesSlice(vp.baseVoteproof.HashBytes(), vp.baseWithdrawVoteproof.hashBytes())
+}
+
+type INITStuckVoteproof struct {
+	baseStuckVoteproof
+	INITVoteproof
+}
+
+func NewINITStuckVoteproof(point base.Point) INITStuckVoteproof {
+	vp := INITStuckVoteproof{
+		INITVoteproof: NewINITVoteproof(point),
+	}
+
+	vp.BaseHinter = vp.SetHint(INITStuckVoteproofHint).(hint.BaseHinter) //nolint:forcetypeassert //...
+
+	return vp
+}
+
+func (vp INITStuckVoteproof) IsValid(networkID []byte) error {
+	e := util.ErrInvalid.Errorf("invalid INITStuckVoteproof")
+
+	if err := vp.BaseHinter.IsValid(INITStuckVoteproofHint.Type().Bytes()); err != nil {
+		return e.Wrap(err)
+	}
+
+	if err := vp.INITVoteproof.isValid(networkID); err != nil {
+		return e.Wrap(err)
+	}
+
+	if err := vp.baseStuckVoteproof.isValid(networkID, vp.baseVoteproof); err != nil {
+		return e.Wrap(err)
+	}
+
+	return nil
+}
+
+func (vp INITStuckVoteproof) IsStuck() bool {
+	return vp.isStuck(vp.majority)
+}
+
 type ACCEPTVoteproof struct {
 	baseVoteproof
 }
@@ -288,15 +287,19 @@ func (vp ACCEPTVoteproof) IsValid(networkID []byte) error {
 		return e.Wrap(err)
 	}
 
-	if err := vp.baseVoteproof.IsValid(networkID); err != nil {
-		return e.Wrap(err)
-	}
-
-	if err := base.IsValidACCEPTVoteproof(vp, networkID); err != nil {
+	if err := vp.isValid(networkID); err != nil {
 		return e.Wrap(err)
 	}
 
 	return nil
+}
+
+func (vp ACCEPTVoteproof) isValid(networkID []byte) error {
+	if err := vp.baseVoteproof.IsValid(networkID); err != nil {
+		return err
+	}
+
+	return base.IsValidACCEPTVoteproof(vp, networkID)
 }
 
 func (vp ACCEPTVoteproof) BallotMajority() base.ACCEPTBallotFact {
@@ -315,4 +318,224 @@ func (vp ACCEPTVoteproof) BallotSignFacts() []base.ACCEPTBallotSignFact {
 	}
 
 	return vs
+}
+
+type ACCEPTWithdrawVoteproof struct {
+	baseWithdrawVoteproof
+	ACCEPTVoteproof
+}
+
+func NewACCEPTWithdrawVoteproof(point base.Point) ACCEPTWithdrawVoteproof {
+	vp := ACCEPTWithdrawVoteproof{
+		ACCEPTVoteproof: NewACCEPTVoteproof(point),
+	}
+
+	vp.BaseHinter = vp.SetHint(ACCEPTWithdrawVoteproofHint).(hint.BaseHinter) //nolint:forcetypeassert //...
+
+	return vp
+}
+
+func (vp ACCEPTWithdrawVoteproof) IsValid(networkID []byte) error {
+	e := util.ErrInvalid.Errorf("invalid ACCEPTWithdrawVoteproof")
+
+	if err := vp.BaseHinter.IsValid(ACCEPTWithdrawVoteproofHint.Type().Bytes()); err != nil {
+		return e.Wrap(err)
+	}
+
+	if err := vp.ACCEPTVoteproof.isValid(networkID); err != nil {
+		return e.Wrap(err)
+	}
+
+	if err := vp.baseWithdrawVoteproof.isValid(networkID, vp.baseVoteproof); err != nil {
+		return e.Wrap(err)
+	}
+
+	return nil
+}
+
+func (vp ACCEPTWithdrawVoteproof) HashBytes() []byte {
+	return util.ConcatBytesSlice(vp.baseVoteproof.HashBytes(), vp.baseWithdrawVoteproof.hashBytes())
+}
+
+type ACCEPTStuckVoteproof struct {
+	baseStuckVoteproof
+	ACCEPTVoteproof
+}
+
+func NewACCEPTStuckVoteproof(point base.Point) ACCEPTStuckVoteproof {
+	vp := ACCEPTStuckVoteproof{
+		ACCEPTVoteproof: NewACCEPTVoteproof(point),
+	}
+
+	vp.BaseHinter = vp.SetHint(ACCEPTStuckVoteproofHint).(hint.BaseHinter) //nolint:forcetypeassert //...
+
+	return vp
+}
+
+func (vp ACCEPTStuckVoteproof) IsStuck() bool {
+	return vp.isStuck(vp.majority)
+}
+
+func (vp ACCEPTStuckVoteproof) IsValid(networkID []byte) error {
+	e := util.ErrInvalid.Errorf("invalid ACCEPTStuckVoteproof")
+
+	if err := vp.BaseHinter.IsValid(ACCEPTStuckVoteproofHint.Type().Bytes()); err != nil {
+		return e.Wrap(err)
+	}
+
+	if err := vp.ACCEPTVoteproof.isValid(networkID); err != nil {
+		return e.Wrap(err)
+	}
+
+	if err := vp.baseStuckVoteproof.isValid(networkID, vp.baseVoteproof); err != nil {
+		return e.Wrap(err)
+	}
+
+	return nil
+}
+
+type baseWithdrawVoteproof struct {
+	withdraws []base.SuffrageWithdrawOperation
+}
+
+func (vp baseWithdrawVoteproof) isValid(networkID []byte, ovp baseVoteproof) error {
+	if err := isValidithdrawVoteproof(networkID, vp.withdraws, ovp); err != nil {
+		return util.ErrInvalid.Wrap(err)
+	}
+
+	if wf, ok := ovp.majority.(BallotWithdrawFacts); ok {
+		withdrawfacts := wf.WithdrawFacts()
+		if len(withdrawfacts) > 0 {
+			switch { //nolint:forcetypeassert //...
+			case len(withdrawfacts) != len(vp.withdraws):
+				return util.ErrInvalid.Errorf("withdraws not matched")
+			default:
+				for i := range withdrawfacts {
+					if !withdrawfacts[i].Equal(vp.withdraws[i].Fact().Hash()) {
+						return util.ErrInvalid.Errorf("unknown withdraws found")
+					}
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func (vp baseWithdrawVoteproof) Withdraws() []base.SuffrageWithdrawOperation {
+	return vp.withdraws
+}
+
+func (vp *baseWithdrawVoteproof) SetWithdraws(withdraws []base.SuffrageWithdrawOperation) *baseWithdrawVoteproof {
+	sortWithdraws(withdraws)
+
+	vp.withdraws = withdraws
+
+	return vp
+}
+
+func (vp baseWithdrawVoteproof) hashBytes() []byte {
+	bs := make([]util.Byter, len(vp.withdraws))
+
+	for i := range vp.withdraws {
+		withdraw := vp.withdraws[i]
+		bs[i] = util.DummyByter(func() []byte {
+			return withdraw.Hash().Bytes()
+		})
+	}
+
+	return util.ConcatByters(bs...)
+}
+
+type baseStuckVoteproof struct {
+	baseWithdrawVoteproof
+}
+
+func (vp baseStuckVoteproof) isValid(networkID []byte, ovp baseVoteproof) error {
+	return isValidithdrawVoteproof(networkID, vp.withdraws, ovp)
+}
+
+func (vp baseStuckVoteproof) isStuck(majority base.BallotFact) bool {
+	if majority == nil && len(vp.withdraws) < 1 {
+		return false
+	}
+
+	switch wf, ok := majority.(BallotWithdrawFacts); {
+	case !ok,
+		len(vp.withdraws) < 1,
+		len(wf.WithdrawFacts()) > 0:
+		return false
+	default:
+		return true
+	}
+}
+
+func isValidithdrawVoteproof(networkID []byte, withdraws []base.SuffrageWithdrawOperation, ovp baseVoteproof) error {
+	if len(withdraws) < 1 {
+		return util.ErrInvalid.Errorf("empty withdraws")
+	}
+
+	if err := util.CheckIsValiderSlice(networkID, false, withdraws); err != nil {
+		return err
+	}
+
+	withdrawnodes := make([]string, len(withdraws))
+
+	var n int
+
+	if _, found := util.IsDuplicatedSlice(withdraws, func(i base.SuffrageWithdrawOperation) (bool, string) {
+		node := i.Fact().(base.SuffrageWithdrawFact).Node() //nolint:forcetypeassert //...
+
+		withdrawnodes[n] = node.String()
+		n++
+
+		return true, node.String()
+	}); found {
+		return util.ErrInvalid.Errorf("duplicated withdraw node found")
+	}
+
+	for i := range ovp.sfs {
+		if util.InSlice(withdrawnodes, ovp.sfs[i].Node().String()) >= 0 {
+			return util.ErrInvalid.Errorf("withdraw node voted")
+		}
+	}
+
+	return nil
+}
+
+func StuckVoteproofFromVoteproof(vp base.Voteproof) (base.Voteproof, error) {
+	if _, ok := vp.(StuckVoteproof); ok {
+		return vp, nil
+	}
+
+	wvp, ok := vp.(WithdrawVoteproof) //nolint:forcetypeassert //...
+	if !ok {
+		return nil, errors.Errorf("expected WithdrawVoteproof, but %T", vp)
+	}
+
+	switch vp.Point().Stage() {
+	case base.StageINIT:
+		ivp := NewINITStuckVoteproof(vp.Point().Point)
+
+		_ = ivp.
+			SetSignFacts(vp.SignFacts()).
+			SetMajority(vp.Majority()).
+			SetThreshold(vp.Threshold())
+		_ = ivp.SetWithdraws(wvp.Withdraws())
+		_ = ivp.Finish()
+
+		return ivp, nil
+	case base.StageACCEPT:
+		avp := NewACCEPTStuckVoteproof(vp.Point().Point)
+		_ = avp.
+			SetSignFacts(vp.SignFacts()).
+			SetMajority(vp.Majority()).
+			SetThreshold(vp.Threshold())
+		_ = avp.SetWithdraws(wvp.Withdraws())
+		_ = avp.Finish()
+
+		return avp, nil
+	default:
+		return nil, errors.Errorf("unknown voteproof stage, %T", vp.Point().Stage())
+	}
 }

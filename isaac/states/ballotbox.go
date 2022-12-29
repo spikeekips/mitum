@@ -66,12 +66,12 @@ func (box *Ballotbox) Vote(bl base.Ballot, threshold base.Threshold) (bool, erro
 	defer box.vrsLock.Unlock()
 
 	var withdraws []base.SuffrageWithdrawOperation
-	if i, ok := bl.(isaac.BallotWithdraws); ok {
+	if i, ok := bl.(isaac.WithdrawBallot); ok {
 		withdraws = i.Withdraws()
 	}
 
 	vp := bl.Voteproof()
-	if wvp, ok := vp.(isaac.WithdrawVoteproof); ok && wvp.IsStuck() {
+	if wvp, ok := vp.(isaac.StuckVoteproof); ok && wvp.IsStuck() {
 		vp = nil
 	}
 
@@ -173,11 +173,15 @@ func (box *Ballotbox) Voted(point base.StagePoint, nodes []base.Address) []base.
 	return vr.ballotSignFacts(nodes)
 }
 
-func (box *Ballotbox) voteproofWithWithdraws(
+func (box *Ballotbox) stuckVoteproof(
 	point base.StagePoint,
 	threshold base.Threshold,
 	withdraws []base.SuffrageWithdrawOperation,
 ) (base.Voteproof, error) {
+	if len(withdraws) < 1 {
+		return nil, errors.Errorf("empty withdraws")
+	}
+
 	box.vrsLock.RLock()
 	defer box.vrsLock.RUnlock()
 
@@ -188,7 +192,14 @@ func (box *Ballotbox) voteproofWithWithdraws(
 
 	_ = box.count(vr, threshold)
 
-	return vr.voteproofWithWithdraws(threshold, withdraws)
+	switch vp, err := vr.stuckVoteproof(threshold, withdraws); {
+	case err != nil:
+		return nil, err
+	case vp != nil:
+		return isaac.StuckVoteproofFromVoteproof(vp)
+	default:
+		return nil, nil
+	}
 }
 
 func (box *Ballotbox) countWithVoterecords(
@@ -914,22 +925,44 @@ func (vr *voterecords) newVoteproof(
 ) base.Voteproof {
 	switch vr.stagepoint.Stage() {
 	case base.StageINIT:
+		if len(withdraws) > 0 {
+			vp := isaac.NewINITWithdrawVoteproof(vr.stagepoint.Point)
+			_ = vp.
+				SetSignFacts(sfs).
+				SetMajority(majority).
+				SetThreshold(threshold)
+			_ = vp.SetWithdraws(withdraws)
+			_ = vp.Finish()
+
+			return vp
+		}
+
 		vp := isaac.NewINITVoteproof(vr.stagepoint.Point)
 		_ = vp.
 			SetSignFacts(sfs).
 			SetMajority(majority).
 			SetThreshold(threshold).
-			SetWithdraws(withdraws).
 			Finish()
 
 		return vp
 	case base.StageACCEPT:
+		if len(withdraws) > 0 {
+			vp := isaac.NewACCEPTWithdrawVoteproof(vr.stagepoint.Point)
+			_ = vp.
+				SetSignFacts(sfs).
+				SetMajority(majority).
+				SetThreshold(threshold)
+			_ = vp.SetWithdraws(withdraws)
+			_ = vp.Finish()
+
+			return vp
+		}
+
 		vp := isaac.NewACCEPTVoteproof(vr.stagepoint.Point)
 		_ = vp.
 			SetSignFacts(sfs).
 			SetMajority(majority).
 			SetThreshold(threshold).
-			SetWithdraws(withdraws).
 			Finish()
 
 		return vp
@@ -1038,7 +1071,7 @@ func (vr *voterecords) copyVoted(suf base.Suffrage) map[string]base.BallotSignFa
 	return voted
 }
 
-func (vr *voterecords) voteproofWithWithdraws(
+func (vr *voterecords) stuckVoteproof(
 	threshold base.Threshold,
 	withdraws []base.SuffrageWithdrawOperation,
 ) (base.Voteproof, error) {

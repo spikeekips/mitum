@@ -56,10 +56,8 @@ func (t *testWithdrawsConsensusHandler) TestEnterWithSIGNVoteproof() {
 	}
 
 	sfact := isaac.NewSuffrageConfirmBallotFact(point, origifact.PreviousBlock(), origifact.Proposal(), withdrawfacts)
-	ivp, err := t.NewINITVoteproof(sfact, t.Local, nodes[:2])
+	ivp, err := t.NewINITWithdrawVoteproof(sfact, t.Local, nodes[:2], withdraws)
 	t.NoError(err)
-
-	_ = ivp.SetWithdraws(withdraws)
 
 	t.T().Log("new suffrage confirm init voteproof", ivp.Point())
 
@@ -130,10 +128,8 @@ func (t *testWithdrawsConsensusHandler) TestSIGNAfterEnteringINITVoteproof() {
 	}
 
 	ifact := isaac.NewINITBallotFact(point, origifact.PreviousBlock(), origifact.Proposal(), withdrawfacts)
-	ivp, err := t.NewINITVoteproof(ifact, t.Local, nodes[:2])
+	ivp, err := t.NewINITWithdrawVoteproof(ifact, t.Local, nodes[:2], withdraws)
 	t.NoError(err)
-
-	_ = ivp.SetWithdraws(withdraws)
 
 	t.True(st.forceSetLastVoteproof(ivp))
 
@@ -175,10 +171,8 @@ func (t *testWithdrawsConsensusHandler) TestSIGNAfterEnteringINITVoteproof() {
 		t.T().Log("expected suffrage confirm init ballot broadcasted", bl.Point())
 	}
 
-	ivp, err = t.NewINITVoteproof(sfact, t.Local, nodes[:2])
+	ivp, err = t.NewINITWithdrawVoteproof(sfact, t.Local, nodes[:2], withdraws)
 	t.NoError(err)
-
-	_ = ivp.SetWithdraws(withdraws)
 
 	t.T().Log("new suffrage confirm init voteproof", ivp.Point())
 
@@ -295,10 +289,8 @@ func (t *testWithdrawsConsensusHandler) TestSIGNAfterACCEPTVoteproof() {
 	}
 
 	ifact := isaac.NewINITBallotFact(nextpoint, afact.NewBlock(), t.PRPool.Hash(nextpoint), withdrawfacts)
-	nextivp, err := t.NewINITVoteproof(ifact, t.Local, nodes[:2])
+	nextivp, err := t.NewINITWithdrawVoteproof(ifact, t.Local, nodes[:2], withdraws)
 	t.NoError(err)
-
-	_ = nextivp.SetWithdraws(withdraws)
 
 	t.NoError(st.newVoteproof(nextivp))
 
@@ -322,10 +314,8 @@ func (t *testWithdrawsConsensusHandler) TestSIGNAfterACCEPTVoteproof() {
 		t.T().Log("expected suffrage confirm init ballot broadcasted", sfact.Point())
 	}
 
-	signivp, err := t.NewINITVoteproof(sfact, t.Local, nodes[:2])
+	signivp, err := t.NewINITWithdrawVoteproof(sfact, t.Local, nodes[:2], withdraws)
 	t.NoError(err)
-
-	_ = signivp.SetWithdraws(withdraws)
 
 	t.T().Log("new suffrage confirm init voteproof", signivp.Point())
 
@@ -530,9 +520,8 @@ func (t *testWithdrawsConsensusHandler) TestSIGNAfterDrawINITVoteproof() {
 	}
 
 	sfact := isaac.NewSuffrageConfirmBallotFact(nextpoint, afact.NewBlock(), t.PRPool.Hash(nextpoint), withdrawfacts)
-	signivp, err := t.NewINITVoteproof(sfact, t.Local, nodes[:2])
+	signivp, err := t.NewINITWithdrawVoteproof(sfact, t.Local, nodes[:2], withdraws)
 	t.NoError(err)
-	_ = signivp.SetWithdraws(withdraws)
 
 	t.T().Log("next suffrage confirm init voteproof:", signivp.Point())
 	t.NoError(st.newVoteproof(signivp))
@@ -595,7 +584,7 @@ func (t *testWithdrawsConsensusHandler) TestReversalAfterDrawINITVoteproof() {
 	ifact := isaac.NewINITBallotFact(nextpoint, afact.NewBlock(), t.PRPool.Hash(nextpoint), withdrawfacts)
 	nextdrawivp, err := t.NewINITVoteproof(ifact, t.Local, nodes)
 	t.NoError(err)
-	nextmajorityivp, err := t.NewINITVoteproof(ifact, t.Local, nodes)
+	nextmajorityivp, err := t.NewINITWithdrawVoteproof(ifact, t.Local, nodes, withdraws)
 	t.NoError(err)
 
 	drawsfs := make([]base.BallotSignFact, len(nodes))
@@ -628,7 +617,6 @@ func (t *testWithdrawsConsensusHandler) TestReversalAfterDrawINITVoteproof() {
 	nextmajorityivp.
 		SetMajority(ifact).
 		SetSignFacts(majoritysfs).
-		SetWithdraws(withdraws).
 		Finish()
 
 	t.NoError(nextdrawivp.IsValid(t.LocalParams.NetworkID()))

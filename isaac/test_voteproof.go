@@ -8,6 +8,7 @@ import (
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util/localtime"
+	"github.com/stretchr/testify/assert"
 )
 
 func (vp *baseVoteproof) SetID(id string) {
@@ -29,4 +30,30 @@ func (vp *baseVoteproof) SetResult(r base.VoteResult) *baseVoteproof {
 	}
 
 	return vp
+}
+
+func EqualVoteproof(t *assert.Assertions, a, b base.Voteproof) {
+	if a == nil {
+		t.Equal(a, b)
+
+		return
+	}
+
+	base.EqualVoteproof(t, a, b)
+
+	wa, oka := a.(WithdrawVoteproof)
+	wb, okb := b.(WithdrawVoteproof)
+
+	t.Equal(oka, okb)
+
+	if oka {
+		wopa := wa.Withdraws()
+		wopb := wb.Withdraws()
+
+		t.Equal(len(wopa), len(wopb))
+
+		for i := range wopa {
+			base.EqualOperation(t, wopa[i], wopb[i])
+		}
+	}
 }

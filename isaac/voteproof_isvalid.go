@@ -16,8 +16,10 @@ func IsValidVoteproofWithSuffrage(vp base.Voteproof, suf base.Suffrage) error {
 
 	switch t := vp.(type) {
 	case INITVoteproof:
+	case INITWithdrawVoteproof:
 		withdraws = t.Withdraws()
 	case ACCEPTVoteproof:
+	case ACCEPTWithdrawVoteproof:
 		withdraws = t.Withdraws()
 	default:
 		return e.Errorf("unknown voteproof, %T", vp)

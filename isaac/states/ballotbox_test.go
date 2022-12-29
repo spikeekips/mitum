@@ -20,7 +20,7 @@ import (
 
 func (box *Ballotbox) voteAndWait(bl base.Ballot, threshold base.Threshold) (bool, base.Voteproof, error) {
 	var withdraws []base.SuffrageWithdrawOperation
-	if i, ok := bl.(isaac.BallotWithdraws); ok {
+	if i, ok := bl.(isaac.WithdrawBallot); ok {
 		withdraws = i.Withdraws()
 	}
 
@@ -92,14 +92,24 @@ func (t *baseTestBallotbox) initBallot(node isaac.LocalNode, nodes []isaac.Local
 				isfs[i] = sf
 			}
 
-			ivp := isaac.NewINITVoteproof(point.PrevRound())
-			ivp.
-				SetSignFacts(isfs).
-				SetThreshold(base.Threshold(100)).
-				SetWithdraws(withdraws).
-				Finish()
+			if len(withdraws) > 0 {
+				ivp := isaac.NewINITWithdrawVoteproof(point.PrevRound())
+				ivp.
+					SetSignFacts(isfs).
+					SetThreshold(base.Threshold(100))
+				ivp.SetWithdraws(withdraws)
+				ivp.Finish()
 
-			vp = ivp
+				vp = ivp
+			} else {
+				ivp := isaac.NewINITVoteproof(point.PrevRound())
+				ivp.
+					SetSignFacts(isfs).
+					SetThreshold(base.Threshold(100)).
+					Finish()
+
+				vp = ivp
+			}
 		}
 	}
 
@@ -129,13 +139,28 @@ func (t *baseTestBallotbox) acceptBallot(node isaac.LocalNode, nodes []isaac.Loc
 		isfs[i] = sf
 	}
 
-	ivp := isaac.NewINITVoteproof(ifact.Point().Point)
-	ivp.
-		SetMajority(ifact).
-		SetSignFacts(isfs).
-		SetThreshold(base.Threshold(100)).
-		SetWithdraws(withdraws).
-		Finish()
+	var ivp base.INITVoteproof
+
+	if len(withdraws) > 0 {
+		i := isaac.NewINITWithdrawVoteproof(ifact.Point().Point)
+		i.
+			SetMajority(ifact).
+			SetSignFacts(isfs).
+			SetThreshold(base.Threshold(100))
+		i.SetWithdraws(withdraws)
+		i.Finish()
+
+		ivp = i
+	} else {
+		i := isaac.NewINITVoteproof(ifact.Point().Point)
+		i.
+			SetMajority(ifact).
+			SetSignFacts(isfs).
+			SetThreshold(base.Threshold(100)).
+			Finish()
+
+		ivp = i
+	}
 
 	fact := isaac.NewACCEPTBallotFact(point, pr, block, withdrawfacts)
 
@@ -1184,7 +1209,7 @@ func (t *testBallotbox) TestVoteproofWithWithdraws() {
 		t.NotNil(vr)
 		t.True(vr.finished())
 
-		vp, err := vr.voteproofWithWithdraws(th, nil)
+		vp, err := vr.stuckVoteproof(th, nil)
 		t.NoError(err)
 		t.Nil(vp)
 	})
@@ -1222,7 +1247,7 @@ func (t *testBallotbox) TestVoteproofWithWithdraws() {
 		t.NotNil(vr)
 		t.False(vr.finished())
 
-		vp, err := vr.voteproofWithWithdraws(th, nil)
+		vp, err := vr.stuckVoteproof(th, nil)
 		t.NoError(err)
 		t.Nil(vp)
 	})
@@ -1755,13 +1780,13 @@ func (t *testBallotboxWithWithdraw) TestSuffrageConfirmBallots() {
 	}
 
 	// expected majority init voteproof with withdraws
-	ivp := isaac.NewINITVoteproof(point)
+	ivp := isaac.NewINITWithdrawVoteproof(point)
 	_ = ivp.
 		SetSignFacts(isfs).
 		SetMajority(ifact).
-		SetThreshold(th).
-		SetWithdraws(withdraws).
-		Finish()
+		SetThreshold(th)
+	ivp.SetWithdraws(withdraws)
+	ivp.Finish()
 
 	box.setLastStagePoint(ivp.Point(), true)
 
@@ -1848,13 +1873,13 @@ func (t *testBallotboxWithWithdraw) TestVoteproofFromSuffrageConfirmBallots() {
 	}
 
 	// expected majority init voteproof with withdraws
-	ivp := isaac.NewINITVoteproof(point)
+	ivp := isaac.NewINITWithdrawVoteproof(point)
 	_ = ivp.
 		SetSignFacts(isfs).
 		SetMajority(ifact).
-		SetThreshold(th).
-		SetWithdraws(withdraws).
-		Finish()
+		SetThreshold(th)
+	ivp.SetWithdraws(withdraws)
+	ivp.Finish()
 
 	// NOTE set last stage point is not init marjoity
 	box.setLastStagePoint(base.NewStagePoint(point.NextRound(), base.StageINIT), false)
@@ -1942,16 +1967,16 @@ func (t *testBallotboxWithWithdraw) TestVoteproofWithWithdraws() {
 			t.True(voted)
 		}
 
-		vp, err := box.voteproofWithWithdraws(base.NewStagePoint(point, base.StageINIT), th, withdraws)
+		vp, err := box.stuckVoteproof(base.NewStagePoint(point, base.StageINIT), th, withdraws)
 		t.NoError(err)
 		t.NotNil(vp)
 
 		t.NoError(vp.IsValid(t.networkID))
 
-		wvp, ok := vp.(isaac.WithdrawVoteproof)
+		svp, ok := vp.(isaac.StuckVoteproof)
 		t.True(ok)
 
-		t.True(wvp.IsStuck())
+		t.True(svp.IsStuck())
 
 		t.T().Log("voteproof:", t.StringMarshal(vp))
 	})
@@ -1989,7 +2014,7 @@ func (t *testBallotboxWithWithdraw) TestVoteproofWithWithdraws() {
 			t.True(voted)
 		}
 
-		vp, err := box.voteproofWithWithdraws(base.NewStagePoint(point, base.StageINIT), th, withdraws)
+		vp, err := box.stuckVoteproof(base.NewStagePoint(point, base.StageINIT), th, withdraws)
 		t.NoError(err)
 		t.Nil(vp)
 	})

@@ -15,7 +15,7 @@ var (
 	ACCEPTBallotHint = hint.MustNewHint("accept-ballot-v0.0.1")
 )
 
-type BallotWithdraws interface {
+type WithdrawBallot interface {
 	Withdraws() []base.SuffrageWithdrawOperation
 }
 
@@ -346,7 +346,7 @@ func (bl ACCEPTBallot) isValidACCEPTWithdraws() error {
 		return nil
 	}
 
-	wvp, ok := bl.vp.(BallotWithdraws)
+	wvp, ok := bl.vp.(WithdrawBallot)
 	if !ok {
 		return e.Errorf("invalid init voteproof; withdraws not found")
 	}

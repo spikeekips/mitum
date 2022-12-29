@@ -114,12 +114,9 @@ func (l LastVoteproofs) INIT() base.INITVoteproof {
 // * 'm' is last majority voteproof
 // * 'v' is draw voteproof, new incoming voteproof for next round
 func (l LastVoteproofs) PreviousBlockForNextRound(vp base.Voteproof) util.Hash {
-	wvp, _ := vp.(isaac.WithdrawVoteproof)
-
-	switch {
+	switch wvp, _ := vp.(isaac.WithdrawVoteproof); {
 	case l.mvp == nil:
 		return nil
-	case wvp != nil && wvp.IsStuck():
 	case wvp == nil && vp.Result() != base.VoteResultDraw:
 		return nil
 	}

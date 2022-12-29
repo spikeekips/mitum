@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -24,13 +25,13 @@ type baseVoteproofJSONMarshaler struct {
 	Threshold base.Threshold                   `json:"threshold"`
 }
 
-func (vp baseVoteproof) MarshalJSON() ([]byte, error) {
+func (vp baseVoteproof) jsonMarshaller() baseVoteproofJSONMarshaler {
 	var majority util.Hash
 	if vp.majority != nil {
 		majority = vp.majority.Hash()
 	}
 
-	return util.MarshalJSON(baseVoteproofJSONMarshaler{
+	return baseVoteproofJSONMarshaler{
 		BaseHinter: vp.BaseHinter,
 		FinishedAt: vp.finishedAt,
 		Majority:   majority,
@@ -38,8 +39,39 @@ func (vp baseVoteproof) MarshalJSON() ([]byte, error) {
 		Threshold:  vp.threshold,
 		SignFacts:  vp.sfs,
 		ID:         vp.id,
-		Withdraws:  vp.withdraws,
-	})
+	}
+}
+
+func (vp baseVoteproof) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(vp.jsonMarshaller())
+}
+
+func (vp INITWithdrawVoteproof) MarshalJSON() ([]byte, error) {
+	m := vp.jsonMarshaller()
+	m.Withdraws = vp.withdraws
+
+	return util.MarshalJSON(m)
+}
+
+func (vp INITStuckVoteproof) MarshalJSON() ([]byte, error) {
+	m := vp.jsonMarshaller()
+	m.Withdraws = vp.withdraws
+
+	return util.MarshalJSON(m)
+}
+
+func (vp ACCEPTWithdrawVoteproof) MarshalJSON() ([]byte, error) {
+	m := vp.jsonMarshaller()
+	m.Withdraws = vp.withdraws
+
+	return util.MarshalJSON(m)
+}
+
+func (vp ACCEPTStuckVoteproof) MarshalJSON() ([]byte, error) {
+	m := vp.jsonMarshaller()
+	m.Withdraws = vp.withdraws
+
+	return util.MarshalJSON(m)
 }
 
 type baseVoteproofJSONUnmarshaler struct {
@@ -52,12 +84,11 @@ type baseVoteproofJSONUnmarshaler struct {
 	Threshold  base.Threshold        `json:"threshold"`
 }
 
-func (vp *baseVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (vp *baseVoteproof) decodeJSON(b []byte, enc *jsonenc.Encoder) (u baseVoteproofJSONUnmarshaler, _ error) {
 	e := util.StringErrorFunc("failed to decode baseVoteproof")
 
-	var u baseVoteproofJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
-		return e(err, "")
+		return u, e(err, "")
 	}
 
 	majority := u.Majority.Hash()
@@ -66,7 +97,7 @@ func (vp *baseVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 
 	for i := range u.SignFacts {
 		if err := encoder.Decode(enc, u.SignFacts[i], &vp.sfs[i]); err != nil {
-			return e(err, "")
+			return u, e(err, "")
 		}
 
 		sfs := vp.sfs[i]
@@ -80,18 +111,105 @@ func (vp *baseVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		}
 	}
 
-	vp.withdraws = make([]base.SuffrageWithdrawOperation, len(u.Withdraws))
-
-	for i := range u.Withdraws {
-		if err := encoder.Decode(enc, u.Withdraws[i], &vp.withdraws[i]); err != nil {
-			return e(err, "")
-		}
-	}
-
 	vp.threshold = u.Threshold
 	vp.finishedAt = u.FinishedAt.Time
 	vp.point = u.Point
 	vp.id = u.ID
+
+	return u, nil
+}
+
+func (vp *baseVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+	_, err := vp.decodeJSON(b, enc)
+
+	return err
+}
+
+func decodeWithdrawVoteproofJSON(_ []byte, enc *jsonenc.Encoder, u baseVoteproofJSONUnmarshaler, i interface{}) error {
+	withdraws := make([]base.SuffrageWithdrawOperation, len(u.Withdraws))
+
+	for i := range u.Withdraws {
+		if err := encoder.Decode(enc, u.Withdraws[i], &withdraws[i]); err != nil {
+			return err
+		}
+	}
+
+	switch t := i.(type) {
+	case *baseWithdrawVoteproof:
+		t.withdraws = withdraws
+	case *baseStuckVoteproof:
+		t.withdraws = withdraws
+	default:
+		return errors.Errorf("withdraws not found, %T", t)
+	}
+
+	return nil
+}
+
+func (vp *baseWithdrawVoteproof) decodeJSON(b []byte, enc *jsonenc.Encoder, u baseVoteproofJSONUnmarshaler) (err error) {
+	return decodeWithdrawVoteproofJSON(b, enc, u, vp)
+}
+
+func (vp *baseStuckVoteproof) decodeJSON(b []byte, enc *jsonenc.Encoder, u baseVoteproofJSONUnmarshaler) (err error) {
+	return decodeWithdrawVoteproofJSON(b, enc, u, vp)
+}
+
+func (vp *INITWithdrawVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+	e := util.StringErrorFunc("failed to decode INITWithdrawVoteproof")
+
+	u, err := vp.baseVoteproof.decodeJSON(b, enc)
+	if err != nil {
+		return e(err, "")
+	}
+
+	if err := vp.baseWithdrawVoteproof.decodeJSON(b, enc, u); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
+func (vp *INITStuckVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+	e := util.StringErrorFunc("failed to decode INITStuckVoteproof")
+
+	u, err := vp.baseVoteproof.decodeJSON(b, enc)
+	if err != nil {
+		return e(err, "")
+	}
+
+	if err := vp.baseStuckVoteproof.decodeJSON(b, enc, u); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
+func (vp *ACCEPTWithdrawVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+	e := util.StringErrorFunc("failed to decode ACCEPTWithdrawVoteproof")
+
+	u, err := vp.baseVoteproof.decodeJSON(b, enc)
+	if err != nil {
+		return e(err, "")
+	}
+
+	if err := vp.baseWithdrawVoteproof.decodeJSON(b, enc, u); err != nil {
+		return e(err, "")
+	}
+
+	return nil
+}
+
+func (vp *ACCEPTStuckVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+	e := util.StringErrorFunc("failed to decode ACCEPTStuckVoteproof")
+
+	u, err := vp.baseVoteproof.decodeJSON(b, enc)
+	if err != nil {
+		return e(err, "")
+	}
+
+	if err := vp.baseStuckVoteproof.decodeJSON(b, enc, u); err != nil {
+		return e(err, "")
+	}
 
 	return nil
 }

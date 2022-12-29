@@ -368,7 +368,7 @@ func VoteSuffrageVotingFunc(
 			return nil, nil
 		}
 
-		return ballotbox.voteproofWithWithdraws(point, params.Threshold(), withdraws)
+		return ballotbox.stuckVoteproof(point, params.Threshold(), withdraws)
 	}
 }
 
