@@ -86,14 +86,14 @@ func (t *testLocalParams) TestIsValid() {
 		t.ErrorContains(err, "wrong duration")
 	})
 
-	t.Run("wrong maxOperationSize", func() {
+	t.Run("wrong MaxMessageSize", func() {
 		p := DefaultLocalParams(networkID)
-		p.SetMaxOperationSize(0)
+		p.SetMaxMessageSize(0)
 
 		err := p.IsValid(networkID)
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
-		t.ErrorContains(err, "wrong maxOperationSize")
+		t.ErrorContains(err, "wrong maxMessageSize")
 	})
 }
 
@@ -143,7 +143,7 @@ func TestLocalParamsJSON(tt *testing.T) {
 		t.Equal(ap.syncSourceCheckerInterval, bp.syncSourceCheckerInterval)
 		t.Equal(ap.validProposalOperationExpire, bp.validProposalOperationExpire)
 		t.Equal(ap.validProposalSuffrageOperationsExpire, bp.validProposalSuffrageOperationsExpire)
-		t.Equal(ap.maxOperationSize, bp.maxOperationSize)
+		t.Equal(ap.maxMessageSize, bp.maxMessageSize)
 		t.Equal(ap.sameMemberLimit, bp.sameMemberLimit)
 	}
 
@@ -167,7 +167,7 @@ func TestLocalParamsJSONMissing(tt *testing.T) {
 	p.SetSyncSourceCheckerInterval(p.SyncSourceCheckerInterval() + 3)
 	p.SetValidProposalOperationExpire(p.ValidProposalOperationExpire() + 3)
 	p.SetValidProposalSuffrageOperationsExpire(p.ValidProposalSuffrageOperationsExpire() + 3)
-	p.SetMaxOperationSize(p.MaxOperationSize() + 3)
+	p.SetMaxMessageSize(p.MaxMessageSize() + 3)
 	p.SetSameMemberLimit(p.SameMemberLimit() + 3)
 
 	b, err := util.MarshalJSON(&p)

@@ -85,8 +85,8 @@ func QuicstreamHandlerSendOperation(
 		switch body, err = io.ReadAll(r); {
 		case err != nil:
 			return e(err, "")
-		case uint64(len(body)) > params.MaxOperationSize():
-			return e(nil, "too big size; >= %d", params.MaxOperationSize())
+		case uint64(len(body)) > params.MaxMessageSize():
+			return e(nil, "too big size; >= %d", params.MaxMessageSize())
 		default:
 			if err = encoder.Decode(enc, body, &op); err != nil {
 				return e(err, "")
@@ -630,8 +630,8 @@ func QuicstreamHandlerSendBallots(
 		switch body, err = io.ReadAll(r); {
 		case err != nil:
 			return e(err, "")
-		case uint64(len(body)) > params.MaxOperationSize():
-			return e(nil, "too big size; >= %d", params.MaxOperationSize())
+		case uint64(len(body)) > params.MaxMessageSize():
+			return e(nil, "too big size; >= %d", params.MaxMessageSize())
 		}
 
 		var u []json.RawMessage

@@ -148,7 +148,7 @@ func watchUpdateFuncs(ctx context.Context) (map[string]func(string) error, error
 		"parameters/sync_source_checker_interval":              updateLocalParamSyncSourceCheckerInterval(params, log),
 		"parameters/valid_proposal_operation_expire":           updateLocalParamValidProposalOperationExpire(params, log),
 		"parameters/valid_proposal_suffrage_operations_expire": updateLocalParamValidProposalSuffrageOperationsExpire(params, log),
-		"parameters/max_operation_size":                        updateLocalParamMaxOperationSize(params, log),
+		"parameters/max_operation_size":                        updateLocalParamMaxMessageSize(params, log),
 		"parameters/same_member_limit":                         updateLocalParamSameMemberLimit(params, log),
 		"discoveries":                                          updateDiscoveries(discoveries, log),
 		"sync_sources":                                         updateSyncSources(enc, design, syncSourceChecker, log),
@@ -384,7 +384,7 @@ func updateLocalParamValidProposalSuffrageOperationsExpire(
 	}
 }
 
-func updateLocalParamMaxOperationSize(
+func updateLocalParamMaxMessageSize(
 	params *isaac.LocalParams,
 	log *logging.Logging,
 ) func(string) error {
@@ -394,13 +394,13 @@ func updateLocalParamMaxOperationSize(
 			return errors.Wrap(err, "failed to parse uint64")
 		}
 
-		prev := params.MaxOperationSize()
-		_ = params.SetMaxOperationSize(i)
+		prev := params.MaxMessageSize()
+		_ = params.SetMaxMessageSize(i)
 
 		log.Log().Debug().
-			Str("key", "max_operation_size").
+			Str("key", "max_message_size").
 			Interface("prev", prev).
-			Interface("updated", params.MaxOperationSize()).
+			Interface("updated", params.MaxMessageSize()).
 			Msg("local parameter updated")
 
 		return nil

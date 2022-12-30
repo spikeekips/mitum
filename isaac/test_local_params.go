@@ -27,6 +27,6 @@ func EqualLocalParams(t *assert.Assertions, a, b *LocalParams) {
 	t.Equal(a.syncSourceCheckerInterval, b.syncSourceCheckerInterval, "syncSourceCheckerInterval")
 	t.Equal(a.validProposalOperationExpire, b.validProposalOperationExpire, "validProposalOperationExpire")
 	t.Equal(a.validProposalSuffrageOperationsExpire, b.validProposalSuffrageOperationsExpire, "validProposalSuffrageOperationsExpire")
-	t.Equal(a.maxOperationSize, b.maxOperationSize, "maxOperationSize")
+	t.Equal(a.maxMessageSize, b.maxMessageSize, "maxMessageSize")
 	t.Equal(a.sameMemberLimit, b.sameMemberLimit, "sameMemberLimit")
 }

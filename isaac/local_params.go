@@ -26,7 +26,7 @@ type LocalParams struct {
 	syncSourceCheckerInterval             time.Duration
 	validProposalOperationExpire          time.Duration
 	validProposalSuffrageOperationsExpire time.Duration
-	maxOperationSize                      uint64
+	maxMessageSize                        uint64
 	sameMemberLimit                       uint64
 	sync.RWMutex
 }
@@ -52,7 +52,7 @@ func DefaultLocalParams(networkID base.NetworkID) *LocalParams {
 		syncSourceCheckerInterval:             time.Second * 30, //nolint:gomnd //...
 		validProposalOperationExpire:          time.Hour * 24,   //nolint:gomnd //...
 		validProposalSuffrageOperationsExpire: time.Hour * 2,    //nolint:gomnd //...
-		maxOperationSize:                      1 << 18,          //nolint:gomnd //...
+		maxMessageSize:                        1 << 18,          //nolint:gomnd //...
 		sameMemberLimit:                       3,                //nolint:gomnd //...
 	}
 }
@@ -104,8 +104,8 @@ func (p *LocalParams) IsValid(networkID []byte) error {
 		return e.Errorf("wrong duration; invalid validProposalSuffrageOperationsExpire")
 	}
 
-	if p.maxOperationSize < 1 {
-		return e.Errorf("wrong maxOperationSize")
+	if p.maxMessageSize < 1 {
+		return e.Errorf("wrong maxMessageSize")
 	}
 
 	return nil
@@ -316,22 +316,22 @@ func (p *LocalParams) SetValidProposalSuffrageOperationsExpire(d time.Duration) 
 	return p
 }
 
-func (p *LocalParams) MaxOperationSize() uint64 { // FIXME rename to MaxIncomingMessageSize
+func (p *LocalParams) MaxMessageSize() uint64 {
 	p.RLock()
 	defer p.RUnlock()
 
-	return p.maxOperationSize
+	return p.maxMessageSize
 }
 
-func (p *LocalParams) SetMaxOperationSize(s uint64) *LocalParams {
+func (p *LocalParams) SetMaxMessageSize(s uint64) *LocalParams {
 	p.Lock()
 	defer p.Unlock()
 
-	if p.maxOperationSize == s {
+	if p.maxMessageSize == s {
 		return p
 	}
 
-	p.maxOperationSize = s
+	p.maxMessageSize = s
 
 	p.id = util.UUID().String()
 
@@ -370,7 +370,7 @@ type localParamsJSONMarshaler struct {
 	SyncSourceCheckerInterval             util.ReadableJSONDuration `json:"sync_source_checker_interval,omitempty"`
 	ValidProposalOperationExpire          util.ReadableJSONDuration `json:"valid_proposal_operation_expire,omitempty"`
 	ValidProposalSuffrageOperationsExpire util.ReadableJSONDuration `json:"valid_proposal_suffrage_operations_expire,omitempty"` //revive:disable-line:line-length-limit
-	MaxOperationSize                      uint64                    `json:"max_operation_size,omitempty"`
+	MaxMessageSize                        uint64                    `json:"max_message_size,omitempty"`
 	SameMemberLimit                       uint64                    `json:"same_member_limit,omitempty"`
 }
 
@@ -385,7 +385,7 @@ func (p *LocalParams) MarshalJSON() ([]byte, error) {
 		SyncSourceCheckerInterval:             util.ReadableJSONDuration(p.syncSourceCheckerInterval),
 		ValidProposalOperationExpire:          util.ReadableJSONDuration(p.validProposalOperationExpire),
 		ValidProposalSuffrageOperationsExpire: util.ReadableJSONDuration(p.validProposalSuffrageOperationsExpire),
-		MaxOperationSize:                      p.maxOperationSize,
+		MaxMessageSize:                        p.maxMessageSize,
 		SameMemberLimit:                       p.sameMemberLimit,
 	})
 }
@@ -399,7 +399,7 @@ type localParamsJSONUnmarshaler struct {
 	SyncSourceCheckerInterval             *util.ReadableJSONDuration `json:"sync_source_checker_interval"`
 	ValidProposalOperationExpire          *util.ReadableJSONDuration `json:"valid_proposal_operation_expire"`
 	ValidProposalSuffrageOperationsExpire *util.ReadableJSONDuration `json:"valid_proposal_suffrage_operations_expire"`
-	MaxOperationSize                      *uint64                    `json:"max_operation_size"`
+	MaxMessageSize                        *uint64                    `json:"max_message_size"`
 	SameMemberLimit                       *uint64                    `json:"same_member_limit"`
 	hint.BaseHinter
 }
@@ -413,7 +413,7 @@ func (p *LocalParams) UnmarshalJSON(b []byte) error {
 	p.BaseHinter = u.BaseHinter
 
 	args := [][2]interface{}{
-		{u.MaxOperationSize, &p.maxOperationSize},
+		{u.MaxMessageSize, &p.maxMessageSize},
 		{u.SameMemberLimit, &p.sameMemberLimit},
 	}
 
