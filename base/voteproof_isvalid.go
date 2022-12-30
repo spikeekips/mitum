@@ -171,7 +171,7 @@ func isValidSignFactInVoteproof(vp Voteproof, sf BallotSignFact) error {
 	return nil
 }
 
-func IsValidVoteproofWithSuffrage(vp Voteproof, suf Suffrage) error {
+func IsValidVoteproofWithSuffrage(vp Voteproof, suf Suffrage, th Threshold) error {
 	e := util.StringErrorFunc("invalid voteproof with suffrage")
 
 	sfs := vp.SignFacts()
@@ -188,7 +188,7 @@ func IsValidVoteproofWithSuffrage(vp Voteproof, suf Suffrage) error {
 	}
 
 	set, m := CountBallotSignFacts(sfs)
-	result, majoritykey := vp.Threshold().VoteResult(uint(suf.Len()), set)
+	result, majoritykey := th.VoteResult(uint(suf.Len()), set)
 
 	switch {
 	case result != vp.Result():

@@ -247,7 +247,7 @@ func (t *testVoteproof) TestWrongMajorityWithSuffrage() {
 
 	t.NoError(ivp.IsValid(t.networkID))
 
-	err := base.IsValidVoteproofWithSuffrage(ivp, suf)
+	err := base.IsValidVoteproofWithSuffrage(ivp, suf, ivp.Threshold())
 	t.Error(err)
 	t.True(errors.Is(err, util.ErrInvalid))
 	t.ErrorContains(err, "wrong majority")
@@ -262,7 +262,7 @@ func (t *testVoteproof) TestUnknownNode() {
 
 	suf, _ := NewTestSuffrage(1)
 
-	err := base.IsValidVoteproofWithSuffrage(ivp, suf)
+	err := base.IsValidVoteproofWithSuffrage(ivp, suf, ivp.Threshold())
 	t.Error(err)
 	t.True(errors.Is(err, util.ErrInvalid))
 	t.ErrorContains(err, "unknown node found")

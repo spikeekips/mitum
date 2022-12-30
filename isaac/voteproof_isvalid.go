@@ -25,6 +25,7 @@ func IsValidVoteproofWithSuffrage(vp base.Voteproof, suf base.Suffrage) error {
 		return e.Errorf("unknown voteproof, %T", vp)
 	}
 
+	th := vp.Threshold()
 	rsuf := suf
 
 	if len(withdraws) > 0 {
@@ -39,10 +40,11 @@ func IsValidVoteproofWithSuffrage(vp base.Voteproof, suf base.Suffrage) error {
 			return e.Wrap(err)
 		default:
 			rsuf = i
+			th = base.MaxThreshold
 		}
 	}
 
-	if err := base.IsValidVoteproofWithSuffrage(vp, rsuf); err != nil {
+	if err := base.IsValidVoteproofWithSuffrage(vp, rsuf, th); err != nil {
 		return e.Wrap(err)
 	}
 
