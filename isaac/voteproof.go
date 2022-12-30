@@ -12,12 +12,17 @@ import (
 
 // FIXME remove withdraw nodes from sync sources
 
-type WithdrawVoteproof interface {
+type HasWithdrawVoteproof interface {
 	Withdraws() []base.SuffrageWithdrawOperation
 }
 
+type WithdrawVoteproof interface {
+	HasWithdrawVoteproof
+	IsWithdrawVoteproof() bool // NOTE should be true
+}
+
 type StuckVoteproof interface {
-	WithdrawVoteproof
+	HasWithdrawVoteproof
 	IsStuckVoteproof() bool // NOTE should be true
 }
 
@@ -278,6 +283,10 @@ func (vp INITWithdrawVoteproof) IsValid(networkID []byte) error {
 	return nil
 }
 
+func (INITWithdrawVoteproof) IsWithdrawVoteproof() bool {
+	return true
+}
+
 func (vp INITWithdrawVoteproof) HashBytes() []byte {
 	return util.ConcatBytesSlice(vp.baseVoteproof.HashBytes(), vp.baseWithdrawVoteproof.hashBytes())
 }
@@ -295,6 +304,10 @@ func NewACCEPTWithdrawVoteproof(point base.Point) ACCEPTWithdrawVoteproof {
 	vp.BaseHinter = vp.SetHint(ACCEPTWithdrawVoteproofHint).(hint.BaseHinter) //nolint:forcetypeassert //...
 
 	return vp
+}
+
+func (ACCEPTWithdrawVoteproof) IsWithdrawVoteproof() bool {
+	return true
 }
 
 func (vp ACCEPTWithdrawVoteproof) IsValid(networkID []byte) error {
@@ -356,10 +369,6 @@ func (vp INITStuckVoteproof) IsValid(networkID []byte) error {
 	return nil
 }
 
-func (INITStuckVoteproof) IsStuckVoteproof() bool {
-	return true
-}
-
 func (vp *INITStuckVoteproof) Finish() *INITStuckVoteproof {
 	_ = vp.SetThreshold(base.MaxThreshold)
 	_ = vp.baseVoteproof.Finish()
@@ -402,10 +411,6 @@ func (vp ACCEPTStuckVoteproof) IsValid(networkID []byte) error {
 	}
 
 	return nil
-}
-
-func (ACCEPTStuckVoteproof) IsStuckVoteproof() bool {
-	return true
 }
 
 func (vp *ACCEPTStuckVoteproof) Finish() *ACCEPTStuckVoteproof {
@@ -470,6 +475,10 @@ func (vp baseWithdrawVoteproof) hashBytes() []byte {
 
 type baseStuckVoteproof struct {
 	baseWithdrawVoteproof
+}
+
+func (baseStuckVoteproof) IsStuckVoteproof() bool {
+	return true
 }
 
 func (vp baseStuckVoteproof) isValid(networkID []byte, ovp baseVoteproof) error {

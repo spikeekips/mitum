@@ -712,8 +712,13 @@ func TestINITWithdrawVoteproofJSON(tt *testing.T) {
 		i, err := t.enc.Decode(b)
 		t.NoError(err)
 
-		_, ok := i.(INITWithdrawVoteproof)
+		_, ok := i.(WithdrawVoteproof)
 		t.True(ok)
+
+		ivp, ok := i.(INITWithdrawVoteproof)
+		t.True(ok)
+
+		t.NoError(ivp.IsValid(t.networkID))
 
 		return i
 	}
@@ -760,8 +765,13 @@ func TestINITStuckVoteproofJSON(tt *testing.T) {
 		i, err := t.enc.Decode(b)
 		t.NoError(err)
 
-		_, ok := i.(INITStuckVoteproof)
+		_, ok := i.(StuckVoteproof)
 		t.True(ok)
+
+		ivp, ok := i.(INITStuckVoteproof)
+		t.True(ok)
+
+		t.NoError(ivp.IsValid(t.networkID))
 
 		return i
 	}
@@ -853,6 +863,9 @@ func TestACCEPTWithdrawVoteproofJSON(tt *testing.T) {
 		i, err := t.enc.Decode(b)
 		t.NoError(err)
 
+		_, ok := i.(WithdrawVoteproof)
+		t.True(ok)
+
 		avp, ok := i.(ACCEPTWithdrawVoteproof)
 		t.True(ok)
 
@@ -902,6 +915,9 @@ func TestACCEPTStuckVoteproofJSON(tt *testing.T) {
 	t.Decode = func(b []byte) interface{} {
 		i, err := t.enc.Decode(b)
 		t.NoError(err)
+
+		_, ok := i.(StuckVoteproof)
+		t.True(ok)
 
 		avp, ok := i.(ACCEPTStuckVoteproof)
 		t.True(ok)
