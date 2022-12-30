@@ -2,8 +2,6 @@ package isaacstates
 
 import (
 	"context"
-	"strconv"
-	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -492,7 +490,7 @@ func (t *testBallotbox) TestNilSuffrage() {
 	t.True(voted)
 
 	stagepoint := base.NewStagePoint(point, base.StageINIT)
-	vr, _, found := box.voterecords(stagepoint, false)
+	vr, found := box.voterecords(stagepoint, false)
 	t.True(found)
 	t.Equal(stagepoint, vr.stagepoint)
 
@@ -1082,14 +1080,14 @@ func (t *testBallotbox) TestMissingNodes() {
 		t.True(voted)
 
 		t.Run("unknown nodes", func() {
-			founds, ok, err := box.missingNodes(base.NewStagePoint(point.PrevRound(), base.StageINIT), th)
+			founds, ok, err := box.MissingNodes(base.NewStagePoint(point.PrevRound(), base.StageINIT), th)
 			t.NoError(err)
 			t.False(ok)
 			t.Equal(0, len(founds))
 		})
 
 		t.Run("known nodes", func() {
-			founds, ok, err := box.missingNodes(base.NewStagePoint(point, base.StageINIT), th)
+			founds, ok, err := box.MissingNodes(base.NewStagePoint(point, base.StageINIT), th)
 			t.NoError(err)
 			t.True(ok)
 			t.Equal(suf.Len()-1, len(founds))
@@ -1135,7 +1133,7 @@ func (t *testBallotbox) TestMissingNodes() {
 			t.True(voted)
 		}
 
-		founds, ok, err := box.missingNodes(base.NewStagePoint(point, base.StageINIT), th)
+		founds, ok, err := box.MissingNodes(base.NewStagePoint(point, base.StageINIT), th)
 		t.NoError(err)
 		t.True(ok)
 		t.Equal(0, len(founds))
@@ -1167,7 +1165,7 @@ func (t *testBallotbox) TestMissingNodes() {
 			t.True(voted)
 		}
 
-		founds, ok, err := box.missingNodes(base.NewStagePoint(point, base.StageINIT), th)
+		founds, ok, err := box.MissingNodes(base.NewStagePoint(point, base.StageINIT), th)
 		t.NoError(err)
 		t.False(ok)
 		t.Equal(0, len(founds))
@@ -1201,17 +1199,13 @@ func (t *testBallotbox) TestVoteproofWithWithdraws() {
 			t.True(voted)
 		}
 
-		t.True(box.Count(th))
+		box.Count(th)
 
-		vr, _, found := box.voterecords(base.NewStagePoint(point, base.StageINIT), false)
+		vr, found := box.voterecords(base.NewStagePoint(point, base.StageINIT), false)
 
 		t.True(found)
 		t.NotNil(vr)
 		t.True(vr.finished())
-
-		vp, err := vr.stuckVoteproof(th, nil)
-		t.NoError(err)
-		t.Nil(vp)
 	})
 
 	t.Run("not yet finished", func() {
@@ -1240,16 +1234,12 @@ func (t *testBallotbox) TestVoteproofWithWithdraws() {
 			t.True(voted)
 		}
 
-		t.False(box.Count(th))
+		box.Count(th)
 
-		vr, _, found := box.voterecords(base.NewStagePoint(point, base.StageINIT), false)
+		vr, found := box.voterecords(base.NewStagePoint(point, base.StageINIT), false)
 		t.True(found)
 		t.NotNil(vr)
 		t.False(vr.finished())
-
-		vp, err := vr.stuckVoteproof(th, nil)
-		t.NoError(err)
-		t.Nil(vp)
 	})
 }
 
@@ -1926,15 +1916,13 @@ func (t *testBallotboxWithWithdraw) TestVoteproofFromSuffrageConfirmBallots() {
 	}
 }
 
-// FIXME test IsStuck voteproof in ballot; voteproof should not be digged
-
 func (t *testBallotboxWithWithdraw) TestVoteproofWithWithdraws() {
 	t.Run("not yet finished", func() {
 		point := base.RawPoint(33, 0)
 		suf, nodes := isaac.NewTestSuffrage(3)
 		withdrawnode := nodes[2]
 
-		th := base.Threshold(100)
+		th := base.Threshold(67)
 
 		withdraws := t.withdraws(point.Height(), []base.Address{withdrawnode.Address()}, nodes)
 		withdrawfacts := make([]util.Hash, len(withdraws))
@@ -1967,7 +1955,7 @@ func (t *testBallotboxWithWithdraw) TestVoteproofWithWithdraws() {
 			t.True(voted)
 		}
 
-		vp, err := box.stuckVoteproof(base.NewStagePoint(point, base.StageINIT), th, withdraws)
+		vp, err := box.StuckVoteproof(base.NewStagePoint(point, base.StageINIT), th, withdraws)
 		t.NoError(err)
 		t.NotNil(vp)
 
@@ -1976,7 +1964,7 @@ func (t *testBallotboxWithWithdraw) TestVoteproofWithWithdraws() {
 		svp, ok := vp.(isaac.StuckVoteproof)
 		t.True(ok)
 
-		t.True(svp.IsStuck())
+		t.True(svp.IsStuckVoteproof())
 
 		t.T().Log("voteproof:", t.StringMarshal(vp))
 	})
@@ -2014,7 +2002,7 @@ func (t *testBallotboxWithWithdraw) TestVoteproofWithWithdraws() {
 			t.True(voted)
 		}
 
-		vp, err := box.stuckVoteproof(base.NewStagePoint(point, base.StageINIT), th, withdraws)
+		vp, err := box.StuckVoteproof(base.NewStagePoint(point, base.StageINIT), th, withdraws)
 		t.NoError(err)
 		t.Nil(vp)
 	})
@@ -2022,62 +2010,4 @@ func (t *testBallotboxWithWithdraw) TestVoteproofWithWithdraws() {
 
 func TestBallotboxWithWithdraw(t *testing.T) {
 	suite.Run(t, new(testBallotboxWithWithdraw))
-}
-
-func TestIsNewBallotboxStagePoint(tt *testing.T) {
-	t := new(suite.Suite)
-	t.SetT(tt)
-
-	cases := []struct {
-		name   string
-		last   string
-		point  string
-		isSIGN bool
-		result bool
-	}{
-		{name: "zero last: isSIGN", last: "", point: "3,0,INIT", isSIGN: true, result: true},
-		{name: "zero last: !isSIGN", last: "", point: "3,0,INIT", isSIGN: false, result: true},
-		{name: "last == point: !isSIGN", last: "3,0,INIT", point: "3,0,INIT", isSIGN: false, result: false},
-		{name: "last == point: isSIGN", last: "3,0,INIT", point: "3,0,INIT", isSIGN: true, result: true},
-		{name: "last height > point height: !isSIGN", last: "4,0,INIT", point: "3,0,INIT", isSIGN: false, result: false},
-		{name: "last round > point round: !isSIGN", last: "3,1,INIT", point: "3,0,INIT", isSIGN: false, result: false},
-		{name: "last stage > point stage: !isSIGN", last: "3,0,ACCEPT", point: "3,0,INIT", isSIGN: false, result: false},
-		{name: "last height > point height: isSIGN", last: "4,0,INIT", point: "3,0,INIT", isSIGN: true, result: false},
-		{name: "last round > point round: isSIGN", last: "3,1,INIT", point: "3,0,INIT", isSIGN: true, result: true},
-		{name: "last stage > point stage: isSIGN", last: "3,0,ACCEPT", point: "3,0,INIT", isSIGN: true, result: false},
-		{name: "last height > point height, last round > point round: isSIGN", last: "4,1,INIT", point: "3,0,INIT", isSIGN: true, result: false},
-		{name: "last ACCEPT; last > point: isSIGN", last: "3,1,ACCEPT", point: "3,0,INIT", isSIGN: true, result: false},
-		{name: "last ACCEPT; last < point: isSIGN", last: "3,0,ACCEPT", point: "4,0,INIT", isSIGN: true, result: true},
-	}
-
-	parsepoint := func(s string) base.StagePoint {
-		if s == "" {
-			return base.StagePoint{}
-		}
-
-		i := strings.SplitN(s, ",", 3)
-		h, err := base.ParseHeightString(i[0])
-		if err != nil {
-			panic(err)
-		}
-
-		r, err := strconv.ParseInt(i[1], 10, 64)
-		if err != nil {
-			panic(err)
-		}
-
-		return base.NewStagePoint(base.NewPoint(h, base.Round(r)), base.Stage(i[2]))
-	}
-
-	for i, c := range cases {
-		i := i
-		c := c
-		t.Run(c.name, func() {
-			last := parsepoint(c.last)
-			point := parsepoint(c.point)
-
-			r := isNewBallotboxStagePoint(last, point, true, c.isSIGN)
-			t.Equal(c.result, r, "%d: last=%v point=%v isSIGN=%v", i, last, point, c.isSIGN)
-		})
-	}
 }

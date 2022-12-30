@@ -276,7 +276,7 @@ func FindMissingBallotsFromBallotboxFunc(
 
 		// NOTE if nodes are entire suffrage nodes except local, local seems to
 		// be out of network. it returns empty nodes and false ok.
-		switch nodes, ok, err := ballotbox.missingNodes(point, params.Threshold()); {
+		switch nodes, ok, err := ballotbox.MissingNodes(point, params.Threshold()); {
 		case err != nil:
 			return nil, false, err
 		case !ok:
@@ -368,7 +368,7 @@ func VoteSuffrageVotingFunc(
 			return nil, nil
 		}
 
-		return ballotbox.stuckVoteproof(point, params.Threshold(), withdraws)
+		return ballotbox.StuckVoteproof(point, params.Threshold(), withdraws)
 	}
 }
 

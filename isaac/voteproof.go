@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
@@ -19,7 +18,7 @@ type WithdrawVoteproof interface {
 
 type StuckVoteproof interface {
 	WithdrawVoteproof
-	IsStuck() bool
+	IsStuckVoteproof() bool // NOTE should be true
 }
 
 var (
@@ -338,12 +337,12 @@ func NewINITStuckVoteproof(point base.Point) INITStuckVoteproof {
 func (vp INITStuckVoteproof) IsValid(networkID []byte) error {
 	e := util.ErrInvalid.Errorf("invalid INITStuckVoteproof")
 
-	if vp.threshold != base.MaxThreshold {
-		return e.Errorf("wrong threshold for stuck voteproof; should be 100.0, not %v", vp.threshold)
-	}
-
 	if err := vp.BaseHinter.IsValid(INITStuckVoteproofHint.Type().Bytes()); err != nil {
 		return e.Wrap(err)
+	}
+
+	if vp.threshold != base.MaxThreshold {
+		return e.Errorf("wrong threshold for stuck voteproof; should be 100.0, not %v", vp.threshold)
 	}
 
 	if err := vp.INITVoteproof.isValid(networkID); err != nil {
@@ -357,8 +356,8 @@ func (vp INITStuckVoteproof) IsValid(networkID []byte) error {
 	return nil
 }
 
-func (vp INITStuckVoteproof) IsStuck() bool {
-	return vp.isStuck(vp.majority)
+func (INITStuckVoteproof) IsStuckVoteproof() bool {
+	return true
 }
 
 func (vp *INITStuckVoteproof) Finish() *INITStuckVoteproof {
@@ -390,6 +389,10 @@ func (vp ACCEPTStuckVoteproof) IsValid(networkID []byte) error {
 		return e.Wrap(err)
 	}
 
+	if vp.threshold != base.MaxThreshold {
+		return e.Errorf("wrong threshold for stuck voteproof; should be 100.0, not %v", vp.threshold)
+	}
+
 	if err := vp.ACCEPTVoteproof.isValid(networkID); err != nil {
 		return e.Wrap(err)
 	}
@@ -401,8 +404,8 @@ func (vp ACCEPTStuckVoteproof) IsValid(networkID []byte) error {
 	return nil
 }
 
-func (vp ACCEPTStuckVoteproof) IsStuck() bool {
-	return vp.isStuck(vp.majority)
+func (ACCEPTStuckVoteproof) IsStuckVoteproof() bool {
+	return true
 }
 
 func (vp *ACCEPTStuckVoteproof) Finish() *ACCEPTStuckVoteproof {
@@ -470,22 +473,11 @@ type baseStuckVoteproof struct {
 }
 
 func (vp baseStuckVoteproof) isValid(networkID []byte, ovp baseVoteproof) error {
+	if len(vp.withdraws) < 1 {
+		return util.ErrInvalid.Errorf("not stuck")
+	}
+
 	return isValidithdrawVoteproof(networkID, vp.withdraws, ovp)
-}
-
-func (vp baseStuckVoteproof) isStuck(majority base.BallotFact) bool {
-	if majority == nil && len(vp.withdraws) < 1 {
-		return false
-	}
-
-	switch wf, ok := majority.(BallotWithdrawFacts); {
-	case !ok,
-		len(vp.withdraws) < 1,
-		len(wf.WithdrawFacts()) > 0:
-		return false
-	default:
-		return true
-	}
 }
 
 func isValidithdrawVoteproof(networkID []byte, withdraws []base.SuffrageWithdrawOperation, ovp baseVoteproof) error {
@@ -519,41 +511,4 @@ func isValidithdrawVoteproof(networkID []byte, withdraws []base.SuffrageWithdraw
 	}
 
 	return nil
-}
-
-func StuckVoteproofFromVoteproof(vp base.Voteproof) (base.Voteproof, error) {
-	if _, ok := vp.(StuckVoteproof); ok {
-		return vp, nil
-	}
-
-	wvp, ok := vp.(WithdrawVoteproof) //nolint:forcetypeassert //...
-	if !ok {
-		return nil, errors.Errorf("expected WithdrawVoteproof, but %T", vp)
-	}
-
-	switch vp.Point().Stage() {
-	case base.StageINIT:
-		ivp := NewINITStuckVoteproof(vp.Point().Point)
-
-		_ = ivp.
-			SetSignFacts(vp.SignFacts()).
-			SetMajority(vp.Majority()).
-			SetThreshold(vp.Threshold())
-		_ = ivp.SetWithdraws(wvp.Withdraws())
-		_ = ivp.Finish()
-
-		return ivp, nil
-	case base.StageACCEPT:
-		avp := NewACCEPTStuckVoteproof(vp.Point().Point)
-		_ = avp.
-			SetSignFacts(vp.SignFacts()).
-			SetMajority(vp.Majority()).
-			SetThreshold(vp.Threshold())
-		_ = avp.SetWithdraws(wvp.Withdraws())
-		_ = avp.Finish()
-
-		return avp, nil
-	default:
-		return nil, errors.Errorf("unknown voteproof stage, %T", vp.Point().Stage())
-	}
 }
