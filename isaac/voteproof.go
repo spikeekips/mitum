@@ -196,80 +196,6 @@ func (vp INITVoteproof) BallotSignFacts() []base.INITBallotSignFact {
 	return vs
 }
 
-type INITWithdrawVoteproof struct {
-	baseWithdrawVoteproof
-	INITVoteproof
-}
-
-func NewINITWithdrawVoteproof(point base.Point) INITWithdrawVoteproof {
-	vp := INITWithdrawVoteproof{
-		INITVoteproof: NewINITVoteproof(point),
-	}
-
-	vp.BaseHinter = vp.SetHint(INITWithdrawVoteproofHint).(hint.BaseHinter) //nolint:forcetypeassert //...
-
-	return vp
-}
-
-func (vp INITWithdrawVoteproof) IsValid(networkID []byte) error {
-	e := util.ErrInvalid.Errorf("invalid INITWithdrawVoteproof")
-
-	if err := vp.BaseHinter.IsValid(INITWithdrawVoteproofHint.Type().Bytes()); err != nil {
-		return e.Wrap(err)
-	}
-
-	if err := vp.INITVoteproof.isValid(networkID); err != nil {
-		return e.Wrap(err)
-	}
-
-	if err := vp.baseWithdrawVoteproof.isValid(networkID, vp.baseVoteproof); err != nil {
-		return e.Wrap(err)
-	}
-
-	return nil
-}
-
-func (vp INITWithdrawVoteproof) HashBytes() []byte {
-	return util.ConcatBytesSlice(vp.baseVoteproof.HashBytes(), vp.baseWithdrawVoteproof.hashBytes())
-}
-
-type INITStuckVoteproof struct {
-	baseStuckVoteproof
-	INITVoteproof
-}
-
-func NewINITStuckVoteproof(point base.Point) INITStuckVoteproof {
-	vp := INITStuckVoteproof{
-		INITVoteproof: NewINITVoteproof(point),
-	}
-
-	vp.BaseHinter = vp.SetHint(INITStuckVoteproofHint).(hint.BaseHinter) //nolint:forcetypeassert //...
-
-	return vp
-}
-
-func (vp INITStuckVoteproof) IsValid(networkID []byte) error {
-	e := util.ErrInvalid.Errorf("invalid INITStuckVoteproof")
-
-	if err := vp.BaseHinter.IsValid(INITStuckVoteproofHint.Type().Bytes()); err != nil {
-		return e.Wrap(err)
-	}
-
-	if err := vp.INITVoteproof.isValid(networkID); err != nil {
-		return e.Wrap(err)
-	}
-
-	if err := vp.baseStuckVoteproof.isValid(networkID, vp.baseVoteproof); err != nil {
-		return e.Wrap(err)
-	}
-
-	return nil
-}
-
-func (vp INITStuckVoteproof) IsStuck() bool {
-	return vp.isStuck(vp.majority)
-}
-
 type ACCEPTVoteproof struct {
 	baseVoteproof
 }
@@ -320,6 +246,43 @@ func (vp ACCEPTVoteproof) BallotSignFacts() []base.ACCEPTBallotSignFact {
 	return vs
 }
 
+type INITWithdrawVoteproof struct {
+	baseWithdrawVoteproof
+	INITVoteproof
+}
+
+func NewINITWithdrawVoteproof(point base.Point) INITWithdrawVoteproof {
+	vp := INITWithdrawVoteproof{
+		INITVoteproof: NewINITVoteproof(point),
+	}
+
+	vp.BaseHinter = vp.SetHint(INITWithdrawVoteproofHint).(hint.BaseHinter) //nolint:forcetypeassert //...
+
+	return vp
+}
+
+func (vp INITWithdrawVoteproof) IsValid(networkID []byte) error {
+	e := util.ErrInvalid.Errorf("invalid INITWithdrawVoteproof")
+
+	if err := vp.BaseHinter.IsValid(INITWithdrawVoteproofHint.Type().Bytes()); err != nil {
+		return e.Wrap(err)
+	}
+
+	if err := vp.INITVoteproof.isValid(networkID); err != nil {
+		return e.Wrap(err)
+	}
+
+	if err := vp.baseWithdrawVoteproof.isValid(networkID, vp.baseVoteproof); err != nil {
+		return e.Wrap(err)
+	}
+
+	return nil
+}
+
+func (vp INITWithdrawVoteproof) HashBytes() []byte {
+	return util.ConcatBytesSlice(vp.baseVoteproof.HashBytes(), vp.baseWithdrawVoteproof.hashBytes())
+}
+
 type ACCEPTWithdrawVoteproof struct {
 	baseWithdrawVoteproof
 	ACCEPTVoteproof
@@ -357,6 +320,54 @@ func (vp ACCEPTWithdrawVoteproof) HashBytes() []byte {
 	return util.ConcatBytesSlice(vp.baseVoteproof.HashBytes(), vp.baseWithdrawVoteproof.hashBytes())
 }
 
+type INITStuckVoteproof struct {
+	baseStuckVoteproof
+	INITVoteproof
+}
+
+func NewINITStuckVoteproof(point base.Point) INITStuckVoteproof {
+	vp := INITStuckVoteproof{
+		INITVoteproof: NewINITVoteproof(point),
+	}
+
+	vp.BaseHinter = vp.SetHint(INITStuckVoteproofHint).(hint.BaseHinter) //nolint:forcetypeassert //...
+
+	return vp
+}
+
+func (vp INITStuckVoteproof) IsValid(networkID []byte) error {
+	e := util.ErrInvalid.Errorf("invalid INITStuckVoteproof")
+
+	if vp.threshold != base.MaxThreshold {
+		return e.Errorf("wrong threshold for stuck voteproof; should be 100.0, not %v", vp.threshold)
+	}
+
+	if err := vp.BaseHinter.IsValid(INITStuckVoteproofHint.Type().Bytes()); err != nil {
+		return e.Wrap(err)
+	}
+
+	if err := vp.INITVoteproof.isValid(networkID); err != nil {
+		return e.Wrap(err)
+	}
+
+	if err := vp.baseStuckVoteproof.isValid(networkID, vp.baseVoteproof); err != nil {
+		return e.Wrap(err)
+	}
+
+	return nil
+}
+
+func (vp INITStuckVoteproof) IsStuck() bool {
+	return vp.isStuck(vp.majority)
+}
+
+func (vp *INITStuckVoteproof) Finish() *INITStuckVoteproof {
+	_ = vp.SetThreshold(base.MaxThreshold)
+	_ = vp.baseVoteproof.Finish()
+
+	return vp
+}
+
 type ACCEPTStuckVoteproof struct {
 	baseStuckVoteproof
 	ACCEPTVoteproof
@@ -370,10 +381,6 @@ func NewACCEPTStuckVoteproof(point base.Point) ACCEPTStuckVoteproof {
 	vp.BaseHinter = vp.SetHint(ACCEPTStuckVoteproofHint).(hint.BaseHinter) //nolint:forcetypeassert //...
 
 	return vp
-}
-
-func (vp ACCEPTStuckVoteproof) IsStuck() bool {
-	return vp.isStuck(vp.majority)
 }
 
 func (vp ACCEPTStuckVoteproof) IsValid(networkID []byte) error {
@@ -392,6 +399,17 @@ func (vp ACCEPTStuckVoteproof) IsValid(networkID []byte) error {
 	}
 
 	return nil
+}
+
+func (vp ACCEPTStuckVoteproof) IsStuck() bool {
+	return vp.isStuck(vp.majority)
+}
+
+func (vp *ACCEPTStuckVoteproof) Finish() *ACCEPTStuckVoteproof {
+	_ = vp.SetThreshold(base.MaxThreshold)
+	_ = vp.baseVoteproof.Finish()
+
+	return vp
 }
 
 type baseWithdrawVoteproof struct {

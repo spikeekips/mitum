@@ -146,7 +146,9 @@ func decodeWithdrawVoteproofJSON(_ []byte, enc *jsonenc.Encoder, u baseVoteproof
 	return nil
 }
 
-func (vp *baseWithdrawVoteproof) decodeJSON(b []byte, enc *jsonenc.Encoder, u baseVoteproofJSONUnmarshaler) (err error) {
+func (vp *baseWithdrawVoteproof) decodeJSON(
+	b []byte, enc *jsonenc.Encoder, u baseVoteproofJSONUnmarshaler,
+) (err error) {
 	return decodeWithdrawVoteproofJSON(b, enc, u, vp)
 }
 
