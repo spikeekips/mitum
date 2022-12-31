@@ -262,6 +262,12 @@ func (box *Ballotbox) vote(
 
 	if digged != nil {
 		box.setLastStagePoint(digged.Point(), digged.Result() == base.VoteResultMajority)
+
+		if wvp, ok := digged.(isaac.HasWithdrawVoteproof); ok {
+			if err := box.learnWithdraws(wvp.Withdraws()); err != nil {
+				return false, nil, err
+			}
+		}
 	}
 
 	if digged != nil {
@@ -357,7 +363,7 @@ func (box *Ballotbox) newVoterecords( //revive:disable-line:flag-parameter
 			stagepoint,
 			box.isValidVoteproof,
 			box.getSuffragef,
-			box.suffrageVote,
+			box.learnWithdraws,
 			isSuffrageConfirm,
 			box.Logging.Log(),
 		), nil
@@ -488,11 +494,25 @@ func (box *Ballotbox) countHoldeds() {
 	}
 }
 
+func (box *Ballotbox) learnWithdraws(withdraws []base.SuffrageWithdrawOperation) error {
+	if box.suffrageVote == nil {
+		return nil
+	}
+
+	for i := range withdraws {
+		if err := box.suffrageVote(withdraws[i]); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 type voterecords struct {
 	*logging.Logging
 	ballots          map[string]base.BallotSignFact
 	isValidVoteproof func(base.Voteproof, base.Suffrage) error
-	suffrageVote     func(base.SuffrageWithdrawOperation) error
+	learnWithdraws   func([]base.SuffrageWithdrawOperation) error
 	getSuffragef     isaac.GetSuffrageByBlockHeight
 	voted            map[string]base.BallotSignFact
 	withdraws        map[string][]base.SuffrageWithdrawOperation
@@ -511,7 +531,7 @@ func newVoterecords(
 	stagepoint base.StagePoint,
 	isValidVoteproof func(base.Voteproof, base.Suffrage) error,
 	getSuffragef isaac.GetSuffrageByBlockHeight,
-	suffrageVote func(base.SuffrageWithdrawOperation) error,
+	learnWithdraws func([]base.SuffrageWithdrawOperation) error,
 	isSuffrageConfirm bool,
 	log *zerolog.Logger,
 ) *voterecords {
@@ -524,7 +544,7 @@ func newVoterecords(
 	vr.ballots = map[string]base.BallotSignFact{}
 	vr.withdraws = map[string][]base.SuffrageWithdrawOperation{}
 	vr.vps = map[string]base.Voteproof{}
-	vr.suffrageVote = suffrageVote
+	vr.learnWithdraws = learnWithdraws
 	vr.isSuffrageConfirm = isSuffrageConfirm
 	vr.vp = nil
 
@@ -886,24 +906,6 @@ func (vr *voterecords) newVoteproof(
 
 func (vr *voterecords) getSuffrage() (base.Suffrage, bool, error) {
 	return vr.getSuffragef(vr.stagepoint.Height())
-}
-
-func (vr *voterecords) learnWithdraws(withdraws []base.SuffrageWithdrawOperation) error {
-	if vr.suffrageVote == nil {
-		return nil
-	}
-
-	if len(withdraws) < 1 {
-		return nil
-	}
-
-	for i := range withdraws {
-		if err := vr.suffrageVote(withdraws[i]); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 func (vr *voterecords) isValidBallotWithSuffrage(
