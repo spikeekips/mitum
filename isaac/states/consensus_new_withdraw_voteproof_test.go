@@ -18,7 +18,7 @@ type testWithdrawsConsensusHandler struct {
 	baseTestConsensusHandler
 }
 
-func (t *testWithdrawsConsensusHandler) TestEnterWithSIGNVoteproof() {
+func (t *testWithdrawsConsensusHandler) TestEnterWithSuffrageConfirmVoteproof() {
 	point := base.RawPoint(33, 44)
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 	withdrawnode := nodes[2]
@@ -81,7 +81,7 @@ func (t *testWithdrawsConsensusHandler) TestEnterWithSIGNVoteproof() {
 	}
 }
 
-func (t *testWithdrawsConsensusHandler) TestSIGNAfterEnteringINITVoteproof() {
+func (t *testWithdrawsConsensusHandler) TestSuffrageConfirmAfterEnteringINITVoteproof() {
 	point := base.RawPoint(33, 44)
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 	withdrawnode := nodes[2]
@@ -192,7 +192,7 @@ func (t *testWithdrawsConsensusHandler) TestSIGNAfterEnteringINITVoteproof() {
 	}
 }
 
-func (t *testWithdrawsConsensusHandler) TestSIGNAfterACCEPTVoteproof() {
+func (t *testWithdrawsConsensusHandler) TestSuffrageConfirmAfterACCEPTVoteproof() {
 	point := base.RawPoint(33, 44)
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
@@ -314,12 +314,12 @@ func (t *testWithdrawsConsensusHandler) TestSIGNAfterACCEPTVoteproof() {
 		t.T().Log("expected suffrage confirm init ballot broadcasted", sfact.Point())
 	}
 
-	signivp, err := t.NewINITWithdrawVoteproof(sfact, t.Local, nodes[:2], withdraws)
+	confirmivp, err := t.NewINITWithdrawVoteproof(sfact, t.Local, nodes[:2], withdraws)
 	t.NoError(err)
 
-	t.T().Log("new suffrage confirm init voteproof", signivp.Point())
+	t.T().Log("new suffrage confirm init voteproof", confirmivp.Point())
 
-	t.NoError(st.newVoteproof(signivp))
+	t.NoError(st.newVoteproof(confirmivp))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -428,7 +428,7 @@ func (t *testWithdrawsConsensusHandler) prepareAfterACCEPT(
 		closefunc
 }
 
-func (t *testWithdrawsConsensusHandler) TestSIGNAfterDrawINITVoteproof() {
+func (t *testWithdrawsConsensusHandler) TestSuffrageConfirmAfterDrawINITVoteproof() {
 	point := base.RawPoint(33, 44)
 	nextpoint := point.NextHeight()
 
@@ -520,11 +520,11 @@ func (t *testWithdrawsConsensusHandler) TestSIGNAfterDrawINITVoteproof() {
 	}
 
 	sfact := isaac.NewSuffrageConfirmBallotFact(nextpoint, afact.NewBlock(), t.PRPool.Hash(nextpoint), withdrawfacts)
-	signivp, err := t.NewINITWithdrawVoteproof(sfact, t.Local, nodes[:2], withdraws)
+	confirmivp, err := t.NewINITWithdrawVoteproof(sfact, t.Local, nodes[:2], withdraws)
 	t.NoError(err)
 
-	t.T().Log("next suffrage confirm init voteproof:", signivp.Point())
-	t.NoError(st.newVoteproof(signivp))
+	t.T().Log("next suffrage confirm init voteproof:", confirmivp.Point())
+	t.NoError(st.newVoteproof(confirmivp))
 
 	select {
 	case <-time.After(time.Second * 2):
