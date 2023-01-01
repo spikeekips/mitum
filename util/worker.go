@@ -540,3 +540,34 @@ func RunErrgroupWorkerByJobs(ctx context.Context, jobs ...ContextWorkerCallback)
 
 	return worker.Wait()
 }
+
+type FuncChain struct {
+	fs []func() (bool, error)
+}
+
+func NewFuncChain() *FuncChain {
+	return &FuncChain{}
+}
+
+func (c *FuncChain) Add(f func() (bool, error)) *FuncChain {
+	c.fs = append(c.fs, f)
+
+	return c
+}
+
+func (c *FuncChain) Run() error {
+	defer func() {
+		c.fs = nil
+	}()
+
+	for i := range c.fs {
+		switch keep, err := c.fs[i](); {
+		case err != nil:
+			return err
+		case !keep:
+			return nil
+		}
+	}
+
+	return nil
+}
