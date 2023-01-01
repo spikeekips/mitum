@@ -394,12 +394,13 @@ func (t *testJoiningHandler) TestINITVoteproofNextRound() {
 		return true, nil
 	}
 
+	pool := t.PRPool
 	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		default:
-			return t.PRPool.Get(p), nil
+			return pool.Get(p), nil
 		}
 	})
 
@@ -452,12 +453,13 @@ func (t *testJoiningHandler) TestACCEPTVoteproofNextRound() {
 		return true, nil
 	}
 
+	pool := t.PRPool
 	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		default:
-			return t.PRPool.Get(p), nil
+			return pool.Get(p), nil
 		}
 	})
 
@@ -512,12 +514,13 @@ func (t *testJoiningHandler) TestLastINITVoteproofNextRound() {
 		return true, nil
 	}
 
+	pool := t.PRPool
 	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		default:
-			return t.PRPool.Get(p), nil
+			return pool.Get(p), nil
 		}
 	})
 
@@ -571,12 +574,13 @@ func (t *testJoiningHandler) TestLastACCEPTVoteproofNextRound() {
 		return true, nil
 	}
 
+	pool := t.PRPool
 	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		default:
-			return t.PRPool.Get(p), nil
+			return pool.Get(p), nil
 		}
 	})
 
@@ -631,12 +635,13 @@ func (t *testJoiningHandler) TestINITVoteproofNextRoundButNotInConsensusNodes() 
 		return nil
 	}
 
+	pool := t.PRPool
 	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		default:
-			return t.PRPool.Get(p), nil
+			return pool.Get(p), nil
 		}
 	})
 
@@ -663,6 +668,135 @@ func (t *testJoiningHandler) TestINITVoteproofNextRoundButNotInConsensusNodes() 
 		var ssctx SyncingSwitchContext
 		t.True(errors.As(sctx, &ssctx))
 		t.Equal(ivp.Point().Height()-1, ssctx.height)
+	}
+}
+
+func (t *testJoiningHandler) TestStuckINITVoteproof() {
+	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
+
+	st, closef := t.newState(suf)
+	defer closef()
+
+	_, ok := (interface{})(st).(handler)
+	t.True(ok)
+
+	point := base.RawPoint(33, 0)
+	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+
+	st.lastManifest = func() (base.Manifest, bool, error) {
+		return manifest, true, nil
+	}
+
+	sctx := newJoiningSwitchContext(StateBooting, nil)
+
+	deferred, err := st.enter(StateBooting, sctx)
+	t.NoError(err)
+	deferred()
+
+	t.T().Log("new stuck init voteproof")
+
+	withdrawnode := nodes[2]
+
+	_, origivp := t.VoteproofsPair(point, point.NextHeight(), manifest.Hash(), nil, nil, nodes)
+
+	withdraws := t.Withdraws(point.Height(), []base.Address{withdrawnode.Address()}, nodes[:2])
+	withdrawfacts := make([]util.Hash, len(withdraws))
+	for i := range withdraws {
+		withdrawfacts[i] = withdraws[i].Fact().Hash()
+	}
+
+	sfs := util.FilterSlice(origivp.SignFacts(), func(i base.BallotSignFact) bool {
+		return !i.Node().Equal(withdrawnode.Address())
+	})
+
+	stuckivp := isaac.NewINITStuckVoteproof(origivp.Point().Point)
+	stuckivp.
+		SetMajority(origivp.Majority()).
+		SetSignFacts(sfs)
+	stuckivp.SetWithdraws(withdraws)
+	stuckivp.Finish()
+
+	err = st.newVoteproof(stuckivp)
+
+	var ssctx consensusSwitchContext
+	t.True(errors.As(err, &ssctx))
+	base.EqualVoteproof(t.Assert(), stuckivp, ssctx.ivp)
+}
+
+func (t *testJoiningHandler) TestStuckACCEPTVoteproof() {
+	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
+
+	st, closef := t.newState(suf)
+	defer closef()
+
+	_, ok := (interface{})(st).(handler)
+	t.True(ok)
+
+	point := base.RawPoint(33, 0)
+
+	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+
+	st.lastManifest = func() (base.Manifest, bool, error) {
+		return manifest, true, nil
+	}
+
+	pool := t.PRPool
+	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			return pool.Get(p), nil
+		}
+	})
+
+	nextroundballotch := make(chan base.Ballot, 1)
+	st.broadcastBallotFunc = func(bl base.Ballot) error {
+		if bl.Point().Point.Equal(point.NextHeight().NextRound()) && bl.Point().Stage() == base.StageINIT {
+			nextroundballotch <- bl
+		}
+
+		return nil
+	}
+
+	sctx := newJoiningSwitchContext(StateBooting, nil)
+
+	deferred, err := st.enter(StateBooting, sctx)
+	t.NoError(err)
+	deferred()
+
+	withdrawnode := nodes[2]
+
+	origavp, _ := t.VoteproofsPair(point.NextHeight(), point.NextHeight().NextHeight(), valuehash.RandomSHA256(), nil, nil, nodes)
+
+	withdraws := t.Withdraws(point.Height(), []base.Address{withdrawnode.Address()}, nodes[:2])
+	withdrawfacts := make([]util.Hash, len(withdraws))
+	for i := range withdraws {
+		withdrawfacts[i] = withdraws[i].Fact().Hash()
+	}
+
+	sfs := util.FilterSlice(origavp.SignFacts(), func(i base.BallotSignFact) bool {
+		return !i.Node().Equal(withdrawnode.Address())
+	})
+
+	stuckivp := isaac.NewACCEPTStuckVoteproof(origavp.Point().Point)
+	stuckivp.
+		SetMajority(origavp.Majority()).
+		SetSignFacts(sfs)
+	stuckivp.SetWithdraws(withdraws)
+	stuckivp.Finish()
+
+	t.T().Log("new stuck accept voteproof")
+
+	t.NoError(st.newVoteproof(stuckivp))
+
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("timeout to wait next round init ballot"))
+
+		return
+	case bl := <-nextroundballotch:
+		t.Equal(stuckivp.Point().Point.NextRound(), bl.Point().Point)
 	}
 }
 

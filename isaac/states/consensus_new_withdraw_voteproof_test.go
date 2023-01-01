@@ -662,6 +662,437 @@ func (t *testWithdrawsConsensusHandler) TestReversalAfterDrawINITVoteproof() {
 	}
 }
 
+func (t *testWithdrawsConsensusHandler) TestEnterINITStuckVoteproof() {
+	point := base.RawPoint(33, 44)
+	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
+	withdrawnode := nodes[2]
+
+	st, closefunc, _, origivp := t.newStateWithINITVoteproof(point, suf)
+	defer closefunc()
+
+	ballotch := make(chan base.Ballot, 1)
+	st.broadcastBallotFunc = func(bl base.Ballot) error {
+		ballotch <- bl
+
+		return nil
+	}
+
+	prpool := t.PRPool
+	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			return prpool.Get(p), nil
+		}
+	})
+
+	t.T().Log("prepare new init stuck voteproof")
+
+	withdraws := t.Withdraws(point.Height(), []base.Address{withdrawnode.Address()}, nodes[:2])
+	withdrawfacts := make([]util.Hash, len(withdraws))
+	for i := range withdraws {
+		withdrawfacts[i] = withdraws[i].Fact().Hash()
+	}
+
+	sfs := util.FilterSlice(origivp.SignFacts(), func(i base.BallotSignFact) bool {
+		return !i.Node().Equal(withdrawnode.Address())
+	})
+
+	ivp := isaac.NewINITStuckVoteproof(origivp.Point().Point)
+	ivp.
+		SetMajority(origivp.Majority()).
+		SetSignFacts(sfs)
+	ivp.SetWithdraws(withdraws)
+	ivp.Finish()
+
+	// NOTE set last accept voteproof as last voteproofs
+	lvps := st.lastVoteproofs()
+	st.forceSetLastVoteproof(lvps.ACCEPT())
+
+	sctx := newConsensusSwitchContext(StateJoining, ivp)
+
+	deferred, err := st.enter(StateJoining, sctx)
+	t.NoError(err)
+	deferred()
+
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("wait next init ballot, but failed"))
+
+		return
+	case bl := <-ballotch:
+		t.NotNil(bl)
+
+		t.Equal(base.NewStagePoint(point.NextRound(), base.StageINIT), bl.Point())
+	}
+}
+
+func (t *testWithdrawsConsensusHandler) TestINITStuckVoteproof() {
+	point := base.RawPoint(33, 44)
+
+	_, nodes, st, _, dof, closef := t.prepareAfterACCEPT(point, 3)
+	defer closef()
+
+	withdrawnode := nodes[2]
+
+	nextinitballotch := make(chan base.Ballot, 1)
+	nextroundballotch := make(chan base.Ballot, 1)
+	st.broadcastBallotFunc = func(bl base.Ballot) error {
+		switch {
+		case bl.Point().Point.Equal(point) && bl.Point().Stage() == base.StageACCEPT:
+		case bl.Point().Point.Equal(point.NextHeight()) && bl.Point().Stage() == base.StageINIT:
+			nextinitballotch <- bl
+		case bl.Point().Point.Equal(point.NextHeight().NextRound()) && bl.Point().Stage() == base.StageINIT:
+			nextroundballotch <- bl
+		}
+
+		return nil
+	}
+
+	withdraws := t.Withdraws(point.NextHeight().Height(), []base.Address{withdrawnode.Address()}, nodes[:2])
+	st.svf = func(context.Context, base.Height, base.Suffrage) (
+		[]base.SuffrageWithdrawOperation, error,
+	) {
+		return withdraws, nil
+	}
+
+	dof()
+
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("wait next init ballot, but failed"))
+
+		return
+	case bl := <-nextinitballotch:
+		ifact := bl.SignFact().Fact().(base.INITBallotFact)
+		origivp, err := t.NewINITVoteproof(ifact, t.Local, nodes[:2])
+		t.NoError(err)
+
+		t.T().Log("next init ballot broadcasted; prepare new init stuck voteproof")
+
+		withdrawfacts := make([]util.Hash, len(withdraws))
+		for i := range withdraws {
+			withdrawfacts[i] = withdraws[i].Fact().Hash()
+		}
+
+		sfs := util.FilterSlice(origivp.SignFacts(), func(i base.BallotSignFact) bool {
+			return !i.Node().Equal(withdrawnode.Address())
+		})
+
+		stuckivp := isaac.NewINITStuckVoteproof(origivp.Point().Point)
+		stuckivp.
+			SetMajority(ifact).
+			SetSignFacts(sfs)
+		stuckivp.SetWithdraws(withdraws)
+		stuckivp.Finish()
+
+		t.NoError(stuckivp.IsValid(t.LocalParams.NetworkID()))
+
+		t.T().Log("process new stuck voteproof")
+
+		t.NoError(st.newVoteproof(stuckivp))
+	}
+
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("wait next round init ballot, but failed"))
+
+		return
+	case bl := <-nextroundballotch:
+		t.NoError(bl.IsValid(t.LocalParams.NetworkID()))
+
+		t.Equal(point.NextHeight().NextRound(), bl.Point().Point)
+
+		wbl, ok := bl.(isaac.WithdrawBallot)
+		t.True(ok)
+		t.NotEmpty(wbl.Withdraws())
+		t.Equal(1, len(wbl.Withdraws()))
+
+		base.EqualOperation(t.Assert(), withdraws[0], wbl.Withdraws()[0])
+	}
+}
+
+func (t *testWithdrawsConsensusHandler) TestINITStuckVoteproofEnterSyncing() {
+	point := base.RawPoint(33, 44)
+
+	_, nodes, st, _, dof, closef := t.prepareAfterACCEPT(point, 3)
+	defer closef()
+
+	withdrawnode := nodes[2]
+
+	nextinitballotch := make(chan base.Ballot, 1)
+	st.broadcastBallotFunc = func(bl base.Ballot) error {
+		switch {
+		case bl.Point().Point.Equal(point) && bl.Point().Stage() == base.StageACCEPT:
+		case bl.Point().Point.Equal(point.NextHeight()) && bl.Point().Stage() == base.StageINIT:
+			nextinitballotch <- bl
+		}
+
+		return nil
+	}
+
+	withdraws := t.Withdraws(point.NextHeight().Height(), []base.Address{withdrawnode.Address()}, nodes[:2])
+	st.svf = func(context.Context, base.Height, base.Suffrage) (
+		[]base.SuffrageWithdrawOperation, error,
+	) {
+		return withdraws, nil
+	}
+
+	dof()
+
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("wait next init ballot, but failed"))
+
+		return
+	case bl := <-nextinitballotch:
+		nextpoint := bl.Point().Point.NextHeight()
+
+		ifact := isaac.NewINITBallotFact(nextpoint, valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
+		origivp, err := t.NewINITVoteproof(ifact, t.Local, nodes[:2])
+		t.NoError(err)
+
+		t.T().Log("next init ballot broadcasted; prepare new higher init stuck voteproof")
+
+		withdrawfacts := make([]util.Hash, len(withdraws))
+		for i := range withdraws {
+			withdrawfacts[i] = withdraws[i].Fact().Hash()
+		}
+
+		sfs := util.FilterSlice(origivp.SignFacts(), func(i base.BallotSignFact) bool {
+			return !i.Node().Equal(withdrawnode.Address())
+		})
+
+		stuckivp := isaac.NewINITStuckVoteproof(origivp.Point().Point)
+		stuckivp.
+			SetMajority(ifact).
+			SetSignFacts(sfs)
+		stuckivp.SetWithdraws(withdraws)
+		stuckivp.Finish()
+
+		t.NoError(stuckivp.IsValid(t.LocalParams.NetworkID()))
+
+		t.T().Log("process new stuck voteproof")
+
+		err = st.newVoteproof(stuckivp)
+		t.Error(err)
+
+		t.T().Log("switching to syncing state")
+		var ssctx SyncingSwitchContext
+		t.True(errors.As(err, &ssctx))
+		t.Equal(nextpoint.Height()-1, ssctx.height)
+	}
+}
+
+func (t *testWithdrawsConsensusHandler) TestACCEPTStuckVoteproof() {
+	point := base.RawPoint(33, 44)
+	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
+	withdrawnode := nodes[2]
+
+	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
+	defer closefunc()
+
+	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
+		return manifest, nil
+	}
+
+	prpool := t.PRPool
+	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			return prpool.Get(p), nil
+		}
+	})
+
+	acceptballotch := make(chan base.Ballot, 1)
+	nextroundballotch := make(chan base.Ballot, 1)
+	st.broadcastBallotFunc = func(bl base.Ballot) error {
+		switch {
+		case bl.Point().Point.Equal(point) && bl.Point().Stage() == base.StageACCEPT:
+			acceptballotch <- bl
+		case bl.Point().Point.Equal(point.NextRound()) && bl.Point().Stage() == base.StageINIT:
+			nextroundballotch <- bl
+		}
+
+		return nil
+	}
+
+	t.T().Log("prepare new accept stuck voteproof")
+
+	withdraws := t.Withdraws(point.Height(), []base.Address{withdrawnode.Address()}, nodes[:2])
+	withdrawfacts := make([]util.Hash, len(withdraws))
+	for i := range withdraws {
+		withdrawfacts[i] = withdraws[i].Fact().Hash()
+	}
+
+	st.svf = func(context.Context, base.Height, base.Suffrage) (
+		[]base.SuffrageWithdrawOperation, error,
+	) {
+		return withdraws, nil
+	}
+
+	sctx := newConsensusSwitchContext(StateJoining, ivp)
+
+	deferred, err := st.enter(StateJoining, sctx)
+	t.NoError(err)
+	deferred()
+
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("wait accept ballot, but failed"))
+
+		return
+	case bl := <-acceptballotch:
+		t.NotNil(bl)
+
+		t.Equal(base.NewStagePoint(point, base.StageACCEPT), bl.Point())
+
+		t.T().Log("new accept stuck voteproof")
+
+		fact := bl.SignFact().Fact().(isaac.ACCEPTBallotFact)
+		origavp, err := t.NewACCEPTVoteproof(fact, t.Local, nodes[:2])
+		t.NoError(err)
+
+		sfs := util.FilterSlice(origavp.SignFacts(), func(i base.BallotSignFact) bool {
+			return !i.Node().Equal(withdrawnode.Address())
+		})
+
+		stuckavp := isaac.NewACCEPTStuckVoteproof(origavp.Point().Point)
+		stuckavp.
+			SetMajority(origavp.Majority()).
+			SetSignFacts(sfs)
+		stuckavp.SetWithdraws(withdraws)
+		stuckavp.Finish()
+
+		t.NoError(stuckavp.IsValid(t.LocalParams.NetworkID()))
+
+		t.T().Log("process new accept stuck voteproof")
+
+		t.NoError(st.newVoteproof(stuckavp))
+	}
+
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("wait next round ballot, but failed"))
+
+		return
+	case bl := <-nextroundballotch:
+		t.NotNil(bl)
+
+		t.Equal(point.NextRound(), bl.Point().Point)
+
+		wbl, ok := bl.(isaac.WithdrawBallot)
+		t.True(ok)
+		t.NotEmpty(wbl.Withdraws())
+		t.Equal(1, len(wbl.Withdraws()))
+
+		base.EqualOperation(t.Assert(), withdraws[0], wbl.Withdraws()[0])
+	}
+}
+
+func (t *testWithdrawsConsensusHandler) TestACCEPTStuckVoteproofEnterSyncing() {
+	point := base.RawPoint(33, 44)
+	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
+	withdrawnode := nodes[2]
+
+	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
+	defer closefunc()
+
+	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
+		return manifest, nil
+	}
+
+	prpool := t.PRPool
+	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			return prpool.Get(p), nil
+		}
+	})
+
+	acceptballotch := make(chan base.Ballot, 1)
+	nextroundballotch := make(chan base.Ballot, 1)
+	st.broadcastBallotFunc = func(bl base.Ballot) error {
+		switch {
+		case bl.Point().Point.Equal(point) && bl.Point().Stage() == base.StageACCEPT:
+			acceptballotch <- bl
+		case bl.Point().Point.Equal(point.NextRound()) && bl.Point().Stage() == base.StageINIT:
+			nextroundballotch <- bl
+		}
+
+		return nil
+	}
+
+	t.T().Log("prepare new accept stuck voteproof")
+
+	withdraws := t.Withdraws(point.Height(), []base.Address{withdrawnode.Address()}, nodes[:2])
+	withdrawfacts := make([]util.Hash, len(withdraws))
+	for i := range withdraws {
+		withdrawfacts[i] = withdraws[i].Fact().Hash()
+	}
+
+	st.svf = func(context.Context, base.Height, base.Suffrage) (
+		[]base.SuffrageWithdrawOperation, error,
+	) {
+		return withdraws, nil
+	}
+
+	sctx := newConsensusSwitchContext(StateJoining, ivp)
+
+	deferred, err := st.enter(StateJoining, sctx)
+	t.NoError(err)
+	deferred()
+
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("wait accept ballot, but failed"))
+
+		return
+	case bl := <-acceptballotch:
+		t.NotNil(bl)
+
+		t.Equal(base.NewStagePoint(point, base.StageACCEPT), bl.Point())
+
+		t.T().Log("new higher accept stuck voteproof")
+
+		nextpoint := bl.Point().Point.NextHeight()
+
+		fact := isaac.NewACCEPTBallotFact(nextpoint, valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
+		origavp, err := t.NewACCEPTVoteproof(fact, t.Local, nodes[:2])
+		t.NoError(err)
+
+		sfs := util.FilterSlice(origavp.SignFacts(), func(i base.BallotSignFact) bool {
+			return !i.Node().Equal(withdrawnode.Address())
+		})
+
+		stuckavp := isaac.NewACCEPTStuckVoteproof(origavp.Point().Point)
+		stuckavp.
+			SetMajority(origavp.Majority()).
+			SetSignFacts(sfs)
+		stuckavp.SetWithdraws(withdraws)
+		stuckavp.Finish()
+
+		t.NoError(stuckavp.IsValid(t.LocalParams.NetworkID()))
+
+		t.T().Log("process new higher accept stuck voteproof")
+
+		err = st.newVoteproof(stuckavp)
+		t.Error(err)
+
+		t.T().Log("switching to syncing state")
+		var ssctx SyncingSwitchContext
+		t.True(errors.As(err, &ssctx))
+		t.Equal(nextpoint.Height()-1, ssctx.height)
+	}
+}
+
 func TestWithdrawsConsensusHandler(t *testing.T) {
 	suite.Run(t, new(testWithdrawsConsensusHandler))
 }

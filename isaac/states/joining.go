@@ -174,6 +174,13 @@ func (st *JoiningHandler) handleNewVoteproof(vp base.Voteproof) error {
 		st.Log().Debug().Interface("last_manifest", manifest).Msg("new valid voteproof")
 	}
 
+	switch keep, err := st.checkStuckVoteproof(vp, manifest); {
+	case err != nil:
+		return err
+	case !keep:
+		return nil
+	}
+
 	switch vp.Point().Stage() {
 	case base.StageINIT:
 		return st.newINITVoteproof(vp.(base.INITVoteproof), manifest) //nolint:forcetypeassert //...
@@ -326,13 +333,13 @@ func (st *JoiningHandler) firstVoteproof(lvp base.Voteproof, manifest base.Manif
 	}
 }
 
-func (st *JoiningHandler) nextRound(vp base.Voteproof, prevBlock util.Hash) {
+func (st *JoiningHandler) nextRound(vp base.Voteproof, previousBlock util.Hash) {
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(vp)).Logger()
 
 	var sctx switchContext
 	var bl base.INITBallot
 
-	switch i, err := st.makeNextRoundBallot(vp, prevBlock, st.nodeInConsensusNodes); {
+	switch i, err := st.makeNextRoundBallot(vp, previousBlock, st.nodeInConsensusNodes); {
 	case err == nil:
 		if i == nil {
 			return
@@ -477,6 +484,42 @@ func (st *JoiningHandler) joinMemberlist(suf base.Suffrage) error {
 				return nil
 			}
 		}
+	}
+}
+
+func (st *JoiningHandler) checkStuckVoteproof(
+	vp base.Voteproof,
+	lastManifest base.Manifest,
+) (bool, error) {
+	if _, ok := vp.(isaac.StuckVoteproof); !ok {
+		return true, nil
+	}
+
+	l := st.Log().With().
+		Dict("init_voteproof", base.VoteproofLog(vp)).
+		Interface("last_manifest", lastManifest).
+		Logger()
+
+	lastHeight := lastManifest.Height()
+
+	switch {
+	case vp.Point().Height() == lastHeight+1:
+		if vp.Point().Stage() == base.StageINIT {
+			l.Debug().Msg("found valid init stuck voteproof; moves to consensus state")
+
+			return false, newConsensusSwitchContext(
+				StateJoining, vp.(base.INITVoteproof)) //nolint:forcetypeassert //...
+		}
+
+		go st.nextRound(vp, lastManifest.Hash())
+
+		return false, nil
+	case vp.Point().Height() > lastHeight+1:
+		l.Debug().Msg("higher init stuck voteproof; moves to syncing state")
+
+		return false, newSyncingSwitchContext(StateConsensus, vp.Point().Height()-1)
+	default:
+		return false, nil
 	}
 }
 

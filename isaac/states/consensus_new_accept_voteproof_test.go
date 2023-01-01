@@ -119,7 +119,11 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestNotInConsensus() {
 	}
 
 	st.voteFunc = func(bl base.Ballot) (bool, error) {
-		return false, errFailedToVoteNotInConsensus.Errorf("hehehe")
+		if bl.Point().Point.Compare(point) == 0 && bl.Point().Stage() == base.StageACCEPT {
+			return false, errFailedToVoteNotInConsensus.Errorf("hehehe")
+		}
+
+		return true, nil
 	}
 
 	sctxch := make(chan switchContext, 1)

@@ -76,6 +76,15 @@ func (l *LastVoteproofsHandler) ForceSet(vp base.Voteproof) bool {
 		l.ivp = vp.(base.INITVoteproof) //nolint:forcetypeassert //...
 	case base.StageACCEPT:
 		l.avp = vp.(base.ACCEPTVoteproof) //nolint:forcetypeassert //...
+
+		if l.ivp != nil && l.ivp.Point().Compare(l.avp.Point()) > 0 {
+			l.ivp = nil
+
+			l.mvp = nil
+			if l.avp.Result() == base.VoteResultMajority {
+				l.mvp = l.avp
+			}
+		}
 	}
 
 	if vp.Result() == base.VoteResultMajority {
@@ -114,11 +123,16 @@ func (l LastVoteproofs) INIT() base.INITVoteproof {
 // * 'm' is last majority voteproof
 // * 'v' is draw voteproof, new incoming voteproof for next round
 func (l LastVoteproofs) PreviousBlockForNextRound(vp base.Voteproof) util.Hash {
-	switch wvp, _ := vp.(isaac.WithdrawVoteproof); {
-	case l.mvp == nil:
+	if l.mvp == nil {
 		return nil
-	case wvp == nil && vp.Result() != base.VoteResultDraw:
-		return nil
+	}
+
+	if _, ok := vp.(isaac.WithdrawVoteproof); !ok {
+		if _, ok := vp.(isaac.StuckVoteproof); !ok {
+			if vp.Result() != base.VoteResultDraw {
+				return nil
+			}
+		}
 	}
 
 	switch l.mvp.Point().Stage() { //nolint:exhaustive //...
