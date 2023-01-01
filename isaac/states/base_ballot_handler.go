@@ -114,6 +114,8 @@ func (st *baseBallotHandler) makeNextRoundBallot(
 		if err != nil {
 			return nil, err
 		}
+
+		l.Debug().Interface("withdraws", withdraws).Msg("withdraws for next round")
 	}
 
 	// NOTE find next proposal
@@ -126,8 +128,6 @@ func (st *baseBallotHandler) makeNextRoundBallot(
 
 	l.Debug().Interface("proposal", pr).Msg("proposal selected")
 
-	e := util.StringErrorFunc("failed to move to next round")
-
 	fact := isaac.NewINITBallotFact(
 		point,
 		prevBlock,
@@ -137,7 +137,7 @@ func (st *baseBallotHandler) makeNextRoundBallot(
 	sf := isaac.NewINITBallotSignFact(fact)
 
 	if err := sf.NodeSign(st.local.Privatekey(), st.params.NetworkID(), st.local.Address()); err != nil {
-		return nil, newBrokenSwitchContext(st.stt, e(err, "failed to make next round init ballot"))
+		return nil, newBrokenSwitchContext(st.stt, errors.WithMessage(err, "failed to make next round init ballot"))
 	}
 
 	bl := isaac.NewINITBallot(vp, sf, withdraws)

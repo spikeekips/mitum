@@ -17,7 +17,7 @@ import (
 var (
 	findMissingBallotsf    = func(context.Context, base.StagePoint, bool) ([]base.Address, bool, error) { return nil, true, nil }
 	requestMissingBallotsf = func(context.Context, base.StagePoint, []base.Address) error { return nil }
-	voteSuffrageVotingf    = func(context.Context, base.Point, []base.Address) (base.Voteproof, error) { return nil, nil }
+	voteSuffrageVotingf    = func(context.Context, base.StagePoint, []base.Address) (base.Voteproof, error) { return nil, nil }
 )
 
 type testDefaultBallotStuckResolver struct {
@@ -84,7 +84,7 @@ func (t *testDefaultBallotStuckResolver) TestCancel() {
 				return []base.Address{base.RandomAddress("")}, true, nil
 			},
 			requestMissingBallotsf,
-			func(context.Context, base.Point, []base.Address) (base.Voteproof, error) {
+			func(context.Context, base.StagePoint, []base.Address) (base.Voteproof, error) {
 				votedch <- struct{}{}
 
 				return nil, nil
@@ -119,7 +119,7 @@ func (t *testDefaultBallotStuckResolver) TestCancel() {
 				return []base.Address{base.RandomAddress("")}, true, nil
 			},
 			requestMissingBallotsf,
-			func(context.Context, base.Point, []base.Address) (base.Voteproof, error) {
+			func(context.Context, base.StagePoint, []base.Address) (base.Voteproof, error) {
 				votedch <- struct{}{}
 
 				return nil, nil
@@ -157,7 +157,7 @@ func (t *testDefaultBallotStuckResolver) TestClean() {
 				return []base.Address{base.RandomAddress("")}, true, nil
 			},
 			requestMissingBallotsf,
-			func(context.Context, base.Point, []base.Address) (base.Voteproof, error) {
+			func(context.Context, base.StagePoint, []base.Address) (base.Voteproof, error) {
 				votedch <- struct{}{}
 
 				return nil, nil
@@ -202,7 +202,7 @@ func (t *testDefaultBallotStuckResolver) TestNomoreGatherMissingBallots() {
 		time.Millisecond*300,
 		findMissingBallotsf,
 		requestMissingBallotsf,
-		func(context.Context, base.Point, []base.Address) (base.Voteproof, error) {
+		func(context.Context, base.StagePoint, []base.Address) (base.Voteproof, error) {
 			votedch <- struct{}{}
 
 			return nil, nil
@@ -240,7 +240,7 @@ func (t *testDefaultBallotStuckResolver) TestNomoreMissingNodesInSuffrageVoting(
 		time.Millisecond*300,
 		findMissingBallotsf,
 		requestMissingBallotsf,
-		func(context.Context, base.Point, []base.Address) (base.Voteproof, error) {
+		func(context.Context, base.StagePoint, []base.Address) (base.Voteproof, error) {
 			votedch <- struct{}{}
 
 			return nil, nil
@@ -268,7 +268,7 @@ func (t *testDefaultBallotStuckResolver) TestNextRound() {
 			return []base.Address{base.RandomAddress("")}, true, nil
 		},
 		requestMissingBallotsf,
-		func(context.Context, base.Point, []base.Address) (base.Voteproof, error) {
+		func(context.Context, base.StagePoint, []base.Address) (base.Voteproof, error) {
 			return isaac.NewINITVoteproof(point.Point), nil
 		},
 	)

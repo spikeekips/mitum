@@ -87,6 +87,7 @@ func PBallotStuckResolver(ctx context.Context) (context.Context, error) {
 	var params *isaac.LocalParams
 	var ballotbox *isaacstates.Ballotbox
 	var cb *isaacnetwork.CallbackBroadcaster
+	var sv *isaac.SuffrageVoting
 
 	if err := util.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
@@ -95,6 +96,7 @@ func PBallotStuckResolver(ctx context.Context) (context.Context, error) {
 		LocalParamsContextKey, &params,
 		BallotboxContextKey, &ballotbox,
 		CallbackBroadcasterContextKey, &cb,
+		SuffrageVotingContextKey, &sv,
 	); err != nil {
 		return ctx, e(err, "")
 	}
@@ -116,16 +118,20 @@ func PBallotStuckResolver(ctx context.Context) (context.Context, error) {
 		cb.Broadcast,
 	)
 
+	voteSuffrageVotingf := isaacstates.VoteSuffrageVotingFunc(
+		local,
+		params,
+		ballotbox,
+		sv,
+		getLastSuffragef,
+	)
+
 	r := isaacstates.NewDefaultBallotStuckResolver(
 		params.WaitPreparingINITBallot(),
 		params.IntervalBroadcastBallot(),
 		findMissingBallotsf,
 		requestMissingBallotsf,
-		func(context.Context, base.Point, []base.Address) (base.Voteproof, error) {
-			// FIXME not yet implemented
-
-			return nil, errors.Errorf("not yet implemented")
-		},
+		voteSuffrageVotingf,
 	)
 
 	_ = r.SetLogging(log)

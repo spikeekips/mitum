@@ -491,7 +491,7 @@ func (st *JoiningHandler) checkStuckVoteproof(
 	vp base.Voteproof,
 	lastManifest base.Manifest,
 ) (bool, error) {
-	if _, ok := vp.(isaac.StuckVoteproof); !ok {
+	if _, ok := vp.(base.StuckVoteproof); !ok {
 		return true, nil
 	}
 

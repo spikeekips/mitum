@@ -128,7 +128,7 @@ func (l LastVoteproofs) PreviousBlockForNextRound(vp base.Voteproof) util.Hash {
 	}
 
 	if _, ok := vp.(isaac.WithdrawVoteproof); !ok {
-		if _, ok := vp.(isaac.StuckVoteproof); !ok {
+		if _, ok := vp.(base.StuckVoteproof); !ok {
 			if vp.Result() != base.VoteResultDraw {
 				return nil
 			}

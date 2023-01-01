@@ -28,7 +28,7 @@ type DefaultBallotStuckResolver struct {
 	cancelf                *util.Locked[func()]
 	findMissingBallotsf    func(context.Context, base.StagePoint, bool) ([]base.Address, bool, error)
 	requestMissingBallotsf func(context.Context, base.StagePoint, []base.Address) error
-	voteSuffrageVotingf    func(context.Context, base.Point, []base.Address) (base.Voteproof, error)
+	voteSuffrageVotingf    func(context.Context, base.StagePoint, []base.Address) (base.Voteproof, error)
 	vpch                   chan base.Voteproof
 	point                  base.StagePoint
 	wait                   time.Duration
@@ -40,7 +40,7 @@ func NewDefaultBallotStuckResolver(
 	interval time.Duration,
 	findMissingBallotsf func(context.Context, base.StagePoint, bool) ([]base.Address, bool, error),
 	requestMissingBallotsf func(context.Context, base.StagePoint, []base.Address) error,
-	voteSuffrageVotingf func(context.Context, base.Point, []base.Address) (base.Voteproof, error),
+	voteSuffrageVotingf func(context.Context, base.StagePoint, []base.Address) (base.Voteproof, error),
 ) *DefaultBallotStuckResolver {
 	return &DefaultBallotStuckResolver{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
@@ -93,7 +93,7 @@ func (c *DefaultBallotStuckResolver) NewPoint(ctx context.Context, point base.St
 				}
 			}
 
-			l.Debug().Msg("found stuck")
+			l.Debug().Msg("ballot stuck found")
 
 			switch err := c.start(sctx, point); {
 			case err == nil:
@@ -187,13 +187,13 @@ func (c *DefaultBallotStuckResolver) start(ctx context.Context, point base.Stage
 			case err != nil:
 				return errors.WithMessage(err, "failed suffrage voting")
 			case nomore:
-				l.Debug().Msg("no more suffrage voting; cancel")
+				ll.Debug().Msg("no more suffrage voting; cancel")
 
 				return nil
 			case vp == nil:
 				continue
 			default:
-				ll.Debug().Msg("voteproof for next round")
+				ll.Debug().Msg("stuck voteproof for next round")
 
 				go func() {
 					c.vpch <- vp
@@ -242,7 +242,7 @@ func (c *DefaultBallotStuckResolver) suffrageVoting(
 		nodes = i
 	}
 
-	switch vp, err := c.voteSuffrageVotingf(ctx, point.Point, nodes); {
+	switch vp, err := c.voteSuffrageVotingf(ctx, point, nodes); {
 	case err != nil:
 		return nil, false, err
 	default:
@@ -361,10 +361,7 @@ func VoteSuffrageVotingFunc(
 			})
 		}
 
-		switch {
-		case len(withdraws) < 1:
-			return nil, nil
-		case len(nodes)+len(withdraws) < suf.Len():
+		if len(withdraws) < 1 {
 			return nil, nil
 		}
 

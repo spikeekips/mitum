@@ -12,18 +12,9 @@ import (
 
 // FIXME remove withdraw nodes from sync sources
 
-type HasWithdrawVoteproof interface {
-	Withdraws() []base.SuffrageWithdrawOperation
-}
-
 type WithdrawVoteproof interface {
-	HasWithdrawVoteproof
+	base.HasWithdrawVoteproof
 	IsWithdrawVoteproof() bool // NOTE should be true
-}
-
-type StuckVoteproof interface {
-	HasWithdrawVoteproof
-	IsStuckVoteproof() bool // NOTE should be true
 }
 
 var (

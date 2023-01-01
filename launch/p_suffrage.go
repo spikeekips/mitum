@@ -366,7 +366,18 @@ func PSuffrageVoting(ctx context.Context) (context.Context, error) {
 		local.Address(),
 		pool,
 		db.ExistsInStateOperation,
-		nil,
+		func(op base.SuffrageWithdrawOperation) error {
+			switch b, err := util.MarshalJSON(op); {
+			case err != nil:
+				return errors.WithMessage(err, "failed to marshal SuffrageWithdrawOperation")
+			default:
+				if err := cb.Broadcast(util.UUID().String(), b, nil); err != nil {
+					return errors.WithMessage(err, "failed to broadcast SuffrageWithdrawOperation")
+				}
+
+				return nil
+			}
+		},
 	)
 
 	ballotbox.SetSuffrageVote(func(op base.SuffrageWithdrawOperation) error {

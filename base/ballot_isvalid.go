@@ -67,12 +67,14 @@ func checkACCEPTVoteproofInINITBallot(bl INITBallot, vp ACCEPTVoteproof) error {
 
 	switch {
 	case vp.Result() == VoteResultMajority:
-		fact := bl.BallotSignFact().BallotFact()
-		if !fact.PreviousBlock().Equal(vp.BallotMajority().NewBlock()) {
-			return e.Errorf("block does not match, ballot(%q) != voteproof(%q)",
-				fact.PreviousBlock(),
-				vp.BallotMajority().NewBlock(),
-			)
+		if _, ok := vp.(StuckVoteproof); !ok && vp.Result() == VoteResultMajority {
+			fact := bl.BallotSignFact().BallotFact()
+			if !fact.PreviousBlock().Equal(vp.BallotMajority().NewBlock()) {
+				return e.Errorf("block does not match, ballot(%q) != voteproof(%q)",
+					fact.PreviousBlock(),
+					vp.BallotMajority().NewBlock(),
+				)
+			}
 		}
 	default:
 		if !vp.Point().Point.NextRound().Equal(bl.Point().Point) {

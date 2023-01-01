@@ -263,7 +263,7 @@ func (box *Ballotbox) vote(
 	if digged != nil {
 		box.setLastStagePoint(digged.Point(), digged.Result() == base.VoteResultMajority)
 
-		if wvp, ok := digged.(isaac.HasWithdrawVoteproof); ok {
+		if wvp, ok := digged.(base.HasWithdrawVoteproof); ok {
 			if err := box.learnWithdraws(wvp.Withdraws()); err != nil {
 				return false, nil, err
 			}
@@ -1024,6 +1024,22 @@ func (vr *voterecords) stuckVoteproof(
 		}
 	}
 
+	filteredvoted := map[string]base.BallotSignFact{}
+
+	_ = util.FilterMap(voted, func(k string, sf base.BallotSignFact) bool {
+		if util.InSliceFunc(withdraws, func(i base.SuffrageWithdrawOperation) bool {
+			return i.WithdrawFact().Node().Equal(sf.Node())
+		}) < 0 {
+			filteredvoted[k] = sf
+		}
+
+		return false
+	})
+
+	if len(filteredvoted) < 1 {
+		return nil, nil
+	}
+
 	switch i, err := isaac.NewSuffrageWithWithdraws(suf, threshold, withdraws); {
 	case err != nil:
 		return nil, err
@@ -1031,7 +1047,7 @@ func (vr *voterecords) stuckVoteproof(
 		suf = i
 	}
 
-	sfs, set, m := vr.sfs(voted)
+	sfs, set, m := vr.sfs(filteredvoted)
 
 	var majority base.BallotFact
 

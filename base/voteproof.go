@@ -30,6 +30,15 @@ type ACCEPTVoteproof interface {
 	BallotSignFacts() []ACCEPTBallotSignFact
 }
 
+type HasWithdrawVoteproof interface {
+	Withdraws() []SuffrageWithdrawOperation
+}
+
+type StuckVoteproof interface {
+	HasWithdrawVoteproof
+	IsStuckVoteproof() bool // NOTE should be true
+}
+
 func EnsureINITVoteproof(vp Voteproof) (INITVoteproof, error) {
 	e := util.StringErrorFunc("invalid INITVoteproof")
 

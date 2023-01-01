@@ -797,7 +797,7 @@ func (st *ConsensusHandler) checkStuckVoteproof(
 	vp base.Voteproof,
 	lvps LastVoteproofs,
 ) (bool, error) {
-	if _, ok := vp.(isaac.StuckVoteproof); !ok {
+	if _, ok := vp.(base.StuckVoteproof); !ok {
 		return true, nil
 	}
 

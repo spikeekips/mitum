@@ -223,8 +223,11 @@ func (st *States) startFunc(cancel func()) func(context.Context) error {
 func (st *States) startStatesSwitch(ctx context.Context) error {
 	var resolvervpch <-chan base.Voteproof
 
-	if st.resolver == nil {
+	switch {
+	case st.resolver == nil:
 		resolvervpch = make(chan base.Voteproof)
+	default:
+		resolvervpch = st.resolver.Voteproof()
 	}
 
 	for {

@@ -1961,7 +1961,7 @@ func (t *testBallotboxWithWithdraw) TestVoteproofWithWithdraws() {
 
 		t.NoError(vp.IsValid(t.networkID))
 
-		svp, ok := vp.(isaac.StuckVoteproof)
+		svp, ok := vp.(base.StuckVoteproof)
 		t.True(ok)
 
 		t.True(svp.IsStuckVoteproof())

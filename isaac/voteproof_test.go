@@ -765,7 +765,7 @@ func TestINITStuckVoteproofJSON(tt *testing.T) {
 		i, err := t.enc.Decode(b)
 		t.NoError(err)
 
-		_, ok := i.(StuckVoteproof)
+		_, ok := i.(base.StuckVoteproof)
 		t.True(ok)
 
 		ivp, ok := i.(INITStuckVoteproof)
@@ -916,7 +916,7 @@ func TestACCEPTStuckVoteproofJSON(tt *testing.T) {
 		i, err := t.enc.Decode(b)
 		t.NoError(err)
 
-		_, ok := i.(StuckVoteproof)
+		_, ok := i.(base.StuckVoteproof)
 		t.True(ok)
 
 		avp, ok := i.(ACCEPTStuckVoteproof)

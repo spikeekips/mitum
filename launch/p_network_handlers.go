@@ -21,6 +21,7 @@ import (
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/localtime"
+	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/ps"
 )
 
@@ -33,6 +34,7 @@ var (
 func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to prepare network handlers")
 
+	var log *logging.Logging
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
 	var design NodeDesign
@@ -48,8 +50,10 @@ func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 	var svvotef isaac.SuffrageVoteFunc
 	var cb *isaacnetwork.CallbackBroadcaster
 	var ballotbox *isaacstates.Ballotbox
+	var filternotifymsg FilterMemberlistNotifyMsgFunc
 
 	if err := util.LoadFromContextOK(ctx,
+		LoggingContextKey, &log,
 		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
 		DesignContextKey, &design,
@@ -65,6 +69,7 @@ func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 		SuffrageVotingVoteFuncContextKey, &svvotef,
 		CallbackBroadcasterContextKey, &cb,
 		BallotboxContextKey, &ballotbox,
+		FilterMemberlistNotifyMsgFuncContextKey, &filternotifymsg,
 	); err != nil {
 		return ctx, e(err, "")
 	}
@@ -207,6 +212,15 @@ func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 			isaacnetwork.QuicstreamHandlerSendBallots(
 				encs, idletimeout, params,
 				func(bl base.BallotSignFact) error {
+					if !filternotifymsg(bl) {
+						log.Log().Trace().
+							Str("module", "memberlist-notify-msg").
+							Interface("message", bl).
+							Msg("filtered")
+
+						return nil
+					}
+
 					_, err := ballotbox.VoteSignFact(bl, params.Threshold())
 
 					return err
