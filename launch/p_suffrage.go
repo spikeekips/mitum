@@ -2,7 +2,6 @@ package launch
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -206,12 +205,12 @@ func PNodeInConsensusNodesFunc(ctx context.Context) (context.Context, error) {
 	f := nodeInConsensusNodesFunc(db, getSuffragef)
 
 	var sg singleflight.Group
-	cache := util.NewGCacheObjectPool(3) //nolint:gomnd // last 3 heights
+	cache := util.NewGCacheObjectPool(1 << 9) //nolint:gomnd //...
 
 	sgf := func(node base.Node, height base.Height) (base.Suffrage, bool, error) {
-		i, err, _ := sg.Do("node_in_consensus_nodes-"+height.String(), func() (interface{}, error) {
-			cachekey := node.Address().String() + "/" + height.String()
+		cachekey := node.Address().String() + "/" + height.String()
 
+		i, err, _ := sg.Do(cachekey, func() (interface{}, error) {
 			if j, found := cache.Get(cachekey); found {
 				return j, nil
 			}
@@ -872,8 +871,6 @@ func GetLastSuffrageFunc(ctx context.Context) (isaac.GetSuffrageByBlockHeight, e
 
 	sufcache := util.NewGCacheObjectPool(1 << 9) //nolint:gomnd //...
 
-	var l sync.Mutex
-
 	f := func(height base.Height) (base.Suffrage, bool, error) {
 		switch suf, found, err := isaac.GetSuffrageFromDatabase(db, height); {
 		case err != nil:
@@ -882,26 +879,36 @@ func GetLastSuffrageFunc(ctx context.Context) (isaac.GetSuffrageByBlockHeight, e
 			return suf, true, nil
 		}
 
-		// NOTE find in watcher
 		return watcher.GetSuffrage(height)
 	}
 
+	var sg singleflight.Group
+
 	return func(height base.Height) (base.Suffrage, bool, error) {
-		if i, found := sufcache.Get(height.String()); found {
-			return i.(base.Suffrage), true, nil //nolint:forcetypeassert //...
+		i, err, _ := sg.Do(height.String(), func() (interface{}, error) {
+			if i, found := sufcache.Get(height.String()); found {
+				return [2]interface{}{i.(base.Suffrage), true}, nil //nolint:forcetypeassert //...
+			}
+
+			switch suf, found, err := f(height); {
+			case err != nil || !found:
+				return [2]interface{}{nil, found}, err
+			default:
+				sufcache.Set(height.String(), suf, nil)
+
+				return [2]interface{}{suf, true}, nil
+			}
+		})
+		if err != nil {
+			return nil, false, err
 		}
 
-		l.Lock()
-		defer l.Unlock()
-
-		switch suf, found, err := f(height); {
-		case err != nil || !found:
-			return nil, found, err
-		default:
-			sufcache.Set(height.String(), suf, nil)
-
-			return suf, true, nil
+		found := i.([2]interface{})[1].(bool)
+		if !found {
+			return nil, false, nil
 		}
+
+		return i.([2]interface{})[0].(base.Suffrage), true, nil
 	}, nil
 }
 
