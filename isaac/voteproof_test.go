@@ -712,7 +712,7 @@ func TestINITWithdrawVoteproofJSON(tt *testing.T) {
 		i, err := t.enc.Decode(b)
 		t.NoError(err)
 
-		_, ok := i.(WithdrawVoteproof)
+		_, ok := i.(base.WithdrawVoteproof)
 		t.True(ok)
 
 		ivp, ok := i.(INITWithdrawVoteproof)
@@ -863,7 +863,7 @@ func TestACCEPTWithdrawVoteproofJSON(tt *testing.T) {
 		i, err := t.enc.Decode(b)
 		t.NoError(err)
 
-		_, ok := i.(WithdrawVoteproof)
+		_, ok := i.(base.WithdrawVoteproof)
 		t.True(ok)
 
 		avp, ok := i.(ACCEPTWithdrawVoteproof)

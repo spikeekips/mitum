@@ -887,7 +887,7 @@ func GetLastSuffrageFunc(ctx context.Context) (isaac.GetSuffrageByBlockHeight, e
 	return func(height base.Height) (base.Suffrage, bool, error) {
 		i, err, _ := sg.Do(height.String(), func() (interface{}, error) {
 			if i, found := sufcache.Get(height.String()); found {
-				return [2]interface{}{i.(base.Suffrage), true}, nil //nolint:forcetypeassert //...
+				return [2]interface{}{i, true}, nil //nolint:forcetypeassert //...
 			}
 
 			switch suf, found, err := f(height); {
@@ -900,15 +900,15 @@ func GetLastSuffrageFunc(ctx context.Context) (isaac.GetSuffrageByBlockHeight, e
 			}
 		})
 		if err != nil {
-			return nil, false, err
+			return nil, false, errors.WithStack(err)
 		}
 
-		found := i.([2]interface{})[1].(bool)
+		found := i.([2]interface{})[1].(bool) //nolint:forcetypeassert //...
 		if !found {
 			return nil, false, nil
 		}
 
-		return i.([2]interface{})[0].(base.Suffrage), true, nil
+		return i.([2]interface{})[0].(base.Suffrage), true, nil //nolint:forcetypeassert //...
 	}, nil
 }
 

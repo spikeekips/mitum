@@ -13,7 +13,7 @@ var (
 	SuffrageConfirmBallotFactHint = hint.MustNewHint("suffrage-confirm-ballot-fact-v0.0.1")
 )
 
-type BallotWithdrawFacts interface {
+type WithdrawBallotFact interface {
 	WithdrawFacts() []util.Hash
 }
 

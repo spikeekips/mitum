@@ -4,7 +4,6 @@ import (
 	"sync"
 
 	"github.com/spikeekips/mitum/base"
-	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 )
 
@@ -79,11 +78,7 @@ func (l *LastVoteproofsHandler) ForceSet(vp base.Voteproof) bool {
 
 		if l.ivp != nil && l.ivp.Point().Compare(l.avp.Point()) > 0 {
 			l.ivp = nil
-
 			l.mvp = nil
-			if l.avp.Result() == base.VoteResultMajority {
-				l.mvp = l.avp
-			}
 		}
 	}
 
@@ -125,14 +120,6 @@ func (l LastVoteproofs) INIT() base.INITVoteproof {
 func (l LastVoteproofs) PreviousBlockForNextRound(vp base.Voteproof) util.Hash {
 	if l.mvp == nil {
 		return nil
-	}
-
-	if _, ok := vp.(isaac.WithdrawVoteproof); !ok {
-		if _, ok := vp.(base.StuckVoteproof); !ok {
-			if vp.Result() != base.VoteResultDraw {
-				return nil
-			}
-		}
 	}
 
 	switch l.mvp.Point().Stage() { //nolint:exhaustive //...

@@ -108,7 +108,7 @@ func (bl baseBallot) ballotFact() base.BallotFact {
 }
 
 func (bl *baseBallot) isValidWithdraws(networkID []byte, withdraws []base.SuffrageWithdrawOperation) error {
-	fact, ok := bl.signFact.Fact().(BallotWithdrawFacts)
+	fact, ok := bl.signFact.Fact().(WithdrawBallotFact)
 	if !ok {
 		return nil
 	}
@@ -222,7 +222,7 @@ func (bl INITBallot) BallotSignFact() base.INITBallotSignFact {
 func (bl INITBallot) Withdraws() []base.SuffrageWithdrawOperation {
 	if bl.signFact != nil {
 		if _, ok := bl.signFact.Fact().(SuffrageConfirmBallotFact); ok {
-			switch w, ok := bl.Voteproof().(WithdrawVoteproof); {
+			switch w, ok := bl.Voteproof().(base.WithdrawVoteproof); {
 			case !ok:
 				return nil
 			default:
@@ -254,7 +254,7 @@ func (bl INITBallot) isvalidSuffrageConfirmBallotFact(networkID base.NetworkID) 
 
 	// NOTE SuffrageConfirm INIT ballot does use withdraws from voteproof
 	// instead of from it's body.
-	switch w, ok := vp.(WithdrawVoteproof); {
+	switch w, ok := vp.(base.WithdrawVoteproof); {
 	case !ok:
 		return e.Errorf("wrong voteproof; expected WithdrawVoteproof, but %T", vp)
 	case len(w.Withdraws()) < 1:
@@ -269,8 +269,8 @@ func (bl INITBallot) isvalidSuffrageConfirmBallotFact(networkID base.NetworkID) 
 
 	fact := bl.signFact.Fact().(SuffrageConfirmBallotFact) //nolint:forcetypeassert //...
 
-	bfacts := fact.WithdrawFacts()                                //nolint:forcetypeassert //...
-	vfacts := vp.Majority().(BallotWithdrawFacts).WithdrawFacts() //nolint:forcetypeassert //...
+	bfacts := fact.WithdrawFacts()                               //nolint:forcetypeassert //...
+	vfacts := vp.Majority().(WithdrawBallotFact).WithdrawFacts() //nolint:forcetypeassert //...
 
 	// NOTE compare withdraws in fact with ballot's
 	if len(bfacts) != len(vfacts) {

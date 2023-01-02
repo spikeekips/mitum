@@ -632,17 +632,13 @@ func (st *States) filterMimicBallot(bl base.Ballot) bool {
 		}
 	}
 
-	if vp := bl.Voteproof(); vp != nil {
-		switch wvp, ok := vp.(isaac.WithdrawVoteproof); {
-		case !ok:
-		default:
-			if util.InSliceFunc(wvp.Withdraws(), func(i base.SuffrageWithdrawOperation) bool {
-				return i.WithdrawFact().Node().Equal(st.local.Address())
-			}) >= 0 {
-				l.Debug().Msg("local in withdraws voteproof; ignore")
+	if wvp, ok := bl.Voteproof().(base.HasWithdrawVoteproof); ok {
+		if util.InSliceFunc(wvp.Withdraws(), func(i base.SuffrageWithdrawOperation) bool {
+			return i.WithdrawFact().Node().Equal(st.local.Address())
+		}) >= 0 {
+			l.Debug().Msg("local in withdraws voteproof; ignore")
 
-				return true
-			}
+			return true
 		}
 	}
 

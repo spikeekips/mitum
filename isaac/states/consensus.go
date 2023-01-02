@@ -777,7 +777,7 @@ func (st *ConsensusHandler) saveBlock(avp base.ACCEPTVoteproof) (bool, error) {
 }
 
 func (st *ConsensusHandler) checkSuffrageVoting(ivp base.INITVoteproof) (bool, error) {
-	if _, ok := ivp.(isaac.WithdrawVoteproof); !ok {
+	if _, ok := ivp.(base.WithdrawVoteproof); !ok {
 		return true, nil
 	}
 

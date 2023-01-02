@@ -280,7 +280,7 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) ([]bas
 	var cops []base.Operation
 	var index int
 
-	switch w, ok := p.ivp.(WithdrawVoteproof); {
+	switch w, ok := p.ivp.(base.WithdrawVoteproof); {
 	case ok:
 		withdraws := w.Withdraws()
 		cops = make([]base.Operation, len(p.proposal.ProposalFact().Operations())+len(withdraws))

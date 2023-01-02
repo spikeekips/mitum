@@ -283,7 +283,7 @@ func (st *baseBallotHandler) makeACCEPTBallot(
 	var withdrawfacts []util.Hash
 	var withdraws []base.SuffrageWithdrawOperation
 
-	if i, ok := ivp.(isaac.WithdrawVoteproof); ok {
+	if i, ok := ivp.(base.WithdrawVoteproof); ok {
 		withdraws = i.Withdraws()
 
 		withdrawfacts = make([]util.Hash, len(withdraws))
@@ -315,7 +315,7 @@ func (st *baseBallotHandler) makeACCEPTBallot(
 func (st *baseBallotHandler) prepareSuffrageConfirmBallot(vp base.Voteproof) {
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(vp)).Logger()
 
-	if _, ok := vp.(isaac.WithdrawVoteproof); !ok {
+	if _, ok := vp.(base.WithdrawVoteproof); !ok {
 		l.Error().Msg("expected WithdrawVoteproof for suffrage sign voting")
 
 		return

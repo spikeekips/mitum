@@ -12,11 +12,6 @@ import (
 
 // FIXME remove withdraw nodes from sync sources
 
-type WithdrawVoteproof interface {
-	base.HasWithdrawVoteproof
-	IsWithdrawVoteproof() bool // NOTE should be true
-}
-
 var (
 	INITVoteproofHint           = hint.MustNewHint("init-voteproof-v0.0.1")
 	INITWithdrawVoteproofHint   = hint.MustNewHint("init-withdraw-voteproof-v0.0.1")
@@ -420,7 +415,7 @@ func (vp baseWithdrawVoteproof) isValid(networkID []byte, ovp baseVoteproof) err
 		return util.ErrInvalid.Wrap(err)
 	}
 
-	if wf, ok := ovp.majority.(BallotWithdrawFacts); ok {
+	if wf, ok := ovp.majority.(WithdrawBallotFact); ok {
 		withdrawfacts := wf.WithdrawFacts()
 		if len(withdrawfacts) > 0 {
 			switch { //nolint:forcetypeassert //...

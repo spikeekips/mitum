@@ -242,6 +242,8 @@ func (c *DefaultBallotStuckResolver) suffrageVoting(
 		nodes = i
 	}
 
+	c.Log().Debug().Interface("nodes", nodes).Msg("missing nodes checked")
+
 	switch vp, err := c.voteSuffrageVotingf(ctx, point, nodes); {
 	case err != nil:
 		return nil, false, err

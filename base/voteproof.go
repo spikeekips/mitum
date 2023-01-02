@@ -34,6 +34,11 @@ type HasWithdrawVoteproof interface {
 	Withdraws() []SuffrageWithdrawOperation
 }
 
+type WithdrawVoteproof interface {
+	HasWithdrawVoteproof
+	IsWithdrawVoteproof() bool // NOTE should be true
+}
+
 type StuckVoteproof interface {
 	HasWithdrawVoteproof
 	IsStuckVoteproof() bool // NOTE should be true
