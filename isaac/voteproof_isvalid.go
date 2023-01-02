@@ -14,19 +14,8 @@ func IsValidVoteproofWithSuffrage(vp base.Voteproof, suf base.Suffrage) error {
 
 	var withdraws []base.SuffrageWithdrawOperation
 
-	switch t := vp.(type) {
-	case INITWithdrawVoteproof:
-		withdraws = t.Withdraws()
-	case ACCEPTWithdrawVoteproof:
-		withdraws = t.Withdraws()
-	case INITStuckVoteproof:
-		withdraws = t.Withdraws()
-	case ACCEPTStuckVoteproof:
-		withdraws = t.Withdraws()
-	case INITVoteproof:
-	case ACCEPTVoteproof:
-	default:
-		return e.Errorf("unknown voteproof, %T", vp)
+	if wvp, ok := vp.(base.HasWithdrawVoteproof); ok {
+		withdraws = wvp.Withdraws()
 	}
 
 	th := vp.Threshold()
@@ -45,6 +34,12 @@ func IsValidVoteproofWithSuffrage(vp base.Voteproof, suf base.Suffrage) error {
 		default:
 			rsuf = i
 			th = base.MaxThreshold
+		}
+	}
+
+	if _, ok := vp.(base.StuckVoteproof); ok {
+		if suf.Len() != len(vp.SignFacts())+len(withdraws) {
+			return e.Errorf("not enough sign facts with withdraws")
 		}
 	}
 

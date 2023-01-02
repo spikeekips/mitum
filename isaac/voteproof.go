@@ -356,8 +356,7 @@ func (vp INITStuckVoteproof) IsValid(networkID []byte) error {
 }
 
 func (vp *INITStuckVoteproof) Finish() *INITStuckVoteproof {
-	_ = vp.SetThreshold(base.MaxThreshold)
-	_ = vp.baseVoteproof.Finish()
+	_ = vp.baseStuckVoteproof.finish(&vp.baseVoteproof)
 
 	return vp
 }
@@ -400,8 +399,7 @@ func (vp ACCEPTStuckVoteproof) IsValid(networkID []byte) error {
 }
 
 func (vp *ACCEPTStuckVoteproof) Finish() *ACCEPTStuckVoteproof {
-	_ = vp.SetThreshold(base.MaxThreshold)
-	_ = vp.baseVoteproof.Finish()
+	_ = vp.baseStuckVoteproof.finish(&vp.baseVoteproof)
 
 	return vp
 }
@@ -469,7 +467,7 @@ func (baseStuckVoteproof) IsStuckVoteproof() bool {
 
 func (vp baseStuckVoteproof) isValid(networkID []byte, ovp baseVoteproof) error {
 	if len(vp.withdraws) < 1 {
-		return util.ErrInvalid.Errorf("not stuck")
+		return util.ErrInvalid.Errorf("empty withdraws")
 	}
 
 	return isValidithdrawVoteproof(networkID, vp.withdraws, ovp)
@@ -506,4 +504,12 @@ func isValidithdrawVoteproof(networkID []byte, withdraws []base.SuffrageWithdraw
 	}
 
 	return nil
+}
+
+func (vp *baseStuckVoteproof) finish(bvp *baseVoteproof) *baseStuckVoteproof {
+	_ = bvp.SetMajority(nil).
+		SetThreshold(base.MaxThreshold).
+		Finish()
+
+	return vp
 }

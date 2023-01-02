@@ -580,6 +580,94 @@ func (t *testVoteproof) TestINITWithSIGN() {
 	})
 }
 
+func (t *testVoteproof) TestStuckVoteproof() {
+	point := base.RawPoint(33, 44)
+
+	localnodes := make([]base.LocalNode, 3)
+	nodes := make([]base.Node, 3)
+
+	localnodes[0] = t.local
+	nodes[0] = t.local
+	for i := range nodes[1:] {
+		n := RandomLocalNode()
+		nodes[i+1] = n
+		localnodes[i+1] = n
+	}
+	withdrawnode := nodes[2]
+
+	suf, err := NewSuffrage(nodes)
+	t.NoError(err)
+
+	withdrawfacts, withdraws := t.withdraws(point.Height(), []base.Node{withdrawnode}, nodes[:2])
+
+	fact := NewINITBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), withdrawfacts)
+
+	sfs := make([]base.BallotSignFact, 2)
+	for i, node := range localnodes[:2] {
+		sf := NewINITBallotSignFact(fact)
+		t.NoError(sf.NodeSign(node.Privatekey(), t.networkID, node.Address()))
+
+		sfs[i] = sf
+	}
+
+	t.Run("valid", func() {
+		vp := NewINITStuckVoteproof(point)
+
+		_ = vp.
+			SetSignFacts(sfs).
+			SetMajority(fact)
+		_ = vp.SetWithdraws(withdraws)
+		_ = vp.Finish()
+
+		t.Nil(vp.Majority())
+		t.Equal(base.VoteResultDraw, vp.Result())
+
+		t.NoError(vp.IsValid(t.networkID))
+		t.NoError(IsValidVoteproofWithSuffrage(vp, suf))
+	})
+
+	t.Run("empty withdraws", func() {
+		vp := NewINITStuckVoteproof(point)
+
+		_ = vp.
+			SetSignFacts(sfs[:1]).
+			SetMajority(fact)
+		_ = vp.Finish()
+
+		t.Nil(vp.Majority())
+		t.Equal(base.VoteResultDraw, vp.Result())
+
+		err := vp.IsValid(t.networkID)
+		t.Error(err)
+		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorContains(err, "empty withdraws")
+
+		err = IsValidVoteproofWithSuffrage(vp, suf)
+		t.Error(err)
+		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorContains(err, "not enough sign facts with withdraws")
+	})
+
+	t.Run("not enough sign facts", func() {
+		vp := NewINITStuckVoteproof(point)
+
+		_ = vp.
+			SetSignFacts(sfs[:1]).
+			SetMajority(fact)
+		_ = vp.SetWithdraws(withdraws)
+		_ = vp.Finish()
+
+		t.Nil(vp.Majority())
+		t.Equal(base.VoteResultDraw, vp.Result())
+
+		t.NoError(vp.IsValid(t.networkID))
+		err := IsValidVoteproofWithSuffrage(vp, suf)
+		t.Error(err)
+		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorContains(err, "not enough sign facts with withdraws")
+	})
+}
+
 func TestVoteproof(t *testing.T) {
 	suite.Run(t, new(testVoteproof))
 }

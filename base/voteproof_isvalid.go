@@ -187,23 +187,25 @@ func IsValidVoteproofWithSuffrage(vp Voteproof, suf Suffrage, th Threshold) erro
 		}
 	}
 
-	set, m := CountBallotSignFacts(sfs)
-	result, majoritykey := th.VoteResult(uint(suf.Len()), set)
+	if _, ok := vp.(StuckVoteproof); !ok {
+		set, m := CountBallotSignFacts(sfs)
+		result, majoritykey := th.VoteResult(uint(suf.Len()), set)
 
-	switch {
-	case result != vp.Result():
-		return e(util.ErrInvalid.Errorf("wrong result; voteproof(%q) != %q", vp.Result(), result), "")
-	case result == VoteResultDraw:
-		if vp.Majority() != nil {
-			return e(util.ErrInvalid.Errorf("not empty majority for draw"), "")
-		}
-	case result == VoteResultMajority:
-		if vp.Majority() == nil {
-			return e(util.ErrInvalid.Errorf("empty majority for majority"), "")
-		}
+		switch {
+		case result != vp.Result():
+			return e(util.ErrInvalid.Errorf("wrong result; voteproof(%q) != %q", vp.Result(), result), "")
+		case result == VoteResultDraw:
+			if vp.Majority() != nil {
+				return e(util.ErrInvalid.Errorf("not empty majority for draw"), "")
+			}
+		case result == VoteResultMajority:
+			if vp.Majority() == nil {
+				return e(util.ErrInvalid.Errorf("empty majority for majority"), "")
+			}
 
-		if !vp.Majority().Hash().Equal(m[majoritykey].Hash()) {
-			return e(util.ErrInvalid.Errorf("wrong majority for majority"), "")
+			if !vp.Majority().Hash().Equal(m[majoritykey].Hash()) {
+				return e(util.ErrInvalid.Errorf("wrong majority for majority"), "")
+			}
 		}
 	}
 
