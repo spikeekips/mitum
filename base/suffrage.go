@@ -101,8 +101,8 @@ type (
 type SuffrageWithdrawFact interface {
 	Fact
 	Node() Address
-	WithdrawStart() Height
-	WithdrawEnd() Height
+	WithdrawStart() Height // NOTE available from WithdrawStart()
+	WithdrawEnd() Height   // NOTE not available at WithdrawEnd() + 1
 	Reason() string
 }
 

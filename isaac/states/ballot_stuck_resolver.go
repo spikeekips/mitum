@@ -338,7 +338,7 @@ func VoteSuffrageVotingFunc(
 		for i := range nodes {
 			node := nodes[i]
 
-			fact := isaac.NewSuffrageWithdrawFact(node, point.Height(), point.Height()+1, "no ballot") // FIXME set end to same height
+			fact := isaac.NewSuffrageWithdrawFact(node, point.Height(), point.Height(), "no ballot")
 
 			op := isaac.NewSuffrageWithdrawOperation(fact)
 

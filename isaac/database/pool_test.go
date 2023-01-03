@@ -690,9 +690,10 @@ func (t *testSuffrageWithdrawPool) TestSet() {
 	pst := t.NewPool()
 	defer pst.Close()
 
+	node := base.RandomAddress("")
+
 	t.Run("set and get", func() {
 		height := base.Height(33)
-		node := base.RandomAddress("")
 
 		rop, found, err := pst.SuffrageWithdrawOperation(height, node)
 		t.NoError(err)
@@ -703,6 +704,19 @@ func (t *testSuffrageWithdrawPool) TestSet() {
 		t.NoError(pst.SetSuffrageWithdrawOperation(nop))
 
 		rop, found, err = pst.SuffrageWithdrawOperation(height, node)
+		t.NoError(err)
+		t.True(found)
+		t.NotNil(rop)
+		t.True(nop.Hash().Equal(rop.Hash()))
+	})
+
+	t.Run("filter", func() {
+		height := base.Height(35)
+
+		nop := t.operation(height, height, node)
+		t.NoError(pst.SetSuffrageWithdrawOperation(nop))
+
+		rop, found, err := pst.SuffrageWithdrawOperation(height, node)
 		t.NoError(err)
 		t.True(found)
 		t.NotNil(rop)

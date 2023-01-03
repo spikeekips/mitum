@@ -86,6 +86,11 @@ func (t *testSuffrageWithdrawFact) TestIsValid() {
 		t.ErrorContains(err, "invalid SuffrageWithdraw")
 	})
 
+	t.Run("start == end", func() {
+		fact := NewSuffrageWithdrawFact(base.RandomAddress(""), base.Height(33), base.Height(33), util.UUID().String())
+		t.NoError(fact.IsValid(nil))
+	})
+
 	t.Run("wrong hash", func() {
 		fact := NewSuffrageWithdrawFact(base.RandomAddress(""), base.Height(33), base.Height(44), util.UUID().String())
 		fact.SetHash(valuehash.NewBytes(util.UUID().Bytes()))

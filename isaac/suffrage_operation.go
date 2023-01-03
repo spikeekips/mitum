@@ -52,8 +52,8 @@ func (fact SuffrageWithdrawFact) IsValid([]byte) error {
 	switch {
 	case fact.start <= base.GenesisHeight:
 		return e.Errorf("invalid start height; should be over genesis height")
-	case fact.start >= fact.end: // FIXME remove equal
-		return e.Errorf("invalid start and end height; end should be over start")
+	case fact.start > fact.end:
+		return e.Errorf("invalid start and end height; end should be equal or over start")
 	case !bytes.Equal(fact.Token(), base.Token(util.ConcatByters(fact.node, fact.start, fact.end))):
 		return e.Errorf("invalid token; should be node + start + end")
 	case len(strings.TrimSpace(fact.reason)) < 1:
