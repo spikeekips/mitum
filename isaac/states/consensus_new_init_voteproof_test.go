@@ -49,7 +49,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestHigherHeight() {
 		return nil, errors.Errorf("hahaah")
 	})
 
-	sctx := newConsensusSwitchContext(StateJoining, ivp)
+	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
@@ -107,7 +107,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestNextRoundButAlreadyFini
 		return nil, errors.Errorf("hahaah")
 	})
 
-	sctx := newConsensusSwitchContext(StateJoining, ivp)
+	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
@@ -169,7 +169,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBeforePreviousBlock
 		}
 	})
 
-	sctx := newConsensusSwitchContext(StateJoining, ivp)
+	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
@@ -260,7 +260,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBefore() {
 		}
 	})
 
-	sctx := newConsensusSwitchContext(StateJoining, ivp)
+	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
@@ -359,7 +359,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawAndDrawAgain() {
 		}
 	})
 
-	sctx := newConsensusSwitchContext(StateJoining, ivp)
+	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
@@ -463,7 +463,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestExpected() {
 		}
 	})
 
-	sctx := newConsensusSwitchContext(StateJoining, ivp)
+	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
@@ -536,7 +536,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestHigherHeight() {
 		}
 	})
 
-	sctx := newConsensusSwitchContext(StateJoining, ivp)
+	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
@@ -601,7 +601,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestPreviousBlockNotMatch
 		}
 	})
 
-	sctx := newConsensusSwitchContext(StateJoining, ivp)
+	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
@@ -681,7 +681,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestNotInConsensusNodes()
 		}
 	})
 
-	sctx := newConsensusSwitchContext(StateJoining, ivp)
+	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)

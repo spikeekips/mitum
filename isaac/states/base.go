@@ -17,10 +17,11 @@ type baseHandler struct {
 	ctx   context.Context //nolint:containedctx //...
 	*logging.Logging
 	params                *isaac.LocalParams
+	voteproofsFunc        func(base.StagePoint) (LastVoteproofs, bool)
+	lastVoteproofFunc     func() LastVoteproofs
 	setLastVoteproofFunc  func(base.Voteproof) bool
 	forceSetLastVoteproof func(base.Voteproof) bool
 	cancel                func()
-	lastVoteproofFunc     func() LastVoteproofs
 	sts                   *States
 	timers                *util.Timers
 	switchStateFunc       func(switchContext) error
@@ -42,6 +43,9 @@ func newBaseHandler(
 		stt:    state,
 		local:  local,
 		params: params,
+		voteproofsFunc: func(point base.StagePoint) (LastVoteproofs, bool) {
+			return lvps.Voteproofs(point)
+		},
 		lastVoteproofFunc: func() LastVoteproofs {
 			return lvps.Last()
 		},
@@ -64,6 +68,7 @@ func (st *baseHandler) new() *baseHandler {
 		sts:                   st.sts,
 		timers:                st.timers,
 		cancel:                func() {},
+		voteproofsFunc:        st.voteproofsFunc,
 		lastVoteproofFunc:     st.lastVoteproofFunc,
 		setLastVoteproofFunc:  st.setLastVoteproofFunc,
 		forceSetLastVoteproof: st.forceSetLastVoteproof,
@@ -97,6 +102,10 @@ func (st *baseHandler) SetOnEmptyMembers(f func()) {
 
 func (st *baseHandler) state() StateType {
 	return st.stt
+}
+
+func (st *baseHandler) voteproofs(point base.StagePoint) (LastVoteproofs, bool) {
+	return st.voteproofsFunc(point)
 }
 
 func (st *baseHandler) lastVoteproofs() LastVoteproofs {
@@ -135,6 +144,9 @@ func (st *baseHandler) setStates(sts *States) {
 
 	st.timers = st.sts.timers
 
+	st.voteproofsFunc = func(point base.StagePoint) (LastVoteproofs, bool) {
+		return st.sts.voteproofs(point)
+	}
 	st.lastVoteproofFunc = func() LastVoteproofs {
 		return st.sts.lastVoteproof()
 	}

@@ -61,7 +61,7 @@ func (t *testWithdrawsConsensusHandler) TestEnterWithSuffrageConfirmVoteproof() 
 
 	t.T().Log("new suffrage confirm init voteproof", ivp.Point())
 
-	sctx := newConsensusSwitchContext(StateJoining, ivp)
+	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
@@ -135,7 +135,7 @@ func (t *testWithdrawsConsensusHandler) TestSuffrageConfirmAfterEnteringINITVote
 
 	t.T().Log("new withdraw init voteproof", ivp.Point())
 
-	sctx := newConsensusSwitchContext(StateJoining, ivp)
+	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
@@ -245,7 +245,7 @@ func (t *testWithdrawsConsensusHandler) TestSuffrageConfirmAfterACCEPTVoteproof(
 
 	t.T().Log("1st init voteproof", ivp.Point())
 
-	sctx := newConsensusSwitchContext(StateJoining, ivp)
+	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
@@ -393,7 +393,7 @@ func (t *testWithdrawsConsensusHandler) prepareAfterACCEPT(
 	return suf, nodes, st, pp, func() (base.ACCEPTVoteproof, error) {
 			t.T().Log("1st init voteproof", ivp.Point())
 
-			sctx := newConsensusSwitchContext(StateJoining, ivp)
+			sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
 			deferred, err := st.enter(StateJoining, sctx)
 			t.NoError(err)
@@ -710,7 +710,7 @@ func (t *testWithdrawsConsensusHandler) TestEnterINITStuckVoteproof() {
 	lvps := st.lastVoteproofs()
 	st.forceSetLastVoteproof(lvps.ACCEPT())
 
-	sctx := newConsensusSwitchContext(StateJoining, ivp)
+	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
@@ -935,7 +935,7 @@ func (t *testWithdrawsConsensusHandler) TestACCEPTStuckVoteproof() {
 		return withdraws, nil
 	}
 
-	sctx := newConsensusSwitchContext(StateJoining, ivp)
+	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
@@ -1044,7 +1044,7 @@ func (t *testWithdrawsConsensusHandler) TestACCEPTStuckVoteproofEnterSyncing() {
 		return withdraws, nil
 	}
 
-	sctx := newConsensusSwitchContext(StateJoining, ivp)
+	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)

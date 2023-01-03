@@ -245,7 +245,7 @@ func (t *testSyncingHandler) TestNewLowerVoteproof() {
 	})
 }
 
-func (t *testSyncingHandler) TestNewExpectedINITVoteproof() {
+func (t *testSyncingHandler) TestNewExpectedVoteproof() {
 	t.Run("not yet finished", func() {
 		st, _ := t.newState(nil)
 
@@ -270,7 +270,7 @@ func (t *testSyncingHandler) TestNewExpectedINITVoteproof() {
 		t.Equal(point.Height(), syncer.Top())
 	})
 
-	t.Run("finished", func() {
+	t.Run("finished && init voteproof", func() {
 		st, closef := t.newState(nil)
 		defer closef()
 
@@ -297,7 +297,39 @@ func (t *testSyncingHandler) TestNewExpectedINITVoteproof() {
 
 		var csctx consensusSwitchContext
 		t.True(errors.As(err, &csctx))
-		base.EqualVoteproof(t.Assert(), ivp, csctx.ivp)
+		base.EqualVoteproof(t.Assert(), ivp, csctx.vp)
+	})
+
+	t.Run("finished && draw accept voteproof", func() {
+		st, closef := t.newState(nil)
+		defer closef()
+
+		local := t.Local
+		st.nodeInConsensusNodes = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
+			suf, _ := isaac.NewSuffrage([]base.Node{local})
+			return suf, true, nil
+		}
+
+		point := base.RawPoint(33, 2)
+		deferred, err := st.enter(StateJoining, newSyncingSwitchContext(StateJoining, point.Height()))
+		t.NoError(err)
+		deferred()
+
+		syncer := st.syncer.(*dummySyncer)
+
+		syncer.finish(point.Height())
+
+		afact := t.NewACCEPTBallotFact(point.NextHeight(), nil, nil)
+		avp, err := t.NewACCEPTVoteproof(afact, t.Local, []isaac.LocalNode{t.Local})
+		t.NoError(err)
+
+		avp.SetMajority(nil).Finish()
+
+		err = st.newVoteproof(avp)
+
+		var csctx consensusSwitchContext
+		t.True(errors.As(err, &csctx))
+		base.EqualVoteproof(t.Assert(), avp, csctx.vp)
 	})
 }
 
@@ -510,7 +542,7 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 		case sctx := <-sctxch:
 			var csctx consensusSwitchContext
 			t.True(errors.As(sctx, &csctx))
-			base.EqualVoteproof(t.Assert(), ivp, csctx.ivp)
+			base.EqualVoteproof(t.Assert(), ivp, csctx.vp)
 		}
 	})
 }

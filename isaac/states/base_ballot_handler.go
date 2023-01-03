@@ -111,11 +111,13 @@ func (st *baseBallotHandler) makeNextRoundBallot(
 
 		// NOTE collect suffrage withdraw operations
 		withdraws, withdrawfacts, err = st.findWithdraws(point.Height(), suf)
-		if err != nil {
-			return nil, err
-		}
 
-		l.Debug().Interface("withdraws", withdraws).Msg("withdraws for next round")
+		switch {
+		case err != nil:
+			return nil, err
+		case len(withdraws) > 0:
+			l.Debug().Interface("withdraws", withdraws).Msg("withdraws found for next round")
+		}
 	}
 
 	// NOTE find next proposal
@@ -457,7 +459,7 @@ func (st *baseBallotHandler) vote(bl base.Ballot) (bool, error) {
 		return voted, err
 	}
 
-	if st.resolver != nil {
+	if voted && st.resolver != nil {
 		_ = st.resolver.NewPoint(st.ctx, bl.Point())
 	}
 

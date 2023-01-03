@@ -95,13 +95,6 @@ func (box *Ballotbox) Vote(bl base.Ballot, threshold base.Threshold) (bool, erro
 }
 
 func (box *Ballotbox) VoteSignFact(sf base.BallotSignFact, threshold base.Threshold) (bool, error) {
-	{ // FIXME remove
-		fact := sf.Fact().(base.BallotFact) //nolint:forcetypeassert //...
-		if fact.Point().Height() == 2 && sf.Node().String() == "no2sas" {
-			panic("showme")
-		}
-	}
-
 	voted, deferred, err := box.vote(sf, nil, nil, threshold)
 	if err != nil {
 		return false, errors.WithMessage(err, "failed to vote sign fact")

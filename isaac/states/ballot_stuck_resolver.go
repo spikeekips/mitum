@@ -177,6 +177,7 @@ func (c *DefaultBallotStuckResolver) start(ctx context.Context, point base.Stage
 				continue
 			}
 
+			// FIXME configurable
 			if tick < 3 { //nolint:gomnd //...
 				continue
 			}
@@ -337,7 +338,7 @@ func VoteSuffrageVotingFunc(
 		for i := range nodes {
 			node := nodes[i]
 
-			fact := isaac.NewSuffrageWithdrawFact(node, point.Height(), point.Height()+1, "no ballot")
+			fact := isaac.NewSuffrageWithdrawFact(node, point.Height(), point.Height()+1, "no ballot") // FIXME set end to same height
 
 			op := isaac.NewSuffrageWithdrawOperation(fact)
 

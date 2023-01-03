@@ -38,7 +38,7 @@ var (
 	FilterMemberlistNotifyMsgFuncContextKey = util.ContextKey("filter-memberlist-notify-msg-func")
 )
 
-type FilterMemberlistNotifyMsgFunc func(interface{}) bool
+type FilterMemberlistNotifyMsgFunc func(interface{}) (bool, error)
 
 func PMemberlist(ctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to prepare memberlist")
@@ -95,7 +95,7 @@ func PMemberlist(ctx context.Context) (context.Context, error) {
 	ctx = context.WithValue(ctx, MemberlistContextKey, m)
 	ctx = context.WithValue(ctx, EventOnEmptyMembersContextKey, pps)
 	ctx = context.WithValue(ctx, FilterMemberlistNotifyMsgFuncContextKey,
-		FilterMemberlistNotifyMsgFunc(func(interface{}) bool { return true }),
+		FilterMemberlistNotifyMsgFunc(func(interface{}) (bool, error) { return true, nil }),
 	)
 	//revive:enable:modifies-parameter
 
@@ -198,7 +198,7 @@ func PPatchMemberlist(ctx context.Context) (context.Context, error) {
 		return ctx, err
 	}
 
-	l := log.Log().With().Str("module", "memberlist-notify-msg").Logger()
+	l := log.Log().With().Str("module", "filter-notify-msg-memberlist").Logger()
 
 	m.SetNotifyMsg(func(b []byte) {
 		m, err := enc.Decode(b) //nolint:govet //...
@@ -217,7 +217,10 @@ func PPatchMemberlist(ctx context.Context) (context.Context, error) {
 			m = i
 		}
 
-		if !filternotifymsg(m) {
+		switch passed, err := filternotifymsg(m); {
+		case err != nil:
+			l.Trace().Err(err).Interface("message", m).Msg("filter error")
+		case !passed:
 			l.Trace().Interface("message", m).Msg("filtered")
 
 			return

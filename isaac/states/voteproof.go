@@ -8,14 +8,17 @@ import (
 )
 
 type LastVoteproofsHandler struct {
-	ivp base.INITVoteproof
-	avp base.ACCEPTVoteproof
-	mvp base.Voteproof
+	cache *util.GCache[string, LastVoteproofs]
+	ivp   base.INITVoteproof
+	avp   base.ACCEPTVoteproof
+	mvp   base.Voteproof
 	sync.RWMutex
 }
 
 func NewLastVoteproofsHandler() *LastVoteproofsHandler {
-	return &LastVoteproofsHandler{}
+	return &LastVoteproofsHandler{
+		cache: util.NewLRUGCache("", LastVoteproofs{}, 1<<3), //nolint:gomnd //...
+	}
 }
 
 func (l *LastVoteproofsHandler) Last() LastVoteproofs {
@@ -27,6 +30,10 @@ func (l *LastVoteproofsHandler) Last() LastVoteproofs {
 		avp: l.avp,
 		mvp: l.mvp,
 	}
+}
+
+func (l *LastVoteproofsHandler) Voteproofs(point base.StagePoint) (LastVoteproofs, bool) {
+	return l.cache.Get(point.String())
 }
 
 func (l *LastVoteproofsHandler) IsNew(vp base.Voteproof) bool {
@@ -46,9 +53,14 @@ func (l *LastVoteproofsHandler) Set(vp base.Voteproof) bool {
 	l.Lock()
 	defer l.Unlock()
 
-	lvp := findLastVoteproofs(l.ivp, l.avp)
+	lvps := LastVoteproofs{
+		ivp: l.ivp,
+		avp: l.avp,
+		mvp: l.mvp,
+	}
 
-	if lvp != nil && !isNewBallotVoteproof(vp, lvp.Point(), lvp.Result() == base.VoteResultMajority) {
+	if lvp := lvps.Cap(); lvp != nil && !isNewBallotVoteproof(
+		vp, lvp.Point(), lvp.Result() == base.VoteResultMajority) {
 		return false
 	}
 
@@ -61,6 +73,10 @@ func (l *LastVoteproofsHandler) Set(vp base.Voteproof) bool {
 
 	if vp.Result() == base.VoteResultMajority {
 		l.mvp = vp
+	}
+
+	if lvps.Cap() != nil {
+		l.cache.Set(vp.Point().String(), lvps, 0)
 	}
 
 	return true

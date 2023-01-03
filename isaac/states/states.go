@@ -473,6 +473,10 @@ func (st *States) broadcastBallot(ballot base.Ballot) error {
 	return st.broadcastBallotFunc(ballot)
 }
 
+func (st *States) voteproofs(point base.StagePoint) (LastVoteproofs, bool) {
+	return st.lvps.Voteproofs(point)
+}
+
 func (st *States) lastVoteproof() LastVoteproofs {
 	return st.lvps.Last()
 }

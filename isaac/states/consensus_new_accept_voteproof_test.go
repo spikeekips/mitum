@@ -49,7 +49,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestExpected() {
 
 	nextpr := t.PRPool.Get(point.NextHeight())
 
-	sctx := newConsensusSwitchContext(StateJoining, ivp)
+	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
@@ -135,7 +135,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestNotInConsensus() {
 
 	nextpr := t.PRPool.Get(point.NextHeight())
 
-	sctx := newConsensusSwitchContext(StateJoining, ivp)
+	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
@@ -199,7 +199,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestOld() {
 		return base.NewDummyManifest(point.Height(), valuehash.RandomSHA256()), nil
 	}
 
-	sctx := newConsensusSwitchContext(StateJoining, ivp)
+	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
@@ -224,7 +224,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestHiger() {
 		return base.NewDummyManifest(point.Height(), valuehash.RandomSHA256()), nil
 	}
 
-	sctx := newConsensusSwitchContext(StateJoining, ivp)
+	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
@@ -266,7 +266,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestDraw() {
 		return nil
 	}
 
-	sctx := newConsensusSwitchContext(StateJoining, ivp)
+	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
@@ -321,7 +321,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestDrawFailedProposalSel
 		return nil
 	}
 
-	sctx := newConsensusSwitchContext(StateJoining, ivp)
+	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
@@ -367,7 +367,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestNotProposalProcessorP
 		return nil
 	}
 
-	sctx := newConsensusSwitchContext(StateJoining, ivp)
+	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
@@ -405,7 +405,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestSaveBlockError() {
 		return nil
 	}
 
-	sctx := newConsensusSwitchContext(StateJoining, ivp)
+	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
@@ -437,7 +437,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestHigherAndDraw() {
 		return base.NewDummyManifest(point.Height(), valuehash.RandomSHA256()), nil
 	}
 
-	sctx := newConsensusSwitchContext(StateJoining, ivp)
+	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
@@ -482,7 +482,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestHigherRoundDraw() {
 		return nil
 	}
 
-	sctx := newConsensusSwitchContext(StateJoining, ivp)
+	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
@@ -542,7 +542,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestHigerHeight() {
 	_ = t.PRPool.Get(point.NextHeight())
 	fact := t.PRPool.GetFact(point)
 
-	sctx := newConsensusSwitchContext(StateJoining, ivp)
+	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
@@ -605,7 +605,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndHigherHeight
 		}
 	})
 
-	sctx := newConsensusSwitchContext(StateJoining, ivp)
+	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
@@ -670,7 +670,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndHigherRound(
 		}
 	})
 
-	sctx := newConsensusSwitchContext(StateJoining, ivp)
+	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)
@@ -745,7 +745,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndDrawAgain() 
 		return nil
 	}
 
-	sctx := newConsensusSwitchContext(StateJoining, ivp)
+	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(StateJoining, sctx)
 	t.NoError(err)

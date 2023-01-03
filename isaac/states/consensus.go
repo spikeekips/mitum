@@ -2,6 +2,7 @@ package isaacstates
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -19,7 +20,10 @@ type ConsensusHandler struct {
 	getManifest          func(base.Height) (base.Manifest, error)
 	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc
 	whenNewBlockSaved    func(base.Height)
+	vplock               sync.Mutex
 }
+
+// FIXME consensus enter with draw accept voteproof
 
 type NewConsensusHandlerType struct {
 	*ConsensusHandler
@@ -76,22 +80,20 @@ func (st *ConsensusHandler) enter(from StateType, i switchContext) (func(), erro
 	switch j, ok := i.(consensusSwitchContext); {
 	case !ok:
 		return nil, e(nil, "invalid stateSwitchContext, not for consensus state; %T", i)
-	case j.ivp == nil:
+	case j.vp == nil:
 		return nil, e(nil, "invalid stateSwitchContext, empty init voteproof")
-	case j.ivp.Result() != base.VoteResultMajority:
-		return nil, e(nil, "invalid stateSwitchContext, wrong vote result of init voteproof, %q", j.ivp.Result())
 	default:
 		sctx = j
 	}
 
-	switch suf, found, err := st.nodeInConsensusNodes(st.local, sctx.ivp.Point().Height()); { //nolint:govet //...
+	switch suf, found, err := st.nodeInConsensusNodes(st.local, sctx.vp.Point().Height()); { //nolint:govet //...
 	case errors.Is(err, storage.ErrNotFound):
 		st.Log().Debug().
 			Dict("state_context", switchContextLog(sctx)).
-			Interface("height", sctx.ivp.Point().Height()).
+			Interface("height", sctx.vp.Point().Height()).
 			Msg("suffrage not found at entering consensus state; moves to syncing state")
 
-		return nil, newSyncingSwitchContext(StateConsensus, sctx.ivp.Point().Height())
+		return nil, newSyncingSwitchContext(StateConsensus, sctx.vp.Point().Height())
 	case err != nil:
 		return nil, e(err, "")
 	case suf == nil || suf.Len() < 1:
@@ -99,39 +101,36 @@ func (st *ConsensusHandler) enter(from StateType, i switchContext) (func(), erro
 	case !found:
 		st.Log().Debug().
 			Dict("state_context", switchContextLog(sctx)).
-			Interface("height", sctx.ivp.Point().Height()).
+			Interface("height", sctx.vp.Point().Height()).
 			Msg("local is not in consensus nodes at entering consensus state; moves to syncing state")
 
-		return nil, newSyncingSwitchContext(StateConsensus, sctx.ivp.Point().Height())
+		return nil, newSyncingSwitchContext(StateConsensus, sctx.vp.Point().Height())
 	}
 
-	process := func() {}
+	switch lvps, found := st.voteproofs(sctx.vp.Point()); {
+	case !found:
+		return nil, e(nil, "last voteproofs not found")
+	default:
+		st.vplock.Lock()
 
-	if err := util.NewFuncChain().
-		Add(func() (bool, error) {
-			return st.checkStuckVoteproof(sctx.ivp, st.lastVoteproofs())
-		}).
-		Add(func() (bool, error) {
-			return st.checkSuffrageVoting(sctx.ivp)
-		}).
-		Add(func() (bool, error) {
-			f, err := st.processProposal(sctx.ivp)
-			if err != nil {
-				return false, err
+		return func() {
+			deferred()
+
+			defer st.vplock.Unlock()
+
+			var nsctx switchContext
+
+			switch err := st.newVoteproofWithLVPS(sctx.vp, lvps); {
+			case err == nil:
+			case !errors.As(err, &nsctx):
+				st.Log().Error().Err(err).Msg("failed to process enter voteproof; moves to broken state")
+
+				go st.switchState(newBrokenSwitchContext(StateConsensus, err))
+			default:
+				go st.switchState(nsctx)
 			}
-
-			process = f
-
-			return true, nil
-		}).Run(); err != nil {
-		return nil, e(err, "")
+		}, nil
 	}
-
-	return func() {
-		deferred()
-
-		process()
-	}, nil
 }
 
 func (st *ConsensusHandler) exit(sctx switchContext) (func(), error) {
@@ -382,17 +381,20 @@ func (st *ConsensusHandler) prepareINITBallot(
 }
 
 func (st *ConsensusHandler) newVoteproof(vp base.Voteproof) error {
-	var lvps LastVoteproofs
+	st.vplock.Lock()
+	defer st.vplock.Unlock()
 
-	switch i, v, isnew := st.baseBallotHandler.setNewVoteproof(vp); {
+	switch lvps, v, isnew := st.baseBallotHandler.setNewVoteproof(vp); {
 	case v == nil, !isnew:
 		return nil
 	default:
-		if st.resolver != nil {
-			st.resolver.Cancel(vp.Point())
-		}
+		return st.newVoteproofWithLVPS(vp, lvps)
+	}
+}
 
-		lvps = i
+func (st *ConsensusHandler) newVoteproofWithLVPS(vp base.Voteproof, lvps LastVoteproofs) error {
+	if st.resolver != nil {
+		st.resolver.Cancel(vp.Point())
 	}
 
 	e := util.StringErrorFunc("failed to handle new voteproof")
@@ -829,13 +831,25 @@ func (st *ConsensusHandler) checkStuckVoteproof(
 }
 
 type consensusSwitchContext struct {
-	ivp base.INITVoteproof
+	vp base.Voteproof
 	baseSwitchContext
 }
 
-func newConsensusSwitchContext(from StateType, ivp base.INITVoteproof) consensusSwitchContext {
+func newConsensusSwitchContext(from StateType, vp base.Voteproof) (consensusSwitchContext, error) {
+	switch {
+	case vp == nil:
+		return consensusSwitchContext{}, errors.Errorf(
+			"invalid voteproof for consensus switch context; empty init voteproof")
+	case vp.Point().Stage() == base.StageINIT:
+	case vp.Point().Stage() == base.StageACCEPT:
+		if vp.Result() != base.VoteResultDraw {
+			return consensusSwitchContext{}, errors.Errorf(
+				"invalid voteproof for consensus switch context; vote result is not draw, %T", vp.Result())
+		}
+	}
+
 	return consensusSwitchContext{
 		baseSwitchContext: newBaseSwitchContext(StateConsensus, switchContextOKFuncCheckFrom(from)),
-		ivp:               ivp,
-	}
+		vp:                vp,
+	}, nil
 }

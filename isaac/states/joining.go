@@ -103,8 +103,20 @@ func (st *JoiningHandler) enter(from StateType, i switchContext) (func(), error)
 		manifest = m
 	}
 
-	if err := st.checkSuffrage(manifest.Height()); err != nil {
+	switch suf, err := st.checkSuffrage(manifest.Height() + 1); {
+	case err != nil:
 		return nil, e(err, "")
+	case suf.Exists(st.local.Address()) && suf.Len() < 2: //nolint:gomnd // local is alone in suffrage node
+		st.Log().Debug().Msg("local alone in consensus nodes; will not wait new voteproof")
+
+		st.waitFirstVoteproof = 0
+	default:
+		switch jerr := st.joinMemberlist(suf); {
+		case jerr != nil:
+			st.Log().Error().Err(jerr).Msg("failed to join memberlist")
+		default:
+			st.Log().Debug().Msg("joined to memberlist")
+		}
 	}
 
 	return func() {
@@ -136,7 +148,22 @@ func (st *JoiningHandler) newVoteproof(vp base.Voteproof) error {
 			st.resolver.Cancel(vp.Point())
 		}
 
-		return st.handleNewVoteproof(vp)
+		var sctx switchContext
+
+		switch err := st.handleNewVoteproof(vp); {
+		case err == nil:
+			return nil
+		case errors.As(err, &sctx):
+			if sctx.next() == StateConsensus {
+				if _, err = st.checkSuffrage(vp.Point().Height()); err != nil {
+					return err
+				}
+			}
+
+			return sctx
+		default:
+			return err
+		}
 	default:
 		return nil
 	}
@@ -194,6 +221,11 @@ func (st *JoiningHandler) handleNewVoteproof(vp base.Voteproof) error {
 func (st *JoiningHandler) newINITVoteproof(ivp base.INITVoteproof, manifest base.Manifest) error {
 	l := st.Log().With().Dict("voteproof", base.VoteproofLog(ivp)).Logger()
 
+	var prevblock util.Hash
+	if ivp.Majority() != nil {
+		prevblock = ivp.Majority().(isaac.INITBallotFact).PreviousBlock() //nolint:forcetypeassert //...
+	}
+
 	switch expectedheight := manifest.Height() + 1; {
 	case ivp.Point().Height() < expectedheight: // NOTE lower height; ignore
 		return nil
@@ -201,20 +233,19 @@ func (st *JoiningHandler) newINITVoteproof(ivp base.INITVoteproof, manifest base
 		l.Debug().Msg("new init voteproof found; moves to syncing")
 
 		return newSyncingSwitchContext(StateJoining, ivp.Point().Height()-1)
-	case ivp.Result() != base.VoteResultMajority:
-		l.Debug().Msg("init voteproof not majroity; moves to next round")
-
-		go st.nextRound(ivp, manifest.Hash())
-
-		return nil
-	case !ivp.Majority().(isaac.INITBallotFact).PreviousBlock().Equal(manifest.Hash()): //nolint:forcetypeassert //...
+	case prevblock != nil && !prevblock.Equal(manifest.Hash()):
 		l.Debug().Msg("previous block of init voteproof does tno match with last manifest; moves to syncing state")
 
 		return newSyncingSwitchContext(StateJoining, ivp.Point().Height()-1)
 	default:
 		l.Debug().Msg("found valid init voteproof; moves to consensus state")
 
-		return newConsensusSwitchContext(StateJoining, ivp)
+		sctx, err := newConsensusSwitchContext(StateJoining, ivp)
+		if err != nil {
+			return err
+		}
+
+		return sctx
 	}
 }
 
@@ -235,21 +266,22 @@ func (st *JoiningHandler) newACCEPTVoteproof(avp base.ACCEPTVoteproof, manifest 
 
 		return newSyncingSwitchContext(StateJoining, height)
 	default:
-		l.Debug().Msg("init voteproof not majroity; moves to next round")
+		l.Debug().Msg("found valid accept voteproof; moves to consensus state")
 
-		go st.nextRound(avp, manifest.Hash())
+		sctx, err := newConsensusSwitchContext(StateJoining, avp)
+		if err != nil {
+			return err
+		}
 
-		return nil
+		return sctx
 	}
 }
 
-func (st *JoiningHandler) checkSuffrage(height base.Height) error {
-	suf, found, err := st.nodeInConsensusNodes(st.local, height+1)
+func (st *JoiningHandler) checkSuffrage(height base.Height) (base.Suffrage, error) {
+	suf, found, err := st.nodeInConsensusNodes(st.local, height)
 
 	switch {
 	case err != nil:
-	case suf == nil:
-		return newBrokenSwitchContext(StateJoining, errors.Errorf("empty suffrage"))
 	case !found:
 		if lerr := st.leaveMemberlistf(time.Second); lerr != nil {
 			st.Log().Error().Err(lerr).Msg("failed to leave memberilst; ignored")
@@ -257,29 +289,20 @@ func (st *JoiningHandler) checkSuffrage(height base.Height) error {
 
 		st.Log().Debug().Msg("local not in consensus nodes; moves to syncing")
 
-		return newSyncingSwitchContext(StateJoining, height)
-	case suf.Exists(st.local.Address()) && suf.Len() < 2: //nolint:gomnd // local is alone in suffrage node
-		st.Log().Debug().Msg("local alone in consensus nodes; will not wait new voteproof")
-
-		st.waitFirstVoteproof = 0
-	default:
-		switch jerr := st.joinMemberlist(suf); {
-		case jerr != nil:
-			st.Log().Error().Err(jerr).Msg("failed to join memberlist")
-		default:
-			st.Log().Debug().Msg("joined to memberlist")
-		}
+		return nil, newSyncingSwitchContext(StateJoining, height)
+	case suf == nil:
+		return nil, newBrokenSwitchContext(StateJoining, errors.Errorf("empty suffrage"))
 	}
 
 	switch {
 	case errors.Is(err, storage.ErrNotFound):
 		st.Log().Debug().Interface("height", height+1).Msg("suffrage not found; moves to syncing")
 
-		return newSyncingSwitchContext(StateJoining, height)
+		return nil, newSyncingSwitchContext(StateJoining, height)
 	case err != nil:
-		return err
+		return nil, err
 	default:
-		return nil
+		return suf, nil
 	}
 }
 
@@ -331,71 +354,6 @@ func (st *JoiningHandler) firstVoteproof(lvp base.Voteproof, manifest base.Manif
 	default:
 		go st.switchState(dsctx)
 	}
-}
-
-func (st *JoiningHandler) nextRound(vp base.Voteproof, previousBlock util.Hash) {
-	l := st.Log().With().Dict("voteproof", base.VoteproofLog(vp)).Logger()
-
-	var sctx switchContext
-	var bl base.INITBallot
-
-	switch i, err := st.makeNextRoundBallot(vp, previousBlock, st.nodeInConsensusNodes); {
-	case err == nil:
-		if i == nil {
-			return
-		}
-
-		bl = i
-	case errors.As(err, &sctx):
-		go st.switchState(sctx)
-
-		return
-	default:
-		l.Debug().Err(err).Msg("failed to prepare next round; moves to broken state")
-
-		go st.switchState(newBrokenSwitchContext(StateJoining, err))
-
-		return
-	}
-
-	switch _, err := st.vote(bl); {
-	case err == nil:
-	case errors.Is(err, errFailedToVoteNotInConsensus):
-		l.Error().Err(err).Msg("failed to vote init ballot for next round; moves to syncing state")
-
-		go st.switchState(newSyncingSwitchContext(StateJoining, vp.Point().Height()-1))
-
-		return
-	default:
-		l.Error().Err(err).Msg("failed to vote init ballot for next round; moves to broken state")
-
-		go st.switchState(newBrokenSwitchContext(StateJoining, err))
-
-		return
-	}
-
-	if err := st.broadcastINITBallot(
-		bl,
-		func(i int, _ time.Duration) time.Duration {
-			if i < 1 {
-				return time.Nanosecond
-			}
-
-			return st.params.IntervalBroadcastBallot()
-		},
-	); err != nil {
-		l.Error().Err(err).Msg("failed to broadcast init ballot for next round")
-
-		return
-	}
-
-	if err := st.timers.StartTimers([]util.TimerID{timerIDBroadcastINITBallot}, true); err != nil {
-		l.Error().Err(err).Msg("failed to start timers for broadcasting init ballot for next round")
-
-		return
-	}
-
-	l.Debug().Interface("ballot", bl).Msg("init ballot broadcasted for next round")
 }
 
 func (st *JoiningHandler) nextBlock(avp base.ACCEPTVoteproof) {
@@ -504,16 +462,14 @@ func (st *JoiningHandler) checkStuckVoteproof(
 
 	switch {
 	case vp.Point().Height() == lastHeight+1:
-		if vp.Point().Stage() == base.StageINIT {
-			l.Debug().Msg("found valid init stuck voteproof; moves to consensus state")
+		l.Debug().Msg("found valid stuck voteproof; moves to consensus state")
 
-			return false, newConsensusSwitchContext(
-				StateJoining, vp.(base.INITVoteproof)) //nolint:forcetypeassert //...
+		sctx, err := newConsensusSwitchContext(StateJoining, vp)
+		if err != nil {
+			return false, err
 		}
 
-		go st.nextRound(vp, lastManifest.Hash())
-
-		return false, nil
+		return false, sctx
 	case vp.Point().Height() > lastHeight+1:
 		l.Debug().Msg("higher init stuck voteproof; moves to syncing state")
 

@@ -212,9 +212,18 @@ func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 			isaacnetwork.QuicstreamHandlerSendBallots(
 				encs, idletimeout, params,
 				func(bl base.BallotSignFact) error {
-					if !filternotifymsg(bl) {
+					switch passed, err := filternotifymsg(bl); {
+					case err != nil:
 						log.Log().Trace().
-							Str("module", "memberlist-notify-msg").
+							Str("module", "filter-notify-msg-send-ballots").
+							Err(err).
+							Interface("message", bl).
+							Msg("filter error")
+
+						fallthrough
+					case !passed:
+						log.Log().Trace().
+							Str("module", "filter-notify-msg-send-ballots").
 							Interface("message", bl).
 							Msg("filtered")
 

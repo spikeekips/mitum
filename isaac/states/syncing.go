@@ -191,7 +191,7 @@ func (st *SyncingHandler) newVoteproof(vp base.Voteproof) error {
 	return nil
 }
 
-func (st *SyncingHandler) checkFinished(vp base.Voteproof) (done bool, _ error) {
+func (st *SyncingHandler) checkFinished(vp base.Voteproof) (notstuck bool, _ error) {
 	if vp == nil {
 		return false, nil
 	}
@@ -203,7 +203,10 @@ func (st *SyncingHandler) checkFinished(vp base.Voteproof) (done bool, _ error) 
 
 	height := vp.Point().Height()
 
-	if vp.Point().Stage() == base.StageINIT {
+	switch s := vp.Point().Stage(); {
+	case s == base.StageINIT:
+		height--
+	case s == base.StageACCEPT && vp.Result() == base.VoteResultDraw:
 		height--
 	}
 
@@ -223,24 +226,33 @@ func (st *SyncingHandler) checkFinished(vp base.Voteproof) (done bool, _ error) 
 	}
 
 	switch {
-	case vp.Point().Height() < top:
-		return true, nil
-	case vp.Point().Stage() == base.StageINIT && vp.Point().Height() == top+1:
+	case vp.Point().Height() == top+1:
 		if !isfinished {
 			l.Debug().Msg("expected init voteproof found; but not yet finished")
 
 			return true, nil
 		}
 
+		switch {
+		case vp.Point().Stage() == base.StageINIT:
+		case vp.Point().Stage() == base.StageACCEPT && vp.Result() == base.VoteResultDraw:
+		default:
+			return true, nil
+		}
+
 		// NOTE expected init voteproof found, moves to consensus state
 		l.Debug().Msg("expected init voteproof found; moves to consensus state")
 
-		return true, newConsensusSwitchContext(
-			StateSyncing, vp.(base.INITVoteproof)) //nolint:forcetypeassert //...
+		sctx, err := newConsensusSwitchContext(StateSyncing, vp)
+		if err != nil {
+			return false, err
+		}
+
+		return false, sctx
 	case isfinished && vp.Point().Stage() == base.StageACCEPT && vp.Point().Height() == top:
 		st.newStuckCancel(vp)
 
-		return true, nil
+		return false, nil
 	default:
 		return true, nil
 	}
@@ -272,10 +284,10 @@ end:
 		case top := <-sc.Finished():
 			st.Log().Debug().Interface("height", top).Msg("syncer finished")
 
-			var done bool
-			switch done, err = st.checkFinished(st.lastVoteproofs().Cap()); {
+			var notstuck bool
+			switch notstuck, err = st.checkFinished(st.lastVoteproofs().Cap()); {
 			case err != nil:
-			case !done:
+			case notstuck:
 				st.cancelstuck()
 
 				continue end
@@ -283,6 +295,8 @@ end:
 				continue end
 			}
 		}
+
+		st.cancelstuck()
 
 		var sctx switchContext
 

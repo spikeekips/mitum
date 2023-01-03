@@ -13,7 +13,7 @@ type ObjectPool interface {
 	Set(string, interface{}, *time.Duration)
 }
 
-type GCacheObjectPool struct {
+type GCacheObjectPool struct { // FIXME use GCache
 	cache gcache.Cache
 }
 
