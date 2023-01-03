@@ -419,10 +419,6 @@ func (h StateRequestHeader) IsValid([]byte) error {
 	return nil
 }
 
-func (StateRequestHeader) HandlerPrefix() string {
-	return HandlerPrefixState
-}
-
 func (h StateRequestHeader) Key() string {
 	return h.key
 }
@@ -459,10 +455,6 @@ func (h ExistsInStateOperationRequestHeader) IsValid([]byte) error {
 	}
 
 	return nil
-}
-
-func (ExistsInStateOperationRequestHeader) HandlerPrefix() string {
-	return HandlerPrefixExistsInStateOperation
 }
 
 func (h ExistsInStateOperationRequestHeader) FactHash() util.Hash {

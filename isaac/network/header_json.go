@@ -139,7 +139,7 @@ type proposalRequestHeaderJSONUnmarshaler struct {
 }
 
 func (h *ProposalRequestHeader) UnmarshalJSON(b []byte) error {
-	e := util.StringErrorFunc("failed to unmarshal proposalHeader")
+	e := util.StringErrorFunc("failed to unmarshal ProposalRequestHeader")
 
 	var u proposalRequestHeaderJSONUnmarshaler
 
@@ -419,12 +419,16 @@ type stateRequestHeaderJSONUnmarshaler struct {
 }
 
 func (h *StateRequestHeader) UnmarshalJSON(b []byte) error {
-	e := util.StringErrorFunc("failed to unmarshal stateRequestHeader")
+	e := util.StringErrorFunc("failed to unmarshal StateRequestHeader")
 
 	var u stateRequestHeaderJSONUnmarshaler
 
 	if err := util.UnmarshalJSON(b, &u); err != nil {
 		return e(err, "")
+	}
+
+	if err := h.BaseHeader.unmarshalJSON(b); err != nil {
+		return errors.WithMessage(err, "failed to unmarshal StateRequestHeader")
 	}
 
 	h.key = u.Key
@@ -450,7 +454,7 @@ func (h ExistsInStateOperationRequestHeader) MarshalJSON() ([]byte, error) {
 }
 
 func (h *ExistsInStateOperationRequestHeader) UnmarshalJSON(b []byte) error {
-	e := util.StringErrorFunc("failed to unmarshal existsInStateOperationRequestHeader")
+	e := util.StringErrorFunc("failed to unmarshal ExistsInStateOperationRequestHeader")
 
 	var u struct {
 		Fact valuehash.HashDecoder `json:"fact"`
@@ -458,6 +462,10 @@ func (h *ExistsInStateOperationRequestHeader) UnmarshalJSON(b []byte) error {
 
 	if err := util.UnmarshalJSON(b, &u); err != nil {
 		return e(err, "")
+	}
+
+	if err := h.BaseHeader.unmarshalJSON(b); err != nil {
+		return errors.WithMessage(err, "failed to unmarshal ExistsInStateOperationRequestHeader")
 	}
 
 	h.facthash = u.Fact.Hash()
