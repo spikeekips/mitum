@@ -304,7 +304,7 @@ func (box *Ballotbox) isNew(point base.StagePoint, isSuffrageConfirm bool) bool 
 		last := i[0].(base.StagePoint) //nolint:forcetypeassert //...
 		lastIsMajority := i[1].(bool)  //nolint:forcetypeassert //...
 
-		if isNewBallotboxStagePoint(last, point, lastIsMajority, isSuffrageConfirm) {
+		if isNewBallotboxStagePoint(point, last, lastIsMajority, isSuffrageConfirm) {
 			return v, util.ErrLockedSetIgnore.Call()
 		}
 
@@ -1308,7 +1308,7 @@ func isSuffrageConfirmBallotFact(fact base.Fact) bool {
 }
 
 func isNewBallotboxStagePoint( //revive:disable-line:flag-parameter
-	last, point base.StagePoint,
+	point, last base.StagePoint,
 	lastIsMajority, isSuffrageConfirm bool,
 ) bool {
 	if last.IsZero() {

@@ -126,6 +126,15 @@ func PBallotStuckResolver(ctx context.Context) (context.Context, error) {
 		getLastSuffragef,
 	)
 
+	switch {
+	case params.BallotStuckWait() < params.WaitPreparingINITBallot():
+		return ctx, util.ErrInvalid.Errorf("too short ballot stuck wait; it should be over wait_preparing_init_ballot")
+	case params.BallotStuckWait() < params.WaitPreparingINITBallot()*2:
+		log.Log().Warn().
+			Dur("ballot_stuck_wait", params.BallotStuckWait()).
+			Msg("too short ballot stuck wait; proper valud is over 2 * wait_preparing_init_ballot")
+	}
+
 	r := isaacstates.NewDefaultBallotStuckResolver(
 		params.BallotStuckWait(),
 		params.BallotStuckResolveAfter(),
