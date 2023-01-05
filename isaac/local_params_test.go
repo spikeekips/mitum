@@ -86,7 +86,7 @@ func (t *testLocalParams) TestIsValid() {
 		t.ErrorContains(err, "wrong duration")
 	})
 
-	t.Run("wrong MaxMessageSize", func() {
+	t.Run("wrong maxMessageSize", func() {
 		p := DefaultLocalParams(networkID)
 		p.SetMaxMessageSize(0)
 
@@ -94,6 +94,26 @@ func (t *testLocalParams) TestIsValid() {
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
 		t.ErrorContains(err, "wrong maxMessageSize")
+	})
+
+	t.Run("wrong ballotStuckWait", func() {
+		p := DefaultLocalParams(networkID)
+		p.SetBallotStuckWait(-1)
+
+		err := p.IsValid(networkID)
+		t.Error(err)
+		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorContains(err, "wrong duration")
+	})
+
+	t.Run("wrong ballotStuckResolveAfter", func() {
+		p := DefaultLocalParams(networkID)
+		p.SetBallotStuckResolveAfter(-1)
+
+		err := p.IsValid(networkID)
+		t.Error(err)
+		t.True(errors.Is(err, util.ErrInvalid))
+		t.ErrorContains(err, "wrong duration")
 	})
 }
 
@@ -145,6 +165,8 @@ func TestLocalParamsJSON(tt *testing.T) {
 		t.Equal(ap.validProposalSuffrageOperationsExpire, bp.validProposalSuffrageOperationsExpire)
 		t.Equal(ap.maxMessageSize, bp.maxMessageSize)
 		t.Equal(ap.sameMemberLimit, bp.sameMemberLimit)
+		t.Equal(ap.ballotStuckWait, bp.ballotStuckWait)
+		t.Equal(ap.ballotStuckResolveAfter, bp.ballotStuckResolveAfter)
 	}
 
 	suite.Run(tt, t)
@@ -169,6 +191,8 @@ func TestLocalParamsJSONMissing(tt *testing.T) {
 	p.SetValidProposalSuffrageOperationsExpire(p.ValidProposalSuffrageOperationsExpire() + 3)
 	p.SetMaxMessageSize(p.MaxMessageSize() + 3)
 	p.SetSameMemberLimit(p.SameMemberLimit() + 3)
+	p.SetBallotStuckWait(p.BallotStuckWait() + 3)
+	p.SetBallotStuckResolveAfter(p.BallotStuckResolveAfter() + 3)
 
 	b, err := util.MarshalJSON(&p)
 	t.NoError(err)

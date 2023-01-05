@@ -27,6 +27,7 @@ type testDefaultBallotStuckResolver struct {
 func (t *testDefaultBallotStuckResolver) TestNew() {
 	r := NewDefaultBallotStuckResolver(
 		time.Second*3,
+		time.Second*3,
 		time.Millisecond*300,
 		findMissingBallotsf,
 		requestMissingBallotsf,
@@ -42,6 +43,7 @@ func (t *testDefaultBallotStuckResolver) TestCancel() {
 
 		r := NewDefaultBallotStuckResolver(
 			time.Second*3,
+			time.Second,
 			time.Millisecond*300,
 			findMissingBallotsf,
 			requestMissingBallotsf,
@@ -57,6 +59,7 @@ func (t *testDefaultBallotStuckResolver) TestCancel() {
 
 		r := NewDefaultBallotStuckResolver(
 			time.Nanosecond,
+			time.Second,
 			time.Millisecond*100,
 			func(context.Context, base.StagePoint, bool) ([]base.Address, bool, error) {
 				return []base.Address{base.RandomAddress("")}, true, nil
@@ -64,6 +67,7 @@ func (t *testDefaultBallotStuckResolver) TestCancel() {
 			requestMissingBallotsf,
 			voteSuffrageVotingf,
 		)
+		defer r.Clean()
 
 		r.SetLogging(logging.TestNilLogging)
 
@@ -79,6 +83,7 @@ func (t *testDefaultBallotStuckResolver) TestCancel() {
 
 		r := NewDefaultBallotStuckResolver(
 			time.Nanosecond,
+			time.Second,
 			time.Millisecond*300,
 			func(context.Context, base.StagePoint, bool) ([]base.Address, bool, error) {
 				return []base.Address{base.RandomAddress("")}, true, nil
@@ -90,6 +95,7 @@ func (t *testDefaultBallotStuckResolver) TestCancel() {
 				return nil, nil
 			},
 		)
+		defer r.Clean()
 
 		t.True(r.NewPoint(context.Background(), point))
 
@@ -114,6 +120,7 @@ func (t *testDefaultBallotStuckResolver) TestCancel() {
 
 		r := NewDefaultBallotStuckResolver(
 			time.Nanosecond,
+			time.Second,
 			time.Millisecond*300,
 			func(context.Context, base.StagePoint, bool) ([]base.Address, bool, error) {
 				return []base.Address{base.RandomAddress("")}, true, nil
@@ -125,6 +132,7 @@ func (t *testDefaultBallotStuckResolver) TestCancel() {
 				return nil, nil
 			},
 		)
+		defer r.Clean()
 
 		t.True(r.NewPoint(context.Background(), point))
 
@@ -152,6 +160,7 @@ func (t *testDefaultBallotStuckResolver) TestClean() {
 
 		r := NewDefaultBallotStuckResolver(
 			time.Nanosecond,
+			time.Second,
 			time.Millisecond*300,
 			func(context.Context, base.StagePoint, bool) ([]base.Address, bool, error) {
 				return []base.Address{base.RandomAddress("")}, true, nil
@@ -199,7 +208,8 @@ func (t *testDefaultBallotStuckResolver) TestNomoreGatherMissingBallots() {
 
 	r := NewDefaultBallotStuckResolver(
 		time.Nanosecond,
-		time.Millisecond*300,
+		time.Second*3,
+		time.Millisecond*10,
 		findMissingBallotsf,
 		requestMissingBallotsf,
 		func(context.Context, base.StagePoint, []base.Address) (base.Voteproof, error) {
@@ -208,6 +218,7 @@ func (t *testDefaultBallotStuckResolver) TestNomoreGatherMissingBallots() {
 			return nil, nil
 		},
 	)
+	defer r.Clean()
 
 	t.True(r.NewPoint(context.Background(), point))
 
@@ -226,7 +237,7 @@ func (t *testDefaultBallotStuckResolver) TestNomoreMissingNodesInSuffrageVoting(
 	findMissingBallotsf := func(context.Context, base.StagePoint, bool) ([]base.Address, bool, error) {
 		defer atomic.AddInt64(&n, 1)
 
-		if atomic.LoadInt64(&n) < 6 {
+		if atomic.LoadInt64(&n) < 3 {
 			return []base.Address{base.RandomAddress("")}, true, nil
 		}
 
@@ -237,6 +248,7 @@ func (t *testDefaultBallotStuckResolver) TestNomoreMissingNodesInSuffrageVoting(
 
 	r := NewDefaultBallotStuckResolver(
 		time.Nanosecond,
+		time.Millisecond*600,
 		time.Millisecond*300,
 		findMissingBallotsf,
 		requestMissingBallotsf,
@@ -246,6 +258,7 @@ func (t *testDefaultBallotStuckResolver) TestNomoreMissingNodesInSuffrageVoting(
 			return nil, nil
 		},
 	)
+	defer r.Clean()
 
 	t.True(r.NewPoint(context.Background(), point))
 
@@ -263,6 +276,7 @@ func (t *testDefaultBallotStuckResolver) TestNextRound() {
 
 	r := NewDefaultBallotStuckResolver(
 		time.Nanosecond,
+		time.Second,
 		time.Millisecond*300,
 		func(context.Context, base.StagePoint, bool) ([]base.Address, bool, error) {
 			return []base.Address{base.RandomAddress("")}, true, nil
@@ -272,6 +286,7 @@ func (t *testDefaultBallotStuckResolver) TestNextRound() {
 			return isaac.NewINITVoteproof(point.Point), nil
 		},
 	)
+	defer r.Clean()
 
 	t.True(r.NewPoint(context.Background(), point))
 

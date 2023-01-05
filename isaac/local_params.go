@@ -28,6 +28,8 @@ type LocalParams struct {
 	validProposalSuffrageOperationsExpire time.Duration
 	maxMessageSize                        uint64
 	sameMemberLimit                       uint64
+	ballotStuckWait                       time.Duration
+	ballotStuckResolveAfter               time.Duration
 	sync.RWMutex
 }
 
@@ -52,6 +54,8 @@ func DefaultLocalParams(networkID base.NetworkID) *LocalParams {
 		syncSourceCheckerInterval:             time.Second * 30, //nolint:gomnd //...
 		validProposalOperationExpire:          time.Hour * 24,   //nolint:gomnd //...
 		validProposalSuffrageOperationsExpire: time.Hour * 2,    //nolint:gomnd //...
+		ballotStuckWait:                       time.Second * 33, //nolint:gomnd // waitPreparingINITBallot * 10
+		ballotStuckResolveAfter:               time.Second * 66, //nolint:gomnd // ballotStuckWait * 2
 		maxMessageSize:                        1 << 18,          //nolint:gomnd //...
 		sameMemberLimit:                       3,                //nolint:gomnd //...
 	}
@@ -102,6 +106,14 @@ func (p *LocalParams) IsValid(networkID []byte) error {
 
 	if p.validProposalSuffrageOperationsExpire < 0 {
 		return e.Errorf("wrong duration; invalid validProposalSuffrageOperationsExpire")
+	}
+
+	if p.ballotStuckWait < 0 {
+		return e.Errorf("wrong duration; invalid ballotStuckWait")
+	}
+
+	if p.ballotStuckResolveAfter < 0 {
+		return e.Errorf("wrong duration; invalid ballotStuckResolveAfter")
 	}
 
 	if p.maxMessageSize < 1 {
@@ -360,6 +372,50 @@ func (p *LocalParams) SetSameMemberLimit(s uint64) *LocalParams {
 	return p
 }
 
+func (p *LocalParams) BallotStuckWait() time.Duration {
+	p.RLock()
+	defer p.RUnlock()
+
+	return p.ballotStuckWait
+}
+
+func (p *LocalParams) SetBallotStuckWait(d time.Duration) *LocalParams {
+	p.Lock()
+	defer p.Unlock()
+
+	if p.ballotStuckWait == d {
+		return p
+	}
+
+	p.ballotStuckWait = d
+
+	p.id = util.UUID().String()
+
+	return p
+}
+
+func (p *LocalParams) BallotStuckResolveAfter() time.Duration {
+	p.RLock()
+	defer p.RUnlock()
+
+	return p.ballotStuckResolveAfter
+}
+
+func (p *LocalParams) SetBallotStuckResolveAfter(d time.Duration) *LocalParams {
+	p.Lock()
+	defer p.Unlock()
+
+	if p.ballotStuckResolveAfter == d {
+		return p
+	}
+
+	p.ballotStuckResolveAfter = d
+
+	p.id = util.UUID().String()
+
+	return p
+}
+
 type localParamsJSONMarshaler struct {
 	hint.BaseHinter
 	Threshold                             base.Threshold            `json:"threshold,omitempty"`
@@ -370,6 +426,8 @@ type localParamsJSONMarshaler struct {
 	SyncSourceCheckerInterval             util.ReadableJSONDuration `json:"sync_source_checker_interval,omitempty"`
 	ValidProposalOperationExpire          util.ReadableJSONDuration `json:"valid_proposal_operation_expire,omitempty"`
 	ValidProposalSuffrageOperationsExpire util.ReadableJSONDuration `json:"valid_proposal_suffrage_operations_expire,omitempty"` //revive:disable-line:line-length-limit
+	BallotStuckWait                       util.ReadableJSONDuration `json:"ballot_stuck_wait,omitempty"`
+	BallotStuckResolveAfter               util.ReadableJSONDuration `json:"ballot_stuck_resolve_after,omitempty"`
 	MaxMessageSize                        uint64                    `json:"max_message_size,omitempty"`
 	SameMemberLimit                       uint64                    `json:"same_member_limit,omitempty"`
 }
@@ -387,6 +445,8 @@ func (p *LocalParams) MarshalJSON() ([]byte, error) {
 		ValidProposalSuffrageOperationsExpire: util.ReadableJSONDuration(p.validProposalSuffrageOperationsExpire),
 		MaxMessageSize:                        p.maxMessageSize,
 		SameMemberLimit:                       p.sameMemberLimit,
+		BallotStuckResolveAfter:               util.ReadableJSONDuration(p.ballotStuckResolveAfter),
+		BallotStuckWait:                       util.ReadableJSONDuration(p.ballotStuckWait),
 	})
 }
 
@@ -399,6 +459,8 @@ type localParamsJSONUnmarshaler struct {
 	SyncSourceCheckerInterval             *util.ReadableJSONDuration `json:"sync_source_checker_interval"`
 	ValidProposalOperationExpire          *util.ReadableJSONDuration `json:"valid_proposal_operation_expire"`
 	ValidProposalSuffrageOperationsExpire *util.ReadableJSONDuration `json:"valid_proposal_suffrage_operations_expire"`
+	BallotStuckWait                       *util.ReadableJSONDuration `json:"ballot_stuck_wait,omitempty"`
+	BallotStuckResolveAfter               *util.ReadableJSONDuration `json:"ballot_stuck_resolve_after,omitempty"`
 	MaxMessageSize                        *uint64                    `json:"max_message_size"`
 	SameMemberLimit                       *uint64                    `json:"same_member_limit"`
 	hint.BaseHinter
@@ -435,6 +497,8 @@ func (p *LocalParams) UnmarshalJSON(b []byte) error {
 		{u.SyncSourceCheckerInterval, &p.syncSourceCheckerInterval},
 		{u.ValidProposalOperationExpire, &p.validProposalOperationExpire},
 		{u.ValidProposalSuffrageOperationsExpire, &p.validProposalSuffrageOperationsExpire},
+		{u.BallotStuckResolveAfter, &p.ballotStuckResolveAfter},
+		{u.BallotStuckWait, &p.ballotStuckWait},
 	}
 
 	for i := range durargs {

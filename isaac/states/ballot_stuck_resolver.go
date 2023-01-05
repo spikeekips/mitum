@@ -31,13 +31,14 @@ type DefaultBallotStuckResolver struct {
 	voteSuffrageVotingf    func(context.Context, base.StagePoint, []base.Address) (base.Voteproof, error)
 	vpch                   chan base.Voteproof
 	point                  base.StagePoint
-	wait                   time.Duration
+	initialWait            time.Duration
 	interval               time.Duration
+	resolveAfter           time.Duration
 }
 
 func NewDefaultBallotStuckResolver(
-	wait,
-	interval time.Duration,
+	initialWait,
+	interval, resolveAfter time.Duration,
 	findMissingBallotsf func(context.Context, base.StagePoint, bool) ([]base.Address, bool, error),
 	requestMissingBallotsf func(context.Context, base.StagePoint, []base.Address) error,
 	voteSuffrageVotingf func(context.Context, base.StagePoint, []base.Address) (base.Voteproof, error),
@@ -48,8 +49,9 @@ func NewDefaultBallotStuckResolver(
 		}),
 		point:                  base.ZeroStagePoint,
 		cancelf:                util.EmptyLocked(func() {}),
-		wait:                   wait,
+		initialWait:            initialWait,
 		interval:               interval,
+		resolveAfter:           resolveAfter,
 		findMissingBallotsf:    findMissingBallotsf,
 		requestMissingBallotsf: requestMissingBallotsf,
 		voteSuffrageVotingf:    voteSuffrageVotingf,
@@ -71,7 +73,7 @@ func (c *DefaultBallotStuckResolver) NewPoint(ctx context.Context, point base.St
 			previous() // NOTE cancel previous wait
 		}
 
-		wctx, wcancel := context.WithTimeout(ctx, c.wait) //nolint:govet //...
+		wctx, wcancel := context.WithTimeout(ctx, c.initialWait)
 		sctx, cancel := context.WithCancel(ctx)
 
 		l := c.Log().With().Interface("point", point).Logger()
@@ -150,16 +152,22 @@ func (c *DefaultBallotStuckResolver) start(ctx context.Context, point base.Stage
 	ticker := time.NewTicker(c.interval)
 	defer ticker.Stop()
 
-	tick := -1
+	resolveAfterch := time.After(c.resolveAfter)
+
+	var count int
+
+	var startresolve bool
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-resolveAfterch:
+			startresolve = true
+			resolveAfterch = nil
 		case <-ticker.C:
-			tick++
-
-			ll := l.With().Int("tick", tick).Logger()
+			ll := l.With().Int("count", count).Logger()
+			count++
 
 			ll.Debug().Msg("trying to gather missing ballots")
 
@@ -172,13 +180,10 @@ func (c *DefaultBallotStuckResolver) start(ctx context.Context, point base.Stage
 
 				return nil
 			case !ok:
-				tick--
-
 				continue
 			}
 
-			// FIXME configurable
-			if tick < 3 { //nolint:gomnd //...
+			if !startresolve {
 				continue
 			}
 
