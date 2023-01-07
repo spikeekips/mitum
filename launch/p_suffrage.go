@@ -339,6 +339,7 @@ func nodeInConsensusNodesFunc(
 }
 
 func PSuffrageVoting(ctx context.Context) (context.Context, error) {
+	var log *logging.Logging
 	var local base.LocalNode
 	var enc encoder.Encoder
 	var db isaac.Database
@@ -349,6 +350,7 @@ func PSuffrageVoting(ctx context.Context) (context.Context, error) {
 	var getSuffragef isaac.GetSuffrageByBlockHeight
 
 	if err := util.LoadFromContextOK(ctx,
+		LoggingContextKey, &log,
 		LocalContextKey, &local,
 		EncoderContextKey, &enc,
 		CenterDatabaseContextKey, &db,
@@ -368,14 +370,31 @@ func PSuffrageVoting(ctx context.Context) (context.Context, error) {
 		func(op base.SuffrageWithdrawOperation) error {
 			switch b, err := util.MarshalJSON(op); {
 			case err != nil:
+
 				return errors.WithMessage(err, "failed to marshal SuffrageWithdrawOperation")
 			default:
-				if err := cb.Broadcast(util.UUID().String(), b, nil); err != nil {
-					return errors.WithMessage(err, "failed to broadcast SuffrageWithdrawOperation")
-				}
+				go func() {
+					ticker := time.NewTicker(time.Second * 2)
+					defer ticker.Stop()
 
-				return nil
+					var n int
+					for range ticker.C {
+						if err := cb.Broadcast(util.UUID().String(), b, nil); err != nil {
+							log.Log().Error().Err(err).
+								Interface("operation", op).
+								Msg("failed to broadcast SuffrageWithdrawOperation")
+						}
+
+						n++
+
+						if n > 3 { //nolint:gomnd //... // FIXME use pingpong broadcast
+							break
+						}
+					}
+				}()
 			}
+
+			return nil
 		},
 	)
 
