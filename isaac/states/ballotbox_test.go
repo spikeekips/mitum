@@ -1172,7 +1172,7 @@ func (t *testBallotbox) TestMissingNodes() {
 	})
 }
 
-func (t *testBallotbox) TestVoteproofWithWithdraws() {
+func (t *testBallotbox) TestVoteproofFinished() {
 	t.Run("finished", func() {
 		point := base.RawPoint(33, 0)
 		suf, nodes := isaac.NewTestSuffrage(3)
@@ -1241,6 +1241,117 @@ func (t *testBallotbox) TestVoteproofWithWithdraws() {
 		t.NotNil(vr)
 		t.False(vr.finished())
 	})
+}
+
+func (t *testBallotbox) TestCopyVotedDATARACE() {
+	point := base.RawPoint(33, 0)
+
+	suf, nodes := isaac.NewTestSuffrage(33 * 3)
+
+	th := base.Threshold(100)
+
+	box := NewBallotbox(
+		base.RandomAddress(""),
+		func(base.Height) (base.Suffrage, bool, error) {
+			return suf, true, nil
+		},
+		func(base.Voteproof, base.Suffrage) error { return nil },
+		0,
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	wkb := util.NewDistributeWorker(ctx, int64(len(nodes))*2, nil)
+	defer wkb.Close()
+
+	bls := make([]base.Ballot, len(nodes))
+
+	prev := valuehash.RandomSHA256()
+	pr := valuehash.RandomSHA256()
+
+	vpl := util.EmptyLocked((base.Voteproof)(nil))
+
+	for range bls {
+		t.NoError(wkb.NewJob(func(_ context.Context, i uint64) error {
+			vp, _ := vpl.Value()
+
+			bl := t.initBallot(nodes[i], nodes, point, prev, pr, nil, vp)
+
+			vpl.Set(func(vp base.Voteproof, isempty bool) (base.Voteproof, error) {
+				if isempty {
+					return bl.Voteproof(), nil
+				}
+
+				return nil, util.ErrLockedSetIgnore.Call()
+			})
+
+			bls[i] = bl
+
+			return nil
+		}))
+	}
+
+	wkb.Done()
+	t.NoError(wkb.Wait())
+
+	wk := util.NewDistributeWorker(ctx, int64(len(nodes))*2, nil)
+	defer wk.Close()
+
+	for i := range bls {
+		bl := bls[i]
+
+		t.NoError(wk.NewJob(func(ctx context.Context, _ uint64) error {
+			ticker := time.NewTicker(time.Millisecond * 3)
+			defer ticker.Stop()
+
+			var n int
+			for {
+				select {
+				case <-ctx.Done():
+					return nil
+				case <-ticker.C:
+					if n > 333 {
+						return nil
+					}
+					n++
+
+					box.MissingNodes(base.NewStagePoint(point, base.StageINIT), th)
+				}
+			}
+		}))
+
+		t.NoError(wk.NewJob(func(ctx context.Context, _ uint64) error {
+			donech := make(chan error, 1)
+			go func() {
+				switch voted, err := box.Vote(bl, th); {
+				case err != nil:
+					donech <- err
+				case !voted:
+					donech <- errors.Errorf("not voted")
+				default:
+					donech <- nil
+				}
+			}()
+
+			ticker := time.NewTicker(time.Millisecond * 3)
+			defer ticker.Stop()
+
+			for {
+				select {
+				case <-ctx.Done():
+					return nil
+				case err := <-donech:
+					return err
+				case <-ticker.C:
+					box.MissingNodes(base.NewStagePoint(point, base.StageINIT), th)
+				}
+			}
+		}))
+	}
+
+	wk.Done()
+	t.NoError(wk.Wait())
 }
 
 func TestBallotbox(t *testing.T) {

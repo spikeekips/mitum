@@ -181,12 +181,10 @@ func (box *Ballotbox) MissingNodes(point base.StagePoint, threshold base.Thresho
 	case !found:
 		return nil, false, nil
 	default:
-		sufnodes := suf.Nodes()
+		voted := vr.copyVotedLocked(suf)
 
 		filtered := make([]base.Address, suf.Len())
-
-		voted := vr.copyVoted(suf)
-
+		sufnodes := suf.Nodes()
 		var n int
 		_ = util.FilterSlice(sufnodes, func(i base.Node) bool {
 			if i.Address().Equal(box.local) {
@@ -625,7 +623,7 @@ func (vr *voterecords) vote(
 				Interface("sign_fact", signfact).
 				Interface("voteproof", vp). //nolint:goconst //...
 				Interface("suffrage", suf).
-				Msg("invalid ballot")
+				Msg("invalid ballot voteproof")
 
 			return false, false, nil
 		}
@@ -969,6 +967,13 @@ func (*voterecords) sfs(voted map[string]base.BallotSignFact) (
 	set, m = base.CountBallotSignFacts(sfs)
 
 	return sfs, set, m
+}
+
+func (vr *voterecords) copyVotedLocked(suf base.Suffrage) map[string]base.BallotSignFact {
+	vr.RLock()
+	defer vr.RUnlock()
+
+	return vr.copyVoted(suf)
 }
 
 func (vr *voterecords) copyVoted(suf base.Suffrage) map[string]base.BallotSignFact {
