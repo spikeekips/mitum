@@ -208,6 +208,8 @@ func PPatchMemberlist(ctx context.Context) (context.Context, error) {
 			return
 		}
 
+		l.Trace().Err(err).Interface("message", m).Msg("new message notified")
+
 		switch i, err := fetchNotifyMessage(client, m); {
 		case err != nil:
 			l.Error().Err(err).Interface("message", m).Msg("failed to request callback broadcast")
@@ -253,7 +255,7 @@ func PPatchMemberlist(ctx context.Context) (context.Context, error) {
 				return
 			}
 
-			l.Debug().Interface("withdraw operation", t).Bool("voted", voted).
+			l.Debug().Interface("withdraw", t).Bool("voted", voted).
 				Msg("new withdraw operation; voted")
 		case isaacstates.MissingBallotsRequestMessage:
 			l.Debug().
