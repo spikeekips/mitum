@@ -45,7 +45,7 @@ func NewDefaultBallotStuckResolver(
 ) *DefaultBallotStuckResolver {
 	return &DefaultBallotStuckResolver{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
-			return lctx.Str("module", "ballot-stuck-resolver")
+			return lctx.Str("module", "default-ballot-stuck-resolver")
 		}),
 		point:                  base.ZeroStagePoint,
 		cancelf:                util.EmptyLocked(func() {}),
@@ -61,6 +61,8 @@ func NewDefaultBallotStuckResolver(
 
 func (c *DefaultBallotStuckResolver) NewPoint(ctx context.Context, point base.StagePoint) bool {
 	var started bool
+
+	c.Log().Debug().Interface("point", point).Msg("new point added")
 
 	_, _ = c.cancelf.Set(func(previous func(), isempty bool) (func(), error) {
 		if point.Compare(c.point) < 1 {
@@ -142,6 +144,18 @@ func (c *DefaultBallotStuckResolver) Cancel(point base.StagePoint) {
 
 		return nil
 	})
+}
+
+func (c *DefaultBallotStuckResolver) SetLogging(l *logging.Logging) *logging.Logging {
+	_ = c.Logging.SetLogging(l)
+
+	c.Log().Debug().
+		Dur("initial_wait", c.initialWait).
+		Dur("resolve_after", c.resolveAfter).
+		Dur("interval", c.interval).
+		Msg("resolver started")
+
+	return c.Logging
 }
 
 func (c *DefaultBallotStuckResolver) start(ctx context.Context, point base.StagePoint) error {

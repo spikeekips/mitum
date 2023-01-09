@@ -137,8 +137,8 @@ func PBallotStuckResolver(ctx context.Context) (context.Context, error) {
 
 	r := isaacstates.NewDefaultBallotStuckResolver(
 		params.BallotStuckWait(),
+		time.Second,
 		params.BallotStuckResolveAfter(),
-		params.IntervalBroadcastBallot(),
 		findMissingBallotsf,
 		requestMissingBallotsf,
 		voteSuffrageVotingf,
