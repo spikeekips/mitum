@@ -46,7 +46,7 @@ func (l *LastVoteproofsHandler) IsNew(vp base.Voteproof) bool {
 		return true
 	}
 
-	return isNewBallotVoteproof(vp, lvp.Point(), lvp.Result() == base.VoteResultMajority)
+	return newLastPointFromVoteproof(lvp).isNewVoteproof(vp)
 }
 
 func (l *LastVoteproofsHandler) Set(vp base.Voteproof) bool {
@@ -59,9 +59,10 @@ func (l *LastVoteproofsHandler) Set(vp base.Voteproof) bool {
 		mvp: l.mvp,
 	}
 
-	if lvp := lvps.Cap(); lvp != nil && !isNewBallotVoteproof(
-		vp, lvp.Point(), lvp.Result() == base.VoteResultMajority) {
-		return false
+	if lvp := lvps.Cap(); lvp != nil {
+		if !newLastPointFromVoteproof(lvp).isNewVoteproof(vp) {
+			return false
+		}
 	}
 
 	switch vp.Point().Stage() { //nolint:exhaustive //...
@@ -166,7 +167,7 @@ func (l LastVoteproofs) IsNew(vp base.Voteproof) bool {
 		return true
 	}
 
-	return isNewBallotVoteproof(vp, lvp.Point(), lvp.Result() == base.VoteResultMajority)
+	return newLastPointFromVoteproof(lvp).isNewVoteproof(vp)
 }
 
 func findLastVoteproofs(ivp, avp base.Voteproof) base.Voteproof {

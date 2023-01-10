@@ -16,6 +16,241 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
+func TestLastPointIsNewVoteproof(tt *testing.T) {
+	t := new(suite.Suite)
+	t.SetT(tt)
+
+	cases := []struct {
+		name   string
+		last   [4]interface{} // height, round, stage, isMajority
+		target [5]interface{} // height, round, stage, isMajority, isSuffrageConfirm
+		result bool
+	}{
+		{
+			name:   "higher height",
+			last:   [4]interface{}{33, 0, "INIT", true},
+			target: [5]interface{}{34, 0, "INIT", true, false},
+			result: true,
+		},
+		{
+			name:   "lower height",
+			last:   [4]interface{}{33, 0, "INIT", true},
+			target: [5]interface{}{32, 0, "INIT", true, false},
+			result: false,
+		},
+		{
+			name:   "same",
+			last:   [4]interface{}{33, 0, "INIT", true},
+			target: [5]interface{}{33, 0, "INIT", true, false},
+			result: false,
+		},
+		{
+			name:   "same height, lower round",
+			last:   [4]interface{}{33, 1, "INIT", true},
+			target: [5]interface{}{33, 0, "INIT", true, false},
+			result: false,
+		},
+		{
+			name:   "same height, higher round, last majority",
+			last:   [4]interface{}{33, 0, "INIT", true},
+			target: [5]interface{}{33, 1, "INIT", true, false},
+			result: false,
+		},
+		{
+			name:   "same height, higher round, last not majority",
+			last:   [4]interface{}{33, 0, "INIT", false},
+			target: [5]interface{}{33, 1, "INIT", true, false},
+			result: true,
+		},
+		{
+			name:   "same height, lower stage",
+			last:   [4]interface{}{33, 0, "ACCEPT", true},
+			target: [5]interface{}{33, 0, "INIT", true, false},
+			result: false,
+		},
+		{
+			name:   "same height, higher stage",
+			last:   [4]interface{}{33, 0, "INIT", true},
+			target: [5]interface{}{33, 0, "ACCEPT", true, false},
+			result: true,
+		},
+		{
+			name:   "same; suffrage confirm",
+			last:   [4]interface{}{33, 0, "INIT", true},
+			target: [5]interface{}{33, 0, "INIT", true, true},
+			result: true,
+		},
+		{
+			name:   "same ACCEPT; suffrage confirm",
+			last:   [4]interface{}{33, 0, "ACCEPT", true},
+			target: [5]interface{}{33, 0, "ACCEPT", true, true},
+			result: false,
+		},
+		{
+			name:   "lower stage; suffrage confirm",
+			last:   [4]interface{}{33, 0, "ACCEPT", true},
+			target: [5]interface{}{33, 0, "INIT", true, true},
+			result: false,
+		},
+	}
+
+	for i, c := range cases {
+		i := i
+		c := c
+		t.Run(c.name, func() {
+			last := newLastPoint(
+				base.NewStagePoint(
+					base.RawPoint(
+						int64(c.last[0].(int)),
+						uint64(c.last[1].(int)),
+					),
+					base.Stage(c.last[2].(string)),
+				),
+				c.last[3].(bool),
+			)
+
+			targetpoint := base.NewStagePoint(
+				base.RawPoint(
+					int64(c.target[0].(int)),
+					uint64(c.target[1].(int)),
+				),
+				base.Stage(c.target[2].(string)),
+			)
+
+			isMajority := c.target[3].(bool)
+			isSuffrageConfirm := c.target[4].(bool)
+
+			result := last.isNewVoteproofbyPoint(
+				targetpoint,
+				isMajority,
+				isSuffrageConfirm,
+			)
+
+			t.Equal(c.result, result, "%d: %s; last=%v, from=%v(isMajority=%v isSuffrageConfirm=%v), expected=%v actual=%v", i, c.name,
+				last,
+				targetpoint, isMajority, isSuffrageConfirm,
+				c.result, result,
+			)
+		})
+	}
+}
+
+func TestLastPointIsNewBallot(tt *testing.T) {
+	t := new(suite.Suite)
+	t.SetT(tt)
+
+	cases := []struct {
+		name   string
+		last   [4]interface{} // height, round, stage, isMajority
+		target [4]interface{} // height, round, stage, isSuffrageConfirm
+		result bool
+	}{
+		{
+			name:   "higher height",
+			last:   [4]interface{}{33, 0, "INIT", true},
+			target: [4]interface{}{34, 0, "INIT", false},
+			result: true,
+		},
+		{
+			name:   "lower height",
+			last:   [4]interface{}{33, 0, "INIT", true},
+			target: [4]interface{}{32, 0, "INIT", false},
+			result: false,
+		},
+		{
+			name:   "same",
+			last:   [4]interface{}{33, 0, "INIT", true},
+			target: [4]interface{}{33, 0, "INIT", false},
+			result: false,
+		},
+		{
+			name:   "same height, lower round",
+			last:   [4]interface{}{33, 1, "INIT", true},
+			target: [4]interface{}{33, 0, "INIT", false},
+			result: false,
+		},
+		{
+			name:   "same height, higher round, last majority",
+			last:   [4]interface{}{33, 0, "INIT", true},
+			target: [4]interface{}{33, 1, "INIT", false},
+			result: false,
+		},
+		{
+			name:   "same height, higher round, last not majority",
+			last:   [4]interface{}{33, 0, "INIT", false},
+			target: [4]interface{}{33, 1, "INIT", false},
+			result: true,
+		},
+		{
+			name:   "same height, lower stage",
+			last:   [4]interface{}{33, 0, "ACCEPT", true},
+			target: [4]interface{}{33, 0, "INIT", false},
+			result: false,
+		},
+		{
+			name:   "same height, higher stage",
+			last:   [4]interface{}{33, 0, "INIT", true},
+			target: [4]interface{}{33, 0, "ACCEPT", false},
+			result: true,
+		},
+		{
+			name:   "same; suffrage confirm",
+			last:   [4]interface{}{33, 0, "INIT", true},
+			target: [4]interface{}{33, 0, "INIT", true},
+			result: true,
+		},
+		{
+			name:   "same ACCEPT; suffrage confirm",
+			last:   [4]interface{}{33, 0, "ACCEPT", true},
+			target: [4]interface{}{33, 0, "ACCEPT", true},
+			result: false,
+		},
+		{
+			name:   "lower stage; suffrage confirm",
+			last:   [4]interface{}{33, 0, "ACCEPT", true},
+			target: [4]interface{}{33, 0, "INIT", true},
+			result: false,
+		},
+	}
+
+	for i, c := range cases {
+		i := i
+		c := c
+		t.Run(c.name, func() {
+			last := newLastPoint(
+				base.NewStagePoint(
+					base.RawPoint(
+						int64(c.last[0].(int)),
+						uint64(c.last[1].(int)),
+					),
+					base.Stage(c.last[2].(string)),
+				),
+				c.last[3].(bool),
+			)
+
+			targetpoint := base.NewStagePoint(
+				base.RawPoint(
+					int64(c.target[0].(int)),
+					uint64(c.target[1].(int)),
+				),
+				base.Stage(c.target[2].(string)),
+			)
+
+			isSuffrageConfirm := c.target[3].(bool)
+			result := last.isNewBallot(
+				targetpoint,
+				isSuffrageConfirm,
+			)
+
+			t.Equal(c.result, result, "%d: %s; last=%v, from=%v(isSuffrageConfirm=%v), expected=%v actual=%v", i, c.name,
+				last,
+				targetpoint, isSuffrageConfirm,
+				c.result, result,
+			)
+		})
+	}
+}
+
 func (box *Ballotbox) voteAndWait(bl base.Ballot, threshold base.Threshold) (bool, base.Voteproof, error) {
 	var withdraws []base.SuffrageWithdrawOperation
 	if i, ok := bl.(isaac.WithdrawBallot); ok {
@@ -202,7 +437,7 @@ func (t *testBallotbox) TestVoteSignFactINITBallotSignFact() {
 	prev := valuehash.RandomSHA256()
 
 	bl := t.initBallot(nodes[0], suf.Locals(), point, prev, valuehash.RandomSHA256(), nil, nil)
-	box.setLastStagePoint(bl.Voteproof().Point(), true)
+	box.setLastPoint(newLastPoint(bl.Voteproof().Point(), true))
 
 	voted, err := box.VoteSignFact(bl.SignFact(), th)
 	t.NoError(err)
@@ -224,8 +459,8 @@ func (t *testBallotbox) TestVoteSignFactINITBallotSignFact() {
 		t.Equal(1, len(vp.SignFacts()))
 		base.EqualBallotSignFact(t.Assert(), bl.SignFact(), vp.SignFacts()[0])
 
-		last, _ := box.lastStagePoint()
-		t.compareStagePoint(last, vp)
+		last := box.lastPoint()
+		t.compareStagePoint(last.StagePoint, vp)
 	}
 }
 
@@ -246,7 +481,7 @@ func (t *testBallotbox) TestVoteINITBallotSignFact() {
 	prev := valuehash.RandomSHA256()
 
 	bl := t.initBallot(nodes[0], suf.Locals(), point, prev, valuehash.RandomSHA256(), nil, nil)
-	box.setLastStagePoint(bl.Voteproof().Point(), true)
+	box.setLastPoint(newLastPoint(bl.Voteproof().Point(), true))
 
 	voted, err := box.Vote(bl, th)
 	t.NoError(err)
@@ -272,8 +507,8 @@ func (t *testBallotbox) TestVoteINITBallotSignFact() {
 		t.Equal(1, len(vp.SignFacts()))
 		base.EqualBallotSignFact(t.Assert(), bl.SignFact(), vp.SignFacts()[0])
 
-		last, _ := box.lastStagePoint()
-		t.compareStagePoint(last, vp)
+		last := box.lastPoint()
+		t.compareStagePoint(last.StagePoint, vp)
 	}
 }
 
@@ -293,7 +528,7 @@ func (t *testBallotbox) TestVotePreviousRoundAlreadyMajority() {
 	point := base.RawPoint(33, 1)
 
 	t.T().Log("last point:", point.PrevRound())
-	box.setLastStagePoint(base.NewStagePoint(point.PrevRound(), base.StageINIT), true)
+	box.setLastPoint(newLastPoint(base.NewStagePoint(point.PrevRound(), base.StageINIT), true))
 
 	t.T().Log("new ballot:", point)
 
@@ -324,7 +559,7 @@ func (t *testBallotbox) TestVoteACCEPTBallotSignFact() {
 	block := valuehash.RandomSHA256()
 
 	bl := t.acceptBallot(nodes[0], suf.Locals(), point, pr, block, nil)
-	box.setLastStagePoint(bl.Voteproof().Point(), true)
+	box.setLastPoint(newLastPoint(bl.Voteproof().Point(), true))
 
 	voted, err := box.Vote(bl, th)
 	t.NoError(err)
@@ -347,8 +582,8 @@ func (t *testBallotbox) TestVoteACCEPTBallotSignFact() {
 		t.Equal(1, len(vp.SignFacts()))
 		base.EqualBallotSignFact(t.Assert(), bl.SignFact(), vp.SignFacts()[0])
 
-		last, _ := box.lastStagePoint()
-		t.compareStagePoint(last, vp)
+		last := box.lastPoint()
+		t.compareStagePoint(last.StagePoint, vp)
 	}
 }
 
@@ -370,7 +605,7 @@ func (t *testBallotbox) TestVoteSamePointAndStageWithLastVoteproof() {
 	block := valuehash.RandomSHA256()
 
 	bl0 := t.acceptBallot(nodes[0], suf.Locals(), point, pr, block, nil)
-	box.setLastStagePoint(bl0.Voteproof().Point(), true)
+	box.setLastPoint(newLastPoint(bl0.Voteproof().Point(), true))
 
 	voted, err := box.Vote(bl0, th)
 	t.NoError(err)
@@ -387,8 +622,8 @@ func (t *testBallotbox) TestVoteSamePointAndStageWithLastVoteproof() {
 
 		return
 	case vp := <-box.Voteproof():
-		last, _ := box.lastStagePoint()
-		t.compareStagePoint(last, vp.Point())
+		last := box.lastPoint()
+		t.compareStagePoint(last.StagePoint, vp.Point())
 	}
 
 	// vote again
@@ -417,7 +652,7 @@ func (t *testBallotbox) TestOldBallotSignFact() {
 	block := valuehash.RandomSHA256()
 
 	bl0 := t.acceptBallot(nodes[0], suf.Locals(), point, pr, block, nil)
-	box.setLastStagePoint(bl0.Voteproof().Point(), true)
+	box.setLastPoint(newLastPoint(bl0.Voteproof().Point(), true))
 
 	voted, err := box.Vote(bl0, th)
 	t.NoError(err)
@@ -434,8 +669,8 @@ func (t *testBallotbox) TestOldBallotSignFact() {
 
 		return
 	case vp := <-box.Voteproof():
-		last, _ := box.lastStagePoint()
-		t.compareStagePoint(last, vp)
+		last := box.lastPoint()
+		t.compareStagePoint(last.StagePoint, vp)
 	}
 
 	bl01 := t.initBallot(nodes[0], suf.Locals(), point, valuehash.RandomSHA256(), pr, nil, nil)
@@ -524,7 +759,7 @@ func (t *testBallotbox) TestNilSuffrageCount() {
 	prev := valuehash.RandomSHA256()
 
 	bl := t.initBallot(nodes[0], suf.Locals(), point, prev, valuehash.RandomSHA256(), nil, nil)
-	box.setLastStagePoint(bl.Voteproof().Point(), true)
+	box.setLastPoint(newLastPoint(bl.Voteproof().Point(), true))
 
 	_, _, err := box.voteAndWait(bl, th)
 	t.NoError(err)
@@ -548,8 +783,8 @@ func (t *testBallotbox) TestNilSuffrageCount() {
 		t.Equal(1, len(vp.SignFacts()))
 		base.EqualBallotSignFact(t.Assert(), bl.SignFact(), vp.SignFacts()[0])
 
-		last, _ := box.lastStagePoint()
-		t.compareStagePoint(last, vp)
+		last := box.lastPoint()
+		t.compareStagePoint(last.StagePoint, vp)
 	}
 }
 
@@ -616,7 +851,7 @@ func (t *testBallotbox) TestVoteproofOrder() {
 	}
 
 	atomic.StoreInt64(&enablesuf, 1)
-	box.setLastStagePoint(base.NewStagePoint(point, base.StageINIT), true)
+	box.setLastPoint(newLastPoint(base.NewStagePoint(point, base.StageINIT), true))
 
 	go box.Count(th)
 
@@ -668,7 +903,7 @@ func (t *testBallotbox) TestVoteproofFromBallotACCEPTVoteproof() {
 	pr := valuehash.RandomSHA256()
 
 	bl := t.initBallot(nodes[0], suf.Locals(), point, prev, pr, nil, nil)
-	box.setLastStagePoint(bl.Voteproof().Point().Decrease(), true)
+	box.setLastPoint(newLastPoint(bl.Voteproof().Point().Decrease(), true))
 
 	voted, err := box.Vote(bl, th)
 	t.NoError(err)
@@ -704,7 +939,7 @@ func (t *testBallotbox) TestVoteproofFromBallotINITVoteproof() {
 	block := valuehash.RandomSHA256()
 
 	bl := t.acceptBallot(nodes[0], suf.Locals(), point, pr, block, nil)
-	box.setLastStagePoint(bl.Voteproof().Point().Decrease(), true)
+	box.setLastPoint(newLastPoint(bl.Voteproof().Point().Decrease(), true))
 
 	voted, err := box.Vote(bl, th)
 	t.NoError(err)
@@ -827,7 +1062,7 @@ func (t *testBallotbox) TestAsyncVoterecords() {
 			_, _, _ = vr.vote(bl.BallotSignFact(), bl.Voteproof(), nil)
 
 			if i%3 == 0 {
-				_ = vr.count(base.RandomAddress(""), base.ZeroStagePoint, true, th, 0)
+				_ = vr.count(base.RandomAddress(""), newLastPoint(base.ZeroStagePoint, true), th, 0)
 			}
 		}(i)
 	}
@@ -935,7 +1170,7 @@ func (t *testBallotbox) TestDifferentSuffrage() {
 		node := nodes[i]
 
 		bl := t.initBallot(node, suf.Locals(), point, prev, proposal, nil, avp)
-		box.setLastStagePoint(bl.Voteproof().Point(), true)
+		box.setLastPoint(newLastPoint(bl.Voteproof().Point(), true))
 
 		voted, err := box.Vote(bl, th)
 		t.NoError(err)
@@ -956,8 +1191,8 @@ func (t *testBallotbox) TestDifferentSuffrage() {
 
 		t.True(time.Since(vp.FinishedAt()) < time.Millisecond*800)
 
-		last, _ := box.lastStagePoint()
-		t.compareStagePoint(last, vp)
+		last := box.lastPoint()
+		t.compareStagePoint(last.StagePoint, vp)
 	}
 }
 
@@ -974,13 +1209,13 @@ func (t *testBallotbox) TestSetLastStagePointReversalByVoteproof() {
 	point := base.RawPoint(33, 0)
 
 	t.Run("next round + not majority -> previous round + majority", func() {
-		t.True(box.setLastStagePoint(base.NewStagePoint(point.NextRound(), base.StageINIT), false))
-		t.True(box.setLastStagePoint(base.NewStagePoint(point, base.StageINIT), true))
+		t.True(box.setLastPoint(newLastPoint(base.NewStagePoint(point.NextRound(), base.StageINIT), false)))
+		t.True(box.setLastPoint(newLastPoint(base.NewStagePoint(point, base.StageINIT), true)))
 	})
 
 	t.Run("next round + majority -> previous round + majority", func() {
-		t.True(box.setLastStagePoint(base.NewStagePoint(point.NextRound(), base.StageINIT), true))
-		t.False(box.setLastStagePoint(base.NewStagePoint(point, base.StageINIT), true))
+		t.True(box.setLastPoint(newLastPoint(base.NewStagePoint(point.NextRound(), base.StageINIT), true)))
+		t.False(box.setLastPoint(newLastPoint(base.NewStagePoint(point, base.StageINIT), true)))
 	})
 }
 
@@ -1005,7 +1240,7 @@ func (t *testBallotbox) TestDiggVoteproof() {
 	)
 
 	t.Run("accept ballot of same height", func() {
-		box.setLastStagePoint(base.NewStagePoint(point, base.StageINIT), true)
+		box.setLastPoint(newLastPoint(base.NewStagePoint(point, base.StageINIT), true))
 
 		abl := t.acceptBallot(local, nodes, point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
 
@@ -1021,7 +1256,7 @@ func (t *testBallotbox) TestDiggVoteproof() {
 	})
 
 	t.Run("init ballot of next height", func() {
-		box.setLastStagePoint(base.NewStagePoint(point, base.StageINIT), true)
+		box.setLastPoint(newLastPoint(base.NewStagePoint(point, base.StageINIT), true))
 
 		ibl := t.initBallot(local, nodes, point.NextHeight(), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil, nil)
 
@@ -1038,7 +1273,7 @@ func (t *testBallotbox) TestDiggVoteproof() {
 	})
 
 	t.Run("init ballot of next next height", func() {
-		box.setLastStagePoint(base.NewStagePoint(point, base.StageINIT), true)
+		box.setLastPoint(newLastPoint(base.NewStagePoint(point, base.StageINIT), true))
 
 		ibl := t.initBallot(local, nodes, point.NextHeight().NextHeight(), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil, nil)
 
@@ -1429,7 +1664,7 @@ func (t *testBallotboxWithWithdraw) TestINITBallot() {
 
 	t.T().Log("ballot other:", t.StringMarshal(bl1))
 
-	box.setLastStagePoint(bl0.Voteproof().Point(), true)
+	box.setLastPoint(newLastPoint(bl0.Voteproof().Point(), true))
 
 	voted, vp, err := box.voteAndWait(bl0, th)
 	t.NoError(err)
@@ -1475,7 +1710,7 @@ func (t *testBallotboxWithWithdraw) TestINITBallotWithdrawOthers() {
 			isaac.IsValidVoteproofWithSuffrage,
 			0,
 		)
-		box.setLastStagePoint(bl.Voteproof().Point(), true)
+		box.setLastPoint(newLastPoint(bl.Voteproof().Point(), true))
 
 		voted, vp, err := box.voteAndWait(bl, th)
 		t.NoError(err)
@@ -1496,7 +1731,7 @@ func (t *testBallotboxWithWithdraw) TestINITBallotWithdrawOthers() {
 			isaac.IsValidVoteproofWithSuffrage,
 			0,
 		)
-		box.setLastStagePoint(bl.Voteproof().Point(), true)
+		box.setLastPoint(newLastPoint(bl.Voteproof().Point(), true))
 
 		voted, vp, err := box.voteAndWait(bl, th)
 		t.NoError(err)
@@ -1542,7 +1777,7 @@ func (t *testBallotboxWithWithdraw) TestACCEPTBallot() {
 
 	t.T().Log("ballot other:", t.StringMarshal(bl1))
 
-	box.setLastStagePoint(bl0.Voteproof().Point(), true)
+	box.setLastPoint(newLastPoint(bl0.Voteproof().Point(), true))
 
 	voted, vp, err := box.voteAndWait(bl0, th)
 	t.NoError(err)
@@ -1591,7 +1826,7 @@ func (t *testBallotboxWithWithdraw) TestACCEPTBallotWithdrawOthers() {
 			0,
 		)
 
-		box.setLastStagePoint(bl.Voteproof().Point(), true)
+		box.setLastPoint(newLastPoint(bl.Voteproof().Point(), true))
 
 		voted, vp, err := box.voteAndWait(bl, th)
 		t.NoError(err)
@@ -1613,7 +1848,7 @@ func (t *testBallotboxWithWithdraw) TestACCEPTBallotWithdrawOthers() {
 			0,
 		)
 
-		box.setLastStagePoint(bl.Voteproof().Point(), true)
+		box.setLastPoint(newLastPoint(bl.Voteproof().Point(), true))
 
 		voted, vp, err := box.voteAndWait(bl, th)
 		t.NoError(err)
@@ -1663,7 +1898,7 @@ func (t *testBallotboxWithWithdraw) TestINITBallotJointWithdrawsOverThreshold() 
 		0,
 	)
 
-	box.setLastStagePoint(base.NewStagePoint(point.PrevHeight(), base.StageACCEPT), true)
+	box.setLastPoint(newLastPoint(base.NewStagePoint(point.PrevHeight(), base.StageACCEPT), true))
 
 	expected := 9
 
@@ -1739,7 +1974,7 @@ func (t *testBallotboxWithWithdraw) TestINITBallotJointWithdrawsSafeThreshold() 
 		0,
 	)
 
-	box.setLastStagePoint(base.NewStagePoint(point.PrevHeight(), base.StageACCEPT), true)
+	box.setLastPoint(newLastPoint(base.NewStagePoint(point.PrevHeight(), base.StageACCEPT), true))
 
 	expected := 13
 
@@ -1816,7 +2051,7 @@ func (t *testBallotboxWithWithdraw) TestINITBallotButDraw() {
 
 	t.T().Log("ballot other:", t.StringMarshal(bl1))
 
-	box.setLastStagePoint(bl0.Voteproof().Point(), true)
+	box.setLastPoint(newLastPoint(bl0.Voteproof().Point(), true))
 
 	voted, vp, err := box.voteAndWait(bl0, th)
 	t.NoError(err)
@@ -1889,7 +2124,7 @@ func (t *testBallotboxWithWithdraw) TestSuffrageConfirmBallots() {
 	ivp.SetWithdraws(withdraws)
 	ivp.Finish()
 
-	box.setLastStagePoint(ivp.Point(), true)
+	box.setLastPoint(newLastPoint(ivp.Point(), true))
 
 	sfact := isaac.NewSuffrageConfirmBallotFact(ifact.Point().Point, ifact.PreviousBlock(), ifact.Proposal(), ifact.WithdrawFacts())
 	t.NoError(sfact.IsValid(nil))
@@ -1983,7 +2218,7 @@ func (t *testBallotboxWithWithdraw) TestVoteproofFromSuffrageConfirmBallots() {
 	ivp.Finish()
 
 	// NOTE set last stage point is not init marjoity
-	box.setLastStagePoint(base.NewStagePoint(point.NextRound(), base.StageINIT), false)
+	box.setLastPoint(newLastPoint(base.NewStagePoint(point.NextRound(), base.StageINIT), false))
 
 	sfact := isaac.NewSuffrageConfirmBallotFact(point, prev, valuehash.RandomSHA256(), withdrawfacts)
 	t.NoError(sfact.IsValid(nil))

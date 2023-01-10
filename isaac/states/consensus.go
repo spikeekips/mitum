@@ -23,8 +23,6 @@ type ConsensusHandler struct {
 	vplock               sync.Mutex
 }
 
-// FIXME consensus enter with draw accept voteproof
-
 type NewConsensusHandlerType struct {
 	*ConsensusHandler
 }

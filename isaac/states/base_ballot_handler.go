@@ -594,7 +594,7 @@ func setMadeBallot(c gcache.Cache, bl base.Ballot) {
 
 	key := bl.Point().String()
 
-	if _, ok := bl.SignFact().Fact().(isaac.SuffrageConfirmBallotFact); ok {
+	if isSuffrageConfirmBallotFact(bl.SignFact().Fact()) {
 		key = key + "suffrage-confirm"
 	}
 
