@@ -357,9 +357,9 @@ func (st *States) switchState(sctx switchContext) error {
 
 	st.callDeferStates(cdefer, ndefer)
 
-	l.Debug().Msg("state switched")
+	st.whenStateSwitched(sctx.next())
 
-	go st.whenStateSwitched(sctx.next())
+	l.Debug().Msg("state switched")
 
 	return nil
 }

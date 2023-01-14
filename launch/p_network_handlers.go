@@ -437,10 +437,8 @@ func quicstreamHandlerGetNodeInfoFunc(
 	enc encoder.Encoder,
 	nodeinfo *isaacnetwork.NodeInfoUpdater,
 ) func() ([]byte, error) {
-	var lastid string
-	var lastb []byte
-
 	startedAt := nodeinfo.StartedAt()
+	lastid := util.EmptyLocked("")
 
 	uptimet := []byte("<uptime>")
 	updateUptime := func(b []byte) []byte {
@@ -452,23 +450,36 @@ func quicstreamHandlerGetNodeInfoFunc(
 		)
 	}
 
+	var lastb []byte
+
 	return func() ([]byte, error) {
-		if nodeinfo.ID() == lastid {
-			return updateUptime(lastb), nil
-		}
+		var b []byte
 
-		jm := nodeinfo.NodeInfo().JSONMarshaler()
-		jm.Local.Uptime = string(uptimet)
+		if _, err := lastid.Set(func(last string, isempty bool) (string, error) {
+			if !isempty && nodeinfo.ID() == last {
+				b = updateUptime(lastb)
 
-		b, err := enc.Marshal(jm)
-		if err != nil {
+				return "", util.ErrLockedSetIgnore.Call()
+			}
+
+			jm := nodeinfo.NodeInfo().JSONMarshaler()
+			jm.Local.Uptime = string(uptimet)
+
+			switch i, err := enc.Marshal(jm); {
+			case err != nil:
+				return "", err
+			default:
+				lastb = i
+
+				b = updateUptime(i)
+
+				return nodeinfo.ID(), nil
+			}
+		}); err != nil {
 			return nil, err
 		}
 
-		lastid = nodeinfo.ID()
-		lastb = b
-
-		return updateUptime(b), nil
+		return b, nil
 	}
 }
 
