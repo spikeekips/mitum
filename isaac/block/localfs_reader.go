@@ -406,7 +406,7 @@ func (r *LocalFSReader) loadVoteproofs(item base.BlockMapItem, f io.Reader) ([]b
 		return nil, nil
 	}
 
-	vps, err := LoadVoteproofsFromReader(f, r.enc.Decode)
+	vps, err := LoadVoteproofsFromReader(f, item.Num(), r.enc.Decode)
 	if err != nil {
 		return nil, err
 	}
@@ -416,20 +416,21 @@ func (r *LocalFSReader) loadVoteproofs(item base.BlockMapItem, f io.Reader) ([]b
 
 func LoadVoteproofsFromReader(
 	r io.Reader,
+	num uint64,
 	decode func([]byte) (interface{}, error),
 ) ([]base.Voteproof, error) {
 	e := util.StringErrorFunc("failed to load voteproofs")
 
-	vps := make([]base.Voteproof, 2)
+	vps := make([]base.Voteproof, num)
 
-	if err := LoadRawItemsWithWorker(r, 2, decode, func(_ uint64, v interface{}) error { //nolint:gomnd //...
+	if err := LoadRawItemsWithWorker(r, num, decode, func(i uint64, v interface{}) error { //nolint:gomnd //...
 		switch t := v.(type) {
 		case base.INITVoteproof:
-			vps[0] = t
+			vps[i] = t
 		case base.ACCEPTVoteproof:
-			vps[1] = t
+			vps[i] = t
 		default:
-			return errors.Errorf("not Operation, %T", v)
+			return errors.Errorf("not voteproof, %T", v)
 		}
 
 		return nil

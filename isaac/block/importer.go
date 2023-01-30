@@ -378,10 +378,10 @@ func (im *BlockImporter) importStatesTree(item base.BlockMapItem, r io.Reader) e
 	return nil
 }
 
-func (im *BlockImporter) importVoteproofs(_ base.BlockMapItem, r io.Reader) error {
+func (im *BlockImporter) importVoteproofs(item base.BlockMapItem, r io.Reader) error {
 	e := util.StringErrorFunc("failed to import voteproofs")
 
-	vps, err := LoadVoteproofsFromReader(r, im.enc.Decode)
+	vps, err := LoadVoteproofsFromReader(r, item.Num(), im.enc.Decode)
 	if err != nil {
 		return e(err, "")
 	}

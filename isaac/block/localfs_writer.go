@@ -259,7 +259,7 @@ func (w *LocalFSWriter) saveVoteproofs() error {
 	if err := w.m.SetItem(NewLocalBlockMapItem(
 		base.BlockMapItemTypeVoteproofs,
 		f.Checksum(),
-		1,
+		uint64(len(w.vps)),
 	)); err != nil {
 		return e(err, "")
 	}
