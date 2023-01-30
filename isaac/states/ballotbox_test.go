@@ -253,8 +253,8 @@ func TestLastPointIsNewBallot(tt *testing.T) {
 
 func (box *Ballotbox) voteAndWait(bl base.Ballot, threshold base.Threshold) (bool, base.Voteproof, error) {
 	var withdraws []base.SuffrageWithdrawOperation
-	if i, ok := bl.(isaac.WithdrawBallot); ok {
-		withdraws = i.Withdraws()
+	if w, ok := bl.(base.HasWithdraws); ok {
+		withdraws = w.Withdraws()
 	}
 
 	voted, callback, err := box.vote(bl.SignFact(), bl.Voteproof(), withdraws, threshold)

@@ -154,7 +154,7 @@ func NewBallotbox(
 }
 
 func (box *Ballotbox) Vote(bl base.Ballot, threshold base.Threshold) (bool, error) {
-	if w, ok := bl.Voteproof().(base.HasWithdrawVoteproof); ok {
+	if w, ok := bl.Voteproof().(base.HasWithdraws); ok {
 		withdraws := w.Withdraws()
 
 		for i := range withdraws {
@@ -166,8 +166,8 @@ func (box *Ballotbox) Vote(bl base.Ballot, threshold base.Threshold) (bool, erro
 	}
 
 	var withdraws []base.SuffrageWithdrawOperation
-	if i, ok := bl.(isaac.WithdrawBallot); ok {
-		withdraws = i.Withdraws()
+	if w, ok := bl.(base.HasWithdraws); ok {
+		withdraws = w.Withdraws()
 	}
 
 	voted, deferred, err := box.vote(
@@ -370,8 +370,8 @@ func (box *Ballotbox) vote(
 			digged = nil
 		}
 
-		if wvp, ok := digged.(base.HasWithdrawVoteproof); ok {
-			if err := box.learnWithdraws(wvp.Withdraws()); err != nil {
+		if w, ok := digged.(base.HasWithdraws); ok {
+			if err := box.learnWithdraws(w.Withdraws()); err != nil {
 				return false, nil, err
 			}
 		}

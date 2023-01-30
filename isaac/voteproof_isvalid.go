@@ -14,8 +14,8 @@ func IsValidVoteproofWithSuffrage(vp base.Voteproof, suf base.Suffrage) error {
 
 	var withdraws []base.SuffrageWithdrawOperation
 
-	if wvp, ok := vp.(base.HasWithdrawVoteproof); ok {
-		withdraws = wvp.Withdraws()
+	if w, ok := vp.(base.HasWithdraws); ok {
+		withdraws = w.Withdraws()
 	}
 
 	th := vp.Threshold()

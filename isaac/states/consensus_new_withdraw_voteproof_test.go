@@ -804,7 +804,7 @@ func (t *testWithdrawsConsensusHandler) TestINITStuckVoteproof() {
 
 		t.Equal(point.NextHeight().NextRound(), bl.Point().Point)
 
-		wbl, ok := bl.(isaac.WithdrawBallot)
+		wbl, ok := bl.(base.HasWithdraws)
 		t.True(ok)
 		t.NotEmpty(wbl.Withdraws())
 		t.Equal(1, len(wbl.Withdraws()))
@@ -985,7 +985,7 @@ func (t *testWithdrawsConsensusHandler) TestACCEPTStuckVoteproof() {
 
 		t.Equal(point.NextRound(), bl.Point().Point)
 
-		wbl, ok := bl.(isaac.WithdrawBallot)
+		wbl, ok := bl.(base.HasWithdraws)
 		t.True(ok)
 		t.NotEmpty(wbl.Withdraws())
 		t.Equal(1, len(wbl.Withdraws()))

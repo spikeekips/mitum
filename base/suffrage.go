@@ -111,3 +111,7 @@ type SuffrageWithdrawOperation interface {
 	NodeSignFact
 	WithdrawFact() SuffrageWithdrawFact
 }
+
+type HasWithdraws interface {
+	Withdraws() []SuffrageWithdrawOperation
+}

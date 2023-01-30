@@ -607,8 +607,8 @@ func (st *States) mimicBallot() func(base.Ballot) base.Ballot {
 func (st *States) signMimicBallot(bl base.Ballot) (base.Ballot, error) {
 	var withdraws []base.SuffrageWithdrawOperation
 
-	if i, ok := bl.(isaac.WithdrawBallot); ok {
-		withdraws = i.Withdraws()
+	if w, ok := bl.(base.HasWithdraws); ok {
+		withdraws = w.Withdraws()
 	}
 
 	return mimicBallot(
@@ -624,7 +624,7 @@ func (st *States) filterMimicBallot(bl base.Ballot) bool {
 	l := st.Log().With().Interface("ballot", bl).Logger()
 
 	// NOTE if local is in withdraws, ignore
-	switch w, ok := bl.(isaac.WithdrawBallot); {
+	switch w, ok := bl.(base.HasWithdraws); {
 	case !ok:
 	default:
 		if util.InSliceFunc(w.Withdraws(), func(i base.SuffrageWithdrawOperation) bool {
@@ -636,8 +636,8 @@ func (st *States) filterMimicBallot(bl base.Ballot) bool {
 		}
 	}
 
-	if wvp, ok := bl.Voteproof().(base.HasWithdrawVoteproof); ok {
-		if util.InSliceFunc(wvp.Withdraws(), func(i base.SuffrageWithdrawOperation) bool {
+	if w, ok := bl.Voteproof().(base.HasWithdraws); ok {
+		if util.InSliceFunc(w.Withdraws(), func(i base.SuffrageWithdrawOperation) bool {
 			return i.WithdrawFact().Node().Equal(st.local.Address())
 		}) >= 0 {
 			l.Debug().Msg("local in withdraws voteproof; ignore")

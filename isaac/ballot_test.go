@@ -648,8 +648,8 @@ func testBallotEncode() *baseTestBallotEncode {
 
 		base.EqualBallot(t.Assert(), as, bs)
 
-		aws := as.(WithdrawBallot).Withdraws()
-		bws := bs.(WithdrawBallot).Withdraws()
+		aws := as.(base.HasWithdraws).Withdraws()
+		bws := bs.(base.HasWithdraws).Withdraws()
 
 		t.Equal(len(aws), len(bws))
 
