@@ -17,7 +17,7 @@ var CallbackBroadcastMessageHint = hint.MustNewHint("callback-broadcast-message-
 type CallbackBroadcaster struct {
 	enc     encoder.Encoder
 	m       *quicmemberlist.Memberlist
-	cache   *util.GCacheObjectPool
+	cache   *util.GCache[string, []byte]
 	localci quicstream.UDPConnInfo
 	expire  time.Duration
 }
@@ -31,8 +31,8 @@ func NewCallbackBroadcaster(
 		localci: localci,
 		enc:     enc,
 		m:       m,
-		cache:   util.NewGCacheObjectPool(1 << 13), //nolint:gomnd // NOTE big enough for big suffrage size
-		expire:  time.Second * 30,                  //nolint:gomnd //...
+		cache:   util.NewLRUGCache("", ([]byte)(nil), 1<<13), //nolint:gomnd // NOTE big enough for big suffrage size
+		expire:  time.Second * 30,                            //nolint:gomnd //...
 	}
 }
 
@@ -50,7 +50,7 @@ func (c *CallbackBroadcaster) Broadcast(id string, b []byte, notifych chan struc
 	e := util.StringErrorFunc("failed to broadcast")
 
 	// NOTE save b in cache first
-	c.cache.Set(id, b, &c.expire)
+	c.cache.Set(id, b, c.expire)
 
 	switch i, err := c.enc.Marshal(NewCallbackBroadcastMessage(id, c.localci)); {
 	case err != nil:
@@ -63,14 +63,7 @@ func (c *CallbackBroadcaster) Broadcast(id string, b []byte, notifych chan struc
 }
 
 func (c *CallbackBroadcaster) RawMessage(id string) ([]byte, bool) {
-	switch i, found := c.cache.Get(id); {
-	case !found:
-		return nil, false
-	case i == nil:
-		return nil, found
-	default:
-		return i.([]byte), true //nolint:forcetypeassert //...
-	}
+	return c.cache.Get(id)
 }
 
 type CallbackBroadcastMessage struct {

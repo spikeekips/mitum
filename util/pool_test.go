@@ -36,34 +36,3 @@ func (t *testGCacheObjectPool) TestGet() {
 func TestGCacheObjectPool(t *testing.T) {
 	suite.Run(t, new(testGCacheObjectPool))
 }
-
-type testLockedObjectPool struct {
-	suite.Suite
-}
-
-func (t *testLockedObjectPool) TestNew() {
-	p, _ := NewLockedObjectPool(3)
-
-	_ = (interface{})(p).(ObjectPool)
-}
-
-func (t *testLockedObjectPool) TestGetNotFound() {
-	p, _ := NewLockedObjectPool(3)
-	i, found := p.Get("findme")
-	t.False(found)
-	t.Nil(i)
-}
-
-func (t *testLockedObjectPool) TestGet() {
-	p, _ := NewLockedObjectPool(3)
-	p.Set("findme", "showme", nil)
-
-	i, found := p.Get("findme")
-	t.True(found)
-	t.NotNil(i)
-	t.Equal("showme", i)
-}
-
-func TestLockedObjectPool(t *testing.T) {
-	suite.Run(t, new(testLockedObjectPool))
-}

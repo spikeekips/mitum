@@ -33,7 +33,7 @@ type Memberlist struct {
 	m               *memberlist.Memberlist
 	delegate        *Delegate
 	members         *membersPool
-	cicache         *util.GCacheObjectPool
+	cicache         *util.GCache[string, quicstream.UDPConnInfo]
 	sameMemberLimit uint64 // NOTE 0 means no additional same member
 	l               sync.RWMutex
 	joinedLock      sync.RWMutex
@@ -54,7 +54,7 @@ func NewMemberlist(
 		enc:             enc,
 		sameMemberLimit: sameMemberLimit,
 		members:         newMembersPool(),
-		cicache:         util.NewGCacheObjectPool(1 << 9), //nolint:gomnd //...
+		cicache:         util.NewLRUGCache("", quicstream.UDPConnInfo{}, 1<<9), //nolint:gomnd //...
 		whenLeftf:       func(Node) {},
 	}
 
@@ -97,7 +97,7 @@ func (srv *Memberlist) Join(cis []quicstream.UDPConnInfo) error {
 		ci := filtered[i]
 
 		fcis[i] = ci.UDPAddr().String()
-		srv.cicache.Set(ci.UDPAddr().String(), ci, nil)
+		srv.cicache.Set(ci.UDPAddr().String(), ci, 0)
 	}
 
 	created, err := func() (bool, error) {
@@ -272,7 +272,7 @@ func (srv *Memberlist) patch(config *memberlist.Config) error { // revive:disabl
 				return quicstream.NewUDPConnInfo(addr, true)
 			}
 
-			return j.(quicstream.UDPConnInfo) //nolint:forcetypeassert // ...
+			return j
 		}
 
 		i.notallowf = func(addr string) bool {
@@ -289,7 +289,7 @@ func (srv *Memberlist) patch(config *memberlist.Config) error { // revive:disabl
 
 	if i, ok := config.Alive.(*AliveDelegate); ok {
 		i.storeconninfof = func(ci quicstream.UDPConnInfo) {
-			srv.cicache.Set(ci.UDPAddr().String(), ci, nil)
+			srv.cicache.Set(ci.UDPAddr().String(), ci, 0)
 		}
 
 		origallowf := i.allowf

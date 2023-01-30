@@ -3,42 +3,34 @@ package isaacdatabase
 import (
 	"sync"
 
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 )
 
 type MemTempSyncPool struct {
-	*util.LockedObjectPool
+	pool util.LockedMap[base.Height, base.BlockMap]
 	sync.RWMutex
 }
 
 func NewMemTempSyncPool() *MemTempSyncPool {
-	pool, _ := util.NewLockedObjectPool(1 << 13) //nolint:gomnd //...
+	pool, _ := util.NewLockedMap(base.NilHeight, (base.BlockMap)(nil), 1<<13) //nolint:gomnd //...
 
-	return &MemTempSyncPool{
-		LockedObjectPool: pool,
-	}
+	return &MemTempSyncPool{pool: pool}
 }
 
 func (db *MemTempSyncPool) BlockMap(height base.Height) (base.BlockMap, bool, error) {
 	db.RLock()
 	defer db.RUnlock()
 
-	if db.LockedObjectPool == nil {
+	if db.pool == nil {
 		return nil, false, nil
 	}
 
-	switch i, found := db.LockedObjectPool.Get(height.String()); {
+	switch i, found := db.pool.Value(height); {
 	case !found, i == nil:
 		return nil, false, nil
 	default:
-		m, ok := i.(base.BlockMap)
-		if !ok {
-			return nil, false, errors.Errorf("expected BlockMap, but %T", i)
-		}
-
-		return m, true, nil
+		return i, true, nil
 	}
 }
 
@@ -46,11 +38,11 @@ func (db *MemTempSyncPool) SetBlockMap(m base.BlockMap) error {
 	db.RLock()
 	defer db.RUnlock()
 
-	if db.LockedObjectPool == nil {
+	if db.pool == nil {
 		return nil
 	}
 
-	db.LockedObjectPool.Set(m.Manifest().Height().String(), m, nil)
+	_ = db.pool.SetValue(m.Manifest().Height(), m)
 
 	return nil
 }
@@ -59,13 +51,12 @@ func (db *MemTempSyncPool) Close() error {
 	db.Lock()
 	defer db.Unlock()
 
-	if db.LockedObjectPool == nil {
+	if db.pool == nil {
 		return nil
 	}
 
-	_ = db.LockedObjectPool.Close()
-
-	db.LockedObjectPool = nil
+	db.pool.Close()
+	db.pool = nil
 
 	return nil
 }

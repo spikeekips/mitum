@@ -13,7 +13,7 @@ type ObjectPool interface {
 	Set(string, interface{}, *time.Duration)
 }
 
-type GCacheObjectPool struct { // FIXME use GCache
+type GCacheObjectPool struct {
 	cache gcache.Cache
 }
 
@@ -52,37 +52,4 @@ func (po *GCacheObjectPool) Set(key string, v interface{}, expire *time.Duration
 
 func (po *GCacheObjectPool) Close() {
 	po.cache.Purge()
-}
-
-type LockedObjectPool struct {
-	maps *ShardedMap[string, interface{}]
-}
-
-func NewLockedObjectPool(size int64) (*LockedObjectPool, error) {
-	maps, err := NewShardedMap("", (interface{})(nil), size) //nolint:gomnd //...
-	if err != nil {
-		return nil, err
-	}
-
-	return &LockedObjectPool{maps: maps}, nil
-}
-
-func (po *LockedObjectPool) Exists(key string) bool {
-	_, found := po.maps.Value(key)
-
-	return found
-}
-
-func (po *LockedObjectPool) Get(key string) (interface{}, bool) {
-	return po.maps.Value(key)
-}
-
-func (po *LockedObjectPool) Set(key string, v interface{}, _ *time.Duration) {
-	_ = po.maps.SetValue(key, v)
-}
-
-func (po *LockedObjectPool) Close() error {
-	po.maps.Close()
-
-	return nil
 }

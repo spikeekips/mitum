@@ -1021,13 +1021,13 @@ func PGetSuffrageFromDatabaseFunc(ctx context.Context) (context.Context, error) 
 		return ctx, e(err, "")
 	}
 
-	sufcache := util.NewGCacheObjectPool(1 << 9) //nolint:gomnd //...
+	sufcache := util.NewLRUGCache(base.NilHeight, (base.Suffrage)(nil), 1<<9) //nolint:gomnd //...
 
 	var l sync.Mutex
 
 	f := func(height base.Height) (base.Suffrage, bool, error) {
 		if i, found := sufcache.Get(height.String()); found {
-			return i.(base.Suffrage), true, nil //nolint:forcetypeassert //...
+			return i, true, nil
 		}
 
 		l.Lock()
@@ -1038,7 +1038,7 @@ func PGetSuffrageFromDatabaseFunc(ctx context.Context) (context.Context, error) 
 			return nil, false, err
 		}
 
-		sufcache.Set(height.String(), i, nil)
+		sufcache.Set(height, i, 0)
 
 		return i, true, nil
 	}
