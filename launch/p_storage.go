@@ -901,8 +901,11 @@ func ValidateBlockFromLocalFS(
 		case base.BlockMapItemTypeStatesTree:
 			ststree = i.(fixedtree.Tree) //nolint:forcetypeassert //...
 		case base.BlockMapItemTypeVoteproofs:
-			readererr = base.ValidateVoteproofsWithManifest( //nolint:forcetypeassert //...
-				i.([]base.Voteproof), m.Manifest())
+			readererr = validateVoteproofsFromLocalFS( //nolint:forcetypeassert //...
+				networkID,
+				i.([]base.Voteproof),
+				m.Manifest(),
+			)
 		}
 
 		return readererr == nil
@@ -1041,4 +1044,18 @@ func PGetSuffrageFromDatabaseFunc(ctx context.Context) (context.Context, error) 
 	}
 
 	return context.WithValue(ctx, GetSuffrageFromDatabaseFuncContextKey, isaac.GetSuffrageByBlockHeight(f)), nil
+}
+
+func validateVoteproofsFromLocalFS(networkID base.NetworkID, vps []base.Voteproof, m base.Manifest) error {
+	for i := range vps {
+		if vps[i] == nil {
+			continue
+		}
+
+		if err := vps[i].IsValid(networkID); err != nil {
+			return err
+		}
+	}
+
+	return base.ValidateVoteproofsWithManifest(vps, m)
 }

@@ -386,6 +386,16 @@ func (im *BlockImporter) importVoteproofs(_ base.BlockMapItem, r io.Reader) erro
 		return e(err, "")
 	}
 
+	for i := range vps {
+		if vps[i] == nil {
+			continue
+		}
+
+		if err := vps[i].IsValid(im.networkID); err != nil {
+			return e(err, "")
+		}
+	}
+
 	if err := base.ValidateVoteproofsWithManifest(vps, im.m.Manifest()); err != nil {
 		return e(err, "")
 	}
