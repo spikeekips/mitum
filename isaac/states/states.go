@@ -87,7 +87,7 @@ func NewStates(
 
 	if box != nil {
 		f, cancel := st.mimicBallotFunc()
-		box.SetNewBallot(f)
+		box.SetNewBallotFunc(f)
 
 		cancelf = cancel
 	}

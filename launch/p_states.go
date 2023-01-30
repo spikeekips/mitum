@@ -60,13 +60,8 @@ func PBallotbox(ctx context.Context) (context.Context, error) {
 		return ctx, err
 	}
 
-	ballotbox := isaacstates.NewBallotbox(
-		local.Address(),
-		getLastSuffragef,
-		isaac.IsValidVoteproofWithSuffrage,
-		params.WaitPreparingINITBallot(),
-	)
-
+	ballotbox := isaacstates.NewBallotbox(local.Address(), getLastSuffragef)
+	_ = ballotbox.SetCountAfter(params.WaitPreparingINITBallot())
 	_ = ballotbox.SetLogging(log)
 
 	if err := ballotbox.Start(context.Background()); err != nil {

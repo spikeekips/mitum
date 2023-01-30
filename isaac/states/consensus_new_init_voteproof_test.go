@@ -124,7 +124,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestNextRoundButAlreadyFini
 	t.T().Log("next round init voteproof")
 	newpoint := point.NextRound()
 	fact := t.PRPool.GetFact(point)
-	_, newivp := t.VoteproofsPair(newpoint.PrevHeight(), newpoint, nil, nil, fact.Hash(), nodes)
+	_, newivp := t.VoteproofsPair(newpoint.PrevHeight(), newpoint, ivp.Majority().(base.INITBallotFact).PreviousBlock(), nil, fact.Hash(), nodes)
 
 	t.NoError(st.newVoteproof(newivp))
 }

@@ -398,7 +398,7 @@ func PSuffrageVoting(ctx context.Context) (context.Context, error) {
 		},
 	)
 
-	ballotbox.SetSuffrageVote(func(op base.SuffrageWithdrawOperation) error {
+	ballotbox.SetSuffrageVoteFunc(func(op base.SuffrageWithdrawOperation) error {
 		_, err := sv.Vote(op)
 
 		return err

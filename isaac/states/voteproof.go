@@ -46,7 +46,12 @@ func (l *LastVoteproofsHandler) IsNew(vp base.Voteproof) bool {
 		return true
 	}
 
-	return newLastPointFromVoteproof(lvp).isNewVoteproof(vp)
+	last, err := newLastPointFromVoteproof(lvp)
+	if err != nil {
+		return false
+	}
+
+	return isNewVoteproof(last, vp)
 }
 
 func (l *LastVoteproofsHandler) Set(vp base.Voteproof) bool {
@@ -60,7 +65,12 @@ func (l *LastVoteproofsHandler) Set(vp base.Voteproof) bool {
 	}
 
 	if lvp := lvps.Cap(); lvp != nil {
-		if !newLastPointFromVoteproof(lvp).isNewVoteproof(vp) {
+		last, err := newLastPointFromVoteproof(lvp)
+		if err != nil {
+			return false
+		}
+
+		if !isNewVoteproof(last, vp) {
 			return false
 		}
 	}
@@ -167,7 +177,12 @@ func (l LastVoteproofs) IsNew(vp base.Voteproof) bool {
 		return true
 	}
 
-	return newLastPointFromVoteproof(lvp).isNewVoteproof(vp)
+	last, err := newLastPointFromVoteproof(lvp)
+	if err != nil {
+		return false
+	}
+
+	return isNewVoteproof(last, vp)
 }
 
 func findLastVoteproofs(ivp, avp base.Voteproof) base.Voteproof {
