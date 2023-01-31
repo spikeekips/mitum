@@ -1019,7 +1019,9 @@ func (t *testCenterBlockWrite) TestMergePermanent() {
 
 	t.Equal(10, len(db.activeTemps()))
 	for range make([]int, 3) { // 0, 1, 2
-		t.NoError(db.mergePermanent(context.TODO()))
+		merged, err := db.mergePermanent(context.TODO())
+		t.NoError(err)
+		t.True(merged)
 		t.NoError(db.cleanRemoved(2))
 	}
 

@@ -528,11 +528,10 @@ func (db *Center) MergeBlockWriteDatabase(w isaac.BlockWriteDatabase) error {
 func (db *Center) MergeAllPermanent() error {
 	e := util.StringErrorFunc("failed to merge all temps to permanent")
 
-	for len(db.activeTemps()) > 0 {
-		if err := db.mergePermanent(context.Background()); err != nil {
-			return e(err, "")
-		}
-
+	switch merged, err := db.mergePermanent(context.Background()); {
+	case err != nil:
+		return e(err, "")
+	case merged:
 		if err := db.cleanRemoved(0); err != nil {
 			return e(err, "")
 		}
@@ -669,43 +668,42 @@ end:
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			switch err := db.mergePermanent(ctx); {
-			case err == nil:
-			default:
+			switch merged, err := db.mergePermanent(ctx); {
+			case err != nil:
 				db.Log().Debug().Err(err).Msg("failed to merge to permanent database; will retry")
 
 				continue end
-			}
+			case merged:
+				if err := db.cleanRemoved(3); err != nil { //nolint:gomnd //...
+					db.Log().Debug().Err(err).Msg("failed to clean temp databases; will retry")
 
-			if err := db.cleanRemoved(3); err != nil { //nolint:gomnd //...
-				db.Log().Debug().Err(err).Msg("failed to clean temp databases; will retry")
-
-				continue end
+					continue end
+				}
 			}
 		}
 	}
 }
 
-func (db *Center) mergePermanent(ctx context.Context) error {
+func (db *Center) mergePermanent(ctx context.Context) (bool, error) {
 	e := util.StringErrorFunc("failed to merge to permanent database")
 
 	temps := db.activeTemps()
-	if len(temps) < 1 {
-		return nil
+	if len(temps) < 2 { //nolint:gomnd // NOTE keep last one in temps
+		return false, nil
 	}
 
 	temp := temps[len(temps)-1]
 	if err := db.perm.MergeTempDatabase(ctx, temp); err != nil {
-		return e(err, "")
+		return false, e(err, "")
 	}
 
 	if err := db.removeTemp(temp); err != nil {
-		return e(err, "")
+		return false, e(err, "")
 	}
 
 	db.Log().Debug().Interface("height", temp.Height()).Msg("temp database merged")
 
-	return nil
+	return true, nil
 }
 
 func (db *Center) cleanRemoved(limit int) error {
