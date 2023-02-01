@@ -165,7 +165,7 @@ func (st *ConsensusHandler) processProposalFunc(ivp base.INITVoteproof) (func(co
 
 		process = i
 	case errors.Is(err, isaac.ErrNotProposalProcessorProcessed):
-		// NOTE instead of moving next round, intended-wrong accept ballot?
+		// NOTE instead of moving next round, intended-wrong accept ballot.
 		return func(context.Context) error {
 				dummy := isaac.NewManifest(
 					ivp.Point().Height(),
@@ -466,7 +466,6 @@ func (st *ConsensusHandler) newINITVoteproofWithLastINITVoteproof(
 		l.Debug().Msg("higher init voteproof; moves to syncing state")
 
 		return newSyncingSwitchContext(StateConsensus, ivp.Point().Height()-1)
-	case livp.Result() == base.VoteResultMajority:
 	case ivp.Result() != base.VoteResultMajority: // NOTE new init voteproof has same height, but higher round
 		l.Debug().Msg("new init voteproof draw; moves to next round")
 

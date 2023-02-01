@@ -76,7 +76,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestHigherHeight() {
 	t.Equal(ssctx.height, newpoint.Height()-1)
 }
 
-func (t *testNewINITOnINITVoteproofConsensusHandler) TestNextRoundButAlreadyFinished() {
+func (t *testNewINITOnINITVoteproofConsensusHandler) TestNextRoundMajorityButAlreadyFinished() {
 	point := base.RawPoint(33, 44)
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
@@ -85,8 +85,8 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestNextRoundButAlreadyFini
 
 	st.params = t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
 
-	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
-		return base.NewDummyManifest(point.Height(), valuehash.RandomSHA256()), nil
+	pp.Processerr = func(_ context.Context, fact base.ProposalFact, _ base.INITVoteproof) (base.Manifest, error) {
+		return base.NewDummyManifest(fact.Point().Height(), valuehash.RandomSHA256()), nil
 	}
 
 	prch := make(chan util.Hash, 1)
@@ -96,9 +96,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestNextRoundButAlreadyFini
 			return nil, err
 		}
 
-		if pr.Point().Equal(point) {
-			prch <- facthash
-		}
+		prch <- facthash
 
 		return pr, nil
 	})
@@ -113,20 +111,118 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestNextRoundButAlreadyFini
 	t.NoError(err)
 	deferred()
 
+	var processed util.Hash
+
 	select {
 	case <-time.After(time.Second * 2):
 		t.NoError(errors.Errorf("timeout to wait"))
 
 		return
-	case <-prch:
+	case processed = <-prch:
+		t.NotNil(processed)
+		t.True(ivp.Majority().(base.INITBallotFact).Proposal().Equal(processed))
 	}
 
 	t.T().Log("next round init voteproof")
 	newpoint := point.NextRound()
-	fact := t.PRPool.GetFact(point)
-	_, newivp := t.VoteproofsPair(newpoint.PrevHeight(), newpoint, ivp.Majority().(base.INITBallotFact).PreviousBlock(), nil, fact.Hash(), nodes)
+	newfact := t.PRPool.GetFact(newpoint)
+	_, newivp := t.VoteproofsPair(newpoint.PrevHeight(), newpoint, ivp.Majority().(base.INITBallotFact).PreviousBlock(), nil, newfact.Hash(), nodes)
 
 	t.NoError(st.newVoteproof(newivp))
+
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("timeout to wait new processed proposal"))
+
+		return
+	case newprocessed := <-prch:
+		t.NotNil(processed)
+		t.True(newfact.Hash().Equal(newprocessed))
+	}
+}
+
+func (t *testNewINITOnINITVoteproofConsensusHandler) TestNextRoundButAlreadyFinished() {
+	point := base.RawPoint(33, 44)
+	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
+
+	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
+	defer closefunc()
+
+	st.params = t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
+
+	pp.Processerr = func(_ context.Context, fact base.ProposalFact, _ base.INITVoteproof) (base.Manifest, error) {
+		return base.NewDummyManifest(fact.Point().Height(), valuehash.RandomSHA256()), nil
+	}
+
+	prch := make(chan util.Hash, 1)
+	st.pps.SetGetProposal(func(_ context.Context, facthash util.Hash) (base.ProposalSignFact, error) {
+		pr, err := t.PRPool.ByHash(facthash)
+		if err != nil {
+			return nil, err
+		}
+
+		prch <- facthash
+
+		return pr, nil
+	})
+
+	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			return t.PRPool.Get(p), nil
+		}
+	})
+
+	nextpoint := point.NextRound()
+
+	ballotch := make(chan base.Ballot, 1)
+	st.broadcastBallotFunc = func(bl base.Ballot) error {
+		if bl.Point().Point.Equal(nextpoint.NextRound()) {
+			ballotch <- bl
+		}
+
+		return nil
+	}
+
+	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
+
+	deferred, err := st.enter(StateJoining, sctx)
+	t.NoError(err)
+	deferred()
+
+	var processed util.Hash
+
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("timeout to wait"))
+
+		return
+	case processed = <-prch:
+		t.NotNil(processed)
+		t.True(ivp.Majority().(base.INITBallotFact).Proposal().Equal(processed))
+	}
+
+	t.T().Log("next round init voteproof")
+	newfact := t.PRPool.GetFact(nextpoint)
+	_, newivp := t.VoteproofsPair(nextpoint.PrevHeight(), nextpoint, ivp.Majority().(base.INITBallotFact).PreviousBlock(), nil, newfact.Hash(), nodes)
+	newivp.SetMajority(nil)
+
+	t.Equal(newivp.Result(), base.VoteResultDraw)
+	t.Nil(newivp.Majority())
+
+	t.NoError(st.newVoteproof(newivp))
+
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("timeout to wait new next round init ballot"))
+
+		return
+	case bl := <-ballotch:
+		t.NotNil(bl)
+		t.Equal(bl.Point().Point, nextpoint.NextRound())
+	}
 }
 
 func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBeforePreviousBlockNotMatched() {
@@ -638,7 +734,6 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestNotInConsensusNodes()
 
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
-	st.SetLogging(logging.TestNilLogging)
 
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
