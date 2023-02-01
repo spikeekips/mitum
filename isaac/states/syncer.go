@@ -46,6 +46,7 @@ type Syncer struct {
 	setLastVoteproofsFunc func(isaac.BlockReader) error
 	whenStoppedf          func() error
 	lastBlockMapf         SyncerLastBlockMapFunc
+	removePrevBlockf      func(base.Height) (bool, error)
 	root                  string
 	batchlimit            int64
 	lastBlockMapInterval  time.Duration
@@ -64,6 +65,7 @@ func NewSyncer(
 	tempsyncpool isaac.TempSyncPool,
 	setLastVoteproofsf func(isaac.BlockReader) error,
 	whenStoppedf func() error,
+	removePrevBlockf func(base.Height) (bool, error),
 ) (*Syncer, error) {
 	e := util.StringErrorFunc("failed NewSyncer")
 
@@ -114,6 +116,7 @@ func NewSyncer(
 		whenStoppedf:           whenStoppedf,
 		lastBlockMapInterval:   time.Second * 2, //nolint:gomnd //...
 		lastBlockMapTimeout:    time.Second * 2, //nolint:gomnd //...
+		removePrevBlockf:       removePrevBlockf,
 	}
 
 	s.ContextDaemon = util.NewContextDaemon(s.start)
@@ -198,15 +201,18 @@ func (s *Syncer) start(ctx context.Context) error {
 		_ = s.tempsyncpool.Cancel()
 	}()
 
-	go s.updateLastBlockMap(ctx)
+	uctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
-	var err error
+	go s.updateLastBlockMap(uctx)
+
+	var gerr error
 
 end:
 	for {
 		select {
-		case <-ctx.Done():
-			err = ctx.Err()
+		case <-uctx.Done():
+			gerr = uctx.Err()
 
 			break end
 		case height := <-s.startsyncch:
@@ -215,18 +221,35 @@ end:
 				continue
 			}
 
-			go s.sync(ctx, prev, height)
+			if prev != nil {
+				if err := s.donewitherror(func() error {
+					switch newprev, err := s.checkPrevMap(uctx, prev); {
+					case err != nil:
+						return err
+					case newprev != nil:
+						_ = s.prevvalue.SetValue(newprev)
+					}
+
+					return nil
+				}); err != nil {
+					return err
+				}
+			}
+
+			_ = s.donewitherror(func() error {
+				return s.sync(uctx, prev, height)
+			})
 		}
 	}
 
 	switch serr := s.whenStoppedf(); {
-	case err == nil,
-		errors.Is(err, context.Canceled),
-		errors.Is(err, context.DeadlineExceeded):
-		err = serr
+	case gerr == nil,
+		errors.Is(gerr, context.Canceled),
+		errors.Is(gerr, context.DeadlineExceeded):
+		gerr = serr
 	}
 
-	return err
+	return gerr
 }
 
 func (s *Syncer) top() base.Height {
@@ -250,32 +273,26 @@ func (s *Syncer) prevheight() base.Height {
 	return m.Manifest().Height()
 }
 
-func (s *Syncer) sync(ctx context.Context, prev base.BlockMap, to base.Height) { // revive:disable-line:import-shadowing
-	err, _ := s.doneerr.Set(func(error, bool) (error, error) {
-		newprev, err := s.doSync(ctx, prev, to)
-		if err != nil {
-			return err, nil
-		}
-
-		_ = s.prevvalue.SetValue(newprev)
-
-		switch top := s.top(); {
-		case newprev.Manifest().Height() == top:
-			go func() {
-				s.finishedch <- newprev.Manifest().Height()
-			}()
-		case newprev.Manifest().Height() < top:
-			go func() {
-				s.startsyncch <- top
-			}()
-		}
-
-		return nil, nil
-	})
-
+func (s *Syncer) sync(ctx context.Context, prev base.BlockMap, to base.Height) error { // revive:disable-line:import-shadowing
+	newprev, err := s.doSync(ctx, prev, to)
 	if err != nil {
-		s.donech <- struct{}{}
+		return err
 	}
+
+	_ = s.prevvalue.SetValue(newprev)
+
+	switch top := s.top(); {
+	case newprev.Manifest().Height() == top:
+		go func() {
+			s.finishedch <- newprev.Manifest().Height()
+		}()
+	case newprev.Manifest().Height() < top:
+		go func() {
+			s.startsyncch <- top
+		}()
+	}
+
+	return nil
 }
 
 func (s *Syncer) doSync(ctx context.Context, prev base.BlockMap, to base.Height) (base.BlockMap, error) {
@@ -323,6 +340,30 @@ func (s *Syncer) prepareMaps(ctx context.Context, prev base.BlockMap, to base.He
 	}
 
 	return last, nil
+}
+
+func (s *Syncer) checkPrevMap(ctx context.Context, prev base.BlockMap) (base.BlockMap, error) {
+	switch m, err := s.fetchMap(ctx, prev.Manifest().Height()); {
+	case err != nil:
+		return nil, err
+	case !prev.Manifest().Hash().Equal(m.Manifest().Hash()):
+		s.Log().Debug().
+			Interface("previous_block", prev).
+			Interface("different_previous_block", m).
+			Msg("different previous block found; will be removed from local")
+
+		// NOTE remove last block from database; if failed, return error
+		switch removed, err := s.removePrevBlockf(prev.Manifest().Height()); {
+		case err != nil:
+			return nil, err
+		case !removed:
+			return nil, errors.Errorf("previous manifest does not match with remotes")
+		default:
+			return m, nil
+		}
+	default:
+		return nil, nil
+	}
 }
 
 func (s *Syncer) fetchMap(ctx context.Context, height base.Height) (base.BlockMap, error) {
@@ -391,11 +432,7 @@ end:
 		case <-ctx.Done():
 			break end
 		case <-ticker.C:
-			_, err := s.doneerr.Set(func(i error, _ bool) (error, error) {
-				if i != nil {
-					return nil, errors.Errorf("already done by error")
-				}
-
+			if err := s.donewitherror(func() error {
 				top := s.top()
 
 				nctx, cancel := context.WithTimeout(ctx, s.lastBlockMapTimeout)
@@ -405,22 +442,37 @@ end:
 				case err != nil:
 					s.Log().Error().Err(err).Msg("failed to update last BlockMap")
 
-					return nil, nil
+					return nil
 				case !updated:
 					go func() {
 						s.finishedch <- top
 					}()
 
-					return nil, nil
+					return nil
 				default:
 					_ = s.Add(m.Manifest().Height())
 
-					return nil, nil
+					return nil
 				}
-			})
-			if err != nil {
+			}); err != nil {
 				break end
 			}
 		}
 	}
+}
+
+func (s *Syncer) donewitherror(f func() error) error {
+	err, _ := s.doneerr.Set(func(i error, _ bool) (error, error) {
+		if i != nil {
+			return nil, errors.Errorf("already done by error")
+		}
+
+		return f(), nil
+	})
+
+	if err != nil {
+		s.donech <- struct{}{}
+	}
+
+	return err
 }

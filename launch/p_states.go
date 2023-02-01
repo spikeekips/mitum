@@ -504,6 +504,7 @@ func newSyncerFunc(
 
 				return newclient.Close()
 			},
+			nil, // FIXME set removePrevBlockf
 		)
 		if err != nil {
 			return nil, e(err, "")
