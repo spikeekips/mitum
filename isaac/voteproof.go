@@ -10,8 +10,6 @@ import (
 	"github.com/spikeekips/mitum/util/localtime"
 )
 
-// FIXME remove withdraw nodes from sync sources
-
 var (
 	INITVoteproofHint           = hint.MustNewHint("init-voteproof-v0.0.1")
 	INITWithdrawVoteproofHint   = hint.MustNewHint("init-withdraw-voteproof-v0.0.1")

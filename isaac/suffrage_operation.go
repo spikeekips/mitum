@@ -16,8 +16,6 @@ var (
 	SuffrageWithdrawOperationHint = hint.MustNewHint("suffrage-withdraw-operation-v0.0.1")
 )
 
-// FIXME implement SuffrageWithdrawOperation signing process
-
 type SuffrageWithdrawFact struct {
 	reason string
 	node   base.Address

@@ -224,8 +224,6 @@ func (d *EventsDelegate) NotifyLeave(peer *memberlist.Node) {
 
 	d.Log().Debug().Object("peer", node).Msg("notified leave")
 
-	// FIXME remove connection from quic pool
-
 	d.leftf(node)
 }
 

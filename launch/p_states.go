@@ -680,8 +680,6 @@ func syncerBlockMapItemFunc(
 	client *isaacnetwork.QuicstreamClient,
 	conninfocache util.LockedMap[base.Height, quicstream.UDPConnInfo],
 ) isaacstates.SyncerBlockMapItemFunc {
-	// FIXME support remote item like https or ftp?
-
 	return func(ctx context.Context, height base.Height, item base.BlockMapItemType) (
 		reader io.ReadCloser, closef func() error, found bool, _ error,
 	) {

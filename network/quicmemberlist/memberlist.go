@@ -259,7 +259,7 @@ func (srv *Memberlist) patch(config *memberlist.Config) error { // revive:disabl
 
 	notallowedcache := gcache.New(1 << 9).LRU().Build() //nolint:gomnd //...
 	setnotallowedcache := func(addr string) {
-		_ = notallowedcache.SetWithExpire(addr, nil, time.Second*6) //nolint:gomnd //... // FIXME set by config
+		_ = notallowedcache.SetWithExpire(addr, nil, time.Second*6) //nolint:gomnd //...
 	}
 
 	switch i, ok := config.Transport.(*Transport); {

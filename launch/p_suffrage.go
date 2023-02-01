@@ -387,7 +387,7 @@ func PSuffrageVoting(ctx context.Context) (context.Context, error) {
 
 						n++
 
-						if n > 3 { //nolint:gomnd //... // FIXME use pingpong broadcast
+						if n > 3 { //nolint:gomnd //...
 							break
 						}
 					}

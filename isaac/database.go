@@ -27,7 +27,7 @@ type Database interface { //nolint:interfacebloat //..
 	LastNetworkPolicy() base.NetworkPolicy
 	State(key string) (base.State, bool, error)
 	StateBytes(key string) (hint.Hint, []byte, []byte, bool, error)
-	// ExistsInStateOperation has only operation facts, which is in state
+	// NOTE ExistsInStateOperation has only operation facts, which is in state
 	ExistsInStateOperation(operationFactHash util.Hash) (bool, error)
 	// NOTE ExistsKnownOperation has the known operation hashes
 	ExistsKnownOperation(operationHash util.Hash) (bool, error)
