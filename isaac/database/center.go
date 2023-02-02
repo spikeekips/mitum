@@ -540,6 +540,38 @@ func (db *Center) MergeAllPermanent() error {
 	return nil
 }
 
+func (db *Center) RemoveBlock(height base.Height) (bool, error) {
+	db.Lock()
+	defer db.Unlock()
+
+	index := -1
+
+	for i := range db.temps {
+		if db.temps[i].Height() == height {
+			index = i
+
+			break
+		}
+	}
+
+	if index < 0 {
+		return false, nil
+	}
+
+	if err := util.TraverseSlice(db.temps[:index+1], func(_ int, temp isaac.TempDatabase) error {
+		return temp.Remove()
+	}); err != nil {
+		return false, err
+	}
+
+	temps := make([]isaac.TempDatabase, len(db.temps)-index+1)
+	copy(temps, db.temps[index+1:])
+
+	db.temps = temps
+
+	return true, nil
+}
+
 func (db *Center) activeTemps() []isaac.TempDatabase {
 	db.RLock()
 	defer db.RUnlock()
@@ -597,7 +629,7 @@ func (db *Center) findTemp(height base.Height) isaac.TempDatabase {
 	defer db.RUnlock()
 
 	var found int64 = -1
-	if l := len(db.temps); l > 0 {
+	if len(db.temps) > 0 {
 		found = (db.temps[0].Height() - height).Int64()
 	}
 

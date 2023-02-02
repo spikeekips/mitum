@@ -34,6 +34,7 @@ type Database interface { //nolint:interfacebloat //..
 	NewBlockWriteDatabase(height base.Height) (BlockWriteDatabase, error)
 	MergeBlockWriteDatabase(BlockWriteDatabase) error
 	MergeAllPermanent() error
+	RemoveBlock(base.Height) (bool, error)
 }
 
 type BaseDatabase interface {

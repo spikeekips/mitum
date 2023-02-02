@@ -439,6 +439,8 @@ func newSyncerFunc(
 		return nil, err
 	}
 
+	removePrevBlockf := removePrevBlockFunc()
+
 	return func(height base.Height) (isaac.Syncer, error) {
 		e := util.StringErrorFunc("failed newSyncer")
 
@@ -504,7 +506,7 @@ func newSyncerFunc(
 
 				return newclient.Close()
 			},
-			nil, // FIXME set removePrevBlockf
+			removePrevBlockf, // FIXME set removePrevBlockf
 		)
 		if err != nil {
 			return nil, e(err, "")
@@ -915,4 +917,14 @@ func onEmptyMembersStateHandlerFunc(
 	return func() {
 		states.OnEmptyMembers()
 	}, nil
+}
+
+func removePrevBlockFunc() func(base.Height) (bool, error) {
+	// NOTE remove from,
+	// - database
+	// - localfs
+
+	return func(base.Height) (bool, error) {
+		return true, nil
+	}
 }

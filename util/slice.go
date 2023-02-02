@@ -144,3 +144,17 @@ func Filter2Slices[T any, Y any](a []T, b []Y, f func(T, Y) bool) []T {
 
 	return nb[:n]
 }
+
+func TraverseSlice[T any](s []T, f func(int, T) error) error {
+	if len(s) < 1 {
+		return nil
+	}
+
+	for i := range s {
+		if err := f(i, s[i]); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

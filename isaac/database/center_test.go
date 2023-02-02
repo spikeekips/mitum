@@ -180,6 +180,8 @@ func (t *testCenterWithPermanent) SetupTest() {
 	t.BaseTestDatabase.SetupTest()
 }
 
+// FIXME test RemoveBlock
+
 func (t *testCenterWithPermanent) TestMap() {
 	manifest := base.NewDummyManifest(base.Height(33), valuehash.RandomSHA256())
 	mp := base.NewDummyBlockMap(manifest)
