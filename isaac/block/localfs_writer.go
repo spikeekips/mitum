@@ -19,6 +19,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/fixedtree"
@@ -267,7 +268,7 @@ func (w *LocalFSWriter) saveVoteproofs() error {
 	return nil
 }
 
-func (w *LocalFSWriter) Save(context.Context) (base.BlockMap, error) {
+func (w *LocalFSWriter) Save(ctx context.Context) (base.BlockMap, error) {
 	w.Lock()
 	defer w.Unlock()
 
@@ -275,19 +276,28 @@ func (w *LocalFSWriter) Save(context.Context) (base.BlockMap, error) {
 		return w.m, nil
 	}
 
-	e := util.StringErrorFunc("failed to save fs writer")
-
 	heightdirectory := filepath.Join(w.root, w.heightbase)
 
 	// NOTE check height directory
 	switch _, err := os.Stat(heightdirectory); {
 	case err == nil:
-		return nil, e(nil, "height directory already exists")
+		return nil, isaac.ErrStopProcessingRetry.Errorf("failed to save fs writer; height directory already exists")
 	case os.IsNotExist(err):
 	default:
-		return nil, e(err, "failed to check height directory")
+		return nil, isaac.ErrStopProcessingRetry.Errorf("failed to save fs writer; failed to check height directory")
 	}
 
+	switch m, err := w.save(ctx, heightdirectory); {
+	case err != nil:
+		_ = os.RemoveAll(heightdirectory)
+
+		return nil, isaac.ErrStopProcessingRetry.Wrapf(err, "failed to save fs writer")
+	default:
+		return m, nil
+	}
+}
+
+func (w *LocalFSWriter) save(_ context.Context, heightdirectory string) (base.BlockMap, error) {
 	if w.opsf != nil {
 		_ = w.opsf.Close()
 
@@ -307,28 +317,28 @@ func (w *LocalFSWriter) Save(context.Context) (base.BlockMap, error) {
 	}
 
 	if item, found := w.m.Item(base.BlockMapItemTypeVoteproofs); !found || item == nil {
-		return nil, e(nil, "empty voteproofs")
+		return nil, errors.Errorf("empty voteproofs")
 	}
 
 	if err := w.saveMap(); err != nil {
-		return nil, e(err, "")
+		return nil, err
 	}
 
 	switch err := os.MkdirAll(filepath.Dir(heightdirectory), 0o700); {
 	case err == nil:
 	case os.IsExist(err):
 	default:
-		return nil, e(err, "failed to create height parent directory")
+		return nil, errors.WithMessage(err, "failed to create height parent directory")
 	}
 
 	if err := os.Rename(w.temp, heightdirectory); err != nil {
-		return nil, e(err, "")
+		return nil, errors.WithStack(err)
 	}
 
 	m := w.m
 
 	if err := w.close(); err != nil {
-		return nil, e(err, "")
+		return nil, err
 	}
 
 	w.saved = true

@@ -1,6 +1,8 @@
 package isaacdatabase
 
 import (
+	"bytes"
+
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
@@ -116,11 +118,57 @@ func (db *TempLeveldb) Remove() error {
 		return nil
 	}
 
-	if err := removeLowerHeights(db.st.Storage, db.mp.Manifest().Height()+1); err != nil {
+	if err := db.baseLeveldb.Remove(); err != nil {
 		return err
 	}
 
 	db.clean()
+
+	return nil
+}
+
+func (db *TempLeveldb) Merge() error {
+	if err := db.st.Put(leveldbTempMergedKey(db.Height()), nil, nil); err != nil {
+		return err
+	}
+
+	r := &leveldbutil.Range{
+		Start: emptyPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, db.Height()),   //nolint:gomnd //...
+		Limit: emptyPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, db.Height()+1), //nolint:gomnd //...
+	}
+
+	var lastprefix []byte
+	var useless [][]byte
+
+	if err := db.st.Iter(
+		r,
+		func(key, _ []byte) (bool, error) {
+			switch k, err := prefixStoragePrefixFromKey(key); {
+			case err != nil:
+			case bytes.Equal(k, db.Prefix()):
+			case bytes.Equal(k, lastprefix):
+			default:
+				lastprefix = k
+
+				useless = append(useless, k)
+			}
+
+			return true, nil
+		},
+		false,
+	); err != nil {
+		return err
+	}
+
+	if len(useless) < 1 {
+		return nil
+	}
+
+	for i := range useless {
+		if err := leveldbstorage.RemoveByPrefix(db.st.Storage, useless[i]); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -200,6 +248,10 @@ func (db *TempLeveldb) ExistsInStateOperation(h util.Hash) (bool, error) {
 
 func (db *TempLeveldb) ExistsKnownOperation(h util.Hash) (bool, error) {
 	return db.existsKnownOperation(h)
+}
+
+func (db *TempLeveldb) isMerged() (bool, error) {
+	return db.st.Exists(leveldbTempMergedKey(db.Height()))
 }
 
 func (db *TempLeveldb) loadLastBlockMap() error {

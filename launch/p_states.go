@@ -147,6 +147,7 @@ func PBallotStuckResolver(ctx context.Context) (context.Context, error) {
 func PStates(ctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to prepare states")
 
+	var log *logging.Logging
 	var enc encoder.Encoder
 	var local base.LocalNode
 	var params *isaac.LocalParams
@@ -159,6 +160,7 @@ func PStates(ctx context.Context) (context.Context, error) {
 	var resolver isaacstates.BallotStuckResolver
 
 	if err := util.LoadFromContextOK(ctx,
+		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
@@ -171,6 +173,18 @@ func PStates(ctx context.Context) (context.Context, error) {
 		BallotStuckResolverContextKey, &resolver,
 	); err != nil {
 		return ctx, e(err, "")
+	}
+
+	if vp := lvps.Last().Cap(); vp != nil {
+		last := ballotbox.LastPoint()
+
+		isset := ballotbox.SetLastPointFromVoteproof(vp)
+
+		log.Log().Debug().
+			Interface("lastpoint", last).
+			Interface("last_voteproof", vp).
+			Bool("is_set", isset).
+			Msg("last voteproof updated to ballotbox")
 	}
 
 	states := isaacstates.NewStates(

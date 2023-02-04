@@ -50,6 +50,7 @@ type TempDatabase interface {
 	Height() base.Height
 	Close() error
 	Remove() error
+	Merge() error
 	LastBlockMap() (base.BlockMap, bool, error)
 	BlockMapBytes() (hint.Hint, []byte, []byte, error)
 	SuffrageHeight() base.Height

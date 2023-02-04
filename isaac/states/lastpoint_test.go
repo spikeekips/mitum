@@ -13,8 +13,8 @@ func TestLastPointIsNewVoteproof(tt *testing.T) {
 
 	cases := []struct {
 		name   string
-		last   [5]interface{} // height, round, stage, isMajority
-		target [5]interface{} // height, round, stage, isSuffrageConfirm
+		last   [5]interface{} // height, round, stage, isMajority, isSuffrageConfirm
+		target [5]interface{} // height, round, stage, isMajority, isSuffrageConfirm
 		result bool
 	}{
 		{
@@ -125,7 +125,7 @@ func TestLastPointIsNewVoteproof(tt *testing.T) {
 			isMajority := c.target[3].(bool)
 			isSuffrageConfirm := c.target[4].(bool)
 
-			result := isNewVoteproofbyPoint(
+			result := IsNewVoteproofbyPoint(
 				last,
 				targetpoint,
 				isMajority,

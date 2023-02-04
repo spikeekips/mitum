@@ -6,7 +6,7 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 )
 
-type lastPoint struct {
+type LastPoint struct {
 	base.StagePoint
 	isMajority        bool
 	isSuffrageConfirm bool
@@ -15,19 +15,19 @@ type lastPoint struct {
 func newLastPoint( //revive:disable-line:flag-parameter
 	point base.StagePoint,
 	isMajority, isSuffrageConfirm bool,
-) (lastPoint, error) {
+) (LastPoint, error) {
 	if isSuffrageConfirm && point.Stage() != base.StageINIT {
-		return lastPoint{}, errors.Errorf("isSuffrageConfirm should be from INIT stage")
+		return LastPoint{}, errors.Errorf("isSuffrageConfirm should be from INIT stage")
 	}
 
-	return lastPoint{
+	return LastPoint{
 		StagePoint:        point,
 		isMajority:        isMajority,
 		isSuffrageConfirm: isSuffrageConfirm,
 	}, nil
 }
 
-func newLastPointFromVoteproof(vp base.Voteproof) (lastPoint, error) {
+func newLastPointFromVoteproof(vp base.Voteproof) (LastPoint, error) {
 	var isSuffrageConfirm bool
 	if vp.Majority() != nil {
 		isSuffrageConfirm = isSuffrageConfirmBallotFact(vp.Majority())
@@ -40,7 +40,7 @@ func newLastPointFromVoteproof(vp base.Voteproof) (lastPoint, error) {
 	)
 }
 
-func (l lastPoint) before( //revive:disable-line:flag-parameter
+func (l LastPoint) Before( //revive:disable-line:flag-parameter
 	point base.StagePoint,
 	isSuffrageConfirm bool,
 ) bool {
@@ -59,7 +59,7 @@ func (l lastPoint) before( //revive:disable-line:flag-parameter
 	return l.beforeNotSamePoint(point, isSuffrageConfirm)
 }
 
-func (l lastPoint) beforeSamePoint( //revive:disable-line:flag-parameter
+func (l LastPoint) beforeSamePoint( //revive:disable-line:flag-parameter
 	point base.StagePoint,
 	isSuffrageConfirm bool,
 ) bool {
@@ -79,7 +79,7 @@ func (l lastPoint) beforeSamePoint( //revive:disable-line:flag-parameter
 	}
 }
 
-func (l lastPoint) beforeNotSamePoint( //revive:disable-line:flag-parameter
+func (l LastPoint) beforeNotSamePoint( //revive:disable-line:flag-parameter
 	point base.StagePoint,
 	isSuffrageConfirm bool,
 ) bool {
@@ -96,12 +96,12 @@ func (l lastPoint) beforeNotSamePoint( //revive:disable-line:flag-parameter
 	}
 }
 
-func isNewVoteproofbyPoint( // revive:disable-line:flag-parameter
-	last lastPoint,
+func IsNewVoteproofbyPoint( // revive:disable-line:flag-parameter
+	last LastPoint,
 	point base.StagePoint,
 	isMajority, isSuffrageConfirm bool,
 ) bool {
-	if last.before(point, isSuffrageConfirm) {
+	if last.Before(point, isSuffrageConfirm) {
 		return true
 	}
 
@@ -112,8 +112,8 @@ func isNewVoteproofbyPoint( // revive:disable-line:flag-parameter
 	return false
 }
 
-func isNewVoteproof(last lastPoint, vp base.Voteproof) bool {
-	return isNewVoteproofbyPoint(
+func isNewVoteproof(last LastPoint, vp base.Voteproof) bool {
+	return IsNewVoteproofbyPoint(
 		last,
 		vp.Point(),
 		vp.Result() == base.VoteResultMajority,
@@ -121,8 +121,8 @@ func isNewVoteproof(last lastPoint, vp base.Voteproof) bool {
 	)
 }
 
-func isNewBallot(last lastPoint, point base.StagePoint, isSuffrageConfirm bool) bool {
-	return last.before(point, isSuffrageConfirm)
+func isNewBallot(last LastPoint, point base.StagePoint, isSuffrageConfirm bool) bool {
+	return last.Before(point, isSuffrageConfirm)
 }
 
 func isSuffrageConfirmBallotFact(fact base.Fact) bool {

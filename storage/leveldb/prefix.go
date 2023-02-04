@@ -45,6 +45,13 @@ func (st *PrefixStorage) Close() error {
 	return nil
 }
 
+func (st *PrefixStorage) Remove() error {
+	st.Lock()
+	defer st.Unlock()
+
+	return RemoveByPrefix(st.Storage, st.prefix)
+}
+
 func (st *PrefixStorage) Get(key []byte) ([]byte, bool, error) {
 	k := st.key(key)
 	if k == nil {
@@ -184,4 +191,22 @@ func (b *PrefixStorageBatch) Delete(key []byte) {
 
 func HashPrefix(b []byte) []byte {
 	return valuehash.NewSHA256(b).Bytes()
+}
+
+func RemoveByPrefix(st *Storage, prefix []byte) error {
+	batch := &leveldb.Batch{}
+
+	if err := st.Iter(
+		leveldbutil.BytesPrefix(prefix),
+		func(key, _ []byte) (bool, error) {
+			batch.Delete(key)
+
+			return true, nil
+		},
+		true,
+	); err != nil {
+		return errors.Errorf("failed to remove prefix storage")
+	}
+
+	return st.Batch(batch, nil)
 }

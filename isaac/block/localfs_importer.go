@@ -85,29 +85,37 @@ func (l *LocalFSImporter) WriteItem(t base.BlockMapItemType) (io.WriteCloser, er
 }
 
 func (l *LocalFSImporter) Save() error {
-	e := util.StringErrorFunc("failed to save localfs")
+	heightdirectory := filepath.Join(l.root, HeightDirectory(l.height))
 
-	d := filepath.Join(l.root, HeightDirectory(l.height))
+	if err := l.save(heightdirectory); err != nil {
+		_ = os.RemoveAll(heightdirectory)
 
-	switch _, err := os.Stat(d); {
+		return errors.WithMessage(err, "failed to save localfs")
+	}
+
+	return nil
+}
+
+func (l *LocalFSImporter) save(heightdirectory string) error {
+	switch _, err := os.Stat(heightdirectory); {
 	case err == nil:
-		if err = os.RemoveAll(d); err != nil {
-			return e(err, "failed to remove existing height directory")
+		if err = os.RemoveAll(heightdirectory); err != nil {
+			return errors.WithMessage(err, "failed to remove existing height directory")
 		}
 	case os.IsNotExist(err):
 	default:
-		return e(err, "failed to check height directory")
+		return errors.WithMessage(err, "failed to check height directory")
 	}
 
-	switch err := os.MkdirAll(filepath.Dir(d), 0o700); {
+	switch err := os.MkdirAll(filepath.Dir(heightdirectory), 0o700); {
 	case err == nil:
 	case os.IsExist(err):
 	default:
-		return e(err, "failed to create height parent directory")
+		return errors.WithMessage(err, "failed to create height parent directory")
 	}
 
-	if err := os.Rename(l.temp, d); err != nil {
-		return e(err, "")
+	if err := os.Rename(l.temp, heightdirectory); err != nil {
+		return errors.WithMessage(err, "")
 	}
 
 	return nil

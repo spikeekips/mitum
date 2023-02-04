@@ -1135,7 +1135,9 @@ func (t *testCenterLoad) TestLoadTempDatabases() {
 		created[i] = mp
 	}
 
-	temps, err := loadTemps(st, basemanifest.Height(), t.Encs, t.Enc, false)
+	t.T().Log("load temps")
+
+	temps, err := loadTemps(st, basemanifest.Height(), t.Encs, t.Enc)
 	t.NoError(err)
 	t.Equal(len(created), len(temps))
 
@@ -1226,7 +1228,7 @@ func (t *testCenterLoad) TestLoadTempDatabasesButMissing() {
 	// NOTE delete middle one
 	t.NoError(removeHeight(st, baseheight+3))
 
-	rtemps, err := loadTemps(st, basemanifest.Height(), t.Encs, t.Enc, true)
+	rtemps, err := loadTemps(st, basemanifest.Height(), t.Encs, t.Enc)
 	t.NoError(err)
 
 	last := rtemps[0]

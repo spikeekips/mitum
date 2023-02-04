@@ -36,6 +36,7 @@ var (
 	leveldbKeySuffrageProof                 = []byte{0x02, 0x0d}
 	leveldbKeySuffrageProofByBlockHeight    = []byte{0x02, 0x0e}
 	leveldbKeySuffrageWithdrawOperation     = []byte{0x02, 0x0f}
+	leveldbKeyTempMerged                    = []byte{0x03, 0x01}
 )
 
 type baseLeveldb struct {
@@ -55,6 +56,10 @@ func newBaseLeveldb(
 	}
 }
 
+func (db *baseLeveldb) Prefix() []byte {
+	return db.st.Prefix()
+}
+
 func (db *baseLeveldb) Close() error {
 	db.Lock()
 	defer db.Unlock()
@@ -70,6 +75,10 @@ func (db *baseLeveldb) Close() error {
 	db.clean()
 
 	return nil
+}
+
+func (db *baseLeveldb) Remove() error {
+	return db.st.Remove()
 }
 
 func (db *baseLeveldb) clean() {
@@ -257,4 +266,11 @@ func heightFromleveldbKey(b, prefix []byte) (base.Height, error) {
 	}
 
 	return h, nil
+}
+
+func leveldbTempMergedKey(height base.Height) []byte {
+	return util.ConcatBytesSlice(
+		leveldbKeyTempMerged,
+		height.Bytes(),
+	)
 }

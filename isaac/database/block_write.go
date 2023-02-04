@@ -408,32 +408,6 @@ func HeightFromPrefixStoragePrefix(b []byte) (base.Height, error) {
 	return h, nil
 }
 
-func cleanOneHeight(st *leveldbstorage.Storage, height base.Height, prefix []byte) error {
-	e := util.StringErrorFunc("failed to clean one height")
-
-	batch := &leveldb.Batch{}
-	defer batch.Reset()
-
-	r := &leveldbutil.Range{
-		Start: emptyPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, height),
-		Limit: prefix,
-	}
-
-	if _, err := leveldbstorage.BatchRemove(st, r, 333); err != nil { //nolint:gomnd //...
-		return e(err, "")
-	}
-
-	r = leveldbutil.BytesPrefix(prefix)
-	r.Start = r.Limit
-	r.Limit = emptyPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, height+1)
-
-	if _, err := leveldbstorage.BatchRemove(st, r, 333); err != nil { //nolint:gomnd //...
-		return e(err, "")
-	}
-
-	return nil
-}
-
 // removeHigherHeights removes all the BlockWrite labeled data higher than
 // height; including height
 func removeHigherHeights(st *leveldbstorage.Storage, height base.Height) error {
@@ -445,22 +419,6 @@ func removeHigherHeights(st *leveldbstorage.Storage, height base.Height) error {
 
 	if _, err := leveldbstorage.BatchRemove(st, r, 333); err != nil { //nolint:gomnd //...
 		return errors.WithMessage(err, "failed to remove higher heights")
-	}
-
-	return nil
-}
-
-// removeLowerHeights removes all the BlockWrite labeled data lower than height;
-// except height
-func removeLowerHeights(st *leveldbstorage.Storage, height base.Height) error {
-	batch := &leveldb.Batch{}
-	defer batch.Reset()
-
-	r := leveldbutil.BytesPrefix(leveldbLabelBlockWrite)
-	r.Limit = emptyPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, height)
-
-	if _, err := leveldbstorage.BatchRemove(st, r, 333); err != nil { //nolint:gomnd //...
-		return errors.WithMessage(err, "failed to remove lower heights")
 	}
 
 	return nil

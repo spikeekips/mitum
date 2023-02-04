@@ -25,7 +25,7 @@ type Ballotbox struct {
 	newBallotf        func(base.Ballot)
 	vpch              chan base.Voteproof
 	vrs               *util.ShardedMap[string, *voterecords]
-	lsp               *util.Locked[lastPoint]
+	lsp               *util.Locked[LastPoint]
 	removed           *util.Locked[[]*voterecords]
 	countLock         sync.Mutex
 	countAfter        time.Duration
@@ -46,7 +46,7 @@ func NewBallotbox(
 		getSuffragef:      getSuffragef,
 		vrs:               vrs,
 		vpch:              make(chan base.Voteproof, math.MaxUint16),
-		lsp:               util.EmptyLocked(lastPoint{}),
+		lsp:               util.EmptyLocked(LastPoint{}),
 		isValidVoteprooff: func(base.Voteproof, base.Suffrage) error { return nil },
 		suffrageVotef:     func(base.SuffrageWithdrawOperation) error { return nil },
 		newBallotf:        func(base.Ballot) {},
@@ -282,7 +282,7 @@ func (box *Ballotbox) checkBallot(bl base.Ballot) bool {
 }
 
 func (box *Ballotbox) unfinishedVoterecords() []*voterecords {
-	last := box.lastPoint()
+	last := box.LastPoint()
 
 	var vrs []*voterecords
 
@@ -340,7 +340,7 @@ func (box *Ballotbox) vote(
 
 	vr := box.newVoterecords(fact.Point(), isSuffrageConfirmBallotFact(fact))
 
-	voted, validated, err := vr.vote(signfact, vp, withdraws, box.lastPoint())
+	voted, validated, err := vr.vote(signfact, vp, withdraws, box.LastPoint())
 	if err != nil {
 		l.Error().Err(err).Msg("ballot not voted")
 
@@ -354,7 +354,7 @@ func (box *Ballotbox) vote(
 
 		if vp != nil {
 			deferred = func() []base.Voteproof {
-				last := box.lastPoint()
+				last := box.LastPoint()
 
 				if vr.voteproofFromBallotsLocked(vp, last, threshold, isNewVoteproof) {
 					box.vpch <- vp
@@ -378,7 +378,7 @@ func (box *Ballotbox) isNewBallot( //revive:disable-line:flag-parameter
 	point base.StagePoint,
 	isSuffrageConfirm bool,
 ) bool {
-	_, err := box.lsp.Set(func(last lastPoint, isempty bool) (v lastPoint, _ error) {
+	_, err := box.lsp.Set(func(last LastPoint, isempty bool) (v LastPoint, _ error) {
 		if isempty {
 			return v, util.ErrLockedSetIgnore.Call()
 		}
@@ -393,24 +393,24 @@ func (box *Ballotbox) isNewBallot( //revive:disable-line:flag-parameter
 	return err == nil
 }
 
-func (box *Ballotbox) lastPoint() lastPoint {
+func (box *Ballotbox) LastPoint() LastPoint {
 	last, _ := box.lsp.Value()
 
 	return last
 }
 
-func (box *Ballotbox) setLastPointFromVoteproof(vp base.Voteproof) bool {
+func (box *Ballotbox) SetLastPointFromVoteproof(vp base.Voteproof) bool {
 	p, err := newLastPointFromVoteproof(vp)
 	if err != nil {
 		return false
 	}
 
-	return box.setLastPoint(p)
+	return box.SetLastPoint(p)
 }
 
-func (box *Ballotbox) setLastPoint(point lastPoint) bool {
-	_, err := box.lsp.Set(func(last lastPoint, isempty bool) (v lastPoint, _ error) {
-		if !last.before(point.StagePoint, point.isSuffrageConfirm) {
+func (box *Ballotbox) SetLastPoint(point LastPoint) bool {
+	_, err := box.lsp.Set(func(last LastPoint, isempty bool) (v LastPoint, _ error) {
+		if !last.Before(point.StagePoint, point.isSuffrageConfirm) {
 			return v, errors.Errorf("old")
 		}
 
@@ -467,13 +467,13 @@ func (box *Ballotbox) countVoterecords(vr *voterecords, threshold base.Threshold
 		return nil
 	}
 
-	vps := vr.count(box.local, box.lastPoint(), threshold, box.countAfter)
+	vps := vr.count(box.local, box.LastPoint(), threshold, box.countAfter)
 	if len(vps) < 1 {
 		return nil
 	}
 
 	var filtered []base.Voteproof
-	_, _ = box.lsp.Set(func(last lastPoint, isempty bool) (v lastPoint, _ error) {
+	_, _ = box.lsp.Set(func(last LastPoint, isempty bool) (v LastPoint, _ error) {
 		if isempty {
 			filtered = vps
 
@@ -499,7 +499,7 @@ func (box *Ballotbox) countVoterecords(vr *voterecords, threshold base.Threshold
 
 	if len(filtered) > 0 {
 		lastvp := filtered[len(filtered)-1]
-		box.setLastPointFromVoteproof(lastvp)
+		box.SetLastPointFromVoteproof(lastvp)
 
 		for i := range filtered {
 			box.vpch <- filtered[i]
@@ -521,7 +521,7 @@ func (box *Ballotbox) clean() {
 			removed = nil
 		}
 
-		last := box.lastPoint()
+		last := box.LastPoint()
 		stagepoint := last.Decrease().Decrease().Decrease()
 
 		if last.IsZero() || stagepoint.IsZero() {
@@ -568,7 +568,7 @@ func (box *Ballotbox) start(ctx context.Context) error {
 func (box *Ballotbox) countHoldeds() {
 	vrs := box.unfinishedVoterecords()
 
-	last := box.lastPoint()
+	last := box.LastPoint()
 
 	for i := range vrs {
 		vps := vrs[i].countHolded(box.local, last, box.countAfter)
@@ -685,7 +685,7 @@ func (vr *voterecords) vote(
 	signfact base.BallotSignFact,
 	vp base.Voteproof,
 	withdraws []base.SuffrageWithdrawOperation,
-	last lastPoint,
+	last LastPoint,
 ) (voted bool, validated bool, err error) {
 	vr.Lock()
 	defer vr.Unlock()
@@ -697,7 +697,7 @@ func (vr *voterecords) vote(
 	node := signfact.Node()
 
 	switch {
-	case !last.before(vr.sp, vr.isc):
+	case !last.Before(vr.sp, vr.isc):
 		return false, false, nil
 	case vr.vp != nil:
 		return false, false, nil
@@ -747,7 +747,7 @@ func (vr *voterecords) finished() bool {
 
 func (vr *voterecords) count(
 	local base.Address,
-	last lastPoint,
+	last LastPoint,
 	threshold base.Threshold,
 	countAfter time.Duration,
 ) []base.Voteproof {
@@ -759,7 +759,7 @@ func (vr *voterecords) count(
 	}
 
 	switch {
-	case !last.before(vr.sp, vr.isc):
+	case !last.Before(vr.sp, vr.isc):
 		return nil
 	case vr.vp != nil:
 		return nil
@@ -861,7 +861,7 @@ func (vr *voterecords) countFromVoted(
 
 func (vr *voterecords) countHolded(
 	local base.Address,
-	last lastPoint,
+	last LastPoint,
 	duration time.Duration,
 ) []base.Voteproof {
 	vr.RLock()
@@ -1194,9 +1194,9 @@ func (vr *voterecords) countWithWithdraws(
 // voteproofFromBallot finds voteproof from ballots. If voterecords is suffrage
 // confirm, the old majority voteproof will be returns.
 func (vr *voterecords) voteproofFromBallot(
-	last lastPoint,
+	last LastPoint,
 	threshold base.Threshold,
-	filter func(lastPoint, base.Voteproof) bool,
+	filter func(LastPoint, base.Voteproof) bool,
 ) base.Voteproof {
 	if vr.finished() {
 		return nil
@@ -1215,9 +1215,9 @@ func (vr *voterecords) voteproofFromBallot(
 
 func (vr *voterecords) voteproofFromBallotsLocked(
 	vp base.Voteproof,
-	last lastPoint,
+	last LastPoint,
 	threshold base.Threshold,
-	filter func(lastPoint, base.Voteproof) bool,
+	filter func(LastPoint, base.Voteproof) bool,
 ) bool {
 	vr.RLock()
 	defer vr.RUnlock()
@@ -1227,9 +1227,9 @@ func (vr *voterecords) voteproofFromBallotsLocked(
 
 func (vr *voterecords) voteproofFromBallots(
 	vp base.Voteproof,
-	last lastPoint,
+	last LastPoint,
 	threshold base.Threshold,
-	filter func(lastPoint, base.Voteproof) bool,
+	filter func(LastPoint, base.Voteproof) bool,
 ) bool {
 	if vr.finished() {
 		return false
@@ -1374,8 +1374,8 @@ func extractWithdrawsFromBallot(
 	return m, true
 }
 
-func isNewVoteproofWithSuffrageConfirmFunc(isSuffrageConfirm bool) func(lastPoint, base.Voteproof) bool {
-	return func(last lastPoint, vp base.Voteproof) bool {
+func isNewVoteproofWithSuffrageConfirmFunc(isSuffrageConfirm bool) func(LastPoint, base.Voteproof) bool {
+	return func(last LastPoint, vp base.Voteproof) bool {
 		switch {
 		case isNewVoteproof(last, vp),
 			!last.isMajority && isSuffrageConfirm:

@@ -1,6 +1,7 @@
 package isaacdatabase
 
 import (
+	"bytes"
 	"context"
 	"sort"
 	"sync"
@@ -86,22 +87,17 @@ func (db *Center) Close() error {
 func (db *Center) load(st *leveldbstorage.Storage) error {
 	e := util.StringErrorFunc("failed to load temps to CenterDatabase")
 
-	var last base.Height
-
 	switch m, found, err := db.perm.LastBlockMap(); {
 	case err != nil:
 		return e(err, "")
 	case found:
-		last = m.Manifest().Height()
-	}
+		temps, err := loadTemps(st, m.Manifest().Height(), db.encs, db.enc)
+		if err != nil {
+			return e(err, "")
+		}
 
-	// NOTE find leveldb directory
-	temps, err := loadTemps(st, last, db.encs, db.enc, true)
-	if err != nil {
-		return e(err, "")
+		db.temps = temps
 	}
-
-	db.temps = temps
 
 	return nil
 }
@@ -519,6 +515,10 @@ func (db *Center) MergeBlockWriteDatabase(w isaac.BlockWriteDatabase) error {
 		return e(nil, "new TempDatabase has wrong height, %d != %d + 1", temp.Height(), preheight)
 	}
 
+	if err := temp.Merge(); err != nil {
+		return err
+	}
+
 	switch {
 	case len(db.temps) < 1:
 		db.temps = []isaac.TempDatabase{temp}
@@ -656,6 +656,18 @@ func (db *Center) dig(f func(isaac.TempDatabase) (bool, error)) error {
 }
 
 func (db *Center) start(ctx context.Context) error {
+	db.Log().Debug().
+		Func(func(e *zerolog.Event) {
+			m, _, err := db.LastBlockMap()
+			if err != nil {
+				return
+			}
+
+			e.Interface("last_blockmap", m)
+		}).
+		Int("temps", len(db.activeTemps())).
+		Msg("center started")
+
 	ticker := time.NewTicker(db.mergeInterval)
 	defer ticker.Stop()
 
@@ -731,91 +743,132 @@ func (db *Center) cleanRemoved(limit int) error {
 	return nil
 }
 
+func loadTemp(
+	st *leveldbstorage.Storage,
+	height base.Height,
+	encs *encoder.Encoders,
+	enc encoder.Encoder,
+) (isaac.TempDatabase, error) {
+	r := &leveldbutil.Range{
+		Start: emptyPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, height),   //nolint:gomnd //...
+		Limit: emptyPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, height+1), //nolint:gomnd //...
+	}
+
+	var lastprefix []byte
+
+	var prefixes [][]byte
+
+	if err := st.Iter(
+		r,
+		func(key, _ []byte) (bool, error) {
+			k, err := prefixStoragePrefixFromKey(key)
+			if err != nil {
+				return true, nil
+			}
+
+			if bytes.Equal(k, lastprefix) {
+				return true, nil
+			}
+
+			lastprefix = k
+
+			prefixes = append(prefixes, k)
+
+			return true, nil
+		},
+		false,
+	); err != nil {
+		return nil, err
+	}
+
+	if len(prefixes) < 1 {
+		return nil, nil
+	}
+
+	var useless [][]byte
+
+	var found isaac.TempDatabase
+
+	for i := range prefixes {
+		prefix := prefixes[i]
+
+		if found != nil {
+			useless = append(useless, prefix)
+
+			continue
+		}
+
+		temp, err := NewTempLeveldbFromPrefix(st, prefix, encs, enc)
+		if err != nil {
+			useless = append(useless, prefix)
+
+			continue
+		}
+
+		switch ismerged, err := temp.isMerged(); {
+		case err != nil:
+			useless = append(useless, prefix)
+
+			continue
+		case !ismerged:
+			useless = append(useless, prefix)
+
+			continue
+		default:
+			found = temp
+		}
+	}
+
+	if len(useless) > 0 {
+		for i := range useless {
+			if err := leveldbstorage.RemoveByPrefix(st, useless[i]); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return found, nil
+}
+
 func loadTemps( // revive:disable-line:flag-parameter
 	st *leveldbstorage.Storage,
 	minHeight base.Height,
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
-	clean bool,
 ) ([]isaac.TempDatabase, error) {
-	e := util.StringErrorFunc("failed to load TempDatabase")
+	e := util.StringErrorFunc("failed to load TempDatabases")
 
-	if minHeight <= base.GenesisHeight {
-		return nil, nil
+	last := base.NilHeight
+
+	if minHeight >= base.GenesisHeight {
+		last = minHeight
 	}
 
 	var temps []isaac.TempDatabase
-	var prefixes [][]byte
-
-	last := minHeight
 
 end:
 	for {
-		var lastprefix []byte
-
-		found := base.NilHeight
-		r := &leveldbutil.Range{
-			Start: emptyPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, last+1), //nolint:gomnd //...
-			Limit: emptyPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, last+2), //nolint:gomnd //...
-		}
-		if err := st.Iter(
-			r,
-			func(key, _ []byte) (bool, error) {
-				h, err := HeightFromPrefixStoragePrefix(key)
-				if err != nil {
-					return true, nil
-				}
-
-				k, err := prefixStoragePrefixFromKey(key)
-				if err != nil {
-					return true, nil
-				}
-
-				lastprefix = k
-				found = h
-
-				return false, nil
-			},
-			false,
-		); err != nil {
+		switch temp, err := loadTemp(st, last+1, encs, enc); {
+		case err != nil:
 			return nil, e(err, "")
-		}
-
-		switch {
-		case lastprefix == nil:
+		case temp == nil:
 			break end
-		case found < base.GenesisHeight:
-			break end
-		case found != last+1:
-			return nil, e(nil, "missing height found, %d", last-1)
-		}
+		default:
+			temps = append(temps, temp)
 
-		temp, err := NewTempLeveldbFromPrefix(st, lastprefix, encs, enc)
-		if err != nil {
-			return nil, e(err, "")
-		}
-
-		temps = append(temps, temp)
-		prefixes = append(prefixes, lastprefix)
-
-		last = found
-	}
-
-	if clean {
-		for i := range temps {
-			if err := cleanOneHeight(st, temps[i].Height(), prefixes[i]); err != nil {
-				return nil, e(err, "")
-			}
-		}
-
-		if err := removeHigherHeights(st, last+1); err != nil {
-			return nil, e(err, "")
+			last = temp.Height()
 		}
 	}
 
-	sort.Slice(temps, func(i, j int) bool {
-		return temps[i].Height() > temps[j].Height()
-	})
+	if len(temps) > 0 {
+		if err := removeHigherHeights(st, temps[len(temps)-1].Height()+1); err != nil {
+			return nil, e(err, "")
+		}
+
+		sort.Slice(temps, func(i, j int) bool {
+			return temps[i].Height() > temps[j].Height()
+		})
+	}
 
 	return temps, nil
 }
