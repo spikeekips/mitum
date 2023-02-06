@@ -540,9 +540,17 @@ func (db *Center) MergeAllPermanent() error {
 	return nil
 }
 
-func (db *Center) RemoveBlock(height base.Height) (bool, error) {
+// RemoveBlocks removes temp databases over height including height.
+func (db *Center) RemoveBlocks(height base.Height) (bool, error) {
 	db.Lock()
 	defer db.Unlock()
+
+	switch {
+	case len(db.temps) < 1:
+		return false, nil
+	case height > db.temps[0].Height():
+		return false, nil
+	}
 
 	index := -1
 
@@ -564,10 +572,15 @@ func (db *Center) RemoveBlock(height base.Height) (bool, error) {
 		return false, err
 	}
 
-	temps := make([]isaac.TempDatabase, len(db.temps)-index+1)
-	copy(temps, db.temps[index+1:])
+	switch i := len(db.temps) - (index + 1); {
+	case i < 1:
+		db.temps = nil
+	default:
+		temps := make([]isaac.TempDatabase, i)
+		copy(temps, db.temps[index+1:])
 
-	db.temps = temps
+		db.temps = temps
+	}
 
 	return true, nil
 }

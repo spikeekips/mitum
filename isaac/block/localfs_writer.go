@@ -701,6 +701,59 @@ func CleanBlockTempDirectory(root string) error {
 	return nil
 }
 
+func RemoveBlocksFromLocalFS(root string, height base.Height) (bool, error) {
+	switch {
+	case height < base.GenesisHeight:
+		return false, nil
+	case height < base.GenesisHeight+1:
+		if err := os.RemoveAll(root); err != nil {
+			return false, errors.WithMessage(err, "failed to clean localfs")
+		}
+
+		return true, nil
+	}
+
+	var top base.Height
+
+	switch i, found, err := FindHighestDirectory(root); {
+	case err != nil:
+		return false, err
+	case !found:
+		return false, nil
+	default:
+		rel, err := filepath.Rel(root, i)
+		if err != nil {
+			return false, errors.WithStack(err)
+		}
+
+		switch h, err := HeightFromDirectory(rel); {
+		case err != nil:
+			return false, err
+		case height > h:
+			return false, nil
+		default:
+			top = h
+		}
+	}
+
+	for i := top; i >= height; i-- {
+		heightdirectory := filepath.Join(root, HeightDirectory(i))
+
+		switch _, err := os.Stat(heightdirectory); {
+		case errors.Is(err, os.ErrNotExist):
+			return false, errors.WithMessagef(err, "height directory, %q does not exist", heightdirectory)
+		case err != nil:
+			return false, errors.WithMessagef(err, "failed to check height directory, %q", heightdirectory)
+		default:
+			if err := os.RemoveAll(heightdirectory); err != nil {
+				return false, errors.WithMessagef(err, "failed to remove %q", heightdirectory)
+			}
+		}
+	}
+
+	return true, nil
+}
+
 func fileExtFromEncoder(hinttype string) string {
 	switch {
 	case strings.Contains(strings.ToLower(hinttype), "json"):

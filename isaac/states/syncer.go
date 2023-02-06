@@ -273,7 +273,11 @@ func (s *Syncer) prevheight() base.Height {
 	return m.Manifest().Height()
 }
 
-func (s *Syncer) sync(ctx context.Context, prev base.BlockMap, to base.Height) error { // revive:disable-line:import-shadowing
+func (s *Syncer) sync( // revive:disable-line:import-shadowing
+	ctx context.Context,
+	prev base.BlockMap,
+	to base.Height,
+) error {
 	newprev, err := s.doSync(ctx, prev, to)
 	if err != nil {
 		return err

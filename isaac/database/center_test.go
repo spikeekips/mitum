@@ -180,8 +180,6 @@ func (t *testCenterWithPermanent) SetupTest() {
 	t.BaseTestDatabase.SetupTest()
 }
 
-// FIXME test RemoveBlock
-
 func (t *testCenterWithPermanent) TestMap() {
 	manifest := base.NewDummyManifest(base.Height(33), valuehash.RandomSHA256())
 	mp := base.NewDummyBlockMap(manifest)
@@ -1260,6 +1258,88 @@ func (t *testCenterLoad) TestLoadTempDatabasesButMissing() {
 		true,
 	)
 	t.True(highercount < 1)
+}
+
+func (t *testCenterLoad) TestRemoveBlocks() {
+	baseheight := base.Height(33)
+
+	basemanifest := base.NewDummyManifest(baseheight, valuehash.RandomSHA256())
+	basemp := base.NewDummyBlockMap(basemanifest)
+	perm := &DummyPermanentDatabase{
+		lastMapf: func() (base.BlockMap, bool, error) {
+			return basemp, true, nil
+		},
+	}
+
+	st := leveldbstorage.NewMemStorage()
+	db, err := NewCenter(st, t.Encs, t.Enc, perm, func(height base.Height) (isaac.BlockWriteDatabase, error) {
+		return NewLeveldbBlockWrite(height, st, t.Encs, t.Enc), nil
+	})
+	t.NoError(err)
+
+	maps := make([]base.BlockMap, 4)
+	for i := range maps {
+		height := baseheight + base.Height(i+1)
+
+		wst, err := db.NewBlockWriteDatabase(height)
+		t.NoError(err)
+
+		manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
+		mp := base.NewDummyBlockMap(manifest)
+		t.NoError(wst.SetBlockMap(mp))
+		t.NoError(wst.Write())
+		t.NoError(db.MergeBlockWriteDatabase(wst))
+
+		maps[i] = mp
+	}
+
+	t.Equal(4, len(db.activeTemps()))
+
+	t.T().Log("4 temp database merged")
+
+	temps := db.activeTemps()
+	top := temps[0].Height()
+	bottom := temps[len(temps)-1].Height()
+
+	t.T().Log("top:", top, "bottom:", bottom)
+
+	t.Run("remove over top", func() {
+		removed, err := db.RemoveBlocks(top + 1)
+		t.NoError(err)
+		t.False(removed)
+	})
+
+	t.Run("remove under bottom", func() {
+		removed, err := db.RemoveBlocks(bottom - 1)
+		t.NoError(err)
+		t.False(removed)
+	})
+
+	t.Run("remove top", func() {
+		removed, err := db.RemoveBlocks(top)
+		t.NoError(err)
+		t.True(removed)
+
+		t.Equal(len(temps)-1, len(db.activeTemps()))
+
+		mp, found, err := db.LastBlockMap()
+		t.NoError(err)
+		t.True(found)
+		base.EqualBlockMap(t.Assert(), maps[2], mp)
+	})
+
+	t.Run("remove bottom", func() {
+		removed, err := db.RemoveBlocks(bottom)
+		t.NoError(err)
+		t.True(removed)
+
+		t.Equal(0, len(db.activeTemps()))
+
+		mp, found, err := db.LastBlockMap()
+		t.NoError(err)
+		t.True(found)
+		base.EqualBlockMap(t.Assert(), basemp, mp)
+	})
 }
 
 func TestCenterLoad(t *testing.T) {

@@ -424,6 +424,7 @@ func newSyncerFunc(
 		QuicstreamClientContextKey, &client,
 		LeveldbStorageContextKey, &st,
 		PermanentDatabaseContextKey, &perm,
+		CenterDatabaseContextKey, &db,
 		SyncSourcePoolContextKey, &syncSourcePool,
 	); err != nil {
 		return nil, err
@@ -439,7 +440,10 @@ func newSyncerFunc(
 		return nil, err
 	}
 
-	removePrevBlockf := removePrevBlockFunc()
+	removePrevBlockf, err := removePrevBlockFunc(pctx)
+	if err != nil {
+		return nil, err
+	}
 
 	return func(height base.Height) (isaac.Syncer, error) {
 		e := util.StringErrorFunc("failed newSyncer")
@@ -506,7 +510,7 @@ func newSyncerFunc(
 
 				return newclient.Close()
 			},
-			removePrevBlockf, // FIXME set removePrevBlockf
+			removePrevBlockf,
 		)
 		if err != nil {
 			return nil, e(err, "")
@@ -919,12 +923,34 @@ func onEmptyMembersStateHandlerFunc(
 	}, nil
 }
 
-func removePrevBlockFunc() func(base.Height) (bool, error) {
-	// NOTE remove from,
-	// - database
-	// - localfs
+func removePrevBlockFunc(pctx context.Context) (func(base.Height) (bool, error), error) {
+	var db isaac.Database
+	var design NodeDesign
 
-	return func(base.Height) (bool, error) {
-		return true, nil
+	if err := util.LoadFromContextOK(pctx,
+		DesignContextKey, &design,
+		CenterDatabaseContextKey, &db,
+	); err != nil {
+		return nil, err
 	}
+
+	return func(height base.Height) (bool, error) {
+		// NOTE remove from database
+		switch removed, err := db.RemoveBlocks(height); {
+		case err != nil:
+			return false, err
+		case !removed:
+			return false, nil
+		}
+
+		// NOTE remove from localfs
+		switch removed, err := isaacblock.RemoveBlocksFromLocalFS(design.Storage.Base, height); {
+		case err != nil:
+			return false, err
+		case !removed:
+			return false, nil
+		}
+
+		return true, nil
+	}, nil
 }

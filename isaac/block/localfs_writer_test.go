@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/util"
@@ -541,6 +542,92 @@ func (t *testLocalFSWriter) TestSetStates() {
 		checksum := util.SHA256Checksum(b)
 
 		t.Equal(checksum, item.Checksum())
+	})
+}
+
+func (t *testLocalFSWriter) TestRemove() {
+	save := func(height int64) error {
+		point := base.RawPoint(height, 44)
+		pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), []util.Hash{valuehash.RandomSHA256()}))
+		_ = pr.Sign(t.Local.Privatekey(), t.LocalParams.NetworkID())
+
+		fs, err := NewLocalFSWriter(t.Root, point.Height(), t.Enc, t.Local, t.LocalParams.NetworkID())
+		if err != nil {
+			return err
+		}
+
+		manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+		if err := fs.SetManifest(context.Background(), manifest); err != nil {
+			return err
+		}
+
+		if err := fs.SetProposal(context.Background(), pr); err != nil {
+			return err
+		}
+
+		ivp, avp := t.voteproofs(point)
+		if err := fs.SetINITVoteproof(context.Background(), ivp); err != nil {
+			return err
+		}
+		if err := fs.SetACCEPTVoteproof(context.Background(), avp); err != nil {
+			return err
+		}
+
+		if _, err := fs.Save(context.Background()); err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	var top, bottom int64 = 33, 30
+
+	for i := bottom; i <= top; i++ {
+		t.NoError(save(i))
+	}
+
+	t.walkDirectory(t.Root)
+
+	t.Run("remove over top", func() {
+		removed, err := RemoveBlocksFromLocalFS(t.Root, base.Height(top+1))
+		t.NoError(err)
+		t.False(removed)
+	})
+
+	t.Run("remove under genesis", func() {
+		removed, err := RemoveBlocksFromLocalFS(t.Root, base.NilHeight)
+		t.NoError(err)
+		t.False(removed)
+	})
+
+	t.Run("remove top", func() {
+		removed, err := RemoveBlocksFromLocalFS(t.Root, base.Height(top))
+		t.NoError(err)
+		t.True(removed)
+
+		_, err = NewLocalFSReaderFromHeight(t.Root, base.Height(top), t.Enc)
+		t.Error(err)
+		t.True(errors.Is(err, os.ErrNotExist))
+
+		for i := bottom; i < top; i++ {
+			_, err = NewLocalFSReaderFromHeight(t.Root, base.Height(i), t.Enc)
+			t.NoError(err)
+		}
+	})
+
+	t.Run("remove bottom", func() {
+		removed, err := RemoveBlocksFromLocalFS(t.Root, base.Height(bottom))
+		t.NoError(err)
+		t.True(removed)
+
+		_, err = NewLocalFSReaderFromHeight(t.Root, base.Height(bottom), t.Enc)
+		t.Error(err)
+		t.True(errors.Is(err, os.ErrNotExist))
+
+		for i := bottom; i < top; i++ {
+			_, err = NewLocalFSReaderFromHeight(t.Root, base.Height(i), t.Enc)
+			t.True(errors.Is(err, os.ErrNotExist))
+		}
 	})
 }
 
