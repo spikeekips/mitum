@@ -331,7 +331,7 @@ func (st *States) switchState(sctx switchContext) error {
 	current := st.current()
 	l := st.stateSwitchContextLog(sctx, current)
 
-	if current.state() == StateStopped {
+	if current != nil && current.state() == StateStopped {
 		switch sctx.next() {
 		case StateBooting, StateBroken:
 		default:
