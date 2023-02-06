@@ -30,7 +30,7 @@ func newLastPoint( //revive:disable-line:flag-parameter
 func newLastPointFromVoteproof(vp base.Voteproof) (LastPoint, error) {
 	var isSuffrageConfirm bool
 	if vp.Majority() != nil {
-		isSuffrageConfirm = isSuffrageConfirmBallotFact(vp.Majority())
+		isSuffrageConfirm = isaac.IsSuffrageConfirmBallotFact(vp.Majority())
 	}
 
 	return newLastPoint(
@@ -117,16 +117,10 @@ func isNewVoteproof(last LastPoint, vp base.Voteproof) bool {
 		last,
 		vp.Point(),
 		vp.Result() == base.VoteResultMajority,
-		isSuffrageConfirmBallotFact(vp.Majority()),
+		isaac.IsSuffrageConfirmBallotFact(vp.Majority()),
 	)
 }
 
 func isNewBallot(last LastPoint, point base.StagePoint, isSuffrageConfirm bool) bool {
 	return last.Before(point, isSuffrageConfirm)
-}
-
-func isSuffrageConfirmBallotFact(fact base.Fact) bool {
-	_, ok := fact.(isaac.SuffrageConfirmBallotFact)
-
-	return ok
 }

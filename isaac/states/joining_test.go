@@ -48,9 +48,9 @@ func (t *testJoiningHandler) newState(suf base.Suffrage) (*JoiningHandler, func(
 
 	st := i.(*JoiningHandler)
 
-	st.broadcastBallotFunc = func(bl base.Ballot) error {
+	st.ballotBroadcaster = NewDummyBallotBroadcaster(t.Local.Address(), func(bl base.Ballot) error {
 		return nil
-	}
+	})
 	st.switchStateFunc = func(switchContext) error {
 		return nil
 	}
@@ -271,13 +271,13 @@ func (t *testJoiningHandler) TestFirstVoteproof() {
 	})
 
 	ballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot) error {
+	st.ballotBroadcaster = NewDummyBallotBroadcaster(t.Local.Address(), func(bl base.Ballot) error {
 		if bl.Point().Point.Equal(point.NextHeight()) {
 			ballotch <- bl
 		}
 
 		return nil
-	}
+	})
 
 	avp, _ := t.VoteproofsPair(point, point.NextHeight(), manifest.Hash(), nil, nil, nodes)
 	sctx := newJoiningSwitchContext(StateBooting, avp)

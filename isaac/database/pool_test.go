@@ -23,6 +23,17 @@ type testPool struct {
 	BaseTestDatabase
 }
 
+func (t *testPool) SetupSuite() {
+	t.BaseTestDatabase.SetupSuite()
+
+	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.INITBallotSignFactHint, Instance: isaac.INITBallotSignFact{}}))
+	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.INITBallotFactHint, Instance: isaac.INITBallotFact{}}))
+	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.INITBallotHint, Instance: isaac.INITBallot{}}))
+	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.ACCEPTBallotSignFactHint, Instance: isaac.ACCEPTBallotSignFact{}}))
+	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.ACCEPTBallotFactHint, Instance: isaac.ACCEPTBallotFact{}}))
+	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.ACCEPTBallotHint, Instance: isaac.ACCEPTBallot{}}))
+}
+
 func (t *testPool) SetupTest() {
 	t.BaseTestBallots.SetupTest()
 }
@@ -132,11 +143,118 @@ func (t *testPool) TestCleanOldProposals() {
 		base.EqualProposalSignFact(t.Assert(), sameheightpr, upr)
 	})
 
+	removed, err := pst.cleanProposals()
+	t.NoError(err)
+	t.True(removed > 0)
+
 	t.Run("old pr cleaned", func() {
 		upr, found, err := pst.Proposal(oldpr.Fact().Hash())
 		t.NoError(err)
 		t.False(found)
 		t.Nil(upr)
+	})
+}
+
+func (t *testPool) TestBallot() {
+	pst := t.NewPool()
+	defer pst.Close()
+
+	point := base.RawPoint(33, 44)
+
+	var bl base.Ballot
+
+	t.Run("set", func() {
+		fact := t.NewINITBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256())
+		signfact := isaac.NewINITBallotSignFact(fact)
+		t.NoError(signfact.NodeSign(t.Local.Privatekey(), t.LocalParams.NetworkID(), base.RandomAddress("")))
+
+		bl = isaac.NewINITBallot(nil, signfact, nil)
+
+		added, err := pst.SetBallot(bl)
+		t.NoError(err)
+		t.True(added)
+
+		rbl, found, err := pst.Ballot(point, base.StageINIT, false)
+		t.NoError(err)
+		t.True(found)
+
+		base.EqualBallot(t.Assert(), bl, rbl)
+
+		rbl, found, err = pst.Ballot(point, base.StageINIT, true)
+		t.NoError(err)
+		t.False(found)
+		t.Nil(rbl)
+	})
+
+	t.Run("set same point", func() {
+		fact := t.NewINITBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256())
+		signfact := isaac.NewINITBallotSignFact(fact)
+		t.NoError(signfact.NodeSign(t.Local.Privatekey(), t.LocalParams.NetworkID(), base.RandomAddress("")))
+
+		samebl := isaac.NewINITBallot(nil, signfact, nil)
+
+		added, err := pst.SetBallot(samebl)
+		t.NoError(err)
+		t.False(added)
+
+		rbl, found, err := pst.Ballot(point, base.StageINIT, false)
+		t.NoError(err)
+		t.True(found)
+
+		base.EqualBallot(t.Assert(), bl, rbl)
+	})
+
+	t.Run("set same point, higher stage", func() {
+		fact := t.NewACCEPTBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256())
+		signfact := isaac.NewACCEPTBallotSignFact(fact)
+		t.NoError(signfact.NodeSign(t.Local.Privatekey(), t.LocalParams.NetworkID(), base.RandomAddress("")))
+
+		abl := isaac.NewACCEPTBallot(nil, signfact, nil)
+
+		added, err := pst.SetBallot(abl)
+		t.NoError(err)
+		t.True(added)
+
+		rbl, found, err := pst.Ballot(point, base.StageINIT, false)
+		t.NoError(err)
+		t.True(found)
+
+		base.EqualBallot(t.Assert(), bl, rbl)
+
+		rbl, found, err = pst.Ballot(point, base.StageACCEPT, false)
+		t.NoError(err)
+		t.True(found)
+
+		base.EqualBallot(t.Assert(), abl, rbl)
+	})
+
+	t.Run("clean", func() {
+		old := point.PrevHeight().PrevHeight().PrevHeight()
+
+		fact := t.NewINITBallotFact(old, valuehash.RandomSHA256(), valuehash.RandomSHA256())
+		signfact := isaac.NewINITBallotSignFact(fact)
+		t.NoError(signfact.NodeSign(t.Local.Privatekey(), t.LocalParams.NetworkID(), base.RandomAddress("")))
+
+		obl := isaac.NewINITBallot(nil, signfact, nil)
+
+		added, err := pst.SetBallot(obl)
+		t.NoError(err)
+		t.True(added)
+
+		rbl, found, err := pst.Ballot(old, base.StageINIT, false)
+		t.NoError(err)
+		t.True(found)
+
+		base.EqualBallot(t.Assert(), obl, rbl)
+
+		removed, err := pst.cleanBallots()
+		t.NoError(err)
+		t.True(removed > 0)
+
+		rbl, found, err = pst.Ballot(old, base.StageINIT, false)
+		t.NoError(err)
+		t.False(found)
+		t.Nil(rbl)
 	})
 }
 

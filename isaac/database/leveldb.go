@@ -36,7 +36,8 @@ var (
 	leveldbKeySuffrageProof                 = []byte{0x02, 0x0d}
 	leveldbKeySuffrageProofByBlockHeight    = []byte{0x02, 0x0e}
 	leveldbKeySuffrageWithdrawOperation     = []byte{0x02, 0x0f}
-	leveldbKeyTempMerged                    = []byte{0x03, 0x01}
+	leveldbKeyTempMerged                    = []byte{0x02, 0x10}
+	leveldbKeyPrefixBallot                  = []byte{0x02, 0x11}
 )
 
 type baseLeveldb struct {
@@ -180,9 +181,7 @@ func leveldbProposalPointKey(point base.Point, proposer base.Address) []byte {
 
 	return util.ConcatBytesSlice(
 		leveldbKeyPrefixProposalByPoint,
-		point.Height().Bytes(),
-		[]byte("-"),
-		point.Round().Bytes(),
+		point.Bytes(),
 		[]byte("-"),
 		b,
 	)
@@ -251,6 +250,15 @@ func leveldbSuffrageProofByBlockHeightKey(height base.Height) []byte {
 
 func leveldbSuffrageWithdrawOperation(fact base.SuffrageWithdrawFact) []byte {
 	return util.ConcatBytesSlice(leveldbKeySuffrageWithdrawOperation, fact.WithdrawEnd().Bytes(), fact.Hash().Bytes())
+}
+
+func leveldbBallotKey(point base.StagePoint, isSuffrageConfirm bool) []byte { // revive:disable-line:flag-parameter
+	s := []byte("-")
+	if isSuffrageConfirm {
+		s = []byte("+")
+	}
+
+	return util.ConcatBytesSlice(leveldbKeyPrefixBallot, point.Bytes(), s)
 }
 
 func heightFromleveldbKey(b, prefix []byte) (base.Height, error) {

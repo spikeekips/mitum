@@ -24,7 +24,9 @@ type TempPool struct {
 	whenNewOperationsremoved          func(int, error)
 	lastvoteproofs                    *util.Locked[[2]base.Voteproof]
 	cleanRemovedNewOperationsInterval time.Duration
-	cleanRemovedNewOperationsDeep     base.Height
+	cleanRemovedNewOperationsDeep     int
+	cleanRemovedProposalDeep          int
+	cleanRemovedBallotDeep            int
 }
 
 func NewTempPool(st *leveldbstorage.Storage, encs *encoder.Encoders, enc encoder.Encoder) (*TempPool, error) {
@@ -39,6 +41,8 @@ func newTempPool(st *leveldbstorage.Storage, encs *encoder.Encoders, enc encoder
 		lastvoteproofs:                    util.EmptyLocked([2]base.Voteproof{}),
 		cleanRemovedNewOperationsInterval: time.Minute * 33, //nolint:gomnd //...
 		cleanRemovedNewOperationsDeep:     3,                //nolint:gomnd //...
+		cleanRemovedProposalDeep:          3,                //nolint:gomnd //...
+		cleanRemovedBallotDeep:            3,                //nolint:gomnd //...
 		whenNewOperationsremoved:          func(int, error) {},
 	}
 
@@ -119,30 +123,6 @@ func (db *TempPool) SetProposal(pr base.ProposalSignFact) (bool, error) {
 
 	batch := db.st.NewBatch()
 	defer batch.Reset()
-
-	// NOTE remove old proposals
-	cleanpoint := pr.ProposalFact().Point().
-		PrevHeight().
-		PrevHeight().
-		PrevHeight()
-
-	if cleanpoint.Height() > base.NilHeight {
-		top := leveldbProposalPointKey(cleanpoint, nil)
-
-		if err := db.st.Iter(
-			leveldbutil.BytesPrefix(leveldbKeyPrefixProposalByPoint), func(key, b []byte) (bool, error) {
-				if bytes.Compare(key[:len(top)], top) > 0 {
-					return false, nil
-				}
-
-				batch.Delete(key)
-				batch.Delete(leveldbProposalKey(valuehash.Bytes(b)))
-
-				return true, nil
-			}, true); err != nil {
-			return false, e(err, "failed to find old proposals")
-		}
-	}
 
 	b, _, err := db.marshal(pr, nil)
 	if err != nil {
@@ -546,6 +526,56 @@ func (db *TempPool) SetLastVoteproofs(ivp base.INITVoteproof, avp base.ACCEPTVot
 	return nil
 }
 
+func (db *TempPool) Ballot(point base.Point, stage base.Stage, isSuffrageConfirm bool) (base.Ballot, bool, error) {
+	e := util.StringErrorFunc("failed to find ballot")
+
+	spoint := base.NewStagePoint(point, stage)
+	if err := spoint.IsValid(nil); err != nil {
+		return nil, false, e(err, "")
+	}
+
+	var bl base.Ballot
+
+	switch b, found, err := db.st.Get(leveldbBallotKey(spoint, isSuffrageConfirm)); {
+	case err != nil:
+		return nil, false, e(err, "")
+	case !found:
+		return nil, false, nil
+	case len(b) < 1:
+		return nil, false, nil
+	default:
+		if err := db.readHinter(b, &bl); err != nil {
+			return nil, false, e(err, "")
+		}
+
+		return bl, true, nil
+	}
+}
+
+func (db *TempPool) SetBallot(bl base.Ballot) (bool, error) {
+	e := util.StringErrorFunc("failed to put ballot")
+
+	key := leveldbBallotKey(bl.Point(), isaac.IsSuffrageConfirmBallotFact(bl.SignFact().Fact()))
+
+	switch found, err := db.st.Exists(key); {
+	case err != nil:
+		return false, e(err, "")
+	case found:
+		return false, nil
+	}
+
+	b, _, err := db.marshal(bl, nil)
+	if err != nil {
+		return false, e(err, "failed to marshal")
+	}
+
+	if err := db.st.Put(key, b, nil); err != nil {
+		return false, e(err, "")
+	}
+
+	return true, nil
+}
+
 func (db *TempPool) startClean(ctx context.Context) error {
 	if db.st == nil {
 		return errors.Errorf("already closed")
@@ -563,6 +593,9 @@ func (db *TempPool) startClean(ctx context.Context) error {
 			if removed > 0 || err != nil {
 				db.whenNewOperationsremoved(removed, err)
 			}
+
+			_, _ = db.cleanProposals()
+			_, _ = db.cleanBallots()
 		}
 	}
 }
@@ -580,7 +613,9 @@ func (db *TempPool) cleanRemovedNewOperations() (int, error) {
 				return true, nil
 			}
 
-			top = i
+			if i > top {
+				top = i
+			}
 
 			return false, nil
 		},
@@ -593,7 +628,7 @@ func (db *TempPool) cleanRemovedNewOperations() (int, error) {
 
 	height := top
 
-	for range make([]int, db.cleanRemovedNewOperationsDeep.Int64()-1) {
+	for range make([]int, db.cleanRemovedNewOperationsDeep-1) {
 		height = height.SafePrev()
 	}
 
@@ -665,6 +700,90 @@ func (*TempPool) readSuffrageWithdrawOperationsRecordMeta(b []byte) (
 
 		return r[0], s, e, left, nil
 	}
+}
+
+func (db *TempPool) cleanProposals() (int, error) {
+	return db.cleanByHeight(
+		leveldbKeyPrefixProposalByPoint,
+		db.cleanRemovedProposalDeep,
+		func(batch *leveldbstorage.PrefixStorageBatch, _ []byte, b []byte) {
+			batch.Delete(leveldbProposalKey(valuehash.Bytes(b)))
+		},
+	)
+}
+
+func (db *TempPool) cleanBallots() (int, error) {
+	return db.cleanByHeight(leveldbKeyPrefixBallot, db.cleanRemovedBallotDeep, nil)
+}
+
+func (db *TempPool) cleanByHeight(
+	prefix []byte,
+	deep int,
+	keyf func(*leveldbstorage.PrefixStorageBatch, []byte, []byte),
+) (int, error) {
+	top := base.NilHeight
+
+	var keys [][3]interface{}
+
+	_ = db.st.Iter(
+		leveldbutil.BytesPrefix(prefix),
+		func(key, b []byte) (bool, error) {
+			i, err := heightFromleveldbKey(key, prefix)
+			if err != nil {
+				keys = append(keys, [3]interface{}{key, b, nil})
+
+				return true, nil
+			}
+
+			if i > top {
+				top = i
+			}
+
+			keys = append(keys, [3]interface{}{key, b, i})
+
+			return true, nil
+		},
+		false,
+	)
+
+	height := top
+
+	switch {
+	case len(keys) < 1:
+		return 0, nil
+	case top-3 < base.GenesisHeight:
+		return 0, nil
+	default:
+		for range make([]int, deep) {
+			height = height.SafePrev()
+		}
+	}
+
+	batch := db.st.NewBatch()
+	defer batch.Reset()
+
+	var removed int
+
+	for i := range keys {
+		key, b, j := keys[i][0].([]byte), keys[i][1].([]byte), keys[i][2] //nolint:forcetypeassert //...
+		if j != nil && j.(base.Height) > height {                         //nolint:forcetypeassert //...
+			continue
+		}
+
+		batch.Delete(key)
+
+		if keyf != nil {
+			keyf(batch, key, b)
+		}
+
+		removed++
+	}
+
+	if batch.Len() < 1 {
+		return removed, nil
+	}
+
+	return removed, db.st.Batch(batch, nil)
 }
 
 func newNewOperationLeveldbKeys(op util.Hash) (key []byte, orderedkey []byte) {

@@ -332,13 +332,13 @@ func (box *Ballotbox) vote(
 
 	l := box.Log().With().Interface("sign_fact", signfact).Logger()
 
-	if !box.isNewBallot(fact.Point(), isSuffrageConfirmBallotFact(fact)) {
+	if !box.isNewBallot(fact.Point(), isaac.IsSuffrageConfirmBallotFact(fact)) {
 		l.Debug().Msg("ballot not voted; old")
 
 		return false, nil, nil
 	}
 
-	vr := box.newVoterecords(fact.Point(), isSuffrageConfirmBallotFact(fact))
+	vr := box.newVoterecords(fact.Point(), isaac.IsSuffrageConfirmBallotFact(fact))
 
 	voted, validated, err := vr.vote(signfact, vp, withdraws, box.LastPoint())
 	if err != nil {

@@ -160,7 +160,8 @@ type testStates struct {
 }
 
 func (t *testStates) TestWait() {
-	st := NewStates(nil, nil, nil, nil, nil, nil, func(base.Ballot) error { return nil })
+	args := NewStatesArgs(nil, nil)
+	st := NewStates(args)
 	_ = st.SetLogging(logging.TestNilLogging)
 
 	_ = st.setHandler(newDummyStateHandler(StateStopped))
@@ -214,7 +215,8 @@ func (t *testStates) TestExit() {
 }
 
 func (t *testStates) TestBootingAtStarting() {
-	st := NewStates(nil, nil, nil, nil, nil, nil, func(base.Ballot) error { return nil })
+	args := NewStatesArgs(nil, nil)
+	st := NewStates(args)
 	_ = st.SetLogging(logging.TestNilLogging)
 
 	_ = st.setHandler(newDummyStateHandler(StateStopped))
@@ -241,7 +243,8 @@ func (t *testStates) TestBootingAtStarting() {
 }
 
 func (t *testStates) TestFailedToEnterIntoBootingAtStarting() {
-	st := NewStates(nil, nil, nil, nil, nil, nil, func(base.Ballot) error { return nil })
+	args := NewStatesArgs(nil, nil)
+	st := NewStates(args)
 	_ = st.SetLogging(logging.TestNilLogging)
 
 	_ = st.setHandler(newDummyStateHandler(StateStopped))
@@ -281,7 +284,8 @@ func (t *testStates) TestFailedToEnterIntoBootingAtStarting() {
 }
 
 func (t *testStates) booted() (*States, <-chan error) {
-	st := NewStates(nil, nil, nil, nil, nil, nil, func(base.Ballot) error { return nil })
+	args := NewStatesArgs(nil, nil)
+	st := NewStates(args)
 	_ = st.SetLogging(logging.TestNilLogging)
 
 	_ = st.setHandler(newDummyStateHandler(StateStopped))
@@ -309,7 +313,8 @@ func (t *testStates) booted() (*States, <-chan error) {
 }
 
 func (t *testStates) TestFailedToEnterIntoBrokenAtStarting() {
-	st := NewStates(nil, nil, nil, nil, nil, nil, func(base.Ballot) error { return nil })
+	args := NewStatesArgs(nil, nil)
+	st := NewStates(args)
 	_ = st.SetLogging(logging.TestNilLogging)
 
 	_ = st.setHandler(newDummyStateHandler(StateStopped))
@@ -777,11 +782,11 @@ func (t *testStates) TestMimicBallot() {
 		st.isinsyncsources = func(base.Address) bool { return true }
 
 		blch := make(chan base.Ballot, 1)
-		st.broadcastBallotFunc = func(bl base.Ballot) error {
+		st.ballotBroadcaster = NewDummyBallotBroadcaster(st.local.Address(), func(bl base.Ballot) error {
 			blch <- bl
 
 			return nil
-		}
+		})
 
 		bl := newINITBallot(remote, nil)
 
@@ -809,10 +814,10 @@ func (t *testStates) TestMimicBallot() {
 		st.isinsyncsources = func(base.Address) bool { return true }
 
 		blch := make(chan base.Ballot, 1)
-		st.broadcastBallotFunc = func(bl base.Ballot) error {
+		st.ballotBroadcaster = NewDummyBallotBroadcaster(st.local.Address(), func(bl base.Ballot) error {
 			blch <- bl
 			return nil
-		}
+		})
 
 		bl := newINITBallot(remote, nil)
 
@@ -836,10 +841,10 @@ func (t *testStates) TestMimicBallot() {
 		st.isinsyncsources = func(base.Address) bool { return false }
 
 		blch := make(chan base.Ballot, 1)
-		st.broadcastBallotFunc = func(bl base.Ballot) error {
+		st.ballotBroadcaster = NewDummyBallotBroadcaster(st.local.Address(), func(bl base.Ballot) error {
 			blch <- bl
 			return nil
-		}
+		})
 
 		bl := newINITBallot(remote, nil)
 
@@ -863,10 +868,10 @@ func (t *testStates) TestMimicBallot() {
 		st.isinsyncsources = func(base.Address) bool { return true }
 
 		blch := make(chan base.Ballot, 1)
-		st.broadcastBallotFunc = func(bl base.Ballot) error {
+		st.ballotBroadcaster = NewDummyBallotBroadcaster(st.local.Address(), func(bl base.Ballot) error {
 			blch <- bl
 			return nil
-		}
+		})
 
 		mimicBallotFunc, cancel := st.mimicBallotFunc()
 		defer cancel()
@@ -905,10 +910,10 @@ func (t *testStates) TestMimicBallot() {
 		st.isinsyncsources = func(base.Address) bool { return true }
 
 		blch := make(chan base.Ballot, 1)
-		st.broadcastBallotFunc = func(bl base.Ballot) error {
+		st.ballotBroadcaster = NewDummyBallotBroadcaster(st.local.Address(), func(bl base.Ballot) error {
 			blch <- bl
 			return nil
-		}
+		})
 
 		bl := newINITBallot(local, nil)
 
@@ -932,10 +937,10 @@ func (t *testStates) TestMimicBallot() {
 		st.isinsyncsources = func(base.Address) bool { return true }
 
 		blch := make(chan base.Ballot, 1)
-		st.broadcastBallotFunc = func(bl base.Ballot) error {
+		st.ballotBroadcaster = NewDummyBallotBroadcaster(st.local.Address(), func(bl base.Ballot) error {
 			blch <- bl
 			return nil
-		}
+		})
 
 		fact := isaac.NewSuffrageWithdrawFact(local.Address(), point.Height()-1, point.Height()+1, util.UUID().String())
 		withdraw := isaac.NewSuffrageWithdrawOperation(fact)

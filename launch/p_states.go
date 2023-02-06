@@ -147,38 +147,33 @@ func PBallotStuckResolver(ctx context.Context) (context.Context, error) {
 func PStates(ctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to prepare states")
 
+	args := isaacstates.NewStatesArgs(nil, nil)
+
 	var log *logging.Logging
 	var enc encoder.Encoder
-	var local base.LocalNode
-	var params *isaac.LocalParams
-	var ballotbox *isaacstates.Ballotbox
-	var pps *isaac.ProposalProcessors
-	var memberlist *quicmemberlist.Memberlist
-	var lvps *isaacstates.LastVoteproofsHandler
 	var syncSourcePool *isaac.SyncSourcePool
 	var cb *isaacnetwork.CallbackBroadcaster
-	var resolver isaacstates.BallotStuckResolver
+	var pool *isaacdatabase.TempPool
 
 	if err := util.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
-		LocalContextKey, &local,
-		LocalParamsContextKey, &params,
-		BallotboxContextKey, &ballotbox,
-		ProposalProcessorsContextKey, &pps,
-		MemberlistContextKey, &memberlist,
-		LastVoteproofsHandlerContextKey, &lvps,
+		LocalContextKey, &args.Local,
+		LocalParamsContextKey, &args.LocalParams,
+		BallotboxContextKey, &args.Ballotbox,
+		LastVoteproofsHandlerContextKey, &args.LastVoteproofsHandler,
 		SyncSourcePoolContextKey, &syncSourcePool,
 		CallbackBroadcasterContextKey, &cb,
-		BallotStuckResolverContextKey, &resolver,
+		BallotStuckResolverContextKey, &args.BallotStuckResolver,
+		PoolDatabaseContextKey, &pool,
 	); err != nil {
 		return ctx, e(err, "")
 	}
 
-	if vp := lvps.Last().Cap(); vp != nil {
-		last := ballotbox.LastPoint()
+	if vp := args.LastVoteproofsHandler.Last().Cap(); vp != nil {
+		last := args.Ballotbox.LastPoint()
 
-		isset := ballotbox.SetLastPointFromVoteproof(vp)
+		isset := args.Ballotbox.SetLastPointFromVoteproof(vp)
 
 		log.Log().Debug().
 			Interface("lastpoint", last).
@@ -187,13 +182,10 @@ func PStates(ctx context.Context) (context.Context, error) {
 			Msg("last voteproof updated to ballotbox")
 	}
 
-	states := isaacstates.NewStates(
-		local,
-		params,
-		ballotbox,
-		resolver,
-		lvps,
-		syncSourcePool.IsInFixed,
+	args.IsInSyncSourcePoolFunc = syncSourcePool.IsInFixed
+	args.BallotBroadcaster = isaacstates.NewDefaultBallotBroadcaster(
+		args.Local.Address(),
+		pool,
 		func(bl base.Ballot) error {
 			ee := util.StringErrorFunc("failed to broadcast ballot")
 
@@ -210,6 +202,9 @@ func PStates(ctx context.Context) (context.Context, error) {
 			return nil
 		},
 	)
+
+	states := isaacstates.NewStates(args)
+	_ = states.SetLogging(log)
 
 	proposalSelector, err := NewProposalSelector(ctx)
 	if err != nil {

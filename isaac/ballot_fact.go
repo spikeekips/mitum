@@ -260,3 +260,9 @@ func (fact SuffrageConfirmBallotFact) IsValid([]byte) error {
 
 	return nil
 }
+
+func IsSuffrageConfirmBallotFact(fact base.Fact) bool {
+	_, ok := fact.(SuffrageConfirmBallotFact)
+
+	return ok
+}

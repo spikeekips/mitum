@@ -136,3 +136,9 @@ type SuffrageWithdrawPool interface {
 	RemoveSuffrageWithdrawOperationsByFact([]base.SuffrageWithdrawFact) error
 	RemoveSuffrageWithdrawOperationsByHeight(base.Height) error
 }
+
+// BallotPool stores latest ballots of local
+type BallotPool interface {
+	Ballot(_ base.Point, _ base.Stage, isSuffrageConfirm bool) (base.Ballot, bool, error)
+	SetBallot(base.Ballot) (bool, error)
+}

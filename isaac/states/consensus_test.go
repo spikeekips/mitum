@@ -78,9 +78,9 @@ func (t *baseTestConsensusHandler) newStateWithINITVoteproof(point base.Point, s
 		return prpool.ByHash(facthash)
 	})
 
-	st.broadcastBallotFunc = func(bl base.Ballot) error {
+	st.ballotBroadcaster = NewDummyBallotBroadcaster(t.Local.Address(), func(base.Ballot) error {
 		return nil
-	}
+	})
 	st.switchStateFunc = func(switchContext) error {
 		return nil
 	}
@@ -166,11 +166,11 @@ func (t *testConsensusHandler) TestFailedToFetchProposal() {
 	t.True(st.setLastVoteproof(ivp))
 
 	ballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot) error {
+	st.ballotBroadcaster = NewDummyBallotBroadcaster(t.Local.Address(), func(bl base.Ballot) error {
 		ballotch <- bl
 
 		return nil
-	}
+	})
 
 	prpool := t.PRPool
 	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
@@ -264,11 +264,11 @@ func (t *testConsensusHandler) TestExit() {
 	}
 
 	ballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot) error {
+	st.ballotBroadcaster = NewDummyBallotBroadcaster(t.Local.Address(), func(bl base.Ballot) error {
 		ballotch <- bl
 
 		return nil
-	}
+	})
 
 	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
@@ -313,11 +313,11 @@ func (t *testConsensusHandler) TestProcessingProposalAfterEntered() {
 	}
 
 	ballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot) error {
+	st.ballotBroadcaster = NewDummyBallotBroadcaster(t.Local.Address(), func(bl base.Ballot) error {
 		ballotch <- bl
 
 		return nil
-	}
+	})
 
 	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
@@ -359,11 +359,11 @@ func (t *testConsensusHandler) TestEnterWithDrawINITVoteproof() {
 	})
 
 	ballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot) error {
+	st.ballotBroadcaster = NewDummyBallotBroadcaster(t.Local.Address(), func(bl base.Ballot) error {
 		ballotch <- bl
 
 		return nil
-	}
+	})
 
 	ivp := origivp.(isaac.INITVoteproof)
 	_ = ivp.SetMajority(nil).Finish()
@@ -407,11 +407,11 @@ func (t *testConsensusHandler) TestEnterWithDrawACCEPTVoteproof() {
 	})
 
 	ballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot) error {
+	st.ballotBroadcaster = NewDummyBallotBroadcaster(t.Local.Address(), func(bl base.Ballot) error {
 		ballotch <- bl
 
 		return nil
-	}
+	})
 
 	avp, _ := t.VoteproofsPair(point, point.NextHeight(), nil, nil, nil, nodes)
 	_ = avp.SetMajority(nil).Finish()

@@ -39,13 +39,13 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestExpected() {
 	}
 
 	ballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot) error {
+	st.ballotBroadcaster = NewDummyBallotBroadcaster(t.Local.Address(), func(bl base.Ballot) error {
 		if bl.Point().Point.Equal(point.NextHeight()) {
 			ballotch <- bl
 		}
 
 		return nil
-	}
+	})
 
 	nextpr := t.PRPool.Get(point.NextHeight())
 
@@ -110,13 +110,13 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestNotInConsensus() {
 	}
 
 	ballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot) error {
+	st.ballotBroadcaster = NewDummyBallotBroadcaster(t.Local.Address(), func(bl base.Ballot) error {
 		if bl.Point().Point.Equal(point.NextHeight()) {
 			ballotch <- bl
 		}
 
 		return nil
-	}
+	})
 
 	st.voteFunc = func(bl base.Ballot) (bool, error) {
 		if bl.Point().Point.Compare(point) == 0 && bl.Point().Stage() == base.StageACCEPT {
@@ -256,7 +256,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestDraw() {
 	nextpr := t.PRPool.Get(point.NextRound())
 
 	ballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot) error {
+	st.ballotBroadcaster = NewDummyBallotBroadcaster(t.Local.Address(), func(bl base.Ballot) error {
 		if bl.Point().Point.Compare(point) < 1 {
 			return nil
 		}
@@ -264,7 +264,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestDraw() {
 		ballotch <- bl
 
 		return nil
-	}
+	})
 
 	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
@@ -472,7 +472,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestHigherRoundDraw() {
 	nextpr := t.PRPool.Get(point.NextRound().NextRound().NextRound())
 
 	ballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot) error {
+	st.ballotBroadcaster = NewDummyBallotBroadcaster(t.Local.Address(), func(bl base.Ballot) error {
 		if bl.Point().Point.Compare(point) < 1 {
 			return nil
 		}
@@ -480,7 +480,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestHigherRoundDraw() {
 		ballotch <- bl
 
 		return nil
-	}
+	})
 
 	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
@@ -737,13 +737,13 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndDrawAgain() 
 	})
 
 	ballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot) error {
+	st.ballotBroadcaster = NewDummyBallotBroadcaster(t.Local.Address(), func(bl base.Ballot) error {
 		if bl.Point().Point.Compare(point.NextRound().NextRound()) == 0 {
 			ballotch <- bl
 		}
 
 		return nil
-	}
+	})
 
 	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 

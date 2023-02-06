@@ -125,7 +125,7 @@ func RawPoint(h int64, r uint64) Point {
 }
 
 func (p Point) Bytes() []byte {
-	return util.ConcatByters(p.Height(), p.Round())
+	return util.ConcatByters(p.Height(), util.BytesToByter([]byte("-")), p.Round())
 }
 
 func (p Point) Height() Height {

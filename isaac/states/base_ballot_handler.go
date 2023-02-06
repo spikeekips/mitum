@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/bluele/gcache"
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
@@ -17,12 +16,11 @@ type SuffrageVotingFindFunc func(context.Context, base.Height, base.Suffrage) ([
 
 type baseBallotHandler struct {
 	*baseHandler
-	proposalSelector    isaac.ProposalSelector
-	broadcastBallotFunc func(base.Ballot) error
-	voteFunc            func(base.Ballot) (bool, error)
-	svf                 SuffrageVotingFindFunc
-	resolver            BallotStuckResolver
-	madeBallotCache     gcache.Cache
+	proposalSelector  isaac.ProposalSelector
+	ballotBroadcaster BallotBroadcaster
+	voteFunc          func(base.Ballot) (bool, error)
+	svf               SuffrageVotingFindFunc
+	resolver          BallotStuckResolver
 }
 
 func newBaseBallotHandler(
@@ -43,33 +41,26 @@ func newBaseBallotHandler(
 	return &baseBallotHandler{
 		baseHandler:      newBaseHandler(state, local, params),
 		proposalSelector: proposalSelector,
-		broadcastBallotFunc: func(base.Ballot) error {
-			return nil
-		},
-		voteFunc: func(base.Ballot) (bool, error) { return false, errors.Errorf("not voted") },
-		svf:      svf,
+		voteFunc:         func(base.Ballot) (bool, error) { return false, errors.Errorf("not voted") },
+		svf:              svf,
 	}
 }
 
 func (st *baseBallotHandler) new() *baseBallotHandler {
 	return &baseBallotHandler{
-		baseHandler:         st.baseHandler.new(),
-		proposalSelector:    st.proposalSelector,
-		svf:                 st.svf,
-		resolver:            st.resolver,
-		broadcastBallotFunc: st.broadcastBallotFunc,
-		voteFunc:            st.voteFunc,
+		baseHandler:       st.baseHandler.new(),
+		proposalSelector:  st.proposalSelector,
+		svf:               st.svf,
+		resolver:          st.resolver,
+		ballotBroadcaster: st.ballotBroadcaster,
+		voteFunc:          st.voteFunc,
 	}
 }
 
 func (st *baseBallotHandler) setStates(sts *States) {
 	st.baseHandler.setStates(sts)
-	st.madeBallotCache = sts.madeBallotCache
-	st.resolver = sts.resolver
-
-	st.broadcastBallotFunc = func(bl base.Ballot) error {
-		return st.sts.broadcastBallot(bl)
-	}
+	st.resolver = sts.ballotStuckResolver
+	st.ballotBroadcaster = sts.ballotBroadcaster
 }
 
 func (st *baseBallotHandler) makeNextRoundBallot(
@@ -81,11 +72,16 @@ func (st *baseBallotHandler) makeNextRoundBallot(
 
 	point := vp.Point().Point.NextRound()
 
-	l.Debug().Object("point", point).Msg("preparing next round")
+	switch bl, found, err := st.ballotBroadcaster.Ballot(point, base.StageINIT, false); {
+	case err != nil:
+		return nil, err
+	case found:
+		l.Debug().Object("point", point).Msg("next round init ballot found in ballot pool")
 
-	if bl := madeBallot(st.madeBallotCache, base.NewStagePoint(point, base.StageINIT)); bl != nil {
 		return bl.(base.INITBallot), nil //nolint:forcetypeassert //...
 	}
+
+	l.Debug().Object("point", point).Msg("preparing next round")
 
 	var withdrawfacts []util.Hash
 	var withdraws []base.SuffrageWithdrawOperation
@@ -144,8 +140,6 @@ func (st *baseBallotHandler) makeNextRoundBallot(
 
 	bl := isaac.NewINITBallot(vp, sf, withdraws)
 
-	setMadeBallot(st.madeBallotCache, bl)
-
 	return bl, nil
 }
 
@@ -157,7 +151,15 @@ func (st *baseBallotHandler) makeNextBlockBallot(
 
 	point := avp.Point().Point.NextHeight()
 
-	if bl := madeBallot(st.madeBallotCache, base.NewStagePoint(point, base.StageINIT)); bl != nil {
+	switch bl, found, err := st.ballotBroadcaster.Ballot(point, base.StageINIT, false); {
+	case err != nil:
+		return nil, e(err, "")
+	case found:
+		st.Log().Debug().
+			Dict("voteproof", base.VoteproofLog(avp)).
+			Object("point", point).
+			Msg("next block init ballot found in ballot pool")
+
 		return bl.(base.INITBallot), nil //nolint:forcetypeassert //...
 	}
 
@@ -223,8 +225,6 @@ func (st *baseBallotHandler) makeNextBlockBallot(
 
 	bl := isaac.NewINITBallot(avp, sf, withdraws)
 
-	setMadeBallot(st.madeBallotCache, bl)
-
 	return bl, nil
 }
 
@@ -275,9 +275,12 @@ func (st *baseBallotHandler) makeACCEPTBallot(
 	ivp base.INITVoteproof,
 	manifest base.Manifest,
 ) (base.ACCEPTBallot, error) {
-	if bl := madeBallot(
-		st.madeBallotCache, base.NewStagePoint(ivp.Point().Point, base.StageACCEPT),
-	); bl != nil {
+	switch bl, found, err := st.ballotBroadcaster.Ballot(ivp.Point().Point, base.StageACCEPT, false); {
+	case err != nil:
+		return nil, err
+	case found:
+		st.Log().Debug().Dict("voteproof", base.VoteproofLog(ivp)).Msg("accept ballot found in ballot pool")
+
 		return bl.(base.ACCEPTBallot), nil //nolint:forcetypeassert //...
 	}
 
@@ -308,8 +311,6 @@ func (st *baseBallotHandler) makeACCEPTBallot(
 	}
 
 	bl := isaac.NewACCEPTBallot(ivp, signfact, withdraws)
-
-	setMadeBallot(st.madeBallotCache, bl)
 
 	return bl, nil
 }
@@ -354,7 +355,15 @@ func (st *baseBallotHandler) prepareSuffrageConfirmBallot(vp base.Voteproof) {
 }
 
 func (st *baseBallotHandler) makeSuffrageConfirmBallot(vp base.Voteproof) (base.INITBallot, error) {
-	if bl := madeSuffrageConfirmBallot(st.madeBallotCache, vp.Point()); bl != nil {
+	switch bl, found, err := st.ballotBroadcaster.Ballot(vp.Point().Point, base.StageINIT, true); {
+	case err != nil:
+		return nil, err
+	case found:
+		st.Log().Debug().
+			Dict("voteproof", base.VoteproofLog(vp)).
+			Object("point", vp.Point().Point).
+			Msg("init suffrage confirm ballot found in ballot pool")
+
 		return bl.(base.INITBallot), nil //nolint:forcetypeassert //...
 	}
 
@@ -380,8 +389,6 @@ func (st *baseBallotHandler) makeSuffrageConfirmBallot(vp base.Voteproof) (base.
 
 	bl := isaac.NewINITBallot(vp, sf, nil)
 
-	setMadeBallot(st.madeBallotCache, bl)
-
 	return bl, nil
 }
 
@@ -393,7 +400,7 @@ func (st *baseBallotHandler) broadcastINITBallot(
 		bl,
 		st.timers,
 		timerIDBroadcastINITBallot,
-		st.broadcastBallotFunc,
+		st.ballotBroadcaster.Broadcast,
 		st.Logging,
 		interval,
 	)
@@ -408,7 +415,7 @@ func (st *baseBallotHandler) broadcastACCEPTBallot(bl base.Ballot, initialWait t
 		bl,
 		st.timers,
 		timerIDBroadcastACCEPTBallot,
-		st.broadcastBallotFunc,
+		st.ballotBroadcaster.Broadcast,
 		st.Logging,
 		func(i int, _ time.Duration) time.Duration {
 			if i < 1 {
@@ -425,7 +432,7 @@ func (st *baseBallotHandler) broadcastSuffrageConfirmBallot(bl base.INITBallot) 
 		bl,
 		st.timers,
 		timerIDBroadcastSuffrageConfirmBallot,
-		st.broadcastBallotFunc,
+		st.ballotBroadcaster.Broadcast,
 		st.Logging,
 		func(i int, _ time.Duration) time.Duration {
 			lvp := st.lastVoteproofs().Cap()
@@ -556,47 +563,4 @@ func broadcastBallot(
 	}
 
 	return nil
-}
-
-func madeBallot(c gcache.Cache, point base.StagePoint) base.Ballot {
-	if c == nil {
-		return nil
-	}
-
-	return madeBallotByKey(c, point.String())
-}
-
-func madeSuffrageConfirmBallot(c gcache.Cache, point base.StagePoint) base.Ballot {
-	if c == nil {
-		return nil
-	}
-
-	return madeBallotByKey(c, point.String()+"suffrage-confirm")
-}
-
-func madeBallotByKey(c gcache.Cache, key string) base.Ballot {
-	if c == nil {
-		return nil
-	}
-
-	switch i, err := c.Get(key); {
-	case err == nil && i != nil:
-		return i.(base.Ballot) //nolint:forcetypeassert //...
-	default:
-		return nil
-	}
-}
-
-func setMadeBallot(c gcache.Cache, bl base.Ballot) {
-	if c == nil {
-		return
-	}
-
-	key := bl.Point().String()
-
-	if isSuffrageConfirmBallotFact(bl.SignFact().Fact()) {
-		key = key + "suffrage-confirm"
-	}
-
-	_ = c.Set(key, bl)
 }

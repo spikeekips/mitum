@@ -99,13 +99,13 @@ func (t *testWithdrawsConsensusHandler) TestSuffrageConfirmAfterEnteringINITVote
 	}
 
 	scballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot) error {
+	st.ballotBroadcaster = NewDummyBallotBroadcaster(t.Local.Address(), func(bl base.Ballot) error {
 		if p := bl.Point(); p.Point.Equal(point) && p.Stage() == base.StageINIT {
 			scballotch <- bl
 		}
 
 		return nil
-	}
+	})
 
 	prpool := t.PRPool
 	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
@@ -219,13 +219,13 @@ func (t *testWithdrawsConsensusHandler) TestSuffrageConfirmAfterACCEPTVoteproof(
 	}
 
 	scballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot) error {
+	st.ballotBroadcaster = NewDummyBallotBroadcaster(t.Local.Address(), func(bl base.Ballot) error {
 		if p := bl.Point(); p.Point.Equal(point.NextHeight()) && p.Stage() == base.StageINIT {
 			scballotch <- bl
 		}
 
 		return nil
-	}
+	})
 
 	savedch := make(chan base.ACCEPTVoteproof, 1)
 	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) error {
@@ -369,9 +369,9 @@ func (t *testWithdrawsConsensusHandler) prepareAfterACCEPT(
 		return nil, errors.Errorf("unknown height")
 	}
 
-	st.broadcastBallotFunc = func(bl base.Ballot) error {
+	st.ballotBroadcaster = NewDummyBallotBroadcaster(t.Local.Address(), func(bl base.Ballot) error {
 		return nil
-	}
+	})
 
 	savedch := make(chan base.ACCEPTVoteproof, 1)
 	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) error {
@@ -436,13 +436,13 @@ func (t *testWithdrawsConsensusHandler) TestSuffrageConfirmAfterDrawINITVoteproo
 	defer closef()
 
 	initballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot) error {
+	st.ballotBroadcaster = NewDummyBallotBroadcaster(t.Local.Address(), func(bl base.Ballot) error {
 		if p := bl.Point(); p.Point.Equal(nextpoint.NextRound()) && p.Stage() == base.StageINIT {
 			initballotch <- bl
 		}
 
 		return nil
-	}
+	})
 
 	avp, err := dof()
 	t.NoError(err)
@@ -549,7 +549,7 @@ func (t *testWithdrawsConsensusHandler) TestReversalAfterDrawINITVoteproof() {
 
 	initballotch := make(chan base.Ballot, 3)
 	scballotch := make(chan base.Ballot, 3)
-	st.broadcastBallotFunc = func(bl base.Ballot) error {
+	st.ballotBroadcaster = NewDummyBallotBroadcaster(t.Local.Address(), func(bl base.Ballot) error {
 		p := bl.Point()
 		if p.Stage() != base.StageINIT {
 			return nil
@@ -565,7 +565,7 @@ func (t *testWithdrawsConsensusHandler) TestReversalAfterDrawINITVoteproof() {
 		}
 
 		return nil
-	}
+	})
 
 	avp, err := dof()
 	t.NoError(err)
@@ -671,11 +671,11 @@ func (t *testWithdrawsConsensusHandler) TestEnterINITStuckVoteproof() {
 	defer closefunc()
 
 	ballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot) error {
+	st.ballotBroadcaster = NewDummyBallotBroadcaster(t.Local.Address(), func(bl base.Ballot) error {
 		ballotch <- bl
 
 		return nil
-	}
+	})
 
 	prpool := t.PRPool
 	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
@@ -738,7 +738,7 @@ func (t *testWithdrawsConsensusHandler) TestINITStuckVoteproof() {
 
 	nextinitballotch := make(chan base.Ballot, 1)
 	nextroundballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot) error {
+	st.ballotBroadcaster = NewDummyBallotBroadcaster(t.Local.Address(), func(bl base.Ballot) error {
 		switch {
 		case bl.Point().Point.Equal(point) && bl.Point().Stage() == base.StageACCEPT:
 		case bl.Point().Point.Equal(point.NextHeight()) && bl.Point().Stage() == base.StageINIT:
@@ -748,7 +748,7 @@ func (t *testWithdrawsConsensusHandler) TestINITStuckVoteproof() {
 		}
 
 		return nil
-	}
+	})
 
 	withdraws := t.Withdraws(point.NextHeight().Height(), []base.Address{withdrawnode.Address()}, nodes[:2])
 	st.svf = func(context.Context, base.Height, base.Suffrage) (
@@ -822,7 +822,7 @@ func (t *testWithdrawsConsensusHandler) TestINITStuckVoteproofEnterSyncing() {
 	withdrawnode := nodes[2]
 
 	nextinitballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot) error {
+	st.ballotBroadcaster = NewDummyBallotBroadcaster(t.Local.Address(), func(bl base.Ballot) error {
 		switch {
 		case bl.Point().Point.Equal(point) && bl.Point().Stage() == base.StageACCEPT:
 		case bl.Point().Point.Equal(point.NextHeight()) && bl.Point().Stage() == base.StageINIT:
@@ -830,7 +830,7 @@ func (t *testWithdrawsConsensusHandler) TestINITStuckVoteproofEnterSyncing() {
 		}
 
 		return nil
-	}
+	})
 
 	withdraws := t.Withdraws(point.NextHeight().Height(), []base.Address{withdrawnode.Address()}, nodes[:2])
 	st.svf = func(context.Context, base.Height, base.Suffrage) (
@@ -910,7 +910,7 @@ func (t *testWithdrawsConsensusHandler) TestACCEPTStuckVoteproof() {
 
 	acceptballotch := make(chan base.Ballot, 1)
 	nextroundballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot) error {
+	st.ballotBroadcaster = NewDummyBallotBroadcaster(t.Local.Address(), func(bl base.Ballot) error {
 		switch {
 		case bl.Point().Point.Equal(point) && bl.Point().Stage() == base.StageACCEPT:
 			acceptballotch <- bl
@@ -919,7 +919,7 @@ func (t *testWithdrawsConsensusHandler) TestACCEPTStuckVoteproof() {
 		}
 
 		return nil
-	}
+	})
 
 	t.T().Log("prepare new accept stuck voteproof")
 
@@ -1019,7 +1019,7 @@ func (t *testWithdrawsConsensusHandler) TestACCEPTStuckVoteproofEnterSyncing() {
 
 	acceptballotch := make(chan base.Ballot, 1)
 	nextroundballotch := make(chan base.Ballot, 1)
-	st.broadcastBallotFunc = func(bl base.Ballot) error {
+	st.ballotBroadcaster = NewDummyBallotBroadcaster(t.Local.Address(), func(bl base.Ballot) error {
 		switch {
 		case bl.Point().Point.Equal(point) && bl.Point().Stage() == base.StageACCEPT:
 			acceptballotch <- bl
@@ -1028,7 +1028,7 @@ func (t *testWithdrawsConsensusHandler) TestACCEPTStuckVoteproofEnterSyncing() {
 		}
 
 		return nil
-	}
+	})
 
 	t.T().Log("prepare new accept stuck voteproof")
 
