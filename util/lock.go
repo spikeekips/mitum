@@ -91,7 +91,7 @@ func (l *Locked[T]) Set(f func(_ T, isempty bool) (T, error)) (v T, _ error) {
 
 		return i, nil
 	case errors.Is(err, ErrLockedSetIgnore):
-		return v, nil
+		return l.value, nil
 	default:
 		return v, err
 	}

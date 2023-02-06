@@ -216,7 +216,7 @@ func (t *testLocked) TestSet() {
 			return "showme", ErrLockedSetIgnore.Errorf("eatme")
 		})
 		t.NoError(err)
-		t.Equal("", c)
+		t.Equal("findme", c)
 
 		i, isempty := l.Value()
 		t.False(isempty)
