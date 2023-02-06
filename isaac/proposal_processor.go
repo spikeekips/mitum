@@ -205,9 +205,9 @@ func (p *DefaultProposalProcessor) Save(ctx context.Context, avp base.ACCEPTVote
 }
 
 func (p *DefaultProposalProcessor) Cancel() error {
-	_, err := p.processstate.Set(func(i int, _ bool) (int, error) {
+	_, _ = p.processstate.Set(func(i int, _ bool) (int, error) {
 		if i == -1 {
-			return i, errors.Errorf("proposal processor already canceled")
+			return i, util.ErrLockedSetIgnore.Call()
 		}
 
 		p.cancel()
@@ -217,7 +217,7 @@ func (p *DefaultProposalProcessor) Cancel() error {
 		return -1, nil
 	})
 
-	return err
+	return nil
 }
 
 func (p *DefaultProposalProcessor) clean() {
