@@ -606,13 +606,9 @@ func (t *testSyncer) TestFetchDifferentMap() {
 			return nil, func(context.Context) error { return nil }, nil
 		},
 		t.dummyNewBlockImporterFunc(),
-		prev,
+		diffprev,
 		nil,
 		func(_ context.Context, height base.Height) (base.BlockMap, bool, error) {
-			if height == prev.Manifest().Height() {
-				return diffprev, true, nil
-			}
-
 			index := (height - base.GenesisHeight).Int64()
 			if index < 0 || index >= int64(len(maps)) {
 				return nil, false, nil
@@ -634,6 +630,7 @@ func (t *testSyncer) TestFetchDifferentMap() {
 			return false, nil
 		},
 	)
+
 	t.NoError(err)
 	t.NoError(s.Start(context.Background()))
 	defer s.Cancel()
@@ -678,13 +675,9 @@ func (t *testSyncer) TestFetchDifferentMapFailedToRemovePrevious() {
 			return nil, func(context.Context) error { return nil }, nil
 		},
 		nil,
-		prev,
+		diffprev,
 		nil,
 		func(_ context.Context, height base.Height) (base.BlockMap, bool, error) {
-			if height == prev.Manifest().Height() {
-				return diffprev, true, nil
-			}
-
 			index := (height - base.GenesisHeight).Int64()
 			if index < 0 || index >= int64(len(maps)) {
 				return nil, false, nil

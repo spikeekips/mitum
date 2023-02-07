@@ -39,6 +39,7 @@ type Syncer struct {
 	blockMapItemf SyncerBlockMapItemFunc
 	*util.ContextDaemon
 	isdonevalue           *atomic.Value
+	checkedprevs          *util.GCache[base.Height, string]
 	startsyncch           chan base.Height
 	donech                chan struct{} // revive:disable-line:nested-structs
 	doneerr               *util.Locked[error]
@@ -117,6 +118,7 @@ func NewSyncer(
 		lastBlockMapInterval:   time.Second * 2, //nolint:gomnd //...
 		lastBlockMapTimeout:    time.Second * 2, //nolint:gomnd //...
 		removePrevBlockf:       removePrevBlockf,
+		checkedprevs:           util.NewLRUGCache(base.NilHeight, "", 1<<3), //nolint:gomnd //...
 	}
 
 	s.ContextDaemon = util.NewContextDaemon(s.start)
@@ -216,29 +218,13 @@ end:
 
 			break end
 		case height := <-s.startsyncch:
-			prev := s.prev()
-			if prev != nil && height <= prev.Manifest().Height() {
-				continue
+			if err := s.donewitherror(func() error {
+				return s.sync(uctx, height)
+			}); err != nil {
+				gerr = err
+
+				break end
 			}
-
-			if prev != nil {
-				if err := s.donewitherror(func() error {
-					switch newprev, err := s.checkPrevMap(uctx, prev); {
-					case err != nil:
-						return err
-					case newprev != nil:
-						_ = s.prevvalue.SetValue(newprev)
-					}
-
-					return nil
-				}); err != nil {
-					return err
-				}
-			}
-
-			_ = s.donewitherror(func() error {
-				return s.sync(uctx, prev, height)
-			})
 		}
 	}
 
@@ -275,9 +261,38 @@ func (s *Syncer) prevheight() base.Height {
 
 func (s *Syncer) sync( // revive:disable-line:import-shadowing
 	ctx context.Context,
-	prev base.BlockMap,
 	to base.Height,
 ) error {
+	prev, err := s.prevvalue.Set(func(i base.BlockMap, _ bool) (base.BlockMap, error) {
+		switch {
+		case i == nil:
+			return nil, util.ErrLockedSetIgnore.Call()
+		case s.checkedprevs.Exists(i.Manifest().Height()):
+			return nil, util.ErrLockedSetIgnore.Call()
+		}
+
+		newprev, err := s.checkPrevMap(ctx, i)
+		if err != nil {
+			return nil, err
+		}
+
+		s.checkedprevs.Set(i.Manifest().Height(), "", 0)
+
+		switch {
+		case newprev != nil:
+			return newprev, nil
+		default:
+			return nil, util.ErrLockedSetIgnore.Call()
+		}
+	})
+	if err != nil {
+		return err
+	}
+
+	if prev != nil && to <= prev.Manifest().Height() {
+		return nil
+	}
+
 	newprev, err := s.doSync(ctx, prev, to)
 	if err != nil {
 		return err
@@ -288,7 +303,7 @@ func (s *Syncer) sync( // revive:disable-line:import-shadowing
 	switch top := s.top(); {
 	case newprev.Manifest().Height() == top:
 		go func() {
-			s.finishedch <- newprev.Manifest().Height()
+			s.finishedch <- top
 		}()
 	case newprev.Manifest().Height() < top:
 		go func() {
@@ -347,26 +362,30 @@ func (s *Syncer) prepareMaps(ctx context.Context, prev base.BlockMap, to base.He
 }
 
 func (s *Syncer) checkPrevMap(ctx context.Context, prev base.BlockMap) (base.BlockMap, error) {
+	var mp base.BlockMap
+
 	switch m, err := s.fetchMap(ctx, prev.Manifest().Height()); {
 	case err != nil:
 		return nil, err
-	case !prev.Manifest().Hash().Equal(m.Manifest().Hash()):
+	case prev.Manifest().Hash().Equal(m.Manifest().Hash()):
+		return prev, nil
+	default:
 		s.Log().Debug().
 			Interface("previous_block", prev).
 			Interface("different_previous_block", m).
 			Msg("different previous block found; will be removed from local")
 
-		// NOTE remove last block from database; if failed, return error
-		switch removed, err := s.removePrevBlockf(prev.Manifest().Height()); {
-		case err != nil:
-			return nil, err
-		case !removed:
-			return nil, errors.Errorf("previous manifest does not match with remotes")
-		default:
-			return m, nil
-		}
+		mp = m
+	}
+
+	// NOTE remove last block from database; if failed, return error
+	switch removed, err := s.removePrevBlockf(prev.Manifest().Height()); {
+	case err != nil:
+		return nil, err
+	case !removed:
+		return nil, errors.Errorf("previous manifest does not match with remotes")
 	default:
-		return nil, nil
+		return mp, nil
 	}
 }
 
@@ -430,36 +449,18 @@ func (s *Syncer) updateLastBlockMap(ctx context.Context) {
 	ticker := time.NewTicker(s.lastBlockMapInterval)
 	defer ticker.Stop()
 
-end:
 	for {
 		select {
 		case <-ctx.Done():
-			break end
+			return
 		case <-ticker.C:
-			if err := s.donewitherror(func() error {
-				top := s.top()
+			switch m, updated, err := s.lastBlockMap(ctx, last); {
+			case err != nil:
+				s.Log().Error().Err(err).Msg("failed to update last BlockMap")
+			case updated:
+				_ = s.Add(m.Manifest().Height())
 
-				nctx, cancel := context.WithTimeout(ctx, s.lastBlockMapTimeout)
-				defer cancel()
-
-				switch m, updated, err := s.lastBlockMapf(nctx, last); {
-				case err != nil:
-					s.Log().Error().Err(err).Msg("failed to update last BlockMap")
-
-					return nil
-				case !updated:
-					go func() {
-						s.finishedch <- top
-					}()
-
-					return nil
-				default:
-					_ = s.Add(m.Manifest().Height())
-
-					return nil
-				}
-			}); err != nil {
-				break end
+				last = m.Manifest().Hash()
 			}
 		}
 	}
@@ -479,4 +480,11 @@ func (s *Syncer) donewitherror(f func() error) error {
 	}
 
 	return err
+}
+
+func (s *Syncer) lastBlockMap(ctx context.Context, manifest util.Hash) (_ base.BlockMap, updated bool, _ error) {
+	nctx, cancel := context.WithTimeout(ctx, s.lastBlockMapTimeout)
+	defer cancel()
+
+	return s.lastBlockMapf(nctx, manifest)
 }

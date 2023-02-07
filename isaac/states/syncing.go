@@ -111,8 +111,6 @@ func (st *SyncingHandler) enter(from StateType, i switchContext) (func(), error)
 		st.syncer = sc
 	}
 
-	go st.finishing(st.syncer)
-
 	return func() {
 		deferred()
 
@@ -141,6 +139,10 @@ func (st *SyncingHandler) enter(from StateType, i switchContext) (func(), error)
 				l.Error().Err(err).Msg("failed to stop all timers")
 			}
 		}
+
+		_ = st.syncer.Start(st.ctx)
+
+		go st.finishing(st.syncer)
 	}, nil
 }
 
@@ -250,6 +252,8 @@ func (st *SyncingHandler) checkFinished(vp base.Voteproof) (notstuck bool, _ err
 
 		return false, sctx
 	case isfinished && vp.Point().Stage() == base.StageACCEPT && vp.Point().Height() == top:
+		l.Debug().Msg("start new stuck cancel")
+
 		st.newStuckCancel(vp)
 
 		return false, nil

@@ -882,13 +882,6 @@ func newSyncerDeferredFunc(pctx context.Context, db isaac.Database) (
 
 		log.Log().Debug().Msg("SuffrageProofs built")
 
-		err := syncer.Start(context.Background())
-		if err != nil {
-			l.Error().Err(err).Msg("syncer stopped")
-
-			return
-		}
-
 		_ = syncer.Add(height)
 
 		l.Debug().Interface("height", height).Msg("new syncer created")
