@@ -385,7 +385,7 @@ func quicstreamHandlerLastBlockMapFunc(
 
 		switch h, err := isaacdatabase.ReadHashRecordMeta(metabytes); {
 		case err != nil:
-			return enchint, nil, nil, false, storage.ErrNotFound.Errorf("last BlockMap not found")
+			return enchint, nil, nil, false, err
 		case last != nil && last.Equal(h):
 			return enchint, nil, nil, false, nil
 		default:

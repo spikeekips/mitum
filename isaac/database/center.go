@@ -148,10 +148,8 @@ func (db *Center) LastSuffrageProofBytes() ( //revive:disable-line:function-resu
 		p := partials[i]
 
 		switch m, found, err := p.LastBlockMap(); {
-		case err != nil:
-			return enchint, nil, nil, true, base.NilHeight, err
-		case !found:
-			return enchint, nil, nil, true, base.NilHeight, err
+		case err != nil, !found:
+			return enchint, nil, nil, false, base.NilHeight, err
 		default:
 			lastheight = m.Manifest().Height()
 		}
@@ -452,7 +450,7 @@ func (db *Center) BlockMapBytes(height base.Height) (enchint hint.Hint, meta, bo
 				return enchint, nil, nil, false, err
 			}
 
-			return enchint, meta, body, found, err
+			return enchint, meta, body, true, err
 		}
 	}
 
@@ -476,7 +474,7 @@ func (db *Center) LastBlockMapBytes() (enchint hint.Hint, meta, body []byte, fou
 	if temps := db.activeTemps(); len(temps) > 0 {
 		enchint, meta, body, err = temps[0].BlockMapBytes()
 
-		return enchint, meta, body, err != nil, err
+		return enchint, meta, body, err == nil, err
 	}
 
 	return db.perm.LastBlockMapBytes()

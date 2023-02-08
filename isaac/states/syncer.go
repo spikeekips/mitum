@@ -378,8 +378,8 @@ func (s *Syncer) syncBlocks(ctx context.Context, prev base.BlockMap, to base.Hei
 func (s *Syncer) updateLastBlockMap(ctx context.Context) {
 	var last util.Hash
 
-	if s.prev() != nil {
-		last = s.prev().Manifest().Hash()
+	if prev := s.prev(); prev != nil {
+		last = prev.Manifest().Hash()
 	}
 
 	ticker := time.NewTicker(s.lastBlockMapInterval)
