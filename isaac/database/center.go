@@ -67,19 +67,13 @@ func (db *Center) SetLogging(l *logging.Logging) *logging.Logging {
 	return db.Logging.SetLogging(l)
 }
 
-func (db *Center) Close() error {
-	e := util.StringErrorFunc("failed to close database")
-
+func (*Center) Close() error {
 	// WARN don't close temps
 	//for i := range db.temps {
 	//	if err := db.temps[i].Close(); err != nil {
 	//		return e(err, "failed to close temp")
 	//	}
 	//}
-
-	if err := db.perm.Close(); err != nil {
-		return e(err, "failed to close PermanentDatabase")
-	}
 
 	return nil
 }

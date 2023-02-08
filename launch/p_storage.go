@@ -117,7 +117,7 @@ func PCloseStorage(ctx context.Context) (context.Context, error) {
 	var stoppers []func()
 
 	load := func(name string, key util.ContextKey, v interface{}) bool {
-		switch err := util.LoadFromContext(ctx, key, v); {
+		switch err := util.LoadFromContextOK(ctx, key, v); {
 		case err != nil:
 			return false
 		case v == nil:
