@@ -109,7 +109,9 @@ func (dm *ContextDaemon) callbackCancel() {
 	dm.ctxLock.RLock()
 	defer dm.ctxLock.RUnlock()
 
-	dm.callbackCancelFunc()
+	if dm.callbackCancelFunc != nil {
+		dm.callbackCancelFunc()
+	}
 }
 
 func (dm *ContextDaemon) waitCallbackFinished() {
