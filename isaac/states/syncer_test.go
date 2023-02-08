@@ -50,8 +50,7 @@ func (t *testSyncer) SetupTest() {
 }
 
 func (t *testSyncer) TestNew() {
-	s, err := NewSyncer(t.Root, nil, nil, nil, nil, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil, nil, nil)
-	t.NoError(err)
+	s := NewSyncer(nil, nil, nil, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil, nil, nil, nil)
 
 	_ = (interface{})(s).(isaac.Syncer)
 }
@@ -73,7 +72,7 @@ func (t *testSyncer) maps(from, to base.Height) []base.BlockMap {
 }
 
 func (t *testSyncer) dummyNewBlockImporterFunc() NewBlockImporterFunc {
-	return func(string, base.BlockMap, isaac.BlockWriteDatabase) (isaac.BlockImporter, error) {
+	return func(base.BlockMap) (isaac.BlockImporter, error) {
 		return &isaacblock.DummyBlockImporter{}, nil
 	}
 }
@@ -92,8 +91,7 @@ func (t *testSyncer) dummySetLastVoteproofs() func(isaac.BlockReader) error {
 
 func (t *testSyncer) TestAdd() {
 	t.Run("with nil last", func() {
-		s, err := NewSyncer(t.Root, nil, nil, nil, nil, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil, nil, nil)
-		t.NoError(err)
+		s := NewSyncer(nil, nil, nil, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil, nil, nil, nil)
 
 		height := base.Height(33)
 		t.True(s.Add(height))
@@ -106,8 +104,7 @@ func (t *testSyncer) TestAdd() {
 		lastheight := base.Height(33)
 		last := t.maps(lastheight, lastheight)[0]
 
-		s, err := NewSyncer(t.Root, nil, nil, last, nil, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil, nil, nil)
-		t.NoError(err)
+		s := NewSyncer(nil, last, nil, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil, nil, nil, nil)
 
 		height := base.Height(33)
 		t.False(s.Add(height))
@@ -118,8 +115,7 @@ func (t *testSyncer) TestAdd() {
 		lastheight := base.Height(33)
 		last := t.maps(lastheight, lastheight)[0]
 
-		s, err := NewSyncer(t.Root, nil, nil, last, nil, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil, nil, nil)
-		t.NoError(err)
+		s := NewSyncer(nil, last, nil, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil, nil, nil, nil)
 
 		height := lastheight - 1
 		t.False(s.Add(height))
@@ -130,8 +126,7 @@ func (t *testSyncer) TestAdd() {
 		lastheight := base.Height(33)
 		last := t.maps(lastheight, lastheight)[0]
 
-		s, err := NewSyncer(t.Root, nil, nil, last, nil, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil, nil, nil)
-		t.NoError(err)
+		s := NewSyncer(nil, last, nil, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil, nil, nil, nil)
 
 		height := lastheight + 1
 		t.True(s.Add(height))
@@ -143,8 +138,7 @@ func (t *testSyncer) TestAdd() {
 
 func (t *testSyncer) TestAddChan() {
 	t.Run("with nil last", func() {
-		s, err := NewSyncer(t.Root, nil, nil, nil, nil, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil, nil, nil)
-		t.NoError(err)
+		s := NewSyncer(nil, nil, nil, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil, nil, nil, nil)
 
 		height := base.Height(33)
 		t.True(s.Add(height))
@@ -163,8 +157,7 @@ func (t *testSyncer) TestAddChan() {
 
 		last := t.maps(lastheight, lastheight)[0]
 
-		s, err := NewSyncer(t.Root, nil, nil, last, nil, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil, nil, nil)
-		t.NoError(err)
+		s := NewSyncer(nil, last, nil, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil, nil, nil, nil)
 
 		height := lastheight + 1
 		t.True(s.Add(height))
@@ -179,8 +172,7 @@ func (t *testSyncer) TestAddChan() {
 	})
 
 	t.Run("same with synced height", func() {
-		s, err := NewSyncer(t.Root, nil, nil, nil, nil, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil, nil, nil)
-		t.NoError(err)
+		s := NewSyncer(nil, nil, nil, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil, nil, nil, nil)
 
 		s.topvalue = util.NewLocked(base.Height(33))
 		s.prevvalue.SetValue(t.maps(base.Height(33), base.Height(33))[0])
@@ -202,12 +194,11 @@ func (t *testSyncer) TestCancel() {
 	stopped := util.UUID().String()
 	stoppedch := make(chan string, 1)
 
-	s, err := NewSyncer(t.Root, nil, nil, nil, nil, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil, func() error {
+	s := NewSyncer(nil, nil, nil, nil, nil, isaacdatabase.NewMemTempSyncPool(), nil, func() error {
 		stoppedch <- stopped
 
 		return nil
-	}, nil)
-	t.NoError(err)
+	}, nil, nil)
 	t.NoError(s.Start(context.Background()))
 
 	t.NoError(s.Cancel())
@@ -226,7 +217,7 @@ func (t *testSyncer) TestFetchMaps() {
 		to := base.Height(5)
 		maps := t.maps(base.GenesisHeight, to)
 
-		s, err := NewSyncer(t.Root, nil, nil, nil, nil, func(_ context.Context, height base.Height) (base.BlockMap, bool, error) {
+		s := NewSyncer(nil, nil, nil, func(_ context.Context, height base.Height) (base.BlockMap, bool, error) {
 			index := (height - base.GenesisHeight).Int64()
 			if index < 0 || index >= int64(len(maps)) {
 				return nil, false, nil
@@ -237,8 +228,7 @@ func (t *testSyncer) TestFetchMaps() {
 			}
 
 			return maps[index], true, nil
-		}, nil, isaacdatabase.NewMemTempSyncPool(), nil, nil, nil)
-		t.NoError(err)
+		}, nil, isaacdatabase.NewMemTempSyncPool(), nil, nil, nil, nil)
 		t.NoError(s.Start(context.Background()))
 		defer s.Cancel()
 
@@ -259,15 +249,14 @@ func (t *testSyncer) TestFetchMaps() {
 		wrongmap := t.maps(maps[1].Manifest().Height(), maps[1].Manifest().Height())[0]
 		maps[1] = wrongmap
 
-		s, err := NewSyncer(t.Root, nil, nil, nil, nil, func(_ context.Context, height base.Height) (base.BlockMap, bool, error) {
+		s := NewSyncer(nil, nil, nil, func(_ context.Context, height base.Height) (base.BlockMap, bool, error) {
 			index := (height - base.GenesisHeight).Int64()
 			if index < 0 || index >= int64(len(maps)) {
 				return nil, false, nil
 			}
 
 			return maps[index], true, nil
-		}, nil, isaacdatabase.NewMemTempSyncPool(), nil, nil, nil)
-		t.NoError(err)
+		}, nil, isaacdatabase.NewMemTempSyncPool(), nil, nil, nil, nil)
 		t.NoError(s.Start(context.Background()))
 		defer s.Cancel()
 
@@ -292,11 +281,7 @@ func (t *testSyncer) TestFetchMaps() {
 
 		reachedch := make(chan struct{})
 		var reached bool
-		s, err := NewSyncer(
-			t.Root,
-			func(base.Height) (_ isaac.BlockWriteDatabase, merge func(context.Context) error, _ error) {
-				return nil, func(context.Context) error { return nil }, nil
-			},
+		s := NewSyncer(
 			t.dummyNewBlockImporterFunc(),
 			nil,
 			nil,
@@ -321,8 +306,8 @@ func (t *testSyncer) TestFetchMaps() {
 			t.dummySetLastVoteproofs(),
 			nil,
 			nil,
+			nil,
 		)
-		t.NoError(err)
 		t.NoError(s.Start(context.Background()))
 		defer s.Cancel()
 
@@ -347,11 +332,7 @@ func (t *testSyncer) TestFetchMaps() {
 		to := base.Height(5)
 		maps := t.maps(base.GenesisHeight, to)
 
-		s, err := NewSyncer(
-			t.Root,
-			func(base.Height) (_ isaac.BlockWriteDatabase, merge func(context.Context) error, _ error) {
-				return nil, func(context.Context) error { return nil }, nil
-			},
+		s := NewSyncer(
 			t.dummyNewBlockImporterFunc(),
 			nil,
 			nil,
@@ -368,8 +349,8 @@ func (t *testSyncer) TestFetchMaps() {
 			t.dummySetLastVoteproofs(),
 			nil,
 			nil,
+			nil,
 		)
-		t.NoError(err)
 		t.NoError(s.Start(context.Background()))
 		defer s.Cancel()
 
@@ -388,11 +369,7 @@ func (t *testSyncer) TestFetchMaps() {
 		to := lastheight + 5
 		maps := t.maps(lastheight, to)
 
-		s, err := NewSyncer(
-			t.Root,
-			func(base.Height) (_ isaac.BlockWriteDatabase, merge func(context.Context) error, _ error) {
-				return nil, func(context.Context) error { return nil }, nil
-			},
+		s := NewSyncer(
 			t.dummyNewBlockImporterFunc(),
 			maps[0],
 			nil,
@@ -409,8 +386,8 @@ func (t *testSyncer) TestFetchMaps() {
 			t.dummySetLastVoteproofs(),
 			nil,
 			nil,
+			nil,
 		)
-		t.NoError(err)
 		t.NoError(s.Start(context.Background()))
 		defer s.Cancel()
 
@@ -429,11 +406,7 @@ func (t *testSyncer) TestFetchMaps() {
 		to := lastheight + 5
 		maps := t.maps(lastheight, to)
 
-		s, err := NewSyncer(
-			t.Root,
-			func(base.Height) (_ isaac.BlockWriteDatabase, merge func(context.Context) error, _ error) {
-				return nil, func(context.Context) error { return nil }, nil
-			},
+		s := NewSyncer(
 			t.dummyNewBlockImporterFunc(),
 			maps[0],
 			nil,
@@ -450,8 +423,8 @@ func (t *testSyncer) TestFetchMaps() {
 			t.dummySetLastVoteproofs(),
 			nil,
 			nil,
+			nil,
 		)
-		t.NoError(err)
 
 		s.batchlimit = 2
 		t.NoError(s.Start(context.Background()))
@@ -473,11 +446,7 @@ func (t *testSyncer) TestFetchMaps() {
 
 		var called int64
 
-		s, err := NewSyncer(
-			t.Root,
-			func(base.Height) (_ isaac.BlockWriteDatabase, merge func(context.Context) error, _ error) {
-				return nil, func(context.Context) error { return nil }, nil
-			},
+		s := NewSyncer(
 			t.dummyNewBlockImporterFunc(),
 			maps[0],
 			nil,
@@ -514,8 +483,8 @@ func (t *testSyncer) TestFetchMaps() {
 			t.dummySetLastVoteproofs(),
 			nil,
 			nil,
+			nil,
 		)
-		t.NoError(err)
 		t.NoError(s.Start(context.Background()))
 		defer s.Cancel()
 
@@ -538,11 +507,7 @@ func (t *testSyncer) TestFetchBlockItem() {
 	maps := t.maps(lastheight, to)
 
 	lastvoteproofsavedch := make(chan struct{}, 1)
-	s, err := NewSyncer(
-		t.Root,
-		func(base.Height) (_ isaac.BlockWriteDatabase, merge func(context.Context) error, _ error) {
-			return nil, func(context.Context) error { return nil }, nil
-		},
+	s := NewSyncer(
 		t.dummyNewBlockImporterFunc(),
 		maps[0],
 		nil,
@@ -560,8 +525,8 @@ func (t *testSyncer) TestFetchBlockItem() {
 		},
 		nil,
 		nil,
+		nil,
 	)
-	t.NoError(err)
 
 	s.batchlimit = 2
 
@@ -600,11 +565,7 @@ func (t *testSyncer) TestFetchDifferentMap() {
 	t.NoError(err)
 
 	removeprevch := make(chan base.Height, 1)
-	s, err := NewSyncer(
-		t.Root,
-		func(base.Height) (_ isaac.BlockWriteDatabase, merge func(context.Context) error, _ error) {
-			return nil, func(context.Context) error { return nil }, nil
-		},
+	s := NewSyncer(
 		t.dummyNewBlockImporterFunc(),
 		diffprev,
 		nil,
@@ -629,9 +590,9 @@ func (t *testSyncer) TestFetchDifferentMap() {
 
 			return false, nil
 		},
+		nil,
 	)
 
-	t.NoError(err)
 	t.NoError(s.Start(context.Background()))
 	defer s.Cancel()
 
@@ -669,11 +630,7 @@ func (t *testSyncer) TestFetchDifferentMapFailedToRemovePrevious() {
 	t.NoError(err)
 
 	removeprevch := make(chan base.Height, 1)
-	s, err := NewSyncer(
-		t.Root,
-		func(base.Height) (_ isaac.BlockWriteDatabase, merge func(context.Context) error, _ error) {
-			return nil, func(context.Context) error { return nil }, nil
-		},
+	s := NewSyncer(
 		nil,
 		diffprev,
 		nil,
@@ -696,8 +653,8 @@ func (t *testSyncer) TestFetchDifferentMapFailedToRemovePrevious() {
 
 			return false, nil
 		},
+		nil,
 	)
-	t.NoError(err)
 	t.NoError(s.Start(context.Background()))
 	defer s.Cancel()
 

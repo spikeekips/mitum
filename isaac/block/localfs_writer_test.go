@@ -103,7 +103,7 @@ func (w *DummyBlockFSWriter) Cancel() error {
 }
 
 type testLocalFSWriter struct {
-	testBaseLocalBlockFS
+	BaseTestLocalBlockFS
 }
 
 func (t *testLocalFSWriter) findTempFile(temp string, d base.BlockMapItemType, islist bool) (string, io.Reader, error) {
@@ -187,7 +187,7 @@ func (t *testLocalFSWriter) TestSave() {
 	t.NoError(fs.SetManifest(context.Background(), manifest))
 
 	t.NoError(fs.SetProposal(context.Background(), pr))
-	ivp, avp := t.voteproofs(point)
+	ivp, avp := t.Voteproofs(point)
 	t.NoError(fs.SetINITVoteproof(context.Background(), ivp))
 	t.NoError(fs.SetACCEPTVoteproof(context.Background(), avp))
 
@@ -198,7 +198,7 @@ func (t *testLocalFSWriter) TestSave() {
 	t.NotNil(m)
 
 	{
-		t.walkDirectory(newroot)
+		t.PrintFS(newroot)
 
 		b, _ := util.MarshalJSONIndent(m)
 		t.T().Log("blockmap:", string(b))
@@ -269,7 +269,7 @@ func (t *testLocalFSWriter) TestSaveAgain() {
 	t.NoError(fs.SetManifest(context.Background(), manifest))
 
 	t.NoError(fs.SetProposal(context.Background(), pr))
-	ivp, avp := t.voteproofs(point)
+	ivp, avp := t.Voteproofs(point)
 	t.NoError(fs.SetINITVoteproof(context.Background(), ivp))
 	t.NoError(fs.SetACCEPTVoteproof(context.Background(), avp))
 
@@ -285,7 +285,7 @@ func (t *testLocalFSWriter) TestSaveAgain() {
 		t.NoError(fs.SetManifest(context.Background(), manifest))
 
 		t.NoError(fs.SetProposal(context.Background(), pr))
-		ivp, avp := t.voteproofs(point)
+		ivp, avp := t.Voteproofs(point)
 		t.NoError(fs.SetINITVoteproof(context.Background(), ivp))
 		t.NoError(fs.SetACCEPTVoteproof(context.Background(), avp))
 
@@ -308,7 +308,7 @@ func (t *testLocalFSWriter) TestCancel() {
 	t.NoError(fs.SetManifest(context.Background(), manifest))
 
 	t.NoError(fs.SetProposal(context.Background(), pr))
-	ivp, avp := t.voteproofs(point)
+	ivp, avp := t.Voteproofs(point)
 	t.NoError(fs.SetINITVoteproof(context.Background(), ivp))
 	t.NoError(fs.SetACCEPTVoteproof(context.Background(), avp))
 
@@ -324,7 +324,7 @@ func (t *testLocalFSWriter) TestCancel() {
 func (t *testLocalFSWriter) TestSetACCEPTVoteproof() {
 	point := base.RawPoint(33, 44)
 
-	ivp, avp := t.voteproofs(point)
+	ivp, avp := t.Voteproofs(point)
 	t.Run("both", func() {
 		fs, err := NewLocalFSWriter(t.Root, point.Height(), t.Enc, t.Local, t.LocalParams.NetworkID())
 		t.NoError(err)
@@ -565,7 +565,7 @@ func (t *testLocalFSWriter) TestRemove() {
 			return err
 		}
 
-		ivp, avp := t.voteproofs(point)
+		ivp, avp := t.Voteproofs(point)
 		if err := fs.SetINITVoteproof(context.Background(), ivp); err != nil {
 			return err
 		}
@@ -586,7 +586,7 @@ func (t *testLocalFSWriter) TestRemove() {
 		t.NoError(save(i))
 	}
 
-	t.walkDirectory(t.Root)
+	t.PrintFS(t.Root)
 
 	t.Run("remove over top", func() {
 		removed, err := RemoveBlocksFromLocalFS(t.Root, base.Height(top+1))

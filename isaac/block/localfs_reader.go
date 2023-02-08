@@ -140,6 +140,25 @@ func (r *LocalFSReader) Reader(t base.BlockMapItemType) (io.ReadCloser, bool, er
 	}
 }
 
+func (r *LocalFSReader) UncompressedReader(t base.BlockMapItemType) (io.ReadCloser, bool, error) {
+	i, found, err := r.Reader(t)
+	if err != nil {
+		return nil, false, err
+	}
+
+	switch {
+	case isCompressedBlockMapItemType(t):
+		gr, gerr := util.NewGzipReader(util.NewHashChecksumReader(i, sha256.New()))
+		if gerr != nil {
+			return nil, false, gerr
+		}
+
+		return gr, true, nil
+	default:
+		return i, found, err
+	}
+}
+
 func (r *LocalFSReader) ChecksumReader(t base.BlockMapItemType) (util.ChecksumReader, bool, error) {
 	e := util.StringErrorFunc("failed to make reader, %q", t)
 

@@ -183,6 +183,15 @@ func (t *BaseTestDatabase) TearDownTest() {
 	_ = os.RemoveAll(t.Root)
 }
 
+func (t *BaseTestDatabase) NewLeveldbPermanentDatabase() *LeveldbPermanent {
+	db, err := NewLeveldbPermanent(leveldbstorage.NewMemStorage(), t.Encs, t.Enc)
+	if err != nil {
+		panic(err)
+	}
+
+	return db
+}
+
 func (t *BaseTestDatabase) NewLeveldbBlockWriteDatabase(height base.Height) *LeveldbBlockWrite {
 	mst := leveldbstorage.NewMemStorage()
 	return NewLeveldbBlockWrite(height, mst, t.Encs, t.Enc)

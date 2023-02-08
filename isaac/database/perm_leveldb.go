@@ -29,14 +29,6 @@ func NewLeveldbPermanent(
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
 ) (*LeveldbPermanent, error) {
-	return newLeveldbPermanent(st, encs, enc)
-}
-
-func newLeveldbPermanent(
-	st *leveldbstorage.Storage,
-	encs *encoder.Encoders,
-	enc encoder.Encoder,
-) (*LeveldbPermanent, error) {
 	pst := leveldbstorage.NewPrefixStorage(st, leveldbLabelPermanent)
 
 	db := &LeveldbPermanent{

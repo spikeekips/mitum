@@ -15,16 +15,11 @@ func ImportBlocks(
 	batchlimit int64,
 	blockMapf SyncerBlockMapFunc,
 	blockMapItemf SyncerBlockMapItemFunc,
-	newBlockWriteDatabase newBlockWriteDatabaseFunc,
-	newBlockImporter func(base.BlockMap, isaac.BlockWriteDatabase) (isaac.BlockImporter, error),
+	newBlockImporter func(base.BlockMap) (isaac.BlockImporter, error),
 	setLastVoteproofsFunc func(isaac.BlockReader) error,
+	mergeBlockWriterDatabasesf func(context.Context) error,
 ) error {
 	e := util.StringErrorFunc("failed to import blocks; %d - %d", from, to)
-
-	bwdb, merge, err := newBlockWriteDatabase(from)
-	if err != nil {
-		return e(err, "")
-	}
 
 	var lastim isaac.BlockImporter
 	var ims []isaac.BlockImporter
@@ -35,17 +30,9 @@ func ImportBlocks(
 		uint64(batchlimit),
 		func(ctx context.Context, last uint64) error {
 			if ims != nil {
-				if err := saveImporters(ctx, ims, merge); err != nil {
+				if err := saveImporters(ctx, ims, mergeBlockWriterDatabasesf); err != nil {
 					return err
 				}
-			}
-
-			switch i, j, err := newBlockWriteDatabase(from); {
-			case err != nil:
-				return err
-			default:
-				bwdb = i
-				merge = j
 			}
 
 			switch r := (last + 1) % uint64(batchlimit); {
@@ -68,7 +55,7 @@ func ImportBlocks(
 				return util.ErrNotFound.Errorf("BlockMap not found")
 			}
 
-			im, err := newBlockImporter(m, bwdb)
+			im, err := newBlockImporter(m)
 			if err != nil {
 				return err
 			}
@@ -90,7 +77,7 @@ func ImportBlocks(
 	}
 
 	if int64(len(ims)) < batchlimit {
-		if err := saveImporters(ctx, ims, merge); err != nil {
+		if err := saveImporters(ctx, ims, mergeBlockWriterDatabasesf); err != nil {
 			return e(err, "")
 		}
 	}
@@ -163,30 +150,62 @@ func importBlock(
 	return nil
 }
 
-func saveImporters(ctx context.Context, ims []isaac.BlockImporter, merge func(context.Context) error) error {
+func saveImporters(
+	ctx context.Context,
+	ims []isaac.BlockImporter,
+	mergeBlockWriterDatabasesf func(context.Context) error,
+) error {
 	e := util.StringErrorFunc("failed to save importers")
 
 	switch {
 	case len(ims) < 1:
 		return errors.Errorf("empty BlockImporters")
 	case len(ims) < 2: //nolint:gomnd //...
-		if err := ims[0].Save(ctx); err != nil {
+		deferred, err := ims[0].Save(ctx)
+		if err != nil {
+			_ = cancelImporters(ctx, ims)
+
+			return e(err, "")
+		}
+
+		if err := deferred(ctx); err != nil {
 			_ = cancelImporters(ctx, ims)
 
 			return e(err, "")
 		}
 	default:
+		deferreds := make([]func(context.Context) error, len(ims))
+
 		if err := util.RunErrgroupWorker(ctx, uint64(len(ims)), func(ctx context.Context, i, _ uint64) error {
-			return ims[i].Save(ctx)
+			deferred, err := ims[i].Save(ctx)
+			if err != nil {
+				return err
+			}
+
+			deferreds[i] = deferred
+
+			return nil
 		}); err != nil {
 			_ = cancelImporters(ctx, ims)
 
 			return e(err, "")
 		}
+
+		for i := range deferreds {
+			if err := deferreds[i](ctx); err != nil {
+				_ = cancelImporters(ctx, ims)
+
+				return e(err, "")
+			}
+		}
 	}
 
-	if err := merge(ctx); err != nil {
-		return e(err, "")
+	if mergeBlockWriterDatabasesf != nil {
+		if err := mergeBlockWriterDatabasesf(ctx); err != nil {
+			_ = cancelImporters(ctx, ims)
+
+			return e(err, "")
+		}
 	}
 
 	return nil

@@ -21,7 +21,6 @@ func ImportBlocks(
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
 	db isaac.Database,
-	perm isaac.PermanentDatabase,
 	params base.LocalParams,
 ) error {
 	e := util.StringErrorFunc("failed to import blocks")
@@ -73,33 +72,27 @@ func ImportBlocks(
 
 			return r, func() error { return nil }, found, err
 		},
-		func(height base.Height) (isaac.BlockWriteDatabase, func(context.Context) error, error) {
-			bwdb, err := db.NewBlockWriteDatabase(height)
-			if err != nil {
-				return nil, nil, err
-			}
-
-			return bwdb,
-				func(ctx context.Context) error {
-					return MergeBlockWriteToPermanentDatabase(ctx, bwdb, perm)
-				},
-				nil
-		},
-		func(m base.BlockMap, bwdb isaac.BlockWriteDatabase) (isaac.BlockImporter, error) {
-			im, err := isaacblock.NewBlockImporter(
-				LocalFSDataDirectory(root),
-				encs,
-				m,
-				bwdb,
-				params.NetworkID(),
-			)
+		func(m base.BlockMap) (isaac.BlockImporter, error) {
+			bwdb, err := db.NewBlockWriteDatabase(m.Manifest().Height())
 			if err != nil {
 				return nil, err
 			}
 
-			return im, nil
+			return isaacblock.NewBlockImporter(
+				LocalFSDataDirectory(root),
+				encs,
+				m,
+				bwdb,
+				func(context.Context) error {
+					return db.MergeBlockWriteDatabase(bwdb)
+				},
+				params.NetworkID(),
+			)
 		},
 		nil,
+		func(context.Context) error {
+			return db.MergeAllPermanent()
+		},
 	); err != nil {
 		return e(err, "")
 	}

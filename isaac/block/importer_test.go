@@ -15,11 +15,11 @@ import (
 )
 
 type testBlockImporter struct {
-	testBaseLocalBlockFS
+	BaseTestLocalBlockFS
 }
 
 func (t *testBlockImporter) prepare(point base.Point) base.BlockMap {
-	fs, _, _, _, _, _, _ := t.preparefs(point)
+	fs, _, _, _, _, _, _ := t.PrepareFS(point, nil)
 	_, err := fs.Save(context.Background())
 	t.NoError(err)
 
@@ -40,7 +40,7 @@ func (t *testBlockImporter) TestNew() {
 	bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
 	defer bwdb.DeepClose()
 
-	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.LocalParams.NetworkID())
+	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, nil, t.LocalParams.NetworkID())
 	t.NoError(err)
 
 	_ = (interface{})(im).(isaac.BlockImporter)
@@ -53,7 +53,7 @@ func (t *testBlockImporter) TestWriteMap() {
 	bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
 	defer bwdb.DeepClose()
 
-	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.LocalParams.NetworkID())
+	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, func(context.Context) error { return nil }, t.LocalParams.NetworkID())
 	t.NoError(err)
 
 	reader, err := NewLocalFSReader(im.localfs.temp, t.Enc)
@@ -85,7 +85,7 @@ func (t *testBlockImporter) TestWriteProposal() {
 	bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
 	defer bwdb.DeepClose()
 
-	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.LocalParams.NetworkID())
+	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, func(context.Context) error { return nil }, t.LocalParams.NetworkID())
 	t.NoError(err)
 	im.batchlimit = 2
 
@@ -141,7 +141,7 @@ func (t *testBlockImporter) TestWriteOperations() {
 	bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
 	defer bwdb.DeepClose()
 
-	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.LocalParams.NetworkID())
+	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, func(context.Context) error { return nil }, t.LocalParams.NetworkID())
 	t.NoError(err)
 	im.batchlimit = 2
 
@@ -211,7 +211,7 @@ func (t *testBlockImporter) TestWriteOperationsTree() {
 	bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
 	defer bwdb.DeepClose()
 
-	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.LocalParams.NetworkID())
+	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, func(context.Context) error { return nil }, t.LocalParams.NetworkID())
 	t.NoError(err)
 	im.batchlimit = 2
 
@@ -273,7 +273,7 @@ func (t *testBlockImporter) TestWriteVoteproofs() {
 	bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
 	defer bwdb.DeepClose()
 
-	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.LocalParams.NetworkID())
+	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, func(context.Context) error { return nil }, t.LocalParams.NetworkID())
 	t.NoError(err)
 	im.batchlimit = 2
 
@@ -331,7 +331,7 @@ func (t *testBlockImporter) TestWriteStates() {
 	bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
 	defer bwdb.DeepClose()
 
-	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.LocalParams.NetworkID())
+	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, func(context.Context) error { return nil }, t.LocalParams.NetworkID())
 	t.NoError(err)
 	im.batchlimit = 2
 
@@ -405,7 +405,7 @@ func (t *testBlockImporter) TestWriteStatesTree() {
 	bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
 	defer bwdb.DeepClose()
 
-	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, t.LocalParams.NetworkID())
+	im, err := NewBlockImporter(t.Root, t.Encs, m, bwdb, func(context.Context) error { return nil }, t.LocalParams.NetworkID())
 	t.NoError(err)
 	im.batchlimit = 2
 
@@ -472,7 +472,7 @@ func (t *testBlockImporter) TestSave() {
 
 	newroot := filepath.Join(t.Root, "save")
 
-	im, err := NewBlockImporter(newroot, t.Encs, m, bwdb, t.LocalParams.NetworkID())
+	im, err := NewBlockImporter(newroot, t.Encs, m, bwdb, func(context.Context) error { return nil }, t.LocalParams.NetworkID())
 	t.NoError(err)
 
 	m.Items(func(item base.BlockMapItem) bool {
@@ -492,9 +492,10 @@ func (t *testBlockImporter) TestSave() {
 		t.ErrorContains(err, "invalid root directory")
 	})
 
-	t.NoError(im.Save(context.Background()))
+	_, err = im.Save(context.Background())
+	t.NoError(err)
 
-	t.walkDirectory(newroot)
+	t.PrintFS(newroot)
 
 	t.Run("check files in new directory", func() {
 		newreader, err := NewLocalFSReaderFromHeight(newroot, point.Height(), t.Enc)
@@ -525,7 +526,7 @@ func (t *testBlockImporter) TestCancelImport() {
 		bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
 		defer bwdb.DeepClose()
 
-		im, err := NewBlockImporter(newroot, t.Encs, m, bwdb, t.LocalParams.NetworkID())
+		im, err := NewBlockImporter(newroot, t.Encs, m, bwdb, func(context.Context) error { return nil }, t.LocalParams.NetworkID())
 		t.NoError(err)
 
 		t.NoError(im.CancelImport(context.Background()))
@@ -534,7 +535,7 @@ func (t *testBlockImporter) TestCancelImport() {
 	bwdb := t.NewLeveldbBlockWriteDatabase(point.Height())
 	defer bwdb.DeepClose()
 
-	im, err := NewBlockImporter(newroot, t.Encs, m, bwdb, t.LocalParams.NetworkID())
+	im, err := NewBlockImporter(newroot, t.Encs, m, bwdb, func(context.Context) error { return nil }, t.LocalParams.NetworkID())
 	t.NoError(err)
 
 	m.Items(func(item base.BlockMapItem) bool {
@@ -548,16 +549,17 @@ func (t *testBlockImporter) TestCancelImport() {
 	})
 
 	t.Run("cancel after save", func() {
-		t.walkDirectory(newroot, "temp files")
+		t.PrintFS(newroot, "temp files")
 
-		t.NoError(im.Save(context.Background()))
+		_, err = im.Save(context.Background())
+		t.NoError(err)
 
-		t.walkDirectory(newroot, "after saved")
+		t.PrintFS(newroot, "after saved")
 
 		t.NoError(im.CancelImport(context.Background()))
 
 		t.T().Log("check directory; it should be empty")
-		t.walkDirectory(newroot)
+		t.PrintFS(newroot)
 
 		_, err = os.Stat(im.localfs.temp)
 		t.True(os.IsNotExist(err))

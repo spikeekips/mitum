@@ -663,11 +663,11 @@ func LoadDatabase(
 		return nil, nil, nil, nil, e(err, "")
 	}
 
-	if err = isaacdatabase.CleanSyncPool(st); err != nil {
+	if err = db.MergeAllPermanent(); err != nil {
 		return nil, nil, nil, nil, e(err, "")
 	}
 
-	if err = db.MergeAllPermanent(); err != nil {
+	if err = isaacdatabase.CleanSyncPool(st); err != nil {
 		return nil, nil, nil, nil, e(err, "")
 	}
 
@@ -842,7 +842,7 @@ func ValidateBlockFromLocalFS(
 	dataroot string,
 	enc encoder.Encoder,
 	networkID base.NetworkID,
-	perm isaac.PermanentDatabase,
+	db isaac.Database,
 ) error {
 	e := util.StringErrorFunc("failed to validate imported block")
 
@@ -914,11 +914,11 @@ func ValidateBlockFromLocalFS(
 	}
 
 	if readererr == nil {
-		readererr = ValidateOperationsOfBlock(opstree, ops, m.Manifest(), perm)
+		readererr = ValidateOperationsOfBlock(opstree, ops, m.Manifest(), db)
 	}
 
 	if readererr == nil {
-		readererr = ValidateStatesOfBlock(ststree, sts, m.Manifest(), perm)
+		readererr = ValidateStatesOfBlock(ststree, sts, m.Manifest(), db)
 	}
 
 	return readererr
@@ -928,7 +928,7 @@ func ValidateOperationsOfBlock(
 	opstree fixedtree.Tree,
 	ops []base.Operation,
 	manifest base.Manifest,
-	perm isaac.PermanentDatabase,
+	db isaac.Database,
 ) error {
 	e := util.StringErrorFunc("failed to validate imported operations")
 
@@ -944,7 +944,7 @@ func ValidateOperationsOfBlock(
 		if err := util.BatchWork(context.Background(), uint64(len(ops)), 333, //nolint:gomnd //...
 			func(context.Context, uint64) error { return nil },
 			func(_ context.Context, i, _ uint64) error {
-				switch found, err := perm.ExistsKnownOperation(ops[i].Hash()); {
+				switch found, err := db.ExistsKnownOperation(ops[i].Hash()); {
 				case err != nil:
 					return err
 				case !found:
@@ -965,7 +965,7 @@ func ValidateStatesOfBlock(
 	ststree fixedtree.Tree,
 	sts []base.State,
 	manifest base.Manifest,
-	perm isaac.PermanentDatabase,
+	db isaac.Database,
 ) error {
 	e := util.StringErrorFunc("failed to validate imported states")
 
@@ -983,7 +983,7 @@ func ValidateStatesOfBlock(
 			func(_ context.Context, i, _ uint64) error {
 				st := sts[i]
 
-				switch rst, found, err := perm.State(st.Key()); {
+				switch rst, found, err := db.State(st.Key()); {
 				case err != nil:
 					return err
 				case !found:
@@ -994,7 +994,7 @@ func ValidateStatesOfBlock(
 
 				ops := st.Operations()
 				for j := range ops {
-					switch found, err := perm.ExistsInStateOperation(ops[j]); {
+					switch found, err := db.ExistsInStateOperation(ops[j]); {
 					case err != nil:
 						return err
 					case !found:

@@ -470,32 +470,21 @@ func newSyncerFunc(
 
 		conninfocache, _ := util.NewShardedMap(base.NilHeight, quicstream.UDPConnInfo{}, 1<<9) //nolint:gomnd //...
 
-		syncer, err := isaacstates.NewSyncer(
-			design.Storage.Base,
-			func(height base.Height) (isaac.BlockWriteDatabase, func(context.Context) error, error) {
-				bwdb, err := db.NewBlockWriteDatabase(height)
+		syncer := isaacstates.NewSyncer(
+			func(blockmap base.BlockMap) (isaac.BlockImporter, error) {
+				bwdb, err := db.NewBlockWriteDatabase(blockmap.Manifest().Height())
 				if err != nil {
-					return nil, nil, err
+					return nil, err
 				}
 
-				return bwdb,
-					func(ctx context.Context) error {
-						if err := MergeBlockWriteToPermanentDatabase(ctx, bwdb, perm); err != nil {
-							return err
-						}
-
-						whenNewBlockSavedInSyncingStatef(height)
-
-						return nil
-					},
-					nil
-			},
-			func(root string, blockmap base.BlockMap, bwdb isaac.BlockWriteDatabase) (isaac.BlockImporter, error) {
 				return isaacblock.NewBlockImporter(
-					LocalFSDataDirectory(root),
+					LocalFSDataDirectory(design.Storage.Base),
 					encs,
 					blockmap,
 					bwdb,
+					func(context.Context) error {
+						return db.MergeBlockWriteDatabase(bwdb)
+					},
 					params.NetworkID(),
 				)
 			},
@@ -511,10 +500,17 @@ func newSyncerFunc(
 				return newclient.Close()
 			},
 			removePrevBlockf,
+			func(context.Context) error {
+				switch m, found, err := db.LastBlockMap(); {
+				case err != nil:
+					return err
+				case found:
+					whenNewBlockSavedInSyncingStatef(m.Manifest().Height())
+				}
+
+				return db.MergeAllPermanent()
+			},
 		)
-		if err != nil {
-			return nil, e(err, "")
-		}
 
 		go newSyncerDeferredf(height, syncer)
 

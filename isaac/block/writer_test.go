@@ -15,7 +15,7 @@ import (
 )
 
 type testWriter struct {
-	testBaseLocalBlockFS
+	BaseTestLocalBlockFS
 }
 
 func (t *testWriter) TestNew() {

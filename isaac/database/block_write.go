@@ -198,6 +198,10 @@ func (db *LeveldbBlockWrite) BlockMapBytes() (enchint hint.Hint, meta, body []by
 }
 
 func (db *LeveldbBlockWrite) SetBlockMap(m base.BlockMap) error {
+	if m.Manifest().Height() != db.height {
+		return errors.Errorf("wrong height of BlockMap")
+	}
+
 	if _, err := db.mp.Set(func(i [3]interface{}, isempty bool) (v [3]interface{}, _ error) {
 		if !isempty {
 			if m.Manifest().Height() <= i[0].(base.BlockMap).Manifest().Height() { //nolint:forcetypeassert //...

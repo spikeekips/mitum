@@ -81,15 +81,19 @@ func (*Center) Close() error {
 func (db *Center) load(st *leveldbstorage.Storage) error {
 	e := util.StringErrorFunc("failed to load temps to CenterDatabase")
 
+	last := base.NilHeight
+
 	switch m, found, err := db.perm.LastBlockMap(); {
 	case err != nil:
 		return e(err, "")
 	case found:
-		temps, err := loadTemps(st, m.Manifest().Height(), db.encs, db.enc)
-		if err != nil {
-			return e(err, "")
-		}
+		last = m.Manifest().Height()
+	}
 
+	switch temps, err := loadTemps(st, last, db.encs, db.enc); {
+	case err != nil:
+		return e(err, "")
+	default:
 		db.temps = temps
 	}
 
@@ -522,22 +526,29 @@ func (db *Center) MergeBlockWriteDatabase(w isaac.BlockWriteDatabase) error {
 		db.temps = temps
 	}
 
+	db.Log().Debug().Interface("height", temp.Height()).Msg("block write database merged")
+
 	return nil
 }
 
 func (db *Center) MergeAllPermanent() error {
-	e := util.StringErrorFunc("failed to merge all temps to permanent")
+	db.Lock()
+	defer db.Unlock()
 
-	switch merged, err := db.mergePermanent(context.Background()); {
-	case err != nil:
-		return e(err, "")
-	case merged:
-		if err := db.cleanRemoved(0); err != nil {
-			return e(err, "")
+	for {
+		switch height, merged, err := mergeToPermanent(context.Background(),
+			db.perm,
+			db.temps,
+			db.removeTemp,
+		); {
+		case err != nil:
+			return errors.Errorf("failed to merge to permanent database")
+		case merged:
+			db.Log().Debug().Interface("height", height).Msg("temp database merged")
+		default:
+			return nil
 		}
 	}
-
-	return nil
 }
 
 // RemoveBlocks removes temp databases over height including height.
@@ -596,11 +607,6 @@ func (db *Center) activeTemps() []isaac.TempDatabase {
 }
 
 func (db *Center) removeTemp(temp isaac.TempDatabase) error {
-	db.Lock()
-	defer db.Unlock()
-
-	db.removed = append(db.removed, temp)
-
 	if len(db.temps) < 1 {
 		return nil
 	}
@@ -614,13 +620,7 @@ func (db *Center) removeTemp(temp isaac.TempDatabase) error {
 		return util.ErrNotFound.Errorf("TempDatabase not found, height=%d", temp.Height())
 	}
 
-	if len(db.temps) < 2 { //nolint:gomnd //...
-		db.temps = nil
-
-		return nil
-	}
-
-	temps := make([]isaac.TempDatabase, len(db.temps)-1)
+	newtemps := make([]isaac.TempDatabase, len(db.temps)-1)
 	var j int
 
 	for i := range db.temps {
@@ -628,11 +628,12 @@ func (db *Center) removeTemp(temp isaac.TempDatabase) error {
 			continue
 		}
 
-		temps[j] = db.temps[i]
+		newtemps[j] = db.temps[i]
 		j++
 	}
 
-	db.temps = temps
+	db.temps = newtemps
+	db.removed = append(db.removed, temp)
 
 	return nil
 }
@@ -730,25 +731,19 @@ end:
 }
 
 func (db *Center) mergePermanent(ctx context.Context) (bool, error) {
-	e := util.StringErrorFunc("failed to merge to permanent database")
+	db.Lock()
+	defer db.Unlock()
 
-	temps := db.activeTemps()
-	if len(temps) < 2 { //nolint:gomnd // NOTE keep last one in temps
-		return false, nil
+	switch height, merged, err := mergeToPermanent(ctx, db.perm, db.temps, db.removeTemp); {
+	case err != nil:
+		return false, errors.Errorf("failed to merge to permanent database")
+	case merged:
+		db.Log().Debug().Interface("height", height).Msg("temp database merged")
+
+		fallthrough
+	default:
+		return merged, nil
 	}
-
-	temp := temps[len(temps)-1]
-	if err := db.perm.MergeTempDatabase(ctx, temp); err != nil {
-		return false, e(err, "")
-	}
-
-	if err := db.removeTemp(temp); err != nil {
-		return false, e(err, "")
-	}
-
-	db.Log().Debug().Interface("height", temp.Height()).Msg("temp database merged")
-
-	return true, nil
 }
 
 func (db *Center) cleanRemoved(limit int) error {
@@ -933,4 +928,26 @@ end:
 	}
 
 	return nil, nil, false, nil
+}
+
+func mergeToPermanent(
+	ctx context.Context,
+	perm isaac.PermanentDatabase,
+	temps []isaac.TempDatabase,
+	remove func(isaac.TempDatabase) error,
+) (base.Height, bool, error) {
+	if len(temps) < 2 { //nolint:gomnd // NOTE keep last one in temps
+		return base.NilHeight, false, nil
+	}
+
+	temp := temps[len(temps)-1]
+	if err := perm.MergeTempDatabase(ctx, temp); err != nil {
+		return base.NilHeight, false, err
+	}
+
+	if err := remove(temp); err != nil {
+		return temp.Height(), false, err
+	}
+
+	return temp.Height(), true, nil
 }

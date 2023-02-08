@@ -14,17 +14,18 @@ import (
 )
 
 type BlockImporter struct {
-	m          base.BlockMap
-	enc        encoder.Encoder
-	bwdb       isaac.BlockWriteDatabase
-	avp        base.ACCEPTVoteproof
-	sufst      base.State
-	localfs    *LocalFSImporter
-	finisheds  *util.ShardedMap[base.BlockMapItemType, bool]
-	root       string
-	networkID  base.NetworkID
-	statestree fixedtree.Tree
-	batchlimit uint64
+	m                        base.BlockMap
+	enc                      encoder.Encoder
+	bwdb                     isaac.BlockWriteDatabase
+	avp                      base.ACCEPTVoteproof
+	sufst                    base.State
+	localfs                  *LocalFSImporter
+	finisheds                *util.ShardedMap[base.BlockMapItemType, bool]
+	mergeBlockWriteDatabasef func(context.Context) error
+	root                     string
+	networkID                base.NetworkID
+	statestree               fixedtree.Tree
+	batchlimit               uint64
 }
 
 func NewBlockImporter(
@@ -32,6 +33,7 @@ func NewBlockImporter(
 	encs *encoder.Encoders,
 	m base.BlockMap,
 	bwdb isaac.BlockWriteDatabase,
+	mergeBlockWriteDatabasef func(context.Context) error,
 	networkID base.NetworkID,
 ) (*BlockImporter, error) {
 	e := util.StringErrorFunc("failed new BlockImporter")
@@ -49,14 +51,15 @@ func NewBlockImporter(
 	finisheds, _ := util.NewShardedMap(base.BlockMapItemType(""), false, 6) //nolint:gomnd //...
 
 	im := &BlockImporter{
-		root:       root,
-		m:          m,
-		enc:        enc,
-		localfs:    localfs,
-		bwdb:       bwdb,
-		networkID:  networkID,
-		finisheds:  finisheds,
-		batchlimit: 333, //nolint:gomnd // enough big size
+		root:                     root,
+		m:                        m,
+		enc:                      enc,
+		localfs:                  localfs,
+		bwdb:                     bwdb,
+		networkID:                networkID,
+		finisheds:                finisheds,
+		batchlimit:               333, //nolint:gomnd // enough big size
+		mergeBlockWriteDatabasef: mergeBlockWriteDatabasef,
 	}
 
 	if err := im.WriteMap(m); err != nil {
@@ -105,35 +108,37 @@ func (im *BlockImporter) WriteItem(t base.BlockMapItemType, r io.Reader) error {
 	return nil
 }
 
-func (im *BlockImporter) Save(context.Context) error {
+func (im *BlockImporter) Save(context.Context) (func(context.Context) error, error) {
 	e := util.StringErrorFunc("failed to save")
 
 	if !im.isfinished() {
-		return e(nil, "not yet finished")
+		return nil, e(nil, "not yet finished")
 	}
 
 	if im.sufst != nil {
 		proof, err := im.statestree.Proof(im.sufst.Hash().String())
 		if err != nil {
-			return e(err, "failed to make proof of suffrage state")
+			return nil, e(err, "failed to make proof of suffrage state")
 		}
 
 		sufproof := NewSuffrageProof(im.m, im.sufst, proof, im.avp)
 
 		if err := im.bwdb.SetSuffrageProof(sufproof); err != nil {
-			return e(err, "")
+			return nil, e(err, "")
 		}
 	}
 
 	if err := im.bwdb.Write(); err != nil {
-		return e(err, "")
+		return nil, e(err, "")
 	}
 
 	if err := im.localfs.Save(); err != nil {
-		return e(err, "")
+		return nil, e(err, "")
 	}
 
-	return nil
+	return func(ctx context.Context) error {
+		return im.mergeBlockWriteDatabasef(ctx)
+	}, nil
 }
 
 func (im *BlockImporter) CancelImport(context.Context) error {
