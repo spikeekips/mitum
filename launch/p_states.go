@@ -245,7 +245,7 @@ func PCloseStates(ctx context.Context) (context.Context, error) {
 	return ctx, nil
 }
 
-func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive:disable-line:function-length
+func PStatesSetHandlers(pctx context.Context) (context.Context, error) { //revive:disable-line:function-length
 	e := util.StringErrorFunc("failed to set states handler")
 
 	var log *logging.Logging
@@ -262,7 +262,7 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 	var pps *isaac.ProposalProcessors
 	var sv *isaac.SuffrageVoting
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
@@ -277,7 +277,7 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 		ProposalProcessorsContextKey, &pps,
 		SuffrageVotingContextKey, &sv,
 	); err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
 	voteFunc := func(bl base.Ballot) (bool, error) {
@@ -289,32 +289,32 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 		return voted, nil
 	}
 
-	joinMemberlistForStateHandlerf, err := joinMemberlistForStateHandlerFunc(ctx)
+	joinMemberlistForStateHandlerf, err := joinMemberlistForStateHandlerFunc(pctx)
 	if err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
-	joinMemberlistForJoiningeHandlerf, err := joinMemberlistForJoiningeHandlerFunc(ctx)
+	joinMemberlistForJoiningeHandlerf, err := joinMemberlistForJoiningeHandlerFunc(pctx)
 	if err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
-	leaveMemberlistForStateHandlerf, err := leaveMemberlistForStateHandlerFunc(ctx)
+	leaveMemberlistForStateHandlerf, err := leaveMemberlistForStateHandlerFunc(pctx)
 	if err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
-	leaveMemberlistForSyncingHandlerf, err := leaveMemberlistForSyncingHandlerFunc(ctx)
+	leaveMemberlistForSyncingHandlerf, err := leaveMemberlistForSyncingHandlerFunc(pctx)
 	if err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
 	var whenNewBlockSavedInSyncingStatef func(base.Height)
 
 	switch err = util.LoadFromContext(
-		ctx, WhenNewBlockSavedInSyncingStateFuncContextKey, &whenNewBlockSavedInSyncingStatef); {
+		pctx, WhenNewBlockSavedInSyncingStateFuncContextKey, &whenNewBlockSavedInSyncingStatef); {
 	case err != nil:
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	case whenNewBlockSavedInSyncingStatef == nil:
 		whenNewBlockSavedInSyncingStatef = WhenNewBlockSavedInSyncingStateFunc(db, nodeinfo)
 	}
@@ -322,9 +322,9 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 	var whenNewBlockSavedInConsensusStatef func(base.Height)
 
 	switch err = util.LoadFromContext(
-		ctx, WhenNewBlockSavedInConsensusStateFuncContextKey, &whenNewBlockSavedInConsensusStatef); {
+		pctx, WhenNewBlockSavedInConsensusStateFuncContextKey, &whenNewBlockSavedInConsensusStatef); {
 	case err != nil:
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	case whenNewBlockSavedInConsensusStatef == nil:
 		whenNewBlockSavedInConsensusStatef = WhenNewBlockSavedInConsensusStateFunc(params, ballotbox, db, nodeinfo)
 	}
@@ -337,14 +337,14 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 		return sv.Find(ctx, height, suf)
 	}
 
-	onEmptyMembersf, err := onEmptyMembersStateHandlerFunc(ctx, states)
+	onEmptyMembersf, err := onEmptyMembersStateHandlerFunc(pctx, states)
 	if err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
-	newsyncerf, err := newSyncerFunc(ctx, params, db, lvps, whenNewBlockSavedInSyncingStatef)
+	newsyncerf, err := newSyncerFunc(pctx)
 	if err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
 	getLastManifestf := getLastManifestFunc(db)
@@ -394,44 +394,18 @@ func PStatesSetHandlers(ctx context.Context) (context.Context, error) { //revive
 
 	_ = states.SetLogging(log)
 
-	return ctx, nil
+	return pctx, nil
 }
 
-func newSyncerFunc(
-	pctx context.Context,
-	params *isaac.LocalParams,
-	db isaac.Database,
-	lvps *isaacstates.LastVoteproofsHandler,
-	whenNewBlockSavedInSyncingStatef func(base.Height),
-) (
+func newSyncerFunc(pctx context.Context) (
 	func(height base.Height) (isaac.Syncer, error),
 	error,
 ) {
-	var encs *encoder.Encoders
-	var enc encoder.Encoder
-	var devflags DevFlags
-	var design NodeDesign
-	var client *isaacnetwork.QuicstreamClient
-	var st *leveldbstorage.Storage
-	var perm isaac.PermanentDatabase
-	var syncSourcePool *isaac.SyncSourcePool
+	var db isaac.Database
 
 	if err := util.LoadFromContextOK(pctx,
-		EncodersContextKey, &encs,
-		EncoderContextKey, &enc,
-		DevFlagsContextKey, &devflags,
-		DesignContextKey, &design,
-		QuicstreamClientContextKey, &client,
-		LeveldbStorageContextKey, &st,
-		PermanentDatabaseContextKey, &perm,
 		CenterDatabaseContextKey, &db,
-		SyncSourcePoolContextKey, &syncSourcePool,
 	); err != nil {
-		return nil, err
-	}
-
-	setLastVoteproofsfFromBlockReaderf, err := setLastVoteproofsfFromBlockReaderFunc(lvps)
-	if err != nil {
 		return nil, err
 	}
 
@@ -440,7 +414,7 @@ func newSyncerFunc(
 		return nil, err
 	}
 
-	removePrevBlockf, err := removePrevBlockFunc(pctx)
+	newArgsf, err := newSyncerArgsFunc(pctx)
 	if err != nil {
 		return nil, err
 	}
@@ -457,11 +431,75 @@ func newSyncerFunc(
 			prev = m
 		}
 
+		args, err := newArgsf(height)
+		if err != nil {
+			return nil, e(err, "")
+		}
+
+		syncer := isaacstates.NewSyncer(prev, args)
+
+		go newSyncerDeferredf(height, syncer)
+
+		return syncer, nil
+	}, nil
+}
+
+func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.SyncerArgs, error), error) {
+	var encs *encoder.Encoders
+	var enc encoder.Encoder
+	var devflags DevFlags
+	var design NodeDesign
+	var params *isaac.LocalParams
+	var client *isaacnetwork.QuicstreamClient
+	var st *leveldbstorage.Storage
+	var db isaac.Database
+	var syncSourcePool *isaac.SyncSourcePool
+	var lvps *isaacstates.LastVoteproofsHandler
+	var nodeinfo *isaacnetwork.NodeInfoUpdater
+
+	if err := util.LoadFromContextOK(pctx,
+		EncodersContextKey, &encs,
+		EncoderContextKey, &enc,
+		DevFlagsContextKey, &devflags,
+		DesignContextKey, &design,
+		LocalParamsContextKey, &params,
+		QuicstreamClientContextKey, &client,
+		LeveldbStorageContextKey, &st,
+		CenterDatabaseContextKey, &db,
+		CenterDatabaseContextKey, &db,
+		SyncSourcePoolContextKey, &syncSourcePool,
+		LastVoteproofsHandlerContextKey, &lvps,
+		NodeInfoContextKey, &nodeinfo,
+	); err != nil {
+		return nil, err
+	}
+
+	setLastVoteproofsfFromBlockReaderf, err := setLastVoteproofsfFromBlockReaderFunc(lvps)
+	if err != nil {
+		return nil, err
+	}
+
+	removePrevBlockf, err := removePrevBlockFunc(pctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var whenNewBlockSavedInSyncingStatef func(base.Height)
+
+	switch err = util.LoadFromContext(
+		pctx, WhenNewBlockSavedInSyncingStateFuncContextKey, &whenNewBlockSavedInSyncingStatef); {
+	case err != nil:
+		return nil, err
+	case whenNewBlockSavedInSyncingStatef == nil:
+		whenNewBlockSavedInSyncingStatef = WhenNewBlockSavedInSyncingStateFunc(db, nodeinfo)
+	}
+
+	return func(height base.Height) (args isaacstates.SyncerArgs, _ error) {
 		var tempsyncpool isaac.TempSyncPool
 
 		switch i, err := isaacdatabase.NewLeveldbTempSyncPool(height, st, encs, enc); {
 		case err != nil:
-			return nil, e(isaacstates.ErrUnpromising.Wrap(err), "")
+			return args, isaacstates.ErrUnpromising.Wrap(err)
 		default:
 			tempsyncpool = i
 		}
@@ -470,64 +508,60 @@ func newSyncerFunc(
 
 		conninfocache, _ := util.NewShardedMap(base.NilHeight, quicstream.UDPConnInfo{}, 1<<9) //nolint:gomnd //...
 
-		syncer := isaacstates.NewSyncer(
-			prev,
-			syncerLastBlockMapFunc(newclient, params, syncSourcePool),
-			syncerBlockMapFunc(newclient, params, syncSourcePool, conninfocache, devflags.DelaySyncer),
-			tempsyncpool,
-			func() error {
-				conninfocache.Close()
+		args = isaacstates.NewSyncerArgs()
+		args.LastBlockMapFunc = syncerLastBlockMapFunc(newclient, params, syncSourcePool)
+		args.BlockMapFunc = syncerBlockMapFunc(newclient, params, syncSourcePool, conninfocache, devflags.DelaySyncer)
+		args.TempSyncPool = tempsyncpool
+		args.WhenStoppedFunc = func() error {
+			conninfocache.Close()
 
-				return newclient.Close()
-			},
-			removePrevBlockf,
-			func(
-				ctx context.Context,
-				from, to base.Height,
-				batchlimit int64,
-				blockMapf func(context.Context, base.Height) (base.BlockMap, bool, error),
-			) error {
-				return isaacstates.ImportBlocks(
-					ctx,
-					from, to,
-					batchlimit,
-					blockMapf,
-					syncerBlockMapItemFunc(newclient, conninfocache),
-					func(blockmap base.BlockMap) (isaac.BlockImporter, error) {
-						bwdb, err := db.NewBlockWriteDatabase(blockmap.Manifest().Height())
-						if err != nil {
-							return nil, err
-						}
+			return newclient.Close()
+		}
+		args.RemovePrevBlockFunc = removePrevBlockf
+		args.NewImportBlocksFunc = func(
+			ctx context.Context,
+			from, to base.Height,
+			batchlimit int64,
+			blockMapf func(context.Context, base.Height) (base.BlockMap, bool, error),
+		) error {
+			return isaacstates.ImportBlocks(
+				ctx,
+				from, to,
+				batchlimit,
+				blockMapf,
+				syncerBlockMapItemFunc(newclient, conninfocache),
+				func(blockmap base.BlockMap) (isaac.BlockImporter, error) {
+					bwdb, err := db.NewBlockWriteDatabase(blockmap.Manifest().Height())
+					if err != nil {
+						return nil, err
+					}
 
-						return isaacblock.NewBlockImporter(
-							LocalFSDataDirectory(design.Storage.Base),
-							encs,
-							blockmap,
-							bwdb,
-							func(context.Context) error {
-								return db.MergeBlockWriteDatabase(bwdb)
-							},
-							params.NetworkID(),
-						)
-					},
-					setLastVoteproofsfFromBlockReaderf,
-					func(context.Context) error {
-						switch m, found, err := db.LastBlockMap(); {
-						case err != nil:
-							return err
-						case found:
-							whenNewBlockSavedInSyncingStatef(m.Manifest().Height())
-						}
+					return isaacblock.NewBlockImporter(
+						LocalFSDataDirectory(design.Storage.Base),
+						encs,
+						blockmap,
+						bwdb,
+						func(context.Context) error {
+							return db.MergeBlockWriteDatabase(bwdb)
+						},
+						params.NetworkID(),
+					)
+				},
+				setLastVoteproofsfFromBlockReaderf,
+				func(context.Context) error {
+					switch m, found, err := db.LastBlockMap(); {
+					case err != nil:
+						return err
+					case found:
+						whenNewBlockSavedInSyncingStatef(m.Manifest().Height())
+					}
 
-						return db.MergeAllPermanent()
-					},
-				)
-			},
-		)
+					return db.MergeAllPermanent()
+				},
+			)
+		}
 
-		go newSyncerDeferredf(height, syncer)
-
-		return syncer, nil
+		return args, nil
 	}, nil
 }
 

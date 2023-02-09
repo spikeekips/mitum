@@ -30,68 +30,69 @@ type (
 	) error
 )
 
-type Syncer struct {
-	tempsyncpool isaac.TempSyncPool
-	finishedch   chan base.Height
-	*logging.Logging
-	prevvalue *util.Locked[base.BlockMap]
-	blockMapf SyncerBlockMapFunc
-	*util.ContextDaemon
-	isdonevalue          *atomic.Value
-	checkedprevs         *util.GCache[base.Height, string]
-	startsyncch          chan base.Height
-	donech               chan struct{} // revive:disable-line:nested-structs
-	doneerr              *util.Locked[error]
-	topvalue             *util.Locked[base.Height]
-	whenStoppedf         func() error
-	lastBlockMapf        SyncerLastBlockMapFunc
-	removePrevBlockf     func(base.Height) (bool, error)
-	newImportBlocksf     NewImportBlocksFunc
-	batchlimit           int64
-	lastBlockMapInterval time.Duration
-	lastBlockMapTimeout  time.Duration
-	cancelonece          sync.Once
+type SyncerArgs struct {
+	LastBlockMapFunc     SyncerLastBlockMapFunc
+	BlockMapFunc         SyncerBlockMapFunc
+	TempSyncPool         isaac.TempSyncPool
+	WhenStoppedFunc      func() error
+	RemovePrevBlockFunc  func(base.Height) (bool, error)
+	NewImportBlocksFunc  NewImportBlocksFunc
+	BatchLimit           int64
+	LastBlockMapInterval time.Duration
+	LastBlockMapTimeout  time.Duration
 }
 
-func NewSyncer(
-	prev base.BlockMap,
-	lastBlockMapf SyncerLastBlockMapFunc,
-	blockMapf SyncerBlockMapFunc,
-	tempsyncpool isaac.TempSyncPool,
-	whenStoppedf func() error,
-	removePrevBlockf func(base.Height) (bool, error),
-	newImportBlocksf NewImportBlocksFunc,
-) *Syncer {
+func NewSyncerArgs() SyncerArgs {
+	return SyncerArgs{
+		LastBlockMapFunc:    func(context.Context, util.Hash) (base.BlockMap, bool, error) { return nil, false, nil },
+		BlockMapFunc:        func(context.Context, base.Height) (base.BlockMap, bool, error) { return nil, false, nil },
+		WhenStoppedFunc:     func() error { return nil },
+		RemovePrevBlockFunc: func(base.Height) (bool, error) { return false, nil },
+		NewImportBlocksFunc: func(context.Context, base.Height, base.Height, int64,
+			func(context.Context, base.Height) (base.BlockMap, bool, error),
+		) error {
+			return errors.Errorf("nothing happened")
+		},
+		BatchLimit:           33,              //nolint:gomnd // big enough size
+		LastBlockMapInterval: time.Second * 2, //nolint:gomnd //...
+		LastBlockMapTimeout:  time.Second * 2, //nolint:gomnd //...
+	}
+}
+
+type Syncer struct {
+	finishedch   chan base.Height
+	prevvalue    *util.Locked[base.BlockMap]
+	isdonevalue  *atomic.Value
+	checkedprevs *util.GCache[base.Height, string]
+	startsyncch  chan base.Height
+	donech       chan struct{}
+	doneerr      *util.Locked[error]
+	topvalue     *util.Locked[base.Height]
+	*logging.Logging
+	*util.ContextDaemon
+	args        SyncerArgs
+	cancelonece sync.Once
+}
+
+func NewSyncer(prev base.BlockMap, args SyncerArgs) *Syncer {
 	prevheight := base.NilHeight
 	if prev != nil {
 		prevheight = prev.Manifest().Height()
-	}
-
-	if whenStoppedf == nil {
-		whenStoppedf = func() error { return nil } //revive:disable-line:modifies-parameter
 	}
 
 	s := &Syncer{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", "syncer")
 		}),
-		prevvalue:            util.NewLocked(prev),
-		lastBlockMapf:        lastBlockMapf,
-		blockMapf:            blockMapf,
-		tempsyncpool:         tempsyncpool,
-		batchlimit:           33, //nolint:gomnd // big enough size
-		finishedch:           make(chan base.Height),
-		donech:               make(chan struct{}, 2),
-		doneerr:              util.EmptyLocked((error)(nil)),
-		topvalue:             util.NewLocked(prevheight),
-		isdonevalue:          &atomic.Value{},
-		startsyncch:          make(chan base.Height),
-		whenStoppedf:         whenStoppedf,
-		lastBlockMapInterval: time.Second * 2, //nolint:gomnd //...
-		lastBlockMapTimeout:  time.Second * 2, //nolint:gomnd //...
-		removePrevBlockf:     removePrevBlockf,
-		checkedprevs:         util.NewLRUGCache(base.NilHeight, "", 1<<3), //nolint:gomnd //...
-		newImportBlocksf:     newImportBlocksf,
+		prevvalue:    util.NewLocked(prev),
+		args:         args,
+		finishedch:   make(chan base.Height),
+		donech:       make(chan struct{}, 2),
+		doneerr:      util.EmptyLocked((error)(nil)),
+		topvalue:     util.NewLocked(prevheight),
+		isdonevalue:  &atomic.Value{},
+		startsyncch:  make(chan base.Height),
+		checkedprevs: util.NewLRUGCache(base.NilHeight, "", 1<<3), //nolint:gomnd //...
 	}
 
 	s.ContextDaemon = util.NewContextDaemon(s.start)
@@ -156,7 +157,7 @@ func (s *Syncer) Cancel() error {
 		err = s.ContextDaemon.Stop()
 
 		defer func() {
-			_ = s.tempsyncpool.Cancel()
+			_ = s.args.TempSyncPool.Cancel()
 		}()
 
 		_, _ = s.doneerr.Set(func(i error, _ bool) (error, error) {
@@ -173,7 +174,7 @@ func (s *Syncer) Cancel() error {
 
 func (s *Syncer) start(ctx context.Context) error {
 	defer func() {
-		_ = s.tempsyncpool.Cancel()
+		_ = s.args.TempSyncPool.Cancel()
 	}()
 
 	uctx, cancel := context.WithCancel(ctx)
@@ -201,7 +202,7 @@ end:
 		}
 	}
 
-	switch serr := s.whenStoppedf(); {
+	switch serr := s.args.WhenStoppedFunc(); {
 	case gerr == nil,
 		errors.Is(gerr, context.Canceled),
 		errors.Is(gerr, context.DeadlineExceeded):
@@ -310,14 +311,14 @@ func (s *Syncer) prepareMaps(ctx context.Context, prev base.BlockMap, to base.He
 		ctx,
 		prev,
 		to,
-		uint64(s.batchlimit),
+		uint64(s.args.BatchLimit),
 		s.fetchMap,
 		func(m base.BlockMap) error {
 			if h := m.Manifest().Height(); h%100 == 0 || h == to {
 				s.Log().Debug().Interface("height", h).Msg("blockmap prepared")
 			}
 
-			if err := s.tempsyncpool.SetBlockMap(m); err != nil {
+			if err := s.args.TempSyncPool.SetBlockMap(m); err != nil {
 				return err
 			}
 
@@ -352,7 +353,7 @@ func (s *Syncer) checkPrevMap(ctx context.Context, prev base.BlockMap) (base.Blo
 	}
 
 	// NOTE remove last block from database; if failed, return error
-	switch removed, err := s.removePrevBlockf(prev.Manifest().Height()); {
+	switch removed, err := s.args.RemovePrevBlockFunc(prev.Manifest().Height()); {
 	case err != nil:
 		return nil, err
 	case !removed:
@@ -365,7 +366,7 @@ func (s *Syncer) checkPrevMap(ctx context.Context, prev base.BlockMap) (base.Blo
 func (s *Syncer) fetchMap(ctx context.Context, height base.Height) (base.BlockMap, error) {
 	e := util.StringErrorFunc("failed to fetch BlockMap")
 
-	switch m, found, err := s.blockMapf(ctx, height); {
+	switch m, found, err := s.args.BlockMapFunc(ctx, height); {
 	case err != nil:
 		return nil, e(err, "")
 	case !found:
@@ -384,12 +385,12 @@ func (s *Syncer) syncBlocks(ctx context.Context, prev base.BlockMap, to base.Hei
 	}
 
 	if err := util.Retry(ctx, func() (bool, error) {
-		if err := s.newImportBlocksf(
+		if err := s.args.NewImportBlocksFunc(
 			ctx,
 			from, to,
-			s.batchlimit,
+			s.args.BatchLimit,
 			func(_ context.Context, height base.Height) (base.BlockMap, bool, error) {
-				return s.tempsyncpool.BlockMap(height)
+				return s.args.TempSyncPool.BlockMap(height)
 			},
 		); err != nil {
 			return true, err
@@ -413,7 +414,7 @@ func (s *Syncer) updateLastBlockMap(ctx context.Context) {
 		last = prev.Manifest().Hash()
 	}
 
-	ticker := time.NewTicker(s.lastBlockMapInterval)
+	ticker := time.NewTicker(s.args.LastBlockMapInterval)
 	defer ticker.Stop()
 
 	for {
@@ -450,8 +451,8 @@ func (s *Syncer) donewitherror(f func() error) error {
 }
 
 func (s *Syncer) lastBlockMap(ctx context.Context, manifest util.Hash) (_ base.BlockMap, updated bool, _ error) {
-	nctx, cancel := context.WithTimeout(ctx, s.lastBlockMapTimeout)
+	nctx, cancel := context.WithTimeout(ctx, s.args.LastBlockMapTimeout)
 	defer cancel()
 
-	return s.lastBlockMapf(nctx, manifest)
+	return s.args.LastBlockMapFunc(nctx, manifest)
 }
