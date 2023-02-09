@@ -316,8 +316,10 @@ func PStatesSetHandlers(pctx context.Context) (context.Context, error) { //reviv
 	case err != nil:
 		return pctx, e(err, "")
 	case whenNewBlockSavedInSyncingStatef == nil:
-		whenNewBlockSavedInSyncingStatef = WhenNewBlockSavedInSyncingStateFunc(db, nodeinfo)
+		whenNewBlockSavedInSyncingStatef = func(base.Height) {}
 	}
+
+	defaultWhenNewBlockSavedInSyncingStatef := DefaultWhenNewBlockSavedInSyncingStateFunc(db, nodeinfo)
 
 	var whenNewBlockSavedInConsensusStatef func(base.Height)
 
@@ -326,8 +328,11 @@ func PStatesSetHandlers(pctx context.Context) (context.Context, error) { //reviv
 	case err != nil:
 		return pctx, e(err, "")
 	case whenNewBlockSavedInConsensusStatef == nil:
-		whenNewBlockSavedInConsensusStatef = WhenNewBlockSavedInConsensusStateFunc(params, ballotbox, db, nodeinfo)
+		whenNewBlockSavedInConsensusStatef = func(base.Height) {}
 	}
+
+	defaultWhenNewBlockSavedInConsensusStatef := DefaultWhenNewBlockSavedInConsensusStateFunc(
+		params, ballotbox, db, nodeinfo)
 
 	suffrageVotingFindf := func(
 		ctx context.Context,
@@ -362,13 +367,23 @@ func PStatesSetHandlers(pctx context.Context) (context.Context, error) { //reviv
 		local, params, newsyncerf, nodeInConsensusNodesf,
 		joinMemberlistForStateHandlerf,
 		leaveMemberlistForSyncingHandlerf,
-		whenNewBlockSavedInSyncingStatef,
+		func(height base.Height) {
+			defaultWhenNewBlockSavedInSyncingStatef(height)
+
+			whenNewBlockSavedInSyncingStatef(height)
+		},
 	)
 	syncinghandler.SetWhenFinished(whenSyncingFinished)
 
 	consensusHandler := isaacstates.NewNewConsensusHandlerType(
 		local, params, proposalSelector, pps,
-		getManifestf, nodeInConsensusNodesf, voteFunc, whenNewBlockSavedInConsensusStatef, suffrageVotingFindf,
+		getManifestf, nodeInConsensusNodesf, voteFunc,
+		func(height base.Height) {
+			defaultWhenNewBlockSavedInConsensusStatef(height)
+
+			whenNewBlockSavedInConsensusStatef(height)
+		},
+		suffrageVotingFindf,
 	)
 
 	consensusHandler.SetOnEmptyMembers(onEmptyMembersf)
@@ -491,8 +506,10 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 	case err != nil:
 		return nil, err
 	case whenNewBlockSavedInSyncingStatef == nil:
-		whenNewBlockSavedInSyncingStatef = WhenNewBlockSavedInSyncingStateFunc(db, nodeinfo)
+		whenNewBlockSavedInSyncingStatef = func(base.Height) {}
 	}
+
+	defaultWhenNewBlockSavedInSyncingStatef := DefaultWhenNewBlockSavedInSyncingStateFunc(db, nodeinfo)
 
 	return func(height base.Height) (args isaacstates.SyncerArgs, _ error) {
 		var tempsyncpool isaac.TempSyncPool
@@ -549,12 +566,9 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 				},
 				setLastVoteproofsfFromBlockReaderf,
 				func(context.Context) error {
-					switch m, found, err := db.LastBlockMap(); {
-					case err != nil:
-						return err
-					case found:
-						whenNewBlockSavedInSyncingStatef(m.Manifest().Height())
-					}
+					defaultWhenNewBlockSavedInSyncingStatef(to)
+
+					whenNewBlockSavedInSyncingStatef(to)
 
 					return db.MergeAllPermanent()
 				},
@@ -882,7 +896,7 @@ func getManifestFunc(db isaac.Database) func(height base.Height) (base.Manifest,
 	}
 }
 
-func WhenNewBlockSavedInSyncingStateFunc(
+func DefaultWhenNewBlockSavedInSyncingStateFunc(
 	db isaac.Database,
 	nodeinfo *isaacnetwork.NodeInfoUpdater,
 ) func(base.Height) {
@@ -891,7 +905,7 @@ func WhenNewBlockSavedInSyncingStateFunc(
 	}
 }
 
-func WhenNewBlockSavedInConsensusStateFunc(
+func DefaultWhenNewBlockSavedInConsensusStateFunc(
 	params *isaac.LocalParams,
 	ballotbox *isaacstates.Ballotbox,
 	db isaac.Database,
