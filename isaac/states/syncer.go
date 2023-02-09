@@ -22,45 +22,45 @@ type (
 	NewBlockImporterFunc   func(base.BlockMap) (isaac.BlockImporter, error)
 	SyncerLastBlockMapFunc func(_ context.Context, manifest util.Hash) (
 		_ base.BlockMap, updated bool, _ error) // NOTE BlockMap.IsValid() should be called
+	NewImportBlocksFunc func(
+		_ context.Context,
+		from, to base.Height,
+		batchlimit int64,
+		blockMapFunc func(context.Context, base.Height) (base.BlockMap, bool, error),
+	) error
 )
 
 type Syncer struct {
-	tempsyncpool     isaac.TempSyncPool
-	finishedch       chan base.Height
-	newBlockImporter NewBlockImporterFunc
+	tempsyncpool isaac.TempSyncPool
+	finishedch   chan base.Height
 	*logging.Logging
-	prevvalue     *util.Locked[base.BlockMap]
-	blockMapf     SyncerBlockMapFunc
-	blockMapItemf SyncerBlockMapItemFunc
+	prevvalue *util.Locked[base.BlockMap]
+	blockMapf SyncerBlockMapFunc
 	*util.ContextDaemon
-	isdonevalue                *atomic.Value
-	checkedprevs               *util.GCache[base.Height, string]
-	startsyncch                chan base.Height
-	donech                     chan struct{} // revive:disable-line:nested-structs
-	doneerr                    *util.Locked[error]
-	topvalue                   *util.Locked[base.Height]
-	setLastVoteproofsFunc      func(isaac.BlockReader) error
-	whenStoppedf               func() error
-	lastBlockMapf              SyncerLastBlockMapFunc
-	removePrevBlockf           func(base.Height) (bool, error)
-	mergeBlockWriterDatabasesf func(context.Context) error
-	batchlimit                 int64
-	lastBlockMapInterval       time.Duration
-	lastBlockMapTimeout        time.Duration
-	cancelonece                sync.Once
+	isdonevalue          *atomic.Value
+	checkedprevs         *util.GCache[base.Height, string]
+	startsyncch          chan base.Height
+	donech               chan struct{} // revive:disable-line:nested-structs
+	doneerr              *util.Locked[error]
+	topvalue             *util.Locked[base.Height]
+	whenStoppedf         func() error
+	lastBlockMapf        SyncerLastBlockMapFunc
+	removePrevBlockf     func(base.Height) (bool, error)
+	newImportBlocksf     NewImportBlocksFunc
+	batchlimit           int64
+	lastBlockMapInterval time.Duration
+	lastBlockMapTimeout  time.Duration
+	cancelonece          sync.Once
 }
 
 func NewSyncer(
-	newBlockImporter NewBlockImporterFunc,
 	prev base.BlockMap,
 	lastBlockMapf SyncerLastBlockMapFunc,
 	blockMapf SyncerBlockMapFunc,
-	blockMapItemf SyncerBlockMapItemFunc,
 	tempsyncpool isaac.TempSyncPool,
-	setLastVoteproofsf func(isaac.BlockReader) error,
 	whenStoppedf func() error,
 	removePrevBlockf func(base.Height) (bool, error),
-	mergeBlockWriterDatabasesf func(context.Context) error,
+	newImportBlocksf NewImportBlocksFunc,
 ) *Syncer {
 	prevheight := base.NilHeight
 	if prev != nil {
@@ -75,26 +75,23 @@ func NewSyncer(
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", "syncer")
 		}),
-		newBlockImporter:           newBlockImporter,
-		prevvalue:                  util.NewLocked(prev),
-		lastBlockMapf:              lastBlockMapf,
-		blockMapf:                  blockMapf,
-		blockMapItemf:              blockMapItemf,
-		tempsyncpool:               tempsyncpool,
-		batchlimit:                 33, //nolint:gomnd // big enough size
-		finishedch:                 make(chan base.Height),
-		donech:                     make(chan struct{}, 2),
-		doneerr:                    util.EmptyLocked((error)(nil)),
-		topvalue:                   util.NewLocked(prevheight),
-		isdonevalue:                &atomic.Value{},
-		startsyncch:                make(chan base.Height),
-		setLastVoteproofsFunc:      setLastVoteproofsf,
-		whenStoppedf:               whenStoppedf,
-		lastBlockMapInterval:       time.Second * 2, //nolint:gomnd //...
-		lastBlockMapTimeout:        time.Second * 2, //nolint:gomnd //...
-		removePrevBlockf:           removePrevBlockf,
-		mergeBlockWriterDatabasesf: mergeBlockWriterDatabasesf,
-		checkedprevs:               util.NewLRUGCache(base.NilHeight, "", 1<<3), //nolint:gomnd //...
+		prevvalue:            util.NewLocked(prev),
+		lastBlockMapf:        lastBlockMapf,
+		blockMapf:            blockMapf,
+		tempsyncpool:         tempsyncpool,
+		batchlimit:           33, //nolint:gomnd // big enough size
+		finishedch:           make(chan base.Height),
+		donech:               make(chan struct{}, 2),
+		doneerr:              util.EmptyLocked((error)(nil)),
+		topvalue:             util.NewLocked(prevheight),
+		isdonevalue:          &atomic.Value{},
+		startsyncch:          make(chan base.Height),
+		whenStoppedf:         whenStoppedf,
+		lastBlockMapInterval: time.Second * 2, //nolint:gomnd //...
+		lastBlockMapTimeout:  time.Second * 2, //nolint:gomnd //...
+		removePrevBlockf:     removePrevBlockf,
+		checkedprevs:         util.NewLRUGCache(base.NilHeight, "", 1<<3), //nolint:gomnd //...
+		newImportBlocksf:     newImportBlocksf,
 	}
 
 	s.ContextDaemon = util.NewContextDaemon(s.start)
@@ -387,17 +384,13 @@ func (s *Syncer) syncBlocks(ctx context.Context, prev base.BlockMap, to base.Hei
 	}
 
 	if err := util.Retry(ctx, func() (bool, error) {
-		if err := ImportBlocks(
+		if err := s.newImportBlocksf(
 			ctx,
 			from, to,
 			s.batchlimit,
 			func(_ context.Context, height base.Height) (base.BlockMap, bool, error) {
 				return s.tempsyncpool.BlockMap(height)
 			},
-			s.blockMapItemf,
-			s.newBlockImporter,
-			s.setLastVoteproofsFunc,
-			s.mergeBlockWriterDatabasesf,
 		); err != nil {
 			return true, err
 		}

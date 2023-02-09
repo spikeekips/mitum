@@ -471,44 +471,57 @@ func newSyncerFunc(
 		conninfocache, _ := util.NewShardedMap(base.NilHeight, quicstream.UDPConnInfo{}, 1<<9) //nolint:gomnd //...
 
 		syncer := isaacstates.NewSyncer(
-			func(blockmap base.BlockMap) (isaac.BlockImporter, error) {
-				bwdb, err := db.NewBlockWriteDatabase(blockmap.Manifest().Height())
-				if err != nil {
-					return nil, err
-				}
-
-				return isaacblock.NewBlockImporter(
-					LocalFSDataDirectory(design.Storage.Base),
-					encs,
-					blockmap,
-					bwdb,
-					func(context.Context) error {
-						return db.MergeBlockWriteDatabase(bwdb)
-					},
-					params.NetworkID(),
-				)
-			},
 			prev,
 			syncerLastBlockMapFunc(newclient, params, syncSourcePool),
 			syncerBlockMapFunc(newclient, params, syncSourcePool, conninfocache, devflags.DelaySyncer),
-			syncerBlockMapItemFunc(newclient, conninfocache),
 			tempsyncpool,
-			setLastVoteproofsfFromBlockReaderf,
 			func() error {
 				conninfocache.Close()
 
 				return newclient.Close()
 			},
 			removePrevBlockf,
-			func(context.Context) error {
-				switch m, found, err := db.LastBlockMap(); {
-				case err != nil:
-					return err
-				case found:
-					whenNewBlockSavedInSyncingStatef(m.Manifest().Height())
-				}
+			func(
+				ctx context.Context,
+				from, to base.Height,
+				batchlimit int64,
+				blockMapf func(context.Context, base.Height) (base.BlockMap, bool, error),
+			) error {
+				return isaacstates.ImportBlocks(
+					ctx,
+					from, to,
+					batchlimit,
+					blockMapf,
+					syncerBlockMapItemFunc(newclient, conninfocache),
+					func(blockmap base.BlockMap) (isaac.BlockImporter, error) {
+						bwdb, err := db.NewBlockWriteDatabase(blockmap.Manifest().Height())
+						if err != nil {
+							return nil, err
+						}
 
-				return db.MergeAllPermanent()
+						return isaacblock.NewBlockImporter(
+							LocalFSDataDirectory(design.Storage.Base),
+							encs,
+							blockmap,
+							bwdb,
+							func(context.Context) error {
+								return db.MergeBlockWriteDatabase(bwdb)
+							},
+							params.NetworkID(),
+						)
+					},
+					setLastVoteproofsfFromBlockReaderf,
+					func(context.Context) error {
+						switch m, found, err := db.LastBlockMap(); {
+						case err != nil:
+							return err
+						case found:
+							whenNewBlockSavedInSyncingStatef(m.Manifest().Height())
+						}
+
+						return db.MergeAllPermanent()
+					},
+				)
 			},
 		)
 
