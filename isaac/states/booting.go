@@ -8,10 +8,25 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
+type BootingHandlerArgs struct {
+	LastManifestFunc         func() (base.Manifest, bool, error)
+	NodeInConsensusNodesFunc isaac.NodeInConsensusNodesFunc
+}
+
+func NewBootingHandlerArgs() *BootingHandlerArgs {
+	return &BootingHandlerArgs{
+		NodeInConsensusNodesFunc: func(base.Node, base.Height) (base.Suffrage, bool, error) {
+			return nil, false, util.ErrNotImplemented.Errorf("NodeInConsensusNodesFunc")
+		},
+		LastManifestFunc: func() (base.Manifest, bool, error) {
+			return nil, false, util.ErrNotImplemented.Errorf("LastManifestFunc")
+		},
+	}
+}
+
 type BootingHandler struct {
 	*baseHandler
-	lastManifest         func() (base.Manifest, bool, error)
-	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc
+	args *BootingHandlerArgs
 }
 
 type NewBootingHandlerType struct {
@@ -21,23 +36,20 @@ type NewBootingHandlerType struct {
 func NewNewBootingHandlerType(
 	local base.LocalNode,
 	params *isaac.LocalParams,
-	lastManifest func() (base.Manifest, bool, error),
-	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc,
+	args *BootingHandlerArgs,
 ) *NewBootingHandlerType {
 	return &NewBootingHandlerType{
 		BootingHandler: &BootingHandler{
-			baseHandler:          newBaseHandler(StateBooting, local, params),
-			lastManifest:         lastManifest,
-			nodeInConsensusNodes: nodeInConsensusNodes,
+			baseHandler: newBaseHandler(StateBooting, local, params),
+			args:        args,
 		},
 	}
 }
 
 func (h *NewBootingHandlerType) new() (handler, error) {
 	return &BootingHandler{
-		baseHandler:          h.baseHandler.new(),
-		lastManifest:         h.lastManifest,
-		nodeInConsensusNodes: h.nodeInConsensusNodes,
+		baseHandler: h.baseHandler.new(),
+		args:        h.args,
 	}, nil
 }
 
@@ -50,7 +62,7 @@ func (st *BootingHandler) enter(from StateType, i switchContext) (func(), error)
 
 	var manifest base.Manifest
 
-	switch m, found, err := st.lastManifest(); {
+	switch m, found, err := st.args.LastManifestFunc(); {
 	case err != nil:
 		return nil, e(err, "")
 	case !found:
@@ -79,7 +91,7 @@ func (st *BootingHandler) enter(from StateType, i switchContext) (func(), error)
 	}
 
 	// NOTE if node not in suffrage, moves to syncing
-	switch suf, found, err := st.nodeInConsensusNodes(st.local, manifest.Height()+1); {
+	switch suf, found, err := st.args.NodeInConsensusNodesFunc(st.local, manifest.Height()+1); {
 	case errors.Is(err, storage.ErrNotFound):
 		st.Log().Debug().Interface("height", manifest.Height()+1).Msg("suffrage not found; moves to syncing")
 

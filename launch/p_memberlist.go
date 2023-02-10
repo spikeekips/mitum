@@ -31,7 +31,7 @@ var (
 	PNamePatchMemberlist                    = ps.Name("patch-memberlist")
 	MemberlistContextKey                    = util.ContextKey("memberlist")
 	LongRunningMemberlistJoinContextKey     = util.ContextKey("long-running-memberlist-join")
-	EventOnEmptyMembersContextKey           = util.ContextKey("event-on-empty-members")
+	EventWhenEmptyMembersContextKey         = util.ContextKey("event-when-empty-members")
 	SuffrageVotingContextKey                = util.ContextKey("suffrage-voting")
 	SuffrageVotingVoteFuncContextKey        = util.ContextKey("suffrage-voting-vote-func")
 	CallbackBroadcasterContextKey           = util.ContextKey("callback-broadcaster")
@@ -87,13 +87,13 @@ func PMemberlist(ctx context.Context) (context.Context, error) {
 		}
 
 		if _, err := pps.Run(context.Background()); err != nil {
-			log.Log().Error().Err(err).Msg("failed to run onEmptyMembers")
+			log.Log().Error().Err(err).Msg("failed to run whenEmptyMembers")
 		}
 	})
 
 	//revive:disable:modifies-parameter
 	ctx = context.WithValue(ctx, MemberlistContextKey, m)
-	ctx = context.WithValue(ctx, EventOnEmptyMembersContextKey, pps)
+	ctx = context.WithValue(ctx, EventWhenEmptyMembersContextKey, pps)
 	ctx = context.WithValue(ctx, FilterMemberlistNotifyMsgFuncContextKey,
 		FilterMemberlistNotifyMsgFunc(func(interface{}) (bool, error) { return true, nil }),
 	)

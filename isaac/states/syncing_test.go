@@ -26,22 +26,22 @@ func (t *testSyncingHandler) newState(finishch chan base.Height) (*SyncingHandle
 	local := t.Local
 	params := t.LocalParams
 
-	newhandler := NewNewSyncingHandlerType(
-		local,
-		params,
-		func(height base.Height) (isaac.Syncer, error) {
-			syncer := newDummySyncer(finishch, nil)
-			if !syncer.Add(height) {
-				return nil, errors.Errorf("failed new syncer")
-			}
+	args := NewSyncingHandlerArgs(params)
 
-			return syncer, nil
-		},
-		nil,
-		func(context.Context, base.Suffrage) error { return nil },
-		func(time.Duration) error { return nil },
-		func(base.Height) {},
-	)
+	args.NewSyncerFunc = func(height base.Height) (isaac.Syncer, error) {
+		syncer := newDummySyncer(finishch, nil)
+		if !syncer.Add(height) {
+			return nil, errors.Errorf("failed new syncer")
+		}
+
+		return syncer, nil
+	}
+	args.JoinMemberlistFunc = func(context.Context, base.Suffrage) error { return nil }
+	args.LeaveMemberlistFunc = func(time.Duration) error { return nil }
+	args.WhenNewBlockSavedFunc = func(base.Height) {}
+
+	newhandler := NewNewSyncingHandlerType(local, params, args)
+
 	_ = newhandler.SetLogging(logging.TestNilLogging)
 	_ = newhandler.setTimers(util.NewTimers([]util.TimerID{
 		timerIDBroadcastINITBallot,
@@ -142,7 +142,7 @@ func (t *testSyncingHandler) TestNewHigherVoteproof() {
 		st, _ := t.newState(nil)
 
 		local := t.Local
-		st.nodeInConsensusNodes = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
+		st.args.NodeInConsensusNodesFunc = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
 			suf, _ := isaac.NewSuffrage([]base.Node{local})
 			return suf, true, nil
 		}
@@ -168,7 +168,7 @@ func (t *testSyncingHandler) TestNewHigherVoteproof() {
 		st, _ := t.newState(nil)
 
 		local := t.Local
-		st.nodeInConsensusNodes = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
+		st.args.NodeInConsensusNodesFunc = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
 			suf, _ := isaac.NewSuffrage([]base.Node{local})
 			return suf, true, nil
 		}
@@ -196,7 +196,7 @@ func (t *testSyncingHandler) TestNewLowerVoteproof() {
 		st, _ := t.newState(nil)
 
 		local := t.Local
-		st.nodeInConsensusNodes = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
+		st.args.NodeInConsensusNodesFunc = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
 			suf, _ := isaac.NewSuffrage([]base.Node{local})
 			return suf, true, nil
 		}
@@ -222,7 +222,7 @@ func (t *testSyncingHandler) TestNewLowerVoteproof() {
 		st, _ := t.newState(nil)
 
 		local := t.Local
-		st.nodeInConsensusNodes = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
+		st.args.NodeInConsensusNodesFunc = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
 			suf, _ := isaac.NewSuffrage([]base.Node{local})
 			return suf, true, nil
 		}
@@ -250,7 +250,7 @@ func (t *testSyncingHandler) TestNewExpectedVoteproof() {
 		st, _ := t.newState(nil)
 
 		local := t.Local
-		st.nodeInConsensusNodes = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
+		st.args.NodeInConsensusNodesFunc = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
 			suf, _ := isaac.NewSuffrage([]base.Node{local})
 			return suf, true, nil
 		}
@@ -275,7 +275,7 @@ func (t *testSyncingHandler) TestNewExpectedVoteproof() {
 		defer closef()
 
 		local := t.Local
-		st.nodeInConsensusNodes = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
+		st.args.NodeInConsensusNodesFunc = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
 			suf, _ := isaac.NewSuffrage([]base.Node{local})
 			return suf, true, nil
 		}
@@ -305,7 +305,7 @@ func (t *testSyncingHandler) TestNewExpectedVoteproof() {
 		defer closef()
 
 		local := t.Local
-		st.nodeInConsensusNodes = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
+		st.args.NodeInConsensusNodesFunc = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
 			suf, _ := isaac.NewSuffrage([]base.Node{local})
 			return suf, true, nil
 		}
@@ -339,7 +339,7 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 		defer closef()
 
 		local := t.Local
-		st.nodeInConsensusNodes = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
+		st.args.NodeInConsensusNodesFunc = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
 			suf, _ := isaac.NewSuffrage([]base.Node{local})
 			return suf, true, nil
 		}
@@ -379,7 +379,7 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 		st, _ := t.newState(nil)
 
 		local := t.Local
-		st.nodeInConsensusNodes = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
+		st.args.NodeInConsensusNodesFunc = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
 			suf, _ := isaac.NewSuffrage([]base.Node{local})
 			return suf, true, nil
 		}
@@ -420,7 +420,7 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 		defer closef()
 
 		local := t.Local
-		st.nodeInConsensusNodes = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
+		st.args.NodeInConsensusNodesFunc = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
 			suf, _ := isaac.NewSuffrage([]base.Node{local})
 			return suf, true, nil
 		}
@@ -457,7 +457,7 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 		st, _ := t.newState(nil)
 
 		local := t.Local
-		st.nodeInConsensusNodes = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
+		st.args.NodeInConsensusNodesFunc = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
 			suf, _ := isaac.NewSuffrage([]base.Node{local})
 			return suf, true, nil
 		}
@@ -497,13 +497,13 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 		defer closef()
 
 		local := t.Local
-		st.nodeInConsensusNodes = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
+		st.args.NodeInConsensusNodesFunc = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
 			suf, _ := isaac.NewSuffrage([]base.Node{local})
 			return suf, true, nil
 		}
 
 		finishedheightch := make(chan base.Height)
-		st.whenNewBlockSaved = func(height base.Height) {
+		st.args.WhenNewBlockSavedFunc = func(height base.Height) {
 			finishedheightch <- height
 		}
 
@@ -553,7 +553,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 		defer closef()
 
 		local := t.Local
-		st.nodeInConsensusNodes = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
+		st.args.NodeInConsensusNodesFunc = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
 			suf, _ := isaac.NewSuffrage([]base.Node{local})
 			return suf, true, nil
 		}
@@ -596,7 +596,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 		st, closef := t.newState(nil)
 		defer closef()
 
-		st.nodeInConsensusNodes = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
+		st.args.NodeInConsensusNodesFunc = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
 			suf, _ := isaac.NewSuffrage([]base.Node{base.RandomNode()})
 
 			return suf, false, nil
@@ -637,7 +637,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 		st, _ := t.newState(nil)
 
 		local := t.Local
-		st.nodeInConsensusNodes = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
+		st.args.NodeInConsensusNodesFunc = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
 			suf, _ := isaac.NewSuffrage([]base.Node{local})
 			return suf, true, nil
 		}
@@ -678,7 +678,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 		st, _ := t.newState(nil)
 
 		local := t.Local
-		st.nodeInConsensusNodes = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
+		st.args.NodeInConsensusNodesFunc = func(_ base.Node, h base.Height) (base.Suffrage, bool, error) {
 			suf, _ := isaac.NewSuffrage([]base.Node{local})
 			return suf, true, nil
 		}

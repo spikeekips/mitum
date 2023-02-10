@@ -23,7 +23,7 @@ func (st *States) newVoteproof(vp base.Voteproof) error {
 		return nil
 	}
 
-	if !st.lvps.IsNew(vp) {
+	if !st.args.LastVoteproofsHandler.IsNew(vp) {
 		return nil
 	}
 
@@ -113,7 +113,7 @@ func (st *dummyStateHandler) newVoteproof(vp base.Voteproof) error {
 	return st.newVoteprooff(vp)
 }
 
-func (st *dummyStateHandler) onEmptyMembers() {}
+func (st *dummyStateHandler) whenEmptyMembers() {}
 
 func (st *dummyStateHandler) setEnter(f func(StateType, switchContext) error, d func()) *dummyStateHandler {
 	st.enterf = f
@@ -157,11 +157,18 @@ func (s dummySwitchContext) MarshalZerologObject(e *zerolog.Event) {
 
 type testStates struct {
 	suite.Suite
+	local  base.LocalNode
+	params *isaac.LocalParams
+}
+
+func (t *testStates) SetupSuite() {
+	t.local = isaac.RandomLocalNode()
+	t.params = isaac.DefaultLocalParams(base.RandomNetworkID())
 }
 
 func (t *testStates) TestWait() {
-	args := NewStatesArgs(nil, nil)
-	st := NewStates(args)
+	args := NewStatesArgs()
+	st := NewStates(t.local, t.params, args)
 	_ = st.SetLogging(logging.TestNilLogging)
 
 	_ = st.setHandler(newDummyStateHandler(StateStopped))
@@ -215,8 +222,8 @@ func (t *testStates) TestExit() {
 }
 
 func (t *testStates) TestBootingAtStarting() {
-	args := NewStatesArgs(nil, nil)
-	st := NewStates(args)
+	args := NewStatesArgs()
+	st := NewStates(t.local, t.params, args)
 	_ = st.SetLogging(logging.TestNilLogging)
 
 	_ = st.setHandler(newDummyStateHandler(StateStopped))
@@ -243,8 +250,8 @@ func (t *testStates) TestBootingAtStarting() {
 }
 
 func (t *testStates) TestFailedToEnterIntoBootingAtStarting() {
-	args := NewStatesArgs(nil, nil)
-	st := NewStates(args)
+	args := NewStatesArgs()
+	st := NewStates(t.local, t.params, args)
 	_ = st.SetLogging(logging.TestNilLogging)
 
 	_ = st.setHandler(newDummyStateHandler(StateStopped))
@@ -284,8 +291,8 @@ func (t *testStates) TestFailedToEnterIntoBootingAtStarting() {
 }
 
 func (t *testStates) booted() (*States, <-chan error) {
-	args := NewStatesArgs(nil, nil)
-	st := NewStates(args)
+	args := NewStatesArgs()
+	st := NewStates(t.local, t.params, args)
 	_ = st.SetLogging(logging.TestNilLogging)
 
 	_ = st.setHandler(newDummyStateHandler(StateStopped))
@@ -313,8 +320,8 @@ func (t *testStates) booted() (*States, <-chan error) {
 }
 
 func (t *testStates) TestFailedToEnterIntoBrokenAtStarting() {
-	args := NewStatesArgs(nil, nil)
-	st := NewStates(args)
+	args := NewStatesArgs()
+	st := NewStates(t.local, t.params, args)
 	_ = st.SetLogging(logging.TestNilLogging)
 
 	_ = st.setHandler(newDummyStateHandler(StateStopped))
@@ -779,10 +786,10 @@ func (t *testStates) TestMimicBallot() {
 		st, errch := newstatesinsyncing()
 		defer st.Stop()
 
-		st.isinsyncsources = func(base.Address) bool { return true }
+		st.args.IsInSyncSourcePoolFunc = func(base.Address) bool { return true }
 
 		blch := make(chan base.Ballot, 1)
-		st.ballotBroadcaster = NewDummyBallotBroadcaster(st.local.Address(), func(bl base.Ballot) error {
+		st.args.BallotBroadcaster = NewDummyBallotBroadcaster(st.local.Address(), func(bl base.Ballot) error {
 			blch <- bl
 
 			return nil
@@ -811,10 +818,10 @@ func (t *testStates) TestMimicBallot() {
 		st.local = local
 		st.params = params
 
-		st.isinsyncsources = func(base.Address) bool { return true }
+		st.args.IsInSyncSourcePoolFunc = func(base.Address) bool { return true }
 
 		blch := make(chan base.Ballot, 1)
-		st.ballotBroadcaster = NewDummyBallotBroadcaster(st.local.Address(), func(bl base.Ballot) error {
+		st.args.BallotBroadcaster = NewDummyBallotBroadcaster(st.local.Address(), func(bl base.Ballot) error {
 			blch <- bl
 			return nil
 		})
@@ -838,10 +845,10 @@ func (t *testStates) TestMimicBallot() {
 		st, errch := newstatesinsyncing()
 		defer st.Stop()
 
-		st.isinsyncsources = func(base.Address) bool { return false }
+		st.args.IsInSyncSourcePoolFunc = func(base.Address) bool { return false }
 
 		blch := make(chan base.Ballot, 1)
-		st.ballotBroadcaster = NewDummyBallotBroadcaster(st.local.Address(), func(bl base.Ballot) error {
+		st.args.BallotBroadcaster = NewDummyBallotBroadcaster(st.local.Address(), func(bl base.Ballot) error {
 			blch <- bl
 			return nil
 		})
@@ -865,10 +872,10 @@ func (t *testStates) TestMimicBallot() {
 		st, errch := newstatesinsyncing()
 		defer st.Stop()
 
-		st.isinsyncsources = func(base.Address) bool { return true }
+		st.args.IsInSyncSourcePoolFunc = func(base.Address) bool { return true }
 
 		blch := make(chan base.Ballot, 1)
-		st.ballotBroadcaster = NewDummyBallotBroadcaster(st.local.Address(), func(bl base.Ballot) error {
+		st.args.BallotBroadcaster = NewDummyBallotBroadcaster(st.local.Address(), func(bl base.Ballot) error {
 			blch <- bl
 			return nil
 		})
@@ -907,10 +914,10 @@ func (t *testStates) TestMimicBallot() {
 		st, errch := newstatesinsyncing()
 		defer st.Stop()
 
-		st.isinsyncsources = func(base.Address) bool { return true }
+		st.args.IsInSyncSourcePoolFunc = func(base.Address) bool { return true }
 
 		blch := make(chan base.Ballot, 1)
-		st.ballotBroadcaster = NewDummyBallotBroadcaster(st.local.Address(), func(bl base.Ballot) error {
+		st.args.BallotBroadcaster = NewDummyBallotBroadcaster(st.local.Address(), func(bl base.Ballot) error {
 			blch <- bl
 			return nil
 		})
@@ -934,10 +941,10 @@ func (t *testStates) TestMimicBallot() {
 		st, errch := newstatesinsyncing()
 		defer st.Stop()
 
-		st.isinsyncsources = func(base.Address) bool { return true }
+		st.args.IsInSyncSourcePoolFunc = func(base.Address) bool { return true }
 
 		blch := make(chan base.Ballot, 1)
-		st.ballotBroadcaster = NewDummyBallotBroadcaster(st.local.Address(), func(bl base.Ballot) error {
+		st.args.BallotBroadcaster = NewDummyBallotBroadcaster(st.local.Address(), func(bl base.Ballot) error {
 			blch <- bl
 			return nil
 		})

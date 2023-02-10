@@ -25,7 +25,7 @@ type baseHandler struct {
 	sts                   *States
 	timers                *util.Timers
 	switchStateFunc       func(switchContext) error
-	onEmptyMembersf       func()
+	whenEmptyMembersFunc  func()
 	stt                   StateType
 }
 
@@ -55,7 +55,7 @@ func newBaseHandler(
 		forceSetLastVoteproof: func(vp base.Voteproof) bool {
 			return lvps.ForceSet(vp)
 		},
-		onEmptyMembersf: func() {},
+		whenEmptyMembersFunc: func() {},
 	}
 }
 
@@ -73,6 +73,7 @@ func (st *baseHandler) new() *baseHandler {
 		setLastVoteproofFunc:  st.setLastVoteproofFunc,
 		forceSetLastVoteproof: st.forceSetLastVoteproof,
 		switchStateFunc:       st.switchStateFunc,
+		whenEmptyMembersFunc:  st.whenEmptyMembersFunc,
 	}
 }
 
@@ -92,12 +93,8 @@ func (*baseHandler) newVoteproof(base.Voteproof) error {
 	return nil
 }
 
-func (st *baseHandler) onEmptyMembers() {
-	st.onEmptyMembersf()
-}
-
-func (st *baseHandler) SetOnEmptyMembers(f func()) {
-	st.onEmptyMembersf = f
+func (st *baseHandler) whenEmptyMembers() {
+	st.whenEmptyMembersFunc()
 }
 
 func (st *baseHandler) state() StateType {

@@ -12,14 +12,35 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
+type JoiningHandlerArgs struct {
+	*baseBallotHandlerArgs
+	LastManifestFunc    func() (base.Manifest, bool, error)
+	JoinMemberlistFunc  func(context.Context, base.Suffrage) error
+	LeaveMemberlistFunc func(time.Duration) error
+	WaitFirstVoteproof  time.Duration
+}
+
+func NewJoiningHandlerArgs(params *isaac.LocalParams) *JoiningHandlerArgs {
+	return &JoiningHandlerArgs{
+		baseBallotHandlerArgs: newBaseBallotHandlerArgs(),
+		LastManifestFunc: func() (base.Manifest, bool, error) {
+			return nil, false, util.ErrNotImplemented.Errorf("LastManifestFunc")
+		},
+		JoinMemberlistFunc: func(context.Context, base.Suffrage) error {
+			return util.ErrNotImplemented.Errorf("JoinMemberlistFunc")
+		},
+		LeaveMemberlistFunc: func(time.Duration) error {
+			return util.ErrNotImplemented.Errorf("LeaveMemberlistFunc")
+		},
+		WaitFirstVoteproof: params.IntervalBroadcastBallot()*2 + params.WaitPreparingINITBallot(),
+	}
+}
+
 type JoiningHandler struct {
 	*baseBallotHandler
-	lastManifest         func() (base.Manifest, bool, error)
-	joinMemberlistf      func(context.Context, base.Suffrage) error
-	leaveMemberlistf     func(time.Duration) error
-	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc
-	waitFirstVoteproof   time.Duration
-	newvoteproofLock     sync.Mutex
+	args               *JoiningHandlerArgs
+	waitFirstVoteproof time.Duration
+	newvoteproofLock   sync.Mutex
 }
 
 type NewJoiningHandlerType struct {
@@ -29,40 +50,24 @@ type NewJoiningHandlerType struct {
 func NewNewJoiningHandlerType(
 	local base.LocalNode,
 	params *isaac.LocalParams,
-	proposalSelector isaac.ProposalSelector,
-	lastManifest func() (base.Manifest, bool, error),
-	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc,
-	voteFunc func(base.Ballot) (bool, error),
-	joinMemberlistf func(context.Context, base.Suffrage) error,
-	leaveMemberlistf func(time.Duration) error,
-	svf SuffrageVotingFindFunc,
+	args *JoiningHandlerArgs,
 ) *NewJoiningHandlerType {
-	baseBallotHandler := newBaseBallotHandler(StateJoining, local, params, proposalSelector, svf)
-
-	if voteFunc != nil {
-		baseBallotHandler.voteFunc = preventVotingWithEmptySuffrage(voteFunc, local, nodeInConsensusNodes)
-	}
+	baseBallotHandler := newBaseBallotHandler(StateJoining, local, params, args.baseBallotHandlerArgs)
 
 	return &NewJoiningHandlerType{
 		JoiningHandler: &JoiningHandler{
-			baseBallotHandler:    baseBallotHandler,
-			lastManifest:         lastManifest,
-			waitFirstVoteproof:   params.IntervalBroadcastBallot()*2 + params.WaitPreparingINITBallot(),
-			nodeInConsensusNodes: nodeInConsensusNodes,
-			joinMemberlistf:      joinMemberlistf,
-			leaveMemberlistf:     leaveMemberlistf,
+			baseBallotHandler:  baseBallotHandler,
+			args:               args,
+			waitFirstVoteproof: args.WaitFirstVoteproof,
 		},
 	}
 }
 
 func (h *NewJoiningHandlerType) new() (handler, error) {
 	return &JoiningHandler{
-		baseBallotHandler:    h.baseBallotHandler.new(),
-		lastManifest:         h.lastManifest,
-		waitFirstVoteproof:   h.waitFirstVoteproof,
-		nodeInConsensusNodes: h.nodeInConsensusNodes,
-		joinMemberlistf:      h.joinMemberlistf,
-		leaveMemberlistf:     h.leaveMemberlistf,
+		baseBallotHandler:  h.baseBallotHandler.new(),
+		args:               h.args,
+		waitFirstVoteproof: h.waitFirstVoteproof,
 	}, nil
 }
 
@@ -94,7 +99,7 @@ func (st *JoiningHandler) enter(from StateType, i switchContext) (func(), error)
 
 	var manifest base.Manifest
 
-	switch m, found, err := st.lastManifest(); {
+	switch m, found, err := st.args.LastManifestFunc(); {
 	case err != nil:
 		return nil, e(err, "")
 	case !found:
@@ -179,7 +184,7 @@ func (st *JoiningHandler) handleNewVoteproof(vp base.Voteproof) error {
 
 	var manifest base.Manifest
 
-	switch i, found, err := st.lastManifest(); {
+	switch i, found, err := st.args.LastManifestFunc(); {
 	case err != nil:
 		err = e(err, "failed to get last manifest")
 
@@ -278,12 +283,12 @@ func (st *JoiningHandler) newACCEPTVoteproof(avp base.ACCEPTVoteproof, manifest 
 }
 
 func (st *JoiningHandler) checkSuffrage(height base.Height) (base.Suffrage, error) {
-	suf, found, err := st.nodeInConsensusNodes(st.local, height)
+	suf, found, err := st.args.NodeInConsensusNodesFunc(st.local, height)
 
 	switch {
 	case err != nil:
 	case !found:
-		if lerr := st.leaveMemberlistf(time.Second); lerr != nil {
+		if lerr := st.args.LeaveMemberlistFunc(time.Second); lerr != nil {
 			st.Log().Error().Err(lerr).Msg("failed to leave memberilst; ignored")
 		}
 
@@ -364,7 +369,7 @@ func (st *JoiningHandler) nextBlock(avp base.ACCEPTVoteproof) {
 	var sctx switchContext
 	var bl base.INITBallot
 
-	switch i, err := st.makeNextBlockBallot(avp, st.nodeInConsensusNodes); {
+	switch i, err := st.makeNextBlockBallot(avp, st.args.NodeInConsensusNodesFunc); {
 	case err == nil:
 		if i == nil {
 			return
@@ -435,7 +440,7 @@ func (st *JoiningHandler) joinMemberlist(suf base.Suffrage) error {
 		case <-st.ctx.Done():
 			return st.ctx.Err()
 		case <-ticker.C:
-			switch err := st.joinMemberlistf(st.ctx, suf); {
+			switch err := st.args.JoinMemberlistFunc(st.ctx, suf); {
 			case err == nil:
 				return nil
 			case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):

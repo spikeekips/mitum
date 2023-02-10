@@ -14,13 +14,27 @@ import (
 	"github.com/spikeekips/mitum/util/valuehash"
 )
 
+type ConsensusHandlerArgs struct {
+	*baseBallotHandlerArgs
+	ProposalProcessors *isaac.ProposalProcessors
+	GetManifestFunc    func(base.Height) (base.Manifest, error)
+	WhenNewBlockSaved  func(base.Height)
+}
+
+func NewConsensusHandlerArgs() *ConsensusHandlerArgs {
+	return &ConsensusHandlerArgs{
+		baseBallotHandlerArgs: newBaseBallotHandlerArgs(),
+		GetManifestFunc: func(base.Height) (base.Manifest, error) {
+			return nil, util.ErrNotImplemented.Errorf("GetManifestFunc")
+		},
+		WhenNewBlockSaved: func(base.Height) {},
+	}
+}
+
 type ConsensusHandler struct {
 	*baseBallotHandler
-	pps                  *isaac.ProposalProcessors
-	getManifest          func(base.Height) (base.Manifest, error)
-	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc
-	whenNewBlockSaved    func(base.Height)
-	vplock               sync.Mutex
+	args   *ConsensusHandlerArgs
+	vplock sync.Mutex
 }
 
 type NewConsensusHandlerType struct {
@@ -30,38 +44,22 @@ type NewConsensusHandlerType struct {
 func NewNewConsensusHandlerType(
 	local base.LocalNode,
 	params *isaac.LocalParams,
-	proposalSelector isaac.ProposalSelector,
-	pps *isaac.ProposalProcessors,
-	getManifest func(base.Height) (base.Manifest, error),
-	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc,
-	voteFunc func(base.Ballot) (bool, error),
-	whenNewBlockSaved func(base.Height),
-	svf SuffrageVotingFindFunc,
+	args *ConsensusHandlerArgs,
 ) *NewConsensusHandlerType {
-	baseBallotHandler := newBaseBallotHandler(StateConsensus, local, params, proposalSelector, svf)
-
-	if voteFunc != nil {
-		baseBallotHandler.voteFunc = preventVotingWithEmptySuffrage(voteFunc, local, nodeInConsensusNodes)
-	}
+	baseBallotHandler := newBaseBallotHandler(StateConsensus, local, params, args.baseBallotHandlerArgs)
 
 	return &NewConsensusHandlerType{
 		ConsensusHandler: &ConsensusHandler{
-			baseBallotHandler:    baseBallotHandler,
-			pps:                  pps,
-			getManifest:          getManifest,
-			nodeInConsensusNodes: nodeInConsensusNodes,
-			whenNewBlockSaved:    whenNewBlockSaved,
+			baseBallotHandler: baseBallotHandler,
+			args:              args,
 		},
 	}
 }
 
 func (h *NewConsensusHandlerType) new() (handler, error) {
 	return &ConsensusHandler{
-		baseBallotHandler:    h.baseBallotHandler.new(),
-		getManifest:          h.getManifest,
-		nodeInConsensusNodes: h.nodeInConsensusNodes,
-		whenNewBlockSaved:    h.whenNewBlockSaved,
-		pps:                  h.pps,
+		baseBallotHandler: h.baseBallotHandler.new(),
+		args:              h.args,
 	}, nil
 }
 
@@ -84,7 +82,8 @@ func (st *ConsensusHandler) enter(from StateType, i switchContext) (func(), erro
 		sctx = j
 	}
 
-	switch suf, found, err := st.nodeInConsensusNodes(st.local, sctx.vp.Point().Height()); { //nolint:govet //...
+	switch suf, found, err := st.args.NodeInConsensusNodesFunc(
+		st.local, sctx.vp.Point().Height()); {
 	case errors.Is(err, storage.ErrNotFound):
 		st.Log().Debug().
 			Dict("state_context", switchContextLog(sctx)).
@@ -139,7 +138,7 @@ func (st *ConsensusHandler) exit(sctx switchContext) (func(), error) {
 		return nil, e(err, "")
 	}
 
-	if err := st.pps.Cancel(); err != nil {
+	if err := st.args.ProposalProcessors.Cancel(); err != nil {
 		return nil, e(err, "failed to cancel proposal processors")
 	}
 
@@ -264,14 +263,14 @@ func (st *ConsensusHandler) processProposalInternal(ivp base.INITVoteproof) (isa
 
 	var previous base.Manifest
 
-	switch m, err := st.getManifest(ivp.Point().Height() - 1); {
+	switch m, err := st.args.GetManifestFunc(ivp.Point().Height() - 1); {
 	case err != nil:
 		return nil, e(err, "")
 	default:
 		previous = m
 	}
 
-	switch process, err := st.pps.Process(st.ctx, facthash, previous, ivp); {
+	switch process, err := st.args.ProposalProcessors.Process(st.ctx, facthash, previous, ivp); {
 	case err != nil:
 		return nil, e(err, "")
 	case process == nil:
@@ -286,7 +285,7 @@ func (st *ConsensusHandler) processProposalInternal(ivp base.INITVoteproof) (isa
 					return nil, err
 				}
 
-				if err0 := st.pps.Cancel(); err0 != nil {
+				if err0 := st.args.ProposalProcessors.Cancel(); err0 != nil {
 					return nil, e(err0, "failed to cancel proposal processors")
 				}
 
@@ -311,7 +310,7 @@ func (st *ConsensusHandler) handleACCEPTVoteproofAfterProcessingProposal(
 
 	switch { // NOTE check last accept voteproof is the execpted
 	case avp.Result() != base.VoteResultMajority:
-		if err := st.pps.Cancel(); err != nil {
+		if err := st.args.ProposalProcessors.Cancel(); err != nil {
 			l.Error().Err(err).
 				Msg("expected accept voteproof is not majority result; cancel processor, but failed")
 
@@ -322,7 +321,7 @@ func (st *ConsensusHandler) handleACCEPTVoteproofAfterProcessingProposal(
 
 		return false, nil
 	case !manifest.Hash().Equal(avp.BallotMajority().NewBlock()):
-		if err := st.pps.Cancel(); err != nil {
+		if err := st.args.ProposalProcessors.Cancel(); err != nil {
 			l.Error().Err(err).
 				Msg("expected accept voteproof has different new block; cancel processor, but failed")
 
@@ -630,7 +629,7 @@ func (st *ConsensusHandler) nextRound(vp base.Voteproof, previousBlock util.Hash
 	var sctx switchContext
 	var bl base.INITBallot
 
-	switch i, err := st.baseBallotHandler.makeNextRoundBallot(vp, previousBlock, st.nodeInConsensusNodes); {
+	switch i, err := st.baseBallotHandler.makeNextRoundBallot(vp, previousBlock, st.args.NodeInConsensusNodesFunc); {
 	case err == nil:
 		if i == nil {
 			return
@@ -696,7 +695,7 @@ func (st *ConsensusHandler) prepareNextBlock(avp base.ACCEPTVoteproof) {
 	var sctx switchContext
 	var bl base.INITBallot
 
-	switch i, err := st.baseBallotHandler.makeNextBlockBallot(avp, st.nodeInConsensusNodes); {
+	switch i, err := st.baseBallotHandler.makeNextBlockBallot(avp, st.args.NodeInConsensusNodesFunc); {
 	case err == nil:
 		if i == nil {
 			return
@@ -752,11 +751,11 @@ func (st *ConsensusHandler) saveBlock(avp base.ACCEPTVoteproof) (bool, error) {
 
 	ll.Debug().Msg("expected accept voteproof; trying to save proposal")
 
-	switch err := st.pps.Save(context.Background(), facthash, avp); {
+	switch err := st.args.ProposalProcessors.Save(context.Background(), facthash, avp); {
 	case err == nil:
 		ll.Debug().Msg("processed proposal saved; moves to next block")
 
-		go st.whenNewBlockSaved(avp.Point().Height())
+		go st.args.WhenNewBlockSaved(avp.Point().Height())
 		go st.prepareNextBlock(avp)
 
 		return true, nil

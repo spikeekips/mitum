@@ -16,19 +16,44 @@ import (
 
 var ErrSyncerCanNotCancel = util.NewError("can not cancel syncer")
 
+type SyncingHandlerArgs struct {
+	NodeInConsensusNodesFunc isaac.NodeInConsensusNodesFunc
+	NewSyncerFunc            func(base.Height) (isaac.Syncer, error)
+	WhenFinishedFunc         func(base.Height)
+	JoinMemberlistFunc       func(context.Context, base.Suffrage) error
+	LeaveMemberlistFunc      func(time.Duration) error
+	WhenNewBlockSavedFunc    func(base.Height)
+	WaitStuckInterval        time.Duration
+}
+
+func NewSyncingHandlerArgs(params *isaac.LocalParams) *SyncingHandlerArgs {
+	return &SyncingHandlerArgs{
+		NodeInConsensusNodesFunc: func(base.Node, base.Height) (base.Suffrage, bool, error) {
+			return nil, false, util.ErrNotImplemented.Errorf("NodeInConsensusNodesFunc")
+		},
+		NewSyncerFunc: func(base.Height) (isaac.Syncer, error) {
+			return nil, util.ErrNotImplemented.Errorf("NewSyncerFunc")
+		},
+		WhenFinishedFunc: func(base.Height) {},
+		JoinMemberlistFunc: func(context.Context, base.Suffrage) error {
+			return util.ErrNotImplemented.Errorf("JoinMemberlistFunc")
+		},
+		LeaveMemberlistFunc: func(time.Duration) error {
+			return util.ErrNotImplemented.Errorf("LeaveMemberlistFunc")
+		},
+		WhenNewBlockSavedFunc: func(base.Height) {},
+		WaitStuckInterval:     params.IntervalBroadcastBallot()*2 + params.WaitPreparingINITBallot(),
+	}
+}
+
 type SyncingHandler struct {
 	syncer isaac.Syncer
 	*baseHandler
-	newSyncer            func(base.Height) (isaac.Syncer, error)
-	stuckcancel          func()
-	whenFinishedf        func(base.Height)
-	joinMemberlistf      func(context.Context, base.Suffrage) error
-	leaveMemberlistf     func(time.Duration) error
-	whenNewBlockSaved    func(base.Height)
-	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc
-	waitStuckInterval    *util.Locked[time.Duration]
-	finishedLock         sync.RWMutex
-	stuckcancellock      sync.RWMutex
+	args              *SyncingHandlerArgs
+	stuckcancel       func()
+	waitStuckInterval *util.Locked[time.Duration]
+	finishedLock      sync.RWMutex
+	stuckcancellock   sync.RWMutex
 }
 
 type NewSyncingHandlerType struct {
@@ -38,50 +63,21 @@ type NewSyncingHandlerType struct {
 func NewNewSyncingHandlerType(
 	local base.LocalNode,
 	params *isaac.LocalParams,
-	newSyncer func(base.Height) (isaac.Syncer, error),
-	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc,
-	joinMemberlistf func(context.Context, base.Suffrage) error,
-	leaveMemberlistf func(time.Duration) error,
-	whenNewBlockSaved func(base.Height),
+	args *SyncingHandlerArgs,
 ) *NewSyncingHandlerType {
-	if nodeInConsensusNodes == nil {
-		//revive:disable-next-line:modifies-parameter
-		nodeInConsensusNodes = func(base.Node, base.Height) (base.Suffrage, bool, error) {
-			return nil, false, errors.Errorf("empty consensus node")
-		}
-	}
-
-	if whenNewBlockSaved == nil {
-		//revive:disable-next-line:modifies-parameter
-		whenNewBlockSaved = func(base.Height) {}
-	}
-
 	return &NewSyncingHandlerType{
 		SyncingHandler: &SyncingHandler{
 			baseHandler: newBaseHandler(StateSyncing, local, params),
-			newSyncer:   newSyncer,
-			waitStuckInterval: util.NewLocked(
-				params.IntervalBroadcastBallot()*2 + params.WaitPreparingINITBallot(),
-			),
-			whenFinishedf:        func(base.Height) {},
-			nodeInConsensusNodes: nodeInConsensusNodes,
-			joinMemberlistf:      joinMemberlistf,
-			leaveMemberlistf:     leaveMemberlistf,
-			whenNewBlockSaved:    whenNewBlockSaved,
+			args:        args,
 		},
 	}
 }
 
 func (h *NewSyncingHandlerType) new() (handler, error) {
 	return &SyncingHandler{
-		baseHandler:          h.baseHandler.new(),
-		newSyncer:            h.newSyncer,
-		waitStuckInterval:    h.waitStuckInterval,
-		whenFinishedf:        h.whenFinishedf,
-		nodeInConsensusNodes: h.nodeInConsensusNodes,
-		joinMemberlistf:      h.joinMemberlistf,
-		leaveMemberlistf:     h.leaveMemberlistf,
-		whenNewBlockSaved:    h.whenNewBlockSaved,
+		baseHandler:       h.baseHandler.new(),
+		args:              h.args,
+		waitStuckInterval: util.NewLocked(h.args.WaitStuckInterval),
 	}, nil
 }
 
@@ -98,7 +94,7 @@ func (st *SyncingHandler) enter(from StateType, i switchContext) (func(), error)
 		return nil, e(nil, "invalid stateSwitchContext, not for syncing state; %T", i)
 	}
 
-	switch sc, err := st.newSyncer(sctx.height); {
+	switch sc, err := st.args.NewSyncerFunc(sctx.height); {
 	case err != nil:
 		return nil, e(err, "")
 	case sc == nil:
@@ -217,9 +213,9 @@ func (st *SyncingHandler) checkFinished(vp base.Voteproof) (notstuck bool, _ err
 	top, isfinished := st.syncer.IsFinished()
 
 	if isfinished {
-		st.whenFinishedf(top)
+		st.args.WhenFinishedFunc(top)
 
-		go st.whenNewBlockSaved(top)
+		go st.args.WhenNewBlockSavedFunc(top)
 
 		joined, err := st.checkAndJoinMemberlist(top + 1)
 		if err != nil || !joined {
@@ -362,10 +358,6 @@ func (st *SyncingHandler) newStuckCancel(vp base.Voteproof) {
 	}()
 }
 
-func (st *SyncingHandler) SetWhenFinished(f func(base.Height)) {
-	st.whenFinishedf = f
-}
-
 func (st *SyncingHandler) waitStuck() time.Duration {
 	i, _ := st.waitStuckInterval.Value()
 
@@ -375,7 +367,7 @@ func (st *SyncingHandler) waitStuck() time.Duration {
 func (st *SyncingHandler) checkAndJoinMemberlist(height base.Height) (joined bool, _ error) {
 	l := st.Log().With().Interface("height", height).Logger()
 
-	switch suf, found, err := st.nodeInConsensusNodes(st.local, height); {
+	switch suf, found, err := st.args.NodeInConsensusNodesFunc(st.local, height); {
 	case errors.Is(err, storage.ErrNotFound):
 		l.Debug().Interface("height", height).Msg("suffrage not found after syncer finished")
 
@@ -387,7 +379,7 @@ func (st *SyncingHandler) checkAndJoinMemberlist(height base.Height) (joined boo
 	case suf == nil:
 		return false, newBrokenSwitchContext(StateSyncing, errors.Errorf("empty suffrage"))
 	case !found:
-		if err := st.leaveMemberlistf(time.Second); err != nil {
+		if err := st.args.LeaveMemberlistFunc(time.Second); err != nil {
 			l.Error().Err(err).Msg("failed to leave memberilst; ignored")
 		}
 
@@ -399,7 +391,7 @@ func (st *SyncingHandler) checkAndJoinMemberlist(height base.Height) (joined boo
 		ctx, cancel := context.WithTimeout(st.ctx, time.Second*10) //nolint:gomnd //...
 		defer cancel()
 
-		if err := st.joinMemberlistf(ctx, suf); err != nil {
+		if err := st.args.JoinMemberlistFunc(ctx, suf); err != nil {
 			l.Debug().Err(err).
 				Msg("local is in consensus nodes after syncer finished; but failed to join memberlist")
 

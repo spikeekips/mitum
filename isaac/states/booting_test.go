@@ -23,14 +23,15 @@ func (t *testBootingHandler) newState() *BootingHandler {
 
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
-	newhandler := NewNewBootingHandlerType(local, params,
-		func() (base.Manifest, bool, error) {
-			return manifest, true, nil
-		},
-		func(base.Node, base.Height) (base.Suffrage, bool, error) {
-			return suf, true, nil
-		},
-	)
+	args := NewBootingHandlerArgs()
+	args.LastManifestFunc = func() (base.Manifest, bool, error) {
+		return manifest, true, nil
+	}
+	args.NodeInConsensusNodesFunc = func(base.Node, base.Height) (base.Suffrage, bool, error) {
+		return suf, true, nil
+	}
+
+	newhandler := NewNewBootingHandlerType(local, params, args)
 
 	_ = (interface{})(newhandler).(newHandler)
 
@@ -65,7 +66,7 @@ func (t *testBootingHandler) TestNew() {
 
 func (t *testBootingHandler) TestEmptyManifest() {
 	st := t.newState()
-	st.lastManifest = func() (base.Manifest, bool, error) { return nil, false, nil }
+	st.args.LastManifestFunc = func() (base.Manifest, bool, error) { return nil, false, nil }
 
 	sctx := newBootingSwitchContext(StateStopped)
 	_, err := st.enter(StateStopped, sctx)
@@ -94,7 +95,7 @@ func (t *testBootingHandler) TestWrongLastACCEPTVoteproof() {
 
 func (t *testBootingHandler) TestEmptySuffrage() {
 	st := t.newState()
-	st.nodeInConsensusNodes = func(base.Node, base.Height) (base.Suffrage, bool, error) { return nil, false, nil }
+	st.args.NodeInConsensusNodesFunc = func(base.Node, base.Height) (base.Suffrage, bool, error) { return nil, false, nil }
 
 	sctx := newBootingSwitchContext(StateStopped)
 	_, err := st.enter(StateStopped, sctx)
@@ -107,7 +108,7 @@ func (t *testBootingHandler) TestNotInSuffrage() {
 	st := t.newState()
 
 	suf, _ := isaac.NewTestSuffrage(2)
-	st.nodeInConsensusNodes = func(base.Node, base.Height) (base.Suffrage, bool, error) { return suf, false, nil }
+	st.args.NodeInConsensusNodesFunc = func(base.Node, base.Height) (base.Suffrage, bool, error) { return suf, false, nil }
 
 	sctx := newBootingSwitchContext(StateStopped)
 	_, err := st.enter(StateStopped, sctx)
@@ -115,7 +116,7 @@ func (t *testBootingHandler) TestNotInSuffrage() {
 
 	var rsctx SyncingSwitchContext
 	t.True(errors.As(err, &rsctx))
-	manifest, _, _ := st.lastManifest()
+	manifest, _, _ := st.args.LastManifestFunc()
 
 	t.Equal(manifest.Height(), rsctx.height)
 }

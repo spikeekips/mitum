@@ -22,8 +22,6 @@ var (
 )
 
 type StatesArgs struct {
-	Local                  base.LocalNode
-	LocalParams            *isaac.LocalParams
 	Ballotbox              *Ballotbox
 	BallotStuckResolver    BallotStuckResolver
 	LastVoteproofsHandler  *LastVoteproofsHandler
@@ -32,10 +30,8 @@ type StatesArgs struct {
 	WhenStateSwitchedFunc  func(StateType)
 }
 
-func NewStatesArgs(local base.LocalNode, params *isaac.LocalParams) StatesArgs {
-	return StatesArgs{
-		Local:                  local,
-		LocalParams:            params,
+func NewStatesArgs() *StatesArgs {
+	return &StatesArgs{
 		LastVoteproofsHandler:  NewLastVoteproofsHandler(),
 		IsInSyncSourcePoolFunc: func(base.Address) bool { return false },
 		WhenStateSwitchedFunc:  func(StateType) {},
@@ -45,51 +41,41 @@ func NewStatesArgs(local base.LocalNode, params *isaac.LocalParams) StatesArgs {
 type States struct {
 	cs handler
 	*logging.Logging
-	local               base.LocalNode
-	params              *isaac.LocalParams
-	ballotbox           *Ballotbox
-	ballotStuckResolver BallotStuckResolver
-	lvps                *LastVoteproofsHandler
-	statech             chan switchContext
-	vpch                chan base.Voteproof
-	newHandlers         map[StateType]newHandler
+	local       base.LocalNode
+	params      *isaac.LocalParams
+	args        *StatesArgs
+	statech     chan switchContext
+	vpch        chan base.Voteproof
+	newHandlers map[StateType]newHandler
 	*util.ContextDaemon
-	timers            *util.Timers
-	isinsyncsources   func(base.Address) bool
-	ballotBroadcaster BallotBroadcaster
-	whenStateSwitched func(next StateType)
-	stateLock         sync.RWMutex
+	timers    *util.Timers
+	stateLock sync.RWMutex
 }
 
-func NewStates(args StatesArgs) *States {
+func NewStates(local base.LocalNode, params *isaac.LocalParams, args *StatesArgs) *States {
 	st := &States{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", "states")
 		}),
-		local:               args.Local,
-		params:              args.LocalParams,
-		ballotbox:           args.Ballotbox,
-		ballotStuckResolver: args.BallotStuckResolver,
-		ballotBroadcaster:   args.BallotBroadcaster,
-		statech:             make(chan switchContext),
-		vpch:                make(chan base.Voteproof),
-		newHandlers:         map[StateType]newHandler{},
-		cs:                  nil,
+		local:       local,
+		params:      params,
+		args:        args,
+		statech:     make(chan switchContext),
+		vpch:        make(chan base.Voteproof),
+		newHandlers: map[StateType]newHandler{},
+		cs:          nil,
 		timers: util.NewTimers([]util.TimerID{
 			timerIDBroadcastINITBallot,
 			timerIDBroadcastSuffrageConfirmBallot,
 			timerIDBroadcastACCEPTBallot,
 		}, false),
-		lvps:              args.LastVoteproofsHandler,
-		isinsyncsources:   args.IsInSyncSourcePoolFunc,
-		whenStateSwitched: args.WhenStateSwitchedFunc,
 	}
 
 	cancelf := func() {}
 
-	if st.ballotbox != nil {
+	if st.args.Ballotbox != nil {
 		f, cancel := st.mimicBallotFunc()
-		st.ballotbox.SetNewBallotFunc(f)
+		st.args.Ballotbox.SetNewBallotFunc(f)
 
 		cancelf = cancel
 	}
@@ -128,20 +114,16 @@ func (st *States) SetLogging(l *logging.Logging) *logging.Logging {
 }
 
 func (st *States) SetWhenStateSwitched(f func(StateType)) {
-	st.whenStateSwitched = f
+	st.args.WhenStateSwitchedFunc = f
 }
 
-func (st *States) OnEmptyMembers() {
+func (st *States) WhenEmptyMembers() {
 	current := st.current()
 	if current == nil {
 		return
 	}
 
-	current.onEmptyMembers()
-}
-
-func (st *States) LastVoteproofsHandler() *LastVoteproofsHandler {
-	return st.lvps
+	current.whenEmptyMembers()
 }
 
 func (st *States) Hold() error {
@@ -226,10 +208,10 @@ func (st *States) startStatesSwitch(ctx context.Context) error {
 	var resolvervpch <-chan base.Voteproof
 
 	switch {
-	case st.ballotStuckResolver == nil:
+	case st.args.BallotStuckResolver == nil:
 		resolvervpch = make(chan base.Voteproof)
 	default:
-		resolvervpch = st.ballotStuckResolver.Voteproof()
+		resolvervpch = st.args.BallotStuckResolver.Voteproof()
 	}
 
 	for {
@@ -240,13 +222,13 @@ func (st *States) startStatesSwitch(ctx context.Context) error {
 		case <-ctx.Done():
 			return errors.Wrap(ctx.Err(), "states stopped by context")
 		case sctx = <-st.statech:
-		case vp = <-st.ballotbox.Voteproof():
+		case vp = <-st.args.Ballotbox.Voteproof():
 		case vp = <-resolvervpch:
 		case vp = <-st.vpch:
 		}
 
 		if vp != nil {
-			if !st.lvps.IsNew(vp) {
+			if !st.args.LastVoteproofsHandler.IsNew(vp) {
 				continue
 			}
 
@@ -359,7 +341,7 @@ func (st *States) switchState(sctx switchContext) error {
 
 	st.callDeferStates(cdefer, ndefer)
 
-	st.whenStateSwitched(sctx.next())
+	st.args.WhenStateSwitchedFunc(sctx.next())
 
 	l.Debug().Msg("state switched")
 
@@ -472,15 +454,15 @@ func (st *States) stateSwitchContextLog(sctx switchContext, current handler) zer
 }
 
 func (st *States) voteproofs(point base.StagePoint) (LastVoteproofs, bool) {
-	return st.lvps.Voteproofs(point)
+	return st.args.LastVoteproofsHandler.Voteproofs(point)
 }
 
 func (st *States) lastVoteproof() LastVoteproofs {
-	return st.lvps.Last()
+	return st.args.LastVoteproofsHandler.Last()
 }
 
 func (st *States) setLastVoteproof(vp base.Voteproof) bool {
-	return st.lvps.Set(vp)
+	return st.args.LastVoteproofsHandler.Set(vp)
 }
 
 // mimicBallotFunc mimics incoming ballot when node can not broadcast ballot; this will
@@ -493,6 +475,18 @@ func (st *States) mimicBallotFunc() (func(base.Ballot), func()) {
 		timerIDBroadcastINITBallot,
 		timerIDBroadcastACCEPTBallot,
 	}, false)
+
+	votef := func(bl base.Ballot, threshold base.Threshold) error {
+		return nil
+	}
+
+	if st.args.Ballotbox != nil {
+		votef = func(bl base.Ballot, threshold base.Threshold) error {
+			_, err := st.args.Ballotbox.Vote(bl, threshold)
+
+			return err
+		}
+	}
 
 	return func(bl base.Ballot) {
 			if bl.SignFact().Node().Equal(st.local.Address()) {
@@ -508,7 +502,7 @@ func (st *States) mimicBallotFunc() (func(base.Ballot), func()) {
 				}
 
 				return
-			case !st.isinsyncsources(bl.SignFact().Node()):
+			case !st.args.IsInSyncSourcePoolFunc(bl.SignFact().Node()):
 				return
 			case st.filterMimicBallot(bl):
 				return
@@ -521,13 +515,11 @@ func (st *States) mimicBallotFunc() (func(base.Ballot), func()) {
 
 			l := st.Log().With().Interface("ballot", bl).Interface("new_ballot", newbl).Logger()
 
-			if st.ballotbox != nil {
-				go func() {
-					if _, err := st.ballotbox.Vote(newbl, st.params.Threshold()); err != nil {
-						l.Error().Err(err).Msg("failed to vote mimic ballot")
-					}
-				}()
-			}
+			go func() {
+				if err := votef(newbl, st.params.Threshold()); err != nil {
+					l.Error().Err(err).Msg("failed to vote mimic ballot")
+				}
+			}()
 
 			var timerid util.TimerID
 
@@ -544,7 +536,7 @@ func (st *States) mimicBallotFunc() (func(base.Ballot), func()) {
 				newbl,
 				timers,
 				timerid,
-				st.ballotBroadcaster.Broadcast,
+				st.args.BallotBroadcaster.Broadcast,
 				st.Logging,
 				func(i int, _ time.Duration) time.Duration {
 					if i < 1 {
@@ -574,7 +566,7 @@ func (st *States) mimicBallot() func(base.Ballot) base.Ballot {
 		lock.Lock()
 		defer lock.Unlock()
 
-		switch _, found, err := st.ballotBroadcaster.Ballot(
+		switch _, found, err := st.args.BallotBroadcaster.Ballot(
 			bl.Point().Point,
 			bl.Point().Stage(),
 			isaac.IsSuffrageConfirmBallotFact(bl.SignFact().Fact()),

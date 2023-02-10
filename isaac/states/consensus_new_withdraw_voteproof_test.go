@@ -36,7 +36,7 @@ func (t *testWithdrawsConsensusHandler) TestEnterWithSuffrageConfirmVoteproof() 
 	}
 
 	prpool := t.PRPool
-	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
+	st.args.ProposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -108,7 +108,7 @@ func (t *testWithdrawsConsensusHandler) TestSuffrageConfirmAfterEnteringINITVote
 	})
 
 	prpool := t.PRPool
-	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
+	st.args.ProposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -234,7 +234,7 @@ func (t *testWithdrawsConsensusHandler) TestSuffrageConfirmAfterACCEPTVoteproof(
 	}
 
 	prpool := t.PRPool
-	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
+	st.args.ProposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -381,7 +381,7 @@ func (t *testWithdrawsConsensusHandler) prepareAfterACCEPT(
 	}
 
 	prpool := t.PRPool
-	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
+	st.args.ProposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -678,7 +678,7 @@ func (t *testWithdrawsConsensusHandler) TestEnterINITStuckVoteproof() {
 	})
 
 	prpool := t.PRPool
-	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
+	st.args.ProposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -751,7 +751,7 @@ func (t *testWithdrawsConsensusHandler) TestINITStuckVoteproof() {
 	})
 
 	withdraws := t.Withdraws(point.NextHeight().Height(), []base.Address{withdrawnode.Address()}, nodes[:2])
-	st.svf = func(context.Context, base.Height, base.Suffrage) (
+	st.args.SuffrageVotingFindFunc = func(context.Context, base.Height, base.Suffrage) (
 		[]base.SuffrageWithdrawOperation, error,
 	) {
 		return withdraws, nil
@@ -833,7 +833,7 @@ func (t *testWithdrawsConsensusHandler) TestINITStuckVoteproofEnterSyncing() {
 	})
 
 	withdraws := t.Withdraws(point.NextHeight().Height(), []base.Address{withdrawnode.Address()}, nodes[:2])
-	st.svf = func(context.Context, base.Height, base.Suffrage) (
+	st.args.SuffrageVotingFindFunc = func(context.Context, base.Height, base.Suffrage) (
 		[]base.SuffrageWithdrawOperation, error,
 	) {
 		return withdraws, nil
@@ -899,7 +899,7 @@ func (t *testWithdrawsConsensusHandler) TestACCEPTStuckVoteproof() {
 	}
 
 	prpool := t.PRPool
-	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
+	st.args.ProposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -929,7 +929,7 @@ func (t *testWithdrawsConsensusHandler) TestACCEPTStuckVoteproof() {
 		withdrawfacts[i] = withdraws[i].Fact().Hash()
 	}
 
-	st.svf = func(context.Context, base.Height, base.Suffrage) (
+	st.args.SuffrageVotingFindFunc = func(context.Context, base.Height, base.Suffrage) (
 		[]base.SuffrageWithdrawOperation, error,
 	) {
 		return withdraws, nil
@@ -1008,7 +1008,7 @@ func (t *testWithdrawsConsensusHandler) TestACCEPTStuckVoteproofEnterSyncing() {
 	}
 
 	prpool := t.PRPool
-	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
+	st.args.ProposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -1038,7 +1038,7 @@ func (t *testWithdrawsConsensusHandler) TestACCEPTStuckVoteproofEnterSyncing() {
 		withdrawfacts[i] = withdraws[i].Fact().Hash()
 	}
 
-	st.svf = func(context.Context, base.Height, base.Suffrage) (
+	st.args.SuffrageVotingFindFunc = func(context.Context, base.Height, base.Suffrage) (
 		[]base.SuffrageWithdrawOperation, error,
 	) {
 		return withdraws, nil

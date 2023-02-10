@@ -14,12 +14,36 @@ import (
 
 type SuffrageVotingFindFunc func(context.Context, base.Height, base.Suffrage) ([]base.SuffrageWithdrawOperation, error)
 
+type baseBallotHandlerArgs struct {
+	ProposalSelector         isaac.ProposalSelector
+	NodeInConsensusNodesFunc isaac.NodeInConsensusNodesFunc
+	VoteFunc                 func(base.Ballot) (bool, error)
+	SuffrageVotingFindFunc   SuffrageVotingFindFunc
+	WhenEmptyMembersFunc     func()
+}
+
+func newBaseBallotHandlerArgs() *baseBallotHandlerArgs {
+	return &baseBallotHandlerArgs{
+		NodeInConsensusNodesFunc: func(base.Node, base.Height) (base.Suffrage, bool, error) {
+			return nil, false, util.ErrNotImplemented.Errorf("NodeInConsensusNodesFunc")
+		},
+		VoteFunc: func(base.Ballot) (bool, error) {
+			return false, util.ErrNotImplemented.Errorf("VoteFunc")
+		},
+		SuffrageVotingFindFunc: func(context.Context, base.Height, base.Suffrage) (
+			[]base.SuffrageWithdrawOperation, error,
+		) {
+			return nil, util.ErrNotImplemented.Errorf("SuffrageVotingFindFunc")
+		},
+		WhenEmptyMembersFunc: func() {},
+	}
+}
+
 type baseBallotHandler struct {
 	*baseHandler
-	proposalSelector  isaac.ProposalSelector
+	args              *baseBallotHandlerArgs
 	ballotBroadcaster BallotBroadcaster
 	voteFunc          func(base.Ballot) (bool, error)
-	svf               SuffrageVotingFindFunc
 	resolver          BallotStuckResolver
 }
 
@@ -27,40 +51,38 @@ func newBaseBallotHandler(
 	state StateType,
 	local base.LocalNode,
 	params *isaac.LocalParams,
-	proposalSelector isaac.ProposalSelector,
-	svf SuffrageVotingFindFunc,
+	args *baseBallotHandlerArgs,
 ) *baseBallotHandler {
-	if svf == nil {
-		svf = func(context.Context, base.Height, base.Suffrage) ( //revive:disable-line:modifies-parameter
-			[]base.SuffrageWithdrawOperation, error,
-		) {
-			return nil, nil
-		}
+	args.VoteFunc = preventVotingWithEmptySuffrage(
+		local,
+		args.VoteFunc,
+		args.NodeInConsensusNodesFunc,
+	)
+
+	h := &baseBallotHandler{
+		baseHandler: newBaseHandler(state, local, params),
+		args:        args,
+		voteFunc:    func(base.Ballot) (bool, error) { return false, errors.Errorf("not voted") },
 	}
 
-	return &baseBallotHandler{
-		baseHandler:      newBaseHandler(state, local, params),
-		proposalSelector: proposalSelector,
-		voteFunc:         func(base.Ballot) (bool, error) { return false, errors.Errorf("not voted") },
-		svf:              svf,
-	}
+	h.whenEmptyMembersFunc = args.WhenEmptyMembersFunc
+
+	return h
 }
 
 func (st *baseBallotHandler) new() *baseBallotHandler {
 	return &baseBallotHandler{
 		baseHandler:       st.baseHandler.new(),
-		proposalSelector:  st.proposalSelector,
-		svf:               st.svf,
+		args:              st.args,
 		resolver:          st.resolver,
 		ballotBroadcaster: st.ballotBroadcaster,
-		voteFunc:          st.voteFunc,
 	}
 }
 
 func (st *baseBallotHandler) setStates(sts *States) {
 	st.baseHandler.setStates(sts)
-	st.resolver = sts.ballotStuckResolver
-	st.ballotBroadcaster = sts.ballotBroadcaster
+	st.resolver = sts.args.BallotStuckResolver
+	st.ballotBroadcaster = sts.args.BallotBroadcaster
 }
 
 func (st *baseBallotHandler) makeNextRoundBallot(
@@ -117,7 +139,7 @@ func (st *baseBallotHandler) makeNextRoundBallot(
 	}
 
 	// NOTE find next proposal
-	pr, err := st.proposalSelector.Select(st.ctx, point)
+	pr, err := st.args.ProposalSelector.Select(st.ctx, point)
 	if err != nil {
 		l.Error().Err(err).Msg("failed to select proposal")
 
@@ -194,7 +216,7 @@ func (st *baseBallotHandler) makeNextBlockBallot(
 	}
 
 	// NOTE find next proposal
-	pr, err := st.proposalSelector.Select(st.ctx, point)
+	pr, err := st.args.ProposalSelector.Select(st.ctx, point)
 
 	switch {
 	case err == nil:
@@ -461,7 +483,7 @@ func (st *baseBallotHandler) broadcastSuffrageConfirmBallot(bl base.INITBallot) 
 }
 
 func (st *baseBallotHandler) vote(bl base.Ballot) (bool, error) {
-	voted, err := st.voteFunc(bl)
+	voted, err := st.args.VoteFunc(bl)
 	if err != nil {
 		return voted, err
 	}
@@ -478,7 +500,7 @@ func (st *baseBallotHandler) findWithdraws(height base.Height, suf base.Suffrage
 	withdrawfacts []util.Hash,
 	_ error,
 ) {
-	ops, err := st.svf(context.Background(), height, suf)
+	ops, err := st.args.SuffrageVotingFindFunc(context.Background(), height, suf)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -501,25 +523,22 @@ func (st *baseBallotHandler) findWithdraws(height base.Height, suf base.Suffrage
 var errFailedToVoteNotInConsensus = util.NewError("failed to vote; local not in consensus nodes")
 
 func preventVotingWithEmptySuffrage(
+	local base.Node,
 	voteFunc func(base.Ballot) (bool, error),
-	node base.Node,
 	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc,
 ) func(base.Ballot) (bool, error) {
 	return func(bl base.Ballot) (bool, error) {
 		e := util.StringErrorFunc("failed to vote")
 
-		suf, found, err := nodeInConsensusNodes(node, bl.Point().Height())
-
-		switch {
+		switch suf, found, err := nodeInConsensusNodes(local, bl.Point().Height()); {
 		case err != nil:
+			if !errors.Is(err, storage.ErrNotFound) {
+				return false, e(err, "")
+			}
 		case suf == nil || len(suf.Nodes()) < 1:
 			return false, e(nil, "empty suffrage")
 		case !found:
 			return false, e(errFailedToVoteNotInConsensus.Errorf("ballot=%q", bl.Point()), "")
-		}
-
-		if err != nil && !errors.Is(err, storage.ErrNotFound) {
-			return false, e(err, "")
 		}
 
 		return voteFunc(bl)

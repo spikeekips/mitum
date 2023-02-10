@@ -2,6 +2,7 @@ package isaacstates
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -18,25 +19,37 @@ type testJoiningHandler struct {
 	isaac.BaseTestBallots
 }
 
-func (t *testJoiningHandler) newState(suf base.Suffrage) (*JoiningHandler, func()) {
+func (t *testJoiningHandler) newargs(suf base.Suffrage) *JoiningHandlerArgs {
 	local := t.Local
 	params := t.LocalParams
 
-	newhandler := NewNewJoiningHandlerType(
-		local,
-		params,
-		nil,
-		func() (base.Manifest, bool, error) {
-			return nil, false, errors.Errorf("empty manifest")
-		},
-		func(base.Node, base.Height) (base.Suffrage, bool, error) {
-			return suf, suf.ExistsPublickey(local.Address(), local.Publickey()), nil
-		},
-		func(base.Ballot) (bool, error) { return true, nil },
-		func(context.Context, base.Suffrage) error { return nil },
-		func(time.Duration) error { return nil },
-		nil,
-	)
+	args := NewJoiningHandlerArgs(params)
+
+	args.LastManifestFunc = func() (base.Manifest, bool, error) {
+		return nil, false, errors.Errorf("empty manifest")
+	}
+	args.NodeInConsensusNodesFunc = func(base.Node, base.Height) (base.Suffrage, bool, error) {
+		if suf == nil {
+			return nil, false, nil
+		}
+
+		return suf, suf.ExistsPublickey(local.Address(), local.Publickey()), nil
+	}
+	args.VoteFunc = func(base.Ballot) (bool, error) { return true, nil }
+	args.JoinMemberlistFunc = func(context.Context, base.Suffrage) error { return nil }
+	args.LeaveMemberlistFunc = func(time.Duration) error { return nil }
+	args.SuffrageVotingFindFunc = func(context.Context, base.Height, base.Suffrage) ([]base.SuffrageWithdrawOperation, error) {
+		return nil, nil
+	}
+
+	return args
+}
+
+func (t *testJoiningHandler) newState(args *JoiningHandlerArgs) (*JoiningHandler, func()) {
+	local := t.Local
+	params := t.LocalParams
+
+	newhandler := NewNewJoiningHandlerType(local, params, args)
 	_ = newhandler.SetLogging(logging.TestNilLogging)
 	_ = newhandler.setTimers(util.NewTimers([]util.TimerID{
 		timerIDBroadcastINITBallot,
@@ -65,18 +78,19 @@ func (t *testJoiningHandler) newState(suf base.Suffrage) (*JoiningHandler, func(
 func (t *testJoiningHandler) TestNew() {
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
-	st, closef := t.newState(suf)
+	point := base.RawPoint(33, 0)
+	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+
+	args := t.newargs(suf)
+	args.LastManifestFunc = func() (base.Manifest, bool, error) {
+		return manifest, true, nil
+	}
+
+	st, closef := t.newState(args)
 	defer closef()
 
 	_, ok := (interface{})(st).(handler)
 	t.True(ok)
-
-	point := base.RawPoint(33, 0)
-	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-
-	st.lastManifest = func() (base.Manifest, bool, error) {
-		return manifest, true, nil
-	}
 
 	sctx := newJoiningSwitchContext(StateBooting, nil)
 
@@ -95,18 +109,19 @@ func (t *testJoiningHandler) TestNew() {
 func (t *testJoiningHandler) TestLocalNotInSuffrage() {
 	suf, _ := isaac.NewTestSuffrage(2) // NOTE local is not in suffrage
 
-	st, closef := t.newState(suf)
+	point := base.RawPoint(33, 0)
+	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+
+	args := t.newargs(suf)
+	args.LastManifestFunc = func() (base.Manifest, bool, error) {
+		return manifest, true, nil
+	}
+
+	st, closef := t.newState(args)
 	defer closef()
 
 	_, ok := (interface{})(st).(handler)
 	t.True(ok)
-
-	point := base.RawPoint(33, 0)
-	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-
-	st.lastManifest = func() (base.Manifest, bool, error) {
-		return manifest, true, nil
-	}
 
 	sctx := newJoiningSwitchContext(StateBooting, nil)
 
@@ -122,7 +137,8 @@ func (t *testJoiningHandler) TestFailedLastManifest() {
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
 	t.Run("with error", func() {
-		st, closef := t.newState(suf)
+		args := t.newargs(nil)
+		st, closef := t.newState(args)
 		defer closef()
 
 		sctx := newJoiningSwitchContext(StateBooting, nil)
@@ -134,24 +150,30 @@ func (t *testJoiningHandler) TestFailedLastManifest() {
 	})
 
 	t.Run("new voteproof with error", func() {
-		st, closef := t.newState(suf)
-		defer closef()
-
 		point := base.RawPoint(33, 0)
 		manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 
-		orig := st.lastManifest
-		st.lastManifest = func() (base.Manifest, bool, error) {
+		args := t.newargs(suf)
+
+		var called int64
+		args.LastManifestFunc = func() (base.Manifest, bool, error) {
+			if atomic.LoadInt64(&called) > 0 {
+				return nil, false, errors.Errorf("empty manifest")
+			}
+
+			atomic.AddInt64(&called, 1)
+
 			return manifest, true, nil
 		}
+
+		st, closef := t.newState(args)
+		defer closef()
 
 		sctx := newJoiningSwitchContext(StateBooting, nil)
 
 		deferred, err := st.enter(StateBooting, sctx)
 		t.NoError(err)
 		deferred()
-
-		st.lastManifest = orig
 
 		_, ivp := t.VoteproofsPair(point, point.NextHeight(), nil, nil, nil, nodes)
 		err = st.newVoteproof(ivp)
@@ -163,12 +185,13 @@ func (t *testJoiningHandler) TestFailedLastManifest() {
 	})
 
 	t.Run("not found", func() {
-		st, closef := t.newState(suf)
-		defer closef()
-
-		st.lastManifest = func() (base.Manifest, bool, error) {
+		args := t.newargs(nil)
+		args.LastManifestFunc = func() (base.Manifest, bool, error) {
 			return nil, false, nil
 		}
+
+		st, closef := t.newState(args)
+		defer closef()
 
 		sctx := newJoiningSwitchContext(StateBooting, nil)
 
@@ -183,14 +206,16 @@ func (t *testJoiningHandler) TestINITVoteproof() {
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
 	t.Run("lower height", func() {
-		st, closef := t.newState(suf)
-		defer closef()
-
 		point := base.RawPoint(33, 0)
 		manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-		st.lastManifest = func() (base.Manifest, bool, error) {
+
+		args := t.newargs(suf)
+		args.LastManifestFunc = func() (base.Manifest, bool, error) {
 			return manifest, true, nil
 		}
+
+		st, closef := t.newState(args)
+		defer closef()
 
 		sctx := newJoiningSwitchContext(StateBooting, nil)
 
@@ -203,14 +228,16 @@ func (t *testJoiningHandler) TestINITVoteproof() {
 	})
 
 	t.Run("higher height", func() {
-		st, closef := t.newState(suf)
-		defer closef()
-
 		point := base.RawPoint(33, 0)
 		manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-		st.lastManifest = func() (base.Manifest, bool, error) {
+
+		args := t.newargs(suf)
+		args.LastManifestFunc = func() (base.Manifest, bool, error) {
 			return manifest, true, nil
 		}
+
+		st, closef := t.newState(args)
+		defer closef()
 
 		sctx := newJoiningSwitchContext(StateBooting, nil)
 
@@ -227,15 +254,16 @@ func (t *testJoiningHandler) TestINITVoteproof() {
 	})
 
 	t.Run("previous block does not match", func() {
-		st, closef := t.newState(suf)
-		defer closef()
-
 		point := base.RawPoint(33, 0)
 		manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 
-		st.lastManifest = func() (base.Manifest, bool, error) {
+		args := t.newargs(suf)
+		args.LastManifestFunc = func() (base.Manifest, bool, error) {
 			return manifest, true, nil
 		}
+
+		st, closef := t.newState(args)
+		defer closef()
 
 		sctx := newJoiningSwitchContext(StateBooting, nil)
 
@@ -254,21 +282,23 @@ func (t *testJoiningHandler) TestINITVoteproof() {
 
 func (t *testJoiningHandler) TestFirstVoteproof() {
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
-	prpool := t.PRPool
-
-	st, closef := t.newState(suf)
-	defer closef()
 
 	point := base.RawPoint(33, 0)
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	st.lastManifest = func() (base.Manifest, bool, error) {
+
+	args := t.newargs(suf)
+	args.LastManifestFunc = func() (base.Manifest, bool, error) {
 		return manifest, true, nil
 	}
-	st.waitFirstVoteproof = 1
 
-	st.proposalSelector = isaac.DummyProposalSelector(func(_ context.Context, p base.Point) (base.ProposalSignFact, error) {
+	prpool := t.PRPool
+	args.ProposalSelector = isaac.DummyProposalSelector(func(_ context.Context, p base.Point) (base.ProposalSignFact, error) {
 		return prpool.Get(p), nil
 	})
+	args.WaitFirstVoteproof = 1
+
+	st, closef := t.newState(args)
+	defer closef()
 
 	ballotch := make(chan base.Ballot, 1)
 	st.ballotBroadcaster = NewDummyBallotBroadcaster(t.Local.Address(), func(bl base.Ballot) error {
@@ -303,14 +333,16 @@ func (t *testJoiningHandler) TestInvalidACCEPTVoteproof() {
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
 	t.Run("lower height", func() {
-		st, closef := t.newState(suf)
-		defer closef()
-
 		point := base.RawPoint(33, 0)
 		manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-		st.lastManifest = func() (base.Manifest, bool, error) {
+
+		args := t.newargs(suf)
+		args.LastManifestFunc = func() (base.Manifest, bool, error) {
 			return manifest, true, nil
 		}
+
+		st, closef := t.newState(args)
+		defer closef()
 
 		sctx := newJoiningSwitchContext(StateBooting, nil)
 
@@ -323,14 +355,16 @@ func (t *testJoiningHandler) TestInvalidACCEPTVoteproof() {
 	})
 
 	t.Run("higher height", func() {
-		st, closef := t.newState(suf)
-		defer closef()
-
 		point := base.RawPoint(33, 0)
 		manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-		st.lastManifest = func() (base.Manifest, bool, error) {
+
+		args := t.newargs(suf)
+		args.LastManifestFunc = func() (base.Manifest, bool, error) {
 			return manifest, true, nil
 		}
+
+		st, closef := t.newState(args)
+		defer closef()
 
 		sctx := newJoiningSwitchContext(StateBooting, nil)
 
@@ -347,14 +381,16 @@ func (t *testJoiningHandler) TestInvalidACCEPTVoteproof() {
 	})
 
 	t.Run("higher height, but draw", func() {
-		st, closef := t.newState(suf)
-		defer closef()
-
 		point := base.RawPoint(33, 0)
 		manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-		st.lastManifest = func() (base.Manifest, bool, error) {
+
+		args := t.newargs(suf)
+		args.LastManifestFunc = func() (base.Manifest, bool, error) {
 			return manifest, true, nil
 		}
+
+		st, closef := t.newState(args)
+		defer closef()
 
 		sctx := newJoiningSwitchContext(StateBooting, nil)
 
@@ -375,15 +411,16 @@ func (t *testJoiningHandler) TestInvalidACCEPTVoteproof() {
 func (t *testJoiningHandler) TestINITVoteproofNextRound() {
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
-	st, closef := t.newState(suf)
-	defer closef()
-
 	point := base.RawPoint(33, 0)
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 
-	st.lastManifest = func() (base.Manifest, bool, error) {
+	args := t.newargs(suf)
+	args.LastManifestFunc = func() (base.Manifest, bool, error) {
 		return manifest, true, nil
 	}
+
+	st, closef := t.newState(args)
+	defer closef()
 
 	sctx := newJoiningSwitchContext(StateBooting, nil)
 
@@ -405,15 +442,16 @@ func (t *testJoiningHandler) TestINITVoteproofNextRound() {
 func (t *testJoiningHandler) TestACCEPTVoteproofNextRound() {
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
-	st, closef := t.newState(suf)
-	defer closef()
-
 	point := base.RawPoint(33, 0)
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 
-	st.lastManifest = func() (base.Manifest, bool, error) {
+	args := t.newargs(suf)
+	args.LastManifestFunc = func() (base.Manifest, bool, error) {
 		return manifest, true, nil
 	}
+
+	st, closef := t.newState(args)
+	defer closef()
 
 	sctx := newJoiningSwitchContext(StateBooting, nil)
 
@@ -434,17 +472,17 @@ func (t *testJoiningHandler) TestACCEPTVoteproofNextRound() {
 func (t *testJoiningHandler) TestLastINITVoteproofNextRound() {
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
-	st, closef := t.newState(suf)
-	defer closef()
-
-	st.waitFirstVoteproof = time.Nanosecond
-
 	point := base.RawPoint(33, 0)
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 
-	st.lastManifest = func() (base.Manifest, bool, error) {
+	args := t.newargs(suf)
+	args.LastManifestFunc = func() (base.Manifest, bool, error) {
 		return manifest, true, nil
 	}
+	args.WaitFirstVoteproof = time.Nanosecond
+
+	st, closef := t.newState(args)
+	defer closef()
 
 	switchch := make(chan switchContext, 1)
 	st.switchStateFunc = func(sctx switchContext) error {
@@ -479,17 +517,17 @@ func (t *testJoiningHandler) TestLastINITVoteproofNextRound() {
 func (t *testJoiningHandler) TestLastACCEPTVoteproofNextRound() {
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
-	st, closef := t.newState(suf)
-	defer closef()
-
-	st.waitFirstVoteproof = time.Nanosecond
-
 	point := base.RawPoint(33, 0)
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 
-	st.lastManifest = func() (base.Manifest, bool, error) {
+	args := t.newargs(suf)
+	args.LastManifestFunc = func() (base.Manifest, bool, error) {
 		return manifest, true, nil
 	}
+	args.WaitFirstVoteproof = time.Nanosecond
+
+	st, closef := t.newState(args)
+	defer closef()
 
 	switchch := make(chan switchContext, 1)
 	st.switchStateFunc = func(sctx switchContext) error {
@@ -524,19 +562,19 @@ func (t *testJoiningHandler) TestLastACCEPTVoteproofNextRound() {
 func (t *testJoiningHandler) TestEnterButNotInConsensusNodes() {
 	suf, _ := isaac.NewTestSuffrage(2, t.Local)
 
-	st, closef := t.newState(suf)
-	defer closef()
-
 	point := base.RawPoint(33, 0)
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 
-	st.lastManifest = func() (base.Manifest, bool, error) {
+	args := t.newargs(suf)
+	args.LastManifestFunc = func() (base.Manifest, bool, error) {
 		return manifest, true, nil
 	}
-
-	st.nodeInConsensusNodes = func(node base.Node, height base.Height) (base.Suffrage, bool, error) {
+	args.NodeInConsensusNodesFunc = func(node base.Node, height base.Height) (base.Suffrage, bool, error) {
 		return nil, false, nil
 	}
+
+	st, closef := t.newState(args)
+	defer closef()
 
 	sctx := newJoiningSwitchContext(StateBooting, nil)
 
@@ -551,18 +589,18 @@ func (t *testJoiningHandler) TestEnterButNotInConsensusNodes() {
 func (t *testJoiningHandler) TestStuckINITVoteproof() {
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
-	st, closef := t.newState(suf)
-	defer closef()
-
-	_, ok := (interface{})(st).(handler)
-	t.True(ok)
-
 	point := base.RawPoint(33, 0)
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 
-	st.lastManifest = func() (base.Manifest, bool, error) {
+	args := t.newargs(suf)
+	args.LastManifestFunc = func() (base.Manifest, bool, error) {
 		return manifest, true, nil
 	}
+
+	st, closef := t.newState(args)
+	defer closef()
+	_, ok := (interface{})(st).(handler)
+	t.True(ok)
 
 	sctx := newJoiningSwitchContext(StateBooting, nil)
 
@@ -603,19 +641,16 @@ func (t *testJoiningHandler) TestStuckINITVoteproof() {
 func (t *testJoiningHandler) TestStuckACCEPTVoteproof() {
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
-	st, closef := t.newState(suf)
-	defer closef()
-
-	_, ok := (interface{})(st).(handler)
-	t.True(ok)
-
 	point := base.RawPoint(33, 0)
-
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
 
-	st.lastManifest = func() (base.Manifest, bool, error) {
+	args := t.newargs(suf)
+	args.LastManifestFunc = func() (base.Manifest, bool, error) {
 		return manifest, true, nil
 	}
+
+	st, closef := t.newState(args)
+	defer closef()
 
 	switchch := make(chan switchContext, 1)
 	st.switchStateFunc = func(sctx switchContext) error {

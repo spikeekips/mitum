@@ -18,23 +18,29 @@ type baseTestConsensusHandler struct {
 	isaac.BaseTestBallots
 }
 
-func (t *baseTestConsensusHandler) newState(previous base.Manifest, suf base.Suffrage) (*ConsensusHandler, func()) {
+func (t *baseTestConsensusHandler) newargs(previous base.Manifest, suf base.Suffrage) *ConsensusHandlerArgs {
 	local := t.Local
-	params := t.LocalParams
 
-	newhandler := NewNewConsensusHandlerType(
-		local,
-		params,
-		nil,
-		isaac.NewProposalProcessors(nil, nil),
-		func(base.Height) (base.Manifest, error) { return previous, nil },
-		func(base.Node, base.Height) (base.Suffrage, bool, error) {
-			return suf, suf.ExistsPublickey(local.Address(), local.Publickey()), nil
-		},
-		func(base.Ballot) (bool, error) { return true, nil },
-		func(base.Height) {},
-		nil,
-	)
+	args := NewConsensusHandlerArgs()
+	args.ProposalProcessors = isaac.NewProposalProcessors(nil, nil)
+	args.GetManifestFunc = func(base.Height) (base.Manifest, error) { return previous, nil }
+	args.NodeInConsensusNodesFunc = func(base.Node, base.Height) (base.Suffrage, bool, error) {
+		if suf == nil {
+			return nil, false, nil
+		}
+
+		return suf, suf.ExistsPublickey(local.Address(), local.Publickey()), nil
+	}
+	args.VoteFunc = func(base.Ballot) (bool, error) { return true, nil }
+	args.SuffrageVotingFindFunc = func(context.Context, base.Height, base.Suffrage) ([]base.SuffrageWithdrawOperation, error) {
+		return nil, nil
+	}
+
+	return args
+}
+
+func (t *baseTestConsensusHandler) newState(args *ConsensusHandlerArgs) (*ConsensusHandler, func()) {
+	newhandler := NewNewConsensusHandlerType(t.Local, t.LocalParams, args)
 	_ = newhandler.SetLogging(logging.TestNilLogging)
 	_ = newhandler.setTimers(util.NewTimers([]util.TimerID{
 		timerIDBroadcastINITBallot,
@@ -63,28 +69,23 @@ func (t *baseTestConsensusHandler) newStateWithINITVoteproof(point base.Point, s
 	base.INITVoteproof,
 ) {
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
-	st, closef := t.newState(previous, suf)
 
 	prpool := t.PRPool
 	fact := prpool.GetFact(point)
+
+	args := t.newargs(previous, suf)
 
 	pp := isaac.NewDummyProposalProcessor()
 	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
 		return nil, errors.Errorf("process error")
 	}
 
-	st.pps.SetMakeNew(pp.Make)
-	st.pps.SetGetProposal(func(_ context.Context, facthash util.Hash) (base.ProposalSignFact, error) {
+	args.ProposalProcessors.SetMakeNew(pp.Make)
+	args.ProposalProcessors.SetGetProposal(func(_ context.Context, facthash util.Hash) (base.ProposalSignFact, error) {
 		return prpool.ByHash(facthash)
 	})
 
-	st.ballotBroadcaster = NewDummyBallotBroadcaster(t.Local.Address(), func(base.Ballot) error {
-		return nil
-	})
-	st.switchStateFunc = func(switchContext) error {
-		return nil
-	}
-	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
+	args.ProposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -96,6 +97,14 @@ func (t *baseTestConsensusHandler) newStateWithINITVoteproof(point base.Point, s
 			return nil, util.ErrNotFound.Call()
 		}
 	})
+
+	st, closef := t.newState(args)
+	st.ballotBroadcaster = NewDummyBallotBroadcaster(t.Local.Address(), func(base.Ballot) error {
+		return nil
+	})
+	st.switchStateFunc = func(switchContext) error {
+		return nil
+	}
 
 	nodes := make([]isaac.LocalNode, suf.Len())
 	sn := suf.Nodes()
@@ -120,22 +129,18 @@ func (t *testConsensusHandler) TestFailedToFetchProposal() {
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
-	pps := isaac.NewProposalProcessors(nil, func(context.Context, util.Hash) (base.ProposalSignFact, error) {
+	args := t.newargs(previous, suf)
+	args.ProposalProcessors = isaac.NewProposalProcessors(nil, func(context.Context, util.Hash) (base.ProposalSignFact, error) {
 		return nil, util.ErrNotFound.Call()
 	})
-	pps.SetRetryLimit(1).SetRetryInterval(1)
+	args.ProposalProcessors.SetRetryLimit(1).SetRetryInterval(1)
 
-	newhandler := NewNewConsensusHandlerType(
-		t.Local,
-		t.LocalParams,
-		nil,
-		pps,
-		func(base.Height) (base.Manifest, error) { return previous, nil },
-		func(base.Node, base.Height) (base.Suffrage, bool, error) { return suf, true, nil },
-		func(base.Ballot) (bool, error) { return true, nil },
-		nil,
-		nil,
-	)
+	prpool := t.PRPool
+	args.ProposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
+		return prpool.Get(p), nil
+	})
+
+	newhandler := NewNewConsensusHandlerType(t.Local, t.LocalParams, args)
 
 	i, err := newhandler.new()
 	t.NoError(err)
@@ -172,10 +177,6 @@ func (t *testConsensusHandler) TestFailedToFetchProposal() {
 		return nil
 	})
 
-	prpool := t.PRPool
-	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
-		return prpool.Get(p), nil
-	})
 	st.params = t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
 
 	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
@@ -291,13 +292,13 @@ func (t *testConsensusHandler) TestExit() {
 		t.True(ivp.BallotMajority().Proposal().Equal(abl.BallotSignFact().BallotFact().Proposal()))
 	}
 
-	t.NotNil(st.pps.Processor())
+	t.NotNil(st.args.ProposalProcessors.Processor())
 
 	deferredexit, err := st.exit(nil)
 	t.NoError(err)
 	t.NotNil(deferredexit)
 
-	t.Nil(st.pps.Processor())
+	t.Nil(st.args.ProposalProcessors.Processor())
 }
 
 func (t *testConsensusHandler) TestProcessingProposalAfterEntered() {
@@ -349,7 +350,7 @@ func (t *testConsensusHandler) TestEnterWithDrawINITVoteproof() {
 	defer closefunc()
 
 	prpool := t.PRPool
-	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
+	st.args.ProposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -397,7 +398,7 @@ func (t *testConsensusHandler) TestEnterWithDrawACCEPTVoteproof() {
 	defer closefunc()
 
 	prpool := t.PRPool
-	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
+	st.args.ProposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -450,7 +451,7 @@ func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailed() {
 	}
 
 	var i int
-	st.pps.SetGetProposal(func(_ context.Context, facthash util.Hash) (base.ProposalSignFact, error) {
+	st.args.ProposalProcessors.SetGetProposal(func(_ context.Context, facthash util.Hash) (base.ProposalSignFact, error) {
 		if i < 1 {
 			i++
 			return nil, errors.Errorf("findme")
@@ -556,7 +557,7 @@ func (t *testConsensusHandler) TestProcessingProposalWithDrawACCEPTVoteproof() {
 		t.NoError(errors.Errorf("to save block should be ignored"))
 	}
 
-	t.Nil(st.pps.Processor())
+	t.Nil(st.args.ProposalProcessors.Processor())
 }
 
 func (t *testConsensusHandler) TestProcessingProposalWithWrongNewBlockACCEPTVoteproof() {
@@ -596,7 +597,7 @@ func (t *testConsensusHandler) TestProcessingProposalWithWrongNewBlockACCEPTVote
 
 		t.Equal(avp.Point().Height(), ssctx.height)
 
-		t.Nil(st.pps.Processor())
+		t.Nil(st.args.ProposalProcessors.Processor())
 	}
 }
 
@@ -649,7 +650,7 @@ func (t *testConsensusHandler) TestWithBallotbox() {
 		return nil
 	}
 
-	st.voteFunc = func(bl base.Ballot) (bool, error) {
+	st.args.VoteFunc = func(bl base.Ballot) (bool, error) {
 		voted, err := box.Vote(bl, th)
 		if err != nil {
 			return false, errors.WithStack(err)
@@ -659,7 +660,7 @@ func (t *testConsensusHandler) TestWithBallotbox() {
 	}
 
 	prpool := t.PRPool
-	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
+	st.args.ProposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
 		var pr base.ProposalSignFact
 
 		select {
@@ -733,7 +734,7 @@ func (t *testConsensusHandler) TestEmptySuffrageNextBlock() {
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
 
-	st.nodeInConsensusNodes = func(_ base.Node, height base.Height) (base.Suffrage, bool, error) {
+	st.args.NodeInConsensusNodesFunc = func(_ base.Node, height base.Height) (base.Suffrage, bool, error) {
 		switch {
 		case height <= point.Height():
 			return suf, true, nil
@@ -752,7 +753,7 @@ func (t *testConsensusHandler) TestEmptySuffrageNextBlock() {
 		return nil
 	}
 
-	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
+	st.args.ProposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -808,7 +809,7 @@ func (t *testConsensusHandler) TestOutOfSuffrage() {
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
 
-	st.nodeInConsensusNodes = func(_ base.Node, height base.Height) (base.Suffrage, bool, error) {
+	st.args.NodeInConsensusNodesFunc = func(_ base.Node, height base.Height) (base.Suffrage, bool, error) {
 		if height == point.Height() {
 			return suf, true, nil
 		}
@@ -826,7 +827,7 @@ func (t *testConsensusHandler) TestOutOfSuffrage() {
 		return nil
 	}
 
-	st.proposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
+	st.args.ProposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -879,7 +880,7 @@ func (t *testConsensusHandler) TestEnterButEmptySuffrage() {
 
 	st, closefunc, _, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
-	st.nodeInConsensusNodes = func(base.Node, base.Height) (base.Suffrage, bool, error) {
+	st.args.NodeInConsensusNodesFunc = func(base.Node, base.Height) (base.Suffrage, bool, error) {
 		return nil, false, nil
 	}
 

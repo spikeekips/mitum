@@ -82,7 +82,7 @@ func PBallotStuckResolver(ctx context.Context) (context.Context, error) {
 	var params *isaac.LocalParams
 	var ballotbox *isaacstates.Ballotbox
 	var cb *isaacnetwork.CallbackBroadcaster
-	var sv *isaac.SuffrageVoting
+	var svf *isaac.SuffrageVoting
 
 	if err := util.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
@@ -91,7 +91,7 @@ func PBallotStuckResolver(ctx context.Context) (context.Context, error) {
 		LocalParamsContextKey, &params,
 		BallotboxContextKey, &ballotbox,
 		CallbackBroadcasterContextKey, &cb,
-		SuffrageVotingContextKey, &sv,
+		SuffrageVotingContextKey, &svf,
 	); err != nil {
 		return ctx, e(err, "")
 	}
@@ -117,7 +117,7 @@ func PBallotStuckResolver(ctx context.Context) (context.Context, error) {
 		local,
 		params,
 		ballotbox,
-		sv,
+		svf,
 		getLastSuffragef,
 	)
 
@@ -147,10 +147,12 @@ func PBallotStuckResolver(ctx context.Context) (context.Context, error) {
 func PStates(ctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to prepare states")
 
-	args := isaacstates.NewStatesArgs(nil, nil)
+	args := isaacstates.NewStatesArgs()
 
 	var log *logging.Logging
 	var enc encoder.Encoder
+	var local base.LocalNode
+	var params *isaac.LocalParams
 	var syncSourcePool *isaac.SyncSourcePool
 	var cb *isaacnetwork.CallbackBroadcaster
 	var pool *isaacdatabase.TempPool
@@ -158,8 +160,8 @@ func PStates(ctx context.Context) (context.Context, error) {
 	if err := util.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
-		LocalContextKey, &args.Local,
-		LocalParamsContextKey, &args.LocalParams,
+		LocalContextKey, &local,
+		LocalParamsContextKey, &params,
 		BallotboxContextKey, &args.Ballotbox,
 		LastVoteproofsHandlerContextKey, &args.LastVoteproofsHandler,
 		SyncSourcePoolContextKey, &syncSourcePool,
@@ -184,7 +186,7 @@ func PStates(ctx context.Context) (context.Context, error) {
 
 	args.IsInSyncSourcePoolFunc = syncSourcePool.IsInFixed
 	args.BallotBroadcaster = isaacstates.NewDefaultBallotBroadcaster(
-		args.Local.Address(),
+		local.Address(),
 		pool,
 		func(bl base.Ballot) error {
 			ee := util.StringErrorFunc("failed to broadcast ballot")
@@ -203,7 +205,7 @@ func PStates(ctx context.Context) (context.Context, error) {
 		},
 	)
 
-	states := isaacstates.NewStates(args)
+	states := isaacstates.NewStates(local, params, args)
 	_ = states.SetLogging(log)
 
 	proposalSelector, err := NewProposalSelector(ctx)
@@ -254,12 +256,7 @@ func PStatesSetHandlers(pctx context.Context) (context.Context, error) { //reviv
 	var db isaac.Database
 	var states *isaacstates.States
 	var nodeinfo *isaacnetwork.NodeInfoUpdater
-	var proposalSelector *isaac.BaseProposalSelector
-	var nodeInConsensusNodesf func(base.Node, base.Height) (base.Suffrage, bool, error)
 	var ballotbox *isaacstates.Ballotbox
-	var pool *isaacdatabase.TempPool
-	var lvps *isaacstates.LastVoteproofsHandler
-	var pps *isaac.ProposalProcessors
 	var sv *isaac.SuffrageVoting
 
 	if err := util.LoadFromContextOK(pctx,
@@ -269,85 +266,23 @@ func PStatesSetHandlers(pctx context.Context) (context.Context, error) { //reviv
 		CenterDatabaseContextKey, &db,
 		StatesContextKey, &states,
 		NodeInfoContextKey, &nodeinfo,
-		ProposalSelectorContextKey, &proposalSelector,
-		NodeInConsensusNodesFuncContextKey, &nodeInConsensusNodesf,
 		BallotboxContextKey, &ballotbox,
-		PoolDatabaseContextKey, &pool,
-		LastVoteproofsHandlerContextKey, &lvps,
-		ProposalProcessorsContextKey, &pps,
 		SuffrageVotingContextKey, &sv,
 	); err != nil {
 		return pctx, e(err, "")
 	}
 
-	voteFunc := func(bl base.Ballot) (bool, error) {
-		voted, err := ballotbox.Vote(bl, params.Threshold())
-		if err != nil {
-			return false, err
-		}
-
-		return voted, nil
+	votef := func(bl base.Ballot) (bool, error) {
+		return ballotbox.Vote(bl, params.Threshold())
 	}
 
-	joinMemberlistForStateHandlerf, err := joinMemberlistForStateHandlerFunc(pctx)
-	if err != nil {
-		return pctx, e(err, "")
-	}
-
-	joinMemberlistForJoiningeHandlerf, err := joinMemberlistForJoiningeHandlerFunc(pctx)
-	if err != nil {
-		return pctx, e(err, "")
-	}
-
-	leaveMemberlistForStateHandlerf, err := leaveMemberlistForStateHandlerFunc(pctx)
-	if err != nil {
-		return pctx, e(err, "")
-	}
-
-	leaveMemberlistForSyncingHandlerf, err := leaveMemberlistForSyncingHandlerFunc(pctx)
-	if err != nil {
-		return pctx, e(err, "")
-	}
-
-	var whenNewBlockSavedInSyncingStatef func(base.Height)
-
-	switch err = util.LoadFromContext(
-		pctx, WhenNewBlockSavedInSyncingStateFuncContextKey, &whenNewBlockSavedInSyncingStatef); {
-	case err != nil:
-		return pctx, e(err, "")
-	case whenNewBlockSavedInSyncingStatef == nil:
-		whenNewBlockSavedInSyncingStatef = func(base.Height) {}
-	}
-
-	defaultWhenNewBlockSavedInSyncingStatef := DefaultWhenNewBlockSavedInSyncingStateFunc(db, nodeinfo)
-
-	var whenNewBlockSavedInConsensusStatef func(base.Height)
-
-	switch err = util.LoadFromContext(
-		pctx, WhenNewBlockSavedInConsensusStateFuncContextKey, &whenNewBlockSavedInConsensusStatef); {
-	case err != nil:
-		return pctx, e(err, "")
-	case whenNewBlockSavedInConsensusStatef == nil:
-		whenNewBlockSavedInConsensusStatef = func(base.Height) {}
-	}
-
-	defaultWhenNewBlockSavedInConsensusStatef := DefaultWhenNewBlockSavedInConsensusStateFunc(
-		params, ballotbox, db, nodeinfo)
-
-	suffrageVotingFindf := func(
-		ctx context.Context,
-		height base.Height,
-		suf base.Suffrage,
-	) ([]base.SuffrageWithdrawOperation, error) {
+	suffrageVotingFindf := func(ctx context.Context, height base.Height, suf base.Suffrage) (
+		[]base.SuffrageWithdrawOperation, error,
+	) {
 		return sv.Find(ctx, height, suf)
 	}
 
-	onEmptyMembersf, err := onEmptyMembersStateHandlerFunc(pctx, states)
-	if err != nil {
-		return pctx, e(err, "")
-	}
-
-	newsyncerf, err := newSyncerFunc(pctx)
+	whenEmptyMembersf, err := whenEmptyMembersStateHandlerFunc(pctx, states)
 	if err != nil {
 		return pctx, e(err, "")
 	}
@@ -355,57 +290,49 @@ func PStatesSetHandlers(pctx context.Context) (context.Context, error) { //reviv
 	getLastManifestf := getLastManifestFunc(db)
 	getManifestf := getManifestFunc(db)
 
-	whenSyncingFinished := func(base.Height) {
-		ballotbox.Count(params.Threshold())
-	}
-
 	states.SetWhenStateSwitched(func(next isaacstates.StateType) {
 		_ = nodeinfo.SetConsensusState(next)
 	})
 
-	syncinghandler := isaacstates.NewNewSyncingHandlerType(
-		local, params, newsyncerf, nodeInConsensusNodesf,
-		joinMemberlistForStateHandlerf,
-		leaveMemberlistForSyncingHandlerf,
-		func(height base.Height) {
-			defaultWhenNewBlockSavedInSyncingStatef(height)
+	syncingargs, err := newSyncingHandlerArgs(pctx)
+	if err != nil {
+		return pctx, e(err, "")
+	}
 
-			whenNewBlockSavedInSyncingStatef(height)
-		},
-	)
-	syncinghandler.SetWhenFinished(whenSyncingFinished)
+	consensusargs, err := consensusHandlerArgs(pctx)
+	if err != nil {
+		return pctx, e(err, "")
+	}
 
-	consensusHandler := isaacstates.NewNewConsensusHandlerType(
-		local, params, proposalSelector, pps,
-		getManifestf, nodeInConsensusNodesf, voteFunc,
-		func(height base.Height) {
-			defaultWhenNewBlockSavedInConsensusStatef(height)
+	consensusargs.VoteFunc = votef
+	consensusargs.SuffrageVotingFindFunc = suffrageVotingFindf
+	consensusargs.GetManifestFunc = getManifestf
+	consensusargs.WhenEmptyMembersFunc = whenEmptyMembersf
 
-			whenNewBlockSavedInConsensusStatef(height)
-		},
-		suffrageVotingFindf,
-	)
+	joiningargs, err := newJoiningHandlerArgs(pctx)
+	if err != nil {
+		return pctx, e(err, "")
+	}
 
-	consensusHandler.SetOnEmptyMembers(onEmptyMembersf)
+	joiningargs.VoteFunc = votef
+	joiningargs.SuffrageVotingFindFunc = suffrageVotingFindf
+	joiningargs.LastManifestFunc = getLastManifestf
+	joiningargs.WhenEmptyMembersFunc = whenEmptyMembersf
 
-	joiningHandler := isaacstates.NewNewJoiningHandlerType(
-		local, params, proposalSelector,
-		getLastManifestf, nodeInConsensusNodesf,
-		voteFunc, joinMemberlistForJoiningeHandlerf, leaveMemberlistForStateHandlerf, suffrageVotingFindf,
-	)
-	joiningHandler.SetOnEmptyMembers(onEmptyMembersf)
+	bootingargs, err := newBootingHandlerArgs(pctx)
+	if err != nil {
+		return pctx, e(err, "")
+	}
+
+	bootingargs.LastManifestFunc = getLastManifestf
 
 	states.
 		SetHandler(isaacstates.StateBroken, isaacstates.NewNewBrokenHandlerType(local, params)).
 		SetHandler(isaacstates.StateStopped, isaacstates.NewNewStoppedHandlerType(local, params)).
-		SetHandler(
-			isaacstates.StateBooting,
-			isaacstates.NewNewBootingHandlerType(local, params,
-				getLastManifestf, nodeInConsensusNodesf),
-		).
-		SetHandler(isaacstates.StateJoining, joiningHandler).
-		SetHandler(isaacstates.StateConsensus, consensusHandler).
-		SetHandler(isaacstates.StateSyncing, syncinghandler)
+		SetHandler(isaacstates.StateBooting, isaacstates.NewNewBootingHandlerType(local, params, bootingargs)).
+		SetHandler(isaacstates.StateJoining, isaacstates.NewNewJoiningHandlerType(local, params, joiningargs)).
+		SetHandler(isaacstates.StateConsensus, isaacstates.NewNewConsensusHandlerType(local, params, consensusargs)).
+		SetHandler(isaacstates.StateSyncing, isaacstates.NewNewSyncingHandlerType(local, params, syncingargs))
 
 	_ = states.SetLogging(log)
 
@@ -457,6 +384,159 @@ func newSyncerFunc(pctx context.Context) (
 
 		return syncer, nil
 	}, nil
+}
+
+func consensusHandlerArgs(pctx context.Context) (*isaacstates.ConsensusHandlerArgs, error) {
+	var params *isaac.LocalParams
+	var ballotbox *isaacstates.Ballotbox
+	var db isaac.Database
+	var proposalSelector *isaac.BaseProposalSelector
+	var pps *isaac.ProposalProcessors
+	var nodeinfo *isaacnetwork.NodeInfoUpdater
+	var nodeInConsensusNodesf func(base.Node, base.Height) (base.Suffrage, bool, error)
+
+	if err := util.LoadFromContextOK(pctx,
+		LocalParamsContextKey, &params,
+		BallotboxContextKey, &ballotbox,
+		CenterDatabaseContextKey, &db,
+		ProposalSelectorContextKey, &proposalSelector,
+		ProposalProcessorsContextKey, &pps,
+		NodeInfoContextKey, &nodeinfo,
+		NodeInConsensusNodesFuncContextKey, &nodeInConsensusNodesf,
+	); err != nil {
+		return nil, err
+	}
+
+	var whenNewBlockSavedf func(base.Height)
+
+	switch err := util.LoadFromContext(pctx, WhenNewBlockSavedInConsensusStateFuncContextKey, &whenNewBlockSavedf); {
+	case err != nil:
+		return nil, err
+	case whenNewBlockSavedf == nil:
+		whenNewBlockSavedf = func(base.Height) {}
+	}
+
+	defaultWhenNewBlockSavedf := DefaultWhenNewBlockSavedInConsensusStateFunc(
+		params, ballotbox, db, nodeinfo)
+
+	args := isaacstates.NewConsensusHandlerArgs()
+	args.NodeInConsensusNodesFunc = nodeInConsensusNodesf
+	args.ProposalSelector = proposalSelector
+	args.ProposalProcessors = pps
+	args.WhenNewBlockSaved = func(height base.Height) {
+		defaultWhenNewBlockSavedf(height)
+
+		whenNewBlockSavedf(height)
+	}
+
+	return args, nil
+}
+
+func newJoiningHandlerArgs(pctx context.Context) (*isaacstates.JoiningHandlerArgs, error) {
+	var params *isaac.LocalParams
+	var proposalSelector *isaac.BaseProposalSelector
+	var nodeInConsensusNodesf func(base.Node, base.Height) (base.Suffrage, bool, error)
+
+	if err := util.LoadFromContextOK(pctx,
+		LocalParamsContextKey, &params,
+		ProposalSelectorContextKey, &proposalSelector,
+		NodeInConsensusNodesFuncContextKey, &nodeInConsensusNodesf,
+	); err != nil {
+		return nil, err
+	}
+
+	joinMemberlistf, err := joinMemberlistForJoiningeHandlerFunc(pctx)
+	if err != nil {
+		return nil, err
+	}
+
+	leaveMemberlistf, err := leaveMemberlistForJoiningHandlerFunc(pctx)
+	if err != nil {
+		return nil, err
+	}
+
+	args := isaacstates.NewJoiningHandlerArgs(params)
+	args.NodeInConsensusNodesFunc = nodeInConsensusNodesf
+	args.ProposalSelector = proposalSelector
+	args.JoinMemberlistFunc = joinMemberlistf
+	args.LeaveMemberlistFunc = leaveMemberlistf
+
+	return args, nil
+}
+
+func newBootingHandlerArgs(pctx context.Context) (*isaacstates.BootingHandlerArgs, error) {
+	var nodeInConsensusNodesf func(base.Node, base.Height) (base.Suffrage, bool, error)
+
+	if err := util.LoadFromContextOK(pctx,
+		NodeInConsensusNodesFuncContextKey, &nodeInConsensusNodesf,
+	); err != nil {
+		return nil, err
+	}
+
+	args := isaacstates.NewBootingHandlerArgs()
+	args.NodeInConsensusNodesFunc = nodeInConsensusNodesf
+
+	return args, nil
+}
+
+func newSyncingHandlerArgs(pctx context.Context) (*isaacstates.SyncingHandlerArgs, error) {
+	var params *isaac.LocalParams
+	var db isaac.Database
+	var ballotbox *isaacstates.Ballotbox
+	var nodeinfo *isaacnetwork.NodeInfoUpdater
+	var nodeInConsensusNodesf func(base.Node, base.Height) (base.Suffrage, bool, error)
+
+	if err := util.LoadFromContextOK(pctx,
+		LocalParamsContextKey, &params,
+		CenterDatabaseContextKey, &db,
+		BallotboxContextKey, &ballotbox,
+		NodeInfoContextKey, &nodeinfo,
+		NodeInConsensusNodesFuncContextKey, &nodeInConsensusNodesf,
+	); err != nil {
+		return nil, err
+	}
+
+	newsyncerf, err := newSyncerFunc(pctx)
+	if err != nil {
+		return nil, err
+	}
+
+	joinMemberlistf, err := joinMemberlistForSyncingHandlerFunc(pctx)
+	if err != nil {
+		return nil, err
+	}
+
+	leaveMemberlistf, err := leaveMemberlistForSyncingHandlerFunc(pctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var whenNewBlockSavedf func(base.Height)
+
+	switch err = util.LoadFromContext(pctx, WhenNewBlockSavedInSyncingStateFuncContextKey, &whenNewBlockSavedf); {
+	case err != nil:
+		return nil, err
+	case whenNewBlockSavedf == nil:
+		whenNewBlockSavedf = func(base.Height) {}
+	}
+
+	defaultWhenNewBlockSavedf := DefaultWhenNewBlockSavedInSyncingStateFunc(db, nodeinfo)
+
+	args := isaacstates.NewSyncingHandlerArgs(params)
+	args.NodeInConsensusNodesFunc = nodeInConsensusNodesf
+	args.NewSyncerFunc = newsyncerf
+	args.WhenFinishedFunc = func(base.Height) {
+		ballotbox.Count(params.Threshold())
+	}
+	args.JoinMemberlistFunc = joinMemberlistf
+	args.LeaveMemberlistFunc = leaveMemberlistf
+	args.WhenNewBlockSavedFunc = func(height base.Height) {
+		defaultWhenNewBlockSavedf(height)
+
+		whenNewBlockSavedf(height)
+	}
+
+	return args, nil
 }
 
 func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.SyncerArgs, error), error) {
@@ -790,7 +870,7 @@ func setLastVoteproofsfFromBlockReaderFunc(
 	}, nil
 }
 
-func joinMemberlistForStateHandlerFunc(pctx context.Context) (
+func joinMemberlistForSyncingHandlerFunc(pctx context.Context) (
 	func(context.Context, base.Suffrage) error,
 	error,
 ) {
@@ -830,7 +910,7 @@ func joinMemberlistForJoiningeHandlerFunc(pctx context.Context) (
 	}, nil
 }
 
-func leaveMemberlistForStateHandlerFunc(pctx context.Context) (
+func leaveMemberlistForJoiningHandlerFunc(pctx context.Context) (
 	func(time.Duration) error,
 	error,
 ) {
@@ -945,7 +1025,7 @@ func newSyncerDeferredFunc(pctx context.Context, db isaac.Database) (
 	}, nil
 }
 
-func onEmptyMembersStateHandlerFunc(
+func whenEmptyMembersStateHandlerFunc(
 	pctx context.Context,
 	states *isaacstates.States,
 ) (func(), error) {
@@ -955,7 +1035,7 @@ func onEmptyMembersStateHandlerFunc(
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
-		EventOnEmptyMembersContextKey, &pps,
+		EventWhenEmptyMembersContextKey, &pps,
 		LongRunningMemberlistJoinContextKey, &long,
 	); err != nil {
 		return nil, err
@@ -969,7 +1049,7 @@ func onEmptyMembersStateHandlerFunc(
 	}, nil)
 
 	return func() {
-		states.OnEmptyMembers()
+		states.WhenEmptyMembers()
 	}, nil
 }
 
