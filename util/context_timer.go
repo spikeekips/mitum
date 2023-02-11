@@ -134,8 +134,6 @@ end:
 	for {
 		select {
 		case <-ctx.Done():
-			ct.Log().Error().Err(ctx.Err()).Msg("stopped by context")
-
 			break end
 		default:
 			c := func() bool {
