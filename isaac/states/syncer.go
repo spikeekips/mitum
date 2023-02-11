@@ -155,6 +155,9 @@ func (s *Syncer) Cancel() error {
 	var err error
 	s.cancelonece.Do(func() {
 		err = s.ContextDaemon.Stop()
+		if errors.Is(err, util.ErrDaemonAlreadyStopped) {
+			err = nil
+		}
 
 		defer func() {
 			_ = s.args.TempSyncPool.Cancel()
