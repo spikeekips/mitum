@@ -445,8 +445,14 @@ func DistributeWorkerWithSyncSourcePool(
 	f func(ctx context.Context, i, jobid uint64, nci NodeConnInfo) error,
 ) error {
 	ncis, reports, err := pool.PickMultiple(picksize)
-	if err != nil {
+
+	switch {
+	case errors.Is(err, ErrEmptySyncSources):
+		return nil
+	case err != nil:
 		return err
+	case len(ncis) < 1:
+		return nil
 	}
 
 	if n := uint64(len(ncis)); n < semsize {
@@ -480,8 +486,14 @@ func ErrGroupWorkerWithSyncSourcePool(
 	f func(ctx context.Context, i, jobid uint64, nci NodeConnInfo) error,
 ) error {
 	ncis, reports, err := pool.PickMultiple(picksize)
-	if err != nil {
+
+	switch {
+	case errors.Is(err, ErrEmptySyncSources):
+		return nil
+	case err != nil:
 		return err
+	case len(ncis) < 1:
+		return nil
 	}
 
 	if n := uint64(len(ncis)); n < semsize {

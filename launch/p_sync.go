@@ -60,16 +60,8 @@ func PSyncSourceChecker(ctx context.Context) (context.Context, error) {
 		params.SyncSourceCheckerInterval(),
 		enc,
 		sources,
-		func(called int64, ncis []isaac.NodeConnInfo, err error) {
+		func(called int64, ncis []isaac.NodeConnInfo, _ error) {
 			syncSourcePool.UpdateFixed(ncis)
-
-			if err != nil {
-				log.Log().Error().Err(err).
-					Interface("node_conninfo", ncis).
-					Msg("failed to check sync sources")
-
-				return
-			}
 
 			log.Log().Debug().
 				Int64("called", called).

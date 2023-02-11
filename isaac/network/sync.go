@@ -152,7 +152,7 @@ end:
 			if len(sources) < 1 {
 				c.Log().Debug().Msg("empty SyncSource")
 
-				c.callback(called, nil, errors.Errorf("empty SyncSource"))
+				c.callback(called, nil, nil)
 
 				continue end
 			}
@@ -161,6 +161,8 @@ end:
 
 			ncis, err := c.check(ctx, sources)
 			switch {
+			case errors.Is(err, isaac.ErrEmptySyncSources):
+				c.Log().Warn().Msg("empty sync sources")
 			case err != nil:
 				c.Log().Error().Err(err).Msg("failed to check sync sources")
 			default:
