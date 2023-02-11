@@ -45,23 +45,18 @@ func PBallotbox(ctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var local base.LocalNode
 	var params *isaac.LocalParams
-	var db isaac.Database
+	var sp *SuffragePool
 
 	if err := util.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
-		CenterDatabaseContextKey, &db,
+		SuffragePoolContextKey, &sp,
 	); err != nil {
 		return ctx, err
 	}
 
-	getLastSuffragef, err := GetLastSuffrageFunc(ctx)
-	if err != nil {
-		return ctx, err
-	}
-
-	ballotbox := isaacstates.NewBallotbox(local.Address(), getLastSuffragef)
+	ballotbox := isaacstates.NewBallotbox(local.Address(), sp.Height)
 	_ = ballotbox.SetCountAfter(params.WaitPreparingINITBallot())
 	_ = ballotbox.SetLogging(log)
 
@@ -82,6 +77,7 @@ func PBallotStuckResolver(ctx context.Context) (context.Context, error) {
 	var local base.LocalNode
 	var params *isaac.LocalParams
 	var ballotbox *isaacstates.Ballotbox
+	var sp *SuffragePool
 	var cb *isaacnetwork.CallbackBroadcaster
 	var svf *isaac.SuffrageVoting
 
@@ -91,21 +87,17 @@ func PBallotStuckResolver(ctx context.Context) (context.Context, error) {
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
 		BallotboxContextKey, &ballotbox,
+		SuffragePoolContextKey, &sp,
 		CallbackBroadcasterContextKey, &cb,
 		SuffrageVotingContextKey, &svf,
 	); err != nil {
 		return ctx, e(err, "")
 	}
 
-	getLastSuffragef, err := GetLastSuffrageFunc(ctx)
-	if err != nil {
-		return ctx, e(err, "")
-	}
-
 	findMissingBallotsf := isaacstates.FindMissingBallotsFromBallotboxFunc(
 		local.Address(),
 		params,
-		getLastSuffragef,
+		sp.Height,
 		ballotbox,
 	)
 
@@ -119,7 +111,7 @@ func PBallotStuckResolver(ctx context.Context) (context.Context, error) {
 		params,
 		ballotbox,
 		svf,
-		getLastSuffragef,
+		sp.Height,
 	)
 
 	switch {
@@ -1114,10 +1106,12 @@ func whenEmptyMembersStateHandlerFunc(
 func removePrevBlockFunc(pctx context.Context) (func(base.Height) (bool, error), error) {
 	var db isaac.Database
 	var design NodeDesign
+	var sp *SuffragePool
 
 	if err := util.LoadFromContextOK(pctx,
 		DesignContextKey, &design,
 		CenterDatabaseContextKey, &db,
+		SuffragePoolContextKey, &sp,
 	); err != nil {
 		return nil, err
 	}
@@ -1129,6 +1123,13 @@ func removePrevBlockFunc(pctx context.Context) (func(base.Height) (bool, error),
 			return false, err
 		case !removed:
 			return false, nil
+		}
+
+		switch p, found, err := db.LastSuffrageProof(); {
+		case err != nil || !found:
+			return false, err
+		case height <= p.Map().Manifest().Height():
+			sp.Purge() // NOTE purge suffrage cache
 		}
 
 		// NOTE remove from localfs

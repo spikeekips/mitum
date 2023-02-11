@@ -54,3 +54,7 @@ func (c *GCache[K, V]) Set(key K, v V, expire time.Duration) {
 func (c *GCache[K, V]) Close() {
 	c.c.Purge()
 }
+
+func (c *GCache[K, V]) Purge() {
+	c.c.Purge()
+}

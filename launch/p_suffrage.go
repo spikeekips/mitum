@@ -17,7 +17,6 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/ps"
-	"golang.org/x/sync/singleflight"
 )
 
 var (
@@ -29,6 +28,7 @@ var (
 	SuffrageCandidateLimiterSetContextKey = util.ContextKey("suffrage-candidate-limiter-set")
 	LastConsensusNodesWatcherContextKey   = util.ContextKey("last-consensus-nodes-watcher")
 	NodeInConsensusNodesFuncContextKey    = util.ContextKey("node-in-consensus-nodes-func")
+	SuffragePoolContextKey                = util.ContextKey("suffrage-pool")
 )
 
 func PSuffrageCandidateLimiterSet(ctx context.Context) (context.Context, error) {
@@ -80,7 +80,7 @@ func PLastConsensusNodesWatcher(ctx context.Context) (context.Context, error) {
 		return ctx, err
 	}
 
-	getSuffrageProoff, err := GetSuffrageProofFunc(ctx)
+	getSuffrageProofFromRemotef, err := GetSuffrageProofFromRemoteFunc(ctx)
 	if err != nil {
 		return ctx, err
 	}
@@ -93,7 +93,7 @@ func PLastConsensusNodesWatcher(ctx context.Context) (context.Context, error) {
 	builder := isaac.NewSuffrageStateBuilder(
 		params.NetworkID(),
 		getLastSuffrageProoff,
-		getSuffrageProoff,
+		getSuffrageProofFromRemotef,
 		getLastSuffrageCandidatef,
 	)
 
@@ -133,6 +133,27 @@ func PLastConsensusNodesWatcher(ctx context.Context) (context.Context, error) {
 	_ = watcher.SetLogging(log)
 
 	ctx = context.WithValue(ctx, LastConsensusNodesWatcherContextKey, watcher) //revive:disable-line:modifies-parameter
+
+	sp := NewSuffragePool(
+		func(height base.Height) (base.Suffrage, bool, error) {
+			return isaac.GetSuffrageFromDatabase(db, height)
+		},
+		func() (base.Height, base.Suffrage, bool, error) {
+			switch proof, _, err := watcher.Last(); {
+			case err != nil, proof == nil:
+				return base.NilHeight, nil, false, err
+			default:
+				suf, err := proof.Suffrage()
+				if err != nil {
+					return base.NilHeight, nil, false, err
+				}
+
+				return proof.Map().Manifest().Height(), suf, true, nil
+			}
+		},
+	)
+
+	ctx = context.WithValue(ctx, SuffragePoolContextKey, sp) //revive:disable-line:modifies-parameter
 
 	return ctx, nil
 }
@@ -188,57 +209,21 @@ func PPatchLastConsensusNodesWatcher(ctx context.Context) (context.Context, erro
 	return ctx, nil
 }
 
-func PNodeInConsensusNodesFunc(ctx context.Context) (context.Context, error) {
+func PNodeInConsensusNodesFunc(ctx context.Context) (context.Context, error) { // FIXME ctx -> pctx
 	e := util.StringErrorFunc("failed NodeInConsensusNodesFunc")
 
 	var db isaac.Database
-	var getSuffragef isaac.GetSuffrageByBlockHeight
+	var sp *SuffragePool
 
 	if err := util.LoadFromContextOK(
 		ctx,
 		CenterDatabaseContextKey, &db,
-		GetSuffrageFromDatabaseFuncContextKey, &getSuffragef,
+		SuffragePoolContextKey, &sp,
 	); err != nil {
 		return ctx, e(err, "")
 	}
 
-	f := nodeInConsensusNodesFunc(db, getSuffragef)
-
-	var sg singleflight.Group
-	cache := util.NewGCacheObjectPool(1 << 9) //nolint:gomnd //...
-
-	sgf := func(node base.Node, height base.Height) (base.Suffrage, bool, error) {
-		cachekey := node.Address().String() + "/" + height.String()
-
-		i, err, _ := sg.Do(cachekey, func() (interface{}, error) {
-			if j, found := cache.Get(cachekey); found {
-				return j, nil
-			}
-
-			switch suf, found, err := f(node, height); {
-			case err != nil:
-				return nil, err
-			default:
-				v := [2]interface{}{suf, found}
-				cache.Set(cachekey, v, nil)
-
-				return v, nil
-			}
-		})
-
-		if err != nil {
-			return nil, false, err //nolint:wrapcheck //...
-		}
-
-		switch j := i.([2]interface{}); { //nolint:forcetypeassert //...
-		case j[0] == nil:
-			return nil, j[1].(bool), nil //nolint:forcetypeassert //...
-		default:
-			return j[0].(base.Suffrage), j[1].(bool), nil //nolint:forcetypeassert //...
-		}
-	}
-
-	return context.WithValue(ctx, NodeInConsensusNodesFuncContextKey, sgf), nil //revive:disable-line:modifies-parameter
+	return context.WithValue(ctx, NodeInConsensusNodesFuncContextKey, nodeInConsensusNodesFunc(db, sp.Height)), nil
 }
 
 func getCandidatesFunc(
@@ -347,7 +332,7 @@ func PSuffrageVoting(ctx context.Context) (context.Context, error) {
 	var memberlist *quicmemberlist.Memberlist
 	var ballotbox *isaacstates.Ballotbox
 	var cb *isaacnetwork.CallbackBroadcaster
-	var getSuffragef isaac.GetSuffrageByBlockHeight
+	var sp *SuffragePool
 
 	if err := util.LoadFromContextOK(ctx,
 		LoggingContextKey, &log,
@@ -358,7 +343,7 @@ func PSuffrageVoting(ctx context.Context) (context.Context, error) {
 		MemberlistContextKey, &memberlist,
 		BallotboxContextKey, &ballotbox,
 		CallbackBroadcasterContextKey, &cb,
-		GetSuffrageFromDatabaseFuncContextKey, &getSuffragef,
+		SuffragePoolContextKey, &sp,
 	); err != nil {
 		return ctx, err
 	}
@@ -419,7 +404,7 @@ func PSuffrageVoting(ctx context.Context) (context.Context, error) {
 
 			var suf base.Suffrage
 
-			switch i, found, err := getSuffragef(height); {
+			switch i, found, err := sp.Height(height); {
 			case err != nil:
 				return false, err
 			case !found:
@@ -581,7 +566,7 @@ func GetLastSuffrageProofFunc(ctx context.Context) (isaac.GetLastSuffrageProofFr
 	}, nil
 }
 
-func GetSuffrageProofFunc(ctx context.Context) ( //revive:disable-line:cognitive-complexity
+func GetSuffrageProofFromRemoteFunc(ctx context.Context) ( //revive:disable-line:cognitive-complexity
 	isaac.GetSuffrageProofFromRemoteFunc, error,
 ) {
 	var params base.LocalParams
@@ -873,62 +858,6 @@ func PCloseLastConsensusNodesWatcher(ctx context.Context) (context.Context, erro
 	}
 
 	return ctx, nil
-}
-
-func GetLastSuffrageFunc(ctx context.Context) (isaac.GetSuffrageByBlockHeight, error) {
-	e := util.StringErrorFunc("failed to create GetLastSuffrageFunc")
-
-	var db isaac.Database
-	var watcher *isaac.LastConsensusNodesWatcher
-
-	if err := util.LoadFromContextOK(ctx,
-		CenterDatabaseContextKey, &db,
-		LastConsensusNodesWatcherContextKey, &watcher,
-	); err != nil {
-		return nil, e(err, "")
-	}
-
-	sufcache := util.NewGCacheObjectPool(1 << 9) //nolint:gomnd //...
-	// FIXME last suffrage is canceled
-	f := func(height base.Height) (base.Suffrage, bool, error) {
-		switch suf, found, err := isaac.GetSuffrageFromDatabase(db, height); {
-		case err != nil:
-			return nil, false, err
-		case found:
-			return suf, true, nil
-		}
-
-		return watcher.GetSuffrage(height)
-	}
-
-	var sg singleflight.Group
-
-	return func(height base.Height) (base.Suffrage, bool, error) {
-		i, err, _ := sg.Do(height.String(), func() (interface{}, error) {
-			if i, found := sufcache.Get(height.String()); found {
-				return [2]interface{}{i, true}, nil //nolint:forcetypeassert //...
-			}
-
-			switch suf, found, err := f(height); {
-			case err != nil || !found:
-				return [2]interface{}{nil, found}, err
-			default:
-				sufcache.Set(height.String(), suf, nil)
-
-				return [2]interface{}{suf, true}, nil
-			}
-		})
-		if err != nil {
-			return nil, false, errors.WithStack(err)
-		}
-
-		found := i.([2]interface{})[1].(bool) //nolint:forcetypeassert //...
-		if !found {
-			return nil, false, nil
-		}
-
-		return i.([2]interface{})[0].(base.Suffrage), true, nil //nolint:forcetypeassert //...
-	}, nil
 }
 
 func checkLocalIsInConsensusNodesByWatcher(
