@@ -53,7 +53,3 @@ func (po *GCacheObjectPool) Set(key string, v interface{}, expire *time.Duration
 func (po *GCacheObjectPool) Close() {
 	po.cache.Purge()
 }
-
-func (po *GCacheObjectPool) Purge() {
-	po.cache.Purge()
-}
