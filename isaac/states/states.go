@@ -376,8 +376,6 @@ func (st *States) exitAndEnter(sctx switchContext, current handler) (func(), fun
 				return nil, nil, err
 			}
 
-			st.cs = nil
-
 			return nil, nil, e(err, "failed to exit current state")
 		}
 	}
