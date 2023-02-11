@@ -176,7 +176,6 @@ func (cmd *RunCommand) pWhenNewBlockSavedInConsensusStateFunc(pctx context.Conte
 
 	f := func(height base.Height) {
 		l := log.Log().With().Interface("height", height).Logger()
-		l.Debug().Msg("new block saved")
 
 		if cmd.Hold.IsSet() && height == cmd.Hold.Height() {
 			l.Debug().Msg("will be stopped by hold")

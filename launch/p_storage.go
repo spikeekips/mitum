@@ -1038,7 +1038,7 @@ func PGetSuffrageFromDatabaseFunc(ctx context.Context) (context.Context, error) 
 			return nil, false, err
 		}
 
-		sufcache.Set(height, i, 0)
+		sufcache.Set(height, i, 0) // FIXME consider when last suffrage is canceled
 
 		return i, true, nil
 	}

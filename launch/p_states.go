@@ -37,6 +37,7 @@ var (
 	ProposalSelectorContextKey                      = util.ContextKey("proposal-selector")
 	WhenNewBlockSavedInSyncingStateFuncContextKey   = util.ContextKey("when-new-block-saved-in-syncing-state-func")
 	WhenNewBlockSavedInConsensusStateFuncContextKey = util.ContextKey("when-new-block-saved-in-consensus-state-func")
+	WhenNewBlockConfirmedFuncContextKey             = util.ContextKey("when-new-block-confirmed-func")
 	BallotStuckResolverContextKey                   = util.ContextKey("ballot-stuck-resolver")
 )
 
@@ -387,6 +388,7 @@ func newSyncerFunc(pctx context.Context) (
 }
 
 func consensusHandlerArgs(pctx context.Context) (*isaacstates.ConsensusHandlerArgs, error) {
+	var log *logging.Logging
 	var params *isaac.LocalParams
 	var ballotbox *isaacstates.Ballotbox
 	var db isaac.Database
@@ -396,6 +398,7 @@ func consensusHandlerArgs(pctx context.Context) (*isaacstates.ConsensusHandlerAr
 	var nodeInConsensusNodesf func(base.Node, base.Height) (base.Suffrage, bool, error)
 
 	if err := util.LoadFromContextOK(pctx,
+		LoggingContextKey, &log,
 		LocalParamsContextKey, &params,
 		BallotboxContextKey, &ballotbox,
 		CenterDatabaseContextKey, &db,
@@ -416,8 +419,19 @@ func consensusHandlerArgs(pctx context.Context) (*isaacstates.ConsensusHandlerAr
 		whenNewBlockSavedf = func(base.Height) {}
 	}
 
-	defaultWhenNewBlockSavedf := DefaultWhenNewBlockSavedInConsensusStateFunc(
-		params, ballotbox, db, nodeinfo)
+	defaultWhenNewBlockSavedf := DefaultWhenNewBlockSavedInConsensusStateFunc(log, params, ballotbox, db, nodeinfo)
+
+	var whenNewBlockConfirmedf func(base.Height)
+
+	switch err := util.LoadFromContext(
+		pctx, WhenNewBlockConfirmedFuncContextKey, &whenNewBlockConfirmedf); {
+	case err != nil:
+		return nil, err
+	case whenNewBlockConfirmedf == nil:
+		whenNewBlockConfirmedf = func(base.Height) {}
+	}
+
+	defaultWhenNewBlockConfirmedf := DefaultWhenNewBlockConfirmedFunc(log)
 
 	args := isaacstates.NewConsensusHandlerArgs()
 	args.NodeInConsensusNodesFunc = nodeInConsensusNodesf
@@ -427,6 +441,11 @@ func consensusHandlerArgs(pctx context.Context) (*isaacstates.ConsensusHandlerAr
 		defaultWhenNewBlockSavedf(height)
 
 		whenNewBlockSavedf(height)
+	}
+	args.WhenNewBlockConfirmed = func(height base.Height) {
+		defaultWhenNewBlockConfirmedf(height)
+
+		whenNewBlockConfirmedf(height)
 	}
 
 	return args, nil
@@ -480,6 +499,7 @@ func newBootingHandlerArgs(pctx context.Context) (*isaacstates.BootingHandlerArg
 }
 
 func newSyncingHandlerArgs(pctx context.Context) (*isaacstates.SyncingHandlerArgs, error) {
+	var log *logging.Logging
 	var params *isaac.LocalParams
 	var db isaac.Database
 	var ballotbox *isaacstates.Ballotbox
@@ -487,6 +507,7 @@ func newSyncingHandlerArgs(pctx context.Context) (*isaacstates.SyncingHandlerArg
 	var nodeInConsensusNodesf func(base.Node, base.Height) (base.Suffrage, bool, error)
 
 	if err := util.LoadFromContextOK(pctx,
+		LoggingContextKey, &log,
 		LocalParamsContextKey, &params,
 		CenterDatabaseContextKey, &db,
 		BallotboxContextKey, &ballotbox,
@@ -520,7 +541,7 @@ func newSyncingHandlerArgs(pctx context.Context) (*isaacstates.SyncingHandlerArg
 		whenNewBlockSavedf = func(base.Height) {}
 	}
 
-	defaultWhenNewBlockSavedf := DefaultWhenNewBlockSavedInSyncingStateFunc(db, nodeinfo)
+	defaultWhenNewBlockSavedf := DefaultWhenNewBlockSavedInSyncingStateFunc(log, db, nodeinfo)
 
 	args := isaacstates.NewSyncingHandlerArgs(params)
 	args.NodeInConsensusNodesFunc = nodeInConsensusNodesf
@@ -540,6 +561,7 @@ func newSyncingHandlerArgs(pctx context.Context) (*isaacstates.SyncingHandlerArg
 }
 
 func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.SyncerArgs, error), error) {
+	var log *logging.Logging
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
 	var devflags DevFlags
@@ -553,6 +575,7 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 	var nodeinfo *isaacnetwork.NodeInfoUpdater
 
 	if err := util.LoadFromContextOK(pctx,
+		LoggingContextKey, &log,
 		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
 		DevFlagsContextKey, &devflags,
@@ -589,7 +612,19 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 		whenNewBlockSavedInSyncingStatef = func(base.Height) {}
 	}
 
-	defaultWhenNewBlockSavedInSyncingStatef := DefaultWhenNewBlockSavedInSyncingStateFunc(db, nodeinfo)
+	defaultWhenNewBlockSavedInSyncingStatef := DefaultWhenNewBlockSavedInSyncingStateFunc(log, db, nodeinfo)
+
+	var whenNewBlockConfirmedf func(base.Height)
+
+	switch err = util.LoadFromContext(
+		pctx, WhenNewBlockConfirmedFuncContextKey, &whenNewBlockConfirmedf); {
+	case err != nil:
+		return nil, err
+	case whenNewBlockConfirmedf == nil:
+		whenNewBlockConfirmedf = func(base.Height) {}
+	}
+
+	defaultWhenNewBlockConfirmedf := DefaultWhenNewBlockConfirmedFunc(log)
 
 	return func(height base.Height) (args isaacstates.SyncerArgs, _ error) {
 		var tempsyncpool isaac.TempSyncPool
@@ -647,6 +682,11 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 				setLastVoteproofsfFromBlockReaderf,
 				func(context.Context) error {
 					defaultWhenNewBlockSavedInSyncingStatef(to)
+
+					if c := to.SafePrev(); c >= from {
+						defaultWhenNewBlockConfirmedf(c)
+						whenNewBlockConfirmedf(c)
+					}
 
 					whenNewBlockSavedInSyncingStatef(to)
 
@@ -977,24 +1017,42 @@ func getManifestFunc(db isaac.Database) func(height base.Height) (base.Manifest,
 }
 
 func DefaultWhenNewBlockSavedInSyncingStateFunc(
+	log *logging.Logging,
 	db isaac.Database,
 	nodeinfo *isaacnetwork.NodeInfoUpdater,
 ) func(base.Height) {
 	return func(height base.Height) {
+		log.Log().Debug().
+			Interface("height", height).
+			Stringer("state", isaacstates.StateSyncing).
+			Msg("new block saved")
+
 		_ = UpdateNodeInfoWithNewBlock(db, nodeinfo)
 	}
 }
 
 func DefaultWhenNewBlockSavedInConsensusStateFunc(
+	log *logging.Logging,
 	params *isaac.LocalParams,
 	ballotbox *isaacstates.Ballotbox,
 	db isaac.Database,
 	nodeinfo *isaacnetwork.NodeInfoUpdater,
 ) func(base.Height) {
 	return func(height base.Height) {
+		log.Log().Debug().
+			Interface("height", height).
+			Stringer("state", isaacstates.StateConsensus).
+			Msg("new block saved")
+
 		ballotbox.Count(params.Threshold())
 
 		_ = UpdateNodeInfoWithNewBlock(db, nodeinfo)
+	}
+}
+
+func DefaultWhenNewBlockConfirmedFunc(log *logging.Logging) func(base.Height) {
+	return func(height base.Height) {
+		log.Log().Debug().Interface("height", height).Msg("new block confirmed")
 	}
 }
 

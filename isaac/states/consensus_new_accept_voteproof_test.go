@@ -47,6 +47,15 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestExpected() {
 		return nil
 	})
 
+	newblocksavedch := make(chan base.Height, 1)
+	confirmedch := make(chan base.Height, 1)
+	st.args.WhenNewBlockSaved = func(height base.Height) {
+		newblocksavedch <- height
+	}
+	st.args.WhenNewBlockConfirmed = func(height base.Height) {
+		confirmedch <- height
+	}
+
 	nextpr := t.PRPool.Get(point.NextHeight())
 
 	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
@@ -69,6 +78,24 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestExpected() {
 	case avp = <-savedch:
 		base.EqualVoteproof(t.Assert(), nextavp, avp)
 		base.EqualVoteproof(t.Assert(), avp, st.lastVoteproofs().ACCEPT())
+	}
+
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("timeout to wait saved callback"))
+
+		return
+	case height := <-newblocksavedch:
+		t.Equal(nextavp.Point().Height(), height)
+	}
+
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("timeout to wait confirmed callback"))
+
+		return
+	case height := <-confirmedch:
+		t.Equal(nextavp.Point().Height(), height)
 	}
 
 	t.T().Log("wait next init ballot")

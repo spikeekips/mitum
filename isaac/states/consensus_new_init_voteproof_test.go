@@ -356,6 +356,13 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBefore() {
 		}
 	})
 
+	confirmedch := make(chan base.Height, 1)
+	st.args.WhenNewBlockConfirmed = func(height base.Height) {
+		if height >= point.Height() {
+			confirmedch <- height
+		}
+	}
+
 	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
 	deferred, err := st.enter(StateJoining, sctx)
@@ -400,6 +407,13 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBefore() {
 
 	_, newivp := t.VoteproofsPair(point, drawivp.Point().Point.NextRound(), nextavp.BallotMajority().NewBlock(), nil, t.PRPool.Hash(drawivp.Point().Point.NextRound()), nodes)
 	t.NoError(st.newVoteproof(newivp))
+
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("timeout to wait to be confirmed"))
+	case height := <-confirmedch:
+		t.Equal(newivp.Point().Height()-1, height)
+	}
 
 	t.T().Log("next init voteproof:", newivp.Point())
 	select {

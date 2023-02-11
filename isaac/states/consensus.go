@@ -16,9 +16,10 @@ import (
 
 type ConsensusHandlerArgs struct {
 	*baseBallotHandlerArgs
-	ProposalProcessors *isaac.ProposalProcessors
-	GetManifestFunc    func(base.Height) (base.Manifest, error)
-	WhenNewBlockSaved  func(base.Height)
+	ProposalProcessors    *isaac.ProposalProcessors
+	GetManifestFunc       func(base.Height) (base.Manifest, error)
+	WhenNewBlockSaved     func(base.Height)
+	WhenNewBlockConfirmed func(base.Height)
 }
 
 func NewConsensusHandlerArgs() *ConsensusHandlerArgs {
@@ -27,7 +28,8 @@ func NewConsensusHandlerArgs() *ConsensusHandlerArgs {
 		GetManifestFunc: func(base.Height) (base.Manifest, error) {
 			return nil, util.ErrNotImplemented.Errorf("GetManifestFunc")
 		},
-		WhenNewBlockSaved: func(base.Height) {},
+		WhenNewBlockSaved:     func(base.Height) {},
+		WhenNewBlockConfirmed: func(base.Height) {},
 	}
 }
 
@@ -502,6 +504,8 @@ func (st *ConsensusHandler) newINITVoteproofWithLastINITVoteproof(
 	case !keep:
 		return nil
 	default:
+		go st.whenNewBlockConfirmed(lavp)
+
 		process, err := st.processProposal(ivp)
 		if err != nil {
 			return err
@@ -553,6 +557,8 @@ func (st *ConsensusHandler) newINITVoteproofWithLastACCEPTVoteproof(
 	case !keep:
 		return nil
 	default:
+		go st.whenNewBlockConfirmed(lavp)
+
 		process, err := st.processProposal(ivp)
 		if err != nil {
 			return err
@@ -755,7 +761,7 @@ func (st *ConsensusHandler) saveBlock(avp base.ACCEPTVoteproof) (bool, error) {
 	case err == nil:
 		ll.Debug().Msg("processed proposal saved; moves to next block")
 
-		go st.args.WhenNewBlockSaved(avp.Point().Height())
+		go st.whenNewBlockSaved(avp)
 		go st.prepareNextBlock(avp)
 
 		return true, nil
@@ -823,6 +829,20 @@ func (st *ConsensusHandler) checkStuckVoteproof(
 		go st.nextRound(vp, lvps.PreviousBlockForNextRound(vp))
 
 		return false, nil
+	}
+}
+
+func (st *ConsensusHandler) whenNewBlockSaved(vp base.ACCEPTVoteproof) {
+	if _, hasWithdraws := vp.(base.HasWithdraws); !hasWithdraws {
+		st.args.WhenNewBlockConfirmed(vp.Point().Height())
+	}
+
+	st.args.WhenNewBlockSaved(vp.Point().Height())
+}
+
+func (st *ConsensusHandler) whenNewBlockConfirmed(vp base.ACCEPTVoteproof) {
+	if _, ok := vp.(base.HasWithdraws); ok {
+		st.args.WhenNewBlockConfirmed(vp.Point().Height())
 	}
 }
 

@@ -889,7 +889,7 @@ func GetLastSuffrageFunc(ctx context.Context) (isaac.GetSuffrageByBlockHeight, e
 	}
 
 	sufcache := util.NewGCacheObjectPool(1 << 9) //nolint:gomnd //...
-
+	// FIXME last suffrage is canceled
 	f := func(height base.Height) (base.Suffrage, bool, error) {
 		switch suf, found, err := isaac.GetSuffrageFromDatabase(db, height); {
 		case err != nil:
