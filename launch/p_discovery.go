@@ -14,12 +14,12 @@ var (
 	DiscoveryContextKey     = util.ContextKey("discovery")
 )
 
-func PDiscoveryFlag(ctx context.Context) (context.Context, error) {
+func PDiscoveryFlag(pctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to prepare discovery flag")
 
 	var flag []ConnInfoFlag
-	if err := util.LoadFromContextOK(ctx, DiscoveryFlagContextKey, &flag); err != nil {
-		return ctx, e(err, "")
+	if err := util.LoadFromContextOK(pctx, DiscoveryFlagContextKey, &flag); err != nil {
+		return pctx, e(err, "")
 	}
 
 	discoveries := util.EmptyLocked([]quicstream.UDPConnInfo{})
@@ -30,7 +30,7 @@ func PDiscoveryFlag(ctx context.Context) (context.Context, error) {
 		for i := range flag {
 			ci, err := flag[i].ConnInfo()
 			if err != nil {
-				return ctx, e(err, "invalid member discovery, %q", flag[i])
+				return pctx, e(err, "invalid member discovery, %q", flag[i])
 			}
 
 			v[i] = ci
@@ -39,9 +39,7 @@ func PDiscoveryFlag(ctx context.Context) (context.Context, error) {
 		_ = discoveries.SetValue(v)
 	}
 
-	ctx = context.WithValue(ctx, DiscoveryContextKey, discoveries) //revive:disable-line:modifies-parameter
-
-	return ctx, nil
+	return context.WithValue(pctx, DiscoveryContextKey, discoveries), nil
 }
 
 func GetDiscoveriesFromLocked(l *util.Locked[[]quicstream.UDPConnInfo]) []quicstream.UDPConnInfo {

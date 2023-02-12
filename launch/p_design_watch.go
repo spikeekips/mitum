@@ -21,29 +21,29 @@ import (
 
 var PNameWatchDesign = ps.Name("watch-design")
 
-func PWatchDesign(ctx context.Context) (context.Context, error) {
+func PWatchDesign(pctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to watch design")
 
 	var log *logging.Logging
 	var flag DesignFlag
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		DesignFlagContextKey, &flag,
 	); err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
-	watchUpdatefs, err := watchUpdateFuncs(ctx)
+	watchUpdatefs, err := watchUpdateFuncs(pctx)
 	if err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
 	switch flag.Scheme() {
 	case "consul":
-		runf, err := consulWatch(ctx, watchUpdatefs)
+		runf, err := consulWatch(pctx, watchUpdatefs)
 		if err != nil {
-			return ctx, e(err, "failed to watch thru consul")
+			return pctx, e(err, "failed to watch thru consul")
 		}
 
 		go func() {
@@ -54,20 +54,20 @@ func PWatchDesign(ctx context.Context) (context.Context, error) {
 	default:
 		log.Log().Debug().Msg("design uri does not support watch")
 
-		return ctx, nil
+		return pctx, nil
 	}
 
-	return ctx, nil
+	return pctx, nil
 }
 
 func consulWatch(
-	ctx context.Context,
+	pctx context.Context,
 	updatef map[string]func(string) error,
 ) (func() error, error) {
 	var log *logging.Logging
 	var flag DesignFlag
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		DesignFlagContextKey, &flag,
 	); err != nil {
@@ -120,7 +120,7 @@ func consulWatch(
 	}, nil
 }
 
-func watchUpdateFuncs(ctx context.Context) (map[string]func(string) error, error) {
+func watchUpdateFuncs(pctx context.Context) (map[string]func(string) error, error) {
 	var log *logging.Logging
 	var enc *jsonenc.Encoder
 	var design NodeDesign
@@ -128,7 +128,7 @@ func watchUpdateFuncs(ctx context.Context) (map[string]func(string) error, error
 	var discoveries *util.Locked[[]quicstream.UDPConnInfo]
 	var syncSourceChecker *isaacnetwork.SyncSourceChecker
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
 		DesignContextKey, &design,
@@ -187,7 +187,7 @@ func watchUpdateFromConsulFunc(
 }
 
 func updateFromConsulAfterCheckDesign(
-	ctx context.Context,
+	pctx context.Context,
 	flag DesignFlag,
 ) error {
 	switch flag.Scheme() {
@@ -199,7 +199,7 @@ func updateFromConsulAfterCheckDesign(
 			return err
 		}
 
-		fs, err := watchUpdateFuncs(ctx)
+		fs, err := watchUpdateFuncs(pctx)
 		if err != nil {
 			return err
 		}

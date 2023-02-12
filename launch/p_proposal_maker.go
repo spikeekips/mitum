@@ -19,7 +19,7 @@ var (
 	ProposalMakerContextKey = util.ContextKey("proposal-maker")
 )
 
-func PProposalMaker(ctx context.Context) (context.Context, error) {
+func PProposalMaker(pctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to prepare proposal maker")
 
 	var log *logging.Logging
@@ -27,18 +27,18 @@ func PProposalMaker(ctx context.Context) (context.Context, error) {
 	var params base.LocalParams
 	var pool *isaacdatabase.TempPool
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
 		PoolDatabaseContextKey, &pool,
 	); err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
-	opf, err := proposalMakderGetOperationsFunc(ctx)
+	opf, err := proposalMakderGetOperationsFunc(pctx)
 	if err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
 	pm := isaac.NewProposalMaker(
@@ -50,12 +50,10 @@ func PProposalMaker(ctx context.Context) (context.Context, error) {
 
 	_ = pm.SetLogging(log)
 
-	ctx = context.WithValue(ctx, ProposalMakerContextKey, pm) //revive:disable-line:modifies-parameter
-
-	return ctx, nil
+	return context.WithValue(pctx, ProposalMakerContextKey, pm), nil
 }
 
-func proposalMakderGetOperationsFunc(ctx context.Context) (
+func proposalMakderGetOperationsFunc(pctx context.Context) (
 	func(context.Context, base.Height) ([]util.Hash, error),
 	error,
 ) {
@@ -65,7 +63,7 @@ func proposalMakderGetOperationsFunc(ctx context.Context) (
 	var db isaac.Database
 	var pool *isaacdatabase.TempPool
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,

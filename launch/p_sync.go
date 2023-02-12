@@ -20,7 +20,7 @@ var (
 	SyncSourcePoolContextKey    = util.ContextKey("sync-source-pool")
 )
 
-func PSyncSourceChecker(ctx context.Context) (context.Context, error) {
+func PSyncSourceChecker(pctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to prepare SyncSourceChecker")
 
 	var log *logging.Logging
@@ -30,7 +30,7 @@ func PSyncSourceChecker(ctx context.Context) (context.Context, error) {
 	var params *isaac.LocalParams
 	var client *isaacnetwork.QuicstreamClient
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
 		DesignContextKey, &design,
@@ -38,7 +38,7 @@ func PSyncSourceChecker(ctx context.Context) (context.Context, error) {
 		LocalParamsContextKey, &params,
 		QuicstreamClientContextKey, &client,
 	); err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
 	sources := make([]isaacnetwork.SyncSource, len(design.SyncSources))
@@ -71,34 +71,34 @@ func PSyncSourceChecker(ctx context.Context) (context.Context, error) {
 	)
 	_ = syncSourceChecker.SetLogging(log)
 
-	ctx = context.WithValue(ctx, //revive:disable-line:modifies-parameter
+	pctx = context.WithValue(pctx, //revive:disable-line:modifies-parameter
 		SyncSourceCheckerContextKey, syncSourceChecker)
-	ctx = context.WithValue(ctx, //revive:disable-line:modifies-parameter
+	pctx = context.WithValue(pctx, //revive:disable-line:modifies-parameter
 		SyncSourcePoolContextKey, syncSourcePool)
 
-	return ctx, nil
+	return pctx, nil
 }
 
-func PStartSyncSourceChecker(ctx context.Context) (context.Context, error) {
+func PStartSyncSourceChecker(pctx context.Context) (context.Context, error) {
 	var syncSourceChecker *isaacnetwork.SyncSourceChecker
-	if err := util.LoadFromContextOK(ctx, SyncSourceCheckerContextKey, &syncSourceChecker); err != nil {
-		return ctx, err
+	if err := util.LoadFromContextOK(pctx, SyncSourceCheckerContextKey, &syncSourceChecker); err != nil {
+		return pctx, err
 	}
 
-	return ctx, syncSourceChecker.Start(context.Background())
+	return pctx, syncSourceChecker.Start(context.Background())
 }
 
-func PCloseSyncSourceChecker(ctx context.Context) (context.Context, error) {
+func PCloseSyncSourceChecker(pctx context.Context) (context.Context, error) {
 	var syncSourceChecker *isaacnetwork.SyncSourceChecker
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		SyncSourceCheckerContextKey, &syncSourceChecker,
 	); err != nil {
-		return ctx, err
+		return pctx, err
 	}
 
 	if err := syncSourceChecker.Stop(); err != nil && !errors.Is(err, util.ErrDaemonAlreadyStopped) {
-		return ctx, err
+		return pctx, err
 	}
 
-	return ctx, nil
+	return pctx, nil
 }

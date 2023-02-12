@@ -18,38 +18,36 @@ import (
 	"github.com/spikeekips/mitum/util/logging"
 )
 
-func PProposalProcessors(ctx context.Context) (context.Context, error) {
+func PProposalProcessors(pctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 
-	if err := util.LoadFromContextOK(ctx, LoggingContextKey, &log); err != nil {
-		return ctx, err
+	if err := util.LoadFromContextOK(pctx, LoggingContextKey, &log); err != nil {
+		return pctx, err
 	}
 
-	newProposalProcessorf, err := newProposalProcessorFunc(ctx)
+	newProposalProcessorf, err := newProposalProcessorFunc(pctx)
 	if err != nil {
-		return ctx, err
+		return pctx, err
 	}
 
-	getProposalf, err := getProposalFunc(ctx)
+	getProposalf, err := getProposalFunc(pctx)
 	if err != nil {
-		return ctx, err
+		return pctx, err
 	}
 
 	pps := isaac.NewProposalProcessors(newProposalProcessorf, getProposalf)
 	_ = pps.SetLogging(log)
 
-	ctx = context.WithValue(ctx, ProposalProcessorsContextKey, pps) //revive:disable-line:modifies-parameter
-
-	return ctx, nil
+	return context.WithValue(pctx, ProposalProcessorsContextKey, pps), nil
 }
 
-func PProposerSelector(ctx context.Context) (context.Context, error) {
+func PProposerSelector(pctx context.Context) (context.Context, error) {
 	var db isaac.Database
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		CenterDatabaseContextKey, &db,
 	); err != nil {
-		return ctx, err
+		return pctx, err
 	}
 
 	p := isaac.NewBlockBasedProposerSelector(
@@ -65,7 +63,7 @@ func PProposerSelector(ctx context.Context) (context.Context, error) {
 		},
 	)
 
-	return context.WithValue(ctx, ProposerSelectorContextKey, p), nil
+	return context.WithValue(pctx, ProposerSelectorContextKey, p), nil
 }
 
 func newProposalProcessorFunc(pctx context.Context) (
@@ -256,7 +254,7 @@ func getProposalOperationFunc(pctx context.Context) (
 }
 
 func getProposalOperationFromPoolFunc(pctx context.Context) (
-	func(ctx context.Context, operationhash util.Hash) (base.Operation, bool, error),
+	func(pctx context.Context, operationhash util.Hash) (base.Operation, bool, error),
 	error,
 ) {
 	var pool *isaacdatabase.TempPool

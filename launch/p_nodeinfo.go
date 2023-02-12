@@ -19,7 +19,7 @@ var (
 	NodeInfoContextKey = util.ContextKey("nodeinfo")
 )
 
-func PNodeInfo(ctx context.Context) (context.Context, error) {
+func PNodeInfo(pctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to prepare nodeinfo")
 
 	var log *logging.Logging
@@ -29,7 +29,7 @@ func PNodeInfo(ctx context.Context) (context.Context, error) {
 	var design NodeDesign
 	var db isaac.Database
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		VersionContextKey, &version,
 		DesignContextKey, &design,
@@ -37,7 +37,7 @@ func PNodeInfo(ctx context.Context) (context.Context, error) {
 		LocalParamsContextKey, &params,
 		CenterDatabaseContextKey, &db,
 	); err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
 	nodeinfo := isaacnetwork.NewNodeInfoUpdater(design.NetworkID, local, version)
@@ -48,13 +48,13 @@ func PNodeInfo(ctx context.Context) (context.Context, error) {
 	))
 	_ = nodeinfo.SetLocalParams(params)
 
-	ctx = context.WithValue(ctx, NodeInfoContextKey, nodeinfo) //revive:disable-line:modifies-parameter
+	pctx = context.WithValue(pctx, NodeInfoContextKey, nodeinfo) //revive:disable-line:modifies-parameter
 
 	if err := UpdateNodeInfoWithNewBlock(db, nodeinfo); err != nil {
 		log.Log().Error().Err(err).Msg("failed to update nodeinfo")
 	}
 
-	return ctx, nil
+	return pctx, nil
 }
 
 func UpdateNodeInfoWithNewBlock(

@@ -31,12 +31,12 @@ var (
 	SuffragePoolContextKey                = util.ContextKey("suffrage-pool")
 )
 
-func PSuffrageCandidateLimiterSet(ctx context.Context) (context.Context, error) {
+func PSuffrageCandidateLimiterSet(pctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to prepare SuffrageCandidateLimiterSet")
 
 	var db isaac.Database
-	if err := util.LoadFromContextOK(ctx, CenterDatabaseContextKey, &db); err != nil {
-		return ctx, e(err, "")
+	if err := util.LoadFromContextOK(pctx, CenterDatabaseContextKey, &db); err != nil {
+		return pctx, e(err, "")
 	}
 
 	set := hint.NewCompatibleSet()
@@ -45,49 +45,47 @@ func PSuffrageCandidateLimiterSet(ctx context.Context) (context.Context, error) 
 		isaac.FixedSuffrageCandidateLimiterRuleHint,
 		base.SuffrageCandidateLimiterFunc(FixedSuffrageCandidateLimiterFunc()),
 	); err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
 	if err := set.Add(
 		isaac.MajoritySuffrageCandidateLimiterRuleHint,
 		base.SuffrageCandidateLimiterFunc(MajoritySuffrageCandidateLimiterFunc(db)),
 	); err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
-	ctx = context.WithValue(ctx, SuffrageCandidateLimiterSetContextKey, set) //revive:disable-line:modifies-parameter
-
-	return ctx, nil
+	return context.WithValue(pctx, SuffrageCandidateLimiterSetContextKey, set), nil
 }
 
-func PLastConsensusNodesWatcher(ctx context.Context) (context.Context, error) {
+func PLastConsensusNodesWatcher(pctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var local base.LocalNode
 	var params *isaac.LocalParams
 	var db isaac.Database
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
 		CenterDatabaseContextKey, &db,
 	); err != nil {
-		return ctx, err
+		return pctx, err
 	}
 
-	getLastSuffrageProoff, err := GetLastSuffrageProofFunc(ctx)
+	getLastSuffrageProoff, err := GetLastSuffrageProofFunc(pctx)
 	if err != nil {
-		return ctx, err
+		return pctx, err
 	}
 
-	getSuffrageProofFromRemotef, err := GetSuffrageProofFromRemoteFunc(ctx)
+	getSuffrageProofFromRemotef, err := GetSuffrageProofFromRemoteFunc(pctx)
 	if err != nil {
-		return ctx, err
+		return pctx, err
 	}
 
-	getLastSuffrageCandidatef, err := GetLastSuffrageCandidateFunc(ctx)
+	getLastSuffrageCandidatef, err := GetLastSuffrageCandidateFunc(pctx)
 	if err != nil {
-		return ctx, err
+		return pctx, err
 	}
 
 	builder := isaac.NewSuffrageStateBuilder(
@@ -127,12 +125,13 @@ func PLastConsensusNodesWatcher(ctx context.Context) (context.Context, error) {
 		params.WaitPreparingINITBallot(),
 	)
 	if err != nil {
-		return ctx, err
+		return pctx, err
 	}
 
 	_ = watcher.SetLogging(log)
 
-	ctx = context.WithValue(ctx, LastConsensusNodesWatcherContextKey, watcher) //revive:disable-line:modifies-parameter
+	pctx = context.WithValue(pctx, //revive:disable-line:modifies-parameter
+		LastConsensusNodesWatcherContextKey, watcher)
 
 	sp := NewSuffragePool(
 		func(height base.Height) (base.Suffrage, bool, error) {
@@ -153,12 +152,10 @@ func PLastConsensusNodesWatcher(ctx context.Context) (context.Context, error) {
 		},
 	)
 
-	ctx = context.WithValue(ctx, SuffragePoolContextKey, sp) //revive:disable-line:modifies-parameter
-
-	return ctx, nil
+	return context.WithValue(pctx, SuffragePoolContextKey, sp), nil
 }
 
-func PPatchLastConsensusNodesWatcher(ctx context.Context) (context.Context, error) {
+func PPatchLastConsensusNodesWatcher(pctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var local base.LocalNode
 	var params *isaac.LocalParams
@@ -170,7 +167,7 @@ func PPatchLastConsensusNodesWatcher(ctx context.Context) (context.Context, erro
 	var syncSourcePool *isaac.SyncSourcePool
 	var ballotbox *isaacstates.Ballotbox
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
@@ -182,7 +179,7 @@ func PPatchLastConsensusNodesWatcher(ctx context.Context) (context.Context, erro
 		SyncSourcePoolContextKey, &syncSourcePool,
 		BallotboxContextKey, &ballotbox,
 	); err != nil {
-		return ctx, err
+		return pctx, err
 	}
 
 	watcher.SetWhenUpdated(func(_ context.Context, previous, updated base.SuffrageProof, candidatesst base.State) {
@@ -206,24 +203,24 @@ func PPatchLastConsensusNodesWatcher(ctx context.Context) (context.Context, erro
 		}
 	})
 
-	return ctx, nil
+	return pctx, nil
 }
 
-func PNodeInConsensusNodesFunc(ctx context.Context) (context.Context, error) { // FIXME ctx -> pctx
+func PNodeInConsensusNodesFunc(pctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed NodeInConsensusNodesFunc")
 
 	var db isaac.Database
 	var sp *SuffragePool
 
 	if err := util.LoadFromContextOK(
-		ctx,
+		pctx,
 		CenterDatabaseContextKey, &db,
 		SuffragePoolContextKey, &sp,
 	); err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
-	return context.WithValue(ctx, NodeInConsensusNodesFuncContextKey, nodeInConsensusNodesFunc(db, sp.Height)), nil
+	return context.WithValue(pctx, NodeInConsensusNodesFuncContextKey, nodeInConsensusNodesFunc(db, sp.Height)), nil
 }
 
 func getCandidatesFunc(
@@ -323,7 +320,7 @@ func nodeInConsensusNodesFunc(
 	}
 }
 
-func PSuffrageVoting(ctx context.Context) (context.Context, error) {
+func PSuffrageVoting(pctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var local base.LocalNode
 	var enc encoder.Encoder
@@ -334,7 +331,7 @@ func PSuffrageVoting(ctx context.Context) (context.Context, error) {
 	var cb *isaacnetwork.CallbackBroadcaster
 	var sp *SuffragePool
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
 		EncoderContextKey, &enc,
@@ -345,7 +342,7 @@ func PSuffrageVoting(ctx context.Context) (context.Context, error) {
 		CallbackBroadcasterContextKey, &cb,
 		SuffragePoolContextKey, &sp,
 	); err != nil {
-		return ctx, err
+		return pctx, err
 	}
 
 	sv := isaac.NewSuffrageVoting(
@@ -389,7 +386,7 @@ func PSuffrageVoting(ctx context.Context) (context.Context, error) {
 		return err
 	})
 
-	ctx = context.WithValue(ctx, SuffrageVotingVoteFuncContextKey, //revive:disable-line:modifies-parameter
+	pctx = context.WithValue(pctx, SuffrageVotingVoteFuncContextKey, //revive:disable-line:modifies-parameter
 		isaac.SuffrageVoteFunc(func(op base.SuffrageWithdrawOperation) (bool, error) {
 			var height base.Height
 
@@ -425,7 +422,7 @@ func PSuffrageVoting(ctx context.Context) (context.Context, error) {
 		}),
 	)
 
-	return context.WithValue(ctx, SuffrageVotingContextKey, sv), nil
+	return context.WithValue(pctx, SuffrageVotingContextKey, sv), nil
 }
 
 func FixedSuffrageCandidateLimiterFunc() func(
@@ -473,12 +470,12 @@ func MajoritySuffrageCandidateLimiterFunc(
 	}
 }
 
-func GetLastSuffrageProofFunc(ctx context.Context) (isaac.GetLastSuffrageProofFromRemoteFunc, error) {
+func GetLastSuffrageProofFunc(pctx context.Context) (isaac.GetLastSuffrageProofFromRemoteFunc, error) {
 	var params base.LocalParams
 	var client *isaacnetwork.QuicstreamClient
 	var syncSourcePool *isaac.SyncSourcePool
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		QuicstreamClientContextKey, &client,
 		LocalParamsContextKey, &params,
 		SyncSourcePoolContextKey, &syncSourcePool,
@@ -566,14 +563,14 @@ func GetLastSuffrageProofFunc(ctx context.Context) (isaac.GetLastSuffrageProofFr
 	}, nil
 }
 
-func GetSuffrageProofFromRemoteFunc(ctx context.Context) ( //revive:disable-line:cognitive-complexity
+func GetSuffrageProofFromRemoteFunc(pctx context.Context) ( //revive:disable-line:cognitive-complexity
 	isaac.GetSuffrageProofFromRemoteFunc, error,
 ) {
 	var params base.LocalParams
 	var client *isaacnetwork.QuicstreamClient
 	var syncSourcePool *isaac.SyncSourcePool
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		QuicstreamClientContextKey, &client,
 		LocalParamsContextKey, &params,
 		SyncSourcePoolContextKey, &syncSourcePool,
@@ -646,11 +643,11 @@ func GetSuffrageProofFromRemoteFunc(ctx context.Context) ( //revive:disable-line
 	}, nil
 }
 
-func GetLastSuffrageCandidateFunc(ctx context.Context) (isaac.GetLastSuffrageCandidateStateRemoteFunc, error) {
+func GetLastSuffrageCandidateFunc(pctx context.Context) (isaac.GetLastSuffrageCandidateStateRemoteFunc, error) {
 	var client *isaacnetwork.QuicstreamClient
 	var syncSourcePool *isaac.SyncSourcePool
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		QuicstreamClientContextKey, &client,
 		SyncSourcePoolContextKey, &syncSourcePool,
 	); err != nil {
@@ -728,14 +725,14 @@ func GetLastSuffrageCandidateFunc(ctx context.Context) (isaac.GetLastSuffrageCan
 	}, nil
 }
 
-func NewSuffrageCandidateLimiterFunc(ctx context.Context) ( //revive:disable-line:cognitive-complexity
+func NewSuffrageCandidateLimiterFunc(pctx context.Context) ( //revive:disable-line:cognitive-complexity
 	func(base.Height, base.GetStateFunc) (base.OperationProcessorProcessFunc, error),
 	error,
 ) {
 	var db isaac.Database
 	var limiterset *hint.CompatibleSet
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		CenterDatabaseContextKey, &db,
 		SuffrageCandidateLimiterSetContextKey, &limiterset,
 	); err != nil {
@@ -836,28 +833,28 @@ func NewSuffrageCandidateLimiterFunc(ctx context.Context) ( //revive:disable-lin
 	}, nil
 }
 
-func PStartLastConsensusNodesWatcher(ctx context.Context) (context.Context, error) {
+func PStartLastConsensusNodesWatcher(pctx context.Context) (context.Context, error) {
 	var watcher *isaac.LastConsensusNodesWatcher
-	if err := util.LoadFromContextOK(ctx, LastConsensusNodesWatcherContextKey, &watcher); err != nil {
-		return ctx, err
+	if err := util.LoadFromContextOK(pctx, LastConsensusNodesWatcherContextKey, &watcher); err != nil {
+		return pctx, err
 	}
 
-	return ctx, watcher.Start(context.Background())
+	return pctx, watcher.Start(context.Background())
 }
 
-func PCloseLastConsensusNodesWatcher(ctx context.Context) (context.Context, error) {
+func PCloseLastConsensusNodesWatcher(pctx context.Context) (context.Context, error) {
 	var watcher *isaac.LastConsensusNodesWatcher
-	if err := util.LoadFromContext(ctx, LastConsensusNodesWatcherContextKey, &watcher); err != nil {
-		return ctx, err
+	if err := util.LoadFromContext(pctx, LastConsensusNodesWatcherContextKey, &watcher); err != nil {
+		return pctx, err
 	}
 
 	if watcher != nil {
 		if err := watcher.Stop(); err != nil && !errors.Is(err, util.ErrDaemonAlreadyStopped) {
-			return ctx, err
+			return pctx, err
 		}
 	}
 
-	return ctx, nil
+	return pctx, nil
 }
 
 func checkLocalIsInConsensusNodesByWatcher(

@@ -40,31 +40,31 @@ var (
 
 type FilterMemberlistNotifyMsgFunc func(interface{}) (bool, error)
 
-func PMemberlist(ctx context.Context) (context.Context, error) {
+func PMemberlist(pctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to prepare memberlist")
 
 	var log *logging.Logging
 	var enc *jsonenc.Encoder
 	var params *isaac.LocalParams
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
 		LocalParamsContextKey, &params,
 	); err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
 	poolclient := quicstream.NewPoolClient()
 
-	localnode, err := memberlistLocalNode(ctx)
+	localnode, err := memberlistLocalNode(pctx)
 	if err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
-	config, err := memberlistConfig(ctx, localnode, poolclient)
+	config, err := memberlistConfig(pctx, localnode, poolclient)
 	if err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
 	m, err := quicmemberlist.NewMemberlist(
@@ -74,7 +74,7 @@ func PMemberlist(ctx context.Context) (context.Context, error) {
 		params.SameMemberLimit(),
 	)
 	if err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
 	_ = m.SetLogging(log)
@@ -92,47 +92,47 @@ func PMemberlist(ctx context.Context) (context.Context, error) {
 	})
 
 	//revive:disable:modifies-parameter
-	ctx = context.WithValue(ctx, MemberlistContextKey, m)
-	ctx = context.WithValue(ctx, EventWhenEmptyMembersContextKey, pps)
-	ctx = context.WithValue(ctx, FilterMemberlistNotifyMsgFuncContextKey,
+	pctx = context.WithValue(pctx, MemberlistContextKey, m)
+	pctx = context.WithValue(pctx, EventWhenEmptyMembersContextKey, pps)
+	pctx = context.WithValue(pctx, FilterMemberlistNotifyMsgFuncContextKey,
 		FilterMemberlistNotifyMsgFunc(func(interface{}) (bool, error) { return true, nil }),
 	)
 	//revive:enable:modifies-parameter
 
-	return ctx, nil
+	return pctx, nil
 }
 
-func PStartMemberlist(ctx context.Context) (context.Context, error) {
+func PStartMemberlist(pctx context.Context) (context.Context, error) {
 	var m *quicmemberlist.Memberlist
-	if err := util.LoadFromContextOK(ctx, MemberlistContextKey, &m); err != nil {
-		return ctx, err
+	if err := util.LoadFromContextOK(pctx, MemberlistContextKey, &m); err != nil {
+		return pctx, err
 	}
 
-	return ctx, m.Start(context.Background())
+	return pctx, m.Start(context.Background())
 }
 
-func PCloseMemberlist(ctx context.Context) (context.Context, error) {
+func PCloseMemberlist(pctx context.Context) (context.Context, error) {
 	var m *quicmemberlist.Memberlist
-	if err := util.LoadFromContext(ctx, MemberlistContextKey, &m); err != nil {
-		return ctx, err
+	if err := util.LoadFromContext(pctx, MemberlistContextKey, &m); err != nil {
+		return pctx, err
 	}
 
 	if m != nil {
 		if err := m.Stop(); err != nil && !errors.Is(err, util.ErrDaemonAlreadyStopped) {
-			return ctx, err
+			return pctx, err
 		}
 	}
 
-	return ctx, nil
+	return pctx, nil
 }
 
-func PLongRunningMemberlistJoin(ctx context.Context) (context.Context, error) {
+func PLongRunningMemberlistJoin(pctx context.Context) (context.Context, error) {
 	var local base.LocalNode
 	var discoveries *util.Locked[[]quicstream.UDPConnInfo]
 	var m *quicmemberlist.Memberlist
 	var watcher *isaac.LastConsensusNodesWatcher
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		LocalContextKey, &local,
 		DiscoveryContextKey, &discoveries,
 		MemberlistContextKey, &m,
@@ -146,17 +146,15 @@ func PLongRunningMemberlistJoin(ctx context.Context) (context.Context, error) {
 		m.IsJoined,
 	)
 
-	ctx = context.WithValue(ctx, LongRunningMemberlistJoinContextKey, l) //revive:disable-line:modifies-parameter
-
-	return ctx, nil
+	return context.WithValue(pctx, LongRunningMemberlistJoinContextKey, l), nil
 }
 
-func PCallbackBroadcaster(ctx context.Context) (context.Context, error) {
+func PCallbackBroadcaster(pctx context.Context) (context.Context, error) {
 	var design NodeDesign
 	var enc *jsonenc.Encoder
 	var m *quicmemberlist.Memberlist
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		DesignContextKey, &design,
 		EncoderContextKey, &enc,
 		MemberlistContextKey, &m,
@@ -170,10 +168,10 @@ func PCallbackBroadcaster(ctx context.Context) (context.Context, error) {
 		m,
 	)
 
-	return context.WithValue(ctx, CallbackBroadcasterContextKey, c), nil
+	return context.WithValue(pctx, CallbackBroadcasterContextKey, c), nil
 }
 
-func PPatchMemberlist(ctx context.Context) (context.Context, error) {
+func PPatchMemberlist(pctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var enc encoder.Encoder
 	var params *isaac.LocalParams
@@ -184,7 +182,7 @@ func PPatchMemberlist(ctx context.Context) (context.Context, error) {
 	var svvotef isaac.SuffrageVoteFunc
 	var filternotifymsg FilterMemberlistNotifyMsgFunc
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
 		LocalParamsContextKey, &params,
@@ -195,7 +193,7 @@ func PPatchMemberlist(ctx context.Context) (context.Context, error) {
 		SuffrageVotingVoteFuncContextKey, &svvotef,
 		FilterMemberlistNotifyMsgFuncContextKey, &filternotifymsg,
 	); err != nil {
-		return ctx, err
+		return pctx, err
 	}
 
 	l := log.Log().With().Str("module", "filter-notify-msg-memberlist").Logger()
@@ -282,15 +280,15 @@ func PPatchMemberlist(ctx context.Context) (context.Context, error) {
 		}
 	})
 
-	return ctx, nil
+	return pctx, nil
 }
 
-func memberlistLocalNode(ctx context.Context) (quicmemberlist.Node, error) {
+func memberlistLocalNode(pctx context.Context) (quicmemberlist.Node, error) {
 	var design NodeDesign
 	var local base.LocalNode
 	var fsnodeinfo NodeInfo
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		DesignContextKey, &design,
 		LocalContextKey, &local,
 		FSNodeInfoContextKey, &fsnodeinfo,
@@ -309,7 +307,7 @@ func memberlistLocalNode(ctx context.Context) (quicmemberlist.Node, error) {
 }
 
 func memberlistConfig(
-	ctx context.Context,
+	pctx context.Context,
 	localnode quicmemberlist.Node,
 	poolclient *quicstream.PoolClient,
 ) (*memberlist.Config, error) {
@@ -321,7 +319,7 @@ func memberlistConfig(
 	var local base.LocalNode
 	var syncSourcePool *isaac.SyncSourcePool
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
 		DesignContextKey, &design,
@@ -335,7 +333,7 @@ func memberlistConfig(
 		return nil, err
 	}
 
-	transport, err := memberlistTransport(ctx, poolclient)
+	transport, err := memberlistTransport(pctx, poolclient)
 	if err != nil {
 		return nil, err
 	}
@@ -344,7 +342,7 @@ func memberlistConfig(
 		panic("set notifyMsgFunc")
 	})
 
-	alive, err := memberlistAlive(ctx)
+	alive, err := memberlistAlive(pctx)
 	if err != nil {
 		return nil, err
 	}
@@ -409,7 +407,7 @@ func memberlistConfig(
 }
 
 func memberlistTransport(
-	ctx context.Context,
+	pctx context.Context,
 	poolclient *quicstream.PoolClient,
 ) (*quicmemberlist.Transport, error) {
 	var log *logging.Logging
@@ -421,7 +419,7 @@ func memberlistTransport(
 	var syncSourcePool *isaac.SyncSourcePool
 	var handlers *quicstream.PrefixHandler
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
 		DesignContextKey, &design,
@@ -464,23 +462,23 @@ func memberlistTransport(
 	return transport, nil
 }
 
-func memberlistAlive(ctx context.Context) (*quicmemberlist.AliveDelegate, error) {
+func memberlistAlive(pctx context.Context) (*quicmemberlist.AliveDelegate, error) {
 	var design NodeDesign
 	var enc *jsonenc.Encoder
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		DesignContextKey, &design,
 		EncoderContextKey, &enc,
 	); err != nil {
 		return nil, err
 	}
 
-	nc, err := nodeChallengeFunc(ctx)
+	nc, err := nodeChallengeFunc(pctx)
 	if err != nil {
 		return nil, err
 	}
 
-	al, err := memberlistAllowFunc(ctx)
+	al, err := memberlistAllowFunc(pctx)
 	if err != nil {
 		return nil, err
 	}
@@ -552,14 +550,14 @@ func nodeChallengeFunc(pctx context.Context) (
 	}, nil
 }
 
-func memberlistAllowFunc(ctx context.Context) (
+func memberlistAllowFunc(pctx context.Context) (
 	func(quicmemberlist.Node) error,
 	error,
 ) {
 	var log *logging.Logging
 	var watcher *isaac.LastConsensusNodesWatcher
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		LastConsensusNodesWatcherContextKey, &watcher,
 	); err != nil {

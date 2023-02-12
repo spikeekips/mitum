@@ -54,20 +54,20 @@ var (
 	RedisPermanentDatabasePrefixFormat = "mitum-%s"
 )
 
-func PStorage(ctx context.Context) (context.Context, error) {
-	return ctx, nil
+func PStorage(pctx context.Context) (context.Context, error) {
+	return pctx, nil
 }
 
-func PStartStorage(ctx context.Context) (context.Context, error) {
+func PStartStorage(pctx context.Context) (context.Context, error) {
 	var log *logging.Logging
-	if err := util.LoadFromContextOK(ctx, LoggingContextKey, &log); err != nil {
-		return ctx, nil
+	if err := util.LoadFromContextOK(pctx, LoggingContextKey, &log); err != nil {
+		return pctx, nil
 	}
 
 	var starters []func()
 
 	load := func(name string, key util.ContextKey, v interface{}) bool {
-		switch err := util.LoadFromContext(ctx, key, v); {
+		switch err := util.LoadFromContext(pctx, key, v); {
 		case err != nil:
 			return false
 		case v == nil:
@@ -102,20 +102,20 @@ func PStartStorage(ctx context.Context) (context.Context, error) {
 		starters[i]()
 	}
 
-	return ctx, nil
+	return pctx, nil
 }
 
-func PCloseStorage(ctx context.Context) (context.Context, error) {
+func PCloseStorage(pctx context.Context) (context.Context, error) {
 	var log *logging.Logging
-	if err := util.LoadFromContextOK(ctx, LoggingContextKey, &log); err != nil {
-		return ctx, nil
+	if err := util.LoadFromContextOK(pctx, LoggingContextKey, &log); err != nil {
+		return pctx, nil
 	}
 
 	var closers []func()
 	var stoppers []func()
 
 	load := func(name string, key util.ContextKey, v interface{}) bool {
-		switch err := util.LoadFromContextOK(ctx, key, v); {
+		switch err := util.LoadFromContextOK(pctx, key, v); {
 		case err != nil:
 			return false
 		case v == nil:
@@ -165,62 +165,62 @@ func PCloseStorage(ctx context.Context) (context.Context, error) {
 		closers[i]()
 	}
 
-	return ctx, nil
+	return pctx, nil
 }
 
-func PCheckLeveldbStorage(ctx context.Context) (context.Context, error) {
+func PCheckLeveldbStorage(pctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to check leveldb storage")
 
 	var log *logging.Logging
-	if err := util.LoadFromContextOK(ctx, LoggingContextKey, &log); err != nil {
-		return ctx, e(err, "")
+	if err := util.LoadFromContextOK(pctx, LoggingContextKey, &log); err != nil {
+		return pctx, e(err, "")
 	}
 
 	var st *leveldbstorage.Storage
-	if err := util.LoadFromContextOK(ctx, LeveldbStorageContextKey, &st); err != nil {
-		return ctx, e(err, "")
+	if err := util.LoadFromContextOK(pctx, LeveldbStorageContextKey, &st); err != nil {
+		return pctx, e(err, "")
 	}
 
 	if err := st.DB().CompactRange(leveldbutil.Range{}); err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
 	log.Log().Debug().Msg("leveldb storage compacted")
 
-	return ctx, nil
+	return pctx, nil
 }
 
-func PLoadFromDatabase(ctx context.Context) (context.Context, error) {
+func PLoadFromDatabase(pctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to load some stuffs from database")
 
 	var design NodeDesign
 	var encs *encoder.Encoders
 	var center isaac.Database
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		DesignContextKey, &design,
 		EncodersContextKey, &encs,
 		CenterDatabaseContextKey, &center,
 	); err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
 	// NOTE load from last voteproofs
 	lvps := isaacstates.NewLastVoteproofsHandler()
-	ctx = context.WithValue(ctx, LastVoteproofsHandlerContextKey, lvps) //revive:disable-line:modifies-parameter
+	pctx = context.WithValue(pctx, LastVoteproofsHandlerContextKey, lvps) //revive:disable-line:modifies-parameter
 
 	var manifest base.Manifest
 	var enc encoder.Encoder
 
 	switch m, found, err := center.LastBlockMap(); {
 	case err != nil:
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	case !found:
-		return ctx, nil
+		return pctx, nil
 	default:
 		enc = encs.Find(m.Encoder())
 		if enc == nil {
-			return ctx, e(nil, "encoder of last blockmap not found")
+			return pctx, e(nil, "encoder of last blockmap not found")
 		}
 
 		manifest = m.Manifest()
@@ -230,7 +230,7 @@ func PLoadFromDatabase(ctx context.Context) (context.Context, error) {
 		LocalFSDataDirectory(design.Storage.Base), manifest.Height(), enc,
 	)
 	if err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
 	defer func() {
@@ -239,9 +239,9 @@ func PLoadFromDatabase(ctx context.Context) (context.Context, error) {
 
 	switch v, found, err := reader.Item(base.BlockMapItemTypeVoteproofs); {
 	case err != nil:
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	case !found:
-		return ctx, e(nil, "last voteproofs not found in localfs")
+		return pctx, e(nil, "last voteproofs not found in localfs")
 	default:
 		vps := v.([]base.Voteproof) //nolint:forcetypeassert //...
 
@@ -249,32 +249,32 @@ func PLoadFromDatabase(ctx context.Context) (context.Context, error) {
 		lvps.Set(vps[1].(base.ACCEPTVoteproof)) //nolint:forcetypeassert //...
 	}
 
-	return ctx, nil
+	return pctx, nil
 }
 
-func PCleanStorage(ctx context.Context) (context.Context, error) {
+func PCleanStorage(pctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to clean storage")
 
 	var design NodeDesign
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		DesignContextKey, &design,
 		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
 	); err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
 	if err := CleanStorage(design.Storage.Database.String(), design.Storage.Base, encs, enc); err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
-	return ctx, nil
+	return pctx, nil
 }
 
-func PCreateLocalFS(ctx context.Context) (context.Context, error) {
+func PCreateLocalFS(pctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to create localfs")
 
 	var design NodeDesign
@@ -282,27 +282,25 @@ func PCreateLocalFS(ctx context.Context) (context.Context, error) {
 	var params *isaac.LocalParams
 	var version util.Version
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		DesignContextKey, &design,
 		EncoderContextKey, &enc,
 		LocalParamsContextKey, &params,
 		VersionContextKey, &version,
 	); err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
 	fsnodeinfo, err := CreateLocalFS(
 		CreateDefaultNodeInfo(params.NetworkID(), version), design.Storage.Base, enc)
 	if err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
-	ctx = context.WithValue(ctx, FSNodeInfoContextKey, fsnodeinfo) //revive:disable-line:modifies-parameter
-
-	return ctx, nil
+	return context.WithValue(pctx, FSNodeInfoContextKey, fsnodeinfo), nil
 }
 
-func PCheckLocalFS(ctx context.Context) (context.Context, error) {
+func PCheckLocalFS(pctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to check localfs")
 
 	var version util.Version
@@ -311,14 +309,14 @@ func PCheckLocalFS(ctx context.Context) (context.Context, error) {
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		VersionContextKey, &version,
 		DesignContextKey, &design,
 		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
 		LocalParamsContextKey, &params,
 	); err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
 	fsnodeinfo, err := CheckLocalFS(params.NetworkID(), design.Storage.Base, enc)
@@ -326,7 +324,7 @@ func PCheckLocalFS(ctx context.Context) (context.Context, error) {
 	switch {
 	case err == nil:
 		if err = isaacblock.CleanBlockTempDirectory(LocalFSDataDirectory(design.Storage.Base)); err != nil {
-			return ctx, e(err, "")
+			return pctx, e(err, "")
 		}
 	case errors.Is(err, os.ErrNotExist):
 		if err = CleanStorage(
@@ -335,24 +333,22 @@ func PCheckLocalFS(ctx context.Context) (context.Context, error) {
 			encs,
 			enc,
 		); err != nil {
-			return ctx, e(err, "")
+			return pctx, e(err, "")
 		}
 
 		fsnodeinfo, err = CreateLocalFS(
 			CreateDefaultNodeInfo(params.NetworkID(), version), design.Storage.Base, enc)
 		if err != nil {
-			return ctx, e(err, "")
+			return pctx, e(err, "")
 		}
 	default:
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
-	ctx = context.WithValue(ctx, FSNodeInfoContextKey, fsnodeinfo) //revive:disable-line:modifies-parameter
-
-	return ctx, nil
+	return context.WithValue(pctx, FSNodeInfoContextKey, fsnodeinfo), nil
 }
 
-func PLoadDatabase(ctx context.Context) (context.Context, error) {
+func PLoadDatabase(pctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to load database")
 
 	var log *logging.Logging
@@ -361,40 +357,40 @@ func PLoadDatabase(ctx context.Context) (context.Context, error) {
 	var enc encoder.Encoder
 	var fsnodeinfo NodeInfo
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		DesignContextKey, &design,
 		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
 		FSNodeInfoContextKey, &fsnodeinfo,
 	); err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
 	st, db, perm, pool, err := LoadDatabase(
 		fsnodeinfo, design.Storage.Database.String(), design.Storage.Base, encs, enc)
 	if err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
 	_ = db.SetLogging(log)
 	//revive:disable:modifies-parameter
-	ctx = context.WithValue(ctx, LeveldbStorageContextKey, st)
-	ctx = context.WithValue(ctx, CenterDatabaseContextKey, db)
-	ctx = context.WithValue(ctx, PermanentDatabaseContextKey, perm)
-	ctx = context.WithValue(ctx, PoolDatabaseContextKey, pool)
+	pctx = context.WithValue(pctx, LeveldbStorageContextKey, st)
+	pctx = context.WithValue(pctx, CenterDatabaseContextKey, db)
+	pctx = context.WithValue(pctx, PermanentDatabaseContextKey, perm)
+	pctx = context.WithValue(pctx, PoolDatabaseContextKey, pool)
 	//revive:enable:modifies-parameter
 
-	return ctx, nil
+	return pctx, nil
 }
 
-func LastHeightOfLocalFS(ctx context.Context, from string) (last base.Height, _ error) {
+func LastHeightOfLocalFS(pctx context.Context, from string) (last base.Height, _ error) {
 	e := util.StringErrorFunc("failed to find last height from localfs")
 
 	var enc encoder.Encoder
 	var params *isaac.LocalParams
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		EncoderContextKey, &enc,
 		LocalParamsContextKey, &params,
 	); err != nil {

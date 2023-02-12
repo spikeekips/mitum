@@ -16,29 +16,27 @@ var (
 	LocalParamsContextKey = util.ContextKey("local-params")
 )
 
-func PLocal(ctx context.Context) (context.Context, error) {
+func PLocal(pctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to load local")
 
 	var log *logging.Logging
-	if err := util.LoadFromContextOK(ctx, LoggingContextKey, &log); err != nil {
-		return ctx, e(err, "")
+	if err := util.LoadFromContextOK(pctx, LoggingContextKey, &log); err != nil {
+		return pctx, e(err, "")
 	}
 
 	var design NodeDesign
-	if err := util.LoadFromContextOK(ctx, DesignContextKey, &design); err != nil {
-		return ctx, e(err, "")
+	if err := util.LoadFromContextOK(pctx, DesignContextKey, &design); err != nil {
+		return pctx, e(err, "")
 	}
 
 	local, err := LocalFromDesign(design)
 	if err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
 	log.Log().Info().Interface("local", local).Msg("local loaded")
 
-	ctx = context.WithValue(ctx, LocalContextKey, local) //revive:disable-line:modifies-parameter
-
-	return ctx, nil
+	return context.WithValue(pctx, LocalContextKey, local), nil
 }
 
 func LocalFromDesign(design NodeDesign) (base.LocalNode, error) {

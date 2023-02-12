@@ -17,54 +17,54 @@ var (
 	TimeSyncerContextKey = util.ContextKey("time-syncer")
 )
 
-func PStartTimeSyncer(ctx context.Context) (context.Context, error) {
+func PStartTimeSyncer(pctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to prepare time syncer")
 
 	var log *logging.Logging
 	var design NodeDesign
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		DesignContextKey, &design,
 	); err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
 	if len(design.TimeServer) < 1 {
 		log.Log().Debug().Msg("no time server given")
 
-		return ctx, nil
+		return pctx, nil
 	}
 
 	ts, err := localtime.NewTimeSyncer(design.TimeServer, design.TimeServerPort, DefaultTimeSyncerInterval)
 	if err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
 	_ = ts.SetLogging(log)
 
 	if err := ts.Start(context.Background()); err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
-	return context.WithValue(ctx, TimeSyncerContextKey, ts), nil
+	return context.WithValue(pctx, TimeSyncerContextKey, ts), nil
 }
 
-func PCloseTimeSyncer(ctx context.Context) (context.Context, error) {
+func PCloseTimeSyncer(pctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to stop time syncer")
 
 	var ts *localtime.TimeSyncer
 
-	switch err := util.LoadFromContext(ctx, TimeSyncerContextKey, &ts); {
+	switch err := util.LoadFromContext(pctx, TimeSyncerContextKey, &ts); {
 	case err != nil:
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	case ts == nil:
-		return ctx, nil
+		return pctx, nil
 	default:
 		if err := ts.Stop(); err != nil {
-			return ctx, e(err, "")
+			return pctx, e(err, "")
 		}
 
-		return ctx, nil
+		return pctx, nil
 	}
 }

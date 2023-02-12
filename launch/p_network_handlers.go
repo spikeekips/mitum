@@ -31,7 +31,7 @@ var (
 	OperationProcessorsMapContextKey = util.ContextKey("operation-processors-map")
 )
 
-func PNetworkHandlers(ctx context.Context) (context.Context, error) {
+func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to prepare network handlers")
 
 	var log *logging.Logging
@@ -52,7 +52,7 @@ func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 	var ballotbox *isaacstates.Ballotbox
 	var filternotifymsg FilterMemberlistNotifyMsgFunc
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
@@ -71,12 +71,12 @@ func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 		BallotboxContextKey, &ballotbox,
 		FilterMemberlistNotifyMsgFuncContextKey, &filternotifymsg,
 	); err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
-	sendOperationFilterf, err := sendOperationFilterFunc(ctx)
+	sendOperationFilterf, err := sendOperationFilterFunc(pctx)
 	if err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
 	idletimeout := time.Second * 2 //nolint:gomnd //...
@@ -238,23 +238,23 @@ func PNetworkHandlers(ctx context.Context) (context.Context, error) {
 		).
 		Add(HandlerPrefixPprof, NetworkHandlerPprofFunc(encs))
 
-	return ctx, nil
+	return pctx, nil
 }
 
-func POperationProcessorsMap(ctx context.Context) (context.Context, error) {
+func POperationProcessorsMap(pctx context.Context) (context.Context, error) {
 	var params *isaac.LocalParams
 	var db isaac.Database
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		LocalParamsContextKey, &params,
 		CenterDatabaseContextKey, &db,
 	); err != nil {
-		return ctx, err
+		return pctx, err
 	}
 
-	limiterf, err := NewSuffrageCandidateLimiterFunc(ctx)
+	limiterf, err := NewSuffrageCandidateLimiterFunc(pctx)
 	if err != nil {
-		return ctx, err
+		return pctx, err
 	}
 
 	set := hint.NewCompatibleSet()
@@ -312,19 +312,17 @@ func POperationProcessorsMap(ctx context.Context) (context.Context, error) {
 		)
 	})
 
-	ctx = context.WithValue(ctx, OperationProcessorsMapContextKey, set) //revive:disable-line:modifies-parameter
-
-	return ctx, nil
+	return context.WithValue(pctx, OperationProcessorsMapContextKey, set), nil
 }
 
-func sendOperationFilterFunc(ctx context.Context) (
+func sendOperationFilterFunc(pctx context.Context) (
 	func(base.Operation) (bool, error),
 	error,
 ) {
 	var db isaac.Database
 	var oprs *hint.CompatibleSet
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		CenterDatabaseContextKey, &db,
 		OperationProcessorsMapContextKey, &oprs,
 	); err != nil {
@@ -503,10 +501,10 @@ func OperationPreProcess(
 	case err != nil:
 		return nil, nil, err
 	default:
-		return func(ctx context.Context, getStateFunc base.GetStateFunc) (
+		return func(pctx context.Context, getStateFunc base.GetStateFunc) (
 			context.Context, base.OperationProcessReasonError, error,
 		) {
-			return opp.PreProcess(ctx, op, getStateFunc)
+			return opp.PreProcess(pctx, op, getStateFunc)
 		}, opp.Close, nil
 	}
 }

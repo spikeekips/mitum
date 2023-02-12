@@ -31,27 +31,25 @@ var (
 	QuicstreamHandlersContextKey = util.ContextKey("quicstream-handlers")
 )
 
-func PQuicstreamClient(ctx context.Context) (context.Context, error) {
+func PQuicstreamClient(pctx context.Context) (context.Context, error) {
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
 	var params base.LocalParams
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
 		LocalParamsContextKey, &params,
 	); err != nil {
-		return ctx, errors.WithMessage(err, "failed network client")
+		return pctx, errors.WithMessage(err, "failed network client")
 	}
 
 	client := NewNetworkClient(encs, enc, time.Second*2, params.NetworkID()) //nolint:gomnd //...
 
-	ctx = context.WithValue(ctx, QuicstreamClientContextKey, client) //revive:disable-line:modifies-parameter
-
-	return ctx, nil
+	return context.WithValue(pctx, QuicstreamClientContextKey, client), nil
 }
 
-func PNetwork(ctx context.Context) (context.Context, error) {
+func PNetwork(pctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to prepare network")
 
 	var log *logging.Logging
@@ -60,14 +58,14 @@ func PNetwork(ctx context.Context) (context.Context, error) {
 	var design NodeDesign
 	var params base.LocalParams
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		EncodersContextKey, &encs,
 		EncoderContextKey, &enc,
 		DesignContextKey, &design,
 		LocalParamsContextKey, &params,
 	); err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
 	handlers := quicstream.NewPrefixHandler(isaacnetwork.QuicstreamErrorHandler(enc))
@@ -84,39 +82,39 @@ func PNetwork(ctx context.Context) (context.Context, error) {
 		handlers.Handler,
 	)
 	if err != nil {
-		return ctx, err
+		return pctx, err
 	}
 
 	_ = server.SetLogging(log)
 
-	ctx = context.WithValue(ctx, QuicstreamServerContextKey, server)     //revive:disable-line:modifies-parameter
-	ctx = context.WithValue(ctx, QuicstreamHandlersContextKey, handlers) //revive:disable-line:modifies-parameter
+	pctx = context.WithValue(pctx, QuicstreamServerContextKey, server)     //revive:disable-line:modifies-parameter
+	pctx = context.WithValue(pctx, QuicstreamHandlersContextKey, handlers) //revive:disable-line:modifies-parameter
 
-	return ctx, nil
+	return pctx, nil
 }
 
-func PStartNetwork(ctx context.Context) (context.Context, error) {
+func PStartNetwork(pctx context.Context) (context.Context, error) {
 	var server *quicstream.Server
-	if err := util.LoadFromContextOK(ctx, QuicstreamServerContextKey, &server); err != nil {
-		return ctx, err
+	if err := util.LoadFromContextOK(pctx, QuicstreamServerContextKey, &server); err != nil {
+		return pctx, err
 	}
 
-	return ctx, server.Start(context.Background())
+	return pctx, server.Start(context.Background())
 }
 
-func PCloseNetwork(ctx context.Context) (context.Context, error) {
+func PCloseNetwork(pctx context.Context) (context.Context, error) {
 	var server *quicstream.Server
-	if err := util.LoadFromContext(ctx, QuicstreamServerContextKey, &server); err != nil {
-		return ctx, err
+	if err := util.LoadFromContext(pctx, QuicstreamServerContextKey, &server); err != nil {
+		return pctx, err
 	}
 
 	if server != nil {
 		if err := server.Stop(); err != nil && !errors.Is(err, util.ErrDaemonAlreadyStopped) {
-			return ctx, err
+			return pctx, err
 		}
 	}
 
-	return ctx, nil
+	return pctx, nil
 }
 
 func NewNetworkClient(

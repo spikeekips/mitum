@@ -41,19 +41,19 @@ var (
 	BallotStuckResolverContextKey                   = util.ContextKey("ballot-stuck-resolver")
 )
 
-func PBallotbox(ctx context.Context) (context.Context, error) {
+func PBallotbox(pctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var local base.LocalNode
 	var params *isaac.LocalParams
 	var sp *SuffragePool
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
 		SuffragePoolContextKey, &sp,
 	); err != nil {
-		return ctx, err
+		return pctx, err
 	}
 
 	ballotbox := isaacstates.NewBallotbox(local.Address(), sp.Height)
@@ -61,15 +61,13 @@ func PBallotbox(ctx context.Context) (context.Context, error) {
 	_ = ballotbox.SetLogging(log)
 
 	if err := ballotbox.Start(context.Background()); err != nil {
-		return ctx, err
+		return pctx, err
 	}
 
-	ctx = context.WithValue(ctx, BallotboxContextKey, ballotbox) //revive:disable-line:modifies-parameter
-
-	return ctx, nil
+	return context.WithValue(pctx, BallotboxContextKey, ballotbox), nil
 }
 
-func PBallotStuckResolver(ctx context.Context) (context.Context, error) {
+func PBallotStuckResolver(pctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to load ballot stuck resolver")
 
 	var log *logging.Logging
@@ -81,7 +79,7 @@ func PBallotStuckResolver(ctx context.Context) (context.Context, error) {
 	var cb *isaacnetwork.CallbackBroadcaster
 	var svf *isaac.SuffrageVoting
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		DesignContextKey, &design,
 		LocalContextKey, &local,
@@ -91,7 +89,7 @@ func PBallotStuckResolver(ctx context.Context) (context.Context, error) {
 		CallbackBroadcasterContextKey, &cb,
 		SuffrageVotingContextKey, &svf,
 	); err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
 	findMissingBallotsf := isaacstates.FindMissingBallotsFromBallotboxFunc(
@@ -116,7 +114,7 @@ func PBallotStuckResolver(ctx context.Context) (context.Context, error) {
 
 	switch {
 	case params.BallotStuckWait() < params.WaitPreparingINITBallot():
-		return ctx, util.ErrInvalid.Errorf("too short ballot stuck wait; it should be over wait_preparing_init_ballot")
+		return pctx, util.ErrInvalid.Errorf("too short ballot stuck wait; it should be over wait_preparing_init_ballot")
 	case params.BallotStuckWait() < params.WaitPreparingINITBallot()*2:
 		log.Log().Warn().
 			Dur("ballot_stuck_wait", params.BallotStuckWait()).
@@ -134,10 +132,10 @@ func PBallotStuckResolver(ctx context.Context) (context.Context, error) {
 
 	_ = r.SetLogging(log)
 
-	return context.WithValue(ctx, BallotStuckResolverContextKey, r), nil
+	return context.WithValue(pctx, BallotStuckResolverContextKey, r), nil
 }
 
-func PStates(ctx context.Context) (context.Context, error) {
+func PStates(pctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to prepare states")
 
 	args := isaacstates.NewStatesArgs()
@@ -150,7 +148,7 @@ func PStates(ctx context.Context) (context.Context, error) {
 	var cb *isaacnetwork.CallbackBroadcaster
 	var pool *isaacdatabase.TempPool
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
 		LocalContextKey, &local,
@@ -162,7 +160,7 @@ func PStates(ctx context.Context) (context.Context, error) {
 		BallotStuckResolverContextKey, &args.BallotStuckResolver,
 		PoolDatabaseContextKey, &pool,
 	); err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
 	if vp := args.LastVoteproofsHandler.Last().Cap(); vp != nil {
@@ -201,43 +199,43 @@ func PStates(ctx context.Context) (context.Context, error) {
 	states := isaacstates.NewStates(local, params, args)
 	_ = states.SetLogging(log)
 
-	proposalSelector, err := NewProposalSelector(ctx)
+	proposalSelector, err := NewProposalSelector(pctx)
 	if err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
 	//revive:disable:modifies-parameter
-	ctx = context.WithValue(ctx, StatesContextKey, states)
-	ctx = context.WithValue(ctx, ProposalSelectorContextKey, proposalSelector)
+	pctx = context.WithValue(pctx, StatesContextKey, states)
+	pctx = context.WithValue(pctx, ProposalSelectorContextKey, proposalSelector)
 	//revive:enable:modifies-parameter
 
-	return ctx, nil
+	return pctx, nil
 }
 
-func PCloseStates(ctx context.Context) (context.Context, error) {
+func PCloseStates(pctx context.Context) (context.Context, error) {
 	var states *isaacstates.States
 	var ballotbox *isaacstates.Ballotbox
 
-	if err := util.LoadFromContext(ctx,
+	if err := util.LoadFromContext(pctx,
 		StatesContextKey, &states,
 		BallotboxContextKey, &ballotbox,
 	); err != nil {
-		return ctx, err
+		return pctx, err
 	}
 
 	if states != nil {
 		if err := states.Stop(); err != nil && !errors.Is(err, util.ErrDaemonAlreadyStopped) {
-			return ctx, err
+			return pctx, err
 		}
 	}
 
 	if ballotbox != nil {
 		if err := ballotbox.Stop(); err != nil && !errors.Is(err, util.ErrDaemonAlreadyStopped) {
-			return ctx, err
+			return pctx, err
 		}
 	}
 
-	return ctx, nil
+	return pctx, nil
 }
 
 func PStatesSetHandlers(pctx context.Context) (context.Context, error) { //revive:disable-line:function-length
