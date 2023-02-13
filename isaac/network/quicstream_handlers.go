@@ -175,6 +175,13 @@ func QuicstreamHandlerRequestProposal(
 		point base.Point,
 		proposer base.Address,
 	) (base.ProposalSignFact, error) {
+		switch pr, found, err := pool.ProposalByPoint(point, proposer); {
+		case err != nil:
+			return nil, err
+		case found:
+			return pr, nil
+		}
+
 		if lastBlockMapf != nil {
 			switch m, found, err := lastBlockMapf(); {
 			case err != nil:
@@ -187,18 +194,11 @@ func QuicstreamHandlerRequestProposal(
 			}
 		}
 
-		switch pr, found, err := pool.ProposalByPoint(point, proposer); {
-		case err != nil:
-			return nil, err
-		case found:
-			return pr, nil
+		if proposer.Equal(local.Address()) {
+			return proposalMaker.New(context.Background(), point)
 		}
 
-		if !proposer.Equal(local.Address()) {
-			return proposalMaker.Empty(context.Background(), point)
-		}
-
-		return proposalMaker.New(context.Background(), point)
+		return nil, nil
 	}
 
 	return boolQUICstreamHandler(encs, idleTimeout, RequestProposalRequestHeader{},

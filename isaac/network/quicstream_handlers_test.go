@@ -348,9 +348,8 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 		proposer := base.RandomAddress("")
 		pr, found, err := c.RequestProposal(context.Background(), ci, point, proposer)
 		t.NoError(err)
-		t.True(found)
-		t.NotNil(pr)
-		t.Empty(pr.ProposalFact().Operations())
+		t.False(found)
+		t.Nil(pr)
 	})
 
 	t.Run("too high height", func() {
