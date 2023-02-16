@@ -405,7 +405,6 @@ func (l *ShardedMap[K, V]) Get(k K, create func() (V, error)) (v V, found bool, 
 		return v, false, ErrLockedMapClosed.Call()
 	default:
 		v, found, created, err := i.get(k, create)
-
 		if err == nil && created {
 			atomic.AddInt64(&l.length, 1)
 		}
@@ -420,7 +419,6 @@ func (l *ShardedMap[K, V]) Set(k K, f func(V, bool) (V, error)) (v V, _ error) {
 		return v, ErrLockedMapClosed.Call()
 	default:
 		v, created, err := i.set(k, f)
-
 		if err == nil && created {
 			atomic.AddInt64(&l.length, 1)
 		}
