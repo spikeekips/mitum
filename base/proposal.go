@@ -45,10 +45,6 @@ func IsValidProposalFact(fact ProposalFact) error {
 	ops := fact.Operations()
 
 	if _, found := util.IsDuplicatedSlice(ops, func(op util.Hash) (bool, string) {
-		if op == nil {
-			return true, ""
-		}
-
 		return true, op.String()
 	}); found {
 		return util.ErrInvalid.Errorf("duplicated operation found")
