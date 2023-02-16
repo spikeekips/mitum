@@ -21,7 +21,7 @@ func (t *testContextTimer) TestNew() {
 	_ = NewContextTimer(
 		TimerID("good timer"),
 		time.Millisecond*10,
-		func(int) (bool, error) {
+		func(context.Context, int) (bool, error) {
 			return true, nil
 		},
 	)
@@ -32,7 +32,7 @@ func (t *testContextTimer) TestStart() {
 	ct := NewContextTimer(
 		TimerID("good timer"),
 		time.Millisecond*10,
-		func(i int) (bool, error) {
+		func(_ context.Context, i int) (bool, error) {
 			atomic.AddInt64(&ticked, 1)
 
 			return true, nil
@@ -55,7 +55,7 @@ func (t *testContextTimer) TestStop() {
 	ct := NewContextTimer(
 		TimerID("good timer"),
 		time.Millisecond*10,
-		func(int) (bool, error) {
+		func(context.Context, int) (bool, error) {
 			atomic.AddInt64(&ticked, 1)
 
 			return true, nil
@@ -80,7 +80,7 @@ func (t *testContextTimer) TestStoppedByCallback() {
 	ct := NewContextTimer(
 		TimerID("good timer"),
 		time.Millisecond*10,
-		func(i int) (bool, error) {
+		func(_ context.Context, i int) (bool, error) {
 			if i == 2 {
 				return false, nil // stop after calling 2 times
 			}
@@ -106,7 +106,7 @@ func (t *testContextTimer) TestIntervalFunc() {
 	ct := NewContextTimer(
 		TimerID("good timer"),
 		time.Millisecond*10,
-		func(int) (bool, error) {
+		func(context.Context, int) (bool, error) {
 			atomic.AddInt64(&ticked, 1)
 
 			return true, nil
@@ -132,7 +132,7 @@ func (t *testContextTimer) TestIntervalFuncNarrowInterval() {
 	ct := NewContextTimer(
 		TimerID("good timer"),
 		time.Millisecond*10,
-		func(int) (bool, error) {
+		func(context.Context, int) (bool, error) {
 			atomic.AddInt64(&ticked, 1)
 
 			return true, nil
@@ -160,7 +160,7 @@ func (t *testContextTimer) TestLongInterval() {
 	ct := NewContextTimer(
 		TimerID("long-interval timer"),
 		time.Second*30,
-		func(int) (bool, error) {
+		func(context.Context, int) (bool, error) {
 			return true, nil
 		},
 	)
@@ -198,7 +198,7 @@ func (t *testContextTimer) TestLongRunning() {
 			ct := NewContextTimer(
 				TimerID("long-interval timer"),
 				time.Millisecond*100,
-				func(int) (bool, error) {
+				func(context.Context, int) (bool, error) {
 					defer once.Do(func() {
 						stopch <- true
 					})
@@ -224,7 +224,7 @@ func (t *testContextTimer) TestRestartAfterStop() {
 	ct := NewContextTimer(
 		TimerID("restart timer"),
 		time.Millisecond*10,
-		func(i int) (bool, error) {
+		func(_ context.Context, i int) (bool, error) {
 			atomic.AddInt64(&ticked, 1)
 
 			return true, nil
@@ -257,7 +257,7 @@ func (t *testContextTimer) TestReset() {
 	ct := NewContextTimer(
 		TimerID("restart timer"),
 		time.Millisecond*10,
-		func(i int) (bool, error) {
+		func(_ context.Context, i int) (bool, error) {
 			atomic.AddInt64(&ticked, 1)
 
 			return true, nil

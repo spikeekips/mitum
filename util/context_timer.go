@@ -34,7 +34,7 @@ var (
 )
 
 type ContextTimer struct {
-	callback func(int) (bool, error)
+	callback func(context.Context, int) (bool, error)
 	*ContextDaemon
 	*logging.Logging
 	interval        func(int, time.Duration) time.Duration
@@ -44,7 +44,10 @@ type ContextTimer struct {
 	sync.RWMutex
 }
 
-func NewContextTimer(id TimerID, interval time.Duration, callback func(int) (bool, error)) *ContextTimer {
+func NewContextTimer(
+	id TimerID, interval time.Duration,
+	callback func(context.Context, int) (bool, error),
+) *ContextTimer {
 	ct := ContextTimerPoolGet()
 	ct.Logging = logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 		return zctx.Str("module", "timer-"+string(id))
@@ -178,7 +181,7 @@ func (ct *ContextTimer) prepareCallback(ctx context.Context) error {
 func (ct *ContextTimer) waitAndRun(
 	ctx context.Context,
 	interval time.Duration,
-	callback func(int) (bool, error),
+	callback func(context.Context, int) (bool, error),
 	count int,
 ) error {
 	select {
@@ -187,7 +190,7 @@ func (ct *ContextTimer) waitAndRun(
 	case <-time.After(interval):
 	}
 
-	if keep, err := callback(count); err != nil {
+	if keep, err := callback(ctx, count); err != nil {
 		return errors.WithMessage(err, "failed to callback in ContextTimer")
 	} else if !keep {
 		return ErrStopTimer.Call()

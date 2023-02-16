@@ -16,7 +16,7 @@ func (t *testTimers) timer(id TimerID) *ContextTimer {
 	timer := NewContextTimer(
 		id,
 		time.Second*10,
-		func(int) (bool, error) {
+		func(context.Context, int) (bool, error) {
 			return true, nil
 		},
 	)
