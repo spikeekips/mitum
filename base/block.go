@@ -211,6 +211,10 @@ func ValidateOperationsTreeWithManifest(tr fixedtree.Tree, ops []Operation, mani
 	}
 
 	mops, duplicated := util.IsDuplicatedSlice(ops, func(i Operation) (bool, string) {
+		if i == nil {
+			return true, ""
+		}
+
 		return true, i.Fact().Hash().String()
 	})
 	if duplicated {
@@ -250,6 +254,10 @@ func ValidateStatesTreeWithManifest(tr fixedtree.Tree, sts []State, manifest Man
 	}
 
 	msts, duplicated := util.IsDuplicatedSlice(sts, func(i State) (bool, string) {
+		if i == nil {
+			return true, ""
+		}
+
 		return true, i.Hash().String()
 	})
 	if duplicated {

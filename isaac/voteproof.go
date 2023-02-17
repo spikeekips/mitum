@@ -485,6 +485,10 @@ func isValidithdrawVoteproof(networkID []byte, withdraws []base.SuffrageWithdraw
 	var n int
 
 	if _, found := util.IsDuplicatedSlice(withdraws, func(i base.SuffrageWithdrawOperation) (bool, string) {
+		if i == nil {
+			return true, ""
+		}
+
 		node := i.Fact().(base.SuffrageWithdrawFact).Node() //nolint:forcetypeassert //...
 
 		withdrawnodes[n] = node.String()

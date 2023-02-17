@@ -56,6 +56,10 @@ func (fact baseBallotFact) IsValid([]byte) error {
 		}
 
 		if _, found := util.IsDuplicatedSlice(fact.withdrawfacts, func(i util.Hash) (bool, string) {
+			if i == nil {
+				return true, ""
+			}
+
 			return true, i.String()
 		}); found {
 			return util.ErrInvalid.Errorf("duplicated withdraw fact found")

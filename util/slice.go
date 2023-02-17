@@ -35,23 +35,12 @@ func IsDuplicatedSlice[T any](s []T, keyf func(T) (bool, string)) (map[string]T,
 	m := map[string]T{}
 
 	for i := range s {
-		var stop bool
-		var k string
-
-		if (interface{})(s[i]) == nil { //nolint:govet //...
-			k = ""
-		} else {
-			var keep bool
-
-			keep, k = keyf(s[i])
-			stop = !keep
-		}
-
+		keep, k := keyf(s[i])
 		if _, found := m[k]; found {
 			return nil, true
 		}
 
-		if stop {
+		if !keep {
 			return m, false
 		}
 

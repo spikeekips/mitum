@@ -82,6 +82,10 @@ func (srv *Memberlist) Join(cis []quicstream.UDPConnInfo) error {
 	e := util.StringErrorFunc("failed to join")
 
 	if _, found := util.IsDuplicatedSlice(cis, func(i quicstream.UDPConnInfo) (bool, string) {
+		if i.Addr() == nil {
+			return true, ""
+		}
+
 		return true, i.UDPAddr().String()
 	}); found {
 		return e(nil, "duplicated conninfo found")
