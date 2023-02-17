@@ -13,6 +13,8 @@ import (
 
 var LocalParamsHint = hint.MustNewHint("local-params-v0.0.1")
 
+var defaultTimeoutRequestProposal = time.Second * 3 //nolint:gomnd //...
+
 type LocalParams struct {
 	id        string
 	networkID base.NetworkID
@@ -21,7 +23,6 @@ type LocalParams struct {
 	intervalBroadcastBallot               time.Duration
 	threshold                             base.Threshold
 	waitPreparingINITBallot               time.Duration
-	waitPreparingNextRoundINITBallot      time.Duration
 	timeoutRequestProposal                time.Duration
 	syncSourceCheckerInterval             time.Duration
 	validProposalOperationExpire          time.Duration
@@ -49,8 +50,7 @@ func DefaultLocalParams(networkID base.NetworkID) *LocalParams {
 		threshold:                             base.DefaultThreshold,
 		intervalBroadcastBallot:               time.Second * 3, //nolint:gomnd //...
 		waitPreparingINITBallot:               time.Second * 5, //nolint:gomnd //...
-		waitPreparingNextRoundINITBallot:      time.Second,
-		timeoutRequestProposal:                time.Second * 3,  //nolint:gomnd //...
+		timeoutRequestProposal:                defaultTimeoutRequestProposal,
 		syncSourceCheckerInterval:             time.Second * 30, //nolint:gomnd //...
 		validProposalOperationExpire:          time.Hour * 24,   //nolint:gomnd //...
 		validProposalSuffrageOperationsExpire: time.Hour * 2,    //nolint:gomnd //...
@@ -86,10 +86,6 @@ func (p *LocalParams) IsValid(networkID []byte) error {
 
 	if p.waitPreparingINITBallot < 0 {
 		return e.Errorf("wrong duration; invalid waitPreparingINITBallot")
-	}
-
-	if p.waitPreparingNextRoundINITBallot < 0 {
-		return e.Errorf("wrong duration; invalid waitPreparingNextRoundINITBallot")
 	}
 
 	if p.timeoutRequestProposal < 0 {
@@ -212,28 +208,6 @@ func (p *LocalParams) SetWaitPreparingINITBallot(d time.Duration) *LocalParams {
 	}
 
 	p.waitPreparingINITBallot = d
-
-	p.id = util.UUID().String()
-
-	return p
-}
-
-func (p *LocalParams) WaitPreparingNextRoundINITBallot() time.Duration {
-	p.RLock()
-	defer p.RUnlock()
-
-	return p.waitPreparingNextRoundINITBallot
-}
-
-func (p *LocalParams) SetWaitPreparingNextRoundINITBallot(d time.Duration) *LocalParams {
-	p.Lock()
-	defer p.Unlock()
-
-	if p.waitPreparingNextRoundINITBallot == d {
-		return p
-	}
-
-	p.waitPreparingNextRoundINITBallot = d
 
 	p.id = util.UUID().String()
 
@@ -421,7 +395,6 @@ type localParamsJSONMarshaler struct {
 	Threshold                             base.Threshold            `json:"threshold,omitempty"`
 	IntervalBroadcastBallot               util.ReadableJSONDuration `json:"interval_broadcast_ballot,omitempty"`
 	WaitPreparingINITBallot               util.ReadableJSONDuration `json:"wait_preparing_init_ballot,omitempty"`
-	WaitPreparingNextRoundINITBallot      util.ReadableJSONDuration `json:"wait_preparing_next_round_init_ballot,omitempty"` //revive:disable-line:line-length-limit
 	TimeoutRequestProposal                util.ReadableJSONDuration `json:"timeout_request_proposal,omitempty"`
 	SyncSourceCheckerInterval             util.ReadableJSONDuration `json:"sync_source_checker_interval,omitempty"`
 	ValidProposalOperationExpire          util.ReadableJSONDuration `json:"valid_proposal_operation_expire,omitempty"`
@@ -438,7 +411,6 @@ func (p *LocalParams) MarshalJSON() ([]byte, error) {
 		Threshold:                             p.threshold,
 		IntervalBroadcastBallot:               util.ReadableJSONDuration(p.intervalBroadcastBallot),
 		WaitPreparingINITBallot:               util.ReadableJSONDuration(p.waitPreparingINITBallot),
-		WaitPreparingNextRoundINITBallot:      util.ReadableJSONDuration(p.waitPreparingNextRoundINITBallot),
 		TimeoutRequestProposal:                util.ReadableJSONDuration(p.timeoutRequestProposal),
 		SyncSourceCheckerInterval:             util.ReadableJSONDuration(p.syncSourceCheckerInterval),
 		ValidProposalOperationExpire:          util.ReadableJSONDuration(p.validProposalOperationExpire),
@@ -454,7 +426,6 @@ type localParamsJSONUnmarshaler struct {
 	Threshold                             interface{}                `json:"threshold"`
 	IntervalBroadcastBallot               *util.ReadableJSONDuration `json:"interval_broadcast_ballot"`
 	WaitPreparingINITBallot               *util.ReadableJSONDuration `json:"wait_preparing_init_ballot"`
-	WaitPreparingNextRoundINITBallot      *util.ReadableJSONDuration `json:"wait_preparing_next_round_init_ballot"`
 	TimeoutRequestProposal                *util.ReadableJSONDuration `json:"timeout_request_proposal"`
 	SyncSourceCheckerInterval             *util.ReadableJSONDuration `json:"sync_source_checker_interval"`
 	ValidProposalOperationExpire          *util.ReadableJSONDuration `json:"valid_proposal_operation_expire"`
@@ -492,7 +463,6 @@ func (p *LocalParams) UnmarshalJSON(b []byte) error {
 	durargs := [][2]interface{}{
 		{u.IntervalBroadcastBallot, &p.intervalBroadcastBallot},
 		{u.WaitPreparingINITBallot, &p.waitPreparingINITBallot},
-		{u.WaitPreparingNextRoundINITBallot, &p.waitPreparingNextRoundINITBallot},
 		{u.TimeoutRequestProposal, &p.timeoutRequestProposal},
 		{u.SyncSourceCheckerInterval, &p.syncSourceCheckerInterval},
 		{u.ValidProposalOperationExpire, &p.validProposalOperationExpire},

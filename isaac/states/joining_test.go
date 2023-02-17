@@ -292,10 +292,11 @@ func (t *testJoiningHandler) TestFirstVoteproof() {
 	}
 
 	prpool := t.PRPool
-	args.ProposalSelector = isaac.DummyProposalSelector(func(_ context.Context, p base.Point) (base.ProposalSignFact, error) {
+	args.ProposalSelectFunc = func(_ context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
 		return prpool.Get(p), nil
-	})
+	}
 	args.WaitFirstVoteproof = 1
+	t.LocalParams.SetWaitPreparingINITBallot(time.Second * 2)
 
 	st, closef := t.newState(args)
 	defer closef()
@@ -317,7 +318,7 @@ func (t *testJoiningHandler) TestFirstVoteproof() {
 	deferred()
 
 	select {
-	case <-time.After(time.Second * 2):
+	case <-time.After(time.Second * 5):
 		t.NoError(errors.Errorf("timeout to wait init ballot for next block"))
 
 		return

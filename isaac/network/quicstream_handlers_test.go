@@ -3,7 +3,9 @@ package isaacnetwork
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
+	"net"
 	"testing"
 	"time"
 
@@ -91,6 +93,17 @@ func (t *testQuicstreamHandlers) writef(prefix string, handler quicstream.Handle
 		}
 
 		return io.NopCloser(w), func() error { return nil }, nil
+	}
+}
+
+func (t *testQuicstreamHandlers) writefs(prefix string, handlers map[string]quicstream.Handler) BaseNetworkClientWriteFunc {
+	return func(ctx context.Context, ci quicstream.UDPConnInfo, f quicstream.ClientWriteFunc) (io.ReadCloser, func() error, error) {
+		handler, found := handlers[ci.String()]
+		if !found {
+			return nil, nil, errors.Errorf("unknown conn, %q", ci.String())
+		}
+
+		return t.writef(prefix, handler)(ctx, ci, f)
 	}
 }
 
@@ -995,6 +1008,154 @@ func (t *testQuicstreamHandlers) TestSendBallots() {
 			bl = <-votedch
 			base.EqualBallotSignFact(t.Assert(), ballots[1], bl)
 		}
+	})
+}
+
+func (t *testQuicstreamHandlers) TestConcurrentRequestProposal() {
+	var localci quicstream.UDPConnInfo
+	var localmaker *isaac.ProposalMaker
+
+	handlers := map[string]quicstream.Handler{}
+	pools := map[string]isaac.ProposalPool{}
+	cis := make([]quicstream.UDPConnInfo, 3)
+
+	for i := range cis {
+		ci := quicstream.MustNewUDPConnInfoFromString(fmt.Sprintf("0.0.0.0:%d", i))
+
+		if i == 0 {
+			localci = ci
+		}
+
+		var local base.LocalNode
+		if i == 0 {
+			local = t.Local
+		} else {
+			local = isaac.RandomLocalNode()
+		}
+
+		pool := t.NewPool()
+		defer pool.DeepClose()
+
+		pools[ci.String()] = pool
+
+		proposalMaker := isaac.NewProposalMaker(
+			local,
+			t.LocalParams,
+			func(context.Context, base.Height) ([]util.Hash, error) {
+				return []util.Hash{valuehash.RandomSHA256(), valuehash.RandomSHA256()}, nil
+			},
+			pool,
+		)
+
+		if i == 0 {
+			localmaker = proposalMaker
+		}
+
+		handlers[ci.String()] = QuicstreamHandlerRequestProposal(t.Encs, time.Second, local, pool, proposalMaker, nil)
+
+		cis[i] = ci
+	}
+
+	point := base.RawPoint(33, 1)
+
+	t.Run("local is proposer", func() {
+		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writefs(HandlerPrefixRequestProposal, handlers))
+
+		pr, found, err := isaac.ConcurrentRequestProposal(context.Background(), point, t.Local, c, cis, t.LocalParams.NetworkID())
+		t.NoError(err)
+		t.True(found)
+
+		t.Equal(point, pr.Point())
+		t.True(t.Local.Address().Equal(pr.ProposalFact().Proposer()))
+		t.NoError(base.IsValidProposalSignFact(pr, t.LocalParams.NetworkID()))
+		t.NotEmpty(pr.ProposalFact().Operations())
+	})
+
+	t.Run("local not respond", func() {
+		newhandlers := map[string]quicstream.Handler{}
+		for i := range handlers {
+			if i == localci.String() {
+				continue
+			}
+
+			newhandlers[i] = handlers[i]
+		}
+
+		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writefs(HandlerPrefixRequestProposal, newhandlers))
+
+		pr, found, err := isaac.ConcurrentRequestProposal(context.Background(), point, t.Local, c, cis, t.LocalParams.NetworkID())
+		t.NoError(err)
+		t.False(found)
+		t.Nil(pr)
+	})
+
+	t.Run("local not respond, other node has proposal", func() {
+		localpr, err := localmaker.New(context.Background(), point)
+		t.NoError(err)
+
+		newhandlers := map[string]quicstream.Handler{}
+		for i := range handlers {
+			if i == localci.String() {
+				continue
+			}
+
+			newhandlers[i] = handlers[i]
+		}
+
+		pools[cis[1].String()].SetProposal(localpr)
+
+		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writefs(HandlerPrefixRequestProposal, newhandlers))
+
+		pr, found, err := isaac.ConcurrentRequestProposal(context.Background(), point, t.Local, c, cis, t.LocalParams.NetworkID())
+
+		t.NoError(err)
+		t.True(found)
+
+		base.EqualProposalSignFact(t.Assert(), localpr, pr)
+	})
+
+	t.Run("timout", func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
+		defer cancel()
+
+		newhandlers := map[string]quicstream.Handler{}
+		for i := range handlers {
+			newhandlers[i] = func(net.Addr, io.Reader, io.Writer) error {
+				select {
+				case <-time.After(time.Minute):
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+
+				return nil
+			}
+		}
+
+		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writefs(HandlerPrefixRequestProposal, newhandlers))
+
+		pr, found, err := isaac.ConcurrentRequestProposal(ctx, point, t.Local, c, cis, t.LocalParams.NetworkID())
+
+		t.Error(err)
+		t.False(found)
+		t.Nil(pr)
+		t.True(errors.Is(err, context.DeadlineExceeded))
+	})
+
+	t.Run("client timout", func() {
+		newhandlers := map[string]quicstream.Handler{}
+		for i := range handlers {
+			newhandlers[i] = func(net.Addr, io.Reader, io.Writer) error {
+				return context.DeadlineExceeded
+			}
+		}
+
+		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writefs(HandlerPrefixRequestProposal, newhandlers))
+
+		pr, found, err := isaac.ConcurrentRequestProposal(context.Background(), point, t.Local, c, cis, t.LocalParams.NetworkID())
+
+		t.NoError(err)
+		t.False(found)
+		t.Nil(pr)
 	})
 }
 

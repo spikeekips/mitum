@@ -63,6 +63,25 @@ func PProposerSelector(pctx context.Context) (context.Context, error) {
 		},
 	)
 
+	/* FixedProposerSelector example,
+
+	isaac.NewFixedProposerSelector(func(_ base.Point, nodes []base.Node) (base.Node, error) { // NOTE
+		log.Log().Debug().
+			Int("number_nodes", len(nodes)).
+			Interface("nodes", nodes).
+			Msg("selecting proposer from the given nodes")
+
+		for i := range nodes {
+			n := nodes[i]
+			if n.Address().String() == "no0sas" {
+				return n, nil
+			}
+		}
+
+		return nil, errors.Errorf("no0sas not found")
+	}),
+	*/
+
 	return context.WithValue(pctx, ProposerSelectorContextKey, p), nil
 }
 
@@ -162,14 +181,16 @@ func getProposalFunc(pctx context.Context) (
 					cctx, cancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
 					defer cancel()
 
-					pr, found, err := client.Proposal(cctx, ci, facthash)
-					if err != nil || !found {
+					switch pr, found, err := client.Proposal(cctx, ci, facthash); {
+					case err != nil || !found:
 						return nil
+					case !facthash.Equal(pr.Fact().Hash()):
+						return nil
+					default:
+						_, _ = prl.Get(func() (base.ProposalSignFact, error) {
+							return pr, nil
+						})
 					}
-
-					_, _ = prl.Get(func() (base.ProposalSignFact, error) {
-						return pr, nil
-					})
 
 					return errors.Errorf("stop")
 				}) == nil
@@ -428,10 +449,28 @@ func getProposalOperationFromRemoteProposerFunc(pctx context.Context) (
 }
 
 func NewProposalSelector(pctx context.Context) (*isaac.BaseProposalSelector, error) {
+	var local base.LocalNode
+	var params *isaac.LocalParams
+
+	if err := util.LoadFromContextOK(pctx,
+		LocalContextKey, &local,
+		LocalParamsContextKey, &params,
+	); err != nil {
+		return nil, err
+	}
+
+	args, err := newBaseProposalSelectorArgs(pctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return isaac.NewBaseProposalSelector(local, params, args), nil
+}
+
+func newBaseProposalSelectorArgs(pctx context.Context) (*isaac.BaseProposalSelectorArgs, error) {
 	var log *logging.Logging
 	var local base.LocalNode
 	var params *isaac.LocalParams
-	var db isaac.Database
 	var pool *isaacdatabase.TempPool
 	var proposalMaker *isaac.ProposalMaker
 	var memberlist *quicmemberlist.Memberlist
@@ -443,7 +482,6 @@ func NewProposalSelector(pctx context.Context) (*isaac.BaseProposalSelector, err
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
-		CenterDatabaseContextKey, &db,
 		PoolDatabaseContextKey, &pool,
 		ProposalMakerContextKey, &proposalMaker,
 		MemberlistContextKey, &memberlist,
@@ -454,107 +492,117 @@ func NewProposalSelector(pctx context.Context) (*isaac.BaseProposalSelector, err
 		return nil, err
 	}
 
-	return isaac.NewBaseProposalSelector(
-		local,
-		params,
-		proposerSelector,
-		// isaac.NewFixedProposerSelector(func(_ base.Point, nodes []base.Node) (base.Node, error) { // NOTE
-		// 	log.Log().Debug().
-		// 		Int("number_nodes", len(nodes)).
-		// 		Interface("nodes", nodes).
-		// 		Msg("selecting proposer from the given nodes")
-		//
-		// 	for i := range nodes {
-		// 		n := nodes[i]
-		// 		if n.Address().String() == "no0sas" {
-		// 			return n, nil
-		// 		}
-		// 	}
-		//
-		// 	return nil, errors.Errorf("no0sas not found")
-		// }),
-		proposalMaker,
-		func(height base.Height) ([]base.Node, bool, error) {
-			var suf base.Suffrage
+	args := isaac.NewBaseProposalSelectorArgs()
 
-			switch i, found, err := sp.Height(height); {
-			case err != nil:
-				return nil, false, err
-			case !found:
-				return nil, false, errors.Errorf("suffrage not found")
-			case i.Len() < 1:
-				return nil, false, errors.Errorf("empty suffrage nodes")
-			default:
-				suf = i
-			}
+	args.Pool = pool
+	args.ProposerSelector = proposerSelector
+	args.Maker = proposalMaker
 
-			if suf.Len() < 2 { //nolint:gomnd // only local
-				return []base.Node{local}, true, nil
-			}
+	if err := getNodesFuncOfBaseProposalSelectorArgs(pctx, args); err != nil {
+		return nil, err
+	}
 
-			switch {
-			case memberlist == nil:
-				log.Log().Debug().Msg("tried to make proposal, but empty memberlist")
+	if err := requestFuncOfBaseProposalSelectorArgs(pctx, args); err != nil {
+		return nil, err
+	}
 
-				return nil, false, isaac.ErrEmptyAvailableNodes.Errorf("nil memberlist")
-			case !memberlist.IsJoined():
-				log.Log().Debug().Msg("tried to make proposal, but memberlist, not yet joined")
+	return args, nil
+}
 
-				return nil, false, isaac.ErrEmptyAvailableNodes.Errorf("memberlist, not yet joined")
-			}
+func getNodesFuncOfBaseProposalSelectorArgs(pctx context.Context, args *isaac.BaseProposalSelectorArgs) error {
+	var log *logging.Logging
+	var local base.LocalNode
+	var memberlist *quicmemberlist.Memberlist
+	var sp *SuffragePool
 
-			members := make([]base.Node, memberlist.MembersLen()*2)
+	if err := util.LoadFromContextOK(pctx,
+		LoggingContextKey, &log,
+		LocalContextKey, &local,
+		MemberlistContextKey, &memberlist,
+		SuffragePoolContextKey, &sp,
+	); err != nil {
+		return err
+	}
 
-			var i int
-			memberlist.Members(func(node quicmemberlist.Node) bool {
-				if !suf.Exists(node.Address()) {
-					return true
+	args.GetNodesFunc = func(height base.Height) ([]base.Node, bool, error) {
+		switch i, found, err := sp.Height(height); {
+		case err != nil:
+			return nil, false, err
+		case !found:
+			return nil, false, errors.Errorf("suffrage not found")
+		case i.Len() < 1:
+			return nil, false, errors.Errorf("empty suffrage nodes")
+		default:
+			return i.Nodes(), true, nil
+		}
+	}
+
+	return nil
+}
+
+func requestFuncOfBaseProposalSelectorArgs(pctx context.Context, args *isaac.BaseProposalSelectorArgs) error {
+	var params *isaac.LocalParams
+	var memberlist *quicmemberlist.Memberlist
+	var client *isaacnetwork.QuicstreamClient
+
+	if err := util.LoadFromContextOK(pctx,
+		LocalParamsContextKey, &params,
+		MemberlistContextKey, &memberlist,
+		QuicstreamClientContextKey, &client,
+	); err != nil {
+		return err
+	}
+
+	args.RequestFunc = func(
+		ctx context.Context,
+		point base.Point,
+		proposer base.Node,
+	) (base.ProposalSignFact, bool, error) {
+		members, err := quicmemberlist.RandomAliveMembers(
+			memberlist,
+			33, //nolint:gomnd //...
+			func(node quicmemberlist.Node) bool {
+				return node.UDPConnInfo().Addr() == nil || node.Address().Equal(proposer.Address())
+			},
+		)
+		if err != nil {
+			return nil, false, err
+		}
+
+		cis := make([]quicstream.UDPConnInfo, len(members))
+		for i := range members {
+			cis[i] = members[i].UDPConnInfo()
+		}
+
+		if len(cis) < 1 {
+			return nil, false, errors.Errorf("no alive members")
+		}
+
+		// NOTE include proposer conn info
+		memberlist.Members(func(node quicmemberlist.Node) bool {
+			if node.Address().Equal(proposer.Address()) {
+				if node.UDPConnInfo().Addr() != nil {
+					cis = append(cis, node.UDPConnInfo()) //nolint:makezero //...
 				}
 
-				members[i] = isaac.NewNode(node.Publickey(), node.Address())
-				i++
-
-				return true
-			})
-
-			members = members[:i]
-
-			if len(members) < 1 {
-				return nil, false, isaac.ErrEmptyAvailableNodes.Errorf("no alive members")
+				return false
 			}
 
-			return members, true, nil
-		},
-		func(ctx context.Context, point base.Point, proposer base.Address) (base.ProposalSignFact, error) {
-			var ci quicstream.UDPConnInfo
+			return true
+		})
 
-			memberlist.Members(func(node quicmemberlist.Node) bool {
-				if node.Address().Equal(proposer) {
-					ci = node.UDPConnInfo()
+		nctx, cancel := context.WithTimeout(ctx, params.TimeoutRequestProposal())
+		defer cancel()
 
-					return false
-				}
+		return isaac.ConcurrentRequestProposal(
+			nctx,
+			point,
+			proposer,
+			client,
+			cis,
+			params.NetworkID(),
+		)
+	}
 
-				return true
-			})
-
-			if ci.Addr() == nil {
-				return nil, errors.Errorf("proposer not joined in memberlist")
-			}
-
-			cctx, cancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
-			defer cancel()
-
-			sf, found, err := client.RequestProposal(cctx, ci, point, proposer)
-			switch {
-			case err != nil:
-				return nil, errors.WithMessage(err, "failed to get proposal from proposer")
-			case !found:
-				return nil, errors.Errorf("proposer can not make proposal")
-			default:
-				return sf, nil
-			}
-		},
-		pool,
-	), nil
+	return nil
 }

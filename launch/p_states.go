@@ -425,7 +425,7 @@ func consensusHandlerArgs(pctx context.Context) (*isaacstates.ConsensusHandlerAr
 
 	args := isaacstates.NewConsensusHandlerArgs()
 	args.NodeInConsensusNodesFunc = nodeInConsensusNodesf
-	args.ProposalSelector = proposalSelector
+	args.ProposalSelectFunc = proposalSelector.Select
 	args.ProposalProcessors = pps
 	args.WhenNewBlockSaved = func(height base.Height) {
 		defaultWhenNewBlockSavedf(height)
@@ -466,7 +466,7 @@ func newJoiningHandlerArgs(pctx context.Context) (*isaacstates.JoiningHandlerArg
 
 	args := isaacstates.NewJoiningHandlerArgs(params)
 	args.NodeInConsensusNodesFunc = nodeInConsensusNodesf
-	args.ProposalSelector = proposalSelector
+	args.ProposalSelectFunc = proposalSelector.Select
 	args.JoinMemberlistFunc = joinMemberlistf
 	args.LeaveMemberlistFunc = leaveMemberlistf
 

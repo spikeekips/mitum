@@ -350,35 +350,6 @@ func (st *ConsensusHandler) handleACCEPTVoteproofAfterProcessingProposal(
 	return saved, sctx
 }
 
-func (st *ConsensusHandler) prepareINITBallot(
-	bl base.INITBallot,
-	ids []util.TimerID,
-	initialWait time.Duration,
-	interval func(int, time.Duration) time.Duration,
-) error {
-	go func() {
-		<-time.After(initialWait)
-
-		switch _, err := st.vote(bl); {
-		case err == nil:
-		case errors.Is(err, errFailedToVoteNotInConsensus):
-			st.Log().Debug().Err(err).Msg("failed to vote init ballot; moves to syncing state")
-
-			go st.switchState(newSyncingSwitchContext(StateConsensus, bl.Point().Height()-1))
-		default:
-			st.Log().Debug().Err(err).Msg("failed to vote init ballot; moves to broken state")
-
-			go st.switchState(newBrokenSwitchContext(StateConsensus, err))
-		}
-	}()
-
-	if err := st.broadcastINITBallot(bl, interval); err != nil {
-		return err
-	}
-
-	return st.timers.StartTimers(ids, true)
-}
-
 func (st *ConsensusHandler) newVoteproof(vp base.Voteproof) error {
 	st.vplock.Lock()
 	defer st.vplock.Unlock()
@@ -470,7 +441,7 @@ func (st *ConsensusHandler) newINITVoteproofWithLastINITVoteproof(
 	case ivp.Result() != base.VoteResultMajority: // NOTE new init voteproof has same height, but higher round
 		l.Debug().Msg("new init voteproof draw; moves to next round")
 
-		go st.nextRound(ivp, lvps.PreviousBlockForNextRound(ivp))
+		go st.prepareNextRound(ivp, lvps.PreviousBlockForNextRound(ivp))
 
 		return nil
 	}
@@ -535,7 +506,7 @@ func (st *ConsensusHandler) newINITVoteproofWithLastACCEPTVoteproof(
 	case ivp.Result() == base.VoteResultDraw:
 		l.Debug().Msg("new init voteproof draw; moves to next round")
 
-		go st.nextRound(ivp, lvps.PreviousBlockForNextRound(ivp))
+		go st.prepareNextRound(ivp, lvps.PreviousBlockForNextRound(ivp))
 
 		return nil
 	default:
@@ -583,12 +554,12 @@ func (st *ConsensusHandler) newACCEPTVoteproofWithLastINITVoteproof(
 			return err
 		}
 
-		go st.nextRound(avp, lvps.PreviousBlockForNextRound(avp))
+		go st.prepareNextRound(avp, lvps.PreviousBlockForNextRound(avp))
 
 		return nil
 	case avp.Point().Height() > livp.Point().Height():
 	case avp.Result() == base.VoteResultDraw:
-		go st.nextRound(avp, lvps.PreviousBlockForNextRound(avp))
+		go st.prepareNextRound(avp, lvps.PreviousBlockForNextRound(avp))
 
 		return nil
 	}
@@ -613,7 +584,7 @@ func (st *ConsensusHandler) newACCEPTVoteproofWithLastACCEPTVoteproof(
 	case avp.Result() == base.VoteResultDraw:
 		l.Debug().Msg("new accept voteproof draw; moves to next round")
 
-		go st.nextRound(avp, lvps.PreviousBlockForNextRound(avp))
+		go st.prepareNextRound(avp, lvps.PreviousBlockForNextRound(avp))
 
 		return nil
 	default:
@@ -621,132 +592,79 @@ func (st *ConsensusHandler) newACCEPTVoteproofWithLastACCEPTVoteproof(
 	}
 }
 
-func (st *ConsensusHandler) nextRound(vp base.Voteproof, previousBlock util.Hash) {
-	l := st.Log().With().Dict("voteproof", base.VoteproofLog(vp)).Logger()
+func (st *ConsensusHandler) prepareNextRound(vp base.Voteproof, previousBlock util.Hash) {
+	point := vp.Point().Point.NextRound()
 
-	started := time.Now()
+	l := st.Log().With().Dict("voteproof", base.VoteproofLog(vp)).Object("point", point).Logger()
 
-	if previousBlock == nil {
-		l.Debug().Msg("failed to find previous block from last voteproofs; ignore to move next round")
-
-		return
-	}
+	var suf base.Suffrage
 
 	var sctx switchContext
-	var bl base.INITBallot
 
-	switch i, err := st.baseBallotHandler.makeNextRoundBallot(vp, previousBlock, st.args.NodeInConsensusNodesFunc); {
-	case err == nil:
-		if i == nil {
-			return
-		}
-
-		bl = i
+	switch i, err := st.localIsInConsensusNodes(point.Height()); {
 	case errors.As(err, &sctx):
 		go st.switchState(sctx)
 
 		return
-	default:
+	case err != nil:
 		l.Debug().Err(err).Msg("failed to prepare next round; moves to broken state")
 
 		go st.switchState(newBrokenSwitchContext(StateConsensus, err))
-
-		return
-	}
-
-	initialWait := time.Nanosecond
-	if d := time.Since(started); d < st.params.WaitPreparingNextRoundINITBallot() {
-		initialWait = st.params.WaitPreparingNextRoundINITBallot() - d
-	}
-
-	if err := st.prepareINITBallot(
-		bl,
-		[]util.TimerID{
-			timerIDBroadcastINITBallot,
-			timerIDBroadcastSuffrageConfirmBallot,
-			timerIDBroadcastACCEPTBallot,
-		},
-		initialWait,
-		func(i int, _ time.Duration) time.Duration {
-			lvp := st.lastVoteproofs().Cap()
-			if bl.Point().Compare(lvp.Point()) < 0 &&
-				bl.Point().Height() == lvp.Point().Height() &&
-				lvp.Point().Stage() == base.StageINIT &&
-				lvp.Result() == base.VoteResultMajority {
-				return 0
-			}
-
-			if i < 1 {
-				return initialWait
-			}
-
-			return st.params.IntervalBroadcastBallot()
-		},
-	); err != nil {
-		l.Error().Err(err).Msg("failed to prepare init ballot for next round")
-
-		return
-	}
-
-	l.Debug().Interface("ballot", bl).Msg("init ballot broadcasted for next round")
-}
-
-func (st *ConsensusHandler) prepareNextBlock(avp base.ACCEPTVoteproof) {
-	point := avp.Point().Point.NextHeight()
-
-	l := st.Log().With().Dict("voteproof", base.VoteproofLog(avp)).Object("point", point).Logger()
-
-	started := time.Now()
-
-	var sctx switchContext
-	var bl base.INITBallot
-
-	switch i, err := st.baseBallotHandler.makeNextBlockBallot(avp, st.args.NodeInConsensusNodesFunc); {
-	case err == nil:
-		if i == nil {
-			return
-		}
-
-		bl = i
-	case errors.As(err, &sctx):
-		go st.switchState(sctx)
-
-		return
 	default:
-		l.Debug().Err(err).Msg("failed to prepare next block; moves to broken state")
-
-		go st.switchState(newBrokenSwitchContext(StateConsensus, err))
-
-		return
+		suf = i
 	}
 
-	initialWait := time.Nanosecond
-	if d := time.Since(started); d < st.params.WaitPreparingINITBallot() {
-		initialWait = st.params.WaitPreparingINITBallot() - d
-	}
+	switch ct, err := st.timerINITBallot(
+		func(ctx context.Context) base.INITBallot {
+			bl, err := st.baseBallotHandler.makeNextRoundBallot(
+				ctx, vp, previousBlock, suf, st.params.WaitPreparingINITBallot())
+			if err != nil {
+				go st.switchState(newBrokenSwitchContext(StateConsensus, err))
 
-	if err := st.prepareINITBallot(
-		bl,
-		[]util.TimerID{
-			timerIDBroadcastINITBallot,
-			timerIDBroadcastSuffrageConfirmBallot,
-			timerIDBroadcastACCEPTBallot,
-		},
-		initialWait,
-		func(i int, _ time.Duration) time.Duration {
-			if i < 1 {
-				return initialWait
+				return nil
 			}
 
-			return st.params.IntervalBroadcastBallot()
+			return bl
 		},
-	); err != nil {
+		func(err error) {
+			switch {
+			case err == nil:
+			case errors.Is(err, errFailedToVoteNotInConsensus):
+				st.Log().Debug().Err(err).Msg("failed to vote init ballot; moves to syncing state")
+
+				go st.switchState(newSyncingSwitchContext(StateConsensus, point.Height()-1))
+			default:
+				st.Log().Debug().Err(err).Msg("failed to vote init ballot; moves to broken state")
+
+				go st.switchState(newBrokenSwitchContext(StateConsensus, err))
+			}
+		},
+		time.Nanosecond,
+	); {
+	case err != nil:
 		l.Error().Err(err).Msg("failed to prepare init ballot for next block")
 
 		return
-	}
+	default:
+		if err := st.timers.SetTimer(ct); err != nil {
+			l.Error().Err(err).Msg("failed to set timer for next round")
 
-	l.Debug().Interface("ballot", bl).Msg("next init ballot broadcasted")
+			return
+		}
+
+		if err := st.timers.StartTimers(
+			[]util.TimerID{
+				timerIDBroadcastINITBallot,
+				timerIDBroadcastSuffrageConfirmBallot,
+				timerIDBroadcastACCEPTBallot,
+			},
+			true,
+		); err != nil {
+			l.Error().Err(err).Msg("failed to start timers for next round")
+
+			return
+		}
+	}
 }
 
 func (st *ConsensusHandler) saveBlock(avp base.ACCEPTVoteproof) (bool, error) {
@@ -762,7 +680,11 @@ func (st *ConsensusHandler) saveBlock(avp base.ACCEPTVoteproof) (bool, error) {
 		ll.Debug().Msg("processed proposal saved; moves to next block")
 
 		go st.whenNewBlockSaved(avp)
-		go st.prepareNextBlock(avp)
+		go st.prepareNextBlock(avp, []util.TimerID{
+			timerIDBroadcastINITBallot,
+			timerIDBroadcastSuffrageConfirmBallot,
+			timerIDBroadcastACCEPTBallot,
+		})
 
 		return true, nil
 	case errors.Is(err, isaac.ErrProcessorAlreadySaved):
@@ -826,7 +748,7 @@ func (st *ConsensusHandler) checkStuckVoteproof(
 	default:
 		l.Debug().Msg("stuck voteproof; moves to next round")
 
-		go st.nextRound(vp, lvps.PreviousBlockForNextRound(vp))
+		go st.prepareNextRound(vp, lvps.PreviousBlockForNextRound(vp))
 
 		return false, nil
 	}

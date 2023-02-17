@@ -131,3 +131,108 @@ func makeInterfaceSlice(s interface{}) []interface{} {
 		return nil
 	}
 }
+
+type testRandomChoiceSlice struct {
+	suite.Suite
+}
+
+func (t *testRandomChoiceSlice) newslice(size int) []int {
+	n := make([]int, size)
+
+	for i := range n {
+		n[i] = i
+	}
+
+	return n
+}
+
+func (t *testRandomChoiceSlice) isInside(a []int, b []int) bool {
+	for i := range b {
+		if InSlice(a, b[i]) < 0 {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (t *testRandomChoiceSlice) isDuplicated(a []int) bool {
+	checked := map[int]struct{}{}
+
+	for i := range a {
+		if _, found := checked[a[i]]; found {
+			return true
+		}
+
+		checked[a[i]] = struct{}{}
+	}
+
+	return false
+}
+
+func (t *testRandomChoiceSlice) TestZeroSize() {
+	a := t.newslice(33)
+
+	_, err := RandomChoiceSlice(a, 0)
+	t.Error(err)
+}
+
+func (t *testRandomChoiceSlice) TestSameSize() {
+	for i := range make([]int, 33) {
+		a := t.newslice(33)
+
+		b, err := RandomChoiceSlice(a, int64(len(a)))
+		t.NoError(err)
+		t.Equal(len(a), len(b))
+		t.False(t.isDuplicated(b))
+		t.True(t.isInside(a, b))
+
+		t.T().Logf("%d input: %v", i, a)
+		t.T().Logf("%d output: %v", i, b)
+	}
+}
+
+func (t *testRandomChoiceSlice) TestLessSize() {
+	for i := range make([]int, 33) {
+		a := t.newslice(33)
+
+		var size int64
+	inside:
+		for {
+			size, _ = randInt64(int64(len(a)) - 1)
+			if size < 1 {
+				continue inside
+			}
+
+			break inside
+		}
+
+		b, err := RandomChoiceSlice(a, size)
+		t.NoError(err)
+		t.Equal(size, int64(len(b)))
+		t.False(t.isDuplicated(b))
+		t.True(t.isInside(a, b))
+
+		t.T().Logf("%d input: %v", i, a)
+		t.T().Logf("%d output: %v", i, b)
+	}
+}
+
+func (t *testRandomChoiceSlice) TestOverSize() {
+	for i := range make([]int, 33) {
+		a := t.newslice(33)
+
+		b, err := RandomChoiceSlice(a, 66)
+		t.NoError(err)
+		t.Equal(len(a), len(b))
+		t.False(t.isDuplicated(b))
+		t.True(t.isInside(a, b))
+
+		t.T().Logf("%d input: %v", i, a)
+		t.T().Logf("%d output: %v", i, b)
+	}
+}
+
+func TestRandomChoiceSlice(t *testing.T) {
+	suite.Run(t, new(testRandomChoiceSlice))
+}

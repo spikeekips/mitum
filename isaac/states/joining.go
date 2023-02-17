@@ -344,7 +344,10 @@ func (st *JoiningHandler) firstVoteproof(lvp base.Voteproof, manifest base.Manif
 	default:
 		st.Log().Debug().Msg("no more new voteproof; prepare next block")
 
-		go st.nextBlock(avp)
+		go st.prepareNextBlock(avp, []util.TimerID{
+			timerIDBroadcastINITBallot,
+			timerIDBroadcastACCEPTBallot,
+		})
 
 		return
 	}
@@ -359,76 +362,6 @@ func (st *JoiningHandler) firstVoteproof(lvp base.Voteproof, manifest base.Manif
 	default:
 		go st.switchState(dsctx)
 	}
-}
-
-func (st *JoiningHandler) nextBlock(avp base.ACCEPTVoteproof) {
-	point := avp.Point().Point.NextHeight()
-
-	l := st.Log().With().Dict("voteproof", base.VoteproofLog(avp)).Object("point", point).Logger()
-
-	var sctx switchContext
-	var bl base.INITBallot
-
-	switch i, err := st.makeNextBlockBallot(avp, st.args.NodeInConsensusNodesFunc); {
-	case err == nil:
-		if i == nil {
-			return
-		}
-
-		bl = i
-	case errors.As(err, &sctx):
-		go st.switchState(sctx)
-
-		return
-	default:
-		l.Debug().Err(err).Msg("failed to prepare next block; moves to broken state")
-
-		go st.switchState(newBrokenSwitchContext(StateJoining, err))
-
-		return
-	}
-
-	switch _, err := st.vote(bl); {
-	case err == nil:
-	case errors.Is(err, errFailedToVoteNotInConsensus):
-		l.Error().Err(err).Msg("failed to vote init ballot for next round; moves to syncing state")
-
-		go st.switchState(newSyncingSwitchContext(StateJoining, avp.Point().Height()-1))
-
-		return
-	default:
-		l.Error().Err(err).Msg("failed to vote init ballot for next block; moves to broken")
-
-		go st.switchState(newBrokenSwitchContext(StateJoining, err))
-
-		return
-	}
-
-	if err := st.broadcastINITBallot(
-		bl,
-		func(i int, _ time.Duration) time.Duration {
-			if i < 1 {
-				return time.Nanosecond
-			}
-
-			return st.params.IntervalBroadcastBallot()
-		},
-	); err != nil {
-		l.Error().Err(err).Msg("failed to broadcast init ballot for next block")
-
-		return
-	}
-
-	if err := st.timers.StartTimers([]util.TimerID{
-		timerIDBroadcastINITBallot,
-		timerIDBroadcastACCEPTBallot,
-	}, true); err != nil {
-		l.Error().Err(err).Msg("failed to start timers for broadcasting init ballot for next block")
-
-		return
-	}
-
-	l.Debug().Interface("ballot", bl).Msg("next init ballot broadcasted")
 }
 
 func (st *JoiningHandler) joinMemberlist(suf base.Suffrage) error {

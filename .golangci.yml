@@ -329,7 +329,7 @@ linters-settings:
     min-len: 2
     # Minimum occurrences of constant string count to trigger issue.
     # Default: 3
-    min-occurrences: 15
+    min-occurrences: 16
     # Ignore test files.
     # Default: false
     ignore-tests: true

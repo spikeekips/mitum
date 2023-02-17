@@ -68,9 +68,3 @@ func (p DummyProposalProcessor) Cancel() error {
 func (p DummyProposalProcessor) Proposal() base.ProposalSignFact {
 	return p.proposal
 }
-
-type DummyProposalSelector func(context.Context, base.Point) (base.ProposalSignFact, error)
-
-func (ps DummyProposalSelector) Select(ctx context.Context, point base.Point) (base.ProposalSignFact, error) {
-	return ps(ctx, point)
-}

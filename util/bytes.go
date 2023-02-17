@@ -31,7 +31,7 @@ func ConcatByterSlice[T Byter](bs []T) []byte {
 
 	for i := range bs {
 		j := bs[i]
-		if (interface{})(j) == nil {
+		if (interface{})(j) == nil { //nolint:govet //...
 			continue
 		}
 

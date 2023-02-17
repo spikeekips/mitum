@@ -1,5 +1,12 @@
 package util
 
+import (
+	"crypto/rand"
+	"math/big"
+
+	"github.com/pkg/errors"
+)
+
 func InSlice[T comparable](s []T, n T) int {
 	for i := range s {
 		if n == s[i] {
@@ -31,7 +38,7 @@ func IsDuplicatedSlice[T any](s []T, keyf func(T) (bool, string)) (map[string]T,
 		var stop bool
 		var k string
 
-		if (interface{})(s[i]) == nil {
+		if (interface{})(s[i]) == nil { //nolint:govet //...
 			k = ""
 		} else {
 			var keep bool
@@ -157,4 +164,67 @@ func TraverseSlice[T any](s []T, f func(int, T) error) error {
 	}
 
 	return nil
+}
+
+func randInt64(max int64) (int64, error) {
+	if max <= 0 {
+		return 0, errors.Errorf("invalid max")
+	}
+
+	b, err := rand.Int(rand.Reader, big.NewInt(max))
+	if err != nil {
+		return -1, errors.WithMessage(err, "failed to get random int64")
+	}
+
+	return b.Int64(), nil
+}
+
+// RandomChoiceSlice creates new n-sized slice randomly.
+func RandomChoiceSlice[T any](a []T, size int64) ([]T, error) {
+	asize := int64(len(a))
+	csize := size
+
+	if csize > asize {
+		csize = asize
+	}
+
+	switch {
+	case csize < 1:
+		return nil, errors.Errorf("zero size")
+	case csize == asize:
+		return a, nil
+	case csize == 1:
+		switch i, err := randInt64(asize); {
+		case err != nil:
+			return nil, err
+		default:
+			return []T{a[i]}, nil
+		}
+	}
+
+	choosed := make([]interface{}, asize)
+	n := make([]T, csize)
+
+	for i := range n {
+		var c int64
+
+	inside:
+		for {
+			switch j, err := randInt64(asize); {
+			case err != nil:
+				return nil, err
+			case choosed[j] != nil:
+				continue inside
+			default:
+				choosed[j] = struct{}{}
+				c = j
+
+				break inside
+			}
+		}
+
+		n[i] = a[c]
+	}
+
+	return n, nil
 }

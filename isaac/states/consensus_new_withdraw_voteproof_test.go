@@ -36,14 +36,14 @@ func (t *testWithdrawsConsensusHandler) TestEnterWithSuffrageConfirmVoteproof() 
 	}
 
 	prpool := t.PRPool
-	st.args.ProposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		default:
 			return prpool.Get(p), nil
 		}
-	})
+	}
 
 	t.T().Log("prepare new init voteproof")
 
@@ -108,14 +108,14 @@ func (t *testWithdrawsConsensusHandler) TestSuffrageConfirmAfterEnteringINITVote
 	})
 
 	prpool := t.PRPool
-	st.args.ProposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		default:
 			return prpool.Get(p), nil
 		}
-	})
+	}
 
 	t.T().Log("prepare new init voteproof")
 
@@ -234,14 +234,14 @@ func (t *testWithdrawsConsensusHandler) TestSuffrageConfirmAfterACCEPTVoteproof(
 	}
 
 	prpool := t.PRPool
-	st.args.ProposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		default:
 			return prpool.Get(p), nil
 		}
-	})
+	}
 
 	t.T().Log("1st init voteproof", ivp.Point())
 
@@ -381,14 +381,14 @@ func (t *testWithdrawsConsensusHandler) prepareAfterACCEPT(
 	}
 
 	prpool := t.PRPool
-	st.args.ProposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		default:
 			return prpool.Get(p), nil
 		}
-	})
+	}
 
 	return suf, nodes, st, pp, func() (base.ACCEPTVoteproof, error) {
 			t.T().Log("1st init voteproof", ivp.Point())
@@ -665,6 +665,9 @@ func (t *testWithdrawsConsensusHandler) TestReversalAfterDrawINITVoteproof() {
 func (t *testWithdrawsConsensusHandler) TestEnterINITStuckVoteproof() {
 	point := base.RawPoint(33, 44)
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
+
+	t.LocalParams = t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
+
 	withdrawnode := nodes[2]
 
 	st, closefunc, _, origivp := t.newStateWithINITVoteproof(point, suf)
@@ -678,14 +681,14 @@ func (t *testWithdrawsConsensusHandler) TestEnterINITStuckVoteproof() {
 	})
 
 	prpool := t.PRPool
-	st.args.ProposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		default:
 			return prpool.Get(p), nil
 		}
-	})
+	}
 
 	t.T().Log("prepare new init stuck voteproof")
 
@@ -890,6 +893,8 @@ func (t *testWithdrawsConsensusHandler) TestACCEPTStuckVoteproof() {
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 	withdrawnode := nodes[2]
 
+	t.LocalParams = t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
+
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
 
@@ -899,14 +904,14 @@ func (t *testWithdrawsConsensusHandler) TestACCEPTStuckVoteproof() {
 	}
 
 	prpool := t.PRPool
-	st.args.ProposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		default:
 			return prpool.Get(p), nil
 		}
-	})
+	}
 
 	acceptballotch := make(chan base.Ballot, 1)
 	nextroundballotch := make(chan base.Ballot, 1)
@@ -1008,14 +1013,14 @@ func (t *testWithdrawsConsensusHandler) TestACCEPTStuckVoteproofEnterSyncing() {
 	}
 
 	prpool := t.PRPool
-	st.args.ProposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		default:
 			return prpool.Get(p), nil
 		}
-	})
+	}
 
 	acceptballotch := make(chan base.Ballot, 1)
 	nextroundballotch := make(chan base.Ballot, 1)

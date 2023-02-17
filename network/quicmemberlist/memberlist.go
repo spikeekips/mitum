@@ -571,3 +571,35 @@ type writerFunc func([]byte) (int, error)
 func (f writerFunc) Write(b []byte) (int, error) {
 	return f(b)
 }
+
+func AliveMembers(
+	m *Memberlist,
+	exclude func(Node) bool,
+) []Node {
+	l := m.MembersLen()
+	if l < 1 {
+		return nil
+	}
+
+	members := make([]Node, l*2)
+
+	var i int
+	m.Members(func(node Node) bool {
+		if !exclude(node) {
+			members[i] = node
+			i++
+		}
+
+		return true
+	})
+
+	return members[:i]
+}
+
+func RandomAliveMembers(
+	m *Memberlist,
+	size int64,
+	exclude func(Node) bool,
+) ([]Node, error) {
+	return util.RandomChoiceSlice(AliveMembers(m, exclude), size)
+}

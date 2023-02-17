@@ -274,7 +274,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestDraw() {
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
 
-	st.params = t.LocalParams.SetWaitPreparingNextRoundINITBallot(time.Nanosecond)
+	st.params = t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
 
 	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
 		return base.NewDummyManifest(point.Height(), valuehash.RandomSHA256()), nil
@@ -325,7 +325,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestDraw() {
 	}
 }
 
-func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestDrawFailedProposalSelector() {
+func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestDrawFailedProposalSelectFunc() {
 	point := base.RawPoint(33, 44)
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
@@ -337,9 +337,9 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestDrawFailedProposalSel
 		return manifest, nil
 	}
 
-	st.args.ProposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, point base.Point) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(context.Context, base.Point, time.Duration) (base.ProposalSignFact, error) {
 		return nil, errors.Errorf("hahaha")
-	})
+	}
 
 	sctxch := make(chan switchContext, 1)
 	st.switchStateFunc = func(sctx switchContext) error {
@@ -615,7 +615,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndHigherHeight
 	_ = t.PRPool.Get(point.NextRound())
 
 	nextprch := make(chan base.Point, 1)
-	st.args.ProposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -630,7 +630,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndHigherHeight
 			}
 			return nil, util.ErrNotFound.Call()
 		}
-	})
+	}
 
 	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
@@ -680,7 +680,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndHigherRound(
 	_ = t.PRPool.Get(point.NextRound())
 
 	nextprch := make(chan base.Point, 1)
-	st.args.ProposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -695,7 +695,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndHigherRound(
 			}
 			return nil, util.ErrNotFound.Call()
 		}
-	})
+	}
 
 	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
@@ -746,7 +746,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndDrawAgain() 
 	nextpr := t.PRPool.Get(point.NextRound().NextRound())
 
 	newprch := make(chan base.Point, 1)
-	st.args.ProposalSelector = isaac.DummyProposalSelector(func(ctx context.Context, p base.Point) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -761,7 +761,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndDrawAgain() 
 			}
 			return nil, util.ErrNotFound.Call()
 		}
-	})
+	}
 
 	ballotch := make(chan base.Ballot, 1)
 	st.ballotBroadcaster = NewDummyBallotBroadcaster(t.Local.Address(), func(bl base.Ballot) error {
