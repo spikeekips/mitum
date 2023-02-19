@@ -13,6 +13,8 @@ import (
 	"github.com/spikeekips/mitum/util/logging"
 )
 
+var defaultNodeChallengeExpire = time.Second * 30
+
 type (
 	DelegateNodeFunc      func(Node) error
 	DelegateJoinedFunc    func(Node)
@@ -114,7 +116,7 @@ func NewAliveDelegate(
 		allowf:          nallowf,
 		storeconninfof:  func(quicstream.UDPConnInfo) {},
 		challengecache:  gcache.New(1 << 9).LRU().Build(), //nolint:gomnd //...
-		challengeexpire: time.Second * 30,                 //nolint:gomnd //...
+		challengeexpire: defaultNodeChallengeExpire,
 	}
 }
 

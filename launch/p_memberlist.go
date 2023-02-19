@@ -67,12 +67,10 @@ func PMemberlist(pctx context.Context) (context.Context, error) {
 		return pctx, e(err, "")
 	}
 
-	m, err := quicmemberlist.NewMemberlist(
-		localnode,
-		enc,
-		config,
-		params.SameMemberLimit(),
-	)
+	args := quicmemberlist.NewMemberlistArgs(enc, config)
+	args.ExtraSameMemberLimit = params.SameMemberLimit()
+
+	m, err := quicmemberlist.NewMemberlist(localnode, args)
 	if err != nil {
 		return pctx, e(err, "")
 	}

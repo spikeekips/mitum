@@ -21,44 +21,59 @@ import (
 	"github.com/spikeekips/mitum/util/logging"
 )
 
-var errIgnoreAllowNode = util.NewError("ignore to allow node")
+type MemberlistArgs struct {
+	Encoder       *jsonenc.Encoder
+	Config        *memberlist.Config
+	PatchedConfig *memberlist.Config
+	WhenLeftFunc  func(Node)
+	// Member, which has same node address will be allowed to join up to
+	// ExtraSameMemberLimit - 1. If ExtraSameMemberLimit is 0, only 1 member is
+	// allowed to join.
+	ExtraSameMemberLimit uint64
+	// Not-allowed member will be cached for NotAllowedMemberExpire, after
+	// NotAllowedMemberExpire, not-allowed member will be checked by allowf of
+	// AliveDelegate.
+	NotAllowedMemberExpire time.Duration
+	ChallengeExpire        time.Duration
+}
+
+func NewMemberlistArgs(enc *jsonenc.Encoder, config *memberlist.Config) *MemberlistArgs {
+	return &MemberlistArgs{
+		Encoder:                enc,
+		Config:                 config,
+		ExtraSameMemberLimit:   2, //nolint:gomnd //...
+		WhenLeftFunc:           func(Node) {},
+		NotAllowedMemberExpire: time.Second * 6, //nolint:gomnd //...
+		ChallengeExpire:        defaultNodeChallengeExpire,
+	}
+}
 
 type Memberlist struct {
 	local Node
-	enc   *jsonenc.Encoder
+	args  *MemberlistArgs
 	*logging.Logging
 	*util.ContextDaemon
-	whenLeftf       func(Node)
-	mconfig         *memberlist.Config
-	m               *memberlist.Memberlist
-	delegate        *Delegate
-	members         *membersPool
-	cicache         *util.GCache[string, quicstream.UDPConnInfo]
-	sameMemberLimit uint64 // NOTE 0 means no additional same member
-	l               sync.RWMutex
-	joinedLock      sync.RWMutex
-	isJoined        bool
+	m          *memberlist.Memberlist
+	delegate   *Delegate
+	members    *membersPool
+	cicache    *util.GCache[string, quicstream.UDPConnInfo]
+	l          sync.RWMutex
+	joinedLock sync.RWMutex
+	isJoined   bool
 }
 
-func NewMemberlist(
-	local Node,
-	enc *jsonenc.Encoder,
-	config *memberlist.Config,
-	sameMemberLimit uint64,
-) (*Memberlist, error) {
+func NewMemberlist(local Node, args *MemberlistArgs) (*Memberlist, error) {
 	srv := &Memberlist{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
-			return zctx.Str("module", "memberlist").Str("name", config.Name)
+			return zctx.Str("module", "memberlist").Str("name", args.Config.Name)
 		}),
-		local:           local,
-		enc:             enc,
-		sameMemberLimit: sameMemberLimit,
-		members:         newMembersPool(),
-		cicache:         util.NewLRUGCache("", quicstream.UDPConnInfo{}, 1<<9), //nolint:gomnd //...
-		whenLeftf:       func(Node) {},
+		local:   local,
+		args:    args,
+		members: newMembersPool(),
+		cicache: util.NewLRUGCache("", quicstream.UDPConnInfo{}, 1<<9), //nolint:gomnd //...
 	}
 
-	if err := srv.patch(config); err != nil {
+	if err := srv.patch(args.Config); err != nil {
 		return nil, errors.WithMessage(err, "wrong memberlist.Config")
 	}
 
@@ -239,7 +254,7 @@ func (srv *Memberlist) start(ctx context.Context) error {
 			srv.Log().Error().Err(err).Msg("failed to shutdown memberlist; ignored")
 		}
 
-		if err := srv.mconfig.Transport.Shutdown(); err != nil {
+		if err := srv.args.PatchedConfig.Transport.Shutdown(); err != nil {
 			srv.Log().Error().Err(err).Msg("failed to shutdown memberlist transport; ignored")
 		}
 
@@ -263,7 +278,7 @@ func (srv *Memberlist) patch(config *memberlist.Config) error { // revive:disabl
 
 	notallowedcache := gcache.New(1 << 9).LRU().Build() //nolint:gomnd //...
 	setnotallowedcache := func(addr string) {
-		_ = notallowedcache.SetWithExpire(addr, nil, time.Second*6) //nolint:gomnd //...
+		_ = notallowedcache.SetWithExpire(addr, nil, srv.args.NotAllowedMemberExpire)
 	}
 
 	switch i, ok := config.Transport.(*Transport); {
@@ -307,7 +322,7 @@ func (srv *Memberlist) patch(config *memberlist.Config) error { // revive:disabl
 
 		i.allowf = func(node Node) error {
 			err := allowf(node)
-			if err != nil && !errors.Is(err, errIgnoreAllowNode) {
+			if err != nil {
 				srv.Log().Trace().Err(err).Interface("node", node).Msg("set not allowed")
 
 				setnotallowedcache(node.UDPAddr().String())
@@ -315,12 +330,14 @@ func (srv *Memberlist) patch(config *memberlist.Config) error { // revive:disabl
 
 			return err
 		}
+
+		i.challengeexpire = srv.args.ChallengeExpire
 	}
 
 	switch {
 	case config.Events == nil:
 		config.Events = NewEventsDelegate(
-			srv.enc,
+			srv.args.Encoder,
 			srv.whenJoined,
 			srv.whenLeft,
 		)
@@ -349,7 +366,7 @@ func (srv *Memberlist) patch(config *memberlist.Config) error { // revive:disabl
 	})
 	config.Logger = nil
 
-	srv.mconfig = config
+	srv.args.PatchedConfig = config
 
 	return nil
 }
@@ -394,16 +411,16 @@ func (srv *Memberlist) whenLeft(node Node) {
 
 		return removed
 	}() {
-		srv.whenLeftf(node)
+		srv.args.WhenLeftFunc(node)
 	}
 }
 
 func (srv *Memberlist) SetWhenLeftFunc(f func(Node)) {
-	srv.whenLeftf = f
+	srv.args.WhenLeftFunc = f
 }
 
 func (srv *Memberlist) SetNotifyMsg(f func([]byte)) {
-	i, ok := srv.mconfig.Delegate.(*Delegate)
+	i, ok := srv.args.PatchedConfig.Delegate.(*Delegate)
 	if !ok {
 		return
 	}
@@ -412,10 +429,17 @@ func (srv *Memberlist) SetNotifyMsg(f func([]byte)) {
 }
 
 func (srv *Memberlist) allowNode(node Node) error {
-	switch n := srv.members.NodesLen(node.Address()); {
+	switch n, others, found := srv.members.NodesLenOthers(node.Address(), node.UDPAddr()); {
 	case n < 1:
-	case uint64(n-1) == srv.sameMemberLimit:
-		return errIgnoreAllowNode.Errorf("over member limit; %q", node.Name())
+	default:
+		if !found {
+			others++
+		}
+
+		if uint64(others) > srv.args.ExtraSameMemberLimit {
+			return errors.Errorf("node(%s, %s) over limit, %d",
+				node.Address(), node.Publish(), srv.args.ExtraSameMemberLimit)
+		}
 	}
 
 	return nil
@@ -423,10 +447,10 @@ func (srv *Memberlist) allowNode(node Node) error {
 
 func (srv *Memberlist) SetLogging(l *logging.Logging) *logging.Logging {
 	ds := []interface{}{
-		srv.mconfig.Delegate,
-		srv.mconfig.Events,
-		srv.mconfig.Alive,
-		srv.mconfig.Transport,
+		srv.args.PatchedConfig.Delegate,
+		srv.args.PatchedConfig.Events,
+		srv.args.PatchedConfig.Alive,
+		srv.args.PatchedConfig.Transport,
 	}
 
 	for i := range ds {
@@ -439,12 +463,12 @@ func (srv *Memberlist) SetLogging(l *logging.Logging) *logging.Logging {
 }
 
 func (srv *Memberlist) createMemberlist() (*memberlist.Memberlist, error) {
-	m, err := memberlist.Create(srv.mconfig)
+	m, err := memberlist.Create(srv.args.PatchedConfig)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create memberlist")
 	}
 
-	if i, ok := srv.mconfig.Transport.(*Transport); ok {
+	if i, ok := srv.args.PatchedConfig.Transport.(*Transport); ok {
 		_ = i.Start(context.Background())
 	}
 
@@ -510,6 +534,37 @@ func (m *membersPool) Get(k *net.UDPAddr) (Node, bool) {
 	default:
 		return i, false
 	}
+}
+
+func (m *membersPool) NodesLenOthers(node base.Address, addr *net.UDPAddr) (nodelen int, others int, found bool) {
+	_, _ = m.nodes.Set(node.String(), func(nodes []Node, nodefound bool) ([]Node, error) {
+		if !nodefound {
+			return nil, util.ErrLockedSetIgnore.Call()
+		}
+
+		id := nodeid(addr)
+
+		nodelen = len(nodes)
+
+		others = util.CountFilteredSlice(nodes, func(n Node) bool {
+			nid := nodeid(n.UDPAddr())
+
+			switch {
+			case id != nid:
+				return true
+			case !found:
+				found = true
+
+				fallthrough
+			default:
+				return false
+			}
+		})
+
+		return nil, util.ErrLockedSetIgnore.Call()
+	})
+
+	return nodelen, others, found
 }
 
 func (m *membersPool) NodesLen(node base.Address) int {

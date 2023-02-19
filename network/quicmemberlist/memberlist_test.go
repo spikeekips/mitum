@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/memberlist"
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/network/quicstream"
@@ -39,6 +40,10 @@ func (t *testMemberlist) newConnInfo() quicstream.UDPConnInfo {
 	return quicstream.NewUDPConnInfo(addr, true)
 }
 
+func (t *testMemberlist) newargs(config *memberlist.Config) *MemberlistArgs {
+	return NewMemberlistArgs(t.enc, config)
+}
+
 func (t *testMemberlist) TestNew() {
 	bind := t.NewBind()
 	config := BasicMemberlistConfig(bind.String(), bind, bind)
@@ -50,7 +55,9 @@ func (t *testMemberlist) TestNew() {
 	config.Transport = &Transport{}
 	config.Alive = NewAliveDelegate(t.enc, local.UDPAddr(), nil, nil)
 
-	srv, err := NewMemberlist(local, t.enc, config, 3)
+	args := t.newargs(config)
+
+	srv, err := NewMemberlist(local, args)
 	t.NoError(err)
 
 	t.NoError(srv.Start(context.Background()))
@@ -114,7 +121,9 @@ func (t *testMemberlist) newServersForJoining(
 
 	memberlistconfig.Delegate = NewDelegate(local, nil, nil)
 
-	srv, _ := NewMemberlist(local, t.enc, memberlistconfig, 3)
+	args := t.newargs(memberlistconfig)
+
+	srv, _ := NewMemberlist(local, args)
 
 	return quicstreamsrv, srv
 }
@@ -337,7 +346,7 @@ func (t *testMemberlist) TestLocalJoinToRemoteButFailedToChallenge() {
 		nil,
 	)
 
-	lsrv.mconfig.Alive = NewAliveDelegate(
+	lsrv.args.PatchedConfig.Alive = NewAliveDelegate(
 		t.enc,
 		lci.UDPAddr(),
 		func(node Node) error {
@@ -349,7 +358,9 @@ func (t *testMemberlist) TestLocalJoinToRemoteButFailedToChallenge() {
 		},
 		func(node Node) error { return nil },
 	)
-	lsrv, _ = NewMemberlist(lsrv.local, t.enc, lsrv.mconfig, 3)
+
+	args := t.newargs(lsrv.args.PatchedConfig)
+	lsrv, _ = NewMemberlist(lsrv.local, args)
 
 	rqsrv, rsrv := t.newServersForJoining(
 		rnode,
@@ -403,7 +414,7 @@ func (t *testMemberlist) TestLocalJoinToRemoteButNotAllowed() {
 		nil,
 	)
 
-	lsrv.mconfig.Alive = NewAliveDelegate(
+	lsrv.args.PatchedConfig.Alive = NewAliveDelegate(
 		t.enc,
 		lci.UDPAddr(),
 		func(node Node) error { return nil },
@@ -415,7 +426,9 @@ func (t *testMemberlist) TestLocalJoinToRemoteButNotAllowed() {
 			return nil
 		},
 	)
-	lsrv, _ = NewMemberlist(lsrv.local, t.enc, lsrv.mconfig, 3)
+
+	args := t.newargs(lsrv.args.PatchedConfig)
+	lsrv, _ = NewMemberlist(lsrv.local, args)
 
 	rqsrv, rsrv := t.newServersForJoining(
 		rnode,
@@ -662,7 +675,7 @@ func (t *testMemberlist) TestJoinMultipleNodeWithSameName() {
 		nil,
 	)
 
-	lsrv.sameMemberLimit = 3
+	lsrv.args.ExtraSameMemberLimit = 3
 
 	rqsrv0, rsrv0 := t.newServersForJoining(rnode, rci0, nil, nil)
 	rqsrv1, rsrv1 := t.newServersForJoining(rnode, rci1, nil, nil)
@@ -723,10 +736,10 @@ func (t *testMemberlist) TestJoinMultipleNodeWithSameName() {
 
 func (t *testMemberlist) TestLocalOverMemberLimit() {
 	lci := t.newConnInfo()
-	lnode := base.RandomAddress("")
+	lnode := base.SimpleAddress("local")
 
 	rci0 := t.newConnInfo()
-	rnode := base.RandomAddress("")
+	rnode := base.SimpleAddress("remote")
 
 	ljoinedch := make(chan Node, 1)
 	lqsrv, lsrv := t.newServersForJoining(
@@ -742,7 +755,7 @@ func (t *testMemberlist) TestLocalOverMemberLimit() {
 		nil,
 	)
 
-	lsrv.sameMemberLimit = 0 // NOTE only allow 1 member in node name
+	lsrv.args.ExtraSameMemberLimit = 0 // NOTE only allow 1 member in node name
 
 	rqsrv0, rsrv0 := t.newServersForJoining(
 		rnode,
@@ -796,7 +809,10 @@ func (t *testMemberlist) TestLocalOverMemberLimit() {
 	<-time.After(time.Second * 3)
 	t.Equal(2, lsrv.MembersLen())
 
-	t.Equal(1, lsrv.members.NodesLen(rnode))
+	n, others, found := lsrv.members.NodesLenOthers(rnode, rci0.UDPAddr())
+	t.True(found)
+	t.Equal(1, n)
+	t.Equal(0, others)
 
 	var joinedremotes []Node
 	lsrv.Members(func(node Node) bool {
@@ -858,7 +874,7 @@ func (t *testMemberlist) TestLocalJoinToRemoteWithInvalidNode() {
 	t.True(errors.Is(err, util.ErrInvalid))
 	t.ErrorContains(err, "empty publish")
 
-	rdelegate := rsrv.mconfig.Delegate.(*Delegate)
+	rdelegate := rsrv.args.PatchedConfig.Delegate.(*Delegate)
 	rdelegate.local = remote
 
 	t.NoError(lqsrv.Start(context.Background()))
