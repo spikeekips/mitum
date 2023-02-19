@@ -79,7 +79,7 @@ func PMemberlist(pctx context.Context) (context.Context, error) {
 
 	pps := ps.NewPS("event-on-empty-members")
 
-	m.SetWhenLeftFunc(func(quicmemberlist.Node) {
+	m.SetWhenLeftFunc(func(quicmemberlist.Member) {
 		if m.IsJoined() {
 			return
 		}
@@ -281,7 +281,7 @@ func PPatchMemberlist(pctx context.Context) (context.Context, error) {
 	return pctx, nil
 }
 
-func memberlistLocalNode(pctx context.Context) (quicmemberlist.Node, error) {
+func memberlistLocalNode(pctx context.Context) (quicmemberlist.Member, error) {
 	var design NodeDesign
 	var local base.LocalNode
 	var fsnodeinfo NodeInfo
@@ -294,7 +294,7 @@ func memberlistLocalNode(pctx context.Context) (quicmemberlist.Node, error) {
 		return nil, err
 	}
 
-	return quicmemberlist.NewNode(
+	return quicmemberlist.NewMember(
 		fsnodeinfo.ID(),
 		design.Network.Publish(),
 		local.Address(),
@@ -306,7 +306,7 @@ func memberlistLocalNode(pctx context.Context) (quicmemberlist.Node, error) {
 
 func memberlistConfig(
 	pctx context.Context,
-	localnode quicmemberlist.Node,
+	localnode quicmemberlist.Member,
 	poolclient *quicstream.PoolClient,
 ) (*memberlist.Config, error) {
 	var log *logging.Logging
@@ -357,46 +357,46 @@ func memberlistConfig(
 
 	config.Events = quicmemberlist.NewEventsDelegate(
 		enc,
-		func(node quicmemberlist.Node) {
-			l := log.Log().With().Interface("node", node).Logger()
+		func(member quicmemberlist.Member) {
+			l := log.Log().With().Interface("member", member).Logger()
 
-			l.Debug().Msg("new node found")
+			l.Debug().Msg("new member found")
 
 			cctx, cancel := context.WithTimeout(
 				context.Background(), time.Second*5) //nolint:gomnd //....
 			defer cancel()
 
-			c := client.NewQuicstreamClient(node.UDPConnInfo())(node.UDPAddr())
+			c := client.NewQuicstreamClient(member.UDPConnInfo())(member.UDPAddr())
 			if _, err := c.Dial(cctx); err != nil {
-				l.Error().Err(err).Msg("new node joined, but failed to dial")
+				l.Error().Err(err).Msg("new member joined, but failed to dial")
 
 				return
 			}
 
-			poolclient.Add(node.UDPAddr(), c)
+			poolclient.Add(member.UDPAddr(), c)
 
-			if !node.Address().Equal(local.Address()) {
-				nci := isaacnetwork.NewNodeConnInfoFromMemberlistNode(node)
+			if !member.Address().Equal(local.Address()) {
+				nci := isaacnetwork.NewNodeConnInfoFromMemberlistNode(member)
 				added := syncSourcePool.AddNonFixed(nci)
 
 				l.Debug().
 					Bool("added", added).
-					Interface("node_conninfo", nci).
-					Msg("new node added to SyncSourcePool")
+					Interface("member_conninfo", nci).
+					Msg("new member added to SyncSourcePool")
 			}
 		},
-		func(node quicmemberlist.Node) {
-			l := log.Log().With().Interface("node", node).Logger()
+		func(member quicmemberlist.Member) {
+			l := log.Log().With().Interface("member", member).Logger()
 
-			l.Debug().Msg("node left")
+			l.Debug().Msg("member left")
 
-			if poolclient.Remove(node.UDPAddr()) {
-				l.Debug().Msg("node removed from client pool")
+			if poolclient.Remove(member.UDPAddr()) {
+				l.Debug().Msg("member removed from client pool")
 			}
 
-			nci := isaacnetwork.NewNodeConnInfoFromMemberlistNode(node)
+			nci := isaacnetwork.NewNodeConnInfoFromMemberlistNode(member)
 			if syncSourcePool.RemoveNonFixed(nci) {
-				l.Debug().Msg("node removed from sync source pool")
+				l.Debug().Msg("member removed from sync source pool")
 			}
 		},
 	)
@@ -490,7 +490,7 @@ func memberlistAlive(pctx context.Context) (*quicmemberlist.AliveDelegate, error
 }
 
 func nodeChallengeFunc(pctx context.Context) (
-	func(quicmemberlist.Node) error,
+	func(quicmemberlist.Member) error,
 	error,
 ) {
 	var params base.LocalParams
@@ -503,7 +503,7 @@ func nodeChallengeFunc(pctx context.Context) (
 		return nil, err
 	}
 
-	return func(node quicmemberlist.Node) error {
+	return func(node quicmemberlist.Member) error {
 		e := util.StringErrorFunc("failed to challenge memberlist node")
 
 		ci, err := node.Publish().UDPConnInfo()
@@ -549,7 +549,7 @@ func nodeChallengeFunc(pctx context.Context) (
 }
 
 func memberlistAllowFunc(pctx context.Context) (
-	func(quicmemberlist.Node) error,
+	func(quicmemberlist.Member) error,
 	error,
 ) {
 	var log *logging.Logging
@@ -562,7 +562,7 @@ func memberlistAllowFunc(pctx context.Context) (
 		return nil, err
 	}
 
-	return func(node quicmemberlist.Node) error {
+	return func(node quicmemberlist.Member) error {
 		l := log.Log().With().Interface("remote", node).Logger()
 
 		switch suf, found, err := watcher.Exists(node); {

@@ -174,7 +174,7 @@ func getProposalFunc(pctx context.Context) (
 		go func() {
 			defer worker.Done()
 
-			memberlist.Remotes(func(node quicmemberlist.Node) bool {
+			memberlist.Remotes(func(node quicmemberlist.Member) bool {
 				ci := node.UDPConnInfo()
 
 				return worker.NewJob(func(ctx context.Context, _ uint64) error {
@@ -561,7 +561,7 @@ func requestFuncOfBaseProposalSelectorArgs(pctx context.Context, args *isaac.Bas
 		members, err := quicmemberlist.RandomAliveMembers(
 			memberlist,
 			33, //nolint:gomnd //...
-			func(node quicmemberlist.Node) bool {
+			func(node quicmemberlist.Member) bool {
 				return node.UDPConnInfo().Addr() == nil || node.Address().Equal(proposer.Address())
 			},
 		)
@@ -579,7 +579,7 @@ func requestFuncOfBaseProposalSelectorArgs(pctx context.Context, args *isaac.Bas
 		}
 
 		// NOTE include proposer conn info
-		memberlist.Members(func(node quicmemberlist.Node) bool {
+		memberlist.Members(func(node quicmemberlist.Member) bool {
 			if node.Address().Equal(proposer.Address()) {
 				if node.UDPConnInfo().Addr() != nil {
 					cis = append(cis, node.UDPConnInfo()) //nolint:makezero //...

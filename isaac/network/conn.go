@@ -25,11 +25,11 @@ func NewNodeConnInfo(node base.BaseNode, addr string, tlsinsecure bool) NodeConn
 	}
 }
 
-func NewNodeConnInfoFromMemberlistNode(node quicmemberlist.Node) NodeConnInfo {
+func NewNodeConnInfoFromMemberlistNode(member quicmemberlist.Member) NodeConnInfo {
 	return NewNodeConnInfo(
-		isaac.NewNode(node.Publickey(), node.Address()),
-		node.Publish().Addr().String(),
-		node.Publish().TLSInsecure(),
+		isaac.NewNode(member.Publickey(), member.Address()),
+		member.Publish().Addr().String(),
+		member.Publish().TLSInsecure(),
 	)
 }
 

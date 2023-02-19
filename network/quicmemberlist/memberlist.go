@@ -25,7 +25,7 @@ type MemberlistArgs struct {
 	Encoder       *jsonenc.Encoder
 	Config        *memberlist.Config
 	PatchedConfig *memberlist.Config
-	WhenLeftFunc  func(Node)
+	WhenLeftFunc  func(Member)
 	// Member, which has same node address will be allowed to join up to
 	// ExtraSameMemberLimit - 1. If ExtraSameMemberLimit is 0, only 1 member is
 	// allowed to join.
@@ -42,14 +42,14 @@ func NewMemberlistArgs(enc *jsonenc.Encoder, config *memberlist.Config) *Memberl
 		Encoder:                enc,
 		Config:                 config,
 		ExtraSameMemberLimit:   2, //nolint:gomnd //...
-		WhenLeftFunc:           func(Node) {},
+		WhenLeftFunc:           func(Member) {},
 		NotAllowedMemberExpire: time.Second * 6, //nolint:gomnd //...
 		ChallengeExpire:        defaultNodeChallengeExpire,
 	}
 }
 
 type Memberlist struct {
-	local Node
+	local Member
 	args  *MemberlistArgs
 	*logging.Logging
 	*util.ContextDaemon
@@ -62,7 +62,7 @@ type Memberlist struct {
 	isJoined   bool
 }
 
-func NewMemberlist(local Node, args *MemberlistArgs) (*Memberlist, error) {
+func NewMemberlist(local Member, args *MemberlistArgs) (*Memberlist, error) {
 	srv := &Memberlist{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", "memberlist").Str("name", args.Config.Name)
@@ -192,22 +192,22 @@ func (srv *Memberlist) MembersLen() int {
 	return srv.members.Len()
 }
 
-func (srv *Memberlist) Members(f func(node Node) bool) {
+func (srv *Memberlist) Members(f func(Member) bool) {
 	srv.members.Traverse(f)
 }
 
-func (srv *Memberlist) Remotes(f func(node Node) bool) {
-	srv.members.Traverse(func(node Node) bool {
-		if srv.local.Name() == node.Name() {
+func (srv *Memberlist) Remotes(f func(Member) bool) {
+	srv.members.Traverse(func(member Member) bool {
+		if srv.local.Name() == member.Name() {
 			return true
 		}
 
-		return f(node)
+		return f(member)
 	})
 }
 
 // IsJoined indicates whether local is joined in remote network. If no other
-// remote nodes, IsJoined will be false.
+// remote members, IsJoined will be false.
 func (srv *Memberlist) IsJoined() bool {
 	srv.joinedLock.RLock()
 	defer srv.joinedLock.RUnlock()
@@ -312,20 +312,20 @@ func (srv *Memberlist) patch(config *memberlist.Config) error { // revive:disabl
 		}
 
 		origallowf := i.allowf
-		allowf := func(node Node) error {
-			if err := srv.allowNode(node); err != nil {
+		allowf := func(member Member) error {
+			if err := srv.allowMember(member); err != nil {
 				return err
 			}
 
-			return origallowf(node)
+			return origallowf(member)
 		}
 
-		i.allowf = func(node Node) error {
-			err := allowf(node)
+		i.allowf = func(member Member) error {
+			err := allowf(member)
 			if err != nil {
-				srv.Log().Trace().Err(err).Interface("node", node).Msg("set not allowed")
+				srv.Log().Trace().Err(err).Interface("member", member).Msg("set not allowed")
 
-				setnotallowedcache(node.UDPAddr().String())
+				setnotallowedcache(member.UDPAddr().String())
 			}
 
 			return err
@@ -344,17 +344,17 @@ func (srv *Memberlist) patch(config *memberlist.Config) error { // revive:disabl
 	default:
 		if i, ok := config.Events.(*EventsDelegate); ok {
 			joinedforig := i.joinedf
-			i.joinedf = func(node Node) {
-				srv.whenJoined(node)
+			i.joinedf = func(member Member) {
+				srv.whenJoined(member)
 
-				joinedforig(node)
+				joinedforig(member)
 			}
 
 			leftforig := i.leftf
-			i.leftf = func(node Node) {
-				srv.whenLeft(node)
+			i.leftf = func(member Member) {
+				srv.whenLeft(member)
 
-				leftforig(node)
+				leftforig(member)
 			}
 		}
 	}
@@ -371,11 +371,11 @@ func (srv *Memberlist) patch(config *memberlist.Config) error { // revive:disabl
 	return nil
 }
 
-func (srv *Memberlist) whenJoined(node Node) {
+func (srv *Memberlist) whenJoined(member Member) {
 	srv.joinedLock.Lock()
 	defer srv.joinedLock.Unlock()
 
-	if !srv.isJoined && srv.local.Name() != node.Name() {
+	if !srv.isJoined && srv.local.Name() != member.Name() {
 		srv.isJoined = true
 	}
 
@@ -383,17 +383,17 @@ func (srv *Memberlist) whenJoined(node Node) {
 		srv.delegate.resetBroadcastQueue()
 	}
 
-	srv.members.Set(node)
+	srv.members.Set(member)
 
-	srv.Log().Debug().Bool("is_joined", srv.isJoined).Interface("node", node).Msg("node joined")
+	srv.Log().Debug().Bool("is_joined", srv.isJoined).Interface("member", member).Msg("member joined")
 }
 
-func (srv *Memberlist) whenLeft(node Node) {
+func (srv *Memberlist) whenLeft(member Member) {
 	if func() bool {
 		srv.joinedLock.Lock()
 		defer srv.joinedLock.Unlock()
 
-		removed, _ := srv.members.Remove(node.UDPAddr())
+		removed, _ := srv.members.Remove(member.UDPAddr())
 
 		switch {
 		case !srv.isJoined:
@@ -407,15 +407,15 @@ func (srv *Memberlist) whenLeft(node Node) {
 			srv.delegate.resetBroadcastQueue()
 		}
 
-		srv.Log().Debug().Bool("is_joined", srv.isJoined).Interface("node", node).Msg("node left")
+		srv.Log().Debug().Bool("is_joined", srv.isJoined).Interface("member", member).Msg("member left")
 
 		return removed
 	}() {
-		srv.args.WhenLeftFunc(node)
+		srv.args.WhenLeftFunc(member)
 	}
 }
 
-func (srv *Memberlist) SetWhenLeftFunc(f func(Node)) {
+func (srv *Memberlist) SetWhenLeftFunc(f func(Member)) {
 	srv.args.WhenLeftFunc = f
 }
 
@@ -428,8 +428,8 @@ func (srv *Memberlist) SetNotifyMsg(f func([]byte)) {
 	i.notifyMsgFunc = f
 }
 
-func (srv *Memberlist) allowNode(node Node) error {
-	switch n, others, found := srv.members.NodesLenOthers(node.Address(), node.UDPAddr()); {
+func (srv *Memberlist) allowMember(member Member) error {
+	switch n, others, found := srv.members.MembersLenOthers(member.Address(), member.UDPAddr()); {
 	case n < 1:
 	default:
 		if !found {
@@ -437,8 +437,8 @@ func (srv *Memberlist) allowNode(node Node) error {
 		}
 
 		if uint64(others) > srv.args.ExtraSameMemberLimit {
-			return errors.Errorf("node(%s, %s) over limit, %d",
-				node.Address(), node.Publish(), srv.args.ExtraSameMemberLimit)
+			return errors.Errorf("member(%s, %s) over limit, %d",
+				member.Address(), member.Publish(), srv.args.ExtraSameMemberLimit)
 		}
 	}
 
@@ -487,7 +487,7 @@ func BasicMemberlistConfig(name string, bind, advertise *net.UDPAddr) *memberlis
 	config.RetransmitMult = 3
 	config.ProbeTimeout = 500 * time.Millisecond //nolint:gomnd //...
 	config.ProbeInterval = 1 * time.Second
-	config.SuspicionMult = 1 // NOTE fast detection for failed nodes
+	config.SuspicionMult = 1 // NOTE fast detection for failed members
 	config.SuspicionMaxTimeoutMult = 1
 	config.DisableTcpPings = true
 	// config.SecretKey NO encryption
@@ -504,31 +504,31 @@ func BasicMemberlistConfig(name string, bind, advertise *net.UDPAddr) *memberlis
 }
 
 type membersPool struct {
-	addrs *util.ShardedMap[string, Node]
-	nodes *util.ShardedMap[string, []Node] // NOTE by node address
+	addrs   *util.ShardedMap[string, Member]
+	members *util.ShardedMap[string, []Member] // NOTE by node address
 }
 
 func newMembersPool() *membersPool {
-	addrs, _ := util.NewShardedMap("", (Node)(nil), 1<<9) //nolint:gomnd //...
-	nodes, _ := util.NewShardedMap("", []Node{}, 1<<9)    //nolint:gomnd //...
+	addrs, _ := util.NewShardedMap("", (Member)(nil), 1<<9) //nolint:gomnd //...
+	members, _ := util.NewShardedMap("", []Member{}, 1<<9)  //nolint:gomnd //...
 
 	return &membersPool{
-		addrs: addrs,
-		nodes: nodes,
+		addrs:   addrs,
+		members: members,
 	}
 }
 
 func (m *membersPool) Empty() {
 	m.addrs.Empty()
-	m.nodes.Empty()
+	m.members.Empty()
 }
 
 func (m *membersPool) Exists(k *net.UDPAddr) bool {
-	return m.addrs.Exists(nodeid(k))
+	return m.addrs.Exists(memberid(k))
 }
 
-func (m *membersPool) Get(k *net.UDPAddr) (Node, bool) {
-	switch i, found := m.addrs.Value(nodeid(k)); {
+func (m *membersPool) Get(k *net.UDPAddr) (Member, bool) {
+	switch i, found := m.addrs.Value(memberid(k)); {
 	case !found, i == nil:
 		return nil, false
 	default:
@@ -536,18 +536,18 @@ func (m *membersPool) Get(k *net.UDPAddr) (Node, bool) {
 	}
 }
 
-func (m *membersPool) NodesLenOthers(node base.Address, addr *net.UDPAddr) (nodelen int, others int, found bool) {
-	_, _ = m.nodes.Set(node.String(), func(nodes []Node, nodefound bool) ([]Node, error) {
-		if !nodefound {
+func (m *membersPool) MembersLenOthers(node base.Address, addr *net.UDPAddr) (memberslen int, others int, found bool) {
+	_, _ = m.members.Set(node.String(), func(members []Member, memberfound bool) ([]Member, error) {
+		if !memberfound {
 			return nil, util.ErrLockedSetIgnore.Call()
 		}
 
-		id := nodeid(addr)
+		id := memberid(addr)
 
-		nodelen = len(nodes)
+		memberslen = len(members)
 
-		others = util.CountFilteredSlice(nodes, func(n Node) bool {
-			nid := nodeid(n.UDPAddr())
+		others = util.CountFilteredSlice(members, func(n Member) bool {
+			nid := memberid(n.UDPAddr())
 
 			switch {
 			case id != nid:
@@ -564,11 +564,11 @@ func (m *membersPool) NodesLenOthers(node base.Address, addr *net.UDPAddr) (node
 		return nil, util.ErrLockedSetIgnore.Call()
 	})
 
-	return nodelen, others, found
+	return memberslen, others, found
 }
 
-func (m *membersPool) NodesLen(node base.Address) int {
-	switch i, found := m.nodes.Value(node.String()); {
+func (m *membersPool) MembersLen(node base.Address) int {
+	switch i, found := m.members.Value(node.String()); {
 	case !found, i == nil:
 		return 0
 	default:
@@ -576,31 +576,31 @@ func (m *membersPool) NodesLen(node base.Address) int {
 	}
 }
 
-func (m *membersPool) Set(node Node) bool {
+func (m *membersPool) Set(member Member) bool {
 	var found bool
-	_, _ = m.addrs.Set(nodeid(node.UDPAddr()), func(_ Node, addrfound bool) (Node, error) {
-		var nodes []Node
+	_, _ = m.addrs.Set(memberid(member.UDPAddr()), func(_ Member, addrfound bool) (Member, error) {
+		var members []Member
 
 		found = addrfound
 
-		switch i, f := m.nodes.Value(node.Address().String()); {
+		switch i, f := m.members.Value(member.Address().String()); {
 		case !f, i == nil:
 		default:
-			nodes = i
+			members = i
 		}
 
-		nodes = append(nodes, node)
-		m.nodes.SetValue(node.Address().String(), nodes)
+		members = append(members, member)
+		m.members.SetValue(member.Address().String(), members)
 
-		return node, nil
+		return member, nil
 	})
 
 	return found
 }
 
 func (m *membersPool) Remove(k *net.UDPAddr) (bool, error) {
-	return m.addrs.Remove(nodeid(k), func(i Node) error {
-		_ = m.nodes.RemoveValue(i.Address().String())
+	return m.addrs.Remove(memberid(k), func(i Member) error {
+		_ = m.members.RemoveValue(i.Address().String())
 
 		return nil
 	})
@@ -610,13 +610,13 @@ func (m *membersPool) Len() int {
 	return m.addrs.Len()
 }
 
-func (m *membersPool) Traverse(f func(Node) bool) {
-	m.addrs.Traverse(func(_ string, v Node) bool {
+func (m *membersPool) Traverse(f func(Member) bool) {
+	m.addrs.Traverse(func(_ string, v Member) bool {
 		return f(v)
 	})
 }
 
-func nodeid(addr *net.UDPAddr) string {
+func memberid(addr *net.UDPAddr) string {
 	var ip string
 	if len(addr.IP) > 0 {
 		ip = addr.IP.String()
@@ -633,19 +633,19 @@ func (f writerFunc) Write(b []byte) (int, error) {
 
 func AliveMembers(
 	m *Memberlist,
-	exclude func(Node) bool,
-) []Node {
+	exclude func(Member) bool,
+) []Member {
 	l := m.MembersLen()
 	if l < 1 {
 		return nil
 	}
 
-	members := make([]Node, l*2)
+	members := make([]Member, l*2)
 
 	var i int
-	m.Members(func(node Node) bool {
-		if !exclude(node) {
-			members[i] = node
+	m.Members(func(member Member) bool {
+		if !exclude(member) {
+			members[i] = member
 			i++
 		}
 
@@ -658,7 +658,7 @@ func AliveMembers(
 func RandomAliveMembers(
 	m *Memberlist,
 	size int64,
-	exclude func(Node) bool,
-) ([]Node, error) {
+	exclude func(Member) bool,
+) ([]Member, error) {
 	return util.RandomChoiceSlice(AliveMembers(m, exclude), size)
 }

@@ -16,21 +16,21 @@ import (
 var defaultNodeChallengeExpire = time.Second * 30
 
 type (
-	DelegateNodeFunc      func(Node) error
-	DelegateJoinedFunc    func(Node)
-	DelegateLeftFunc      func(Node)
+	DelegateNodeFunc      func(Member) error
+	DelegateJoinedFunc    func(Member)
+	DelegateLeftFunc      func(Member)
 	DelegateStoreConnInfo func(quicstream.UDPConnInfo)
 )
 
 type Delegate struct {
-	local         Node
+	local         Member
 	notifyMsgFunc func(b []byte)
 	*logging.Logging
 	qu *memberlist.TransmitLimitedQueue
 }
 
 func NewDelegate(
-	local Node,
+	local Member,
 	numNodes func() int,
 	notifyMsgFunc func(b []byte),
 ) *Delegate {
@@ -98,12 +98,12 @@ func NewAliveDelegate(
 ) *AliveDelegate {
 	nallowf := allowf
 	if nallowf == nil {
-		nallowf = func(Node) error { return errors.Errorf("all nodes not allowed") }
+		nallowf = func(Member) error { return errors.Errorf("all members not allowed") }
 	}
 
 	nchallengef := challengef
 	if nchallengef == nil {
-		nchallengef = func(Node) error { return errors.Errorf("failed to challenge") }
+		nchallengef = func(Member) error { return errors.Errorf("failed to challenge") }
 	}
 
 	return &AliveDelegate{
@@ -125,46 +125,46 @@ func (d *AliveDelegate) NotifyAlive(peer *memberlist.Node) error {
 		return nil
 	}
 
-	node, err := newNodeFromMemberlist(peer, d.enc)
+	member, err := newMemberFromMemberlist(peer, d.enc)
 	if err != nil {
 		d.Log().Trace().Interface("peer", peer).Err(err).Msg("invalid peer")
 
 		return errors.WithMessage(err, "not allowed to be alive")
 	}
 
-	if err := node.IsValid(nil); err != nil {
+	if err := member.IsValid(nil); err != nil {
 		return err
 	}
 
 	var willchallenge bool
 
-	nodekey := node.UDPAddr().String()
+	memberkey := member.UDPAddr().String()
 
-	switch i, err := d.challengecache.Get(nodekey); {
+	switch i, err := d.challengecache.Get(memberkey); {
 	case err != nil && errors.Is(err, gcache.KeyNotFoundError):
-		// NOTE challenge with node publickey
+		// NOTE challenge with member publickey
 		willchallenge = true
 	default:
 		willchallenge = time.Now().After(i.(time.Time).Add(d.challengeexpire)) //nolint:forcetypeassert //...
 	}
 
 	if willchallenge {
-		if err := d.challengef(node); err != nil {
+		if err := d.challengef(member); err != nil {
 			return errors.WithMessage(err, "failed to challenge")
 		}
 
-		_ = d.challengecache.SetWithExpire(nodekey, time.Now(), d.challengeexpire)
+		_ = d.challengecache.SetWithExpire(memberkey, time.Now(), d.challengeexpire)
 	}
 
-	l := d.Log().With().Object("node", node).Logger()
+	l := d.Log().With().Object("member", member).Logger()
 
-	if err := d.allowf(node); err != nil {
+	if err := d.allowf(member); err != nil {
 		l.Trace().Err(err).Msg("not allowed")
 
 		return errors.WithMessage(err, "not allowed to be alive")
 	}
 
-	d.storeconninfof(node.UDPConnInfo())
+	d.storeconninfof(member.UDPConnInfo())
 
 	l.Trace().Msg("notified alive")
 
@@ -185,12 +185,12 @@ func NewEventsDelegate(
 ) *EventsDelegate {
 	njoinedf := joinedf
 	if njoinedf == nil {
-		njoinedf = func(Node) {}
+		njoinedf = func(Member) {}
 	}
 
 	nleftf := leftf
 	if nleftf == nil {
-		nleftf = func(Node) {}
+		nleftf = func(Member) {}
 	}
 
 	return &EventsDelegate{
@@ -204,40 +204,40 @@ func NewEventsDelegate(
 }
 
 func (d *EventsDelegate) NotifyJoin(peer *memberlist.Node) {
-	node, err := newNodeFromMemberlist(peer, d.enc)
+	member, err := newMemberFromMemberlist(peer, d.enc)
 	if err != nil {
 		d.Log().Trace().Err(err).Interface("peer", peer).Msg("invalid peer")
 
 		return
 	}
 
-	d.Log().Debug().Object("peer", node).Msg("notified join")
+	d.Log().Debug().Object("peer", member).Msg("notified join")
 
-	d.joinedf(node)
+	d.joinedf(member)
 }
 
 func (d *EventsDelegate) NotifyLeave(peer *memberlist.Node) {
-	node, err := newNodeFromMemberlist(peer, d.enc)
+	member, err := newMemberFromMemberlist(peer, d.enc)
 	if err != nil {
 		d.Log().Error().Err(err).Interface("peer", peer).Msg("invalid peer")
 
 		return
 	}
 
-	d.Log().Debug().Object("peer", node).Msg("notified leave")
+	d.Log().Debug().Object("peer", member).Msg("notified leave")
 
-	d.leftf(node)
+	d.leftf(member)
 }
 
 func (d *EventsDelegate) NotifyUpdate(peer *memberlist.Node) {
-	node, err := newNodeFromMemberlist(peer, d.enc)
+	member, err := newMemberFromMemberlist(peer, d.enc)
 	if err != nil {
 		d.Log().Trace().Err(err).Interface("peer", peer).Msg("invalid peer")
 
 		return
 	}
 
-	d.Log().Debug().Object("peer", node).Msg("notified update")
+	d.Log().Debug().Object("peer", member).Msg("notified update")
 }
 
 func isEqualAddress(a, b interface{}) bool {
@@ -263,7 +263,7 @@ func isEqualAddress(a, b interface{}) bool {
 
 func convertNetAddr(a interface{}) (net.Addr, error) {
 	switch t := a.(type) {
-	case Node:
+	case Member:
 		return t.UDPAddr(), nil
 	case quicstream.UDPConnInfo:
 		return t.UDPAddr(), nil

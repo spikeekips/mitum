@@ -31,7 +31,7 @@ func (t *testMemberlist) SetupTest() {
 
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: NodeHint, Instance: BaseNode{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: MemberHint, Instance: BaseMember{}}))
 }
 
 func (t *testMemberlist) newConnInfo() quicstream.UDPConnInfo {
@@ -48,7 +48,7 @@ func (t *testMemberlist) TestNew() {
 	bind := t.NewBind()
 	config := BasicMemberlistConfig(bind.String(), bind, bind)
 
-	local, err := NewNode(bind.String(), bind, base.RandomAddress(""), base.NewMPrivatekey().Publickey(), "1.2.3.4:4321", true)
+	local, err := NewMember(bind.String(), bind, base.RandomAddress(""), base.NewMPrivatekey().Publickey(), "1.2.3.4:4321", true)
 	t.NoError(err)
 
 	config.Delegate = NewDelegate(local, nil, nil)
@@ -111,13 +111,13 @@ func (t *testMemberlist) newServersForJoining(
 	quicstreamsrv, err := quicstream.NewServer(laddr, tlsconfig, nil, handler)
 	t.NoError(err)
 
-	local, err := NewNode(laddr.String(), laddr, node, base.NewMPrivatekey().Publickey(), "1.2.3.4:4321", true)
+	local, err := NewMember(laddr.String(), laddr, node, base.NewMPrivatekey().Publickey(), "1.2.3.4:4321", true)
 	t.NoError(err)
 
 	memberlistconfig := BasicMemberlistConfig(local.Name(), laddr, laddr)
 	memberlistconfig.Transport = transport
 	memberlistconfig.Events = NewEventsDelegate(t.enc, whenJoined, whenLeft)
-	memberlistconfig.Alive = NewAliveDelegate(t.enc, laddr, func(Node) error { return nil }, func(Node) error { return nil })
+	memberlistconfig.Alive = NewAliveDelegate(t.enc, laddr, func(Member) error { return nil }, func(Member) error { return nil })
 
 	memberlistconfig.Delegate = NewDelegate(local, nil, nil)
 
@@ -132,11 +132,11 @@ func (t *testMemberlist) TestLocalJoinAlone() {
 	lci := t.newConnInfo()
 	lnode := base.RandomAddress("")
 
-	joinedch := make(chan Node, 1)
+	joinedch := make(chan Member, 1)
 	quicstreamsrv, srv := t.newServersForJoining(
 		lnode,
 		lci,
-		func(node Node) {
+		func(node Member) {
 			joinedch <- node
 		},
 		nil,
@@ -157,8 +157,8 @@ func (t *testMemberlist) TestLocalJoinAlone() {
 
 	t.Equal(1, srv.MembersLen())
 
-	var joined []Node
-	srv.Members(func(node Node) bool {
+	var joined []Member
+	srv.Members(func(node Member) bool {
 		joined = append(joined, node)
 
 		return true
@@ -171,15 +171,15 @@ func (t *testMemberlist) TestLocalJoinAloneAndRejoin() {
 	lci := t.newConnInfo()
 	lnode := base.RandomAddress("")
 
-	joinedch := make(chan Node, 1)
-	leftch := make(chan Node, 1)
+	joinedch := make(chan Member, 1)
+	leftch := make(chan Member, 1)
 	quicstreamsrv, srv := t.newServersForJoining(
 		lnode,
 		lci,
-		func(node Node) {
+		func(node Member) {
 			joinedch <- node
 		},
-		func(node Node) {
+		func(node Member) {
 			leftch <- node
 		},
 	)
@@ -199,8 +199,8 @@ func (t *testMemberlist) TestLocalJoinAloneAndRejoin() {
 
 	t.Equal(1, srv.MembersLen())
 
-	var joined []Node
-	srv.Members(func(node Node) bool {
+	var joined []Member
+	srv.Members(func(node Member) bool {
 		joined = append(joined, node)
 
 		return true
@@ -244,12 +244,12 @@ func (t *testMemberlist) TestLocalJoinToRemote() {
 		return strings.Compare(addrs[i].String(), addrs[j].String()) < 0
 	})
 
-	ljoinedch := make(chan Node, 1)
-	rjoinedch := make(chan Node, 1)
+	ljoinedch := make(chan Member, 1)
+	rjoinedch := make(chan Member, 1)
 	lqsrv, lsrv := t.newServersForJoining(
 		lnode,
 		lci,
-		func(node Node) {
+		func(node Member) {
 			if isEqualAddress(node, lci) {
 				return
 			}
@@ -262,7 +262,7 @@ func (t *testMemberlist) TestLocalJoinToRemote() {
 	rqsrv, rsrv := t.newServersForJoining(
 		rnode,
 		rci,
-		func(node Node) {
+		func(node Member) {
 			if isEqualAddress(node, rci) {
 				return
 			}
@@ -293,8 +293,8 @@ func (t *testMemberlist) TestLocalJoinToRemote() {
 
 		t.Equal(2, lsrv.MembersLen())
 
-		var joined []Node
-		lsrv.Members(func(node Node) bool {
+		var joined []Member
+		lsrv.Members(func(node Member) bool {
 			joined = append(joined, node)
 
 			return true
@@ -316,8 +316,8 @@ func (t *testMemberlist) TestLocalJoinToRemote() {
 
 		t.Equal(2, rsrv.MembersLen())
 
-		var joined []Node
-		rsrv.Members(func(node Node) bool {
+		var joined []Member
+		rsrv.Members(func(node Member) bool {
 			joined = append(joined, node)
 
 			return true
@@ -338,7 +338,7 @@ func (t *testMemberlist) TestLocalJoinToRemoteButFailedToChallenge() {
 	rci := t.newConnInfo()
 	rnode := base.RandomAddress("")
 
-	rjoinedch := make(chan Node, 1)
+	rjoinedch := make(chan Member, 1)
 	lqsrv, lsrv := t.newServersForJoining(
 		lnode,
 		lci,
@@ -349,14 +349,14 @@ func (t *testMemberlist) TestLocalJoinToRemoteButFailedToChallenge() {
 	lsrv.args.PatchedConfig.Alive = NewAliveDelegate(
 		t.enc,
 		lci.UDPAddr(),
-		func(node Node) error {
+		func(node Member) error {
 			if isEqualAddress(node, rci) {
 				return errors.Errorf("failed to challenge")
 			}
 
 			return nil
 		},
-		func(node Node) error { return nil },
+		func(node Member) error { return nil },
 	)
 
 	args := t.newargs(lsrv.args.PatchedConfig)
@@ -365,7 +365,7 @@ func (t *testMemberlist) TestLocalJoinToRemoteButFailedToChallenge() {
 	rqsrv, rsrv := t.newServersForJoining(
 		rnode,
 		rci,
-		func(node Node) {
+		func(node Member) {
 			if isEqualAddress(node, rci) {
 				return
 			}
@@ -406,7 +406,7 @@ func (t *testMemberlist) TestLocalJoinToRemoteButNotAllowed() {
 	rci := t.newConnInfo()
 	rnode := base.RandomAddress("")
 
-	rjoinedch := make(chan Node, 1)
+	rjoinedch := make(chan Member, 1)
 	lqsrv, lsrv := t.newServersForJoining(
 		lnode,
 		lci,
@@ -417,8 +417,8 @@ func (t *testMemberlist) TestLocalJoinToRemoteButNotAllowed() {
 	lsrv.args.PatchedConfig.Alive = NewAliveDelegate(
 		t.enc,
 		lci.UDPAddr(),
-		func(node Node) error { return nil },
-		func(node Node) error {
+		func(node Member) error { return nil },
+		func(node Member) error {
 			if isEqualAddress(node, rci) {
 				return errors.Errorf("remote disallowed")
 			}
@@ -433,7 +433,7 @@ func (t *testMemberlist) TestLocalJoinToRemoteButNotAllowed() {
 	rqsrv, rsrv := t.newServersForJoining(
 		rnode,
 		rci,
-		func(node Node) {
+		func(node Member) {
 			if isEqualAddress(node, rci) {
 				return
 			}
@@ -474,22 +474,22 @@ func (t *testMemberlist) TestLocalLeave() {
 	rci := t.newConnInfo()
 	rnode := base.RandomAddress("")
 
-	ljoinedch := make(chan Node, 3)
-	rjoinedch := make(chan Node, 3)
+	ljoinedch := make(chan Member, 3)
+	rjoinedch := make(chan Member, 3)
 
-	lleftch := make(chan Node, 3)
-	rleftch := make(chan Node, 3)
+	lleftch := make(chan Member, 3)
+	rleftch := make(chan Member, 3)
 	lqsrv, lsrv := t.newServersForJoining(
 		lnode,
 		lci,
-		func(node Node) {
+		func(node Member) {
 			if isEqualAddress(node, lci) {
 				return
 			}
 
 			ljoinedch <- node
 		},
-		func(node Node) {
+		func(node Member) {
 			lleftch <- node
 		},
 	)
@@ -497,14 +497,14 @@ func (t *testMemberlist) TestLocalLeave() {
 	rqsrv, rsrv := t.newServersForJoining(
 		rnode,
 		rci,
-		func(node Node) {
+		func(node Member) {
 			if isEqualAddress(node, rci) {
 				return
 			}
 
 			rjoinedch <- node
 		},
-		func(node Node) {
+		func(node Member) {
 			rleftch <- node
 		},
 	)
@@ -581,14 +581,14 @@ func (t *testMemberlist) TestLocalShutdownAndLeave() {
 	rci := t.newConnInfo()
 	rnode := base.RandomAddress("")
 
-	ljoinedch := make(chan Node, 1)
-	rjoinedch := make(chan Node, 1)
+	ljoinedch := make(chan Member, 1)
+	rjoinedch := make(chan Member, 1)
 
-	rleftch := make(chan Node, 1)
+	rleftch := make(chan Member, 1)
 	lqsrv, lsrv := t.newServersForJoining(
 		lnode,
 		lci,
-		func(node Node) {
+		func(node Member) {
 			if isEqualAddress(node, lci) {
 				return
 			}
@@ -601,14 +601,14 @@ func (t *testMemberlist) TestLocalShutdownAndLeave() {
 	rqsrv, rsrv := t.newServersForJoining(
 		rnode,
 		rci,
-		func(node Node) {
+		func(node Member) {
 			if isEqualAddress(node, rci) {
 				return
 			}
 
 			rjoinedch <- node
 		},
-		func(node Node) {
+		func(node Member) {
 			rleftch <- node
 		},
 	)
@@ -661,11 +661,11 @@ func (t *testMemberlist) TestJoinMultipleNodeWithSameName() {
 	rci0 := t.newConnInfo()
 	rci1 := t.newConnInfo()
 
-	ljoinedch := make(chan Node, 1)
+	ljoinedch := make(chan Member, 1)
 	lqsrv, lsrv := t.newServersForJoining(
 		lnode,
 		lci,
-		func(node Node) {
+		func(node Member) {
 			if isEqualAddress(node, lci) {
 				return
 			}
@@ -731,7 +731,7 @@ func (t *testMemberlist) TestJoinMultipleNodeWithSameName() {
 	t.NoError(err)
 
 	t.Equal(3, lsrv.MembersLen())
-	t.Equal(2, lsrv.members.NodesLen(rnode))
+	t.Equal(2, lsrv.members.MembersLen(rnode))
 }
 
 func (t *testMemberlist) TestLocalOverMemberLimit() {
@@ -741,11 +741,11 @@ func (t *testMemberlist) TestLocalOverMemberLimit() {
 	rci0 := t.newConnInfo()
 	rnode := base.SimpleAddress("remote")
 
-	ljoinedch := make(chan Node, 1)
+	ljoinedch := make(chan Member, 1)
 	lqsrv, lsrv := t.newServersForJoining(
 		lnode,
 		lci,
-		func(node Node) {
+		func(node Member) {
 			if isEqualAddress(node, lci) {
 				return
 			}
@@ -784,7 +784,7 @@ func (t *testMemberlist) TestLocalOverMemberLimit() {
 		t.True(isEqualAddress(rci0, node))
 
 		t.Equal(2, lsrv.MembersLen())
-		t.Equal(1, lsrv.members.NodesLen(rnode))
+		t.Equal(1, lsrv.members.MembersLen(rnode))
 	}
 
 	t.T().Log("new remote node trying to join to local")
@@ -809,13 +809,13 @@ func (t *testMemberlist) TestLocalOverMemberLimit() {
 	<-time.After(time.Second * 3)
 	t.Equal(2, lsrv.MembersLen())
 
-	n, others, found := lsrv.members.NodesLenOthers(rnode, rci0.UDPAddr())
+	n, others, found := lsrv.members.MembersLenOthers(rnode, rci0.UDPAddr())
 	t.True(found)
 	t.Equal(1, n)
 	t.Equal(0, others)
 
-	var joinedremotes []Node
-	lsrv.Members(func(node Node) bool {
+	var joinedremotes []Member
+	lsrv.Members(func(node Member) bool {
 		if node.Address().Equal(rnode) {
 			joinedremotes = append(joinedremotes, node)
 		}
@@ -839,12 +839,12 @@ func (t *testMemberlist) TestLocalJoinToRemoteWithInvalidNode() {
 		return strings.Compare(addrs[i].String(), addrs[j].String()) < 0
 	})
 
-	ljoinedch := make(chan Node, 1)
-	rjoinedch := make(chan Node, 1)
+	ljoinedch := make(chan Member, 1)
+	rjoinedch := make(chan Member, 1)
 	lqsrv, lsrv := t.newServersForJoining(
 		lnode,
 		lci,
-		func(node Node) {
+		func(node Member) {
 			if isEqualAddress(node, lci) {
 				return
 			}
@@ -857,7 +857,7 @@ func (t *testMemberlist) TestLocalJoinToRemoteWithInvalidNode() {
 	rqsrv, rsrv := t.newServersForJoining(
 		rnode,
 		rci,
-		func(node Node) {
+		func(node Member) {
 			if isEqualAddress(node, rci) {
 				return
 			}
@@ -867,7 +867,7 @@ func (t *testMemberlist) TestLocalJoinToRemoteWithInvalidNode() {
 		nil,
 	)
 
-	remote, err := NewNode(rci.UDPAddr().String(), rci.UDPAddr(), rnode, base.NewMPrivatekey().Publickey(), "", true) // NOTE empty publish
+	remote, err := NewMember(rci.UDPAddr().String(), rci.UDPAddr(), rnode, base.NewMPrivatekey().Publickey(), "", true) // NOTE empty publish
 	t.NoError(err)
 	err = remote.IsValid(nil)
 	t.Error(err)
@@ -911,7 +911,7 @@ func (t *testMemberlist) TestJoinWithDeadNode() {
 	lqsrv, lsrv := t.newServersForJoining(
 		lnode,
 		lci,
-		func(node Node) {},
+		func(node Member) {},
 		nil,
 	)
 

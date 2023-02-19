@@ -416,7 +416,7 @@ func quicstreamHandlerSuffrageNodeConnInfoFunc(
 		members := make([]isaac.NodeConnInfo, memberlist.MembersLen()*2)
 
 		var i int
-		memberlist.Remotes(func(node quicmemberlist.Node) bool {
+		memberlist.Remotes(func(node quicmemberlist.Member) bool {
 			if !suf.ExistsPublickey(node.Address(), node.Publickey()) {
 				return true
 			}

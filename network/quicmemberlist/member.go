@@ -17,9 +17,9 @@ import (
 	"github.com/spikeekips/mitum/util/localtime"
 )
 
-var NodeHint = hint.MustNewHint("memberlist-node-v0.0.1")
+var MemberHint = hint.MustNewHint("memberlist-member-v0.0.1")
 
-type Node interface {
+type Member interface {
 	util.IsValider
 	UDPAddr() *net.UDPAddr
 	UDPConnInfo() quicstream.UDPConnInfo
@@ -32,49 +32,49 @@ type Node interface {
 	HashBytes() []byte
 }
 
-type BaseNode struct {
+type BaseMember struct {
 	joinedAt time.Time
 	addr     *net.UDPAddr
 	name     string
-	meta     nodeMeta
+	meta     memberMeta
 	metab    []byte
 	publish  NamedConnInfo
 	hint.BaseHinter
 }
 
-func NewNode(
+func NewMember(
 	name string,
 	addr *net.UDPAddr,
 	address base.Address,
 	publickey base.Publickey,
 	publish string,
 	tlsinsecure bool,
-) (BaseNode, error) {
-	return newNodeWithMeta(name, addr, newNodeMeta(address, publickey, publish, tlsinsecure))
+) (BaseMember, error) {
+	return newMemberWithMeta(name, addr, newMemberMeta(address, publickey, publish, tlsinsecure))
 }
 
-func newNodeFromMemberlist(node *memberlist.Node, enc *jsonenc.Encoder) (BaseNode, error) {
-	e := util.StringErrorFunc("failed to make Node from memberlist.Node")
+func newMemberFromMemberlist(node *memberlist.Node, enc *jsonenc.Encoder) (BaseMember, error) {
+	e := util.StringErrorFunc("failed to make Member from memberlist.Node")
 
-	var meta nodeMeta
+	var meta memberMeta
 
 	if err := meta.DecodeJSON(node.Meta, enc); err != nil {
-		return BaseNode{}, e(err, "failed to decode NodeMeta")
+		return BaseMember{}, e(err, "failed to decode NodeMeta")
 	}
 
 	addr, _ := convertNetAddr(node)
 
-	return newNodeWithMeta(node.Name, addr.(*net.UDPAddr), meta) //nolint:forcetypeassert // ...
+	return newMemberWithMeta(node.Name, addr.(*net.UDPAddr), meta) //nolint:forcetypeassert // ...
 }
 
-func newNodeWithMeta(name string, addr *net.UDPAddr, meta nodeMeta) (BaseNode, error) {
+func newMemberWithMeta(name string, addr *net.UDPAddr, meta memberMeta) (BaseMember, error) {
 	metab, err := util.MarshalJSON(meta)
 	if err != nil {
-		return BaseNode{}, errors.WithMessage(err, "failed to create Node")
+		return BaseMember{}, errors.WithMessage(err, "failed to create Member")
 	}
 
-	return BaseNode{
-		BaseHinter: hint.NewBaseHinter(NodeHint),
+	return BaseMember{
+		BaseHinter: hint.NewBaseHinter(MemberHint),
 		name:       name,
 		addr:       addr,
 		joinedAt:   localtime.Now().UTC(),
@@ -84,10 +84,10 @@ func newNodeWithMeta(name string, addr *net.UDPAddr, meta nodeMeta) (BaseNode, e
 	}, nil
 }
 
-func (n BaseNode) IsValid([]byte) error {
+func (n BaseMember) IsValid([]byte) error {
 	e := util.ErrInvalid.Errorf("invalid BaseNode")
 
-	if err := n.BaseHinter.IsValid(NodeHint.Type().Bytes()); err != nil {
+	if err := n.BaseHinter.IsValid(MemberHint.Type().Bytes()); err != nil {
 		return e.Wrap(err)
 	}
 
@@ -128,51 +128,51 @@ func (n BaseNode) IsValid([]byte) error {
 	return nil
 }
 
-func (n BaseNode) String() string {
+func (n BaseMember) String() string {
 	return n.publish.String()
 }
 
-func (n BaseNode) Name() string {
+func (n BaseMember) Name() string {
 	return n.name
 }
 
-func (n BaseNode) UDPAddr() *net.UDPAddr {
+func (n BaseMember) UDPAddr() *net.UDPAddr {
 	return n.addr
 }
 
-func (n BaseNode) UDPConnInfo() quicstream.UDPConnInfo {
+func (n BaseMember) UDPConnInfo() quicstream.UDPConnInfo {
 	return quicstream.NewUDPConnInfo(n.addr, n.meta.tlsinsecure)
 }
 
-func (n BaseNode) TLSInsecure() bool {
+func (n BaseMember) TLSInsecure() bool {
 	return n.meta.tlsinsecure
 }
 
-func (n BaseNode) JoinedAt() time.Time {
+func (n BaseMember) JoinedAt() time.Time {
 	return n.joinedAt
 }
 
-func (n BaseNode) Address() base.Address {
+func (n BaseMember) Address() base.Address {
 	return n.meta.address
 }
 
-func (n BaseNode) Publickey() base.Publickey {
+func (n BaseMember) Publickey() base.Publickey {
 	return n.meta.publickey
 }
 
-func (n BaseNode) Publish() NamedConnInfo {
+func (n BaseMember) Publish() NamedConnInfo {
 	return n.publish
 }
 
-func (n BaseNode) MetaBytes() []byte {
+func (n BaseMember) MetaBytes() []byte {
 	return n.metab
 }
 
-func (n BaseNode) HashBytes() []byte {
+func (n BaseMember) HashBytes() []byte {
 	return util.ConcatByters(n.meta.address, n.meta.publickey)
 }
 
-func (n BaseNode) MarshalZerologObject(e *zerolog.Event) {
+func (n BaseMember) MarshalZerologObject(e *zerolog.Event) {
 	e.
 		Str("name", n.name).
 		Stringer("node", n.meta.address).
@@ -181,7 +181,7 @@ func (n BaseNode) MarshalZerologObject(e *zerolog.Event) {
 		Time("joined_at", n.joinedAt)
 }
 
-func (n BaseNode) MarshalJSON() ([]byte, error) {
+func (n BaseMember) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Name     string
 		Address  string
@@ -195,7 +195,7 @@ func (n BaseNode) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (n *BaseNode) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+func (n *BaseMember) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	var u struct {
 		Name     string
 		Address  string
@@ -203,14 +203,14 @@ func (n *BaseNode) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		Meta     json.RawMessage
 	}
 
-	e := util.StringErrorFunc("failed to unmarshal Node")
+	e := util.StringErrorFunc("failed to unmarshal Member")
 	if err := json.Unmarshal(b, &u); err != nil {
 		return e(err, "")
 	}
 
-	var meta nodeMeta
+	var meta memberMeta
 	if err := meta.DecodeJSON(u.Meta, enc); err != nil {
-		return e(err, "failed to decode NodeMeta")
+		return e(err, "failed to decode MemberMeta")
 	}
 
 	addr, err := net.ResolveUDPAddr("udp", u.Address)
@@ -226,15 +226,15 @@ func (n *BaseNode) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	return nil
 }
 
-type nodeMeta struct {
+type memberMeta struct {
 	address     base.Address
 	publickey   base.Publickey
 	publish     string
 	tlsinsecure bool
 }
 
-func newNodeMeta(address base.Address, publickey base.Publickey, publish string, tlsinsecure bool) nodeMeta {
-	return nodeMeta{
+func newMemberMeta(address base.Address, publickey base.Publickey, publish string, tlsinsecure bool) memberMeta {
+	return memberMeta{
 		address:     address,
 		publickey:   publickey,
 		publish:     publish,
@@ -242,8 +242,8 @@ func newNodeMeta(address base.Address, publickey base.Publickey, publish string,
 	}
 }
 
-func (n nodeMeta) IsValid([]byte) error {
-	e := util.ErrInvalid.Errorf("invalid NodeMeta")
+func (n memberMeta) IsValid([]byte) error {
+	e := util.ErrInvalid.Errorf("invalid MemberMeta")
 
 	if err := util.CheckIsValiders(nil, false,
 		n.address,
@@ -258,15 +258,15 @@ func (n nodeMeta) IsValid([]byte) error {
 	return nil
 }
 
-type nodeMetaJSONMmarshaler struct {
+type memberMetaJSONMmarshaler struct {
 	Address     base.Address   `json:"address"`
 	Publickey   base.Publickey `json:"publickey"`
 	Publish     string         `json:"publish"`
 	TLSInsecure bool           `json:"tls_insecure"`
 }
 
-func (n nodeMeta) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(nodeMetaJSONMmarshaler{
+func (n memberMeta) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(memberMetaJSONMmarshaler{
 		Address:     n.address,
 		Publickey:   n.publickey,
 		Publish:     n.publish,
@@ -274,24 +274,24 @@ func (n nodeMeta) MarshalJSON() ([]byte, error) {
 	})
 }
 
-type nodeMetaJSONUnmarshaler struct {
+type memberMetaJSONUnmarshaler struct {
 	Address     string `json:"address"`
 	Publickey   string `json:"publickey"`
 	Publish     string `json:"publish"`
 	TLSInsecure bool   `json:"tls_insecure"`
 }
 
-func (n *nodeMeta) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode NodeMta")
+func (n *memberMeta) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+	e := util.StringErrorFunc("failed to decode MemberMeta")
 
-	var u nodeMetaJSONUnmarshaler
+	var u memberMetaJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
 		return e(err, "")
 	}
 
 	switch i, err := base.DecodeAddress(u.Address, enc); {
 	case err != nil:
-		return e(err, "failed to decode node")
+		return e(err, "failed to decode node address")
 	default:
 		n.address = i
 	}

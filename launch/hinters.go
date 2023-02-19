@@ -90,7 +90,7 @@ var Hinters = []encoder.DecodeDetail{
 	},
 	{Hint: isaacstates.MissingBallotsRequestsMessageHint, Instance: isaacstates.MissingBallotsRequestMessage{}},
 	{Hint: PprofRequestHeaderHint, Instance: PprofRequestHeader{}},
-	{Hint: quicmemberlist.NodeHint, Instance: quicmemberlist.BaseNode{}},
+	{Hint: quicmemberlist.MemberHint, Instance: quicmemberlist.BaseMember{}},
 }
 
 var SupportedProposalOperationFactHinters = []encoder.DecodeDetail{
