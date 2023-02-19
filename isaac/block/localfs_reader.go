@@ -56,7 +56,7 @@ func (r *LocalFSReader) Close() error {
 }
 
 func (r *LocalFSReader) BlockMap() (base.BlockMap, bool, error) {
-	i, err := r.mapl.Get(func() (base.BlockMap, error) {
+	i, err := r.mapl.GetOrCreate(func() (base.BlockMap, error) {
 		var b []byte
 
 		switch f, err := os.Open(filepath.Join(r.root, blockFSMapFilename(r.enc.Hint().Type().String()))); {
@@ -107,7 +107,7 @@ func (r *LocalFSReader) Reader(t base.BlockMapItemType) (io.ReadCloser, bool, er
 		fpath = filepath.Join(r.root, i)
 	}
 
-	i, _, _ := r.readersl.Get(t, func() (error, error) {
+	i, _, _ := r.readersl.GetOrCreate(t, func() (error, error) {
 		switch fi, err := os.Stat(fpath); {
 		case err != nil:
 			return err, nil //nolint:nilerr,wrapcheck //...
@@ -171,7 +171,7 @@ func (r *LocalFSReader) ChecksumReader(t base.BlockMapItemType) (util.ChecksumRe
 		fpath = filepath.Join(r.root, i)
 	}
 
-	i, _, _ := r.readersl.Get(t, func() (error, error) {
+	i, _, _ := r.readersl.GetOrCreate(t, func() (error, error) {
 		switch fi, err := os.Stat(fpath); {
 		case err != nil:
 			return err, nil //nolint:nilerr,wrapcheck //...
@@ -222,7 +222,7 @@ func (r *LocalFSReader) ChecksumReader(t base.BlockMapItemType) (util.ChecksumRe
 }
 
 func (r *LocalFSReader) Item(t base.BlockMapItemType) (item interface{}, found bool, _ error) {
-	i, _, _ := r.itemsl.Get(t, func() ([3]interface{}, error) {
+	i, _, _ := r.itemsl.GetOrCreate(t, func() ([3]interface{}, error) {
 		j, found, err := r.item(t)
 
 		return [3]interface{}{j, found, err}, nil

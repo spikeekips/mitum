@@ -71,7 +71,7 @@ func (u *LastConsensusNodesWatcher) Last() (base.SuffrageProof, base.State, erro
 		var proof base.SuffrageProof
 		var candidates base.State
 
-		_, _ = u.lastheight.Set(func(old base.Height, isempty bool) (base.Height, error) {
+		_ = u.lastheight.Get(func(base.Height, bool) error {
 			proofs, _ := u.last.Value()
 			if len(proofs) > 0 {
 				proof = proofs[len(proofs)-1]
@@ -79,7 +79,7 @@ func (u *LastConsensusNodesWatcher) Last() (base.SuffrageProof, base.State, erro
 
 			candidates = u.lastcandidates
 
-			return base.NilHeight, util.ErrLockedSetIgnore.Call()
+			return nil
 		})
 
 		return proof, candidates, nil
@@ -107,23 +107,23 @@ func (u *LastConsensusNodesWatcher) Exists(node base.Node) (base.Suffrage, bool,
 func (u *LastConsensusNodesWatcher) GetSuffrage(height base.Height) (base.Suffrage, bool, error) {
 	var proof base.SuffrageProof
 
-	_, _ = u.lastheight.Set(func(lastheight base.Height, _ bool) (base.Height, error) {
+	_ = u.lastheight.Get(func(lastheight base.Height, _ bool) error {
 		switch {
 		case height > lastheight:
-			return base.NilHeight, util.ErrLockedSetIgnore.Call()
+			return nil
 		case lastheight <= base.NilHeight:
-			return base.NilHeight, util.ErrLockedSetIgnore.Call()
+			return nil
 		}
 
 		l3, _ := u.last.Value()
 
 		switch {
 		case len(l3) < 1:
-			return base.NilHeight, util.ErrLockedSetIgnore.Call()
+			return nil
 		case height == lastheight:
 			proof = l3[len(l3)-1]
 
-			return base.NilHeight, util.ErrLockedSetIgnore.Call()
+			return nil
 		}
 
 		for i := len(l3) - 1; i >= 0; i-- {
@@ -136,7 +136,7 @@ func (u *LastConsensusNodesWatcher) GetSuffrage(height base.Height) (base.Suffra
 			}
 		}
 
-		return base.NilHeight, util.ErrLockedSetIgnore.Call()
+		return nil
 	})
 
 	if proof != nil {

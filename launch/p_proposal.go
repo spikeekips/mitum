@@ -187,7 +187,7 @@ func getProposalFunc(pctx context.Context) (
 					case !facthash.Equal(pr.Fact().Hash()):
 						return nil
 					default:
-						_, _ = prl.Get(func() (base.ProposalSignFact, error) {
+						_, _ = prl.GetOrCreate(func() (base.ProposalSignFact, error) {
 							return pr, nil
 						})
 					}

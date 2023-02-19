@@ -631,7 +631,7 @@ func (t *testConsensusHandler) TestWithBallotbox() {
 
 	manifests := util.NewSingleLockedMap(base.NilHeight, (base.Manifest)(nil))
 	getmanifest := func(height base.Height) base.Manifest {
-		i, _, _ := manifests.Get(height, func() (base.Manifest, error) {
+		i, _, _ := manifests.GetOrCreate(height, func() (base.Manifest, error) {
 			manifest := base.NewDummyManifest(height, valuehash.RandomSHA256())
 
 			return manifest, nil

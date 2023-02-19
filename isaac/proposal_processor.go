@@ -587,7 +587,7 @@ func (p *DefaultProposalProcessor) getOperationProcessor(
 ) (
 	base.OperationProcessor, bool, error,
 ) {
-	i, _, err := p.oprs.Get(ht.String(), func() (opp base.OperationProcessor, _ error) {
+	i, _, err := p.oprs.GetOrCreate(ht.String(), func() (opp base.OperationProcessor, _ error) {
 		if err := p.retry(ctx, func() (bool, error) {
 			i, err := newOperationProcessor(p.proposal.Point().Height(), ht)
 			if err != nil {

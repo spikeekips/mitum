@@ -141,7 +141,7 @@ func (c *Client) dial(ctx context.Context) (quic.EarlyConnection, error) {
 
 	e := util.StringErrorFunc("failed to dial")
 
-	i, err := c.session.Get(func() (quic.EarlyConnection, error) {
+	i, err := c.session.GetOrCreate(func() (quic.EarlyConnection, error) {
 		i, err := c.dialf(ctx, c.addr.String(), c.tlsconfig, c.quicconfig)
 		if err != nil {
 			return nil, err

@@ -132,7 +132,7 @@ func (w *Writer) SetStates(
 func (w *Writer) SetState(_ context.Context, stv base.StateMergeValue, operation base.Operation) error {
 	e := util.StringErrorFunc("failed to set state")
 
-	j, _, err := w.states.Get(stv.Key(), func() (base.StateValueMerger, error) {
+	j, _, err := w.states.GetOrCreate(stv.Key(), func() (base.StateValueMerger, error) {
 		var st base.State
 
 		switch j, found, err := w.getStateFunc(stv.Key()); {

@@ -286,7 +286,7 @@ func (box *Ballotbox) unfinishedVoterecords() []*voterecords {
 
 	var vrs []*voterecords
 
-	_, _ = box.removed.Set(func(removed []*voterecords, isempty bool) ([]*voterecords, error) {
+	_ = box.removed.Get(func(removed []*voterecords, isempty bool) error {
 		removedm := map[string]struct{}{}
 
 		if len(removed) > 0 {
@@ -316,7 +316,7 @@ func (box *Ballotbox) unfinishedVoterecords() []*voterecords {
 			})
 		}
 
-		return nil, util.ErrLockedSetIgnore.Call()
+		return nil
 	})
 
 	return vrs
@@ -473,11 +473,11 @@ func (box *Ballotbox) countVoterecords(vr *voterecords, threshold base.Threshold
 	}
 
 	var filtered []base.Voteproof
-	_, _ = box.lsp.Set(func(last LastPoint, isempty bool) (v LastPoint, _ error) {
+	_ = box.lsp.Get(func(last LastPoint, isempty bool) error {
 		if isempty {
 			filtered = vps
 
-			return v, util.ErrLockedSetIgnore.Call()
+			return nil
 		}
 
 		nvps := make([]base.Voteproof, len(vps))
@@ -494,7 +494,7 @@ func (box *Ballotbox) countVoterecords(vr *voterecords, threshold base.Threshold
 
 		filtered = nvps[:n]
 
-		return v, util.ErrLockedSetIgnore.Call()
+		return nil
 	})
 
 	if len(filtered) > 0 {

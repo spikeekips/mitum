@@ -61,7 +61,14 @@ func (l *Locked[T]) EmptyValue() *Locked[T] {
 	return l
 }
 
-func (l *Locked[T]) Get(create func() (T, error)) (v T, _ error) {
+func (l *Locked[T]) Get(f func(T, bool) error) error {
+	l.RLock()
+	defer l.RUnlock()
+
+	return f(l.value, l.isempty)
+}
+
+func (l *Locked[T]) GetOrCreate(create func() (T, error)) (v T, _ error) {
 	l.Lock()
 	defer l.Unlock()
 
@@ -120,14 +127,15 @@ type lockedMapKeys interface {
 	constraints.Ordered
 }
 
-type LockedMap[K lockedMapKeys, V any] interface {
+type LockedMap[K lockedMapKeys, V any] interface { //nolint:interfacebloat //...
 	Exists(key K) (found bool)
 	Value(key K) (value V, found bool)
 	SetValue(key K, value V) (found bool)
 	RemoveValue(key K) (removed bool)
-	Get(key K, create func() (value V, _ error)) (value V, found bool, _ error)
+	Get(key K, f func(value V, found bool) error) error
+	GetOrCreate(key K, create func() (value V, _ error)) (value V, found bool, _ error)
 	Set(key K, f func(_ V, found bool) (value V, _ error)) (value V, _ error)
-	Remove(key K, f func(value V) error) (removed bool, _ error)
+	Remove(key K, f func(value V, found bool) error) (removed bool, _ error)
 	Traverse(f func(key K, value V) (keep bool))
 	Len() int
 	Empty()
@@ -209,13 +217,27 @@ func (l *SingleLockedMap[K, V]) RemoveValue(k K) bool {
 	return found
 }
 
-func (l *SingleLockedMap[K, V]) Get(k K, create func() (V, error)) (v V, found bool, err error) {
-	v, found, _, err = l.get(k, create)
+func (l *SingleLockedMap[K, V]) Get(key K, f func(value V, found bool) error) error {
+	l.RLock()
+	defer l.RUnlock()
+
+	var v V
+	var found bool
+
+	if l.m != nil {
+		v, found = l.m[key]
+	}
+
+	return f(v, found)
+}
+
+func (l *SingleLockedMap[K, V]) GetOrCreate(k K, create func() (V, error)) (v V, found bool, err error) {
+	v, found, _, err = l.getOrCreate(k, create)
 
 	return v, found, err
 }
 
-func (l *SingleLockedMap[K, V]) get(k K, create func() (V, error)) (v V, found, created bool, _ error) {
+func (l *SingleLockedMap[K, V]) getOrCreate(k K, create func() (V, error)) (v V, found, created bool, _ error) {
 	l.Lock()
 	defer l.Unlock()
 
@@ -267,28 +289,22 @@ func (l *SingleLockedMap[K, V]) set(k K, f func(_ V, found bool) (V, error)) (v 
 	}
 }
 
-func (l *SingleLockedMap[K, V]) Remove(k K, f func(V) error) (bool, error) {
+func (l *SingleLockedMap[K, V]) Remove(k K, f func(V, bool) error) (bool, error) {
 	l.Lock()
 	defer l.Unlock()
 
 	i, found := l.m[k]
-	if !found {
+
+	switch err := f(i, found); {
+	case err == nil:
+		delete(l.m, k)
+
+		return found, nil
+	case errors.Is(err, ErrLockedSetIgnore):
 		return false, nil
+	default:
+		return false, err
 	}
-
-	if f != nil {
-		switch err := f(i); {
-		case err == nil:
-		case errors.Is(err, ErrLockedSetIgnore):
-			return false, nil
-		default:
-			return false, err
-		}
-	}
-
-	delete(l.m, k)
-
-	return true, nil
 }
 
 func (l *SingleLockedMap[K, V]) Traverse(f func(K, V) bool) {
@@ -354,8 +370,8 @@ func NewShardedMap[K lockedMapKeys, V any](_ K, _ V, size int64) (*ShardedMap[K,
 }
 
 func (l *ShardedMap[K, V]) Exists(k K) bool {
-	switch i, isclosed := l.item(k); {
-	case isclosed:
+	switch i, found, isclosed := l.loadItem(k); {
+	case isclosed, !found:
 		return false
 	default:
 		return i.Exists(k)
@@ -363,8 +379,8 @@ func (l *ShardedMap[K, V]) Exists(k K) bool {
 }
 
 func (l *ShardedMap[K, V]) Value(k K) (v V, found bool) {
-	switch i, isclosed := l.item(k); {
-	case isclosed:
+	switch i, found, isclosed := l.loadItem(k); {
+	case isclosed, !found:
 		return v, false
 	default:
 		return i.Value(k)
@@ -372,7 +388,7 @@ func (l *ShardedMap[K, V]) Value(k K) (v V, found bool) {
 }
 
 func (l *ShardedMap[K, V]) SetValue(k K, v V) (found bool) {
-	switch i, isclosed := l.item(k); {
+	switch i, isclosed := l.newItem(k); {
 	case isclosed:
 		return false
 	default:
@@ -386,8 +402,8 @@ func (l *ShardedMap[K, V]) SetValue(k K, v V) (found bool) {
 }
 
 func (l *ShardedMap[K, V]) RemoveValue(k K) bool {
-	switch i, isclosed := l.item(k); {
-	case isclosed:
+	switch i, found, isclosed := l.loadItem(k); {
+	case isclosed, !found:
 		return false
 	default:
 		removed := i.RemoveValue(k)
@@ -399,12 +415,25 @@ func (l *ShardedMap[K, V]) RemoveValue(k K) bool {
 	}
 }
 
-func (l *ShardedMap[K, V]) Get(k K, create func() (V, error)) (v V, found bool, _ error) {
-	switch i, isclosed := l.item(k); {
+func (l *ShardedMap[K, V]) Get(key K, f func(value V, found bool) error) error {
+	switch i, found, isclosed := l.loadItem(key); {
+	case isclosed:
+		return ErrLockedMapClosed.Call()
+	case isclosed, !found:
+		var v V
+
+		return f(v, false)
+	default:
+		return i.Get(key, f)
+	}
+}
+
+func (l *ShardedMap[K, V]) GetOrCreate(k K, create func() (V, error)) (v V, found bool, _ error) {
+	switch i, isclosed := l.newItem(k); {
 	case isclosed:
 		return v, false, ErrLockedMapClosed.Call()
 	default:
-		v, found, created, err := i.get(k, create)
+		v, found, created, err := i.getOrCreate(k, create)
 		if err == nil && created {
 			atomic.AddInt64(&l.length, 1)
 		}
@@ -414,7 +443,7 @@ func (l *ShardedMap[K, V]) Get(k K, create func() (V, error)) (v V, found bool, 
 }
 
 func (l *ShardedMap[K, V]) Set(k K, f func(V, bool) (V, error)) (v V, _ error) {
-	switch i, isclosed := l.item(k); {
+	switch i, isclosed := l.newItem(k); {
 	case isclosed:
 		return v, ErrLockedMapClosed.Call()
 	default:
@@ -427,14 +456,22 @@ func (l *ShardedMap[K, V]) Set(k K, f func(V, bool) (V, error)) (v V, _ error) {
 	}
 }
 
-func (l *ShardedMap[K, V]) Remove(k K, f func(V) error) (bool, error) {
-	switch i, isclosed := l.item(k); {
+func (l *ShardedMap[K, V]) Remove(k K, f func(V, bool) error) (bool, error) {
+	switch i, found, isclosed := l.loadItem(k); {
 	case isclosed:
 		return false, ErrLockedMapClosed.Call()
+	case !found:
+		var v V
+
+		return false, f(v, false)
 	default:
 		removed, err := i.Remove(k, f)
 		if err == nil && removed {
 			atomic.AddInt64(&l.length, -1)
+		}
+
+		if errors.Is(err, ErrLockedSetIgnore) {
+			err = nil
 		}
 
 		return removed, err
@@ -510,7 +547,25 @@ func (l *ShardedMap[K, V]) Empty() {
 	atomic.StoreInt64(&l.length, 0)
 }
 
-func (l *ShardedMap[K, V]) item(k K) (_ *SingleLockedMap[K, V], isclosed bool) {
+func (l *ShardedMap[K, V]) loadItem(k K) (_ *SingleLockedMap[K, V], found, iscloed bool) {
+	l.RLock()
+	defer l.RUnlock()
+
+	if len(l.sharded) < 1 {
+		return nil, false, true
+	}
+
+	i := l.fnv(k)
+
+	j := l.sharded[i]
+	if j == nil {
+		return nil, false, false
+	}
+
+	return j, true, false
+}
+
+func (l *ShardedMap[K, V]) newItem(k K) (_ *SingleLockedMap[K, V], isclosed bool) {
 	l.Lock()
 	defer l.Unlock()
 

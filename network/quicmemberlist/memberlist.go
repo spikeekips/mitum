@@ -537,9 +537,9 @@ func (m *membersPool) Get(k *net.UDPAddr) (Member, bool) {
 }
 
 func (m *membersPool) MembersLenOthers(node base.Address, addr *net.UDPAddr) (memberslen int, others int, found bool) {
-	_, _ = m.members.Set(node.String(), func(members []Member, memberfound bool) ([]Member, error) {
+	_ = m.members.Get(node.String(), func(members []Member, memberfound bool) error {
 		if !memberfound {
-			return nil, util.ErrLockedSetIgnore.Call()
+			return nil
 		}
 
 		id := memberid(addr)
@@ -561,7 +561,7 @@ func (m *membersPool) MembersLenOthers(node base.Address, addr *net.UDPAddr) (me
 			}
 		})
 
-		return nil, util.ErrLockedSetIgnore.Call()
+		return nil
 	})
 
 	return memberslen, others, found
@@ -599,8 +599,10 @@ func (m *membersPool) Set(member Member) bool {
 }
 
 func (m *membersPool) Remove(k *net.UDPAddr) (bool, error) {
-	return m.addrs.Remove(memberid(k), func(i Member) error {
-		_ = m.members.RemoveValue(i.Address().String())
+	return m.addrs.Remove(memberid(k), func(i Member, found bool) error {
+		if found {
+			_ = m.members.RemoveValue(i.Address().String())
+		}
 
 		return nil
 	})
