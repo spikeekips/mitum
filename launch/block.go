@@ -100,27 +100,6 @@ func ImportBlocks(
 	return nil
 }
 
-func MergeBlockWriteToPermanentDatabase(
-	ctx context.Context, bwdb isaac.BlockWriteDatabase, perm isaac.PermanentDatabase,
-) error {
-	e := util.StringErrorFunc("failed to merge BlockWriter")
-
-	temp, err := bwdb.TempDatabase()
-	if err != nil {
-		return e(err, "")
-	}
-
-	if err := perm.MergeTempDatabase(ctx, temp); err != nil {
-		return e(err, "")
-	}
-
-	if err := temp.Remove(); err != nil {
-		return e(err, "")
-	}
-
-	return nil
-}
-
 func NewBlockWriterFunc(
 	local base.LocalNode,
 	networkID base.NetworkID,
