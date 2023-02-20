@@ -73,17 +73,17 @@ func PLastConsensusNodesWatcher(pctx context.Context) (context.Context, error) {
 		return pctx, err
 	}
 
-	getLastSuffrageProoff, err := GetLastSuffrageProofFunc(pctx)
+	getLastSuffrageProoff, err := getLastSuffrageProofFunc(pctx)
 	if err != nil {
 		return pctx, err
 	}
 
-	getSuffrageProofFromRemotef, err := GetSuffrageProofFromRemoteFunc(pctx)
+	getSuffrageProofFromRemotef, err := getSuffrageProofFromRemoteFunc(pctx)
 	if err != nil {
 		return pctx, err
 	}
 
-	getLastSuffrageCandidatef, err := GetLastSuffrageCandidateFunc(pctx)
+	getLastSuffrageCandidatef, err := getLastSuffrageCandidateFunc(pctx)
 	if err != nil {
 		return pctx, err
 	}
@@ -470,7 +470,7 @@ func MajoritySuffrageCandidateLimiterFunc(
 	}
 }
 
-func GetLastSuffrageProofFunc(pctx context.Context) (isaac.GetLastSuffrageProofFromRemoteFunc, error) {
+func getLastSuffrageProofFunc(pctx context.Context) (isaac.GetLastSuffrageProofFromRemoteFunc, error) {
 	var params base.LocalParams
 	var client *isaacnetwork.QuicstreamClient
 	var syncSourcePool *isaac.SyncSourcePool
@@ -563,7 +563,7 @@ func GetLastSuffrageProofFunc(pctx context.Context) (isaac.GetLastSuffrageProofF
 	}, nil
 }
 
-func GetSuffrageProofFromRemoteFunc(pctx context.Context) ( //revive:disable-line:cognitive-complexity
+func getSuffrageProofFromRemoteFunc(pctx context.Context) ( //revive:disable-line:cognitive-complexity
 	isaac.GetSuffrageProofFromRemoteFunc, error,
 ) {
 	var params base.LocalParams
@@ -643,7 +643,7 @@ func GetSuffrageProofFromRemoteFunc(pctx context.Context) ( //revive:disable-lin
 	}, nil
 }
 
-func GetLastSuffrageCandidateFunc(pctx context.Context) (isaac.GetLastSuffrageCandidateStateRemoteFunc, error) {
+func getLastSuffrageCandidateFunc(pctx context.Context) (isaac.GetLastSuffrageCandidateStateRemoteFunc, error) {
 	var client *isaacnetwork.QuicstreamClient
 	var syncSourcePool *isaac.SyncSourcePool
 
@@ -725,7 +725,7 @@ func GetLastSuffrageCandidateFunc(pctx context.Context) (isaac.GetLastSuffrageCa
 	}, nil
 }
 
-func NewSuffrageCandidateLimiterFunc(pctx context.Context) ( //revive:disable-line:cognitive-complexity
+func newSuffrageCandidateLimiterFunc(pctx context.Context) ( //revive:disable-line:cognitive-complexity
 	func(base.Height, base.GetStateFunc) (base.OperationProcessorProcessFunc, error),
 	error,
 ) {

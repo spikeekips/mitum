@@ -252,7 +252,7 @@ func POperationProcessorsMap(pctx context.Context) (context.Context, error) {
 		return pctx, err
 	}
 
-	limiterf, err := NewSuffrageCandidateLimiterFunc(pctx)
+	limiterf, err := newSuffrageCandidateLimiterFunc(pctx)
 	if err != nil {
 		return pctx, err
 	}
