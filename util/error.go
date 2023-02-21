@@ -10,7 +10,7 @@ import (
 	"github.com/rs/zerolog/pkgerrors"
 )
 
-type Error struct {
+type MError struct {
 	wrapped error
 	id      string
 	msg     string
@@ -18,21 +18,21 @@ type Error struct {
 	stack
 }
 
-func NewError(s string, a ...interface{}) Error {
+func NewMError(s string, a ...interface{}) MError {
 	f := FuncCaller(3)
 
-	return Error{
+	return MError{
 		id:  fmt.Sprintf("%+v", f),
 		msg: strings.TrimSpace(fmt.Sprintf(s, a...)),
 	}
 }
 
-func (er Error) Unwrap() error {
+func (er MError) Unwrap() error {
 	return er.wrapped
 }
 
-func (er Error) Is(err error) bool {
-	e, ok := err.(Error) //nolint:errorlint //...
+func (er MError) Is(err error) bool {
+	e, ok := err.(MError) //nolint:errorlint //...
 	if !ok {
 		if er.wrapped == nil {
 			return false
@@ -44,13 +44,13 @@ func (er Error) Is(err error) bool {
 	return e.id == er.id
 }
 
-func (er Error) Wrap(err error) Error {
+func (er MError) Wrap(err error) MError {
 	var stk stack
 	if _, ok := err.(stackTracer); !ok {
 		stk = er.setStack()
 	}
 
-	return Error{
+	return MError{
 		wrapped: err,
 		id:      er.id,
 		msg:     er.msg,
@@ -60,14 +60,14 @@ func (er Error) Wrap(err error) Error {
 }
 
 // Wrapf formats strings with error.
-func (er Error) Wrapf(err error, s string, a ...interface{}) Error {
+func (er MError) Wrapf(err error, s string, a ...interface{}) MError {
 	extra := fmt.Sprintf(s, a...)
 
 	if len(er.extra) > 0 {
 		extra = er.extra + "; " + extra
 	}
 
-	return Error{
+	return MError{
 		wrapped: err,
 		id:      er.id,
 		msg:     er.msg,
@@ -76,14 +76,14 @@ func (er Error) Wrapf(err error, s string, a ...interface{}) Error {
 }
 
 // Errorf formats strings. It does not support `%w` error formatting.
-func (er Error) Errorf(s string, a ...interface{}) Error {
+func (er MError) Errorf(s string, a ...interface{}) MError {
 	extra := fmt.Sprintf(s, a...)
 
 	if len(er.extra) > 0 {
 		extra = er.extra + "; " + extra
 	}
 
-	return Error{
+	return MError{
 		id:    er.id,
 		msg:   er.msg,
 		extra: extra,
@@ -91,7 +91,7 @@ func (er Error) Errorf(s string, a ...interface{}) Error {
 	}
 }
 
-func (er Error) Format(st fmt.State, verb rune) {
+func (er MError) Format(st fmt.State, verb rune) {
 	switch verb {
 	case 'v':
 		if st.Flag('+') {
@@ -131,7 +131,7 @@ func (er Error) Format(st fmt.State, verb rune) {
 	}
 }
 
-func (er Error) StackTrace() errors.StackTrace {
+func (er MError) StackTrace() errors.StackTrace {
 	if er.stack != nil {
 		return er.stack.StackTrace()
 	}
@@ -148,17 +148,17 @@ func (er Error) StackTrace() errors.StackTrace {
 	return i.StackTrace()
 }
 
-func (er Error) Call() Error {
+func (er MError) Call() MError {
 	er.stack = er.setStack()
 
 	return er
 }
 
-func (Error) setStack() stack {
+func (MError) setStack() stack {
 	return callers(4)
 }
 
-func (er Error) message() string {
+func (er MError) message() string {
 	s := er.msg
 	if len(er.extra) > 0 {
 		s += " - " + er.extra
@@ -167,7 +167,7 @@ func (er Error) message() string {
 	return s
 }
 
-func (er Error) Error() string {
+func (er MError) Error() string {
 	s := er.message()
 
 	if er.wrapped != nil {

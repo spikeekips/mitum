@@ -23,12 +23,12 @@ func (t *testError) TestFuncCaller() {
 	f := FuncCaller(2)
 	t.Equal("(*testError).TestFuncCaller:23", fmt.Sprintf("%n:%d", f, f))
 
-	e := NewError("showme")
+	e := NewMError("showme")
 	t.Contains(e.id, "(*testError).TestFuncCaller")
 }
 
 func (t *testError) TestIs() {
-	e := NewError("showme")
+	e := NewMError("showme")
 
 	e0 := e.Call()
 	t.Implements((*(interface{ Error() string }))(nil), e0)
@@ -36,16 +36,16 @@ func (t *testError) TestIs() {
 	t.Equal("showme", e0.Error())
 
 	t.True(errors.Is(e0, e0))
-	t.False(errors.Is(e0, NewError("showme").Call()))
-	t.False(errors.Is(e0, NewError("findme").Call()))
+	t.False(errors.Is(e0, NewMError("showme").Call()))
+	t.False(errors.Is(e0, NewMError("findme").Call()))
 	t.True(errors.Is(e0, e0.Errorf("showme")))
 }
 
 func (t *testError) TestAs() {
-	e := NewError("showme")
+	e := NewMError("showme")
 	e0 := e.Call()
 
-	var e1 Error
+	var e1 MError
 	t.True(errors.As(e0, &e1))
 
 	t.True(errors.Is(e0, e1))
@@ -54,17 +54,17 @@ func (t *testError) TestAs() {
 }
 
 func (t *testError) TestWrap() {
-	e := NewError("showme")
+	e := NewMError("showme")
 	e0 := e.Call()
 
 	pe := &os.PathError{Op: "not found", Path: "/tmp", Err: errors.Errorf("???")}
 	e1 := e0.Wrap(pe)
 
-	t.False(errors.Is(e1, NewError("showme").Call()))
+	t.False(errors.Is(e1, NewMError("showme").Call()))
 	t.True(errors.Is(e1, e1.Errorf("showme")))
 	t.True(errors.Is(e1, pe))
 
-	var e2 Error
+	var e2 MError
 	t.True(errors.As(e0, &e2))
 	t.True(errors.As(e1, &e2))
 
@@ -79,8 +79,8 @@ func (t *testError) TestWrap() {
 }
 
 func (t *testError) TestWrapAgain() {
-	ea := NewError("showme")
-	eb := NewError("findme")
+	ea := NewMError("showme")
+	eb := NewMError("findme")
 	e0 := ea.Call()
 
 	e1 := e0.Wrap(eb.Call())
@@ -90,18 +90,18 @@ func (t *testError) TestWrapAgain() {
 }
 
 func (t *testError) TestWrapf() {
-	e := NewError("showme")
+	e := NewMError("showme")
 	e0 := e.Call()
 
 	pe := &os.PathError{Op: "not found", Path: "/tmp", Err: errors.Errorf("???")}
 	e1 := e0.Wrapf(pe, "find me: %d", 3)
 
 	t.True(errors.Is(e0, e1))
-	t.False(errors.Is(e1, NewError("showme").Call()))
+	t.False(errors.Is(e1, NewMError("showme").Call()))
 	t.True(errors.Is(e1, e1.Errorf("showme")))
 	t.True(errors.Is(e1, pe))
 
-	var e2 Error
+	var e2 MError
 	t.True(errors.As(e0, &e2))
 	t.True(errors.As(e1, &e2))
 
@@ -116,12 +116,12 @@ func (t *testError) TestWrapf() {
 }
 
 func (t *testError) TestErrorf() {
-	e := NewError("showme")
+	e := NewMError("showme")
 	e0 := e.Call()
 
 	e1 := e0.Errorf("error: %d", 33)
 
-	var e2 Error
+	var e2 MError
 	t.True(errors.As(e0, &e2))
 	t.True(errors.As(e1, &e2))
 
@@ -170,7 +170,7 @@ func (t *testError) printStacks(err error) string {
 }
 
 func (t *testError) TestPrint() {
-	e := NewError("showme")
+	e := NewMError("showme")
 	e0 := e.Call()
 
 	t.T().Logf("e0,  v: %v", e0)
@@ -186,7 +186,7 @@ func (t *testError) TestPrint() {
 }
 
 func (t *testError) TestPrintStacks() {
-	e := NewError("showme")
+	e := NewMError("showme")
 	e0 := e.Call()
 
 	e1 := errors.New("findme")
@@ -248,7 +248,7 @@ func (t *testError) TestPKGErrorStack() {
 }
 
 func (t *testError) TestErrorStack() {
-	e := NewError("showme").Call()
+	e := NewMError("showme").Call()
 
 	var bf bytes.Buffer
 	l := t.setupLogging(&bf)

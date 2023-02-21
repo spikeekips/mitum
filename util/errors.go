@@ -1,10 +1,10 @@
 package util
 
 var (
-	ErrFound          = NewError("found")
-	ErrNotFound       = NewError("not found")
-	ErrDuplicated     = NewError("duplicated")
-	ErrWrongType      = NewError("wrong type")
-	ErrNotImplemented = NewError("not implemented")
-	ErrInternal       = NewError("internal error")
+	ErrFound          = NewMError("found")
+	ErrNotFound       = NewMError("not found")
+	ErrDuplicated     = NewMError("duplicated")
+	ErrWrongType      = NewMError("wrong type")
+	ErrNotImplemented = NewMError("not implemented")
+	ErrInternal       = NewMError("internal error")
 )

@@ -59,7 +59,7 @@ type (
 	ContextWorkerCallback func(ctx context.Context, jobid uint64) error
 )
 
-var ErrWorkerContextCanceled = NewError("context canceled in worker")
+var ErrWorkerContextCanceled = NewMError("context canceled in worker")
 
 type ParallelWorker struct {
 	jobChan     chan interface{}

@@ -15,8 +15,8 @@ import (
 )
 
 var (
-	errFailedToRequestProposalToNode = util.NewError("failed to request proposal to node")
-	ErrEmptyNodes                    = util.NewError("empty nodes for selecting proposal")
+	errFailedToRequestProposalToNode = util.NewMError("failed to request proposal to node")
+	ErrEmptyNodes                    = util.NewMError("empty nodes for selecting proposal")
 )
 
 // ProposerSelector selects proposer between suffrage nodes
@@ -464,7 +464,7 @@ func (p *ProposalMaker) makeProposal(point base.Point, ops []util.Hash) (sf Prop
 	return signfact, nil
 }
 
-var errConcurrentRequestProposalFound = util.NewError("proposal found")
+var errConcurrentRequestProposalFound = util.NewMError("proposal found")
 
 func ConcurrentRequestProposal(
 	ctx context.Context,

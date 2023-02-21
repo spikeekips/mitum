@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-var ErrStopTimer = NewError("stop timer")
+var ErrStopTimer = NewMError("stop timer")
 
 type TimerID string
 

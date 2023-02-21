@@ -16,8 +16,8 @@ import (
 // not ErrIgnoreErrorProposalProcessor from proposalProcessor will break
 // consensus.
 var (
-	ErrIgnoreErrorProposalProcessor  = util.NewError("proposal processor somthing wrong; ignore")
-	ErrNotProposalProcessorProcessed = util.NewError("proposal processor not processed")
+	ErrIgnoreErrorProposalProcessor  = util.NewMError("proposal processor somthing wrong; ignore")
+	ErrNotProposalProcessorProcessed = util.NewMError("proposal processor not processed")
 )
 
 type ProcessorProcessFunc func(context.Context) (base.Manifest, error)

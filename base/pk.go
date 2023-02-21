@@ -11,7 +11,7 @@ import (
 
 const PKKeyTypeSize = 3
 
-var ErrSignatureVerification = util.NewError("signature verification failed")
+var ErrSignatureVerification = util.NewMError("signature verification failed")
 
 type PKKey interface {
 	fmt.Stringer

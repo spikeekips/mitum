@@ -627,7 +627,7 @@ func (st *baseBallotHandler) prepareNextBlock(
 	}
 }
 
-var errFailedToVoteNotInConsensus = util.NewError("failed to vote; local not in consensus nodes")
+var errFailedToVoteNotInConsensus = util.NewMError("failed to vote; local not in consensus nodes")
 
 func preventVotingWithEmptySuffrage(
 	local base.Node,

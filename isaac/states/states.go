@@ -13,7 +13,7 @@ import (
 	"github.com/spikeekips/mitum/util/logging"
 )
 
-var ErrIgnoreSwithingState = util.NewError("failed to switch state, but ignored")
+var ErrIgnoreSwithingState = util.NewMError("failed to switch state, but ignored")
 
 var (
 	timerIDBroadcastINITBallot            = util.TimerID("broadcast-init-ballot")

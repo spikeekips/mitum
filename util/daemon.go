@@ -3,8 +3,8 @@ package util
 import "context"
 
 var (
-	ErrDaemonAlreadyStarted = NewError("daemon already started")
-	ErrDaemonAlreadyStopped = NewError("daemon already stopped")
+	ErrDaemonAlreadyStarted = NewMError("daemon already started")
+	ErrDaemonAlreadyStopped = NewMError("daemon already stopped")
 )
 
 type Daemon interface {

@@ -14,7 +14,7 @@ import (
 	"github.com/spikeekips/mitum/util/logging"
 )
 
-var ErrSyncerCanNotCancel = util.NewError("can not cancel syncer")
+var ErrSyncerCanNotCancel = util.NewMError("can not cancel syncer")
 
 type SyncingHandlerArgs struct {
 	NodeInConsensusNodesFunc isaac.NodeInConsensusNodesFunc

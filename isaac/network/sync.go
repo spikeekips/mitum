@@ -385,7 +385,7 @@ func (c *SyncSourceChecker) fetchFromURL(ctx context.Context, u *url.URL) ([]isa
 	return ncis, nil
 }
 
-var errIgnoreNodeconnInfo = util.NewError("ignore NodeConnInfo error")
+var errIgnoreNodeconnInfo = util.NewMError("ignore NodeConnInfo error")
 
 func (c *SyncSourceChecker) validate(ctx context.Context, nci isaac.NodeConnInfo) error {
 	e := util.StringErrorFunc("failed to fetch NodeConnInfo from node, %q", nci)

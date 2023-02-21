@@ -97,7 +97,7 @@ func (cmd *RunCommand) Run(pctx context.Context) error {
 	return cmd.run(pctx)
 }
 
-var errHoldStop = util.NewError("hold stop")
+var errHoldStop = util.NewMError("hold stop")
 
 func (cmd *RunCommand) run(pctx context.Context) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGINT, syscall.SIGTERM)

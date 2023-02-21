@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	ErrLockedSetIgnore = NewError("ignore to set locked value")
-	ErrLockedMapClosed = NewError("locked map closed")
+	ErrLockedSetIgnore = NewMError("ignore to set locked value")
+	ErrLockedMapClosed = NewMError("locked map closed")
 )
 
 type Locked[T any] struct {

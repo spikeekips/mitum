@@ -7,7 +7,7 @@ import (
 	"github.com/spikeekips/mitum/util"
 )
 
-var ErrUnpromising = util.NewError("unpromising broken error")
+var ErrUnpromising = util.NewMError("unpromising broken error")
 
 type BrokenHandler struct {
 	*baseHandler

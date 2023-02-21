@@ -14,14 +14,14 @@ import (
 )
 
 var (
-	ErrOperationInProcessorNotFound         = util.NewError("operation processor not found")
-	ErrInvalidOperationInProcessor          = util.NewError("invalid operation")
-	ErrOperationNotFoundInProcessor         = util.NewError("operation not found")
-	ErrOperationAlreadyProcessedInProcessor = util.NewError("operation already processed")
-	ErrStopProcessingRetry                  = util.NewError("stop processing retrying")
-	ErrIgnoreStateValue                     = util.NewError("ignore state value")
-	ErrSuspendOperation                     = util.NewError("suspend operation")
-	ErrProcessorAlreadySaved                = util.NewError("processor already saved")
+	ErrOperationInProcessorNotFound         = util.NewMError("operation processor not found")
+	ErrInvalidOperationInProcessor          = util.NewMError("invalid operation")
+	ErrOperationNotFoundInProcessor         = util.NewMError("operation not found")
+	ErrOperationAlreadyProcessedInProcessor = util.NewMError("operation already processed")
+	ErrStopProcessingRetry                  = util.NewMError("stop processing retrying")
+	ErrIgnoreStateValue                     = util.NewMError("ignore state value")
+	ErrSuspendOperation                     = util.NewMError("suspend operation")
+	ErrProcessorAlreadySaved                = util.NewMError("processor already saved")
 )
 
 type (

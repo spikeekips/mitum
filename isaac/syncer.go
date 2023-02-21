@@ -14,8 +14,8 @@ import (
 )
 
 var (
-	ErrEmptySyncSources = util.NewError("empty sync sources; will retry")
-	ErrRetrySyncSources = util.NewError("sync sources problem; will retry")
+	ErrEmptySyncSources = util.NewMError("empty sync sources; will retry")
+	ErrRetrySyncSources = util.NewMError("sync sources problem; will retry")
 )
 
 type Syncer interface {

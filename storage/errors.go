@@ -7,11 +7,11 @@ import (
 )
 
 var (
-	ErrConnection = util.NewError("storage connection error")
-	ErrInternal   = util.NewError("storage internal error")
-	ErrExec       = util.NewError("failed to execute storage")
-	ErrNotFound   = util.NewError("not found")
-	ErrFound      = util.NewError("found")
+	ErrConnection = util.NewMError("storage connection error")
+	ErrInternal   = util.NewMError("storage internal error")
+	ErrExec       = util.NewMError("failed to execute storage")
+	ErrNotFound   = util.NewMError("not found")
+	ErrFound      = util.NewMError("found")
 )
 
 func IsStorageError(err error) bool {
