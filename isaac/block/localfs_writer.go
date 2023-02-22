@@ -746,6 +746,23 @@ func CleanBlockTempDirectory(root string) error {
 	return nil
 }
 
+func RemoveBlockFromLocalFS(root string, height base.Height) (bool, error) {
+	heightdirectory := filepath.Join(root, HeightDirectory(height))
+
+	switch _, err := os.Stat(heightdirectory); {
+	case errors.Is(err, os.ErrNotExist):
+		return false, errors.WithMessagef(err, "height directory, %q does not exist", heightdirectory)
+	case err != nil:
+		return false, errors.WithMessagef(err, "failed to check height directory, %q", heightdirectory)
+	default:
+		if err := os.RemoveAll(heightdirectory); err != nil {
+			return false, errors.WithMessagef(err, "failed to remove %q", heightdirectory)
+		}
+
+		return true, nil
+	}
+}
+
 func RemoveBlocksFromLocalFS(root string, height base.Height) (bool, error) {
 	switch {
 	case height < base.GenesisHeight:
@@ -782,17 +799,8 @@ func RemoveBlocksFromLocalFS(root string, height base.Height) (bool, error) {
 	}
 
 	for i := top; i >= height; i-- {
-		heightdirectory := filepath.Join(root, HeightDirectory(i))
-
-		switch _, err := os.Stat(heightdirectory); {
-		case errors.Is(err, os.ErrNotExist):
-			return false, errors.WithMessagef(err, "height directory, %q does not exist", heightdirectory)
-		case err != nil:
-			return false, errors.WithMessagef(err, "failed to check height directory, %q", heightdirectory)
-		default:
-			if err := os.RemoveAll(heightdirectory); err != nil {
-				return false, errors.WithMessagef(err, "failed to remove %q", heightdirectory)
-			}
+		if removed, err := RemoveBlockFromLocalFS(root, i); err != nil {
+			return removed, err
 		}
 	}
 

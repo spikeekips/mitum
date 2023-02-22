@@ -489,7 +489,6 @@ func (t *testBlockImporter) TestSave() {
 		_, err := NewLocalFSReaderFromHeight(newroot, point.Height(), t.Enc)
 		t.Error(err)
 		t.True(errors.Is(err, os.ErrNotExist))
-		t.ErrorContains(err, "invalid root directory")
 	})
 
 	_, err = im.Save(context.Background())

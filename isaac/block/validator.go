@@ -2,6 +2,7 @@ package isaacblock
 
 import (
 	"context"
+	"os"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -151,6 +152,17 @@ func ValidateAllBlockMapsFromLocalFS(
 	networkID base.NetworkID,
 ) error {
 	e := util.StringErrorFunc("failed to validate localfs")
+
+	switch fi, err := os.Stat(dataroot); {
+	case err == nil:
+		if !fi.IsDir() {
+			return e(nil, "not directory")
+		}
+	case os.IsNotExist(err):
+		return e(err, "")
+	default:
+		return e(err, "")
+	}
 
 	// NOTE check all blockmap items
 	var validateLock sync.Mutex

@@ -190,12 +190,72 @@ func (t *testValidateAllBlockMapsFromLocalFS) TestOK() {
 	t.NoError(ValidateAllBlockMapsFromLocalFS(a, t.Enc, 3, t.LocalParams.NetworkID()))
 }
 
-func (t *testValidateAllBlockMapsFromLocalFS) TestLastNotFound() {
+func (t *testValidateAllBlockMapsFromLocalFS) TestNotFound() {
 	a := t.buildLocalFS("no0", 3)
 
-	err := ValidateAllBlockMapsFromLocalFS(a, t.Enc, 4, t.LocalParams.NetworkID())
-	t.Error(err)
-	t.True(errors.Is(err, os.ErrNotExist))
+	t.Run("empty", func() {
+		err := ValidateAllBlockMapsFromLocalFS(util.UUID().String(), t.Enc, 3, t.LocalParams.NetworkID())
+		t.Error(err)
+		t.True(errors.Is(err, os.ErrNotExist))
+	})
+
+	t.Run("last not found", func() {
+		err := ValidateAllBlockMapsFromLocalFS(a, t.Enc, 4, t.LocalParams.NetworkID())
+		t.Error(err)
+		t.True(errors.Is(err, os.ErrNotExist))
+	})
+
+	t.Run("missing", func() {
+		removed, err := RemoveBlocksFromLocalFS(a, 2)
+		t.NoError(err)
+		t.True(removed)
+
+		err = ValidateAllBlockMapsFromLocalFS(a, t.Enc, 3, t.LocalParams.NetworkID())
+		t.Error(err)
+		t.True(errors.Is(err, os.ErrNotExist))
+	})
+}
+
+func (t *testValidateAllBlockMapsFromLocalFS) TestWrong() {
+	t.Run("wrong manifest", func() {
+		a := t.buildLocalFS("no0", 3)
+
+		removed, err := RemoveBlockFromLocalFS(a, 2)
+		t.NoError(err)
+		t.True(removed)
+
+		fs, _, _, _, _, _, _ := t.PrepareFS(base.NewPoint(2, 0), nil, nil)
+		_, err = fs.Save(context.Background())
+		t.NoError(err)
+
+		lastheightdirectory := filepath.Join(a, HeightDirectory(2))
+
+		t.NoError(os.Rename(filepath.Join(t.Root, HeightDirectory(2)), lastheightdirectory))
+
+		err = ValidateAllBlockMapsFromLocalFS(a, t.Enc, 3, t.LocalParams.NetworkID())
+		t.Error(err)
+		t.ErrorContains(err, "previous does not match")
+	})
+
+	t.Run("wrong height", func() {
+		a := t.buildLocalFS("no1", 3)
+
+		removed, err := RemoveBlockFromLocalFS(a, 2)
+		t.NoError(err)
+		t.True(removed)
+
+		fs, _, _, _, _, _, _ := t.PrepareFS(base.NewPoint(1, 0), nil, nil)
+		_, err = fs.Save(context.Background())
+		t.NoError(err)
+
+		lastheightdirectory := filepath.Join(a, HeightDirectory(2))
+
+		t.NoError(os.Rename(filepath.Join(t.Root, HeightDirectory(1)), lastheightdirectory))
+
+		err = ValidateAllBlockMapsFromLocalFS(a, t.Enc, 3, t.LocalParams.NetworkID())
+		t.Error(err)
+		t.ErrorContains(err, "different height blockmaps")
+	})
 }
 
 func TestValidateAllBlockMapsFromLocalFS(t *testing.T) {
