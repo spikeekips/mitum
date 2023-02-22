@@ -131,6 +131,17 @@ func loadLastBlockMapFromLocalFS(
 		return nil, false, err
 	}
 
+	switch i, found, err := loadBlockMapFromReader(reader, networkID); {
+	case err != nil:
+		return nil, false, err
+	case !found:
+		return nil, false, nil
+	default:
+		return i, true, nil
+	}
+}
+
+func loadBlockMapFromReader(reader *LocalFSReader, networkID base.NetworkID) (base.BlockMap, bool, error) {
 	switch i, found, err := reader.BlockMap(); {
 	case err != nil:
 		return nil, false, err
@@ -251,7 +262,7 @@ func ValidateBlockFromLocalFS(
 
 	var m base.BlockMap
 
-	switch i, found, err := reader.BlockMap(); {
+	switch i, found, err := loadBlockMapFromReader(reader, networkID); {
 	case err != nil:
 		return e(err, "")
 	case !found:
@@ -272,7 +283,7 @@ func ValidateBlockFromLocalFS(
 		case !found:
 			readererr = util.ErrNotFound.Errorf("BlockMapItem not found, %q", item.Type())
 		case i == nil:
-			readererr = util.ErrNotFound.Errorf("empty item found, %q", item.Type())
+			readererr = util.ErrNotFound.Errorf("empty BlockMapItem found, %q", item.Type())
 		}
 
 		if readererr != nil {

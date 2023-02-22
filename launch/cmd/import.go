@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
@@ -18,11 +19,16 @@ import (
 var PNameImportBlocks = ps.Name("import-blocks")
 
 type ImportCommand struct { //nolint:govet //...
+	// revive:disable:line-length-limit
 	launch.DesignFlag
-	From            string `arg:"" name:"from directory" help:"block data directory to import" type:"existingdir"`
-	Vault           string `name:"vault" help:"privatekey path of vault"`
+	Source          string            `arg:"" name:"source directory" help:"block data directory to import" type:"existingdir"`
+	FromHeight      launch.HeightFlag `name:"from-height" help:"import from height" default:"0"`
+	Vault           string            `name:"vault" help:"privatekey path of vault"`
 	log             *zerolog.Logger
 	launch.DevFlags `embed:"" prefix:"dev."`
+	fromHeight      base.Height
+	prevblockmap    base.BlockMap
+	// revive:enable:line-length-limit
 }
 
 func (cmd *ImportCommand) Run(pctx context.Context) error {
@@ -30,6 +36,19 @@ func (cmd *ImportCommand) Run(pctx context.Context) error {
 	if err := util.LoadFromContextOK(pctx, launch.LoggingContextKey, &log); err != nil {
 		return err
 	}
+
+	cmd.fromHeight = cmd.FromHeight.Height()
+	if cmd.fromHeight < base.GenesisHeight {
+		cmd.fromHeight = base.GenesisHeight
+	}
+
+	log.Log().Debug().
+		Interface("design", cmd.DesignFlag).
+		Interface("vault", cmd.Vault).
+		Interface("dev", cmd.DevFlags).
+		Str("source", cmd.Source).
+		Interface("from_height", cmd.fromHeight).
+		Msg("flags")
 
 	cmd.log = log.Log()
 
@@ -67,10 +86,20 @@ func (cmd *ImportCommand) Run(pctx context.Context) error {
 func (cmd *ImportCommand) importBlocks(ctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to import blocks")
 
-	last, err := launch.PLastHeightOfLocalFS(ctx, cmd.From)
-	if err != nil {
+	last := base.NilHeight
+
+	switch i, err := launch.PLastHeightOfLocalFS(ctx, cmd.Source); {
+	case err != nil:
 		return ctx, e(err, "")
+	case i < base.GenesisHeight:
+		return ctx, e(nil, "last height not found in source")
+	case i < cmd.fromHeight:
+		return ctx, e(nil, "last, %d is lower than --from-height, %d", last, cmd.fromHeight)
+	default:
+		last = i
 	}
+
+	cmd.log.Debug().Interface("height", last).Msg("last height found in source")
 
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
@@ -90,10 +119,21 @@ func (cmd *ImportCommand) importBlocks(ctx context.Context) (context.Context, er
 		return ctx, e(err, "")
 	}
 
+	if cmd.fromHeight > base.GenesisHeight {
+		switch i, found, err := db.BlockMap(cmd.fromHeight - 1); {
+		case err != nil:
+			return ctx, err
+		case !found:
+			return ctx, errors.Errorf("previous blockmap not found for from height, %d", cmd.fromHeight-1)
+		default:
+			cmd.prevblockmap = i
+		}
+	}
+
 	if err := launch.ImportBlocks(
-		cmd.From,
+		cmd.Source,
 		design.Storage.Base,
-		base.GenesisHeight,
+		cmd.fromHeight,
 		last,
 		encs,
 		enc,
@@ -140,10 +180,6 @@ func (cmd *ImportCommand) validateImported(
 		}
 	}
 
-	if err := cmd.validateImportedBlockMaps(root, last, enc, params); err != nil {
-		return e(err, "")
-	}
-
 	if err := cmd.validateImportedBlocks(root, last, enc, params, db); err != nil {
 		return e(err, "")
 	}
@@ -151,51 +187,7 @@ func (cmd *ImportCommand) validateImported(
 	return nil
 }
 
-func (cmd *ImportCommand) validateImportedBlockMaps(
-	root string,
-	last base.Height,
-	enc encoder.Encoder,
-	params *isaac.LocalParams,
-) error {
-	e := util.StringErrorFunc("failed to validate imported BlockMaps")
-
-	if err := base.BatchValidateMaps(
-		context.Background(),
-		nil,
-		last,
-		333, //nolint:gomnd //...
-		func(_ context.Context, height base.Height) (base.BlockMap, error) {
-			reader, err := isaacblock.NewLocalFSReaderFromHeight(root, height, enc)
-			if err != nil {
-				return nil, err
-			}
-
-			switch m, found, err := reader.BlockMap(); {
-			case err != nil:
-				return nil, err
-			case !found:
-				return nil, util.ErrNotFound.Call()
-			default:
-				if err := m.IsValid(params.NetworkID()); err != nil {
-					return nil, err
-				}
-
-				return m, nil
-			}
-		},
-		func(m base.BlockMap) error {
-			return nil
-		},
-	); err != nil {
-		return e(err, "")
-	}
-
-	cmd.log.Debug().Msg("imported BlockMaps validated")
-
-	return nil
-}
-
-func (*ImportCommand) validateImportedBlocks(
+func (cmd *ImportCommand) validateImportedBlocks(
 	root string,
 	last base.Height,
 	enc encoder.Encoder,
@@ -204,20 +196,25 @@ func (*ImportCommand) validateImportedBlocks(
 ) error {
 	e := util.StringErrorFunc("failed to validate imported blocks")
 
+	d := last - cmd.fromHeight
+
 	if err := util.BatchWork(
 		context.Background(),
-		uint64(last.Int64())+1,
+		uint64(d.Int64())+1,
 		333, //nolint:gomnd //...
 		func(context.Context, uint64) error {
 			return nil
 		},
 		func(_ context.Context, i, _ uint64) error {
-			return isaacblock.ValidateBlockFromLocalFS(
-				base.Height(int64(i)), root, enc, params.NetworkID(), db)
+			height := base.Height(int64(i) + cmd.fromHeight.Int64())
+
+			return isaacblock.ValidateBlockFromLocalFS(height, root, enc, params.NetworkID(), db)
 		},
 	); err != nil {
 		return e(err, "")
 	}
+
+	cmd.log.Debug().Msg("imported blocks validated")
 
 	return nil
 }
