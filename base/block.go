@@ -346,3 +346,59 @@ func ValidateGenesisOperation(op Operation, networkID NetworkID, signer Publicke
 
 	return nil
 }
+
+func IsEqualManifest(a, b Manifest) error {
+	if a == nil && b == nil {
+		return errors.Errorf("nil manifests")
+	}
+
+	switch {
+	case a.Height() != b.Height():
+		return errors.Errorf("different manifest height; %d != %d", a.Height(), b.Height())
+	case !a.Hash().Equal(b.Hash()):
+		return errors.Errorf("different manifest hash; %q != %q", a.Hash(), b.Hash())
+	default:
+		return nil
+	}
+}
+
+func IsEqualBlockMap(a, b BlockMap) error {
+	if err := IsEqualManifest(a.Manifest(), b.Manifest()); err != nil {
+		return errors.WithMessage(err, "different blockmaps")
+	}
+
+	var err error
+
+	a.Items(func(ai BlockMapItem) bool {
+		bi, found := b.Item(ai.Type())
+		if !found {
+			err = errors.Errorf("blockmap item, %q not found", ai.Type())
+
+			return false
+		}
+
+		if err = IsEqualBlockMapItem(ai, bi); err != nil {
+			return false
+		}
+
+		return true
+	})
+
+	return err
+}
+
+func IsEqualBlockMapItem(a, b BlockMapItem) error {
+	switch {
+	case a.Type() != b.Type():
+		return errors.Errorf("different blockmap item; %q != %q", a.Type(), b.Type())
+	case a.URL().String() != b.URL().String():
+		return errors.Errorf("different blockmap item url, %q; %q != %q", a.Type(), a.URL(), b.URL())
+	case a.Checksum() != b.Checksum():
+		return errors.Errorf(
+			"different blockmap item checksum, %q; %q != %q", a.Type(), a.Checksum(), b.Checksum())
+	case a.Num() != b.Num():
+		return errors.Errorf("different blockmap item num, %q; %q != %q", a.Type(), a.Num(), b.Num())
+	default:
+		return nil
+	}
+}
