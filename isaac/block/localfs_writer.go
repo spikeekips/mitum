@@ -585,7 +585,7 @@ func HeightFromDirectory(s string) (base.Height, error) {
 
 	h, err := base.ParseHeightString(hs)
 	if err != nil {
-		return base.NilHeight, err
+		return base.NilHeight, errors.WithMessage(err, "wrong directory for height")
 	}
 
 	return h, nil
@@ -604,6 +604,51 @@ func FindHighestDirectory(root string) (highest string, found bool, _ error) {
 		return highest, found, nil
 	default:
 		return highest, found, nil
+	}
+}
+
+func FindLastHeightFromLocalFS(
+	baseroot string, enc encoder.Encoder, networkID base.NetworkID,
+) (last base.Height, found bool, _ error) {
+	e := util.StringErrorFunc("failed to find last height from localfs")
+
+	last = base.NilHeight
+
+	switch h, found, err := FindHighestDirectory(baseroot); {
+	case err != nil:
+		return last, false, e(err, "")
+	case !found:
+		return last, false, nil
+	default:
+		rel, err := filepath.Rel(baseroot, h)
+		if err != nil {
+			return last, false, e(err, "")
+		}
+
+		height, err := HeightFromDirectory(rel)
+		if err != nil {
+			return last, false, nil
+		}
+
+		last = height
+
+		reader, err := NewLocalFSReader(h, enc)
+		if err != nil {
+			return last, false, e(err, "")
+		}
+
+		switch i, found, err := reader.BlockMap(); {
+		case err != nil:
+			return last, false, e(err, "")
+		case !found:
+			return last, false, nil
+		default:
+			if err := i.IsValid(networkID); err != nil {
+				return last, false, e(err, "")
+			}
+
+			return last, true, nil
+		}
 	}
 }
 

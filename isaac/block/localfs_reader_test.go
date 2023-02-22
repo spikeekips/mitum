@@ -27,7 +27,7 @@ func (t *testLocalFSReader) TestNew() {
 	ctx := context.Background()
 
 	point := base.RawPoint(33, 44)
-	fs, _, _, _, _, _, _ := t.PrepareFS(point, nil)
+	fs, _, _, _, _, _, _ := t.PrepareFS(point, nil, nil)
 
 	root := filepath.Join(fs.root, fs.heightbase)
 
@@ -45,7 +45,7 @@ func (t *testLocalFSReader) TestNew() {
 
 func (t *testLocalFSReader) TestMap() {
 	point := base.RawPoint(33, 44)
-	fs, _, _, _, _, _, _ := t.PrepareFS(point, nil)
+	fs, _, _, _, _, _, _ := t.PrepareFS(point, nil, nil)
 	_, err := fs.Save(context.Background())
 	t.NoError(err)
 
@@ -61,7 +61,7 @@ func (t *testLocalFSReader) TestMap() {
 
 func (t *testLocalFSReader) TestReader() {
 	point := base.RawPoint(33, 44)
-	fs, _, _, _, _, _, _ := t.PrepareFS(point, nil)
+	fs, _, _, _, _, _, _ := t.PrepareFS(point, nil, nil)
 	m, err := fs.Save(context.Background())
 	t.NoError(err)
 
@@ -130,7 +130,7 @@ func (t *testLocalFSReader) TestReader() {
 
 func (t *testLocalFSReader) TestChecksumReader() {
 	point := base.RawPoint(33, 44)
-	fs, _, _, _, _, _, _ := t.PrepareFS(point, nil)
+	fs, _, _, _, _, _, _ := t.PrepareFS(point, nil, nil)
 	m, err := fs.Save(context.Background())
 	t.NoError(err)
 
@@ -199,7 +199,7 @@ func (t *testLocalFSReader) TestChecksumReader() {
 
 func (t *testLocalFSReader) TestItem() {
 	point := base.RawPoint(33, 44)
-	fs, pr, ops, opstree, stts, sttstree, vps := t.PrepareFS(point, nil)
+	fs, pr, ops, opstree, stts, sttstree, vps := t.PrepareFS(point, nil, nil)
 
 	_, err := fs.Save(context.Background())
 	t.NoError(err)
@@ -353,7 +353,7 @@ func (t *testLocalFSReader) TestItem() {
 
 func (t *testLocalFSReader) TestWrongChecksum() {
 	point := base.RawPoint(33, 44)
-	fs, pr, _, _, _, _, _ := t.PrepareFS(point, nil)
+	fs, pr, _, _, _, _, _ := t.PrepareFS(point, nil, nil)
 
 	_, err := fs.Save(context.Background())
 	t.NoError(err)

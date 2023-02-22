@@ -19,7 +19,7 @@ type testBlockImporter struct {
 }
 
 func (t *testBlockImporter) prepare(point base.Point) base.BlockMap {
-	fs, _, _, _, _, _, _ := t.PrepareFS(point, nil)
+	fs, _, _, _, _, _, _ := t.PrepareFS(point, nil, nil)
 	_, err := fs.Save(context.Background())
 	t.NoError(err)
 

@@ -26,7 +26,7 @@ func NewLocalFSReader(root string, enc encoder.Encoder) (*LocalFSReader, error) 
 
 	switch fi, err := os.Stat(filepath.Join(root, blockFSMapFilename(enc.Hint().Type().String()))); {
 	case err != nil:
-		return nil, e(err, "invalid root directory")
+		return nil, e(err, "invalid block directory")
 	case fi.IsDir():
 		return nil, e(nil, "map file is directory")
 	}

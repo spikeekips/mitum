@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
@@ -93,6 +94,7 @@ func (t *BaseTestLocalBlockFS) SetupSuite() {
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.ACCEPTBallotFactHint, Instance: isaac.ACCEPTBallotFact{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.INITBallotSignFactHint, Instance: isaac.INITBallotSignFact{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.ACCEPTBallotSignFactHint, Instance: isaac.ACCEPTBallotSignFact{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.ManifestHint, Instance: isaac.Manifest{}}))
 }
 
 func (t *BaseTestLocalBlockFS) SetupTest() {
@@ -127,7 +129,28 @@ func (t *BaseTestLocalBlockFS) WalkFS(root string, a ...any) {
 		}
 
 		if info.IsDir() {
-			t.T().Log("directory:", path)
+			var foundfiles bool
+
+			switch files, err := os.ReadDir(path); {
+			case err != nil:
+				return err
+			case len(files) < 1:
+				return nil
+			default:
+				for i := range files {
+					if !files[i].IsDir() {
+						foundfiles = true
+
+						break
+					}
+				}
+
+				if !foundfiles {
+					return nil
+				}
+
+				t.T().Log(" dir:", path)
+			}
 
 			return nil
 		}
@@ -180,7 +203,7 @@ func (t *BaseTestLocalBlockFS) PrintFS(root string, a ...any) {
 	})
 }
 
-func (t *BaseTestLocalBlockFS) PrepareFS(point base.Point, prev util.Hash) (
+func (t *BaseTestLocalBlockFS) PrepareFS(point base.Point, prev, prevSuffrage util.Hash) (
 	*LocalFSWriter,
 	base.ProposalSignFact,
 	[]base.Operation,
@@ -189,32 +212,29 @@ func (t *BaseTestLocalBlockFS) PrepareFS(point base.Point, prev util.Hash) (
 	fixedtree.Tree,
 	[]base.Voteproof,
 ) {
+	if point.Height() != base.GenesisHeight && prev == nil {
+		prev = valuehash.RandomSHA256()
+	}
+
+	if point.Height() != base.GenesisHeight && prevSuffrage == nil {
+		prevSuffrage = valuehash.RandomSHA256()
+	}
+
 	ctx := context.Background()
 
 	fs, err := NewLocalFSWriter(t.Root, point.Height(), t.Enc, t.Local, t.LocalParams.NetworkID())
 	t.NoError(err)
 
-	// NOTE set manifest
-	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
-	if prev != nil {
-		manifest.SetPrevious(prev)
-	}
-
-	t.NoError(fs.SetManifest(ctx, manifest))
-
-	// NOTE set proposal
-	pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), []util.Hash{valuehash.RandomSHA256()}))
-	_ = pr.Sign(t.Local.Privatekey(), t.LocalParams.NetworkID())
-	t.NoError(fs.SetProposal(ctx, pr))
-
 	// NOTE set operations
 	ops := make([]base.Operation, 3)
+	ophs := make([]util.Hash, len(ops))
 	opstreeg, err := fixedtree.NewWriter(base.OperationFixedtreeHint, uint64(len(ops)))
 	t.NoError(err)
 	for i := range ops {
 		fact := isaac.NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
 		op, _ := isaac.NewDummyOperation(fact, t.Local.Privatekey(), t.LocalParams.NetworkID())
 		ops[i] = op
+		ophs[i] = op.Hash()
 
 		node := base.NewInStateOperationFixedtreeNode(op.Fact().Hash(), "")
 
@@ -226,6 +246,11 @@ func (t *BaseTestLocalBlockFS) PrepareFS(point base.Point, prev util.Hash) (
 
 	opstree, err := opstreeg.Tree()
 	t.NoError(err)
+
+	// NOTE set proposal
+	pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), ophs))
+	_ = pr.Sign(t.Local.Privatekey(), t.LocalParams.NetworkID())
+	t.NoError(fs.SetProposal(ctx, pr))
 
 	// NOTE set states
 	stts := make([]base.State, 3)
@@ -252,10 +277,29 @@ func (t *BaseTestLocalBlockFS) PrepareFS(point base.Point, prev util.Hash) (
 	sttstree, err := sttstreeg.Tree()
 	t.NoError(err)
 
-	// NOTE set voteproofs
-	ivp, avp := t.Voteproofs(point)
+	ifact := t.NewINITBallotFact(point, prev, pr.Fact().Hash())
+	ivp, err := t.NewINITVoteproof(ifact, t.Local, []isaac.LocalNode{t.Local})
+	t.NoError(err)
+
+	manifest := isaac.NewManifest(
+		point.Height(),
+		prev,
+		pr.Fact().Hash(),
+		opstree.Root(),
+		sttstree.Root(),
+		prevSuffrage,
+		time.Now(),
+	)
+
+	afact := t.NewACCEPTBallotFact(point, pr.Fact().Hash(), manifest.Hash())
+	avp, err := t.NewACCEPTVoteproof(afact, t.Local, []isaac.LocalNode{t.Local})
+	t.NoError(err)
+
 	t.NoError(fs.SetINITVoteproof(ctx, ivp))
 	t.NoError(fs.SetACCEPTVoteproof(ctx, avp))
+
+	// NOTE set manifest
+	t.NoError(fs.SetManifest(ctx, manifest))
 
 	return fs, pr, ops, opstree, stts, sttstree, []base.Voteproof{ivp, avp}
 }

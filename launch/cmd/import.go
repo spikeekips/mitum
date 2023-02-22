@@ -67,7 +67,7 @@ func (cmd *ImportCommand) Run(pctx context.Context) error {
 func (cmd *ImportCommand) importBlocks(ctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to import blocks")
 
-	last, err := launch.LastHeightOfLocalFS(ctx, cmd.From)
+	last, err := launch.PLastHeightOfLocalFS(ctx, cmd.From)
 	if err != nil {
 		return ctx, e(err, "")
 	}
@@ -212,7 +212,7 @@ func (*ImportCommand) validateImportedBlocks(
 			return nil
 		},
 		func(_ context.Context, i, _ uint64) error {
-			return launch.ValidateBlockFromLocalFS(
+			return isaacblock.ValidateBlockFromLocalFS(
 				base.Height(int64(i)), root, enc, params.NetworkID(), db)
 		},
 	); err != nil {

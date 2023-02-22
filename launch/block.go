@@ -10,7 +10,6 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacblock "github.com/spikeekips/mitum/isaac/block"
-	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 )
@@ -46,7 +45,7 @@ func ImportBlocks(
 		return reader.(isaac.BlockReader), nil //nolint:forcetypeassert //...
 	}
 
-	if err := isaacstates.ImportBlocks(
+	if err := isaacblock.ImportBlocks(
 		context.Background(),
 		fromHeight, toHeight,
 		333, //nolint:gomnd //...

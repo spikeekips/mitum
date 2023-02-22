@@ -13,6 +13,12 @@ import (
 	"github.com/spikeekips/mitum/util/fixedtree"
 )
 
+type (
+	ImportBlocksBlockMapFunc     func(context.Context, base.Height) (base.BlockMap, bool, error)
+	ImportBlocksBlockMapItemFunc func(
+		context.Context, base.Height, base.BlockMapItemType) (io.ReadCloser, func() error, bool, error)
+)
+
 type BlockImporter struct {
 	m                        base.BlockMap
 	enc                      encoder.Encoder

@@ -561,7 +561,7 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 	var st *leveldbstorage.Storage
 	var db isaac.Database
 	var syncSourcePool *isaac.SyncSourcePool
-	var lvps *isaacstates.LastVoteproofsHandler
+	var lvps *isaac.LastVoteproofsHandler
 	var nodeinfo *isaacnetwork.NodeInfoUpdater
 
 	if err := util.LoadFromContextOK(pctx,
@@ -646,7 +646,7 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 			batchlimit int64,
 			blockMapf func(context.Context, base.Height) (base.BlockMap, bool, error),
 		) error {
-			return isaacstates.ImportBlocks(
+			return isaacblock.ImportBlocks(
 				ctx,
 				from, to,
 				batchlimit,
@@ -769,7 +769,7 @@ func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
 	syncSourcePool *isaac.SyncSourcePool,
 	conninfocache util.LockedMap[base.Height, quicstream.UDPConnInfo],
 	devdelay time.Duration,
-) isaacstates.SyncerBlockMapFunc {
+) isaacblock.ImportBlocksBlockMapFunc {
 	f := func(ctx context.Context, height base.Height, ci quicstream.UDPConnInfo) (base.BlockMap, bool, error) {
 		cctx, cancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
 		defer cancel()
@@ -853,7 +853,7 @@ func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
 func syncerBlockMapItemFunc(
 	client *isaacnetwork.QuicstreamClient,
 	conninfocache util.LockedMap[base.Height, quicstream.UDPConnInfo],
-) isaacstates.SyncerBlockMapItemFunc {
+) isaacblock.ImportBlocksBlockMapItemFunc {
 	return func(ctx context.Context, height base.Height, item base.BlockMapItemType) (
 		reader io.ReadCloser, closef func() error, found bool, _ error,
 	) {
@@ -881,7 +881,7 @@ func syncerBlockMapItemFunc(
 }
 
 func setLastVoteproofsfFromBlockReaderFunc(
-	lvps *isaacstates.LastVoteproofsHandler,
+	lvps *isaac.LastVoteproofsHandler,
 ) (func(isaac.BlockReader) error, error) {
 	return func(reader isaac.BlockReader) error {
 		switch v, found, err := reader.Item(base.BlockMapItemTypeVoteproofs); {
