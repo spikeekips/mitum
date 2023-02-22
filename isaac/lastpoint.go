@@ -1,9 +1,8 @@
-package isaacstates
+package isaac
 
 import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
-	"github.com/spikeekips/mitum/isaac"
 )
 
 type LastPoint struct {
@@ -12,7 +11,7 @@ type LastPoint struct {
 	isSuffrageConfirm bool
 }
 
-func newLastPoint( //revive:disable-line:flag-parameter
+func NewLastPoint( //revive:disable-line:flag-parameter
 	point base.StagePoint,
 	isMajority, isSuffrageConfirm bool,
 ) (LastPoint, error) {
@@ -27,17 +26,25 @@ func newLastPoint( //revive:disable-line:flag-parameter
 	}, nil
 }
 
-func newLastPointFromVoteproof(vp base.Voteproof) (LastPoint, error) {
+func NewLastPointFromVoteproof(vp base.Voteproof) (LastPoint, error) {
 	var isSuffrageConfirm bool
 	if vp.Majority() != nil {
-		isSuffrageConfirm = isaac.IsSuffrageConfirmBallotFact(vp.Majority())
+		isSuffrageConfirm = IsSuffrageConfirmBallotFact(vp.Majority())
 	}
 
-	return newLastPoint(
+	return NewLastPoint(
 		vp.Point(),
 		vp.Result() == base.VoteResultMajority,
 		isSuffrageConfirm,
 	)
+}
+
+func (l LastPoint) IsMajority() bool {
+	return l.isMajority
+}
+
+func (l LastPoint) IsSuffrageConfirm() bool {
+	return l.isSuffrageConfirm
 }
 
 func (l LastPoint) Before( //revive:disable-line:flag-parameter
@@ -112,15 +119,15 @@ func IsNewVoteproofbyPoint( // revive:disable-line:flag-parameter
 	return false
 }
 
-func isNewVoteproof(last LastPoint, vp base.Voteproof) bool {
+func IsNewVoteproof(last LastPoint, vp base.Voteproof) bool {
 	return IsNewVoteproofbyPoint(
 		last,
 		vp.Point(),
 		vp.Result() == base.VoteResultMajority,
-		isaac.IsSuffrageConfirmBallotFact(vp.Majority()),
+		IsSuffrageConfirmBallotFact(vp.Majority()),
 	)
 }
 
-func isNewBallot(last LastPoint, point base.StagePoint, isSuffrageConfirm bool) bool {
+func IsNewBallot(last LastPoint, point base.StagePoint, isSuffrageConfirm bool) bool {
 	return last.Before(point, isSuffrageConfirm)
 }

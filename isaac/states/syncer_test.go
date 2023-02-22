@@ -78,7 +78,7 @@ func (t *testSyncer) dummyNewBlockImporterFunc() NewBlockImporterFunc {
 	}
 }
 
-func (t *testSyncer) dummyBlockMapItemFunc() SyncerBlockMapItemFunc {
+func (t *testSyncer) dummyBlockMapItemFunc() isaacblock.ImportBlocksBlockMapItemFunc {
 	return func(context.Context, base.Height, base.BlockMapItemType) (io.ReadCloser, func() error, bool, error) {
 		return io.NopCloser(&bytes.Buffer{}), func() error { return nil }, true, nil
 	}
@@ -320,7 +320,7 @@ func (t *testSyncer) TestFetchMaps() {
 			batchlimit int64,
 			blockMapf func(context.Context, base.Height) (base.BlockMap, bool, error),
 		) error {
-			return ImportBlocks(
+			return isaacblock.ImportBlocks(
 				ctx,
 				from, to,
 				batchlimit,
@@ -372,7 +372,7 @@ func (t *testSyncer) TestFetchMaps() {
 			batchlimit int64,
 			blockMapf func(context.Context, base.Height) (base.BlockMap, bool, error),
 		) error {
-			return ImportBlocks(
+			return isaacblock.ImportBlocks(
 				ctx,
 				from, to,
 				batchlimit,
@@ -419,7 +419,7 @@ func (t *testSyncer) TestFetchMaps() {
 			batchlimit int64,
 			blockMapf func(context.Context, base.Height) (base.BlockMap, bool, error),
 		) error {
-			return ImportBlocks(
+			return isaacblock.ImportBlocks(
 				ctx,
 				from, to,
 				batchlimit,
@@ -466,7 +466,7 @@ func (t *testSyncer) TestFetchMaps() {
 			batchlimit int64,
 			blockMapf func(context.Context, base.Height) (base.BlockMap, bool, error),
 		) error {
-			return ImportBlocks(
+			return isaacblock.ImportBlocks(
 				ctx,
 				from, to,
 				batchlimit,
@@ -535,7 +535,7 @@ func (t *testSyncer) TestFetchMaps() {
 			batchlimit int64,
 			blockMapf func(context.Context, base.Height) (base.BlockMap, bool, error),
 		) error {
-			return ImportBlocks(
+			return isaacblock.ImportBlocks(
 				ctx,
 				from, to,
 				batchlimit,
@@ -584,7 +584,7 @@ func (t *testSyncer) TestFetchBlockItem() {
 		batchlimit int64,
 		blockMapf func(context.Context, base.Height) (base.BlockMap, bool, error),
 	) error {
-		return ImportBlocks(
+		return isaacblock.ImportBlocks(
 			ctx,
 			from, to,
 			batchlimit,
@@ -662,7 +662,7 @@ func (t *testSyncer) TestFetchDifferentMap() {
 		batchlimit int64,
 		blockMapf func(context.Context, base.Height) (base.BlockMap, bool, error),
 	) error {
-		return ImportBlocks(
+		return isaacblock.ImportBlocks(
 			ctx,
 			from, to,
 			batchlimit,

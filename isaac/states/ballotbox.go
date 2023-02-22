@@ -25,7 +25,7 @@ type Ballotbox struct {
 	newBallotf        func(base.Ballot)
 	vpch              chan base.Voteproof
 	vrs               *util.ShardedMap[string, *voterecords]
-	lsp               *util.Locked[LastPoint]
+	lsp               *util.Locked[isaac.LastPoint]
 	removed           *util.Locked[[]*voterecords]
 	countLock         sync.Mutex
 	countAfter        time.Duration
@@ -46,7 +46,7 @@ func NewBallotbox(
 		getSuffragef:      getSuffragef,
 		vrs:               vrs,
 		vpch:              make(chan base.Voteproof, math.MaxUint16),
-		lsp:               util.EmptyLocked(LastPoint{}),
+		lsp:               util.EmptyLocked(isaac.LastPoint{}),
 		isValidVoteprooff: func(base.Voteproof, base.Suffrage) error { return nil },
 		suffrageVotef:     func(base.SuffrageWithdrawOperation) error { return nil },
 		newBallotf:        func(base.Ballot) {},
@@ -356,7 +356,7 @@ func (box *Ballotbox) vote(
 			deferred = func() []base.Voteproof {
 				last := box.LastPoint()
 
-				if vr.voteproofFromBallotsLocked(vp, last, threshold, isNewVoteproof) {
+				if vr.voteproofFromBallotsLocked(vp, last, threshold, isaac.IsNewVoteproof) {
 					box.vpch <- vp
 
 					return []base.Voteproof{vp}
@@ -378,12 +378,12 @@ func (box *Ballotbox) isNewBallot( //revive:disable-line:flag-parameter
 	point base.StagePoint,
 	isSuffrageConfirm bool,
 ) bool {
-	_, err := box.lsp.Set(func(last LastPoint, isempty bool) (v LastPoint, _ error) {
+	_, err := box.lsp.Set(func(last isaac.LastPoint, isempty bool) (v isaac.LastPoint, _ error) {
 		if isempty {
 			return v, util.ErrLockedSetIgnore.Call()
 		}
 
-		if isNewBallot(last, point, isSuffrageConfirm) {
+		if isaac.IsNewBallot(last, point, isSuffrageConfirm) {
 			return v, util.ErrLockedSetIgnore.Call()
 		}
 
@@ -393,14 +393,14 @@ func (box *Ballotbox) isNewBallot( //revive:disable-line:flag-parameter
 	return err == nil
 }
 
-func (box *Ballotbox) LastPoint() LastPoint {
+func (box *Ballotbox) LastPoint() isaac.LastPoint {
 	last, _ := box.lsp.Value()
 
 	return last
 }
 
 func (box *Ballotbox) SetLastPointFromVoteproof(vp base.Voteproof) bool {
-	p, err := newLastPointFromVoteproof(vp)
+	p, err := isaac.NewLastPointFromVoteproof(vp)
 	if err != nil {
 		return false
 	}
@@ -408,9 +408,9 @@ func (box *Ballotbox) SetLastPointFromVoteproof(vp base.Voteproof) bool {
 	return box.SetLastPoint(p)
 }
 
-func (box *Ballotbox) SetLastPoint(point LastPoint) bool {
-	_, err := box.lsp.Set(func(last LastPoint, isempty bool) (v LastPoint, _ error) {
-		if !last.Before(point.StagePoint, point.isSuffrageConfirm) {
+func (box *Ballotbox) SetLastPoint(point isaac.LastPoint) bool {
+	_, err := box.lsp.Set(func(last isaac.LastPoint, isempty bool) (v isaac.LastPoint, _ error) {
+		if !last.Before(point.StagePoint, point.IsSuffrageConfirm()) {
 			return v, errors.Errorf("old")
 		}
 
@@ -473,7 +473,7 @@ func (box *Ballotbox) countVoterecords(vr *voterecords, threshold base.Threshold
 	}
 
 	var filtered []base.Voteproof
-	_ = box.lsp.Get(func(last LastPoint, isempty bool) error {
+	_ = box.lsp.Get(func(last isaac.LastPoint, isempty bool) error {
 		if isempty {
 			filtered = vps
 
@@ -685,7 +685,7 @@ func (vr *voterecords) vote(
 	signfact base.BallotSignFact,
 	vp base.Voteproof,
 	withdraws []base.SuffrageWithdrawOperation,
-	last LastPoint,
+	last isaac.LastPoint,
 ) (voted bool, validated bool, err error) {
 	vr.Lock()
 	defer vr.Unlock()
@@ -747,7 +747,7 @@ func (vr *voterecords) finished() bool {
 
 func (vr *voterecords) count(
 	local base.Address,
-	last LastPoint,
+	last isaac.LastPoint,
 	threshold base.Threshold,
 	countAfter time.Duration,
 ) []base.Voteproof {
@@ -861,7 +861,7 @@ func (vr *voterecords) countFromVoted(
 
 func (vr *voterecords) countHolded(
 	local base.Address,
-	last LastPoint,
+	last isaac.LastPoint,
 	duration time.Duration,
 ) []base.Voteproof {
 	vr.RLock()
@@ -1194,9 +1194,9 @@ func (vr *voterecords) countWithWithdraws(
 // voteproofFromBallot finds voteproof from ballots. If voterecords is suffrage
 // confirm, the old majority voteproof will be returns.
 func (vr *voterecords) voteproofFromBallot(
-	last LastPoint,
+	last isaac.LastPoint,
 	threshold base.Threshold,
-	filter func(LastPoint, base.Voteproof) bool,
+	filter func(isaac.LastPoint, base.Voteproof) bool,
 ) base.Voteproof {
 	if vr.finished() {
 		return nil
@@ -1215,9 +1215,9 @@ func (vr *voterecords) voteproofFromBallot(
 
 func (vr *voterecords) voteproofFromBallotsLocked(
 	vp base.Voteproof,
-	last LastPoint,
+	last isaac.LastPoint,
 	threshold base.Threshold,
-	filter func(LastPoint, base.Voteproof) bool,
+	filter func(isaac.LastPoint, base.Voteproof) bool,
 ) bool {
 	vr.RLock()
 	defer vr.RUnlock()
@@ -1227,9 +1227,9 @@ func (vr *voterecords) voteproofFromBallotsLocked(
 
 func (vr *voterecords) voteproofFromBallots(
 	vp base.Voteproof,
-	last LastPoint,
+	last isaac.LastPoint,
 	threshold base.Threshold,
-	filter func(LastPoint, base.Voteproof) bool,
+	filter func(isaac.LastPoint, base.Voteproof) bool,
 ) bool {
 	if vr.finished() {
 		return false
@@ -1374,11 +1374,10 @@ func extractWithdrawsFromBallot(
 	return m, true
 }
 
-func isNewVoteproofWithSuffrageConfirmFunc(isSuffrageConfirm bool) func(LastPoint, base.Voteproof) bool {
-	return func(last LastPoint, vp base.Voteproof) bool {
+func isNewVoteproofWithSuffrageConfirmFunc(isSuffrageConfirm bool) func(isaac.LastPoint, base.Voteproof) bool {
+	return func(last isaac.LastPoint, vp base.Voteproof) bool {
 		switch {
-		case isNewVoteproof(last, vp),
-			!last.isMajority && isSuffrageConfirm:
+		case isaac.IsNewVoteproof(last, vp), isSuffrageConfirm && !last.IsMajority():
 			return true
 		default:
 			return false

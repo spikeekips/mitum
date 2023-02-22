@@ -362,7 +362,7 @@ func (st *ConsensusHandler) newVoteproof(vp base.Voteproof) error {
 	}
 }
 
-func (st *ConsensusHandler) newVoteproofWithLVPS(vp base.Voteproof, lvps LastVoteproofs) error {
+func (st *ConsensusHandler) newVoteproofWithLVPS(vp base.Voteproof, lvps isaac.LastVoteproofs) error {
 	if st.resolver != nil {
 		st.resolver.Cancel(vp.Point())
 	}
@@ -386,7 +386,7 @@ func (st *ConsensusHandler) newVoteproofWithLVPS(vp base.Voteproof, lvps LastVot
 	}
 }
 
-func (st *ConsensusHandler) newINITVoteproof(ivp base.INITVoteproof, lvps LastVoteproofs) error {
+func (st *ConsensusHandler) newINITVoteproof(ivp base.INITVoteproof, lvps isaac.LastVoteproofs) error {
 	c := lvps.Cap()
 	l := st.Log().With().
 		Dict("init_voteproof", base.VoteproofLog(ivp)).
@@ -405,7 +405,7 @@ func (st *ConsensusHandler) newINITVoteproof(ivp base.INITVoteproof, lvps LastVo
 	return nil
 }
 
-func (st *ConsensusHandler) newACCEPTVoteproof(avp base.ACCEPTVoteproof, lvps LastVoteproofs) error {
+func (st *ConsensusHandler) newACCEPTVoteproof(avp base.ACCEPTVoteproof, lvps isaac.LastVoteproofs) error {
 	lvp := lvps.Cap()
 	l := st.Log().With().
 		Dict("accept_voteproof", base.VoteproofLog(avp)).
@@ -425,7 +425,7 @@ func (st *ConsensusHandler) newACCEPTVoteproof(avp base.ACCEPTVoteproof, lvps La
 }
 
 func (st *ConsensusHandler) newINITVoteproofWithLastINITVoteproof(
-	ivp base.INITVoteproof, lvps LastVoteproofs,
+	ivp base.INITVoteproof, lvps isaac.LastVoteproofs,
 ) error {
 	livp := lvps.Cap().(base.INITVoteproof) //nolint:forcetypeassert //...
 
@@ -489,7 +489,7 @@ func (st *ConsensusHandler) newINITVoteproofWithLastINITVoteproof(
 }
 
 func (st *ConsensusHandler) newINITVoteproofWithLastACCEPTVoteproof(
-	ivp base.INITVoteproof, lvps LastVoteproofs,
+	ivp base.INITVoteproof, lvps isaac.LastVoteproofs,
 ) error {
 	lavp := lvps.Cap().(base.ACCEPTVoteproof) //nolint:forcetypeassert //...
 
@@ -542,7 +542,7 @@ func (st *ConsensusHandler) newINITVoteproofWithLastACCEPTVoteproof(
 }
 
 func (st *ConsensusHandler) newACCEPTVoteproofWithLastINITVoteproof(
-	avp base.ACCEPTVoteproof, lvps LastVoteproofs,
+	avp base.ACCEPTVoteproof, lvps isaac.LastVoteproofs,
 ) error {
 	livp := lvps.Cap().(base.INITVoteproof) //nolint:forcetypeassert //...
 
@@ -568,7 +568,7 @@ func (st *ConsensusHandler) newACCEPTVoteproofWithLastINITVoteproof(
 }
 
 func (st *ConsensusHandler) newACCEPTVoteproofWithLastACCEPTVoteproof(
-	avp base.ACCEPTVoteproof, lvps LastVoteproofs,
+	avp base.ACCEPTVoteproof, lvps isaac.LastVoteproofs,
 ) error {
 	lavp := lvps.Cap().(base.ACCEPTVoteproof) //nolint:forcetypeassert //...
 
@@ -721,7 +721,7 @@ func (st *ConsensusHandler) checkSuffrageVoting(ivp base.INITVoteproof) (bool, e
 
 func (st *ConsensusHandler) checkStuckVoteproof(
 	vp base.Voteproof,
-	lvps LastVoteproofs,
+	lvps isaac.LastVoteproofs,
 ) (bool, error) {
 	if _, ok := vp.(base.StuckVoteproof); !ok {
 		return true, nil

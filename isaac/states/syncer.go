@@ -2,7 +2,6 @@ package isaacstates
 
 import (
 	"context"
-	"io"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -11,14 +10,12 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
+	isaacblock "github.com/spikeekips/mitum/isaac/block"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 )
 
 type (
-	SyncerBlockMapFunc     func(context.Context, base.Height) (base.BlockMap, bool, error)
-	SyncerBlockMapItemFunc func(
-		context.Context, base.Height, base.BlockMapItemType) (io.ReadCloser, func() error, bool, error)
 	NewBlockImporterFunc   func(base.BlockMap) (isaac.BlockImporter, error)
 	SyncerLastBlockMapFunc func(_ context.Context, manifest util.Hash) (
 		_ base.BlockMap, updated bool, _ error) // NOTE BlockMap.IsValid() should be called
@@ -32,7 +29,7 @@ type (
 
 type SyncerArgs struct {
 	LastBlockMapFunc     SyncerLastBlockMapFunc
-	BlockMapFunc         SyncerBlockMapFunc
+	BlockMapFunc         isaacblock.ImportBlocksBlockMapFunc
 	TempSyncPool         isaac.TempSyncPool
 	WhenStoppedFunc      func() error
 	RemovePrevBlockFunc  func(base.Height) (bool, error)

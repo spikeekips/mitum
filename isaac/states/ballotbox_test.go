@@ -19,8 +19,8 @@ import (
 func mustNewLastPoint(
 	point base.StagePoint,
 	isMajority, isSuffrageConfirm bool,
-) LastPoint {
-	p, err := newLastPoint(point, isMajority, isSuffrageConfirm)
+) isaac.LastPoint {
+	p, err := isaac.NewLastPoint(point, isMajority, isSuffrageConfirm)
 	if err != nil {
 		panic(err)
 	}
@@ -815,7 +815,7 @@ func (t *testBallotbox) TestAsyncVoterecords() {
 			defer sem.Release(1)
 
 			bl := t.initBallot(nodes[i], nil, stagepoint.Point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil, nil)
-			_, _, _ = vr.vote(bl.BallotSignFact(), bl.Voteproof(), nil, LastPoint{})
+			_, _, _ = vr.vote(bl.BallotSignFact(), bl.Voteproof(), nil, isaac.LastPoint{})
 
 			if i%3 == 0 {
 				_ = vr.count(base.RandomAddress(""), mustNewLastPoint(base.ZeroStagePoint, true, false), th, 0)

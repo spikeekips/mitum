@@ -1,4 +1,4 @@
-package isaacstates
+package isaac
 
 import (
 	"testing"
@@ -101,7 +101,7 @@ func TestLastPointIsNewVoteproof(tt *testing.T) {
 		i := i
 		c := c
 		t.Run(c.name, func() {
-			last, err := newLastPoint(
+			last, err := NewLastPoint(
 				base.NewStagePoint(
 					base.RawPoint(
 						int64(c.last[0].(int)),
@@ -217,7 +217,7 @@ func TestLastPointIsNewBallot(tt *testing.T) {
 		i := i
 		c := c
 		t.Run(c.name, func() {
-			last, err := newLastPoint(
+			last, err := NewLastPoint(
 				base.NewStagePoint(
 					base.RawPoint(
 						int64(c.last[0].(int)),
@@ -239,7 +239,7 @@ func TestLastPointIsNewBallot(tt *testing.T) {
 			)
 
 			isSuffrageConfirm := c.target[3].(bool)
-			result := isNewBallot(
+			result := IsNewBallot(
 				last,
 				targetpoint,
 				isSuffrageConfirm,

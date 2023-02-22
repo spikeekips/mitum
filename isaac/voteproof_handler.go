@@ -1,4 +1,4 @@
-package isaacstates
+package isaac
 
 import (
 	"sync"
@@ -46,12 +46,12 @@ func (l *LastVoteproofsHandler) IsNew(vp base.Voteproof) bool {
 		return true
 	}
 
-	last, err := newLastPointFromVoteproof(lvp)
+	last, err := NewLastPointFromVoteproof(lvp)
 	if err != nil {
 		return false
 	}
 
-	return isNewVoteproof(last, vp)
+	return IsNewVoteproof(last, vp)
 }
 
 func (l *LastVoteproofsHandler) Set(vp base.Voteproof) bool {
@@ -65,12 +65,12 @@ func (l *LastVoteproofsHandler) Set(vp base.Voteproof) bool {
 	}
 
 	if lvp := lvps.Cap(); lvp != nil {
-		last, err := newLastPointFromVoteproof(lvp)
+		last, err := NewLastPointFromVoteproof(lvp)
 		if err != nil {
 			return false
 		}
 
-		if !isNewVoteproof(last, vp) {
+		if !IsNewVoteproof(last, vp) {
 			return false
 		}
 	}
@@ -177,12 +177,12 @@ func (l LastVoteproofs) IsNew(vp base.Voteproof) bool {
 		return true
 	}
 
-	last, err := newLastPointFromVoteproof(lvp)
+	last, err := NewLastPointFromVoteproof(lvp)
 	if err != nil {
 		return false
 	}
 
-	return isNewVoteproof(last, vp)
+	return IsNewVoteproof(last, vp)
 }
 
 func findLastVoteproofs(ivp, avp base.Voteproof) base.Voteproof {

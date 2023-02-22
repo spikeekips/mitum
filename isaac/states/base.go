@@ -17,8 +17,8 @@ type baseHandler struct {
 	ctx   context.Context //nolint:containedctx //...
 	*logging.Logging
 	params                *isaac.LocalParams
-	voteproofsFunc        func(base.StagePoint) (LastVoteproofs, bool)
-	lastVoteproofFunc     func() LastVoteproofs
+	voteproofsFunc        func(base.StagePoint) (isaac.LastVoteproofs, bool)
+	lastVoteproofFunc     func() isaac.LastVoteproofs
 	setLastVoteproofFunc  func(base.Voteproof) bool
 	forceSetLastVoteproof func(base.Voteproof) bool
 	cancel                func()
@@ -34,7 +34,7 @@ func newBaseHandler(
 	local base.LocalNode,
 	params *isaac.LocalParams,
 ) *baseHandler {
-	lvps := NewLastVoteproofsHandler()
+	lvps := isaac.NewLastVoteproofsHandler()
 
 	return &baseHandler{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
@@ -43,10 +43,10 @@ func newBaseHandler(
 		stt:    state,
 		local:  local,
 		params: params,
-		voteproofsFunc: func(point base.StagePoint) (LastVoteproofs, bool) {
+		voteproofsFunc: func(point base.StagePoint) (isaac.LastVoteproofs, bool) {
 			return lvps.Voteproofs(point)
 		},
-		lastVoteproofFunc: func() LastVoteproofs {
+		lastVoteproofFunc: func() isaac.LastVoteproofs {
 			return lvps.Last()
 		},
 		setLastVoteproofFunc: func(vp base.Voteproof) bool {
@@ -101,11 +101,11 @@ func (st *baseHandler) state() StateType {
 	return st.stt
 }
 
-func (st *baseHandler) voteproofs(point base.StagePoint) (LastVoteproofs, bool) {
+func (st *baseHandler) voteproofs(point base.StagePoint) (isaac.LastVoteproofs, bool) {
 	return st.voteproofsFunc(point)
 }
 
-func (st *baseHandler) lastVoteproofs() LastVoteproofs {
+func (st *baseHandler) lastVoteproofs() isaac.LastVoteproofs {
 	return st.lastVoteproofFunc()
 }
 
@@ -141,10 +141,10 @@ func (st *baseHandler) setStates(sts *States) {
 
 	st.timers = st.sts.timers
 
-	st.voteproofsFunc = func(point base.StagePoint) (LastVoteproofs, bool) {
+	st.voteproofsFunc = func(point base.StagePoint) (isaac.LastVoteproofs, bool) {
 		return st.sts.voteproofs(point)
 	}
-	st.lastVoteproofFunc = func() LastVoteproofs {
+	st.lastVoteproofFunc = func() isaac.LastVoteproofs {
 		return st.sts.lastVoteproof()
 	}
 	st.setLastVoteproofFunc = func(vp base.Voteproof) bool {
@@ -152,11 +152,11 @@ func (st *baseHandler) setStates(sts *States) {
 	}
 }
 
-func (st *baseHandler) setNewVoteproof(vp base.Voteproof) (LastVoteproofs, base.Voteproof, bool) {
+func (st *baseHandler) setNewVoteproof(vp base.Voteproof) (isaac.LastVoteproofs, base.Voteproof, bool) {
 	lvps := st.lastVoteproofs()
 
 	if st.sts == nil && !lvps.IsNew(vp) {
-		return LastVoteproofs{}, nil, false
+		return isaac.LastVoteproofs{}, nil, false
 	}
 
 	return lvps, vp, st.setLastVoteproof(vp)

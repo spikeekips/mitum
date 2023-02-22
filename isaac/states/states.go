@@ -24,7 +24,7 @@ var (
 type StatesArgs struct {
 	Ballotbox              *Ballotbox
 	BallotStuckResolver    BallotStuckResolver
-	LastVoteproofsHandler  *LastVoteproofsHandler
+	LastVoteproofsHandler  *isaac.LastVoteproofsHandler
 	IsInSyncSourcePoolFunc func(base.Address) bool
 	BallotBroadcaster      BallotBroadcaster
 	WhenStateSwitchedFunc  func(StateType)
@@ -32,7 +32,7 @@ type StatesArgs struct {
 
 func NewStatesArgs() *StatesArgs {
 	return &StatesArgs{
-		LastVoteproofsHandler:  NewLastVoteproofsHandler(),
+		LastVoteproofsHandler:  isaac.NewLastVoteproofsHandler(),
 		IsInSyncSourcePoolFunc: func(base.Address) bool { return false },
 		WhenStateSwitchedFunc:  func(StateType) {},
 	}
@@ -451,11 +451,11 @@ func (st *States) stateSwitchContextLog(sctx switchContext, current handler) zer
 		Dict("next_state", switchContextLog(sctx)).Logger()
 }
 
-func (st *States) voteproofs(point base.StagePoint) (LastVoteproofs, bool) {
+func (st *States) voteproofs(point base.StagePoint) (isaac.LastVoteproofs, bool) {
 	return st.args.LastVoteproofsHandler.Voteproofs(point)
 }
 
-func (st *States) lastVoteproof() LastVoteproofs {
+func (st *States) lastVoteproof() isaac.LastVoteproofs {
 	return st.args.LastVoteproofsHandler.Last()
 }
 
