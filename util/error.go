@@ -19,10 +19,12 @@ type MError struct {
 }
 
 func NewMError(s string, a ...interface{}) MError {
-	f := FuncCaller(3)
+	return NewIDMError(fmt.Sprintf("%+v", FuncCaller(3)), s, a...)
+}
 
+func NewIDMError(id, s string, a ...interface{}) MError {
 	return MError{
-		id:  fmt.Sprintf("%+v", f),
+		id:  id,
 		msg: strings.TrimSpace(fmt.Sprintf(s, a...)),
 	}
 }
