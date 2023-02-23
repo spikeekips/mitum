@@ -131,6 +131,7 @@ func (t *testValidateLastBlocks) TestLastBlockMapNotFound() {
 		_, db := t.buildBlocks("no1", 3)
 
 		temp, _ := os.MkdirTemp("", "mitum-test-imported")
+		defer os.RemoveAll(temp)
 
 		err := ValidateLastBlocks(temp, t.Encs, t.Enc, db, t.LocalParams.NetworkID())
 		t.Error(err)

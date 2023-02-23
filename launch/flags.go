@@ -2,6 +2,7 @@ package launch
 
 import (
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -194,4 +195,52 @@ type DevFlags struct {
 	DelaySyncer         time.Duration `name:"delay-syncer" help:"initial delay when sync one block" group:"dev"`
 	//revive:enable:struct-tag
 	// revive:enable:line-length-limit
+}
+
+type RangeFlag struct {
+	from *uint64
+	to   *uint64
+}
+
+func (f *RangeFlag) UnmarshalText(b []byte) error {
+	e := util.StringErrorFunc("failed to parse range flag, %q", string(b))
+
+	n := strings.SplitN(strings.TrimSpace(string(b)), "-", 2)
+
+	switch {
+	case len(n) < 1:
+		return nil
+	case len(n) > 2: //nolint:gomnd //...
+		return e(nil, "wrong format")
+	case len(n) < 2 && len(n[0]) < 1:
+		return nil
+	}
+
+	if len(n) > 0 && len(n[0]) > 0 {
+		switch i, err := strconv.ParseUint(n[0], 10, 64); {
+		case err != nil:
+			return e(err, "")
+		default:
+			f.from = &i
+		}
+	}
+
+	if len(n) > 1 && len(n[1]) > 0 {
+		switch i, err := strconv.ParseUint(n[1], 10, 64); {
+		case err != nil:
+			return e(err, "")
+		default:
+			f.to = &i
+		}
+	}
+
+	return nil
+}
+
+func (f *RangeFlag) From() *uint64 {
+	return f.from
+}
+
+func (f *RangeFlag) To() *uint64 {
+	return f.to
 }

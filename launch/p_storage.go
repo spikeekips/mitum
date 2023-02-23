@@ -422,37 +422,6 @@ func PCheckBlocksOfStorage(pctx context.Context) (context.Context, error) {
 	return pctx, nil
 }
 
-func PLastHeightOfLocalFS(pctx context.Context, from string) (last base.Height, _ error) {
-	e := util.StringErrorFunc("failed to find last height from localfs")
-
-	last = base.NilHeight
-
-	var enc encoder.Encoder
-	var params *isaac.LocalParams
-
-	if err := util.LoadFromContextOK(pctx,
-		EncoderContextKey, &enc,
-		LocalParamsContextKey, &params,
-	); err != nil {
-		return last, e(err, "")
-	}
-
-	switch i, found, err := isaacblock.FindLastHeightFromLocalFS(from, enc, params.NetworkID()); {
-	case err != nil:
-		return last, e(err, "")
-	case !found:
-		return last, nil
-	default:
-		last = i
-
-		if err := isaacblock.ValidateAllBlockMapsFromLocalFS(from, enc, last, params.NetworkID()); err != nil {
-			return last, e(err, "")
-		}
-
-		return last, nil
-	}
-}
-
 func LoadPermanentDatabase(
 	uri, id string, encs *encoder.Encoders, enc encoder.Encoder, root string,
 ) (*leveldbstorage.Storage, isaac.PermanentDatabase, error) {

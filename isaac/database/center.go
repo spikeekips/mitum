@@ -508,7 +508,8 @@ func (db *Center) MergeBlockWriteDatabase(w isaac.BlockWriteDatabase) error {
 	}
 
 	if preheight > base.NilHeight && temp.Height() != preheight+1 {
-		return e(nil, "new TempDatabase has wrong height, %d != %d + 1", temp.Height(), preheight)
+		return e(nil,
+			"new TempDatabase has wrong height; temp = prev + 1, temp=%d != prev=%d", temp.Height(), preheight)
 	}
 
 	if err := temp.Merge(); err != nil {

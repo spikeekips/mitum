@@ -16,17 +16,21 @@ import (
 	"github.com/spikeekips/mitum/util/ps"
 )
 
-var PNameImportBlocks = ps.Name("import-blocks")
+var (
+	PNameImportBlocks = ps.Name("import-blocks")
+	PNameCheckStorage = ps.Name("check-blocks")
+)
 
 type ImportCommand struct { //nolint:govet //...
 	// revive:disable:line-length-limit
 	launch.DesignFlag
-	Source          string            `arg:"" name:"source directory" help:"block data directory to import" type:"existingdir"`
-	FromHeight      launch.HeightFlag `name:"from-height" help:"import from height" default:"0"`
-	Vault           string            `name:"vault" help:"privatekey path of vault"`
+	Source          string           `arg:"" name:"source directory" help:"block data directory to import" type:"existingdir"`
+	HeightRange     launch.RangeFlag `name:"range" help:"<from>-<to>" default:"0-"`
+	Vault           string           `name:"vault" help:"privatekey path of vault"`
 	log             *zerolog.Logger
 	launch.DevFlags `embed:"" prefix:"dev."`
 	fromHeight      base.Height
+	toHeight        base.Height
 	prevblockmap    base.BlockMap
 	// revive:enable:line-length-limit
 }
@@ -37,9 +41,26 @@ func (cmd *ImportCommand) Run(pctx context.Context) error {
 		return err
 	}
 
-	cmd.fromHeight = cmd.FromHeight.Height()
-	if cmd.fromHeight < base.GenesisHeight {
-		cmd.fromHeight = base.GenesisHeight
+	cmd.fromHeight, cmd.toHeight = base.NilHeight, base.NilHeight
+
+	if h := cmd.HeightRange.From(); h != nil {
+		cmd.fromHeight = base.Height(*h)
+
+		if err := cmd.fromHeight.IsValid(nil); err != nil {
+			return errors.WithMessagef(err, "invalid from height; from=%d", *h)
+		}
+	}
+
+	if h := cmd.HeightRange.To(); h != nil {
+		cmd.toHeight = base.Height(*h)
+
+		if err := cmd.toHeight.IsValid(nil); err != nil {
+			return errors.WithMessagef(err, "invalid to height; to=%d", *h)
+		}
+
+		if cmd.fromHeight > cmd.toHeight {
+			return errors.Errorf("from height is higher than to; from=%d to=%d", cmd.fromHeight, cmd.toHeight)
+		}
 	}
 
 	log.Log().Debug().
@@ -48,6 +69,7 @@ func (cmd *ImportCommand) Run(pctx context.Context) error {
 		Interface("dev", cmd.DevFlags).
 		Str("source", cmd.Source).
 		Interface("from_height", cmd.fromHeight).
+		Interface("to_height", cmd.toHeight).
 		Msg("flags")
 
 	cmd.log = log.Log()
@@ -58,11 +80,8 @@ func (cmd *ImportCommand) Run(pctx context.Context) error {
 	pctx = context.WithValue(pctx, launch.VaultContextKey, cmd.Vault)
 	//revive:enable:modifies-parameter
 
-	pps := launch.DefaultINITPS()
+	pps := launch.DefaultImportPS()
 	_ = pps.SetLogging(log)
-
-	_ = pps.POK(launch.PNameDesign).
-		PostRemoveOK(launch.PNameGenesisDesign)
 
 	_ = pps.
 		RemoveOK(launch.PNameGenerateGenesis)
@@ -83,23 +102,8 @@ func (cmd *ImportCommand) Run(pctx context.Context) error {
 	return err
 }
 
-func (cmd *ImportCommand) importBlocks(ctx context.Context) (context.Context, error) {
+func (cmd *ImportCommand) importBlocks(pctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to import blocks")
-
-	last := base.NilHeight
-
-	switch i, err := launch.PLastHeightOfLocalFS(ctx, cmd.Source); {
-	case err != nil:
-		return ctx, e(err, "")
-	case i < base.GenesisHeight:
-		return ctx, e(nil, "last height not found in source")
-	case i < cmd.fromHeight:
-		return ctx, e(nil, "last, %d is lower than --from-height, %d", last, cmd.fromHeight)
-	default:
-		last = i
-	}
-
-	cmd.log.Debug().Interface("height", last).Msg("last height found in source")
 
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
@@ -108,7 +112,7 @@ func (cmd *ImportCommand) importBlocks(ctx context.Context) (context.Context, er
 	var params *isaac.LocalParams
 	var db isaac.Database
 
-	if err := util.LoadFromContextOK(ctx,
+	if err := util.LoadFromContextOK(pctx,
 		launch.EncodersContextKey, &encs,
 		launch.EncoderContextKey, &enc,
 		launch.DesignContextKey, &design,
@@ -116,22 +120,22 @@ func (cmd *ImportCommand) importBlocks(ctx context.Context) (context.Context, er
 		launch.LocalParamsContextKey, &params,
 		launch.CenterDatabaseContextKey, &db,
 	); err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
-	if cmd.fromHeight > base.GenesisHeight {
-		switch i, found, err := db.BlockMap(cmd.fromHeight - 1); {
-		case err != nil:
-			return ctx, err
-		case !found:
-			return ctx, errors.Errorf("previous blockmap not found for from height, %d", cmd.fromHeight-1)
-		default:
-			cmd.prevblockmap = i
-		}
+	var last base.Height
+
+	switch i, err := cmd.checkHeights(pctx); {
+	case err != nil:
+		return pctx, e(err, "")
+	default:
+		last = i
 	}
+
+	cmd.log.Debug().Interface("height", last).Msg("last height found in source")
 
 	if err := cmd.validateSourceBlocks(last, enc, params); err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
 	if err := launch.ImportBlocks(
@@ -144,14 +148,92 @@ func (cmd *ImportCommand) importBlocks(ctx context.Context) (context.Context, er
 		db,
 		params,
 	); err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
 	if err := cmd.validateImported(last, enc, design, params, db); err != nil {
-		return ctx, e(err, "")
+		return pctx, e(err, "")
 	}
 
-	return ctx, nil
+	return pctx, nil
+}
+
+func (cmd *ImportCommand) checkHeights(pctx context.Context) (base.Height, error) {
+	var last base.Height
+
+	var encs *encoder.Encoders
+	var enc encoder.Encoder
+	var params *isaac.LocalParams
+	var db isaac.Database
+
+	if err := util.LoadFromContextOK(pctx,
+		launch.EncodersContextKey, &encs,
+		launch.EncoderContextKey, &enc,
+		launch.LocalParamsContextKey, &params,
+		launch.CenterDatabaseContextKey, &db,
+	); err != nil {
+		return last, err
+	}
+
+	lastlocalheight := base.NilHeight
+
+	switch i, found, err := db.LastBlockMap(); {
+	case err != nil:
+		return last, err
+	case !found:
+	case cmd.fromHeight < base.GenesisHeight:
+		cmd.fromHeight = i.Manifest().Height() + 1
+
+		lastlocalheight = i.Manifest().Height()
+	case i.Manifest().Height() != cmd.fromHeight-1:
+		return last, errors.Errorf(
+			"from height should be same with last height + 1; from=%d last=%d", cmd.fromHeight, i.Manifest().Height())
+	default:
+		lastlocalheight = i.Manifest().Height()
+	}
+
+	if cmd.toHeight > base.NilHeight && cmd.toHeight <= lastlocalheight {
+		return last, errors.Errorf("to height should be higher than last; to=%d last=%d", cmd.toHeight, lastlocalheight)
+	}
+
+	switch {
+	case cmd.fromHeight < base.GenesisHeight:
+		cmd.fromHeight = base.GenesisHeight
+	case cmd.fromHeight > base.NilHeight:
+		switch i, found, err := db.BlockMap(cmd.fromHeight - 1); {
+		case err != nil:
+			return last, err
+		case !found:
+			return last, errors.Errorf("previous blockmap not found for from height, %d", cmd.fromHeight-1)
+		default:
+			cmd.prevblockmap = i
+		}
+	}
+
+	switch i, found, err := isaacblock.FindLastHeightFromLocalFS(cmd.Source, enc, params.NetworkID()); {
+	case err != nil:
+		return last, err
+	case !found, i < base.GenesisHeight:
+		return last, errors.Errorf("last height not found in source")
+	case i < cmd.toHeight:
+		return last, errors.Errorf("last is lower than to height; last=%d to=%d", i, cmd.toHeight)
+	case cmd.toHeight > base.NilHeight:
+		last = cmd.toHeight
+	default:
+		last = i
+	}
+
+	if cmd.fromHeight > last {
+		return last, errors.Errorf("from height is higher than to; from=%d to=%d", cmd.fromHeight, last)
+	}
+
+	cmd.log.Debug().
+		Interface("from_height", cmd.fromHeight).
+		Interface("to_height", cmd.toHeight).
+		Interface("last", last).
+		Msg("heights checked")
+
+	return last, nil
 }
 
 func (cmd *ImportCommand) validateSourceBlocks(
@@ -248,7 +330,7 @@ func (cmd *ImportCommand) validateImportedBlocks(
 					case err != nil:
 						return err
 					case !found:
-						return util.ErrNotFound.Errorf("blockmap not found in database; %q", m.Manifest().Height())
+						return util.ErrNotFound.Errorf("blockmap not found in database; %d", m.Manifest().Height())
 					default:
 						if err := base.IsEqualBlockMap(m, i); err != nil {
 							return err
