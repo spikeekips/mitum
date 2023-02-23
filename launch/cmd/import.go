@@ -2,7 +2,6 @@ package launchcmd
 
 import (
 	"context"
-	"path/filepath"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -25,8 +24,9 @@ type ImportCommand struct { //nolint:govet //...
 	// revive:disable:line-length-limit
 	launch.DesignFlag
 	Source          string           `arg:"" name:"source directory" help:"block data directory to import" type:"existingdir"`
-	HeightRange     launch.RangeFlag `name:"range" help:"<from>-<to>" default:"0-"`
+	HeightRange     launch.RangeFlag `name:"range" help:"<from>-<to>" default:""`
 	Vault           string           `name:"vault" help:"privatekey path of vault"`
+	Do              bool             `name:"do" help:"really do import"`
 	log             *zerolog.Logger
 	launch.DevFlags `embed:"" prefix:"dev."`
 	fromHeight      base.Height
@@ -34,6 +34,8 @@ type ImportCommand struct { //nolint:govet //...
 	prevblockmap    base.BlockMap
 	// revive:enable:line-length-limit
 }
+
+// FIXME dry run
 
 func (cmd *ImportCommand) Run(pctx context.Context) error {
 	var log *logging.Logging
@@ -70,6 +72,7 @@ func (cmd *ImportCommand) Run(pctx context.Context) error {
 		Str("source", cmd.Source).
 		Interface("from_height", cmd.fromHeight).
 		Interface("to_height", cmd.toHeight).
+		Bool("do", cmd.Do).
 		Msg("flags")
 
 	cmd.log = log.Log()
@@ -82,9 +85,6 @@ func (cmd *ImportCommand) Run(pctx context.Context) error {
 
 	pps := launch.DefaultImportPS()
 	_ = pps.SetLogging(log)
-
-	_ = pps.
-		RemoveOK(launch.PNameGenerateGenesis)
 
 	_ = pps.AddOK(PNameImportBlocks, cmd.importBlocks, nil, launch.PNameStorage)
 
@@ -132,10 +132,25 @@ func (cmd *ImportCommand) importBlocks(pctx context.Context) (context.Context, e
 		last = i
 	}
 
-	cmd.log.Debug().Interface("height", last).Msg("last height found in source")
+	if cmd.fromHeight > base.GenesisHeight {
+		switch i, found, err := db.BlockMap(cmd.fromHeight - 1); {
+		case err != nil:
+			return pctx, err
+		case !found:
+			return pctx, errors.Errorf("previous blockmap not found for from height, %d", cmd.fromHeight-1)
+		default:
+			cmd.prevblockmap = i
+		}
+	}
 
 	if err := cmd.validateSourceBlocks(last, enc, params); err != nil {
 		return pctx, e(err, "")
+	}
+
+	if !cmd.Do {
+		cmd.log.Debug().Msg("to import really blocks, `--do`")
+
+		return pctx, nil
 	}
 
 	if err := launch.ImportBlocks(
@@ -175,7 +190,20 @@ func (cmd *ImportCommand) checkHeights(pctx context.Context) (base.Height, error
 		return last, err
 	}
 
-	lastlocalheight := base.NilHeight
+	switch fromHeight, toHeight, i, err := checkLastHeight(pctx, cmd.Source, cmd.fromHeight, cmd.toHeight); {
+	case err != nil:
+		return last, err
+	default:
+		cmd.fromHeight = fromHeight
+		cmd.toHeight = toHeight
+		last = i
+
+		cmd.log.Debug().
+			Interface("from_height", cmd.fromHeight).
+			Interface("to_height", cmd.toHeight).
+			Interface("last", last).
+			Msg("heights checked")
+	}
 
 	switch i, found, err := db.LastBlockMap(); {
 	case err != nil:
@@ -183,48 +211,9 @@ func (cmd *ImportCommand) checkHeights(pctx context.Context) (base.Height, error
 	case !found:
 	case cmd.fromHeight < base.GenesisHeight:
 		cmd.fromHeight = i.Manifest().Height() + 1
-
-		lastlocalheight = i.Manifest().Height()
 	case i.Manifest().Height() != cmd.fromHeight-1:
 		return last, errors.Errorf(
 			"from height should be same with last height + 1; from=%d last=%d", cmd.fromHeight, i.Manifest().Height())
-	default:
-		lastlocalheight = i.Manifest().Height()
-	}
-
-	if cmd.toHeight > base.NilHeight && cmd.toHeight <= lastlocalheight {
-		return last, errors.Errorf("to height should be higher than last; to=%d last=%d", cmd.toHeight, lastlocalheight)
-	}
-
-	switch {
-	case cmd.fromHeight < base.GenesisHeight:
-		cmd.fromHeight = base.GenesisHeight
-	case cmd.fromHeight > base.NilHeight:
-		switch i, found, err := db.BlockMap(cmd.fromHeight - 1); {
-		case err != nil:
-			return last, err
-		case !found:
-			return last, errors.Errorf("previous blockmap not found for from height, %d", cmd.fromHeight-1)
-		default:
-			cmd.prevblockmap = i
-		}
-	}
-
-	switch i, found, err := isaacblock.FindLastHeightFromLocalFS(cmd.Source, enc, params.NetworkID()); {
-	case err != nil:
-		return last, err
-	case !found, i < base.GenesisHeight:
-		return last, errors.Errorf("last height not found in source")
-	case i < cmd.toHeight:
-		return last, errors.Errorf("last is lower than to height; last=%d to=%d", i, cmd.toHeight)
-	case cmd.toHeight > base.NilHeight:
-		last = cmd.toHeight
-	default:
-		last = i
-	}
-
-	if cmd.fromHeight > last {
-		return last, errors.Errorf("from height is higher than to; from=%d to=%d", cmd.fromHeight, last)
 	}
 
 	cmd.log.Debug().
@@ -277,107 +266,85 @@ func (cmd *ImportCommand) validateImported(
 
 	root := launch.LocalFSDataDirectory(design.Storage.Base)
 
-	switch h, found, err := isaacblock.FindHighestDirectory(root); {
-	case err != nil:
-		return e(err, "")
-	case !found:
-		return util.ErrNotFound.Errorf("height directories not found")
-	default:
-		rel, err := filepath.Rel(root, h)
-		if err != nil {
-			return e(err, "")
-		}
-
-		switch found, err := isaacblock.HeightFromDirectory(rel); {
-		case err != nil:
-			return e(err, "")
-		case found != last:
-			return util.ErrNotFound.Errorf("last height not found; found=%d last=%d", found, last)
-		}
-	}
-
-	if err := cmd.validateImportedBlocks(root, last, enc, params, db); err != nil {
-		return e(err, "")
-	}
-
-	return nil
-}
-
-func (cmd *ImportCommand) validateImportedBlocks(
-	root string,
-	last base.Height,
-	enc encoder.Encoder,
-	params *isaac.LocalParams,
-	db isaac.Database,
-) error {
-	e := util.StringErrorFunc("failed to validate imported blocks")
-
-	d := last - cmd.fromHeight
-
-	if err := util.BatchWork(
-		context.Background(),
-		uint64(d.Int64())+1,
-		333, //nolint:gomnd //...
-		func(context.Context, uint64) error {
-			return nil
-		},
-		func(_ context.Context, i, _ uint64) error {
-			height := base.Height(int64(i) + cmd.fromHeight.Int64())
-
-			return isaacblock.ValidateBlockFromLocalFS(height, root, enc, params.NetworkID(),
-				func(m base.BlockMap) error {
-					switch i, found, err := db.BlockMap(m.Manifest().Height()); {
-					case err != nil:
-						return err
-					case !found:
-						return util.ErrNotFound.Errorf("blockmap not found in database; %d", m.Manifest().Height())
-					default:
-						if err := base.IsEqualBlockMap(m, i); err != nil {
-							return err
-						}
-
-						return nil
-					}
-				},
-				func(op base.Operation) error {
-					switch found, err := db.ExistsKnownOperation(op.Hash()); {
-					case err != nil:
-						return err
-					case !found:
-						return util.ErrNotFound.Errorf("operation not found in database; %q", op.Hash())
-					default:
-						return nil
-					}
-				},
-				func(st base.State) error {
-					switch rst, found, err := db.State(st.Key()); {
-					case err != nil:
-						return err
-					case !found:
-						return util.ErrNotFound.Errorf("state not found in State")
-					case !base.IsEqualState(st, rst):
-						return errors.Errorf("states does not match")
-					}
-
-					ops := st.Operations()
-					for j := range ops {
-						switch found, err := db.ExistsInStateOperation(ops[j]); {
-						case err != nil:
-							return err
-						case !found:
-							return util.ErrNotFound.Errorf("operation of state not found in database")
-						}
-					}
-
-					return nil
-				},
-			)
-		},
-	); err != nil {
+	if err := isaacblock.ValidateBlocksFromStorage(root, cmd.fromHeight, last, enc, params, db, nil); err != nil {
 		return e(err, "")
 	}
 
 	cmd.log.Debug().Msg("imported blocks validated")
 
 	return nil
+}
+
+func checkLastHeight(pctx context.Context, source string, fromHeight, toHeight base.Height) (
+	base.Height,
+	base.Height,
+	base.Height,
+	error,
+) {
+	var last base.Height
+
+	var encs *encoder.Encoders
+	var enc encoder.Encoder
+	var params *isaac.LocalParams
+	var db isaac.Database
+
+	if err := util.LoadFromContextOK(pctx,
+		launch.EncodersContextKey, &encs,
+		launch.EncoderContextKey, &enc,
+		launch.LocalParamsContextKey, &params,
+		launch.CenterDatabaseContextKey, &db,
+	); err != nil {
+		return fromHeight, toHeight, last, err
+	}
+
+	lastlocalheight := base.NilHeight
+
+	switch i, found, err := db.LastBlockMap(); {
+	case err != nil:
+		return fromHeight, toHeight, last, err
+	case !found:
+	default:
+		lastlocalheight = i.Manifest().Height()
+	}
+
+	if toHeight > base.NilHeight && toHeight <= lastlocalheight {
+		return fromHeight, toHeight, last, errors.Errorf(
+			"to height should be higher than last; to=%d last=%d", toHeight, lastlocalheight)
+	}
+
+	switch {
+	case fromHeight < base.GenesisHeight:
+		fromHeight = base.GenesisHeight //revive:disable-line:modifies-parameter
+	case fromHeight > base.NilHeight:
+		switch _, found, err := db.BlockMap(fromHeight - 1); {
+		case err != nil:
+			return fromHeight, toHeight, last, err
+		case !found:
+			return fromHeight, toHeight, last, errors.Errorf(
+				"previous blockmap not found for from height, %d", fromHeight-1)
+		}
+	}
+
+	switch i, found, err := isaacblock.FindLastHeightFromLocalFS(source, enc, params.NetworkID()); {
+	case err != nil:
+		return fromHeight, toHeight, last, err
+	case !found, i < base.GenesisHeight:
+		return fromHeight, toHeight, last, errors.Errorf("last height not found in source")
+	case i < toHeight:
+		return fromHeight, toHeight, last, errors.Errorf("last is lower than to height; last=%d to=%d", i, toHeight)
+	case toHeight > base.NilHeight:
+		last = toHeight
+	default:
+		last = i
+	}
+
+	switch {
+	case fromHeight > last:
+		return fromHeight, toHeight, last, errors.Errorf(
+			"from height is higher than to; from=%d to=%d", fromHeight, last)
+	case fromHeight < base.GenesisHeight:
+		fromHeight = base.GenesisHeight //revive:disable-line:modifies-parameter
+	}
+
+	return fromHeight, toHeight, last, nil
 }

@@ -3,7 +3,7 @@ package launch
 import "github.com/spikeekips/mitum/util/ps"
 
 func DefaultImportPS() *ps.PS {
-	pps := ps.NewPS("cmd-init")
+	pps := ps.NewPS("cmd-import")
 
 	_ = pps.
 		AddOK(PNameEncoder, PEncoder, nil).
@@ -19,12 +19,11 @@ func DefaultImportPS() *ps.PS {
 		PostAddOK(PNameCheckDesign, PCheckDesign)
 
 	_ = pps.POK(PNameStorage).
-		PreAddOK(PNameCheckLocalFS, PCheckLocalFS).
+		PreAddOK(PNameCheckLocalFS, PCheckAndCreateLocalFS).
 		PreAddOK(PNameLoadDatabase, PLoadDatabase).
 		PostAddOK(PNameCheckLeveldbStorage, PCheckLeveldbStorage).
 		PostAddOK(PNameLoadFromDatabase, PLoadFromDatabase).
-		PostAddOK(PNameCheckBlocksOfStorage, PCheckBlocksOfStorage).
-		PostAddOK(PNameNodeInfo, PNodeInfo)
+		PostAddOK(PNameCheckBlocksOfStorage, PCheckBlocksOfStorage)
 
 	return pps
 }

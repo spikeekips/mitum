@@ -459,3 +459,84 @@ func validateVoteproofsFromLocalFS(networkID base.NetworkID, vps []base.Voteproo
 
 	return base.ValidateVoteproofsWithManifest(vps, m)
 }
+
+func ValidateBlocksFromStorage(
+	root string,
+	fromHeight, toHeight base.Height,
+	enc encoder.Encoder,
+	params *isaac.LocalParams,
+	db isaac.Database,
+	whenBlockDonef func(base.BlockMap, error) error,
+) error {
+	diff := toHeight - fromHeight
+
+	if err := util.BatchWork(
+		context.Background(),
+		uint64(diff.Int64())+1,
+		333, //nolint:gomnd //...
+		func(context.Context, uint64) error {
+			return nil
+		},
+		func(_ context.Context, i, _ uint64) error {
+			height := base.Height(int64(i) + fromHeight.Int64())
+
+			var mapdb base.BlockMap
+			switch i, found, err := db.BlockMap(height); {
+			case err != nil:
+				return err
+			case !found:
+				return util.ErrNotFound.Errorf("blockmap not found in database; %d", height)
+			default:
+				mapdb = i
+			}
+
+			err := ValidateBlockFromLocalFS(height, root, enc, params.NetworkID(),
+				func(m base.BlockMap) error {
+					return base.IsEqualBlockMap(mapdb, m)
+				},
+				func(op base.Operation) error {
+					switch found, err := db.ExistsKnownOperation(op.Hash()); {
+					case err != nil:
+						return err
+					case !found:
+						return util.ErrNotFound.Errorf("operation not found in database; %q", op.Hash())
+					default:
+						return nil
+					}
+				},
+				func(st base.State) error {
+					switch rst, found, err := db.State(st.Key()); {
+					case err != nil:
+						return err
+					case !found:
+						return util.ErrNotFound.Errorf("state not found in State")
+					case !base.IsEqualState(st, rst):
+						return errors.Errorf("states does not match")
+					}
+
+					ops := st.Operations()
+					for j := range ops {
+						switch found, err := db.ExistsInStateOperation(ops[j]); {
+						case err != nil:
+							return err
+						case !found:
+							return util.ErrNotFound.Errorf("operation of state not found in database")
+						}
+					}
+
+					return nil
+				},
+			)
+
+			if whenBlockDonef == nil {
+				return err
+			}
+
+			return whenBlockDonef(mapdb, err)
+		},
+	); err != nil {
+		return errors.WithMessage(err, "failed to validate imported blocks")
+	}
+
+	return nil
+}

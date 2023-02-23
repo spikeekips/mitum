@@ -302,6 +302,37 @@ func PCreateLocalFS(pctx context.Context) (context.Context, error) {
 func PCheckLocalFS(pctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to check localfs")
 
+	var design NodeDesign
+	var params *isaac.LocalParams
+	var enc encoder.Encoder
+
+	if err := util.LoadFromContextOK(pctx,
+		DesignContextKey, &design,
+		EncoderContextKey, &enc,
+		LocalParamsContextKey, &params,
+	); err != nil {
+		return pctx, e(err, "")
+	}
+
+	fsnodeinfo, err := CheckLocalFS(params.NetworkID(), design.Storage.Base, enc)
+
+	switch {
+	case err == nil:
+		if err = isaacblock.CleanBlockTempDirectory(LocalFSDataDirectory(design.Storage.Base)); err != nil {
+			return pctx, e(err, "")
+		}
+	case errors.Is(err, os.ErrNotExist):
+		return pctx, e(err, "")
+	default:
+		return pctx, e(err, "")
+	}
+
+	return context.WithValue(pctx, FSNodeInfoContextKey, fsnodeinfo), nil
+}
+
+func PCheckAndCreateLocalFS(pctx context.Context) (context.Context, error) {
+	e := util.StringErrorFunc("failed to check localfs")
+
 	var version util.Version
 	var design NodeDesign
 	var params *isaac.LocalParams

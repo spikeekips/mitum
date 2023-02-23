@@ -40,7 +40,7 @@ func DefaultRunPS() *ps.PS {
 		PostAddOK(PNameDiscoveryFlag, PDiscoveryFlag)
 
 	_ = pps.POK(PNameStorage).
-		PreAddOK(PNameCheckLocalFS, PCheckLocalFS).
+		PreAddOK(PNameCheckLocalFS, PCheckAndCreateLocalFS).
 		PreAddOK(PNameLoadDatabase, PLoadDatabase).
 		PostAddOK(PNameCheckLeveldbStorage, PCheckLeveldbStorage).
 		PostAddOK(PNameLoadFromDatabase, PLoadFromDatabase).
