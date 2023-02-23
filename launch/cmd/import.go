@@ -130,6 +130,10 @@ func (cmd *ImportCommand) importBlocks(ctx context.Context) (context.Context, er
 		}
 	}
 
+	if err := cmd.validateSourceBlocks(last, enc, params); err != nil {
+		return ctx, e(err, "")
+	}
+
 	if err := launch.ImportBlocks(
 		cmd.Source,
 		design.Storage.Base,
@@ -148,6 +152,36 @@ func (cmd *ImportCommand) importBlocks(ctx context.Context) (context.Context, er
 	}
 
 	return ctx, nil
+}
+
+func (cmd *ImportCommand) validateSourceBlocks(
+	last base.Height,
+	enc encoder.Encoder,
+	params *isaac.LocalParams,
+) error {
+	e := util.StringErrorFunc("failed to validate source blocks")
+
+	d := last - cmd.fromHeight
+
+	if err := util.BatchWork(
+		context.Background(),
+		uint64(d.Int64())+1,
+		333, //nolint:gomnd //...
+		func(context.Context, uint64) error {
+			return nil
+		},
+		func(_ context.Context, i, _ uint64) error {
+			height := base.Height(int64(i) + cmd.fromHeight.Int64())
+
+			return isaacblock.ValidateBlockFromLocalFS(height, cmd.Source, enc, params.NetworkID(), nil, nil, nil)
+		},
+	); err != nil {
+		return e(err, "")
+	}
+
+	cmd.log.Debug().Msg("source blocks validated")
+
+	return nil
 }
 
 func (cmd *ImportCommand) validateImported(
@@ -208,7 +242,54 @@ func (cmd *ImportCommand) validateImportedBlocks(
 		func(_ context.Context, i, _ uint64) error {
 			height := base.Height(int64(i) + cmd.fromHeight.Int64())
 
-			return isaacblock.ValidateBlockFromLocalFS(height, root, enc, params.NetworkID(), db)
+			return isaacblock.ValidateBlockFromLocalFS(height, root, enc, params.NetworkID(),
+				func(m base.BlockMap) error {
+					switch i, found, err := db.BlockMap(m.Manifest().Height()); {
+					case err != nil:
+						return err
+					case !found:
+						return util.ErrNotFound.Errorf("blockmap not found in database; %q", m.Manifest().Height())
+					default:
+						if err := base.IsEqualBlockMap(m, i); err != nil {
+							return err
+						}
+
+						return nil
+					}
+				},
+				func(op base.Operation) error {
+					switch found, err := db.ExistsKnownOperation(op.Hash()); {
+					case err != nil:
+						return err
+					case !found:
+						return util.ErrNotFound.Errorf("operation not found in database; %q", op.Hash())
+					default:
+						return nil
+					}
+				},
+				func(st base.State) error {
+					switch rst, found, err := db.State(st.Key()); {
+					case err != nil:
+						return err
+					case !found:
+						return util.ErrNotFound.Errorf("state not found in State")
+					case !base.IsEqualState(st, rst):
+						return errors.Errorf("states does not match")
+					}
+
+					ops := st.Operations()
+					for j := range ops {
+						switch found, err := db.ExistsInStateOperation(ops[j]); {
+						case err != nil:
+							return err
+						case !found:
+							return util.ErrNotFound.Errorf("operation of state not found in database")
+						}
+					}
+
+					return nil
+				},
+			)
 		},
 	); err != nil {
 		return e(err, "")

@@ -251,13 +251,19 @@ func ValidateBlockFromLocalFS(
 	dataroot string,
 	enc encoder.Encoder,
 	networkID base.NetworkID,
-	db isaac.Database,
+	validateBlockMapf func(base.BlockMap) error,
+	validateOperationf func(base.Operation) error,
+	validateStatef func(base.State) error,
 ) error {
 	e := util.StringErrorFunc("failed to validate imported block")
 
-	reader, err := NewLocalFSReaderFromHeight(dataroot, height, enc)
-	if err != nil {
+	var reader *LocalFSReader
+
+	switch i, err := NewLocalFSReaderFromHeight(dataroot, height, enc); {
+	case err != nil:
 		return e(err, "")
+	default:
+		reader = i
 	}
 
 	var m base.BlockMap
@@ -268,39 +274,69 @@ func ValidateBlockFromLocalFS(
 	case !found:
 		return e(util.ErrNotFound.Errorf("BlockMap not found"), "")
 	default:
+		if err := i.IsValid(networkID); err != nil {
+			return err
+		}
+
+		if validateBlockMapf != nil {
+			if err := validateBlockMapf(i); err != nil {
+				return err
+			}
+		}
+
 		m = i
 	}
 
-	var ops []base.Operation
-	var sts []base.State
-	var opstree, ststree fixedtree.Tree
+	pr, ops, sts, opstree, ststree, vps, err := loadBlockItemsFromReader(reader)
+	if err != nil {
+		return err
+	}
 
-	var readererr error
+	if err := pr.IsValid(networkID); err != nil {
+		return err
+	}
+
+	if err := base.ValidateProposalWithManifest(pr, m.Manifest()); err != nil {
+		return err
+	}
+
+	if err := ValidateOperationsOfBlock(opstree, ops, m.Manifest(), networkID, validateOperationf); err != nil {
+		return err
+	}
+
+	if err := ValidateStatesOfBlock(ststree, sts, m.Manifest(), networkID, validateStatef); err != nil {
+		return err
+	}
+
+	return validateVoteproofsFromLocalFS(networkID, vps, m.Manifest())
+}
+
+func loadBlockItemsFromReader(reader *LocalFSReader) ( //revive:disable-line:function-result-limit
+	pr base.ProposalSignFact,
+	ops []base.Operation,
+	sts []base.State,
+	opstree, ststree fixedtree.Tree,
+	vps []base.Voteproof,
+	rerr error,
+) {
+	//revive:disable:bare-return
 	if err := reader.Items(func(item base.BlockMapItem, i interface{}, found bool, err error) bool {
 		switch {
 		case err != nil:
-			readererr = err
+			rerr = err
 		case !found:
-			readererr = util.ErrNotFound.Errorf("BlockMapItem not found, %q", item.Type())
+			rerr = util.ErrNotFound.Errorf("BlockMapItem not found, %q", item.Type())
 		case i == nil:
-			readererr = util.ErrNotFound.Errorf("empty BlockMapItem found, %q", item.Type())
+			rerr = util.ErrNotFound.Errorf("empty BlockMapItem found, %q", item.Type())
 		}
 
-		if readererr != nil {
+		if rerr != nil {
 			return false
 		}
 
 		switch item.Type() {
 		case base.BlockMapItemTypeProposal:
-			pr := i.(base.ProposalSignFact) //nolint:forcetypeassert //...
-
-			if err := pr.IsValid(networkID); err != nil {
-				readererr = err
-			}
-
-			if readererr != nil {
-				readererr = base.ValidateProposalWithManifest(pr, m.Manifest())
-			}
+			pr = i.(base.ProposalSignFact) //nolint:forcetypeassert //...
 		case base.BlockMapItemTypeOperations:
 			ops = i.([]base.Operation) //nolint:forcetypeassert //...
 		case base.BlockMapItemTypeOperationsTree:
@@ -310,35 +346,26 @@ func ValidateBlockFromLocalFS(
 		case base.BlockMapItemTypeStatesTree:
 			ststree = i.(fixedtree.Tree) //nolint:forcetypeassert //...
 		case base.BlockMapItemTypeVoteproofs:
-			readererr = validateVoteproofsFromLocalFS( //nolint:forcetypeassert //...
-				networkID,
-				i.([]base.Voteproof),
-				m.Manifest(),
-			)
+			vps = i.([]base.Voteproof) //nolint:forcetypeassert //...
 		}
 
-		return readererr == nil
+		return rerr == nil
 	}); err != nil {
-		readererr = err
+		rerr = err
+
+		return
 	}
 
-	if readererr == nil {
-		readererr = ValidateOperationsOfBlock(opstree, ops, m.Manifest(), db, networkID)
-	}
-
-	if readererr == nil {
-		readererr = ValidateStatesOfBlock(ststree, sts, m.Manifest(), db, networkID)
-	}
-
-	return readererr
+	return //nolint:nakedret //...
+	//revive:enable:bare-return
 }
 
-func ValidateOperationsOfBlock(
+func ValidateOperationsOfBlock( //nolint:dupl //...
 	opstree fixedtree.Tree,
 	ops []base.Operation,
 	manifest base.Manifest,
-	db isaac.Database,
 	networkID base.NetworkID,
+	validateOperationf func(base.Operation) error,
 ) error {
 	e := util.StringErrorFunc("failed to validate imported operations")
 
@@ -360,14 +387,13 @@ func ValidateOperationsOfBlock(
 					return err
 				}
 
-				switch found, err := db.ExistsKnownOperation(op.Hash()); {
-				case err != nil:
-					return err
-				case !found:
-					return util.ErrNotFound.Errorf("operation not found in ExistsKnownOperation; %q", op.Hash())
-				default:
-					return nil
+				if validateOperationf != nil {
+					if err := validateOperationf(op); err != nil {
+						return err
+					}
 				}
+
+				return nil
 			},
 		); err != nil {
 			return e(err, "")
@@ -377,12 +403,12 @@ func ValidateOperationsOfBlock(
 	return nil
 }
 
-func ValidateStatesOfBlock(
+func ValidateStatesOfBlock( //nolint:dupl //...
 	ststree fixedtree.Tree,
 	sts []base.State,
 	manifest base.Manifest,
-	db isaac.Database,
 	networkID base.NetworkID,
+	validateStatef func(base.State) error,
 ) error {
 	e := util.StringErrorFunc("failed to validate imported states")
 
@@ -404,22 +430,9 @@ func ValidateStatesOfBlock(
 					return err
 				}
 
-				switch rst, found, err := db.State(st.Key()); {
-				case err != nil:
-					return err
-				case !found:
-					return util.ErrNotFound.Errorf("state not found in State")
-				case !base.IsEqualState(st, rst):
-					return errors.Errorf("states does not match")
-				}
-
-				ops := st.Operations()
-				for j := range ops {
-					switch found, err := db.ExistsInStateOperation(ops[j]); {
-					case err != nil:
+				if validateStatef != nil {
+					if err := validateStatef(st); err != nil {
 						return err
-					case !found:
-						return util.ErrNotFound.Errorf("operation of state not found in ExistsInStateOperation")
 					}
 				}
 
