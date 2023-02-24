@@ -279,7 +279,7 @@ func (t *testVersion) TestMarshalJSON() {
 	v, err := ParseVersion("v1.2.3-beta.0+1ca74f7ba1ce143efec26ae161dbb4de")
 	t.NoError(err)
 
-	b, err := json.Marshal(v)
+	b, err := MarshalJSON(v)
 	t.NoError(err)
 
 	var ub Version

@@ -67,6 +67,9 @@ func (t *testJSONMarshaled) TestMarshaledNotPointer() {
 	b, err := MarshalJSON(i)
 	t.NoError(err)
 
+	_, ok := i.Marshaled()
+	t.False(ok)
+
 	var j marshaledStruct
 	t.NoError(UnmarshalJSON(b, &j))
 

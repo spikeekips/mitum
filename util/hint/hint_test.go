@@ -111,7 +111,7 @@ func (t *testHint) TestEncodeJSON() {
 	ht, err := ParseHint("showme-v1.2.3+compatible")
 	t.NoError(err)
 
-	b, err := json.Marshal(map[string]interface{}{
+	b, err := util.MarshalJSON(map[string]interface{}{
 		"_hint": ht,
 	})
 	t.NoError(err)

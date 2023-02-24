@@ -130,7 +130,7 @@ func (t *testBytes) TestJSONMarshal() {
 		b := []byte("killme")
 		hs := NewBytes(b)
 
-		b, err := json.Marshal(hs)
+		b, err := util.MarshalJSON(hs)
 		t.NoError(err)
 
 		var jh Bytes
@@ -141,7 +141,7 @@ func (t *testBytes) TestJSONMarshal() {
 	}
 
 	{
-		b, err := json.Marshal(nil)
+		b, err := util.MarshalJSON(nil)
 		t.NoError(err)
 
 		var jh Bytes

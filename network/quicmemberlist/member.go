@@ -182,7 +182,7 @@ func (n BaseMember) MarshalZerologObject(e *zerolog.Event) {
 }
 
 func (n BaseMember) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
+	return util.MarshalJSON(struct {
 		Name     string
 		Address  string
 		JoinedAt time.Time `json:"joined_at"`
