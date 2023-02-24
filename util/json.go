@@ -17,12 +17,23 @@ func IsNilJSON(b []byte) bool {
 }
 
 func MarshalJSON(v interface{}) ([]byte, error) {
-	return marshalJSON(v)
+	b, err := marshalJSON(v)
+	if err == nil {
+		if i, ok := v.(ExtensibleJSONSetter); ok {
+			i.SetMarshaledJSON(b)
+		}
+	}
+
+	return b, err
 }
 
 func UnmarshalJSON(b []byte, v interface{}) error {
 	if IsNilJSON(b) {
 		return nil
+	}
+
+	if i, ok := v.(ExtensibleJSONSetter); ok {
+		i.SetMarshaledJSON(b)
 	}
 
 	return unmarshalJSON(b, v)
@@ -102,4 +113,30 @@ func (d *ReadableJSONDuration) UnmarshalJSON(b []byte) error {
 	}
 
 	return nil
+}
+
+type ExtensibleJSON interface {
+	MarshaledJSON() ([]byte, bool)
+}
+
+type ExtensibleJSONSetter interface {
+	SetMarshaledJSON([]byte)
+}
+
+type DefaultExtensibleJSON struct {
+	marshaled   []byte
+	isMarshaled bool
+}
+
+func (e DefaultExtensibleJSON) MarshaledJSON() ([]byte, bool) {
+	return e.marshaled, e.isMarshaled
+}
+
+func (e *DefaultExtensibleJSON) SetMarshaledJSON(b []byte) {
+	if e.isMarshaled {
+		return
+	}
+
+	e.marshaled = b
+	e.isMarshaled = true
 }
