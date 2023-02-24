@@ -255,7 +255,7 @@ func TestPointJSON(tt *testing.T) {
 	t.Encode = func() (interface{}, []byte) {
 		p := NewPoint(Height(33), Round(44))
 
-		b, err := util.MarshalJSON(&p)
+		b, err := util.MarshalJSON(p)
 		t.NoError(err)
 
 		return p, b

@@ -135,7 +135,7 @@ func TestLocalParamsJSON(tt *testing.T) {
 		p.SetIntervalBroadcastBallot(time.Second * 33)
 		p.SetSameMemberLimit(99)
 
-		b, err := util.MarshalJSON(&p)
+		b, err := util.MarshalJSON(p)
 		t.NoError(err)
 
 		t.T().Log("marshaled:", string(b))
@@ -192,7 +192,7 @@ func TestLocalParamsJSONMissing(tt *testing.T) {
 	p.SetBallotStuckWait(p.BallotStuckWait() + 3)
 	p.SetBallotStuckResolveAfter(p.BallotStuckResolveAfter() + 3)
 
-	b, err := util.MarshalJSON(&p)
+	b, err := util.MarshalJSON(p)
 	t.NoError(err)
 
 	t.T().Log("marshaled:", string(b))
@@ -207,18 +207,20 @@ func TestLocalParamsJSONMissing(tt *testing.T) {
 
 		nm := map[string]interface{}{}
 		for i := range m {
+			if i == key {
+				continue
+			}
+
 			nm[i] = m[i]
 		}
-
-		delete(nm, key)
 
 		mb, err := util.MarshalJSON(nm)
 		t.NoError(err)
 
-		var np LocalParams
+		var np *LocalParams
 		t.NoError(enc.Unmarshal(mb, &np))
 
-		ub, err := util.MarshalJSON(&np)
+		ub, err := util.MarshalJSON(np)
 		t.NoError(err)
 
 		var um map[string]interface{}
@@ -231,7 +233,7 @@ func TestLocalParamsJSONMissing(tt *testing.T) {
 				continue
 			}
 
-			t.Equal(nm[i], um[i], "%s: %v != %v", key, nm[i], um[i])
+			t.Equal(nm[i], um[i], "%s: %v != %v", i, nm[i], um[i])
 		}
 	}
 }

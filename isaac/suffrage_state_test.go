@@ -23,7 +23,7 @@ func TestSuffrageNodeStateValueJSON(tt *testing.T) {
 
 		stv := NewSuffrageNodeStateValue(RandomLocalNode(), base.Height(33))
 
-		b, err := util.MarshalJSON(&stv)
+		b, err := util.MarshalJSON(stv)
 		t.NoError(err)
 
 		t.T().Log("marshaled:", string(b))
@@ -70,7 +70,7 @@ func TestSuffrageNodesStateValueJSON(tt *testing.T) {
 
 		stv := NewSuffrageNodesStateValue(base.Height(33), nodes)
 
-		b, err := util.MarshalJSON(&stv)
+		b, err := util.MarshalJSON(stv)
 		t.NoError(err)
 
 		t.T().Log("marshaled:", string(b))
@@ -117,7 +117,7 @@ func TestSuffrageCandidatesStateValueJSON(tt *testing.T) {
 
 		stv := NewSuffrageCandidatesStateValue(nodes)
 
-		b, err := util.MarshalJSON(&stv)
+		b, err := util.MarshalJSON(stv)
 		t.NoError(err)
 
 		t.T().Log("marshaled:", string(b))
@@ -158,7 +158,7 @@ func TestSuffrageCandidateJSON(tt *testing.T) {
 
 		stv := NewSuffrageCandidateStateValue(RandomLocalNode(), base.Height(33), base.Height(55))
 
-		b, err := util.MarshalJSON(&stv)
+		b, err := util.MarshalJSON(stv)
 		t.NoError(err)
 
 		t.T().Log("marshaled:", string(b))

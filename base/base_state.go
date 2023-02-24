@@ -21,7 +21,6 @@ type BaseState struct {
 	v        StateValue
 	k        string
 	ops      []util.Hash
-	util.DefaultJSONMarshaled
 	hint.BaseHinter
 	height Height
 }

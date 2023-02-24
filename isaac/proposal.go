@@ -19,9 +19,9 @@ var (
 type ProposalFact struct {
 	proposedAt time.Time
 	proposer   base.Address
-	base.BaseFact
 	operations []util.Hash
-	point      base.Point
+	base.BaseFact
+	point base.Point
 }
 
 func NewProposalFact(point base.Point, proposer base.Address, operations []util.Hash) ProposalFact {
@@ -89,7 +89,6 @@ func (fact ProposalFact) generateHash() util.Hash {
 type ProposalSignFact struct {
 	fact base.ProposalFact
 	sign base.BaseSign
-	util.DefaultJSONMarshaled
 	hint.BaseHinter
 }
 

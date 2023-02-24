@@ -10,28 +10,6 @@ import (
 
 var nullJSONBytes = []byte("null")
 
-type JSONMarshaled interface {
-	Marshaled() ([]byte, bool)
-}
-
-type JSONSetMarshaled interface {
-	SetMarshaled([]byte)
-}
-
-type DefaultJSONMarshaled struct {
-	marshaled   []byte
-	ismarshaled bool
-}
-
-func (m DefaultJSONMarshaled) Marshaled() ([]byte, bool) {
-	return m.marshaled, m.ismarshaled
-}
-
-func (m *DefaultJSONMarshaled) SetMarshaled(b []byte) {
-	m.ismarshaled = true
-	m.marshaled = b
-}
-
 func IsNilJSON(b []byte) bool {
 	i := bytes.TrimSpace(b)
 
@@ -39,27 +17,7 @@ func IsNilJSON(b []byte) bool {
 }
 
 func MarshalJSON(v interface{}) ([]byte, error) {
-	var marshaled JSONSetMarshaled
-
-	switch j, ok := v.(JSONMarshaled); {
-	case !ok:
-	default:
-		if b, ok := j.Marshaled(); ok {
-			return b, nil
-		}
-
-		if k, ok := v.(JSONSetMarshaled); ok {
-			marshaled = k
-		}
-	}
-
-	b, err := marshalJSON(v)
-
-	if marshaled != nil {
-		marshaled.SetMarshaled(b)
-	}
-
-	return b, err
+	return marshalJSON(v)
 }
 
 func UnmarshalJSON(b []byte, v interface{}) error {

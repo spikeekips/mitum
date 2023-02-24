@@ -18,7 +18,6 @@ var defaultTimeoutRequestProposal = time.Second * 3 //nolint:gomnd //...
 type LocalParams struct {
 	id        string
 	networkID base.NetworkID
-	util.DefaultJSONMarshaled
 	hint.BaseHinter
 	intervalBroadcastBallot               time.Duration
 	threshold                             base.Threshold

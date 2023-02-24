@@ -111,7 +111,6 @@ func (r Round) Prev() Round {
 }
 
 type Point struct {
-	util.DefaultJSONMarshaled
 	h Height
 	r Round
 }
@@ -250,7 +249,6 @@ func (p *Point) UnmarshalJSON(b []byte) error {
 
 type StagePoint struct {
 	stage Stage
-	util.DefaultJSONMarshaled
 	Point
 }
 

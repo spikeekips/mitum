@@ -19,9 +19,8 @@ type WithdrawBallotFact interface {
 
 type baseBallotFact struct {
 	withdrawfacts []util.Hash
-	util.DefaultJSONMarshaled
+	point         base.StagePoint
 	base.BaseFact
-	point base.StagePoint
 }
 
 func newBaseBallotFact(

@@ -15,9 +15,9 @@ import (
 type proposalFactJSONMarshaler struct {
 	ProposedAt localtime.Time `json:"proposed_at"`
 	Proposer   base.Address   `json:"proposer"`
+	Operations []util.Hash    `json:"operations"`
 	base.BaseFactJSONMarshaler
-	Operations []util.Hash `json:"operations"`
-	Point      base.Point  `json:"point"`
+	Point base.Point `json:"point"`
 }
 
 type proposalFactJSONUnmarshaler struct {

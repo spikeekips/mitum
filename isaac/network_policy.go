@@ -21,7 +21,6 @@ var (
 
 type NetworkPolicy struct {
 	suffrageCandidateLimiterRule base.SuffrageCandidateLimiterRule
-	util.DefaultJSONMarshaled
 	hint.BaseHinter
 	maxOperationsInProposal   uint64
 	suffrageCandidateLifespan base.Height

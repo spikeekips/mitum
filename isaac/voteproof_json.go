@@ -15,14 +15,14 @@ import (
 )
 
 type baseVoteproofJSONMarshaler struct {
-	FinishedAt time.Time `json:"finished_at"`
-	Majority   util.Hash `json:"majority"` // NOTE fact hash of majority BallotSignFact
+	FinishedAt time.Time                        `json:"finished_at"`
+	Majority   util.Hash                        `json:"majority"`
+	ID         string                           `json:"id"`
+	SignFacts  []base.BallotSignFact            `json:"sign_facts"`
+	Withdraws  []base.SuffrageWithdrawOperation `json:"withdraws,omitempty"`
+	Point      base.StagePoint                  `json:"point"`
 	hint.BaseHinter
-	ID        string                           `json:"id"`
-	SignFacts []base.BallotSignFact            `json:"sign_facts"`
-	Withdraws []base.SuffrageWithdrawOperation `json:"withdraws,omitempty"`
-	Point     base.StagePoint                  `json:"point"`
-	Threshold base.Threshold                   `json:"threshold"`
+	Threshold base.Threshold `json:"threshold"`
 }
 
 func (vp baseVoteproof) jsonMarshaller() baseVoteproofJSONMarshaler {

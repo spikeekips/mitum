@@ -8,9 +8,9 @@ import (
 )
 
 type baseBallotFactJSONMarshaler struct {
-	WithdrawFacts []util.Hash `json:"withdraw_facts,omitempty"`
+	WithdrawFacts []util.Hash     `json:"withdraw_facts,omitempty"`
+	Point         base.StagePoint `json:"point"`
 	base.BaseFactJSONMarshaler
-	Point base.StagePoint `json:"point"`
 }
 
 type baseBallotFactJSONUnmarshaler struct {

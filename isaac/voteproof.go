@@ -22,11 +22,10 @@ var (
 type baseVoteproof struct {
 	finishedAt time.Time
 	majority   base.BallotFact
+	id         string
+	sfs        []base.BallotSignFact
+	point      base.StagePoint
 	hint.BaseHinter
-	id string
-	util.DefaultJSONMarshaled
-	sfs       []base.BallotSignFact
-	point     base.StagePoint
 	threshold base.Threshold
 }
 

@@ -394,10 +394,10 @@ func VoteSuffrageVotingFunc(
 var MissingBallotsRequestsMessageHint = hint.MustNewHint("missing-ballots-request-message-v0.0.1")
 
 type MissingBallotsRequestMessage struct {
-	nodes []base.Address
 	ci    quicstream.UDPConnInfo
-	hint.BaseHinter
+	nodes []base.Address
 	point base.StagePoint
+	hint.BaseHinter
 }
 
 func NewMissingBallotsRequestsMessage(
@@ -448,10 +448,10 @@ func (m MissingBallotsRequestMessage) Nodes() []base.Address {
 }
 
 type missingBallotsRequestsMessageJSONMarshaler struct {
-	Nodes []base.Address         `json:"nodes"`
 	CI    quicstream.UDPConnInfo `json:"conn_info"` //nolint:tagliatelle //...
+	Nodes []base.Address         `json:"nodes"`
+	Point base.StagePoint        `json:"point"`
 	hint.BaseHinter
-	Point base.StagePoint `json:"point"`
 }
 
 func (m MissingBallotsRequestMessage) MarshalJSON() ([]byte, error) {
@@ -464,10 +464,10 @@ func (m MissingBallotsRequestMessage) MarshalJSON() ([]byte, error) {
 }
 
 type missingBallotsRequestsMessageJSONUnmarshaler struct {
-	Nodes []string               `json:"nodes"`
 	CI    quicstream.UDPConnInfo `json:"conn_info"` //nolint:tagliatelle //...
+	Nodes []string               `json:"nodes"`
+	Point base.StagePoint        `json:"point"`
 	hint.BaseHinter
-	Point base.StagePoint `json:"point"`
 }
 
 func (m *MissingBallotsRequestMessage) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {

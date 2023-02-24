@@ -22,9 +22,7 @@ func marshalJSON(v interface{}) ([]byte, error) {
 }
 
 func unmarshalJSON(b []byte, v interface{}) error {
-	err := jsoniterconfiged.Unmarshal(b, v)
-
-	return errors.WithStack(err)
+	return errors.WithStack(jsoniterconfiged.Unmarshal(b, v))
 }
 
 func marshalJSONIndent(i interface{}) ([]byte, error) {

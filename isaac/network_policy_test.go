@@ -54,7 +54,7 @@ func TestNetworkPolicyJSON(tt *testing.T) {
 		p.SetSuffrageCandidateLimiterRule(NewFixedSuffrageCandidateLimiterRule(77))
 		p.SetSuffrageWithdrawLifespan(base.Height(44))
 
-		b, err := util.MarshalJSON(&p)
+		b, err := util.MarshalJSON(p)
 		t.NoError(err)
 
 		t.T().Log("marshaled:", string(b))

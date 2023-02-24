@@ -21,7 +21,7 @@ func TestFixedSuffrageCandidateLimiterRuleJSON(tt *testing.T) {
 
 		l := NewFixedSuffrageCandidateLimiterRule(33)
 
-		b, err := util.MarshalJSON(&l)
+		b, err := util.MarshalJSON(l)
 		t.NoError(err)
 
 		t.T().Log("marshaled:", string(b))
@@ -61,7 +61,7 @@ func TestMajoritySuffrageCandidateLimiterRuleJSON(tt *testing.T) {
 
 		l := NewMajoritySuffrageCandidateLimiterRule(0.5, 3, 33)
 
-		b, err := util.MarshalJSON(&l)
+		b, err := util.MarshalJSON(l)
 		t.NoError(err)
 
 		t.T().Log("marshaled:", string(b))

@@ -11,7 +11,6 @@ type BaseNode struct {
 	util.IsValider
 	addr Address
 	pub  Publickey
-	util.DefaultJSONMarshaled
 	hint.BaseHinter
 }
 

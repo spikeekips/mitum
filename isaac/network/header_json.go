@@ -77,8 +77,8 @@ type requestProposalRequestHeaderJSONMarshaler struct {
 
 func (h RequestProposalRequestHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
-		BaseHeader
 		requestProposalRequestHeaderJSONMarshaler
+		BaseHeader
 	}{
 		BaseHeader: h.BaseHeader,
 		requestProposalRequestHeaderJSONMarshaler: requestProposalRequestHeaderJSONMarshaler{

@@ -15,7 +15,6 @@ var (
 type baseBallotSignFact struct {
 	fact base.BallotFact
 	sign base.BaseNodeSign
-	util.DefaultJSONMarshaled
 	hint.BaseHinter
 }
 

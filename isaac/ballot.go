@@ -19,7 +19,6 @@ type baseBallot struct {
 	withdraws []base.SuffrageWithdrawOperation
 	vp        base.Voteproof
 	signFact  base.BallotSignFact
-	util.DefaultJSONMarshaled
 	hint.BaseHinter
 }
 
