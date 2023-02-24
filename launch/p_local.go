@@ -34,7 +34,7 @@ func PLocal(pctx context.Context) (context.Context, error) {
 		return pctx, e(err, "")
 	}
 
-	log.Log().Info().Interface("local", local).Msg("local loaded")
+	log.Log().Debug().Interface("local", local).Msg("local loaded")
 
 	return context.WithValue(pctx, LocalContextKey, local), nil
 }

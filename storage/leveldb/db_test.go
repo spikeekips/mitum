@@ -2,11 +2,14 @@ package leveldbstorage
 
 import (
 	"os"
+	"syscall"
 	"testing"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"
 	"github.com/syndtr/goleveldb/leveldb"
+	leveldbStorage "github.com/syndtr/goleveldb/leveldb/storage"
 )
 
 type testStorage struct {
@@ -215,6 +218,31 @@ func (t *testStorage) TestCompaction() {
 	}, true))
 
 	t.Equal(33, count)
+}
+
+func (t *testStorage) TestOpenLocked() {
+	t.Run("open locked; panic", func() {
+		st := NewFSStorage(t.root)
+		defer st.Close()
+
+		_, err := leveldbStorage.OpenFile(t.root, false)
+		t.Error(err)
+
+		var serr syscall.Errno
+		t.True(errors.As(err, &serr))
+		t.True(serr.Temporary())
+	})
+
+	t.Run("open locked; readonly", func() {
+		_ = NewFSStorage(t.root)
+
+		_, err := leveldbStorage.OpenFile(t.root, true)
+		t.Error(err)
+
+		var serr syscall.Errno
+		t.True(errors.As(err, &serr))
+		t.True(serr.Temporary())
+	})
 }
 
 func TestStorage(t *testing.T) {

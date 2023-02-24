@@ -35,8 +35,6 @@ type ImportCommand struct { //nolint:govet //...
 	// revive:enable:line-length-limit
 }
 
-// FIXME dry run
-
 func (cmd *ImportCommand) Run(pctx context.Context) error {
 	var log *logging.Logging
 	if err := util.LoadFromContextOK(pctx, launch.LoggingContextKey, &log); err != nil {
