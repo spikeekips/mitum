@@ -101,6 +101,7 @@ func (fact *DummyOperationFact) DecodeJSON(b []byte, _ *jsonenc.Encoder) error {
 
 type DummyOperation struct {
 	hint.BaseHinter
+	util.DefaultExtensibleJSON
 	h          util.Hash
 	fact       DummyOperationFact
 	sign       base.BaseSign
@@ -149,6 +150,10 @@ func (op DummyOperation) IsValid([]byte) error {
 }
 
 func (op DummyOperation) MarshalJSON() ([]byte, error) {
+	if b, ok := op.MarshaledJSON(); ok {
+		return b, nil
+	}
+
 	return util.MarshalJSON(struct {
 		hint.HintedJSONHead
 		H    util.Hash

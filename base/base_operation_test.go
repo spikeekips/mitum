@@ -2,6 +2,7 @@ package base
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -350,6 +351,191 @@ func TestBaseOperationEncode(tt *testing.T) {
 
 		EqualFact(t.Assert(), ao.Fact(), bo.Fact())
 		EqualSigns(t.Assert(), ao.Signs(), bo.Signs())
+	}
+
+	suite.Run(tt, t)
+}
+
+type insideDummyOperationExtensible struct {
+	hint.BaseHinter
+	util.DefaultExtensibleJSON
+	A string
+}
+
+func (d insideDummyOperationExtensible) MarshalJSON() ([]byte, error) {
+	if b, ok := d.MarshaledJSON(); ok {
+		return b, nil
+	}
+
+	return util.MarshalJSON(struct {
+		hint.BaseHinter
+		util.DefaultExtensibleJSON
+		A string
+	}{
+		BaseHinter: d.BaseHinter,
+		A:          d.A,
+	},
+	)
+}
+
+type dummyOperationExtensible struct {
+	BaseOperation
+	util.DefaultExtensibleJSON
+	I insideDummyOperationExtensible
+}
+
+func (op dummyOperationExtensible) MarshalJSON() ([]byte, error) {
+	if b, ok := op.MarshaledJSON(); ok {
+		return b, nil
+	}
+
+	return util.MarshalJSON(struct {
+		BaseOperationJSONMarshaler
+		I insideDummyOperationExtensible
+	}{
+		BaseOperationJSONMarshaler: op.BaseOperation.JSONMarshaler(),
+		I:                          op.I,
+	},
+	)
+}
+
+type dummyOperationExtensibleUnmarshaller struct {
+	I json.RawMessage
+}
+
+func (op *dummyOperationExtensible) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+	if err := op.BaseOperation.DecodeJSON(b, enc); err != nil {
+		return err
+	}
+
+	var u dummyOperationExtensibleUnmarshaller
+	if err := util.UnmarshalJSON(b, &u); err != nil {
+		return err
+	}
+
+	if err := encoder.Decode(enc, u.I, &op.I); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func TestBaseOperationEncodeExtensible(tt *testing.T) {
+	t := new(encoder.BaseTestEncode)
+
+	enc := jsonenc.NewEncoder()
+
+	ht := hint.MustNewHint("dummyoperation-v0.0.3")
+	insideht := hint.MustNewHint("dummyoperation-inside-v0.0.3")
+
+	networkID := NetworkID("dummy-network-id")
+
+	t.Encode = func() (interface{}, []byte) {
+		b := `
+{
+  "hash": "G8znFJSYix9UzB8fWFgEcfSnamkdnQfunh5uMRjNoBst",
+  "fact": {
+    "_hint": "dummyfact-v1.2.3",
+    "H": "7X3TXhEhWQEp6rjPCLGxJ7QwB3GBzntEvVzZBeKhoHLr",
+    "Token": "pfEb1rnJQ86UrmQ6hyxrqQ==",
+    "V": "96c811bf-3921-4ab7-bd39-8fdd6c448ed7"
+  },
+  "signs": [
+    {
+      "signed_at": "2023-02-25T06:36:11.58028639Z",
+      "signer": "dXXonLEHvi7ohuiZoka2etuKY3bRwzK6Kk9jU74D9nSimpu",
+      "signature": "AN1rKvtRdk1qsKqrFcFS44mzNcLVTvb8ZCjJymbmbWeiK7aUgrHnHNP5TQQQ2aKC8qStjAM2RFM4bCJp8gM26yy9pPT5C3H9g"
+    }
+  ],
+  "_hint": "dummyoperation-v0.0.3",
+  "I": {
+    "_hint": "dummyoperation-inside-v0.0.3",
+    "A": "A",
+    "killme": "eatme"
+  },
+  "showme": "findme"
+}
+`
+
+		t.T().Log("marshaled:", b)
+
+		return nil, []byte(b)
+	}
+	t.Decode = func(b []byte) interface{} {
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: MPublickeyHint, Instance: MPublickey{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: DummyFactHint, Instance: DummyFact{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: ht, Instance: dummyOperationExtensible{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: insideht, Instance: insideDummyOperationExtensible{}}))
+
+		i, err := enc.Decode(b)
+		t.NoError(err)
+
+		_, ok := i.(dummyOperationExtensible)
+		t.True(ok)
+
+		e, ok := i.(util.ExtensibleJSON)
+		t.True(ok)
+
+		mb, ismarshaled := e.MarshaledJSON()
+		t.True(ismarshaled)
+		t.NotNil(mb)
+
+		return i
+	}
+	t.Compare = func(_, b interface{}) {
+		_, ok := b.(util.ExtensibleJSON)
+		t.True(ok)
+
+		bo, ok := b.(dummyOperationExtensible)
+		t.True(ok)
+
+		_, ok = (interface{})(bo.I).(util.ExtensibleJSON)
+		t.True(ok)
+
+		t.NoError(bo.IsValid(networkID))
+
+		t.Run("check MarshaledJSON", func() {
+			mb, ismarshaled := bo.MarshaledJSON()
+			t.True(ismarshaled)
+			t.NotNil(mb)
+
+			t.T().Log("MarshaledJSON:", string(mb))
+		})
+
+		t.Run("check extra field, `showme`", func() {
+			mb, err := util.MarshalJSON(b)
+			t.NoError(err)
+
+			t.T().Log("marshaled:", string(mb))
+			var m map[string]interface{}
+			t.NoError(util.UnmarshalJSON(mb, &m))
+
+			showme, found := m["showme"]
+			t.True(found)
+			t.Equal("findme", showme)
+		})
+
+		t.Run("check inside MarshaledJSON", func() {
+			mb, ismarshaled := bo.I.MarshaledJSON()
+			t.True(ismarshaled)
+			t.NotNil(mb)
+
+			t.T().Log("MarshaledJSON:", string(mb))
+		})
+
+		t.Run("check inside extra field, `killme`", func() {
+			mb, err := util.MarshalJSON(bo.I)
+			t.NoError(err)
+
+			t.T().Log("marshaled:", string(mb))
+
+			var m map[string]interface{}
+			t.NoError(util.UnmarshalJSON(mb, &m))
+
+			killme, found := m["killme"]
+			t.True(found)
+			t.Equal("eatme", killme)
+		})
 	}
 
 	suite.Run(tt, t)

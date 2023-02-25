@@ -288,7 +288,10 @@ func (enc *Encoder) analyze(d encoder.DecodeDetail, v interface{}) encoder.Decod
 		}
 	}
 
-	return encoder.AnalyzeSetHinter(d, elem.Interface())
+	return enc.analyzeExtensible(
+		encoder.AnalyzeSetHinter(d, elem.Interface()),
+		ptr,
+	)
 }
 
 func (enc *Encoder) poolGet(s string) (interface{}, bool) {
@@ -305,4 +308,67 @@ func (enc *Encoder) poolSet(s string, v interface{}) {
 	}
 
 	enc.pool.Set(s, v, nil)
+}
+
+func (*Encoder) analyzeExtensible(d encoder.DecodeDetail, ptr reflect.Value) encoder.DecodeDetail {
+	p := d.Decode
+
+	if i, j := reflect.TypeOf(ptr.Elem()).FieldByName("DefaultExtensibleJSON"); j &&
+		i.Type == reflect.TypeOf(util.DefaultExtensibleJSON{}) {
+		d.Decode = func(b []byte, ht hint.Hint) (interface{}, error) {
+			i, err := p(b, ht)
+			if err != nil {
+				return i, errors.WithMessage(err, "failed to decode")
+			}
+
+			if i == nil {
+				return i, nil
+			}
+
+			n := reflect.New(reflect.TypeOf(i))
+			n.Elem().Set(reflect.ValueOf(i))
+
+			x := n.Elem().FieldByName("DefaultExtensibleJSON")
+			if !x.IsValid() || !x.CanAddr() {
+				return i, nil
+			}
+
+			de := util.DefaultExtensibleJSON{}
+			de.SetMarshaledJSON(b)
+
+			x.Set(reflect.ValueOf(de))
+
+			return n.Elem().Interface(), nil
+		}
+
+		return d
+	}
+
+	if _, ok := ptr.Interface().(util.ExtensibleJSONSetter); !ok {
+		return d
+	}
+
+	d.Decode = func(b []byte, ht hint.Hint) (interface{}, error) {
+		i, err := p(b, ht)
+		if err != nil {
+			return i, errors.WithMessage(err, "failed to decode")
+		}
+
+		if i == nil {
+			return i, nil
+		}
+
+		uptr, _ := encoder.Ptr(i)
+
+		switch j, ok := uptr.Interface().(util.ExtensibleJSONSetter); {
+		case !ok:
+			return i, nil
+		default:
+			j.SetMarshaledJSON(b) //nolint:forcetypeassert //...
+
+			return uptr.Elem().Interface(), nil
+		}
+	}
+
+	return d
 }

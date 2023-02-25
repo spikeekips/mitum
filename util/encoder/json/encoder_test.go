@@ -541,3 +541,443 @@ func (t *testJSONEncoder) TestDecodeSlice() {
 func TestJSONEncoder(t *testing.T) {
 	suite.Run(t, new(testJSONEncoder))
 }
+
+type testExtensibleJSON struct {
+	suite.Suite
+	enc *Encoder
+}
+
+func (t *testExtensibleJSON) SetupTest() {
+	t.enc = NewEncoder()
+}
+
+type insideDummyJSONMarshaled struct {
+	hint.BaseHinter
+	A string
+	B string
+}
+
+type dummyJSONMarshaled struct {
+	util.DefaultExtensibleJSON
+	insideDummyJSONMarshaled
+}
+
+func (d dummyJSONMarshaled) MarshalJSON() ([]byte, error) {
+	if b, ok := d.MarshaledJSON(); ok {
+		return b, nil
+	}
+
+	return util.MarshalJSON(d.insideDummyJSONMarshaled)
+}
+
+func (t *testExtensibleJSON) TestExtensibleJSONSingle() {
+	ht := hint.MustNewHint("findme-v1.2.3")
+
+	v := dummyJSONMarshaled{
+		insideDummyJSONMarshaled: insideDummyJSONMarshaled{
+			BaseHinter: hint.NewBaseHinter(ht),
+			A:          "A",
+			B:          "B",
+		},
+	}
+
+	b, err := t.enc.Marshal(v)
+	t.NoError(err)
+
+	// modify json
+	var mb []byte
+	{
+		var m map[string]interface{}
+
+		t.NoError(util.UnmarshalJSON(b, &m))
+
+		m["C"] = "C"
+
+		i, err := util.MarshalJSON(m)
+		t.NoError(err)
+		mb = i
+	}
+
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ht, Instance: dummyJSONMarshaled{}}))
+	i, err := t.enc.Decode(mb)
+	t.NoError(err)
+
+	uv, ok := i.(dummyJSONMarshaled)
+	t.True(ok)
+
+	t.Equal(v.A, uv.A)
+	t.Equal(v.B, uv.B)
+
+	mj, isMarshaled := uv.MarshaledJSON()
+	t.True(isMarshaled)
+	t.NotNil(mj)
+	t.T().Log("marshaled json:", string(mj))
+
+	var m map[string]interface{}
+
+	t.NoError(util.UnmarshalJSON(mj, &m))
+
+	c, found := m["C"]
+	t.True(found)
+	t.Equal("C", c)
+}
+
+func (t *testExtensibleJSON) TestExtensibleJSONSingleSlice() {
+	ht := hint.MustNewHint("findme-v1.2.3")
+
+	vs := make([]dummyJSONMarshaled, 3)
+
+	for i := range vs {
+		vs[i] = dummyJSONMarshaled{
+			insideDummyJSONMarshaled: insideDummyJSONMarshaled{
+				BaseHinter: hint.NewBaseHinter(ht),
+				A:          util.UUID().String(),
+				B:          util.UUID().String(),
+			},
+		}
+	}
+
+	// modify json
+	vcs := make([]string, len(vs))
+	var mb []byte
+	{
+		b, err := t.enc.Marshal(vs)
+		t.NoError(err)
+
+		var ms []map[string]interface{}
+
+		t.NoError(util.UnmarshalJSON(b, &ms))
+
+		for i := range ms {
+			vcs[i] = util.UUID().String()
+			ms[i]["C"] = vcs[i]
+		}
+
+		i, err := util.MarshalJSON(ms)
+		t.NoError(err)
+		mb = i
+	}
+
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ht, Instance: dummyJSONMarshaled{}}))
+
+	var us []json.RawMessage
+	t.NoError(util.UnmarshalJSON(mb, &us))
+
+	for i := range us {
+		j, err := t.enc.Decode(us[i])
+		t.NoError(err)
+
+		v := vs[i]
+
+		uv, ok := j.(dummyJSONMarshaled)
+		t.True(ok)
+
+		t.Equal(v.A, uv.A)
+		t.Equal(v.B, uv.B)
+
+		mj, isMarshaled := uv.MarshaledJSON()
+		t.True(isMarshaled)
+		t.NotNil(mj)
+		t.T().Log("marshaled json:", string(mj))
+
+		var m map[string]interface{}
+
+		t.NoError(util.UnmarshalJSON(mj, &m))
+
+		c, found := m["C"]
+		t.True(found)
+		t.Equal(vcs[i], c)
+
+	}
+}
+
+type dummyJSONMarshaledDecodable struct {
+	util.DefaultExtensibleJSON
+	insideDummyJSONMarshaled
+}
+
+func (d dummyJSONMarshaledDecodable) MarshalJSON() ([]byte, error) {
+	if b, ok := d.MarshaledJSON(); ok {
+		return b, nil
+	}
+
+	return util.MarshalJSON(d.insideDummyJSONMarshaled)
+}
+
+func (d *dummyJSONMarshaledDecodable) DecodeJSON(b []byte, enc *Encoder) error {
+	if err := enc.Unmarshal(b, &d.insideDummyJSONMarshaled); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (t *testExtensibleJSON) TestExtensibleJSONDecodable() {
+	ht := hint.MustNewHint("findme-v1.2.3")
+
+	v := dummyJSONMarshaledDecodable{
+		insideDummyJSONMarshaled: insideDummyJSONMarshaled{
+			BaseHinter: hint.NewBaseHinter(ht),
+			A:          "A",
+			B:          "B",
+		},
+	}
+
+	b, err := t.enc.Marshal(v)
+	t.NoError(err)
+
+	// modify json
+	var mb []byte
+	{
+		var m map[string]interface{}
+
+		t.NoError(util.UnmarshalJSON(b, &m))
+
+		m["C"] = "C"
+
+		i, err := util.MarshalJSON(m)
+		t.NoError(err)
+		mb = i
+	}
+
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ht, Instance: dummyJSONMarshaledDecodable{}}))
+	i, err := t.enc.Decode(mb)
+	t.NoError(err)
+
+	uv, ok := i.(dummyJSONMarshaledDecodable)
+	t.True(ok)
+
+	t.Equal(v.A, uv.A)
+	t.Equal(v.B, uv.B)
+
+	mj, isMarshaled := uv.MarshaledJSON()
+	t.True(isMarshaled)
+	t.NotNil(mj)
+	t.T().Log("marshaled json:", string(mj))
+
+	var m map[string]interface{}
+
+	t.NoError(util.UnmarshalJSON(mj, &m))
+
+	c, found := m["C"]
+	t.True(found)
+	t.Equal("C", c)
+}
+
+type fieldDummyJSONMarshaled struct {
+	hint.BaseHinter
+	D dummyJSONMarshaled
+	E string
+}
+
+type fieldDummyJSONMarshaledUnmarshaler struct {
+	D json.RawMessage
+	E string
+}
+
+func (d *fieldDummyJSONMarshaled) DecodeJSON(b []byte, enc *Encoder) error {
+	var u fieldDummyJSONMarshaledUnmarshaler
+	if err := enc.Unmarshal(b, &u); err != nil {
+		return err
+	}
+
+	d.E = u.E
+
+	i, err := enc.Decode(u.D)
+	if err != nil {
+		return err
+	}
+
+	d.D = i.(dummyJSONMarshaled)
+
+	return nil
+}
+
+func (t *testExtensibleJSON) TestExtensibleJSONField() {
+	ht := hint.MustNewHint("findme-v1.2.3")
+	htdummy := hint.MustNewHint("showme-v1.2.3")
+
+	d := fieldDummyJSONMarshaled{
+		BaseHinter: hint.NewBaseHinter(ht),
+		D: dummyJSONMarshaled{insideDummyJSONMarshaled: insideDummyJSONMarshaled{
+			BaseHinter: hint.NewBaseHinter(htdummy),
+			A:          "A", B: "B",
+		}},
+		E: "E",
+	}
+
+	b, err := util.MarshalJSON(d)
+	t.NoError(err)
+
+	t.T().Log("marshaled:", string(b))
+
+	t.Run("check Marshaled", func() {
+		mb, ok := d.D.MarshaledJSON()
+		t.False(ok)
+		t.Nil(mb)
+	})
+
+	// modify json
+	var mb []byte
+	{
+		var m map[string]interface{}
+
+		t.NoError(util.UnmarshalJSON(b, &m))
+
+		md := m["D"].(map[string]interface{})
+		md["C"] = "C"
+
+		i, err := util.MarshalJSON(m)
+		t.NoError(err)
+		mb = i
+
+		t.T().Log("modified:", string(mb))
+	}
+
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ht, Instance: fieldDummyJSONMarshaled{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: htdummy, Instance: dummyJSONMarshaled{}}))
+
+	i, err := t.enc.Decode(mb)
+	t.NoError(err)
+
+	ud, ok := i.(fieldDummyJSONMarshaled)
+	t.True(ok)
+
+	t.Run("MarshaledJSON", func() {
+		i, ok := ud.D.MarshaledJSON()
+		t.True(ok)
+		t.NotNil(i)
+	})
+
+	t.Run("marshal again", func() {
+		i, err := util.MarshalJSON(ud)
+		t.NoError(err)
+
+		t.T().Log("marshaled:", string(i))
+
+		var m map[string]interface{}
+
+		t.NoError(util.UnmarshalJSON(i, &m))
+
+		md := m["D"].(map[string]interface{})
+		v, found := md["C"]
+		t.True(found)
+		t.Equal("C", v)
+	})
+}
+
+type embedDummyJSONMarshaled struct {
+	dummyJSONMarshaled
+	E string
+}
+
+func (d embedDummyJSONMarshaled) MarshalJSON() ([]byte, error) {
+	if b, ok := d.MarshaledJSON(); ok {
+		return b, nil
+	}
+
+	b, err := d.dummyJSONMarshaled.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+
+	var m map[string]interface{}
+	if err := util.UnmarshalJSON(b, &m); err != nil {
+		return nil, err
+	}
+
+	m["E"] = d.E
+
+	return util.MarshalJSON(m)
+}
+
+type embedDummyJSONMarshaledMarshaler struct {
+	E string
+}
+
+func (d *embedDummyJSONMarshaled) DecodeJSON(b []byte, enc *Encoder) error {
+	if err := enc.Unmarshal(b, &d.dummyJSONMarshaled); err != nil {
+		return err
+	}
+
+	var u embedDummyJSONMarshaledMarshaler
+	if err := util.UnmarshalJSON(b, &u); err != nil {
+		return err
+	}
+
+	d.E = u.E
+
+	return nil
+}
+
+func (t *testExtensibleJSON) TestExtensibleJSONEmbeded() {
+	ht := hint.MustNewHint("findme-v1.2.3")
+
+	d := embedDummyJSONMarshaled{
+		dummyJSONMarshaled: dummyJSONMarshaled{insideDummyJSONMarshaled: insideDummyJSONMarshaled{
+			BaseHinter: hint.NewBaseHinter(ht),
+			A:          "A", B: "B",
+		}},
+		E: "E",
+	}
+
+	b, err := util.MarshalJSON(d)
+	t.NoError(err)
+
+	t.T().Log("marshaled:", string(b))
+
+	t.Run("check Marshaled", func() {
+		mb, ok := d.MarshaledJSON()
+		t.False(ok)
+		t.Nil(mb)
+	})
+
+	// modify json
+	var mb []byte
+	{
+		var m map[string]interface{}
+
+		t.NoError(util.UnmarshalJSON(b, &m))
+
+		m["C"] = "C"
+
+		i, err := util.MarshalJSON(m)
+		t.NoError(err)
+		mb = i
+
+		t.T().Log("modified:", string(mb))
+	}
+
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ht, Instance: embedDummyJSONMarshaled{}}))
+
+	i, err := t.enc.Decode(mb)
+	t.NoError(err)
+
+	ud, ok := i.(embedDummyJSONMarshaled)
+	t.True(ok)
+
+	t.Run("MarshaledJSON", func() {
+		i, ok := ud.MarshaledJSON()
+		t.True(ok)
+		t.NotNil(i)
+	})
+
+	t.Run("marshal again", func() {
+		i, err := util.MarshalJSON(ud)
+		t.NoError(err)
+
+		t.T().Log("marshaled:", string(i))
+
+		var m map[string]interface{}
+
+		t.NoError(util.UnmarshalJSON(i, &m))
+
+		v, found := m["C"]
+		t.True(found)
+		t.Equal("C", v)
+	})
+}
+
+func TestExtensibleJSON(t *testing.T) {
+	suite.Run(t, new(testExtensibleJSON))
+}

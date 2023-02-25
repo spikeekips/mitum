@@ -11,6 +11,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
+	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/fixedtree"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
@@ -155,6 +157,22 @@ func (p *DummyOperationProcessor) Process(ctx context.Context, op base.Operation
 
 type testDefaultProposalProcessor struct {
 	BaseTestBallots
+	Encs *encoder.Encoders
+	Enc  encoder.Encoder
+}
+
+func (t *testDefaultProposalProcessor) SetupSuite() {
+	t.Encs = encoder.NewEncoders()
+	t.Enc = jsonenc.NewEncoder()
+	t.NoError(t.Encs.AddHinter(t.Enc))
+
+	t.NoError(t.Enc.AddHinter(base.DummyManifest{}))
+	t.NoError(t.Enc.AddHinter(base.DummyBlockMap{}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: NodeHint, Instance: base.BaseNode{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: DummyOperationFactHint, Instance: DummyOperationFact{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: DummyOperationHint, Instance: DummyOperation{}}))
 }
 
 func (t *testDefaultProposalProcessor) newproposal(fact ProposalFact) base.ProposalSignFact {
@@ -170,6 +188,32 @@ func (t *testDefaultProposalProcessor) newStateMergeValue(key string) base.State
 	return base.NewBaseStateMergeValue(key, v, nil)
 }
 
+func (t *testDefaultProposalProcessor) newOperation(height base.Height) DummyOperation {
+	fact := NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
+	op, _ := NewDummyOperation(fact, t.Local.Privatekey(), t.LocalParams.NetworkID())
+
+	return op
+}
+
+func (t *testDefaultProposalProcessor) newOperationExtended(height base.Height, k string, v interface{}) DummyOperation {
+	op := t.newOperation(height)
+
+	b0, err := util.MarshalJSON(op)
+	t.NoError(err)
+
+	var m map[string]interface{}
+
+	t.NoError(util.UnmarshalJSON(b0, &m))
+	m[k] = v
+
+	b1, err := util.MarshalJSON(m)
+	t.NoError(err)
+
+	op.SetMarshaledJSON(b1)
+
+	return op
+}
+
 func (t *testDefaultProposalProcessor) prepareOperations(height base.Height, n int) (
 	[]util.Hash,
 	map[string]base.Operation,
@@ -180,11 +224,12 @@ func (t *testDefaultProposalProcessor) prepareOperations(height base.Height, n i
 	sts := map[string]base.StateMergeValue{}
 
 	for i := range ophs {
-		fact := NewDummyOperationFact(util.UUID().Bytes(), valuehash.RandomSHA256())
-		op, _ := NewDummyOperation(fact, t.Local.Privatekey(), t.LocalParams.NetworkID())
+		op := t.newOperation(height)
 
-		ophs[i] = fact.Hash()
-		st := t.newStateMergeValue(fact.Hash().String())
+		fact := op.Fact().Hash()
+
+		ophs[i] = fact
+		st := t.newStateMergeValue(fact.String())
 
 		op.preprocess = func(ctx context.Context, _ base.GetStateFunc) (context.Context, base.OperationProcessReasonError, error) {
 			return ctx, nil, nil
@@ -193,8 +238,8 @@ func (t *testDefaultProposalProcessor) prepareOperations(height base.Height, n i
 			return []base.StateMergeValue{st}, nil, nil
 		}
 
-		ops[fact.Hash().String()] = op
-		sts[fact.Hash().String()] = st
+		ops[fact.String()] = op
+		sts[fact.String()] = st
 	}
 
 	return ophs, ops, sts
@@ -1462,6 +1507,27 @@ func (t *testDefaultProposalProcessor) TestSave() {
 
 	ophs, ops, _ := t.prepareOperations(point.Height()-1, 4)
 
+	indexExtendedOp := uint64(len(ops))
+	extendedValue := util.UUID().String()
+
+	{ // NOTE add extended operation
+		op := t.newOperationExtended(point.Height()-1, "A", extendedValue)
+
+		fact := op.Fact().Hash()
+
+		st := t.newStateMergeValue(fact.String())
+
+		op.preprocess = func(ctx context.Context, _ base.GetStateFunc) (context.Context, base.OperationProcessReasonError, error) {
+			return ctx, nil, nil
+		}
+		op.process = func(context.Context, base.GetStateFunc) ([]base.StateMergeValue, base.OperationProcessReasonError, error) {
+			return []base.StateMergeValue{st}, nil, nil
+		}
+
+		ophs = append(ophs, fact)
+		ops[fact.String()] = op
+	}
+
 	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), ophs))
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
@@ -1474,6 +1540,25 @@ func (t *testDefaultProposalProcessor) TestSave() {
 		savech <- struct{}{}
 
 		return nil, nil
+	}
+	writer.setstatesf = func(ctx context.Context, index uint64, states []base.StateMergeValue, op base.Operation) error {
+		if index == indexExtendedOp {
+			t.Run("check extended value in operation", func() {
+				b, err := util.MarshalJSON(op)
+				t.NoError(err)
+
+				t.T().Log("extended marshaled:", string(b))
+
+				var m map[string]interface{}
+				t.NoError(util.UnmarshalJSON(b, &m))
+
+				v, found := m["A"]
+				t.True(found)
+				t.Equal(extendedValue, v)
+			})
+		}
+
+		return writer.setStates(ctx, index, states, op)
 	}
 
 	opp, _ := NewDefaultProposalProcessor(pr, previous, newwriterf, nil, func(_ context.Context, facthash util.Hash) (base.Operation, error) {
@@ -1490,7 +1575,7 @@ func (t *testDefaultProposalProcessor) TestSave() {
 	t.NoError(err)
 	t.NotNil(m)
 
-	t.Equal(4, writer.sts.Len())
+	t.Equal(len(ops), writer.sts.Len())
 
 	afact := t.NewACCEPTBallotFact(point.NextHeight(), nil, nil)
 	avp, err := t.NewACCEPTVoteproof(afact, t.Local, []LocalNode{t.Local})

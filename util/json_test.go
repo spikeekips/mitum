@@ -25,18 +25,159 @@ func (d dummyJSONMarshaled) MarshalJSON() ([]byte, error) {
 	return MarshalJSON(d.insideDummyJSONMarshaled)
 }
 
-type dummyDummyJSONMarshaled struct {
+type testExtensibleJSON struct {
+	suite.Suite
+}
+
+func (t *testExtensibleJSON) TestUnmarshal() {
+	b := `{"A":"A","B":"B", "C": "C"}`
+
+	t.T().Log("marshaled:", b)
+
+	var ud dummyJSONMarshaled
+
+	t.NoError(UnmarshalJSON([]byte(b), &ud))
+
+	t.Run("MarshaledJSON", func() {
+		i, ok := ud.MarshaledJSON()
+		t.True(ok)
+		t.NotNil(i)
+	})
+
+	t.Run("marshal again", func() {
+		i, err := MarshalJSON(ud)
+		t.NoError(err)
+
+		t.T().Log("marshaled:", string(i))
+
+		var m map[string]interface{}
+
+		t.NoError(UnmarshalJSON(i, &m))
+
+		v, found := m["C"]
+		t.True(found)
+		t.Equal("C", v)
+	})
+}
+
+func (t *testExtensibleJSON) TestMarshal() {
+	d := dummyJSONMarshaled{insideDummyJSONMarshaled: insideDummyJSONMarshaled{A: "A", B: "B"}}
+	b, err := MarshalJSON(d)
+	t.NoError(err)
+
+	t.T().Log("marshaled:", string(b))
+
+	t.Run("check Marshaled", func() {
+		mb, ok := d.MarshaledJSON()
+		t.False(ok)
+		t.Nil(mb)
+	})
+
+	// modify json
+	var mb []byte
+	{
+		var m map[string]interface{}
+
+		t.NoError(UnmarshalJSON(b, &m))
+
+		m["C"] = "C"
+
+		i, err := MarshalJSON(m)
+		t.NoError(err)
+		mb = i
+	}
+
+	var ud dummyJSONMarshaled
+
+	t.NoError(UnmarshalJSON(mb, &ud))
+
+	t.Run("MarshaledJSON", func() {
+		i, ok := ud.MarshaledJSON()
+		t.True(ok)
+		t.NotNil(i)
+	})
+
+	t.Run("marshal again", func() {
+		i, err := MarshalJSON(ud)
+		t.NoError(err)
+
+		t.T().Log("marshaled:", string(i))
+
+		var m map[string]interface{}
+
+		t.NoError(UnmarshalJSON(i, &m))
+
+		v, found := m["C"]
+		t.True(found)
+		t.Equal("C", v)
+	})
+}
+
+func (t *testExtensibleJSON) TestPointer() {
+	d := dummyJSONMarshaled{insideDummyJSONMarshaled: insideDummyJSONMarshaled{A: "A", B: "B"}}
+	b, err := MarshalJSON(&d) // NOTE set pointer
+	t.NoError(err)
+
+	t.T().Log("marshaled:", string(b))
+
+	t.Run("check Marshaled", func() {
+		mb, ok := d.MarshaledJSON()
+		t.True(ok)
+		t.NotNil(mb)
+	})
+
+	// modify json
+	var mb []byte
+	{
+		var m map[string]interface{}
+
+		t.NoError(UnmarshalJSON(b, &m))
+
+		m["C"] = "C"
+
+		i, err := MarshalJSON(m)
+		t.NoError(err)
+		mb = i
+	}
+
+	var ud dummyJSONMarshaled
+
+	t.NoError(UnmarshalJSON(mb, &ud))
+
+	t.Run("MarshaledJSON", func() {
+		i, ok := ud.MarshaledJSON()
+		t.True(ok)
+		t.NotNil(i)
+	})
+
+	t.Run("marshal again", func() {
+		i, err := MarshalJSON(ud)
+		t.NoError(err)
+
+		t.T().Log("marshaled:", string(i))
+
+		var m map[string]interface{}
+
+		t.NoError(UnmarshalJSON(i, &m))
+
+		v, found := m["C"]
+		t.True(found)
+		t.Equal("C", v)
+	})
+}
+
+type fieldDummyJSONMarshaled struct {
 	D dummyJSONMarshaled
 	E string
 }
 
-type dummyDummyJSONMarshaledUnmarshaler struct {
+type fieldDummyJSONMarshaledUnmarshaler struct {
 	D json.RawMessage
 	E string
 }
 
-func (d *dummyDummyJSONMarshaled) UnmarshalJSON(b []byte) error {
-	var u dummyDummyJSONMarshaledUnmarshaler
+func (d *fieldDummyJSONMarshaled) UnmarshalJSON(b []byte) error {
+	var u fieldDummyJSONMarshaledUnmarshaler
 	if err := UnmarshalJSON(b, &u); err != nil {
 		return err
 	}
@@ -48,6 +189,99 @@ func (d *dummyDummyJSONMarshaled) UnmarshalJSON(b []byte) error {
 	}
 
 	return nil
+}
+
+func (t *testExtensibleJSON) TestFieldUnmarshal() {
+	b := `{"D":{"B":"B","C":"C","A":"A"},"E":"E"}`
+
+	t.T().Log("marshaled:", b)
+
+	var ud fieldDummyJSONMarshaled
+
+	t.NoError(UnmarshalJSON([]byte(b), &ud))
+
+	t.Run("check MarshaledJSON", func() {
+		i, ok := ud.D.MarshaledJSON()
+		t.True(ok)
+		t.NotNil(i)
+	})
+
+	t.Run("marshal again", func() {
+		i, err := MarshalJSON(ud)
+		t.NoError(err)
+
+		t.T().Log("marshaled:", string(i))
+
+		var m map[string]interface{}
+
+		t.NoError(UnmarshalJSON(i, &m))
+
+		md := m["D"].(map[string]interface{})
+		v, found := md["C"]
+		t.True(found)
+		t.Equal("C", v)
+	})
+}
+
+func (t *testExtensibleJSON) TestField() {
+	d := fieldDummyJSONMarshaled{
+		D: dummyJSONMarshaled{insideDummyJSONMarshaled: insideDummyJSONMarshaled{A: "A", B: "B"}},
+		E: "E",
+	}
+
+	b, err := MarshalJSON(d)
+	t.NoError(err)
+
+	t.T().Log("marshaled:", string(b))
+
+	t.Run("check Marshaled", func() {
+		mb, ok := d.D.MarshaledJSON()
+		t.False(ok)
+		t.Nil(mb)
+	})
+
+	// modify json
+	var mb []byte
+	{
+		var m map[string]interface{}
+
+		t.NoError(UnmarshalJSON(b, &m))
+
+		md := m["D"].(map[string]interface{})
+		md["C"] = "C"
+
+		i, err := MarshalJSON(m)
+		t.NoError(err)
+		mb = i
+
+		t.T().Log("modified:", string(mb))
+	}
+
+	var ud fieldDummyJSONMarshaled
+
+	t.NoError(UnmarshalJSON(mb, &ud))
+
+	t.Run("check MarshaledJSON", func() {
+		i, ok := ud.D.MarshaledJSON()
+		t.True(ok)
+		t.NotNil(i)
+	})
+
+	t.Run("marshal again", func() {
+		i, err := MarshalJSON(ud)
+		t.NoError(err)
+
+		t.T().Log("marshaled:", string(i))
+
+		var m map[string]interface{}
+
+		t.NoError(UnmarshalJSON(i, &m))
+
+		md := m["D"].(map[string]interface{})
+		v, found := md["C"]
+		t.True(found)
+		t.Equal("C", v)
+	})
 }
 
 type embedDummyJSONMarshaled struct {
@@ -90,44 +324,16 @@ func (d *embedDummyJSONMarshaled) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-type testMarshaled struct {
-	suite.Suite
-}
+func (t *testExtensibleJSON) TestEmbededUnmarshal() {
+	b := `{"A":"A","B":"B","E":"E","C":"C"}`
 
-// FIXME test marshal pointer
+	t.T().Log("marshaled:", b)
 
-func (t *testMarshaled) TestMarshal() {
-	d := dummyJSONMarshaled{insideDummyJSONMarshaled: insideDummyJSONMarshaled{A: "A", B: "B"}}
-	b, err := MarshalJSON(d)
-	t.NoError(err)
+	var ud embedDummyJSONMarshaled
 
-	t.T().Log("marshaled:", string(b))
+	t.NoError(UnmarshalJSON([]byte(b), &ud))
 
-	t.Run("check Marshaled()", func() {
-		mb, ok := d.MarshaledJSON()
-		t.False(ok)
-		t.Nil(mb)
-	})
-
-	// modify json
-	var mb []byte
-	{
-		var m map[string]interface{}
-
-		t.NoError(UnmarshalJSON(b, &m))
-
-		m["C"] = "C"
-
-		i, err := MarshalJSON(m)
-		t.NoError(err)
-		mb = i
-	}
-
-	var ud dummyJSONMarshaled
-
-	t.NoError(UnmarshalJSON(mb, &ud))
-
-	t.Run("check C", func() {
+	t.Run("check MarshaledJSON", func() {
 		i, ok := ud.MarshaledJSON()
 		t.True(ok)
 		t.NotNil(i)
@@ -149,68 +355,7 @@ func (t *testMarshaled) TestMarshal() {
 	})
 }
 
-func (t *testMarshaled) TestField() {
-	d := dummyDummyJSONMarshaled{
-		D: dummyJSONMarshaled{insideDummyJSONMarshaled: insideDummyJSONMarshaled{A: "A", B: "B"}},
-		E: "E",
-	}
-
-	b, err := MarshalJSON(d)
-	t.NoError(err)
-
-	t.T().Log("marshaled:", string(b))
-
-	t.Run("check Marshaled()", func() {
-		mb, ok := d.D.MarshaledJSON()
-		t.False(ok)
-		t.Nil(mb)
-	})
-
-	// modify json
-	var mb []byte
-	{
-		var m map[string]interface{}
-
-		t.NoError(UnmarshalJSON(b, &m))
-
-		md := m["D"].(map[string]interface{})
-		md["C"] = "C"
-
-		i, err := MarshalJSON(m)
-		t.NoError(err)
-		mb = i
-
-		t.T().Log("modified:", string(mb))
-	}
-
-	var ud dummyDummyJSONMarshaled
-
-	t.NoError(UnmarshalJSON(mb, &ud))
-
-	t.Run("check C", func() {
-		i, ok := ud.D.MarshaledJSON()
-		t.True(ok)
-		t.NotNil(i)
-	})
-
-	t.Run("marshal again", func() {
-		i, err := MarshalJSON(ud)
-		t.NoError(err)
-
-		t.T().Log("marshaled:", string(i))
-
-		var m map[string]interface{}
-
-		t.NoError(UnmarshalJSON(i, &m))
-
-		md := m["D"].(map[string]interface{})
-		v, found := md["C"]
-		t.True(found)
-		t.Equal("C", v)
-	})
-}
-
-func (t *testMarshaled) TestEmbeded() {
+func (t *testExtensibleJSON) TestEmbeded() {
 	d := embedDummyJSONMarshaled{
 		dummyJSONMarshaled: dummyJSONMarshaled{insideDummyJSONMarshaled: insideDummyJSONMarshaled{A: "A", B: "B"}},
 		E:                  "E",
@@ -221,7 +366,7 @@ func (t *testMarshaled) TestEmbeded() {
 
 	t.T().Log("marshaled:", string(b))
 
-	t.Run("check Marshaled()", func() {
+	t.Run("check Marshaled", func() {
 		mb, ok := d.MarshaledJSON()
 		t.False(ok)
 		t.Nil(mb)
@@ -247,7 +392,7 @@ func (t *testMarshaled) TestEmbeded() {
 
 	t.NoError(UnmarshalJSON(mb, &ud))
 
-	t.Run("check C", func() {
+	t.Run("check MarshaledJSON", func() {
 		i, ok := ud.MarshaledJSON()
 		t.True(ok)
 		t.NotNil(i)
@@ -269,6 +414,6 @@ func (t *testMarshaled) TestEmbeded() {
 	})
 }
 
-func TestMarshaled(t *testing.T) {
-	suite.Run(t, new(testMarshaled))
+func TestExtensibleJSON(t *testing.T) {
+	suite.Run(t, new(testExtensibleJSON))
 }
