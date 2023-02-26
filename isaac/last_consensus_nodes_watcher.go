@@ -192,20 +192,21 @@ func (u *LastConsensusNodesWatcher) check(ctx context.Context) error {
 	default:
 		newproofs, newcandidates, lastheightUpdated, nodesUpdated := u.update(height, proof, candidates)
 
-		if lastheightUpdated {
-			u.Log().Debug().Interface("height", height).Msg("new height found from remote")
-
-			defer func() {
-				// NOTE empty updated SuffrageProof when new updated last height
-				go u.whenUpdatedf(ctx, last, nil, nil)
-			}()
-		}
+		var newproof base.SuffrageProof
+		var newcandidatesst base.State
 
 		if nodesUpdated {
 			u.Log().Debug().Interface("proofs", newproofs).Msg("new suffrage proof found from remote")
 
-			go u.whenUpdatedf(ctx, last, newproofs[len(newproofs)-1], newcandidates)
+			newproof = newproofs[len(newproofs)-1]
+			newcandidatesst = newcandidates
 		}
+
+		if lastheightUpdated {
+			u.Log().Debug().Interface("height", height).Msg("new height found from remote")
+		}
+
+		go u.whenUpdatedf(ctx, last, newproof, newcandidatesst)
 
 		return nil
 	}
