@@ -110,11 +110,13 @@ func (box *Ballotbox) Vote(bl base.Ballot, threshold base.Threshold) (bool, erro
 		return false, errors.WithMessage(err, "failed to vote")
 	}
 
-	box.Log().Debug().
-		Interface("ballot", bl).
-		Interface("sign_fact", bl.SignFact()).
-		Bool("voted", voted).
-		Msg("ballot voted")
+	if voted {
+		box.Log().Debug().
+			Interface("ballot", bl).
+			Interface("sign_fact", bl.SignFact()).
+			Bool("voted", voted).
+			Msg("ballot voted")
+	}
 
 	if deferred != nil {
 		go func() {
@@ -137,7 +139,9 @@ func (box *Ballotbox) VoteSignFact(sf base.BallotSignFact, threshold base.Thresh
 		return false, errors.WithMessage(err, "failed to vote sign fact")
 	}
 
-	box.Log().Debug().Interface("sign_fact", sf).Bool("voted", voted).Msg("ballot voted")
+	if voted {
+		box.Log().Debug().Interface("sign_fact", sf).Bool("voted", voted).Msg("ballot voted")
+	}
 
 	if deferred != nil {
 		go deferred()
@@ -347,7 +351,9 @@ func (box *Ballotbox) vote(
 		return false, nil, err
 	}
 
-	l.Debug().Bool("validated", validated).Msg("ballot validated?")
+	if voted {
+		l.Debug().Bool("validated", validated).Msg("ballot validated?")
+	}
 
 	if !validated {
 		var deferred func() []base.Voteproof
