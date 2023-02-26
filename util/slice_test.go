@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/gofrs/uuid"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -121,6 +123,10 @@ func makeInterfaceSlice(s interface{}) []interface{} {
 
 	switch v.Kind() {
 	case reflect.Slice, reflect.Array:
+		if v.Len() < 1 {
+			return nil
+		}
+
 		l := make([]interface{}, v.Len())
 		for i := 0; i < v.Len(); i++ {
 			l[i] = v.Index(i).Interface()
@@ -235,4 +241,80 @@ func (t *testRandomChoiceSlice) TestOverSize() {
 
 func TestRandomChoiceSlice(t *testing.T) {
 	suite.Run(t, new(testRandomChoiceSlice))
+}
+
+func TestRemoveDuplicated(tt *testing.T) {
+	t := new(suite.Suite)
+	t.SetT(tt)
+
+	uuids := []interface{}{UUID(), UUID(), UUID(), UUID(), UUID()}
+	uuids_dup := make([]interface{}, len(uuids)+1)
+	copy(uuids_dup, uuids)
+
+	uuids_dup[len(uuids)] = uuids[len(uuids)-1]
+
+	cases := []struct {
+		name     string
+		s        interface{}
+		f        func(interface{}) (string, error)
+		expected interface{}
+		err      string
+	}{
+		{
+			name: "not duplicated",
+			s:    []int{5, 4, 3, 2, 1},
+			f: func(i interface{}) (string, error) {
+				return fmt.Sprintf("%d", i), nil
+			},
+			expected: []interface{}{5, 4, 3, 2, 1},
+		},
+		{
+			name: "duplicated: int",
+			s:    []int{5, 4, 3, 2, 1, 5},
+			f: func(i interface{}) (string, error) {
+				return fmt.Sprintf("%d", i), nil
+			},
+			expected: []interface{}{5, 4, 3, 2, 1},
+		},
+		{
+			name: "duplicated: UUID",
+			s:    uuids_dup,
+			f: func(i interface{}) (string, error) {
+				return i.(uuid.UUID).String(), nil
+			},
+			expected: uuids,
+		},
+		{name: "empty", s: []int{}, expected: ([]interface{})(nil)},
+		{
+			name: "error",
+			s:    []int{5, 4, 3, 2, 1, 5},
+			f: func(i interface{}) (string, error) {
+				if fmt.Sprintf("%d", i) == "3" {
+					return "", errors.Errorf("findme")
+				}
+
+				return fmt.Sprintf("%d", i), nil
+			},
+			err: "findme",
+		},
+	}
+
+	for i, c := range cases {
+		i := i
+		c := c
+		t.Run(c.name, func() {
+			sl := makeInterfaceSlice(c.s)
+
+			r, err := RemoveDuplicatedSlice(sl, c.f)
+
+			if len(c.err) > 0 {
+				t.Error(err)
+				t.ErrorContains(err, c.err, "%d, %s: %v", i, c.name)
+
+				return
+			}
+
+			t.Equal(r, c.expected, "%d, %s", i, c.name)
+		})
+	}
 }

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/oklog/ulid"
+	"github.com/oklog/ulid/v2"
 )
 
 var (

@@ -90,6 +90,38 @@ func FilterSlice[T any](s []T, f func(T) bool) []T {
 	return ns[:index]
 }
 
+func RemoveDuplicatedSlice[T any](s []T, f func(T) (string, error)) ([]T, error) {
+	if len(s) < 1 {
+		return nil, nil
+	}
+
+	ns := make([]T, len(s))
+	var index int
+
+	m := map[string]struct{}{}
+
+	for i := range s {
+		switch k, err := f(s[i]); {
+		case err != nil:
+			return nil, err
+		case len(k) < 1:
+			continue
+		default:
+			_, found := m[k]
+			if found {
+				continue
+			}
+
+			m[k] = struct{}{}
+		}
+
+		ns[index] = s[i]
+		index++
+	}
+
+	return ns[:index], nil
+}
+
 func CountFilteredSlice[T any](s []T, f func(T) bool) (n int) {
 	if len(s) < 1 {
 		return 0
