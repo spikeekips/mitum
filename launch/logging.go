@@ -3,7 +3,6 @@ package launch
 import (
 	"io"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/pkg/errors"
@@ -18,14 +17,14 @@ func init() { //nolint:gochecknoinits //...
 }
 
 type LoggingFlags struct {
-	// revive:disable:line-length-limit
+	//revive:disable:line-length-limit
 	//revive:disable:struct-tag
-	Out        LogOutFlag   `name:"out" default:"${log_out}" help:"log output file: {stdout, stderr, <file>}" group:"logging"`
 	Format     string       `enum:"json, terminal" default:"${log_format}" help:"log format: {${enum}}" group:"logging"`
+	Out        []LogOutFlag `name:"out" default:"${log_out}" help:"log output file: {stdout, stderr, <file>}" group:"logging"`
 	Level      LogLevelFlag `name:"level" default:"${log_level}" help:"log level: {trace, debug, info, warn, error}" group:"logging"`
 	ForceColor bool         `name:"force-color" default:"${log_force_color}" negatable:"" help:"log force color" group:"logging"`
 	//revive:enable:struct-tag
-	// revive:enable:line-length-limit
+	//revive:enable:line-length-limit
 }
 
 type LogLevelFlag struct {
@@ -60,19 +59,28 @@ func (f LogOutFlag) File() (io.Writer, error) {
 	case "stderr":
 		return os.Stderr, nil
 	default:
-		w, err := os.OpenFile(filepath.Clean(string(f)), os.O_WRONLY|os.O_APPEND|os.O_SYNC|os.O_CREATE, 0o600)
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to open log file")
-		}
-
-		return w, nil
+		return logging.Output(string(f))
 	}
 }
 
 func SetupLoggingFromFlags(flag LoggingFlags) (*logging.Logging, error) {
-	logout, err := flag.Out.File()
-	if err != nil {
-		return nil, err
+	fs := util.RemoveDuplicatedSlice(flag.Out, func(f LogOutFlag) string { return string(f) })
+
+	var logout io.Writer
+
+	if len(fs) > 0 {
+		ws := make([]io.Writer, len(fs))
+
+		for i := range fs {
+			w, err := fs[i].File()
+			if err != nil {
+				return nil, err
+			}
+
+			ws[i] = w
+		}
+
+		logout = zerolog.MultiLevelWriter(ws...)
 	}
 
 	return logging.Setup(
