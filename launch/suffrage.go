@@ -11,23 +11,23 @@ import (
 )
 
 type SuffragePool struct {
-	fromDB func(base.Height) (base.Suffrage, bool, error)
-	lastf  func() (base.Height, base.Suffrage, bool, error)
-	cache  *util.GCache[string, base.Suffrage]
-	sg     singleflight.Group
-	expire time.Duration
+	byHeightFunc func(base.Height) (base.Suffrage, bool, error)
+	lastf        func() (base.Height, base.Suffrage, bool, error)
+	cache        *util.GCache[string, base.Suffrage]
+	sg           singleflight.Group
+	expire       time.Duration
 	sync.RWMutex
 }
 
 func NewSuffragePool(
-	fromDB func(base.Height) (base.Suffrage, bool, error),
+	byHeightf func(base.Height) (base.Suffrage, bool, error),
 	lastf func() (base.Height, base.Suffrage, bool, error),
 ) *SuffragePool {
 	return &SuffragePool{
-		fromDB: fromDB,
-		lastf:  lastf,
-		cache:  util.NewLRUGCache("", (base.Suffrage)(nil), 1<<9), //nolint:gomnd //...
-		expire: time.Second * 3,                                   //nolint:gomnd //...
+		byHeightFunc: byHeightf,
+		lastf:        lastf,
+		cache:        util.NewLRUGCache("", (base.Suffrage)(nil), 1<<9), //nolint:gomnd //...
+		expire:       time.Second * 3,                                   //nolint:gomnd //...
 	}
 }
 
@@ -37,7 +37,7 @@ func (s *SuffragePool) Height(height base.Height) (base.Suffrage, bool, error) {
 
 	return s.get(
 		height,
-		s.fromDB,
+		s.byHeightFunc,
 	)
 }
 
