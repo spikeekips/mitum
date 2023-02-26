@@ -135,6 +135,13 @@ func PLastConsensusNodesWatcher(pctx context.Context) (context.Context, error) {
 
 	sp := NewSuffragePool(
 		func(height base.Height) (base.Suffrage, bool, error) {
+			switch suf, found, err := watcher.GetSuffrage(height); {
+			case err != nil:
+				return nil, false, err
+			case found:
+				return suf, true, nil
+			}
+
 			return isaac.GetSuffrageFromDatabase(db, height)
 		},
 		func() (base.Height, base.Suffrage, bool, error) {
@@ -183,23 +190,29 @@ func PPatchLastConsensusNodesWatcher(pctx context.Context) (context.Context, err
 	}
 
 	watcher.SetWhenUpdated(func(_ context.Context, previous, updated base.SuffrageProof, candidatesst base.State) {
-		if updated == nil {
-			ballotbox.Count(params.Threshold())
-
-			log.Log().Debug().Msg("last height of suffrage updated; ballotbox.Count()")
-
-			return
+		if updated != nil {
+			log.Log().Debug().Msg("suffrage updated")
 		}
 
-		// NOTE remove withdraw nodes from SyncSourcePool
-		if err := removeWithdrawsFromSyncSourcePoolByWatcher(previous, updated, syncSourcePool, log); err != nil {
-			log.Log().Error().Err(err).Msg("failed to remove withdraws from sync source pool")
+		if candidatesst != nil {
+			log.Log().Debug().Msg("candiates updated")
 		}
 
-		if err := checkLocalIsInConsensusNodesByWatcher(
-			updated, candidatesst, local, mlist, long, states, log,
-		); err != nil {
-			log.Log().Error().Err(err).Msg("failed to check local is in consensus nodes")
+		ballotbox.Count(params.Threshold())
+
+		if updated != nil {
+			// NOTE remove withdraw nodes from SyncSourcePool
+			if err := removeWithdrawsFromSyncSourcePoolByWatcher(previous, updated, syncSourcePool, log); err != nil {
+				log.Log().Error().Err(err).Msg("failed to remove withdraws from sync source pool")
+			}
+		}
+
+		if updated != nil || candidatesst != nil {
+			if err := checkLocalIsInConsensusNodesByWatcher(
+				updated, candidatesst, local, mlist, long, states, log,
+			); err != nil {
+				log.Log().Error().Err(err).Msg("failed to check local is in consensus nodes")
+			}
 		}
 	})
 
