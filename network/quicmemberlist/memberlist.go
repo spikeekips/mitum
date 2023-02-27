@@ -294,7 +294,7 @@ func (srv *Memberlist) patch(config *memberlist.Config) error { // revive:disabl
 			return j
 		}
 
-		i.notallowf = func(addr string) bool {
+		i.args.NotAllowFunc = func(addr string) bool {
 			return notallowedcache.Has(addr)
 		}
 	}

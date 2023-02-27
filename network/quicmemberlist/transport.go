@@ -23,13 +23,29 @@ type (
 	TransportGetConnInfo func(*net.UDPAddr) quicstream.UDPConnInfo
 )
 
+type TransportArgs struct {
+	DialFunc     TransportDialFunc
+	WriteFunc    TransportWriteFunc
+	NotAllowFunc func(string) bool
+}
+
+func NewTransportArgs() *TransportArgs {
+	return &TransportArgs{
+		DialFunc: func(context.Context, quicstream.UDPConnInfo) (quic.EarlyConnection, error) {
+			return nil, util.ErrNotImplemented.Errorf("DialFunc")
+		},
+		WriteFunc: func(context.Context, quicstream.UDPConnInfo, []byte) error {
+			return util.ErrNotImplemented.Errorf("WriteFunc")
+		},
+		NotAllowFunc: func(string) bool { return false }, // NOTE by default, allows all nodes.
+	}
+}
+
 type Transport struct {
 	streamch chan net.Conn
 	*logging.Logging
 	laddr        *net.UDPAddr
-	dialf        TransportDialFunc
-	writef       TransportWriteFunc
-	notallowf    func(string) bool
+	args         *TransportArgs
 	packetch     chan *memberlist.Packet
 	conns        *util.ShardedMap[string, *qconn]
 	getconninfof TransportGetConnInfo
@@ -39,9 +55,7 @@ type Transport struct {
 
 func NewTransport(
 	laddr *net.UDPAddr,
-	dialf TransportDialFunc,
-	writef TransportWriteFunc,
-	notallowf func(string) bool,
+	args *TransportArgs,
 ) *Transport {
 	conns, _ := util.NewShardedMap("", (*qconn)(nil), 1<<9) //nolint:gomnd //...
 
@@ -50,9 +64,7 @@ func NewTransport(
 			return zctx.Str("module", "memberlist-quicmemberlist")
 		}),
 		laddr:        laddr,
-		dialf:        dialf,
-		writef:       writef,
-		notallowf:    notallowf,
+		args:         args,
 		packetch:     make(chan *memberlist.Packet),
 		streamch:     make(chan net.Conn),
 		conns:        conns,
@@ -72,6 +84,7 @@ func NewTransportWithQuicstream(
 
 		return errors.WithStack(err)
 	}
+
 	if len(handlerPrefix) > 0 {
 		makebody = func(w io.Writer, b []byte) error {
 			if err := quicstream.WritePrefix(w, handlerPrefix); err != nil {
@@ -84,41 +97,44 @@ func NewTransportWithQuicstream(
 		}
 	}
 
-	return NewTransport(
-		laddr,
-		func(ctx context.Context, ci quicstream.UDPConnInfo) (quic.EarlyConnection, error) {
-			client, closef := getclient(poolclient, newClient, ci)
-			defer closef()
+	args := NewTransportArgs()
 
-			return client.Dial(ctx)
-		},
-		func(ctx context.Context, ci quicstream.UDPConnInfo, b []byte) error {
-			client, closef := getclient(poolclient, newClient, ci)
-			defer func() {
-				closef()
-			}()
+	args.DialFunc = func(ctx context.Context, ci quicstream.UDPConnInfo) (quic.EarlyConnection, error) {
+		client, closef := getclient(poolclient, newClient, ci)
+		defer closef()
 
-			cctx, cancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
-			defer cancel()
+		return client.Dial(ctx)
+	}
 
-			r, err := client.Write(
-				cctx,
-				func(w io.Writer) error {
-					err := makebody(w, b)
+	args.WriteFunc = func(ctx context.Context, ci quicstream.UDPConnInfo, b []byte) error {
+		client, closef := getclient(poolclient, newClient, ci)
+		defer func() {
+			closef()
+		}()
 
-					return errors.WithStack(err)
-				},
-			)
-			if err != nil {
-				return err
-			}
+		cctx, cancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
+		defer cancel()
 
-			_, _ = io.ReadAll(r)
+		r, err := client.Write(
+			cctx,
+			func(w io.Writer) error {
+				err := makebody(w, b)
 
-			return nil
-		},
-		notallowf,
-	)
+				return errors.WithStack(err)
+			},
+		)
+		if err != nil {
+			return err
+		}
+
+		_, _ = io.ReadAll(r)
+
+		return nil
+	}
+
+	args.NotAllowFunc = notallowf
+
+	return NewTransport(laddr, args)
 }
 
 func (t *Transport) DialTimeout(addr string, timeout time.Duration) (net.Conn, error) {
@@ -130,7 +146,7 @@ func (t *Transport) DialAddressTimeout(addr memberlist.Address, timeout time.Dur
 
 	l.Trace().Msg("trying to dial")
 
-	if t.notallowf(addr.Addr) {
+	if t.args.NotAllowFunc(addr.Addr) {
 		return nil, &net.OpError{
 			Net: "tcp", Op: "dial",
 			Err: errors.Errorf("failed to dial; not allowed"),
@@ -151,7 +167,7 @@ func (t *Transport) DialAddressTimeout(addr memberlist.Address, timeout time.Dur
 
 	ci := t.getconninfof(raddr)
 
-	if _, err := t.dialf(ctx, ci); err != nil {
+	if _, err := t.args.DialFunc(ctx, ci); err != nil {
 		l.Error().Err(err).Interface("conn_info", ci).Msg("failed to dial")
 
 		return nil, &net.OpError{
@@ -233,7 +249,7 @@ func (t *Transport) WriteToAddress(b []byte, addr memberlist.Address) (time.Time
 
 	ci := t.getconninfof(raddr)
 
-	if err := t.writef(context.Background(), ci, marshalMsg(packetDataType, t.laddr, b)); err != nil {
+	if err := t.args.WriteFunc(context.Background(), ci, marshalMsg(packetDataType, t.laddr, b)); err != nil {
 		return time.Time{}, &net.OpError{
 			Net: "udp", Op: "write",
 			Err: errors.WithMessagef(err, "failed to write"),
@@ -257,7 +273,7 @@ func (t *Transport) ReceiveRaw(b []byte, addr net.Addr) error {
 		return e(err, "")
 	}
 
-	if t.notallowf(raddr.String()) {
+	if t.args.NotAllowFunc(raddr.String()) {
 		return e(nil, "not allowed")
 	}
 
@@ -326,7 +342,7 @@ func (t *Transport) newConn(raddr *net.UDPAddr) *qconn {
 		t.laddr,
 		raddr,
 		func(ctx context.Context, b []byte) (int, error) {
-			err := t.writef(ctx, ci, marshalMsg(streamDataType, t.laddr, b))
+			err := t.args.WriteFunc(ctx, ci, marshalMsg(streamDataType, t.laddr, b))
 			var n int
 			if err == nil {
 				n = len(b)

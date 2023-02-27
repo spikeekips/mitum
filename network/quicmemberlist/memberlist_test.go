@@ -52,7 +52,7 @@ func (t *testMemberlist) TestNew() {
 	t.NoError(err)
 
 	config.Delegate = NewDelegate(local, nil, nil)
-	config.Transport = &Transport{}
+	config.Transport = &Transport{args: NewTransportArgs()}
 	config.Alive = NewAliveDelegate(t.enc, local.UDPAddr(), nil, nil)
 
 	args := t.newargs(config)
