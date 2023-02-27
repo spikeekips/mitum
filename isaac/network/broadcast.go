@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
@@ -131,30 +130,4 @@ func (m *CallbackBroadcastMessage) UnmarshalJSON(b []byte) error {
 	m.ci = u.CI
 
 	return nil
-}
-
-type NodeSignBroadcast struct {
-	base.BaseNodeSign
-	b []byte
-}
-
-func NewNodeSignBroadcast(b []byte) NodeSignBroadcast {
-	return NodeSignBroadcast{
-		b: b,
-	}
-}
-
-func (m *NodeSignBroadcast) NodeSign(priv base.Privatekey, networkID base.NetworkID, node base.Address) error {
-	ns, err := base.NewBaseNodeSignFromBytes(node, priv, networkID, m.b)
-	if err != nil {
-		return err
-	}
-
-	m.BaseNodeSign = ns
-
-	return nil
-}
-
-func (m NodeSignBroadcast) Body() []byte {
-	return m.b
 }
