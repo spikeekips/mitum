@@ -2,8 +2,6 @@ package launch
 
 import (
 	"context"
-	"io"
-	"net"
 	"time"
 
 	"github.com/hashicorp/memberlist"
@@ -409,24 +407,14 @@ func memberlistTransport(
 	poolclient *quicstream.PoolClient,
 ) (*quicmemberlist.Transport, error) {
 	var log *logging.Logging
-	var enc encoder.Encoder
 	var design NodeDesign
-	var fsnodeinfo NodeInfo
 	var client *isaacnetwork.QuicstreamClient
-	var local base.LocalNode
-	var syncSourcePool *isaac.SyncSourcePool
 	var handlers *quicstream.PrefixHandler
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
-		EncoderContextKey, &enc,
 		DesignContextKey, &design,
-		LocalContextKey, &local,
-		FSNodeInfoContextKey, &fsnodeinfo,
 		QuicstreamClientContextKey, &client,
-		EncoderContextKey, &enc,
-		LocalContextKey, &local,
-		SyncSourcePoolContextKey, &syncSourcePool,
 		QuicstreamHandlersContextKey, &handlers,
 	); err != nil {
 		return nil, err
@@ -439,23 +427,9 @@ func memberlistTransport(
 		client.NewQuicstreamClient,
 		nil,
 	)
+	_ = transport.SetLogging(log)
 
-	_ = handlers.Add(isaacnetwork.HandlerPrefixMemberlist, func(addr net.Addr, r io.Reader, w io.Writer) error {
-		b, err := io.ReadAll(r)
-		if err != nil {
-			log.Log().Error().Err(err).Stringer("remote_address", addr).Msg("failed to read")
-
-			return errors.WithStack(err)
-		}
-
-		if err := transport.ReceiveRaw(b, addr); err != nil {
-			log.Log().Error().Err(err).Stringer("remote_address", addr).Msg("invalid message received")
-
-			return err
-		}
-
-		return nil
-	})
+	_ = handlers.Add(isaacnetwork.HandlerPrefixMemberlist, transport.QuicstreamHandler)
 
 	return transport, nil
 }

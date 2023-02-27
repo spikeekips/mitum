@@ -291,6 +291,23 @@ func (t *Transport) ReceiveRaw(b []byte, addr net.Addr) error {
 	return nil
 }
 
+func (t *Transport) QuicstreamHandler(addr net.Addr, r io.Reader, _ io.Writer) error {
+	b, err := io.ReadAll(r)
+	if err != nil {
+		t.Log().Error().Err(err).Stringer("remote_address", addr).Msg("failed to read")
+
+		return errors.WithStack(err)
+	}
+
+	if err := t.ReceiveRaw(b, addr); err != nil {
+		t.Log().Error().Err(err).Stringer("remote_address", addr).Msg("invalid message received")
+
+		return err
+	}
+
+	return nil
+}
+
 func (t *Transport) receivePacket(b []byte, raddr net.Addr) {
 	if t.isShutdowned() {
 		return
