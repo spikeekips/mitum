@@ -36,10 +36,10 @@ func (t *testSyncSourceChecker) SetupSuite() {
 	t.BaseTestDatabase.SetupSuite()
 
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: NodeChallengeRequestHeaderHint, Instance: NodeChallengeRequestHeader{}}))
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ResponseHeaderHint, Instance: ResponseHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: SuffrageNodeConnInfoRequestHeaderHint, Instance: SuffrageNodeConnInfoRequestHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: SyncSourceConnInfoRequestHeaderHint, Instance: SyncSourceConnInfoRequestHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: NodeConnInfoHint, Instance: NodeConnInfo{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: quicstream.DefaultResponseHeaderHint, Instance: quicstream.DefaultResponseHeader{}}))
 }
 
 type handlers struct {
@@ -51,49 +51,45 @@ type handlers struct {
 	syncSourceConnInfof   func() ([]isaac.NodeConnInfo, error)
 }
 
-func (h *handlers) SuffrageNodeConnInfo(addr net.Addr, r io.Reader, w io.Writer) error {
-	return QuicstreamHandlerSuffrageNodeConnInfo(h.encs, h.idletimeout, h.suffrageNodeConnInfof)(addr, r, w)
+func (h *handlers) SuffrageNodeConnInfo(addr net.Addr, r io.Reader, w io.Writer, header quicstream.Header, encs *encoder.Encoders, enc encoder.Encoder) error {
+	return QuicstreamHandlerSuffrageNodeConnInfo(h.suffrageNodeConnInfof)(addr, r, w, header, encs, enc)
 }
 
-func (h *handlers) SyncSourceConnInfo(addr net.Addr, r io.Reader, w io.Writer) error {
-	return QuicstreamHandlerSyncSourceConnInfo(h.encs, h.idletimeout, h.syncSourceConnInfof)(addr, r, w)
+func (h *handlers) SyncSourceConnInfo(addr net.Addr, r io.Reader, w io.Writer, header quicstream.Header, encs *encoder.Encoders, enc encoder.Encoder) error {
+	return QuicstreamHandlerSyncSourceConnInfo(h.syncSourceConnInfof)(addr, r, w, header, encs, enc)
 }
 
-func (h *handlers) NodeChallenge(addr net.Addr, r io.Reader, w io.Writer) error {
-	return QuicstreamHandlerNodeChallenge(h.encs, h.idletimeout, h.local, h.localParams)(addr, r, w)
+func (h *handlers) NodeChallenge(addr net.Addr, r io.Reader, w io.Writer, header quicstream.Header, encs *encoder.Encoders, enc encoder.Encoder) error {
+	return QuicstreamHandlerNodeChallenge(h.local, h.localParams)(addr, r, w, header, encs, enc)
 }
 
 func (t *testSyncSourceChecker) clientWritef(handlersmap map[string]*handlers) func(ctx context.Context, ci quicstream.UDPConnInfo, f quicstream.ClientWriteFunc) (io.ReadCloser, func() error, error) {
+	phs := map[string]*quicstream.PrefixHandler{}
+
+	for i := range handlersmap {
+		h := handlersmap[i]
+
+		ph := quicstream.NewPrefixHandler(nil).
+			Add(HandlerPrefixSuffrageNodeConnInfo, quicstream.NewHeaderHandler(t.Encs, 0, h.SuffrageNodeConnInfo)).
+			Add(HandlerPrefixSyncSourceConnInfo, quicstream.NewHeaderHandler(t.Encs, 0, h.SyncSourceConnInfo)).
+			Add(HandlerPrefixNodeChallenge, quicstream.NewHeaderHandler(t.Encs, 0, h.NodeChallenge))
+
+		phs[i] = ph
+	}
+
 	return func(ctx context.Context, ci quicstream.UDPConnInfo, f quicstream.ClientWriteFunc) (io.ReadCloser, func() error, error) {
+		h, found := phs[ci.String()]
+		if !found {
+			return nil, nil, errors.Errorf("unknown conninfo, %q", ci)
+		}
+
 		r := bytes.NewBuffer(nil)
 		if err := f(r); err != nil {
 			return nil, nil, errors.WithStack(err)
 		}
 
-		uprefix, err := quicstream.ReadPrefix(r)
-		if err != nil {
-			return nil, nil, errors.WithStack(err)
-		}
-
-		var handler quicstream.Handler
-
-		if _, found := handlersmap[ci.String()]; !found {
-			return nil, nil, errors.Errorf("unknown conninfo, %q", ci)
-		}
-
-		switch {
-		case bytes.Equal(uprefix, quicstream.HashPrefix(HandlerPrefixSuffrageNodeConnInfo)):
-			handler = handlersmap[ci.String()].SuffrageNodeConnInfo
-		case bytes.Equal(uprefix, quicstream.HashPrefix(HandlerPrefixSyncSourceConnInfo)):
-			handler = handlersmap[ci.String()].SyncSourceConnInfo
-		case bytes.Equal(uprefix, quicstream.HashPrefix(HandlerPrefixNodeChallenge)):
-			handler = handlersmap[ci.String()].NodeChallenge
-		default:
-			return nil, nil, errors.Errorf("unknown prefix, %q", uprefix)
-		}
-
 		w := bytes.NewBuffer(nil)
-		if err := handler(nil, r, w); err != nil {
+		if err := h.Handler(nil, r, w); err != nil {
 			return nil, nil, errors.Wrap(err, "failed to handle request")
 		}
 
@@ -148,7 +144,7 @@ func (t *testSyncSourceChecker) TestFetchFromSuffrageNodes() {
 		return ncis, nil
 	}
 
-	client := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.clientWritef(handlersmap))
+	client := NewBaseClient(t.Encs, t.Enc, t.clientWritef(handlersmap))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -186,7 +182,7 @@ func (t *testSyncSourceChecker) TestFetchFromSyncSources() {
 		return ncis, nil
 	}
 
-	client := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.clientWritef(handlersmap))
+	client := NewBaseClient(t.Encs, t.Enc, t.clientWritef(handlersmap))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -226,7 +222,7 @@ func (t *testSyncSourceChecker) TestFetchFromNodeButFailedToSignature() {
 		return ncis, nil
 	}
 
-	client := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.clientWritef(handlersmap))
+	client := NewBaseClient(t.Encs, t.Enc, t.clientWritef(handlersmap))
 
 	checker := NewSyncSourceChecker(local, t.LocalParams.NetworkID(), client, time.Second, t.Enc, nil, nil)
 
@@ -251,7 +247,7 @@ func (t *testSyncSourceChecker) httpserver(handler http.HandlerFunc) *httptest.S
 func (t *testSyncSourceChecker) TestFetchFromURL() {
 	ncis, handlersmap := t.handlers(2)
 
-	client := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.clientWritef(handlersmap))
+	client := NewBaseClient(t.Encs, t.Enc, t.clientWritef(handlersmap))
 
 	ts := t.httpserver(func(w http.ResponseWriter, r *http.Request) {
 		b, err := t.Enc.Marshal(ncis)
@@ -322,7 +318,7 @@ func (t *testSyncSourceChecker) TestCheckSameResult() {
 	})
 	defer ts.Close()
 
-	client := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.clientWritef(handlersmap))
+	client := NewBaseClient(t.Encs, t.Enc, t.clientWritef(handlersmap))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -371,7 +367,7 @@ func (t *testSyncSourceChecker) TestCheckFilterLocal() {
 		return ncis, nil
 	}
 
-	client := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.clientWritef(handlersmap))
+	client := NewBaseClient(t.Encs, t.Enc, t.clientWritef(handlersmap))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

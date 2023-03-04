@@ -69,7 +69,7 @@ func ImportBlocks(
 
 			r, found, err := reader.Reader(item)
 
-			return r, func() error { return nil }, found, err
+			return r, util.EmptyCancelFunc, found, err
 		},
 		func(m base.BlockMap) (isaac.BlockImporter, error) {
 			bwdb, err := db.NewBlockWriteDatabase(m.Manifest().Height())

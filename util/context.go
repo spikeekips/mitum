@@ -6,6 +6,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+var EmptyCancelFunc = func() error { return nil }
+
 type ContextKey string
 
 func AwareContext(ctx context.Context, f func() error) error {

@@ -44,7 +44,7 @@ func PQuicstreamClient(pctx context.Context) (context.Context, error) {
 		return pctx, errors.WithMessage(err, "failed network client")
 	}
 
-	client := NewNetworkClient(encs, enc, time.Second*2, params.NetworkID()) //nolint:gomnd //...
+	client := NewNetworkClient(encs, enc, params.NetworkID()) //nolint:gomnd //...
 
 	return context.WithValue(pctx, QuicstreamClientContextKey, client), nil
 }
@@ -120,10 +120,9 @@ func PCloseNetwork(pctx context.Context) (context.Context, error) {
 func NewNetworkClient(
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
-	idleTimeout time.Duration,
 	networkID base.NetworkID,
 ) *isaacnetwork.QuicstreamClient {
-	return isaacnetwork.NewQuicstreamClient(encs, enc, idleTimeout, string(networkID), DefaultQuicConfig())
+	return isaacnetwork.NewQuicstreamClient(encs, enc, string(networkID), DefaultQuicConfig())
 }
 
 func GenerateNewTLSConfig(networkID base.NetworkID) *tls.Config {

@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"io"
 	"net"
-	"time"
 
 	"github.com/lucas-clemente/quic-go"
 	"github.com/spikeekips/mitum/network/quicstream"
@@ -13,7 +12,7 @@ import (
 )
 
 type QuicstreamClient struct {
-	*BaseNetworkClient
+	*BaseClient
 	client     *quicstream.PoolClient
 	quicconfig *quic.Config
 	proto      string
@@ -22,18 +21,16 @@ type QuicstreamClient struct {
 func NewQuicstreamClient(
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
-	idleTimeout time.Duration,
 	proto string,
 	quicconfig *quic.Config,
 ) *QuicstreamClient {
 	c := &QuicstreamClient{
-		BaseNetworkClient: NewBaseNetworkClient(encs, enc, idleTimeout, nil),
-		client:            quicstream.NewPoolClient(),
-		proto:             proto,
-		quicconfig:        quicconfig,
+		client:     quicstream.NewPoolClient(),
+		proto:      proto,
+		quicconfig: quicconfig,
 	}
 
-	c.BaseNetworkClient.writef = c.writeFunc(c.client)
+	c.BaseClient = NewBaseClient(encs, enc, c.writeFunc(c.client))
 
 	return c
 }
@@ -43,16 +40,12 @@ func (c *QuicstreamClient) Close() error {
 }
 
 func (c *QuicstreamClient) Clone() *QuicstreamClient {
-	n := &QuicstreamClient{
-		BaseNetworkClient: c.BaseNetworkClient.NewClient(),
-		client:            quicstream.NewPoolClient(),
-		proto:             c.proto,
-		quicconfig:        c.quicconfig.Clone(),
+	return &QuicstreamClient{
+		BaseClient: c.BaseClient,
+		client:     quicstream.NewPoolClient(),
+		proto:      c.proto,
+		quicconfig: c.quicconfig.Clone(),
 	}
-
-	n.BaseNetworkClient.writef = n.writeFunc(n.client)
-
-	return n
 }
 
 func (c *QuicstreamClient) NewQuicstreamClient(
@@ -71,7 +64,7 @@ func (c *QuicstreamClient) NewQuicstreamClient(
 	}
 }
 
-func (c *QuicstreamClient) writeFunc(client *quicstream.PoolClient) BaseNetworkClientWriteFunc {
+func (c *QuicstreamClient) writeFunc(client *quicstream.PoolClient) quicstream.HeaderClientWriteFunc {
 	return func(
 		ctx context.Context,
 		ci quicstream.UDPConnInfo,

@@ -51,7 +51,7 @@ func (t *testQuicstreamHandlers) SetupSuite() {
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: StateRequestHeaderHint, Instance: StateRequestHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ExistsInStateOperationRequestHeaderHint, Instance: ExistsInStateOperationRequestHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: SendBallotsHeaderHint, Instance: SendBallotsHeader{}}))
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ResponseHeaderHint, Instance: ResponseHeader{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: quicstream.DefaultResponseHeaderHint, Instance: quicstream.DefaultResponseHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: base.DummySuffrageProofHint, Instance: base.DummySuffrageProof{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.DummyOperationFactHint, Instance: isaac.DummyOperationFact{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.DummyOperationHint, Instance: isaac.DummyOperation{}}))
@@ -63,31 +63,25 @@ func (t *testQuicstreamHandlers) SetupSuite() {
 }
 
 func (t *testQuicstreamHandlers) TestClient() {
-	c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, nil)
+	c := NewBaseClient(t.Encs, t.Enc, nil)
 
 	_ = (interface{})(c).(isaac.NetworkClient)
 }
 
-func (t *testQuicstreamHandlers) writef(prefix string, handler quicstream.Handler) BaseNetworkClientWriteFunc {
+func (t *testQuicstreamHandlers) writef(prefix string, handler quicstream.HeaderHandler) quicstream.HeaderClientWriteFunc {
+	ph := quicstream.NewPrefixHandler(nil)
+	ph.Add(prefix, quicstream.NewHeaderHandler(t.Encs, 0, handler))
+
 	return func(ctx context.Context, ci quicstream.UDPConnInfo, f quicstream.ClientWriteFunc) (io.ReadCloser, func() error, error) {
 		r := bytes.NewBuffer(nil)
 		if err := f(r); err != nil {
 			return nil, nil, errors.WithStack(err)
 		}
 
-		uprefix, err := quicstream.ReadPrefix(r)
-		if err != nil {
-			return nil, nil, errors.WithStack(err)
-		}
-
-		if !bytes.Equal(uprefix, quicstream.HashPrefix(prefix)) {
-			return nil, nil, errors.Errorf("unknown request, %q", prefix)
-		}
-
 		w := bytes.NewBuffer(nil)
 
-		if err := handler(nil, r, w); err != nil {
-			if e := WriteResponse(w, NewResponseHeader(false, err), nil, t.Enc); e != nil {
+		if err := ph.Handler(nil, r, w); err != nil {
+			if e := quicstream.WriteResponseBytes(w, quicstream.NewDefaultResponseHeader(false, err, quicstream.RawContentType), t.Enc, nil); e != nil {
 				return io.NopCloser(w), func() error { return nil }, errors.Wrap(e, "failed to response error response")
 			}
 		}
@@ -96,7 +90,7 @@ func (t *testQuicstreamHandlers) writef(prefix string, handler quicstream.Handle
 	}
 }
 
-func (t *testQuicstreamHandlers) writefs(prefix string, handlers map[string]quicstream.Handler) BaseNetworkClientWriteFunc {
+func (t *testQuicstreamHandlers) writefs(prefix string, handlers map[string]quicstream.HeaderHandler) quicstream.HeaderClientWriteFunc {
 	return func(ctx context.Context, ci quicstream.UDPConnInfo, f quicstream.ClientWriteFunc) (io.ReadCloser, func() error, error) {
 		handler, found := handlers[ci.String()]
 		if !found {
@@ -116,14 +110,14 @@ func (t *testQuicstreamHandlers) TestRequest() {
 		mpb, err := t.Enc.Marshal(mp)
 		t.NoError(err)
 
-		handler := QuicstreamHandlerLastBlockMap(t.Encs, time.Second, func(manifest util.Hash) (hint.Hint, []byte, []byte, bool, error) {
+		handler := QuicstreamHandlerLastBlockMap(func(manifest util.Hash) (hint.Hint, []byte, []byte, bool, error) {
 			if manifest != nil && manifest.Equal(m.Hash()) {
 				return hint.Hint{}, nil, nil, false, nil
 			}
 
 			return t.Enc.Hint(), nil, mpb, true, nil
 		})
-		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixLastBlockMap, handler))
+		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixLastBlockMap, handler))
 
 		header := NewLastBlockMapRequestHeader(nil)
 		response, v, _, err := c.Request(context.Background(), ci, header, nil)
@@ -139,11 +133,11 @@ func (t *testQuicstreamHandlers) TestRequest() {
 	})
 
 	t.Run("error", func() {
-		handler := QuicstreamHandlerLastBlockMap(t.Encs, time.Second, func(manifest util.Hash) (hint.Hint, []byte, []byte, bool, error) {
+		handler := QuicstreamHandlerLastBlockMap(func(manifest util.Hash) (hint.Hint, []byte, []byte, bool, error) {
 			return hint.Hint{}, nil, nil, false, errors.Errorf("hehehe")
 		})
 
-		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixLastBlockMap, handler))
+		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixLastBlockMap, handler))
 
 		header := NewLastBlockMapRequestHeader(nil)
 		response, _, _, err := c.Request(context.Background(), ci, header, nil)
@@ -167,10 +161,10 @@ func (t *testQuicstreamHandlers) TestOperation() {
 	t.NoError(err)
 	t.True(inserted)
 
-	handler := QuicstreamHandlerOperation(t.Encs, time.Second, pool)
+	handler := QuicstreamHandlerOperation(pool)
 
 	ci := quicstream.NewUDPConnInfo(nil, true)
-	c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixOperation, handler))
+	c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixOperation, handler))
 
 	t.Run("found", func() {
 		uop, found, err := c.Operation(context.Background(), ci, op.Hash())
@@ -197,27 +191,33 @@ func (t *testQuicstreamHandlers) TestSendOperation() {
 	pool := t.NewPool()
 	defer pool.DeepClose()
 
-	handler := QuicstreamHandlerSendOperation(t.Encs, time.Second, t.LocalParams, pool,
-		func(util.Hash) (bool, error) { return false, nil },
-		func(base.Operation) (bool, error) { return true, nil },
-		nil,
-		nil,
-	)
-
 	ci := quicstream.NewUDPConnInfo(nil, true)
-	c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixSendOperation, handler))
 
 	t.Run("ok", func() {
+		handler := QuicstreamHandlerSendOperation(t.LocalParams, pool,
+			func(util.Hash) (bool, error) { return false, nil },
+			func(base.Operation) (bool, error) { return true, nil },
+			nil,
+			nil,
+		)
+
+		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixSendOperation, handler))
 		updated, err := c.SendOperation(context.Background(), ci, op)
 		t.NoError(err)
 		t.True(updated)
+
+		t.Run("already exists", func() {
+			updated, err := c.SendOperation(context.Background(), ci, op)
+			t.NoError(err)
+			t.False(updated)
+		})
 	})
 
 	t.Run("broadcast", func() {
 		_ = pool.Clean()
 
 		ch := make(chan []byte, 1)
-		handler := QuicstreamHandlerSendOperation(t.Encs, time.Second, t.LocalParams, pool,
+		handler := QuicstreamHandlerSendOperation(t.LocalParams, pool,
 			func(util.Hash) (bool, error) { return false, nil },
 			func(base.Operation) (bool, error) { return true, nil },
 			nil,
@@ -227,7 +227,7 @@ func (t *testQuicstreamHandlers) TestSendOperation() {
 				return nil
 			},
 		)
-		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixSendOperation, handler))
+		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixSendOperation, handler))
 
 		updated, err := c.SendOperation(context.Background(), ci, op)
 		t.NoError(err)
@@ -244,20 +244,14 @@ func (t *testQuicstreamHandlers) TestSendOperation() {
 		}
 	})
 
-	t.Run("already exists", func() {
-		updated, err := c.SendOperation(context.Background(), ci, op)
-		t.NoError(err)
-		t.False(updated)
-	})
-
 	t.Run("filtered", func() {
-		handler := QuicstreamHandlerSendOperation(t.Encs, time.Second, t.LocalParams, pool,
+		handler := QuicstreamHandlerSendOperation(t.LocalParams, pool,
 			func(util.Hash) (bool, error) { return false, nil },
 			func(base.Operation) (bool, error) { return false, nil },
 			nil,
 			nil,
 		)
-		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixSendOperation, handler))
+		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixSendOperation, handler))
 
 		updated, err := c.SendOperation(context.Background(), ci, op)
 		t.Error(err)
@@ -273,7 +267,7 @@ func (t *testQuicstreamHandlers) TestSendOperationWithdraw() {
 
 	var votedop base.SuffrageWithdrawOperation
 
-	handler := QuicstreamHandlerSendOperation(t.Encs, time.Second, t.LocalParams, nil,
+	handler := QuicstreamHandlerSendOperation(t.LocalParams, nil,
 		func(util.Hash) (bool, error) { return false, nil },
 		func(base.Operation) (bool, error) { return true, nil },
 		func(op base.SuffrageWithdrawOperation) (bool, error) {
@@ -294,7 +288,7 @@ func (t *testQuicstreamHandlers) TestSendOperationWithdraw() {
 	)
 
 	ci := quicstream.NewUDPConnInfo(nil, true)
-	c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixSendOperation, handler))
+	c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixSendOperation, handler))
 
 	t.Run("ok", func() {
 		voted, err := c.SendOperation(context.Background(), ci, op)
@@ -309,13 +303,13 @@ func (t *testQuicstreamHandlers) TestSendOperationWithdraw() {
 	})
 
 	t.Run("filtered", func() {
-		handler := QuicstreamHandlerSendOperation(t.Encs, time.Second, t.LocalParams, nil,
+		handler := QuicstreamHandlerSendOperation(t.LocalParams, nil,
 			func(util.Hash) (bool, error) { return false, nil },
 			func(base.Operation) (bool, error) { return false, nil },
 			func(op base.SuffrageWithdrawOperation) (bool, error) { return true, nil },
 			nil,
 		)
-		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixSendOperation, handler))
+		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixSendOperation, handler))
 
 		voted, err := c.SendOperation(context.Background(), ci, op)
 		t.Error(err)
@@ -337,12 +331,12 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 		pool,
 	)
 
-	handler := QuicstreamHandlerRequestProposal(t.Encs, time.Second, t.Local, pool, proposalMaker,
+	handler := QuicstreamHandlerRequestProposal(t.Local, pool, proposalMaker,
 		func() (base.BlockMap, bool, error) { return nil, false, nil },
 	)
 
 	ci := quicstream.NewUDPConnInfo(nil, true)
-	c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixRequestProposal, handler))
+	c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixRequestProposal, handler))
 
 	t.Run("local is proposer", func() {
 		point := base.RawPoint(33, 1)
@@ -366,7 +360,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 	})
 
 	t.Run("too high height", func() {
-		handler := QuicstreamHandlerRequestProposal(t.Encs, time.Second, t.Local, pool, proposalMaker,
+		handler := QuicstreamHandlerRequestProposal(t.Local, pool, proposalMaker,
 			func() (base.BlockMap, bool, error) {
 				m := base.NewDummyManifest(base.Height(22), valuehash.RandomSHA256())
 				mp := base.NewDummyBlockMap(m)
@@ -374,7 +368,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 				return mp, true, nil
 			},
 		)
-		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixRequestProposal, handler))
+		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixRequestProposal, handler))
 
 		point := base.RawPoint(33, 3)
 		proposer := base.RandomAddress("")
@@ -386,7 +380,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 	})
 
 	t.Run("too low height", func() {
-		handler := QuicstreamHandlerRequestProposal(t.Encs, time.Second, t.Local, pool, proposalMaker,
+		handler := QuicstreamHandlerRequestProposal(t.Local, pool, proposalMaker,
 			func() (base.BlockMap, bool, error) {
 				m := base.NewDummyManifest(base.Height(44), valuehash.RandomSHA256())
 				mp := base.NewDummyBlockMap(m)
@@ -394,7 +388,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 				return mp, true, nil
 			},
 		)
-		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixRequestProposal, handler))
+		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixRequestProposal, handler))
 
 		point := base.RawPoint(33, 4)
 		proposer := base.RandomAddress("")
@@ -425,10 +419,10 @@ func (t *testQuicstreamHandlers) TestProposal() {
 	_, err = pool.SetProposal(pr)
 	t.NoError(err)
 
-	handler := QuicstreamHandlerProposal(t.Encs, time.Second, pool)
+	handler := QuicstreamHandlerProposal(pool)
 
 	ci := quicstream.NewUDPConnInfo(nil, true)
-	c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixProposal, handler))
+	c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixProposal, handler))
 
 	t.Run("found", func() {
 		pr, found, err := c.Proposal(context.Background(), ci, pr.Fact().Hash())
@@ -463,7 +457,7 @@ func (t *testQuicstreamHandlers) TestLastSuffrageProof() {
 	proof := base.NewDummySuffrageProof()
 	proof = proof.SetState(st)
 
-	handler := QuicstreamHandlerLastSuffrageProof(t.Encs, time.Second,
+	handler := QuicstreamHandlerLastSuffrageProof(
 		func(h util.Hash) (hint.Hint, []byte, []byte, bool, error) {
 			if h != nil && h.Equal(st.Hash()) {
 				nbody, _ := util.NewLengthedBytesSlice(0x01, [][]byte{lastheight.Bytes(), nil})
@@ -483,7 +477,7 @@ func (t *testQuicstreamHandlers) TestLastSuffrageProof() {
 	)
 
 	ci := quicstream.NewUDPConnInfo(nil, true)
-	c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixLastSuffrageProof, handler))
+	c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixLastSuffrageProof, handler))
 
 	t.Run("not updated", func() {
 		rlastheight, rproof, updated, err := c.LastSuffrageProof(context.Background(), ci, st.Hash())
@@ -523,7 +517,7 @@ func (t *testQuicstreamHandlers) TestSuffrageProof() {
 		proofb, err := t.Enc.Marshal(proof)
 		t.NoError(err)
 
-		handler := QuicstreamHandlerSuffrageProof(t.Encs, time.Second,
+		handler := QuicstreamHandlerSuffrageProof(
 			func(h base.Height) (hint.Hint, []byte, []byte, bool, error) {
 				if h != suffrageheight {
 					return hint.Hint{}, nil, nil, false, nil
@@ -533,7 +527,7 @@ func (t *testQuicstreamHandlers) TestSuffrageProof() {
 			},
 		)
 
-		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixSuffrageProof, handler))
+		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixSuffrageProof, handler))
 
 		rproof, found, err := c.SuffrageProof(context.Background(), ci, suffrageheight)
 		t.NoError(err)
@@ -544,13 +538,13 @@ func (t *testQuicstreamHandlers) TestSuffrageProof() {
 	})
 
 	t.Run("not found", func() {
-		handler := QuicstreamHandlerSuffrageProof(t.Encs, time.Second,
+		handler := QuicstreamHandlerSuffrageProof(
 			func(h base.Height) (hint.Hint, []byte, []byte, bool, error) {
 				return hint.Hint{}, nil, nil, false, nil
 			},
 		)
 
-		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixSuffrageProof, handler))
+		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixSuffrageProof, handler))
 
 		proof, found, err := c.SuffrageProof(context.Background(), ci, suffrageheight+1)
 		t.NoError(err)
@@ -568,7 +562,7 @@ func (t *testQuicstreamHandlers) TestLastBlockMap() {
 		mpb, err := t.Enc.Marshal(mp)
 		t.NoError(err)
 
-		handler := QuicstreamHandlerLastBlockMap(t.Encs, time.Second,
+		handler := QuicstreamHandlerLastBlockMap(
 			func(manifest util.Hash) (hint.Hint, []byte, []byte, bool, error) {
 				if manifest != nil && manifest.Equal(m.Hash()) {
 					return hint.Hint{}, nil, nil, false, nil
@@ -577,7 +571,7 @@ func (t *testQuicstreamHandlers) TestLastBlockMap() {
 				return t.Enc.Hint(), nil, mpb, true, nil
 			},
 		)
-		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixLastBlockMap, handler))
+		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixLastBlockMap, handler))
 
 		rmp, updated, err := c.LastBlockMap(context.Background(), ci, nil)
 		t.NoError(err)
@@ -593,7 +587,7 @@ func (t *testQuicstreamHandlers) TestLastBlockMap() {
 		mpb, err := t.Enc.Marshal(mp)
 		t.NoError(err)
 
-		handler := QuicstreamHandlerLastBlockMap(t.Encs, time.Second,
+		handler := QuicstreamHandlerLastBlockMap(
 			func(manifest util.Hash) (hint.Hint, []byte, []byte, bool, error) {
 				if manifest != nil && manifest.Equal(m.Hash()) {
 					return hint.Hint{}, nil, nil, false, nil
@@ -602,7 +596,7 @@ func (t *testQuicstreamHandlers) TestLastBlockMap() {
 				return t.Enc.Hint(), nil, mpb, true, nil
 			},
 		)
-		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixLastBlockMap, handler))
+		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixLastBlockMap, handler))
 
 		rmp, updated, err := c.LastBlockMap(context.Background(), ci, m.Hash())
 		t.NoError(err)
@@ -611,12 +605,12 @@ func (t *testQuicstreamHandlers) TestLastBlockMap() {
 	})
 
 	t.Run("not found", func() {
-		handler := QuicstreamHandlerLastBlockMap(t.Encs, time.Second,
+		handler := QuicstreamHandlerLastBlockMap(
 			func(manifest util.Hash) (hint.Hint, []byte, []byte, bool, error) {
 				return hint.Hint{}, nil, nil, false, nil
 			},
 		)
-		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixLastBlockMap, handler))
+		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixLastBlockMap, handler))
 
 		rmp, updated, err := c.LastBlockMap(context.Background(), ci, valuehash.RandomSHA256())
 		t.NoError(err)
@@ -634,7 +628,7 @@ func (t *testQuicstreamHandlers) TestBlockMap() {
 		mpb, err := t.Enc.Marshal(mp)
 		t.NoError(err)
 
-		handler := QuicstreamHandlerBlockMap(t.Encs, time.Second,
+		handler := QuicstreamHandlerBlockMap(
 			func(height base.Height) (hint.Hint, []byte, []byte, bool, error) {
 				if height != m.Height() {
 					return hint.Hint{}, nil, nil, false, nil
@@ -643,7 +637,7 @@ func (t *testQuicstreamHandlers) TestBlockMap() {
 				return t.Enc.Hint(), nil, mpb, true, nil
 			},
 		)
-		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixBlockMap, handler))
+		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixBlockMap, handler))
 
 		rmp, found, err := c.BlockMap(context.Background(), ci, m.Height())
 		t.NoError(err)
@@ -654,12 +648,12 @@ func (t *testQuicstreamHandlers) TestBlockMap() {
 	})
 
 	t.Run("not found", func() {
-		handler := QuicstreamHandlerBlockMap(t.Encs, time.Second,
+		handler := QuicstreamHandlerBlockMap(
 			func(height base.Height) (hint.Hint, []byte, []byte, bool, error) {
 				return hint.Hint{}, nil, nil, false, nil
 			},
 		)
-		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixBlockMap, handler))
+		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixBlockMap, handler))
 
 		rmp, found, err := c.BlockMap(context.Background(), ci, base.Height(33))
 		t.NoError(err)
@@ -668,12 +662,12 @@ func (t *testQuicstreamHandlers) TestBlockMap() {
 	})
 
 	t.Run("error", func() {
-		handler := QuicstreamHandlerBlockMap(t.Encs, time.Second,
+		handler := QuicstreamHandlerBlockMap(
 			func(height base.Height) (hint.Hint, []byte, []byte, bool, error) {
 				return hint.Hint{}, nil, nil, false, errors.Errorf("hehehe")
 			},
 		)
-		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixBlockMap, handler))
+		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixBlockMap, handler))
 
 		_, found, err := c.BlockMap(context.Background(), ci, base.Height(33))
 		t.Error(err)
@@ -693,7 +687,7 @@ func (t *testQuicstreamHandlers) TestBlockMapItem() {
 		body := util.UUID().Bytes()
 		r := bytes.NewBuffer(body)
 
-		handler := QuicstreamHandlerBlockMapItem(t.Encs, time.Second, time.Second,
+		handler := QuicstreamHandlerBlockMapItem(
 			func(h base.Height, i base.BlockMapItemType) (io.ReadCloser, bool, error) {
 				if h != height {
 					return nil, false, nil
@@ -706,7 +700,7 @@ func (t *testQuicstreamHandlers) TestBlockMapItem() {
 				return io.NopCloser(r), true, nil
 			},
 		)
-		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixBlockMapItem, handler))
+		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixBlockMapItem, handler))
 
 		rr, cancel, found, err := c.BlockMapItem(context.Background(), ci, height, item)
 		t.NoError(err)
@@ -721,12 +715,12 @@ func (t *testQuicstreamHandlers) TestBlockMapItem() {
 	})
 
 	t.Run("unknown item", func() {
-		handler := QuicstreamHandlerBlockMapItem(t.Encs, time.Second, time.Second,
+		handler := QuicstreamHandlerBlockMapItem(
 			func(h base.Height, i base.BlockMapItemType) (io.ReadCloser, bool, error) {
 				return nil, false, nil
 			},
 		)
-		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixBlockMapItem, handler))
+		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixBlockMapItem, handler))
 
 		rr, _, found, err := c.BlockMapItem(context.Background(), ci, base.Height(33), base.BlockMapItemTypeVoteproofs)
 		t.NoError(err)
@@ -736,10 +730,10 @@ func (t *testQuicstreamHandlers) TestBlockMapItem() {
 }
 
 func (t *testQuicstreamHandlers) TestNodeChallenge() {
-	handler := QuicstreamHandlerNodeChallenge(t.Encs, time.Second, t.Local, t.LocalParams)
+	handler := QuicstreamHandlerNodeChallenge(t.Local, t.LocalParams)
 
 	ci := quicstream.NewUDPConnInfo(nil, true)
-	c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixNodeChallenge, handler))
+	c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixNodeChallenge, handler))
 
 	t.Run("ok", func() {
 		input := util.UUID().Bytes()
@@ -764,12 +758,12 @@ func (t *testQuicstreamHandlers) TestSuffrageNodeConnInfo() {
 	ci := quicstream.NewUDPConnInfo(nil, true)
 
 	t.Run("empty", func() {
-		handler := QuicstreamHandlerSuffrageNodeConnInfo(t.Encs, time.Second,
+		handler := QuicstreamHandlerSuffrageNodeConnInfo(
 			func() ([]isaac.NodeConnInfo, error) {
 				return nil, nil
 			},
 		)
-		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixSuffrageNodeConnInfo, handler))
+		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixSuffrageNodeConnInfo, handler))
 
 		cis, err := c.SuffrageNodeConnInfo(context.Background(), ci)
 		t.NoError(err)
@@ -783,12 +777,12 @@ func (t *testQuicstreamHandlers) TestSuffrageNodeConnInfo() {
 			ncis[i] = NewNodeConnInfo(base.RandomNode(), ci.UDPAddr().String(), true)
 		}
 
-		handler := QuicstreamHandlerSuffrageNodeConnInfo(t.Encs, time.Second,
+		handler := QuicstreamHandlerSuffrageNodeConnInfo(
 			func() ([]isaac.NodeConnInfo, error) {
 				return ncis, nil
 			},
 		)
-		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixSuffrageNodeConnInfo, handler))
+		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixSuffrageNodeConnInfo, handler))
 
 		uncis, err := c.SuffrageNodeConnInfo(context.Background(), ci)
 		t.NoError(err)
@@ -807,12 +801,12 @@ func (t *testQuicstreamHandlers) TestSyncSourceConnInfo() {
 	ci := quicstream.NewUDPConnInfo(nil, true)
 
 	t.Run("empty", func() {
-		handler := QuicstreamHandlerSyncSourceConnInfo(t.Encs, time.Second,
+		handler := QuicstreamHandlerSyncSourceConnInfo(
 			func() ([]isaac.NodeConnInfo, error) {
 				return nil, nil
 			},
 		)
-		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixSyncSourceConnInfo, handler))
+		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixSyncSourceConnInfo, handler))
 
 		cis, err := c.SyncSourceConnInfo(context.Background(), ci)
 		t.NoError(err)
@@ -826,12 +820,12 @@ func (t *testQuicstreamHandlers) TestSyncSourceConnInfo() {
 			ncis[i] = NewNodeConnInfo(base.RandomNode(), ci.UDPAddr().String(), true)
 		}
 
-		handler := QuicstreamHandlerSyncSourceConnInfo(t.Encs, time.Second,
+		handler := QuicstreamHandlerSyncSourceConnInfo(
 			func() ([]isaac.NodeConnInfo, error) {
 				return ncis, nil
 			},
 		)
-		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixSyncSourceConnInfo, handler))
+		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixSyncSourceConnInfo, handler))
 
 		uncis, err := c.SyncSourceConnInfo(context.Background(), ci)
 		t.NoError(err)
@@ -863,12 +857,12 @@ func (t *testQuicstreamHandlers) TestState() {
 	ci := quicstream.NewUDPConnInfo(nil, true)
 
 	t.Run("ok", func() {
-		handler := QuicstreamHandlerState(t.Encs, time.Second,
+		handler := QuicstreamHandlerState(
 			func(key string) (hint.Hint, []byte, []byte, bool, error) {
 				return t.Enc.Hint(), meta.Bytes(), stb, true, nil
 			},
 		)
-		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixState, handler))
+		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixState, handler))
 
 		ust, found, err := c.State(context.Background(), ci, st.Key(), nil)
 		t.NoError(err)
@@ -877,7 +871,7 @@ func (t *testQuicstreamHandlers) TestState() {
 	})
 
 	t.Run("ok with hash", func() {
-		handler := QuicstreamHandlerState(t.Encs, time.Second,
+		handler := QuicstreamHandlerState(
 			func(key string) (hint.Hint, []byte, []byte, bool, error) {
 				if key == st.Key() {
 					return t.Enc.Hint(), meta.Bytes(), stb, true, nil
@@ -886,7 +880,7 @@ func (t *testQuicstreamHandlers) TestState() {
 				return hint.Hint{}, nil, nil, false, nil
 			},
 		)
-		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixState, handler))
+		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixState, handler))
 
 		ust, found, err := c.State(context.Background(), ci, st.Key(), st.Hash())
 		t.NoError(err)
@@ -895,12 +889,12 @@ func (t *testQuicstreamHandlers) TestState() {
 	})
 
 	t.Run("not found", func() {
-		handler := QuicstreamHandlerState(t.Encs, time.Second,
+		handler := QuicstreamHandlerState(
 			func(key string) (hint.Hint, []byte, []byte, bool, error) {
 				return hint.Hint{}, nil, nil, false, nil
 			},
 		)
-		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixState, handler))
+		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixState, handler))
 
 		ust, found, err := c.State(context.Background(), ci, st.Key(), nil)
 		t.NoError(err)
@@ -909,12 +903,12 @@ func (t *testQuicstreamHandlers) TestState() {
 	})
 
 	t.Run("error", func() {
-		handler := QuicstreamHandlerState(t.Encs, time.Second,
+		handler := QuicstreamHandlerState(
 			func(key string) (hint.Hint, []byte, []byte, bool, error) {
 				return hint.Hint{}, nil, nil, false, errors.Errorf("hehehe")
 			},
 		)
-		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixState, handler))
+		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixState, handler))
 
 		ust, found, err := c.State(context.Background(), ci, st.Key(), nil)
 		t.Error(err)
@@ -928,12 +922,12 @@ func (t *testQuicstreamHandlers) TestExistsInStateOperation() {
 	ci := quicstream.NewUDPConnInfo(nil, true)
 
 	t.Run("found", func() {
-		handler := QuicstreamHandlerExistsInStateOperation(t.Encs, time.Second,
+		handler := QuicstreamHandlerExistsInStateOperation(
 			func(util.Hash) (bool, error) {
 				return true, nil
 			},
 		)
-		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixExistsInStateOperation, handler))
+		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixExistsInStateOperation, handler))
 
 		found, err := c.ExistsInStateOperation(context.Background(), ci, valuehash.RandomSHA256())
 		t.NoError(err)
@@ -941,12 +935,12 @@ func (t *testQuicstreamHandlers) TestExistsInStateOperation() {
 	})
 
 	t.Run("nil facthash", func() {
-		handler := QuicstreamHandlerExistsInStateOperation(t.Encs, time.Second,
+		handler := QuicstreamHandlerExistsInStateOperation(
 			func(util.Hash) (bool, error) {
 				return true, nil
 			},
 		)
-		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixExistsInStateOperation, handler))
+		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixExistsInStateOperation, handler))
 
 		_, err := c.ExistsInStateOperation(context.Background(), ci, nil)
 		t.Error(err)
@@ -954,12 +948,12 @@ func (t *testQuicstreamHandlers) TestExistsInStateOperation() {
 	})
 
 	t.Run("found", func() {
-		handler := QuicstreamHandlerExistsInStateOperation(t.Encs, time.Second,
+		handler := QuicstreamHandlerExistsInStateOperation(
 			func(util.Hash) (bool, error) {
 				return false, nil
 			},
 		)
-		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixExistsInStateOperation, handler))
+		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixExistsInStateOperation, handler))
 
 		found, err := c.ExistsInStateOperation(context.Background(), ci, valuehash.RandomSHA256())
 		t.NoError(err)
@@ -979,7 +973,7 @@ func (t *testQuicstreamHandlers) TestSendBallots() {
 
 	t.Run("ok", func() {
 		votedch := make(chan base.BallotSignFact, 1)
-		handler := QuicstreamHandlerSendBallots(t.Encs, time.Second, t.LocalParams, func(bl base.BallotSignFact) error {
+		handler := QuicstreamHandlerSendBallots(t.LocalParams, func(bl base.BallotSignFact) error {
 			go func() {
 				votedch <- bl
 			}()
@@ -988,7 +982,7 @@ func (t *testQuicstreamHandlers) TestSendBallots() {
 		})
 
 		ci := quicstream.NewUDPConnInfo(nil, true)
-		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writef(HandlerPrefixSendBallots, handler))
+		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixSendBallots, handler))
 
 		var ballots []base.BallotSignFact
 
@@ -1015,7 +1009,7 @@ func (t *testQuicstreamHandlers) TestConcurrentRequestProposal() {
 	var localci quicstream.UDPConnInfo
 	var localmaker *isaac.ProposalMaker
 
-	handlers := map[string]quicstream.Handler{}
+	handlers := map[string]quicstream.HeaderHandler{}
 	pools := map[string]isaac.ProposalPool{}
 	cis := make([]quicstream.UDPConnInfo, 3)
 
@@ -1051,7 +1045,7 @@ func (t *testQuicstreamHandlers) TestConcurrentRequestProposal() {
 			localmaker = proposalMaker
 		}
 
-		handlers[ci.String()] = QuicstreamHandlerRequestProposal(t.Encs, time.Second, local, pool, proposalMaker, nil)
+		handlers[ci.String()] = QuicstreamHandlerRequestProposal(local, pool, proposalMaker, nil)
 
 		cis[i] = ci
 	}
@@ -1059,7 +1053,7 @@ func (t *testQuicstreamHandlers) TestConcurrentRequestProposal() {
 	point := base.RawPoint(33, 1)
 
 	t.Run("local is proposer", func() {
-		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writefs(HandlerPrefixRequestProposal, handlers))
+		c := NewBaseClient(t.Encs, t.Enc, t.writefs(HandlerPrefixRequestProposal, handlers))
 
 		pr, found, err := isaac.ConcurrentRequestProposal(context.Background(), point, t.Local, c, cis, t.LocalParams.NetworkID())
 		t.NoError(err)
@@ -1072,7 +1066,7 @@ func (t *testQuicstreamHandlers) TestConcurrentRequestProposal() {
 	})
 
 	t.Run("local not respond", func() {
-		newhandlers := map[string]quicstream.Handler{}
+		newhandlers := map[string]quicstream.HeaderHandler{}
 		for i := range handlers {
 			if i == localci.String() {
 				continue
@@ -1081,7 +1075,7 @@ func (t *testQuicstreamHandlers) TestConcurrentRequestProposal() {
 			newhandlers[i] = handlers[i]
 		}
 
-		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writefs(HandlerPrefixRequestProposal, newhandlers))
+		c := NewBaseClient(t.Encs, t.Enc, t.writefs(HandlerPrefixRequestProposal, newhandlers))
 
 		pr, found, err := isaac.ConcurrentRequestProposal(context.Background(), point, t.Local, c, cis, t.LocalParams.NetworkID())
 		t.NoError(err)
@@ -1093,7 +1087,7 @@ func (t *testQuicstreamHandlers) TestConcurrentRequestProposal() {
 		localpr, err := localmaker.New(context.Background(), point)
 		t.NoError(err)
 
-		newhandlers := map[string]quicstream.Handler{}
+		newhandlers := map[string]quicstream.HeaderHandler{}
 		for i := range handlers {
 			if i == localci.String() {
 				continue
@@ -1104,7 +1098,7 @@ func (t *testQuicstreamHandlers) TestConcurrentRequestProposal() {
 
 		pools[cis[1].String()].SetProposal(localpr)
 
-		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writefs(HandlerPrefixRequestProposal, newhandlers))
+		c := NewBaseClient(t.Encs, t.Enc, t.writefs(HandlerPrefixRequestProposal, newhandlers))
 
 		pr, found, err := isaac.ConcurrentRequestProposal(context.Background(), point, t.Local, c, cis, t.LocalParams.NetworkID())
 
@@ -1118,9 +1112,9 @@ func (t *testQuicstreamHandlers) TestConcurrentRequestProposal() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
 		defer cancel()
 
-		newhandlers := map[string]quicstream.Handler{}
+		newhandlers := map[string]quicstream.HeaderHandler{}
 		for i := range handlers {
-			newhandlers[i] = func(net.Addr, io.Reader, io.Writer) error {
+			newhandlers[i] = func(net.Addr, io.Reader, io.Writer, quicstream.Header, *encoder.Encoders, encoder.Encoder) error {
 				select {
 				case <-time.After(time.Minute):
 				case <-ctx.Done():
@@ -1131,7 +1125,7 @@ func (t *testQuicstreamHandlers) TestConcurrentRequestProposal() {
 			}
 		}
 
-		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writefs(HandlerPrefixRequestProposal, newhandlers))
+		c := NewBaseClient(t.Encs, t.Enc, t.writefs(HandlerPrefixRequestProposal, newhandlers))
 
 		pr, found, err := isaac.ConcurrentRequestProposal(ctx, point, t.Local, c, cis, t.LocalParams.NetworkID())
 
@@ -1142,14 +1136,14 @@ func (t *testQuicstreamHandlers) TestConcurrentRequestProposal() {
 	})
 
 	t.Run("client timout", func() {
-		newhandlers := map[string]quicstream.Handler{}
+		newhandlers := map[string]quicstream.HeaderHandler{}
 		for i := range handlers {
-			newhandlers[i] = func(net.Addr, io.Reader, io.Writer) error {
+			newhandlers[i] = func(net.Addr, io.Reader, io.Writer, quicstream.Header, *encoder.Encoders, encoder.Encoder) error {
 				return context.DeadlineExceeded
 			}
 		}
 
-		c := NewBaseNetworkClient(t.Encs, t.Enc, time.Second, t.writefs(HandlerPrefixRequestProposal, newhandlers))
+		c := NewBaseClient(t.Encs, t.Enc, t.writefs(HandlerPrefixRequestProposal, newhandlers))
 
 		pr, found, err := isaac.ConcurrentRequestProposal(context.Background(), point, t.Local, c, cis, t.LocalParams.NetworkID())
 

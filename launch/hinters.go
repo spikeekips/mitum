@@ -9,6 +9,7 @@ import (
 	isaacoperation "github.com/spikeekips/mitum/isaac/operation"
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
+	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/fixedtree"
 	"github.com/spikeekips/mitum/util/hint"
@@ -68,7 +69,6 @@ var Hinters = []encoder.DecodeDetail{
 	{Hint: isaacnetwork.OperationRequestHeaderHint, Instance: isaacnetwork.OperationRequestHeader{}},
 	{Hint: isaacnetwork.ProposalRequestHeaderHint, Instance: isaacnetwork.ProposalRequestHeader{}},
 	{Hint: isaacnetwork.RequestProposalRequestHeaderHint, Instance: isaacnetwork.RequestProposalRequestHeader{}},
-	{Hint: isaacnetwork.ResponseHeaderHint, Instance: isaacnetwork.ResponseHeader{}},
 	{Hint: isaacnetwork.SendBallotsHeaderHint, Instance: isaacnetwork.SendBallotsHeader{}},
 	{Hint: isaacnetwork.SendOperationRequestHeaderHint, Instance: isaacnetwork.SendOperationRequestHeader{}},
 	{Hint: isaacnetwork.StateRequestHeaderHint, Instance: isaacnetwork.StateRequestHeader{}},
@@ -89,8 +89,8 @@ var Hinters = []encoder.DecodeDetail{
 		Instance: isaacoperation.SuffrageGenesisJoinFact{},
 	},
 	{Hint: isaacstates.MissingBallotsRequestsMessageHint, Instance: isaacstates.MissingBallotsRequestMessage{}},
-	{Hint: PprofRequestHeaderHint, Instance: PprofRequestHeader{}},
 	{Hint: quicmemberlist.MemberHint, Instance: quicmemberlist.BaseMember{}},
+	{Hint: quicstream.DefaultResponseHeaderHint, Instance: quicstream.DefaultResponseHeader{}},
 }
 
 var SupportedProposalOperationFactHinters = []encoder.DecodeDetail{

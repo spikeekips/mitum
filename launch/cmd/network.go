@@ -22,7 +22,7 @@ import (
 )
 
 var (
-	headerExamples     = map[string]isaac.NetworkHeader{}
+	headerExamples     = map[string]quicstream.Header{}
 	headerExamplesDesc = map[string]string{
 		isaacnetwork.HandlerPrefixSendOperation: `$ cmd <header> --body=<json body>`,
 	}
@@ -30,7 +30,7 @@ var (
 )
 
 func init() {
-	headerExamples = map[string]isaac.NetworkHeader{
+	headerExamples = map[string]quicstream.Header{
 		isaacnetwork.HandlerPrefixRequestProposal: isaacnetwork.NewRequestProposalRequestHeader(
 			base.RawPoint(33, 1), base.NewStringAddress("proposer")), //nolint:gomnd //...
 		isaacnetwork.HandlerPrefixProposal: isaacnetwork.NewProposalRequestHeader(
@@ -56,8 +56,6 @@ func init() {
 			valuehash.RandomSHA256()),
 		isaacnetwork.HandlerPrefixNodeInfo:        isaacnetwork.NewNodeInfoRequestHeader(),
 		isaacnetwork.HandlerPrefixCallbackMessage: isaacnetwork.NewCallbackMessageHeader(util.UUID().String()),
-		launch.HandlerPrefixPprof: launch.NewPprofRequestHeader(
-			"heap", 5, true), //nolint:gomnd //...
 	}
 
 	headerExamplesKeys = make([]string, len(headerExamples))
@@ -124,7 +122,7 @@ func (cmd *NetworkClientCommand) Run(pctx context.Context) error {
 		Bool("has_body", cmd.body != nil).
 		Msg("flags")
 
-	var header isaac.NetworkHeader
+	var header quicstream.Header
 	if err := encoder.Decode(cmd.enc, []byte(cmd.Header), &header); err != nil {
 		return errors.WithMessage(err, "failed to load header")
 	}
@@ -136,9 +134,9 @@ func (cmd *NetworkClientCommand) Run(pctx context.Context) error {
 	return cmd.response(header)
 }
 
-func (cmd *NetworkClientCommand) response(header isaac.NetworkHeader) error {
+func (cmd *NetworkClientCommand) response(header quicstream.Header) error {
 	client := launch.NewNetworkClient( //nolint:gomnd //...
-		cmd.encs, cmd.enc, cmd.Timeout,
+		cmd.encs, cmd.enc,
 		base.NetworkID([]byte(cmd.NetworkID)),
 	)
 	defer func() {
@@ -166,23 +164,24 @@ func (cmd *NetworkClientCommand) response(header isaac.NetworkHeader) error {
 	cmd.log.Debug().Interface("response", response).Msg("got respond")
 	cmd.log.Trace().Interface("response", response).Interface("body", v).Msg("got respond")
 
-	switch response.Type() {
-	case isaac.NetworkResponseHinterContentType:
-		b, err := util.MarshalJSONIndent(v)
-		if err != nil {
-			return err
-		}
+	if v != nil {
+		switch response.ContentType() {
+		case quicstream.HinterContentType:
+			b, err := util.MarshalJSONIndent(v)
+			if err != nil {
+				return err
+			}
 
-		_, _ = fmt.Fprintln(os.Stdout, string(b))
-	case isaac.NetworkResponseRawContentType:
-		r, ok := v.(io.Reader)
-		if !ok {
-			return errors.Errorf("expected io.Reader, but %T", v)
-		}
+			_, _ = fmt.Fprintln(os.Stdout, string(b))
+		case quicstream.RawContentType:
+			r, ok := v.(io.Reader)
+			if !ok {
+				return errors.Errorf("expected io.Reader, but %T", v)
+			}
 
-		_, err := io.Copy(os.Stdout, r)
-		if err != nil {
-			return errors.WithStack(err)
+			if _, err := io.Copy(os.Stdout, r); err != nil {
+				return errors.WithStack(err)
+			}
 		}
 	}
 
@@ -218,7 +217,7 @@ func (cmd *NetworkClientCommand) prepare(pctx context.Context) error {
 	return nil
 }
 
-func (cmd *NetworkClientCommand) dryRun(header isaac.NetworkHeader) error {
+func (cmd *NetworkClientCommand) dryRun(header quicstream.Header) error {
 	hb, err := util.MarshalJSONIndent(header)
 	if err != nil {
 		return err

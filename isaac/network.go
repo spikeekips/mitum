@@ -12,7 +12,7 @@ import (
 
 // revive:disable:line-length-limit
 type NetworkClient interface { //nolint:interfacebloat //..
-	Request(context.Context, quicstream.UDPConnInfo, NetworkHeader, io.Reader) (NetworkResponseHeader, interface{}, func() error, error)
+	Request(context.Context, quicstream.UDPConnInfo, quicstream.Header, io.Reader) (quicstream.ResponseHeader, interface{}, func() error, error)
 	Operation(_ context.Context, _ quicstream.UDPConnInfo, operationhash util.Hash) (base.Operation, bool, error)
 	SendOperation(context.Context, quicstream.UDPConnInfo, base.Operation) (bool, error)
 	RequestProposal(_ context.Context, connInfo quicstream.UDPConnInfo, point base.Point, proposer base.Address) (base.ProposalSignFact, bool, error)
@@ -31,25 +31,6 @@ type NetworkClient interface { //nolint:interfacebloat //..
 }
 
 // revive:enable:line-length-limit
-
-type NetworkHeader interface {
-	util.IsValider
-	HandlerPrefix() string
-}
-
-type NetworkResponseContentType string
-
-var (
-	NetworkResponseHinterContentType NetworkResponseContentType
-	NetworkResponseRawContentType    NetworkResponseContentType = "raw"
-)
-
-type NetworkResponseHeader interface {
-	NetworkHeader
-	Err() error
-	OK() bool
-	Type() NetworkResponseContentType
-}
 
 type NodeConnInfo interface {
 	base.Node

@@ -696,9 +696,9 @@ func fetchNotifyMessage(
 		return nil, err
 	case v == nil:
 		return nil, errors.Errorf("empty body")
-	case response.Type() != isaac.NetworkResponseHinterContentType:
+	case response.ContentType() != quicstream.HinterContentType:
 		return nil, errors.Errorf(
-			"invalid response type; expected isaac.NetworkResponseHinterContentType, but %q", response.Type())
+			"invalid response type; expected HinterContentType, but %q", response.ContentType())
 	default:
 		return v, nil
 	}

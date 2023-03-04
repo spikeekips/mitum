@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"time"
 
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
@@ -79,33 +78,30 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 		return pctx, e(err, "")
 	}
 
-	idletimeout := time.Second * 2 //nolint:gomnd //...
 	lastBlockMapf := quicstreamHandlerLastBlockMapFunc(db)
 	suffrageNodeConnInfof := quicstreamHandlerSuffrageNodeConnInfoFunc(db, memberlist)
 
 	handlers.
-		Add(isaacnetwork.HandlerPrefixOperation, isaacnetwork.QuicstreamHandlerOperation(encs, idletimeout, pool)).
+		Add(isaacnetwork.HandlerPrefixOperation,
+			quicstream.NewHeaderHandler(encs, 0, isaacnetwork.QuicstreamHandlerOperation(pool))).
 		Add(isaacnetwork.HandlerPrefixSendOperation,
-			isaacnetwork.QuicstreamHandlerSendOperation(
-				encs, idletimeout, params, pool,
+			quicstream.NewHeaderHandler(encs, 0, isaacnetwork.QuicstreamHandlerSendOperation(
+				params, pool,
 				db.ExistsInStateOperation,
 				sendOperationFilterf,
 				svvotef,
 				func(id string, b []byte) error {
 					return cb.Broadcast(id, b, nil)
 				},
-			),
-		).
+			))).
 		Add(isaacnetwork.HandlerPrefixRequestProposal,
-			isaacnetwork.QuicstreamHandlerRequestProposal(encs, idletimeout,
+			quicstream.NewHeaderHandler(encs, 0, isaacnetwork.QuicstreamHandlerRequestProposal(
 				local, pool, proposalMaker, db.LastBlockMap,
-			),
-		).
+			))).
 		Add(isaacnetwork.HandlerPrefixProposal,
-			isaacnetwork.QuicstreamHandlerProposal(encs, idletimeout, pool),
-		).
+			quicstream.NewHeaderHandler(encs, 0, isaacnetwork.QuicstreamHandlerProposal(pool))).
 		Add(isaacnetwork.HandlerPrefixLastSuffrageProof,
-			isaacnetwork.QuicstreamHandlerLastSuffrageProof(encs, idletimeout,
+			quicstream.NewHeaderHandler(encs, 0, isaacnetwork.QuicstreamHandlerLastSuffrageProof(
 				func(last util.Hash) (hint.Hint, []byte, []byte, bool, error) {
 					enchint, metabytes, body, found, lastheight, err := db.LastSuffrageProofBytes()
 
@@ -129,58 +125,55 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 						return enchint, metabytes, nbody, true, nil
 					}
 				},
-			),
-		).
+			))).
 		Add(isaacnetwork.HandlerPrefixSuffrageProof,
-			isaacnetwork.QuicstreamHandlerSuffrageProof(encs, idletimeout, db.SuffrageProofBytes),
-		).
+			quicstream.NewHeaderHandler(encs, 0,
+				isaacnetwork.QuicstreamHandlerSuffrageProof(db.SuffrageProofBytes))).
 		Add(isaacnetwork.HandlerPrefixLastBlockMap,
-			isaacnetwork.QuicstreamHandlerLastBlockMap(encs, idletimeout, lastBlockMapf),
-		).
+			quicstream.NewHeaderHandler(encs, 0, isaacnetwork.QuicstreamHandlerLastBlockMap(lastBlockMapf))).
 		Add(isaacnetwork.HandlerPrefixBlockMap,
-			isaacnetwork.QuicstreamHandlerBlockMap(encs, idletimeout, db.BlockMapBytes),
-		).
+			quicstream.NewHeaderHandler(encs, 0, isaacnetwork.QuicstreamHandlerBlockMap(db.BlockMapBytes))).
 		Add(isaacnetwork.HandlerPrefixBlockMapItem,
-			isaacnetwork.QuicstreamHandlerBlockMapItem(encs, idletimeout, idletimeout*2, //nolint:gomnd //...
-				func(height base.Height, item base.BlockMapItemType) (io.ReadCloser, bool, error) {
-					e := util.StringErrorFunc("failed to get BlockMapItem")
+			quicstream.NewHeaderHandler(encs, 0,
+				isaacnetwork.QuicstreamHandlerBlockMapItem(
+					func(height base.Height, item base.BlockMapItemType) (io.ReadCloser, bool, error) {
+						e := util.StringErrorFunc("failed to get BlockMapItem")
 
-					var menc encoder.Encoder
+						var menc encoder.Encoder
 
-					switch m, found, err := db.BlockMap(height); {
-					case err != nil:
-						return nil, false, e(err, "")
-					case !found:
-						return nil, false, e(storage.ErrNotFound.Errorf("BlockMap not found"), "")
-					default:
-						menc = encs.Find(m.Encoder())
-						if menc == nil {
-							return nil, false, e(storage.ErrNotFound.Errorf("encoder of BlockMap not found"), "")
+						switch m, found, err := db.BlockMap(height); {
+						case err != nil:
+							return nil, false, e(err, "")
+						case !found:
+							return nil, false, e(storage.ErrNotFound.Errorf("BlockMap not found"), "")
+						default:
+							menc = encs.Find(m.Encoder())
+							if menc == nil {
+								return nil, false, e(storage.ErrNotFound.Errorf("encoder of BlockMap not found"), "")
+							}
 						}
-					}
 
-					reader, err := isaacblock.NewLocalFSReaderFromHeight(
-						LocalFSDataDirectory(design.Storage.Base), height, menc,
-					)
-					if err != nil {
-						return nil, false, e(err, "")
-					}
-					defer func() {
-						_ = reader.Close()
-					}()
+						reader, err := isaacblock.NewLocalFSReaderFromHeight(
+							LocalFSDataDirectory(design.Storage.Base), height, menc,
+						)
+						if err != nil {
+							return nil, false, e(err, "")
+						}
+						defer func() {
+							_ = reader.Close()
+						}()
 
-					return reader.Reader(item)
-				},
-			),
-		).
+						return reader.Reader(item)
+					},
+				))).
 		Add(isaacnetwork.HandlerPrefixNodeChallenge,
-			isaacnetwork.QuicstreamHandlerNodeChallenge(encs, idletimeout, local, params),
-		).
+			quicstream.NewHeaderHandler(encs, 0,
+				isaacnetwork.QuicstreamHandlerNodeChallenge(local, params))).
 		Add(isaacnetwork.HandlerPrefixSuffrageNodeConnInfo,
-			isaacnetwork.QuicstreamHandlerSuffrageNodeConnInfo(encs, idletimeout, suffrageNodeConnInfof),
-		).
+			quicstream.NewHeaderHandler(encs, 0,
+				isaacnetwork.QuicstreamHandlerSuffrageNodeConnInfo(suffrageNodeConnInfof))).
 		Add(isaacnetwork.HandlerPrefixSyncSourceConnInfo,
-			isaacnetwork.QuicstreamHandlerSyncSourceConnInfo(encs, idletimeout,
+			quicstream.NewHeaderHandler(encs, 0, isaacnetwork.QuicstreamHandlerSyncSourceConnInfo(
 				func() ([]isaac.NodeConnInfo, error) {
 					members := make([]isaac.NodeConnInfo, syncSourcePool.Len()*2)
 
@@ -194,23 +187,20 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 
 					return members[:i], nil
 				},
-			),
-		).
+			))).
 		Add(isaacnetwork.HandlerPrefixState,
-			isaacnetwork.QuicstreamHandlerState(encs, idletimeout, db.StateBytes),
-		).
+			quicstream.NewHeaderHandler(encs, 0, isaacnetwork.QuicstreamHandlerState(db.StateBytes))).
 		Add(isaacnetwork.HandlerPrefixExistsInStateOperation,
-			isaacnetwork.QuicstreamHandlerExistsInStateOperation(encs, idletimeout, db.ExistsInStateOperation),
-		).
+			quicstream.NewHeaderHandler(encs, 0,
+				isaacnetwork.QuicstreamHandlerExistsInStateOperation(db.ExistsInStateOperation))).
 		Add(isaacnetwork.HandlerPrefixNodeInfo,
-			isaacnetwork.QuicstreamHandlerNodeInfo(encs, idletimeout, quicstreamHandlerGetNodeInfoFunc(enc, nodeinfo)),
-		).
+			quicstream.NewHeaderHandler(encs, 0, isaacnetwork.QuicstreamHandlerNodeInfo(
+				quicstreamHandlerGetNodeInfoFunc(enc, nodeinfo)))).
 		Add(isaacnetwork.HandlerPrefixCallbackMessage,
-			isaacnetwork.QuicstreamHandlerCallbackMessage(encs, idletimeout, cb),
-		).
+			quicstream.NewHeaderHandler(encs, 0, isaacnetwork.QuicstreamHandlerCallbackMessage(cb))).
 		Add(isaacnetwork.HandlerPrefixSendBallots,
-			isaacnetwork.QuicstreamHandlerSendBallots(
-				encs, idletimeout, params,
+			quicstream.NewHeaderHandler(encs, 0, isaacnetwork.QuicstreamHandlerSendBallots(
+				params,
 				func(bl base.BallotSignFact) error {
 					switch passed, err := filternotifymsg(bl); {
 					case err != nil:
@@ -234,9 +224,7 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 
 					return err
 				},
-			),
-		).
-		Add(HandlerPrefixPprof, NetworkHandlerPprofFunc(encs))
+			)))
 
 	return pctx, nil
 }
@@ -487,12 +475,12 @@ func OperationPreProcess(
 	height base.Height,
 ) (
 	preprocess func(context.Context, base.GetStateFunc) (context.Context, base.OperationProcessReasonError, error),
-	cancelf func() error,
+	cancel func() error,
 	_ error,
 ) {
 	v := oprs.Find(op.Hint())
 	if v == nil {
-		return op.PreProcess, func() error { return nil }, nil
+		return op.PreProcess, util.EmptyCancelFunc, nil
 	}
 
 	f := v.(func(height base.Height) (base.OperationProcessor, error)) //nolint:forcetypeassert //...

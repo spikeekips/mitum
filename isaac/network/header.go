@@ -3,9 +3,7 @@ package isaacnetwork
 import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
-	"github.com/spikeekips/mitum/isaac"
 	"github.com/spikeekips/mitum/network/quicstream"
-	"github.com/spikeekips/mitum/storage"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
 )
@@ -30,32 +28,22 @@ var (
 	SendBallotsHeaderHint                   = hint.MustNewHint("send-ballots-header-v0.0.1")
 )
 
-var ResponseHeaderHint = hint.MustNewHint("response-header-v0.0.1")
-
-type BaseHeader struct {
-	prefix string
-	hint.BaseHinter
+type baseHeader struct {
+	quicstream.BaseHeader
 }
 
-func NewBaseHeader(ht hint.Hint) BaseHeader {
-	return BaseHeader{
-		BaseHinter: hint.NewBaseHinter(ht),
-		prefix:     baseHeaderPrefixByHint(ht),
-	}
-}
-
-func (h BaseHeader) HandlerPrefix() string {
-	return h.prefix
+func newBaseHeader(ht hint.Hint) baseHeader {
+	return baseHeader{BaseHeader: quicstream.NewBaseHeader(ht, headerPrefixByHint(ht))}
 }
 
 type OperationRequestHeader struct {
 	h util.Hash
-	BaseHeader
+	baseHeader
 }
 
 func NewOperationRequestHeader(operationhash util.Hash) OperationRequestHeader {
 	return OperationRequestHeader{
-		BaseHeader: NewBaseHeader(OperationRequestHeaderHint),
+		baseHeader: newBaseHeader(OperationRequestHeaderHint),
 		h:          operationhash,
 	}
 }
@@ -79,12 +67,12 @@ func (h OperationRequestHeader) Operation() util.Hash {
 }
 
 type SendOperationRequestHeader struct {
-	BaseHeader
+	baseHeader
 }
 
 func NewSendOperationRequestHeader() SendOperationRequestHeader {
 	return SendOperationRequestHeader{
-		BaseHeader: NewBaseHeader(SendOperationRequestHeaderHint),
+		baseHeader: newBaseHeader(SendOperationRequestHeaderHint),
 	}
 }
 
@@ -98,13 +86,13 @@ func (h SendOperationRequestHeader) IsValid([]byte) error {
 
 type RequestProposalRequestHeader struct {
 	proposer base.Address
-	BaseHeader
+	baseHeader
 	point base.Point
 }
 
 func NewRequestProposalRequestHeader(point base.Point, proposer base.Address) RequestProposalRequestHeader {
 	return RequestProposalRequestHeader{
-		BaseHeader: NewBaseHeader(RequestProposalRequestHeaderHint),
+		baseHeader: newBaseHeader(RequestProposalRequestHeaderHint),
 		point:      point,
 		proposer:   proposer,
 	}
@@ -134,12 +122,12 @@ func (h RequestProposalRequestHeader) Point() base.Point {
 
 type ProposalRequestHeader struct {
 	proposal util.Hash
-	BaseHeader
+	baseHeader
 }
 
 func NewProposalRequestHeader(proposal util.Hash) ProposalRequestHeader {
 	return ProposalRequestHeader{
-		BaseHeader: NewBaseHeader(ProposalRequestHeaderHint),
+		baseHeader: newBaseHeader(ProposalRequestHeaderHint),
 		proposal:   proposal,
 	}
 }
@@ -164,12 +152,12 @@ func (h ProposalRequestHeader) Proposal() util.Hash {
 
 type LastSuffrageProofRequestHeader struct {
 	state util.Hash
-	BaseHeader
+	baseHeader
 }
 
 func NewLastSuffrageProofRequestHeader(state util.Hash) LastSuffrageProofRequestHeader {
 	return LastSuffrageProofRequestHeader{
-		BaseHeader: NewBaseHeader(LastSuffrageProofRequestHeaderHint),
+		baseHeader: newBaseHeader(LastSuffrageProofRequestHeaderHint),
 		state:      state,
 	}
 }
@@ -195,13 +183,13 @@ func (h LastSuffrageProofRequestHeader) State() util.Hash {
 }
 
 type SuffrageProofRequestHeader struct {
-	BaseHeader
+	baseHeader
 	suffrageheight base.Height
 }
 
 func NewSuffrageProofRequestHeader(suffrageheight base.Height) SuffrageProofRequestHeader {
 	return SuffrageProofRequestHeader{
-		BaseHeader:     NewBaseHeader(SuffrageProofRequestHeaderHint),
+		baseHeader:     newBaseHeader(SuffrageProofRequestHeaderHint),
 		suffrageheight: suffrageheight,
 	}
 }
@@ -226,12 +214,12 @@ func (h SuffrageProofRequestHeader) Height() base.Height {
 
 type LastBlockMapRequestHeader struct {
 	manifest util.Hash
-	BaseHeader
+	baseHeader
 }
 
 func NewLastBlockMapRequestHeader(manifest util.Hash) LastBlockMapRequestHeader {
 	return LastBlockMapRequestHeader{
-		BaseHeader: NewBaseHeader(LastBlockMapRequestHeaderHint),
+		baseHeader: newBaseHeader(LastBlockMapRequestHeaderHint),
 		manifest:   manifest,
 	}
 }
@@ -255,13 +243,13 @@ func (h LastBlockMapRequestHeader) Manifest() util.Hash {
 }
 
 type BlockMapRequestHeader struct {
-	BaseHeader
+	baseHeader
 	height base.Height
 }
 
 func NewBlockMapRequestHeader(height base.Height) BlockMapRequestHeader {
 	return BlockMapRequestHeader{
-		BaseHeader: NewBaseHeader(BlockMapRequestHeaderHint),
+		baseHeader: newBaseHeader(BlockMapRequestHeaderHint),
 		height:     height,
 	}
 }
@@ -286,13 +274,13 @@ func (h BlockMapRequestHeader) Height() base.Height {
 
 type BlockMapItemRequestHeader struct {
 	item base.BlockMapItemType
-	BaseHeader
+	baseHeader
 	height base.Height
 }
 
 func NewBlockMapItemRequestHeader(height base.Height, item base.BlockMapItemType) BlockMapItemRequestHeader {
 	return BlockMapItemRequestHeader{
-		BaseHeader: NewBaseHeader(BlockMapItemRequestHeaderHint),
+		baseHeader: newBaseHeader(BlockMapItemRequestHeaderHint),
 		height:     height,
 		item:       item,
 	}
@@ -322,12 +310,12 @@ func (h BlockMapItemRequestHeader) Item() base.BlockMapItemType {
 
 type NodeChallengeRequestHeader struct {
 	input []byte
-	BaseHeader
+	baseHeader
 }
 
 func NewNodeChallengeRequestHeader(input []byte) NodeChallengeRequestHeader {
 	return NodeChallengeRequestHeader{
-		BaseHeader: NewBaseHeader(NodeChallengeRequestHeaderHint),
+		baseHeader: newBaseHeader(NodeChallengeRequestHeaderHint),
 		input:      input,
 	}
 }
@@ -351,12 +339,12 @@ func (h NodeChallengeRequestHeader) Input() []byte {
 }
 
 type SuffrageNodeConnInfoRequestHeader struct {
-	BaseHeader
+	baseHeader
 }
 
 func NewSuffrageNodeConnInfoRequestHeader() SuffrageNodeConnInfoRequestHeader {
 	return SuffrageNodeConnInfoRequestHeader{
-		BaseHeader: NewBaseHeader(SuffrageNodeConnInfoRequestHeaderHint),
+		baseHeader: newBaseHeader(SuffrageNodeConnInfoRequestHeaderHint),
 	}
 }
 
@@ -369,12 +357,12 @@ func (h SuffrageNodeConnInfoRequestHeader) IsValid([]byte) error {
 }
 
 type SyncSourceConnInfoRequestHeader struct {
-	BaseHeader
+	baseHeader
 }
 
 func NewSyncSourceConnInfoRequestHeader() SyncSourceConnInfoRequestHeader {
 	return SyncSourceConnInfoRequestHeader{
-		BaseHeader: NewBaseHeader(SyncSourceConnInfoRequestHeaderHint),
+		baseHeader: newBaseHeader(SyncSourceConnInfoRequestHeaderHint),
 	}
 }
 
@@ -389,12 +377,12 @@ func (h SyncSourceConnInfoRequestHeader) IsValid([]byte) error {
 type StateRequestHeader struct {
 	key string
 	h   util.Hash
-	BaseHeader
+	baseHeader
 }
 
 func NewStateRequestHeader(key string, h util.Hash) StateRequestHeader {
 	return StateRequestHeader{
-		BaseHeader: NewBaseHeader(StateRequestHeaderHint),
+		baseHeader: newBaseHeader(StateRequestHeaderHint),
 		key:        key,
 		h:          h,
 	}
@@ -430,12 +418,12 @@ func (h StateRequestHeader) Hash() util.Hash {
 
 type ExistsInStateOperationRequestHeader struct {
 	facthash util.Hash
-	BaseHeader
+	baseHeader
 }
 
 func NewExistsInStateOperationRequestHeader(facthash util.Hash) ExistsInStateOperationRequestHeader {
 	return ExistsInStateOperationRequestHeader{
-		BaseHeader: NewBaseHeader(ExistsInStateOperationRequestHeaderHint),
+		baseHeader: newBaseHeader(ExistsInStateOperationRequestHeaderHint),
 		facthash:   facthash,
 	}
 }
@@ -463,12 +451,12 @@ func (h ExistsInStateOperationRequestHeader) FactHash() util.Hash {
 }
 
 type NodeInfoRequestHeader struct {
-	BaseHeader
+	baseHeader
 }
 
 func NewNodeInfoRequestHeader() NodeInfoRequestHeader {
 	return NodeInfoRequestHeader{
-		BaseHeader: NewBaseHeader(NodeInfoRequestHeaderHint),
+		baseHeader: newBaseHeader(NodeInfoRequestHeaderHint),
 	}
 }
 
@@ -481,12 +469,12 @@ func (h NodeInfoRequestHeader) IsValid([]byte) error {
 }
 
 type SendBallotsHeader struct {
-	BaseHeader
+	baseHeader
 }
 
 func NewSendBallotsHeader() SendBallotsHeader {
 	return SendBallotsHeader{
-		BaseHeader: NewBaseHeader(SendBallotsHeaderHint),
+		baseHeader: newBaseHeader(SendBallotsHeaderHint),
 	}
 }
 
@@ -500,12 +488,12 @@ func (h SendBallotsHeader) IsValid([]byte) error {
 
 type CallbackMessageHeader struct {
 	id string
-	BaseHeader
+	baseHeader
 }
 
 func NewCallbackMessageHeader(id string) CallbackMessageHeader {
 	return CallbackMessageHeader{
-		BaseHeader: NewBaseHeader(CallbackMessageHeaderHint),
+		baseHeader: newBaseHeader(CallbackMessageHeaderHint),
 		id:         id,
 	}
 }
@@ -528,53 +516,7 @@ func (h CallbackMessageHeader) ID() string {
 	return h.id
 }
 
-type ResponseHeader struct {
-	ctype isaac.NetworkResponseContentType
-	err   error
-	BaseHeader
-	ok bool
-}
-
-func NewResponseHeader(ok bool, err error) ResponseHeader {
-	// NOTE detailed internal error like network error or storage error will be
-	// hidden
-	ierr := err
-
-	switch {
-	case err == nil:
-	case storage.IsStorageError(err), quicstream.IsNetworkError(err):
-		ierr = util.ErrInternal.Call()
-	}
-
-	return ResponseHeader{
-		BaseHeader: NewBaseHeader(ResponseHeaderHint),
-		ok:         ok,
-		err:        ierr,
-	}
-}
-
-func NewResponseHeaderWithType(ok bool, err error, ctype isaac.NetworkResponseContentType) ResponseHeader {
-	return ResponseHeader{
-		BaseHeader: NewBaseHeader(ResponseHeaderHint),
-		ok:         ok,
-		err:        err,
-		ctype:      ctype,
-	}
-}
-
-func (r ResponseHeader) OK() bool {
-	return r.ok
-}
-
-func (r ResponseHeader) Err() error {
-	return r.err
-}
-
-func (r ResponseHeader) Type() isaac.NetworkResponseContentType {
-	return r.ctype
-}
-
-func baseHeaderPrefixByHint(ht hint.Hint) string {
+func headerPrefixByHint(ht hint.Hint) string {
 	switch ht.Type() {
 	case RequestProposalRequestHeaderHint.Type():
 		return HandlerPrefixRequestProposal

@@ -3,23 +3,18 @@ package isaacnetwork
 import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
-	"github.com/spikeekips/mitum/isaac"
+	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
-	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
 )
 
-func (h *BaseHeader) unmarshalJSON(b []byte) error {
-	var u hint.BaseHinter
-
-	if err := util.UnmarshalJSON(b, &u); err != nil {
+func (h *baseHeader) UnmarshalJSON(b []byte) error {
+	if err := util.UnmarshalJSON(b, &h.BaseHeader); err != nil {
 		return err
 	}
 
-	h.BaseHinter = u
-
-	h.prefix = baseHeaderPrefixByHint(u.Hint())
+	h.BaseHeader = quicstream.NewBaseHeader(h.Hint(), headerPrefixByHint(h.Hint()))
 
 	return nil
 }
@@ -31,9 +26,9 @@ type operationRequestHeaderJSONMarshaler struct {
 func (h OperationRequestHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
 		operationRequestHeaderJSONMarshaler
-		BaseHeader
+		quicstream.BaseHeaderJSONMarshaler
 	}{
-		BaseHeader: h.BaseHeader,
+		BaseHeaderJSONMarshaler: h.BaseHeader.JSONMarshaler(),
 		operationRequestHeaderJSONMarshaler: operationRequestHeaderJSONMarshaler{
 			Operation: h.h,
 		},
@@ -47,13 +42,12 @@ type operationRequestHeaderJSONUnmarshaler struct {
 func (h *OperationRequestHeader) DecodeJSON(b []byte, _ *jsonenc.Encoder) error {
 	e := util.StringErrorFunc("failed to unmarshal OperationRequestHeader")
 
-	var u operationRequestHeaderJSONUnmarshaler
-
-	if err := util.UnmarshalJSON(b, &u); err != nil {
+	if err := util.UnmarshalJSON(b, &h.baseHeader); err != nil {
 		return e(err, "")
 	}
 
-	if err := h.BaseHeader.unmarshalJSON(b); err != nil {
+	var u operationRequestHeaderJSONUnmarshaler
+	if err := util.UnmarshalJSON(b, &u); err != nil {
 		return e(err, "")
 	}
 
@@ -62,8 +56,12 @@ func (h *OperationRequestHeader) DecodeJSON(b []byte, _ *jsonenc.Encoder) error 
 	return nil
 }
 
+func (h SendOperationRequestHeader) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(h.JSONMarshaler())
+}
+
 func (h *SendOperationRequestHeader) UnmarshalJSON(b []byte) error {
-	if err := h.BaseHeader.unmarshalJSON(b); err != nil {
+	if err := util.UnmarshalJSON(b, &h.baseHeader); err != nil {
 		return errors.WithMessage(err, "failed to unmarshal SendOperationRequestHeader")
 	}
 
@@ -78,9 +76,9 @@ type requestProposalRequestHeaderJSONMarshaler struct {
 func (h RequestProposalRequestHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
 		requestProposalRequestHeaderJSONMarshaler
-		BaseHeader
+		quicstream.BaseHeaderJSONMarshaler
 	}{
-		BaseHeader: h.BaseHeader,
+		BaseHeaderJSONMarshaler: h.BaseHeader.JSONMarshaler(),
 		requestProposalRequestHeaderJSONMarshaler: requestProposalRequestHeaderJSONMarshaler{
 			Proposer: h.proposer,
 			Point:    h.point,
@@ -102,7 +100,7 @@ func (h *RequestProposalRequestHeader) DecodeJSON(b []byte, enc *jsonenc.Encoder
 		return e(err, "")
 	}
 
-	if err := h.BaseHeader.unmarshalJSON(b); err != nil {
+	if err := util.UnmarshalJSON(b, &h.baseHeader); err != nil {
 		return e(err, "")
 	}
 
@@ -125,9 +123,9 @@ type proposalRequestHeaderJSONMarshaler struct {
 func (h ProposalRequestHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
 		proposalRequestHeaderJSONMarshaler
-		BaseHeader
+		quicstream.BaseHeaderJSONMarshaler
 	}{
-		BaseHeader: h.BaseHeader,
+		BaseHeaderJSONMarshaler: h.BaseHeader.JSONMarshaler(),
 		proposalRequestHeaderJSONMarshaler: proposalRequestHeaderJSONMarshaler{
 			Proposal: h.proposal,
 		},
@@ -147,7 +145,7 @@ func (h *ProposalRequestHeader) UnmarshalJSON(b []byte) error {
 		return e(err, "")
 	}
 
-	if err := h.BaseHeader.unmarshalJSON(b); err != nil {
+	if err := util.UnmarshalJSON(b, &h.baseHeader); err != nil {
 		return e(err, "")
 	}
 
@@ -163,9 +161,9 @@ type lastSuffrageProofRequestHeaderJSONMarshaler struct {
 func (h LastSuffrageProofRequestHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
 		lastSuffrageProofRequestHeaderJSONMarshaler
-		BaseHeader
+		quicstream.BaseHeaderJSONMarshaler
 	}{
-		BaseHeader: h.BaseHeader,
+		BaseHeaderJSONMarshaler: h.BaseHeader.JSONMarshaler(),
 		lastSuffrageProofRequestHeaderJSONMarshaler: lastSuffrageProofRequestHeaderJSONMarshaler{
 			State: h.state,
 		},
@@ -185,7 +183,7 @@ func (h *LastSuffrageProofRequestHeader) UnmarshalJSON(b []byte) error {
 		return e(err, "")
 	}
 
-	if err := h.BaseHeader.unmarshalJSON(b); err != nil {
+	if err := util.UnmarshalJSON(b, &h.baseHeader); err != nil {
 		return e(err, "")
 	}
 
@@ -200,10 +198,10 @@ type suffrageProofRequestHeaderJSONMarshaler struct {
 
 func (h SuffrageProofRequestHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
-		BaseHeader
+		quicstream.BaseHeaderJSONMarshaler
 		suffrageProofRequestHeaderJSONMarshaler
 	}{
-		BaseHeader: h.BaseHeader,
+		BaseHeaderJSONMarshaler: h.BaseHeader.JSONMarshaler(),
 		suffrageProofRequestHeaderJSONMarshaler: suffrageProofRequestHeaderJSONMarshaler{
 			SuffrageHeight: h.suffrageheight,
 		},
@@ -222,7 +220,7 @@ func (h *SuffrageProofRequestHeader) UnmarshalJSON(b []byte) error {
 		return e(err, "")
 	}
 
-	if err := h.BaseHeader.unmarshalJSON(b); err != nil {
+	if err := util.UnmarshalJSON(b, &h.baseHeader); err != nil {
 		return e(err, "")
 	}
 
@@ -238,9 +236,9 @@ type lastBlockMapRequestHeaderJSONMarshaler struct {
 func (h LastBlockMapRequestHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
 		lastBlockMapRequestHeaderJSONMarshaler
-		BaseHeader
+		quicstream.BaseHeaderJSONMarshaler
 	}{
-		BaseHeader: h.BaseHeader,
+		BaseHeaderJSONMarshaler: h.BaseHeader.JSONMarshaler(),
 		lastBlockMapRequestHeaderJSONMarshaler: lastBlockMapRequestHeaderJSONMarshaler{
 			Manifest: h.manifest,
 		},
@@ -259,7 +257,7 @@ func (h *LastBlockMapRequestHeader) UnmarshalJSON(b []byte) error {
 		return e(err, "")
 	}
 
-	if err := h.BaseHeader.unmarshalJSON(b); err != nil {
+	if err := util.UnmarshalJSON(b, &h.baseHeader); err != nil {
 		return e(err, "")
 	}
 
@@ -274,10 +272,10 @@ type BlockMapRequestHeaderJSONMarshaler struct {
 
 func (h BlockMapRequestHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
-		BaseHeader
+		quicstream.BaseHeaderJSONMarshaler
 		BlockMapRequestHeaderJSONMarshaler
 	}{
-		BaseHeader: h.BaseHeader,
+		BaseHeaderJSONMarshaler: h.BaseHeader.JSONMarshaler(),
 		BlockMapRequestHeaderJSONMarshaler: BlockMapRequestHeaderJSONMarshaler{
 			Height: h.height,
 		},
@@ -296,7 +294,7 @@ func (h *BlockMapRequestHeader) UnmarshalJSON(b []byte) error {
 		return e(err, "")
 	}
 
-	if err := h.BaseHeader.unmarshalJSON(b); err != nil {
+	if err := util.UnmarshalJSON(b, &h.baseHeader); err != nil {
 		return e(err, "")
 	}
 
@@ -313,9 +311,9 @@ type BlockMapItemRequestHeaderJSONMarshaler struct {
 func (h BlockMapItemRequestHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
 		BlockMapItemRequestHeaderJSONMarshaler
-		BaseHeader
+		quicstream.BaseHeaderJSONMarshaler
 	}{
-		BaseHeader: h.BaseHeader,
+		BaseHeaderJSONMarshaler: h.BaseHeader.JSONMarshaler(),
 		BlockMapItemRequestHeaderJSONMarshaler: BlockMapItemRequestHeaderJSONMarshaler{
 			Height: h.height,
 			Item:   h.item,
@@ -336,7 +334,7 @@ func (h *BlockMapItemRequestHeader) UnmarshalJSON(b []byte) error {
 		return e(err, "")
 	}
 
-	if err := h.BaseHeader.unmarshalJSON(b); err != nil {
+	if err := util.UnmarshalJSON(b, &h.baseHeader); err != nil {
 		return e(err, "")
 	}
 
@@ -353,9 +351,9 @@ type NodeChallengeRequestHeaderJSONMarshaler struct {
 func (h NodeChallengeRequestHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
 		NodeChallengeRequestHeaderJSONMarshaler
-		BaseHeader
+		quicstream.BaseHeaderJSONMarshaler
 	}{
-		BaseHeader: h.BaseHeader,
+		BaseHeaderJSONMarshaler: h.BaseHeader.JSONMarshaler(),
 		NodeChallengeRequestHeaderJSONMarshaler: NodeChallengeRequestHeaderJSONMarshaler{
 			Input: h.input,
 		},
@@ -370,7 +368,7 @@ func (h *NodeChallengeRequestHeader) UnmarshalJSON(b []byte) error {
 		return e(err, "")
 	}
 
-	if err := h.BaseHeader.unmarshalJSON(b); err != nil {
+	if err := util.UnmarshalJSON(b, &h.baseHeader); err != nil {
 		return e(err, "")
 	}
 
@@ -379,16 +377,24 @@ func (h *NodeChallengeRequestHeader) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+func (h SuffrageNodeConnInfoRequestHeader) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(h.BaseHeader.JSONMarshaler())
+}
+
 func (h *SuffrageNodeConnInfoRequestHeader) UnmarshalJSON(b []byte) error {
-	if err := h.BaseHeader.unmarshalJSON(b); err != nil {
+	if err := util.UnmarshalJSON(b, &h.baseHeader); err != nil {
 		return errors.WithMessage(err, "failed to unmarshal SuffrageNodeConnInfoHeader")
 	}
 
 	return nil
 }
 
+func (h SyncSourceConnInfoRequestHeader) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(h.BaseHeader.JSONMarshaler())
+}
+
 func (h *SyncSourceConnInfoRequestHeader) UnmarshalJSON(b []byte) error {
-	if err := h.BaseHeader.unmarshalJSON(b); err != nil {
+	if err := util.UnmarshalJSON(b, &h.baseHeader); err != nil {
 		return errors.WithMessage(err, "failed to unmarshal SyncSourceConnInfoRequestHeader")
 	}
 
@@ -403,9 +409,9 @@ type stateRequestHeaderJSONMarshaler struct {
 func (h StateRequestHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
 		stateRequestHeaderJSONMarshaler
-		BaseHeader
+		quicstream.BaseHeaderJSONMarshaler
 	}{
-		BaseHeader: h.BaseHeader,
+		BaseHeaderJSONMarshaler: h.BaseHeader.JSONMarshaler(),
 		stateRequestHeaderJSONMarshaler: stateRequestHeaderJSONMarshaler{
 			Key:  h.key,
 			Hash: h.h,
@@ -427,7 +433,7 @@ func (h *StateRequestHeader) UnmarshalJSON(b []byte) error {
 		return e(err, "")
 	}
 
-	if err := h.BaseHeader.unmarshalJSON(b); err != nil {
+	if err := util.UnmarshalJSON(b, &h.baseHeader); err != nil {
 		return errors.WithMessage(err, "failed to unmarshal StateRequestHeader")
 	}
 
@@ -444,9 +450,9 @@ type existsInStateOperationRequestHeaderJSONMarshaler struct {
 func (h ExistsInStateOperationRequestHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
 		existsInStateOperationRequestHeaderJSONMarshaler
-		BaseHeader
+		quicstream.BaseHeaderJSONMarshaler
 	}{
-		BaseHeader: h.BaseHeader,
+		BaseHeaderJSONMarshaler: h.BaseHeader.JSONMarshaler(),
 		existsInStateOperationRequestHeaderJSONMarshaler: existsInStateOperationRequestHeaderJSONMarshaler{
 			Fact: h.facthash,
 		},
@@ -464,7 +470,7 @@ func (h *ExistsInStateOperationRequestHeader) UnmarshalJSON(b []byte) error {
 		return e(err, "")
 	}
 
-	if err := h.BaseHeader.unmarshalJSON(b); err != nil {
+	if err := util.UnmarshalJSON(b, &h.baseHeader); err != nil {
 		return errors.WithMessage(err, "failed to unmarshal ExistsInStateOperationRequestHeader")
 	}
 
@@ -473,9 +479,25 @@ func (h *ExistsInStateOperationRequestHeader) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+func (h NodeInfoRequestHeader) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(h.BaseHeader.JSONMarshaler())
+}
+
 func (h *NodeInfoRequestHeader) UnmarshalJSON(b []byte) error {
-	if err := h.BaseHeader.unmarshalJSON(b); err != nil {
+	if err := util.UnmarshalJSON(b, &h.baseHeader); err != nil {
 		return errors.WithMessage(err, "failed to unmarshal NodeInfoHeader")
+	}
+
+	return nil
+}
+
+func (h SendBallotsHeader) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(h.BaseHeader.JSONMarshaler())
+}
+
+func (h *SendBallotsHeader) UnmarshalJSON(b []byte) error {
+	if err := util.UnmarshalJSON(b, &h.baseHeader); err != nil {
+		return errors.WithMessage(err, "failed to unmarshal SendBallotsHeader")
 	}
 
 	return nil
@@ -488,9 +510,9 @@ type callbackMessageHeaderJSONMarshaler struct {
 func (h CallbackMessageHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
 		callbackMessageHeaderJSONMarshaler
-		BaseHeader
+		quicstream.BaseHeaderJSONMarshaler
 	}{
-		BaseHeader: h.BaseHeader,
+		BaseHeaderJSONMarshaler: h.BaseHeader.JSONMarshaler(),
 		callbackMessageHeaderJSONMarshaler: callbackMessageHeaderJSONMarshaler{
 			ID: h.id,
 		},
@@ -506,53 +528,11 @@ func (h *CallbackMessageHeader) DecodeJSON(b []byte, _ *jsonenc.Encoder) error {
 		return e(err, "")
 	}
 
-	if err := h.BaseHeader.unmarshalJSON(b); err != nil {
+	if err := util.UnmarshalJSON(b, &h.baseHeader); err != nil {
 		return e(err, "")
 	}
 
 	h.id = u.ID
-
-	return nil
-}
-
-type ResponseHeaderJSONMarshaler struct {
-	Type  isaac.NetworkResponseContentType `json:"type,omitempty"`
-	Error string                           `json:"error,omitempty"`
-	OK    bool                             `json:"ok,omitempty"`
-}
-
-func (r ResponseHeader) MarshalJSON() ([]byte, error) {
-	var err string
-	if r.err != nil {
-		err = r.err.Error()
-	}
-
-	return util.MarshalJSON(struct {
-		ResponseHeaderJSONMarshaler
-		BaseHeader
-	}{
-		BaseHeader: r.BaseHeader,
-		ResponseHeaderJSONMarshaler: ResponseHeaderJSONMarshaler{
-			OK:    r.ok,
-			Error: err,
-			Type:  r.ctype,
-		},
-	})
-}
-
-func (r *ResponseHeader) UnmarshalJSON(b []byte) error {
-	var u ResponseHeaderJSONMarshaler
-
-	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return errors.Wrap(err, "failed to unmarshal ResponseHeader")
-	}
-
-	r.ok = u.OK
-	r.ctype = u.Type
-
-	if len(u.Error) > 0 {
-		r.err = errors.Errorf(u.Error)
-	}
 
 	return nil
 }

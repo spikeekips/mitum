@@ -3,9 +3,7 @@ package isaacnetwork
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"io"
-	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -15,339 +13,293 @@ import (
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
-type BaseNetworkClientWriteFunc func(
-	ctx context.Context,
-	conninfo quicstream.UDPConnInfo,
-	writef quicstream.ClientWriteFunc,
-) (_ io.ReadCloser, cancel func() error, _ error)
-
-type BaseNetworkClient struct {
-	*baseNetwork
-	writef BaseNetworkClientWriteFunc
+type BaseClient struct {
+	*quicstream.HeaderClient
 }
 
-func NewBaseNetworkClient(
+func NewBaseClient(
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
-	idleTimeout time.Duration,
-	writef BaseNetworkClientWriteFunc,
-) *BaseNetworkClient {
-	return &BaseNetworkClient{
-		baseNetwork: newBaseNetwork(encs, enc, idleTimeout),
-		writef:      writef,
+	writef quicstream.HeaderClientWriteFunc,
+) *BaseClient {
+	return &BaseClient{
+		HeaderClient: quicstream.NewHeaderClient(encs, enc, writef),
 	}
 }
 
-func (c *BaseNetworkClient) NewClient() *BaseNetworkClient {
-	return &BaseNetworkClient{
-		baseNetwork: newBaseNetwork(c.encs, c.enc, c.idleTimeout),
-		writef:      c.writef,
-	}
-}
-
-func (c *BaseNetworkClient) Request(
+func (c *BaseClient) Request(
 	ctx context.Context,
 	ci quicstream.UDPConnInfo,
-	header isaac.NetworkHeader,
+	header quicstream.Header,
 	body io.Reader,
 ) (
-	_ isaac.NetworkResponseHeader,
+	_ quicstream.ResponseHeader,
 	_ interface{},
-	cancel func() error,
+	_ func() error,
 	_ error,
 ) {
 	e := util.StringErrorFunc("failed to request")
 
-	cancel = func() error { return nil }
-
-	r, cancelf, err := c.write(ctx, ci, c.enc, header, body)
-	if err != nil {
-		return nil, nil, cancel, e(err, "failed to send request")
-	}
-
-	h, enc, err := c.loadResponseHeader(ctx, r)
+	h, r, cancel, enc, err := c.RequestBody(ctx, ci, header, body)
 
 	switch {
 	case err != nil:
-		return h, nil, cancelf, e(err, "failed to read stream")
-	case h.Err() != nil, !h.OK():
-		return h, nil, cancelf, nil
+		return h, nil, cancel, e(err, "failed to read stream")
+	case h.Err() != nil:
+		return h, nil, cancel, nil
+	case !h.OK():
+		return h, nil, cancel, nil
 	}
 
-	switch h.Type() {
-	case isaac.NetworkResponseHinterContentType:
+	switch h.ContentType() {
+	case quicstream.HinterContentType:
 		defer func() {
-			_ = cancelf()
+			_ = cancel()
 		}()
 
 		var u interface{}
 
 		if err := encoder.DecodeReader(enc, r, &u); err != nil {
-			return h, nil, cancel, e(err, "")
+			return h, nil, util.EmptyCancelFunc, e(err, "")
 		}
 
-		return h, u, cancel, nil
-	case isaac.NetworkResponseRawContentType:
-		return h, r, cancelf, nil
+		return h, u, util.EmptyCancelFunc, nil
+	case quicstream.RawContentType:
+		return h, r, cancel, nil
 	default:
 		defer func() {
-			_ = cancelf()
+			_ = cancel()
 		}()
 
-		return nil, nil, cancel, errors.Errorf("unknown content type, %q", h.Type())
+		return nil, nil, util.EmptyCancelFunc, errors.Errorf("unknown content type, %q", h.ContentType())
 	}
 }
 
-func (c *BaseNetworkClient) Operation(
-	ctx context.Context, ci quicstream.UDPConnInfo, operationhash util.Hash,
+func (c *BaseClient) Operation(
+	ctx context.Context, ci quicstream.UDPConnInfo, op util.Hash,
 ) (base.Operation, bool, error) {
-	header := NewOperationRequestHeader(operationhash)
+	header := NewOperationRequestHeader(op)
 
 	var u base.Operation
 
-	found, err := c.requestOK(ctx, ci, header, nil, &u)
-
-	return u, found, errors.WithMessage(err, "failed to get Operation")
+	switch h, _, err := c.RequestDecode(ctx, ci, header, nil, &u); {
+	case err != nil:
+		return nil, false, err
+	default:
+		return u, h.OK(), h.Err()
+	}
 }
 
-func (c *BaseNetworkClient) SendOperation(
+func (c *BaseClient) SendOperation(
 	ctx context.Context,
 	ci quicstream.UDPConnInfo,
 	op base.Operation,
 ) (bool, error) {
-	e := util.StringErrorFunc("failed SendOperation")
+	buf := bytes.NewBuffer(nil)
+	defer buf.Reset()
 
-	b, err := c.enc.Marshal(op)
-	if err != nil {
-		return false, e(err, "")
+	if err := c.Encoder.StreamEncoder(buf).Encode(op); err != nil {
+		return false, err
 	}
 
 	header := NewSendOperationRequestHeader()
 
-	if err = header.IsValid(nil); err != nil {
-		return false, e(err, "")
-	}
-
-	buf := bytes.NewBuffer(b)
-	defer buf.Reset()
-
-	r, cancel, err := c.write(ctx, ci, c.enc, header, buf)
-	if err != nil {
-		return false, e(err, "failed to send request")
-	}
-
-	defer func() {
-		_ = cancel()
-	}()
-
-	h, _, err := c.loadResponseHeader(ctx, r)
+	h, _, cancel, _, err := c.RequestBody(ctx, ci, header, buf)
+	_ = cancel()
 
 	switch {
 	case err != nil:
-		return false, e(err, "failed to read stream")
-	case h.Err() != nil:
-		return false, e(h.Err(), "")
+		return false, err
 	default:
-		return h.OK(), nil
+		return h.OK(), h.Err()
 	}
 }
 
-func (c *BaseNetworkClient) RequestProposal(
+func (c *BaseClient) RequestProposal(
 	ctx context.Context,
 	ci quicstream.UDPConnInfo,
 	point base.Point,
 	proposer base.Address,
 ) (base.ProposalSignFact, bool, error) {
-	e := util.StringErrorFunc("failed to request proposal")
-
 	header := NewRequestProposalRequestHeader(point, proposer)
 
-	if err := header.IsValid(nil); err != nil {
-		return nil, false, e(err, "")
-	}
+	var u base.ProposalSignFact
 
-	r, cancel, err := c.write(ctx, ci, c.enc, header, nil)
-	if err != nil {
-		return nil, false, e(err, "failed to send request")
-	}
-
-	defer func() {
-		_ = cancel()
-	}()
-
-	h, enc, err := c.loadResponseHeader(ctx, r)
-
-	switch {
+	switch h, _, err := c.RequestBodyDecode(ctx, ci, header, nil, &u); {
 	case err != nil:
-		return nil, false, e(err, "failed to read stream")
-	case h.Err() != nil:
-		return nil, false, e(h.Err(), "")
-	case !h.OK():
-		return nil, false, nil
+		return nil, false, err
 	default:
-		var u base.ProposalSignFact
-
-		if err := encoder.DecodeReader(enc, r, &u); err != nil {
-			return nil, false, e(err, "")
-		}
-
-		return u, true, nil
+		return u, h.OK(), h.Err()
 	}
 }
 
-func (c *BaseNetworkClient) Proposal( //nolint:dupl //...
+func (c *BaseClient) Proposal( //nolint:dupl //...
 	ctx context.Context,
 	ci quicstream.UDPConnInfo,
 	pr util.Hash,
 ) (base.ProposalSignFact, bool, error) {
-	e := util.StringErrorFunc("failed to get proposal")
-
 	header := NewProposalRequestHeader(pr)
 
 	if err := header.IsValid(nil); err != nil {
-		return nil, false, e(err, "")
+		return nil, false, err
 	}
 
-	r, cancel, err := c.write(ctx, ci, c.enc, header, nil)
-	if err != nil {
-		return nil, false, e(err, "failed to send request")
-	}
+	var u base.ProposalSignFact
 
-	defer func() {
-		_ = cancel()
-	}()
-
-	h, enc, err := c.loadResponseHeader(ctx, r)
-
-	switch {
+	switch h, _, err := c.RequestBodyDecode(ctx, ci, header, nil, &u); {
 	case err != nil:
-		return nil, false, e(err, "failed to read stream")
-	case h.Err() != nil:
-		return nil, false, e(h.Err(), "")
-	case !h.OK():
-		return nil, false, nil
+		return nil, false, err
 	default:
-		var u base.ProposalSignFact
-
-		if err := encoder.DecodeReader(enc, r, &u); err != nil {
-			return nil, false, e(err, "")
-		}
-
-		return u, true, nil
+		return u, h.OK(), h.Err()
 	}
 }
 
-func (c *BaseNetworkClient) LastSuffrageProof(
+func (c *BaseClient) LastSuffrageProof(
 	ctx context.Context, ci quicstream.UDPConnInfo, state util.Hash,
 ) (base.Height, base.SuffrageProof, bool, error) {
 	header := NewLastSuffrageProofRequestHeader(state)
 
 	var lastheight base.Height
-	var u base.SuffrageProof
 
-	found, err := c.requestWithCallback(ctx, ci, header, nil, func(enc encoder.Encoder, r io.Reader, ok bool) error {
+	if err := header.IsValid(nil); err != nil {
+		return lastheight, nil, false, err
+	}
+
+	h, r, cancel, enc, err := c.RequestBody(ctx, ci, header, nil)
+	defer func() {
+		_ = cancel()
+	}()
+
+	switch {
+	case err != nil:
+		return lastheight, nil, false, err
+	case h.Err() != nil:
+		return lastheight, nil, h.OK(), h.Err()
+	default:
 		b, err := io.ReadAll(r)
 		if err != nil {
-			return errors.WithMessage(err, "failed to read response")
+			return lastheight, nil, true, errors.WithMessage(err, "failed to read response")
 		}
 
 		switch _, m, _, err := util.ReadLengthedBytesSlice(b); {
 		case err != nil:
-			return errors.WithMessage(err, "failed to read response")
+			return lastheight, nil, true, errors.WithMessage(err, "failed to read response")
 		case len(m) != 2: //nolint:gomnd //...
-			return errors.Errorf("invalid response message")
+			return lastheight, nil, true, errors.Errorf("invalid response message")
 		default:
-			lastheight, err = base.ParseHeightBytes(m[0])
+			i, err := base.ParseHeightBytes(m[0])
 			if err != nil {
-				return errors.WithMessage(err, "failed to load last height")
+				return lastheight, nil, true, errors.WithMessage(err, "failed to load last height")
 			}
 
-			if ok {
-				return encoder.Decode(enc, m[1], &u)
+			lastheight = i
+
+			if !h.OK() {
+				return lastheight, nil, false, nil
 			}
 
-			return nil
+			var u base.SuffrageProof
+
+			if err := encoder.Decode(enc, m[1], &u); err != nil {
+				return lastheight, nil, true, err
+			}
+
+			return lastheight, u, true, nil
 		}
-	})
-
-	return lastheight, u, found, errors.WithMessage(err, "failed to get last SuffrageProof")
+	}
 }
 
-func (c *BaseNetworkClient) SuffrageProof( //nolint:dupl //...
+func (c *BaseClient) SuffrageProof( //nolint:dupl //...
 	ctx context.Context, ci quicstream.UDPConnInfo, suffrageheight base.Height,
 ) (base.SuffrageProof, bool, error) {
 	header := NewSuffrageProofRequestHeader(suffrageheight)
+	if err := header.IsValid(nil); err != nil {
+		return nil, false, err
+	}
 
 	var u base.SuffrageProof
 
-	found, err := c.requestOK(ctx, ci, header, nil, &u)
-
-	return u, found, errors.WithMessage(err, "failed to get SuffrageProof")
+	switch h, _, err := c.RequestDecode(ctx, ci, header, nil, &u); {
+	case err != nil:
+		return nil, false, errors.WithMessage(err, "failed to get SuffrageProof")
+	case h.Err() != nil:
+		return nil, false, errors.WithMessage(h.Err(), "failed to get SuffrageProof")
+	default:
+		return u, h.OK(), nil
+	}
 }
 
-func (c *BaseNetworkClient) LastBlockMap( //nolint:dupl //...
+func (c *BaseClient) LastBlockMap( //nolint:dupl //...
 	ctx context.Context, ci quicstream.UDPConnInfo, manifest util.Hash,
 ) (base.BlockMap, bool, error) {
 	header := NewLastBlockMapRequestHeader(manifest)
+	if err := header.IsValid(nil); err != nil {
+		return nil, false, err
+	}
 
 	var u base.BlockMap
 
-	found, err := c.requestOK(ctx, ci, header, nil, &u)
-
-	return u, found, errors.WithMessage(err, "failed to get last BlockMap")
+	switch h, _, err := c.RequestDecode(ctx, ci, header, nil, &u); {
+	case err != nil:
+		return nil, false, errors.WithMessage(err, "failed to get last BlockMap")
+	case h.Err() != nil:
+		return nil, false, errors.WithMessage(h.Err(), "failed to get last BlockMap")
+	default:
+		return u, h.OK(), nil
+	}
 }
 
-func (c *BaseNetworkClient) BlockMap( //nolint:dupl //...
+func (c *BaseClient) BlockMap( //nolint:dupl //...
 	ctx context.Context, ci quicstream.UDPConnInfo, height base.Height,
 ) (base.BlockMap, bool, error) {
 	header := NewBlockMapRequestHeader(height)
+	if err := header.IsValid(nil); err != nil {
+		return nil, false, err
+	}
 
 	var u base.BlockMap
 
-	found, err := c.requestOK(ctx, ci, header, nil, &u)
-
-	return u, found, errors.WithMessage(err, "failed to get BlockMap")
+	switch h, _, err := c.RequestDecode(ctx, ci, header, nil, &u); {
+	case err != nil:
+		return nil, false, errors.WithMessage(err, "failed to get BlockMap")
+	case h.Err() != nil:
+		return nil, false, errors.WithMessage(h.Err(), "failed to get BlockMap")
+	default:
+		return u, h.OK(), nil
+	}
 }
 
-func (c *BaseNetworkClient) BlockMapItem(
+func (c *BaseClient) BlockMapItem(
 	ctx context.Context, ci quicstream.UDPConnInfo, height base.Height, item base.BlockMapItemType,
-) (_ io.ReadCloser, cancel func() error, found bool, _ error) {
+) (
+	_ io.ReadCloser,
+	_ func() error,
+	_ bool,
+	_ error,
+) {
 	// NOTE the io.ReadCloser should be closed.
-
-	e := util.StringErrorFunc("failed to get BlockMap")
 
 	header := NewBlockMapItemRequestHeader(height, item)
 
 	if err := header.IsValid(nil); err != nil {
-		return nil, nil, false, e(err, "")
+		return nil, nil, false, err
 	}
 
-	r, cancel, err := c.write(ctx, ci, c.enc, header, nil)
-	if err != nil {
-		return nil, nil, false, e(err, "failed to send request")
-	}
-
-	h, _, err := c.loadResponseHeader(ctx, r)
+	h, r, cancel, _, err := c.RequestBody(ctx, ci, header, nil)
 
 	switch {
 	case err != nil:
+		return nil, nil, false, err
+	case h.Err() != nil, !h.OK():
 		_ = cancel()
 
-		return nil, nil, false, e(err, "failed to read stream")
-	case h.Err() != nil:
-		_ = cancel()
-
-		return nil, nil, false, e(h.Err(), "")
-	case !h.OK():
-		_ = cancel()
-
-		return nil, nil, false, nil
+		return nil, util.EmptyCancelFunc, h.OK(), h.Err()
 	default:
-		return r, cancel, true, nil
+		return r, cancel, h.OK(), h.Err()
 	}
 }
 
-func (c *BaseNetworkClient) NodeChallenge(
+func (c *BaseClient) NodeChallenge(
 	ctx context.Context, ci quicstream.UDPConnInfo,
 	networkID base.NetworkID,
 	node base.Address, pub base.Publickey, input []byte,
@@ -360,24 +312,15 @@ func (c *BaseNetworkClient) NodeChallenge(
 		return nil, e(err, "")
 	}
 
-	r, cancel, err := c.write(ctx, ci, c.enc, header, nil)
-	if err != nil {
-		return nil, e(err, "failed to send request")
-	}
-
-	defer func() {
-		_ = cancel()
-	}()
-
-	h, _, err := c.loadResponseHeader(ctx, r)
+	h, r, cancel, enc, err := c.RequestBody(ctx, ci, header, nil)
 
 	switch {
 	case err != nil:
-		return nil, e(err, "failed to read stream")
-	case h.Err() != nil:
+		return nil, e(err, "")
+	case h.Err() != nil, !h.OK():
+		_ = cancel()
+
 		return nil, e(h.Err(), "")
-	case !h.OK():
-		return nil, nil
 	default:
 		b, err := io.ReadAll(r)
 		if err != nil {
@@ -385,7 +328,10 @@ func (c *BaseNetworkClient) NodeChallenge(
 		}
 
 		var sig base.Signature
-		_ = c.enc.Unmarshal(b, &sig)
+
+		if err := enc.Unmarshal(b, &sig); err != nil {
+			return nil, e(err, "")
+		}
 
 		if err := pub.Verify(util.ConcatBytesSlice(
 			node.Bytes(),
@@ -399,20 +345,15 @@ func (c *BaseNetworkClient) NodeChallenge(
 	}
 }
 
-func (c *BaseNetworkClient) SuffrageNodeConnInfo(
+func (c *BaseClient) SuffrageNodeConnInfo(
 	ctx context.Context, ci quicstream.UDPConnInfo,
 ) ([]isaac.NodeConnInfo, error) {
-	e := util.StringErrorFunc("failed SuffrageNodeConnInfo")
-
 	ncis, err := c.requestNodeConnInfos(ctx, ci, NewSuffrageNodeConnInfoRequestHeader())
-	if err != nil {
-		return nil, e(err, "")
-	}
 
-	return ncis, nil
+	return ncis, errors.WithMessage(err, "failed SuffrageNodeConnInfo")
 }
 
-func (c *BaseNetworkClient) SyncSourceConnInfo(
+func (c *BaseClient) SyncSourceConnInfo(
 	ctx context.Context, ci quicstream.UDPConnInfo,
 ) ([]isaac.NodeConnInfo, error) {
 	e := util.StringErrorFunc("failed SyncSourceConnInfo")
@@ -425,29 +366,95 @@ func (c *BaseNetworkClient) SyncSourceConnInfo(
 	return ncis, nil
 }
 
-func (c *BaseNetworkClient) State(
-	ctx context.Context, ci quicstream.UDPConnInfo, key string, h util.Hash,
-) (base.State, bool, error) {
-	header := NewStateRequestHeader(key, h)
+func (c *BaseClient) requestNodeConnInfos(
+	ctx context.Context,
+	ci quicstream.UDPConnInfo,
+	header quicstream.Header,
+) ([]isaac.NodeConnInfo, error) {
+	h, r, cancel, enc, err := c.RequestBody(ctx, ci, header, nil)
+	if err != nil {
+		return nil, err
+	}
 
-	var st base.State
+	defer func() {
+		_ = cancel()
+	}()
 
-	found, err := c.requestOK(ctx, ci, header, nil, &st)
+	switch {
+	case h.Err() != nil:
+		return nil, errors.WithStack(h.Err())
+	case !h.OK():
+		return nil, nil
+	default:
+		b, err := io.ReadAll(r)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
 
-	return st, found, errors.WithMessage(err, "failed State")
+		u, err := enc.DecodeSlice(b)
+		if err != nil {
+			return nil, err
+		}
+
+		cis := make([]isaac.NodeConnInfo, len(u))
+
+		for i := range u {
+			rci, ok := u[i].(isaac.NodeConnInfo)
+			if !ok {
+				return nil, errors.Errorf("expected NodeConnInfo, but %T", u[i])
+			}
+
+			cis[i] = rci
+		}
+
+		return cis, nil
+	}
 }
 
-func (c *BaseNetworkClient) ExistsInStateOperation(
+func (c *BaseClient) State(
+	ctx context.Context, ci quicstream.UDPConnInfo, key string, st util.Hash,
+) (base.State, bool, error) {
+	header := NewStateRequestHeader(key, st)
+	if err := header.IsValid(nil); err != nil {
+		return nil, false, err
+	}
+
+	var u base.State
+
+	switch h, _, err := c.RequestDecode(ctx, ci, header, nil, &u); {
+	case err != nil:
+		return nil, false, errors.WithMessage(err, "failed to get State")
+	case h.Err() != nil:
+		return nil, false, errors.WithMessage(h.Err(), "failed to get State")
+	default:
+		return u, h.OK(), nil
+	}
+}
+
+func (c *BaseClient) ExistsInStateOperation(
 	ctx context.Context, ci quicstream.UDPConnInfo, facthash util.Hash,
 ) (bool, error) {
 	header := NewExistsInStateOperationRequestHeader(facthash)
+	if err := header.IsValid(nil); err != nil {
+		return false, err
+	}
 
-	found, err := c.requestOK(ctx, ci, header, nil, nil)
+	h, _, cancel, _, err := c.RequestBody(ctx, ci, header, nil)
+	defer func() {
+		_ = cancel()
+	}()
 
-	return found, errors.WithMessage(err, "failed ExistsInStateOperation")
+	switch {
+	case err != nil:
+		return false, errors.WithMessage(err, "failed ExistsInStateOperation")
+	case h.Err() != nil:
+		return false, errors.WithMessage(h.Err(), "failed ExistsInStateOperation")
+	default:
+		return h.OK(), nil
+	}
 }
 
-func (c *BaseNetworkClient) SendBallots(
+func (c *BaseClient) SendBallots(
 	ctx context.Context,
 	ci quicstream.UDPConnInfo,
 	ballots []base.BallotSignFact,
@@ -460,19 +467,7 @@ func (c *BaseNetworkClient) SendBallots(
 
 	header := NewSendBallotsHeader()
 
-	if err := header.IsValid(nil); err != nil {
-		return e(err, "")
-	}
-
-	b, err := c.enc.Marshal(ballots)
-	if err != nil {
-		return e(err, "")
-	}
-
-	buf := bytes.NewBuffer(b)
-	defer buf.Reset()
-
-	r, cancel, err := c.write(ctx, ci, c.enc, header, buf)
+	h, _, cancel, _, err := c.RequestEncode(ctx, ci, header, ballots)
 	if err != nil {
 		return e(err, "failed to send request")
 	}
@@ -481,159 +476,9 @@ func (c *BaseNetworkClient) SendBallots(
 		_ = cancel()
 	}()
 
-	h, _, err := c.loadResponseHeader(ctx, r)
-
-	switch {
-	case err != nil:
-		return e(err, "failed to read stream")
-	case h.Err() != nil:
+	if h.Err() != nil {
 		return e(h.Err(), "")
-	default:
-		return nil
-	}
-}
-
-func (c *BaseNetworkClient) requestOK(
-	ctx context.Context,
-	ci quicstream.UDPConnInfo,
-	header isaac.NetworkHeader,
-	body io.Reader,
-	u interface{},
-) (bool, error) {
-	return c.requestWithCallback(ctx, ci, header, body, func(enc encoder.Encoder, r io.Reader, ok bool) error {
-		if !ok || u == nil {
-			return nil
-		}
-
-		return encoder.DecodeReader(enc, r, u)
-	})
-}
-
-func (c *BaseNetworkClient) requestWithCallback(
-	ctx context.Context,
-	ci quicstream.UDPConnInfo,
-	header isaac.NetworkHeader,
-	body io.Reader,
-	callback func(encoder.Encoder, io.Reader, bool) error,
-) (bool, error) {
-	if err := header.IsValid(nil); err != nil {
-		return false, err
 	}
 
-	r, cancel, err := c.write(ctx, ci, c.enc, header, body)
-	if err != nil {
-		return false, errors.WithMessage(err, "failed to send request")
-	}
-
-	defer func() {
-		_ = cancel()
-	}()
-
-	h, enc, err := c.loadResponseHeader(ctx, r)
-
-	switch {
-	case err != nil:
-		return false, errors.WithMessage(err, "failed to read stream")
-	case h.Err() != nil:
-		return false, h.Err()
-	default:
-		if err := callback(enc, r, h.OK()); err != nil {
-			return false, err
-		}
-
-		return h.OK(), nil
-	}
-}
-
-func (c *BaseNetworkClient) loadResponseHeader(
-	ctx context.Context,
-	r io.ReadCloser,
-) (h isaac.NetworkResponseHeader, enc encoder.Encoder, _ error) {
-	e := util.StringErrorFunc("failed to load response header")
-
-	tctx, cancel := context.WithTimeout(ctx, c.idleTimeout)
-	defer cancel()
-
-	enc, b, err := HandlerReadHead(tctx, c.encs, r)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if err := encoder.Decode(enc, b, &h); err != nil {
-		return h, nil, e(err, "failed to read stream")
-	}
-
-	return h, enc, nil
-}
-
-func (c *BaseNetworkClient) write(
-	ctx context.Context,
-	ci quicstream.UDPConnInfo,
-	enc encoder.Encoder,
-	header isaac.NetworkHeader,
-	body io.Reader,
-) (io.ReadCloser, func() error, error) {
-	b, err := enc.Marshal(header)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	r, cancel, err := c.writef(ctx, ci, func(w io.Writer) error {
-		return ClientWrite(w, header.HandlerPrefix(), enc.Hint(), b, body)
-	})
-	if err != nil {
-		return nil, nil, errors.WithMessage(err, "failed to write")
-	}
-
-	return r, cancel, nil
-}
-
-func (c *BaseNetworkClient) requestNodeConnInfos(
-	ctx context.Context,
-	ci quicstream.UDPConnInfo,
-	header isaac.NetworkHeader,
-) ([]isaac.NodeConnInfo, error) {
-	if err := header.IsValid(nil); err != nil {
-		return nil, err
-	}
-
-	r, cancel, err := c.write(ctx, ci, c.enc, header, nil)
-	if err != nil {
-		return nil, errors.WithMessage(err, "failed to send request")
-	}
-
-	defer func() {
-		_ = cancel()
-	}()
-
-	h, _, err := c.loadResponseHeader(ctx, r)
-
-	switch {
-	case err != nil:
-		return nil, errors.WithMessage(err, "failed to read stream")
-	case h.Err() != nil:
-		return nil, errors.WithStack(h.Err())
-	case !h.OK():
-		return nil, nil
-	default:
-		b, err := io.ReadAll(r)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-
-		var u []json.RawMessage
-		if err := c.enc.Unmarshal(b, &u); err != nil {
-			return nil, err
-		}
-
-		cis := make([]isaac.NodeConnInfo, len(u))
-
-		for i := range u {
-			if err := encoder.Decode(c.enc, u[i], &cis[i]); err != nil {
-				return nil, err
-			}
-		}
-
-		return cis, nil
-	}
+	return nil
 }
