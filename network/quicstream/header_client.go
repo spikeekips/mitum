@@ -13,6 +13,14 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 )
 
+type HeaderClientRequestFunc func(context.Context, UDPConnInfo, Header, io.Reader) (
+	ResponseHeader,
+	io.ReadCloser,
+	func() error,
+	encoder.Encoder,
+	error,
+)
+
 type HeaderClientWriteFunc func(
 	ctx context.Context,
 	conninfo UDPConnInfo,

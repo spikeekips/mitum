@@ -33,10 +33,11 @@ func (c *BaseClient) Request(
 	header quicstream.Header,
 	body io.Reader,
 ) (
-	_ quicstream.ResponseHeader,
-	_ interface{},
-	_ func() error,
-	_ error,
+	quicstream.ResponseHeader,
+	io.ReadCloser,
+	func() error,
+	encoder.Encoder,
+	error,
 ) {
 	e := util.StringErrorFunc("failed to request")
 
@@ -44,34 +45,22 @@ func (c *BaseClient) Request(
 
 	switch {
 	case err != nil:
-		return h, nil, cancel, e(err, "failed to read stream")
+		return h, nil, cancel, enc, e(err, "failed to read stream")
 	case h.Err() != nil:
-		return h, nil, cancel, nil
+		return h, nil, cancel, enc, nil
 	case !h.OK():
-		return h, nil, cancel, nil
+		return h, nil, cancel, enc, nil
 	}
 
 	switch h.ContentType() {
-	case quicstream.HinterContentType:
-		defer func() {
-			_ = cancel()
-		}()
-
-		var u interface{}
-
-		if err := encoder.DecodeReader(enc, r, &u); err != nil {
-			return h, nil, util.EmptyCancelFunc, e(err, "")
-		}
-
-		return h, u, util.EmptyCancelFunc, nil
-	case quicstream.RawContentType:
-		return h, r, cancel, nil
+	case quicstream.HinterContentType, quicstream.RawContentType:
+		return h, r, cancel, enc, nil
 	default:
 		defer func() {
 			_ = cancel()
 		}()
 
-		return nil, nil, util.EmptyCancelFunc, errors.Errorf("unknown content type, %q", h.ContentType())
+		return nil, nil, util.EmptyCancelFunc, enc, errors.Errorf("unknown content type, %q", h.ContentType())
 	}
 }
 

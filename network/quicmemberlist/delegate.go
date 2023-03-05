@@ -20,6 +20,7 @@ type (
 	DelegateJoinedFunc    func(Member)
 	DelegateLeftFunc      func(Member)
 	DelegateStoreConnInfo func(quicstream.UDPConnInfo)
+	FilterNotifyMsgFunc   func(interface{}) (bool, error)
 )
 
 type Delegate struct {

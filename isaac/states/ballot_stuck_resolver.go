@@ -315,7 +315,7 @@ func FindMissingBallotsFromBallotboxFunc(
 
 func RequestMissingBallots(
 	localci quicstream.UDPConnInfo,
-	broadcastf func(string, []byte, chan struct{}) error,
+	broadcastf func([]byte, string, chan struct{}) error,
 ) func(context.Context, base.StagePoint, []base.Address) error {
 	return func(ctx context.Context, point base.StagePoint, nodes []base.Address) error {
 		m := NewMissingBallotsRequestsMessage(point, nodes, localci)
@@ -324,7 +324,7 @@ func RequestMissingBallots(
 		case err != nil:
 			return errors.WithMessage(err, "failed to marshal MissingBallotsRequestsMessage")
 		default:
-			if err := broadcastf(util.UUID().String(), b, nil); err != nil {
+			if err := broadcastf(b, util.UUID().String(), nil); err != nil {
 				return errors.WithMessage(err, "failed to broadcast MissingBallotsRequestsMessage")
 			}
 

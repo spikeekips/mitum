@@ -18,6 +18,7 @@ import (
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
+	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
 )
 
@@ -54,8 +55,7 @@ func init() {
 			isaac.SuffrageStateKey, valuehash.RandomSHA256()),
 		isaacnetwork.HandlerPrefixExistsInStateOperation: isaacnetwork.NewExistsInStateOperationRequestHeader(
 			valuehash.RandomSHA256()),
-		isaacnetwork.HandlerPrefixNodeInfo:        isaacnetwork.NewNodeInfoRequestHeader(),
-		isaacnetwork.HandlerPrefixCallbackMessage: isaacnetwork.NewCallbackMessageHeader(util.UUID().String()),
+		isaacnetwork.HandlerPrefixNodeInfo: isaacnetwork.NewNodeInfoRequestHeader(),
 	}
 
 	headerExamplesKeys = make([]string, len(headerExamples))
@@ -148,13 +148,9 @@ func (cmd *NetworkClientCommand) response(header quicstream.Header) error {
 	ctx, cancel := context.WithTimeout(context.Background(), cmd.Timeout)
 	defer cancel()
 
-	response, v, cancelrequest, err := client.Request(ctx, cmd.remote, header, cmd.body)
-
-	switch {
-	case err != nil:
+	response, r, cancelrequest, enc, err := client.Request(ctx, cmd.remote, header, cmd.body)
+	if err != nil {
 		return err
-	case response.Err() != nil:
-		return response.Err()
 	}
 
 	defer func() {
@@ -162,27 +158,39 @@ func (cmd *NetworkClientCommand) response(header quicstream.Header) error {
 	}()
 
 	cmd.log.Debug().Interface("response", response).Msg("got respond")
-	cmd.log.Trace().Interface("response", response).Interface("body", v).Msg("got respond")
 
-	if v != nil {
-		switch response.ContentType() {
-		case quicstream.HinterContentType:
-			b, err := util.MarshalJSONIndent(v)
-			if err != nil {
-				return err
-			}
+	switch {
+	case response.Err() != nil:
+		return response.Err()
+	case r == nil:
+		return nil
+	}
 
-			_, _ = fmt.Fprintln(os.Stdout, string(b))
-		case quicstream.RawContentType:
-			r, ok := v.(io.Reader)
-			if !ok {
-				return errors.Errorf("expected io.Reader, but %T", v)
-			}
-
-			if _, err := io.Copy(os.Stdout, r); err != nil {
-				return errors.WithStack(err)
-			}
+	switch response.ContentType() {
+	case quicstream.HinterContentType:
+		var v hint.Hinter
+		if err := encoder.DecodeReader(enc, r, &v); err != nil {
+			return err
 		}
+
+		cmd.log.Trace().Interface("response", response).Interface("body", v).Msg("got respond")
+
+		b, err := util.MarshalJSONIndent(v)
+		if err != nil {
+			return err
+		}
+
+		_, _ = fmt.Fprintln(os.Stdout, string(b))
+	case quicstream.RawContentType:
+		var c bytes.Buffer
+
+		w := io.MultiWriter(os.Stdout, &c)
+
+		if _, err := io.Copy(w, r); err != nil {
+			return errors.WithStack(err)
+		}
+
+		cmd.log.Trace().Int("length", c.Len()).Msg("got respond")
 	}
 
 	return nil

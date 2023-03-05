@@ -59,8 +59,6 @@ var Hinters = []encoder.DecodeDetail{
 	},
 	{Hint: isaacnetwork.BlockMapItemRequestHeaderHint, Instance: isaacnetwork.BlockMapItemRequestHeader{}},
 	{Hint: isaacnetwork.BlockMapRequestHeaderHint, Instance: isaacnetwork.BlockMapRequestHeader{}},
-	{Hint: isaacnetwork.CallbackBroadcastMessageHint, Instance: isaacnetwork.CallbackBroadcastMessage{}},
-	{Hint: isaacnetwork.CallbackMessageHeaderHint, Instance: isaacnetwork.CallbackMessageHeader{}},
 	{Hint: isaacnetwork.LastBlockMapRequestHeaderHint, Instance: isaacnetwork.LastBlockMapRequestHeader{}},
 	{Hint: isaacnetwork.LastSuffrageProofRequestHeaderHint, Instance: isaacnetwork.LastSuffrageProofRequestHeader{}},
 	{Hint: isaacnetwork.NodeChallengeRequestHeaderHint, Instance: isaacnetwork.NodeChallengeRequestHeader{}},
@@ -89,6 +87,11 @@ var Hinters = []encoder.DecodeDetail{
 		Instance: isaacoperation.SuffrageGenesisJoinFact{},
 	},
 	{Hint: isaacstates.MissingBallotsRequestsMessageHint, Instance: isaacstates.MissingBallotsRequestMessage{}},
+	{Hint: quicmemberlist.CallbackBroadcastMessageHint, Instance: quicmemberlist.CallbackBroadcastMessage{}},
+	{
+		Hint:     quicmemberlist.CallbackBroadcastMessageHeaderHint,
+		Instance: quicmemberlist.CallbackBroadcastMessageHeader{},
+	},
 	{Hint: quicmemberlist.MemberHint, Instance: quicmemberlist.BaseMember{}},
 	{Hint: quicstream.DefaultResponseHeaderHint, Instance: quicstream.DefaultResponseHeader{}},
 }

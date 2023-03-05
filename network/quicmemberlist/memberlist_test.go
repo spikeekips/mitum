@@ -1,6 +1,7 @@
 package quicmemberlist
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"io"
@@ -22,16 +23,27 @@ import (
 
 type testMemberlist struct {
 	quicstream.BaseTest
-	enc *jsonenc.Encoder
+	encs *encoder.Encoders
+	enc  *jsonenc.Encoder
 }
 
-func (t *testMemberlist) SetupTest() {
-	t.BaseTest.SetupTest()
+func (t *testMemberlist) SetupSuite() {
+	t.BaseTest.SetupSuite()
+
+	t.encs = encoder.NewEncoders()
 	t.enc = jsonenc.NewEncoder()
+	t.NoError(t.encs.AddHinter(t.enc))
 
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: MemberHint, Instance: BaseMember{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: CallbackBroadcastMessageHint, Instance: CallbackBroadcastMessage{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: CallbackBroadcastMessageHeaderHint, Instance: CallbackBroadcastMessageHeader{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: quicstream.DefaultResponseHeaderHint, Instance: quicstream.DefaultResponseHeader{}}))
+}
+
+func (t *testMemberlist) SetupTest() {
+	t.BaseTest.SetupTest()
 }
 
 func (t *testMemberlist) newConnInfo() quicstream.UDPConnInfo {
@@ -69,15 +81,22 @@ func (t *testMemberlist) newServersForJoining(
 	ci quicstream.UDPConnInfo,
 	whenJoined DelegateJoinedFunc,
 	whenLeft DelegateLeftFunc,
-) (*quicstream.Server, *Memberlist) {
+) (
+	*quicstream.PrefixHandler,
+	*Memberlist,
+	func() error,
+	func(),
+) {
+	transportprefix := "tp"
 	tlsconfig := t.NewTLSConfig(t.Proto)
 
 	poolclient := quicstream.NewPoolClient()
 
 	laddr := ci.UDPAddr()
+
 	transport := NewTransportWithQuicstream(
 		laddr,
-		"",
+		transportprefix,
 		poolclient,
 		func(ci quicstream.UDPConnInfo) func(*net.UDPAddr) *quicstream.Client {
 			return func(*net.UDPAddr) *quicstream.Client {
@@ -95,20 +114,10 @@ func (t *testMemberlist) newServersForJoining(
 		func(string) bool { return false },
 	)
 
-	handler := func(addr net.Addr, r io.Reader, w io.Writer) error {
-		b, err := io.ReadAll(r)
-		if err != nil {
-			return err
-		}
+	ph := quicstream.NewPrefixHandler(nil)
+	ph.Add(transportprefix, transport.QuicstreamHandler)
 
-		if err := transport.ReceiveRaw(b, addr); err != nil {
-			return err
-		}
-
-		return nil
-	}
-
-	quicstreamsrv, err := quicstream.NewServer(laddr, tlsconfig, nil, handler)
+	quicstreamsrv, err := quicstream.NewServer(laddr, tlsconfig, nil, ph.Handler)
 	t.NoError(err)
 
 	local, err := NewMember(laddr.String(), laddr, node, base.NewMPrivatekey().Publickey(), "1.2.3.4:4321", true)
@@ -125,7 +134,22 @@ func (t *testMemberlist) newServersForJoining(
 
 	srv, _ := NewMemberlist(local, args)
 
-	return quicstreamsrv, srv
+	return ph, srv,
+		func() error {
+			if err := quicstreamsrv.Start(context.Background()); err != nil {
+				return err
+			}
+
+			if err := srv.Start(context.Background()); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func() {
+			quicstreamsrv.Stop()
+			srv.Stop()
+		}
 }
 
 func (t *testMemberlist) TestLocalJoinAlone() {
@@ -133,7 +157,7 @@ func (t *testMemberlist) TestLocalJoinAlone() {
 	lnode := base.RandomAddress("")
 
 	joinedch := make(chan Member, 1)
-	quicstreamsrv, srv := t.newServersForJoining(
+	_, srv, startf, stopf := t.newServersForJoining(
 		lnode,
 		lci,
 		func(node Member) {
@@ -142,11 +166,8 @@ func (t *testMemberlist) TestLocalJoinAlone() {
 		nil,
 	)
 
-	t.NoError(quicstreamsrv.Start(context.Background()))
-	defer quicstreamsrv.Stop()
-
-	t.NoError(srv.Start(context.Background()))
-	defer srv.Stop()
+	t.NoError(startf())
+	defer stopf()
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -173,7 +194,7 @@ func (t *testMemberlist) TestLocalJoinAloneAndRejoin() {
 
 	joinedch := make(chan Member, 1)
 	leftch := make(chan Member, 1)
-	quicstreamsrv, srv := t.newServersForJoining(
+	_, srv, startf, stopf := t.newServersForJoining(
 		lnode,
 		lci,
 		func(node Member) {
@@ -184,11 +205,8 @@ func (t *testMemberlist) TestLocalJoinAloneAndRejoin() {
 		},
 	)
 
-	t.NoError(quicstreamsrv.Start(context.Background()))
-	defer quicstreamsrv.Stop()
-
-	t.NoError(srv.Start(context.Background()))
-	defer srv.Stop()
+	t.NoError(startf())
+	defer stopf()
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -246,7 +264,7 @@ func (t *testMemberlist) TestLocalJoinToRemote() {
 
 	ljoinedch := make(chan Member, 1)
 	rjoinedch := make(chan Member, 1)
-	lqsrv, lsrv := t.newServersForJoining(
+	_, lsrv, lstartf, lstopf := t.newServersForJoining(
 		lnode,
 		lci,
 		func(node Member) {
@@ -259,7 +277,7 @@ func (t *testMemberlist) TestLocalJoinToRemote() {
 		nil,
 	)
 
-	rqsrv, rsrv := t.newServersForJoining(
+	_, rsrv, rstartf, rstopf := t.newServersForJoining(
 		rnode,
 		rci,
 		func(node Member) {
@@ -272,15 +290,10 @@ func (t *testMemberlist) TestLocalJoinToRemote() {
 		nil,
 	)
 
-	t.NoError(lqsrv.Start(context.Background()))
-	t.NoError(rqsrv.Start(context.Background()))
-	defer lqsrv.Stop()
-	defer rqsrv.Stop()
-
-	t.NoError(lsrv.Start(context.Background()))
-	t.NoError(rsrv.Start(context.Background()))
-	defer lsrv.Stop()
-	defer rsrv.Stop()
+	t.NoError(lstartf())
+	defer lstopf()
+	t.NoError(rstartf())
+	defer rstopf()
 
 	<-time.After(time.Second)
 	t.NoError(lsrv.Join([]quicstream.UDPConnInfo{rci}))
@@ -339,7 +352,7 @@ func (t *testMemberlist) TestLocalJoinToRemoteButFailedToChallenge() {
 	rnode := base.RandomAddress("")
 
 	rjoinedch := make(chan Member, 1)
-	lqsrv, lsrv := t.newServersForJoining(
+	_, lsrv, lstartf, lstopf := t.newServersForJoining(
 		lnode,
 		lci,
 		nil,
@@ -362,7 +375,7 @@ func (t *testMemberlist) TestLocalJoinToRemoteButFailedToChallenge() {
 	args := t.newargs(lsrv.args.PatchedConfig)
 	lsrv, _ = NewMemberlist(lsrv.local, args)
 
-	rqsrv, rsrv := t.newServersForJoining(
+	_, rsrv, rstartf, rstopf := t.newServersForJoining(
 		rnode,
 		rci,
 		func(node Member) {
@@ -375,15 +388,10 @@ func (t *testMemberlist) TestLocalJoinToRemoteButFailedToChallenge() {
 		nil,
 	)
 
-	t.NoError(lqsrv.Start(context.Background()))
-	t.NoError(rqsrv.Start(context.Background()))
-	defer lqsrv.Stop()
-	defer rqsrv.Stop()
-
-	t.NoError(lsrv.Start(context.Background()))
-	t.NoError(rsrv.Start(context.Background()))
-	defer lsrv.Stop()
-	defer rsrv.Stop()
+	t.NoError(lstartf())
+	defer lstopf()
+	t.NoError(rstartf())
+	defer rstopf()
 
 	<-time.After(time.Second)
 	err := lsrv.Join([]quicstream.UDPConnInfo{rci})
@@ -407,7 +415,7 @@ func (t *testMemberlist) TestLocalJoinToRemoteButNotAllowed() {
 	rnode := base.RandomAddress("")
 
 	rjoinedch := make(chan Member, 1)
-	lqsrv, lsrv := t.newServersForJoining(
+	_, lsrv, lstartf, lstopf := t.newServersForJoining(
 		lnode,
 		lci,
 		nil,
@@ -430,7 +438,7 @@ func (t *testMemberlist) TestLocalJoinToRemoteButNotAllowed() {
 	args := t.newargs(lsrv.args.PatchedConfig)
 	lsrv, _ = NewMemberlist(lsrv.local, args)
 
-	rqsrv, rsrv := t.newServersForJoining(
+	_, rsrv, rstartf, rstopf := t.newServersForJoining(
 		rnode,
 		rci,
 		func(node Member) {
@@ -443,15 +451,10 @@ func (t *testMemberlist) TestLocalJoinToRemoteButNotAllowed() {
 		nil,
 	)
 
-	t.NoError(lqsrv.Start(context.Background()))
-	t.NoError(rqsrv.Start(context.Background()))
-	defer lqsrv.Stop()
-	defer rqsrv.Stop()
-
-	t.NoError(lsrv.Start(context.Background()))
-	t.NoError(rsrv.Start(context.Background()))
-	defer lsrv.Stop()
-	defer rsrv.Stop()
+	t.NoError(lstartf())
+	defer lstopf()
+	t.NoError(rstartf())
+	defer rstopf()
 
 	<-time.After(time.Second)
 	err := lsrv.Join([]quicstream.UDPConnInfo{rci})
@@ -479,7 +482,7 @@ func (t *testMemberlist) TestLocalLeave() {
 
 	lleftch := make(chan Member, 3)
 	rleftch := make(chan Member, 3)
-	lqsrv, lsrv := t.newServersForJoining(
+	_, lsrv, lstartf, lstopf := t.newServersForJoining(
 		lnode,
 		lci,
 		func(node Member) {
@@ -494,7 +497,7 @@ func (t *testMemberlist) TestLocalLeave() {
 		},
 	)
 
-	rqsrv, rsrv := t.newServersForJoining(
+	_, rsrv, rstartf, rstopf := t.newServersForJoining(
 		rnode,
 		rci,
 		func(node Member) {
@@ -509,15 +512,10 @@ func (t *testMemberlist) TestLocalLeave() {
 		},
 	)
 
-	t.NoError(lqsrv.Start(context.Background()))
-	t.NoError(rqsrv.Start(context.Background()))
-	defer lqsrv.Stop()
-	defer rqsrv.Stop()
-
-	t.NoError(lsrv.Start(context.Background()))
-	t.NoError(rsrv.Start(context.Background()))
-	defer lsrv.Stop()
-	defer rsrv.Stop()
+	t.NoError(lstartf())
+	defer lstopf()
+	t.NoError(rstartf())
+	defer rstopf()
 
 	<-time.After(time.Second)
 	t.NoError(lsrv.Join([]quicstream.UDPConnInfo{rci}))
@@ -585,7 +583,7 @@ func (t *testMemberlist) TestLocalShutdownAndLeave() {
 	rjoinedch := make(chan Member, 1)
 
 	rleftch := make(chan Member, 1)
-	lqsrv, lsrv := t.newServersForJoining(
+	_, lsrv, lstartf, lstopf := t.newServersForJoining(
 		lnode,
 		lci,
 		func(node Member) {
@@ -598,7 +596,7 @@ func (t *testMemberlist) TestLocalShutdownAndLeave() {
 		nil,
 	)
 
-	rqsrv, rsrv := t.newServersForJoining(
+	_, rsrv, rstartf, rstopf := t.newServersForJoining(
 		rnode,
 		rci,
 		func(node Member) {
@@ -613,15 +611,10 @@ func (t *testMemberlist) TestLocalShutdownAndLeave() {
 		},
 	)
 
-	t.NoError(lqsrv.Start(context.Background()))
-	t.NoError(rqsrv.Start(context.Background()))
-	defer lqsrv.Stop()
-	defer rqsrv.Stop()
-
-	t.NoError(lsrv.Start(context.Background()))
-	t.NoError(rsrv.Start(context.Background()))
-	defer lsrv.Stop()
-	defer rsrv.Stop()
+	t.NoError(lstartf())
+	defer lstopf()
+	t.NoError(rstartf())
+	defer rstopf()
 
 	<-time.After(time.Second)
 	t.NoError(lsrv.Join([]quicstream.UDPConnInfo{rci}))
@@ -662,7 +655,7 @@ func (t *testMemberlist) TestJoinMultipleNodeWithSameName() {
 	rci1 := t.newConnInfo()
 
 	ljoinedch := make(chan Member, 1)
-	lqsrv, lsrv := t.newServersForJoining(
+	_, lsrv, lstartf, lstopf := t.newServersForJoining(
 		lnode,
 		lci,
 		func(node Member) {
@@ -677,22 +670,15 @@ func (t *testMemberlist) TestJoinMultipleNodeWithSameName() {
 
 	lsrv.args.ExtraSameMemberLimit = 3
 
-	rqsrv0, rsrv0 := t.newServersForJoining(rnode, rci0, nil, nil)
-	rqsrv1, rsrv1 := t.newServersForJoining(rnode, rci1, nil, nil)
+	_, _, rstartf0, rstopf0 := t.newServersForJoining(rnode, rci0, nil, nil)
+	_, _, rstartf1, rstopf1 := t.newServersForJoining(rnode, rci1, nil, nil)
 
-	t.NoError(lqsrv.Start(context.Background()))
-	t.NoError(rqsrv0.Start(context.Background()))
-	t.NoError(rqsrv1.Start(context.Background()))
-	defer lqsrv.Stop()
-	defer rqsrv0.Stop()
-	defer rqsrv1.Stop()
-
-	t.NoError(lsrv.Start(context.Background()))
-	t.NoError(rsrv0.Start(context.Background()))
-	t.NoError(rsrv1.Start(context.Background()))
-	defer lsrv.Stop()
-	defer rsrv0.Stop()
-	defer rsrv1.Stop()
+	t.NoError(lstartf())
+	defer lstopf()
+	t.NoError(rstartf0())
+	defer rstopf0()
+	t.NoError(rstartf1())
+	defer rstopf1()
 
 	alljoinedch := make(chan error, 1)
 
@@ -742,7 +728,7 @@ func (t *testMemberlist) TestLocalOverMemberLimit() {
 	rnode := base.SimpleAddress("remote")
 
 	ljoinedch := make(chan Member, 1)
-	lqsrv, lsrv := t.newServersForJoining(
+	_, lsrv, lstartf, lstopf := t.newServersForJoining(
 		lnode,
 		lci,
 		func(node Member) {
@@ -757,22 +743,17 @@ func (t *testMemberlist) TestLocalOverMemberLimit() {
 
 	lsrv.args.ExtraSameMemberLimit = 0 // NOTE only allow 1 member in node name
 
-	rqsrv0, rsrv0 := t.newServersForJoining(
+	_, _, rstartf0, rstopf0 := t.newServersForJoining(
 		rnode,
 		rci0,
 		nil,
 		nil,
 	)
 
-	t.NoError(lqsrv.Start(context.Background()))
-	t.NoError(rqsrv0.Start(context.Background()))
-	defer lqsrv.Stop()
-	defer rqsrv0.Stop()
-
-	t.NoError(lsrv.Start(context.Background()))
-	t.NoError(rsrv0.Start(context.Background()))
-	defer lsrv.Stop()
-	defer rsrv0.Stop()
+	t.NoError(lstartf())
+	defer lstopf()
+	t.NoError(rstartf0())
+	defer rstopf0()
 
 	<-time.After(time.Second)
 	t.NoError(lsrv.Join([]quicstream.UDPConnInfo{rci0}))
@@ -791,17 +772,15 @@ func (t *testMemberlist) TestLocalOverMemberLimit() {
 
 	rci1 := t.newConnInfo()
 
-	rqsrv1, rsrv1 := t.newServersForJoining(
+	_, rsrv1, rstartf1, rstopf1 := t.newServersForJoining(
 		rnode,
 		rci1,
 		nil,
 		nil,
 	)
 
-	t.NoError(rqsrv1.Start(context.Background()))
-	t.NoError(rsrv1.Start(context.Background()))
-	defer rqsrv1.Stop()
-	defer rsrv1.Stop()
+	t.NoError(rstartf1())
+	defer rstopf1()
 
 	<-time.After(time.Second)
 	t.NoError(rsrv1.Join([]quicstream.UDPConnInfo{lci}))
@@ -841,7 +820,7 @@ func (t *testMemberlist) TestLocalJoinToRemoteWithInvalidNode() {
 
 	ljoinedch := make(chan Member, 1)
 	rjoinedch := make(chan Member, 1)
-	lqsrv, lsrv := t.newServersForJoining(
+	_, lsrv, lstartf, lstopf := t.newServersForJoining(
 		lnode,
 		lci,
 		func(node Member) {
@@ -854,7 +833,7 @@ func (t *testMemberlist) TestLocalJoinToRemoteWithInvalidNode() {
 		nil,
 	)
 
-	rqsrv, rsrv := t.newServersForJoining(
+	_, rsrv, rstartf, rstopf := t.newServersForJoining(
 		rnode,
 		rci,
 		func(node Member) {
@@ -877,15 +856,10 @@ func (t *testMemberlist) TestLocalJoinToRemoteWithInvalidNode() {
 	rdelegate := rsrv.args.PatchedConfig.Delegate.(*Delegate)
 	rdelegate.local = remote
 
-	t.NoError(lqsrv.Start(context.Background()))
-	t.NoError(rqsrv.Start(context.Background()))
-	defer lqsrv.Stop()
-	defer rqsrv.Stop()
-
-	t.NoError(lsrv.Start(context.Background()))
-	t.NoError(rsrv.Start(context.Background()))
-	defer lsrv.Stop()
-	defer rsrv.Stop()
+	t.NoError(lstartf())
+	defer lstopf()
+	t.NoError(rstartf())
+	defer rstopf()
 
 	<-time.After(time.Second)
 	err = lsrv.Join([]quicstream.UDPConnInfo{rci})
@@ -908,21 +882,293 @@ func (t *testMemberlist) TestJoinWithDeadNode() {
 		return strings.Compare(addrs[i].String(), addrs[j].String()) < 0
 	})
 
-	lqsrv, lsrv := t.newServersForJoining(
+	_, lsrv, lstartf, lstopf := t.newServersForJoining(
 		lnode,
 		lci,
 		func(node Member) {},
 		nil,
 	)
 
-	t.NoError(lqsrv.Start(context.Background()))
-	defer lqsrv.Stop()
-
-	t.NoError(lsrv.Start(context.Background()))
-	defer lsrv.Stop()
+	t.NoError(lstartf())
+	defer lstopf()
 
 	err := lsrv.Join([]quicstream.UDPConnInfo{rci})
 	t.Error(err)
+}
+
+func (t *testMemberlist) checkJoined(
+	lsrv, rsrv *Memberlist,
+	ljoinedch, rjoinedch chan Member,
+) {
+	lci := lsrv.local.UDPConnInfo()
+	rci := rsrv.local.UDPConnInfo()
+
+	addrs := []*net.UDPAddr{lsrv.local.UDPAddr(), rsrv.local.UDPAddr()}
+	sort.Slice(addrs, func(i, j int) bool {
+		return strings.Compare(addrs[i].String(), addrs[j].String()) < 0
+	})
+
+	t.NoError(lsrv.Join([]quicstream.UDPConnInfo{rci}))
+
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("local failed to join to remote"))
+	case node := <-ljoinedch:
+		t.True(isEqualAddress(rci, node))
+
+		t.Equal(2, lsrv.MembersLen())
+
+		var joined []Member
+		lsrv.Members(func(node Member) bool {
+			joined = append(joined, node)
+
+			return true
+		})
+		t.Equal(2, len(joined))
+
+		sort.Slice(joined, func(i, j int) bool {
+			return strings.Compare(joined[i].UDPAddr().String(), joined[j].UDPAddr().String()) < 0
+		})
+		t.True(isEqualAddress(addrs[0], joined[0]))
+		t.True(isEqualAddress(addrs[1], joined[1]))
+	}
+
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("remote failed to join to local"))
+	case node := <-rjoinedch:
+		t.True(isEqualAddress(lci, node))
+
+		t.Equal(2, rsrv.MembersLen())
+
+		var joined []Member
+		rsrv.Members(func(node Member) bool {
+			joined = append(joined, node)
+
+			return true
+		})
+		t.Equal(2, len(joined))
+
+		sort.Slice(joined, func(i, j int) bool {
+			return strings.Compare(joined[i].UDPAddr().String(), joined[j].UDPAddr().String()) < 0
+		})
+		t.True(isEqualAddress(addrs[0], joined[0]))
+		t.True(isEqualAddress(addrs[1], joined[1]))
+	}
+}
+
+func (t *testMemberlist) TestBroadcast() {
+	lci := t.newConnInfo()
+	lnode := base.RandomAddress("")
+	rci := t.newConnInfo()
+	rnode := base.RandomAddress("")
+
+	addrs := []*net.UDPAddr{lci.UDPAddr(), rci.UDPAddr()}
+	sort.Slice(addrs, func(i, j int) bool {
+		return strings.Compare(addrs[i].String(), addrs[j].String()) < 0
+	})
+
+	ljoinedch := make(chan Member, 1)
+	rjoinedch := make(chan Member, 1)
+	_, lsrv, lstartf, lstopf := t.newServersForJoining(
+		lnode,
+		lci,
+		func(node Member) {
+			if isEqualAddress(node, lci) {
+				return
+			}
+
+			ljoinedch <- node
+		},
+		nil,
+	)
+
+	_, rsrv, rstartf, rstopf := t.newServersForJoining(
+		rnode,
+		rci,
+		func(node Member) {
+			if isEqualAddress(node, rci) {
+				return
+			}
+
+			rjoinedch <- node
+		},
+		nil,
+	)
+
+	rbroadcastedch := make(chan []byte, 1)
+
+	rsrv.SetNotifyMsg(func(b []byte, _ encoder.Encoder) {
+		rbroadcastedch <- b
+	})
+
+	t.NoError(lstartf())
+	defer lstopf()
+	t.NoError(rstartf())
+	defer rstopf()
+
+	<-time.After(time.Second)
+	t.checkJoined(lsrv, rsrv, ljoinedch, rjoinedch)
+	t.T().Log("joined")
+
+	uid := util.UUID()
+
+	t.T().Log("broadcasted:", uid)
+	lsrv.Broadcast(NewBroadcast(uid.Bytes(), uid.String(), nil))
+
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("remote failed to be notify msg"))
+	case b := <-rbroadcastedch:
+		t.Equal(uid.Bytes(), b)
+	}
+}
+
+func (t *testMemberlist) TestCallbackBroadcast() {
+	lci := t.newConnInfo()
+	lnode := base.RandomAddress("")
+	rci := t.newConnInfo()
+	rnode := base.RandomAddress("")
+
+	addrs := []*net.UDPAddr{lci.UDPAddr(), rci.UDPAddr()}
+	sort.Slice(addrs, func(i, j int) bool {
+		return strings.Compare(addrs[i].String(), addrs[j].String()) < 0
+	})
+
+	ljoinedch := make(chan Member, 1)
+	rjoinedch := make(chan Member, 1)
+	lph, lsrv, lstartf, lstopf := t.newServersForJoining(
+		lnode,
+		lci,
+		func(node Member) {
+			if isEqualAddress(node, lci) {
+				return
+			}
+
+			ljoinedch <- node
+		},
+		nil,
+	)
+
+	_, rsrv, rstartf, rstopf := t.newServersForJoining(
+		rnode,
+		rci,
+		func(node Member) {
+			if isEqualAddress(node, rci) {
+				return
+			}
+
+			rjoinedch <- node
+		},
+		nil,
+	)
+
+	callbackhandlerprefix := "cb"
+
+	lph.Add(callbackhandlerprefix, quicstream.NewHeaderHandler(t.encs, 0, lsrv.CallbackBroadcastHandler()))
+
+	lcl := quicstream.NewHeaderClient(t.encs, t.enc, func(
+		_ context.Context,
+		_ quicstream.UDPConnInfo,
+		writef quicstream.ClientWriteFunc,
+	) (_ io.ReadCloser, cancel func() error, _ error) {
+		r := bytes.NewBuffer(nil)
+		if err := writef(r); err != nil {
+			return nil, nil, err
+		}
+
+		w := bytes.NewBuffer(nil)
+		if err := lph.Handler(lci.Addr(), r, w); err != nil {
+			return nil, nil, err
+		}
+
+		return io.NopCloser(w), func() error { return nil }, nil
+	})
+
+	notfoundid := util.UUID().String()
+
+	rsrv.args.FetchCallbackBroadcastMessageFunc = func(ctx context.Context, m CallbackBroadcastMessage) ([]byte, encoder.Encoder, error) {
+		if m.ID() == notfoundid {
+			return nil, nil, nil
+		}
+
+		h := NewCallbackBroadcastMessageHeader(m.ID(), callbackhandlerprefix)
+
+		_, r, cancel, enc, err := lcl.RequestBody(ctx, m.ConnInfo(), h, nil)
+		if err != nil {
+			return nil, enc, err
+		}
+
+		defer cancel()
+
+		b, err := io.ReadAll(r)
+		if err != nil {
+			return nil, enc, err
+		}
+
+		return b, enc, nil
+	}
+
+	rsrv.args.FetchCallbackBroadcastMessageFunc = func(ctx context.Context, m CallbackBroadcastMessage) (
+		[]byte, encoder.Encoder, error,
+	) {
+		if m.ID() == notfoundid {
+			return nil, nil, nil
+		}
+
+		return FetchCallbackBroadcastMessageFunc(callbackhandlerprefix, lcl.RequestBody)(ctx, m)
+	}
+
+	rbroadcastedch := make(chan []byte, 1)
+
+	rsrv.SetNotifyMsg(func(b []byte, _ encoder.Encoder) {
+		rbroadcastedch <- b
+	})
+
+	t.NoError(lstartf())
+	defer lstopf()
+	t.NoError(rstartf())
+	defer rstopf()
+
+	<-time.After(time.Second)
+	t.checkJoined(lsrv, rsrv, ljoinedch, rjoinedch)
+	t.T().Log("joined")
+
+	t.Run("found", func() {
+		uid := util.UUID()
+
+		t.T().Log("broadcasted:", uid)
+		t.NoError(lsrv.CallbackBroadcast(uid.Bytes(), uid.String(), nil))
+
+		select {
+		case <-time.After(time.Second * 2):
+			t.NoError(errors.Errorf("remote failed to be notify msg"))
+		case b := <-rbroadcastedch:
+			t.T().Log("received:", b)
+			t.Equal(uid.Bytes(), b)
+		}
+
+		after := time.After(time.Second * 3)
+		for { // NOTE exhaust retransmitted messages
+			select {
+			case <-after:
+				return
+			case <-rbroadcastedch:
+			}
+		}
+	})
+
+	t.Run("not found", func() {
+		t.T().Log("broadcasted")
+		t.NoError(lsrv.CallbackBroadcast(util.UUID().Bytes(), notfoundid, nil))
+
+		select {
+		case <-time.After(time.Second * 2):
+		case b := <-rbroadcastedch:
+			t.T().Log("received:", b)
+			t.NoError(errors.Errorf("unexpected callback broadcasted message"))
+		}
+	})
 }
 
 func TestMemberlist(t *testing.T) {

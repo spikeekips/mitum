@@ -24,7 +24,6 @@ var (
 	PNameMemberlist                         = ps.Name("memberlist")
 	PNameStartMemberlist                    = ps.Name("start-memberlist")
 	PNameLongRunningMemberlistJoin          = ps.Name("long-running-memberlist-join")
-	PNameCallbackBroadcaster                = ps.Name("callback-broadcaster")
 	PNameSuffrageVoting                     = ps.Name("suffrage-voting")
 	PNamePatchMemberlist                    = ps.Name("patch-memberlist")
 	MemberlistContextKey                    = util.ContextKey("memberlist")
@@ -32,11 +31,8 @@ var (
 	EventWhenEmptyMembersContextKey         = util.ContextKey("event-when-empty-members")
 	SuffrageVotingContextKey                = util.ContextKey("suffrage-voting")
 	SuffrageVotingVoteFuncContextKey        = util.ContextKey("suffrage-voting-vote-func")
-	CallbackBroadcasterContextKey           = util.ContextKey("callback-broadcaster")
 	FilterMemberlistNotifyMsgFuncContextKey = util.ContextKey("filter-memberlist-notify-msg-func")
 )
-
-type FilterMemberlistNotifyMsgFunc func(interface{}) (bool, error)
 
 func PMemberlist(pctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to prepare memberlist")
@@ -44,11 +40,13 @@ func PMemberlist(pctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var enc *jsonenc.Encoder
 	var params *isaac.LocalParams
+	var client *isaacnetwork.QuicstreamClient
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
 		LocalParamsContextKey, &params,
+		QuicstreamClientContextKey, &client,
 	); err != nil {
 		return pctx, e(err, "")
 	}
@@ -67,6 +65,10 @@ func PMemberlist(pctx context.Context) (context.Context, error) {
 
 	args := quicmemberlist.NewMemberlistArgs(enc, config)
 	args.ExtraSameMemberLimit = params.SameMemberLimit()
+	args.FetchCallbackBroadcastMessageFunc = quicmemberlist.FetchCallbackBroadcastMessageFunc(
+		HandlerPrefixMemberlistCallbackBroadcastMessage,
+		client.Request,
+	)
 
 	m, err := quicmemberlist.NewMemberlist(localnode, args)
 	if err != nil {
@@ -91,7 +93,7 @@ func PMemberlist(pctx context.Context) (context.Context, error) {
 	pctx = context.WithValue(pctx, MemberlistContextKey, m)
 	pctx = context.WithValue(pctx, EventWhenEmptyMembersContextKey, pps)
 	pctx = context.WithValue(pctx, FilterMemberlistNotifyMsgFuncContextKey,
-		FilterMemberlistNotifyMsgFunc(func(interface{}) (bool, error) { return true, nil }),
+		quicmemberlist.FilterNotifyMsgFunc(func(interface{}) (bool, error) { return true, nil }),
 	)
 	//revive:enable:modifies-parameter
 
@@ -145,28 +147,6 @@ func PLongRunningMemberlistJoin(pctx context.Context) (context.Context, error) {
 	return context.WithValue(pctx, LongRunningMemberlistJoinContextKey, l), nil
 }
 
-func PCallbackBroadcaster(pctx context.Context) (context.Context, error) {
-	var design NodeDesign
-	var enc *jsonenc.Encoder
-	var m *quicmemberlist.Memberlist
-
-	if err := util.LoadFromContextOK(pctx,
-		DesignContextKey, &design,
-		EncoderContextKey, &enc,
-		MemberlistContextKey, &m,
-	); err != nil {
-		return nil, err
-	}
-
-	c := isaacnetwork.NewCallbackBroadcaster(
-		quicstream.NewUDPConnInfo(design.Network.Publish(), design.Network.TLSInsecure),
-		enc,
-		m,
-	)
-
-	return context.WithValue(pctx, CallbackBroadcasterContextKey, c), nil
-}
-
 func PPatchMemberlist(pctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var enc encoder.Encoder
@@ -176,7 +156,7 @@ func PPatchMemberlist(pctx context.Context) (context.Context, error) {
 	var m *quicmemberlist.Memberlist
 	var client *isaacnetwork.QuicstreamClient
 	var svvotef isaac.SuffrageVoteFunc
-	var filternotifymsg FilterMemberlistNotifyMsgFunc
+	var filternotifymsg quicmemberlist.FilterNotifyMsgFunc
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
@@ -194,7 +174,7 @@ func PPatchMemberlist(pctx context.Context) (context.Context, error) {
 
 	l := log.Log().With().Str("module", "filter-notify-msg-memberlist").Logger()
 
-	m.SetNotifyMsg(func(b []byte) {
+	m.SetNotifyMsg(func(b []byte, enc encoder.Encoder) {
 		m, err := enc.Decode(b) //nolint:govet //...
 		if err != nil {
 			l.Error().Err(err).Str("message", string(b)).Msg("failed to decode incoming message")
@@ -203,15 +183,6 @@ func PPatchMemberlist(pctx context.Context) (context.Context, error) {
 		}
 
 		l.Trace().Err(err).Interface("message", m).Msg("new message notified")
-
-		switch i, err := fetchNotifyMessage(client, m); {
-		case err != nil:
-			l.Error().Err(err).Interface("message", m).Msg("failed to request callback broadcast")
-
-			return
-		default:
-			m = i
-		}
 
 		switch passed, err := filternotifymsg(m); {
 		case err != nil:
@@ -669,37 +640,5 @@ func ensureJoinMemberlist(
 		err := m.Join(dis)
 
 		return m.IsJoined(), err
-	}
-}
-
-func fetchNotifyMessage(
-	client *isaacnetwork.QuicstreamClient,
-	i interface{},
-) (interface{}, error) {
-	header, ok := i.(isaacnetwork.CallbackBroadcastMessage)
-	if !ok {
-		return i, nil
-	}
-
-	cctx, cancel := context.WithTimeout(context.Background(), time.Second*10) //nolint:gomnd //...
-	defer cancel()
-
-	req := isaacnetwork.NewCallbackMessageHeader(header.ID())
-
-	response, v, cancelrequest, err := client.Request(cctx, header.ConnInfo(), req, nil)
-	defer func() {
-		_ = cancelrequest()
-	}()
-
-	switch {
-	case err != nil:
-		return nil, err
-	case v == nil:
-		return nil, errors.Errorf("empty body")
-	case response.ContentType() != quicstream.HinterContentType:
-		return nil, errors.Errorf(
-			"invalid response type; expected HinterContentType, but %q", response.ContentType())
-	default:
-		return v, nil
 	}
 }

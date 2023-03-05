@@ -1,7 +1,9 @@
 package quicmemberlist
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"log"
 	"math"
@@ -17,15 +19,20 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
+	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/logging"
+	"golang.org/x/sync/singleflight"
 )
 
+var callbackBroadcastMessageHeaderPrefix = []byte("memberlist-callback-message")
+
 type MemberlistArgs struct {
-	Encoder       *jsonenc.Encoder
-	Config        *memberlist.Config
-	PatchedConfig *memberlist.Config
-	WhenLeftFunc  func(Member)
+	Encoder                           *jsonenc.Encoder
+	Config                            *memberlist.Config
+	PatchedConfig                     *memberlist.Config
+	FetchCallbackBroadcastMessageFunc func(context.Context, CallbackBroadcastMessage) ([]byte, encoder.Encoder, error)
+	WhenLeftFunc                      func(Member)
 	// Member, which has same node address will be allowed to join up to
 	// ExtraSameMemberLimit - 1. If ExtraSameMemberLimit is 0, only 1 member is
 	// allowed to join.
@@ -33,18 +40,27 @@ type MemberlistArgs struct {
 	// Not-allowed member will be cached for NotAllowedMemberExpire, after
 	// NotAllowedMemberExpire, not-allowed member will be checked by allowf of
 	// AliveDelegate.
-	NotAllowedMemberExpire time.Duration
-	ChallengeExpire        time.Duration
+	NotAllowedMemberExpire               time.Duration
+	ChallengeExpire                      time.Duration
+	CallbackBroadcastMessageExpire       time.Duration
+	FetchCallbackBroadcastMessageTimeout time.Duration
 }
 
 func NewMemberlistArgs(enc *jsonenc.Encoder, config *memberlist.Config) *MemberlistArgs {
 	return &MemberlistArgs{
-		Encoder:                enc,
-		Config:                 config,
-		ExtraSameMemberLimit:   2, //nolint:gomnd //...
-		WhenLeftFunc:           func(Member) {},
-		NotAllowedMemberExpire: time.Second * 6, //nolint:gomnd //...
-		ChallengeExpire:        defaultNodeChallengeExpire,
+		Encoder:                              enc,
+		Config:                               config,
+		ExtraSameMemberLimit:                 2, //nolint:gomnd //...
+		WhenLeftFunc:                         func(Member) {},
+		NotAllowedMemberExpire:               time.Second * 6, //nolint:gomnd //...
+		ChallengeExpire:                      defaultNodeChallengeExpire,
+		CallbackBroadcastMessageExpire:       time.Second * 30, //nolint:gomnd //...
+		FetchCallbackBroadcastMessageTimeout: time.Second * 6,  //nolint:gomnd //...
+		FetchCallbackBroadcastMessageFunc: func(context.Context, CallbackBroadcastMessage) (
+			[]byte, encoder.Encoder, error,
+		) {
+			return nil, nil, util.ErrNotImplemented.Errorf("FetchCallbackBroadcastMessageFunc")
+		},
 	}
 }
 
@@ -57,6 +73,7 @@ type Memberlist struct {
 	delegate   *Delegate
 	members    *membersPool
 	cicache    *util.GCache[string, quicstream.UDPConnInfo]
+	cbcache    *util.GCache[string, []byte]
 	l          sync.RWMutex
 	joinedLock sync.RWMutex
 	isJoined   bool
@@ -71,6 +88,7 @@ func NewMemberlist(local Member, args *MemberlistArgs) (*Memberlist, error) {
 		args:    args,
 		members: newMembersPool(),
 		cicache: util.NewLRUGCache("", quicstream.UDPConnInfo{}, 1<<9), //nolint:gomnd //...
+		cbcache: util.NewLRUGCache("", ([]byte)(nil), 1<<13),           //nolint:gomnd //...
 	}
 
 	if err := srv.patch(args.Config); err != nil {
@@ -216,10 +234,7 @@ func (srv *Memberlist) IsJoined() bool {
 }
 
 func (srv *Memberlist) Broadcast(b memberlist.Broadcast) {
-	switch {
-	case srv.delegate != nil:
-	case srv.IsJoined():
-	default:
+	if !srv.canBroadcast() {
 		b.Finished()
 
 		return
@@ -228,6 +243,79 @@ func (srv *Memberlist) Broadcast(b memberlist.Broadcast) {
 	srv.Log().Trace().Interface("broadcast", b).Msg("enqueue broadcast")
 
 	srv.delegate.QueueBroadcast(b)
+}
+
+func (srv *Memberlist) CallbackBroadcast(b []byte, id string, notifych chan struct{}) error {
+	if !srv.canBroadcast() {
+		if notifych != nil {
+			close(notifych)
+		}
+
+		return nil
+	}
+
+	e := util.StringErrorFunc("failed callback broadcast")
+
+	// NOTE save b in cache first
+	srv.cbcache.Set(id, b, srv.args.CallbackBroadcastMessageExpire)
+
+	buf := bytes.NewBuffer(callbackBroadcastMessageHeaderPrefix)
+	defer buf.Reset()
+
+	switch err := srv.args.Encoder.StreamEncoder(buf).Encode(
+		NewCallbackBroadcastMessage(id, srv.local.UDPConnInfo())); {
+	case err != nil:
+		return e(err, "")
+	default:
+		srv.Broadcast(NewBroadcast(buf.Bytes(), id, notifych))
+	}
+
+	return nil
+}
+
+func (srv *Memberlist) CallbackBroadcastHandler() quicstream.HeaderHandler {
+	var sg singleflight.Group
+
+	return func(_ net.Addr, r io.Reader, w io.Writer,
+		h quicstream.Header, _ *encoder.Encoders, enc encoder.Encoder,
+	) error {
+		e := util.StringErrorFunc("failed to handle callback message")
+
+		header, ok := h.(CallbackBroadcastMessageHeader)
+		if !ok {
+			return e(nil, "expected CallbackBroadcastMessageHeader, but %T", h)
+		}
+
+		i, err, _ := sg.Do(header.ID(), func() (interface{}, error) {
+			b, found := srv.cbcache.Get(header.ID())
+
+			return [2]interface{}{b, found}, nil
+		})
+
+		if err != nil {
+			return e(err, "")
+		}
+
+		var b []byte
+		var found bool
+
+		if i != nil {
+			j := i.([2]interface{}) //nolint:forcetypeassert //...
+
+			found = j[1].(bool) //nolint:forcetypeassert //...
+
+			if found {
+				b = j[0].([]byte) //nolint:forcetypeassert //...
+			}
+		}
+
+		if err := quicstream.WriteResponseBytes(w,
+			quicstream.NewDefaultResponseHeader(found, nil, quicstream.RawContentType), enc, b); err != nil {
+			return e(err, "")
+		}
+
+		return nil
+	}
 }
 
 func (srv *Memberlist) start(ctx context.Context) error {
@@ -304,6 +392,7 @@ func (srv *Memberlist) patch(config *memberlist.Config) error { // revive:disabl
 	if i, ok := config.Delegate.(*Delegate); ok {
 		srv.delegate = i
 		srv.delegate.qu.NumNodes = srv.MembersLen
+		srv.delegate.notifyMsgFunc = srv.notifyMsgFunc(func([]byte, encoder.Encoder) {})
 	}
 
 	if i, ok := config.Alive.(*AliveDelegate); ok {
@@ -415,17 +504,87 @@ func (srv *Memberlist) whenLeft(member Member) {
 	}
 }
 
-func (srv *Memberlist) SetWhenLeftFunc(f func(Member)) {
+func (srv *Memberlist) SetWhenLeftFunc(f func(Member)) *Memberlist {
 	srv.args.WhenLeftFunc = f
+
+	return srv
 }
 
-func (srv *Memberlist) SetNotifyMsg(f func([]byte)) {
-	i, ok := srv.args.PatchedConfig.Delegate.(*Delegate)
-	if !ok {
-		return
+func (srv *Memberlist) SetNotifyMsg(f func([]byte, encoder.Encoder)) *Memberlist {
+	if srv.delegate == nil {
+		return nil
 	}
 
-	i.notifyMsgFunc = f
+	srv.delegate.notifyMsgFunc = srv.notifyMsgFunc(f)
+
+	return srv
+}
+
+func (srv *Memberlist) notifyMsgFunc(f func([]byte, encoder.Encoder)) func([]byte) {
+	return func(b []byte) {
+		body := b
+		var enc encoder.Encoder = srv.args.Encoder
+
+		if bytes.HasPrefix(body, callbackBroadcastMessageHeaderPrefix) {
+			switch i, e, err := srv.notifyMsgCallbackBroadcastMessage(
+				body[len(callbackBroadcastMessageHeaderPrefix):]); {
+			case err != nil:
+				return
+			default:
+				enc = e
+				body = i
+			}
+		}
+
+		f(body, enc)
+	}
+}
+
+func (srv *Memberlist) notifyMsgCallbackBroadcastMessage(b []byte) ([]byte, encoder.Encoder, error) {
+	var m CallbackBroadcastMessage
+
+	switch i, err := srv.args.Encoder.Decode(b); {
+	case err != nil:
+		srv.Log().Error().Err(err).Str("message", string(b)).Msg("failed to decode incoming message")
+
+		return nil, nil, err
+	default:
+		srv.Log().Trace().Err(err).Interface("message", i).Msg("new message notified")
+
+		j, ok := i.(CallbackBroadcastMessage)
+		if !ok {
+			srv.Log().Trace().Err(err).
+				Str("message_type", fmt.Sprintf("%T", i)).
+				Msg("unknown message found for callback message")
+
+			return nil, nil, errors.Errorf("unknown message found for callback message")
+		}
+
+		if err := j.IsValid(nil); err != nil {
+			srv.Log().Trace().Err(err).Msg("invalid CallbackBroadcastMessage")
+
+			return nil, nil, err
+		}
+
+		m = j
+	}
+
+	// NOTE fetch callback message
+	ctx, cancel := context.WithTimeout(context.Background(), srv.args.FetchCallbackBroadcastMessageTimeout)
+	defer cancel()
+
+	switch body, enc, err := srv.args.FetchCallbackBroadcastMessageFunc(ctx, m); {
+	case err != nil:
+		srv.Log().Trace().Err(err).Msg("failed to fetch callback broadcast message")
+
+		return nil, nil, err
+	case enc == nil:
+		srv.Log().Trace().Msg("failed to fetch callback broadcast message; empty message")
+
+		return nil, nil, errors.Errorf("empty message")
+	default:
+		return body, enc, nil
+	}
 }
 
 func (srv *Memberlist) allowMember(member Member) error {
@@ -473,6 +632,17 @@ func (srv *Memberlist) createMemberlist() (*memberlist.Memberlist, error) {
 	}
 
 	return m, nil
+}
+
+func (srv *Memberlist) canBroadcast() bool {
+	switch {
+	case srv.IsJoined():
+	case srv.delegate != nil:
+	default:
+		return false
+	}
+
+	return true
 }
 
 func BasicMemberlistConfig(name string, bind, advertise *net.UDPAddr) *memberlist.Config {
@@ -663,4 +833,40 @@ func RandomAliveMembers(
 	exclude func(Member) bool,
 ) ([]Member, error) {
 	return util.RandomChoiceSlice(AliveMembers(m, exclude), size)
+}
+
+func FetchCallbackBroadcastMessageFunc(
+	handlerPrefix string,
+	requestf quicstream.HeaderClientRequestFunc,
+) func(context.Context, CallbackBroadcastMessage) (
+	[]byte, encoder.Encoder, error,
+) {
+	return func(ctx context.Context, m CallbackBroadcastMessage) (
+		[]byte, encoder.Encoder, error,
+	) {
+		h := NewCallbackBroadcastMessageHeader(m.ID(), handlerPrefix)
+
+		res, r, cancel, enc, rerr := requestf(ctx, m.ConnInfo(), h, nil)
+		if rerr != nil {
+			return nil, enc, rerr
+		}
+
+		defer func() {
+			_ = cancel()
+		}()
+
+		switch {
+		case !res.OK():
+			return nil, enc, nil
+		case res.Err() != nil:
+			return nil, enc, res.Err()
+		default:
+			b, rerr := io.ReadAll(r)
+			if rerr != nil {
+				return nil, enc, errors.WithMessage(rerr, "failed to read fetched callback message")
+			}
+
+			return b, enc, nil
+		}
+	}
 }

@@ -30,6 +30,8 @@ var (
 	OperationProcessorsMapContextKey = util.ContextKey("operation-processors-map")
 )
 
+var HandlerPrefixMemberlistCallbackBroadcastMessage = "memberlist-callback-message"
+
 func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to prepare network handlers")
 
@@ -47,9 +49,8 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 	var handlers *quicstream.PrefixHandler
 	var nodeinfo *isaacnetwork.NodeInfoUpdater
 	var svvotef isaac.SuffrageVoteFunc
-	var cb *isaacnetwork.CallbackBroadcaster
 	var ballotbox *isaacstates.Ballotbox
-	var filternotifymsg FilterMemberlistNotifyMsgFunc
+	var filternotifymsg quicmemberlist.FilterNotifyMsgFunc
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
@@ -66,7 +67,6 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 		QuicstreamHandlersContextKey, &handlers,
 		NodeInfoContextKey, &nodeinfo,
 		SuffrageVotingVoteFuncContextKey, &svvotef,
-		CallbackBroadcasterContextKey, &cb,
 		BallotboxContextKey, &ballotbox,
 		FilterMemberlistNotifyMsgFuncContextKey, &filternotifymsg,
 	); err != nil {
@@ -91,7 +91,7 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 				sendOperationFilterf,
 				svvotef,
 				func(id string, b []byte) error {
-					return cb.Broadcast(id, b, nil)
+					return memberlist.CallbackBroadcast(b, id, nil)
 				},
 			))).
 		Add(isaacnetwork.HandlerPrefixRequestProposal,
@@ -196,8 +196,8 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 		Add(isaacnetwork.HandlerPrefixNodeInfo,
 			quicstream.NewHeaderHandler(encs, 0, isaacnetwork.QuicstreamHandlerNodeInfo(
 				quicstreamHandlerGetNodeInfoFunc(enc, nodeinfo)))).
-		Add(isaacnetwork.HandlerPrefixCallbackMessage,
-			quicstream.NewHeaderHandler(encs, 0, isaacnetwork.QuicstreamHandlerCallbackMessage(cb))).
+		Add(HandlerPrefixMemberlistCallbackBroadcastMessage,
+			quicstream.NewHeaderHandler(encs, 0, memberlist.CallbackBroadcastHandler())).
 		Add(isaacnetwork.HandlerPrefixSendBallots,
 			quicstream.NewHeaderHandler(encs, 0, isaacnetwork.QuicstreamHandlerSendBallots(
 				params,

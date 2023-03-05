@@ -75,8 +75,8 @@ func PBallotStuckResolver(pctx context.Context) (context.Context, error) {
 	var local base.LocalNode
 	var params *isaac.LocalParams
 	var ballotbox *isaacstates.Ballotbox
+	var memberlist *quicmemberlist.Memberlist
 	var sp *SuffragePool
-	var cb *isaacnetwork.CallbackBroadcaster
 	var svf *isaac.SuffrageVoting
 
 	if err := util.LoadFromContextOK(pctx,
@@ -85,8 +85,8 @@ func PBallotStuckResolver(pctx context.Context) (context.Context, error) {
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
 		BallotboxContextKey, &ballotbox,
+		MemberlistContextKey, &memberlist,
 		SuffragePoolContextKey, &sp,
-		CallbackBroadcasterContextKey, &cb,
 		SuffrageVotingContextKey, &svf,
 	); err != nil {
 		return pctx, e(err, "")
@@ -101,7 +101,7 @@ func PBallotStuckResolver(pctx context.Context) (context.Context, error) {
 
 	requestMissingBallotsf := isaacstates.RequestMissingBallots(
 		quicstream.NewUDPConnInfo(design.Network.Publish(), design.Network.TLSInsecure),
-		cb.Broadcast,
+		memberlist.CallbackBroadcast,
 	)
 
 	voteSuffrageVotingf := isaacstates.VoteSuffrageVotingFunc(
@@ -145,8 +145,8 @@ func PStates(pctx context.Context) (context.Context, error) {
 	var local base.LocalNode
 	var params *isaac.LocalParams
 	var syncSourcePool *isaac.SyncSourcePool
-	var cb *isaacnetwork.CallbackBroadcaster
 	var pool *isaacdatabase.TempPool
+	var memberlist *quicmemberlist.Memberlist
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
@@ -156,9 +156,9 @@ func PStates(pctx context.Context) (context.Context, error) {
 		BallotboxContextKey, &args.Ballotbox,
 		LastVoteproofsHandlerContextKey, &args.LastVoteproofsHandler,
 		SyncSourcePoolContextKey, &syncSourcePool,
-		CallbackBroadcasterContextKey, &cb,
 		BallotStuckResolverContextKey, &args.BallotStuckResolver,
 		PoolDatabaseContextKey, &pool,
+		MemberlistContextKey, &memberlist,
 	); err != nil {
 		return pctx, e(err, "")
 	}
@@ -188,7 +188,7 @@ func PStates(pctx context.Context) (context.Context, error) {
 			}
 
 			id := valuehash.NewSHA256(bl.HashBytes()).String()
-			if err := cb.Broadcast(id, b, nil); err != nil {
+			if err := memberlist.CallbackBroadcast(b, id, nil); err != nil {
 				return ee(err, "")
 			}
 

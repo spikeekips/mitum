@@ -36,7 +36,6 @@ var (
 	HandlerPrefixState                  = "state"
 	HandlerPrefixExistsInStateOperation = "exists_instate_operation"
 	HandlerPrefixNodeInfo               = "node_info"
-	HandlerPrefixCallbackMessage        = "callback_message"
 	HandlerPrefixSendBallots            = "send_ballots"
 )
 
@@ -544,53 +543,6 @@ func QuicstreamHandlerNodeInfo(
 
 		if err := quicstream.WriteResponseBody(w,
 			quicstream.NewDefaultResponseHeader(true, nil, quicstream.HinterContentType), enc, b); err != nil {
-			return e(err, "")
-		}
-
-		return nil
-	}
-}
-
-func QuicstreamHandlerCallbackMessage(
-	cb *CallbackBroadcaster,
-) quicstream.HeaderHandler {
-	var sg singleflight.Group
-
-	return func(_ net.Addr, r io.Reader, w io.Writer,
-		h quicstream.Header, _ *encoder.Encoders, enc encoder.Encoder,
-	) error {
-		e := util.StringErrorFunc("failed to handle callback message")
-
-		header, ok := h.(CallbackMessageHeader)
-		if !ok {
-			return e(nil, "expected NodeInfoRequestHeader, but %T", h)
-		}
-
-		i, err, _ := sg.Do(HandlerPrefixCallbackMessage+header.ID(), func() (interface{}, error) {
-			b, found := cb.RawMessage(header.ID())
-
-			return [2]interface{}{b, found}, nil
-		})
-
-		if err != nil {
-			return e(err, "")
-		}
-
-		var b []byte
-		var found bool
-
-		if i != nil {
-			j := i.([2]interface{}) //nolint:forcetypeassert //...
-
-			found = j[1].(bool) //nolint:forcetypeassert //...
-
-			if found {
-				b = j[0].([]byte) //nolint:forcetypeassert //...
-			}
-		}
-
-		if err := quicstream.WriteResponseBytes(w,
-			quicstream.NewDefaultResponseHeader(found, nil, quicstream.HinterContentType), enc, b); err != nil {
 			return e(err, "")
 		}
 

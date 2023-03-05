@@ -352,7 +352,6 @@ func PSuffrageVoting(pctx context.Context) (context.Context, error) {
 	var pool *isaacdatabase.TempPool
 	var memberlist *quicmemberlist.Memberlist
 	var ballotbox *isaacstates.Ballotbox
-	var cb *isaacnetwork.CallbackBroadcaster
 	var sp *SuffragePool
 
 	if err := util.LoadFromContextOK(pctx,
@@ -363,7 +362,6 @@ func PSuffrageVoting(pctx context.Context) (context.Context, error) {
 		PoolDatabaseContextKey, &pool,
 		MemberlistContextKey, &memberlist,
 		BallotboxContextKey, &ballotbox,
-		CallbackBroadcasterContextKey, &cb,
 		SuffragePoolContextKey, &sp,
 	); err != nil {
 		return pctx, err
@@ -385,7 +383,7 @@ func PSuffrageVoting(pctx context.Context) (context.Context, error) {
 
 					var n int
 					for range ticker.C {
-						if err := cb.Broadcast(util.UUID().String(), b, nil); err != nil {
+						if err := memberlist.CallbackBroadcast(b, util.UUID().String(), nil); err != nil {
 							log.Log().Error().Err(err).
 								Interface("operation", op).
 								Msg("failed to broadcast SuffrageWithdrawOperation")

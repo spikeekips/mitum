@@ -120,14 +120,14 @@ func (t *testQuicstreamHandlers) TestRequest() {
 		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixLastBlockMap, handler))
 
 		header := NewLastBlockMapRequestHeader(nil)
-		response, v, _, err := c.Request(context.Background(), ci, header, nil)
+		response, r, _, enc, err := c.Request(context.Background(), ci, header, nil)
 		t.NoError(err)
 
 		t.NoError(response.Err())
 		t.True(response.OK())
 
-		rmp, ok := v.(base.BlockMap)
-		t.True(ok)
+		var rmp base.BlockMap
+		t.NoError(encoder.DecodeReader(enc, r, &rmp))
 
 		base.EqualBlockMap(t.Assert(), mp, rmp)
 	})
@@ -140,7 +140,7 @@ func (t *testQuicstreamHandlers) TestRequest() {
 		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixLastBlockMap, handler))
 
 		header := NewLastBlockMapRequestHeader(nil)
-		response, _, _, err := c.Request(context.Background(), ci, header, nil)
+		response, _, _, _, err := c.Request(context.Background(), ci, header, nil)
 		t.NoError(err)
 
 		t.Error(response.Err())

@@ -502,37 +502,3 @@ func (h *SendBallotsHeader) UnmarshalJSON(b []byte) error {
 
 	return nil
 }
-
-type callbackMessageHeaderJSONMarshaler struct {
-	ID string `json:"id"`
-}
-
-func (h CallbackMessageHeader) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(struct {
-		callbackMessageHeaderJSONMarshaler
-		quicstream.BaseHeaderJSONMarshaler
-	}{
-		BaseHeaderJSONMarshaler: h.BaseHeader.JSONMarshaler(),
-		callbackMessageHeaderJSONMarshaler: callbackMessageHeaderJSONMarshaler{
-			ID: h.id,
-		},
-	})
-}
-
-func (h *CallbackMessageHeader) DecodeJSON(b []byte, _ *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to unmarshal CallbackMessageHeader")
-
-	var u callbackMessageHeaderJSONMarshaler
-
-	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return e(err, "")
-	}
-
-	if err := util.UnmarshalJSON(b, &h.baseHeader); err != nil {
-		return e(err, "")
-	}
-
-	h.id = u.ID
-
-	return nil
-}
