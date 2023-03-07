@@ -285,7 +285,7 @@ func FindMissingBallotsFromBallotboxFunc(
 		// and true ok.
 		var suf base.Suffrage
 
-		switch i, found, err := getSuffragef(point.Height()); {
+		switch i, found, err := getSuffragef(point.Height().SafePrev()); {
 		case err != nil:
 			return nil, false, err
 		case !found:
@@ -345,7 +345,7 @@ func VoteSuffrageVotingFunc(
 
 		var suf base.Suffrage
 
-		switch i, found, err := getSuffragef(point.Height()); {
+		switch i, found, err := getSuffragef(point.Height().SafePrev()); {
 		case err != nil:
 			return nil, err
 		case !found:

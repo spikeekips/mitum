@@ -455,7 +455,7 @@ func (box *Ballotbox) newVoterecords( //revive:disable-line:flag-parameter
 		return newVoterecords(
 			stagepoint,
 			box.isValidVoteproof,
-			box.getSuffragef,
+			box.getSuffrage,
 			box.learnWithdraws,
 			isSuffrageConfirm,
 			box.Logging.Log(),
@@ -601,6 +601,10 @@ func (box *Ballotbox) isValidVoteproof(vp base.Voteproof, suf base.Suffrage) err
 	}
 
 	return box.isValidVoteprooff(vp, suf)
+}
+
+func (box *Ballotbox) getSuffrage(height base.Height) (base.Suffrage, bool, error) {
+	return box.getSuffragef(height.SafePrev())
 }
 
 type voterecords struct {
@@ -1190,6 +1194,14 @@ func (vr *voterecords) countWithWithdraws(
 		default:
 			continue
 		}
+
+		vr.log.Debug().
+			Interface("point", vr.sp).
+			Uint("quorum", quorum).
+			Interface("threshold", threshold).
+			Interface("set", set).
+			Interface("majority", majority).
+			Msg("withdraw counted")
 
 		return true, wsfs, majority, withdraws
 	}

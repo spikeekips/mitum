@@ -88,13 +88,13 @@ func (t *baseTestBallotbox) initBallot(node isaac.LocalNode, nodes []isaac.Local
 			for i := range nodes {
 				n := nodes[i]
 
-				ifact := isaac.NewINITBallotFact(point.PrevRound(), prev, proposal, withdrawfacts)
+				ifact := isaac.NewINITBallotFact(point.PrevRound(), prev, proposal, nil)
 
 				switch {
 				case n.Address().Equal(node.Address()):
 				case i%2 == 0:
 				default:
-					ifact = isaac.NewINITBallotFact(point.PrevRound(), prev, valuehash.RandomSHA256(), withdrawfacts)
+					ifact = isaac.NewINITBallotFact(point.PrevRound(), prev, valuehash.RandomSHA256(), nil)
 				}
 
 				sf := isaac.NewINITBallotSignFact(ifact)
@@ -102,24 +102,13 @@ func (t *baseTestBallotbox) initBallot(node isaac.LocalNode, nodes []isaac.Local
 				isfs[i] = sf
 			}
 
-			if len(withdraws) > 0 {
-				ivp := isaac.NewINITWithdrawVoteproof(point.PrevRound())
-				ivp.
-					SetSignFacts(isfs).
-					SetThreshold(base.Threshold(100))
-				ivp.SetWithdraws(withdraws)
-				ivp.Finish()
+			ivp := isaac.NewINITVoteproof(point.PrevRound())
+			ivp.
+				SetSignFacts(isfs).
+				SetThreshold(base.Threshold(100)).
+				Finish()
 
-				vp = ivp
-			} else {
-				ivp := isaac.NewINITVoteproof(point.PrevRound())
-				ivp.
-					SetSignFacts(isfs).
-					SetThreshold(base.Threshold(100)).
-					Finish()
-
-				vp = ivp
-			}
+			vp = ivp
 		}
 	}
 
@@ -882,11 +871,10 @@ func (t *testBallotbox) TestDifferentSuffrage() {
 	box := NewBallotbox(
 		base.RandomAddress(""),
 		func(height base.Height) (base.Suffrage, bool, error) {
-			// return suf, true, nil
 			switch {
-			case height == point.Height().Prev():
+			case height < point.Height().Prev():
 				return vsuf, true, nil
-			case height == point.Height():
+			case height == point.Height().Prev():
 				return suf, true, nil
 			default:
 				return nil, false, nil
@@ -978,7 +966,7 @@ func (t *testBallotbox) TestDiggVoteproof() {
 	box := NewBallotbox(
 		base.RandomAddress(""),
 		func(height base.Height) (base.Suffrage, bool, error) {
-			if height == point.Height() {
+			if height == point.Height().Prev() {
 				return suf, true, nil
 			}
 
@@ -1379,7 +1367,7 @@ func (t *testBallotboxWithWithdraw) TestINITBallot() {
 		},
 	)
 
-	point := base.RawPoint(33, 0)
+	point := base.RawPoint(33, 1)
 	prev := valuehash.RandomSHA256()
 	pr := valuehash.RandomSHA256()
 
