@@ -145,17 +145,28 @@ func PLastConsensusNodesWatcher(pctx context.Context) (context.Context, error) {
 			return isaac.GetSuffrageFromDatabase(db, height)
 		},
 		func() (base.Height, base.Suffrage, bool, error) {
-			switch proof, _, err := watcher.Last(); {
-			case err != nil, proof == nil:
-				return base.NilHeight, nil, false, err
-			default:
-				suf, err := proof.Suffrage()
-				if err != nil {
-					return base.NilHeight, nil, false, err
-				}
+			var proof base.SuffrageProof
 
-				return proof.Map().Manifest().Height(), suf, true, nil
+			switch i, _, err := watcher.Last(); {
+			case err != nil:
+				return base.NilHeight, nil, false, err
+			case i == nil:
+				switch j, _, err := db.LastSuffrageProof(); {
+				case err != nil, j == nil:
+					return base.NilHeight, nil, false, err
+				default:
+					proof = j
+				}
+			default:
+				proof = i
 			}
+
+			suf, err := proof.Suffrage()
+			if err != nil {
+				return base.NilHeight, nil, false, err
+			}
+
+			return proof.Map().Manifest().Height(), suf, true, nil
 		},
 	)
 
