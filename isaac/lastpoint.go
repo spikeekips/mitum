@@ -90,9 +90,12 @@ func (l LastPoint) beforeNotSamePoint( //revive:disable-line:flag-parameter
 	point base.StagePoint,
 	isSuffrageConfirm bool,
 ) bool {
-	// NOTE by default, lower StagePoint will be ignored.
 	switch {
+	case l.isMajority && point.Stage().Compare(l.Stage()) < 0:
+		// NOTE lower stage will be ignored when last is majority.
+		return false
 	case point.Compare(l.StagePoint) > 0:
+		// NOTE lower StagePoint will be ignored.
 		return true
 	case isSuffrageConfirm && !l.isMajority:
 		// NOTE if last is not marjoity, suffrage confirms of same height will

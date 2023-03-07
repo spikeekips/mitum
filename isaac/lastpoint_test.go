@@ -48,6 +48,30 @@ func TestLastPointIsNewVoteproof(tt *testing.T) {
 			result: true,
 		},
 		{
+			name:   "same height + higher round + + lower stage + last majority",
+			last:   [5]interface{}{33, 0, "ACCEPT", true, false},
+			target: [5]interface{}{33, 1, "INIT", true, false},
+			result: false,
+		},
+		{
+			name:   "same height + higher round + + lower stage + last not majority",
+			last:   [5]interface{}{33, 0, "ACCEPT", false, false},
+			target: [5]interface{}{33, 1, "INIT", true, false},
+			result: true,
+		},
+		{
+			name:   "same height + lower round + + lower stage",
+			last:   [5]interface{}{33, 1, "ACCEPT", true, false},
+			target: [5]interface{}{33, 0, "INIT", true, false},
+			result: false,
+		},
+		{
+			name:   "same height + lower round + + lower stage + last not marjority",
+			last:   [5]interface{}{33, 1, "ACCEPT", false, false},
+			target: [5]interface{}{33, 0, "INIT", true, false},
+			result: false,
+		},
+		{
 			name:   "same height, higher round, last not majority",
 			last:   [5]interface{}{33, 0, "INIT", false, false},
 			target: [5]interface{}{33, 1, "INIT", true, false},
