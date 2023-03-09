@@ -335,37 +335,52 @@ func (t *SimpleTimer) isExpired() bool {
 	return time.Now().After(i)
 }
 
+func (t *SimpleTimer) prepare() bool {
+	t.RLock()
+	defer t.RUnlock()
+
+	i := t.intervalFunc(t.called)
+	if i < 1 {
+		return false
+	}
+
+	t.expiredLocked.SetValue(time.Now().Add(i + time.Hour))
+
+	return true
+}
+
 func (t *SimpleTimer) run(ctx context.Context) (bool, error) {
 	t.Lock()
 	defer t.Unlock()
 
-	if i := t.intervalFunc(t.called); i < 1 {
-		return false, nil
-	}
+	next := t.intervalFunc(t.called + 1)
 
 	defer func() {
-		t.expiredLocked.SetValue(time.Now().Add(t.intervalFunc(t.called + 1)))
+		t.expiredLocked.SetValue(time.Now().Add(next))
 		t.called++
 	}()
 
 	switch keep, err := t.callback(ctx, t.called); {
 	case err != nil || !keep:
 		return keep, err
+	case next < 1:
+		return false, nil
 	default:
 		return true, nil
 	}
 }
 
+// SimpleTimers handles the multiple schdduled jobs without many goroutines.
 type SimpleTimers struct {
 	*ContextDaemon
-	timers   LockedMap[TimerID, *SimpleTimer]
-	ids      []TimerID
-	interval time.Duration
+	timers     LockedMap[TimerID, *SimpleTimer]
+	ids        []TimerID
+	resolution time.Duration
 }
 
-func NewSimpleTimers(size int64, interval time.Duration) (*SimpleTimers, error) {
-	if interval < 1 {
-		return nil, errors.Errorf("too narrow interval, %v", interval)
+func NewSimpleTimers(size int64, resolution time.Duration) (*SimpleTimers, error) {
+	if resolution < 1 {
+		return nil, errors.Errorf("too narrow resolution, %v", resolution)
 	}
 
 	timers, err := NewLockedMap(TimerID(""), (*SimpleTimer)(nil), size)
@@ -374,8 +389,8 @@ func NewSimpleTimers(size int64, interval time.Duration) (*SimpleTimers, error) 
 	}
 
 	ts := &SimpleTimers{
-		timers:   timers,
-		interval: interval,
+		timers:     timers,
+		resolution: resolution,
 	}
 
 	ts.ContextDaemon = NewContextDaemon(ts.start)
@@ -472,7 +487,7 @@ func (ts *SimpleTimers) StopTimers(ids []TimerID) error {
 }
 
 func (ts *SimpleTimers) start(ctx context.Context) error {
-	ticker := time.NewTicker(ts.interval)
+	ticker := time.NewTicker(ts.resolution)
 	defer ticker.Stop()
 
 	for {
@@ -498,23 +513,22 @@ func (ts *SimpleTimers) iterate(ctx context.Context) error {
 	removech := make(chan TimerID, ts.timers.Len())
 
 	ts.timers.Traverse(func(id TimerID, timer *SimpleTimer) bool {
-		tr := timer
+		switch tr := timer; {
+		case !tr.isExpired():
+			return true
+		case !tr.prepare():
+			return true
+		default:
+			_ = wk.NewJob(func(ctx context.Context, _ uint64) error {
+				if keep, err := tr.run(ctx); err != nil || !keep {
+					removech <- tr.id
+				}
 
-		if !timer.isExpired() {
+				return nil
+			})
+
 			return true
 		}
-
-		timer.expiredLocked.SetValue(time.Now().Add(time.Hour * 3333)) //nolint:gomnd // big enough
-
-		_ = wk.NewJob(func(ctx context.Context, _ uint64) error {
-			if keep, err := tr.run(ctx); err != nil || !keep { // NOTE remove
-				removech <- tr.id
-			}
-
-			return nil
-		})
-
-		return true
 	})
 	wk.Done()
 
