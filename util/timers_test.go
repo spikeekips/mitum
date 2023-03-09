@@ -701,7 +701,7 @@ end:
 	}
 }
 
-func (t *testSimpleTimers) TestStopOther() {
+func (t *testSimpleTimers) TestStopTimers2() {
 	ts, _ := NewSimpleTimers(1, time.Millisecond)
 
 	t.NoError(ts.Start(context.Background()))
@@ -969,6 +969,82 @@ func (t *testSimpleTimers) TestUnknownID() {
 		t.Error(err)
 		t.ErrorContains(err, "unknown timer")
 	})
+}
+
+func (t *testSimpleTimers) TestStopOthers() {
+	ts, _ := NewSimpleTimers(1, time.Millisecond)
+
+	t.NoError(ts.Start(context.Background()))
+	defer ts.Stop()
+
+	stopch := make(chan struct{}, 1)
+	called := make(chan string, 10)
+
+	ts.NewTimer(NewSimpleTimer(
+		TimerID("a"),
+		func(i uint64) time.Duration {
+			if i == 3 {
+				go func() {
+					stopch <- struct{}{}
+				}()
+			}
+
+			return time.Millisecond * 33
+		},
+		func(_ context.Context, i uint64) (bool, error) {
+			called <- fmt.Sprintf("a-%d", i)
+
+			return true, nil
+		},
+		nil,
+	))
+
+	for range make([]int, 33) {
+		ts.NewTimer(NewSimpleTimer(
+			TimerID(UUID().String()),
+			func(i uint64) time.Duration {
+				return time.Millisecond * 33
+			},
+			func(_ context.Context, i uint64) (bool, error) {
+				called <- fmt.Sprintf("c-%d", i)
+
+				return true, nil
+			},
+			nil,
+		))
+	}
+
+	var aids, cids []string
+	var stopOnce sync.Once
+
+	var lastcids int
+
+	after := time.After(time.Millisecond * 333)
+end:
+	for {
+		select {
+		case <-stopch:
+			stopOnce.Do(func() {
+				t.NoError(ts.StopOthers([]TimerID{"a"}))
+
+				lastcids = len(cids)
+			})
+		case <-after:
+			break end
+		case id := <-called:
+			if strings.HasPrefix(id, "a-") {
+				aids = append(aids, id)
+			}
+			if strings.HasPrefix(id, "c-") {
+				cids = append(cids, id)
+			}
+		}
+	}
+
+	t.True(len(aids) > 4)
+	t.Equal(1, ts.timers.Len())
+
+	t.True(len(cids) < lastcids+33)
 }
 
 func TestSimpleTimers(t *testing.T) {
