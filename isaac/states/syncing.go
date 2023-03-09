@@ -145,13 +145,6 @@ func (st *SyncingHandler) enter(from StateType, i switchContext) (func(), error)
 func (st *SyncingHandler) exit(sctx switchContext) (func(), error) {
 	e := util.StringErrorFunc("failed to exit from syncing state")
 
-	deferred, err := st.baseHandler.exit(sctx)
-	if err != nil {
-		return nil, e(err, "")
-	}
-
-	st.cancelstuck()
-
 	if st.syncer != nil {
 		if _, isfinished := st.syncer.IsFinished(); !isfinished {
 			return nil, ErrIgnoreSwithingState.Errorf("syncer not yet finished")
@@ -165,6 +158,13 @@ func (st *SyncingHandler) exit(sctx switchContext) (func(), error) {
 			return nil, e(err, "failed to stop syncer")
 		}
 	}
+
+	deferred, err := st.baseHandler.exit(sctx)
+	if err != nil {
+		return nil, e(err, "")
+	}
+
+	st.cancelstuck()
 
 	if err := st.timers.StopTimersAll(); err != nil {
 		st.Log().Error().Err(err).Msg("failed to stop all timers")
