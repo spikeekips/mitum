@@ -297,7 +297,9 @@ func (l *SingleLockedMap[K, V]) Remove(k K, f func(V, bool) error) (bool, error)
 
 	switch err := f(i, found); {
 	case err == nil:
-		delete(l.m, k)
+		if found {
+			delete(l.m, k)
+		}
 
 		return found, nil
 	case errors.Is(err, ErrLockedSetIgnore):
