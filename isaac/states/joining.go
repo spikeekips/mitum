@@ -127,7 +127,7 @@ func (st *JoiningHandler) enter(from StateType, i switchContext) (func(), error)
 	return func() {
 		deferred()
 
-		if err := st.timers.StopTimersAll(); err != nil {
+		if err := st.timers.StopAllTimers(); err != nil {
 			st.Log().Error().Err(err).Msg("failed to stop all timers")
 		}
 

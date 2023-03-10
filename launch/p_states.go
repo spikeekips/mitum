@@ -196,7 +196,11 @@ func PStates(pctx context.Context) (context.Context, error) {
 		},
 	)
 
-	states := isaacstates.NewStates(local, params, args)
+	states, err := isaacstates.NewStates(local, params, args)
+	if err != nil {
+		return pctx, err
+	}
+
 	_ = states.SetLogging(log)
 
 	proposalSelector, err := NewProposalSelector(pctx)

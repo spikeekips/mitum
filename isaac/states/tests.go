@@ -11,7 +11,7 @@ import (
 	"github.com/spikeekips/mitum/util/valuehash"
 )
 
-func (st *baseHandler) setTimers(t *util.Timers) *baseHandler {
+func (st *baseHandler) setTimers(t *util.SimpleTimers) *baseHandler {
 	st.timers = t
 
 	return nil

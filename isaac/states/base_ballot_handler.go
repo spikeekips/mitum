@@ -228,11 +228,11 @@ func (st *baseBallotHandler) prepareACCEPTBallot(
 		return e(err, "failed to broadcast accept ballot")
 	}
 
-	if err := st.timers.StartTimers([]util.TimerID{
+	if err := st.timers.StopOthers([]util.TimerID{
 		timerIDBroadcastINITBallot,
 		timerIDBroadcastSuffrageConfirmBallot,
 		timerIDBroadcastACCEPTBallot,
-	}, true); err != nil {
+	}); err != nil {
 		return e(err, "failed to start timers for broadcasting accept ballot")
 	}
 
@@ -371,7 +371,7 @@ func (st *baseBallotHandler) broadcastACCEPTBallot(bl base.Ballot, initialWait t
 		timerIDBroadcastACCEPTBallot,
 		st.ballotBroadcaster.Broadcast,
 		st.Logging,
-		func(i int, _ time.Duration) time.Duration {
+		func(i uint64) time.Duration {
 			if i < 1 {
 				return initialWait
 			}
@@ -388,7 +388,7 @@ func (st *baseBallotHandler) broadcastSuffrageConfirmBallot(bl base.INITBallot) 
 		timerIDBroadcastSuffrageConfirmBallot,
 		st.ballotBroadcaster.Broadcast,
 		st.Logging,
-		func(i int, _ time.Duration) time.Duration {
+		func(i uint64) time.Duration {
 			lvp := st.lastVoteproofs().Cap()
 			if lvp.Point().Height() > bl.Point().Height() {
 				return 0
@@ -404,13 +404,12 @@ func (st *baseBallotHandler) broadcastSuffrageConfirmBallot(bl base.INITBallot) 
 		return err
 	}
 
-	return st.timers.StartTimers(
+	return st.timers.StopOthers(
 		[]util.TimerID{
 			timerIDBroadcastINITBallot,
 			timerIDBroadcastSuffrageConfirmBallot,
 			timerIDBroadcastACCEPTBallot,
 		},
-		true,
 	)
 }
 
@@ -481,7 +480,7 @@ func (st *baseBallotHandler) timerINITBallot(
 	newballotf func(context.Context) base.INITBallot,
 	voteError func(error),
 	initialWait time.Duration,
-) (util.Timer, error) {
+) error {
 	started := time.Now()
 	wait := time.Nanosecond
 
@@ -490,10 +489,24 @@ func (st *baseBallotHandler) timerINITBallot(
 	var createOnce sync.Once
 	donech := make(chan base.INITBallot, 1)
 
-	ct := util.NewContextTimer(
+	var ballotCreated bool
+
+	if _, err := st.timers.New(
 		timerIDBroadcastINITBallot,
-		time.Nanosecond,
-		func(tctx context.Context, i int) (bool, error) {
+		func(uint64) time.Duration {
+			if bl == nil {
+				return time.Millisecond * 100 //nolint:gomnd // short enough
+			}
+
+			if !ballotCreated {
+				ballotCreated = true
+
+				return wait
+			}
+
+			return st.params.IntervalBroadcastBallot()
+		},
+		func(tctx context.Context, i uint64) (bool, error) {
 			if bl != nil {
 				if err := st.ballotBroadcaster.Broadcast(bl); err != nil {
 					st.Log().Error().Err(err).Msg("failed to broadcast ballot; keep going")
@@ -535,26 +548,11 @@ func (st *baseBallotHandler) timerINITBallot(
 
 			return true, nil
 		},
-	)
+	); err != nil {
+		return err
+	}
 
-	var ballotCreated bool
-	_ = ct.SetInterval(func(int, time.Duration) time.Duration {
-		if bl == nil {
-			return time.Millisecond * 100 //nolint:gomnd // short enough
-		}
-
-		if !ballotCreated {
-			ballotCreated = true
-
-			return wait
-		}
-
-		return st.params.IntervalBroadcastBallot()
-	})
-
-	_ = ct.SetLogging(st.Logging)
-
-	return ct, nil
+	return nil
 }
 
 func (st *baseBallotHandler) prepareNextBlock(
@@ -582,7 +580,7 @@ func (st *baseBallotHandler) prepareNextBlock(
 		suf = i
 	}
 
-	switch ct, err := st.timerINITBallot(
+	if err := st.timerINITBallot(
 		func(ctx context.Context) base.INITBallot {
 			bl, err := st.makeNextBlockBallot(ctx, avp, suf, st.params.WaitPreparingINITBallot())
 			if err != nil {
@@ -607,23 +605,16 @@ func (st *baseBallotHandler) prepareNextBlock(
 			}
 		},
 		st.params.WaitPreparingINITBallot(),
-	); {
-	case err != nil:
+	); err != nil {
 		l.Error().Err(err).Msg("failed to prepare init ballot for next block")
 
 		return
-	default:
-		if err := st.timers.SetTimer(ct); err != nil {
-			l.Error().Err(err).Msg("failed to set timer for next block")
+	}
 
-			return
-		}
+	if err := st.timers.StopOthers(timerIDs); err != nil {
+		l.Error().Err(err).Msg("failed to start timers for next block")
 
-		if err := st.timers.StartTimers(timerIDs, true); err != nil {
-			l.Error().Err(err).Msg("failed to start timers for next block")
-
-			return
-		}
+		return
 	}
 }
 
@@ -654,23 +645,21 @@ func preventVotingWithEmptySuffrage(
 
 func broadcastBallot(
 	bl base.Ballot,
-	timers *util.Timers,
+	timers *util.SimpleTimers,
 	timerid util.TimerID,
 	broadcastBallotFunc func(base.Ballot) error,
 	log *logging.Logging,
-	interval func(int, time.Duration) time.Duration,
+	interval func(uint64) time.Duration,
 ) error {
 	l := log.Log().With().
 		Stringer("ballot_hash", bl.SignFact().Fact().Hash()).
 		Logger()
 	l.Debug().Interface("ballot", bl).Object("point", bl.Point()).Msg("trying to broadcast ballot")
 
-	e := util.StringErrorFunc("failed to broadcast ballot")
-
-	ct := util.NewContextTimer(
+	_, err := timers.New(
 		timerid,
-		time.Nanosecond,
-		func(ctx context.Context, i int) (bool, error) {
+		interval,
+		func(_ context.Context, i uint64) (bool, error) {
 			if err := broadcastBallotFunc(bl); err != nil {
 				l.Error().Err(err).Msg("failed to broadcast ballot; keep going")
 
@@ -682,11 +671,6 @@ func broadcastBallot(
 			return true, nil
 		},
 	)
-	_ = ct.SetLogging(log)
 
-	if err := timers.SetTimer(ct.SetInterval(interval)); err != nil {
-		return e(err, "")
-	}
-
-	return nil
+	return errors.WithMessage(err, "failed to broadcast ballot")
 }

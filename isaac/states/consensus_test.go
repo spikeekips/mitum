@@ -42,11 +42,15 @@ func (t *baseTestConsensusHandler) newargs(previous base.Manifest, suf base.Suff
 func (t *baseTestConsensusHandler) newState(args *ConsensusHandlerArgs) (*ConsensusHandler, func()) {
 	newhandler := NewNewConsensusHandlerType(t.Local, t.LocalParams, args)
 	_ = newhandler.SetLogging(logging.TestNilLogging)
-	_ = newhandler.setTimers(util.NewTimers([]util.TimerID{
+
+	timers, err := util.NewSimpleTimersFixedIDs(3, time.Millisecond*33, []util.TimerID{
 		timerIDBroadcastINITBallot,
 		timerIDBroadcastSuffrageConfirmBallot,
 		timerIDBroadcastACCEPTBallot,
-	}, false))
+	})
+	t.NoError(err)
+	t.NoError(timers.Start(context.Background()))
+	_ = newhandler.setTimers(timers)
 
 	i, err := newhandler.new()
 	t.NoError(err)
@@ -158,13 +162,17 @@ func (t *testConsensusHandler) TestFailedToFetchProposal() {
 
 	st.switchStateFunc = func(switchContext) error { return nil }
 
-	_ = st.setTimers(util.NewTimers([]util.TimerID{
+	timers, err := util.NewSimpleTimersFixedIDs(3, time.Millisecond*333, []util.TimerID{
 		timerIDBroadcastINITBallot,
 		timerIDBroadcastSuffrageConfirmBallot,
 		timerIDBroadcastACCEPTBallot,
-	}, false))
+	})
+	t.NoError(err)
+	t.NoError(timers.Start(context.Background()))
 
-	defer st.timers.Stop()
+	_ = st.setTimers(timers)
+
+	defer timers.Stop()
 
 	avp, ivp := t.VoteproofsPair(point.PrevHeight(), point, nil, nil, nil, nodes)
 	t.True(st.setLastVoteproof(avp))
@@ -624,7 +632,6 @@ func (t *testConsensusHandler) TestWithBallotbox() {
 	st, closef, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer func() {
 		testdone()
-		st.timers.Stop()
 
 		closef()
 	}()

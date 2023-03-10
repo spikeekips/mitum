@@ -125,13 +125,13 @@ func (st *SyncingHandler) enter(from StateType, i switchContext) (func(), error)
 				if st.sts.Current() == StateSyncing {
 					l.Debug().Msg("timers stopped")
 
-					if err := st.timers.StopTimersAll(); err != nil {
+					if err := st.timers.StopAllTimers(); err != nil {
 						l.Error().Err(err).Msg("failed to stop all timers")
 					}
 				}
 			}()
 		default:
-			if err := st.timers.StopTimersAll(); err != nil {
+			if err := st.timers.StopAllTimers(); err != nil {
 				l.Error().Err(err).Msg("failed to stop all timers")
 			}
 		}
@@ -166,7 +166,7 @@ func (st *SyncingHandler) exit(sctx switchContext) (func(), error) {
 
 	st.cancelstuck()
 
-	if err := st.timers.StopTimersAll(); err != nil {
+	if err := st.timers.StopAllTimers(); err != nil {
 		st.Log().Error().Err(err).Msg("failed to stop all timers")
 	}
 

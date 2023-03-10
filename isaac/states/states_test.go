@@ -168,7 +168,8 @@ func (t *testStates) SetupSuite() {
 
 func (t *testStates) TestWait() {
 	args := NewStatesArgs()
-	st := NewStates(t.local, t.params, args)
+	st, err := NewStates(t.local, t.params, args)
+	t.NoError(err)
 	_ = st.SetLogging(logging.TestNilLogging)
 
 	_ = st.setHandler(newDummyStateHandler(StateStopped))
@@ -223,7 +224,8 @@ func (t *testStates) TestExit() {
 
 func (t *testStates) TestBootingAtStarting() {
 	args := NewStatesArgs()
-	st := NewStates(t.local, t.params, args)
+	st, err := NewStates(t.local, t.params, args)
+	t.NoError(err)
 	_ = st.SetLogging(logging.TestNilLogging)
 
 	_ = st.setHandler(newDummyStateHandler(StateStopped))
@@ -251,7 +253,8 @@ func (t *testStates) TestBootingAtStarting() {
 
 func (t *testStates) TestFailedToEnterIntoBootingAtStarting() {
 	args := NewStatesArgs()
-	st := NewStates(t.local, t.params, args)
+	st, err := NewStates(t.local, t.params, args)
+	t.NoError(err)
 	_ = st.SetLogging(logging.TestNilLogging)
 
 	_ = st.setHandler(newDummyStateHandler(StateStopped))
@@ -292,7 +295,8 @@ func (t *testStates) TestFailedToEnterIntoBootingAtStarting() {
 
 func (t *testStates) booted() (*States, <-chan error) {
 	args := NewStatesArgs()
-	st := NewStates(t.local, t.params, args)
+	st, err := NewStates(t.local, t.params, args)
+	t.NoError(err)
 	_ = st.SetLogging(logging.TestNilLogging)
 
 	_ = st.setHandler(newDummyStateHandler(StateStopped))
@@ -321,7 +325,8 @@ func (t *testStates) booted() (*States, <-chan error) {
 
 func (t *testStates) TestFailedToEnterIntoBrokenAtStarting() {
 	args := NewStatesArgs()
-	st := NewStates(t.local, t.params, args)
+	st, err := NewStates(t.local, t.params, args)
+	t.NoError(err)
 	_ = st.SetLogging(logging.TestNilLogging)
 
 	_ = st.setHandler(newDummyStateHandler(StateStopped))

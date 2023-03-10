@@ -48,11 +48,20 @@ type States struct {
 	vpch        chan base.Voteproof
 	newHandlers map[StateType]newHandler
 	*util.ContextDaemon
-	timers    *util.Timers
+	timers    *util.SimpleTimers
 	stateLock sync.RWMutex
 }
 
-func NewStates(local base.LocalNode, params *isaac.LocalParams, args *StatesArgs) *States {
+func NewStates(local base.LocalNode, params *isaac.LocalParams, args *StatesArgs) (*States, error) {
+	timers, err := util.NewSimpleTimersFixedIDs(3, time.Millisecond*33, []util.TimerID{ //nolint:gomnd //...
+		timerIDBroadcastINITBallot,
+		timerIDBroadcastSuffrageConfirmBallot,
+		timerIDBroadcastACCEPTBallot,
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	st := &States{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", "states")
@@ -64,11 +73,7 @@ func NewStates(local base.LocalNode, params *isaac.LocalParams, args *StatesArgs
 		vpch:        make(chan base.Voteproof),
 		newHandlers: map[StateType]newHandler{},
 		cs:          nil,
-		timers: util.NewTimers([]util.TimerID{
-			timerIDBroadcastINITBallot,
-			timerIDBroadcastSuffrageConfirmBallot,
-			timerIDBroadcastACCEPTBallot,
-		}, false),
+		timers:      timers,
 	}
 
 	cancelf := func() {}
@@ -82,7 +87,7 @@ func NewStates(local base.LocalNode, params *isaac.LocalParams, args *StatesArgs
 
 	st.ContextDaemon = util.NewContextDaemon(st.startFunc(cancelf))
 
-	return st
+	return st, nil
 }
 
 func (st *States) SetHandler(state StateType, h newHandler) *States {
@@ -164,7 +169,18 @@ func (st *States) Current() StateType {
 func (st *States) startFunc(cancel func()) func(context.Context) error {
 	return func(ctx context.Context) error {
 		defer cancel()
+
+		if st.timers != nil {
+			defer func() {
+				_ = st.timers.Stop()
+			}()
+		}
+
 		defer st.Log().Debug().Msg("states stopped")
+
+		if err := st.timers.Start(ctx); err != nil {
+			return err
+		}
 
 		// NOTE set stopped as current
 		switch newHandler, found := st.newHandlers[StateStopped]; {
@@ -469,10 +485,13 @@ func (st *States) setLastVoteproof(vp base.Voteproof) bool {
 func (st *States) mimicBallotFunc() (func(base.Ballot), func()) {
 	mimicBallotf := st.mimicBallot()
 
-	timers := util.NewTimers([]util.TimerID{
+	alltimerids := []util.TimerID{
 		timerIDBroadcastINITBallot,
 		timerIDBroadcastACCEPTBallot,
-	}, false)
+	}
+
+	timers, _ := util.NewSimpleTimersFixedIDs(2, time.Millisecond*33, alltimerids) //nolint:gomnd //...
+	_ = timers.Start(context.Background())
 
 	votef := func(bl base.Ballot, threshold base.Threshold) error {
 		return nil
@@ -495,7 +514,7 @@ func (st *States) mimicBallotFunc() (func(base.Ballot), func()) {
 			case bl.SignFact().Node().Equal(st.local.Address()):
 				return
 			case s != StateSyncing && s != StateBroken:
-				if err := timers.StopTimersAll(); err != nil {
+				if err := timers.StopAllTimers(); err != nil {
 					st.Log().Error().Err(err).Msg("failed to stop mimic timers; ignore")
 				}
 
@@ -536,7 +555,7 @@ func (st *States) mimicBallotFunc() (func(base.Ballot), func()) {
 				timerid,
 				st.args.BallotBroadcaster.Broadcast,
 				st.Logging,
-				func(i int, _ time.Duration) time.Duration {
+				func(i uint64) time.Duration {
 					if i < 1 {
 						return time.Nanosecond
 					}
@@ -549,7 +568,7 @@ func (st *States) mimicBallotFunc() (func(base.Ballot), func()) {
 				return
 			}
 
-			if err := timers.StartTimers([]util.TimerID{timerid}, false); err != nil {
+			if err := timers.StopOthers(alltimerids); err != nil {
 				l.Error().Err(err).Msg("failed to broadcast mimic ballot")
 			}
 		}, func() {

@@ -23,7 +23,7 @@ type baseHandler struct {
 	forceSetLastVoteproof func(base.Voteproof) bool
 	cancel                func()
 	sts                   *States
-	timers                *util.Timers
+	timers                *util.SimpleTimers
 	switchStateFunc       func(switchContext) error
 	whenEmptyMembersFunc  func()
 	stt                   StateType

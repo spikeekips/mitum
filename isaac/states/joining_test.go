@@ -51,10 +51,15 @@ func (t *testJoiningHandler) newState(args *JoiningHandlerArgs) (*JoiningHandler
 
 	newhandler := NewNewJoiningHandlerType(local, params, args)
 	_ = newhandler.SetLogging(logging.TestNilLogging)
-	_ = newhandler.setTimers(util.NewTimers([]util.TimerID{
+
+	timers, err := util.NewSimpleTimersFixedIDs(2, time.Millisecond*33, []util.TimerID{
 		timerIDBroadcastINITBallot,
 		timerIDBroadcastACCEPTBallot,
-	}, false))
+	})
+	t.NoError(err)
+	t.NoError(timers.Start(context.Background()))
+
+	_ = newhandler.setTimers(timers)
 
 	i, err := newhandler.new()
 	t.NoError(err)
@@ -72,6 +77,8 @@ func (t *testJoiningHandler) newState(args *JoiningHandlerArgs) (*JoiningHandler
 		deferred, err := st.exit(nil)
 		t.NoError(err)
 		deferred()
+
+		_ = timers.Stop()
 	}
 }
 

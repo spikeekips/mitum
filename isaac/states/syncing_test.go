@@ -43,11 +43,15 @@ func (t *testSyncingHandler) newState(finishch chan base.Height) (*SyncingHandle
 	newhandler := NewNewSyncingHandlerType(local, params, args)
 
 	_ = newhandler.SetLogging(logging.TestNilLogging)
-	_ = newhandler.setTimers(util.NewTimers([]util.TimerID{
+	timers, err := util.NewSimpleTimersFixedIDs(2, time.Millisecond*33, []util.TimerID{
 		timerIDBroadcastINITBallot,
 		timerIDBroadcastSuffrageConfirmBallot,
 		timerIDBroadcastACCEPTBallot,
-	}, false))
+	})
+	t.NoError(err)
+	t.NoError(timers.Start(context.Background()))
+
+	_ = newhandler.setTimers(timers)
 
 	newhandler.switchStateFunc = func(switchContext) error {
 		return nil
@@ -62,6 +66,8 @@ func (t *testSyncingHandler) newState(finishch chan base.Height) (*SyncingHandle
 		deferred, err := st.exit(nil)
 		t.NoError(err)
 		deferred()
+
+		_ = timers.Stop()
 	}
 }
 

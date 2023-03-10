@@ -614,7 +614,7 @@ func (st *ConsensusHandler) prepareNextRound(vp base.Voteproof, previousBlock ut
 		suf = i
 	}
 
-	switch ct, err := st.timerINITBallot(
+	if err := st.timerINITBallot(
 		func(ctx context.Context) base.INITBallot {
 			bl, err := st.baseBallotHandler.makeNextRoundBallot(
 				ctx, vp, previousBlock, suf, st.params.WaitPreparingINITBallot())
@@ -640,30 +640,22 @@ func (st *ConsensusHandler) prepareNextRound(vp base.Voteproof, previousBlock ut
 			}
 		},
 		time.Nanosecond,
-	); {
-	case err != nil:
+	); err != nil {
 		l.Error().Err(err).Msg("failed to prepare init ballot for next block")
 
 		return
-	default:
-		if err := st.timers.SetTimer(ct); err != nil {
-			l.Error().Err(err).Msg("failed to set timer for next round")
+	}
 
-			return
-		}
+	if err := st.timers.StopOthers(
+		[]util.TimerID{
+			timerIDBroadcastINITBallot,
+			timerIDBroadcastSuffrageConfirmBallot,
+			timerIDBroadcastACCEPTBallot,
+		},
+	); err != nil {
+		l.Error().Err(err).Msg("failed to start timers for next round")
 
-		if err := st.timers.StartTimers(
-			[]util.TimerID{
-				timerIDBroadcastINITBallot,
-				timerIDBroadcastSuffrageConfirmBallot,
-				timerIDBroadcastACCEPTBallot,
-			},
-			true,
-		); err != nil {
-			l.Error().Err(err).Msg("failed to start timers for next round")
-
-			return
-		}
+		return
 	}
 }
 
