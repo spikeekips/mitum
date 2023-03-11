@@ -125,6 +125,8 @@ func (s *Syncer) Add(height base.Height) bool {
 		}()
 	}
 
+	s.Log().Debug().Interface("height", height).Msg("added")
+
 	return true
 }
 
