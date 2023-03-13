@@ -161,7 +161,7 @@ func (t *testSyncingHandler) TestNewHigherVoteproof() {
 		syncer := st.syncer.(*dummySyncer)
 
 		ifact := t.NewINITBallotFact(point.NextHeight().NextHeight(), nil, nil)
-		ivp, err := t.NewINITVoteproof(ifact, t.Local, []isaac.LocalNode{t.Local})
+		ivp, err := t.NewINITVoteproof(ifact, t.Local, []base.LocalNode{t.Local})
 		t.NoError(err)
 
 		t.Equal(point.Height(), syncer.Top())
@@ -187,7 +187,7 @@ func (t *testSyncingHandler) TestNewHigherVoteproof() {
 		syncer := st.syncer.(*dummySyncer)
 
 		afact := t.NewACCEPTBallotFact(point.NextHeight(), nil, nil)
-		avp, err := t.NewACCEPTVoteproof(afact, t.Local, []isaac.LocalNode{t.Local})
+		avp, err := t.NewACCEPTVoteproof(afact, t.Local, []base.LocalNode{t.Local})
 		t.NoError(err)
 
 		t.Equal(point.Height(), syncer.Top())
@@ -215,7 +215,7 @@ func (t *testSyncingHandler) TestNewLowerVoteproof() {
 		syncer := st.syncer.(*dummySyncer)
 
 		ifact := t.NewINITBallotFact(point, nil, nil)
-		ivp, err := t.NewINITVoteproof(ifact, t.Local, []isaac.LocalNode{t.Local})
+		ivp, err := t.NewINITVoteproof(ifact, t.Local, []base.LocalNode{t.Local})
 		t.NoError(err)
 
 		t.Equal(point.Height(), syncer.Top())
@@ -241,7 +241,7 @@ func (t *testSyncingHandler) TestNewLowerVoteproof() {
 		syncer := st.syncer.(*dummySyncer)
 
 		afact := t.NewACCEPTBallotFact(point, nil, nil)
-		avp, err := t.NewACCEPTVoteproof(afact, t.Local, []isaac.LocalNode{t.Local})
+		avp, err := t.NewACCEPTVoteproof(afact, t.Local, []base.LocalNode{t.Local})
 		t.NoError(err)
 
 		t.Equal(point.Height(), syncer.Top())
@@ -269,7 +269,7 @@ func (t *testSyncingHandler) TestNewExpectedVoteproof() {
 		syncer := st.syncer.(*dummySyncer)
 
 		ifact := t.NewINITBallotFact(point.NextHeight(), nil, nil)
-		ivp, err := t.NewINITVoteproof(ifact, t.Local, []isaac.LocalNode{t.Local})
+		ivp, err := t.NewINITVoteproof(ifact, t.Local, []base.LocalNode{t.Local})
 		t.NoError(err)
 
 		t.NoError(st.newVoteproof(ivp))
@@ -296,7 +296,7 @@ func (t *testSyncingHandler) TestNewExpectedVoteproof() {
 		syncer.finish(point.Height())
 
 		ifact := t.NewINITBallotFact(point.NextHeight(), nil, nil)
-		ivp, err := t.NewINITVoteproof(ifact, t.Local, []isaac.LocalNode{t.Local})
+		ivp, err := t.NewINITVoteproof(ifact, t.Local, []base.LocalNode{t.Local})
 		t.NoError(err)
 
 		err = st.newVoteproof(ivp)
@@ -326,7 +326,7 @@ func (t *testSyncingHandler) TestNewExpectedVoteproof() {
 		syncer.finish(point.Height())
 
 		afact := t.NewACCEPTBallotFact(point.NextHeight(), nil, nil)
-		avp, err := t.NewACCEPTVoteproof(afact, t.Local, []isaac.LocalNode{t.Local})
+		avp, err := t.NewACCEPTVoteproof(afact, t.Local, []base.LocalNode{t.Local})
 		t.NoError(err)
 
 		avp.SetMajority(nil).Finish()
@@ -365,7 +365,7 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 		syncer := st.syncer.(*dummySyncer)
 
 		ifact := t.NewINITBallotFact(point, nil, nil)
-		ivp, err := t.NewINITVoteproof(ifact, t.Local, []isaac.LocalNode{t.Local})
+		ivp, err := t.NewINITVoteproof(ifact, t.Local, []base.LocalNode{t.Local})
 		t.NoError(err)
 
 		st.setLastVoteproof(ivp)
@@ -405,7 +405,7 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 		syncer := st.syncer.(*dummySyncer)
 
 		ifact := t.NewINITBallotFact(point.NextHeight().NextHeight(), nil, nil)
-		ivp, err := t.NewINITVoteproof(ifact, t.Local, []isaac.LocalNode{t.Local})
+		ivp, err := t.NewINITVoteproof(ifact, t.Local, []base.LocalNode{t.Local})
 		t.NoError(err)
 
 		st.setLastVoteproof(ivp)
@@ -446,7 +446,7 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 		syncer := st.syncer.(*dummySyncer)
 
 		afact := t.NewACCEPTBallotFact(point, nil, nil)
-		avp, err := t.NewACCEPTVoteproof(afact, t.Local, []isaac.LocalNode{t.Local})
+		avp, err := t.NewACCEPTVoteproof(afact, t.Local, []base.LocalNode{t.Local})
 		t.NoError(err)
 		st.setLastVoteproof(avp)
 
@@ -483,7 +483,7 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 		syncer := st.syncer.(*dummySyncer)
 
 		afact := t.NewACCEPTBallotFact(point.NextHeight(), nil, nil)
-		avp, err := t.NewACCEPTVoteproof(afact, t.Local, []isaac.LocalNode{t.Local})
+		avp, err := t.NewACCEPTVoteproof(afact, t.Local, []base.LocalNode{t.Local})
 		t.NoError(err)
 		st.setLastVoteproof(avp)
 
@@ -528,7 +528,7 @@ func (t *testSyncingHandler) TestFinishedWithLastVoteproof() {
 		syncer := st.syncer.(*dummySyncer)
 
 		ifact := t.NewINITBallotFact(point.NextHeight(), nil, nil)
-		ivp, err := t.NewINITVoteproof(ifact, t.Local, []isaac.LocalNode{t.Local})
+		ivp, err := t.NewINITVoteproof(ifact, t.Local, []base.LocalNode{t.Local})
 		t.NoError(err)
 
 		st.setLastVoteproof(ivp)
@@ -579,7 +579,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 		syncer := st.syncer.(*dummySyncer)
 
 		afact := t.NewACCEPTBallotFact(point, nil, nil)
-		avp, err := t.NewACCEPTVoteproof(afact, t.Local, []isaac.LocalNode{t.Local})
+		avp, err := t.NewACCEPTVoteproof(afact, t.Local, []base.LocalNode{t.Local})
 		t.NoError(err)
 
 		st.setLastVoteproof(avp)
@@ -623,7 +623,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 		syncer := st.syncer.(*dummySyncer)
 
 		afact := t.NewACCEPTBallotFact(point, nil, nil)
-		avp, err := t.NewACCEPTVoteproof(afact, t.Local, []isaac.LocalNode{t.Local})
+		avp, err := t.NewACCEPTVoteproof(afact, t.Local, []base.LocalNode{t.Local})
 		t.NoError(err)
 
 		st.setLastVoteproof(avp)
@@ -663,7 +663,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 		syncer := st.syncer.(*dummySyncer)
 
 		afact := t.NewACCEPTBallotFact(point, nil, nil)
-		avp, err := t.NewACCEPTVoteproof(afact, t.Local, []isaac.LocalNode{t.Local})
+		avp, err := t.NewACCEPTVoteproof(afact, t.Local, []base.LocalNode{t.Local})
 		t.NoError(err)
 
 		st.setLastVoteproof(avp)
@@ -704,7 +704,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 		syncer := st.syncer.(*dummySyncer)
 
 		afact := t.NewACCEPTBallotFact(point, nil, nil)
-		avp, err := t.NewACCEPTVoteproof(afact, t.Local, []isaac.LocalNode{t.Local})
+		avp, err := t.NewACCEPTVoteproof(afact, t.Local, []base.LocalNode{t.Local})
 		t.NoError(err)
 
 		st.setLastVoteproof(avp)
@@ -714,7 +714,7 @@ func (t *testSyncingHandler) TestFinishedButStuck() {
 		syncer.finish(point.Height())
 		syncer.Add(point.NextHeight().Height())
 
-		newavp, err := t.NewACCEPTVoteproof(t.NewACCEPTBallotFact(point.NextHeight(), nil, nil), t.Local, []isaac.LocalNode{t.Local})
+		newavp, err := t.NewACCEPTVoteproof(t.NewACCEPTBallotFact(point.NextHeight(), nil, nil), t.Local, []base.LocalNode{t.Local})
 		t.NoError(err)
 
 		st.setWaitStuck(time.Millisecond * 100)

@@ -88,7 +88,7 @@ func NewSyncer(prev base.BlockMap, args SyncerArgs) *Syncer {
 		doneerr:      util.EmptyLocked((error)(nil)),
 		topvalue:     util.NewLocked(prevheight),
 		isdonevalue:  &atomic.Value{},
-		startsyncch:  make(chan base.Height),
+		startsyncch:  make(chan base.Height, 1<<9),
 		checkedprevs: util.NewLRUGCache(base.NilHeight, "", 1<<3), //nolint:gomnd //...
 	}
 
@@ -102,30 +102,30 @@ func (s *Syncer) Add(height base.Height) bool {
 		return false
 	}
 
-	var startsync bool
+	var top, synced base.Height
 
-	if _, err := s.topvalue.Set(func(top base.Height, _ bool) (base.Height, error) {
-		synced := s.prevheight()
+	if _, err := s.topvalue.Set(func(i base.Height, _ bool) (base.Height, error) {
+		top = i
+		synced = s.prevheight()
 
 		switch {
 		case height <= top:
 			return base.NilHeight, errors.Errorf("old height")
-		case top == synced:
-			startsync = true
+		default:
+			return height, nil
 		}
-
-		return height, nil
 	}); err != nil {
 		return false
 	}
 
-	if startsync {
-		go func() {
-			s.startsyncch <- height
-		}()
-	}
+	go func() {
+		s.startsyncch <- height
+	}()
 
-	s.Log().Debug().Interface("height", height).Msg("added")
+	s.Log().Debug().
+		Interface("top", top).
+		Interface("synced", synced).
+		Interface("height", height).Msg("added")
 
 	return true
 }
@@ -151,6 +151,8 @@ func (s *Syncer) IsFinished() (base.Height, bool) {
 }
 
 func (s *Syncer) Cancel() error {
+	s.Log().Debug().Msg("canceled")
+
 	var err error
 	s.cancelonece.Do(func() {
 		err = s.ContextDaemon.Stop()
@@ -184,6 +186,7 @@ func (s *Syncer) start(ctx context.Context) error {
 
 	go s.updateLastBlockMap(uctx)
 
+	lastheight := base.NilHeight
 	var gerr error
 
 end:
@@ -194,13 +197,27 @@ end:
 
 			break end
 		case height := <-s.startsyncch:
+			if height <= lastheight {
+				continue
+			}
+
+			lastheight = height
+
+			l := s.Log().With().Interface("height", lastheight).Logger()
+
+			l.Debug().Msg("trying to sync")
+
 			if err := s.donewitherror(func() error {
-				return s.sync(uctx, height)
+				return s.sync(uctx, lastheight)
 			}); err != nil {
 				gerr = err
 
+				l.Error().Err(err).Msg("failed to sync")
+
 				break end
 			}
+
+			l.Debug().Msg("synced")
 		}
 	}
 

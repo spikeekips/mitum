@@ -269,48 +269,43 @@ func (st *SyncingHandler) add(h base.Height) bool {
 }
 
 func (st *SyncingHandler) finishing(sc isaac.Syncer) {
+	var err error
+
 end:
 	for {
-		var err error
 		select {
 		case <-st.ctx.Done():
 			return
 		case <-sc.Done():
-			_ = st.syncer.Cancel()
-
 			if err = sc.Err(); err != nil {
+				_ = st.syncer.Cancel()
+
 				st.Log().Error().Err(err).Msg("syncer canceled by error")
 			}
 		case top := <-sc.Finished():
 			st.Log().Debug().Interface("height", top).Msg("syncer finished")
 
 			var notstuck bool
+
 			switch notstuck, err = st.checkFinished(st.lastVoteproofs().Cap()); {
 			case err != nil:
+				st.cancelstuck()
 			case notstuck:
 				st.cancelstuck()
-
-				continue end
-			default:
-				continue end
 			}
 		}
 
-		st.cancelstuck()
+		if err != nil {
+			var sctx switchContext
 
-		var sctx switchContext
+			if !errors.As(err, &sctx) {
+				sctx = newBrokenSwitchContext(StateSyncing, err)
+			}
 
-		if err != nil && !errors.As(err, &sctx) {
-			sctx = newBrokenSwitchContext(StateSyncing, err)
-		}
-
-		if sctx != nil {
 			go st.switchState(sctx)
+
+			break end
 		}
-
-		st.cancel()
-
-		break
 	}
 }
 
