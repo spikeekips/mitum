@@ -83,7 +83,7 @@ func (t *testBootingHandler) TestWrongLastACCEPTVoteproof() {
 	oldavp := st.lastVoteproofs().ACCEPT()
 	point := oldavp.Point().Point.NextHeight()
 
-	newavp, _ := t.VoteproofsPair(point.NextHeight(), point.NextHeight().NextHeight(), valuehash.RandomSHA256(), nil, nil, []isaac.LocalNode{t.Local})
+	newavp, _ := t.VoteproofsPair(point.NextHeight(), point.NextHeight().NextHeight(), valuehash.RandomSHA256(), nil, nil, []base.LocalNode{t.Local})
 	t.True(st.setLastVoteproof(newavp))
 
 	sctx := newBootingSwitchContext(StateStopped)

@@ -207,9 +207,9 @@ func (t *testSuffrageWithdrawOperation) TestIsValid() {
 func (t *testSuffrageWithdrawOperation) TestIsValidWithSuffrage() {
 	t.Run("ok", func() {
 		height := base.Height(33)
-		local := RandomLocalNode()
-		withdrawnode := RandomLocalNode()
-		nodes := []base.Node{local, RandomLocalNode(), withdrawnode}
+		local := base.RandomLocalNode()
+		withdrawnode := base.RandomLocalNode()
+		nodes := []base.Node{local, base.RandomLocalNode(), withdrawnode}
 
 		fact := NewSuffrageWithdrawFact(withdrawnode.Address(), height, height+1, util.UUID().String())
 		op := NewSuffrageWithdrawOperation(fact)
@@ -225,9 +225,9 @@ func (t *testSuffrageWithdrawOperation) TestIsValidWithSuffrage() {
 
 	t.Run("expired", func() {
 		height := base.Height(33)
-		local := RandomLocalNode()
-		withdrawnode := RandomLocalNode()
-		nodes := []base.Node{local, RandomLocalNode(), withdrawnode}
+		local := base.RandomLocalNode()
+		withdrawnode := base.RandomLocalNode()
+		nodes := []base.Node{local, base.RandomLocalNode(), withdrawnode}
 
 		fact := NewSuffrageWithdrawFact(withdrawnode.Address(), height, height+1, util.UUID().String())
 		op := NewSuffrageWithdrawOperation(fact)
@@ -245,8 +245,8 @@ func (t *testSuffrageWithdrawOperation) TestIsValidWithSuffrage() {
 
 	t.Run("signed node not in suffrage", func() {
 		height := base.Height(33)
-		local := RandomLocalNode()
-		withdrawnode := RandomLocalNode()
+		local := base.RandomLocalNode()
+		withdrawnode := base.RandomLocalNode()
 		nodes := []base.Node{local, withdrawnode}
 
 		fact := NewSuffrageWithdrawFact(withdrawnode.Address(), height, height+1, util.UUID().String())
@@ -267,9 +267,9 @@ func (t *testSuffrageWithdrawOperation) TestIsValidWithSuffrage() {
 
 	t.Run("withdraw node not in suffrage", func() {
 		height := base.Height(33)
-		local := RandomLocalNode()
-		withdrawnode := RandomLocalNode()
-		nodes := []base.Node{local, RandomLocalNode()}
+		local := base.RandomLocalNode()
+		withdrawnode := base.RandomLocalNode()
+		nodes := []base.Node{local, base.RandomLocalNode()}
 
 		fact := NewSuffrageWithdrawFact(withdrawnode.Address(), height, height+1, util.UUID().String())
 		op := NewSuffrageWithdrawOperation(fact)

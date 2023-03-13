@@ -89,3 +89,31 @@ func (n *BaseNode) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 
 	return nil
 }
+
+type BaseLocalNode struct {
+	priv Privatekey
+	BaseNode
+}
+
+func NewBaseLocalNode(ht hint.Hint, priv Privatekey, addr Address) BaseLocalNode {
+	return BaseLocalNode{
+		BaseNode: NewBaseNode(ht, priv.Publickey(), addr),
+		priv:     priv,
+	}
+}
+
+func (n BaseLocalNode) IsValid([]byte) error {
+	if err := util.CheckIsValiders(nil, false, n.BaseNode, n.priv); err != nil {
+		return errors.Wrap(err, "invalid LocalNode")
+	}
+
+	return nil
+}
+
+func (n BaseLocalNode) Privatekey() Privatekey {
+	return n.priv
+}
+
+func (n BaseLocalNode) Base() BaseNode {
+	return n.BaseNode
+}

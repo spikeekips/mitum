@@ -117,7 +117,7 @@ type testSuffrageVoting struct {
 }
 
 func (t *testSuffrageVoting) SetupSuite() {
-	t.local = RandomLocalNode()
+	t.local = base.RandomLocalNode()
 	t.networkID = util.UUID().Bytes()
 }
 
@@ -154,7 +154,7 @@ func (t *testSuffrageVoting) TestVote() {
 	t.Run("false voted; local is withdraw node", func() {
 		height := base.Height(33)
 
-		newnode := RandomLocalNode()
+		newnode := base.RandomLocalNode()
 
 		op := t.operation(newnode, height, t.local.Address())
 
@@ -200,7 +200,7 @@ func (t *testSuffrageVoting) TestVote() {
 		t.NoError(err)
 		t.True(voted)
 
-		newnode := RandomLocalNode()
+		newnode := base.RandomLocalNode()
 		newop := t.operation(newnode, height, op.WithdrawFact().Node())
 
 		voted, err = sv.Vote(newop)
@@ -266,7 +266,7 @@ func (t *testSuffrageVoting) suffrage(n int) (base.Suffrage, []base.LocalNode) {
 	nodes := make([]base.Node, n)
 
 	for i := 0; i < n; i++ {
-		local := RandomLocalNode()
+		local := base.RandomLocalNode()
 		localnodes[i] = local
 		nodes[i] = local
 	}

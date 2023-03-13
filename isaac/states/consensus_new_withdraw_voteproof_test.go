@@ -340,7 +340,7 @@ func (t *testWithdrawsConsensusHandler) prepareAfterACCEPT(
 	numberOfNodes int,
 ) (
 	base.Suffrage,
-	[]isaac.LocalNode,
+	[]base.LocalNode,
 	*ConsensusHandler,
 	*isaac.DummyProposalProcessor,
 	func() (

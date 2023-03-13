@@ -64,7 +64,7 @@ func (t *testProposalProcessors) TestProcess() {
 		nil,
 		facthash,
 		nil,
-		[]LocalNode{t.Local},
+		[]base.LocalNode{t.Local},
 	)
 	t.NoError(pps.Save(context.Background(), facthash, avp))
 
@@ -410,7 +410,7 @@ func (t *testProposalProcessors) TestSaveError() {
 		nil,
 		facthash,
 		nil,
-		[]LocalNode{t.Local},
+		[]base.LocalNode{t.Local},
 	)
 	err = pps.Save(context.Background(), facthash, avp)
 	t.Error(err)

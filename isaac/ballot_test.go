@@ -67,7 +67,7 @@ func (t *testBaseBallot) TestWithdrawNodeInSigns() {
 	node := base.RandomAddress("")
 	point := base.RawPoint(33, 44)
 
-	withdrawnode := RandomLocalNode()
+	withdrawnode := base.RandomLocalNode()
 
 	fact := NewSuffrageWithdrawFact(withdrawnode.Address(), point.Height()-1, point.Height()+1, util.UUID().String())
 	withdraw := NewSuffrageWithdrawOperation(fact)
@@ -201,7 +201,7 @@ func (t *testBaseBallot) TestUnknownWithdraw() {
 func (t *testBaseBallot) TestWithdrawNodeSelfSign() {
 	point := base.RawPoint(33, 44)
 
-	withdrawnode := RandomLocalNode()
+	withdrawnode := base.RandomLocalNode()
 
 	fact := NewSuffrageWithdrawFact(withdrawnode.Address(), point.Height()-1, point.Height()+1, util.UUID().String())
 	withdraw := NewSuffrageWithdrawOperation(fact)

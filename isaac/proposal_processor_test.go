@@ -170,7 +170,7 @@ func (t *testDefaultProposalProcessor) SetupSuite() {
 	t.NoError(t.Enc.AddHinter(base.DummyBlockMap{}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: NodeHint, Instance: base.BaseNode{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: base.DummyNodeHint, Instance: base.BaseNode{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: DummyOperationFactHint, Instance: DummyOperationFact{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: DummyOperationHint, Instance: DummyOperation{}}))
 }
@@ -1568,7 +1568,7 @@ func (t *testDefaultProposalProcessor) TestSave() {
 	)
 
 	ifact := t.NewINITBallotFact(point.NextHeight(), previous.Hash(), pr.Fact().Hash())
-	ivp, err := t.NewINITVoteproof(ifact, t.Local, []LocalNode{t.Local})
+	ivp, err := t.NewINITVoteproof(ifact, t.Local, []base.LocalNode{t.Local})
 	t.NoError(err)
 
 	m, err := opp.Process(context.Background(), ivp)
@@ -1578,7 +1578,7 @@ func (t *testDefaultProposalProcessor) TestSave() {
 	t.Equal(len(ops), writer.sts.Len())
 
 	afact := t.NewACCEPTBallotFact(point.NextHeight(), nil, nil)
-	avp, err := t.NewACCEPTVoteproof(afact, t.Local, []LocalNode{t.Local})
+	avp, err := t.NewACCEPTVoteproof(afact, t.Local, []base.LocalNode{t.Local})
 	t.NoError(err)
 
 	t.NoError(opp.Save(context.Background(), avp))
@@ -1621,7 +1621,7 @@ func (t *testDefaultProposalProcessor) TestSaveFailed() {
 	t.Equal(4, writer.sts.Len())
 
 	afact := t.NewACCEPTBallotFact(point.NextHeight(), nil, nil)
-	avp, err := t.NewACCEPTVoteproof(afact, t.Local, []LocalNode{t.Local})
+	avp, err := t.NewACCEPTVoteproof(afact, t.Local, []base.LocalNode{t.Local})
 	t.NoError(err)
 
 	err = opp.Save(context.Background(), avp)
@@ -1655,7 +1655,7 @@ func (t *testDefaultProposalProcessor) TestSaveAgain() {
 	)
 
 	ifact := t.NewINITBallotFact(point.NextHeight(), previous.Hash(), pr.Fact().Hash())
-	ivp, err := t.NewINITVoteproof(ifact, t.Local, []LocalNode{t.Local})
+	ivp, err := t.NewINITVoteproof(ifact, t.Local, []base.LocalNode{t.Local})
 	t.NoError(err)
 
 	m, err := opp.Process(context.Background(), ivp)
@@ -1665,7 +1665,7 @@ func (t *testDefaultProposalProcessor) TestSaveAgain() {
 	t.Equal(4, writer.sts.Len())
 
 	afact := t.NewACCEPTBallotFact(point.NextHeight(), nil, nil)
-	avp, err := t.NewACCEPTVoteproof(afact, t.Local, []LocalNode{t.Local})
+	avp, err := t.NewACCEPTVoteproof(afact, t.Local, []base.LocalNode{t.Local})
 	t.NoError(err)
 
 	t.NoError(opp.Save(context.Background(), avp))

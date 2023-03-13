@@ -18,10 +18,10 @@ func TestSuffrageNodeStateValueJSON(tt *testing.T) {
 	t.Encode = func() (interface{}, []byte) {
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
-		t.NoError(enc.Add(encoder.DecodeDetail{Hint: NodeHint, Instance: base.BaseNode{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.DummyNodeHint, Instance: base.BaseNode{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: SuffrageNodeStateValueHint, Instance: SuffrageNodeStateValue{}}))
 
-		stv := NewSuffrageNodeStateValue(RandomLocalNode(), base.Height(33))
+		stv := NewSuffrageNodeStateValue(base.RandomLocalNode(), base.Height(33))
 
 		b, err := util.MarshalJSON(stv)
 		t.NoError(err)
@@ -59,13 +59,13 @@ func TestSuffrageNodesStateValueJSON(tt *testing.T) {
 	t.Encode = func() (interface{}, []byte) {
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
-		t.NoError(enc.Add(encoder.DecodeDetail{Hint: NodeHint, Instance: base.BaseNode{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.DummyNodeHint, Instance: base.BaseNode{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: SuffrageNodesStateValueHint, Instance: SuffrageNodesStateValue{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: SuffrageNodeStateValueHint, Instance: SuffrageNodeStateValue{}}))
 
 		nodes := make([]base.SuffrageNodeStateValue, 3)
 		for i := range nodes {
-			nodes[i] = NewSuffrageNodeStateValue(RandomLocalNode(), base.Height(33))
+			nodes[i] = NewSuffrageNodeStateValue(base.RandomLocalNode(), base.Height(33))
 		}
 
 		stv := NewSuffrageNodesStateValue(base.Height(33), nodes)
@@ -106,13 +106,13 @@ func TestSuffrageCandidatesStateValueJSON(tt *testing.T) {
 	t.Encode = func() (interface{}, []byte) {
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
-		t.NoError(enc.Add(encoder.DecodeDetail{Hint: NodeHint, Instance: base.BaseNode{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.DummyNodeHint, Instance: base.BaseNode{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: SuffrageCandidateStateValueHint, Instance: SuffrageCandidateStateValue{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: SuffrageCandidatesStateValueHint, Instance: SuffrageCandidatesStateValue{}}))
 
 		nodes := make([]base.SuffrageCandidateStateValue, 3)
 		for i := range nodes {
-			nodes[i] = NewSuffrageCandidateStateValue(RandomLocalNode(), base.Height(33), base.Height(55))
+			nodes[i] = NewSuffrageCandidateStateValue(base.RandomLocalNode(), base.Height(33), base.Height(55))
 		}
 
 		stv := NewSuffrageCandidatesStateValue(nodes)
@@ -153,10 +153,10 @@ func TestSuffrageCandidateJSON(tt *testing.T) {
 	t.Encode = func() (interface{}, []byte) {
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
-		t.NoError(enc.Add(encoder.DecodeDetail{Hint: NodeHint, Instance: base.BaseNode{}}))
+		t.NoError(enc.Add(encoder.DecodeDetail{Hint: base.DummyNodeHint, Instance: base.BaseNode{}}))
 		t.NoError(enc.Add(encoder.DecodeDetail{Hint: SuffrageCandidateStateValueHint, Instance: SuffrageCandidateStateValue{}}))
 
-		stv := NewSuffrageCandidateStateValue(RandomLocalNode(), base.Height(33), base.Height(55))
+		stv := NewSuffrageCandidateStateValue(base.RandomLocalNode(), base.Height(33), base.Height(55))
 
 		b, err := util.MarshalJSON(stv)
 		t.NoError(err)

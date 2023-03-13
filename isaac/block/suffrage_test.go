@@ -20,7 +20,7 @@ import (
 type testSuffrageProof struct {
 	isaac.BaseTestBallots
 	isaacdatabase.BaseTestDatabase
-	locals    []isaac.LocalNode
+	locals    []base.LocalNode
 	nodes     []base.Node
 	point     base.Point
 	blockMap  base.BlockMap
@@ -275,7 +275,7 @@ func (t *testSuffrageProof) TestEncode() {
 		{Hint: base.BaseStateHint, Instance: base.BaseState{}},
 		{Hint: isaac.SuffrageNodeStateValueHint, Instance: isaac.SuffrageNodeStateValue{}},
 		{Hint: isaac.SuffrageNodesStateValueHint, Instance: isaac.SuffrageNodesStateValue{}},
-		{Hint: isaac.NodeHint, Instance: base.BaseNode{}},
+		{Hint: base.DummyNodeHint, Instance: base.BaseNode{}},
 		{Hint: isaac.ACCEPTVoteproofHint, Instance: isaac.ACCEPTVoteproof{}},
 		{Hint: isaac.ACCEPTBallotSignFactHint, Instance: isaac.ACCEPTBallotSignFact{}},
 		{Hint: isaac.ACCEPTBallotFactHint, Instance: isaac.ACCEPTBallotFact{}},

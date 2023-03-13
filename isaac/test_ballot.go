@@ -12,13 +12,13 @@ import (
 
 type BaseTestBallots struct {
 	suite.Suite
-	Local       LocalNode
+	Local       base.LocalNode
 	LocalParams *LocalParams
 	PRPool      *proposalPool
 }
 
 func (t *BaseTestBallots) SetupTest() {
-	local := RandomLocalNode()
+	local := base.RandomLocalNode()
 	params := DefaultLocalParams(base.RandomNetworkID())
 	params.SetThreshold(base.Threshold(100))
 
@@ -53,11 +53,11 @@ func (t *BaseTestBallots) NewACCEPTBallotFact(point base.Point, pr, block util.H
 	return NewACCEPTBallotFact(point, pr, block, nil)
 }
 
-func (t *BaseTestBallots) NewProposalFact(point base.Point, local LocalNode, ops []util.Hash) ProposalFact {
+func (t *BaseTestBallots) NewProposalFact(point base.Point, local base.LocalNode, ops []util.Hash) ProposalFact {
 	return NewProposalFact(point, local.Address(), ops)
 }
 
-func (t *BaseTestBallots) NewProposal(local LocalNode, fact ProposalFact) ProposalSignFact {
+func (t *BaseTestBallots) NewProposal(local base.LocalNode, fact ProposalFact) ProposalSignFact {
 	fs := NewProposalSignFact(fact)
 	t.NoError(fs.Sign(local.Privatekey(), t.LocalParams.NetworkID()))
 
@@ -66,10 +66,10 @@ func (t *BaseTestBallots) NewProposal(local LocalNode, fact ProposalFact) Propos
 
 func (t *BaseTestBallots) prepareINITVoteproof(
 	fact base.INITBallotFact,
-	local LocalNode,
-	nodes []LocalNode,
+	local base.LocalNode,
+	nodes []base.LocalNode,
 ) ([]base.BallotSignFact, error) {
-	suffrage := []LocalNode{local}
+	suffrage := []base.LocalNode{local}
 	for i := range nodes {
 		n := nodes[i]
 		if !n.Address().Equal(local.Address()) {
@@ -93,8 +93,8 @@ func (t *BaseTestBallots) prepareINITVoteproof(
 
 func (t *BaseTestBallots) NewINITVoteproof(
 	fact base.INITBallotFact,
-	local LocalNode,
-	nodes []LocalNode,
+	local base.LocalNode,
+	nodes []base.LocalNode,
 ) (INITVoteproof, error) {
 	sfs, err := t.prepareINITVoteproof(fact, local, nodes)
 	if err != nil {
@@ -113,8 +113,8 @@ func (t *BaseTestBallots) NewINITVoteproof(
 
 func (t *BaseTestBallots) NewINITWithdrawVoteproof(
 	fact base.INITBallotFact,
-	local LocalNode,
-	nodes []LocalNode,
+	local base.LocalNode,
+	nodes []base.LocalNode,
 	withdraws []base.SuffrageWithdrawOperation,
 ) (INITWithdrawVoteproof, error) {
 	sfs, err := t.prepareINITVoteproof(fact, local, nodes)
@@ -135,10 +135,10 @@ func (t *BaseTestBallots) NewINITWithdrawVoteproof(
 
 func (t *BaseTestBallots) NewACCEPTVoteproof(
 	fact ACCEPTBallotFact,
-	local LocalNode,
-	nodes []LocalNode,
+	local base.LocalNode,
+	nodes []base.LocalNode,
 ) (ACCEPTVoteproof, error) {
-	suffrage := []LocalNode{local}
+	suffrage := []base.LocalNode{local}
 	for i := range nodes {
 		n := nodes[i]
 		if !n.Address().Equal(local.Address()) {
@@ -167,11 +167,11 @@ func (t *BaseTestBallots) NewACCEPTVoteproof(
 	return vp, nil
 }
 
-func (t *BaseTestBallots) Locals(n int) ([]LocalNode, []base.Node) {
-	suf := make([]LocalNode, n)
+func (t *BaseTestBallots) Locals(n int) ([]base.LocalNode, []base.Node) {
+	suf := make([]base.LocalNode, n)
 	nodes := make([]base.Node, n)
 	for i := range suf {
-		j := RandomLocalNode()
+		j := base.RandomLocalNode()
 		suf[i] = j
 		nodes[i] = j
 	}
@@ -179,7 +179,7 @@ func (t *BaseTestBallots) Locals(n int) ([]LocalNode, []base.Node) {
 	return suf, nodes
 }
 
-func (t *BaseTestBallots) VoteproofsPair(prevpoint, point base.Point, prev, pr, nextpr util.Hash, nodes []LocalNode) (ACCEPTVoteproof, INITVoteproof) {
+func (t *BaseTestBallots) VoteproofsPair(prevpoint, point base.Point, prev, pr, nextpr util.Hash, nodes []base.LocalNode) (ACCEPTVoteproof, INITVoteproof) {
 	if prev == nil {
 		prev = valuehash.RandomSHA256()
 	}
@@ -239,7 +239,7 @@ func (t *BaseTestBallots) NetworkPolicyState(height base.Height, policy NetworkP
 	return st, sv
 }
 
-func (t *BaseTestBallots) Withdraws(height base.Height, withdrawnodes []base.Address, signs []LocalNode) []base.SuffrageWithdrawOperation {
+func (t *BaseTestBallots) Withdraws(height base.Height, withdrawnodes []base.Address, signs []base.LocalNode) []base.SuffrageWithdrawOperation {
 	ops := make([]base.SuffrageWithdrawOperation, len(withdrawnodes))
 
 	for i := range withdrawnodes {

@@ -162,7 +162,7 @@ type testStates struct {
 }
 
 func (t *testStates) SetupSuite() {
-	t.local = isaac.RandomLocalNode()
+	t.local = base.RandomLocalNode()
 	t.params = isaac.DefaultLocalParams(base.RandomNetworkID())
 }
 
@@ -727,9 +727,9 @@ func (t *testStates) TestStoppedByStateStopped() {
 }
 
 func (t *testStates) TestMimicBallot() {
-	local := isaac.RandomLocalNode()
+	local := base.RandomLocalNode()
 	params := isaac.DefaultLocalParams(base.RandomNetworkID())
-	remote := isaac.RandomLocalNode()
+	remote := base.RandomLocalNode()
 
 	point := base.RawPoint(32, 44)
 
@@ -903,7 +903,7 @@ func (t *testStates) TestMimicBallot() {
 
 		t.T().Log("second ballot by another node")
 
-		anotherbl := newINITBallot(isaac.RandomLocalNode(), nil)
+		anotherbl := newINITBallot(base.RandomLocalNode(), nil)
 		mimicBallotFunc(anotherbl)
 
 		select {

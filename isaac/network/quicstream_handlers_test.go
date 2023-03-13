@@ -987,7 +987,7 @@ func (t *testQuicstreamHandlers) TestSendBallots() {
 		var ballots []base.BallotSignFact
 
 		point := base.RawPoint(33, 44)
-		for _, i := range []base.LocalNode{isaac.RandomLocalNode(), isaac.RandomLocalNode()} {
+		for _, i := range []base.LocalNode{base.RandomLocalNode(), base.RandomLocalNode()} {
 			ballots = append(ballots, newballot(point, i))
 		}
 
@@ -1024,7 +1024,7 @@ func (t *testQuicstreamHandlers) TestConcurrentRequestProposal() {
 		if i == 0 {
 			local = t.Local
 		} else {
-			local = isaac.RandomLocalNode()
+			local = base.RandomLocalNode()
 		}
 
 		pool := t.NewPool()

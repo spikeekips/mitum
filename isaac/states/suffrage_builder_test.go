@@ -26,7 +26,7 @@ func (t *baseTestSuffrageStateBuilder) SetupTest() {
 	t.BaseTestDatabase.SetupTest()
 }
 
-func (t *baseTestSuffrageStateBuilder) prepare(point base.Point, previous base.State, locals, newlocals []isaac.LocalNode) isaacblock.SuffrageProof {
+func (t *baseTestSuffrageStateBuilder) prepare(point base.Point, previous base.State, locals, newlocals []base.LocalNode) isaacblock.SuffrageProof {
 	newnodes := make([]base.Node, len(newlocals))
 	for i := range newnodes {
 		newnodes[i] = newlocals[i]
@@ -86,13 +86,13 @@ func (t *baseTestSuffrageStateBuilder) prepare(point base.Point, previous base.S
 }
 
 func (t *baseTestSuffrageStateBuilder) newProofs(n int) map[base.Height]base.SuffrageProof {
-	locals := []isaac.LocalNode{t.Local}
+	locals := []base.LocalNode{t.Local}
 
 	p := base.GenesisPoint
 	proofs := map[base.Height]base.SuffrageProof{}
 	for i := range make([]byte, n) {
 		newnodes, _ := t.Locals(i)
-		newlocals := make([]isaac.LocalNode, len(locals)+len(newnodes))
+		newlocals := make([]base.LocalNode, len(locals)+len(newnodes))
 		copy(newlocals[:len(locals)], locals)
 		copy(newlocals[len(locals):], newnodes)
 

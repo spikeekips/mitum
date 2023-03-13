@@ -278,7 +278,7 @@ func (t *BaseTestLocalBlockFS) PrepareFS(point base.Point, prev, prevSuffrage ut
 	t.NoError(err)
 
 	ifact := t.NewINITBallotFact(point, prev, pr.Fact().Hash())
-	ivp, err := t.NewINITVoteproof(ifact, t.Local, []isaac.LocalNode{t.Local})
+	ivp, err := t.NewINITVoteproof(ifact, t.Local, []base.LocalNode{t.Local})
 	t.NoError(err)
 
 	manifest := isaac.NewManifest(
@@ -292,7 +292,7 @@ func (t *BaseTestLocalBlockFS) PrepareFS(point base.Point, prev, prevSuffrage ut
 	)
 
 	afact := t.NewACCEPTBallotFact(point, pr.Fact().Hash(), manifest.Hash())
-	avp, err := t.NewACCEPTVoteproof(afact, t.Local, []isaac.LocalNode{t.Local})
+	avp, err := t.NewACCEPTVoteproof(afact, t.Local, []base.LocalNode{t.Local})
 	t.NoError(err)
 
 	t.NoError(fs.SetINITVoteproof(ctx, ivp))

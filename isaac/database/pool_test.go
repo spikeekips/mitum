@@ -265,7 +265,7 @@ func TestPool(t *testing.T) {
 type testNewOperationPool struct {
 	isaac.BaseTestBallots
 	BaseTestDatabase
-	local     isaac.LocalNode
+	local     base.LocalNode
 	networkID base.NetworkID
 }
 
@@ -275,7 +275,7 @@ func (t *testNewOperationPool) SetupSuite() {
 	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.DummyOperationFactHint, Instance: isaac.DummyOperationFact{}}))
 	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.DummyOperationHint, Instance: isaac.DummyOperation{}}))
 
-	t.local = isaac.RandomLocalNode()
+	t.local = base.RandomLocalNode()
 	t.networkID = util.UUID().Bytes()
 }
 
@@ -775,7 +775,7 @@ func TestNewOperationPool(t *testing.T) {
 type testSuffrageWithdrawPool struct {
 	isaac.BaseTestBallots
 	BaseTestDatabase
-	local     isaac.LocalNode
+	local     base.LocalNode
 	networkID base.NetworkID
 }
 
@@ -785,7 +785,7 @@ func (t *testSuffrageWithdrawPool) SetupSuite() {
 	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageWithdrawOperationHint, Instance: isaac.SuffrageWithdrawOperation{}}))
 	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageWithdrawFactHint, Instance: isaac.SuffrageWithdrawFact{}}))
 
-	t.local = isaac.RandomLocalNode()
+	t.local = base.RandomLocalNode()
 	t.networkID = util.UUID().Bytes()
 }
 

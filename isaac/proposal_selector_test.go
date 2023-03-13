@@ -120,7 +120,7 @@ func (t *testBaseProposalSelector) newNodes(n int, extra ...base.Node) []base.No
 	nodes := make([]base.Node, n+1)
 
 	for i := range nodes {
-		nodes[i] = RandomLocalNode()
+		nodes[i] = base.RandomLocalNode()
 	}
 
 	for i := range extra {

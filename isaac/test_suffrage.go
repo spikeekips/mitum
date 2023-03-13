@@ -10,17 +10,17 @@ import (
 	"github.com/spikeekips/mitum/base"
 )
 
-func (suf Suffrage) Locals() []LocalNode {
-	locals := make([]LocalNode, suf.Len())
+func (suf Suffrage) Locals() []base.LocalNode {
+	locals := make([]base.LocalNode, suf.Len())
 	for i := range suf.ns {
-		locals[i] = suf.ns[i].(LocalNode)
+		locals[i] = suf.ns[i].(base.LocalNode)
 	}
 
 	return locals
 }
 
-func NewTestSuffrage(n int, extras ...LocalNode) (Suffrage, []LocalNode) {
-	locals := make([]LocalNode, n+len(extras))
+func NewTestSuffrage(n int, extras ...base.LocalNode) (Suffrage, []base.LocalNode) {
+	locals := make([]base.LocalNode, n+len(extras))
 	nodes := make([]base.Node, n+len(extras))
 	for i := range make([]int, n) {
 		l := NewLocalNode(base.NewMPrivatekey(), base.NewStringAddress(fmt.Sprintf("no%02d", i)))

@@ -87,10 +87,14 @@ var Hinters = []encoder.DecodeDetail{
 		Instance: isaacoperation.SuffrageGenesisJoinFact{},
 	},
 	{Hint: isaacstates.MissingBallotsRequestsMessageHint, Instance: isaacstates.MissingBallotsRequestMessage{}},
-	{Hint: quicmemberlist.CallbackBroadcastMessageHint, Instance: quicmemberlist.CallbackBroadcastMessage{}},
+	{Hint: quicmemberlist.ConnInfoBroadcastMessageHint, Instance: quicmemberlist.ConnInfoBroadcastMessage{}},
 	{
 		Hint:     quicmemberlist.CallbackBroadcastMessageHeaderHint,
 		Instance: quicmemberlist.CallbackBroadcastMessageHeader{},
+	},
+	{
+		Hint:     quicmemberlist.EnsureBroadcastMessageHeaderHint,
+		Instance: quicmemberlist.EnsureBroadcastMessageHeader{},
 	},
 	{Hint: quicmemberlist.MemberHint, Instance: quicmemberlist.BaseMember{}},
 	{Hint: quicstream.DefaultResponseHeaderHint, Instance: quicstream.DefaultResponseHeader{}},

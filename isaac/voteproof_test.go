@@ -15,12 +15,12 @@ import (
 
 type testVoteproof struct {
 	suite.Suite
-	local     LocalNode
+	local     base.LocalNode
 	networkID base.NetworkID
 }
 
 func (t *testVoteproof) SetupTest() {
-	t.local = RandomLocalNode()
+	t.local = base.RandomLocalNode()
 	t.networkID = base.NetworkID(util.UUID().Bytes())
 }
 
@@ -233,7 +233,7 @@ func (t *testVoteproof) TestWrongMajorityWithSuffrage() {
 
 	fact := NewINITBallotFact(base.RawPoint(33, 55), valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
 
-	newsignfact := func(node LocalNode) INITBallotSignFact {
+	newsignfact := func(node base.LocalNode) INITBallotSignFact {
 		signfact := NewINITBallotSignFact(fact)
 
 		t.NoError(signfact.NodeSign(node.Privatekey(), t.networkID, node.Address()))
@@ -355,8 +355,8 @@ func (t *testVoteproof) TestINITWithWithdraws() {
 	t.Run("ok: 1/4 withdraw node", func() {
 		point := base.RawPoint(33, 0)
 
-		withdrawnode := RandomLocalNode()
-		nodes := []base.Node{t.local, RandomLocalNode(), RandomLocalNode(), withdrawnode}
+		withdrawnode := base.RandomLocalNode()
+		nodes := []base.Node{t.local, base.RandomLocalNode(), base.RandomLocalNode(), withdrawnode}
 		suf, err := NewSuffrage(nodes)
 		t.NoError(err)
 
@@ -378,8 +378,8 @@ func (t *testVoteproof) TestINITWithWithdraws() {
 	t.Run("ok: 2/5 withdraw nodes", func() {
 		point := base.RawPoint(33, 0)
 
-		nodes := []base.Node{t.local, RandomLocalNode(), RandomLocalNode()}
-		withdrawnodes := []base.Node{RandomLocalNode(), RandomLocalNode()}
+		nodes := []base.Node{t.local, base.RandomLocalNode(), base.RandomLocalNode()}
+		withdrawnodes := []base.Node{base.RandomLocalNode(), base.RandomLocalNode()}
 		nodes = append(nodes, withdrawnodes...)
 
 		suf, err := NewSuffrage(nodes)
@@ -403,8 +403,8 @@ func (t *testVoteproof) TestINITWithWithdraws() {
 	t.Run("ok: draw, withdraw nodes", func() {
 		point := base.RawPoint(33, 0)
 
-		nodes := []base.Node{t.local, RandomLocalNode(), RandomLocalNode()}
-		withdrawnodes := []base.Node{RandomLocalNode(), RandomLocalNode()}
+		nodes := []base.Node{t.local, base.RandomLocalNode(), base.RandomLocalNode()}
+		withdrawnodes := []base.Node{base.RandomLocalNode(), base.RandomLocalNode()}
 		nodes = append(nodes, withdrawnodes...)
 
 		suf, err := NewSuffrage(nodes)
@@ -428,8 +428,8 @@ func (t *testVoteproof) TestINITWithWithdraws() {
 	t.Run("ok: 2/5 withdraw nodes, but not enough signs", func() {
 		point := base.RawPoint(33, 0)
 
-		nodes := []base.Node{t.local, RandomLocalNode(), RandomLocalNode()}
-		withdrawnodes := []base.Node{RandomLocalNode(), RandomLocalNode()}
+		nodes := []base.Node{t.local, base.RandomLocalNode(), base.RandomLocalNode()}
+		withdrawnodes := []base.Node{base.RandomLocalNode(), base.RandomLocalNode()}
 		nodes = append(nodes, withdrawnodes...)
 
 		suf, err := NewSuffrage(nodes)
@@ -456,8 +456,8 @@ func (t *testVoteproof) TestINITWithWithdraws() {
 	t.Run("ok, but is stuck", func() {
 		point := base.RawPoint(33, 0)
 
-		withdrawnode := RandomLocalNode()
-		nodes := []base.Node{t.local, RandomLocalNode(), RandomLocalNode(), withdrawnode}
+		withdrawnode := base.RandomLocalNode()
+		nodes := []base.Node{t.local, base.RandomLocalNode(), base.RandomLocalNode(), withdrawnode}
 		suf, err := NewSuffrage(nodes)
 		t.NoError(err)
 
@@ -492,8 +492,8 @@ func (t *testVoteproof) TestINITWithSIGN() {
 	t.Run("all signs", func() {
 		point := base.RawPoint(33, 1)
 
-		withdrawnode := RandomLocalNode()
-		nodes := []base.Node{t.local, RandomLocalNode(), RandomLocalNode(), withdrawnode}
+		withdrawnode := base.RandomLocalNode()
+		nodes := []base.Node{t.local, base.RandomLocalNode(), base.RandomLocalNode(), withdrawnode}
 		suf, err := NewSuffrage(nodes)
 		t.NoError(err)
 
@@ -532,8 +532,8 @@ func (t *testVoteproof) TestINITWithSIGN() {
 	t.Run("mixed signs", func() {
 		point := base.RawPoint(33, 1)
 
-		withdrawnode := RandomLocalNode()
-		nodes := []base.Node{t.local, RandomLocalNode(), RandomLocalNode(), withdrawnode}
+		withdrawnode := base.RandomLocalNode()
+		nodes := []base.Node{t.local, base.RandomLocalNode(), base.RandomLocalNode(), withdrawnode}
 		suf, err := NewSuffrage(nodes)
 		t.NoError(err)
 
@@ -589,7 +589,7 @@ func (t *testVoteproof) TestStuckVoteproof() {
 	localnodes[0] = t.local
 	nodes[0] = t.local
 	for i := range nodes[1:] {
-		n := RandomLocalNode()
+		n := base.RandomLocalNode()
 		nodes[i+1] = n
 		localnodes[i+1] = n
 	}
@@ -726,7 +726,7 @@ func TestINITVoteproofJSON(tt *testing.T) {
 
 		sfs := make([]base.BallotSignFact, 2)
 		for i := range sfs {
-			node := RandomLocalNode()
+			node := base.RandomLocalNode()
 			fact := NewINITBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
 			sf := NewINITBallotSignFact(fact)
 			t.NoError(sf.NodeSign(node.Privatekey(), t.networkID, node.Address()))
@@ -773,7 +773,7 @@ func TestINITWithdrawVoteproofJSON(tt *testing.T) {
 
 		sfs := make([]base.BallotSignFact, 2)
 		for i := range sfs {
-			node := RandomLocalNode()
+			node := base.RandomLocalNode()
 			fact := NewINITBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), []util.Hash{withdrawfact.Hash()})
 			sf := NewINITBallotSignFact(fact)
 			t.NoError(sf.NodeSign(node.Privatekey(), t.networkID, node.Address()))
@@ -826,7 +826,7 @@ func TestINITStuckVoteproofJSON(tt *testing.T) {
 
 		sfs := make([]base.BallotSignFact, 2)
 		for i := range sfs {
-			node := RandomLocalNode()
+			node := base.RandomLocalNode()
 			fact := NewINITBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), []util.Hash{withdrawfact.Hash()})
 			sf := NewINITBallotSignFact(fact)
 			t.NoError(sf.NodeSign(node.Privatekey(), t.networkID, node.Address()))
