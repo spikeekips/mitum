@@ -6,8 +6,10 @@ import (
 	"github.com/hashicorp/memberlist"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
+	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
+	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
 )
 
@@ -50,26 +52,26 @@ func (b *Broadcast) MarshalZerologObject(e *zerolog.Event) {
 	e.Str("id", b.id)
 }
 
-var CallbackBroadcastMessageHint = hint.MustNewHint("callback-broadcast-message-v0.0.1")
+var ConnInfoBroadcastMessageHint = hint.MustNewHint("conninfo-broadcast-message-v0.0.1")
 
-type CallbackBroadcastMessage struct {
+type ConnInfoBroadcastMessage struct {
 	id string
 	ci quicstream.UDPConnInfo
 	hint.BaseHinter
 }
 
-func NewCallbackBroadcastMessage(id string, ci quicstream.UDPConnInfo) CallbackBroadcastMessage {
-	return CallbackBroadcastMessage{
-		BaseHinter: hint.NewBaseHinter(CallbackBroadcastMessageHint),
+func NewConnInfoBroadcastMessage(id string, ci quicstream.UDPConnInfo) ConnInfoBroadcastMessage {
+	return ConnInfoBroadcastMessage{
+		BaseHinter: hint.NewBaseHinter(ConnInfoBroadcastMessageHint),
 		id:         id,
 		ci:         ci,
 	}
 }
 
-func (m CallbackBroadcastMessage) IsValid([]byte) error {
-	e := util.ErrInvalid.Errorf("invalid CallbackBroadcastMessage")
+func (m ConnInfoBroadcastMessage) IsValid([]byte) error {
+	e := util.ErrInvalid.Errorf("invalid ConnInfoBroadcastMessage")
 
-	if err := m.BaseHinter.IsValid(CallbackBroadcastMessageHint.Type().Bytes()); err != nil {
+	if err := m.BaseHinter.IsValid(ConnInfoBroadcastMessageHint.Type().Bytes()); err != nil {
 		return e.Wrap(err)
 	}
 
@@ -84,33 +86,33 @@ func (m CallbackBroadcastMessage) IsValid([]byte) error {
 	return nil
 }
 
-func (m CallbackBroadcastMessage) ID() string {
+func (m ConnInfoBroadcastMessage) ID() string {
 	return m.id
 }
 
-func (m CallbackBroadcastMessage) ConnInfo() quicstream.UDPConnInfo {
+func (m ConnInfoBroadcastMessage) ConnInfo() quicstream.UDPConnInfo {
 	return m.ci
 }
 
-type callbackBroadcastMessageJSONMarshaler struct {
+type connInfoBroadcastMessageJSONMarshaler struct {
 	ID string                 `json:"id"`
 	CI quicstream.UDPConnInfo `json:"conn_info"` //nolint:tagliatelle //...
 	hint.BaseHinter
 }
 
-func (m CallbackBroadcastMessage) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(callbackBroadcastMessageJSONMarshaler{
+func (m ConnInfoBroadcastMessage) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(connInfoBroadcastMessageJSONMarshaler{
 		BaseHinter: m.BaseHinter,
 		ID:         m.id,
 		CI:         m.ci,
 	})
 }
 
-func (m *CallbackBroadcastMessage) UnmarshalJSON(b []byte) error {
-	var u callbackBroadcastMessageJSONMarshaler
+func (m *ConnInfoBroadcastMessage) UnmarshalJSON(b []byte) error {
+	var u connInfoBroadcastMessageJSONMarshaler
 
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return errors.WithMessage(err, "failed to decode CallbackBroadcastMessage")
+		return errors.WithMessage(err, "failed to decode ConnInfoBroadcastMessage")
 	}
 
 	m.id = u.ID
@@ -119,7 +121,7 @@ func (m *CallbackBroadcastMessage) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-var CallbackBroadcastMessageHeaderHint = hint.MustNewHint("callback-message-header-v0.0.1")
+var CallbackBroadcastMessageHeaderHint = hint.MustNewHint("callback-broadcast-message-header-v0.0.1")
 
 type CallbackBroadcastMessageHeader struct {
 	id string
@@ -177,6 +179,95 @@ func (h *CallbackBroadcastMessageHeader) UnmarshalJSON(b []byte) error {
 	}
 
 	if err := util.UnmarshalJSON(b, &h.BaseHeader); err != nil {
+		return e(err, "")
+	}
+
+	h.id = u.ID
+
+	return nil
+}
+
+var EnsureBroadcastMessageHeaderHint = hint.MustNewHint("ensure-broadcast-message-header-v0.0.1")
+
+type EnsureBroadcastMessageHeader struct {
+	id string
+	base.BaseNodeSign
+	quicstream.BaseHeader
+}
+
+func NewEnsureBroadcastMessageHeader(
+	id,
+	prefix string,
+	node base.Address,
+	signer base.Privatekey,
+	networkID base.NetworkID,
+) (EnsureBroadcastMessageHeader, error) {
+	nodeSign, err := base.NewBaseNodeSignFromBytes(node, signer, networkID, []byte(id))
+	if err != nil {
+		return EnsureBroadcastMessageHeader{}, err
+	}
+
+	return EnsureBroadcastMessageHeader{
+		BaseHeader:   quicstream.NewBaseHeader(EnsureBroadcastMessageHeaderHint, prefix),
+		BaseNodeSign: nodeSign,
+		id:           id,
+	}, nil
+}
+
+func (h EnsureBroadcastMessageHeader) IsValid([]byte) error {
+	e := util.ErrInvalid.Errorf("invalid EnsureBroadcastMessageHeader")
+
+	if err := h.BaseHinter.IsValid(EnsureBroadcastMessageHeaderHint.Type().Bytes()); err != nil {
+		return e.Wrap(err)
+	}
+
+	if err := h.BaseNodeSign.IsValid(nil); err != nil {
+		return e.Wrap(err)
+	}
+
+	if len(h.id) < 1 {
+		return e.Errorf("empty id")
+	}
+
+	return nil
+}
+
+func (h EnsureBroadcastMessageHeader) ID() string {
+	return h.id
+}
+
+type ensureBroadcastMessageHeaderJSONMarshaler struct {
+	ID string `json:"id"`
+}
+
+func (h EnsureBroadcastMessageHeader) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(struct {
+		ensureBroadcastMessageHeaderJSONMarshaler
+		base.BaseNodeSignJSONMarshaler
+		quicstream.BaseHeaderJSONMarshaler
+	}{
+		BaseHeaderJSONMarshaler:   h.BaseHeader.JSONMarshaler(),
+		BaseNodeSignJSONMarshaler: h.BaseNodeSign.JSONMarshaler(),
+		ensureBroadcastMessageHeaderJSONMarshaler: ensureBroadcastMessageHeaderJSONMarshaler{
+			ID: h.id,
+		},
+	})
+}
+
+func (h *EnsureBroadcastMessageHeader) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+	e := util.StringErrorFunc("failed to unmarshal EnsureBroadcastMessageHeader")
+
+	var u ensureBroadcastMessageHeaderJSONMarshaler
+
+	if err := enc.Unmarshal(b, &u); err != nil {
+		return e(err, "")
+	}
+
+	if err := enc.Unmarshal(b, &h.BaseHeader); err != nil {
+		return e(err, "")
+	}
+
+	if err := h.BaseNodeSign.DecodeJSON(b, enc); err != nil {
 		return e(err, "")
 	}
 

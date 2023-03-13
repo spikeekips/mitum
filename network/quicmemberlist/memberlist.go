@@ -21,17 +21,22 @@ import (
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
+	"github.com/spikeekips/mitum/util/localtime"
 	"github.com/spikeekips/mitum/util/logging"
 	"golang.org/x/sync/singleflight"
 )
 
-var callbackBroadcastMessageHeaderPrefix = []byte("memberlist-callback-message")
+var (
+	callbackBroadcastMessageHeaderPrefix = []byte("memberlist-callback-message")
+	ensureBroadcastMessageHeaderPrefix   = []byte("memberlist-ensure-message")
+)
 
 type MemberlistArgs struct {
 	Encoder                           *jsonenc.Encoder
 	Config                            *memberlist.Config
 	PatchedConfig                     *memberlist.Config
-	FetchCallbackBroadcastMessageFunc func(context.Context, CallbackBroadcastMessage) ([]byte, encoder.Encoder, error)
+	FetchCallbackBroadcastMessageFunc func(context.Context, ConnInfoBroadcastMessage) ([]byte, encoder.Encoder, error)
+	PongEnsureBroadcastMessageFunc    func(context.Context, ConnInfoBroadcastMessage) error
 	WhenLeftFunc                      func(Member)
 	// Member, which has same node address will be allowed to join up to
 	// ExtraSameMemberLimit - 1. If ExtraSameMemberLimit is 0, only 1 member is
@@ -44,6 +49,8 @@ type MemberlistArgs struct {
 	ChallengeExpire                      time.Duration
 	CallbackBroadcastMessageExpire       time.Duration
 	FetchCallbackBroadcastMessageTimeout time.Duration
+	PongEnsureBroadcastMessageTimeout    time.Duration
+	PongEnsureBroadcastMessageExpire     time.Duration
 }
 
 func NewMemberlistArgs(enc *jsonenc.Encoder, config *memberlist.Config) *MemberlistArgs {
@@ -56,10 +63,15 @@ func NewMemberlistArgs(enc *jsonenc.Encoder, config *memberlist.Config) *Memberl
 		ChallengeExpire:                      defaultNodeChallengeExpire,
 		CallbackBroadcastMessageExpire:       time.Second * 30, //nolint:gomnd //...
 		FetchCallbackBroadcastMessageTimeout: time.Second * 6,  //nolint:gomnd //...
-		FetchCallbackBroadcastMessageFunc: func(context.Context, CallbackBroadcastMessage) (
+		FetchCallbackBroadcastMessageFunc: func(context.Context, ConnInfoBroadcastMessage) (
 			[]byte, encoder.Encoder, error,
 		) {
 			return nil, nil, util.ErrNotImplemented.Errorf("FetchCallbackBroadcastMessageFunc")
+		},
+		PongEnsureBroadcastMessageTimeout: time.Second * 3, //nolint:gomnd //...
+		PongEnsureBroadcastMessageExpire:  time.Second * 9, //nolint:gomnd //...
+		PongEnsureBroadcastMessageFunc: func(context.Context, ConnInfoBroadcastMessage) error {
+			return util.ErrNotImplemented.Errorf("PongEnsureBroadcastMessageFunc")
 		},
 	}
 }
@@ -74,21 +86,35 @@ type Memberlist struct {
 	members    *membersPool
 	cicache    *util.GCache[string, quicstream.UDPConnInfo]
 	cbcache    *util.GCache[string, []byte]
+	ebtimers   *util.SimpleTimers
+	ebrecords  util.LockedMap[string, []base.Address]
 	l          sync.RWMutex
 	joinedLock sync.RWMutex
 	isJoined   bool
 }
 
 func NewMemberlist(local Member, args *MemberlistArgs) (*Memberlist, error) {
+	ebtimers, err := util.NewSimpleTimers(1<<13, time.Millisecond*33) //nolint:gomnd //...
+	if err != nil {
+		return nil, err
+	}
+
+	ebrecords, err := util.NewLockedMap("", ([]base.Address)(nil), 1<<13) //nolint:gomnd //...
+	if err != nil {
+		return nil, err
+	}
+
 	srv := &Memberlist{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
 			return zctx.Str("module", "memberlist").Str("name", args.Config.Name)
 		}),
-		local:   local,
-		args:    args,
-		members: newMembersPool(),
-		cicache: util.NewLRUGCache("", quicstream.UDPConnInfo{}, 1<<9), //nolint:gomnd //...
-		cbcache: util.NewLRUGCache("", ([]byte)(nil), 1<<13),           //nolint:gomnd //...
+		local:     local,
+		args:      args,
+		members:   newMembersPool(),
+		cicache:   util.NewLRUGCache("", quicstream.UDPConnInfo{}, 1<<9), //nolint:gomnd //...
+		cbcache:   util.NewLRUGCache("", ([]byte)(nil), 1<<13),           //nolint:gomnd //...
+		ebrecords: ebrecords,
+		ebtimers:  ebtimers,
 	}
 
 	if err := srv.patch(args.Config); err != nil {
@@ -113,6 +139,10 @@ func (srv *Memberlist) Start(ctx context.Context) error {
 
 func (srv *Memberlist) Join(cis []quicstream.UDPConnInfo) error {
 	e := util.StringErrorFunc("failed to join")
+
+	if len(cis) < 1 {
+		return e(nil, "empty conninfos")
+	}
 
 	if _, found := util.IsDuplicatedSlice(cis, func(i quicstream.UDPConnInfo) (bool, string) {
 		if i.Addr() == nil {
@@ -254,8 +284,6 @@ func (srv *Memberlist) CallbackBroadcast(b []byte, id string, notifych chan stru
 		return nil
 	}
 
-	e := util.StringErrorFunc("failed callback broadcast")
-
 	// NOTE save b in cache first
 	srv.cbcache.Set(id, b, srv.args.CallbackBroadcastMessageExpire)
 
@@ -263,9 +291,9 @@ func (srv *Memberlist) CallbackBroadcast(b []byte, id string, notifych chan stru
 	defer buf.Reset()
 
 	switch err := srv.args.Encoder.StreamEncoder(buf).Encode(
-		NewCallbackBroadcastMessage(id, srv.local.UDPConnInfo())); {
+		NewConnInfoBroadcastMessage(id, srv.local.UDPConnInfo())); {
 	case err != nil:
-		return e(err, "")
+		return err
 	default:
 		srv.Broadcast(NewBroadcast(buf.Bytes(), id, notifych))
 	}
@@ -318,10 +346,169 @@ func (srv *Memberlist) CallbackBroadcastHandler() quicstream.HeaderHandler {
 	}
 }
 
+func (srv *Memberlist) EnsureBroadcast(
+	b []byte,
+	id string,
+	notifych chan<- error,
+	interval time.Duration,
+	threshold float64,
+	maxRetry uint64,
+) error {
+	if !srv.canBroadcast() {
+		if notifych != nil {
+			close(notifych)
+		}
+
+		return nil
+	}
+
+	th := base.Threshold(threshold)
+	if err := th.IsValid(nil); err != nil {
+		return err
+	}
+
+	buf := bytes.NewBuffer(ensureBroadcastMessageHeaderPrefix)
+
+	switch i, err := srv.args.Encoder.Marshal(NewConnInfoBroadcastMessage(id, srv.local.UDPConnInfo())); {
+	case err != nil:
+		return err
+	default:
+		if err := util.LengthedBytes(buf, i); err != nil {
+			return err
+		}
+
+		if _, err := buf.Write(b); err != nil {
+			return errors.WithStack(err)
+		}
+	}
+
+	var notifyonce sync.Once
+
+	notify := func(err error) {
+		if notifych == nil {
+			return
+		}
+
+		notifyonce.Do(func() {
+			notifych <- err
+		})
+	}
+
+	timer := util.NewSimpleTimer(
+		util.TimerID(id),
+		func(i uint64) time.Duration {
+			switch {
+			case srv.broadcastEnsured(id, th):
+				notify(nil)
+
+				return 0
+			case i == maxRetry+1:
+				notify(errors.Errorf("over max retry"))
+
+				return 0
+			}
+
+			return interval
+		},
+		func(context.Context, uint64) (bool, error) {
+			if srv.broadcastEnsured(id, th) {
+				notify(nil)
+
+				return false, nil
+			}
+
+			srv.Broadcast(NewBroadcast(buf.Bytes(), id, nil))
+
+			return true, nil
+		},
+		func() {
+			_ = srv.ebrecords.RemoveValue(id)
+
+			buf.Reset()
+		},
+	)
+
+	switch added, err := srv.ebtimers.NewTimer(timer); {
+	case err != nil:
+		return err
+	case added:
+		_ = srv.ebrecords.SetValue(id, nil)
+	}
+
+	return nil
+}
+
+func (srv *Memberlist) EnsureBroadcastHandler(
+	networkID base.NetworkID,
+	memberf func(base.Address) (base.Publickey, bool, error),
+) quicstream.HeaderHandler {
+	return func(_ net.Addr, r io.Reader, w io.Writer,
+		h quicstream.Header, _ *encoder.Encoders, enc encoder.Encoder,
+	) error {
+		e := util.StringErrorFunc("failed to handle ensure message")
+
+		var header EnsureBroadcastMessageHeader
+
+		switch i, ok := h.(EnsureBroadcastMessageHeader); {
+		case !ok:
+			return e(nil, "expected EnsureBroadcastMessageHeader, but %T", h)
+		default:
+			switch pub, found, err := memberf(i.Node()); {
+			case err != nil:
+				return e(err, "")
+			case !found:
+				return e(nil, "unknown node")
+			case localtime.Now().Sub(i.SignedAt()) > srv.args.PongEnsureBroadcastMessageExpire:
+				return e(nil, "signed too late")
+			case !i.Signer().Equal(pub):
+				return e(nil, "publickey mismatch")
+			default:
+				if err := i.Verify(networkID, []byte(i.ID())); err != nil {
+					return e(err, "")
+				}
+			}
+
+			header = i
+		}
+
+		var isset bool
+
+		_, _ = srv.ebrecords.Set(header.ID(), func(nodes []base.Address, found bool) ([]base.Address, error) {
+			if !found {
+				return nil, util.ErrLockedSetIgnore.Call()
+			}
+
+			if util.InSliceFunc(nodes, func(i base.Address) bool {
+				return i.Equal(header.Node())
+			}) >= 0 {
+				return nil, util.ErrLockedSetIgnore.Call()
+			}
+
+			nodes = append(nodes, header.Node())
+			isset = true
+
+			return nodes, nil
+		})
+
+		if err := quicstream.WriteResponseBytes(w,
+			quicstream.NewDefaultResponseHeader(isset, nil, quicstream.RawContentType), enc, nil); err != nil {
+			return e(err, "")
+		}
+
+		return nil
+	}
+}
+
 func (srv *Memberlist) start(ctx context.Context) error {
 	defer srv.cicache.Close()
 
+	if err := srv.ebtimers.Start(ctx); err != nil {
+		return err
+	}
+
 	<-ctx.Done()
+
+	_ = srv.ebtimers.Stop()
 
 	if err := func() error {
 		if !func() bool {
@@ -525,13 +712,22 @@ func (srv *Memberlist) notifyMsgFunc(f func([]byte, encoder.Encoder)) func([]byt
 		body := b
 		var enc encoder.Encoder = srv.args.Encoder
 
-		if bytes.HasPrefix(body, callbackBroadcastMessageHeaderPrefix) {
+		switch {
+		case bytes.HasPrefix(body, callbackBroadcastMessageHeaderPrefix):
 			switch i, e, err := srv.notifyMsgCallbackBroadcastMessage(
 				body[len(callbackBroadcastMessageHeaderPrefix):]); {
 			case err != nil:
 				return
 			default:
 				enc = e
+				body = i
+			}
+		case bytes.HasPrefix(body, ensureBroadcastMessageHeaderPrefix):
+			switch i, err := srv.notifyMsgEnsureBroadcastMessage(
+				body[len(ensureBroadcastMessageHeaderPrefix):]); {
+			case err != nil:
+				return
+			default:
 				body = i
 			}
 		}
@@ -541,7 +737,7 @@ func (srv *Memberlist) notifyMsgFunc(f func([]byte, encoder.Encoder)) func([]byt
 }
 
 func (srv *Memberlist) notifyMsgCallbackBroadcastMessage(b []byte) ([]byte, encoder.Encoder, error) {
-	var m CallbackBroadcastMessage
+	var m ConnInfoBroadcastMessage
 
 	switch i, err := srv.args.Encoder.Decode(b); {
 	case err != nil:
@@ -551,7 +747,7 @@ func (srv *Memberlist) notifyMsgCallbackBroadcastMessage(b []byte) ([]byte, enco
 	default:
 		srv.Log().Trace().Err(err).Interface("message", i).Msg("new message notified")
 
-		j, ok := i.(CallbackBroadcastMessage)
+		j, ok := i.(ConnInfoBroadcastMessage)
 		if !ok {
 			srv.Log().Trace().Err(err).
 				Str("message_type", fmt.Sprintf("%T", i)).
@@ -561,7 +757,7 @@ func (srv *Memberlist) notifyMsgCallbackBroadcastMessage(b []byte) ([]byte, enco
 		}
 
 		if err := j.IsValid(nil); err != nil {
-			srv.Log().Trace().Err(err).Msg("invalid CallbackBroadcastMessage")
+			srv.Log().Trace().Err(err).Msg("invalid ConnInfoBroadcastMessage")
 
 			return nil, nil, err
 		}
@@ -585,6 +781,39 @@ func (srv *Memberlist) notifyMsgCallbackBroadcastMessage(b []byte) ([]byte, enco
 	default:
 		return body, enc, nil
 	}
+}
+
+func (srv *Memberlist) notifyMsgEnsureBroadcastMessage(b []byte) ([]byte, error) {
+	var m ConnInfoBroadcastMessage
+	var left []byte
+
+	switch i, j, err := util.ReadLengthedBytes(b); {
+	case err != nil:
+		return nil, err
+	default:
+		if err := encoder.Decode(srv.args.Encoder, i, &m); err != nil {
+			return nil, err
+		}
+
+		if err := m.IsValid(nil); err != nil {
+			srv.Log().Trace().Err(err).Msg("invalid ConnInfoBroadcastMessage")
+
+			return nil, err
+		}
+
+		left = j
+	}
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), srv.args.PongEnsureBroadcastMessageTimeout)
+		defer cancel()
+
+		if err := srv.args.PongEnsureBroadcastMessageFunc(ctx, m); err != nil {
+			srv.Log().Error().Err(err).Msg("failed to pong ensure broadcast message")
+		}
+	}()
+
+	return left, nil
 }
 
 func (srv *Memberlist) allowMember(member Member) error {
@@ -643,6 +872,37 @@ func (srv *Memberlist) canBroadcast() bool {
 	}
 
 	return true
+}
+
+func (srv *Memberlist) broadcastEnsured(id string, threshold base.Threshold) bool {
+	return srv.ebrecords.Get(id, func(nodes []base.Address, found bool) error {
+		switch {
+		case !found:
+			return util.ErrNotFound.Call()
+		case len(nodes) < 1:
+			return errors.Errorf("not yet ensured")
+		}
+
+		var total, count uint
+
+		srv.Remotes(func(member Member) bool {
+			total++
+
+			if util.InSliceFunc(nodes, func(i base.Address) bool {
+				return i.Equal(member.Address())
+			}) >= 0 {
+				count++
+			}
+
+			return true
+		})
+
+		if count < threshold.Threshold(total) {
+			return errors.Errorf("not yet ensured")
+		}
+
+		return nil
+	}) == nil
 }
 
 func BasicMemberlistConfig(name string, bind, advertise *net.UDPAddr) *memberlist.Config {
@@ -838,17 +1098,17 @@ func RandomAliveMembers(
 func FetchCallbackBroadcastMessageFunc(
 	handlerPrefix string,
 	requestf quicstream.HeaderClientRequestFunc,
-) func(context.Context, CallbackBroadcastMessage) (
+) func(context.Context, ConnInfoBroadcastMessage) (
 	[]byte, encoder.Encoder, error,
 ) {
-	return func(ctx context.Context, m CallbackBroadcastMessage) (
+	return func(ctx context.Context, m ConnInfoBroadcastMessage) (
 		[]byte, encoder.Encoder, error,
 	) {
 		h := NewCallbackBroadcastMessageHeader(m.ID(), handlerPrefix)
 
-		res, r, cancel, enc, rerr := requestf(ctx, m.ConnInfo(), h, nil)
-		if rerr != nil {
-			return nil, enc, rerr
+		res, r, cancel, enc, err := requestf(ctx, m.ConnInfo(), h, nil)
+		if err != nil {
+			return nil, enc, err
 		}
 
 		defer func() {
@@ -867,6 +1127,39 @@ func FetchCallbackBroadcastMessageFunc(
 			}
 
 			return b, enc, nil
+		}
+	}
+}
+
+func PongEnsureBroadcastMessageFunc(
+	handlerPrefix string,
+	node base.Address,
+	signer base.Privatekey,
+	networkID base.NetworkID,
+	requestf quicstream.HeaderClientRequestFunc,
+) func(context.Context, ConnInfoBroadcastMessage) error {
+	return func(ctx context.Context, m ConnInfoBroadcastMessage) error {
+		h, err := NewEnsureBroadcastMessageHeader(m.ID(), handlerPrefix, node, signer, networkID)
+		if err != nil {
+			return err
+		}
+
+		res, _, cancel, _, err := requestf(ctx, m.ConnInfo(), h, nil)
+		if err != nil {
+			return err
+		}
+
+		defer func() {
+			_ = cancel()
+		}()
+
+		switch {
+		case !res.OK():
+			return nil
+		case res.Err() != nil:
+			return res.Err()
+		default:
+			return nil
 		}
 	}
 }

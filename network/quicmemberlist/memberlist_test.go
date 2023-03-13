@@ -37,8 +37,9 @@ func (t *testMemberlist) SetupSuite() {
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: MemberHint, Instance: BaseMember{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: CallbackBroadcastMessageHint, Instance: CallbackBroadcastMessage{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ConnInfoBroadcastMessageHint, Instance: ConnInfoBroadcastMessage{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: CallbackBroadcastMessageHeaderHint, Instance: CallbackBroadcastMessageHeader{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: EnsureBroadcastMessageHeaderHint, Instance: EnsureBroadcastMessageHeader{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: quicstream.DefaultResponseHeaderHint, Instance: quicstream.DefaultResponseHeader{}}))
 }
 
@@ -957,6 +958,74 @@ func (t *testMemberlist) checkJoined(
 	}
 }
 
+func (t *testMemberlist) checkJoined2(
+	lsrv *Memberlist,
+	ljoinedch chan struct{},
+	rsrvs []*Memberlist,
+	rjoinedchs []chan struct{},
+) {
+	rcis := make([]quicstream.UDPConnInfo, len(rsrvs))
+
+	expectedjoined := make([]string, len(rsrvs)+1)
+	expectedjoined[0] = lsrv.local.UDPConnInfo().String()
+	for i := range rsrvs {
+		rcis[i] = rsrvs[i].local.UDPConnInfo()
+		expectedjoined[i+1] = rsrvs[i].local.UDPConnInfo().String()
+	}
+
+	sort.Slice(expectedjoined, func(i, j int) bool {
+		return strings.Compare(expectedjoined[i], expectedjoined[j]) < 0
+	})
+
+	t.T().Log("rcis:", rcis)
+	t.NoError(lsrv.Join(rcis))
+
+	select {
+	case <-time.After(time.Second * 2):
+		t.NoError(errors.Errorf("local failed to join to remote"))
+	case <-ljoinedch:
+		t.Equal(len(rsrvs)+1, lsrv.MembersLen())
+
+		var joined []string
+		lsrv.Members(func(node Member) bool {
+			joined = append(joined, node.UDPConnInfo().String())
+
+			return true
+		})
+		t.Equal(len(rsrvs)+1, len(joined))
+
+		sort.Slice(joined, func(i, j int) bool {
+			return strings.Compare(joined[i], joined[j]) < 0
+		})
+		t.Equal(expectedjoined, joined)
+	}
+
+	for i := range rjoinedchs {
+		srv := rsrvs[i]
+		ch := rjoinedchs[i]
+
+		select {
+		case <-time.After(time.Second * 2):
+			t.NoError(errors.Errorf("remote failed to join"))
+		case <-ch:
+			t.Equal(len(rsrvs)+1, srv.MembersLen())
+
+			var joined []string
+			srv.Members(func(node Member) bool {
+				joined = append(joined, node.UDPConnInfo().String())
+
+				return true
+			})
+			t.Equal(len(rsrvs)+1, len(joined))
+
+			sort.Slice(joined, func(i, j int) bool {
+				return strings.Compare(joined[i], joined[j]) < 0
+			})
+			t.Equal(expectedjoined, joined)
+		}
+	}
+}
+
 func (t *testMemberlist) TestBroadcast() {
 	lci := t.newConnInfo()
 	lnode := base.RandomAddress("")
@@ -1030,11 +1099,6 @@ func (t *testMemberlist) TestCallbackBroadcast() {
 	rci := t.newConnInfo()
 	rnode := base.RandomAddress("")
 
-	addrs := []*net.UDPAddr{lci.UDPAddr(), rci.UDPAddr()}
-	sort.Slice(addrs, func(i, j int) bool {
-		return strings.Compare(addrs[i].String(), addrs[j].String()) < 0
-	})
-
 	ljoinedch := make(chan Member, 1)
 	rjoinedch := make(chan Member, 1)
 	lph, lsrv, lstartf, lstopf := t.newServersForJoining(
@@ -1087,29 +1151,7 @@ func (t *testMemberlist) TestCallbackBroadcast() {
 
 	notfoundid := util.UUID().String()
 
-	rsrv.args.FetchCallbackBroadcastMessageFunc = func(ctx context.Context, m CallbackBroadcastMessage) ([]byte, encoder.Encoder, error) {
-		if m.ID() == notfoundid {
-			return nil, nil, nil
-		}
-
-		h := NewCallbackBroadcastMessageHeader(m.ID(), callbackhandlerprefix)
-
-		_, r, cancel, enc, err := lcl.RequestBody(ctx, m.ConnInfo(), h, nil)
-		if err != nil {
-			return nil, enc, err
-		}
-
-		defer cancel()
-
-		b, err := io.ReadAll(r)
-		if err != nil {
-			return nil, enc, err
-		}
-
-		return b, enc, nil
-	}
-
-	rsrv.args.FetchCallbackBroadcastMessageFunc = func(ctx context.Context, m CallbackBroadcastMessage) (
+	rsrv.args.FetchCallbackBroadcastMessageFunc = func(ctx context.Context, m ConnInfoBroadcastMessage) (
 		[]byte, encoder.Encoder, error,
 	) {
 		if m.ID() == notfoundid {
@@ -1167,6 +1209,244 @@ func (t *testMemberlist) TestCallbackBroadcast() {
 		case b := <-rbroadcastedch:
 			t.T().Log("received:", b)
 			t.NoError(errors.Errorf("unexpected callback broadcasted message"))
+		}
+	})
+}
+
+func (t *testMemberlist) TestEnsureBroadcast() {
+	lci := t.newConnInfo()
+	lnode := base.RandomLocalNode()
+	t.T().Log("local conninfo:", lci)
+
+	handlerprefix := "eb"
+	networkID := base.NetworkID(util.UUID().Bytes())
+
+	rcis := make([]quicstream.UDPConnInfo, 3)
+	rnodes := make([]base.LocalNode, len(rcis))
+	rsrvs := make([]*Memberlist, len(rcis))
+	rstartfs := make([]func() error, len(rcis))
+	rstopfs := make([]func(), len(rcis))
+	rjoinedchs := make([]chan struct{}, len(rcis))
+	rnotifys := make([]util.LockedMap[string, []byte], len(rcis))
+
+	ljoinedch := make(chan struct{}, 1)
+	lph, lsrv, lstartf, lstopf := t.newServersForJoining(
+		lnode.Address(),
+		lci,
+		func() func(node Member) {
+			agg, _ := util.NewLockedMap("", 0, 1)
+
+			return func(node Member) {
+				if isEqualAddress(node, lci) {
+					return
+				}
+
+				agg.SetValue(node.Address().String(), 0)
+
+				if agg.Len() == len(rcis) {
+					ljoinedch <- struct{}{}
+				}
+			}
+		}(),
+		nil,
+	)
+
+	lcl := quicstream.NewHeaderClient(t.encs, t.enc, func(
+		_ context.Context,
+		_ quicstream.UDPConnInfo,
+		writef quicstream.ClientWriteFunc,
+	) (_ io.ReadCloser, cancel func() error, _ error) {
+		r := bytes.NewBuffer(nil)
+		if err := writef(r); err != nil {
+			return nil, nil, err
+		}
+
+		w := bytes.NewBuffer(nil)
+		if err := lph.Handler(lci.Addr(), r, w); err != nil {
+			return nil, nil, err
+		}
+
+		return io.NopCloser(w), func() error { return nil }, nil
+	})
+
+	for i := range rcis {
+		i := i
+
+		rci := t.newConnInfo()
+		rcis[i] = rci
+		node := base.RandomLocalNode()
+		rnodes[i] = node
+
+		ch := make(chan struct{}, 1)
+		rjoinedchs[i] = ch
+
+		_, rsrvs[i], rstartfs[i], rstopfs[i] = t.newServersForJoining(
+			node.Address(),
+			rcis[i],
+			func() func(node Member) {
+				agg, _ := util.NewLockedMap("", 0, 1)
+
+				return func(node Member) {
+					if isEqualAddress(node, rci) {
+						return
+					}
+
+					agg.SetValue(node.Address().String(), 0)
+
+					if agg.Len() == len(rcis) {
+						ch <- struct{}{}
+					}
+				}
+			}(),
+			nil,
+		)
+
+		rsrvs[i].args.PongEnsureBroadcastMessageFunc = func(ctx context.Context, m ConnInfoBroadcastMessage) error {
+			if strings.HasPrefix(m.ID(), "not_ok") && i == 0 {
+				return nil
+			}
+
+			return PongEnsureBroadcastMessageFunc(
+				handlerprefix,
+				node.Address(),
+				node.Privatekey(),
+				networkID,
+				lcl.RequestBody,
+			)(ctx, m)
+		}
+
+		m, err := util.NewLockedMap("", ([]byte)(nil), 1)
+		t.NoError(err)
+		rnotifys[i] = m
+
+		rsrvs[i].SetNotifyMsg(func(b []byte, _ encoder.Encoder) {
+			m.SetValue(string(b), nil)
+		})
+	}
+
+	checkNotifyMsg := func(expected string, threshold float64, timeout time.Duration) error {
+		th := base.Threshold(threshold)
+
+		ticker := time.NewTicker(time.Millisecond * 333)
+		defer ticker.Stop()
+
+		after := time.After(timeout)
+
+		for {
+			select {
+			case <-after:
+				return errors.Errorf("failed to wait ensured")
+			case <-ticker.C:
+				var count uint
+				for i := range rnotifys {
+					_, found := rnotifys[i].Value(expected)
+					if found {
+						count++
+					}
+				}
+
+				if count >= th.Threshold(uint(len(rnotifys))) {
+					return nil
+				}
+			}
+		}
+	}
+
+	lph.Add(handlerprefix, quicstream.NewHeaderHandler(t.encs, 0, lsrv.EnsureBroadcastHandler(
+		networkID,
+		func(node base.Address) (base.Publickey, bool, error) {
+			for i := range rnodes {
+				r := rnodes[i]
+
+				if r.Address().Equal(node) {
+					return r.Publickey(), true, nil
+				}
+			}
+			return nil, false, nil
+		},
+	)))
+
+	t.NoError(lstartf())
+	defer lstopf()
+
+	for i := range rstartfs {
+		t.NoError(rstartfs[i]())
+		defer rstopfs[i]()
+	}
+
+	<-time.After(time.Second)
+	t.checkJoined2(lsrv, ljoinedch, rsrvs, rjoinedchs)
+	t.T().Log("joined")
+
+	t.Run("ok:100", func() {
+		notifych := make(chan error, 1)
+
+		body := util.UUID().Bytes()
+		t.NoError(lsrv.EnsureBroadcast(body, "ok:100", notifych, time.Millisecond*666, 100, 9))
+
+		select {
+		case <-time.After(time.Second * 6):
+			t.NoError(errors.Errorf("failed to wait ensured"))
+		case err := <-notifych:
+			t.NoError(err)
+
+			t.T().Log("ensured")
+		}
+
+		t.T().Log("checking broadcasted body")
+
+		t.NoError(checkNotifyMsg(string(body), 100, time.Second*2))
+	})
+
+	t.Run("ok:100", func() {
+		notifych := make(chan error, 1)
+
+		body := util.UUID().Bytes()
+		t.NoError(lsrv.EnsureBroadcast(body, "ok:60", notifych, time.Millisecond*666, 60, 9))
+
+		select {
+		case <-time.After(time.Second * 6):
+			t.NoError(errors.Errorf("failed to wait ensured"))
+		case err := <-notifych:
+			t.NoError(err)
+
+			t.T().Log("ensured")
+		}
+
+		t.T().Log("checking broadcasted body")
+
+		t.NoError(checkNotifyMsg(string(body), 60, time.Second*2))
+	})
+
+	t.Run("not ok:100", func() {
+		notifych := make(chan error, 1)
+
+		t.NoError(lsrv.EnsureBroadcast(nil, "not_ok:100", notifych, time.Millisecond*666, 100, 9))
+
+		select {
+		case <-time.After(time.Second * 15):
+			t.NoError(errors.Errorf("failed to wait ensured"))
+		case err := <-notifych:
+			t.Error(err)
+			t.ErrorContains(err, "over max retry")
+
+			t.T().Log("not ensured")
+		}
+	})
+
+	t.Run("not ok:70", func() {
+		notifych := make(chan error, 1)
+
+		t.NoError(lsrv.EnsureBroadcast(nil, "not_ok:70", notifych, time.Millisecond*666, 70, 9))
+
+		select {
+		case <-time.After(time.Second * 15):
+			t.NoError(errors.Errorf("failed to wait ensured"))
+		case err := <-notifych:
+			t.Error(err)
+			t.ErrorContains(err, "over max retry")
+
+			t.T().Log("not ensured")
 		}
 	})
 }
