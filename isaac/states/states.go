@@ -253,7 +253,7 @@ func (st *States) startStatesSwitch(ctx context.Context) error {
 				continue
 			case !errors.As(err, &sctx):
 				st.Log().Error().Err(err).
-					Dict("voteproof", base.VoteproofLog(vp)).Msg("failed to handle voteproof")
+					Func(base.VoteproofLogFunc("voteproof", vp)).Msg("failed to handle voteproof")
 
 				return err
 			}

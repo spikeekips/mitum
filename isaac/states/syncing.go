@@ -197,7 +197,9 @@ func (st *SyncingHandler) checkFinished(vp base.Voteproof) (notstuck bool, _ err
 	st.finishedLock.Lock()
 	defer st.finishedLock.Unlock()
 
-	l := st.Log().With().Dict("voteproof", base.VoteproofLog(vp)).Logger()
+	l := st.Log().With().Str("voteproof", vp.ID()).Logger()
+
+	l.Debug().Func(base.VoteproofLogFunc("voteproof", vp)).Msg("checking finished")
 
 	height := vp.Point().Height()
 

@@ -144,7 +144,7 @@ func (st *baseBallotHandler) makeINITBallot(
 ) (base.INITBallot, error) {
 	e := util.StringErrorFunc("failed to prepare next block")
 
-	l := st.Log().With().Dict("voteproof", base.VoteproofLog(vp)).Object("point", point).Logger()
+	l := st.Log().With().Str("voteproof", vp.ID()).Object("point", point).Logger()
 
 	var pr base.ProposalSignFact
 
@@ -247,7 +247,7 @@ func (st *baseBallotHandler) makeACCEPTBallot(
 	case err != nil:
 		return nil, err
 	case found:
-		st.Log().Debug().Dict("voteproof", base.VoteproofLog(ivp)).Msg("accept ballot found in ballot pool")
+		st.Log().Debug().Str("voteproof", ivp.ID()).Msg("accept ballot found in ballot pool")
 
 		return bl.(base.ACCEPTBallot), nil //nolint:forcetypeassert //...
 	}
@@ -284,7 +284,7 @@ func (st *baseBallotHandler) makeACCEPTBallot(
 }
 
 func (st *baseBallotHandler) prepareSuffrageConfirmBallot(vp base.Voteproof) {
-	l := st.Log().With().Dict("voteproof", base.VoteproofLog(vp)).Logger()
+	l := st.Log().With().Str("voteproof", vp.ID()).Logger()
 
 	if _, ok := vp.(base.WithdrawVoteproof); !ok {
 		l.Error().Msg("expected WithdrawVoteproof for suffrage sign voting")
@@ -328,7 +328,7 @@ func (st *baseBallotHandler) makeSuffrageConfirmBallot(vp base.Voteproof) (base.
 		return nil, err
 	case found:
 		st.Log().Debug().
-			Dict("voteproof", base.VoteproofLog(vp)).
+			Str("voteproof", vp.ID()).
 			Object("point", vp.Point().Point).
 			Msg("init suffrage confirm ballot found in ballot pool")
 
@@ -561,7 +561,7 @@ func (st *baseBallotHandler) prepareNextBlock(
 ) {
 	point := avp.Point().Point.NextHeight()
 
-	l := st.Log().With().Dict("voteproof", base.VoteproofLog(avp)).Object("point", point).Logger()
+	l := st.Log().With().Str("voteproof", avp.ID()).Object("point", point).Logger()
 
 	var suf base.Suffrage
 

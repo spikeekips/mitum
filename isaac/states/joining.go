@@ -149,6 +149,8 @@ func (st *JoiningHandler) exit(sctx switchContext) (func(), error) {
 func (st *JoiningHandler) newVoteproof(vp base.Voteproof) error {
 	switch _, _, isnew := st.baseBallotHandler.setNewVoteproof(vp); {
 	case isnew:
+		st.Log().Debug().Func(base.VoteproofLogFunc("voteproof", vp)).Msg("new voteproof")
+
 		if st.resolver != nil {
 			st.resolver.Cancel(vp.Point())
 		}
@@ -180,7 +182,7 @@ func (st *JoiningHandler) handleNewVoteproof(vp base.Voteproof) error {
 
 	e := util.StringErrorFunc("failed to handle new voteproof")
 
-	l := st.Log().With().Dict("voteproof", base.VoteproofLog(vp)).Logger()
+	l := st.Log().With().Str("voteproof", vp.ID()).Logger()
 
 	var manifest base.Manifest
 
@@ -224,7 +226,7 @@ func (st *JoiningHandler) handleNewVoteproof(vp base.Voteproof) error {
 }
 
 func (st *JoiningHandler) newINITVoteproof(ivp base.INITVoteproof, manifest base.Manifest) error {
-	l := st.Log().With().Dict("voteproof", base.VoteproofLog(ivp)).Logger()
+	l := st.Log().With().Str("voteproof", ivp.ID()).Logger()
 
 	var prevblock util.Hash
 	if ivp.Majority() != nil {
@@ -255,7 +257,7 @@ func (st *JoiningHandler) newINITVoteproof(ivp base.INITVoteproof, manifest base
 }
 
 func (st *JoiningHandler) newACCEPTVoteproof(avp base.ACCEPTVoteproof, manifest base.Manifest) error {
-	l := st.Log().With().Dict("voteproof", base.VoteproofLog(avp)).Logger()
+	l := st.Log().With().Str("voteproof", avp.ID()).Logger()
 
 	switch lastheight := manifest.Height(); {
 	case avp.Point().Height() < lastheight+1: // NOTE lower height; ignore
@@ -357,7 +359,7 @@ func (st *JoiningHandler) firstVoteproof(lvp base.Voteproof, manifest base.Manif
 	switch err := st.handleNewVoteproof(lvp); {
 	case err == nil:
 	case !errors.As(err, &dsctx):
-		st.Log().Error().Err(err).Dict("voteproof", base.VoteproofLog(lvp)).
+		st.Log().Error().Err(err).Func(base.VoteproofLogFunc("voteproof", lvp)).
 			Msg("failed last voteproof after enter; ignore")
 	default:
 		go st.switchState(dsctx)
@@ -392,7 +394,6 @@ func (st *JoiningHandler) checkStuckVoteproof(
 	}
 
 	l := st.Log().With().
-		Dict("init_voteproof", base.VoteproofLog(vp)).
 		Interface("last_manifest", lastManifest).
 		Logger()
 
@@ -400,7 +401,9 @@ func (st *JoiningHandler) checkStuckVoteproof(
 
 	switch {
 	case vp.Point().Height() == lastHeight+1:
-		l.Debug().Msg("found valid stuck voteproof; moves to consensus state")
+		l.Debug().
+			Func(base.VoteproofLogFunc("init_voteproof", vp)).
+			Msg("found valid stuck voteproof; moves to consensus state")
 
 		sctx, err := newConsensusSwitchContext(StateJoining, vp)
 		if err != nil {
@@ -409,7 +412,9 @@ func (st *JoiningHandler) checkStuckVoteproof(
 
 		return false, sctx
 	case vp.Point().Height() > lastHeight+1:
-		l.Debug().Msg("higher init stuck voteproof; moves to syncing state")
+		l.Debug().
+			Func(base.VoteproofLogFunc("init_voteproof", vp)).
+			Msg("higher init stuck voteproof; moves to syncing state")
 
 		return false, newSyncingSwitchContext(StateConsensus, vp.Point().Height()-1)
 	default:

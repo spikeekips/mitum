@@ -11,3 +11,9 @@ func VoteproofLog(vp Voteproof) *zerolog.Event {
 		Str("id", vp.ID()).
 		Object("point", vp.Point())
 }
+
+func VoteproofLogFunc(k string, vp Voteproof) func(*zerolog.Event) {
+	return func(e *zerolog.Event) {
+		e.Dict(k, VoteproofLog(vp))
+	}
+}
