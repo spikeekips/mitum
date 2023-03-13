@@ -144,22 +144,30 @@ func (ts *SimpleTimers) New(
 }
 
 func (ts *SimpleTimers) NewTimer(timer *SimpleTimer) (bool, error) {
-	if len(ts.ids) > 0 {
-		if InSlice(ts.ids, timer.id) < 0 {
-			return false, errors.Errorf("unknown timer id, %q", timer.id)
+	var keep bool
+
+	if _, err := ts.timers.Set(timer.id, func(_ *SimpleTimer, found bool) (*SimpleTimer, error) {
+		if len(ts.ids) > 0 {
+			if InSlice(ts.ids, timer.id) < 0 {
+				return nil, errors.Errorf("unknown timer id, %q", timer.id)
+			}
 		}
+
+		interval := timer.intervalFunc(0)
+		if interval < 1 {
+			return nil, ErrLockedSetIgnore.Call()
+		}
+
+		keep = true
+
+		_ = timer.expiredLocked.SetValue(time.Now().Add(interval))
+
+		return timer, nil
+	}); err != nil {
+		return keep, err
 	}
 
-	interval := timer.intervalFunc(0)
-	if interval < 1 {
-		return false, nil
-	}
-
-	_ = timer.expiredLocked.SetValue(time.Now().Add(interval))
-
-	_ = ts.timers.SetValue(timer.id, timer)
-
-	return true, nil
+	return keep, nil
 }
 
 func (ts *SimpleTimers) StopAllTimers() error {
