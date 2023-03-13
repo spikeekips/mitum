@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-redis/redis/v8"
 	"github.com/pkg/errors"
+	"github.com/redis/go-redis/v9"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacblock "github.com/spikeekips/mitum/isaac/block"

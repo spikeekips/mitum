@@ -4,8 +4,8 @@ import (
 	"context"
 	"sync"
 
-	"github.com/go-redis/redis/v8"
 	"github.com/pkg/errors"
+	"github.com/redis/go-redis/v9"
 	"github.com/spikeekips/mitum/storage"
 	"github.com/spikeekips/mitum/util"
 )

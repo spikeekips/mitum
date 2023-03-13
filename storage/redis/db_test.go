@@ -10,7 +10,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 	"github.com/spikeekips/mitum/storage"
 	"github.com/spikeekips/mitum/util"
 	"github.com/stretchr/testify/suite"

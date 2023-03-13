@@ -13,7 +13,6 @@ require (
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.0.2
 	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce
 	github.com/bytedance/sonic v1.7.0
-	github.com/go-redis/redis/v8 v8.11.5
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/hashicorp/consul/api v1.18.0
 	github.com/hashicorp/memberlist v0.5.1-0.20230206163934-e5eb6d78d6f2
@@ -23,6 +22,7 @@ require (
 	github.com/mattn/go-isatty v0.0.17
 	github.com/oklog/ulid/v2 v2.1.0
 	github.com/pkg/errors v0.9.1
+	github.com/redis/go-redis/v9 v9.0.2
 	github.com/rs/zerolog v1.29.0
 	github.com/stretchr/testify v1.8.1
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
@@ -86,6 +86,7 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/oklog/run v1.1.0 // indirect
+	github.com/onsi/ginkgo v1.16.5 // indirect
 	github.com/onsi/ginkgo/v2 v2.7.1 // indirect
 	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect

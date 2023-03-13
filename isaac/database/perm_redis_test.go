@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	redisstorage "github.com/spikeekips/mitum/storage/redis"
