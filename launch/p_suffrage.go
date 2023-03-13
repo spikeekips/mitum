@@ -371,35 +371,7 @@ func PSuffrageVoting(pctx context.Context) (context.Context, error) {
 		local.Address(),
 		pool,
 		db.ExistsInStateOperation,
-		func(op base.SuffrageWithdrawOperation) error {
-			switch b, err := util.MarshalJSON(op); {
-			case err != nil:
-
-				return errors.WithMessage(err, "failed to marshal SuffrageWithdrawOperation")
-			default:
-				go func() {
-					ticker := time.NewTicker(time.Second * 2)
-					defer ticker.Stop()
-
-					var n int
-					for range ticker.C {
-						if err := memberlist.CallbackBroadcast(b, util.UUID().String(), nil); err != nil {
-							log.Log().Error().Err(err).
-								Interface("operation", op).
-								Msg("failed to broadcast SuffrageWithdrawOperation")
-						}
-
-						n++
-
-						if n > 3 { //nolint:gomnd //...
-							break
-						}
-					}
-				}()
-			}
-
-			return nil
-		},
+		broadcastSuffrageVotingFunc(log, memberlist),
 	)
 
 	ballotbox.SetSuffrageVoteFunc(func(op base.SuffrageWithdrawOperation) error {
@@ -977,4 +949,57 @@ func removeWithdrawsFromSyncSourcePoolByWatcher(
 		Msg("withdraw nodes removed from sync source pool")
 
 	return nil
+}
+
+func broadcastSuffrageVotingFunc(
+	log *logging.Logging,
+	memberlist *quicmemberlist.Memberlist,
+) func(base.SuffrageWithdrawOperation) error {
+	return func(op base.SuffrageWithdrawOperation) error {
+		var b []byte
+
+		switch i, err := util.MarshalJSON(op); {
+		case err != nil:
+			return errors.WithMessage(err, "failed to marshal SuffrageWithdrawOperation")
+		default:
+			b = i
+		}
+
+		notifych := make(chan error, 1)
+
+		go func() {
+			if err := <-notifych; err != nil {
+				log.Log().Error().Err(err).
+					Stringer("operation", op.Fact().Hash()).
+					Msg("failed to broadcast suffrage voting operation")
+
+				return
+			}
+
+			log.Log().Debug().
+				Stringer("operation", op.Fact().Hash()).
+				Msg("suffrage voting operation fully broadcasted")
+		}()
+
+		// NOTE trying to broadcast until,
+		// - no members in memberlist
+		// - local not joined
+		return memberlist.EnsureBroadcast(
+			b,
+			op.Fact().Hash().String(),
+			notifych,
+			func(i uint64) time.Duration {
+				switch {
+				case !memberlist.CanBroadcast():
+					return 0
+				case i < 1:
+					return time.Nanosecond
+				}
+
+				return time.Second * 2 //nolint:gomnd //...
+			},
+			base.MaxThreshold.Float64(),
+			0, // NOTE infinite loop
+		)
+	}
 }

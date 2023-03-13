@@ -240,6 +240,20 @@ func (srv *Memberlist) MembersLen() int {
 	return srv.members.Len()
 }
 
+func (srv *Memberlist) RemotesLen() int {
+	var count int
+
+	srv.members.Traverse(func(member Member) bool {
+		if srv.local.Name() != member.Name() {
+			count++
+		}
+
+		return true
+	})
+
+	return count
+}
+
 func (srv *Memberlist) Members(f func(Member) bool) {
 	srv.members.Traverse(f)
 }
@@ -264,7 +278,7 @@ func (srv *Memberlist) IsJoined() bool {
 }
 
 func (srv *Memberlist) Broadcast(b memberlist.Broadcast) {
-	if !srv.canBroadcast() {
+	if !srv.CanBroadcast() {
 		b.Finished()
 
 		return
@@ -276,7 +290,7 @@ func (srv *Memberlist) Broadcast(b memberlist.Broadcast) {
 }
 
 func (srv *Memberlist) CallbackBroadcast(b []byte, id string, notifych chan struct{}) error {
-	if !srv.canBroadcast() {
+	if !srv.CanBroadcast() {
 		if notifych != nil {
 			close(notifych)
 		}
@@ -350,11 +364,11 @@ func (srv *Memberlist) EnsureBroadcast(
 	b []byte,
 	id string,
 	notifych chan<- error,
-	interval time.Duration,
+	intervalf func(uint64) time.Duration,
 	threshold float64,
 	maxRetry uint64,
 ) error {
-	if !srv.canBroadcast() {
+	if !srv.CanBroadcast() {
 		if notifych != nil {
 			close(notifych)
 		}
@@ -394,6 +408,16 @@ func (srv *Memberlist) EnsureBroadcast(
 		})
 	}
 
+	checkretry := func(i uint64) bool {
+		return i >= maxRetry
+	}
+
+	if maxRetry == 0 {
+		checkretry = func(i uint64) bool {
+			return false
+		}
+	}
+
 	timer := util.NewSimpleTimer(
 		util.TimerID(id),
 		func(i uint64) time.Duration {
@@ -402,13 +426,13 @@ func (srv *Memberlist) EnsureBroadcast(
 				notify(nil)
 
 				return 0
-			case i == maxRetry+1:
-				notify(errors.Errorf("over max retry"))
+			case checkretry(i):
+				notify(errors.Errorf("over max retry reached"))
 
 				return 0
 			}
 
-			return interval
+			return intervalf(i)
 		},
 		func(context.Context, uint64) (bool, error) {
 			if srv.broadcastEnsured(id, th) {
@@ -863,10 +887,11 @@ func (srv *Memberlist) createMemberlist() (*memberlist.Memberlist, error) {
 	return m, nil
 }
 
-func (srv *Memberlist) canBroadcast() bool {
+func (srv *Memberlist) CanBroadcast() bool {
 	switch {
-	case srv.IsJoined():
 	case srv.delegate != nil:
+	case srv.IsJoined():
+	case srv.RemotesLen() > 0:
 	default:
 		return false
 	}

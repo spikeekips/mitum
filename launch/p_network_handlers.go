@@ -30,7 +30,10 @@ var (
 	OperationProcessorsMapContextKey = util.ContextKey("operation-processors-map")
 )
 
-var HandlerPrefixMemberlistCallbackBroadcastMessage = "memberlist-callback-message"
+var (
+	HandlerPrefixMemberlistCallbackBroadcastMessage = "memberlist-callback-broadcast-message"
+	HandlerPrefixMemberlistEnsureBroadcastMessage   = "memberlist-ensure-broadcast-message"
+)
 
 func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 	e := util.StringErrorFunc("failed to prepare network handlers")
@@ -196,8 +199,6 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 		Add(isaacnetwork.HandlerPrefixNodeInfo,
 			quicstream.NewHeaderHandler(encs, 0, isaacnetwork.QuicstreamHandlerNodeInfo(
 				quicstreamHandlerGetNodeInfoFunc(enc, nodeinfo)))).
-		Add(HandlerPrefixMemberlistCallbackBroadcastMessage,
-			quicstream.NewHeaderHandler(encs, 0, memberlist.CallbackBroadcastHandler())).
 		Add(isaacnetwork.HandlerPrefixSendBallots,
 			quicstream.NewHeaderHandler(encs, 0, isaacnetwork.QuicstreamHandlerSendBallots(
 				params,
@@ -225,6 +226,10 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 					return err
 				},
 			)))
+
+	if err := attachMemberlistNetworkHandlers(pctx); err != nil {
+		return pctx, err
+	}
 
 	return pctx, nil
 }
@@ -495,4 +500,54 @@ func OperationPreProcess(
 			return opp.PreProcess(pctx, op, getStateFunc)
 		}, opp.Close, nil
 	}
+}
+
+func attachMemberlistNetworkHandlers(pctx context.Context) error {
+	var params *isaac.LocalParams
+	var encs *encoder.Encoders
+	var handlers *quicstream.PrefixHandler
+	var memberlist *quicmemberlist.Memberlist
+	var sp *SuffragePool
+
+	if err := util.LoadFromContextOK(pctx,
+		EncodersContextKey, &encs,
+		LocalParamsContextKey, &params,
+		QuicstreamHandlersContextKey, &handlers,
+		MemberlistContextKey, &memberlist,
+		SuffragePoolContextKey, &sp,
+	); err != nil {
+		return err
+	}
+
+	handlers.
+		Add(HandlerPrefixMemberlistCallbackBroadcastMessage,
+			quicstream.NewHeaderHandler(encs, 0, memberlist.CallbackBroadcastHandler())).
+		Add(HandlerPrefixMemberlistEnsureBroadcastMessage,
+			quicstream.NewHeaderHandler(encs, 0, memberlist.EnsureBroadcastHandler(
+				params.NetworkID(),
+				func(node base.Address) (base.Publickey, bool, error) {
+					switch suf, found, err := sp.Last(); {
+					case err != nil:
+						return nil, false, err
+					case !found, suf == nil, !suf.Exists(node):
+						return nil, false, nil
+					default:
+						var foundnode base.Node
+
+						_ = util.InSliceFunc(suf.Nodes(), func(n base.Node) bool {
+							if node.Equal(n.Address()) {
+								foundnode = n
+
+								return true
+							}
+
+							return false
+						})
+
+						return foundnode.Publickey(), true, nil
+					}
+				},
+			)))
+
+	return nil
 }

@@ -45,24 +45,30 @@ func (s *SuffragePool) Last() (base.Suffrage, bool, error) {
 	s.RLock()
 	defer s.RUnlock()
 
-	var suf base.Suffrage
-
-	if _, err, _ := s.sg.Do("last", func() (interface{}, error) {
+	switch i, err, _ := s.sg.Do("last", func() (interface{}, error) {
 		switch height, i, found, err := s.lastf(); {
 		case err != nil, !found:
 			return nil, err
-		default:
-			s.cache.Set(height.String(), i, s.expire)
-
-			suf = i
-
+		case i == nil:
 			return nil, nil
+		default:
+			return [2]interface{}{height, i}, nil
 		}
-	}); err != nil {
+	}); {
+	case err != nil:
 		return nil, false, errors.WithStack(err)
-	}
+	case i == nil:
+		return nil, false, nil
+	default:
+		j := i.([2]interface{}) //nolint:forcetypeassert //...
 
-	return suf, true, nil
+		height := j[0].(base.Height) //nolint:forcetypeassert //...
+		suf := j[1].(base.Suffrage)  //nolint:forcetypeassert //...
+
+		s.cache.Set(height.String(), suf, s.expire)
+
+		return suf, true, nil
+	}
 }
 
 func (s *SuffragePool) Purge() {

@@ -1382,7 +1382,9 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 		notifych := make(chan error, 1)
 
 		body := util.UUID().Bytes()
-		t.NoError(lsrv.EnsureBroadcast(body, "ok:100", notifych, time.Millisecond*666, 100, 9))
+		t.NoError(lsrv.EnsureBroadcast(body, "ok:100", notifych,
+			func(uint64) time.Duration { return time.Millisecond * 666 },
+			100, 9))
 
 		select {
 		case <-time.After(time.Second * 6):
@@ -1398,11 +1400,13 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 		t.NoError(checkNotifyMsg(string(body), 100, time.Second*2))
 	})
 
-	t.Run("ok:100", func() {
+	t.Run("ok:60", func() {
 		notifych := make(chan error, 1)
 
 		body := util.UUID().Bytes()
-		t.NoError(lsrv.EnsureBroadcast(body, "ok:60", notifych, time.Millisecond*666, 60, 9))
+		t.NoError(lsrv.EnsureBroadcast(body, "ok:60", notifych,
+			func(uint64) time.Duration { return time.Millisecond * 666 },
+			60, 9))
 
 		select {
 		case <-time.After(time.Second * 6):
@@ -1421,7 +1425,9 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 	t.Run("not ok:100", func() {
 		notifych := make(chan error, 1)
 
-		t.NoError(lsrv.EnsureBroadcast(nil, "not_ok:100", notifych, time.Millisecond*666, 100, 9))
+		t.NoError(lsrv.EnsureBroadcast(nil, "not_ok:100", notifych,
+			func(uint64) time.Duration { return time.Millisecond * 666 },
+			100, 9))
 
 		select {
 		case <-time.After(time.Second * 15):
@@ -1437,7 +1443,9 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 	t.Run("not ok:70", func() {
 		notifych := make(chan error, 1)
 
-		t.NoError(lsrv.EnsureBroadcast(nil, "not_ok:70", notifych, time.Millisecond*666, 70, 9))
+		t.NoError(lsrv.EnsureBroadcast(nil, "not_ok:70", notifych,
+			func(uint64) time.Duration { return time.Millisecond * 666 },
+			70, 9))
 
 		select {
 		case <-time.After(time.Second * 15):

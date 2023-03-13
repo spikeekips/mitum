@@ -39,12 +39,14 @@ func PMemberlist(pctx context.Context) (context.Context, error) {
 
 	var log *logging.Logging
 	var enc *jsonenc.Encoder
+	var local base.LocalNode
 	var params *isaac.LocalParams
 	var client *isaacnetwork.QuicstreamClient
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
+		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
 		QuicstreamClientContextKey, &client,
 	); err != nil {
@@ -67,6 +69,14 @@ func PMemberlist(pctx context.Context) (context.Context, error) {
 	args.ExtraSameMemberLimit = params.SameMemberLimit()
 	args.FetchCallbackBroadcastMessageFunc = quicmemberlist.FetchCallbackBroadcastMessageFunc(
 		HandlerPrefixMemberlistCallbackBroadcastMessage,
+		client.Request,
+	)
+
+	args.PongEnsureBroadcastMessageFunc = quicmemberlist.PongEnsureBroadcastMessageFunc(
+		HandlerPrefixMemberlistEnsureBroadcastMessage,
+		local.Address(),
+		local.Privatekey(),
+		params.NetworkID(),
 		client.Request,
 	)
 
