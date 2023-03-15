@@ -23,7 +23,7 @@ var (
 )
 
 func PLoadDesign(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("failed to load design")
+	e := util.StringErrorFunc("load design")
 
 	var log *logging.Logging
 	var flag DesignFlag
@@ -91,7 +91,7 @@ func PLoadDesign(pctx context.Context) (context.Context, error) {
 }
 
 func PGenesisDesign(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("failed to load genesis design")
+	e := util.StringErrorFunc("load genesis design")
 
 	var log *logging.Logging
 	if err := util.LoadFromContextOK(pctx, LoggingContextKey, &log); err != nil {
@@ -121,7 +121,7 @@ func PGenesisDesign(pctx context.Context) (context.Context, error) {
 }
 
 func PCheckDesign(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("failed to check design")
+	e := util.StringErrorFunc("check design")
 
 	var log *logging.Logging
 	var flag DesignFlag

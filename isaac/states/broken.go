@@ -35,7 +35,7 @@ func (h *NewBrokenHandlerType) new() (handler, error) {
 }
 
 func (st *BrokenHandler) enter(from StateType, i switchContext) (func(), error) {
-	e := util.StringErrorFunc("failed to enter broken state")
+	e := util.StringErrorFunc("enter broken state")
 
 	deferred, err := st.baseHandler.enter(from, i)
 	if err != nil {

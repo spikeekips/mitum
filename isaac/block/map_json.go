@@ -49,7 +49,7 @@ type blockMapJSONUnmarshaler struct {
 }
 
 func (m *BlockMap) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode blockmap")
+	e := util.StringErrorFunc("decode blockmap")
 
 	var u blockMapJSONUnmarshaler
 	if err := util.UnmarshalJSON(b, &u); err != nil {
@@ -61,7 +61,7 @@ func (m *BlockMap) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	}
 
 	if err := encoder.Decode(enc, u.Manifest, &m.manifest); err != nil {
-		return e(err, "failed to decode manifest")
+		return e(err, "decode manifest")
 	}
 
 	items := util.NewSingleLockedMap(base.BlockMapItemType(""), (base.BlockMapItem)(nil))
@@ -69,7 +69,7 @@ func (m *BlockMap) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	for k := range u.Items {
 		var ui BlockMapItem
 		if err := enc.Unmarshal(u.Items[k], &ui); err != nil {
-			return e(err, "failed to unmarshal blockmap item, %q", k)
+			return e(err, "unmarshal blockmap item, %q", k)
 		}
 
 		_ = items.SetValue(ui.Type(), ui)
@@ -106,7 +106,7 @@ type blockMapItemJSONUnmarshaler struct {
 }
 
 func (item *BlockMapItem) UnmarshalJSON(b []byte) error {
-	e := util.StringErrorFunc("failed to unmarshal blockMapItem")
+	e := util.StringErrorFunc("unmarshal blockMapItem")
 	var u blockMapItemJSONUnmarshaler
 
 	if err := util.UnmarshalJSON(b, &u); err != nil {
@@ -115,7 +115,7 @@ func (item *BlockMapItem) UnmarshalJSON(b []byte) error {
 
 	switch i, err := url.Parse(u.URL); {
 	case err != nil:
-		return e(err, "failed to parse url")
+		return e(err, "parse url")
 	default:
 		item.url = *i
 	}

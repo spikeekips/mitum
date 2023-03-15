@@ -111,7 +111,7 @@ func (cmd *ValidateBlocksCommand) Run(pctx context.Context) error {
 }
 
 func (cmd *ValidateBlocksCommand) pValidateBlocks(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("failed to validate blocks")
+	e := util.StringErrorFunc("validate blocks")
 
 	var encs *encoder.Encoders
 	var enc encoder.Encoder

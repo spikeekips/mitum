@@ -107,7 +107,7 @@ func (box *Ballotbox) Vote(bl base.Ballot, threshold base.Threshold) (bool, erro
 		threshold,
 	)
 	if err != nil {
-		return false, errors.WithMessage(err, "failed to vote")
+		return false, errors.WithMessage(err, "vote")
 	}
 
 	if voted {
@@ -136,7 +136,7 @@ func (box *Ballotbox) Vote(bl base.Ballot, threshold base.Threshold) (bool, erro
 func (box *Ballotbox) VoteSignFact(sf base.BallotSignFact, threshold base.Threshold) (bool, error) {
 	voted, deferred, err := box.vote(sf, nil, nil, threshold)
 	if err != nil {
-		return false, errors.WithMessage(err, "failed to vote sign fact")
+		return false, errors.WithMessage(err, "vote sign fact")
 	}
 
 	if voted {
@@ -732,7 +732,7 @@ func (vr *voterecords) vote(
 
 	switch _, found, err := vr.getSuffrage(); {
 	case err != nil:
-		return false, false, errors.WithMessage(err, "failed to vote")
+		return false, false, errors.WithMessage(err, "vote")
 	case !found:
 		vr.ballots[node.String()] = signfact
 

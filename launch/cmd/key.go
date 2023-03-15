@@ -264,7 +264,7 @@ func (cmd *KeySignCommand) loadBody() (interface{}, error) {
 	}
 
 	if elem == nil {
-		return nil, errors.Errorf("failed to load body")
+		return nil, errors.Errorf("load body")
 	}
 
 	ptr := reflect.New(reflect.ValueOf(elem).Type()).Interface()

@@ -89,7 +89,7 @@ func (op *BaseOperation) Sign(priv Privatekey, networkID NetworkID) error {
 }
 
 func (op *BaseOperation) sign(priv Privatekey, networkID NetworkID) (found int, sign BaseSign, _ error) {
-	e := util.StringErrorFunc("failed to sign BaseOperation")
+	e := util.StringErrorFunc("sign BaseOperation")
 
 	found = -1
 

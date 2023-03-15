@@ -22,7 +22,7 @@ type AddressFlag struct {
 }
 
 func (f *AddressFlag) UnmarshalText(b []byte) error {
-	e := util.StringErrorFunc("failed to parse address flag")
+	e := util.StringErrorFunc("unmarshal address flag")
 
 	address, err := base.ParseStringAddress(string(b))
 	if err != nil {
@@ -49,7 +49,7 @@ type ConnInfoFlag struct {
 }
 
 func (f *ConnInfoFlag) UnmarshalText(b []byte) error {
-	e := util.StringErrorFunc("failed to parse ConnInfo flag")
+	e := util.StringErrorFunc("unmarshal ConnInfo flag")
 
 	s := string(b)
 
@@ -74,7 +74,7 @@ func (f *ConnInfoFlag) ConnInfo() (quicstream.UDPConnInfo, error) {
 	if f.ci.Addr() == nil {
 		ci, err := quicstream.NewUDPConnInfoFromStringAddress(f.addr, f.tlsinsecure)
 		if err != nil {
-			return quicstream.UDPConnInfo{}, errors.Wrap(err, "failed to convert to quic ConnInfo")
+			return quicstream.UDPConnInfo{}, errors.Wrap(err, "convert to quic ConnInfo")
 		}
 
 		f.ci = ci
@@ -88,7 +88,7 @@ type HeightFlag struct {
 }
 
 func (f *HeightFlag) UnmarshalText(b []byte) error {
-	e := util.StringErrorFunc("failed to parse address flag")
+	e := util.StringErrorFunc("unmarshal address flag")
 
 	if len(b) < 1 {
 		f.height = &base.NilHeight
@@ -156,7 +156,7 @@ type DesignURIFlag struct {
 }
 
 func (f *DesignURIFlag) UnmarshalText(b []byte) error {
-	e := util.StringErrorFunc("failed to design flag")
+	e := util.StringErrorFunc("unmarshal design flag")
 
 	s := string(b)
 
@@ -203,7 +203,7 @@ type RangeFlag struct {
 }
 
 func (f *RangeFlag) UnmarshalText(b []byte) error {
-	e := util.StringErrorFunc("failed to parse range flag, %q", string(b))
+	e := util.StringErrorFunc("unmarshal range flag, %q", string(b))
 
 	n := strings.SplitN(strings.TrimSpace(string(b)), "-", 2)
 

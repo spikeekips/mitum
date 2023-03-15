@@ -29,7 +29,7 @@ func bytesToInt64(b []byte, endian binary.ByteOrder) (int64, error) {
 	buf := bytes.NewReader(b)
 
 	if err := binary.Read(buf, endian, &i); err != nil {
-		return 0, errors.Wrap(err, "failed invalid int64 bytes")
+		return 0, errors.Wrap(err, "invalid int64 bytes")
 	}
 
 	return i, nil

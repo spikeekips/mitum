@@ -62,7 +62,7 @@ func ParseDuration(s string) (time.Duration, error) {
 
 	i, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
-		return 0, errors.Wrap(err, "failed to parse duration")
+		return 0, errors.Wrap(err, "parse duration")
 	}
 
 	return time.Duration(i), nil

@@ -169,7 +169,7 @@ func (t *testVoteproof) TestInvalidSignFact() {
 	err := ivp.IsValid(t.networkID)
 	t.Error(err)
 	t.True(errors.Is(err, util.ErrInvalid))
-	t.ErrorContains(err, "failed to verify sign")
+	t.ErrorContains(err, "verify sign")
 }
 
 func (t *testVoteproof) TestWrongPointOfSignFact() {

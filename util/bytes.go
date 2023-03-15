@@ -109,12 +109,12 @@ func EnsureRead(r io.Reader, b []byte) (int, error) {
 }
 
 func LengthedBytes(w io.Writer, b []byte) error {
-	e := StringErrorFunc("failed to write LengthedBytes")
+	e := StringErrorFunc("LengthedBytes")
 
 	i := uint64(len(b))
 
 	if _, err := w.Write(Uint64ToBytes(i)); err != nil {
-		return e(err, "")
+		return e(err, "write length")
 	}
 
 	if i < 1 {
@@ -122,7 +122,7 @@ func LengthedBytes(w io.Writer, b []byte) error {
 	}
 
 	if _, err := w.Write(b); err != nil {
-		return e(err, "")
+		return e(err, "write body")
 	}
 
 	return nil
@@ -177,19 +177,19 @@ func NewLengthedBytesSlice(version byte, m [][]byte) ([]byte, error) {
 }
 
 func WriteLengthedBytesSlice(w io.Writer, version byte, m [][]byte) error {
-	e := StringErrorFunc("failed to write lengthed bytes")
+	e := StringErrorFunc("WriteLengthedBytesSlice")
 
 	if err := LengthedBytes(w, []byte{version}); err != nil {
-		return e(err, "")
+		return e(err, "write version")
 	}
 
 	if _, err := w.Write(Uint64ToBytes(uint64(len(m)))); err != nil {
-		return e(err, "")
+		return e(err, "write body length")
 	}
 
 	for i := range m {
 		if err := LengthedBytes(w, m[i]); err != nil {
-			return e(err, "")
+			return e(err, "write body")
 		}
 	}
 
@@ -197,7 +197,7 @@ func WriteLengthedBytesSlice(w io.Writer, version byte, m [][]byte) error {
 }
 
 func ReadLengthedBytesSlice(b []byte) (version byte, m [][]byte, left []byte, _ error) {
-	e := StringErrorFunc("failed to read lengthed bytes from bytes")
+	e := StringErrorFunc("ReadLengthedBytesSlice")
 
 	switch i, j, err := ReadLengthedBytes(b); {
 	case err != nil:
@@ -226,7 +226,7 @@ func ReadLengthedBytesSlice(b []byte) (version byte, m [][]byte, left []byte, _ 
 	for i := range m {
 		j, k, err := ReadLengthedBytes(left)
 		if err != nil {
-			return version, nil, nil, e(err, "")
+			return version, nil, nil, e(err, "read left")
 		}
 
 		m[i] = j

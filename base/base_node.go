@@ -66,7 +66,7 @@ type BaseNodeJSONUnmarshaler struct {
 }
 
 func (n *BaseNode) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode RemoteNode")
+	e := util.StringErrorFunc("decode BaseNode")
 
 	var u BaseNodeJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
@@ -75,14 +75,14 @@ func (n *BaseNode) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 
 	switch i, err := DecodeAddress(u.Address, enc); {
 	case err != nil:
-		return e(err, "failed to decode node address")
+		return e(err, "decode node address")
 	default:
 		n.addr = i
 	}
 
 	switch i, err := DecodePublickeyFromString(u.Publickey, enc); {
 	case err != nil:
-		return e(err, "failed to decode node publickey")
+		return e(err, "node publickey")
 	default:
 		n.pub = i
 	}

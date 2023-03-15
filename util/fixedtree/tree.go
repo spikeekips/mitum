@@ -122,7 +122,7 @@ func (t Tree) Proof(key string) (Proof, error) {
 }
 
 func childrenNodes(nodes []Node, index uint64) (c [2]Node, err error) {
-	e := util.StringErrorFunc("failed to generate node hash")
+	e := util.StringErrorFunc("generate node hash")
 
 	i, err := children(len(nodes), index)
 	if err != nil {

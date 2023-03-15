@@ -53,7 +53,7 @@ func ValidateLastBlocks(
 
 	switch i, found, err := loadLastBlockMapFromDatabase(db, networkID); {
 	case err != nil:
-		return errors.WithMessage(err, "failed LastBlockMap from database")
+		return errors.WithMessage(err, "last BlockMap from database")
 	case !found:
 	default:
 		localfsenc = localfsencs.Find(i.Encoder())
@@ -66,7 +66,7 @@ func ValidateLastBlocks(
 
 	switch last, found, err := loadLastBlockMapFromLocalFS(localfsroot, localfsenc, networkID); {
 	case err != nil:
-		return errors.WithMessage(err, "failed to find last height from localfs")
+		return errors.WithMessage(err, "find last height from localfs")
 	case !found:
 	default:
 		lastmaplocalfs = last
@@ -162,7 +162,7 @@ func ValidateAllBlockMapsFromLocalFS(
 	last base.Height,
 	networkID base.NetworkID,
 ) error {
-	e := util.StringErrorFunc("failed to validate localfs")
+	e := util.StringErrorFunc("validate localfs")
 
 	switch fi, err := os.Stat(dataroot); {
 	case err == nil:
@@ -255,7 +255,7 @@ func ValidateBlockFromLocalFS(
 	validateOperationf func(base.Operation) error,
 	validateStatef func(base.State) error,
 ) error {
-	e := util.StringErrorFunc("failed to validate imported block")
+	e := util.StringErrorFunc("validate imported block")
 
 	var reader *LocalFSReader
 
@@ -367,7 +367,7 @@ func ValidateOperationsOfBlock( //nolint:dupl //...
 	networkID base.NetworkID,
 	validateOperationf func(base.Operation) error,
 ) error {
-	e := util.StringErrorFunc("failed to validate imported operations")
+	e := util.StringErrorFunc("validate imported operations")
 
 	if err := opstree.IsValid(nil); err != nil {
 		return e(err, "")
@@ -410,7 +410,7 @@ func ValidateStatesOfBlock( //nolint:dupl //...
 	networkID base.NetworkID,
 	validateStatef func(base.State) error,
 ) error {
-	e := util.StringErrorFunc("failed to validate imported states")
+	e := util.StringErrorFunc("validate imported states")
 
 	if err := ststree.IsValid(nil); err != nil {
 		return e(err, "")
@@ -535,7 +535,7 @@ func ValidateBlocksFromStorage(
 			return whenBlockDonef(mapdb, err)
 		},
 	); err != nil {
-		return errors.WithMessage(err, "failed to validate imported blocks")
+		return errors.WithMessage(err, "validate imported blocks")
 	}
 
 	return nil

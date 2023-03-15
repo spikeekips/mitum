@@ -112,7 +112,7 @@ func (m *ConnInfoBroadcastMessage) UnmarshalJSON(b []byte) error {
 	var u connInfoBroadcastMessageJSONMarshaler
 
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return errors.WithMessage(err, "failed to decode ConnInfoBroadcastMessage")
+		return errors.WithMessage(err, "unmarshal ConnInfoBroadcastMessage")
 	}
 
 	m.id = u.ID
@@ -170,7 +170,7 @@ func (h CallbackBroadcastMessageHeader) MarshalJSON() ([]byte, error) {
 }
 
 func (h *CallbackBroadcastMessageHeader) UnmarshalJSON(b []byte) error {
-	e := util.StringErrorFunc("failed to unmarshal CallbackBroadcastMessageHeader")
+	e := util.StringErrorFunc("unmarshal CallbackBroadcastMessageHeader")
 
 	var u callbackBroadcastMessageHeaderJSONMarshaler
 
@@ -255,7 +255,7 @@ func (h EnsureBroadcastMessageHeader) MarshalJSON() ([]byte, error) {
 }
 
 func (h *EnsureBroadcastMessageHeader) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to unmarshal EnsureBroadcastMessageHeader")
+	e := util.StringErrorFunc("decode EnsureBroadcastMessageHeader")
 
 	var u ensureBroadcastMessageHeaderJSONMarshaler
 

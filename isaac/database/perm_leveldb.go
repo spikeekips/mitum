@@ -59,14 +59,14 @@ func (db *LeveldbPermanent) Clean() error {
 	r := leveldbutil.BytesPrefix(db.st.Prefix())
 
 	if _, err := leveldbstorage.BatchRemove(db.st.Storage, r, 333); err != nil { //nolint:gomnd //...
-		return errors.WithMessage(err, "failed to clean leveldb PermanentDatabase")
+		return errors.WithMessage(err, "clean leveldb PermanentDatabase")
 	}
 
 	return db.basePermanent.Clean()
 }
 
 func (db *LeveldbPermanent) SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof, bool, error) {
-	e := util.StringErrorFunc("failed to get suffrageproof by height")
+	e := util.StringErrorFunc("get suffrageproof by height")
 
 	switch proof, found, err := compareWithLastSuffrageProof(suffrageHeight, db.LastSuffrageProof); {
 	case err != nil:
@@ -85,7 +85,7 @@ func (db *LeveldbPermanent) SuffrageProof(suffrageHeight base.Height) (base.Suff
 func (db *LeveldbPermanent) SuffrageProofBytes(suffrageHeight base.Height) (
 	enchint hint.Hint, meta, body []byte, found bool, err error,
 ) {
-	e := util.StringErrorFunc("failed to get suffrageproof by height")
+	e := util.StringErrorFunc("get suffrageproof by height")
 
 	switch _, found, err := compareWithLastSuffrageProof(suffrageHeight, db.LastSuffrageProof); {
 	case err != nil:
@@ -98,7 +98,7 @@ func (db *LeveldbPermanent) SuffrageProofBytes(suffrageHeight base.Height) (
 }
 
 func (db *LeveldbPermanent) SuffrageProofByBlockHeight(height base.Height) (base.SuffrageProof, bool, error) {
-	e := util.StringErrorFunc("failed to get suffrage by block height")
+	e := util.StringErrorFunc("get suffrage by block height")
 
 	switch m, found, err := db.LastBlockMap(); {
 	case err != nil:
@@ -162,7 +162,7 @@ func (db *LeveldbPermanent) ExistsKnownOperation(h util.Hash) (bool, error) {
 }
 
 func (db *LeveldbPermanent) BlockMap(height base.Height) (m base.BlockMap, _ bool, _ error) {
-	e := util.StringErrorFunc("failed to load blockmap")
+	e := util.StringErrorFunc("load blockmap")
 
 	switch i, found, err := db.LastBlockMap(); {
 	case err != nil:
@@ -181,7 +181,7 @@ func (db *LeveldbPermanent) BlockMap(height base.Height) (m base.BlockMap, _ boo
 func (db *LeveldbPermanent) BlockMapBytes(height base.Height) (
 	enchint hint.Hint, meta, body []byte, found bool, err error,
 ) {
-	e := util.StringErrorFunc("failed to load blockmap bytes")
+	e := util.StringErrorFunc("load blockmap bytes")
 
 	switch i, found, err := db.LastBlockMap(); {
 	case err != nil:
@@ -199,7 +199,7 @@ func (db *LeveldbPermanent) MergeTempDatabase(ctx context.Context, temp isaac.Te
 	db.Lock()
 	defer db.Unlock()
 
-	e := util.StringErrorFunc("failed to merge TempDatabase")
+	e := util.StringErrorFunc("merge TempDatabase")
 
 	switch t := temp.(type) {
 	case *TempLeveldb:
@@ -214,7 +214,7 @@ func (db *LeveldbPermanent) MergeTempDatabase(ctx context.Context, temp isaac.Te
 }
 
 func (db *LeveldbPermanent) mergeTempDatabaseFromLeveldb(ctx context.Context, temp *TempLeveldb) error {
-	e := util.StringErrorFunc("failed to merge LeveldbTempDatabase")
+	e := util.StringErrorFunc("merge LeveldbTempDatabase")
 
 	if temp.mp == nil {
 		return e(storage.ErrNotFound.Errorf("blockmap not found in LeveldbTempDatabase"), "")
@@ -287,7 +287,7 @@ func (db *LeveldbPermanent) loadLastBlockMap() error {
 }
 
 func (db *LeveldbPermanent) loadLastSuffrageProof() error {
-	e := util.StringErrorFunc("failed to load last suffrage state")
+	e := util.StringErrorFunc("load last suffrage state")
 
 	var proof base.SuffrageProof
 

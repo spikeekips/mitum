@@ -29,7 +29,7 @@ func NewServer(
 ) (*Server, error) {
 	listener, err := quic.ListenAddrEarly(bind.String(), tlsconfig, quicconfig)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to listen")
+		return nil, errors.Wrap(err, "listen")
 	}
 
 	srv := &Server{
@@ -55,7 +55,7 @@ func (srv *Server) start(ctx context.Context, listener quic.EarlyListener) error
 	<-ctx.Done()
 
 	if err := listener.Close(); err != nil {
-		return errors.Wrap(err, "failed to close listener")
+		return errors.Wrap(err, "close listener")
 	}
 
 	return nil

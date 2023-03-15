@@ -439,7 +439,7 @@ type localParamsJSONUnmarshaler struct {
 func (p *LocalParams) UnmarshalJSON(b []byte) error {
 	var u localParamsJSONUnmarshaler
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return errors.Wrap(err, "failed to unmarshal LocalParams")
+		return errors.Wrap(err, "unmarshal LocalParams")
 	}
 
 	p.BaseHinter = u.BaseHinter

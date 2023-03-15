@@ -68,7 +68,7 @@ func PBallotbox(pctx context.Context) (context.Context, error) {
 }
 
 func PBallotStuckResolver(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("failed to load ballot stuck resolver")
+	e := util.StringErrorFunc("load ballot stuck resolver")
 
 	var log *logging.Logging
 	var design NodeDesign
@@ -136,7 +136,7 @@ func PBallotStuckResolver(pctx context.Context) (context.Context, error) {
 }
 
 func PStates(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("failed to prepare states")
+	e := util.StringErrorFunc("prepare states")
 
 	args := isaacstates.NewStatesArgs()
 
@@ -180,7 +180,7 @@ func PStates(pctx context.Context) (context.Context, error) {
 		local.Address(),
 		pool,
 		func(bl base.Ballot) error {
-			ee := util.StringErrorFunc("failed to broadcast ballot")
+			ee := util.StringErrorFunc("broadcast ballot")
 
 			b, err := enc.Marshal(bl)
 			if err != nil {
@@ -243,7 +243,7 @@ func PCloseStates(pctx context.Context) (context.Context, error) {
 }
 
 func PStatesSetHandlers(pctx context.Context) (context.Context, error) { //revive:disable-line:function-length
-	e := util.StringErrorFunc("failed to set states handler")
+	e := util.StringErrorFunc("set states handler")
 
 	var log *logging.Logging
 	var local base.LocalNode
@@ -357,7 +357,7 @@ func newSyncerFunc(pctx context.Context) (
 	}
 
 	return func(height base.Height) (isaac.Syncer, error) {
-		e := util.StringErrorFunc("failed newSyncer")
+		e := util.StringErrorFunc("newSyncer")
 
 		var prev base.BlockMap
 
@@ -861,7 +861,7 @@ func syncerBlockMapItemFunc(
 	return func(ctx context.Context, height base.Height, item base.BlockMapItemType) (
 		reader io.ReadCloser, closef func() error, found bool, _ error,
 	) {
-		e := util.StringErrorFunc("failed to fetch blockmap item")
+		e := util.StringErrorFunc("fetch blockmap item")
 
 		var ci quicstream.UDPConnInfo
 
@@ -921,7 +921,7 @@ func joinMemberlistForSyncingHandlerFunc(pctx context.Context) (
 
 		select {
 		case <-ctx.Done():
-			return errors.Wrap(ctx.Err(), "failed to join")
+			return errors.Wrap(ctx.Err(), "join")
 		case <-donech:
 			return nil
 		}

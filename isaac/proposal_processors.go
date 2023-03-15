@@ -68,7 +68,7 @@ func (pps *ProposalProcessors) Process(
 
 	l := pps.Log().With().Stringer("fact", facthash).Logger()
 
-	e := util.StringErrorFunc("failed to process proposal, %q", facthash)
+	e := util.StringErrorFunc("process proposal, %q", facthash)
 
 	p, err := pps.newProcessor(ctx, facthash, previous)
 
@@ -131,7 +131,7 @@ func (pps *ProposalProcessors) Save(ctx context.Context, facthash util.Hash, avp
 		}
 	}()
 
-	e := util.StringErrorFunc("failed to save proposal, %q", facthash)
+	e := util.StringErrorFunc("save proposal, %q", facthash)
 
 	switch {
 	case pps.p == nil:
@@ -170,7 +170,7 @@ func (pps *ProposalProcessors) Cancel() error {
 
 	if pps.p != nil {
 		if err := pps.p.Cancel(); err != nil {
-			return errors.Wrap(err, "failed to cancel")
+			return errors.Wrap(err, "cancel")
 		}
 	}
 
@@ -202,7 +202,7 @@ func (pps *ProposalProcessors) SetRetryInterval(i time.Duration) *ProposalProces
 }
 
 func (pps *ProposalProcessors) fetchFact(ctx context.Context, facthash util.Hash) (base.ProposalSignFact, error) {
-	e := util.StringErrorFunc("failed to fetch fact")
+	e := util.StringErrorFunc("fetch fact")
 
 	var pr base.ProposalSignFact
 
@@ -217,7 +217,7 @@ func (pps *ProposalProcessors) fetchFact(ctx context.Context, facthash util.Hash
 
 				return false, nil
 			default:
-				return true, e(err, "failed to get proposal fact")
+				return true, e(err, "get proposal fact")
 			}
 		},
 		pps.retrylimit,
@@ -230,7 +230,7 @@ func (pps *ProposalProcessors) fetchFact(ctx context.Context, facthash util.Hash
 func (pps *ProposalProcessors) newProcessor(
 	ctx context.Context, facthash util.Hash, previous base.Manifest,
 ) (ProposalProcessor, error) {
-	e := util.StringErrorFunc("failed new processor, %q", facthash)
+	e := util.StringErrorFunc(" processor, %q", facthash)
 
 	l := pps.Log().With().Stringer("fact", facthash).Logger()
 
@@ -258,9 +258,9 @@ func (pps *ProposalProcessors) newProcessor(
 	// NOTE if failed to get fact, returns NotProposalProcessorProcessedError
 	switch {
 	case err != nil:
-		return nil, e(ErrNotProposalProcessorProcessed.Wrap(err), "failed to get proposal fact")
+		return nil, e(ErrNotProposalProcessorProcessed.Wrap(err), "get proposal fact")
 	case fact == nil:
-		return nil, e(ErrNotProposalProcessorProcessed.Call(), "failed to get proposal fact; empty fact")
+		return nil, e(ErrNotProposalProcessorProcessed.Call(), "get proposal fact; empty fact")
 	}
 
 	if err := util.Retry(ctx, func() (bool, error) {
@@ -295,7 +295,7 @@ func (*ProposalProcessors) runProcessor(
 		return nil, nil
 	default:
 		if e := p.Cancel(); e != nil {
-			return nil, errors.Wrap(e, "failed to run processor")
+			return nil, errors.Wrap(e, "run processor")
 		}
 
 		return nil, err

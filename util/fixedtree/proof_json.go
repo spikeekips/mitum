@@ -11,7 +11,7 @@ func (p Proof) MarshalJSON() ([]byte, error) {
 }
 
 func (p *Proof) UnmarshalJSON(b []byte) error {
-	e := util.StringErrorFunc("failed to unmarshal Proof")
+	e := util.StringErrorFunc("unmarshal Proof")
 
 	var u []json.RawMessage
 	if err := util.UnmarshalJSON(b, &u); err != nil {

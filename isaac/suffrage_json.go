@@ -36,7 +36,7 @@ func (s SuffrageNodeStateValue) MarshalJSON() ([]byte, error) {
 }
 
 func (s *SuffrageNodeStateValue) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode SuffrageNodeStateValue")
+	e := util.StringErrorFunc("decode SuffrageNodeStateValue")
 
 	var u suffrageNodeStateValueJSONMarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
@@ -76,7 +76,7 @@ type suffrageNodesStateValueJSONUnmarshaler struct {
 }
 
 func (s *SuffrageNodesStateValue) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode SuffrageNodesStateValue")
+	e := util.StringErrorFunc("decode SuffrageNodesStateValue")
 
 	var u suffrageNodesStateValueJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
@@ -119,7 +119,7 @@ type SuffrageCandidateJSONUnmarshaler struct {
 }
 
 func (suf *SuffrageCandidateStateValue) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode SuffrageCandidateStateValue")
+	e := util.StringErrorFunc("decode SuffrageCandidateStateValue")
 
 	var u SuffrageCandidateJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
@@ -153,7 +153,7 @@ type suffrageCandidatesStateValueJSONUnmarshaler struct {
 }
 
 func (s *SuffrageCandidatesStateValue) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode SuffrageCandidatesStateValue")
+	e := util.StringErrorFunc("decode SuffrageCandidatesStateValue")
 
 	var u suffrageCandidatesStateValueJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {

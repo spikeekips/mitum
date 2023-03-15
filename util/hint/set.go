@@ -34,7 +34,7 @@ func (st *CompatibleSet) AddHinter(hr Hinter) error {
 
 func (st *CompatibleSet) add(ht Hint, v interface{}) error {
 	if err := st.addWithHint(ht, v); err != nil {
-		return errors.WithMessage(err, "failed to add to CompatibleSet")
+		return errors.WithMessage(err, "add to CompatibleSet")
 	}
 
 	switch eht, found := st.typeheadhints[ht.Type()]; {
@@ -51,7 +51,7 @@ func (st *CompatibleSet) add(ht Hint, v interface{}) error {
 
 func (st *CompatibleSet) addWithHint(ht Hint, v interface{}) error {
 	if err := ht.IsValid(nil); err != nil {
-		return errors.WithMessage(err, "failed to add with hint")
+		return errors.WithMessage(err, "add with hint")
 	}
 
 	if _, found := st.set[ht.Type()]; !found {

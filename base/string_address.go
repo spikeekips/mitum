@@ -23,7 +23,7 @@ func ParseStringAddress(s string) (StringAddress, error) {
 
 	switch {
 	case err != nil:
-		return StringAddress{}, errors.Wrap(err, "failed to parse StringAddress")
+		return StringAddress{}, errors.Wrap(err, "parse StringAddress")
 	case t != StringAddressHint.Type():
 		return StringAddress{}, util.ErrInvalid.Errorf("wrong hint type in StringAddress")
 	}

@@ -139,7 +139,7 @@ type defaultNodeInfoJSONUnmarshaler struct {
 }
 
 func (info *DefaultNodeInfo) UnmarshalJSON(b []byte) error {
-	e := util.StringErrorFunc("failed to unmarshal DefaultNodeInfo")
+	e := util.StringErrorFunc("unmarshal DefaultNodeInfo")
 
 	var u defaultNodeInfoJSONUnmarshaler
 	if err := util.UnmarshalJSON(b, &u); err != nil {
@@ -156,7 +156,7 @@ func (info *DefaultNodeInfo) UnmarshalJSON(b []byte) error {
 }
 
 func SaveNodeInfo(root string, i NodeInfo) error {
-	e := util.StringErrorFunc("failed to save NodeInfo")
+	e := util.StringErrorFunc("save NodeInfo")
 
 	b, err := util.MarshalJSON(i)
 	if err != nil {
@@ -180,7 +180,7 @@ func SaveNodeInfo(root string, i NodeInfo) error {
 }
 
 func LoadNodeInfo(root string, enc encoder.Encoder) (_ NodeInfo, found bool, _ error) {
-	e := util.StringErrorFunc("failed to save NodeInfo")
+	e := util.StringErrorFunc("load NodeInfo")
 
 	f, err := os.Open(filepath.Join(root, NodeInfoFilename))
 
@@ -207,7 +207,7 @@ func LoadNodeInfo(root string, enc encoder.Encoder) (_ NodeInfo, found bool, _ e
 
 	i = i.UpdateLastStartedAt()
 	if err := SaveNodeInfo(root, i); err != nil {
-		return nil, true, e(err, "failed to update NodeInfo")
+		return nil, true, e(err, "update NodeInfo")
 	}
 
 	return i, true, nil

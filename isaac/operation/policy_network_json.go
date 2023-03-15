@@ -27,7 +27,7 @@ type GenesisNetworkPolicyFactJSONUnmarshaler struct {
 }
 
 func (fact *GenesisNetworkPolicyFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode GenesisNetworkPolicyFact")
+	e := util.StringErrorFunc("decode GenesisNetworkPolicyFact")
 
 	var u GenesisNetworkPolicyFactJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {

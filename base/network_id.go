@@ -44,7 +44,7 @@ func (ni NetworkID) MarshalText() ([]byte, error) {
 func (ni *NetworkID) UnmarshalText(b []byte) error {
 	s, err := base64.StdEncoding.DecodeString(string(b))
 	if err != nil {
-		return errors.Wrap(err, "failed to unmarshal NetworkID")
+		return errors.Wrap(err, "unmarshal NetworkID")
 	}
 
 	*ni = NetworkID(s)

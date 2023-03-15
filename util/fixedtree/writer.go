@@ -56,7 +56,7 @@ func (g *Writer) Root() util.Hash {
 
 func (g *Writer) Add(index uint64, n Node) error {
 	if index >= uint64(len(g.nodes)) {
-		return errors.Errorf("failed add to Tree; out of range")
+		return errors.Errorf("add to Tree; out of range")
 	}
 
 	g.nodes[index] = n.SetHash(nil)
@@ -71,7 +71,7 @@ func (g *Writer) Write(w NodeWrite) (err error) {
 	defer g.RUnlock()
 
 	if _, err := generateNodesHash(g.nodes, w); err != nil {
-		return errors.WithMessage(err, "failed to write Tree")
+		return errors.WithMessage(err, "write Tree")
 	}
 
 	return nil

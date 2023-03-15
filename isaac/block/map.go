@@ -108,7 +108,7 @@ func (m BlockMap) Item(t base.BlockMapItemType) (base.BlockMapItem, bool) {
 }
 
 func (m *BlockMap) SetItem(item base.BlockMapItem) error {
-	e := util.StringErrorFunc("failed to set blockmap item")
+	e := util.StringErrorFunc("set blockmap item")
 
 	if err := item.IsValid(nil); err != nil {
 		return e(err, "")
@@ -132,7 +132,7 @@ func (m BlockMap) Items(f func(base.BlockMapItem) bool) {
 func (m *BlockMap) Sign(node base.Address, priv base.Privatekey, networkID base.NetworkID) error {
 	sign, err := base.NewBaseNodeSignFromBytes(node, priv, networkID, m.signedBytes())
 	if err != nil {
-		return errors.Wrap(err, "failed to sign blockmap")
+		return errors.Wrap(err, "sign blockmap")
 	}
 
 	m.BaseNodeSign = sign

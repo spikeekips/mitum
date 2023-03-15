@@ -43,10 +43,10 @@ func NewUDPConnInfoFromStringAddress(s string, tlsinsecure bool) (ci UDPConnInfo
 	var dnserr *net.DNSError
 
 	if errors.As(err, &dnserr) {
-		return ci, errors.Wrap(err, "failed to parse UDPConnInfo")
+		return ci, errors.Wrap(err, "parse UDPConnInfo")
 	}
 
-	return ci, util.ErrInvalid.Wrap(errors.Wrap(err, "failed to parse UDPConnInfo"))
+	return ci, util.ErrInvalid.Wrap(errors.Wrap(err, "parse UDPConnInfo"))
 }
 
 func (c UDPConnInfo) IsValid([]byte) error {
@@ -100,7 +100,7 @@ func (c UDPConnInfo) MarshalText() ([]byte, error) {
 func (c *UDPConnInfo) UnmarshalText(b []byte) error {
 	ci, err := NewUDPConnInfoFromString(string(b))
 	if err != nil {
-		return errors.WithMessage(err, "failed to unmarshal UDPConnInfo")
+		return errors.WithMessage(err, "unmarshal UDPConnInfo")
 	}
 
 	*c = ci

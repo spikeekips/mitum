@@ -12,7 +12,7 @@ type Suffrage struct {
 }
 
 func NewSuffrage(nodes []base.Node) (Suffrage, error) {
-	e := util.StringErrorFunc("failed to newsuffrage")
+	e := util.StringErrorFunc("new suffrage")
 
 	if len(nodes) < 1 {
 		return Suffrage{}, e(nil, "empty suffrage nodes")

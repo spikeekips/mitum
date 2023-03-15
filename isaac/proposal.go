@@ -138,7 +138,7 @@ func (sf *ProposalSignFact) Sign(priv base.Privatekey, networkID base.NetworkID)
 		sf.fact,
 	)
 	if err != nil {
-		return errors.Wrap(err, "failed to sign ProposalSignFact")
+		return errors.Wrap(err, "sign ProposalSignFact")
 	}
 
 	sf.sign = sign

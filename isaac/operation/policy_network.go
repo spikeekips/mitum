@@ -94,7 +94,7 @@ func (GenesisNetworkPolicy) PreProcess(ctx context.Context, getStateFunc base.Ge
 ) {
 	switch _, found, err := getStateFunc(isaac.NetworkPolicyStateKey); {
 	case err != nil:
-		return ctx, base.NewBaseOperationProcessReasonError("failed to check network policy state: %w", err), nil
+		return ctx, base.NewBaseOperationProcessReasonError("check network policy state: %w", err), nil
 	case found:
 		return ctx, base.NewBaseOperationProcessReasonError("network policy state already exists"), nil
 	default:

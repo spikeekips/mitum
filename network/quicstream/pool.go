@@ -26,7 +26,7 @@ func NewPoolClient() *PoolClient {
 }
 
 func (p *PoolClient) Close() error {
-	e := util.StringErrorFunc("failed to close PoolClient")
+	e := util.StringErrorFunc("close PoolClient")
 
 	defer p.clients.Close()
 

@@ -80,7 +80,7 @@ func (w *Writer) SetProcessResult( // revive:disable-line:flag-parameter
 	instate bool,
 	errorreason base.OperationProcessReasonError,
 ) error {
-	e := util.StringErrorFunc("failed to set operation")
+	e := util.StringErrorFunc("set operation")
 
 	if op != nil {
 		if err := w.db.SetOperations([]util.Hash{op}); err != nil {
@@ -101,7 +101,7 @@ func (w *Writer) SetProcessResult( // revive:disable-line:flag-parameter
 	}
 
 	if err := w.opstreeg.Add(index, node); err != nil {
-		return e(err, "failed to set operation")
+		return e(err, "set operation")
 	}
 
 	return nil
@@ -110,7 +110,7 @@ func (w *Writer) SetProcessResult( // revive:disable-line:flag-parameter
 func (w *Writer) SetStates(
 	ctx context.Context, index uint64, states []base.StateMergeValue, operation base.Operation,
 ) error {
-	e := util.StringErrorFunc("failed to set states")
+	e := util.StringErrorFunc("set states")
 
 	if w.proposal == nil {
 		return e(nil, "not yet written")
@@ -130,7 +130,7 @@ func (w *Writer) SetStates(
 }
 
 func (w *Writer) SetState(_ context.Context, stv base.StateMergeValue, operation base.Operation) error {
-	e := util.StringErrorFunc("failed to set state")
+	e := util.StringErrorFunc("set state")
 
 	j, _, err := w.states.GetOrCreate(stv.Key(), func() (base.StateValueMerger, error) {
 		var st base.State
@@ -149,7 +149,7 @@ func (w *Writer) SetState(_ context.Context, stv base.StateMergeValue, operation
 	}
 
 	if err := j.Merge(stv.Value(), []util.Hash{operation.Fact().Hash()}); err != nil {
-		return e(err, "failed to merge")
+		return e(err, "merge")
 	}
 
 	return nil
@@ -160,7 +160,7 @@ func (w *Writer) closeStateValues(ctx context.Context) error {
 		return nil
 	}
 
-	e := util.StringErrorFunc("failed to close state values")
+	e := util.StringErrorFunc("close state values")
 
 	worker := util.NewErrgroupWorker(ctx, math.MaxInt8)
 	defer worker.Close()
@@ -286,7 +286,7 @@ func (w *Writer) saveStates(
 			return nil
 		},
 	); err != nil {
-		return errors.Wrap(err, "failed to set states tree")
+		return errors.Wrap(err, "set states tree")
 	}
 
 	return nil
@@ -296,7 +296,7 @@ func (w *Writer) Manifest(ctx context.Context, previous base.Manifest) (base.Man
 	w.Lock()
 	defer w.Unlock()
 
-	e := util.StringErrorFunc("failed to make manifest")
+	e := util.StringErrorFunc("make manifest")
 
 	if w.proposal == nil || (previous == nil && w.proposal.Point().Height() > base.GenesisHeight) {
 		return nil, e(nil, "not yet written")
@@ -346,7 +346,7 @@ func (w *Writer) Manifest(ctx context.Context, previous base.Manifest) (base.Man
 
 func (w *Writer) SetINITVoteproof(ctx context.Context, vp base.INITVoteproof) error {
 	if err := w.fswriter.SetINITVoteproof(ctx, vp); err != nil {
-		return errors.Wrap(err, "failed to set init voteproof")
+		return errors.Wrap(err, "set init voteproof")
 	}
 
 	return nil
@@ -354,7 +354,7 @@ func (w *Writer) SetINITVoteproof(ctx context.Context, vp base.INITVoteproof) er
 
 func (w *Writer) SetACCEPTVoteproof(ctx context.Context, vp base.ACCEPTVoteproof) error {
 	if err := w.fswriter.SetACCEPTVoteproof(ctx, vp); err != nil {
-		return errors.Wrap(err, "failed to set accept voteproof")
+		return errors.Wrap(err, "set accept voteproof")
 	}
 
 	w.avp = vp
@@ -366,7 +366,7 @@ func (w *Writer) Save(ctx context.Context) (base.BlockMap, error) {
 	w.Lock()
 	defer w.Unlock()
 
-	e := util.StringErrorFunc("failed to save")
+	e := util.StringErrorFunc("save")
 
 	var m base.BlockMap
 
@@ -385,7 +385,7 @@ func (w *Writer) Save(ctx context.Context) (base.BlockMap, error) {
 		// NOTE save suffrageproof
 		proof, err := w.ststree.Proof(st.Hash().String())
 		if err != nil {
-			return nil, e(err, "failed to make proof of suffrage state")
+			return nil, e(err, "make proof of suffrage state")
 		}
 
 		sufproof := NewSuffrageProof(m, st, proof, w.avp)
@@ -410,7 +410,7 @@ func (w *Writer) Cancel() error {
 	w.Lock()
 	defer w.Unlock()
 
-	e := util.StringErrorFunc("failed to cancel Writer")
+	e := util.StringErrorFunc("cancel Writer")
 	if err := w.fswriter.Cancel(); err != nil {
 		return e(err, "")
 	}
@@ -440,7 +440,7 @@ func (w *Writer) close() error {
 
 func (w *Writer) setProposal(ctx context.Context) error {
 	if err := w.fswriter.SetProposal(ctx, w.proposal); err != nil {
-		return errors.Wrap(err, "failed to set proposal")
+		return errors.Wrap(err, "set proposal")
 	}
 
 	return nil

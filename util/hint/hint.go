@@ -94,7 +94,7 @@ func parseHint(s string) (Hint, error) {
 
 	ht := EnsureParseHint(ns)
 	if err := ht.IsValid(nil); err != nil {
-		return Hint{}, errors.WithMessage(err, "failed to parse hint")
+		return Hint{}, errors.WithMessage(err, "parse hint")
 	}
 
 	return ht, nil

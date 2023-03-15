@@ -54,7 +54,7 @@ func (h *NewBootingHandlerType) new() (handler, error) {
 }
 
 func (st *BootingHandler) enter(from StateType, i switchContext) (func(), error) { //nolint:unparam //...
-	e := util.StringErrorFunc("failed to enter booting state")
+	e := util.StringErrorFunc("enter booting state")
 
 	if _, err := st.baseHandler.enter(from, i); err != nil {
 		return nil, e(err, "")
@@ -122,7 +122,7 @@ func newBootingSwitchContext(from StateType) bootingSwitchContext {
 }
 
 func compareManifestWithACCEPTVoteproof(manifest base.Manifest, vp base.ACCEPTVoteproof) error {
-	e := util.StringErrorFunc("failed to compare manifest with accept voteproof")
+	e := util.StringErrorFunc("compare manifest with accept voteproof")
 
 	switch {
 	case manifest.Height() != vp.Point().Height():

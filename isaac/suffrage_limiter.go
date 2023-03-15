@@ -132,7 +132,7 @@ func NewCandidatesOfMajoritySuffrageCandidateLimiterRule(
 
 	s, err := getSuffrage()
 	if err != nil {
-		return 0, errors.WithMessage(err, "failed to get the number of candiates for majority suffrage limiter")
+		return 0, errors.WithMessage(err, "get the number of candiates for majority suffrage limiter")
 	}
 
 	if s < 4 { //nolint:gomnd //...

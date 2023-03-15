@@ -32,7 +32,7 @@ var (
 )
 
 func PSuffrageCandidateLimiterSet(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("failed to prepare SuffrageCandidateLimiterSet")
+	e := util.StringErrorFunc("prepare SuffrageCandidateLimiterSet")
 
 	var db isaac.Database
 	if err := util.LoadFromContextOK(pctx, CenterDatabaseContextKey, &db); err != nil {
@@ -231,7 +231,7 @@ func PPatchLastConsensusNodesWatcher(pctx context.Context) (context.Context, err
 }
 
 func PNodeInConsensusNodesFunc(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("failed NodeInConsensusNodesFunc")
+	e := util.StringErrorFunc("NodeInConsensusNodesFunc")
 
 	var db isaac.Database
 	var sp *SuffragePool
@@ -445,14 +445,14 @@ func MajoritySuffrageCandidateLimiterFunc(
 
 		switch {
 		case err != nil:
-			return nil, errors.WithMessagef(err, "failed to get last suffrage for MajoritySuffrageCandidateLimiter")
+			return nil, errors.WithMessagef(err, "get last suffrage for MajoritySuffrageCandidateLimiter")
 		case !found:
 			return nil, errors.Errorf("last suffrage not found for MajoritySuffrageCandidateLimiter")
 		}
 
 		suf, err := proof.Suffrage()
 		if err != nil {
-			return nil, errors.WithMessagef(err, "failed to get suffrage for MajoritySuffrageCandidateLimiter")
+			return nil, errors.WithMessagef(err, "get suffrage for MajoritySuffrageCandidateLimiter")
 		}
 
 		return isaac.NewMajoritySuffrageCandidateLimiter(
@@ -734,7 +734,7 @@ func newSuffrageCandidateLimiterFunc(pctx context.Context) ( //revive:disable-li
 	}
 
 	return func(height base.Height, getStateFunc base.GetStateFunc) (base.OperationProcessorProcessFunc, error) {
-		e := util.StringErrorFunc("failed to get SuffrageCandidateLimiterFunc")
+		e := util.StringErrorFunc("get SuffrageCandidateLimiterFunc")
 
 		policy := db.LastNetworkPolicy()
 		if policy == nil {
@@ -745,13 +745,13 @@ func newSuffrageCandidateLimiterFunc(pctx context.Context) ( //revive:disable-li
 
 		switch proof, found, err := db.LastSuffrageProof(); {
 		case err != nil:
-			return nil, e(err, "failed to get last suffrage")
+			return nil, e(err, "get last suffrage")
 		case !found:
 			return nil, e(nil, "last suffrage not found")
 		default:
 			i, err := proof.Suffrage()
 			if err != nil {
-				return nil, e(err, "failed to get suffrage")
+				return nil, e(err, "get suffrage")
 			}
 
 			suf = i
@@ -939,7 +939,7 @@ func broadcastSuffrageVotingFunc(
 
 		switch i, err := util.MarshalJSON(op); {
 		case err != nil:
-			return errors.WithMessage(err, "failed to marshal SuffrageWithdrawOperation")
+			return errors.WithMessage(err, "marshal SuffrageWithdrawOperation")
 		default:
 			b = i
 		}

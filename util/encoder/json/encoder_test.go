@@ -276,7 +276,7 @@ func (t *testJSONEncoder) TestDecodeWithFixedHintTypePoolError() {
 	i, derr := t.enc.DecodeWithFixedHintType(s, len(ht.Type())-1)
 	t.Error(derr)
 	t.Nil(i)
-	t.ErrorContains(derr, "failed to find decoder by type")
+	t.ErrorContains(derr, "find decoder by type")
 
 	perr0, found := pool.Get(v.String())
 	t.True(found)
@@ -502,7 +502,7 @@ func (t *testJSONEncoder) TestDecodeUnknown() {
 
 	_, err = t.enc.Decode(b)
 	t.True(errors.Is(err, util.ErrNotFound))
-	t.ErrorContains(err, "failed to find decoder")
+	t.ErrorContains(err, "find decoder")
 }
 
 func (t *testJSONEncoder) TestDecodeSlice() {

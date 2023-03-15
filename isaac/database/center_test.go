@@ -933,7 +933,7 @@ func (t *testCenterBlockWrite) TestInvalidMerge() {
 
 		err = db.MergeBlockWriteDatabase(wst)
 		t.Error(err)
-		t.ErrorContains(err, "failed to merge new TempDatabase")
+		t.ErrorContains(err, "merge new TempDatabase")
 		t.ErrorContains(err, "wrong height")
 	})
 
@@ -946,7 +946,7 @@ func (t *testCenterBlockWrite) TestInvalidMerge() {
 
 		err = db.MergeBlockWriteDatabase(wst)
 		t.Error(err)
-		t.ErrorContains(err, "failed to merge new TempDatabase")
+		t.ErrorContains(err, "merge new TempDatabase")
 		t.ErrorContains(err, "empty blockmap")
 	})
 }

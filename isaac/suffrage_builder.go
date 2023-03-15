@@ -46,7 +46,7 @@ func NewSuffrageStateBuilder(
 func (s *SuffrageStateBuilder) Build(
 	ctx context.Context, localstate base.State,
 ) (lastheight base.Height, proofs []base.SuffrageProof, candidates base.State, _ error) {
-	e := util.StringErrorFunc("failed to build suffrage states")
+	e := util.StringErrorFunc("build suffrage states")
 
 	lastheight = base.NilHeight
 
@@ -116,7 +116,7 @@ func (s *SuffrageStateBuilder) Build(
 func (s *SuffrageStateBuilder) buildBatch(
 	ctx context.Context, localstate, last base.State, from base.Height,
 ) ([]base.SuffrageProof, error) {
-	e := util.StringErrorFunc("failed to build by batch")
+	e := util.StringErrorFunc("build by batch")
 
 	lastv, _ := base.LoadSuffrageNodesStateValue(last)
 	lastheight := lastv.Height()

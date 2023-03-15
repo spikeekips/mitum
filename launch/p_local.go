@@ -17,7 +17,7 @@ var (
 )
 
 func PLocal(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("failed to load local")
+	e := util.StringErrorFunc("load local")
 
 	var log *logging.Logging
 	if err := util.LoadFromContextOK(pctx, LoggingContextKey, &log); err != nil {

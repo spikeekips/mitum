@@ -23,7 +23,7 @@ func NewSuffrageWithdrawProcessor(
 	newPreProcessConstraintFunc base.NewOperationProcessorProcessFunc,
 	newProcessConstraintFunc base.NewOperationProcessorProcessFunc,
 ) (*SuffrageWithdrawProcessor, error) {
-	e := util.StringErrorFunc("failed to create new SuffrageWithdrawProcessor")
+	e := util.StringErrorFunc("create new SuffrageWithdrawProcessor")
 
 	b, err := base.NewBaseOperationProcessor(
 		height, getStateFunc, newPreProcessConstraintFunc, newProcessConstraintFunc)
@@ -46,7 +46,7 @@ func NewSuffrageWithdrawProcessor(
 
 		suf, err := p.sufstv.Suffrage()
 		if err != nil {
-			return nil, e(isaac.ErrStopProcessingRetry.Errorf("failed to get suffrage from state"), "")
+			return nil, e(isaac.ErrStopProcessingRetry.Errorf("get suffrage from state"), "")
 		}
 
 		p.suffrage = suf
@@ -70,7 +70,7 @@ func (p *SuffrageWithdrawProcessor) Close() error {
 func (p *SuffrageWithdrawProcessor) PreProcess(ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (
 	context.Context, base.OperationProcessReasonError, error,
 ) {
-	e := util.StringErrorFunc("failed to preprocess for SuffrageWithdraw")
+	e := util.StringErrorFunc("preprocess for SuffrageWithdraw")
 
 	fact := op.Fact().(base.SuffrageWithdrawFact) //nolint:forcetypeassert //...
 
@@ -113,7 +113,7 @@ func (p *SuffrageWithdrawProcessor) PreProcess(ctx context.Context, op base.Oper
 func (p *SuffrageWithdrawProcessor) Process(ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (
 	[]base.StateMergeValue, base.OperationProcessReasonError, error,
 ) {
-	e := util.StringErrorFunc("failed to process for SuffrageWithdraw")
+	e := util.StringErrorFunc("process for SuffrageWithdraw")
 
 	switch reasonerr, err := p.ProcessConstraintFunc(ctx, op, getStateFunc); {
 	case err != nil:

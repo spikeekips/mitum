@@ -20,7 +20,7 @@ var (
 )
 
 func PProposalMaker(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("failed to prepare proposal maker")
+	e := util.StringErrorFunc(" prepare proposal maker")
 
 	var log *logging.Logging
 	var local base.LocalNode

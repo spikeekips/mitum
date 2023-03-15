@@ -38,7 +38,7 @@ func AnalyzeSetHinter(d DecodeDetail, v interface{}) DecodeDetail {
 		d.Decode = func(b []byte, ht hint.Hint) (interface{}, error) {
 			i, err := p(b, ht)
 			if err != nil {
-				return i, errors.WithMessage(err, "failed to decode")
+				return i, errors.WithMessage(err, "decode")
 			}
 
 			n := reflect.New(reflect.TypeOf(i))
@@ -64,7 +64,7 @@ func AnalyzeSetHinter(d DecodeDetail, v interface{}) DecodeDetail {
 	d.Decode = func(b []byte, ht hint.Hint) (interface{}, error) {
 		i, err := p(b, ht)
 		if err != nil {
-			return i, errors.WithMessage(err, "failed to decode")
+			return i, errors.WithMessage(err, "decode")
 		}
 
 		if ht.IsEmpty() {
@@ -78,7 +78,7 @@ func AnalyzeSetHinter(d DecodeDetail, v interface{}) DecodeDetail {
 }
 
 func Decode(enc Encoder, b []byte, v interface{}) error {
-	e := util.StringErrorFunc("failed to decode")
+	e := util.StringErrorFunc("decode")
 
 	hinter, err := enc.Decode(b)
 	if err != nil {
@@ -93,15 +93,15 @@ func Decode(enc Encoder, b []byte, v interface{}) error {
 }
 
 func DecodeReader(enc Encoder, r io.Reader, v interface{}) error {
-	e := util.StringErrorFunc("failed to decode from reader")
+	e := util.StringErrorFunc("DecodeReader")
 
 	b, err := io.ReadAll(r)
 	if err != nil {
-		return e(err, "")
+		return e(err, "reader")
 	}
 
 	if err := Decode(enc, b, v); err != nil {
-		return e(err, "")
+		return e(err, "decode")
 	}
 
 	return nil

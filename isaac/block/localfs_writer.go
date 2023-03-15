@@ -69,7 +69,7 @@ func NewLocalFSWriter(
 	local base.LocalNode,
 	networkID base.NetworkID,
 ) (*LocalFSWriter, error) {
-	e := util.StringErrorFunc("failed to create LocalFSWriter")
+	e := util.StringErrorFunc("create LocalFSWriter")
 
 	abs, err := filepath.Abs(filepath.Clean(root))
 	if err != nil {
@@ -87,7 +87,7 @@ func NewLocalFSWriter(
 	temp := filepath.Join(abs, BlockTempDirectoryPrefix, fmt.Sprintf("%d-%s", height, id))
 
 	if err := os.MkdirAll(temp, 0o700); err != nil {
-		return nil, e(err, "failed to create temp directory")
+		return nil, e(err, "create temp directory")
 	}
 
 	w := &LocalFSWriter{
@@ -105,14 +105,14 @@ func NewLocalFSWriter(
 
 	switch f, err := w.newChecksumWriter(base.BlockMapItemTypeOperations); {
 	case err != nil:
-		return nil, e(err, "failed to create operations file")
+		return nil, e(err, "create operations file")
 	default:
 		w.opsf = f
 	}
 
 	switch f, err := w.newChecksumWriter(base.BlockMapItemTypeStates); {
 	case err != nil:
-		return nil, e(err, "failed to create states file")
+		return nil, e(err, "create states file")
 	default:
 		w.stsf = f
 	}
@@ -122,7 +122,7 @@ func NewLocalFSWriter(
 
 func (w *LocalFSWriter) SetProposal(_ context.Context, pr base.ProposalSignFact) error {
 	if err := w.writeItem(base.BlockMapItemTypeProposal, pr); err != nil {
-		return errors.Wrap(err, "failed to set proposal in fs writer")
+		return errors.Wrap(err, "set proposal in fs writer")
 	}
 
 	return nil
@@ -130,7 +130,7 @@ func (w *LocalFSWriter) SetProposal(_ context.Context, pr base.ProposalSignFact)
 
 func (w *LocalFSWriter) SetOperation(_ context.Context, _ uint64, op base.Operation) error {
 	if err := w.appendfile(w.opsf, op); err != nil {
-		return errors.Wrap(err, "failed to set operation")
+		return errors.Wrap(err, "set operation")
 	}
 
 	atomic.AddUint64(&w.lenops, 1)
@@ -151,13 +151,13 @@ func (w *LocalFSWriter) SetOperationsTree(ctx context.Context, tw *fixedtree.Wri
 				w.opsf.Checksum(),
 				atomic.LoadUint64(&w.lenops),
 			)); err != nil {
-				return errors.Wrap(err, "failed to set operations")
+				return errors.Wrap(err, "set operations")
 			}
 
 			return nil
 		},
 	); err != nil {
-		return errors.Wrap(err, "failed to set operations tree")
+		return errors.Wrap(err, "set operations tree")
 	}
 
 	return nil
@@ -165,7 +165,7 @@ func (w *LocalFSWriter) SetOperationsTree(ctx context.Context, tw *fixedtree.Wri
 
 func (w *LocalFSWriter) SetState(_ context.Context, _ uint64, st base.State) error {
 	if err := w.appendfile(w.stsf, st); err != nil {
-		return errors.Wrap(err, "failed to set state")
+		return errors.Wrap(err, "set state")
 	}
 
 	return nil
@@ -184,14 +184,14 @@ func (w *LocalFSWriter) SetStatesTree(ctx context.Context, tw *fixedtree.Writer)
 				w.stsf.Checksum(),
 				uint64(tw.Len()),
 			)); eerr != nil {
-				return errors.Wrap(eerr, "failed to set states")
+				return errors.Wrap(eerr, "set states")
 			}
 
 			return nil
 		},
 	)
 	if err != nil {
-		return tr, errors.Wrap(err, "failed to set states tree")
+		return tr, errors.Wrap(err, "set states tree")
 	}
 
 	return tr, nil
@@ -213,7 +213,7 @@ func (w *LocalFSWriter) SetINITVoteproof(_ context.Context, vp base.INITVoteproo
 	}
 
 	if err := w.saveVoteproofs(); err != nil {
-		return errors.Wrap(err, "failed to set init voteproof in fs writer")
+		return errors.Wrap(err, "set init voteproof in fs writer")
 	}
 
 	return nil
@@ -229,7 +229,7 @@ func (w *LocalFSWriter) SetACCEPTVoteproof(_ context.Context, vp base.ACCEPTVote
 	}
 
 	if err := w.saveVoteproofs(); err != nil {
-		return errors.Wrap(err, "failed to set accept voteproof in fs writer")
+		return errors.Wrap(err, "set accept voteproof in fs writer")
 	}
 
 	return nil
@@ -240,7 +240,7 @@ func (w *LocalFSWriter) saveVoteproofs() error {
 		return nil
 	}
 
-	e := util.StringErrorFunc("failed to save voteproofs ")
+	e := util.StringErrorFunc("save voteproofs ")
 
 	f, err := w.newChecksumWriter(base.BlockMapItemTypeVoteproofs)
 	if err != nil {
@@ -281,17 +281,17 @@ func (w *LocalFSWriter) Save(ctx context.Context) (base.BlockMap, error) {
 	// NOTE check height directory
 	switch _, err := os.Stat(heightdirectory); {
 	case err == nil:
-		return nil, isaac.ErrStopProcessingRetry.Errorf("failed to save fs writer; height directory already exists")
+		return nil, isaac.ErrStopProcessingRetry.Errorf("save fs writer; height directory already exists")
 	case os.IsNotExist(err):
 	default:
-		return nil, isaac.ErrStopProcessingRetry.Errorf("failed to save fs writer; failed to check height directory")
+		return nil, isaac.ErrStopProcessingRetry.Errorf("save fs writer; check height directory")
 	}
 
 	switch m, err := w.save(ctx, heightdirectory); {
 	case err != nil:
 		_ = os.RemoveAll(heightdirectory)
 
-		return nil, isaac.ErrStopProcessingRetry.Wrapf(err, "failed to save fs writer")
+		return nil, isaac.ErrStopProcessingRetry.Wrapf(err, "save fs writer")
 	default:
 		return m, nil
 	}
@@ -328,7 +328,7 @@ func (w *LocalFSWriter) save(_ context.Context, heightdirectory string) (base.Bl
 	case err == nil:
 	case os.IsExist(err):
 	default:
-		return nil, errors.WithMessage(err, "failed to create height parent directory")
+		return nil, errors.WithMessage(err, "create height parent directory")
 	}
 
 	if err := os.Rename(w.temp, heightdirectory); err != nil {
@@ -358,9 +358,9 @@ func (w *LocalFSWriter) Cancel() error {
 		_ = w.stsf.Close()
 	}
 
-	e := util.StringErrorFunc("failed to cancel fs writer")
+	e := util.StringErrorFunc("cancel fs writer")
 	if err := os.RemoveAll(w.temp); err != nil {
-		return e(err, "failed to remove temp directory")
+		return e(err, "remove temp directory")
 	}
 
 	return w.close()
@@ -391,11 +391,11 @@ func (w *LocalFSWriter) setTree(
 	worker := util.NewErrgroupWorker(ctx, math.MaxInt8)
 	defer worker.Close()
 
-	e := util.StringErrorFunc("failed to set tree, %q", treetype)
+	e := util.StringErrorFunc("set tree, %q", treetype)
 
 	tf, err := w.newChecksumWriter(treetype)
 	if err != nil {
-		return tr, e(err, "failed to create tree file, %q", treetype)
+		return tr, e(err, "create tree file, %q", treetype)
 	}
 
 	defer func() {
@@ -462,7 +462,7 @@ func (w *LocalFSWriter) saveMap() error {
 		0o600,
 	)
 	if err != nil {
-		return e(err, "failed to create map file")
+		return e(err, "create map file")
 	}
 
 	if err := w.writefileonce(f, w.m); err != nil {
@@ -533,7 +533,7 @@ func (w *LocalFSWriter) newChecksumWriter(t base.BlockMapItemType) (util.Checksu
 
 	switch f, err := os.OpenFile(temppath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600); { //nolint:gosec //...
 	case err != nil:
-		return nil, errors.Wrapf(err, "failed to open file, %q", temppath)
+		return nil, errors.Wrapf(err, "open file, %q", temppath)
 	default:
 		var cw util.ChecksumWriter
 		cw = util.NewHashChecksumWriter(fname, f, sha256.New())
@@ -610,7 +610,7 @@ func FindHighestDirectory(root string) (highest string, found bool, _ error) {
 func FindLastHeightFromLocalFS(
 	baseroot string, enc encoder.Encoder, networkID base.NetworkID,
 ) (last base.Height, found bool, _ error) {
-	e := util.StringErrorFunc("failed to find last height from localfs")
+	e := util.StringErrorFunc("find last height from localfs")
 
 	last = base.NilHeight
 
@@ -740,7 +740,7 @@ func BlockFileName(t base.BlockMapItemType, hinttype string) (string, error) {
 func CleanBlockTempDirectory(root string) error {
 	d := filepath.Join(filepath.Clean(root), BlockTempDirectoryPrefix)
 	if err := os.RemoveAll(d); err != nil {
-		return errors.Wrap(err, "failed to remove block temp directory")
+		return errors.Wrap(err, "remove block temp directory")
 	}
 
 	return nil
@@ -753,10 +753,10 @@ func RemoveBlockFromLocalFS(root string, height base.Height) (bool, error) {
 	case errors.Is(err, os.ErrNotExist):
 		return false, errors.WithMessagef(err, "height directory, %q does not exist", heightdirectory)
 	case err != nil:
-		return false, errors.WithMessagef(err, "failed to check height directory, %q", heightdirectory)
+		return false, errors.WithMessagef(err, "check height directory, %q", heightdirectory)
 	default:
 		if err := os.RemoveAll(heightdirectory); err != nil {
-			return false, errors.WithMessagef(err, "failed to remove %q", heightdirectory)
+			return false, errors.WithMessagef(err, "remove %q", heightdirectory)
 		}
 
 		return true, nil
@@ -769,7 +769,7 @@ func RemoveBlocksFromLocalFS(root string, height base.Height) (bool, error) {
 		return false, nil
 	case height < base.GenesisHeight+1:
 		if err := os.RemoveAll(root); err != nil {
-			return false, errors.WithMessage(err, "failed to clean localfs")
+			return false, errors.WithMessage(err, "clean localfs")
 		}
 
 		return true, nil
@@ -869,7 +869,7 @@ type indexedTreeNode struct {
 }
 
 func unmarshalIndexedTreeNode(enc encoder.Encoder, b []byte, ht hint.Hint) (in indexedTreeNode, _ error) {
-	e := util.StringErrorFunc("failed to unmarshal indexed tree node")
+	e := util.StringErrorFunc("unmarshal indexed tree node")
 
 	bf := bytes.NewBuffer(b)
 	defer bf.Reset()
@@ -878,7 +878,7 @@ func unmarshalIndexedTreeNode(enc encoder.Encoder, b []byte, ht hint.Hint) (in i
 	case err != nil:
 		return in, e(err, "")
 	case len(i) < 2: //nolint:gomnd //...
-		return in, e(nil, "failed to find index string")
+		return in, e(nil, "find index string")
 	default:
 		index, err := strconv.ParseUint(string(i[:len(i)-1]), 10, 64)
 		if err != nil {

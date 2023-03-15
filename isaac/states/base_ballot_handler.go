@@ -107,7 +107,7 @@ func (st *baseBallotHandler) makeNextRoundBallot(
 		initialWait,
 	)
 	if err != nil {
-		return nil, errors.WithMessage(err, "failed to prepare next round init ballot")
+		return nil, errors.WithMessage(err, "prepare next round init ballot")
 	}
 
 	return bl, nil
@@ -128,7 +128,7 @@ func (st *baseBallotHandler) makeNextBlockBallot(
 		initialWait,
 	)
 	if err != nil {
-		return nil, errors.WithMessage(err, "failed to prepare next block init ballot")
+		return nil, errors.WithMessage(err, "prepare next block init ballot")
 	}
 
 	return bl, nil
@@ -142,7 +142,7 @@ func (st *baseBallotHandler) makeINITBallot(
 	suf base.Suffrage,
 	initialWait time.Duration,
 ) (base.INITBallot, error) {
-	e := util.StringErrorFunc("failed to prepare next block")
+	e := util.StringErrorFunc("prepare next block")
 
 	l := st.Log().With().Str("voteproof", vp.ID()).Object("point", point).Logger()
 
@@ -188,7 +188,7 @@ func (st *baseBallotHandler) makeINITBallot(
 	sf := isaac.NewINITBallotSignFact(fact)
 
 	if err := sf.NodeSign(st.local.Privatekey(), st.params.NetworkID(), st.local.Address()); err != nil {
-		return nil, e(err, "failed to make next init ballot")
+		return nil, e(err, "make next init ballot")
 	}
 
 	bl := isaac.NewINITBallot(vp, sf, withdraws)
@@ -201,7 +201,7 @@ func (st *baseBallotHandler) prepareACCEPTBallot(
 	manifest base.Manifest,
 	initialWait time.Duration,
 ) error {
-	e := util.StringErrorFunc("failed to prepare accept ballot")
+	e := util.StringErrorFunc("prepare accept ballot")
 
 	bl, err := st.makeACCEPTBallot(ivp, manifest)
 	if err != nil {
@@ -225,7 +225,7 @@ func (st *baseBallotHandler) prepareACCEPTBallot(
 	}()
 
 	if err := st.broadcastACCEPTBallot(bl, initialWait); err != nil {
-		return e(err, "failed to broadcast accept ballot")
+		return e(err, "broadcast accept ballot")
 	}
 
 	if err := st.timers.StopOthers([]util.TimerID{
@@ -233,7 +233,7 @@ func (st *baseBallotHandler) prepareACCEPTBallot(
 		timerIDBroadcastSuffrageConfirmBallot,
 		timerIDBroadcastACCEPTBallot,
 	}); err != nil {
-		return e(err, "failed to start timers for broadcasting accept ballot")
+		return e(err, "start timers for broadcasting accept ballot")
 	}
 
 	return nil
@@ -349,7 +349,7 @@ func (st *baseBallotHandler) makeSuffrageConfirmBallot(vp base.Voteproof) (base.
 
 	if err := sf.NodeSign(st.local.Privatekey(), st.params.NetworkID(), st.local.Address()); err != nil {
 		go st.switchState(
-			newBrokenSwitchContext(st.stt, errors.WithMessage(err, "failed to make suffrage confirm ballot")),
+			newBrokenSwitchContext(st.stt, errors.WithMessage(err, "make suffrage confirm ballot")),
 		)
 
 		return nil, err
@@ -618,7 +618,7 @@ func (st *baseBallotHandler) prepareNextBlock(
 	}
 }
 
-var errFailedToVoteNotInConsensus = util.NewMError("failed to vote; local not in consensus nodes")
+var errFailedToVoteNotInConsensus = util.NewMError("vote; local not in consensus nodes")
 
 func preventVotingWithEmptySuffrage(
 	local base.Node,
@@ -626,7 +626,7 @@ func preventVotingWithEmptySuffrage(
 	nodeInConsensusNodes isaac.NodeInConsensusNodesFunc,
 ) func(base.Ballot) (bool, error) {
 	return func(bl base.Ballot) (bool, error) {
-		e := util.StringErrorFunc("failed to vote")
+		e := util.StringErrorFunc("vote")
 
 		switch suf, found, err := nodeInConsensusNodes(local, bl.Point().Height()); {
 		case err != nil:
@@ -672,5 +672,5 @@ func broadcastBallot(
 		},
 	)
 
-	return errors.WithMessage(err, "failed to broadcast ballot")
+	return errors.WithMessage(err, "broadcast ballot")
 }

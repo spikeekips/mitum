@@ -14,7 +14,7 @@ import (
 )
 
 func (d *SyncSource) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode SyncSource")
+	e := util.StringErrorFunc("decode SyncSource")
 
 	var v interface{}
 	if err := yaml.Unmarshal(b, &v); err != nil {
@@ -56,7 +56,7 @@ func (d *SyncSource) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
 func (d *SyncSource) decodeString(s string) error {
 	u, err := url.Parse(s)
 	if err != nil {
-		return errors.Wrap(err, "failed to string for SyncSource")
+		return errors.Wrap(err, "string for SyncSource")
 	}
 
 	switch {
@@ -112,7 +112,7 @@ type syncSourceNodeUnmarshaler struct {
 }
 
 func (SyncSource) decodeYAMLNodeConnInfo(b []byte, enc *jsonenc.Encoder) (isaac.NodeConnInfo, error) {
-	e := util.StringErrorFunc("failed to decode node of SyncSource")
+	e := util.StringErrorFunc("decode node of SyncSource")
 
 	var u syncSourceNodeUnmarshaler
 
@@ -145,7 +145,7 @@ type syncSourceConnInfoUnmarshaler struct {
 func (SyncSource) decodeYAMLConnInfo(
 	b []byte, _ *jsonenc.Encoder,
 ) (ci quicmemberlist.NamedConnInfo, _ error) {
-	e := util.StringErrorFunc("failed to decode conninfo of SyncSource")
+	e := util.StringErrorFunc("decode conninfo of SyncSource")
 
 	var u syncSourceConnInfoUnmarshaler
 

@@ -45,7 +45,7 @@ func Setup(
 func Output(f string) (io.Writer, error) {
 	out, err := os.OpenFile(filepath.Clean(f), os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o600)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to open file, %q", f)
+		return nil, errors.Wrapf(err, "to open file, %q", f)
 	}
 
 	return diode.NewWriter(out, 1000, 0, nil), nil //nolint:gomnd //...
@@ -61,7 +61,7 @@ func Outputs(files []string) (io.Writer, error) {
 	for i, f := range files {
 		out, err := Output(f)
 		if err != nil {
-			return zerolog.Logger{}, errors.WithMessage(err, "failed Outputs")
+			return zerolog.Logger{}, err
 		}
 
 		ws[i] = out

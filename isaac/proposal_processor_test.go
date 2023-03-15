@@ -365,7 +365,7 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsFailed() {
 	switch {
 	case errors.Is(err, context.Canceled):
 	case errors.Is(err, util.ErrWrongType):
-		t.ErrorContains(err, "failed to collect operations")
+		t.ErrorContains(err, "collect operations")
 	default:
 		t.Error(errors.Errorf("unexpected error, %T", err))
 	}
@@ -982,7 +982,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessContextCancel() {
 	t.Error(err)
 
 	t.True(errors.Is(err, context.Canceled))
-	t.ErrorContains(err, "failed to pre process operation")
+	t.ErrorContains(err, "pre process operation")
 }
 
 func (t *testDefaultProposalProcessor) TestPreProcessWithContext() {
@@ -1306,7 +1306,7 @@ func (t *testDefaultProposalProcessor) TestProcessButErrorRetry() {
 	t.Error(err)
 	t.Nil(m)
 
-	t.ErrorContains(err, "failed to process operation")
+	t.ErrorContains(err, "process operation")
 	t.Equal(opp.retrylimit, called)
 }
 
@@ -1349,7 +1349,7 @@ func (t *testDefaultProposalProcessor) TestProcessButSetStatesErrorRetry() {
 	t.Error(err)
 	t.Nil(m)
 
-	t.ErrorContains(err, "failed to process operation")
+	t.ErrorContains(err, "process operation")
 	t.Equal(opp.retrylimit, called)
 }
 
@@ -1425,7 +1425,7 @@ func (t *testDefaultProposalProcessor) TestProcessContextCancel() {
 	t.Error(err)
 
 	t.True(errors.Is(err, context.Canceled))
-	t.ErrorContains(err, "failed to process operation")
+	t.ErrorContains(err, "process operation")
 }
 
 func (t *testDefaultProposalProcessor) TestProcessCancel() {
@@ -1499,7 +1499,7 @@ func (t *testDefaultProposalProcessor) TestProcessCancel() {
 	t.Error(err)
 
 	t.True(errors.Is(err, context.Canceled))
-	t.ErrorContains(err, "failed to process operation")
+	t.ErrorContains(err, "process operation")
 }
 
 func (t *testDefaultProposalProcessor) TestSave() {

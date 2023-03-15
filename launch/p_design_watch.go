@@ -22,7 +22,7 @@ import (
 var PNameWatchDesign = ps.Name("watch-design")
 
 func PWatchDesign(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("failed to watch design")
+	e := util.StringErrorFunc("watch design")
 
 	var log *logging.Logging
 	var flag DesignFlag
@@ -43,7 +43,7 @@ func PWatchDesign(pctx context.Context) (context.Context, error) {
 	case "consul":
 		runf, err := consulWatch(pctx, watchUpdatefs)
 		if err != nil {
-			return pctx, e(err, "failed to watch thru consul")
+			return pctx, e(err, "watch thru consul")
 		}
 
 		go func() {
@@ -210,11 +210,11 @@ func updateFromConsulAfterCheckDesign(
 		for i := range fs {
 			switch v, _, err := client.KV().Get(prefix+"/"+i, nil); {
 			case err != nil:
-				return errors.WithMessagef(err, "failed to get key from consul, %q", i)
+				return errors.WithMessagef(err, "get key from consul, %q", i)
 			case v == nil:
 			default:
 				if _, err := update(v); err != nil {
-					return errors.WithMessagef(err, "failed to update key from consul, %q", i)
+					return errors.WithMessagef(err, "update key from consul, %q", i)
 				}
 			}
 		}
@@ -253,7 +253,7 @@ func updateLocalParamIntervalBroadcastBallot(
 	return func(s string) error {
 		d, err := util.ParseDuration(s)
 		if err != nil {
-			return errors.Wrap(err, "failed to parse duration")
+			return err
 		}
 
 		prev := params.IntervalBroadcastBallot()
@@ -276,7 +276,7 @@ func updateLocalParamWaitPreparingINITBallot(
 	return func(s string) error {
 		d, err := util.ParseDuration(s)
 		if err != nil {
-			return errors.Wrap(err, "failed to parse duration")
+			return err
 		}
 
 		prev := params.WaitPreparingINITBallot()
@@ -299,7 +299,7 @@ func updateLocalParamTimeoutRequestProposal(
 	return func(s string) error {
 		d, err := util.ParseDuration(s)
 		if err != nil {
-			return errors.Wrap(err, "failed to parse duration")
+			return err
 		}
 
 		prev := params.TimeoutRequestProposal()
@@ -322,7 +322,7 @@ func updateLocalParamSyncSourceCheckerInterval(
 	return func(s string) error {
 		d, err := util.ParseDuration(s)
 		if err != nil {
-			return errors.Wrap(err, "failed to parse duration")
+			return err
 		}
 
 		prev := params.SyncSourceCheckerInterval()
@@ -345,7 +345,7 @@ func updateLocalParamValidProposalOperationExpire(
 	return func(s string) error {
 		d, err := util.ParseDuration(s)
 		if err != nil {
-			return errors.Wrap(err, "failed to parse duration")
+			return err
 		}
 
 		prev := params.ValidProposalOperationExpire()
@@ -368,7 +368,7 @@ func updateLocalParamValidProposalSuffrageOperationsExpire(
 	return func(s string) error {
 		d, err := util.ParseDuration(s)
 		if err != nil {
-			return errors.Wrap(err, "failed to parse duration")
+			return err
 		}
 
 		prev := params.ValidProposalSuffrageOperationsExpire()
@@ -391,7 +391,7 @@ func updateLocalParamMaxMessageSize(
 	return func(s string) error {
 		i, err := strconv.ParseUint(s, 10, 64)
 		if err != nil {
-			return errors.Wrap(err, "failed to parse uint64")
+			return errors.Wrap(err, "parse max message size")
 		}
 
 		prev := params.MaxMessageSize()
@@ -414,7 +414,7 @@ func updateLocalParamSameMemberLimit(
 	return func(s string) error {
 		i, err := strconv.ParseUint(s, 10, 64)
 		if err != nil {
-			return errors.Wrap(err, "failed to parse uint64")
+			return errors.Wrap(err, "parse same member limit")
 		}
 
 		prev := params.SameMemberLimit()
@@ -437,7 +437,7 @@ func updateSyncSources(
 	log *logging.Logging,
 ) func(string) error {
 	return func(s string) error {
-		e := util.StringErrorFunc("failed to update sync source")
+		e := util.StringErrorFunc("update sync source")
 
 		var sources SyncSourcesDesign
 		if err := sources.DecodeYAML([]byte(s), enc); err != nil {
@@ -471,7 +471,7 @@ func updateDiscoveries(
 	log *logging.Logging,
 ) func(string) error {
 	return func(s string) error {
-		e := util.StringErrorFunc("failed to update discoveries")
+		e := util.StringErrorFunc("update discoveries")
 
 		var sl []string
 		if err := yaml.Unmarshal([]byte(s), &sl); err != nil {

@@ -52,7 +52,7 @@ func (fact baseBallotFact) jsonMarshaler() baseBallotFactJSONMarshaler {
 }
 
 func (fact *baseBallotFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode baseBallotFact")
+	e := util.StringErrorFunc("decode baseBallotFact")
 
 	var u baseBallotFactJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
@@ -82,7 +82,7 @@ func (fact INITBallotFact) MarshalJSON() ([]byte, error) {
 }
 
 func (fact *INITBallotFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode INITBallotFact")
+	e := util.StringErrorFunc("decode INITBallotFact")
 
 	var ub baseBallotFact
 	if err := ub.DecodeJSON(b, enc); err != nil {
@@ -111,7 +111,7 @@ func (fact ACCEPTBallotFact) MarshalJSON() ([]byte, error) {
 }
 
 func (fact *ACCEPTBallotFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode ACCEPTBallotFact")
+	e := util.StringErrorFunc("decode ACCEPTBallotFact")
 
 	var ub baseBallotFact
 	if err := ub.DecodeJSON(b, enc); err != nil {

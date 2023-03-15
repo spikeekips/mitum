@@ -17,7 +17,7 @@ var (
 )
 
 func PEncoder(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("failed to prepare encoders")
+	e := util.StringErrorFunc("prepare encoders")
 
 	encs := encoder.NewEncoders()
 	enc := jsonenc.NewEncoder()
@@ -33,7 +33,7 @@ func PEncoder(pctx context.Context) (context.Context, error) {
 }
 
 func PAddHinters(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("failed to add hinters")
+	e := util.StringErrorFunc("add hinters")
 
 	var enc encoder.Encoder
 	if err := util.LoadFromContextOK(pctx, EncoderContextKey, &enc); err != nil {

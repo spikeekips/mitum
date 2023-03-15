@@ -145,7 +145,7 @@ type LockedMap[K lockedMapKeys, V any] interface { //nolint:interfacebloat //...
 func NewLockedMap[K lockedMapKeys, V any](k K, v V, size int64) (LockedMap[K, V], error) {
 	switch {
 	case size < 1:
-		return nil, errors.Errorf("failed new ShardedMap; empty size")
+		return nil, errors.Errorf("new ShardedMap; empty size")
 	case size == 1:
 		return NewSingleLockedMap(k, v), nil
 	default:
@@ -361,9 +361,9 @@ type ShardedMap[K lockedMapKeys, V any] struct {
 func NewShardedMap[K lockedMapKeys, V any](_ K, _ V, size int64) (*ShardedMap[K, V], error) {
 	switch {
 	case size < 1:
-		return nil, errors.Errorf("failed new ShardedMap; empty size")
+		return nil, errors.Errorf("new ShardedMap; empty size")
 	case size == 1:
-		return nil, errors.Errorf("failed new ShardedMap; 1 size; use SingleLockedMap")
+		return nil, errors.Errorf("new ShardedMap; 1 size; use SingleLockedMap")
 	}
 
 	return &ShardedMap[K, V]{

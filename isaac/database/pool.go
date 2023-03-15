@@ -52,7 +52,7 @@ func newTempPool(st *leveldbstorage.Storage, encs *encoder.Encoders, enc encoder
 }
 
 func (db *TempPool) Close() error {
-	e := util.StringErrorFunc("failed to close TempPool")
+	e := util.StringErrorFunc("close TempPool")
 
 	switch err := db.Stop(); {
 	case err == nil:
@@ -69,7 +69,7 @@ func (db *TempPool) Close() error {
 }
 
 func (db *TempPool) Proposal(h util.Hash) (pr base.ProposalSignFact, found bool, _ error) {
-	e := util.StringErrorFunc("failed to find proposal by hash")
+	e := util.StringErrorFunc("find proposal by hash")
 
 	switch b, found, err := db.st.Get(leveldbProposalKey(h)); {
 	case err != nil:
@@ -92,7 +92,7 @@ func (db *TempPool) ProposalBytes(h util.Hash) (enchint hint.Hint, meta, body []
 }
 
 func (db *TempPool) ProposalByPoint(point base.Point, proposer base.Address) (base.ProposalSignFact, bool, error) {
-	e := util.StringErrorFunc("failed to find proposal by point")
+	e := util.StringErrorFunc("find proposal by point")
 
 	switch b, found, err := db.st.Get(leveldbProposalPointKey(point, proposer)); {
 	case err != nil:
@@ -110,7 +110,7 @@ func (db *TempPool) ProposalByPoint(point base.Point, proposer base.Address) (ba
 }
 
 func (db *TempPool) SetProposal(pr base.ProposalSignFact) (bool, error) {
-	e := util.StringErrorFunc("failed to put proposal")
+	e := util.StringErrorFunc("put proposal")
 
 	key := leveldbProposalKey(pr.Fact().Hash())
 
@@ -126,7 +126,7 @@ func (db *TempPool) SetProposal(pr base.ProposalSignFact) (bool, error) {
 
 	b, _, err := db.marshal(pr, nil)
 	if err != nil {
-		return false, e(err, "failed to marshal proposal")
+		return false, e(err, "marshal proposal")
 	}
 
 	batch.Put(leveldbProposalKey(pr.Fact().Hash()), b)
@@ -143,7 +143,7 @@ func (db *TempPool) SetProposal(pr base.ProposalSignFact) (bool, error) {
 }
 
 func (db *TempPool) NewOperation(_ context.Context, operationhash util.Hash) (op base.Operation, found bool, _ error) {
-	e := util.StringErrorFunc("failed to find operation")
+	e := util.StringErrorFunc("find operation")
 
 	switch b, found, err := db.st.Get(leveldbNewOperationKey(operationhash)); {
 	case err != nil:
@@ -173,7 +173,7 @@ func (db *TempPool) NewOperationHashes(
 	limit uint64,
 	filter func(isaac.PoolOperationRecordMeta) (bool, error),
 ) ([]util.Hash, error) {
-	e := util.StringErrorFunc("failed to find new operations")
+	e := util.StringErrorFunc("find new operations")
 
 	nfilter := filter
 	if nfilter == nil {
@@ -234,7 +234,7 @@ func (db *TempPool) NewOperationHashes(
 }
 
 func (db *TempPool) SetNewOperation(_ context.Context, op base.Operation) (bool, error) {
-	e := util.StringErrorFunc("failed to put operation")
+	e := util.StringErrorFunc("put operation")
 
 	oph := op.Hash()
 
@@ -249,7 +249,7 @@ func (db *TempPool) SetNewOperation(_ context.Context, op base.Operation) (bool,
 
 	b, _, err := db.marshal(op, nil)
 	if err != nil {
-		return false, e(err, "failed to marshal operation")
+		return false, e(err, "marshal operation")
 	}
 
 	batch := db.st.NewBatch()
@@ -271,7 +271,7 @@ func (db *TempPool) SuffrageWithdrawOperation(
 	height base.Height,
 	node base.Address,
 ) (base.SuffrageWithdrawOperation, bool, error) {
-	e := util.StringErrorFunc("failed to get SuffrageWithdrawOperation")
+	e := util.StringErrorFunc("get SuffrageWithdrawOperation")
 
 	nodeb := node.Bytes()
 
@@ -292,7 +292,7 @@ func (db *TempPool) SuffrageWithdrawOperation(
 				return false, nil
 			}
 		}, false); err != nil {
-		return nil, false, e(err, "failed to find old proposals")
+		return nil, false, e(err, "find old proposals")
 	}
 
 	if opb == nil {
@@ -309,11 +309,11 @@ func (db *TempPool) SuffrageWithdrawOperation(
 }
 
 func (db *TempPool) SetSuffrageWithdrawOperation(op base.SuffrageWithdrawOperation) error {
-	e := util.StringErrorFunc("failed to set SuffrageWithdrawOperation")
+	e := util.StringErrorFunc("set SuffrageWithdrawOperation")
 
 	b, _, err := db.marshal(op, nil)
 	if err != nil {
-		return e(err, "failed to marshal")
+		return e(err, "marshal")
 	}
 
 	fact := op.WithdrawFact()
@@ -324,7 +324,7 @@ func (db *TempPool) SetSuffrageWithdrawOperation(op base.SuffrageWithdrawOperati
 		fact.WithdrawEnd().Bytes(),
 	})
 	if err != nil {
-		return e(err, "failed to marshal")
+		return e(err, "marshal")
 	}
 
 	if err := db.st.Put(
@@ -360,14 +360,14 @@ func (db *TempPool) TraverseSuffrageWithdrawOperations(
 
 			return callback(op)
 		}, false); err != nil {
-		return errors.WithMessage(err, "failed to traverse SuffrageWithdrawOperations")
+		return errors.WithMessage(err, "traverse SuffrageWithdrawOperations")
 	}
 
 	return nil
 }
 
 func (db *TempPool) RemoveSuffrageWithdrawOperationsByFact(facts []base.SuffrageWithdrawFact) error {
-	e := util.StringErrorFunc("failed to remove SuffrageWithdrawOperations")
+	e := util.StringErrorFunc("remove SuffrageWithdrawOperations")
 
 	batch := db.st.NewBatch()
 	defer batch.Reset()
@@ -384,7 +384,7 @@ func (db *TempPool) RemoveSuffrageWithdrawOperationsByFact(facts []base.Suffrage
 }
 
 func (db *TempPool) RemoveSuffrageWithdrawOperationsByHeight(height base.Height) error {
-	e := util.StringErrorFunc("failed to remove SuffrageWithdrawOperations by height")
+	e := util.StringErrorFunc("remove SuffrageWithdrawOperations by height")
 
 	batch := db.st.NewBatch()
 	defer batch.Reset()
@@ -500,7 +500,7 @@ func (db *TempPool) LastVoteproofs() (base.INITVoteproof, base.ACCEPTVoteproof, 
 }
 
 func (db *TempPool) SetLastVoteproofs(ivp base.INITVoteproof, avp base.ACCEPTVoteproof) error {
-	e := util.StringErrorFunc("failed to set last voteproofs")
+	e := util.StringErrorFunc("set last voteproofs")
 
 	switch {
 	case ivp == nil || avp == nil:
@@ -520,14 +520,14 @@ func (db *TempPool) SetLastVoteproofs(ivp base.INITVoteproof, avp base.ACCEPTVot
 
 		return [2]base.Voteproof{ivp, avp}, nil
 	}); err != nil {
-		return e(err, "failed to set last voteproofs")
+		return e(err, "set last voteproofs")
 	}
 
 	return nil
 }
 
 func (db *TempPool) Ballot(point base.Point, stage base.Stage, isSuffrageConfirm bool) (base.Ballot, bool, error) {
-	e := util.StringErrorFunc("failed to find ballot")
+	e := util.StringErrorFunc("find ballot")
 
 	spoint := base.NewStagePoint(point, stage)
 	if err := spoint.IsValid(nil); err != nil {
@@ -553,7 +553,7 @@ func (db *TempPool) Ballot(point base.Point, stage base.Stage, isSuffrageConfirm
 }
 
 func (db *TempPool) SetBallot(bl base.Ballot) (bool, error) {
-	e := util.StringErrorFunc("failed to put ballot")
+	e := util.StringErrorFunc("put ballot")
 
 	key := leveldbBallotKey(bl.Point(), isaac.IsSuffrageConfirmBallotFact(bl.SignFact().Fact()))
 
@@ -566,7 +566,7 @@ func (db *TempPool) SetBallot(bl base.Ballot) (bool, error) {
 
 	b, _, err := db.marshal(bl, nil)
 	if err != nil {
-		return false, e(err, "failed to marshal")
+		return false, e(err, "marshal")
 	}
 
 	if err := db.st.Put(key, b, nil); err != nil {
@@ -819,7 +819,7 @@ func NewPoolOperationRecordMeta(op base.Operation) util.Byter {
 }
 
 func ReadPoolOperationRecordMeta(b []byte) (meta PoolOperationRecordMeta, _ error) {
-	e := util.StringErrorFunc("failed to read pool operation record meta")
+	e := util.StringErrorFunc("read pool operation record meta")
 
 	var m [][]byte
 

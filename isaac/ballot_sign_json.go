@@ -31,7 +31,7 @@ func (sf baseBallotSignFact) MarshalJSON() ([]byte, error) {
 }
 
 func (sf *baseBallotSignFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode BaseBallotSignFact")
+	e := util.StringErrorFunc("decode BaseBallotSignFact")
 
 	var u baseBallotSignFactJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
@@ -39,11 +39,11 @@ func (sf *baseBallotSignFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	}
 
 	if err := encoder.Decode(enc, u.Fact, &sf.fact); err != nil {
-		return e(err, "failed to decode fact")
+		return e(err, "decode fact")
 	}
 
 	if err := sf.sign.DecodeJSON(u.Sign, enc); err != nil {
-		return e(err, "failed to decode sign")
+		return e(err, "decode sign")
 	}
 
 	return nil

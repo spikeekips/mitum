@@ -31,7 +31,7 @@ func ParseBaseNodeString(s string) (n BaseNode, err error) {
 		return EmptyBaseNode(), nil
 	}
 
-	e := util.StringErrorFunc("failed to parse BaseNode")
+	e := util.StringErrorFunc("parse BaseNode")
 
 	l := strings.SplitN(s, " ", 2)
 
@@ -159,7 +159,7 @@ type baseNodeJSONUnmarshaler struct {
 func (n *BaseNode) UnmarshalJSON(b []byte) error {
 	var u baseNodeJSONUnmarshaler
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return errors.WithMessage(err, "failed to unmarshal BaseNode")
+		return errors.WithMessage(err, "unmarshal BaseNode")
 	}
 
 	if u.Isempty {

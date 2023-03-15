@@ -86,7 +86,7 @@ func BatchValidateMaps(
 	blockMapf func(context.Context, Height) (BlockMap, error),
 	callback func(BlockMap) error,
 ) error {
-	e := util.StringErrorFunc("failed to validate BlockMaps in batch")
+	e := util.StringErrorFunc("validate BlockMaps in batch")
 
 	prevheight := NilHeight
 	if prev != nil {
@@ -157,7 +157,7 @@ func ValidateMaps(m BlockMap, maps []BlockMap, previous BlockMap) error {
 
 	index := (m.Manifest().Height() - prev - 1).Int64()
 
-	e := util.StringErrorFunc("failed to validate BlockMaps")
+	e := util.StringErrorFunc("validate BlockMaps")
 
 	if index < 0 || index >= int64(len(maps)) {
 		return e(nil, "invalid BlockMaps found; wrong index")

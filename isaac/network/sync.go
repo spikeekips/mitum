@@ -175,7 +175,7 @@ end:
 }
 
 func (c *SyncSourceChecker) check(ctx context.Context, sources []SyncSource) ([]isaac.NodeConnInfo, error) {
-	e := util.StringErrorFunc("failed to fetch NodeConnInfo")
+	e := util.StringErrorFunc("fetch NodeConnInfo")
 
 	worker := util.NewDistributeWorker(ctx, int64(len(sources)), nil)
 	defer worker.Close()
@@ -243,7 +243,7 @@ func (c *SyncSourceChecker) check(ctx context.Context, sources []SyncSource) ([]
 }
 
 func (c *SyncSourceChecker) fetch(ctx context.Context, source SyncSource) (ncis []isaac.NodeConnInfo, err error) {
-	e := util.StringErrorFunc("failed to fetch NodeConnInfos")
+	e := util.StringErrorFunc("fetch NodeConnInfos")
 
 	switch source.Type {
 	case SyncSourceTypeNode:
@@ -318,7 +318,7 @@ func (c *SyncSourceChecker) fetchFromSuffrageNodes(
 ) (ncis []isaac.NodeConnInfo, _ error) {
 	ncis, err := c.fetchNodeConnInfos(ctx, source, c.client.SuffrageNodeConnInfo)
 	if err != nil {
-		return nil, errors.WithMessage(err, "failed to fetch suffrage nodes")
+		return nil, errors.WithMessage(err, "fetch suffrage nodes")
 	}
 
 	return ncis, nil
@@ -329,14 +329,14 @@ func (c *SyncSourceChecker) fetchFromSyncSources(
 ) (ncis []isaac.NodeConnInfo, _ error) {
 	ncis, err := c.fetchNodeConnInfos(ctx, source, c.client.SyncSourceConnInfo)
 	if err != nil {
-		return nil, errors.WithMessage(err, "failed to fetch sync sources")
+		return nil, errors.WithMessage(err, "fetch sync sources")
 	}
 
 	return ncis, nil
 }
 
 func (c *SyncSourceChecker) fetchFromURL(ctx context.Context, u *url.URL) ([]isaac.NodeConnInfo, error) {
-	e := util.StringErrorFunc("failed to fetch NodeConnInfo from url, %q", u)
+	e := util.StringErrorFunc("fetch NodeConnInfo from url, %q", u)
 
 	httpclient := &http.Client{
 		Transport: &http.Transport{
@@ -388,7 +388,7 @@ func (c *SyncSourceChecker) fetchFromURL(ctx context.Context, u *url.URL) ([]isa
 var errIgnoreNodeconnInfo = util.NewMError("ignore NodeConnInfo error")
 
 func (c *SyncSourceChecker) validate(ctx context.Context, nci isaac.NodeConnInfo) error {
-	e := util.StringErrorFunc("failed to fetch NodeConnInfo from node, %q", nci)
+	e := util.StringErrorFunc("fetch NodeConnInfo from node, %q", nci)
 
 	if err := nci.IsValid(nil); err != nil {
 		return e(err, "")

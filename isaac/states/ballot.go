@@ -38,7 +38,7 @@ func (bb *DefaultBallotBroadcaster) Ballot(
 
 func (bb *DefaultBallotBroadcaster) Broadcast(bl base.Ballot) error {
 	if err := bb.set(bl); err != nil {
-		return errors.WithMessage(err, "failed to broadcast ballot")
+		return errors.WithMessage(err, "broadcast ballot")
 	}
 
 	return bb.broadcastFunc(bl)
@@ -53,7 +53,7 @@ func (bb *DefaultBallotBroadcaster) set(bl base.Ballot) error {
 	}
 
 	if _, err := bb.pool.SetBallot(bl); err != nil {
-		return errors.WithMessage(err, "failed to set ballot to pool")
+		return errors.WithMessage(err, "set ballot to pool")
 	}
 
 	return nil

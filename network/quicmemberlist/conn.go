@@ -40,7 +40,7 @@ func NewNamedConnInfo(addr string, tlsinsecure bool) NamedConnInfo {
 func (c NamedConnInfo) UDPConnInfo() (ci quicstream.UDPConnInfo, _ error) {
 	udp, err := net.ResolveUDPAddr("udp", c.addr.String())
 	if err != nil {
-		return ci, errors.Wrap(err, "failed to resolve NamedConnInfo")
+		return ci, errors.Wrap(err, "resolve NamedConnInfo")
 	}
 
 	return quicstream.NewUDPConnInfo(udp, c.tlsinsecure), nil

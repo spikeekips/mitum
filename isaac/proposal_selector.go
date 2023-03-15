@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	errFailedToRequestProposalToNode = util.NewMError("failed to request proposal to node")
+	errFailedToRequestProposalToNode = util.NewMError("request proposal to node")
 	ErrEmptyNodes                    = util.NewMError("empty nodes for selecting proposal")
 )
 
@@ -82,7 +82,7 @@ func (p *BaseProposalSelector) Select(
 			err = errors.Errorf("nodes not found for height, %v", point)
 		}
 
-		return nil, errors.WithMessagef(err, "failed to get suffrage for height, %d", point.Height())
+		return nil, errors.WithMessagef(err, "get suffrage for height, %d", point.Height())
 	case len(i) < 2: //nolint:gomnd //...
 		return p.findProposal(ctx, point, i[0])
 	default:
@@ -117,14 +117,14 @@ func (p *BaseProposalSelector) selectFromProposer(
 	wait time.Duration,
 	nodes []base.Node,
 ) (base.ProposalSignFact, base.Address, error) {
-	e := util.StringErrorFunc("failed to select proposal from proposer")
+	e := util.StringErrorFunc("select proposal from proposer")
 
 	pctx, cancel := context.WithTimeout(ctx, wait)
 	defer cancel()
 
 	proposer, err := p.args.ProposerSelector.Select(pctx, point, nodes)
 	if err != nil {
-		return nil, nil, e(err, "failed to select proposer")
+		return nil, nil, e(err, "select proposer")
 	}
 
 	pr, err := p.proposalFromNode(pctx, point, proposer)
@@ -163,7 +163,7 @@ func (p *BaseProposalSelector) proposalFromNode(
 				// ctx.Done().
 			case errors.Is(err, errFailedToRequestProposalToNode):
 			default:
-				return nil, errors.WithMessage(err, "failed to find proposal")
+				return nil, errors.WithMessage(err, "find proposal")
 			}
 		}
 	}
@@ -196,7 +196,7 @@ func (p *BaseProposalSelector) proposalFromOthers(
 
 			proposer, err := p.args.ProposerSelector.Select(ctx, point, filtered)
 			if err != nil {
-				return nil, errors.WithMessage(err, "failed to select proposer")
+				return nil, errors.WithMessage(err, "select proposer")
 			}
 
 			switch pr, err := p.findProposal(ctx, point, proposer); {
@@ -210,7 +210,7 @@ func (p *BaseProposalSelector) proposalFromOthers(
 					return nil, errors.WithMessage(err, "no valid nodes left")
 				}
 			default:
-				return nil, errors.WithMessage(err, "failed to find proposal")
+				return nil, errors.WithMessage(err, "find proposal")
 			}
 		}
 	}
@@ -221,7 +221,7 @@ func (p *BaseProposalSelector) findProposal(
 	point base.Point,
 	proposer base.Node,
 ) (base.ProposalSignFact, error) {
-	e := util.StringErrorFunc("failed to find proposal")
+	e := util.StringErrorFunc("find proposal")
 
 	switch pr, found, err := p.args.Pool.ProposalByPoint(point, proposer.Address()); {
 	case err != nil:
@@ -400,7 +400,7 @@ func (p *ProposalMaker) Empty(_ context.Context, point base.Point) (base.Proposa
 	p.Lock()
 	defer p.Unlock()
 
-	e := util.StringErrorFunc("failed to make empty proposal")
+	e := util.StringErrorFunc("make empty proposal")
 
 	switch pr, found, err := p.pool.ProposalByPoint(point, p.local.Address()); {
 	case err != nil:
@@ -411,7 +411,7 @@ func (p *ProposalMaker) Empty(_ context.Context, point base.Point) (base.Proposa
 
 	pr, err := p.makeProposal(point, nil)
 	if err != nil {
-		return nil, e(err, "failed to make empty proposal, %q", point)
+		return nil, e(err, "make empty proposal, %q", point)
 	}
 
 	return pr, nil
@@ -421,7 +421,7 @@ func (p *ProposalMaker) New(ctx context.Context, point base.Point) (base.Proposa
 	p.Lock()
 	defer p.Unlock()
 
-	e := util.StringErrorFunc("failed to make proposal, %q", point)
+	e := util.StringErrorFunc("make proposal, %q", point)
 
 	switch pr, found, err := p.pool.ProposalByPoint(point, p.local.Address()); {
 	case err != nil:
@@ -432,7 +432,7 @@ func (p *ProposalMaker) New(ctx context.Context, point base.Point) (base.Proposa
 
 	ops, err := p.getOperations(ctx, point.Height())
 	if err != nil {
-		return nil, e(err, "failed to get operations")
+		return nil, e(err, "get operations")
 	}
 
 	p.Log().Trace().Func(func(e *zerolog.Event) {

@@ -188,7 +188,7 @@ func (c *DefaultBallotStuckResolver) start(ctx context.Context, point base.Stage
 			// NOTE find nodes of missing ballots
 			switch nomore, ok, err := c.gatherMissingBallots(ctx, point); {
 			case err != nil:
-				return errors.WithMessage(err, "failed to find missing ballot nodes")
+				return errors.WithMessage(err, "find missing ballot nodes")
 			case nomore:
 				l.Debug().Msg("no more to request missing ballots; cancel")
 
@@ -205,7 +205,7 @@ func (c *DefaultBallotStuckResolver) start(ctx context.Context, point base.Stage
 
 			switch vp, nomore, err := c.suffrageVoting(ctx, point); {
 			case err != nil:
-				return errors.WithMessage(err, "failed suffrage voting")
+				return errors.WithMessage(err, "suffrage voting")
 			case nomore:
 				ll.Debug().Msg("no more suffrage voting; cancel")
 
@@ -322,10 +322,10 @@ func RequestMissingBallots(
 
 		switch b, err := util.MarshalJSON(m); {
 		case err != nil:
-			return errors.WithMessage(err, "failed to marshal MissingBallotsRequestsMessage")
+			return errors.WithMessage(err, "marshal MissingBallotsRequestsMessage")
 		default:
 			if err := broadcastf(b, util.UUID().String(), nil); err != nil {
-				return errors.WithMessage(err, "failed to broadcast MissingBallotsRequestsMessage")
+				return errors.WithMessage(err, "broadcast MissingBallotsRequestsMessage")
 			}
 
 			return nil
@@ -362,11 +362,11 @@ func VoteSuffrageVotingFunc(
 			op := isaac.NewSuffrageWithdrawOperation(fact)
 
 			if err := op.NodeSign(local.Privatekey(), params.NetworkID(), local.Address()); err != nil {
-				return nil, errors.WithMessage(err, "failed to node sign SuffrageWithdrawOperation")
+				return nil, errors.WithMessage(err, "node sign SuffrageWithdrawOperation")
 			}
 
 			if _, err := sv.Vote(op); err != nil {
-				return nil, errors.WithMessage(err, "failed to vote SuffrageWithdrawOperation")
+				return nil, errors.WithMessage(err, "vote SuffrageWithdrawOperation")
 			}
 		}
 
@@ -471,7 +471,7 @@ type missingBallotsRequestsMessageJSONUnmarshaler struct {
 }
 
 func (m *MissingBallotsRequestMessage) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode MissingBallotsRequestsMessage")
+	e := util.StringErrorFunc("decode MissingBallotsRequestsMessage")
 
 	var u missingBallotsRequestsMessageJSONUnmarshaler
 
@@ -485,7 +485,7 @@ func (m *MissingBallotsRequestMessage) DecodeJSON(b []byte, enc *jsonenc.Encoder
 	for i := range u.Nodes {
 		switch j, err := base.DecodeAddress(u.Nodes[i], enc); {
 		case err != nil:
-			return e(err, "failed to decode node")
+			return e(err, "decode node")
 		default:
 			m.nodes[i] = j
 		}

@@ -90,7 +90,7 @@ func (s SuffrageProof) SuffrageHeight() base.Height {
 
 // Prove should be called after IsValid().
 func (s SuffrageProof) Prove(previousState base.State) error {
-	e := util.StringErrorFunc("failed to prove SuffrageProof")
+	e := util.StringErrorFunc("prove SuffrageProof")
 
 	if s.m.Manifest().Height() == base.GenesisHeight {
 		switch {
@@ -130,7 +130,7 @@ func (s SuffrageProof) Prove(previousState base.State) error {
 	}
 
 	if err := s.proof.Prove(s.st.Hash().String()); err != nil {
-		return e(err, "failed to prove suffrage")
+		return e(err, "prove suffrage")
 	}
 
 	if previoussuf != nil {

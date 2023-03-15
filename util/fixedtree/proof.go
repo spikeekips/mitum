@@ -17,7 +17,7 @@ func NewProof(extracted []Node) Proof {
 func NewProofFromNodes(nodes []Node, key string) (p Proof, err error) {
 	extracted, err := ExtractProofMaterial(nodes, key)
 	if err != nil {
-		return p, errors.WithMessage(err, "failed to ne wproof from nodes")
+		return p, errors.WithMessage(err, "new proof from nodes")
 	}
 
 	return NewProof(extracted), nil
@@ -77,7 +77,7 @@ func (p Proof) Nodes() []Node {
 }
 
 func (p Proof) Prove(key string) error {
-	e := util.StringErrorFunc("failed to prove")
+	e := util.StringErrorFunc("prove")
 
 	nodes := p.filterNodes(key)
 
@@ -160,7 +160,7 @@ func (p Proof) filterNodes(key string) (nodes []Node) {
 }
 
 func ExtractProofMaterial(nodes []Node, key string) (extracted []Node, err error) {
-	e := util.StringErrorFunc("failed to make proof material")
+	e := util.StringErrorFunc("make proof material")
 
 	size := len(nodes)
 	if size < 1 {

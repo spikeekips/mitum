@@ -46,7 +46,7 @@ func ParseMPublickey(s string) (MPublickey, error) {
 func LoadMPublickey(s string) (MPublickey, error) {
 	k, err := btcec.ParsePubKey(base58.Decode(s))
 	if err != nil {
-		return MPublickey{}, util.ErrInvalid.Wrapf(err, "failed to load publickey")
+		return MPublickey{}, util.ErrInvalid.Wrapf(err, "load publickey")
 	}
 
 	return NewMPublickey(k), nil
@@ -89,7 +89,7 @@ func (k MPublickey) Equal(b PKKey) bool {
 func (k MPublickey) Verify(input []byte, sig Signature) error {
 	bsig, err := ecdsa.ParseSignature(sig)
 	if err != nil {
-		return errors.Wrap(err, "failed to verify signature by publickey")
+		return errors.Wrap(err, "verify signature by publickey")
 	}
 
 	if !bsig.Verify(chainhash.DoubleHashB(input), k.k) {
@@ -106,7 +106,7 @@ func (k MPublickey) MarshalText() ([]byte, error) {
 func (k *MPublickey) UnmarshalText(b []byte) error {
 	u, err := LoadMPublickey(string(b))
 	if err != nil {
-		return errors.Wrap(err, "failed to UnmarshalText for publickey")
+		return errors.Wrap(err, "unmarshal publickey")
 	}
 
 	*k = u.ensure()

@@ -129,7 +129,7 @@ func NewMemberlist(local Member, args *MemberlistArgs) (*Memberlist, error) {
 func (srv *Memberlist) Start(ctx context.Context) error {
 	m, err := srv.createMemberlist()
 	if err != nil {
-		return errors.Wrap(err, "failed to create memberlist")
+		return err
 	}
 
 	srv.m = m
@@ -138,7 +138,7 @@ func (srv *Memberlist) Start(ctx context.Context) error {
 }
 
 func (srv *Memberlist) Join(cis []quicstream.UDPConnInfo) error {
-	e := util.StringErrorFunc("failed to join")
+	e := util.StringErrorFunc("join")
 
 	if len(cis) < 1 {
 		return e(nil, "empty conninfos")
@@ -177,7 +177,7 @@ func (srv *Memberlist) Join(cis []quicstream.UDPConnInfo) error {
 
 		m, err := srv.createMemberlist()
 		if err != nil {
-			return false, errors.Wrap(err, "failed to create memberlist")
+			return false, err
 		}
 
 		srv.m = m
@@ -321,7 +321,7 @@ func (srv *Memberlist) CallbackBroadcastHandler() quicstream.HeaderHandler {
 	return func(_ net.Addr, r io.Reader, w io.Writer,
 		h quicstream.Header, _ *encoder.Encoders, enc encoder.Encoder,
 	) error {
-		e := util.StringErrorFunc("failed to handle callback message")
+		e := util.StringErrorFunc("handle callback message")
 
 		header, ok := h.(CallbackBroadcastMessageHeader)
 		if !ok {
@@ -469,7 +469,7 @@ func (srv *Memberlist) EnsureBroadcastHandler(
 	return func(_ net.Addr, r io.Reader, w io.Writer,
 		h quicstream.Header, _ *encoder.Encoders, enc encoder.Encoder,
 	) error {
-		e := util.StringErrorFunc("failed to handle ensure message")
+		e := util.StringErrorFunc("handle ensure message")
 
 		var header EnsureBroadcastMessageHeader
 
@@ -559,7 +559,7 @@ func (srv *Memberlist) start(ctx context.Context) error {
 
 		return nil
 	}(); err != nil {
-		return errors.WithMessage(err, "failed to shutdown memberlist")
+		return errors.WithMessage(err, "shutdown memberlist")
 	}
 
 	return ctx.Err()
@@ -877,7 +877,7 @@ func (srv *Memberlist) SetLogging(l *logging.Logging) *logging.Logging {
 func (srv *Memberlist) createMemberlist() (*memberlist.Memberlist, error) {
 	m, err := memberlist.Create(srv.args.PatchedConfig)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create memberlist")
+		return nil, errors.Wrap(err, "create memberlist")
 	}
 
 	if i, ok := srv.args.PatchedConfig.Transport.(*Transport); ok {
@@ -1148,7 +1148,7 @@ func FetchCallbackBroadcastMessageFunc(
 		default:
 			b, rerr := io.ReadAll(r)
 			if rerr != nil {
-				return nil, enc, errors.WithMessage(rerr, "failed to read fetched callback message")
+				return nil, enc, errors.WithMessage(rerr, "read fetched callback message")
 			}
 
 			return b, enc, nil

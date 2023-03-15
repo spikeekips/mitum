@@ -21,7 +21,7 @@ var (
 )
 
 func PSyncSourceChecker(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("failed to prepare SyncSourceChecker")
+	e := util.StringErrorFunc("prepare SyncSourceChecker")
 
 	var log *logging.Logging
 	var enc encoder.Encoder

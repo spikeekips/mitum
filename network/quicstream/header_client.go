@@ -99,14 +99,14 @@ func (c *HeaderClient) RequestBody(
 	encoder.Encoder,
 	error,
 ) {
-	e := util.StringErrorFunc("failed to request")
+	e := util.StringErrorFunc("request")
 
 	var r io.ReadCloser
 	cancel := util.EmptyCancelFunc
 
 	switch i, j, err := c.write(ctx, ci, c.Encoder, header, body); {
 	case err != nil:
-		return nil, r, util.EmptyCancelFunc, nil, e(err, "failed to send request")
+		return nil, r, util.EmptyCancelFunc, nil, e(err, "send request")
 	default:
 		r = i
 		cancel = j
@@ -120,7 +120,7 @@ func (c *HeaderClient) RequestBody(
 			_ = cancel()
 		}()
 
-		return h, r, util.EmptyCancelFunc, nil, e(err, "failed to read stream")
+		return h, r, util.EmptyCancelFunc, nil, e(err, "read stream")
 	case h == nil:
 		return h, r, cancel, enc, nil
 	case h.Err() != nil, !h.OK():
@@ -222,7 +222,7 @@ func (c *HeaderClient) write(
 			return clientWrite(w, header.Handler(), enc.Hint(), b, body)
 		})
 
-		donech <- errors.WithMessage(err, "failed to write")
+		donech <- errors.WithMessage(err, "write")
 	}()
 
 	select {
@@ -341,14 +341,14 @@ func writeHint(w io.Writer, ht hint.Hint) error {
 	copy(h, ht.Bytes())
 
 	if _, err := ensureWrite(w, h); err != nil {
-		return errors.Wrap(err, "failed to write hint")
+		return errors.Wrap(err, "write hint")
 	}
 
 	return nil
 }
 
 func writeHeader(w io.Writer, header []byte) error {
-	e := util.StringErrorFunc("failed to write header")
+	e := util.StringErrorFunc("write header")
 
 	l := util.Uint64ToBytes(uint64(len(header)))
 
@@ -370,7 +370,7 @@ func ensureWrite(w io.Writer, b []byte) (int, error) {
 	case err != nil:
 		return n, errors.WithStack(err)
 	case n != len(b):
-		return n, errors.Errorf("failed to write")
+		return n, errors.Errorf("write")
 	default:
 		return n, nil
 	}
@@ -405,7 +405,7 @@ func readHead(ctx context.Context, encs *encoder.Encoders, r io.Reader) (encoder
 }
 
 func readHint(ctx context.Context, r io.Reader) (ht hint.Hint, _ error) {
-	e := util.StringErrorFunc("failed to read hint")
+	e := util.StringErrorFunc("read hint")
 
 	b := make([]byte, hint.MaxHintLength)
 	if n, err := network.EnsureRead(ctx, r, b); n != len(b) {
@@ -421,7 +421,7 @@ func readHint(ctx context.Context, r io.Reader) (ht hint.Hint, _ error) {
 }
 
 func readEncoder(ctx context.Context, encs *encoder.Encoders, r io.Reader) (encoder.Encoder, error) {
-	e := util.StringErrorFunc("failed to read encoder")
+	e := util.StringErrorFunc("read encoder")
 
 	ht, err := readHint(ctx, r)
 	if err != nil {
@@ -440,12 +440,12 @@ func readHeaderBytes(ctx context.Context, r io.Reader) ([]byte, error) {
 	l := make([]byte, 8)
 
 	if n, err := network.EnsureRead(ctx, r, l); n != len(l) {
-		return nil, errors.Wrap(err, "failed to read header length")
+		return nil, errors.Wrap(err, "read header length")
 	}
 
 	length, err := util.BytesToUint64(l)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to parse header length")
+		return nil, errors.Wrap(err, "parse header length")
 	}
 
 	if length < 1 {
@@ -455,7 +455,7 @@ func readHeaderBytes(ctx context.Context, r io.Reader) ([]byte, error) {
 	h := make([]byte, length)
 
 	if n, err := network.EnsureRead(ctx, r, h); n != len(h) {
-		return nil, errors.Wrap(err, "failed to read header")
+		return nil, errors.Wrap(err, "read header")
 	}
 
 	return h, nil

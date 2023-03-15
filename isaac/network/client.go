@@ -39,13 +39,13 @@ func (c *BaseClient) Request(
 	encoder.Encoder,
 	error,
 ) {
-	e := util.StringErrorFunc("failed to request")
+	e := util.StringErrorFunc("request")
 
 	h, r, cancel, enc, err := c.RequestBody(ctx, ci, header, body)
 
 	switch {
 	case err != nil:
-		return h, nil, cancel, enc, e(err, "failed to read stream")
+		return h, nil, cancel, enc, e(err, "read stream")
 	case h.Err() != nil:
 		return h, nil, cancel, enc, nil
 	case !h.OK():
@@ -167,18 +167,18 @@ func (c *BaseClient) LastSuffrageProof(
 	default:
 		b, err := io.ReadAll(r)
 		if err != nil {
-			return lastheight, nil, true, errors.WithMessage(err, "failed to read response")
+			return lastheight, nil, true, errors.WithMessage(err, "read response")
 		}
 
 		switch _, m, _, err := util.ReadLengthedBytesSlice(b); {
 		case err != nil:
-			return lastheight, nil, true, errors.WithMessage(err, "failed to read response")
+			return lastheight, nil, true, errors.WithMessage(err, "read response")
 		case len(m) != 2: //nolint:gomnd //...
 			return lastheight, nil, true, errors.Errorf("invalid response message")
 		default:
 			i, err := base.ParseHeightBytes(m[0])
 			if err != nil {
-				return lastheight, nil, true, errors.WithMessage(err, "failed to load last height")
+				return lastheight, nil, true, errors.WithMessage(err, "load last height")
 			}
 
 			lastheight = i
@@ -210,9 +210,9 @@ func (c *BaseClient) SuffrageProof( //nolint:dupl //...
 
 	switch h, _, err := c.RequestDecode(ctx, ci, header, nil, &u); {
 	case err != nil:
-		return nil, false, errors.WithMessage(err, "failed to get SuffrageProof")
+		return nil, false, errors.WithMessage(err, "get SuffrageProof")
 	case h.Err() != nil:
-		return nil, false, errors.WithMessage(h.Err(), "failed to get SuffrageProof")
+		return nil, false, errors.WithMessage(h.Err(), "geProof")
 	default:
 		return u, h.OK(), nil
 	}
@@ -230,9 +230,9 @@ func (c *BaseClient) LastBlockMap( //nolint:dupl //...
 
 	switch h, _, err := c.RequestDecode(ctx, ci, header, nil, &u); {
 	case err != nil:
-		return nil, false, errors.WithMessage(err, "failed to get last BlockMap")
+		return nil, false, errors.WithMessage(err, "get last BlockMap")
 	case h.Err() != nil:
-		return nil, false, errors.WithMessage(h.Err(), "failed to get last BlockMap")
+		return nil, false, errors.WithMessage(h.Err(), "get last BlockMap")
 	default:
 		return u, h.OK(), nil
 	}
@@ -250,9 +250,9 @@ func (c *BaseClient) BlockMap( //nolint:dupl //...
 
 	switch h, _, err := c.RequestDecode(ctx, ci, header, nil, &u); {
 	case err != nil:
-		return nil, false, errors.WithMessage(err, "failed to get BlockMap")
+		return nil, false, errors.WithMessage(err, "get BlockMap")
 	case h.Err() != nil:
-		return nil, false, errors.WithMessage(h.Err(), "failed to get BlockMap")
+		return nil, false, errors.WithMessage(h.Err(), "get BlockMap")
 	default:
 		return u, h.OK(), nil
 	}
@@ -293,7 +293,7 @@ func (c *BaseClient) NodeChallenge(
 	networkID base.NetworkID,
 	node base.Address, pub base.Publickey, input []byte,
 ) (base.Signature, error) {
-	e := util.StringErrorFunc("failed NodeChallenge")
+	e := util.StringErrorFunc("NodeChallenge")
 
 	header := NewNodeChallengeRequestHeader(input)
 
@@ -339,13 +339,13 @@ func (c *BaseClient) SuffrageNodeConnInfo(
 ) ([]isaac.NodeConnInfo, error) {
 	ncis, err := c.requestNodeConnInfos(ctx, ci, NewSuffrageNodeConnInfoRequestHeader())
 
-	return ncis, errors.WithMessage(err, "failed SuffrageNodeConnInfo")
+	return ncis, errors.WithMessage(err, "request; SuffrageNodeConnInfo")
 }
 
 func (c *BaseClient) SyncSourceConnInfo(
 	ctx context.Context, ci quicstream.UDPConnInfo,
 ) ([]isaac.NodeConnInfo, error) {
-	e := util.StringErrorFunc("failed SyncSourceConnInfo")
+	e := util.StringErrorFunc("SyncSourceConnInfo")
 
 	ncis, err := c.requestNodeConnInfos(ctx, ci, NewSyncSourceConnInfoRequestHeader())
 	if err != nil {
@@ -412,9 +412,9 @@ func (c *BaseClient) State(
 
 	switch h, _, err := c.RequestDecode(ctx, ci, header, nil, &u); {
 	case err != nil:
-		return nil, false, errors.WithMessage(err, "failed to get State")
+		return nil, false, errors.WithMessage(err, "get State")
 	case h.Err() != nil:
-		return nil, false, errors.WithMessage(h.Err(), "failed to get State")
+		return nil, false, errors.WithMessage(h.Err(), "get State")
 	default:
 		return u, h.OK(), nil
 	}
@@ -435,9 +435,9 @@ func (c *BaseClient) ExistsInStateOperation(
 
 	switch {
 	case err != nil:
-		return false, errors.WithMessage(err, "failed ExistsInStateOperation")
+		return false, errors.WithMessage(err, "request; ExistsInStateOperation")
 	case h.Err() != nil:
-		return false, errors.WithMessage(h.Err(), "failed ExistsInStateOperation")
+		return false, errors.WithMessage(h.Err(), "response; ExistsInStateOperation")
 	default:
 		return h.OK(), nil
 	}
@@ -448,7 +448,7 @@ func (c *BaseClient) SendBallots(
 	ci quicstream.UDPConnInfo,
 	ballots []base.BallotSignFact,
 ) error {
-	e := util.StringErrorFunc("failed to SendBallots")
+	e := util.StringErrorFunc("SendBallots")
 
 	if len(ballots) < 1 {
 		return e(nil, "empty ballots")
@@ -458,7 +458,7 @@ func (c *BaseClient) SendBallots(
 
 	h, _, cancel, _, err := c.RequestEncode(ctx, ci, header, ballots)
 	if err != nil {
-		return e(err, "failed to send request")
+		return e(err, "send request")
 	}
 
 	defer func() {

@@ -33,7 +33,7 @@ type baseBallotJSONUnmarshaler struct {
 }
 
 func (bl *baseBallot) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode baseBallot")
+	e := util.StringErrorFunc("decode baseBallot")
 
 	var u baseBallotJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {

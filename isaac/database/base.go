@@ -95,7 +95,7 @@ func (db *baseDatabase) writeHeader(w io.Writer, meta util.Byter) error {
 }
 
 func (*baseDatabase) readHeader(b []byte) (ht hint.Hint, meta, body []byte, err error) {
-	e := util.StringErrorFunc("failed to read hint")
+	e := util.StringErrorFunc("read hint")
 
 	htb, left, err := util.ReadLengthedBytes(b)
 	if err != nil {
@@ -116,12 +116,12 @@ func (*baseDatabase) readHeader(b []byte) (ht hint.Hint, meta, body []byte, err 
 }
 
 func (db *baseDatabase) decodeSuffrage(b []byte) (base.State, error) {
-	e := util.StringErrorFunc("failed to load suffrage")
+	e := util.StringErrorFunc("load suffrage")
 
 	var st base.State
 
 	if err := db.readHinter(b, &st); err != nil {
-		return nil, e(err, "failed to load suffrage state")
+		return nil, e(err, "load suffrage state")
 	}
 
 	if !base.IsSuffrageNodesState(st) {
@@ -187,7 +187,7 @@ func NewHashRecordMeta(h util.Hash) util.Byter {
 }
 
 func ReadHashRecordMeta(b []byte) (util.Hash, error) {
-	e := util.StringErrorFunc("failed to read state record meta")
+	e := util.StringErrorFunc("read state record meta")
 
 	switch _, m, _, err := util.ReadLengthedBytesSlice(b); {
 	case err != nil:

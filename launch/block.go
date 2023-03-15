@@ -22,7 +22,7 @@ func ImportBlocks(
 	db isaac.Database,
 	params base.LocalParams,
 ) error {
-	e := util.StringErrorFunc("failed to import blocks")
+	e := util.StringErrorFunc("import blocks")
 
 	readercache := gcache.New(math.MaxInt).LRU().Build()
 	var readerLock sync.Mutex
@@ -107,7 +107,7 @@ func NewBlockWriterFunc(
 	db isaac.Database,
 ) isaac.NewBlockWriterFunc {
 	return func(proposal base.ProposalSignFact, getStateFunc base.GetStateFunc) (isaac.BlockWriter, error) {
-		e := util.StringErrorFunc("failed to crete BlockWriter")
+		e := util.StringErrorFunc("create BlockWriter")
 
 		dbw, err := db.NewBlockWriteDatabase(proposal.Point().Height())
 		if err != nil {

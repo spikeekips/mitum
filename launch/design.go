@@ -64,7 +64,7 @@ type NodeDesign struct { //nolint:govet //...
 }
 
 func NodeDesignFromFile(f string, enc *jsonenc.Encoder) (d NodeDesign, _ []byte, _ error) {
-	e := util.StringErrorFunc("failed to load NodeDesign from file")
+	e := util.StringErrorFunc("load NodeDesign from file")
 
 	b, err := os.ReadFile(filepath.Clean(f))
 	if err != nil {
@@ -79,7 +79,7 @@ func NodeDesignFromFile(f string, enc *jsonenc.Encoder) (d NodeDesign, _ []byte,
 }
 
 func NodeDesignFromHTTP(u string, tlsInsecure bool, enc *jsonenc.Encoder) (design NodeDesign, _ []byte, _ error) {
-	e := util.StringErrorFunc("failed to load NodeDesign thru http")
+	e := util.StringErrorFunc("load NodeDesign thru http")
 
 	httpclient := &http.Client{
 		Transport: &http.Transport{
@@ -120,7 +120,7 @@ func NodeDesignFromHTTP(u string, tlsInsecure bool, enc *jsonenc.Encoder) (desig
 }
 
 func NodeDesignFromConsul(addr, key string, enc *jsonenc.Encoder) (design NodeDesign, _ []byte, _ error) {
-	e := util.StringErrorFunc("failed to load NodeDesign thru consul")
+	e := util.StringErrorFunc("load NodeDesign thru consul")
 
 	client, err := consulClient(addr)
 	if err != nil {
@@ -254,7 +254,7 @@ func (d NodeDesign) MarshalYAML() (interface{}, error) {
 }
 
 func (d *NodeDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to unmarshal NodeDesign")
+	e := util.StringErrorFunc("decode NodeDesign")
 
 	var u NodeDesignYAMLUnmarshaler
 
@@ -381,7 +381,7 @@ func (d NodeNetworkDesign) MarshalYAML() (interface{}, error) {
 }
 
 func (y *NodeNetworkDesignYAMLMarshaler) Decode(*jsonenc.Encoder) (d NodeNetworkDesign, _ error) {
-	e := util.StringErrorFunc("failed to unmarshal NodeNetworkDesign")
+	e := util.StringErrorFunc("decode NodeNetworkDesign")
 
 	if s := strings.TrimSpace(y.Bind); len(s) > 0 {
 		addr, err := net.ResolveUDPAddr("udp", y.Bind)
@@ -400,7 +400,7 @@ func (y *NodeNetworkDesignYAMLMarshaler) Decode(*jsonenc.Encoder) (d NodeNetwork
 }
 
 func (d *NodeNetworkDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to unmarshal NodeNetworkDesign")
+	e := util.StringErrorFunc("decode NodeNetworkDesign")
 
 	var u NodeNetworkDesignYAMLMarshaler
 
@@ -461,7 +461,7 @@ func (d *NodeStorageDesign) Patch(node base.Address) error {
 }
 
 func (y *NodeStorageDesignYAMLMarshal) Decode(*jsonenc.Encoder) (d NodeStorageDesign, _ error) {
-	e := util.StringErrorFunc("failed to unmarshal NodeStorageDesign")
+	e := util.StringErrorFunc("decode NodeStorageDesign")
 
 	d.Base = strings.TrimSpace(y.Base)
 
@@ -485,7 +485,7 @@ func (d NodeStorageDesign) MarshalYAML() (interface{}, error) {
 }
 
 func (d *NodeStorageDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to unmarshal NodeStorageDesign")
+	e := util.StringErrorFunc("decode NodeStorageDesign")
 
 	var u NodeStorageDesignYAMLMarshal
 
@@ -508,7 +508,7 @@ type GenesisDesign struct {
 }
 
 func GenesisDesignFromFile(f string, enc *jsonenc.Encoder) (d GenesisDesign, _ []byte, _ error) {
-	e := util.StringErrorFunc("failed to load GenesisDesign from file")
+	e := util.StringErrorFunc("load GenesisDesign from file")
 
 	b, err := os.ReadFile(filepath.Clean(f))
 	if err != nil {
@@ -535,7 +535,7 @@ func (*GenesisDesign) IsValid([]byte) error {
 }
 
 func (d *GenesisDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode GenesisOpertionsDesign")
+	e := util.StringErrorFunc("decode GenesisOpertionsDesign")
 
 	var u GenesisDesignYAMLUnmarshaler
 
@@ -613,7 +613,7 @@ func IsValidSyncSourcesDesign(
 }
 
 func (d *SyncSourcesDesign) DecodeYAML(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode SyncSourcesDesign")
+	e := util.StringErrorFunc("decode SyncSourcesDesign")
 
 	var v []interface{}
 	if err := yaml.Unmarshal(b, &v); err != nil {
@@ -667,25 +667,25 @@ func (d NodeDesign) MarshalZerologObject(e *zerolog.Event) {
 }
 
 func loadPrivatekeyFromVault(path string, enc *jsonenc.Encoder) (base.Privatekey, error) {
-	e := util.StringErrorFunc("failed to load privatekey from vault")
+	e := util.StringErrorFunc("load privatekey from vault")
 
 	config := vault.DefaultConfig()
 
 	client, err := vault.NewClient(config)
 	if err != nil {
-		return nil, e(err, "failed to create vault client")
+		return nil, e(err, "create vault client")
 	}
 
 	secret, err := client.KVv2("secret").Get(context.Background(), path)
 	if err != nil {
-		return nil, e(err, "failed to read secret")
+		return nil, e(err, "read secret")
 	}
 
 	i := secret.Data["string"]
 
 	privs, ok := i.(string)
 	if !ok {
-		return nil, e(nil, "failed to read secret; expected string but %T", i)
+		return nil, e(nil, "read secret; expected string but %T", i)
 	}
 
 	switch priv, err := base.DecodePrivatekeyFromString(privs, enc); {
@@ -704,7 +704,7 @@ func consulClient(addr string) (*consulapi.Client, error) {
 
 	client, err := consulapi.NewClient(config)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create new consul api Client")
+		return nil, errors.Wrap(err, "create new consul api Client")
 	}
 
 	return client, nil

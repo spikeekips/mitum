@@ -52,7 +52,7 @@ func (baseBallotSignFact) IsValid([]byte) error {
 func (sf *baseBallotSignFact) NodeSign(priv base.Privatekey, networkID base.NetworkID, node base.Address) error {
 	sign, err := base.NewBaseNodeSignFromFact(node, priv, networkID, sf.fact)
 	if err != nil {
-		return errors.Wrap(err, "failed to sign base ballot sign fact")
+		return errors.Wrap(err, "sign base ballot sign fact")
 	}
 
 	sf.sign = sign

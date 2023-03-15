@@ -67,7 +67,7 @@ func (c *Client) Close() error {
 		}
 
 		if err := i.CloseWithError(0x100, ""); err != nil { //nolint:gomnd // errorNoError
-			return nil, errors.Wrap(err, "failed to close client")
+			return nil, errors.Wrap(err, "close client")
 		}
 
 		return nil, nil
@@ -105,7 +105,7 @@ func (c *Client) Write(ctx context.Context, f ClientWriteFunc) (quic.Stream, err
 }
 
 func (c *Client) write(ctx context.Context, f ClientWriteFunc) (quic.Stream, error) {
-	e := util.StringErrorFunc("failed to write")
+	e := util.StringErrorFunc("write")
 
 	cctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -117,7 +117,7 @@ func (c *Client) write(ctx context.Context, f ClientWriteFunc) (quic.Stream, err
 
 	stream, err := session.OpenStreamSync(cctx)
 	if err != nil {
-		return nil, e(err, "failed to open stream")
+		return nil, e(err, "open stream")
 	}
 
 	defer func() {
@@ -139,7 +139,7 @@ func (c *Client) dial(ctx context.Context) (quic.EarlyConnection, error) {
 	c.Lock()
 	defer c.Unlock()
 
-	e := util.StringErrorFunc("failed to dial")
+	e := util.StringErrorFunc("dial")
 
 	i, err := c.session.GetOrCreate(func() (quic.EarlyConnection, error) {
 		i, err := c.dialf(ctx, c.addr.String(), c.tlsconfig, c.quicconfig)

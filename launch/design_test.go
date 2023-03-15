@@ -314,7 +314,7 @@ func (t *testSyncSourcesDesign) TestDecode() {
 		var s SyncSourcesDesign
 		err := s.DecodeYAML(b, t.enc)
 		t.Error(err)
-		t.ErrorContains(err, "failed to decode node")
+		t.ErrorContains(err, "decode node")
 	})
 
 	t.Run("ok: NodeConnInfo", func() {

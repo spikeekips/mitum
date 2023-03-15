@@ -21,7 +21,7 @@ type Storage struct {
 func NewStorage(str leveldbStorage.Storage, opt *leveldbOpt.Options) (*Storage, error) {
 	db, err := leveldb.Open(str, opt)
 	if err != nil {
-		return nil, storage.ErrConnection.Wrapf(err, "failed to open leveldb")
+		return nil, storage.ErrConnection.Wrapf(err, "open leveldb")
 	}
 
 	return &Storage{db: db, str: str}, nil
@@ -35,7 +35,7 @@ func (st *Storage) Close() error {
 	st.Lock()
 	defer st.Unlock()
 
-	e := util.StringErrorFunc("failed to close leveldb")
+	e := util.StringErrorFunc("close leveldb")
 
 	if st.str == nil {
 		return nil
@@ -46,7 +46,7 @@ func (st *Storage) Close() error {
 	case errors.Is(err, leveldbStorage.ErrClosed):
 		return nil
 	default:
-		return e(storage.ErrInternal.Wrapf(err, ""), "failed to close storage")
+		return e(storage.ErrInternal.Wrapf(err, ""), "close storage")
 	}
 
 	switch err := st.str.Close(); {
@@ -69,7 +69,7 @@ func (st *Storage) Get(key []byte) ([]byte, bool, error) {
 	case errors.Is(err, leveldb.ErrNotFound):
 		return nil, false, nil
 	default:
-		return b, false, storage.ErrExec.Wrap(errors.Wrap(err, "failed to get"))
+		return b, false, storage.ErrExec.Wrap(errors.Wrap(err, "get"))
 	}
 }
 
@@ -78,7 +78,7 @@ func (st *Storage) Exists(key []byte) (bool, error) {
 	case err == nil:
 		return b, nil
 	default:
-		return false, storage.ErrExec.Wrap(errors.Wrap(err, "failed to check exists"))
+		return false, storage.ErrExec.Wrap(errors.Wrap(err, "check exists"))
 	}
 }
 
@@ -117,7 +117,7 @@ end:
 	}
 
 	if err := iter.Error(); err != nil {
-		return storage.ErrExec.Errorf("failed to iter")
+		return storage.ErrExec.Errorf("iter")
 	}
 
 	return nil
@@ -125,7 +125,7 @@ end:
 
 func (st *Storage) Put(k, b []byte, opt *leveldbOpt.WriteOptions) error {
 	if err := st.db.Put(k, b, opt); err != nil {
-		return storage.ErrExec.Wrap(errors.Wrap(err, "failed to put"))
+		return storage.ErrExec.Wrap(errors.Wrap(err, "put"))
 	}
 
 	return nil
@@ -133,7 +133,7 @@ func (st *Storage) Put(k, b []byte, opt *leveldbOpt.WriteOptions) error {
 
 func (st *Storage) Delete(k []byte, opt *leveldbOpt.WriteOptions) error {
 	if err := st.db.Delete(k, opt); err != nil {
-		return storage.ErrExec.Wrap(errors.Wrap(err, "failed to delete"))
+		return storage.ErrExec.Wrap(errors.Wrap(err, "delete"))
 	}
 
 	return nil

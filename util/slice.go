@@ -194,7 +194,7 @@ func randInt64(max int64) (int64, error) {
 
 	b, err := rand.Int(rand.Reader, big.NewInt(max))
 	if err != nil {
-		return -1, errors.WithMessage(err, "failed to get random int64")
+		return -1, errors.WithMessage(err, "random int64")
 	}
 
 	return b.Int64(), nil

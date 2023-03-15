@@ -105,7 +105,7 @@ func (db *LeveldbBlockWrite) SetStates(sts []base.State) error {
 		return nil
 	}
 
-	e := util.StringErrorFunc("failed to set states in TempLeveldbDatabase")
+	e := util.StringErrorFunc("set states in TempLeveldbDatabase")
 
 	worker := util.NewErrgroupWorker(context.Background(), int64(len(sts)))
 	defer worker.Close()
@@ -151,7 +151,7 @@ func (db *LeveldbBlockWrite) SetOperations(ops []util.Hash) error {
 	worker := util.NewErrgroupWorker(context.Background(), int64(len(ops)))
 	defer worker.Close()
 
-	e := util.StringErrorFunc("failed to set operation")
+	e := util.StringErrorFunc("set operation")
 
 	for i := range ops {
 		op := ops[i]
@@ -222,7 +222,7 @@ func (db *LeveldbBlockWrite) SetBlockMap(m base.BlockMap) error {
 
 		return [3]interface{}{m, meta.Bytes(), body}, nil
 	}); err != nil {
-		return errors.Wrap(err, "failed to set blockmap")
+		return errors.Wrap(err, "set blockmap")
 	}
 
 	return nil
@@ -268,14 +268,14 @@ func (db *LeveldbBlockWrite) SetSuffrageProof(proof base.SuffrageProof) error {
 
 		return [3]interface{}{proof, meta.Bytes(), body}, nil
 	}); err != nil {
-		return errors.Wrap(err, "failed to set SuffrageProof")
+		return errors.Wrap(err, "set SuffrageProof")
 	}
 
 	return nil
 }
 
 func (db *LeveldbBlockWrite) TempDatabase() (isaac.TempDatabase, error) {
-	e := util.StringErrorFunc("failed to make TempDatabase from BlockWriteDatabase")
+	e := util.StringErrorFunc("make TempDatabase from BlockWriteDatabase")
 
 	temp, err := func() (isaac.TempDatabase, error) {
 		db.Lock()
@@ -322,7 +322,7 @@ func (db *LeveldbBlockWrite) proofs() (base.SuffrageProof, []byte, []byte) {
 }
 
 func (db *LeveldbBlockWrite) setState(st base.State) error {
-	e := util.StringErrorFunc("failed to set state")
+	e := util.StringErrorFunc("set state")
 
 	if !db.isLastStates(st) {
 		return nil
@@ -332,7 +332,7 @@ func (db *LeveldbBlockWrite) setState(st base.State) error {
 
 	b, _, err := db.marshal(st, meta)
 	if err != nil {
-		return errors.Wrap(err, "failed to set state")
+		return errors.Wrap(err, "set state")
 	}
 
 	switch {
@@ -388,7 +388,7 @@ func emptyPrefixStoragePrefixByHeight(label []byte, height base.Height) []byte {
 }
 
 func prefixStoragePrefixFromKey(b []byte) ([]byte, error) {
-	e := util.StringErrorFunc("failed to parse prefix of PrefixStorage from key")
+	e := util.StringErrorFunc("parse prefix of PrefixStorage from key")
 
 	if len(b) < prefixStoragePrefixByHeightLength {
 		return nil, e(nil, "wrong key of prefix storage prefix")
@@ -398,7 +398,7 @@ func prefixStoragePrefixFromKey(b []byte) ([]byte, error) {
 }
 
 func HeightFromPrefixStoragePrefix(b []byte) (base.Height, error) {
-	e := util.StringErrorFunc("failed to parse height from PrefixStoragePrefix")
+	e := util.StringErrorFunc("parse height from PrefixStoragePrefix")
 
 	if len(b) < prefixStoragePrefixByHeightLength {
 		return base.NilHeight, e(nil, "wrong key of prefix storage prefix")
@@ -422,7 +422,7 @@ func removeHigherHeights(st *leveldbstorage.Storage, height base.Height) error {
 	r.Start = emptyPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, height)
 
 	if _, err := leveldbstorage.BatchRemove(st, r, 333); err != nil { //nolint:gomnd //...
-		return errors.WithMessage(err, "failed to remove higher heights")
+		return errors.WithMessage(err, "remove higher heights")
 	}
 
 	return nil

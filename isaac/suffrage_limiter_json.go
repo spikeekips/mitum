@@ -25,7 +25,7 @@ func (l *FixedSuffrageCandidateLimiterRule) UnmarshalJSON(b []byte) error {
 	var u fixedSuffrageCandidateLimiterRuleJSONUnmarshaler
 
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return errors.WithMessage(err, "failed to unmarshal FixedSuffrageCandidateLimiterRule")
+		return errors.WithMessage(err, "unmarshal FixedSuffrageCandidateLimiterRule")
 	}
 
 	l.limit = u.Limit
@@ -59,7 +59,7 @@ func (l *MajoritySuffrageCandidateLimiterRule) UnmarshalJSON(b []byte) error {
 	var u majoritySuffrageCandidateLimiterRuleJSONUnmarshaler
 
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return errors.WithMessage(err, "failed to unmarshal MajoritySuffrageCandidateLimiterRule")
+		return errors.WithMessage(err, "unmarshal MajoritySuffrageCandidateLimiterRule")
 	}
 
 	l.ratio = u.Ratio

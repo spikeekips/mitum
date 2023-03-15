@@ -67,7 +67,7 @@ func writeResponse(
 	header ResponseHeader,
 	writebodyf func(w io.Writer) error,
 ) error {
-	e := util.StringErrorFunc("failed to write response")
+	e := util.StringErrorFunc("write response")
 
 	var headerb []byte
 

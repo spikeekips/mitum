@@ -48,7 +48,7 @@ type ManifestJSONUnmarshaler struct {
 }
 
 func (m *Manifest) UnmarshalJSON(b []byte) error {
-	e := util.StringErrorFunc("failed to unmarshal manifest")
+	e := util.StringErrorFunc("unmarshal manifest")
 
 	var u ManifestJSONUnmarshaler
 	if err := util.UnmarshalJSON(b, &u); err != nil {

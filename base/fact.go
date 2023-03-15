@@ -87,7 +87,7 @@ func IsValidSignFact(sf SignFact, networkID []byte) error {
 
 	for i := range sfs {
 		if err := sfs[i].Verify(networkID, sf.Fact().Hash().Bytes()); err != nil {
-			return e.Wrapf(err, "failed to verify sign")
+			return e.Wrapf(err, "verify sign")
 		}
 	}
 

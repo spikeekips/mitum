@@ -101,7 +101,7 @@ func (cmd *ImportCommand) Run(pctx context.Context) error {
 }
 
 func (cmd *ImportCommand) importBlocks(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("failed to import blocks")
+	e := util.StringErrorFunc("import blocks")
 
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
@@ -228,7 +228,7 @@ func (cmd *ImportCommand) validateSourceBlocks(
 	enc encoder.Encoder,
 	params *isaac.LocalParams,
 ) error {
-	e := util.StringErrorFunc("failed to validate source blocks")
+	e := util.StringErrorFunc("validate source blocks")
 
 	d := last - cmd.fromHeight
 
@@ -260,7 +260,7 @@ func (cmd *ImportCommand) validateImported(
 	params *isaac.LocalParams,
 	db isaac.Database,
 ) error {
-	e := util.StringErrorFunc("failed to validate imported")
+	e := util.StringErrorFunc("validate imported")
 
 	root := launch.LocalFSDataDirectory(design.Storage.Base)
 

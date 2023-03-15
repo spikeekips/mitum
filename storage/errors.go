@@ -9,7 +9,7 @@ import (
 var (
 	ErrConnection = util.NewMError("storage connection error")
 	ErrInternal   = util.NewMError("storage internal error")
-	ErrExec       = util.NewMError("failed to execute storage")
+	ErrExec       = util.NewMError("storage execute")
 	ErrNotFound   = util.NewMError("not found")
 	ErrFound      = util.NewMError("found")
 )

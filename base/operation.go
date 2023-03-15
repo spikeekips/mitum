@@ -119,7 +119,7 @@ type operationFixedtreeNodeJSONUnmarshaler struct {
 }
 
 func (no *OperationFixedtreeNode) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode OperationFixedtreeNode")
+	e := util.StringErrorFunc("decode OperationFixedtreeNode")
 
 	var ub fixedtree.BaseNode
 	if err := enc.Unmarshal(b, &ub); err != nil {
@@ -204,7 +204,7 @@ type BaseOperationProcessReasonErrorJSONUnmarshaler struct {
 func (e *BaseOperationProcessReasonError) UnmarshalJSON(b []byte) error {
 	var u BaseOperationProcessReasonErrorJSONUnmarshaler
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return errors.Wrap(err, "failed to unmarshal BaseOperationProcessReasonError")
+		return errors.Wrap(err, "unmarshal BaseOperationProcessReasonError")
 	}
 
 	e.msg = u.Message
@@ -237,7 +237,7 @@ func NewBaseOperationProcessor(
 	newPreProcessConstraintFunc NewOperationProcessorProcessFunc,
 	newProcessConstraintFunc NewOperationProcessorProcessFunc,
 ) (*BaseOperationProcessor, error) {
-	e := util.StringErrorFunc("failed to create new BaseOperationProcessor")
+	e := util.StringErrorFunc("new BaseOperationProcessor")
 
 	p := &BaseOperationProcessor{
 		height: height,

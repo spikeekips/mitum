@@ -110,13 +110,13 @@ var SupportedProposalOperationFactHinters = []encoder.DecodeDetail{
 func LoadHinters(enc encoder.Encoder) error {
 	for i := range Hinters {
 		if err := enc.Add(Hinters[i]); err != nil {
-			return errors.Wrap(err, "failed to add to encoder")
+			return errors.Wrap(err, "add hinter to encoder")
 		}
 	}
 
 	for i := range SupportedProposalOperationFactHinters {
 		if err := enc.Add(SupportedProposalOperationFactHinters[i]); err != nil {
-			return errors.Wrap(err, "failed to add to encoder")
+			return errors.Wrap(err, "add supported proposal operation fact hinter to encoder")
 		}
 	}
 

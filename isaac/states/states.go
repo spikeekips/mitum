@@ -13,7 +13,7 @@ import (
 	"github.com/spikeekips/mitum/util/logging"
 )
 
-var ErrIgnoreSwithingState = util.NewMError("failed to switch state, but ignored")
+var ErrIgnoreSwithingState = util.NewMError("switch state, but ignored")
 
 var (
 	timerIDBroadcastINITBallot            = util.TimerID("broadcast-init-ballot")
@@ -152,7 +152,7 @@ func (st *States) MoveState(sctx switchContext) error {
 	default:
 		l.Error().Err(err).Msg("failed to switch state")
 
-		return errors.Wrap(err, "failed to switch state")
+		return errors.Wrap(err, "switch state")
 	}
 
 	go func() {
@@ -185,15 +185,15 @@ func (st *States) startFunc(cancel func()) func(context.Context) error {
 		// NOTE set stopped as current
 		switch newHandler, found := st.newHandlers[StateStopped]; {
 		case !found:
-			return errors.Errorf("failed to find stopped handler")
+			return errors.Errorf("find stopped handler")
 		default:
 			h, err := newHandler.new()
 			if err != nil {
-				return errors.WithMessage(err, "failed to create stopped new handler")
+				return errors.WithMessage(err, "create stopped new handler")
 			}
 
 			if _, err := h.enter(StateEmpty, nil); err != nil {
-				return errors.Errorf("failed to enter stopped handler")
+				return errors.Errorf("enter stopped handler")
 			}
 
 			st.cs = h
@@ -201,7 +201,7 @@ func (st *States) startFunc(cancel func()) func(context.Context) error {
 
 		// NOTE entering to booting at starting
 		if err := st.ensureSwitchState(newBootingSwitchContext(StateStopped)); err != nil {
-			return errors.Wrap(err, "failed to enter booting state")
+			return errors.Wrap(err, "enter booting state")
 		}
 
 		serr := st.startStatesSwitch(ctx)
@@ -313,7 +313,7 @@ end:
 			if nsctx.next() == StateBroken {
 				st.Log().Error().Err(err).Msg("failed to switch to broken; will stop switching")
 
-				return errors.Wrap(err, "failed to switch to broken")
+				return errors.Wrap(err, "switch to broken")
 			}
 
 			nsctx = movetobroken(err)
@@ -326,7 +326,7 @@ end:
 }
 
 func (st *States) switchState(sctx switchContext) error {
-	e := util.StringErrorFunc("failed to switch state")
+	e := util.StringErrorFunc("switch state")
 
 	current := st.current()
 	l := st.stateSwitchContextLog(sctx, current)
@@ -368,7 +368,7 @@ func (st *States) exitAndEnter(sctx switchContext, current handler) (func(), fun
 	st.stateLock.Lock()
 	defer st.stateLock.Unlock()
 
-	e := util.StringErrorFunc("failed to switch state")
+	e := util.StringErrorFunc("switch state")
 	l := st.stateSwitchContextLog(sctx, current)
 
 	if err := st.checkStateSwitchContext(sctx, current); err != nil {
@@ -392,13 +392,13 @@ func (st *States) exitAndEnter(sctx switchContext, current handler) (func(), fun
 				return nil, nil, err
 			}
 
-			return nil, nil, e(err, "failed to exit current state")
+			return nil, nil, e(err, "exit current state")
 		}
 	}
 
 	nextHandler, err := st.newHandlers[sctx.next()].new()
 	if err != nil {
-		return nil, nil, e(err, "failed to create new handler, %q", sctx.next())
+		return nil, nil, e(err, "create new handler, %q", sctx.next())
 	}
 
 	ndefer, err = nextHandler.enter(current.state(), sctx)
@@ -409,7 +409,7 @@ func (st *States) exitAndEnter(sctx switchContext, current handler) (func(), fun
 			return nil, nil, err
 		}
 
-		return nil, nil, e(err, "failed to enter next state")
+		return nil, nil, e(err, "enter next state")
 	}
 
 	st.cs = nextHandler
@@ -418,7 +418,7 @@ func (st *States) exitAndEnter(sctx switchContext, current handler) (func(), fun
 }
 
 func (st *States) voteproofToCurrent(vp base.Voteproof, current handler) error {
-	e := util.StringErrorFunc("failed to send voteproof to current")
+	e := util.StringErrorFunc("send voteproof to current")
 
 	st.Log().Debug().Interface("voteproof", vp).Msg("new voteproof")
 

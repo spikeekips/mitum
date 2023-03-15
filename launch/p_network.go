@@ -41,7 +41,7 @@ func PQuicstreamClient(pctx context.Context) (context.Context, error) {
 		EncoderContextKey, &enc,
 		LocalParamsContextKey, &params,
 	); err != nil {
-		return pctx, errors.WithMessage(err, "failed network client")
+		return pctx, errors.WithMessage(err, "network client")
 	}
 
 	client := NewNetworkClient(encs, enc, params.NetworkID()) //nolint:gomnd //...
@@ -50,7 +50,7 @@ func PQuicstreamClient(pctx context.Context) (context.Context, error) {
 }
 
 func PNetwork(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("failed to prepare network")
+	e := util.StringErrorFunc("prepare network")
 
 	var log *logging.Logging
 	var encs *encoder.Encoders

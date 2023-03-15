@@ -163,7 +163,7 @@ func (st *PrefixStorage) origkey(b []byte) ([]byte, error) {
 	case len(b) < 1:
 		return nil, nil
 	case len(b) < st.prefixlen:
-		return nil, errors.Errorf("failed to get original key; wrong size key")
+		return nil, errors.Errorf("get original key; wrong size key")
 	}
 
 	return b[st.prefixlen:], nil
@@ -205,7 +205,7 @@ func RemoveByPrefix(st *Storage, prefix []byte) error {
 		},
 		true,
 	); err != nil {
-		return errors.Errorf("failed to remove prefix storage")
+		return errors.Errorf("remove prefix storage")
 	}
 
 	return st.Batch(batch, nil)

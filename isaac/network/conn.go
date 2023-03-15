@@ -73,7 +73,7 @@ func (n NodeConnInfo) MarshalJSON() ([]byte, error) {
 }
 
 func (n *NodeConnInfo) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode NodeConnInfo")
+	e := util.StringErrorFunc("decode NodeConnInfo")
 
 	if err := n.BaseNode.DecodeJSON(b, enc); err != nil {
 		return e(err, "")

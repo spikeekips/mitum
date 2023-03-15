@@ -74,7 +74,7 @@ func NewDefaultProposalProcessor(
 ) (*DefaultProposalProcessor, error) {
 	writer, err := newWriter(proposal, getStatef)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to make new ProposalProcessor")
+		return nil, errors.Wrap(err, "make new ProposalProcessor")
 	}
 
 	oprs, _ := util.NewShardedMap("", (base.OperationProcessor)(nil), 1<<5) //nolint:gomnd //...
@@ -115,7 +115,7 @@ func (p *DefaultProposalProcessor) Process(ctx context.Context, ivp base.INITVot
 		return nil, errors.Errorf("already processed")
 	}
 
-	e := util.StringErrorFunc("failed to process operations")
+	e := util.StringErrorFunc("process operations")
 
 	pctx, cancel := context.WithCancel(p.ctx)
 	defer cancel()
@@ -143,7 +143,7 @@ func (p *DefaultProposalProcessor) Process(ctx context.Context, ivp base.INITVot
 
 	if _, err := p.processstate.Set(func(i int, _ bool) (int, error) {
 		if i < 0 {
-			return i, errors.Errorf("failed to process proposal; already canceled")
+			return i, errors.Errorf("process proposal; already canceled")
 		}
 
 		return 1, nil
@@ -190,12 +190,12 @@ func (p *DefaultProposalProcessor) Save(ctx context.Context, avp base.ACCEPTVote
 			return true, err
 		}
 	}, p.retrylimit, p.retryinterval); err != nil {
-		return errors.Wrap(err, "failed to save proposal")
+		return errors.Wrap(err, "save proposal")
 	}
 
 	_, err := p.processstate.Set(func(i int, _ bool) (int, error) {
 		if i < 0 {
-			return i, errors.Errorf("failed to save proposal; already canceled")
+			return i, errors.Errorf("save proposal; already canceled")
 		}
 
 		return 2, nil //nolint:gomnd //...
@@ -251,14 +251,14 @@ func (p *DefaultProposalProcessor) isSaved() bool {
 
 func (p *DefaultProposalProcessor) process(ctx context.Context) error {
 	if err := p.writer.SetINITVoteproof(ctx, p.ivp); err != nil {
-		return errors.WithMessage(err, "failed to set init voteproof")
+		return errors.WithMessage(err, "set init voteproof")
 	}
 
 	var cops []base.Operation
 
 	switch i, err := p.collectOperations(ctx); {
 	case err != nil:
-		return errors.WithMessage(err, "failed to collect operations")
+		return errors.WithMessage(err, "collect operations")
 	case len(i) < 1:
 		return nil
 	default:
@@ -268,14 +268,14 @@ func (p *DefaultProposalProcessor) process(ctx context.Context) error {
 	}
 
 	if err := p.processOperations(ctx, cops); err != nil {
-		return errors.WithMessage(err, "failed to process operations")
+		return errors.WithMessage(err, "process operations")
 	}
 
 	return nil
 }
 
 func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) ([]base.Operation, error) {
-	e := util.StringErrorFunc("failed to collect operations")
+	e := util.StringErrorFunc("collect operations")
 
 	var cops []base.Operation
 	var index int
@@ -340,7 +340,7 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) ([]bas
 }
 
 func (p *DefaultProposalProcessor) processOperations(ctx context.Context, cops []base.Operation) error {
-	e := util.StringErrorFunc("failed to process operations")
+	e := util.StringErrorFunc("process operations")
 
 	p.Log().Debug().Int("operations", len(cops)).Msg("trying to process operations")
 
@@ -399,7 +399,7 @@ func (p *DefaultProposalProcessor) processOperation(
 
 	switch pctx, reasonerr, passed, err := p.doPreProcessOperation(ctx, newOperationProcessor, op); {
 	case err != nil:
-		return pctx, 0, 0, errors.WithMessage(err, "failed to pre process operation")
+		return pctx, 0, 0, errors.WithMessage(err, "pre process operation")
 	case reasonerr != nil:
 		if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
 			return writer.SetProcessResult(
@@ -478,7 +478,7 @@ func (p *DefaultProposalProcessor) doProcessOperation(
 	opsindex, validindex uint64,
 	op base.Operation,
 ) error {
-	e := util.StringErrorFunc("failed to process operation, %q", op.Fact().Hash())
+	e := util.StringErrorFunc("process operation, %q", op.Fact().Hash())
 
 	var errorreason base.OperationProcessReasonError
 	var stvs []base.StateMergeValue
@@ -545,7 +545,7 @@ func (p *DefaultProposalProcessor) getPreProcessor(
 ) {
 	switch opp, found, err := p.getOperationProcessor(ctx, newOperationProcessor, op.Hint()); {
 	case err != nil:
-		return nil, errors.Wrap(err, "failed to get OperationProcessor for PreProcess")
+		return nil, errors.Wrap(err, "get OperationProcessor for PreProcess")
 	case found:
 		return func(ctx context.Context) (context.Context, base.OperationProcessReasonError, error) {
 			return opp.PreProcess(ctx, op, p.getStatef) //nolint:wrapcheck //...
@@ -568,7 +568,7 @@ func (p *DefaultProposalProcessor) getProcessor(
 ) {
 	switch opp, found, err := p.getOperationProcessor(ctx, newOperationProcessor, op.Hint()); {
 	case err != nil:
-		return nil, errors.Wrap(err, "failed to get OperationProcessor for Process")
+		return nil, errors.Wrap(err, "get OperationProcessor for Process")
 	case found:
 		return func(ctx context.Context) ([]base.StateMergeValue, base.OperationProcessReasonError, error) {
 			return opp.Process(ctx, op, getStatef) //nolint:wrapcheck //...
@@ -614,7 +614,7 @@ func (p *DefaultProposalProcessor) getOperationProcessor(
 	case errors.Is(err, ErrOperationInProcessorNotFound):
 		return nil, false, nil
 	default:
-		return nil, false, errors.Wrap(err, "failed to get OperationProcessor")
+		return nil, false, errors.Wrap(err, "get OperationProcessor")
 	}
 }
 
@@ -630,10 +630,10 @@ func (p *DefaultProposalProcessor) retry(ctx context.Context, f func() (bool, er
 }
 
 func (p *DefaultProposalProcessor) save(ctx context.Context, avp base.ACCEPTVoteproof) error {
-	e := util.StringErrorFunc("failed to save")
+	e := util.StringErrorFunc("save")
 
 	if err := p.writer.SetACCEPTVoteproof(ctx, avp); err != nil {
-		return e(err, "failed to set accept voteproof")
+		return e(err, "set accept voteproof")
 	}
 
 	m, err := p.writer.Save(ctx)
@@ -651,7 +651,7 @@ func (p *DefaultProposalProcessor) collectOperation(
 	h util.Hash,
 	getOperationf OperationProcessorGetOperationFunction,
 ) (base.Operation, error) {
-	e := util.StringErrorFunc("failed to collect operation, %q", h)
+	e := util.StringErrorFunc("collect operation, %q", h)
 
 	var op base.Operation
 

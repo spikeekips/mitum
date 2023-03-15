@@ -18,7 +18,7 @@ var (
 )
 
 func PStartTimeSyncer(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("failed to prepare time syncer")
+	e := util.StringErrorFunc("prepare time syncer")
 
 	var log *logging.Logging
 	var design NodeDesign
@@ -51,7 +51,7 @@ func PStartTimeSyncer(pctx context.Context) (context.Context, error) {
 }
 
 func PCloseTimeSyncer(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("failed to stop time syncer")
+	e := util.StringErrorFunc("stop time syncer")
 
 	var ts *localtime.TimeSyncer
 

@@ -27,7 +27,7 @@ func NewSuffrageJoinProcessor(
 	newPreProcessConstraintFunc base.NewOperationProcessorProcessFunc,
 	newProcessConstraintFunc base.NewOperationProcessorProcessFunc,
 ) (*SuffrageJoinProcessor, error) {
-	e := util.StringErrorFunc("failed to create new SuffrageJoinProcessor")
+	e := util.StringErrorFunc("create new SuffrageJoinProcessor")
 
 	b, err := base.NewBaseOperationProcessor(
 		height, getStateFunc, newPreProcessConstraintFunc, newProcessConstraintFunc)
@@ -52,7 +52,7 @@ func NewSuffrageJoinProcessor(
 
 		suf, err := p.sufstv.Suffrage()
 		if err != nil {
-			return nil, e(isaac.ErrStopProcessingRetry.Errorf("failed to get suffrage from state"), "")
+			return nil, e(isaac.ErrStopProcessingRetry.Errorf("get suffrage from state"), "")
 		}
 
 		p.suffrage = suf
@@ -94,7 +94,7 @@ func (p *SuffrageJoinProcessor) PreProcess(ctx context.Context, op base.Operatio
 		return ctx, base.NewBaseOperationProcessReasonError("not candidate"), nil
 	}
 
-	e := util.StringErrorFunc("failed to preprocess for SuffrageJoin")
+	e := util.StringErrorFunc("preprocess for SuffrageJoin")
 
 	noop, ok := op.(base.NodeSignFact)
 	if !ok {
@@ -151,7 +151,7 @@ func (p *SuffrageJoinProcessor) PreProcess(ctx context.Context, op base.Operatio
 func (p *SuffrageJoinProcessor) Process(ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (
 	[]base.StateMergeValue, base.OperationProcessReasonError, error,
 ) {
-	e := util.StringErrorFunc("failed to process for SuffrageJoin")
+	e := util.StringErrorFunc("process for SuffrageJoin")
 
 	switch reasonerr, err := p.ProcessConstraintFunc(ctx, op, getStateFunc); {
 	case err != nil:
@@ -241,7 +241,7 @@ func (s *SuffrageJoinStateValueMerger) Merge(value base.StateValue, ops []util.H
 func (s *SuffrageJoinStateValueMerger) Close() error {
 	newvalue, err := s.close()
 	if err != nil {
-		return errors.WithMessage(err, "failed to close SuffrageJoinStateValueMerger")
+		return errors.WithMessage(err, "close SuffrageJoinStateValueMerger")
 	}
 
 	s.BaseStateValueMerger.SetValue(newvalue)

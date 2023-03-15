@@ -42,7 +42,7 @@ func NewSuffrageVoting(
 }
 
 func (s *SuffrageVoting) Vote(op base.SuffrageWithdrawOperation) (bool, error) {
-	e := util.StringErrorFunc("failed suffrage voting")
+	e := util.StringErrorFunc("suffrage voting")
 
 	fact := op.WithdrawFact()
 
@@ -90,7 +90,7 @@ func (s *SuffrageVoting) Find(
 	height base.Height,
 	suf base.Suffrage,
 ) ([]base.SuffrageWithdrawOperation, error) {
-	e := util.StringErrorFunc("failed to collect suffrage withdraw operations")
+	e := util.StringErrorFunc("collect suffrage withdraw operations")
 
 	if h := height.Prev(); h >= base.GenesisHeight {
 		// NOTE remove expires

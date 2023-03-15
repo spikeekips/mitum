@@ -38,7 +38,7 @@ func (st *Storage) Connect(ctx context.Context) error {
 func (st *Storage) connect(ctx context.Context, opt *redis.Options) error {
 	client := redis.NewClient(opt)
 	if err := client.Ping(ctx).Err(); err != nil {
-		return storage.ErrConnection.Wrapf(err, "failed to connect to redis server")
+		return storage.ErrConnection.Wrapf(err, "connect to redis server")
 	}
 
 	st.client = client
@@ -51,7 +51,7 @@ func (st *Storage) Close() error {
 	defer st.Unlock()
 
 	if err := st.client.Close(); err != nil {
-		return storage.ErrInternal.Wrapf(err, "failed to close redis client")
+		return storage.ErrInternal.Wrapf(err, "close redis client")
 	}
 
 	return nil
@@ -79,7 +79,7 @@ func (st *Storage) Get(ctx context.Context, key string) (b []byte, found bool, _
 	case errors.Is(r.Err(), redis.Nil):
 		return nil, false, nil
 	default:
-		return nil, false, storage.ErrExec.Wrapf(r.Err(), "failed to get from redis storage")
+		return nil, false, storage.ErrExec.Wrapf(r.Err(), "get from redis storage")
 	}
 }
 
@@ -88,7 +88,7 @@ func (st *Storage) Set(ctx context.Context, key string, b []byte) error {
 
 	switch {
 	case r.Err() != nil:
-		return storage.ErrExec.Wrap(errors.Wrap(r.Err(), "failed to set from redis storage"))
+		return storage.ErrExec.Wrap(errors.Wrap(r.Err(), "set from redis storage"))
 	default:
 		return nil
 	}
@@ -99,14 +99,14 @@ func (st *Storage) Exists(ctx context.Context, key string) (bool, error) {
 
 	switch {
 	case r.Err() != nil:
-		return false, storage.ErrExec.Wrap(errors.Wrap(r.Err(), "failed exists from redis storage"))
+		return false, storage.ErrExec.Wrap(errors.Wrap(r.Err(), "exists from redis storage"))
 	default:
 		return r.Val() == 1, nil
 	}
 }
 
 func (st *Storage) Clean(ctx context.Context) error {
-	e := util.StringErrorFunc("failed to clean redis storage")
+	e := util.StringErrorFunc("clean redis storage")
 
 	var cursor uint64
 
@@ -140,7 +140,7 @@ func (st *Storage) ZAddArgs(ctx context.Context, key string, args redis.ZAddArgs
 	}
 
 	if err := st.client.ZAddArgs(ctx, st.key(key), args).Err(); err != nil {
-		return storage.ErrExec.Wrap(errors.Wrap(err, "failed to ZAddArgs"))
+		return storage.ErrExec.Wrap(errors.Wrap(err, "ZAddArgs"))
 	}
 
 	return nil
@@ -163,7 +163,7 @@ func (st *Storage) ZRangeArgs(ctx context.Context, z redis.ZRangeArgs, f func(st
 
 	sl, err := st.client.ZRangeArgs(ctx, z).Result()
 	if err != nil {
-		return storage.ErrExec.Wrap(errors.Wrap(err, "failed to ZRangeArgs"))
+		return storage.ErrExec.Wrap(errors.Wrap(err, "ZRangeArgs"))
 	}
 
 	for i := range sl {

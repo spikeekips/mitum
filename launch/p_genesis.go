@@ -14,7 +14,7 @@ import (
 var PNameGenerateGenesis = ps.Name("generate-genesis")
 
 func PGenerateGenesis(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("failed to generate genesis block")
+	e := util.StringErrorFunc("generate genesis block")
 
 	var log *logging.Logging
 	var design NodeDesign

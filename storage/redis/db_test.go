@@ -35,7 +35,7 @@ func (t *testRedisStorage) TestNew() {
 		t.Error(err)
 		t.Nil(st)
 		t.True(errors.Is(err, storage.ErrConnection))
-		t.ErrorContains(err, "failed to connect to redis server")
+		t.ErrorContains(err, "connect to redis server")
 	})
 }
 
@@ -55,7 +55,7 @@ func (t *testRedisStorage) TestClose() {
 		err := st.Close()
 		t.Error(err)
 		t.True(errors.Is(err, storage.ErrInternal))
-		t.ErrorContains(err, "failed to close redis client")
+		t.ErrorContains(err, "close redis client")
 	})
 
 	t.Run("exec", func() {
@@ -63,7 +63,7 @@ func (t *testRedisStorage) TestClose() {
 		t.Error(err)
 		t.False(found)
 		t.True(errors.Is(err, storage.ErrExec))
-		t.ErrorContains(err, "failed to get")
+		t.ErrorContains(err, "get")
 	})
 
 	t.Run("connect", func() {

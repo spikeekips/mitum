@@ -40,7 +40,7 @@ type operationRequestHeaderJSONUnmarshaler struct {
 }
 
 func (h *OperationRequestHeader) DecodeJSON(b []byte, _ *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to unmarshal OperationRequestHeader")
+	e := util.StringErrorFunc("decode OperationRequestHeader")
 
 	if err := util.UnmarshalJSON(b, &h.baseHeader); err != nil {
 		return e(err, "")
@@ -62,7 +62,7 @@ func (h SendOperationRequestHeader) MarshalJSON() ([]byte, error) {
 
 func (h *SendOperationRequestHeader) UnmarshalJSON(b []byte) error {
 	if err := util.UnmarshalJSON(b, &h.baseHeader); err != nil {
-		return errors.WithMessage(err, "failed to unmarshal SendOperationRequestHeader")
+		return errors.WithMessage(err, "unmarshal SendOperationRequestHeader")
 	}
 
 	return nil
@@ -92,7 +92,7 @@ type requestProposalRequestHeaderJSONUnmarshaler struct {
 }
 
 func (h *RequestProposalRequestHeader) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to unmarshal RequestProposalHeader")
+	e := util.StringErrorFunc("decode RequestProposalHeader")
 
 	var u requestProposalRequestHeaderJSONUnmarshaler
 
@@ -137,7 +137,7 @@ type proposalRequestHeaderJSONUnmarshaler struct {
 }
 
 func (h *ProposalRequestHeader) UnmarshalJSON(b []byte) error {
-	e := util.StringErrorFunc("failed to unmarshal ProposalRequestHeader")
+	e := util.StringErrorFunc("unmarshal ProposalRequestHeader")
 
 	var u proposalRequestHeaderJSONUnmarshaler
 
@@ -175,7 +175,7 @@ type lastSuffrageProofRequestHeaderJSONUnmarshaler struct {
 }
 
 func (h *LastSuffrageProofRequestHeader) UnmarshalJSON(b []byte) error {
-	e := util.StringErrorFunc("failed to unmarshal LastSuffrageProofHeader")
+	e := util.StringErrorFunc("unmarshal LastSuffrageProofHeader")
 
 	var u lastSuffrageProofRequestHeaderJSONUnmarshaler
 
@@ -213,7 +213,7 @@ type suffrageProofRequestHeaderJSONUnmarshaler struct {
 }
 
 func (h *SuffrageProofRequestHeader) UnmarshalJSON(b []byte) error {
-	e := util.StringErrorFunc("failed to unmarshal SuffrageProofHeader")
+	e := util.StringErrorFunc("unmarshal SuffrageProofHeader")
 	var u suffrageProofRequestHeaderJSONUnmarshaler
 
 	if err := util.UnmarshalJSON(b, &u); err != nil {
@@ -250,7 +250,7 @@ type lastBlockMapRequestHeaderJSONUnmarshaler struct {
 }
 
 func (h *LastBlockMapRequestHeader) UnmarshalJSON(b []byte) error {
-	e := util.StringErrorFunc("failed to unmarshal LastBlockMapHeader")
+	e := util.StringErrorFunc("unmarshal LastBlockMapHeader")
 	var u lastBlockMapRequestHeaderJSONUnmarshaler
 
 	if err := util.UnmarshalJSON(b, &u); err != nil {
@@ -287,7 +287,7 @@ type BlockMapRequestHeaderJSONUnmarshaler struct {
 }
 
 func (h *BlockMapRequestHeader) UnmarshalJSON(b []byte) error {
-	e := util.StringErrorFunc("failed to unmarshal BlockMapHeader")
+	e := util.StringErrorFunc("unmarshal BlockMapHeader")
 	var u BlockMapRequestHeaderJSONUnmarshaler
 
 	if err := util.UnmarshalJSON(b, &u); err != nil {
@@ -327,7 +327,7 @@ type BlockMapItemRequestHeaderJSONUnmarshaler struct {
 }
 
 func (h *BlockMapItemRequestHeader) UnmarshalJSON(b []byte) error {
-	e := util.StringErrorFunc("failed to unmarshal BlockMapItemHeader")
+	e := util.StringErrorFunc("unmarshal BlockMapItemHeader")
 	var u BlockMapItemRequestHeaderJSONUnmarshaler
 
 	if err := util.UnmarshalJSON(b, &u); err != nil {
@@ -361,7 +361,7 @@ func (h NodeChallengeRequestHeader) MarshalJSON() ([]byte, error) {
 }
 
 func (h *NodeChallengeRequestHeader) UnmarshalJSON(b []byte) error {
-	e := util.StringErrorFunc("failed to unmarshal NodeChallengeHeader")
+	e := util.StringErrorFunc("unmarshal NodeChallengeHeader")
 	var u NodeChallengeRequestHeaderJSONMarshaler
 
 	if err := util.UnmarshalJSON(b, &u); err != nil {
@@ -383,7 +383,7 @@ func (h SuffrageNodeConnInfoRequestHeader) MarshalJSON() ([]byte, error) {
 
 func (h *SuffrageNodeConnInfoRequestHeader) UnmarshalJSON(b []byte) error {
 	if err := util.UnmarshalJSON(b, &h.baseHeader); err != nil {
-		return errors.WithMessage(err, "failed to unmarshal SuffrageNodeConnInfoHeader")
+		return errors.WithMessage(err, "unmarshal SuffrageNodeConnInfoHeader")
 	}
 
 	return nil
@@ -395,7 +395,7 @@ func (h SyncSourceConnInfoRequestHeader) MarshalJSON() ([]byte, error) {
 
 func (h *SyncSourceConnInfoRequestHeader) UnmarshalJSON(b []byte) error {
 	if err := util.UnmarshalJSON(b, &h.baseHeader); err != nil {
-		return errors.WithMessage(err, "failed to unmarshal SyncSourceConnInfoRequestHeader")
+		return errors.WithMessage(err, "unmarshal SyncSourceConnInfoRequestHeader")
 	}
 
 	return nil
@@ -425,7 +425,7 @@ type stateRequestHeaderJSONUnmarshaler struct {
 }
 
 func (h *StateRequestHeader) UnmarshalJSON(b []byte) error {
-	e := util.StringErrorFunc("failed to unmarshal StateRequestHeader")
+	e := util.StringErrorFunc("unmarshal StateRequestHeader")
 
 	var u stateRequestHeaderJSONUnmarshaler
 
@@ -434,7 +434,7 @@ func (h *StateRequestHeader) UnmarshalJSON(b []byte) error {
 	}
 
 	if err := util.UnmarshalJSON(b, &h.baseHeader); err != nil {
-		return errors.WithMessage(err, "failed to unmarshal StateRequestHeader")
+		return errors.WithMessage(err, "unmarshal StateRequestHeader")
 	}
 
 	h.key = u.Key
@@ -460,7 +460,7 @@ func (h ExistsInStateOperationRequestHeader) MarshalJSON() ([]byte, error) {
 }
 
 func (h *ExistsInStateOperationRequestHeader) UnmarshalJSON(b []byte) error {
-	e := util.StringErrorFunc("failed to unmarshal ExistsInStateOperationRequestHeader")
+	e := util.StringErrorFunc("unmarshal ExistsInStateOperationRequestHeader")
 
 	var u struct {
 		Fact valuehash.HashDecoder `json:"fact"`
@@ -471,7 +471,7 @@ func (h *ExistsInStateOperationRequestHeader) UnmarshalJSON(b []byte) error {
 	}
 
 	if err := util.UnmarshalJSON(b, &h.baseHeader); err != nil {
-		return errors.WithMessage(err, "failed to unmarshal ExistsInStateOperationRequestHeader")
+		return errors.WithMessage(err, "unmarshal ExistsInStateOperationRequestHeader")
 	}
 
 	h.facthash = u.Fact.Hash()
@@ -485,7 +485,7 @@ func (h NodeInfoRequestHeader) MarshalJSON() ([]byte, error) {
 
 func (h *NodeInfoRequestHeader) UnmarshalJSON(b []byte) error {
 	if err := util.UnmarshalJSON(b, &h.baseHeader); err != nil {
-		return errors.WithMessage(err, "failed to unmarshal NodeInfoHeader")
+		return errors.WithMessage(err, "unmarshal NodeInfoHeader")
 	}
 
 	return nil
@@ -497,7 +497,7 @@ func (h SendBallotsHeader) MarshalJSON() ([]byte, error) {
 
 func (h *SendBallotsHeader) UnmarshalJSON(b []byte) error {
 	if err := util.UnmarshalJSON(b, &h.baseHeader); err != nil {
-		return errors.WithMessage(err, "failed to unmarshal SendBallotsHeader")
+		return errors.WithMessage(err, "unmarshal SendBallotsHeader")
 	}
 
 	return nil

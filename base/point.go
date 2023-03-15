@@ -36,7 +36,7 @@ func ParseHeightString(s string) (Height, error) {
 
 	i, err := strconv.ParseInt(n, 10, 64)
 	if err != nil {
-		return NilHeight, errors.Wrap(err, "failed ParseHeightString")
+		return NilHeight, errors.Wrap(err, "seHeightString")
 	}
 
 	return Height(i), nil
@@ -45,7 +45,7 @@ func ParseHeightString(s string) (Height, error) {
 func ParseHeightBytes(b []byte) (Height, error) {
 	i, err := util.BigBytesToInt64(b)
 	if err != nil {
-		return NilHeight, errors.Wrap(err, "failed ParseHeightBytes")
+		return NilHeight, errors.Wrap(err, "seHeightBytes")
 	}
 
 	return Height(i), nil
@@ -238,7 +238,7 @@ type pointJSONUnmarshaler struct {
 func (p *Point) UnmarshalJSON(b []byte) error {
 	var u pointJSONUnmarshaler
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return errors.Wrap(err, "failed to unmarshal point")
+		return errors.Wrap(err, "unmarshal point")
 	}
 
 	p.h = u.Height.Height()
@@ -340,7 +340,7 @@ type stagePointJSONUnmarshaler struct {
 func (p *StagePoint) UnmarshalJSON(b []byte) error {
 	var u stagePointJSONUnmarshaler
 	if err := util.UnmarshalJSON(b, &u); err != nil {
-		return errors.Wrap(err, "failed to unmarshal stage point")
+		return errors.Wrap(err, "unmarshal stage point")
 	}
 
 	p.h = u.Height.Height()

@@ -60,7 +60,7 @@ func LoadBlockReader(
 	writerhint, enchint hint.Hint,
 	height base.Height,
 ) (isaac.BlockReader, error) {
-	e := util.StringErrorFunc("failed to load BlockReader")
+	e := util.StringErrorFunc("load BlockReader")
 
 	f := readers.Find(writerhint)
 	if f == nil {
@@ -85,7 +85,7 @@ func LoadTree(
 		return tr, nil
 	}
 
-	e := util.StringErrorFunc("failed to load tree")
+	e := util.StringErrorFunc("load tree")
 
 	br := bufio.NewReader(f)
 
@@ -202,7 +202,7 @@ end:
 
 		ht, err = hint.ParseHint(s)
 		if err != nil {
-			return ht, errors.Wrap(err, "failed to load tree hint")
+			return ht, errors.Wrap(err, "load tree hint")
 		}
 
 		return ht, nil

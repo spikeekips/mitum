@@ -8,7 +8,7 @@ type HeightDecoder struct {
 }
 
 func (d *HeightDecoder) UnmarshalJSON(b []byte) error {
-	e := util.StringErrorFunc("failed to unmarshal height")
+	e := util.StringErrorFunc("unmarshal height")
 
 	var u Height
 	if err := util.UnmarshalJSON(b, &u); err != nil {

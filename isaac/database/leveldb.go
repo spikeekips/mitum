@@ -70,7 +70,7 @@ func (db *baseLeveldb) Close() error {
 	}
 
 	if err := db.st.Close(); err != nil {
-		return errors.Wrap(err, "failed to close baseDatabase")
+		return errors.Wrap(err, "close baseDatabase")
 	}
 
 	db.clean()
@@ -93,7 +93,7 @@ func (db *baseLeveldb) existsInStateOperation(h util.Hash) (bool, error) {
 	case err == nil:
 		return found, nil
 	default:
-		return false, errors.Wrap(err, "failed to check exists instate operation")
+		return false, errors.Wrap(err, "check exists instate operation")
 	}
 }
 
@@ -102,12 +102,12 @@ func (db *baseLeveldb) existsKnownOperation(h util.Hash) (bool, error) {
 	case err == nil:
 		return found, nil
 	default:
-		return false, errors.Wrap(err, "failed to check exists known operation")
+		return false, errors.Wrap(err, "check exists known operation")
 	}
 }
 
 func (db *baseLeveldb) loadLastBlockMap() (m base.BlockMap, enchint hint.Hint, meta []byte, body []byte, err error) {
-	e := util.StringErrorFunc("failed to load last blockmap")
+	e := util.StringErrorFunc("load last blockmap")
 
 	if err = db.st.Iter(
 		leveldbutil.BytesPrefix(leveldbKeyPrefixBlockMap),
@@ -132,7 +132,7 @@ func (db *baseLeveldb) loadLastBlockMap() (m base.BlockMap, enchint hint.Hint, m
 }
 
 func (db *baseLeveldb) loadNetworkPolicy() (base.NetworkPolicy, bool, error) {
-	e := util.StringErrorFunc("failed to load suffrage state")
+	e := util.StringErrorFunc("load suffrage state")
 
 	b, found, err := db.st.Get(leveldbStateKey(isaac.NetworkPolicyStateKey))
 
@@ -262,7 +262,7 @@ func leveldbBallotKey(point base.StagePoint, isSuffrageConfirm bool) []byte { //
 }
 
 func heightFromleveldbKey(b, prefix []byte) (base.Height, error) {
-	e := util.StringErrorFunc("failed to parse height from leveldbBlockMapKey")
+	e := util.StringErrorFunc("parse height from leveldbBlockMapKey")
 
 	if len(b) < len(prefix)+8 {
 		return base.NilHeight, e(nil, "too short")

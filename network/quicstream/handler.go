@@ -53,7 +53,7 @@ func (h *PrefixHandler) Add(prefix string, handler Handler) *PrefixHandler {
 }
 
 func (h *PrefixHandler) loadHandler(r io.Reader) (Handler, error) {
-	e := util.StringErrorFunc("failed to load handler")
+	e := util.StringErrorFunc("load handler")
 
 	prefix, err := readPrefix(r)
 	if err != nil {

@@ -54,7 +54,7 @@ func (cmd *RunCommand) Run(pctx context.Context) error {
 
 	if len(cmd.HTTPState) > 0 {
 		if err := cmd.runHTTPState(cmd.HTTPState); err != nil {
-			return errors.Wrap(err, "failed to run http state")
+			return errors.Wrap(err, "run http state")
 		}
 	}
 
@@ -235,12 +235,12 @@ func (cmd *RunCommand) pCheckHold(pctx context.Context) (context.Context, error)
 func (cmd *RunCommand) runHTTPState(bind string) error {
 	addr, err := net.ResolveTCPAddr("tcp", bind)
 	if err != nil {
-		return errors.Wrap(err, "failed to parse --http-state")
+		return errors.Wrap(err, "parse --http-state")
 	}
 
 	mux := http.NewServeMux()
 	if err := statsviz.Register(mux); err != nil {
-		return errors.Wrap(err, "failed to register statsviz for http-state")
+		return errors.Wrap(err, "register statsviz for http-state")
 	}
 
 	cmd.log.Debug().Stringer("bind", addr).Msg("statsviz started")

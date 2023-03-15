@@ -43,7 +43,7 @@ func QuicstreamErrorHandler(enc encoder.Encoder) quicstream.ErrorHandler {
 	return func(_ net.Addr, _ io.Reader, w io.Writer, err error) error {
 		if err = quicstream.WriteResponseBody(w,
 			quicstream.NewDefaultResponseHeader(false, err, quicstream.RawContentType), enc, nil); err != nil {
-			return errors.WithMessage(err, "failed to response error response")
+			return errors.WithMessage(err, "response error response")
 		}
 
 		return nil
@@ -85,7 +85,7 @@ func QuicstreamHandlerSendOperation(
 	return func(_ net.Addr, r io.Reader, w io.Writer,
 		h quicstream.Header, _ *encoder.Encoders, enc encoder.Encoder,
 	) error {
-		e := util.StringErrorFunc("failed to handle new operation")
+		e := util.StringErrorFunc("handle new operation")
 
 		if _, ok := h.(SendOperationRequestHeader); !ok {
 			return e(nil, "expected SendOperationRequestHeader, but %T", h)
@@ -378,7 +378,7 @@ func QuicstreamHandlerNodeChallenge(
 	return func(_ net.Addr, r io.Reader, w io.Writer,
 		h quicstream.Header, _ *encoder.Encoders, enc encoder.Encoder,
 	) error {
-		e := util.StringErrorFunc("failed to handle NodeChallenge")
+		e := util.StringErrorFunc("handle NodeChallenge")
 
 		header, ok := h.(NodeChallengeRequestHeader)
 		if !ok {
@@ -419,7 +419,7 @@ func QuicstreamHandlerSuffrageNodeConnInfo(
 		h quicstream.Header, encs *encoder.Encoders, enc encoder.Encoder,
 	) error {
 		if err := handler(addr, r, w, h, encs, enc); err != nil {
-			return errors.WithMessage(err, "failed to handle SuffrageNodeConnInfo")
+			return errors.WithMessage(err, "handle SuffrageNodeConnInfo")
 		}
 
 		return nil
@@ -435,7 +435,7 @@ func QuicstreamHandlerSyncSourceConnInfo(
 		h quicstream.Header, encs *encoder.Encoders, enc encoder.Encoder,
 	) error {
 		if err := handler(addr, r, w, h, encs, enc); err != nil {
-			return errors.WithMessage(err, "failed to handle SyncSourceConnInfo")
+			return errors.WithMessage(err, "handle SyncSourceConnInfo")
 		}
 
 		return nil
@@ -483,7 +483,7 @@ func QuicstreamHandlerExistsInStateOperation(
 	return func(_ net.Addr, r io.Reader, w io.Writer,
 		h quicstream.Header, _ *encoder.Encoders, enc encoder.Encoder,
 	) error {
-		e := util.StringErrorFunc("failed to handle exists instate operation")
+		e := util.StringErrorFunc("handle exists instate operation")
 
 		header, ok := h.(ExistsInStateOperationRequestHeader)
 		if !ok {
@@ -515,7 +515,7 @@ func QuicstreamHandlerNodeInfo(
 	return func(_ net.Addr, r io.Reader, w io.Writer,
 		h quicstream.Header, _ *encoder.Encoders, enc encoder.Encoder,
 	) error {
-		e := util.StringErrorFunc("failed to handle node info")
+		e := util.StringErrorFunc("handle node info")
 
 		if _, ok := h.(NodeInfoRequestHeader); !ok {
 			return e(nil, "expected NodeInfoRequestHeader, but %T", h)
@@ -557,7 +557,7 @@ func QuicstreamHandlerSendBallots(
 	return func(_ net.Addr, r io.Reader, w io.Writer,
 		h quicstream.Header, _ *encoder.Encoders, enc encoder.Encoder,
 	) error {
-		e := util.StringErrorFunc("failed to handle new ballot")
+		e := util.StringErrorFunc("handle new ballot")
 
 		if _, ok := h.(SendBallotsHeader); !ok {
 			return e(nil, "expected SendBallotsHeader, but %T", h)
@@ -721,7 +721,7 @@ func boolBytesQUICstreamHandler(
 		if !enchint.IsEmpty() {
 			benc = encs.Find(enchint) //nolint:forcetypeassert //...
 			if benc == nil {
-				return errors.Errorf("failed to find encoder, %q", enchint)
+				return errors.Errorf("find encoder, %q", enchint)
 			}
 
 			contentType = quicstream.HinterContentType

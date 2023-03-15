@@ -71,7 +71,7 @@ type baseNodeSignJSONUnmarshaler struct {
 }
 
 func (si *BaseNodeSign) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode BaseNodeSign")
+	e := util.StringErrorFunc("decode BaseNodeSign")
 
 	var u baseNodeSignJSONUnmarshaler
 	if err := util.UnmarshalJSON(b, &u); err != nil {
@@ -80,7 +80,7 @@ func (si *BaseNodeSign) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 
 	switch ad, err := DecodeAddress(u.Node, enc); {
 	case err != nil:
-		return e(err, "failed to decode node")
+		return e(err, "decode node address")
 	default:
 		si.node = ad
 	}

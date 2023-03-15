@@ -72,7 +72,7 @@ func (h *NewJoiningHandlerType) new() (handler, error) {
 }
 
 func (st *JoiningHandler) enter(from StateType, i switchContext) (func(), error) {
-	e := util.StringErrorFunc("failed to enter joining state")
+	e := util.StringErrorFunc("enter joining state")
 
 	deferred, err := st.baseBallotHandler.enter(from, i)
 	if err != nil {
@@ -136,7 +136,7 @@ func (st *JoiningHandler) enter(from StateType, i switchContext) (func(), error)
 }
 
 func (st *JoiningHandler) exit(sctx switchContext) (func(), error) {
-	e := util.StringErrorFunc("failed to exit from joining state")
+	e := util.StringErrorFunc("exit from joining state")
 
 	deferred, err := st.baseBallotHandler.exit(sctx)
 	if err != nil {
@@ -180,7 +180,7 @@ func (st *JoiningHandler) handleNewVoteproof(vp base.Voteproof) error {
 	st.newvoteproofLock.Lock()
 	defer st.newvoteproofLock.Unlock()
 
-	e := util.StringErrorFunc("failed to handle new voteproof")
+	e := util.StringErrorFunc("handle new voteproof")
 
 	l := st.Log().With().Str("voteproof", vp.ID()).Logger()
 
@@ -188,7 +188,7 @@ func (st *JoiningHandler) handleNewVoteproof(vp base.Voteproof) error {
 
 	switch i, found, err := st.args.LastManifestFunc(); {
 	case err != nil:
-		err = e(err, "failed to get last manifest")
+		err = e(err, "get last manifest")
 
 		l.Error().Err(err).Msg("moves to syncing state")
 

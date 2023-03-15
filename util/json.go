@@ -104,7 +104,7 @@ func (d *ReadableJSONDuration) UnmarshalJSON(b []byte) error {
 	case string:
 		j, err := time.ParseDuration(t)
 		if err != nil {
-			return errors.Wrap(err, "failed to unmarshal ReadableJSONDuration")
+			return errors.Wrap(err, "unmarshal ReadableJSONDuration")
 		}
 
 		*d = ReadableJSONDuration(j)

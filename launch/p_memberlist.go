@@ -35,7 +35,7 @@ var (
 )
 
 func PMemberlist(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("failed to prepare memberlist")
+	e := util.StringErrorFunc("prepare memberlist")
 
 	var log *logging.Logging
 	var enc *jsonenc.Encoder
@@ -459,7 +459,7 @@ func nodeChallengeFunc(pctx context.Context) (
 	}
 
 	return func(node quicmemberlist.Member) error {
-		e := util.StringErrorFunc("failed to challenge memberlist node")
+		e := util.StringErrorFunc("challenge memberlist node")
 
 		ci, err := node.Publish().UDPConnInfo()
 		if err != nil {

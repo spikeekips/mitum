@@ -19,7 +19,7 @@ func ImportBlocks(
 	setLastVoteproofsFunc func(isaac.BlockReader) error,
 	mergeBlockWriterDatabasesf func(context.Context) error,
 ) error {
-	e := util.StringErrorFunc("failed to import blocks; %d - %d", from, to)
+	e := util.StringErrorFunc("import blocks; %d - %d", from, to)
 
 	var lastim isaac.BlockImporter
 	var ims []isaac.BlockImporter
@@ -101,7 +101,7 @@ func importBlock(
 	im isaac.BlockImporter,
 	blockMapItemf ImportBlocksBlockMapItemFunc,
 ) error {
-	e := util.StringErrorFunc("failed to import block, %d", height)
+	e := util.StringErrorFunc("import block, %d", height)
 
 	var num int64
 	m.Items(func(base.BlockMapItem) bool {
@@ -155,7 +155,7 @@ func saveImporters(
 	ims []isaac.BlockImporter,
 	mergeBlockWriterDatabasesf func(context.Context) error,
 ) error {
-	e := util.StringErrorFunc("failed to save importers")
+	e := util.StringErrorFunc("save importers")
 
 	switch {
 	case len(ims) < 1:
@@ -212,7 +212,7 @@ func saveImporters(
 }
 
 func cancelImporters(ctx context.Context, ims []isaac.BlockImporter) error {
-	e := util.StringErrorFunc("failed to cancel importers")
+	e := util.StringErrorFunc("cancel importers")
 
 	switch {
 	case len(ims) < 1:

@@ -30,7 +30,7 @@ type suffrageJoinFactJSONUnmarshaler struct {
 }
 
 func (fact *SuffrageJoinFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode SuffrageJoinFact")
+	e := util.StringErrorFunc("decode SuffrageJoinFact")
 
 	var u suffrageJoinFactJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
@@ -69,7 +69,7 @@ type suffrageGenesisJoinFactJSONUnmarshaler struct {
 }
 
 func (fact *SuffrageGenesisJoinFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode SuffrageGenesisJoinFact")
+	e := util.StringErrorFunc("decode SuffrageGenesisJoinFact")
 
 	var u suffrageGenesisJoinFactJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {

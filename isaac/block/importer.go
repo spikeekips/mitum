@@ -42,7 +42,7 @@ func NewBlockImporter(
 	mergeBlockWriteDatabasef func(context.Context) error,
 	networkID base.NetworkID,
 ) (*BlockImporter, error) {
-	e := util.StringErrorFunc("failed new BlockImporter")
+	e := util.StringErrorFunc(" BlockImporter")
 
 	enc := encs.Find(m.Encoder())
 	if enc == nil {
@@ -80,7 +80,7 @@ func (im *BlockImporter) Reader() (isaac.BlockReader, error) {
 }
 
 func (im *BlockImporter) WriteMap(m base.BlockMap) error {
-	e := util.StringErrorFunc("failed to write BlockMap")
+	e := util.StringErrorFunc("write BlockMap")
 
 	im.m = m
 
@@ -92,7 +92,7 @@ func (im *BlockImporter) WriteMap(m base.BlockMap) error {
 
 	// NOTE save map
 	if err := im.localfs.WriteMap(m); err != nil {
-		return e(err, "failed to write BlockMap")
+		return e(err, "write BlockMap")
 	}
 
 	if err := im.bwdb.SetBlockMap(m); err != nil {
@@ -103,10 +103,10 @@ func (im *BlockImporter) WriteMap(m base.BlockMap) error {
 }
 
 func (im *BlockImporter) WriteItem(t base.BlockMapItemType, r io.Reader) error {
-	e := util.StringErrorFunc("failed to write item")
+	e := util.StringErrorFunc("write item")
 
 	if err := im.importItem(t, r); err != nil {
-		return e(err, "failed to import item, %q", t)
+		return e(err, "import item, %q", t)
 	}
 
 	_ = im.finisheds.SetValue(t, true)
@@ -115,7 +115,7 @@ func (im *BlockImporter) WriteItem(t base.BlockMapItemType, r io.Reader) error {
 }
 
 func (im *BlockImporter) Save(context.Context) (func(context.Context) error, error) {
-	e := util.StringErrorFunc("failed to save")
+	e := util.StringErrorFunc("save")
 
 	if !im.isfinished() {
 		return nil, e(nil, "not yet finished")
@@ -124,7 +124,7 @@ func (im *BlockImporter) Save(context.Context) (func(context.Context) error, err
 	if im.sufst != nil {
 		proof, err := im.statestree.Proof(im.sufst.Hash().String())
 		if err != nil {
-			return nil, e(err, "failed to make proof of suffrage state")
+			return nil, e(err, "make proof of suffrage state")
 		}
 
 		sufproof := NewSuffrageProof(im.m, im.sufst, proof, im.avp)
@@ -148,7 +148,7 @@ func (im *BlockImporter) Save(context.Context) (func(context.Context) error, err
 }
 
 func (im *BlockImporter) CancelImport(context.Context) error {
-	e := util.StringErrorFunc("failed to cancel")
+	e := util.StringErrorFunc("cancel")
 
 	if err := im.bwdb.Cancel(); err != nil {
 		return e(err, "")
@@ -255,7 +255,7 @@ func (im *BlockImporter) isfinished() bool {
 }
 
 func (im *BlockImporter) importOperations(item base.BlockMapItem, r io.Reader) error {
-	e := util.StringErrorFunc("failed to import operations")
+	e := util.StringErrorFunc("import operations")
 
 	ops := make([]util.Hash, item.Num())
 	if uint64(len(ops)) > im.batchlimit {
@@ -315,7 +315,7 @@ func (im *BlockImporter) importOperations(item base.BlockMapItem, r io.Reader) e
 }
 
 func (im *BlockImporter) importStates(item base.BlockMapItem, r io.Reader) error {
-	e := util.StringErrorFunc("failed to import states")
+	e := util.StringErrorFunc("import states")
 
 	sts := make([]base.State, item.Num())
 	if uint64(len(sts)) > im.batchlimit {
@@ -370,7 +370,7 @@ func (im *BlockImporter) importStates(item base.BlockMapItem, r io.Reader) error
 }
 
 func (im *BlockImporter) importStatesTree(item base.BlockMapItem, r io.Reader) error {
-	e := util.StringErrorFunc("failed to import states tree")
+	e := util.StringErrorFunc("import states tree")
 
 	tr, err := LoadTree(im.enc, item, r, func(i interface{}) (fixedtree.Node, error) {
 		node, ok := i.(fixedtree.Node)
@@ -381,7 +381,7 @@ func (im *BlockImporter) importStatesTree(item base.BlockMapItem, r io.Reader) e
 		return node, nil
 	})
 	if err != nil {
-		return e(err, "failed to load StatesTree")
+		return e(err, "load StatesTree")
 	}
 
 	im.statestree = tr
@@ -390,7 +390,7 @@ func (im *BlockImporter) importStatesTree(item base.BlockMapItem, r io.Reader) e
 }
 
 func (im *BlockImporter) importVoteproofs(item base.BlockMapItem, r io.Reader) error {
-	e := util.StringErrorFunc("failed to import voteproofs")
+	e := util.StringErrorFunc("import voteproofs")
 
 	vps, err := LoadVoteproofsFromReader(r, item.Num(), im.enc.Decode)
 	if err != nil {

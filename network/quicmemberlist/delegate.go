@@ -9,6 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/network/quicstream"
+	"github.com/spikeekips/mitum/util"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/logging"
 )
@@ -99,12 +100,12 @@ func NewAliveDelegate(
 ) *AliveDelegate {
 	nallowf := allowf
 	if nallowf == nil {
-		nallowf = func(Member) error { return errors.Errorf("all members not allowed") }
+		nallowf = func(Member) error { return util.ErrNotImplemented.Errorf("all members not allowed") }
 	}
 
 	nchallengef := challengef
 	if nchallengef == nil {
-		nchallengef = func(Member) error { return errors.Errorf("failed to challenge") }
+		nchallengef = func(Member) error { return util.ErrNotImplemented.Errorf("challenge") }
 	}
 
 	return &AliveDelegate{
@@ -151,7 +152,7 @@ func (d *AliveDelegate) NotifyAlive(peer *memberlist.Node) error {
 
 	if willchallenge {
 		if err := d.challengef(member); err != nil {
-			return errors.WithMessage(err, "failed to challenge")
+			return err
 		}
 
 		_ = d.challengecache.SetWithExpire(memberkey, time.Now(), d.challengeexpire)

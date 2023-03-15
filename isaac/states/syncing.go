@@ -82,7 +82,7 @@ func (h *NewSyncingHandlerType) new() (handler, error) {
 }
 
 func (st *SyncingHandler) enter(from StateType, i switchContext) (func(), error) {
-	e := util.StringErrorFunc("failed to enter syncing state")
+	e := util.StringErrorFunc("enter syncing state")
 
 	deferred, err := st.baseHandler.enter(from, i)
 	if err != nil {
@@ -143,7 +143,7 @@ func (st *SyncingHandler) enter(from StateType, i switchContext) (func(), error)
 }
 
 func (st *SyncingHandler) exit(sctx switchContext) (func(), error) {
-	e := util.StringErrorFunc("failed to exit from syncing state")
+	e := util.StringErrorFunc("exit from syncing state")
 
 	if st.syncer != nil {
 		if _, isfinished := st.syncer.IsFinished(); !isfinished {
@@ -155,7 +155,7 @@ func (st *SyncingHandler) exit(sctx switchContext) (func(), error) {
 		case errors.Is(err, ErrSyncerCanNotCancel):
 			return nil, ErrIgnoreSwithingState.Wrap(err)
 		default:
-			return nil, e(err, "failed to stop syncer")
+			return nil, e(err, "stop syncer")
 		}
 	}
 
@@ -176,7 +176,7 @@ func (st *SyncingHandler) exit(sctx switchContext) (func(), error) {
 }
 
 func (st *SyncingHandler) newVoteproof(vp base.Voteproof) error {
-	e := util.StringErrorFunc("failed to handle new voteproof")
+	e := util.StringErrorFunc("handle new voteproof")
 
 	if _, v, isnew := st.baseHandler.setNewVoteproof(vp); v == nil || !isnew {
 		return nil

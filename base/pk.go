@@ -68,20 +68,20 @@ func (sg *Signature) UnmarshalText(b []byte) error {
 }
 
 func decodePKKeyFromString(s string, enc encoder.Encoder) (PKKey, error) {
-	e := util.StringErrorFunc("failed to parse pk key")
+	e := util.StringErrorFunc("decode pk key")
 
 	i, err := enc.DecodeWithFixedHintType(s, PKKeyTypeSize)
 
 	switch {
 	case err != nil:
-		return nil, e(err, "failed to decode pk key")
+		return nil, e(err, "")
 	case i == nil:
 		return nil, nil
 	}
 
 	k, ok := i.(PKKey)
 	if !ok {
-		return nil, e(nil, "failed to decode pk key; not PKKey, %T", i)
+		return nil, e(nil, "not PKKey, %T", i)
 	}
 
 	return k, nil
@@ -92,7 +92,7 @@ func DecodePrivatekeyFromString(s string, enc encoder.Encoder) (Privatekey, erro
 		return nil, nil
 	}
 
-	e := util.StringErrorFunc("failed to parse privatekey")
+	e := util.StringErrorFunc("decode privatekey")
 
 	i, err := decodePKKeyFromString(s, enc)
 
@@ -105,7 +105,7 @@ func DecodePrivatekeyFromString(s string, enc encoder.Encoder) (Privatekey, erro
 
 	k, ok := i.(Privatekey)
 	if !ok {
-		return nil, e(nil, "failed to decode privatekey; not Privatekey, %T", i)
+		return nil, e(nil, "not Privatekey, %T", i)
 	}
 
 	return k, nil
@@ -141,7 +141,7 @@ func DecodePublickeyFromString(s string, enc encoder.Encoder) (Publickey, error)
 }
 
 func decodePublickeyFromString(s string, enc encoder.Encoder) (Publickey, error) {
-	e := util.StringErrorFunc("failed to parse publickey")
+	e := util.StringErrorFunc("decode publickey")
 
 	i, err := decodePKKeyFromString(s, enc)
 
@@ -153,7 +153,7 @@ func decodePublickeyFromString(s string, enc encoder.Encoder) (Publickey, error)
 	default:
 		k, ok := i.(Publickey)
 		if !ok {
-			return nil, e(nil, "failed to decode publickey; not Publickey, %T", i)
+			return nil, e(nil, "not Publickey, %T", i)
 		}
 
 		return k, nil

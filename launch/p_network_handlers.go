@@ -36,7 +36,7 @@ var (
 )
 
 func PNetworkHandlers(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("failed to prepare network handlers")
+	e := util.StringErrorFunc("prepare network handlers")
 
 	var log *logging.Logging
 	var encs *encoder.Encoders
@@ -140,7 +140,7 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 			quicstream.NewHeaderHandler(encs, 0,
 				isaacnetwork.QuicstreamHandlerBlockMapItem(
 					func(height base.Height, item base.BlockMapItemType) (io.ReadCloser, bool, error) {
-						e := util.StringErrorFunc("failed to get BlockMapItem")
+						e := util.StringErrorFunc("get BlockMapItem")
 
 						var menc encoder.Encoder
 

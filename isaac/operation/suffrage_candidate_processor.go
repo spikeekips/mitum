@@ -27,7 +27,7 @@ func NewSuffrageCandidateProcessor(
 	newProcessConstraintFunc base.NewOperationProcessorProcessFunc,
 	lifespan base.Height,
 ) (*SuffrageCandidateProcessor, error) {
-	e := util.StringErrorFunc("failed to create new SuffrageCandidateProcessor")
+	e := util.StringErrorFunc("create new SuffrageCandidateProcessor")
 
 	b, err := base.NewBaseOperationProcessor(
 		height, getStateFunc, newPreProcessConstraintFunc, newProcessConstraintFunc)
@@ -94,7 +94,7 @@ func (p *SuffrageCandidateProcessor) PreProcess(
 	ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (
 	context.Context, base.OperationProcessReasonError, error,
 ) {
-	e := util.StringErrorFunc("failed to preprocess for SuffrageCandidateStateValue")
+	e := util.StringErrorFunc("preprocess for SuffrageCandidateStateValue")
 
 	fact := op.Fact().(SuffrageCandidateFact) //nolint:forcetypeassert //...
 
@@ -128,7 +128,7 @@ func (p *SuffrageCandidateProcessor) PreProcess(
 func (p *SuffrageCandidateProcessor) Process(ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (
 	[]base.StateMergeValue, base.OperationProcessReasonError, error,
 ) {
-	e := util.StringErrorFunc("failed to process for SuffrageCandidateStateValue")
+	e := util.StringErrorFunc("process for SuffrageCandidateStateValue")
 
 	switch reasonerr, err := p.ProcessConstraintFunc(ctx, op, getStateFunc); {
 	case err != nil:
@@ -198,7 +198,7 @@ func (s *SuffrageCandidatesStateValueMerger) Merge(value base.StateValue, ops []
 func (s *SuffrageCandidatesStateValueMerger) Close() error {
 	newvalue, err := s.close()
 	if err != nil {
-		return errors.WithMessage(err, "failed to close SuffrageCandidatesStateValueMerger")
+		return errors.WithMessage(err, "close SuffrageCandidatesStateValueMerger")
 	}
 
 	s.BaseStateValueMerger.SetValue(newvalue)

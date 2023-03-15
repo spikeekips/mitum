@@ -37,7 +37,7 @@ type SuffrageProofJSONUnmarshaler struct {
 }
 
 func (s *SuffrageProof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode SuffrageProof")
+	e := util.StringErrorFunc("decode SuffrageProof")
 
 	var u SuffrageProofJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {

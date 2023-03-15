@@ -85,7 +85,7 @@ type baseVoteproofJSONUnmarshaler struct {
 }
 
 func (vp *baseVoteproof) decodeJSON(b []byte, enc *jsonenc.Encoder) (u baseVoteproofJSONUnmarshaler, _ error) {
-	e := util.StringErrorFunc("failed to decode baseVoteproof")
+	e := util.StringErrorFunc("decode baseVoteproof")
 
 	if err := enc.Unmarshal(b, &u); err != nil {
 		return u, e(err, "")
@@ -157,7 +157,7 @@ func (vp *baseStuckVoteproof) decodeJSON(b []byte, enc *jsonenc.Encoder, u baseV
 }
 
 func (vp *INITWithdrawVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode INITWithdrawVoteproof")
+	e := util.StringErrorFunc("decode INITWithdrawVoteproof")
 
 	u, err := vp.baseVoteproof.decodeJSON(b, enc)
 	if err != nil {
@@ -172,7 +172,7 @@ func (vp *INITWithdrawVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) erro
 }
 
 func (vp *INITStuckVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode INITStuckVoteproof")
+	e := util.StringErrorFunc("decode INITStuckVoteproof")
 
 	u, err := vp.baseVoteproof.decodeJSON(b, enc)
 	if err != nil {
@@ -187,7 +187,7 @@ func (vp *INITStuckVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 }
 
 func (vp *ACCEPTWithdrawVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode ACCEPTWithdrawVoteproof")
+	e := util.StringErrorFunc("decode ACCEPTWithdrawVoteproof")
 
 	u, err := vp.baseVoteproof.decodeJSON(b, enc)
 	if err != nil {
@@ -202,7 +202,7 @@ func (vp *ACCEPTWithdrawVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) er
 }
 
 func (vp *ACCEPTStuckVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode ACCEPTStuckVoteproof")
+	e := util.StringErrorFunc("decode ACCEPTStuckVoteproof")
 
 	u, err := vp.baseVoteproof.decodeJSON(b, enc)
 	if err != nil {

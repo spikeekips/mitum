@@ -66,7 +66,7 @@ func (h *NewConsensusHandlerType) new() (handler, error) {
 }
 
 func (st *ConsensusHandler) enter(from StateType, i switchContext) (func(), error) {
-	e := util.StringErrorFunc("failed to enter consensus state")
+	e := util.StringErrorFunc("enter consensus state")
 
 	deferred, err := st.baseBallotHandler.enter(from, i)
 	if err != nil {
@@ -133,7 +133,7 @@ func (st *ConsensusHandler) enter(from StateType, i switchContext) (func(), erro
 }
 
 func (st *ConsensusHandler) exit(sctx switchContext) (func(), error) {
-	e := util.StringErrorFunc("failed to exit from consensus state")
+	e := util.StringErrorFunc("exit from consensus state")
 
 	deferred, err := st.baseBallotHandler.exit(sctx)
 	if err != nil {
@@ -141,7 +141,7 @@ func (st *ConsensusHandler) exit(sctx switchContext) (func(), error) {
 	}
 
 	if err := st.args.ProposalProcessors.Cancel(); err != nil {
-		return nil, e(err, "failed to cancel proposal processors")
+		return nil, e(err, "cancel proposal processors")
 	}
 
 	return deferred, nil
@@ -152,7 +152,7 @@ func (st *ConsensusHandler) processProposalFunc(ivp base.INITVoteproof) (func(co
 	l := st.Log().With().Stringer("fact", facthash).Logger()
 	l.Debug().Msg("trying to process proposal")
 
-	e := util.StringErrorFunc("failed to process proposal")
+	e := util.StringErrorFunc("process proposal")
 
 	var process isaac.ProcessorProcessFunc
 
@@ -179,7 +179,7 @@ func (st *ConsensusHandler) processProposalFunc(ivp base.INITVoteproof) (func(co
 				)
 
 				if err = st.prepareACCEPTBallot(ivp, dummy, time.Nanosecond); err != nil {
-					return errors.WithMessage(err, "failed to prepare intended wrong accept ballot")
+					return errors.WithMessage(err, "prepare intended wrong accept ballot")
 				}
 
 				return nil
@@ -228,7 +228,7 @@ func (st *ConsensusHandler) processProposalFunc(ivp base.INITVoteproof) (func(co
 		default:
 			ll.Error().Err(err).Msg("failed to save new block by accept voteproof after processing proposal")
 
-			sctx = newBrokenSwitchContext(StateConsensus, errors.Wrap(err, "failed to save proposal"))
+			sctx = newBrokenSwitchContext(StateConsensus, errors.Wrap(err, "save proposal"))
 		}
 
 		return sctx
@@ -259,7 +259,7 @@ func (st *ConsensusHandler) processProposal(ivp base.INITVoteproof) (func(), err
 }
 
 func (st *ConsensusHandler) processProposalInternal(ivp base.INITVoteproof) (isaac.ProcessorProcessFunc, error) {
-	e := util.StringErrorFunc("failed to process proposal")
+	e := util.StringErrorFunc("process proposal")
 
 	facthash := ivp.BallotMajority().Proposal()
 
@@ -288,7 +288,7 @@ func (st *ConsensusHandler) processProposalInternal(ivp base.INITVoteproof) (isa
 				}
 
 				if err0 := st.args.ProposalProcessors.Cancel(); err0 != nil {
-					return nil, e(err0, "failed to cancel proposal processors")
+					return nil, e(err0, "cancel proposal processors")
 				}
 
 				return nil, err
@@ -344,7 +344,7 @@ func (st *ConsensusHandler) handleACCEPTVoteproofAfterProcessingProposal(
 		saved = i
 	case errors.As(err, &sctx):
 	default:
-		sctx = newBrokenSwitchContext(StateConsensus, errors.Wrap(err, "failed to save proposal"))
+		sctx = newBrokenSwitchContext(StateConsensus, errors.Wrap(err, "save proposal"))
 	}
 
 	return saved, sctx
@@ -367,7 +367,7 @@ func (st *ConsensusHandler) newVoteproofWithLVPS(vp base.Voteproof, lvps isaac.L
 		st.resolver.Cancel(vp.Point())
 	}
 
-	e := util.StringErrorFunc("failed to handle new voteproof")
+	e := util.StringErrorFunc("handle new voteproof")
 
 	switch keep, err := st.checkStuckVoteproof(vp, lvps); {
 	case err != nil:

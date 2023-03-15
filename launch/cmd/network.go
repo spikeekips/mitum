@@ -124,7 +124,7 @@ func (cmd *NetworkClientCommand) Run(pctx context.Context) error {
 
 	var header quicstream.Header
 	if err := encoder.Decode(cmd.enc, []byte(cmd.Header), &header); err != nil {
-		return errors.WithMessage(err, "failed to load header")
+		return errors.WithMessage(err, "load header")
 	}
 
 	if cmd.DryRun {

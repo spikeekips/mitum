@@ -308,7 +308,7 @@ func (s *Syncer) sync( // revive:disable-line:import-shadowing
 }
 
 func (s *Syncer) doSync(ctx context.Context, prev base.BlockMap, to base.Height) (base.BlockMap, error) {
-	e := util.StringErrorFunc("failed to sync")
+	e := util.StringErrorFunc("sync")
 
 	// NOTE fetch and store all BlockMaps
 	newprev, err := s.prepareMaps(ctx, prev, to)
@@ -383,7 +383,7 @@ func (s *Syncer) checkPrevMap(ctx context.Context, prev base.BlockMap) (base.Blo
 }
 
 func (s *Syncer) fetchMap(ctx context.Context, height base.Height) (base.BlockMap, error) {
-	e := util.StringErrorFunc("failed to fetch BlockMap")
+	e := util.StringErrorFunc("fetch BlockMap")
 
 	switch m, found, err := s.args.BlockMapFunc(ctx, height); {
 	case err != nil:
@@ -396,7 +396,7 @@ func (s *Syncer) fetchMap(ctx context.Context, height base.Height) (base.BlockMa
 }
 
 func (s *Syncer) syncBlocks(ctx context.Context, prev base.BlockMap, to base.Height) error {
-	e := util.StringErrorFunc("failed to sync blocks")
+	e := util.StringErrorFunc("sync blocks")
 
 	from := base.GenesisHeight
 	if prev != nil {

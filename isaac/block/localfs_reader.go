@@ -22,7 +22,7 @@ type LocalFSReader struct {
 }
 
 func NewLocalFSReader(root string, enc encoder.Encoder) (*LocalFSReader, error) {
-	e := util.StringErrorFunc("failed to NewLocalFSReader")
+	e := util.StringErrorFunc("NewLocalFSReader")
 
 	switch fi, err := os.Stat(filepath.Join(root, blockFSMapFilename(enc.Hint().Type().String()))); {
 	case err != nil:
@@ -83,7 +83,7 @@ func (r *LocalFSReader) BlockMap() (base.BlockMap, bool, error) {
 		return um, nil
 	})
 
-	e := util.StringErrorFunc("failed to load blockmap")
+	e := util.StringErrorFunc("load blockmap")
 
 	switch {
 	case err == nil:
@@ -96,7 +96,7 @@ func (r *LocalFSReader) BlockMap() (base.BlockMap, bool, error) {
 }
 
 func (r *LocalFSReader) Reader(t base.BlockMapItemType) (io.ReadCloser, bool, error) {
-	e := util.StringErrorFunc("failed to make reader, %q", t)
+	e := util.StringErrorFunc("make reader, %q", t)
 
 	var fpath string
 
@@ -160,7 +160,7 @@ func (r *LocalFSReader) UncompressedReader(t base.BlockMapItemType) (io.ReadClos
 }
 
 func (r *LocalFSReader) ChecksumReader(t base.BlockMapItemType) (util.ChecksumReader, bool, error) {
-	e := util.StringErrorFunc("failed to make reader, %q", t)
+	e := util.StringErrorFunc("make reader, %q", t)
 
 	var fpath string
 
@@ -258,7 +258,7 @@ func (r *LocalFSReader) Items(f func(base.BlockMapItem, interface{}, bool, error
 }
 
 func (r *LocalFSReader) item(t base.BlockMapItemType) (interface{}, bool, error) {
-	e := util.StringErrorFunc("failed to load item, %q", t)
+	e := util.StringErrorFunc("load item, %q", t)
 
 	var item base.BlockMapItem
 
@@ -373,7 +373,7 @@ func (r *LocalFSReader) loadOperationsTree(item base.BlockMapItem, f io.Reader) 
 		return node, nil
 	})
 	if err != nil {
-		return fixedtree.Tree{}, errors.Wrap(err, "failed to load OperationsTree")
+		return fixedtree.Tree{}, errors.Wrap(err, "load OperationsTree")
 	}
 
 	return tr, nil
@@ -414,7 +414,7 @@ func (r *LocalFSReader) loadStatesTree(item base.BlockMapItem, f io.Reader) (fix
 		return node, nil
 	})
 	if err != nil {
-		return fixedtree.Tree{}, errors.Wrap(err, "failed to load StatesTree")
+		return fixedtree.Tree{}, errors.Wrap(err, "load StatesTree")
 	}
 
 	return tr, nil
@@ -438,7 +438,7 @@ func LoadVoteproofsFromReader(
 	num uint64,
 	decode func([]byte) (interface{}, error),
 ) ([]base.Voteproof, error) {
-	e := util.StringErrorFunc("failed to load voteproofs")
+	e := util.StringErrorFunc("load voteproofs")
 
 	vps := make([]base.Voteproof, num)
 

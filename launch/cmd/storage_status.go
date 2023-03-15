@@ -97,7 +97,7 @@ func (cmd *StorageStatusCommand) pCheckLocalFS(pctx context.Context) (context.Co
 }
 
 func (cmd *StorageStatusCommand) pStorageStatus(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("failed storage status")
+	e := util.StringErrorFunc("storage status")
 
 	var design launch.NodeDesign
 	var enc encoder.Encoder

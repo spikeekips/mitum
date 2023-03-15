@@ -58,7 +58,7 @@ func NewTempLeveldbFromPrefix(
 }
 
 func newTempLeveldbFromBlockWriteStorage(wst *LeveldbBlockWrite) (*TempLeveldb, error) {
-	e := util.StringErrorFunc("failed new TempLeveldbDatabase from TempLeveldbDatabase")
+	e := util.StringErrorFunc("new TempLeveldbDatabase from TempLeveldbDatabase")
 
 	var mp base.BlockMap
 	var mpmeta, mpb []byte
@@ -276,7 +276,7 @@ func (db *TempLeveldb) loadLastBlockMap() error {
 }
 
 func (db *TempLeveldb) loadSuffrageState() error {
-	e := util.StringErrorFunc("failed to load suffrage state")
+	e := util.StringErrorFunc("load suffrage state")
 
 	switch b, found, err := db.st.Get(leveldbStateKey(isaac.SuffrageStateKey)); {
 	case err != nil:
@@ -296,7 +296,7 @@ func (db *TempLeveldb) loadSuffrageState() error {
 }
 
 func (db *TempLeveldb) loadSuffrageProof() error {
-	e := util.StringErrorFunc("failed to load SuffrageProof")
+	e := util.StringErrorFunc("load SuffrageProof")
 
 	if err := db.st.Iter(
 		leveldbutil.BytesPrefix(leveldbKeySuffrageProof),

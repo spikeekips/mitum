@@ -168,7 +168,7 @@ func PCloseStorage(pctx context.Context) (context.Context, error) {
 }
 
 func PCheckLeveldbStorage(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("failed to check leveldb storage")
+	e := util.StringErrorFunc("check leveldb storage")
 
 	var log *logging.Logging
 	if err := util.LoadFromContextOK(pctx, LoggingContextKey, &log); err != nil {
@@ -190,7 +190,7 @@ func PCheckLeveldbStorage(pctx context.Context) (context.Context, error) {
 }
 
 func PLoadFromDatabase(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("failed to load some stuffs from database")
+	e := util.StringErrorFunc("load some stuffs from database")
 
 	var design NodeDesign
 	var encs *encoder.Encoders
@@ -252,7 +252,7 @@ func PLoadFromDatabase(pctx context.Context) (context.Context, error) {
 }
 
 func PCleanStorage(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("failed to clean storage")
+	e := util.StringErrorFunc("clean storage")
 
 	var design NodeDesign
 	var encs *encoder.Encoders
@@ -274,7 +274,7 @@ func PCleanStorage(pctx context.Context) (context.Context, error) {
 }
 
 func PCreateLocalFS(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("failed to create localfs")
+	e := util.StringErrorFunc("create localfs")
 
 	var design NodeDesign
 	var enc encoder.Encoder
@@ -300,7 +300,7 @@ func PCreateLocalFS(pctx context.Context) (context.Context, error) {
 }
 
 func PCheckLocalFS(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("failed to check localfs")
+	e := util.StringErrorFunc("check localfs")
 
 	var design NodeDesign
 	var params *isaac.LocalParams
@@ -331,7 +331,7 @@ func PCheckLocalFS(pctx context.Context) (context.Context, error) {
 }
 
 func PCheckAndCreateLocalFS(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("failed to check localfs")
+	e := util.StringErrorFunc("check localfs")
 
 	var version util.Version
 	var design NodeDesign
@@ -371,7 +371,7 @@ func PCheckAndCreateLocalFS(pctx context.Context) (context.Context, error) {
 }
 
 func PLoadDatabase(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("failed to load database")
+	e := util.StringErrorFunc("load database")
 
 	var log *logging.Logging
 	var design NodeDesign
@@ -456,7 +456,7 @@ func PCheckBlocksOfStorage(pctx context.Context) (context.Context, error) {
 func LoadPermanentDatabase(
 	uri, id string, encs *encoder.Encoders, enc encoder.Encoder, root string,
 ) (*leveldbstorage.Storage, isaac.PermanentDatabase, error) {
-	e := util.StringErrorFunc("failed to load PermanentDatabase")
+	e := util.StringErrorFunc("load PermanentDatabase")
 
 	u, err := url.Parse(uri)
 
@@ -511,7 +511,7 @@ func LoadPermanentDatabase(
 
 		perm, err := loadRedisPermanentDatabase(u.String(), id, encs, enc)
 		if err != nil {
-			return nil, nil, e(err, "failed to create redis PermanentDatabase")
+			return nil, nil, e(err, "create redis PermanentDatabase")
 		}
 
 		return nil, perm, nil
@@ -525,7 +525,7 @@ func CleanStorage(
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
 ) error {
-	e := util.StringErrorFunc("failed to clean storage")
+	e := util.StringErrorFunc("clean storage")
 
 	switch fsnodeinfo, found, err := LoadNodeInfo(root, enc); {
 	case err != nil:
@@ -558,14 +558,14 @@ func RemoveLocalFS(root string) error {
 
 		return found
 	}); err != nil {
-		return errors.Wrap(err, "failed to remove localfs")
+		return errors.Wrap(err, "remove localfs")
 	}
 
 	return nil
 }
 
 func CreateLocalFS(newinfo NodeInfo, root string, enc encoder.Encoder) (NodeInfo, error) {
-	e := util.StringErrorFunc("failed to initialize localfs")
+	e := util.StringErrorFunc("initialize localfs")
 
 	switch fi, err := os.Stat(root); {
 	case err == nil:
@@ -593,7 +593,7 @@ func CreateLocalFS(newinfo NodeInfo, root string, enc encoder.Encoder) (NodeInfo
 			return nil, e(nil, "directory already exists, %q", i)
 		case os.IsNotExist(err):
 			if err = os.MkdirAll(i, 0o700); err != nil {
-				return nil, e(err, "failed to make directory, %i", i)
+				return nil, e(err, "make directory, %i", i)
 			}
 		default:
 			return nil, e(err, "")
@@ -623,7 +623,7 @@ func CreateLocalFS(newinfo NodeInfo, root string, enc encoder.Encoder) (NodeInfo
 func loadRedisPermanentDatabase(uri, id string, encs *encoder.Encoders, enc encoder.Encoder) (
 	*isaacdatabase.RedisPermanent, error,
 ) {
-	e := util.StringErrorFunc("failed to load redis PermanentDatabase")
+	e := util.StringErrorFunc("load redis PermanentDatabase")
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2) //nolint:gomnd //...
 	defer cancel()
@@ -635,7 +635,7 @@ func loadRedisPermanentDatabase(uri, id string, encs *encoder.Encoders, enc enco
 
 	st, err := redisstorage.NewStorage(ctx, option, fmt.Sprintf(RedisPermanentDatabasePrefixFormat, id))
 	if err != nil {
-		return nil, e(err, "failed to create redis storage")
+		return nil, e(err, "create redis storage")
 	}
 
 	perm, err := isaacdatabase.NewRedisPermanent(st, encs, enc)
@@ -667,7 +667,7 @@ func LoadDatabase(
 	*isaacdatabase.TempPool,
 	error,
 ) {
-	e := util.StringErrorFunc("failed to prepare database")
+	e := util.StringErrorFunc("prepare database")
 
 	st, perm, err := LoadPermanentDatabase(permuri, fsnodeinfo.ID(), encs, enc, root)
 
@@ -718,7 +718,7 @@ func LoadDatabase(
 }
 
 func CheckLocalFS(networkID base.NetworkID, root string, enc encoder.Encoder) (NodeInfo, error) {
-	e := util.StringErrorFunc("failed to check localfs")
+	e := util.StringErrorFunc("check localfs")
 
 	switch fi, err := os.Stat(root); {
 	case err == nil:

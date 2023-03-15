@@ -20,7 +20,7 @@ func NewSuffrageDisjoinProcessor(
 	newPreProcessConstraintFunc base.NewOperationProcessorProcessFunc,
 	newProcessConstraintFunc base.NewOperationProcessorProcessFunc,
 ) (*SuffrageDisjoinProcessor, error) {
-	e := util.StringErrorFunc("failed to create new SuffrageDisjoinProcessor")
+	e := util.StringErrorFunc("create new SuffrageDisjoinProcessor")
 
 	b, err := base.NewBaseOperationProcessor(
 		height, getStateFunc, newPreProcessConstraintFunc, newProcessConstraintFunc)
@@ -68,7 +68,7 @@ func (p *SuffrageDisjoinProcessor) Close() error {
 func (p *SuffrageDisjoinProcessor) PreProcess(ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (
 	context.Context, base.OperationProcessReasonError, error,
 ) {
-	e := util.StringErrorFunc("failed to preprocess for SuffrageDisjoin")
+	e := util.StringErrorFunc("preprocess for SuffrageDisjoin")
 
 	var signer base.Publickey
 
@@ -120,7 +120,7 @@ func (p *SuffrageDisjoinProcessor) PreProcess(ctx context.Context, op base.Opera
 func (p *SuffrageDisjoinProcessor) Process(ctx context.Context, op base.Operation, getStateFunc base.GetStateFunc) (
 	[]base.StateMergeValue, base.OperationProcessReasonError, error,
 ) {
-	e := util.StringErrorFunc("failed to process for SuffrageDisjoin")
+	e := util.StringErrorFunc("process for SuffrageDisjoin")
 
 	switch reasonerr, err := p.ProcessConstraintFunc(ctx, op, getStateFunc); {
 	case err != nil:
@@ -154,7 +154,7 @@ func newSuffrageDisjoinNodeStateValue(node base.Address) suffrageDisjoinNodeStat
 
 func (s suffrageDisjoinNodeStateValue) IsValid([]byte) error {
 	if err := util.CheckIsValiders(nil, false, s.node); err != nil {
-		return util.ErrInvalid.Errorf("invalie suffrageDisjoinNodeStateValue")
+		return util.ErrInvalid.Errorf("invalid suffrageDisjoinNodeStateValue")
 	}
 
 	return nil

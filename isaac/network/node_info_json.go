@@ -99,7 +99,7 @@ type nodeInfoSuffrageJSONUnmarshaler struct {
 }
 
 func (info *NodeInfo) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("failed to decode NodeInfo")
+	e := util.StringErrorFunc("decode NodeInfo")
 
 	var u nodeInfoJSONUnmarshaler
 
@@ -139,7 +139,7 @@ func (info *NodeInfo) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 
 	switch f, err := strconv.ParseFloat(u.Local.Uptime, 64); {
 	case err != nil:
-		return e(err, "failed to parse uptime, %q", u.Local.Uptime)
+		return e(err, "parse uptime, %q", u.Local.Uptime)
 	default:
 		info.uptime = time.Duration(int64(f * float64(1_000_000_000))) //nolint:gomnd //...
 	}

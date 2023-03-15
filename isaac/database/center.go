@@ -71,7 +71,7 @@ func (*Center) Close() error {
 	// WARN don't close temps
 	//for i := range db.temps {
 	//	if err := db.temps[i].Close(); err != nil {
-	//		return e(err, "failed to close temp")
+	//		return e(err, "close temp")
 	//	}
 	//}
 
@@ -79,7 +79,7 @@ func (*Center) Close() error {
 }
 
 func (db *Center) load(st *leveldbstorage.Storage) error {
-	e := util.StringErrorFunc("failed to load temps to CenterDatabase")
+	e := util.StringErrorFunc("load temps to CenterDatabase")
 
 	last := base.NilHeight
 
@@ -164,7 +164,7 @@ func (db *Center) LastSuffrageProofBytes() ( //revive:disable-line:function-resu
 }
 
 func (db *Center) SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof, bool, error) {
-	e := util.StringErrorFunc("failed to find SuffrageProof by suffrage height")
+	e := util.StringErrorFunc("find SuffrageProof by suffrage height")
 
 	switch _, proof, found, err := db.suffrageProofInTemps(suffrageHeight); {
 	case err != nil:
@@ -184,7 +184,7 @@ func (db *Center) SuffrageProof(suffrageHeight base.Height) (base.SuffrageProof,
 func (db *Center) SuffrageProofBytes(suffrageHeight base.Height) (
 	enchint hint.Hint, meta, body []byte, found bool, err error,
 ) {
-	e := util.StringErrorFunc("failed to find SuffrageProof by suffrage height")
+	e := util.StringErrorFunc("find SuffrageProof by suffrage height")
 
 	var temp isaac.TempDatabase
 
@@ -209,7 +209,7 @@ func (db *Center) SuffrageProofBytes(suffrageHeight base.Height) (
 }
 
 func (db *Center) SuffrageProofByBlockHeight(height base.Height) (base.SuffrageProof, bool, error) {
-	e := util.StringErrorFunc("failed to find suffrage by SuffrageProof by block height")
+	e := util.StringErrorFunc("find suffrage by SuffrageProof by block height")
 
 	if height < base.GenesisHeight {
 		return nil, false, errors.Errorf("wrong height; < 0")
@@ -269,7 +269,7 @@ func (db *Center) LastNetworkPolicy() base.NetworkPolicy {
 }
 
 func (db *Center) State(key string) (base.State, bool, error) {
-	e := util.StringErrorFunc("failed to find State")
+	e := util.StringErrorFunc("find State")
 
 	l := util.EmptyLocked((base.State)(nil))
 
@@ -299,7 +299,7 @@ func (db *Center) State(key string) (base.State, bool, error) {
 }
 
 func (db *Center) StateBytes(key string) (ht hint.Hint, _, _ []byte, _ bool, _ error) {
-	e := util.StringErrorFunc("failed to find state bytes")
+	e := util.StringErrorFunc("find state bytes")
 
 	l := util.EmptyLocked([3]interface{}{})
 
@@ -354,7 +354,7 @@ func (db *Center) state(key string, f func(string, isaac.TempDatabase) (bool, er
 }
 
 func (db *Center) ExistsInStateOperation(h util.Hash) (bool, error) { //nolint:dupl //...
-	e := util.StringErrorFunc("failed to check operation")
+	e := util.StringErrorFunc("check operation")
 
 	l := util.EmptyLocked(false)
 
@@ -386,7 +386,7 @@ func (db *Center) ExistsInStateOperation(h util.Hash) (bool, error) { //nolint:d
 }
 
 func (db *Center) ExistsKnownOperation(h util.Hash) (bool, error) { //nolint:dupl //...
-	e := util.StringErrorFunc("failed to check operation")
+	e := util.StringErrorFunc("check operation")
 
 	l := util.EmptyLocked(false)
 
@@ -486,7 +486,7 @@ func (db *Center) MergeBlockWriteDatabase(w isaac.BlockWriteDatabase) error {
 	db.Lock()
 	defer db.Unlock()
 
-	e := util.StringErrorFunc("failed to merge new TempDatabase")
+	e := util.StringErrorFunc("merge new TempDatabase")
 
 	temp, err := w.TempDatabase()
 	if err != nil {
@@ -543,7 +543,7 @@ func (db *Center) MergeAllPermanent() error {
 			db.removeTemp,
 		); {
 		case err != nil:
-			return errors.Errorf("failed to merge to permanent database")
+			return errors.Errorf("merge to permanent database")
 		case merged:
 			db.Log().Debug().Interface("height", height).Msg("temp database merged")
 		default:
@@ -737,7 +737,7 @@ func (db *Center) mergePermanent(ctx context.Context) (bool, error) {
 
 	switch height, merged, err := mergeToPermanent(ctx, db.perm, db.temps, db.removeTemp); {
 	case err != nil:
-		return false, errors.Errorf("failed to merge to permanent database")
+		return false, errors.Errorf("merge to permanent database")
 	case merged:
 		db.Log().Debug().Interface("height", height).Msg("temp database merged")
 
@@ -766,7 +766,7 @@ func (db *Center) cleanRemoved(limit int) error {
 	height := temp.Height()
 
 	if err := temp.Remove(); err != nil {
-		return errors.Wrap(err, "failed to clean removed")
+		return errors.Wrap(err, "clean removed")
 	}
 
 	db.Log().Debug().Interface("height", height).Msg("temp database removed")
@@ -867,7 +867,7 @@ func loadTemps( // revive:disable-line:flag-parameter
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
 ) ([]isaac.TempDatabase, error) {
-	e := util.StringErrorFunc("failed to load TempDatabases")
+	e := util.StringErrorFunc("load TempDatabases")
 
 	last := base.NilHeight
 

@@ -37,7 +37,7 @@ func DefaultMainPS() *ps.PS {
 }
 
 func PINIT(ctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("failed init")
+	e := util.StringErrorFunc("init")
 
 	var version util.Version
 
@@ -54,7 +54,7 @@ func PINIT(ctx context.Context) (context.Context, error) {
 }
 
 func PLogging(ctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("failed logging")
+	e := util.StringErrorFunc("logging")
 
 	var flags BaseFlags
 	if err := util.LoadFromContextOK(ctx, FlagsContextKey, &flags); err != nil {

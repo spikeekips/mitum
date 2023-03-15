@@ -6,7 +6,7 @@ import (
 )
 
 func CleanDirectory(root string, filter func(path string) bool) error {
-	e := StringErrorFunc("failed to clean directory")
+	e := StringErrorFunc("clean directory")
 
 	switch fi, err := os.Stat(root); {
 	case err == nil:

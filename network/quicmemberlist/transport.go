@@ -149,17 +149,17 @@ func (t *Transport) DialAddressTimeout(addr memberlist.Address, timeout time.Dur
 	if t.args.NotAllowFunc(addr.Addr) {
 		return nil, &net.OpError{
 			Net: "tcp", Op: "dial",
-			Err: errors.Errorf("failed to dial; not allowed"),
+			Err: errors.Errorf("dial; not allowed"),
 		}
 	}
 
-	e := util.StringErrorFunc("failed DialAddressTimeout")
+	e := util.StringErrorFunc("DialAddressTimeout")
 
 	raddr, err := net.ResolveUDPAddr("udp", addr.Addr)
 	if err != nil {
 		l.Error().Err(err).Msg("failed to resolve udp address")
 
-		return nil, e(err, "failed to resolve udp address")
+		return nil, e(err, "resolve udp address")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -170,10 +170,7 @@ func (t *Transport) DialAddressTimeout(addr memberlist.Address, timeout time.Dur
 	if _, err := t.args.DialFunc(ctx, ci); err != nil {
 		l.Error().Err(err).Interface("conn_info", ci).Msg("failed to dial")
 
-		return nil, &net.OpError{
-			Net: "tcp", Op: "dial",
-			Err: errors.WithMessagef(err, "failed to dial"),
-		}
+		return nil, &net.OpError{Net: "tcp", Op: "dial", Err: err}
 	}
 
 	l.Trace().Msg("successfully dial")
@@ -188,7 +185,7 @@ func (t *Transport) FinalAdvertiseAddr(ip string, port int) (net.IP, int, error)
 
 	addr := net.ParseIP(ip)
 	if addr == nil {
-		return nil, 0, errors.Errorf("failed to parse advertise address %q", ip)
+		return nil, 0, errors.Errorf("parse advertise address %q", ip)
 	}
 
 	if ip4 := addr.To4(); ip4 != nil {
@@ -240,11 +237,11 @@ func (t *Transport) WriteToAddress(b []byte, addr memberlist.Address) (time.Time
 		return time.Time{}, nil
 	}
 
-	e := util.StringErrorFunc("failed to WriteToAddress")
+	e := util.StringErrorFunc("WriteToAddress")
 
 	raddr, err := net.ResolveUDPAddr("udp", addr.Addr)
 	if err != nil {
-		return time.Time{}, e(err, "failed to resolve udp address")
+		return time.Time{}, e(err, "resolve udp address")
 	}
 
 	ci := t.getconninfof(raddr)
@@ -252,7 +249,7 @@ func (t *Transport) WriteToAddress(b []byte, addr memberlist.Address) (time.Time
 	if err := t.args.WriteFunc(context.Background(), ci, marshalMsg(packetDataType, t.laddr, b)); err != nil {
 		return time.Time{}, &net.OpError{
 			Net: "udp", Op: "write",
-			Err: errors.WithMessagef(err, "failed to write"),
+			Err: errors.WithMessagef(err, "write"),
 		}
 	}
 
@@ -264,7 +261,7 @@ func (t *Transport) ReceiveRaw(b []byte, addr net.Addr) error {
 		return nil
 	}
 
-	e := util.StringErrorFunc("failed to receive raw data")
+	e := util.StringErrorFunc("receive raw data")
 
 	dt, raddr, rb, err := unmarshalMsg(b)
 	if err != nil {

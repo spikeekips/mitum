@@ -62,19 +62,19 @@ func DecodeAddress(s string, enc encoder.Encoder) (Address, error) {
 }
 
 func decodeAddress(s string, enc encoder.Encoder) (Address, error) {
-	e := util.StringErrorFunc("failed to parse address")
+	e := util.StringErrorFunc("decode address")
 
 	i, err := enc.DecodeWithFixedHintType(s, AddressTypeSize)
 
 	switch {
 	case err != nil:
-		return nil, e(err, "failed to decode address")
+		return nil, e(err, "")
 	case i == nil:
 		return nil, nil
 	default:
 		ad, ok := i.(Address)
 		if !ok {
-			return nil, e(nil, "failed to decode address; not Address, %T", i)
+			return nil, e(nil, "not Address, %T", i)
 		}
 
 		return ad, nil

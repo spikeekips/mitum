@@ -20,7 +20,7 @@ var (
 )
 
 func PNodeInfo(pctx context.Context) (context.Context, error) {
-	e := util.StringErrorFunc("failed to prepare nodeinfo")
+	e := util.StringErrorFunc("prepare nodeinfo")
 
 	var log *logging.Logging
 	var version util.Version
@@ -76,7 +76,7 @@ func UpdateNodeInfoWithNewBlock(
 	case found && nodeinfo.SetSuffrageHeight(proof.SuffrageHeight()):
 		suf, err := proof.Suffrage()
 		if err != nil {
-			return errors.Errorf("failed suffrage from proof")
+			return errors.Errorf("suffrage from proof")
 		}
 
 		_ = nodeinfo.SetConsensusNodes(suf.Nodes())

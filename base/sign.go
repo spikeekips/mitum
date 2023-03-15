@@ -48,7 +48,7 @@ func NewBaseSign(signer Publickey, signature Signature, signedAt time.Time) Base
 
 func NewBaseSignFromFact(priv Privatekey, networkID NetworkID, fact Fact) (BaseSign, error) {
 	if fact == nil || fact.Hash() == nil {
-		return BaseSign{}, util.ErrInvalid.Errorf("failed to make BaseSign; empty fact")
+		return BaseSign{}, util.ErrInvalid.Errorf("make BaseSign; empty fact")
 	}
 
 	return NewBaseSignFromBytes(priv, networkID, fact.Hash().Bytes())
@@ -59,7 +59,7 @@ func NewBaseSignFromBytes(priv Privatekey, networkID NetworkID, b []byte) (BaseS
 
 	sig, err := priv.Sign(util.ConcatBytesSlice(networkID, b, now.Bytes()))
 	if err != nil {
-		return BaseSign{}, errors.Wrap(err, "failed to generate BaseSign")
+		return BaseSign{}, errors.Wrap(err, "generate BaseSign")
 	}
 
 	return NewBaseSign(priv.Publickey(), sig, now.Time), nil
@@ -105,7 +105,7 @@ func (si BaseSign) Verify(networkID NetworkID, b []byte) error {
 		b,
 		localtime.New(si.signedAt).Bytes(),
 	), si.signature); err != nil {
-		return errors.Wrap(err, "failed to verfiy sign")
+		return errors.Wrap(err, "verfiy sign")
 	}
 
 	return nil
@@ -125,7 +125,7 @@ func NewBaseNodeSign(node Address, signer Publickey, signature Signature, signed
 
 func NewBaseNodeSignFromFact(node Address, priv Privatekey, networkID NetworkID, fact Fact) (BaseNodeSign, error) {
 	if fact == nil || fact.Hash() == nil {
-		return BaseNodeSign{}, util.ErrInvalid.Errorf("failed to make BaseSign; empty fact")
+		return BaseNodeSign{}, util.ErrInvalid.Errorf("make BaseSign; empty fact")
 	}
 
 	return NewBaseNodeSignFromBytes(node, priv, networkID, fact.Hash().Bytes())
@@ -134,7 +134,7 @@ func NewBaseNodeSignFromFact(node Address, priv Privatekey, networkID NetworkID,
 func NewBaseNodeSignFromBytes(node Address, priv Privatekey, networkID NetworkID, b []byte) (BaseNodeSign, error) {
 	si, err := NewBaseSignFromBytes(priv, networkID, util.ConcatByters(node, util.BytesToByter(b)))
 	if err != nil {
-		return BaseNodeSign{}, errors.Wrap(err, "failed to create BaseNodeSign from bytes")
+		return BaseNodeSign{}, errors.Wrap(err, "create BaseNodeSign from bytes")
 	}
 
 	return BaseNodeSign{
