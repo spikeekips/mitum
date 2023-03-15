@@ -220,7 +220,7 @@ func PPatchLastConsensusNodesWatcher(pctx context.Context) (context.Context, err
 
 		if updated != nil || candidatesst != nil {
 			if err := checkLocalIsInConsensusNodesByWatcher(
-				updated, candidatesst, local, mlist, long, states, log,
+				updated, candidatesst, local, mlist, long, log,
 			); err != nil {
 				log.Log().Error().Err(err).Msg("failed to check local is in consensus nodes")
 			}
@@ -857,7 +857,6 @@ func checkLocalIsInConsensusNodesByWatcher(
 	local base.LocalNode,
 	mlist *quicmemberlist.Memberlist,
 	long *LongRunningMemberlistJoin,
-	states *isaacstates.States,
 	log *logging.Logging,
 ) error {
 	suf, err := updated.Suffrage()
@@ -865,45 +864,25 @@ func checkLocalIsInConsensusNodesByWatcher(
 		return err
 	}
 
-	var isinsuffrage bool
+	var inConsensusNodes bool
 
 	switch {
 	case suf.Exists(local.Address()):
-		isinsuffrage = true
+		inConsensusNodes = true
 	case candidatesst == nil:
 	case isaac.InCandidates(local,
 		candidatesst.Value().(base.SuffrageCandidatesStateValue).Nodes()): //nolint:forcetypeassert //...
-		isinsuffrage = true
+		inConsensusNodes = true
 	}
 
-	switch {
-	case isinsuffrage:
+	if inConsensusNodes && !mlist.IsJoined() {
 		// NOTE if local is in consensus nodes, try to join
-		if !mlist.IsJoined() {
-			log.Log().Debug().
-				Msg("watcher updated suffrage and local is in consensus nodes, but not yet joined; tries to join")
-
-			go func() {
-				_ = long.Join()
-			}()
-		}
-	default:
 		log.Log().Debug().
-			Interface("height", updated.Map().Manifest().Height()).
-			Msg("local is not in consensus nodes; moves to syncing")
+			Msg("watcher updated suffrage and local is in consensus nodes, but not yet joined; tries to join")
 
-			// NOTE if local is out of consensus nodes, moves to syncing state
-		_ = states.MoveState(isaacstates.NewSyncingSwitchContextWithOK(
-			updated.Map().Manifest().Height(),
-			func(current isaacstates.StateType) bool {
-				switch current {
-				case isaacstates.StateJoining, isaacstates.StateConsensus:
-					return true
-				default:
-					return false
-				}
-			},
-		))
+		go func() {
+			_ = long.Join()
+		}()
 	}
 
 	return nil
