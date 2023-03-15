@@ -1,8 +1,6 @@
 package base
 
 import (
-	"bytes"
-	"crypto/ecdsa"
 	"fmt"
 	"strings"
 
@@ -10,7 +8,6 @@ import (
 	btcec_ecdsa "github.com/btcsuite/btcd/btcec/v2/ecdsa"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcutil/base58"
-	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
 	"github.com/spikeekips/mitum/util/valuehash"
@@ -44,15 +41,7 @@ func NewMPrivatekeyFromSeed(s string) (MPrivatekey, error) {
 			"wrong seed for privatekey; too short, %d < %d", l, PrivatekeyMinSeedSize)
 	}
 
-	k, err := ecdsa.GenerateKey(
-		btcec.S256(),
-		bytes.NewReader([]byte(valuehash.NewSHA256([]byte(s)).String())),
-	)
-	if err != nil {
-		return MPrivatekey{}, errors.WithStack(err)
-	}
-
-	priv, _ := btcec.PrivKeyFromBytes(k.D.Bytes())
+	priv, _ := btcec.PrivKeyFromBytes(valuehash.NewSHA256([]byte(s)).Bytes())
 
 	return newMPrivatekeyFromPrivateKey(priv), nil
 }

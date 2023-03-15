@@ -35,8 +35,8 @@ func (t *testMPrivatekey) TestFromSeedStatic() {
 		priv, err := NewMPrivatekeyFromSeed(seed)
 		t.NoError(err)
 
-		t.Equal("6x5HXuF41Vq2ZjDnb6k7H13BVs38hzJJn5WQq2UvZBW1mpr", priv.String())
-		t.Equal("oxkQTcfKzrC67GE8ChZmZw8SBBBYefMp5859R2AZ8bB9mpu", priv.Publickey().String())
+		t.Equal("6yixbhwXXf9hpTnwgHJimSACCtLiTJuNRbvfaAhijzP1mpr", priv.String())
+		t.Equal("mkGgtfftZn6jY19bnJbYmKy171HA5WFCoacHeqMwNNUumpu", priv.Publickey().String())
 	}
 }
 
@@ -149,8 +149,7 @@ func (t *testMPrivatekey) TestFromSeed() {
 
 		b, err := NewMPrivatekeyFromSeed(seed)
 		t.NoError(err)
-
-		t.True(priva.Equal(b))
+		t.True(priva.Equal(b), priva.String(), b.String())
 	}
 }
 
