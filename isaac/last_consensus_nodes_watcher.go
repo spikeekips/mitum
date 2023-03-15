@@ -227,77 +227,79 @@ func (u *LastConsensusNodesWatcher) update(
 			lastcandidates = u.lastcandidates
 		}()
 
-		if isempty {
-			if len(proofs) > 0 {
-				nodesUpdated = true
+		var lheight base.Height
+		var lproofs []base.SuffrageProof
+		var lcandidates base.State
 
-				_ = u.last.SetValue(proofs)
-			}
-
-			if candidates != nil {
-				nodesUpdated = true
-
-				u.lastcandidates = candidates
-			}
-
-			lastheightUpdated = true
-
-			return height, nil
+		switch h, p, c, err := u.loadLast(old); {
+		case err != nil:
+			return height, err
+		default:
+			lheight = h
+			lproofs = p
+			lcandidates = c
 		}
 
-		if newl3 := u.compareProofs(proofs); len(newl3) > 0 {
+		switch newl3 := u.compareProofs(lproofs, proofs); {
+		case len(newl3) > 0:
 			nodesUpdated = true
 
 			_ = u.last.SetValue(newl3)
+		default:
+			_ = u.last.SetValue(lproofs)
 		}
 
-		if u.isNewCandiates(candidates) {
+		switch {
+		case u.isNewCandiates(lcandidates, candidates):
 			nodesUpdated = true
 
 			u.lastcandidates = candidates
+		default:
+			u.lastcandidates = lcandidates
 		}
 
-		if height > old {
+		switch {
+		case height > lheight:
 			lastheightUpdated = true
 
 			return height, nil
+		case lheight > old:
+			return lheight, nil
+		default:
+			return old, util.ErrLockedSetIgnore.Call()
 		}
-
-		return base.NilHeight, util.ErrLockedSetIgnore.Call()
 	})
 
 	return lastproofs, lastcandidates, lastheightUpdated, nodesUpdated
 }
 
-func (u *LastConsensusNodesWatcher) compareProofs(proofs []base.SuffrageProof) []base.SuffrageProof {
-	if len(proofs) < 1 {
+func (*LastConsensusNodesWatcher) compareProofs(a, b []base.SuffrageProof) []base.SuffrageProof {
+	if len(b) < 1 {
 		return nil
 	}
 
-	l3, _ := u.last.Value()
+	if len(a) > 0 {
+		top := a[len(a)-1].Map().Manifest().Height()
 
-	if len(l3) > 0 {
-		top := l3[len(l3)-1].Map().Manifest().Height()
-
-		proofs = util.FilterSlice(proofs, func(i base.SuffrageProof) bool { //revive:disable-line:modifies-parameter
+		b = util.FilterSlice(b, func(i base.SuffrageProof) bool { //revive:disable-line:modifies-parameter
 			return i.Map().Manifest().Height() > top
 		})
 	}
 
-	if len(proofs) < 1 {
+	if len(b) < 1 {
 		return nil
 	}
 
 	var newl3 []base.SuffrageProof
 
 	switch {
-	case len(proofs) >= 3: //nolint:gomnd //...
-		newl3 = proofs[len(proofs)-3:]
-	case len(proofs) < 3: //nolint:gomnd //...
-		newl3 = proofs
+	case len(b) >= 3: //nolint:gomnd //...
+		newl3 = b[len(b)-3:]
+	case len(b) < 3: //nolint:gomnd //...
+		newl3 = b
 
-		for i := len(l3) - 1; i >= 0; i-- {
-			j := l3[i]
+		for i := len(a) - 1; i >= 0; i-- {
+			j := a[i]
 
 			if newl3[0].SuffrageHeight() == j.SuffrageHeight()+1 {
 				k := make([]base.SuffrageProof, len(newl3)+1)
@@ -320,15 +322,47 @@ func (u *LastConsensusNodesWatcher) compareProofs(proofs []base.SuffrageProof) [
 	return newl3
 }
 
-func (u *LastConsensusNodesWatcher) isNewCandiates(candidates base.State) bool {
-	switch last := u.lastcandidates; {
-	case candidates == nil:
-	case last == nil,
-		candidates.Height() > last.Height():
+func (*LastConsensusNodesWatcher) isNewCandiates(a, b base.State) bool {
+	switch {
+	case b == nil:
+	case a == nil, b.Height() > a.Height():
 		return true
 	}
 
 	return false
+}
+
+func (u *LastConsensusNodesWatcher) loadLast(
+	lastHeight base.Height,
+) (base.Height, []base.SuffrageProof, base.State, error) {
+	height := lastHeight
+	proofs, _ := u.last.Value()
+	candidates := u.lastcandidates
+
+	var localheight base.Height
+
+	switch i, localproofs, localcandidates, found, err := u.getFromLocal(); {
+	case err != nil:
+		return height, nil, nil, err
+	case !found:
+		localheight = i
+	default:
+		localheight = i
+
+		if n := u.compareProofs(proofs, []base.SuffrageProof{localproofs}); len(n) > 0 {
+			proofs = []base.SuffrageProof{localproofs}
+		}
+
+		if u.isNewCandiates(candidates, localcandidates) {
+			candidates = localcandidates
+		}
+	}
+
+	if localheight > height {
+		height = localheight
+	}
+
+	return height, proofs, candidates, nil
 }
 
 func IsNodeInLastConsensusNodes(node base.Node, proof base.SuffrageProof, st base.State) (base.Suffrage, bool, error) {
