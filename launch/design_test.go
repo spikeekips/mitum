@@ -595,6 +595,7 @@ func (t *testNodeDesign) TestIsValid() {
 		switch s := err.Error(); {
 		case strings.Contains(s, "no such host"):
 		case strings.Contains(s, "failure in name resolution"):
+		case strings.Contains(s, "server misbehaving"):
 		default:
 			t.NoError(errors.Errorf("unknown error: %+v", err))
 		}
