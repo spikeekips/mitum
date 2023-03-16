@@ -601,10 +601,7 @@ func (db *Center) activeTemps() []isaac.TempDatabase {
 	db.RLock()
 	defer db.RUnlock()
 
-	temps := make([]isaac.TempDatabase, len(db.temps))
-	copy(temps, db.temps)
-
-	return temps
+	return append([]isaac.TempDatabase{}, db.temps...)
 }
 
 func (db *Center) removeTemp(temp isaac.TempDatabase) error {
@@ -759,9 +756,7 @@ func (db *Center) cleanRemoved(limit int) error {
 
 	temp := db.removed[0]
 
-	removed := make([]isaac.TempDatabase, len(db.removed)-1)
-	copy(removed, db.removed[1:])
-	db.removed = removed
+	db.removed = append([]isaac.TempDatabase{}, db.removed[1:]...)
 
 	height := temp.Height()
 

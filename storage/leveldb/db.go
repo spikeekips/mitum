@@ -1,6 +1,7 @@
 package leveldbstorage
 
 import (
+	"bytes"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -106,7 +107,7 @@ func (st *Storage) Iter(
 
 end:
 	for {
-		switch keep, err := callback(copyBytes(iter.Key()), copyBytes(iter.Value())); {
+		switch keep, err := callback(bytes.Clone(iter.Key()), bytes.Clone(iter.Value())); {
 		case err != nil:
 			return err
 		case !keep:
@@ -201,11 +202,4 @@ func BatchRemove(st *Storage, r *leveldbutil.Range, limit int) (int, error) {
 	}
 
 	return removed, nil
-}
-
-func copyBytes(b []byte) []byte {
-	n := make([]byte, len(b))
-	copy(n, b)
-
-	return n
 }
