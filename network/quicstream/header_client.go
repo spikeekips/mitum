@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/network"
@@ -45,49 +44,7 @@ func NewHeaderClient(
 	}
 }
 
-func (c *HeaderClient) RequestEncode(
-	ctx context.Context,
-	ci UDPConnInfo,
-	header Header,
-	i interface{},
-) (
-	ResponseHeader,
-	io.ReadCloser,
-	func() error,
-	encoder.Encoder,
-	error,
-) {
-	b, err := c.Encoder.Marshal(i)
-	if err != nil {
-		return nil, nil, util.EmptyCancelFunc, nil, err
-	}
-
-	return c.RequestBody(ctx, ci, header, bytes.NewBuffer(b))
-}
-
-func (c *HeaderClient) RequestDecode(
-	ctx context.Context,
-	ci UDPConnInfo,
-	header Header,
-	i, u interface{},
-) (ResponseHeader, encoder.Encoder, error) {
-	var body io.Reader
-
-	if i != nil {
-		buf := bytes.NewBuffer(nil)
-		defer buf.Reset()
-
-		if err := c.Encoder.StreamEncoder(buf).Encode(i); err != nil {
-			return nil, nil, err
-		}
-
-		body = buf
-	}
-
-	return c.RequestBodyDecode(ctx, ci, header, body, u)
-}
-
-func (c *HeaderClient) RequestBody(
+func (c *HeaderClient) Request(
 	ctx context.Context,
 	ci UDPConnInfo,
 	header Header,
@@ -102,7 +59,7 @@ func (c *HeaderClient) RequestBody(
 	e := util.StringErrorFunc("request")
 
 	var r io.ReadCloser
-	cancel := util.EmptyCancelFunc
+	var cancel func() error
 
 	switch i, j, err := c.write(ctx, ci, c.Encoder, header, body); {
 	case err != nil:
@@ -116,14 +73,18 @@ func (c *HeaderClient) RequestBody(
 
 	switch {
 	case err != nil:
-		defer func() {
-			_ = cancel()
-		}()
+		_ = cancel()
 
 		return h, r, util.EmptyCancelFunc, nil, e(err, "read stream")
 	case h == nil:
+		_ = cancel()
+
 		return h, r, cancel, enc, nil
-	case h.Err() != nil, !h.OK():
+	case h.Err() != nil:
+		_ = cancel()
+
+		return h, r, util.EmptyCancelFunc, enc, nil
+	case !h.OK():
 		return h, r, util.EmptyCancelFunc, enc, nil
 	}
 
@@ -131,63 +92,10 @@ func (c *HeaderClient) RequestBody(
 	case HinterContentType, RawContentType:
 		return h, r, cancel, enc, nil
 	default:
-		defer func() {
-			_ = cancel()
-		}()
+		_ = cancel()
 
 		return nil, r, util.EmptyCancelFunc, nil, errors.Errorf("unknown content type, %q", h.ContentType())
 	}
-}
-
-func (c *HeaderClient) RequestBodyDecode(
-	ctx context.Context,
-	ci UDPConnInfo,
-	header Header,
-	body io.Reader,
-	u interface{},
-) (ResponseHeader, encoder.Encoder, error) {
-	h, r, cancel, enc, err := c.RequestBody(ctx, ci, header, body)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	defer func() {
-		_ = cancel()
-	}()
-
-	if !h.OK() {
-		return h, enc, nil
-	}
-
-	return h, enc, encoder.DecodeReader(enc, r, u)
-}
-
-func (c *HeaderClient) RequestBodyUnmarshal(
-	ctx context.Context,
-	ci UDPConnInfo,
-	header Header,
-	body io.Reader,
-	u interface{},
-) (ResponseHeader, encoder.Encoder, error) {
-	h, r, cancel, enc, err := c.RequestBody(ctx, ci, header, body)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	defer func() {
-		_ = cancel()
-	}()
-
-	if !h.OK() {
-		return h, enc, nil
-	}
-
-	b, err := io.ReadAll(r)
-	if err != nil {
-		return h, enc, errors.WithStack(err)
-	}
-
-	return h, enc, enc.Unmarshal(b, u)
 }
 
 func (c *HeaderClient) write(
@@ -205,62 +113,31 @@ func (c *HeaderClient) write(
 		return nil, nil, errors.Errorf("empty header")
 	}
 
-	b, err := enc.Marshal(header)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	var r io.ReadCloser
-	cancel := util.EmptyCancelFunc
+	var cancel func() error
 
-	donech := make(chan error, 1)
-
-	go func() {
-		var err error
-
-		r, cancel, err = c.writeFunc(ctx, ci, func(w io.Writer) error {
-			return clientWrite(w, header.Handler(), enc.Hint(), b, body)
-		})
-
-		donech <- errors.WithMessage(err, "write")
-	}()
-
-	select {
-	case <-ctx.Done():
-		return nil, util.EmptyCancelFunc, ctx.Err()
-	case err := <-donech:
-		var once sync.Once
-
-		cancelf := func() error {
-			var e error
-
-			once.Do(func() {
-				if r != nil {
-					if e = r.Close(); err != nil {
-						return
-					}
-				}
-
-				if cancel != nil {
-					e = cancel()
-
-					return
-				}
-			})
-
-			return errors.WithStack(e)
-		}
-
+	switch i, j, err := c.writeFunc(ctx, ci, func(w io.Writer) error {
+		b, err := enc.Marshal(header)
 		if err != nil {
-			if cancel != nil {
-				_ = cancelf()
-			}
-
-			return r, util.EmptyCancelFunc, err
+			return err
 		}
 
-		return r, cancelf, nil
+		return clientWrite(w, header.Handler(), enc.Hint(), b, body)
+	}); {
+	case err != nil:
+		return nil, nil, err
+	default:
+		r = i
+		cancel = j
 	}
+
+	return r, func() error {
+		if err := r.Close(); err != nil {
+			return errors.WithStack(err)
+		}
+
+		return cancel()
+	}, nil
 }
 
 func (c *HeaderClient) readResponseHeader(
@@ -459,4 +336,72 @@ func readHeaderBytes(ctx context.Context, r io.Reader) ([]byte, error) {
 	}
 
 	return h, nil
+}
+
+func HeaderClientRequestEncode(
+	ctx context.Context,
+	client *HeaderClient,
+	ci UDPConnInfo,
+	header Header,
+	i interface{},
+) (
+	ResponseHeader,
+	io.ReadCloser,
+	func() error,
+	encoder.Encoder,
+	error,
+) {
+	b, err := client.Encoder.Marshal(i)
+	if err != nil {
+		return nil, nil, util.EmptyCancelFunc, nil, err
+	}
+
+	return client.Request(ctx, ci, header, bytes.NewBuffer(b))
+}
+
+func HeaderClientRequestDecode(
+	ctx context.Context,
+	client *HeaderClient,
+	ci UDPConnInfo,
+	header Header,
+	i, u interface{},
+) (ResponseHeader, encoder.Encoder, error) {
+	var body io.Reader
+
+	if i != nil {
+		buf := bytes.NewBuffer(nil)
+		defer buf.Reset()
+
+		if err := client.Encoder.StreamEncoder(buf).Encode(i); err != nil {
+			return nil, nil, err
+		}
+
+		body = buf
+	}
+
+	return HeaderClientRequestBodyDecode(ctx, client, ci, header, body, u)
+}
+
+func HeaderClientRequestBodyDecode(
+	ctx context.Context,
+	client *HeaderClient,
+	ci UDPConnInfo,
+	header Header,
+	body io.Reader,
+	u interface{},
+) (ResponseHeader, encoder.Encoder, error) {
+	h, r, cancel, enc, err := client.Request(ctx, ci, header, body)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	defer func() {
+		_ = cancel()
+	}()
+
+	if !h.OK() {
+		return h, enc, nil
+	}
+
+	return h, enc, encoder.DecodeReader(enc, r, u)
 }

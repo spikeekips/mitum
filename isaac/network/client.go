@@ -41,7 +41,7 @@ func (c *BaseClient) Request(
 ) {
 	e := util.StringErrorFunc("request")
 
-	h, r, cancel, enc, err := c.RequestBody(ctx, ci, header, body)
+	h, r, cancel, enc, err := c.HeaderClient.Request(ctx, ci, header, body)
 
 	switch {
 	case err != nil:
@@ -56,9 +56,7 @@ func (c *BaseClient) Request(
 	case quicstream.HinterContentType, quicstream.RawContentType:
 		return h, r, cancel, enc, nil
 	default:
-		defer func() {
-			_ = cancel()
-		}()
+		_ = cancel()
 
 		return nil, nil, util.EmptyCancelFunc, enc, errors.Errorf("unknown content type, %q", h.ContentType())
 	}
@@ -71,7 +69,7 @@ func (c *BaseClient) Operation(
 
 	var u base.Operation
 
-	switch h, _, err := c.RequestDecode(ctx, ci, header, nil, &u); {
+	switch h, _, err := quicstream.HeaderClientRequestDecode(ctx, c.HeaderClient, ci, header, nil, &u); {
 	case err != nil:
 		return nil, false, err
 	default:
@@ -93,7 +91,7 @@ func (c *BaseClient) SendOperation(
 
 	header := NewSendOperationRequestHeader()
 
-	h, _, cancel, _, err := c.RequestBody(ctx, ci, header, buf)
+	h, _, cancel, _, err := c.HeaderClient.Request(ctx, ci, header, buf)
 	_ = cancel()
 
 	switch {
@@ -114,7 +112,7 @@ func (c *BaseClient) RequestProposal(
 
 	var u base.ProposalSignFact
 
-	switch h, _, err := c.RequestBodyDecode(ctx, ci, header, nil, &u); {
+	switch h, _, err := quicstream.HeaderClientRequestBodyDecode(ctx, c.HeaderClient, ci, header, nil, &u); {
 	case err != nil:
 		return nil, false, err
 	default:
@@ -135,7 +133,7 @@ func (c *BaseClient) Proposal( //nolint:dupl //...
 
 	var u base.ProposalSignFact
 
-	switch h, _, err := c.RequestBodyDecode(ctx, ci, header, nil, &u); {
+	switch h, _, err := quicstream.HeaderClientRequestBodyDecode(ctx, c.HeaderClient, ci, header, nil, &u); {
 	case err != nil:
 		return nil, false, err
 	default:
@@ -154,14 +152,16 @@ func (c *BaseClient) LastSuffrageProof(
 		return lastheight, nil, false, err
 	}
 
-	h, r, cancel, enc, err := c.RequestBody(ctx, ci, header, nil)
+	h, r, cancel, enc, err := c.HeaderClient.Request(ctx, ci, header, nil)
+	if err != nil {
+		return lastheight, nil, false, err
+	}
+
 	defer func() {
 		_ = cancel()
 	}()
 
 	switch {
-	case err != nil:
-		return lastheight, nil, false, err
 	case h.Err() != nil:
 		return lastheight, nil, h.OK(), h.Err()
 	default:
@@ -208,7 +208,7 @@ func (c *BaseClient) SuffrageProof( //nolint:dupl //...
 
 	var u base.SuffrageProof
 
-	switch h, _, err := c.RequestDecode(ctx, ci, header, nil, &u); {
+	switch h, _, err := quicstream.HeaderClientRequestDecode(ctx, c.HeaderClient, ci, header, nil, &u); {
 	case err != nil:
 		return nil, false, errors.WithMessage(err, "get SuffrageProof")
 	case h.Err() != nil:
@@ -228,7 +228,7 @@ func (c *BaseClient) LastBlockMap( //nolint:dupl //...
 
 	var u base.BlockMap
 
-	switch h, _, err := c.RequestDecode(ctx, ci, header, nil, &u); {
+	switch h, _, err := quicstream.HeaderClientRequestDecode(ctx, c.HeaderClient, ci, header, nil, &u); {
 	case err != nil:
 		return nil, false, errors.WithMessage(err, "get last BlockMap")
 	case h.Err() != nil:
@@ -248,7 +248,7 @@ func (c *BaseClient) BlockMap( //nolint:dupl //...
 
 	var u base.BlockMap
 
-	switch h, _, err := c.RequestDecode(ctx, ci, header, nil, &u); {
+	switch h, _, err := quicstream.HeaderClientRequestDecode(ctx, c.HeaderClient, ci, header, nil, &u); {
 	case err != nil:
 		return nil, false, errors.WithMessage(err, "get BlockMap")
 	case h.Err() != nil:
@@ -274,7 +274,7 @@ func (c *BaseClient) BlockMapItem(
 		return nil, nil, false, err
 	}
 
-	h, r, cancel, _, err := c.RequestBody(ctx, ci, header, nil)
+	h, r, cancel, _, err := c.HeaderClient.Request(ctx, ci, header, nil)
 
 	switch {
 	case err != nil:
@@ -301,14 +301,17 @@ func (c *BaseClient) NodeChallenge(
 		return nil, e(err, "")
 	}
 
-	h, r, cancel, enc, err := c.RequestBody(ctx, ci, header, nil)
+	h, r, cancel, enc, err := c.HeaderClient.Request(ctx, ci, header, nil)
+	if err != nil {
+		return nil, e(err, "")
+	}
+
+	defer func() {
+		_ = cancel()
+	}()
 
 	switch {
-	case err != nil:
-		return nil, e(err, "")
 	case h.Err() != nil, !h.OK():
-		_ = cancel()
-
 		return nil, e(h.Err(), "")
 	default:
 		b, err := io.ReadAll(r)
@@ -360,7 +363,7 @@ func (c *BaseClient) requestNodeConnInfos(
 	ci quicstream.UDPConnInfo,
 	header quicstream.Header,
 ) ([]isaac.NodeConnInfo, error) {
-	h, r, cancel, enc, err := c.RequestBody(ctx, ci, header, nil)
+	h, r, cancel, enc, err := c.HeaderClient.Request(ctx, ci, header, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -410,7 +413,7 @@ func (c *BaseClient) State(
 
 	var u base.State
 
-	switch h, _, err := c.RequestDecode(ctx, ci, header, nil, &u); {
+	switch h, _, err := quicstream.HeaderClientRequestDecode(ctx, c.HeaderClient, ci, header, nil, &u); {
 	case err != nil:
 		return nil, false, errors.WithMessage(err, "get State")
 	case h.Err() != nil:
@@ -428,10 +431,8 @@ func (c *BaseClient) ExistsInStateOperation(
 		return false, err
 	}
 
-	h, _, cancel, _, err := c.RequestBody(ctx, ci, header, nil)
-	defer func() {
-		_ = cancel()
-	}()
+	h, _, cancel, _, err := c.HeaderClient.Request(ctx, ci, header, nil)
+	_ = cancel()
 
 	switch {
 	case err != nil:
@@ -456,14 +457,12 @@ func (c *BaseClient) SendBallots(
 
 	header := NewSendBallotsHeader()
 
-	h, _, cancel, _, err := c.RequestEncode(ctx, ci, header, ballots)
+	h, _, cancel, _, err := quicstream.HeaderClientRequestEncode(ctx, c.HeaderClient, ci, header, ballots)
 	if err != nil {
 		return e(err, "send request")
 	}
 
-	defer func() {
-		_ = cancel()
-	}()
+	_ = cancel()
 
 	if h.Err() != nil {
 		return e(h.Err(), "")

@@ -141,11 +141,15 @@ func (t *testHeaderClient) writef(prefix string, handler Handler) HeaderClientWr
 
 		w := bytes.NewBuffer(nil)
 
-		return io.NopCloser(w), func() error { return nil }, ph.Handler(nil, r, w)
+		return io.NopCloser(w), func() error {
+			w.Reset()
+
+			return nil
+		}, ph.Handler(nil, r, w)
 	}
 }
 
-func (t *testHeaderClient) TestRequest() {
+func (t *testHeaderClient) TestRequestEncode() {
 	localci := NewUDPConnInfo(nil, true)
 
 	prefix := util.UUID().String()
@@ -190,7 +194,7 @@ func (t *testHeaderClient) TestRequest() {
 		c := NewHeaderClient(t.encs, t.enc, t.writef(prefix, handler))
 
 		header := newDummyHeader(prefix, id)
-		rh, r, _, renc, err := c.RequestEncode(context.Background(), localci, header, nil)
+		rh, r, _, renc, err := HeaderClientRequestEncode(context.Background(), c, localci, header, nil)
 		t.NoError(err)
 
 		t.T().Log("response header:", util.MustMarshalJSONIndentString(rh))
@@ -214,7 +218,7 @@ func (t *testHeaderClient) TestRequest() {
 	t.Run("empty request header", func() {
 		c := NewHeaderClient(t.encs, t.enc, t.writef(prefix, handler))
 
-		_, _, _, _, err := c.RequestEncode(context.Background(), localci, nil, nil)
+		_, _, _, _, err := HeaderClientRequestEncode(context.Background(), c, localci, nil, nil)
 		t.Error(err)
 		t.ErrorContains(err, "empty header")
 	})
@@ -247,7 +251,7 @@ func (t *testHeaderClient) TestRequest() {
 		c := NewHeaderClient(t.encs, t.enc, t.writef(prefix, handler))
 
 		header := newDummyHeader(prefix, id)
-		rh, r, _, renc, err := c.RequestEncode(context.Background(), localci, header, nil)
+		rh, r, _, renc, err := HeaderClientRequestEncode(context.Background(), c, localci, header, nil)
 		t.NoError(err)
 
 		t.T().Log("response header:", util.MustMarshalJSONIndentString(rh))
@@ -274,11 +278,10 @@ func (t *testHeaderClient) TestRequest() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
 		defer cancel()
 
-		rh, r, _, renc, err := c.RequestEncode(ctx, localci, header, nil)
+		rh, _, _, renc, err := HeaderClientRequestEncode(ctx, c, localci, header, nil)
 		t.Error(err)
 		t.True(errors.Is(err, context.DeadlineExceeded))
 		t.Nil(rh)
-		t.Nil(r)
 		t.Nil(renc)
 
 		t.T().Log("response header:", util.MustMarshalJSONIndentString(rh))
@@ -288,7 +291,7 @@ func (t *testHeaderClient) TestRequest() {
 	})
 }
 
-func (t *testHeaderClient) TestRequestBody() {
+func (t *testHeaderClient) TestRequest() {
 	localci := NewUDPConnInfo(nil, true)
 
 	prefix := util.UUID().String()
@@ -326,7 +329,7 @@ func (t *testHeaderClient) TestRequestBody() {
 		buf := bytes.NewBuffer([]byte(id))
 		defer buf.Reset()
 
-		rh, r, _, renc, err := c.RequestBody(context.Background(), localci, header, buf)
+		rh, r, _, renc, err := c.Request(context.Background(), localci, header, buf)
 		t.NoError(err)
 
 		t.T().Log("response header:", util.MustMarshalJSONIndentString(rh))
@@ -352,7 +355,7 @@ func (t *testHeaderClient) TestRequestBody() {
 
 		header := newDummyHeader(prefix, id)
 
-		rh, r, _, renc, err := c.RequestBody(context.Background(), localci, header, nil)
+		rh, r, _, renc, err := c.Request(context.Background(), localci, header, nil)
 		t.NoError(err)
 
 		t.T().Log("response header:", util.MustMarshalJSONIndentString(rh))
@@ -374,7 +377,7 @@ func (t *testHeaderClient) TestRequestBody() {
 	})
 }
 
-func (t *testHeaderClient) TestRequestBodyAddress() {
+func (t *testHeaderClient) TestRequestAddress() {
 	localci := NewUDPConnInfo(nil, true)
 
 	prefix := util.UUID().String()
@@ -422,7 +425,7 @@ func (t *testHeaderClient) TestRequestBodyAddress() {
 		buf := bytes.NewBuffer(ab)
 		defer buf.Reset()
 
-		rh, r, _, renc, err := c.RequestBody(context.Background(), localci, header, buf)
+		rh, r, _, renc, err := c.Request(context.Background(), localci, header, buf)
 		t.NoError(err)
 
 		t.T().Log("response header:", util.MustMarshalJSONIndentString(rh))
@@ -496,7 +499,7 @@ func (t *testHeaderClient) TestRequestDecode() {
 
 		var u base.Node
 
-		rh, enc, err := c.RequestDecode(context.Background(), localci, header, node, &u)
+		rh, enc, err := HeaderClientRequestDecode(context.Background(), c, localci, header, node, &u)
 		t.NoError(err)
 
 		t.T().Log("response header:", util.MustMarshalJSONIndentString(rh))
@@ -523,7 +526,7 @@ func (t *testHeaderClient) TestRequestDecode() {
 
 		var u base.Node
 
-		rh, enc, err := c.RequestDecode(context.Background(), localci, header, nil, &u)
+		rh, enc, err := HeaderClientRequestDecode(context.Background(), c, localci, header, nil, &u)
 		t.NoError(err)
 
 		t.T().Log("response header:", util.MustMarshalJSONIndentString(rh))
