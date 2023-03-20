@@ -37,6 +37,7 @@ var (
 	HandlerPrefixExistsInStateOperationString = "exists_instate_operation"
 	HandlerPrefixNodeInfoString               = "node_info"
 	HandlerPrefixSendBallotsString            = "send_ballots"
+	HandlerPrefixAllowConsensusString         = "allow_consensus"
 
 	HandlerPrefixRequestProposal        []byte = quicstream.HashPrefix(HandlerPrefixRequestProposalString)
 	HandlerPrefixProposal                      = quicstream.HashPrefix(HandlerPrefixProposalString)
@@ -55,6 +56,7 @@ var (
 	HandlerPrefixExistsInStateOperation        = quicstream.HashPrefix(HandlerPrefixExistsInStateOperationString)
 	HandlerPrefixNodeInfo                      = quicstream.HashPrefix(HandlerPrefixNodeInfoString)
 	HandlerPrefixSendBallots                   = quicstream.HashPrefix(HandlerPrefixSendBallotsString)
+	HandlerPrefixAllowConsensus                = quicstream.HashPrefix(HandlerPrefixAllowConsensusString)
 )
 
 func QuicstreamErrorHandler(enc encoder.Encoder, requestTimeoutf func() time.Duration) quicstream.ErrorHandler {
@@ -669,6 +671,21 @@ func QuicstreamHandlerSendBallots(
 		}
 
 		return nil
+	}
+}
+
+func QuicstreamHandlerAllowConsensus(
+	setf func(allow bool) (isset bool),
+) quicstream.HeaderHandler {
+	return func(_ net.Addr, r io.Reader, w io.Writer,
+		h quicstream.Header, _ *encoder.Encoders, enc encoder.Encoder,
+	) error {
+		header := h.(SetAllowConsensusHeader) //nolint:forcetypeassert //...
+		isset := setf(header.Allow())
+
+		return quicstream.WriteResponseEncode(w,
+			quicstream.NewDefaultResponseHeader(isset, nil, quicstream.RawContentType),
+			enc, nil)
 	}
 }
 

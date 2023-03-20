@@ -118,8 +118,7 @@ func (st *baseHandler) switchState(sctx switchContext) {
 
 	switch err := st.switchStateFunc(sctx); {
 	case err == nil:
-		l.Debug().Msg("state switched")
-	case errors.Is(err, ErrIgnoreSwithingState):
+	case errors.Is(err, ErrIgnoreSwitchingState):
 		l.Error().Err(err).Msg("failed to switch state; ignore")
 	case sctx.next() == StateBroken:
 		l.Error().Err(err).Msg("failed to switch state; panic")
@@ -136,7 +135,7 @@ func (st *baseHandler) setStates(sts *States) {
 	st.sts = sts
 
 	st.switchStateFunc = func(sctx switchContext) error {
-		return st.sts.MoveState(sctx)
+		return st.sts.AskMoveState(sctx)
 	}
 
 	st.timers = st.sts.timers

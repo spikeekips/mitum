@@ -506,3 +506,36 @@ func (h *SendBallotsHeader) UnmarshalJSON(b []byte) error {
 
 	return nil
 }
+
+type setAllowConsensusHeaderJSONMarshaler struct {
+	Allow bool `json:"allow"`
+}
+
+func (h SetAllowConsensusHeader) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(struct {
+		quicstream.BaseHeaderJSONMarshaler
+		setAllowConsensusHeaderJSONMarshaler
+	}{
+		BaseHeaderJSONMarshaler: h.BaseHeader.JSONMarshaler(),
+		setAllowConsensusHeaderJSONMarshaler: setAllowConsensusHeaderJSONMarshaler{
+			Allow: h.allow,
+		},
+	})
+}
+
+func (h *SetAllowConsensusHeader) UnmarshalJSON(b []byte) error {
+	e := util.StringErrorFunc("decode SetAllowConsensusHeader")
+
+	if err := util.UnmarshalJSON(b, &h.baseHeader); err != nil {
+		return e(err, "")
+	}
+
+	var u setAllowConsensusHeaderJSONMarshaler
+	if err := util.UnmarshalJSON(b, &u); err != nil {
+		return e(err, "")
+	}
+
+	h.allow = u.Allow
+
+	return nil
+}

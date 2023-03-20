@@ -13,7 +13,7 @@ import (
 	"github.com/spikeekips/mitum/util/logging"
 )
 
-var ErrIgnoreSwithingState = util.NewMError("switch state, but ignored")
+var ErrIgnoreSwitchingState = util.NewMError("switch state, but ignored")
 
 var (
 	timerIDBroadcastINITBallot            = util.TimerID("broadcast-init-ballot")
@@ -28,6 +28,9 @@ type StatesArgs struct {
 	IsInSyncSourcePoolFunc func(base.Address) bool
 	BallotBroadcaster      BallotBroadcaster
 	WhenStateSwitchedFunc  func(StateType)
+	// AllowConsensus decides to enter Consensus states. If false, States enters
+	// Syncing state instead of Consensus state.
+	AllowConsensus bool
 }
 
 func NewStatesArgs() *StatesArgs {
@@ -48,8 +51,9 @@ type States struct {
 	vpch        chan base.Voteproof
 	newHandlers map[StateType]newHandler
 	*util.ContextDaemon
-	timers    *util.SimpleTimers
-	stateLock sync.RWMutex
+	timers         *util.SimpleTimers
+	allowConsensus *util.Locked[bool]
+	stateLock      sync.RWMutex
 }
 
 func NewStates(local base.LocalNode, params *isaac.LocalParams, args *StatesArgs) (*States, error) {
@@ -66,14 +70,15 @@ func NewStates(local base.LocalNode, params *isaac.LocalParams, args *StatesArgs
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", "states")
 		}),
-		local:       local,
-		params:      params,
-		args:        args,
-		statech:     make(chan switchContext),
-		vpch:        make(chan base.Voteproof),
-		newHandlers: map[StateType]newHandler{},
-		cs:          nil,
-		timers:      timers,
+		local:          local,
+		params:         params,
+		args:           args,
+		statech:        make(chan switchContext),
+		vpch:           make(chan base.Voteproof),
+		newHandlers:    map[StateType]newHandler{},
+		cs:             nil,
+		timers:         timers,
+		allowConsensus: util.NewLocked(args.AllowConsensus),
 	}
 
 	cancelf := func() {}
@@ -142,17 +147,9 @@ func (st *States) Hold() error {
 	return st.switchState(newStoppedSwitchContext(current.state(), nil))
 }
 
-func (st *States) MoveState(sctx switchContext) error {
-	l := st.stateSwitchContextLog(sctx, st.current())
-
-	switch err := st.checkStateSwitchContext(sctx, st.current()); {
-	case err == nil:
-	case errors.Is(err, ErrIgnoreSwithingState):
-		return nil
-	default:
-		l.Error().Err(err).Msg("failed to switch state")
-
-		return errors.Wrap(err, "switch state")
+func (st *States) AskMoveState(sctx switchContext) error {
+	if err := st.checkStateSwitchContext(sctx, st.current()); err != nil {
+		return err
 	}
 
 	go func() {
@@ -307,8 +304,6 @@ end:
 			}
 
 			return nil
-		case errors.Is(err, ErrIgnoreSwithingState):
-			return nil
 		case !errors.As(err, &rsctx):
 			if nsctx.next() == StateBroken {
 				st.Log().Error().Err(err).Msg("failed to switch to broken; will stop switching")
@@ -335,14 +330,34 @@ func (st *States) switchState(sctx switchContext) error {
 		switch sctx.next() {
 		case StateBooting, StateBroken:
 		default:
-			return ErrIgnoreSwithingState.Errorf("state stopped, next should be StateBooting or StateBroken")
+			l.Debug().Msg("state stopped, next should be StateBooting or StateBroken")
+
+			return nil
 		}
 	}
 
-	cdefer, ndefer, err := st.exitAndEnter(sctx, current)
+	nsctx := sctx
+
+	if next := nsctx.next(); (next == StateConsensus || next == StateJoining) && !st.AllowConsensus() {
+		if current.state() == StateSyncing {
+			l.Debug().Msg("not allowed to enter consensus state; keep syncing")
+
+			return nil
+		}
+
+		nsctx = newSyncingSwitchContext(current.state(), base.GenesisHeight)
+
+		l = l.With().
+			Dict("previous_next_state", switchContextLog(sctx)).
+			Dict("next_state", switchContextLog(nsctx)).Logger()
+
+		l.Debug().Msg("not allowed to enter consensus; moves to syncing state")
+	}
+
+	cdefer, ndefer, err := st.exitAndEnter(nsctx, current)
 	if err != nil {
 		switch {
-		case errors.Is(err, ErrIgnoreSwithingState):
+		case errors.Is(err, ErrIgnoreSwitchingState):
 			l.Debug().Msg("switching state ignored")
 
 			return nil
@@ -357,7 +372,7 @@ func (st *States) switchState(sctx switchContext) error {
 
 	st.callDeferStates(cdefer, ndefer)
 
-	st.args.WhenStateSwitchedFunc(sctx.next())
+	st.args.WhenStateSwitchedFunc(nsctx.next())
 
 	l.Debug().Msg("state switched")
 
@@ -386,7 +401,7 @@ func (st *States) exitAndEnter(sctx switchContext, current handler) (func(), fun
 		case sctx.next() == StateBroken:
 			l.Error().Err(err).Msg("failed to exit current state, but next is broken state; error will be ignored")
 		default:
-			if errors.Is(err, ErrIgnoreSwithingState) {
+			if errors.Is(err, ErrIgnoreSwitchingState) {
 				l.Debug().Err(err).Msg("current state ignores switching state")
 
 				return nil, nil, err
@@ -450,15 +465,14 @@ func (st *States) checkStateSwitchContext(sctx switchContext, current handler) e
 		return errors.Errorf("unknown next state, %q", sctx.next())
 	}
 
-	if !sctx.ok(current.state()) {
-		return ErrIgnoreSwithingState.Errorf("not ok")
+	switch {
+	case !sctx.ok(current.state()):
+		return ErrIgnoreSwitchingState.Errorf("not ok")
+	case sctx.next() == current.state():
+		return ErrIgnoreSwitchingState.Errorf("same next state")
+	default:
+		return nil
 	}
-
-	if sctx.next() == current.state() {
-		return ErrIgnoreSwithingState.Errorf("same next state")
-	}
-
-	return nil
 }
 
 func (st *States) stateSwitchContextLog(sctx switchContext, current handler) zerolog.Logger {
@@ -648,6 +662,36 @@ func (st *States) filterMimicBallot(bl base.Ballot) bool {
 	}
 
 	return false
+}
+
+func (st *States) AllowConsensus() bool {
+	i, _ := st.allowConsensus.Value()
+
+	return i
+}
+
+func (st *States) SetAllowConsensus(i bool) bool { // revive:disable-line:flag-parameter
+	var isset bool
+
+	_, _ = st.allowConsensus.Set(func(prev bool, isempty bool) (bool, error) {
+		if prev == i {
+			return false, util.ErrLockedSetIgnore.Call()
+		}
+
+		isset = true
+
+		return i, nil
+	})
+
+	if isset && !i { // NOTE if not allowed, exits from consensus state
+		switch current := st.current(); {
+		case current == nil:
+		case current.state() == StateJoining, current.state() == StateConsensus:
+			_ = st.AskMoveState(newSyncingSwitchContext(current.state(), base.GenesisHeight))
+		}
+	}
+
+	return isset
 }
 
 func mimicBallot(

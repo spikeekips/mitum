@@ -467,11 +467,6 @@ func (t *testNodeDesign) TestIsValid() {
 	t.Run("same sync_sources with address", func() {
 		address := base.RandomAddress("")
 
-		nci := isaacnetwork.NewNodeConnInfo(
-			isaac.NewNode(base.NewMPrivatekey().Publickey(), address),
-			publish.String(), true,
-		)
-
 		a := NodeDesign{
 			Address:    address,
 			Privatekey: base.NewMPrivatekey(),
@@ -486,14 +481,15 @@ func (t *testNodeDesign) TestIsValid() {
 				Database: &url.URL{Scheme: LeveldbURIScheme, Path: "/a/b/c"},
 			},
 			SyncSources: []isaacnetwork.SyncSource{
-				{Type: isaacnetwork.SyncSourceTypeURL, Source: &url.URL{Scheme: "https", Host: "a:1234"}},
-				{Type: isaacnetwork.SyncSourceTypeNode, Source: nci},
+				{Type: isaacnetwork.SyncSourceTypeURL, Source: &url.URL{Scheme: "https", Host: "a:3333"}},
+				{Type: isaacnetwork.SyncSourceTypeNode, Source: isaacnetwork.NewNodeConnInfo(
+					isaac.NewNode(base.NewMPrivatekey().Publickey(), address), // same address
+					mustResolveUDPAddr("4.3.2.1:4444").String(), true,
+				)},
 			},
 		}
 
-		err := a.IsValid(nil)
-		t.Error(err)
-		t.ErrorContains(err, "same node address with local")
+		t.NoError(a.IsValid(nil))
 	})
 
 	t.Run("same sync_sources with publish", func() {

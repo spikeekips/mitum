@@ -217,7 +217,7 @@ func (cmd *RunCommand) pCheckHold(pctx context.Context) (context.Context, error)
 
 	switch {
 	case !cmd.Hold.IsSet():
-	case cmd.Hold.Height() < base.GenesisHeight:
+	case cmd.Hold.Height() <= base.GenesisHeight:
 		cmd.holded = true
 	default:
 		switch m, found, err := db.LastBlockMap(); {

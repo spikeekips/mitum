@@ -15,7 +15,6 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
 	"github.com/spikeekips/mitum/network/quicstream"
-	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
@@ -397,56 +396,6 @@ func (t *testSyncSourceChecker) TestCheckSameResult() {
 
 	for i := range ncis {
 		ac := ncis[i].(NodeConnInfo)
-		bc := ucis[i].(NodeConnInfo)
-
-		t.True(base.IsEqualNode(ac, bc))
-		t.Equal(ac.String(), bc.String())
-	}
-}
-
-func (t *testSyncSourceChecker) TestCheckFilterLocal() {
-	ncis, handlersmap := t.handlers(3)
-
-	localci, err := ncis[1].UDPConnInfo()
-	t.NoError(err)
-	local := handlersmap[localci.String()].local
-
-	{ // NOTE add unknown node to []isaac.NodeConnInfo
-		node := base.RandomLocalNode()
-		ci := quicstream.RandomConnInfo()
-
-		ncis = append(ncis, NewNodeConnInfo(node.BaseNode, ci.UDPAddr().String(), ci.TLSInsecure()))
-	}
-
-	handlersmap[localci.String()] = &handlers{local: local, localParams: t.LocalParams, encs: t.Encs, idletimeout: time.Second}
-	handlersmap[localci.String()].suffrageNodeConnInfof = func() ([]isaac.NodeConnInfo, error) {
-		return ncis, nil
-	}
-
-	openstreamf, handlercancel := t.openstreamfs(handlersmap)
-	defer handlercancel()
-
-	client := NewBaseClient(t.Encs, t.Enc, openstreamf)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	cis := []SyncSource{{Type: SyncSourceTypeSuffrageNodes, Source: localci}}
-
-	checker := NewSyncSourceChecker(local, t.LocalParams.NetworkID(), client, time.Second, t.Enc, cis, nil, nil)
-
-	ucis, err := checker.check(ctx, cis)
-	t.NoError(err)
-	t.NotNil(ucis)
-
-	nciswithoutlocal := util.FilterSlice(ncis, func(i isaac.NodeConnInfo) bool {
-		return !i.Address().Equal(local.Address())
-	})
-
-	t.Equal(len(nciswithoutlocal), len(ucis))
-
-	for i := range nciswithoutlocal {
-		ac := nciswithoutlocal[i].(NodeConnInfo)
 		bc := ucis[i].(NodeConnInfo)
 
 		t.True(base.IsEqualNode(ac, bc))

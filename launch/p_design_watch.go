@@ -446,7 +446,6 @@ func updateSyncSources(
 
 		if err := IsValidSyncSourcesDesign(
 			sources,
-			design.Address,
 			design.Network.PublishString,
 			design.Network.publish.String(),
 		); err != nil {

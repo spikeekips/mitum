@@ -30,6 +30,7 @@ var (
 	PNameStatesSetHandlers                          = ps.Name("states-set-handlers")
 	PNameProposerSelector                           = ps.Name("proposer-selector")
 	PNameBallotStuckResolver                        = ps.Name("ballot-stuck-resolver")
+	PNameStatesNetworkHandlers                      = ps.Name("states-network-handlers")
 	BallotboxContextKey                             = util.ContextKey("ballotbox")
 	StatesContextKey                                = util.ContextKey("states")
 	ProposalProcessorsContextKey                    = util.ContextKey("proposal-processors")
@@ -142,6 +143,7 @@ func PStates(pctx context.Context) (context.Context, error) {
 
 	var log *logging.Logging
 	var enc encoder.Encoder
+	var devflags DevFlags
 	var local base.LocalNode
 	var params *isaac.LocalParams
 	var syncSourcePool *isaac.SyncSourcePool
@@ -151,6 +153,7 @@ func PStates(pctx context.Context) (context.Context, error) {
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
+		DevFlagsContextKey, &devflags,
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
 		BallotboxContextKey, &args.Ballotbox,
@@ -162,6 +165,8 @@ func PStates(pctx context.Context) (context.Context, error) {
 	); err != nil {
 		return pctx, e(err, "")
 	}
+
+	args.AllowConsensus = devflags.AllowConsensus
 
 	if vp := args.LastVoteproofsHandler.Last().Cap(); vp != nil {
 		last := args.Ballotbox.LastPoint()
@@ -330,6 +335,28 @@ func PStatesSetHandlers(pctx context.Context) (context.Context, error) { //reviv
 		SetHandler(isaacstates.StateSyncing, isaacstates.NewNewSyncingHandlerType(local, params, syncingargs))
 
 	_ = states.SetLogging(log)
+
+	return pctx, nil
+}
+
+func PStatesNetworkHandlers(pctx context.Context) (context.Context, error) {
+	var encs *encoder.Encoders
+	var handlers *quicstream.PrefixHandler
+	var states *isaacstates.States
+
+	if err := util.LoadFromContext(pctx,
+		EncodersContextKey, &encs,
+		QuicstreamHandlersContextKey, &handlers,
+		StatesContextKey, &states,
+	); err != nil {
+		return pctx, err
+	}
+
+	handlers.
+		Add(isaacnetwork.HandlerPrefixAllowConsensus,
+			quicstream.NewHeaderHandler(encs, 0, isaacnetwork.QuicstreamHandlerAllowConsensus(
+				states.SetAllowConsensus,
+			)))
 
 	return pctx, nil
 }

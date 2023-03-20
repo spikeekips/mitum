@@ -186,7 +186,6 @@ func (d *NodeDesign) IsValid([]byte) error {
 
 	if err := IsValidSyncSourcesDesign(
 		d.SyncSources,
-		d.Address,
 		d.Network.PublishString,
 		d.Network.publish.String(),
 	); err != nil {
@@ -574,7 +573,6 @@ func (d *SyncSourcesDesign) IsValid([]byte) error {
 
 func IsValidSyncSourcesDesign(
 	d SyncSourcesDesign,
-	localAddress base.Address,
 	localPublishString, localPublishResolved string,
 ) error {
 	e := util.ErrInvalid.Errorf("invalid SyncSourcesDesign")
@@ -589,10 +587,6 @@ func IsValidSyncSourcesDesign(
 
 		switch t := s.Source.(type) {
 		case isaac.NodeConnInfo:
-			if t.Address().Equal(localAddress) {
-				return e.Errorf("same node address with local")
-			}
-
 			ci = t
 		case quicstream.UDPConnInfo,
 			quicmemberlist.NamedConnInfo:

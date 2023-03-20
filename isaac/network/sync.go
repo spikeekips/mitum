@@ -224,11 +224,7 @@ func (c *SyncSourceChecker) check(ctx context.Context, sources []SyncSource) ([]
 
 		found := util.Filter2Slices(
 			util.FilterSlice(ss, func(aci isaac.NodeConnInfo) bool {
-				if aci == nil {
-					return false
-				}
-
-				return !aci.Address().Equal(c.local.Address())
+				return aci != nil
 			}),
 			ncis,
 			func(x, y isaac.NodeConnInfo) bool {

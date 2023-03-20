@@ -213,7 +213,7 @@ func (t *testStates) TestExit() {
 	}, nil)
 
 	sctx := newDummySwitchContext(st.current().state(), StateJoining, nil)
-	t.NoError(st.MoveState(sctx))
+	t.NoError(st.AskMoveState(sctx))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -396,8 +396,9 @@ func (t *testStates) TestNewStateWithWrongFrom() {
 	_ = st.setHandler(joining)
 
 	sctx := newDummySwitchContext(StateJoining, StateStopped, nil)
-	err := st.MoveState(sctx)
-	t.NoError(err)
+	err := st.AskMoveState(sctx)
+	t.Error(err)
+	t.True(errors.Is(err, ErrIgnoreSwitchingState))
 
 	select {
 	case <-time.After(time.Second):
@@ -413,7 +414,7 @@ func (t *testStates) TestNewStateWithWrongNext() {
 	t.Equal(StateBooting, st.current().state())
 
 	sctx := newDummySwitchContext(st.current().state(), StateType(util.UUID().String()), nil)
-	err := st.MoveState(sctx)
+	err := st.AskMoveState(sctx)
 	t.Error(err)
 	t.ErrorContains(err, "unknown next state")
 }
@@ -421,6 +422,7 @@ func (t *testStates) TestNewStateWithWrongNext() {
 func (t *testStates) TestNewState() {
 	st, _ := t.booted()
 	defer st.Stop()
+	st.SetAllowConsensus(true)
 
 	joining := newDummyStateHandler(StateJoining)
 
@@ -435,7 +437,7 @@ func (t *testStates) TestNewState() {
 	t.Equal(StateBooting, st.current().state())
 
 	sctx := newDummySwitchContext(st.current().state(), StateJoining, nil)
-	err := st.MoveState(sctx)
+	err := st.AskMoveState(sctx)
 	t.NoError(err)
 
 	select {
@@ -448,6 +450,7 @@ func (t *testStates) TestNewState() {
 
 func (t *testStates) TestExitCurrentWhenStopped() {
 	st, _ := t.booted()
+	st.SetAllowConsensus(true)
 
 	joining := newDummyStateHandler(StateJoining)
 
@@ -467,7 +470,7 @@ func (t *testStates) TestExitCurrentWhenStopped() {
 	t.Equal(StateBooting, st.current().state())
 
 	sctx := newDummySwitchContext(st.current().state(), StateJoining, nil)
-	err := st.MoveState(sctx)
+	err := st.AskMoveState(sctx)
 	t.NoError(err)
 
 	select {
@@ -509,7 +512,7 @@ func (t *testStates) TestEnterWithVoteproof() {
 	vp.SetID(util.UUID().String())
 
 	sctx := newDummySwitchContext(st.current().state(), StateJoining, vp)
-	t.NoError(st.MoveState(sctx))
+	t.NoError(st.AskMoveState(sctx))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -536,8 +539,9 @@ func (t *testStates) TestSameCurrentWithNext() {
 	vp.SetID(util.UUID().String())
 
 	sctx := newDummySwitchContext(st.current().state(), StateBooting, vp)
-	err := st.MoveState(sctx)
-	t.NoError(err)
+	err := st.AskMoveState(sctx)
+	t.Error(err)
+	t.True(errors.Is(err, ErrIgnoreSwitchingState))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -561,7 +565,9 @@ func (t *testStates) TestSameCurrentWithNextWithoutVoteproof() {
 	}, nil)
 
 	sctx := newDummySwitchContext(st.current().state(), StateBooting, nil)
-	t.NoError(st.MoveState(sctx))
+	err := st.AskMoveState(sctx)
+	t.Error(err)
+	t.True(errors.Is(err, ErrIgnoreSwitchingState))
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -600,6 +606,7 @@ func (t *testStates) TestNewVoteproof() {
 func (t *testStates) TestNewVoteproofSwitchState() {
 	st, _ := t.booted()
 	defer st.Stop()
+	st.SetAllowConsensus(true)
 
 	joiningch := make(chan base.Voteproof, 1)
 	joining := newDummyStateHandler(StateJoining).setEnter(func(_ StateType, sctx switchContext) error {
@@ -654,7 +661,7 @@ func (t *testStates) TestCurrentIgnoresSwitchingState() {
 	_ = booting.setExit(func(switchContext) error {
 		exitch <- struct{}{}
 
-		return ErrIgnoreSwithingState.Call()
+		return ErrIgnoreSwitchingState.Call()
 	}, nil)
 
 	joining := newDummyStateHandler(StateJoining)
@@ -670,7 +677,7 @@ func (t *testStates) TestCurrentIgnoresSwitchingState() {
 	t.Equal(StateBooting, st.current().state())
 
 	sctx := newDummySwitchContext(st.current().state(), StateJoining, nil)
-	err := st.MoveState(sctx)
+	err := st.AskMoveState(sctx)
 	t.NoError(err)
 
 	select {
@@ -708,7 +715,7 @@ func (t *testStates) TestStoppedByStateStopped() {
 	t.Equal(StateBooting, st.current().state())
 
 	sctx := newBaseErrorSwitchContext(StateStopped, errors.Errorf("something wrong"), switchContextOKFuncCheckFrom(st.current().state()))
-	err := st.MoveState(sctx)
+	err := st.AskMoveState(sctx)
 	t.NoError(err)
 
 	select {
@@ -781,7 +788,7 @@ func (t *testStates) TestMimicBallot() {
 			return nil
 		}, nil)
 
-		t.NoError(st.MoveState(newDummySwitchContext(st.current().state(), StateSyncing, nil)))
+		t.NoError(st.AskMoveState(newDummySwitchContext(st.current().state(), StateSyncing, nil)))
 		<-enterch
 
 		return st, errch
@@ -970,6 +977,174 @@ func (t *testStates) TestMimicBallot() {
 			t.NoError(err)
 		case <-blch:
 			t.NoError(errors.Errorf("should be no broadcasted ballot, but broadcasted"))
+		}
+	})
+}
+
+func (t *testStates) TestNotAllowConsensusForConsensus() {
+	st, _ := t.booted()
+	defer st.Stop()
+
+	consensushandler := newDummyStateHandler(StateConsensus)
+
+	consensusenterch := make(chan bool, 1)
+	_ = consensushandler.setEnter(func(StateType, switchContext) error {
+		consensusenterch <- true
+
+		return nil
+	}, nil)
+	_ = st.setHandler(consensushandler)
+
+	syncinghandler := newDummyStateHandler(StateSyncing)
+
+	syncingenterch := make(chan bool, 1)
+	_ = syncinghandler.setEnter(func(StateType, switchContext) error {
+		syncingenterch <- true
+
+		return nil
+	}, nil)
+	_ = st.setHandler(syncinghandler)
+
+	t.Equal(StateBooting, st.current().state())
+
+	t.Run("not allowed", func() {
+		sctx := newDummySwitchContext(st.current().state(), StateConsensus, nil)
+		err := st.AskMoveState(sctx)
+		t.NoError(err)
+
+		select {
+		case <-time.After(time.Second * 3):
+			t.NoError(errors.Errorf("failed to wait"))
+		case <-consensusenterch:
+			t.NoError(errors.Errorf("consensus handler entered"))
+		case <-syncingenterch:
+			t.Equal(StateSyncing, st.current().state())
+		}
+	})
+
+	t.Run("in syncing", func() {
+		sctx := newDummySwitchContext(st.current().state(), StateConsensus, nil)
+		err := st.AskMoveState(sctx)
+		t.NoError(err)
+
+		select {
+		case <-time.After(time.Second * 3):
+		case <-consensusenterch:
+			t.NoError(errors.Errorf("consensus handler entered"))
+		case <-syncingenterch:
+			t.NoError(errors.Errorf("syncing handler entered"))
+		}
+
+		t.Equal(StateSyncing, st.current().state())
+	})
+
+	t.Run("allowed", func() {
+		t.True(st.SetAllowConsensus(true))
+
+		sctx := newDummySwitchContext(st.current().state(), StateConsensus, nil)
+		err := st.AskMoveState(sctx)
+		t.NoError(err)
+
+		select {
+		case <-time.After(time.Second * 3):
+			t.NoError(errors.Errorf("failed to wait"))
+		case <-consensusenterch:
+			t.Equal(StateConsensus, st.current().state())
+		}
+	})
+
+	t.Run("set not allowed", func() {
+		t.True(st.SetAllowConsensus(false))
+
+		select {
+		case <-time.After(time.Second * 3):
+			t.NoError(errors.Errorf("failed to wait"))
+		case <-syncingenterch:
+			t.Equal(StateSyncing, st.current().state())
+		}
+	})
+}
+
+func (t *testStates) TestNotAllowConsensusForJoining() {
+	st, _ := t.booted()
+	defer st.Stop()
+
+	joininghandler := newDummyStateHandler(StateJoining)
+
+	joiningenterch := make(chan bool, 1)
+	_ = joininghandler.setEnter(func(StateType, switchContext) error {
+		joiningenterch <- true
+
+		return nil
+	}, nil)
+	_ = st.setHandler(joininghandler)
+
+	syncinghandler := newDummyStateHandler(StateSyncing)
+
+	syncingenterch := make(chan bool, 1)
+	_ = syncinghandler.setEnter(func(StateType, switchContext) error {
+		syncingenterch <- true
+
+		return nil
+	}, nil)
+	_ = st.setHandler(syncinghandler)
+
+	t.Equal(StateBooting, st.current().state())
+
+	t.Run("not allowed", func() {
+		sctx := newDummySwitchContext(st.current().state(), StateJoining, nil)
+		err := st.AskMoveState(sctx)
+		t.NoError(err)
+
+		select {
+		case <-time.After(time.Second * 3):
+			t.NoError(errors.Errorf("failed to wait"))
+		case <-joiningenterch:
+			t.NoError(errors.Errorf("joining handler entered"))
+		case <-syncingenterch:
+			t.Equal(StateSyncing, st.current().state())
+		}
+	})
+
+	t.Run("in syncing", func() {
+		sctx := newDummySwitchContext(st.current().state(), StateJoining, nil)
+		err := st.AskMoveState(sctx)
+		t.NoError(err)
+
+		select {
+		case <-time.After(time.Second * 3):
+		case <-joiningenterch:
+			t.NoError(errors.Errorf("joining handler entered"))
+		case <-syncingenterch:
+			t.NoError(errors.Errorf("syncing handler entered"))
+		}
+
+		t.Equal(StateSyncing, st.current().state())
+	})
+
+	t.Run("allowed", func() {
+		t.True(st.SetAllowConsensus(true))
+
+		sctx := newDummySwitchContext(st.current().state(), StateJoining, nil)
+		err := st.AskMoveState(sctx)
+		t.NoError(err)
+
+		select {
+		case <-time.After(time.Second * 3):
+			t.NoError(errors.Errorf("failed to wait"))
+		case <-joiningenterch:
+			t.Equal(StateJoining, st.current().state())
+		}
+	})
+
+	t.Run("set not allowed", func() {
+		t.True(st.SetAllowConsensus(false))
+
+		select {
+		case <-time.After(time.Second * 3):
+			t.NoError(errors.Errorf("failed to wait"))
+		case <-syncingenterch:
+			t.Equal(StateSyncing, st.current().state())
 		}
 	})
 }

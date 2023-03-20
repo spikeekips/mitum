@@ -25,6 +25,7 @@ var (
 	ExistsInStateOperationRequestHeaderHint = hint.MustNewHint("exists-instate-operation-header-v0.0.1")
 	NodeInfoRequestHeaderHint               = hint.MustNewHint("node-info-header-v0.0.1")
 	SendBallotsHeaderHint                   = hint.MustNewHint("send-ballots-header-v0.0.1")
+	SetAllowConsensusHeaderHint             = hint.MustNewHint("set-allow-consensus-header-v0.0.1")
 )
 
 type baseHeader struct {
@@ -495,6 +496,30 @@ func (h SendBallotsHeader) IsValid([]byte) error {
 	return nil
 }
 
+type SetAllowConsensusHeader struct {
+	baseHeader
+	allow bool
+}
+
+func NewSetAllowConsensusHeader(allow bool) SetAllowConsensusHeader {
+	return SetAllowConsensusHeader{
+		baseHeader: newBaseHeader(SetAllowConsensusHeaderHint),
+		allow:      allow,
+	}
+}
+
+func (h SetAllowConsensusHeader) IsValid([]byte) error {
+	if err := h.BaseHinter.IsValid(SetAllowConsensusHeaderHint.Type().Bytes()); err != nil {
+		return util.ErrInvalid.Wrapf(err, "invalid SetAllowConsensusHeader")
+	}
+
+	return nil
+}
+
+func (h SetAllowConsensusHeader) Allow() bool {
+	return h.allow
+}
+
 func headerPrefixByHint(ht hint.Hint) []byte {
 	switch ht.Type() {
 	case RequestProposalRequestHeaderHint.Type():
@@ -529,6 +554,8 @@ func headerPrefixByHint(ht hint.Hint) []byte {
 		return HandlerPrefixNodeInfo
 	case SendBallotsHeaderHint.Type():
 		return HandlerPrefixSendBallots
+	case SetAllowConsensusHeaderHint.Type():
+		return HandlerPrefixAllowConsensus
 	default:
 		return nil
 	}

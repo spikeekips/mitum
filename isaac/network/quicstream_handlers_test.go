@@ -51,6 +51,7 @@ func (t *testQuicstreamHandlers) SetupSuite() {
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: StateRequestHeaderHint, Instance: StateRequestHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: ExistsInStateOperationRequestHeaderHint, Instance: ExistsInStateOperationRequestHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: SendBallotsHeaderHint, Instance: SendBallotsHeader{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: SetAllowConsensusHeaderHint, Instance: SetAllowConsensusHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: quicstream.DefaultResponseHeaderHint, Instance: quicstream.DefaultResponseHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: base.DummySuffrageProofHint, Instance: base.DummySuffrageProof{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.DummyOperationFactHint, Instance: isaac.DummyOperationFact{}}))
@@ -1206,6 +1207,42 @@ func (t *testQuicstreamHandlers) TestSendBallots() {
 			bl = <-votedch
 			base.EqualBallotSignFact(t.Assert(), ballots[1], bl)
 		}
+	})
+}
+
+func (t *testQuicstreamHandlers) TestSetAllowConsensus() {
+	t.Run("set", func() {
+		handler := QuicstreamHandlerAllowConsensus(func(allow bool) bool {
+			return true
+		})
+
+		ci := quicstream.NewUDPConnInfo(nil, true)
+		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixAllowConsensus, handler))
+
+		header := NewSetAllowConsensusHeader(true)
+
+		response, _, _, _, err := c.Request(context.Background(), ci, header, nil)
+		t.NoError(err)
+
+		t.NoError(response.Err())
+		t.True(response.OK())
+	})
+
+	t.Run("not set", func() {
+		handler := QuicstreamHandlerAllowConsensus(func(allow bool) bool {
+			return false
+		})
+
+		ci := quicstream.NewUDPConnInfo(nil, true)
+		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixAllowConsensus, handler))
+
+		header := NewSetAllowConsensusHeader(true)
+
+		response, _, _, _, err := c.Request(context.Background(), ci, header, nil)
+		t.NoError(err)
+
+		t.NoError(response.Err())
+		t.False(response.OK())
 	})
 }
 

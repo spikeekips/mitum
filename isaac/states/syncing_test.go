@@ -139,7 +139,7 @@ func (t *testSyncingHandler) TestExit() {
 		deferredexit, err := st.exit(nil)
 		t.Nil(deferredexit)
 		t.Error(err)
-		t.True(errors.Is(err, ErrIgnoreSwithingState))
+		t.True(errors.Is(err, ErrIgnoreSwitchingState))
 	})
 }
 

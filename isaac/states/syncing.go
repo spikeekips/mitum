@@ -147,13 +147,13 @@ func (st *SyncingHandler) exit(sctx switchContext) (func(), error) {
 
 	if st.syncer != nil {
 		if _, isfinished := st.syncer.IsFinished(); !isfinished {
-			return nil, ErrIgnoreSwithingState.Errorf("syncer not yet finished")
+			return nil, ErrIgnoreSwitchingState.Errorf("syncer not yet finished")
 		}
 
 		switch err := st.syncer.Cancel(); {
 		case err == nil:
 		case errors.Is(err, ErrSyncerCanNotCancel):
-			return nil, ErrIgnoreSwithingState.Wrap(err)
+			return nil, ErrIgnoreSwitchingState.Wrap(err)
 		default:
 			return nil, e(err, "stop syncer")
 		}
@@ -199,7 +199,19 @@ func (st *SyncingHandler) checkFinished(vp base.Voteproof) (notstuck bool, _ err
 
 	l := st.Log().With().Str("voteproof", vp.ID()).Logger()
 
-	l.Debug().Func(base.VoteproofLogFunc("voteproof", vp)).Msg("checking finished")
+	top, isfinished := st.syncer.IsFinished()
+
+	allowConsensus := true
+	if st.sts != nil {
+		allowConsensus = st.sts.AllowConsensus()
+	}
+
+	l.Debug().
+		Func(base.VoteproofLogFunc("voteproof", vp)).
+		Bool("allow_consensus", allowConsensus).
+		Bool("is_finished", isfinished).
+		Interface("top", top).
+		Msg("checking finished")
 
 	height := vp.Point().Height()
 
@@ -212,13 +224,25 @@ func (st *SyncingHandler) checkFinished(vp base.Voteproof) (notstuck bool, _ err
 
 	_ = st.add(height)
 
-	top, isfinished := st.syncer.IsFinished()
-
 	if isfinished {
 		st.args.WhenFinishedFunc(top)
 
 		go st.args.WhenNewBlockSavedFunc(top)
+	}
 
+	if allowConsensus {
+		return st.checkFinishedAllowConsensus(vp)
+	}
+
+	return true, nil
+}
+
+func (st *SyncingHandler) checkFinishedAllowConsensus(vp base.Voteproof) (notstuck bool, _ error) {
+	l := st.Log().With().Str("voteproof", vp.ID()).Logger()
+
+	top, isfinished := st.syncer.IsFinished()
+
+	if isfinished {
 		joined, err := st.checkAndJoinMemberlist(top + 1)
 		if err != nil || !joined {
 			return false, err
@@ -289,10 +313,7 @@ end:
 
 			var notstuck bool
 
-			switch notstuck, err = st.checkFinished(st.lastVoteproofs().Cap()); {
-			case err != nil:
-				st.cancelstuck()
-			case notstuck:
+			if notstuck, err = st.checkFinished(st.lastVoteproofs().Cap()); err != nil || notstuck {
 				st.cancelstuck()
 			}
 		}

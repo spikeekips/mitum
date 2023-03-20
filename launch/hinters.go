@@ -57,6 +57,7 @@ var Hinters = []encoder.DecodeDetail{
 		Hint:     isaacnetwork.ExistsInStateOperationRequestHeaderHint,
 		Instance: isaacnetwork.ExistsInStateOperationRequestHeader{},
 	},
+	{Hint: isaacnetwork.SetAllowConsensusHeaderHint, Instance: isaacnetwork.SetAllowConsensusHeader{}},
 	{Hint: isaacnetwork.BlockMapItemRequestHeaderHint, Instance: isaacnetwork.BlockMapItemRequestHeader{}},
 	{Hint: isaacnetwork.BlockMapRequestHeaderHint, Instance: isaacnetwork.BlockMapRequestHeader{}},
 	{Hint: isaacnetwork.LastBlockMapRequestHeaderHint, Instance: isaacnetwork.LastBlockMapRequestHeader{}},
