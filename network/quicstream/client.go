@@ -3,7 +3,6 @@ package quicstream
 import (
 	"context"
 	"crypto/tls"
-	"io"
 	"net"
 	"sync"
 
@@ -13,8 +12,6 @@ import (
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 )
-
-type ClientWriteFunc func(io.Writer) error
 
 type (
 	DialFunc func(
@@ -91,48 +88,51 @@ func (c *Client) Dial(ctx context.Context) (quic.EarlyConnection, error) {
 	return session, nil
 }
 
-func (c *Client) Write(ctx context.Context, f ClientWriteFunc) (quic.Stream, error) {
-	r, err := c.write(ctx, f)
+func (c *Client) OpenStream(ctx context.Context) (*StreamReadCloser, *StreamWriteCloser, error) {
+	r, w, err := c.openStream(ctx)
 	if err != nil {
 		if IsNetworkError(err) {
 			_ = c.session.EmptyValue()
 		}
 
-		return nil, err
+		return nil, nil, err
 	}
 
-	return r, nil
+	return r, w, nil
 }
 
-func (c *Client) write(ctx context.Context, f ClientWriteFunc) (quic.Stream, error) {
-	e := util.StringErrorFunc("write")
+func (c *Client) openStream(ctx context.Context) (*StreamReadCloser, *StreamWriteCloser, error) {
+	e := util.StringErrorFunc("request")
 
-	cctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	session, err := c.dial(cctx)
+	session, err := c.dial(ctx)
 	if err != nil {
-		return nil, e(err, "")
+		return nil, nil, e(err, "")
 	}
 
-	stream, err := session.OpenStreamSync(cctx)
+	stream, err := session.OpenStreamSync(ctx)
 	if err != nil {
-		return nil, e(err, "open stream")
+		return nil, nil, e(err, "open stream")
 	}
 
-	defer func() {
+	rctx, rcancel := context.WithCancel(ctx)
+	r := newStreamReadCloser(stream, rcancel)
+
+	wctx, wcancel := context.WithCancel(ctx)
+	w := newStreamWriteCloser(stream, wcancel)
+
+	go func() {
+		<-rctx.Done()
+
+		stream.CancelRead(0)
+	}()
+
+	go func() {
+		<-wctx.Done()
+
 		_ = stream.Close()
 	}()
 
-	if err := f(stream); err != nil {
-		stream.CancelRead(0)
-
-		return nil, e(err, "")
-	}
-
-	_ = stream.Close()
-
-	return stream, nil
+	return r, w, nil
 }
 
 func (c *Client) dial(ctx context.Context) (quic.EarlyConnection, error) {
@@ -174,32 +174,33 @@ func dial(
 	return c, errors.WithStack(err)
 }
 
-func IsNetworkError(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	if e := (&quic.StreamError{}); errors.As(err, &e) {
-		return true
-	}
-
-	if e := (&quic.TransportError{}); errors.As(err, &e) {
-		return true
-	}
-
-	if e := (&quic.ApplicationError{}); errors.As(err, &e) {
-		return true
-	}
-
-	var nerr net.Error
-
-	return errors.As(err, &nerr)
+type StreamReadCloser struct {
+	quic.Stream
+	cancel func()
 }
 
-func DefaultClientWriteFunc(b []byte) ClientWriteFunc {
-	return func(w io.Writer) error {
-		_, err := w.Write(b)
+func newStreamReadCloser(stream quic.Stream, cancel func()) *StreamReadCloser {
+	return &StreamReadCloser{Stream: stream, cancel: cancel}
+}
 
-		return errors.WithStack(err)
-	}
+func (r *StreamReadCloser) Close() error {
+	r.cancel()
+	r.Stream.CancelRead(0)
+
+	return nil
+}
+
+type StreamWriteCloser struct {
+	quic.Stream
+	cancel func()
+}
+
+func newStreamWriteCloser(stream quic.Stream, cancel func()) *StreamWriteCloser {
+	return &StreamWriteCloser{Stream: stream, cancel: cancel}
+}
+
+func (r *StreamWriteCloser) Close() error {
+	r.cancel()
+
+	return errors.WithStack(r.Stream.Close())
 }

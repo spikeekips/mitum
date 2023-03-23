@@ -8,15 +8,13 @@ import (
 
 var DefaultResponseHeaderHint = hint.MustNewHint("quicstream-default-response-header-v0.0.1")
 
-type ContentType string
-
-var (
-	HinterContentType ContentType
-	RawContentType    ContentType = "raw"
-)
-
 type Header interface {
 	util.IsValider
+	QUICStreamHeader()
+}
+
+type RequestHeader interface {
+	Header
 	Handler() string
 }
 
@@ -24,31 +22,30 @@ type ResponseHeader interface {
 	Header
 	Err() error
 	OK() bool
-	ContentType() ContentType
 }
 
 type BaseHeader struct {
-	prefix string
 	hint.BaseHinter
 }
 
-func NewBaseHeader(ht hint.Hint, prefix string) BaseHeader {
+func NewBaseHeader(ht hint.Hint) BaseHeader {
 	return BaseHeader{
 		BaseHinter: hint.NewBaseHinter(ht),
-		prefix:     prefix,
 	}
 }
 
-func (h BaseHeader) Handler() string {
-	return h.prefix
+func (BaseHeader) IsValid([]byte) error {
+	return nil
 }
+
+func (BaseHeader) QUICStreamHeader() {}
 
 type BaseHeaderJSONMarshaler struct {
 	hint.BaseHinter
 }
 
 func (h BaseHeader) JSONMarshaler() BaseHeaderJSONMarshaler {
-	return BaseHeaderJSONMarshaler{BaseHinter: h.BaseHinter}
+	return BaseHeaderJSONMarshaler(h)
 }
 
 func (h *BaseHeader) UnmarshalJSON(b []byte) error {
@@ -62,21 +59,35 @@ func (h *BaseHeader) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+type BaseRequestHeader struct {
+	prefix string
+	BaseHeader
+}
+
+func NewBaseRequestHeader(ht hint.Hint, prefix string) BaseRequestHeader {
+	return BaseRequestHeader{
+		BaseHeader: NewBaseHeader(ht),
+		prefix:     prefix,
+	}
+}
+
+func (h BaseRequestHeader) Handler() string {
+	return h.prefix
+}
+
+func (h *BaseRequestHeader) UnmarshalJSON(b []byte) error {
+	return util.UnmarshalJSON(b, &h.BaseHeader)
+}
+
 type BaseResponseHeader struct {
-	contentType ContentType
-	err         error
+	err error
 	BaseHeader
 	ok bool
 }
 
-func NewBaseResponseHeader(
-	ht hint.Hint,
-	ok bool,
-	err error,
-	contentType ContentType,
-) BaseResponseHeader {
+func NewBaseResponseHeader(ht hint.Hint, ok bool, err error) BaseResponseHeader {
 	// NOTE detailed internal error like network error or storage error will be
-	// hidden
+	// hidden.
 	rerr := err
 
 	switch {
@@ -86,10 +97,9 @@ func NewBaseResponseHeader(
 	}
 
 	return BaseResponseHeader{
-		BaseHeader:  NewBaseHeader(ht, ""),
-		ok:          ok,
-		err:         rerr,
-		contentType: contentType,
+		BaseHeader: NewBaseHeader(ht),
+		ok:         ok,
+		err:        rerr,
 	}
 }
 
@@ -101,8 +111,9 @@ func (r BaseResponseHeader) Err() error {
 	return r.err
 }
 
-func (r BaseResponseHeader) ContentType() ContentType {
-	return r.contentType
+type BaseResponseHeaderJSONUnmarshaler struct {
+	Err string `json:"error,omitempty"` //nolint:tagliatelle //...
+	OK  bool   `json:"ok"`
 }
 
 type BaseResponseHeaderJSONMarshaler struct {
@@ -119,17 +130,10 @@ func (r BaseResponseHeader) JSONMarshaler() BaseResponseHeaderJSONMarshaler {
 	return BaseResponseHeaderJSONMarshaler{
 		BaseHeaderJSONMarshaler: r.BaseHeader.JSONMarshaler(),
 		BaseResponseHeaderJSONUnmarshaler: BaseResponseHeaderJSONUnmarshaler{
-			ContentType: r.contentType,
-			Err:         err,
-			OK:          r.ok,
+			Err: err,
+			OK:  r.ok,
 		},
 	}
-}
-
-type BaseResponseHeaderJSONUnmarshaler struct {
-	ContentType ContentType `json:"content_type"`
-	Err         string      `json:"error"` //nolint:tagliatelle //...
-	OK          bool        `json:"ok"`
 }
 
 func (r *BaseResponseHeader) UnmarshalJSON(b []byte) error {
@@ -142,7 +146,6 @@ func (r *BaseResponseHeader) UnmarshalJSON(b []byte) error {
 		return err
 	}
 
-	r.contentType = u.ContentType
 	if len(u.Err) > 0 {
 		r.err = errors.Errorf(u.Err)
 	}
@@ -156,9 +159,9 @@ type DefaultResponseHeader struct {
 	BaseResponseHeader
 }
 
-func NewDefaultResponseHeader(ok bool, err error, contentType ContentType) DefaultResponseHeader {
+func NewDefaultResponseHeader(ok bool, err error) DefaultResponseHeader {
 	return DefaultResponseHeader{
-		BaseResponseHeader: NewBaseResponseHeader(DefaultResponseHeaderHint, ok, err, contentType),
+		BaseResponseHeader: NewBaseResponseHeader(DefaultResponseHeaderHint, ok, err),
 	}
 }
 

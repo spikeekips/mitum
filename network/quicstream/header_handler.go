@@ -7,11 +7,22 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
-type HeaderHandler func(net.Addr, io.Reader, io.Writer, Header, *encoder.Encoders, encoder.Encoder) error
+type HeaderHandlerDetail struct {
+	Encoders *encoder.Encoders
+	Encoder  encoder.Encoder
+	Header   RequestHeader
+	Body     io.Reader
+}
+
+type HeaderHandler func(
+	net.Addr,
+	io.Reader,
+	io.Writer,
+	HeaderHandlerDetail,
+) error
 
 func NewHeaderHandler(
 	encs *encoder.Encoders,
@@ -29,15 +40,14 @@ func NewHeaderHandler(
 			defer cancel()
 		}
 
-		var header Header
-		var enc encoder.Encoder
+		var detail HeaderHandlerDetail
 
 		donech := make(chan error, 1)
 
 		go func() {
 			var err error
 
-			header, enc, err = readHeader(ctx, encs, r)
+			detail, err = readRequestInHandler(encs, r)
 
 			donech <- err
 		}()
@@ -50,69 +60,49 @@ func NewHeaderHandler(
 				return err
 			}
 
-			if header != nil {
-				if err := header.IsValid(nil); err != nil {
-					return err
-				}
-			}
-
-			return handler(addr, r, w, header, encs, enc)
+			return handler(addr, r, w, detail)
 		}
 	}
 }
 
-func writeResponse(
-	w io.Writer,
-	enc encoder.Encoder,
-	header ResponseHeader,
-	writebodyf func(w io.Writer) error,
-) error {
-	e := util.StringErrorFunc("write response")
+func readRequestInHandler(
+	encs *encoder.Encoders,
+	r io.Reader,
+) (HeaderHandlerDetail, error) {
+	detail := HeaderHandlerDetail{Encoders: encs}
 
-	var headerb []byte
-
-	if header != nil {
-		i, err := enc.Marshal(header)
-		if err != nil {
-			return e(err, "")
+	switch enc, h, dataFormat, bodyLength, err := ReadHead(r, encs); {
+	case err != nil:
+		return detail, errors.WithMessage(err, "read request")
+	default:
+		if enc == nil {
+			return detail, errors.Errorf("empty request encoder")
 		}
 
-		headerb = i
+		if err := dataFormat.IsValid(nil); err != nil {
+			return detail, errors.WithMessage(err, "invalid request DataFormat")
+		}
+
+		if err := h.IsValid(nil); err != nil {
+			return detail, errors.WithMessage(err, "invalid request header")
+		}
+
+		switch i, ok := h.(RequestHeader); {
+		case !ok:
+			return detail, errors.Errorf("expected request header, but %T", h)
+		default:
+			detail.Header = i
+		}
+
+		detail.Encoder = enc
+
+		switch dataFormat {
+		case StreamDataFormat:
+			detail.Body = r
+		default:
+			detail.Body = io.LimitReader(r, int64(bodyLength))
+		}
+
+		return detail, nil
 	}
-
-	return writeTo(w, enc.Hint(), headerb, writebodyf)
-}
-
-func WriteResponseBytes(w io.Writer, header ResponseHeader, enc encoder.Encoder, body []byte) error {
-	return writeResponse(w, enc, header, func(w io.Writer) error {
-		if len(body) < 1 {
-			return nil
-		}
-
-		_, err := w.Write(body)
-
-		return errors.WithStack(err)
-	})
-}
-
-func WriteResponseBody(w io.Writer, header ResponseHeader, enc encoder.Encoder, body io.Reader) error {
-	return writeResponse(w, enc, header, func(w io.Writer) error {
-		if body == nil {
-			return nil
-		}
-
-		_, err := io.Copy(w, body)
-
-		return errors.WithStack(err)
-	})
-}
-
-func WriteResponseEncode(w io.Writer, header ResponseHeader, enc encoder.Encoder, body interface{}) error {
-	return writeResponse(w, enc, header, func(w io.Writer) error {
-		if body == nil {
-			return nil
-		}
-
-		return enc.StreamEncoder(w).Encode(body)
-	})
 }

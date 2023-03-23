@@ -77,5 +77,5 @@ func readPrefix(r io.Reader) ([]byte, error) {
 }
 
 func WritePrefix(w io.Writer, prefix string) error {
-	return util.LengthedBytes(w, hashPrefix(prefix))
+	return util.WriteLengthedBytes(w, hashPrefix(prefix))
 }

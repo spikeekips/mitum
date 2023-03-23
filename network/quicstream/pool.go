@@ -2,7 +2,6 @@ package quicstream
 
 import (
 	"context"
-	"io"
 	"math"
 	"net"
 	"time"
@@ -128,12 +127,11 @@ func (p *PoolClient) Dial(
 	return session, nil
 }
 
-func (p *PoolClient) Write(
+func (p *PoolClient) OpenStream(
 	ctx context.Context,
 	addr *net.UDPAddr,
-	f func(io.Writer) error,
 	newClient func(*net.UDPAddr) *Client,
-) (quic.Stream, error) {
+) (*StreamReadCloser, quic.Stream, error) {
 	var client *Client
 	_, _ = p.clients.Set(addr.String(), func(i *poolClientItem, found bool) (*poolClientItem, error) {
 		if found && i != nil {
@@ -153,17 +151,17 @@ func (p *PoolClient) Write(
 	})
 
 	if client == nil {
-		return nil, net.ErrClosed
+		return nil, nil, net.ErrClosed
 	}
 
-	r, err := client.Write(ctx, f)
+	r, w, err := client.OpenStream(ctx)
 	if err != nil {
 		go p.onerror(addr, client, err)
 
-		return nil, err
+		return nil, nil, err
 	}
 
-	return r, nil
+	return r, w, nil
 }
 
 func (p *PoolClient) Clean(cleanDuration time.Duration) int {

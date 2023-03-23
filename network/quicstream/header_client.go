@@ -6,402 +6,404 @@ import (
 	"io"
 
 	"github.com/pkg/errors"
-	"github.com/spikeekips/mitum/network"
+	"github.com/quic-go/quic-go"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
 )
 
-type HeaderClientRequestFunc func(context.Context, UDPConnInfo, Header, io.Reader) (
-	ResponseHeader,
-	io.ReadCloser,
-	func() error,
-	encoder.Encoder,
-	error,
-)
-
-type HeaderClientWriteFunc func(
-	ctx context.Context,
-	conninfo UDPConnInfo,
-	writef ClientWriteFunc,
-) (_ io.ReadCloser, cancel func() error, _ error)
+type OpenStreamFunc func(context.Context, UDPConnInfo) (io.ReadCloser, io.WriteCloser, error)
 
 type HeaderClient struct {
-	Encoders  *encoder.Encoders
-	Encoder   encoder.Encoder
-	writeFunc HeaderClientWriteFunc
+	Encoders    *encoder.Encoders
+	Encoder     encoder.Encoder
+	openStreamf OpenStreamFunc
 }
 
-func NewHeaderClient(
-	encs *encoder.Encoders,
-	enc encoder.Encoder,
-	writef HeaderClientWriteFunc,
-) *HeaderClient {
+func NewHeaderClient(encs *encoder.Encoders, enc encoder.Encoder, openStreamf OpenStreamFunc) *HeaderClient {
 	return &HeaderClient{
-		Encoders:  encs,
-		Encoder:   enc,
-		writeFunc: writef,
+		Encoders:    encs,
+		Encoder:     enc,
+		openStreamf: openStreamf,
 	}
 }
 
-func (c *HeaderClient) Request(
+func (c *HeaderClient) OpenStream(ctx context.Context, ci UDPConnInfo) (io.ReadCloser, io.WriteCloser, error) {
+	return c.openStreamf(ctx, ci)
+}
+
+func (c *HeaderClient) Request( //revive:disable-line:function-result-limit
 	ctx context.Context,
 	ci UDPConnInfo,
-	header Header,
-	body io.Reader,
+	header RequestHeader,
+	bodyf func() (DataFormat, io.Reader, uint64, error),
 ) (
 	ResponseHeader,
-	io.ReadCloser,
-	func() error,
 	encoder.Encoder,
+	io.Reader, // response data body
+	io.ReadCloser,
+	io.WriteCloser,
 	error,
 ) {
 	e := util.StringErrorFunc("request")
 
-	var r io.ReadCloser
-	var cancel func() error
+	if header == nil {
+		return nil, nil, nil, nil, nil, e(nil, "empty header")
+	}
 
-	switch i, j, err := c.write(ctx, ci, c.Encoder, header, body); {
+	var r io.ReadCloser
+	var w io.WriteCloser
+
+	switch i, j, err := c.openStreamf(ctx, ci); {
 	case err != nil:
-		return nil, r, util.EmptyCancelFunc, nil, e(err, "send request")
+		return nil, nil, nil, nil, nil, e(err, "open stream")
 	default:
 		r = i
-		cancel = j
+		w = j
 	}
 
-	h, enc, err := c.readResponseHeader(ctx, r)
-
-	switch {
+	switch rh, renc, datar, err := c.request(header, r, w, bodyf); {
 	case err != nil:
-		_ = cancel()
+		_ = r.Close()
+		_ = w.Close()
 
-		return h, r, util.EmptyCancelFunc, nil, e(err, "read stream")
-	case h == nil:
-		_ = cancel()
+		var serr *quic.StreamError
+		if errors.As(err, &serr) {
+			return nil, nil, nil, nil, nil, util.JoinErrors(e(err, ""), context.DeadlineExceeded)
+		}
 
-		return h, r, cancel, enc, nil
-	case h.Err() != nil:
-		_ = cancel()
+		return nil, nil, nil, nil, nil, e(err, "")
+	case rh == nil:
+		return rh, renc, datar, r, w, nil
+	case rh.Err() != nil:
+		_ = r.Close()
+		_ = w.Close()
 
-		return h, r, util.EmptyCancelFunc, enc, nil
-	case !h.OK():
-		return h, r, util.EmptyCancelFunc, enc, nil
-	}
-
-	switch h.ContentType() {
-	case HinterContentType, RawContentType:
-		return h, r, cancel, enc, nil
+		return rh, renc, nil, r, w, nil
 	default:
-		_ = cancel()
-
-		return nil, r, util.EmptyCancelFunc, nil, errors.Errorf("unknown content type, %q", h.ContentType())
+		return rh, renc, datar, r, w, nil
 	}
 }
 
-func (c *HeaderClient) write(
-	ctx context.Context,
-	ci UDPConnInfo,
-	enc encoder.Encoder,
-	header Header,
-	body io.Reader,
+func (c *HeaderClient) request(
+	header RequestHeader,
+	r io.Reader,
+	w io.Writer,
+	bodyf func() (DataFormat, io.Reader, uint64, error),
 ) (
-	io.ReadCloser,
-	func() error,
+	ResponseHeader,
+	encoder.Encoder,
+	io.Reader, // response data body
 	error,
 ) {
-	if header == nil {
-		return nil, nil, errors.Errorf("empty header")
+	if err := c.send(header, w, bodyf); err != nil {
+		return nil, nil, nil, err
 	}
 
-	var r io.ReadCloser
-	var cancel func() error
+	switch h, enc, dataFormat, bodyLength, err := c.read(r); {
+	case err != nil:
+		return nil, nil, nil, err
+	case h == nil:
+		return h, enc, r, nil
+	case h.Err() != nil:
+		return h, enc, nil, nil
+	case dataFormat == StreamDataFormat:
+		return h, enc, r, nil
+	default:
+		return h, enc, io.NewSectionReader(readerAt{r}, 0, int64(bodyLength)), nil
+	}
+}
 
-	switch i, j, err := c.writeFunc(ctx, ci, func(w io.Writer) error {
+func (c *HeaderClient) send(
+	header RequestHeader,
+	w io.Writer,
+	bodyf func() (DataFormat, io.Reader, uint64, error),
+) error {
+	var dataFormat DataFormat
+	var bodyr io.Reader
+	var bodyLength uint64
+
+	switch i, j, k, err := bodyf(); {
+	case err != nil:
+		return errors.WithMessage(err, "body")
+	default:
+		dataFormat = i
+		bodyr = j
+		bodyLength = k
+	}
+
+	if err := dataFormat.IsValid(nil); err != nil {
+		return errors.WithMessage(err, "invalid DataFormat")
+	}
+
+	if err := WriteRequestHead(w, header.Handler(), c.Encoder, header); err != nil {
+		return errors.WithMessage(err, "")
+	}
+
+	return WriteBody(w, dataFormat, bodyLength, bodyr)
+}
+
+func (c *HeaderClient) read(
+	r io.Reader,
+) (
+	ResponseHeader,
+	encoder.Encoder,
+	DataFormat,
+	uint64, // body length
+	error,
+) {
+	var renc encoder.Encoder
+	var ah Header
+	var rdataFormat DataFormat
+	var bodyLength uint64
+
+	switch i, j, k, l, err := ReadHead(r, c.Encoders); {
+	case err != nil:
+		return nil, nil, 0, 0, errors.WithMessage(err, "read response")
+	default:
+		renc = i
+		ah = j
+		rdataFormat = k
+		bodyLength = l
+	}
+
+	if renc == nil {
+		return nil, nil, 0, 0, errors.Errorf("empty response encoder")
+	}
+
+	var rh ResponseHeader
+
+	if ah != nil {
+		if err := ah.IsValid(nil); err != nil {
+			return nil, nil, 0, 0, errors.WithMessage(err, "invalid response header")
+		}
+
+		switch i, ok := ah.(ResponseHeader); {
+		case !ok:
+			return nil, nil, 0, 0, errors.Errorf("expected response header, but %T", ah)
+		default:
+			rh = i
+		}
+	}
+
+	if err := rdataFormat.IsValid(nil); err != nil {
+		return nil, nil, 0, 0, errors.WithMessage(err, "invalid response DataFormat")
+	}
+
+	return rh, renc, rdataFormat, bodyLength, nil
+}
+
+func WriteRequestHead(w io.Writer, prefix string, enc encoder.Encoder, header Header) error {
+	if err := WritePrefix(w, prefix); err != nil {
+		return errors.WithMessage(err, "prefix")
+	}
+
+	return WriteHead(w, enc, header)
+}
+
+func WriteHead(w io.Writer, enc encoder.Encoder, header Header) error {
+	var headerb []byte
+
+	switch {
+	case header == nil:
+	default:
 		b, err := enc.Marshal(header)
 		if err != nil {
 			return err
 		}
 
-		return clientWrite(w, header.Handler(), enc.Hint(), b, body)
-	}); {
+		headerb = b
+	}
+
+	if err := util.WriteLengthedBytes(w, enc.Hint().Bytes()); err != nil {
+		return errors.WithMessage(err, "encoder hint")
+	}
+
+	if err := util.WriteLengthedBytes(w, headerb); err != nil {
+		return errors.WithMessage(err, "header")
+	}
+
+	return nil
+}
+
+func ReadHead(r io.Reader, encs *encoder.Encoders) (
+	enc encoder.Encoder,
+	header Header,
+	dataFormat DataFormat,
+	bodyLength uint64,
+	_ error,
+) {
+	var hintb []byte
+
+	switch b, err := util.ReadLengthedBytesFromReader(r); {
 	case err != nil:
-		return nil, nil, err
+		return nil, nil, dataFormat, 0, errors.WithMessage(err, "encoder hint")
 	default:
-		r = i
-		cancel = j
+		hintb = b
 	}
 
-	return r, func() error {
-		if err := r.Close(); err != nil {
-			return errors.WithStack(err)
-		}
+	var headerb []byte
 
-		return cancel()
-	}, nil
-}
-
-func (c *HeaderClient) readResponseHeader(
-	ctx context.Context,
-	r io.ReadCloser,
-) (ResponseHeader, encoder.Encoder, error) {
-	donech := make(chan error, 1)
-
-	var h Header
-	var enc encoder.Encoder
-
-	go func() {
-		var err error
-
-		h, enc, err = readHeader(ctx, c.Encoders, r)
-
-		donech <- err
-	}()
-
-	select {
-	case <-ctx.Done():
-		return nil, nil, ctx.Err()
-	case err := <-donech:
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-
-	switch rh, ok := h.(ResponseHeader); {
-	case !ok:
-		return nil, nil, nil
-	default:
-		return rh, enc, nil
-	}
-}
-
-func clientWrite(w io.Writer, prefix string, enchint hint.Hint, header []byte, body io.Reader) error {
-	if err := WritePrefix(w, prefix); err != nil {
-		return err
-	}
-
-	return writeTo(w, enchint, header, func(w io.Writer) error {
-		if body != nil {
-			if _, err := io.Copy(w, body); err != nil {
-				return errors.WithStack(err)
-			}
-		}
-
-		return nil
-	})
-}
-
-func writeTo(
-	w io.Writer,
-	enchint hint.Hint,
-	header []byte,
-	writebodyf func(w io.Writer) error,
-) error {
-	if err := writeHint(w, enchint); err != nil {
-		return err
-	}
-
-	if err := writeHeader(w, header); err != nil {
-		return err
-	}
-
-	if writebodyf != nil {
-		if err := writebodyf(w); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func writeHint(w io.Writer, ht hint.Hint) error {
-	h := make([]byte, hint.MaxHintLength)
-	copy(h, ht.Bytes())
-
-	if _, err := ensureWrite(w, h); err != nil {
-		return errors.Wrap(err, "write hint")
-	}
-
-	return nil
-}
-
-func writeHeader(w io.Writer, header []byte) error {
-	e := util.StringErrorFunc("write header")
-
-	l := util.Uint64ToBytes(uint64(len(header)))
-
-	if _, err := ensureWrite(w, l); err != nil {
-		return e(err, "")
-	}
-
-	if len(header) > 0 {
-		if _, err := ensureWrite(w, header); err != nil {
-			return e(err, "")
-		}
-	}
-
-	return nil
-}
-
-func ensureWrite(w io.Writer, b []byte) (int, error) {
-	switch n, err := w.Write(b); {
+	switch b, err := util.ReadLengthedBytesFromReader(r); {
 	case err != nil:
-		return n, errors.WithStack(err)
-	case n != len(b):
-		return n, errors.Errorf("write")
+		return nil, nil, dataFormat, 0, errors.WithMessage(err, "header")
 	default:
-		return n, nil
-	}
-}
-
-func readHeader(ctx context.Context, encs *encoder.Encoders, r io.Reader) (Header, encoder.Encoder, error) {
-	enc, b, err := readHead(ctx, encs, r)
-	if err != nil {
-		return nil, nil, err
+		headerb = b
 	}
 
-	var h Header
-	if err := encoder.Decode(enc, b, &h); err != nil {
-		return h, enc, err
-	}
-
-	return h, enc, nil
-}
-
-func readHead(ctx context.Context, encs *encoder.Encoders, r io.Reader) (encoder.Encoder, []byte, error) {
-	enc, err := readEncoder(ctx, encs, r)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	b, err := readHeaderBytes(ctx, r)
-	if err != nil {
-		return enc, nil, err
-	}
-
-	return enc, b, nil
-}
-
-func readHint(ctx context.Context, r io.Reader) (ht hint.Hint, _ error) {
-	e := util.StringErrorFunc("read hint")
-
-	b := make([]byte, hint.MaxHintLength)
-	if n, err := network.EnsureRead(ctx, r, b); n != len(b) {
-		return ht, e(err, "")
-	}
-
-	ht, err := hint.ParseHint(string(b))
-	if err != nil {
-		return ht, e(err, "")
-	}
-
-	return ht, nil
-}
-
-func readEncoder(ctx context.Context, encs *encoder.Encoders, r io.Reader) (encoder.Encoder, error) {
-	e := util.StringErrorFunc("read encoder")
-
-	ht, err := readHint(ctx, r)
-	if err != nil {
-		return nil, e(err, "")
-	}
-
-	switch enc := encs.Find(ht); {
-	case enc == nil:
-		return nil, e(util.ErrNotFound.Errorf("encoder not found for %q", ht), "")
+	switch i, err := util.ReadLengthFromReader(r); {
+	case err == nil, errors.Is(err, io.EOF):
+		dataFormat = DataFormat(i)
 	default:
-		return enc, nil
-	}
-}
-
-func readHeaderBytes(ctx context.Context, r io.Reader) ([]byte, error) {
-	l := make([]byte, 8)
-
-	if n, err := network.EnsureRead(ctx, r, l); n != len(l) {
-		return nil, errors.Wrap(err, "read header length")
+		return nil, nil, dataFormat, 0, errors.WithMessage(err, "data format")
 	}
 
-	length, err := util.BytesToUint64(l)
+	if dataFormat == LengthedDataFormat {
+		i, err := util.ReadLengthFromReader(r)
+
+		switch {
+		case err == nil, errors.Is(err, io.EOF):
+		default:
+			return nil, nil, dataFormat, 0, errors.WithMessage(err, "body length")
+		}
+
+		bodyLength = i
+	}
+
+	ht, err := hint.ParseHint(string(hintb))
 	if err != nil {
-		return nil, errors.Wrap(err, "parse header length")
+		return nil, nil, dataFormat, 0, errors.WithMessage(err, "encoder hint")
 	}
 
-	if length < 1 {
-		return nil, nil
+	if enc = encs.Find(ht); enc == nil {
+		return nil, nil, dataFormat, 0, util.ErrNotFound.Errorf("encoder not found for %q", ht)
 	}
 
-	h := make([]byte, length)
-
-	if n, err := network.EnsureRead(ctx, r, h); n != len(h) {
-		return nil, errors.Wrap(err, "read header")
+	if err := encoder.Decode(enc, headerb, &header); err != nil {
+		return nil, nil, dataFormat, 0, errors.WithMessage(err, "header")
 	}
 
-	return h, nil
+	return enc, header, dataFormat, bodyLength, nil
 }
 
-func HeaderClientRequestEncode(
+func WriteBody(w io.Writer, dataFormat DataFormat, bodyLength uint64, r io.Reader) error {
+	if bodyLength > 0 && r == nil {
+		return errors.Errorf("bodyLength > 0, but nil reader")
+	}
+
+	if err := util.WriteLength(w, uint64(dataFormat)); err != nil {
+		return errors.WithMessage(err, "dataformat")
+	}
+
+	switch dataFormat {
+	case LengthedDataFormat:
+		if err := util.WriteLength(w, bodyLength); err != nil {
+			return errors.WithMessage(err, "body length")
+		}
+	case StreamDataFormat:
+	default:
+		return errors.Errorf("unknown DataFormat, %d", dataFormat)
+	}
+
+	if r != nil {
+		if _, err := io.Copy(w, r); err != nil {
+			return errors.WithMessage(err, "write body")
+		}
+	}
+
+	return nil
+}
+
+type DataFormat uint64
+
+const (
+	_ DataFormat = iota
+	LengthedDataFormat
+	StreamDataFormat
+)
+
+func (d DataFormat) IsValid([]byte) error {
+	switch d {
+	case LengthedDataFormat:
+	case StreamDataFormat:
+	default:
+		return util.ErrInvalid.Errorf("unknown DataFormat, %d", d)
+	}
+
+	return nil
+}
+
+func HeaderRequestEncode( //revive:disable-line:function-result-limit
 	ctx context.Context,
 	client *HeaderClient,
 	ci UDPConnInfo,
-	header Header,
-	i interface{},
+	header RequestHeader,
+	body interface{},
 ) (
 	ResponseHeader,
-	io.ReadCloser,
-	func() error,
 	encoder.Encoder,
+	io.Reader, // response data body
+	io.ReadCloser,
+	io.WriteCloser,
 	error,
 ) {
-	b, err := client.Encoder.Marshal(i)
+	b, err := client.Encoder.Marshal(body)
 	if err != nil {
-		return nil, nil, util.EmptyCancelFunc, nil, err
+		return nil, nil, nil, nil, nil, err
 	}
 
-	return client.Request(ctx, ci, header, bytes.NewBuffer(b))
+	buf := bytes.NewBuffer(b)
+	defer buf.Reset()
+
+	return client.Request(ctx, ci, header,
+		func() (DataFormat, io.Reader, uint64, error) {
+			return LengthedDataFormat, buf, uint64(buf.Len()), nil
+		},
+	)
 }
 
-func HeaderClientRequestDecode(
+func HeaderRequestDecode(
 	ctx context.Context,
 	client *HeaderClient,
 	ci UDPConnInfo,
-	header Header,
+	header RequestHeader,
 	i, u interface{},
-) (ResponseHeader, encoder.Encoder, error) {
-	var body io.Reader
-
-	if i != nil {
-		buf := bytes.NewBuffer(nil)
-		defer buf.Reset()
-
-		if err := client.Encoder.StreamEncoder(buf).Encode(i); err != nil {
-			return nil, nil, err
-		}
-
-		body = buf
-	}
-
-	return HeaderClientRequestBodyDecode(ctx, client, ci, header, body, u)
-}
-
-func HeaderClientRequestBodyDecode(
-	ctx context.Context,
-	client *HeaderClient,
-	ci UDPConnInfo,
-	header Header,
-	body io.Reader,
-	u interface{},
-) (ResponseHeader, encoder.Encoder, error) {
-	h, r, cancel, enc, err := client.Request(ctx, ci, header, body)
+	decode func(encoder.Encoder, io.Reader, interface{}) error,
+) (
+	ResponseHeader,
+	encoder.Encoder,
+	io.ReadCloser,
+	io.WriteCloser,
+	error,
+) {
+	h, enc, body, r, w, err := HeaderRequestEncode(ctx, client, ci, header, i)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, nil, err
 	}
-
-	defer func() {
-		_ = cancel()
-	}()
 
 	if !h.OK() {
-		return h, enc, nil
+		return h, enc, r, w, nil
 	}
 
-	return h, enc, encoder.DecodeReader(enc, r, u)
+	switch err := decode(enc, body, u); {
+	case err == nil:
+	case errors.Is(err, io.EOF):
+	default:
+		_ = r.Close()
+		_ = w.Close()
+
+		return nil, nil, nil, nil, err
+	}
+
+	return h, enc, r, w, nil
+}
+
+type readerAt struct {
+	io.Reader
+}
+
+func (r readerAt) ReadAt(p []byte, _ int64) (int, error) {
+	n, err := r.Read(p)
+
+	return n, errors.WithStack(err)
 }

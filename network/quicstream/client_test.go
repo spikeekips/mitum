@@ -18,7 +18,7 @@ type testClient struct {
 }
 
 func (t *testClient) TestSessionClose() {
-	srv := t.NewDefaultServer(nil)
+	srv := t.NewDefaultServer(nil, nil)
 
 	t.NoError(srv.Start(context.Background()))
 	defer srv.Stop()
@@ -30,7 +30,10 @@ func (t *testClient) TestSessionClose() {
 
 	<-time.After(time.Second * 3) // NOTE for slow machine like github actions
 
-	_, err := client.Write(context.Background(), DefaultClientWriteFunc(util.UUID().Bytes()))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	_, _, err := client.OpenStream(ctx)
 	t.NoError(err)
 
 	i, isnil := client.session.Value()
@@ -40,21 +43,27 @@ func (t *testClient) TestSessionClose() {
 	t.Run("ok", func() {
 		<-time.After(time.Second * 3) // NOTE for slow machine like github actions
 
-		_, err := client.Write(context.Background(), DefaultClientWriteFunc(util.UUID().Bytes()))
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		_, _, err := client.OpenStream(ctx)
 		t.NoError(err)
 	})
 
 	t.Run("send after close", func() {
 		t.NoError(client.Close())
 
-		_, err := client.Write(context.Background(), DefaultClientWriteFunc(util.UUID().Bytes()))
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		_, _, err := client.OpenStream(ctx)
 		t.Error(err)
 		t.True(IsNetworkError(err))
 	})
 }
 
 func (t *testClient) TestSessionRemove() {
-	srv := t.NewDefaultServer(nil)
+	srv := t.NewDefaultServer(nil, t.EchoHandler())
 
 	t.NoError(srv.Start(context.Background()))
 	defer srv.Stop()
@@ -66,7 +75,10 @@ func (t *testClient) TestSessionRemove() {
 
 	<-time.After(time.Second * 3) // NOTE for slow machine like github actions
 
-	_, err := client.Write(context.Background(), DefaultClientWriteFunc(util.UUID().Bytes()))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	_, _, err := client.OpenStream(ctx)
 	t.NoError(err)
 
 	i, isnil := client.session.Value()
@@ -78,7 +90,10 @@ func (t *testClient) TestSessionRemove() {
 	t.Run("send after stopped", func() {
 		<-time.After(time.Second * 3) // NOTE for slow machine like github actions
 
-		_, err := client.Write(context.Background(), DefaultClientWriteFunc(util.UUID().Bytes()))
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		_, _, err := client.OpenStream(ctx)
 		t.Error(err)
 
 		t.True(IsNetworkError(err))
@@ -89,7 +104,10 @@ func (t *testClient) TestSessionRemove() {
 	})
 
 	t.Run("send again after stopped", func() {
-		_, err := client.Write(context.Background(), DefaultClientWriteFunc(util.UUID().Bytes()))
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		_, _, err := client.OpenStream(ctx)
 		t.Error(err)
 
 		var nerr net.Error
@@ -102,15 +120,22 @@ func (t *testClient) TestSessionRemove() {
 		t.Nil(i)
 	})
 
-	newsrv := t.NewDefaultServer(nil)
+	newsrv := t.NewDefaultServer(nil, t.EchoHandler())
 	t.NoError(newsrv.Start(context.Background()))
 	defer newsrv.Stop()
 
 	t.Run("send again after restarting", func() {
 		<-time.After(time.Second * 3) // NOTE for slow machine like github actions
 
-		_, err := client.Write(context.Background(), DefaultClientWriteFunc(util.UUID().Bytes()))
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		_, w, err := client.OpenStream(ctx)
 		t.NoError(err)
+
+		_, err = w.Write(util.UUID().Bytes())
+		t.NoError(err)
+		t.NoError(w.Close())
 	})
 }
 

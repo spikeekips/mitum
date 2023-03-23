@@ -2,6 +2,7 @@ package quicstream
 
 import (
 	"context"
+	"io"
 	"net"
 	"testing"
 	"time"
@@ -17,19 +18,21 @@ type testPool struct {
 	BaseTest
 }
 
-func (t *testPool) TestWrite() {
-	srv := t.NewDefaultServer(nil)
+func (t *testPool) TestStream() {
+	srv := t.NewDefaultServer(nil, t.EchoHandler())
 
 	t.NoError(srv.Start(context.Background()))
 	defer srv.Stop()
 
 	p := NewPoolClient()
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	b := util.UUID().Bytes()
-	r, err := p.Write(
-		context.Background(),
+	r, w, err := p.OpenStream(
+		ctx,
 		t.Bind,
-		DefaultClientWriteFunc(b),
 		func(addr *net.UDPAddr) *Client {
 			client := t.NewClient(addr)
 			client.quicconfig = &quic.Config{
@@ -40,8 +43,13 @@ func (t *testPool) TestWrite() {
 		},
 	)
 	t.NoError(err)
+	defer r.Close()
 
-	rb, err := ReadAll(context.Background(), r)
+	_, err = w.Write(b)
+	t.NoError(err)
+	t.NoError(w.Close())
+
+	rb, err := io.ReadAll(r)
 	t.NoError(err)
 	t.Equal(b, rb)
 	t.Equal(1, p.clients.Len())
@@ -50,7 +58,7 @@ func (t *testPool) TestWrite() {
 }
 
 func (t *testPool) TestClose() {
-	srv := t.NewDefaultServer(nil)
+	srv := t.NewDefaultServer(nil, t.EchoHandler())
 
 	t.NoError(srv.Start(context.Background()))
 	defer srv.Stop()
@@ -60,10 +68,12 @@ func (t *testPool) TestClose() {
 	b := util.UUID().Bytes()
 
 	t.Run("ok", func() {
-		r, err := p.Write(
-			context.Background(),
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		r, w, err := p.OpenStream(
+			ctx,
 			t.Bind,
-			DefaultClientWriteFunc(b),
 			func(addr *net.UDPAddr) *Client {
 				client := t.NewClient(addr)
 				client.quicconfig = &quic.Config{
@@ -74,8 +84,13 @@ func (t *testPool) TestClose() {
 			},
 		)
 		t.NoError(err)
+		defer r.Close()
 
-		rb, err := ReadAll(context.Background(), r)
+		_, err = w.Write(b)
+		t.NoError(err)
+		t.NoError(w.Close())
+
+		rb, err := io.ReadAll(r)
 		t.NoError(err)
 		t.Equal(b, rb)
 	})
@@ -83,10 +98,12 @@ func (t *testPool) TestClose() {
 	t.Run("write after close", func() {
 		t.NoError(p.Close())
 
-		_, err := p.Write(
-			context.Background(),
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		_, _, err := p.OpenStream(
+			ctx,
 			t.Bind,
-			DefaultClientWriteFunc(b),
 			nil,
 		)
 		t.Error(err)
@@ -95,18 +112,20 @@ func (t *testPool) TestClose() {
 }
 
 func (t *testPool) TestSend() {
-	srv := t.NewDefaultServer(nil)
+	srv := t.NewDefaultServer(nil, t.EchoHandler())
 
 	t.NoError(srv.Start(context.Background()))
 	defer srv.Stop()
 
 	p := NewPoolClient()
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	b := util.UUID().Bytes()
-	r, err := p.Write(
-		context.Background(),
+	r, w, err := p.OpenStream(
+		ctx,
 		t.Bind,
-		DefaultClientWriteFunc(b),
 		func(addr *net.UDPAddr) *Client {
 			client := t.NewClient(addr)
 			client.quicconfig = &quic.Config{
@@ -117,8 +136,13 @@ func (t *testPool) TestSend() {
 		},
 	)
 	t.NoError(err)
+	defer r.Close()
 
-	rb, err := ReadAll(context.Background(), r)
+	_, err = w.Write(b)
+	t.NoError(err)
+	t.NoError(w.Close())
+
+	rb, err := io.ReadAll(r)
 	t.NoError(err)
 	t.Equal(b, rb)
 	t.Equal(1, p.clients.Len())
@@ -134,11 +158,13 @@ func (t *testPool) TestFailedToDial() {
 		removedch <- c.id
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	var clientid string
-	_, err := p.Write(
-		context.Background(),
+	_, _, err := p.OpenStream(
+		ctx,
 		t.Bind,
-		DefaultClientWriteFunc(util.UUID().Bytes()),
 		func(addr *net.UDPAddr) *Client {
 			client := t.NewClient(addr)
 			client.quicconfig = &quic.Config{
@@ -164,7 +190,7 @@ func (t *testPool) TestFailedToDial() {
 }
 
 func (t *testPool) TestRemoveAgain() {
-	srv := t.NewDefaultServer(nil)
+	srv := t.NewDefaultServer(nil, t.EchoHandler())
 
 	t.NoError(srv.Start(context.Background()))
 	defer srv.Stop()
@@ -172,46 +198,55 @@ func (t *testPool) TestRemoveAgain() {
 	p := NewPoolClient()
 
 	var oldclient *Client
-	_, err := p.Write(
-		context.Background(),
-		t.Bind,
-		DefaultClientWriteFunc(util.UUID().Bytes()),
-		func(addr *net.UDPAddr) *Client {
-			oldclient = t.NewClient(addr)
-			oldclient.quicconfig = &quic.Config{
-				HandshakeIdleTimeout: time.Millisecond * 100,
-			}
 
-			return oldclient
-		},
-	)
-	t.NoError(err)
+	t.Run("remove", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
-	p.onerror(t.Bind, oldclient, &quic.ApplicationError{})
-	t.False(p.clients.Exists(t.Bind.String()))
+		_, _, err := p.OpenStream(
+			ctx,
+			t.Bind,
+			func(addr *net.UDPAddr) *Client {
+				oldclient = t.NewClient(addr)
+				oldclient.quicconfig = &quic.Config{
+					HandshakeIdleTimeout: time.Millisecond * 100,
+				}
 
-	_, err = p.Write(
-		context.Background(),
-		t.Bind,
-		DefaultClientWriteFunc(util.UUID().Bytes()),
-		func(addr *net.UDPAddr) *Client {
-			client := t.NewClient(addr)
-			client.quicconfig = &quic.Config{
-				HandshakeIdleTimeout: time.Millisecond * 100,
-			}
+				return oldclient
+			},
+		)
+		t.NoError(err)
 
-			return client
-		},
-	)
-	t.NoError(err)
+		p.onerror(t.Bind, oldclient, &quic.ApplicationError{})
+		t.False(p.clients.Exists(t.Bind.String()))
+	})
 
-	// remove again, but new client will not be removed
-	p.onerror(t.Bind, oldclient, &quic.ApplicationError{})
-	t.True(p.clients.Exists(t.Bind.String()))
+	t.Run("remove again", func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		_, _, err := p.OpenStream(
+			ctx,
+			t.Bind,
+			func(addr *net.UDPAddr) *Client {
+				client := t.NewClient(addr)
+				client.quicconfig = &quic.Config{
+					HandshakeIdleTimeout: time.Millisecond * 100,
+				}
+
+				return client
+			},
+		)
+		t.NoError(err)
+
+		// remove again, but new client will not be removed
+		p.onerror(t.Bind, oldclient, &quic.ApplicationError{})
+		t.True(p.clients.Exists(t.Bind.String()))
+	})
 }
 
 func (t *testPool) TestClean() {
-	srv := t.NewDefaultServer(nil)
+	srv := t.NewDefaultServer(nil, t.EchoHandler())
 
 	t.NoError(srv.Start(context.Background()))
 	defer srv.Stop()
@@ -230,10 +265,12 @@ func (t *testPool) TestClean() {
 	_ = p.clients.SetValue(refreshed, &poolClientItem{client: t.NewClient(t.Bind), accessed: time.Now().Add(dur * -1)})
 	youngs[3] = refreshed
 
-	_, err := p.Write(
-		context.Background(),
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	_, _, err := p.OpenStream(
+		ctx,
 		t.Bind,
-		DefaultClientWriteFunc(util.UUID().Bytes()),
 		func(*net.UDPAddr) *Client { return nil },
 	)
 	t.NoError(err)

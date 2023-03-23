@@ -2,10 +2,12 @@ package quicstream
 
 import (
 	"bytes"
+	"container/list"
 	"context"
 	"io"
 	"math"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,16 +18,6 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 )
-
-func bodyWithPrefix(prefix string, b []byte) []byte {
-	w := bytes.NewBuffer(nil)
-	defer w.Reset()
-
-	_ = WritePrefix(w, prefix)
-	_, _ = w.Write(b)
-
-	return w.Bytes()
-}
 
 type testServer struct {
 	BaseTest
@@ -43,7 +35,7 @@ func (t *testServer) TestNew() {
 }
 
 func (t *testServer) TestEcho() {
-	srv := t.NewDefaultServer(nil)
+	srv := t.NewDefaultServer(nil, t.EchoHandler())
 
 	t.NoError(srv.Start(context.Background()))
 	defer srv.Stop()
@@ -54,17 +46,22 @@ func (t *testServer) TestEcho() {
 	defer cancel()
 
 	b := util.UUID().Bytes()
-	r, err := client.Write(ctx, DefaultClientWriteFunc(b))
+	r, w, err := client.OpenStream(ctx)
 	t.NoError(err)
+
+	_, err = w.Write(b)
+	t.NoError(err)
+
+	t.NoError(w.Close())
 	defer r.Close()
 
-	rb, err := ReadAll(context.Background(), r)
+	rb, err := io.ReadAll(r)
 	t.NoError(err)
 	t.Equal(b, rb)
 }
 
 func (t *testServer) TestEchos() {
-	srv := t.NewDefaultServer(nil)
+	srv := t.NewDefaultServer(nil, t.EchoHandler())
 
 	t.NoError(srv.Start(context.Background()))
 	defer srv.Stop()
@@ -78,11 +75,16 @@ func (t *testServer) TestEchos() {
 		for range make([]struct{}, 100) {
 			_ = wk.NewJob(func(ctx context.Context, jobid uint64) error {
 				b := util.UUID().Bytes()
-				r, err := client.Write(ctx, DefaultClientWriteFunc(b))
+				r, w, err := client.OpenStream(ctx)
 				t.NoError(err)
+
+				_, err = w.Write(b)
+				t.NoError(err)
+
+				t.NoError(w.Close())
 				defer r.Close()
 
-				rb, err := ReadAll(context.Background(), r)
+				rb, err := io.ReadAll(r)
 				t.NoError(err)
 				t.Equal(b, rb)
 
@@ -99,47 +101,47 @@ func (t *testServer) TestEchos() {
 func (t *testServer) TestSendTimeout() {
 	srv := t.NewDefaultServer(&quic.Config{
 		MaxIdleTimeout: time.Millisecond * 100,
-	})
+	}, t.EchoHandler())
 
 	t.NoError(srv.Start(context.Background()))
 	defer srv.Stop()
 
 	client := t.NewClient(t.Bind)
 	client.quicconfig = &quic.Config{
-		MaxIdleTimeout: time.Millisecond * 900,
+		MaxIdleTimeout: time.Millisecond * 33,
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-
-	r, err := client.Write(ctx, func(w io.Writer) error {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(time.Millisecond * 500):
-			_, err := w.Write(util.UUID().Bytes())
-
-			return errors.WithStack(err)
-		}
-	})
-	t.NoError(err)
-	defer r.Close()
-
-	_, err = ReadAll(context.Background(), r)
-	t.Error(err)
-
-	var idleerr *quic.IdleTimeoutError
-	t.True(errors.As(err, &idleerr))
-}
-
-func (t *testServer) TestResponseIdleTimeout() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	srv := t.NewDefaultServer(nil)
-	srv.handler = func(_ net.Addr, r io.Reader, w io.Writer) error {
+	r, w, err := client.OpenStream(ctx)
+	go func() {
 		select {
 		case <-ctx.Done():
+		case <-time.After(time.Minute):
+			_, _ = w.Write(util.UUID().Bytes())
+			_ = w.Close()
+		}
+	}()
+
+	t.NoError(err)
+
+	defer r.Close()
+
+	_, err = io.ReadAll(r)
+	t.Error(err)
+
+	var idleerr *quic.IdleTimeoutError
+	t.True(errors.As(err, &idleerr), "%T %+v", err, err)
+}
+
+func (t *testServer) TestResponseIdleTimeout() {
+	gctx, gcancel := context.WithCancel(context.Background())
+	defer gcancel()
+
+	srv := t.NewDefaultServer(nil, func(_ net.Addr, r io.Reader, w io.Writer) error {
+		select {
+		case <-gctx.Done():
 			return nil
 		case <-time.After(time.Second * 2):
 		}
@@ -148,9 +150,9 @@ func (t *testServer) TestResponseIdleTimeout() {
 		_, _ = w.Write(b)
 
 		return nil
-	}
+	})
 
-	t.NoError(srv.Start(context.Background()))
+	t.NoError(srv.Start(gctx))
 	defer srv.Stop()
 
 	client := t.NewClient(t.Bind)
@@ -158,66 +160,79 @@ func (t *testServer) TestResponseIdleTimeout() {
 		MaxIdleTimeout: time.Millisecond * 100,
 	}
 
-	r, err := client.Write(context.Background(), DefaultClientWriteFunc(util.UUID().Bytes()))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	r, w, err := client.OpenStream(ctx)
 	t.NoError(err)
+
+	_, err = w.Write(util.UUID().Bytes())
+	t.NoError(err)
+
+	t.NoError(w.Close())
 	defer r.Close()
 
-	_, err = ReadAll(context.Background(), r)
+	_, err = io.ReadAll(r)
 	t.Error(err)
 
 	var idleerr *quic.IdleTimeoutError
 	t.True(errors.As(err, &idleerr))
 }
 
-func (t *testServer) TestResponseContextTimeout() {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+func (t *testServer) TestResponseTimeout() {
+	gctx, gcancel := context.WithCancel(context.Background())
+	defer gcancel()
 
-	srv := t.NewDefaultServer(nil)
-	srv.handler = func(_ net.Addr, r io.Reader, w io.Writer) error {
+	srv := t.NewDefaultServer(nil, func(_ net.Addr, r io.Reader, w io.Writer) error {
 		select {
-		case <-ctx.Done():
+		case <-gctx.Done():
 			return nil
-		case <-time.After(time.Second * 2):
+		case <-time.After(time.Minute):
 		}
 
 		b, _ := io.ReadAll(r)
 		_, _ = w.Write(b)
 
 		return nil
-	}
+	})
 
-	t.NoError(srv.Start(context.Background()))
+	t.NoError(srv.Start(gctx))
 	defer srv.Stop()
 
 	client := t.NewClient(t.Bind)
-
-	tctx, tcancel := context.WithTimeout(ctx, time.Millisecond*100)
-	defer tcancel()
-
-	r, err := client.Write(tctx, DefaultClientWriteFunc(util.UUID().Bytes()))
-	switch {
-	case err == nil:
-	case errors.Is(err, context.DeadlineExceeded):
-		return
+	client.quicconfig = &quic.Config{
+		MaxIdleTimeout: time.Minute,
 	}
 
+	ctx, cancel := context.WithTimeout(gctx, time.Second*2)
+	defer cancel()
+
+	r, w, err := client.OpenStream(ctx)
+	t.NoError(err)
+
+	_, err = w.Write(util.UUID().Bytes())
+	t.NoError(err)
+
+	t.NoError(w.Close())
 	defer r.Close()
 
-	_, err = ReadAll(tctx, r)
+	_, err = io.ReadAll(r)
 	t.Error(err)
-	t.True(errors.Is(err, context.DeadlineExceeded))
+
+	var serr *quic.StreamError
+	t.True(errors.As(err, &serr), "%+v %T", err, err)
+	t.Equal(quic.StreamErrorCode(0), serr.ErrorCode)
 }
 
 func (t *testServer) TestServerGone() {
-	srv := t.NewDefaultServer(nil)
+	srv := t.NewDefaultServer(nil, t.EchoHandler())
 
 	donectx, done := context.WithCancel(context.Background())
 	sentch := make(chan struct{}, 1)
 	srv.handler = func(_ net.Addr, r io.Reader, w io.Writer) error {
 		sentch <- struct{}{}
 		select {
-		case <-time.After(time.Second * 2):
+		case <-time.After(time.Second * 22):
 			b, _ := io.ReadAll(r)
 			_, _ = w.Write(b)
 		case <-donectx.Done():
@@ -237,7 +252,13 @@ func (t *testServer) TestServerGone() {
 
 	errch := make(chan error, 1)
 	go func() {
-		_, err := client.Write(context.Background(), DefaultClientWriteFunc(util.UUID().Bytes()))
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		_, w, err := client.OpenStream(ctx)
+		_, _ = w.Write([]byte("showme"))
+		_ = w.Close()
+
 		errch <- err
 	}()
 
@@ -259,76 +280,130 @@ func (t *testServer) TestServerGone() {
 	done()
 }
 
-func (t *testServer) TestPrefixHandler() {
-	srv := t.NewDefaultServer(nil)
+func (t *testServer) TestStreamReadWrite() {
+	bodies := make([]string, 33)
+	squeue := list.New()
+	cqueue := list.New()
 
-	handler := NewPrefixHandler(func(_ net.Addr, r io.Reader, w io.Writer, err error) error {
-		_, _ = w.Write([]byte("hehehe"))
+	var sbodies, cbodies []string
 
-		return nil
+	for i := range bodies {
+		b := []byte(util.UUID().String())
+		bodies[i] = string(b)
+		squeue.PushBack(b)
+		cqueue.PushBack(b)
+	}
+
+	var selem *list.Element
+
+	var sbodieslock sync.Mutex
+	donech := make(chan error, 1)
+
+	srv := t.NewDefaultServer(nil, func(_ net.Addr, r io.Reader, w io.Writer) error {
+		var err error
+
+	end:
+		for {
+			b := make([]byte, 36)
+
+			if _, err = util.EnsureRead(r, b); err != nil {
+				break end
+			}
+
+			if selem == nil {
+				selem = squeue.Front()
+			}
+
+			switch c := selem.Value.([]byte); {
+			case !bytes.Equal(b, c):
+				err = errors.Errorf("data mismatched")
+
+				break end
+			default:
+				func() {
+					sbodieslock.Lock()
+					defer sbodieslock.Unlock()
+
+					sbodies = append(sbodies, string(b))
+				}()
+			}
+
+			selem = selem.Next()
+			if selem == nil {
+				break end
+			}
+
+			_, _ = w.Write(selem.Value.([]byte))
+		}
+
+		donech <- err
+
+		return err
 	})
-	handler.Add("findme", func(_ net.Addr, r io.Reader, w io.Writer) error {
-		b, _ := io.ReadAll(r)
-		_, _ = w.Write(b)
-
-		return nil
-	})
-
-	handler.Add("showme", func(_ net.Addr, r io.Reader, w io.Writer) error {
-		b, _ := io.ReadAll(r)
-		_, _ = w.Write(b)
-
-		return nil
-	})
-
-	srv.handler = Handler(handler.Handler)
 
 	t.NoError(srv.Start(context.Background()))
 	defer srv.Stop()
 
 	client := t.NewClient(t.Bind)
 
-	t.Run("findme", func() {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
-		defer cancel()
+	var celem *list.Element
 
-		b := util.UUID().Bytes()
-		r, err := client.Write(ctx, DefaultClientWriteFunc(bodyWithPrefix("findme", b)))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	r, w, err := client.OpenStream(ctx)
+	t.NoError(err)
+	defer r.Close()
+	defer w.Close()
+
+	var i int
+
+end:
+	for {
+		if celem == nil {
+			celem = cqueue.Front()
+			c := celem.Value.([]byte)
+			cbodies = append(cbodies, string(c))
+
+			_, err := w.Write(c)
+			t.NoError(err)
+		}
+
+		b := make([]byte, 36)
+		switch _, err := util.EnsureRead(r, b); {
+		case err == nil:
+			cbodies = append(cbodies, string(b))
+		case errors.Is(err, io.EOF):
+			break end
+		}
+
+		switch celem = celem.Next(); {
+		case celem == nil:
+			break end
+		default:
+			switch c := celem.Value.([]byte); {
+			case !bytes.Equal(b, c):
+				t.NoError(errors.Errorf("data mismatched: %d: %q != %q", i, string(b), string(c)))
+
+				break end
+			default:
+				_, err := w.Write(c)
+				t.NoError(err)
+			}
+		}
+
+		i++
+	}
+
+	select {
+	case <-time.After(time.Second * 3):
+		t.NoError(errors.Errorf("waits done"))
+	case err := <-donech:
 		t.NoError(err)
-		defer r.Close()
+	}
 
-		rb, err := ReadAll(context.Background(), r)
-		t.NoError(err)
-		t.Equal(b, rb)
-	})
-
-	t.Run("showme", func() {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
-		defer cancel()
-
-		b := util.UUID().Bytes()
-		r, err := client.Write(ctx, DefaultClientWriteFunc(bodyWithPrefix("showme", b)))
-		t.NoError(err)
-		defer r.Close()
-
-		rb, err := ReadAll(context.Background(), r)
-		t.NoError(err)
-		t.Equal(b, rb)
-	})
-
-	t.Run("unknown handler", func() {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
-		defer cancel()
-
-		b := util.UUID().Bytes()
-		r, err := client.Write(ctx, DefaultClientWriteFunc(bodyWithPrefix("unknown", b)))
-		t.NoError(err)
-		defer r.Close()
-
-		rb, err := ReadAll(context.Background(), r)
-		t.NoError(err)
-		t.Equal([]byte("hehehe"), rb)
-	})
+	t.Equal(bodies, sbodies)
+	t.Equal(bodies, cbodies)
 }
 
 func TestServer(t *testing.T) {

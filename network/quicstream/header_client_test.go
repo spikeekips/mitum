@@ -20,45 +20,46 @@ import (
 )
 
 var (
-	dummyHeaderHint         = hint.MustNewHint("dummy-header-v1.2.3")
+	dummyRequestHeaderHint  = hint.MustNewHint("dummy-request-header-v1.2.3")
 	dummyResponseHeaderHint = hint.MustNewHint("dummy-response-header-v1.2.3")
-	dummyNodeHint           = hint.MustNewHint("dummy-node-v1.2.3")
 )
 
-type dummyHeader struct {
-	BaseHeader
+type dummyRequestHeader struct {
+	BaseRequestHeader
 	ID string
 }
 
-func newDummyHeader(prefix, id string) dummyHeader {
-	return dummyHeader{
-		BaseHeader: NewBaseHeader(dummyHeaderHint, prefix),
-		ID:         id,
+func newDummyRequestHeader(prefix, id string) dummyRequestHeader {
+	return dummyRequestHeader{
+		BaseRequestHeader: NewBaseRequestHeader(dummyRequestHeaderHint, prefix),
+		ID:                id,
 	}
 }
 
-type dummyHeaderJSONMarshaler struct {
+func (dummyRequestHeader) QUICStreamHeader() {}
+
+type dummyRequestHeaderJSONMarshaler struct {
 	ID string `json:"id"`
 }
 
-func (h dummyHeader) MarshalJSON() ([]byte, error) {
+func (h dummyRequestHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
-		BaseHeaderJSONMarshaler
-		dummyHeaderJSONMarshaler
+		BaseRequestHeader
+		dummyRequestHeaderJSONMarshaler
 	}{
-		BaseHeaderJSONMarshaler: h.BaseHeader.JSONMarshaler(),
-		dummyHeaderJSONMarshaler: dummyHeaderJSONMarshaler{
+		BaseRequestHeader: h.BaseRequestHeader,
+		dummyRequestHeaderJSONMarshaler: dummyRequestHeaderJSONMarshaler{
 			ID: h.ID,
 		},
 	})
 }
 
-func (h *dummyHeader) UnmarshalJSON(b []byte) error {
-	if err := util.UnmarshalJSON(b, &h.BaseHeader); err != nil {
+func (h *dummyRequestHeader) UnmarshalJSON(b []byte) error {
+	if err := util.UnmarshalJSON(b, &h.BaseRequestHeader); err != nil {
 		return err
 	}
 
-	var u dummyHeaderJSONMarshaler
+	var u dummyRequestHeaderJSONMarshaler
 	if err := util.UnmarshalJSON(b, &u); err != nil {
 		return err
 	}
@@ -73,12 +74,14 @@ type dummyResponseHeader struct {
 	ID string
 }
 
-func newDummyResponseHeader(ok bool, err error, contentType ContentType, id string) dummyResponseHeader {
+func newDummyResponseHeader(ok bool, err error, id string) dummyResponseHeader {
 	return dummyResponseHeader{
-		BaseResponseHeader: NewBaseResponseHeader(dummyResponseHeaderHint, ok, err, contentType),
+		BaseResponseHeader: NewBaseResponseHeader(dummyResponseHeaderHint, ok, err),
 		ID:                 id,
 	}
 }
+
+func (dummyResponseHeader) QUICStreamHeader() {}
 
 type dummyResponseHeaderJSONMarshaler struct {
 	ID string `json:"id"`
@@ -112,94 +115,136 @@ func (h *dummyResponseHeader) UnmarshalJSON(b []byte) error {
 }
 
 type testHeaderClient struct {
-	suite.Suite
+	BaseTest
 	encs *encoder.Encoders
 	enc  encoder.Encoder
 }
 
 func (t *testHeaderClient) SetupSuite() {
+	t.BaseTest.SetupSuite()
+
 	t.encs = encoder.NewEncoders()
 	t.enc = jsonenc.NewEncoder()
 	t.NoError(t.encs.AddHinter(t.enc))
 
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.MPublickeyHint, Instance: base.MPublickey{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: dummyHeaderHint, Instance: dummyHeader{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: dummyRequestHeaderHint, Instance: dummyRequestHeader{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: dummyResponseHeaderHint, Instance: dummyResponseHeader{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: dummyNodeHint, Instance: base.BaseNode{}}))
 }
 
-func (t *testHeaderClient) writef(prefix string, handler Handler) HeaderClientWriteFunc {
+func (t *testHeaderClient) newServer(prefix string, handler Handler) *Server {
 	ph := NewPrefixHandler(nil)
 	ph.Add(prefix, handler)
 
-	return func(ctx context.Context, ci UDPConnInfo, f ClientWriteFunc) (io.ReadCloser, func() error, error) {
-		r := bytes.NewBuffer(nil)
-		if err := f(r); err != nil {
-			return nil, nil, errors.WithStack(err)
-		}
+	srv := t.NewDefaultServer(nil, ph.Handler)
 
-		w := bytes.NewBuffer(nil)
+	t.NoError(srv.Start(context.Background()))
 
-		return io.NopCloser(w), func() error {
-			w.Reset()
+	return srv
+}
 
-			return nil
-		}, ph.Handler(nil, r, w)
+func (t *testHeaderClient) openstreamf() OpenStreamFunc {
+	return func(ctx context.Context, ci UDPConnInfo) (io.ReadCloser, io.WriteCloser, error) {
+		client := t.NewClient(ci.UDPAddr())
+
+		return client.OpenStream(ctx)
 	}
 }
 
-func (t *testHeaderClient) TestRequestEncode() {
-	localci := NewUDPConnInfo(nil, true)
+func (t *testHeaderClient) skipEOF(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	if errors.Is(err, io.EOF) {
+		return nil
+	}
+
+	return err
+}
+
+func (t *testHeaderClient) printHeaderHandlerDetail(detail HeaderHandlerDetail) {
+	t.T().Log("request header:", detail.Header)
+	t.T().Logf("request header type: %T", detail.Header)
+	t.T().Log("request encoder:", detail.Encoder.Hint())
+	t.T().Log("request body:", detail.Body)
+}
+
+func (t *testHeaderClient) printResponseHeader(
+	h ResponseHeader,
+	enchint hint.Hint,
+	body io.Reader,
+) {
+	t.T().Log("response header:", util.MustMarshalJSONIndentString(h))
+	t.T().Logf("response header type: %T", h)
+	t.T().Log("response encoder:", enchint)
+	t.T().Log("response body:", body)
+}
+
+func (t *testHeaderClient) TestRequest() {
+	localci := NewUDPConnInfo(t.Bind, true)
 
 	prefix := util.UUID().String()
 	id := util.UUID().String()
 
 	var delay *time.Duration
 
+	gctx, gcancel := context.WithCancel(context.Background())
+	defer gcancel()
+
 	handler := NewHeaderHandler(
 		t.encs,
-		time.Second,
-		func(_ net.Addr, r io.Reader, w io.Writer, h Header, encs *encoder.Encoders, enc encoder.Encoder) error {
+		time.Minute,
+		func(_ net.Addr, r io.Reader, w io.Writer, detail HeaderHandlerDetail) error {
 			if delay != nil {
 				t.T().Log("delay:", delay)
 
-				<-time.After(*delay)
+				select {
+				case <-gctx.Done():
+					return nil
+				case <-time.After(*delay):
+				}
 			}
 
-			t.T().Log("request header:", util.MustMarshalJSONIndentString(h))
-			t.T().Logf("request header type: %T", h)
-			t.T().Log("request encoder:", enc.Hint())
+			t.printHeaderHandlerDetail(detail)
 
-			t.IsType(dummyHeader{}, h)
-
-			dh, ok := h.(dummyHeader)
+			dh, ok := detail.Header.(dummyRequestHeader)
 			t.True(ok)
 
-			b, err := io.ReadAll(r)
+			b, err := io.ReadAll(detail.Body)
 			t.NoError(err)
-			t.T().Log("body:", string(b))
+			t.T().Log("request body:", string(b))
+
+			header := newDummyResponseHeader(true, nil, id)
+
+			if err := WriteHead(w, detail.Encoder, header); err != nil {
+				return err
+			}
 
 			buf := bytes.NewBuffer([]byte(dh.ID))
-			defer buf.Reset()
 
-			return WriteResponseBody(w, newDummyResponseHeader(true, nil, RawContentType, id), t.enc, buf)
+			return WriteBody(w, LengthedDataFormat, uint64(buf.Len()), buf)
 		},
 	)
 
 	t.Run("ok", func() {
-		ph := NewPrefixHandler(nil)
-		ph.Add(prefix, handler)
+		srv := t.newServer(prefix, handler)
+		defer srv.Stop()
 
-		c := NewHeaderClient(t.encs, t.enc, t.writef(prefix, handler))
+		c := NewHeaderClient(t.encs, t.enc, t.openstreamf())
 
-		header := newDummyHeader(prefix, id)
-		rh, r, _, renc, err := HeaderClientRequestEncode(context.Background(), c, localci, header, nil)
+		header := newDummyRequestHeader(prefix, id)
+
+		rh, renc, rbody, r, w, err := c.Request(context.Background(), localci, header,
+			func() (DataFormat, io.Reader, uint64, error) {
+				return LengthedDataFormat, nil, 0, nil
+			},
+		)
 		t.NoError(err)
+		defer r.Close()
+		defer w.Close()
 
-		t.T().Log("response header:", util.MustMarshalJSONIndentString(rh))
-		t.T().Logf("response header type: %T", rh)
-		t.T().Log("response encoder:", renc.Hint())
+		t.printResponseHeader(rh, renc.Hint(), rbody)
 
 		t.NoError(rh.Err())
 		t.True(rh.OK())
@@ -208,17 +253,20 @@ func (t *testHeaderClient) TestRequestEncode() {
 		t.True(ok)
 		t.Equal(id, rdh.ID)
 
-		b, err := io.ReadAll(r)
-		t.NoError(err)
-		t.T().Log("body:", string(b))
+		b, err := io.ReadAll(rbody)
+		t.NoError(t.skipEOF(err))
+		t.T().Log("response body:", string(b))
 
 		t.Equal(id, string(b))
 	})
 
 	t.Run("empty request header", func() {
-		c := NewHeaderClient(t.encs, t.enc, t.writef(prefix, handler))
+		srv := t.newServer(prefix, handler)
+		defer srv.Stop()
 
-		_, _, _, _, err := HeaderClientRequestEncode(context.Background(), c, localci, nil, nil)
+		c := NewHeaderClient(t.encs, t.enc, t.openstreamf())
+
+		_, _, _, _, _, err := c.Request(context.Background(), localci, nil, nil)
 		t.Error(err)
 		t.ErrorContains(err, "empty header")
 	})
@@ -227,158 +275,126 @@ func (t *testHeaderClient) TestRequestEncode() {
 		handler := NewHeaderHandler(
 			t.encs,
 			time.Second,
-			func(_ net.Addr, r io.Reader, w io.Writer, h Header, encs *encoder.Encoders, enc encoder.Encoder) error {
-				t.T().Log("request header:", util.MustMarshalJSONIndentString(h))
-				t.T().Logf("request header type: %T", h)
-				t.T().Log("request encoder:", enc.Hint())
+			func(_ net.Addr, r io.Reader, w io.Writer, detail HeaderHandlerDetail) error {
+				t.printHeaderHandlerDetail(detail)
 
-				t.IsType(dummyHeader{}, h)
-
-				dh, ok := h.(dummyHeader)
+				dh, ok := detail.Header.(dummyRequestHeader)
 				t.True(ok)
 
-				b, err := io.ReadAll(r)
+				b, err := io.ReadAll(detail.Body)
 				t.NoError(err)
-				t.T().Log("body:", string(b))
+				t.T().Log("request body:", string(b))
+
+				if err := WriteHead(w, detail.Encoder, nil); err != nil {
+					return err
+				}
 
 				buf := bytes.NewBuffer([]byte(dh.ID))
-				defer buf.Reset()
 
-				return WriteResponseBody(w, nil, t.enc, buf) // empty response header
+				return WriteBody(w, LengthedDataFormat, uint64(buf.Len()), buf)
 			},
 		)
 
-		c := NewHeaderClient(t.encs, t.enc, t.writef(prefix, handler))
+		srv := t.newServer(prefix, handler)
+		defer srv.Stop()
 
-		header := newDummyHeader(prefix, id)
-		rh, r, _, renc, err := HeaderClientRequestEncode(context.Background(), c, localci, header, nil)
+		c := NewHeaderClient(t.encs, t.enc, t.openstreamf())
+
+		header := newDummyRequestHeader(prefix, id)
+		rh, renc, rbody, r, w, err := c.Request(context.Background(), localci, header,
+			func() (DataFormat, io.Reader, uint64, error) {
+				return LengthedDataFormat, nil, 0, nil
+			},
+		)
 		t.NoError(err)
 
-		t.T().Log("response header:", util.MustMarshalJSONIndentString(rh))
-		t.T().Logf("response header type: %T", rh)
-		t.Nil(renc)
+		defer r.Close()
+		t.NoError(w.Close())
+
+		t.printResponseHeader(rh, renc.Hint(), rbody)
+
 		t.Nil(rh)
 
 		b, err := io.ReadAll(r)
+		t.NoError(t.skipEOF(err))
+		t.T().Log("response body:", string(b))
+
+		t.Equal(id, string(b))
+	})
+
+	t.Run("empty body", func() {
+		delay = nil
+
+		srv := t.newServer(prefix, handler)
+		defer srv.Stop()
+
+		c := NewHeaderClient(t.encs, t.enc, t.openstreamf())
+
+		header := newDummyRequestHeader(prefix, id)
+
+		rh, renc, rbody, r, w, err := c.Request(context.Background(), localci, header,
+			func() (DataFormat, io.Reader, uint64, error) {
+				return LengthedDataFormat, nil, 0, nil
+			},
+		)
 		t.NoError(err)
+
+		defer r.Close()
+		defer w.Close()
+
+		t.NotNil(renc)
+
+		t.printResponseHeader(rh, hint.Hint{}, rbody)
+
+		t.NoError(rh.Err())
+		t.True(rh.OK())
+
+		rdh, ok := rh.(dummyResponseHeader)
+		t.True(ok)
+		t.Equal(id, rdh.ID)
+
+		b, err := io.ReadAll(rbody)
+		t.NoError(t.skipEOF(err))
 		t.T().Log("body:", string(b))
 
 		t.Equal(id, string(b))
 	})
 
 	t.Run("timeout", func() {
-		d := time.Second * 2
+		d := time.Second * 33
 
 		delay = &d
 
-		c := NewHeaderClient(t.encs, t.enc, t.writef(prefix, handler))
+		srv := t.newServer(prefix, handler)
+		defer srv.Stop()
 
-		header := newDummyHeader(prefix, id)
+		c := NewHeaderClient(t.encs, t.enc, t.openstreamf())
 
-		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
+		header := newDummyRequestHeader(prefix, id)
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*333)
 		defer cancel()
 
-		rh, _, _, renc, err := HeaderClientRequestEncode(ctx, c, localci, header, nil)
+		rh, renc, rbody, _, _, err := c.Request(ctx, localci, header,
+			func() (DataFormat, io.Reader, uint64, error) {
+				buf := bytes.NewBuffer(util.UUID().Bytes())
+
+				return LengthedDataFormat, buf, uint64(buf.Len()), nil
+			},
+		)
 		t.Error(err)
-		t.True(errors.Is(err, context.DeadlineExceeded))
 		t.Nil(rh)
 		t.Nil(renc)
+		t.Nil(rbody)
 
-		t.T().Log("response header:", util.MustMarshalJSONIndentString(rh))
-		t.T().Logf("response header type: %T", rh)
+		t.True(errors.Is(err, context.DeadlineExceeded), "%+v %T", err, err)
 
-		<-time.After(d * 2)
+		t.printResponseHeader(rh, hint.Hint{}, rbody)
 	})
 }
 
-func (t *testHeaderClient) TestRequest() {
-	localci := NewUDPConnInfo(nil, true)
-
-	prefix := util.UUID().String()
-	id := util.UUID().String()
-
-	handler := NewHeaderHandler(
-		t.encs,
-		time.Second,
-		func(_ net.Addr, r io.Reader, w io.Writer, h Header, encs *encoder.Encoders, enc encoder.Encoder) error {
-			t.T().Log("request header:", util.MustMarshalJSONIndentString(h))
-			t.T().Logf("request header type: %T", h)
-			t.T().Log("request encoder:", enc.Hint())
-
-			t.IsType(dummyHeader{}, h)
-
-			_, ok := h.(dummyHeader)
-			t.True(ok)
-
-			b, err := io.ReadAll(r)
-			t.NoError(err)
-			t.T().Log("body:", string(b))
-
-			buf := bytes.NewBuffer(b)
-			defer buf.Reset()
-
-			return WriteResponseBody(w, newDummyResponseHeader(true, nil, HinterContentType, id), t.enc, buf)
-		},
-	)
-
-	t.Run("ok", func() {
-		c := NewHeaderClient(t.encs, t.enc, t.writef(prefix, handler))
-
-		header := newDummyHeader(prefix, id)
-
-		buf := bytes.NewBuffer([]byte(id))
-		defer buf.Reset()
-
-		rh, r, _, renc, err := c.Request(context.Background(), localci, header, buf)
-		t.NoError(err)
-
-		t.T().Log("response header:", util.MustMarshalJSONIndentString(rh))
-		t.T().Logf("response header type: %T", rh)
-		t.T().Log("response encoder:", renc.Hint())
-
-		t.NoError(rh.Err())
-		t.True(rh.OK())
-
-		rdh, ok := rh.(dummyResponseHeader)
-		t.True(ok)
-		t.Equal(id, rdh.ID)
-
-		b, err := io.ReadAll(r)
-		t.NoError(err)
-		t.T().Log("body:", string(b))
-
-		t.Equal(id, string(b))
-	})
-
-	t.Run("empty body", func() {
-		c := NewHeaderClient(t.encs, t.enc, t.writef(prefix, handler))
-
-		header := newDummyHeader(prefix, id)
-
-		rh, r, _, renc, err := c.Request(context.Background(), localci, header, nil)
-		t.NoError(err)
-
-		t.T().Log("response header:", util.MustMarshalJSONIndentString(rh))
-		t.T().Logf("response header type: %T", rh)
-		t.T().Log("response encoder:", renc.Hint())
-
-		t.NoError(rh.Err())
-		t.True(rh.OK())
-
-		rdh, ok := rh.(dummyResponseHeader)
-		t.True(ok)
-		t.Equal(id, rdh.ID)
-
-		b, err := io.ReadAll(r)
-		t.NoError(err)
-		t.T().Log("body:", string(b))
-
-		t.Empty(b)
-	})
-}
-
-func (t *testHeaderClient) TestRequestAddress() {
-	localci := NewUDPConnInfo(nil, true)
+func (t *testHeaderClient) TestRequestAndDecode() {
+	localci := NewUDPConnInfo(t.Bind, true)
 
 	prefix := util.UUID().String()
 	id := util.UUID().String()
@@ -388,49 +404,47 @@ func (t *testHeaderClient) TestRequestAddress() {
 	handler := NewHeaderHandler(
 		t.encs,
 		time.Second,
-		func(_ net.Addr, r io.Reader, w io.Writer, h Header, encs *encoder.Encoders, enc encoder.Encoder) error {
-			t.T().Log("request header:", util.MustMarshalJSONIndentString(h))
-			t.T().Logf("request header type: %T", h)
-			t.T().Log("request encoder:", enc.Hint())
+		func(_ net.Addr, r io.Reader, w io.Writer, detail HeaderHandlerDetail) error {
+			t.printHeaderHandlerDetail(detail)
 
-			t.IsType(dummyHeader{}, h)
-
-			_, ok := h.(dummyHeader)
+			_, ok := detail.Header.(dummyRequestHeader)
 			t.True(ok)
 
 			{
-				b, err := io.ReadAll(r)
+				b, err := io.ReadAll(detail.Body)
 				t.NoError(err)
-				t.T().Log("body:", string(b))
+				t.T().Log("request body:", string(b))
 			}
 
-			b, err := enc.Marshal(address)
+			b, err := detail.Encoder.Marshal(address)
 			t.NoError(err)
 
-			buf := bytes.NewBuffer(b)
-			defer buf.Reset()
+			header := newDummyResponseHeader(true, nil, id)
 
-			return WriteResponseBody(w, newDummyResponseHeader(true, nil, HinterContentType, id), t.enc, buf)
+			if err := WriteHead(w, detail.Encoder, header); err != nil {
+				return err
+			}
+
+			buf := bytes.NewBuffer(b)
+
+			return WriteBody(w, LengthedDataFormat, uint64(buf.Len()), buf)
 		},
 	)
 
 	t.Run("ok", func() {
-		c := NewHeaderClient(t.encs, t.enc, t.writef(prefix, handler))
+		srv := t.newServer(prefix, handler)
+		defer srv.Stop()
 
-		header := newDummyHeader(prefix, id)
+		c := NewHeaderClient(t.encs, t.enc, t.openstreamf())
 
-		ab, err := t.enc.Marshal(address)
+		header := newDummyRequestHeader(prefix, id)
+
+		rh, renc, rbody, r, w, err := HeaderRequestEncode(context.Background(), c, localci, header, address)
 		t.NoError(err)
+		defer r.Close()
+		defer w.Close()
 
-		buf := bytes.NewBuffer(ab)
-		defer buf.Reset()
-
-		rh, r, _, renc, err := c.Request(context.Background(), localci, header, buf)
-		t.NoError(err)
-
-		t.T().Log("response header:", util.MustMarshalJSONIndentString(rh))
-		t.T().Logf("response header type: %T", rh)
-		t.T().Log("response encoder:", renc.Hint())
+		t.printResponseHeader(rh, renc.Hint(), rbody)
 
 		t.NoError(rh.Err())
 		t.True(rh.OK())
@@ -440,7 +454,7 @@ func (t *testHeaderClient) TestRequestAddress() {
 		t.Equal(id, rdh.ID)
 
 		b, err := io.ReadAll(r)
-		t.NoError(err)
+		t.NoError(t.skipEOF(err))
 		t.T().Log("body:", string(b))
 
 		var s string
@@ -454,57 +468,79 @@ func (t *testHeaderClient) TestRequestAddress() {
 }
 
 func (t *testHeaderClient) TestRequestDecode() {
-	localci := NewUDPConnInfo(nil, true)
+	localci := NewUDPConnInfo(t.Bind, true)
 
 	prefix := util.UUID().String()
 	id := util.UUID().String()
 
-	node := base.NewBaseNode(dummyNodeHint,
-		base.NewMPrivatekey().Publickey(),
-		base.RandomAddress("showme"),
-	)
+	address := base.RandomAddress("showme")
 
 	handler := NewHeaderHandler(
 		t.encs,
 		time.Second,
-		func(_ net.Addr, r io.Reader, w io.Writer, h Header, encs *encoder.Encoders, enc encoder.Encoder) error {
-			t.T().Log("request header:", util.MustMarshalJSONIndentString(h))
-			t.T().Logf("request header type: %T", h)
-			t.T().Log("request encoder:", enc.Hint())
+		func(_ net.Addr, r io.Reader, w io.Writer, detail HeaderHandlerDetail) error {
+			t.printHeaderHandlerDetail(detail)
 
-			t.IsType(dummyHeader{}, h)
-
-			_, ok := h.(dummyHeader)
+			_, ok := detail.Header.(dummyRequestHeader)
 			t.True(ok)
 
 			var body json.RawMessage
 			{
-				b, err := io.ReadAll(r)
+				b, err := io.ReadAll(detail.Body)
 				t.NoError(err)
-				t.T().Log("body:", string(b))
+				t.T().Logf("request body: %q", string(b))
 
-				t.NoError(enc.Unmarshal(b, &body))
+				t.NoError(detail.Encoder.Unmarshal(b, &body))
 			}
-			buf := bytes.NewBuffer(body)
-			defer buf.Reset()
 
-			return WriteResponseBody(w, newDummyResponseHeader(true, nil, HinterContentType, id), t.enc, buf)
+			header := newDummyResponseHeader(true, nil, id)
+
+			if err := WriteHead(w, detail.Encoder, header); err != nil {
+				return err
+			}
+
+			buf := bytes.NewBuffer(body)
+
+			return WriteBody(w, LengthedDataFormat, uint64(buf.Len()), buf)
 		},
 	)
 
+	srv := t.newServer(prefix, handler)
+	defer srv.Stop()
+
 	t.Run("ok", func() {
-		c := NewHeaderClient(t.encs, t.enc, t.writef(prefix, handler))
+		c := NewHeaderClient(t.encs, t.enc, t.openstreamf())
 
-		header := newDummyHeader(prefix, id)
+		header := newDummyRequestHeader(prefix, id)
 
-		var u base.Node
+		var u base.Address
 
-		rh, enc, err := HeaderClientRequestDecode(context.Background(), c, localci, header, node, &u)
+		rh, renc, r, w, err := HeaderRequestDecode(
+			context.Background(), c, localci, header, address, &u,
+			func(enc encoder.Encoder, r io.Reader, u interface{}) error {
+				b, err := io.ReadAll(r)
+				if err != nil {
+					return err
+				}
+
+				var s string
+				if err := enc.Unmarshal(b, &s); err != nil {
+					return err
+				}
+
+				i, err := base.DecodeAddress(s, enc)
+				if err != nil {
+					return err
+				}
+
+				return util.InterfaceSetValue(i, u)
+			},
+		)
 		t.NoError(err)
+		defer r.Close()
+		defer w.Close()
 
-		t.T().Log("response header:", util.MustMarshalJSONIndentString(rh))
-		t.T().Logf("response header type: %T", rh)
-		t.T().Logf("response encoder: %s", enc.Hint())
+		t.printResponseHeader(rh, renc.Hint(), nil)
 
 		t.NoError(rh.Err())
 		t.True(rh.OK())
@@ -514,24 +550,47 @@ func (t *testHeaderClient) TestRequestDecode() {
 		t.True(ok)
 		t.Equal(id, rdh.ID)
 
-		t.T().Log("response node:", util.MustMarshalJSONIndentString(u))
+		t.T().Log("response address:", u)
 
-		t.True(base.IsEqualNode(node, u))
+		t.True(address.Equal(u))
 	})
 
 	t.Run("nil", func() {
-		c := NewHeaderClient(t.encs, t.enc, t.writef(prefix, handler))
+		c := NewHeaderClient(t.encs, t.enc, t.openstreamf())
 
-		header := newDummyHeader(prefix, id)
+		header := newDummyRequestHeader(prefix, id)
 
-		var u base.Node
+		var u base.Address
 
-		rh, enc, err := HeaderClientRequestDecode(context.Background(), c, localci, header, nil, &u)
+		rh, renc, r, w, err := HeaderRequestDecode(context.Background(), c, localci, header, nil, &u,
+			func(enc encoder.Encoder, r io.Reader, u interface{}) error {
+				b, err := io.ReadAll(r)
+				if err != nil {
+					return err
+				}
+
+				if len(b) < 1 {
+					return nil
+				}
+
+				var s string
+				if err := enc.Unmarshal(b, &s); err != nil {
+					return err
+				}
+
+				i, err := base.DecodeAddress(s, enc)
+				if err != nil {
+					return err
+				}
+
+				return util.InterfaceSetValue(i, u)
+			},
+		)
 		t.NoError(err)
+		defer r.Close()
+		defer w.Close()
 
-		t.T().Log("response header:", util.MustMarshalJSONIndentString(rh))
-		t.T().Logf("response header type: %T", rh)
-		t.T().Logf("response encoder: %s", enc.Hint())
+		t.printResponseHeader(rh, renc.Hint(), nil)
 
 		t.NoError(rh.Err())
 		t.True(rh.OK())
@@ -541,14 +600,13 @@ func (t *testHeaderClient) TestRequestDecode() {
 		t.True(ok)
 		t.Equal(id, rdh.ID)
 
-		t.T().Log("response node:", util.MustMarshalJSONIndentString(u))
+		t.Nil(u)
+		t.T().Log("response address:", u)
 	})
 }
 
 func TestHeaderClient(t *testing.T) {
-	defer goleak.VerifyNone(t,
-		goleak.IgnoreTopFunction("github.com/syndtr/goleveldb/leveldb.(*DB).mpoolDrain"),
-	)
+	defer goleak.VerifyNone(t)
 
 	suite.Run(t, new(testHeaderClient))
 }
