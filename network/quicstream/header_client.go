@@ -12,6 +12,15 @@ import (
 	"github.com/spikeekips/mitum/util/hint"
 )
 
+type HeaderRequestFunc func(context.Context, UDPConnInfo, RequestHeader, func() (DataFormat, io.Reader, uint64, error)) (
+	ResponseHeader,
+	encoder.Encoder,
+	io.Reader, // response data body
+	io.ReadCloser,
+	io.WriteCloser,
+	error,
+)
+
 type OpenStreamFunc func(context.Context, UDPConnInfo) (io.ReadCloser, io.WriteCloser, error)
 
 type HeaderClient struct {
@@ -119,21 +128,23 @@ func (c *HeaderClient) send(
 	w io.Writer,
 	bodyf func() (DataFormat, io.Reader, uint64, error),
 ) error {
-	var dataFormat DataFormat
+	dataFormat := StreamDataFormat
 	var bodyr io.Reader
 	var bodyLength uint64
 
-	switch i, j, k, err := bodyf(); {
-	case err != nil:
-		return errors.WithMessage(err, "body")
-	default:
-		dataFormat = i
-		bodyr = j
-		bodyLength = k
-	}
+	if bodyf != nil {
+		switch i, j, k, err := bodyf(); {
+		case err != nil:
+			return errors.WithMessage(err, "body")
+		default:
+			dataFormat = i
+			bodyr = j
+			bodyLength = k
+		}
 
-	if err := dataFormat.IsValid(nil); err != nil {
-		return errors.WithMessage(err, "invalid DataFormat")
+		if err := dataFormat.IsValid(nil); err != nil {
+			return errors.WithMessage(err, "invalid DataFormat")
+		}
 	}
 
 	if err := WriteRequestHead(w, header.Handler(), c.Encoder, header); err != nil {
@@ -387,7 +398,6 @@ func HeaderRequestDecode(
 
 	switch err := decode(enc, body, u); {
 	case err == nil:
-	case errors.Is(err, io.EOF):
 	default:
 		_ = r.Close()
 		_ = w.Close()
@@ -405,5 +415,5 @@ type readerAt struct {
 func (r readerAt) ReadAt(p []byte, _ int64) (int, error) {
 	n, err := r.Read(p)
 
-	return n, errors.WithStack(err)
+	return n, err //nolint:wrapcheck //...
 }

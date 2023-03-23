@@ -32,19 +32,27 @@ type BaseTest struct {
 
 func (t *BaseTest) SetupSuite() {
 	t.Proto = "quicstream"
-	t.TLSConfig = generateTLSConfig(t.Proto)
+	t.TLSConfig = t.NewTLSConfig(t.Proto)
 }
 
 func (t *BaseTest) SetupTest() {
 	t.Lock()
 	defer t.Unlock()
 
-	addr, err := freePort(t.binded)
+	addr := t.NewAddr()
+	t.binded = append(t.binded, addr)
+	t.Bind = addr
+}
+
+func (t *BaseTest) NewAddr() *net.UDPAddr {
+	addr, err := freeUDPAddr(t.binded)
 	t.NoError(err)
 
-	t.binded = append(t.binded, addr)
+	return addr
+}
 
-	t.Bind = addr
+func (t *BaseTest) NewTLSConfig(proto string) *tls.Config {
+	return generateTLSConfig(proto)
 }
 
 func (t *BaseTest) NewServer(bind *net.UDPAddr, tlsconfig *tls.Config, qconfig *quic.Config, handler Handler) *Server {
@@ -89,7 +97,7 @@ func (t *BaseTest) NewClient(addr *net.UDPAddr) *Client {
 	)
 }
 
-func freePort(excludes []*net.UDPAddr) (*net.UDPAddr, error) {
+func freeUDPAddr(excludes []*net.UDPAddr) (*net.UDPAddr, error) {
 	for {
 		zero, err := net.ResolveUDPAddr("udp", "127.0.0.1:0")
 		if err != nil {

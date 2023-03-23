@@ -4,6 +4,7 @@ import (
 	"io"
 	"net"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/valuehash"
 )
@@ -73,9 +74,20 @@ func hashPrefix(prefix string) []byte {
 }
 
 func readPrefix(r io.Reader) ([]byte, error) {
-	return util.ReadLengthedBytesFromReader(r)
+	p := make([]byte, 32)
+
+	switch _, err := util.EnsureRead(r, p); {
+	case err == nil:
+	case errors.Is(err, io.EOF):
+	default:
+		return nil, err
+	}
+
+	return p, nil
 }
 
 func WritePrefix(w io.Writer, prefix string) error {
-	return util.WriteLengthedBytes(w, hashPrefix(prefix))
+	_, err := w.Write(hashPrefix(prefix))
+
+	return errors.WithStack(err)
 }
