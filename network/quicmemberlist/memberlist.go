@@ -387,7 +387,7 @@ func (srv *Memberlist) EnsureBroadcast(
 	case err != nil:
 		return err
 	default:
-		if err := util.LengthedBytes(buf, i); err != nil {
+		if err := util.WriteLengthedBytes(buf, i); err != nil {
 			return err
 		}
 

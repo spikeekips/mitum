@@ -108,7 +108,28 @@ func EnsureRead(r io.Reader, b []byte) (int, error) {
 	}
 }
 
-func LengthedBytes(w io.Writer, b []byte) error {
+func EnsureWrite(w io.Writer, b []byte) (int, error) {
+	switch n, err := w.Write(b); {
+	case err != nil:
+		return n, errors.WithStack(err)
+	case n != len(b):
+		return n, errors.Errorf("write")
+	default:
+		return n, nil
+	}
+}
+
+func WriteLength(w io.Writer, i uint64) error {
+	e := StringErrorFunc("LengthedBytes")
+
+	if _, err := w.Write(Uint64ToBytes(i)); err != nil {
+		return e(err, "write length")
+	}
+
+	return nil
+}
+
+func WriteLengthedBytes(w io.Writer, b []byte) error {
 	e := StringErrorFunc("LengthedBytes")
 
 	i := uint64(len(b))
@@ -129,37 +150,50 @@ func LengthedBytes(w io.Writer, b []byte) error {
 }
 
 func ReadLengthedBytes(b []byte) (_ []byte, left []byte, _ error) {
+	i, err := ReadLength(b)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if uint64(len(b)-8) < i { //nolint:gomnd //...
+		return nil, nil, errors.Errorf("wrong format; left not enough")
+	}
+
+	return b[8 : i+8], b[i+8:], nil
+}
+
+func ReadLength(b []byte) (uint64, error) {
 	i := uint64(len(b))
 
 	if i < 8 { //nolint:gomnd //...
-		return nil, nil, errors.Errorf("wrong format; missing length part")
+		return 0, errors.Errorf("wrong format; missing length part")
 	}
 
 	j, err := BytesToUint64(b[:8])
 	if err != nil {
-		return nil, nil, errors.Errorf("wrong format; invalid length part")
+		return 0, errors.Errorf("wrong format; invalid length part")
 	}
 
-	if i-8 < j {
-		return nil, nil, errors.Errorf("wrong format; left not enough")
-	}
-
-	return b[8 : j+8], b[j+8:], nil
+	return j, nil
 }
 
-func ReadLengthedBytesFromReader(r io.Reader) ([]byte, error) {
+func ReadLengthFromReader(r io.Reader) (uint64, error) {
 	p := make([]byte, 8)
 
 	if _, err := EnsureRead(r, p); err != nil {
-		return nil, err
+		return 0, err
 	}
 
-	n, err := BytesToUint64(p)
+	return ReadLength(p)
+}
+
+func ReadLengthedBytesFromReader(r io.Reader) ([]byte, error) {
+	n, err := ReadLengthFromReader(r)
 	if err != nil {
 		return nil, err
 	}
 
-	p = make([]byte, n)
+	p := make([]byte, n)
 	_, err = EnsureRead(r, p)
 
 	return p, err
@@ -179,7 +213,7 @@ func NewLengthedBytesSlice(version byte, m [][]byte) ([]byte, error) {
 func WriteLengthedBytesSlice(w io.Writer, version byte, m [][]byte) error {
 	e := StringErrorFunc("WriteLengthedBytesSlice")
 
-	if err := LengthedBytes(w, []byte{version}); err != nil {
+	if err := WriteLengthedBytes(w, []byte{version}); err != nil {
 		return e(err, "write version")
 	}
 
@@ -188,7 +222,7 @@ func WriteLengthedBytesSlice(w io.Writer, version byte, m [][]byte) error {
 	}
 
 	for i := range m {
-		if err := LengthedBytes(w, m[i]); err != nil {
+		if err := WriteLengthedBytes(w, m[i]); err != nil {
 			return e(err, "write body")
 		}
 	}
