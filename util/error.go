@@ -1,6 +1,7 @@
 package util
 
 import (
+	goerrors "errors"
 	"fmt"
 	"io"
 	"runtime"
@@ -273,6 +274,10 @@ func ZerologMarshalStack(err error) interface{} {
 	}
 
 	return out
+}
+
+func JoinErrors(errs ...error) error {
+	return errors.WithStack(goerrors.Join(errs...))
 }
 
 // -x----------------------------------------------------
