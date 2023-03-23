@@ -318,7 +318,7 @@ func (srv *Memberlist) CallbackBroadcast(b []byte, id string, notifych chan stru
 func (srv *Memberlist) CallbackBroadcastHandler() quicstream.HeaderHandler {
 	var sg singleflight.Group
 
-	return func(_ net.Addr, r io.Reader, w io.Writer, detail quicstream.HeaderHandlerDetail) error {
+	return func(_ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
 		e := util.StringErrorFunc("handle callback message")
 
 		header, ok := detail.Header.(CallbackBroadcastMessageHeader)
@@ -470,7 +470,7 @@ func (srv *Memberlist) EnsureBroadcastHandler(
 	networkID base.NetworkID,
 	memberf func(base.Address) (base.Publickey, bool, error),
 ) quicstream.HeaderHandler {
-	return func(_ net.Addr, r io.Reader, w io.Writer, detail quicstream.HeaderHandlerDetail) error {
+	return func(_ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
 		e := util.StringErrorFunc("handle ensure message")
 
 		var header EnsureBroadcastMessageHeader
@@ -520,7 +520,7 @@ func (srv *Memberlist) EnsureBroadcastHandler(
 			w,
 			detail.Encoder,
 			quicstream.NewDefaultResponseHeader(isset, nil),
-			quicstream.LengthedDataFormat,
+			quicstream.EmptyDataFormat,
 			0,
 			nil,
 		); err != nil {
@@ -1130,30 +1130,44 @@ func RandomAliveMembers(
 
 func FetchCallbackBroadcastMessageFunc(
 	handlerPrefix string,
-	requestf quicstream.HeaderRequestFunc,
+	brokerf quicstream.HeaderBrokerFunc,
 ) func(context.Context, ConnInfoBroadcastMessage) (
 	[]byte, encoder.Encoder, error,
 ) {
 	return func(ctx context.Context, m ConnInfoBroadcastMessage) (
 		[]byte, encoder.Encoder, error,
 	) {
-		h := NewCallbackBroadcastMessageHeader(m.ID(), handlerPrefix)
-
-		res, renc, rbody, r, w, err := requestf(ctx, m.ConnInfo(), h, nil)
+		broker, err := brokerf(ctx, m.ConnInfo())
 		if err != nil {
-			return nil, renc, err
+			return nil, nil, err
 		}
 
 		defer func() {
-			_ = r.Close()
-			_ = w.Close()
+			_ = broker.Close()
 		}()
 
-		switch {
-		case !res.OK():
+		if err := broker.WriteRequestHead(NewCallbackBroadcastMessageHeader(m.ID(), handlerPrefix)); err != nil {
+			return nil, nil, err
+		}
+
+		var renc encoder.Encoder
+
+		switch i, rh, err := broker.ReadResponseHead(); {
+		case err != nil:
+			return nil, nil, err
+		case rh == nil:
+			return nil, nil, errors.Errorf("empty response header")
+		case !rh.OK():
+			return nil, nil, nil
+		case rh.Err() != nil:
+			return nil, nil, rh.Err()
+		default:
+			renc = i
+		}
+
+		switch _, _, rbody, err := broker.ReadBody(); {
+		case err != nil:
 			return nil, renc, nil
-		case res.Err() != nil:
-			return nil, renc, res.Err()
 		default:
 			b, rerr := io.ReadAll(rbody)
 			if rerr != nil {
@@ -1170,7 +1184,7 @@ func PongEnsureBroadcastMessageFunc(
 	node base.Address,
 	signer base.Privatekey,
 	networkID base.NetworkID,
-	requestf quicstream.HeaderRequestFunc,
+	brokerf quicstream.HeaderBrokerFunc,
 ) func(context.Context, ConnInfoBroadcastMessage) error {
 	return func(ctx context.Context, m ConnInfoBroadcastMessage) error {
 		h, err := NewEnsureBroadcastMessageHeader(m.ID(), handlerPrefix, node, signer, networkID)
@@ -1178,21 +1192,28 @@ func PongEnsureBroadcastMessageFunc(
 			return err
 		}
 
-		res, _, _, r, w, err := requestf(ctx, m.ConnInfo(), h, nil)
+		broker, err := brokerf(ctx, m.ConnInfo())
 		if err != nil {
 			return err
 		}
 
 		defer func() {
-			_ = r.Close()
-			_ = w.Close()
+			_ = broker.Close()
 		}()
 
-		switch {
-		case !res.OK():
+		if err := broker.WriteRequestHead(h); err != nil {
+			return err
+		}
+
+		switch _, rh, err := broker.ReadResponseHead(); {
+		case err != nil:
+			return err
+		case rh == nil:
+			return errors.Errorf("empty response header")
+		case !rh.OK():
 			return nil
-		case res.Err() != nil:
-			return res.Err()
+		case rh.Err() != nil:
+			return rh.Err()
 		default:
 			return nil
 		}

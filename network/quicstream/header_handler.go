@@ -10,18 +10,17 @@ import (
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
-type HeaderHandlerDetail struct {
+type RequestHeadDetail struct {
 	Encoders *encoder.Encoders
 	Encoder  encoder.Encoder
 	Header   RequestHeader
-	Body     io.Reader
 }
 
 type HeaderHandler func(
 	net.Addr,
 	io.Reader,
 	io.Writer,
-	HeaderHandlerDetail,
+	RequestHeadDetail,
 ) error
 
 func NewHeaderHandler(
@@ -40,14 +39,14 @@ func NewHeaderHandler(
 			defer cancel()
 		}
 
-		var detail HeaderHandlerDetail
+		var detail RequestHeadDetail
 
 		donech := make(chan error, 1)
 
 		go func() {
 			var err error
 
-			detail, err = readRequestInHandler(encs, r)
+			detail, err = readRequestHeadDetailInHandler(encs, r)
 
 			donech <- err
 		}()
@@ -65,22 +64,15 @@ func NewHeaderHandler(
 	}
 }
 
-func readRequestInHandler(
-	encs *encoder.Encoders,
-	r io.Reader,
-) (HeaderHandlerDetail, error) {
-	detail := HeaderHandlerDetail{Encoders: encs}
+func readRequestHeadDetailInHandler(encs *encoder.Encoders, r io.Reader) (RequestHeadDetail, error) {
+	detail := RequestHeadDetail{Encoders: encs}
 
-	switch enc, h, dataFormat, bodyLength, err := ReadHead(r, encs); {
+	switch enc, h, err := HeaderReadHead(r, encs); {
 	case err != nil:
 		return detail, errors.WithMessage(err, "read request")
 	default:
 		if enc == nil {
 			return detail, errors.Errorf("empty request encoder")
-		}
-
-		if err := dataFormat.IsValid(nil); err != nil {
-			return detail, errors.WithMessage(err, "invalid request DataFormat")
 		}
 
 		if err := h.IsValid(nil); err != nil {
@@ -95,13 +87,6 @@ func readRequestInHandler(
 		}
 
 		detail.Encoder = enc
-
-		switch dataFormat {
-		case StreamDataFormat:
-			detail.Body = r
-		default:
-			detail.Body = io.LimitReader(r, int64(bodyLength))
-		}
 
 		return detail, nil
 	}

@@ -1150,7 +1150,7 @@ func (t *testMemberlist) TestCallbackBroadcast() {
 			return nil, nil, nil
 		}
 
-		return FetchCallbackBroadcastMessageFunc(callbackhandlerprefix, lcl.Request)(ctx, m)
+		return FetchCallbackBroadcastMessageFunc(callbackhandlerprefix, lcl.Broker)(ctx, m)
 	}
 
 	rbroadcastedch := make(chan []byte, 1)
@@ -1292,7 +1292,7 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 				node.Address(),
 				node.Privatekey(),
 				networkID,
-				lcl.Request,
+				lcl.Broker,
 			)(ctx, m)
 		}
 
