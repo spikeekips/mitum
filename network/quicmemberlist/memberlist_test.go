@@ -1,7 +1,6 @@
 package quicmemberlist
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	"io"
@@ -18,6 +17,7 @@ import (
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
+	"github.com/spikeekips/mitum/util/logging"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -48,7 +48,7 @@ func (t *testMemberlist) SetupTest() {
 }
 
 func (t *testMemberlist) newConnInfo() quicstream.UDPConnInfo {
-	addr := t.BaseTest.NewBind()
+	addr := t.BaseTest.NewAddr()
 
 	return quicstream.NewUDPConnInfo(addr, true)
 }
@@ -58,7 +58,7 @@ func (t *testMemberlist) newargs(config *memberlist.Config) *MemberlistArgs {
 }
 
 func (t *testMemberlist) TestNew() {
-	bind := t.NewBind()
+	bind := t.NewAddr()
 	config := BasicMemberlistConfig(bind.String(), bind, bind)
 
 	local, err := NewMember(bind.String(), bind, base.RandomAddress(""), base.NewMPrivatekey().Publickey(), "1.2.3.4:4321", true)
@@ -94,6 +94,7 @@ func (t *testMemberlist) newServersForJoining(
 	poolclient := quicstream.NewPoolClient()
 
 	laddr := ci.UDPAddr()
+	t.T().Log("addr:", laddr)
 
 	transport := NewTransportWithQuicstream(
 		laddr,
@@ -120,8 +121,9 @@ func (t *testMemberlist) newServersForJoining(
 
 	quicstreamsrv, err := quicstream.NewServer(laddr, tlsconfig, nil, ph.Handler)
 	t.NoError(err)
+	quicstreamsrv.SetLogging(logging.TestNilLogging)
 
-	local, err := NewMember(laddr.String(), laddr, node, base.NewMPrivatekey().Publickey(), "1.2.3.4:4321", true)
+	local, err := NewMember(laddr.String(), laddr, node, base.NewMPrivatekey().Publickey(), laddr.String(), true)
 	t.NoError(err)
 
 	memberlistconfig := BasicMemberlistConfig(local.Name(), laddr, laddr)
@@ -134,6 +136,7 @@ func (t *testMemberlist) newServersForJoining(
 	args := t.newargs(memberlistconfig)
 
 	srv, _ := NewMemberlist(local, args)
+	srv.SetLogging(logging.TestNilLogging)
 
 	return ph, srv,
 		func() error {
@@ -1132,21 +1135,10 @@ func (t *testMemberlist) TestCallbackBroadcast() {
 	lph.Add(callbackhandlerprefix, quicstream.NewHeaderHandler(t.encs, 0, lsrv.CallbackBroadcastHandler()))
 
 	lcl := quicstream.NewHeaderClient(t.encs, t.enc, func(
-		_ context.Context,
-		_ quicstream.UDPConnInfo,
-		writef quicstream.ClientWriteFunc,
-	) (_ io.ReadCloser, cancel func() error, _ error) {
-		r := bytes.NewBuffer(nil)
-		if err := writef(r); err != nil {
-			return nil, nil, err
-		}
-
-		w := bytes.NewBuffer(nil)
-		if err := lph.Handler(lci.Addr(), r, w); err != nil {
-			return nil, nil, err
-		}
-
-		return io.NopCloser(w), func() error { return nil }, nil
+		ctx context.Context,
+		addr quicstream.UDPConnInfo,
+	) (io.ReadCloser, io.WriteCloser, error) {
+		return t.NewClient(addr.UDPAddr()).OpenStream(ctx)
 	})
 
 	notfoundid := util.UUID().String()
@@ -1252,21 +1244,10 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 	)
 
 	lcl := quicstream.NewHeaderClient(t.encs, t.enc, func(
-		_ context.Context,
-		_ quicstream.UDPConnInfo,
-		writef quicstream.ClientWriteFunc,
-	) (_ io.ReadCloser, cancel func() error, _ error) {
-		r := bytes.NewBuffer(nil)
-		if err := writef(r); err != nil {
-			return nil, nil, err
-		}
-
-		w := bytes.NewBuffer(nil)
-		if err := lph.Handler(lci.Addr(), r, w); err != nil {
-			return nil, nil, err
-		}
-
-		return io.NopCloser(w), func() error { return nil }, nil
+		ctx context.Context,
+		addr quicstream.UDPConnInfo,
+	) (io.ReadCloser, io.WriteCloser, error) {
+		return t.NewClient(addr.UDPAddr()).OpenStream(ctx)
 	})
 
 	for i := range rcis {

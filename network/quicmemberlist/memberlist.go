@@ -318,14 +318,12 @@ func (srv *Memberlist) CallbackBroadcast(b []byte, id string, notifych chan stru
 func (srv *Memberlist) CallbackBroadcastHandler() quicstream.HeaderHandler {
 	var sg singleflight.Group
 
-	return func(_ net.Addr, r io.Reader, w io.Writer,
-		h quicstream.Header, _ *encoder.Encoders, enc encoder.Encoder,
-	) error {
+	return func(_ net.Addr, r io.Reader, w io.Writer, detail quicstream.HeaderHandlerDetail) error {
 		e := util.StringErrorFunc("handle callback message")
 
-		header, ok := h.(CallbackBroadcastMessageHeader)
+		header, ok := detail.Header.(CallbackBroadcastMessageHeader)
 		if !ok {
-			return e(nil, "expected CallbackBroadcastMessageHeader, but %T", h)
+			return e(nil, "expected CallbackBroadcastMessageHeader, but %T", detail.Header)
 		}
 
 		i, err, _ := sg.Do(header.ID(), func() (interface{}, error) {
@@ -338,7 +336,7 @@ func (srv *Memberlist) CallbackBroadcastHandler() quicstream.HeaderHandler {
 			return e(err, "")
 		}
 
-		var b []byte
+		var buf *bytes.Buffer
 		var found bool
 
 		if i != nil {
@@ -347,12 +345,18 @@ func (srv *Memberlist) CallbackBroadcastHandler() quicstream.HeaderHandler {
 			found = j[1].(bool) //nolint:forcetypeassert //...
 
 			if found {
-				b = j[0].([]byte) //nolint:forcetypeassert //...
+				buf = bytes.NewBuffer(j[0].([]byte)) //nolint:forcetypeassert //...
 			}
 		}
 
-		if err := quicstream.WriteResponseBytes(w,
-			quicstream.NewDefaultResponseHeader(found, nil, quicstream.RawContentType), enc, b); err != nil {
+		if err := quicstream.WriteResponse(
+			w,
+			detail.Encoder,
+			quicstream.NewDefaultResponseHeader(found, nil),
+			quicstream.LengthedDataFormat,
+			uint64(buf.Len()),
+			buf,
+		); err != nil {
 			return e(err, "")
 		}
 
@@ -466,16 +470,14 @@ func (srv *Memberlist) EnsureBroadcastHandler(
 	networkID base.NetworkID,
 	memberf func(base.Address) (base.Publickey, bool, error),
 ) quicstream.HeaderHandler {
-	return func(_ net.Addr, r io.Reader, w io.Writer,
-		h quicstream.Header, _ *encoder.Encoders, enc encoder.Encoder,
-	) error {
+	return func(_ net.Addr, r io.Reader, w io.Writer, detail quicstream.HeaderHandlerDetail) error {
 		e := util.StringErrorFunc("handle ensure message")
 
 		var header EnsureBroadcastMessageHeader
 
-		switch i, ok := h.(EnsureBroadcastMessageHeader); {
+		switch i, ok := detail.Header.(EnsureBroadcastMessageHeader); {
 		case !ok:
-			return e(nil, "expected EnsureBroadcastMessageHeader, but %T", h)
+			return e(nil, "expected EnsureBroadcastMessageHeader, but %T", detail.Header)
 		default:
 			switch pub, found, err := memberf(i.Node()); {
 			case err != nil:
@@ -514,8 +516,14 @@ func (srv *Memberlist) EnsureBroadcastHandler(
 			return nodes, nil
 		})
 
-		if err := quicstream.WriteResponseBytes(w,
-			quicstream.NewDefaultResponseHeader(isset, nil, quicstream.RawContentType), enc, nil); err != nil {
+		if err := quicstream.WriteResponse(
+			w,
+			detail.Encoder,
+			quicstream.NewDefaultResponseHeader(isset, nil),
+			quicstream.LengthedDataFormat,
+			0,
+			nil,
+		); err != nil {
 			return e(err, "")
 		}
 
@@ -1122,7 +1130,7 @@ func RandomAliveMembers(
 
 func FetchCallbackBroadcastMessageFunc(
 	handlerPrefix string,
-	requestf quicstream.HeaderClientRequestFunc,
+	requestf quicstream.HeaderRequestFunc,
 ) func(context.Context, ConnInfoBroadcastMessage) (
 	[]byte, encoder.Encoder, error,
 ) {
@@ -1131,27 +1139,28 @@ func FetchCallbackBroadcastMessageFunc(
 	) {
 		h := NewCallbackBroadcastMessageHeader(m.ID(), handlerPrefix)
 
-		res, r, cancel, enc, err := requestf(ctx, m.ConnInfo(), h, nil)
+		res, renc, rbody, r, w, err := requestf(ctx, m.ConnInfo(), h, nil)
 		if err != nil {
-			return nil, enc, err
+			return nil, renc, err
 		}
 
 		defer func() {
-			_ = cancel()
+			_ = r.Close()
+			_ = w.Close()
 		}()
 
 		switch {
 		case !res.OK():
-			return nil, enc, nil
+			return nil, renc, nil
 		case res.Err() != nil:
-			return nil, enc, res.Err()
+			return nil, renc, res.Err()
 		default:
-			b, rerr := io.ReadAll(r)
+			b, rerr := io.ReadAll(rbody)
 			if rerr != nil {
-				return nil, enc, errors.WithMessage(rerr, "read fetched callback message")
+				return nil, renc, errors.WithMessage(rerr, "read fetched callback message")
 			}
 
-			return b, enc, nil
+			return b, renc, nil
 		}
 	}
 }
@@ -1161,7 +1170,7 @@ func PongEnsureBroadcastMessageFunc(
 	node base.Address,
 	signer base.Privatekey,
 	networkID base.NetworkID,
-	requestf quicstream.HeaderClientRequestFunc,
+	requestf quicstream.HeaderRequestFunc,
 ) func(context.Context, ConnInfoBroadcastMessage) error {
 	return func(ctx context.Context, m ConnInfoBroadcastMessage) error {
 		h, err := NewEnsureBroadcastMessageHeader(m.ID(), handlerPrefix, node, signer, networkID)
@@ -1169,13 +1178,14 @@ func PongEnsureBroadcastMessageFunc(
 			return err
 		}
 
-		res, _, cancel, _, err := requestf(ctx, m.ConnInfo(), h, nil)
+		res, _, _, r, w, err := requestf(ctx, m.ConnInfo(), h, nil)
 		if err != nil {
 			return err
 		}
 
 		defer func() {
-			_ = cancel()
+			_ = r.Close()
+			_ = w.Close()
 		}()
 
 		switch {

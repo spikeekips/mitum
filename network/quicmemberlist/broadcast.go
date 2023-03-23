@@ -125,13 +125,13 @@ var CallbackBroadcastMessageHeaderHint = hint.MustNewHint("callback-broadcast-me
 
 type CallbackBroadcastMessageHeader struct {
 	id string
-	quicstream.BaseHeader
+	quicstream.BaseRequestHeader
 }
 
 func NewCallbackBroadcastMessageHeader(id string, prefix string) CallbackBroadcastMessageHeader {
 	return CallbackBroadcastMessageHeader{
-		BaseHeader: quicstream.NewBaseHeader(CallbackBroadcastMessageHeaderHint, prefix),
-		id:         id,
+		BaseRequestHeader: quicstream.NewBaseRequestHeader(CallbackBroadcastMessageHeaderHint, prefix),
+		id:                id,
 	}
 }
 
@@ -160,9 +160,9 @@ type callbackBroadcastMessageHeaderJSONMarshaler struct {
 func (h CallbackBroadcastMessageHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
 		callbackBroadcastMessageHeaderJSONMarshaler
-		quicstream.BaseHeaderJSONMarshaler
+		quicstream.BaseRequestHeader
 	}{
-		BaseHeaderJSONMarshaler: h.BaseHeader.JSONMarshaler(),
+		BaseRequestHeader: h.BaseRequestHeader,
 		callbackBroadcastMessageHeaderJSONMarshaler: callbackBroadcastMessageHeaderJSONMarshaler{
 			ID: h.id,
 		},
@@ -178,7 +178,7 @@ func (h *CallbackBroadcastMessageHeader) UnmarshalJSON(b []byte) error {
 		return e(err, "")
 	}
 
-	if err := util.UnmarshalJSON(b, &h.BaseHeader); err != nil {
+	if err := util.UnmarshalJSON(b, &h.BaseRequestHeader); err != nil {
 		return e(err, "")
 	}
 
@@ -192,7 +192,7 @@ var EnsureBroadcastMessageHeaderHint = hint.MustNewHint("ensure-broadcast-messag
 type EnsureBroadcastMessageHeader struct {
 	id string
 	base.BaseNodeSign
-	quicstream.BaseHeader
+	quicstream.BaseRequestHeader
 }
 
 func NewEnsureBroadcastMessageHeader(
@@ -208,9 +208,9 @@ func NewEnsureBroadcastMessageHeader(
 	}
 
 	return EnsureBroadcastMessageHeader{
-		BaseHeader:   quicstream.NewBaseHeader(EnsureBroadcastMessageHeaderHint, prefix),
-		BaseNodeSign: nodeSign,
-		id:           id,
+		BaseRequestHeader: quicstream.NewBaseRequestHeader(EnsureBroadcastMessageHeaderHint, prefix),
+		BaseNodeSign:      nodeSign,
+		id:                id,
 	}, nil
 }
 
@@ -244,9 +244,9 @@ func (h EnsureBroadcastMessageHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
 		ensureBroadcastMessageHeaderJSONMarshaler
 		base.BaseNodeSignJSONMarshaler
-		quicstream.BaseHeaderJSONMarshaler
+		quicstream.BaseRequestHeader
 	}{
-		BaseHeaderJSONMarshaler:   h.BaseHeader.JSONMarshaler(),
+		BaseRequestHeader:         h.BaseRequestHeader,
 		BaseNodeSignJSONMarshaler: h.BaseNodeSign.JSONMarshaler(),
 		ensureBroadcastMessageHeaderJSONMarshaler: ensureBroadcastMessageHeaderJSONMarshaler{
 			ID: h.id,
