@@ -21,7 +21,7 @@ func Int64ToBytes(i int64) []byte {
 }
 
 func Int64ToBigBytes(i int64) []byte {
-	return int64ToBytes(i, binary.BigEndian)
+	return int64ToBytes(i, binary.LittleEndian)
 }
 
 func bytesToInt64(b []byte, endian binary.ByteOrder) (int64, error) {
@@ -40,7 +40,7 @@ func BytesToInt64(b []byte) (int64, error) {
 }
 
 func BigBytesToInt64(b []byte) (int64, error) {
-	return bytesToInt64(b, binary.BigEndian)
+	return bytesToInt64(b, binary.LittleEndian)
 }
 
 func Uint64ToBytes(i uint64) []byte {
