@@ -88,6 +88,7 @@ func (c *Client) Dial(ctx context.Context) (quic.EarlyConnection, error) {
 	return session, nil
 }
 
+// OpenStream opens new stream. Reader and Writer should be closed.
 func (c *Client) OpenStream(ctx context.Context) (*StreamReadCloser, *StreamWriteCloser, error) {
 	r, w, err := c.openStream(ctx)
 	if err != nil {

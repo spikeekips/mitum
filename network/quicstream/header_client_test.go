@@ -216,14 +216,9 @@ func (t *testHeaderClient) TestRequest() {
 			t.T().Log("request body:", string(b))
 
 			header := newDummyResponseHeader(true, nil, id)
-
-			if err := WriteHead(w, detail.Encoder, header); err != nil {
-				return err
-			}
-
 			buf := bytes.NewBuffer([]byte(dh.ID))
 
-			return WriteBody(w, LengthedDataFormat, uint64(buf.Len()), buf)
+			return WriteResponse(w, detail.Encoder, header, LengthedDataFormat, uint64(buf.Len()), buf)
 		},
 	)
 

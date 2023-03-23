@@ -325,6 +325,21 @@ func WriteBody(w io.Writer, dataFormat DataFormat, bodyLength uint64, r io.Reade
 	return nil
 }
 
+func WriteResponse(
+	w io.Writer,
+	enc encoder.Encoder,
+	header ResponseHeader,
+	dataFormat DataFormat,
+	bodyLength uint64,
+	body io.Reader,
+) error {
+	if err := WriteHead(w, enc, header); err != nil {
+		return err
+	}
+
+	return WriteBody(w, dataFormat, bodyLength, body)
+}
+
 type DataFormat uint64
 
 const (

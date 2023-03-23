@@ -69,6 +69,10 @@ func (t *BaseTest) NewDefaultServer(qconfig *quic.Config, handler Handler) *Serv
 		qconfig = &quic.Config{}
 	}
 
+	if handler == nil {
+		handler = func(net.Addr, io.Reader, io.Writer) error { return nil }
+	}
+
 	return t.NewServer(t.Bind, t.TLSConfig, qconfig, handler)
 }
 
