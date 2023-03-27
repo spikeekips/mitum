@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -158,11 +159,6 @@ func (info *DefaultNodeInfo) UnmarshalJSON(b []byte) error {
 func SaveNodeInfo(root string, i NodeInfo) error {
 	e := util.StringErrorFunc("save NodeInfo")
 
-	b, err := util.MarshalJSON(i)
-	if err != nil {
-		return e(err, "")
-	}
-
 	f, err := os.OpenFile(
 		filepath.Join(root, NodeInfoFilename),
 		os.O_WRONLY|os.O_CREATE|os.O_TRUNC,
@@ -172,8 +168,16 @@ func SaveNodeInfo(root string, i NodeInfo) error {
 		return e(err, "")
 	}
 
-	if _, err := f.Write(b); err != nil {
+	func() {
+		_ = f.Close()
+	}()
+
+	if err := util.NewJSONStreamEncoder(f).Encode(i); err != nil {
 		return e(err, "")
+	}
+
+	if err := f.Close(); err != nil {
+		return e(errors.WithStack(err), "")
 	}
 
 	return nil

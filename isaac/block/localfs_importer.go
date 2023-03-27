@@ -1,7 +1,6 @@
 package isaacblock
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -47,28 +46,37 @@ func NewLocalFSImporter(root string, enc encoder.Encoder, m base.BlockMap) (*Loc
 func (l *LocalFSImporter) WriteMap(m base.BlockMap) error {
 	e := util.StringErrorFunc("write map to localfs")
 
-	var r io.Reader
-
-	switch b, err := l.enc.Marshal(m); {
-	case err != nil:
-		return e(err, "")
-	default:
-		buf := bytes.NewBuffer(b)
-		defer buf.Reset()
-
-		r = buf
-	}
-
 	w, err := l.newWriter(blockFSMapFilename(l.enc.Hint().Type().String()))
 	if err != nil {
 		return e(err, "")
 	}
 
-	if _, err := io.Copy(w, r); err != nil {
+	pr, pw := io.Pipe()
+
+	defer func() {
+		_ = pr.Close()
+		_ = pw.Close()
+	}()
+
+	errch := make(chan error, 1)
+
+	go func() {
+		_, err := io.Copy(w, pr)
+
+		errch <- err
+	}()
+
+	if err := l.enc.StreamEncoder(pw).Encode(m); err != nil {
 		return e(err, "")
 	}
 
+	_ = pw.Close()
+
 	l.height = m.Manifest().Height()
+
+	if err := <-errch; err != nil {
+		return e(err, "")
+	}
 
 	return nil
 }

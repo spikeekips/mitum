@@ -1,6 +1,7 @@
 package isaacblock
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"math"
@@ -166,10 +167,11 @@ func (t *testLocalFSWriter) TestSetProposal() {
 
 	// NOTE compare checksum
 	t.Run("compare checksum", func() {
-		b, err := t.Enc.Marshal(pr)
-		t.NoError(err)
+		buf := bytes.NewBuffer(nil)
 
-		checksum := util.SHA256Checksum(b)
+		t.NoError(t.Enc.StreamEncoder(buf).Encode(pr))
+
+		checksum := util.SHA256Checksum(buf.Bytes())
 
 		t.Equal(checksum, item.Checksum())
 	})

@@ -505,12 +505,7 @@ func (w *LocalFSWriter) writeItem(t base.BlockMapItemType, i interface{}) error 
 }
 
 func (w *LocalFSWriter) writefileonce(f io.Writer, i interface{}) error {
-	b, err := w.enc.Marshal(i)
-	if err != nil {
-		return err
-	}
-
-	return w.writefile(f, b)
+	return w.enc.StreamEncoder(f).Encode(i)
 }
 
 func (w *LocalFSWriter) appendfile(f io.Writer, i interface{}) error {

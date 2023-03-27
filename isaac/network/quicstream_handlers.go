@@ -406,7 +406,7 @@ func QuicstreamHandlerNodeChallenge(
 
 		header, ok := detail.Header.(NodeChallengeRequestHeader)
 		if !ok {
-			return errors.Errorf("expected NodeChallengeRequestHeader, but %T", detail.Header)
+			return e(nil, "expected NodeChallengeRequestHeader, but %T", detail.Header)
 		}
 
 		i, err, _ := sg.Do(HandlerPrefixNodeChallengeString+string(header.Input()), func() (interface{}, error) {
@@ -423,37 +423,12 @@ func QuicstreamHandlerNodeChallenge(
 
 		sig := i.(base.Signature) //nolint:forcetypeassert //...
 
-		pr, pw := io.Pipe()
-
-		defer func() {
-			_ = pr.Close()
-			_ = pw.Close()
-		}()
-
-		donech := make(chan error, 1)
-
-		go func() {
-			donech <- quicstream.WriteResponse(w,
-				detail.Encoder,
-				quicstream.NewDefaultResponseHeader(true, nil),
-				quicstream.StreamDataFormat,
-				0,
-				pr,
-			)
-		}()
-
-		if err := detail.Encoder.StreamEncoder(pw).Encode(sig); err != nil {
+		if err := WriteResponseStreamEncode(ctx, detail.Encoder, w,
+			quicstream.NewDefaultResponseHeader(true, nil), sig); err != nil {
 			return e(err, "")
 		}
 
-		_ = pw.Close()
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case err := <-donech:
-			return err
-		}
+		return nil
 	}
 }
 
@@ -462,7 +437,9 @@ func QuicstreamHandlerSuffrageNodeConnInfo(
 ) quicstream.HeaderHandler {
 	handler := quicstreamHandlerNodeConnInfos(suffrageNodeConnInfof)
 
-	return func(ctx context.Context, addr net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
+	return func(ctx context.Context, addr net.Addr, r io.Reader, w io.Writer,
+		detail quicstream.RequestHeadDetail,
+	) error {
 		if err := handler(ctx, addr, r, w, detail); err != nil {
 			return errors.WithMessage(err, "handle SuffrageNodeConnInfo")
 		}
@@ -476,7 +453,9 @@ func QuicstreamHandlerSyncSourceConnInfo(
 ) quicstream.HeaderHandler {
 	handler := quicstreamHandlerNodeConnInfos(syncSourceConnInfof)
 
-	return func(ctx context.Context, addr net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
+	return func(ctx context.Context, addr net.Addr, r io.Reader, w io.Writer,
+		detail quicstream.RequestHeadDetail,
+	) error {
 		if err := handler(ctx, addr, r, w, detail); err != nil {
 			return errors.WithMessage(err, "handle SyncSourceConnInfo")
 		}
@@ -670,7 +649,7 @@ func quicstreamHandlerNodeConnInfos(
 
 	var sg singleflight.Group
 
-	return func(_ context.Context, _ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
+	return func(ctx context.Context, _ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
 		i, err, _ := sg.Do("node_conn_infos", func() (interface{}, error) {
 			var cis []isaac.NodeConnInfo
 
@@ -697,26 +676,12 @@ func quicstreamHandlerNodeConnInfos(
 			return errors.WithStack(err)
 		}
 
-		var body io.Reader
-
-		if i != nil {
-			b, err := detail.Encoder.Marshal(i.([]isaac.NodeConnInfo)) //nolint:forcetypeassert //...
-			if err != nil {
-				return err
-			}
-
-			buf := bytes.NewBuffer(b)
-			defer buf.Reset()
-
-			body = buf
-		}
-
-		return quicstream.WriteResponse(w,
+		return WriteResponseStreamEncode(
+			ctx,
 			detail.Encoder,
+			w,
 			quicstream.NewDefaultResponseHeader(true, nil),
-			quicstream.StreamDataFormat,
-			0,
-			body,
+			i,
 		)
 	}
 }
@@ -727,7 +692,9 @@ func boolQUICstreamHandler(
 ) quicstream.HeaderHandler {
 	var sg singleflight.Group
 
-	return func(_ context.Context, _ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error { //nolint:dupl //...
+	return func(ctx context.Context, _ net.Addr, r io.Reader, w io.Writer,
+		detail quicstream.RequestHeadDetail,
+	) error { //nolint:dupl //...
 		sgkey := sgkeyf(detail.Header)
 
 		i, err, _ := sg.Do(sgkey, func() (interface{}, error) {
@@ -744,26 +711,12 @@ func boolQUICstreamHandler(
 
 		j := i.([2]interface{}) //nolint:forcetypeassert //...
 
-		var body io.Reader
-
-		if j[0] != nil {
-			b, err := detail.Encoder.Marshal(j[0]) //nolint:forcetypeassert //...
-			if err != nil {
-				return err
-			}
-
-			buf := bytes.NewBuffer(b)
-			defer buf.Reset()
-
-			body = buf
-		}
-
-		return quicstream.WriteResponse(w,
+		return WriteResponseStreamEncode(
+			ctx,
 			detail.Encoder,
+			w,
 			quicstream.NewDefaultResponseHeader(j[1].(bool), nil), //nolint:forcetypeassert //...
-			quicstream.StreamDataFormat,
-			0,
-			body,
+			j[0],
 		)
 	}
 }
@@ -819,5 +772,55 @@ func boolBytesQUICstreamHandler(
 			0,
 			body,
 		)
+	}
+}
+
+func WriteResponseStreamEncode(
+	ctx context.Context,
+	enc encoder.Encoder,
+	w io.Writer,
+	header quicstream.ResponseHeader,
+	i interface{},
+) error {
+	if i == nil {
+		return quicstream.WriteResponse(w,
+			enc,
+			header,
+			quicstream.EmptyDataFormat,
+			0,
+			nil,
+		)
+	}
+
+	pr, pw := io.Pipe()
+
+	defer func() {
+		_ = pr.Close()
+		_ = pw.Close()
+	}()
+
+	errch := make(chan error, 1)
+
+	go func() {
+		errch <- quicstream.WriteResponse(w,
+			enc,
+			header,
+			quicstream.StreamDataFormat,
+			0,
+			pr,
+		)
+	}()
+
+	if err := enc.StreamEncoder(pw).Encode(i); err != nil {
+		return err
+	}
+
+	_ = pw.Close()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err := <-errch:
+		return err
 	}
 }
