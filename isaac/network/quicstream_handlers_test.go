@@ -1324,7 +1324,7 @@ func (t *testQuicstreamHandlers) TestConcurrentRequestProposal() {
 
 		newhandlers := map[string]quicstream.HeaderHandler{}
 		for i := range handlers {
-			newhandlers[i] = func(net.Addr, io.Reader, io.Writer, quicstream.RequestHeadDetail) error {
+			newhandlers[i] = func(context.Context, net.Addr, io.Reader, io.Writer, quicstream.RequestHeadDetail) error {
 				select {
 				case <-time.After(time.Minute):
 				case <-ctx.Done():
@@ -1351,7 +1351,7 @@ func (t *testQuicstreamHandlers) TestConcurrentRequestProposal() {
 	t.Run("client timout", func() {
 		newhandlers := map[string]quicstream.HeaderHandler{}
 		for i := range handlers {
-			newhandlers[i] = func(net.Addr, io.Reader, io.Writer, quicstream.RequestHeadDetail) error {
+			newhandlers[i] = func(context.Context, net.Addr, io.Reader, io.Writer, quicstream.RequestHeadDetail) error {
 				return context.DeadlineExceeded
 			}
 		}

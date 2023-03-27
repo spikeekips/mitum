@@ -318,7 +318,7 @@ func (srv *Memberlist) CallbackBroadcast(b []byte, id string, notifych chan stru
 func (srv *Memberlist) CallbackBroadcastHandler() quicstream.HeaderHandler {
 	var sg singleflight.Group
 
-	return func(_ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
+	return func(_ context.Context, _ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
 		e := util.StringErrorFunc("handle callback message")
 
 		header, ok := detail.Header.(CallbackBroadcastMessageHeader)
@@ -470,7 +470,7 @@ func (srv *Memberlist) EnsureBroadcastHandler(
 	networkID base.NetworkID,
 	memberf func(base.Address) (base.Publickey, bool, error),
 ) quicstream.HeaderHandler {
-	return func(_ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
+	return func(_ context.Context, _ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
 		e := util.StringErrorFunc("handle ensure message")
 
 		var header EnsureBroadcastMessageHeader

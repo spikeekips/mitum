@@ -719,9 +719,7 @@ func hcBodyReqRes(
 				return err
 			}
 
-			if err := w.Close(); err != nil {
-				return errors.WithStack(err)
-			}
+			_ = w.Close()
 
 			select {
 			case <-ctx.Done():

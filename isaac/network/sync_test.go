@@ -50,16 +50,16 @@ type handlers struct {
 	syncSourceConnInfof   func() ([]isaac.NodeConnInfo, error)
 }
 
-func (h *handlers) SuffrageNodeConnInfo(addr net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
-	return QuicstreamHandlerSuffrageNodeConnInfo(h.suffrageNodeConnInfof)(addr, r, w, detail)
+func (h *handlers) SuffrageNodeConnInfo(ctx context.Context, addr net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
+	return QuicstreamHandlerSuffrageNodeConnInfo(h.suffrageNodeConnInfof)(ctx, addr, r, w, detail)
 }
 
-func (h *handlers) SyncSourceConnInfo(addr net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
-	return QuicstreamHandlerSyncSourceConnInfo(h.syncSourceConnInfof)(addr, r, w, detail)
+func (h *handlers) SyncSourceConnInfo(ctx context.Context, addr net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
+	return QuicstreamHandlerSyncSourceConnInfo(h.syncSourceConnInfof)(ctx, addr, r, w, detail)
 }
 
-func (h *handlers) NodeChallenge(addr net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
-	return QuicstreamHandlerNodeChallenge(h.local, h.localParams)(addr, r, w, detail)
+func (h *handlers) NodeChallenge(ctx context.Context, addr net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
+	return QuicstreamHandlerNodeChallenge(h.local, h.localParams)(ctx, addr, r, w, detail)
 }
 
 func (t *testSyncSourceChecker) openstreamf(h *handlers) (quicstream.OpenStreamFunc, func()) {

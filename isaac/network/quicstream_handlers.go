@@ -97,7 +97,7 @@ func QuicstreamHandlerSendOperation(
 		filterSendOperationf,
 	)
 
-	return func(_ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
+	return func(_ context.Context, _ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
 		e := util.StringErrorFunc("handle new operation")
 
 		if _, ok := detail.Header.(SendOperationRequestHeader); !ok {
@@ -369,7 +369,7 @@ func QuicstreamHandlerBlockMap(
 func QuicstreamHandlerBlockMapItem(
 	blockMapItemf func(base.Height, base.BlockMapItemType) (io.ReadCloser, bool, error),
 ) quicstream.HeaderHandler {
-	return func(_ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
+	return func(_ context.Context, _ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
 		header, ok := detail.Header.(BlockMapItemRequestHeader)
 		if !ok {
 			return errors.Errorf("expected BlockMapItemRequestHeader, but %T", detail.Header)
@@ -401,7 +401,7 @@ func QuicstreamHandlerNodeChallenge(
 ) quicstream.HeaderHandler {
 	var sg singleflight.Group
 
-	return func(_ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
+	return func(ctx context.Context, _ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
 		e := util.StringErrorFunc("handle NodeChallenge")
 
 		header, ok := detail.Header.(NodeChallengeRequestHeader)
@@ -423,25 +423,37 @@ func QuicstreamHandlerNodeChallenge(
 
 		sig := i.(base.Signature) //nolint:forcetypeassert //...
 
-		b, err := detail.Encoder.Marshal(sig)
-		if err != nil {
-			return err
-		}
+		pr, pw := io.Pipe()
 
-		buf := bytes.NewBuffer(b)
-		defer buf.Reset()
+		defer func() {
+			_ = pr.Close()
+			_ = pw.Close()
+		}()
 
-		if err := quicstream.WriteResponse(w,
-			detail.Encoder,
-			quicstream.NewDefaultResponseHeader(true, nil),
-			quicstream.StreamDataFormat,
-			0,
-			buf,
-		); err != nil {
+		donech := make(chan error, 1)
+
+		go func() {
+			donech <- quicstream.WriteResponse(w,
+				detail.Encoder,
+				quicstream.NewDefaultResponseHeader(true, nil),
+				quicstream.StreamDataFormat,
+				0,
+				pr,
+			)
+		}()
+
+		if err := detail.Encoder.StreamEncoder(pw).Encode(sig); err != nil {
 			return e(err, "")
 		}
 
-		return nil
+		_ = pw.Close()
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case err := <-donech:
+			return err
+		}
 	}
 }
 
@@ -450,8 +462,8 @@ func QuicstreamHandlerSuffrageNodeConnInfo(
 ) quicstream.HeaderHandler {
 	handler := quicstreamHandlerNodeConnInfos(suffrageNodeConnInfof)
 
-	return func(addr net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
-		if err := handler(addr, r, w, detail); err != nil {
+	return func(ctx context.Context, addr net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
+		if err := handler(ctx, addr, r, w, detail); err != nil {
 			return errors.WithMessage(err, "handle SuffrageNodeConnInfo")
 		}
 
@@ -464,8 +476,8 @@ func QuicstreamHandlerSyncSourceConnInfo(
 ) quicstream.HeaderHandler {
 	handler := quicstreamHandlerNodeConnInfos(syncSourceConnInfof)
 
-	return func(addr net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
-		if err := handler(addr, r, w, detail); err != nil {
+	return func(ctx context.Context, addr net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
+		if err := handler(ctx, addr, r, w, detail); err != nil {
 			return errors.WithMessage(err, "handle SyncSourceConnInfo")
 		}
 
@@ -511,7 +523,7 @@ func QuicstreamHandlerExistsInStateOperation(
 ) quicstream.HeaderHandler {
 	var sg singleflight.Group
 
-	return func(_ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
+	return func(_ context.Context, _ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
 		e := util.StringErrorFunc("handle exists instate operation")
 
 		header, ok := detail.Header.(ExistsInStateOperationRequestHeader)
@@ -546,7 +558,7 @@ func QuicstreamHandlerNodeInfo(
 ) quicstream.HeaderHandler {
 	var sg singleflight.Group
 
-	return func(_ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
+	return func(_ context.Context, _ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
 		e := util.StringErrorFunc("handle node info")
 
 		if _, ok := detail.Header.(NodeInfoRequestHeader); !ok {
@@ -591,7 +603,7 @@ func QuicstreamHandlerSendBallots(
 	params *isaac.LocalParams,
 	votef func(base.BallotSignFact) error,
 ) quicstream.HeaderHandler {
-	return func(_ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
+	return func(_ context.Context, _ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
 		e := util.StringErrorFunc("handle new ballot")
 
 		if _, ok := detail.Header.(SendBallotsHeader); !ok {
@@ -658,7 +670,7 @@ func quicstreamHandlerNodeConnInfos(
 
 	var sg singleflight.Group
 
-	return func(_ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
+	return func(_ context.Context, _ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
 		i, err, _ := sg.Do("node_conn_infos", func() (interface{}, error) {
 			var cis []isaac.NodeConnInfo
 
@@ -715,7 +727,7 @@ func boolQUICstreamHandler(
 ) quicstream.HeaderHandler {
 	var sg singleflight.Group
 
-	return func(_ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error { //nolint:dupl //...
+	return func(_ context.Context, _ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error { //nolint:dupl //...
 		sgkey := sgkeyf(detail.Header)
 
 		i, err, _ := sg.Do(sgkey, func() (interface{}, error) {
@@ -762,7 +774,7 @@ func boolBytesQUICstreamHandler(
 ) quicstream.HeaderHandler {
 	var sg singleflight.Group
 
-	return func(_ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
+	return func(_ context.Context, _ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
 		sgkey := sgkeyf(detail.Header)
 
 		i, err, _ := sg.Do(sgkey, func() (interface{}, error) {

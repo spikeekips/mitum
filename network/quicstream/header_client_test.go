@@ -205,7 +205,7 @@ func (t *testHeaderClient) TestRequest() {
 	handler := NewHeaderHandler(
 		t.encs,
 		time.Minute,
-		func(_ net.Addr, r io.Reader, w io.Writer, detail RequestHeadDetail) error {
+		func(_ context.Context, _ net.Addr, r io.Reader, w io.Writer, detail RequestHeadDetail) error {
 			if delay != nil {
 				t.T().Log("delaying:", delay)
 
@@ -296,7 +296,7 @@ func (t *testHeaderClient) TestRequest() {
 		handler := NewHeaderHandler(
 			t.encs,
 			time.Second,
-			func(_ net.Addr, r io.Reader, w io.Writer, detail RequestHeadDetail) error {
+			func(_ context.Context, _ net.Addr, r io.Reader, w io.Writer, detail RequestHeadDetail) error {
 				t.logRequestHeadDetail(detail)
 
 				dh, ok := detail.Header.(dummyRequestHeader)

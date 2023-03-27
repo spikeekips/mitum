@@ -17,6 +17,7 @@ type RequestHeadDetail struct {
 }
 
 type HeaderHandler func(
+	context.Context,
 	net.Addr,
 	io.Reader,
 	io.Writer,
@@ -59,7 +60,7 @@ func NewHeaderHandler(
 				return err
 			}
 
-			return handler(addr, r, w, detail)
+			return handler(ctx, addr, r, w, detail)
 		}
 	}
 }
