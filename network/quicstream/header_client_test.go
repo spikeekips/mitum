@@ -29,7 +29,7 @@ type dummyRequestHeader struct {
 	ID string
 }
 
-func newDummyRequestHeader(prefix, id string) dummyRequestHeader {
+func newDummyRequestHeader(prefix []byte, id string) dummyRequestHeader {
 	return dummyRequestHeader{
 		BaseRequestHeader: NewBaseRequestHeader(dummyRequestHeaderHint, prefix),
 		ID:                id,
@@ -132,7 +132,7 @@ func (t *testHeaderClient) SetupSuite() {
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: dummyResponseHeaderHint, Instance: dummyResponseHeader{}}))
 }
 
-func (t *testHeaderClient) newServer(prefix string, handler Handler) *Server {
+func (t *testHeaderClient) newServer(prefix []byte, handler Handler) *Server {
 	ph := NewPrefixHandler(nil)
 	ph.Add(prefix, handler)
 
@@ -194,7 +194,7 @@ func (t *testHeaderClient) logBody(
 func (t *testHeaderClient) TestRequest() {
 	localci := NewUDPConnInfo(t.Bind, true)
 
-	prefix := util.UUID().String()
+	prefix := HashPrefix(util.UUID().String())
 	id := util.UUID().String()
 
 	var delay *time.Duration

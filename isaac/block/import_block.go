@@ -125,7 +125,6 @@ func importBlock(
 			default:
 				defer func() {
 					_ = cancel()
-					_ = r.Close()
 				}()
 
 				if err := im.WriteItem(item.Type(), r); err != nil {

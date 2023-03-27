@@ -14,7 +14,7 @@ type testLengthedBytes struct {
 func (t *testLengthedBytes) TestNew() {
 	t.Run("nil", func() {
 		w := bytes.NewBuffer(nil)
-		t.NoError(WriteLengthedBytes(w, nil))
+		t.NoError(WriteLengthed(w, nil))
 
 		b := w.Bytes()
 
@@ -27,7 +27,7 @@ func (t *testLengthedBytes) TestNew() {
 
 	t.Run("empty", func() {
 		w := bytes.NewBuffer(nil)
-		t.NoError(WriteLengthedBytes(w, []byte{}))
+		t.NoError(WriteLengthed(w, []byte{}))
 
 		b := w.Bytes()
 
@@ -40,7 +40,7 @@ func (t *testLengthedBytes) TestNew() {
 
 	t.Run("1", func() {
 		w := bytes.NewBuffer(nil)
-		t.NoError(WriteLengthedBytes(w, []byte{0x00}))
+		t.NoError(WriteLengthed(w, []byte{0x00}))
 
 		b := w.Bytes()
 
@@ -56,7 +56,7 @@ func (t *testLengthedBytes) TestNew() {
 		w := bytes.NewBuffer(nil)
 		i := UUID().Bytes()
 
-		t.NoError(WriteLengthedBytes(w, i))
+		t.NoError(WriteLengthed(w, i))
 
 		b := w.Bytes()
 
@@ -72,7 +72,7 @@ func (t *testLengthedBytes) TestNew() {
 func (t *testLengthedBytes) TestRead() {
 	t.Run("nil", func() {
 		w := bytes.NewBuffer(nil)
-		t.NoError(WriteLengthedBytes(w, nil))
+		t.NoError(WriteLengthed(w, nil))
 
 		b := w.Bytes()
 
@@ -96,7 +96,7 @@ func (t *testLengthedBytes) TestRead() {
 
 	t.Run("empty", func() {
 		w := bytes.NewBuffer(nil)
-		t.NoError(WriteLengthedBytes(w, []byte{}))
+		t.NoError(WriteLengthed(w, []byte{}))
 
 		b := w.Bytes()
 
@@ -108,7 +108,7 @@ func (t *testLengthedBytes) TestRead() {
 
 	t.Run("1", func() {
 		w := bytes.NewBuffer(nil)
-		t.NoError(WriteLengthedBytes(w, []byte{0x01}))
+		t.NoError(WriteLengthed(w, []byte{0x01}))
 
 		b := w.Bytes()
 
@@ -120,7 +120,7 @@ func (t *testLengthedBytes) TestRead() {
 
 	t.Run("empty and none empty left", func() {
 		w := bytes.NewBuffer(nil)
-		t.NoError(WriteLengthedBytes(w, []byte{}))
+		t.NoError(WriteLengthed(w, []byte{}))
 
 		b := w.Bytes()
 
@@ -136,7 +136,7 @@ func (t *testLengthedBytes) TestRead() {
 	t.Run("none empty and none empty left", func() {
 		i := UUID().Bytes()
 		w := bytes.NewBuffer(nil)
-		t.NoError(WriteLengthedBytes(w, i))
+		t.NoError(WriteLengthed(w, i))
 
 		b := w.Bytes()
 

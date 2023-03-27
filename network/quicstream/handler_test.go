@@ -18,19 +18,22 @@ type testPrefixHandler struct {
 }
 
 func (t *testPrefixHandler) Test() {
+	aprefix := HashPrefix("findme")
+	bprefix := HashPrefix("showme")
+
 	handler := NewPrefixHandler(func(_ net.Addr, r io.Reader, w io.Writer, err error) error {
 		_, _ = w.Write([]byte("hehehe"))
 
 		return nil
 	})
-	handler.Add("findme", func(_ net.Addr, r io.Reader, w io.Writer) error {
+	handler.Add(aprefix, func(_ net.Addr, r io.Reader, w io.Writer) error {
 		b, _ := io.ReadAll(r)
 		_, _ = w.Write(b)
 
 		return nil
 	})
 
-	handler.Add("showme", func(_ net.Addr, r io.Reader, w io.Writer) error {
+	handler.Add(bprefix, func(_ net.Addr, r io.Reader, w io.Writer) error {
 		b, _ := io.ReadAll(r)
 		_, _ = w.Write(b)
 
@@ -52,7 +55,7 @@ func (t *testPrefixHandler) Test() {
 		r, w, err := client.OpenStream(ctx)
 		t.NoError(err)
 
-		_, err = w.Write(writeWithPrefix("findme", b))
+		_, err = w.Write(writeWithPrefix(aprefix, b))
 		t.NoError(err)
 
 		t.NoError(w.Close())
@@ -71,7 +74,7 @@ func (t *testPrefixHandler) Test() {
 		r, w, err := client.OpenStream(ctx)
 		t.NoError(err)
 
-		_, err = w.Write(writeWithPrefix("showme", b))
+		_, err = w.Write(writeWithPrefix(bprefix, b))
 		t.NoError(err)
 
 		t.NoError(w.Close())
@@ -90,7 +93,7 @@ func (t *testPrefixHandler) Test() {
 		r, w, err := client.OpenStream(ctx)
 		t.NoError(err)
 
-		_, err = w.Write(writeWithPrefix("unknown", b))
+		_, err = w.Write(writeWithPrefix([]byte("unknown"), b))
 		t.NoError(err)
 
 		t.NoError(w.Close())
@@ -108,7 +111,7 @@ func TestPrefixHandler(t *testing.T) {
 	suite.Run(t, new(testPrefixHandler))
 }
 
-func writeWithPrefix(prefix string, b []byte) []byte {
+func writeWithPrefix(prefix []byte, b []byte) []byte {
 	w := bytes.NewBuffer(nil)
 	defer w.Reset()
 

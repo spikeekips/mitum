@@ -28,11 +28,11 @@ var (
 )
 
 type baseHeader struct {
-	quicstream.BaseHeader
+	quicstream.BaseRequestHeader
 }
 
 func newBaseHeader(ht hint.Hint) baseHeader {
-	return baseHeader{BaseHeader: quicstream.NewBaseHeader(ht, headerPrefixByHint(ht))}
+	return baseHeader{BaseRequestHeader: quicstream.NewBaseRequestHeader(ht, headerPrefixByHint(ht))}
 }
 
 type OperationRequestHeader struct {
@@ -485,7 +485,7 @@ func (h SendBallotsHeader) IsValid([]byte) error {
 	return nil
 }
 
-func headerPrefixByHint(ht hint.Hint) string {
+func headerPrefixByHint(ht hint.Hint) []byte {
 	switch ht.Type() {
 	case RequestProposalRequestHeaderHint.Type():
 		return HandlerPrefixRequestProposal
@@ -520,6 +520,6 @@ func headerPrefixByHint(ht hint.Hint) string {
 	case SendBallotsHeaderHint.Type():
 		return HandlerPrefixSendBallots
 	default:
-		return ""
+		return nil
 	}
 }

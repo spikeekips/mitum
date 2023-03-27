@@ -129,7 +129,7 @@ func WriteLength(w io.Writer, i uint64) error {
 	return nil
 }
 
-func WriteLengthedBytes(w io.Writer, b []byte) error {
+func WriteLengthed(w io.Writer, b []byte) error {
 	e := StringErrorFunc("LengthedBytes")
 
 	i := uint64(len(b))
@@ -150,7 +150,7 @@ func WriteLengthedBytes(w io.Writer, b []byte) error {
 }
 
 func ReadLengthedBytes(b []byte) (_ []byte, left []byte, _ error) {
-	i, err := ReadLength(b)
+	i, err := ReadLengthBytes(b)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -162,7 +162,7 @@ func ReadLengthedBytes(b []byte) (_ []byte, left []byte, _ error) {
 	return b[8 : i+8], b[i+8:], nil
 }
 
-func ReadLength(b []byte) (uint64, error) {
+func ReadLengthBytes(b []byte) (uint64, error) {
 	i := uint64(len(b))
 
 	if i < 8 { //nolint:gomnd //...
@@ -177,18 +177,18 @@ func ReadLength(b []byte) (uint64, error) {
 	return j, nil
 }
 
-func ReadLengthFromReader(r io.Reader) (uint64, error) {
+func ReadLength(r io.Reader) (uint64, error) {
 	p := make([]byte, 8)
 
 	if _, err := EnsureRead(r, p); err != nil {
 		return 0, err
 	}
 
-	return ReadLength(p)
+	return ReadLengthBytes(p)
 }
 
-func ReadLengthedBytesFromReader(r io.Reader) ([]byte, error) {
-	n, err := ReadLengthFromReader(r)
+func ReadLengthed(r io.Reader) ([]byte, error) {
+	n, err := ReadLength(r)
 	if err != nil {
 		return nil, err
 	}
@@ -203,17 +203,17 @@ func NewLengthedBytesSlice(version byte, m [][]byte) ([]byte, error) {
 	w := bytes.NewBuffer(nil)
 	defer w.Reset()
 
-	if err := WriteLengthedBytesSlice(w, version, m); err != nil {
+	if err := WriteLengthedSlice(w, version, m); err != nil {
 		return nil, err
 	}
 
 	return w.Bytes(), nil
 }
 
-func WriteLengthedBytesSlice(w io.Writer, version byte, m [][]byte) error {
+func WriteLengthedSlice(w io.Writer, version byte, m [][]byte) error {
 	e := StringErrorFunc("WriteLengthedBytesSlice")
 
-	if err := WriteLengthedBytes(w, []byte{version}); err != nil {
+	if err := WriteLengthed(w, []byte{version}); err != nil {
 		return e(err, "write version")
 	}
 
@@ -222,7 +222,7 @@ func WriteLengthedBytesSlice(w io.Writer, version byte, m [][]byte) error {
 	}
 
 	for i := range m {
-		if err := WriteLengthedBytes(w, m[i]); err != nil {
+		if err := WriteLengthed(w, m[i]); err != nil {
 			return e(err, "write body")
 		}
 	}

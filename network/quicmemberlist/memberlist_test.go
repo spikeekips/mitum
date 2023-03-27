@@ -88,7 +88,7 @@ func (t *testMemberlist) newServersForJoining(
 	func() error,
 	func(),
 ) {
-	transportprefix := "tp"
+	transportprefix := quicstream.HashPrefix("tp")
 	tlsconfig := t.NewTLSConfig(t.Proto)
 
 	poolclient := quicstream.NewPoolClient()
@@ -1130,7 +1130,7 @@ func (t *testMemberlist) TestCallbackBroadcast() {
 		nil,
 	)
 
-	callbackhandlerprefix := "cb"
+	callbackhandlerprefix := quicstream.HashPrefix("cb")
 
 	lph.Add(callbackhandlerprefix, quicstream.NewHeaderHandler(t.encs, 0, lsrv.CallbackBroadcastHandler()))
 
@@ -1210,7 +1210,7 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 	lnode := base.RandomLocalNode()
 	t.T().Log("local conninfo:", lci)
 
-	handlerprefix := "eb"
+	handlerprefix := quicstream.HashPrefix("eb")
 	networkID := base.NetworkID(util.UUID().Bytes())
 
 	rcis := make([]quicstream.UDPConnInfo, 3)

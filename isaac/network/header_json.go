@@ -10,11 +10,11 @@ import (
 )
 
 func (h *baseHeader) UnmarshalJSON(b []byte) error {
-	if err := util.UnmarshalJSON(b, &h.BaseHeader); err != nil {
+	if err := util.UnmarshalJSON(b, &h.BaseRequestHeader); err != nil {
 		return err
 	}
 
-	h.BaseHeader = quicstream.NewBaseHeader(h.Hint(), headerPrefixByHint(h.Hint()))
+	h.BaseRequestHeader = quicstream.NewBaseRequestHeader(h.Hint(), headerPrefixByHint(h.Hint()))
 
 	return nil
 }
@@ -26,9 +26,9 @@ type operationRequestHeaderJSONMarshaler struct {
 func (h OperationRequestHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
 		operationRequestHeaderJSONMarshaler
-		quicstream.BaseHeaderJSONMarshaler
+		quicstream.BaseRequestHeader
 	}{
-		BaseHeaderJSONMarshaler: h.BaseHeader.JSONMarshaler(),
+		BaseRequestHeader: h.BaseRequestHeader,
 		operationRequestHeaderJSONMarshaler: operationRequestHeaderJSONMarshaler{
 			Operation: h.h,
 		},
@@ -76,9 +76,9 @@ type requestProposalRequestHeaderJSONMarshaler struct {
 func (h RequestProposalRequestHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
 		requestProposalRequestHeaderJSONMarshaler
-		quicstream.BaseHeaderJSONMarshaler
+		quicstream.BaseRequestHeader
 	}{
-		BaseHeaderJSONMarshaler: h.BaseHeader.JSONMarshaler(),
+		BaseRequestHeader: h.BaseRequestHeader,
 		requestProposalRequestHeaderJSONMarshaler: requestProposalRequestHeaderJSONMarshaler{
 			Proposer: h.proposer,
 			Point:    h.point,
@@ -123,9 +123,9 @@ type proposalRequestHeaderJSONMarshaler struct {
 func (h ProposalRequestHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
 		proposalRequestHeaderJSONMarshaler
-		quicstream.BaseHeaderJSONMarshaler
+		quicstream.BaseRequestHeader
 	}{
-		BaseHeaderJSONMarshaler: h.BaseHeader.JSONMarshaler(),
+		BaseRequestHeader: h.BaseRequestHeader,
 		proposalRequestHeaderJSONMarshaler: proposalRequestHeaderJSONMarshaler{
 			Proposal: h.proposal,
 		},
@@ -161,9 +161,9 @@ type lastSuffrageProofRequestHeaderJSONMarshaler struct {
 func (h LastSuffrageProofRequestHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
 		lastSuffrageProofRequestHeaderJSONMarshaler
-		quicstream.BaseHeaderJSONMarshaler
+		quicstream.BaseRequestHeader
 	}{
-		BaseHeaderJSONMarshaler: h.BaseHeader.JSONMarshaler(),
+		BaseRequestHeader: h.BaseRequestHeader,
 		lastSuffrageProofRequestHeaderJSONMarshaler: lastSuffrageProofRequestHeaderJSONMarshaler{
 			State: h.state,
 		},
@@ -198,10 +198,10 @@ type suffrageProofRequestHeaderJSONMarshaler struct {
 
 func (h SuffrageProofRequestHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
-		quicstream.BaseHeaderJSONMarshaler
+		quicstream.BaseRequestHeader
 		suffrageProofRequestHeaderJSONMarshaler
 	}{
-		BaseHeaderJSONMarshaler: h.BaseHeader.JSONMarshaler(),
+		BaseRequestHeader: h.BaseRequestHeader,
 		suffrageProofRequestHeaderJSONMarshaler: suffrageProofRequestHeaderJSONMarshaler{
 			SuffrageHeight: h.suffrageheight,
 		},
@@ -236,9 +236,9 @@ type lastBlockMapRequestHeaderJSONMarshaler struct {
 func (h LastBlockMapRequestHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
 		lastBlockMapRequestHeaderJSONMarshaler
-		quicstream.BaseHeaderJSONMarshaler
+		quicstream.BaseRequestHeader
 	}{
-		BaseHeaderJSONMarshaler: h.BaseHeader.JSONMarshaler(),
+		BaseRequestHeader: h.BaseRequestHeader,
 		lastBlockMapRequestHeaderJSONMarshaler: lastBlockMapRequestHeaderJSONMarshaler{
 			Manifest: h.manifest,
 		},
@@ -272,10 +272,10 @@ type BlockMapRequestHeaderJSONMarshaler struct {
 
 func (h BlockMapRequestHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
-		quicstream.BaseHeaderJSONMarshaler
+		quicstream.BaseRequestHeader
 		BlockMapRequestHeaderJSONMarshaler
 	}{
-		BaseHeaderJSONMarshaler: h.BaseHeader.JSONMarshaler(),
+		BaseRequestHeader: h.BaseRequestHeader,
 		BlockMapRequestHeaderJSONMarshaler: BlockMapRequestHeaderJSONMarshaler{
 			Height: h.height,
 		},
@@ -311,9 +311,9 @@ type BlockMapItemRequestHeaderJSONMarshaler struct {
 func (h BlockMapItemRequestHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
 		BlockMapItemRequestHeaderJSONMarshaler
-		quicstream.BaseHeaderJSONMarshaler
+		quicstream.BaseRequestHeader
 	}{
-		BaseHeaderJSONMarshaler: h.BaseHeader.JSONMarshaler(),
+		BaseRequestHeader: h.BaseRequestHeader,
 		BlockMapItemRequestHeaderJSONMarshaler: BlockMapItemRequestHeaderJSONMarshaler{
 			Height: h.height,
 			Item:   h.item,
@@ -351,9 +351,9 @@ type NodeChallengeRequestHeaderJSONMarshaler struct {
 func (h NodeChallengeRequestHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
 		NodeChallengeRequestHeaderJSONMarshaler
-		quicstream.BaseHeaderJSONMarshaler
+		quicstream.BaseRequestHeader
 	}{
-		BaseHeaderJSONMarshaler: h.BaseHeader.JSONMarshaler(),
+		BaseRequestHeader: h.BaseRequestHeader,
 		NodeChallengeRequestHeaderJSONMarshaler: NodeChallengeRequestHeaderJSONMarshaler{
 			Input: h.input,
 		},
@@ -409,9 +409,9 @@ type stateRequestHeaderJSONMarshaler struct {
 func (h StateRequestHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
 		stateRequestHeaderJSONMarshaler
-		quicstream.BaseHeaderJSONMarshaler
+		quicstream.BaseRequestHeader
 	}{
-		BaseHeaderJSONMarshaler: h.BaseHeader.JSONMarshaler(),
+		BaseRequestHeader: h.BaseRequestHeader,
 		stateRequestHeaderJSONMarshaler: stateRequestHeaderJSONMarshaler{
 			Key:  h.key,
 			Hash: h.h,
@@ -450,9 +450,9 @@ type existsInStateOperationRequestHeaderJSONMarshaler struct {
 func (h ExistsInStateOperationRequestHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
 		existsInStateOperationRequestHeaderJSONMarshaler
-		quicstream.BaseHeaderJSONMarshaler
+		quicstream.BaseRequestHeader
 	}{
-		BaseHeaderJSONMarshaler: h.BaseHeader.JSONMarshaler(),
+		BaseRequestHeader: h.BaseRequestHeader,
 		existsInStateOperationRequestHeaderJSONMarshaler: existsInStateOperationRequestHeaderJSONMarshaler{
 			Fact: h.facthash,
 		},

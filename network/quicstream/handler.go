@@ -14,6 +14,8 @@ type (
 	ErrorHandler func(net.Addr, io.Reader, io.Writer, error) error
 )
 
+var ErrHandlerNotFound = util.NewMError("handler not found")
+
 type PrefixHandler struct {
 	handlers     map[string]Handler
 	errorHandler ErrorHandler
@@ -47,8 +49,8 @@ func (h *PrefixHandler) Handler(addr net.Addr, r io.Reader, w io.Writer) error {
 	return nil
 }
 
-func (h *PrefixHandler) Add(prefix string, handler Handler) *PrefixHandler {
-	h.handlers[string(hashPrefix(prefix))] = handler
+func (h *PrefixHandler) Add(prefix []byte, handler Handler) *PrefixHandler {
+	h.handlers[string(prefix)] = handler
 
 	return h
 }
@@ -63,14 +65,14 @@ func (h *PrefixHandler) loadHandler(r io.Reader) (Handler, error) {
 
 	handler, found := h.handlers[string(prefix)]
 	if !found {
-		return nil, e(nil, "handler not found")
+		return nil, e(ErrHandlerNotFound.Errorf("handler not found"), "")
 	}
 
 	return handler, nil
 }
 
-func hashPrefix(prefix string) []byte {
-	return valuehash.NewSHA256([]byte(prefix)).Bytes()
+func HashPrefix(s string) []byte {
+	return valuehash.NewSHA256([]byte(s)).Bytes()
 }
 
 func readPrefix(r io.Reader) ([]byte, error) {
@@ -86,8 +88,8 @@ func readPrefix(r io.Reader) ([]byte, error) {
 	return p, nil
 }
 
-func WritePrefix(w io.Writer, prefix string) error {
-	_, err := w.Write(hashPrefix(prefix))
+func WritePrefix(w io.Writer, prefix []byte) error {
+	_, err := w.Write(prefix)
 
 	return errors.WithStack(err)
 }

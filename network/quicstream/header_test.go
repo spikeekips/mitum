@@ -16,7 +16,7 @@ func TestBaseRequestHeader(tt *testing.T) {
 	t := new(encoder.BaseTestEncode)
 
 	t.Encode = func() (interface{}, []byte) {
-		h := NewBaseRequestHeader(ht, util.UUID().String())
+		h := NewBaseRequestHeader(ht, util.UUID().Bytes())
 
 		b, err := util.MarshalJSON(h.JSONMarshaler())
 		t.NoError(err)

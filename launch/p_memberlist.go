@@ -69,7 +69,7 @@ func PMemberlist(pctx context.Context) (context.Context, error) {
 	args.ExtraSameMemberLimit = params.SameMemberLimit()
 	args.FetchCallbackBroadcastMessageFunc = quicmemberlist.FetchCallbackBroadcastMessageFunc(
 		HandlerPrefixMemberlistCallbackBroadcastMessage,
-		client.Request,
+		client.Broker,
 	)
 
 	args.PongEnsureBroadcastMessageFunc = quicmemberlist.PongEnsureBroadcastMessageFunc(
@@ -77,7 +77,7 @@ func PMemberlist(pctx context.Context) (context.Context, error) {
 		local.Address(),
 		local.Privatekey(),
 		params.NetworkID(),
-		client.Request,
+		client.Broker,
 	)
 
 	m, err := quicmemberlist.NewMemberlist(localnode, args)

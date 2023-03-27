@@ -13,9 +13,9 @@ import (
 )
 
 type BaseCommand struct {
-	enc  *jsonenc.Encoder
-	encs *encoder.Encoders
-	log  *zerolog.Logger
+	Encoders *encoder.Encoders
+	Encoder  *jsonenc.Encoder
+	Log      *zerolog.Logger
 }
 
 func (cmd *BaseCommand) prepare(pctx context.Context) (context.Context, error) {
@@ -32,7 +32,7 @@ func (cmd *BaseCommand) prepare(pctx context.Context) (context.Context, error) {
 		return pctx, err
 	}
 
-	cmd.log = log.Log()
+	cmd.Log = log.Log()
 
 	pctx, err := pps.Run(pctx) //revive:disable-line:modifies-parameter
 	if err != nil {
@@ -40,7 +40,7 @@ func (cmd *BaseCommand) prepare(pctx context.Context) (context.Context, error) {
 	}
 
 	return pctx, util.LoadFromContextOK(pctx,
-		launch.EncodersContextKey, &cmd.encs,
-		launch.EncoderContextKey, &cmd.enc,
+		launch.EncodersContextKey, &cmd.Encoders,
+		launch.EncoderContextKey, &cmd.Encoder,
 	)
 }

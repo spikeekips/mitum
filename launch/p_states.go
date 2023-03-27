@@ -859,7 +859,7 @@ func syncerBlockMapItemFunc(
 	conninfocache util.LockedMap[base.Height, quicstream.UDPConnInfo],
 ) isaacblock.ImportBlocksBlockMapItemFunc {
 	return func(ctx context.Context, height base.Height, item base.BlockMapItemType) (
-		reader io.ReadCloser, closef func() error, found bool, _ error,
+		reader io.Reader, closef func() error, found bool, _ error,
 	) {
 		e := util.StringErrorFunc("fetch blockmap item")
 

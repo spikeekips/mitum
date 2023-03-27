@@ -82,7 +82,7 @@ func (db *baseDatabase) readHinterWithEncoder(enchint hint.Hint, b []byte, v int
 }
 
 func (db *baseDatabase) writeHeader(w io.Writer, meta util.Byter) error {
-	if err := util.WriteLengthedBytes(w, db.enc.Hint().Bytes()); err != nil {
+	if err := util.WriteLengthed(w, db.enc.Hint().Bytes()); err != nil {
 		return err
 	}
 
@@ -91,7 +91,7 @@ func (db *baseDatabase) writeHeader(w io.Writer, meta util.Byter) error {
 		metab = meta.Bytes()
 	}
 
-	return util.WriteLengthedBytes(w, metab)
+	return util.WriteLengthed(w, metab)
 }
 
 func (*baseDatabase) readHeader(b []byte) (ht hint.Hint, meta, body []byte, err error) {

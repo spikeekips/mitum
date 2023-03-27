@@ -31,8 +31,13 @@ var (
 )
 
 var (
-	HandlerPrefixMemberlistCallbackBroadcastMessage = "memberlist-callback-broadcast-message"
-	HandlerPrefixMemberlistEnsureBroadcastMessage   = "memberlist-ensure-broadcast-message"
+	//revive:disable:line-length-limit
+	HandlerPrefixMemberlistCallbackBroadcastMessageString = "memberlist-callback-broadcast-message"
+	HandlerPrefixMemberlistEnsureBroadcastMessageString   = "memberlist-ensure-broadcast-message"
+
+	HandlerPrefixMemberlistCallbackBroadcastMessage []byte = quicstream.HashPrefix(HandlerPrefixMemberlistCallbackBroadcastMessageString)
+	HandlerPrefixMemberlistEnsureBroadcastMessage          = quicstream.HashPrefix(HandlerPrefixMemberlistEnsureBroadcastMessageString)
+	//revive:enable:line-length-limit
 )
 
 func PNetworkHandlers(pctx context.Context) (context.Context, error) {

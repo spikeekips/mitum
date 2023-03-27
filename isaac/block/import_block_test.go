@@ -235,7 +235,7 @@ func (t *testImportBlocks) TestImport() {
 
 			return m, found, err
 		},
-		func(_ context.Context, height base.Height, item base.BlockMapItemType) (io.ReadCloser, func() error, bool, error) {
+		func(_ context.Context, height base.Height, item base.BlockMapItemType) (io.Reader, func() error, bool, error) {
 			reader, err := NewLocalFSReaderFromHeight(t.Root, height, t.Enc)
 			if err != nil {
 				return nil, nil, false, err

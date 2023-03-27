@@ -391,7 +391,7 @@ func (srv *Memberlist) EnsureBroadcast(
 	case err != nil:
 		return err
 	default:
-		if err := util.WriteLengthedBytes(buf, i); err != nil {
+		if err := util.WriteLengthed(buf, i); err != nil {
 			return err
 		}
 
@@ -1129,7 +1129,7 @@ func RandomAliveMembers(
 }
 
 func FetchCallbackBroadcastMessageFunc(
-	handlerPrefix string,
+	handlerPrefix []byte,
 	brokerf quicstream.HeaderBrokerFunc,
 ) func(context.Context, ConnInfoBroadcastMessage) (
 	[]byte, encoder.Encoder, error,
@@ -1180,7 +1180,7 @@ func FetchCallbackBroadcastMessageFunc(
 }
 
 func PongEnsureBroadcastMessageFunc(
-	handlerPrefix string,
+	handlerPrefix []byte,
 	node base.Address,
 	signer base.Privatekey,
 	networkID base.NetworkID,

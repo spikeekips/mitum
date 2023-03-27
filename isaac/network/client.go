@@ -1,7 +1,6 @@
 package isaacnetwork
 
 import (
-	"bytes"
 	"context"
 	"io"
 
@@ -20,56 +19,40 @@ type BaseClient struct {
 func NewBaseClient(
 	encs *encoder.Encoders,
 	enc encoder.Encoder,
-	writef quicstream.HeaderClientWriteFunc,
+	openstreamf quicstream.OpenStreamFunc,
 ) *BaseClient {
 	return &BaseClient{
-		HeaderClient: quicstream.NewHeaderClient(encs, enc, writef),
+		HeaderClient: quicstream.NewHeaderClient(encs, enc, openstreamf),
 	}
 }
 
-func (c *BaseClient) Request(
-	ctx context.Context,
-	ci quicstream.UDPConnInfo,
-	header quicstream.Header,
-	body io.Reader,
-) (
-	quicstream.ResponseHeader,
+func (c *BaseClient) OpenStream(ctx context.Context, ci quicstream.UDPConnInfo) (
 	io.ReadCloser,
-	func() error,
-	encoder.Encoder,
+	io.WriteCloser,
 	error,
 ) {
-	e := util.StringErrorFunc("request")
+	return c.HeaderClient.OpenStream(ctx, ci)
+}
 
-	h, r, cancel, enc, err := c.HeaderClient.Request(ctx, ci, header, body)
-
-	switch {
-	case err != nil:
-		return h, nil, cancel, enc, e(err, "read stream")
-	case h.Err() != nil:
-		return h, nil, cancel, enc, nil
-	case !h.OK():
-		return h, nil, cancel, enc, nil
-	}
-
-	switch h.ContentType() {
-	case quicstream.HinterContentType, quicstream.RawContentType:
-		return h, r, cancel, enc, nil
-	default:
-		_ = cancel()
-
-		return nil, nil, util.EmptyCancelFunc, enc, errors.Errorf("unknown content type, %q", h.ContentType())
-	}
+func (c *BaseClient) Broker(ctx context.Context, ci quicstream.UDPConnInfo) (*quicstream.HeaderClientBroker, error) {
+	return c.HeaderClient.Broker(ctx, ci)
 }
 
 func (c *BaseClient) Operation(
 	ctx context.Context, ci quicstream.UDPConnInfo, op util.Hash,
 ) (base.Operation, bool, error) {
-	header := NewOperationRequestHeader(op)
-
 	var u base.Operation
 
-	switch h, _, err := quicstream.HeaderClientRequestDecode(ctx, c.HeaderClient, ci, header, nil, &u); {
+	switch h, err := HCReqResDec(
+		ctx,
+		ci,
+		NewOperationRequestHeader(op),
+		&u,
+		c.HeaderClient.Broker,
+		func(enc encoder.Encoder, r io.Reader, v interface{}) error {
+			return encoder.DecodeReader(enc, r, v)
+		},
+	); {
 	case err != nil:
 		return nil, false, err
 	default:
@@ -82,19 +65,13 @@ func (c *BaseClient) SendOperation(
 	ci quicstream.UDPConnInfo,
 	op base.Operation,
 ) (bool, error) {
-	buf := bytes.NewBuffer(nil)
-	defer buf.Reset()
-
-	if err := c.Encoder.StreamEncoder(buf).Encode(op); err != nil {
-		return false, err
-	}
-
-	header := NewSendOperationRequestHeader()
-
-	h, _, cancel, _, err := c.HeaderClient.Request(ctx, ci, header, buf)
-	_ = cancel()
-
-	switch {
+	switch h, err := HCBodyReqRes(
+		ctx,
+		ci,
+		NewSendOperationRequestHeader(),
+		op,
+		c.HeaderClient.Broker,
+	); {
 	case err != nil:
 		return false, err
 	default:
@@ -109,15 +86,11 @@ func (c *BaseClient) RequestProposal(
 	proposer base.Address,
 ) (base.ProposalSignFact, bool, error) {
 	header := NewRequestProposalRequestHeader(point, proposer)
-
-	var u base.ProposalSignFact
-
-	switch h, _, err := quicstream.HeaderClientRequestBodyDecode(ctx, c.HeaderClient, ci, header, nil, &u); {
-	case err != nil:
+	if err := header.IsValid(nil); err != nil {
 		return nil, false, err
-	default:
-		return u, h.OK(), h.Err()
 	}
+
+	return c.requestProposal(ctx, ci, header)
 }
 
 func (c *BaseClient) Proposal( //nolint:dupl //...
@@ -126,19 +99,11 @@ func (c *BaseClient) Proposal( //nolint:dupl //...
 	pr util.Hash,
 ) (base.ProposalSignFact, bool, error) {
 	header := NewProposalRequestHeader(pr)
-
 	if err := header.IsValid(nil); err != nil {
 		return nil, false, err
 	}
 
-	var u base.ProposalSignFact
-
-	switch h, _, err := quicstream.HeaderClientRequestBodyDecode(ctx, c.HeaderClient, ci, header, nil, &u); {
-	case err != nil:
-		return nil, false, err
-	default:
-		return u, h.OK(), h.Err()
-	}
+	return c.requestProposal(ctx, ci, header)
 }
 
 func (c *BaseClient) LastSuffrageProof(
@@ -146,55 +111,63 @@ func (c *BaseClient) LastSuffrageProof(
 ) (base.Height, base.SuffrageProof, bool, error) {
 	header := NewLastSuffrageProofRequestHeader(state)
 
-	var lastheight base.Height
+	lastheight := base.NilHeight
 
 	if err := header.IsValid(nil); err != nil {
 		return lastheight, nil, false, err
 	}
 
-	h, r, cancel, enc, err := c.HeaderClient.Request(ctx, ci, header, nil)
-	if err != nil {
-		return lastheight, nil, false, err
-	}
+	var proof base.SuffrageProof
 
-	defer func() {
-		_ = cancel()
-	}()
+	switch rh, err := HCReqResDec(
+		ctx,
+		ci,
+		header,
+		nil,
+		c.HeaderClient.Broker,
+		func(enc encoder.Encoder, r io.Reader, _ interface{}) error {
+			if r == nil {
+				return nil
+			}
 
-	switch {
-	case h.Err() != nil:
-		return lastheight, nil, h.OK(), h.Err()
-	default:
-		b, err := io.ReadAll(r)
-		if err != nil {
-			return lastheight, nil, true, errors.WithMessage(err, "read response")
-		}
-
-		switch _, m, _, err := util.ReadLengthedBytesSlice(b); {
-		case err != nil:
-			return lastheight, nil, true, errors.WithMessage(err, "read response")
-		case len(m) != 2: //nolint:gomnd //...
-			return lastheight, nil, true, errors.Errorf("invalid response message")
-		default:
-			i, err := base.ParseHeightBytes(m[0])
+			b, err := io.ReadAll(r)
 			if err != nil {
-				return lastheight, nil, true, errors.WithMessage(err, "load last height")
+				return errors.WithMessage(err, "read response")
 			}
 
-			lastheight = i
+			switch _, m, _, err := util.ReadLengthedBytesSlice(b); {
+			case err != nil:
+				return errors.WithMessage(err, "read response")
+			case len(m) != 2: //nolint:gomnd //...
+				return errors.Errorf("invalid response message")
+			case len(m[0]) < 1:
+				return nil
+			default:
+				i, err := base.ParseHeightBytes(m[0])
+				if err != nil {
+					return errors.WithMessage(err, "load last height")
+				}
 
-			if !h.OK() {
-				return lastheight, nil, false, nil
+				lastheight = i
+
+				if len(m[1]) > 0 {
+					if err := encoder.Decode(enc, m[1], &proof); err != nil {
+						return err
+					}
+				}
+
+				return nil
 			}
-
-			var u base.SuffrageProof
-
-			if err := encoder.Decode(enc, m[1], &u); err != nil {
-				return lastheight, nil, true, err
-			}
-
-			return lastheight, u, true, nil
-		}
+		},
+	); {
+	case err != nil:
+		return lastheight, nil, false, err
+	case rh.Err() != nil:
+		return lastheight, nil, false, rh.Err()
+	case proof == nil:
+		return lastheight, nil, false, nil
+	default:
+		return lastheight, proof, rh.OK(), nil
 	}
 }
 
@@ -208,13 +181,20 @@ func (c *BaseClient) SuffrageProof( //nolint:dupl //...
 
 	var u base.SuffrageProof
 
-	switch h, _, err := quicstream.HeaderClientRequestDecode(ctx, c.HeaderClient, ci, header, nil, &u); {
+	switch h, err := HCReqResDec(
+		ctx,
+		ci,
+		header,
+		&u,
+		c.HeaderClient.Broker,
+		func(enc encoder.Encoder, r io.Reader, v interface{}) error {
+			return encoder.DecodeReader(enc, r, v)
+		},
+	); {
 	case err != nil:
-		return nil, false, errors.WithMessage(err, "get SuffrageProof")
-	case h.Err() != nil:
-		return nil, false, errors.WithMessage(h.Err(), "geProof")
+		return nil, false, err
 	default:
-		return u, h.OK(), nil
+		return u, h.OK(), h.Err()
 	}
 }
 
@@ -228,13 +208,20 @@ func (c *BaseClient) LastBlockMap( //nolint:dupl //...
 
 	var u base.BlockMap
 
-	switch h, _, err := quicstream.HeaderClientRequestDecode(ctx, c.HeaderClient, ci, header, nil, &u); {
+	switch h, err := HCReqResDec(
+		ctx,
+		ci,
+		header,
+		&u,
+		c.HeaderClient.Broker,
+		func(enc encoder.Encoder, r io.Reader, v interface{}) error {
+			return encoder.DecodeReader(enc, r, v)
+		},
+	); {
 	case err != nil:
-		return nil, false, errors.WithMessage(err, "get last BlockMap")
-	case h.Err() != nil:
-		return nil, false, errors.WithMessage(h.Err(), "get last BlockMap")
+		return nil, false, err
 	default:
-		return u, h.OK(), nil
+		return u, h.OK(), h.Err()
 	}
 }
 
@@ -248,20 +235,27 @@ func (c *BaseClient) BlockMap( //nolint:dupl //...
 
 	var u base.BlockMap
 
-	switch h, _, err := quicstream.HeaderClientRequestDecode(ctx, c.HeaderClient, ci, header, nil, &u); {
+	switch h, err := HCReqResDec(
+		ctx,
+		ci,
+		header,
+		&u,
+		c.HeaderClient.Broker,
+		func(enc encoder.Encoder, r io.Reader, v interface{}) error {
+			return encoder.DecodeReader(enc, r, v)
+		},
+	); {
 	case err != nil:
-		return nil, false, errors.WithMessage(err, "get BlockMap")
-	case h.Err() != nil:
-		return nil, false, errors.WithMessage(h.Err(), "get BlockMap")
+		return nil, false, err
 	default:
-		return u, h.OK(), nil
+		return u, h.OK(), h.Err()
 	}
 }
 
 func (c *BaseClient) BlockMapItem(
 	ctx context.Context, ci quicstream.UDPConnInfo, height base.Height, item base.BlockMapItemType,
 ) (
-	_ io.ReadCloser,
+	_ io.Reader,
 	_ func() error,
 	_ bool,
 	_ error,
@@ -269,14 +263,11 @@ func (c *BaseClient) BlockMapItem(
 	// NOTE the io.ReadCloser should be closed.
 
 	header := NewBlockMapItemRequestHeader(height, item)
-
 	if err := header.IsValid(nil); err != nil {
 		return nil, nil, false, err
 	}
 
-	h, r, cancel, _, err := c.HeaderClient.Request(ctx, ci, header, nil)
-
-	switch {
+	switch h, _, body, cancel, err := HCReqBodyRes(ctx, ci, header, c.HeaderClient.Broker); {
 	case err != nil:
 		return nil, nil, false, err
 	case h.Err() != nil, !h.OK():
@@ -284,7 +275,7 @@ func (c *BaseClient) BlockMapItem(
 
 		return nil, util.EmptyCancelFunc, h.OK(), h.Err()
 	default:
-		return r, cancel, h.OK(), h.Err()
+		return body, cancel, h.OK(), h.Err()
 	}
 }
 
@@ -296,35 +287,29 @@ func (c *BaseClient) NodeChallenge(
 	e := util.StringErrorFunc("NodeChallenge")
 
 	header := NewNodeChallengeRequestHeader(input)
-
 	if err := header.IsValid(nil); err != nil {
 		return nil, e(err, "")
 	}
 
-	h, r, cancel, enc, err := c.HeaderClient.Request(ctx, ci, header, nil)
-	if err != nil {
+	var sig base.Signature
+
+	switch h, err := HCReqResDec(
+		ctx,
+		ci,
+		header,
+		&sig,
+		c.HeaderClient.Broker,
+		func(enc encoder.Encoder, r io.Reader, v interface{}) error {
+			return enc.StreamDecoder(r).Decode(v)
+		},
+	); {
+	case err != nil:
 		return nil, e(err, "")
-	}
-
-	defer func() {
-		_ = cancel()
-	}()
-
-	switch {
-	case h.Err() != nil, !h.OK():
+	case !h.OK():
+		return nil, e(nil, "empty")
+	case h.Err() != nil:
 		return nil, e(h.Err(), "")
 	default:
-		b, err := io.ReadAll(r)
-		if err != nil {
-			return nil, e(err, "")
-		}
-
-		var sig base.Signature
-
-		if err := enc.Unmarshal(b, &sig); err != nil {
-			return nil, e(err, "")
-		}
-
 		if err := pub.Verify(util.ConcatBytesSlice(
 			node.Bytes(),
 			networkID,
@@ -361,44 +346,48 @@ func (c *BaseClient) SyncSourceConnInfo(
 func (c *BaseClient) requestNodeConnInfos(
 	ctx context.Context,
 	ci quicstream.UDPConnInfo,
-	header quicstream.Header,
+	header quicstream.RequestHeader,
 ) ([]isaac.NodeConnInfo, error) {
-	h, r, cancel, enc, err := c.HeaderClient.Request(ctx, ci, header, nil)
-	if err != nil {
-		return nil, err
-	}
+	var cis []isaac.NodeConnInfo
 
-	defer func() {
-		_ = cancel()
-	}()
-
-	switch {
-	case h.Err() != nil:
-		return nil, errors.WithStack(h.Err())
-	case !h.OK():
-		return nil, nil
-	default:
-		b, err := io.ReadAll(r)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-
-		u, err := enc.DecodeSlice(b)
-		if err != nil {
-			return nil, err
-		}
-
-		cis := make([]isaac.NodeConnInfo, len(u))
-
-		for i := range u {
-			rci, ok := u[i].(isaac.NodeConnInfo)
-			if !ok {
-				return nil, errors.Errorf("expected NodeConnInfo, but %T", u[i])
+	switch h, err := HCReqResDec(
+		ctx,
+		ci,
+		header,
+		nil,
+		c.HeaderClient.Broker,
+		func(enc encoder.Encoder, r io.Reader, _ interface{}) error {
+			b, err := io.ReadAll(r)
+			if err != nil {
+				return errors.WithStack(err)
 			}
 
-			cis[i] = rci
-		}
+			u, err := enc.DecodeSlice(b)
+			if err != nil {
+				return err
+			}
 
+			cis = make([]isaac.NodeConnInfo, len(u))
+
+			for i := range u {
+				rci, ok := u[i].(isaac.NodeConnInfo)
+				if !ok {
+					return errors.Errorf("expected NodeConnInfo, but %T", u[i])
+				}
+
+				cis[i] = rci
+			}
+
+			return nil
+		},
+	); {
+	case err != nil:
+		return nil, err
+	case !h.OK():
+		return nil, errors.Errorf("empty")
+	case h.Err() != nil:
+		return nil, h.Err()
+	default:
 		return cis, nil
 	}
 }
@@ -413,13 +402,20 @@ func (c *BaseClient) State(
 
 	var u base.State
 
-	switch h, _, err := quicstream.HeaderClientRequestDecode(ctx, c.HeaderClient, ci, header, nil, &u); {
+	switch h, err := HCReqResDec(
+		ctx,
+		ci,
+		header,
+		&u,
+		c.HeaderClient.Broker,
+		func(enc encoder.Encoder, r io.Reader, v interface{}) error {
+			return encoder.DecodeReader(enc, r, v)
+		},
+	); {
 	case err != nil:
-		return nil, false, errors.WithMessage(err, "get State")
-	case h.Err() != nil:
-		return nil, false, errors.WithMessage(h.Err(), "get State")
+		return nil, false, err
 	default:
-		return u, h.OK(), nil
+		return u, h.OK(), h.Err()
 	}
 }
 
@@ -431,16 +427,16 @@ func (c *BaseClient) ExistsInStateOperation(
 		return false, err
 	}
 
-	h, _, cancel, _, err := c.HeaderClient.Request(ctx, ci, header, nil)
-	_ = cancel()
-
-	switch {
+	switch h, err := HCReqRes(
+		ctx,
+		ci,
+		header,
+		c.HeaderClient.Broker,
+	); {
 	case err != nil:
-		return false, errors.WithMessage(err, "request; ExistsInStateOperation")
-	case h.Err() != nil:
-		return false, errors.WithMessage(h.Err(), "response; ExistsInStateOperation")
+		return false, err
 	default:
-		return h.OK(), nil
+		return h.OK(), h.Err()
 	}
 }
 
@@ -457,16 +453,368 @@ func (c *BaseClient) SendBallots(
 
 	header := NewSendBallotsHeader()
 
-	h, _, cancel, _, err := quicstream.HeaderClientRequestEncode(ctx, c.HeaderClient, ci, header, ballots)
+	switch h, err := HCBodyReqRes(
+		ctx,
+		ci,
+		header,
+		ballots,
+		c.HeaderClient.Broker,
+	); {
+	case err != nil:
+		return err
+	default:
+		return h.Err()
+	}
+}
+
+func (c *BaseClient) requestProposal(
+	ctx context.Context,
+	ci quicstream.UDPConnInfo,
+	header quicstream.RequestHeader,
+) (base.ProposalSignFact, bool, error) {
+	var u base.ProposalSignFact
+
+	switch h, err := HCReqResDec(
+		ctx,
+		ci,
+		header,
+		&u,
+		c.HeaderClient.Broker,
+		func(enc encoder.Encoder, r io.Reader, v interface{}) error {
+			return encoder.DecodeReader(enc, r, v)
+		},
+	); {
+	case err != nil:
+		return nil, false, err
+	default:
+		return u, h.OK(), h.Err()
+	}
+}
+
+func HCReqRes(
+	ctx context.Context,
+	ci quicstream.UDPConnInfo,
+	header quicstream.RequestHeader,
+	brokerf quicstream.HeaderBrokerFunc,
+) (
+	quicstream.ResponseHeader,
+	error,
+) {
+	broker, err := brokerf(ctx, ci)
 	if err != nil {
-		return e(err, "send request")
+		return nil, err
 	}
 
-	_ = cancel()
+	defer func() {
+		_ = broker.Close()
+	}()
 
-	if h.Err() != nil {
-		return e(h.Err(), "")
+	_, rh, err := hcReqRes(broker, header)
+	if err != nil {
+		return nil, err
 	}
 
-	return nil
+	return rh, err
+}
+
+func HCReqBodyRes(
+	ctx context.Context,
+	ci quicstream.UDPConnInfo,
+	header quicstream.RequestHeader,
+	brokerf quicstream.HeaderBrokerFunc,
+) (
+	_ quicstream.ResponseHeader,
+	_ encoder.Encoder,
+	body io.Reader,
+	cancel func() error,
+	_ error,
+) {
+	broker, err := brokerf(ctx, ci)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+
+	cancel = func() error {
+		return broker.Close()
+	}
+
+	switch rh, renc, rbody, err := hcReqBodyRes(broker, header); {
+	case err != nil:
+		_ = cancel()
+
+		return nil, nil, nil, nil, err
+	default:
+		return rh, renc, rbody, cancel, nil
+	}
+}
+
+func HCReqResDec(
+	ctx context.Context,
+	ci quicstream.UDPConnInfo,
+	header quicstream.RequestHeader,
+	u interface{},
+	brokerf quicstream.HeaderBrokerFunc,
+	decodef func(encoder.Encoder, io.Reader, interface{}) error,
+) (
+	quicstream.ResponseHeader,
+	error,
+) {
+	rh, renc, rbody, cancel, err := HCReqBodyRes(ctx, ci, header, brokerf)
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() {
+		_ = cancel()
+	}()
+
+	if rh.Err() != nil {
+		return rh, nil
+	}
+
+	if rbody == nil {
+		return rh, nil
+	}
+
+	return rh, decodef(renc, rbody, u)
+}
+
+func HCBodyReqRes(
+	ctx context.Context,
+	ci quicstream.UDPConnInfo,
+	header quicstream.RequestHeader,
+	body interface{},
+	brokerf quicstream.HeaderBrokerFunc,
+) (
+	quicstream.ResponseHeader,
+	error,
+) {
+	broker, err := brokerf(ctx, ci)
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() {
+		_ = broker.Close()
+	}()
+
+	_, rh, err := hcBodyReqRes(ctx, broker, header, body)
+	if err != nil {
+		return nil, err
+	}
+
+	return rh, err
+}
+
+func HCBodyReqBodyRes(
+	ctx context.Context,
+	ci quicstream.UDPConnInfo,
+	header quicstream.RequestHeader,
+	i interface{},
+	brokerf quicstream.HeaderBrokerFunc,
+) (
+	_ quicstream.ResponseHeader,
+	_ encoder.Encoder,
+	body io.Reader,
+	cancel func() error,
+	_ error,
+) {
+	broker, err := brokerf(ctx, ci)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+
+	cancel = func() error {
+		return broker.Close()
+	}
+
+	switch rh, renc, rbody, err := hcBodyReqBodyRes(ctx, broker, header, i); {
+	case err != nil:
+		_ = cancel()
+
+		return nil, nil, nil, nil, err
+	default:
+		return rh, renc, rbody, cancel, nil
+	}
+}
+
+func HCBodyReqResDec(
+	ctx context.Context,
+	ci quicstream.UDPConnInfo,
+	header quicstream.RequestHeader,
+	body, u interface{},
+	brokerf quicstream.HeaderBrokerFunc,
+	decodef func(encoder.Encoder, io.Reader, interface{}) error,
+) (
+	quicstream.ResponseHeader,
+	error,
+) {
+	rh, renc, rbody, cancel, err := HCBodyReqBodyRes(ctx, ci, header, body, brokerf)
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() {
+		_ = cancel()
+	}()
+
+	if rh.Err() != nil {
+		return rh, nil
+	}
+
+	if rbody == nil {
+		return rh, nil
+	}
+
+	return rh, decodef(renc, rbody, u)
+}
+
+func hcReqRes(
+	broker *quicstream.HeaderClientBroker,
+	header quicstream.RequestHeader,
+) (
+	encoder.Encoder,
+	quicstream.ResponseHeader,
+	error,
+) {
+	if err := broker.WriteRequestHead(header); err != nil {
+		return nil, nil, err
+	}
+
+	renc, rh, err := broker.ReadResponseHead()
+
+	return renc, rh, err
+}
+
+func hcBodyReqRes(
+	ctx context.Context,
+	broker *quicstream.HeaderClientBroker,
+	header quicstream.RequestHeader,
+	body interface{},
+) (
+	encoder.Encoder,
+	quicstream.ResponseHeader,
+	error,
+) {
+	if err := broker.WriteRequestHead(header); err != nil {
+		return nil, nil, err
+	}
+
+	if body != nil {
+		if err := func() error {
+			r, w := io.Pipe()
+
+			defer func() {
+				_ = r.Close()
+				_ = w.Close()
+			}()
+
+			errch := make(chan error, 1)
+
+			go func() {
+				errch <- broker.WriteBody(quicstream.StreamDataFormat, 0, r)
+			}()
+
+			if err := broker.Encoder.StreamEncoder(w).Encode(body); err != nil {
+				return err
+			}
+
+			if err := w.Close(); err != nil {
+				return errors.WithStack(err)
+			}
+
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case err := <-errch:
+				return err
+			}
+		}(); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	renc, rh, err := broker.ReadResponseHead()
+
+	return renc, rh, err
+}
+
+func hcReqBodyRes(
+	broker *quicstream.HeaderClientBroker,
+	header quicstream.RequestHeader,
+) (
+	_ quicstream.ResponseHeader,
+	_ encoder.Encoder,
+	responseBody io.Reader,
+	_ error,
+) {
+	var renc encoder.Encoder
+	var rh quicstream.ResponseHeader
+
+	switch enc, h, err := hcReqRes(broker, header); {
+	case err != nil:
+		return nil, nil, nil, err
+	case h.Err() != nil:
+		return h, nil, nil, nil
+	default:
+		renc = enc
+		rh = h
+	}
+
+	switch dataFormat, bodyLength, r, err := broker.ReadBody(); {
+	case err != nil:
+		return rh, renc, nil, err
+	case dataFormat == quicstream.EmptyDataFormat:
+		return rh, renc, nil, nil
+	case dataFormat == quicstream.LengthedDataFormat:
+		if bodyLength < 1 {
+			return rh, renc, nil, nil
+		}
+
+		return rh, renc, r, nil
+	case dataFormat == quicstream.StreamDataFormat:
+		return rh, renc, r, nil
+	default:
+		return rh, renc, nil, errors.Errorf("unknown DataFormat, %d", dataFormat)
+	}
+}
+
+func hcBodyReqBodyRes(
+	ctx context.Context,
+	broker *quicstream.HeaderClientBroker,
+	header quicstream.RequestHeader,
+	body interface{},
+) (
+	_ quicstream.ResponseHeader,
+	_ encoder.Encoder,
+	responseBody io.Reader,
+	_ error,
+) {
+	var renc encoder.Encoder
+	var rh quicstream.ResponseHeader
+
+	switch enc, h, err := hcBodyReqRes(ctx, broker, header, body); {
+	case err != nil:
+		return nil, nil, nil, err
+	case h.Err() != nil:
+		return h, nil, nil, nil
+	default:
+		renc = enc
+		rh = h
+	}
+
+	switch dataFormat, bodyLength, r, err := broker.ReadBody(); {
+	case err != nil:
+		return rh, renc, nil, err
+	case dataFormat == quicstream.LengthedDataFormat:
+		if bodyLength < 1 {
+			return rh, renc, nil, nil
+		}
+
+		return rh, renc, r, nil
+	case dataFormat == quicstream.StreamDataFormat:
+		return rh, renc, r, nil
+	default:
+		return rh, renc, nil, errors.Errorf("unknown DataFormat, %d", dataFormat)
+	}
 }

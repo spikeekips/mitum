@@ -15,7 +15,7 @@ type Header interface {
 
 type RequestHeader interface {
 	Header
-	Handler() string
+	Handler() []byte
 }
 
 type ResponseHeader interface {
@@ -60,18 +60,18 @@ func (h *BaseHeader) UnmarshalJSON(b []byte) error {
 }
 
 type BaseRequestHeader struct {
-	prefix string
+	prefix []byte
 	BaseHeader
 }
 
-func NewBaseRequestHeader(ht hint.Hint, prefix string) BaseRequestHeader {
+func NewBaseRequestHeader(ht hint.Hint, prefix []byte) BaseRequestHeader {
 	return BaseRequestHeader{
 		BaseHeader: NewBaseHeader(ht),
 		prefix:     prefix,
 	}
 }
 
-func (h BaseRequestHeader) Handler() string {
+func (h BaseRequestHeader) Handler() []byte {
 	return h.prefix
 }
 

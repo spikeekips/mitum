@@ -8,12 +8,10 @@ import (
 	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/encoder"
 )
 
 // revive:disable:line-length-limit
 type NetworkClient interface { //nolint:interfacebloat //..
-	Request(context.Context, quicstream.UDPConnInfo, quicstream.Header, io.Reader) (quicstream.ResponseHeader, io.ReadCloser, func() error, encoder.Encoder, error)
 	Operation(_ context.Context, _ quicstream.UDPConnInfo, operationhash util.Hash) (base.Operation, bool, error)
 	SendOperation(context.Context, quicstream.UDPConnInfo, base.Operation) (bool, error)
 	RequestProposal(_ context.Context, connInfo quicstream.UDPConnInfo, point base.Point, proposer base.Address) (base.ProposalSignFact, bool, error)
@@ -22,7 +20,7 @@ type NetworkClient interface { //nolint:interfacebloat //..
 	SuffrageProof(_ context.Context, connInfo quicstream.UDPConnInfo, suffrageheight base.Height) (_ base.SuffrageProof, found bool, _ error)
 	LastBlockMap(_ context.Context, _ quicstream.UDPConnInfo, manifest util.Hash) (_ base.BlockMap, updated bool, _ error)
 	BlockMap(context.Context, quicstream.UDPConnInfo, base.Height) (_ base.BlockMap, updated bool, _ error)
-	BlockMapItem(context.Context, quicstream.UDPConnInfo, base.Height, base.BlockMapItemType) (io.ReadCloser, func() error, bool, error)
+	BlockMapItem(context.Context, quicstream.UDPConnInfo, base.Height, base.BlockMapItemType) (io.Reader, func() error, bool, error)
 	NodeChallenge(_ context.Context, _ quicstream.UDPConnInfo, _ base.NetworkID, _ base.Address, _ base.Publickey, input []byte) (base.Signature, error)
 	SuffrageNodeConnInfo(context.Context, quicstream.UDPConnInfo) ([]NodeConnInfo, error)
 	SyncSourceConnInfo(context.Context, quicstream.UDPConnInfo) ([]NodeConnInfo, error)

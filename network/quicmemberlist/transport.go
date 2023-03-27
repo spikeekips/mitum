@@ -74,7 +74,7 @@ func NewTransport(
 
 func NewTransportWithQuicstream(
 	laddr *net.UDPAddr,
-	handlerPrefix string,
+	handlerPrefix []byte,
 	poolclient *quicstream.PoolClient,
 	newClient func(quicstream.UDPConnInfo) func(*net.UDPAddr) *quicstream.Client,
 	notallowf func(string) bool,

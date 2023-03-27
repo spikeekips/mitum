@@ -1,257 +1,89 @@
 package launchcmd
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"os"
-	"sort"
-	"strings"
 	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
-	"github.com/spikeekips/mitum/isaac"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	"github.com/spikeekips/mitum/launch"
-	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
-	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
-	"github.com/spikeekips/mitum/util/valuehash"
 )
 
-var (
-	headerExamples     = map[string]quicstream.Header{}
-	headerExamplesDesc = map[string]string{
-		isaacnetwork.HandlerPrefixSendOperation: `$ cmd <header> --body=<json body>`,
-	}
-	headerExamplesKeys []string
-)
-
-func init() {
-	headerExamples = map[string]quicstream.Header{
-		isaacnetwork.HandlerPrefixRequestProposal: isaacnetwork.NewRequestProposalRequestHeader(
-			base.RawPoint(33, 1), base.NewStringAddress("proposer")), //nolint:gomnd //...
-		isaacnetwork.HandlerPrefixProposal: isaacnetwork.NewProposalRequestHeader(
-			valuehash.RandomSHA256()),
-		isaacnetwork.HandlerPrefixLastSuffrageProof: isaacnetwork.NewLastSuffrageProofRequestHeader(
-			valuehash.RandomSHA256()),
-		isaacnetwork.HandlerPrefixSuffrageProof: isaacnetwork.NewSuffrageProofRequestHeader(
-			base.Height(44)), //nolint:gomnd //...
-		isaacnetwork.HandlerPrefixLastBlockMap: isaacnetwork.NewLastBlockMapRequestHeader(
-			valuehash.RandomSHA256()),
-		isaacnetwork.HandlerPrefixBlockMap: isaacnetwork.NewBlockMapRequestHeader(base.Height(33)), //nolint:gomnd //...
-		isaacnetwork.HandlerPrefixBlockMapItem: isaacnetwork.NewBlockMapItemRequestHeader(
-			base.Height(33), base.BlockMapItemTypeOperations), //nolint:gomnd //...
-		isaacnetwork.HandlerPrefixNodeChallenge:        isaacnetwork.NewNodeChallengeRequestHeader(util.UUID().Bytes()),
-		isaacnetwork.HandlerPrefixSuffrageNodeConnInfo: isaacnetwork.NewSuffrageNodeConnInfoRequestHeader(),
-		isaacnetwork.HandlerPrefixSyncSourceConnInfo:   isaacnetwork.NewSyncSourceConnInfoRequestHeader(),
-		isaacnetwork.HandlerPrefixOperation: isaacnetwork.NewOperationRequestHeader(
-			valuehash.RandomSHA256()),
-		isaacnetwork.HandlerPrefixSendOperation: isaacnetwork.NewSendOperationRequestHeader(),
-		isaacnetwork.HandlerPrefixState: isaacnetwork.NewStateRequestHeader(
-			isaac.SuffrageStateKey, valuehash.RandomSHA256()),
-		isaacnetwork.HandlerPrefixExistsInStateOperation: isaacnetwork.NewExistsInStateOperationRequestHeader(
-			valuehash.RandomSHA256()),
-		isaacnetwork.HandlerPrefixNodeInfo: isaacnetwork.NewNodeInfoRequestHeader(),
-	}
-
-	headerExamplesKeys = make([]string, len(headerExamples))
-
-	var i int
-
-	for k := range headerExamples {
-		headerExamplesKeys[i] = k
-		i++
-	}
-
-	sort.Slice(headerExamplesKeys, func(i, j int) bool {
-		return strings.Compare(headerExamplesKeys[i], headerExamplesKeys[j]) < 0
-	})
+type NetworkCommand struct {
+	Client NetworkClientCommand `cmd:"" help:"network client"`
 }
 
 type NetworkClientCommand struct { //nolint:govet //...
-	BaseCommand
-	Header    string              `arg:"" help:"request header; 'example' will print example headers"`
-	NetworkID string              `arg:"" name:"network-id" help:"network-id" default:""`
-	Remote    launch.ConnInfoFlag `arg:"" help:"remote node conn info" placeholder:"ConnInfo" default:"localhost:4321"`
-	Timeout   time.Duration       `help:"timeout" placeholder:"duration" default:"10s"`
-	Body      *os.File            `help:"body"`
-	DryRun    bool                `name:"dry-run" help:"don't send"`
-	body      io.Reader
-	remote    quicstream.UDPConnInfo
+	NodeInfo      NetworkClientNodeInfoCommand      `cmd:"" name:"node-info" help:"remote node info"`
+	SendOperation NetworkClientSendOperationCommand `cmd:"" name:"send-operation" help:"send operation"`
+	State         NetworkClientStateCommand         `cmd:"" name:"state" help:"get state"`
+	LastBlockMap  NetworkClientLastBlockMapCommand  `cmd:"" name:"last-blockmap" help:"get last blockmap"`
 }
 
-func (cmd *NetworkClientCommand) Run(pctx context.Context) error {
-	if cmd.Header == "example" {
-		_, _ = fmt.Fprintln(os.Stdout, "example headers:")
+type BaseNetworkClientNodeInfoFlags struct { //nolint:govet //...
+	NetworkID string              `arg:"" name:"network-id" help:"network-id" default:""`
+	Remote    launch.ConnInfoFlag `arg:"" help:"remote node conn info" placeholder:"ConnInfo" default:"localhost:4321"`
+	Timeout   time.Duration       `help:"timeout" placeholder:"duration" default:"9s"`
+	Body      *os.File            `help:"body"`
+}
 
-		for i := range headerExamplesKeys {
-			k := headerExamplesKeys[i]
+type BaseNetworkClientCommand struct { //nolint:govet //...
+	BaseCommand
+	BaseNetworkClientNodeInfoFlags
+	Client *isaacnetwork.QuicstreamClient
+}
 
-			b, err := util.MarshalJSON(headerExamples[k])
-			if err != nil {
-				return err
-			}
-
-			help := headerExamplesDesc[k]
-			_, _ = fmt.Fprintf(os.Stdout, "- %s: %s\n", k, help)
-			_, _ = fmt.Fprintln(os.Stdout, "   ", string(b))
-		}
-
-		_, _ = fmt.Fprintln(os.Stdout, "\n* see isaac/network/header.go")
-
-		return nil
+func (cmd *BaseNetworkClientCommand) Prepare(pctx context.Context) error {
+	if _, err := cmd.BaseCommand.prepare(pctx); err != nil {
+		return err
 	}
 
 	if len(cmd.NetworkID) < 1 {
 		return errors.Errorf(`expected "<network-id>"`)
 	}
 
-	if err := cmd.prepare(pctx); err != nil {
+	if _, err := cmd.Remote.ConnInfo(); err != nil {
 		return err
 	}
 
-	cmd.log.Debug().
+	if cmd.Timeout < 1 {
+		cmd.Timeout = time.Second * 9 //nolint:gomnd //...
+	}
+
+	cmd.Client = launch.NewNetworkClient(cmd.Encoders, cmd.Encoder, base.NetworkID(cmd.NetworkID))
+
+	cmd.Log.Debug().
 		Stringer("remote", cmd.Remote).
 		Stringer("timeout", cmd.Timeout).
 		Str("network_id", cmd.NetworkID).
-		Str("header", cmd.Header).
-		Bool("has_body", cmd.body != nil).
+		Bool("has_body", cmd.Body != nil).
 		Msg("flags")
 
-	var header quicstream.Header
-	if err := encoder.Decode(cmd.enc, []byte(cmd.Header), &header); err != nil {
-		return errors.WithMessage(err, "load header")
-	}
-
-	if cmd.DryRun {
-		return cmd.dryRun(header)
-	}
-
-	return cmd.response(header)
+	return nil
 }
 
-func (cmd *NetworkClientCommand) response(header quicstream.Header) error {
-	client := launch.NewNetworkClient( //nolint:gomnd //...
-		cmd.encs, cmd.enc,
-		base.NetworkID([]byte(cmd.NetworkID)),
-	)
-	defer func() {
-		if err := client.Close(); err != nil {
-			cmd.log.Error().Err(err).Msg("failed to close client")
-		}
-	}()
+func (cmd *BaseNetworkClientCommand) Print(v interface{}, out io.Writer) error {
+	l := cmd.Log.Debug().
+		Str("type", fmt.Sprintf("%T", v))
 
-	ctx, cancel := context.WithTimeout(context.Background(), cmd.Timeout)
-	defer cancel()
+	if ht, ok := v.(hint.Hinter); ok {
+		l = l.Stringer("hint", ht.Hint())
+	}
 
-	response, r, cancelrequest, enc, err := client.Request(ctx, cmd.remote, header, cmd.body)
+	l.Msg("body loaded")
+
+	b, err := util.MarshalJSONIndent(v)
 	if err != nil {
 		return err
 	}
 
-	defer func() {
-		_ = cancelrequest()
-	}()
+	_, err = fmt.Fprintln(out, string(b))
 
-	cmd.log.Debug().Interface("response", response).Msg("got respond")
-
-	switch {
-	case response.Err() != nil:
-		return response.Err()
-	case r == nil:
-		return nil
-	}
-
-	switch response.ContentType() {
-	case quicstream.HinterContentType:
-		var v hint.Hinter
-		if err := encoder.DecodeReader(enc, r, &v); err != nil {
-			return err
-		}
-
-		cmd.log.Trace().Interface("response", response).Interface("body", v).Msg("got respond")
-
-		b, err := util.MarshalJSONIndent(v)
-		if err != nil {
-			return err
-		}
-
-		_, _ = fmt.Fprintln(os.Stdout, string(b))
-	case quicstream.RawContentType:
-		var c bytes.Buffer
-
-		w := io.MultiWriter(os.Stdout, &c)
-
-		if _, err := io.Copy(w, r); err != nil {
-			return errors.WithStack(err)
-		}
-
-		cmd.log.Trace().Int("length", c.Len()).Msg("got respond")
-	}
-
-	return nil
-}
-
-func (cmd *NetworkClientCommand) prepare(pctx context.Context) error {
-	if _, err := cmd.BaseCommand.prepare(pctx); err != nil {
-		return err
-	}
-
-	if cmd.Body != nil {
-		buf := bytes.NewBuffer(nil)
-
-		if _, err := io.Copy(buf, cmd.Body); err != nil {
-			return errors.WithStack(err)
-		}
-
-		cmd.body = buf
-	}
-
-	ci, err := cmd.Remote.ConnInfo()
-	if err != nil {
-		return err
-	}
-
-	cmd.remote = ci
-
-	if cmd.Timeout < 1 {
-		cmd.Timeout = time.Second * 5 //nolint:gomnd //...
-	}
-
-	return nil
-}
-
-func (cmd *NetworkClientCommand) dryRun(header quicstream.Header) error {
-	hb, err := util.MarshalJSONIndent(header)
-	if err != nil {
-		return err
-	}
-
-	_, _ = fmt.Fprintf(os.Stdout, "header: %s\n", string(hb))
-
-	if cmd.body != nil {
-		raw, err := io.ReadAll(cmd.body)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-
-		var u interface{}
-
-		if err = util.UnmarshalJSON(raw, &u); err != nil {
-			return err
-		}
-
-		bb, err := util.MarshalJSONIndent(u)
-		if err != nil {
-			return err
-		}
-
-		_, _ = fmt.Fprintf(os.Stdout, "body: %s\n", string(bb))
-	}
-
-	return nil
+	return errors.WithStack(err)
 }
