@@ -268,7 +268,7 @@ func (p *BaseProposalSelector) findProposalFromProposer(
 
 	select {
 	case <-rctx.Done():
-		return nil, rctx.Err()
+		return nil, errFailedToRequestProposalToNode.Wrapf(rctx.Err(), "remote node, %q", proposer.Address())
 	case i := <-donech:
 		switch t := i.(type) {
 		case error:
@@ -282,7 +282,7 @@ func (p *BaseProposalSelector) findProposalFromProposer(
 		}
 	}
 
-	return nil, errors.Errorf("empty propsal")
+	return nil, errors.Errorf("empty proposal")
 }
 
 func (*BaseProposalSelector) filterDeadNodes(n []base.Node, b []base.Address) []base.Node {
