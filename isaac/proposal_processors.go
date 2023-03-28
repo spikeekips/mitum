@@ -123,7 +123,13 @@ func (pps *ProposalProcessors) Save(ctx context.Context, facthash util.Hash, avp
 	pps.Lock()
 	defer pps.Unlock()
 
-	l := pps.Log().With().Stringer("fact", facthash).Logger()
+	l := pps.Log().With().Interface("height", avp.Point().Height()).Stringer("fact", facthash).Logger()
+
+	if avp.Point().Height() <= pps.previousSaved {
+		l.Debug().Interface("previous", pps.previousSaved).Msg("already saved")
+
+		return ErrProcessorAlreadySaved.Call()
+	}
 
 	defer func() {
 		if err := pps.close(); err != nil {
@@ -135,12 +141,6 @@ func (pps *ProposalProcessors) Save(ctx context.Context, facthash util.Hash, avp
 
 	switch {
 	case pps.p == nil:
-		if pps.previousSaved == avp.Point().Height() {
-			l.Debug().Msg("already saved")
-
-			return ErrProcessorAlreadySaved.Call()
-		}
-
 		l.Debug().Msg("proposal processor not found")
 
 		return e(ErrNotProposalProcessorProcessed.Call(), "")
