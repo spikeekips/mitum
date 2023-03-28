@@ -168,7 +168,7 @@ func SaveNodeInfo(root string, i NodeInfo) error {
 		return e(err, "")
 	}
 
-	func() {
+	defer func() {
 		_ = f.Close()
 	}()
 
