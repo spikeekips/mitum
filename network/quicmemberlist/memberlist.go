@@ -353,8 +353,8 @@ func (srv *Memberlist) CallbackBroadcastHandler() quicstream.HeaderHandler {
 			w,
 			detail.Encoder,
 			quicstream.NewDefaultResponseHeader(found, nil),
-			quicstream.LengthedDataFormat,
-			uint64(buf.Len()),
+			quicstream.StreamDataFormat,
+			0,
 			buf,
 		); err != nil {
 			return e(err, "")
