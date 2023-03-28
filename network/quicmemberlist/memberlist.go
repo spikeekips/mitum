@@ -336,7 +336,7 @@ func (srv *Memberlist) CallbackBroadcastHandler() quicstream.HeaderHandler {
 			return e(err, "")
 		}
 
-		var buf *bytes.Buffer
+		var body io.Reader
 		var found bool
 
 		if i != nil {
@@ -345,7 +345,10 @@ func (srv *Memberlist) CallbackBroadcastHandler() quicstream.HeaderHandler {
 			found = j[1].(bool) //nolint:forcetypeassert //...
 
 			if found {
-				buf = bytes.NewBuffer(j[0].([]byte)) //nolint:forcetypeassert //...
+				buf := bytes.NewBuffer(j[0].([]byte)) //nolint:forcetypeassert //...
+				defer buf.Reset()
+
+				body = buf
 			}
 		}
 
@@ -355,7 +358,7 @@ func (srv *Memberlist) CallbackBroadcastHandler() quicstream.HeaderHandler {
 			quicstream.NewDefaultResponseHeader(found, nil),
 			quicstream.StreamDataFormat,
 			0,
-			buf,
+			body,
 		); err != nil {
 			return e(err, "")
 		}
