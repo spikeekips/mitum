@@ -701,10 +701,7 @@ func syncerLastBlockMapFunc(
 	f := func(
 		ctx context.Context, manifest util.Hash, ci quicstream.UDPConnInfo,
 	) (_ base.BlockMap, updated bool, _ error) {
-		cctx, cancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
-		defer cancel()
-
-		switch m, updated, err := client.LastBlockMap(cctx, ci, manifest); {
+		switch m, updated, err := client.LastBlockMap(ctx, ci, manifest); {
 		case err != nil, !updated:
 			return m, updated, err
 		default:
@@ -722,12 +719,12 @@ func syncerLastBlockMapFunc(
 		numnodes := 3 // NOTE choose top 3 sync nodes
 
 		if err := isaac.DistributeWorkerWithSyncSourcePool(
-			ctx,
+			context.Background(),
 			syncSourcePool,
 			numnodes,
 			uint64(numnodes),
 			nil,
-			func(ctx context.Context, i, _ uint64, nci isaac.NodeConnInfo) error {
+			func(_ context.Context, i, _ uint64, nci isaac.NodeConnInfo) error {
 				ci, err := nci.UDPConnInfo()
 				if err != nil {
 					return err
