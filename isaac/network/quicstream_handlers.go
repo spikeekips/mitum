@@ -153,7 +153,7 @@ func QuicstreamHandlerSendOperation(
 		if err = quicstream.WriteResponse(w,
 			detail.Encoder,
 			quicstream.NewDefaultResponseHeader(added, err),
-			quicstream.StreamDataFormat,
+			quicstream.EmptyDataFormat,
 			0,
 			nil,
 		); err != nil {
@@ -247,7 +247,7 @@ func QuicstreamHandlerRequestProposal(
 		func(header quicstream.RequestHeader) string {
 			h := header.(RequestProposalRequestHeader) //nolint:forcetypeassert //...
 
-			return HandlerPrefixRequestProposalString + h.Proposer().String()
+			return HandlerPrefixRequestProposalString + h.Point().String() + h.Proposer().String()
 		},
 		func(header quicstream.RequestHeader, _ encoder.Encoder) (interface{}, bool, error) {
 			h := header.(RequestProposalRequestHeader) //nolint:forcetypeassert //...
@@ -375,20 +375,33 @@ func QuicstreamHandlerBlockMapItem(
 			return errors.Errorf("expected BlockMapItemRequestHeader, but %T", detail.Header)
 		}
 
-		itemr, found, err := blockMapItemf(header.Height(), header.Item())
-		if err != nil {
-			return err
-		}
+		var dataFormat quicstream.HeaderDataFormat
 
-		if itemr != nil {
+		itemr, found, err := blockMapItemf(header.Height(), header.Item())
+
+		switch {
+		case err != nil:
+			return err
+		case !found:
+			return quicstream.WriteResponse(w, detail.Encoder,
+				quicstream.NewDefaultResponseHeader(found, err),
+				quicstream.EmptyDataFormat,
+				0,
+				nil,
+			)
+		case itemr == nil:
+			dataFormat = quicstream.EmptyDataFormat
+		default:
 			defer func() {
 				_ = itemr.Close()
 			}()
+
+			dataFormat = quicstream.StreamDataFormat
 		}
 
 		return quicstream.WriteResponse(w, detail.Encoder,
 			quicstream.NewDefaultResponseHeader(found, err),
-			quicstream.StreamDataFormat,
+			dataFormat,
 			0,
 			itemr,
 		)
@@ -553,6 +566,7 @@ func QuicstreamHandlerNodeInfo(
 		}
 
 		var body io.Reader
+		dataFormat := quicstream.EmptyDataFormat
 
 		if i != nil {
 			j := i.([]byte) //nolint:forcetypeassert //...
@@ -561,13 +575,15 @@ func QuicstreamHandlerNodeInfo(
 				defer buf.Reset()
 
 				body = buf
+
+				dataFormat = quicstream.StreamDataFormat
 			}
 		}
 
 		if err := quicstream.WriteResponse(w,
 			detail.Encoder,
 			quicstream.NewDefaultResponseHeader(true, nil),
-			quicstream.StreamDataFormat,
+			dataFormat,
 			0,
 			body,
 		); err != nil {
@@ -748,12 +764,15 @@ func boolBytesQUICstreamHandler(
 		found := j[2].(bool)        //nolint:forcetypeassert //...
 
 		var body io.Reader
+		dataFormat := quicstream.EmptyDataFormat
 
 		if j[1] != nil {
 			buf := bytes.NewBuffer(j[1].([]byte)) //nolint:forcetypeassert //..
 			defer buf.Reset()
 
 			body = buf
+
+			dataFormat = quicstream.StreamDataFormat
 		}
 
 		benc := detail.Encoder
@@ -768,7 +787,7 @@ func boolBytesQUICstreamHandler(
 		return quicstream.WriteResponse(w,
 			benc,
 			quicstream.NewDefaultResponseHeader(found, nil),
-			quicstream.StreamDataFormat,
+			dataFormat,
 			0,
 			body,
 		)

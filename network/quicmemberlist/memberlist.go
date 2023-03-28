@@ -338,6 +338,7 @@ func (srv *Memberlist) CallbackBroadcastHandler() quicstream.HeaderHandler {
 
 		var body io.Reader
 		var found bool
+		dataFormat := quicstream.EmptyDataFormat
 
 		if i != nil {
 			j := i.([2]interface{}) //nolint:forcetypeassert //...
@@ -349,6 +350,8 @@ func (srv *Memberlist) CallbackBroadcastHandler() quicstream.HeaderHandler {
 				defer buf.Reset()
 
 				body = buf
+
+				dataFormat = quicstream.StreamDataFormat
 			}
 		}
 
@@ -356,7 +359,7 @@ func (srv *Memberlist) CallbackBroadcastHandler() quicstream.HeaderHandler {
 			w,
 			detail.Encoder,
 			quicstream.NewDefaultResponseHeader(found, nil),
-			quicstream.StreamDataFormat,
+			dataFormat,
 			0,
 			body,
 		); err != nil {

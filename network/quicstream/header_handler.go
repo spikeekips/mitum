@@ -71,11 +71,11 @@ func readRequestHeadDetailInHandler(encs *encoder.Encoders, r io.Reader) (Reques
 	switch enc, h, err := HeaderReadHead(r, encs); {
 	case err != nil:
 		return detail, errors.WithMessage(err, "read request")
+	case enc == nil:
+		return detail, errors.Errorf("empty request encoder")
+	case h == nil:
+		return detail, errors.Errorf("empty request header")
 	default:
-		if enc == nil {
-			return detail, errors.Errorf("empty request encoder")
-		}
-
 		if err := h.IsValid(nil); err != nil {
 			return detail, errors.WithMessage(err, "invalid request header")
 		}
