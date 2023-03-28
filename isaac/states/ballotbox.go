@@ -796,7 +796,7 @@ func (vr *voterecords) count(
 	}
 
 	if i := vr.countFromVoted(local, threshold, suf, countAfter); i != nil {
-		vr.log.Debug().Interface("voteproofs", i).Msg("new voteproof; count from voted")
+		vr.log.Debug().Interface("voteproof", i).Msg("new voteproof; count from voted")
 
 		vr.countAfter = time.Time{}
 
