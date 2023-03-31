@@ -141,7 +141,7 @@ func (t *testError) printStack(err error) (string, bool) {
 	for i, f := range st {
 		_, _ = fmt.Fprintf(buf, "%+s:%d", f, f)
 		if i < len(st)-1 {
-			fmt.Fprintln(buf)
+			_, _ = fmt.Fprintln(buf)
 		}
 	}
 

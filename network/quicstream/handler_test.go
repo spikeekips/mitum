@@ -59,7 +59,6 @@ func (t *testPrefixHandler) Test() {
 		t.NoError(err)
 
 		t.NoError(w.Close())
-		defer r.Close()
 
 		rb, err := io.ReadAll(r)
 		t.NoError(err)
@@ -78,7 +77,6 @@ func (t *testPrefixHandler) Test() {
 		t.NoError(err)
 
 		t.NoError(w.Close())
-		defer r.Close()
 
 		rb, err := io.ReadAll(r)
 		t.NoError(err)
@@ -97,7 +95,6 @@ func (t *testPrefixHandler) Test() {
 		t.NoError(err)
 
 		t.NoError(w.Close())
-		defer r.Close()
 
 		rb, err := io.ReadAll(r)
 		t.NoError(err)
@@ -115,7 +112,7 @@ func writeWithPrefix(prefix []byte, b []byte) []byte {
 	w := bytes.NewBuffer(nil)
 	defer w.Reset()
 
-	_ = WritePrefix(w, prefix)
+	_ = WritePrefix(context.Background(), w, prefix)
 	_, _ = w.Write(b)
 
 	return w.Bytes()

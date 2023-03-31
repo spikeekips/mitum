@@ -1,6 +1,7 @@
 package quicstream
 
 import (
+	"context"
 	"io"
 	"net"
 
@@ -23,11 +24,12 @@ type PrefixHandler struct {
 }
 
 func NewPrefixHandler(errorHandler ErrorHandler) *PrefixHandler {
-	nerrorHandler := errorHandler
-	if nerrorHandler == nil {
-		nerrorHandler = func(_ net.Addr, _ io.Reader, _ io.Writer, err error) error {
-			return err
-		}
+	nerrorHandler := func(_ net.Addr, _ io.Reader, _ io.Writer, err error) error {
+		return err
+	}
+
+	if errorHandler != nil {
+		nerrorHandler = errorHandler
 	}
 
 	return &PrefixHandler{
@@ -88,8 +90,10 @@ func readPrefix(r io.Reader) ([]byte, error) {
 	return p, nil
 }
 
-func WritePrefix(w io.Writer, prefix []byte) error {
-	_, err := w.Write(prefix)
+func WritePrefix(ctx context.Context, w io.Writer, prefix []byte) error {
+	return util.AwareContext(ctx, func(context.Context) error {
+		_, err := w.Write(prefix)
 
-	return errors.WithStack(err)
+		return errors.WithStack(err)
+	})
 }

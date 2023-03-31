@@ -2,6 +2,7 @@ package util
 
 import (
 	"context"
+	"io"
 
 	"github.com/pkg/errors"
 )
@@ -10,18 +11,38 @@ var EmptyCancelFunc = func() error { return nil }
 
 type ContextKey string
 
-func AwareContext(ctx context.Context, f func() error) error {
-	errch := make(chan error, 1)
+func AwareContext(ctx context.Context, f func(context.Context) error) error {
+	_, err := AwareContextValue[any](ctx, func(ctx context.Context) (any, error) {
+		return nil, f(ctx)
+	})
+
+	return err
+}
+
+func AwareContextValue[T any](ctx context.Context, f func(context.Context) (T, error)) (T, error) {
+	donech := make(chan [2]any, 1)
 
 	go func() {
-		errch <- f()
+		i, err := f(ctx)
+		donech <- [2]any{i, err}
 	}()
+
+	var t T
 
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
-	case err := <-errch:
-		return err
+		return t, ctx.Err()
+	case i := <-donech:
+		if i[0] != nil {
+			t = i[0].(T) //nolint:forcetypeassert //...
+		}
+
+		var err error
+		if i[1] != nil {
+			err = i[1].(error) //nolint:forcetypeassert //...
+		}
+
+		return t, err
 	}
 }
 
@@ -113,4 +134,42 @@ func load(ctx context.Context, key ContextKey, v interface{}) error {
 	}
 
 	return nil
+}
+
+func PipeReadWrite(
+	ctx context.Context,
+	read func(context.Context, io.Reader) error,
+	write func(context.Context, io.Writer) error,
+) error {
+	pr, pw := io.Pipe()
+
+	defer func() {
+		_ = pw.Close()
+		_ = pr.Close()
+	}()
+
+	errch := make(chan error, 1)
+
+	go func() {
+		err := read(ctx, pr)
+		if err != nil {
+			_ = pw.Close()
+			_ = pr.Close()
+		}
+
+		errch <- err
+	}()
+
+	if err := write(ctx, pw); err != nil {
+		return err
+	}
+
+	_ = pw.Close()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err := <-errch:
+		return err
+	}
 }

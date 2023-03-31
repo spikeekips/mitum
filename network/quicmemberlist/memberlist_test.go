@@ -1137,7 +1137,7 @@ func (t *testMemberlist) TestCallbackBroadcast() {
 	lcl := quicstream.NewHeaderClient(t.encs, t.enc, func(
 		ctx context.Context,
 		addr quicstream.UDPConnInfo,
-	) (io.ReadCloser, io.WriteCloser, error) {
+	) (io.Reader, io.WriteCloser, error) {
 		return t.NewClient(addr.UDPAddr()).OpenStream(ctx)
 	})
 
@@ -1246,7 +1246,7 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 	lcl := quicstream.NewHeaderClient(t.encs, t.enc, func(
 		ctx context.Context,
 		addr quicstream.UDPConnInfo,
-	) (io.ReadCloser, io.WriteCloser, error) {
+	) (io.Reader, io.WriteCloser, error) {
 		return t.NewClient(addr.UDPAddr()).OpenStream(ctx)
 	})
 

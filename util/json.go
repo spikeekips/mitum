@@ -52,6 +52,15 @@ func MustMarshalJSON(i interface{}) []byte {
 	return b
 }
 
+func MustMarshalJSONString(i interface{}) string {
+	b, err := MarshalJSON(i)
+	if err != nil {
+		panic(err)
+	}
+
+	return string(b)
+}
+
 func MustMarshalJSONIndent(i interface{}) []byte {
 	b, err := MarshalJSONIndent(i)
 	if err != nil {

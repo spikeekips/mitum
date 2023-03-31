@@ -89,7 +89,7 @@ func (t *testQuicstreamHandlers) openstreamf(prefix []byte, handler quicstream.H
 				hw.Close()
 			}()
 
-			return quicstream.HeaderWriteHead(hw, t.Enc,
+			return quicstream.HeaderWriteHead(context.Background(), hw, t.Enc,
 				quicstream.NewDefaultResponseHeader(false, err))
 		}
 
@@ -101,7 +101,7 @@ func (t *testQuicstreamHandlers) openstreamf(prefix []byte, handler quicstream.H
 		donech <- handlerf()
 	}()
 
-	return func(context.Context, quicstream.UDPConnInfo) (io.ReadCloser, io.WriteCloser, error) {
+	return func(context.Context, quicstream.UDPConnInfo) (io.Reader, io.WriteCloser, error) {
 			return cr, cw, nil
 		}, func() {
 			hr.Close()
@@ -125,7 +125,7 @@ func (t *testQuicstreamHandlers) openstreamfs(prefix []byte, handlers map[string
 		n++
 	}
 
-	return func(ctx context.Context, ci quicstream.UDPConnInfo) (io.ReadCloser, io.WriteCloser, error) {
+	return func(ctx context.Context, ci quicstream.UDPConnInfo) (io.Reader, io.WriteCloser, error) {
 			op, found := ops[ci.String()]
 			if !found {
 				return nil, nil, errors.Errorf("unknown conn, %q", ci.String())
@@ -158,9 +158,9 @@ func (t *testQuicstreamHandlers) TestRequest() {
 		t.NoError(err)
 
 		header := NewExistsInStateOperationRequestHeader(valuehash.RandomSHA256())
-		t.NoError(broker.WriteRequestHead(header))
+		t.NoError(broker.WriteRequestHead(ctx, header))
 
-		_, rh, err := broker.ReadResponseHead()
+		_, rh, err := broker.ReadResponseHead(ctx)
 		t.NoError(err)
 
 		t.NoError(rh.Err())
@@ -184,9 +184,9 @@ func (t *testQuicstreamHandlers) TestRequest() {
 		t.NoError(err)
 
 		header := NewExistsInStateOperationRequestHeader(valuehash.RandomSHA256())
-		t.NoError(broker.WriteRequestHead(header))
+		t.NoError(broker.WriteRequestHead(ctx, header))
 
-		_, rh, err := broker.ReadResponseHead()
+		_, rh, err := broker.ReadResponseHead(ctx)
 		t.NoError(err)
 
 		t.False(rh.OK())

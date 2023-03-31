@@ -71,12 +71,13 @@ func (t *testSyncSourceChecker) openstreamf(h *handlers) (quicstream.OpenStreamF
 		Add(HandlerPrefixSyncSourceConnInfo, quicstream.NewHeaderHandler(t.Encs, 0, h.SyncSourceConnInfo)).
 		Add(HandlerPrefixNodeChallenge, quicstream.NewHeaderHandler(t.Encs, 0, h.NodeChallenge))
 
+	ci := quicstream.RandomConnInfo()
+
 	handlerf := func() error {
 		defer hw.Close()
 
-		if err := ph.Handler(nil, hr, hw); err != nil {
+		if err := ph.Handler(ci.Addr(), hr, hw); err != nil {
 			if errors.Is(err, quicstream.ErrHandlerNotFound) {
-
 				go io.ReadAll(cr)
 				go io.ReadAll(hr)
 			}
@@ -85,7 +86,7 @@ func (t *testSyncSourceChecker) openstreamf(h *handlers) (quicstream.OpenStreamF
 				hw.Close()
 			}()
 
-			return quicstream.HeaderWriteHead(hw, t.Enc,
+			return quicstream.HeaderWriteHead(context.Background(), hw, t.Enc,
 				quicstream.NewDefaultResponseHeader(false, err))
 		}
 
@@ -97,7 +98,7 @@ func (t *testSyncSourceChecker) openstreamf(h *handlers) (quicstream.OpenStreamF
 		donech <- handlerf()
 	}()
 
-	return func(context.Context, quicstream.UDPConnInfo) (io.ReadCloser, io.WriteCloser, error) {
+	return func(context.Context, quicstream.UDPConnInfo) (io.Reader, io.WriteCloser, error) {
 			return cr, cw, nil
 		}, func() {
 			hr.Close()
@@ -121,7 +122,7 @@ func (t *testSyncSourceChecker) openstreamfs(handlersmap map[string]*handlers) (
 		n++
 	}
 
-	return func(ctx context.Context, ci quicstream.UDPConnInfo) (io.ReadCloser, io.WriteCloser, error) {
+	return func(ctx context.Context, ci quicstream.UDPConnInfo) (io.Reader, io.WriteCloser, error) {
 			op, found := ops[ci.String()]
 			if !found {
 				return nil, nil, errors.Errorf("unknown conn, %q", ci.String())
@@ -267,7 +268,9 @@ func (t *testSyncSourceChecker) TestFetchFromNodeButFailedToSignature() {
 	}
 
 	openstreamf, handlercancel := t.openstreamfs(handlersmap)
-	defer handlercancel()
+	defer func() {
+		handlercancel()
+	}()
 
 	client := NewBaseClient(t.Encs, t.Enc, openstreamf)
 

@@ -1,6 +1,7 @@
 package isaacblock
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -51,32 +52,21 @@ func (l *LocalFSImporter) WriteMap(m base.BlockMap) error {
 		return e(err, "")
 	}
 
-	pr, pw := io.Pipe()
+	if err := util.PipeReadWrite(
+		context.Background(),
+		func(_ context.Context, pr io.Reader) error {
+			_, err := io.Copy(w, pr)
 
-	defer func() {
-		_ = pr.Close()
-		_ = pw.Close()
-	}()
-
-	errch := make(chan error, 1)
-
-	go func() {
-		_, err := io.Copy(w, pr)
-
-		errch <- err
-	}()
-
-	if err := l.enc.StreamEncoder(pw).Encode(m); err != nil {
+			return errors.WithStack(err)
+		},
+		func(_ context.Context, pw io.Writer) error {
+			return l.enc.StreamEncoder(pw).Encode(m)
+		},
+	); err != nil {
 		return e(err, "")
 	}
-
-	_ = pw.Close()
 
 	l.height = m.Manifest().Height()
-
-	if err := <-errch; err != nil {
-		return e(err, "")
-	}
 
 	return nil
 }

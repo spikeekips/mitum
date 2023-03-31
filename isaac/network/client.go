@@ -27,7 +27,7 @@ func NewBaseClient(
 }
 
 func (c *BaseClient) OpenStream(ctx context.Context, ci quicstream.UDPConnInfo) (
-	io.ReadCloser,
+	io.Reader,
 	io.WriteCloser,
 	error,
 ) {
@@ -509,7 +509,7 @@ func HCReqRes(
 		_ = broker.Close()
 	}()
 
-	_, rh, err := hcReqRes(broker, header)
+	_, rh, err := hcReqRes(ctx, broker, header)
 	if err != nil {
 		return nil, err
 	}
@@ -538,7 +538,7 @@ func HCReqBodyRes(
 		return broker.Close()
 	}
 
-	switch rh, renc, rbody, err := hcReqBodyRes(broker, header); {
+	switch rh, renc, rbody, err := hcReqBodyRes(ctx, broker, header); {
 	case err != nil:
 		_ = cancel()
 
@@ -670,6 +670,7 @@ func HCBodyReqResDec(
 }
 
 func hcReqRes(
+	ctx context.Context,
 	broker *quicstream.HeaderClientBroker,
 	header quicstream.RequestHeader,
 ) (
@@ -677,11 +678,11 @@ func hcReqRes(
 	quicstream.ResponseHeader,
 	error,
 ) {
-	if err := broker.WriteRequestHead(header); err != nil {
+	if err := broker.WriteRequestHead(ctx, header); err != nil {
 		return nil, nil, err
 	}
 
-	renc, rh, err := broker.ReadResponseHead()
+	renc, rh, err := broker.ReadResponseHead(ctx)
 
 	return renc, rh, err
 }
@@ -696,48 +697,31 @@ func hcBodyReqRes(
 	quicstream.ResponseHeader,
 	error,
 ) {
-	if err := broker.WriteRequestHead(header); err != nil {
+	if err := broker.WriteRequestHead(ctx, header); err != nil {
 		return nil, nil, err
 	}
 
 	if body != nil {
-		if err := func() error {
-			r, w := io.Pipe()
-
-			defer func() {
-				_ = r.Close()
-				_ = w.Close()
-			}()
-
-			errch := make(chan error, 1)
-
-			go func() {
-				errch <- broker.WriteBody(quicstream.StreamDataFormat, 0, r)
-			}()
-
-			if err := broker.Encoder.StreamEncoder(w).Encode(body); err != nil {
-				return err
-			}
-
-			_ = w.Close()
-
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case err := <-errch:
-				return err
-			}
-		}(); err != nil {
+		if err := util.PipeReadWrite(
+			ctx,
+			func(ctx context.Context, pr io.Reader) error {
+				return broker.WriteBody(ctx, quicstream.StreamDataFormat, 0, pr)
+			},
+			func(ctx context.Context, pw io.Writer) error {
+				return broker.Encoder.StreamEncoder(pw).Encode(body)
+			},
+		); err != nil {
 			return nil, nil, err
 		}
 	}
 
-	renc, rh, err := broker.ReadResponseHead()
+	renc, rh, err := broker.ReadResponseHead(ctx)
 
 	return renc, rh, err
 }
 
 func hcReqBodyRes(
+	ctx context.Context,
 	broker *quicstream.HeaderClientBroker,
 	header quicstream.RequestHeader,
 ) (
@@ -749,7 +733,7 @@ func hcReqBodyRes(
 	var renc encoder.Encoder
 	var rh quicstream.ResponseHeader
 
-	switch enc, h, err := hcReqRes(broker, header); {
+	switch enc, h, err := hcReqRes(ctx, broker, header); {
 	case err != nil:
 		return nil, nil, nil, err
 	case h.Err() != nil:
@@ -759,7 +743,7 @@ func hcReqBodyRes(
 		rh = h
 	}
 
-	switch dataFormat, bodyLength, r, err := broker.ReadBody(); {
+	switch dataFormat, bodyLength, r, err := broker.ReadBody(ctx); {
 	case err != nil:
 		return rh, renc, nil, err
 	case dataFormat == quicstream.EmptyDataFormat:
@@ -801,7 +785,7 @@ func hcBodyReqBodyRes(
 		rh = h
 	}
 
-	switch dataFormat, bodyLength, r, err := broker.ReadBody(); {
+	switch dataFormat, bodyLength, r, err := broker.ReadBody(ctx); {
 	case err != nil:
 		return rh, renc, nil, err
 	case dataFormat == quicstream.LengthedDataFormat:

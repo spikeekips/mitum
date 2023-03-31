@@ -89,7 +89,7 @@ func (c *Client) Dial(ctx context.Context) (quic.EarlyConnection, error) {
 }
 
 // OpenStream opens new stream. Reader and Writer should be closed.
-func (c *Client) OpenStream(ctx context.Context) (*StreamReadCloser, *StreamWriteCloser, error) {
+func (c *Client) OpenStream(ctx context.Context) (reader quic.Stream, writer quic.Stream, _ error) {
 	r, w, err := c.openStream(ctx)
 	if err != nil {
 		if IsNetworkError(err) {
@@ -102,7 +102,7 @@ func (c *Client) OpenStream(ctx context.Context) (*StreamReadCloser, *StreamWrit
 	return r, w, nil
 }
 
-func (c *Client) openStream(ctx context.Context) (*StreamReadCloser, *StreamWriteCloser, error) {
+func (c *Client) openStream(ctx context.Context) (quic.Stream, quic.Stream, error) {
 	e := util.StringErrorFunc("request")
 
 	session, err := c.dial(ctx)
@@ -115,25 +115,7 @@ func (c *Client) openStream(ctx context.Context) (*StreamReadCloser, *StreamWrit
 		return nil, nil, e(err, "open stream")
 	}
 
-	rctx, rcancel := context.WithCancel(ctx)
-	r := newStreamReadCloser(stream, rcancel)
-
-	wctx, wcancel := context.WithCancel(ctx)
-	w := newStreamWriteCloser(stream, wcancel)
-
-	go func() {
-		<-rctx.Done()
-
-		stream.CancelRead(0)
-	}()
-
-	go func() {
-		<-wctx.Done()
-
-		_ = stream.Close()
-	}()
-
-	return r, w, nil
+	return stream, stream, nil
 }
 
 func (c *Client) dial(ctx context.Context) (quic.EarlyConnection, error) {
@@ -173,35 +155,4 @@ func dial(
 	c, err := quic.DialAddrEarlyContext(ctx, addr, tlsconfig, quicconfig)
 
 	return c, errors.WithStack(err)
-}
-
-type StreamReadCloser struct {
-	quic.Stream
-	cancel func()
-}
-
-func newStreamReadCloser(stream quic.Stream, cancel func()) *StreamReadCloser {
-	return &StreamReadCloser{Stream: stream, cancel: cancel}
-}
-
-func (r *StreamReadCloser) Close() error {
-	r.cancel()
-	r.Stream.CancelRead(0)
-
-	return nil
-}
-
-type StreamWriteCloser struct {
-	quic.Stream
-	cancel func()
-}
-
-func newStreamWriteCloser(stream quic.Stream, cancel func()) *StreamWriteCloser {
-	return &StreamWriteCloser{Stream: stream, cancel: cancel}
-}
-
-func (r *StreamWriteCloser) Close() error {
-	r.cancel()
-
-	return errors.WithStack(r.Stream.Close())
 }

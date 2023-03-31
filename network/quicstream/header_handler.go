@@ -47,7 +47,7 @@ func NewHeaderHandler(
 		go func() {
 			var err error
 
-			detail, err = readRequestHeadDetailInHandler(encs, r)
+			detail, err = readRequestHeadDetailInHandler(ctx, encs, r)
 
 			donech <- err
 		}()
@@ -65,10 +65,12 @@ func NewHeaderHandler(
 	}
 }
 
-func readRequestHeadDetailInHandler(encs *encoder.Encoders, r io.Reader) (RequestHeadDetail, error) {
+func readRequestHeadDetailInHandler(
+	ctx context.Context, encs *encoder.Encoders, r io.Reader,
+) (RequestHeadDetail, error) {
 	detail := RequestHeadDetail{Encoders: encs}
 
-	switch enc, h, err := HeaderReadHead(r, encs); {
+	switch enc, h, err := HeaderReadHead(ctx, r, encs); {
 	case err != nil:
 		return detail, errors.WithMessage(err, "read request")
 	case enc == nil:

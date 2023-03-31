@@ -113,7 +113,7 @@ func (srv *Server) handleStream(ctx context.Context, remoteAddr net.Addr, stream
 		_ = stream.Close()
 	}()
 
-	if err := util.AwareContext(ctx, func() error {
+	if err := util.AwareContext(ctx, func(context.Context) error {
 		return srv.handler(remoteAddr, stream, stream)
 	}); err != nil {
 		var errcode quic.StreamErrorCode

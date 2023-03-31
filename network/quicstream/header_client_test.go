@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/quic-go/quic-go"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -144,7 +143,7 @@ func (t *testHeaderClient) newServer(prefix []byte, handler Handler) *Server {
 }
 
 func (t *testHeaderClient) openstreamf() OpenStreamFunc {
-	return func(ctx context.Context, ci UDPConnInfo) (io.ReadCloser, io.WriteCloser, error) {
+	return func(ctx context.Context, ci UDPConnInfo) (io.Reader, io.WriteCloser, error) {
 		client := t.NewClient(ci.UDPAddr())
 
 		return client.OpenStream(ctx)
@@ -205,7 +204,7 @@ func (t *testHeaderClient) TestRequest() {
 	handler := NewHeaderHandler(
 		t.encs,
 		time.Minute,
-		func(_ context.Context, _ net.Addr, r io.Reader, w io.Writer, detail RequestHeadDetail) error {
+		func(ctx context.Context, _ net.Addr, r io.Reader, w io.Writer, detail RequestHeadDetail) error {
 			if delay != nil {
 				t.T().Log("delaying:", delay)
 
@@ -221,7 +220,7 @@ func (t *testHeaderClient) TestRequest() {
 			dh, ok := detail.Header.(dummyRequestHeader)
 			t.True(ok)
 
-			dataFormat, bodyLength, body, err := HeaderReadBody(r)
+			dataFormat, bodyLength, body, err := HeaderReadBody(ctx, r)
 			if err != nil {
 				return err
 			}
@@ -235,7 +234,7 @@ func (t *testHeaderClient) TestRequest() {
 			header := newDummyResponseHeader(true, nil, id)
 			buf := bytes.NewBuffer([]byte(dh.ID))
 
-			return WriteResponse(w, detail.Encoder, header, LengthedDataFormat, uint64(buf.Len()), buf)
+			return WriteResponse(ctx, w, detail.Encoder, header, LengthedDataFormat, uint64(buf.Len()), buf)
 		},
 	)
 
@@ -243,18 +242,20 @@ func (t *testHeaderClient) TestRequest() {
 		srv := t.newServer(prefix, handler)
 		defer srv.Stop()
 
+		ctx := context.Background()
+
 		c := NewHeaderClient(t.encs, t.enc, t.openstreamf())
 
-		broker, err := c.Broker(context.Background(), localci)
+		broker, err := c.Broker(ctx, localci)
 		t.NoError(err)
 		defer broker.Close()
 
 		header := newDummyRequestHeader(prefix, id)
-		t.NoError(broker.WriteRequestHead(header))
+		t.NoError(broker.WriteRequestHead(ctx, header))
 
-		t.NoError(broker.WriteBody(EmptyDataFormat, 0, nil))
+		t.NoError(broker.WriteBody(ctx, EmptyDataFormat, 0, nil))
 
-		renc, rh, err := broker.ReadResponseHead()
+		renc, rh, err := broker.ReadResponseHead(ctx)
 		t.NoError(err)
 
 		t.logHead("response", rh, renc.Hint())
@@ -266,7 +267,7 @@ func (t *testHeaderClient) TestRequest() {
 		t.True(ok)
 		t.Equal(id, rdh.ID)
 
-		dataFormat, bodyLength, rbody, err := broker.ReadBody()
+		dataFormat, bodyLength, rbody, err := broker.ReadBody(ctx)
 		t.NoError(err)
 
 		t.logBody("response", dataFormat, bodyLength, rbody)
@@ -284,11 +285,13 @@ func (t *testHeaderClient) TestRequest() {
 
 		c := NewHeaderClient(t.encs, t.enc, t.openstreamf())
 
+		ctx := context.Background()
+
 		broker, err := c.Broker(context.Background(), localci)
 		t.NoError(err)
 		defer broker.Close()
 
-		err = broker.WriteRequestHead(nil)
+		err = broker.WriteRequestHead(ctx, nil)
 		t.ErrorContains(err, "empty header")
 	})
 
@@ -296,13 +299,13 @@ func (t *testHeaderClient) TestRequest() {
 		handler := NewHeaderHandler(
 			t.encs,
 			time.Second,
-			func(_ context.Context, _ net.Addr, r io.Reader, w io.Writer, detail RequestHeadDetail) error {
+			func(ctx context.Context, _ net.Addr, r io.Reader, w io.Writer, detail RequestHeadDetail) error {
 				t.logRequestHeadDetail(detail)
 
 				dh, ok := detail.Header.(dummyRequestHeader)
 				t.True(ok)
 
-				dataFormat, bodyLength, body, err := HeaderReadBody(r)
+				dataFormat, bodyLength, body, err := HeaderReadBody(ctx, r)
 				t.NoError(err)
 				t.logBody("request", dataFormat, bodyLength, body)
 
@@ -310,13 +313,13 @@ func (t *testHeaderClient) TestRequest() {
 				t.NoError(err)
 				t.T().Log("request body:", string(b))
 
-				if err := HeaderWriteHead(w, detail.Encoder, nil); err != nil {
+				if err := HeaderWriteHead(ctx, w, detail.Encoder, nil); err != nil {
 					return err
 				}
 
 				buf := bytes.NewBuffer([]byte(dh.ID))
 
-				return HeaderWriteBody(w, LengthedDataFormat, uint64(buf.Len()), buf)
+				return HeaderWriteBody(ctx, w, LengthedDataFormat, uint64(buf.Len()), buf)
 			},
 		)
 
@@ -325,23 +328,25 @@ func (t *testHeaderClient) TestRequest() {
 
 		c := NewHeaderClient(t.encs, t.enc, t.openstreamf())
 
-		broker, err := c.Broker(context.Background(), localci)
+		ctx := context.Background()
+
+		broker, err := c.Broker(ctx, localci)
 		t.NoError(err)
 
 		defer broker.Close()
 
 		header := newDummyRequestHeader(prefix, id)
-		t.NoError(broker.WriteRequestHead(header))
+		t.NoError(broker.WriteRequestHead(ctx, header))
 
-		t.NoError(broker.WriteBody(EmptyDataFormat, 0, nil))
+		t.NoError(broker.WriteBody(ctx, EmptyDataFormat, 0, nil))
 
-		renc, rh, err := broker.ReadResponseHead()
+		renc, rh, err := broker.ReadResponseHead(ctx)
 		t.NoError(err)
 
 		t.logHead("response", rh, renc.Hint())
 		t.Nil(rh)
 
-		dataFormat, bodyLength, rbody, err := broker.ReadBody()
+		dataFormat, bodyLength, rbody, err := broker.ReadBody(ctx)
 		t.NoError(err)
 
 		t.logBody("response", dataFormat, bodyLength, rbody)
@@ -361,16 +366,18 @@ func (t *testHeaderClient) TestRequest() {
 
 		c := NewHeaderClient(t.encs, t.enc, t.openstreamf())
 
-		broker, err := c.Broker(context.Background(), localci)
+		ctx := context.Background()
+
+		broker, err := c.Broker(ctx, localci)
 		t.NoError(err)
 		defer broker.Close()
 
 		header := newDummyRequestHeader(prefix, id)
-		t.NoError(broker.WriteRequestHead(header))
+		t.NoError(broker.WriteRequestHead(ctx, header))
 
-		t.NoError(broker.WriteBody(EmptyDataFormat, 0, nil))
+		t.NoError(broker.WriteBody(ctx, EmptyDataFormat, 0, nil))
 
-		renc, rh, err := broker.ReadResponseHead()
+		renc, rh, err := broker.ReadResponseHead(ctx)
 		t.NoError(err)
 		t.NotNil(renc)
 
@@ -383,7 +390,7 @@ func (t *testHeaderClient) TestRequest() {
 		t.True(ok)
 		t.Equal(id, rdh.ID)
 
-		dataFormat, bodyLength, rbody, err := broker.ReadBody()
+		dataFormat, bodyLength, rbody, err := broker.ReadBody(ctx)
 		t.NoError(err)
 
 		t.logBody("response", dataFormat, bodyLength, rbody)
@@ -412,21 +419,21 @@ func (t *testHeaderClient) TestRequest() {
 		t.NoError(err)
 
 		header := newDummyRequestHeader(prefix, id)
-		t.NoError(broker.WriteRequestHead(header))
+		t.NoError(broker.WriteRequestHead(ctx, header))
 
 		{
 			buf := bytes.NewBuffer(util.UUID().Bytes())
-			t.NoError(broker.WriteBody(LengthedDataFormat, uint64(buf.Len()), buf))
+			t.NoError(broker.WriteBody(ctx, LengthedDataFormat, uint64(buf.Len()), buf))
 		}
 
-		renc, rh, err := broker.ReadResponseHead()
+		renc, rh, err := broker.ReadResponseHead(ctx)
 		t.Error(err)
 
 		t.logHead("response", rh, hint.Hint{})
 		t.Nil(rh)
 		t.Nil(renc)
 
-		t.True(errors.Is(err, &quic.StreamError{}), "%+v %T", err, err)
+		t.True(errors.Is(err, context.DeadlineExceeded))
 	})
 }
 

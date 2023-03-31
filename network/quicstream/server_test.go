@@ -53,7 +53,6 @@ func (t *testServer) TestEcho() {
 	t.NoError(err)
 
 	t.NoError(w.Close())
-	defer r.Close()
 
 	rb, err := io.ReadAll(r)
 	t.NoError(err)
@@ -82,7 +81,6 @@ func (t *testServer) TestEchos() {
 				t.NoError(err)
 
 				t.NoError(w.Close())
-				defer r.Close()
 
 				rb, err := io.ReadAll(r)
 				t.NoError(err)
@@ -126,8 +124,6 @@ func (t *testServer) TestSendTimeout() {
 
 	t.NoError(err)
 
-	defer r.Close()
-
 	_, err = io.ReadAll(r)
 	t.Error(err)
 
@@ -170,7 +166,6 @@ func (t *testServer) TestResponseIdleTimeout() {
 	t.NoError(err)
 
 	t.NoError(w.Close())
-	defer r.Close()
 
 	_, err = io.ReadAll(r)
 	t.Error(err)
@@ -180,13 +175,13 @@ func (t *testServer) TestResponseIdleTimeout() {
 }
 
 func (t *testServer) TestResponseTimeout() {
-	gctx, gcancel := context.WithCancel(context.Background())
+	gctx, gcancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer gcancel()
 
 	srv := t.NewDefaultServer(nil, func(_ net.Addr, r io.Reader, w io.Writer) error {
 		select {
 		case <-gctx.Done():
-			return nil
+			return gctx.Err()
 		case <-time.After(time.Minute):
 		}
 
@@ -196,7 +191,7 @@ func (t *testServer) TestResponseTimeout() {
 		return nil
 	})
 
-	t.NoError(srv.Start(gctx))
+	t.NoError(srv.Start(context.Background()))
 	defer srv.Stop()
 
 	client := t.NewClient(t.Bind)
@@ -204,17 +199,13 @@ func (t *testServer) TestResponseTimeout() {
 		MaxIdleTimeout: time.Minute,
 	}
 
-	ctx, cancel := context.WithTimeout(gctx, time.Second*2)
-	defer cancel()
-
-	r, w, err := client.OpenStream(ctx)
+	r, w, err := client.OpenStream(context.Background())
 	t.NoError(err)
 
 	_, err = w.Write(util.UUID().Bytes())
 	t.NoError(err)
 
 	t.NoError(w.Close())
-	defer r.Close()
 
 	_, err = io.ReadAll(r)
 	t.Error(err)
@@ -353,7 +344,6 @@ func (t *testServer) TestStreamReadWrite() {
 
 	r, w, err := client.OpenStream(ctx)
 	t.NoError(err)
-	defer r.Close()
 	defer w.Close()
 
 	var i int

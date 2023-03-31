@@ -79,21 +79,25 @@ func NewTransportWithQuicstream(
 	newClient func(quicstream.UDPConnInfo) func(*net.UDPAddr) *quicstream.Client,
 	notallowf func(string) bool,
 ) *Transport {
-	writeBody := func(w io.Writer, b []byte) error {
-		_, err := w.Write(b)
-
-		return errors.WithStack(err)
-	}
-
-	if len(handlerPrefix) > 0 {
-		writeBody = func(w io.Writer, b []byte) error {
-			if err := quicstream.WritePrefix(w, handlerPrefix); err != nil {
-				return err
-			}
-
+	writeBody := func(ctx context.Context, w io.Writer, b []byte) error {
+		return util.AwareContext(ctx, func(context.Context) error {
 			_, err := w.Write(b)
 
 			return errors.WithStack(err)
+		})
+	}
+
+	if len(handlerPrefix) > 0 {
+		writeBody = func(ctx context.Context, w io.Writer, b []byte) error {
+			return util.AwareContext(ctx, func(context.Context) error {
+				if err := quicstream.WritePrefix(ctx, w, handlerPrefix); err != nil {
+					return err
+				}
+
+				_, err := w.Write(b)
+
+				return errors.WithStack(err)
+			})
 		}
 	}
 
@@ -121,10 +125,13 @@ func NewTransportWithQuicstream(
 		}
 
 		defer func() {
-			_ = r.Close()
+			_ = w.Close()
 		}()
 
-		if err := writeBody(w, b); err != nil {
+		cctx, cancel = context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
+		defer cancel()
+
+		if err := writeBody(cctx, w, b); err != nil {
 			return errors.WithStack(err)
 		}
 

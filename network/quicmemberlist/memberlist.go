@@ -318,7 +318,7 @@ func (srv *Memberlist) CallbackBroadcast(b []byte, id string, notifych chan stru
 func (srv *Memberlist) CallbackBroadcastHandler() quicstream.HeaderHandler {
 	var sg singleflight.Group
 
-	return func(_ context.Context, _ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
+	return func(ctx context.Context, _ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
 		e := util.StringErrorFunc("handle callback message")
 
 		header, ok := detail.Header.(CallbackBroadcastMessageHeader)
@@ -356,6 +356,7 @@ func (srv *Memberlist) CallbackBroadcastHandler() quicstream.HeaderHandler {
 		}
 
 		if err := quicstream.WriteResponse(
+			ctx,
 			w,
 			detail.Encoder,
 			quicstream.NewDefaultResponseHeader(found, nil),
@@ -476,7 +477,7 @@ func (srv *Memberlist) EnsureBroadcastHandler(
 	networkID base.NetworkID,
 	memberf func(base.Address) (base.Publickey, bool, error),
 ) quicstream.HeaderHandler {
-	return func(_ context.Context, _ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
+	return func(ctx context.Context, _ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
 		e := util.StringErrorFunc("handle ensure message")
 
 		var header EnsureBroadcastMessageHeader
@@ -523,6 +524,7 @@ func (srv *Memberlist) EnsureBroadcastHandler(
 		})
 
 		if err := quicstream.WriteResponse(
+			ctx,
 			w,
 			detail.Encoder,
 			quicstream.NewDefaultResponseHeader(isset, nil),
@@ -1152,13 +1154,13 @@ func FetchCallbackBroadcastMessageFunc(
 			_ = broker.Close()
 		}()
 
-		if err := broker.WriteRequestHead(NewCallbackBroadcastMessageHeader(m.ID(), handlerPrefix)); err != nil {
+		if err := broker.WriteRequestHead(ctx, NewCallbackBroadcastMessageHeader(m.ID(), handlerPrefix)); err != nil {
 			return nil, nil, err
 		}
 
 		var renc encoder.Encoder
 
-		switch i, rh, err := broker.ReadResponseHead(); {
+		switch i, rh, err := broker.ReadResponseHead(ctx); {
 		case err != nil:
 			return nil, nil, err
 		case rh == nil:
@@ -1171,7 +1173,7 @@ func FetchCallbackBroadcastMessageFunc(
 			renc = i
 		}
 
-		switch _, _, rbody, err := broker.ReadBody(); {
+		switch _, _, rbody, err := broker.ReadBody(ctx); {
 		case err != nil:
 			return nil, renc, nil
 		default:
@@ -1207,11 +1209,11 @@ func PongEnsureBroadcastMessageFunc(
 			_ = broker.Close()
 		}()
 
-		if err := broker.WriteRequestHead(h); err != nil {
+		if err := broker.WriteRequestHead(ctx, h); err != nil {
 			return err
 		}
 
-		switch _, rh, err := broker.ReadResponseHead(); {
+		switch _, rh, err := broker.ReadResponseHead(ctx); {
 		case err != nil:
 			return err
 		case rh == nil:

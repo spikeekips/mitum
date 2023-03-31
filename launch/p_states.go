@@ -869,7 +869,7 @@ func syncerBlockMapItemFunc(
 			ci = i
 		}
 
-		cctx, ctxcancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
+		cctx, ctxcancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd // ...
 		defer ctxcancel()
 
 		r, cancel, found, err := client.BlockMapItem(cctx, ci, height, item)

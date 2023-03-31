@@ -140,12 +140,10 @@ func (c *qconn) Read(b []byte) (int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dur)
 	defer cancel()
 
-	var n int
-	var e error
-	err := util.AwareContext(ctx, func() error {
-		n, e = c.r.Read(b)
+	n, err := util.AwareContextValue[int](ctx, func(context.Context) (int, error) {
+		n, err := c.r.Read(b)
 
-		return nil
+		return n, errors.WithStack(err)
 	})
 
 	switch {
@@ -154,7 +152,7 @@ func (c *qconn) Read(b []byte) (int, error) {
 	case errors.Is(err, context.DeadlineExceeded):
 		return n, errors.WithStack(os.ErrDeadlineExceeded)
 	default:
-		return n, errors.WithStack(e)
+		return n, errors.WithStack(err)
 	}
 }
 

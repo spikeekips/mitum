@@ -148,19 +148,13 @@ func (st *baseBallotHandler) makeINITBallot(
 
 	var pr base.ProposalSignFact
 
-	switch i, err := st.args.ProposalSelectFunc(ctx, point, initialWait); {
-	case err == nil:
-		pr = i
-
-		l.Debug().Interface("proposal", pr).Msg("proposal selected")
-	case errors.Is(err, context.Canceled):
-		l.Debug().Err(err).Msg("canceled to select proposal; ignore")
-
+	switch i, err := st.requestProposal(ctx, point, initialWait); {
+	case err != nil:
+		return nil, e(err, "")
+	case i == nil:
 		return nil, nil
 	default:
-		l.Error().Err(err).Msg("failed to select proposal")
-
-		return nil, e(err, "")
+		pr = i
 	}
 
 	switch bl, found, err := st.ballotBroadcaster.Ballot(point, base.StageINIT, false); {
@@ -615,6 +609,32 @@ func (st *baseBallotHandler) prepareNextBlock(
 		l.Error().Err(err).Msg("failed to start timers for next block")
 
 		return
+	}
+}
+
+func (st *baseBallotHandler) requestProposal(
+	ctx context.Context,
+	point base.Point,
+	initialWait time.Duration,
+) (base.ProposalSignFact, error) {
+	l := st.Log().With().Object("point", point).Dur("initial_wait", initialWait).Logger()
+
+	started := time.Now()
+	defer l.Debug().Dur("elapsed", time.Since(started)).Msg("proposal selection done")
+
+	switch pr, err := st.args.ProposalSelectFunc(ctx, point, initialWait); {
+	case err == nil:
+		l.Debug().Interface("proposal", pr).Msg("proposal selected")
+
+		return pr, nil
+	case errors.Is(err, context.Canceled):
+		l.Debug().Err(err).Msg("canceled to select proposal; ignore")
+
+		return nil, nil
+	default:
+		l.Error().Err(err).Dur("initial_wait", initialWait).Msg("failed to select proposal")
+
+		return nil, err
 	}
 }
 

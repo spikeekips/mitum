@@ -41,7 +41,7 @@ func (t *testQConn) TestRead() {
 
 		err := util.AwareContext(
 			ctx,
-			func() error {
+			func(context.Context) error {
 				b := make([]byte, 1024)
 				_, err := c.Read(b)
 

@@ -43,7 +43,6 @@ func (t *testPool) TestStream() {
 		},
 	)
 	t.NoError(err)
-	defer r.Close()
 
 	_, err = w.Write(b)
 	t.NoError(err)
@@ -84,7 +83,6 @@ func (t *testPool) TestClose() {
 			},
 		)
 		t.NoError(err)
-		defer r.Close()
 
 		_, err = w.Write(b)
 		t.NoError(err)
@@ -136,7 +134,6 @@ func (t *testPool) TestSend() {
 		},
 	)
 	t.NoError(err)
-	defer r.Close()
 
 	_, err = w.Write(b)
 	t.NoError(err)

@@ -131,7 +131,7 @@ func (p *PoolClient) OpenStream(
 	ctx context.Context,
 	addr *net.UDPAddr,
 	newClient func(*net.UDPAddr) *Client,
-) (*StreamReadCloser, quic.Stream, error) {
+) (reader quic.Stream, writer quic.Stream, _ error) {
 	var client *Client
 	_, _ = p.clients.Set(addr.String(), func(i *poolClientItem, found bool) (*poolClientItem, error) {
 		if found && i != nil {

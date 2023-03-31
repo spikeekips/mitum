@@ -59,7 +59,10 @@ var (
 
 func QuicstreamErrorHandler(enc encoder.Encoder) quicstream.ErrorHandler {
 	return func(_ net.Addr, _ io.Reader, w io.Writer, err error) error {
-		return quicstream.HeaderWriteHead(w, enc,
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*3) //nolint:gomnd //...
+		defer cancel()
+
+		return quicstream.HeaderWriteHead(ctx, w, enc,
 			quicstream.NewDefaultResponseHeader(false, err),
 		)
 	}
@@ -97,7 +100,7 @@ func QuicstreamHandlerSendOperation(
 		filterSendOperationf,
 	)
 
-	return func(_ context.Context, _ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
+	return func(ctx context.Context, _ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
 		e := util.StringErrorFunc("handle new operation")
 
 		if _, ok := detail.Header.(SendOperationRequestHeader); !ok {
@@ -109,7 +112,7 @@ func QuicstreamHandlerSendOperation(
 
 		var rbody io.Reader
 
-		switch _, _, i, err := quicstream.HeaderReadBody(r); {
+		switch _, _, i, err := quicstream.HeaderReadBody(ctx, r); {
 		case err != nil:
 			return e(err, "")
 		default:
@@ -141,7 +144,7 @@ func QuicstreamHandlerSendOperation(
 			return e(err, "")
 		}
 
-		added, err := quicstreamHandlerSetOperation(context.Background(), oppool, svvote, op)
+		added, err := quicstreamHandlerSetOperation(ctx, oppool, svvote, op)
 		if err == nil && added {
 			if broadcast != nil {
 				go func() {
@@ -150,7 +153,7 @@ func QuicstreamHandlerSendOperation(
 			}
 		}
 
-		if err = quicstream.WriteResponse(w,
+		if err = quicstream.WriteResponse(ctx, w,
 			detail.Encoder,
 			quicstream.NewDefaultResponseHeader(added, err),
 			quicstream.EmptyDataFormat,
@@ -369,7 +372,7 @@ func QuicstreamHandlerBlockMap(
 func QuicstreamHandlerBlockMapItem(
 	blockMapItemf func(base.Height, base.BlockMapItemType) (io.ReadCloser, bool, error),
 ) quicstream.HeaderHandler {
-	return func(_ context.Context, _ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
+	return func(ctx context.Context, _ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
 		header, ok := detail.Header.(BlockMapItemRequestHeader)
 		if !ok {
 			return errors.Errorf("expected BlockMapItemRequestHeader, but %T", detail.Header)
@@ -383,7 +386,7 @@ func QuicstreamHandlerBlockMapItem(
 		case err != nil:
 			return err
 		case !found:
-			return quicstream.WriteResponse(w, detail.Encoder,
+			return quicstream.WriteResponse(ctx, w, detail.Encoder,
 				quicstream.NewDefaultResponseHeader(found, err),
 				quicstream.EmptyDataFormat,
 				0,
@@ -399,7 +402,7 @@ func QuicstreamHandlerBlockMapItem(
 			dataFormat = quicstream.StreamDataFormat
 		}
 
-		return quicstream.WriteResponse(w, detail.Encoder,
+		return quicstream.WriteResponse(ctx, w, detail.Encoder,
 			quicstream.NewDefaultResponseHeader(found, err),
 			dataFormat,
 			0,
@@ -414,7 +417,9 @@ func QuicstreamHandlerNodeChallenge(
 ) quicstream.HeaderHandler {
 	var sg singleflight.Group
 
-	return func(ctx context.Context, _ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
+	return func(
+		ctx context.Context, addr net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail,
+	) error {
 		e := util.StringErrorFunc("handle NodeChallenge")
 
 		header, ok := detail.Header.(NodeChallengeRequestHeader)
@@ -515,7 +520,7 @@ func QuicstreamHandlerExistsInStateOperation(
 ) quicstream.HeaderHandler {
 	var sg singleflight.Group
 
-	return func(_ context.Context, _ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
+	return func(ctx context.Context, _ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
 		e := util.StringErrorFunc("handle exists instate operation")
 
 		header, ok := detail.Header.(ExistsInStateOperationRequestHeader)
@@ -534,7 +539,7 @@ func QuicstreamHandlerExistsInStateOperation(
 			return e(err, "")
 		}
 
-		if err := quicstream.HeaderWriteHead(w, //nolint:forcetypeassert //...
+		if err := quicstream.HeaderWriteHead(ctx, w, //nolint:forcetypeassert //...
 			detail.Encoder,
 			quicstream.NewDefaultResponseHeader(i.(bool), nil),
 		); err != nil {
@@ -550,7 +555,7 @@ func QuicstreamHandlerNodeInfo(
 ) quicstream.HeaderHandler {
 	var sg singleflight.Group
 
-	return func(_ context.Context, _ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
+	return func(ctx context.Context, _ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
 		e := util.StringErrorFunc("handle node info")
 
 		if _, ok := detail.Header.(NodeInfoRequestHeader); !ok {
@@ -580,7 +585,7 @@ func QuicstreamHandlerNodeInfo(
 			}
 		}
 
-		if err := quicstream.WriteResponse(w,
+		if err := quicstream.WriteResponse(ctx, w,
 			detail.Encoder,
 			quicstream.NewDefaultResponseHeader(true, nil),
 			dataFormat,
@@ -598,7 +603,7 @@ func QuicstreamHandlerSendBallots(
 	params *isaac.LocalParams,
 	votef func(base.BallotSignFact) error,
 ) quicstream.HeaderHandler {
-	return func(_ context.Context, _ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
+	return func(ctx context.Context, _ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
 		e := util.StringErrorFunc("handle new ballot")
 
 		if _, ok := detail.Header.(SendBallotsHeader); !ok {
@@ -607,7 +612,7 @@ func QuicstreamHandlerSendBallots(
 
 		var rbody io.Reader
 
-		switch _, _, i, err := quicstream.HeaderReadBody(r); {
+		switch _, _, i, err := quicstream.HeaderReadBody(ctx, r); {
 		case err != nil:
 			return e(err, "")
 		default:
@@ -647,7 +652,7 @@ func QuicstreamHandlerSendBallots(
 			}
 		}
 
-		if err := quicstream.HeaderWriteHead(w,
+		if err := quicstream.HeaderWriteHead(ctx, w,
 			detail.Encoder,
 			quicstream.NewDefaultResponseHeader(true, nil),
 		); err != nil {
@@ -743,7 +748,7 @@ func boolBytesQUICstreamHandler(
 ) quicstream.HeaderHandler {
 	var sg singleflight.Group
 
-	return func(_ context.Context, _ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
+	return func(ctx context.Context, _ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
 		sgkey := sgkeyf(detail.Header)
 
 		i, err, _ := sg.Do(sgkey, func() (interface{}, error) {
@@ -784,7 +789,7 @@ func boolBytesQUICstreamHandler(
 			}
 		}
 
-		return quicstream.WriteResponse(w,
+		return quicstream.WriteResponse(ctx, w,
 			benc,
 			quicstream.NewDefaultResponseHeader(found, nil),
 			dataFormat,
@@ -802,7 +807,7 @@ func WriteResponseStreamEncode(
 	i interface{},
 ) error {
 	if i == nil {
-		return quicstream.WriteResponse(w,
+		return quicstream.WriteResponse(ctx, w,
 			enc,
 			header,
 			quicstream.EmptyDataFormat,
@@ -811,35 +816,19 @@ func WriteResponseStreamEncode(
 		)
 	}
 
-	pr, pw := io.Pipe()
-
-	defer func() {
-		_ = pr.Close()
-		_ = pw.Close()
-	}()
-
-	errch := make(chan error, 1)
-
-	go func() {
-		errch <- quicstream.WriteResponse(w,
-			enc,
-			header,
-			quicstream.StreamDataFormat,
-			0,
-			pr,
-		)
-	}()
-
-	if err := enc.StreamEncoder(pw).Encode(i); err != nil {
-		return err
-	}
-
-	_ = pw.Close()
-
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case err := <-errch:
-		return err
-	}
+	return util.PipeReadWrite(
+		ctx,
+		func(ctx context.Context, pr io.Reader) error {
+			return quicstream.WriteResponse(ctx, w,
+				enc,
+				header,
+				quicstream.StreamDataFormat,
+				0,
+				pr,
+			)
+		},
+		func(_ context.Context, pw io.Writer) error {
+			return enc.StreamEncoder(pw).Encode(i)
+		},
+	)
 }
