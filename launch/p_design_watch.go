@@ -144,11 +144,11 @@ func watchUpdateFuncs(pctx context.Context) (map[string]func(string) error, erro
 		"parameters/threshold":                                 updateLocalParamThreshold(params, log),
 		"parameters/interval_broadcast_ballot":                 updateLocalParamIntervalBroadcastBallot(params, log),
 		"parameters/wait_preparing_init_ballot":                updateLocalParamWaitPreparingINITBallot(params, log),
-		"parameters/timeout_request_proposal":                  updateLocalParamTimeoutRequestProposal(params, log),
+		"parameters/timeout_request":                           updateLocalParamTimeoutRequest(params, log),
 		"parameters/sync_source_checker_interval":              updateLocalParamSyncSourceCheckerInterval(params, log),
 		"parameters/valid_proposal_operation_expire":           updateLocalParamValidProposalOperationExpire(params, log),
 		"parameters/valid_proposal_suffrage_operations_expire": updateLocalParamValidProposalSuffrageOperationsExpire(params, log),
-		"parameters/max_operation_size":                        updateLocalParamMaxMessageSize(params, log),
+		"parameters/max_message_size":                          updateLocalParamMaxMessageSize(params, log),
 		"parameters/same_member_limit":                         updateLocalParamSameMemberLimit(params, log),
 		"discoveries":                                          updateDiscoveries(discoveries, log),
 		"sync_sources":                                         updateSyncSources(enc, design, syncSourceChecker, log),
@@ -292,7 +292,7 @@ func updateLocalParamWaitPreparingINITBallot(
 	}
 }
 
-func updateLocalParamTimeoutRequestProposal(
+func updateLocalParamTimeoutRequest(
 	params *isaac.LocalParams,
 	log *logging.Logging,
 ) func(string) error {
@@ -302,13 +302,13 @@ func updateLocalParamTimeoutRequestProposal(
 			return err
 		}
 
-		prev := params.TimeoutRequestProposal()
-		_ = params.SetTimeoutRequestProposal(d)
+		prev := params.TimeoutRequest()
+		_ = params.SetTimeoutRequest(d)
 
 		log.Log().Debug().
-			Str("key", "timeout_request_proposal").
+			Str("key", "timeout_request").
 			Interface("prev", prev).
-			Interface("updated", params.TimeoutRequestProposal()).
+			Interface("updated", params.TimeoutRequest()).
 			Msg("local parameter updated")
 
 		return nil

@@ -351,7 +351,7 @@ func (t *testBaseProposalSelector) TestContextCanceled() {
 	args := t.newargs(nodes)
 
 	requestdelay := time.Second
-	_ = t.LocalParams.SetTimeoutRequestProposal(time.Millisecond * 10)
+	_ = t.LocalParams.SetTimeoutRequest(time.Millisecond * 10)
 
 	p := NewBaseProposalSelector(t.Local, t.LocalParams, args)
 
@@ -414,7 +414,7 @@ func (t *testBaseProposalSelector) TestMainContextCanceled() {
 	nodes := t.newNodes(3)
 
 	requestdelay := time.Second * 10
-	_ = t.LocalParams.SetTimeoutRequestProposal(requestdelay * 2)
+	_ = t.LocalParams.SetTimeoutRequest(requestdelay * 2)
 
 	args := t.newargs(nodes)
 

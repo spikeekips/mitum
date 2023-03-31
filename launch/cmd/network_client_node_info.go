@@ -34,13 +34,13 @@ func (cmd *NetworkClientNodeInfoCommand) Run(pctx context.Context) error {
 	}()
 
 	header := isaacnetwork.NewNodeInfoRequestHeader()
-	if err := broker.WriteRequestHead(header); err != nil {
+	if err := broker.WriteRequestHead(ctx, header); err != nil {
 		return err
 	}
 
 	var enc encoder.Encoder
 
-	switch renc, rh, err := broker.ReadResponseHead(); {
+	switch renc, rh, err := broker.ReadResponseHead(ctx); {
 	case err != nil:
 		return err
 	case !rh.OK():
@@ -51,7 +51,7 @@ func (cmd *NetworkClientNodeInfoCommand) Run(pctx context.Context) error {
 		enc = renc
 	}
 
-	switch dataFormat, bodyLenght, r, err := broker.ReadBody(); {
+	switch dataFormat, bodyLenght, r, err := broker.ReadBody(ctx); {
 	case err != nil:
 		return err
 	case dataFormat == quicstream.EmptyDataFormat, dataFormat == quicstream.LengthedDataFormat && bodyLenght < 1:

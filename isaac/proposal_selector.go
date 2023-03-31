@@ -42,8 +42,8 @@ func NewBaseProposalSelectorArgs() *BaseProposalSelectorArgs {
 		RequestFunc: func(context.Context, base.Point, base.Node) (base.ProposalSignFact, bool, error) {
 			return nil, false, util.ErrNotImplemented.Errorf("request")
 		},
-		RequestProposalInterval: time.Millisecond * 10,                       //nolint:gomnd //...
-		MinProposerWait:         defaultTimeoutRequestProposal + time.Second, //nolint:gomnd //...
+		RequestProposalInterval: time.Millisecond * 10,               //nolint:gomnd //...
+		MinProposerWait:         defaultTimeoutRequest + time.Second, //nolint:gomnd //...
 	}
 }
 
@@ -248,7 +248,7 @@ func (p *BaseProposalSelector) findProposalFromProposer(
 	}
 
 	// NOTE if not found in local, request to proposer node
-	rctx, cancel := context.WithTimeout(ctx, p.params.TimeoutRequestProposal())
+	rctx, cancel := context.WithTimeout(ctx, p.params.TimeoutRequest())
 	defer cancel()
 
 	donech := make(chan interface{})
@@ -268,11 +268,12 @@ func (p *BaseProposalSelector) findProposalFromProposer(
 
 	select {
 	case <-rctx.Done():
-		return nil, errFailedToRequestProposalToNode.Wrapf(rctx.Err(), "remote node, %q", proposer.Address())
+		return nil, errFailedToRequestProposalToNode.Wrapf(
+			rctx.Err(), "context error; remote node, %q", proposer.Address())
 	case i := <-donech:
 		switch t := i.(type) {
 		case error:
-			return nil, errFailedToRequestProposalToNode.Wrapf(t, "remote node, %q", proposer.Address())
+			return nil, errFailedToRequestProposalToNode.Wrapf(t, "request failed; remote node, %q", proposer.Address())
 		case base.ProposalSignFact:
 			if _, err := p.args.Pool.SetProposal(t); err != nil {
 				return nil, err

@@ -591,7 +591,7 @@ func requestFuncOfBaseProposalSelectorArgs(pctx context.Context, args *isaac.Bas
 			return true
 		})
 
-		nctx, cancel := context.WithTimeout(ctx, params.TimeoutRequestProposal())
+		nctx, cancel := context.WithTimeout(ctx, params.TimeoutRequest())
 		defer cancel()
 
 		return isaac.ConcurrentRequestProposal(

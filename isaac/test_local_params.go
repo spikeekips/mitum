@@ -23,7 +23,7 @@ func EqualLocalParams(t *assert.Assertions, a, b *LocalParams) {
 
 	t.Equal(a.intervalBroadcastBallot, b.intervalBroadcastBallot, "intervalBroadcastBallot")
 	t.Equal(a.waitPreparingINITBallot, b.waitPreparingINITBallot, "waitPreparingINITBallot")
-	t.Equal(a.timeoutRequestProposal, b.timeoutRequestProposal, "timeoutRequestProposal")
+	t.Equal(a.timeoutRequest, b.timeoutRequest, "timeoutRequestProposal")
 	t.Equal(a.syncSourceCheckerInterval, b.syncSourceCheckerInterval, "syncSourceCheckerInterval")
 	t.Equal(a.validProposalOperationExpire, b.validProposalOperationExpire, "validProposalOperationExpire")
 	t.Equal(a.validProposalSuffrageOperationsExpire, b.validProposalSuffrageOperationsExpire, "validProposalSuffrageOperationsExpire")

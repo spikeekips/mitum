@@ -78,7 +78,7 @@ func (t *testLocalParams) TestIsValid() {
 
 	t.Run("wrong timeoutRequestProposal", func() {
 		p := DefaultLocalParams(networkID)
-		p.SetTimeoutRequestProposal(-1)
+		p.SetTimeoutRequest(-1)
 
 		err := p.IsValid(networkID)
 		t.Error(err)
@@ -158,7 +158,7 @@ func TestLocalParamsJSON(tt *testing.T) {
 		t.Equal(ap.threshold, bp.threshold)
 		t.Equal(ap.intervalBroadcastBallot, bp.intervalBroadcastBallot)
 		t.Equal(ap.waitPreparingINITBallot, bp.waitPreparingINITBallot)
-		t.Equal(ap.timeoutRequestProposal, bp.timeoutRequestProposal)
+		t.Equal(ap.timeoutRequest, bp.timeoutRequest)
 		t.Equal(ap.syncSourceCheckerInterval, bp.syncSourceCheckerInterval)
 		t.Equal(ap.validProposalOperationExpire, bp.validProposalOperationExpire)
 		t.Equal(ap.validProposalSuffrageOperationsExpire, bp.validProposalSuffrageOperationsExpire)
@@ -183,7 +183,7 @@ func TestLocalParamsJSONMissing(tt *testing.T) {
 	p.SetThreshold(p.Threshold() + 3)
 	p.SetIntervalBroadcastBallot(p.IntervalBroadcastBallot() + 3)
 	p.SetWaitPreparingINITBallot(p.WaitPreparingINITBallot() + 3)
-	p.SetTimeoutRequestProposal(p.TimeoutRequestProposal() + 3)
+	p.SetTimeoutRequest(p.TimeoutRequest() + 3)
 	p.SetSyncSourceCheckerInterval(p.SyncSourceCheckerInterval() + 3)
 	p.SetValidProposalOperationExpire(p.ValidProposalOperationExpire() + 3)
 	p.SetValidProposalSuffrageOperationsExpire(p.ValidProposalSuffrageOperationsExpire() + 3)
