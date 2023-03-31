@@ -2,7 +2,6 @@ package launch
 
 import (
 	"context"
-	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -145,11 +144,13 @@ func getProposalFunc(pctx context.Context) (
 	func(context.Context, util.Hash) (base.ProposalSignFact, error),
 	error,
 ) {
+	var params *isaac.LocalParams
 	var pool *isaacdatabase.TempPool
 	var client *isaacnetwork.QuicstreamClient
 	var memberlist *quicmemberlist.Memberlist
 
 	if err := util.LoadFromContextOK(pctx,
+		LocalParamsContextKey, &params,
 		PoolDatabaseContextKey, &pool,
 		QuicstreamClientContextKey, &client,
 		MemberlistContextKey, &memberlist,
@@ -178,7 +179,7 @@ func getProposalFunc(pctx context.Context) (
 				ci := node.UDPConnInfo()
 
 				return worker.NewJob(func(ctx context.Context, _ uint64) error {
-					cctx, cancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
+					cctx, cancel := context.WithTimeout(ctx, params.TimeoutRequest())
 					defer cancel()
 
 					switch pr, found, err := client.Proposal(cctx, ci, facthash); {
@@ -302,10 +303,12 @@ func getProposalOperationFromRemoteFunc(pctx context.Context) ( //nolint:gocogni
 	func(context.Context, base.ProposalSignFact, util.Hash) (base.Operation, bool, error),
 	error,
 ) {
+	var params *isaac.LocalParams
 	var client *isaacnetwork.QuicstreamClient
 	var syncSourcePool *isaac.SyncSourcePool
 
 	if err := util.LoadFromContextOK(pctx,
+		LocalParamsContextKey, &params,
 		QuicstreamClientContextKey, &client,
 		SyncSourcePoolContextKey, &syncSourcePool,
 	); err != nil {
@@ -351,7 +354,7 @@ func getProposalOperationFromRemoteFunc(pctx context.Context) ( //nolint:gocogni
 			}
 
 			if err := worker.NewJob(func(ctx context.Context, jobid uint64) error {
-				cctx, cancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
+				cctx, cancel := context.WithTimeout(ctx, params.TimeoutRequest())
 				defer cancel()
 
 				op, _ := result.Set(func(i base.Operation, _ bool) (base.Operation, error) {
@@ -396,10 +399,12 @@ func getProposalOperationFromRemoteProposerFunc(pctx context.Context) (
 	func(context.Context, base.ProposalSignFact, util.Hash) (bool, base.Operation, bool, error),
 	error,
 ) {
+	var params *isaac.LocalParams
 	var client *isaacnetwork.QuicstreamClient
 	var syncSourcePool *isaac.SyncSourcePool
 
 	if err := util.LoadFromContextOK(pctx,
+		LocalParamsContextKey, &params,
 		QuicstreamClientContextKey, &client,
 		SyncSourcePoolContextKey, &syncSourcePool,
 	); err != nil {
@@ -434,7 +439,7 @@ func getProposalOperationFromRemoteProposerFunc(pctx context.Context) (
 			return true, nil, false, err
 		}
 
-		cctx, cancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
+		cctx, cancel := context.WithTimeout(ctx, params.TimeoutRequest())
 		defer cancel()
 
 		switch op, found, err := client.Operation(cctx, ci, operationhash); {

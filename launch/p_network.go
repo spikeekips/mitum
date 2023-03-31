@@ -14,6 +14,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/quic-go/quic-go"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
@@ -56,7 +57,7 @@ func PNetwork(pctx context.Context) (context.Context, error) {
 	var encs *encoder.Encoders
 	var enc encoder.Encoder
 	var design NodeDesign
-	var params base.LocalParams
+	var params *isaac.LocalParams
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
@@ -68,7 +69,7 @@ func PNetwork(pctx context.Context) (context.Context, error) {
 		return pctx, e(err, "")
 	}
 
-	handlers := quicstream.NewPrefixHandler(isaacnetwork.QuicstreamErrorHandler(enc))
+	handlers := quicstream.NewPrefixHandler(isaacnetwork.QuicstreamErrorHandler(enc, params.TimeoutRequest))
 
 	quicconfig := DefaultQuicConfig()
 	quicconfig.RequireAddressValidation = func(net.Addr) bool {

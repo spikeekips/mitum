@@ -389,6 +389,7 @@ func memberlistTransport(
 ) (*quicmemberlist.Transport, error) {
 	var log *logging.Logging
 	var design NodeDesign
+	var params *isaac.LocalParams
 	var client *isaacnetwork.QuicstreamClient
 	var handlers *quicstream.PrefixHandler
 
@@ -407,6 +408,7 @@ func memberlistTransport(
 		poolclient,
 		client.NewQuicstreamClient,
 		nil,
+		params.TimeoutRequest,
 	)
 	_ = transport.SetLogging(log)
 
@@ -448,7 +450,7 @@ func nodeChallengeFunc(pctx context.Context) (
 	func(quicmemberlist.Member) error,
 	error,
 ) {
-	var params base.LocalParams
+	var params *isaac.LocalParams
 	var client *isaacnetwork.QuicstreamClient
 
 	if err := util.LoadFromContextOK(pctx,
@@ -473,7 +475,7 @@ func nodeChallengeFunc(pctx context.Context) (
 		input := util.UUID().Bytes()
 
 		sig, err := func() (base.Signature, error) {
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*2) //nolint:gomnd //...
+			ctx, cancel := context.WithTimeout(context.Background(), params.TimeoutRequest())
 			defer cancel()
 
 			return client.NodeChallenge(
@@ -485,7 +487,7 @@ func nodeChallengeFunc(pctx context.Context) (
 
 		// NOTE challenge with publish address
 		if !network.EqualConnInfo(node.UDPConnInfo(), ci) {
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*2) //nolint:gomnd //...
+			ctx, cancel := context.WithTimeout(context.Background(), params.TimeoutRequest())
 			defer cancel()
 
 			psig, err := client.NodeChallenge(ctx, ci,

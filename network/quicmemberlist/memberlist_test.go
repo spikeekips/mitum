@@ -114,6 +114,7 @@ func (t *testMemberlist) newServersForJoining(
 			}
 		},
 		func(string) bool { return false },
+		nil,
 	)
 
 	ph := quicstream.NewPrefixHandler(nil)

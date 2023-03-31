@@ -465,7 +465,7 @@ func MajoritySuffrageCandidateLimiterFunc(
 }
 
 func getLastSuffrageProofFunc(pctx context.Context) (isaac.GetLastSuffrageProofFromRemoteFunc, error) {
-	var params base.LocalParams
+	var params *isaac.LocalParams
 	var client *isaacnetwork.QuicstreamClient
 	var syncSourcePool *isaac.SyncSourcePool
 
@@ -480,7 +480,7 @@ func getLastSuffrageProofFunc(pctx context.Context) (isaac.GetLastSuffrageProofF
 	lastl := util.EmptyLocked((util.Hash)(nil))
 
 	f := func(ctx context.Context, ci quicstream.UDPConnInfo) (base.Height, base.SuffrageProof, bool, error) {
-		cctx, cancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
+		cctx, cancel := context.WithTimeout(ctx, params.TimeoutRequest())
 		defer cancel()
 
 		last, _ := lastl.Value()
@@ -560,7 +560,7 @@ func getLastSuffrageProofFunc(pctx context.Context) (isaac.GetLastSuffrageProofF
 func getSuffrageProofFromRemoteFunc(pctx context.Context) ( //revive:disable-line:cognitive-complexity
 	isaac.GetSuffrageProofFromRemoteFunc, error,
 ) {
-	var params base.LocalParams
+	var params *isaac.LocalParams
 	var client *isaacnetwork.QuicstreamClient
 	var syncSourcePool *isaac.SyncSourcePool
 
@@ -590,7 +590,7 @@ func getSuffrageProofFromRemoteFunc(pctx context.Context) ( //revive:disable-lin
 							return err
 						}
 
-						cctx, cancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
+						cctx, cancel := context.WithTimeout(ctx, params.TimeoutRequest())
 						defer cancel()
 
 						switch a, b, err := client.SuffrageProof(cctx, ci, suffrageheight); {
@@ -638,10 +638,12 @@ func getSuffrageProofFromRemoteFunc(pctx context.Context) ( //revive:disable-lin
 }
 
 func getLastSuffrageCandidateFunc(pctx context.Context) (isaac.GetLastSuffrageCandidateStateRemoteFunc, error) {
+	var params *isaac.LocalParams
 	var client *isaacnetwork.QuicstreamClient
 	var syncSourcePool *isaac.SyncSourcePool
 
 	if err := util.LoadFromContextOK(pctx,
+		LocalParamsContextKey, &params,
 		QuicstreamClientContextKey, &client,
 		SyncSourcePoolContextKey, &syncSourcePool,
 	); err != nil {
@@ -653,7 +655,7 @@ func getLastSuffrageCandidateFunc(pctx context.Context) (isaac.GetLastSuffrageCa
 	f := func(ctx context.Context, ci quicstream.UDPConnInfo) (base.State, bool, error) {
 		last, _ := lastl.Value()
 
-		cctx, cancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
+		cctx, cancel := context.WithTimeout(ctx, params.TimeoutRequest())
 		defer cancel()
 
 		st, found, err := client.State(cctx, ci, isaac.SuffrageCandidateStateKey, last)

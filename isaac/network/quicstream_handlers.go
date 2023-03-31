@@ -57,9 +57,17 @@ var (
 	HandlerPrefixSendBallots                   = quicstream.HashPrefix(HandlerPrefixSendBallotsString)
 )
 
-func QuicstreamErrorHandler(enc encoder.Encoder) quicstream.ErrorHandler {
+func QuicstreamErrorHandler(enc encoder.Encoder, requestTimeoutf func() time.Duration) quicstream.ErrorHandler {
+	nrequestTimeoutf := func() time.Duration {
+		return time.Second * 2
+	}
+
+	if requestTimeoutf != nil {
+		nrequestTimeoutf = requestTimeoutf
+	}
+
 	return func(_ net.Addr, _ io.Reader, w io.Writer, err error) error {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*3) //nolint:gomnd //...
+		ctx, cancel := context.WithTimeout(context.Background(), nrequestTimeoutf()) //nolint:gomnd //...
 		defer cancel()
 
 		return quicstream.HeaderWriteHead(ctx, w, enc,

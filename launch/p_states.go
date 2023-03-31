@@ -655,7 +655,7 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 				from, to,
 				batchlimit,
 				blockMapf,
-				syncerBlockMapItemFunc(newclient, conninfocache),
+				syncerBlockMapItemFunc(newclient, conninfocache, params.TimeoutRequest),
 				func(blockmap base.BlockMap) (isaac.BlockImporter, error) {
 					bwdb, err := db.NewBlockWriteDatabase(blockmap.Manifest().Height())
 					if err != nil {
@@ -766,18 +766,18 @@ func syncerLastBlockMapFunc(
 
 func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
 	client *isaacnetwork.QuicstreamClient,
-	params base.LocalParams,
+	params *isaac.LocalParams,
 	syncSourcePool *isaac.SyncSourcePool,
 	conninfocache util.LockedMap[base.Height, quicstream.UDPConnInfo],
 	devdelay time.Duration,
 ) isaacblock.ImportBlocksBlockMapFunc {
 	f := func(ctx context.Context, height base.Height, ci quicstream.UDPConnInfo) (base.BlockMap, bool, error) {
-		cctx, cancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
-		defer cancel()
-
 		if devdelay > 0 {
 			<-time.After(devdelay) // NOTE for testing
 		}
+
+		cctx, cancel := context.WithTimeout(ctx, params.TimeoutRequest())
+		defer cancel()
 
 		switch m, found, err := client.BlockMap(cctx, ci, height); {
 		case err != nil, !found:
@@ -854,7 +854,16 @@ func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
 func syncerBlockMapItemFunc(
 	client *isaacnetwork.QuicstreamClient,
 	conninfocache util.LockedMap[base.Height, quicstream.UDPConnInfo],
+	requestTimeoutf func() time.Duration,
 ) isaacblock.ImportBlocksBlockMapItemFunc {
+	nrequestTimeoutf := func() time.Duration {
+		return time.Second * 2
+	}
+
+	if requestTimeoutf != nil {
+		nrequestTimeoutf = requestTimeoutf
+	}
+
 	return func(ctx context.Context, height base.Height, item base.BlockMapItemType) (
 		reader io.Reader, closef func() error, found bool, _ error,
 	) {
@@ -869,7 +878,7 @@ func syncerBlockMapItemFunc(
 			ci = i
 		}
 
-		cctx, ctxcancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd // ...
+		cctx, ctxcancel := context.WithTimeout(ctx, nrequestTimeoutf())
 		defer ctxcancel()
 
 		r, cancel, found, err := client.BlockMapItem(cctx, ci, height, item)

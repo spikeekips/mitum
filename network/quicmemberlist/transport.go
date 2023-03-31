@@ -78,7 +78,16 @@ func NewTransportWithQuicstream(
 	poolclient *quicstream.PoolClient,
 	newClient func(quicstream.UDPConnInfo) func(*net.UDPAddr) *quicstream.Client,
 	notallowf func(string) bool,
+	requestTimeoutf func() time.Duration,
 ) *Transport {
+	nrequestTimeoutf := func() time.Duration {
+		return time.Second * 2 //nolint:gomnd //...
+	}
+
+	if requestTimeoutf != nil {
+		nrequestTimeoutf = requestTimeoutf
+	}
+
 	writeBody := func(ctx context.Context, w io.Writer, b []byte) error {
 		return util.AwareContext(ctx, func(context.Context) error {
 			_, err := w.Write(b)
@@ -116,7 +125,7 @@ func NewTransportWithQuicstream(
 			closef()
 		}()
 
-		cctx, cancel := context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
+		cctx, cancel := context.WithTimeout(ctx, nrequestTimeoutf())
 		defer cancel()
 
 		r, w, err := client.OpenStream(cctx)
@@ -128,7 +137,7 @@ func NewTransportWithQuicstream(
 			_ = w.Close()
 		}()
 
-		cctx, cancel = context.WithTimeout(ctx, time.Second*2) //nolint:gomnd //...
+		cctx, cancel = context.WithTimeout(ctx, nrequestTimeoutf())
 		defer cancel()
 
 		if err := writeBody(cctx, w, b); err != nil {
