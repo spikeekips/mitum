@@ -151,8 +151,6 @@ func (st *baseBallotHandler) makeINITBallot(
 	switch i, err := st.requestProposal(ctx, point, initialWait); {
 	case err != nil:
 		return nil, e(err, "")
-	case i == nil:
-		return nil, nil
 	default:
 		pr = i
 	}
@@ -627,10 +625,6 @@ func (st *baseBallotHandler) requestProposal(
 		l.Debug().Interface("proposal", pr).Msg("proposal selected")
 
 		return pr, nil
-	case errors.Is(err, context.Canceled):
-		l.Debug().Err(err).Msg("canceled to select proposal; ignore")
-
-		return nil, nil
 	default:
 		l.Error().Err(err).Dur("initial_wait", initialWait).Msg("failed to select proposal")
 

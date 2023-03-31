@@ -338,11 +338,22 @@ func (t *testBaseProposalSelector) TestAllFailedToReqeust() {
 	t.T().Logf("available nodes: %d", len(nodes))
 
 	point := base.RawPoint(66, 11)
-	pr, err := p.Select(context.Background(), point, 0)
-	t.Error(err)
-	t.Nil(pr)
 
-	t.ErrorContains(err, "no valid nodes left")
+	t.Run("internal", func() {
+		pr, err := p.selectInternal(context.Background(), point, 0)
+		t.Error(err)
+		t.Nil(pr)
+
+		t.ErrorContains(err, "no valid nodes left")
+	})
+
+	t.Run("Select; local proposer", func() {
+		pr, err := p.Select(context.Background(), point, 0)
+		t.NoError(err)
+		t.NotNil(pr)
+
+		t.True(pr.ProposalFact().Proposer().Equal(t.Local.Address()))
+	})
 }
 
 func (t *testBaseProposalSelector) TestContextCanceled() {
@@ -404,10 +415,21 @@ func (t *testBaseProposalSelector) TestContextCanceled() {
 	t.T().Logf("available nodes: %d", len(nodes))
 
 	point := base.RawPoint(66, 11)
-	pr, err := p.Select(context.Background(), point, 0)
-	t.Error(err)
-	t.Nil(pr)
-	t.True(errors.Is(err, context.DeadlineExceeded))
+
+	t.Run("internal", func() {
+		pr, err := p.selectInternal(context.Background(), point, 0)
+		t.Error(err)
+		t.Nil(pr)
+		t.True(errors.Is(err, context.DeadlineExceeded))
+	})
+
+	t.Run("Select; local proposer", func() {
+		pr, err := p.Select(context.Background(), point, 0)
+		t.NoError(err)
+		t.NotNil(pr)
+
+		t.True(pr.ProposalFact().Proposer().Equal(t.Local.Address()))
+	})
 }
 
 func (t *testBaseProposalSelector) TestMainContextCanceled() {
@@ -468,24 +490,48 @@ func (t *testBaseProposalSelector) TestMainContextCanceled() {
 
 	point := base.RawPoint(66, 11)
 
-	done := make(chan struct{}, 1)
+	t.Run("internal", func() {
+		done := make(chan struct{}, 1)
 
-	var pr base.ProposalSignFact
-	var err error
-	go func() {
-		pr, err = p.Select(ctx, point, 0)
+		var pr base.ProposalSignFact
+		var err error
+		go func() {
+			pr, err = p.selectInternal(ctx, point, 0)
 
-		done <- struct{}{}
-	}()
+			done <- struct{}{}
+		}()
 
-	<-time.After(time.Millisecond * 300)
-	cancel()
+		<-time.After(time.Millisecond * 300)
+		cancel()
 
-	<-done
+		<-done
 
-	t.Nil(pr)
-	t.True(errors.Is(err, context.Canceled))
-	t.ErrorContains(err, "context canceled")
+		t.Nil(pr)
+		t.True(errors.Is(err, context.Canceled))
+		t.ErrorContains(err, "context canceled")
+	})
+
+	t.Run("Select; local proposer", func() {
+		done := make(chan struct{}, 1)
+
+		var pr base.ProposalSignFact
+		var err error
+		go func() {
+			pr, err = p.Select(ctx, point, 0)
+
+			done <- struct{}{}
+		}()
+
+		<-time.After(time.Millisecond * 300)
+		cancel()
+
+		<-done
+
+		t.NoError(err)
+		t.NotNil(pr)
+
+		t.True(pr.ProposalFact().Proposer().Equal(t.Local.Address()))
+	})
 }
 
 func (t *testBaseProposalSelector) TestFromProposer() {
@@ -631,9 +677,17 @@ func (t *testBaseProposalSelector) TestFromProposer() {
 
 		p := NewBaseProposalSelector(t.Local, t.LocalParams, args)
 
-		pr, err := p.Select(context.Background(), point, time.Second)
-		t.Error(err)
-		t.Nil(pr)
+		t.Run("internal", func() {
+			pr, err := p.selectInternal(context.Background(), point, time.Second)
+			t.Error(err)
+			t.Nil(pr)
+		})
+
+		t.Run("Select; local proposer", func() {
+			pr, err := p.Select(context.Background(), point, time.Second)
+			t.Error(err)
+			t.Nil(pr)
+		})
 	})
 }
 

@@ -19,7 +19,8 @@ var (
 	ErrEmptyNodes                    = util.NewMError("empty nodes for selecting proposal")
 )
 
-// ProposerSelector selects proposer between suffrage nodes
+// ProposerSelector selects proposer between suffrage nodes. If failed to
+// request proposal from remotes, local will be proposer.
 type ProposerSelector interface {
 	Select(context.Context, base.Point, []base.Node) (base.Node, error)
 }
@@ -43,7 +44,7 @@ func NewBaseProposalSelectorArgs() *BaseProposalSelectorArgs {
 			return nil, false, util.ErrNotImplemented.Errorf("request")
 		},
 		RequestProposalInterval: time.Millisecond * 10,               //nolint:gomnd //...
-		MinProposerWait:         defaultTimeoutRequest + time.Second, //nolint:gomnd //...
+		MinProposerWait:         DefaultTimeoutRequest + time.Second, //nolint:gomnd //...
 	}
 }
 
@@ -71,8 +72,42 @@ func (p *BaseProposalSelector) Select(
 	point base.Point,
 	wait time.Duration,
 ) (base.ProposalSignFact, error) {
+	switch pr, err := p.selectInternal(ctx, point, wait); {
+	case errors.Is(err, errFailedToRequestProposalToNode),
+		errors.Is(err, context.Canceled),
+		errors.Is(err, context.DeadlineExceeded):
+		pr, err = p.args.Maker.New(ctx, point)
+		if err != nil {
+			return nil, err
+		}
+
+		if _, eerr := p.args.Pool.SetProposal(pr); eerr != nil {
+			return nil, eerr
+		}
+
+		return pr, nil
+	case err != nil:
+		return nil, err
+	default:
+		return pr, nil
+	}
+}
+
+func (p *BaseProposalSelector) selectInternal(
+	ctx context.Context,
+	point base.Point,
+	wait time.Duration,
+) (base.ProposalSignFact, error) {
 	p.Lock()
 	defer p.Unlock()
+
+	pwait := wait
+	if pwait < p.args.MinProposerWait {
+		pwait = p.args.MinProposerWait
+	}
+
+	wctx, cancel := context.WithTimeout(ctx, pwait)
+	defer cancel()
 
 	var nodes []base.Node
 
@@ -84,50 +119,56 @@ func (p *BaseProposalSelector) Select(
 
 		return nil, errors.WithMessagef(err, "get suffrage for height, %d", point.Height())
 	case len(i) < 2: //nolint:gomnd //...
-		return p.findProposal(ctx, point, i[0])
+		return p.proposalFromNode(wctx, point, i[0])
 	default:
 		nodes = i
 	}
 
 	var failed base.Address
 
-	if wait > p.args.MinProposerWait {
-		switch pr, proposer, err := p.selectFromProposer(ctx, point, wait, nodes); {
-		case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-			failed = proposer
-		case err != nil:
-			return nil, err
-		case pr != nil:
-			return pr, nil
-		default:
-			failed = proposer
-		}
+	switch pr, proposer, err := p.selectFromProposer(wctx, point, nodes); {
+	case errors.Is(err, errFailedToRequestProposalToNode),
+		errors.Is(err, context.Canceled),
+		errors.Is(err, context.DeadlineExceeded):
+		failed = proposer
+	case err != nil:
+		return nil, err
+	case pr != nil:
+		return pr, nil
+	default:
+		failed = proposer
 	}
 
 	if failed != nil {
 		nodes = p.filterDeadNodes(nodes, []base.Address{failed})
 	}
 
-	return p.proposalFromOthers(ctx, point, nodes)
+	if len(nodes) < 1 {
+		return nil, errFailedToRequestProposalToNode.Errorf("empty nodes")
+	}
+
+	// NOTE if failed from original proposer, request to the other nodes. The
+	// previous context may be already expired, so proposalFromOthers uses new
+	// context.
+	wctx, cancel = context.WithTimeout(ctx, pwait)
+	defer cancel()
+
+	return p.proposalFromOthers(wctx, point, nodes)
 }
 
 func (p *BaseProposalSelector) selectFromProposer(
 	ctx context.Context,
 	point base.Point,
-	wait time.Duration,
 	nodes []base.Node,
 ) (base.ProposalSignFact, base.Address, error) {
 	e := util.StringErrorFunc("select proposal from proposer")
 
-	pctx, cancel := context.WithTimeout(ctx, wait)
-	defer cancel()
-
-	proposer, err := p.args.ProposerSelector.Select(pctx, point, nodes)
+	proposer, err := p.args.ProposerSelector.Select(ctx, point, nodes)
 	if err != nil {
 		return nil, nil, e(err, "select proposer")
 	}
 
-	pr, err := p.proposalFromNode(pctx, point, proposer)
+	pr, err := p.proposalFromNode(ctx, point, proposer)
 	if err != nil {
 		return nil, proposer.Address(), e(err, "")
 	}
