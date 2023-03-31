@@ -636,6 +636,7 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 
 		args = isaacstates.NewSyncerArgs()
 		args.LastBlockMapFunc = syncerLastBlockMapFunc(newclient, params, syncSourcePool)
+		args.LastBlockMapTimeout = params.TimeoutRequest()
 		args.BlockMapFunc = syncerBlockMapFunc(newclient, params, syncSourcePool, conninfocache, devflags.DelaySyncer)
 		args.TempSyncPool = tempsyncpool
 		args.WhenStoppedFunc = func() error {
@@ -857,7 +858,7 @@ func syncerBlockMapItemFunc(
 	requestTimeoutf func() time.Duration,
 ) isaacblock.ImportBlocksBlockMapItemFunc {
 	nrequestTimeoutf := func() time.Duration {
-		return time.Second * 2
+		return isaac.DefaultTimeoutRequest
 	}
 
 	if requestTimeoutf != nil {

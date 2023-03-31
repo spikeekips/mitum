@@ -2,6 +2,7 @@ package launch
 
 import (
 	"context"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -502,6 +503,7 @@ func newBaseProposalSelectorArgs(pctx context.Context) (*isaac.BaseProposalSelec
 	args.Pool = pool
 	args.ProposerSelector = proposerSelector
 	args.Maker = proposalMaker
+	args.MinProposerWait = params.TimeoutRequest() + (time.Second * 2) //nolint:gomnd //...
 
 	if err := getNodesFuncOfBaseProposalSelectorArgs(pctx, args); err != nil {
 		return nil, err

@@ -59,7 +59,7 @@ var (
 
 func QuicstreamErrorHandler(enc encoder.Encoder, requestTimeoutf func() time.Duration) quicstream.ErrorHandler {
 	nrequestTimeoutf := func() time.Duration {
-		return time.Second * 2
+		return isaac.DefaultTimeoutRequest
 	}
 
 	if requestTimeoutf != nil {
@@ -67,7 +67,7 @@ func QuicstreamErrorHandler(enc encoder.Encoder, requestTimeoutf func() time.Dur
 	}
 
 	return func(_ net.Addr, _ io.Reader, w io.Writer, err error) error {
-		ctx, cancel := context.WithTimeout(context.Background(), nrequestTimeoutf()) //nolint:gomnd //...
+		ctx, cancel := context.WithTimeout(context.Background(), nrequestTimeoutf())
 		defer cancel()
 
 		return quicstream.HeaderWriteHead(ctx, w, enc,

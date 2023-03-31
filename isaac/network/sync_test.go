@@ -191,7 +191,7 @@ func (t *testSyncSourceChecker) TestFetchFromSuffrageNodes() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	checker := NewSyncSourceChecker(local, t.LocalParams.NetworkID(), client, time.Second, t.Enc, nil, nil)
+	checker := NewSyncSourceChecker(local, t.LocalParams.NetworkID(), client, time.Second, t.Enc, nil, nil, nil)
 
 	ucis, err := checker.fetch(ctx, SyncSource{Type: SyncSourceTypeSuffrageNodes, Source: localci})
 	t.NoError(err)
@@ -232,7 +232,7 @@ func (t *testSyncSourceChecker) TestFetchFromSyncSources() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	checker := NewSyncSourceChecker(local, t.LocalParams.NetworkID(), client, time.Second, t.Enc, nil, nil)
+	checker := NewSyncSourceChecker(local, t.LocalParams.NetworkID(), client, time.Second, t.Enc, nil, nil, nil)
 
 	ucis, err := checker.fetch(ctx, SyncSource{Type: SyncSourceTypeSyncSources, Source: localci})
 	t.NoError(err)
@@ -274,7 +274,7 @@ func (t *testSyncSourceChecker) TestFetchFromNodeButFailedToSignature() {
 
 	client := NewBaseClient(t.Encs, t.Enc, openstreamf)
 
-	checker := NewSyncSourceChecker(local, t.LocalParams.NetworkID(), client, time.Second, t.Enc, nil, nil)
+	checker := NewSyncSourceChecker(local, t.LocalParams.NetworkID(), client, time.Second, t.Enc, nil, nil, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -315,7 +315,7 @@ func (t *testSyncSourceChecker) TestFetchFromURL() {
 	defer ts.Close()
 
 	local := base.RandomLocalNode()
-	checker := NewSyncSourceChecker(local, t.LocalParams.NetworkID(), client, time.Second, t.Enc, nil, nil)
+	checker := NewSyncSourceChecker(local, t.LocalParams.NetworkID(), client, time.Second, t.Enc, nil, nil, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -388,7 +388,7 @@ func (t *testSyncSourceChecker) TestCheckSameResult() {
 	}
 
 	local := base.RandomLocalNode()
-	checker := NewSyncSourceChecker(local, t.LocalParams.NetworkID(), client, time.Second, t.Enc, cis, nil)
+	checker := NewSyncSourceChecker(local, t.LocalParams.NetworkID(), client, time.Second, t.Enc, cis, nil, nil)
 
 	ucis, err := checker.check(ctx, cis)
 	t.NoError(err)
@@ -433,7 +433,7 @@ func (t *testSyncSourceChecker) TestCheckFilterLocal() {
 
 	cis := []SyncSource{{Type: SyncSourceTypeSuffrageNodes, Source: localci}}
 
-	checker := NewSyncSourceChecker(local, t.LocalParams.NetworkID(), client, time.Second, t.Enc, cis, nil)
+	checker := NewSyncSourceChecker(local, t.LocalParams.NetworkID(), client, time.Second, t.Enc, cis, nil, nil)
 
 	ucis, err := checker.check(ctx, cis)
 	t.NoError(err)
@@ -462,6 +462,7 @@ func (t *testSyncSourceChecker) TestCalled() {
 		func(called int64, nics []isaac.NodeConnInfo, err error) {
 			calledch <- called
 		},
+		nil,
 	)
 	defer checker.Stop()
 

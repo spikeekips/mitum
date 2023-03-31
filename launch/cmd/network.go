@@ -9,6 +9,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/isaac"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
 	"github.com/spikeekips/mitum/launch"
 	"github.com/spikeekips/mitum/util"
@@ -53,7 +54,7 @@ func (cmd *BaseNetworkClientCommand) Prepare(pctx context.Context) error {
 	}
 
 	if cmd.Timeout < 1 {
-		cmd.Timeout = time.Second * 9 //nolint:gomnd //...
+		cmd.Timeout = isaac.DefaultTimeoutRequest * 2 //nolint:gomnd //...
 	}
 
 	cmd.Client = launch.NewNetworkClient(cmd.Encoders, cmd.Encoder, base.NetworkID(cmd.NetworkID))

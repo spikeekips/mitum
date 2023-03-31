@@ -52,7 +52,7 @@ func NewSyncerArgs() SyncerArgs {
 		},
 		BatchLimit:           33,              //nolint:gomnd // big enough size
 		LastBlockMapInterval: time.Second * 2, //nolint:gomnd //...
-		LastBlockMapTimeout:  time.Second * 2, //nolint:gomnd //...
+		LastBlockMapTimeout:  isaac.DefaultTimeoutRequest,
 	}
 }
 

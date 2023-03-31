@@ -94,11 +94,11 @@ type SyncSourceChecker struct {
 	*logging.Logging
 	*util.ContextDaemon
 	callback        func(called int64, _ []isaac.NodeConnInfo, _ error)
+	requestTimeoutf func() time.Duration
 	sourceslocked   *util.Locked[[]SyncSource]
 	local           base.Node
 	networkID       base.NetworkID
 	interval        time.Duration
-	validateTimeout time.Duration
 }
 
 func NewSyncSourceChecker(
@@ -109,7 +109,16 @@ func NewSyncSourceChecker(
 	enc encoder.Encoder,
 	sources []SyncSource,
 	callback func(called int64, _ []isaac.NodeConnInfo, _ error),
+	requestTimeoutf func() time.Duration,
 ) *SyncSourceChecker {
+	nrequestTimeoutf := func() time.Duration {
+		return isaac.DefaultTimeoutRequest //nolint:gomnd //...
+	}
+
+	if requestTimeoutf != nil {
+		nrequestTimeoutf = requestTimeoutf
+	}
+
 	// NOTE SyncSources should be passed, IsValid()
 	c := &SyncSourceChecker{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
@@ -122,7 +131,7 @@ func NewSyncSourceChecker(
 		enc:             enc,
 		sourceslocked:   util.NewLocked(sources),
 		callback:        callback,
-		validateTimeout: time.Second * 3, //nolint:gomnd //...
+		requestTimeoutf: nrequestTimeoutf,
 	}
 
 	c.ContextDaemon = util.NewContextDaemon(c.start)
@@ -404,7 +413,7 @@ func (c *SyncSourceChecker) validate(ctx context.Context, nci isaac.NodeConnInfo
 		return errIgnoreNodeconnInfo.Wrap(err)
 	}
 
-	cctx, cancel := context.WithTimeout(ctx, c.validateTimeout)
+	cctx, cancel := context.WithTimeout(ctx, c.requestTimeoutf())
 	defer cancel()
 
 	switch _, err = c.client.NodeChallenge(
@@ -445,7 +454,7 @@ func (c *SyncSourceChecker) fetchNodeConnInfos(
 		return nil, errors.Errorf("unsupported source, %T", source)
 	}
 
-	cctx, cancel := context.WithTimeout(ctx, c.validateTimeout)
+	cctx, cancel := context.WithTimeout(ctx, c.requestTimeoutf())
 	defer cancel()
 
 	ncis, err := request(cctx, ci)

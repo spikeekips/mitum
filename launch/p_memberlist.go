@@ -396,6 +396,7 @@ func memberlistTransport(
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		DesignContextKey, &design,
+		LocalParamsContextKey, &params,
 		QuicstreamClientContextKey, &client,
 		QuicstreamHandlersContextKey, &handlers,
 	); err != nil {
