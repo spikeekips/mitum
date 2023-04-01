@@ -105,7 +105,10 @@ func (pps *ProposalProcessors) Process(
 			var err error
 
 			if k != nil {
-				err = k.(error) //nolint:forcetypeassert //...
+				err = k.(error)                       //nolint:forcetypeassert //...
+				if errors.Is(err, context.Canceled) { // NOTE ignore context.Canceled
+					return nil, ErrNotProposalProcessorProcessed.Wrap(err)
+				}
 			}
 
 			var m base.Manifest

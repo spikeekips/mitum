@@ -363,6 +363,7 @@ func (t *testProposalProcessors) TestProcessContextCanceled() {
 	t.Error(err)
 
 	t.True(errors.Is(err, context.Canceled))
+	t.True(errors.Is(err, ErrNotProposalProcessorProcessed))
 	t.Nil(rmanifest)
 }
 

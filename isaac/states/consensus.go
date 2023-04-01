@@ -11,7 +11,6 @@ import (
 	"github.com/spikeekips/mitum/storage"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/localtime"
-	"github.com/spikeekips/mitum/util/valuehash"
 )
 
 type ConsensusHandlerArgs struct {
@@ -165,24 +164,11 @@ func (st *ConsensusHandler) processProposalFunc(ivp base.INITVoteproof) (func(co
 		}
 
 		process = i
-	case errors.Is(err, isaac.ErrNotProposalProcessorProcessed):
+	case errors.Is(err, context.Canceled),
+		errors.Is(err, isaac.ErrNotProposalProcessorProcessed):
 		// NOTE instead of moving next round, intended-wrong accept ballot.
-		return func(context.Context) error {
-				dummy := isaac.NewManifest(
-					ivp.Point().Height(),
-					ivp.BallotMajority().PreviousBlock(),
-					valuehash.RandomSHA256(),
-					valuehash.RandomSHA256(),
-					valuehash.RandomSHA256(),
-					valuehash.RandomSHA256(),
-					localtime.Now(),
-				)
-
-				if err = st.prepareACCEPTBallot(ivp, dummy, time.Nanosecond); err != nil {
-					return errors.WithMessage(err, "prepare intended wrong accept ballot")
-				}
-
-				return nil
+		return func(ctx context.Context) error {
+				return st.wrongACCEPTBallot(ctx, ivp)
 			},
 			nil
 	default:
@@ -197,6 +183,13 @@ func (st *ConsensusHandler) processProposalFunc(ivp base.INITVoteproof) (func(co
 		manifest, err := process(ctx)
 
 		switch {
+		case errors.Is(err, context.Canceled),
+			errors.Is(err, isaac.ErrNotProposalProcessorProcessed):
+			if eerr := st.wrongACCEPTBallot(ctx, ivp); eerr != nil {
+				return e(eerr, "")
+			}
+
+			return nil
 		case err != nil:
 			return e(err, "")
 		case manifest == nil:
@@ -739,6 +732,24 @@ func (st *ConsensusHandler) whenNewBlockConfirmed(vp base.ACCEPTVoteproof) {
 	if _, ok := vp.(base.HasWithdraws); ok {
 		st.args.WhenNewBlockConfirmed(vp.Point().Height())
 	}
+}
+
+func (st *ConsensusHandler) wrongACCEPTBallot(_ context.Context, ivp base.INITVoteproof) error {
+	dummy := isaac.NewManifest(
+		ivp.Point().Height(),
+		ivp.BallotMajority().PreviousBlock(),
+		ivp.BallotMajority().Proposal(),
+		nil,
+		nil,
+		nil,
+		localtime.Now(),
+	)
+
+	if err := st.prepareACCEPTBallot(ivp, dummy, time.Nanosecond); err != nil {
+		return errors.WithMessage(err, "prepare intended wrong accept ballot")
+	}
+
+	return nil
 }
 
 type consensusSwitchContext struct {
