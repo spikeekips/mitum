@@ -274,7 +274,7 @@ func (t *Transport) WriteToAddress(b []byte, addr memberlist.Address) (time.Time
 	return time.Now(), nil
 }
 
-func (t *Transport) ReceiveRaw(b []byte, addr net.Addr) error {
+func (t *Transport) receiveRaw(id string, b []byte, addr net.Addr) error {
 	if t.isShutdowned() {
 		return nil
 	}
@@ -283,16 +283,19 @@ func (t *Transport) ReceiveRaw(b []byte, addr net.Addr) error {
 
 	dt, raddr, rb, err := unmarshalMsg(b)
 	if err != nil {
-		t.Log().Error().Err(err).Stringer("remote_address", addr).Msg("invalid message received")
-
 		return e(err, "")
 	}
+
+	t.Log().Trace().
+		Str("id", id).
+		Stringer("remote_address", addr).
+		Stringer("remote_address_in_message", raddr).
+		Stringer("message_type", dt).
+		Msg("raw data received")
 
 	if t.args.NotAllowFunc(raddr.String()) {
 		return e(nil, "not allowed")
 	}
-
-	t.Log().Trace().Stringer("remote_address", raddr).Stringer("message_type", dt).Msg("raw data received")
 
 	switch {
 	case dt == packetDataType:
@@ -307,15 +310,19 @@ func (t *Transport) ReceiveRaw(b []byte, addr net.Addr) error {
 }
 
 func (t *Transport) QuicstreamHandler(addr net.Addr, r io.Reader, _ io.Writer) error {
+	id := util.UUID().String()
+
+	l := t.Log().With().Str("id", id).Stringer("remote_address", addr).Logger()
+
 	b, err := io.ReadAll(r)
 	if err != nil {
-		t.Log().Error().Err(err).Stringer("remote_address", addr).Msg("failed to read")
+		l.Error().Err(err).Msg("failed to read")
 
 		return errors.WithStack(err)
 	}
 
-	if err := t.ReceiveRaw(b, addr); err != nil {
-		t.Log().Error().Err(err).Stringer("remote_address", addr).Msg("invalid message received")
+	if err := t.receiveRaw(id, b, addr); err != nil {
+		l.Error().Err(err).Msg("invalid message received")
 
 		return err
 	}
