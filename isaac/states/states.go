@@ -511,8 +511,6 @@ func (st *States) mimicBallotFunc() (func(base.Ballot), func()) {
 			}
 
 			switch s := st.current().state(); {
-			case bl.SignFact().Node().Equal(st.local.Address()):
-				return
 			case s != StateSyncing && s != StateBroken:
 				if err := timers.StopAllTimers(); err != nil {
 					st.Log().Error().Err(err).Msg("failed to stop mimic timers; ignore")
