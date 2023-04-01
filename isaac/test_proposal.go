@@ -15,7 +15,7 @@ func (pps *ProposalProcessors) SetMakeNew(f func(proposal base.ProposalSignFact,
 	pps.makenew = f
 }
 
-func (pps *ProposalProcessors) SetGetProposal(f func(_ context.Context, facthash util.Hash) (base.ProposalSignFact, error)) {
+func (pps *ProposalProcessors) SetGetProposal(f func(context.Context, base.Point, util.Hash) (base.ProposalSignFact, error)) {
 	pps.getproposal = f
 }
 

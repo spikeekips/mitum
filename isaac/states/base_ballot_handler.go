@@ -15,7 +15,7 @@ import (
 
 type (
 	// ProposalSelectFunc fetchs proposal from selected proposer
-	ProposalSelectFunc func(_ context.Context, _ base.Point, wait time.Duration) (
+	ProposalSelectFunc func(_ context.Context, _ base.Point, _ util.Hash, wait time.Duration) (
 		base.ProposalSignFact, error)
 	SuffrageVotingFindFunc func(context.Context, base.Height, base.Suffrage) ([]base.SuffrageWithdrawOperation, error)
 )
@@ -148,7 +148,7 @@ func (st *baseBallotHandler) makeINITBallot(
 
 	var pr base.ProposalSignFact
 
-	switch i, err := st.requestProposal(ctx, point, initialWait); {
+	switch i, err := st.requestProposal(ctx, point, prevBlock, initialWait); {
 	case err != nil:
 		return nil, e(err, "")
 	default:
@@ -613,14 +613,19 @@ func (st *baseBallotHandler) prepareNextBlock(
 func (st *baseBallotHandler) requestProposal(
 	ctx context.Context,
 	point base.Point,
+	previousBlock util.Hash,
 	initialWait time.Duration,
 ) (base.ProposalSignFact, error) {
-	l := st.Log().With().Object("point", point).Dur("initial_wait", initialWait).Logger()
+	l := st.Log().With().
+		Object("point", point).
+		Stringer("previous_block", previousBlock).
+		Dur("initial_wait", initialWait).
+		Logger()
 
 	started := time.Now()
 	defer l.Debug().Dur("elapsed", time.Since(started)).Msg("proposal selection done")
 
-	switch pr, err := st.args.ProposalSelectFunc(ctx, point, initialWait); {
+	switch pr, err := st.args.ProposalSelectFunc(ctx, point, previousBlock, initialWait); {
 	case err == nil:
 		l.Debug().Interface("proposal", pr).Msg("proposal selected")
 

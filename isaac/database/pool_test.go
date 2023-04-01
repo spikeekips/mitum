@@ -73,7 +73,7 @@ func (t *testPool) TestProposal() {
 	})
 
 	t.Run("by point", func() {
-		upr, found, err := pst.ProposalByPoint(prfact.Point(), prfact.Proposer())
+		upr, found, err := pst.ProposalByPoint(prfact.Point(), prfact.Proposer(), prfact.PreviousBlock())
 		t.NoError(err)
 		t.True(found)
 
@@ -81,14 +81,21 @@ func (t *testPool) TestProposal() {
 	})
 
 	t.Run("unknown point", func() {
-		upr, found, err := pst.ProposalByPoint(prfact.Point().NextHeight(), prfact.Proposer())
+		upr, found, err := pst.ProposalByPoint(prfact.Point().NextHeight(), prfact.Proposer(), prfact.PreviousBlock())
 		t.NoError(err)
 		t.False(found)
 		t.Nil(upr)
 	})
 
 	t.Run("unknown proposer", func() {
-		upr, found, err := pst.ProposalByPoint(prfact.Point(), base.RandomAddress(""))
+		upr, found, err := pst.ProposalByPoint(prfact.Point(), base.RandomAddress(""), prfact.PreviousBlock())
+		t.NoError(err)
+		t.False(found)
+		t.Nil(upr)
+	})
+
+	t.Run("unknown previous block", func() {
+		upr, found, err := pst.ProposalByPoint(prfact.Point(), prfact.Proposer(), valuehash.RandomSHA256())
 		t.NoError(err)
 		t.False(found)
 		t.Nil(upr)

@@ -173,17 +173,22 @@ func leveldbProposalKey(h util.Hash) []byte {
 	return util.ConcatBytesSlice(leveldbKeyPrefixProposal, h.Bytes())
 }
 
-func leveldbProposalPointKey(point base.Point, proposer base.Address) []byte {
-	var b []byte
+func leveldbProposalPointKey(point base.Point, proposer base.Address, previousBlock util.Hash) []byte {
+	var pb, bb []byte
 	if proposer != nil {
-		b = proposer.Bytes()
+		pb = proposer.Bytes()
+	}
+
+	if previousBlock != nil {
+		bb = previousBlock.Bytes()
 	}
 
 	return util.ConcatBytesSlice(
 		leveldbKeyPrefixProposalByPoint,
 		point.Bytes(),
 		[]byte("-"),
-		b,
+		pb,
+		bb,
 	)
 }
 

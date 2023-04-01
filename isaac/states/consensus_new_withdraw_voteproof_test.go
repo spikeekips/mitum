@@ -36,7 +36,7 @@ func (t *testWithdrawsConsensusHandler) TestEnterWithSuffrageConfirmVoteproof() 
 	}
 
 	prpool := t.PRPool
-	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ util.Hash, _ time.Duration) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -108,7 +108,7 @@ func (t *testWithdrawsConsensusHandler) TestSuffrageConfirmAfterEnteringINITVote
 	})
 
 	prpool := t.PRPool
-	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ util.Hash, _ time.Duration) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -234,7 +234,7 @@ func (t *testWithdrawsConsensusHandler) TestSuffrageConfirmAfterACCEPTVoteproof(
 	}
 
 	prpool := t.PRPool
-	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ util.Hash, _ time.Duration) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -381,7 +381,7 @@ func (t *testWithdrawsConsensusHandler) prepareAfterACCEPT(
 	}
 
 	prpool := t.PRPool
-	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ util.Hash, _ time.Duration) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -681,7 +681,7 @@ func (t *testWithdrawsConsensusHandler) TestEnterINITStuckVoteproof() {
 	})
 
 	prpool := t.PRPool
-	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ util.Hash, _ time.Duration) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -904,7 +904,7 @@ func (t *testWithdrawsConsensusHandler) TestACCEPTStuckVoteproof() {
 	}
 
 	prpool := t.PRPool
-	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ util.Hash, _ time.Duration) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -1013,7 +1013,7 @@ func (t *testWithdrawsConsensusHandler) TestACCEPTStuckVoteproofEnterSyncing() {
 	}
 
 	prpool := t.PRPool
-	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ util.Hash, _ time.Duration) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()

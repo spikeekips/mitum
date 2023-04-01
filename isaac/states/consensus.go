@@ -265,7 +265,7 @@ func (st *ConsensusHandler) processProposalInternal(ivp base.INITVoteproof) (isa
 		previous = m
 	}
 
-	switch process, err := st.args.ProposalProcessors.Process(st.ctx, facthash, previous, ivp); {
+	switch process, err := st.args.ProposalProcessors.Process(st.ctx, ivp.Point().Point, facthash, previous, ivp); {
 	case err != nil:
 		return nil, e(err, "")
 	case process == nil:

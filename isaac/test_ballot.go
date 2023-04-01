@@ -26,7 +26,7 @@ func (t *BaseTestBallots) SetupTest() {
 	t.LocalParams = params
 
 	t.PRPool = newProposalPool(func(point base.Point) base.ProposalSignFact {
-		fs := NewProposalSignFact(NewProposalFact(point, local.Address(), []util.Hash{valuehash.RandomSHA256()}))
+		fs := NewProposalSignFact(NewProposalFact(point, local.Address(), valuehash.RandomSHA256(), []util.Hash{valuehash.RandomSHA256()}))
 		_ = fs.Sign(local.Privatekey(), params.NetworkID())
 
 		return fs
@@ -54,7 +54,7 @@ func (t *BaseTestBallots) NewACCEPTBallotFact(point base.Point, pr, block util.H
 }
 
 func (t *BaseTestBallots) NewProposalFact(point base.Point, local base.LocalNode, ops []util.Hash) ProposalFact {
-	return NewProposalFact(point, local.Address(), ops)
+	return NewProposalFact(point, local.Address(), valuehash.RandomSHA256(), ops)
 }
 
 func (t *BaseTestBallots) NewProposal(local base.LocalNode, fact ProposalFact) ProposalSignFact {

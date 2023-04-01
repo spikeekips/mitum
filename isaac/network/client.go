@@ -84,8 +84,9 @@ func (c *BaseClient) RequestProposal(
 	ci quicstream.UDPConnInfo,
 	point base.Point,
 	proposer base.Address,
+	previousBlock util.Hash,
 ) (base.ProposalSignFact, bool, error) {
-	header := NewRequestProposalRequestHeader(point, proposer)
+	header := NewRequestProposalRequestHeader(point, proposer, previousBlock)
 	if err := header.IsValid(nil); err != nil {
 		return nil, false, err
 	}

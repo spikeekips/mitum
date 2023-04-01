@@ -265,7 +265,7 @@ func (t *testDefaultProposalProcessor) newBlockWriter() (
 func (t *testDefaultProposalProcessor) TestNew() {
 	point := base.RawPoint(33, 44)
 
-	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), []util.Hash{valuehash.RandomSHA256()}))
+	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), []util.Hash{valuehash.RandomSHA256()}))
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	_, newwriterf := t.newBlockWriter()
@@ -280,7 +280,7 @@ func (t *testDefaultProposalProcessor) TestCollectOperations() {
 
 	ophs, ops, _ := t.prepareOperations(point.Height()-1, 4)
 
-	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), ophs))
+	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), ophs))
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
@@ -332,7 +332,7 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsFailed() {
 
 	ophs, ops, _ := t.prepareOperations(point.Height()-1, 4)
 
-	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), ophs))
+	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), ophs))
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
@@ -376,7 +376,7 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsFailedButIgnored() {
 
 	ophs, ops, _ := t.prepareOperations(point.Height()-1, 4)
 
-	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), ophs))
+	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), ophs))
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
@@ -444,7 +444,7 @@ func (t *testDefaultProposalProcessor) TestCollectOperationsInvalidError() {
 
 	ophs, ops, _ := t.prepareOperations(point.Height()-1, 4)
 
-	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), ophs))
+	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), ophs))
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
@@ -510,7 +510,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessButFailedToGetOperationProc
 
 	ophs, ops, _ := t.prepareOperations(point.Height()-1, 4)
 
-	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), ophs))
+	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), ophs))
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	_, newwriterf := t.newBlockWriter()
 
@@ -543,7 +543,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessButErrSuspendOperation() {
 
 	ophs, ops, sts := t.prepareOperations(point.Height()-1, 4)
 
-	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), ophs))
+	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), ophs))
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
@@ -606,7 +606,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessWithOperationProcessor() {
 
 	ophs, ops, sts := t.prepareOperations(point.Height()-1, 4)
 
-	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), ophs))
+	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), ophs))
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
@@ -698,7 +698,7 @@ func (t *testDefaultProposalProcessor) TestPreProcess() {
 		ops[i] = op
 	}
 
-	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), ophs))
+	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), ophs))
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
@@ -774,7 +774,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessButError() {
 		ops[i] = op
 	}
 
-	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), ophs))
+	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), ophs))
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
@@ -822,7 +822,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessButWithOperationReasonError
 		ops[i] = op
 	}
 
-	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), ophs))
+	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), ophs))
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
@@ -881,7 +881,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessButErrorRetry() {
 		ops[i] = op
 	}
 
-	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), ophs))
+	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), ophs))
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
@@ -942,7 +942,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessContextCancel() {
 		ops[i] = op
 	}
 
-	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), ophs))
+	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), ophs))
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
@@ -1016,7 +1016,7 @@ func (t *testDefaultProposalProcessor) TestPreProcessWithContext() {
 		ops[i] = op
 	}
 
-	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), ophs))
+	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), ophs))
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
@@ -1062,7 +1062,7 @@ func (t *testDefaultProposalProcessor) TestProcess() {
 	prevsts := make([]base.State, len(sts))
 	prevsts[1] = base.NewBaseState(point.Height()-1, sts[ophs[1].String()].Key(), nil, valuehash.RandomSHA256(), nil)
 
-	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), ophs))
+	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), ophs))
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
@@ -1150,7 +1150,7 @@ func (t *testDefaultProposalProcessor) TestProcessWithOperationProcessor() {
 
 	ophs, ops, sts := t.prepareOperations(point.Height()-1, 4)
 
-	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), ophs))
+	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), ophs))
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
@@ -1239,7 +1239,7 @@ func (t *testDefaultProposalProcessor) TestProcessButError() {
 		ops[i] = op
 	}
 
-	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), ophs))
+	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), ophs))
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
@@ -1282,7 +1282,7 @@ func (t *testDefaultProposalProcessor) TestProcessButErrorRetry() {
 		ops[i] = op
 	}
 
-	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), ophs))
+	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), ophs))
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
@@ -1315,7 +1315,7 @@ func (t *testDefaultProposalProcessor) TestProcessButSetStatesErrorRetry() {
 
 	ophs, ops, _ := t.prepareOperations(point.Height()-1, 4)
 
-	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), ophs))
+	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), ophs))
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
@@ -1388,7 +1388,7 @@ func (t *testDefaultProposalProcessor) TestProcessContextCancel() {
 		ops[i] = op
 	}
 
-	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), ophs))
+	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), ophs))
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
@@ -1461,7 +1461,7 @@ func (t *testDefaultProposalProcessor) TestProcessCancel() {
 		ops[i] = op
 	}
 
-	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), ophs))
+	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), ophs))
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
@@ -1528,7 +1528,7 @@ func (t *testDefaultProposalProcessor) TestSave() {
 		ops[fact.String()] = op
 	}
 
-	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), ophs))
+	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), ophs))
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
@@ -1595,7 +1595,7 @@ func (t *testDefaultProposalProcessor) TestSaveFailed() {
 
 	ophs, ops, _ := t.prepareOperations(point.Height()-1, 4)
 
-	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), ophs))
+	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), ophs))
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
@@ -1634,7 +1634,7 @@ func (t *testDefaultProposalProcessor) TestSaveAgain() {
 
 	ophs, ops, _ := t.prepareOperations(point.Height()-1, 4)
 
-	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), ophs))
+	pr := t.newproposal(NewProposalFact(point, t.Local.Address(), valuehash.RandomSHA256(), ophs))
 
 	previous := base.NewDummyManifest(point.Height()-1, valuehash.RandomSHA256())
 	manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())

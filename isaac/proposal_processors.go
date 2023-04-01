@@ -26,7 +26,7 @@ type ProposalProcessors struct {
 	p ProposalProcessor
 	*logging.Logging
 	makenew       func(proposal base.ProposalSignFact, previous base.Manifest) (ProposalProcessor, error)
-	getproposal   func(_ context.Context, operationhash util.Hash) (base.ProposalSignFact, error)
+	getproposal   func(_ context.Context, _ base.Point, proposalFactHash util.Hash) (base.ProposalSignFact, error)
 	retryinterval time.Duration
 	retrylimit    int
 	sync.RWMutex
@@ -35,7 +35,7 @@ type ProposalProcessors struct {
 
 func NewProposalProcessors(
 	makenew func(base.ProposalSignFact, base.Manifest) (ProposalProcessor, error),
-	getproposal func(context.Context, util.Hash) (base.ProposalSignFact, error),
+	getproposal func(context.Context, base.Point, util.Hash) (base.ProposalSignFact, error),
 ) *ProposalProcessors {
 	return &ProposalProcessors{
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
@@ -60,17 +60,18 @@ func (pps *ProposalProcessors) Processor() ProposalProcessor {
 
 func (pps *ProposalProcessors) Process(
 	ctx context.Context,
+	point base.Point,
 	facthash util.Hash,
 	previous base.Manifest,
 	ivp base.INITVoteproof,
 ) (ProcessorProcessFunc, error) {
 	pps.Lock()
 
-	l := pps.Log().With().Stringer("fact", facthash).Logger()
+	l := pps.Log().With().Stringer("point", point).Stringer("fact", facthash).Logger()
 
 	e := util.StringErrorFunc("process proposal, %q", facthash)
 
-	p, err := pps.newProcessor(ctx, facthash, previous)
+	p, err := pps.newProcessor(ctx, point, facthash, previous)
 
 	switch {
 	case err != nil:
@@ -204,7 +205,9 @@ func (pps *ProposalProcessors) SetRetryInterval(i time.Duration) *ProposalProces
 	return pps
 }
 
-func (pps *ProposalProcessors) fetchFact(ctx context.Context, facthash util.Hash) (base.ProposalSignFact, error) {
+func (pps *ProposalProcessors) fetchFact(
+	ctx context.Context, point base.Point, facthash util.Hash,
+) (base.ProposalSignFact, error) {
 	e := util.StringErrorFunc("fetch fact")
 
 	var pr base.ProposalSignFact
@@ -212,7 +215,7 @@ func (pps *ProposalProcessors) fetchFact(ctx context.Context, facthash util.Hash
 	err := util.Retry(
 		ctx,
 		func() (bool, error) {
-			j, err := pps.getproposal(ctx, facthash)
+			j, err := pps.getproposal(ctx, point, facthash)
 
 			switch {
 			case err == nil:
@@ -231,11 +234,11 @@ func (pps *ProposalProcessors) fetchFact(ctx context.Context, facthash util.Hash
 }
 
 func (pps *ProposalProcessors) newProcessor(
-	ctx context.Context, facthash util.Hash, previous base.Manifest,
+	ctx context.Context, point base.Point, facthash util.Hash, previous base.Manifest,
 ) (ProposalProcessor, error) {
 	e := util.StringErrorFunc(" processor, %q", facthash)
 
-	l := pps.Log().With().Stringer("fact", facthash).Logger()
+	l := pps.Log().With().Stringer("point", point).Stringer("fact", facthash).Logger()
 
 	if pps.p != nil {
 		p := pps.p
@@ -256,7 +259,7 @@ func (pps *ProposalProcessors) newProcessor(
 	}
 
 	// NOTE fetch proposal fact
-	fact, err := pps.fetchFact(ctx, facthash)
+	fact, err := pps.fetchFact(ctx, point, facthash)
 
 	// NOTE if failed to get fact, returns NotProposalProcessorProcessedError
 	switch {

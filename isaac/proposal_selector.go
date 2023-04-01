@@ -22,7 +22,7 @@ var (
 // ProposerSelector selects proposer between suffrage nodes. If failed to
 // request proposal from remotes, local will be proposer.
 type ProposerSelector interface {
-	Select(context.Context, base.Point, []base.Node) (base.Node, error)
+	Select(context.Context, base.Point, []base.Node, util.Hash) (base.Node, error)
 }
 
 type BaseProposalSelectorArgs struct {
@@ -30,7 +30,7 @@ type BaseProposalSelectorArgs struct {
 	ProposerSelector        ProposerSelector
 	Maker                   *ProposalMaker
 	GetNodesFunc            func(base.Height) ([]base.Node, bool, error)
-	RequestFunc             func(context.Context, base.Point, base.Node) (base.ProposalSignFact, bool, error)
+	RequestFunc             func(context.Context, base.Point, base.Node, util.Hash) (base.ProposalSignFact, bool, error)
 	RequestProposalInterval time.Duration
 	MinProposerWait         time.Duration
 }
@@ -40,7 +40,7 @@ func NewBaseProposalSelectorArgs() *BaseProposalSelectorArgs {
 		GetNodesFunc: func(base.Height) ([]base.Node, bool, error) {
 			return nil, false, context.Canceled
 		},
-		RequestFunc: func(context.Context, base.Point, base.Node) (base.ProposalSignFact, bool, error) {
+		RequestFunc: func(context.Context, base.Point, base.Node, util.Hash) (base.ProposalSignFact, bool, error) {
 			return nil, false, util.ErrNotImplemented.Errorf("request")
 		},
 		RequestProposalInterval: time.Millisecond * 10,               //nolint:gomnd //...
@@ -70,13 +70,14 @@ func NewBaseProposalSelector(
 func (p *BaseProposalSelector) Select(
 	ctx context.Context,
 	point base.Point,
+	previousBlock util.Hash,
 	wait time.Duration,
 ) (base.ProposalSignFact, error) {
-	switch pr, err := p.selectInternal(ctx, point, wait); {
+	switch pr, err := p.selectInternal(ctx, point, previousBlock, wait); {
 	case errors.Is(err, errFailedToRequestProposalToNode),
 		errors.Is(err, context.Canceled),
 		errors.Is(err, context.DeadlineExceeded):
-		pr, err = p.args.Maker.New(ctx, point)
+		pr, err = p.args.Maker.New(ctx, point, previousBlock)
 		if err != nil {
 			return nil, err
 		}
@@ -96,6 +97,7 @@ func (p *BaseProposalSelector) Select(
 func (p *BaseProposalSelector) selectInternal(
 	ctx context.Context,
 	point base.Point,
+	previousBlock util.Hash,
 	wait time.Duration,
 ) (base.ProposalSignFact, error) {
 	p.Lock()
@@ -119,14 +121,14 @@ func (p *BaseProposalSelector) selectInternal(
 
 		return nil, errors.WithMessagef(err, "get suffrage for height, %d", point.Height())
 	case len(i) < 2: //nolint:gomnd //...
-		return p.proposalFromNode(wctx, point, i[0])
+		return p.proposalFromNode(wctx, point, i[0], previousBlock)
 	default:
 		nodes = i
 	}
 
 	var failed base.Address
 
-	switch pr, proposer, err := p.selectFromProposer(wctx, point, nodes); {
+	switch pr, proposer, err := p.selectFromProposer(wctx, point, nodes, previousBlock); {
 	case errors.Is(err, errFailedToRequestProposalToNode),
 		errors.Is(err, context.Canceled),
 		errors.Is(err, context.DeadlineExceeded):
@@ -153,22 +155,23 @@ func (p *BaseProposalSelector) selectInternal(
 	wctx, cancel = context.WithTimeout(ctx, pwait)
 	defer cancel()
 
-	return p.proposalFromOthers(wctx, point, nodes)
+	return p.proposalFromOthers(wctx, point, nodes, previousBlock)
 }
 
 func (p *BaseProposalSelector) selectFromProposer(
 	ctx context.Context,
 	point base.Point,
 	nodes []base.Node,
+	previousBlock util.Hash,
 ) (base.ProposalSignFact, base.Address, error) {
 	e := util.StringErrorFunc("select proposal from proposer")
 
-	proposer, err := p.args.ProposerSelector.Select(ctx, point, nodes)
+	proposer, err := p.args.ProposerSelector.Select(ctx, point, nodes, previousBlock)
 	if err != nil {
 		return nil, nil, e(err, "select proposer")
 	}
 
-	pr, err := p.proposalFromNode(ctx, point, proposer)
+	pr, err := p.proposalFromNode(ctx, point, proposer, previousBlock)
 	if err != nil {
 		return nil, proposer.Address(), e(err, "")
 	}
@@ -180,6 +183,7 @@ func (p *BaseProposalSelector) proposalFromNode(
 	ctx context.Context,
 	point base.Point,
 	proposer base.Node,
+	previousBlock util.Hash,
 ) (base.ProposalSignFact, error) {
 	ticker := time.NewTicker(1)
 	defer ticker.Stop()
@@ -195,7 +199,7 @@ func (p *BaseProposalSelector) proposalFromNode(
 				ticker.Reset(p.args.RequestProposalInterval)
 			})
 
-			switch pr, err := p.findProposal(ctx, point, proposer); {
+			switch pr, err := p.findProposal(ctx, point, proposer, previousBlock); {
 			case err == nil:
 				return pr, nil
 			case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
@@ -214,6 +218,7 @@ func (p *BaseProposalSelector) proposalFromOthers(
 	ctx context.Context,
 	point base.Point,
 	nodes []base.Node,
+	previousBlock util.Hash,
 ) (base.ProposalSignFact, error) {
 	if len(nodes) < 1 {
 		return nil, errors.Errorf("empty nodes")
@@ -235,12 +240,12 @@ func (p *BaseProposalSelector) proposalFromOthers(
 				ticker.Reset(p.args.RequestProposalInterval)
 			})
 
-			proposer, err := p.args.ProposerSelector.Select(ctx, point, filtered)
+			proposer, err := p.args.ProposerSelector.Select(ctx, point, filtered, previousBlock)
 			if err != nil {
 				return nil, errors.WithMessage(err, "select proposer")
 			}
 
-			switch pr, err := p.findProposal(ctx, point, proposer); {
+			switch pr, err := p.findProposal(ctx, point, proposer, previousBlock); {
 			case err == nil:
 				return pr, nil
 			case errors.Is(err, errFailedToRequestProposalToNode):
@@ -261,17 +266,18 @@ func (p *BaseProposalSelector) findProposal(
 	ctx context.Context,
 	point base.Point,
 	proposer base.Node,
+	previousBlock util.Hash,
 ) (base.ProposalSignFact, error) {
 	e := util.StringErrorFunc("find proposal")
 
-	switch pr, found, err := p.args.Pool.ProposalByPoint(point, proposer.Address()); {
+	switch pr, found, err := p.args.Pool.ProposalByPoint(point, proposer.Address(), previousBlock); {
 	case err != nil:
 		return nil, e(err, "")
 	case found:
 		return pr, nil
 	}
 
-	pr, err := p.findProposalFromProposer(ctx, point, proposer)
+	pr, err := p.findProposalFromProposer(ctx, point, proposer, previousBlock)
 	if err != nil {
 		return nil, e(err, "")
 	}
@@ -283,9 +289,10 @@ func (p *BaseProposalSelector) findProposalFromProposer(
 	ctx context.Context,
 	point base.Point,
 	proposer base.Node,
+	previousBlock util.Hash,
 ) (base.ProposalSignFact, error) {
 	if proposer.Address().Equal(p.local.Address()) {
-		return p.args.Maker.New(ctx, point)
+		return p.args.Maker.New(ctx, point, previousBlock)
 	}
 
 	// NOTE if not found in local, request to proposer node
@@ -295,7 +302,7 @@ func (p *BaseProposalSelector) findProposalFromProposer(
 	donech := make(chan interface{})
 
 	go func() {
-		switch pr, found, err := p.args.RequestFunc(rctx, point, proposer); {
+		switch pr, found, err := p.args.RequestFunc(rctx, point, proposer, previousBlock); {
 		case err != nil, !found:
 			if !found {
 				err = errors.Errorf("empty proposal")
@@ -357,43 +364,30 @@ func (*BaseProposalSelector) getNodes(
 }
 
 type FuncProposerSelector struct {
-	selectfunc func(base.Point, []base.Node) (base.Node, error)
+	selectfunc func(base.Point, []base.Node, util.Hash) (base.Node, error)
 }
 
 func NewFixedProposerSelector(
-	selectfunc func(base.Point, []base.Node) (base.Node, error),
+	selectfunc func(base.Point, []base.Node, util.Hash) (base.Node, error),
 ) FuncProposerSelector {
 	return FuncProposerSelector{selectfunc: selectfunc}
 }
 
-func (p FuncProposerSelector) Select(_ context.Context, point base.Point, nodes []base.Node) (base.Node, error) {
-	return p.selectfunc(point, nodes)
+func (p FuncProposerSelector) Select(
+	_ context.Context, point base.Point, nodes []base.Node, previousBlock util.Hash,
+) (base.Node, error) {
+	return p.selectfunc(point, nodes, previousBlock)
 }
 
-type BlockBasedProposerSelector struct {
-	getManifestHash func(base.Height) (util.Hash, error)
+type BlockBasedProposerSelector struct{}
+
+func NewBlockBasedProposerSelector() BlockBasedProposerSelector {
+	return BlockBasedProposerSelector{}
 }
 
-func NewBlockBasedProposerSelector(
-	getManifestHash func(base.Height) (util.Hash, error),
-) BlockBasedProposerSelector {
-	return BlockBasedProposerSelector{
-		getManifestHash: getManifestHash,
-	}
-}
-
-func (p BlockBasedProposerSelector) Select(_ context.Context, point base.Point, nodes []base.Node) (base.Node, error) {
-	var manifest util.Hash
-
-	switch h, err := p.getManifestHash(point.Height() - 1); {
-	case err != nil:
-		return nil, err
-	case h == nil:
-		return nil, util.ErrNotFound.Errorf("manifest hash not found in height, %d", point.Height()-1)
-	default:
-		manifest = h
-	}
-
+func (BlockBasedProposerSelector) Select(
+	_ context.Context, point base.Point, nodes []base.Node, previousBlock util.Hash,
+) (base.Node, error) {
 	switch n := len(nodes); {
 	case n < 1:
 		return nil, errors.Errorf("empty suffrage nodes")
@@ -403,7 +397,7 @@ func (p BlockBasedProposerSelector) Select(_ context.Context, point base.Point, 
 
 	var sum uint64
 
-	for _, b := range manifest.Bytes() {
+	for _, b := range previousBlock.Bytes() {
 		sum += uint64(b)
 	}
 
@@ -438,20 +432,22 @@ func NewProposalMaker(
 	}
 }
 
-func (p *ProposalMaker) Empty(_ context.Context, point base.Point) (base.ProposalSignFact, error) {
+func (p *ProposalMaker) Empty(
+	_ context.Context, point base.Point, previousBlock util.Hash,
+) (base.ProposalSignFact, error) {
 	p.Lock()
 	defer p.Unlock()
 
 	e := util.StringErrorFunc("make empty proposal")
 
-	switch pr, found, err := p.pool.ProposalByPoint(point, p.local.Address()); {
+	switch pr, found, err := p.pool.ProposalByPoint(point, p.local.Address(), previousBlock); {
 	case err != nil:
 		return nil, e(err, "")
 	case found:
 		return pr, nil
 	}
 
-	pr, err := p.makeProposal(point, nil)
+	pr, err := p.makeProposal(point, previousBlock, nil)
 	if err != nil {
 		return nil, e(err, "make empty proposal, %q", point)
 	}
@@ -459,13 +455,15 @@ func (p *ProposalMaker) Empty(_ context.Context, point base.Point) (base.Proposa
 	return pr, nil
 }
 
-func (p *ProposalMaker) New(ctx context.Context, point base.Point) (base.ProposalSignFact, error) {
+func (p *ProposalMaker) New(
+	ctx context.Context, point base.Point, previousBlock util.Hash,
+) (base.ProposalSignFact, error) {
 	p.Lock()
 	defer p.Unlock()
 
 	e := util.StringErrorFunc("make proposal, %q", point)
 
-	switch pr, found, err := p.pool.ProposalByPoint(point, p.local.Address()); {
+	switch pr, found, err := p.pool.ProposalByPoint(point, p.local.Address(), previousBlock); {
 	case err != nil:
 		return nil, e(err, "")
 	case found:
@@ -483,7 +481,7 @@ func (p *ProposalMaker) New(ctx context.Context, point base.Point) (base.Proposa
 		}
 	}).Msg("new operation for proposal maker")
 
-	pr, err := p.makeProposal(point, ops)
+	pr, err := p.makeProposal(point, previousBlock, ops)
 	if err != nil {
 		return nil, e(err, "")
 	}
@@ -491,8 +489,10 @@ func (p *ProposalMaker) New(ctx context.Context, point base.Point) (base.Proposa
 	return pr, nil
 }
 
-func (p *ProposalMaker) makeProposal(point base.Point, ops []util.Hash) (sf ProposalSignFact, _ error) {
-	fact := NewProposalFact(point, p.local.Address(), ops)
+func (p *ProposalMaker) makeProposal(
+	point base.Point, previousBlock util.Hash, ops []util.Hash,
+) (sf ProposalSignFact, _ error) {
+	fact := NewProposalFact(point, p.local.Address(), previousBlock, ops)
 
 	signfact := NewProposalSignFact(fact)
 	if err := signfact.Sign(p.local.Privatekey(), p.params.NetworkID()); err != nil {
@@ -512,6 +512,7 @@ func ConcurrentRequestProposal(
 	ctx context.Context,
 	point base.Point,
 	proposer base.Node,
+	previousBlock util.Hash,
 	client NetworkClient,
 	cis []quicstream.UDPConnInfo,
 	networkID base.NetworkID,
@@ -529,7 +530,7 @@ func ConcurrentRequestProposal(
 			ci := cis[i]
 
 			if err := worker.NewJob(func(ctx context.Context, _ uint64) error {
-				switch pr, found, err := client.RequestProposal(ctx, ci, point, proposer.Address()); {
+				switch pr, found, err := client.RequestProposal(ctx, ci, point, proposer.Address(), previousBlock); {
 				case err != nil:
 					return nil
 				case !found:

@@ -40,7 +40,7 @@ func (t *testProposalProcessors) TestProcess() {
 
 	pps := NewProposalProcessors(
 		pp.Make,
-		func(_ context.Context, facthash util.Hash) (base.ProposalSignFact, error) {
+		func(_ context.Context, _ base.Point, facthash util.Hash) (base.ProposalSignFact, error) {
 			return t.PRPool.ByHash(facthash)
 		},
 	)
@@ -48,7 +48,7 @@ func (t *testProposalProcessors) TestProcess() {
 	facthash := pr.Fact().Hash()
 
 	t.T().Log("process")
-	processf, err := pps.Process(context.Background(), facthash, previous, nil)
+	processf, err := pps.Process(context.Background(), point, facthash, previous, nil)
 	t.NoError(err)
 	t.NotNil(processf)
 
@@ -98,7 +98,7 @@ func (t *testProposalProcessors) TestAlreadyProcessing() {
 
 	pps := NewProposalProcessors(
 		pp.Make,
-		func(_ context.Context, facthash util.Hash) (base.ProposalSignFact, error) {
+		func(_ context.Context, _ base.Point, facthash util.Hash) (base.ProposalSignFact, error) {
 			return t.PRPool.ByHash(facthash)
 		},
 	)
@@ -107,7 +107,7 @@ func (t *testProposalProcessors) TestAlreadyProcessing() {
 	facthash := pr.Fact().Hash()
 
 	t.T().Log("process")
-	processf, err := pps.Process(context.Background(), facthash, previous, nil)
+	processf, err := pps.Process(context.Background(), point, facthash, previous, nil)
 	t.NoError(err)
 	t.NotNil(processf)
 
@@ -121,7 +121,7 @@ func (t *testProposalProcessors) TestAlreadyProcessing() {
 	}
 
 	t.T().Log("try process again")
-	bprocessf, err := pps.Process(context.Background(), facthash, previous, nil)
+	bprocessf, err := pps.Process(context.Background(), point, facthash, previous, nil)
 	t.NoError(err)
 	t.Nil(bprocessf)
 
@@ -155,14 +155,14 @@ func (t *testProposalProcessors) TestCancelPrevious() {
 
 	pps := NewProposalProcessors(
 		pp.Make,
-		func(_ context.Context, facthash util.Hash) (base.ProposalSignFact, error) {
+		func(_ context.Context, _ base.Point, facthash util.Hash) (base.ProposalSignFact, error) {
 			return t.PRPool.ByHash(facthash)
 		},
 	)
 
 	t.T().Log("process")
 	go func() {
-		processf, err := pps.Process(context.Background(), pr.Fact().Hash(), previous, nil)
+		processf, err := pps.Process(context.Background(), point, pr.Fact().Hash(), previous, nil)
 		if err != nil {
 			panic(err)
 		}
@@ -180,7 +180,7 @@ func (t *testProposalProcessors) TestCancelPrevious() {
 	}
 
 	t.T().Log("process another")
-	_, err := pps.Process(context.Background(), nextpr.Fact().Hash(), previous, nil)
+	_, err := pps.Process(context.Background(), point, nextpr.Fact().Hash(), previous, nil)
 	t.NoError(err)
 	t.NotNil(pps.Processor())
 
@@ -192,9 +192,11 @@ func (t *testProposalProcessors) TestCancelPrevious() {
 }
 
 func (t *testProposalProcessors) TestFailedToFetchFact() {
+	point := base.RawPoint(33, 44)
+
 	pps := NewProposalProcessors(
 		NewDummyProposalProcessor().Make,
-		func(context.Context, util.Hash) (base.ProposalSignFact, error) {
+		func(context.Context, base.Point, util.Hash) (base.ProposalSignFact, error) {
 			return nil, util.ErrNotFound.Errorf("hehehe")
 		},
 	)
@@ -202,7 +204,7 @@ func (t *testProposalProcessors) TestFailedToFetchFact() {
 	pps.retryinterval = 1
 
 	t.T().Log("process")
-	processf, err := pps.Process(context.Background(), valuehash.RandomSHA256(), nil, nil)
+	processf, err := pps.Process(context.Background(), point, valuehash.RandomSHA256(), nil, nil)
 	t.Error(err)
 	t.Nil(processf)
 
@@ -211,9 +213,11 @@ func (t *testProposalProcessors) TestFailedToFetchFact() {
 }
 
 func (t *testProposalProcessors) TestFailedToFetchFactCanceled() {
+	point := base.RawPoint(33, 44)
+
 	pps := NewProposalProcessors(
 		NewDummyProposalProcessor().Make,
-		func(context.Context, util.Hash) (base.ProposalSignFact, error) {
+		func(context.Context, base.Point, util.Hash) (base.ProposalSignFact, error) {
 			return nil, context.Canceled
 		},
 	)
@@ -221,7 +225,7 @@ func (t *testProposalProcessors) TestFailedToFetchFactCanceled() {
 	pps.retryinterval = 1
 
 	t.T().Log("process")
-	processf, err := pps.Process(context.Background(), valuehash.RandomSHA256(), nil, nil)
+	processf, err := pps.Process(context.Background(), point, valuehash.RandomSHA256(), nil, nil)
 	t.Error(err)
 	t.Nil(processf)
 
@@ -230,10 +234,12 @@ func (t *testProposalProcessors) TestFailedToFetchFactCanceled() {
 }
 
 func (t *testProposalProcessors) TestRetryFetchFact() {
+	point := base.RawPoint(33, 44)
+
 	var try int64
 	pps := NewProposalProcessors(
 		NewDummyProposalProcessor().Make,
-		func(context.Context, util.Hash) (base.ProposalSignFact, error) {
+		func(context.Context, base.Point, util.Hash) (base.ProposalSignFact, error) {
 			if atomic.LoadInt64(&try) > 2 {
 				return nil, context.Canceled
 			}
@@ -247,7 +253,7 @@ func (t *testProposalProcessors) TestRetryFetchFact() {
 	pps.retryinterval = time.Millisecond * 10
 
 	t.T().Log("process")
-	_, err := pps.Process(context.Background(), valuehash.RandomSHA256(), nil, nil)
+	_, err := pps.Process(context.Background(), point, valuehash.RandomSHA256(), nil, nil)
 	t.Error(err)
 	t.True(errors.Is(err, context.Canceled))
 	t.ErrorContains(err, "canceled")
@@ -256,10 +262,12 @@ func (t *testProposalProcessors) TestRetryFetchFact() {
 }
 
 func (t *testProposalProcessors) TestRetryFetchFactOverLimit() {
+	point := base.RawPoint(33, 44)
+
 	var try int64
 	pps := NewProposalProcessors(
 		NewDummyProposalProcessor().Make,
-		func(context.Context, util.Hash) (base.ProposalSignFact, error) {
+		func(context.Context, base.Point, util.Hash) (base.ProposalSignFact, error) {
 			atomic.AddInt64(&try, 1)
 
 			return nil, errors.Errorf("findme")
@@ -269,7 +277,7 @@ func (t *testProposalProcessors) TestRetryFetchFactOverLimit() {
 	pps.retryinterval = time.Millisecond * 10
 
 	t.T().Log("process")
-	_, err := pps.Process(context.Background(), valuehash.RandomSHA256(), nil, nil)
+	_, err := pps.Process(context.Background(), point, valuehash.RandomSHA256(), nil, nil)
 	t.Error(err)
 	t.ErrorContains(err, "findme")
 
@@ -288,7 +296,7 @@ func (t *testProposalProcessors) TestProcessError() {
 
 	pps := NewProposalProcessors(
 		pp.Make,
-		func(_ context.Context, facthash util.Hash) (base.ProposalSignFact, error) {
+		func(_ context.Context, _ base.Point, facthash util.Hash) (base.ProposalSignFact, error) {
 			return t.PRPool.ByHash(facthash)
 		},
 	)
@@ -296,7 +304,7 @@ func (t *testProposalProcessors) TestProcessError() {
 	facthash := pr.Fact().Hash()
 
 	t.T().Log("process")
-	processf, err := pps.Process(context.Background(), facthash, previous, nil)
+	processf, err := pps.Process(context.Background(), point, facthash, previous, nil)
 	t.NoError(err)
 
 	_, err = processf(context.Background())
@@ -318,7 +326,7 @@ func (t *testProposalProcessors) TestProcessIgnoreError() {
 
 	pps := NewProposalProcessors(
 		pp.Make,
-		func(_ context.Context, facthash util.Hash) (base.ProposalSignFact, error) {
+		func(_ context.Context, _ base.Point, facthash util.Hash) (base.ProposalSignFact, error) {
 			return t.PRPool.ByHash(facthash)
 		},
 	)
@@ -326,7 +334,7 @@ func (t *testProposalProcessors) TestProcessIgnoreError() {
 	facthash := pr.Fact().Hash()
 
 	t.T().Log("process")
-	processf, err := pps.Process(context.Background(), facthash, previous, nil)
+	processf, err := pps.Process(context.Background(), point, facthash, previous, nil)
 	t.NoError(err)
 
 	rmanifest, err := processf(context.Background())
@@ -348,7 +356,7 @@ func (t *testProposalProcessors) TestProcessContextCanceled() {
 
 	pps := NewProposalProcessors(
 		pp.Make,
-		func(_ context.Context, facthash util.Hash) (base.ProposalSignFact, error) {
+		func(_ context.Context, _ base.Point, facthash util.Hash) (base.ProposalSignFact, error) {
 			return t.PRPool.ByHash(facthash)
 		},
 	)
@@ -356,7 +364,7 @@ func (t *testProposalProcessors) TestProcessContextCanceled() {
 	facthash := pr.Fact().Hash()
 
 	t.T().Log("process")
-	processf, err := pps.Process(context.Background(), facthash, previous, nil)
+	processf, err := pps.Process(context.Background(), point, facthash, previous, nil)
 	t.NoError(err)
 
 	rmanifest, err := processf(context.Background())
@@ -387,7 +395,7 @@ func (t *testProposalProcessors) TestSaveError() {
 
 	pps := NewProposalProcessors(
 		pp.Make,
-		func(_ context.Context, facthash util.Hash) (base.ProposalSignFact, error) {
+		func(_ context.Context, _ base.Point, facthash util.Hash) (base.ProposalSignFact, error) {
 			return t.PRPool.ByHash(facthash)
 		},
 	)
@@ -395,7 +403,7 @@ func (t *testProposalProcessors) TestSaveError() {
 	facthash := pr.Fact().Hash()
 
 	t.T().Log("process")
-	processf, err := pps.Process(context.Background(), facthash, previous, nil)
+	processf, err := pps.Process(context.Background(), point, facthash, previous, nil)
 	t.NoError(err)
 	t.NotNil(processf)
 

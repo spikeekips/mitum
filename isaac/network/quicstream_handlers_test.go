@@ -426,8 +426,9 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 
 		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
 
+		prev := valuehash.RandomSHA256()
 		point := base.RawPoint(33, 1)
-		pr, found, err := c.RequestProposal(context.Background(), ci, point, t.Local.Address())
+		pr, found, err := c.RequestProposal(context.Background(), ci, point, t.Local.Address(), prev)
 		t.NoError(err)
 		t.True(found)
 
@@ -435,6 +436,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 		t.True(t.Local.Address().Equal(pr.ProposalFact().Proposer()))
 		t.NoError(base.IsValidProposalSignFact(pr, t.LocalParams.NetworkID()))
 		t.NotEmpty(pr.ProposalFact().Operations())
+		t.True(prev.Equal(pr.ProposalFact().PreviousBlock()))
 	})
 
 	t.Run("local is not proposer", func() {
@@ -443,9 +445,10 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 
 		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
 
+		prev := valuehash.RandomSHA256()
 		point := base.RawPoint(33, 2)
 		proposer := base.RandomAddress("")
-		pr, found, err := c.RequestProposal(context.Background(), ci, point, proposer)
+		pr, found, err := c.RequestProposal(context.Background(), ci, point, proposer, prev)
 		t.NoError(err)
 		t.False(found)
 		t.Nil(pr)
@@ -467,7 +470,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 
 		point := base.RawPoint(33, 3)
 		proposer := base.RandomAddress("")
-		pr, found, err := c.RequestProposal(context.Background(), ci, point, proposer)
+		pr, found, err := c.RequestProposal(context.Background(), ci, point, proposer, valuehash.RandomSHA256())
 		t.NoError(err)
 		t.True(found)
 		t.NotNil(pr)
@@ -490,7 +493,7 @@ func (t *testQuicstreamHandlers) TestRequestProposal() {
 
 		point := base.RawPoint(33, 4)
 		proposer := base.RandomAddress("")
-		pr, found, err := c.RequestProposal(context.Background(), ci, point, proposer)
+		pr, found, err := c.RequestProposal(context.Background(), ci, point, proposer, valuehash.RandomSHA256())
 		t.Error(err)
 		t.False(found)
 		t.Nil(pr)
@@ -512,7 +515,7 @@ func (t *testQuicstreamHandlers) TestProposal() {
 	)
 
 	point := base.RawPoint(33, 1)
-	pr, err := proposalMaker.New(context.Background(), point)
+	pr, err := proposalMaker.New(context.Background(), point, valuehash.RandomSHA256())
 	t.NoError(err)
 	_, err = pool.SetProposal(pr)
 	t.NoError(err)
@@ -1251,6 +1254,7 @@ func (t *testQuicstreamHandlers) TestConcurrentRequestProposal() {
 		cis[i] = ci
 	}
 
+	prev := valuehash.RandomSHA256()
 	point := base.RawPoint(33, 1)
 
 	t.Run("local is proposer", func() {
@@ -1259,7 +1263,7 @@ func (t *testQuicstreamHandlers) TestConcurrentRequestProposal() {
 
 		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
 
-		pr, found, err := isaac.ConcurrentRequestProposal(context.Background(), point, t.Local, c, cis, t.LocalParams.NetworkID())
+		pr, found, err := isaac.ConcurrentRequestProposal(context.Background(), point, t.Local, prev, c, cis, t.LocalParams.NetworkID())
 		t.NoError(err)
 		t.True(found)
 
@@ -1284,14 +1288,14 @@ func (t *testQuicstreamHandlers) TestConcurrentRequestProposal() {
 
 		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
 
-		pr, found, err := isaac.ConcurrentRequestProposal(context.Background(), point, t.Local, c, cis, t.LocalParams.NetworkID())
+		pr, found, err := isaac.ConcurrentRequestProposal(context.Background(), point, t.Local, prev, c, cis, t.LocalParams.NetworkID())
 		t.NoError(err)
 		t.False(found)
 		t.Nil(pr)
 	})
 
 	t.Run("local not respond, other node has proposal", func() {
-		localpr, err := localmaker.New(context.Background(), point)
+		localpr, err := localmaker.New(context.Background(), point, prev)
 		t.NoError(err)
 
 		newhandlers := map[string]quicstream.HeaderHandler{}
@@ -1310,7 +1314,7 @@ func (t *testQuicstreamHandlers) TestConcurrentRequestProposal() {
 
 		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
 
-		pr, found, err := isaac.ConcurrentRequestProposal(context.Background(), point, t.Local, c, cis, t.LocalParams.NetworkID())
+		pr, found, err := isaac.ConcurrentRequestProposal(context.Background(), point, t.Local, prev, c, cis, t.LocalParams.NetworkID())
 
 		t.NoError(err)
 		t.True(found)
@@ -1340,7 +1344,7 @@ func (t *testQuicstreamHandlers) TestConcurrentRequestProposal() {
 
 		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
 
-		pr, found, err := isaac.ConcurrentRequestProposal(ctx, point, t.Local, c, cis, t.LocalParams.NetworkID())
+		pr, found, err := isaac.ConcurrentRequestProposal(ctx, point, t.Local, prev, c, cis, t.LocalParams.NetworkID())
 
 		t.Error(err)
 		t.False(found)
@@ -1361,7 +1365,7 @@ func (t *testQuicstreamHandlers) TestConcurrentRequestProposal() {
 
 		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
 
-		pr, found, err := isaac.ConcurrentRequestProposal(context.Background(), point, t.Local, c, cis, t.LocalParams.NetworkID())
+		pr, found, err := isaac.ConcurrentRequestProposal(context.Background(), point, t.Local, prev, c, cis, t.LocalParams.NetworkID())
 
 		t.NoError(err)
 		t.False(found)

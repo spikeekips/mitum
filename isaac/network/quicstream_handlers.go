@@ -227,8 +227,9 @@ func QuicstreamHandlerRequestProposal(
 	getOrCreateProposal := func(
 		point base.Point,
 		proposer base.Address,
+		previousBlock util.Hash,
 	) (base.ProposalSignFact, error) {
-		switch pr, found, err := pool.ProposalByPoint(point, proposer); {
+		switch pr, found, err := pool.ProposalByPoint(point, proposer, previousBlock); {
 		case err != nil:
 			return nil, err
 		case found:
@@ -243,12 +244,12 @@ func QuicstreamHandlerRequestProposal(
 			case point.Height() < m.Manifest().Height()-1:
 				return nil, errors.Errorf("too old; ignored")
 			case point.Height() > m.Manifest().Height(): // NOTE empty proposal for unreachable point
-				return proposalMaker.Empty(context.Background(), point)
+				return proposalMaker.Empty(context.Background(), point, previousBlock)
 			}
 		}
 
 		if proposer.Equal(local.Address()) {
-			return proposalMaker.New(context.Background(), point)
+			return proposalMaker.New(context.Background(), point, previousBlock)
 		}
 
 		return nil, nil
@@ -263,7 +264,7 @@ func QuicstreamHandlerRequestProposal(
 		func(header quicstream.RequestHeader, _ encoder.Encoder) (interface{}, bool, error) {
 			h := header.(RequestProposalRequestHeader) //nolint:forcetypeassert //...
 
-			pr, err := getOrCreateProposal(h.point, h.Proposer())
+			pr, err := getOrCreateProposal(h.point, h.Proposer(), h.PreviousBlock())
 
 			return pr, pr != nil, err
 		},

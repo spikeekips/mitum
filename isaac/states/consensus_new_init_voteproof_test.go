@@ -32,7 +32,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestHigherHeight() {
 	}
 
 	prch := make(chan util.Hash, 1)
-	st.args.ProposalProcessors.SetGetProposal(func(_ context.Context, facthash util.Hash) (base.ProposalSignFact, error) {
+	st.args.ProposalProcessors.SetGetProposal(func(_ context.Context, _ base.Point, facthash util.Hash) (base.ProposalSignFact, error) {
 		pr, err := t.PRPool.ByHash(facthash)
 		if err != nil {
 			return nil, err
@@ -45,7 +45,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestHigherHeight() {
 		return pr, nil
 	})
 
-	st.args.ProposalSelectFunc = func(context.Context, base.Point, time.Duration) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(context.Context, base.Point, util.Hash, time.Duration) (base.ProposalSignFact, error) {
 		return nil, errors.Errorf("hahaah")
 	}
 
@@ -90,7 +90,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestNextRoundMajorityButAlr
 	}
 
 	prch := make(chan util.Hash, 1)
-	st.args.ProposalProcessors.SetGetProposal(func(_ context.Context, facthash util.Hash) (base.ProposalSignFact, error) {
+	st.args.ProposalProcessors.SetGetProposal(func(_ context.Context, _ base.Point, facthash util.Hash) (base.ProposalSignFact, error) {
 		pr, err := t.PRPool.ByHash(facthash)
 		if err != nil {
 			return nil, err
@@ -101,7 +101,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestNextRoundMajorityButAlr
 		return pr, nil
 	})
 
-	st.args.ProposalSelectFunc = func(context.Context, base.Point, time.Duration) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(context.Context, base.Point, util.Hash, time.Duration) (base.ProposalSignFact, error) {
 		return nil, errors.Errorf("hahaah")
 	}
 
@@ -155,7 +155,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestNextRoundButAlreadyFini
 	}
 
 	prch := make(chan util.Hash, 1)
-	st.args.ProposalProcessors.SetGetProposal(func(_ context.Context, facthash util.Hash) (base.ProposalSignFact, error) {
+	st.args.ProposalProcessors.SetGetProposal(func(_ context.Context, _ base.Point, facthash util.Hash) (base.ProposalSignFact, error) {
 		pr, err := t.PRPool.ByHash(facthash)
 		if err != nil {
 			return nil, err
@@ -166,7 +166,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestNextRoundButAlreadyFini
 		return pr, nil
 	})
 
-	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ util.Hash, _ time.Duration) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -256,7 +256,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBeforePreviousBlock
 		return nil
 	})
 
-	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ util.Hash, _ time.Duration) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -347,7 +347,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBefore() {
 		return nil
 	})
 
-	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ util.Hash, _ time.Duration) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -460,7 +460,7 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawAndDrawAgain() {
 		return nil
 	})
 
-	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ util.Hash, _ time.Duration) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -564,7 +564,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestExpected() {
 	})
 
 	prpool := t.PRPool
-	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ util.Hash, _ time.Duration) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -637,7 +637,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestHigherHeight() {
 	})
 
 	prpool := t.PRPool
-	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ util.Hash, _ time.Duration) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -702,7 +702,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestPreviousBlockNotMatch
 		return nil
 	})
 
-	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ util.Hash, _ time.Duration) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -781,7 +781,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestNotInConsensusNodes()
 	}
 
 	prpool := t.PRPool
-	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ util.Hash, _ time.Duration) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -867,7 +867,7 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestProcessContextCancele
 	})
 
 	prpool := t.PRPool
-	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ util.Hash, _ time.Duration) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()

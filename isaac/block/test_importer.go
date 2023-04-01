@@ -248,7 +248,7 @@ func (t *BaseTestLocalBlockFS) PrepareFS(point base.Point, prev, prevSuffrage ut
 	t.NoError(err)
 
 	// NOTE set proposal
-	pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), ophs))
+	pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, t.Local.Address(), prev, ophs))
 	_ = pr.Sign(t.Local.Privatekey(), t.LocalParams.NetworkID())
 	t.NoError(fs.SetProposal(ctx, pr))
 

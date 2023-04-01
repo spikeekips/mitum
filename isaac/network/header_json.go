@@ -69,8 +69,9 @@ func (h *SendOperationRequestHeader) UnmarshalJSON(b []byte) error {
 }
 
 type requestProposalRequestHeaderJSONMarshaler struct {
-	Proposer base.Address `json:"proposer"`
-	Point    base.Point   `json:"point"`
+	PreviousBlock util.Hash    `json:"previous_block"`
+	Proposer      base.Address `json:"proposer"`
+	Point         base.Point   `json:"point"`
 }
 
 func (h RequestProposalRequestHeader) MarshalJSON() ([]byte, error) {
@@ -80,15 +81,17 @@ func (h RequestProposalRequestHeader) MarshalJSON() ([]byte, error) {
 	}{
 		BaseRequestHeader: h.BaseRequestHeader,
 		requestProposalRequestHeaderJSONMarshaler: requestProposalRequestHeaderJSONMarshaler{
-			Proposer: h.proposer,
-			Point:    h.point,
+			Proposer:      h.proposer,
+			Point:         h.point,
+			PreviousBlock: h.previousBlock,
 		},
 	})
 }
 
 type requestProposalRequestHeaderJSONUnmarshaler struct {
-	Proposer string     `json:"proposer"`
-	Point    base.Point `json:"point"`
+	PreviousBlock valuehash.HashDecoder `json:"previous_block"`
+	Proposer      string                `json:"proposer"`
+	Point         base.Point            `json:"point"`
 }
 
 func (h *RequestProposalRequestHeader) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
@@ -112,6 +115,7 @@ func (h *RequestProposalRequestHeader) DecodeJSON(b []byte, enc *jsonenc.Encoder
 	}
 
 	h.point = u.Point
+	h.previousBlock = u.PreviousBlock.Hash()
 
 	return nil
 }

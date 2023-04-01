@@ -299,7 +299,7 @@ func (t *testJoiningHandler) TestFirstVoteproof() {
 	}
 
 	prpool := t.PRPool
-	args.ProposalSelectFunc = func(_ context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
+	args.ProposalSelectFunc = func(_ context.Context, p base.Point, _ util.Hash, _ time.Duration) (base.ProposalSignFact, error) {
 		return prpool.Get(p), nil
 	}
 	args.WaitFirstVoteproof = 1

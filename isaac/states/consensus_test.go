@@ -85,11 +85,11 @@ func (t *baseTestConsensusHandler) newStateWithINITVoteproof(point base.Point, s
 	}
 
 	args.ProposalProcessors.SetMakeNew(pp.Make)
-	args.ProposalProcessors.SetGetProposal(func(_ context.Context, facthash util.Hash) (base.ProposalSignFact, error) {
+	args.ProposalProcessors.SetGetProposal(func(_ context.Context, _ base.Point, facthash util.Hash) (base.ProposalSignFact, error) {
 		return prpool.ByHash(facthash)
 	})
 
-	args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
+	args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ util.Hash, _ time.Duration) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -134,13 +134,13 @@ func (t *testConsensusHandler) TestFailedToFetchProposal() {
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
 	args := t.newargs(previous, suf)
-	args.ProposalProcessors = isaac.NewProposalProcessors(nil, func(context.Context, util.Hash) (base.ProposalSignFact, error) {
+	args.ProposalProcessors = isaac.NewProposalProcessors(nil, func(context.Context, base.Point, util.Hash) (base.ProposalSignFact, error) {
 		return nil, util.ErrNotFound.Call()
 	})
 	args.ProposalProcessors.SetRetryLimit(1).SetRetryInterval(1)
 
 	prpool := t.PRPool
-	args.ProposalSelectFunc = func(_ context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
+	args.ProposalSelectFunc = func(_ context.Context, p base.Point, _ util.Hash, _ time.Duration) (base.ProposalSignFact, error) {
 		return prpool.Get(p), nil
 	}
 
@@ -360,7 +360,7 @@ func (t *testConsensusHandler) TestEnterWithDrawINITVoteproof() {
 	defer closefunc()
 
 	prpool := t.PRPool
-	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ util.Hash, _ time.Duration) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -410,7 +410,7 @@ func (t *testConsensusHandler) TestEnterWithDrawACCEPTVoteproof() {
 	defer closefunc()
 
 	prpool := t.PRPool
-	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ util.Hash, _ time.Duration) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -463,7 +463,7 @@ func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailed() {
 	}
 
 	var i int
-	st.args.ProposalProcessors.SetGetProposal(func(_ context.Context, facthash util.Hash) (base.ProposalSignFact, error) {
+	st.args.ProposalProcessors.SetGetProposal(func(_ context.Context, _ base.Point, facthash util.Hash) (base.ProposalSignFact, error) {
 		if i < 1 {
 			i++
 			return nil, errors.Errorf("findme")
@@ -671,7 +671,7 @@ func (t *testConsensusHandler) TestWithBallotbox() {
 	}
 
 	prpool := t.PRPool
-	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ util.Hash, _ time.Duration) (base.ProposalSignFact, error) {
 		var pr base.ProposalSignFact
 
 		select {
@@ -765,7 +765,7 @@ func (t *testConsensusHandler) TestEmptySuffrageNextBlock() {
 	}
 
 	prpool := t.PRPool
-	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ util.Hash, _ time.Duration) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -839,7 +839,7 @@ func (t *testConsensusHandler) TestOutOfSuffrage() {
 		return nil
 	}
 
-	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ util.Hash, _ time.Duration) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()

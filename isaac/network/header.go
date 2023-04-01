@@ -84,16 +84,22 @@ func (h SendOperationRequestHeader) IsValid([]byte) error {
 }
 
 type RequestProposalRequestHeader struct {
-	proposer base.Address
+	previousBlock util.Hash
+	proposer      base.Address
 	baseHeader
 	point base.Point
 }
 
-func NewRequestProposalRequestHeader(point base.Point, proposer base.Address) RequestProposalRequestHeader {
+func NewRequestProposalRequestHeader(
+	point base.Point,
+	proposer base.Address,
+	previousBlock util.Hash,
+) RequestProposalRequestHeader {
 	return RequestProposalRequestHeader{
-		baseHeader: newBaseHeader(RequestProposalRequestHeaderHint),
-		point:      point,
-		proposer:   proposer,
+		baseHeader:    newBaseHeader(RequestProposalRequestHeaderHint),
+		point:         point,
+		proposer:      proposer,
+		previousBlock: previousBlock,
 	}
 }
 
@@ -104,7 +110,7 @@ func (h RequestProposalRequestHeader) IsValid([]byte) error {
 		return e.Wrap(err)
 	}
 
-	if err := util.CheckIsValiders(nil, false, h.point, h.proposer); err != nil {
+	if err := util.CheckIsValiders(nil, false, h.point, h.proposer, h.previousBlock); err != nil {
 		return e.Wrap(err)
 	}
 
@@ -117,6 +123,10 @@ func (h RequestProposalRequestHeader) Proposer() base.Address {
 
 func (h RequestProposalRequestHeader) Point() base.Point {
 	return h.point
+}
+
+func (h RequestProposalRequestHeader) PreviousBlock() util.Hash {
+	return h.previousBlock
 }
 
 type ProposalRequestHeader struct {

@@ -12,6 +12,7 @@ type ProposalFact interface {
 	Proposer() Address
 	Operations() []util.Hash // NOTE operation hash
 	ProposedAt() time.Time
+	PreviousBlock() util.Hash
 }
 
 type ProposalSignFact interface {
@@ -40,6 +41,18 @@ func IsValidProposalFact(fact ProposalFact) error {
 		}),
 	); err != nil {
 		return e(err, "")
+	}
+
+	switch h := fact.Point().Height(); {
+	case h == GenesisHeight && fact.PreviousBlock() != nil:
+		return util.ErrInvalid.Errorf("previous block should be nil for genesis proposal")
+	case h == GenesisHeight:
+	case fact.PreviousBlock() == nil:
+		return util.ErrInvalid.Errorf("nil previous block")
+	default:
+		if err := fact.PreviousBlock().IsValid(nil); err != nil {
+			return e(util.ErrInvalid.Wrapf(err, "invalid previous block"), "")
+		}
 	}
 
 	ops := fact.Operations()

@@ -42,26 +42,7 @@ func PProposalProcessors(pctx context.Context) (context.Context, error) {
 }
 
 func PProposerSelector(pctx context.Context) (context.Context, error) {
-	var db isaac.Database
-
-	if err := util.LoadFromContextOK(pctx,
-		CenterDatabaseContextKey, &db,
-	); err != nil {
-		return pctx, err
-	}
-
-	p := isaac.NewBlockBasedProposerSelector(
-		func(height base.Height) (util.Hash, error) {
-			switch m, found, err := db.BlockMap(height); {
-			case err != nil:
-				return nil, err
-			case !found:
-				return nil, nil
-			default:
-				return m.Manifest().Hash(), nil
-			}
-		},
-	)
+	p := isaac.NewBlockBasedProposerSelector()
 
 	/* FixedProposerSelector example,
 
@@ -142,7 +123,7 @@ func newProposalProcessorFunc(pctx context.Context) (
 }
 
 func getProposalFunc(pctx context.Context) (
-	func(context.Context, util.Hash) (base.ProposalSignFact, error),
+	func(context.Context, base.Point, util.Hash) (base.ProposalSignFact, error),
 	error,
 ) {
 	var params *isaac.LocalParams
@@ -159,7 +140,7 @@ func getProposalFunc(pctx context.Context) (
 		return nil, err
 	}
 
-	return func(ctx context.Context, facthash util.Hash) (base.ProposalSignFact, error) {
+	return func(ctx context.Context, point base.Point, facthash util.Hash) (base.ProposalSignFact, error) {
 		switch pr, found, err := pool.Proposal(facthash); {
 		case err != nil:
 			return nil, err
@@ -183,16 +164,29 @@ func getProposalFunc(pctx context.Context) (
 					cctx, cancel := context.WithTimeout(ctx, params.TimeoutRequest())
 					defer cancel()
 
-					switch pr, found, err := client.Proposal(cctx, ci, facthash); {
+					var pr base.ProposalSignFact
+
+					switch i, found, err := client.Proposal(cctx, ci, facthash); {
 					case err != nil || !found:
+						return nil
+					default:
+						if err := i.IsValid(params.NetworkID()); err != nil {
+							return err
+						}
+
+						pr = i
+					}
+
+					switch {
+					case !point.Equal(pr.Point()):
 						return nil
 					case !facthash.Equal(pr.Fact().Hash()):
 						return nil
-					default:
-						_, _ = prl.GetOrCreate(func() (base.ProposalSignFact, error) {
-							return pr, nil
-						})
 					}
+
+					_, _ = prl.GetOrCreate(func() (base.ProposalSignFact, error) {
+						return pr, nil
+					})
 
 					return errors.Errorf("stop")
 				}) == nil
@@ -209,6 +203,8 @@ func getProposalFunc(pctx context.Context) (
 
 			return nil, storage.ErrNotFound.Errorf("ProposalSignFact not found")
 		default:
+			_, _ = pool.SetProposal(i)
+
 			return i, nil
 		}
 	}, nil
@@ -564,6 +560,7 @@ func requestFuncOfBaseProposalSelectorArgs(pctx context.Context, args *isaac.Bas
 		ctx context.Context,
 		point base.Point,
 		proposer base.Node,
+		previousBlock util.Hash,
 	) (base.ProposalSignFact, bool, error) {
 		members, err := quicmemberlist.RandomAliveMembers(
 			memberlist,
@@ -605,6 +602,7 @@ func requestFuncOfBaseProposalSelectorArgs(pctx context.Context, args *isaac.Bas
 			nctx,
 			point,
 			proposer,
+			previousBlock,
 			client,
 			cis,
 			params.NetworkID(),

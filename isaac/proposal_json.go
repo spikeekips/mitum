@@ -13,16 +13,18 @@ import (
 )
 
 type proposalFactJSONMarshaler struct {
-	ProposedAt localtime.Time `json:"proposed_at"`
-	Proposer   base.Address   `json:"proposer"`
-	Operations []util.Hash    `json:"operations"`
+	ProposedAt    localtime.Time `json:"proposed_at"`
+	Proposer      base.Address   `json:"proposer"`
+	PreviousBlock util.Hash      `json:"previous_block"`
+	Operations    []util.Hash    `json:"operations"`
 	base.BaseFactJSONMarshaler
 	Point base.Point `json:"point"`
 }
 
 type proposalFactJSONUnmarshaler struct {
-	ProposedAt localtime.Time `json:"proposed_at"`
-	Proposer   string         `json:"proposer"`
+	ProposedAt    localtime.Time        `json:"proposed_at"`
+	Proposer      string                `json:"proposer"`
+	PreviousBlock valuehash.HashDecoder `json:"previous_block"`
 	base.BaseFactJSONUnmarshaler
 	Operations []valuehash.HashDecoder `json:"operations"`
 	Point      base.Point              `json:"point"`
@@ -35,6 +37,7 @@ func (fact ProposalFact) MarshalJSON() ([]byte, error) {
 		Proposer:              fact.proposer,
 		Operations:            fact.operations,
 		ProposedAt:            localtime.New(fact.proposedAt),
+		PreviousBlock:         fact.previousBlock,
 	})
 }
 
@@ -64,6 +67,7 @@ func (fact *ProposalFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 
 	fact.operations = hs
 	fact.proposedAt = u.ProposedAt.Time
+	fact.previousBlock = u.PreviousBlock.Hash()
 
 	return nil
 }

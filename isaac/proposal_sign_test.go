@@ -27,6 +27,7 @@ func (t *testProposalSignFact) signfact() ProposalSignFact {
 	fact := NewProposalFact(
 		base.RawPoint(33, 44),
 		base.RandomAddress("pr"),
+		valuehash.RandomSHA256(),
 		[]util.Hash{valuehash.RandomSHA256()},
 	)
 
@@ -62,6 +63,7 @@ func (t *testProposalSignFact) TestWrongFact() {
 	sf.fact = NewProposalFact(
 		base.RawPoint(33, 44),
 		base.RandomAddress("pr"),
+		valuehash.RandomSHA256(),
 		[]util.Hash{valuehash.RandomSHA256()},
 	)
 
@@ -89,6 +91,7 @@ func TestProposalSignFactJSON(tt *testing.T) {
 
 		fact := NewProposalFact(base.RawPoint(33, 44),
 			base.RandomAddress("pr"),
+			valuehash.RandomSHA256(),
 			[]util.Hash{valuehash.RandomSHA256()},
 		)
 		sf := NewProposalSignFact(

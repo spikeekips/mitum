@@ -17,20 +17,27 @@ var (
 )
 
 type ProposalFact struct {
-	proposedAt time.Time
-	proposer   base.Address
-	operations []util.Hash
+	proposedAt    time.Time
+	proposer      base.Address
+	operations    []util.Hash
+	previousBlock util.Hash
 	base.BaseFact
 	point base.Point
 }
 
-func NewProposalFact(point base.Point, proposer base.Address, operations []util.Hash) ProposalFact {
+func NewProposalFact(
+	point base.Point,
+	proposer base.Address,
+	previousBlock util.Hash,
+	operations []util.Hash,
+) ProposalFact {
 	fact := ProposalFact{
-		BaseFact:   base.NewBaseFact(ProposalFactHint, base.Token(util.ConcatByters(ProposalFactHint, point))),
-		point:      point,
-		proposer:   proposer,
-		operations: operations,
-		proposedAt: localtime.Now().UTC(),
+		BaseFact:      base.NewBaseFact(ProposalFactHint, base.Token(util.ConcatByters(ProposalFactHint, point))),
+		point:         point,
+		proposer:      proposer,
+		operations:    operations,
+		previousBlock: previousBlock,
+		proposedAt:    localtime.Now().UTC(),
 	}
 
 	fact.SetHash(fact.generateHash())
@@ -54,6 +61,10 @@ func (fact ProposalFact) ProposedAt() time.Time {
 	return fact.proposedAt
 }
 
+func (fact ProposalFact) PreviousBlock() util.Hash {
+	return fact.previousBlock
+}
+
 func (fact ProposalFact) IsValid([]byte) error {
 	e := util.ErrInvalid.Errorf("invalid ProposalFact")
 
@@ -73,11 +84,12 @@ func (fact ProposalFact) IsValid([]byte) error {
 }
 
 func (fact ProposalFact) generateHash() util.Hash {
-	bs := make([]util.Byter, len(fact.operations)+4)
+	bs := make([]util.Byter, len(fact.operations)+5)
 	bs[0] = util.BytesToByter(fact.Token())
 	bs[1] = fact.point
 	bs[2] = fact.proposer
-	bs[3] = localtime.New(fact.proposedAt)
+	bs[3] = fact.previousBlock
+	bs[4] = localtime.New(fact.proposedAt)
 
 	for i := range fact.operations {
 		bs[i+3] = fact.operations[i]

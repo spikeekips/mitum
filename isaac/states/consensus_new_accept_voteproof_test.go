@@ -337,7 +337,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestDrawFailedProposalSel
 		return manifest, nil
 	}
 
-	st.args.ProposalSelectFunc = func(context.Context, base.Point, time.Duration) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(context.Context, base.Point, util.Hash, time.Duration) (base.ProposalSignFact, error) {
 		return nil, errors.Errorf("hahaha")
 	}
 
@@ -615,7 +615,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndHigherHeight
 	_ = t.PRPool.Get(point.NextRound())
 
 	nextprch := make(chan base.Point, 1)
-	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ util.Hash, _ time.Duration) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -680,7 +680,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndHigherRound(
 	_ = t.PRPool.Get(point.NextRound())
 
 	nextprch := make(chan base.Point, 1)
-	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ util.Hash, _ time.Duration) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -746,7 +746,7 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestDrawAndDrawAgain() 
 	nextpr := t.PRPool.Get(point.NextRound().NextRound())
 
 	newprch := make(chan base.Point, 1)
-	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ time.Duration) (base.ProposalSignFact, error) {
+	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ util.Hash, _ time.Duration) (base.ProposalSignFact, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
