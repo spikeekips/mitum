@@ -11,6 +11,7 @@ import (
 	"github.com/spikeekips/mitum/storage"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/localtime"
+	"github.com/spikeekips/mitum/util/valuehash"
 )
 
 type ConsensusHandlerArgs struct {
@@ -739,9 +740,9 @@ func (st *ConsensusHandler) wrongACCEPTBallot(_ context.Context, ivp base.INITVo
 		ivp.Point().Height(),
 		ivp.BallotMajority().PreviousBlock(),
 		ivp.BallotMajority().Proposal(),
-		nil,
-		nil,
-		nil,
+		valuehash.RandomSHA256(),
+		valuehash.RandomSHA256(),
+		valuehash.RandomSHA256(),
 		localtime.Now(),
 	)
 
