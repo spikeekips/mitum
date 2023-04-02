@@ -468,6 +468,50 @@ func (c *BaseClient) SendBallots(
 	}
 }
 
+func (c *BaseClient) SetAllowConsensus(
+	ctx context.Context, ci quicstream.UDPConnInfo,
+	priv base.Privatekey, networkID base.NetworkID, allow bool,
+) (bool, error) {
+	header := NewSetAllowConsensusHeader(allow)
+	if err := header.IsValid(nil); err != nil {
+		return false, err
+	}
+
+	broker, err := c.HeaderClient.Broker(ctx, ci)
+	if err != nil {
+		return false, err
+	}
+
+	if err := broker.WriteRequestHead(ctx, header); err != nil {
+		return false, err
+	}
+
+	switch input, err := util.ReadLengthed(broker.Reader); {
+	case err != nil:
+		return false, errors.WithMessage(err, "signature input")
+	case len(input) < 1:
+		return false, errors.Errorf("empty signature input")
+	default:
+		switch sig, err := priv.Sign(util.ConcatBytesSlice(networkID, input)); {
+		case err != nil:
+			return false, errors.WithMessage(err, "sign input")
+		default:
+			if err := util.WriteLengthed(broker.Writer, sig); err != nil {
+				return false, errors.WithMessage(err, "write signature")
+			}
+		}
+	}
+
+	switch _, rh, err := broker.ReadResponseHead(ctx); {
+	case err != nil:
+		return false, errors.WithMessage(err, "response")
+	case rh.Err() != nil:
+		return false, errors.WithMessage(rh.Err(), "response")
+	default:
+		return rh.OK(), nil
+	}
+}
+
 func (c *BaseClient) requestProposal(
 	ctx context.Context,
 	ci quicstream.UDPConnInfo,

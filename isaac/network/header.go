@@ -555,7 +555,7 @@ func headerPrefixByHint(ht hint.Hint) []byte {
 	case SendBallotsHeaderHint.Type():
 		return HandlerPrefixSendBallots
 	case SetAllowConsensusHeaderHint.Type():
-		return HandlerPrefixAllowConsensus
+		return HandlerPrefixSetAllowConsensus
 	default:
 		return nil
 	}

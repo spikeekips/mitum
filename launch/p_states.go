@@ -341,11 +341,15 @@ func PStatesSetHandlers(pctx context.Context) (context.Context, error) { //reviv
 
 func PStatesNetworkHandlers(pctx context.Context) (context.Context, error) {
 	var encs *encoder.Encoders
+	var local base.LocalNode
+	var params *isaac.LocalParams
 	var handlers *quicstream.PrefixHandler
 	var states *isaacstates.States
 
 	if err := util.LoadFromContext(pctx,
 		EncodersContextKey, &encs,
+		LocalContextKey, &local,
+		LocalParamsContextKey, &params,
 		QuicstreamHandlersContextKey, &handlers,
 		StatesContextKey, &states,
 	); err != nil {
@@ -353,10 +357,16 @@ func PStatesNetworkHandlers(pctx context.Context) (context.Context, error) {
 	}
 
 	handlers.
-		Add(isaacnetwork.HandlerPrefixAllowConsensus,
-			quicstream.NewHeaderHandler(encs, 0, isaacnetwork.QuicstreamHandlerAllowConsensus(
-				states.SetAllowConsensus,
-			)))
+		Add(isaacnetwork.HandlerPrefixSetAllowConsensus,
+			quicstream.NewHeaderHandler(encs,
+				time.Second*2, //nolint:gomnd //...
+				isaacnetwork.QuicstreamHandlerSetAllowConsensus(
+					local.Publickey(),
+					params.NetworkID(),
+					states.SetAllowConsensus,
+				),
+			),
+		)
 
 	return pctx, nil
 }

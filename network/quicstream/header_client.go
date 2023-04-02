@@ -46,8 +46,8 @@ func (c *HeaderClient) Broker(ctx context.Context, ci UDPConnInfo) (*HeaderClien
 type HeaderClientBroker struct {
 	Encoders  *encoder.Encoders
 	Encoder   encoder.Encoder
-	r         io.Reader
-	w         io.WriteCloser
+	Reader    io.Reader
+	Writer    io.WriteCloser
 	closeonce sync.Once
 }
 
@@ -57,12 +57,12 @@ func NewHeaderClientBroker(
 	r io.Reader,
 	w io.WriteCloser,
 ) *HeaderClientBroker {
-	return &HeaderClientBroker{Encoders: encs, Encoder: enc, r: r, w: w}
+	return &HeaderClientBroker{Encoders: encs, Encoder: enc, Reader: r, Writer: w}
 }
 
 func (h *HeaderClientBroker) Close() error {
 	h.closeonce.Do(func() {
-		_ = h.w.Close()
+		_ = h.Writer.Close()
 	})
 
 	return nil
@@ -74,13 +74,13 @@ func (h *HeaderClientBroker) WriteRequestHead(ctx context.Context, header Reques
 	}
 
 	return h.closeByContextError(
-		HeaderWriteRequestHead(ctx, h.w, header.Handler(), h.Encoder, header),
+		HeaderWriteRequestHead(ctx, h.Writer, header.Handler(), h.Encoder, header),
 	)
 }
 
 func (h *HeaderClientBroker) WriteHead(ctx context.Context, header Header) error {
 	return h.closeByContextError(
-		HeaderWriteHead(ctx, h.w, h.Encoder, header),
+		HeaderWriteHead(ctx, h.Writer, h.Encoder, header),
 	)
 }
 
@@ -125,7 +125,7 @@ func (h *HeaderClientBroker) ReadResponseHead(ctx context.Context) (
 }
 
 func (h *HeaderClientBroker) ReadHead(ctx context.Context) (encoder.Encoder, Header, error) {
-	enc, header, err := HeaderReadHead(ctx, h.r, h.Encoders)
+	enc, header, err := HeaderReadHead(ctx, h.Reader, h.Encoders)
 
 	return enc, header, h.closeByContextError(err)
 }
@@ -133,12 +133,12 @@ func (h *HeaderClientBroker) ReadHead(ctx context.Context) (encoder.Encoder, Hea
 func (h *HeaderClientBroker) WriteBody(
 	ctx context.Context, dataFormat HeaderDataFormat, bodyLength uint64, r io.Reader,
 ) error {
-	if err := HeaderWriteBody(ctx, h.w, dataFormat, bodyLength, r); err != nil {
+	if err := HeaderWriteBody(ctx, h.Writer, dataFormat, bodyLength, r); err != nil {
 		return h.closeByContextError(err)
 	}
 
 	if dataFormat == StreamDataFormat {
-		_ = h.w.Close()
+		_ = h.Writer.Close()
 	}
 
 	return nil
@@ -150,7 +150,7 @@ func (h *HeaderClientBroker) ReadBody(ctx context.Context) (
 	io.Reader, // NOTE response data body
 	error,
 ) {
-	dataFormat, bodyLength, r, err := HeaderReadBody(ctx, h.r)
+	dataFormat, bodyLength, r, err := HeaderReadBody(ctx, h.Reader)
 
 	return dataFormat, bodyLength, r, h.closeByContextError(err)
 }

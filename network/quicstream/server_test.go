@@ -1,7 +1,6 @@
 package quicstream
 
 import (
-	"bufio"
 	"bytes"
 	"container/list"
 	"context"
@@ -395,119 +394,6 @@ end:
 
 	t.Equal(bodies, sbodies)
 	t.Equal(bodies, cbodies)
-}
-
-func (t *testServer) TestStreamReadWrite() {
-	bodies := make([][]byte, 6)
-	for i := range bodies {
-		bodies[i] = []byte(util.UUID().String())
-	}
-
-	var nextlock sync.Mutex
-	next := func(b []byte) ([]byte, error) {
-		nextlock.Lock()
-		defer nextlock.Unlock()
-
-		if b == nil {
-			return bodies[0], nil
-		}
-
-		for i := range bodies {
-			if bytes.Equal(b, bodies[i]) {
-				if i == len(bodies)-1 {
-					return nil, io.EOF
-				}
-
-				return bodies[i+1], nil
-			}
-		}
-
-		return nil, io.EOF
-	}
-
-	var receiveds [][]byte
-	var receivedlock sync.Mutex
-	receivedf := func(b []byte) {
-		receivedlock.Lock()
-		defer receivedlock.Unlock()
-
-		receiveds = append(receiveds, b)
-	}
-
-	srv, err := NewServer(t.Bind, t.TLSConfig, nil, func(_ net.Addr, r io.Reader, w io.Writer) error {
-		buf := bufio.NewReader(r)
-
-	end:
-		for {
-			b, err := buf.ReadBytes('\n')
-			if len(b) > 0 {
-				r := b[:len(b)-1]
-				receivedf(r)
-
-				n, nerr := next(r)
-				if nerr == io.EOF {
-					break end
-				}
-
-				_, _ = w.Write(append(n, '\n'))
-			}
-
-			switch {
-			case err == nil:
-			case errors.Is(err, io.EOF):
-				break end
-			default:
-				return err
-			}
-		}
-
-		return nil
-	})
-	t.NoError(err)
-
-	t.NoError(srv.Start(context.Background()))
-	defer srv.Stop()
-
-	client := t.NewClient(t.Bind)
-
-	ctx, ctxcancel := context.WithTimeout(context.Background(), time.Second)
-	defer ctxcancel()
-
-	stream, cancel, err := client.Stream(ctx)
-	t.NoError(err)
-
-	defer cancel()
-
-	b, _ := next(nil)
-	_, _ = stream.Write(append(b, '\n'))
-
-	buf := bufio.NewReader(stream)
-
-end:
-	for {
-		b, err := buf.ReadBytes('\n')
-		if len(b) > 0 {
-			r := b[:len(b)-1]
-			receivedf(r)
-
-			n, nerr := next(r)
-			if nerr == io.EOF {
-				break end
-			}
-
-			_, _ = stream.Write(append(n, '\n'))
-		}
-
-		switch {
-		case err == nil:
-		case errors.Is(err, io.EOF):
-			break end
-		default:
-			t.NoError(err)
-		}
-	}
-
-	t.Equal(bodies, receiveds)
 }
 
 func TestServer(t *testing.T) {

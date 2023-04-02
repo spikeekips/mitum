@@ -37,7 +37,7 @@ var (
 	HandlerPrefixExistsInStateOperationString = "exists_instate_operation"
 	HandlerPrefixNodeInfoString               = "node_info"
 	HandlerPrefixSendBallotsString            = "send_ballots"
-	HandlerPrefixAllowConsensusString         = "allow_consensus"
+	HandlerPrefixSetAllowConsensusString      = "set_allow_consensus"
 
 	HandlerPrefixRequestProposal        []byte = quicstream.HashPrefix(HandlerPrefixRequestProposalString)
 	HandlerPrefixProposal                      = quicstream.HashPrefix(HandlerPrefixProposalString)
@@ -56,7 +56,7 @@ var (
 	HandlerPrefixExistsInStateOperation        = quicstream.HashPrefix(HandlerPrefixExistsInStateOperationString)
 	HandlerPrefixNodeInfo                      = quicstream.HashPrefix(HandlerPrefixNodeInfoString)
 	HandlerPrefixSendBallots                   = quicstream.HashPrefix(HandlerPrefixSendBallotsString)
-	HandlerPrefixAllowConsensus                = quicstream.HashPrefix(HandlerPrefixAllowConsensusString)
+	HandlerPrefixSetAllowConsensus             = quicstream.HashPrefix(HandlerPrefixSetAllowConsensusString)
 )
 
 func QuicstreamErrorHandler(enc encoder.Encoder, requestTimeoutf func() time.Duration) quicstream.ErrorHandler {
@@ -674,18 +674,36 @@ func QuicstreamHandlerSendBallots(
 	}
 }
 
-func QuicstreamHandlerAllowConsensus(
+func QuicstreamHandlerSetAllowConsensus(
+	pub base.Publickey,
+	networkID base.NetworkID,
 	setf func(allow bool) (isset bool),
 ) quicstream.HeaderHandler {
-	return func(_ net.Addr, r io.Reader, w io.Writer,
-		h quicstream.Header, _ *encoder.Encoders, enc encoder.Encoder,
-	) error {
-		header := h.(SetAllowConsensusHeader) //nolint:forcetypeassert //...
-		isset := setf(header.Allow())
+	return func(ctx context.Context, _ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
+		header := detail.Header.(SetAllowConsensusHeader) //nolint:forcetypeassert //...
 
-		return quicstream.WriteResponseEncode(w,
-			quicstream.NewDefaultResponseHeader(isset, nil, quicstream.RawContentType),
-			enc, nil)
+		input := util.UUID().Bytes()
+		if err := util.WriteLengthed(w, input); err != nil {
+			return err
+		}
+
+		switch b, err := util.ReadLengthed(r); {
+		case err != nil:
+			return errors.WithMessage(err, "signature")
+		case len(b) < 1:
+			return errors.Errorf("empty signature")
+		default:
+			if err := pub.Verify(util.ConcatBytesSlice(networkID, input), base.Signature(b)); err != nil {
+				return errors.WithMessage(err, "verify")
+			}
+		}
+
+		return WriteResponseStreamEncode(ctx,
+			detail.Encoder,
+			w,
+			quicstream.NewDefaultResponseHeader(setf(header.Allow()), nil),
+			nil,
+		)
 	}
 }
 

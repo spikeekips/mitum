@@ -146,34 +146,6 @@ func (c *Client) dial(ctx context.Context) (quic.EarlyConnection, error) {
 	}
 }
 
-func (c *Client) stream(ctx context.Context) (quic.Stream, func() error, error) {
-	e := util.StringErrorFunc("stream")
-
-	cctx, cancel := context.WithCancel(ctx)
-
-	session, err := c.dial(cctx)
-	if err != nil {
-		cancel()
-
-		return nil, nil, e(err, "")
-	}
-
-	stream, err := session.OpenStreamSync(cctx)
-	if err != nil {
-		cancel()
-
-		return nil, nil, e(err, "open stream")
-	}
-
-	return stream, func() error {
-		defer cancel()
-
-		stream.CancelRead(0)
-
-		return errors.WithStack(stream.Close())
-	}, nil
-}
-
 func dial(
 	ctx context.Context,
 	addr string,

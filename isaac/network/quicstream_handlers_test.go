@@ -1212,37 +1212,121 @@ func (t *testQuicstreamHandlers) TestSendBallots() {
 
 func (t *testQuicstreamHandlers) TestSetAllowConsensus() {
 	t.Run("set", func() {
-		handler := QuicstreamHandlerAllowConsensus(func(allow bool) bool {
-			return true
-		})
+		setch := make(chan bool, 1)
+
+		handler := QuicstreamHandlerSetAllowConsensus(
+			t.Local.Publickey(),
+			t.LocalParams.NetworkID(),
+			func(allow bool) bool {
+				setch <- allow
+
+				return true
+			},
+		)
 
 		ci := quicstream.NewUDPConnInfo(nil, true)
-		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixAllowConsensus, handler))
+		openstreamf, handlercancel := t.openstreamf(HandlerPrefixSetAllowConsensus, handler)
+		defer handlercancel()
 
-		header := NewSetAllowConsensusHeader(true)
+		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
 
-		response, _, _, _, err := c.Request(context.Background(), ci, header, nil)
+		isset, err := c.SetAllowConsensus(context.Background(), ci,
+			t.Local.Privatekey(),
+			t.LocalParams.NetworkID(),
+			true,
+		)
 		t.NoError(err)
+		t.True(isset)
 
-		t.NoError(response.Err())
-		t.True(response.OK())
+		select {
+		case <-time.After(time.Second):
+			t.NoError(errors.Errorf("not set"))
+		case allow := <-setch:
+			t.True(allow)
+		}
 	})
 
 	t.Run("not set", func() {
-		handler := QuicstreamHandlerAllowConsensus(func(allow bool) bool {
-			return false
-		})
+		setch := make(chan bool, 1)
+
+		handler := QuicstreamHandlerSetAllowConsensus(
+			t.Local.Publickey(),
+			t.LocalParams.NetworkID(),
+			func(allow bool) bool {
+				setch <- allow
+
+				return false
+			},
+		)
 
 		ci := quicstream.NewUDPConnInfo(nil, true)
-		c := NewBaseClient(t.Encs, t.Enc, t.writef(HandlerPrefixAllowConsensus, handler))
+		openstreamf, handlercancel := t.openstreamf(HandlerPrefixSetAllowConsensus, handler)
+		defer handlercancel()
 
-		header := NewSetAllowConsensusHeader(true)
+		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
 
-		response, _, _, _, err := c.Request(context.Background(), ci, header, nil)
+		isset, err := c.SetAllowConsensus(context.Background(), ci,
+			t.Local.Privatekey(),
+			t.LocalParams.NetworkID(),
+			true,
+		)
 		t.NoError(err)
+		t.False(isset)
 
-		t.NoError(response.Err())
-		t.False(response.OK())
+		select {
+		case <-time.After(time.Second):
+			t.NoError(errors.Errorf("not set"))
+		case allow := <-setch:
+			t.True(allow)
+		}
+	})
+
+	t.Run("wrong key", func() {
+		handler := QuicstreamHandlerSetAllowConsensus(
+			t.Local.Publickey(),
+			t.LocalParams.NetworkID(),
+			func(allow bool) bool {
+				return true
+			},
+		)
+
+		ci := quicstream.NewUDPConnInfo(nil, true)
+		openstreamf, handlercancel := t.openstreamf(HandlerPrefixSetAllowConsensus, handler)
+		defer handlercancel()
+
+		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+
+		_, err := c.SetAllowConsensus(context.Background(), ci,
+			base.NewMPrivatekey(),
+			t.LocalParams.NetworkID(),
+			true,
+		)
+		t.Error(err)
+		t.ErrorContains(err, "signature verification failed")
+	})
+
+	t.Run("wrong networkID", func() {
+		handler := QuicstreamHandlerSetAllowConsensus(
+			t.Local.Publickey(),
+			t.LocalParams.NetworkID(),
+			func(allow bool) bool {
+				return true
+			},
+		)
+
+		ci := quicstream.NewUDPConnInfo(nil, true)
+		openstreamf, handlercancel := t.openstreamf(HandlerPrefixSetAllowConsensus, handler)
+		defer handlercancel()
+
+		c := NewBaseClient(t.Encs, t.Enc, openstreamf)
+
+		_, err := c.SetAllowConsensus(context.Background(), ci,
+			t.Local.Privatekey(),
+			util.UUID().Bytes(),
+			true,
+		)
+		t.Error(err)
+		t.ErrorContains(err, "signature verification failed")
 	})
 }
 

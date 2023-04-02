@@ -687,6 +687,8 @@ func (st *States) SetAllowConsensus(i bool) bool { // revive:disable-line:flag-p
 		switch current := st.current(); {
 		case current == nil:
 		case current.state() == StateJoining, current.state() == StateConsensus:
+			st.Log().Debug().Stringer("current", current.state()).Msg("set not allow consensus")
+
 			_ = st.AskMoveState(newSyncingSwitchContext(current.state(), base.GenesisHeight))
 		}
 	}
