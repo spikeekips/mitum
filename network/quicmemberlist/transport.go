@@ -316,13 +316,13 @@ func (t *Transport) QuicstreamHandler(addr net.Addr, r io.Reader, _ io.Writer) e
 
 	b, err := io.ReadAll(r)
 	if err != nil {
-		l.Error().Err(err).Msg("failed to read")
+		l.Trace().Err(err).Msg("failed to read")
 
 		return errors.WithStack(err)
 	}
 
 	if err := t.receiveRaw(id, b, addr); err != nil {
-		l.Error().Err(err).Msg("invalid message received")
+		l.Trace().Err(err).Msg("invalid message received")
 
 		return err
 	}
