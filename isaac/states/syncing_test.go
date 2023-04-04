@@ -143,6 +143,35 @@ func (t *testSyncingHandler) TestExit() {
 		t.Error(err)
 		t.True(errors.Is(err, ErrIgnoreSwitchingState))
 	})
+
+	t.Run("leave memberlist; not allowed consensus", func() {
+		st, closef := t.newState(nil)
+		defer closef(false)
+
+		leftch := make(chan struct{}, 1)
+		st.args.LeaveMemberlistFunc = func(time.Duration) error {
+			leftch <- struct{}{}
+
+			return nil
+		}
+
+		st.setAllowConsensus(false)
+		deferredenter, err := st.enter(StateJoining, newSyncingSwitchContext(StateJoining, base.Height(33)))
+		t.NoError(err)
+		deferredenter()
+
+		t.NoError(st.syncer.(*dummySyncer).Cancel())
+
+		deferredexit, err := st.exit(nil)
+		t.NoError(err)
+		deferredexit()
+
+		select {
+		case <-time.After(time.Second * 1):
+			t.NoError(errors.Errorf("failed to wait to leave memberlist"))
+		case <-leftch:
+		}
+	})
 }
 
 func (t *testSyncingHandler) TestNewHigherVoteproof() {

@@ -143,6 +143,10 @@ func (st *SyncingHandler) enter(from StateType, i switchContext) (func(), error)
 		if lvp := st.lastVoteproofs().Cap(); lvp != nil {
 			st.newStuckWait(lvp)
 		}
+
+		if !st.allowConsensus() {
+			st.whenNotAllowedConsensus()
+		}
 	}, nil
 }
 
@@ -224,7 +228,10 @@ func (st *SyncingHandler) checkFinished(vp base.Voteproof) (notstuck bool, _ err
 		go st.args.WhenNewBlockSavedFunc(top)
 	}
 
-	if allowConsensus {
+	switch {
+	case !allowConsensus:
+		st.whenNotAllowedConsensus()
+	default:
 		return st.checkFinishedAllowConsensus(vp)
 	}
 
@@ -435,6 +442,15 @@ func (st *SyncingHandler) checkAndJoinMemberlist(height base.Height) (joined boo
 	}
 
 	return true, nil
+}
+
+func (st *SyncingHandler) whenNotAllowedConsensus() {
+	switch err := st.args.LeaveMemberlistFunc(time.Second); {
+	case err != nil:
+		st.Log().Error().Err(err).Msg("not allowed consensus; failed to leave memberilst; ignored")
+	default:
+		st.Log().Debug().Msg("left memberlist; not allowed consensus")
+	}
 }
 
 type SyncingSwitchContext struct { //nolint:errname //...
