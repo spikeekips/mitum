@@ -208,6 +208,8 @@ func (srv *Memberlist) Join(cis []quicstream.UDPConnInfo) error {
 }
 
 func (srv *Memberlist) Leave(timeout time.Duration) error {
+	var notleft bool
+
 	err := func() error {
 		srv.l.Lock()
 		defer srv.l.Unlock()
@@ -215,6 +217,8 @@ func (srv *Memberlist) Leave(timeout time.Duration) error {
 		if srv.m == nil {
 			return nil
 		}
+
+		notleft = true
 
 		srv.members.Empty()
 
@@ -231,7 +235,15 @@ func (srv *Memberlist) Leave(timeout time.Duration) error {
 		return nil
 	}()
 
-	srv.whenLeft(srv.local)
+	if notleft {
+		srv.whenLeft(srv.local)
+
+		srv.Log().Debug().
+			Bool("is_joined", srv.IsJoined()).
+			Interface("member", srv.local).
+			Bool("is_local", true).
+			Msg("member left")
+	}
 
 	return err
 }
@@ -699,9 +711,9 @@ func (srv *Memberlist) whenJoined(member Member) {
 		srv.delegate.resetBroadcastQueue()
 	}
 
-	srv.members.Set(member)
-
-	srv.Log().Debug().Bool("is_joined", srv.isJoined).Interface("member", member).Msg("member joined")
+	if srv.members.Set(member) {
+		srv.Log().Debug().Bool("is_joined", srv.isJoined).Interface("member", member).Msg("member joined")
+	}
 }
 
 func (srv *Memberlist) whenLeft(member Member) {
@@ -723,7 +735,9 @@ func (srv *Memberlist) whenLeft(member Member) {
 			srv.delegate.resetBroadcastQueue()
 		}
 
-		srv.Log().Debug().Bool("is_joined", srv.isJoined).Interface("member", member).Msg("member left")
+		if removed {
+			srv.Log().Debug().Bool("is_joined", srv.isJoined).Interface("member", member).Msg("member left")
+		}
 
 		return removed
 	}() {
@@ -1047,12 +1061,11 @@ func (m *membersPool) MembersLen(node base.Address) int {
 	}
 }
 
-func (m *membersPool) Set(member Member) bool {
-	var found bool
+func (m *membersPool) Set(member Member) (added bool) {
 	_, _ = m.addrs.Set(memberid(member.UDPAddr()), func(_ Member, addrfound bool) (Member, error) {
 		var members []Member
 
-		found = addrfound
+		added = !addrfound
 
 		switch i, f := m.members.Value(member.Address().String()); {
 		case !f, i == nil:
@@ -1066,7 +1079,7 @@ func (m *membersPool) Set(member Member) bool {
 		return member, nil
 	})
 
-	return found
+	return added
 }
 
 func (m *membersPool) Remove(k *net.UDPAddr) (bool, error) {

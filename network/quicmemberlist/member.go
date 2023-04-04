@@ -7,7 +7,6 @@ import (
 
 	"github.com/hashicorp/memberlist"
 	"github.com/pkg/errors"
-	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/network/quicstream"
@@ -172,22 +171,15 @@ func (n BaseMember) HashBytes() []byte {
 	return util.ConcatByters(n.meta.address, n.meta.publickey)
 }
 
-func (n BaseMember) MarshalZerologObject(e *zerolog.Event) {
-	e.
-		Str("name", n.name).
-		Stringer("node", n.meta.address).
-		Stringer("address", n.addr).
-		Bool("tls_insecure", n.meta.tlsinsecure).
-		Time("joined_at", n.joinedAt)
+type baseMemberJSONMarshaler struct {
+	Name     string          `json:"name"`
+	Address  string          `json:"address"`
+	JoinedAt time.Time       `json:"joined_at"`
+	Meta     json.RawMessage `json:"meta"`
 }
 
 func (n BaseMember) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(struct {
-		Name     string
-		Address  string
-		JoinedAt time.Time `json:"joined_at"`
-		Meta     json.RawMessage
-	}{
+	return util.MarshalJSON(baseMemberJSONMarshaler{
 		Name:     n.name,
 		Address:  n.addr.String(),
 		JoinedAt: n.joinedAt,
@@ -196,14 +188,9 @@ func (n BaseMember) MarshalJSON() ([]byte, error) {
 }
 
 func (n *BaseMember) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	var u struct {
-		Name     string
-		Address  string
-		JoinedAt time.Time `json:"joined_at"`
-		Meta     json.RawMessage
-	}
-
 	e := util.StringErrorFunc("decode Member")
+
+	var u baseMemberJSONMarshaler
 	if err := json.Unmarshal(b, &u); err != nil {
 		return e(err, "")
 	}

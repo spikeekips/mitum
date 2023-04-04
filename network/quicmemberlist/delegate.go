@@ -158,7 +158,7 @@ func (d *AliveDelegate) NotifyAlive(peer *memberlist.Node) error {
 		_ = d.challengecache.SetWithExpire(memberkey, time.Now(), d.challengeexpire)
 	}
 
-	l := d.Log().With().Object("member", member).Logger()
+	l := d.Log().With().Interface("member", member).Logger()
 
 	if err := d.allowf(member); err != nil {
 		l.Trace().Err(err).Msg("not allowed")
@@ -213,7 +213,7 @@ func (d *EventsDelegate) NotifyJoin(peer *memberlist.Node) {
 		return
 	}
 
-	d.Log().Debug().Object("peer", member).Msg("notified join")
+	d.Log().Debug().Interface("peer", member).Msg("notified join")
 
 	d.joinedf(member)
 }
@@ -226,7 +226,7 @@ func (d *EventsDelegate) NotifyLeave(peer *memberlist.Node) {
 		return
 	}
 
-	d.Log().Debug().Object("peer", member).Msg("notified leave")
+	d.Log().Debug().Interface("peer", member).Msg("notified leave")
 
 	d.leftf(member)
 }
@@ -239,7 +239,7 @@ func (d *EventsDelegate) NotifyUpdate(peer *memberlist.Node) {
 		return
 	}
 
-	d.Log().Debug().Object("peer", member).Msg("notified update")
+	d.Log().Debug().Interface("peer", member).Msg("notified update")
 }
 
 func isEqualAddress(a, b interface{}) bool {
