@@ -636,8 +636,8 @@ func (t *testSingleLockedMap) TestClose() {
 	_, found := l.Value("showme")
 	t.False(found)
 
-	found = l.SetValue("showme", 1)
-	t.False(found)
+	added := l.SetValue("showme", 1)
+	t.False(added)
 
 	i, found, err := l.GetOrCreate("showme", func() (int, error) {
 		return 2, nil
@@ -696,7 +696,7 @@ func (t *testShardedMap) TestSetValue() {
 		m, err := NewShardedMap("", "", 3)
 		t.NoError(err)
 
-		t.False(m.SetValue("showme", "showme"))
+		t.True(m.SetValue("showme", "showme"))
 		i, found := m.Value("showme")
 		t.True(found)
 		t.Equal("showme", i)
@@ -705,7 +705,7 @@ func (t *testShardedMap) TestSetValue() {
 		t.True(m.Exists("showme"))
 		t.False(m.Exists(UUID().String()))
 
-		t.False(m.SetValue("findme", "findme"))
+		t.True(m.SetValue("findme", "findme"))
 		i, found = m.Value("findme")
 		t.True(found)
 		t.Equal("findme", i)
@@ -716,8 +716,8 @@ func (t *testShardedMap) TestSetValue() {
 		m, err := NewShardedMap("", "", 3)
 		t.NoError(err)
 
-		t.False(m.SetValue("showme", "showme"))
-		t.True(m.SetValue("showme", "findme"))
+		t.True(m.SetValue("showme", "showme"))
+		t.False(m.SetValue("showme", "findme"))
 
 		i, found := m.Value("showme")
 		t.True(found)
@@ -742,7 +742,7 @@ func (t *testShardedMap) TestRemoveValue() {
 
 		t.False(m.RemoveValue(UUID().String()))
 
-		t.False(m.SetValue("showme", "showme"))
+		t.True(m.SetValue("showme", "showme"))
 		t.Equal(1, m.Len())
 
 		t.True(m.RemoveValue("showme"))
@@ -768,7 +768,7 @@ func (t *testShardedMap) TestGetOrCreate() {
 		m, err := NewShardedMap("", "", 3)
 		t.NoError(err)
 
-		t.False(m.SetValue("showme", "showme"))
+		t.True(m.SetValue("showme", "showme"))
 		t.Equal(1, m.Len())
 
 		i, found, err := m.GetOrCreate("showme", func() (string, error) {
@@ -811,7 +811,7 @@ func (t *testShardedMap) TestGetOrCreate() {
 		m, err := NewShardedMap("", "", 3)
 		t.NoError(err)
 
-		t.False(m.SetValue("showme", "showme"))
+		t.True(m.SetValue("showme", "showme"))
 		t.Equal(1, m.Len())
 
 		i, found, err := m.GetOrCreate("showme", func() (string, error) {
@@ -944,7 +944,7 @@ func (t *testShardedMap) TestTraverse() {
 
 	sets := make([]int, 9)
 	for i := range make([]int, 9) {
-		t.False(m.SetValue(i, i))
+		t.True(m.SetValue(i, i))
 		sets[i] = i
 	}
 
@@ -983,7 +983,7 @@ func (t *testShardedMap) TestClose() {
 
 		sets := make([]int, 9)
 		for i := range make([]int, 9) {
-			t.False(m.SetValue(i, i))
+			t.True(m.SetValue(i, i))
 			sets[i] = i
 		}
 
@@ -1037,7 +1037,7 @@ func (t *testShardedMap) TestEmpty() {
 
 		sets := make([]int, 9)
 		for i := range make([]int, 9) {
-			t.False(m.SetValue(i, i))
+			t.True(m.SetValue(i, i))
 			sets[i] = i
 		}
 
@@ -1057,7 +1057,7 @@ func (t *testShardedMap) TestEmpty() {
 		t.False(found)
 		t.Zero(i)
 
-		t.False(m.SetValue(1, 2))
+		t.True(m.SetValue(1, 2))
 
 		i, found, err = m.GetOrCreate(2, func() (int, error) {
 			return 3, nil

@@ -56,7 +56,7 @@ func (p *PoolClient) Close() error {
 }
 
 func (p *PoolClient) Add(addr *net.UDPAddr, client *Client) bool {
-	return !p.clients.SetValue(
+	return p.clients.SetValue(
 		addr.String(),
 		&poolClientItem{
 			client:   client,

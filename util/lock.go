@@ -130,7 +130,7 @@ type lockedMapKeys interface {
 type LockedMap[K lockedMapKeys, V any] interface { //nolint:interfacebloat //...
 	Exists(key K) (found bool)
 	Value(key K) (value V, found bool)
-	SetValue(key K, value V) (found bool)
+	SetValue(key K, value V) (added bool)
 	RemoveValue(key K) (removed bool)
 	Get(key K, f func(value V, found bool) error) error
 	GetOrCreate(key K, create func() (value V, _ error)) (value V, found bool, _ error)
@@ -186,7 +186,7 @@ func (l *SingleLockedMap[K, V]) Value(k K) (v V, found bool) {
 	return v, found
 }
 
-func (l *SingleLockedMap[K, V]) SetValue(k K, v V) (found bool) {
+func (l *SingleLockedMap[K, V]) SetValue(k K, v V) (added bool) {
 	l.Lock()
 	defer l.Unlock()
 
@@ -194,11 +194,11 @@ func (l *SingleLockedMap[K, V]) SetValue(k K, v V) (found bool) {
 		return false
 	}
 
-	_, found = l.m[k]
+	_, found := l.m[k]
 
 	l.m[k] = v
 
-	return found
+	return !found
 }
 
 func (l *SingleLockedMap[K, V]) RemoveValue(k K) bool {
@@ -389,17 +389,17 @@ func (l *ShardedMap[K, V]) Value(k K) (v V, found bool) {
 	}
 }
 
-func (l *ShardedMap[K, V]) SetValue(k K, v V) (found bool) {
+func (l *ShardedMap[K, V]) SetValue(k K, v V) (added bool) {
 	switch i, isclosed := l.newItem(k); {
 	case isclosed:
 		return false
 	default:
-		found = i.SetValue(k, v)
-		if !found {
+		added = i.SetValue(k, v)
+		if added {
 			atomic.AddInt64(&l.length, 1)
 		}
 
-		return found
+		return added
 	}
 }
 
