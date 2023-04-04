@@ -23,7 +23,7 @@ func NewNewBrokenHandlerType(
 ) *NewBrokenHandlerType {
 	return &NewBrokenHandlerType{
 		BrokenHandler: &BrokenHandler{
-			baseHandler: newBaseHandler(StateBroken, local, params),
+			baseHandler: newBaseHandlerType(StateBroken, local, params),
 		},
 	}
 }

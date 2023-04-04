@@ -40,7 +40,7 @@ func NewNewBootingHandlerType(
 ) *NewBootingHandlerType {
 	return &NewBootingHandlerType{
 		BootingHandler: &BootingHandler{
-			baseHandler: newBaseHandler(StateBooting, local, params),
+			baseHandler: newBaseHandlerType(StateBooting, local, params),
 			args:        args,
 		},
 	}

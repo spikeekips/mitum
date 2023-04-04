@@ -340,7 +340,7 @@ func (st *States) switchState(sctx switchContext) error {
 
 	if next := nsctx.next(); (next == StateConsensus || next == StateJoining) && !st.AllowConsensus() {
 		if current.state() == StateSyncing {
-			l.Debug().Msg("not allowed to enter consensus state; keep syncing")
+			l.Debug().Msg("not allowed to enter consensus states; keep syncing")
 
 			return nil
 		}
@@ -351,7 +351,7 @@ func (st *States) switchState(sctx switchContext) error {
 			Dict("previous_next_state", switchContextLog(sctx)).
 			Dict("next_state", switchContextLog(nsctx)).Logger()
 
-		l.Debug().Msg("not allowed to enter consensus; moves to syncing state")
+		l.Debug().Msg("not allowed to enter consensus states; moves to syncing state")
 	}
 
 	cdefer, ndefer, err := st.exitAndEnter(nsctx, current)
@@ -670,26 +670,29 @@ func (st *States) AllowConsensus() bool {
 	return i
 }
 
-func (st *States) SetAllowConsensus(i bool) bool { // revive:disable-line:flag-parameter
+func (st *States) SetAllowConsensus(allow bool) bool { // revive:disable-line:flag-parameter
+	st.stateLock.RLock()
+	defer st.stateLock.RUnlock()
+
 	var isset bool
 
 	_, _ = st.allowConsensus.Set(func(prev bool, isempty bool) (bool, error) {
-		if prev == i {
+		if prev == allow {
 			return false, util.ErrLockedSetIgnore.Call()
 		}
 
 		isset = true
 
-		return i, nil
+		return allow, nil
 	})
 
-	if isset && !i { // NOTE if not allowed, exits from consensus state
-		switch current := st.current(); {
-		case current == nil:
-		case current.state() == StateJoining, current.state() == StateConsensus:
-			st.Log().Debug().Stringer("current", current.state()).Msg("set not allow consensus")
+	if isset { // NOTE if not allowed, exits from consensus state
+		switch {
+		case st.cs == nil:
+		case st.cs.state() == StateJoining, st.cs.state() == StateConsensus:
+			st.Log().Debug().Stringer("current", st.cs.state()).Bool("allow", allow).Msg("set allow consensus")
 
-			_ = st.AskMoveState(newSyncingSwitchContext(current.state(), base.GenesisHeight))
+			st.cs.setAllowConsensus(allow)
 		}
 	}
 

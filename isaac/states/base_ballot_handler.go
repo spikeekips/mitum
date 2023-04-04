@@ -53,7 +53,7 @@ type baseBallotHandler struct {
 	resolver          BallotStuckResolver
 }
 
-func newBaseBallotHandler(
+func newBaseBallotHandlerType(
 	state StateType,
 	local base.LocalNode,
 	params *isaac.LocalParams,
@@ -66,7 +66,7 @@ func newBaseBallotHandler(
 	)
 
 	h := &baseBallotHandler{
-		baseHandler: newBaseHandler(state, local, params),
+		baseHandler: newBaseHandlerType(state, local, params),
 		args:        args,
 		voteFunc:    func(base.Ballot) (bool, error) { return false, errors.Errorf("not voted") },
 	}

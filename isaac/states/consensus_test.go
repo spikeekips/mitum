@@ -933,6 +933,109 @@ func (t *testConsensusHandler) TestEnterButNotInSuffrage() {
 	t.Equal(point.Height(), ssctx.height)
 }
 
+func (t *testConsensusHandler) TestNewVoteproofButNotAllowConsensus() {
+	t.Run("from voteproof", func() {
+		point := base.RawPoint(33, 44)
+		suf, nodes := isaac.NewTestSuffrage(2, t.Local)
+
+		st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
+		defer closefunc()
+
+		st.args.NodeInConsensusNodesFunc = func(base.Node, base.Height) (base.Suffrage, bool, error) {
+			return suf, true, nil
+		}
+
+		manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+		pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
+			return manifest, nil
+		}
+
+		prpool := t.PRPool
+		st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ util.Hash, _ time.Duration) (base.ProposalSignFact, error) {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			default:
+				return prpool.Get(p), nil
+			}
+		}
+
+		sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
+
+		deferred, err := st.enter(StateJoining, sctx)
+		t.NoError(err)
+		deferred()
+
+		avp, _ := t.VoteproofsPair(point, point.NextHeight(), manifest.Hash(), t.PRPool.Hash(point), t.PRPool.Hash(point.NextHeight()), nodes)
+
+		t.True(st.allowConsensus())
+		st.baseBallotHandler.setAllowConsensus(false)
+
+		err = st.newVoteproof(avp)
+
+		var ssctx SyncingSwitchContext
+		t.True(errors.As(err, &ssctx))
+		t.Equal(ssctx.next(), StateSyncing)
+		t.Equal(point.Height(), ssctx.height)
+	})
+
+	t.Run("from channel", func() {
+		point := base.RawPoint(33, 44)
+		suf, _ := isaac.NewTestSuffrage(2, t.Local)
+
+		st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
+		defer closefunc()
+
+		st.args.NodeInConsensusNodesFunc = func(base.Node, base.Height) (base.Suffrage, bool, error) {
+			return suf, true, nil
+		}
+
+		sctxch := make(chan switchContext, 1)
+		st.switchStateFunc = func(sctx switchContext) error {
+			sctxch <- sctx
+
+			return nil
+		}
+
+		manifest := base.NewDummyManifest(point.Height(), valuehash.RandomSHA256())
+		pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
+			return manifest, nil
+		}
+
+		prpool := t.PRPool
+		st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ util.Hash, _ time.Duration) (base.ProposalSignFact, error) {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			default:
+				return prpool.Get(p), nil
+			}
+		}
+
+		sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
+
+		deferred, err := st.enter(StateJoining, sctx)
+		t.NoError(err)
+		deferred()
+
+		t.True(st.allowConsensus())
+
+		st.setAllowConsensus(false)
+
+		select {
+		case <-time.After(time.Second * 2):
+			t.NoError(errors.Errorf("timeout to wait switch context"))
+
+			return
+		case sctx := <-sctxch:
+			var ssctx SyncingSwitchContext
+			t.True(errors.As(sctx, &ssctx))
+			t.Equal(ssctx.next(), StateSyncing)
+			t.Equal(base.GenesisHeight, ssctx.height)
+		}
+	})
+}
+
 func TestConsensusHandler(t *testing.T) {
 	suite.Run(t, new(testConsensusHandler))
 }

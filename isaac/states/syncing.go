@@ -50,10 +50,10 @@ type SyncingHandler struct {
 	syncer isaac.Syncer
 	*baseHandler
 	args              *SyncingHandlerArgs
-	stuckcancel       func()
+	stuckwaitcancel   func()
 	waitStuckInterval *util.Locked[time.Duration]
 	finishedLock      sync.RWMutex
-	stuckcancellock   sync.RWMutex
+	stuckwaitlock     sync.RWMutex
 }
 
 type NewSyncingHandlerType struct {
@@ -67,7 +67,7 @@ func NewNewSyncingHandlerType(
 ) *NewSyncingHandlerType {
 	return &NewSyncingHandlerType{
 		SyncingHandler: &SyncingHandler{
-			baseHandler: newBaseHandler(StateSyncing, local, params),
+			baseHandler: newBaseHandlerType(StateSyncing, local, params),
 			args:        args,
 		},
 	}
@@ -139,6 +139,10 @@ func (st *SyncingHandler) enter(from StateType, i switchContext) (func(), error)
 		_ = st.syncer.Start(st.ctx)
 
 		go st.finishing(st.syncer)
+
+		if lvp := st.lastVoteproofs().Cap(); lvp != nil {
+			st.newStuckWait(lvp)
+		}
 	}, nil
 }
 
@@ -197,14 +201,15 @@ func (st *SyncingHandler) checkFinished(vp base.Voteproof) (notstuck bool, _ err
 	st.finishedLock.Lock()
 	defer st.finishedLock.Unlock()
 
-	l := st.Log().With().Str("voteproof", vp.ID()).Logger()
+	height := syncerHeightWithStagePoint(vp.Point(), vp.Result() == base.VoteResultMajority)
+
+	l := st.Log().With().Str("voteproof", vp.ID()).Interface("height", height).Logger()
+
+	_ = st.add(height)
 
 	top, isfinished := st.syncer.IsFinished()
 
-	allowConsensus := true
-	if st.sts != nil {
-		allowConsensus = st.sts.AllowConsensus()
-	}
+	allowConsensus := st.allowConsensus()
 
 	l.Debug().
 		Func(base.VoteproofLogFunc("voteproof", vp)).
@@ -212,17 +217,6 @@ func (st *SyncingHandler) checkFinished(vp base.Voteproof) (notstuck bool, _ err
 		Bool("is_finished", isfinished).
 		Interface("top", top).
 		Msg("checking finished")
-
-	height := vp.Point().Height()
-
-	switch s := vp.Point().Stage(); {
-	case s == base.StageINIT:
-		height--
-	case s == base.StageACCEPT && vp.Result() == base.VoteResultDraw:
-		height--
-	}
-
-	_ = st.add(height)
 
 	if isfinished {
 		st.args.WhenFinishedFunc(top)
@@ -276,7 +270,7 @@ func (st *SyncingHandler) checkFinishedAllowConsensus(vp base.Voteproof) (notstu
 	case isfinished && vp.Point().Stage() == base.StageACCEPT && vp.Point().Height() == top:
 		l.Debug().Msg("start new stuck cancel")
 
-		st.newStuckCancel(vp)
+		st.newStuckWait(vp)
 
 		return false, nil
 	default:
@@ -333,28 +327,48 @@ end:
 }
 
 func (st *SyncingHandler) cancelstuck() {
-	st.stuckcancellock.RLock()
-	defer st.stuckcancellock.RUnlock()
+	st.stuckwaitlock.RLock()
+	defer st.stuckwaitlock.RUnlock()
 
-	if st.stuckcancel != nil {
-		st.stuckcancel()
+	if st.stuckwaitcancel != nil {
+		st.stuckwaitcancel()
 	}
 }
 
-func (st *SyncingHandler) newStuckCancel(vp base.Voteproof) {
-	st.stuckcancellock.Lock()
-	defer st.stuckcancellock.Unlock()
+func (st *SyncingHandler) newStuckWait(vp base.Voteproof) {
+	st.stuckwaitlock.Lock()
+	defer st.stuckwaitlock.Unlock()
 
-	if st.stuckcancel != nil {
-		st.stuckcancel()
+	if st.stuckwaitcancel != nil {
+		st.stuckwaitcancel()
 	}
 
-	st.Log().Debug().Dur("wait", st.waitStuck()).Msg("will wait for stucked")
+	waitStuckInterval, _ := st.waitStuckInterval.Value()
 
-	ctx, cancel := context.WithTimeout(st.ctx, st.waitStuck())
-	st.stuckcancel = cancel
+	l := st.Log().With().Dur("wait", waitStuckInterval).Stringer("id", util.ULID()).Logger()
+
+	l.Debug().Msg("will wait for stucked")
+
+	ctx, cancel := context.WithTimeout(st.ctx, waitStuckInterval)
+	st.stuckwaitcancel = cancel
 
 	go func() {
+		defer func() {
+			// NOTE loop newStuckWait
+			go func() {
+				i, _ := st.waitStuckInterval.Value()
+
+				select {
+				case <-st.ctx.Done():
+					return
+				case <-time.After(i * 2):
+					if lvp := st.lastVoteproofs().Cap(); lvp != nil {
+						st.newStuckWait(lvp)
+					}
+				}
+			}()
+		}()
+
 		<-ctx.Done()
 
 		if !errors.Is(ctx.Err(), context.DeadlineExceeded) {
@@ -364,22 +378,23 @@ func (st *SyncingHandler) newStuckCancel(vp base.Voteproof) {
 		st.finishedLock.Lock()
 		defer st.finishedLock.Unlock()
 
-		lvp := st.lastVoteproofs().Cap()
-		if lvp.Point().Compare(vp.Point()) != 0 {
+		top, isfinished := st.syncer.IsFinished()
+
+		switch {
+		case isfinished:
+		case top <= vp.Point().Height():
+		default:
 			return
 		}
 
-		st.Log().Debug().Dur("wait", st.waitStuck()).Msg("stuck accept voteproof found; moves to joining state")
+		if st.allowConsensus() {
+			st.Log().Debug().Dur("wait", waitStuckInterval).
+				Msg("stuck accept voteproof found; moves to joining state")
 
-		// NOTE no more valid voteproof received, moves to joining state
-		go st.switchState(newJoiningSwitchContext(StateSyncing, vp))
+			// NOTE no more valid voteproof received, moves to joining state
+			go st.switchState(newJoiningSwitchContext(StateSyncing, vp))
+		}
 	}()
-}
-
-func (st *SyncingHandler) waitStuck() time.Duration {
-	i, _ := st.waitStuckInterval.Value()
-
-	return i
 }
 
 func (st *SyncingHandler) checkAndJoinMemberlist(height base.Height) (joined bool, _ error) {
@@ -445,4 +460,26 @@ func (s SyncingSwitchContext) MarshalZerologObject(e *zerolog.Event) {
 	s.baseSwitchContext.MarshalZerologObject(e)
 
 	e.Interface("height", s.height)
+}
+
+func syncerHeightWithStagePoint(point base.StagePoint, isMajority bool) base.Height {
+	height := point.Height()
+
+	switch s := point.Stage(); {
+	case s == base.StageINIT:
+		height--
+	case s == base.StageACCEPT && !isMajority:
+		height--
+	}
+
+	return height
+}
+
+func newSyncingSwitchContextWithVoteproof(from StateType, vp base.Voteproof) SyncingSwitchContext {
+	height := base.GenesisHeight
+	if vp != nil {
+		height = syncerHeightWithStagePoint(vp.Point(), vp.Result() == base.VoteResultMajority)
+	}
+
+	return newSyncingSwitchContext(from, height)
 }

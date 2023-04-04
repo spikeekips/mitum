@@ -61,6 +61,8 @@ type handler interface {
 	exit(switchContext) (func(), error)
 	newVoteproof(base.Voteproof) error
 	whenEmptyMembers()
+	allowConsensus() bool
+	setAllowConsensus(bool)
 }
 
 func handlerLog(st handler) fmt.Stringer {

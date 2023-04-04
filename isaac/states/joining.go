@@ -52,7 +52,7 @@ func NewNewJoiningHandlerType(
 	params *isaac.LocalParams,
 	args *JoiningHandlerArgs,
 ) *NewJoiningHandlerType {
-	baseBallotHandler := newBaseBallotHandler(StateJoining, local, params, args.baseBallotHandlerArgs)
+	baseBallotHandler := newBaseBallotHandlerType(StateJoining, local, params, args.baseBallotHandlerArgs)
 
 	return &NewJoiningHandlerType{
 		JoiningHandler: &JoiningHandler{
@@ -147,32 +147,43 @@ func (st *JoiningHandler) exit(sctx switchContext) (func(), error) {
 }
 
 func (st *JoiningHandler) newVoteproof(vp base.Voteproof) error {
-	switch _, _, isnew := st.baseBallotHandler.setNewVoteproof(vp); {
-	case isnew:
-		st.Log().Debug().Func(base.VoteproofLogFunc("voteproof", vp)).Msg("new voteproof")
+	if !st.allowConsensus() {
+		return newSyncingSwitchContextWithVoteproof(StateJoining, vp)
+	}
 
-		if st.resolver != nil {
-			st.resolver.Cancel(vp.Point())
-		}
-
-		var sctx switchContext
-
-		switch err := st.handleNewVoteproof(vp); {
-		case err == nil:
-			return nil
-		case errors.As(err, &sctx):
-			if sctx.next() == StateConsensus {
-				if _, err = st.checkSuffrage(vp.Point().Height()); err != nil {
-					return err
-				}
-			}
-
-			return sctx
-		default:
-			return err
-		}
-	default:
+	if _, _, isnew := st.baseBallotHandler.setNewVoteproof(vp); !isnew {
 		return nil
+	}
+
+	st.Log().Debug().Func(base.VoteproofLogFunc("voteproof", vp)).Msg("new voteproof")
+
+	if st.resolver != nil {
+		st.resolver.Cancel(vp.Point())
+	}
+
+	var sctx switchContext
+
+	switch err := st.handleNewVoteproof(vp); {
+	case err == nil:
+		if !st.allowConsensus() {
+			return newSyncingSwitchContextWithVoteproof(StateJoining, vp)
+		}
+
+		return nil
+	case errors.As(err, &sctx):
+		if sctx.next() == StateConsensus {
+			if _, err = st.checkSuffrage(vp.Point().Height()); err != nil {
+				return err
+			}
+		}
+
+		if !st.allowConsensus() {
+			return newSyncingSwitchContextWithVoteproof(StateJoining, vp)
+		}
+
+		return sctx
+	default:
+		return err
 	}
 }
 
@@ -416,9 +427,17 @@ func (st *JoiningHandler) checkStuckVoteproof(
 			Func(base.VoteproofLogFunc("init_voteproof", vp)).
 			Msg("higher init stuck voteproof; moves to syncing state")
 
-		return false, newSyncingSwitchContext(StateConsensus, vp.Point().Height()-1)
+		return false, newSyncingSwitchContext(StateJoining, vp.Point().Height()-1)
 	default:
 		return false, nil
+	}
+}
+
+func (st *JoiningHandler) setAllowConsensus(allow bool) { // revive:disable-line:flag-parameter
+	st.baseBallotHandler.setAllowConsensus(allow)
+
+	if !allow {
+		go st.switchState(newSyncingSwitchContext(StateJoining, 0))
 	}
 }
 

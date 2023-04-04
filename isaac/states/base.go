@@ -24,12 +24,13 @@ type baseHandler struct {
 	cancel                func()
 	sts                   *States
 	timers                *util.SimpleTimers
+	allowConsensusLocked  *util.Locked[bool]
 	switchStateFunc       func(switchContext) error
 	whenEmptyMembersFunc  func()
 	stt                   StateType
 }
 
-func newBaseHandler(
+func newBaseHandlerType(
 	state StateType,
 	local base.LocalNode,
 	params *isaac.LocalParams,
@@ -74,6 +75,7 @@ func (st *baseHandler) new() *baseHandler {
 		forceSetLastVoteproof: st.forceSetLastVoteproof,
 		switchStateFunc:       st.switchStateFunc,
 		whenEmptyMembersFunc:  st.whenEmptyMembersFunc,
+		allowConsensusLocked:  util.NewLocked(true),
 	}
 }
 
@@ -159,4 +161,18 @@ func (st *baseHandler) setNewVoteproof(vp base.Voteproof) (isaac.LastVoteproofs,
 	}
 
 	return lvps, vp, st.setLastVoteproof(vp)
+}
+
+func (st *baseHandler) allowConsensus() bool {
+	if st.sts == nil {
+		i, _ := st.allowConsensusLocked.Value()
+
+		return i
+	}
+
+	return st.sts.AllowConsensus()
+}
+
+func (st *baseHandler) setAllowConsensus(allow bool) {
+	_ = st.allowConsensusLocked.SetValue(allow)
 }

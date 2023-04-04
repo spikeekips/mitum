@@ -63,12 +63,13 @@ func (h dummyNewHandler) setStates(st *States) {
 }
 
 type dummyStateHandler struct {
-	s             StateType
-	enterf        func(StateType, switchContext) error
-	enterdefer    func()
-	exitf         func(switchContext) error
-	exitdefer     func()
-	newVoteprooff func(base.Voteproof) error
+	s                  StateType
+	enterf             func(StateType, switchContext) error
+	enterdefer         func()
+	exitf              func(switchContext) error
+	exitdefer          func()
+	newVoteprooff      func(base.Voteproof) error
+	setAllowConsensusf func(bool)
 }
 
 func newDummyStateHandler(state StateType) *dummyStateHandler {
@@ -115,6 +116,18 @@ func (st *dummyStateHandler) newVoteproof(vp base.Voteproof) error {
 
 func (st *dummyStateHandler) whenEmptyMembers() {}
 
+func (st *dummyStateHandler) setAllowConsensus(allow bool) {
+	if st.setAllowConsensusf == nil {
+		return
+	}
+
+	st.setAllowConsensusf(allow)
+}
+
+func (st *dummyStateHandler) allowConsensus() bool {
+	return false
+}
+
 func (st *dummyStateHandler) setEnter(f func(StateType, switchContext) error, d func()) *dummyStateHandler {
 	st.enterf = f
 	st.enterdefer = d
@@ -131,6 +144,12 @@ func (st *dummyStateHandler) setExit(f func(switchContext) error, d func()) *dum
 
 func (st *dummyStateHandler) setNewVoteproof(f func(base.Voteproof) error) *dummyStateHandler {
 	st.newVoteprooff = f
+
+	return st
+}
+
+func (st *dummyStateHandler) setSetAllowConsensusf(f func(bool)) *dummyStateHandler {
+	st.setAllowConsensusf = f
 
 	return st
 }
@@ -993,6 +1012,15 @@ func (t *testStates) TestNotAllowConsensusForConsensus() {
 
 		return nil
 	}, nil)
+	consensusallowconsensusch := make(chan bool, 1)
+	_ = consensushandler.setSetAllowConsensusf(func(allow bool) {
+		consensusallowconsensusch <- allow
+
+		if !allow {
+			sctx := newDummySwitchContext(StateConsensus, StateSyncing, nil)
+			t.NoError(st.AskMoveState(sctx))
+		}
+	})
 	_ = st.setHandler(consensushandler)
 
 	syncinghandler := newDummyStateHandler(StateSyncing)
@@ -1008,6 +1036,8 @@ func (t *testStates) TestNotAllowConsensusForConsensus() {
 	t.Equal(StateBooting, st.current().state())
 
 	t.Run("not allowed", func() {
+		t.T().Log("current", st.current().state())
+
 		sctx := newDummySwitchContext(st.current().state(), StateConsensus, nil)
 		err := st.AskMoveState(sctx)
 		t.NoError(err)
@@ -1020,9 +1050,13 @@ func (t *testStates) TestNotAllowConsensusForConsensus() {
 		case <-syncingenterch:
 			t.Equal(StateSyncing, st.current().state())
 		}
+
+		t.T().Log("current", st.current().state())
 	})
 
 	t.Run("in syncing", func() {
+		t.T().Log("current", st.current().state())
+
 		sctx := newDummySwitchContext(st.current().state(), StateConsensus, nil)
 		err := st.AskMoveState(sctx)
 		t.NoError(err)
@@ -1036,9 +1070,13 @@ func (t *testStates) TestNotAllowConsensusForConsensus() {
 		}
 
 		t.Equal(StateSyncing, st.current().state())
+
+		t.T().Log("current", st.current().state())
 	})
 
 	t.Run("allowed", func() {
+		t.T().Log("current", st.current().state())
+
 		t.True(st.SetAllowConsensus(true))
 
 		sctx := newDummySwitchContext(st.current().state(), StateConsensus, nil)
@@ -1051,10 +1089,21 @@ func (t *testStates) TestNotAllowConsensusForConsensus() {
 		case <-consensusenterch:
 			t.Equal(StateConsensus, st.current().state())
 		}
+
+		t.T().Log("current", st.current().state())
 	})
 
 	t.Run("set not allowed", func() {
+		t.T().Log("current", st.current().state())
+
 		t.True(st.SetAllowConsensus(false))
+
+		select {
+		case <-time.After(time.Second * 3):
+			t.NoError(errors.Errorf("failed to wait"))
+		case allow := <-consensusallowconsensusch:
+			t.False(allow)
+		}
 
 		select {
 		case <-time.After(time.Second * 3):
@@ -1062,6 +1111,8 @@ func (t *testStates) TestNotAllowConsensusForConsensus() {
 		case <-syncingenterch:
 			t.Equal(StateSyncing, st.current().state())
 		}
+
+		t.T().Log("current", st.current().state())
 	})
 }
 
@@ -1077,6 +1128,16 @@ func (t *testStates) TestNotAllowConsensusForJoining() {
 
 		return nil
 	}, nil)
+	joiningallowconsensusch := make(chan bool, 1)
+	_ = joininghandler.setSetAllowConsensusf(func(allow bool) {
+		joiningallowconsensusch <- allow
+
+		if !allow {
+			sctx := newDummySwitchContext(StateJoining, StateSyncing, nil)
+			t.NoError(st.AskMoveState(sctx))
+		}
+	})
+
 	_ = st.setHandler(joininghandler)
 
 	syncinghandler := newDummyStateHandler(StateSyncing)
@@ -1092,6 +1153,9 @@ func (t *testStates) TestNotAllowConsensusForJoining() {
 	t.Equal(StateBooting, st.current().state())
 
 	t.Run("not allowed", func() {
+		t.T().Log("current", st.current().state())
+		t.False(st.AllowConsensus())
+
 		sctx := newDummySwitchContext(st.current().state(), StateJoining, nil)
 		err := st.AskMoveState(sctx)
 		t.NoError(err)
@@ -1104,9 +1168,15 @@ func (t *testStates) TestNotAllowConsensusForJoining() {
 		case <-syncingenterch:
 			t.Equal(StateSyncing, st.current().state())
 		}
+
+		t.T().Log("current", st.current().state())
 	})
 
 	t.Run("in syncing", func() {
+		t.T().Log("current", st.current().state())
+
+		t.False(st.AllowConsensus())
+
 		sctx := newDummySwitchContext(st.current().state(), StateJoining, nil)
 		err := st.AskMoveState(sctx)
 		t.NoError(err)
@@ -1119,10 +1189,14 @@ func (t *testStates) TestNotAllowConsensusForJoining() {
 			t.NoError(errors.Errorf("syncing handler entered"))
 		}
 
+		t.T().Log("current", st.current().state())
+
 		t.Equal(StateSyncing, st.current().state())
 	})
 
 	t.Run("allowed", func() {
+		t.T().Log("current", st.current().state())
+
 		t.True(st.SetAllowConsensus(true))
 
 		sctx := newDummySwitchContext(st.current().state(), StateJoining, nil)
@@ -1135,10 +1209,21 @@ func (t *testStates) TestNotAllowConsensusForJoining() {
 		case <-joiningenterch:
 			t.Equal(StateJoining, st.current().state())
 		}
+
+		t.T().Log("current", st.current().state())
 	})
 
 	t.Run("set not allowed", func() {
+		t.T().Log("current", st.current().state())
+
 		t.True(st.SetAllowConsensus(false))
+
+		select {
+		case <-time.After(time.Second * 3):
+			t.NoError(errors.Errorf("failed to wait"))
+		case allow := <-joiningallowconsensusch:
+			t.False(allow)
+		}
 
 		select {
 		case <-time.After(time.Second * 3):
@@ -1146,6 +1231,8 @@ func (t *testStates) TestNotAllowConsensusForJoining() {
 		case <-syncingenterch:
 			t.Equal(StateSyncing, st.current().state())
 		}
+
+		t.T().Log("current", st.current().state())
 	})
 }
 

@@ -14,6 +14,11 @@ import (
 	"github.com/spikeekips/mitum/util/valuehash"
 )
 
+type voteproofWithErrchan struct {
+	vp    base.Voteproof
+	errch chan error
+}
+
 type ConsensusHandlerArgs struct {
 	*baseBallotHandlerArgs
 	ProposalProcessors    *isaac.ProposalProcessors
@@ -35,8 +40,10 @@ func NewConsensusHandlerArgs() *ConsensusHandlerArgs {
 
 type ConsensusHandler struct {
 	*baseBallotHandler
-	args   *ConsensusHandlerArgs
-	vplock sync.Mutex
+	args                *ConsensusHandlerArgs
+	vpch                chan voteproofWithErrchan
+	notallowconsensusch chan struct{}
+	vplock              sync.Mutex
 }
 
 type NewConsensusHandlerType struct {
@@ -48,7 +55,7 @@ func NewNewConsensusHandlerType(
 	params *isaac.LocalParams,
 	args *ConsensusHandlerArgs,
 ) *NewConsensusHandlerType {
-	baseBallotHandler := newBaseBallotHandler(StateConsensus, local, params, args.baseBallotHandlerArgs)
+	baseBallotHandler := newBaseBallotHandlerType(StateConsensus, local, params, args.baseBallotHandlerArgs)
 
 	return &NewConsensusHandlerType{
 		ConsensusHandler: &ConsensusHandler{
@@ -60,8 +67,10 @@ func NewNewConsensusHandlerType(
 
 func (h *NewConsensusHandlerType) new() (handler, error) {
 	return &ConsensusHandler{
-		baseBallotHandler: h.baseBallotHandler.new(),
-		args:              h.args,
+		baseBallotHandler:   h.baseBallotHandler.new(),
+		args:                h.args,
+		vpch:                make(chan voteproofWithErrchan, 1<<6), // enough buffer
+		notallowconsensusch: make(chan struct{}, 1<<6),             // enough buffer
 	}, nil
 }
 
@@ -115,6 +124,8 @@ func (st *ConsensusHandler) enter(from StateType, i switchContext) (func(), erro
 		return func() {
 			deferred()
 
+			go st.startch()
+
 			defer st.vplock.Unlock()
 
 			var nsctx switchContext
@@ -145,6 +156,58 @@ func (st *ConsensusHandler) exit(sctx switchContext) (func(), error) {
 	}
 
 	return deferred, nil
+}
+
+func (st *ConsensusHandler) startch() {
+	var isexited bool
+
+	checkAllowConsensus := func(vp base.Voteproof) switchContext {
+		if st.allowConsensus() {
+			return nil
+		}
+
+		isexited = true
+
+		return newSyncingSwitchContextWithVoteproof(StateConsensus, vp)
+	}
+
+end:
+	for {
+		var vperr voteproofWithErrchan
+
+		select {
+		case <-st.ctx.Done():
+			return
+		case vperr = <-st.vpch:
+		case <-st.notallowconsensusch:
+		}
+
+		if isexited {
+			continue end
+		}
+
+		if sctx := checkAllowConsensus(vperr.vp); sctx != nil {
+			if vperr.vp != nil {
+				vperr.errch <- sctx
+
+				continue end
+			}
+
+			go st.switchState(sctx)
+
+			continue end
+		}
+
+		if vperr.vp != nil {
+			vperr.errch <- st.handleNewVoteproof(vperr.vp)
+		}
+
+		if sctx := checkAllowConsensus(vperr.vp); sctx != nil {
+			go st.switchState(sctx)
+
+			continue end
+		}
+	}
 }
 
 func (st *ConsensusHandler) processProposalFunc(ivp base.INITVoteproof) (func(context.Context) error, error) {
@@ -345,6 +408,19 @@ func (st *ConsensusHandler) handleACCEPTVoteproofAfterProcessingProposal(
 }
 
 func (st *ConsensusHandler) newVoteproof(vp base.Voteproof) error {
+	errch := make(chan error, 1)
+
+	go func() {
+		st.vpch <- voteproofWithErrchan{
+			vp:    vp,
+			errch: errch,
+		}
+	}()
+
+	return <-errch
+}
+
+func (st *ConsensusHandler) handleNewVoteproof(vp base.Voteproof) error {
 	st.vplock.Lock()
 	defer st.vplock.Unlock()
 
@@ -751,6 +827,14 @@ func (st *ConsensusHandler) wrongACCEPTBallot(_ context.Context, ivp base.INITVo
 	}
 
 	return nil
+}
+
+func (st *ConsensusHandler) setAllowConsensus(allow bool) { // revive:disable-line:flag-parameter
+	st.baseBallotHandler.setAllowConsensus(allow)
+
+	if !allow {
+		st.notallowconsensusch <- struct{}{}
+	}
 }
 
 type consensusSwitchContext struct {
