@@ -500,7 +500,7 @@ func newJoiningHandlerArgs(pctx context.Context) (*isaacstates.JoiningHandlerArg
 		return nil, err
 	}
 
-	leaveMemberlistf, err := leaveMemberlistForJoiningHandlerFunc(pctx)
+	leaveMemberlistf, err := leaveMemberlistForHandlerFunc(pctx)
 	if err != nil {
 		return nil, err
 	}
@@ -558,7 +558,7 @@ func newSyncingHandlerArgs(pctx context.Context) (*isaacstates.SyncingHandlerArg
 		return nil, err
 	}
 
-	leaveMemberlistf, err := leaveMemberlistForSyncingHandlerFunc(pctx)
+	leaveMemberlistf, err := leaveMemberlistForHandlerFunc(pctx)
 	if err != nil {
 		return nil, err
 	}
@@ -988,7 +988,7 @@ func joinMemberlistForJoiningeHandlerFunc(pctx context.Context) (
 	}, nil
 }
 
-func leaveMemberlistForJoiningHandlerFunc(pctx context.Context) (
+func leaveMemberlistForHandlerFunc(pctx context.Context) (
 	func(time.Duration) error,
 	error,
 ) {
@@ -1006,27 +1006,11 @@ func leaveMemberlistForJoiningHandlerFunc(pctx context.Context) (
 		_ = long.Cancel()
 
 		switch {
-		case m.MembersLen() < 1:
+		case !m.IsJoined():
 			return nil
 		default:
 			return m.Leave(timeout)
 		}
-	}, nil
-}
-
-func leaveMemberlistForSyncingHandlerFunc(pctx context.Context) (
-	func(time.Duration) error,
-	error,
-) {
-	var long *LongRunningMemberlistJoin
-	if err := util.LoadFromContextOK(pctx, LongRunningMemberlistJoinContextKey, &long); err != nil {
-		return nil, err
-	}
-
-	return func(timeout time.Duration) error {
-		_ = long.Cancel()
-
-		return nil
 	}, nil
 }
 

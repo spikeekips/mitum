@@ -367,8 +367,6 @@ func memberlistConfig(
 		func(member quicmemberlist.Member) {
 			l := log.Log().With().Interface("member", member).Logger()
 
-			l.Debug().Msg("member left")
-
 			if poolclient.Remove(member.UDPAddr()) {
 				l.Debug().Msg("member removed from client pool")
 			}
