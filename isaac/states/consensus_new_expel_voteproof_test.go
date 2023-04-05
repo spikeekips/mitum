@@ -14,14 +14,14 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type testWithdrawsConsensusHandler struct {
+type testExpelsConsensusHandler struct {
 	baseTestConsensusHandler
 }
 
-func (t *testWithdrawsConsensusHandler) TestEnterWithSuffrageConfirmVoteproof() {
+func (t *testExpelsConsensusHandler) TestEnterWithSuffrageConfirmVoteproof() {
 	point := base.RawPoint(33, 44)
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
-	withdrawnode := nodes[2]
+	expelnode := nodes[2]
 
 	st, closefunc, pp, origivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
@@ -49,14 +49,14 @@ func (t *testWithdrawsConsensusHandler) TestEnterWithSuffrageConfirmVoteproof() 
 
 	origifact := origivp.BallotMajority()
 
-	withdraws := t.Withdraws(point.Height()-1, []base.Address{withdrawnode.Address()}, nodes[:2])
-	withdrawfacts := make([]util.Hash, len(withdraws))
-	for i := range withdraws {
-		withdrawfacts[i] = withdraws[i].Fact().Hash()
+	expels := t.Expels(point.Height()-1, []base.Address{expelnode.Address()}, nodes[:2])
+	expelfacts := make([]util.Hash, len(expels))
+	for i := range expels {
+		expelfacts[i] = expels[i].Fact().Hash()
 	}
 
-	sfact := isaac.NewSuffrageConfirmBallotFact(point, origifact.PreviousBlock(), origifact.Proposal(), withdrawfacts)
-	ivp, err := t.NewINITWithdrawVoteproof(sfact, t.Local, nodes[:2], withdraws)
+	sfact := isaac.NewSuffrageConfirmBallotFact(point, origifact.PreviousBlock(), origifact.Proposal(), expelfacts)
+	ivp, err := t.NewINITExpelVoteproof(sfact, t.Local, nodes[:2], expels)
 	t.NoError(err)
 
 	t.T().Log("new suffrage confirm init voteproof", ivp.Point())
@@ -81,10 +81,10 @@ func (t *testWithdrawsConsensusHandler) TestEnterWithSuffrageConfirmVoteproof() 
 	}
 }
 
-func (t *testWithdrawsConsensusHandler) TestSuffrageConfirmAfterEnteringINITVoteproof() {
+func (t *testExpelsConsensusHandler) TestSuffrageConfirmAfterEnteringINITVoteproof() {
 	point := base.RawPoint(33, 44)
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
-	withdrawnode := nodes[2]
+	expelnode := nodes[2]
 
 	st, closefunc, pp, origivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
@@ -121,19 +121,19 @@ func (t *testWithdrawsConsensusHandler) TestSuffrageConfirmAfterEnteringINITVote
 
 	origifact := origivp.BallotMajority()
 
-	withdraws := t.Withdraws(point.Height()-1, []base.Address{withdrawnode.Address()}, nodes[:2])
-	withdrawfacts := make([]util.Hash, len(withdraws))
-	for i := range withdraws {
-		withdrawfacts[i] = withdraws[i].Fact().Hash()
+	expels := t.Expels(point.Height()-1, []base.Address{expelnode.Address()}, nodes[:2])
+	expelfacts := make([]util.Hash, len(expels))
+	for i := range expels {
+		expelfacts[i] = expels[i].Fact().Hash()
 	}
 
-	ifact := isaac.NewINITBallotFact(point, origifact.PreviousBlock(), origifact.Proposal(), withdrawfacts)
-	ivp, err := t.NewINITWithdrawVoteproof(ifact, t.Local, nodes[:2], withdraws)
+	ifact := isaac.NewINITBallotFact(point, origifact.PreviousBlock(), origifact.Proposal(), expelfacts)
+	ivp, err := t.NewINITExpelVoteproof(ifact, t.Local, nodes[:2], expels)
 	t.NoError(err)
 
 	t.True(st.forceSetLastVoteproof(ivp))
 
-	t.T().Log("new withdraw init voteproof", ivp.Point())
+	t.T().Log("new expel init voteproof", ivp.Point())
 
 	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
 
@@ -158,12 +158,12 @@ func (t *testWithdrawsConsensusHandler) TestSuffrageConfirmAfterEnteringINITVote
 		t.True(ok)
 		sfact = i
 
-		sfactwithdraws := sfact.WithdrawFacts()
+		sfactexpels := sfact.ExpelFacts()
 
-		t.Equal(len(withdrawfacts), len(sfactwithdraws))
-		for i := range withdrawfacts {
-			f := util.InSliceFunc(sfactwithdraws, func(j util.Hash) bool {
-				return withdrawfacts[i].Equal(j)
+		t.Equal(len(expelfacts), len(sfactexpels))
+		for i := range expelfacts {
+			f := util.InSliceFunc(sfactexpels, func(j util.Hash) bool {
+				return expelfacts[i].Equal(j)
 			})
 			t.False(f < 0)
 		}
@@ -171,7 +171,7 @@ func (t *testWithdrawsConsensusHandler) TestSuffrageConfirmAfterEnteringINITVote
 		t.T().Log("expected suffrage confirm init ballot broadcasted", bl.Point())
 	}
 
-	ivp, err = t.NewINITWithdrawVoteproof(sfact, t.Local, nodes[:2], withdraws)
+	ivp, err = t.NewINITExpelVoteproof(sfact, t.Local, nodes[:2], expels)
 	t.NoError(err)
 
 	t.T().Log("new suffrage confirm init voteproof", ivp.Point())
@@ -192,7 +192,7 @@ func (t *testWithdrawsConsensusHandler) TestSuffrageConfirmAfterEnteringINITVote
 	}
 }
 
-func (t *testWithdrawsConsensusHandler) TestSuffrageConfirmAfterACCEPTVoteproof() {
+func (t *testExpelsConsensusHandler) TestSuffrageConfirmAfterACCEPTVoteproof() {
 	point := base.RawPoint(33, 44)
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
@@ -281,15 +281,15 @@ func (t *testWithdrawsConsensusHandler) TestSuffrageConfirmAfterACCEPTVoteproof(
 
 	nextpoint := point.NextHeight()
 
-	withdrawnode := nodes[2]
-	withdraws := t.Withdraws(nextpoint.Height()-1, []base.Address{withdrawnode.Address()}, nodes[:2])
-	withdrawfacts := make([]util.Hash, len(withdraws))
-	for i := range withdraws {
-		withdrawfacts[i] = withdraws[i].Fact().Hash()
+	expelnode := nodes[2]
+	expels := t.Expels(nextpoint.Height()-1, []base.Address{expelnode.Address()}, nodes[:2])
+	expelfacts := make([]util.Hash, len(expels))
+	for i := range expels {
+		expelfacts[i] = expels[i].Fact().Hash()
 	}
 
-	ifact := isaac.NewINITBallotFact(nextpoint, afact.NewBlock(), t.PRPool.Hash(nextpoint), withdrawfacts)
-	nextivp, err := t.NewINITWithdrawVoteproof(ifact, t.Local, nodes[:2], withdraws)
+	ifact := isaac.NewINITBallotFact(nextpoint, afact.NewBlock(), t.PRPool.Hash(nextpoint), expelfacts)
+	nextivp, err := t.NewINITExpelVoteproof(ifact, t.Local, nodes[:2], expels)
 	t.NoError(err)
 
 	t.NoError(st.newVoteproof(nextivp))
@@ -314,7 +314,7 @@ func (t *testWithdrawsConsensusHandler) TestSuffrageConfirmAfterACCEPTVoteproof(
 		t.T().Log("expected suffrage confirm init ballot broadcasted", sfact.Point())
 	}
 
-	confirmivp, err := t.NewINITWithdrawVoteproof(sfact, t.Local, nodes[:2], withdraws)
+	confirmivp, err := t.NewINITExpelVoteproof(sfact, t.Local, nodes[:2], expels)
 	t.NoError(err)
 
 	t.T().Log("new suffrage confirm init voteproof", confirmivp.Point())
@@ -335,7 +335,7 @@ func (t *testWithdrawsConsensusHandler) TestSuffrageConfirmAfterACCEPTVoteproof(
 	}
 }
 
-func (t *testWithdrawsConsensusHandler) prepareAfterACCEPT(
+func (t *testExpelsConsensusHandler) prepareAfterACCEPT(
 	point base.Point,
 	numberOfNodes int,
 ) (
@@ -428,7 +428,7 @@ func (t *testWithdrawsConsensusHandler) prepareAfterACCEPT(
 		closefunc
 }
 
-func (t *testWithdrawsConsensusHandler) TestSuffrageConfirmAfterDrawINITVoteproof() {
+func (t *testExpelsConsensusHandler) TestSuffrageConfirmAfterDrawINITVoteproof() {
 	point := base.RawPoint(33, 44)
 	nextpoint := point.NextHeight()
 
@@ -464,14 +464,14 @@ func (t *testWithdrawsConsensusHandler) TestSuffrageConfirmAfterDrawINITVoteproo
 
 	t.T().Log("prepare next draw init voteproof:", nextpoint)
 
-	withdrawnode := nodes[2]
-	withdraws := t.Withdraws(nextpoint.Height()-1, []base.Address{withdrawnode.Address()}, nodes[:2])
-	withdrawfacts := make([]util.Hash, len(withdraws))
-	for i := range withdraws {
-		withdrawfacts[i] = withdraws[i].Fact().Hash()
+	expelnode := nodes[2]
+	expels := t.Expels(nextpoint.Height()-1, []base.Address{expelnode.Address()}, nodes[:2])
+	expelfacts := make([]util.Hash, len(expels))
+	for i := range expels {
+		expelfacts[i] = expels[i].Fact().Hash()
 	}
 
-	ifact := isaac.NewINITBallotFact(nextpoint, afact.NewBlock(), t.PRPool.Hash(nextpoint), withdrawfacts)
+	ifact := isaac.NewINITBallotFact(nextpoint, afact.NewBlock(), t.PRPool.Hash(nextpoint), expelfacts)
 	nextdrawivp, err := t.NewINITVoteproof(ifact, t.Local, nodes)
 	t.NoError(err)
 
@@ -481,7 +481,7 @@ func (t *testWithdrawsConsensusHandler) TestSuffrageConfirmAfterDrawINITVoteproo
 
 		var fs isaac.INITBallotSignFact
 
-		if n.Address().Equal(withdrawnode.Address()) {
+		if n.Address().Equal(expelnode.Address()) {
 			fact := isaac.NewINITBallotFact(nextpoint, afact.NewBlock(), t.PRPool.Hash(nextpoint), nil)
 			fs = isaac.NewINITBallotSignFact(fact)
 		} else {
@@ -519,8 +519,8 @@ func (t *testWithdrawsConsensusHandler) TestSuffrageConfirmAfterDrawINITVoteproo
 		t.T().Log("expected next round init ballot broadcasted", bl.Point())
 	}
 
-	sfact := isaac.NewSuffrageConfirmBallotFact(nextpoint, afact.NewBlock(), t.PRPool.Hash(nextpoint), withdrawfacts)
-	confirmivp, err := t.NewINITWithdrawVoteproof(sfact, t.Local, nodes[:2], withdraws)
+	sfact := isaac.NewSuffrageConfirmBallotFact(nextpoint, afact.NewBlock(), t.PRPool.Hash(nextpoint), expelfacts)
+	confirmivp, err := t.NewINITExpelVoteproof(sfact, t.Local, nodes[:2], expels)
 	t.NoError(err)
 
 	t.T().Log("next suffrage confirm init voteproof:", confirmivp.Point())
@@ -540,7 +540,7 @@ func (t *testWithdrawsConsensusHandler) TestSuffrageConfirmAfterDrawINITVoteproo
 	}
 }
 
-func (t *testWithdrawsConsensusHandler) TestReversalAfterDrawINITVoteproof() {
+func (t *testExpelsConsensusHandler) TestReversalAfterDrawINITVoteproof() {
 	point := base.RawPoint(33, 44)
 	nextpoint := point.NextHeight()
 
@@ -574,17 +574,17 @@ func (t *testWithdrawsConsensusHandler) TestReversalAfterDrawINITVoteproof() {
 
 	t.T().Log("prepare next draw init voteproof:", nextpoint)
 
-	withdrawnode := nodes[2]
-	withdraws := t.Withdraws(nextpoint.Height()-1, []base.Address{withdrawnode.Address()}, nodes[:2])
-	withdrawfacts := make([]util.Hash, len(withdraws))
-	for i := range withdraws {
-		withdrawfacts[i] = withdraws[i].Fact().Hash()
+	expelnode := nodes[2]
+	expels := t.Expels(nextpoint.Height()-1, []base.Address{expelnode.Address()}, nodes[:2])
+	expelfacts := make([]util.Hash, len(expels))
+	for i := range expels {
+		expelfacts[i] = expels[i].Fact().Hash()
 	}
 
-	ifact := isaac.NewINITBallotFact(nextpoint, afact.NewBlock(), t.PRPool.Hash(nextpoint), withdrawfacts)
+	ifact := isaac.NewINITBallotFact(nextpoint, afact.NewBlock(), t.PRPool.Hash(nextpoint), expelfacts)
 	nextdrawivp, err := t.NewINITVoteproof(ifact, t.Local, nodes)
 	t.NoError(err)
-	nextmajorityivp, err := t.NewINITWithdrawVoteproof(ifact, t.Local, nodes, withdraws)
+	nextmajorityivp, err := t.NewINITExpelVoteproof(ifact, t.Local, nodes, expels)
 	t.NoError(err)
 
 	drawsfs := make([]base.BallotSignFact, len(nodes))
@@ -594,7 +594,7 @@ func (t *testWithdrawsConsensusHandler) TestReversalAfterDrawINITVoteproof() {
 
 		var fs isaac.INITBallotSignFact
 
-		if n.Address().Equal(withdrawnode.Address()) {
+		if n.Address().Equal(expelnode.Address()) {
 			fact := isaac.NewINITBallotFact(nextpoint, afact.NewBlock(), t.PRPool.Hash(nextpoint), nil)
 			fs = isaac.NewINITBallotSignFact(fact)
 		} else {
@@ -603,7 +603,7 @@ func (t *testWithdrawsConsensusHandler) TestReversalAfterDrawINITVoteproof() {
 
 		t.NoError(fs.NodeSign(n.Privatekey(), t.LocalParams.NetworkID(), n.Address()))
 
-		if !n.Address().Equal(withdrawnode.Address()) {
+		if !n.Address().Equal(expelnode.Address()) {
 			majoritysfs = append(majoritysfs, fs)
 		}
 
@@ -662,13 +662,13 @@ func (t *testWithdrawsConsensusHandler) TestReversalAfterDrawINITVoteproof() {
 	}
 }
 
-func (t *testWithdrawsConsensusHandler) TestEnterINITStuckVoteproof() {
+func (t *testExpelsConsensusHandler) TestEnterINITStuckVoteproof() {
 	point := base.RawPoint(33, 44)
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
 	t.LocalParams = t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
 
-	withdrawnode := nodes[2]
+	expelnode := nodes[2]
 
 	st, closefunc, _, origivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
@@ -692,21 +692,21 @@ func (t *testWithdrawsConsensusHandler) TestEnterINITStuckVoteproof() {
 
 	t.T().Log("prepare new init stuck voteproof")
 
-	withdraws := t.Withdraws(point.Height(), []base.Address{withdrawnode.Address()}, nodes[:2])
-	withdrawfacts := make([]util.Hash, len(withdraws))
-	for i := range withdraws {
-		withdrawfacts[i] = withdraws[i].Fact().Hash()
+	expels := t.Expels(point.Height(), []base.Address{expelnode.Address()}, nodes[:2])
+	expelfacts := make([]util.Hash, len(expels))
+	for i := range expels {
+		expelfacts[i] = expels[i].Fact().Hash()
 	}
 
 	sfs := util.FilterSlice(origivp.SignFacts(), func(i base.BallotSignFact) bool {
-		return !i.Node().Equal(withdrawnode.Address())
+		return !i.Node().Equal(expelnode.Address())
 	})
 
 	ivp := isaac.NewINITStuckVoteproof(origivp.Point().Point)
 	ivp.
 		SetMajority(origivp.Majority()).
 		SetSignFacts(sfs)
-	ivp.SetWithdraws(withdraws)
+	ivp.SetExpels(expels)
 	ivp.Finish()
 
 	// NOTE set last accept voteproof as last voteproofs
@@ -731,13 +731,13 @@ func (t *testWithdrawsConsensusHandler) TestEnterINITStuckVoteproof() {
 	}
 }
 
-func (t *testWithdrawsConsensusHandler) TestINITStuckVoteproof() {
+func (t *testExpelsConsensusHandler) TestINITStuckVoteproof() {
 	point := base.RawPoint(33, 44)
 
 	_, nodes, st, _, dof, closef := t.prepareAfterACCEPT(point, 3)
 	defer closef()
 
-	withdrawnode := nodes[2]
+	expelnode := nodes[2]
 
 	nextinitballotch := make(chan base.Ballot, 1)
 	nextroundballotch := make(chan base.Ballot, 1)
@@ -753,11 +753,11 @@ func (t *testWithdrawsConsensusHandler) TestINITStuckVoteproof() {
 		return nil
 	})
 
-	withdraws := t.Withdraws(point.NextHeight().Height(), []base.Address{withdrawnode.Address()}, nodes[:2])
+	expels := t.Expels(point.NextHeight().Height(), []base.Address{expelnode.Address()}, nodes[:2])
 	st.args.SuffrageVotingFindFunc = func(context.Context, base.Height, base.Suffrage) (
-		[]base.SuffrageWithdrawOperation, error,
+		[]base.SuffrageExpelOperation, error,
 	) {
-		return withdraws, nil
+		return expels, nil
 	}
 
 	dof()
@@ -774,20 +774,20 @@ func (t *testWithdrawsConsensusHandler) TestINITStuckVoteproof() {
 
 		t.T().Log("next init ballot broadcasted; prepare new init stuck voteproof")
 
-		withdrawfacts := make([]util.Hash, len(withdraws))
-		for i := range withdraws {
-			withdrawfacts[i] = withdraws[i].Fact().Hash()
+		expelfacts := make([]util.Hash, len(expels))
+		for i := range expels {
+			expelfacts[i] = expels[i].Fact().Hash()
 		}
 
 		sfs := util.FilterSlice(origivp.SignFacts(), func(i base.BallotSignFact) bool {
-			return !i.Node().Equal(withdrawnode.Address())
+			return !i.Node().Equal(expelnode.Address())
 		})
 
 		stuckivp := isaac.NewINITStuckVoteproof(origivp.Point().Point)
 		stuckivp.
 			SetMajority(ifact).
 			SetSignFacts(sfs)
-		stuckivp.SetWithdraws(withdraws)
+		stuckivp.SetExpels(expels)
 		stuckivp.Finish()
 
 		t.NoError(stuckivp.IsValid(t.LocalParams.NetworkID()))
@@ -807,22 +807,22 @@ func (t *testWithdrawsConsensusHandler) TestINITStuckVoteproof() {
 
 		t.Equal(point.NextHeight().NextRound(), bl.Point().Point)
 
-		wbl, ok := bl.(base.HasWithdraws)
+		wbl, ok := bl.(base.HasExpels)
 		t.True(ok)
-		t.NotEmpty(wbl.Withdraws())
-		t.Equal(1, len(wbl.Withdraws()))
+		t.NotEmpty(wbl.Expels())
+		t.Equal(1, len(wbl.Expels()))
 
-		base.EqualOperation(t.Assert(), withdraws[0], wbl.Withdraws()[0])
+		base.EqualOperation(t.Assert(), expels[0], wbl.Expels()[0])
 	}
 }
 
-func (t *testWithdrawsConsensusHandler) TestINITStuckVoteproofEnterSyncing() {
+func (t *testExpelsConsensusHandler) TestINITStuckVoteproofEnterSyncing() {
 	point := base.RawPoint(33, 44)
 
 	_, nodes, st, _, dof, closef := t.prepareAfterACCEPT(point, 3)
 	defer closef()
 
-	withdrawnode := nodes[2]
+	expelnode := nodes[2]
 
 	nextinitballotch := make(chan base.Ballot, 1)
 	st.ballotBroadcaster = NewDummyBallotBroadcaster(t.Local.Address(), func(bl base.Ballot) error {
@@ -835,11 +835,11 @@ func (t *testWithdrawsConsensusHandler) TestINITStuckVoteproofEnterSyncing() {
 		return nil
 	})
 
-	withdraws := t.Withdraws(point.NextHeight().Height(), []base.Address{withdrawnode.Address()}, nodes[:2])
+	expels := t.Expels(point.NextHeight().Height(), []base.Address{expelnode.Address()}, nodes[:2])
 	st.args.SuffrageVotingFindFunc = func(context.Context, base.Height, base.Suffrage) (
-		[]base.SuffrageWithdrawOperation, error,
+		[]base.SuffrageExpelOperation, error,
 	) {
-		return withdraws, nil
+		return expels, nil
 	}
 
 	dof()
@@ -858,20 +858,20 @@ func (t *testWithdrawsConsensusHandler) TestINITStuckVoteproofEnterSyncing() {
 
 		t.T().Log("next init ballot broadcasted; prepare new higher init stuck voteproof")
 
-		withdrawfacts := make([]util.Hash, len(withdraws))
-		for i := range withdraws {
-			withdrawfacts[i] = withdraws[i].Fact().Hash()
+		expelfacts := make([]util.Hash, len(expels))
+		for i := range expels {
+			expelfacts[i] = expels[i].Fact().Hash()
 		}
 
 		sfs := util.FilterSlice(origivp.SignFacts(), func(i base.BallotSignFact) bool {
-			return !i.Node().Equal(withdrawnode.Address())
+			return !i.Node().Equal(expelnode.Address())
 		})
 
 		stuckivp := isaac.NewINITStuckVoteproof(origivp.Point().Point)
 		stuckivp.
 			SetMajority(ifact).
 			SetSignFacts(sfs)
-		stuckivp.SetWithdraws(withdraws)
+		stuckivp.SetExpels(expels)
 		stuckivp.Finish()
 
 		t.NoError(stuckivp.IsValid(t.LocalParams.NetworkID()))
@@ -888,10 +888,10 @@ func (t *testWithdrawsConsensusHandler) TestINITStuckVoteproofEnterSyncing() {
 	}
 }
 
-func (t *testWithdrawsConsensusHandler) TestACCEPTStuckVoteproof() {
+func (t *testExpelsConsensusHandler) TestACCEPTStuckVoteproof() {
 	point := base.RawPoint(33, 44)
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
-	withdrawnode := nodes[2]
+	expelnode := nodes[2]
 
 	t.LocalParams = t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
 
@@ -928,16 +928,16 @@ func (t *testWithdrawsConsensusHandler) TestACCEPTStuckVoteproof() {
 
 	t.T().Log("prepare new accept stuck voteproof")
 
-	withdraws := t.Withdraws(point.Height(), []base.Address{withdrawnode.Address()}, nodes[:2])
-	withdrawfacts := make([]util.Hash, len(withdraws))
-	for i := range withdraws {
-		withdrawfacts[i] = withdraws[i].Fact().Hash()
+	expels := t.Expels(point.Height(), []base.Address{expelnode.Address()}, nodes[:2])
+	expelfacts := make([]util.Hash, len(expels))
+	for i := range expels {
+		expelfacts[i] = expels[i].Fact().Hash()
 	}
 
 	st.args.SuffrageVotingFindFunc = func(context.Context, base.Height, base.Suffrage) (
-		[]base.SuffrageWithdrawOperation, error,
+		[]base.SuffrageExpelOperation, error,
 	) {
-		return withdraws, nil
+		return expels, nil
 	}
 
 	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
@@ -963,14 +963,14 @@ func (t *testWithdrawsConsensusHandler) TestACCEPTStuckVoteproof() {
 		t.NoError(err)
 
 		sfs := util.FilterSlice(origavp.SignFacts(), func(i base.BallotSignFact) bool {
-			return !i.Node().Equal(withdrawnode.Address())
+			return !i.Node().Equal(expelnode.Address())
 		})
 
 		stuckavp := isaac.NewACCEPTStuckVoteproof(origavp.Point().Point)
 		stuckavp.
 			SetMajority(origavp.Majority()).
 			SetSignFacts(sfs)
-		stuckavp.SetWithdraws(withdraws)
+		stuckavp.SetExpels(expels)
 		stuckavp.Finish()
 
 		t.NoError(stuckavp.IsValid(t.LocalParams.NetworkID()))
@@ -990,19 +990,19 @@ func (t *testWithdrawsConsensusHandler) TestACCEPTStuckVoteproof() {
 
 		t.Equal(point.NextRound(), bl.Point().Point)
 
-		wbl, ok := bl.(base.HasWithdraws)
+		wbl, ok := bl.(base.HasExpels)
 		t.True(ok)
-		t.NotEmpty(wbl.Withdraws())
-		t.Equal(1, len(wbl.Withdraws()))
+		t.NotEmpty(wbl.Expels())
+		t.Equal(1, len(wbl.Expels()))
 
-		base.EqualOperation(t.Assert(), withdraws[0], wbl.Withdraws()[0])
+		base.EqualOperation(t.Assert(), expels[0], wbl.Expels()[0])
 	}
 }
 
-func (t *testWithdrawsConsensusHandler) TestACCEPTStuckVoteproofEnterSyncing() {
+func (t *testExpelsConsensusHandler) TestACCEPTStuckVoteproofEnterSyncing() {
 	point := base.RawPoint(33, 44)
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
-	withdrawnode := nodes[2]
+	expelnode := nodes[2]
 
 	st, closefunc, pp, ivp := t.newStateWithINITVoteproof(point, suf)
 	defer closefunc()
@@ -1037,16 +1037,16 @@ func (t *testWithdrawsConsensusHandler) TestACCEPTStuckVoteproofEnterSyncing() {
 
 	t.T().Log("prepare new accept stuck voteproof")
 
-	withdraws := t.Withdraws(point.Height(), []base.Address{withdrawnode.Address()}, nodes[:2])
-	withdrawfacts := make([]util.Hash, len(withdraws))
-	for i := range withdraws {
-		withdrawfacts[i] = withdraws[i].Fact().Hash()
+	expels := t.Expels(point.Height(), []base.Address{expelnode.Address()}, nodes[:2])
+	expelfacts := make([]util.Hash, len(expels))
+	for i := range expels {
+		expelfacts[i] = expels[i].Fact().Hash()
 	}
 
 	st.args.SuffrageVotingFindFunc = func(context.Context, base.Height, base.Suffrage) (
-		[]base.SuffrageWithdrawOperation, error,
+		[]base.SuffrageExpelOperation, error,
 	) {
-		return withdraws, nil
+		return expels, nil
 	}
 
 	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
@@ -1074,14 +1074,14 @@ func (t *testWithdrawsConsensusHandler) TestACCEPTStuckVoteproofEnterSyncing() {
 		t.NoError(err)
 
 		sfs := util.FilterSlice(origavp.SignFacts(), func(i base.BallotSignFact) bool {
-			return !i.Node().Equal(withdrawnode.Address())
+			return !i.Node().Equal(expelnode.Address())
 		})
 
 		stuckavp := isaac.NewACCEPTStuckVoteproof(origavp.Point().Point)
 		stuckavp.
 			SetMajority(origavp.Majority()).
 			SetSignFacts(sfs)
-		stuckavp.SetWithdraws(withdraws)
+		stuckavp.SetExpels(expels)
 		stuckavp.Finish()
 
 		t.NoError(stuckavp.IsValid(t.LocalParams.NetworkID()))
@@ -1098,6 +1098,6 @@ func (t *testWithdrawsConsensusHandler) TestACCEPTStuckVoteproofEnterSyncing() {
 	}
 }
 
-func TestWithdrawsConsensusHandler(t *testing.T) {
-	suite.Run(t, new(testWithdrawsConsensusHandler))
+func TestExpelsConsensusHandler(t *testing.T) {
+	suite.Run(t, new(testExpelsConsensusHandler))
 }

@@ -759,7 +759,7 @@ func (t *testStates) TestMimicBallot() {
 
 	point := base.RawPoint(32, 44)
 
-	newINITBallot := func(local base.LocalNode, withdraws []base.SuffrageWithdrawOperation) base.Ballot {
+	newINITBallot := func(local base.LocalNode, expels []base.SuffrageExpelOperation) base.Ballot {
 		afact := isaac.NewACCEPTBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
 		afs := isaac.NewACCEPTBallotSignFact(afact)
 		t.NoError(afs.NodeSign(local.Privatekey(), params.NetworkID(), local.Address()))
@@ -771,16 +771,16 @@ func (t *testStates) TestMimicBallot() {
 			SetThreshold(100).
 			Finish()
 
-		withdrawfacts := make([]util.Hash, len(withdraws))
-		for i := range withdraws {
-			withdrawfacts[i] = withdraws[i].Fact().Hash()
+		expelfacts := make([]util.Hash, len(expels))
+		for i := range expels {
+			expelfacts[i] = expels[i].Fact().Hash()
 		}
 
-		ifact := isaac.NewINITBallotFact(base.RawPoint(33, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256(), withdrawfacts)
+		ifact := isaac.NewINITBallotFact(base.RawPoint(33, 44), valuehash.RandomSHA256(), valuehash.RandomSHA256(), expelfacts)
 		ifs := isaac.NewINITBallotSignFact(ifact)
 		t.NoError(ifs.NodeSign(local.Privatekey(), params.NetworkID(), local.Address()))
 
-		return isaac.NewINITBallot(avp, ifs, withdraws)
+		return isaac.NewINITBallot(avp, ifs, expels)
 	}
 
 	newstates := func() (*States, <-chan error) {
@@ -968,7 +968,7 @@ func (t *testStates) TestMimicBallot() {
 		}
 	})
 
-	t.Run("local is in withdraws", func() {
+	t.Run("local is in expels", func() {
 		st, errch := newstatesinsyncing()
 		defer st.Stop()
 
@@ -980,11 +980,11 @@ func (t *testStates) TestMimicBallot() {
 			return nil
 		})
 
-		fact := isaac.NewSuffrageWithdrawFact(local.Address(), point.Height()-1, point.Height()+1, util.UUID().String())
-		withdraw := isaac.NewSuffrageWithdrawOperation(fact)
-		t.NoError(withdraw.NodeSign(remote.Privatekey(), params.NetworkID(), remote.Address()))
+		fact := isaac.NewSuffrageExpelFact(local.Address(), point.Height()-1, point.Height()+1, util.UUID().String())
+		expel := isaac.NewSuffrageExpelOperation(fact)
+		t.NoError(expel.NodeSign(remote.Privatekey(), params.NetworkID(), remote.Address()))
 
-		bl := newINITBallot(local, []base.SuffrageWithdrawOperation{withdraw})
+		bl := newINITBallot(local, []base.SuffrageExpelOperation{expel})
 
 		f, cancel := st.mimicBallotFunc()
 		f(bl)

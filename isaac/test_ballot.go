@@ -111,23 +111,23 @@ func (t *BaseTestBallots) NewINITVoteproof(
 	return vp, nil
 }
 
-func (t *BaseTestBallots) NewINITWithdrawVoteproof(
+func (t *BaseTestBallots) NewINITExpelVoteproof(
 	fact base.INITBallotFact,
 	local base.LocalNode,
 	nodes []base.LocalNode,
-	withdraws []base.SuffrageWithdrawOperation,
-) (INITWithdrawVoteproof, error) {
+	expels []base.SuffrageExpelOperation,
+) (INITExpelVoteproof, error) {
 	sfs, err := t.prepareINITVoteproof(fact, local, nodes)
 	if err != nil {
-		return INITWithdrawVoteproof{}, err
+		return INITExpelVoteproof{}, err
 	}
 
-	vp := NewINITWithdrawVoteproof(fact.Point().Point)
+	vp := NewINITExpelVoteproof(fact.Point().Point)
 	vp.
 		SetMajority(fact).
 		SetSignFacts(sfs).
 		SetThreshold(t.LocalParams.Threshold())
-	vp.SetWithdraws(withdraws)
+	vp.SetExpels(expels)
 	vp.Finish()
 
 	return vp, nil
@@ -239,19 +239,19 @@ func (t *BaseTestBallots) NetworkPolicyState(height base.Height, policy NetworkP
 	return st, sv
 }
 
-func (t *BaseTestBallots) Withdraws(height base.Height, withdrawnodes []base.Address, signs []base.LocalNode) []base.SuffrageWithdrawOperation {
-	ops := make([]base.SuffrageWithdrawOperation, len(withdrawnodes))
+func (t *BaseTestBallots) Expels(height base.Height, expelnodes []base.Address, signs []base.LocalNode) []base.SuffrageExpelOperation {
+	ops := make([]base.SuffrageExpelOperation, len(expelnodes))
 
-	for i := range withdrawnodes {
-		withdrawnode := withdrawnodes[i]
+	for i := range expelnodes {
+		expelnode := expelnodes[i]
 
-		fact := NewSuffrageWithdrawFact(withdrawnode, height, height+1, util.UUID().String())
-		op := NewSuffrageWithdrawOperation(fact)
+		fact := NewSuffrageExpelFact(expelnode, height, height+1, util.UUID().String())
+		op := NewSuffrageExpelOperation(fact)
 
 		for j := range signs {
 			node := signs[j]
 
-			if node.Address().Equal(withdrawnode) {
+			if node.Address().Equal(expelnode) {
 				continue
 			}
 

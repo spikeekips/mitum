@@ -12,11 +12,11 @@ import (
 )
 
 var (
-	SuffrageWithdrawFactHint      = hint.MustNewHint("suffrage-withdraw-fact-v0.0.1")
-	SuffrageWithdrawOperationHint = hint.MustNewHint("suffrage-withdraw-operation-v0.0.1")
+	SuffrageExpelFactHint      = hint.MustNewHint("suffrage-expel-fact-v0.0.1")
+	SuffrageExpelOperationHint = hint.MustNewHint("suffrage-expel-operation-v0.0.1")
 )
 
-type SuffrageWithdrawFact struct {
+type SuffrageExpelFact struct {
 	reason string
 	node   base.Address
 	base.BaseFact
@@ -24,15 +24,15 @@ type SuffrageWithdrawFact struct {
 	end   base.Height
 }
 
-func NewSuffrageWithdrawFact(
+func NewSuffrageExpelFact(
 	node base.Address,
 	start base.Height,
 	end base.Height,
 	reason string,
-) SuffrageWithdrawFact {
-	fact := SuffrageWithdrawFact{
+) SuffrageExpelFact {
+	fact := SuffrageExpelFact{
 		// NOTE token is <node + start + end>
-		BaseFact: base.NewBaseFact(SuffrageWithdrawFactHint, base.Token(util.ConcatByters(node, start, end))),
+		BaseFact: base.NewBaseFact(SuffrageExpelFactHint, base.Token(util.ConcatByters(node, start, end))),
 		node:     node,
 		start:    start,
 		end:      end,
@@ -44,8 +44,8 @@ func NewSuffrageWithdrawFact(
 	return fact
 }
 
-func (fact SuffrageWithdrawFact) IsValid([]byte) error {
-	e := util.ErrInvalid.Errorf("invalid SuffrageWithdrawFact")
+func (fact SuffrageExpelFact) IsValid([]byte) error {
+	e := util.ErrInvalid.Errorf("invalid SuffrageExpelFact")
 
 	switch {
 	case fact.start <= base.GenesisHeight:
@@ -69,23 +69,23 @@ func (fact SuffrageWithdrawFact) IsValid([]byte) error {
 	return nil
 }
 
-func (fact SuffrageWithdrawFact) Node() base.Address {
+func (fact SuffrageExpelFact) Node() base.Address {
 	return fact.node
 }
 
-func (fact SuffrageWithdrawFact) WithdrawStart() base.Height {
+func (fact SuffrageExpelFact) ExpelStart() base.Height {
 	return fact.start
 }
 
-func (fact SuffrageWithdrawFact) WithdrawEnd() base.Height {
+func (fact SuffrageExpelFact) ExpelEnd() base.Height {
 	return fact.end
 }
 
-func (fact SuffrageWithdrawFact) Reason() string {
+func (fact SuffrageExpelFact) Reason() string {
 	return fact.reason
 }
 
-func (fact SuffrageWithdrawFact) hash() util.Hash {
+func (fact SuffrageExpelFact) hash() util.Hash {
 	return valuehash.NewSHA256(util.ConcatByters(
 		util.BytesToByter(fact.Token()),
 		fact.node,
@@ -94,18 +94,18 @@ func (fact SuffrageWithdrawFact) hash() util.Hash {
 	))
 }
 
-type SuffrageWithdrawOperation struct {
+type SuffrageExpelOperation struct {
 	base.BaseNodeOperation
 }
 
-func NewSuffrageWithdrawOperation(fact SuffrageWithdrawFact) SuffrageWithdrawOperation {
-	return SuffrageWithdrawOperation{
-		BaseNodeOperation: base.NewBaseNodeOperation(SuffrageWithdrawOperationHint, fact),
+func NewSuffrageExpelOperation(fact SuffrageExpelFact) SuffrageExpelOperation {
+	return SuffrageExpelOperation{
+		BaseNodeOperation: base.NewBaseNodeOperation(SuffrageExpelOperationHint, fact),
 	}
 }
 
-func (op *SuffrageWithdrawOperation) SetToken(base.Token) error {
-	fact := op.Fact().(SuffrageWithdrawFact) //nolint:forcetypeassert //...
+func (op *SuffrageExpelOperation) SetToken(base.Token) error {
+	fact := op.Fact().(SuffrageExpelFact) //nolint:forcetypeassert //...
 
 	// NOTE ignore given token
 	t := base.Token(util.ConcatByters(fact.node, fact.start, fact.end))
@@ -121,11 +121,11 @@ func (op *SuffrageWithdrawOperation) SetToken(base.Token) error {
 	return nil
 }
 
-func (op SuffrageWithdrawOperation) IsValid(networkID []byte) error {
-	e := util.ErrInvalid.Errorf("invalid SuffrageWithdrawOperation")
+func (op SuffrageExpelOperation) IsValid(networkID []byte) error {
+	e := util.ErrInvalid.Errorf("invalid SuffrageExpelOperation")
 
-	if _, ok := op.Fact().(SuffrageWithdrawFact); !ok {
-		return e.Errorf("not SuffrageWithdrawFact, %T", op.Fact())
+	if _, ok := op.Fact().(SuffrageExpelFact); !ok {
+		return e.Errorf("not SuffrageExpelFact, %T", op.Fact())
 	}
 
 	if err := op.BaseNodeOperation.IsValid(networkID); err != nil {
@@ -139,13 +139,13 @@ func (op SuffrageWithdrawOperation) IsValid(networkID []byte) error {
 	return nil
 }
 
-func (op SuffrageWithdrawOperation) NodeSigns() []base.NodeSign {
+func (op SuffrageExpelOperation) NodeSigns() []base.NodeSign {
 	signs := op.BaseNodeOperation.NodeSigns()
 	if len(signs) < 1 {
 		return nil
 	}
 
-	fact, ok := op.Fact().(SuffrageWithdrawFact)
+	fact, ok := op.Fact().(SuffrageExpelFact)
 	if !ok {
 		return nil
 	}
@@ -155,45 +155,45 @@ func (op SuffrageWithdrawOperation) NodeSigns() []base.NodeSign {
 	})
 }
 
-func (op SuffrageWithdrawOperation) WithdrawFact() base.SuffrageWithdrawFact {
-	return op.Fact().(SuffrageWithdrawFact) //nolint:forcetypeassert //...
+func (op SuffrageExpelOperation) ExpelFact() base.SuffrageExpelFact {
+	return op.Fact().(SuffrageExpelFact) //nolint:forcetypeassert //...
 }
 
-// IsValidWithdrawWithSuffrageLifespan checks withdraw operation itself with
+// IsValidExpelWithSuffrageLifespan checks expel operation itself with
 // suffrage and lifespan.
-func IsValidWithdrawWithSuffrageLifespan(
+func IsValidExpelWithSuffrageLifespan(
 	height base.Height,
-	withdraw base.SuffrageWithdrawOperation,
+	expel base.SuffrageExpelOperation,
 	suf base.Suffrage,
 	lifespan base.Height,
 ) error {
-	fact := withdraw.WithdrawFact()
+	fact := expel.ExpelFact()
 
-	if fact.WithdrawEnd() > fact.WithdrawStart()+lifespan {
-		return util.ErrInvalid.Errorf("invalid withdraw; wrong withdraw end")
+	if fact.ExpelEnd() > fact.ExpelStart()+lifespan {
+		return util.ErrInvalid.Errorf("invalid expel; wrong expel end")
 	}
 
-	return IsValidWithdrawWithSuffrage(height, withdraw, suf)
+	return IsValidExpelWithSuffrage(height, expel, suf)
 }
 
-func IsValidWithdrawWithSuffrage(
+func IsValidExpelWithSuffrage(
 	height base.Height,
-	withdraw base.SuffrageWithdrawOperation,
+	expel base.SuffrageExpelOperation,
 	suf base.Suffrage,
 ) error {
-	e := util.ErrInvalid.Errorf("invalid withdraw with suffrage")
+	e := util.ErrInvalid.Errorf("invalid expel with suffrage")
 
-	fact := withdraw.WithdrawFact()
+	fact := expel.ExpelFact()
 
-	if height > fact.WithdrawEnd() {
-		return errors.Errorf("withdraw expired")
+	if height > fact.ExpelEnd() {
+		return errors.Errorf("expel expired")
 	}
 
 	if !suf.Exists(fact.Node()) {
-		return e.Errorf("unknown withdraw node found, %q", fact.Node())
+		return e.Errorf("unknown expel node found, %q", fact.Node())
 	}
 
-	signs := withdraw.NodeSigns()
+	signs := expel.NodeSigns()
 
 	for i := range signs {
 		sign := signs[i]

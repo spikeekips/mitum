@@ -221,17 +221,17 @@ func PPatchMemberlist(pctx context.Context) (context.Context, error) {
 
 				return
 			}
-		case base.SuffrageWithdrawOperation:
+		case base.SuffrageExpelOperation:
 			voted, err := svvotef(t)
 			if err != nil {
-				l.Error().Err(err).Interface("withdraw operation", t).
-					Msg("new withdraw operation; failed to vote")
+				l.Error().Err(err).Interface("expel operation", t).
+					Msg("new expel operation; failed to vote")
 
 				return
 			}
 
-			l.Debug().Interface("withdraw", t).Bool("voted", voted).
-				Msg("new withdraw operation; voted")
+			l.Debug().Interface("expel", t).Bool("voted", voted).
+				Msg("new expel operation; voted")
 		case isaacstates.MissingBallotsRequestMessage:
 			l.Debug().
 				Interface("point", t.Point()).

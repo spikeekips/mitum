@@ -184,7 +184,7 @@ func quicstreamHandlerSetOperation(
 	op base.Operation,
 ) (bool, error) {
 	switch t := op.(type) {
-	case base.SuffrageWithdrawOperation:
+	case base.SuffrageExpelOperation:
 		return vote(t)
 	default:
 		return oppool.SetNewOperation(ctx, op)

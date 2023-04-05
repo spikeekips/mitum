@@ -30,13 +30,13 @@ type ACCEPTVoteproof interface {
 	BallotSignFacts() []ACCEPTBallotSignFact
 }
 
-type WithdrawVoteproof interface {
-	HasWithdraws
-	IsWithdrawVoteproof() bool // NOTE should be true
+type ExpelVoteproof interface {
+	HasExpels
+	IsExpelVoteproof() bool // NOTE should be true
 }
 
 type StuckVoteproof interface {
-	HasWithdraws
+	HasExpels
 	IsStuckVoteproof() bool // NOTE should be true
 }
 

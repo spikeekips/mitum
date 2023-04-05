@@ -38,7 +38,7 @@ func (t *testJoiningHandler) newargs(suf base.Suffrage) *JoiningHandlerArgs {
 	args.VoteFunc = func(base.Ballot) (bool, error) { return true, nil }
 	args.JoinMemberlistFunc = func(context.Context, base.Suffrage) error { return nil }
 	args.LeaveMemberlistFunc = func(time.Duration) error { return nil }
-	args.SuffrageVotingFindFunc = func(context.Context, base.Height, base.Suffrage) ([]base.SuffrageWithdrawOperation, error) {
+	args.SuffrageVotingFindFunc = func(context.Context, base.Height, base.Suffrage) ([]base.SuffrageExpelOperation, error) {
 		return nil, nil
 	}
 
@@ -618,25 +618,25 @@ func (t *testJoiningHandler) TestStuckINITVoteproof() {
 
 	t.T().Log("new stuck init voteproof")
 
-	withdrawnode := nodes[2]
+	expelnode := nodes[2]
 
 	_, origivp := t.VoteproofsPair(point, point.NextHeight(), manifest.Hash(), nil, nil, nodes)
 
-	withdraws := t.Withdraws(point.Height(), []base.Address{withdrawnode.Address()}, nodes[:2])
-	withdrawfacts := make([]util.Hash, len(withdraws))
-	for i := range withdraws {
-		withdrawfacts[i] = withdraws[i].Fact().Hash()
+	expels := t.Expels(point.Height(), []base.Address{expelnode.Address()}, nodes[:2])
+	expelfacts := make([]util.Hash, len(expels))
+	for i := range expels {
+		expelfacts[i] = expels[i].Fact().Hash()
 	}
 
 	sfs := util.FilterSlice(origivp.SignFacts(), func(i base.BallotSignFact) bool {
-		return !i.Node().Equal(withdrawnode.Address())
+		return !i.Node().Equal(expelnode.Address())
 	})
 
 	stuckivp := isaac.NewINITStuckVoteproof(origivp.Point().Point)
 	stuckivp.
 		SetMajority(origivp.Majority()).
 		SetSignFacts(sfs)
-	stuckivp.SetWithdraws(withdraws)
+	stuckivp.SetExpels(expels)
 	stuckivp.Finish()
 
 	err = st.newVoteproof(stuckivp)
@@ -673,25 +673,25 @@ func (t *testJoiningHandler) TestStuckACCEPTVoteproof() {
 	t.NoError(err)
 	deferred()
 
-	withdrawnode := nodes[2]
+	expelnode := nodes[2]
 
 	origavp, _ := t.VoteproofsPair(point.NextHeight(), point.NextHeight().NextHeight(), valuehash.RandomSHA256(), nil, nil, nodes)
 
-	withdraws := t.Withdraws(point.Height(), []base.Address{withdrawnode.Address()}, nodes[:2])
-	withdrawfacts := make([]util.Hash, len(withdraws))
-	for i := range withdraws {
-		withdrawfacts[i] = withdraws[i].Fact().Hash()
+	expels := t.Expels(point.Height(), []base.Address{expelnode.Address()}, nodes[:2])
+	expelfacts := make([]util.Hash, len(expels))
+	for i := range expels {
+		expelfacts[i] = expels[i].Fact().Hash()
 	}
 
 	sfs := util.FilterSlice(origavp.SignFacts(), func(i base.BallotSignFact) bool {
-		return !i.Node().Equal(withdrawnode.Address())
+		return !i.Node().Equal(expelnode.Address())
 	})
 
 	stuckivp := isaac.NewACCEPTStuckVoteproof(origavp.Point().Point)
 	stuckivp.
 		SetMajority(origavp.Majority()).
 		SetSignFacts(sfs)
-	stuckivp.SetWithdraws(withdraws)
+	stuckivp.SetExpels(expels)
 	stuckivp.Finish()
 
 	t.T().Log("new stuck accept voteproof")

@@ -67,30 +67,30 @@ func (suf Suffrage) Len() int {
 	return len(suf.ns)
 }
 
-func NewSuffrageWithWithdraws(
+func NewSuffrageWithExpels(
 	suf base.Suffrage,
 	threshold base.Threshold,
-	withdraws []base.SuffrageWithdrawOperation,
+	expels []base.SuffrageExpelOperation,
 ) (base.Suffrage, error) {
-	if len(withdraws) < 1 {
+	if len(expels) < 1 {
 		return suf, nil
 	}
 
 	th := threshold.Threshold(uint(suf.Len()))
-	if n := uint(len(withdraws)); n > uint(suf.Len())-th {
+	if n := uint(len(expels)); n > uint(suf.Len())-th {
 		th = uint(suf.Len()) - n
 	}
 
-	for i := range withdraws {
-		if n := uint(len(withdraws[i].NodeSigns())); n < th {
-			return nil, errors.Errorf("insufficient withdraw node signs; node signs=%d threshold=%d", n, th)
+	for i := range expels {
+		if n := uint(len(expels[i].NodeSigns())); n < th {
+			return nil, errors.Errorf("insufficient expel node signs; node signs=%d threshold=%d", n, th)
 		}
 	}
 
 	nodes := suf.Nodes()
 
-	filtered := util.Filter2Slices(nodes, withdraws, func(x base.Node, y base.SuffrageWithdrawOperation) bool {
-		return x.Address().Equal(y.WithdrawFact().Node())
+	filtered := util.Filter2Slices(nodes, expels, func(x base.Node, y base.SuffrageExpelOperation) bool {
+		return x.Address().Equal(y.ExpelFact().Node())
 	})
 
 	return NewSuffrage(filtered)

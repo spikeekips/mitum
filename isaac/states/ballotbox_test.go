@@ -29,12 +29,12 @@ func mustNewLastPoint(
 }
 
 func (box *Ballotbox) voteAndWait(bl base.Ballot, threshold base.Threshold) (bool, []base.Voteproof, error) {
-	var withdraws []base.SuffrageWithdrawOperation
-	if w, ok := bl.(base.HasWithdraws); ok {
-		withdraws = w.Withdraws()
+	var expels []base.SuffrageExpelOperation
+	if w, ok := bl.(base.HasExpels); ok {
+		expels = w.Expels()
 	}
 
-	voted, callback, err := box.vote(bl.SignFact(), bl.Voteproof(), withdraws, threshold)
+	voted, callback, err := box.vote(bl.SignFact(), bl.Voteproof(), expels, threshold)
 	if err != nil {
 		return voted, nil, err
 	}
@@ -57,10 +57,10 @@ func (t *baseTestBallotbox) SetupSuite() {
 	t.networkID = base.NetworkID(util.UUID().Bytes())
 }
 
-func (t *baseTestBallotbox) initBallot(node base.LocalNode, nodes []base.LocalNode, point base.Point, prev, proposal util.Hash, withdraws []base.SuffrageWithdrawOperation, vp base.Voteproof) isaac.INITBallot {
-	withdrawfacts := make([]util.Hash, len(withdraws))
-	for i := range withdraws {
-		withdrawfacts[i] = withdraws[i].Fact().Hash()
+func (t *baseTestBallotbox) initBallot(node base.LocalNode, nodes []base.LocalNode, point base.Point, prev, proposal util.Hash, expels []base.SuffrageExpelOperation, vp base.Voteproof) isaac.INITBallot {
+	expelfacts := make([]util.Hash, len(expels))
+	for i := range expels {
+		expelfacts[i] = expels[i].Fact().Hash()
 	}
 
 	if vp == nil {
@@ -112,23 +112,23 @@ func (t *baseTestBallotbox) initBallot(node base.LocalNode, nodes []base.LocalNo
 		}
 	}
 
-	fact := isaac.NewINITBallotFact(point, prev, proposal, withdrawfacts)
+	fact := isaac.NewINITBallotFact(point, prev, proposal, expelfacts)
 
 	signfact := isaac.NewINITBallotSignFact(fact)
 	t.NoError(signfact.NodeSign(node.Privatekey(), t.networkID, node.Address()))
 
-	return isaac.NewINITBallot(vp, signfact, withdraws)
+	return isaac.NewINITBallot(vp, signfact, expels)
 }
 
-func (t *baseTestBallotbox) acceptBallot(node base.LocalNode, nodes []base.LocalNode, point base.Point, pr, block util.Hash, withdraws []base.SuffrageWithdrawOperation) isaac.ACCEPTBallot {
+func (t *baseTestBallotbox) acceptBallot(node base.LocalNode, nodes []base.LocalNode, point base.Point, pr, block util.Hash, expels []base.SuffrageExpelOperation) isaac.ACCEPTBallot {
 	prev := valuehash.RandomSHA256()
 
-	withdrawfacts := make([]util.Hash, len(withdraws))
-	for i := range withdraws {
-		withdrawfacts[i] = withdraws[i].Fact().Hash()
+	expelfacts := make([]util.Hash, len(expels))
+	for i := range expels {
+		expelfacts[i] = expels[i].Fact().Hash()
 	}
 
-	ifact := isaac.NewINITBallotFact(point, prev, pr, withdrawfacts)
+	ifact := isaac.NewINITBallotFact(point, prev, pr, expelfacts)
 
 	isfs := make([]base.BallotSignFact, len(nodes))
 	for i := range nodes {
@@ -140,13 +140,13 @@ func (t *baseTestBallotbox) acceptBallot(node base.LocalNode, nodes []base.Local
 
 	var ivp base.INITVoteproof
 
-	if len(withdraws) > 0 {
-		i := isaac.NewINITWithdrawVoteproof(ifact.Point().Point)
+	if len(expels) > 0 {
+		i := isaac.NewINITExpelVoteproof(ifact.Point().Point)
 		i.
 			SetMajority(ifact).
 			SetSignFacts(isfs).
 			SetThreshold(base.Threshold(100))
-		i.SetWithdraws(withdraws)
+		i.SetExpels(expels)
 		i.Finish()
 
 		ivp = i
@@ -161,13 +161,13 @@ func (t *baseTestBallotbox) acceptBallot(node base.LocalNode, nodes []base.Local
 		ivp = i
 	}
 
-	fact := isaac.NewACCEPTBallotFact(point, pr, block, withdrawfacts)
+	fact := isaac.NewACCEPTBallotFact(point, pr, block, expelfacts)
 
 	signfact := isaac.NewACCEPTBallotSignFact(fact)
 
 	t.NoError(signfact.NodeSign(node.Privatekey(), t.networkID, node.Address()))
 
-	return isaac.NewACCEPTBallot(ivp, signfact, withdraws)
+	return isaac.NewACCEPTBallot(ivp, signfact, expels)
 }
 
 func (t *baseTestBallotbox) compareStagePoint(a base.StagePoint, i interface{}) {
@@ -1316,30 +1316,30 @@ func TestBallotbox(t *testing.T) {
 	suite.Run(t, new(testBallotbox))
 }
 
-type testBallotboxWithWithdraw struct {
+type testBallotboxWithExpel struct {
 	baseTestBallotbox
 	encoder.BaseTest
 }
 
-func (t *testBallotboxWithWithdraw) SetupSuite() {
+func (t *testBallotboxWithExpel) SetupSuite() {
 	t.baseTestBallotbox.SetupSuite()
 
 	t.BaseTest.MarshalFunc = util.MarshalJSONIndent
 }
 
-func (t *testBallotboxWithWithdraw) withdraws(height base.Height, withdrawnodes []base.Address, signs []base.LocalNode) []base.SuffrageWithdrawOperation {
-	ops := make([]base.SuffrageWithdrawOperation, len(withdrawnodes))
+func (t *testBallotboxWithExpel) expels(height base.Height, expelnodes []base.Address, signs []base.LocalNode) []base.SuffrageExpelOperation {
+	ops := make([]base.SuffrageExpelOperation, len(expelnodes))
 
-	for i := range withdrawnodes {
-		withdrawnode := withdrawnodes[i]
+	for i := range expelnodes {
+		expelnode := expelnodes[i]
 
-		fact := isaac.NewSuffrageWithdrawFact(withdrawnode, height, height+1, util.UUID().String())
-		op := isaac.NewSuffrageWithdrawOperation(fact)
+		fact := isaac.NewSuffrageExpelFact(expelnode, height, height+1, util.UUID().String())
+		op := isaac.NewSuffrageExpelOperation(fact)
 
 		for j := range signs {
 			node := signs[j]
 
-			if node.Address().Equal(withdrawnode) {
+			if node.Address().Equal(expelnode) {
 				continue
 			}
 
@@ -1352,12 +1352,12 @@ func (t *testBallotboxWithWithdraw) withdraws(height base.Height, withdrawnodes 
 	return ops
 }
 
-func (t *testBallotboxWithWithdraw) TestINITBallot() {
+func (t *testBallotboxWithExpel) TestINITBallot() {
 	suf, nodes := isaac.NewTestSuffrage(3)
 	th := base.DefaultThreshold
 
 	local := nodes[0]
-	withdrawnode := nodes[1]
+	expelnode := nodes[1]
 	other := nodes[2]
 
 	box := NewBallotbox(
@@ -1371,16 +1371,16 @@ func (t *testBallotboxWithWithdraw) TestINITBallot() {
 	prev := valuehash.RandomSHA256()
 	pr := valuehash.RandomSHA256()
 
-	withdraws := t.withdraws(point.Height()-1, []base.Address{withdrawnode.Address()}, nodes)
+	expels := t.expels(point.Height()-1, []base.Address{expelnode.Address()}, nodes)
 
-	t.T().Log("withdraw:", t.StringMarshal(withdraws))
+	t.T().Log("expel:", t.StringMarshal(expels))
 
-	bl0 := t.initBallot(local, suf.Locals(), point, prev, pr, withdraws, nil)
+	bl0 := t.initBallot(local, suf.Locals(), point, prev, pr, expels, nil)
 	t.NoError(bl0.IsValid(t.networkID))
 
 	t.T().Log("ballot local:", t.StringMarshal(bl0))
 
-	bl1 := t.initBallot(other, suf.Locals(), point, prev, pr, withdraws, nil)
+	bl1 := t.initBallot(other, suf.Locals(), point, prev, pr, expels, nil)
 	t.NoError(bl1.IsValid(t.networkID))
 
 	t.T().Log("ballot other:", t.StringMarshal(bl1))
@@ -1404,22 +1404,22 @@ func (t *testBallotboxWithWithdraw) TestINITBallot() {
 	}
 }
 
-func (t *testBallotboxWithWithdraw) TestINITBallotWithdrawOthers() {
+func (t *testBallotboxWithExpel) TestINITBallotExpelOthers() {
 	suf, nodes := isaac.NewTestSuffrage(3)
 	th := base.DefaultThreshold
 
 	local := nodes[0]
-	withdrawnodes := []base.Address{nodes[1].Address(), nodes[2].Address()}
+	expelnodes := []base.Address{nodes[1].Address(), nodes[2].Address()}
 
 	point := base.RawPoint(33, 0)
 	prev := valuehash.RandomSHA256()
 	pr := valuehash.RandomSHA256()
 
-	withdraws := t.withdraws(point.Height()-1, withdrawnodes, nodes)
+	expels := t.expels(point.Height()-1, expelnodes, nodes)
 
-	t.T().Log("withdraw:", t.StringMarshal(withdraws))
+	t.T().Log("expel:", t.StringMarshal(expels))
 
-	bl := t.initBallot(local, suf.Locals(), point, prev, pr, withdraws, nil)
+	bl := t.initBallot(local, suf.Locals(), point, prev, pr, expels, nil)
 	t.NoError(bl.IsValid(t.networkID))
 
 	t.T().Log("ballot local:", t.StringMarshal(bl))
@@ -1447,7 +1447,7 @@ func (t *testBallotboxWithWithdraw) TestINITBallotWithdrawOthers() {
 
 	t.Run("other box", func() {
 		box := NewBallotbox(
-			withdrawnodes[0],
+			expelnodes[0],
 			func(base.Height) (base.Suffrage, bool, error) {
 				return suf, true, nil
 			},
@@ -1461,12 +1461,12 @@ func (t *testBallotboxWithWithdraw) TestINITBallotWithdrawOthers() {
 	})
 }
 
-func (t *testBallotboxWithWithdraw) TestACCEPTBallot() {
+func (t *testBallotboxWithExpel) TestACCEPTBallot() {
 	suf, nodes := isaac.NewTestSuffrage(3)
 	th := base.DefaultThreshold
 
 	local := nodes[0]
-	withdrawnode := nodes[1]
+	expelnode := nodes[1]
 	other := nodes[2]
 	newsuf, err := isaac.NewSuffrage([]base.Node{local, other})
 	t.NoError(err)
@@ -1482,16 +1482,16 @@ func (t *testBallotboxWithWithdraw) TestACCEPTBallot() {
 	pr := valuehash.RandomSHA256()
 	newblock := valuehash.RandomSHA256()
 
-	withdraws := t.withdraws(point.Height()-1, []base.Address{withdrawnode.Address()}, nodes)
+	expels := t.expels(point.Height()-1, []base.Address{expelnode.Address()}, nodes)
 
-	t.T().Log("withdraw:", t.StringMarshal(withdraws))
+	t.T().Log("expel:", t.StringMarshal(expels))
 
-	bl0 := t.acceptBallot(local, newsuf.Locals(), point, pr, newblock, withdraws)
+	bl0 := t.acceptBallot(local, newsuf.Locals(), point, pr, newblock, expels)
 	t.NoError(bl0.IsValid(t.networkID))
 
 	t.T().Log("ballot local:", t.StringMarshal(bl0))
 
-	bl1 := t.acceptBallot(other, newsuf.Locals(), point, pr, newblock, withdraws)
+	bl1 := t.acceptBallot(other, newsuf.Locals(), point, pr, newblock, expels)
 	t.NoError(bl1.IsValid(t.networkID))
 
 	t.T().Log("ballot other:", t.StringMarshal(bl1))
@@ -1515,12 +1515,12 @@ func (t *testBallotboxWithWithdraw) TestACCEPTBallot() {
 	}
 }
 
-func (t *testBallotboxWithWithdraw) TestACCEPTBallotWithdrawOthers() {
+func (t *testBallotboxWithExpel) TestACCEPTBallotExpelOthers() {
 	suf, nodes := isaac.NewTestSuffrage(3)
 	th := base.DefaultThreshold
 
 	local := nodes[0]
-	withdrawnodes := []base.Address{nodes[1].Address(), nodes[2].Address()}
+	expelnodes := []base.Address{nodes[1].Address(), nodes[2].Address()}
 	newsuf, err := isaac.NewSuffrage([]base.Node{local})
 	t.NoError(err)
 
@@ -1528,11 +1528,11 @@ func (t *testBallotboxWithWithdraw) TestACCEPTBallotWithdrawOthers() {
 	pr := valuehash.RandomSHA256()
 	newblock := valuehash.RandomSHA256()
 
-	withdraws := t.withdraws(point.Height()-1, withdrawnodes, nodes)
+	expels := t.expels(point.Height()-1, expelnodes, nodes)
 
-	t.T().Log("withdraw:", t.StringMarshal(withdraws))
+	t.T().Log("expel:", t.StringMarshal(expels))
 
-	bl := t.acceptBallot(local, newsuf.Locals(), point, pr, newblock, withdraws)
+	bl := t.acceptBallot(local, newsuf.Locals(), point, pr, newblock, expels)
 	t.NoError(bl.IsValid(t.networkID))
 
 	t.T().Log("ballot local:", t.StringMarshal(bl))
@@ -1561,7 +1561,7 @@ func (t *testBallotboxWithWithdraw) TestACCEPTBallotWithdrawOthers() {
 
 	t.Run("other box:", func() {
 		box := NewBallotbox(
-			withdrawnodes[0],
+			expelnodes[0],
 			func(base.Height) (base.Suffrage, bool, error) {
 				return suf, true, nil
 			},
@@ -1576,12 +1576,12 @@ func (t *testBallotboxWithWithdraw) TestACCEPTBallotWithdrawOthers() {
 	})
 }
 
-func (t *testBallotboxWithWithdraw) TestINITBallotJointWithdrawsOverThreshold() {
+func (t *testBallotboxWithExpel) TestINITBallotJointExpelsOverThreshold() {
 	suf, nodes := isaac.NewTestSuffrage(20)
 	th := base.DefaultThreshold
 
 	local := nodes[0]
-	withdrawnodes := []base.Address{
+	expelnodes := []base.Address{
 		nodes[10].Address(),
 		nodes[11].Address(),
 		nodes[12].Address(),
@@ -1598,15 +1598,15 @@ func (t *testBallotboxWithWithdraw) TestINITBallotJointWithdrawsOverThreshold() 
 	prev := valuehash.RandomSHA256()
 	pr := valuehash.RandomSHA256()
 
-	fullsigned := t.withdraws(point.Height()-1, withdrawnodes[:1], nodes[:13])
-	notfullsigned := t.withdraws(point.Height()-1, withdrawnodes[1:], nodes[:10])
+	fullsigned := t.expels(point.Height()-1, expelnodes[:1], nodes[:13])
+	notfullsigned := t.expels(point.Height()-1, expelnodes[1:], nodes[:10])
 
-	var withdraws []base.SuffrageWithdrawOperation
-	withdraws = append(withdraws, fullsigned...)
-	withdraws = append(withdraws, notfullsigned...)
+	var expels []base.SuffrageExpelOperation
+	expels = append(expels, fullsigned...)
+	expels = append(expels, notfullsigned...)
 
-	t.T().Log("full signed withdraw:", t.StringMarshal(fullsigned))
-	t.T().Log("not full signed withdraw:", t.StringMarshal(notfullsigned))
+	t.T().Log("full signed expel:", t.StringMarshal(fullsigned))
+	t.T().Log("not full signed expel:", t.StringMarshal(notfullsigned))
 
 	box := NewBallotbox(
 		local.Address(),
@@ -1624,13 +1624,13 @@ func (t *testBallotboxWithWithdraw) TestINITBallotJointWithdrawsOverThreshold() 
 	for i := range nodes {
 		node := nodes[i]
 
-		if util.InSliceFunc(withdrawnodes, func(addr base.Address) bool {
+		if util.InSliceFunc(expelnodes, func(addr base.Address) bool {
 			return addr.Equal(node.Address())
 		}) >= 0 {
 			break
 		}
 
-		bl := t.initBallot(node, suf.Locals(), point, prev, pr, withdraws, nil)
+		bl := t.initBallot(node, suf.Locals(), point, prev, pr, expels, nil)
 		t.NoError(bl.IsValid(t.networkID))
 		voted, vps, err := box.voteAndWait(bl, th)
 		t.NoError(err)
@@ -1662,12 +1662,12 @@ func (t *testBallotboxWithWithdraw) TestINITBallotJointWithdrawsOverThreshold() 
 	t.NoError(isaac.IsValidVoteproofWithSuffrage(vp, suf))
 }
 
-func (t *testBallotboxWithWithdraw) TestINITBallotJointWithdrawsSafeThreshold() {
+func (t *testBallotboxWithExpel) TestINITBallotJointExpelsSafeThreshold() {
 	suf, nodes := isaac.NewTestSuffrage(20)
 	th := base.DefaultThreshold
 
 	local := nodes[0]
-	withdrawnodes := []base.Address{
+	expelnodes := []base.Address{
 		nodes[14].Address(),
 		nodes[15].Address(),
 		nodes[16].Address(),
@@ -1680,12 +1680,12 @@ func (t *testBallotboxWithWithdraw) TestINITBallotJointWithdrawsSafeThreshold() 
 	prev := valuehash.RandomSHA256()
 	pr := valuehash.RandomSHA256()
 
-	fullsigned := t.withdraws(point.Height()-1, withdrawnodes, nodes[:15])
+	fullsigned := t.expels(point.Height()-1, expelnodes, nodes[:15])
 
-	var withdraws []base.SuffrageWithdrawOperation
-	withdraws = append(withdraws, fullsigned...)
+	var expels []base.SuffrageExpelOperation
+	expels = append(expels, fullsigned...)
 
-	t.T().Log("full signed withdraw:", t.StringMarshal(fullsigned))
+	t.T().Log("full signed expel:", t.StringMarshal(fullsigned))
 
 	box := NewBallotbox(
 		local.Address(),
@@ -1703,13 +1703,13 @@ func (t *testBallotboxWithWithdraw) TestINITBallotJointWithdrawsSafeThreshold() 
 	for i := range nodes {
 		node := nodes[i]
 
-		if util.InSliceFunc(withdrawnodes, func(addr base.Address) bool {
+		if util.InSliceFunc(expelnodes, func(addr base.Address) bool {
 			return addr.Equal(node.Address())
 		}) >= 0 {
 			break
 		}
 
-		bl := t.initBallot(node, suf.Locals(), point, prev, pr, withdraws, nil)
+		bl := t.initBallot(node, suf.Locals(), point, prev, pr, expels, nil)
 		t.NoError(bl.IsValid(t.networkID))
 		voted, vps, err := box.voteAndWait(bl, th)
 		t.NoError(err)
@@ -1741,12 +1741,12 @@ func (t *testBallotboxWithWithdraw) TestINITBallotJointWithdrawsSafeThreshold() 
 	t.NoError(isaac.IsValidVoteproofWithSuffrage(vp, suf))
 }
 
-func (t *testBallotboxWithWithdraw) TestINITBallotButDraw() {
+func (t *testBallotboxWithExpel) TestINITBallotButDraw() {
 	suf, nodes := isaac.NewTestSuffrage(3)
 	th := base.DefaultThreshold
 
 	local := nodes[0]
-	withdrawnode := nodes[1]
+	expelnode := nodes[1]
 	other := nodes[2]
 
 	box := NewBallotbox(
@@ -1761,11 +1761,11 @@ func (t *testBallotboxWithWithdraw) TestINITBallotButDraw() {
 	prev := valuehash.RandomSHA256()
 	pr := valuehash.RandomSHA256()
 
-	withdraws := t.withdraws(point.Height()-1, []base.Address{withdrawnode.Address()}, nodes)
+	expels := t.expels(point.Height()-1, []base.Address{expelnode.Address()}, nodes)
 
-	t.T().Log("withdraw:", t.StringMarshal(withdraws))
+	t.T().Log("expel:", t.StringMarshal(expels))
 
-	bl0 := t.initBallot(local, suf.Locals(), point, prev, pr, withdraws, nil)
+	bl0 := t.initBallot(local, suf.Locals(), point, prev, pr, expels, nil)
 	t.NoError(bl0.IsValid(t.networkID))
 
 	t.T().Log("ballot local:", t.StringMarshal(bl0))
@@ -1797,14 +1797,14 @@ func (t *testBallotboxWithWithdraw) TestINITBallotButDraw() {
 	}
 }
 
-func (t *testBallotboxWithWithdraw) TestSuffrageConfirmBallots() {
+func (t *testBallotboxWithExpel) TestSuffrageConfirmBallots() {
 	point := base.RawPoint(33, 0)
 
 	suf, nodes := isaac.NewTestSuffrage(3)
 	th := base.DefaultThreshold
 
 	local := nodes[0]
-	withdrawnode := nodes[2]
+	expelnode := nodes[2]
 
 	box := NewBallotbox(
 		local.Address(),
@@ -1813,21 +1813,21 @@ func (t *testBallotboxWithWithdraw) TestSuffrageConfirmBallots() {
 		},
 	)
 
-	withdraws := t.withdraws(point.Height()-1, []base.Address{withdrawnode.Address()}, nodes)
-	withdrawfacts := make([]util.Hash, len(withdraws))
-	for i := range withdrawfacts {
-		withdrawfacts[i] = withdraws[i].Fact().Hash()
+	expels := t.expels(point.Height()-1, []base.Address{expelnode.Address()}, nodes)
+	expelfacts := make([]util.Hash, len(expels))
+	for i := range expelfacts {
+		expelfacts[i] = expels[i].Fact().Hash()
 	}
 
 	prev := valuehash.RandomSHA256()
 	pr := valuehash.RandomSHA256()
-	ifact := isaac.NewINITBallotFact(point, prev, pr, withdrawfacts)
+	ifact := isaac.NewINITBallotFact(point, prev, pr, expelfacts)
 	isfs := make([]base.BallotSignFact, len(nodes)-1)
 
 	var n int
 	for i := range nodes {
 		node := nodes[i]
-		if node.Address().Equal(withdrawnode.Address()) {
+		if node.Address().Equal(expelnode.Address()) {
 			continue
 		}
 		sf := isaac.NewINITBallotSignFact(ifact)
@@ -1837,24 +1837,24 @@ func (t *testBallotboxWithWithdraw) TestSuffrageConfirmBallots() {
 		n++
 	}
 
-	// expected majority init voteproof with withdraws
-	ivp := isaac.NewINITWithdrawVoteproof(point)
+	// expected majority init voteproof with expels
+	ivp := isaac.NewINITExpelVoteproof(point)
 	_ = ivp.
 		SetSignFacts(isfs).
 		SetMajority(ifact).
 		SetThreshold(th)
-	ivp.SetWithdraws(withdraws)
+	ivp.SetExpels(expels)
 	ivp.Finish()
 
 	box.SetLastPoint(mustNewLastPoint(ivp.Point(), true, false))
 
-	sfact := isaac.NewSuffrageConfirmBallotFact(ifact.Point().Point, ifact.PreviousBlock(), ifact.Proposal(), ifact.WithdrawFacts())
+	sfact := isaac.NewSuffrageConfirmBallotFact(ifact.Point().Point, ifact.PreviousBlock(), ifact.Proposal(), ifact.ExpelFacts())
 	t.NoError(sfact.IsValid(nil))
 
 	go func() {
 		for i := range nodes {
 			node := nodes[i]
-			if node.Address().Equal(withdrawnode.Address()) {
+			if node.Address().Equal(expelnode.Address()) {
 				continue
 			}
 
@@ -1888,14 +1888,14 @@ func (t *testBallotboxWithWithdraw) TestSuffrageConfirmBallots() {
 	}
 }
 
-func (t *testBallotboxWithWithdraw) TestVoteproofFromSuffrageConfirmBallots() {
+func (t *testBallotboxWithExpel) TestVoteproofFromSuffrageConfirmBallots() {
 	point := base.RawPoint(33, 0)
 
 	suf, nodes := isaac.NewTestSuffrage(3)
 	th := base.DefaultThreshold
 
 	local := nodes[0]
-	withdrawnode := nodes[2]
+	expelnode := nodes[2]
 
 	box := NewBallotbox(
 		local.Address(),
@@ -1904,21 +1904,21 @@ func (t *testBallotboxWithWithdraw) TestVoteproofFromSuffrageConfirmBallots() {
 		},
 	)
 
-	withdraws := t.withdraws(point.Height()-1, []base.Address{withdrawnode.Address()}, nodes)
-	withdrawfacts := make([]util.Hash, len(withdraws))
-	for i := range withdrawfacts {
-		withdrawfacts[i] = withdraws[i].Fact().Hash()
+	expels := t.expels(point.Height()-1, []base.Address{expelnode.Address()}, nodes)
+	expelfacts := make([]util.Hash, len(expels))
+	for i := range expelfacts {
+		expelfacts[i] = expels[i].Fact().Hash()
 	}
 
 	prev := valuehash.RandomSHA256()
 	pr := valuehash.RandomSHA256()
-	ifact := isaac.NewINITBallotFact(point, prev, pr, withdrawfacts)
+	ifact := isaac.NewINITBallotFact(point, prev, pr, expelfacts)
 	isfs := make([]base.BallotSignFact, len(nodes)-1)
 
 	var n int
 	for i := range nodes {
 		node := nodes[i]
-		if node.Address().Equal(withdrawnode.Address()) {
+		if node.Address().Equal(expelnode.Address()) {
 			continue
 		}
 		sf := isaac.NewINITBallotSignFact(ifact)
@@ -1928,25 +1928,25 @@ func (t *testBallotboxWithWithdraw) TestVoteproofFromSuffrageConfirmBallots() {
 		n++
 	}
 
-	// expected majority init voteproof with withdraws
-	ivp := isaac.NewINITWithdrawVoteproof(point)
+	// expected majority init voteproof with expels
+	ivp := isaac.NewINITExpelVoteproof(point)
 	_ = ivp.
 		SetSignFacts(isfs).
 		SetMajority(ifact).
 		SetThreshold(th)
-	ivp.SetWithdraws(withdraws)
+	ivp.SetExpels(expels)
 	ivp.Finish()
 
 	// NOTE set last stage point is not init marjoity
 	box.SetLastPoint(mustNewLastPoint(base.NewStagePoint(point.NextRound(), base.StageINIT), false, false))
 
-	sfact := isaac.NewSuffrageConfirmBallotFact(point, prev, valuehash.RandomSHA256(), withdrawfacts)
+	sfact := isaac.NewSuffrageConfirmBallotFact(point, prev, valuehash.RandomSHA256(), expelfacts)
 	t.NoError(sfact.IsValid(nil))
 
 	go func() {
 		for i := range nodes {
 			node := nodes[i]
-			if node.Address().Equal(withdrawnode.Address()) {
+			if node.Address().Equal(expelnode.Address()) {
 				continue
 			}
 
@@ -1982,18 +1982,18 @@ func (t *testBallotboxWithWithdraw) TestVoteproofFromSuffrageConfirmBallots() {
 	}
 }
 
-func (t *testBallotboxWithWithdraw) TestVoteproofWithWithdraws() {
+func (t *testBallotboxWithExpel) TestVoteproofWithExpels() {
 	t.Run("not yet finished", func() {
 		point := base.RawPoint(33, 0)
 		suf, nodes := isaac.NewTestSuffrage(3)
-		withdrawnode := nodes[2]
+		expelnode := nodes[2]
 
 		th := base.Threshold(67)
 
-		withdraws := t.withdraws(point.Height(), []base.Address{withdrawnode.Address()}, nodes)
-		withdrawfacts := make([]util.Hash, len(withdraws))
-		for i := range withdrawfacts {
-			withdrawfacts[i] = withdraws[i].Fact().Hash()
+		expels := t.expels(point.Height(), []base.Address{expelnode.Address()}, nodes)
+		expelfacts := make([]util.Hash, len(expels))
+		for i := range expelfacts {
+			expelfacts[i] = expels[i].Fact().Hash()
 		}
 
 		box := NewBallotbox(
@@ -2008,7 +2008,7 @@ func (t *testBallotboxWithWithdraw) TestVoteproofWithWithdraws() {
 
 		for i := range nodes {
 			node := nodes[i]
-			if node.Address().Equal(withdrawnode.Address()) {
+			if node.Address().Equal(expelnode.Address()) {
 				continue
 			}
 
@@ -2019,7 +2019,7 @@ func (t *testBallotboxWithWithdraw) TestVoteproofWithWithdraws() {
 			t.True(voted)
 		}
 
-		vp, err := box.StuckVoteproof(base.NewStagePoint(point, base.StageINIT), th, withdraws)
+		vp, err := box.StuckVoteproof(base.NewStagePoint(point, base.StageINIT), th, expels)
 		t.NoError(err)
 		t.NotNil(vp)
 
@@ -2036,14 +2036,14 @@ func (t *testBallotboxWithWithdraw) TestVoteproofWithWithdraws() {
 	t.Run("finished", func() {
 		point := base.RawPoint(33, 0)
 		suf, nodes := isaac.NewTestSuffrage(3)
-		withdrawnode := nodes[2]
+		expelnode := nodes[2]
 
 		th := base.Threshold(100)
 
-		withdraws := t.withdraws(point.Height(), []base.Address{withdrawnode.Address()}, nodes)
-		withdrawfacts := make([]util.Hash, len(withdraws))
-		for i := range withdrawfacts {
-			withdrawfacts[i] = withdraws[i].Fact().Hash()
+		expels := t.expels(point.Height(), []base.Address{expelnode.Address()}, nodes)
+		expelfacts := make([]util.Hash, len(expels))
+		for i := range expelfacts {
+			expelfacts[i] = expels[i].Fact().Hash()
 		}
 
 		box := NewBallotbox(
@@ -2064,12 +2064,12 @@ func (t *testBallotboxWithWithdraw) TestVoteproofWithWithdraws() {
 			t.True(voted)
 		}
 
-		vp, err := box.StuckVoteproof(base.NewStagePoint(point, base.StageINIT), th, withdraws)
+		vp, err := box.StuckVoteproof(base.NewStagePoint(point, base.StageINIT), th, expels)
 		t.NoError(err)
 		t.Nil(vp)
 	})
 }
 
-func TestBallotboxWithWithdraw(t *testing.T) {
-	suite.Run(t, new(testBallotboxWithWithdraw))
+func TestBallotboxWithExpel(t *testing.T) {
+	suite.Run(t, new(testBallotboxWithExpel))
 }

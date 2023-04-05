@@ -779,39 +779,39 @@ func TestNewOperationPool(t *testing.T) {
 	suite.Run(t, new(testNewOperationPool))
 }
 
-type testSuffrageWithdrawPool struct {
+type testSuffrageExpelPool struct {
 	isaac.BaseTestBallots
 	BaseTestDatabase
 	local     base.LocalNode
 	networkID base.NetworkID
 }
 
-func (t *testSuffrageWithdrawPool) SetupSuite() {
+func (t *testSuffrageExpelPool) SetupSuite() {
 	t.BaseTestDatabase.SetupSuite()
 
-	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageWithdrawOperationHint, Instance: isaac.SuffrageWithdrawOperation{}}))
-	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageWithdrawFactHint, Instance: isaac.SuffrageWithdrawFact{}}))
+	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageExpelOperationHint, Instance: isaac.SuffrageExpelOperation{}}))
+	t.noerror(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageExpelFactHint, Instance: isaac.SuffrageExpelFact{}}))
 
 	t.local = base.RandomLocalNode()
 	t.networkID = util.UUID().Bytes()
 }
 
-func (t *testSuffrageWithdrawPool) SetupTest() {
+func (t *testSuffrageExpelPool) SetupTest() {
 	t.BaseTestBallots.SetupTest()
 }
 
-func (t *testSuffrageWithdrawPool) operation(
+func (t *testSuffrageExpelPool) operation(
 	start, end base.Height,
 	node base.Address,
-) isaac.SuffrageWithdrawOperation {
-	fact := isaac.NewSuffrageWithdrawFact(node, start, end, util.UUID().String())
-	op := isaac.NewSuffrageWithdrawOperation(fact)
+) isaac.SuffrageExpelOperation {
+	fact := isaac.NewSuffrageExpelFact(node, start, end, util.UUID().String())
+	op := isaac.NewSuffrageExpelOperation(fact)
 	t.NoError(op.NodeSign(t.local.Privatekey(), t.networkID, t.local.Address()))
 
 	return op
 }
 
-func (t *testSuffrageWithdrawPool) TestSet() {
+func (t *testSuffrageExpelPool) TestSet() {
 	pst := t.NewPool()
 	defer pst.Close()
 
@@ -820,15 +820,15 @@ func (t *testSuffrageWithdrawPool) TestSet() {
 	t.Run("set and get", func() {
 		height := base.Height(33)
 
-		rop, found, err := pst.SuffrageWithdrawOperation(height, node)
+		rop, found, err := pst.SuffrageExpelOperation(height, node)
 		t.NoError(err)
 		t.False(found)
 		t.Nil(rop)
 
 		nop := t.operation(height, height+1, node)
-		t.NoError(pst.SetSuffrageWithdrawOperation(nop))
+		t.NoError(pst.SetSuffrageExpelOperation(nop))
 
-		rop, found, err = pst.SuffrageWithdrawOperation(height, node)
+		rop, found, err = pst.SuffrageExpelOperation(height, node)
 		t.NoError(err)
 		t.True(found)
 		t.NotNil(rop)
@@ -839,9 +839,9 @@ func (t *testSuffrageWithdrawPool) TestSet() {
 		height := base.Height(35)
 
 		nop := t.operation(height, height, node)
-		t.NoError(pst.SetSuffrageWithdrawOperation(nop))
+		t.NoError(pst.SetSuffrageExpelOperation(nop))
 
-		rop, found, err := pst.SuffrageWithdrawOperation(height, node)
+		rop, found, err := pst.SuffrageExpelOperation(height, node)
 		t.NoError(err)
 		t.True(found)
 		t.NotNil(rop)
@@ -849,7 +849,7 @@ func (t *testSuffrageWithdrawPool) TestSet() {
 	})
 }
 
-func (t *testSuffrageWithdrawPool) TestRemoveByFact() {
+func (t *testSuffrageExpelPool) TestRemoveByFact() {
 	pst := t.NewPool()
 	defer pst.Close()
 
@@ -857,25 +857,25 @@ func (t *testSuffrageWithdrawPool) TestRemoveByFact() {
 		height := base.Height(33)
 		node := base.RandomAddress("")
 
-		rop, found, err := pst.SuffrageWithdrawOperation(height, node)
+		rop, found, err := pst.SuffrageExpelOperation(height, node)
 		t.NoError(err)
 		t.False(found)
 		t.Nil(rop)
 
 		nop0 := t.operation(height, height+1, node)
-		t.NoError(pst.SetSuffrageWithdrawOperation(nop0))
+		t.NoError(pst.SetSuffrageExpelOperation(nop0))
 
 		nop1 := t.operation(height, height+1, base.RandomAddress(""))
-		t.NoError(pst.SetSuffrageWithdrawOperation(nop1))
+		t.NoError(pst.SetSuffrageExpelOperation(nop1))
 
-		t.NoError(pst.RemoveSuffrageWithdrawOperationsByFact([]base.SuffrageWithdrawFact{nop0.WithdrawFact()}))
+		t.NoError(pst.RemoveSuffrageExpelOperationsByFact([]base.SuffrageExpelFact{nop0.ExpelFact()}))
 
-		rop, found, err = pst.SuffrageWithdrawOperation(height, node)
+		rop, found, err = pst.SuffrageExpelOperation(height, node)
 		t.NoError(err)
 		t.False(found)
 		t.Nil(rop)
 
-		rop, found, err = pst.SuffrageWithdrawOperation(height, nop1.WithdrawFact().Node())
+		rop, found, err = pst.SuffrageExpelOperation(height, nop1.ExpelFact().Node())
 		t.NoError(err)
 		t.True(found)
 		t.NotNil(rop)
@@ -886,59 +886,59 @@ func (t *testSuffrageWithdrawPool) TestRemoveByFact() {
 		node := base.RandomAddress("")
 
 		op := t.operation(height, height+1, node)
-		t.NoError(pst.SetSuffrageWithdrawOperation(op))
+		t.NoError(pst.SetSuffrageExpelOperation(op))
 
 		unknown := t.operation(height, height+1, node)
 
-		t.NoError(pst.RemoveSuffrageWithdrawOperationsByFact([]base.SuffrageWithdrawFact{
-			op.WithdrawFact(),
-			unknown.WithdrawFact(),
+		t.NoError(pst.RemoveSuffrageExpelOperationsByFact([]base.SuffrageExpelFact{
+			op.ExpelFact(),
+			unknown.ExpelFact(),
 		}))
 	})
 }
 
-func (t *testSuffrageWithdrawPool) TestRemoveByHeight() {
+func (t *testSuffrageExpelPool) TestRemoveByHeight() {
 	pst := t.NewPool()
 	defer pst.Close()
 
 	t.Run("remove", func() {
 		baseheight := base.Height(33)
 
-		ops := make([]base.SuffrageWithdrawOperation, 3)
+		ops := make([]base.SuffrageExpelOperation, 3)
 		for i := range ops {
 			op := t.operation(baseheight, baseheight+base.Height(int64(i)), base.RandomAddress(""))
-			t.NoError(pst.SetSuffrageWithdrawOperation(op))
+			t.NoError(pst.SetSuffrageExpelOperation(op))
 
 			ops[i] = op
 		}
 
-		height := ops[0].WithdrawFact().WithdrawEnd()
+		height := ops[0].ExpelFact().ExpelEnd()
 
-		var rops0 []base.SuffrageWithdrawOperation
+		var rops0 []base.SuffrageExpelOperation
 
-		t.NoError(pst.TraverseSuffrageWithdrawOperations(context.Background(), height, func(op base.SuffrageWithdrawOperation) (bool, error) {
+		t.NoError(pst.TraverseSuffrageExpelOperations(context.Background(), height, func(op base.SuffrageExpelOperation) (bool, error) {
 			rops0 = append(rops0, op)
 
 			return true, nil
 		}))
 		t.Equal(len(ops), len(rops0))
 
-		t.NoError(pst.RemoveSuffrageWithdrawOperationsByHeight(height))
+		t.NoError(pst.RemoveSuffrageExpelOperationsByHeight(height))
 
-		var rops1 []base.SuffrageWithdrawOperation
+		var rops1 []base.SuffrageExpelOperation
 
-		t.NoError(pst.TraverseSuffrageWithdrawOperations(context.Background(), height, func(op base.SuffrageWithdrawOperation) (bool, error) {
+		t.NoError(pst.TraverseSuffrageExpelOperations(context.Background(), height, func(op base.SuffrageExpelOperation) (bool, error) {
 			rops1 = append(rops1, op)
 
 			return true, nil
 		}))
 		t.Equal(2, len(rops1))
 
-		t.NoError(pst.RemoveSuffrageWithdrawOperationsByHeight(ops[2].WithdrawFact().WithdrawEnd()))
+		t.NoError(pst.RemoveSuffrageExpelOperationsByHeight(ops[2].ExpelFact().ExpelEnd()))
 
-		var rops2 []base.SuffrageWithdrawOperation
+		var rops2 []base.SuffrageExpelOperation
 
-		t.NoError(pst.TraverseSuffrageWithdrawOperations(context.Background(), height, func(op base.SuffrageWithdrawOperation) (bool, error) {
+		t.NoError(pst.TraverseSuffrageExpelOperations(context.Background(), height, func(op base.SuffrageExpelOperation) (bool, error) {
 			rops2 = append(rops2, op)
 
 			return true, nil
@@ -947,6 +947,6 @@ func (t *testSuffrageWithdrawPool) TestRemoveByHeight() {
 	})
 }
 
-func TestSuffrageWithdrawPool(t *testing.T) {
-	suite.Run(t, new(testSuffrageWithdrawPool))
+func TestSuffrageExpelPool(t *testing.T) {
+	suite.Run(t, new(testSuffrageExpelPool))
 }

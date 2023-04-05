@@ -620,17 +620,17 @@ func (st *States) mimicBallot() func(base.Ballot) base.Ballot {
 }
 
 func (st *States) signMimicBallot(bl base.Ballot) (base.Ballot, error) {
-	var withdraws []base.SuffrageWithdrawOperation
+	var expels []base.SuffrageExpelOperation
 
-	if w, ok := bl.(base.HasWithdraws); ok {
-		withdraws = w.Withdraws()
+	if w, ok := bl.(base.HasExpels); ok {
+		expels = w.Expels()
 	}
 
 	return mimicBallot(
 		st.local,
 		st.params,
 		bl.SignFact().Fact().(base.BallotFact), //nolint:forcetypeassert //...
-		withdraws,
+		expels,
 		bl.Voteproof(),
 	)
 }
@@ -638,24 +638,24 @@ func (st *States) signMimicBallot(bl base.Ballot) (base.Ballot, error) {
 func (st *States) filterMimicBallot(bl base.Ballot) bool {
 	l := st.Log().With().Interface("ballot", bl).Logger()
 
-	// NOTE if local is in withdraws, ignore
-	switch w, ok := bl.(base.HasWithdraws); {
+	// NOTE if local is in expels, ignore
+	switch w, ok := bl.(base.HasExpels); {
 	case !ok:
 	default:
-		if util.InSliceFunc(w.Withdraws(), func(i base.SuffrageWithdrawOperation) bool {
-			return i.WithdrawFact().Node().Equal(st.local.Address())
+		if util.InSliceFunc(w.Expels(), func(i base.SuffrageExpelOperation) bool {
+			return i.ExpelFact().Node().Equal(st.local.Address())
 		}) >= 0 {
-			l.Debug().Msg("local in withdraws; ignore")
+			l.Debug().Msg("local in expels; ignore")
 
 			return true
 		}
 	}
 
-	if w, ok := bl.Voteproof().(base.HasWithdraws); ok {
-		if util.InSliceFunc(w.Withdraws(), func(i base.SuffrageWithdrawOperation) bool {
-			return i.WithdrawFact().Node().Equal(st.local.Address())
+	if w, ok := bl.Voteproof().(base.HasExpels); ok {
+		if util.InSliceFunc(w.Expels(), func(i base.SuffrageExpelOperation) bool {
+			return i.ExpelFact().Node().Equal(st.local.Address())
 		}) >= 0 {
-			l.Debug().Msg("local in withdraws voteproof; ignore")
+			l.Debug().Msg("local in expels voteproof; ignore")
 
 			return true
 		}
@@ -703,7 +703,7 @@ func mimicBallot(
 	local base.LocalNode,
 	params *isaac.LocalParams,
 	fact base.BallotFact,
-	withdraws []base.SuffrageWithdrawOperation,
+	expels []base.SuffrageExpelOperation,
 	voteproof base.Voteproof,
 ) (base.Ballot, error) {
 	var newbl base.Ballot
@@ -724,7 +724,7 @@ func mimicBallot(
 			return nil, err
 		}
 
-		newbl = isaac.NewINITBallot(voteproof, sf, withdraws)
+		newbl = isaac.NewINITBallot(voteproof, sf, expels)
 	case isaac.ACCEPTBallotFact:
 		sf := isaac.NewACCEPTBallotSignFact(t)
 
@@ -735,7 +735,7 @@ func mimicBallot(
 		newbl = isaac.NewACCEPTBallot( //nolint:forcetypeassert //...
 			voteproof.(base.INITVoteproof),
 			sf,
-			withdraws,
+			expels,
 		)
 	default:
 		return nil, errors.Errorf("unknown ballot, %T", fact)

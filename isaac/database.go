@@ -126,16 +126,16 @@ type TempSyncPool interface {
 	Close() error
 }
 
-type SuffrageWithdrawPool interface {
-	SuffrageWithdrawOperation(base.Height, base.Address) (base.SuffrageWithdrawOperation, bool, error)
-	SetSuffrageWithdrawOperation(base.SuffrageWithdrawOperation) error
-	TraverseSuffrageWithdrawOperations(
+type SuffrageExpelPool interface {
+	SuffrageExpelOperation(base.Height, base.Address) (base.SuffrageExpelOperation, bool, error)
+	SetSuffrageExpelOperation(base.SuffrageExpelOperation) error
+	TraverseSuffrageExpelOperations(
 		context.Context,
 		base.Height,
 		SuffrageVoteFunc,
 	) error
-	RemoveSuffrageWithdrawOperationsByFact([]base.SuffrageWithdrawFact) error
-	RemoveSuffrageWithdrawOperationsByHeight(base.Height) error
+	RemoveSuffrageExpelOperationsByFact([]base.SuffrageExpelFact) error
+	RemoveSuffrageExpelOperationsByHeight(base.Height) error
 }
 
 // BallotPool stores latest ballots of local

@@ -29,14 +29,14 @@ var Hinters = []encoder.DecodeDetail{
 	{Hint: isaac.ACCEPTBallotHint, Instance: isaac.ACCEPTBallot{}},
 	{Hint: isaac.ACCEPTBallotSignFactHint, Instance: isaac.ACCEPTBallotSignFact{}},
 	{Hint: isaac.ACCEPTVoteproofHint, Instance: isaac.ACCEPTVoteproof{}},
-	{Hint: isaac.ACCEPTWithdrawVoteproofHint, Instance: isaac.ACCEPTWithdrawVoteproof{}},
+	{Hint: isaac.ACCEPTExpelVoteproofHint, Instance: isaac.ACCEPTExpelVoteproof{}},
 	{Hint: isaac.ACCEPTStuckVoteproofHint, Instance: isaac.ACCEPTStuckVoteproof{}},
 	{Hint: isaac.FixedSuffrageCandidateLimiterRuleHint, Instance: isaac.FixedSuffrageCandidateLimiterRule{}},
 	{Hint: isaac.INITBallotFactHint, Instance: isaac.INITBallotFact{}},
 	{Hint: isaac.INITBallotHint, Instance: isaac.INITBallot{}},
 	{Hint: isaac.INITBallotSignFactHint, Instance: isaac.INITBallotSignFact{}},
 	{Hint: isaac.INITVoteproofHint, Instance: isaac.INITVoteproof{}},
-	{Hint: isaac.INITWithdrawVoteproofHint, Instance: isaac.INITWithdrawVoteproof{}},
+	{Hint: isaac.INITExpelVoteproofHint, Instance: isaac.INITExpelVoteproof{}},
 	{Hint: isaac.INITStuckVoteproofHint, Instance: isaac.INITStuckVoteproof{}},
 	{Hint: isaac.LocalParamsHint, Instance: &isaac.LocalParams{}},
 	{Hint: isaac.ManifestHint, Instance: isaac.Manifest{}},
@@ -50,7 +50,7 @@ var Hinters = []encoder.DecodeDetail{
 	{Hint: isaac.SuffrageCandidatesStateValueHint, Instance: isaac.SuffrageCandidatesStateValue{}},
 	{Hint: isaac.SuffrageNodeStateValueHint, Instance: isaac.SuffrageNodeStateValue{}},
 	{Hint: isaac.SuffrageNodesStateValueHint, Instance: isaac.SuffrageNodesStateValue{}},
-	{Hint: isaac.SuffrageWithdrawOperationHint, Instance: isaac.SuffrageWithdrawOperation{}},
+	{Hint: isaac.SuffrageExpelOperationHint, Instance: isaac.SuffrageExpelOperation{}},
 	{Hint: isaacblock.BlockMapHint, Instance: isaacblock.BlockMap{}},
 	{Hint: isaacblock.SuffrageProofHint, Instance: isaacblock.SuffrageProof{}},
 	{
@@ -102,7 +102,7 @@ var Hinters = []encoder.DecodeDetail{
 }
 
 var SupportedProposalOperationFactHinters = []encoder.DecodeDetail{
-	{Hint: isaac.SuffrageWithdrawFactHint, Instance: isaac.SuffrageWithdrawFact{}},
+	{Hint: isaac.SuffrageExpelFactHint, Instance: isaac.SuffrageExpelFact{}},
 	{Hint: isaacoperation.SuffrageCandidateFactHint, Instance: isaacoperation.SuffrageCandidateFact{}},
 	{Hint: isaacoperation.SuffrageDisjoinFactHint, Instance: isaacoperation.SuffrageDisjoinFact{}},
 	{Hint: isaacoperation.SuffrageJoinFactHint, Instance: isaacoperation.SuffrageJoinFact{}},

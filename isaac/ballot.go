@@ -16,9 +16,9 @@ var (
 )
 
 type baseBallot struct {
-	withdraws []base.SuffrageWithdrawOperation
-	vp        base.Voteproof
-	signFact  base.BallotSignFact
+	expels   []base.SuffrageExpelOperation
+	vp       base.Voteproof
+	signFact base.BallotSignFact
 	hint.BaseHinter
 }
 
@@ -26,15 +26,15 @@ func newBaseBallot(
 	ht hint.Hint,
 	vp base.Voteproof,
 	signFact base.BallotSignFact,
-	withdraws []base.SuffrageWithdrawOperation,
+	expels []base.SuffrageExpelOperation,
 ) baseBallot {
-	sortWithdraws(withdraws)
+	sortExpels(expels)
 
 	return baseBallot{
 		BaseHinter: hint.NewBaseHinter(ht),
 		vp:         vp,
 		signFact:   signFact,
-		withdraws:  withdraws,
+		expels:     expels,
 	}
 }
 
@@ -55,8 +55,8 @@ func (bl baseBallot) Voteproof() base.Voteproof {
 	return bl.vp
 }
 
-func (bl baseBallot) Withdraws() []base.SuffrageWithdrawOperation {
-	return bl.withdraws
+func (bl baseBallot) Expels() []base.SuffrageExpelOperation {
+	return bl.expels
 }
 
 func (bl baseBallot) IsValid(networkID []byte) error {
@@ -102,59 +102,59 @@ func (bl baseBallot) ballotFact() base.BallotFact {
 	return bf
 }
 
-func (bl *baseBallot) isValidWithdraws(networkID []byte, withdraws []base.SuffrageWithdrawOperation) error {
-	fact, ok := bl.signFact.Fact().(WithdrawBallotFact)
+func (bl *baseBallot) isValidExpels(networkID []byte, expels []base.SuffrageExpelOperation) error {
+	fact, ok := bl.signFact.Fact().(ExpelBallotFact)
 	if !ok {
 		return nil
 	}
 
-	withdrawfacts := fact.WithdrawFacts()
+	expelfacts := fact.ExpelFacts()
 
 	switch {
-	case len(fact.WithdrawFacts()) != len(withdraws):
-		return errors.Errorf("number of withdraws not matched")
-	case len(withdraws) < 1:
+	case len(fact.ExpelFacts()) != len(expels):
+		return errors.Errorf("number of expels not matched")
+	case len(expels) < 1:
 	default:
-		if err := util.CheckIsValiderSlice(networkID, false, withdraws); err != nil {
+		if err := util.CheckIsValiderSlice(networkID, false, expels); err != nil {
 			return err
 		}
 
 		var werr error
 
-		if _, found := util.IsDuplicatedSlice(withdraws, func(i base.SuffrageWithdrawOperation) (bool, string) {
+		if _, found := util.IsDuplicatedSlice(expels, func(i base.SuffrageExpelOperation) (bool, string) {
 			if i == nil {
 				return true, ""
 			}
 
-			fact := i.WithdrawFact()
+			fact := i.ExpelFact()
 
-			if werr == nil && fact.WithdrawStart() > bl.Point().Height() {
-				werr = util.ErrInvalid.Errorf("wrong start height in withdraw")
+			if werr == nil && fact.ExpelStart() > bl.Point().Height() {
+				werr = util.ErrInvalid.Errorf("wrong start height in expel")
 			}
 
 			return werr == nil, fact.Node().String()
 		}); werr == nil && found {
-			return util.ErrInvalid.Errorf("duplicated withdraw node found")
+			return util.ErrInvalid.Errorf("duplicated expel node found")
 		}
 
 		if werr != nil {
 			return werr
 		}
 
-		for i := range withdrawfacts {
-			if !withdrawfacts[i].Equal(withdraws[i].Fact().Hash()) {
-				return errors.Errorf("withdraw fact hash not matched")
+		for i := range expelfacts {
+			if !expelfacts[i].Equal(expels[i].Fact().Hash()) {
+				return errors.Errorf("expel fact hash not matched")
 			}
 		}
 	}
 
-	withdrawnodes := make([]base.Address, len(withdraws))
+	expelnodes := make([]base.Address, len(expels))
 
-	for i := range withdraws {
-		signs := withdraws[i].NodeSigns()
+	for i := range expels {
+		signs := expels[i].NodeSigns()
 
 		filtered := util.FilterSlice(signs, func(sign base.NodeSign) bool {
-			return util.InSliceFunc(withdrawnodes, func(addr base.Address) bool {
+			return util.InSliceFunc(expelnodes, func(addr base.Address) bool {
 				return sign.Node().Equal(addr)
 			}) < 0
 		})
@@ -174,10 +174,10 @@ type INITBallot struct {
 func NewINITBallot(
 	vp base.Voteproof,
 	signfact INITBallotSignFact,
-	withdraws []base.SuffrageWithdrawOperation,
+	expels []base.SuffrageExpelOperation,
 ) INITBallot {
 	return INITBallot{
-		baseBallot: newBaseBallot(INITBallotHint, vp, signfact, withdraws),
+		baseBallot: newBaseBallot(INITBallotHint, vp, signfact, expels),
 	}
 }
 
@@ -198,7 +198,7 @@ func (bl INITBallot) IsValid(networkID []byte) error {
 			return e.Wrap(err)
 		}
 	default:
-		if err := bl.isValidWithdraws(networkID, bl.withdraws); err != nil {
+		if err := bl.isValidExpels(networkID, bl.expels); err != nil {
 			return e.Wrap(err)
 		}
 
@@ -218,19 +218,19 @@ func (bl INITBallot) BallotSignFact() base.INITBallotSignFact {
 	return bl.signFact.(base.INITBallotSignFact) //nolint:forcetypeassert //...
 }
 
-func (bl INITBallot) Withdraws() []base.SuffrageWithdrawOperation {
+func (bl INITBallot) Expels() []base.SuffrageExpelOperation {
 	if bl.signFact != nil {
 		if _, ok := bl.signFact.Fact().(SuffrageConfirmBallotFact); ok {
-			switch w, ok := bl.Voteproof().(base.WithdrawVoteproof); {
+			switch w, ok := bl.Voteproof().(base.ExpelVoteproof); {
 			case !ok:
 				return nil
 			default:
-				return w.Withdraws()
+				return w.Expels()
 			}
 		}
 	}
 
-	return bl.baseBallot.Withdraws()
+	return bl.baseBallot.Expels()
 }
 
 func (bl INITBallot) isvalidSuffrageConfirmBallotFact(networkID base.NetworkID) error {
@@ -251,27 +251,27 @@ func (bl INITBallot) isvalidSuffrageConfirmBallotFact(networkID base.NetworkID) 
 		return e.Errorf("wrong voteproof; majority should be INITBallotFact, not %q", vp.Majority())
 	}
 
-	// NOTE SuffrageConfirm INIT ballot does use withdraws from voteproof
+	// NOTE SuffrageConfirm INIT ballot does use expels from voteproof
 	// instead of from it's body.
-	switch w, ok := vp.(base.WithdrawVoteproof); {
+	switch w, ok := vp.(base.ExpelVoteproof); {
 	case !ok:
-		return e.Errorf("wrong voteproof; expected WithdrawVoteproof, but %T", vp)
-	case len(w.Withdraws()) < 1:
-		return e.Errorf("wrong voteproof; empty withdraws")
-	case len(bl.withdraws) > 0:
-		return e.Errorf("not empty withdraws")
+		return e.Errorf("wrong voteproof; expected ExpelVoteproof, but %T", vp)
+	case len(w.Expels()) < 1:
+		return e.Errorf("wrong voteproof; empty expels")
+	case len(bl.expels) > 0:
+		return e.Errorf("not empty expels")
 	default:
-		if err := bl.isValidWithdraws(networkID, w.Withdraws()); err != nil {
+		if err := bl.isValidExpels(networkID, w.Expels()); err != nil {
 			return e.Wrap(err)
 		}
 	}
 
 	fact := bl.signFact.Fact().(SuffrageConfirmBallotFact) //nolint:forcetypeassert //...
 
-	bfacts := fact.WithdrawFacts()                               //nolint:forcetypeassert //...
-	vfacts := vp.Majority().(WithdrawBallotFact).WithdrawFacts() //nolint:forcetypeassert //...
+	bfacts := fact.ExpelFacts()                            //nolint:forcetypeassert //...
+	vfacts := vp.Majority().(ExpelBallotFact).ExpelFacts() //nolint:forcetypeassert //...
 
-	// NOTE compare withdraws in fact with ballot's
+	// NOTE compare expels in fact with ballot's
 	if len(bfacts) != len(vfacts) {
 		return e.Errorf("wrong voteproof; not matched with suffrage confirm ballot fact")
 	}
@@ -301,10 +301,10 @@ type ACCEPTBallot struct {
 func NewACCEPTBallot(
 	ivp base.INITVoteproof,
 	signfact ACCEPTBallotSignFact,
-	withdraws []base.SuffrageWithdrawOperation,
+	expels []base.SuffrageExpelOperation,
 ) ACCEPTBallot {
 	return ACCEPTBallot{
-		baseBallot: newBaseBallot(ACCEPTBallotHint, ivp, signfact, withdraws),
+		baseBallot: newBaseBallot(ACCEPTBallotHint, ivp, signfact, expels),
 	}
 }
 
@@ -319,7 +319,7 @@ func (bl ACCEPTBallot) IsValid(networkID []byte) error {
 		return e.Wrap(err)
 	}
 
-	if err := bl.isValidWithdraws(networkID, bl.withdraws); err != nil {
+	if err := bl.isValidExpels(networkID, bl.expels); err != nil {
 		return e.Wrap(err)
 	}
 
@@ -327,7 +327,7 @@ func (bl ACCEPTBallot) IsValid(networkID []byte) error {
 		return e.Wrap(err)
 	}
 
-	return bl.isValidACCEPTWithdraws()
+	return bl.isValidACCEPTExpels()
 }
 
 func (bl ACCEPTBallot) BallotSignFact() base.ACCEPTBallotSignFact {
@@ -338,52 +338,52 @@ func (bl ACCEPTBallot) BallotSignFact() base.ACCEPTBallotSignFact {
 	return bl.signFact.(base.ACCEPTBallotSignFact) //nolint:forcetypeassert //...
 }
 
-func (bl ACCEPTBallot) isValidACCEPTWithdraws() error {
-	e := util.ErrInvalid.Errorf("invalid withdraws in accept ballot")
+func (bl ACCEPTBallot) isValidACCEPTExpels() error {
+	e := util.ErrInvalid.Errorf("invalid expels in accept ballot")
 
-	if len(bl.withdraws) < 1 {
+	if len(bl.expels) < 1 {
 		return nil
 	}
 
-	wvp, ok := bl.vp.(base.HasWithdraws)
+	wvp, ok := bl.vp.(base.HasExpels)
 	if !ok {
-		return e.Errorf("invalid init voteproof; withdraws not found")
+		return e.Errorf("invalid init voteproof; expels not found")
 	}
 
-	withdraws := wvp.Withdraws()
+	expels := wvp.Expels()
 
-	if len(bl.withdraws) != len(withdraws) {
-		return e.Errorf("invalid init voteproof; insufficient withdraws")
+	if len(bl.expels) != len(expels) {
+		return e.Errorf("invalid init voteproof; insufficient expels")
 	}
 
-	for i := range bl.withdraws {
-		bw := bl.withdraws[i]
-		vw := withdraws[i]
+	for i := range bl.expels {
+		bw := bl.expels[i]
+		vw := expels[i]
 
 		if !bw.Fact().Hash().Equal(vw.Fact().Hash()) {
-			return e.Errorf("invalid init voteproof; withdraw not match")
+			return e.Errorf("invalid init voteproof; expel not match")
 		}
 	}
 
 	return nil
 }
 
-func sortWithdrawFacts(withdrawfacts []util.Hash) {
-	if len(withdrawfacts) < 1 {
+func sortExpelFacts(expelfacts []util.Hash) {
+	if len(expelfacts) < 1 {
 		return
 	}
 
-	sort.Slice(withdrawfacts, func(i, j int) bool {
-		return strings.Compare(withdrawfacts[i].String(), withdrawfacts[j].String()) < 0
+	sort.Slice(expelfacts, func(i, j int) bool {
+		return strings.Compare(expelfacts[i].String(), expelfacts[j].String()) < 0
 	})
 }
 
-func sortWithdraws[T base.SuffrageWithdrawOperation](withdraws []T) {
-	if len(withdraws) < 1 {
+func sortExpels[T base.SuffrageExpelOperation](expels []T) {
+	if len(expels) < 1 {
 		return
 	}
 
-	sort.Slice(withdraws, func(i, j int) bool {
-		return strings.Compare(withdraws[i].Fact().Hash().String(), withdraws[j].Fact().Hash().String()) < 0
+	sort.Slice(expels, func(i, j int) bool {
+		return strings.Compare(expels[i].Fact().Hash().String(), expels[j].Fact().Hash().String()) < 0
 	})
 }

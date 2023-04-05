@@ -35,7 +35,7 @@ var (
 	leveldbKeyTempSyncMap                   = []byte{0x02, 0x0c}
 	leveldbKeySuffrageProof                 = []byte{0x02, 0x0d}
 	leveldbKeySuffrageProofByBlockHeight    = []byte{0x02, 0x0e}
-	leveldbKeySuffrageWithdrawOperation     = []byte{0x02, 0x0f}
+	leveldbKeySuffrageExpelOperation        = []byte{0x02, 0x0f}
 	leveldbKeyTempMerged                    = []byte{0x02, 0x10}
 	leveldbKeyPrefixBallot                  = []byte{0x02, 0x11}
 )
@@ -253,8 +253,8 @@ func leveldbSuffrageProofByBlockHeightKey(height base.Height) []byte {
 	)
 }
 
-func leveldbSuffrageWithdrawOperation(fact base.SuffrageWithdrawFact) []byte {
-	return util.ConcatBytesSlice(leveldbKeySuffrageWithdrawOperation, fact.WithdrawEnd().Bytes(), fact.Hash().Bytes())
+func leveldbSuffrageExpelOperation(fact base.SuffrageExpelFact) []byte {
+	return util.ConcatBytesSlice(leveldbKeySuffrageExpelOperation, fact.ExpelEnd().Bytes(), fact.Hash().Bytes())
 }
 
 func leveldbBallotKey(point base.StagePoint, isSuffrageConfirm bool) []byte { // revive:disable-line:flag-parameter

@@ -98,20 +98,20 @@ type (
 	SuffrageCandidateLimiter     func() (uint64, error)
 )
 
-type SuffrageWithdrawFact interface {
+type SuffrageExpelFact interface {
 	Fact
 	Node() Address
-	WithdrawStart() Height // NOTE available from WithdrawStart()
-	WithdrawEnd() Height   // NOTE not available at WithdrawEnd() + 1
+	ExpelStart() Height // NOTE available from ExpelStart()
+	ExpelEnd() Height   // NOTE not available at ExpelEnd() + 1
 	Reason() string
 }
 
-type SuffrageWithdrawOperation interface {
+type SuffrageExpelOperation interface {
 	Operation
 	NodeSignFact
-	WithdrawFact() SuffrageWithdrawFact
+	ExpelFact() SuffrageExpelFact
 }
 
-type HasWithdraws interface {
-	Withdraws() []SuffrageWithdrawOperation
+type HasExpels interface {
+	Expels() []SuffrageExpelOperation
 }

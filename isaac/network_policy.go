@@ -16,7 +16,7 @@ var (
 	// NOTE suffrage candidate can be approved within lifespan height; almost 15
 	// days(based on 5 second for one block)
 	DefaultSuffrageCandidateLifespan base.Height = 1 << 18
-	DefaultSuffrageWithdrawLifespan              = base.Height(333) //nolint:gomnd //...
+	DefaultSuffrageExpelLifespan                 = base.Height(333) //nolint:gomnd //...
 )
 
 type NetworkPolicy struct {
@@ -25,7 +25,7 @@ type NetworkPolicy struct {
 	maxOperationsInProposal   uint64
 	suffrageCandidateLifespan base.Height
 	maxSuffrageSize           uint64
-	suffrageWithdrawLifespan  base.Height
+	suffrageExpelLifespan     base.Height
 }
 
 func DefaultNetworkPolicy() NetworkPolicy {
@@ -35,7 +35,7 @@ func DefaultNetworkPolicy() NetworkPolicy {
 		suffrageCandidateLifespan:    DefaultSuffrageCandidateLifespan,
 		suffrageCandidateLimiterRule: NewFixedSuffrageCandidateLimiterRule(1),
 		maxSuffrageSize:              DefaultMaxSuffrageSize,
-		suffrageWithdrawLifespan:     DefaultSuffrageWithdrawLifespan,
+		suffrageExpelLifespan:        DefaultSuffrageExpelLifespan,
 	}
 }
 
@@ -84,7 +84,7 @@ func (p NetworkPolicy) HashBytes() []byte {
 		p.suffrageCandidateLifespan.Bytes(),
 		util.Uint64ToBytes(p.maxSuffrageSize),
 		rule,
-		p.suffrageWithdrawLifespan.Bytes(),
+		p.suffrageExpelLifespan.Bytes(),
 	)
 }
 
@@ -104,8 +104,8 @@ func (p NetworkPolicy) MaxSuffrageSize() uint64 {
 	return p.maxSuffrageSize
 }
 
-func (p NetworkPolicy) SuffrageWithdrawLifespan() base.Height {
-	return p.suffrageWithdrawLifespan
+func (p NetworkPolicy) SuffrageExpelLifespan() base.Height {
+	return p.suffrageExpelLifespan
 }
 
 type NetworkPolicyStateValue struct {

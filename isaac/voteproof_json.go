@@ -15,12 +15,12 @@ import (
 )
 
 type baseVoteproofJSONMarshaler struct {
-	FinishedAt time.Time                        `json:"finished_at"`
-	Majority   util.Hash                        `json:"majority"`
-	ID         string                           `json:"id"`
-	SignFacts  []base.BallotSignFact            `json:"sign_facts"`
-	Withdraws  []base.SuffrageWithdrawOperation `json:"withdraws,omitempty"`
-	Point      base.StagePoint                  `json:"point"`
+	FinishedAt time.Time                     `json:"finished_at"`
+	Majority   util.Hash                     `json:"majority"`
+	ID         string                        `json:"id"`
+	SignFacts  []base.BallotSignFact         `json:"sign_facts"`
+	Expels     []base.SuffrageExpelOperation `json:"expels,omitempty"`
+	Point      base.StagePoint               `json:"point"`
 	hint.BaseHinter
 	Threshold base.Threshold `json:"threshold"`
 }
@@ -46,30 +46,30 @@ func (vp baseVoteproof) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(vp.jsonMarshaller())
 }
 
-func (vp INITWithdrawVoteproof) MarshalJSON() ([]byte, error) {
+func (vp INITExpelVoteproof) MarshalJSON() ([]byte, error) {
 	m := vp.jsonMarshaller()
-	m.Withdraws = vp.withdraws
+	m.Expels = vp.expels
 
 	return util.MarshalJSON(m)
 }
 
 func (vp INITStuckVoteproof) MarshalJSON() ([]byte, error) {
 	m := vp.jsonMarshaller()
-	m.Withdraws = vp.withdraws
+	m.Expels = vp.expels
 
 	return util.MarshalJSON(m)
 }
 
-func (vp ACCEPTWithdrawVoteproof) MarshalJSON() ([]byte, error) {
+func (vp ACCEPTExpelVoteproof) MarshalJSON() ([]byte, error) {
 	m := vp.jsonMarshaller()
-	m.Withdraws = vp.withdraws
+	m.Expels = vp.expels
 
 	return util.MarshalJSON(m)
 }
 
 func (vp ACCEPTStuckVoteproof) MarshalJSON() ([]byte, error) {
 	m := vp.jsonMarshaller()
-	m.Withdraws = vp.withdraws
+	m.Expels = vp.expels
 
 	return util.MarshalJSON(m)
 }
@@ -79,7 +79,7 @@ type baseVoteproofJSONUnmarshaler struct {
 	ID         string                `json:"id"`
 	Majority   valuehash.HashDecoder `json:"majority"`
 	SignFacts  []json.RawMessage     `json:"sign_facts"`
-	Withdraws  []json.RawMessage     `json:"withdraws"`
+	Expels     []json.RawMessage     `json:"expels"`
 	Point      base.StagePoint       `json:"point"`
 	Threshold  base.Threshold        `json:"threshold"`
 }
@@ -125,46 +125,46 @@ func (vp *baseVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	return err
 }
 
-func decodeWithdrawVoteproofJSON(_ []byte, enc *jsonenc.Encoder, u baseVoteproofJSONUnmarshaler, i interface{}) error {
-	withdraws := make([]base.SuffrageWithdrawOperation, len(u.Withdraws))
+func decodeExpelVoteproofJSON(_ []byte, enc *jsonenc.Encoder, u baseVoteproofJSONUnmarshaler, i interface{}) error {
+	expels := make([]base.SuffrageExpelOperation, len(u.Expels))
 
-	for i := range u.Withdraws {
-		if err := encoder.Decode(enc, u.Withdraws[i], &withdraws[i]); err != nil {
+	for i := range u.Expels {
+		if err := encoder.Decode(enc, u.Expels[i], &expels[i]); err != nil {
 			return err
 		}
 	}
 
 	switch t := i.(type) {
-	case *baseWithdrawVoteproof:
-		t.withdraws = withdraws
+	case *baseExpelVoteproof:
+		t.expels = expels
 	case *baseStuckVoteproof:
-		t.withdraws = withdraws
+		t.expels = expels
 	default:
-		return errors.Errorf("withdraws not found, %T", t)
+		return errors.Errorf("expels not found, %T", t)
 	}
 
 	return nil
 }
 
-func (vp *baseWithdrawVoteproof) decodeJSON(
+func (vp *baseExpelVoteproof) decodeJSON(
 	b []byte, enc *jsonenc.Encoder, u baseVoteproofJSONUnmarshaler,
 ) (err error) {
-	return decodeWithdrawVoteproofJSON(b, enc, u, vp)
+	return decodeExpelVoteproofJSON(b, enc, u, vp)
 }
 
 func (vp *baseStuckVoteproof) decodeJSON(b []byte, enc *jsonenc.Encoder, u baseVoteproofJSONUnmarshaler) (err error) {
-	return decodeWithdrawVoteproofJSON(b, enc, u, vp)
+	return decodeExpelVoteproofJSON(b, enc, u, vp)
 }
 
-func (vp *INITWithdrawVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("decode INITWithdrawVoteproof")
+func (vp *INITExpelVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+	e := util.StringErrorFunc("decode INITExpelVoteproof")
 
 	u, err := vp.baseVoteproof.decodeJSON(b, enc)
 	if err != nil {
 		return e(err, "")
 	}
 
-	if err := vp.baseWithdrawVoteproof.decodeJSON(b, enc, u); err != nil {
+	if err := vp.baseExpelVoteproof.decodeJSON(b, enc, u); err != nil {
 		return e(err, "")
 	}
 
@@ -186,15 +186,15 @@ func (vp *INITStuckVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	return nil
 }
 
-func (vp *ACCEPTWithdrawVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("decode ACCEPTWithdrawVoteproof")
+func (vp *ACCEPTExpelVoteproof) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+	e := util.StringErrorFunc("decode ACCEPTExpelVoteproof")
 
 	u, err := vp.baseVoteproof.decodeJSON(b, enc)
 	if err != nil {
 		return e(err, "")
 	}
 
-	if err := vp.baseWithdrawVoteproof.decodeJSON(b, enc, u); err != nil {
+	if err := vp.baseExpelVoteproof.decodeJSON(b, enc, u); err != nil {
 		return e(err, "")
 	}
 

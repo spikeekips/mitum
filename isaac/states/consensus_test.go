@@ -32,7 +32,7 @@ func (t *baseTestConsensusHandler) newargs(previous base.Manifest, suf base.Suff
 		return suf, suf.ExistsPublickey(local.Address(), local.Publickey()), nil
 	}
 	args.VoteFunc = func(base.Ballot) (bool, error) { return true, nil }
-	args.SuffrageVotingFindFunc = func(context.Context, base.Height, base.Suffrage) ([]base.SuffrageWithdrawOperation, error) {
+	args.SuffrageVotingFindFunc = func(context.Context, base.Height, base.Suffrage) ([]base.SuffrageExpelOperation, error) {
 		return nil, nil
 	}
 
@@ -350,7 +350,7 @@ func (t *testConsensusHandler) TestProcessingProposalAfterEntered() {
 	}
 }
 
-func (t *testConsensusHandler) TestEnterWithDrawINITVoteproof() {
+func (t *testConsensusHandler) TestEnterExpelINITVoteproof() {
 	point := base.RawPoint(33, 44)
 	suf, _ := isaac.NewTestSuffrage(2, t.Local)
 
@@ -400,7 +400,7 @@ func (t *testConsensusHandler) TestEnterWithDrawINITVoteproof() {
 	}
 }
 
-func (t *testConsensusHandler) TestEnterWithDrawACCEPTVoteproof() {
+func (t *testConsensusHandler) TestEnterExpelACCEPTVoteproof() {
 	point := base.RawPoint(33, 44)
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 
@@ -534,7 +534,7 @@ func (t *testConsensusHandler) TestProcessingProposalWithACCEPTVoteproof() {
 	}
 }
 
-func (t *testConsensusHandler) TestProcessingProposalWithDrawACCEPTVoteproof() {
+func (t *testConsensusHandler) TestProcessingProposalExpelACCEPTVoteproof() {
 	point := base.RawPoint(33, 44)
 	suf, nodes := isaac.NewTestSuffrage(2, t.Local)
 

@@ -23,8 +23,8 @@ func (p *NetworkPolicy) SetSuffrageCandidateLimiterRule(i base.SuffrageCandidate
 	return p
 }
 
-func (p *NetworkPolicy) SetSuffrageWithdrawLifespan(i base.Height) *NetworkPolicy {
-	p.suffrageWithdrawLifespan = i
+func (p *NetworkPolicy) SetSuffrageExpelLifespan(i base.Height) *NetworkPolicy {
+	p.suffrageExpelLifespan = i
 
 	return p
 }

@@ -275,19 +275,19 @@ func (db *TempPool) SetNewOperation(_ context.Context, op base.Operation) (bool,
 	return true, nil
 }
 
-func (db *TempPool) SuffrageWithdrawOperation(
+func (db *TempPool) SuffrageExpelOperation(
 	height base.Height,
 	node base.Address,
-) (base.SuffrageWithdrawOperation, bool, error) {
-	e := util.StringErrorFunc("get SuffrageWithdrawOperation")
+) (base.SuffrageExpelOperation, bool, error) {
+	e := util.StringErrorFunc("get SuffrageExpelOperation")
 
 	nodeb := node.Bytes()
 
 	var opb []byte
 
 	if err := db.st.Iter(
-		leveldbutil.BytesPrefix(leveldbKeySuffrageWithdrawOperation), func(_, b []byte) (bool, error) {
-			switch rnodeb, start, end, left, err := db.readSuffrageWithdrawOperationsRecordMeta(b); {
+		leveldbutil.BytesPrefix(leveldbKeySuffrageExpelOperation), func(_, b []byte) (bool, error) {
+			switch rnodeb, start, end, left, err := db.readSuffrageExpelOperationsRecordMeta(b); {
 			case err != nil:
 				return false, err
 			case !bytes.Equal(nodeb, rnodeb):
@@ -307,7 +307,7 @@ func (db *TempPool) SuffrageWithdrawOperation(
 		return nil, false, nil
 	}
 
-	var op base.SuffrageWithdrawOperation
+	var op base.SuffrageExpelOperation
 
 	if err := db.readHinter(opb, &op); err != nil {
 		return nil, false, e(err, "")
@@ -316,27 +316,27 @@ func (db *TempPool) SuffrageWithdrawOperation(
 	return op, true, nil
 }
 
-func (db *TempPool) SetSuffrageWithdrawOperation(op base.SuffrageWithdrawOperation) error {
-	e := util.StringErrorFunc("set SuffrageWithdrawOperation")
+func (db *TempPool) SetSuffrageExpelOperation(op base.SuffrageExpelOperation) error {
+	e := util.StringErrorFunc("set SuffrageExpelOperation")
 
 	b, _, err := db.marshal(op, nil)
 	if err != nil {
 		return e(err, "marshal")
 	}
 
-	fact := op.WithdrawFact()
+	fact := op.ExpelFact()
 
 	lb, err := util.NewLengthedBytesSlice(0x01, [][]byte{ //nolint:gomnd //...
 		fact.Node().Bytes(),
-		fact.WithdrawStart().Bytes(),
-		fact.WithdrawEnd().Bytes(),
+		fact.ExpelStart().Bytes(),
+		fact.ExpelEnd().Bytes(),
 	})
 	if err != nil {
 		return e(err, "marshal")
 	}
 
 	if err := db.st.Put(
-		newSuffrageWithdrawOperationKey(op.WithdrawFact()),
+		newSuffrageExpelOperationKey(op.ExpelFact()),
 		util.ConcatBytesSlice(lb, b),
 		nil,
 	); err != nil {
@@ -346,16 +346,16 @@ func (db *TempPool) SetSuffrageWithdrawOperation(op base.SuffrageWithdrawOperati
 	return nil
 }
 
-func (db *TempPool) TraverseSuffrageWithdrawOperations(
+func (db *TempPool) TraverseSuffrageExpelOperations(
 	_ context.Context,
 	height base.Height,
 	callback isaac.SuffrageVoteFunc,
 ) error {
 	if err := db.st.Iter(
-		leveldbutil.BytesPrefix(leveldbKeySuffrageWithdrawOperation), func(key, b []byte) (bool, error) {
-			var op base.SuffrageWithdrawOperation
+		leveldbutil.BytesPrefix(leveldbKeySuffrageExpelOperation), func(key, b []byte) (bool, error) {
+			var op base.SuffrageExpelOperation
 
-			switch _, start, end, left, err := db.readSuffrageWithdrawOperationsRecordMeta(b); {
+			switch _, start, end, left, err := db.readSuffrageExpelOperationsRecordMeta(b); {
 			case err != nil:
 				return false, err
 			case end < height, start > height:
@@ -368,20 +368,20 @@ func (db *TempPool) TraverseSuffrageWithdrawOperations(
 
 			return callback(op)
 		}, false); err != nil {
-		return errors.WithMessage(err, "traverse SuffrageWithdrawOperations")
+		return errors.WithMessage(err, "traverse SuffrageExpelOperations")
 	}
 
 	return nil
 }
 
-func (db *TempPool) RemoveSuffrageWithdrawOperationsByFact(facts []base.SuffrageWithdrawFact) error {
-	e := util.StringErrorFunc("remove SuffrageWithdrawOperations")
+func (db *TempPool) RemoveSuffrageExpelOperationsByFact(facts []base.SuffrageExpelFact) error {
+	e := util.StringErrorFunc("remove SuffrageExpelOperations")
 
 	batch := db.st.NewBatch()
 	defer batch.Reset()
 
 	for i := range facts {
-		batch.Delete(newSuffrageWithdrawOperationKey(facts[i]))
+		batch.Delete(newSuffrageExpelOperationKey(facts[i]))
 	}
 
 	if err := db.st.Batch(batch, nil); err != nil {
@@ -391,15 +391,15 @@ func (db *TempPool) RemoveSuffrageWithdrawOperationsByFact(facts []base.Suffrage
 	return nil
 }
 
-func (db *TempPool) RemoveSuffrageWithdrawOperationsByHeight(height base.Height) error {
-	e := util.StringErrorFunc("remove SuffrageWithdrawOperations by height")
+func (db *TempPool) RemoveSuffrageExpelOperationsByHeight(height base.Height) error {
+	e := util.StringErrorFunc("remove SuffrageExpelOperations by height")
 
 	batch := db.st.NewBatch()
 	defer batch.Reset()
 
 	if err := db.st.Iter(
-		leveldbutil.BytesPrefix(leveldbKeySuffrageWithdrawOperation), func(key, b []byte) (bool, error) {
-			switch _, _, end, _, err := db.readSuffrageWithdrawOperationsRecordMeta(b); {
+		leveldbutil.BytesPrefix(leveldbKeySuffrageExpelOperation), func(key, b []byte) (bool, error) {
+			switch _, _, end, _, err := db.readSuffrageExpelOperationsRecordMeta(b); {
 			case err != nil:
 				return false, err
 			case end > height:
@@ -681,7 +681,7 @@ func (db *TempPool) cleanRemovedNewOperations() (int, error) {
 	return removed, nil
 }
 
-func (*TempPool) readSuffrageWithdrawOperationsRecordMeta(b []byte) (
+func (*TempPool) readSuffrageExpelOperationsRecordMeta(b []byte) (
 	node []byte, start, end base.Height,
 	left []byte,
 	_ error,
@@ -798,8 +798,8 @@ func newNewOperationLeveldbKeys(op util.Hash) (key []byte, orderedkey []byte) {
 	return leveldbNewOperationKey(op), leveldbNewOperationOrderedKey(op)
 }
 
-func newSuffrageWithdrawOperationKey(fact base.SuffrageWithdrawFact) []byte {
-	return leveldbSuffrageWithdrawOperation(fact)
+func newSuffrageExpelOperationKey(fact base.SuffrageExpelFact) []byte {
+	return leveldbSuffrageExpelOperation(fact)
 }
 
 type PoolOperationRecordMeta struct {

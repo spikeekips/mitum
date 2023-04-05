@@ -745,7 +745,7 @@ func (st *ConsensusHandler) saveBlock(avp base.ACCEPTVoteproof) (bool, error) {
 }
 
 func (st *ConsensusHandler) checkSuffrageVoting(ivp base.INITVoteproof) (bool, error) {
-	if _, ok := ivp.(base.WithdrawVoteproof); !ok {
+	if _, ok := ivp.(base.ExpelVoteproof); !ok {
 		return true, nil
 	}
 
@@ -798,7 +798,7 @@ func (st *ConsensusHandler) checkStuckVoteproof(
 }
 
 func (st *ConsensusHandler) whenNewBlockSaved(vp base.ACCEPTVoteproof) {
-	if _, hasWithdraws := vp.(base.HasWithdraws); !hasWithdraws {
+	if _, hasExpels := vp.(base.HasExpels); !hasExpels {
 		st.args.WhenNewBlockConfirmed(vp.Point().Height())
 	}
 
@@ -806,7 +806,7 @@ func (st *ConsensusHandler) whenNewBlockSaved(vp base.ACCEPTVoteproof) {
 }
 
 func (st *ConsensusHandler) whenNewBlockConfirmed(vp base.ACCEPTVoteproof) {
-	if _, ok := vp.(base.HasWithdraws); ok {
+	if _, ok := vp.(base.HasExpels); ok {
 		st.args.WhenNewBlockConfirmed(vp.Point().Height())
 	}
 }

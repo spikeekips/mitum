@@ -8,13 +8,13 @@ import (
 )
 
 type baseBallotFactJSONMarshaler struct {
-	WithdrawFacts []util.Hash     `json:"withdraw_facts,omitempty"`
-	Point         base.StagePoint `json:"point"`
+	ExpelFacts []util.Hash     `json:"expel_facts,omitempty"`
+	Point      base.StagePoint `json:"point"`
 	base.BaseFactJSONMarshaler
 }
 
 type baseBallotFactJSONUnmarshaler struct {
-	WithdrawFacts []valuehash.HashDecoder `json:"withdraw_facts"`
+	ExpelFacts []valuehash.HashDecoder `json:"expel_facts"`
 	base.BaseFactJSONUnmarshaler
 	Point base.StagePoint `json:"point"`
 }
@@ -47,7 +47,7 @@ func (fact baseBallotFact) jsonMarshaler() baseBallotFactJSONMarshaler {
 	return baseBallotFactJSONMarshaler{
 		BaseFactJSONMarshaler: fact.BaseFact.JSONMarshaler(),
 		Point:                 fact.point,
-		WithdrawFacts:         fact.withdrawfacts,
+		ExpelFacts:            fact.expelfacts,
 	}
 }
 
@@ -62,11 +62,11 @@ func (fact *baseBallotFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 	fact.BaseFact.SetJSONUnmarshaler(u.BaseFactJSONUnmarshaler)
 	fact.point = u.Point
 
-	if len(u.WithdrawFacts) > 0 {
-		fact.withdrawfacts = make([]util.Hash, len(u.WithdrawFacts))
+	if len(u.ExpelFacts) > 0 {
+		fact.expelfacts = make([]util.Hash, len(u.ExpelFacts))
 
-		for i := range u.WithdrawFacts {
-			fact.withdrawfacts[i] = u.WithdrawFacts[i].Hash()
+		for i := range u.ExpelFacts {
+			fact.expelfacts[i] = u.ExpelFacts[i].Hash()
 		}
 	}
 

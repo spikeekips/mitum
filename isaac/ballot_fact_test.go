@@ -91,7 +91,7 @@ func (t *testBaseBallotFact) TestInValid() {
 		t.True(errors.Is(err, util.ErrInvalid))
 	})
 
-	t.Run("empty withdraw facts", func() {
+	t.Run("empty expel facts", func() {
 		bl := t.ballot(base.RawPoint(33, 44), nil)
 
 		switch bl.(type) {
@@ -103,21 +103,21 @@ func (t *testBaseBallotFact) TestInValid() {
 		t.NoError(bl.IsValid(nil))
 	})
 
-	t.Run("withdraw facts", func() {
-		withdrawfacts := make([]util.Hash, 3)
-		for i := range withdrawfacts {
-			withdrawfacts[i] = valuehash.RandomSHA256()
+	t.Run("expel facts", func() {
+		expelfacts := make([]util.Hash, 3)
+		for i := range expelfacts {
+			expelfacts[i] = valuehash.RandomSHA256()
 		}
 
-		bl := t.ballot(base.RawPoint(33, 44), withdrawfacts)
+		bl := t.ballot(base.RawPoint(33, 44), expelfacts)
 		t.NoError(bl.IsValid(nil))
 	})
 }
 
 func TestINITBallotFact(tt *testing.T) {
 	t := new(testBaseBallotFact)
-	t.ballot = func(point base.Point, withdrawfacts []util.Hash) base.BallotFact {
-		bl := NewINITBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), withdrawfacts)
+	t.ballot = func(point base.Point, expelfacts []util.Hash) base.BallotFact {
+		bl := NewINITBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), expelfacts)
 		_ = (interface{})(bl).(base.INITBallotFact)
 
 		return bl
@@ -128,11 +128,11 @@ func TestINITBallotFact(tt *testing.T) {
 
 func TestACCEPTBallotFact(tt *testing.T) {
 	t := new(testBaseBallotFact)
-	t.ballot = func(point base.Point, withdrawfacts []util.Hash) base.BallotFact {
+	t.ballot = func(point base.Point, expelfacts []util.Hash) base.BallotFact {
 		bl := NewACCEPTBallotFact(point,
 			valuehash.RandomSHA256(),
 			valuehash.RandomSHA256(),
-			withdrawfacts,
+			expelfacts,
 		)
 		_ = (interface{})(bl).(base.ACCEPTBallotFact)
 
@@ -147,8 +147,8 @@ type testSuffrageConfirmBallotFact struct {
 }
 
 func (t *testSuffrageConfirmBallotFact) SetupSuite() {
-	t.ballot = func(point base.Point, withdrawfacts []util.Hash) base.BallotFact {
-		bl := NewSuffrageConfirmBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), withdrawfacts)
+	t.ballot = func(point base.Point, expelfacts []util.Hash) base.BallotFact {
+		bl := NewSuffrageConfirmBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), expelfacts)
 		_ = (interface{})(bl).(base.INITBallotFact)
 
 		return bl
@@ -158,19 +158,19 @@ func (t *testSuffrageConfirmBallotFact) SetupSuite() {
 func (t *testSuffrageConfirmBallotFact) TestNew() {
 	point := base.RawPoint(33, 44)
 
-	withdrawfacts := make([]util.Hash, 3)
-	for i := range withdrawfacts {
-		withdrawfacts[i] = valuehash.RandomSHA256()
+	expelfacts := make([]util.Hash, 3)
+	for i := range expelfacts {
+		expelfacts[i] = valuehash.RandomSHA256()
 	}
 
-	bl := t.ballot(point, withdrawfacts)
+	bl := t.ballot(point, expelfacts)
 	t.NoError(bl.IsValid(nil))
 
 	_ = (interface{})(bl).(base.BallotFact)
 }
 
 func (t *testSuffrageConfirmBallotFact) TestIsValid() {
-	t.Run("empty withdrawfacts", func() {
+	t.Run("empty expelfacts", func() {
 		point := base.RawPoint(33, 44)
 
 		bl := t.ballot(point, nil)
@@ -184,7 +184,7 @@ func (t *testSuffrageConfirmBallotFact) TestIsValid() {
 		err := bl.IsValid(nil)
 		t.Error(err)
 		t.True(errors.Is(err, util.ErrInvalid))
-		t.ErrorContains(err, "empty withdraw facts")
+		t.ErrorContains(err, "empty expel facts")
 	})
 }
 
@@ -203,7 +203,7 @@ func (t *baseTestBallotFactEncode) SetupTest() {
 	t.enc = jsonenc.NewEncoder()
 
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: base.StringAddressHint, Instance: base.StringAddress{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: SuffrageWithdrawFactHint, Instance: SuffrageWithdrawFact{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: SuffrageExpelFactHint, Instance: SuffrageExpelFact{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: INITBallotFactHint, Instance: INITBallotFact{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ACCEPTBallotFactHint, Instance: ACCEPTBallotFact{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: SuffrageConfirmBallotFactHint, Instance: SuffrageConfirmBallotFact{}}))
@@ -236,13 +236,13 @@ func TestINITBallotFactJSON(tt *testing.T) {
 
 	point := base.RawPoint(33, 44)
 
-	withdrawfacts := make([]util.Hash, 3)
-	for i := range withdrawfacts {
-		withdrawfacts[i] = valuehash.RandomSHA256()
+	expelfacts := make([]util.Hash, 3)
+	for i := range expelfacts {
+		expelfacts[i] = valuehash.RandomSHA256()
 	}
 
 	t.Encode = func() (interface{}, []byte) {
-		bl := NewINITBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), withdrawfacts)
+		bl := NewINITBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), expelfacts)
 
 		b, err := t.enc.Marshal(&bl)
 		t.NoError(err)
@@ -265,11 +265,11 @@ func TestINITBallotFactJSON(tt *testing.T) {
 		bb, ok := b.(INITBallotFact)
 		t.True(ok)
 
-		bwfs := bb.WithdrawFacts()
-		t.Equal(len(withdrawfacts), len(bwfs))
+		bwfs := bb.ExpelFacts()
+		t.Equal(len(expelfacts), len(bwfs))
 
-		for i := range withdrawfacts {
-			af := withdrawfacts[i]
+		for i := range expelfacts {
+			af := expelfacts[i]
 			bf := bwfs[i]
 
 			t.True(af.Equal(bf))
@@ -284,16 +284,16 @@ func TestACCEPTBallotFactJSON(tt *testing.T) {
 
 	point := base.RawPoint(33, 44)
 
-	withdrawfacts := make([]util.Hash, 3)
-	for i := range withdrawfacts {
-		withdrawfacts[i] = valuehash.RandomSHA256()
+	expelfacts := make([]util.Hash, 3)
+	for i := range expelfacts {
+		expelfacts[i] = valuehash.RandomSHA256()
 	}
 
 	t.Encode = func() (interface{}, []byte) {
 		bl := NewACCEPTBallotFact(point,
 			valuehash.RandomSHA256(),
 			valuehash.RandomSHA256(),
-			withdrawfacts,
+			expelfacts,
 		)
 
 		b, err := t.enc.Marshal(&bl)
@@ -317,11 +317,11 @@ func TestACCEPTBallotFactJSON(tt *testing.T) {
 		bb, ok := b.(ACCEPTBallotFact)
 		t.True(ok)
 
-		bwfs := bb.WithdrawFacts()
-		t.Equal(len(withdrawfacts), len(bwfs))
+		bwfs := bb.ExpelFacts()
+		t.Equal(len(expelfacts), len(bwfs))
 
-		for i := range withdrawfacts {
-			af := withdrawfacts[i]
+		for i := range expelfacts {
+			af := expelfacts[i]
 			bf := bwfs[i]
 
 			t.True(af.Equal(bf))
@@ -372,8 +372,8 @@ func TestSuffrageConfirmBallotFactJSON(tt *testing.T) {
 		bb, ok := b.(SuffrageConfirmBallotFact)
 		t.True(ok)
 
-		abf := ab.WithdrawFacts()
-		bbf := bb.WithdrawFacts()
+		abf := ab.ExpelFacts()
+		bbf := bb.ExpelFacts()
 
 		t.Equal(len(abf), len(bbf))
 

@@ -11,9 +11,9 @@ import (
 )
 
 type baseBallotJSONMarshaler struct {
-	Withdraws []base.SuffrageWithdrawOperation `json:"withdraws,omitempty"`
-	Voteproof base.Voteproof                   `json:"voteproof,omitempty"`
-	SignFact  base.BallotSignFact              `json:"sign_fact"`
+	Expels    []base.SuffrageExpelOperation `json:"expels,omitempty"`
+	Voteproof base.Voteproof                `json:"voteproof,omitempty"`
+	SignFact  base.BallotSignFact           `json:"sign_fact"`
 	hint.BaseHinter
 }
 
@@ -22,14 +22,14 @@ func (bl baseBallot) MarshalJSON() ([]byte, error) {
 		BaseHinter: bl.BaseHinter,
 		Voteproof:  bl.vp,
 		SignFact:   bl.signFact,
-		Withdraws:  bl.withdraws,
+		Expels:     bl.expels,
 	})
 }
 
 type baseBallotJSONUnmarshaler struct {
 	Voteproof json.RawMessage   `json:"voteproof"`
 	SignFact  json.RawMessage   `json:"sign_fact"`
-	Withdraws []json.RawMessage `json:"withdraws,omitempty"`
+	Expels    []json.RawMessage `json:"expels,omitempty"`
 }
 
 func (bl *baseBallot) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
@@ -48,9 +48,9 @@ func (bl *baseBallot) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "")
 	}
 
-	bl.withdraws = make([]base.SuffrageWithdrawOperation, len(u.Withdraws))
-	for i := range u.Withdraws {
-		if err := encoder.Decode(enc, u.Withdraws[i], &bl.withdraws[i]); err != nil {
+	bl.expels = make([]base.SuffrageExpelOperation, len(u.Expels))
+	for i := range u.Expels {
+		if err := encoder.Decode(enc, u.Expels[i], &bl.expels[i]); err != nil {
 			return e(err, "")
 		}
 	}

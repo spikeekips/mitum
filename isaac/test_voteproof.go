@@ -41,14 +41,14 @@ func EqualVoteproof(t *assert.Assertions, a, b base.Voteproof) {
 
 	base.EqualVoteproof(t, a, b)
 
-	wa, oka := a.(base.WithdrawVoteproof)
-	wb, okb := b.(base.WithdrawVoteproof)
+	wa, oka := a.(base.ExpelVoteproof)
+	wb, okb := b.(base.ExpelVoteproof)
 
 	t.Equal(oka, okb)
 
 	if oka {
-		wopa := wa.Withdraws()
-		wopb := wb.Withdraws()
+		wopa := wa.Expels()
+		wopb := wb.Expels()
 
 		t.Equal(len(wopa), len(wopb))
 

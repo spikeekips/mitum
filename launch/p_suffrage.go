@@ -212,9 +212,9 @@ func PPatchLastConsensusNodesWatcher(pctx context.Context) (context.Context, err
 		ballotbox.Count(params.Threshold())
 
 		if updated != nil {
-			// NOTE remove withdraw nodes from SyncSourcePool
-			if err := removeWithdrawsFromSyncSourcePoolByWatcher(previous, updated, syncSourcePool, log); err != nil {
-				log.Log().Error().Err(err).Msg("failed to remove withdraws from sync source pool")
+			// NOTE remove expel nodes from SyncSourcePool
+			if err := removeExpelsFromSyncSourcePoolByWatcher(previous, updated, syncSourcePool, log); err != nil {
+				log.Log().Error().Err(err).Msg("failed to remove expels from sync source pool")
 			}
 		}
 
@@ -374,14 +374,14 @@ func PSuffrageVoting(pctx context.Context) (context.Context, error) {
 		broadcastSuffrageVotingFunc(log, memberlist),
 	)
 
-	ballotbox.SetSuffrageVoteFunc(func(op base.SuffrageWithdrawOperation) error {
+	ballotbox.SetSuffrageVoteFunc(func(op base.SuffrageExpelOperation) error {
 		_, err := sv.Vote(op)
 
 		return err
 	})
 
 	pctx = context.WithValue(pctx, SuffrageVotingVoteFuncContextKey, //revive:disable-line:modifies-parameter
-		isaac.SuffrageVoteFunc(func(op base.SuffrageWithdrawOperation) (bool, error) {
+		isaac.SuffrageVoteFunc(func(op base.SuffrageExpelOperation) (bool, error) {
 			var height base.Height
 
 			switch m, found, err := db.LastBlockMap(); {
@@ -406,8 +406,8 @@ func PSuffrageVoting(pctx context.Context) (context.Context, error) {
 
 			policy := db.LastNetworkPolicy()
 
-			if err := isaac.IsValidWithdrawWithSuffrageLifespan(
-				height, op, suf, policy.SuffrageWithdrawLifespan(),
+			if err := isaac.IsValidExpelWithSuffrageLifespan(
+				height, op, suf, policy.SuffrageExpelLifespan(),
 			); err != nil {
 				return false, err
 			}
@@ -890,7 +890,7 @@ func checkLocalIsInConsensusNodesByWatcher(
 	return nil
 }
 
-func removeWithdrawsFromSyncSourcePoolByWatcher(
+func removeExpelsFromSyncSourcePoolByWatcher(
 	previous, updated base.SuffrageProof,
 	syncSourcePool *isaac.SyncSourcePool,
 	log *logging.Logging,
@@ -909,25 +909,25 @@ func removeWithdrawsFromSyncSourcePoolByWatcher(
 		return err
 	}
 
-	withdraws := util.Filter2Slices(previoussuf.Nodes(), suf.Nodes(), func(p, n base.Node) bool {
+	expels := util.Filter2Slices(previoussuf.Nodes(), suf.Nodes(), func(p, n base.Node) bool {
 		return p.Address().Equal(n.Address())
 	})
 
-	if len(withdraws) < 1 {
+	if len(expels) < 1 {
 		return nil
 	}
 
-	withdrawnodes := make([]base.Address, len(withdraws))
-	for i := range withdraws {
-		withdrawnodes[i] = withdraws[i].Address()
+	expelnodes := make([]base.Address, len(expels))
+	for i := range expels {
+		expelnodes[i] = expels[i].Address()
 	}
 
-	removed := syncSourcePool.RemoveNonFixedNode(withdrawnodes...)
+	removed := syncSourcePool.RemoveNonFixedNode(expelnodes...)
 
 	log.Log().Debug().
-		Interface("withdraws", withdrawnodes).
+		Interface("expels", expelnodes).
 		Bool("removed", removed).
-		Msg("withdraw nodes removed from sync source pool")
+		Msg("expel nodes removed from sync source pool")
 
 	return nil
 }
@@ -935,13 +935,13 @@ func removeWithdrawsFromSyncSourcePoolByWatcher(
 func broadcastSuffrageVotingFunc(
 	log *logging.Logging,
 	memberlist *quicmemberlist.Memberlist,
-) func(base.SuffrageWithdrawOperation) error {
-	return func(op base.SuffrageWithdrawOperation) error {
+) func(base.SuffrageExpelOperation) error {
+	return func(op base.SuffrageExpelOperation) error {
 		var b []byte
 
 		switch i, err := util.MarshalJSON(op); {
 		case err != nil:
-			return errors.WithMessage(err, "marshal SuffrageWithdrawOperation")
+			return errors.WithMessage(err, "marshal SuffrageExpelOperation")
 		default:
 			b = i
 		}

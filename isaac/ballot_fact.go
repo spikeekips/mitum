@@ -13,13 +13,13 @@ var (
 	SuffrageConfirmBallotFactHint = hint.MustNewHint("suffrage-confirm-ballot-fact-v0.0.1")
 )
 
-type WithdrawBallotFact interface {
-	WithdrawFacts() []util.Hash
+type ExpelBallotFact interface {
+	ExpelFacts() []util.Hash
 }
 
 type baseBallotFact struct {
-	withdrawfacts []util.Hash
-	point         base.StagePoint
+	expelfacts []util.Hash
+	point      base.StagePoint
 	base.BaseFact
 }
 
@@ -27,16 +27,16 @@ func newBaseBallotFact(
 	ht hint.Hint,
 	stage base.Stage,
 	point base.Point,
-	withdrawfacts []util.Hash,
+	expelfacts []util.Hash,
 ) baseBallotFact {
 	sp := base.NewStagePoint(point, stage)
 
-	sortWithdrawFacts(withdrawfacts)
+	sortExpelFacts(expelfacts)
 
 	return baseBallotFact{
-		BaseFact:      base.NewBaseFact(ht, base.Token(sp.Bytes())),
-		point:         sp,
-		withdrawfacts: withdrawfacts,
+		BaseFact:   base.NewBaseFact(ht, base.Token(sp.Bytes())),
+		point:      sp,
+		expelfacts: expelfacts,
 	}
 }
 
@@ -49,19 +49,19 @@ func (fact baseBallotFact) IsValid([]byte) error {
 		return err
 	}
 
-	if len(fact.withdrawfacts) > 0 {
-		if err := util.CheckIsValiderSlice(nil, false, fact.withdrawfacts); err != nil {
-			return util.ErrInvalid.Wrapf(err, "wrong withdrawfacts")
+	if len(fact.expelfacts) > 0 {
+		if err := util.CheckIsValiderSlice(nil, false, fact.expelfacts); err != nil {
+			return util.ErrInvalid.Wrapf(err, "wrong expelfacts")
 		}
 
-		if _, found := util.IsDuplicatedSlice(fact.withdrawfacts, func(i util.Hash) (bool, string) {
+		if _, found := util.IsDuplicatedSlice(fact.expelfacts, func(i util.Hash) (bool, string) {
 			if i == nil {
 				return true, ""
 			}
 
 			return true, i.String()
 		}); found {
-			return util.ErrInvalid.Errorf("duplicated withdraw fact found")
+			return util.ErrInvalid.Errorf("duplicated expel fact found")
 		}
 	}
 
@@ -76,8 +76,8 @@ func (fact baseBallotFact) Point() base.StagePoint {
 	return fact.point
 }
 
-func (fact baseBallotFact) WithdrawFacts() []util.Hash {
-	return fact.withdrawfacts
+func (fact baseBallotFact) ExpelFacts() []util.Hash {
+	return fact.expelfacts
 }
 
 func (fact baseBallotFact) hashBytes() []byte {
@@ -85,13 +85,13 @@ func (fact baseBallotFact) hashBytes() []byte {
 		fact.point,
 		util.BytesToByter(fact.Token()),
 		util.DummyByter(func() []byte {
-			if len(fact.withdrawfacts) < 1 {
+			if len(fact.expelfacts) < 1 {
 				return nil
 			}
 
-			hs := make([]util.Hash, len(fact.withdrawfacts))
+			hs := make([]util.Hash, len(fact.expelfacts))
 			for i := range hs {
-				hs[i] = fact.withdrawfacts[i]
+				hs[i] = fact.expelfacts[i]
 			}
 
 			return util.ConcatByterSlice(hs)
@@ -108,9 +108,9 @@ type INITBallotFact struct {
 func NewINITBallotFact(
 	point base.Point,
 	previousBlock, proposal util.Hash,
-	withdrawfacts []util.Hash,
+	expelfacts []util.Hash,
 ) INITBallotFact {
-	fact := newINITBallotFact(INITBallotFactHint, point, previousBlock, proposal, withdrawfacts)
+	fact := newINITBallotFact(INITBallotFactHint, point, previousBlock, proposal, expelfacts)
 
 	fact.SetHash(fact.generateHash())
 
@@ -121,10 +121,10 @@ func newINITBallotFact(
 	ht hint.Hint,
 	point base.Point,
 	previousBlock, proposal util.Hash,
-	withdrawfacts []util.Hash,
+	expelfacts []util.Hash,
 ) INITBallotFact {
 	return INITBallotFact{
-		baseBallotFact: newBaseBallotFact(ht, base.StageINIT, point, withdrawfacts),
+		baseBallotFact: newBaseBallotFact(ht, base.StageINIT, point, expelfacts),
 		previousBlock:  previousBlock,
 		proposal:       proposal,
 	}
@@ -177,10 +177,10 @@ type ACCEPTBallotFact struct {
 func NewACCEPTBallotFact(
 	point base.Point,
 	proposal, newBlock util.Hash,
-	withdrawfacts []util.Hash,
+	expelfacts []util.Hash,
 ) ACCEPTBallotFact {
 	fact := ACCEPTBallotFact{
-		baseBallotFact: newBaseBallotFact(ACCEPTBallotFactHint, base.StageACCEPT, point, withdrawfacts),
+		baseBallotFact: newBaseBallotFact(ACCEPTBallotFactHint, base.StageACCEPT, point, expelfacts),
 		proposal:       proposal,
 		newBlock:       newBlock,
 	}
@@ -231,10 +231,10 @@ type SuffrageConfirmBallotFact struct {
 func NewSuffrageConfirmBallotFact(
 	point base.Point,
 	previousBlock, proposal util.Hash,
-	withdrawfacts []util.Hash,
+	expelfacts []util.Hash,
 ) SuffrageConfirmBallotFact {
 	fact := SuffrageConfirmBallotFact{
-		INITBallotFact: newINITBallotFact(SuffrageConfirmBallotFactHint, point, previousBlock, proposal, withdrawfacts),
+		INITBallotFact: newINITBallotFact(SuffrageConfirmBallotFactHint, point, previousBlock, proposal, expelfacts),
 	}
 
 	fact.SetHash(fact.generateHash())
@@ -245,8 +245,8 @@ func NewSuffrageConfirmBallotFact(
 func (fact SuffrageConfirmBallotFact) IsValid([]byte) error {
 	e := util.ErrInvalid.Errorf("invalid SuffrageConfirmBallotFact")
 
-	if len(fact.withdrawfacts) < 1 {
-		return e.Errorf("empty withdraw facts")
+	if len(fact.expelfacts) < 1 {
+		return e.Errorf("empty expel facts")
 	}
 
 	if err := fact.baseBallotFact.IsValid(nil); err != nil {

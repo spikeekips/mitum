@@ -357,37 +357,37 @@ func VoteSuffrageVotingFunc(
 		for i := range nodes {
 			node := nodes[i]
 
-			fact := isaac.NewSuffrageWithdrawFact(node, point.Height(), point.Height(), "no ballot")
+			fact := isaac.NewSuffrageExpelFact(node, point.Height(), point.Height(), "no ballot")
 
-			op := isaac.NewSuffrageWithdrawOperation(fact)
+			op := isaac.NewSuffrageExpelOperation(fact)
 
 			if err := op.NodeSign(local.Privatekey(), params.NetworkID(), local.Address()); err != nil {
-				return nil, errors.WithMessage(err, "node sign SuffrageWithdrawOperation")
+				return nil, errors.WithMessage(err, "node sign SuffrageExpelOperation")
 			}
 
 			if _, err := sv.Vote(op); err != nil {
-				return nil, errors.WithMessage(err, "vote SuffrageWithdrawOperation")
+				return nil, errors.WithMessage(err, "vote SuffrageExpelOperation")
 			}
 		}
 
-		var withdraws []base.SuffrageWithdrawOperation
+		var expels []base.SuffrageExpelOperation
 
 		switch i, err := sv.Find(ctx, point.Height(), suf); {
 		case err != nil:
 			return nil, err
 		default:
-			withdraws = util.FilterSlice(i, func(j base.SuffrageWithdrawOperation) bool {
+			expels = util.FilterSlice(i, func(j base.SuffrageExpelOperation) bool {
 				return util.InSliceFunc(nodes, func(k base.Address) bool {
-					return j.WithdrawFact().Node().Equal(k)
+					return j.ExpelFact().Node().Equal(k)
 				}) >= 0
 			})
 		}
 
-		if len(withdraws) < 1 {
+		if len(expels) < 1 {
 			return nil, nil
 		}
 
-		return ballotbox.StuckVoteproof(point, params.Threshold(), withdraws)
+		return ballotbox.StuckVoteproof(point, params.Threshold(), expels)
 	}
 }
 

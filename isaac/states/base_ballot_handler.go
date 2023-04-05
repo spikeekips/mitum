@@ -17,7 +17,7 @@ type (
 	// ProposalSelectFunc fetchs proposal from selected proposer
 	ProposalSelectFunc func(_ context.Context, _ base.Point, _ util.Hash, wait time.Duration) (
 		base.ProposalSignFact, error)
-	SuffrageVotingFindFunc func(context.Context, base.Height, base.Suffrage) ([]base.SuffrageWithdrawOperation, error)
+	SuffrageVotingFindFunc func(context.Context, base.Height, base.Suffrage) ([]base.SuffrageExpelOperation, error)
 )
 
 type baseBallotHandlerArgs struct {
@@ -37,7 +37,7 @@ func newBaseBallotHandlerArgs() *baseBallotHandlerArgs {
 			return false, util.ErrNotImplemented.Errorf("VoteFunc")
 		},
 		SuffrageVotingFindFunc: func(context.Context, base.Height, base.Suffrage) (
-			[]base.SuffrageWithdrawOperation, error,
+			[]base.SuffrageExpelOperation, error,
 		) {
 			return nil, util.ErrNotImplemented.Errorf("SuffrageVotingFindFunc")
 		},
@@ -164,8 +164,8 @@ func (st *baseBallotHandler) makeINITBallot(
 		return bl.(base.INITBallot), nil //nolint:forcetypeassert //...
 	}
 
-	// NOTE collect suffrage withdraw operations
-	withdraws, withdrawfacts, err := st.findWithdraws(point.Height(), suf)
+	// NOTE collect suffrage expel operations
+	expels, expelfacts, err := st.findExpels(point.Height(), suf)
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +175,7 @@ func (st *baseBallotHandler) makeINITBallot(
 		point,
 		prevBlock,
 		pr.Fact().Hash(),
-		withdrawfacts,
+		expelfacts,
 	)
 	sf := isaac.NewINITBallotSignFact(fact)
 
@@ -183,7 +183,7 @@ func (st *baseBallotHandler) makeINITBallot(
 		return nil, e(err, "make next init ballot")
 	}
 
-	bl := isaac.NewINITBallot(vp, sf, withdraws)
+	bl := isaac.NewINITBallot(vp, sf, expels)
 
 	return bl, nil
 }
@@ -244,17 +244,17 @@ func (st *baseBallotHandler) makeACCEPTBallot(
 		return bl.(base.ACCEPTBallot), nil //nolint:forcetypeassert //...
 	}
 
-	// NOTE add SuffrageWithdrawOperations into ballot from init voteproof
-	var withdrawfacts []util.Hash
-	var withdraws []base.SuffrageWithdrawOperation
+	// NOTE add SuffrageExpelOperations into ballot from init voteproof
+	var expelfacts []util.Hash
+	var expels []base.SuffrageExpelOperation
 
-	if i, ok := ivp.(base.WithdrawVoteproof); ok {
-		withdraws = i.Withdraws()
+	if i, ok := ivp.(base.ExpelVoteproof); ok {
+		expels = i.Expels()
 
-		withdrawfacts = make([]util.Hash, len(withdraws))
+		expelfacts = make([]util.Hash, len(expels))
 
-		for i := range withdraws {
-			withdrawfacts[i] = withdraws[i].WithdrawFact().Hash()
+		for i := range expels {
+			expelfacts[i] = expels[i].ExpelFact().Hash()
 		}
 	}
 
@@ -262,7 +262,7 @@ func (st *baseBallotHandler) makeACCEPTBallot(
 		ivp.Point().Point,
 		ivp.BallotMajority().Proposal(),
 		manifest.Hash(),
-		withdrawfacts,
+		expelfacts,
 	)
 	signfact := isaac.NewACCEPTBallotSignFact(afact)
 
@@ -270,7 +270,7 @@ func (st *baseBallotHandler) makeACCEPTBallot(
 		return nil, err
 	}
 
-	bl := isaac.NewACCEPTBallot(ivp, signfact, withdraws)
+	bl := isaac.NewACCEPTBallot(ivp, signfact, expels)
 
 	return bl, nil
 }
@@ -278,8 +278,8 @@ func (st *baseBallotHandler) makeACCEPTBallot(
 func (st *baseBallotHandler) prepareSuffrageConfirmBallot(vp base.Voteproof) {
 	l := st.Log().With().Str("voteproof", vp.ID()).Logger()
 
-	if _, ok := vp.(base.WithdrawVoteproof); !ok {
-		l.Error().Msg("expected WithdrawVoteproof for suffrage sign voting")
+	if _, ok := vp.(base.ExpelVoteproof); !ok {
+		l.Error().Msg("expected ExpelVoteproof for suffrage sign voting")
 
 		return
 	}
@@ -328,13 +328,13 @@ func (st *baseBallotHandler) makeSuffrageConfirmBallot(vp base.Voteproof) (base.
 	}
 
 	ifact := vp.Majority().(isaac.INITBallotFact) //nolint:forcetypeassert //...
-	withdrawfacts := ifact.WithdrawFacts()
+	expelfacts := ifact.ExpelFacts()
 
 	fact := isaac.NewSuffrageConfirmBallotFact(
 		vp.Point().Point,
 		ifact.PreviousBlock(),
 		ifact.Proposal(),
-		withdrawfacts,
+		expelfacts,
 	)
 
 	sf := isaac.NewINITBallotSignFact(fact)
@@ -418,9 +418,9 @@ func (st *baseBallotHandler) vote(bl base.Ballot) (bool, error) {
 	return voted, nil
 }
 
-func (st *baseBallotHandler) findWithdraws(height base.Height, suf base.Suffrage) (
-	withdraws []base.SuffrageWithdrawOperation,
-	withdrawfacts []util.Hash,
+func (st *baseBallotHandler) findExpels(height base.Height, suf base.Suffrage) (
+	expels []base.SuffrageExpelOperation,
+	expelfacts []util.Hash,
 	_ error,
 ) {
 	ops, err := st.args.SuffrageVotingFindFunc(context.Background(), height, suf)
@@ -432,15 +432,15 @@ func (st *baseBallotHandler) findWithdraws(height base.Height, suf base.Suffrage
 		return nil, nil, nil
 	}
 
-	withdrawfacts = make([]util.Hash, len(ops))
+	expelfacts = make([]util.Hash, len(ops))
 
 	for i := range ops {
-		withdrawfacts[i] = ops[i].WithdrawFact().Hash()
+		expelfacts[i] = ops[i].ExpelFact().Hash()
 	}
 
-	withdraws = ops
+	expels = ops
 
-	return withdraws, withdrawfacts, nil
+	return expels, expelfacts, nil
 }
 
 func (st *baseBallotHandler) localIsInConsensusNodes(height base.Height) (base.Suffrage, error) {

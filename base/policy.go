@@ -12,7 +12,7 @@ type NetworkPolicy interface {
 	SuffrageCandidateLifespan() Height
 	SuffrageCandidateLimiterRule() SuffrageCandidateLimiterRule
 	MaxSuffrageSize() uint64
-	SuffrageWithdrawLifespan() Height
+	SuffrageExpelLifespan() Height
 }
 
 type NetworkPolicyStateValue interface {

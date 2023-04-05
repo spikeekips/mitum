@@ -277,7 +277,7 @@ func PStatesSetHandlers(pctx context.Context) (context.Context, error) { //reviv
 	}
 
 	suffrageVotingFindf := func(ctx context.Context, height base.Height, suf base.Suffrage) (
-		[]base.SuffrageWithdrawOperation, error,
+		[]base.SuffrageExpelOperation, error,
 	) {
 		return sv.Find(ctx, height, suf)
 	}

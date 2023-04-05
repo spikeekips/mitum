@@ -57,8 +57,8 @@ func (t *testQuicstreamHandlers) SetupSuite() {
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.DummyOperationFactHint, Instance: isaac.DummyOperationFact{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.DummyOperationHint, Instance: isaac.DummyOperation{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageCandidateStateValueHint, Instance: isaac.SuffrageCandidateStateValue{}}))
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageWithdrawOperationHint, Instance: isaac.SuffrageWithdrawOperation{}}))
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageWithdrawFactHint, Instance: isaac.SuffrageWithdrawFact{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageExpelOperationHint, Instance: isaac.SuffrageExpelOperation{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.SuffrageExpelFactHint, Instance: isaac.SuffrageExpelFact{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.INITBallotSignFactHint, Instance: isaac.INITBallotSignFact{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: isaac.INITBallotFactHint, Instance: isaac.INITBallotFact{}}))
 }
@@ -332,17 +332,17 @@ func (t *testQuicstreamHandlers) TestSendOperation() {
 	})
 }
 
-func (t *testQuicstreamHandlers) TestSendOperationWithdraw() {
-	fact := isaac.NewSuffrageWithdrawFact(base.RandomAddress(""), base.Height(33), base.Height(34), util.UUID().String())
-	op := isaac.NewSuffrageWithdrawOperation(fact)
+func (t *testQuicstreamHandlers) TestSendOperationExpel() {
+	fact := isaac.NewSuffrageExpelFact(base.RandomAddress(""), base.Height(33), base.Height(34), util.UUID().String())
+	op := isaac.NewSuffrageExpelOperation(fact)
 	t.NoError(op.NodeSign(t.Local.Privatekey(), t.LocalParams.NetworkID(), t.Local.Address()))
 
-	var votedop base.SuffrageWithdrawOperation
+	var votedop base.SuffrageExpelOperation
 
 	handler := QuicstreamHandlerSendOperation(t.LocalParams, nil,
 		func(util.Hash) (bool, error) { return false, nil },
 		func(base.Operation) (bool, error) { return true, nil },
-		func(op base.SuffrageWithdrawOperation) (bool, error) {
+		func(op base.SuffrageExpelOperation) (bool, error) {
 			var voted bool
 
 			switch {
@@ -387,7 +387,7 @@ func (t *testQuicstreamHandlers) TestSendOperationWithdraw() {
 		handler := QuicstreamHandlerSendOperation(t.LocalParams, nil,
 			func(util.Hash) (bool, error) { return false, nil },
 			func(base.Operation) (bool, error) { return false, nil },
-			func(op base.SuffrageWithdrawOperation) (bool, error) { return true, nil },
+			func(op base.SuffrageExpelOperation) (bool, error) { return true, nil },
 			nil,
 		)
 		openstreamf, handlercancel := t.openstreamf(HandlerPrefixSendOperation, handler)

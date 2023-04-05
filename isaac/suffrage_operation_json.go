@@ -6,7 +6,7 @@ import (
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 )
 
-type suffrageWithdrawFactJSONMarshaler struct {
+type suffrageExpelFactJSONMarshaler struct {
 	Node   base.Address `json:"node"`
 	Reason string       `json:"reason"`
 	base.BaseFactJSONMarshaler
@@ -14,8 +14,8 @@ type suffrageWithdrawFactJSONMarshaler struct {
 	End   base.Height `json:"end"`
 }
 
-func (fact SuffrageWithdrawFact) MarshalJSON() ([]byte, error) {
-	return util.MarshalJSON(suffrageWithdrawFactJSONMarshaler{
+func (fact SuffrageExpelFact) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSON(suffrageExpelFactJSONMarshaler{
 		BaseFactJSONMarshaler: fact.BaseFact.JSONMarshaler(),
 		Node:                  fact.node,
 		Start:                 fact.start,
@@ -24,7 +24,7 @@ func (fact SuffrageWithdrawFact) MarshalJSON() ([]byte, error) {
 	})
 }
 
-type suffrageWithdrawFactJSONUnmarshaler struct {
+type suffrageExpelFactJSONUnmarshaler struct {
 	Node   string `json:"node"`
 	Reason string `json:"reason"`
 	base.BaseFactJSONUnmarshaler
@@ -32,10 +32,10 @@ type suffrageWithdrawFactJSONUnmarshaler struct {
 	End   base.Height `json:"end"`
 }
 
-func (fact *SuffrageWithdrawFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
-	e := util.StringErrorFunc("decode SuffrageWithdrawFact")
+func (fact *SuffrageExpelFact) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
+	e := util.StringErrorFunc("decode SuffrageExpelFact")
 
-	var u suffrageWithdrawFactJSONUnmarshaler
+	var u suffrageExpelFactJSONUnmarshaler
 	if err := enc.Unmarshal(b, &u); err != nil {
 		return e(err, "")
 	}

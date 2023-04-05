@@ -280,20 +280,20 @@ func (p *DefaultProposalProcessor) collectOperations(ctx context.Context) ([]bas
 	var cops []base.Operation
 	var index int
 
-	switch w, ok := p.ivp.(base.WithdrawVoteproof); {
+	switch w, ok := p.ivp.(base.ExpelVoteproof); {
 	case ok:
-		withdraws := w.Withdraws()
-		cops = make([]base.Operation, len(p.proposal.ProposalFact().Operations())+len(withdraws))
+		expels := w.Expels()
+		cops = make([]base.Operation, len(p.proposal.ProposalFact().Operations())+len(expels))
 
-		for i := range withdraws {
-			cops[i] = withdraws[i]
+		for i := range expels {
+			cops[i] = expels[i]
 		}
 
-		index = len(withdraws)
+		index = len(expels)
 
 		p.Log().Debug().
 			Int("operations", len(cops)).
-			Int("withdraws", len(withdraws)).
+			Int("expels", len(expels)).
 			Msg("collecting operations")
 	default:
 		cops = make([]base.Operation, len(p.proposal.ProposalFact().Operations()))
@@ -667,8 +667,8 @@ func (p *DefaultProposalProcessor) collectOperation(
 			errors.Is(err, ErrOperationAlreadyProcessedInProcessor):
 			return false, nil
 		default:
-			// NOTE suffrage withdraw operation should be in ballot.
-			if _, ok := j.(base.SuffrageWithdrawOperation); ok {
+			// NOTE suffrage expel operation should be in ballot.
+			if _, ok := j.(base.SuffrageExpelOperation); ok {
 				return false, nil
 			}
 

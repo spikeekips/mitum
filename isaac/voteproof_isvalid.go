@@ -12,23 +12,23 @@ func IsValidVoteproofWithSuffrage(vp base.Voteproof, suf base.Suffrage) error {
 		return e.Errorf("nil voteproof")
 	}
 
-	var withdraws []base.SuffrageWithdrawOperation
+	var expels []base.SuffrageExpelOperation
 
-	if w, ok := vp.(base.HasWithdraws); ok {
-		withdraws = w.Withdraws()
+	if w, ok := vp.(base.HasExpels); ok {
+		expels = w.Expels()
 	}
 
 	th := vp.Threshold()
 	rsuf := suf
 
-	if len(withdraws) > 0 {
-		for i := range withdraws {
-			if err := IsValidWithdrawWithSuffrage(vp.Point().Height(), withdraws[i], suf); err != nil {
+	if len(expels) > 0 {
+		for i := range expels {
+			if err := IsValidExpelWithSuffrage(vp.Point().Height(), expels[i], suf); err != nil {
 				return e.Wrap(err)
 			}
 		}
 
-		switch i, err := NewSuffrageWithWithdraws(suf, vp.Threshold(), withdraws); {
+		switch i, err := NewSuffrageWithExpels(suf, vp.Threshold(), expels); {
 		case err != nil:
 			return e.Wrap(err)
 		default:
@@ -38,8 +38,8 @@ func IsValidVoteproofWithSuffrage(vp base.Voteproof, suf base.Suffrage) error {
 	}
 
 	if _, ok := vp.(base.StuckVoteproof); ok {
-		if suf.Len() != len(vp.SignFacts())+len(withdraws) {
-			return e.Errorf("not enough sign facts with withdraws")
+		if suf.Len() != len(vp.SignFacts())+len(expels) {
+			return e.Errorf("not enough sign facts with expels")
 		}
 	}
 
