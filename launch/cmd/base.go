@@ -13,9 +13,9 @@ import (
 )
 
 type BaseCommand struct {
-	Encoders *encoder.Encoders
-	Encoder  *jsonenc.Encoder
-	Log      *zerolog.Logger
+	Encoders *encoder.Encoders `kong:"-"`
+	Encoder  *jsonenc.Encoder  `kong:"-"`
+	Log      *zerolog.Logger   `kong:"-"`
 }
 
 func (cmd *BaseCommand) prepare(pctx context.Context) (context.Context, error) {
