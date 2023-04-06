@@ -243,9 +243,9 @@ func (db *Center) SuffrageProofByBlockHeight(height base.Height) (base.SuffrageP
 					return j, true, nil
 				}
 			}
-
-			lastheight = temps[len(temps)-1].Height() - 1
 		}
+
+		lastheight = temps[len(temps)-1].Height() - 1
 	}
 
 	proof, found, err := db.perm.SuffrageProofByBlockHeight(lastheight)
