@@ -218,8 +218,8 @@ func PPatchLastConsensusNodesWatcher(pctx context.Context) (context.Context, err
 			}
 		}
 
-		if updated != nil || candidatesst != nil {
-			if err := checkLocalIsInConsensusNodesByWatcher(
+		if updated != nil || candidatesst != nil && states.AllowConsensus() {
+			if err := joinLocalIsInConsensusNodesByWatcher(
 				updated, candidatesst, local, mlist, long, log,
 			); err != nil {
 				log.Log().Error().Err(err).Msg("failed to check local is in consensus nodes")
@@ -853,7 +853,7 @@ func PCloseLastConsensusNodesWatcher(pctx context.Context) (context.Context, err
 	return pctx, nil
 }
 
-func checkLocalIsInConsensusNodesByWatcher(
+func joinLocalIsInConsensusNodesByWatcher(
 	updated base.SuffrageProof,
 	candidatesst base.State,
 	local base.LocalNode,
