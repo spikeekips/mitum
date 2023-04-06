@@ -208,7 +208,7 @@ func (st *baseBallotHandler) prepareACCEPTBallot(
 		case errors.Is(err, errFailedToVoteNotInConsensus):
 			st.Log().Debug().Err(err).Msg("failed to vote accept ballot; moves to syncing state")
 
-			go st.switchState(newSyncingSwitchContext(StateConsensus, ivp.Point().Height()-1))
+			go st.switchState(newSyncingSwitchContextWithVoteproof(StateConsensus, ivp))
 		default:
 			st.Log().Error().Err(err).Msg("failed to vote accept ballot; moves to broken state")
 
@@ -297,7 +297,7 @@ func (st *baseBallotHandler) prepareSuffrageConfirmBallot(vp base.Voteproof) {
 		case errors.Is(err, errFailedToVoteNotInConsensus):
 			st.Log().Debug().Err(err).Msg("failed to vote suffrage confirm ballot; moves to syncing state")
 
-			go st.switchState(newSyncingSwitchContext(StateConsensus, bl.Point().Height()-1))
+			go st.switchState(newSyncingSwitchContextWithVoteproof(StateConsensus, vp))
 		default:
 			st.Log().Debug().Err(err).Msg("failed to vote suffrage confirm ballot; moves to broken state")
 
@@ -448,17 +448,17 @@ func (st *baseBallotHandler) localIsInConsensusNodes(height base.Height) (base.S
 
 	switch suf, found, err := st.args.NodeInConsensusNodesFunc(st.local, height); {
 	case errors.Is(err, storage.ErrNotFound):
-		return nil, newSyncingSwitchContext(StateConsensus, height-1)
+		return nil, newSyncingSwitchContext(StateConsensus, height)
 	case err != nil:
 		return nil, err
+	case !found:
+		l.Debug().Msg("local is not in consensus nodes at next block; moves to syncing state")
+
+		return nil, newSyncingSwitchContext(StateConsensus, height)
 	case suf == nil || suf.Len() < 1:
 		l.Debug().Msg("empty suffrage of next block; moves to broken state")
 
 		return nil, util.ErrNotFound.Errorf("empty suffrage")
-	case !found:
-		l.Debug().Msg("local is not in consensus nodes at next block; moves to syncing state")
-
-		return nil, newSyncingSwitchContext(StateConsensus, height-1)
 	default:
 		l.Debug().
 			Bool("in_suffrage", suf.ExistsPublickey(st.local.Address(), st.local.Publickey())).
@@ -559,7 +559,7 @@ func (st *baseBallotHandler) prepareNextBlock(
 
 	var sctx switchContext
 
-	switch i, err := st.localIsInConsensusNodes(point.Height()); {
+	switch i, err := st.localIsInConsensusNodes(avp.Point().Height()); {
 	case errors.As(err, &sctx):
 		go st.switchState(sctx)
 
@@ -589,7 +589,7 @@ func (st *baseBallotHandler) prepareNextBlock(
 			case errors.Is(err, errFailedToVoteNotInConsensus):
 				st.Log().Debug().Err(err).Msg("failed to vote init ballot; moves to syncing state")
 
-				go st.switchState(newSyncingSwitchContext(StateConsensus, point.Height()-1))
+				go st.switchState(newSyncingSwitchContextWithVoteproof(StateConsensus, avp))
 			default:
 				st.Log().Debug().Err(err).Msg("failed to vote init ballot; moves to broken state")
 
@@ -647,7 +647,7 @@ func preventVotingWithEmptySuffrage(
 	return func(bl base.Ballot) (bool, error) {
 		e := util.StringErrorFunc("vote")
 
-		switch suf, found, err := nodeInConsensusNodes(local, bl.Point().Height()); {
+		switch suf, found, err := nodeInConsensusNodes(local, bl.Point().Height().SafePrev()); {
 		case err != nil:
 			if !errors.Is(err, storage.ErrNotFound) {
 				return false, e(err, "")

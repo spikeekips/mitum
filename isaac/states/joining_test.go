@@ -137,7 +137,7 @@ func (t *testJoiningHandler) TestLocalNotInSuffrage() {
 
 	var ssctx SyncingSwitchContext
 	t.True(errors.As(err, &ssctx))
-	t.Equal(manifest.Height()+1, ssctx.height)
+	t.Equal(manifest.Height(), ssctx.height)
 }
 
 func (t *testJoiningHandler) TestFailedLastManifest() {
@@ -591,7 +591,7 @@ func (t *testJoiningHandler) TestEnterButNotInConsensusNodes() {
 
 	var ssctx SyncingSwitchContext
 	t.True(errors.As(err, &ssctx))
-	t.Equal(point.Height()+1, ssctx.height)
+	t.Equal(point.Height(), ssctx.height)
 }
 
 func (t *testJoiningHandler) TestStuckINITVoteproof() {

@@ -480,7 +480,7 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestHigherAndDraw() {
 	var ssctx SyncingSwitchContext
 	t.True(errors.As(err, &ssctx))
 
-	t.Equal(nextavp.Point().Height(), ssctx.height)
+	t.Equal(nextavp.Point().Height().SafePrev(), ssctx.height)
 }
 
 func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestHigherRoundDraw() {

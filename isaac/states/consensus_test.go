@@ -747,7 +747,7 @@ func (t *testConsensusHandler) TestEmptySuffrageNextBlock() {
 
 	st.args.NodeInConsensusNodesFunc = func(_ base.Node, height base.Height) (base.Suffrage, bool, error) {
 		switch {
-		case height <= point.Height():
+		case height <= point.Height().SafePrev():
 			return suf, true, nil
 		default:
 			return nil, false, nil
@@ -799,17 +799,16 @@ func (t *testConsensusHandler) TestEmptySuffrageNextBlock() {
 	case <-savedch:
 	}
 
-	t.T().Log("wait to switch broken state")
+	t.T().Log("wait to switch syncing state")
 	select {
 	case <-time.After(time.Second * 2):
 		t.NoError(errors.Errorf("timeout to wait"))
 
 		return
 	case sctx := <-sctxch:
-		var ssctx baseErrorSwitchContext
+		var ssctx SyncingSwitchContext
 		t.True(errors.As(sctx, &ssctx))
-		t.Equal(ssctx.next(), StateBroken)
-		t.ErrorContains(ssctx, "empty suffrage")
+		t.Equal(point.Height(), ssctx.height)
 	}
 }
 
@@ -822,7 +821,7 @@ func (t *testConsensusHandler) TestOutOfSuffrage() {
 	defer closefunc()
 
 	st.args.NodeInConsensusNodesFunc = func(_ base.Node, height base.Height) (base.Suffrage, bool, error) {
-		if height == point.Height() {
+		if height == point.Height().SafePrev() {
 			return suf, true, nil
 		}
 

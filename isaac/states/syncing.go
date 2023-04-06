@@ -244,7 +244,7 @@ func (st *SyncingHandler) checkFinishedAllowConsensus(vp base.Voteproof) (notstu
 	top, isfinished := st.syncer.IsFinished()
 
 	if isfinished {
-		joined, err := st.checkAndJoinMemberlist(top + 1)
+		joined, err := st.checkAndJoinMemberlist(top)
 		if err != nil || !joined {
 			return false, err
 		}
@@ -461,13 +461,6 @@ type SyncingSwitchContext struct { //nolint:errname //...
 func newSyncingSwitchContext(from StateType, height base.Height) SyncingSwitchContext {
 	return SyncingSwitchContext{
 		baseSwitchContext: newBaseSwitchContext(StateSyncing, switchContextOKFuncCheckFrom(from)),
-		height:            height,
-	}
-}
-
-func NewSyncingSwitchContextWithOK(height base.Height, okf func(StateType) bool) SyncingSwitchContext {
-	return SyncingSwitchContext{
-		baseSwitchContext: newBaseSwitchContext(StateSyncing, okf),
 		height:            height,
 	}
 }

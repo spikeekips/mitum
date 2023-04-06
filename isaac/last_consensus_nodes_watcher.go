@@ -109,9 +109,8 @@ func (u *LastConsensusNodesWatcher) GetSuffrage(height base.Height) (base.Suffra
 
 	_ = u.lastheight.Get(func(lastheight base.Height, _ bool) error {
 		switch {
-		case height > lastheight:
-			return nil
-		case lastheight <= base.NilHeight:
+		case lastheight <= base.NilHeight,
+			height > lastheight:
 			return nil
 		}
 
@@ -186,11 +185,11 @@ func (u *LastConsensusNodesWatcher) check(ctx context.Context) error {
 		laststate = i.State()
 	}
 
-	switch height, proof, candidates, err := u.getFromRemote(ctx, laststate); {
+	switch height, proofs, candidates, err := u.getFromRemote(ctx, laststate); {
 	case err != nil:
 		return err
 	default:
-		newproofs, newcandidates, lastheightUpdated, nodesUpdated := u.update(height, proof, candidates)
+		newproofs, newcandidates, lastheightUpdated, nodesUpdated := u.update(height, proofs, candidates)
 
 		var newproof base.SuffrageProof
 		var newcandidatesst base.State

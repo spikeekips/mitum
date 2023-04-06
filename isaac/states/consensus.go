@@ -94,7 +94,7 @@ func (st *ConsensusHandler) enter(from StateType, i switchContext) (func(), erro
 	}
 
 	switch suf, found, err := st.args.NodeInConsensusNodesFunc(
-		st.local, sctx.vp.Point().Height()); {
+		st.local, sctx.vp.Point().Height().SafePrev()); {
 	case errors.Is(err, storage.ErrNotFound):
 		st.Log().Debug().
 			Dict("state_context", switchContextLog(sctx)).
@@ -389,7 +389,7 @@ func (st *ConsensusHandler) handleACCEPTVoteproofAfterProcessingProposal(
 
 		l.Debug().Msg("expected accept voteproof has different new block; moves to syncing")
 
-		return false, newSyncingSwitchContext(StateConsensus, avp.Point().Height())
+		return false, newSyncingSwitchContextWithVoteproof(StateConsensus, avp)
 	default:
 		l.Debug().Msg("proposal processed and expected voteproof found")
 	}
@@ -501,7 +501,7 @@ func (st *ConsensusHandler) newINITVoteproofWithLastINITVoteproof(
 	case ivp.Point().Height() > livp.Point().Height(): // NOTE higher height; moves to syncing state
 		st.Log().Debug().Msg("higher init voteproof; moves to syncing state")
 
-		return newSyncingSwitchContext(StateConsensus, ivp.Point().Height()-1)
+		return newSyncingSwitchContextWithVoteproof(StateConsensus, ivp)
 	case ivp.Result() != base.VoteResultMajority: // NOTE new init voteproof has same height, but higher round
 		st.Log().Debug().Msg("new init voteproof draw; moves to next round")
 
@@ -525,7 +525,7 @@ func (st *ConsensusHandler) newINITVoteproofWithLastINITVoteproof(
 			Stringer("new_block", m.NewBlock()).
 			Msg("previous block does not match with last accept voteproof; moves to syncing")
 
-		return newSyncingSwitchContext(StateConsensus, ivp.Point().Height()-1)
+		return newSyncingSwitchContextWithVoteproof(StateConsensus, ivp)
 	}
 
 	switch keep, err := st.checkSuffrageVoting(ivp); {
@@ -556,7 +556,7 @@ func (st *ConsensusHandler) newINITVoteproofWithLastACCEPTVoteproof(
 	case ivp.Point().Height() > expectedheight:
 		st.Log().Debug().Msg("higher init voteproof; moves to syncing state")
 
-		return newSyncingSwitchContext(StateConsensus, ivp.Point().Height()-1)
+		return newSyncingSwitchContextWithVoteproof(StateConsensus, ivp)
 	case ivp.Result() == base.VoteResultDraw:
 		st.Log().Debug().Msg("new init voteproof draw; moves to next round")
 
@@ -571,7 +571,7 @@ func (st *ConsensusHandler) newINITVoteproofWithLastACCEPTVoteproof(
 				Interface("majority", m).
 				Msg("previous block does not match with last accept voteproof; moves to syncing")
 
-			return newSyncingSwitchContext(StateConsensus, ivp.Point().Height()-1)
+			return newSyncingSwitchContextWithVoteproof(StateConsensus, ivp)
 		}
 	}
 
@@ -618,7 +618,7 @@ func (st *ConsensusHandler) newACCEPTVoteproofWithLastINITVoteproof(
 		return nil
 	}
 
-	return newSyncingSwitchContext(StateConsensus, avp.Point().Height())
+	return newSyncingSwitchContextWithVoteproof(StateConsensus, avp)
 }
 
 func (st *ConsensusHandler) newACCEPTVoteproofWithLastACCEPTVoteproof(
@@ -630,7 +630,7 @@ func (st *ConsensusHandler) newACCEPTVoteproofWithLastACCEPTVoteproof(
 	case avp.Point().Height() > lavp.Point().Height():
 		st.Log().Debug().Msg("higher accept voteproof; moves to syncing state")
 
-		return newSyncingSwitchContext(StateConsensus, avp.Point().Height())
+		return newSyncingSwitchContextWithVoteproof(StateConsensus, avp)
 	case avp.Result() == base.VoteResultDraw:
 		st.Log().Debug().Msg("new accept voteproof draw; moves to next round")
 
@@ -638,7 +638,7 @@ func (st *ConsensusHandler) newACCEPTVoteproofWithLastACCEPTVoteproof(
 
 		return nil
 	default:
-		return newSyncingSwitchContext(StateConsensus, avp.Point().Height())
+		return newSyncingSwitchContextWithVoteproof(StateConsensus, avp)
 	}
 }
 
@@ -651,7 +651,7 @@ func (st *ConsensusHandler) prepareNextRound(vp base.Voteproof, previousBlock ut
 
 	var sctx switchContext
 
-	switch i, err := st.localIsInConsensusNodes(point.Height()); {
+	switch i, err := st.localIsInConsensusNodes(point.Height().SafePrev()); {
 	case errors.As(err, &sctx):
 		go st.switchState(sctx)
 
@@ -682,7 +682,7 @@ func (st *ConsensusHandler) prepareNextRound(vp base.Voteproof, previousBlock ut
 			case errors.Is(err, errFailedToVoteNotInConsensus):
 				st.Log().Debug().Err(err).Msg("failed to vote init ballot; moves to syncing state")
 
-				go st.switchState(newSyncingSwitchContext(StateConsensus, point.Height()-1))
+				go st.switchState(newSyncingSwitchContextWithVoteproof(StateConsensus, vp))
 			default:
 				st.Log().Debug().Err(err).Msg("failed to vote init ballot; moves to broken state")
 
@@ -736,7 +736,7 @@ func (st *ConsensusHandler) saveBlock(avp base.ACCEPTVoteproof) (bool, error) {
 	case errors.Is(err, isaac.ErrNotProposalProcessorProcessed):
 		l.Debug().Msg("no processed proposal; moves to syncing state")
 
-		return false, newSyncingSwitchContext(StateConsensus, avp.Point().Height())
+		return false, newSyncingSwitchContextWithVoteproof(StateConsensus, avp)
 	default:
 		ll.Error().Err(err).Msg("failed to save proposal; moves to broken state")
 
@@ -784,7 +784,7 @@ func (st *ConsensusHandler) checkStuckVoteproof(
 			Func(base.VoteproofLogFunc("last_voteproof", lvp)).
 			Msg("higher init stuck voteproof; moves to syncing state")
 
-		return false, newSyncingSwitchContext(StateConsensus, vp.Point().Height()-1)
+		return false, newSyncingSwitchContextWithVoteproof(StateConsensus, vp)
 	default:
 		st.Log().Debug().
 			Func(base.VoteproofLogFunc("init_voteproof", vp)).

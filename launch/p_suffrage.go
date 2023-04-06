@@ -135,14 +135,14 @@ func PLastConsensusNodesWatcher(pctx context.Context) (context.Context, error) {
 
 	sp := NewSuffragePool(
 		func(height base.Height) (base.Suffrage, bool, error) {
-			switch suf, found, err := watcher.GetSuffrage(height); {
+			switch suf, found, err := isaac.GetSuffrageFromDatabase(db, height); {
 			case err != nil:
 				return nil, false, err
 			case found:
 				return suf, true, nil
 			}
 
-			return isaac.GetSuffrageFromDatabase(db, height)
+			return watcher.GetSuffrage(height)
 		},
 		func() (base.Height, base.Suffrage, bool, error) {
 			var proof base.SuffrageProof

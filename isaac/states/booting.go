@@ -91,15 +91,15 @@ func (st *BootingHandler) enter(from StateType, i switchContext) (func(), error)
 	}
 
 	// NOTE if node not in suffrage, moves to syncing
-	switch suf, found, err := st.args.NodeInConsensusNodesFunc(st.local, manifest.Height()+1); {
+	switch suf, found, err := st.args.NodeInConsensusNodesFunc(st.local, manifest.Height()); {
 	case errors.Is(err, storage.ErrNotFound):
-		st.Log().Debug().Interface("height", manifest.Height()+1).Msg("suffrage not found; moves to syncing")
+		st.Log().Debug().Interface("height", manifest.Height()).Msg("suffrage not found; moves to syncing")
 
 		return nil, newSyncingSwitchContext(StateBooting, manifest.Height())
 	case err != nil:
 		return nil, e(err, "")
 	case suf == nil || suf.Len() < 1:
-		return nil, e(nil, "empty suffrage for last manifest, %d", manifest.Height()+1)
+		return nil, e(nil, "empty suffrage for last manifest, %d", manifest.Height())
 	case !found:
 		st.Log().Debug().Msg("local not in consensus node; moves to syncing")
 

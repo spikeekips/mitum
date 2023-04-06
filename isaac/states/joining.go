@@ -108,7 +108,7 @@ func (st *JoiningHandler) enter(from StateType, i switchContext) (func(), error)
 		manifest = m
 	}
 
-	switch suf, err := st.checkSuffrage(manifest.Height() + 1); {
+	switch suf, err := st.checkSuffrage(manifest.Height()); {
 	case err != nil:
 		return nil, e(err, "")
 	case suf.Exists(st.local.Address()) && suf.Len() < 2: //nolint:gomnd // local is alone in suffrage node
@@ -172,7 +172,7 @@ func (st *JoiningHandler) newVoteproof(vp base.Voteproof) error {
 		return nil
 	case errors.As(err, &sctx):
 		if sctx.next() == StateConsensus {
-			if _, err = st.checkSuffrage(vp.Point().Height()); err != nil {
+			if _, err = st.checkSuffrage(vp.Point().Height().SafePrev()); err != nil {
 				return err
 			}
 		}
@@ -207,12 +207,7 @@ func (st *JoiningHandler) handleNewVoteproof(vp base.Voteproof) error {
 	case !found:
 		l.Debug().Msg("empty last manifest; moves to syncing state")
 
-		height := vp.Point().Height()
-		if vp.Point().Stage() == base.StageINIT {
-			height = vp.Point().Height() - 1
-		}
-
-		return newSyncingSwitchContext(StateJoining, height)
+		return newSyncingSwitchContextWithVoteproof(StateJoining, vp)
 	default:
 		manifest = i
 
@@ -250,11 +245,11 @@ func (st *JoiningHandler) newINITVoteproof(ivp base.INITVoteproof, manifest base
 	case ivp.Point().Height() > expectedheight:
 		l.Debug().Msg("new init voteproof found; moves to syncing")
 
-		return newSyncingSwitchContext(StateJoining, ivp.Point().Height()-1)
+		return newSyncingSwitchContextWithVoteproof(StateJoining, ivp)
 	case prevblock != nil && !prevblock.Equal(manifest.Hash()):
 		l.Debug().Msg("previous block of init voteproof does tno match with last manifest; moves to syncing state")
 
-		return newSyncingSwitchContext(StateJoining, ivp.Point().Height()-1)
+		return newSyncingSwitchContextWithVoteproof(StateJoining, ivp)
 	default:
 		l.Debug().Msg("found valid init voteproof; moves to consensus state")
 
@@ -277,12 +272,7 @@ func (st *JoiningHandler) newACCEPTVoteproof(avp base.ACCEPTVoteproof, manifest 
 		avp.Point().Height() == lastheight+1 && avp.Result() == base.VoteResultMajority:
 		l.Debug().Msg("new accept voteproof found; moves to syncing")
 
-		height := avp.Point().Height()
-		if avp.Result() != base.VoteResultMajority {
-			height = avp.Point().Height() - 1
-		}
-
-		return newSyncingSwitchContext(StateJoining, height)
+		return newSyncingSwitchContextWithVoteproof(StateJoining, avp)
 	default:
 		l.Debug().Msg("found valid accept voteproof; moves to consensus state")
 
@@ -427,7 +417,7 @@ func (st *JoiningHandler) checkStuckVoteproof(
 			Func(base.VoteproofLogFunc("init_voteproof", vp)).
 			Msg("higher init stuck voteproof; moves to syncing state")
 
-		return false, newSyncingSwitchContext(StateJoining, vp.Point().Height()-1)
+		return false, newSyncingSwitchContextWithVoteproof(StateJoining, vp)
 	default:
 		return false, nil
 	}

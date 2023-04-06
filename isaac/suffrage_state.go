@@ -232,10 +232,8 @@ func (s SuffrageCandidatesStateValue) Nodes() []base.SuffrageCandidateStateValue
 
 func GetSuffrageFromDatabase(
 	db Database,
-	blockheight base.Height,
+	height base.Height,
 ) (base.Suffrage, bool, error) {
-	height := blockheight.Prev()
-
 	switch {
 	case height < base.GenesisHeight: // NOTE signer node of genesis suffrage proof will be used
 		proof, found, err := db.SuffrageProofByBlockHeight(base.GenesisHeight)

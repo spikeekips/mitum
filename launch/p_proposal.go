@@ -477,7 +477,6 @@ func newBaseProposalSelectorArgs(pctx context.Context) (*isaac.BaseProposalSelec
 	var proposalMaker *isaac.ProposalMaker
 	var memberlist *quicmemberlist.Memberlist
 	var client *isaacnetwork.QuicstreamClient
-	var sp *SuffragePool
 	var proposerSelector isaac.ProposerSelector
 
 	if err := util.LoadFromContextOK(pctx,
@@ -488,7 +487,6 @@ func newBaseProposalSelectorArgs(pctx context.Context) (*isaac.BaseProposalSelec
 		ProposalMakerContextKey, &proposalMaker,
 		MemberlistContextKey, &memberlist,
 		QuicstreamClientContextKey, &client,
-		SuffragePoolContextKey, &sp,
 		ProposerSelectorContextKey, &proposerSelector,
 	); err != nil {
 		return nil, err

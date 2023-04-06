@@ -19,7 +19,7 @@ type Ballotbox struct {
 	*util.ContextDaemon
 	*logging.Logging
 	local             base.Address
-	getSuffragef      isaac.GetSuffrageByBlockHeight
+	getSuffrage       isaac.GetSuffrageByBlockHeight
 	isValidVoteprooff func(base.Voteproof, base.Suffrage) error
 	suffrageVotef     func(base.SuffrageExpelOperation) error
 	newBallotf        func(base.Ballot)
@@ -34,7 +34,7 @@ type Ballotbox struct {
 
 func NewBallotbox(
 	local base.Address,
-	getSuffragef isaac.GetSuffrageByBlockHeight,
+	getSuffrage isaac.GetSuffrageByBlockHeight,
 ) *Ballotbox {
 	vrs, _ := util.NewShardedMap("", (*voterecords)(nil), 4) //nolint:gomnd // last 4 stages
 
@@ -43,7 +43,7 @@ func NewBallotbox(
 			return zctx.Str("module", "ballotbox")
 		}),
 		local:             local,
-		getSuffragef:      getSuffragef,
+		getSuffrage:       getSuffrage,
 		vrs:               vrs,
 		vpch:              make(chan base.Voteproof, math.MaxUint16),
 		lsp:               util.EmptyLocked(isaac.LastPoint{}),
@@ -260,7 +260,7 @@ func (box *Ballotbox) checkBallot(bl base.Ballot) bool {
 		return true
 	}
 
-	switch suf, found, err := box.getSuffragef(bl.Point().Height()); {
+	switch suf, found, err := box.getSuffrage(bl.Point().Height().SafePrev()); {
 	case err != nil:
 		return false
 	case !found:
@@ -603,16 +603,12 @@ func (box *Ballotbox) isValidVoteproof(vp base.Voteproof, suf base.Suffrage) err
 	return box.isValidVoteprooff(vp, suf)
 }
 
-func (box *Ballotbox) getSuffrage(height base.Height) (base.Suffrage, bool, error) {
-	return box.getSuffragef(height.SafePrev())
-}
-
 type voterecords struct {
 	*logging.Logging
 	ballots          map[string]base.BallotSignFact
 	isValidVoteproof func(base.Voteproof, base.Suffrage) error
 	learnExpels      func([]base.SuffrageExpelOperation) error
-	getSuffragef     isaac.GetSuffrageByBlockHeight
+	getSuffrageFunc  isaac.GetSuffrageByBlockHeight
 	voted            map[string]base.BallotSignFact
 	expels           map[string][]base.SuffrageExpelOperation
 	vps              map[string]base.Voteproof
@@ -628,7 +624,7 @@ type voterecords struct {
 func newVoterecords(
 	stagepoint base.StagePoint,
 	isValidVoteproof func(base.Voteproof, base.Suffrage) error,
-	getSuffragef isaac.GetSuffrageByBlockHeight,
+	getSuffrageFunc isaac.GetSuffrageByBlockHeight,
 	learnExpels func([]base.SuffrageExpelOperation) error,
 	isSuffrageConfirm bool,
 	log *zerolog.Logger,
@@ -640,7 +636,7 @@ func newVoterecords(
 
 	vr.sp = stagepoint
 	vr.isValidVoteproof = isValidVoteproof
-	vr.getSuffragef = getSuffragef
+	vr.getSuffrageFunc = getSuffrageFunc
 	vr.voted = map[string]base.BallotSignFact{}
 	vr.ballots = map[string]base.BallotSignFact{}
 	vr.expels = map[string][]base.SuffrageExpelOperation{}
@@ -962,7 +958,7 @@ func (vr *voterecords) newVoteproof(
 }
 
 func (vr *voterecords) getSuffrage() (base.Suffrage, bool, error) {
-	return vr.getSuffragef(vr.sp.Height())
+	return vr.getSuffrageFunc(vr.sp.Height().SafePrev())
 }
 
 func (*voterecords) sfs(voted map[string]base.BallotSignFact) (
@@ -1264,7 +1260,7 @@ func (vr *voterecords) voteproofFromBallots(
 		_ = vr.learnExpels(wvp.Expels())
 	}
 
-	switch suf, found, err := vr.getSuffragef(vp.Point().Height()); {
+	switch suf, found, err := vr.getSuffrageFunc(vp.Point().Height().SafePrev()); {
 	case err != nil:
 		return false
 	case !found || suf == nil:
@@ -1290,7 +1286,7 @@ var voterecordsPoolPut = func(vr *voterecords) {
 
 	vr.sp = base.ZeroStagePoint
 	vr.isValidVoteproof = nil
-	vr.getSuffragef = nil
+	vr.getSuffrageFunc = nil
 	vr.voted = nil
 	vr.ballots = nil
 	vr.expels = nil

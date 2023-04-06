@@ -347,7 +347,7 @@ func (*BaseProposalSelector) getNodes(
 	height base.Height,
 	f func(base.Height) ([]base.Node, bool, error),
 ) ([]base.Node, bool, error) {
-	switch nodes, found, err := f(height); {
+	switch nodes, found, err := f(height.SafePrev()); {
 	case err != nil, !found:
 		return nil, found, err
 	case len(nodes) < 1:
