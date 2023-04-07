@@ -112,15 +112,19 @@ func (st *SyncingHandler) enter(from StateType, i switchContext) (func(), error)
 
 		l := st.Log().With().Dict("state", switchContextLog(sctx)).Logger()
 
+		allowedConsensus := st.allowConsensus()
+
 		// NOTE if syncing is switched from consensus state, the other nodes can
 		// not get the last INIT ballot.
 		switch from {
 		case StateConsensus:
 			go func() {
-				wait := st.params.WaitPreparingINITBallot() * 2 //nolint:gomnd //...
-				l.Debug().Dur("wait", wait).Msg("timers will be stopped")
+				if allowedConsensus {
+					wait := st.params.WaitPreparingINITBallot() * 2 //nolint:gomnd //...
+					l.Debug().Dur("wait", wait).Msg("timers will be stopped")
 
-				<-time.After(wait)
+					<-time.After(wait)
+				}
 
 				if st.sts.Current() == StateSyncing {
 					l.Debug().Msg("timers stopped")
@@ -144,7 +148,7 @@ func (st *SyncingHandler) enter(from StateType, i switchContext) (func(), error)
 			st.newStuckWait(lvp)
 		}
 
-		if !st.allowConsensus() {
+		if !allowedConsensus {
 			st.whenNotAllowedConsensus()
 		}
 	}, nil
