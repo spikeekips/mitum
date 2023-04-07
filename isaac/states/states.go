@@ -519,16 +519,22 @@ func (st *States) mimicBallotFunc() (func(base.Ballot), func()) {
 		}
 	}
 
-	return func(bl base.Ballot) {
-			if bl.SignFact().Node().Equal(st.local.Address()) {
-				return
-			}
+	var stoptimerslock sync.Mutex
 
+	return func(bl base.Ballot) {
 			switch s := st.current().state(); {
+			case !st.AllowConsensus(),
+				bl.SignFact().Node().Equal(st.local.Address()):
+				return
 			case s != StateSyncing && s != StateBroken:
-				if err := timers.StopAllTimers(); err != nil {
-					st.Log().Error().Err(err).Msg("failed to stop mimic timers; ignore")
-				}
+				func() {
+					stoptimerslock.Lock()
+					defer stoptimerslock.Unlock()
+
+					if err := timers.StopAllTimers(); err != nil {
+						st.Log().Error().Err(err).Msg("failed to stop mimic timers; ignore")
+					}
+				}()
 
 				return
 			case !st.args.IsInSyncSourcePoolFunc(bl.SignFact().Node()):

@@ -817,6 +817,8 @@ func (t *testStates) TestMimicBallot() {
 		st, errch := newstatesinsyncing()
 		defer st.Stop()
 
+		st.SetAllowConsensus(true)
+
 		st.args.IsInSyncSourcePoolFunc = func(base.Address) bool { return true }
 
 		blch := make(chan base.Ballot, 1)
@@ -845,6 +847,8 @@ func (t *testStates) TestMimicBallot() {
 	t.Run("not in valid states", func() {
 		st, errch := t.booted()
 		defer st.Stop()
+
+		st.SetAllowConsensus(true)
 
 		st.local = local
 		st.params = params
@@ -876,6 +880,8 @@ func (t *testStates) TestMimicBallot() {
 		st, errch := newstatesinsyncing()
 		defer st.Stop()
 
+		st.SetAllowConsensus(true)
+
 		st.args.IsInSyncSourcePoolFunc = func(base.Address) bool { return false }
 
 		blch := make(chan base.Ballot, 1)
@@ -902,6 +908,8 @@ func (t *testStates) TestMimicBallot() {
 	t.Run("different ballot signer", func() {
 		st, errch := newstatesinsyncing()
 		defer st.Stop()
+
+		st.SetAllowConsensus(true)
 
 		st.args.IsInSyncSourcePoolFunc = func(base.Address) bool { return true }
 
@@ -945,6 +953,8 @@ func (t *testStates) TestMimicBallot() {
 		st, errch := newstatesinsyncing()
 		defer st.Stop()
 
+		st.SetAllowConsensus(true)
+
 		st.args.IsInSyncSourcePoolFunc = func(base.Address) bool { return true }
 
 		blch := make(chan base.Ballot, 1)
@@ -972,6 +982,8 @@ func (t *testStates) TestMimicBallot() {
 		st, errch := newstatesinsyncing()
 		defer st.Stop()
 
+		st.SetAllowConsensus(true)
+
 		st.args.IsInSyncSourcePoolFunc = func(base.Address) bool { return true }
 
 		blch := make(chan base.Ballot, 1)
@@ -984,7 +996,36 @@ func (t *testStates) TestMimicBallot() {
 		expel := isaac.NewSuffrageExpelOperation(fact)
 		t.NoError(expel.NodeSign(remote.Privatekey(), params.NetworkID(), remote.Address()))
 
-		bl := newINITBallot(local, []base.SuffrageExpelOperation{expel})
+		bl := newINITBallot(remote, []base.SuffrageExpelOperation{expel})
+
+		f, cancel := st.mimicBallotFunc()
+		f(bl)
+		defer cancel()
+
+		select {
+		case <-time.After(time.Second * 2):
+		case err := <-errch:
+			t.NoError(err)
+		case <-blch:
+			t.NoError(errors.Errorf("should be no broadcasted ballot, but broadcasted"))
+		}
+	})
+
+	t.Run("not allow consensus", func() {
+		st, errch := newstatesinsyncing()
+		defer st.Stop()
+
+		st.SetAllowConsensus(false)
+
+		st.args.IsInSyncSourcePoolFunc = func(base.Address) bool { return true }
+
+		blch := make(chan base.Ballot, 1)
+		st.args.BallotBroadcaster = NewDummyBallotBroadcaster(st.local.Address(), func(bl base.Ballot) error {
+			blch <- bl
+			return nil
+		})
+
+		bl := newINITBallot(remote, nil)
 
 		f, cancel := st.mimicBallotFunc()
 		f(bl)
