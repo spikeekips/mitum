@@ -147,7 +147,9 @@ func (st *JoiningHandler) exit(sctx switchContext) (func(), error) {
 }
 
 func (st *JoiningHandler) newVoteproof(vp base.Voteproof) error {
-	if !st.allowConsensus() {
+	allowedConsensus := st.allowedConsensus()
+
+	if !allowedConsensus {
 		return newSyncingSwitchContextWithVoteproof(StateJoining, vp)
 	}
 
@@ -165,7 +167,7 @@ func (st *JoiningHandler) newVoteproof(vp base.Voteproof) error {
 
 	switch err := st.handleNewVoteproof(vp); {
 	case err == nil:
-		if !st.allowConsensus() {
+		if !allowedConsensus {
 			return newSyncingSwitchContextWithVoteproof(StateJoining, vp)
 		}
 
@@ -177,7 +179,7 @@ func (st *JoiningHandler) newVoteproof(vp base.Voteproof) error {
 			}
 		}
 
-		if !st.allowConsensus() {
+		if !allowedConsensus {
 			return newSyncingSwitchContextWithVoteproof(StateJoining, vp)
 		}
 

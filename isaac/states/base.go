@@ -16,18 +16,18 @@ type baseHandler struct {
 	local base.LocalNode
 	ctx   context.Context //nolint:containedctx //...
 	*logging.Logging
-	params                *isaac.LocalParams
-	voteproofsFunc        func(base.StagePoint) (isaac.LastVoteproofs, bool)
-	lastVoteproofFunc     func() isaac.LastVoteproofs
-	setLastVoteproofFunc  func(base.Voteproof) bool
-	forceSetLastVoteproof func(base.Voteproof) bool
-	cancel                func()
-	sts                   *States
-	timers                *util.SimpleTimers
-	allowConsensusLocked  *util.Locked[bool]
-	switchStateFunc       func(switchContext) error
-	whenEmptyMembersFunc  func()
-	stt                   StateType
+	params                 *isaac.LocalParams
+	voteproofsFunc         func(base.StagePoint) (isaac.LastVoteproofs, bool)
+	lastVoteproofFunc      func() isaac.LastVoteproofs
+	setLastVoteproofFunc   func(base.Voteproof) bool
+	forceSetLastVoteproof  func(base.Voteproof) bool
+	cancel                 func()
+	sts                    *States
+	timers                 *util.SimpleTimers
+	allowedConsensusLocked *util.Locked[bool]
+	switchStateFunc        func(switchContext) error
+	whenEmptyMembersFunc   func()
+	stt                    StateType
 }
 
 func newBaseHandlerType(
@@ -62,20 +62,20 @@ func newBaseHandlerType(
 
 func (st *baseHandler) new() *baseHandler {
 	return &baseHandler{
-		Logging:               st.Logging,
-		local:                 st.local,
-		stt:                   st.stt,
-		params:                st.params,
-		sts:                   st.sts,
-		timers:                st.timers,
-		cancel:                func() {},
-		voteproofsFunc:        st.voteproofsFunc,
-		lastVoteproofFunc:     st.lastVoteproofFunc,
-		setLastVoteproofFunc:  st.setLastVoteproofFunc,
-		forceSetLastVoteproof: st.forceSetLastVoteproof,
-		switchStateFunc:       st.switchStateFunc,
-		whenEmptyMembersFunc:  st.whenEmptyMembersFunc,
-		allowConsensusLocked:  util.NewLocked(true),
+		Logging:                st.Logging,
+		local:                  st.local,
+		stt:                    st.stt,
+		params:                 st.params,
+		sts:                    st.sts,
+		timers:                 st.timers,
+		cancel:                 func() {},
+		voteproofsFunc:         st.voteproofsFunc,
+		lastVoteproofFunc:      st.lastVoteproofFunc,
+		setLastVoteproofFunc:   st.setLastVoteproofFunc,
+		forceSetLastVoteproof:  st.forceSetLastVoteproof,
+		switchStateFunc:        st.switchStateFunc,
+		whenEmptyMembersFunc:   st.whenEmptyMembersFunc,
+		allowedConsensusLocked: util.NewLocked(true),
 	}
 }
 
@@ -163,16 +163,16 @@ func (st *baseHandler) setNewVoteproof(vp base.Voteproof) (isaac.LastVoteproofs,
 	return lvps, vp, st.setLastVoteproof(vp)
 }
 
-func (st *baseHandler) allowConsensus() bool {
+func (st *baseHandler) allowedConsensus() bool {
 	if st.sts == nil {
-		i, _ := st.allowConsensusLocked.Value()
+		i, _ := st.allowedConsensusLocked.Value()
 
 		return i
 	}
 
-	return st.sts.AllowConsensus()
+	return st.sts.AllowedConsensus()
 }
 
 func (st *baseHandler) setAllowConsensus(allow bool) {
-	_ = st.allowConsensusLocked.SetValue(allow)
+	_ = st.allowedConsensusLocked.SetValue(allow)
 }

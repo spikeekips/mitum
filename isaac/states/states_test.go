@@ -124,7 +124,7 @@ func (st *dummyStateHandler) setAllowConsensus(allow bool) {
 	st.setAllowConsensusf(allow)
 }
 
-func (st *dummyStateHandler) allowConsensus() bool {
+func (st *dummyStateHandler) allowedConsensus() bool {
 	return false
 }
 
@@ -1195,7 +1195,7 @@ func (t *testStates) TestNotAllowConsensusForJoining() {
 
 	t.Run("not allowed", func() {
 		t.T().Log("current", st.current().state())
-		t.False(st.AllowConsensus())
+		t.False(st.AllowedConsensus())
 
 		sctx := newDummySwitchContext(st.current().state(), StateJoining, nil)
 		err := st.AskMoveState(sctx)
@@ -1216,7 +1216,7 @@ func (t *testStates) TestNotAllowConsensusForJoining() {
 	t.Run("in syncing", func() {
 		t.T().Log("current", st.current().state())
 
-		t.False(st.AllowConsensus())
+		t.False(st.AllowedConsensus())
 
 		sctx := newDummySwitchContext(st.current().state(), StateJoining, nil)
 		err := st.AskMoveState(sctx)

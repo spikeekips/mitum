@@ -112,7 +112,7 @@ func (st *SyncingHandler) enter(from StateType, i switchContext) (func(), error)
 
 		l := st.Log().With().Dict("state", switchContextLog(sctx)).Logger()
 
-		allowedConsensus := st.allowConsensus()
+		allowedConsensus := st.allowedConsensus()
 
 		// NOTE if syncing is switched from consensus state, the other nodes can
 		// not get the last INIT ballot.
@@ -217,7 +217,7 @@ func (st *SyncingHandler) checkFinished(vp base.Voteproof) (notstuck bool, _ err
 
 	top, isfinished := st.syncer.IsFinished()
 
-	allowConsensus := st.allowConsensus()
+	allowConsensus := st.allowedConsensus()
 
 	l.Debug().
 		Func(base.VoteproofLogFunc("voteproof", vp)).
@@ -398,7 +398,7 @@ func (st *SyncingHandler) newStuckWait(vp base.Voteproof) {
 			return
 		}
 
-		if st.allowConsensus() {
+		if st.allowedConsensus() {
 			st.Log().Debug().Dur("wait", waitStuckInterval).
 				Msg("stuck accept voteproof found; moves to joining state")
 

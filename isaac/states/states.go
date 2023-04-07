@@ -51,9 +51,9 @@ type States struct {
 	vpch        chan base.Voteproof
 	newHandlers map[StateType]newHandler
 	*util.ContextDaemon
-	timers         *util.SimpleTimers
-	allowConsensus *util.Locked[bool]
-	stateLock      sync.RWMutex
+	timers           *util.SimpleTimers
+	allowedConsensus *util.Locked[bool]
+	stateLock        sync.RWMutex
 }
 
 func NewStates(local base.LocalNode, params *isaac.LocalParams, args *StatesArgs) (*States, error) {
@@ -70,15 +70,15 @@ func NewStates(local base.LocalNode, params *isaac.LocalParams, args *StatesArgs
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", "states")
 		}),
-		local:          local,
-		params:         params,
-		args:           args,
-		statech:        make(chan switchContext),
-		vpch:           make(chan base.Voteproof),
-		newHandlers:    map[StateType]newHandler{},
-		cs:             nil,
-		timers:         timers,
-		allowConsensus: util.NewLocked(args.AllowConsensus),
+		local:            local,
+		params:           params,
+		args:             args,
+		statech:          make(chan switchContext),
+		vpch:             make(chan base.Voteproof),
+		newHandlers:      map[StateType]newHandler{},
+		cs:               nil,
+		timers:           timers,
+		allowedConsensus: util.NewLocked(args.AllowConsensus),
 	}
 
 	cancelf := func() {}
@@ -338,7 +338,7 @@ func (st *States) switchState(sctx switchContext) error {
 
 	nsctx := sctx
 
-	if next := nsctx.next(); (next == StateConsensus || next == StateJoining) && !st.AllowConsensus() {
+	if next := nsctx.next(); (next == StateConsensus || next == StateJoining) && !st.AllowedConsensus() {
 		if current.state() == StateSyncing {
 			l.Debug().Msg("not allowed to enter consensus states; keep syncing")
 
@@ -523,7 +523,7 @@ func (st *States) mimicBallotFunc() (func(base.Ballot), func()) {
 
 	return func(bl base.Ballot) {
 			switch s := st.current().state(); {
-			case !st.AllowConsensus(),
+			case !st.AllowedConsensus(),
 				bl.SignFact().Node().Equal(st.local.Address()):
 				return
 			case s != StateSyncing && s != StateBroken:
@@ -670,8 +670,8 @@ func (st *States) filterMimicBallot(bl base.Ballot) bool {
 	return false
 }
 
-func (st *States) AllowConsensus() bool {
-	i, _ := st.allowConsensus.Value()
+func (st *States) AllowedConsensus() bool {
+	i, _ := st.allowedConsensus.Value()
 
 	return i
 }
@@ -682,7 +682,7 @@ func (st *States) SetAllowConsensus(allow bool) bool { // revive:disable-line:fl
 
 	var isset bool
 
-	_, _ = st.allowConsensus.Set(func(prev bool, isempty bool) (bool, error) {
+	_, _ = st.allowedConsensus.Set(func(prev bool, isempty bool) (bool, error) {
 		if prev == allow {
 			return false, util.ErrLockedSetIgnore.Call()
 		}

@@ -162,7 +162,7 @@ func (st *ConsensusHandler) startch() {
 	var isexited bool
 
 	checkAllowConsensus := func(vp base.Voteproof) switchContext {
-		if st.allowConsensus() {
+		if st.allowedConsensus() {
 			return nil
 		}
 
