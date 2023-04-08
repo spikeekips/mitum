@@ -1167,7 +1167,7 @@ func (t *testBallotbox) TestVoteproofFinished() {
 
 		t.True(found)
 		t.NotNil(vr)
-		t.True(vr.finished())
+		t.True(vr.isFinished())
 	})
 
 	t.Run("not yet finished", func() {
@@ -1199,7 +1199,7 @@ func (t *testBallotbox) TestVoteproofFinished() {
 		vr, found := box.voterecords(base.NewStagePoint(point, base.StageINIT), false)
 		t.True(found)
 		t.NotNil(vr)
-		t.False(vr.finished())
+		t.False(vr.isFinished())
 	})
 }
 

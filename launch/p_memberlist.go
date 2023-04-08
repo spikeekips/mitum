@@ -610,7 +610,7 @@ func (l *LongRunningMemberlistJoin) Join() <-chan struct{} {
 	return donech
 }
 
-func (l *LongRunningMemberlistJoin) Cancel() bool {
+func (l *LongRunningMemberlistJoin) Cancel() error {
 	_, _ = l.cancelrunning.Set(func(i context.CancelFunc, _ bool) (context.CancelFunc, error) {
 		if i == nil {
 			return nil, nil
@@ -621,7 +621,7 @@ func (l *LongRunningMemberlistJoin) Cancel() bool {
 		return nil, nil
 	})
 
-	return true
+	return nil
 }
 
 func ensureJoinMemberlist(

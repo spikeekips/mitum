@@ -206,12 +206,12 @@ func (box *Ballotbox) MissingNodes(point base.StagePoint, threshold base.Thresho
 	switch {
 	case !found:
 		return nil, false, nil
-	case vr.finishedLocked():
+	case vr.isFinishedLocked():
 		return nil, true, nil
 	default:
 		_ = box.countVoterecords(vr, threshold)
 
-		if vr.finishedLocked() {
+		if vr.isFinishedLocked() {
 			return nil, true, nil
 		}
 	}
@@ -305,7 +305,7 @@ func (box *Ballotbox) unfinishedVoterecords() []*voterecords {
 			}
 
 			switch {
-			case vr.finishedLocked():
+			case vr.isFinishedLocked():
 			case !last.IsZero() && vr.stagepoint().Compare(last.StagePoint) < 1:
 			default:
 				vrs = append(vrs, vr)
@@ -740,14 +740,14 @@ func (vr *voterecords) vote(
 	}
 }
 
-func (vr *voterecords) finishedLocked() bool {
+func (vr *voterecords) isFinishedLocked() bool {
 	vr.RLock()
 	defer vr.RUnlock()
 
-	return vr.finished()
+	return vr.isFinished()
 }
 
-func (vr *voterecords) finished() bool {
+func (vr *voterecords) isFinished() bool {
 	return vr.vp != nil
 }
 
@@ -1212,7 +1212,7 @@ func (vr *voterecords) voteproofFromBallot(
 	threshold base.Threshold,
 	filter func(isaac.LastPoint, base.Voteproof) bool,
 ) base.Voteproof {
-	if vr.finished() {
+	if vr.isFinished() {
 		return nil
 	}
 
@@ -1245,7 +1245,7 @@ func (vr *voterecords) voteproofFromBallots(
 	threshold base.Threshold,
 	filter func(isaac.LastPoint, base.Voteproof) bool,
 ) bool {
-	if vr.finished() {
+	if vr.isFinished() {
 		return false
 	}
 

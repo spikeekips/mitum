@@ -78,7 +78,7 @@ func (t *testLongRunningMemberlistJoin) TestCancel() {
 
 	ch := l.Join()
 
-	t.True(l.Cancel())
+	t.NoError(l.Cancel())
 
 	select {
 	case <-time.After(time.Second * 1):
