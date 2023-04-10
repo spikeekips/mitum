@@ -571,8 +571,15 @@ func requestFuncOfBaseProposalSelectorArgs(pctx context.Context, args *isaac.Bas
 			return nil, false, err
 		}
 
+		var foundproposer bool
+
 		cis := make([]quicstream.UDPConnInfo, len(members))
+
 		for i := range members {
+			if !foundproposer && members[i].Address().Equal(proposer.Address()) {
+				foundproposer = true
+			}
+
 			cis[i] = members[i].UDPConnInfo()
 		}
 
@@ -580,18 +587,19 @@ func requestFuncOfBaseProposalSelectorArgs(pctx context.Context, args *isaac.Bas
 			return nil, false, errors.Errorf("no alive members")
 		}
 
-		// NOTE include proposer conn info
-		memberlist.Members(func(node quicmemberlist.Member) bool {
-			if node.Address().Equal(proposer.Address()) {
-				if node.UDPConnInfo().Addr() != nil {
-					cis = append(cis, node.UDPConnInfo()) //nolint:makezero //...
+		if !foundproposer { // NOTE include proposer conn info
+			memberlist.Members(func(node quicmemberlist.Member) bool {
+				if node.Address().Equal(proposer.Address()) {
+					if node.UDPConnInfo().Addr() != nil {
+						cis = append(cis, node.UDPConnInfo()) //nolint:makezero //...
+					}
+
+					return false
 				}
 
-				return false
-			}
-
-			return true
-		})
+				return true
+			})
+		}
 
 		nctx, cancel := context.WithTimeout(ctx, params.TimeoutRequest())
 		defer cancel()

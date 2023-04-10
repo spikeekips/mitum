@@ -185,7 +185,7 @@ func (p *BaseProposalSelector) proposalFromNode(
 	proposer base.Node,
 	previousBlock util.Hash,
 ) (base.ProposalSignFact, error) {
-	ticker := time.NewTicker(1)
+	ticker := time.NewTicker(time.Millisecond * 33)
 	defer ticker.Stop()
 
 	var reset sync.Once
