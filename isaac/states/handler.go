@@ -75,7 +75,7 @@ func handlerLog(st handler) fmt.Stringer {
 }
 
 type switchContext interface {
-	next() StateType
+	next() StateType // FIXME set from
 	Error() string
 	ok(current StateType) bool
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
@@ -109,20 +108,8 @@ func (st *baseHandler) setLastVoteproof(vp base.Voteproof) bool {
 }
 
 func (st *baseHandler) switchState(sctx switchContext) {
-	l := st.Log().With().Dict("next_state", switchContextLog(sctx)).Logger()
-
-	switch err := st.switchStateFunc(sctx); {
-	case err == nil:
-	case errors.Is(err, ErrIgnoreSwitchingState):
-		l.Error().Err(err).Msg("failed to switch state; ignore")
-	case sctx.next() == StateBroken:
-		l.Error().Err(err).Msg("failed to switch state; panic")
-
+	if err := st.switchStateFunc(sctx); err != nil {
 		panic(err)
-	default:
-		l.Error().Err(err).Msg("failed to switch state; moves to broken")
-
-		go st.switchState(newBrokenSwitchContext(st.stt, err))
 	}
 }
 
