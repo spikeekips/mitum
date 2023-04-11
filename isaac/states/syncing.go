@@ -464,7 +464,7 @@ type SyncingSwitchContext struct { //nolint:errname //...
 
 func newSyncingSwitchContext(from StateType, height base.Height) SyncingSwitchContext {
 	return SyncingSwitchContext{
-		baseSwitchContext: newBaseSwitchContext(StateSyncing, switchContextOKFuncCheckFrom(from)),
+		baseSwitchContext: newBaseSwitchContext(from, StateSyncing),
 		height:            height,
 	}
 }

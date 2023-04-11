@@ -440,7 +440,7 @@ type joiningSwitchContext struct {
 
 func newJoiningSwitchContext(from StateType, vp base.Voteproof) joiningSwitchContext {
 	return joiningSwitchContext{
-		baseSwitchContext: newBaseSwitchContext(StateJoining, switchContextOKFuncCheckFrom(from)),
+		baseSwitchContext: newBaseSwitchContext(from, StateJoining),
 		vp:                vp,
 	}
 }

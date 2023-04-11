@@ -62,10 +62,6 @@ func (st *BrokenHandler) enter(from StateType, i switchContext) (func(), error) 
 	}, nil
 }
 
-func newBrokenSwitchContextFromEmpty(err error) baseErrorSwitchContext {
-	return newBaseErrorSwitchContext(StateBroken, err, switchContextOKFuncNil)
-}
-
 func newBrokenSwitchContext(from StateType, err error) baseErrorSwitchContext {
-	return newBaseErrorSwitchContext(StateBroken, err, switchContextOKFuncCheckFrom(from))
+	return newBaseErrorSwitchContext(from, StateBroken, err)
 }

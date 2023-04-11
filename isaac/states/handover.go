@@ -11,12 +11,12 @@ type handoverSwitchContext struct {
 
 func newHandoverSwitchContext(from StateType, vp base.Voteproof) handoverSwitchContext {
 	return handoverSwitchContext{
-		baseSwitchContext: newBaseSwitchContext(StateHandover, switchContextOKFuncCheckFrom(from)),
+		baseSwitchContext: newBaseSwitchContext(from, StateHandover),
 		vp:                vp,
 	}
 }
 
-func newHandoverSwitchContextFromOther(sctx switchContext) handoverSwitchContext { // FIXME set from
+func newHandoverSwitchContextFromOther(sctx switchContext) handoverSwitchContext {
 	var vp base.Voteproof
 
 	switch t := sctx.(type) {
@@ -26,8 +26,5 @@ func newHandoverSwitchContextFromOther(sctx switchContext) handoverSwitchContext
 		vp = t.vp
 	}
 
-	return handoverSwitchContext{
-		baseSwitchContext: newBaseSwitchContext(StateHandover, func(StateType) bool { return true }),
-		vp:                vp,
-	}
+	return newHandoverSwitchContext(sctx.from(), vp)
 }

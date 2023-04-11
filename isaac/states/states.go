@@ -275,12 +275,12 @@ func (st *States) current() handler {
 func (st *States) ensureSwitchState(sctx switchContext) error {
 	var n int
 
-	movetobroken := func(err error) switchContext {
+	movetobroken := func(from StateType, err error) switchContext {
 		st.Log().Error().Err(err).Msg("failed to switch state; wil move to broken")
 
 		n = 0
 
-		return newBrokenSwitchContextFromEmpty(err)
+		return newBrokenSwitchContext(from, err)
 	}
 
 	nsctx := sctx
@@ -289,7 +289,7 @@ end:
 		if n > 3 { //nolint:gomnd //...
 			st.Log().Warn().Msg("suspicious infinite loop in switch states; > 3; will move to broken")
 
-			nsctx = movetobroken(nsctx)
+			nsctx = movetobroken(nsctx.from(), nsctx)
 
 			continue
 		}
@@ -312,7 +312,7 @@ end:
 				return errors.Wrap(err, "switch to broken")
 			}
 
-			nsctx = movetobroken(err)
+			nsctx = movetobroken(nsctx.from(), err)
 
 			continue end
 		default:
@@ -376,7 +376,15 @@ func (st *States) switchState(sctx switchContext) error {
 		}
 	}
 
-	st.callDeferStates(cdefer, ndefer)
+	go func() {
+		if cdefer != nil {
+			cdefer()
+		}
+
+		if ndefer != nil {
+			ndefer()
+		}
+	}()
 
 	st.args.WhenStateSwitchedFunc(sctx.next())
 
@@ -450,48 +458,47 @@ func (st *States) voteproofToCurrent(vp base.Voteproof, current handler) error {
 	return nil
 }
 
-func (*States) callDeferStates(c, n func()) {
-	go func() {
-		if c != nil {
-			c()
-		}
-
-		if n != nil {
-			n()
-		}
-	}()
-}
-
 func (st *States) checkStateSwitchContext(sctx switchContext, current handler) error {
-	if current == nil {
+	next := sctx.next()
+
+	switch _, found := st.newHandlers[next]; {
+	case current == nil:
 		return nil
-	}
-
-	if _, found := st.newHandlers[sctx.next()]; !found {
-		return errors.Errorf("unknown next state, %q", sctx.next())
-	}
-
-	switch next := sctx.next(); {
-	case !sctx.ok(current.state()):
-		return ErrIgnoreSwitchingState.Errorf("not ok")
+	case !found:
+		return errors.Errorf("unknown next state, %q", next)
 	case next == current.state():
 		return ErrIgnoreSwitchingState.Errorf("same next state")
-	case (next == StateConsensus || next == StateJoining) && st.UnderHandover():
-		if current.state() == StateHandover {
-			return nil
-		}
+	case next == StateBroken:
+		return nil
+	case sctx.from() != current.state():
+		return ErrIgnoreSwitchingState.Errorf("current != from")
+	}
 
-		return newHandoverSwitchContextFromOther(sctx)
-	case next == StateHandover && !st.UnderHandover():
+	switch {
+	case st.UnderHandover():
+		if next == StateConsensus || next == StateJoining {
+			if current.state() == StateHandover {
+				return ErrIgnoreSwitchingState.Errorf("already in handover")
+			}
+
+			return newHandoverSwitchContextFromOther(sctx)
+		}
+	case next == StateHandover:
 		return ErrIgnoreSwitchingState.Errorf("not under handover; ignore")
-	case (next == StateConsensus || next == StateJoining) && !st.AllowedConsensus():
+	}
+
+	switch {
+	case st.AllowedConsensus():
+		if next == StateHandover {
+			return ErrIgnoreSwitchingState.Errorf(
+				"next state is handover, but allowed to enter consensus states; ignore")
+		}
+	case next == StateConsensus, next == StateJoining:
 		if current.state() == StateSyncing {
 			return ErrIgnoreSwitchingState.Errorf("not allowed to enter consensus states; keep syncing")
 		}
 
 		return newSyncingSwitchContext(current.state(), base.GenesisHeight)
-	case next == StateHandover && st.AllowedConsensus():
-		return ErrIgnoreSwitchingState.Errorf("next state is handover, but allowed to enter consensus states; ignore")
 	}
 
 	return nil
@@ -742,8 +749,8 @@ func (st *States) SetUnderHandover(handover bool) bool { // revive:disable-line:
 	_, _ = st.underHandover.Set(func(prev bool, isempty bool) (bool, error) {
 		switch {
 		case
-			st.AllowedConsensus() && handover,
-			prev == handover:
+			prev == handover,
+			handover && st.AllowedConsensus():
 			return false, util.ErrLockedSetIgnore.Call()
 		}
 

@@ -856,7 +856,7 @@ func newConsensusSwitchContext(from StateType, vp base.Voteproof) (consensusSwit
 	}
 
 	return consensusSwitchContext{
-		baseSwitchContext: newBaseSwitchContext(StateConsensus, switchContextOKFuncCheckFrom(from)),
+		baseSwitchContext: newBaseSwitchContext(from, StateConsensus),
 		vp:                vp,
 	}, nil
 }

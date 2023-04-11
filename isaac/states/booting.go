@@ -117,7 +117,7 @@ type bootingSwitchContext struct {
 
 func newBootingSwitchContext(from StateType) bootingSwitchContext {
 	return bootingSwitchContext{
-		baseSwitchContext: newBaseSwitchContext(StateBooting, switchContextOKFuncCheckFrom(from)),
+		baseSwitchContext: newBaseSwitchContext(from, StateBooting),
 	}
 }
 

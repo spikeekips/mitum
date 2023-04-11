@@ -490,7 +490,6 @@ func (t *testConsensusHandler) TestFailedProcessingProposalProcessingFailed() {
 
 		return
 	case sctx := <-sctxch:
-		t.True(sctx.ok(StateConsensus))
 		t.Equal(StateBroken, sctx.next())
 		t.ErrorContains(sctx, "hahaha")
 	}

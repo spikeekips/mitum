@@ -159,7 +159,7 @@ type dummySwitchContext struct {
 
 func newDummySwitchContext(from, next StateType, vp base.Voteproof) dummySwitchContext {
 	return dummySwitchContext{
-		baseSwitchContext: newBaseSwitchContext(next, switchContextOKFuncCheckFrom(from)),
+		baseSwitchContext: newBaseSwitchContext(from, next),
 		vp:                vp,
 	}
 }
@@ -723,7 +723,7 @@ func (t *testStates) TestStoppedByStateStopped() {
 
 	t.Equal(StateBooting, st.current().state())
 
-	sctx := newBaseErrorSwitchContext(StateStopped, errors.Errorf("something wrong"), switchContextOKFuncCheckFrom(st.current().state()))
+	sctx := newBaseErrorSwitchContext(StateBooting, StateStopped, errors.Errorf("something wrong"))
 	t.NoError(st.AskMoveState(sctx))
 
 	select {

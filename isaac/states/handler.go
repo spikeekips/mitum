@@ -75,9 +75,9 @@ func handlerLog(st handler) fmt.Stringer {
 }
 
 type switchContext interface {
-	next() StateType // FIXME set from
+	from() StateType
+	next() StateType
 	Error() string
-	ok(current StateType) bool
 }
 
 type voteproofSwitchContext interface {
@@ -86,23 +86,23 @@ type voteproofSwitchContext interface {
 }
 
 type baseSwitchContext struct { //nolint:errname //...
-	okf func(StateType) bool
-	n   StateType
+	f StateType
+	n StateType
 }
 
-func newBaseSwitchContext(next StateType, okf func(StateType) bool) baseSwitchContext {
+func newBaseSwitchContext(from, next StateType) baseSwitchContext {
 	return baseSwitchContext{
-		n:   next,
-		okf: okf,
+		f: from,
+		n: next,
 	}
+}
+
+func (s baseSwitchContext) from() StateType {
+	return s.f
 }
 
 func (s baseSwitchContext) next() StateType {
 	return s.n
-}
-
-func (s baseSwitchContext) ok(current StateType) bool {
-	return s.okf(current)
 }
 
 func (s baseSwitchContext) Error() string {
@@ -110,11 +110,13 @@ func (s baseSwitchContext) Error() string {
 }
 
 func (s baseSwitchContext) String() string {
-	return fmt.Sprintf("state switch next=%s", s.n)
+	return fmt.Sprintf("state switch from=%q next=%q", s.f, s.n)
 }
 
 func (s baseSwitchContext) MarshalZerologObject(e *zerolog.Event) {
-	e.Stringer("next", s.n)
+	e.
+		Stringer("from", s.f).
+		Stringer("next", s.n)
 }
 
 type baseErrorSwitchContext struct { //nolint:errname //...
@@ -122,9 +124,9 @@ type baseErrorSwitchContext struct { //nolint:errname //...
 	baseSwitchContext
 }
 
-func newBaseErrorSwitchContext(next StateType, err error, okf func(StateType) bool) baseErrorSwitchContext {
+func newBaseErrorSwitchContext(from, next StateType, err error) baseErrorSwitchContext {
 	return baseErrorSwitchContext{
-		baseSwitchContext: newBaseSwitchContext(next, okf),
+		baseSwitchContext: newBaseSwitchContext(from, next),
 		err:               err,
 	}
 }
@@ -166,15 +168,6 @@ func switchContextLog(sctx switchContext) *zerolog.Event {
 
 func isSwitchContextError(err error) bool {
 	var sctx switchContext
+
 	return errors.As(err, &sctx)
-}
-
-func switchContextOKFuncNil(StateType) bool {
-	return true
-}
-
-func switchContextOKFuncCheckFrom(st StateType) func(StateType) bool {
-	return func(current StateType) bool {
-		return current == st
-	}
 }
