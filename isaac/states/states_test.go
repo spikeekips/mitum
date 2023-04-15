@@ -1356,8 +1356,8 @@ func (t *testStates) TestSwitchHandover() {
 		t.False(st.AllowedConsensus())
 
 		t.T().Log("set under handover")
-		t.True(st.SetUnderHandover(true))
-		t.True(st.UnderHandover())
+		t.NoError(st.StartHandoverY())
+		t.True(st.UnderHandoverY())
 
 		nsctx := newDummySwitchContext(st.current().state(), StateHandover, nil)
 		t.NoError(st.AskMoveState(nsctx))
@@ -1378,8 +1378,8 @@ func (t *testStates) TestSwitchHandover() {
 		_ = st.SetAllowConsensus(false)
 		t.False(st.AllowedConsensus())
 
-		_ = st.SetUnderHandover(true)
-		t.True(st.UnderHandover())
+		_ = st.StartHandoverY()
+		t.True(st.UnderHandoverY())
 
 		entersyncing("enter syncing")
 

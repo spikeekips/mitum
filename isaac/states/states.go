@@ -53,7 +53,8 @@ type States struct {
 	*util.ContextDaemon
 	timers           *util.SimpleTimers
 	allowedConsensus *util.Locked[bool]
-	underHandover    *util.Locked[bool]
+	handoverX        *util.Locked[*HandoverXBroker]
+	handoverY        *util.Locked[*HandoverYBroker]
 	stateLock        sync.RWMutex
 }
 
@@ -80,7 +81,8 @@ func NewStates(local base.LocalNode, params *isaac.LocalParams, args *StatesArgs
 		cs:               nil,
 		timers:           timers,
 		allowedConsensus: util.NewLocked(args.AllowConsensus),
-		underHandover:    util.NewLocked(false),
+		handoverX:        util.EmptyLocked((*HandoverXBroker)(nil)),
+		handoverY:        util.EmptyLocked((*HandoverYBroker)(nil)),
 	}
 
 	cancelf := func() {}
@@ -475,7 +477,7 @@ func (st *States) checkStateSwitchContext(sctx switchContext, current handler) e
 	}
 
 	switch {
-	case st.UnderHandover():
+	case st.UnderHandoverY():
 		if next == StateConsensus || next == StateJoining {
 			if current.state() == StateHandover {
 				return ErrIgnoreSwitchingState.Errorf("already in handover")
@@ -730,34 +732,6 @@ func (st *States) SetAllowConsensus(allow bool) bool { // revive:disable-line:fl
 			st.cs.setAllowConsensus(allow) // NOTE if not allowed, exits from consensus state
 		}
 	}
-
-	return isset
-}
-
-func (st *States) UnderHandover() bool {
-	i, _ := st.underHandover.Value()
-
-	return i
-}
-
-func (st *States) SetUnderHandover(handover bool) bool { // revive:disable-line:flag-parameter
-	st.stateLock.RLock()
-	defer st.stateLock.RUnlock()
-
-	var isset bool
-
-	_, _ = st.underHandover.Set(func(prev bool, isempty bool) (bool, error) {
-		switch {
-		case
-			prev == handover,
-			handover && st.AllowedConsensus():
-			return false, util.ErrLockedSetIgnore.Call()
-		}
-
-		isset = true
-
-		return handover, nil
-	})
 
 	return isset
 }
