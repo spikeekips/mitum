@@ -127,15 +127,6 @@ func (st *States) SetWhenStateSwitched(f func(StateType)) {
 	st.args.WhenStateSwitchedFunc = f
 }
 
-func (st *States) WhenEmptyMembers() {
-	current := st.current()
-	if current == nil {
-		return
-	}
-
-	current.whenEmptyMembers()
-}
-
 func (st *States) Hold() error {
 	current := st.current()
 	if current == nil {

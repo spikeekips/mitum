@@ -76,7 +76,7 @@ func PBallotStuckResolver(pctx context.Context) (context.Context, error) {
 	var local base.LocalNode
 	var params *isaac.LocalParams
 	var ballotbox *isaacstates.Ballotbox
-	var memberlist *quicmemberlist.Memberlist
+	var m *quicmemberlist.Memberlist
 	var sp *SuffragePool
 	var svf *isaac.SuffrageVoting
 
@@ -86,7 +86,7 @@ func PBallotStuckResolver(pctx context.Context) (context.Context, error) {
 		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
 		BallotboxContextKey, &ballotbox,
-		MemberlistContextKey, &memberlist,
+		MemberlistContextKey, &m,
 		SuffragePoolContextKey, &sp,
 		SuffrageVotingContextKey, &svf,
 	); err != nil {
@@ -102,7 +102,7 @@ func PBallotStuckResolver(pctx context.Context) (context.Context, error) {
 
 	requestMissingBallotsf := isaacstates.RequestMissingBallots(
 		quicstream.NewUDPConnInfo(design.Network.Publish(), design.Network.TLSInsecure),
-		memberlist.CallbackBroadcast,
+		m.CallbackBroadcast,
 	)
 
 	voteSuffrageVotingf := isaacstates.VoteSuffrageVotingFunc(
@@ -148,7 +148,7 @@ func PStates(pctx context.Context) (context.Context, error) {
 	var params *isaac.LocalParams
 	var syncSourcePool *isaac.SyncSourcePool
 	var pool *isaacdatabase.TempPool
-	var memberlist *quicmemberlist.Memberlist
+	var m *quicmemberlist.Memberlist
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
@@ -161,7 +161,7 @@ func PStates(pctx context.Context) (context.Context, error) {
 		SyncSourcePoolContextKey, &syncSourcePool,
 		BallotStuckResolverContextKey, &args.BallotStuckResolver,
 		PoolDatabaseContextKey, &pool,
-		MemberlistContextKey, &memberlist,
+		MemberlistContextKey, &m,
 	); err != nil {
 		return pctx, e(err, "")
 	}
@@ -193,7 +193,7 @@ func PStates(pctx context.Context) (context.Context, error) {
 			}
 
 			id := valuehash.NewSHA256(bl.HashBytes()).String()
-			if err := memberlist.CallbackBroadcast(b, id, nil); err != nil {
+			if err := m.CallbackBroadcast(b, id, nil); err != nil {
 				return ee(err, "")
 			}
 
@@ -282,11 +282,6 @@ func PStatesSetHandlers(pctx context.Context) (context.Context, error) { //reviv
 		return sv.Find(ctx, height, suf)
 	}
 
-	whenEmptyMembersf, err := whenEmptyMembersStateHandlerFunc(pctx, states)
-	if err != nil {
-		return pctx, e(err, "")
-	}
-
 	getLastManifestf := getLastManifestFunc(db)
 	getManifestf := getManifestFunc(db)
 
@@ -307,7 +302,6 @@ func PStatesSetHandlers(pctx context.Context) (context.Context, error) { //reviv
 	consensusargs.VoteFunc = votef
 	consensusargs.SuffrageVotingFindFunc = suffrageVotingFindf
 	consensusargs.GetManifestFunc = getManifestf
-	consensusargs.WhenEmptyMembersFunc = whenEmptyMembersf
 
 	joiningargs, err := newJoiningHandlerArgs(pctx)
 	if err != nil {
@@ -317,7 +311,6 @@ func PStatesSetHandlers(pctx context.Context) (context.Context, error) { //reviv
 	joiningargs.VoteFunc = votef
 	joiningargs.SuffrageVotingFindFunc = suffrageVotingFindf
 	joiningargs.LastManifestFunc = getLastManifestf
-	joiningargs.WhenEmptyMembersFunc = whenEmptyMembersf
 
 	bootingargs, err := newBootingHandlerArgs(pctx)
 	if err != nil {
@@ -1102,34 +1095,6 @@ func newSyncerDeferredFunc(pctx context.Context, db isaac.Database) (
 		_ = syncer.Add(height)
 
 		l.Debug().Interface("height", height).Msg("new syncer created")
-	}, nil
-}
-
-func whenEmptyMembersStateHandlerFunc(
-	pctx context.Context,
-	states *isaacstates.States,
-) (func(), error) {
-	var log *logging.Logging
-	var pps *ps.PS
-	var long *LongRunningMemberlistJoin
-
-	if err := util.LoadFromContextOK(pctx,
-		LoggingContextKey, &log,
-		EventWhenEmptyMembersContextKey, &pps,
-		LongRunningMemberlistJoinContextKey, &long,
-	); err != nil {
-		return nil, err
-	}
-
-	_ = pps.Add("in-state-handler", func(ctx context.Context) (context.Context, error) {
-		_ = long.Join()
-		log.Log().Debug().Msg("start LongRunningMemberlistJoin")
-
-		return ctx, nil
-	}, nil)
-
-	return func() {
-		states.WhenEmptyMembers()
 	}, nil
 }
 

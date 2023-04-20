@@ -129,13 +129,13 @@ func getProposalFunc(pctx context.Context) (
 	var params *isaac.LocalParams
 	var pool *isaacdatabase.TempPool
 	var client *isaacnetwork.QuicstreamClient
-	var memberlist *quicmemberlist.Memberlist
+	var m *quicmemberlist.Memberlist
 
 	if err := util.LoadFromContextOK(pctx,
 		LocalParamsContextKey, &params,
 		PoolDatabaseContextKey, &pool,
 		QuicstreamClientContextKey, &client,
-		MemberlistContextKey, &memberlist,
+		MemberlistContextKey, &m,
 	); err != nil {
 		return nil, err
 	}
@@ -149,7 +149,7 @@ func getProposalFunc(pctx context.Context) (
 		}
 
 		// NOTE if not found, request to remote node
-		worker := util.NewErrgroupWorker(ctx, int64(memberlist.MembersLen()))
+		worker := util.NewErrgroupWorker(ctx, int64(m.RemotesLen()))
 		defer worker.Close()
 
 		prl := util.EmptyLocked((base.ProposalSignFact)(nil))
@@ -157,7 +157,7 @@ func getProposalFunc(pctx context.Context) (
 		go func() {
 			defer worker.Done()
 
-			memberlist.Remotes(func(node quicmemberlist.Member) bool {
+			m.Remotes(func(node quicmemberlist.Member) bool {
 				ci := node.UDPConnInfo()
 
 				return worker.NewJob(func(ctx context.Context, _ uint64) error {
@@ -475,7 +475,7 @@ func newBaseProposalSelectorArgs(pctx context.Context) (*isaac.BaseProposalSelec
 	var params *isaac.LocalParams
 	var pool *isaacdatabase.TempPool
 	var proposalMaker *isaac.ProposalMaker
-	var memberlist *quicmemberlist.Memberlist
+	var m *quicmemberlist.Memberlist
 	var client *isaacnetwork.QuicstreamClient
 	var proposerSelector isaac.ProposerSelector
 
@@ -485,7 +485,7 @@ func newBaseProposalSelectorArgs(pctx context.Context) (*isaac.BaseProposalSelec
 		LocalParamsContextKey, &params,
 		PoolDatabaseContextKey, &pool,
 		ProposalMakerContextKey, &proposalMaker,
-		MemberlistContextKey, &memberlist,
+		MemberlistContextKey, &m,
 		QuicstreamClientContextKey, &client,
 		ProposerSelectorContextKey, &proposerSelector,
 	); err != nil {
@@ -513,13 +513,13 @@ func newBaseProposalSelectorArgs(pctx context.Context) (*isaac.BaseProposalSelec
 func getNodesFuncOfBaseProposalSelectorArgs(pctx context.Context, args *isaac.BaseProposalSelectorArgs) error {
 	var log *logging.Logging
 	var local base.LocalNode
-	var memberlist *quicmemberlist.Memberlist
+	var m *quicmemberlist.Memberlist
 	var sp *SuffragePool
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
-		MemberlistContextKey, &memberlist,
+		MemberlistContextKey, &m,
 		SuffragePoolContextKey, &sp,
 	); err != nil {
 		return err
@@ -542,13 +542,15 @@ func getNodesFuncOfBaseProposalSelectorArgs(pctx context.Context, args *isaac.Ba
 }
 
 func requestFuncOfBaseProposalSelectorArgs(pctx context.Context, args *isaac.BaseProposalSelectorArgs) error {
+	var local base.LocalNode
 	var params *isaac.LocalParams
-	var memberlist *quicmemberlist.Memberlist
+	var m *quicmemberlist.Memberlist
 	var client *isaacnetwork.QuicstreamClient
 
 	if err := util.LoadFromContextOK(pctx,
+		LocalContextKey, &local,
 		LocalParamsContextKey, &params,
-		MemberlistContextKey, &memberlist,
+		MemberlistContextKey, &m,
 		QuicstreamClientContextKey, &client,
 	); err != nil {
 		return err
@@ -561,10 +563,16 @@ func requestFuncOfBaseProposalSelectorArgs(pctx context.Context, args *isaac.Bas
 		previousBlock util.Hash,
 	) (base.ProposalSignFact, bool, error) {
 		members, err := quicmemberlist.RandomAliveMembers(
-			memberlist,
+			m,
 			33, //nolint:gomnd //...
 			func(node quicmemberlist.Member) bool {
-				return node.UDPConnInfo().Addr() == nil || node.Address().Equal(proposer.Address())
+				switch {
+				case node.UDPConnInfo().Addr() == nil,
+					node.Address().Equal(local.Address()):
+					return true
+				default:
+					return false
+				}
 			},
 		)
 		if err != nil {
@@ -588,7 +596,7 @@ func requestFuncOfBaseProposalSelectorArgs(pctx context.Context, args *isaac.Bas
 		}
 
 		if !foundproposer { // NOTE include proposer conn info
-			memberlist.Members(func(node quicmemberlist.Member) bool {
+			m.Members(func(node quicmemberlist.Member) bool {
 				if node.Address().Equal(proposer.Address()) {
 					if node.UDPConnInfo().Addr() != nil {
 						cis = append(cis, node.UDPConnInfo()) //nolint:makezero //...

@@ -350,7 +350,7 @@ func PSuffrageVoting(pctx context.Context) (context.Context, error) {
 	var enc encoder.Encoder
 	var db isaac.Database
 	var pool *isaacdatabase.TempPool
-	var memberlist *quicmemberlist.Memberlist
+	var m *quicmemberlist.Memberlist
 	var ballotbox *isaacstates.Ballotbox
 	var sp *SuffragePool
 
@@ -360,7 +360,7 @@ func PSuffrageVoting(pctx context.Context) (context.Context, error) {
 		EncoderContextKey, &enc,
 		CenterDatabaseContextKey, &db,
 		PoolDatabaseContextKey, &pool,
-		MemberlistContextKey, &memberlist,
+		MemberlistContextKey, &m,
 		BallotboxContextKey, &ballotbox,
 		SuffragePoolContextKey, &sp,
 	); err != nil {
@@ -371,7 +371,7 @@ func PSuffrageVoting(pctx context.Context) (context.Context, error) {
 		local.Address(),
 		pool,
 		db.ExistsInStateOperation,
-		broadcastSuffrageVotingFunc(log, memberlist),
+		broadcastSuffrageVotingFunc(log, m),
 	)
 
 	ballotbox.SetSuffrageVoteFunc(func(op base.SuffrageExpelOperation) error {

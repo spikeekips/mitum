@@ -248,10 +248,12 @@ func (srv *Memberlist) Leave(timeout time.Duration) error {
 	return err
 }
 
+// MembersLen() returns number of all the joined members.
 func (srv *Memberlist) MembersLen() int {
 	return srv.members.Len()
 }
 
+// RemotesLen() returns number of all the joined members except local.
 func (srv *Memberlist) RemotesLen() int {
 	var count int
 

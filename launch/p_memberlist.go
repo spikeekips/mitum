@@ -28,7 +28,7 @@ var (
 	PNamePatchMemberlist                    = ps.Name("patch-memberlist")
 	MemberlistContextKey                    = util.ContextKey("memberlist")
 	LongRunningMemberlistJoinContextKey     = util.ContextKey("long-running-memberlist-join")
-	EventWhenEmptyMembersContextKey         = util.ContextKey("event-when-empty-members")
+	EventWhenMemberLeftContextKey           = util.ContextKey("event-when-member-left")
 	SuffrageVotingContextKey                = util.ContextKey("suffrage-voting")
 	SuffrageVotingVoteFuncContextKey        = util.ContextKey("suffrage-voting-vote-func")
 	FilterMemberlistNotifyMsgFuncContextKey = util.ContextKey("filter-memberlist-notify-msg-func")
@@ -87,21 +87,17 @@ func PMemberlist(pctx context.Context) (context.Context, error) {
 
 	_ = m.SetLogging(log)
 
-	pps := ps.NewPS("event-on-empty-members")
+	pps := ps.NewPS("event-member-left")
 
 	m.SetWhenLeftFunc(func(quicmemberlist.Member) {
-		if m.IsJoined() {
-			return
-		}
-
 		if _, err := pps.Run(context.Background()); err != nil {
-			log.Log().Error().Err(err).Msg("failed to run whenEmptyMembers")
+			log.Log().Error().Err(err).Msg("when member left")
 		}
 	})
 
 	//revive:disable:modifies-parameter
 	pctx = context.WithValue(pctx, MemberlistContextKey, m)
-	pctx = context.WithValue(pctx, EventWhenEmptyMembersContextKey, pps)
+	pctx = context.WithValue(pctx, EventWhenMemberLeftContextKey, pps)
 	pctx = context.WithValue(pctx, FilterMemberlistNotifyMsgFuncContextKey,
 		quicmemberlist.FilterNotifyMsgFunc(func(interface{}) (bool, error) { return true, nil }),
 	)
@@ -158,10 +154,23 @@ func PLongRunningMemberlistJoin(pctx context.Context) (context.Context, error) {
 }
 
 func PPatchMemberlist(pctx context.Context) (context.Context, error) {
+	var err error
+
+	if pctx, err = patchMemberlistNotifyMsg(pctx); err != nil { //revive:disable-line:modifies-parameter
+		return pctx, err
+	}
+
+	if pctx, err = patchMemberlistWhenMemberLeft(pctx); err != nil { //revive:disable-line:modifies-parameter
+		return pctx, err
+	}
+
+	return pctx, nil
+}
+
+func patchMemberlistNotifyMsg(pctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var enc encoder.Encoder
 	var params *isaac.LocalParams
-	var db isaac.Database
 	var ballotbox *isaacstates.Ballotbox
 	var m *quicmemberlist.Memberlist
 	var client *isaacnetwork.QuicstreamClient
@@ -172,7 +181,6 @@ func PPatchMemberlist(pctx context.Context) (context.Context, error) {
 		LoggingContextKey, &log,
 		EncoderContextKey, &enc,
 		LocalParamsContextKey, &params,
-		CenterDatabaseContextKey, &db,
 		BallotboxContextKey, &ballotbox,
 		QuicstreamClientContextKey, &client,
 		MemberlistContextKey, &m,
@@ -256,6 +264,58 @@ func PPatchMemberlist(pctx context.Context) (context.Context, error) {
 			l.Debug().Interface("message", m).Msgf("new incoming message; ignored; but unknown, %T", t)
 		}
 	})
+
+	return pctx, nil
+}
+
+func patchMemberlistWhenMemberLeft(pctx context.Context) (context.Context, error) {
+	var log *logging.Logging
+	var local base.LocalNode
+	var pps *ps.PS
+	var m *quicmemberlist.Memberlist
+	var long *LongRunningMemberlistJoin
+	var sp *SuffragePool
+	var states *isaacstates.States
+
+	if err := util.LoadFromContextOK(pctx,
+		LoggingContextKey, &log,
+		LocalContextKey, &local,
+		EventWhenMemberLeftContextKey, &pps,
+		MemberlistContextKey, &m,
+		LongRunningMemberlistJoinContextKey, &long,
+		SuffragePoolContextKey, &sp,
+		StatesContextKey, &states,
+	); err != nil {
+		return pctx, err
+	}
+
+	_ = pps.Add("empty-members", func(ctx context.Context) (context.Context, error) {
+		// NOTE if local is only member, trying to join; sometimes accidentally
+		// local cast away from memberlist.
+		switch {
+		case m.IsJoined(),
+			!states.AllowedConsensus(),
+			len(quicmemberlist.AliveMembers(m, func(member quicmemberlist.Member) bool {
+				return member.Address().Equal(local.Address())
+			})) > 0:
+			return ctx, nil
+		}
+
+		switch suf, found, err := sp.Last(); {
+		case err != nil:
+			return ctx, errors.WithMessage(err, "last suffrage for checking empty members")
+		case !found:
+			return ctx, errors.WithMessage(err, "last suffrage not found for checking empty members")
+		case !suf.Exists(local.Address()):
+			return ctx, nil
+		default:
+			log.Log().Debug().Msg("empty members; trying to join")
+
+			_ = long.Join()
+		}
+
+		return ctx, nil
+	}, nil)
 
 	return pctx, nil
 }

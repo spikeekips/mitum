@@ -25,7 +25,6 @@ type baseBallotHandlerArgs struct {
 	NodeInConsensusNodesFunc isaac.NodeInConsensusNodesFunc
 	VoteFunc                 func(base.Ballot) (bool, error)
 	SuffrageVotingFindFunc   SuffrageVotingFindFunc
-	WhenEmptyMembersFunc     func()
 }
 
 func newBaseBallotHandlerArgs() *baseBallotHandlerArgs {
@@ -41,7 +40,6 @@ func newBaseBallotHandlerArgs() *baseBallotHandlerArgs {
 		) {
 			return nil, util.ErrNotImplemented.Errorf("SuffrageVotingFindFunc")
 		},
-		WhenEmptyMembersFunc: func() {},
 	}
 }
 
@@ -70,8 +68,6 @@ func newBaseBallotHandlerType(
 		args:        args,
 		voteFunc:    func(base.Ballot) (bool, error) { return false, errors.Errorf("not voted") },
 	}
-
-	h.whenEmptyMembersFunc = args.WhenEmptyMembersFunc
 
 	return h
 }

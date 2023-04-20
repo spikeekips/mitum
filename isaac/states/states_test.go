@@ -114,8 +114,6 @@ func (st *dummyStateHandler) newVoteproof(vp base.Voteproof) error {
 	return st.newVoteprooff(vp)
 }
 
-func (st *dummyStateHandler) whenEmptyMembers() {}
-
 func (st *dummyStateHandler) setAllowConsensus(allow bool) {
 	if st.setAllowConsensusf == nil {
 		return

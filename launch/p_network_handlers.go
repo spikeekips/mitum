@@ -52,7 +52,7 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 	var db isaac.Database
 	var pool *isaacdatabase.TempPool
 	var proposalMaker *isaac.ProposalMaker
-	var memberlist *quicmemberlist.Memberlist
+	var m *quicmemberlist.Memberlist
 	var syncSourcePool *isaac.SyncSourcePool
 	var handlers *quicstream.PrefixHandler
 	var nodeinfo *isaacnetwork.NodeInfoUpdater
@@ -70,7 +70,7 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 		CenterDatabaseContextKey, &db,
 		PoolDatabaseContextKey, &pool,
 		ProposalMakerContextKey, &proposalMaker,
-		MemberlistContextKey, &memberlist,
+		MemberlistContextKey, &m,
 		SyncSourcePoolContextKey, &syncSourcePool,
 		QuicstreamHandlersContextKey, &handlers,
 		NodeInfoContextKey, &nodeinfo,
@@ -87,7 +87,7 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 	}
 
 	lastBlockMapf := quicstreamHandlerLastBlockMapFunc(db)
-	suffrageNodeConnInfof := quicstreamHandlerSuffrageNodeConnInfoFunc(db, memberlist)
+	suffrageNodeConnInfof := quicstreamHandlerSuffrageNodeConnInfoFunc(db, m)
 
 	handlers.
 		Add(isaacnetwork.HandlerPrefixOperation,
@@ -99,7 +99,7 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 				sendOperationFilterf,
 				svvotef,
 				func(id string, b []byte) error {
-					return memberlist.CallbackBroadcast(b, id, nil)
+					return m.CallbackBroadcast(b, id, nil)
 				},
 			))).
 		Add(isaacnetwork.HandlerPrefixRequestProposal,
@@ -511,14 +511,14 @@ func attachMemberlistNetworkHandlers(pctx context.Context) error {
 	var params *isaac.LocalParams
 	var encs *encoder.Encoders
 	var handlers *quicstream.PrefixHandler
-	var memberlist *quicmemberlist.Memberlist
+	var m *quicmemberlist.Memberlist
 	var sp *SuffragePool
 
 	if err := util.LoadFromContextOK(pctx,
 		EncodersContextKey, &encs,
 		LocalParamsContextKey, &params,
 		QuicstreamHandlersContextKey, &handlers,
-		MemberlistContextKey, &memberlist,
+		MemberlistContextKey, &m,
 		SuffragePoolContextKey, &sp,
 	); err != nil {
 		return err
@@ -526,9 +526,9 @@ func attachMemberlistNetworkHandlers(pctx context.Context) error {
 
 	handlers.
 		Add(HandlerPrefixMemberlistCallbackBroadcastMessage,
-			quicstream.NewHeaderHandler(encs, 0, memberlist.CallbackBroadcastHandler())).
+			quicstream.NewHeaderHandler(encs, 0, m.CallbackBroadcastHandler())).
 		Add(HandlerPrefixMemberlistEnsureBroadcastMessage,
-			quicstream.NewHeaderHandler(encs, 0, memberlist.EnsureBroadcastHandler(
+			quicstream.NewHeaderHandler(encs, 0, m.EnsureBroadcastHandler(
 				params.NetworkID(),
 				func(node base.Address) (base.Publickey, bool, error) {
 					switch suf, found, err := sp.Last(); {

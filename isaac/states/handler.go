@@ -60,7 +60,6 @@ type handler interface {
 	enter(from StateType, _ switchContext) (func(), error)
 	exit(switchContext) (func(), error)
 	newVoteproof(base.Voteproof) error
-	whenEmptyMembers()
 	allowedConsensus() bool
 	setAllowConsensus(bool)
 }
