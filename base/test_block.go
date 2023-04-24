@@ -241,6 +241,19 @@ func NewDummyBlockMap(manifest Manifest) DummyBlockMap {
 	}
 }
 
+func NewDummyBlockMapWithSign(manifest Manifest, node Address, priv Privatekey) DummyBlockMap {
+	sign, _ := NewBaseNodeSignFromBytes(
+		node,
+		priv,
+		util.UUID().Bytes(),
+		nil,
+	)
+	return DummyBlockMap{
+		BaseNodeSign: sign,
+		M:            manifest,
+	}
+}
+
 func (m DummyBlockMap) Hint() hint.Hint {
 	return DummyBlockMapHint
 }
@@ -269,6 +282,10 @@ func (m DummyBlockMap) Bytes() []byte {
 }
 
 func (m DummyBlockMap) IsValid([]byte) error {
+	if m.M == nil {
+		return util.ErrInvalid.Errorf("empty manifest")
+	}
+
 	return nil
 }
 

@@ -40,6 +40,13 @@ func (l *Locked[T]) Value() (v T, isempty bool) {
 	return l.value, false
 }
 
+func (l *Locked[T]) MustValue() (v T) {
+	l.RLock()
+	defer l.RUnlock()
+
+	return l.value
+}
+
 func (l *Locked[T]) SetValue(v T) *Locked[T] {
 	l.Lock()
 	defer l.Unlock()
