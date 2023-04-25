@@ -101,7 +101,7 @@ func (st *ConsensusHandler) enter(from StateType, i switchContext) (func(), erro
 			Interface("height", sctx.vp.Point().Height()).
 			Msg("suffrage not found at entering consensus state; moves to syncing state")
 
-		return nil, newSyncingSwitchContext(StateConsensus, sctx.vp.Point().Height())
+		return nil, newSyncingSwitchContextWithVoteproof(StateConsensus, sctx.vp)
 	case err != nil:
 		return nil, e(err, "")
 	case suf == nil || suf.Len() < 1:
@@ -112,7 +112,7 @@ func (st *ConsensusHandler) enter(from StateType, i switchContext) (func(), erro
 			Interface("height", sctx.vp.Point().Height()).
 			Msg("local is not in consensus nodes at entering consensus state; moves to syncing state")
 
-		return nil, newSyncingSwitchContext(StateConsensus, sctx.vp.Point().Height())
+		return nil, newSyncingSwitchContextWithVoteproof(StateConsensus, sctx.vp)
 	}
 
 	switch lvps, found := st.voteproofs(sctx.vp.Point()); {
@@ -859,4 +859,8 @@ func newConsensusSwitchContext(from StateType, vp base.Voteproof) (consensusSwit
 		baseSwitchContext: newBaseSwitchContext(StateConsensus, switchContextOKFuncCheckFrom(from)),
 		vp:                vp,
 	}, nil
+}
+
+func (sctx consensusSwitchContext) voteproof() base.Voteproof {
+	return sctx.vp
 }

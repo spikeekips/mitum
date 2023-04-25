@@ -929,7 +929,7 @@ func (t *testConsensusHandler) TestEnterButNotInSuffrage() {
 
 	var ssctx SyncingSwitchContext
 	t.True(errors.As(err, &ssctx))
-	t.Equal(point.Height(), ssctx.height)
+	t.Equal(point.Height().SafePrev(), ssctx.height)
 }
 
 func (t *testConsensusHandler) TestNewVoteproofButNotAllowConsensus() {
