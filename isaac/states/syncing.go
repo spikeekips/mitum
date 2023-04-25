@@ -479,10 +479,9 @@ func syncerHeightWithStagePoint(point base.StagePoint, isMajority bool) base.Hei
 	height := point.Height()
 
 	switch s := point.Stage(); {
-	case s == base.StageINIT:
-		height--
-	case s == base.StageACCEPT && !isMajority:
-		height--
+	case s == base.StageINIT,
+		s == base.StageACCEPT && !isMajority:
+		height = height.SafePrev()
 	}
 
 	return height

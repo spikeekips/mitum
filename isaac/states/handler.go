@@ -80,6 +80,11 @@ type switchContext interface {
 	ok(current StateType) bool
 }
 
+type voteproofSwitchContext interface {
+	switchContext
+	voteproof() base.Voteproof
+}
+
 type baseSwitchContext struct { //nolint:errname //...
 	okf func(StateType) bool
 	n   StateType

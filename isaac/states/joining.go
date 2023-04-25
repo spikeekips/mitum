@@ -429,7 +429,7 @@ func (st *JoiningHandler) setAllowConsensus(allow bool) { // revive:disable-line
 	st.baseBallotHandler.setAllowConsensus(allow)
 
 	if !allow {
-		go st.switchState(newSyncingSwitchContext(StateJoining, 0))
+		go st.switchState(newSyncingSwitchContext(StateJoining, base.GenesisHeight))
 	}
 }
 
@@ -443,4 +443,8 @@ func newJoiningSwitchContext(from StateType, vp base.Voteproof) joiningSwitchCon
 		baseSwitchContext: newBaseSwitchContext(StateJoining, switchContextOKFuncCheckFrom(from)),
 		vp:                vp,
 	}
+}
+
+func (sctx joiningSwitchContext) voteproof() base.Voteproof {
+	return sctx.vp
 }

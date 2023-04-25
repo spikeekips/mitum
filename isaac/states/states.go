@@ -336,7 +336,12 @@ func (st *States) switchState(sctx switchContext) error {
 			return nil
 		}
 
-		nsctx = newSyncingSwitchContext(current.state(), base.GenesisHeight)
+		switch vsctx, ok := nsctx.(voteproofSwitchContext); {
+		case ok:
+			nsctx = newSyncingSwitchContextWithVoteproof(current.state(), vsctx.voteproof())
+		default:
+			nsctx = newSyncingSwitchContext(current.state(), base.GenesisHeight)
+		}
 
 		l = l.With().
 			Dict("previous_next_state", switchContextLog(sctx)).
