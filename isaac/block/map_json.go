@@ -64,7 +64,7 @@ func (m *BlockMap) DecodeJSON(b []byte, enc *jsonenc.Encoder) error {
 		return e(err, "decode manifest")
 	}
 
-	items := util.NewSingleLockedMap(base.BlockMapItemType(""), (base.BlockMapItem)(nil))
+	items := util.NewSingleLockedMap[base.BlockMapItemType, base.BlockMapItem]()
 
 	for k := range u.Items {
 		var ui BlockMapItem

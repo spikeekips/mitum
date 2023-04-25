@@ -1228,7 +1228,7 @@ func (t *testBallotbox) TestCopyVotedDATARACE() {
 	prev := valuehash.RandomSHA256()
 	pr := valuehash.RandomSHA256()
 
-	vpl := util.EmptyLocked((base.Voteproof)(nil))
+	vpl := util.EmptyLocked[base.Voteproof]()
 
 	for range bls {
 		t.NoError(wkb.NewJob(func(_ context.Context, i uint64) error {

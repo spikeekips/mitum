@@ -54,7 +54,7 @@ func NewBlockImporter(
 		return nil, e(err, "")
 	}
 
-	finisheds, _ := util.NewShardedMap(base.BlockMapItemType(""), false, 6) //nolint:gomnd //...
+	finisheds, _ := util.NewShardedMap[base.BlockMapItemType, bool](6) //nolint:gomnd //...
 
 	im := &BlockImporter{
 		root:                     root,

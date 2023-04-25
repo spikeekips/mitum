@@ -48,7 +48,7 @@ func NewDefaultBallotStuckResolver(
 			return lctx.Str("module", "default-ballot-stuck-resolver")
 		}),
 		point:                  base.ZeroStagePoint,
-		cancelf:                util.EmptyLocked(func() {}),
+		cancelf:                util.EmptyLocked[func()](),
 		initialWait:            initialWait,
 		interval:               interval,
 		resolveAfter:           resolveAfter,

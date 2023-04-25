@@ -152,7 +152,7 @@ func getProposalFunc(pctx context.Context) (
 		worker := util.NewErrgroupWorker(ctx, int64(m.RemotesLen()))
 		defer worker.Close()
 
-		prl := util.EmptyLocked((base.ProposalSignFact)(nil))
+		prl := util.EmptyLocked[base.ProposalSignFact]()
 
 		go func() {
 			defer worker.Done()
@@ -335,7 +335,7 @@ func getProposalOperationFromRemoteFunc(pctx context.Context) ( //nolint:gocogni
 		}
 
 		proposer := proposal.ProposalFact().Proposer()
-		result := util.EmptyLocked((base.Operation)(nil))
+		result := util.EmptyLocked[base.Operation]()
 
 		worker := util.NewErrgroupWorker(ctx, int64(syncSourcePool.Len()))
 		defer worker.Close()

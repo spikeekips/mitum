@@ -36,7 +36,7 @@ func NewBallotbox(
 	local base.Address,
 	getSuffrage isaac.GetSuffrageByBlockHeight,
 ) *Ballotbox {
-	vrs, _ := util.NewShardedMap("", (*voterecords)(nil), 4) //nolint:gomnd // last 4 stages
+	vrs, _ := util.NewShardedMap[string, *voterecords](4) //nolint:gomnd // last 4 stages
 
 	box := &Ballotbox{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {
@@ -46,13 +46,13 @@ func NewBallotbox(
 		getSuffrage:       getSuffrage,
 		vrs:               vrs,
 		vpch:              make(chan base.Voteproof, math.MaxUint16),
-		lsp:               util.EmptyLocked(isaac.LastPoint{}),
+		lsp:               util.EmptyLocked[isaac.LastPoint](),
 		isValidVoteprooff: func(base.Voteproof, base.Suffrage) error { return nil },
 		suffrageVotef:     func(base.SuffrageExpelOperation) error { return nil },
 		newBallotf:        func(base.Ballot) {},
 		countAfter:        time.Second * 5, //nolint:gomnd //...
 		interval:          time.Second,
-		removed:           util.EmptyLocked(([]*voterecords)(nil)),
+		removed:           util.EmptyLocked[[]*voterecords](),
 	}
 
 	box.ContextDaemon = util.NewContextDaemon(box.start)

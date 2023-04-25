@@ -662,7 +662,7 @@ func newSyncerArgsFunc(pctx context.Context) (func(base.Height) (isaacstates.Syn
 
 		newclient := client.Clone()
 
-		conninfocache, _ := util.NewShardedMap(base.NilHeight, quicstream.UDPConnInfo{}, 1<<9) //nolint:gomnd //...
+		conninfocache, _ := util.NewShardedMap[base.Height, quicstream.UDPConnInfo](1 << 9) //nolint:gomnd //...
 
 		args = isaacstates.NewSyncerArgs()
 		args.LastBlockMapFunc = syncerLastBlockMapFunc(newclient, params, syncSourcePool)
@@ -745,7 +745,7 @@ func syncerLastBlockMapFunc(
 	}
 
 	return func(ctx context.Context, manifest util.Hash) (base.BlockMap, bool, error) {
-		ml := util.EmptyLocked((base.BlockMap)(nil))
+		ml := util.EmptyLocked[base.BlockMap]()
 
 		numnodes := 3 // NOTE choose top 3 sync nodes
 
@@ -827,7 +827,7 @@ func syncerBlockMapFunc( //revive:disable-line:cognitive-complexity
 			ctx,
 			func() (bool, error) {
 				numnodes := 3 // NOTE choose top 3 sync nodes
-				result := util.EmptyLocked([2]interface{}{})
+				result := util.EmptyLocked[[2]interface{}]()
 
 				_ = isaac.ErrGroupWorkerWithSyncSourcePool(
 					ctx,

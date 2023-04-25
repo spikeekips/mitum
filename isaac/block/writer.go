@@ -49,7 +49,7 @@ func NewWriter(
 	mergeDatabase func(isaac.BlockWriteDatabase) error,
 	fswriter FSWriter,
 ) *Writer {
-	states, _ := util.NewShardedMap("", (base.StateValueMerger)(nil), 1<<9) //nolint:gomnd //...
+	states, _ := util.NewShardedMap[string, base.StateValueMerger](1 << 9) //nolint:gomnd //...
 
 	return &Writer{
 		proposal:      proposal,

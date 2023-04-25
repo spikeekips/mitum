@@ -254,7 +254,7 @@ func getCandidatesFunc(
 ) {
 	var prevcandidateslocked [2]interface{}
 
-	lastcandidateslocked := util.EmptyLocked([2]interface{}{})
+	lastcandidateslocked := util.EmptyLocked[[2]interface{}]()
 
 	return func(height base.Height) (
 		[]base.SuffrageCandidateStateValue, []base.SuffrageCandidateStateValue, error,
@@ -477,7 +477,7 @@ func getLastSuffrageProofFunc(pctx context.Context) (isaac.GetLastSuffrageProofF
 		return nil, err
 	}
 
-	lastl := util.EmptyLocked((util.Hash)(nil))
+	lastl := util.EmptyLocked[util.Hash]()
 
 	f := func(ctx context.Context, ci quicstream.UDPConnInfo) (base.Height, base.SuffrageProof, bool, error) {
 		cctx, cancel := context.WithTimeout(ctx, params.TimeoutRequest())
@@ -500,7 +500,7 @@ func getLastSuffrageProofFunc(pctx context.Context) (isaac.GetLastSuffrageProofF
 	}
 
 	return func(ctx context.Context) (lastheight base.Height, proof base.SuffrageProof, found bool, _ error) {
-		ml := util.EmptyLocked((base.SuffrageProof)(nil))
+		ml := util.EmptyLocked[base.SuffrageProof]()
 
 		numnodes := 3 // NOTE choose top 3 sync nodes
 
@@ -577,7 +577,7 @@ func getSuffrageProofFromRemoteFunc(pctx context.Context) ( //revive:disable-lin
 			ctx,
 			func() (bool, error) {
 				numnodes := 3 // NOTE choose top 3 sync nodes
-				result := util.EmptyLocked([2]interface{}{})
+				result := util.EmptyLocked[[2]interface{}]()
 
 				_ = isaac.ErrGroupWorkerWithSyncSourcePool(
 					ctx,
@@ -650,7 +650,7 @@ func getLastSuffrageCandidateFunc(pctx context.Context) (isaac.GetLastSuffrageCa
 		return nil, err
 	}
 
-	lastl := util.EmptyLocked((util.Hash)(nil))
+	lastl := util.EmptyLocked[util.Hash]()
 
 	f := func(ctx context.Context, ci quicstream.UDPConnInfo) (base.State, bool, error) {
 		last, _ := lastl.Value()
@@ -675,7 +675,7 @@ func getLastSuffrageCandidateFunc(pctx context.Context) (isaac.GetLastSuffrageCa
 	}
 
 	return func(ctx context.Context) (base.State, bool, error) {
-		ml := util.EmptyLocked((base.State)(nil))
+		ml := util.EmptyLocked[base.State]()
 
 		numnodes := 3 // NOTE choose top 3 sync nodes
 

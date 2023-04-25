@@ -77,7 +77,7 @@ func NewDefaultProposalProcessor(
 		return nil, errors.Wrap(err, "make new ProposalProcessor")
 	}
 
-	oprs, _ := util.NewShardedMap("", (base.OperationProcessor)(nil), 1<<5) //nolint:gomnd //...
+	oprs, _ := util.NewShardedMap[string, base.OperationProcessor](1 << 5) //nolint:gomnd //...
 
 	ctx, cancel := context.WithCancel(context.Background())
 

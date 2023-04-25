@@ -37,15 +37,15 @@ func NewLeveldbBlockWrite(
 ) *LeveldbBlockWrite {
 	pst := leveldbstorage.NewPrefixStorage(st, newPrefixStoragePrefixByHeight(leveldbLabelBlockWrite, height))
 
-	laststates, _ := util.NewShardedMap("", base.NilHeight, math.MaxInt8)
+	laststates, _ := util.NewShardedMap[string, base.Height](math.MaxInt8)
 
 	return &LeveldbBlockWrite{
 		baseLeveldb: newBaseLeveldb(pst, encs, enc),
 		height:      height,
-		mp:          util.EmptyLocked([3]interface{}{}),
-		sufst:       util.EmptyLocked((base.State)(nil)),
-		policy:      util.EmptyLocked((base.State)(nil)),
-		proof:       util.EmptyLocked([3]interface{}{}),
+		mp:          util.EmptyLocked[[3]interface{}](),
+		sufst:       util.EmptyLocked[base.State](),
+		policy:      util.EmptyLocked[base.State](),
+		proof:       util.EmptyLocked[[3]interface{}](),
 		laststates:  laststates,
 	}
 }

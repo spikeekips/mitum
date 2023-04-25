@@ -520,7 +520,7 @@ func ConcurrentRequestProposal(
 	worker := util.NewErrgroupWorker(ctx, int64(len(cis)))
 	defer worker.Close()
 
-	prlocked := util.EmptyLocked((base.ProposalSignFact)(nil))
+	prlocked := util.EmptyLocked[base.ProposalSignFact]()
 
 	go func() {
 		defer worker.Done()

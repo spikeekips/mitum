@@ -17,7 +17,7 @@ type PoolClient struct {
 }
 
 func NewPoolClient() *PoolClient {
-	clients, _ := util.NewShardedMap("", (*poolClientItem)(nil), math.MaxInt8)
+	clients, _ := util.NewShardedMap[string, *poolClientItem](math.MaxInt8)
 
 	return &PoolClient{
 		clients: clients,

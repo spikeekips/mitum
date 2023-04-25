@@ -162,7 +162,7 @@ func watchUpdateFromConsulFunc(
 	prefix string,
 	fs map[string]func(string) error,
 ) func(*consulapi.KVPair) (bool, error) {
-	updated := util.NewSingleLockedMap("", uint64(0))
+	updated := util.NewSingleLockedMap[string, uint64]()
 
 	return func(v *consulapi.KVPair) (bool, error) {
 		if v == nil {

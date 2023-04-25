@@ -37,7 +37,7 @@ func NewDummyBlockWriter(proposal base.ProposalSignFact, getStateFunc base.GetSt
 	return &DummyBlockWriter{
 		proposal:     proposal,
 		getStateFunc: getStateFunc,
-		sts:          util.NewSingleLockedMap("", (base.StateValueMerger)(nil)),
+		sts:          util.NewSingleLockedMap[string, base.StateValueMerger](),
 	}
 }
 

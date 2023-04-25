@@ -434,7 +434,7 @@ func quicstreamHandlerGetNodeInfoFunc(
 	nodeinfo *isaacnetwork.NodeInfoUpdater,
 ) func() ([]byte, error) {
 	startedAt := nodeinfo.StartedAt()
-	lastid := util.EmptyLocked("")
+	lastid := util.EmptyLocked[string]()
 
 	uptimet := []byte("<uptime>")
 	updateUptime := func(b []byte) []byte {

@@ -107,8 +107,8 @@ func newQConn(
 		writef:    writef,
 		closeonce: sync.Once{},
 		closef:    closef,
-		dr:        util.EmptyLocked(time.Time{}),
-		dw:        util.EmptyLocked(time.Time{}),
+		dr:        util.EmptyLocked[time.Time](),
+		dw:        util.EmptyLocked[time.Time](),
 	}
 
 	c.r, c.w = io.Pipe()

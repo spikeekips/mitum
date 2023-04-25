@@ -22,7 +22,7 @@ func PDiscoveryFlag(pctx context.Context) (context.Context, error) {
 		return pctx, e(err, "")
 	}
 
-	discoveries := util.EmptyLocked([]quicstream.UDPConnInfo{})
+	discoveries := util.EmptyLocked[[]quicstream.UDPConnInfo]()
 
 	if len(flag) > 0 {
 		v := make([]quicstream.UDPConnInfo, len(flag))

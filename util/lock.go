@@ -20,7 +20,7 @@ type Locked[T any] struct {
 	isempty bool
 }
 
-func EmptyLocked[T any](T) *Locked[T] {
+func EmptyLocked[T any]() *Locked[T] {
 	return &Locked[T]{isempty: true}
 }
 
@@ -142,14 +142,14 @@ type LockedMap[K lockedMapKeys, V any] interface { //nolint:interfacebloat //...
 	Close()
 }
 
-func NewLockedMap[K lockedMapKeys, V any](k K, v V, size int64) (LockedMap[K, V], error) {
+func NewLockedMap[K lockedMapKeys, V any](size int64) (LockedMap[K, V], error) {
 	switch {
 	case size < 1:
 		return nil, errors.Errorf("new ShardedMap; empty size")
 	case size == 1:
-		return NewSingleLockedMap(k, v), nil
+		return NewSingleLockedMap[K, V](), nil
 	default:
-		return NewShardedMap(k, v, size)
+		return NewShardedMap[K, V](size)
 	}
 }
 
@@ -158,7 +158,7 @@ type SingleLockedMap[K lockedMapKeys, V any] struct {
 	sync.RWMutex
 }
 
-func NewSingleLockedMap[K lockedMapKeys, V any](K, V) *SingleLockedMap[K, V] {
+func NewSingleLockedMap[K lockedMapKeys, V any]() *SingleLockedMap[K, V] {
 	return &SingleLockedMap[K, V]{
 		m: map[K]V{},
 	}
@@ -358,7 +358,7 @@ type ShardedMap[K lockedMapKeys, V any] struct {
 	sync.RWMutex
 }
 
-func NewShardedMap[K lockedMapKeys, V any](_ K, _ V, size int64) (*ShardedMap[K, V], error) {
+func NewShardedMap[K lockedMapKeys, V any](size int64) (*ShardedMap[K, V], error) {
 	switch {
 	case size < 1:
 		return nil, errors.Errorf("new ShardedMap; empty size")
@@ -579,9 +579,7 @@ func (l *ShardedMap[K, V]) newItem(k K) (_ *SingleLockedMap[K, V], isclosed bool
 
 	item := l.sharded[i]
 	if item == nil {
-		var v V
-
-		item = NewSingleLockedMap(k, v)
+		item = NewSingleLockedMap[K, V]()
 
 		l.sharded[i] = item
 	}

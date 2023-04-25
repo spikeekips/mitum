@@ -41,7 +41,7 @@ func NewBlockMap(writer, encoder hint.Hint) BlockMap {
 		BaseHinter: hint.NewBaseHinter(BlockMapHint),
 		writer:     writer,
 		encoder:    encoder,
-		items:      util.NewSingleLockedMap(base.BlockMapItemType(""), (base.BlockMapItem)(nil)),
+		items:      util.NewSingleLockedMap[base.BlockMapItemType, base.BlockMapItem](),
 	}
 }
 

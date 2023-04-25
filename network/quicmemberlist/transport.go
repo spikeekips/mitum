@@ -57,7 +57,7 @@ func NewTransport(
 	laddr *net.UDPAddr,
 	args *TransportArgs,
 ) *Transport {
-	conns, _ := util.NewShardedMap("", (*qconn)(nil), 1<<9) //nolint:gomnd //...
+	conns, _ := util.NewShardedMap[string, *qconn](1 << 9) //nolint:gomnd //...
 
 	return &Transport{
 		Logging: logging.NewLogging(func(zctx zerolog.Context) zerolog.Context {

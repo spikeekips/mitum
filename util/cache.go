@@ -12,13 +12,13 @@ type GCache[K constraints.Ordered, V any] struct {
 	c gcache.Cache
 }
 
-func NewLRUGCache[K constraints.Ordered, V any](_ K, _ V, size int) *GCache[K, V] {
+func NewLRUGCache[K constraints.Ordered, V any](size int) *GCache[K, V] {
 	return &GCache[K, V]{
 		c: gcache.New(size).LRU().Build(),
 	}
 }
 
-func NewLFUGCache[K constraints.Ordered, V any](_ K, _ V, size int) *GCache[K, V] {
+func NewLFUGCache[K constraints.Ordered, V any](size int) *GCache[K, V] {
 	return &GCache[K, V]{
 		c: gcache.New(size).LFU().Build(),
 	}

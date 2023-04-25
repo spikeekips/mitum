@@ -97,7 +97,7 @@ func NewSimpleTimers(size int64, resolution time.Duration) (*SimpleTimers, error
 		return nil, errors.Errorf("too narrow resolution, %v", resolution)
 	}
 
-	timers, err := NewLockedMap(TimerID(""), (*SimpleTimer)(nil), size)
+	timers, err := NewLockedMap[TimerID, *SimpleTimer](size)
 	if err != nil {
 		return nil, err
 	}

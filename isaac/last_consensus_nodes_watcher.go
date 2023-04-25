@@ -44,7 +44,7 @@ func NewLastConsensusNodesWatcher(
 		getFromRemote:       getFromRemote,
 		checkRemoteInterval: checkInterval,
 		lastheight:          util.NewLocked(base.NilHeight),
-		last:                util.EmptyLocked([]base.SuffrageProof{}),
+		last:                util.EmptyLocked[[]base.SuffrageProof](),
 		whenUpdatedf:        whenUpdatedf,
 	}
 

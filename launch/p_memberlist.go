@@ -611,8 +611,8 @@ func NewLongRunningMemberlistJoin(
 	return &LongRunningMemberlistJoin{
 		ensureJoin:    ensureJoin,
 		isJoined:      isJoined,
-		cancelrunning: util.EmptyLocked((context.CancelFunc)(nil)),
-		donech:        util.EmptyLocked((chan struct{})(nil)),
+		cancelrunning: util.EmptyLocked[context.CancelFunc](),
+		donech:        util.EmptyLocked[chan struct{}](),
 		interval:      time.Second * 3, //nolint:gomnd //...
 	}
 }

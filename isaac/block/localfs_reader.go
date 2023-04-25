@@ -31,13 +31,13 @@ func NewLocalFSReader(root string, enc encoder.Encoder) (*LocalFSReader, error) 
 		return nil, e(nil, "map file is directory")
 	}
 
-	readersl, _ := util.NewShardedMap(base.BlockMapItemType(""), (error)(nil), 6)   //nolint:gomnd //...
-	itemsl, _ := util.NewShardedMap(base.BlockMapItemType(""), [3]interface{}{}, 6) //nolint:gomnd //...
+	readersl, _ := util.NewShardedMap[base.BlockMapItemType, error](6)        //nolint:gomnd //...
+	itemsl, _ := util.NewShardedMap[base.BlockMapItemType, [3]interface{}](6) //nolint:gomnd //...
 
 	return &LocalFSReader{
 		root:     root,
 		enc:      enc,
-		mapl:     util.EmptyLocked((base.BlockMap)(nil)),
+		mapl:     util.EmptyLocked[base.BlockMap](),
 		readersl: readersl,
 		itemsl:   itemsl,
 	}, nil

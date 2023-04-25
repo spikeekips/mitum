@@ -53,7 +53,7 @@ func NewClient(
 		tlsconfig:  tlsconfig,
 		quicconfig: quicconfig,
 		dialf:      ldialf,
-		session:    util.EmptyLocked((quic.EarlyConnection)(nil)),
+		session:    util.EmptyLocked[quic.EarlyConnection](),
 	}
 }
 

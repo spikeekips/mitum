@@ -85,11 +85,11 @@ func NewSyncer(prev base.BlockMap, args SyncerArgs) *Syncer {
 		args:         args,
 		finishedch:   make(chan base.Height),
 		donech:       make(chan struct{}, 2),
-		doneerr:      util.EmptyLocked((error)(nil)),
+		doneerr:      util.EmptyLocked[error](),
 		topvalue:     util.NewLocked(prevheight),
 		isdonevalue:  &atomic.Value{},
 		startsyncch:  make(chan base.Height, 1<<9),
-		checkedprevs: util.NewLRUGCache(base.NilHeight, "", 1<<3), //nolint:gomnd //...
+		checkedprevs: util.NewLRUGCache[base.Height, string](1 << 3), //nolint:gomnd //...
 	}
 
 	s.ContextDaemon = util.NewContextDaemon(s.start)

@@ -17,7 +17,7 @@ type LastVoteproofsHandler struct {
 
 func NewLastVoteproofsHandler() *LastVoteproofsHandler {
 	return &LastVoteproofsHandler{
-		cache: util.NewLRUGCache("", LastVoteproofs{}, 1<<3), //nolint:gomnd //...
+		cache: util.NewLRUGCache[string, LastVoteproofs](1 << 3), //nolint:gomnd //...
 	}
 }
 

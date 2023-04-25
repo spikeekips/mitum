@@ -1227,7 +1227,7 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 		lnode.Address(),
 		lci,
 		func() func(node Member) {
-			agg, _ := util.NewLockedMap("", 0, 1)
+			agg, _ := util.NewLockedMap[string, int](1)
 
 			return func(node Member) {
 				if isEqualAddress(node, lci) {
@@ -1266,7 +1266,7 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 			node.Address(),
 			rcis[i],
 			func() func(node Member) {
-				agg, _ := util.NewLockedMap("", 0, 1)
+				agg, _ := util.NewLockedMap[string, int](1)
 
 				return func(node Member) {
 					if isEqualAddress(node, rci) {
@@ -1297,7 +1297,7 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 			)(ctx, m)
 		}
 
-		m, err := util.NewLockedMap("", ([]byte)(nil), 1)
+		m, err := util.NewLockedMap[string, []byte](1)
 		t.NoError(err)
 		rnotifys[i] = m
 

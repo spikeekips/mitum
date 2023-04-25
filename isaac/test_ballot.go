@@ -273,7 +273,7 @@ func newProposalPool(
 	newproposal func(base.Point) base.ProposalSignFact,
 ) *proposalPool {
 	return &proposalPool{
-		SingleLockedMap: util.NewSingleLockedMap("", (base.ProposalSignFact)(nil)),
+		SingleLockedMap: util.NewSingleLockedMap[string, base.ProposalSignFact](),
 		newproposal:     newproposal,
 	}
 }

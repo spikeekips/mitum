@@ -21,10 +21,10 @@ func newBasePermanent(encs *encoder.Encoders, enc encoder.Encoder) *basePermanen
 	return &basePermanent{
 		encs:   encs,
 		enc:    enc,
-		lenc:   util.EmptyLocked(hint.Hint{}),
-		mp:     util.EmptyLocked([3]interface{}{}),
-		policy: util.EmptyLocked((base.NetworkPolicy)(nil)),
-		proof:  util.EmptyLocked([3]interface{}{}),
+		lenc:   util.EmptyLocked[hint.Hint](),
+		mp:     util.EmptyLocked[[3]interface{}](),
+		policy: util.EmptyLocked[base.NetworkPolicy](),
+		proof:  util.EmptyLocked[[3]interface{}](),
 	}
 }
 

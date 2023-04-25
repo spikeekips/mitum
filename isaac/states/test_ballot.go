@@ -14,7 +14,7 @@ type DummyBallotPool struct {
 }
 
 func NewDummyBallotPool() *DummyBallotPool {
-	m, _ := util.NewShardedMap("", (base.Ballot)(nil), 1<<4)
+	m, _ := util.NewShardedMap[string, base.Ballot](1 << 4)
 
 	return &DummyBallotPool{m: m}
 }

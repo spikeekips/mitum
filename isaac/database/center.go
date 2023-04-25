@@ -271,7 +271,7 @@ func (db *Center) LastNetworkPolicy() base.NetworkPolicy {
 func (db *Center) State(key string) (base.State, bool, error) {
 	e := util.StringErrorFunc("find State")
 
-	l := util.EmptyLocked((base.State)(nil))
+	l := util.EmptyLocked[base.State]()
 
 	if err := db.state(key, func(key string, p isaac.TempDatabase) (bool, error) {
 		switch st, found, err := p.State(key); {
@@ -301,7 +301,7 @@ func (db *Center) State(key string) (base.State, bool, error) {
 func (db *Center) StateBytes(key string) (ht hint.Hint, _, _ []byte, _ bool, _ error) {
 	e := util.StringErrorFunc("find state bytes")
 
-	l := util.EmptyLocked([3]interface{}{})
+	l := util.EmptyLocked[[3]interface{}]()
 
 	if err := db.state(key, func(key string, p isaac.TempDatabase) (bool, error) {
 		switch enchint, meta, body, found, err := p.StateBytes(key); {
@@ -356,7 +356,7 @@ func (db *Center) state(key string, f func(string, isaac.TempDatabase) (bool, er
 func (db *Center) ExistsInStateOperation(h util.Hash) (bool, error) { //nolint:dupl //...
 	e := util.StringErrorFunc("check operation")
 
-	l := util.EmptyLocked(false)
+	l := util.EmptyLocked[bool]()
 
 	if err := db.dig(func(p isaac.TempDatabase) (bool, error) {
 		switch found, err := p.ExistsInStateOperation(h); {
@@ -388,7 +388,7 @@ func (db *Center) ExistsInStateOperation(h util.Hash) (bool, error) { //nolint:d
 func (db *Center) ExistsKnownOperation(h util.Hash) (bool, error) { //nolint:dupl //...
 	e := util.StringErrorFunc("check operation")
 
-	l := util.EmptyLocked(false)
+	l := util.EmptyLocked[bool]()
 
 	if err := db.dig(func(p isaac.TempDatabase) (bool, error) {
 		switch found, err := p.ExistsKnownOperation(h); {
