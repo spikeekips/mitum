@@ -62,8 +62,8 @@ func NewHandoverYBroker(ctx context.Context, args *HandoverYBrokerArgs, id strin
 		args:      args,
 		id:        id,
 		ctxFunc:   func() context.Context { return hctx },
-		lastpoint: util.EmptyLocked(base.StagePoint{}),
-		isReady:   util.EmptyLocked(false),
+		lastpoint: util.EmptyLocked[base.StagePoint](),
+		isReady:   util.EmptyLocked[bool](),
 	}
 
 	h.cancel = func(err error) {

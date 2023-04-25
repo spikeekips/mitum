@@ -78,7 +78,7 @@ func NewHandoverXBroker(ctx context.Context, args *HandoverXBrokerArgs) *Handove
 		args:         args,
 		id:           id,
 		ctxFunc:      func() context.Context { return hctx },
-		successcount: util.EmptyLocked(uint64(0)),
+		successcount: util.EmptyLocked[uint64](),
 	}
 
 	h.cancel = func(err error) {

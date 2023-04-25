@@ -81,8 +81,8 @@ func NewStates(local base.LocalNode, params *isaac.LocalParams, args *StatesArgs
 		cs:               nil,
 		timers:           timers,
 		allowedConsensus: util.NewLocked(args.AllowConsensus),
-		handoverX:        util.EmptyLocked((*HandoverXBroker)(nil)),
-		handoverY:        util.EmptyLocked((*HandoverYBroker)(nil)),
+		handoverX:        util.EmptyLocked[*HandoverXBroker](),
+		handoverY:        util.EmptyLocked[*HandoverYBroker](),
 	}
 
 	cancelf := func() {}
