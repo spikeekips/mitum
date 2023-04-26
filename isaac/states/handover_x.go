@@ -191,26 +191,12 @@ func (h *HandoverXBroker) sendVoteproof(ctx context.Context, vp base.Voteproof) 
 		return false, err
 	}
 
-	switch err := h.sendVoteproofErr(ctx, vp); {
-	case err == nil:
-	case errors.Is(err, errHandoverIgnore):
-	default:
-		h.cancel(err)
-
-		return false, errHandoverCanceled.Wrap(err)
-	}
-
-	switch ivp, ok := vp.(base.INITVoteproof); {
-	case !ok:
-		return false, nil
-	default:
+	if ivp, ok := vp.(base.INITVoteproof); ok {
 		switch ok, err := h.isFinished(ivp); {
 		case err != nil:
 			return false, err
-		case !ok:
-			return false, nil
-		default:
-			h.Log().Debug().Interface("init_voteproof", ivp).Msg("ready to finish")
+		case ok:
+			h.Log().Debug().Interface("init_voteproof", ivp).Msg("finished")
 
 			if err := h.finish(ivp); err != nil {
 				return false, err
@@ -218,6 +204,16 @@ func (h *HandoverXBroker) sendVoteproof(ctx context.Context, vp base.Voteproof) 
 
 			return true, nil
 		}
+	}
+
+	switch err := h.sendVoteproofErr(ctx, vp); {
+	case err == nil,
+		errors.Is(err, errHandoverIgnore):
+		return false, nil
+	default:
+		h.cancel(err)
+
+		return false, errHandoverCanceled.Wrap(err)
 	}
 }
 
