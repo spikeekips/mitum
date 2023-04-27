@@ -222,7 +222,7 @@ func (t *testConsensusHandler) TestInvalidVoteproofs() {
 		deferred, err := st.enter(StateJoining, sctx)
 		t.Nil(deferred)
 		t.Error(err)
-		t.ErrorContains(err, "empty init voteproof")
+		t.ErrorContains(err, "empty voteproof")
 	})
 
 	t.Run("draw result of init voteproof", func() {

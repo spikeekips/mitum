@@ -13,7 +13,7 @@ import (
 )
 
 type JoiningHandlerArgs struct {
-	*baseBallotHandlerArgs
+	baseBallotHandlerArgs
 	LastManifestFunc    func() (base.Manifest, bool, error)
 	JoinMemberlistFunc  func(context.Context, base.Suffrage) error
 	LeaveMemberlistFunc func(time.Duration) error
@@ -37,7 +37,7 @@ func NewJoiningHandlerArgs(params *isaac.LocalParams) *JoiningHandlerArgs {
 }
 
 type JoiningHandler struct {
-	*baseBallotHandler
+	baseBallotHandler
 	args               *JoiningHandlerArgs
 	waitFirstVoteproof time.Duration
 	newvoteproofLock   sync.Mutex
@@ -52,11 +52,9 @@ func NewNewJoiningHandlerType(
 	params *isaac.LocalParams,
 	args *JoiningHandlerArgs,
 ) *NewJoiningHandlerType {
-	baseBallotHandler := newBaseBallotHandlerType(StateJoining, local, params, args.baseBallotHandlerArgs)
-
 	return &NewJoiningHandlerType{
 		JoiningHandler: &JoiningHandler{
-			baseBallotHandler:  baseBallotHandler,
+			baseBallotHandler:  newBaseBallotHandlerType(StateJoining, local, params, &args.baseBallotHandlerArgs),
 			args:               args,
 			waitFirstVoteproof: args.WaitFirstVoteproof,
 		},
@@ -349,10 +347,7 @@ func (st *JoiningHandler) firstVoteproof(lvp base.Voteproof, manifest base.Manif
 	default:
 		st.Log().Debug().Msg("no more new voteproof; prepare next block")
 
-		go st.prepareNextBlock(avp, []util.TimerID{
-			timerIDBroadcastINITBallot,
-			timerIDBroadcastACCEPTBallot,
-		})
+		go st.nextBlock(avp)
 
 		return
 	}
@@ -422,6 +417,41 @@ func (st *JoiningHandler) checkStuckVoteproof(
 		return false, newSyncingSwitchContextWithVoteproof(StateJoining, vp)
 	default:
 		return false, nil
+	}
+}
+
+func (st *JoiningHandler) nextBlock(avp base.ACCEPTVoteproof) {
+	point := avp.Point().Point.NextHeight()
+
+	l := st.Log().With().Str("voteproof", avp.ID()).Object("point", point).Logger()
+
+	var suf base.Suffrage
+
+	var sctx switchContext
+
+	switch i, err := st.localIsInConsensusNodes(avp.Point().Height()); {
+	case errors.As(err, &sctx):
+		go st.switchState(sctx)
+
+		return
+	case err != nil:
+		l.Debug().Err(err).Msg("failed to prepare next block; moves to broken state")
+
+		go st.switchState(newBrokenSwitchContext(StateConsensus, err))
+	default:
+		suf = i
+	}
+
+	if err := st.defaultPrepareNextBlockBallot(avp, []util.TimerID{
+		timerIDBroadcastINITBallot,
+		timerIDBroadcastACCEPTBallot,
+	},
+		suf,
+		st.params.WaitPreparingINITBallot(),
+	); err != nil {
+		l.Debug().Err(err).Msg("failed to prepare next block ballot")
+
+		return
 	}
 }
 

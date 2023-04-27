@@ -74,7 +74,9 @@ type HandoverMessageReadyResponse struct {
 	ok bool
 }
 
-func newHandoverMessageReadyResponse(id string, point base.StagePoint, ok bool, err error) HandoverMessageReadyResponse {
+func newHandoverMessageReadyResponse(
+	id string, point base.StagePoint, ok bool, err error,
+) HandoverMessageReadyResponse {
 	return HandoverMessageReadyResponse{
 		baseHandoverMessage: newBaseHandoverMessage(HandoverMessageReadyResponseHint, id),
 		point:               point,
@@ -177,7 +179,9 @@ type HandoverMessageChallengeBlockMap struct {
 	baseHandoverMessage
 }
 
-func newHandoverMessageChallengeBlockMap(id string, point base.StagePoint, m base.BlockMap) HandoverMessageChallengeBlockMap {
+func newHandoverMessageChallengeBlockMap(
+	id string, point base.StagePoint, m base.BlockMap,
+) HandoverMessageChallengeBlockMap {
 	return HandoverMessageChallengeBlockMap{
 		baseHandoverMessage: newBaseHandoverMessage(HandoverMessageChallengeBlockMapHint, id),
 		point:               point,

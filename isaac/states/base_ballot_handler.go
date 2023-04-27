@@ -27,8 +27,8 @@ type baseBallotHandlerArgs struct {
 	SuffrageVotingFindFunc   SuffrageVotingFindFunc
 }
 
-func newBaseBallotHandlerArgs() *baseBallotHandlerArgs {
-	return &baseBallotHandlerArgs{
+func newBaseBallotHandlerArgs() baseBallotHandlerArgs {
+	return baseBallotHandlerArgs{
 		NodeInConsensusNodesFunc: func(base.Node, base.Height) (base.Suffrage, bool, error) {
 			return nil, false, util.ErrNotImplemented.Errorf("NodeInConsensusNodesFunc")
 		},
@@ -56,24 +56,22 @@ func newBaseBallotHandlerType(
 	local base.LocalNode,
 	params *isaac.LocalParams,
 	args *baseBallotHandlerArgs,
-) *baseBallotHandler {
+) baseBallotHandler {
 	args.VoteFunc = preventVotingWithEmptySuffrage(
 		local,
 		args.VoteFunc,
 		args.NodeInConsensusNodesFunc,
 	)
 
-	h := &baseBallotHandler{
+	return baseBallotHandler{
 		baseHandler: newBaseHandlerType(state, local, params),
 		args:        args,
 		voteFunc:    func(base.Ballot) (bool, error) { return false, errors.Errorf("not voted") },
 	}
-
-	return h
 }
 
-func (st *baseBallotHandler) new() *baseBallotHandler {
-	return &baseBallotHandler{
+func (st baseBallotHandler) new() baseBallotHandler {
+	return baseBallotHandler{
 		baseHandler:       st.baseHandler.new(),
 		args:              st.args,
 		resolver:          st.resolver,
@@ -184,7 +182,7 @@ func (st *baseBallotHandler) makeINITBallot(
 	return bl, nil
 }
 
-func (st *baseBallotHandler) prepareACCEPTBallot(
+func (st *baseBallotHandler) defaultPrepareACCEPTBallot(
 	ivp base.INITVoteproof,
 	manifest base.Manifest,
 	initialWait time.Duration,
@@ -271,7 +269,7 @@ func (st *baseBallotHandler) makeACCEPTBallot(
 	return bl, nil
 }
 
-func (st *baseBallotHandler) prepareSuffrageConfirmBallot(vp base.Voteproof) {
+func (st *baseBallotHandler) defaultPrepareSuffrageConfirmBallot(vp base.Voteproof) {
 	l := st.Log().With().Str("voteproof", vp.ID()).Logger()
 
 	if _, ok := vp.(base.ExpelVoteproof); !ok {
@@ -543,34 +541,70 @@ func (st *baseBallotHandler) timerINITBallot(
 	return nil
 }
 
-func (st *baseBallotHandler) prepareNextBlock(
+func (st *baseBallotHandler) defaultPrepareNextBlockBallot(
 	avp base.ACCEPTVoteproof,
 	timerIDs []util.TimerID,
-) {
+	suf base.Suffrage,
+	wait time.Duration,
+) error {
 	point := avp.Point().Point.NextHeight()
 
 	l := st.Log().With().Str("voteproof", avp.ID()).Object("point", point).Logger()
 
-	var suf base.Suffrage
+	if err := st.timerINITBallot(
+		func(ctx context.Context) base.INITBallot {
+			bl, err := st.makeNextBlockBallot(ctx, avp, suf, wait)
+			if err != nil {
+				go st.switchState(newBrokenSwitchContext(StateConsensus, err))
 
-	var sctx switchContext
+				return nil
+			}
 
-	switch i, err := st.localIsInConsensusNodes(avp.Point().Height()); {
-	case errors.As(err, &sctx):
-		go st.switchState(sctx)
+			return bl
+		},
+		func(err error) {
+			switch {
+			case err == nil:
+			case errors.Is(err, errFailedToVoteNotInConsensus):
+				l.Debug().Err(err).Msg("failed to vote init ballot; moves to syncing state")
 
-		return
-	case err != nil:
-		l.Debug().Err(err).Msg("failed to prepare next block; moves to broken state")
+				go st.switchState(newSyncingSwitchContextWithVoteproof(StateConsensus, avp))
+			default:
+				l.Debug().Err(err).Msg("failed to vote init ballot; moves to broken state")
 
-		go st.switchState(newBrokenSwitchContext(StateConsensus, err))
-	default:
-		suf = i
+				go st.switchState(newBrokenSwitchContext(StateConsensus, err))
+			}
+		},
+		st.params.WaitPreparingINITBallot(),
+	); err != nil {
+		l.Error().Err(err).Msg("failed to prepare init ballot for next block")
+
+		return err
 	}
+
+	if err := st.timers.StopOthers(timerIDs); err != nil {
+		l.Error().Err(err).Msg("failed to start timers for next block")
+
+		return err
+	}
+
+	return nil
+}
+
+func (st *baseBallotHandler) defaultPrepareNextRoundBallot(
+	vp base.Voteproof,
+	previousBlock util.Hash,
+	timerIDs []util.TimerID,
+	suf base.Suffrage,
+	wait time.Duration,
+) error {
+	point := vp.Point().Point.NextRound()
+
+	l := st.Log().With().Str("voteproof", vp.ID()).Object("point", point).Logger()
 
 	if err := st.timerINITBallot(
 		func(ctx context.Context) base.INITBallot {
-			bl, err := st.makeNextBlockBallot(ctx, avp, suf, st.params.WaitPreparingINITBallot())
+			bl, err := st.makeNextRoundBallot(ctx, vp, previousBlock, suf, wait)
 			if err != nil {
 				go st.switchState(newBrokenSwitchContext(StateConsensus, err))
 
@@ -585,25 +619,27 @@ func (st *baseBallotHandler) prepareNextBlock(
 			case errors.Is(err, errFailedToVoteNotInConsensus):
 				st.Log().Debug().Err(err).Msg("failed to vote init ballot; moves to syncing state")
 
-				go st.switchState(newSyncingSwitchContextWithVoteproof(StateConsensus, avp))
+				go st.switchState(newSyncingSwitchContextWithVoteproof(StateConsensus, vp))
 			default:
 				st.Log().Debug().Err(err).Msg("failed to vote init ballot; moves to broken state")
 
 				go st.switchState(newBrokenSwitchContext(StateConsensus, err))
 			}
 		},
-		st.params.WaitPreparingINITBallot(),
+		time.Nanosecond,
 	); err != nil {
 		l.Error().Err(err).Msg("failed to prepare init ballot for next block")
 
-		return
+		return err
 	}
 
 	if err := st.timers.StopOthers(timerIDs); err != nil {
-		l.Error().Err(err).Msg("failed to start timers for next block")
+		l.Error().Err(err).Msg("failed to start timers for next round")
 
-		return
+		return err
 	}
+
+	return nil
 }
 
 func (st *baseBallotHandler) requestProposal(
