@@ -69,7 +69,7 @@ func (st *BootingHandler) enter(from StateType, i switchContext) (func(), error)
 		// NOTE empty block map item, moves to syncing
 		st.Log().Debug().Msg("empty block map item; moves to syncing")
 
-		return nil, newSyncingSwitchContext(StateBooting, base.GenesisHeight)
+		return nil, emptySyncingSwitchContext(StateBooting)
 	default:
 		manifest = m
 	}

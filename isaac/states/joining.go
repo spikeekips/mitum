@@ -459,7 +459,7 @@ func (st *JoiningHandler) setAllowConsensus(allow bool) { // revive:disable-line
 	st.baseBallotHandler.setAllowConsensus(allow)
 
 	if !allow {
-		go st.switchState(newSyncingSwitchContext(StateJoining, base.GenesisHeight))
+		go st.switchState(emptySyncingSwitchContext(StateJoining))
 	}
 }
 
