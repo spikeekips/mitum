@@ -23,7 +23,7 @@ type DummyProposalProcessor struct {
 	proposal   base.ProposalSignFact
 	previous   base.Manifest
 	Processerr func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error)
-	Saveerr    func(context.Context, base.ACCEPTVoteproof) error
+	Saveerr    func(context.Context, base.ACCEPTVoteproof) (base.BlockMap, error)
 	Cancelerr  func() error
 }
 
@@ -49,12 +49,12 @@ func (p DummyProposalProcessor) Process(ctx context.Context, ivp base.INITVotepr
 	return nil, errors.Errorf("wrong processing")
 }
 
-func (p DummyProposalProcessor) Save(ctx context.Context, avp base.ACCEPTVoteproof) error {
+func (p DummyProposalProcessor) Save(ctx context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
 	if p.Saveerr != nil {
 		return p.Saveerr(ctx, avp)
 	}
 
-	return nil
+	return nil, nil
 }
 
 func (p DummyProposalProcessor) Cancel() error {

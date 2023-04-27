@@ -512,9 +512,9 @@ func (t *testConsensusHandler) TestProcessingProposalWithACCEPTVoteproof() {
 	}
 
 	savedch := make(chan base.ACCEPTVoteproof, 1)
-	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) error {
+	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
 		savedch <- avp
-		return nil
+		return nil, nil
 	}
 
 	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
@@ -551,9 +551,9 @@ func (t *testConsensusHandler) TestProcessingProposalExpelACCEPTVoteproof() {
 	}
 
 	savedch := make(chan base.ACCEPTVoteproof, 1)
-	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) error {
+	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
 		savedch <- avp
-		return nil
+		return nil, nil
 	}
 
 	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
@@ -654,10 +654,10 @@ func (t *testConsensusHandler) TestWithBallotbox() {
 	}
 
 	savedch := make(chan base.ACCEPTVoteproof, 1)
-	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) error {
+	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
 		savedch <- avp
 
-		return nil
+		return nil, nil
 	}
 
 	st.args.VoteFunc = func(bl base.Ballot) (bool, error) {
@@ -758,9 +758,9 @@ func (t *testConsensusHandler) TestEmptySuffrageNextBlock() {
 		return manifest, nil
 	}
 	savedch := make(chan base.ACCEPTVoteproof, 1)
-	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) error {
+	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
 		savedch <- avp
-		return nil
+		return nil, nil
 	}
 
 	prpool := t.PRPool
@@ -832,9 +832,9 @@ func (t *testConsensusHandler) TestOutOfSuffrage() {
 		return manifest, nil
 	}
 	savedch := make(chan base.ACCEPTVoteproof, 1)
-	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) error {
+	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
 		savedch <- avp
-		return nil
+		return nil, nil
 	}
 
 	st.args.ProposalSelectFunc = func(ctx context.Context, p base.Point, _ util.Hash, _ time.Duration) (base.ProposalSignFact, error) {

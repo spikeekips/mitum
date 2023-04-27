@@ -33,9 +33,10 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestExpected() {
 		return manifest, nil
 	}
 	savedch := make(chan base.ACCEPTVoteproof, 1)
-	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) error {
+	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
 		savedch <- avp
-		return nil
+
+		return base.NewDummyBlockMap(base.NewDummyManifest(avp.Point().Height(), avp.BallotMajority().NewBlock())), nil
 	}
 
 	ballotch := make(chan base.Ballot, 1)
@@ -49,8 +50,8 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestExpected() {
 
 	newblocksavedch := make(chan base.Height, 1)
 	confirmedch := make(chan base.Height, 1)
-	st.args.WhenNewBlockSaved = func(height base.Height) {
-		newblocksavedch <- height
+	st.args.WhenNewBlockSaved = func(bm base.BlockMap) {
+		newblocksavedch <- bm.Manifest().Height()
 	}
 	st.args.WhenNewBlockConfirmed = func(height base.Height) {
 		confirmedch <- height
@@ -131,9 +132,9 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestNotInConsensus() {
 		return manifest, nil
 	}
 	savedch := make(chan base.ACCEPTVoteproof, 1)
-	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) error {
+	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
 		savedch <- avp
-		return nil
+		return nil, nil
 	}
 
 	ballotch := make(chan base.Ballot, 1)
@@ -386,12 +387,12 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestNotProposalProcessorP
 		return manifest, nil
 	}
 
-	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) error {
+	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
 		if avp.Point().Point.Equal(point) {
-			return isaac.ErrNotProposalProcessorProcessed.Errorf("hehehe")
+			return nil, isaac.ErrNotProposalProcessorProcessed.Errorf("hehehe")
 		}
 
-		return nil
+		return nil, nil
 	}
 
 	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
@@ -424,12 +425,12 @@ func (t *testNewACCEPTOnINITVoteproofConsensusHandler) TestSaveBlockError() {
 		return manifest, nil
 	}
 
-	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) error {
+	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
 		if avp.Point().Point.Equal(point) {
-			return errors.Errorf("hehehe")
+			return nil, errors.Errorf("hehehe")
 		}
 
-		return nil
+		return nil, nil
 	}
 
 	sctx, _ := newConsensusSwitchContext(StateJoining, ivp)
@@ -561,9 +562,9 @@ func (t *testNewACCEPTOnACCEPTVoteproofConsensusHandler) TestHigerHeight() {
 		return manifest, nil
 	}
 	savedch := make(chan base.ACCEPTVoteproof, 1)
-	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) error {
+	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
 		savedch <- avp
-		return nil
+		return nil, nil
 	}
 
 	_ = t.PRPool.Get(point.NextHeight())

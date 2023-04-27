@@ -228,9 +228,9 @@ func (t *testExpelsConsensusHandler) TestSuffrageConfirmAfterACCEPTVoteproof() {
 	})
 
 	savedch := make(chan base.ACCEPTVoteproof, 1)
-	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) error {
+	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
 		savedch <- avp
-		return nil
+		return nil, nil
 	}
 
 	prpool := t.PRPool
@@ -374,10 +374,10 @@ func (t *testExpelsConsensusHandler) prepareAfterACCEPT(
 	})
 
 	savedch := make(chan base.ACCEPTVoteproof, 1)
-	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) error {
+	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
 		savedch <- avp
 
-		return nil
+		return nil, nil
 	}
 
 	prpool := t.PRPool

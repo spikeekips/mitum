@@ -42,7 +42,7 @@ type (
 type ProposalProcessor interface {
 	Proposal() base.ProposalSignFact
 	Process(context.Context, base.INITVoteproof) (base.Manifest, error)
-	Save(context.Context, base.ACCEPTVoteproof) error
+	Save(context.Context, base.ACCEPTVoteproof) (base.BlockMap, error)
 	Cancel() error
 }
 
@@ -156,15 +156,15 @@ func (p *DefaultProposalProcessor) Process(ctx context.Context, ivp base.INITVot
 	return manifest, nil
 }
 
-func (p *DefaultProposalProcessor) Save(ctx context.Context, avp base.ACCEPTVoteproof) error {
+func (p *DefaultProposalProcessor) Save(ctx context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
 	p.processlock.Lock()
 	defer p.processlock.Unlock()
 
 	switch {
 	case p.isCanceled():
-		return errors.Errorf("already canceled")
+		return nil, errors.Errorf("already canceled")
 	case p.isSaved():
-		return ErrProcessorAlreadySaved.Call()
+		return nil, ErrProcessorAlreadySaved.Call()
 	}
 
 	sctx, cancel := context.WithCancel(p.ctx)
@@ -176,8 +176,10 @@ func (p *DefaultProposalProcessor) Save(ctx context.Context, avp base.ACCEPTVote
 
 	defer p.clean()
 
+	var bm base.BlockMap
+
 	if err := util.Retry(sctx, func() (bool, error) {
-		switch err := p.save(sctx, avp); {
+		switch i, err := p.save(sctx, avp); {
 		case err == nil:
 			return false, nil
 		case errors.Is(err, ErrProcessorAlreadySaved):
@@ -187,10 +189,12 @@ func (p *DefaultProposalProcessor) Save(ctx context.Context, avp base.ACCEPTVote
 		default:
 			p.Log().Error().Err(err).Msg("failed to save; will retry")
 
+			bm = i
+
 			return true, err
 		}
 	}, p.retrylimit, p.retryinterval); err != nil {
-		return errors.Wrap(err, "save proposal")
+		return nil, errors.Wrap(err, "save proposal")
 	}
 
 	_, err := p.processstate.Set(func(i int, _ bool) (int, error) {
@@ -201,7 +205,7 @@ func (p *DefaultProposalProcessor) Save(ctx context.Context, avp base.ACCEPTVote
 		return 2, nil //nolint:gomnd //...
 	})
 
-	return err
+	return bm, err
 }
 
 func (p *DefaultProposalProcessor) Cancel() error {
@@ -629,21 +633,21 @@ func (p *DefaultProposalProcessor) retry(ctx context.Context, f func() (bool, er
 	}, p.retrylimit, p.retryinterval)
 }
 
-func (p *DefaultProposalProcessor) save(ctx context.Context, avp base.ACCEPTVoteproof) error {
+func (p *DefaultProposalProcessor) save(ctx context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
 	e := util.StringErrorFunc("save")
 
 	if err := p.writer.SetACCEPTVoteproof(ctx, avp); err != nil {
-		return e(err, "set accept voteproof")
+		return nil, e(err, "set accept voteproof")
 	}
 
 	m, err := p.writer.Save(ctx)
 	if err != nil {
-		return e(err, "")
+		return nil, e(err, "")
 	}
 
 	p.Log().Info().Interface("blockmap", m).Msg("new block saved in proposal processor")
 
-	return nil
+	return m, nil
 }
 
 func (p *DefaultProposalProcessor) collectOperation(

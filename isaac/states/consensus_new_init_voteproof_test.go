@@ -239,9 +239,9 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBeforePreviousBlock
 		return manifest, nil
 	}
 	savedch := make(chan base.ACCEPTVoteproof, 1)
-	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) error {
+	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
 		savedch <- avp
-		return nil
+		return nil, nil
 	}
 
 	ballotch := make(chan base.Ballot, 1)
@@ -330,9 +330,9 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawBefore() {
 	}
 
 	savedch := make(chan base.ACCEPTVoteproof, 1)
-	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) error {
+	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
 		savedch <- avp
-		return nil
+		return nil, nil
 	}
 
 	ballotch := make(chan base.Ballot, 1)
@@ -441,9 +441,9 @@ func (t *testNewINITOnINITVoteproofConsensusHandler) TestDrawAndDrawAgain() {
 		return manifest, nil
 	}
 	savedch := make(chan base.ACCEPTVoteproof, 1)
-	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) error {
+	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
 		savedch <- avp
-		return nil
+		return nil, nil
 	}
 
 	ballotch := make(chan base.Ballot, 1)
@@ -549,9 +549,9 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestExpected() {
 	}
 
 	savedch := make(chan base.ACCEPTVoteproof, 1)
-	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) error {
+	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
 		savedch <- avp
-		return nil
+		return nil, nil
 	}
 
 	ballotch := make(chan base.Ballot, 1)
@@ -619,9 +619,9 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestHigherHeight() {
 	}
 
 	savedch := make(chan base.ACCEPTVoteproof, 1)
-	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) error {
+	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
 		savedch <- avp
-		return nil
+		return nil, nil
 	}
 
 	ballotch := make(chan base.Ballot, 1)
@@ -685,9 +685,9 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestPreviousBlockNotMatch
 	}
 
 	savedch := make(chan base.ACCEPTVoteproof, 1)
-	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) error {
+	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
 		savedch <- avp
-		return nil
+		return nil, nil
 	}
 
 	ballotch := make(chan base.Ballot, 1)
@@ -755,9 +755,9 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestNotInConsensusNodes()
 	}
 
 	savedch := make(chan base.ACCEPTVoteproof, 1)
-	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) error {
+	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
 		savedch <- avp
-		return nil
+		return nil, nil
 	}
 
 	ballotch := make(chan base.Ballot, 1)
@@ -852,9 +852,9 @@ func (t *testNewINITOnACCEPTVoteproofConsensusHandler) TestProcessContextCancele
 	}
 
 	savedch := make(chan base.ACCEPTVoteproof, 1)
-	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) error {
+	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
 		savedch <- avp
-		return nil
+		return nil, nil
 	}
 
 	ballotch := make(chan base.Ballot, 1)

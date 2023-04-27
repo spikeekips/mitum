@@ -436,13 +436,13 @@ func consensusHandlerArgs(pctx context.Context) (*isaacstates.ConsensusHandlerAr
 		return nil, err
 	}
 
-	var whenNewBlockSavedf func(base.Height)
+	var whenNewBlockSavedf func(base.BlockMap)
 
 	switch err := util.LoadFromContext(pctx, WhenNewBlockSavedInConsensusStateFuncContextKey, &whenNewBlockSavedf); {
 	case err != nil:
 		return nil, err
 	case whenNewBlockSavedf == nil:
-		whenNewBlockSavedf = func(base.Height) {}
+		whenNewBlockSavedf = func(base.BlockMap) {}
 	}
 
 	defaultWhenNewBlockSavedf := DefaultWhenNewBlockSavedInConsensusStateFunc(log, params, ballotbox, db, nodeinfo)
@@ -463,10 +463,10 @@ func consensusHandlerArgs(pctx context.Context) (*isaacstates.ConsensusHandlerAr
 	args.NodeInConsensusNodesFunc = nodeInConsensusNodesf
 	args.ProposalSelectFunc = proposalSelector.Select
 	args.ProposalProcessors = pps
-	args.WhenNewBlockSaved = func(height base.Height) {
-		defaultWhenNewBlockSavedf(height)
+	args.WhenNewBlockSaved = func(bm base.BlockMap) {
+		defaultWhenNewBlockSavedf(bm)
 
-		whenNewBlockSavedf(height)
+		whenNewBlockSavedf(bm)
 	}
 	args.WhenNewBlockConfirmed = func(height base.Height) {
 		defaultWhenNewBlockConfirmedf(height)
@@ -1054,10 +1054,10 @@ func DefaultWhenNewBlockSavedInConsensusStateFunc(
 	ballotbox *isaacstates.Ballotbox,
 	db isaac.Database,
 	nodeinfo *isaacnetwork.NodeInfoUpdater,
-) func(base.Height) {
-	return func(height base.Height) {
+) func(base.BlockMap) {
+	return func(bm base.BlockMap) {
 		log.Log().Debug().
-			Interface("height", height).
+			Interface("blockmap", bm).
 			Stringer("state", isaacstates.StateConsensus).
 			Msg("new block saved")
 

@@ -305,7 +305,7 @@ func (g *GenesisBlockGenerator) process() error {
 		}
 	}
 
-	if err := pp.Save(context.Background(), g.avp); err != nil {
+	if _, err := pp.Save(context.Background(), g.avp); err != nil {
 		return e(err, "")
 	}
 

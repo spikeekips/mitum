@@ -1581,7 +1581,8 @@ func (t *testDefaultProposalProcessor) TestSave() {
 	avp, err := t.NewACCEPTVoteproof(afact, t.Local, []base.LocalNode{t.Local})
 	t.NoError(err)
 
-	t.NoError(opp.Save(context.Background(), avp))
+	_, err = opp.Save(context.Background(), avp)
+	t.NoError(err)
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -1624,7 +1625,7 @@ func (t *testDefaultProposalProcessor) TestSaveFailed() {
 	avp, err := t.NewACCEPTVoteproof(afact, t.Local, []base.LocalNode{t.Local})
 	t.NoError(err)
 
-	err = opp.Save(context.Background(), avp)
+	_, err = opp.Save(context.Background(), avp)
 	t.Error(err)
 	t.ErrorContains(err, "killme")
 }
@@ -1668,7 +1669,8 @@ func (t *testDefaultProposalProcessor) TestSaveAgain() {
 	avp, err := t.NewACCEPTVoteproof(afact, t.Local, []base.LocalNode{t.Local})
 	t.NoError(err)
 
-	t.NoError(opp.Save(context.Background(), avp))
+	_, err = opp.Save(context.Background(), avp)
+	t.NoError(err)
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -1676,7 +1678,7 @@ func (t *testDefaultProposalProcessor) TestSaveAgain() {
 	case <-savech:
 	}
 
-	err = opp.Save(context.Background(), avp)
+	_, err = opp.Save(context.Background(), avp)
 	t.Error(err)
 	t.True(errors.Is(err, ErrProcessorAlreadySaved))
 }

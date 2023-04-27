@@ -123,7 +123,7 @@ func (pps *ProposalProcessors) Process(
 	}, nil
 }
 
-func (pps *ProposalProcessors) Save(ctx context.Context, facthash util.Hash, avp base.ACCEPTVoteproof) error {
+func (pps *ProposalProcessors) Save(ctx context.Context, facthash util.Hash, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
 	pps.Lock()
 	defer pps.Unlock()
 
@@ -132,7 +132,7 @@ func (pps *ProposalProcessors) Save(ctx context.Context, facthash util.Hash, avp
 	if avp.Point().Height() <= pps.previousSaved {
 		l.Debug().Interface("previous", pps.previousSaved).Msg("already saved")
 
-		return ErrProcessorAlreadySaved.Call()
+		return nil, ErrProcessorAlreadySaved.Call()
 	}
 
 	defer func() {
@@ -147,24 +147,24 @@ func (pps *ProposalProcessors) Save(ctx context.Context, facthash util.Hash, avp
 	case pps.p == nil:
 		l.Debug().Msg("proposal processor not found")
 
-		return e(ErrNotProposalProcessorProcessed.Call(), "")
+		return nil, e(ErrNotProposalProcessorProcessed.Call(), "")
 	case !pps.p.Proposal().Fact().Hash().Equal(facthash):
 		l.Debug().Msg("proposal processor not found")
 
-		return e(ErrNotProposalProcessorProcessed.Call(), "")
+		return nil, e(ErrNotProposalProcessorProcessed.Call(), "")
 	}
 
-	switch err := pps.p.Save(ctx, avp); {
+	switch bm, err := pps.p.Save(ctx, avp); {
 	case err == nil:
 		l.Debug().Msg("proposal processed and saved")
 
 		pps.previousSaved = avp.Point().Height()
 
-		return nil
+		return bm, nil
 	case errors.Is(err, context.Canceled):
-		return e(ErrNotProposalProcessorProcessed.Call(), "")
+		return nil, e(ErrNotProposalProcessorProcessed.Call(), "")
 	default:
-		return e(err, "")
+		return nil, e(err, "")
 	}
 }
 

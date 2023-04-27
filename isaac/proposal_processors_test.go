@@ -32,10 +32,10 @@ func (t *testProposalProcessors) TestProcess() {
 	pp.Processerr = func(context.Context, base.ProposalFact, base.INITVoteproof) (base.Manifest, error) {
 		return manifest, nil
 	}
-	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) error {
+	pp.Saveerr = func(_ context.Context, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
 		savech <- avp
 
-		return nil
+		return nil, nil
 	}
 
 	pps := NewProposalProcessors(
@@ -66,7 +66,8 @@ func (t *testProposalProcessors) TestProcess() {
 		nil,
 		[]base.LocalNode{t.Local},
 	)
-	t.NoError(pps.Save(context.Background(), facthash, avp))
+	_, err = pps.Save(context.Background(), facthash, avp)
+	t.NoError(err)
 
 	select {
 	case <-time.After(time.Second * 2):
@@ -389,8 +390,8 @@ func (t *testProposalProcessors) TestSaveError() {
 		return manifest, nil
 	}
 
-	pp.Saveerr = func(context.Context, base.ACCEPTVoteproof) error {
-		return errors.Errorf("findme")
+	pp.Saveerr = func(context.Context, base.ACCEPTVoteproof) (base.BlockMap, error) {
+		return nil, errors.Errorf("findme")
 	}
 
 	pps := NewProposalProcessors(
@@ -421,7 +422,7 @@ func (t *testProposalProcessors) TestSaveError() {
 		nil,
 		[]base.LocalNode{t.Local},
 	)
-	err = pps.Save(context.Background(), facthash, avp)
+	_, err = pps.Save(context.Background(), facthash, avp)
 	t.Error(err)
 	t.ErrorContains(err, "findme")
 
