@@ -44,12 +44,12 @@ func (st *NewConsensusHandlerType) new() (handler, error) {
 		args:             st.args,
 	}
 
-	nst.args.checkInConsensus = nst.checkInConsensus
+	nst.args.checkInState = nst.checkInState
 
 	return nst, nil
 }
 
-func (st *ConsensusHandler) checkInConsensus(vp base.Voteproof) switchContext {
+func (st *ConsensusHandler) checkInState(vp base.Voteproof) switchContext {
 	if st.allowedConsensus() {
 		return nil
 	}

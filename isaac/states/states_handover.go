@@ -2,20 +2,20 @@ package isaacstates
 
 import "github.com/pkg/errors"
 
-func (st *States) UnderHandoverX() bool {
-	_, isempty := st.handoverX.Value()
+func (st *States) HandoverXBroker() *HandoverXBroker {
+	v, _ := st.handoverXBroker.Value()
 
-	return !isempty
+	return v
 }
 
-func (st *States) StartHandoverX(id string) error {
-	_, err := st.handoverX.Set(func(_ *HandoverXBroker, isempty bool) (*HandoverXBroker, error) {
+func (st *States) NewHandoverXBroker(id string) error {
+	_, err := st.handoverXBroker.Set(func(_ *HandoverXBroker, isempty bool) (*HandoverXBroker, error) {
 		switch {
 		case !isempty:
 			return nil, errors.Errorf("already under handover x")
 		case !st.AllowedConsensus():
 			return nil, errors.Errorf("not allowed consensus")
-		case st.UnderHandoverY():
+		case st.HandoverYBroker() != nil:
 			return nil, errors.Errorf("under handover y")
 		}
 
@@ -31,20 +31,20 @@ func (st *States) StartHandoverX(id string) error {
 	return err
 }
 
-func (st *States) UnderHandoverY() bool {
-	_, isempty := st.handoverY.Value()
+func (st *States) HandoverYBroker() *HandoverYBroker {
+	v, _ := st.handoverYBroker.Value()
 
-	return !isempty
+	return v
 }
 
-func (st *States) StartHandoverY() error {
-	_, err := st.handoverY.Set(func(_ *HandoverYBroker, isempty bool) (*HandoverYBroker, error) {
+func (st *States) NewHandoverYBroker() error {
+	_, err := st.handoverYBroker.Set(func(_ *HandoverYBroker, isempty bool) (*HandoverYBroker, error) {
 		switch {
 		case !isempty:
 			return nil, errors.Errorf("already under handover y")
 		case st.AllowedConsensus():
 			return nil, errors.Errorf("allowed consensus")
-		case st.UnderHandoverX():
+		case st.HandoverXBroker() != nil:
 			return nil, errors.Errorf("under handover x")
 		}
 
@@ -58,10 +58,4 @@ func (st *States) StartHandoverY() error {
 	})
 
 	return err
-}
-
-func (st *States) CancelHandoverY() error {
-	_ = st.handoverY.EmptyValue()
-
-	return nil
 }

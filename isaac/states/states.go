@@ -53,8 +53,8 @@ type States struct {
 	*util.ContextDaemon
 	timers           *util.SimpleTimers
 	allowedConsensus *util.Locked[bool]
-	handoverX        *util.Locked[*HandoverXBroker]
-	handoverY        *util.Locked[*HandoverYBroker]
+	handoverXBroker  *util.Locked[*HandoverXBroker]
+	handoverYBroker  *util.Locked[*HandoverYBroker]
 	stateLock        sync.RWMutex
 }
 
@@ -81,8 +81,8 @@ func NewStates(local base.LocalNode, params *isaac.LocalParams, args *StatesArgs
 		cs:               nil,
 		timers:           timers,
 		allowedConsensus: util.NewLocked(args.AllowConsensus),
-		handoverX:        util.EmptyLocked[*HandoverXBroker](),
-		handoverY:        util.EmptyLocked[*HandoverYBroker](),
+		handoverXBroker:  util.EmptyLocked[*HandoverXBroker](),
+		handoverYBroker:  util.EmptyLocked[*HandoverYBroker](),
 	}
 
 	cancelf := func() {}
@@ -352,7 +352,7 @@ func (st *States) switchState(sctx switchContext) error {
 		case ok:
 			nsctx = newSyncingSwitchContextWithVoteproof(current.state(), vsctx.voteproof())
 		default:
-			nsctx = newSyncingSwitchContext(current.state(), base.GenesisHeight)
+			nsctx = emptySyncingSwitchContext(current.state())
 		}
 
 		l = l.With().
@@ -477,7 +477,7 @@ func (st *States) checkStateSwitchContext(sctx switchContext, current handler) e
 	}
 
 	switch {
-	case st.UnderHandoverY():
+	case st.HandoverYBroker() != nil:
 		if next == StateConsensus || next == StateJoining {
 			if current.state() == StateHandover {
 				return ErrIgnoreSwitchingState.Errorf("already in handover")
@@ -500,7 +500,7 @@ func (st *States) checkStateSwitchContext(sctx switchContext, current handler) e
 			return ErrIgnoreSwitchingState.Errorf("not allowed to enter consensus states; keep syncing")
 		}
 
-		return newSyncingSwitchContext(current.state(), base.GenesisHeight)
+		return emptySyncingSwitchContext(current.state())
 	}
 
 	return nil

@@ -23,13 +23,15 @@ type voteproofHandlerArgs struct {
 	baseBallotHandlerArgs
 	ProposalProcessors           *isaac.ProposalProcessors
 	GetManifestFunc              func(base.Height) (base.Manifest, error)
-	WhenNewBlockSaved            func(base.Height)
+	WhenNewBlockSaved            func(base.BlockMap)
 	WhenNewBlockConfirmed        func(base.Height)
+	whenNewVoteproof             func(base.Voteproof) error
 	prepareACCEPTBallot          func(base.INITVoteproof, base.Manifest, time.Duration) error
 	prepareNextRoundBallot       func(base.Voteproof, util.Hash, []util.TimerID, base.Suffrage, time.Duration) error
 	prepareSuffrageConfirmBallot func(base.Voteproof)
 	prepareNextBlockBallot       func(base.ACCEPTVoteproof, []util.TimerID, base.Suffrage, time.Duration) error
-	checkInConsensus             func(base.Voteproof) switchContext
+	checkInState                 func(base.Voteproof) switchContext
+	whenNewBlockSaved            func(base.BlockMap, base.ACCEPTVoteproof)
 	stt                          StateType
 }
 
@@ -39,8 +41,12 @@ func newVoteproofHandlerArgs() voteproofHandlerArgs {
 		GetManifestFunc: func(base.Height) (base.Manifest, error) {
 			return nil, util.ErrNotImplemented.Errorf("GetManifestFunc")
 		},
-		WhenNewBlockSaved:     func(base.Height) {},
+		WhenNewBlockSaved:     func(base.BlockMap) {},
 		WhenNewBlockConfirmed: func(base.Height) {},
+
+		whenNewVoteproof: func(base.Voteproof) error {
+			return util.ErrNotImplemented.Errorf("newVoteproof")
+		},
 		prepareACCEPTBallot: func(base.INITVoteproof, base.Manifest, time.Duration) error {
 			return util.ErrNotImplemented.Errorf("prepareACCEPTBallot")
 		},
@@ -50,9 +56,10 @@ func newVoteproofHandlerArgs() voteproofHandlerArgs {
 		prepareNextBlockBallot: func(base.ACCEPTVoteproof, []util.TimerID, base.Suffrage, time.Duration) error {
 			return util.ErrNotImplemented.Errorf("prepareNextRoundBallot")
 		},
+		whenNewBlockSaved: func(base.BlockMap, base.ACCEPTVoteproof) {},
 	}
 
-	args.checkInConsensus = func(vp base.Voteproof) switchContext {
+	args.checkInState = func(vp base.Voteproof) switchContext {
 		return newSyncingSwitchContextWithVoteproof(args.stt, vp)
 	}
 
@@ -89,6 +96,7 @@ func (st *voteproofHandler) new() *voteproofHandler {
 		notallowconsensusch: make(chan struct{}, 1<<6),             // enough buffer
 	}
 
+	nst.args.whenNewVoteproof = func(base.Voteproof) error { return nil }
 	nst.args.prepareACCEPTBallot = nst.defaultPrepareACCEPTBallot
 	nst.args.prepareNextRoundBallot = nst.defaultPrepareNextRoundBallot
 	nst.args.prepareSuffrageConfirmBallot = nst.defaultPrepareSuffrageConfirmBallot
@@ -195,7 +203,7 @@ end:
 		case <-st.notallowconsensusch:
 		}
 
-		if sctx := st.args.checkInConsensus(vperr.vp); sctx != nil {
+		if sctx := st.args.checkInState(vperr.vp); sctx != nil {
 			if vperr.vp != nil {
 				vperr.errch <- sctx
 
@@ -211,7 +219,7 @@ end:
 			vperr.errch <- st.handleNewVoteproof(vperr.vp)
 		}
 
-		if sctx := st.args.checkInConsensus(vperr.vp); sctx != nil {
+		if sctx := st.args.checkInState(vperr.vp); sctx != nil {
 			go st.switchState(sctx)
 
 			continue end
@@ -447,6 +455,10 @@ func (st *voteproofHandler) newVoteproofWithLVPS(vp base.Voteproof, lvps isaac.L
 	}
 
 	e := util.StringErrorFunc("handle new voteproof")
+
+	if err := st.args.whenNewVoteproof(vp); err != nil {
+		return e(err, "")
+	}
 
 	switch keep, err := st.checkStuckVoteproof(vp, lvps); {
 	case err != nil:
@@ -699,11 +711,11 @@ func (st *voteproofHandler) saveBlock(avp base.ACCEPTVoteproof) (bool, error) {
 
 	ll.Debug().Msg("expected accept voteproof; trying to save proposal")
 
-	switch err := st.args.ProposalProcessors.Save(context.Background(), facthash, avp); {
+	switch bm, err := st.args.ProposalProcessors.Save(context.Background(), facthash, avp); {
 	case err == nil:
 		ll.Debug().Msg("processed proposal saved; moves to next block")
 
-		go st.whenNewBlockSaved(avp)
+		go st.whenNewBlockSaved(bm, avp)
 		go st.nextBlock(avp, []util.TimerID{
 			timerIDBroadcastINITBallot,
 			timerIDBroadcastSuffrageConfirmBallot,
@@ -808,12 +820,14 @@ func (st *voteproofHandler) checkStuckVoteproof(
 	}
 }
 
-func (st *voteproofHandler) whenNewBlockSaved(vp base.ACCEPTVoteproof) {
+func (st *voteproofHandler) whenNewBlockSaved(bm base.BlockMap, vp base.ACCEPTVoteproof) {
+	st.args.whenNewBlockSaved(bm, vp)
+
 	if _, hasExpels := vp.(base.HasExpels); !hasExpels {
 		st.args.WhenNewBlockConfirmed(vp.Point().Height())
 	}
 
-	st.args.WhenNewBlockSaved(vp.Point().Height())
+	st.args.WhenNewBlockSaved(bm)
 }
 
 func (st *voteproofHandler) whenNewBlockConfirmed(vp base.ACCEPTVoteproof) {
