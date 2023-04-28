@@ -213,7 +213,7 @@ func (t *testHandoverYBroker) TestReceiveMessageFinish() {
 		base.EqualVoteproof(t.Assert(), ivp, rivp)
 	})
 
-	t.Run("ok", func() {
+	t.Run("error", func() {
 		args := t.yargs()
 
 		errch := make(chan error, 1)

@@ -25,12 +25,18 @@ func (t *baseTestHandoverBroker) xargs() *HandoverXBrokerArgs {
 		return true, nil
 	}
 
+	args.whenFinishedForStates = func(base.INITVoteproof) error {
+		return nil
+	}
+
 	return args
 }
 
 func (t *baseTestHandoverBroker) yargs() *HandoverYBrokerArgs {
 	args := NewHandoverYBrokerArgs(t.LocalParams.NetworkID())
 	args.WhenCanceled = func(error) {}
+	args.newVoteproofForStates = func(base.Voteproof) error { return nil }
+	args.whenFinishedForStates = func(base.INITVoteproof) error { return nil }
 
 	return args
 }

@@ -14,18 +14,13 @@ import (
 	"github.com/spikeekips/mitum/util/valuehash"
 )
 
-type voteproofWithErrchan struct {
-	vp    base.Voteproof
-	errch chan error
-}
-
 type voteproofHandlerArgs struct {
 	baseBallotHandlerArgs
 	ProposalProcessors           *isaac.ProposalProcessors
 	GetManifestFunc              func(base.Height) (base.Manifest, error)
 	WhenNewBlockSaved            func(base.BlockMap)
 	WhenNewBlockConfirmed        func(base.Height)
-	whenNewVoteproof             func(base.Voteproof) error
+	whenNewVoteproof             func(base.Voteproof, isaac.LastVoteproofs) error
 	prepareACCEPTBallot          func(base.INITVoteproof, base.Manifest, time.Duration) error
 	prepareNextRoundBallot       func(base.Voteproof, util.Hash, []util.TimerID, base.Suffrage, time.Duration) error
 	prepareSuffrageConfirmBallot func(base.Voteproof)
@@ -44,7 +39,7 @@ func newVoteproofHandlerArgs() voteproofHandlerArgs {
 		WhenNewBlockSaved:     func(base.BlockMap) {},
 		WhenNewBlockConfirmed: func(base.Height) {},
 
-		whenNewVoteproof: func(base.Voteproof) error {
+		whenNewVoteproof: func(base.Voteproof, isaac.LastVoteproofs) error {
 			return util.ErrNotImplemented.Errorf("newVoteproof")
 		},
 		prepareACCEPTBallot: func(base.INITVoteproof, base.Manifest, time.Duration) error {
@@ -96,7 +91,7 @@ func (st *voteproofHandler) new() *voteproofHandler {
 		notallowconsensusch: make(chan struct{}, 1<<6),             // enough buffer
 	}
 
-	nst.args.whenNewVoteproof = func(base.Voteproof) error { return nil }
+	nst.args.whenNewVoteproof = func(base.Voteproof, isaac.LastVoteproofs) error { return nil }
 	nst.args.prepareACCEPTBallot = nst.defaultPrepareACCEPTBallot
 	nst.args.prepareNextRoundBallot = nst.defaultPrepareNextRoundBallot
 	nst.args.prepareSuffrageConfirmBallot = nst.defaultPrepareSuffrageConfirmBallot
@@ -116,9 +111,9 @@ func (st *voteproofHandler) enter(from StateType, i switchContext) (func(), erro
 	var sctx voteproofSwitchContext
 	var vp base.Voteproof
 
-	switch j, ok := i.(consensusSwitchContext); {
+	switch j, ok := i.(voteproofSwitchContext); {
 	case !ok:
-		return nil, e(nil, "invalid switchContext, not %T", i)
+		return nil, e(nil, "invalid switchContext, %T", i)
 	case j.voteproof() == nil:
 		return nil, e(nil, "invalid switchContext, empty voteproof")
 	default:
@@ -425,16 +420,13 @@ func (st *voteproofHandler) handleACCEPTVoteproofAfterProcessingProposal(
 }
 
 func (st *voteproofHandler) newVoteproof(vp base.Voteproof) error {
-	errch := make(chan error, 1)
+	vperr := newVoteproofWithErrchan(vp)
 
 	go func() {
-		st.vpch <- voteproofWithErrchan{
-			vp:    vp,
-			errch: errch,
-		}
+		st.vpch <- vperr
 	}()
 
-	return <-errch
+	return <-vperr.errch
 }
 
 func (st *voteproofHandler) handleNewVoteproof(vp base.Voteproof) error {
@@ -456,7 +448,7 @@ func (st *voteproofHandler) newVoteproofWithLVPS(vp base.Voteproof, lvps isaac.L
 
 	e := util.StringErrorFunc("handle new voteproof")
 
-	if err := st.args.whenNewVoteproof(vp); err != nil {
+	if err := st.args.whenNewVoteproof(vp, lvps); err != nil {
 		return e(err, "")
 	}
 

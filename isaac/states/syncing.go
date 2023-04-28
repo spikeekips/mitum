@@ -190,6 +190,12 @@ func (st *SyncingHandler) exit(sctx switchContext) (func(), error) {
 func (st *SyncingHandler) newVoteproof(vp base.Voteproof) error {
 	e := util.StringErrorFunc("handle new voteproof")
 
+	if _, ok := vp.(handoverFinishedVoteporof); ok {
+		if st.sts != nil {
+			st.sts.cleanHandoverBrokers()
+		}
+	}
+
 	if _, v, isnew := st.baseHandler.setNewVoteproof(vp); v == nil || !isnew {
 		return nil
 	}

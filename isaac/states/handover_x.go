@@ -22,14 +22,19 @@ var (
 	defaultHandoverXReadyEnd          uint64 = 3
 )
 
+// FIXME WhenFinished; left memberlist
+
 type HandoverXBrokerArgs struct {
-	SendFunc          func(context.Context, interface{}) error
-	CheckIsReady      func() (bool, error)
-	WhenCanceled      func(error)
-	Local             base.Node
-	NetworkID         base.NetworkID
-	MinChallengeCount uint64
-	ReadyEnd          uint64
+	SendFunc              func(context.Context, interface{}) error
+	CheckIsReady          func() (bool, error)
+	WhenCanceled          func(error)
+	whenCanceledForStates func(error)
+	WhenFinished          func(base.INITVoteproof) error
+	whenFinishedForStates func(base.INITVoteproof) error
+	Local                 base.Node
+	NetworkID             base.NetworkID
+	MinChallengeCount     uint64
+	ReadyEnd              uint64
 }
 
 func NewHandoverXBrokerArgs(local base.Node, networkID base.NetworkID) *HandoverXBrokerArgs {
@@ -40,9 +45,14 @@ func NewHandoverXBrokerArgs(local base.Node, networkID base.NetworkID) *Handover
 		SendFunc: func(context.Context, interface{}) error {
 			return util.ErrNotImplemented.Errorf("SendFunc")
 		},
-		CheckIsReady: func() (bool, error) { return false, util.ErrNotImplemented.Errorf("CheckIsReady") },
-		WhenCanceled: func(error) {},
-		ReadyEnd:     defaultHandoverXReadyEnd,
+		CheckIsReady:          func() (bool, error) { return false, util.ErrNotImplemented.Errorf("CheckIsReady") },
+		WhenCanceled:          func(error) {},
+		whenCanceledForStates: func(error) {},
+		ReadyEnd:              defaultHandoverXReadyEnd,
+		WhenFinished:          func(base.INITVoteproof) error { return nil },
+		whenFinishedForStates: func(base.INITVoteproof) error {
+			return util.ErrNotImplemented.Errorf("whenFinishedForStates")
+		},
 	}
 }
 
@@ -89,6 +99,7 @@ func NewHandoverXBroker(ctx context.Context, args *HandoverXBrokerArgs) *Handove
 
 			cancel()
 
+			args.whenCanceledForStates(err)
 			args.WhenCanceled(err)
 		})
 	}
@@ -99,6 +110,7 @@ func NewHandoverXBroker(ctx context.Context, args *HandoverXBrokerArgs) *Handove
 
 			cancel()
 
+			args.whenCanceledForStates(errHandoverCanceled.Errorf("canceled by message"))
 			args.WhenCanceled(errHandoverCanceled.Errorf("canceled by message"))
 		})
 	}
@@ -169,6 +181,18 @@ func (h *HandoverXBroker) isFinished(vp base.Voteproof) (isFinished bool, _ erro
 
 func (h *HandoverXBroker) finish(ivp base.INITVoteproof) error {
 	if err := h.isCanceled(); err != nil {
+		return err
+	}
+
+	if err := h.args.whenFinishedForStates(ivp); err != nil {
+		h.Log().Error().Err(err).Interface("voteproof", ivp).Msg("failed to when finished for states")
+
+		return err
+	}
+
+	if err := h.args.WhenFinished(ivp); err != nil {
+		h.Log().Error().Err(err).Interface("voteproof", ivp).Msg("failed to when finished")
+
 		return err
 	}
 
@@ -376,16 +400,16 @@ func (h *HandoverXBroker) receiveStagePoint(i HandoverMessageChallengeStagePoint
 		return errors.Errorf("no last init voteproof for blockmap from y")
 	}
 
+	if !isStagePointChallenge(h.lastVoteproof) {
+		return errHandoverReset.Errorf("not stagepoint challenge voteproof")
+	}
+
 	switch t := h.lastVoteproof.(type) {
 	case base.INITVoteproof:
 		if !t.Point().Equal(point) {
 			return errHandoverReset.Errorf("stagepoint not match for init voteproof")
 		}
 	case base.ACCEPTVoteproof:
-		if t.Result() == base.VoteResultMajority {
-			return errHandoverReset.Errorf("unexpected stagepoint for majority accept voteproof")
-		}
-
 		if !t.Point().Equal(point) {
 			return errHandoverReset.Errorf("stagepoint not match for accept voteproof")
 		}
@@ -499,4 +523,41 @@ func (h *HandoverXBroker) receiveHandoverReadyOK(hc HandoverMessageReady) error 
 	h.previousReadyHandover = hc.Point()
 
 	return nil
+}
+
+func (h *HandoverXBroker) patchStates(st *States) error {
+	h.args.whenFinishedForStates = func(vp base.INITVoteproof) error {
+		st.cleanHandoverBrokers()
+
+		_ = st.SetAllowConsensus(false)
+
+		if current := st.current(); current != nil {
+			go func() {
+				// NOTE moves to syncing
+				err := st.AskMoveState(newSyncingSwitchContextWithVoteproof(current.state(), vp))
+				if err != nil {
+					panic(err)
+				}
+			}()
+		}
+
+		return nil
+	}
+
+	h.args.whenCanceledForStates = func(error) {
+		st.cleanHandoverBrokers()
+	}
+
+	return nil
+}
+
+func isStagePointChallenge(vp base.Voteproof) bool {
+	switch t := vp.(type) {
+	case base.INITVoteproof:
+		return true
+	case base.ACCEPTVoteproof:
+		return t.Result() != base.VoteResultMajority
+	default:
+		return false
+	}
 }

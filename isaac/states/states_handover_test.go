@@ -102,6 +102,11 @@ func (t *testStates) TestSwitchHandover() {
 	t.Run("from syncing", func() {
 		t.T().Log("current", st.current().state())
 
+		st.args.NewHandoverYBroker = func(ctx context.Context, id string) (*HandoverYBroker, error) {
+			args := NewHandoverYBrokerArgs(t.params.NetworkID())
+			return NewHandoverYBroker(ctx, args, id), nil
+		}
+
 		_ = st.SetAllowConsensus(false)
 		t.False(st.AllowedConsensus())
 
@@ -424,7 +429,9 @@ func (t *testStates) TestNewHandoverYBroker() {
 		hc := newHandoverMessageFinish(broker.ID(), ivp)
 		t.NoError(broker.receiveFinish(hc))
 
-		t.True(st.AllowedConsensus())
-		t.Nil(st.HandoverYBroker())
+		// NOTE 'not allowed consensus' and empty HandoverYBroker will be
+		// changed by handover (or syncing) handler.
+		t.False(st.AllowedConsensus())
+		t.NotNil(st.HandoverYBroker())
 	})
 }

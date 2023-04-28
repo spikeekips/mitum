@@ -1,6 +1,10 @@
 package isaacstates
 
-import "github.com/pkg/errors"
+import (
+	"context"
+
+	"github.com/pkg/errors"
+)
 
 func (st *States) HandoverXBroker() *HandoverXBroker {
 	v, _ := st.handoverXBroker.Value()
@@ -8,7 +12,7 @@ func (st *States) HandoverXBroker() *HandoverXBroker {
 	return v
 }
 
-func (st *States) NewHandoverXBroker(id string) error {
+func (st *States) NewHandoverXBroker() error {
 	_, err := st.handoverXBroker.Set(func(_ *HandoverXBroker, isempty bool) (*HandoverXBroker, error) {
 		switch {
 		case !isempty:
@@ -19,13 +23,18 @@ func (st *States) NewHandoverXBroker(id string) error {
 			return nil, errors.Errorf("under handover y")
 		}
 
-		// FIXME broker, err := NewHandoverXBroker(ctx, id)
-		// if err != nil {
-		// 	return nil, err
-		// }
+		broker, err := st.args.NewHandoverXBroker(context.Background())
+		if err != nil {
+			st.Log().Error().Err(err).Msg("failed new handover x broker")
 
-		// return broker, nil
-		return nil, nil
+			return nil, err
+		}
+
+		if err := broker.patchStates(st); err != nil {
+			return nil, err
+		}
+
+		return broker, nil
 	})
 
 	return err
@@ -37,7 +46,7 @@ func (st *States) HandoverYBroker() *HandoverYBroker {
 	return v
 }
 
-func (st *States) NewHandoverYBroker() error {
+func (st *States) NewHandoverYBroker(id string) error {
 	_, err := st.handoverYBroker.Set(func(_ *HandoverYBroker, isempty bool) (*HandoverYBroker, error) {
 		switch {
 		case !isempty:
@@ -48,14 +57,37 @@ func (st *States) NewHandoverYBroker() error {
 			return nil, errors.Errorf("under handover x")
 		}
 
-		// FIXME broker, err := NewHandoverYBroker()
-		// if err != nil {
-		// 	return nil, err
-		// }
+		broker, err := st.args.NewHandoverYBroker(context.Background(), id)
+		if err != nil {
+			st.Log().Error().Err(err).Msg("failed new handover y broker")
 
-		// return broker, nil
-		return nil, nil
+			return nil, err
+		}
+
+		if err := broker.patchStates(st); err != nil {
+			return nil, err
+		}
+
+		return broker, nil
 	})
 
 	return err
+}
+
+func (st *States) cleanHandoverBrokers() {
+	_ = st.handoverXBroker.Empty(func(i *HandoverXBroker, isempty bool) error {
+		if !isempty {
+			st.Log().Debug().Msg("handover x broker canceled")
+		}
+
+		return nil
+	})
+
+	_ = st.handoverYBroker.Empty(func(i *HandoverYBroker, isempty bool) error {
+		if !isempty {
+			st.Log().Debug().Msg("handover y broker canceled")
+		}
+
+		return nil
+	})
 }

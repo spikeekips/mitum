@@ -13,7 +13,10 @@ import (
 	"github.com/spikeekips/mitum/util/logging"
 )
 
-var ErrIgnoreSwitchingState = util.NewMError("switch state, but ignored")
+var (
+	ErrIgnoreSwitchingState = util.NewMError("switch state, but ignored")
+	errIgnoreNewVoteproof   = util.NewMError("new voteproof; ignored")
+)
 
 var (
 	timerIDBroadcastINITBallot            = util.TimerID("broadcast-init-ballot")
@@ -28,6 +31,8 @@ type StatesArgs struct {
 	IsInSyncSourcePoolFunc func(base.Address) bool
 	BallotBroadcaster      BallotBroadcaster
 	WhenStateSwitchedFunc  func(StateType)
+	NewHandoverXBroker     func(context.Context) (*HandoverXBroker, error)
+	NewHandoverYBroker     func(context.Context, string /* handover id */) (*HandoverYBroker, error)
 	// AllowConsensus decides to enter Consensus states. If false, States enters
 	// Syncing state instead of Consensus state.
 	AllowConsensus bool
@@ -38,6 +43,12 @@ func NewStatesArgs() *StatesArgs {
 		LastVoteproofsHandler:  isaac.NewLastVoteproofsHandler(),
 		IsInSyncSourcePoolFunc: func(base.Address) bool { return false },
 		WhenStateSwitchedFunc:  func(StateType) {},
+		NewHandoverXBroker: func(context.Context) (*HandoverXBroker, error) {
+			return nil, util.ErrNotImplemented.Errorf("NewHandoverXBroker")
+		},
+		NewHandoverYBroker: func(context.Context, string) (*HandoverYBroker, error) {
+			return nil, util.ErrNotImplemented.Errorf("NewHandoverYBroker")
+		},
 	}
 }
 
@@ -48,7 +59,7 @@ type States struct {
 	params      *isaac.LocalParams
 	args        *StatesArgs
 	statech     chan switchContext
-	vpch        chan base.Voteproof
+	vpch        chan voteproofWithErrchan
 	newHandlers map[StateType]newHandler
 	*util.ContextDaemon
 	timers           *util.SimpleTimers
@@ -76,7 +87,7 @@ func NewStates(local base.LocalNode, params *isaac.LocalParams, args *StatesArgs
 		params:           params,
 		args:             args,
 		statech:          make(chan switchContext),
-		vpch:             make(chan base.Voteproof),
+		vpch:             make(chan voteproofWithErrchan),
 		newHandlers:      map[StateType]newHandler{},
 		cs:               nil,
 		timers:           timers,
@@ -206,6 +217,8 @@ func (st *States) startFunc(cancel func()) func(context.Context) error {
 
 		serr := st.startStatesSwitch(ctx)
 
+		st.cleanHandoverBrokers()
+
 		// NOTE exit current
 		switch current := st.current(); {
 		case current == nil:
@@ -231,40 +244,67 @@ func (st *States) startStatesSwitch(ctx context.Context) error {
 	}
 
 	for {
-		var sctx switchContext
 		var vp base.Voteproof
+		var errch chan error
 
 		select {
 		case <-ctx.Done():
 			return errors.Wrap(ctx.Err(), "states stopped by context")
-		case sctx = <-st.statech:
+		case sctx := <-st.statech:
+			if err := st.ensureSwitchState(sctx); err != nil {
+				return err
+			}
 		case vp = <-st.args.Ballotbox.Voteproof():
 		case vp = <-resolvervpch:
-		case vp = <-st.vpch:
+		case vperr := <-st.vpch:
+			vp = vperr.vp
+			errch = vperr.errch
 		}
 
 		if vp != nil {
-			if !st.args.LastVoteproofsHandler.IsNew(vp) {
-				continue
+			err := st.newVoteproof(vp)
+			if errch != nil {
+				errch <- err
 			}
 
-			switch err := st.voteproofToCurrent(vp, st.current()); {
-			case err == nil:
-				continue
-			case !errors.As(err, &sctx):
-				st.Log().Error().Err(err).
-					Func(base.VoteproofLogFunc("voteproof", vp)).Msg("failed to handle voteproof")
-
-				return err
-			}
-		}
-
-		if sctx != nil {
-			if err := st.ensureSwitchState(sctx); err != nil {
+			if err != nil {
 				return err
 			}
 		}
 	}
+}
+
+func (st *States) newVoteproof(vp base.Voteproof) error {
+	var sctx switchContext
+
+	var current handler
+
+	switch current = st.current(); {
+	case current == nil:
+		return nil
+	case !st.args.LastVoteproofsHandler.IsNew(vp):
+		return nil
+	}
+
+	switch err := st.voteproofToCurrent(vp, current); {
+	case err == nil:
+		return nil
+	case errors.Is(err, errIgnoreNewVoteproof):
+		return nil
+	case !errors.As(err, &sctx):
+		st.Log().Error().Err(err).
+			Func(base.VoteproofLogFunc("voteproof", vp)).Msg("failed to handle voteproof")
+
+		return err
+	}
+
+	if sctx != nil {
+		if err := st.ensureSwitchState(sctx); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (st *States) current() handler {
@@ -779,4 +819,15 @@ func mimicBallot(
 	}
 
 	return newbl, nil
+}
+
+type voteproofWithErrchan struct {
+	vp    base.Voteproof
+	errch chan error
+}
+
+func newVoteproofWithErrchan(vp base.Voteproof) voteproofWithErrchan {
+	errch := make(chan error, 1)
+
+	return voteproofWithErrchan{vp: vp, errch: errch}
 }
