@@ -40,7 +40,7 @@ func newVoteproofHandlerArgs() voteproofHandlerArgs {
 		WhenNewBlockConfirmed: func(base.Height) {},
 
 		whenNewVoteproof: func(base.Voteproof, isaac.LastVoteproofs) error {
-			return util.ErrNotImplemented.Errorf("newVoteproof")
+			return nil
 		},
 		prepareACCEPTBallot: func(base.INITVoteproof, base.Manifest, time.Duration) error {
 			return util.ErrNotImplemented.Errorf("prepareACCEPTBallot")
@@ -91,7 +91,6 @@ func (st *voteproofHandler) new() *voteproofHandler {
 		notallowconsensusch: make(chan struct{}, 1<<6),             // enough buffer
 	}
 
-	nst.args.whenNewVoteproof = func(base.Voteproof, isaac.LastVoteproofs) error { return nil }
 	nst.args.prepareACCEPTBallot = nst.defaultPrepareACCEPTBallot
 	nst.args.prepareNextRoundBallot = nst.defaultPrepareNextRoundBallot
 	nst.args.prepareSuffrageConfirmBallot = nst.defaultPrepareSuffrageConfirmBallot
@@ -177,6 +176,12 @@ func (st *voteproofHandler) exit(sctx switchContext) (func(), error) {
 	deferred, err := st.baseBallotHandler.exit(sctx)
 	if err != nil {
 		return nil, e(err, "")
+	}
+
+	if !st.allowedConsensus() {
+		if err := st.timers.StopAllTimers(); err != nil {
+			st.Log().Error().Err(err).Dict("state", switchContextLog(sctx)).Msg("failed to stop all timers")
+		}
 	}
 
 	if err := st.args.ProposalProcessors.Cancel(); err != nil {
