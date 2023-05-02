@@ -123,7 +123,9 @@ func (pps *ProposalProcessors) Process(
 	}, nil
 }
 
-func (pps *ProposalProcessors) Save(ctx context.Context, facthash util.Hash, avp base.ACCEPTVoteproof) (base.BlockMap, error) {
+func (pps *ProposalProcessors) Save(
+	ctx context.Context, facthash util.Hash, avp base.ACCEPTVoteproof,
+) (base.BlockMap, error) {
 	pps.Lock()
 	defer pps.Unlock()
 
