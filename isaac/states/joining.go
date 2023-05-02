@@ -455,8 +455,8 @@ func (st *JoiningHandler) nextBlock(avp base.ACCEPTVoteproof) {
 	}
 }
 
-func (st *JoiningHandler) setAllowConsensus(allow bool) { // revive:disable-line:flag-parameter
-	st.baseBallotHandler.setAllowConsensus(allow)
+func (st *JoiningHandler) whenSetAllowConsensus(allow bool) { // revive:disable-line:flag-parameter
+	st.baseBallotHandler.whenSetAllowConsensus(allow)
 
 	if !allow {
 		go st.switchState(emptySyncingSwitchContext(StateJoining))

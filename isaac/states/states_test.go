@@ -44,13 +44,13 @@ func (h dummyNewHandler) setStates(st *States) {
 }
 
 type dummyStateHandler struct {
-	s                  StateType
-	enterf             func(StateType, switchContext) error
-	enterdefer         func()
-	exitf              func(switchContext) error
-	exitdefer          func()
-	newVoteprooff      func(base.Voteproof) error
-	setAllowConsensusf func(bool)
+	s                      StateType
+	enterf                 func(StateType, switchContext) error
+	enterdefer             func()
+	exitf                  func(switchContext) error
+	exitdefer              func()
+	newVoteprooff          func(base.Voteproof) error
+	whenSetAllowConsensusf func(bool)
 }
 
 func newDummyStateHandler(state StateType) *dummyStateHandler {
@@ -95,16 +95,18 @@ func (st *dummyStateHandler) newVoteproof(vp base.Voteproof) error {
 	return st.newVoteprooff(vp)
 }
 
-func (st *dummyStateHandler) setAllowConsensus(allow bool) {
-	if st.setAllowConsensusf == nil {
+func (st *dummyStateHandler) allowedConsensus() bool {
+	return false
+}
+
+func (st *dummyStateHandler) setAllowConsensus(allow bool) {}
+
+func (st *dummyStateHandler) whenSetAllowConsensus(allow bool) {
+	if st.whenSetAllowConsensusf == nil {
 		return
 	}
 
-	st.setAllowConsensusf(allow)
-}
-
-func (st *dummyStateHandler) allowedConsensus() bool {
-	return false
+	st.whenSetAllowConsensusf(allow)
 }
 
 func (st *dummyStateHandler) setEnter(f func(StateType, switchContext) error, d func()) *dummyStateHandler {
@@ -127,8 +129,8 @@ func (st *dummyStateHandler) setNewVoteproof(f func(base.Voteproof) error) *dumm
 	return st
 }
 
-func (st *dummyStateHandler) setSetAllowConsensusf(f func(bool)) *dummyStateHandler {
-	st.setAllowConsensusf = f
+func (st *dummyStateHandler) setWhenSetAllowConsensusf(f func(bool)) *dummyStateHandler {
+	st.whenSetAllowConsensusf = f
 
 	return st
 }
@@ -293,6 +295,15 @@ func (t *testStates) TestFailedToEnterIntoBootingAtStarting() {
 
 func (t *testStates) booted() (*States, <-chan error) {
 	args := NewStatesArgs()
+
+	args.Ballotbox = NewBallotbox(
+		t.local.Address(),
+		t.params,
+		func(base.Height) (base.Suffrage, bool, error) {
+			return nil, false, nil
+		},
+	)
+
 	st, err := NewStates(t.local, t.params, args)
 	t.NoError(err)
 	_ = st.SetLogging(logging.TestNilLogging)
@@ -1024,7 +1035,7 @@ func (t *testStates) TestNotAllowConsensusForConsensus() {
 		return nil
 	}, nil)
 	consensusallowconsensusch := make(chan bool, 1)
-	_ = consensushandler.setSetAllowConsensusf(func(allow bool) {
+	_ = consensushandler.setWhenSetAllowConsensusf(func(allow bool) {
 		consensusallowconsensusch <- allow
 
 		if !allow {
@@ -1137,7 +1148,7 @@ func (t *testStates) TestNotAllowConsensusForJoining() {
 		return nil
 	}, nil)
 	joiningallowconsensusch := make(chan bool, 1)
-	_ = joininghandler.setSetAllowConsensusf(func(allow bool) {
+	_ = joininghandler.setWhenSetAllowConsensusf(func(allow bool) {
 		joiningallowconsensusch <- allow
 
 		if !allow {

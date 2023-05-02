@@ -153,6 +153,22 @@ func (st *baseHandler) allowedConsensus() bool {
 	return st.sts.AllowedConsensus()
 }
 
-func (st *baseHandler) setAllowConsensus(allow bool) {
-	_ = st.allowedConsensusLocked.SetValue(allow)
+func (st *baseHandler) setAllowConsensus(allow bool) bool {
+	if st.sts == nil {
+		var changed bool
+
+		_, _ = st.allowedConsensusLocked.Set(func(prev bool, _ bool) (bool, error) {
+			changed = prev != allow
+
+			return allow, nil
+		})
+
+		st.whenSetAllowConsensus(allow)
+
+		return changed
+	}
+
+	return st.sts.SetAllowConsensus(allow)
 }
+
+func (st *baseHandler) whenSetAllowConsensus(bool) {}

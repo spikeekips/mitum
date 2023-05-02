@@ -104,12 +104,13 @@ func (st *HandoverHandler) exit(i switchContext) (func(), error) {
 	}
 
 	if finished, _ := st.finishedWithVoteproof.Value(); finished {
-		if st.sts != nil {
-			_ = st.sts.SetAllowConsensus(true)
-			st.sts.cleanHandoverBrokers()
-		}
+		_ = st.setAllowConsensus(true)
 
-		st.setAllowConsensus(true)
+		if st.sts != nil {
+			st.sts.cleanHandoverBrokers()
+
+			_ = st.sts.args.Ballotbox.Count()
+		}
 	}
 
 	return deferred, nil

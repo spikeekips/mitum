@@ -303,8 +303,9 @@ func (h *HandoverYBroker) patchStates(st *States) error {
 		case current == nil:
 		case vp == nil:
 			st.cleanHandoverBrokers()
-
 			_ = st.SetAllowConsensus(true)
+
+			_ = st.args.Ballotbox.Count()
 
 			go func() {
 				// NOTE moves to syncing

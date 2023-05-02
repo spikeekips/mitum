@@ -846,8 +846,18 @@ func (st *voteproofHandler) wrongACCEPTBallot(_ context.Context, ivp base.INITVo
 	return nil
 }
 
-func (st *voteproofHandler) setAllowConsensus(allow bool) { // revive:disable-line:flag-parameter
-	st.baseBallotHandler.setAllowConsensus(allow)
+func (st *voteproofHandler) setAllowConsensus(allow bool) bool {
+	changed := st.baseBallotHandler.setAllowConsensus(allow)
+
+	if st.sts == nil && changed {
+		st.whenSetAllowConsensus(allow)
+	}
+
+	return changed
+}
+
+func (st *voteproofHandler) whenSetAllowConsensus(allow bool) { // revive:disable-line:flag-parameter
+	st.baseBallotHandler.whenSetAllowConsensus(allow)
 
 	if !allow {
 		st.notallowconsensusch <- struct{}{}

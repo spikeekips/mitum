@@ -967,7 +967,7 @@ func (t *testConsensusHandler) TestNewVoteproofButNotAllowConsensus() {
 		avp, _ := t.VoteproofsPair(point, point.NextHeight(), manifest.Hash(), t.PRPool.Hash(point), t.PRPool.Hash(point.NextHeight()), nodes)
 
 		t.True(st.allowedConsensus())
-		st.baseBallotHandler.setAllowConsensus(false)
+		st.setAllowConsensus(false)
 
 		err = st.newVoteproof(avp)
 

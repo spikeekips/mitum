@@ -769,7 +769,7 @@ func (st *States) SetAllowConsensus(allow bool) bool { // revive:disable-line:fl
 		case st.cs.state() == StateJoining, st.cs.state() == StateConsensus:
 			st.Log().Debug().Stringer("current", st.cs.state()).Bool("allow", allow).Msg("set allow consensus")
 
-			st.cs.setAllowConsensus(allow) // NOTE if not allowed, exits from consensus state
+			st.cs.whenSetAllowConsensus(allow) // NOTE if not allowed, exits from consensus state
 		}
 	}
 
