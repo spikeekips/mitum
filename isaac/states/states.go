@@ -578,13 +578,13 @@ func (st *States) mimicBallotFunc() (func(base.Ballot), func()) {
 	timers, _ := util.NewSimpleTimersFixedIDs(2, time.Millisecond*33, alltimerids) //nolint:gomnd //...
 	_ = timers.Start(context.Background())
 
-	votef := func(bl base.Ballot, threshold base.Threshold) error {
+	votef := func(bl base.Ballot) error {
 		return nil
 	}
 
 	if st.args.Ballotbox != nil {
-		votef = func(bl base.Ballot, threshold base.Threshold) error {
-			_, err := st.args.Ballotbox.Vote(bl, threshold)
+		votef = func(bl base.Ballot) error {
+			_, err := st.args.Ballotbox.Vote(bl)
 
 			return err
 		}
@@ -622,7 +622,7 @@ func (st *States) mimicBallotFunc() (func(base.Ballot), func()) {
 			l := st.Log().With().Interface("ballot", bl).Interface("new_ballot", newbl).Logger()
 
 			go func() {
-				if err := votef(newbl, st.params.Threshold()); err != nil {
+				if err := votef(newbl); err != nil {
 					l.Error().Err(err).Msg("failed to vote mimic ballot")
 				}
 			}()

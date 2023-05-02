@@ -58,7 +58,7 @@ func PBallotbox(pctx context.Context) (context.Context, error) {
 		return pctx, err
 	}
 
-	ballotbox := isaacstates.NewBallotbox(local.Address(), sp.Height)
+	ballotbox := isaacstates.NewBallotbox(local.Address(), params, sp.Height)
 	_ = ballotbox.SetCountAfter(params.WaitPreparingINITBallot())
 	_ = ballotbox.SetLogging(log)
 
@@ -274,7 +274,7 @@ func PStatesSetHandlers(pctx context.Context) (context.Context, error) { //reviv
 	}
 
 	votef := func(bl base.Ballot) (bool, error) {
-		return ballotbox.Vote(bl, params.Threshold())
+		return ballotbox.Vote(bl)
 	}
 
 	suffrageVotingFindf := func(ctx context.Context, height base.Height, suf base.Suffrage) (
@@ -415,7 +415,6 @@ func newSyncerFunc(pctx context.Context) (
 
 func consensusHandlerArgs(pctx context.Context) (*isaacstates.ConsensusHandlerArgs, error) {
 	var log *logging.Logging
-	var params *isaac.LocalParams
 	var ballotbox *isaacstates.Ballotbox
 	var db isaac.Database
 	var proposalSelector *isaac.BaseProposalSelector
@@ -425,7 +424,6 @@ func consensusHandlerArgs(pctx context.Context) (*isaacstates.ConsensusHandlerAr
 
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
-		LocalParamsContextKey, &params,
 		BallotboxContextKey, &ballotbox,
 		CenterDatabaseContextKey, &db,
 		ProposalSelectorContextKey, &proposalSelector,
@@ -445,7 +443,7 @@ func consensusHandlerArgs(pctx context.Context) (*isaacstates.ConsensusHandlerAr
 		whenNewBlockSavedf = func(base.BlockMap) {}
 	}
 
-	defaultWhenNewBlockSavedf := DefaultWhenNewBlockSavedInConsensusStateFunc(log, params, ballotbox, db, nodeinfo)
+	defaultWhenNewBlockSavedf := DefaultWhenNewBlockSavedInConsensusStateFunc(log, ballotbox, db, nodeinfo)
 
 	var whenNewBlockConfirmedf func(base.Height)
 
@@ -573,7 +571,7 @@ func newSyncingHandlerArgs(pctx context.Context) (*isaacstates.SyncingHandlerArg
 	args.NodeInConsensusNodesFunc = nodeInConsensusNodesf
 	args.NewSyncerFunc = newsyncerf
 	args.WhenFinishedFunc = func(base.Height) {
-		ballotbox.Count(params.Threshold())
+		ballotbox.Count()
 	}
 	args.JoinMemberlistFunc = joinMemberlistf
 	args.LeaveMemberlistFunc = leaveMemberlistf
@@ -1050,7 +1048,6 @@ func DefaultWhenNewBlockSavedInSyncingStateFunc(
 
 func DefaultWhenNewBlockSavedInConsensusStateFunc(
 	log *logging.Logging,
-	params *isaac.LocalParams,
 	ballotbox *isaacstates.Ballotbox,
 	db isaac.Database,
 	nodeinfo *isaacnetwork.NodeInfoUpdater,
@@ -1061,7 +1058,7 @@ func DefaultWhenNewBlockSavedInConsensusStateFunc(
 			Stringer("state", isaacstates.StateConsensus).
 			Msg("new block saved")
 
-		ballotbox.Count(params.Threshold())
+		ballotbox.Count()
 
 		_ = UpdateNodeInfoWithNewBlock(db, nodeinfo)
 	}

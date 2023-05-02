@@ -279,7 +279,7 @@ func FindMissingBallotsFromBallotboxFunc(
 	ballotbox *Ballotbox,
 ) func(context.Context, base.StagePoint, bool) ([]base.Address, bool, error) {
 	return func(_ context.Context, point base.StagePoint, checkalone bool) ([]base.Address, bool, error) {
-		_ = ballotbox.Count(params.Threshold())
+		_ = ballotbox.Count()
 
 		// NOTE check local is in **last** suffrage, if not, return empty nodes
 		// and true ok.
@@ -298,7 +298,7 @@ func FindMissingBallotsFromBallotboxFunc(
 
 		// NOTE if nodes are entire suffrage nodes except local, local seems to
 		// be out of network. it returns empty nodes and false ok.
-		switch nodes, ok, err := ballotbox.MissingNodes(point, params.Threshold()); {
+		switch nodes, ok, err := ballotbox.MissingNodes(point); {
 		case err != nil:
 			return nil, false, err
 		case !ok:
@@ -341,7 +341,7 @@ func VoteSuffrageVotingFunc(
 	getSuffragef isaac.GetSuffrageByBlockHeight,
 ) func(context.Context, base.StagePoint, []base.Address) (base.Voteproof, error) {
 	return func(ctx context.Context, point base.StagePoint, nodes []base.Address) (base.Voteproof, error) {
-		_ = ballotbox.Count(params.Threshold())
+		_ = ballotbox.Count()
 
 		var suf base.Suffrage
 
@@ -387,7 +387,7 @@ func VoteSuffrageVotingFunc(
 			return nil, nil
 		}
 
-		return ballotbox.StuckVoteproof(point, params.Threshold(), expels)
+		return ballotbox.StuckVoteproof(point, expels)
 	}
 }
 

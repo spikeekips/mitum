@@ -176,7 +176,6 @@ func PLastConsensusNodesWatcher(pctx context.Context) (context.Context, error) {
 func PPatchLastConsensusNodesWatcher(pctx context.Context) (context.Context, error) {
 	var log *logging.Logging
 	var local base.LocalNode
-	var params *isaac.LocalParams
 	var db isaac.Database
 	var watcher *isaac.LastConsensusNodesWatcher
 	var states *isaacstates.States
@@ -188,7 +187,6 @@ func PPatchLastConsensusNodesWatcher(pctx context.Context) (context.Context, err
 	if err := util.LoadFromContextOK(pctx,
 		LoggingContextKey, &log,
 		LocalContextKey, &local,
-		LocalParamsContextKey, &params,
 		CenterDatabaseContextKey, &db,
 		LastConsensusNodesWatcherContextKey, &watcher,
 		StatesContextKey, &states,
@@ -209,7 +207,7 @@ func PPatchLastConsensusNodesWatcher(pctx context.Context) (context.Context, err
 			log.Log().Debug().Msg("candiates updated")
 		}
 
-		ballotbox.Count(params.Threshold())
+		ballotbox.Count()
 
 		if updated != nil {
 			// NOTE remove expel nodes from SyncSourcePool

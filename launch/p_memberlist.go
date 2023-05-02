@@ -224,7 +224,7 @@ func patchMemberlistNotifyMsg(pctx context.Context) (context.Context, error) {
 				return
 			}
 
-			if _, err := ballotbox.Vote(t, params.Threshold()); err != nil {
+			if _, err := ballotbox.Vote(t); err != nil {
 				l.Error().Err(err).Interface("ballot", t).Msg("new ballot; failed to vote")
 
 				return

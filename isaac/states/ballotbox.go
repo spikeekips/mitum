@@ -19,6 +19,7 @@ type Ballotbox struct {
 	*util.ContextDaemon
 	*logging.Logging
 	local             base.Address
+	params            base.LocalParams
 	getSuffrage       isaac.GetSuffrageByBlockHeight
 	isValidVoteprooff func(base.Voteproof, base.Suffrage) error
 	suffrageVotef     func(base.SuffrageExpelOperation) error
@@ -34,6 +35,7 @@ type Ballotbox struct {
 
 func NewBallotbox(
 	local base.Address,
+	params base.LocalParams,
 	getSuffrage isaac.GetSuffrageByBlockHeight,
 ) *Ballotbox {
 	vrs, _ := util.NewShardedMap[string, *voterecords](4) //nolint:gomnd // last 4 stages
@@ -43,6 +45,7 @@ func NewBallotbox(
 			return zctx.Str("module", "ballotbox")
 		}),
 		local:             local,
+		params:            params,
 		getSuffrage:       getSuffrage,
 		vrs:               vrs,
 		vpch:              make(chan base.Voteproof, math.MaxUint16),
@@ -90,7 +93,7 @@ func (box *Ballotbox) SetCountAfter(d time.Duration) *Ballotbox {
 	return box
 }
 
-func (box *Ballotbox) Vote(bl base.Ballot, threshold base.Threshold) (bool, error) {
+func (box *Ballotbox) Vote(bl base.Ballot) (bool, error) {
 	if !box.checkBallot(bl) {
 		return false, nil
 	}
@@ -104,7 +107,6 @@ func (box *Ballotbox) Vote(bl base.Ballot, threshold base.Threshold) (bool, erro
 		bl.SignFact(),
 		bl.Voteproof(),
 		expels,
-		threshold,
 	)
 	if err != nil {
 		return false, errors.WithMessage(err, "vote")
@@ -133,8 +135,8 @@ func (box *Ballotbox) Vote(bl base.Ballot, threshold base.Threshold) (bool, erro
 	return voted, nil
 }
 
-func (box *Ballotbox) VoteSignFact(sf base.BallotSignFact, threshold base.Threshold) (bool, error) {
-	voted, deferred, err := box.vote(sf, nil, nil, threshold)
+func (box *Ballotbox) VoteSignFact(sf base.BallotSignFact) (bool, error) {
+	voted, deferred, err := box.vote(sf, nil, nil)
 	if err != nil {
 		return false, errors.WithMessage(err, "vote sign fact")
 	}
@@ -150,13 +152,13 @@ func (box *Ballotbox) VoteSignFact(sf base.BallotSignFact, threshold base.Thresh
 	return voted, nil
 }
 
-func (box *Ballotbox) Count(threshold base.Threshold) bool {
+func (box *Ballotbox) Count() bool {
 	vrs := box.unfinishedVoterecords()
 
 	var hasvoteproof bool
 
 	for i := range vrs {
-		if vps := box.countVoterecords(vrs[i], threshold); len(vps) > 0 {
+		if vps := box.countVoterecords(vrs[i]); len(vps) > 0 {
 			hasvoteproof = true
 		}
 	}
@@ -183,7 +185,6 @@ func (box *Ballotbox) Voted(point base.StagePoint, nodes []base.Address) []base.
 
 func (box *Ballotbox) StuckVoteproof(
 	point base.StagePoint,
-	threshold base.Threshold,
 	expels []base.SuffrageExpelOperation,
 ) (vp base.Voteproof, _ error) {
 	if len(expels) < 1 {
@@ -195,12 +196,12 @@ func (box *Ballotbox) StuckVoteproof(
 		return vp, nil
 	}
 
-	_ = box.countVoterecords(vr, threshold)
+	_ = box.countVoterecords(vr)
 
-	return vr.stuckVoteproof(threshold, expels)
+	return vr.stuckVoteproof(box.params.Threshold(), expels)
 }
 
-func (box *Ballotbox) MissingNodes(point base.StagePoint, threshold base.Threshold) ([]base.Address, bool, error) {
+func (box *Ballotbox) MissingNodes(point base.StagePoint) ([]base.Address, bool, error) {
 	vr, found := box.voterecords(point, false)
 
 	switch {
@@ -209,7 +210,7 @@ func (box *Ballotbox) MissingNodes(point base.StagePoint, threshold base.Thresho
 	case vr.isFinishedLocked():
 		return nil, true, nil
 	default:
-		_ = box.countVoterecords(vr, threshold)
+		_ = box.countVoterecords(vr)
 
 		if vr.isFinishedLocked() {
 			return nil, true, nil
@@ -330,7 +331,6 @@ func (box *Ballotbox) vote(
 	signfact base.BallotSignFact,
 	vp base.Voteproof,
 	expels []base.SuffrageExpelOperation,
-	threshold base.Threshold,
 ) (bool, func() []base.Voteproof, error) {
 	fact := signfact.Fact().(base.BallotFact) //nolint:forcetypeassert //...
 
@@ -362,7 +362,7 @@ func (box *Ballotbox) vote(
 			deferred = func() []base.Voteproof {
 				last := box.LastPoint()
 
-				if vr.voteproofFromBallotsLocked(vp, last, threshold, isaac.IsNewVoteproof) {
+				if vr.voteproofFromBallotsLocked(vp, last, box.params.Threshold(), isaac.IsNewVoteproof) {
 					box.vpch <- vp
 
 					return []base.Voteproof{vp}
@@ -376,7 +376,7 @@ func (box *Ballotbox) vote(
 	}
 
 	return voted, func() []base.Voteproof {
-		return box.countVoterecords(vr, threshold)
+		return box.countVoterecords(vr)
 	}, nil
 }
 
@@ -465,7 +465,7 @@ func (box *Ballotbox) newVoterecords( //revive:disable-line:flag-parameter
 	return vr
 }
 
-func (box *Ballotbox) countVoterecords(vr *voterecords, threshold base.Threshold) []base.Voteproof {
+func (box *Ballotbox) countVoterecords(vr *voterecords) []base.Voteproof {
 	box.countLock.Lock()
 	defer box.countLock.Unlock()
 
@@ -473,7 +473,7 @@ func (box *Ballotbox) countVoterecords(vr *voterecords, threshold base.Threshold
 		return nil
 	}
 
-	vps := vr.count(box.local, box.LastPoint(), threshold, box.countAfter)
+	vps := vr.count(box.local, box.LastPoint(), box.params.Threshold(), box.countAfter)
 	if len(vps) < 1 {
 		return nil
 	}

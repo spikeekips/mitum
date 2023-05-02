@@ -227,7 +227,7 @@ func PNetworkHandlers(pctx context.Context) (context.Context, error) {
 						return nil
 					}
 
-					_, err := ballotbox.VoteSignFact(bl, params.Threshold())
+					_, err := ballotbox.VoteSignFact(bl)
 
 					return err
 				},

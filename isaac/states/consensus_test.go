@@ -618,9 +618,9 @@ func (t *testConsensusHandler) TestWithBallotbox() {
 
 	t.LocalParams = t.LocalParams.SetWaitPreparingINITBallot(time.Nanosecond)
 
-	th := base.Threshold(100)
 	box := NewBallotbox(
 		t.Local.Address(),
+		t.LocalParams.SetThreshold(base.Threshold(100)),
 		func(base.Height) (base.Suffrage, bool, error) {
 			return suf, true, nil
 		},
@@ -661,7 +661,7 @@ func (t *testConsensusHandler) TestWithBallotbox() {
 	}
 
 	st.args.VoteFunc = func(bl base.Ballot) (bool, error) {
-		voted, err := box.Vote(bl, th)
+		voted, err := box.Vote(bl)
 		if err != nil {
 			return false, errors.WithStack(err)
 		}
