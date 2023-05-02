@@ -31,6 +31,7 @@ type HandoverXBrokerArgs struct {
 	whenCanceledForStates func(error)
 	WhenFinished          func(base.INITVoteproof) error
 	whenFinishedForStates func(base.INITVoteproof) error
+	GetProposal           func(proposalfacthash util.Hash) (base.ProposalSignFact, bool, error)
 	Local                 base.Node
 	NetworkID             base.NetworkID
 	MinChallengeCount     uint64
@@ -52,6 +53,9 @@ func NewHandoverXBrokerArgs(local base.Node, networkID base.NetworkID) *Handover
 		WhenFinished:          func(base.INITVoteproof) error { return nil },
 		whenFinishedForStates: func(base.INITVoteproof) error {
 			return util.ErrNotImplemented.Errorf("whenFinishedForStates")
+		},
+		GetProposal: func(util.Hash) (base.ProposalSignFact, bool, error) {
+			return nil, false, util.ErrNotImplemented.Errorf("GetProposal")
 		},
 	}
 }
@@ -216,17 +220,24 @@ func (h *HandoverXBroker) sendVoteproof(ctx context.Context, vp base.Voteproof) 
 	}
 
 	if ivp, ok := vp.(base.INITVoteproof); ok {
+		// NOTE send proposal of init voteproof
+		if vp.Result() == base.VoteResultMajority {
+			switch pr, found, err := h.args.GetProposal(ivp.BallotMajority().Proposal()); {
+			case err != nil, !found:
+			default:
+				if err := h.sendData(ctx, pr); err != nil {
+					return false, err
+				}
+			}
+		}
+
 		switch ok, err := h.isFinished(ivp); {
 		case err != nil:
 			return false, err
 		case ok:
 			h.Log().Debug().Interface("init_voteproof", ivp).Msg("finished")
 
-			if err := h.finish(ivp); err != nil {
-				return false, err
-			}
-
-			return true, nil
+			return true, h.finish(ivp)
 		}
 	}
 
