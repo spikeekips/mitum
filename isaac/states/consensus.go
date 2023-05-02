@@ -18,7 +18,8 @@ func NewConsensusHandlerArgs() *ConsensusHandlerArgs {
 
 type ConsensusHandler struct {
 	*voteproofHandler
-	args *ConsensusHandlerArgs
+	args                *ConsensusHandlerArgs
+	handoverXBrokerFunc func() *HandoverXBroker
 }
 
 type NewConsensusHandlerType struct {
@@ -32,21 +33,31 @@ func NewNewConsensusHandlerType(
 ) *NewConsensusHandlerType {
 	return &NewConsensusHandlerType{
 		ConsensusHandler: &ConsensusHandler{
-			voteproofHandler: newVoteproofHandler(StateConsensus, local, params, &args.voteproofHandlerArgs),
-			args:             args,
+			voteproofHandler:    newVoteproofHandler(StateConsensus, local, params, &args.voteproofHandlerArgs),
+			args:                args,
+			handoverXBrokerFunc: func() *HandoverXBroker { return nil },
 		},
 	}
 }
 
 func (st *NewConsensusHandlerType) new() (handler, error) {
 	nst := &ConsensusHandler{
-		voteproofHandler: st.voteproofHandler.new(),
-		args:             st.args,
+		voteproofHandler:    st.voteproofHandler.new(),
+		args:                st.args,
+		handoverXBrokerFunc: st.handoverXBrokerFunc,
 	}
 
 	nst.args.checkInState = nst.checkInState
 
 	return nst, nil
+}
+
+func (st *ConsensusHandler) whenNewVoteproof(vp base.Voteproof, _ isaac.LastVoteproofs) error {
+	if err := st.handoverXBrokerSendVoteproof(vp); err != nil {
+		st.Log().Error().Err(err).Interface("voteproof", vp).Msg("failed to send voteproof thru handover x broker")
+	}
+
+	return nil
 }
 
 func (st *ConsensusHandler) checkInState(vp base.Voteproof) switchContext {
@@ -55,6 +66,27 @@ func (st *ConsensusHandler) checkInState(vp base.Voteproof) switchContext {
 	}
 
 	return newSyncingSwitchContextWithVoteproof(StateConsensus, vp)
+}
+
+func (st *ConsensusHandler) handoverXBroker() *HandoverXBroker {
+	if st.sts == nil {
+		return st.handoverXBrokerFunc()
+	}
+
+	return st.sts.HandoverXBroker()
+}
+
+func (st *ConsensusHandler) handoverXBrokerSendVoteproof(vp base.Voteproof) error {
+	broker := st.handoverXBroker()
+	if broker == nil {
+		return nil
+	}
+
+	if _, err := broker.sendVoteproof(st.ctx, vp); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 type consensusSwitchContext struct {
