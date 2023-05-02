@@ -243,6 +243,7 @@ func (st *States) startStatesSwitch(ctx context.Context) error {
 		resolvervpch = st.args.BallotStuckResolver.Voteproof()
 	}
 
+end:
 	for {
 		var vp base.Voteproof
 		var errch chan error
@@ -255,6 +256,10 @@ func (st *States) startStatesSwitch(ctx context.Context) error {
 				return err
 			}
 		case vp = <-st.args.Ballotbox.Voteproof():
+			// FIXME voteproof from ballotbox ignored under not allowed consensus
+			if !st.AllowedConsensus() {
+				continue end
+			}
 		case vp = <-resolvervpch:
 		case vperr := <-st.vpch:
 			vp = vperr.vp
