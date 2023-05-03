@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	errHandoverCanceled = util.NewMError("handover canceled")
+	ErrHandoverCanceled = util.NewMError("handover canceled")
 	errHandoverIgnore   = util.NewMError("ignore")
 	errHandoverReset    = util.NewMError("wrong")
 )
@@ -44,7 +44,7 @@ func NewHandoverXBrokerArgs(local base.Node, networkID base.NetworkID) *Handover
 		NetworkID:         networkID,
 		MinChallengeCount: defaultHandoverXMinChallengeCount,
 		SendFunc: func(context.Context, interface{}) error {
-			return util.ErrNotImplemented.Errorf("SendFunc")
+			return ErrHandoverCanceled.Errorf("SendFunc not implemented")
 		},
 		CheckIsReady:          func() (bool, error) { return false, util.ErrNotImplemented.Errorf("CheckIsReady") },
 		WhenCanceled:          func(error) {},
@@ -114,8 +114,8 @@ func NewHandoverXBroker(ctx context.Context, args *HandoverXBrokerArgs) *Handove
 
 			cancel()
 
-			args.whenCanceledForStates(errHandoverCanceled.Errorf("canceled by message"))
-			args.WhenCanceled(errHandoverCanceled.Errorf("canceled by message"))
+			args.whenCanceledForStates(ErrHandoverCanceled.Errorf("canceled by message"))
+			args.WhenCanceled(ErrHandoverCanceled.Errorf("canceled by message"))
 		})
 	}
 
@@ -136,7 +136,7 @@ func (h *HandoverXBroker) ID() string {
 
 func (h *HandoverXBroker) isCanceled() error {
 	if err := h.ctxFunc().Err(); err != nil {
-		return errHandoverCanceled.Wrap(err)
+		return ErrHandoverCanceled.Wrap(err)
 	}
 
 	return nil
@@ -204,7 +204,7 @@ func (h *HandoverXBroker) finish(ivp base.INITVoteproof) error {
 
 	hc := newHandoverMessageFinish(h.id, ivp)
 	if err := h.args.SendFunc(h.ctxFunc(), hc); err != nil {
-		return errHandoverCanceled.Wrap(err)
+		return ErrHandoverCanceled.Wrap(err)
 	}
 
 	h.Log().Debug().Interface("message", hc).Msg("sent HandoverMessageFinish")
@@ -242,13 +242,12 @@ func (h *HandoverXBroker) sendVoteproof(ctx context.Context, vp base.Voteproof) 
 	}
 
 	switch err := h.sendVoteproofErr(ctx, vp); {
-	case err == nil,
-		errors.Is(err, errHandoverIgnore):
+	case err == nil, errors.Is(err, errHandoverIgnore):
 		return false, nil
 	default:
 		h.cancel(err)
 
-		return false, errHandoverCanceled.Wrap(err)
+		return false, ErrHandoverCanceled.Wrap(err)
 	}
 }
 
@@ -261,11 +260,8 @@ func (h *HandoverXBroker) sendVoteproofErr(ctx context.Context, vp base.Voteproo
 	})
 
 	hc := newHandoverMessageData(h.id, vp)
-	if err := h.args.SendFunc(ctx, hc); err != nil {
-		return errHandoverIgnore.Wrap(err)
-	}
 
-	return nil
+	return h.args.SendFunc(ctx, hc)
 }
 
 func (h *HandoverXBroker) sendData(ctx context.Context, data interface{}) error {
@@ -274,11 +270,15 @@ func (h *HandoverXBroker) sendData(ctx context.Context, data interface{}) error 
 	}
 
 	hc := newHandoverMessageData(h.id, data)
-	if err := h.args.SendFunc(ctx, hc); err != nil {
-		return errHandoverIgnore.Wrap(err)
-	}
 
-	return nil
+	switch err := h.args.SendFunc(ctx, hc); {
+	case err == nil:
+		return nil
+	default:
+		h.cancel(err)
+
+		return ErrHandoverCanceled.Wrap(err)
+	}
 }
 
 func (h *HandoverXBroker) receive(i interface{}) error {
@@ -300,11 +300,11 @@ func (h *HandoverXBroker) receive(i interface{}) error {
 			h.readyEnd = 0
 
 			err = nil
-		case errors.Is(err, errHandoverCanceled):
+		case errors.Is(err, ErrHandoverCanceled):
 		default:
 			h.cancel(err)
 
-			err = errHandoverCanceled.Wrap(err)
+			err = ErrHandoverCanceled.Wrap(err)
 		}
 
 		h.Log().Debug().
@@ -347,7 +347,7 @@ func (h *HandoverXBroker) receiveInternal(i interface{}, successcount uint64) (u
 	if _, ok := i.(HandoverMessageCancel); ok {
 		h.cancelByMessage()
 
-		return 0, errHandoverCanceled.Errorf("canceled by message")
+		return 0, ErrHandoverCanceled.Errorf("canceled by message")
 	}
 
 	switch t := i.(type) {
@@ -492,11 +492,11 @@ func (h *HandoverXBroker) receiveHandoverReady(hc HandoverMessageReady, successc
 	); serr != nil {
 		h.readyEnd = 0
 
-		if err != nil {
-			return util.JoinErrors(err, serr)
-		}
+		err = util.JoinErrors(err, serr)
 
-		return errHandoverIgnore.Wrap(serr)
+		h.cancel(err)
+
+		return ErrHandoverCanceled.Wrap(err)
 	}
 
 	switch {

@@ -45,7 +45,7 @@ func (t *testHandoverXBroker) TestNew() {
 
 		err := broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, errHandoverCanceled))
+		t.True(errors.Is(err, ErrHandoverCanceled))
 	})
 
 	t.Run("cancel(); isCanceled", func() {
@@ -59,7 +59,7 @@ func (t *testHandoverXBroker) TestNew() {
 
 		err := broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, errHandoverCanceled))
+		t.True(errors.Is(err, ErrHandoverCanceled))
 	})
 }
 
@@ -77,7 +77,6 @@ func (t *testHandoverXBroker) setReady(broker *HandoverXBroker) {
 
 func (t *testHandoverXBroker) TestSendVoteproof() {
 	args := t.xargs()
-	args.SendFunc = func(context.Context, interface{}) error { return nil }
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -122,7 +121,7 @@ func (t *testHandoverXBroker) TestSendVoteproof() {
 
 		err = broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, errHandoverCanceled))
+		t.True(errors.Is(err, ErrHandoverCanceled))
 	})
 
 	t.Run("send init voteproof again", func() {
@@ -133,7 +132,37 @@ func (t *testHandoverXBroker) TestSendVoteproof() {
 		_, ivp := t.VoteproofsPair(point.PrevRound(), point, nil, nil, nil, []base.LocalNode{base.RandomLocalNode()})
 		_, err := broker.sendVoteproof(ctx, ivp)
 		t.Error(err)
-		t.True(errors.Is(err, errHandoverCanceled))
+		t.True(errors.Is(err, ErrHandoverCanceled))
+	})
+
+	t.Run("send failed", func() {
+		args := t.xargs()
+		broker := NewHandoverXBroker(context.Background(), args)
+
+		broker.args.SendFunc = func(context.Context, interface{}) error {
+			return errors.Errorf("hihihi")
+		}
+
+		canceledch := make(chan error, 1)
+		broker.args.WhenCanceled = func(err error) {
+			canceledch <- err
+		}
+
+		_, ivp := t.VoteproofsPair(point.PrevRound(), point, nil, nil, nil, []base.LocalNode{base.RandomLocalNode()})
+		_, err := broker.sendVoteproof(ctx, ivp)
+		t.Error(err)
+		t.True(errors.Is(err, ErrHandoverCanceled))
+
+		err = broker.isCanceled()
+		t.Error(err)
+		t.True(errors.Is(err, ErrHandoverCanceled))
+
+		select {
+		case <-time.After(time.Second):
+			t.NoError(errors.Errorf("failed to wait cancel"))
+		case err = <-canceledch:
+			t.ErrorContains(err, "hihihi")
+		}
 	})
 }
 
@@ -152,7 +181,7 @@ func (t *testHandoverXBroker) TestReceiveStagePoint() {
 
 		err := broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, errHandoverCanceled))
+		t.True(errors.Is(err, ErrHandoverCanceled))
 	})
 
 	broker = NewHandoverXBroker(context.Background(), args)
@@ -202,7 +231,7 @@ func (t *testHandoverXBroker) TestReceiveStagePoint() {
 
 		err := broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, errHandoverCanceled))
+		t.True(errors.Is(err, ErrHandoverCanceled))
 	})
 }
 
@@ -223,7 +252,7 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 
 		err = broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, errHandoverCanceled))
+		t.True(errors.Is(err, ErrHandoverCanceled))
 	})
 
 	t.Run("receive; wrong publickey", func() {
@@ -242,7 +271,7 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 
 		err = broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, errHandoverCanceled))
+		t.True(errors.Is(err, ErrHandoverCanceled))
 	})
 
 	t.Run("receive without no previous voteproof", func() {
@@ -257,7 +286,7 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 
 		err := broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, errHandoverCanceled))
+		t.True(errors.Is(err, ErrHandoverCanceled))
 	})
 
 	t.Run("receive; last not accept voteproof", func() {
@@ -379,7 +408,7 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 
 		err := broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, errHandoverCanceled))
+		t.True(errors.Is(err, ErrHandoverCanceled))
 	})
 }
 
@@ -396,7 +425,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageReady() {
 
 		err := broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, errHandoverCanceled))
+		t.True(errors.Is(err, ErrHandoverCanceled))
 	})
 
 	t.Run("before no previous voteproof", func() {
@@ -409,7 +438,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageReady() {
 
 		err := broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, errHandoverCanceled))
+		t.True(errors.Is(err, ErrHandoverCanceled))
 	})
 
 	t.Run("not higher previous HandoverMessageReady", func() {
@@ -592,7 +621,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageReady() {
 
 		h := newHandoverMessageReady(broker.ID(), base.NewStagePoint(point, base.StageINIT))
 		err = broker.receive(h)
-		t.True(errors.Is(err, errHandoverCanceled))
+		t.True(errors.Is(err, ErrHandoverCanceled))
 		t.ErrorContains(err, "hahaha")
 
 		select {
@@ -631,7 +660,7 @@ func (t *testHandoverXBroker) TestFinish() {
 
 			err := broker.isCanceled()
 			t.Error(err)
-			t.True(errors.Is(err, errHandoverCanceled))
+			t.True(errors.Is(err, ErrHandoverCanceled))
 		}
 	})
 
@@ -646,11 +675,11 @@ func (t *testHandoverXBroker) TestFinish() {
 		err := broker.finish(nil)
 		t.Error(err)
 		t.ErrorContains(err, "failed to send")
-		t.True(errors.Is(err, errHandoverCanceled))
+		t.True(errors.Is(err, ErrHandoverCanceled))
 
 		err = broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, errHandoverCanceled))
+		t.True(errors.Is(err, ErrHandoverCanceled))
 	})
 }
 

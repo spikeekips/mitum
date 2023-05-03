@@ -21,6 +21,10 @@ type baseTestHandoverBroker struct {
 
 func (t *baseTestHandoverBroker) xargs() *HandoverXBrokerArgs {
 	args := NewHandoverXBrokerArgs(t.Local, t.LocalParams.NetworkID())
+	args.SendFunc = func(context.Context, interface{}) error {
+		return nil
+	}
+
 	args.CheckIsReady = func() (bool, error) {
 		return true, nil
 	}
@@ -166,11 +170,11 @@ func (t *testHandoverXYBroker) TestFinished() {
 	t.T().Log("check canceled")
 	err := xbroker.isCanceled()
 	t.Error(err)
-	t.True(errors.Is(err, errHandoverCanceled))
+	t.True(errors.Is(err, ErrHandoverCanceled))
 
 	err = ybroker.isCanceled()
 	t.Error(err)
-	t.True(errors.Is(err, errHandoverCanceled))
+	t.True(errors.Is(err, ErrHandoverCanceled))
 }
 
 func (t *testHandoverXYBroker) TestHandoverMessageCancel() {
@@ -255,11 +259,11 @@ func (t *testHandoverXYBroker) TestHandoverMessageCancel() {
 			t.NoError(errors.Errorf("failed to wait xbroker canceled"))
 		case err := <-xcanceledch:
 			t.Error(err)
-			t.True(errors.Is(err, errHandoverCanceled))
+			t.True(errors.Is(err, ErrHandoverCanceled))
 
 			err = xbroker.isCanceled()
 			t.Error(err)
-			t.True(errors.Is(err, errHandoverCanceled))
+			t.True(errors.Is(err, ErrHandoverCanceled))
 		}
 
 		select {
@@ -270,7 +274,7 @@ func (t *testHandoverXYBroker) TestHandoverMessageCancel() {
 
 			err = ybroker.isCanceled()
 			t.Error(err)
-			t.True(errors.Is(err, errHandoverCanceled))
+			t.True(errors.Is(err, ErrHandoverCanceled))
 		}
 	})
 }

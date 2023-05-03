@@ -3,6 +3,7 @@ package isaacstates
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
@@ -31,7 +32,7 @@ func (t *testHandoverYBroker) TestNew() {
 
 		err := broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, errHandoverCanceled))
+		t.True(errors.Is(err, ErrHandoverCanceled))
 	})
 
 	t.Run("cancel(); isCanceled", func() {
@@ -45,7 +46,7 @@ func (t *testHandoverYBroker) TestNew() {
 
 		err := broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, errHandoverCanceled))
+		t.True(errors.Is(err, ErrHandoverCanceled))
 	})
 }
 
@@ -90,7 +91,7 @@ func (t *testHandoverYBroker) TestReceiveMessageReadyResponse() {
 
 		err := broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, errHandoverCanceled))
+		t.True(errors.Is(err, ErrHandoverCanceled))
 
 		err = <-errch
 		t.Error(err)
@@ -127,7 +128,7 @@ func (t *testHandoverYBroker) TestReceiveMessageReadyResponse() {
 
 		err = broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, errHandoverCanceled))
+		t.True(errors.Is(err, ErrHandoverCanceled))
 
 		err = <-errch
 		t.Error(err)
@@ -148,12 +149,12 @@ func (t *testHandoverYBroker) TestReceiveMessageReadyResponse() {
 		hc := newHandoverMessageReadyResponse(broker.id, base.NewStagePoint(point.NextHeight(), base.StageINIT), true, nil)
 		err := broker.receive(hc)
 		t.Error(err)
-		t.True(errors.Is(err, errHandoverCanceled))
+		t.True(errors.Is(err, ErrHandoverCanceled))
 		t.ErrorContains(err, "unknown ready response message")
 
 		err = broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, errHandoverCanceled))
+		t.True(errors.Is(err, ErrHandoverCanceled))
 
 		err = <-errch
 		t.Error(err)
@@ -176,16 +177,43 @@ func (t *testHandoverYBroker) TestReceiveMessageReadyResponse() {
 		hc := newHandoverMessageReadyResponse(broker.id, base.NewStagePoint(point.NextHeight(), base.StageINIT), true, nil)
 		err := broker.receive(hc)
 		t.Error(err)
-		t.True(errors.Is(err, errHandoverCanceled))
+		t.True(errors.Is(err, ErrHandoverCanceled))
 		t.ErrorContains(err, "ready response message point not matched")
 
 		err = broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, errHandoverCanceled))
+		t.True(errors.Is(err, ErrHandoverCanceled))
 
 		err = <-errch
 		t.Error(err)
 		t.ErrorContains(err, "ready response message point not matched")
+	})
+
+	t.Run("send failed", func() {
+		args := t.yargs()
+		args.SendFunc = func(context.Context, interface{}) error {
+			return errors.Errorf("hihihi")
+		}
+
+		broker := NewHandoverYBroker(context.Background(), args, util.UUID().String())
+
+		errch := make(chan error, 1)
+		args.WhenCanceled = func(err error) {
+			errch <- err
+		}
+
+		err := broker.sendReady(context.Background(), base.NewStagePoint(point, base.StageINIT))
+
+		select {
+		case <-time.After(time.Second):
+			t.NoError(errors.Errorf("failed to wait cancel"))
+		case err = <-errch:
+			t.ErrorContains(err, "hihihi")
+		}
+
+		err = broker.isCanceled()
+		t.Error(err)
+		t.True(errors.Is(err, ErrHandoverCanceled))
 	})
 }
 
@@ -234,7 +262,7 @@ func (t *testHandoverYBroker) TestReceiveMessageFinish() {
 
 		err := broker.isCanceled()
 		t.Error(err)
-		t.True(errors.Is(err, errHandoverCanceled))
+		t.True(errors.Is(err, ErrHandoverCanceled))
 
 		err = <-errch
 		t.Error(err)

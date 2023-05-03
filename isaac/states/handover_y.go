@@ -33,7 +33,7 @@ func NewHandoverYBrokerArgs(networkID base.NetworkID) *HandoverYBrokerArgs {
 	return &HandoverYBrokerArgs{
 		NetworkID: networkID,
 		SendFunc: func(context.Context, interface{}) error {
-			return util.ErrNotImplemented.Errorf("SendFunc")
+			return ErrHandoverCanceled.Errorf("SendFunc not implemented")
 		},
 		NewVoteproof: func(base.Voteproof) error { return util.ErrNotImplemented.Errorf("NewVoteproof") },
 		NewData:      func(interface{}) error { return util.ErrNotImplemented.Errorf("NewData") },
@@ -97,7 +97,7 @@ func NewHandoverYBroker(ctx context.Context, args *HandoverYBrokerArgs, id strin
 		cancelOnce.Do(func() {
 			defer h.Log().Debug().Msg("canceled by message")
 
-			cancelf(errHandoverCanceled.Errorf("canceled by message"))
+			cancelf(ErrHandoverCanceled.Errorf("canceled by message"))
 		})
 	}
 
@@ -118,7 +118,7 @@ func (h *HandoverYBroker) ID() string {
 
 func (h *HandoverYBroker) isCanceled() error {
 	if err := h.ctxFunc().Err(); err != nil {
-		return errHandoverCanceled.Wrap(err)
+		return ErrHandoverCanceled.Wrap(err)
 	}
 
 	return nil
@@ -130,14 +130,12 @@ func (h *HandoverYBroker) sendStagePoint(ctx context.Context, point base.StagePo
 	}
 
 	if err := h.args.SendFunc(ctx, newHandoverMessageChallengeStagePoint(h.id, point)); err != nil {
-		return errHandoverIgnore.Wrap(err)
+		h.cancel(err)
+
+		return ErrHandoverCanceled.Wrap(err)
 	}
 
-	if err := h.sendReady(ctx, point); err != nil {
-		return errHandoverIgnore.Wrap(err)
-	}
-
-	return nil
+	return h.sendReady(ctx, point)
 }
 
 func (h *HandoverYBroker) sendBlockMap(ctx context.Context, point base.StagePoint, m base.BlockMap) error {
@@ -146,14 +144,12 @@ func (h *HandoverYBroker) sendBlockMap(ctx context.Context, point base.StagePoin
 	}
 
 	if err := h.args.SendFunc(ctx, newHandoverMessageChallengeBlockMap(h.id, point, m)); err != nil {
-		return errHandoverIgnore.Wrap(err)
+		h.cancel(err)
+
+		return ErrHandoverCanceled.Wrap(err)
 	}
 
-	if err := h.sendReady(ctx, point); err != nil {
-		return errHandoverIgnore.Wrap(err)
-	}
-
-	return nil
+	return h.sendReady(ctx, point)
 }
 
 func (h *HandoverYBroker) sendReady(ctx context.Context, point base.StagePoint) error {
@@ -174,7 +170,9 @@ func (h *HandoverYBroker) sendReady(ctx context.Context, point base.StagePoint) 
 	h.Log().Debug().Interface("message", hc).Msg("sent HandoverMessageReady")
 
 	if err := h.args.SendFunc(ctx, hc); err != nil {
-		return errHandoverIgnore.Wrap(err)
+		h.cancel(err)
+
+		return ErrHandoverCanceled.Wrap(err)
 	}
 
 	return nil
@@ -191,12 +189,12 @@ func (h *HandoverYBroker) receive(i interface{}) error {
 	switch err := h.receiveInternal(i); {
 	case err == nil:
 	case errors.Is(err, errHandoverIgnore):
-	case errors.Is(err, errHandoverCanceled):
+	case errors.Is(err, ErrHandoverCanceled):
 		return err
 	default:
 		h.cancel(err)
 
-		return errHandoverCanceled.Wrap(err)
+		return ErrHandoverCanceled.Wrap(err)
 	}
 
 	return nil
@@ -218,7 +216,7 @@ func (h *HandoverYBroker) receiveInternal(i interface{}) error {
 	if _, ok := i.(HandoverMessageCancel); ok {
 		h.cancelByMessage()
 
-		return errHandoverCanceled.Errorf("canceled by message")
+		return ErrHandoverCanceled.Errorf("canceled by message")
 	}
 
 	switch t := i.(type) {
