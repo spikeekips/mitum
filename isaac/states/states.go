@@ -9,7 +9,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
-	"github.com/spikeekips/mitum/network"
+	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 )
@@ -32,8 +32,9 @@ type StatesArgs struct {
 	IsInSyncSourcePoolFunc func(base.Address) bool
 	BallotBroadcaster      BallotBroadcaster
 	WhenStateSwitchedFunc  func(StateType)
-	NewHandoverXBroker     func(context.Context, network.ConnInfo) (*HandoverXBroker, error)
-	NewHandoverYBroker     func(context.Context, string /* handover id */, network.ConnInfo) (*HandoverYBroker, error)
+	NewHandoverXBroker     func(context.Context, quicstream.UDPConnInfo) (*HandoverXBroker, error)
+	NewHandoverYBroker     func(context.Context, string /* handover id */, quicstream.UDPConnInfo) (
+		*HandoverYBroker, error)
 	// AllowConsensus decides to enter Consensus states. If false, States enters
 	// Syncing state instead of Consensus state.
 	AllowConsensus bool
@@ -44,10 +45,10 @@ func NewStatesArgs() *StatesArgs {
 		LastVoteproofsHandler:  isaac.NewLastVoteproofsHandler(),
 		IsInSyncSourcePoolFunc: func(base.Address) bool { return false },
 		WhenStateSwitchedFunc:  func(StateType) {},
-		NewHandoverXBroker: func(context.Context, network.ConnInfo) (*HandoverXBroker, error) {
+		NewHandoverXBroker: func(context.Context, quicstream.UDPConnInfo) (*HandoverXBroker, error) {
 			return nil, util.ErrNotImplemented.Errorf("NewHandoverXBroker")
 		},
-		NewHandoverYBroker: func(context.Context, string, network.ConnInfo) (*HandoverYBroker, error) {
+		NewHandoverYBroker: func(context.Context, string, quicstream.UDPConnInfo) (*HandoverYBroker, error) {
 			return nil, util.ErrNotImplemented.Errorf("NewHandoverYBroker")
 		},
 	}

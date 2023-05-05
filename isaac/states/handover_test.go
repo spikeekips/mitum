@@ -8,7 +8,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
-	"github.com/spikeekips/mitum/network"
+	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/valuehash"
@@ -21,8 +21,8 @@ type testHandoverHandler struct {
 
 func (t *testHandoverHandler) newHandoverYBrokerFunc(
 	networkID base.NetworkID,
-) func(context.Context, string, network.ConnInfo) (*HandoverYBroker, error) {
-	return func(ctx context.Context, id string, connInfo network.ConnInfo) (*HandoverYBroker, error) {
+) func(context.Context, string, quicstream.UDPConnInfo) (*HandoverYBroker, error) {
+	return func(ctx context.Context, id string, connInfo quicstream.UDPConnInfo) (*HandoverYBroker, error) {
 		args := NewHandoverYBrokerArgs(networkID)
 		args.SendFunc = func(context.Context, interface{}) error { return nil }
 
@@ -108,7 +108,7 @@ func (t *testHandoverHandler) newStateWithINITVoteproof(point base.Point, suf ba
 		return nil
 	}
 
-	broker, err := t.newHandoverYBrokerFunc(t.LocalParams.NetworkID())(context.Background(), util.UUID().String(), nil)
+	broker, err := t.newHandoverYBrokerFunc(t.LocalParams.NetworkID())(context.Background(), util.UUID().String(), quicstream.UDPConnInfo{})
 	t.NoError(err)
 
 	broker.args.SendFunc = func(_ context.Context, i interface{}) error {

@@ -7,7 +7,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
-	"github.com/spikeekips/mitum/network"
+	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 )
@@ -68,7 +68,7 @@ type HandoverXBroker struct {
 	ctxFunc               func() context.Context
 	args                  *HandoverXBrokerArgs
 	successcount          *util.Locked[uint64]
-	connInfo              network.ConnInfo // NOTE y conn info
+	connInfo              quicstream.UDPConnInfo // NOTE y conn info
 	id                    string
 	previousReadyHandover base.StagePoint
 	readyEnd              uint64
@@ -79,7 +79,7 @@ type HandoverXBroker struct {
 func NewHandoverXBroker(
 	ctx context.Context,
 	args *HandoverXBrokerArgs,
-	connInfo network.ConnInfo,
+	connInfo quicstream.UDPConnInfo,
 ) *HandoverXBroker {
 	hctx, cancel := context.WithCancel(ctx)
 
@@ -137,7 +137,7 @@ func (h *HandoverXBroker) ID() string {
 	return h.id
 }
 
-func (h *HandoverXBroker) ConnInfo() network.ConnInfo {
+func (h *HandoverXBroker) ConnInfo() quicstream.UDPConnInfo {
 	return h.connInfo
 }
 

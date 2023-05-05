@@ -7,7 +7,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
-	"github.com/spikeekips/mitum/network"
+	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 )
@@ -53,7 +53,7 @@ type HandoverYBroker struct {
 	stop            func()
 	lastpoint       *util.Locked[base.StagePoint]
 	isReady         *util.Locked[bool]
-	connInfo        network.ConnInfo // NOTE x conn info
+	connInfo        quicstream.UDPConnInfo // NOTE x conn info
 	id              string
 	receivelock     sync.Mutex
 }
@@ -62,7 +62,7 @@ func NewHandoverYBroker(
 	ctx context.Context,
 	args *HandoverYBrokerArgs,
 	id string,
-	connInfo network.ConnInfo,
+	connInfo quicstream.UDPConnInfo,
 ) *HandoverYBroker {
 	hctx, cancel := context.WithCancel(ctx)
 
@@ -121,7 +121,7 @@ func (h *HandoverYBroker) ID() string {
 	return h.id
 }
 
-func (h *HandoverYBroker) ConnInfo() network.ConnInfo {
+func (h *HandoverYBroker) ConnInfo() quicstream.UDPConnInfo {
 	return h.connInfo
 }
 

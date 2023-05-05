@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/pkg/errors"
-	"github.com/spikeekips/mitum/network"
+	"github.com/spikeekips/mitum/network/quicstream"
 )
 
 func (st *States) HandoverXBroker() *HandoverXBroker {
@@ -13,7 +13,7 @@ func (st *States) HandoverXBroker() *HandoverXBroker {
 	return v
 }
 
-func (st *States) NewHandoverXBroker(connInfo network.ConnInfo) error {
+func (st *States) NewHandoverXBroker(connInfo quicstream.UDPConnInfo) error {
 	_, err := st.handoverXBroker.Set(func(_ *HandoverXBroker, isempty bool) (*HandoverXBroker, error) {
 		switch {
 		case !isempty:
@@ -47,7 +47,7 @@ func (st *States) HandoverYBroker() *HandoverYBroker {
 	return v
 }
 
-func (st *States) NewHandoverYBroker(id string, connInfo network.ConnInfo) error {
+func (st *States) NewHandoverYBroker(id string, connInfo quicstream.UDPConnInfo) error {
 	_, err := st.handoverYBroker.Set(func(_ *HandoverYBroker, isempty bool) (*HandoverYBroker, error) {
 		switch {
 		case !isempty:

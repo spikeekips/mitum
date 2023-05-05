@@ -9,6 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
+	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/spikeekips/mitum/util/valuehash"
@@ -65,8 +66,8 @@ func (t *testHandoverXYBroker) TestFinished() {
 	xargs := t.xargs()
 	yargs := t.yargs()
 
-	xbroker := NewHandoverXBroker(ctx, xargs, nil)
-	ybroker := NewHandoverYBroker(ctx, yargs, xbroker.id, nil)
+	xbroker := NewHandoverXBroker(ctx, xargs, quicstream.UDPConnInfo{})
+	ybroker := NewHandoverYBroker(ctx, yargs, xbroker.id, quicstream.UDPConnInfo{})
 
 	xbroker.SetLogging(logging.TestNilLogging)
 	ybroker.SetLogging(logging.TestNilLogging)
@@ -186,8 +187,8 @@ func (t *testHandoverXYBroker) TestHandoverMessageCancel() {
 	xargs := t.xargs()
 	yargs := t.yargs()
 
-	xbroker := NewHandoverXBroker(ctx, xargs, nil)
-	ybroker := NewHandoverYBroker(ctx, yargs, xbroker.id, nil)
+	xbroker := NewHandoverXBroker(ctx, xargs, quicstream.UDPConnInfo{})
+	ybroker := NewHandoverYBroker(ctx, yargs, xbroker.id, quicstream.UDPConnInfo{})
 
 	xbroker.SetLogging(logging.TestNilLogging)
 	ybroker.SetLogging(logging.TestNilLogging)
