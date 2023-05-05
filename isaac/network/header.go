@@ -54,6 +54,11 @@ var (
 	HandlerPrefixNodeInfoString               = "node_info"
 	HandlerPrefixSendBallotsString            = "send_ballots"
 	HandlerPrefixSetAllowConsensusString      = "set_allow_consensus"
+	HandlerPrefixStartHandoverString          = "start_handover"
+	HandlerPrefixCheckHandoverString          = "check_handover"
+	HandlerPrefixAskHandoverString            = "ask_handover"
+	HandlerPrefixCancelHandoverString         = "cancel_handover"
+	HandlerPrefixHandoverMessageString        = "handover_message"
 
 	HandlerPrefixRequestProposal        = quicstream.HashPrefix(HandlerPrefixRequestProposalString)
 	HandlerPrefixProposal               = quicstream.HashPrefix(HandlerPrefixProposalString)
@@ -73,6 +78,11 @@ var (
 	HandlerPrefixNodeInfo               = quicstream.HashPrefix(HandlerPrefixNodeInfoString)
 	HandlerPrefixSendBallots            = quicstream.HashPrefix(HandlerPrefixSendBallotsString)
 	HandlerPrefixSetAllowConsensus      = quicstream.HashPrefix(HandlerPrefixSetAllowConsensusString)
+	HandlerPrefixStartHandover          = quicstream.HashPrefix(HandlerPrefixStartHandoverString)
+	HandlerPrefixCheckHandover          = quicstream.HashPrefix(HandlerPrefixCheckHandoverString)
+	HandlerPrefixAskHandover            = quicstream.HashPrefix(HandlerPrefixAskHandoverString)
+	HandlerPrefixCancelHandover         = quicstream.HashPrefix(HandlerPrefixCancelHandoverString)
+	HandlerPrefixHandoverMessage        = quicstream.HashPrefix(HandlerPrefixHandoverMessageString)
 )
 
 type baseHeader struct {
@@ -653,12 +663,12 @@ func (h AskHandoverHeader) IsValid([]byte) error {
 
 type AskHandoverResponseHeader struct {
 	id string // id is broker ID
-	quicstream.BaseResponseHeader
+	quicstreamheader.BaseResponseHeader
 }
 
 func NewAskHandoverResponseHeader(ok bool, err error, id string) AskHandoverResponseHeader {
 	return AskHandoverResponseHeader{
-		BaseResponseHeader: quicstream.NewBaseResponseHeader(AskHandoverResponseHeaderHint, ok, err),
+		BaseResponseHeader: quicstreamheader.NewBaseResponseHeader(AskHandoverResponseHeaderHint, ok, err),
 		id:                 id,
 	}
 }

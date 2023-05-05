@@ -47,6 +47,7 @@ func (st *NewConsensusHandlerType) new() (handler, error) {
 		handoverXBrokerFunc: st.handoverXBrokerFunc,
 	}
 
+	nst.args.whenNewVoteproof = nst.whenNewVoteproof
 	nst.args.checkInState = nst.checkInState
 
 	return nst, nil

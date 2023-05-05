@@ -154,9 +154,12 @@ func TestHandoverMessageChallengeResponseEncode(tt *testing.T) {
 		switch {
 		case !ah.point.Equal(bh.point):
 			return errors.Errorf("point not matched")
-		case ah.ok != ah.ok:
+		case ah.ok != bh.ok:
 			return errors.Errorf("ok not matched")
-		case ah.err.Error() != ah.err.Error():
+		case ah.err == nil && bh.err == nil:
+		case ah.err == nil || bh.err == nil:
+			return errors.Errorf("error not matched")
+		case ah.err.Error() != bh.err.Error():
 			return errors.Errorf("error not matched")
 		}
 

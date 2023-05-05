@@ -383,18 +383,68 @@ func (c *BaseClient) SetAllowConsensus(
 	ctx context.Context, ci quicstream.UDPConnInfo,
 	priv base.Privatekey, networkID base.NetworkID, allow bool,
 ) (bool, error) {
-	header := NewSetAllowConsensusHeader(allow)
+	switch _, rh, err := c.verifyNode(ctx, ci, priv, networkID, NewSetAllowConsensusHeader(allow)); {
+	case err != nil:
+		return false, errors.WithMessage(err, "response")
+	case rh.Err() != nil:
+		return false, errors.WithMessage(rh.Err(), "response")
+	default:
+		return rh.OK(), nil
+	}
+}
+
+func (c *BaseClient) StartHandover(
+	ctx context.Context,
+	ci quicstream.UDPConnInfo,
+	priv base.Privatekey,
+	networkID base.NetworkID,
+	address base.Address,
+) (bool, error) {
+	switch _, rh, err := c.verifyNode(ctx, ci, priv, networkID, NewStartHandoverHeader(ci, address)); {
+	case err != nil:
+		return false, errors.WithMessage(err, "response")
+	case rh.Err() != nil:
+		return false, errors.WithMessage(rh.Err(), "response")
+	default:
+		return rh.OK(), nil
+	}
+}
+
+func (c *BaseClient) CheckHandover(
+	ctx context.Context,
+	ci quicstream.UDPConnInfo,
+	priv base.Privatekey,
+	networkID base.NetworkID,
+	address base.Address,
+) (bool, error) {
+	switch _, rh, err := c.verifyNode(ctx, ci, priv, networkID, NewCheckHandoverHeader(ci, address)); {
+	case err != nil, rh.Err() != nil:
+		return false, errors.WithMessage(err, "response")
+	case rh.Err() != nil:
+		return false, errors.WithMessage(rh.Err(), "response")
+	default:
+		return rh.OK(), nil
+	}
+}
+
+func (c *BaseClient) verifyNode(
+	ctx context.Context,
+	ci quicstream.UDPConnInfo,
+	priv base.Privatekey,
+	networkID base.NetworkID,
+	header quicstreamheader.RequestHeader,
+) (encoder.Encoder, quicstreamheader.ResponseHeader, error) {
 	if err := header.IsValid(nil); err != nil {
-		return false, err
+		return nil, nil, err
 	}
 
 	broker, err := c.Client.Broker(ctx, ci)
 	if err != nil {
-		return false, err
+		return nil, nil, err
 	}
 
 	if err := broker.WriteRequestHead(ctx, header); err != nil {
-		return false, err
+		return nil, nil, err
 	}
 
 	var input []byte
@@ -426,28 +476,21 @@ func (c *BaseClient) SetAllowConsensus(
 			return nil
 		}
 	}(); err != nil {
-		return false, errors.WithMessage(err, "read signature input")
+		return nil, nil, errors.WithMessage(err, "read signature input")
 	}
 
 	switch sig, err := priv.Sign(util.ConcatBytesSlice(networkID, input)); {
 	case err != nil:
-		return false, errors.WithMessage(err, "sign input")
+		return nil, nil, errors.WithMessage(err, "sign input")
 	default:
 		buf := bytes.NewBuffer(sig)
 
 		if err := broker.WriteBody(ctx, quicstreamheader.FixedLengthBodyType, uint64(buf.Len()), buf); err != nil {
-			return false, errors.WithMessage(err, "write signature")
+			return nil, nil, errors.WithMessage(err, "write signature")
 		}
 	}
 
-	switch _, rh, err := broker.ReadResponseHead(ctx); {
-	case err != nil:
-		return false, errors.WithMessage(err, "response")
-	case rh.Err() != nil:
-		return false, errors.WithMessage(rh.Err(), "response")
-	default:
-		return rh.OK(), nil
-	}
+	return broker.ReadResponseHead(ctx)
 }
 
 func (c *BaseClient) requestNodeConnInfos(

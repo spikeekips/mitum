@@ -206,6 +206,8 @@ func (t *testHandoverYBroker) TestReceiveMessageReadyResponse() {
 		}
 
 		err := broker.sendStagePoint(context.Background(), base.NewStagePoint(point, base.StageINIT))
+		t.Error(err)
+		t.ErrorContains(err, "hihihi")
 
 		select {
 		case <-time.After(time.Second):

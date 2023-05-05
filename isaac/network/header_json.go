@@ -3,6 +3,7 @@ package isaacnetwork
 import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
+	quicstream "github.com/spikeekips/mitum/network/quicstream"
 	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
@@ -548,7 +549,7 @@ type caHandoverHeaderJSONMarshaler struct {
 func (h caHandoverHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
 		caHandoverHeaderJSONMarshaler
-		quicstream.BaseRequestHeader
+		quicstreamheader.BaseRequestHeader
 	}{
 		BaseRequestHeader: h.BaseRequestHeader,
 		caHandoverHeaderJSONMarshaler: caHandoverHeaderJSONMarshaler{
@@ -597,7 +598,7 @@ type askHandoverResponseHeaderJSONMarshaler struct {
 func (h AskHandoverResponseHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
 		askHandoverResponseHeaderJSONMarshaler
-		quicstream.BaseResponseHeaderJSONMarshaler
+		quicstreamheader.BaseResponseHeaderJSONMarshaler
 	}{
 		BaseResponseHeaderJSONMarshaler: h.BaseResponseHeader.JSONMarshaler(),
 		askHandoverResponseHeaderJSONMarshaler: askHandoverResponseHeaderJSONMarshaler{

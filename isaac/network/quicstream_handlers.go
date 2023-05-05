@@ -11,6 +11,7 @@ import (
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/isaac"
 	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
+	"github.com/spikeekips/mitum/network/quicstream"
 	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -485,43 +486,21 @@ func QuicstreamHandlerSetAllowConsensus(
 	networkID base.NetworkID,
 	setf func(allow bool) (isset bool),
 ) quicstreamheader.Handler[SetAllowConsensusHeader] {
-	return func(ctx context.Context, _ net.Addr,
+	return func(ctx context.Context, addr net.Addr,
 		broker *quicstreamheader.HandlerBroker, header SetAllowConsensusHeader,
 	) error {
-		input := util.UUID().Bytes()
+		err := quicstreamHandlerVerifyNode(
+			ctx, addr, broker,
+			pub, networkID,
+		)
 
-		buf := bytes.NewBuffer(input)
-		defer buf.Reset()
+		var ok bool
 
-		if err := broker.WriteBody(ctx, quicstreamheader.FixedLengthBodyType, uint64(buf.Len()), buf); err != nil {
-			return err
+		if err == nil {
+			ok = setf(header.Allow())
 		}
 
-		var sig base.Signature
-
-		if err := func() error {
-			switch _, _, body, err := broker.ReadBodyErr(ctx); {
-			case err != nil:
-				return err
-			default:
-				b, err := io.ReadAll(body)
-				if err != nil && !errors.Is(err, io.EOF) {
-					return errors.WithStack(err)
-				}
-
-				sig = base.Signature(b)
-
-				return nil
-			}
-		}(); err != nil {
-			return errors.WithMessage(err, "read signature")
-		}
-
-		if err := pub.Verify(util.ConcatBytesSlice(networkID, input), sig); err != nil {
-			return errors.WithMessage(err, "verify signature")
-		}
-
-		return writeResponseStreamEncode(ctx, broker, setf(header.Allow()), nil, nil)
+		return writeResponseStream(ctx, broker, ok, err, nil)
 	}
 }
 
@@ -565,6 +544,78 @@ func quicstreamHandlerSetOperation(
 		return vote(t)
 	default:
 		return oppool.SetNewOperation(ctx, op)
+	}
+}
+
+func QuicstreamHandlerStartHandover(
+	local base.Node,
+	localConnInfo quicstream.UDPConnInfo,
+	networkID base.NetworkID,
+	check func(StartHandoverHeader) (bool, error),
+) quicstreamheader.Handler[StartHandoverHeader] {
+	return func(
+		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header StartHandoverHeader,
+	) error {
+		switch {
+		case !header.Address().Equal(local.Address()):
+			return errors.Errorf("node address not matched")
+		case localConnInfo.Addr().String() == header.ConnInfo().Addr().String():
+			return errors.Errorf("same node conn info")
+		}
+
+		err := quicstreamHandlerVerifyNode(
+			ctx, addr, broker,
+			local.Publickey(), networkID,
+		)
+
+		var ok bool
+
+		if err == nil {
+			switch i, cerr := check(header); {
+			case cerr != nil:
+				err = cerr
+			default:
+				ok = i
+			}
+		}
+
+		return writeResponseStream(ctx, broker, ok, err, nil)
+	}
+}
+
+func QuicstreamHandlerCheckHandover(
+	local base.Node,
+	localConnInfo quicstream.UDPConnInfo,
+	networkID base.NetworkID,
+	check func(CheckHandoverHeader) (bool, error),
+) quicstreamheader.Handler[CheckHandoverHeader] {
+	return func(
+		ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header CheckHandoverHeader,
+	) error {
+		switch {
+		case !header.Address().Equal(local.Address()):
+			return errors.Errorf("node address not matched")
+		case localConnInfo.Addr().String() != header.ConnInfo().Addr().String():
+			return errors.Errorf("node conn info not matched")
+		}
+
+		err := quicstreamHandlerVerifyNode(
+			ctx, addr, broker,
+			local.Publickey(), networkID,
+		)
+
+		var ok bool
+
+		if err == nil {
+			switch i, cerr := check(header); {
+			case cerr != nil:
+				err = cerr
+			default:
+				ok = i
+			}
+		}
+
+		return writeResponseStream(ctx, broker, ok, err, nil)
 	}
 }
 
@@ -723,4 +774,46 @@ func writeResponseStreamEncode(
 			return broker.Encoder.StreamEncoder(pw).Encode(i)
 		},
 	)
+}
+
+func quicstreamHandlerVerifyNode(
+	ctx context.Context,
+	_ net.Addr,
+	broker *quicstreamheader.HandlerBroker,
+	pub base.Publickey,
+	networkID base.NetworkID,
+) error {
+	input := util.UUID().Bytes()
+	buf := bytes.NewBuffer(input)
+	defer buf.Reset()
+
+	if err := broker.WriteBody(ctx, quicstreamheader.FixedLengthBodyType, uint64(buf.Len()), buf); err != nil {
+		return err
+	}
+
+	var sig base.Signature
+
+	if err := func() error {
+		switch _, _, body, err := broker.ReadBodyErr(ctx); {
+		case err != nil:
+			return err
+		default:
+			b, err := io.ReadAll(body)
+			if err != nil && !errors.Is(err, io.EOF) {
+				return errors.WithStack(err)
+			}
+
+			sig = base.Signature(b)
+
+			return nil
+		}
+	}(); err != nil {
+		return errors.WithMessage(err, "read signature")
+	}
+
+	if err := pub.Verify(util.ConcatBytesSlice(networkID, input), sig); err != nil {
+		return errors.WithMessage(err, "verify signature")
+	}
+
+	return nil
 }

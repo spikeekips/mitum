@@ -99,8 +99,6 @@ func (st *dummyStateHandler) allowedConsensus() bool {
 	return false
 }
 
-func (st *dummyStateHandler) setAllowConsensus(allow bool) {}
-
 func (st *dummyStateHandler) whenSetAllowConsensus(allow bool) {
 	if st.whenSetAllowConsensusf == nil {
 		return
