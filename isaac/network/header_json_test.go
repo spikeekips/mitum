@@ -1,4 +1,4 @@
-package isaacstates
+package isaacnetwork
 
 import (
 	"testing"
@@ -43,7 +43,7 @@ func (t *baseTestCAHandoverHeader) SetupTest() {
 	}
 }
 
-func TestStartHandoverHeader(tt *testing.T) {
+func TestStartHandoverHeaderEncode(tt *testing.T) {
 	t := new(baseTestCAHandoverHeader)
 	t.SetT(tt)
 
@@ -69,7 +69,7 @@ func TestStartHandoverHeader(tt *testing.T) {
 	suite.Run(tt, t)
 }
 
-func TestCheckHandoverHeader(tt *testing.T) {
+func TestCheckHandoverHeaderEncode(tt *testing.T) {
 	t := new(baseTestCAHandoverHeader)
 	t.SetT(tt)
 
@@ -95,7 +95,7 @@ func TestCheckHandoverHeader(tt *testing.T) {
 	suite.Run(tt, t)
 }
 
-func TestAskHandoverHeader(tt *testing.T) {
+func TestAskHandoverHeaderEncode(tt *testing.T) {
 	t := new(baseTestCAHandoverHeader)
 	t.SetT(tt)
 
@@ -121,7 +121,7 @@ func TestAskHandoverHeader(tt *testing.T) {
 	suite.Run(tt, t)
 }
 
-func TestAskHandoverResponseHeader(tt *testing.T) {
+func TestAskHandoverResponseHeaderEncode(tt *testing.T) {
 	t := new(encoder.BaseTestEncode)
 	t.SetT(tt)
 
@@ -158,7 +158,7 @@ func TestAskHandoverResponseHeader(tt *testing.T) {
 	suite.Run(tt, t)
 }
 
-func TestCancelHandoverHeader(tt *testing.T) {
+func TestCancelHandoverHeaderEncode(tt *testing.T) {
 	t := new(encoder.BaseTestEncode)
 	t.SetT(tt)
 
@@ -192,7 +192,7 @@ func TestCancelHandoverHeader(tt *testing.T) {
 	suite.Run(tt, t)
 }
 
-func TestHandoverMessageHeader(tt *testing.T) {
+func TestHandoverMessageHeaderEncode(tt *testing.T) {
 	t := new(encoder.BaseTestEncode)
 	t.SetT(tt)
 
