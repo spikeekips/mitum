@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 )
@@ -52,11 +53,17 @@ type HandoverYBroker struct {
 	stop            func()
 	lastpoint       *util.Locked[base.StagePoint]
 	isReady         *util.Locked[bool]
+	connInfo        network.ConnInfo // NOTE x conn info
 	id              string
 	receivelock     sync.Mutex
 }
 
-func NewHandoverYBroker(ctx context.Context, args *HandoverYBrokerArgs, id string) *HandoverYBroker {
+func NewHandoverYBroker(
+	ctx context.Context,
+	args *HandoverYBrokerArgs,
+	id string,
+	connInfo network.ConnInfo,
+) *HandoverYBroker {
 	hctx, cancel := context.WithCancel(ctx)
 
 	var cancelOnce sync.Once
@@ -67,6 +74,7 @@ func NewHandoverYBroker(ctx context.Context, args *HandoverYBrokerArgs, id strin
 		}),
 		args:          args,
 		id:            id,
+		connInfo:      connInfo,
 		ctxFunc:       func() context.Context { return hctx },
 		lastpoint:     util.EmptyLocked[base.StagePoint](),
 		isReady:       util.EmptyLocked[bool](),
@@ -111,6 +119,10 @@ func NewHandoverYBroker(ctx context.Context, args *HandoverYBrokerArgs, id strin
 
 func (h *HandoverYBroker) ID() string {
 	return h.id
+}
+
+func (h *HandoverYBroker) ConnInfo() network.ConnInfo {
+	return h.connInfo
 }
 
 func (h *HandoverYBroker) isCanceled() error {

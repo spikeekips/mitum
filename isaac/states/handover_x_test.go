@@ -22,7 +22,7 @@ func (t *testHandoverXBroker) TestNew() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	broker := NewHandoverXBroker(ctx, args)
+	broker := NewHandoverXBroker(ctx, args, nil)
 
 	t.Run("isCanceled", func() {
 		t.NoError(broker.isCanceled())
@@ -51,7 +51,7 @@ func (t *testHandoverXBroker) TestNew() {
 	t.Run("cancel(); isCanceled", func() {
 		args := t.xargs()
 
-		broker := NewHandoverXBroker(context.Background(), args)
+		broker := NewHandoverXBroker(context.Background(), args, nil)
 
 		t.NoError(broker.isCanceled())
 
@@ -81,7 +81,7 @@ func (t *testHandoverXBroker) TestSendVoteproof() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	broker := NewHandoverXBroker(ctx, args)
+	broker := NewHandoverXBroker(ctx, args, nil)
 
 	point := base.RawPoint(33, 44)
 
@@ -137,7 +137,7 @@ func (t *testHandoverXBroker) TestSendVoteproof() {
 
 	t.Run("send failed", func() {
 		args := t.xargs()
-		broker := NewHandoverXBroker(context.Background(), args)
+		broker := NewHandoverXBroker(context.Background(), args, nil)
 
 		broker.args.SendFunc = func(context.Context, interface{}) error {
 			return errors.Errorf("hihihi")
@@ -169,7 +169,7 @@ func (t *testHandoverXBroker) TestSendVoteproof() {
 func (t *testHandoverXBroker) TestReceiveStagePoint() {
 	args := t.xargs()
 
-	broker := NewHandoverXBroker(context.Background(), args)
+	broker := NewHandoverXBroker(context.Background(), args, nil)
 
 	point := base.RawPoint(33, 44)
 
@@ -184,7 +184,7 @@ func (t *testHandoverXBroker) TestReceiveStagePoint() {
 		t.True(errors.Is(err, ErrHandoverCanceled))
 	})
 
-	broker = NewHandoverXBroker(context.Background(), args)
+	broker = NewHandoverXBroker(context.Background(), args, nil)
 
 	t.Run("receive", func() {
 		point = point.NextHeight()
@@ -241,7 +241,7 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 	t.Run("receive; wrong address", func() {
 		args := t.xargs()
 
-		broker := NewHandoverXBroker(context.Background(), args)
+		broker := NewHandoverXBroker(context.Background(), args, nil)
 
 		hm := newHandoverMessageChallengeBlockMap(broker.ID(), point, t.newBlockMap(point.Height(), base.RandomLocalNode(), nil))
 		err := broker.receive(hm)
@@ -258,7 +258,7 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 	t.Run("receive; wrong publickey", func() {
 		args := t.xargs()
 
-		broker := NewHandoverXBroker(context.Background(), args)
+		broker := NewHandoverXBroker(context.Background(), args, nil)
 
 		local := base.NewBaseLocalNode(base.DummyNodeHint, base.NewMPrivatekey(), t.Local.Address())
 
@@ -277,7 +277,7 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 	t.Run("receive without no previous voteproof", func() {
 		args := t.xargs()
 
-		broker := NewHandoverXBroker(context.Background(), args)
+		broker := NewHandoverXBroker(context.Background(), args, nil)
 
 		hm := newHandoverMessageChallengeBlockMap(broker.ID(), point, t.newBlockMap(point.Height(), t.Local, nil))
 		t.Error(broker.receive(hm))
@@ -292,7 +292,7 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 	t.Run("receive; last not accept voteproof", func() {
 		args := t.xargs()
 
-		broker := NewHandoverXBroker(context.Background(), args)
+		broker := NewHandoverXBroker(context.Background(), args, nil)
 
 		hm := newHandoverMessageChallengeBlockMap(broker.ID(), point, t.newBlockMap(point.Height(), t.Local, nil))
 
@@ -310,7 +310,7 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 	t.Run("receive; last not majority accept voteproof and stagepoint", func() {
 		args := t.xargs()
 
-		broker := NewHandoverXBroker(context.Background(), args)
+		broker := NewHandoverXBroker(context.Background(), args, nil)
 
 		avp, _ := t.VoteproofsPair(point.Point, point.NextHeight(), nil, nil, nil, []base.LocalNode{base.RandomLocalNode()})
 		avp.SetMajority(nil)
@@ -330,7 +330,7 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 	t.Run("receive; last not majority accept voteproof", func() {
 		args := t.xargs()
 
-		broker := NewHandoverXBroker(context.Background(), args)
+		broker := NewHandoverXBroker(context.Background(), args, nil)
 
 		bm := t.newBlockMap(point.Height(), t.Local, nil)
 		hm := newHandoverMessageChallengeBlockMap(broker.ID(), point, bm)
@@ -351,7 +351,7 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 	t.Run("receive; last accept voteproof, but different manifest hash", func() {
 		args := t.xargs()
 
-		broker := NewHandoverXBroker(context.Background(), args)
+		broker := NewHandoverXBroker(context.Background(), args, nil)
 
 		bm := t.newBlockMap(point.Height(), t.Local, nil)
 		hm := newHandoverMessageChallengeBlockMap(broker.ID(), point, bm)
@@ -371,7 +371,7 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 	t.Run("receive", func() {
 		args := t.xargs()
 
-		broker := NewHandoverXBroker(context.Background(), args)
+		broker := NewHandoverXBroker(context.Background(), args, nil)
 
 		bm := t.newBlockMap(point.Height(), t.Local, nil)
 		hm := newHandoverMessageChallengeBlockMap(broker.ID(), point, bm)
@@ -395,7 +395,7 @@ func (t *testHandoverXBroker) TestReceiveBlockMap() {
 	t.Run("invalid; cancel", func() {
 		args := t.xargs()
 
-		broker := NewHandoverXBroker(context.Background(), args)
+		broker := NewHandoverXBroker(context.Background(), args, nil)
 
 		bm := t.newBlockMap(point.Height(), t.Local, nil)
 		bm.M = nil
@@ -418,7 +418,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageReady() {
 	t.Run("wrong ID", func() {
 		args := t.xargs()
 
-		broker := NewHandoverXBroker(context.Background(), args)
+		broker := NewHandoverXBroker(context.Background(), args, nil)
 
 		h := newHandoverMessageChallengeStagePoint(util.UUID().String(), base.NewStagePoint(point, base.StageINIT))
 		t.Error(broker.receive(h))
@@ -431,7 +431,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageReady() {
 	t.Run("before no previous voteproof", func() {
 		args := t.xargs()
 
-		broker := NewHandoverXBroker(context.Background(), args)
+		broker := NewHandoverXBroker(context.Background(), args, nil)
 
 		h := newHandoverMessageChallengeStagePoint(broker.ID(), base.NewStagePoint(point, base.StageINIT))
 		t.Error(broker.receive(h))
@@ -444,7 +444,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageReady() {
 	t.Run("not higher previous HandoverMessageReady", func() {
 		args := t.xargs()
 
-		broker := NewHandoverXBroker(context.Background(), args)
+		broker := NewHandoverXBroker(context.Background(), args, nil)
 
 		_, ivp := t.VoteproofsPair(point.PrevRound(), point, nil, nil, nil, []base.LocalNode{base.RandomLocalNode()})
 		isFinished, err := broker.sendVoteproof(context.Background(), ivp)
@@ -473,7 +473,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageReady() {
 			return nil
 		}
 
-		broker := NewHandoverXBroker(context.Background(), args)
+		broker := NewHandoverXBroker(context.Background(), args, nil)
 		_, ivp := t.VoteproofsPair(point.PrevRound(), point, nil, nil, nil, []base.LocalNode{base.RandomLocalNode()})
 		isFinished, err := broker.sendVoteproof(context.Background(), ivp)
 		t.NoError(err)
@@ -512,7 +512,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageReady() {
 			return nil
 		}
 
-		broker := NewHandoverXBroker(context.Background(), args)
+		broker := NewHandoverXBroker(context.Background(), args, nil)
 		_, ivp := t.VoteproofsPair(point.PrevRound(), point, nil, nil, nil, []base.LocalNode{base.RandomLocalNode()})
 		isFinished, err := broker.sendVoteproof(context.Background(), ivp)
 		t.NoError(err)
@@ -554,7 +554,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageReady() {
 			return nil
 		}
 
-		broker := NewHandoverXBroker(context.Background(), args)
+		broker := NewHandoverXBroker(context.Background(), args, nil)
 		_, ivp := t.VoteproofsPair(point.PrevRound(), point, nil, nil, nil, []base.LocalNode{base.RandomLocalNode()})
 		isFinished, err := broker.sendVoteproof(context.Background(), ivp)
 		t.NoError(err)
@@ -593,7 +593,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageReady() {
 			return nil
 		}
 
-		broker := NewHandoverXBroker(context.Background(), args)
+		broker := NewHandoverXBroker(context.Background(), args, nil)
 		_, ivp := t.VoteproofsPair(point.PrevRound(), point, nil, nil, nil, []base.LocalNode{base.RandomLocalNode()})
 		isFinished, err := broker.sendVoteproof(context.Background(), ivp)
 		t.NoError(err)
@@ -634,7 +634,7 @@ func (t *testHandoverXBroker) TestFinish() {
 			return nil
 		}
 
-		broker := NewHandoverXBroker(context.Background(), args)
+		broker := NewHandoverXBroker(context.Background(), args, nil)
 		t.NoError(broker.finish(nil, nil))
 
 		select {
@@ -657,7 +657,7 @@ func (t *testHandoverXBroker) TestFinish() {
 			return errors.Errorf("failed to send")
 		}
 
-		broker := NewHandoverXBroker(context.Background(), args)
+		broker := NewHandoverXBroker(context.Background(), args, nil)
 		err := broker.finish(nil, nil)
 		t.Error(err)
 		t.ErrorContains(err, "failed to send")
@@ -674,7 +674,7 @@ func (t *testHandoverXBroker) TestReceiveSerialChallenge() {
 
 	t.Run("ok", func() {
 		args := t.xargs()
-		broker := NewHandoverXBroker(context.Background(), args)
+		broker := NewHandoverXBroker(context.Background(), args, nil)
 
 		_, ivp := t.VoteproofsPair(point.PrevRound(), point, nil, nil, nil, []base.LocalNode{base.RandomLocalNode()})
 		isFinished, err := broker.sendVoteproof(context.Background(), ivp)
@@ -700,7 +700,7 @@ func (t *testHandoverXBroker) TestReceiveSerialChallenge() {
 
 	t.Run("not serial", func() {
 		args := t.xargs()
-		broker := NewHandoverXBroker(context.Background(), args)
+		broker := NewHandoverXBroker(context.Background(), args, nil)
 
 		_, ivp := t.VoteproofsPair(point.PrevRound(), point, nil, nil, nil, []base.LocalNode{base.RandomLocalNode()})
 		isFinished, err := broker.sendVoteproof(context.Background(), ivp)

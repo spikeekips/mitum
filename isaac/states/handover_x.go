@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
+	"github.com/spikeekips/mitum/network"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/logging"
 )
@@ -67,6 +68,7 @@ type HandoverXBroker struct {
 	ctxFunc               func() context.Context
 	args                  *HandoverXBrokerArgs
 	successcount          *util.Locked[uint64]
+	connInfo              network.ConnInfo // NOTE y conn info
 	id                    string
 	previousReadyHandover base.StagePoint
 	readyEnd              uint64
@@ -74,7 +76,11 @@ type HandoverXBroker struct {
 	lastchallengecount    uint64
 }
 
-func NewHandoverXBroker(ctx context.Context, args *HandoverXBrokerArgs) *HandoverXBroker {
+func NewHandoverXBroker(
+	ctx context.Context,
+	args *HandoverXBrokerArgs,
+	connInfo network.ConnInfo,
+) *HandoverXBroker {
 	hctx, cancel := context.WithCancel(ctx)
 
 	id := util.ULID().String()
@@ -87,6 +93,7 @@ func NewHandoverXBroker(ctx context.Context, args *HandoverXBrokerArgs) *Handove
 		}),
 		args:          args,
 		id:            id,
+		connInfo:      connInfo,
 		ctxFunc:       func() context.Context { return hctx },
 		successcount:  util.EmptyLocked[uint64](),
 		whenCanceledf: func(error) {},
@@ -128,6 +135,10 @@ func NewHandoverXBroker(ctx context.Context, args *HandoverXBrokerArgs) *Handove
 
 func (h *HandoverXBroker) ID() string {
 	return h.id
+}
+
+func (h *HandoverXBroker) ConnInfo() network.ConnInfo {
+	return h.connInfo
 }
 
 func (h *HandoverXBroker) isCanceled() error {

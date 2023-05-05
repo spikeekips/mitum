@@ -65,8 +65,8 @@ func (t *testHandoverXYBroker) TestFinished() {
 	xargs := t.xargs()
 	yargs := t.yargs()
 
-	xbroker := NewHandoverXBroker(ctx, xargs)
-	ybroker := NewHandoverYBroker(ctx, yargs, xbroker.id)
+	xbroker := NewHandoverXBroker(ctx, xargs, nil)
+	ybroker := NewHandoverYBroker(ctx, yargs, xbroker.id, nil)
 
 	xbroker.SetLogging(logging.TestNilLogging)
 	ybroker.SetLogging(logging.TestNilLogging)
@@ -186,8 +186,8 @@ func (t *testHandoverXYBroker) TestHandoverMessageCancel() {
 	xargs := t.xargs()
 	yargs := t.yargs()
 
-	xbroker := NewHandoverXBroker(ctx, xargs)
-	ybroker := NewHandoverYBroker(ctx, yargs, xbroker.id)
+	xbroker := NewHandoverXBroker(ctx, xargs, nil)
+	ybroker := NewHandoverYBroker(ctx, yargs, xbroker.id, nil)
 
 	xbroker.SetLogging(logging.TestNilLogging)
 	ybroker.SetLogging(logging.TestNilLogging)

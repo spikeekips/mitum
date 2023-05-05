@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/pkg/errors"
+	"github.com/spikeekips/mitum/network"
 )
 
 func (st *States) HandoverXBroker() *HandoverXBroker {
@@ -12,7 +13,7 @@ func (st *States) HandoverXBroker() *HandoverXBroker {
 	return v
 }
 
-func (st *States) NewHandoverXBroker() error {
+func (st *States) NewHandoverXBroker(connInfo network.ConnInfo) error {
 	_, err := st.handoverXBroker.Set(func(_ *HandoverXBroker, isempty bool) (*HandoverXBroker, error) {
 		switch {
 		case !isempty:
@@ -23,7 +24,7 @@ func (st *States) NewHandoverXBroker() error {
 			return nil, errors.Errorf("under handover y")
 		}
 
-		broker, err := st.args.NewHandoverXBroker(context.Background())
+		broker, err := st.args.NewHandoverXBroker(context.Background(), connInfo)
 		if err != nil {
 			st.Log().Error().Err(err).Msg("failed new handover x broker")
 
@@ -46,7 +47,7 @@ func (st *States) HandoverYBroker() *HandoverYBroker {
 	return v
 }
 
-func (st *States) NewHandoverYBroker(id string) error {
+func (st *States) NewHandoverYBroker(id string, connInfo network.ConnInfo) error {
 	_, err := st.handoverYBroker.Set(func(_ *HandoverYBroker, isempty bool) (*HandoverYBroker, error) {
 		switch {
 		case !isempty:
@@ -57,7 +58,7 @@ func (st *States) NewHandoverYBroker(id string) error {
 			return nil, errors.Errorf("under handover x")
 		}
 
-		broker, err := st.args.NewHandoverYBroker(context.Background(), id)
+		broker, err := st.args.NewHandoverYBroker(context.Background(), id, connInfo)
 		if err != nil {
 			st.Log().Error().Err(err).Msg("failed new handover y broker")
 
