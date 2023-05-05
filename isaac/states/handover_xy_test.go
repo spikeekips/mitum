@@ -29,18 +29,13 @@ func (t *baseTestHandoverBroker) xargs() *HandoverXBrokerArgs {
 		return true, nil
 	}
 
-	args.whenFinishedForStates = func(base.INITVoteproof) error {
-		return nil
-	}
-
 	return args
 }
 
 func (t *baseTestHandoverBroker) yargs() *HandoverYBrokerArgs {
 	args := NewHandoverYBrokerArgs(t.LocalParams.NetworkID())
 	args.WhenCanceled = func(error) {}
-	args.newVoteproofForStates = func(base.Voteproof) error { return nil }
-	args.whenFinishedForStates = func(base.INITVoteproof) error { return nil }
+	args.NewData = func(HandoverMessageDataType, interface{}) error { return nil }
 
 	return args
 }
@@ -78,9 +73,11 @@ func (t *testHandoverXYBroker) TestFinished() {
 
 	xargs.ReadyEnd = 0
 	xargs.SendFunc = func(_ context.Context, i interface{}) error {
-		if err := ybroker.receive(i); err != nil {
-			xbroker.Log().Error().Err(err).Msg("send error")
-		}
+		go func() {
+			if err := ybroker.receive(i); err != nil {
+				xbroker.Log().Error().Err(err).Msg("send error")
+			}
+		}()
 
 		return nil
 	}
@@ -89,13 +86,15 @@ func (t *testHandoverXYBroker) TestFinished() {
 	}
 
 	yargs.SendFunc = func(_ context.Context, i interface{}) error {
-		if err := xbroker.receive(i); err != nil {
-			ybroker.Log().Error().Err(err).Msg("send error")
-		}
+		go func() {
+			if err := xbroker.receive(i); err != nil {
+				ybroker.Log().Error().Err(err).Msg("send error")
+			}
+		}()
 
 		return nil
 	}
-	yargs.NewVoteproof = func(vp base.Voteproof) error {
+	ybroker.newVoteprooff = func(vp base.Voteproof) error {
 		switch tvp := vp.(type) {
 		case base.INITVoteproof:
 			go func() {
@@ -111,7 +110,7 @@ func (t *testHandoverXYBroker) TestFinished() {
 				}
 			}()
 		default:
-			return errors.Errorf("unknown voteproof, %T", t)
+			return errors.Errorf("unknown voteproof, %T", vp)
 		}
 
 		return nil
@@ -133,6 +132,9 @@ func (t *testHandoverXYBroker) TestFinished() {
 		t.False(isFinished)
 
 		<-time.After(time.Second)
+
+		t.NoError(xbroker.isCanceled())
+		t.NoError(ybroker.isCanceled())
 	})
 
 	var lastvp base.INITVoteproof
@@ -208,7 +210,7 @@ func (t *testHandoverXYBroker) TestHandoverMessageCancel() {
 
 		return nil
 	}
-	yargs.NewVoteproof = func(vp base.Voteproof) error {
+	ybroker.newVoteprooff = func(vp base.Voteproof) error {
 		switch tvp := vp.(type) {
 		case base.INITVoteproof:
 			go func() {
@@ -224,7 +226,7 @@ func (t *testHandoverXYBroker) TestHandoverMessageCancel() {
 				}
 			}()
 		default:
-			return errors.Errorf("unknown voteproof, %T", t)
+			return errors.Errorf("unknown voteproof, %T", vp)
 		}
 
 		return nil

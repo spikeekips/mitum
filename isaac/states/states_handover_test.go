@@ -278,7 +278,7 @@ func (t *testStates) TestNewHandoverXBroker() {
 		t.NotNil(broker)
 
 		ivp := isaac.NewINITVoteproof(base.RawPoint(32, 44))
-		t.NoError(broker.finish(ivp))
+		t.NoError(broker.finish(ivp, nil))
 
 		t.False(st.AllowedConsensus())
 		t.Nil(st.HandoverXBroker())
@@ -397,7 +397,7 @@ func (t *testStates) TestNewHandoverYBroker() {
 		broker := st.HandoverYBroker()
 		t.NotNil(broker)
 
-		hc := newHandoverMessageFinish(broker.ID(), nil)
+		hc := newHandoverMessageFinish(broker.ID(), nil, nil)
 		t.NoError(broker.receiveFinish(hc))
 
 		t.True(st.AllowedConsensus())
@@ -426,7 +426,7 @@ func (t *testStates) TestNewHandoverYBroker() {
 
 		ivp := isaac.NewINITVoteproof(base.RawPoint(32, 44))
 
-		hc := newHandoverMessageFinish(broker.ID(), ivp)
+		hc := newHandoverMessageFinish(broker.ID(), ivp, nil)
 		t.NoError(broker.receiveFinish(hc))
 
 		// NOTE 'not allowed consensus' and empty HandoverYBroker will be

@@ -178,7 +178,7 @@ func (st *voteproofHandler) exit(sctx switchContext) (func(), error) {
 		return nil, e(err, "")
 	}
 
-	if !st.allowedConsensus() {
+	if st.timers != nil && !st.allowedConsensus() {
 		if err := st.timers.StopAllTimers(); err != nil {
 			st.Log().Error().Err(err).Dict("state", switchContextLog(sctx)).Msg("failed to stop all timers")
 		}

@@ -12,19 +12,12 @@ import (
 )
 
 type HandoverYBrokerArgs struct {
-	SendFunc     func(context.Context, interface{}) error
-	NewVoteproof func(base.Voteproof) error
+	SendFunc func(context.Context, interface{}) error
+	NewData  func(HandoverMessageDataType, interface{}) error
 	// WhenFinished is called when handover process is finished.
-	NewData      func(interface{}) error
 	WhenFinished func(base.INITVoteproof) error
-	// whenFinishedForStates is called when handover process is finished. If
-	// INITVoteproof is nil, moves to Syncing state. HandoverYBroker will be
-	// automatically canceled.
-	newVoteproofForStates func(base.Voteproof) error
-	whenFinishedForStates func(base.INITVoteproof) error
-	WhenCanceled          func(error)
-	whenCanceledForStates func(error)
-	NetworkID             base.NetworkID
+	WhenCanceled func(error)
+	NetworkID    base.NetworkID
 }
 
 // FIXME WhenCanceled; left memberlist
@@ -35,23 +28,26 @@ func NewHandoverYBrokerArgs(networkID base.NetworkID) *HandoverYBrokerArgs {
 		SendFunc: func(context.Context, interface{}) error {
 			return ErrHandoverCanceled.Errorf("SendFunc not implemented")
 		},
-		NewVoteproof: func(base.Voteproof) error { return util.ErrNotImplemented.Errorf("NewVoteproof") },
-		NewData:      func(interface{}) error { return util.ErrNotImplemented.Errorf("NewData") },
-		WhenFinished: func(base.INITVoteproof) error { return nil },
-		whenFinishedForStates: func(base.INITVoteproof) error {
-			return util.ErrNotImplemented.Errorf("whenFinishedForStates")
+		NewData: func(HandoverMessageDataType, interface{}) error {
+			return util.ErrNotImplemented.Errorf("NewData")
 		},
-		WhenCanceled:          func(error) {},
-		whenCanceledForStates: func(error) {},
+		WhenFinished: func(base.INITVoteproof) error { return nil },
+		WhenCanceled: func(error) {},
 	}
 }
 
 // HandoverYBroker handles handover processes of non-consensus node.
 type HandoverYBroker struct {
 	*logging.Logging
-	args            *HandoverYBrokerArgs
-	ctxFunc         func() context.Context
-	cancel          func(error)
+	args          *HandoverYBrokerArgs
+	ctxFunc       func() context.Context
+	cancel        func(error)
+	newVoteprooff func(base.Voteproof) error
+	// whenFinished is called when handover process is finished. If
+	// INITVoteproof is nil, moves to Syncing state. HandoverYBroker will be
+	// automatically canceled.
+	whenFinishedf   func(base.INITVoteproof) error
+	whenCanceledf   func(error)
 	cancelByMessage func()
 	stop            func()
 	lastpoint       *util.Locked[base.StagePoint]
@@ -69,18 +65,19 @@ func NewHandoverYBroker(ctx context.Context, args *HandoverYBrokerArgs, id strin
 		Logging: logging.NewLogging(func(lctx zerolog.Context) zerolog.Context {
 			return lctx.Str("module", "handover-y-broker").Str("id", id)
 		}),
-		args:      args,
-		id:        id,
-		ctxFunc:   func() context.Context { return hctx },
-		lastpoint: util.EmptyLocked[base.StagePoint](),
-		isReady:   util.EmptyLocked[bool](),
+		args:          args,
+		id:            id,
+		ctxFunc:       func() context.Context { return hctx },
+		lastpoint:     util.EmptyLocked[base.StagePoint](),
+		isReady:       util.EmptyLocked[bool](),
+		whenFinishedf: func(base.INITVoteproof) error { return nil },
+		whenCanceledf: func(error) {},
 	}
 
 	cancelf := func(err error) {
 		cancel()
 
-		args.whenCanceledForStates(err)
-		args.WhenCanceled(err)
+		h.whenCanceled(err)
 	}
 
 	h.cancel = func(err error) {
@@ -129,13 +126,15 @@ func (h *HandoverYBroker) sendStagePoint(ctx context.Context, point base.StagePo
 		return err
 	}
 
+	_ = h.lastpoint.SetValue(point)
+
 	if err := h.args.SendFunc(ctx, newHandoverMessageChallengeStagePoint(h.id, point)); err != nil {
 		h.cancel(err)
 
 		return ErrHandoverCanceled.Wrap(err)
 	}
 
-	return h.sendReady(ctx, point)
+	return nil
 }
 
 func (h *HandoverYBroker) sendBlockMap(ctx context.Context, point base.StagePoint, m base.BlockMap) error {
@@ -143,33 +142,9 @@ func (h *HandoverYBroker) sendBlockMap(ctx context.Context, point base.StagePoin
 		return err
 	}
 
-	if err := h.args.SendFunc(ctx, newHandoverMessageChallengeBlockMap(h.id, point, m)); err != nil {
-		h.cancel(err)
-
-		return ErrHandoverCanceled.Wrap(err)
-	}
-
-	return h.sendReady(ctx, point)
-}
-
-func (h *HandoverYBroker) sendReady(ctx context.Context, point base.StagePoint) error {
-	if err := h.isCanceled(); err != nil {
-		return err
-	}
-
-	switch isReady, isempty := h.isReady.Value(); {
-	case isempty, !isReady:
-	default:
-		return nil
-	}
-
-	hc := newHandoverMessageReady(h.id, point)
-
 	_ = h.lastpoint.SetValue(point)
 
-	h.Log().Debug().Interface("message", hc).Msg("sent HandoverMessageReady")
-
-	if err := h.args.SendFunc(ctx, hc); err != nil {
+	if err := h.args.SendFunc(ctx, newHandoverMessageChallengeBlockMap(h.id, point, m)); err != nil {
 		h.cancel(err)
 
 		return ErrHandoverCanceled.Wrap(err)
@@ -222,7 +197,7 @@ func (h *HandoverYBroker) receiveInternal(i interface{}) error {
 	switch t := i.(type) {
 	case HandoverMessageData:
 		return h.receiveData(t)
-	case HandoverMessageReadyResponse:
+	case HandoverMessageChallengeResponse:
 		return h.receiveReadyResponse(t)
 	case HandoverMessageFinish:
 		return h.receiveFinish(t)
@@ -232,19 +207,31 @@ func (h *HandoverYBroker) receiveInternal(i interface{}) error {
 }
 
 func (h *HandoverYBroker) receiveData(i HandoverMessageData) error {
-	switch t := i.Data().(type) {
-	case base.Voteproof:
-		if err := h.args.newVoteproofForStates(t); err != nil {
-			return err
+	switch t := i.DataType(); t {
+	case HandoverMessageDataTypeVoteproof:
+		if vp, err := i.LoadVoteproofData(); err != nil {
+			return errHandoverIgnore.Wrap(err)
+		} else { //revive:disable-line:indent-error-flow
+			return h.newVoteproof(vp)
 		}
+	case HandoverMessageDataTypeINITVoteproof:
+		if pr, vp, err := i.LoadINITVoteproofData(); err != nil {
+			return errHandoverIgnore.Wrap(err)
+		} else { //revive:disable-line:indent-error-flow
+			if pr != nil {
+				if err := h.args.NewData(HandoverMessageDataTypeProposal, pr); err != nil {
+					return err
+				}
+			}
 
-		return h.args.NewVoteproof(t)
+			return h.newVoteproof(vp)
+		}
 	default:
-		return h.args.NewData(t)
+		return h.args.NewData(t, i.Data())
 	}
 }
 
-func (h *HandoverYBroker) receiveReadyResponse(hc HandoverMessageReadyResponse) error {
+func (h *HandoverYBroker) receiveReadyResponse(hc HandoverMessageChallengeResponse) error {
 	h.Log().Debug().Interface("message", hc).Msg("receive HandoverMessageReadyResponse")
 
 	switch {
@@ -269,22 +256,46 @@ func (h *HandoverYBroker) receiveReadyResponse(hc HandoverMessageReadyResponse) 
 func (h *HandoverYBroker) receiveFinish(hc HandoverMessageFinish) error {
 	defer h.stop()
 
-	err := h.args.whenFinishedForStates(hc.INITVoteproof())
-	if err == nil {
-		err = h.args.WhenFinished(hc.INITVoteproof())
+	var err error
+
+	if pr := hc.Proposal(); pr != nil {
+		err = h.args.NewData(HandoverMessageDataTypeProposal, pr)
 	}
 
-	h.Log().Debug().Interface("message", hc).Err(err).Msg("receive HandoverMessageFinish")
+	err = util.JoinErrors(err, h.whenFinished(hc.INITVoteproof()))
+
+	l := h.Log().With().Interface("message", hc).Logger()
 
 	if err != nil {
-		h.cancel(err)
+		l.Error().Err(err).Msg("receive HandoverMessageFinish")
+	} else {
+		l.Debug().Msg("receive HandoverMessageFinish")
 	}
 
 	return err
 }
 
+func (h *HandoverYBroker) newVoteproof(vp base.Voteproof) error {
+	if err := h.newVoteprooff(vp); err != nil {
+		return err
+	}
+
+	return h.args.NewData(HandoverMessageDataTypeVoteproof, vp)
+}
+
+func (h *HandoverYBroker) whenFinished(vp base.INITVoteproof) error {
+	err := h.whenFinishedf(vp)
+
+	return util.JoinErrors(err, h.args.WhenFinished(vp))
+}
+
+func (h *HandoverYBroker) whenCanceled(err error) {
+	h.whenCanceledf(err)
+	h.args.WhenCanceled(err)
+}
+
 func (h *HandoverYBroker) patchStates(st *States) error {
-	h.args.newVoteproofForStates = func(vp base.Voteproof) error {
+	h.newVoteprooff = func(vp base.Voteproof) error {
 		vperr := newVoteproofWithErrchan(vp)
 
 		go func() {
@@ -296,7 +307,7 @@ func (h *HandoverYBroker) patchStates(st *States) error {
 		return nil
 	}
 
-	h.args.whenFinishedForStates = func(vp base.INITVoteproof) error {
+	h.whenFinishedf = func(vp base.INITVoteproof) error {
 		switch current := st.current(); {
 		case current == nil:
 		case vp == nil:
@@ -325,7 +336,7 @@ func (h *HandoverYBroker) patchStates(st *States) error {
 		return nil
 	}
 
-	h.args.whenCanceledForStates = func(error) {
+	h.whenCanceledf = func(error) {
 		st.cleanHandoverBrokers()
 
 		if current := st.current(); current != nil {

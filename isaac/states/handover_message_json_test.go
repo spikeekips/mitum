@@ -27,6 +27,8 @@ func (t *baseEncodeTestHandoverMessage) SetupSuite() {
 	t.enc = jsonenc.NewEncoder()
 
 	hints := []encoder.DecodeDetail{
+		{Hint: isaac.ProposalFactHint, Instance: isaac.ProposalFact{}},
+		{Hint: isaac.ProposalSignFactHint, Instance: isaac.ProposalSignFact{}},
 		{Hint: base.StringAddressHint, Instance: base.StringAddress{}},
 		{Hint: base.MPublickeyHint, Instance: base.MPublickey{}},
 		{Hint: isaac.INITBallotFactHint, Instance: isaac.INITBallotFact{}},
@@ -35,8 +37,7 @@ func (t *baseEncodeTestHandoverMessage) SetupSuite() {
 		{Hint: base.DummyBlockMapHint, Instance: base.DummyBlockMap{}},
 		{Hint: base.DummyManifestHint, Instance: base.DummyManifest{}},
 		{Hint: base.DummyNodeHint, Instance: base.BaseNode{}},
-		{Hint: HandoverMessageReadyHint, Instance: HandoverMessageReady{}},
-		{Hint: HandoverMessageReadyResponseHint, Instance: HandoverMessageReadyResponse{}},
+		{Hint: HandoverMessageChallengeResponseHint, Instance: HandoverMessageChallengeResponse{}},
 		{Hint: HandoverMessageFinishHint, Instance: HandoverMessageFinish{}},
 		{Hint: HandoverMessageChallengeStagePointHint, Instance: HandoverMessageChallengeStagePoint{}},
 		{Hint: HandoverMessageChallengeBlockMapHint, Instance: HandoverMessageChallengeBlockMap{}},
@@ -105,52 +106,49 @@ func (t *baseEncodeTestHandoverMessage) Decode(b []byte) interface{} {
 	return i
 }
 
-func TestHandoverMessageReadyEncode(tt *testing.T) {
-	t := new(baseEncodeTestHandoverMessage)
+func (t *baseEncodeTestHandoverMessage) voteproof() (base.ProposalSignFact, base.INITVoteproof) {
+	point := base.RawPoint(32, 44)
 
-	t.rtype = HandoverMessageReady{}
-	t.create = func() interface{} {
-		return newHandoverMessageReady(util.UUID().String(), base.NewStagePoint(base.RawPoint(33, 44), base.StageINIT))
-	}
-	t.compare = func(a, b interface{}) error {
-		ah, ok := a.(HandoverMessageReady)
-		if !ok {
-			return errors.Errorf("a, not HandoverMessageReady")
-		}
+	pr := isaac.NewProposalSignFact(isaac.NewProposalFact(point, base.RandomAddress(""), valuehash.RandomSHA256(), []util.Hash{valuehash.RandomSHA256()}))
+	_ = pr.Sign(base.NewMPrivatekey(), t.networkID)
 
-		bh, ok := b.(HandoverMessageReady)
-		if !ok {
-			return errors.Errorf("b, not HandoverMessageReady")
-		}
+	sfs := make([]base.BallotSignFact, 2)
+	for i := range sfs {
+		node := base.RandomLocalNode()
+		fact := isaac.NewINITBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
+		sf := isaac.NewINITBallotSignFact(fact)
+		t.NoError(sf.NodeSign(node.Privatekey(), t.networkID, node.Address()))
 
-		switch {
-		case !ah.point.Equal(bh.point):
-			return errors.Errorf("point not matched")
-		}
-
-		return nil
+		sfs[i] = sf
 	}
 
-	t.SetT(tt)
-	suite.Run(tt, t)
+	ivp := isaac.NewINITVoteproof(point)
+	ivp.
+		SetMajority(sfs[0].Fact().(base.BallotFact)).
+		SetSignFacts(sfs).
+		SetThreshold(base.Threshold(100)).
+		Finish()
+
+	return pr, ivp
 }
 
-func TestHandoverMessageReadyResponseEncode(tt *testing.T) {
+func TestHandoverMessageChallengeResponseEncode(tt *testing.T) {
 	t := new(baseEncodeTestHandoverMessage)
+	t.SetT(tt)
 
-	t.rtype = HandoverMessageReadyResponse{}
+	t.rtype = HandoverMessageChallengeResponse{}
 	t.create = func() interface{} {
-		return newHandoverMessageReadyResponse(util.UUID().String(), base.NewStagePoint(base.RawPoint(33, 44), base.StageINIT), true, errors.Errorf("showme"))
+		return newHandoverMessageChallengeResponse(util.UUID().String(), base.NewStagePoint(base.RawPoint(33, 44), base.StageINIT), true, errors.Errorf("showme"))
 	}
 	t.compare = func(a, b interface{}) error {
-		ah, ok := a.(HandoverMessageReadyResponse)
+		ah, ok := a.(HandoverMessageChallengeResponse)
 		if !ok {
-			return errors.Errorf("a, not HandoverMessageReadyResponse")
+			return errors.Errorf("a, not HandoverMessageChallengeResponse")
 		}
 
-		bh, ok := b.(HandoverMessageReadyResponse)
+		bh, ok := b.(HandoverMessageChallengeResponse)
 		if !ok {
-			return errors.Errorf("b, not HandoverMessageReadyResponse")
+			return errors.Errorf("b, not HandoverMessageChallengeResponse")
 		}
 
 		switch {
@@ -165,35 +163,18 @@ func TestHandoverMessageReadyResponseEncode(tt *testing.T) {
 		return nil
 	}
 
-	t.SetT(tt)
 	suite.Run(tt, t)
 }
 
 func TestHandoverMessageFinishEncode(tt *testing.T) {
 	t := new(baseEncodeTestHandoverMessage)
+	t.SetT(tt)
 
 	t.rtype = HandoverMessageFinish{}
 	t.create = func() interface{} {
-		point := base.RawPoint(32, 44)
+		pr, ivp := t.voteproof()
 
-		sfs := make([]base.BallotSignFact, 2)
-		for i := range sfs {
-			node := base.RandomLocalNode()
-			fact := isaac.NewINITBallotFact(point, valuehash.RandomSHA256(), valuehash.RandomSHA256(), nil)
-			sf := isaac.NewINITBallotSignFact(fact)
-			t.NoError(sf.NodeSign(node.Privatekey(), t.networkID, node.Address()))
-
-			sfs[i] = sf
-		}
-
-		ivp := isaac.NewINITVoteproof(point)
-		ivp.
-			SetMajority(sfs[0].Fact().(base.BallotFact)).
-			SetSignFacts(sfs).
-			SetThreshold(base.Threshold(100)).
-			Finish()
-
-		return newHandoverMessageFinish(util.UUID().String(), ivp)
+		return newHandoverMessageFinish(util.UUID().String(), ivp, pr)
 	}
 	t.compare = func(a, b interface{}) error {
 		ah, ok := a.(HandoverMessageFinish)
@@ -207,15 +188,17 @@ func TestHandoverMessageFinishEncode(tt *testing.T) {
 		}
 
 		base.EqualVoteproof(t.Assert(), ah.vp, bh.vp)
+		base.EqualProposalSignFact(t.Assert(), ah.pr, bh.pr)
+
 		return nil
 	}
 
-	t.SetT(tt)
 	suite.Run(tt, t)
 }
 
 func TestHandoverMessageChallengeStagePointncode(tt *testing.T) {
 	t := new(baseEncodeTestHandoverMessage)
+	t.SetT(tt)
 
 	t.rtype = HandoverMessageChallengeStagePoint{}
 	t.create = func() interface{} {
@@ -239,12 +222,12 @@ func TestHandoverMessageChallengeStagePointncode(tt *testing.T) {
 		return nil
 	}
 
-	t.SetT(tt)
 	suite.Run(tt, t)
 }
 
 func TestHandoverMessageChallengeBlockMapEncode(tt *testing.T) {
 	t := new(baseEncodeTestHandoverMessage)
+	t.SetT(tt)
 
 	t.rtype = HandoverMessageChallengeBlockMap{}
 	t.create = func() interface{} {
@@ -273,18 +256,34 @@ func TestHandoverMessageChallengeBlockMapEncode(tt *testing.T) {
 		return nil
 	}
 
-	t.SetT(tt)
 	suite.Run(tt, t)
 }
 
-func TestHandoverMessageDataEncode(tt *testing.T) {
+func TestHandoverMessageCancelEncode(tt *testing.T) {
 	t := new(baseEncodeTestHandoverMessage)
+	t.SetT(tt)
+
+	t.rtype = HandoverMessageCancel{}
+	t.create = func() interface{} {
+		return newHandoverMessageCancel(util.UUID().String())
+	}
+	t.compare = func(a, b interface{}) error {
+		return nil
+	}
+
+	suite.Run(tt, t)
+}
+
+func TestHandoverMessageDataVoteproofEncode(tt *testing.T) {
+	t := new(baseEncodeTestHandoverMessage)
+	t.SetT(tt)
 
 	t.rtype = HandoverMessageData{}
-	t.create = func() interface{} {
-		node := base.RandomNode()
 
-		return newHandoverMessageData(util.UUID().String(), node)
+	t.create = func() interface{} {
+		_, ivp := t.voteproof()
+
+		return newHandoverMessageData(util.UUID().String(), HandoverMessageDataTypeVoteproof, ivp)
 	}
 	t.compare = func(a, b interface{}) error {
 		ah, ok := a.(HandoverMessageData)
@@ -300,31 +299,67 @@ func TestHandoverMessageDataEncode(tt *testing.T) {
 		t.NotNil(ah.Data())
 		t.NotNil(bh.Data())
 
-		an, ok := ah.Data().(base.Node)
+		an, ok := ah.Data().(base.INITVoteproof)
 		t.True(ok)
-		bn, ok := bh.Data().(base.Node)
+		bn, ok := bh.Data().(base.INITVoteproof)
 		t.True(ok)
 
-		t.True(base.IsEqualNode(an, bn))
+		base.EqualVoteproof(t.Assert(), an, bn)
 
 		return nil
 	}
 
-	t.SetT(tt)
 	suite.Run(tt, t)
 }
 
-func TestHandoverMessageCancelEncode(tt *testing.T) {
+func TestHandoverMessageDataINITVoteproofEncode(tt *testing.T) {
 	t := new(baseEncodeTestHandoverMessage)
+	t.SetT(tt)
 
-	t.rtype = HandoverMessageCancel{}
+	t.rtype = HandoverMessageData{}
+
 	t.create = func() interface{} {
-		return newHandoverMessageCancel(util.UUID().String())
+		pr, ivp := t.voteproof()
+
+		return newHandoverMessageData(util.UUID().String(), HandoverMessageDataTypeINITVoteproof, []interface{}{pr, ivp})
 	}
 	t.compare = func(a, b interface{}) error {
+		ah, ok := a.(HandoverMessageData)
+		if !ok {
+			return errors.Errorf("a, not HandoverMessageData")
+		}
+
+		bh, ok := b.(HandoverMessageData)
+		if !ok {
+			return errors.Errorf("b, not HandoverMessageData")
+		}
+
+		t.NotNil(ah.Data())
+		t.NotNil(bh.Data())
+
+		ai, ok := ah.Data().([]interface{})
+		t.True(ok)
+		t.Equal(2, len(ai))
+		bi, ok := bh.Data().([]interface{})
+		t.True(ok)
+		t.Equal(2, len(bi))
+
+		apr, ok := ai[0].(base.ProposalSignFact)
+		t.True(ok)
+		bpr, ok := bi[0].(base.ProposalSignFact)
+		t.True(ok)
+
+		base.EqualProposalSignFact(t.Assert(), apr, bpr)
+
+		avp, ok := ai[1].(base.INITVoteproof)
+		t.True(ok)
+		bvp, ok := bi[1].(base.INITVoteproof)
+		t.True(ok)
+
+		base.EqualVoteproof(t.Assert(), avp, bvp)
+
 		return nil
 	}
 
-	t.SetT(tt)
 	suite.Run(tt, t)
 }

@@ -420,7 +420,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageReady() {
 
 		broker := NewHandoverXBroker(context.Background(), args)
 
-		h := newHandoverMessageReady(util.UUID().String(), base.NewStagePoint(point, base.StageINIT))
+		h := newHandoverMessageChallengeStagePoint(util.UUID().String(), base.NewStagePoint(point, base.StageINIT))
 		t.Error(broker.receive(h))
 
 		err := broker.isCanceled()
@@ -433,7 +433,7 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageReady() {
 
 		broker := NewHandoverXBroker(context.Background(), args)
 
-		h := newHandoverMessageReady(broker.ID(), base.NewStagePoint(point, base.StageINIT))
+		h := newHandoverMessageChallengeStagePoint(broker.ID(), base.NewStagePoint(point, base.StageINIT))
 		t.Error(broker.receive(h))
 
 		err := broker.isCanceled()
@@ -454,22 +454,19 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageReady() {
 		hc := newHandoverMessageChallengeStagePoint(broker.ID(), ivp.Point())
 		t.NoError(broker.receive(hc))
 
-		hr := newHandoverMessageReady(broker.ID(), base.NewStagePoint(point, base.StageINIT))
-		t.NoError(broker.receive(hr))
-
 		t.Equal(uint64(1), broker.successcount.MustValue())
 
 		t.T().Log("send again")
-		t.NoError(broker.receive(hr))
+		t.NoError(broker.receive(hc))
 		t.Equal(uint64(1), broker.successcount.MustValue())
 	})
 
 	t.Run("not ready", func() {
 		args := t.xargs()
 
-		sendch := make(chan HandoverMessageReadyResponse, 1)
+		sendch := make(chan HandoverMessageChallengeResponse, 1)
 		args.SendFunc = func(_ context.Context, i interface{}) error {
-			if h, ok := i.(HandoverMessageReadyResponse); ok {
+			if h, ok := i.(HandoverMessageChallengeResponse); ok {
 				sendch <- h
 			}
 
@@ -490,9 +487,6 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageReady() {
 		t.Equal(broker.successcount.MustValue(), count)
 		t.False(isReady)
 
-		h := newHandoverMessageReady(broker.ID(), base.NewStagePoint(point, base.StageINIT))
-		t.NoError(broker.receive(h))
-
 		select {
 		case <-time.After(time.Second * 2):
 			t.NoError(errors.Errorf("failed to wait HandoverMessageFinish"))
@@ -509,9 +503,9 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageReady() {
 		args := t.xargs()
 		args.MinChallengeCount = 1
 
-		sendch := make(chan HandoverMessageReadyResponse, 1)
+		sendch := make(chan HandoverMessageChallengeResponse, 1)
 		args.SendFunc = func(_ context.Context, i interface{}) error {
-			if h, ok := i.(HandoverMessageReadyResponse); ok {
+			if h, ok := i.(HandoverMessageChallengeResponse); ok {
 				sendch <- h
 			}
 
@@ -531,9 +525,6 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageReady() {
 		count, isReady := broker.isReady()
 		t.Equal(broker.successcount.MustValue(), count)
 		t.True(isReady)
-
-		h := newHandoverMessageReady(broker.ID(), base.NewStagePoint(point, base.StageINIT))
-		t.NoError(broker.receive(h))
 
 		select {
 		case <-time.After(time.Second * 2):
@@ -554,9 +545,9 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageReady() {
 			return false, nil
 		}
 
-		sendch := make(chan HandoverMessageReadyResponse, 1)
+		sendch := make(chan HandoverMessageChallengeResponse, 1)
 		args.SendFunc = func(_ context.Context, i interface{}) error {
-			if h, ok := i.(HandoverMessageReadyResponse); ok {
+			if h, ok := i.(HandoverMessageChallengeResponse); ok {
 				sendch <- h
 			}
 
@@ -576,9 +567,6 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageReady() {
 		count, isReady := broker.isReady()
 		t.Equal(broker.successcount.MustValue(), count)
 		t.True(isReady)
-
-		h := newHandoverMessageReady(broker.ID(), base.NewStagePoint(point, base.StageINIT))
-		t.NoError(broker.receive(h))
 
 		select {
 		case <-time.After(time.Second * 1):
@@ -596,9 +584,9 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageReady() {
 			return false, errors.Errorf("hahaha")
 		}
 
-		sendch := make(chan HandoverMessageReadyResponse, 1)
+		sendch := make(chan HandoverMessageChallengeResponse, 1)
 		args.SendFunc = func(_ context.Context, i interface{}) error {
-			if h, ok := i.(HandoverMessageReadyResponse); ok {
+			if h, ok := i.(HandoverMessageChallengeResponse); ok {
 				sendch <- h
 			}
 
@@ -612,17 +600,15 @@ func (t *testHandoverXBroker) TestReceiveHandoverMessageReady() {
 		t.False(isFinished)
 
 		hc := newHandoverMessageChallengeStagePoint(broker.ID(), ivp.Point())
-		t.NoError(broker.receive(hc))
-		t.Equal(uint64(1), broker.successcount.MustValue())
+		err = broker.receive(hc)
+		t.NotNil(err)
+		t.ErrorContains(err, "hahaha")
+
+		t.Equal(uint64(0), broker.successcount.MustValue())
 
 		count, isReady := broker.isReady()
 		t.Equal(broker.successcount.MustValue(), count)
-		t.True(isReady)
-
-		h := newHandoverMessageReady(broker.ID(), base.NewStagePoint(point, base.StageINIT))
-		err = broker.receive(h)
-		t.True(errors.Is(err, ErrHandoverCanceled))
-		t.ErrorContains(err, "hahaha")
+		t.False(isReady)
 
 		select {
 		case <-time.After(time.Second * 1):
@@ -649,7 +635,7 @@ func (t *testHandoverXBroker) TestFinish() {
 		}
 
 		broker := NewHandoverXBroker(context.Background(), args)
-		t.NoError(broker.finish(nil))
+		t.NoError(broker.finish(nil, nil))
 
 		select {
 		case <-time.After(time.Second * 2):
@@ -672,7 +658,7 @@ func (t *testHandoverXBroker) TestFinish() {
 		}
 
 		broker := NewHandoverXBroker(context.Background(), args)
-		err := broker.finish(nil)
+		err := broker.finish(nil, nil)
 		t.Error(err)
 		t.ErrorContains(err, "failed to send")
 		t.True(errors.Is(err, ErrHandoverCanceled))
