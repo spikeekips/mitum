@@ -7,4 +7,5 @@ var (
 	ErrWrongType      = NewMError("wrong type")
 	ErrNotImplemented = NewMError("not implemented")
 	ErrInternal       = NewMError("internal error")
+	ErrNotSupported   = NewMError("not supported")
 )

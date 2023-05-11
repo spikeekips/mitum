@@ -109,14 +109,11 @@ func (srv *Server) handleSession(ctx context.Context, session quic.EarlyConnecti
 }
 
 func (srv *Server) handleStream(ctx context.Context, remoteAddr net.Addr, stream quic.Stream) {
-	defer func() {
-		_ = stream.Close()
-	}()
-
 	if err := util.AwareContext(ctx, func(context.Context) error {
 		return srv.handler(remoteAddr, stream, stream)
 	}); err != nil {
 		var errcode quic.StreamErrorCode
+
 		if errors.Is(err, context.Canceled) {
 			errcode = 0x401
 		}
@@ -126,4 +123,6 @@ func (srv *Server) handleStream(ctx context.Context, remoteAddr net.Addr, stream
 
 		srv.Log().Trace().Err(err).Msg("failed to handle stream")
 	}
+
+	_ = stream.Close()
 }

@@ -69,7 +69,7 @@ func PNetwork(pctx context.Context) (context.Context, error) {
 		return pctx, e(err, "")
 	}
 
-	handlers := quicstream.NewPrefixHandler(isaacnetwork.QuicstreamErrorHandler(enc, params.TimeoutRequest))
+	handlers := quicstream.NewPrefixHandler(nil)
 
 	quicconfig := DefaultQuicConfig()
 	quicconfig.RequireAddressValidation = func(net.Addr) bool {

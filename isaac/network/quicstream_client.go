@@ -8,6 +8,7 @@ import (
 
 	"github.com/quic-go/quic-go"
 	"github.com/spikeekips/mitum/network/quicstream"
+	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
@@ -64,7 +65,7 @@ func (c *QuicstreamClient) NewQuicstreamClient(
 	}
 }
 
-func (c *QuicstreamClient) openstreamFunc(client *quicstream.PoolClient) quicstream.OpenStreamFunc {
+func (c *QuicstreamClient) openstreamFunc(client *quicstream.PoolClient) quicstreamheader.OpenStreamFunc {
 	return func(ctx context.Context, ci quicstream.UDPConnInfo) (io.Reader, io.WriteCloser, error) {
 		return client.OpenStream(ctx, ci.UDPAddr(), c.NewQuicstreamClient(ci))
 	}

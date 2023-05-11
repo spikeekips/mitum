@@ -91,7 +91,7 @@ func (t *testPrefixHandler) Test() {
 		r, w, err := client.OpenStream(ctx)
 		t.NoError(err)
 
-		_, err = w.Write(writeWithPrefix([]byte("unknown"), b))
+		_, err = w.Write(writeWithPrefix(HashPrefix("unknown"), b))
 		t.NoError(err)
 
 		t.NoError(w.Close())
@@ -108,7 +108,7 @@ func TestPrefixHandler(t *testing.T) {
 	suite.Run(t, new(testPrefixHandler))
 }
 
-func writeWithPrefix(prefix []byte, b []byte) []byte {
+func writeWithPrefix(prefix [32]byte, b []byte) []byte {
 	w := bytes.NewBuffer(nil)
 	defer w.Reset()
 

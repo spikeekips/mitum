@@ -5,11 +5,17 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/quic-go/quic-go"
+	"github.com/spikeekips/mitum/util"
 )
 
+var ErrNetwork = util.NewMError("network error")
+
 func IsNetworkError(err error) bool {
-	if err == nil {
+	switch {
+	case err == nil:
 		return false
+	case errors.Is(err, ErrNetwork):
+		return true
 	}
 
 	if e := (&quic.StreamError{}); errors.As(err, &e) {

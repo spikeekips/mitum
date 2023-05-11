@@ -14,7 +14,7 @@ type SuffragePool struct {
 	byHeightFunc func(base.Height) (base.Suffrage, bool, error)
 	lastf        func() (base.Height, base.Suffrage, bool, error)
 	cache        *util.GCache[string, base.Suffrage]
-	sg           singleflight.Group
+	sg           *singleflight.Group
 	expire       time.Duration
 	sync.RWMutex
 }
@@ -28,6 +28,7 @@ func NewSuffragePool(
 		lastf:        lastf,
 		cache:        util.NewLRUGCache[string, base.Suffrage](1 << 9), //nolint:gomnd //...
 		expire:       time.Second * 3,                                  //nolint:gomnd //...
+		sg:           &singleflight.Group{},
 	}
 }
 
@@ -45,25 +46,23 @@ func (s *SuffragePool) Last() (base.Suffrage, bool, error) {
 	s.RLock()
 	defer s.RUnlock()
 
-	switch i, err, _ := s.sg.Do("last", func() (interface{}, error) {
+	switch i, err, _ := util.SingleflightDo[[2]interface{}](s.sg, "last", func() ([2]interface{}, error) {
 		switch height, i, found, err := s.lastf(); {
 		case err != nil, !found:
-			return nil, err
+			return [2]interface{}{}, err
 		case i == nil:
-			return nil, nil
+			return [2]interface{}{}, nil
 		default:
 			return [2]interface{}{height, i}, nil
 		}
 	}); {
 	case err != nil:
 		return nil, false, errors.WithStack(err)
-	case i == nil:
+	case i[1] == nil:
 		return nil, false, nil
 	default:
-		j := i.([2]interface{}) //nolint:forcetypeassert //...
-
-		height := j[0].(base.Height) //nolint:forcetypeassert //...
-		suf := j[1].(base.Suffrage)  //nolint:forcetypeassert //...
+		height := i[0].(base.Height) //nolint:forcetypeassert //...
+		suf := i[1].(base.Suffrage)  //nolint:forcetypeassert //...
 
 		s.cache.Set(height.String(), suf, s.expire)
 
@@ -86,7 +85,7 @@ func (s *SuffragePool) get(
 	height base.Height,
 	f func(base.Height) (base.Suffrage, bool, error),
 ) (base.Suffrage, bool, error) {
-	i, err, _ := s.sg.Do(height.String(), func() (interface{}, error) {
+	i, err, _ := util.SingleflightDo(s.sg, height.String(), func() ([2]interface{}, error) {
 		if i, found := s.cache.Get(height.String()); found {
 			return [2]interface{}{i, true}, nil //nolint:forcetypeassert //...
 		}
@@ -104,10 +103,10 @@ func (s *SuffragePool) get(
 		return nil, false, errors.WithStack(err)
 	}
 
-	found := i.([2]interface{})[1].(bool) //nolint:forcetypeassert //...
+	found := i[1].(bool) //nolint:forcetypeassert //...
 	if !found {
 		return nil, false, nil
 	}
 
-	return i.([2]interface{})[0].(base.Suffrage), true, nil //nolint:forcetypeassert //...
+	return i[0].(base.Suffrage), true, nil //nolint:forcetypeassert //...
 }

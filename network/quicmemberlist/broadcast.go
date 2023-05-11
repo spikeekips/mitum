@@ -8,6 +8,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/network/quicstream"
+	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
 	"github.com/spikeekips/mitum/util/hint"
@@ -125,12 +126,12 @@ var CallbackBroadcastMessageHeaderHint = hint.MustNewHint("callback-broadcast-me
 
 type CallbackBroadcastMessageHeader struct {
 	id string
-	quicstream.BaseRequestHeader
+	quicstreamheader.BaseRequestHeader
 }
 
-func NewCallbackBroadcastMessageHeader(id string, prefix []byte) CallbackBroadcastMessageHeader {
+func NewCallbackBroadcastMessageHeader(id string, prefix [32]byte) CallbackBroadcastMessageHeader {
 	return CallbackBroadcastMessageHeader{
-		BaseRequestHeader: quicstream.NewBaseRequestHeader(CallbackBroadcastMessageHeaderHint, prefix),
+		BaseRequestHeader: quicstreamheader.NewBaseRequestHeader(CallbackBroadcastMessageHeaderHint, prefix),
 		id:                id,
 	}
 }
@@ -160,7 +161,7 @@ type callbackBroadcastMessageHeaderJSONMarshaler struct {
 func (h CallbackBroadcastMessageHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
 		callbackBroadcastMessageHeaderJSONMarshaler
-		quicstream.BaseRequestHeader
+		quicstreamheader.BaseRequestHeader
 	}{
 		BaseRequestHeader: h.BaseRequestHeader,
 		callbackBroadcastMessageHeaderJSONMarshaler: callbackBroadcastMessageHeaderJSONMarshaler{
@@ -192,12 +193,12 @@ var EnsureBroadcastMessageHeaderHint = hint.MustNewHint("ensure-broadcast-messag
 type EnsureBroadcastMessageHeader struct {
 	id string
 	base.BaseNodeSign
-	quicstream.BaseRequestHeader
+	quicstreamheader.BaseRequestHeader
 }
 
 func NewEnsureBroadcastMessageHeader(
 	id string,
-	prefix []byte,
+	prefix [32]byte,
 	node base.Address,
 	signer base.Privatekey,
 	networkID base.NetworkID,
@@ -208,7 +209,7 @@ func NewEnsureBroadcastMessageHeader(
 	}
 
 	return EnsureBroadcastMessageHeader{
-		BaseRequestHeader: quicstream.NewBaseRequestHeader(EnsureBroadcastMessageHeaderHint, prefix),
+		BaseRequestHeader: quicstreamheader.NewBaseRequestHeader(EnsureBroadcastMessageHeaderHint, prefix),
 		BaseNodeSign:      nodeSign,
 		id:                id,
 	}, nil
@@ -244,7 +245,7 @@ func (h EnsureBroadcastMessageHeader) MarshalJSON() ([]byte, error) {
 	return util.MarshalJSON(struct {
 		ensureBroadcastMessageHeaderJSONMarshaler
 		base.BaseNodeSignJSONMarshaler
-		quicstream.BaseRequestHeader
+		quicstreamheader.BaseRequestHeader
 	}{
 		BaseRequestHeader:         h.BaseRequestHeader,
 		BaseNodeSignJSONMarshaler: h.BaseNodeSign.JSONMarshaler(),

@@ -74,7 +74,7 @@ func NewTransport(
 
 func NewTransportWithQuicstream(
 	laddr *net.UDPAddr,
-	handlerPrefix []byte,
+	handlerPrefix [32]byte,
 	poolclient *quicstream.PoolClient,
 	newClient func(quicstream.UDPConnInfo) func(*net.UDPAddr) *quicstream.Client,
 	notallowf func(string) bool,
@@ -96,7 +96,7 @@ func NewTransportWithQuicstream(
 		})
 	}
 
-	if len(handlerPrefix) > 0 {
+	if handlerPrefix != quicstream.ZeroPrefix {
 		writeBody = func(ctx context.Context, w io.Writer, b []byte) error {
 			return util.AwareContext(ctx, func(context.Context) error {
 				if err := quicstream.WritePrefix(ctx, w, handlerPrefix); err != nil {

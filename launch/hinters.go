@@ -9,7 +9,7 @@ import (
 	isaacoperation "github.com/spikeekips/mitum/isaac/operation"
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
-	"github.com/spikeekips/mitum/network/quicstream"
+	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/fixedtree"
 	"github.com/spikeekips/mitum/util/hint"
@@ -98,7 +98,7 @@ var Hinters = []encoder.DecodeDetail{
 		Instance: quicmemberlist.EnsureBroadcastMessageHeader{},
 	},
 	{Hint: quicmemberlist.MemberHint, Instance: quicmemberlist.BaseMember{}},
-	{Hint: quicstream.DefaultResponseHeaderHint, Instance: quicstream.DefaultResponseHeader{}},
+	{Hint: quicstreamheader.DefaultResponseHeaderHint, Instance: quicstreamheader.DefaultResponseHeader{}},
 }
 
 var SupportedProposalOperationFactHinters = []encoder.DecodeDetail{

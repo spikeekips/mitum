@@ -14,6 +14,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/network/quicstream"
+	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
@@ -40,7 +41,7 @@ func (t *testMemberlist) SetupSuite() {
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: ConnInfoBroadcastMessageHint, Instance: ConnInfoBroadcastMessage{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: CallbackBroadcastMessageHeaderHint, Instance: CallbackBroadcastMessageHeader{}}))
 	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: EnsureBroadcastMessageHeaderHint, Instance: EnsureBroadcastMessageHeader{}}))
-	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: quicstream.DefaultResponseHeaderHint, Instance: quicstream.DefaultResponseHeader{}}))
+	t.NoError(t.enc.Add(encoder.DecodeDetail{Hint: quicstreamheader.DefaultResponseHeaderHint, Instance: quicstreamheader.DefaultResponseHeader{}}))
 }
 
 func (t *testMemberlist) SetupTest() {
@@ -1133,9 +1134,9 @@ func (t *testMemberlist) TestCallbackBroadcast() {
 
 	callbackhandlerprefix := quicstream.HashPrefix("cb")
 
-	lph.Add(callbackhandlerprefix, quicstream.NewHeaderHandler(t.encs, 0, lsrv.CallbackBroadcastHandler()))
+	lph.Add(callbackhandlerprefix, quicstreamheader.NewHandler(t.encs, 0, lsrv.CallbackBroadcastHandler(), nil))
 
-	lcl := quicstream.NewHeaderClient(t.encs, t.enc, func(
+	lcl := quicstreamheader.NewClient(t.encs, t.enc, func(
 		ctx context.Context,
 		addr quicstream.UDPConnInfo,
 	) (io.Reader, io.WriteCloser, error) {
@@ -1244,7 +1245,7 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 		nil,
 	)
 
-	lcl := quicstream.NewHeaderClient(t.encs, t.enc, func(
+	lcl := quicstreamheader.NewClient(t.encs, t.enc, func(
 		ctx context.Context,
 		addr quicstream.UDPConnInfo,
 	) (io.Reader, io.WriteCloser, error) {
@@ -1334,7 +1335,7 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 		}
 	}
 
-	lph.Add(handlerprefix, quicstream.NewHeaderHandler(t.encs, 0, lsrv.EnsureBroadcastHandler(
+	lph.Add(handlerprefix, quicstreamheader.NewHandler(t.encs, 0, lsrv.EnsureBroadcastHandler(
 		networkID,
 		func(node base.Address) (base.Publickey, bool, error) {
 			for i := range rnodes {
@@ -1346,7 +1347,7 @@ func (t *testMemberlist) TestEnsureBroadcast() {
 			}
 			return nil, false, nil
 		},
-	)))
+	), nil))
 
 	t.NoError(lstartf())
 	defer lstopf()

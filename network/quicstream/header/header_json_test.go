@@ -1,9 +1,10 @@
-package quicstream
+package quicstreamheader
 
 import (
 	"testing"
 
 	"github.com/pkg/errors"
+	"github.com/spikeekips/mitum/network/quicstream"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/spikeekips/mitum/util/hint"
@@ -16,7 +17,14 @@ func TestBaseRequestHeader(tt *testing.T) {
 	t := new(encoder.BaseTestEncode)
 
 	t.Encode = func() (interface{}, []byte) {
-		h := NewBaseRequestHeader(ht, util.UUID().Bytes())
+		prefix := [32]byte(quicstream.HashPrefix(util.UUID().String()))
+
+		h := NewBaseRequestHeader(ht, prefix)
+
+		_, ok := (interface{})(h).(RequestHeader)
+		t.True(ok)
+
+		t.NoError(h.IsValid(nil))
 
 		b, err := util.MarshalJSON(h.JSONMarshaler())
 		t.NoError(err)
@@ -28,6 +36,8 @@ func TestBaseRequestHeader(tt *testing.T) {
 	t.Decode = func(b []byte) interface{} {
 		var u BaseRequestHeader
 		t.NoError(util.UnmarshalJSON(b, &u))
+
+		t.NoError(u.IsValid(nil))
 
 		return u
 	}
@@ -42,14 +52,19 @@ func TestBaseRequestHeader(tt *testing.T) {
 	suite.Run(tt, t)
 }
 
-func TestBaseResponseHeader(tt *testing.T) {
+func TestDefaultResponseHeader(tt *testing.T) {
 	t := new(encoder.BaseTestEncode)
 
 	t.Encode = func() (interface{}, []byte) {
 		h := NewDefaultResponseHeader(true, errors.Errorf("showme"))
 
+		t.NoError(h.IsValid(nil))
+
 		b, err := util.MarshalJSON(h.JSONMarshaler())
 		t.NoError(err)
+
+		_, ok := (interface{})(h).(ResponseHeader)
+		t.True(ok)
 
 		t.T().Log("marshaled:", string(b))
 
@@ -58,6 +73,8 @@ func TestBaseResponseHeader(tt *testing.T) {
 	t.Decode = func(b []byte) interface{} {
 		var u DefaultResponseHeader
 		t.NoError(util.UnmarshalJSON(b, &u))
+
+		t.NoError(u.IsValid(nil))
 
 		return u
 	}

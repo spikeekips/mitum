@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net"
+	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/util"
@@ -17,9 +18,12 @@ type (
 
 var ErrHandlerNotFound = util.NewMError("handler not found")
 
+var ZeroPrefix [32]byte
+
 type PrefixHandler struct {
-	handlers     map[string]Handler
+	handlers     map[[32]byte]Handler
 	errorHandler ErrorHandler
+	handlerslock sync.RWMutex
 	// TODO support rate limit
 }
 
@@ -33,7 +37,7 @@ func NewPrefixHandler(errorHandler ErrorHandler) *PrefixHandler {
 	}
 
 	return &PrefixHandler{
-		handlers:     map[string]Handler{},
+		handlers:     map[[32]byte]Handler{},
 		errorHandler: nerrorHandler,
 	}
 }
@@ -51,8 +55,15 @@ func (h *PrefixHandler) Handler(addr net.Addr, r io.Reader, w io.Writer) error {
 	return nil
 }
 
-func (h *PrefixHandler) Add(prefix []byte, handler Handler) *PrefixHandler {
-	h.handlers[string(prefix)] = handler
+func (h *PrefixHandler) Add(prefix [32]byte, handler Handler) *PrefixHandler {
+	if prefix == ZeroPrefix {
+		panic("empty prefix")
+	}
+
+	h.handlerslock.Lock()
+	defer h.handlerslock.Unlock()
+
+	h.handlers[prefix] = handler
 
 	return h
 }
@@ -60,12 +71,19 @@ func (h *PrefixHandler) Add(prefix []byte, handler Handler) *PrefixHandler {
 func (h *PrefixHandler) loadHandler(r io.Reader) (Handler, error) {
 	e := util.StringErrorFunc("load handler")
 
-	prefix, err := readPrefix(r)
-	if err != nil {
+	var prefix [32]byte
+
+	switch i, err := readPrefix(r); {
+	case err != nil:
 		return nil, e(err, "")
+	default:
+		prefix = i
 	}
 
-	handler, found := h.handlers[string(prefix)]
+	h.handlerslock.RLock()
+	defer h.handlerslock.RUnlock()
+
+	handler, found := h.handlers[prefix]
 	if !found {
 		return nil, e(ErrHandlerNotFound.Errorf("handler not found"), "")
 	}
@@ -73,26 +91,32 @@ func (h *PrefixHandler) loadHandler(r io.Reader) (Handler, error) {
 	return handler, nil
 }
 
-func HashPrefix(s string) []byte {
-	return valuehash.NewSHA256([]byte(s)).Bytes()
+func HashPrefix(s string) [32]byte {
+	return [32]byte(valuehash.NewSHA256([]byte(s)).Bytes())
 }
 
-func readPrefix(r io.Reader) ([]byte, error) {
-	p := make([]byte, 32)
-
-	switch _, err := util.EnsureRead(r, p); {
+func readPrefix(r io.Reader) (prefix [32]byte, _ error) {
+	switch _, err := util.EnsureRead(r, prefix[:]); {
 	case err == nil:
 	case errors.Is(err, io.EOF):
 	default:
-		return nil, err
+		return prefix, err
 	}
 
-	return p, nil
+	if prefix == ZeroPrefix {
+		return prefix, errors.Errorf("empty prefix")
+	}
+
+	return prefix, nil
 }
 
-func WritePrefix(ctx context.Context, w io.Writer, prefix []byte) error {
+func WritePrefix(ctx context.Context, w io.Writer, prefix [32]byte) error {
+	if prefix == ZeroPrefix {
+		return errors.Errorf("empty prefix")
+	}
+
 	return util.AwareContext(ctx, func(context.Context) error {
-		_, err := w.Write(prefix)
+		_, err := w.Write(prefix[:])
 
 		return errors.WithStack(err)
 	})

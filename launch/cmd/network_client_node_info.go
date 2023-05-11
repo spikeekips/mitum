@@ -6,7 +6,7 @@ import (
 
 	"github.com/pkg/errors"
 	isaacnetwork "github.com/spikeekips/mitum/isaac/network"
-	"github.com/spikeekips/mitum/network/quicstream"
+	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util/encoder"
 )
 
@@ -51,10 +51,10 @@ func (cmd *NetworkClientNodeInfoCommand) Run(pctx context.Context) error {
 		enc = renc
 	}
 
-	switch dataFormat, bodyLenght, r, err := broker.ReadBody(ctx); {
+	switch bodyType, bodyLenght, r, err := broker.ReadBodyErr(ctx); {
 	case err != nil:
 		return err
-	case dataFormat == quicstream.EmptyDataFormat, dataFormat == quicstream.LengthedDataFormat && bodyLenght < 1:
+	case bodyType == quicstreamheader.EmptyBodyType, bodyType == quicstreamheader.FixedLengthBodyType && bodyLenght < 1:
 		return errors.Errorf("empty body")
 	default:
 		var v interface{}

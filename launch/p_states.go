@@ -14,6 +14,7 @@ import (
 	isaacstates "github.com/spikeekips/mitum/isaac/states"
 	"github.com/spikeekips/mitum/network/quicmemberlist"
 	"github.com/spikeekips/mitum/network/quicstream"
+	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	leveldbstorage "github.com/spikeekips/mitum/storage/leveldb"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
@@ -351,13 +352,14 @@ func PStatesNetworkHandlers(pctx context.Context) (context.Context, error) {
 
 	handlers.
 		Add(isaacnetwork.HandlerPrefixSetAllowConsensus,
-			quicstream.NewHeaderHandler(encs,
+			quicstreamheader.NewHandler(encs,
 				time.Second*2, //nolint:gomnd //...
 				isaacnetwork.QuicstreamHandlerSetAllowConsensus(
 					local.Publickey(),
 					params.NetworkID(),
 					states.SetAllowConsensus,
 				),
+				nil,
 			),
 		)
 

@@ -4,6 +4,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/network/quicstream"
+	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/hint"
 )
@@ -28,12 +29,52 @@ var (
 	SetAllowConsensusHeaderHint             = hint.MustNewHint("set-allow-consensus-header-v0.0.1")
 )
 
+var (
+	HandlerPrefixRequestProposalString        = "request_proposal"
+	HandlerPrefixProposalString               = "proposal"
+	HandlerPrefixLastSuffrageProofString      = "last_suffrage_proof"
+	HandlerPrefixSuffrageProofString          = "suffrage_proof"
+	HandlerPrefixLastBlockMapString           = "last_blockmap"
+	HandlerPrefixBlockMapString               = "blockmap"
+	HandlerPrefixBlockMapItemString           = "blockmap_item"
+	HandlerPrefixMemberlistString             = "memberlist"
+	HandlerPrefixNodeChallengeString          = "node_challenge"
+	HandlerPrefixSuffrageNodeConnInfoString   = "suffrage_node_conninfo"
+	HandlerPrefixSyncSourceConnInfoString     = "sync_source_conninfo"
+	HandlerPrefixOperationString              = "operation"
+	HandlerPrefixSendOperationString          = "send_operation"
+	HandlerPrefixStateString                  = "state"
+	HandlerPrefixExistsInStateOperationString = "exists_instate_operation"
+	HandlerPrefixNodeInfoString               = "node_info"
+	HandlerPrefixSendBallotsString            = "send_ballots"
+	HandlerPrefixSetAllowConsensusString      = "set_allow_consensus"
+
+	HandlerPrefixRequestProposal        = quicstream.HashPrefix(HandlerPrefixRequestProposalString)
+	HandlerPrefixProposal               = quicstream.HashPrefix(HandlerPrefixProposalString)
+	HandlerPrefixLastSuffrageProof      = quicstream.HashPrefix(HandlerPrefixLastSuffrageProofString)
+	HandlerPrefixSuffrageProof          = quicstream.HashPrefix(HandlerPrefixSuffrageProofString)
+	HandlerPrefixLastBlockMap           = quicstream.HashPrefix(HandlerPrefixLastBlockMapString)
+	HandlerPrefixBlockMap               = quicstream.HashPrefix(HandlerPrefixBlockMapString)
+	HandlerPrefixBlockMapItem           = quicstream.HashPrefix(HandlerPrefixBlockMapItemString)
+	HandlerPrefixMemberlist             = quicstream.HashPrefix(HandlerPrefixMemberlistString)
+	HandlerPrefixNodeChallenge          = quicstream.HashPrefix(HandlerPrefixNodeChallengeString)
+	HandlerPrefixSuffrageNodeConnInfo   = quicstream.HashPrefix(HandlerPrefixSuffrageNodeConnInfoString)
+	HandlerPrefixSyncSourceConnInfo     = quicstream.HashPrefix(HandlerPrefixSyncSourceConnInfoString)
+	HandlerPrefixOperation              = quicstream.HashPrefix(HandlerPrefixOperationString)
+	HandlerPrefixSendOperation          = quicstream.HashPrefix(HandlerPrefixSendOperationString)
+	HandlerPrefixState                  = quicstream.HashPrefix(HandlerPrefixStateString)
+	HandlerPrefixExistsInStateOperation = quicstream.HashPrefix(HandlerPrefixExistsInStateOperationString)
+	HandlerPrefixNodeInfo               = quicstream.HashPrefix(HandlerPrefixNodeInfoString)
+	HandlerPrefixSendBallots            = quicstream.HashPrefix(HandlerPrefixSendBallotsString)
+	HandlerPrefixSetAllowConsensus      = quicstream.HashPrefix(HandlerPrefixSetAllowConsensusString)
+)
+
 type baseHeader struct {
-	quicstream.BaseRequestHeader
+	quicstreamheader.BaseRequestHeader
 }
 
 func newBaseHeader(ht hint.Hint) baseHeader {
-	return baseHeader{BaseRequestHeader: quicstream.NewBaseRequestHeader(ht, headerPrefixByHint(ht))}
+	return baseHeader{BaseRequestHeader: quicstreamheader.NewBaseRequestHeader(ht, headerPrefixByHint(ht))}
 }
 
 type OperationRequestHeader struct {
@@ -520,7 +561,7 @@ func (h SetAllowConsensusHeader) Allow() bool {
 	return h.allow
 }
 
-func headerPrefixByHint(ht hint.Hint) []byte {
+func headerPrefixByHint(ht hint.Hint) [32]byte {
 	switch ht.Type() {
 	case RequestProposalRequestHeaderHint.Type():
 		return HandlerPrefixRequestProposal
@@ -557,6 +598,6 @@ func headerPrefixByHint(ht hint.Hint) []byte {
 	case SetAllowConsensusHeaderHint.Type():
 		return HandlerPrefixSetAllowConsensus
 	default:
-		return nil
+		return [32]byte{}
 	}
 }

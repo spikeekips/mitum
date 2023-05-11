@@ -15,6 +15,7 @@ import (
 	"github.com/spikeekips/mitum/isaac"
 	isaacdatabase "github.com/spikeekips/mitum/isaac/database"
 	"github.com/spikeekips/mitum/network/quicstream"
+	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util/encoder"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
@@ -37,7 +38,7 @@ func (t *testSyncSourceChecker) SetupSuite() {
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: SuffrageNodeConnInfoRequestHeaderHint, Instance: SuffrageNodeConnInfoRequestHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: SyncSourceConnInfoRequestHeaderHint, Instance: SyncSourceConnInfoRequestHeader{}}))
 	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: NodeConnInfoHint, Instance: NodeConnInfo{}}))
-	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: quicstream.DefaultResponseHeaderHint, Instance: quicstream.DefaultResponseHeader{}}))
+	t.NoError(t.Enc.Add(encoder.DecodeDetail{Hint: quicstreamheader.DefaultResponseHeaderHint, Instance: quicstreamheader.DefaultResponseHeader{}}))
 }
 
 type handlers struct {
@@ -49,26 +50,26 @@ type handlers struct {
 	syncSourceConnInfof   func() ([]isaac.NodeConnInfo, error)
 }
 
-func (h *handlers) SuffrageNodeConnInfo(ctx context.Context, addr net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
-	return QuicstreamHandlerSuffrageNodeConnInfo(h.suffrageNodeConnInfof)(ctx, addr, r, w, detail)
+func (h *handlers) SuffrageNodeConnInfo(ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header SuffrageNodeConnInfoRequestHeader) error {
+	return QuicstreamHandlerSuffrageNodeConnInfo(h.suffrageNodeConnInfof)(ctx, addr, broker, header)
 }
 
-func (h *handlers) SyncSourceConnInfo(ctx context.Context, addr net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
-	return QuicstreamHandlerSyncSourceConnInfo(h.syncSourceConnInfof)(ctx, addr, r, w, detail)
+func (h *handlers) SyncSourceConnInfo(ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header SyncSourceConnInfoRequestHeader) error {
+	return QuicstreamHandlerSyncSourceConnInfo(h.syncSourceConnInfof)(ctx, addr, broker, header)
 }
 
-func (h *handlers) NodeChallenge(ctx context.Context, addr net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
-	return QuicstreamHandlerNodeChallenge(h.local, h.localParams)(ctx, addr, r, w, detail)
+func (h *handlers) NodeChallenge(ctx context.Context, addr net.Addr, broker *quicstreamheader.HandlerBroker, header NodeChallengeRequestHeader) error {
+	return QuicstreamHandlerNodeChallenge(h.local, h.localParams)(ctx, addr, broker, header)
 }
 
-func (t *testSyncSourceChecker) openstreamf(h *handlers) (quicstream.OpenStreamFunc, func()) {
+func (t *testSyncSourceChecker) openstreamf(h *handlers) (quicstreamheader.OpenStreamFunc, func()) {
 	hr, cw := io.Pipe()
 	cr, hw := io.Pipe()
 
 	ph := quicstream.NewPrefixHandler(nil).
-		Add(HandlerPrefixSuffrageNodeConnInfo, quicstream.NewHeaderHandler(t.Encs, 0, h.SuffrageNodeConnInfo)).
-		Add(HandlerPrefixSyncSourceConnInfo, quicstream.NewHeaderHandler(t.Encs, 0, h.SyncSourceConnInfo)).
-		Add(HandlerPrefixNodeChallenge, quicstream.NewHeaderHandler(t.Encs, 0, h.NodeChallenge))
+		Add(HandlerPrefixSuffrageNodeConnInfo, quicstreamheader.NewHandler(t.Encs, 0, h.SuffrageNodeConnInfo, nil)).
+		Add(HandlerPrefixSyncSourceConnInfo, quicstreamheader.NewHandler(t.Encs, 0, h.SyncSourceConnInfo, nil)).
+		Add(HandlerPrefixNodeChallenge, quicstreamheader.NewHandler(t.Encs, 0, h.NodeChallenge, nil))
 
 	ci := quicstream.RandomConnInfo()
 
@@ -85,8 +86,7 @@ func (t *testSyncSourceChecker) openstreamf(h *handlers) (quicstream.OpenStreamF
 				hw.Close()
 			}()
 
-			return quicstream.HeaderWriteHead(context.Background(), hw, t.Enc,
-				quicstream.NewDefaultResponseHeader(false, err))
+			return err
 		}
 
 		return nil
@@ -109,8 +109,8 @@ func (t *testSyncSourceChecker) openstreamf(h *handlers) (quicstream.OpenStreamF
 		}
 }
 
-func (t *testSyncSourceChecker) openstreamfs(handlersmap map[string]*handlers) (quicstream.OpenStreamFunc, func()) {
-	ops := map[string]quicstream.OpenStreamFunc{}
+func (t *testSyncSourceChecker) openstreamfs(handlersmap map[string]*handlers) (quicstreamheader.OpenStreamFunc, func()) {
+	ops := map[string]quicstreamheader.OpenStreamFunc{}
 	cancels := make([]func(), len(handlersmap))
 
 	var n int

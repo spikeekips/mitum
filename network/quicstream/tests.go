@@ -4,6 +4,7 @@
 package quicstream
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
@@ -15,11 +16,42 @@ import (
 	"math/big"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/quic-go/quic-go"
 	"github.com/spikeekips/mitum/util/logging"
 	"github.com/stretchr/testify/suite"
 )
+
+func (srv *Server) StopWait() error {
+	if err := srv.Stop(); err != nil {
+		return err
+	}
+
+	ticker := time.NewTicker(time.Millisecond * 33)
+
+	for range ticker.C {
+		if func() bool {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+			defer cancel()
+
+			conn, err := quic.DialAddrEarlyContext(ctx, srv.bind.String(), srv.tlsconfig, nil)
+			if err != nil {
+				return true
+			}
+
+			defer func() {
+				_ = conn.CloseWithError(0x100, "")
+			}()
+
+			return false
+		}() {
+			break
+		}
+	}
+
+	return nil
+}
 
 type BaseTest struct {
 	sync.Mutex

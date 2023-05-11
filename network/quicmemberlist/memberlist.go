@@ -18,6 +18,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spikeekips/mitum/base"
 	"github.com/spikeekips/mitum/network/quicstream"
+	quicstreamheader "github.com/spikeekips/mitum/network/quicstream/header"
 	"github.com/spikeekips/mitum/util"
 	"github.com/spikeekips/mitum/util/encoder"
 	jsonenc "github.com/spikeekips/mitum/util/encoder/json"
@@ -329,19 +330,16 @@ func (srv *Memberlist) CallbackBroadcast(b []byte, id string, notifych chan stru
 	return nil
 }
 
-func (srv *Memberlist) CallbackBroadcastHandler() quicstream.HeaderHandler {
+func (srv *Memberlist) CallbackBroadcastHandler() quicstreamheader.Handler[CallbackBroadcastMessageHeader] {
 	var sg singleflight.Group
 
-	return func(ctx context.Context, _ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
+	return func(ctx context.Context, _ net.Addr,
+		broker *quicstreamheader.HandlerBroker, req CallbackBroadcastMessageHeader,
+	) error {
 		e := util.StringErrorFunc("handle callback message")
 
-		header, ok := detail.Header.(CallbackBroadcastMessageHeader)
-		if !ok {
-			return e(nil, "expected CallbackBroadcastMessageHeader, but %T", detail.Header)
-		}
-
-		i, err, _ := sg.Do(header.ID(), func() (interface{}, error) {
-			b, found := srv.cbcache.Get(header.ID())
+		i, err, _ := util.SingleflightDo[[2]interface{}](&sg, req.ID(), func() ([2]interface{}, error) {
+			b, found := srv.cbcache.Get(req.ID())
 
 			return [2]interface{}{b, found}, nil
 		})
@@ -352,33 +350,26 @@ func (srv *Memberlist) CallbackBroadcastHandler() quicstream.HeaderHandler {
 
 		var body io.Reader
 		var found bool
-		dataFormat := quicstream.EmptyDataFormat
+		bodyType := quicstreamheader.EmptyBodyType
 
-		if i != nil {
-			j := i.([2]interface{}) //nolint:forcetypeassert //...
-
-			found = j[1].(bool) //nolint:forcetypeassert //...
+		if i[0] != nil {
+			found = i[1].(bool) //nolint:forcetypeassert //...
 
 			if found {
-				buf := bytes.NewBuffer(j[0].([]byte)) //nolint:forcetypeassert //...
+				buf := bytes.NewBuffer(i[0].([]byte)) //nolint:forcetypeassert //...
 				defer buf.Reset()
 
 				body = buf
-
-				dataFormat = quicstream.StreamDataFormat
+				bodyType = quicstreamheader.StreamBodyType
 			}
 		}
 
-		if err := quicstream.WriteResponse(
-			ctx,
-			w,
-			detail.Encoder,
-			quicstream.NewDefaultResponseHeader(found, nil),
-			dataFormat,
-			0,
-			body,
-		); err != nil {
-			return e(err, "")
+		if err := broker.WriteResponseHeadOK(ctx, found, nil); err != nil {
+			return e(err, "write response header")
+		}
+
+		if err := broker.WriteBody(ctx, bodyType, 0, body); err != nil {
+			return e(err, "write body")
 		}
 
 		return nil
@@ -490,63 +481,48 @@ func (srv *Memberlist) EnsureBroadcast(
 func (srv *Memberlist) EnsureBroadcastHandler(
 	networkID base.NetworkID,
 	memberf func(base.Address) (base.Publickey, bool, error),
-) quicstream.HeaderHandler {
-	return func(ctx context.Context, _ net.Addr, r io.Reader, w io.Writer, detail quicstream.RequestHeadDetail) error {
+) quicstreamheader.Handler[EnsureBroadcastMessageHeader] {
+	return func(ctx context.Context, _ net.Addr,
+		broker *quicstreamheader.HandlerBroker, req EnsureBroadcastMessageHeader,
+	) error {
 		e := util.StringErrorFunc("handle ensure message")
 
-		var header EnsureBroadcastMessageHeader
-
-		switch i, ok := detail.Header.(EnsureBroadcastMessageHeader); {
-		case !ok:
-			return e(nil, "expected EnsureBroadcastMessageHeader, but %T", detail.Header)
+		switch pub, found, err := memberf(req.Node()); {
+		case err != nil:
+			return e(err, "")
+		case !found:
+			return e(nil, "unknown node")
+		case localtime.Now().Sub(req.SignedAt()) > srv.args.PongEnsureBroadcastMessageExpire:
+			return e(nil, "signed too late")
+		case !req.Signer().Equal(pub):
+			return e(nil, "publickey mismatch")
 		default:
-			switch pub, found, err := memberf(i.Node()); {
-			case err != nil:
+			if err := req.Verify(networkID, []byte(req.ID())); err != nil {
 				return e(err, "")
-			case !found:
-				return e(nil, "unknown node")
-			case localtime.Now().Sub(i.SignedAt()) > srv.args.PongEnsureBroadcastMessageExpire:
-				return e(nil, "signed too late")
-			case !i.Signer().Equal(pub):
-				return e(nil, "publickey mismatch")
-			default:
-				if err := i.Verify(networkID, []byte(i.ID())); err != nil {
-					return e(err, "")
-				}
 			}
-
-			header = i
 		}
 
 		var isset bool
 
-		_, _ = srv.ebrecords.Set(header.ID(), func(nodes []base.Address, found bool) ([]base.Address, error) {
+		_, _ = srv.ebrecords.Set(req.ID(), func(nodes []base.Address, found bool) ([]base.Address, error) {
 			if !found {
 				return nil, util.ErrLockedSetIgnore.Call()
 			}
 
 			if util.InSliceFunc(nodes, func(i base.Address) bool {
-				return i.Equal(header.Node())
+				return i.Equal(req.Node())
 			}) >= 0 {
 				return nil, util.ErrLockedSetIgnore.Call()
 			}
 
-			nodes = append(nodes, header.Node())
+			nodes = append(nodes, req.Node())
 			isset = true
 
 			return nodes, nil
 		})
 
-		if err := quicstream.WriteResponse(
-			ctx,
-			w,
-			detail.Encoder,
-			quicstream.NewDefaultResponseHeader(isset, nil),
-			quicstream.EmptyDataFormat,
-			0,
-			nil,
-		); err != nil {
-			return e(err, "")
+		if err := broker.WriteResponseHeadOK(ctx, isset, nil); err != nil {
+			return e(err, "write response header")
 		}
 
 		return nil
@@ -1152,8 +1128,8 @@ func RandomAliveMembers(
 }
 
 func FetchCallbackBroadcastMessageFunc(
-	handlerPrefix []byte,
-	brokerf quicstream.HeaderBrokerFunc,
+	handlerPrefix [32]byte,
+	brokerf quicstreamheader.ClientBrokerFunc,
 ) func(context.Context, ConnInfoBroadcastMessage) (
 	[]byte, encoder.Encoder, error,
 ) {
@@ -1188,9 +1164,15 @@ func FetchCallbackBroadcastMessageFunc(
 			renc = i
 		}
 
-		switch _, _, rbody, err := broker.ReadBody(ctx); {
+		switch _, _, rbody, _, res, err := broker.ReadBody(ctx); {
 		case err != nil:
 			return nil, renc, nil
+		case res != nil:
+			if res.Err() == nil {
+				return nil, nil, errors.Errorf("empty body; response received")
+			}
+
+			return nil, nil, res.Err()
 		default:
 			b, rerr := io.ReadAll(rbody)
 			if rerr != nil {
@@ -1203,11 +1185,11 @@ func FetchCallbackBroadcastMessageFunc(
 }
 
 func PongEnsureBroadcastMessageFunc(
-	handlerPrefix []byte,
+	handlerPrefix [32]byte,
 	node base.Address,
 	signer base.Privatekey,
 	networkID base.NetworkID,
-	brokerf quicstream.HeaderBrokerFunc,
+	brokerf quicstreamheader.ClientBrokerFunc,
 ) func(context.Context, ConnInfoBroadcastMessage) error {
 	return func(ctx context.Context, m ConnInfoBroadcastMessage) error {
 		h, err := NewEnsureBroadcastMessageHeader(m.ID(), handlerPrefix, node, signer, networkID)
