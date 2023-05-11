@@ -1095,7 +1095,7 @@ linters-settings:
       - name: function-result-limit
         severity: warning
         disabled: false
-        arguments: [ 5 ]
+        arguments: [ 6 ]
       # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#function-length
       - name: function-length
         severity: warning
