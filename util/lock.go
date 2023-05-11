@@ -7,6 +7,7 @@ import (
 
 	"github.com/pkg/errors"
 	"golang.org/x/exp/constraints"
+	"golang.org/x/sync/singleflight"
 )
 
 var (
@@ -639,4 +640,18 @@ func (*ShardedMap[K, V]) stringfnv(k string) uint64 {
 	}
 
 	return uint64(h)
+}
+
+func SingleflightDo[T any]( //revive:disable-line:error-return
+	sg *singleflight.Group, key string, f func() (T, error),
+) (t T, _ error, _ bool) {
+	i, err, shared := sg.Do(key, func() (interface{}, error) {
+		return f()
+	})
+
+	if i != nil {
+		t = i.(T) //nolint:forcetypeassert //...
+	}
+
+	return t, errors.WithStack(err), shared
 }
