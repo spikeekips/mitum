@@ -570,7 +570,7 @@ func newSyncingHandlerArgs(pctx context.Context) (*isaacstates.SyncingHandlerArg
 	args := isaacstates.NewSyncingHandlerArgs(params)
 	args.NodeInConsensusNodesFunc = nodeInConsensusNodesf
 	args.NewSyncerFunc = newsyncerf
-	args.WhenFinishedFunc = func(base.Height) {
+	args.WhenReachedTopFunc = func(base.Height) {
 		ballotbox.Count()
 	}
 	args.JoinMemberlistFunc = joinMemberlistf

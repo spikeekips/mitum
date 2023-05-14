@@ -17,7 +17,7 @@ import (
 type SyncingHandlerArgs struct {
 	NodeInConsensusNodesFunc isaac.NodeInConsensusNodesFunc
 	NewSyncerFunc            func(base.Height) (isaac.Syncer, error)
-	WhenFinishedFunc         func(base.Height)
+	WhenReachedTopFunc       func(base.Height)
 	JoinMemberlistFunc       func(context.Context, base.Suffrage) error
 	LeaveMemberlistFunc      func(time.Duration) error
 	WhenNewBlockSavedFunc    func(base.Height)
@@ -32,7 +32,7 @@ func NewSyncingHandlerArgs(params *isaac.LocalParams) *SyncingHandlerArgs {
 		NewSyncerFunc: func(base.Height) (isaac.Syncer, error) {
 			return nil, util.ErrNotImplemented.Errorf("NewSyncerFunc")
 		},
-		WhenFinishedFunc: func(base.Height) {},
+		WhenReachedTopFunc: func(base.Height) {},
 		JoinMemberlistFunc: func(context.Context, base.Suffrage) error {
 			return util.ErrNotImplemented.Errorf("JoinMemberlistFunc")
 		},
@@ -227,7 +227,7 @@ func (st *SyncingHandler) checkFinished(vp base.Voteproof) (notstuck bool, _ err
 		Msg("checking finished")
 
 	if isfinished {
-		st.args.WhenFinishedFunc(top)
+		st.args.WhenReachedTopFunc(top)
 
 		go st.args.WhenNewBlockSavedFunc(top)
 	}
