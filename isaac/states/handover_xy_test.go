@@ -36,7 +36,7 @@ func (t *baseTestHandoverBroker) xargs() *HandoverXBrokerArgs {
 func (t *baseTestHandoverBroker) yargs() *HandoverYBrokerArgs {
 	args := NewHandoverYBrokerArgs(t.LocalParams.NetworkID())
 	args.WhenCanceled = func(error) {}
-	args.NewData = func(HandoverMessageDataType, interface{}) error { return nil }
+	args.NewDataFunc = func(HandoverMessageDataType, interface{}) error { return nil }
 
 	return args
 }

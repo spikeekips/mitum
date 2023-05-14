@@ -13,8 +13,8 @@ import (
 )
 
 type HandoverYBrokerArgs struct {
-	SendFunc func(context.Context, interface{}) error
-	NewData  func(HandoverMessageDataType, interface{}) error
+	SendFunc    func(context.Context, interface{}) error
+	NewDataFunc func(HandoverMessageDataType, interface{}) error
 	// WhenFinished is called when handover process is finished.
 	WhenFinished func(base.INITVoteproof) error
 	WhenCanceled func(error)
@@ -29,7 +29,7 @@ func NewHandoverYBrokerArgs(networkID base.NetworkID) *HandoverYBrokerArgs {
 		SendFunc: func(context.Context, interface{}) error {
 			return ErrHandoverCanceled.Errorf("SendFunc not implemented")
 		},
-		NewData: func(HandoverMessageDataType, interface{}) error {
+		NewDataFunc: func(HandoverMessageDataType, interface{}) error {
 			return util.ErrNotImplemented.Errorf("NewData")
 		},
 		WhenFinished: func(base.INITVoteproof) error { return nil },
@@ -229,7 +229,7 @@ func (h *HandoverYBroker) receiveData(i HandoverMessageData) error {
 			return errHandoverIgnore.Wrap(err)
 		} else { //revive:disable-line:indent-error-flow
 			if pr != nil {
-				if err := h.args.NewData(HandoverMessageDataTypeProposal, pr); err != nil {
+				if err := h.args.NewDataFunc(HandoverMessageDataTypeProposal, pr); err != nil {
 					return err
 				}
 			}
@@ -237,7 +237,7 @@ func (h *HandoverYBroker) receiveData(i HandoverMessageData) error {
 			return h.newVoteproof(vp)
 		}
 	default:
-		return h.args.NewData(t, i.Data())
+		return h.args.NewDataFunc(t, i.Data())
 	}
 }
 
@@ -266,7 +266,7 @@ func (h *HandoverYBroker) receiveFinish(hc HandoverMessageFinish) error {
 	var err error
 
 	if pr := hc.Proposal(); pr != nil {
-		err = h.args.NewData(HandoverMessageDataTypeProposal, pr)
+		err = h.args.NewDataFunc(HandoverMessageDataTypeProposal, pr)
 	}
 
 	err = util.JoinErrors(err, h.whenFinished(hc.INITVoteproof()))
@@ -287,7 +287,7 @@ func (h *HandoverYBroker) newVoteproof(vp base.Voteproof) error {
 		return err
 	}
 
-	return h.args.NewData(HandoverMessageDataTypeVoteproof, vp)
+	return h.args.NewDataFunc(HandoverMessageDataTypeVoteproof, vp)
 }
 
 func (h *HandoverYBroker) whenFinished(vp base.INITVoteproof) error {

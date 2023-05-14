@@ -234,7 +234,7 @@ func (t *testHandoverYBroker) TestReceiveMessageFinish() {
 		}
 
 		datach := make(chan base.ProposalSignFact, 1)
-		args.NewData = func(_ HandoverMessageDataType, i interface{}) error {
+		args.NewDataFunc = func(_ HandoverMessageDataType, i interface{}) error {
 			if pr, ok := i.(base.ProposalSignFact); ok {
 				datach <- pr
 			}
@@ -266,7 +266,7 @@ func (t *testHandoverYBroker) TestReceiveMessageFinish() {
 		args.WhenFinished = func(vp base.INITVoteproof) error {
 			return errors.Errorf("hihihi")
 		}
-		args.NewData = func(_ HandoverMessageDataType, i interface{}) error { return nil }
+		args.NewDataFunc = func(_ HandoverMessageDataType, i interface{}) error { return nil }
 
 		broker := NewHandoverYBroker(context.Background(), args, util.UUID().String(), quicstream.UDPConnInfo{})
 
